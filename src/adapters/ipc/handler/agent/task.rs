@@ -282,6 +282,7 @@ fn runner_status_value(status: &tasty_task_runtime::RunnerStatus) -> Value {
     json!({
         "running": status.running,
         "crashed": status.crashed,
+        "state": status.state(),
         "ready_count": status.ready_count,
         "running_count": status.running_count,
         "store_error": status.store_error,
@@ -750,6 +751,7 @@ pub fn handle_task_reduce(
 }
 
 /// workspace 러너를 시작·중지하거나 상태를 조회한다. 이미 시작/중지된 경우는 그대로 둔다.
+/// stop 은 정지를 요청하고 바로 응답한다. 러너가 아직 끝나지 않았으면 `state` 가 `stopping` 이다.
 /// 상태 조회 실패 시 카운트는 null이고 store_error에 원인을 담는다.
 pub fn handle_task_run(
     core: &AppServices,
@@ -771,8 +773,13 @@ pub fn handle_task_run(
             core.tasks.runner_start(engine.task_scope, workspace_id);
         }
         "stop" => {
-            core.tasks
-                .runner_stop_scoped(engine.task_scope, workspace_id);
+            // 메인 스레드에서 러너 join 을 기다리지 않는다. 러너 tick 은 Custom dispatch 마다 메인 스레드의
+            // 응답을 기다리므로, 여기서 기다리면 서로를 기다린다. 끝난 worker 는 메인 루프의
+            // poll_runner_stops 가 회수하고, 그때까지 응답과 status 는 state "stopping" 이다.
+            drop(
+                core.tasks
+                    .request_stop_workspace(engine.task_scope, workspace_id),
+            );
         }
         "status" => {}
         other => {

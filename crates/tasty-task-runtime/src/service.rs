@@ -202,11 +202,9 @@ impl TaskService {
             .start(self.runner_context(scope), workspace_id)
     }
 
-    /// runner 스레드만 멈춘다. 작업 상태를 바꾸거나 실행 중인 자식 프로세스를 종료하지 않는다.
-    pub fn runner_stop(&self, workspace_id: u32) -> bool {
-        self.runner_registry.stop(workspace_id)
-    }
-
+    /// runner 스레드에 정지만 요청하고 바로 돌아온다. 작업 상태를 바꾸거나 실행 중인 자식 프로세스를
+    /// 종료하지 않는다. 끝난 worker 는 메인 루프의 [`Self::poll_runner_stops`] 가 회수한다. 정지가 끝날
+    /// 때까지는 [`Self::runner_status`] 가 `stopping` 으로 보고한다.
     pub fn request_stop_workspace(&self, scope: &TaskScope, workspace: u32) -> RunnerStopReceipt {
         self.runner_registry
             .request_stop(scope.waker_hub(), Some(workspace))
@@ -216,11 +214,6 @@ impl TaskService {
             .stopping
             .store(true, std::sync::atomic::Ordering::Release);
         self.runner_registry.request_stop(scope.waker_hub(), None)
-    }
-    /// Explicit compatibility stop, fenced to the supplied scope rather than only the numeric ID.
-    pub fn runner_stop_scoped(&self, scope: &TaskScope, workspace: u32) -> bool {
-        self.runner_registry
-            .stop_scoped(scope.waker_hub(), workspace)
     }
     pub fn poll_runner_stops(&self) -> usize {
         self.runner_registry.poll_stops()

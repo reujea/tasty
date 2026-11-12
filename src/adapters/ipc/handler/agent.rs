@@ -252,6 +252,10 @@ mod record_limit_ipc_tests;
 #[cfg(test)]
 mod terminal_recovery_ipc_tests;
 
+#[path = "agent/task_run_stop_ipc_tests.rs"]
+#[cfg(test)]
+mod task_run_stop_ipc_tests;
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

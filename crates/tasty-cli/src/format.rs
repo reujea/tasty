@@ -69,9 +69,9 @@ fn task_text(command: &AgentCommands) -> Option<TaskText> {
     }
 }
 
-/// runner 요약 한 줄 — `{running, crashed, ready_count, running_count, store_error,
+/// runner 요약 한 줄 — `{running, crashed, state, ready_count, running_count, store_error,
 /// list_failures}` 형태의 `runner` 서브객체를 공유(`task_list`/`task_graph`/`task_run`
-/// 응답 공통 shape).
+/// 응답 공통 shape). `state` 가 없는 옛 호스트 응답은 `running`·`crashed` 로 상태를 정한다.
 ///
 /// 카운트는 **`null` 일 수 있다** — store 를 못 읽었다는 뜻이라 `?` 로 렌더하고
 /// `store_error` 를 붙인다. 0 으로 렌더하면 "task 가 없다" 와 구분이 안 된다.
@@ -91,13 +91,13 @@ fn format_runner_summary(runner: &serde_json::Value) -> String {
         .get("list_failures")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
-    let status = if crashed {
-        "crashed"
-    } else if running {
-        "running"
-    } else {
-        "stopped"
+    let status = match runner.get("state").and_then(|v| v.as_str()) {
+        Some(state) => state,
+        None if crashed => "crashed",
+        None if running => "running",
+        None => "stopped",
     };
+    let stopping = status == "stopping";
     let fmt_count = |c: Option<u64>| c.map_or_else(|| "?".to_string(), |v| v.to_string());
     let mut line = format!(
         "runner: {status} (ready={} running={})",
@@ -106,6 +106,11 @@ fn format_runner_summary(runner: &serde_json::Value) -> String {
     );
     if let Some(err) = store_error {
         line.push_str(&format!(" — task store unreadable: {err}"));
+    } else if stopping {
+        line.push_str(
+            " — finishing the dispatch in progress; check `agent task-run --action status` \
+             until it reads stopped",
+        );
     } else if !running && (ready.unwrap_or(0) > 0 || inflight.unwrap_or(0) > 0) {
         line.push_str(" — pending work but no runner; `agent task-run --action start` to resume");
     }
@@ -1203,6 +1208,20 @@ mod tests {
             s,
             "runner: stopped (ready=2 running=1) — pending work but no runner; \
              `agent task-run --action start` to resume"
+        );
+    }
+
+    /// stop 은 바로 응답한다. 러너가 진행 중인 dispatch 를 끝내는 동안은 재개 안내 대신 확인 방법을 낸다.
+    #[test]
+    fn runner_summary_stopping_points_to_status_instead_of_resume() {
+        let s = format_runner_summary(&json!({
+            "running": false, "crashed": false, "state": "stopping",
+            "ready_count": 2, "running_count": 0,
+        }));
+        assert_eq!(
+            s,
+            "runner: stopping (ready=2 running=0) — finishing the dispatch in progress; \
+             check `agent task-run --action status` until it reads stopped"
         );
     }
 

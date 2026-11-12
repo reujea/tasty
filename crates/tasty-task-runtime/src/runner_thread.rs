@@ -117,6 +117,7 @@ impl RunnerControl {
             _ => RunnerStopObservation::Waiting,
         }
     }
+    #[cfg(test)]
     fn join_blocking(&self) {
         let mut slot = tasty_utils::poison::recover_mutex(
             self.join.lock(),
@@ -172,10 +173,26 @@ impl RunnerStopReceipt {
 pub struct RunnerStatus {
     pub running: bool,
     pub crashed: bool,
+    /// 정지를 요청했지만 러너 스레드가 아직 끝나지 않았다. 진행 중인 dispatch 하나를 마무리하는 중이다.
+    pub stopping: bool,
     pub ready_count: Option<u32>,
     pub running_count: Option<u32>,
     pub store_error: Option<String>,
     pub list_failures: u32,
+}
+impl RunnerStatus {
+    /// `running`·`stopping`·`stopped`·`crashed` 중 하나. crash 가 가장 앞선다.
+    pub fn state(&self) -> &'static str {
+        if self.crashed {
+            "crashed"
+        } else if self.running {
+            "running"
+        } else if self.stopping {
+            "stopping"
+        } else {
+            "stopped"
+        }
+    }
 }
 pub struct RunnerRegistry {
     threads: Mutex<HashMap<u32, Arc<RunnerControl>>>,
@@ -310,28 +327,11 @@ impl RunnerRegistry {
         );
         true
     }
-    /// Compatibility entry retains explicit synchronous stop semantics; lifecycle uses receipts.
+    /// 시험 전용 동기 정지. 제품 경로는 메인 스레드를 막지 않도록 [`Self::request_stop`] 의 receipt 와
+    /// [`Self::poll_stops`] 를 쓴다. 러너 tick 이 메인 스레드의 host 응답을 기다릴 수 있어서다.
+    #[cfg(test)]
     pub(crate) fn stop(&self, workspace: u32) -> bool {
         let control = self.lock_recovering().get(&workspace).cloned();
-        if let Some(control) = control {
-            control.request_stop();
-            control.join_blocking();
-            self.unregister(workspace, &control);
-            true
-        } else {
-            false
-        }
-    }
-    pub(crate) fn stop_scoped(
-        &self,
-        owner: &Arc<crate::task_waker::TaskWakerHub>,
-        workspace: u32,
-    ) -> bool {
-        let control = self
-            .lock_recovering()
-            .get(&workspace)
-            .filter(|control| control.owner.ptr_eq(&Arc::downgrade(owner)))
-            .cloned();
         if let Some(control) = control {
             control.request_stop();
             control.join_blocking();
@@ -366,6 +366,22 @@ impl RunnerRegistry {
                 )
             })
     }
+    /// 정지를 요청한 원 범위의 러너가 아직 끝나지 않았는가. join 을 기다리지 않는다.
+    fn scoped_stopping(
+        &self,
+        owner: &Arc<crate::task_waker::TaskWakerHub>,
+        workspace: u32,
+    ) -> bool {
+        let control = self
+            .lock_recovering()
+            .get(&workspace)
+            .filter(|control| control.owner.ptr_eq(&Arc::downgrade(owner)))
+            .cloned();
+        control.is_some_and(|control| {
+            control.stopping.load(Ordering::Acquire)
+                && control.observe_join() == RunnerStopObservation::Waiting
+        })
+    }
     pub(crate) fn status(&self, ctx: &RunnerContext, workspace: u32) -> RunnerStatus {
         self.status_with(
             &ctx.task_waker_hub,
@@ -382,6 +398,7 @@ impl RunnerRegistry {
         counts: Result<(u32, u32), String>,
     ) -> RunnerStatus {
         let (running, crashed) = self.scoped_liveness(hub, workspace);
+        let stopping = self.scoped_stopping(hub, workspace);
         let list_failures = self
             .lock_recovering()
             .get(&workspace)
@@ -391,6 +408,7 @@ impl RunnerRegistry {
             Ok((ready, running_count)) => RunnerStatus {
                 running,
                 crashed,
+                stopping,
                 ready_count: Some(ready),
                 running_count: Some(running_count),
                 store_error: None,
@@ -399,6 +417,7 @@ impl RunnerRegistry {
             Err(error) => RunnerStatus {
                 running,
                 crashed,
+                stopping,
                 ready_count: None,
                 running_count: None,
                 store_error: Some(error),

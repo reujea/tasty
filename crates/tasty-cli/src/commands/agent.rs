@@ -225,6 +225,10 @@ pub enum AgentCommands {
     /// ended and recorded as cancelled, and its task fails when the runner starts
     /// again. Starting again restores handles and checks whether processes are
     /// alive or have a saved exit result.
+    ///
+    /// Stop returns at once. While the runner finishes the dispatch in progress,
+    /// the runner state reads stopping and start does not begin a new runner.
+    /// Check with the status action until it reads stopped.
     TaskRun {
         /// Workspace id whose runner is being controlled (focus-independent — required).
         #[arg(long = "workspace", visible_alias = "workspace-id")]

@@ -300,7 +300,7 @@ IPC/CLI: `completion_strategy.list`(전 범위 조회, 비활성 포함) / `tast
 
 `RunnerContext` 는 `TaskService` 안에서만 다룬다. `RunnerRegistry` 는 `TaskService` 가 소유하고 engine 생성 때 `TaskScope` 에 같은 `Arc` 를 넘기는 것 외에는 서비스 밖으로 나가지 않는다. 바깥 코드는 서비스(`AppServices.tasks`)와 engine 의 `TaskScope` 를 통해 다음 API 만 부른다.
 
-- IPC 핸들러(`src/adapters/ipc/handler/agent/task.rs`): 구성 표의 작업 API, runner 제어 `runner_start`/`runner_stop_scoped`/`runner_status`, `AwaitExternal` 대기 정보를 읽는 `dispatch_handle`.
+- IPC 핸들러(`src/adapters/ipc/handler/agent/task.rs`): 구성 표의 작업 API, runner 제어 `runner_start`/`request_stop_workspace`/`runner_status`, `AwaitExternal` 대기 정보를 읽는 `dispatch_handle`.
 - `agent.task_await` dispatch(GUI `src/app/ipc/app_methods/task_await.rs`, headless `src/boot/headless_dispatch.rs`): 소유 engine 범위의 `awaiter` 를 받아 워커로 넘긴다.
 - 부팅(`src/boot.rs`, `src/app/boot_machine.rs`): `purge_stale_agent_state_on_boot`.
 - engine 생성(`src/boot.rs`, `src/app/window_lifecycle.rs`): `TaskScope` 생성자는 registry `Arc` 를 필수 인자로 받는다. 첫 창·추가 창·headless engine 모두 `TaskService::runner_registry` 의 같은 `Arc` 를 넘긴다.
@@ -313,9 +313,9 @@ IPC/CLI: `completion_strategy.list`(전 범위 조회, 비활성 포함) / `tast
 `TaskService` 의 비공개 필드다. 시작·정지·조회는 위 `runner_*` API 로만 하고, 화면은 `TaskScope::runner_liveness` 로 실행·crash 여부만 읽는다. workspace 1개당 thread 1개:
 
 - `start(ctx, ws) -> bool` — 이미 실행 중이면 false(idempotent). crashed 면 정리 후 재시작 허용.
-- 명시 IPC stop은 `runner_stop_scoped(scope, ws)`로 원 범위를 고정하고 기존 동기 stop·join 응답 의미를 유지한다.
+- 명시 IPC stop(`agent.task_run` stop)도 `request_stop_workspace(scope, ws)`로 원 범위의 runner에 정지만 요청하고 바로 응답한다. 메인 스레드에서 join하지 않는다. runner tick의 Custom dispatch는 메인 스레드의 host 응답을 기다리므로, 메인이 join하면 둘이 서로를 기다리고 dispatch마다 5초 상한까지 메인 루프가 멈춘다. 끝난 worker는 메인 루프의 `poll_runner_stops`(`App::runner_stop_poll_deadline`, headless 루프)가 회수한다. 회수 전까지 응답과 `status`의 `state`는 `stopping`이며, 이 동안 `start`는 새 runner를 띄우지 않는다. 동기 `stop`·`join_blocking`은 시험 전용(`cfg(test)`)이다.
 - 수명 종료의 stop 요청은 원 hub와 실행 control을 고정한 receipt를 반환한다. `Waiting`은 미회수, `Joined`는 정상 join, `WorkerFailed`는 실패한 worker의 실제 join이다. 옛 receipt가 같은 숫자 workspace ID의 새 owner를 지우지 않는다.
-- `status(ctx, ws)` — `running`/`crashed`/`ready_count`/`running_count`/`store_error`/`list_failures`. 두 카운트는 `Option` 이다 — store 를 못 읽으면 `None`(응답에선 `null`)이고 `store_error` 가 이유를 싣는다. `list_failures` 는 러너 스레드의 연속 조회 실패 횟수(러너가 없으면 0).
+- `status(ctx, ws)` — `running`/`crashed`/`stopping`/`ready_count`/`running_count`/`store_error`/`list_failures`. `stopping`은 정지를 요청했지만 worker가 아직 끝나지 않은 상태다. IPC 응답은 이를 `state`(`running`·`stopping`·`stopped`·`crashed`, crash가 가장 앞선다)로 함께 싣는다. 두 카운트는 `Option` 이다 — store 를 못 읽으면 `None`(응답에선 `null`)이고 `store_error` 가 이유를 싣는다. `list_failures` 는 러너 스레드의 연속 조회 실패 횟수(러너가 없으면 0).
 
 TaskScope의 Drop은 task 취소가 아니다. runner stop도 task 상태를 바꾸지 않고 Run의 OS 자식을 끝내지 않는다. 예외로 진행 중인 후처리 실행은 그룹을 끝내고 `cancelled` 보고를 저장한다(아래 §후처리 CLI, 이 문서). workspace가 확정 구조에서 사라졌을 때만 해당 runner를 중지하며 같은 Engine 안의 순서 변경은 유지한다. Engine 해제는 scope의 모든 runner와 물리 자원 receipt를 기다린다. 앱 종료 대기 상한을 넘기면 남은 worker를 미회수로 기록하며 join 완료로 간주하지 않는다.
 
@@ -658,7 +658,8 @@ tasty agent lease-list --workspace 1  # 3개 원본 + wt-3-overflow-1/-2 총 5�
 ```sh
 tasty agent task-run --workspace 1 --action start    # 시작(실행 중이면 no-op)
 tasty agent task-run --workspace 1                    # 상태 조회
-tasty agent task-run --workspace 1 --action stop      # 중단(자식 프로세스는 생존)
+tasty agent task-run --workspace 1 --action stop      # 중단 요청(바로 응답, 자식 프로세스는 생존)
+tasty agent task-run --workspace 1                    # state 가 stopped 인지 확인
 ```
 
 `--action` 은 `clap::ValueEnum { Start, Stop, Status }` — 오타는 CLI 시점 거부.
