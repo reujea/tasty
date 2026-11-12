@@ -13,6 +13,7 @@ fn decl(task: Option<&str>, secs: i64) -> Decl {
         set_at_ms: NOW,
         until_ms: (secs > 0).then(|| NOW + secs as u64 * 1000),
         held: Vec::new(),
+        overflow: None,
     }
 }
 
@@ -447,4 +448,161 @@ fn stopping_the_tracking_ends_the_declarations_without_a_release_event() {
     assert_eq!(host.count(QUIET_RELEASED_EVENT), 0);
     assert!(s.take_quiet_releases(&host, 1, 3, false).is_empty());
     assert_eq!(s.take_quiet_releases(&host, 1, 3, true).len(), 1);
+}
+
+fn wait(ids: &[&str]) -> QuietNotice {
+    QuietNotice::Wait {
+        ids: ids.iter().map(|i| i.to_string()).collect(),
+        label: "shell".into(),
+    }
+}
+
+/// 아주 큰 `secs` 는 밀리초로 바꿀 때 감기지 않고 가장 먼 끝 시각에 머문다. 경계 바로 아래는 정확히 계산한다.
+#[test]
+fn a_huge_secs_saturates_instead_of_wrapping() {
+    let edge = (u64::MAX - NOW) / 1000;
+    let as_secs = |v: u64| i64::try_from(v).unwrap();
+    assert_eq!(until_of(as_secs(edge), NOW), Some(NOW + edge * 1000));
+    assert_eq!(until_of(as_secs(edge + 1), NOW), Some(u64::MAX));
+    assert_eq!(until_of(2_305_843_009_213_693_952, NOW), Some(u64::MAX));
+    assert_eq!(until_of(i64::MAX, NOW), Some(u64::MAX));
+    assert_eq!(until_of(-1, NOW), None);
+    let mut s = state(Vec::new());
+    s.declare(None, i64::MAX, NOW);
+    assert!(s.decls[0].active_at(NOW + 1_000_000_000_000));
+    assert_eq!(s.until_for(None), Some(u64::MAX));
+}
+
+/// error 로 끝난 선언의 묶음은 일반 묶음 처리자가 가져가지 못한다.
+/// 순서: A 의 묶음이 생겨 처리자가 예약됨 → B 에 누적 → B 가 error 로 끝남 → A 의 처리자가 먼저 돈다.
+#[test]
+fn an_error_release_is_left_for_the_error_line() {
+    let mut s = state(vec![decl(Some("A"), 600), decl(Some("B"), 600)]);
+    s.dispose(tasks(&["A"]), 1, NOW + 1);
+    let (_, a) = s.end(
+        |d| d.task.as_deref() == Some("A"),
+        EndReason::Cleared,
+        NOW + 2,
+    );
+    s.releases.extend(a);
+    s.dispose(tasks(&["B"]), 1, NOW + 3);
+    let (_, b) = s.end(|_| true, EndReason::Error, NOW + 4);
+    s.releases.extend(b);
+    let general = s.take_for(7, false);
+    assert_eq!(
+        general
+            .iter()
+            .map(|r| r.task.as_deref())
+            .collect::<Vec<_>>(),
+        vec![Some("A")]
+    );
+    let on_error = s.take_for(7, true);
+    assert_eq!(
+        on_error
+            .iter()
+            .map(|r| (r.task.as_deref(), r.reason))
+            .collect::<Vec<_>>(),
+        vec![(Some("B"), EndReason::Error)]
+    );
+}
+
+/// 한 번에 상한보다 많이 끝나도 아무도 받지 않은 묶음은 지우지 않는다. 개수 상한은 받아 간 묶음에만 건다.
+#[test]
+fn ending_many_declarations_at_once_keeps_every_release_until_taken() {
+    let ids: Vec<String> = (0..RELEASES_KEPT + 4).map(|i| format!("T{i}")).collect();
+    let mut s = state(ids.iter().map(|id| decl(Some(id), 600)).collect());
+    for id in &ids {
+        s.dispose(tasks(&[id.as_str()]), 1, NOW + 1);
+    }
+    let (count, released) = s.end(|_| true, EndReason::Cleared, NOW + 2);
+    assert_eq!((count, released.len()), (ids.len(), ids.len()));
+    s.releases.extend(released);
+    s.prune(NOW + 3);
+    assert_eq!(s.releases.len(), ids.len(), "받기 전에는 지우지 않는다");
+    assert_eq!(s.take_for(1, false).len(), ids.len());
+    s.prune(NOW + 4);
+    assert_eq!(s.releases.len(), RELEASES_KEPT);
+}
+
+/// 화면 기준 대기는 Stop 이 알려 준 작업 순서와 관계없이 같은 작업 집합이면 한 항목으로 합친다.
+#[test]
+fn a_wait_on_the_same_tasks_in_another_order_is_one_item() {
+    let mut s = state(vec![decl(None, 600)]);
+    s.dispose(wait(&["T", "U"]), 1, NOW + 1);
+    s.dispose(wait(&["U", "T", "T"]), 1, NOW + 2);
+    assert_eq!(
+        held_counts(&s),
+        vec![(None, vec![("wait:T,U".to_string(), 2)])]
+    );
+}
+
+/// 여러 작업 선언에 걸린 화면 기준 대기 알림은 한 선언에만 쌓는다(끝 시각이 가장 늦은 양수 선언).
+/// 걸린 선언이 모두 -1 이면 버린다.
+#[test]
+fn a_wait_covered_by_several_task_declarations_is_held_once() {
+    let mut s = state(vec![decl(Some("A"), 900), decl(Some("B"), 600)]);
+    assert_eq!(s.dispose(wait(&["A", "B"]), 1, NOW + 1), Send::Nothing);
+    let (_, released) = s.end(|_| true, EndReason::Cleared, NOW + 2);
+    assert_eq!(released.len(), 1);
+    assert_eq!(released[0].task.as_deref(), Some("A"));
+
+    let mut s = state(vec![decl(Some("A"), -1), decl(Some("B"), 600)]);
+    s.dispose(wait(&["A", "B"]), 1, NOW + 1);
+    assert_eq!(
+        held_counts(&s),
+        vec![
+            (Some("A".to_string()), vec![]),
+            (Some("B".to_string()), vec![("wait:A,B".to_string(), 1)])
+        ]
+    );
+
+    let mut s = state(vec![decl(Some("A"), -1), decl(Some("B"), -1)]);
+    assert_eq!(s.dispose(wait(&["A", "B"]), 1, NOW + 1), Send::Nothing);
+    assert!(s.decls.iter().all(|d| d.held.is_empty()));
+}
+
+/// 양수→양수 재선언은 끝 시각을 늦출 때만 바꾼다. 짧은 값으로 다시 선언해도 앞당기지 않는다.
+#[test]
+fn a_shorter_redeclaration_does_not_pull_the_end_in() {
+    let mut s = state(Vec::new());
+    s.declare(Some("T".into()), 5400, NOW);
+    s.declare(Some("T".into()), 60, NOW + 10);
+    assert_eq!(
+        (s.decls[0].secs, s.decls[0].until_ms),
+        (5400, Some(NOW + 5_400_000))
+    );
+    s.declare(Some("T".into()), 9000, NOW + 20);
+    assert_eq!(
+        (s.decls[0].secs, s.decls[0].until_ms),
+        (9000, Some(NOW + 20 + 9_000_000))
+    );
+}
+
+/// 선언 하나가 따로 적는 항목은 상한까지다. 넘는 알림은 버리지 않고 수와 시각만 센다.
+/// 이름은 묶음 줄과 같은 길이로 잘라 저장한다.
+#[test]
+fn items_past_the_cap_are_counted_not_dropped() {
+    let mut s = state(vec![decl(None, 600)]);
+    let long = "x".repeat(200);
+    s.dispose(
+        QuietNotice::Tasks(vec![("L".into(), format!("a\n{long}"))]),
+        1,
+        NOW,
+    );
+    for i in 0..HELD_KEYS_MAX + 5 {
+        s.dispose(tasks(&[format!("T{i}").as_str()]), 1, NOW + 1 + i as u64);
+    }
+    let d = s.decls[0].clone();
+    assert_eq!(d.held.len(), HELD_KEYS_MAX);
+    let overflow = d.overflow.expect("넘은 알림");
+    assert_eq!(
+        (overflow.count, overflow.first_ms, overflow.last_ms),
+        (6, NOW + 64, NOW + 69)
+    );
+    assert_eq!(d.held[0].label.chars().count(), LABEL_CHARS + 1);
+    assert!(!d.held[0].label.contains('\n'));
+    assert_eq!(Decl::from_json(&d.to_json()), Some(d.clone()));
+    let (_, released) = s.end(|_| true, EndReason::Cleared, NOW + 100);
+    assert_eq!(released[0].held_count(), 70);
+    assert_eq!(released[0].overflow, Some(overflow));
 }

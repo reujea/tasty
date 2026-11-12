@@ -1,6 +1,6 @@
 use super::*;
 use crate::error_scan::ScanTarget;
-use crate::error_scan::quiet::{EndReason, Held, HeldKind, QUIET_META_KEY, QuietNotice};
+use crate::error_scan::quiet::{EndReason, Held, HeldKind, Overflow, QUIET_META_KEY, QuietNotice};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -106,9 +106,16 @@ fn bad_declarations_are_refused_without_writing_anything() {
     )
     .expect("상한 없음");
     assert_eq!(ok["mode"], "hold");
+    let ok = quiet(
+        &scanner,
+        &host,
+        json!({ "surface": 5, "task": "b2", "secs": i64::MAX, "clear": false }),
+    )
+    .expect("i64 최댓값");
+    assert_eq!(ok["until_ms"], u64::MAX, "감기지 않고 가장 먼 끝 시각");
     assert_eq!(
         quiet(&scanner, &host, json!({ "surface": 5, "clear": true })).unwrap()["cleared"],
-        2,
+        3,
         "--task 없는 --clear 는 모든 선언을 끝낸다"
     );
 }
@@ -243,7 +250,7 @@ fn item(label: &str, count: u32) -> Held {
     Held {
         key: label.into(),
         kind: HeldKind::Task,
-        label: label.into(),
+        label: crate::error_scan::quiet::one_line(label),
         count,
         first_ms: 600_000,
         last_ms: 3_540_000,
@@ -251,7 +258,7 @@ fn item(label: &str, count: u32) -> Held {
     }
 }
 
-/// 묶음 줄은 한 줄이다. 이름의 줄바꿈은 공백이 되고, 긴 이름은 자르며, 항목이 많으면 남은 수만 적는다.
+/// 묶음 줄은 한 줄이다(이름은 쌓을 때 한 줄로 잘린다). 항목이 많거나 상한을 넘으면 남은 알림 수만 적는다.
 #[test]
 fn a_release_line_is_one_line_with_capped_items() {
     let long = "x".repeat(200);
@@ -271,6 +278,11 @@ fn a_release_line_is_one_line_with_capped_items() {
             item("f", 1),
             item("g", 1),
         ],
+        overflow: Some(Overflow {
+            count: 3,
+            first_ms: 3_600_000,
+            last_ms: 3_700_000,
+        }),
         delivered_to: Vec::new(),
     };
     let line = release_line(&tr(), 14937, &r);
@@ -281,9 +293,44 @@ fn a_release_line_is_one_line_with_capped_items() {
     );
     assert!(line.contains(&format!("{}…", "x".repeat(80))), "{line}");
     assert!(!line.contains(&"x".repeat(81)), "{line}");
-    assert!(line.contains("+2 more"), "{line}");
     assert!(
-        line.contains("8 held") && line.contains("5400s") && line.contains("(expired)"),
+        line.contains("+5 more"),
+        "적지 않은 2건과 상한을 넘은 3건: {line}"
+    );
+    assert!(
+        line.contains("11 held") && line.contains("5400s") && line.contains("(expired)"),
         "{line}"
     );
+}
+
+/// 기다리는 작업 둘 모두에 작업 선언이 있을 때 화면 기준 대기 알림 1건은 묶음 줄 1개로 나간다.
+#[test]
+fn a_wait_held_by_two_task_declarations_is_released_once() {
+    let scanner = tracked();
+    let host = Host::new();
+    for task in ["A", "B"] {
+        quiet(
+            &scanner,
+            &host,
+            json!({ "surface": 5, "task": task, "secs": 600, "clear": false }),
+        )
+        .unwrap();
+    }
+    let notice = QuietNotice::Wait {
+        ids: vec!["A".into(), "B".into()],
+        label: "shell".into(),
+    };
+    crate::error_scan::lock_scanner(&scanner).dispose_quiet(&host, 5, notice, 600_000);
+    quiet(&scanner, &host, json!({ "surface": 5, "clear": true })).unwrap();
+    crate::notice::test_log::take();
+    handle_notify_quiet_release(
+        &scanner,
+        &host,
+        &json!({ "caller_surface": 1, "target_surface": 5 }),
+        &tr(),
+    )
+    .unwrap();
+    let lines = crate::notice::test_log::take();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines[0].1.contains("1 held"), "{lines:?}");
 }

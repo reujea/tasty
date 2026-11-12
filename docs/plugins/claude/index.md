@@ -674,17 +674,17 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 에이전트가 child의 무출력이 예상된다고 선언하면 그동안의 무출력 알림(warning)을 보류하거나 버린다. 전역 설정 `no_output_notice_secs`의 값·범위·설정 화면은 바꾸지 않는다.
 
 - 명령: `tasty claude quiet --surface <N> [--task <id>] (--secs <초> | --clear)`, IPC `claude.quiet`. `--surface`를 생략하면 호출자 surface다. `--task`는 백그라운드 작업 id(Bash `backgroundTaskId`, Agent `agentId`)이며 생략하면 surface 전체가 대상이다.
-- `--secs`는 초 단위 정수다. 양수는 보류, `-1`은 버림이다. 상한은 없다. `0`과 `-1`이 아닌 음수, `--secs`와 `--clear`를 함께 주거나 둘 다 빠진 요청, 스캐너가 추적하지 않는 surface(attach mirror의 원격 자식 포함)는 `invalid params`(-32602)로 거절하고 아무것도 기록하지 않는다. CLI는 `Error (-32602): …`를 출력하고 종료 코드 1이다.
-- 응답: 선언은 `{surface, task, secs, mode: "hold"|"discard", until_ms}`(`-1`이면 `until_ms`가 null), `--clear`는 `{surface, task, cleared, released}`다.
-- 같은 대상을 다시 선언하면 양수→양수는 쌓인 것을 두고 끝 시각만 바꾼다. 양수→`-1`은 앞 선언을 끝내 쌓인 것을 묶어 보낸다(끝난 이유 `replaced`). `-1`→양수는 새로 쌓는다.
+- `--secs`는 초 단위 정수다. 양수는 보류, `-1`은 버림이다. 상한은 없다. 밀리초로 바꿀 때 넘치는 값은 감기지 않고 가장 먼 끝 시각에 머문다. `0`과 `-1`이 아닌 음수, `--secs`와 `--clear`를 함께 주거나 둘 다 빠진 요청, 스캐너가 추적하지 않는 surface(attach mirror의 원격 자식 포함)는 `invalid params`(-32602)로 거절하고 아무것도 기록하지 않는다. CLI는 `Error (-32602): …`를 출력하고 종료 코드 1이다.
+- 응답: 선언은 `{surface, task, secs, mode: "hold"|"discard", until_ms}`(`-1`이면 `until_ms`가 null), `--clear`는 `{surface, task, cleared, released}`다. `secs`는 요청 값이고 `until_ms`는 재선언 규칙을 적용한 실제 끝 시각이다.
+- 같은 대상을 다시 선언하면 양수→양수는 쌓인 것과 선언 시각을 두고, 새 끝 시각이 더 늦을 때만 끝 시각을 늦춘다(짧은 값으로 앞당기지 않는다). 양수→`-1`은 앞 선언을 끝내 쌓인 것을 묶어 보낸다(끝난 이유 `replaced`). `-1`→양수는 새로 쌓는다.
 
 보류·버림 판정은 정지 알림이 나가기로 정해진 순간(시간·중복·쿨다운·상태 조건과 Monitor 중복 판정을 통과한 뒤)에 한다. 그래서 쌓이는 수는 선언이 없을 때 나갔을 알림 수와 같다.
 
 - 작업 출력 파일 기준: 조용하다고 판정된 작업마다 그 작업의 선언, 없으면 surface 전체 선언을 따른다. 어느 선언에도 걸리지 않은 작업의 이름만 적어 지금처럼 바로 보낸다. 조용한 시간은 파일별이 아니라 찾은 파일 전체의 합산 값이다.
-- 화면 기준 대기(출력 파일을 못 찾음): surface 전체 선언이 있거나, 기다리는 작업 모두에 작업 선언이 있을 때만 보류·버림한다. 아니면 지금처럼 보낸다.
+- 화면 기준 대기(출력 파일을 못 찾음): surface 전체 선언이 있거나, 기다리는 작업 모두에 작업 선언이 있을 때만 보류·버림한다. 아니면 지금처럼 보낸다. 알림 하나는 한 선언에만 쌓는다. surface 전체 선언이 있으면 그 선언, 없으면 걸린 작업 선언 중 끝 시각이 가장 늦은 양수 선언이고, 모두 `-1`이면 버린다.
 - 대기가 아닌 턴의 오류 없는 정지: surface 전체 선언만 맡는다. 작업 선언만 있으면 지금처럼 보낸다.
 - 보류나 버림을 해도 알린 것과 같은 기록(조용한 구간·대기의 알림 여부, `claude-stall-notice`, 쿨다운 시각)을 남긴다. 같은 대기는 선언이 끝난 뒤에도 다시 알리지 않고, 새 대기는 지금 규칙대로 판정한다.
-- 양수 선언은 쌓고 `-1` 선언은 플러그인 로그에 info로 남기고 버린다. 같은 대상(작업 id, 대기의 작업 집합, 턴)의 반복은 한 항목으로 합쳐 횟수·첫·마지막 시각·가장 긴 조용한 시간을 남긴다.
+- 양수 선언은 쌓고 `-1` 선언은 플러그인 로그에 info로 남기고 버린다. 같은 대상(작업 id, 대기의 작업 집합, 턴)의 반복은 한 항목으로 합쳐 횟수·첫·마지막 시각·가장 긴 조용한 시간을 남긴다. 대기의 작업 집합은 Stop이 알려 준 순서와 관계없이 id를 정렬해 비교한다. 선언 하나는 서로 다른 항목을 64개까지 적고, 그 뒤의 새 대상 알림은 버리지 않고 수와 첫·마지막 시각만 센다. 항목 이름은 묶음 줄과 같은 길이(80자)로 잘라 저장한다.
 
 선언은 다음 경우에 끝난다. 양수 선언에 쌓인 것이 있을 때만 묶음을 만들고, `-1`이거나 쌓인 것이 없으면 아무것도 보내지 않는다.
 
@@ -699,12 +699,12 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 
 surface 전체 선언은 작업 종료나 대기가 아닌 Stop으로 끝나지 않는다.
 
-- 묶음 줄(warning): 묶음을 surface meta `claude-quiet-release`에 남기고 `claude-quiet-released`를 발화한다. 부모 훅의 `notify-quiet-release`가 아직 받지 않은 묶음을 한 줄씩 쓰고 받은 부모를 기록한다. 부모가 여럿이면 각자 한 번씩 받는다. 가져가지 않은 묶음은 1시간, 최대 16개까지 둔다. 영어 문구는 `surface <N>: <수> held no-output notice(s) released — the <초>s quiet declaration on <task <id>|the whole surface> ended (<이유>): <항목>`이다.
-- error 줄: `notify-done`(error로 분류된 완료 줄)·`notify-stop-failure`·오류 뒤 정지의 `notify-error`가 쓰기 직전에 그 surface의 선언을 모두 끝내고, 이 부모가 받지 않은 묶음을 같은 줄 뒤에 `; held <수> no-output notice(s) of the <초>s quiet declaration on <대상>: <항목>`으로 붙인다. 오류 뒤 정지는 스캐너가 발화 직전에 선언을 끝낸다.
-- 항목: `<이름> ×<횟수> (<task quiet|wait quiet|turn quiet>, +<첫 분>–<마지막 분> min, quiet up to <분> min)`. 시각은 선언 시작부터 지난 분이다. 이름의 줄바꿈은 공백으로 바꾸고 80자에서 자른다. 항목은 5개까지 적고 나머지는 `+<수> more`로 적는다. 묶음 문구에는 `has written no output`·`with no output meanwhile`을 쓰지 않는다.
+- 묶음 줄(warning): 묶음을 surface meta `claude-quiet-release`에 남기고 `claude-quiet-released`를 발화한다. 부모 훅의 `notify-quiet-release`가 아직 받지 않은 묶음을 한 줄씩 쓰고 받은 부모를 기록한다. 부모가 여럿이면 각자 한 번씩 받는다. 묶음은 1시간 두고, 한 부모라도 받아 간 묶음은 최근 16개까지만 둔다. 아무도 받지 않은 묶음은 개수와 관계없이 1시간이 지나야 지운다. error로 끝난 선언과 완료 줄 없이 사라진 surface의 묶음은 이 처리가 가져가지 않고 error 줄만 가져간다. 영어 문구는 `surface <N>: <수> held no-output notice(s) released — the <초>s quiet declaration on <task <id>|the whole surface> ended (<이유>): <항목>`이다.
+- error 줄: `notify-done`(error로 분류된 완료 줄)·`notify-stop-failure`·오류 뒤 정지의 `notify-error`가 쓰기 직전에 그 surface의 선언을 모두 끝내고, 이 부모가 받지 않은 묶음(error로 끝난 것 포함)을 같은 줄 뒤에 `; held <수> no-output notice(s) of the <초>s quiet declaration on <대상>: <항목>`으로 붙인다. 오류 뒤 정지는 스캐너가 발화 직전에 선언을 끝낸다.
+- 항목: `<이름> ×<횟수> (<task quiet|wait quiet|turn quiet>, +<첫 분>–<마지막 분> min, quiet up to <분> min)`. 시각은 선언 시작부터 지난 분이다. 이름은 저장할 때 줄바꿈을 공백으로 바꾸고 80자에서 잘랐다. 항목은 5개까지 적고, 적지 않은 항목과 항목 수 상한을 넘은 알림은 합친 알림 수로 `+<수> more`라 적는다. 줄 앞의 수에도 상한을 넘은 알림이 들어간다. 묶음 문구에는 `has written no output`·`with no output meanwhile`을 쓰지 않는다.
 - 끝난 이유와 무출력 종류 표기는 번역하지 않는다. 문장은 플러그인 언어를 따른다.
 
-선언과 쌓인 항목은 surface meta `claude-quiet`(`{"decls":[{task, mode, secs, set_at_ms, until_ms, held}]}`)에 남는다. 플러그인만 다시 시작하면 그 surface를 처음 볼 때 meta에서 되살리며, 꺼진 동안 끝 시각이 지났으면 첫 폴링에서 묶음을 낸다. Tasty를 다시 시작하면 복원된 surface가 새 ID를 쓰고 이전 meta를 넘기지 않으므로 선언과 쌓인 항목은 사라지고 보내지 않는다. `claude.quiet`는 `remote_attach.methods`에 없어 attach mirror의 원격 자식에는 쓸 수 없다.
+선언과 쌓인 항목은 surface meta `claude-quiet`(`{"decls":[{task, mode, secs, set_at_ms, until_ms, held, overflow}]}`)에 남는다. 끝 시각은 재시작 뒤에도 이어지도록 Unix ms(벽시계)로 재므로, 시스템 시계를 바꾸면 선언 기간도 그만큼 바뀐다. 플러그인만 다시 시작하면 그 surface를 처음 볼 때 meta에서 되살리며, 꺼진 동안 끝 시각이 지났으면 첫 폴링에서 묶음을 낸다. Tasty를 다시 시작하면 복원된 surface가 새 ID를 쓰고 이전 meta를 넘기지 않으므로 선언과 쌓인 항목은 사라지고 보내지 않는다. `claude.quiet`는 `remote_attach.methods`에 없어 attach mirror의 원격 자식에는 쓸 수 없다.
 
 ## 인터페이스
 

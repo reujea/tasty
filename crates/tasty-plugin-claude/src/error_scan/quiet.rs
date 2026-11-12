@@ -30,6 +30,32 @@ const ORPHAN_KEPT_MS: u64 = 60_000;
 const RELEASE_KEPT_MS: u64 = 60 * 60 * 1000;
 const RELEASES_KEPT: usize = 16;
 
+/// 선언 하나가 따로 적는 항목(서로 다른 대상) 수. 넘는 알림은 [`Overflow`] 로 센다.
+const HELD_KEYS_MAX: usize = 64;
+
+/// 항목 이름에 남기는 최대 글자 수. 묶음 줄에도 이 길이로 적는다.
+pub(crate) const LABEL_CHARS: usize = 80;
+
+/// 양수 `secs` 의 끝 시각. 너무 큰 값은 감기지 않고 가장 먼 시각에 머문다(상한 없는 양수 선언).
+fn until_of(secs: i64, now_ms: u64) -> Option<u64> {
+    let secs = u64::try_from(secs).ok().filter(|s| *s > 0)?;
+    Some(now_ms.saturating_add(secs.saturating_mul(1000)))
+}
+
+/// 줄바꿈을 공백으로 바꾸고 앞부분만 남긴다. 한 줄이 알림 하나라는 로그 계약을 지킨다.
+pub(crate) fn one_line(text: &str) -> String {
+    let flat: String = text
+        .chars()
+        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+        .collect();
+    let head: String = flat.chars().take(LABEL_CHARS).collect();
+    if head.chars().count() < flat.chars().count() {
+        format!("{head}…")
+    } else {
+        head
+    }
+}
+
 /// 쌓인 무출력 알림의 종류. 묶음 문구에 번역하지 않는 표기로 적는다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HeldKind {
@@ -98,6 +124,40 @@ impl Held {
     }
 }
 
+/// 항목 수 상한을 넘어 따로 적지 못한 알림의 요약.
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub(crate) struct Overflow {
+    pub count: u32,
+    pub first_ms: u64,
+    pub last_ms: u64,
+}
+
+impl Overflow {
+    fn add(&mut self, count: u32, first_ms: u64, last_ms: u64) {
+        self.first_ms = if self.count == 0 {
+            first_ms
+        } else {
+            self.first_ms.min(first_ms)
+        };
+        self.last_ms = self.last_ms.max(last_ms);
+        self.count = self.count.saturating_add(count);
+    }
+
+    fn to_json(self) -> Value {
+        json!({ "count": self.count, "first_ms": self.first_ms, "last_ms": self.last_ms })
+    }
+
+    fn from_json(v: Option<&Value>) -> Option<Self> {
+        let v = v?;
+        let num = |k: &str| v.get(k).and_then(Value::as_u64);
+        Some(Self {
+            count: num("count")?.try_into().ok()?,
+            first_ms: num("first_ms")?,
+            last_ms: num("last_ms")?,
+        })
+    }
+}
+
 /// 선언 하나. `task` 가 없으면 surface 전체다. `secs` 는 양수(보류)나 `-1`(버림)이다.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Decl {
@@ -107,6 +167,8 @@ pub(crate) struct Decl {
     /// 끝나는 시각(Unix ms). `-1` 은 없다.
     pub until_ms: Option<u64>,
     pub held: Vec<Held>,
+    /// 항목 수 상한을 넘은 알림.
+    pub overflow: Option<Overflow>,
 }
 
 impl Decl {
@@ -119,15 +181,21 @@ impl Decl {
         self.until_ms.is_none_or(|u| now_ms < u)
     }
 
-    fn hold(&mut self, item: Held) {
-        match self.held.iter_mut().find(|h| h.key == item.key) {
-            Some(h) => {
-                h.count += item.count;
-                h.last_ms = h.last_ms.max(item.last_ms);
-                h.first_ms = h.first_ms.min(item.first_ms);
-                h.quiet_ms = h.quiet_ms.max(item.quiet_ms);
-            }
-            None => self.held.push(item),
+    fn hold(&mut self, mut item: Held) {
+        if let Some(h) = self.held.iter_mut().find(|h| h.key == item.key) {
+            h.count = h.count.saturating_add(item.count);
+            h.last_ms = h.last_ms.max(item.last_ms);
+            h.first_ms = h.first_ms.min(item.first_ms);
+            h.quiet_ms = h.quiet_ms.max(item.quiet_ms);
+        } else if self.held.len() >= HELD_KEYS_MAX {
+            self.overflow.get_or_insert_with(Overflow::default).add(
+                item.count,
+                item.first_ms,
+                item.last_ms,
+            );
+        } else {
+            item.label = one_line(&item.label);
+            self.held.push(item);
         }
     }
 
@@ -139,6 +207,7 @@ impl Decl {
             "set_at_ms": self.set_at_ms,
             "until_ms": self.until_ms,
             "held": self.held.iter().map(Held::to_json).collect::<Vec<_>>(),
+            "overflow": self.overflow.map(Overflow::to_json),
         })
     }
 
@@ -153,6 +222,7 @@ impl Decl {
                 .and_then(Value::as_array)
                 .map(|a| a.iter().filter_map(Held::from_json).collect())
                 .unwrap_or_default(),
+            overflow: Overflow::from_json(v.get("overflow")),
         })
     }
 }
@@ -208,6 +278,7 @@ pub(crate) struct Release {
     pub set_at_ms: u64,
     pub at_ms: u64,
     pub items: Vec<Held>,
+    pub overflow: Option<Overflow>,
     /// 이 묶음을 받은 부모 surface.
     pub delivered_to: Vec<u32>,
 }
@@ -222,6 +293,7 @@ impl Release {
             "set_at_ms": self.set_at_ms,
             "at_ms": self.at_ms,
             "items": self.items.iter().map(Held::to_json).collect::<Vec<_>>(),
+            "overflow": self.overflow.map(Overflow::to_json),
             "delivered_to": self.delivered_to,
         })
     }
@@ -240,6 +312,7 @@ impl Release {
                 .iter()
                 .filter_map(Held::from_json)
                 .collect(),
+            overflow: Overflow::from_json(v.get("overflow")),
             delivered_to: v
                 .get("delivered_to")
                 .and_then(Value::as_array)
@@ -252,9 +325,18 @@ impl Release {
         })
     }
 
-    /// error 완료 줄에만 붙는 묶음인가.
+    /// error 완료 줄에만 붙는 묶음인가. error 로 끝난 선언과 완료 줄 없이 사라진 surface 의 묶음이다.
+    /// 일반 묶음 처리자가 먼저 가져가 `[warning]` 으로 쓰면 error 줄에 붙지 않게 되므로 막는다.
     fn error_only(&self) -> bool {
-        self.reason == EndReason::SurfaceGone
+        matches!(self.reason, EndReason::Error | EndReason::SurfaceGone)
+    }
+
+    /// 쌓인 알림 수(따로 적지 못한 것 포함).
+    pub(crate) fn held_count(&self) -> u32 {
+        self.items
+            .iter()
+            .map(|i| i.count)
+            .fold(self.overflow.map_or(0, |o| o.count), u32::saturating_add)
     }
 }
 
@@ -296,29 +378,38 @@ impl QuietState {
     /// 선언을 넣거나 바꾼다. 양수→양수는 쌓인 것을 두고 끝 시각만 바꾼다. 양수→`-1` 은 앞 선언을 끝내 묶음을 돌려준다.
     /// `-1`→양수는 새로 쌓는다.
     pub(crate) fn declare(&mut self, task: Option<String>, secs: i64, now_ms: u64) -> Vec<Release> {
-        let until_ms = (secs > 0).then(|| now_ms.saturating_add(secs.unsigned_abs() * 1000));
-        let mut released = Vec::new();
-        let held = match self.position(task.as_deref()) {
-            Some(i) if self.decls[i].holds() && secs > 0 => std::mem::take(&mut self.decls[i].held),
-            Some(i) => {
-                let old = self.decls.remove(i);
-                released.extend(release_of(old, EndReason::Replaced, now_ms));
-                Vec::new()
+        let until_ms = until_of(secs, now_ms);
+        if let Some(i) = self.position(task.as_deref())
+            && self.decls[i].holds()
+            && secs > 0
+        {
+            // 양수→양수: 쌓인 것과 선언 시각을 두고, 끝 시각은 늦출 때만 바꾼다.
+            let d = &mut self.decls[i];
+            if until_ms > d.until_ms {
+                d.until_ms = until_ms;
+                d.secs = secs;
             }
-            None => Vec::new(),
-        };
-        let set_at_ms = match self.position(task.as_deref()) {
-            Some(i) => self.decls.remove(i).set_at_ms,
-            None => now_ms,
-        };
+            return Vec::new();
+        }
+        let mut released = Vec::new();
+        if let Some(i) = self.position(task.as_deref()) {
+            let old = self.decls.remove(i);
+            released.extend(release_of(old, EndReason::Replaced, now_ms));
+        }
         self.decls.push(Decl {
             task,
             secs,
-            set_at_ms,
+            set_at_ms: now_ms,
             until_ms,
-            held,
+            held: Vec::new(),
+            overflow: None,
         });
         released
+    }
+
+    /// 대상 선언의 끝 시각. 재선언이 끝 시각을 늦추지 않았을 수 있어 응답은 이 값을 쓴다.
+    pub(crate) fn until_for(&self, task: Option<&str>) -> Option<u64> {
+        self.position(task).and_then(|i| self.decls[i].until_ms)
     }
 
     /// 조건에 맞는 선언을 끝내고 묶음을 돌려준다.
@@ -385,15 +476,22 @@ impl QuietState {
                     None if ids.is_empty() => None,
                     None => ids.iter().map(|id| task_decl(&self.decls, id)).collect(),
                 };
-                let Some(mut targets) = targets else {
+                let Some(targets) = targets else {
                     return Send::All;
                 };
-                targets.sort_unstable();
-                targets.dedup();
-                let key = format!("wait:{}", ids.join(","));
-                for i in targets {
-                    self.hold_into(i, item(key.clone(), HeldKind::Wait, label.clone()));
-                }
+                // 알림 하나는 한 선언에만 쌓는다. 양수 선언 중 끝 시각이 가장 늦은 것, 모두 `-1` 이면 버린다.
+                let target = targets
+                    .iter()
+                    .copied()
+                    .filter(|&i| self.decls[i].holds())
+                    .max_by_key(|&i| self.decls[i].until_ms)
+                    .unwrap_or(targets[0]);
+                // 같은 작업 집합이면 Stop 이 알려 준 순서와 관계없이 한 항목이다.
+                let mut set: Vec<&str> = ids.iter().map(String::as_str).collect();
+                set.sort_unstable();
+                set.dedup();
+                let key = format!("wait:{}", set.join(","));
+                self.hold_into(target, item(key, HeldKind::Wait, label));
                 Send::Nothing
             }
             QuietNotice::Turn => match surface_decl {
@@ -434,24 +532,33 @@ impl QuietState {
     }
 
     /// 오래된 묶음을 지운다. 추적이 끝난 surface 의 묶음은 error 완료 줄을 잠시만 기다린다.
+    /// 개수 상한은 한 부모라도 받아 간 묶음에만 적용한다. 아무도 받지 않은 묶음은 보관 시간이 지나야 지운다.
     pub(crate) fn prune(&mut self, now_ms: u64) {
         self.releases.retain(|r| {
-            let kept = if r.error_only() {
+            let kept = if r.reason == EndReason::SurfaceGone {
                 ORPHAN_KEPT_MS
             } else {
                 RELEASE_KEPT_MS
             };
             let keep = now_ms.saturating_sub(r.at_ms) < kept;
-            if !keep && r.error_only() && r.delivered_to.is_empty() {
+            if !keep && r.delivered_to.is_empty() {
                 tracing::info!(
-                    "claude quiet: dropped {} held notice(s) of a surface that went away",
-                    r.items.len()
+                    "claude quiet: dropped {} held notice(s) nobody took ({})",
+                    r.held_count(),
+                    r.reason.token()
                 );
             }
             keep
         });
-        let over = self.releases.len().saturating_sub(RELEASES_KEPT);
-        self.releases.drain(..over);
+        let mut over = self.releases.len().saturating_sub(RELEASES_KEPT);
+        self.releases.retain(|r| {
+            if over > 0 && !r.delivered_to.is_empty() {
+                over -= 1;
+                false
+            } else {
+                true
+            }
+        });
     }
 
     fn is_empty(&self) -> bool {
@@ -461,7 +568,7 @@ impl QuietState {
 
 /// 끝난 선언의 묶음. 양수 선언에 쌓인 것이 있을 때만 만든다.
 fn release_of(decl: Decl, reason: EndReason, now_ms: u64) -> Option<Release> {
-    if !decl.holds() || decl.held.is_empty() {
+    if !decl.holds() || (decl.held.is_empty() && decl.overflow.is_none()) {
         return None;
     }
     Some(Release {
@@ -472,6 +579,7 @@ fn release_of(decl: Decl, reason: EndReason, now_ms: u64) -> Option<Release> {
         set_at_ms: decl.set_at_ms,
         at_ms: now_ms,
         items: decl.held,
+        overflow: decl.overflow,
         delivered_to: Vec::new(),
     })
 }
@@ -595,13 +703,13 @@ impl ErrorScanner {
         secs: i64,
     ) -> Declared {
         let now_ms = unix_now_ms();
-        let released = self
-            .quiet_state(host, surface_id)
-            .declare(task, secs, now_ms);
+        let state = self.quiet_state(host, surface_id);
+        let released = state.declare(task.clone(), secs, now_ms);
+        let until_ms = state.until_for(task.as_deref());
         self.keep_releases(host, surface_id, released, true);
         Declared {
             mode: if secs > 0 { "hold" } else { "discard" },
-            until_ms: (secs > 0).then(|| now_ms.saturating_add(secs.unsigned_abs() * 1000)),
+            until_ms,
         }
     }
 

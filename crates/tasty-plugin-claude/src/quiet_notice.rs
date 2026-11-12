@@ -8,14 +8,11 @@ use tasty_plugin_agent_common::host_call::{HostCall, cleanup_sibling_hooks};
 use tasty_plugin_sdk::{IpcMethodError, i18n::Translator};
 
 use crate::error_scan::ErrorScanner;
-use crate::error_scan::quiet::{QUIET_RELEASED_EVENT, Release};
+use crate::error_scan::quiet::{QUIET_RELEASED_EVENT, Release, one_line};
 use crate::notice::NoticeKind;
 
 /// 묶음 한 줄에 적는 항목 수. 넘으면 남은 수만 적는다.
 const ITEMS_SHOWN: usize = 5;
-
-/// 항목 이름 하나에 적는 최대 글자 수.
-const LABEL_CHARS: usize = 80;
 
 /// `claude.quiet`: 선언을 넣거나(`secs`) 끝낸다(`clear`). 거절하면 아무것도 기록하지 않는다.
 pub(crate) fn handle_quiet<H: HostCall>(
@@ -139,7 +136,7 @@ pub(crate) fn error_bundle<H: HostCall>(
             tr.t_args(
                 "claude.notify.quiet_held_suffix",
                 &[
-                    &held_count(r).to_string(),
+                    &r.held_count().to_string(),
                     &r.secs.to_string(),
                     &scope(tr, r),
                     &items_text(tr, r),
@@ -155,17 +152,13 @@ pub(crate) fn release_line(tr: &Translator, target: u32, r: &Release) -> String 
         "claude.notify.quiet_released_message",
         &[
             &target.to_string(),
-            &held_count(r).to_string(),
+            &r.held_count().to_string(),
             &r.secs.to_string(),
             &scope(tr, r),
             r.reason.token(),
             &items_text(tr, r),
         ],
     )
-}
-
-fn held_count(r: &Release) -> u32 {
-    r.items.iter().map(|i| i.count).sum()
 }
 
 fn scope(tr: &Translator, r: &Release) -> String {
@@ -176,6 +169,7 @@ fn scope(tr: &Translator, r: &Release) -> String {
 }
 
 /// 항목 목록. 시각은 선언 시작부터 지난 분이다. 로그 줄에는 시각이 없어 시간대 없이 바로 읽히게 한다.
+/// 이름은 쌓을 때 이미 한 줄로 잘랐다. 적지 않은 항목과 항목 수 상한을 넘은 알림은 남은 알림 수로 적는다.
 fn items_text(tr: &Translator, r: &Release) -> String {
     let minutes = |ms: u64| (ms.saturating_sub(r.set_at_ms) / 60_000).to_string();
     let mut parts: Vec<String> = r
@@ -186,7 +180,7 @@ fn items_text(tr: &Translator, r: &Release) -> String {
             tr.t_args(
                 "claude.notify.quiet_item",
                 &[
-                    &one_line(&i.label),
+                    &i.label,
                     &i.count.to_string(),
                     i.kind.token(),
                     &minutes(i.first_ms),
@@ -196,25 +190,16 @@ fn items_text(tr: &Translator, r: &Release) -> String {
             )
         })
         .collect();
-    let more = r.items.len().saturating_sub(ITEMS_SHOWN);
+    let more = r
+        .items
+        .iter()
+        .skip(ITEMS_SHOWN)
+        .map(|i| i.count)
+        .fold(r.overflow.map_or(0, |o| o.count), u32::saturating_add);
     if more > 0 {
         parts.push(tr.t_fmt("claude.notify.quiet_more", &more.to_string()));
     }
     parts.join("; ")
-}
-
-/// 줄바꿈을 공백으로 바꾸고 앞부분만 남긴다. 한 줄이 알림 하나라는 로그 계약을 지킨다.
-fn one_line(text: &str) -> String {
-    let flat: String = text
-        .chars()
-        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
-        .collect();
-    let head: String = flat.chars().take(LABEL_CHARS).collect();
-    if head.chars().count() < flat.chars().count() {
-        format!("{head}…")
-    } else {
-        head
-    }
 }
 
 fn caller_and_target(params: &Value, tr: &Translator) -> Result<(u32, u32), IpcMethodError> {
