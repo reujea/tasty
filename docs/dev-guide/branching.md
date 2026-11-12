@@ -64,7 +64,7 @@ merge 커밋은 아래 다섯 경우에만 만든다. 그 밖의 merge(작업 �
 
 ## 버전
 
-- 본체 patch 버전은 `release`에서 올린다. `develop`의 버전은 역병합으로 따라간다. 두 README 배지와 `Cargo.toml`은 같은 커밋에서 바뀌므로 어느 브랜치에서든 `readme_badge_parity`가 통과한다.
+- 본체 patch 버전은 `release`에서 올린다. hotfix는 `main`에서 올린다. `develop`의 버전은 역병합으로 따라간다. 두 README 배지와 `Cargo.toml`은 같은 커밋에서 바뀌므로 어느 브랜치에서든 `readme_badge_parity`가 통과한다.
 - 플러그인 patch 버전은 `develop`에 반영할 때 올린다.
 
 ## CI
