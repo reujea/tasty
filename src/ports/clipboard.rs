@@ -9,7 +9,23 @@ pub trait ClipboardSystem: Send + Sync {
     fn write_text_and_image(&self, _text: &str, _image: &ClipboardImage) -> anyhow::Result<()> {
         anyhow::bail!("this clipboard cannot publish images")
     }
+    /// 텍스트 읽기를 시작한다. 바로 읽을 수 없는 클립보드(네이티브 Wayland의 다른 앱 선택)는
+    /// 토큰을 `Err`로 돌려주고 호출자는 [`Self::finish_read_text`]로 결과를 받는다. 호출 스레드를 막지 않는다.
+    fn begin_read_text(&self) -> TextRead {
+        Ok(self.read_text())
+    }
+    /// 토큰으로 시작한 읽기의 결과. 아직 기다리는 중이면 `None`이다. 결과를 한 번 돌려주면 그
+    /// 토큰은 끝난다. 상한 초과나 더 새 읽기에 밀린 경우도 오류로 끝난다. 결과를 기다리는 이벤트
+    /// 루프는 GUI에만 있다.
+    #[cfg(feature = "gui")]
+    fn finish_read_text(&self, _token: u64) -> Option<anyhow::Result<String>> {
+        Some(Err(anyhow::anyhow!("no pending clipboard read")))
+    }
 }
+
+/// 텍스트 읽기의 시작 결과. `Ok`는 지금 읽은 결과이고 `Err`는 아직 읽는 중인 읽기의 토큰이다.
+/// 그 토큰으로 [`ClipboardSystem::finish_read_text`]를 부른다.
+pub type TextRead = Result<anyhow::Result<String>, u64>;
 
 /// 클립보드에 올릴 이미지. `png` 는 저장 파일과 같은 바이트이고 `rgba` 는 그것을 디코딩한 픽셀이다.
 /// PNG 를 그대로 받는 OS 형식과 픽셀이 필요한 형식(Windows DIB)이 같은 내용을 갖게 한다.

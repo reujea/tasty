@@ -136,6 +136,10 @@ impl TextSelection {
     pub(crate) fn request_terminal(&mut self, tag: u64) -> Result<SelectionPaste, String> {
         self.0.request(tag, wayland::Want::TextOrPng)
     }
+    /// A text-only paste (an OSC 52 read) whose foreign result comes from `poll_received`.
+    pub(crate) fn request_text(&mut self, tag: u64) -> Result<SelectionPaste, String> {
+        self.0.request(tag, wayland::Want::Text)
+    }
     /// Runs the shared queue and returns this handle's finished reads as `(tag, result)`.
     pub(crate) fn poll_received(&mut self) -> Result<Vec<(u64, SelectionReceived)>, String> {
         self.0.poll_received()

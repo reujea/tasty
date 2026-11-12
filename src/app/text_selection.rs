@@ -24,12 +24,52 @@ impl App {
         }
     }
 
+    /// Answers OSC 52 reads whose clipboard text arrived, in the engine that holds the terminal.
+    /// A terminal that is gone gets nothing.
+    pub(crate) fn poll_clipboard_reads(&mut self) {
+        if self.services.pending_clipboard_reads.is_empty() {
+            return;
+        }
+        for (sid, generation, result) in self.services.take_finished_clipboard_reads() {
+            let mut result = Some(result);
+            let scan = crate::app::window_access::engines_mut!(self);
+            for (_, _, mut engine) in scan.window_entries() {
+                if engine.find_terminal_by_id(sid).is_some()
+                    && let Some(result) = result.take()
+                {
+                    crate::app::services::AppServices::reply_clipboard_query(
+                        &mut engine,
+                        sid,
+                        generation,
+                        result,
+                    );
+                }
+            }
+            for (_, _, mut engine) in
+                crate::app::window_access::engines_mut!(self).parked_sessions_with_ids()
+            {
+                if engine.find_terminal_by_id(sid).is_some()
+                    && let Some(result) = result.take()
+                {
+                    crate::app::services::AppServices::reply_clipboard_query(
+                        &mut engine,
+                        sid,
+                        generation,
+                        result,
+                    );
+                }
+            }
+        }
+    }
+
     /// A paste is being read or copied text is being sent, so the poll timer must keep running.
     pub(crate) fn text_selection_busy(&self) -> bool {
-        self.view
-            .views
-            .values()
-            .any(|w| w.base().gpu.text_selection_busy())
+        !self.services.pending_clipboard_reads.is_empty()
+            || self
+                .view
+                .views
+                .values()
+                .any(|w| w.base().gpu.text_selection_busy())
             || [&self.shell_setup_gpu, &self.boot_error_gpu]
                 .into_iter()
                 .flatten()

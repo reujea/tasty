@@ -228,3 +228,79 @@ fn shell_integration_hint_skips_terminals_without_a_local_pty() {
         "로컬 PTY가 없는 mirror에 셸 통합 안내를 요청했다"
     );
 }
+
+/// Given 바로 읽을 수 없는 클립보드, When OSC 52 읽기 질의가 온다, Then 질의를 보관했다가 결과가 온
+/// 뒤에만 그 터미널 세대와 함께 꺼낸다. 설정이 꺼져 있으면 읽기를 시작하지도 않는다.
+#[test]
+#[cfg(feature = "gui")]
+fn a_deferred_osc52_read_is_kept_until_its_text_arrives() {
+    use std::sync::{Arc, Mutex};
+    #[derive(Default)]
+    struct Deferred {
+        begun: Mutex<u32>,
+        polls: Mutex<u32>,
+    }
+    impl crate::ports::clipboard::ClipboardSystem for Deferred {
+        fn read_text(&self) -> anyhow::Result<String> {
+            panic!("a deferred clipboard is not read synchronously")
+        }
+        fn write_text(&self, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn begin_read_text(&self) -> crate::ports::clipboard::TextRead {
+            *self.begun.lock().unwrap() += 1;
+            Err(7)
+        }
+        fn finish_read_text(&self, token: u64) -> Option<anyhow::Result<String>> {
+            assert_eq!(token, 7);
+            let mut polls = self.polls.lock().unwrap();
+            *polls += 1;
+            (*polls >= 2).then(|| Ok("fixture".to_string()))
+        }
+    }
+    let clipboard = Arc::new(Deferred::default());
+    let mut core = crate::adapters::ipc::handler::cli_entry_tests::test_core_builder()
+        .with_clipboard(clipboard.clone())
+        .build()
+        .unwrap();
+    let (_state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    let sid = engine.read().workspace_at(0).unwrap().all_surface_ids()[0];
+    let query = b"\x1b]52;c;?\x07";
+
+    engine
+        .find_terminal_by_id_mut(sid)
+        .unwrap()
+        .feed_bytes(query);
+    core.process_all_pty_output(&mut engine);
+    assert_eq!(
+        *clipboard.begun.lock().unwrap(),
+        0,
+        "설정이 꺼지면 읽지 않는다"
+    );
+    assert!(core.pending_clipboard_reads.is_empty());
+
+    engine.runtime.settings.general.allow_clipboard_read = true;
+    engine
+        .find_terminal_by_id_mut(sid)
+        .unwrap()
+        .feed_bytes(query);
+    core.process_all_pty_output(&mut engine);
+    assert_eq!(*clipboard.begun.lock().unwrap(), 1);
+    assert_eq!(core.pending_clipboard_reads.len(), 1);
+
+    assert!(core.take_finished_clipboard_reads().is_empty());
+    assert_eq!(core.pending_clipboard_reads.len(), 1, "결과 전에는 남긴다");
+    let finished = core.take_finished_clipboard_reads();
+    assert!(core.pending_clipboard_reads.is_empty());
+    let [(read_sid, generation, Ok(text))] = finished.as_slice() else {
+        panic!("one finished read expected");
+    };
+    assert_eq!((*read_sid, text.as_str()), (sid, "fixture"));
+    assert!(
+        engine
+            .runtime
+            .terminals
+            .matches_generation(sid, *generation)
+    );
+}

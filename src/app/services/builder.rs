@@ -216,6 +216,8 @@ impl AppServicesBuilder {
                 tasty_settings::DEFAULT_RECONNECT_TIMEOUT_SECS,
             )),
             clock: self.clock.ok_or_else(|| anyhow::anyhow!("Clock missing"))?,
+            #[cfg(feature = "gui")]
+            pending_clipboard_reads: Vec::new(),
             clipboard: self
                 .clipboard
                 .ok_or_else(|| anyhow::anyhow!("ClipboardSystem missing"))?,

@@ -2203,6 +2203,7 @@ impl App {
             main.poll_outbound_drag(&engine.read());
         }
         self.poll_text_selections();
+        self.poll_clipboard_reads();
         // After the egui handles: their poll may finish a terminal paste on the shared queue.
         for (_, main, engine) in self.engines_mut().window_pairs() {
             main.poll_terminal_paste(&engine.read());

@@ -45,8 +45,8 @@ GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 
 vi `"*` register(primary selection)는 외부 앱과 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다.
 `DISPLAY`가 없으면(XWayland 없음) `toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해
 내려갔으면 `toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)).
-OSC 52 쓰기·IPC `clipboard.set_text`·캡처 게시도 같은 장치로 외부 앱에 올리고, OSC 52 읽기는 네이티브 Wayland에서
-응답하지 않는다. plugin 자체 클립보드는
+OSC 52 쓰기·읽기, IPC `clipboard.set_text`, 캡처 게시도 같은 장치를 쓴다. OSC 52 읽기는 다른 앱의 선택을
+읽는 동안 기다렸다가 답한다. plugin 자체 클립보드는
 별도 경로다. 원격 출처·내부 파일 목록은 [Explorer 파일 작업](../../surfaces/explorer/file-operations.md#os-파일-클립보드)을 따른다.
 
 ### 로컬 이미지 붙여넣기 저장
@@ -105,7 +105,7 @@ IME preedit와 OS 후보창 위치도 같은 epoch·행 좌표를 사용한다. 
 
 **쓰기(set)**: 터미널 프로그램이 OSC 52 로 시스템 클립보드에 텍스트를 설정할 수 있다(termwiz `SetSelection` → arboard 반영). **쓰기 성공 후에만 성공 토스트를 낸다**(`toast.copied_osc52`, 그 surface 스코프). 실패는 접근 불가·실패 토스트로 알리며 결과 이벤트는 원 터미널 generation에 묶인다 — 보이지 않는 클립보드 쓰기를 사용자에게 보이게 하는 목적이다. 같은 surface 에서 500 ms 안에 반복된 쓰기는 토스트 coalesce 로 한 장에 합쳐진다.
 
-**읽기(query)**: `OSC 52 ; c ; ? ST` 클립보드 읽기 질의는 설정 토글 `general.allow_clipboard_read`(기본 **off**)로 게이트된다. off 면 **무응답**(1바이트도 내보내지 않음) — 터미널 안의 임의 프로그램(원격/SSH 프로세스 포함)이 로컬 클립보드(비밀번호·토큰)를 조용히 탈취하는 것을 차단한다(xterm/iTerm 계열 정책). on 이면 시스템 클립보드를 base64 로 인코딩해 `OSC 52 ; c ; <base64> ST` 로 회신. 경로: 터미널 크레이트가 `TerminalEventKind::ClipboardQuery` 이벤트만 발생(설정과 클립보드 접근은 호스트가 담당) → host(`Core::drain_terminal_events`)가 게이트·읽기·인코딩 후 해당 surface 의 PTY 로 `send_bytes`. 설정 UI 는 Terminal › TUI 섹션(토글 + 바로 아래 bordered warning callout). 토스트 없음.
+**읽기(query)**: `OSC 52 ; c ; ? ST` 클립보드 읽기 질의는 설정 토글 `general.allow_clipboard_read`(기본 **off**)로 게이트된다. off 면 **무응답**(1바이트도 내보내지 않음) — 터미널 안의 임의 프로그램(원격/SSH 프로세스 포함)이 로컬 클립보드(비밀번호·토큰)를 조용히 탈취하는 것을 차단한다(xterm/iTerm 계열 정책). on 이면 시스템 클립보드를 base64 로 인코딩해 `OSC 52 ; c ; <base64> ST` 로 회신. 네이티브 Wayland 에서 다른 앱의 선택은 비차단으로 읽은 뒤 같은 터미널 세대이고 설정이 그대로 켜져 있을 때만 회신한다([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). 경로: 터미널 크레이트가 `TerminalEventKind::ClipboardQuery` 이벤트만 발생(설정과 클립보드 접근은 호스트가 담당) → host(`Core::drain_terminal_events`)가 게이트·읽기·인코딩 후 해당 surface 의 PTY 로 `send_bytes`. 설정 UI 는 Terminal › TUI 섹션(토글 + 바로 아래 bordered warning callout). 토스트 없음.
 
 ### egui-mesh plugin 의 텍스트 선택 복사 (`egui_copy` capability)
 

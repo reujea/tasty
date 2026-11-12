@@ -47,6 +47,9 @@ pub(crate) struct AppServices {
     pub(crate) reconnect_window_secs: Arc<std::sync::atomic::AtomicU64>,
     clock: Arc<dyn Clock>,
     clipboard: Arc<dyn ClipboardSystem>,
+    /// 결과를 기다리는 OSC 52 읽기 질의. 결과가 오면 질의한 터미널 세대에만 답한다.
+    #[cfg(feature = "gui")]
+    pub(crate) pending_clipboard_reads: Vec<impl_clipboard::PendingClipboardRead>,
     home: Arc<dyn HomeDirectory>,
     sound_player: Arc<dyn NotificationSoundPlayer>,
 
