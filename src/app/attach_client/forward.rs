@@ -8,7 +8,7 @@ use super::resources::{markdown_content_failure, push_markdown_content_result};
 use super::wire::send_control_frame;
 use crate::app::App;
 use crate::app::attach_client::{GIT_VIEWER_PLUGIN_ID, GIT_VIEWER_QUERY_RESULT_EVENT};
-use crate::ipc::stream::{StreamControl, StreamTag, StructuralOp};
+use crate::ipc::stream::{InheritCwd, StreamControl, StreamTag, StructuralOp};
 use crate::runtime::engine_session::EngineId;
 use crate::state::attach_pending::QueryConsumer;
 use std::collections::HashMap;
@@ -343,28 +343,34 @@ fn structural_op_payload(
 }
 
 /// 로컬 mirror ID로 만든 구조 변경을 원격 ID로 바꾼다. anchor는 호출자가 이미 찾았다.
-/// MoveSurface의 target도 로컬 ID이므로 같은 세션의 매핑으로 바꾸고, 없으면 보내지 않는다.
-/// 로컬 ID를 그대로 보내면 서버의 무관한 surface를 가리킬 수 있다.
+/// MoveSurface의 target과 생성 op의 cwd 상속 원본도 로컬 ID이므로 같은 세션의 매핑으로 바꾼다.
+/// 매핑이 없으면 요청을 거절한다. 로컬 ID를 그대로 보내면 서버의 무관한 surface를 가리키고,
+/// 상속 원본을 조용히 빼면 서버가 자기 선택으로 다른 cwd를 고른다.
 fn remote_structural_op(
     local_op: &StructuralOp,
     remote_anchor: u32,
     remote_to_local: &HashMap<u32, u32>,
-) -> Option<StructuralOp> {
-    let wire = local_op.with_anchor_surface_id(remote_anchor);
-    let Some(local_target) = local_op.move_target_surface_id() else {
-        return Some(wire);
+) -> Result<StructuralOp, String> {
+    let remote_of = |local: u32| {
+        remote_to_local
+            .iter()
+            .find(|&(_, &l)| l == local)
+            .map(|(&r, _)| r)
     };
-    let Some(remote_target) = remote_to_local
-        .iter()
-        .find(|&(_, &l)| l == local_target)
-        .map(|(&r, _)| r)
-    else {
-        tracing::warn!(
-            "structural forward: 이동 대상 로컬 surface {local_target} 가 같은 mirror 세션에 없어 요청을 버린다"
-        );
-        return None;
-    };
-    Some(wire.with_move_target_surface_id(remote_target))
+    let mut wire = local_op.with_anchor_surface_id(remote_anchor);
+    if let Some(local_target) = local_op.move_target_surface_id() {
+        let remote_target = remote_of(local_target).ok_or_else(|| {
+            format!("structural target surface {local_target} is outside the original mirror")
+        })?;
+        wire = wire.with_move_target_surface_id(remote_target);
+    }
+    if let Some(local_source) = local_op.inherit_cwd().and_then(InheritCwd::surface) {
+        let remote_source = remote_of(local_source).ok_or_else(|| {
+            format!("inherit_cwd surface {local_source} is outside the original mirror")
+        })?;
+        wire = wire.with_inherit_cwd(Some(InheritCwd::Surface(remote_source)));
+    }
+    Ok(wire)
 }
 
 pub(super) fn find_mirror_session_and_remote_id<'a>(
@@ -535,7 +541,7 @@ impl App {
             .ok_or_else(|| anyhow::anyhow!("mirror anchor mapping missing"))?
             .0;
         let wire = remote_structural_op(op, remote_anchor, &session.state.remote_to_local)
-            .ok_or_else(|| anyhow::anyhow!("structural target is outside the original mirror"))?;
+            .map_err(|reason| anyhow::anyhow!(reason))?;
         let closes_workspace = matches!(op, StructuralOp::CloseWorkspace { .. });
         if closes_workspace {
             super::workspace_close::refusal_of(session)

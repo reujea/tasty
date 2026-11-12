@@ -177,13 +177,7 @@ impl App {
         if self.hold_saved_row_close(id, &origin, &intent) {
             return Ok(());
         }
-        if let Some(session) = self.engines.get(id)
-            && session
-                .mirror_workspace_index_for_structural(&intent)
-                .is_some()
-            && let Some(op) =
-                crate::app::services::impl_mirror::build_mirror_forward_op(session.core, &intent)
-        {
+        if let Some(op) = self.mirror_forward_op(id, &intent) {
             if let Some(refusal) = self.workspace_close_refusal(&op) {
                 self.report_workspace_close_refusal(id, &origin, refusal);
                 return Ok(());

@@ -2,7 +2,7 @@
 use super::*;
 use tasty_ipc::stream::{SplitAxis, StructuralOp};
 
-fn local_op(
+pub(super) fn local_op(
     request: &JsonRpcRequest,
     session: &crate::runtime::engine_access::EngineRef<'_>,
     view: &crate::runtime::journal_product::CompletionView,
@@ -84,6 +84,11 @@ fn local_op(
                 )
                 .ok()?
             };
+            // 원격 서버의 View 선택은 이 client의 선택과 다르다. client View 선택과 client 설정으로 원본을 싣는다.
+            let inherit = session.runtime.settings.general.inherit_cwd;
+            let source = |surface| tasty_ipc::stream::InheritCwd::of_client(inherit, surface);
+            let selected =
+                |pane: u32| source(super::create_spec::selected_in_view(core, view, pane));
             let axis = |direction| match direction {
                 crate::model::SplitDirection::Horizontal => SplitAxis::Horizontal,
                 crate::model::SplitDirection::Vertical => SplitAxis::Vertical,
@@ -93,7 +98,7 @@ fn local_op(
                     anchor_surface_id: pane_anchor(pane)?,
                     surface_kind: spec.kind,
                     params: spec.params,
-                    inherit_cwd: None,
+                    inherit_cwd: selected(pane),
                 }),
                 super::create_spec::Destination::Pane { target, direction } => {
                     Some(StructuralOp::SplitPane {
@@ -101,7 +106,7 @@ fn local_op(
                         direction: axis(direction),
                         surface_kind: spec.kind,
                         params: spec.params,
-                        inherit_cwd: None,
+                        inherit_cwd: selected(target),
                     })
                 }
                 super::create_spec::Destination::Surface { target, direction } => {
@@ -110,7 +115,7 @@ fn local_op(
                         direction: axis(direction),
                         surface_kind: spec.kind,
                         params: spec.params,
-                        inherit_cwd: None,
+                        inherit_cwd: source(Some(target)),
                     })
                 }
                 super::create_spec::Destination::Convert {
@@ -121,7 +126,7 @@ fn local_op(
                     surface_kind: spec.kind,
                     params: spec.params,
                     cwd: spec.cwd.map(|path| path.to_string_lossy().into_owned()),
-                    inherit_cwd: None,
+                    inherit_cwd: source(Some(surface)),
                 }),
                 _ => None,
             }

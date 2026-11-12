@@ -279,3 +279,46 @@ fn the_server_checks_the_named_source() {
         );
     }
 }
+
+/// client 에이전트 요청(IPC `tab.create`·`split`)도 client View가 그 pane에서 고른 탭을 원본으로 싣는다.
+/// 여기서는 이 인스턴스가 client다. View는 pane 10에서 탭 B를 골랐다.
+#[cfg(feature = "gui")]
+#[test]
+fn an_agent_creation_carries_the_client_view_selection() {
+    let mut fixture = fixture();
+    let client_view = crate::runtime::journal_product::CompletionView {
+        mirror_count: 0,
+        focused_panes: [(1, 10)].into_iter().collect(),
+        selected_tabs: [(10, B)].into_iter().collect(),
+        selected_surfaces: [(A, A), (B, B)].into_iter().collect(),
+    };
+    for (inherit, tab, surface) in [
+        (
+            true,
+            Some(InheritCwd::Surface(B)),
+            Some(InheritCwd::Surface(A)),
+        ),
+        (
+            false,
+            Some(InheritCwd::NoInherit),
+            Some(InheritCwd::NoInherit),
+        ),
+    ] {
+        fixture.session.runtime.settings.general.inherit_cwd = inherit;
+        let engine = fixture.session.borrow_mut();
+        let sources: Vec<_> = translated()
+            .iter()
+            .map(|(label, request)| {
+                super::forwarding::local_op(request, &engine.as_ref(), &client_view)
+                    .unwrap_or_else(|| panic!("{label}: no op"))
+                    .inherit_cwd()
+                    .cloned()
+            })
+            .collect();
+        assert_eq!(
+            sources,
+            vec![tab.clone(), tab, surface],
+            "inherit_cwd = {inherit}"
+        );
+    }
+}

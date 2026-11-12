@@ -24,6 +24,15 @@ pub enum InheritCwd {
 }
 
 impl InheritCwd {
+    /// client가 싣는 값. client 설정(`inherit`)이 꺼져 있으면 "상속 안 함"이고, 켜져 있으면 client가 고른
+    /// surface다. 고를 surface가 없으면 싣지 않는다(서버 fallback).
+    pub fn of_client(inherit: bool, source: Option<u32>) -> Option<Self> {
+        if !inherit {
+            return Some(InheritCwd::NoInherit);
+        }
+        source.map(InheritCwd::Surface)
+    }
+
     /// 상속 원본 surface. 다른 값은 None이다.
     pub fn surface(&self) -> Option<u32> {
         match self {

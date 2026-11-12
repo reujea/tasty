@@ -86,6 +86,25 @@ impl CwdSource {
     }
 }
 
+/// View가 pane에서 고른 탭의 선택 surface. 기록이 없거나 낡았으면 첫 탭·첫 surface다.
+pub(super) fn selected_in_view(
+    core: &crate::core::CoreState,
+    view: &crate::runtime::journal_product::CompletionView,
+    pane: u32,
+) -> Option<u32> {
+    let pane = core.find_pane_by_id(pane)?;
+    let tab = view
+        .selected_tabs
+        .get(&pane.id)
+        .and_then(|id| pane.tabs.iter().find(|tab| tab.id == *id))
+        .or_else(|| pane.tabs.first())?;
+    view.selected_surfaces
+        .get(&tab.id)
+        .copied()
+        .filter(|id| tab.contains_surface(*id))
+        .or_else(|| tab.first_surface_id())
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct Spec {
     pub destination: Destination,
@@ -213,23 +232,7 @@ impl Spec {
             .get("cwd")
             .and_then(|value| value.as_str())
             .map(std::path::PathBuf::from);
-        let selected = |pane: u32| {
-            engine
-                .find_pane_by_id(pane)
-                .and_then(|pane| {
-                    view.selected_tabs
-                        .get(&pane.id)
-                        .and_then(|id| pane.tabs.iter().find(|tab| tab.id == *id))
-                        .or_else(|| pane.tabs.first())
-                })
-                .and_then(|tab| {
-                    view.selected_surfaces
-                        .get(&tab.id)
-                        .copied()
-                        .filter(|id| tab.contains_surface(*id))
-                        .or_else(|| tab.first_surface_id())
-                })
-        };
+        let selected = |pane: u32| selected_in_view(engine.core, view, pane);
         // `selected`는 View 규칙의 상속 원본이다. 원격 요청이 원본을 정했으면 그 값만 쓴다.
         let inherit = |selected: Option<u32>| match source {
             CwdSource::View if engine.runtime.settings.general.inherit_cwd => {
