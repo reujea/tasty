@@ -45,6 +45,7 @@
 1. `main`에서 갈라 수정하고 `main`에 반영한다.
 2. `main`에서 본체 patch 버전을 올리고 그 버전 커밋에 태그를 붙여 `main`과 태그를 한 번에 push한다(`git push --atomic origin main vX.Y.Z`). `release`는 이 push에 넣지 않는다. 태그 커밋 확인은 [main과 태그](#main과-태그)의 3번과 같다.
 3. `main`을 `release`와 `develop`에 역병합한다. 대상이 앞서 있으면 merge 커밋이 된다.
+4. 사이트를 승격한다. tasty-page `release` 검사가 Tasty `release`와 대조하므로 3번 뒤에 한다([사이트 게시](release.md#8-사이트-게시)).
 
 역병합을 cherry-pick으로 하지 않는다. cherry-pick한 커밋은 해시가 달라 다음 `release` → `main` 승격이 fast-forward로 되지 않는다.
 

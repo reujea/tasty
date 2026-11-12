@@ -69,9 +69,9 @@ git push origin release
 태그를 만들기 전에 tasty-page `develop`을 준비한다.
 
 1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서가 tasty-page `develop`의 랜딩, 디자인 소개, 사용자 가이드에 반영됐는지 확인하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다.
-2. **검사:** tasty-page `develop`의 최신 커밋에서 그 레포의 CI가 통과했는지 확인한다. 사용자 가이드와 본체의 대조는 그 레포의 `checks.yml`이 한다. 워크플로 이름과 본체를 받는 ref는 그 레포의 문서를 따른다.
+2. **검사:** tasty-page `develop`의 최신 커밋에서 그 레포의 CI가 통과했는지 확인한다. 이 검사는 사용자 가이드를 Tasty `develop`과 대조한다. Tasty `release`에만 있는 변경(버전 커밋, 릴리스 버그 수정)과의 대조는 태그 전에 여기서 하지 않는다. 그 대조는 [8. 사이트 게시](#8-사이트-게시)의 1번에서 tasty-page `develop`을 그 레포의 `release`로 승격할 때 그 레포의 `release` 검사가 Tasty `release`와 비교해 잡는다. 사용자 가이드와 본체의 대조는 그 레포의 `checks.yml`이 하며, 워크플로 이름과 브랜치마다 본체를 받는 ref는 [tasty-page 사이트 개발 문서](https://github.com/zilhak/tasty-page/blob/develop/docs/dev/site.md)를 따른다.
 
-기획서를 읽을 수 없거나 tasty-page `develop`의 CI가 실패하면 태그를 만들지 않고 사용자에게 알린다.
+기획서를 읽을 수 없거나 tasty-page `develop`의 CI가 실패하면 태그를 만들지 않고 사용자에게 알린다. 태그 뒤 승격에서 tasty-page `release` 검사가 실패하면 게시를 멈추고, 원인이 Tasty `release`의 변경이면 tasty-page를 고친 뒤 다시 승격한다.
 
 ### 4. 커밋 — body 가 곧 릴리스 노트
 
@@ -112,7 +112,7 @@ git merge release
 git push origin develop
 ```
 
-hotfix는 `main`에서 갈라 `main`에 반영하고, `main`에서 patch를 올린 버전 커밋에 태그를 붙여 `git push --atomic origin main vX.Y.Z`로 push한 뒤 `main`을 `release`와 `develop`에 역병합한다([hotfix](branching.md#hotfix)).
+hotfix는 `main`에서 갈라 `main`에 반영하고, `main`에서 patch를 올린 버전 커밋에 태그를 붙여 `git push --atomic origin main vX.Y.Z`로 push한 뒤 `main`을 `release`와 `develop`에 역병합한다([hotfix](branching.md#hotfix)). 사이트 승격([8. 사이트 게시](#8-사이트-게시))은 `main`을 `release`에 역병합한 뒤에 한다. 그 전에 승격하면 tasty-page `release` 검사가 hotfix가 빠진 Tasty `release`와 대조된다.
 
 ### 6. 워크플로 (release.yml)
 
@@ -135,7 +135,9 @@ publish-release가 끝나 GitHub Release가 공개된 뒤 tasty-page의 최신 �
 2. `release`를 `main`에 merge 커밋으로 합치고 태그를 붙인다.
 3. `git push --atomic origin main <태그>`로 `main`과 태그를 함께 push한다. 이 `main` push가 배포다.
 
-태그 이름, 검사와 배포 워크플로의 이름은 tasty-page 레포의 문서를 따른다.
+1번의 tasty-page `release` 검사는 Tasty `release`와 대조한다. 그래서 hotfix 릴리스는 Tasty가 `main`을 `release`에 역병합한 뒤에 승격한다([hotfix](branching.md#hotfix)의 3번).
+
+태그 이름, 검사와 배포 워크플로의 이름, 브랜치마다 대조하는 Tasty ref는 [tasty-page 사이트 개발 문서](https://github.com/zilhak/tasty-page/blob/develop/docs/dev/site.md)를 따른다.
 
 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 사이트 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로
 게시한다. 이런 게시용 수정은 tasty-page `main`에 커밋해 배포한 뒤 그 레포의 `release`와 `develop`에 역병합한다.
