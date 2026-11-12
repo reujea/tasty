@@ -554,6 +554,9 @@ impl QuietState {
 
     /// 오래된 묶음을 지운다. 추적이 끝난 surface 의 묶음은 error 완료 줄을 잠시만 기다린다.
     /// 개수 상한은 받을 부모가 모두 가져간 묶음에만 적용한다. 다 가져가지 않은 묶음은 보관 시간이 지나야 지운다.
+    /// 추적이 끝난 surface 의 묶음은 개수 상한에서 빼고 보관 시간으로만 지운다. 추적이 끝날 때 그 surface 의 선언을
+    /// 모두 비우므로 다시 선언하지 않으면 더 생기지 않고(같은 id 를 다시 추적해 선언하면 다시 생길 수 있다),
+    /// 생긴 뒤 60초만 두므로 상한 없이도 쌓이지 않는다.
     pub(crate) fn prune(&mut self, now_ms: u64) {
         self.releases.retain(|r| {
             let kept = if r.reason == EndReason::SurfaceGone {
@@ -575,7 +578,7 @@ impl QuietState {
         });
         let mut over = self.releases.len().saturating_sub(RELEASES_KEPT);
         self.releases.retain(|r| {
-            if over > 0 && r.taken_by_all() {
+            if over > 0 && r.reason != EndReason::SurfaceGone && r.taken_by_all() {
                 over -= 1;
                 false
             } else {
@@ -605,6 +608,17 @@ fn release_of(decl: Decl, reason: EndReason, now_ms: u64) -> Option<Release> {
         overflow: decl.overflow,
         delivered_to: Vec::new(),
         recipients: Vec::new(),
+    })
+}
+
+/// 묶음마다 받을 부모를 적는다.
+fn with_recipients(
+    released: Vec<Release>,
+    recipients: &[u32],
+) -> impl Iterator<Item = Release> + '_ {
+    released.into_iter().map(|r| Release {
+        recipients: recipients.to_vec(),
+        ..r
     })
 }
 
@@ -750,10 +764,9 @@ impl ErrorScanner {
             Vec::new()
         };
         let state = self.quiet_state(host, surface_id);
-        state.releases.extend(released.into_iter().map(|r| Release {
-            recipients: recipients.clone(),
-            ..r
-        }));
+        state
+            .releases
+            .extend(with_recipients(released, &recipients));
         state.prune(unix_now_ms());
         self.save_quiet(host, surface_id);
         if any
@@ -866,6 +879,7 @@ impl ErrorScanner {
     }
 
     /// 완료 줄 없이 추적이 끝났다. 쌓인 것은 error 완료 줄이 잠시 안에 오면 그 줄에 붙고, 아니면 버린다.
+    /// 받을 부모는 다른 경로처럼 기록하되(surface 가 없어 조회가 안 되면 빈 집합) 개수 상한으로는 지우지 않고 잠시 둔 뒤에만 지운다.
     /// surface 가 이미 없을 수 있어 meta 는 지우기만 시도한다.
     pub(crate) fn drop_quiet<H: HostCall>(&mut self, host: &H, surface_id: u32) {
         let Some(state) = self.quiet.get_mut(&surface_id) else {
@@ -877,7 +891,12 @@ impl ErrorScanner {
                 "claude quiet s{surface_id}: {count} declaration(s) ended with the surface"
             );
         }
-        state.releases.extend(released);
+        if !released.is_empty() {
+            let recipients = release_recipients(host, surface_id);
+            state
+                .releases
+                .extend(with_recipients(released, &recipients));
+        }
         if count > 0 {
             for key in [QUIET_META_KEY, QUIET_RELEASE_META_KEY] {
                 if let Err(e) = host.call(

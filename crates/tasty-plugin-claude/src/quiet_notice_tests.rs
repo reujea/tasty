@@ -19,6 +19,8 @@ struct Host {
     fired: RefCell<Vec<String>>,
     /// 묶음 훅을 건 부모.
     parents: RefCell<Vec<u32>>,
+    /// 훅 목록 조회를 실패시킨다(surface 가 이미 없는 경우).
+    hooks_fail: std::cell::Cell<bool>,
 }
 
 impl Host {
@@ -28,6 +30,7 @@ impl Host {
             state: RefCell::new("active"),
             fired: RefCell::new(Vec::new()),
             parents: RefCell::new(Vec::new()),
+            hooks_fail: std::cell::Cell::new(false),
         }
     }
     fn meta_sets(&self) -> usize {
@@ -37,6 +40,13 @@ impl Host {
 
 impl HostCall for Host {
     fn call(&self, method: &str, params: Value) -> Result<Value, tasty_plugin_sdk::PluginError> {
+        if method == "hook.list" && self.hooks_fail.get() {
+            return Err(tasty_plugin_sdk::PluginError::HostCall {
+                method: method.into(),
+                message: "surface not found".into(),
+                code: Some(-32602),
+            });
+        }
         let key = params["key"].as_str().unwrap_or_default().to_string();
         Ok(match method {
             "terminal.state" => json!({ "state": *self.state.borrow() }),
@@ -480,5 +490,56 @@ fn restored_meta_is_cut_to_one_line_and_capped() {
         assert_eq!(r["items"].as_array().unwrap().len(), 64, "{r}");
         assert_eq!(r["overflow"]["count"], 6, "{r}");
         assert_eq!(r["items"][0]["label"], "first second", "{r}");
+    }
+}
+
+/// 완료 줄 없이 추적이 끝난 surface 의 묶음도 부모 둘이 각각 모두 받는다. 훅 조회가 되면 받을 부모를 기록하고,
+/// 조회가 안 돼 받을 부모를 모르더라도 개수 상한으로 지우지 않는다.
+#[test]
+fn every_parent_gets_every_release_of_a_surface_that_went_away() {
+    let many = 20;
+    for hooks_fail in [false, true] {
+        let scanner = tracked();
+        let host = Host::new();
+        *host.parents.borrow_mut() = vec![1, 2];
+        for i in 0..many {
+            let task = format!("T{i}");
+            quiet(
+                &scanner,
+                &host,
+                json!({ "surface": 5, "task": task, "secs": 600, "clear": false }),
+            )
+            .unwrap();
+            hold_one(&scanner, &host, &task);
+        }
+        host.hooks_fail.set(hooks_fail);
+        {
+            let mut s = crate::error_scan::lock_scanner(&scanner);
+            s.drop_quiet(&host, 5);
+            let recipients: Vec<Vec<u32>> = s
+                .quiet_state(&host, 5)
+                .releases
+                .iter()
+                .map(|r| r.recipients.clone())
+                .collect();
+            let expected: Vec<u32> = if hooks_fail { vec![] } else { vec![1, 2] };
+            assert_eq!(recipients, vec![expected; many], "hooks_fail {hooks_fail}");
+        }
+        *host.state.borrow_mut() = "exited";
+        crate::notice::test_log::take();
+        for caller in [1, 2] {
+            crate::notifications::handle_notify_done(
+                &scanner,
+                &host,
+                &json!({ "caller_surface": caller, "target_surface": 5, "command": "tell" }),
+                &tr(),
+            )
+            .unwrap();
+        }
+        let held: Vec<(u32, usize)> = crate::notice::test_log::take()
+            .into_iter()
+            .map(|(caller, line)| (caller, line.matches("; held 1 no-output").count()))
+            .collect();
+        assert_eq!(held, vec![(1, many), (2, many)], "hooks_fail {hooks_fail}");
     }
 }
