@@ -25,41 +25,34 @@ fn read(rel: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{rel}을 읽지 못했다: {e}"))
 }
 
-/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 주석을 먼저 지우고(`strip_comments`)
-/// 문자열 리터럴 밖의 중괄호만 센다. 주석이나 문자열 속 `{`·`}`로 함수 범위가 바뀌지 않는다.
+/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 선언 위치는 이름으로 찾고, 그 위치부터
+/// 주석을 지운 뒤(`strip_comments`) 리터럴(`literal_end`) 밖의 중괄호만 센다.
 fn fn_body(source: &str, name: &str, rel: &str) -> String {
-    let source = strip_comments(source);
     let start = source
         .find(&format!("fn {name}("))
         .unwrap_or_else(|| panic!("{rel}에서 fn {name}을 찾지 못했다"));
-    let open = start
-        + source[start..]
-            .find('{')
-            .unwrap_or_else(|| panic!("{rel}의 fn {name}에 본문이 없다"));
+    let code = strip_comments(&source[start..]);
+    let open = code
+        .find('{')
+        .unwrap_or_else(|| panic!("{rel}의 fn {name}에 본문이 없다"));
     let mut depth = 0usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    for (i, c) in source[open..].char_indices() {
-        if in_string {
-            match c {
-                _ if escaped => escaped = false,
-                '\\' => escaped = true,
-                '"' => in_string = false,
-                _ => {}
-            }
+    let mut i = open;
+    while let Some(c) = code[i..].chars().next() {
+        if let Some(end) = literal_end(&code, i) {
+            i = end;
             continue;
         }
         match c {
-            '"' => in_string = true,
             '{' => depth += 1,
             '}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return source[open..=open + i].to_string();
+                    return code[open..=i].to_string();
                 }
             }
             _ => {}
         }
+        i += c.len_utf8();
     }
     panic!("{rel}의 fn {name} 본문이 닫히지 않는다")
 }
@@ -190,56 +183,93 @@ fn activation_transition_table_matches_the_journal_rule() {
     );
 }
 
-/// 줄 주석(`//`)과 블록 주석(`/* */`)을 지운 코드. 문자열 리터럴 안의 `//`는 그대로 둔다.
-/// 주석 속 `=> "x"`·`=> S::X`를 갈래로 읽지 않게 한다.
+/// `code[i..]`가 리터럴로 시작하면 그 리터럴 바로 다음 위치. 다루는 리터럴은 문자열 `"…"`과
+/// 바이트 문자열 `b"…"`(이스케이프 포함), 원시 문자열 `r"…"`·`r#"…"#`·`br#"…"#`(해시 개수까지
+/// 맞춘다), 문자 리터럴 `'x'`·`'\n'`·`'\''`·`'\u{..}'`·`b'x'`다. 따옴표 다음 다음 글자가
+/// 따옴표이거나 따옴표 다음이 역슬래시일 때만 문자 리터럴로 보므로 수명(`'a`, `'static`)은
+/// 리터럴이 아니다. 식별자 중간(앞 글자가 식별자 글자)은 리터럴로 보지 않는다.
+fn literal_end(code: &str, i: usize) -> Option<usize> {
+    let bytes = code.as_bytes();
+    if i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_') {
+        return None;
+    }
+    let mut j = i;
+    if bytes.get(j) == Some(&b'b') {
+        j += 1;
+    }
+    if bytes.get(j) == Some(&b'r') {
+        let hashes = bytes[j + 1..].iter().take_while(|&&b| b == b'#').count();
+        let quote = j + 1 + hashes;
+        if bytes.get(quote) != Some(&b'"') {
+            return None;
+        }
+        let close = format!("\"{}", "#".repeat(hashes));
+        return Some(
+            code[quote + 1..]
+                .find(&close)
+                .map_or(code.len(), |e| quote + 1 + e + close.len()),
+        );
+    }
+    match bytes.get(j) {
+        Some(b'"') => {
+            let mut k = j + 1;
+            while k < bytes.len() {
+                match bytes[k] {
+                    b'\\' => k += 2,
+                    b'"' => return Some(k + 1),
+                    _ => k += 1,
+                }
+            }
+            Some(code.len())
+        }
+        Some(b'\'') if bytes.get(j + 1) == Some(&b'\\') => {
+            code.get(j + 3..)?.find('\'').map(|e| j + 3 + e + 1)
+        }
+        Some(b'\'') => {
+            let after = j + 1 + code[j + 1..].chars().next()?.len_utf8();
+            (bytes.get(after) == Some(&b'\'')).then_some(after + 1)
+        }
+        _ => None,
+    }
+}
+
+/// 줄 주석(`//`)과 블록 주석(`/* */`, 중첩 포함)을 지운 코드. 리터럴(`literal_end`)은 그대로
+/// 옮기므로 리터럴 속 `//`·`/*`는 주석이 아니다. 주석 속 `=> "x"`·`=> S::X`·중괄호를 읽지 않게 한다.
 fn strip_comments(code: &str) -> String {
     let mut out = String::with_capacity(code.len());
-    let mut chars = code.chars().peekable();
-    let mut in_string = false;
-    while let Some(c) = chars.next() {
-        if in_string {
-            out.push(c);
-            match c {
-                '\\' => out.extend(chars.next()),
-                '"' => in_string = false,
-                _ => {}
-            }
+    let mut i = 0;
+    while let Some(c) = code[i..].chars().next() {
+        let rest = &code[i..];
+        if rest.starts_with("//") {
+            i = rest.find('\n').map_or(code.len(), |e| i + e);
             continue;
         }
-        match (c, chars.peek()) {
-            ('"', _) => {
-                in_string = true;
-                out.push(c);
-            }
-            ('/', Some('/')) => {
-                for c in chars.by_ref() {
-                    if c == '\n' {
-                        out.push('\n');
+        if rest.starts_with("/*") {
+            let mut depth = 0usize;
+            while let Some(c) = code[i..].chars().next() {
+                if code[i..].starts_with("/*") {
+                    depth += 1;
+                    i += 2;
+                } else if code[i..].starts_with("*/") {
+                    depth -= 1;
+                    i += 2;
+                    if depth == 0 {
                         break;
                     }
+                } else {
+                    i += c.len_utf8();
                 }
             }
-            ('/', Some('*')) => {
-                chars.next();
-                let mut depth = 1usize;
-                while depth > 0 {
-                    match (chars.next(), chars.peek()) {
-                        (Some('*'), Some('/')) => {
-                            chars.next();
-                            depth -= 1;
-                        }
-                        (Some('/'), Some('*')) => {
-                            chars.next();
-                            depth += 1;
-                        }
-                        (Some(_), _) => {}
-                        (None, _) => break,
-                    }
-                }
-                out.push(' ');
-            }
-            _ => out.push(c),
+            out.push(' ');
+            continue;
         }
+        if let Some(end) = literal_end(code, i) {
+            out.push_str(&code[i..end]);
+            i = end;
+            continue;
+        }
+        out.push(c);
+        i += c.len_utf8();
     }
     out
 }
@@ -259,21 +289,15 @@ fn match_arms(body: &str, what: &str) -> Vec<(String, String)> {
     let mut arms = Vec::new();
     let mut current = String::new();
     let mut depth = 0usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    for c in code[open + 1..].chars() {
-        if in_string {
-            current.push(c);
-            match c {
-                _ if escaped => escaped = false,
-                '\\' => escaped = true,
-                '"' => in_string = false,
-                _ => {}
-            }
+    let mut i = open + 1;
+    while let Some(c) = code[i..].chars().next() {
+        if let Some(end) = literal_end(&code, i) {
+            current.push_str(&code[i..end]);
+            i = end;
             continue;
         }
+        i += c.len_utf8();
         match c {
-            '"' => in_string = true,
             '(' | '[' | '{' => depth += 1,
             ')' | ']' => depth -= 1,
             '}' if depth == 0 => break,
