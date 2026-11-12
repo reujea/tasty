@@ -14,7 +14,7 @@ e2e 테스트의 격리 단위(프로세스 vs workspace)는 다른 축이다 �
 
 | 생성자 | 설정 출처 | 용도 |
 |---|---|---|
-| `EngineSession::new(cols, rows, waker)` | `Settings::default()` | 테스트 / non-host 진입점 |
+| `EngineSession::new(cols, rows, waker)` | `Settings::default()` | 테스트(`cfg(test)`) |
 | `EngineSession::new_with_ids_and_settings(spec, settings)` | 호출자가 넘긴 설정 | 테스트(`cfg(test)`) |
 | `EngineSession::new_with_ids(spec, settings, registries)` | 호출자가 넘긴 설정. 앱 경로는 이번 실행의 최신 적용 설정을, 없으면 `config.toml`을 읽어 넘긴다 | host GUI 창 경로(첫 부팅·추가 창) |
 | `EngineSession::for_journal(spec, settings, registries)` | 호출자가 넘긴 설정 | 헤드리스 부팅, `new_with_ids`가 부르는 함수 |
@@ -538,7 +538,7 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 
 - 본체는 `EngineSession` 이 `IsolatedHome` 을 **마지막 필드**로 들고, 조립 지점
   `assemble`(모든 생성자가 지나는 함수)이 그것을 첫 줄에서 세운다. 그래서 생성자를 무엇으로 부르든
-  — 픽스처를 거치든 그 함수를 직접 부르든 — 같은 격리를 받고, 생성 이후의 `save()` 까지
+  — 픽스처를 거치든 `new`·`new_with_ids_and_settings`·`for_journal`을 직접 부르든 — 같은 격리를 받고, 생성 이후의 `save()` 까지
   엔진 수명 내내 덮인다(마지막 필드인 것이 그 계약이다: drop 순서가 선언 순서다).
 - 엔진 없이 홈을 읽는 것을 만드는 시험은 그 헬퍼가 직접 가드를 쥔다 —
   `plugin_bridge::key_dispatch` 의 `mgr()` 이 그 형태다(`PluginManager::with_registries` 가
