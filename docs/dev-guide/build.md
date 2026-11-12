@@ -145,7 +145,7 @@ cargo tree --no-default-features --edges normal -i wgpu
 코드(`src/boot/locale_font.rs` 의 `family_path`)가 그 타입을 실제로 쓴다. 빼려면 폰트 DB 를
 여는 수단 자체를 바꿔야 하고 그것은 **동작 변경**이다.
 
-gui 전용 심볼(`MainViewState.toasts` 등)을 `#[cfg(feature = "gui")]` 게이팅 없이 쓰면 gui 빌드는 통과하지만 headless 빌드만 깨진다. 이 회귀는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡(`cargo check --workspace --no-default-features --locked`)이 `main` push 마다 자동 검출한다(문서만 바뀐 push 는 제외).
+gui 전용 심볼(`MainViewState.toasts` 등)을 `#[cfg(feature = "gui")]` 게이팅 없이 쓰면 gui 빌드는 통과하지만 headless 빌드만 깨진다. 이 회귀는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡(`cargo check --workspace --no-default-features --locked`)이 `develop`·`release`·`main` push 마다 자동 검출한다(문서만 바뀐 push 는 제외).
 
 #### 공용 모듈 안의 GUI 전용 정의
 
@@ -456,7 +456,7 @@ cargo modules / cargo depgraph    # 모듈/크레이트 의존 그래프 (크레
 
 `tasty-cli` 는 **바이너리의 진입 계층**(인자 파싱 + 그 파싱 결과로 실행되는 커맨드 구현)이다. GUI 런타임·IPC 핸들러·앱 상태(`src/`)가 그 크레이트 내부를 직접 들여다보면 의존 방향이 뒤집혀, CLI 쪽 타입 변경이 GUI 를 깨고 GUI 재사용 목적의 로직이 CLI 안에 눌러앉는다. 양쪽이 함께 쓰는 코어(ssh · remote browse · stream 등)는 CLI 가 아니라 **별도 크레이트**에 두고 본체는 그쪽을 참조한다.
 
-`src/adapters/cli.rs` 는 boot 진입점 10개(`Cli` · `Commands` · `Envelope` · `run_client_with` · `try_run_plugin_cli` · `print_augmented_help` · `print_command_tree` · `format_parse_error` · `localized_command` · `help_route`)만 이름으로 재수출한다. 그 밖의 CLI 심볼은 본체에서 경로 자체가 존재하지 않는다. 재수출 밖의 경로(`tasty_cli::` 직접 참조)는 **`crates/tasty-doc-guards/tests/layering.rs` 가 막는다**(그 가드는 의존 0 크레이트에 살아서 `doc-guards.yml` 이 경로 필터 없이 돌린다 — main push 와 PR 마다 자동으로 돈다, [ci-gates](ci-gates.md)). 목록 두 개의 성격이 다르다:
+`src/adapters/cli.rs` 는 boot 진입점 10개(`Cli` · `Commands` · `Envelope` · `run_client_with` · `try_run_plugin_cli` · `print_augmented_help` · `print_command_tree` · `format_parse_error` · `localized_command` · `help_route`)만 이름으로 재수출한다. 그 밖의 CLI 심볼은 본체에서 경로 자체가 존재하지 않는다. 재수출 밖의 경로(`tasty_cli::` 직접 참조)는 **`crates/tasty-doc-guards/tests/layering.rs` 가 막는다**(그 가드는 의존 0 크레이트에 살아서 `doc-guards.yml` 이 경로 필터 없이 돌린다 — `develop`·`release`·`main` push 와 PR 마다 자동으로 돈다, [ci-gates](ci-gates.md)). 목록 두 개의 성격이 다르다:
 
 | 상수 | 성격 | 내용 |
 |------|------|------|

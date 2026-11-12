@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// 오래된 좌표의 커밋이 사라졌다면 해시만 바꾸지 말고 현재 트리에서 다시 측정한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountedOn {
-    /// main에서 도달 가능한 측정 커밋. 해시 뒤에 근거 설명을 덧붙일 수 있다.
+    /// 통합 브랜치(develop)에서 도달 가능한 측정 커밋. 해시 뒤에 근거 설명을 덧붙일 수 있다.
     Tree(&'static str),
     /// 작업 브랜치에서 측정한 값. 해당 커밋이 develop의 조상이 아니므로 통합 후 다시 측정한다.
     LaneTip(&'static str),
