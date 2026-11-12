@@ -26,9 +26,18 @@ impl ArboardClipboard {
         let mut slot = self.clipboard.lock().map_err(|_| {
             ClipboardError::BackendUnavailable("clipboard owner lock poisoned".into())
         })?;
-        let clipboard = slot.get_or_insert_with(|| ClipboardContext::new(DisplayBackend::Unknown));
+        let clipboard = slot.get_or_insert_with(|| ClipboardContext::new(core_display()));
         Ok(operation(clipboard)?)
     }
+}
+
+/// Core calls have no window, so a failure is classified by how the process started: with no
+/// Wayland selection owner a native Wayland start warns with its cause, as a terminal copy does.
+fn core_display() -> DisplayBackend {
+    #[cfg(feature = "gui")]
+    return DisplayBackend::at_start();
+    #[cfg(not(feature = "gui"))]
+    DisplayBackend::Unknown
 }
 
 impl ClipboardSystem for ArboardClipboard {

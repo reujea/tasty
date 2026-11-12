@@ -154,6 +154,22 @@ impl DisplayBackend {
             Err(_) => Self::Unknown,
         }
     }
+
+    /// The backend the process started on, for clipboard calls with no window at hand (OSC 52,
+    /// IPC, capture publishing). A native Wayland start keeps its cause like a window does; an
+    /// X11 start, no display, or no recorded start stays `Unknown` as before.
+    pub(crate) fn at_start() -> Self {
+        Self::from_start(crate::boot::display_backend::start().map(|start| start.backend))
+    }
+
+    fn from_start(backend: Option<crate::boot::display_backend::StartBackend>) -> Self {
+        use crate::boot::display_backend::StartBackend;
+        match backend {
+            Some(StartBackend::Wayland) => Self::Wayland { x_failed: false },
+            Some(StartBackend::WaylandFallback) => Self::Wayland { x_failed: true },
+            Some(StartBackend::X11 | StartBackend::Unset) | None => Self::Unknown,
+        }
+    }
 }
 
 impl From<String> for ClipboardError {
@@ -239,6 +255,32 @@ mod tests {
             ClipboardError::BackendUnavailable("x".into()).feedback(),
             ("toast.clipboard_unavailable", ToastKind::Info)
         );
+    }
+
+    /// Given 네이티브 Wayland로 시작했고 selection 소유자가 없다, When 창 없는 Core 쓰기(OSC 52·IPC·
+    /// 캡처 게시)가 실패한다, Then 터미널 복사와 같은 원인별 warning이다. X11 시작은 그대로다.
+    #[test]
+    fn a_core_write_on_a_native_wayland_start_warns_with_its_cause() {
+        use crate::boot::display_backend::StartBackend;
+        let core = |backend| {
+            ClipboardError::BackendUnavailable("fixture".into())
+                .for_display(DisplayBackend::from_start(backend))
+                .feedback()
+        };
+        assert_eq!(
+            core(Some(StartBackend::Wayland)),
+            ("toast.clipboard_wayland_unsupported", ToastKind::Warning)
+        );
+        assert_eq!(
+            core(Some(StartBackend::WaylandFallback)),
+            ("toast.clipboard_wayland_x_failed", ToastKind::Warning)
+        );
+        for backend in [Some(StartBackend::X11), Some(StartBackend::Unset), None] {
+            assert_eq!(
+                core(backend),
+                ("toast.clipboard_unavailable", ToastKind::Info)
+            );
+        }
     }
 
     /// Given 네이티브 Wayland, When vi `"*` 쓰기가 X11에 닿지 못했다, Then selection 소유자가 있으면
