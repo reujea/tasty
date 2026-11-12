@@ -80,7 +80,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 | surface 닫기 `forget_closed_surface` | 닫힌 surface | 그 surface의 lock·멤버 매핑·soft 제거. 같은 workspace의 다른 멤버는 유지 | — |
 | 사용자 포커스 `reconcile_soft_occupancy_on_focus` | 대표 점유가 soft이고 parent surface가 트리에 없음 | soft 제거 | External parent는 이 경로로 정리하지 않는다 |
 
-레지스트리 함수는 다른 tier의 표를 보지 않는다. 진입점별 tier 사이 검사, soft와 hard가 함께 있게 되는 순서, 그때의 대표 점유·입력 제한·정리와 해제는 [주체](../actors.md#점유-occupation-모델)가 정본이다. 자식 spawn은 새로 만든 surface에 soft를 건다(`src/runtime/effect_runner/installation.rs`).
+점유를 거는 획득 함수(`acquire_soft`·`acquire`·`acquire_workspace`)는 다른 tier의 표를 보지 않는다. 대표 점유 조회 `occupancy_of`는 두 표를 함께 읽고, `forget_closed_surface`는 두 표에서 그 surface를 지운다. 진입점별 tier 사이 검사, soft와 hard가 함께 있게 되는 순서, 그때의 대표 점유·입력 제한·정리와 해제는 [주체](../actors.md#점유-occupation-모델)가 정본이다. 자식 spawn은 새로 만든 surface에 soft를 건다(`src/runtime/effect_runner/installation.rs`).
 
 ### 자식 상태
 
