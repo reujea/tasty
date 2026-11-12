@@ -7,12 +7,12 @@ name: Complexity Check
 on:
   # PR 없이 반영한 변경도 검사한다. 문서만 바뀐 push는 생략한다.
   push:
-    branches: [main]
+    branches: [develop, release, main]
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
   pull_request:
-    branches: [main]
+    branches: [develop, release, main]
   workflow_dispatch:
 
 # 같은 ref의 이전 실행을 취소해 러너가 중복 작업을 하지 않게 한다.

@@ -7,7 +7,7 @@ name: Supply Chain Check
 
 on:
   push:
-    branches: [main]
+    branches: [develop, release, main]
     paths:
       - Cargo.lock
       - deny.toml
@@ -15,7 +15,7 @@ on:
       - crates/tasty-plugin-sdk-wasm/Cargo.lock
       - .github/workflows/supply-chain-check.yml
   pull_request:
-    branches: [main]
+    branches: [develop, release, main]
   schedule:
     # 매주 월요일 09:00 UTC에 보안 공지를 확인한다.
     - cron: "0 9 * * 1"

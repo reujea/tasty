@@ -9,7 +9,7 @@ on:
   # 패턴은 순서대로 적용된다. 전체 포함 → 일반 Markdown 제외 → 빌드 입력 디렉터리
   # 재포함 → docs 제외 순서를 유지한다. src/lang/assets 아래 Markdown도 검사한다.
   push:
-    branches: [main]
+    branches: [develop, release, main]
     paths:
       - '**'
       - '!**/*.md'
@@ -18,7 +18,7 @@ on:
       - '**/assets/**'
       - '!docs/**'
   pull_request:
-    branches: [main]
+    branches: [develop, release, main]
     paths:
       - '**'
       - '!**/*.md'
