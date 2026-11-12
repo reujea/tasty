@@ -301,6 +301,10 @@ pub(crate) fn handle_claude_hook<H: HostCallSink>(
     lock_state(state)
         .background
         .track(event, surface_id, params);
+    // 끝난 작업에 건 무출력 선언을 끝낸다. 양수 선언에 쌓인 것은 묶어 부모에게 보낸다.
+    if let Some(ended) = crate::background_tasks::ended_tasks(event, params) {
+        crate::error_scan::lock_scanner(scanner).end_quiet_tasks(host, surface_id, ended);
+    }
     if event == "prompt-submit" {
         crate::monitor_tasks::forget_notified(state, host, surface_id, params);
     }
@@ -2164,9 +2168,16 @@ mod tests {
             "background_tasks": running_subagent(),
         }));
         assert_eq!(out["waiting"], "background_work");
+        // 조회 둘은 끝난 작업의 선언을 찾으려고 무출력 선언·묶음 meta 를 되살리는 것이다.
         assert_eq!(
             rig.host.methods(),
-            vec!["surface.meta.get", "terminal.set_state", "surface.meta.set"]
+            vec![
+                "surface.meta.get",
+                "surface.meta.get",
+                "surface.meta.get",
+                "terminal.set_state",
+                "surface.meta.set"
+            ]
         );
         assert_eq!(rig.host.states(), vec!["active"]);
         assert!(
@@ -2803,6 +2814,44 @@ mod tests {
             rig.host.seen.borrow_mut().clear();
             rig.run(json!({ "event": "stop-failure", "surface": HookRig::SURFACE, "error": "overloaded" }));
             assert_stop_failure_ended_the_turn(&mut rig);
+        }
+    }
+
+    /// 작업 선언은 그 작업이 끝났다는 `<task-notification>` 이나 그 작업이 빠진 Stop 에서 끝난다.
+    /// 쌓인 것이 있는 양수 선언이면 부모 훅을 부르고, `-1` 이면 부르지 않는다.
+    #[test]
+    fn a_task_declaration_ends_with_its_task() {
+        let notice =
+            || crate::error_scan::quiet::QuietNotice::Tasks(vec![("T".into(), "sleep 600".into())]);
+        let released = |rig: &HookRig| {
+            rig.host
+                .fired()
+                .iter()
+                .filter(|e| *e == crate::error_scan::quiet::QUIET_RELEASED_EVENT)
+                .count()
+        };
+        for (secs, expected) in [(600, 1), (-1, 0)] {
+            let mut rig = HookRig::new();
+            {
+                let mut s = crate::error_scan::lock_scanner(&rig.scanner);
+                s.declare_quiet(&rig.host, HookRig::SURFACE, Some("T".into()), secs);
+                s.dispose_quiet(&rig.host, HookRig::SURFACE, notice(), 1);
+            }
+            rig.run(json!({
+                "event": "prompt-submit",
+                "surface": HookRig::SURFACE,
+                "prompt": "<task-notification>\n<task-id>T</task-id>\n</task-notification>",
+            }));
+            assert_eq!(released(&rig), expected, "secs {secs}");
+
+            let mut rig = HookRig::new();
+            {
+                let mut s = crate::error_scan::lock_scanner(&rig.scanner);
+                s.declare_quiet(&rig.host, HookRig::SURFACE, Some("T".into()), secs);
+                s.dispose_quiet(&rig.host, HookRig::SURFACE, notice(), 1);
+            }
+            stop_with(&mut rig, json!([shell_item("U", "other")]));
+            assert_eq!(released(&rig), expected, "secs {secs}");
         }
     }
 

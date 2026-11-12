@@ -678,7 +678,7 @@ pub(crate) fn serve_kill<H: HostCall>(
         .and_then(Value::as_u64)
         .and_then(|v| u32::try_from(v).ok());
     if let Some(killed) = killed {
-        crate::error_scan::lock_scanner(scanner).disable(killed);
+        crate::error_scan::lock_scanner(scanner).stop_tracking(host, killed);
         returns.forget_child(killed);
     }
     let mut out = resp;

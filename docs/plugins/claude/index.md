@@ -105,7 +105,7 @@ attach 로 연결한 원격 워크스페이스(mirror)에 `spawn` 하면 자식�
 [짝 핸들러 호환 경계](../../dev-guide/paired-agent-handlers.md)를 따른다. 완료 알림은
 [completion-log](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)에 기록하며 caller PTY에 메시지를 입력하지 않는다.
 
-- **cli `claude`** (`tasty claude …`) — 서브커맨드: `launch`(새 워크스페이스에서 실행) · `spawn`(자식 인스턴스, 페인 분할) · `children`/`parent`(관계 조회) · `tell`/`broadcast`(메시지 전송) · `kill`/`respawn` · `reboot`(같은 세션 resume 재시작, 아래) · `child-profile`(자식에게 지속 프로필 부착, 아래) · `hook`(Claude Code 훅 통합, 아래 "Claude Code 훅 통합" 절) · `checklist-hook`(`continue-checklist` 세션 프로필 전용 `Stop` 훅, 아래 "continue-checklist 세션 프로필" 절) · `checklist-enable`/`checklist-disable`/`checklist-status`(게이트별 마커 파일을 켜고 끄고 조회 — `--gate` 생략 시 `continue-checklist`, 같은 절) · `notify-done`(내부용: spawn/tell 상태 전환 시 caller 에게 알림 전달 + 형제 hook 정리·재등록, 아래) · `profile-register`/`profile-unregister`/`profile-list`/`profile-show`/`profile-current`(Claude 세션 프로필 레지스트리, 아래 "Claude 세션 프로필 레지스트리" 절).
+- **cli `claude`** (`tasty claude …`) — 서브커맨드: `launch`(새 워크스페이스에서 실행) · `spawn`(자식 인스턴스, 페인 분할) · `children`/`parent`(관계 조회) · `tell`/`broadcast`(메시지 전송) · `kill`/`respawn` · `reboot`(같은 세션 resume 재시작, 아래) · `child-profile`(자식에게 지속 프로필 부착, 아래) · `hook`(Claude Code 훅 통합, 아래 "Claude Code 훅 통합" 절) · `checklist-hook`(`continue-checklist` 세션 프로필 전용 `Stop` 훅, 아래 "continue-checklist 세션 프로필" 절) · `checklist-enable`/`checklist-disable`/`checklist-status`(게이트별 마커 파일을 켜고 끄고 조회 — `--gate` 생략 시 `continue-checklist`, 같은 절) · `quiet`(무출력 알림 선언, 아래 "무출력 알림 선언" 절) · `notify-done`(내부용: spawn/tell 상태 전환 시 caller 에게 알림 전달 + 형제 hook 정리·재등록, 아래) · `notify-quiet-release`(내부용: 끝난 선언의 묶음 전달, 아래) · `profile-register`/`profile-unregister`/`profile-list`/`profile-show`/`profile-current`(Claude 세션 프로필 레지스트리, 아래 "Claude 세션 프로필 레지스트리" 절).
 - `spawn`/`tell`은 필요한 호스트 호출의 응답을 받은 뒤 반환하며 자식 작업 완료까지 기다리지는 않는다. `claude-idle`/`needs-input`/`process-exit` once 훅을 등록한다. 같은 부모·대상의 완료 훅 그룹(명령 앞부분 `tasty claude notify-done --caller-surface <부모> --target-surface <대상> --command `)이 이미 있으면 먼저 지우고 등록하므로, tell을 반복하거나 spawn 뒤 tell해도 부모마다 그룹은 하나이고 한 번의 상태 변경에 완료 줄은 한 줄이다. 다른 부모의 그룹은 그대로 둔다. 하나가 실행되면 `notify-done`이 상태 변경 로그를 쓰고 같은 명령의 형제 훅을 정리한다. 이후 `surface.locate`가 성공하면 훅을 다시 등록한다. Surface 존재는 프로세스 생존과 같지 않으며, 등록·호출·로그 기록 실패나 재등록 사이의 이벤트까지 전달한다고 보장하지 않는다.
 - **ipc_namespace `claude`** — 위 동작에 대응하는 IPC API.
 - 실제 Claude 프로세스는 터미널 surface 안에서 돌고(`terminal.spawn`), 플러그인은 그 생명주기·관계를 관리한다.
@@ -490,8 +490,8 @@ install이 심는 훅은 이 10개 항목뿐이다 — 위 matcher 밖의 `PreTo
 
 install은 marker substring(`tasty claude hook <token>`)으로 자기 entry를 식별해 멱등하게 동작한다 — marker가 일치하는 기존 entry는 명령 문자열만 최신 형태로 덮어쓰고(옛 버전이 심은 잘못된 명령이 남는 회귀 방지), 사용자가 직접 추가한 다른 entry는 건드리지 않는다. `PreToolUse`/`PostToolUse`처럼 matcher가 있는 이벤트는 marker 일치만으로는 matcher 값까지 보증되지 않으므로, install이 matcher도 canonical 값(`AskUserQuestion`, `Bash|Agent|Task`)으로 함께 갱신한다.
 
-이 플러그인이 fire하는 surface hook 이벤트는 `claude-idle`/`needs-input`/`claude-stop-failure`/`claude-error`/`claude-error-stalled` 5개이며, 매니페스트 `contributes.hook_events`로 선언한다 — host가 (내장 ∪ 활성 plugin 선언) 집합으로 `hook.set` 등록을 검증하므로([hooks](../../features/hooks/index.md)), 이 플러그인이 비활성이면 저 5개 키로의 hook 등록도 거부된다.
-**이 5개가 전부 위 설치 훅에서 나오는 건 아니다** — `claude-idle`은 위 `apply_hook`(Stop/StopFailure/SessionEnd)에서, `claude-stop-failure`는 `StopFailure`에서, `needs-input`은 `Notification`(`needs_input` 유형)과 `PreToolUse`(matcher `AskUserQuestion`) 두 경로에서 나오지만, `claude-error`/`claude-error-stalled`는 이 훅 메커니즘과 무관한 별도 producer다: `error_scan.rs`가 surface 출력 텍스트를 패턴 매칭해 매치 시 직접 `surface.fire_hook`으로 보낸다(정지 판정은 아래 절).
+이 플러그인이 fire하는 surface hook 이벤트는 `claude-idle`/`needs-input`/`claude-stop-failure`/`claude-error`/`claude-error-stalled`/`claude-quiet-released` 6개이며, 매니페스트 `contributes.hook_events`로 선언한다 — host가 (내장 ∪ 활성 plugin 선언) 집합으로 `hook.set` 등록을 검증하므로([hooks](../../features/hooks/index.md)), 이 플러그인이 비활성이면 저 6개 키로의 hook 등록도 거부된다.
+**이 6개가 전부 위 설치 훅에서 나오는 건 아니다** — `claude-idle`은 위 `apply_hook`(Stop/StopFailure/SessionEnd)에서, `claude-stop-failure`는 `StopFailure`에서, `needs-input`은 `Notification`(`needs_input` 유형)과 `PreToolUse`(matcher `AskUserQuestion`) 두 경로에서 나오지만, `claude-error`/`claude-error-stalled`는 이 훅 메커니즘과 무관한 별도 producer다: `error_scan.rs`가 surface 출력 텍스트를 패턴 매칭해 매치 시 직접 `surface.fire_hook`으로 보낸다(정지 판정은 아래 절). `claude-quiet-released`도 별도 producer로, 무출력 알림 선언이 끝나 묶음이 생기면 선언 종료 처리(`error_scan/quiet.rs`)가 직접 보낸다(아래 "무출력 알림 선언" 절).
 API 에러로 턴이 **끝나면** `StopFailure`가 구조적 신호를 주지만, 요청이 응답 없이 매달리면 턴이 끝나지 않아 `Stop`도 `StopFailure`도 **발생하지 않는다** — 그때는 PTY에 찍히는 에러 문자열과 출력 정적이 얻을 수 있는 유일한 신호다.
 `claude-idle`/`needs-input`은 [surface-highlight](../../features/surface-highlight/index.md)(Stop hook → highlight)와 [telemetry](../../features/telemetry/index.md)(`session-start`→`stop`의 `wall_time_ms`, 압축 뒤의 `session-start`는 시작으로 치지 않음, `notification`의 `input_tokens`)가 소비하고, `SessionStart`/`SessionEnd`의 meta set/unset은 [layout-persistence](../../features/layout-persistence/index.md)의 `restore.command` 복원이 소비한다.
 
@@ -635,7 +635,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 출력 파일을 찾지 못한 대기와 대기 meta에서 되살린 기록은 Claude Code가 Stop payload로 알려 준 대기이므로 누적 출력이 **10분과 `no_output_notice_secs` 중 큰 값** 동안 같아야 알리고,
 오류 문구 유무와 관계없이 이 기준을 쓴다.
 대기 한 번에 한 번만 알린다. 출력이 바뀌거나 쿨다운이 지나도 같은 대기에서는 다시 알리지 않는다.
-대기에 Monitor가 있으면, Monitor 이벤트의 새 턴으로 대기가 다시 시작돼도 출력 파일 기준으로 마지막에 알린 작업과 같고 그 알림 뒤로 파일 활동이 없으면 같은 조용한 구간으로 보고 다시 알리지 않는다. Monitor가 없는 대기는 새 대기마다 다시 알려 턴을 깨운다. `claude-background-quiet`의 `tasks`·`at_ms`로 판단하므로 플러그인을 다시 시작해도 이어진다.
+대기에 Monitor가 있으면, Monitor 이벤트의 새 턴으로 대기가 다시 시작돼도 출력 파일 기준으로 마지막에 알린 작업과 같고 그 알림 뒤로 파일 활동이 없으면 같은 조용한 구간으로 보고 다시 알리지 않는다. Monitor가 없는 대기는 새 대기마다 다시 알려 턴을 깨운다(아래 "무출력 알림 선언"으로 보류하거나 버릴 수 있다). `claude-background-quiet`의 `tasks`·`at_ms`로 판단하므로 플러그인을 다시 시작해도 이어진다.
 대기 기록은 플러그인 메모리에 두며 대기를 끝내는 이벤트(대기가 아닌 `Stop`·백그라운드 작업이 남지 않은 `StopFailure`·새 턴·`SessionEnd`)와 추적 해제가 지운다.
 플러그인이 다시 시작되면 메모리 기록은 사라지고 `claude-background-wait` meta는 남는다. 시작할 때 위 "추적" 절차가 이 meta로 기록을 되살린다.
 그 뒤에 meta가 생긴 surface도 일반 기준에 닿으면 알리기 전에 이 meta를 읽어 기록을 되살리고 대기 기준으로 다시 판정한다. 알림 문구도 이 meta를 읽으므로 기준과 문구가 같은 상태를 가리킨다.
@@ -651,7 +651,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 
 정지 스캐너는 `terminal.set_state`를 호출하지 않는다. 관측 결과로 알림만 만들며 `claude children`의 상태를 직접 바꾸지 않는다.
 
-`register_notify_hooks`는 상태 변경용 once 훅 세 개와 별도로 `claude-error-stalled` 상시 훅을 등록한다. 명령은 `tasty claude notify-error --caller-surface … --target-surface …`이며, `notify-done` 형제 훅과 명령 문자열이 달라 그 정리 대상에 포함되지 않는다. 같은 방식으로 `claude-stop-failure` 상시 훅(`tasty claude notify-stop-failure --caller-surface … --target-surface …`)도 등록한다.
+`register_notify_hooks`는 상태 변경용 once 훅 세 개와 별도로 `claude-error-stalled` 상시 훅을 등록한다. 명령은 `tasty claude notify-error --caller-surface … --target-surface …`이며, `notify-done` 형제 훅과 명령 문자열이 달라 그 정리 대상에 포함되지 않는다. 같은 방식으로 `claude-stop-failure` 상시 훅(`tasty claude notify-stop-failure --caller-surface … --target-surface …`)과 `claude-quiet-released` 상시 훅(`tasty claude notify-quiet-release --caller-surface … --target-surface …`)도 등록한다. 이 훅들은 spawn·tell과 완료 줄 뒤의 재등록 때 등록되므로, 이 버전 전에 등록된 훅만 있는 자식은 다음 재등록 전까지 묶음 줄을 받지 못한다. error 줄에 붙는 묶음은 이 훅과 무관하다.
 
 같은 caller·target의 정지 알림을 다시 등록할 때는 같은 명령 문자열로 등록된 기존 훅을 정리한다.
 
@@ -664,10 +664,47 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 | 타입 | 종류 |
 |---|---|
 | `info` | 상태 변경(`idle`·`needs_input`), 원격 결과 저장 |
-| `warning` | 무출력 3종(턴 진행 중 오류 없는 정지, 대기 중 화면 무출력, 작업 출력 파일 무출력) |
+| `warning` | 무출력 3종(턴 진행 중 오류 없는 정지, 대기 중 화면 무출력, 작업 출력 파일 무출력), 끝난 선언의 묶음 |
 | `error` | API 오류로 끝난 턴의 완료 줄, 백그라운드 작업이 남은 API 오류(`notify-stop-failure`), 오류 뒤 정지, child `exited` |
 
 세 완료 훅(`claude-idle`·`needs-input`·`process-exit`)은 같은 명령을 쓰므로 `notify-done`은 어느 사건인지 모른다. 그래서 대상 상태로 가른다. `exited`면 error(부모가 kill로 끝낸 경우도 구분하지 않는다), `idle`에 API 오류 힌트가 붙으면 error, 그 밖은 info다. 상태 조회에 실패하면 info로 쓴다.
+
+#### 무출력 알림 선언 (`claude.quiet`)
+
+에이전트가 child의 무출력이 예상된다고 선언하면 그동안의 무출력 알림(warning)을 보류하거나 버린다. 전역 설정 `no_output_notice_secs`의 값·범위·설정 화면은 바꾸지 않는다.
+
+- 명령: `tasty claude quiet --surface <N> [--task <id>] (--secs <초> | --clear)`, IPC `claude.quiet`. `--surface`를 생략하면 호출자 surface다. `--task`는 백그라운드 작업 id(Bash `backgroundTaskId`, Agent `agentId`)이며 생략하면 surface 전체가 대상이다.
+- `--secs`는 초 단위 정수다. 양수는 보류, `-1`은 버림이다. 상한은 없다. `0`과 `-1`이 아닌 음수, `--secs`와 `--clear`를 함께 주거나 둘 다 빠진 요청, 스캐너가 추적하지 않는 surface(attach mirror의 원격 자식 포함)는 `invalid params`(-32602)로 거절하고 아무것도 기록하지 않는다. CLI는 `Error (-32602): …`를 출력하고 종료 코드 1이다.
+- 응답: 선언은 `{surface, task, secs, mode: "hold"|"discard", until_ms}`(`-1`이면 `until_ms`가 null), `--clear`는 `{surface, task, cleared, released}`다.
+- 같은 대상을 다시 선언하면 양수→양수는 쌓인 것을 두고 끝 시각만 바꾼다. 양수→`-1`은 앞 선언을 끝내 쌓인 것을 묶어 보낸다(끝난 이유 `replaced`). `-1`→양수는 새로 쌓는다.
+
+보류·버림 판정은 정지 알림이 나가기로 정해진 순간(시간·중복·쿨다운·상태 조건과 Monitor 중복 판정을 통과한 뒤)에 한다. 그래서 쌓이는 수는 선언이 없을 때 나갔을 알림 수와 같다.
+
+- 작업 출력 파일 기준: 조용하다고 판정된 작업마다 그 작업의 선언, 없으면 surface 전체 선언을 따른다. 어느 선언에도 걸리지 않은 작업의 이름만 적어 지금처럼 바로 보낸다. 조용한 시간은 파일별이 아니라 찾은 파일 전체의 합산 값이다.
+- 화면 기준 대기(출력 파일을 못 찾음): surface 전체 선언이 있거나, 기다리는 작업 모두에 작업 선언이 있을 때만 보류·버림한다. 아니면 지금처럼 보낸다.
+- 대기가 아닌 턴의 오류 없는 정지: surface 전체 선언만 맡는다. 작업 선언만 있으면 지금처럼 보낸다.
+- 보류나 버림을 해도 알린 것과 같은 기록(조용한 구간·대기의 알림 여부, `claude-stall-notice`, 쿨다운 시각)을 남긴다. 같은 대기는 선언이 끝난 뒤에도 다시 알리지 않고, 새 대기는 지금 규칙대로 판정한다.
+- 양수 선언은 쌓고 `-1` 선언은 플러그인 로그에 info로 남기고 버린다. 같은 대상(작업 id, 대기의 작업 집합, 턴)의 반복은 한 항목으로 합쳐 횟수·첫·마지막 시각·가장 긴 조용한 시간을 남긴다.
+
+선언은 다음 경우에 끝난다. 양수 선언에 쌓인 것이 있을 때만 묶음을 만들고, `-1`이거나 쌓인 것이 없으면 아무것도 보내지 않는다.
+
+| 끝나는 경우 | 대상 | 묶음 |
+|---|---|---|
+| 끝 시각이 지남(`expired`) | 양수 선언 | 폴링이 추적 중인 surface마다 정지 판정 전에 확인한다 |
+| 작업이 끝남(`task ended`) | 작업 선언 | `<task-notification>` prompt의 `<task-id>`, 읽을 수 있는 Stop 목록에 없는 작업, `SessionStart`(압축 뒤 제외)·`SessionEnd`의 모든 작업 |
+| `--clear`(`cleared`) | `--task`면 그 선언, 없으면 그 surface의 모든 선언 | |
+| 재선언(`replaced`) | 양수→`-1` | |
+| error 알림 | 그 surface의 모든 선언(`-1` 포함) | error 줄 뒤에 붙인다 |
+| 완료 줄 없이 추적 끝남(release·kill·surface 닫힘) | 그 surface의 모든 선언 | 60초 안에 오는 error 완료 줄에만 붙고, 아니면 버린다 |
+
+surface 전체 선언은 작업 종료나 대기가 아닌 Stop으로 끝나지 않는다.
+
+- 묶음 줄(warning): 묶음을 surface meta `claude-quiet-release`에 남기고 `claude-quiet-released`를 발화한다. 부모 훅의 `notify-quiet-release`가 아직 받지 않은 묶음을 한 줄씩 쓰고 받은 부모를 기록한다. 부모가 여럿이면 각자 한 번씩 받는다. 가져가지 않은 묶음은 1시간, 최대 16개까지 둔다. 영어 문구는 `surface <N>: <수> held no-output notice(s) released — the <초>s quiet declaration on <task <id>|the whole surface> ended (<이유>): <항목>`이다.
+- error 줄: `notify-done`(error로 분류된 완료 줄)·`notify-stop-failure`·오류 뒤 정지의 `notify-error`가 쓰기 직전에 그 surface의 선언을 모두 끝내고, 이 부모가 받지 않은 묶음을 같은 줄 뒤에 `; held <수> no-output notice(s) of the <초>s quiet declaration on <대상>: <항목>`으로 붙인다. 오류 뒤 정지는 스캐너가 발화 직전에 선언을 끝낸다.
+- 항목: `<이름> ×<횟수> (<task quiet|wait quiet|turn quiet>, +<첫 분>–<마지막 분> min, quiet up to <분> min)`. 시각은 선언 시작부터 지난 분이다. 이름의 줄바꿈은 공백으로 바꾸고 80자에서 자른다. 항목은 5개까지 적고 나머지는 `+<수> more`로 적는다. 묶음 문구에는 `has written no output`·`with no output meanwhile`을 쓰지 않는다.
+- 끝난 이유와 무출력 종류 표기는 번역하지 않는다. 문장은 플러그인 언어를 따른다.
+
+선언과 쌓인 항목은 surface meta `claude-quiet`(`{"decls":[{task, mode, secs, set_at_ms, until_ms, held}]}`)에 남는다. 플러그인만 다시 시작하면 그 surface를 처음 볼 때 meta에서 되살리며, 꺼진 동안 끝 시각이 지났으면 첫 폴링에서 묶음을 낸다. Tasty를 다시 시작하면 복원된 surface가 새 ID를 쓰고 이전 meta를 넘기지 않으므로 선언과 쌓인 항목은 사라지고 보내지 않는다. `claude.quiet`는 `remote_attach.methods`에 없어 attach mirror의 원격 자식에는 쓸 수 없다.
 
 ## 인터페이스
 

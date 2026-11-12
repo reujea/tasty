@@ -130,9 +130,9 @@ plugin writer와 부모의 PTY는 같은 값을 받는다. release·debug 경로
 전달하는 변수로 바꾸면 debug 프로세스가 release 홈을 사용할 수 있다.
 
 메시지는 플러그인의 언어를 따르는 한 줄이다. 고정된 자연어 문구만으로 상태를 파싱하지 않는다.
-줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 상태 변경·결과 저장은 info, 출력이 없다는 알림은 warning, 오류가 섞이면 무조건 error다. 무출력 알림만 거르려면 `^\[warning\] `로 고른다. 종류별 대응은 [Claude 알림 타입 표지](../plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](../plugins/codex/index.md)에 있다.
+줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 상태 변경·결과 저장은 info, 출력이 없다는 알림과 그 묶음은 warning, 오류가 섞이면 무조건 error다. 무출력 알림만 거르려면 `^\[warning\] `로 고른다. 종류별 대응은 [Claude 알림 타입 표지](../plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](../plugins/codex/index.md)에 있다.
 Claude의 정지 알림도 같은 파일에 쓰며 기준은 [Claude 정지 알림](../plugins/claude/index.md)을 따른다.
-기록 구현은 `tasty-utils::notify::append_notice`(타입을 받는다), 호출자는 Claude의 `handle_notify_done`·`handle_notify_error`·`handle_notify_stop_failure`·원격 결과 저장과
+기록 구현은 `tasty-utils::notify::append_notice`(타입을 받는다), 호출자는 Claude의 `handle_notify_done`·`handle_notify_error`·`handle_notify_stop_failure`·`handle_notify_quiet_release`·원격 결과 저장과
 Codex의 `handle_notify_caller`·원격 결과 저장이다.
 
 여러 writer가 같은 파일을 사용하므로 쓰기 핸들은 항상 append로 연다.

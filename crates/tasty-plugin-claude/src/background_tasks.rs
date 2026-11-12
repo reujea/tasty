@@ -108,6 +108,26 @@ impl BackgroundTasks {
     }
 }
 
+/// 작업 id 를 받아 끝난 작업인지 답하는 판정.
+pub(crate) type EndedTask = Box<dyn Fn(&str) -> bool>;
+
+/// 이 훅이 끝났다고 알려 준 작업을 가리는 판정. 끝난 작업이 없으면 `None` 이다.
+/// `<task-notification>` prompt 의 `<task-id>`, Stop 의 남은 목록에 없는 작업, 세션이 바뀌거나 끝나면 모든 작업이다.
+pub(crate) fn ended_tasks(event: &str, params: &Value) -> Option<EndedTask> {
+    match event {
+        "prompt-submit" => {
+            let ids = notified_task_ids(params.get("prompt").and_then(Value::as_str).unwrap_or(""));
+            (!ids.is_empty()).then(|| Box::new(move |id: &str| ids.iter().any(|i| i == id)) as _)
+        }
+        "stop" => {
+            let left = params.get("background_tasks").and_then(unfinished_tasks)?;
+            Some(Box::new(move |id: &str| !left.contains_key(id)))
+        }
+        "session-start" | "session-end" => Some(Box::new(|_: &str| true)),
+        _ => None,
+    }
+}
+
 /// 도구 결과에서 백그라운드 작업의 (id, 종류) 를 읽는다. 백그라운드로 띄운 것이 아니면 `None` 이다.
 fn started_task(tool_name: &str, tool_response: &Value) -> Option<(String, &'static str)> {
     let parsed;
@@ -141,7 +161,7 @@ fn started_task(tool_name: &str, tool_response: &Value) -> Option<(String, &'sta
 }
 
 /// `<task-notification>` prompt 에서 `<task-id>` 값을 모은다. 알림 prompt 가 아니면 비어 있다.
-fn notified_task_ids(prompt: &str) -> Vec<String> {
+pub(crate) fn notified_task_ids(prompt: &str) -> Vec<String> {
     const OPEN: &str = "<task-id>";
     const CLOSE: &str = "</task-id>";
     if !prompt.trim_start().starts_with("<task-notification>") {
@@ -236,6 +256,24 @@ mod tests {
         assert_eq!(t.started(3, Some("Read"), Some(&bash_response())), None);
         assert_eq!(t.started(3, None, Some(&bash_response())), None);
         assert!(t.pending_types(3).is_empty());
+    }
+
+    /// 끝난 작업: 알림 prompt 의 id, Stop 의 남은 목록에 없는 id, 세션 경계의 모든 작업. 읽지 못하는 Stop 은 아무것도 끝내지 않는다.
+    #[test]
+    fn ended_tasks_come_from_the_notification_the_stop_list_and_session_bounds() {
+        let ended = |event: &str, params: Value| ended_tasks(event, &params);
+        let prompt =
+            json!({ "prompt": "<task-notification>\n<task-id>T</task-id>\n</task-notification>" });
+        let f = ended("prompt-submit", prompt).expect("알림 prompt");
+        assert!(f("T") && !f("U"));
+        assert!(ended("prompt-submit", json!({ "prompt": "hello" })).is_none());
+        let stop =
+            json!({ "background_tasks": [{ "id": "U", "type": "shell", "status": "running" }] });
+        let f = ended("stop", stop).expect("남은 목록");
+        assert!(f("T") && !f("U"));
+        assert!(ended("stop", json!({})).is_none());
+        assert!(ended("session-end", json!({})).expect("세션 종료")("T"));
+        assert!(ended("notification", json!({})).is_none());
     }
 
     #[test]

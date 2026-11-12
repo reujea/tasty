@@ -20,6 +20,7 @@ mod notify_mod;
 mod profile;
 mod profile_attach;
 mod profile_merge;
+mod quiet_notice;
 mod reboot;
 mod remote;
 mod retrack;
@@ -240,10 +241,23 @@ impl Plugin for ClaudePlugin {
             "claude.remote_results" => {
                 codex_return::handle_remote_results(&self.returns, &ctx.params, &self.translator)
             }
-            "claude.notify_done" => handle_notify_done(&ctx.host, &ctx.params, &self.translator),
-            "claude.notify_error" => handle_notify_error(&ctx.host, &ctx.params, &self.translator),
+            "claude.notify_done" => {
+                handle_notify_done(&self.scanner, &ctx.host, &ctx.params, &self.translator)
+            }
+            "claude.notify_error" => {
+                handle_notify_error(&self.scanner, &ctx.host, &ctx.params, &self.translator)
+            }
             "claude.notify_stop_failure" => {
-                handle_notify_stop_failure(&ctx.host, &ctx.params, &self.translator)
+                handle_notify_stop_failure(&self.scanner, &ctx.host, &ctx.params, &self.translator)
+            }
+            "claude.notify_quiet_release" => quiet_notice::handle_notify_quiet_release(
+                &self.scanner,
+                &ctx.host,
+                &ctx.params,
+                &self.translator,
+            ),
+            "claude.quiet" => {
+                quiet_notice::handle_quiet(&self.scanner, &ctx.host, &ctx.params, &self.translator)
             }
             "claude.launch" => handle_launch(
                 &self.scanner,
@@ -422,12 +436,16 @@ fn error_scan_loop(scanner: Arc<Mutex<ErrorScanner>>, host: HostHandle) {
         for (sid, target) in surfaces {
             // 등록 경로별 조회 결과로 제거 여부를 판단한다. 조회 실패 처리도 경로마다 다르다.
             if !scan_target_is_alive(&host, sid, target) {
-                crate::error_scan::lock_scanner(&scanner).disable(sid);
+                crate::error_scan::lock_scanner(&scanner).stop_tracking(&host, sid);
                 continue;
             }
+            let mut scanner = crate::error_scan::lock_scanner(&scanner);
+            // 끝 시각이 지난 무출력 선언을 먼저 끝낸다. 정지 판정은 조용하지 않은 surface 에서 일찍 돌아가 만료를 놓친다.
+            scanner.release_expired(&host, sid, crate::error_scan::unix_now_ms());
             // 반환된 오류 문구는 시험에서만 사용한다.
-            crate::error_scan::lock_scanner(&scanner).scan_one(&host, sid);
+            scanner.scan_one(&host, sid);
         }
+        crate::error_scan::lock_scanner(&scanner).prune_quiet(crate::error_scan::unix_now_ms());
     }
 }
 

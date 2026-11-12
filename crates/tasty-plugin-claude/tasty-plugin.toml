@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.claude"
 name = "Claude Code"
-version = "0.2.58"
+version = "0.2.59"
 description = "Claude Code CLI integration for Tasty"
 api_version = "1"
 permissions = [
@@ -109,6 +109,10 @@ description = "Claude output matched an error pattern"
 key = "claude-error-stalled"
 description = "Claude produced no output for a sustained period while the host still sees an unfinished turn (active or stale) — likely stuck. Fires with or without a preceding error; the notification text says which"
 
+[[contributes.hook_events]]
+key = "claude-quiet-released"
+description = "A quiet declaration with held no-output notices ended (expired, its task ended, cleared or replaced). The held notices are in surface meta claude-quiet-release until each parent hook has written them"
+
 [[contributes.cli]]
 name = "claude"
 help_group = "agents"
@@ -141,6 +145,8 @@ subcommands = [
     { name = "checklist-status",  ipc_method = "claude.checklist_status",  args = "checklist_gate_args", description = "Show whether a Stop-hook gate is currently on. Use 'claude gate-list' to see every gate's on/off at once.", description_i18n_key = "claude.cli.sub.checklist-status.description" },
     { name = "notify-error", internal = true, ipc_method = "claude.notify_error", args = "notify_error_args", description = "Internal: notify the caller that a child may be stalled after a long period without output changes. Used as the hook.set command for claude-error-stalled. Does not change child state or remove or re-register completion hooks.", description_i18n_key = "claude.cli.sub.notify-error.description" },
     { name = "notify-stop-failure", internal = true, ipc_method = "claude.notify_stop_failure", args = "notify_error_args", description = "Internal: when a child's turn ended on an API error while background work keeps it waiting, write one line to the caller's notification log. Writes nothing when the turn simply ended, since the completion line already names the error. Used as the hook.set command for claude-stop-failure.", description_i18n_key = "claude.cli.sub.notify-stop-failure.description" },
+    { name = "quiet",     ipc_method = "claude.quiet",     args = "quiet_args",     description = "Declare how long a child's no-output notices are expected, for the whole surface or one background task (--task). With --secs N (positive) the no-output notices of that time are held and sent as one line when the declaration ends (time up, task ended or --clear); with --secs -1 they are dropped until the task ends or --clear. Notices of state changes and errors are sent as usual, and an error ends every declaration of the surface. --clear without --task ends every declaration of the surface.", description_i18n_key = "claude.cli.sub.quiet.description" },
+    { name = "notify-quiet-release", internal = true, ipc_method = "claude.notify_quiet_release", args = "notify_error_args", description = "Internal: write the held no-output notices of quiet declarations that ended to the caller's notification log, once per caller. Used as the hook.set command for claude-quiet-released.", description_i18n_key = "claude.cli.sub.notify-quiet-release.description" },
     { name = "notify-done", internal = true, ipc_method = "claude.notify_done", args = "notify_done_args", description = "Internal: report a spawn/tell state transition to the caller and remove matching once-hooks. If the target surface can still be found, register the three completion hooks again. Used as the hook.set command for claude-idle/needs-input/process-exit.", description_i18n_key = "claude.cli.sub.notify-done.description" },
     # CLI가 한 단계의 하위 명령을 지원하므로 profile-* 이름을 사용한다.
     { name = "profile-register",   ipc_method = "claude.profile_register",   args = "profile_register_args",   description = "Register a Claude session profile under a name (copies the file into plugin-private storage; re-registering the same name updates its content)", description_i18n_key = "claude.cli.sub.profile-register.description" },
@@ -196,6 +202,14 @@ flags = [
 [contributes.cli.arg_groups.state_args]
 flags = [
     { name = "surface", type = "u32", flag = "--surface", required = false, help = "Child Claude surface ID to query (defaults to caller's TASTY_SURFACE_ID)", help_i18n_key = "claude.cli.arg.state_args.surface.help" },
+]
+
+[contributes.cli.arg_groups.quiet_args]
+flags = [
+    { name = "surface", type = "u32",    flag = "--surface", required = false, help = "Child Claude surface ID the declaration is for (defaults to caller's TASTY_SURFACE_ID)", help_i18n_key = "claude.cli.arg.quiet_args.surface.help" },
+    { name = "task",    type = "string", flag = "--task",    required = false, help = "Background task ID (Bash backgroundTaskId or Agent agentId). Without it the declaration covers the whole surface", help_i18n_key = "claude.cli.arg.quiet_args.task.help" },
+    { name = "secs",    type = "i64",    flag = "--secs",    required = false, help = "Seconds to hold no-output notices (no upper limit), or -1 to drop them until the task ends or --clear. 0 and other negative numbers are refused", help_i18n_key = "claude.cli.arg.quiet_args.secs.help" },
+    { name = "clear",   type = "bool",   flag = "--clear",   required = false, help = "End the declaration now and send what it held. Without --task, ends every declaration of the surface", help_i18n_key = "claude.cli.arg.quiet_args.clear.help" },
 ]
 
 [contributes.cli.arg_groups.tell_args]

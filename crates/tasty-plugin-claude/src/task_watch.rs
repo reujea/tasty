@@ -290,12 +290,12 @@ impl FileActivity {
         Some(now.duration_since(since).unwrap_or_default())
     }
 
-    /// 알림에 적을 작업 이름. 대상이 있는 파일의 작업만 적는다.
-    pub fn labels(&self) -> Vec<String> {
+    /// 알림에 적을 작업의 (id, 이름). 대상이 있는 파일의 작업만 적는다.
+    pub fn quiet_tasks(&self) -> Vec<(String, String)> {
         self.files
             .iter()
             .filter(|(_, _, m)| m.is_some())
-            .map(|(t, _, _)| t.label.clone())
+            .map(|(t, _, _)| (t.id.clone(), t.label.clone()))
             .collect()
     }
 }
@@ -421,7 +421,10 @@ mod tests {
         assert!(FileActivity::locate(&w, dir.path()).is_none());
         std::fs::write(&path, "tick 1\n").unwrap();
         let mut a = FileActivity::locate(&w, dir.path()).expect("파일 있음");
-        assert_eq!(a.labels(), vec!["sleep 300"]);
+        assert_eq!(
+            a.quiet_tasks(),
+            vec![("btwzfqgkg".to_string(), "sleep 300".to_string())]
+        );
         let later = now + Duration::from_secs(130);
         assert!(a.poll(later) >= Some(Duration::from_secs(129)));
         std::fs::write(&path, "tick 1\ntick 2\n").unwrap();
@@ -462,7 +465,7 @@ mod tests {
         let now = SystemTime::now();
         assert_eq!(a.poll(now), None);
         assert_eq!(a.poll(now + Duration::from_secs(600)), None);
-        assert!(a.labels().is_empty());
+        assert!(a.quiet_tasks().is_empty());
         std::fs::write(&transcript, "{}\n").unwrap();
         let t1 = now + Duration::from_secs(700);
         assert_eq!(a.poll(t1), Some(Duration::ZERO));
@@ -497,6 +500,9 @@ mod tests {
         let mut a = FileActivity::locate(&w, dir.path()).unwrap();
         let later = SystemTime::now() + Duration::from_secs(130);
         assert!(a.poll(later) >= Some(Duration::from_secs(129)));
-        assert_eq!(a.labels(), vec!["sleep 300"]);
+        assert_eq!(
+            a.quiet_tasks(),
+            vec![("b1".to_string(), "sleep 300".to_string())]
+        );
     }
 }

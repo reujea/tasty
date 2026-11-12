@@ -24,6 +24,11 @@ const EXPECTED_MTIME_SITES: &[(&str, usize)] = &[
     // 원격 결과 정리 시험이 보존 기간·상한 판정을 보려고 결과 파일의 수정 시각을 쓰기 핸들(write(true))로 옛 시각으로 옮긴다.
     ("crates/tasty-plugin-agent-common/src/remote_results.rs", 2),
     ("crates/tasty-plugin-claude/src/error_scan.rs", 1),
+    // 무출력 선언 시험이 작업 출력 파일을 오래 조용한 것처럼 쓰기 핸들(write(true))로 옛 시각으로 옮긴다.
+    (
+        "crates/tasty-plugin-claude/src/error_scan/quiet_tests.rs",
+        1,
+    ),
     ("crates/tasty-plugin-sdk/src/file_watch.rs", 1),
     // 복사한 파일에 원본의 수정 시각을 건다. 사본을 만든 쓰기 핸들(create_new)로 건다.
     ("src/app/file_jobs/copy_meta.rs", 1),

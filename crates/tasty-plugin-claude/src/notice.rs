@@ -24,6 +24,8 @@ pub(crate) enum NoticeKind {
     StalledBackgroundWait,
     /// 기다리는 백그라운드 작업의 출력 파일이 오래 조용하다.
     StalledBackgroundTaskQuiet,
+    /// 무출력 선언이 끝나 그동안 쌓인 무출력 알림을 묶어 보낸다.
+    QuietReleased,
 }
 
 impl NoticeKind {
@@ -33,7 +35,8 @@ impl NoticeKind {
             Self::StateChanged | Self::RemoteResult => NoticeType::Info,
             Self::StalledNoError
             | Self::StalledBackgroundWait
-            | Self::StalledBackgroundTaskQuiet => NoticeType::Warning,
+            | Self::StalledBackgroundTaskQuiet
+            | Self::QuietReleased => NoticeType::Warning,
             Self::Exited | Self::StopFailure | Self::StopFailureBackground | Self::Stalled => {
                 NoticeType::Error
             }
@@ -53,11 +56,12 @@ impl NoticeKind {
             Self::StalledBackgroundTaskQuiet => {
                 "claude.notify.stalled_background_task_quiet_message"
             }
+            Self::QuietReleased => "claude.notify.quiet_released_message",
         }
     }
 
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 9] = [
+    pub(crate) const ALL: [Self; 10] = [
         Self::StateChanged,
         Self::Exited,
         Self::StopFailure,
@@ -67,6 +71,7 @@ impl NoticeKind {
         Self::StalledNoError,
         Self::StalledBackgroundWait,
         Self::StalledBackgroundTaskQuiet,
+        Self::QuietReleased,
     ];
 }
 
@@ -130,7 +135,7 @@ mod tests {
         }
     }
 
-    /// 대응표: 무출력 3종만 warning, 오류가 섞인 넷은 error, 나머지 둘은 info 다.
+    /// 대응표: 무출력 3종과 그 묶음만 warning, 오류가 섞인 넷은 error, 나머지 둘은 info 다.
     #[test]
     fn each_notice_kind_has_the_type_of_the_table() {
         use NoticeKind::*;
@@ -147,7 +152,8 @@ mod tests {
             vec![
                 StalledNoError,
                 StalledBackgroundWait,
-                StalledBackgroundTaskQuiet
+                StalledBackgroundTaskQuiet,
+                QuietReleased
             ]
         );
         assert_eq!(

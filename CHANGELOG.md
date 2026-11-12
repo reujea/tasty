@@ -29,6 +29,7 @@
 - **mirror를 다시 mirror로 붙이지 않는다.** 대상이 그 인스턴스의 mirror면 서버가 `workspace attach rejected: mirror_workspace`로 거절한다. `remote.workspaces`(`tasty remote workspaces`) 항목에 `mirror`가 실리고, 원격 연결 팝업은 그 행을 비활성으로 두고 `mirror` 표지와 안내 문구를 보이며, CLI 목록은 그 행 아래에 안내 한 줄을 덧붙인다.
 - **저장된 원격 행의 우클릭 메뉴에 Connect(또는 Reconnect)·Disconnect·Close locally·Close remote workspace…가 생긴다.** 할 수 없는 항목은 꺼져 보인다. Close remote workspace…와 저장된 행을 비우는 닫기 요청은 확인 대화를 먼저 연다. 확인 대화는 Esc·Cancel로만 닫히고 바깥 클릭으로는 닫히지 않는다.
 - **토스트 위에 포인터를 올려 두면 토스트가 사라지지 않는다.** 포인터를 치우면 그때부터 Toast duration(`overlay.toast_duration_ms`)만큼 보인 뒤 사라지고, 흐려지던 토스트도 포인터를 올리면 다시 또렷해진다. 토스트는 여전히 클릭·드래그·포커스를 받지 않아 아래 대상에 그대로 간다.
+- **`tasty claude quiet --surface <N> [--task <id>] (--secs <초> | --clear)`와 IPC `claude.quiet`로 child의 예상 무출력 기간을 선언한다.** 양수 초는 그동안의 무출력 알림(`[warning]`)을 쌓았다가 선언이 끝날 때(만료·작업 종료·`--clear`) 한 줄로 묶어 보내고, `-1`은 작업이 끝나거나 `--clear`할 때까지 버린다. 상태 변경 알림은 그대로 나가고, 오류 알림은 그 surface의 선언을 모두 끝내며 쌓인 것을 같은 줄 끝에 붙인다. `0`과 `-1`이 아닌 음수는 거절한다. 내부 명령 `tasty claude notify-quiet-release`, 훅 이벤트 `claude-quiet-released`, surface meta `claude-quiet`·`claude-quiet-release`가 더해진다. 선언은 플러그인을 다시 시작해도 이어지지만 Tasty를 다시 시작하면 사라진다.
 
 ### Changed
 

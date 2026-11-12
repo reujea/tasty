@@ -7,6 +7,8 @@
 //! TopLevel 조회 오류는 대상 부재 오류까지 추적 유지로 처리하는 한계가 있다.
 //! 새 턴에서는 중복 알림 기록과 정지 관측을 초기화하되 알림 간격 제한은 유지한다.
 
+pub(crate) mod quiet;
+
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
@@ -129,6 +131,8 @@ pub struct ErrorScanner {
     notice_recorded: std::collections::HashSet<u32>,
     /// 오류 없는 정지 알림 기준의 설정값.
     no_output_notice: NoOutputNotice,
+    /// 무출력 알림 선언과 끝난 선언의 묶음. 처음 볼 때 meta 에서 되살린다.
+    quiet: quiet::QuietTable,
 }
 
 /// 마지막으로 읽은 오류 없는 정지 알림 기준과 그 시각.
@@ -161,7 +165,7 @@ fn parse_no_output_notice(value: Option<&serde_json::Value>) -> Duration {
 pub(crate) const STALL_NOTICE_META_KEY: &str = "claude-stall-notice";
 
 /// 현재 시각(Unix ms).
-fn unix_now_ms() -> u64 {
+pub(crate) fn unix_now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -407,6 +411,12 @@ impl ErrorScanner {
     /// 추적 대상을 등록한다. 같은 surface는 등록 경로만 바꾸고 중복 알림 기록은 유지한다.
     pub fn enable(&mut self, surface_id: u32, target: ScanTarget) {
         self.enabled.insert(surface_id, target);
+    }
+
+    /// 추적을 끝낸다. 무출력 선언도 끝내며 쌓인 것은 error 완료 줄을 잠시 기다린다.
+    pub fn stop_tracking<H: HostCall>(&mut self, host: &H, surface_id: u32) {
+        self.drop_quiet(host, surface_id);
+        self.disable(surface_id);
     }
 
     pub fn disable(&mut self, surface_id: u32) {
@@ -831,11 +841,57 @@ impl ErrorScanner {
                 self.record_wait_notice(host, surface_id);
                 return;
             }
-            record_quiet_tasks(host, surface_id, b, quiet);
         }
         // 대기가 아니면 오류 뒤 멈춤(error)과 오류 없는 멈춤(warning)을 여기서 가른다. 문구도 이 판정을 따른다.
         let wording = wait.is_none().then(|| StallWording::read(host, surface_id));
+        if wording.as_ref().is_some_and(|w| w.error_line.is_some()) {
+            // error 알림은 선언과 관계없이 바로 보내고 그 surface 의 선언을 모두 끝낸다. 쌓인 것은 error 줄이 가져간다.
+            self.end_quiet_on_error(host, surface_id);
+            self.fire_stall(host, surface_id, now, wording.as_ref());
+            return;
+        }
+        let notice = match wait {
+            Some(b) => match (&b.files, file_quiet) {
+                (Some(files), Some(_)) => quiet::QuietNotice::Tasks(files.quiet_tasks()),
+                _ => quiet::QuietNotice::Wait {
+                    ids: b
+                        .watch
+                        .as_ref()
+                        .map(TaskWatch::task_ids)
+                        .unwrap_or_default(),
+                    label: wait_label(&b.kinds),
+                },
+            },
+            None => quiet::QuietNotice::Turn,
+        };
+        let task_quiet = matches!(notice, quiet::QuietNotice::Tasks(_));
+        let labels = match &notice {
+            quiet::QuietNotice::Tasks(t) => t.iter().map(|(_, l)| l.clone()).collect(),
+            _ => Vec::new(),
+        };
+        let labels = match self.dispose_quiet(host, surface_id, notice, quiet.as_millis() as u64) {
+            quiet::Send::All => labels,
+            quiet::Send::Labels(rest) => rest,
+            quiet::Send::Nothing => {
+                // 보류나 버림도 알린 것과 같게 기록해 같은 조용한 구간·대기를 tick 마다 다시 판정하지 않는다.
+                self.record_notice(host, surface_id, wording.as_ref());
+                self.mark_stall_handled(host, surface_id, now);
+                return;
+            }
+        };
+        if task_quiet && let Some(b) = self.background_wait.get(&surface_id) {
+            record_quiet_tasks(host, surface_id, b, quiet, labels);
+        }
         self.fire_stall(host, surface_id, now, wording.as_ref());
+    }
+
+    /// 이 조용한 구간·대기를 알린 것으로 기록한다.
+    fn mark_stall_handled<H: HostCall>(&mut self, host: &H, surface_id: u32, now: Instant) {
+        if let Some(w) = self.watch.get_mut(&surface_id) {
+            w.stall_notified = true;
+        }
+        self.record_wait_notice(host, surface_id);
+        self.last_stall_notify.insert(surface_id, now);
     }
 
     /// 알림 기록을 남기고 정지 의심 훅을 요청한다. 성공하면 같은 정지 구간·대기에서 다시 알리지 않도록 기록한다.
@@ -868,11 +924,7 @@ impl ErrorScanner {
             }
             return;
         }
-        if let Some(w) = self.watch.get_mut(&surface_id) {
-            w.stall_notified = true;
-        }
-        self.record_wait_notice(host, surface_id);
-        self.last_stall_notify.insert(surface_id, now);
+        self.mark_stall_handled(host, surface_id, now);
     }
 
     /// 플러그인이 다시 시작돼도 같은 조용한 구간을 다시 알리지 않도록 알림 시각을 남긴다. 대기가 아닌 정지면 문구 종류와
@@ -952,18 +1004,24 @@ impl StallWording {
     }
 }
 
+/// 대기 알림에 적는 작업 종류. 종류를 모르면 대기 판정에 쓴 필드 이름이다.
+fn wait_label(kinds: &WaitKinds) -> String {
+    if kinds.noticed.is_empty() {
+        "waiting_on_background_work".to_string()
+    } else {
+        kinds.noticed.join(", ")
+    }
+}
+
 /// 정지 알림 문구가 조용한 작업의 이름과 시간을 적도록 기록한다. 대기 시작 시각으로 같은 대기인지 가린다.
+/// `labels` 는 알릴 작업이다. 선언으로 보류한 작업은 뺀다.
 fn record_quiet_tasks<H: HostCall>(
     host: &H,
     surface_id: u32,
     wait: &BackgroundWait,
     quiet: Duration,
+    labels: Vec<String>,
 ) {
-    let labels = wait
-        .files
-        .as_ref()
-        .map(FileActivity::labels)
-        .unwrap_or_default();
     tracing::info!(
         "claude stall s{surface_id}: background task output quiet for {}s ({}) — notifying",
         quiet.as_secs(),
@@ -1382,6 +1440,12 @@ mod tests {
                         Some(v) => json!({ "value": v }),
                         None => json!({}),
                     })
+                }
+                "surface.meta.get"
+                    if params["key"] == quiet::QUIET_META_KEY
+                        || params["key"] == quiet::QUIET_RELEASE_META_KEY =>
+                {
+                    Ok(json!({}))
                 }
                 "surface.fire_hook" => {
                     let event = params["event"].as_str().unwrap_or_default().to_string();

@@ -345,7 +345,7 @@ pub(crate) fn handle_kill<H: HostCall>(
         .map(|v| v as u32);
     // 다음 폴링을 기다리지 않고 오류 감시에서 제거한다.
     if let Some(killed) = killed_id {
-        crate::error_scan::lock_scanner(scanner).disable(killed);
+        crate::error_scan::lock_scanner(scanner).stop_tracking(host, killed);
         // 닫힌 자식의 결과 경로를 지운다. 보내지 못한 결과는 남는다.
         returns.forget_child(killed);
     }
@@ -1892,6 +1892,7 @@ mod tests {
         // 1번째 전환: needs-input(되묻기) — child 는 여전히 살아있다.
         assert_eq!(host.fire(target, "needs-input"), 1);
         handle_notify_done(
+            &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
             &host,
             &json!({ "caller_surface": caller, "target_surface": target, "command": "tell" }),
             &tr,
@@ -1906,6 +1907,7 @@ mod tests {
         // surface가 남아 있는 두 번째 상태 전환에서도 재등록해야 한다.
         assert_eq!(host.fire(target, "claude-idle"), 1);
         handle_notify_done(
+            &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
             &host,
             &json!({ "caller_surface": caller, "target_surface": target, "command": "tell" }),
             &tr,
@@ -1957,6 +1959,7 @@ mod tests {
             assert_eq!(host.fire(target, crate::hook::STOP_FAILURE_EVENT), 1);
             assert_eq!(host.fire(target, "claude-idle"), 1);
             handle_notify_done(
+                &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
                 &host,
                 &json!({ "caller_surface": caller, "target_surface": target, "command": "spawn" }),
                 &tr,
@@ -1978,6 +1981,7 @@ mod tests {
         for _ in 0..3 {
             assert_eq!(host.fire(target, "needs-input"), 1);
             handle_notify_done(
+                &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
                 &host,
                 &json!({ "caller_surface": caller, "target_surface": target, "command": "tell" }),
                 &tr,
@@ -2016,15 +2020,25 @@ mod tests {
         let host = MockHost::new();
         let tr = test_translator();
         assert_eq!(
-            handle_notify_error(&host, &json!({ "target_surface": 5 }), &tr)
-                .unwrap_err()
-                .code,
+            handle_notify_error(
+                &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
+                &host,
+                &json!({ "target_surface": 5 }),
+                &tr
+            )
+            .unwrap_err()
+            .code,
             -32602
         );
         assert_eq!(
-            handle_notify_error(&host, &json!({ "caller_surface": 5 }), &tr)
-                .unwrap_err()
-                .code,
+            handle_notify_error(
+                &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
+                &host,
+                &json!({ "caller_surface": 5 }),
+                &tr
+            )
+            .unwrap_err()
+            .code,
             -32602
         );
     }
@@ -2182,6 +2196,7 @@ mod tests {
         host.mark_dead(target);
         let tr = test_translator();
         handle_notify_done(
+            &std::sync::Mutex::new(crate::error_scan::ErrorScanner::new()),
             &host,
             &json!({ "caller_surface": caller, "target_surface": target, "command": "spawn" }),
             &tr,

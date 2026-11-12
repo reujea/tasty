@@ -74,6 +74,17 @@ stalled_background_wait_message = "surface {}: waiting on background work ({}) f
 stalled_background_task_quiet_message = "surface {}: background work {} has written no output for {} min"
 stalled_hint = " Last error: {}"
 stop_failure_background_message = "surface {}: the turn ended on an API error ({}), but background work ({}) is still running, so the child keeps waiting"
+quiet_released_message = "surface {0}: {1} held no-output notice(s) released — the {2}s quiet declaration on {3} ended ({4}): {5}"
+quiet_held_suffix = "; held {0} no-output notice(s) of the {1}s quiet declaration on {2}: {3}"
+quiet_item = "{0} ×{1} ({2}, +{3}–{4} min, quiet up to {5} min)"
+quiet_more = "+{} more"
+quiet_scope_task = "task {}"
+quiet_scope_surface = "the whole surface"
+
+[claude.quiet]
+invalid_secs = "--secs must be a positive number of seconds or -1 (until the task ends or --clear); got {}"
+secs_or_clear = "give either --secs or --clear"
+not_tracked = "surface {} is not a Claude surface watched for notices"
 
 [claude.launch]
 workspace_create_missing_id = "host workspace.create response is missing 'id'"
@@ -243,6 +254,12 @@ description = "Internal: when a child's turn ended on an API error while backgro
 [claude.cli.sub.notify-error]
 description = "Internal: notify the caller that a child may be stalled after a long period without output changes. Used as the hook.set command for claude-error-stalled. Does not change child state or remove or re-register completion hooks."
 
+[claude.cli.sub.quiet]
+description = "Declare how long a child's no-output notices are expected, for the whole surface or one background task (--task). With --secs N (positive) the no-output notices of that time are held and sent as one line when the declaration ends (time up, task ended or --clear); with --secs -1 they are dropped until the task ends or --clear. Notices of state changes and errors are sent as usual, and an error ends every declaration of the surface. --clear without --task ends every declaration of the surface."
+
+[claude.cli.sub.notify-quiet-release]
+description = "Internal: write the held no-output notices of quiet declarations that ended to the caller's notification log, once per caller. Used as the hook.set command for claude-quiet-released."
+
 [claude.cli.sub.notify-done]
 description = "Internal: report a spawn/tell state transition to the caller and remove matching once-hooks. If the target surface can still be found, register the three completion hooks again. Used as the hook.set command for claude-idle/needs-input/process-exit."
 
@@ -329,6 +346,18 @@ help = "Child Claude surface ID to look up the parent of (defaults to caller's T
 
 [claude.cli.arg.state_args.surface]
 help = "Child Claude surface ID to query (defaults to caller's TASTY_SURFACE_ID)"
+
+[claude.cli.arg.quiet_args.surface]
+help = "Child Claude surface ID the declaration is for (defaults to caller's TASTY_SURFACE_ID)"
+
+[claude.cli.arg.quiet_args.task]
+help = "Background task ID (Bash backgroundTaskId or Agent agentId). Without it the declaration covers the whole surface"
+
+[claude.cli.arg.quiet_args.secs]
+help = "Seconds to hold no-output notices (no upper limit), or -1 to drop them until the task ends or --clear. 0 and other negative numbers are refused"
+
+[claude.cli.arg.quiet_args.clear]
+help = "End the declaration now and send what it held. Without --task, ends every declaration of the surface"
 
 [claude.cli.arg.tell_args.message]
 help = "Message text to send. Newlines are preserved; the message is submitted automatically."

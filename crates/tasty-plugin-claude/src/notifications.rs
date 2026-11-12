@@ -3,7 +3,11 @@ use serde_json::{Value, json};
 use tasty_plugin_agent_common::host_call::{HostCall, cleanup_sibling_hooks, surface_is_alive};
 use tasty_plugin_sdk::{IpcMethodError, i18n::Translator};
 
+use std::sync::Mutex;
+
+use crate::error_scan::ErrorScanner;
 use crate::notice::NoticeKind;
+use tasty_utils::notify::NoticeType;
 
 /// 완료 훅 등록과 정리에 같은 명령 문자열을 사용한다.
 /// 대상 터미널과 이 문자열이 모두 같은 훅을 한 그룹으로 찾는다.
@@ -81,6 +85,7 @@ pub(crate) fn register_notify_hooks<H: HostCall>(
     );
     register_error_notify_hook(host, caller_surface, target_surface);
     register_stop_failure_notify_hook(host, caller_surface, target_surface);
+    crate::quiet_notice::register_quiet_release_hook(host, caller_surface, target_surface);
 }
 
 /// 백그라운드 작업이 남은 StopFailure 를 부모에게 알리는 훅 명령. 완료 그룹과 다른 명령을 쓴다.
@@ -146,6 +151,7 @@ pub(crate) fn register_error_notify_hook<H: HostCall>(
 /// 완료 로그를 남기고 같은 대상·명령의 완료 훅을 정리한다.
 /// 대상이 여전히 조회되면 다음 알림을 받도록 다시 등록한다.
 pub(crate) fn handle_notify_done<H: HostCall>(
+    scanner: &Mutex<ErrorScanner>,
     host: &H,
     params: &Value,
     tr: &Translator,
@@ -167,7 +173,16 @@ pub(crate) fn handle_notify_done<H: HostCall>(
         .and_then(|v| v.as_str())
         .ok_or_else(|| IpcMethodError::invalid_params(tr.t("claude.params.missing_command")))?;
 
-    let (kind, message) = notify_done_line(tr, host, command_name, target_surface);
+    let (kind, mut message) = notify_done_line(tr, host, command_name, target_surface);
+    if kind.notice_type() == NoticeType::Error {
+        message.push_str(&crate::quiet_notice::error_bundle(
+            scanner,
+            host,
+            caller_surface,
+            target_surface,
+            tr,
+        ));
+    }
     if let Err(e) = crate::notice::append(caller_surface, kind, &message) {
         tracing::warn!("claude notify-done completion-log append failed: {e}");
     }
@@ -185,6 +200,7 @@ pub(crate) fn handle_notify_done<H: HostCall>(
 /// 진행 정체 알림을 부모 로그에 남긴다.
 /// 이 알림만으로 자식 상태를 바꾸거나 완료 훅을 정리하지 않는다.
 pub(crate) fn handle_notify_error<H: HostCall>(
+    scanner: &Mutex<ErrorScanner>,
     host: &H,
     params: &Value,
     tr: &Translator,
@@ -202,7 +218,16 @@ pub(crate) fn handle_notify_error<H: HostCall>(
             IpcMethodError::invalid_params(tr.t("claude.params.missing_target_surface"))
         })? as u32;
 
-    let (kind, message) = notify_error_message(tr, host, target_surface);
+    let (kind, mut message) = notify_error_message(tr, host, target_surface);
+    if kind.notice_type() == NoticeType::Error {
+        message.push_str(&crate::quiet_notice::error_bundle(
+            scanner,
+            host,
+            caller_surface,
+            target_surface,
+            tr,
+        ));
+    }
     if let Err(e) = crate::notice::append(caller_surface, kind, &message) {
         tracing::warn!("claude notify-error completion-log append failed: {e}");
     }
@@ -249,6 +274,7 @@ fn target_state<H: HostCall>(host: &H, target_surface: u32) -> Option<String> {
 /// 백그라운드 작업이 남은 채 API 오류로 끝난 턴을 부모 로그에 한 번 남긴다.
 /// 대기 기록이 없으면 턴이 끝난 StopFailure 이고 완료 줄이 오류를 적으므로 줄을 남기지 않는다.
 pub(crate) fn handle_notify_stop_failure<H: HostCall>(
+    scanner: &Mutex<ErrorScanner>,
     host: &H,
     params: &Value,
     tr: &Translator,
@@ -265,9 +291,16 @@ pub(crate) fn handle_notify_stop_failure<H: HostCall>(
         .ok_or_else(|| {
             IpcMethodError::invalid_params(tr.t("claude.params.missing_target_surface"))
         })? as u32;
-    let Some(message) = stop_failure_notice(tr, host, target_surface) else {
+    let Some(mut message) = stop_failure_notice(tr, host, target_surface) else {
         return Ok(json!({ "written": false }));
     };
+    message.push_str(&crate::quiet_notice::error_bundle(
+        scanner,
+        host,
+        caller_surface,
+        target_surface,
+        tr,
+    ));
     if let Err(e) =
         crate::notice::append(caller_surface, NoticeKind::StopFailureBackground, &message)
     {
@@ -562,6 +595,7 @@ mod tests {
         let tr = tr();
         crate::notice::test_log::take();
         handle_notify_done(
+            &Mutex::new(ErrorScanner::new()),
             &plain_exited(),
             &json!({ "caller_surface": 3, "target_surface": 5, "command": "tell" }),
             &tr,
