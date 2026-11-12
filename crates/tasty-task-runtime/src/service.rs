@@ -203,8 +203,8 @@ impl TaskService {
     }
 
     /// runner 스레드에 정지만 요청하고 바로 돌아온다. 작업 상태를 바꾸거나 실행 중인 자식 프로세스를
-    /// 종료하지 않는다. 끝난 worker 는 메인 루프의 [`Self::poll_runner_stops`] 가 회수한다. 정지가 끝날
-    /// 때까지는 [`Self::runner_status`] 가 `stopping` 으로 보고한다.
+    /// 종료하지 않는다. 끝난 worker 는 메인 루프의 [`Self::poll_runner_stops`] 가 회수한다. 러너 스레드가
+    /// 끝날 때까지는 [`Self::runner_status`] 가 `stopping` 으로 보고한다. 끝나는 시간의 상한은 없다.
     pub fn request_stop_workspace(&self, scope: &TaskScope, workspace: u32) -> RunnerStopReceipt {
         self.runner_registry
             .request_stop(scope.waker_hub(), Some(workspace))

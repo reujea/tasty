@@ -173,7 +173,8 @@ impl RunnerStopReceipt {
 pub struct RunnerStatus {
     pub running: bool,
     pub crashed: bool,
-    /// 정지를 요청했지만 러너 스레드가 아직 끝나지 않았다. 진행 중인 dispatch 하나를 마무리하는 중이다.
+    /// 정지를 요청했지만 러너 스레드가 아직 끝나지 않았다. 아직 보내지 않은 Ready 작업은 보내지 않지만
+    /// 진행 중인 dispatch·poll·후처리 정리가 끝날 때까지 걸릴 수 있다. 회수 여부가 아니라 스레드 종료가 기준이다.
     pub stopping: bool,
     pub ready_count: Option<u32>,
     pub running_count: Option<u32>,

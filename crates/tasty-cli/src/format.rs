@@ -108,8 +108,8 @@ fn format_runner_summary(runner: &serde_json::Value) -> String {
         line.push_str(&format!(" — task store unreadable: {err}"));
     } else if stopping {
         line.push_str(
-            " — finishing the dispatch in progress; check `agent task-run --action status` \
-             until it reads stopped",
+            " — stop requested; the runner sends no more ready tasks but may still finish work \
+             in progress; check `agent task-run --action status` until it reads stopped",
         );
     } else if !running && (ready.unwrap_or(0) > 0 || inflight.unwrap_or(0) > 0) {
         line.push_str(" — pending work but no runner; `agent task-run --action start` to resume");
@@ -1211,7 +1211,7 @@ mod tests {
         );
     }
 
-    /// stop 은 바로 응답한다. 러너가 진행 중인 dispatch 를 끝내는 동안은 재개 안내 대신 확인 방법을 낸다.
+    /// stop 은 바로 응답한다. 러너가 끝나기 전까지는 재개 안내 대신 확인 방법을 낸다.
     #[test]
     fn runner_summary_stopping_points_to_status_instead_of_resume() {
         let s = format_runner_summary(&json!({
@@ -1220,8 +1220,9 @@ mod tests {
         }));
         assert_eq!(
             s,
-            "runner: stopping (ready=2 running=0) — finishing the dispatch in progress; \
-             check `agent task-run --action status` until it reads stopped"
+            "runner: stopping (ready=2 running=0) — stop requested; the runner sends no more \
+             ready tasks but may still finish work in progress; check \
+             `agent task-run --action status` until it reads stopped"
         );
     }
 

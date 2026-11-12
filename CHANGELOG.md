@@ -32,7 +32,7 @@
 
 ### Changed
 
-- **`agent.task_run` stop(`tasty agent task-run --action stop`)이 runner가 끝나기를 기다리지 않고 바로 응답한다.** 응답과 runner 상태(`task_run`·`task_list`·`task_graph`의 `runner`)에 `state`(`running`·`stopping`·`stopped`·`crashed`)가 실린다. runner가 진행 중인 dispatch 하나를 끝내는 동안은 `stopping`이고 그동안 start는 새 runner를 띄우지 않는다. 정지 완료는 status의 `state: stopped`로 확인한다. 전에는 응답이 runner 종료 뒤에 왔다.
+- **`agent.task_run` stop(`tasty agent task-run --action stop`)이 runner가 끝나기를 기다리지 않고 바로 응답한다.** 응답과 runner 상태(`task_run`·`task_list`·`task_graph`의 `runner`)에 `state`(`running`·`stopping`·`stopped`·`crashed`)가 실린다. 정지 요청 뒤 runner는 아직 보내지 않은 ready task를 보내지 않지만, 이미 진행 중인 dispatch·poll·후처리 정리가 끝날 때까지 살아 있을 수 있어 끝나는 시간의 상한은 없다. runner가 끝나기 전까지는 `stopping`이고 그동안 start는 새 runner를 띄우지 않는다. 정지 완료는 status의 `state: stopped`로 확인한다. 전에는 응답이 runner 종료 뒤에 왔다.
 - **(BREAK) `remote.refusals` 항목의 `anchor_workspace`가 `row_workspace`(저장된 원격 행의 로컬 workspace)로 바뀐다.** 안내 `notices`의 `kind`에 `remote_workspace_missing`·`occupied`·`mirror_workspace`가 더해진다.
 - **macOS·Linux 터미널 셸의 `SHELL`이 바뀐다.** 셸은 Tasty가 받은 `SHELL`을 그대로 받는다. 전에는 항상 계정의 로그인 셸로 덮었고, 지금은 Tasty를 띄운 환경에 `SHELL`이 없을 때만 그 값을 넣는다. 실행 권한이 없는 셸의 오류 문구는 `because it is not executable`이다.
 - **셸 설정 값을 판정한 파일 그대로 실행한다.** 셸 설정(`general.shell`)은 한 번 절대 경로로 풀어 판정하고 같은 파일을 실행한다. 규칙은 [경로 해석](docs/concepts/path-resolution.md)에 있다.

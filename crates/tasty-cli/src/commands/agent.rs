@@ -226,9 +226,11 @@ pub enum AgentCommands {
     /// again. Starting again restores handles and checks whether processes are
     /// alive or have a saved exit result.
     ///
-    /// Stop returns at once. While the runner finishes the dispatch in progress,
-    /// the runner state reads stopping and start does not begin a new runner.
-    /// Check with the status action until it reads stopped.
+    /// Stop returns at once. After it, the runner sends no Ready task it has not
+    /// sent yet. A dispatch, poll, or postprocess cleanup already in progress can
+    /// keep the runner alive, so there is no upper bound on how long it takes to
+    /// end. Until it ends, the runner state reads stopping and start does not
+    /// begin a new runner. Check with the status action until it reads stopped.
     TaskRun {
         /// Workspace id whose runner is being controlled (focus-independent — required).
         #[arg(long = "workspace", visible_alias = "workspace-id")]
