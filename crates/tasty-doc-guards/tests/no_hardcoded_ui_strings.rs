@@ -335,11 +335,13 @@ fn leading_literal(after: &str) -> Option<&str> {
 
 /// 플레이스홀더 색 헬퍼의 글자 인자(최상위 첫 쉼표 뒤)가 리터럴이면 H 규칙으로 판정한다.
 /// 호출이 여러 줄에 걸쳐도 놓치지 않게 파일 전체를 주석·리터럴을 가린 사본에서 괄호 짝으로 읽고,
-/// 같은 바이트 위치의 리터럴을 원문에서 꺼낸다. `skipped[i]` 가 참인 줄(테스트 영역)에서 시작한
+/// 같은 바이트 위치의 리터럴은 주석만 가린 사본에서 꺼낸다. 둘째 인자 앞의 주석은 공백이 되고
+/// 주석 안의 따옴표는 리터럴로 읽히지 않는다. `skipped[i]` 가 참인 줄(테스트 영역)에서 시작한
 /// 호출은 건너뛴다. 돌려주는 줄 번호는 리터럴이 있는 줄이다.
 fn find_hint_helper_calls(contents: &str, skipped: &[bool]) -> Vec<(usize, String)> {
     const HELPER: &str = "tasty_egui_theme::hint_text(";
     let code = tasty_doc_guards::source_text::mask_non_code_aligned(contents);
+    let literals = tasty_doc_guards::source_text::mask_comments_aligned(contents);
     let line_of = |at: usize| code[..at].matches('\n').count();
     let mut out = Vec::new();
     for (pos, _) in code.match_indices(HELPER) {
@@ -351,10 +353,10 @@ fn find_hint_helper_calls(contents: &str, skipped: &[bool]) -> Vec<(usize, Strin
             continue;
         };
         let arg = open + comma + 1;
-        if let Some(lit) = leading_literal(&contents[arg..])
+        if let Some(lit) = leading_literal(&literals[arg..])
             && hint_violation(lit)
         {
-            let lit_at = arg + contents[arg..].find('"').unwrap_or(0);
+            let lit_at = arg + literals[arg..].find('"').unwrap_or(0);
             out.push((line_of(lit_at) + 1, format!("hint_text {lit:?}")));
         }
     }
@@ -717,6 +719,34 @@ fn a_sentence_inside_a_multi_line_hint_color_helper_is_reported() {
     assert!(scan_file(commented).is_empty());
     let in_test = "#[cfg(test)]\nmod tests {\n    fn f() {\n        x.hint_text(tasty_egui_theme::hint_text(\n            th,\n            \"Enter a host name\",\n        ));\n    }\n}";
     assert!(scan_file(in_test).is_empty());
+}
+
+/// 둘째 인자 앞에 주석이 있어도 그 뒤의 리터럴을 판정하고, 주석 안의 따옴표는 리터럴로 보지 않는다.
+#[test]
+fn a_comment_before_the_hint_helper_text_does_not_hide_it() {
+    let line_comment = ".hint_text(tasty_egui_theme::hint_text(\n    th,\n    // 입력 안내\n    \"Enter a host name\",\n))";
+    assert_eq!(
+        scan_file(line_comment),
+        vec![(4, "hint_text \"Enter a host name\"".to_owned())],
+        "줄 주석 뒤의 문장을 놓쳤다"
+    );
+    let block_comment = ".hint_text(tasty_egui_theme::hint_text(\n    th,\n    /* 입력 안내 */ \"Enter a host name\",\n))";
+    assert_eq!(
+        scan_file(block_comment),
+        vec![(3, "hint_text \"Enter a host name\"".to_owned())],
+        "블록 주석 뒤의 문장을 놓쳤다"
+    );
+    // 주석 안의 가짜 문자열은 보고하지 않고, 실제 인자(번역 호출)는 통과한다.
+    let fake_in_comment = ".hint_text(tasty_egui_theme::hint_text(\n    th,\n    /* \"Enter a host name\" */ t(\"remote.host_hint\"),\n))";
+    assert!(
+        scan_file(fake_in_comment).is_empty(),
+        "주석 안의 문자열을 보고했다"
+    );
+    let fake_line = ".hint_text(tasty_egui_theme::hint_text(\n    th,\n    // \"Enter a host name\"\n    t(\"remote.host_hint\"),\n))";
+    assert!(
+        scan_file(fake_line).is_empty(),
+        "줄 주석 안의 문자열을 보고했다"
+    );
 }
 
 /// 예외 경로의 존재만 확인한다. 해당 예외가 아직 필요한지는 별도 검토해야 한다.
