@@ -691,9 +691,20 @@ pub(super) fn until_removed(
 }
 /// What holds each root under `parent`: the owner pid of its record, a lease tried on each of its
 /// regular files, and every process of this user that shows one of its objects or denies the look.
+/// The descriptors open in this process come first, since a sweep short of them keeps the root too.
 fn retention_diagnosis(parent: &Path) -> String {
     use std::fmt::Write;
-    let mut out = String::new();
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    // SAFETY: limit is a live rlimit for the duration of the call.
+    let limited = unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) };
+    let open = disk::read_dir("/proc/self/fd").map(|fds| fds.count());
+    let mut out = format!(
+        "this process: {open:?} descriptors open, soft limit {} (getrlimit {limited})\n",
+        limit.rlim_cur
+    );
     let entries = match disk::read_dir(parent) {
         Ok(entries) => entries,
         Err(error) => return format!("namespace {}: {error}", parent.display()),
