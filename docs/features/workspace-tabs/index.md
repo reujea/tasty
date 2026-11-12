@@ -8,7 +8,7 @@
 
 ## 목적
 
-각 [Pane](../work-area/index.md#pane--상위-레이아웃-탭-무관) 상단의 탭 바. Pane 의 `tabs`/`active_tab` 도메인을 사용자가 보고 조작하는 GUI 표면이다. **Pane 마다 독립 탭 스트립**을 가진다(상위 레이아웃이 탭과 무관하므로). 도메인 자체(탭 생성/닫기/이동 의미)는 [work-area](../work-area/index.md), 여기선 그 스트립의 *시각 + 입력*.
+각 [Pane](../work-area/index.md#pane--상위-레이아웃-탭-무관) 상단의 탭 바. Pane 의 `tabs` 도메인과 View 가 pane 마다 기억하는 선택 탭을 사용자가 보고 조작하는 GUI 표면이다. **Pane 마다 독립 탭 스트립**을 가진다(상위 레이아웃이 탭과 무관하므로). 도메인 자체(탭 생성/닫기/이동 의미)는 [work-area](../work-area/index.md), 여기선 그 스트립의 *시각 + 입력*.
 
 ## 내부 동작 (headless-valid)
 
@@ -16,7 +16,7 @@
 
 ### 입력 → 액션 (`TabBarAction`)
 
-- **SwitchTab** — 탭 클릭 → `active_tab` 전환.
+- **SwitchTab** — 탭 클릭 → 그 pane 의 선택 탭 전환.
 - **CloseTab** — 탭의 close 버튼(활성 탭 또는 hover 시 노출) → 탭 닫기. (마지막 탭은 work-area 규칙상 안 닫힘.)
 - **AddTab** — 우측 `+` → 새 탭. `+` 우클릭은 **OpenNewTabButtonContextMenu**(프리셋으로 탭/페인 생성).
 - **RequestSplit** / **OpenSearch** — 스트립 우측 split·search 아이콘 → 해당 Pane 분할 / 활성 surface 검색.
@@ -27,7 +27,7 @@
 
 ### 클릭 → Pane focus 이동
 
-**비-focused Pane 의 탭 스트립을 primary click 하면(탭 본체·빈 영역·스크롤 화살표·+/split/search 버튼) 그 Pane 으로 focus 가 이동한다** — 콘텐츠 영역 클릭과 대칭. 탭 전환(`SwitchTab`)과 focus 이동은 독립적이라, 빈 영역 클릭은 focus 만 옮기고 `active_tab` 은 그대로 둔다. 우클릭 컨텍스트 메뉴 3종(`OpenContextMenu`/`OpenPaneContextMenu`/`OpenNewTabButtonContextMenu`)은 대상 `pane_id`/`tab_index` 를 메뉴 항목에 직접 전달하므로 focus 이동이 없다. 사용자 마우스 클릭에 의한 이동이라 [focus 정책](../../design/policies/focus.md)의 "CLI/IPC 포커스 독립 원칙"과 충돌하지 않는다(그 원칙은 IPC/CLI/에이전트 유래 focus 강제를 막는 것). 구현: `TabBarAction::focus_target_pane` + `apply_tab_bar_actions`(`src/adapters/ui/tab_bar/apply.rs`).
+**비-focused Pane 의 탭 스트립을 primary click 하면(탭 본체·빈 영역·스크롤 화살표·+/split/search 버튼) 그 Pane 으로 focus 가 이동한다** — 콘텐츠 영역 클릭과 대칭. 탭 전환(`SwitchTab`)과 focus 이동은 독립적이라, 빈 영역 클릭은 focus 만 옮기고 선택 탭은 그대로 둔다. 우클릭 컨텍스트 메뉴 3종(`OpenContextMenu`/`OpenPaneContextMenu`/`OpenNewTabButtonContextMenu`)은 대상 `pane_id`/`tab_index` 를 메뉴 항목에 직접 전달하므로 focus 이동이 없다. 사용자 마우스 클릭에 의한 이동이라 [focus 정책](../../design/policies/focus.md)의 "CLI/IPC 포커스 독립 원칙"과 충돌하지 않는다(그 원칙은 IPC/CLI/에이전트 유래 focus 강제를 막는 것). 구현: `TabBarAction::focus_target_pane` + `apply_tab_bar_actions`(`src/adapters/ui/tab_bar/apply.rs`).
 
 ### 탭 표시
 
@@ -61,7 +61,7 @@
 - Given 탭 이름 변경 팝업이 열림 When 에이전트가 탭을 옮기거나 다른 탭을 닫아 인덱스가 바뀐다 Then 저장한 이름은 팝업을 연 탭에 붙는다. 그 탭이 닫히면 팝업이 닫힌다.
 - Given 탭 우클릭 메뉴가 열림 When 에이전트가 탭 순서를 바꾸거나 다른 탭을 닫는다 Then 고른 항목(이름 변경·닫기·좌우 이동·프리셋 저장)은 메뉴를 연 탭에 적용된다. 그 탭이 먼저 닫혔으면 아무것도 하지 않는다.
 - Given busy/알림 상태 Then 녹색 점 / 노란 라벨이 표시된다.
-- Given 비-focused Pane When 그 Pane 의 탭/빈 영역/스크롤 화살표를 클릭 Then 그 Pane 으로 focus 가 이동한다(빈 영역 클릭은 `active_tab` 불변).
+- Given 비-focused Pane When 그 Pane 의 탭/빈 영역/스크롤 화살표를 클릭 Then 그 Pane 으로 focus 가 이동한다(빈 영역 클릭은 선택 탭 불변).
 - Given 비-focused Pane When 그 Pane 의 탭/빈 영역 우클릭 Then focus 는 이동하지 않는다(컨텍스트 메뉴만 열림).
 
 > GUI 위젯이라 시각은 스크린샷, 결과(탭 전환/닫기/순서)는 work-area `tasty list tabs` 로 교차 확인.

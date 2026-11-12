@@ -53,7 +53,7 @@ Tab은 구조 트리에서 하위 레이아웃 하나와 이름만 가진다. �
 | 탭 둘 이상 | 재정렬·다른 pane으로 이동 | 구조 순서·소속 변경 | — | 선택 ID 유지([포커스 정책](../../design/policies/focus.md#재정렬에서도-포커스-대상은-보존된다)) |
 | pane에 탭 둘 이상 | 탭 닫기 | 탭과 그 surface 제거 | hard 점유 surface가 있으면 거절. mirror 탭은 서버로 전달 | 닫힌 탭이 선택이었으면 생존 탭으로 보정. 닫은 항목 기록에 남는다 |
 | pane에 탭 하나 | 탭 닫기 | 변화 없음 | 구조 명령이 거절한다(`close_facts`, `crates/tasty-core/src/command/retirement.rs`) | pane은 닫히지 않는다 |
-| 탭에 surface 하나 | 그 surface 닫기 | 탭 닫기로 올라간다. 탭이 pane의 마지막이면 pane, workspace의 마지막 pane이면 workspace까지 올라간다 | 각 단계의 거절 조건은 해당 계층 | pane·workspace 구조 변경 |
+| 탭에 surface 하나 | 그 surface 닫기 | 탭 닫기로 올라간다. 탭이 pane의 마지막이면 pane, workspace의 마지막 pane이면 workspace까지 올라간다 | 각 단계의 거절 조건은 해당 계층 | [pane](pane.md#전이) |
 | 닫은 항목 기록 있음 | 닫은 항목 복원 | 새 ID로 탭 생성 | 대상 pane이 없으면 실패하고 기록에 돌려놓지 않는다 | [닫힌 항목 복원](../../features/closed-tab-restore/index.md) |
 | surface busy·attention 변화 | 폴링, 발생, 해제 | 다음 그리기에서 탭 표시 변경 | — | 선택·순서 불변 |
 
@@ -86,5 +86,6 @@ pane P에 탭 A·B가 있고 A가 선택돼 있다. A에는 surface a1·a2가 �
 
 - [상태 모델](index.md)
 - [surface 상태 모델](surface.md)
+- [pane 상태 모델](pane.md)
 - [작업 영역](../../features/work-area/index.md)
 - [포커스 정책](../../design/policies/focus.md)

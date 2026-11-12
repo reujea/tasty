@@ -21,7 +21,7 @@ CoreState
 └── Workspace          (Vec — 사이드바로 전환)
     └── PaneNode        ← 상위 레이아웃: Pane 들의 이진 분할 트리 (탭 무관)
         └── Pane         (탭 바 하나를 가진 화면 영역)
-            └── Tab       (Vec — active_tab 하나가 활성)
+            └── Tab       (Vec — 선택 탭은 View 가 pane 마다 기억)
                 └── SurfaceLayout   ← 하위 레이아웃: Surface 들의 이진 분할 트리 (탭 종속)
                     └── SurfaceDescriptor  (leaf — surface ID 와 kind)
 ```
@@ -50,7 +50,7 @@ MainView 의 최상위 컨테이너. 한 MainView 가 **여러 개**를 갖고 �
 Pane 은 **독립적인 탭 바를 가진 화면 영역**이다. Workspace 안에서 Pane 들의 배치는 `PaneNode` 이진 트리(`Leaf(Pane)` | `Split { direction, ratio, first, second }`)로 결정되고, **탭 전환과 무관하게 고정**된다 — tmux 의 "분할이 window 에 고정" 에 대응.
 
 - 필드: `id` · `tabs: Vec<Tab>`. 탭 바 가로 스크롤은 도메인 Pane과 별도로 View가 pane ID별 논리 픽셀 값으로 소유한다.
-- 탭 동작: 추가(`add_*_tab`, 활성/백그라운드) · 닫기(`close_tab`/`close_tab_by_id` — **마지막 탭은 못 닫음**, `active_tab` 은 제거 위치 기준으로 자동 보정돼 보던 탭을 계속 가리킨다) · 전환(`goto_tab`/`next_tab`/`prev_tab`) · 이동(`move_tab`, `active_tab` 자동 보정).
+- 탭 동작: 추가(사용자 생성은 새 탭 선택, 에이전트 생성은 선택 유지) · 닫기(**마지막 탭은 못 닫음** — 구조 명령의 `close_facts`가 거절한다) · 전환 · 이동. Pane은 선택 탭을 저장하지 않는다. 선택 탭은 View의 `NavigationState`가 pane ID별로 가지며 닫기·이동 뒤에도 살아 있는 선택 ID를 유지한다. 상태 축과 전이는 [pane 상태 모델](../../concepts/state-model/pane.md)에 있다.
 - **활성 탭 추종 스크롤**: 탭이 많아 탭 바에 좌우 화살표가 뜬 상태에서 전환(단축키·클릭 공통)하거나 pane 이 리사이즈돼 활성 탭이 뷰포트 밖으로 밀려나면 View의 pane ID별 `tab_bar_scroll`을 자동 보정해 다시 보이게 한다(`src/adapters/ui/tab_bar.rs` `TabBarAction::AutoScrollToActiveTab`). 활성 인덱스/지오메트리가 실제로 바뀐 시점에만 보정하므로, 사용자가 화살표로 수동 스크롤해 둔 상태(활성 탭 불변)는 덮어쓰지 않는다.
 - 분할(상위): `PaneNode::split_pane_in_place` 로 Pane 을 좌우/상하로 쪼갠다. 새 Pane 의 PTY 는 구조 변경 *전에* 미리 생성(트리가 빈 store 상태를 보지 않도록).
 
@@ -113,7 +113,7 @@ Tab 의 SurfaceLayout 트리 leaf, 최하위 컨테이너. 트리에는 고유 `
 
 - **AI Agent (IPC/CLI)**: 작업 영역의 도메인을 ID 로 직접 조작.
   - 생성: `tasty new workspace [--surface <S>]` · `tasty new tab --pane <P> [--type terminal|markdown|explorer|html|image]`. `--surface` 는 새 워크스페이스를 **그 surface 를 가진 창**에 만든다(IPC `workspace.create` 의 `surface_id` — 라우터가 주인 창을 고르고, 그 surface 를 가진 창이 없으면 포커스로 새지 않고 거절한다). 생략하면 사용자가 보고 있는 창이다([CLI 크레이트 내부 구조 — 세 갈래 대칭](../../dev-guide/cli-structure.md)). `--cwd` 를 생략한 terminal 워크스페이스는 `--surface` 를 주면 **그 surface** 의 cwd 를, 안 주면 그 창의 포커스 surface 의 cwd 를 상속한다(`inherit_cwd` 설정이 켜져 있을 때 · [CLI 크레이트 내부 구조 — 세 갈래 대칭](../../dev-guide/cli-structure.md)).
-    에이전트가 만든 탭은 kind 와 무관하게 선택되지 않는다 — pane 의 `active_tab` 과 포커스가 그대로다([focus 정책](../../design/policies/focus.md) "에이전트가 만든 탭과 선택").
+    에이전트가 만든 탭은 kind 와 무관하게 선택되지 않는다 — pane 의 선택 탭과 포커스가 그대로다([focus 정책](../../design/policies/focus.md) "에이전트가 만든 탭과 선택").
   - 분할: `tasty split --level pane|surface [--surface <S>] [--pane <P>] [--direction …]` (상위/하위 레이아웃 각각, `--pane` 은 `--level pane` 전용).
   - 닫기: `tasty close tab|pane|surface --… <ID>` · `tasty close workspace --workspace <W>`(안의 모든 pane/tab/surface 포함) · `tasty close window --window <N>`.
     워크스페이스 닫기는 마지막 하나, mirror 워크스페이스, **원격 attach 가 하드 점유 중인 surface 를 든 워크스페이스**를 거부한다 — 창까지 없앨지는 별개의 결정이라 `close window` 로 명시하고(헤드리스는 `window.close` 가 없어 거절 문구가 그것을 권하지 않고 마지막 워크스페이스를 닫을 수 없다고만 말한다), mirror 는 attach 세션 쪽에서 거두며, 점유 중인 터미널은 그것을 쓰고 있는 원격 세션이 놓아야 닫힌다. **되돌릴 수 없다**(안의 터미널이 죽고 되돌리기 스택·스크롤백에 남지 않는다). 경계와 근거는 [포커스 정책 (운영 상세)](../../design/policies/focus.md).
@@ -196,7 +196,7 @@ source 별 `source_cwd()` 는 [cwd 정책](../../design/policies/cwd.md). 이 �
 ## 비-목표 (Out of scope)
 
 - **사이드바의 워크스페이스 목록/전환 UI** — [sidebar](../sidebar/index.md) 영역.
-- **탭 스트립의 시각/드래그 동작** — [`features/workspace-tabs/`](../workspace-tabs/index.md). 여기선 Pane 의 `tabs`/`active_tab` *도메인* 만.
+- **탭 스트립의 시각/드래그 동작** — [`features/workspace-tabs/`](../workspace-tabs/index.md). 여기선 Pane 의 `tabs` *도메인* 과 선택 탭의 의미만.
 - **상태바** — [`features/workspace-status-bar/`](../workspace-status-bar/index.md).
 - **터미널 PTY/그리드/스크롤백 내부** — surface 는 leaf marker 일 뿐, 터미널 데이터는 `TerminalStore`.
 - **attach/detach 실행 메커니즘** — surface 는 원본 kind 를 유지하고 점유는 `OccupancyRegistry` 로 추적; 점유 동작·실행은 [remote-attach](../remote-attach/index.md), 메커니즘은 [dev-guide/attach-behavior](../../dev-guide/attach-behavior.md).
@@ -207,7 +207,7 @@ source 별 `source_cwd()` 는 [cwd 정책](../../design/policies/cwd.md). 이 �
 - Given 사용자가 보던 탭이 있는 Pane When 에이전트가 `tasty new tab --pane <P> --type html|markdown|…` 로 탭을 만든다 Then `tasty list tree` 의 활성 탭과 focus 가 그대로이고, 단축키·메뉴로 사용자가 연 탭은 선택된다.
 - Given Pane 하나 When `tasty split --level pane --pane <P>` Then 워크스페이스에 Pane 이 둘이 되고 탭 전환과 무관하게 분할이 유지된다.
 - Given 탭 안 Surface 하나 When `tasty split --level surface --surface <S>` Then 그 탭에서만 Surface 가 둘이 되고, 다른 탭으로 전환하면 분할이 사라졌다 돌아온다.
-- Given Pane 모델에 마지막 탭 하나 When close_tab/close_tab_by_id 호출 Then 닫히지 않는다. surface 닫기에 따른 상위 pane 정리는 별도 닫기 경로다.
+- Given Pane 에 마지막 탭 하나 When 그 탭 닫기를 요청한다 Then 닫히지 않는다. surface 닫기에 따른 상위 pane 정리는 별도 닫기 경로다.
 - Given 사용자가 보고 있지 않은 탭 · Pane · 워크스페이스 When 그것이 닫힌다(에이전트 `tasty close`/`surface.close` 포함) Then 사용자가 보고 있던 대상은 그대로다 — 시야는 보던 대상 **자체**가 사라졌을 때만 움직인다 ([focus 정책](../../design/policies/focus.md) "삭제로 인한 인덱스 이동").
 - Given 비활성 탭에 터미널이 있는 상태로 저장한 레이아웃 When 앱을 다시 시작한다 Then 그 터미널은 `tasty list tree` 에서 `type:"Pending"`, `kind:"terminal"` 로 보고되고, 탭을 화면에 보이거나 `tasty wake --surface <ID>` 를 보내면 PTY 가 생긴다([empty surface](../../surfaces/empty/index.md)).
 - Given `--type markdown` 으로 만든 surface When `tasty list tree` Then `kind:"markdown"` 으로 보고된다.
