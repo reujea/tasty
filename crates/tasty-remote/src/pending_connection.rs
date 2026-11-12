@@ -29,6 +29,26 @@ pub struct ConnectionTarget {
     pub binding: Option<tasty_model::RemoteBinding>,
 }
 
+/// 첫 attach 연결의 실패를 연결 오류 문구로 바꾼다. 터널 너머 원격 포트에 리스너가 없다고 판정하면
+/// 그 안내([`tasty_ssh::RemoteListenerAbsent`])를 앞에 두고 원래 원인을 뒤에 붙인다.
+fn connect_failure_message(
+    verdict: Option<&tasty_ssh::ListenerVerdict>,
+    error: anyhow::Error,
+) -> String {
+    let Some(verdict) = verdict else {
+        return error.to_string();
+    };
+    let error = verdict.explain_failure(error);
+    if error
+        .downcast_ref::<tasty_ssh::RemoteListenerAbsent>()
+        .is_some()
+    {
+        format!("{error:#}")
+    } else {
+        error.to_string()
+    }
+}
+
 impl Remote {
     pub fn queue_connection(
         &mut self,
@@ -80,6 +100,8 @@ impl Remote {
                     )
                 })
                 .take();
+            // 터널은 연결 안으로 넘어가므로 실패를 분류할 판정 핸들을 먼저 받아 둔다.
+            let verdict = tunnel.as_ref().map(tasty_ssh::SshTunnel::listener_verdict);
             let result = PreparedConnection::connect(
                 worker_token,
                 port,
@@ -89,7 +111,7 @@ impl Remote {
                 decode,
                 heartbeat_timeout,
             )
-            .map_err(|error| error.to_string());
+            .map_err(|error| connect_failure_message(verdict.as_ref(), error));
             // Deliver cancelled success too: collect_connections tracks the exact I/O retirement
             // receipt before dropping its prepared owner. Shutdown keeps draining this bounded queue.
             if let Err(error) = tx.send(ConnectionOutcome { ticket, result }) {
@@ -175,5 +197,33 @@ impl Remote {
             self.cancel_attempt(token);
             drop(pending);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 원격 포트에 리스너가 없어 첫 연결이 끊기면 그 안내가 연결 오류에 들어간다. 판정 근거가
+    /// 없거나 터널이 없으면 원래 문구 그대로다.
+    #[test]
+    fn a_first_connection_dropped_by_a_missing_listener_says_so() {
+        tasty_i18n::init("en");
+        let dropped = || tasty_ssh::connection_closed_error("attach handshake closed");
+        let absent = tasty_ssh::ListenerVerdict::with_observation(4321, true);
+        let message = connect_failure_message(Some(&absent), dropped());
+        let expected = tasty_ssh::RemoteListenerAbsent { remote_port: 4321 }.to_string();
+        assert!(message.starts_with(&expected), "{message}");
+        assert!(message.ends_with("attach handshake closed"), "{message}");
+
+        let present = tasty_ssh::ListenerVerdict::with_observation(4321, false);
+        assert_eq!(
+            connect_failure_message(Some(&present), dropped()),
+            "attach handshake closed"
+        );
+        assert_eq!(
+            connect_failure_message(None, dropped()),
+            "attach handshake closed"
+        );
     }
 }

@@ -450,7 +450,9 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 인�
 
 - 판정에 쓰는 `open failed: connect failed` 는 ssh 클라이언트가 거절 사유 코드를 바꾼 고정 문자열이라 원격 OS·로케일과 무관하다. 그 뒤의 사유 문구는 원격 OS 가 만들어 보지 않는다. 판정은 실패한 뒤에만 하며 줄을 최대 0.5초 기다린다. 성공 경로의 지연은 없다.
 - 리스너는 있지만 응답이 IPC 가 아니면(다른 서비스) 이 줄이 없어 기존 IPC 실패 안내가 나온다.
-- 적용 경로: `tasty remote check`·`remote workspaces`·`remote new-workspace`, GUI 를 거치지 않는 `tasty remote attach`·`tasty tool attach`, IPC `remote.attach` 의 새 workspace 생성(`--into-gui --new-workspace`). IPC `remote.attach` 의 기존 workspace 연결은 터널 뒤 첫 요청이 메인 루프의 attach 연결에서 일어나 이 분류가 없다.
+- 적용 경로: `tasty remote check`·`remote workspaces`·`remote new-workspace`, GUI 를 거치지 않는 `tasty remote attach`·`tasty tool attach`, IPC `remote.attach` 의 새 workspace 생성(`--into-gui --new-workspace`)과 기존 workspace 연결(`--into-gui --workspace`).
+- IPC `remote.attach` 는 터널 뒤 첫 요청이 워커의 자기 인스턴스 검사(`system.info`)라 두 경로 모두 그 실패를 먼저 분류한다. 새 workspace 는 이어지는 `workspace.create` 실패도, 기존 workspace 는 연결 작업자의 첫 attach 연결 실패도 분류한다. 연결 작업자는 터널을 연결 안으로 넘기므로 넘기기 전에 판정 핸들(`tasty_ssh::ListenerVerdict`)을 받아 둔다.
+- 터널이 준비 전에 끝나면(인증 거절 등) ssh 가 마지막에 쓴 stderr 를 넘기는 스레드를 최대 0.5초 기다린 뒤 오류를 돌려줘, 원인 줄이 오류보다 먼저 나온다. 파이프를 물려받은 다른 프로세스(ProxyCommand 등)가 남아 그동안 닫히지 않으면 기다리지 않고 돌려준다.
 
 ### 원격 생존 확인
 

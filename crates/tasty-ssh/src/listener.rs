@@ -124,6 +124,48 @@ pub(crate) fn judge_after_failure(seen: &Arc<AtomicBool>, failure: &anyhow::Erro
     }
 }
 
+/// 터널이 연결 작업자 등 다른 곳으로 넘어간 뒤에도 그 터널의 실패를 판정하는 핸들. 터널의 채널 연결
+/// 실패 표시를 함께 보므로 넘기기 전에 [`crate::SshTunnel::listener_verdict`]로 받아 둔다.
+#[derive(Clone, Debug)]
+pub struct ListenerVerdict {
+    remote_port: u16,
+    channel_connect_failed: Arc<AtomicBool>,
+}
+
+impl ListenerVerdict {
+    pub(crate) fn new(remote_port: u16, channel_connect_failed: Arc<AtomicBool>) -> Self {
+        Self {
+            remote_port,
+            channel_connect_failed,
+        }
+    }
+
+    /// ssh stderr를 본 결과를 정해 둔 핸들. 터널 없이 판정을 쓰는 경로를 시험할 때 쓴다.
+    pub fn with_observation(remote_port: u16, channel_connect_failed: bool) -> Self {
+        Self::new(
+            remote_port,
+            Arc::new(AtomicBool::new(channel_connect_failed)),
+        )
+    }
+
+    /// 요청이 `failure`로 실패한 원인이 원격 포트의 리스너 없음인지. 연결이 응답 없이 끊겼고 ssh가
+    /// 채널 연결 실패를 보고했어야 한다. 그 줄을 최대 0.5초 기다린다.
+    pub fn remote_listener_absent(&self, failure: &anyhow::Error) -> bool {
+        judge_after_failure(&self.channel_connect_failed, failure)
+    }
+
+    /// 리스너 없음이면 `failure` 위에 [`RemoteListenerAbsent`]를 맥락으로 붙이고, 아니면 그대로 돌려준다.
+    pub fn explain_failure(&self, failure: anyhow::Error) -> anyhow::Error {
+        if self.remote_listener_absent(&failure) {
+            failure.context(RemoteListenerAbsent {
+                remote_port: self.remote_port,
+            })
+        } else {
+            failure
+        }
+    }
+}
+
 /// 원격 포트에 리스너가 없다는 판정. 표시 문구는 원인 추정(원격 tasty 미실행 또는 오래된 포트 파일)을 담는다.
 #[derive(Debug)]
 pub struct RemoteListenerAbsent {
@@ -241,5 +283,20 @@ mod tests {
         assert!(judge_after_failure(&marked, &dropped));
         assert!(!judge_after_failure(&marked, &other));
         assert!(!judge_after_failure(&unmarked, &dropped));
+    }
+
+    #[test]
+    fn a_verdict_handle_adds_the_listener_context_only_when_absent() {
+        let absent = ListenerVerdict::with_observation(4321, true)
+            .explain_failure(connection_closed_error("eof"));
+        assert_eq!(
+            absent
+                .downcast_ref::<RemoteListenerAbsent>()
+                .map(|e| e.remote_port),
+            Some(4321)
+        );
+        let present = ListenerVerdict::with_observation(4321, false)
+            .explain_failure(connection_closed_error("eof"));
+        assert!(present.downcast_ref::<RemoteListenerAbsent>().is_none());
     }
 }

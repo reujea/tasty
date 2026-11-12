@@ -147,21 +147,20 @@ impl SshTunnel {
         self.child.wait()
     }
 
-    /// 터널을 통한 요청이 `failure`로 실패한 뒤 원인이 원격 포트의 리스너 없음인지 판정한다. 연결이
-    /// 응답 없이 끊겼고 ssh가 채널 연결 실패를 보고했어야 한다. 그 줄을 최대 0.5초 기다린다.
+    /// 이 터널의 리스너 없음 판정 핸들. 터널을 다른 곳으로 넘긴 뒤에도 실패를 분류할 때 쓴다.
+    pub fn listener_verdict(&self) -> crate::ListenerVerdict {
+        crate::ListenerVerdict::new(self.remote_port, Arc::clone(&self.channel_connect_failed))
+    }
+
+    /// 터널을 통한 요청이 `failure`로 실패한 원인이 원격 포트의 리스너 없음인지
+    /// ([`crate::ListenerVerdict::remote_listener_absent`]).
     pub fn remote_listener_absent(&self, failure: &anyhow::Error) -> bool {
-        crate::listener::judge_after_failure(&self.channel_connect_failed, failure)
+        self.listener_verdict().remote_listener_absent(failure)
     }
 
     /// 리스너 없음이면 `failure` 위에 [`crate::RemoteListenerAbsent`]를 맥락으로 붙이고, 아니면 그대로 돌려준다.
     pub fn explain_failure(&self, failure: anyhow::Error) -> anyhow::Error {
-        if self.remote_listener_absent(&failure) {
-            failure.context(crate::RemoteListenerAbsent {
-                remote_port: self.remote_port,
-            })
-        } else {
-            failure
-        }
+        self.listener_verdict().explain_failure(failure)
     }
 
     /// 터널 자식 ssh 가 살아있는지(끊김 감지 — 프로세스 레벨).

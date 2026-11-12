@@ -354,20 +354,59 @@ fn send_attach_outcome(
     let _ = proxy.send_event(AppEvent::AutoAttachReady); // event loop 종료 시에만 실패 — 무시
 }
 
+/// 엔드포인트의 터널이 주는 리스너 없음 판정 핸들. 시험은 터널 대신 판정 핸들이나 `()`를 넘긴다.
+trait TunnelVerdict {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict>;
+}
+
+impl TunnelVerdict for tasty_ssh::SshTunnel {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        Some(tasty_ssh::SshTunnel::listener_verdict(self))
+    }
+}
+
+#[cfg(test)]
+impl TunnelVerdict for () {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        None
+    }
+}
+
+#[cfg(test)]
+impl TunnelVerdict for tasty_ssh::ListenerVerdict {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        Some(self.clone())
+    }
+}
+
+/// 터널 너머 상대가 자기 자신이면 거절한다. 이 검사가 터널 뒤 첫 요청이므로, 원격 포트에 리스너가
+/// 없어 요청이 끊기면 그 판정을 오류에 붙인다.
+fn refuse_this_instance_over<T: TunnelVerdict>(
+    tunnel: Option<&T>,
+    port: u16,
+    attempt: &tasty_remote::outbound::AttemptToken,
+) -> anyhow::Result<()> {
+    tasty_remote::self_instance::refuse_this_instance(tunnel.is_some(), port, Some(attempt))
+        .map_err(|error| match tunnel.and_then(T::listener_verdict) {
+            Some(verdict) => verdict.explain_failure(error),
+            None => error,
+        })
+}
+
 /// 기존 workspace attach의 엔드포인트를 해석하고 SSH 너머의 자기 자신을 거절한다.
 /// 해석은 시험에서 SSH 없이 바꿔 끼울 수 있게 받는다.
-fn resolve_existing_endpoint<T>(
+fn resolve_existing_endpoint<T: TunnelVerdict>(
     attempt: &tasty_remote::outbound::AttemptToken,
     resolve: impl FnOnce() -> anyhow::Result<(Option<T>, u16)>,
 ) -> anyhow::Result<(Option<T>, u16)> {
     let (tunnel, port) = resolve()?;
-    tasty_remote::self_instance::refuse_this_instance(tunnel.is_some(), port, Some(attempt))?;
+    refuse_this_instance_over(tunnel.as_ref(), port, attempt)?;
     Ok((tunnel, port))
 }
 
 /// 새 workspace를 만들기 전에 엔드포인트를 준비한다. 실패하면 호출자에게 보낼 응답과
 /// 시도 결과로 남길 오류를 함께 돌려준다. 해석은 시험에서 바꿔 끼울 수 있게 받는다.
-fn prepare_create_endpoint<T>(
+fn prepare_create_endpoint<T: TunnelVerdict>(
     rpc_id: &serde_json::Value,
     attempt: &tasty_remote::outbound::AttemptToken,
     resolve: impl FnOnce() -> anyhow::Result<(Option<T>, u16)>,
@@ -394,9 +433,7 @@ fn prepare_create_endpoint<T>(
         ));
     }
     // 호스트명·LAN IP로 자기 머신을 가리킨 SSH 대상은 원격(=자기)에 workspace를 만들기 전에 거절한다.
-    if let Err(e) =
-        tasty_remote::self_instance::refuse_this_instance(tunnel.is_some(), port, Some(attempt))
-    {
+    if let Err(e) = refuse_this_instance_over(tunnel.as_ref(), port, attempt) {
         let response = if e
             .downcast_ref::<tasty_remote::self_instance::ThisInstance>()
             .is_some()
@@ -538,6 +575,63 @@ mod tests {
             error.message
         );
         assert_eq!(response.id, rpc_id);
+    }
+
+    /// 요청 한 줄을 받고 응답 없이 닫는 대역. 원격 포트에 리스너가 없을 때 ssh가 로컬 연결을 닫는
+    /// 모양이다.
+    fn close_after_request() -> (u16, std::thread::JoinHandle<()>) {
+        use std::io::BufRead;
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let handle = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("accept");
+            let mut line = String::new();
+            std::io::BufReader::new(&stream)
+                .read_line(&mut line)
+                .expect("read");
+        });
+        (port, handle)
+    }
+
+    fn listener_absent_port(error: &anyhow::Error) -> Option<u16> {
+        // 맥락으로 붙인 값은 chain()의 원소로는 downcast되지 않고 anyhow::Error에서만 된다.
+        error
+            .downcast_ref::<tasty_ssh::RemoteListenerAbsent>()
+            .map(|absent| absent.remote_port)
+    }
+
+    /// 기존 workspace attach에서 자기 인스턴스 검사가 원격 포트의 리스너 없음으로 끊기면 그 판정을
+    /// 오류에 붙인다.
+    #[test]
+    fn an_existing_workspace_attach_reports_a_missing_remote_listener() {
+        let (port, server) = close_after_request();
+        let (_remote, attempt) = attempt();
+        let verdict = tasty_ssh::ListenerVerdict::with_observation(4321, true);
+        let error =
+            resolve_existing_endpoint(&attempt, || Ok((Some(verdict), port))).expect_err("dropped");
+        server.join().expect("server");
+        assert_eq!(listener_absent_port(&error), Some(4321), "{error:#}");
+    }
+
+    /// 새 workspace attach도 생성 전 자기 인스턴스 검사의 끊김을 리스너 없음으로 응답한다.
+    #[test]
+    fn a_new_workspace_attach_reports_a_missing_remote_listener() {
+        tasty_i18n::init("en");
+        let (port, server) = close_after_request();
+        let (_remote, attempt) = attempt();
+        let verdict = tasty_ssh::ListenerVerdict::with_observation(4321, true);
+        let Err((response, error)) =
+            prepare_create_endpoint(&serde_json::json!(3), &attempt, || {
+                Ok((Some(verdict), port))
+            })
+        else {
+            panic!("the dropped self check must fail");
+        };
+        server.join().expect("server");
+        let expected = tasty_ssh::RemoteListenerAbsent { remote_port: 4321 }.to_string();
+        let message = response.error.expect("error response").message;
+        assert!(message.contains(&expected), "{message}");
+        assert!(format!("{error:#}").contains(&expected), "{error:#}");
     }
 
     #[test]
