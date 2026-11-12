@@ -38,7 +38,7 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 
 | 기능 | 동작 | 사용자에게 보이는 것 |
 |---|---|---|
-| 터미널 primary selection(vi `"*` register) | 외부 앱과 주고받지 못한다 | warning 토스트. 원인 1은 `toast.clipboard_wayland_unsupported`, 원인 1b는 `toast.clipboard_wayland_x_failed` |
+| 터미널 primary selection(vi `"*` register) | 외부 앱에 닿지 않는다(`"+`는 닿는다) | warning 토스트. 원인 1은 `toast.clipboard_primary_wayland_unsupported`, 원인 1b는 `toast.clipboard_primary_wayland_x_failed`. 아래 데이터 장치가 없는 창이면 터미널 키가 우선한다 |
 | Explorer 파일 복사·붙여넣기 | 같은 Tasty 인스턴스 안의 목록에만 남고 그 목록을 붙여넣는다 | warning 토스트 `toast.clipboard_files_wayland_{copy,paste}`, 원인 1b는 `toast.clipboard_files_wayland_x_failed_{copy,paste}` |
 | 네이티브 메뉴 | 뜨지 않는다 | 화면 안내 없음. `native context menu: not an X11 window` 경고 로그 |
 | html·markdown WebView | 만들지 못한다 | 페이지 영역에 원인과 해결책 안내(`native-wayland`, 원인 1b는 `native-wayland-x`). `Not an X11 window` 경고 로그 |
@@ -58,7 +58,7 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 - **터미널 붙여넣기**: Tasty가 잡은 선택은 바로 넣는다. 다른 앱의 선택은 텍스트 mime(egui와 같은 순서)을, 텍스트가 없으면 `image/png`를 그때 읽기 시작한다. 읽는 동안 winit 스레드는 기다리지 않는다. 다 읽으면 요청 때 포커스였던 surface가 그때도 포커스이고 같은 세대일 때만 X11과 같은 경로로 넣는다(텍스트는 bracketed paste 포함, PNG는 RGBA로 풀어 이미지 붙여넣기). 아니면 결과와 오류를 모두 버린다. 3초 상한 초과, pipe 실패, 텍스트 16 MiB·PNG 64 MiB 초과, 읽는 동안 선택 교체, 풀리지 않는 PNG는 `toast.clipboard_failed`를 한 번 보이고 PTY에 아무것도 보내지 않는다. 다른 창이나 입력칸의 더 새 붙여넣기가 오면 읽던 것은 알리지 않고 버린다. 텍스트의 CRLF는 egui와 같이 LF로 바꾼다.
 - **Core 쪽 쓰기**: 터미널 프로그램의 OSC 52 쓰기, IPC `clipboard.set_text`, 로컬 스크린샷과 원격 캡처 게시는 이벤트 루프 스레드에서 같은 소유자로 선택을 잡는다. 캡처 게시는 경로 텍스트와 `image/png`를 한 source로 함께 offer한다. 이 소유자는 이벤트 루프 스레드에만 있으므로 원격 캡처의 저장 worker는 게시를 하지 않고 이벤트 루프에 넘긴다(Windows와 같은 경로). worker가 이벤트 루프를 기다리는 일은 없다. serial은 마지막 키보드·포인터 입력의 것이라, 사용자 입력과 무관한 쓰기를 컴포지터가 받아들이는지는 컴포지터마다 다르다.
 - **OSC 52 읽기**(`general.allow_clipboard_read`를 켰을 때): Tasty가 잡은 선택은 바로 답한다. 다른 앱의 선택은 텍스트 mime만 터미널 붙여넣기와 같은 상한으로 비차단으로 읽고, 다 읽었을 때 질의한 터미널이 같은 세대이고 설정이 그대로 켜져 있으면 답한다. 상한 초과, 읽기 실패, 다른 붙여넣기나 질의에 밀린 읽기는 응답하지 않는다(경고 로그). 읽는 칸은 하나라 터미널·입력칸 붙여넣기와 OSC 52 읽기 가운데 더 새 요청이 앞의 것을 대신한다.
-- 창이 Wayland인데 컴포지터가 `wl_data_device_manager` v3나 seat를 주지 않아 장치가 없으면 터미널 클립보드는 arboard로 떨어지고 위 표의 원인별 warning 토스트다.
+- 창이 Wayland인데 컴포지터가 `wl_data_device_manager` v3나 seat를 주지 않아 장치가 없으면 터미널 클립보드는 arboard로 떨어진다. 이때는 `"*`를 포함한 모든 터미널 복사·붙여넣기가 원인별 터미널 키(원인 1 `toast.clipboard_wayland_unsupported`, 원인 1b `toast.clipboard_wayland_x_failed`)의 warning 토스트다. 이 판정이 위 표의 `"*` 키보다 먼저다.
 - X11·XWayland 창에는 Wayland 연결이 없어 장치·키보드·source를 만들지 않는다. egui·터미널 클립보드는 arboard다.
 - 갤러리(`tasty-gallery`)는 이 장치를 붙이지 않는다. 네이티브 Wayland에서 갤러리 입력칸은 외부 앱과 클립보드를 주고받지 않는다(앱 안 복사·붙여넣기만). smithay-clipboard는 갤러리에서도 끈다. 켜 두면 `--workspace` 빌드의 feature 통합으로 본체에도 다시 들어오기 때문이다.
 - Explorer 파일 클립보드와 터미널 primary selection은 이 장치를 쓰지 않는다(위 표).
@@ -100,7 +100,9 @@ WebView를 만들 수 없는 표시 경로면 html·markdown·html mirror surfac
 - Given 원인 1 또는 1b, When 다른 앱이 PNG 이미지만 복사했고 터미널에 붙여넣는다, Then X11과 같은 이미지 붙여넣기 경로로 간다.
 - Given 원인 1 또는 1b, When 다른 앱의 선택을 읽는 중에 포커스 surface를 바꾸거나 닫는다, Then 늦게 온 결과는 버려진다.
 - Given 원인 1 또는 1b, When 다른 앱이 선택을 주고 3초 안에 보내지 않는다, Then `toast.clipboard_failed`가 한 번 보이고 PTY에는 아무 바이트도 가지 않는다.
-- Given 원인 1 또는 1b, When vi `"*` register로 복사하거나 Explorer에서 파일을 복사·붙여넣는다, Then 원인별 키의 warning 토스트가 보인다.
+- Given 원인 1 또는 1b이고 데이터 장치가 있다, When vi `"*` register로 복사한다, Then 원인별 `toast.clipboard_primary_wayland_*` warning 토스트가 보인다.
+- Given 원인 1 또는 1b이고 데이터 장치가 없다, When 터미널에서 복사·붙여넣기를 한다(`"*` 포함), Then 원인별 `toast.clipboard_wayland_*` warning 토스트가 보인다.
+- Given 원인 1 또는 1b, When Explorer에서 파일을 복사·붙여넣는다, Then 원인별 `toast.clipboard_files_wayland_*` warning 토스트가 보인다.
 - Given X11에서 시스템 클립보드 쓰기·읽기가 실패했다, Then Explorer는 `toast.clipboard_files_internal_copy`/`_paste`를 info로 보인다.
 - Given `DISPLAY`가 있어 X11로 뜨고 x11을 허용하지 않는 `GDK_BACKEND` 때문에 GTK 초기화가 실패했다, When html·markdown 파일을 연다, Then `gdk-backend` 안내가 보인다.
 - Given 원인 2 환경의 Tasty 터미널 안 셸, Then `GDK_BACKEND`가 사용자가 설정한 값 그대로다.

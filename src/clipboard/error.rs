@@ -11,6 +11,13 @@ pub(crate) enum ClipboardError {
         reason: String,
         x_failed: bool,
     },
+    /// 창에 Wayland selection 소유자가 있어 일반 복사는 외부 앱에 닿는데 primary(vi `"*`) 쓰기만
+    /// X11에 닿지 못했다. 소유자가 없으면(데스크톱이 클립보드를 주지 않음) `UnsupportedNativeWayland`다.
+    #[cfg(feature = "gui")]
+    PrimaryUnsupportedNativeWayland {
+        reason: String,
+        x_failed: bool,
+    },
     BackendUnavailable(String),
     TransferFailed(String),
 }
@@ -25,6 +32,18 @@ impl ClipboardError {
                 }
                 DisplayBackend::Unknown | DisplayBackend::Other => Self::BackendUnavailable(reason),
             },
+            error => error,
+        }
+    }
+
+    /// primary 쓰기 실패를 분류한다. 창에 Wayland selection 소유자가 있으면(`has_selection`) 네이티브
+    /// Wayland 실패는 primary만의 실패다. 소유자가 없으면 모든 복사가 막힌 경우라 그대로 둔다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn for_primary(self, has_selection: bool) -> Self {
+        match self {
+            Self::UnsupportedNativeWayland { reason, x_failed } if has_selection => {
+                Self::PrimaryUnsupportedNativeWayland { reason, x_failed }
+            }
             error => error,
         }
     }
@@ -48,6 +67,16 @@ impl ClipboardError {
             Self::UnsupportedNativeWayland { x_failed: true, .. } => {
                 ("toast.clipboard_wayland_x_failed", ToastKind::Warning)
             }
+            Self::PrimaryUnsupportedNativeWayland {
+                x_failed: false, ..
+            } => (
+                "toast.clipboard_primary_wayland_unsupported",
+                ToastKind::Warning,
+            ),
+            Self::PrimaryUnsupportedNativeWayland { x_failed: true, .. } => (
+                "toast.clipboard_primary_wayland_x_failed",
+                ToastKind::Warning,
+            ),
             Self::BackendUnavailable(_) => ("toast.clipboard_unavailable", ToastKind::Info),
             Self::TransferFailed(_) => ("toast.clipboard_failed", ToastKind::Error),
         }
@@ -146,6 +175,11 @@ impl std::fmt::Display for ClipboardError {
                 "no Wayland selection for this clipboard; X11 clipboard unavailable",
                 reason,
             ),
+            #[cfg(feature = "gui")]
+            Self::PrimaryUnsupportedNativeWayland { reason, .. } => (
+                "primary selection needs the X11 clipboard, which is unavailable",
+                reason,
+            ),
             Self::BackendUnavailable(reason) => ("clipboard backend unavailable", reason),
             Self::TransferFailed(reason) => ("clipboard transfer failed", reason),
         };
@@ -204,6 +238,49 @@ mod tests {
         assert_eq!(
             ClipboardError::BackendUnavailable("x".into()).feedback(),
             ("toast.clipboard_unavailable", ToastKind::Info)
+        );
+    }
+
+    /// Given 네이티브 Wayland, When vi `"*` 쓰기가 X11에 닿지 못했다, Then selection 소유자가 있으면
+    /// 원인별 primary 키이고 없으면(데스크톱이 클립보드를 주지 않음) 터미널 키가 우선한다.
+    /// X11·XWayland의 실패는 primary 키로 가지 않는다.
+    #[test]
+    fn a_primary_failure_names_only_the_star_register_unless_nothing_reaches_other_apps() {
+        for (x_failed, primary, terminal) in [
+            (
+                false,
+                "toast.clipboard_primary_wayland_unsupported",
+                "toast.clipboard_wayland_unsupported",
+            ),
+            (
+                true,
+                "toast.clipboard_primary_wayland_x_failed",
+                "toast.clipboard_wayland_x_failed",
+            ),
+        ] {
+            assert_eq!(
+                wayland(x_failed).for_primary(true).feedback(),
+                (primary, ToastKind::Warning)
+            );
+            assert_eq!(
+                wayland(x_failed).for_primary(false).feedback(),
+                (terminal, ToastKind::Warning)
+            );
+        }
+        for display in [DisplayBackend::Other, DisplayBackend::Unknown] {
+            let error = ClipboardError::BackendUnavailable("fixture".into()).for_display(display);
+            for has_selection in [false, true] {
+                assert_eq!(
+                    error.clone().for_primary(has_selection).feedback(),
+                    ("toast.clipboard_unavailable", ToastKind::Info)
+                );
+            }
+        }
+        assert_eq!(
+            ClipboardError::TransferFailed("x".into())
+                .for_primary(true)
+                .feedback(),
+            ("toast.clipboard_failed", ToastKind::Error)
         );
     }
 

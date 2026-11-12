@@ -88,12 +88,16 @@ impl TerminalClipboard {
         self.host.set_text(text)
     }
 
-    /// The primary selection has no Wayland owner here, so it stays on arboard.
+    /// The primary selection has no Wayland owner here, so it stays on arboard. Its native Wayland
+    /// failure names only `"*` when ordinary copies still reach other apps.
     pub(crate) fn set_text_primary(
         &mut self,
         text: &str,
     ) -> Result<(), super::error::ClipboardError> {
-        self.host.set_text_primary(text)
+        let has_selection = self.uses_wayland_selection();
+        self.host
+            .set_text_primary(text)
+            .map_err(|error| error.for_primary(has_selection))
     }
 
     /// Starts a paste. A newer paste replaces one still being read.
@@ -282,6 +286,8 @@ mod tests {
         let mut clipboard = TerminalClipboard::unavailable(error.clone());
         assert!(!clipboard.uses_wayland_selection());
         assert_eq!(clipboard.set_text("x"), Err(error.clone()));
+        // No selection owner: nothing reaches other apps, so "* keeps the terminal key.
+        assert_eq!(clipboard.set_text_primary("x"), Err(error.clone()));
         assert!(matches!(
             clipboard.start_paste(),
             PasteStart::Now(Err(e)) if e == error

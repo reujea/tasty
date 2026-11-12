@@ -41,10 +41,12 @@ X11로 뜨고([백엔드 선택](../../design/systems/linux-display-backend.md))
 GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). 네이티브 Wayland(`DISPLAY`가 없거나
 그 X 서버에 연결하지 못함)에서는 터미널 복사·붙여넣기와 egui 입력 위젯이 Tasty의 data device로 외부 앱과
 주고받는다. 다른 앱의 선택은 winit 스레드를 막지 않고 읽어 요청 때 포커스였던 surface에만 넣는다
-([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). 그 장치가 없는 컴포지터와
-vi `"*` register(primary selection)는 외부 앱과 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다.
-`DISPLAY`가 없으면(XWayland 없음) `toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해
-내려갔으면 `toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)).
+([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). 그 장치가 없는 컴포지터에서는
+외부 앱과 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다. `DISPLAY`가 없으면(XWayland 없음)
+`toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해 내려갔으면
+`toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)).
+장치가 있으면 vi `"*` register(primary selection) 쓰기만 외부 앱에 닿지 않고, 같은 원인 구분으로
+`toast.clipboard_primary_wayland_unsupported`·`toast.clipboard_primary_wayland_x_failed`를 보인다.
 OSC 52 쓰기·읽기, IPC `clipboard.set_text`, 캡처 게시도 같은 장치를 쓴다. OSC 52 읽기는 다른 앱의 선택을
 읽는 동안 기다렸다가 답한다. plugin 자체 클립보드는
 별도 경로다. 원격 출처·내부 파일 목록은 [Explorer 파일 작업](../../surfaces/explorer/file-operations.md#os-파일-클립보드)을 따른다.
