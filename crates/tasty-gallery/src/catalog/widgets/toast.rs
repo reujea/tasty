@@ -250,12 +250,15 @@ pub fn draw_stack(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// 시안 `toast-display-backend`: 네이티브 Wayland에서 다른 앱과 복사·붙여넣기를 못 할 때의 warning 카드.
+/// 시안 `toast-display-backend`: 네이티브 Wayland에서 복사·붙여넣기가 다른 앱에 닿지 못할 때의 warning
+/// 카드. 터미널 전체(데스크톱이 클립보드를 주지 않음), vi `"*` register, Explorer 파일의 세 경우다.
 /// 본체와 같은 키를 네 언어로 그린다. 카드는 hint·아이콘·버튼 없이 기존 카드 그대로다.
 pub fn draw_display_backend(ui: &mut egui::Ui, theme: &Theme) {
-    const KEYS: [&str; 6] = [
+    const KEYS: [&str; 8] = [
         "toast.clipboard_wayland_unsupported",
         "toast.clipboard_wayland_x_failed",
+        "toast.clipboard_primary_wayland_unsupported",
+        "toast.clipboard_primary_wayland_x_failed",
         "toast.clipboard_files_wayland_copy",
         "toast.clipboard_files_wayland_paste",
         "toast.clipboard_files_wayland_x_failed_copy",
@@ -263,7 +266,7 @@ pub fn draw_display_backend(ui: &mut egui::Ui, theme: &Theme) {
     ];
     stage(ui, theme, StageVariant::Column, |ui| {
         ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-        for key in [KEYS[0], KEYS[2], KEYS[3]] {
+        for key in [KEYS[0], KEYS[2], KEYS[4], KEYS[5]] {
             toast_card::draw_single_card(
                 ui,
                 theme,
