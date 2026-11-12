@@ -167,7 +167,7 @@ surface별 gate로, IPC는 `IpcPacer` 로 같은 문제를 막는다.
 새 터미널부터 반영: shell·scrollback (`ShellConfig::from_settings` 가 `runtime_shell` 로 실행 셸을 정하고 그 셸 기준 `shell_args_for` — bash 합성 rc의 --rcfile 주입은 플랫폼별).
 ```
 
-설정의 첫 창 부팅 저장은 정규화·셸 확인·테마 조정을 마친 snapshot 한 건을 같은 file writer에 제출한다. 로딩 프레임을 계속 그리면서 receipt를 거두고 나서 engine/plugin 초기화를 시작한다. 추가 창은 저장 중인 디스크 사본 대신 마지막 제출 설정을 사용하며, 필요한 보정도 같은 큐에 제출한다.
+설정의 첫 창 부팅 저장은 정규화·셸 확인·테마 조정을 마친 snapshot 한 건을 같은 file writer에 제출한다. 로딩 프레임을 계속 그리면서 receipt를 거두고 나서 engine/plugin 초기화를 시작한다. 첫 engine은 저장 결과와 관계없이 이 제출 snapshot으로 시작한다. 워커가 결과를 돌려주지 못해 동기로 다시 만들 때도 같은 값을 쓴다. 추가 창은 저장 중이거나 저장에 실패한 디스크 사본 대신 마지막 제출 설정을 사용한다. 그 창의 GPU와 engine은 보정을 마친 같은 값을 받고, 보정 결과도 같은 큐에 제출한다. 제출 이력이 없을 때만 `config.toml`을 읽는다. engine 생성(`EngineSession::new_with_ids`)은 설정을 인자로 받고 파일을 직접 읽지 않는다.
 헤드리스 부팅도 파일을 한 번 읽고 정규화한 snapshot을 engine과 같은 file writer에 전달한다. 잘못된 anomaly 설정 절은 기본값으로 복구하며, 이후 변경 검사는 복구된 실행 설정을 기준으로 한다. 저장 실패는 기존 writer 진단으로 남기고 실행 설정을 되돌리지 않는다.
 
 
