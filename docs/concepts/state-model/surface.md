@@ -71,7 +71,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 
 | 사건 | 조건 | 결과 | 실패·거절 |
 |---|---|---|---|
-| soft 획득 `acquire_soft` | 같은 parent의 soft가 있거나 soft가 없음 | soft 항목 기록(같은 parent면 라벨·순번 갱신) | 다른 parent의 soft가 있으면 `AlreadyOccupied`. 기존 surface에 soft를 거는 진입점 `terminal.adopt`는 대상이 hard 점유면 이 함수를 부르기 전에 거절한다(`src/adapters/ipc/handler/terminal.rs`) |
+| soft 획득 `acquire_soft` | 같은 parent의 soft가 있거나 soft가 없음 | soft 항목 기록(같은 parent면 라벨·순번 갱신) | 다른 parent의 soft가 있으면 `AlreadyOccupied`. hard 점유 대상의 거절은 진입점이 한다(아래 문단) |
 | soft 해제 `release_soft` | 기록된 parent와 같음 | 항목 제거 | 항목 없음 `NotOccupied`, parent 불일치 `NotHolder` |
 | hard 획득 `acquire` | 같은 client이거나 lock이 없거나 기존 holder가 끊김 표시됨 | surface lock 기록 | 살아 있는 다른 holder가 있으면 `AlreadyAttached` |
 | hard 해제 `release` | 실제 holder | lock 제거 | `NotAttached`, `NotHolder` |
@@ -80,7 +80,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 | surface 닫기 `forget_closed_surface` | 닫힌 surface | 그 surface의 lock·멤버 매핑·soft 제거. 같은 workspace의 다른 멤버는 유지 | — |
 | 사용자 포커스 `reconcile_soft_occupancy_on_focus` | 대표 점유가 soft이고 parent surface가 트리에 없음 | soft 제거 | External parent는 이 경로로 정리하지 않는다 |
 
-레지스트리 함수 수준에서는 hard 획득 `acquire`가 soft 표를 보지 않고 soft 획득 `acquire_soft`도 hard 표를 보지 않는다. 진입점은 다르다. `terminal.adopt`는 hard 점유 대상을 먼저 거절하고, 자식 spawn은 새로 만든 surface에 soft를 건다. 반대로 원격 attach(`src/adapters/ipc/handler/attach.rs`)는 soft를 보지 않고 `acquire`를 부른다. 그래서 soft가 먼저 걸린 surface에 뒤이어 hard attach가 오면 한 surface에 soft와 hard가 함께 있게 되고, `occupancy_of`는 hard를 먼저 보고한다. 이 경우 위 포커스 정리는 대표 점유가 hard이므로 soft를 정리하지 않는다. 입력 제한은 hard만 사용한다(`is_hard_occupied`).
+레지스트리 함수는 다른 tier의 표를 보지 않는다. 진입점별 tier 사이 검사, soft와 hard가 함께 있게 되는 순서, 그때의 대표 점유·입력 제한·정리와 해제는 [주체](../actors.md#점유-occupation-모델)가 정본이다. 자식 spawn은 새로 만든 surface에 soft를 건다(`src/runtime/effect_runner/installation.rs`).
 
 ### 자식 상태
 
@@ -122,7 +122,7 @@ PTY·busy·자식 상태는 terminal의 축이다. 다른 kind에는 필수 공�
 | soft 점유 + 자식 상태 `Idle` | 가능 | soft는 표시이며 자식 상태 계산에 들어가지 않는다. child-terminal 자식은 보통 이 상태로 기다린다 |
 | hard 점유 + attention `NeedsInput` | 가능 | 테두리는 입력 요청선 하나만 그린다. 로컬 사용자는 확인 해제할 수 없고 holder만 해제한다. 입력은 holder만 할 수 있다 |
 | hard 점유 + attention `Completion` | 가능 | 테두리는 점유선을 그리고 완료선은 그리지 않는다 |
-| soft + hard 동시 | 가능 | 표가 따로 있다. 대표 점유와 입력 제한은 hard다 |
+| soft + hard 동시 | 가능 | soft 뒤에 hard attach가 오면 생긴다([주체](../actors.md#점유-occupation-모델)) |
 | 다른 parent 둘의 soft | 불가 | `acquire_soft`가 거절한다 |
 | 살아 있는 holder 둘의 hard | 불가 | `acquire`가 거절한다 |
 | 활성화 `Ready` + PTY 없음 | 가능 | `Ready`는 활성화 기록이다. 현재 프로세스 생존을 뜻하지 않는다 |

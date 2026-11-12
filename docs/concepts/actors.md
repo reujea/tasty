@@ -33,7 +33,12 @@ tasty 는 자체 원격 프로토콜이 없고 SSH 에 위임한다 — attach �
 ### 공통 규칙
 
 - **해제 권한**: 어느 계층이든 점유는 **점유 주체 본인(self-release) 또는 로컬 사용자의 GUI 강제 끊기(force-detach)** 로 끊는다. 연결이 끊기면 그 연결의 점유도 풀린다. 끊으면 대상은 다시 **일반 surface/workspace 로 복귀** 한다. release 에는 다른 주체의 점유를 끊는 IPC·CLI 가 없고, debug 빌드만 사용자 조작 재현용 `debug.attach.*` 를 둔다([Attach 메커니즘](../dev-guide/attach-behavior.md#force-detach)).
-- **배타(1:1)**: 계층과 무관하게 **한 대상(surface/workspace)은 한 번에 한 주체만 점유** 한다. 점유는 *주체 → 대상* 1:N, *대상 → 점유자* 1:1. 동시 점유는 불가하고, 다른 주체가 잡으려면 기존 점유가 먼저 풀려야 한다.
+- **한 대상의 점유자(현재 코드 동작)**: soft와 hard는 `OccupancyRegistry`(`src/core/attach.rs`)의 서로 다른 표에 기록된다.
+  - 같은 계층 안에서는 한 대상의 점유자가 하나다. soft는 다른 parent의 soft가 있으면 `acquire_soft`가 거절하고, surface hard는 살아 있는 다른 holder가 있으면 `acquire`가 거절한다. workspace hard는 `acquire_workspace`가 같은 방식으로 거절한다.
+  - 계층 사이의 검사는 진입점마다 다르다. soft를 거는 `terminal.adopt`는 대상이 hard 점유면 거절한다(`src/adapters/ipc/handler/terminal.rs`의 `handle_adopt`). 원격 attach는 soft를 보지 않고 hard를 건다(`src/adapters/ipc/handler/attach.rs`). 그래서 soft가 걸린 surface에 hard가 올라가 둘이 함께 있을 수 있다.
+  - 둘이 함께 있으면 대표 점유 조회 `occupancy_of`는 hard를 돌려주고, 입력 제한은 hard만 본다(`is_hard_occupied`).
+  - 둘이 함께 있을 때의 정리와 해제는 soft를 남긴다. 사용자 포커스 정리 `reconcile_soft_occupancy_on_focus`는 대표 점유가 hard면 아무것도 하지 않는다. 로컬 사용자 강제 해제 `release_occupancy`는 hard를 풀면 거기서 끝난다(`src/core/state/soft_occupancy.rs`). 연결 종료 해제 `release_all_for_client`는 그 client의 hard lock만 지운다.
+  - 점유 상태는 soft/hard 외 상태를 담는 별도 상태 모델로 다시 설계할 예정이다.
 - **다중성**: 원격 사용자는 여럿이 동시에 접속할 수 있고, 한 주체가 여러 대상을 동시에 점유할 수 있다.
 
 ## 정리

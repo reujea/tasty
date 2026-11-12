@@ -25,7 +25,7 @@
 - **로컬 사용자** — 이 머신에서 GUI 를 직접 쓰는 사람. 포커스의 주인. 점유 불필요. 점유를 끊을 수 있는 유일한 주체.
 - **AI Agent** — IPC·CLI로 Tasty를 조작하는 AI. 대상을 ID로 지정하며 사용자의 포커스·히스토리·선택을 바꾸지 않는다. 점유 없이 작업하는 것이 기본이며 필요하면 soft/hard 점유를 사용한다. child-terminal의 soft 점유가 한 예다.
 - **원격 접속 사용자** — SSH로 접속한 사람. 에이전트와 같은 동작 권한을 가지며 SSH 셸·터널로 CLI·IPC를 쓸 수 있다. 로컬 GUI 입력은 쓰지 않는다. attach 스트림으로 화면을 조작할 때는 hard 점유한 대상만 조작한다.
-- **점유(occupation)** — 원격 사용자나 AI가 surface/workspace를 사용 중임을 표시하는 관계. soft는 입력을 제한하지 않는 표시, hard는 다른 주체를 읽기 전용으로 제한하는 점유다(docs/dev-guide/attach-behavior.md). 한 대상의 점유자는 한 명이고 한 주체는 여러 대상을 점유할 수 있다. 본인의 self-release나 로컬 사용자의 force-detach(GUI 조작)로 해제한다.
+- **점유(occupation)** — 원격 사용자나 AI가 surface/workspace를 사용 중임을 표시하는 관계. soft는 입력을 제한하지 않는 표시, hard는 다른 주체를 읽기 전용으로 제한하는 점유다(docs/dev-guide/attach-behavior.md). 같은 계층(soft 또는 hard) 안에서 한 대상의 점유자는 하나이고 한 주체는 여러 대상을 점유할 수 있다. 계층이 다르면 soft 위에 hard가 함께 있을 수 있다. 현재 동작과 근거는 [주체](actors.md#점유-occupation-모델)에 있다. 본인의 self-release나 로컬 사용자의 force-detach(GUI 조작)로 해제한다.
 
 ### 원격 연결 (→ [features/remote-profiles](../features/remote-profiles/index.md))
 
