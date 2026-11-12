@@ -80,21 +80,23 @@ impl GpuState {
         let Some(selection) = self.text_selection.as_mut() else {
             return false;
         };
-        self.held_pastes.extend(selection.poll());
+        self.held_pastes
+            .add(selection.poll(), std::time::Instant::now());
         !self.held_pastes.is_empty()
     }
 
-    /// The input of this window's next egui frame. Every frame takes its input here, so a waiting
-    /// paste is checked against the focus at the moment egui will apply it.
+    /// The input of this window's next egui frame. Every frame takes its input here, so each
+    /// frame's focus input is counted and a waiting paste is checked against the focus at the
+    /// moment egui will apply it.
     pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
         let mut raw_input = self.egui_state.take_egui_input(window);
-        if !self.held_pastes.is_empty() {
-            let focused = self.focus_tag();
-            let pastes = release_pastes(&mut self.held_pastes, &raw_input.events, focused);
-            raw_input
-                .events
-                .extend(pastes.into_iter().map(egui::Event::Paste));
-        }
+        let focused = self.focus_tag();
+        let pastes = self
+            .held_pastes
+            .frame(&raw_input.events, focused, std::time::Instant::now());
+        raw_input
+            .events
+            .extend(pastes.into_iter().map(egui::Event::Paste));
         raw_input
     }
 
@@ -107,18 +109,69 @@ impl GpuState {
     }
 }
 
-/// The waiting pastes a frame with `events` may apply, given the widget focused before it.
-/// Input that can move egui's focus inside that frame keeps them for the next frame, because egui
-/// would apply a paste to whichever widget holds focus once the frame has handled that input.
-pub(crate) fn release_pastes(
-    held: &mut Vec<(u64, String)>,
-    events: &[egui::Event],
-    focused: u64,
-) -> Vec<String> {
-    if events.iter().any(moves_focus) {
-        return Vec::new();
+/// Frames without focus input after which egui's focus is settled. A pointer press, Tab or an
+/// arrow moves focus during its own frame, but Shift+Tab only schedules the move for the start of
+/// the next frame (egui 0.31 `id_next_frame`, not readable from outside egui). So the frame with
+/// the input and the one after it must both pass before the focus read between frames is the one
+/// egui applies a paste to.
+const SETTLE_FRAMES: u8 = 2;
+
+/// Finished pastes waiting for egui's focus to settle, each with its target tag and arrival time.
+pub(crate) struct HeldPastes {
+    items: Vec<(u64, String, std::time::Instant)>,
+    /// Frames since the last one with focus input, up to `SETTLE_FRAMES`.
+    quiet: u8,
+}
+
+impl Default for HeldPastes {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            quiet: SETTLE_FRAMES,
+        }
     }
-    pastes_for(std::mem::take(held), focused)
+}
+
+impl HeldPastes {
+    pub(crate) fn add(&mut self, finished: Vec<(u64, String)>, now: std::time::Instant) {
+        self.items
+            .extend(finished.into_iter().map(|(tag, text)| (tag, text, now)));
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// One egui frame with `events`, `focused` being the widget focused before it. Returns the
+    /// pastes this frame may apply: none until two frames have gone by without focus input, then
+    /// those still meant for `focused`. A paste that waits past `PASTE_LIMIT` is dropped.
+    pub(crate) fn frame(
+        &mut self,
+        events: &[egui::Event],
+        focused: u64,
+        now: std::time::Instant,
+    ) -> Vec<String> {
+        self.quiet = if events.iter().any(moves_focus) {
+            0
+        } else {
+            (self.quiet + 1).min(SETTLE_FRAMES)
+        };
+        self.items.retain(|(_, _, arrived)| {
+            let fresh = now.duration_since(*arrived) < crate::file::drag::PASTE_LIMIT;
+            if !fresh {
+                tracing::debug!("clipboard paste dropped: focus kept moving");
+            }
+            fresh
+        });
+        if self.quiet < SETTLE_FRAMES || self.items.is_empty() {
+            return Vec::new();
+        }
+        let finished = std::mem::take(&mut self.items)
+            .into_iter()
+            .map(|(tag, text, _)| (tag, text))
+            .collect();
+        pastes_for(finished, focused)
+    }
 }
 
 /// Input egui turns into a focus change during the frame: a pressed pointer button, and the keys

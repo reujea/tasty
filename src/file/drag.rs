@@ -12,6 +12,7 @@ mod x11;
 #[cfg(target_os = "linux")]
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 #[cfg(target_os = "linux")]
 use winit::dpi::PhysicalPosition;
 use winit::window::Window;
@@ -57,6 +58,10 @@ pub(crate) fn wants_inbound(start: Option<crate::boot::display_backend::StartBac
         Some(StartBackend::Wayland | StartBackend::WaylandFallback)
     )
 }
+
+/// How long a paste may take from the selection to its text field: the read of a foreign
+/// selection, and the wait for egui's focus to settle once it has arrived.
+pub(crate) const PASTE_LIMIT: Duration = Duration::from_secs(3);
 
 /// The text clipboard of one window on a native Wayland start, carried by the same per-connection
 /// data device owner as incoming drags. egui-winit is built without smithay-clipboard and its

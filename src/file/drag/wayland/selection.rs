@@ -12,7 +12,7 @@ use std::{
 /// Offered for our own text and accepted for a foreign one, in this order of preference.
 pub(super) const TEXT_MIMES: [&str; 3] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
 /// A paste that has not arrived by then is dropped; the key press is not retried.
-const READ_LIMIT: Duration = Duration::from_secs(3);
+const READ_LIMIT: Duration = crate::file::drag::PASTE_LIMIT;
 /// Same bound as an outbound drag transfer waiting for its receiver.
 const WRITE_LIMIT: Duration = Duration::from_secs(30);
 /// Larger clipboard text is refused rather than handed to a text field.

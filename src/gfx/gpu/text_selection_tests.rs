@@ -1,5 +1,6 @@
 //! The egui side of the native Wayland clipboard: which keys paste and which output copies.
-use super::{moves_focus, paste_key, pastes_for, release_pastes, take_copied_text};
+use super::{HeldPastes, moves_focus, paste_key, pastes_for, take_copied_text};
+use std::time::{Duration, Instant};
 use winit::keyboard::{Key, KeyCode, NamedKey, NativeKey, NativeKeyCode, PhysicalKey, SmolStr};
 
 fn ch(c: &str) -> Key {
@@ -100,6 +101,15 @@ fn click() -> egui::Event {
         modifiers: egui::Modifiers::NONE,
     }
 }
+fn shift_tab() -> egui::Event {
+    egui::Event::Key {
+        key: egui::Key::Tab,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::SHIFT,
+    }
+}
 fn key(key: egui::Key, pressed: bool) -> egui::Event {
     egui::Event::Key {
         key,
@@ -110,23 +120,57 @@ fn key(key: egui::Key, pressed: bool) -> egui::Event {
     }
 }
 
+fn held(now: Instant) -> HeldPastes {
+    let mut held = HeldPastes::default();
+    held.add(vec![(7, "text".to_string())], now);
+    held
+}
+
 #[test]
 fn a_paste_waits_out_a_frame_whose_input_can_move_focus() {
-    for moving in [click(), key(egui::Key::Tab, true)] {
-        // The frame that also moves focus applies nothing; the paste is checked again next frame.
-        let mut held = vec![(7, "text".to_string())];
-        assert!(release_pastes(&mut held, std::slice::from_ref(&moving), 7).is_empty());
-        assert_eq!(held.len(), 1);
+    let now = Instant::now();
+    for moving in [click(), key(egui::Key::Tab, true), shift_tab()] {
+        // Neither the frame that moves focus nor the next one applies it: egui may still be
+        // moving focus at the start of that next frame.
+        let mut h = held(now);
+        assert!(h.frame(std::slice::from_ref(&moving), 7, now).is_empty());
+        assert!(h.frame(&[], 7, now).is_empty());
+        assert!(!h.is_empty());
         // Focus ended on another widget: dropped.
-        assert!(release_pastes(&mut held, &[], 9).is_empty());
-        assert!(held.is_empty());
+        assert!(h.frame(&[], 9, now).is_empty());
+        assert!(h.is_empty());
 
-        let mut held = vec![(7, "text".to_string())];
-        assert!(release_pastes(&mut held, &[moving], 7).is_empty());
+        let mut h = held(now);
+        h.frame(std::slice::from_ref(&moving), 7, now);
+        h.frame(&[], 7, now);
         // Focus stayed on the widget that asked: applied.
-        assert_eq!(release_pastes(&mut held, &[], 7), ["text"]);
-        assert!(held.is_empty());
+        assert_eq!(h.frame(&[], 7, now), ["text"]);
+        assert!(h.is_empty());
     }
+}
+
+#[test]
+fn a_paste_that_arrives_right_after_focus_input_still_waits() {
+    let now = Instant::now();
+    let mut h = HeldPastes::default();
+    h.frame(&[shift_tab()], 7, now);
+    h.add(vec![(7, "text".to_string())], now);
+    assert!(h.frame(&[], 7, now).is_empty());
+    assert_eq!(h.frame(&[], 7, now), ["text"]);
+}
+
+#[test]
+fn a_paste_held_while_focus_keeps_moving_expires_at_the_paste_limit() {
+    let now = Instant::now();
+    let mut h = held(now);
+    let limit = crate::file::drag::PASTE_LIMIT;
+    assert!(
+        h.frame(&[click()], 7, now + limit - Duration::from_millis(1))
+            .is_empty()
+    );
+    assert!(!h.is_empty());
+    assert!(h.frame(&[click()], 7, now + limit).is_empty());
+    assert!(h.is_empty());
 }
 
 #[test]
@@ -134,6 +178,7 @@ fn only_input_egui_reads_for_focus_holds_a_paste() {
     for event in [
         click(),
         key(egui::Key::Tab, true),
+        shift_tab(),
         key(egui::Key::ArrowDown, true),
         key(egui::Key::Escape, true),
     ] {
@@ -154,11 +199,9 @@ fn only_input_egui_reads_for_focus_holds_a_paste() {
     ] {
         assert!(!moves_focus(&event), "{event:?}");
     }
-    let mut held = vec![(7, "text".to_string())];
-    assert_eq!(
-        release_pastes(&mut held, &[egui::Event::Text("a".into())], 7),
-        ["text"]
-    );
+    let now = Instant::now();
+    let mut h = held(now);
+    assert_eq!(h.frame(&[egui::Event::Text("a".into())], 7, now), ["text"]);
 }
 
 /// A frame that took its input past `GpuState::take_egui_input` would apply a paste without the
@@ -187,3 +230,6 @@ fn every_egui_frame_takes_its_input_through_the_paste_check() {
         [std::path::PathBuf::from("gfx/gpu/text_selection.rs")]
     );
 }
+
+#[path = "text_selection_frame_tests.rs"]
+mod frames;

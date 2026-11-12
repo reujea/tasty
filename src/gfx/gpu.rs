@@ -84,7 +84,7 @@ pub struct GpuState {
     /// egui's clipboard on a native Wayland start (`text_selection.rs`).
     pub(super) text_selection: Option<crate::file::drag::TextSelection>,
     /// Pastes read from the selection that wait for the next egui frame, with their target tag.
-    pub(super) held_pastes: Vec<(u64, String)>,
+    pub(super) held_pastes: text_selection::HeldPastes,
     pub(super) egui_renderer: egui_wgpu::Renderer,
     /// native WebView 위 창 단위 오버레이 host 와 그 surface. 그림 위치가 오버레이 창인 모드가 필요할 때
     /// WebView 동기화 뒤 훅이 붙인다. OS host 를 만들지 못하면 `None` 이다.
@@ -278,7 +278,7 @@ impl GpuState {
             egui_ctx,
             egui_state,
             text_selection: None,
-            held_pastes: Vec::new(),
+            held_pastes: text_selection::HeldPastes::default(),
             egui_renderer,
             overlay_surface: None,
             scale_factor,
