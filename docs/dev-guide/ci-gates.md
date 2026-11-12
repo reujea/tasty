@@ -663,17 +663,35 @@ cargo clippy --workspace --all-targets \
 ### gui 단위 단계의 Xvfb
 
 `check-headless`의 `cargo test (linux, gui, unit)` 단계는 `env -u WAYLAND_DISPLAY xvfb-run -a
---server-args="-screen 0 1920x1080x24"` 안에서 `cargo test --workspace --lib --bins --locked --no-fail-fast`를
-실행한다. gui 조합의 단위 시험 중 `app::shutdown_machine`의 `capture_file_tests`·`settings_export_tests`·
-`plugin_file_shutdown_tests`와 `app::journal::commands`의 `font_notice`는 winit `EventLoop`를 X11로 만들고,
-`capture_file_tests`를 뺀 나머지는 같은 시험 바이너리를 자식 프로세스로 다시 실행한다. 디스플레이가 없으면 `XOpenDisplayFailed`로 실패한다. 러너에 `xvfb-run`이
+-e "$RUNNER_TEMP/xvfb-gui-unit.log" --server-args="-screen 0 1920x1080x24 -noreset"` 안에서
+`cargo test --workspace --lib --bins --locked --no-fail-fast`를 실행한다. gui 조합의 단위 시험 중
+`src/x11_test_loop.rs`의 `x11_event_loop()`로 winit `EventLoop`를 X11로 만드는 시험이 디스플레이를 쓴다.
+`app::auto_attach`(`test_rig`를 쓰는 `row_use`·`row_connect`·`reconnect_window` 시험),
+`app::attach_client`의 `pending_failure_tests`, `app::journal::commands`의 `font_notice`,
+`app::shutdown_machine`의 `capture_file_tests`·`settings_export_tests`·`plugin_file_shutdown_tests`다.
+`capture_file_tests`를 뺀 나머지는 같은 시험 바이너리를 자식 프로세스로 다시 실행하고 자식에서만 연결한다.
+디스플레이가 없으면 `XOpenDisplayFailed`로 실패한다. 러너에 `xvfb-run`이
 없으면 단계가 먼저 실패한다. 이 단계는 `continue-on-error`가 없는 차단 단계다.
+
+- `-noreset`: 자식 시험이 연결을 열고 닫아 클라이언트 수가 0이 되면 Xvfb는 기본값으로 서버를 리셋한다.
+  리셋 중에 연결하는 자식이 실패하지 않도록 서버를 실행 내내 한 번만 초기화한다.
+- `-e`: Xvfb 출력(xauth 오류 포함)을 파일에 남긴다. 바로 뒤의 `xvfb (diagnostic)` 단계
+  (`continue-on-error: true`)가 `xvfb-run`·`xvfb` 판과 그 파일 전체를 출력하고, 파일이 없거나 비면
+  "Xvfb 로그 없음"을 출력한다.
+- 연결에 실패하면 `x11_event_loop()`가 재시도하지 않고 `DISPLAY`·`XAUTHORITY`와 인증 파일 상태(쿠키 제외),
+  디스플레이 소켓·lock과 lock pid의 생존, 열린 fd 수, `RLIMIT_NOFILE`, 실패 시각을 panic 메시지에 싣는다.
+  winit은 실패한 연결을 프로세스 전역에 보관하므로 같은 프로세스에서는 다시 연결할 수 없다. 서버 쪽 사정
+  (리셋·클라이언트 상한)은 이 메시지와 위 Xvfb 로그를 함께 읽어 가른다.
+- 같은 잡의 e2e·webview layout 관측 단계의 `xvfb-run`에는 `-noreset`·`-e`를 넣지 않는다. 두 단계는
+  `continue-on-error: true`라 잡을 막지 않고, 그 단계에서 `XOpenDisplayFailed`를 관측한 기록이 없다.
+  근거 없이 서버 인자를 바꾸면 관측하는 조건이 달라진다.
 
 `#[ignore]` 시험은 디스플레이가 있어도 이 단계에서 실행되지 않는다. 디스플레이가 생겨 동작이 달라지는
 다른 시험이 있는지는 로컬 전체 실행으로 비교한다.
 
 ```bash
-env -u DISPLAY -u WAYLAND_DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+env -u DISPLAY -u WAYLAND_DISPLAY xvfb-run -a -e xvfb-gui-unit.log \
+  --server-args="-screen 0 1920x1080x24 -noreset" \
   cargo test --workspace --lib --bins --locked --no-fail-fast > gui-unit.log 2>&1; echo rc=$?
 grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 ```

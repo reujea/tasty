@@ -177,15 +177,32 @@ jobs:
       # release 검사와는 debug_assertions 조건이 다르며 통합 테스트는 포함하지 않는다.
       # 앞 스텝이 실패해도 이 조합의 결과를 얻기 위해 !cancelled()를 사용한다.
       # 잡 이름은 외부의 required status check에서 참조할 수 있어 유지한다.
-      # gui 조합의 단위 시험 중 winit EventLoop를 X11로 만드는 시험(app::shutdown_machine)은
+      # gui 조합의 단위 시험 중 winit EventLoop를 X11로 만드는 시험(src/x11_test_loop.rs를 쓰는 시험)은
       # 디스플레이가 없으면 XOpenDisplayFailed로 실패하므로 스텝 전체를 Xvfb 안에서 실행한다.
+      # 시험 자식이 연결을 열고 닫으므로 클라이언트가 0이 된 순간의 서버 리셋을 -noreset으로 막고,
+      # 연결 실패를 서버 쪽에서도 읽을 수 있게 Xvfb 출력을 -e 파일에 남긴다(아래 xvfb 진단 스텝이 출력).
       # 기준과 확인 절차는 docs/dev-guide/ci-gates.md의 gui 단위 단계 절에 있다.
       - name: cargo test (linux, gui, unit)
         if: ${{ !cancelled() }}
         run: |
           command -v xvfb-run || { echo "이 러너에 xvfb-run이 없어 gui 단위 시험을 실행할 수 없습니다."; exit 1; }
-          env -u WAYLAND_DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+          env -u WAYLAND_DISPLAY xvfb-run -a -e "$RUNNER_TEMP/xvfb-gui-unit.log" \
+            --server-args="-screen 0 1920x1080x24 -noreset" \
             cargo test --workspace --lib --bins --locked --no-fail-fast
+
+      # 위 gui 단위 스텝의 Xvfb 출력을 거르지 않고 전부 출력한다(xauth 오류도 이 파일에 들어간다).
+      # xvfb-run이 끝나면 서버도 끝나므로 서버 상태 대신 xvfb-run 판과 로그를 남긴다.
+      - name: xvfb (diagnostic)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          xvfb-run --help 2>&1 | sed -n '1,3p' || true
+          dpkg -l xvfb 2>/dev/null | tail -1 || true
+          if [ -s "$RUNNER_TEMP/xvfb-gui-unit.log" ]; then
+            cat "$RUNNER_TEMP/xvfb-gui-unit.log"
+          else
+            echo "Xvfb 로그 없음(파일이 없거나 비어 있음)"
+          fi
 
       # headless 조합에서 컴파일하지 않는 창 소유권 테스트를 전용 Xvfb에서 실행한다.
       # 아직 관측용이므로 실패해도 잡을 중단하지 않는다. 이 스텝의 결과를 따로 확인한다.
