@@ -93,6 +93,7 @@ mirror 닫기와 연결 끊기, 저장된 원격 행의 메뉴는 [원격 attach
 
 - [상태 모델](index.md)
 - [pane 상태 모델](pane.md)
+- [window 상태 모델](window.md)
 - [원격 attach](../../features/remote-attach/index.md)
 - [작업 영역](../../features/work-area/index.md)
 - [포커스 정책](../../design/policies/focus.md)

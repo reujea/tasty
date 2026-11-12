@@ -24,7 +24,7 @@ Tab은 구조 트리에서 하위 레이아웃 하나와 이름만 가진다. �
 | pane의 선택 탭 | pane마다 하나 | `NavigationState`의 `tab_id`. 선택이 없거나 사라졌으면 첫 탭 |
 | 화면에 보이는 탭 | 보이는 workspace의 pane마다 하나 | 선택 탭이 그려진다. 여러 pane이면 여러 탭이 동시에 보인다 |
 | 입력 포커스 탭 | View마다 하나 | 포커스 pane의 선택 탭 |
-| OS 포커스 | 창마다 | 창이 OS 포커스를 가졌는가 |
+| OS 포커스 | 창마다 | 창이 OS 포커스를 가졌는가([window](window.md#포커스와-모달)) |
 
 선택은 pane 범위다. 한 pane의 탭 전환은 다른 pane의 선택 탭과 pane 배치를 바꾸지 않는다. 표시 탭의 하위 레이아웃 안에서 입력을 받는 surface는 탭 안 선택 surface다(`src/state/accessors.rs`의 포커스 surface 계산). 원격 생성 대기 탭이 선택된 동안 포커스 surface는 없다.
 

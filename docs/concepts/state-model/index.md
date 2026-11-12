@@ -8,6 +8,7 @@ Window·Workspace·Pane·Tab·Surface 다섯 계층이 가지는 상태를 축�
 | Tab | [tab](tab.md) | pane별 선택, 탭 안 선택 surface, 제목 결정, busy·attention 집계 |
 | Pane | [pane](pane.md) | workspace별 포커스 pane, pane별 선택 탭, 탭바 스크롤 |
 | Workspace | [workspace](workspace.md) | View별 선택, 로컬·mirror·저장된 원격 행, 연결 상태, workspace 점유, 집계 |
+| Window | [window](window.md) | OS 창 상태, View 종류와 모달, 포커스, engine 관계(창·parked·pending·retiring) |
 
 ## 읽는 방법
 
