@@ -334,6 +334,9 @@ pub struct ClientTransport {
     pub terminal_read: bool,
     /// 서버가 원격 파일 하나 가져오기를 받는다. 구 서버 descriptor 에는 이 기능이 없다.
     pub file_download: bool,
+    /// 서버가 생성 요청의 cwd 상속 원본(`inherit_cwd`)을 따른다. 구 서버는 필드를 무시하므로 "상속 안 함"이
+    /// 지켜지지 않는다. client 는 이 값과 관계없이 원본을 싣는다.
+    pub inherit_cwd: bool,
     /// 이 연결로 출처 hello 를 보냈다. 재연결하면 새 transport 라 다시 보낸다.
     pub agent_hello_sent: bool,
     /// 받은 원격 explorer 작업 통지. 작업 상태를 가진 App 이 도착 순서대로 꺼낸다.

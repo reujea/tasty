@@ -55,6 +55,7 @@ pub fn attach_handshake(
         agent_children: descriptor_has_capability(&ctrl, tasty_ipc::agent_child::CAPABILITY),
         terminal_read: descriptor_has_capability(&ctrl, tasty_ipc::terminal_read::CAPABILITY),
         file_download: descriptor_has_capability(&ctrl, tasty_ipc::file_download::CAPABILITY),
+        inherit_cwd: descriptor_has_capability(&ctrl, stream::INHERIT_CWD_CAPABILITY),
         win32_console_input: stream::descriptor_wants_win32_console_input(&ctrl),
         conn,
         client_id,
@@ -86,6 +87,8 @@ pub struct AttachHandshake {
     pub terminal_read: bool,
     /// 서버가 holder 의 원격 파일 하나 가져오기를 받는다.
     pub file_download: bool,
+    /// 서버가 생성 요청의 cwd 상속 원본을 따른다.
+    pub inherit_cwd: bool,
     /// 서버 PTY가 Windows 콘솔 입력을 받는다. 구 서버는 false(VT)다.
     pub win32_console_input: bool,
     pub html: super::html_document::HtmlSession,
@@ -495,6 +498,7 @@ impl PreparedConnection {
             agent_children,
             terminal_read,
             file_download,
+            inherit_cwd,
             win32_console_input,
             html,
         } = attach_handshake(
@@ -554,6 +558,7 @@ impl PreparedConnection {
                 agent_children,
                 terminal_read,
                 file_download,
+                inherit_cwd,
                 agent_hello_sent: false,
                 explorer_inbox: Vec::new(),
                 html,

@@ -561,6 +561,14 @@ fn flush_outgoing(sess: &AttachClientSession, ws: u32) {
                 };
                 // 보내지 않은 거절이라 결과를 모르는 상태가 아니다. 실패로 끝낸다.
                 let inherit_cwd = match remote_call_source(inherit, source, &local_to_remote) {
+                    Ok(Some(tasty_ipc::stream::InheritCwd::NoInherit))
+                        if !sess.transport.inherit_cwd =>
+                    {
+                        tracing::info!(
+                            "attach agent call {call_id}: the remote instance predates inherit_cwd and inherits by its own selection"
+                        );
+                        Some(tasty_ipc::stream::InheritCwd::NoInherit)
+                    }
                     Ok(value) => value,
                     Err(reason) => {
                         client.refuse_call(call_id, reason);

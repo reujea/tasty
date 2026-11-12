@@ -542,6 +542,11 @@ impl App {
             .0;
         let wire = remote_structural_op(op, remote_anchor, &session.state.remote_to_local)
             .map_err(|reason| anyhow::anyhow!(reason))?;
+        if wire.inherit_cwd() == Some(&InheritCwd::NoInherit) && !session.transport.inherit_cwd {
+            tracing::info!(
+                "structural forward: the remote instance predates inherit_cwd and inherits by its own selection"
+            );
+        }
         let closes_workspace = matches!(op, StructuralOp::CloseWorkspace { .. });
         if closes_workspace {
             super::workspace_close::refusal_of(session)
