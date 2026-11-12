@@ -2,8 +2,11 @@
 """Check that the decision rules section still has its first committed bytes.
 
 With --raw it also checks the order rules for raw result files: every line names
-a rules version that exists on the integration branch (origin/develop by default),
-and the first rules commit came first.
+a rules version that exists on the integration branch, and the first rules commit
+came first. The integration branch is --main-ref when given, else the local
+develop, else origin/develop. When none of them exists the check cannot judge and
+names --main-ref. A shallow history cannot prove that a commit is not an ancestor,
+so it is reported as "cannot judge" instead of as a missing ancestor.
 
 Exit codes: 0 same in the file and in every committed version, 1 changed, 2 could not judge.
 """
@@ -54,13 +57,53 @@ def _git(root, *args):
     ).stdout.strip()
 
 
-def _on_main(commit, root, main_ref):
-    done = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", commit, main_ref], capture_output=True)
+DEFAULT_REFS = ("develop", "origin/develop")
+
+
+def _ref_exists(root, ref):
+    done = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "-q", "--verify", f"{ref}^{{commit}}"], capture_output=True,
+    )
     return done.returncode == 0
 
 
-def rules_provenance(root=REPO_ROOT, main_ref="origin/develop"):
+def resolve_main_ref(root=REPO_ROOT, main_ref=None):
+    """Return the integration ref to compare with, or raise ValueError when it does not exist.
+
+    HEAD is never used in its place: a rules commit on HEAD proves nothing about the integration branch.
+    """
+    if main_ref is not None:
+        if not _ref_exists(root, main_ref):
+            raise ValueError(f"the ref given with --main-ref does not exist: {main_ref}")
+        return main_ref
+    for ref in DEFAULT_REFS:
+        if _ref_exists(root, ref):
+            return ref
+    raise ValueError("neither develop nor origin/develop exists; pass the integration ref with --main-ref")
+
+
+def _is_shallow(root):
+    return _git(root, "rev-parse", "--is-shallow-repository") == "true"
+
+
+def _on_main(commit, root, main_ref):
+    """Return whether commit is an ancestor of main_ref, or raise ValueError when git cannot tell."""
+    done = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", commit, main_ref], capture_output=True)
+    if done.returncode == 0:
+        return True
+    if done.returncode == 1:
+        if _is_shallow(root):
+            raise ValueError(
+                f"the history is shallow, so it cannot prove whether {commit} is an ancestor of {main_ref}; "
+                "fetch the full history (git fetch --unshallow)"
+            )
+        return False
+    raise ValueError(f"git could not compare {commit} with {main_ref}")
+
+
+def rules_provenance(root=REPO_ROOT, main_ref=None):
     """Return the rules commit and blob of a run, or raise ValueError when they cannot be used."""
+    main_ref = resolve_main_ref(root, main_ref)
     try:
         commit = _git(root, "log", "-1", "--format=%H", "--", RULES_REL)
         if not commit:
@@ -78,8 +121,9 @@ def rules_provenance(root=REPO_ROOT, main_ref="origin/develop"):
     return {"rules_commit": commit, "rules_blob": blob}
 
 
-def raw_problems(rows, root=REPO_ROOT, main_ref="origin/develop", raw_files=()):
+def raw_problems(rows, root=REPO_ROOT, main_ref=None, raw_files=()):
     """Return the order rule violations of raw lines as (kind, value) pairs."""
+    main_ref = resolve_main_ref(root, main_ref)
     problems = []
     pairs = {(r.get("rules_commit"), r.get("rules_blob")) for r in rows}
     for commit, blob in sorted(pairs, key=str):
@@ -116,7 +160,7 @@ def raw_problems(rows, root=REPO_ROOT, main_ref="origin/develop", raw_files=()):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw", nargs="*", default=[], help="raw result files to check")
-    parser.add_argument("--main-ref", default="origin/develop")
+    parser.add_argument("--main-ref", help="integration ref (default: develop, else origin/develop)")
     args = parser.parse_args(argv)
     current = section_hash(RULES_PATH.read_bytes())
     if current is None:

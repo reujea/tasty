@@ -19,7 +19,7 @@ CI에서도 실행하는 검사와 로컬 훅에서만 실행하는 검사는 [c
 | C.9 | `egui::Window` 직접 사용 | 추가된 코드에서는 PopupManager/PopupDef를 사용한다. 예외는 [popup-implementation](popup-implementation.md)에 있다. |
 | C.11 | `println!`와 `eprintln!` 사용 | 추가된 로그는 `tracing`으로 출력한다. CLI 등 표준 출력이 필요한 파일과 `vendor/` 사본은 제외한다. |
 | C.12 | `dbg!` 사용 | 추가된 코드에서 디버그 매크로를 제거한다. |
-| P.1 | 플러그인 버전 변경 | `scripts/check-plugin-version-bump.sh`로 staged 내용과 통합 브랜치 `develop`의 공통 조상 커밋을 비교한다. 로컬 `develop`이 없으면 `origin/develop`을 쓰고, 둘 다 공통 조상을 찾지 못하면 안내를 출력한 뒤 HEAD를 사용한다. 연결된 작업 트리에 `tasty.pluginBump=deferred`가 worktree 범위로 있으면 검사하지 않고 안내만 출력한다([lane 작업 트리의 P.1 보류](#lane-작업-트리의-p1-보류)). |
+| P.1 | 플러그인 버전 변경 | `scripts/check-plugin-version-bump.sh`로 staged 내용과 통합 브랜치 `develop`의 공통 조상 커밋을 비교한다. 로컬 `develop`이 없으면 `origin/develop`을 쓰고, 둘 다 공통 조상을 찾지 못하면 안내를 출력한 뒤 HEAD를 사용한다. 이때는 이 커밋의 staged 변경만 비교하므로, `develop`에서 갈라진 뒤 앞선 커밋에서 바뀐 플러그인 내용은 보지 않는다. 연결된 작업 트리에 `tasty.pluginBump=deferred`가 worktree 범위로 있으면 검사하지 않고 안내만 출력한다([lane 작업 트리의 P.1 보류](#lane-작업-트리의-p1-보류)). |
 | T.1 | 로컬 전용 문서 참조 | `cargo test -q -p tasty-doc-guards --test no_todo_file_citation`으로 저장소 전체를 검사한다. 커밋 대상이 아닌 파일도 포함된다. |
 | W.1 | CHANGELOG 누락 안내 | 사용자 기능 관련 선언이 바뀌었지만 CHANGELOG가 변경되지 않았으면 안내한다. 커밋은 막지 않는다. |
 | W.2 | 새 파일에 필요한 검사 안내 | 새 파일의 종류에 따라 테스트 명령을 안내한다. 커밋은 막지 않는다. |

@@ -481,7 +481,7 @@ def main(argv=None):
     go.add_argument("--claude-utilization-unit", choices=("fraction", "percent"), required=True)
     go.add_argument("--low-model-default-effort", action="store_true")
     go.add_argument("--codex-bypass-sandbox", action="store_true")
-    go.add_argument("--main-ref", default="origin/develop")
+    go.add_argument("--main-ref", help="integration ref (default: develop, else origin/develop)")
     ok = commands.add_parser("approve")
     ok.add_argument("--level", choices=tuple(LEVELS), required=True)
     ok.add_argument("--windows", required=True, help="window values as JSON")

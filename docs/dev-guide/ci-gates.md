@@ -887,6 +887,10 @@ git diff --name-only <base>..HEAD
 scripts/what-sees-this-change.sh [<base>]
 ```
 
+`<base>`를 생략하면 로컬 `develop`, 없으면 `origin/develop`을 쓴다. 고른 ref가 없거나 HEAD와
+공통 조상이 없으면(공통 이력이 없는 clone, 공통 조상까지 받지 않은 shallow clone) 종료 코드 2로
+멈춘다. HEAD로 대신 비교하지 않으므로 그때는 `<base>`를 직접 준다.
+
 파일 이름, 디렉터리, 확장자·shebang으로 전체를 훑는 검사, 문서에 추가한 인용 검사를 각각
 확인한다. 첫 둘의 문자열 검색만으로 뒤 둘을 찾을 수 없다. 주석에 이름만 언급한 곳과 실제
 파일을 읽는 곳도 구분한다. 발견한 파일을 모두 수정하는 것이 아니라 실행할 검사를 고르는 절차다.
