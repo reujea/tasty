@@ -25,41 +25,56 @@ fn read(rel: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{rel}을 읽지 못했다: {e}"))
 }
 
-/// 함수 하나의 원본 조각과 같은 길이의 가린 사본(`mask_code`). 같은 바이트 오프셋이 같은 글자를
+/// 함수 본문의 원본 조각과 같은 길이의 가린 사본(`mask_code`). 같은 바이트 오프셋이 같은 글자를
 /// 가리키므로 구조는 `mask`에서 찾고 문자열 값은 같은 위치의 `src`에서 꺼낸다.
 struct Masked {
     src: String,
     mask: String,
 }
 
-/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 선언 위치는 원본에서 이름으로 찾고, 그 위치부터
-/// 파일 끝까지 가린 사본을 만든 뒤 사본에서 중괄호 짝을 센다.
-fn fn_body(source: &str, name: &str, rel: &str) -> Masked {
-    let start = source
-        .find(&format!("fn {name}("))
-        .unwrap_or_else(|| panic!("{rel}에서 fn {name}을 찾지 못했다"));
-    let src = &source[start..];
-    let mask = mask_code(src);
-    let open = mask
-        .find('{')
-        .unwrap_or_else(|| panic!("{rel}의 fn {name}에 본문이 없다"));
+/// `mask`에서 `decl`이 시작하는 첫 위치. 앞 글자가 식별자 글자이면 건너뛴다. 사본에서 찾으므로
+/// 주석이나 문자열 속 같은 글자는 선언으로 보지 않는다.
+fn find_decl(mask: &str, decl: &str) -> Option<usize> {
+    let m = mask.as_bytes();
+    mask.match_indices(decl)
+        .map(|(k, _)| k)
+        .find(|&k| k == 0 || !(m[k - 1].is_ascii_alphanumeric() || m[k - 1] == b'_'))
+}
+
+/// `mask[open]`의 여는 괄호와 짝을 이루는 닫는 괄호 위치. 세 종류 괄호를 함께 센다.
+fn closing(mask: &str, open: usize) -> Option<usize> {
     let mut depth = 0usize;
     for (i, c) in mask.bytes().enumerate().skip(open) {
         match c {
-            b'{' => depth += 1,
-            b'}' => {
+            b'{' | b'(' | b'[' => depth += 1,
+            b'}' | b')' | b']' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Masked {
-                        src: src[open..=i].to_string(),
-                        mask: mask[open..=i].to_string(),
-                    };
+                    return Some(i);
                 }
             }
             _ => {}
         }
     }
-    panic!("{rel}의 fn {name} 본문이 닫히지 않는다")
+    None
+}
+
+/// `fn <name>` 함수의 본문(여는 중괄호부터 닫는 중괄호까지). 파일 전체를 가린 사본에서 선언과
+/// 중괄호 짝을 찾고, 같은 오프셋으로 원본을 자른다.
+fn fn_body(source: &str, name: &str, rel: &str) -> Masked {
+    let mask = mask_code(source);
+    let start = find_decl(&mask, &format!("fn {name}("))
+        .unwrap_or_else(|| panic!("{rel}에서 fn {name}을 찾지 못했다"));
+    let open = start
+        + mask[start..]
+            .find('{')
+            .unwrap_or_else(|| panic!("{rel}의 fn {name}에 본문이 없다"));
+    let close =
+        closing(&mask, open).unwrap_or_else(|| panic!("{rel}의 fn {name} 본문이 닫히지 않는다"));
+    Masked {
+        src: source[open..=close].to_string(),
+        mask: mask[open..=close].to_string(),
+    }
 }
 
 /// `### <heading>` 절 안의 첫 Markdown 표에서 헤더와 구분 줄을 뺀 데이터 행의 칸들.
@@ -100,16 +115,53 @@ fn backticked(cell: &str) -> Vec<String> {
         .collect()
 }
 
+/// `pub enum <name>`의 변형 이름. 파일 전체를 가린 사본에서 선언과 본문을 찾으므로 주석은 읽지 않는다.
+/// 속성(`#[...]`)은 괄호 묶음째 건너뛰고, 괄호 깊이 0의 쉼표로 나눈 토막마다 앞쪽 식별자를 이름으로 읽는다.
 fn enum_variants(source: &str, name: &str, rel: &str) -> BTreeSet<String> {
-    let start = source
-        .find(&format!("pub enum {name} {{"))
+    let mask = mask_code(source);
+    let start = find_decl(&mask, &format!("pub enum {name} {{"))
         .unwrap_or_else(|| panic!("{rel}에서 enum {name}을 찾지 못했다"));
-    let body = &source[start..];
-    let body = &body[body.find('{').unwrap_or(0) + 1..body.find('}').unwrap_or(body.len())];
-    body.split(',')
-        .map(str::trim)
+    let open = start + mask[start..].find('{').unwrap_or(0);
+    let close =
+        closing(&mask, open).unwrap_or_else(|| panic!("{rel}의 enum {name}이 닫히지 않는다"));
+    let body = &mask.as_bytes()[open + 1..close];
+    let mut pieces = vec![String::new()];
+    let mut i = 0;
+    let mut depth = 0usize;
+    while i < body.len() {
+        let c = body[i];
+        if c == b'#' {
+            let bracket = i + body[i..].iter().position(|&b| b == b'[').unwrap_or(0);
+            let end = closing(&mask, open + 1 + bracket)
+                .unwrap_or_else(|| panic!("{rel}의 enum {name}에 닫히지 않는 속성이 있다"));
+            i = end - open;
+            continue;
+        }
+        match c {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth -= 1,
+            b',' if depth == 0 => {
+                pieces.push(String::new());
+                i += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if let Some(piece) = pieces.last_mut() {
+            piece.push(char::from(c));
+        }
+        i += 1;
+    }
+    pieces
+        .iter()
+        .map(|piece| {
+            piece
+                .trim()
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect::<String>()
+        })
         .filter(|v| !v.is_empty())
-        .map(str::to_string)
         .collect()
 }
 
