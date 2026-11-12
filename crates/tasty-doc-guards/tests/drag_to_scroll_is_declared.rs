@@ -8,7 +8,7 @@
 //! 변수에 담아도 이 범위 안에 종결자가 있으면 검사한다. 종결자를 못 찾으면 검사하지 않는다.
 //! 무관한 show 호출이 앞에 끼면 실제 설정을 보지 못하고 오류로 보고할 수 있다.
 //! 별칭·래퍼 호출, ComboBox처럼 라이브러리 내부에서 만드는 스크롤은 검사하지 못한다.
-//! doc-guards.yml의 경로 필터 없는 main push·PR 검사에서 실행된다. 전체 구성은 docs/dev-guide/ci-gates.md를 따른다.
+//! doc-guards.yml의 경로 필터 없는 develop·release·main push·PR 검사에서 실행된다. 전체 구성은 docs/dev-guide/ci-gates.md를 따른다.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;

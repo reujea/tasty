@@ -1,7 +1,7 @@
 //! tasty-design-tokens의 토큰 수 설명을 freshness.rs의 token_census_matches_design_export 기준값과 대조한다.
 //! 크레이트 안의 추적 Rust·Markdown 파일에서 census라는 말이나 현재 총 토큰 수 문구가 나오면
 //! CLAIMS 또는 사유를 적은 EXCLUDED에 등록하도록 한다. 일반적인 산문 의미를 판독하는 검사는 아니다.
-//! doc-guards.yml이 경로 필터 없이 main push·PR에서 실행한다.
+//! doc-guards.yml이 경로 필터 없이 develop·release·main push·PR에서 실행한다.
 
 use std::path::PathBuf;
 

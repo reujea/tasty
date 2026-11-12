@@ -3,7 +3,7 @@
 //! 대응 토큰이 없는 구조값은 이유가 드러나는 이름의 상수로 둔다.
 //! 색 생성자 호출은 clippy disallowed_methods도 검사한다.
 //!
-//! 이 크레이트는 GUI 의존성이 없으며 doc-guards.yml의 경로 필터 없는 main push·PR와
+//! 이 크레이트는 GUI 의존성이 없으며 doc-guards.yml의 경로 필터 없는 develop·release·main push·PR와
 //! crossplatform-check.yml의 Windows 잡에서 실행된다. 전체 구성은 docs/dev-guide/ci-gates.md를 따른다.
 //! 컴파일만으로는 실행되지 않는다. 직접 확인하려면 cargo test -p tasty-doc-guards --test design_token_adherence --locked를 쓴다.
 //!
