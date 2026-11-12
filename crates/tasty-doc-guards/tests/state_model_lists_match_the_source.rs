@@ -32,13 +32,29 @@ struct Masked {
     mask: String,
 }
 
-/// `mask`에서 `decl`이 시작하는 첫 위치. 앞 글자가 식별자 글자이면 건너뛴다. 사본에서 찾으므로
-/// 주석이나 문자열 속 같은 글자는 선언으로 보지 않는다.
-fn find_decl(mask: &str, decl: &str) -> Option<usize> {
+/// `mask`에서 `decl`이 시작하는 위치. 앞 글자가 식별자 글자이면 건너뛴다. 사본에서 찾으므로
+/// 주석이나 문자열 속 같은 글자는 선언으로 보지 않는다. 스코프는 따지지 않으므로 같은 선언이
+/// 파일에 둘 이상이면 어느 것을 읽을지 정하지 않고 실패한다.
+fn find_decl(mask: &str, decl: &str, rel: &str) -> usize {
     let m = mask.as_bytes();
-    mask.match_indices(decl)
+    let found: Vec<usize> = mask
+        .match_indices(decl)
         .map(|(k, _)| k)
-        .find(|&k| k == 0 || !(m[k - 1].is_ascii_alphanumeric() || m[k - 1] == b'_'))
+        .filter(|&k| k == 0 || !(m[k - 1].is_ascii_alphanumeric() || m[k - 1] == b'_'))
+        .collect();
+    match found.as_slice() {
+        [] => panic!("{rel}에서 `{decl}` 선언을 찾지 못했다"),
+        [k] => *k,
+        _ => {
+            let lines: Vec<usize> = found
+                .iter()
+                .map(|&k| mask[..k].matches('\n').count() + 1)
+                .collect();
+            panic!(
+                "{rel}에 `{decl}` 선언이 둘 이상이다(줄 {lines:?}). 같은 이름 선언은 하나만 둔다"
+            )
+        }
+    }
 }
 
 /// `mask[open]`의 여는 괄호와 짝을 이루는 닫는 괄호 위치. 세 종류 괄호를 함께 센다.
@@ -60,11 +76,10 @@ fn closing(mask: &str, open: usize) -> Option<usize> {
 }
 
 /// `fn <name>` 함수의 본문(여는 중괄호부터 닫는 중괄호까지). 파일 전체를 가린 사본에서 선언과
-/// 중괄호 짝을 찾고, 같은 오프셋으로 원본을 자른다.
+/// 중괄호 짝을 찾고, 같은 오프셋으로 원본을 자른다. 같은 이름 선언이 파일에 둘 이상이면 실패한다.
 fn fn_body(source: &str, name: &str, rel: &str) -> Masked {
     let mask = mask_code(source);
-    let start = find_decl(&mask, &format!("fn {name}("))
-        .unwrap_or_else(|| panic!("{rel}에서 fn {name}을 찾지 못했다"));
+    let start = find_decl(&mask, &format!("fn {name}("), rel);
     let open = start
         + mask[start..]
             .find('{')
@@ -116,11 +131,11 @@ fn backticked(cell: &str) -> Vec<String> {
 }
 
 /// `pub enum <name>`의 변형 이름. 파일 전체를 가린 사본에서 선언과 본문을 찾으므로 주석은 읽지 않는다.
-/// 속성(`#[...]`)은 괄호 묶음째 건너뛰고, 괄호 깊이 0의 쉼표로 나눈 토막마다 앞쪽 식별자를 이름으로 읽는다.
+/// 같은 이름 선언이 파일에 둘 이상이면 실패한다. 속성(`#[...]`)은 괄호 묶음째 건너뛰고, 괄호 깊이
+/// 0의 쉼표로 나눈 토막마다 앞쪽 식별자를 이름으로 읽는다. 원시 식별자 `r#Name`은 `Name`으로 읽는다.
 fn enum_variants(source: &str, name: &str, rel: &str) -> BTreeSet<String> {
     let mask = mask_code(source);
-    let start = find_decl(&mask, &format!("pub enum {name} {{"))
-        .unwrap_or_else(|| panic!("{rel}에서 enum {name}을 찾지 못했다"));
+    let start = find_decl(&mask, &format!("pub enum {name} {{"), rel);
     let open = start + mask[start..].find('{').unwrap_or(0);
     let close =
         closing(&mask, open).unwrap_or_else(|| panic!("{rel}의 enum {name}이 닫히지 않는다"));
@@ -130,9 +145,8 @@ fn enum_variants(source: &str, name: &str, rel: &str) -> BTreeSet<String> {
     let mut depth = 0usize;
     while i < body.len() {
         let c = body[i];
-        if c == b'#' {
-            let bracket = i + body[i..].iter().position(|&b| b == b'[').unwrap_or(0);
-            let end = closing(&mask, open + 1 + bracket)
+        if c == b'#' && body.get(i + 1) == Some(&b'[') {
+            let end = closing(&mask, open + 2 + i)
                 .unwrap_or_else(|| panic!("{rel}의 enum {name}에 닫히지 않는 속성이 있다"));
             i = end - open;
             continue;
@@ -155,8 +169,10 @@ fn enum_variants(source: &str, name: &str, rel: &str) -> BTreeSet<String> {
     pieces
         .iter()
         .map(|piece| {
+            let piece = piece.trim();
             piece
-                .trim()
+                .strip_prefix("r#")
+                .unwrap_or(piece)
                 .chars()
                 .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
                 .collect::<String>()
