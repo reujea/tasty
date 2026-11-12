@@ -30,6 +30,8 @@
 - **저장된 원격 행의 우클릭 메뉴에 Connect(또는 Reconnect)·Disconnect·Close locally·Close remote workspace…가 생긴다.** 할 수 없는 항목은 꺼져 보인다. Close remote workspace…와 저장된 행을 비우는 닫기 요청은 확인 대화를 먼저 연다. 확인 대화는 Esc·Cancel로만 닫히고 바깥 클릭으로는 닫히지 않는다.
 - **토스트 위에 포인터를 올려 두면 토스트가 사라지지 않는다.** 포인터를 치우면 그때부터 Toast duration(`overlay.toast_duration_ms`)만큼 보인 뒤 사라지고, 흐려지던 토스트도 포인터를 올리면 다시 또렷해진다. 토스트는 여전히 클릭·드래그·포커스를 받지 않아 아래 대상에 그대로 간다.
 - **`tasty claude quiet --surface <N> [--task <id>] (--secs <초> | --clear)`와 IPC `claude.quiet`로 child의 예상 무출력 기간을 선언한다.** 양수 초는 그동안의 무출력 알림(`[warning]`)을 쌓았다가 선언이 끝날 때(만료·작업 종료·`--clear`) 한 줄로 묶어 보내고, `-1`은 작업이 끝나거나 `--clear`할 때까지 버린다. 상태 변경 알림은 그대로 나가고, 오류 알림은 그 surface의 선언을 모두 끝내며 쌓인 것을 같은 줄 끝에 붙인다. `0`과 `-1`이 아닌 음수는 거절한다. 내부 명령 `tasty claude notify-quiet-release`, 훅 이벤트 `claude-quiet-released`, surface meta `claude-quiet`·`claude-quiet-release`가 더해진다. 선언은 플러그인을 다시 시작해도 이어지지만 Tasty를 다시 시작하면 사라진다.
+- **IPC `workspace.create`에 선택 인자 `inherit_cwd`가 생긴다.** `{"surface": N}`이면 surface N의 cwd를 첫 터미널이 잇고, `"none"`이면 상속하지 않는다. 생략하면 전처럼 `surface_id` 또는 창의 포커스 surface와 이 인스턴스의 `general.inherit_cwd` 설정을 쓴다. 명시한 원본은 이 인스턴스의 설정으로 막지 않고 어느 창(숨긴 창 포함)에 있어도 된다. 어디에도 없거나 모르는 값이면 `-32602`로 거절하고, 원본이 터미널이 아니면 거절하지 않고 상속하지 않는다.
+- **원격 attach 서버가 descriptor의 stream capability에 `ipc.stream.inherit-cwd`를 싣는다.** 생성 요청의 `inherit_cwd` 값을 이해하는 서버라는 표지다. stream 프로토콜 번호는 그대로다.
 
 ### Changed
 
@@ -45,6 +47,7 @@
 - **터미널이 지정한 custom 글꼴 파일을 family와 관계없이 쓴다.** 전에는 family가 비었거나 다른 이름이면 터미널은 묶음 D2Coding이나 그 family로 그리고 설정 미리보기만 파일을 썼다. 이제 `custom_font_path`만 지정한 설정도 터미널이 그 파일을 쓰므로 터미널 글꼴과 칸 크기가 바뀔 수 있다(예: DejaVu Serif 파일은 칸 7x14에서 15x14). family가 다른 이름이어도 파일이 먼저이고, 같은 이름의 설치 글꼴보다 파일을 쓴다. 파일에 없는 글자는 설정 family, 그다음 묶음 D2Coding이 맡는다. 설정 창이 오류로 표시하는 파일은 이름이 맞아도 쓰지 않는다.
 - **(BREAK) 부모 완료 로그(`<parent_home>/notify/<caller>.log`)의 Codex child 알림 줄이 타입 표지 `[info] `·`[error] `로 시작한다.** 대상이 `exited`이거나 샌드박스 안내가 붙은 완료 줄은 `[error] `, 그 밖의 상태 변경과 원격 결과 저장 줄은 `[info] `다. 표지는 번역하지 않는다. 줄 머리 `surface <N>: `에 맞춰 읽던 소비자는 표지 뒤를 읽어야 한다.
 - **(BREAK) 부모 완료 로그의 Claude child 알림 줄이 타입 표지 `[info] `·`[warning] `·`[error] `로 시작한다.** 상태 변경(`idle`·`needs_input`)과 원격 결과 저장은 `[info] `, 출력이 없다는 정지 알림 3종은 `[warning] `, API 오류로 끝난 턴·백그라운드 작업이 남은 API 오류·오류 뒤 정지·`exited`는 `[error] `다. 무출력 알림만 거르려면 `^\[warning\] `로 고른다.
+- **mirror의 새 탭·분할·convert와 원격 agent child, 원격 연결 팝업의 `+ 새 워크스페이스`가 client가 고른 surface의 cwd에서 시작한다.** 새 탭·pane 분할·원격 child는 대상 pane에서 client 창이 선택한 탭의 선택 surface, surface 분할·convert는 대상 surface, `+ 새 워크스페이스`는 팝업을 연 창의 포커스가 같은 원격(같은 attach 프로필)의 mirror 터미널일 때 그 surface가 원본이다. 상속 여부는 client의 `general.inherit_cwd` 설정을 따르고, 꺼져 있으면 상속하지 않는다. 원본이 터미널이 아니면 상속하지 않는다. 전에는 서버 창의 선택과 서버 설정으로 정해 client에서 보던 위치와 다른 폴더에서 열렸다. 원격 요청은 서버 창의 선택을 바꾸지 않는다. 요청에 원본이 없으면 서버 창의 선택과 서버 설정을 쓴다. `ipc.stream.inherit-cwd`가 없는 옛 서버는 원본을 무시하고 전처럼 서버 선택으로 만들며, client 설정이 꺼져 있어도 서버 설정이 켜져 있으면 상속한다.
 
 ### Fixed
 
