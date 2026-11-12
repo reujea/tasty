@@ -86,6 +86,15 @@ impl CwdSource {
     }
 }
 
+/// 원격 요청이 명시한 상속 원본의 cwd. 원본이 터미널일 때만 잇는다. 터미널이 아니면 거절하지 않고
+/// 상속하지 않는다(그 뒤로는 kind 기본 규칙). 규칙은 `workspace.create`와 같다.
+pub(super) fn named_source_cwd(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    surface: u32,
+) -> Option<std::path::PathBuf> {
+    crate::ipc::handler::workspace::named_source_cwd(engine, surface).flatten()
+}
+
 /// View가 pane에서 고른 탭의 선택 surface. 기록이 없거나 낡았으면 첫 탭·첫 surface다.
 pub(super) fn selected_in_view(
     core: &crate::core::CoreState,
@@ -239,7 +248,7 @@ impl Spec {
                 selected.and_then(|surface| engine.local_surface_cwd(surface))
             }
             CwdSource::View | CwdSource::NoInherit => None,
-            CwdSource::Surface(surface) => engine.local_surface_cwd(surface),
+            CwdSource::Surface(surface) => named_source_cwd(engine, surface),
         };
         let (destination, cwd) = match request.method.as_str() {
             "image.open" => {

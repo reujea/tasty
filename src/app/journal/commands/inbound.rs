@@ -241,24 +241,12 @@ impl JournalApplication {
                     if let Some(reason) = missing_markdown_file(&surface_kind, &params) {
                         return Err(reason);
                     }
-                    // 기준이 없으면 이 서버의 설정으로 원래 surface의 cwd를 잇는다(fallback).
-                    let inherited =
-                        match super::create_spec::CwdSource::of_remote(inherit_cwd.as_ref()) {
-                            super::create_spec::CwdSource::View => session
-                                .runtime
-                                .settings
-                                .general
-                                .inherit_cwd
-                                .then_some(surface_id),
-                            super::create_spec::CwdSource::Surface(source) => Some(source),
-                            super::create_spec::CwdSource::NoInherit => None,
-                        };
-                    let cwd = cwd
-                        .filter(|value| !value.trim().is_empty())
-                        .map(std::path::PathBuf::from)
-                        .or_else(|| {
-                            inherited.and_then(|source| session.as_ref().local_surface_cwd(source))
-                        });
+                    let cwd = convert_cwd(
+                        &session.as_ref(),
+                        surface_id,
+                        cwd.as_deref(),
+                        inherit_cwd.as_ref(),
+                    );
                     let spec = super::create_spec::Spec {
                         destination: super::create_spec::Destination::Convert {
                             surface: surface_id,
@@ -325,6 +313,30 @@ impl JournalApplication {
     }
     pub(crate) fn take_remote_results(&mut self) -> Vec<(RemoteReply, JsonRpcResponse)> {
         std::mem::take(&mut self.commands.completed_remote)
+    }
+}
+/// 원격 kind 변환의 cwd. 명시 cwd가 먼저다. 기준이 없으면 이 서버의 설정으로 변환할 surface의 cwd를 잇고
+/// (fallback), 명시한 기준은 터미널일 때만 잇는다.
+pub(super) fn convert_cwd(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    surface: u32,
+    cwd: Option<&str>,
+    inherit_cwd: Option<&InheritCwd>,
+) -> Option<std::path::PathBuf> {
+    use super::create_spec::CwdSource;
+    if let Some(cwd) = cwd.filter(|value| !value.trim().is_empty()) {
+        return Some(std::path::PathBuf::from(cwd));
+    }
+    match CwdSource::of_remote(inherit_cwd) {
+        CwdSource::View => engine
+            .runtime
+            .settings
+            .general
+            .inherit_cwd
+            .then(|| engine.local_surface_cwd(surface))
+            .flatten(),
+        CwdSource::Surface(source) => super::create_spec::named_source_cwd(engine, source),
+        CwdSource::NoInherit => None,
     }
 }
 /// 생성 op가 실은 cwd 상속 원본을 확인한다. 원본 surface는 이 연결이 점유한 workspace에 있고, 새 탭·pane

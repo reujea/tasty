@@ -326,7 +326,9 @@ pub(super) fn launch_cwd(
         return Some(std::path::PathBuf::from(path));
     }
     let surface = match source {
-        CwdSource::Surface(surface) => surface,
+        CwdSource::Surface(surface) => {
+            return super::create_spec::named_source_cwd(engine, surface);
+        }
         CwdSource::NoInherit => return None,
         CwdSource::View if engine.runtime.settings.general.inherit_cwd => {
             super::create_spec::selected_in_view(engine.core, view, pane)?

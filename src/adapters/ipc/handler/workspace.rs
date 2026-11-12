@@ -93,6 +93,21 @@ fn inherit_cwd_for_create(
     }
 }
 
+/// 명시한 상속 원본 surface의 cwd를 이 engine에서 찾는다. 이 engine에 그 surface가 없으면 None이다.
+/// 있으면 `Some(cwd)`이고, 원본이 터미널이 아니면 거절하지 않고 상속하지 않는다(`Some(None)`).
+/// explorer root 같은 비터미널 위치는 새 터미널의 시작 폴더가 아니다.
+pub(crate) fn named_source_cwd(
+    engine: &EngineRef<'_>,
+    surface: u32,
+) -> Option<Option<std::path::PathBuf>> {
+    let found = engine.find_surface_by_id(surface)?;
+    Some(if found.kind() == "terminal" {
+        engine.local_surface_cwd(surface)
+    } else {
+        None
+    })
+}
+
 /// 첫 surface 생성의 cwd를 정한다. 명시값은 kind와 관계없이 create에 넘긴다(explorer는 시작 폴더로 쓴다).
 /// 명시값이 없을 때 상속하는 것은 terminal뿐이다. 원격 mirror의 경로는 로컬 workspace에 상속하지 않는다.
 /// 잘못된 surface_id는 포커스 대상으로 대체하지 않고 거절한다.

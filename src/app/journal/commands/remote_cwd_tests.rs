@@ -3,8 +3,8 @@ use super::create_spec::{CwdSource, Destination, Spec};
 use super::inbound::check_inherit_cwd;
 use tasty_ipc::stream::{InheritCwd, SplitAxis, StructuralOp};
 
-/// workspace 1: pane 10(탭 101 = A, 탭 102 = B), pane 20(탭 201). workspace 2: pane 30(탭 301).
-/// 모든 surface는 서로 다른 실제 폴더를 가진 explorer다.
+/// workspace 1: pane 10(탭 101 = A, 탭 102 = B, 탭 103 = E), pane 20(탭 201). workspace 2: pane 30(탭 301).
+/// A·B는 서로 다른 실제 폴더를 cwd로 아는 터미널이다. 나머지는 각자 실제 폴더를 root로 가진 explorer다.
 struct Fixture {
     session: crate::runtime::engine_session::EngineSession,
     roots: std::collections::HashMap<u32, std::path::PathBuf>,
@@ -13,25 +13,26 @@ struct Fixture {
 
 const A: u32 = 101;
 const B: u32 = 102;
+const E: u32 = 103;
 const OTHER_PANE: u32 = 201;
 const OTHER_WORKSPACE: u32 = 301;
 
 fn fixture() -> Fixture {
-    use tasty_core::DomainEvent as E;
+    use tasty_core::DomainEvent as Event;
     let mut events = vec![
-        E::CategoryCreated {
+        Event::CategoryCreated {
             id: 0,
             name: "normal".into(),
             index: 0,
         },
-        E::WorkspaceCreated {
+        Event::WorkspaceCreated {
             id: 1,
             name: "one".into(),
             category: 0,
             index: 0,
             pane: 10,
         },
-        E::PaneSplit {
+        Event::PaneSplit {
             target: 10,
             pane: 20,
             split: tasty_core::SplitSpec {
@@ -40,7 +41,7 @@ fn fixture() -> Fixture {
                 placement: tasty_core::Placement::After,
             },
         },
-        E::WorkspaceCreated {
+        Event::WorkspaceCreated {
             id: 2,
             name: "two".into(),
             category: 0,
@@ -48,20 +49,21 @@ fn fixture() -> Fixture {
             pane: 30,
         },
     ];
-    for (id, pane, index) in [
-        (A, 10, 0),
-        (B, 10, 1),
-        (OTHER_PANE, 20, 0),
-        (OTHER_WORKSPACE, 30, 0),
+    for (id, pane, index, kind) in [
+        (A, 10, 0, "terminal"),
+        (B, 10, 1, "terminal"),
+        (E, 10, 2, "explorer"),
+        (OTHER_PANE, 20, 0, "explorer"),
+        (OTHER_WORKSPACE, 30, 0, "explorer"),
     ] {
-        events.push(E::TabCreated {
+        events.push(Event::TabCreated {
             id,
             pane,
             index,
-            name: "Explorer".into(),
+            name: kind.into(),
             surface: tasty_core::SurfaceSpec {
                 id,
-                kind: "explorer".into(),
+                kind: kind.into(),
                 data: None,
             },
         });
@@ -70,13 +72,19 @@ fn fixture() -> Fixture {
         crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
     let dir = tempfile::tempdir().expect("temp dir");
     let mut roots = std::collections::HashMap::new();
-    for id in [A, B, OTHER_PANE, OTHER_WORKSPACE] {
+    for id in [A, B, E, OTHER_PANE, OTHER_WORKSPACE] {
         let root = dir.path().join(format!("s{id}"));
         std::fs::create_dir(&root).expect("root dir");
-        session.runtime.surfaces.insert(
-            id,
-            Box::new(crate::model::ExplorerPanel::new(id, root.clone())),
-        );
+        if id == A || id == B {
+            let mut terminal = tasty_terminal::Terminal::new_detached(20, 3);
+            terminal.set_cached_cwd(root.clone());
+            session.runtime.terminals.insert(id, terminal, None);
+        } else {
+            session.runtime.surfaces.insert(
+                id,
+                Box::new(crate::model::ExplorerPanel::new(id, root.clone())),
+            );
+        }
         roots.insert(id, root);
     }
     Fixture {
@@ -92,7 +100,7 @@ fn server_view_on_a() -> crate::runtime::journal_product::CompletionView {
         mirror_count: 0,
         focused_panes: [(1, 10)].into_iter().collect(),
         selected_tabs: [(10, A)].into_iter().collect(),
-        selected_surfaces: [(A, A), (B, B)].into_iter().collect(),
+        selected_surfaces: [(A, A), (B, B), (E, E)].into_iter().collect(),
     }
 }
 
@@ -157,6 +165,50 @@ fn a_named_source_wins_over_the_server_selection_and_setting() {
             cwd_of(&mut fixture, inherit, CwdSource::Surface(B)),
             vec![b.clone(), b.clone(), b.clone()],
             "server inherit_cwd = {inherit}"
+        );
+    }
+}
+
+/// client가 터미널이 아닌 surface를 기준으로 실으면 거절하지 않고 상속하지 않는다. explorer root는 새 터미널의
+/// 시작 폴더가 아니다. 서버 선택(탭 A)으로 대신하지도 않는다.
+#[test]
+fn a_named_source_that_is_not_a_terminal_is_not_inherited() {
+    let mut fixture = fixture();
+    for inherit in [true, false] {
+        assert_eq!(
+            cwd_of(&mut fixture, inherit, CwdSource::Surface(E)),
+            vec![None, None, None],
+            "server inherit_cwd = {inherit}"
+        );
+    }
+}
+
+/// 원격 kind 변환도 같다. 명시 cwd가 먼저이고, 기준이 터미널이면 그 cwd, 터미널이 아니면 없음이다. 기준이
+/// 없을 때 변환할 surface의 위치를 잇는 fallback(서버 설정)은 그대로다.
+#[test]
+fn a_remote_convert_inherits_only_a_named_terminal() {
+    use super::inbound::convert_cwd;
+    let mut fixture = fixture();
+    let (b, e) = (fixture.roots[&B].clone(), fixture.roots[&E].clone());
+    let other = fixture.roots[&OTHER_PANE].to_string_lossy().into_owned();
+    for inherit in [true, false] {
+        fixture.session.runtime.settings.general.inherit_cwd = inherit;
+        let engine = fixture.session.borrow_mut();
+        let engine = engine.as_ref();
+        let convert = |cwd: Option<&str>, source: Option<InheritCwd>| {
+            convert_cwd(&engine, E, cwd, source.as_ref())
+        };
+        assert_eq!(convert(None, Some(InheritCwd::Surface(B))), Some(b.clone()));
+        assert_eq!(convert(None, Some(InheritCwd::Surface(E))), None);
+        assert_eq!(convert(None, Some(InheritCwd::NoInherit)), None);
+        assert_eq!(
+            convert(None, None),
+            inherit.then(|| e.clone()),
+            "server inherit_cwd = {inherit}"
+        );
+        assert_eq!(
+            convert(Some(&other), Some(InheritCwd::Surface(B))),
+            Some(std::path::PathBuf::from(&other))
         );
     }
 }
@@ -237,6 +289,7 @@ fn the_server_checks_the_named_source() {
             Some(InheritCwd::NoInherit),
             Some(InheritCwd::Surface(A)),
             Some(InheritCwd::Surface(B)),
+            Some(InheritCwd::Surface(E)),
         ] {
             assert_eq!(
                 check_inherit_cwd(core, &build(ok.clone()), 10, 1),
@@ -339,6 +392,7 @@ fn a_remote_child_starts_in_the_client_selected_folder() {
             launch_cwd(&engine, &server_view_on_a(), 10, explicit, source)
         };
         assert_eq!(launch(None, CwdSource::Surface(B)), Some(b.clone()));
+        assert_eq!(launch(None, CwdSource::Surface(E)), None, "not a terminal");
         assert_eq!(launch(None, CwdSource::NoInherit), None);
         assert_eq!(
             launch(None, CwdSource::View),
