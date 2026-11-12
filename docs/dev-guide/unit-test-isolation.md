@@ -536,10 +536,13 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 처방은 직렬화가 아니라 **자원의 테스트-로컬화**다 — `tasty_utils::path::push_home_override`
 (스레드 로컬, env 미조작, 테스트 전용 홈 경로 주입)로 그 시험 전용 임시 홈을 세운다.
 
-- 본체는 `EngineSession` 이 `IsolatedHome` 을 **마지막 필드**로 들고, 조립 지점
+- 본체는 `EngineSession` 이 `IsolatedHome` 을 **실행 자원 필드보다 뒤에** 들고, 조립 지점
   `assemble`(모든 생성자가 지나는 함수)이 그것을 첫 줄에서 세운다. 그래서 생성자를 무엇으로 부르든
   — 픽스처를 거치든 `new`·`new_with_ids_and_settings`·`for_journal`을 직접 부르든 — 같은 격리를 받고, 생성 이후의 `save()` 까지
-  엔진 수명 내내 덮인다(마지막 필드인 것이 그 계약이다: drop 순서가 선언 순서다).
+  엔진 수명 내내 덮인다. 필드는 선언 순서대로 drop되므로, 계약은 drop 때 홈 아래 파일을 쓸 수 있는
+  필드(`runtime` 등 실행 자원)가 모두 `_isolated_home` 보다 앞에 선언되는 것이다. 그 뒤에 오는
+  gui 시험 빌드 전용 `test_host_commands` 는 `HostCmd` 수신자라 drop 때 메모리만 정리하고 파일을
+  쓰지 않는다. 그 뒤에 필드를 더할 때는 drop이 홈을 건드리지 않는지 확인한다.
 - 엔진 없이 홈을 읽는 것을 만드는 시험은 그 헬퍼가 직접 가드를 쥔다 —
   `plugin_bridge::key_dispatch` 의 `mgr()` 이 그 형태다(`PluginManager::with_registries` 가
   생성 중에 `plugins-logs` 를 만든다).
