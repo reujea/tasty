@@ -90,7 +90,40 @@ fn format_retention_start(value: u64) -> String {
     format!("{RETENTION_START_KEY}={value:<RETENTION_START_WIDTH$}\n")
 }
 
-/// 완료 로그에 개행을 붙여 쓴다. 필요한 디렉터리를 만들며 I/O 실패는 호출자에게 반환한다.
+/// child 알림 한 줄의 타입. 줄 맨 앞의 번역하지 않는 ASCII 표지로 남아 reader 가 언어와 무관하게 거를 수 있다.
+/// 상태 변경·결과 저장은 `Info`, 출력이 없다는 알림은 `Warning`, 오류가 섞이면 무조건 `Error` 다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeType {
+    Info,
+    Warning,
+    Error,
+}
+
+impl NoticeType {
+    /// 줄 맨 앞에 붙는 표지. 뒤에 공백 하나가 이어진다.
+    pub fn tag(self) -> &'static str {
+        match self {
+            Self::Info => "[info]",
+            Self::Warning => "[warning]",
+            Self::Error => "[error]",
+        }
+    }
+}
+
+/// 타입 표지를 붙인 로그 줄. 쓰기와 시험이 같은 형식을 쓰도록 한 곳에서 만든다.
+pub fn notice_line(ty: NoticeType, line: &str) -> String {
+    format!("{} {line}", ty.tag())
+}
+
+/// 완료 로그에 타입 표지와 개행을 붙여 쓴다. 필요한 디렉터리를 만들며 I/O 실패는 호출자에게 반환한다.
+/// 타입 없이 쓰는 함수는 두지 않는다. 모든 writer 가 줄마다 타입을 정해야 컴파일된다.
+pub fn append_notice(caller_surface: u32, ty: NoticeType, line: &str) -> io::Result<()> {
+    let path = notify_log_path(caller_surface)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "tasty_home() unavailable"))?;
+    append_line_to(&path, &notice_line(ty, line), NOTIFY_LOG_CAP_BYTES)
+}
+
+/// 옮기는 동안만 남긴 타입 없는 쓰기. 모든 writer 가 [`append_notice`] 로 옮기면 지운다.
 pub fn append_notify_line(caller_surface: u32, line: &str) -> io::Result<()> {
     let path = notify_log_path(caller_surface)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "tasty_home() unavailable"))?;
@@ -365,6 +398,23 @@ mod tests {
         assert_eq!(
             notify_log_path_in(home, 42),
             PathBuf::from("/home/u/.tasty/notify/42.log")
+        );
+    }
+
+    /// 세 타입은 서로 다른 고정 표지로 줄 맨 앞에 붙는다.
+    #[test]
+    fn every_notice_type_starts_the_line_with_its_own_tag() {
+        assert_eq!(
+            notice_line(NoticeType::Info, "surface 3: x"),
+            "[info] surface 3: x"
+        );
+        assert_eq!(
+            notice_line(NoticeType::Warning, "surface 3: x"),
+            "[warning] surface 3: x"
+        );
+        assert_eq!(
+            notice_line(NoticeType::Error, "surface 3: x"),
+            "[error] surface 3: x"
         );
     }
 
