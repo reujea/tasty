@@ -61,7 +61,9 @@ fn a_new_engine_keeps_the_applied_value_after_the_save_fails() {
     assert_eq!(Settings::load().overlay.toast_duration_ms, 1_111);
 
     let chosen = settings_for_new_engine(saves.latest(), Settings::load);
-    let engine = crate::runtime::engine_session::EngineSession::new_with_ids_and_settings(
+    // 제품 생성자를 지나야 생성자 안에서 파일을 다시 읽는 회귀도 검출된다.
+    let registries = crate::runtime::registries::RuntimeRegistries::new(None);
+    let engine = crate::runtime::engine_session::EngineSession::new_with_ids(
         crate::runtime::engine_session::EngineSessionSpec {
             cols: 80,
             rows: 24,
@@ -74,6 +76,7 @@ fn a_new_engine_keeps_the_applied_value_after_the_save_fails() {
             runner_registry: Arc::new(tasty_task_runtime::RunnerRegistry::new()),
         },
         chosen,
+        registries,
     )
     .expect("engine");
 
