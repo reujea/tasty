@@ -347,7 +347,11 @@ impl RunnerRegistry {
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn worker_finished(&self, workspace: u32) -> Option<bool> {
         let control = self.lock_recovering().get(&workspace).cloned()?;
-        let slot = control.join.lock().ok()?;
+        let slot = tasty_utils::poison::recover_mutex(
+            control.join.lock(),
+            "task runner join slot",
+            &JOIN_POISON_REPORTED,
+        );
         Some(slot.as_ref().is_none_or(|handle| handle.is_finished()))
     }
     /// workspace 에 멈추지 않은 러너가 있는가. 어느 engine 의 러너인지는 보지 않는다.
