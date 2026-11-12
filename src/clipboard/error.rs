@@ -157,7 +157,7 @@ impl DisplayBackend {
 
     /// The backend the process started on, for clipboard calls with no window at hand (OSC 52,
     /// IPC, capture publishing). A native Wayland start keeps its cause like a window does; an
-    /// X11 start, no display, or no recorded start stays `Unknown` as before.
+    /// X11 start, no display, or no recorded start stays `Unknown`.
     pub(crate) fn at_start() -> Self {
         Self::from_start(crate::boot::display_backend::start().map(|start| start.backend))
     }
