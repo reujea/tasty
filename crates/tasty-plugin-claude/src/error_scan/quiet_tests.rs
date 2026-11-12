@@ -256,6 +256,7 @@ impl HostCall for MetaHost {
                     .push(params["event"].as_str().unwrap_or_default().into());
                 json!({})
             }
+            "hook.list" => json!([]),
             other => panic!("unexpected host call: {other}"),
         })
     }
@@ -506,22 +507,52 @@ fn an_error_release_is_left_for_the_error_line() {
     );
 }
 
-/// 한 번에 상한보다 많이 끝나도 아무도 받지 않은 묶음은 지우지 않는다. 개수 상한은 받아 간 묶음에만 건다.
+/// 한 번에 상한보다 많이 끝나도 받을 부모가 모두 가져가기 전에는 묶음을 지우지 않는다. 개수 상한은 모두 가져간 묶음에만 건다.
+/// 부모 A 가 가져간 뒤에도 부모 B 는 묶음을 모두 받는다. error 로 끝난 묶음도 같다.
 #[test]
 fn ending_many_declarations_at_once_keeps_every_release_until_taken() {
-    let ids: Vec<String> = (0..RELEASES_KEPT + 4).map(|i| format!("T{i}")).collect();
-    let mut s = state(ids.iter().map(|id| decl(Some(id), 600)).collect());
-    for id in &ids {
-        s.dispose(tasks(&[id.as_str()]), 1, NOW + 1);
+    for (reason, with_error) in [(EndReason::Cleared, false), (EndReason::Error, true)] {
+        let ids: Vec<String> = (0..RELEASES_KEPT + 4).map(|i| format!("T{i}")).collect();
+        let mut s = state(ids.iter().map(|id| decl(Some(id), 600)).collect());
+        for id in &ids {
+            s.dispose(tasks(&[id.as_str()]), 1, NOW + 1);
+        }
+        let (count, released) = s.end(|_| true, reason, NOW + 2);
+        assert_eq!((count, released.len()), (ids.len(), ids.len()));
+        s.releases.extend(released.into_iter().map(|r| Release {
+            recipients: vec![1, 2],
+            ..r
+        }));
+        s.prune(NOW + 3);
+        assert_eq!(s.releases.len(), ids.len(), "받기 전에는 지우지 않는다");
+        assert_eq!(s.take_for(1, with_error).len(), ids.len(), "{reason:?}");
+        s.prune(NOW + 4);
+        assert_eq!(
+            s.releases.len(),
+            ids.len(),
+            "B 가 받기 전에는 지우지 않는다: {reason:?}"
+        );
+        assert_eq!(s.take_for(2, with_error).len(), ids.len(), "{reason:?}");
+        s.prune(NOW + 5);
+        assert_eq!(s.releases.len(), RELEASES_KEPT, "{reason:?}");
     }
-    let (count, released) = s.end(|_| true, EndReason::Cleared, NOW + 2);
-    assert_eq!((count, released.len()), (ids.len(), ids.len()));
-    s.releases.extend(released);
-    s.prune(NOW + 3);
-    assert_eq!(s.releases.len(), ids.len(), "받기 전에는 지우지 않는다");
-    assert_eq!(s.take_for(1, false).len(), ids.len());
-    s.prune(NOW + 4);
-    assert_eq!(s.releases.len(), RELEASES_KEPT);
+}
+
+/// 받을 부모가 다 가져가지 않은 묶음도 보관 시간이 지나면 지운다.
+#[test]
+fn a_release_not_taken_by_every_parent_goes_after_the_keep_time() {
+    let mut s = state(vec![decl(Some("T"), 600)]);
+    s.dispose(tasks(&["T"]), 1, NOW + 1);
+    let (_, released) = s.end(|_| true, EndReason::Cleared, NOW + 2);
+    s.releases.extend(released.into_iter().map(|r| Release {
+        recipients: vec![1, 2],
+        ..r
+    }));
+    s.take_for(1, false);
+    s.prune(NOW + 2 + RELEASE_KEPT_MS - 1);
+    assert_eq!(s.releases.len(), 1);
+    s.prune(NOW + 2 + RELEASE_KEPT_MS);
+    assert!(s.releases.is_empty());
 }
 
 /// 화면 기준 대기는 Stop 이 알려 준 작업 순서와 관계없이 같은 작업 집합이면 한 항목으로 합친다.

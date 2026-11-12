@@ -72,11 +72,13 @@ pub(crate) fn handle_quiet<H: HostCall>(
     })
 }
 
+/// 묶음 훅 명령의 앞부분. 뒤에 부모 surface 가 온다.
+pub(crate) const NOTIFY_QUIET_RELEASE_PREFIX: &str =
+    "tasty claude notify-quiet-release --caller-surface ";
+
 /// 묶음을 부모에게 알리는 훅 명령. 완료 그룹과 다른 명령을 쓴다.
 pub(crate) fn notify_quiet_release_command(caller_surface: u32, target_surface: u32) -> String {
-    format!(
-        "tasty claude notify-quiet-release --caller-surface {caller_surface} --target-surface {target_surface}"
-    )
+    format!("{NOTIFY_QUIET_RELEASE_PREFIX}{caller_surface} --target-surface {target_surface}")
 }
 
 /// [`QUIET_RELEASED_EVENT`] 를 반복해서 받는 훅을 등록한다. 같은 부모·대상의 기존 훅을 먼저 정리한다.

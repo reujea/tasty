@@ -1,5 +1,6 @@
 use super::*;
 use crate::error_scan::ScanTarget;
+use crate::error_scan::quiet::QUIET_RELEASED_EVENT;
 use crate::error_scan::quiet::{EndReason, Held, HeldKind, Overflow, QUIET_META_KEY, QuietNotice};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,6 +17,8 @@ struct Host {
     meta: RefCell<HashMap<String, String>>,
     state: RefCell<&'static str>,
     fired: RefCell<Vec<String>>,
+    /// 묶음 훅을 건 부모.
+    parents: RefCell<Vec<u32>>,
 }
 
 impl Host {
@@ -24,6 +27,7 @@ impl Host {
             meta: RefCell::new(HashMap::new()),
             state: RefCell::new("active"),
             fired: RefCell::new(Vec::new()),
+            parents: RefCell::new(Vec::new()),
         }
     }
     fn meta_sets(&self) -> usize {
@@ -52,6 +56,21 @@ impl HostCall for Host {
                     .borrow_mut()
                     .push(params["event"].as_str().unwrap_or_default().into());
                 json!({})
+            }
+            "hook.list" => {
+                let target = params["surface_id"].as_u64().unwrap_or_default() as u32;
+                let hooks: Vec<Value> = self
+                    .parents
+                    .borrow()
+                    .iter()
+                    .flat_map(|&p| {
+                        [
+                            json!({ "event": QUIET_RELEASED_EVENT, "command": notify_quiet_release_command(p, target) }),
+                            json!({ "event": "process-exit", "command": format!("tasty claude notify-done --caller-surface {p}") }),
+                        ]
+                    })
+                    .collect();
+                json!(hooks)
             }
             _ => json!({}),
         })
@@ -284,6 +303,7 @@ fn a_release_line_is_one_line_with_capped_items() {
             last_ms: 3_700_000,
         }),
         delivered_to: Vec::new(),
+        recipients: Vec::new(),
     };
     let line = release_line(&tr(), 14937, &r);
     assert!(!line.contains('\n') && !line.contains('\r'), "{line}");
@@ -333,4 +353,61 @@ fn a_wait_held_by_two_task_declarations_is_released_once() {
     let lines = crate::notice::test_log::take();
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert!(lines[0].1.contains("1 held"), "{lines:?}");
+}
+
+/// 선언 여럿이 한꺼번에 끝나 묶음이 남기는 개수보다 많아도, 묶음 훅을 건 부모 둘이 모두 받는다.
+/// 일반 묶음 줄과 error 줄에 붙는 묶음 모두 같다.
+#[test]
+fn every_parent_gets_every_release_when_many_end_at_once() {
+    let many = 20;
+    for error in [false, true] {
+        let scanner = tracked();
+        let host = Host::new();
+        *host.parents.borrow_mut() = vec![1, 2];
+        for i in 0..many {
+            let task = format!("T{i}");
+            quiet(
+                &scanner,
+                &host,
+                json!({ "surface": 5, "task": task, "secs": 600, "clear": false }),
+            )
+            .unwrap();
+            hold_one(&scanner, &host, &task);
+        }
+        crate::notice::test_log::take();
+        let mut held = Vec::new();
+        if error {
+            *host.state.borrow_mut() = "exited";
+            for caller in [1, 2] {
+                crate::notifications::handle_notify_done(
+                    &scanner,
+                    &host,
+                    &json!({ "caller_surface": caller, "target_surface": 5, "command": "tell" }),
+                    &tr(),
+                )
+                .unwrap();
+            }
+            for (caller, line) in crate::notice::test_log::take() {
+                held.push((caller, line.matches("; held 1 no-output").count()));
+            }
+        } else {
+            quiet(&scanner, &host, json!({ "surface": 5, "clear": true })).unwrap();
+            for caller in [1, 2] {
+                handle_notify_quiet_release(
+                    &scanner,
+                    &host,
+                    &json!({ "caller_surface": caller, "target_surface": 5 }),
+                    &tr(),
+                )
+                .unwrap();
+            }
+            for (caller, _) in crate::notice::test_log::take() {
+                match held.iter_mut().find(|(c, _)| *c == caller) {
+                    Some((_, n)) => *n += 1,
+                    None => held.push((caller, 1)),
+                }
+            }
+        }
+        assert_eq!(held, vec![(1, many), (2, many)], "error {error}");
+    }
 }

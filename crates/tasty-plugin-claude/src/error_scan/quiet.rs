@@ -26,7 +26,7 @@ pub(crate) const QUIET_RELEASED_EVENT: &str = "claude-quiet-released";
 /// 추적이 먼저 끝난 surface(kill 등)의 묶음을 error 완료 줄이 가져갈 수 있게 두는 시간.
 const ORPHAN_KEPT_MS: u64 = 60_000;
 
-/// 부모가 가져가지 않은 묶음을 두는 시간과 개수. 부모가 몇인지 몰라 받은 부모 기록만으로는 지울 때를 정할 수 없다.
+/// 묶음을 두는 시간과, 받을 부모가 모두 가져간 묶음을 남기는 개수. 다 가져가지 않은 묶음은 시간이 지나야 지운다.
 const RELEASE_KEPT_MS: u64 = 60 * 60 * 1000;
 const RELEASES_KEPT: usize = 16;
 
@@ -281,6 +281,8 @@ pub(crate) struct Release {
     pub overflow: Option<Overflow>,
     /// 이 묶음을 받은 부모 surface.
     pub delivered_to: Vec<u32>,
+    /// 묶음이 생길 때 이 surface 에 묶음 훅을 건 부모. 모두 받으면 전달이 끝난 것이다. 비었으면 한 부모가 받으면 끝난다.
+    pub recipients: Vec<u32>,
 }
 
 impl Release {
@@ -295,6 +297,7 @@ impl Release {
             "items": self.items.iter().map(Held::to_json).collect::<Vec<_>>(),
             "overflow": self.overflow.map(Overflow::to_json),
             "delivered_to": self.delivered_to,
+            "recipients": self.recipients,
         })
     }
 
@@ -313,15 +316,8 @@ impl Release {
                 .filter_map(Held::from_json)
                 .collect(),
             overflow: Overflow::from_json(v.get("overflow")),
-            delivered_to: v
-                .get("delivered_to")
-                .and_then(Value::as_array)
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|n| n.as_u64().and_then(|n| u32::try_from(n).ok()))
-                        .collect()
-                })
-                .unwrap_or_default(),
+            delivered_to: surfaces(v.get("delivered_to")),
+            recipients: surfaces(v.get("recipients")),
         })
     }
 
@@ -329,6 +325,15 @@ impl Release {
     /// 일반 묶음 처리자가 먼저 가져가 `[warning]` 으로 쓰면 error 줄에 붙지 않게 되므로 막는다.
     fn error_only(&self) -> bool {
         matches!(self.reason, EndReason::Error | EndReason::SurfaceGone)
+    }
+
+    /// 받을 부모가 모두 가져갔는가. 받을 부모를 모르면 한 부모라도 가져갔는가.
+    fn taken_by_all(&self) -> bool {
+        !self.delivered_to.is_empty()
+            && self
+                .recipients
+                .iter()
+                .all(|c| self.delivered_to.contains(c))
     }
 
     /// 쌓인 알림 수(따로 적지 못한 것 포함).
@@ -532,7 +537,7 @@ impl QuietState {
     }
 
     /// 오래된 묶음을 지운다. 추적이 끝난 surface 의 묶음은 error 완료 줄을 잠시만 기다린다.
-    /// 개수 상한은 한 부모라도 받아 간 묶음에만 적용한다. 아무도 받지 않은 묶음은 보관 시간이 지나야 지운다.
+    /// 개수 상한은 받을 부모가 모두 가져간 묶음에만 적용한다. 다 가져가지 않은 묶음은 보관 시간이 지나야 지운다.
     pub(crate) fn prune(&mut self, now_ms: u64) {
         self.releases.retain(|r| {
             let kept = if r.reason == EndReason::SurfaceGone {
@@ -541,18 +546,20 @@ impl QuietState {
                 RELEASE_KEPT_MS
             };
             let keep = now_ms.saturating_sub(r.at_ms) < kept;
-            if !keep && r.delivered_to.is_empty() {
+            if !keep && !r.taken_by_all() {
                 tracing::info!(
-                    "claude quiet: dropped {} held notice(s) nobody took ({})",
+                    "claude quiet: dropped {} held notice(s) not taken by every parent ({}, taken by {:?} of {:?})",
                     r.held_count(),
-                    r.reason.token()
+                    r.reason.token(),
+                    r.delivered_to,
+                    r.recipients
                 );
             }
             keep
         });
         let mut over = self.releases.len().saturating_sub(RELEASES_KEPT);
         self.releases.retain(|r| {
-            if over > 0 && !r.delivered_to.is_empty() {
+            if over > 0 && r.taken_by_all() {
                 over -= 1;
                 false
             } else {
@@ -581,7 +588,50 @@ fn release_of(decl: Decl, reason: EndReason, now_ms: u64) -> Option<Release> {
         items: decl.held,
         overflow: decl.overflow,
         delivered_to: Vec::new(),
+        recipients: Vec::new(),
     })
+}
+
+/// surface id 배열. 숫자가 아닌 값은 건너뛴다.
+fn surfaces(v: Option<&Value>) -> Vec<u32> {
+    v.and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|n| n.as_u64().and_then(|n| u32::try_from(n).ok()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// 이 surface 에 묶음 훅([`QUIET_RELEASED_EVENT`])을 건 부모. 완료·error 훅과 함께 등록하므로 error 줄을 받을 부모와 같다.
+fn release_recipients<H: HostCall>(host: &H, surface_id: u32) -> Vec<u32> {
+    let hooks = match host.call("hook.list", json!({ "surface_id": surface_id })) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!("claude quiet s{surface_id}: listing hooks failed: {e}");
+            return Vec::new();
+        }
+    };
+    let mut callers: Vec<u32> = hooks
+        .as_array()
+        .map_or(&[][..], Vec::as_slice)
+        .iter()
+        .filter(|h| h.get("event").and_then(Value::as_str) == Some(QUIET_RELEASED_EVENT))
+        .filter_map(|h| h.get("command").and_then(Value::as_str))
+        .filter_map(|c| {
+            let caller = c
+                .strip_prefix(crate::quiet_notice::NOTIFY_QUIET_RELEASE_PREFIX)?
+                .split_whitespace()
+                .next()?
+                .parse()
+                .ok()?;
+            (c == crate::quiet_notice::notify_quiet_release_command(caller, surface_id))
+                .then_some(caller)
+        })
+        .collect();
+    callers.sort_unstable();
+    callers.dedup();
+    callers
 }
 
 /// 선언 meta 값을 읽는다.
@@ -678,8 +728,16 @@ impl ErrorScanner {
         notify: bool,
     ) -> bool {
         let any = !released.is_empty();
+        let recipients = if any {
+            release_recipients(host, surface_id)
+        } else {
+            Vec::new()
+        };
         let state = self.quiet_state(host, surface_id);
-        state.releases.extend(released);
+        state.releases.extend(released.into_iter().map(|r| Release {
+            recipients: recipients.clone(),
+            ..r
+        }));
         state.prune(unix_now_ms());
         self.save_quiet(host, surface_id);
         if any
