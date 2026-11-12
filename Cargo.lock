@@ -6182,6 +6182,7 @@ dependencies = [
  "rand 0.9.4",
  "serde",
  "serde_json",
+ "tasty-agent",
  "tasty-memory",
  "tasty-plugin-manifest",
  "tasty-plugin-protocol",

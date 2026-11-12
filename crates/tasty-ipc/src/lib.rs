@@ -17,6 +17,7 @@ pub mod host_port;
 pub mod html_http;
 pub mod html_transfer;
 pub mod instance;
+pub mod instance_file;
 pub mod ipc_namespace;
 pub mod mesh_stream;
 pub mod method_meta;

@@ -19,6 +19,8 @@ tasty-plugin-manifest = { path = "../tasty-plugin-manifest" }
 tasty-utils = { path = "../tasty-utils" }
 tasty-memory = { path = "../tasty-memory" }
 tasty-telemetry = { path = "../tasty-telemetry" }
+tasty-agent = { path = "../tasty-agent" }
+tempfile = "3"
 
 [dev-dependencies]
 tempfile = "3"

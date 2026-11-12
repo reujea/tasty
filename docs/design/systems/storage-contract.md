@@ -311,7 +311,7 @@ writer를 거치는 IPC 요청은 결과가 나온 뒤 응답한다. 핸들러�
 | `port-favorites.toml`·`explorer-favorites.toml` | `SharedList::update`가 잠금 안에서 snapshot 접수, file writer가 교체 | file writer | 예(공용 교체, fsync 없음) | 참여자 잠금·원본 fingerprint/링크 대상 비교 |
 | `child-terminals.json` | engine의 변경 필드·예약·등록·슬롯 정리를 공용 ordered command로 접수 | file writer. 최초 읽기·정리는 부팅 worker/headless bootstrap barrier | 예(공용 교체, fsync 없음) | 참여자 잠금 안에서 최신 읽기·engine 소유 변경 필드 병합·교체 |
 | `tasty.port` | `publish_port_file_to` 완료 결과를 listener가 소유 | IPC 시작 완료 barrier | 예(공용 안전 교체, fsync 없음) | notify 정리 → 관측 원본/링크 비교·참여 잠금 → 완료 공개. 서버 Drop은 같은 잠금을 비차단 획득한 동안 열린 파일 identity·내용이 같은 공개 세대만 정리. 경합/identity 불명은 보존 |
-| 단일 실행 instance 파일 | `instance_file` | 메인 루프 | 예(sync 포함) | GUI만 쓴다 |
+| 단일 실행 instance 파일 | 본체 `instance_file`이 소유한 기록을 `tasty_ipc::instance_file::write`로 교체 | 메인 루프 | 예(sync 포함) | GUI만 쓴다 |
 | `webhooks.toml` | 호스트 `webhook::persist::WriteRequest`, CLI `webhook_port_file` | runtime port·registry는 기존 file writer, CLI·초기 prepare는 동기 실행 | 예(공용 교체, fsync 없음) | host 배열 교체·CLI port 변경·옛 포트 마이그레이션이 같은 참여자 잠금 안에서 최신 TOML을 읽고 해당 절만 변경 |
 | `remote-profiles.toml` | `RemoteFileStore::profile`의 소유 Put/Insert/Patch/Remove/Rename | 실행 중 IPC·GUI·탐지 상태는 file worker, standalone CLI는 호출 스레드 | 예(공용 교체·sync) | 최신 TOML 참여 잠금·조건부 expected patch. 원 receipt 뒤 응답·SSH 효과, 서로 다른 파일의 transaction은 없음 |
 | `passkeys.toml`과 `passkeys/<이름>` | `RemoteFileStore` passkey/insert_passkey/rename_passkey | 실행 중 IPC·GUI는 file worker, standalone CLI는 호출 스레드 | 목록은 공용 교체·sync. inline은 private temp·권한/ACL 검증 뒤 write·sync·rename | 목록 → inline 고정 잠금. 새 이름 중복은 payload 전에 거절하며, 목록 저장 뒤 실제 관리파일 정리 결과와 부분 성공을 owned receipt로 구분함 |
