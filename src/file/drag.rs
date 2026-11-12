@@ -148,6 +148,10 @@ impl TextSelection {
     pub(crate) fn waiting(&self) -> bool {
         self.0.waiting()
     }
+    /// The PNG of a selection this process holds (a published capture); `None` for another app's.
+    pub(crate) fn own_png(&mut self) -> Result<Option<std::sync::Arc<[u8]>>, String> {
+        self.0.own_png()
+    }
 }
 #[cfg(target_os = "linux")]
 pub(crate) use wayland::{Paste as SelectionPaste, Received as SelectionReceived};

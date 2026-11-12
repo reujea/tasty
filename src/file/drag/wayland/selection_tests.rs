@@ -459,3 +459,18 @@ fn a_published_capture_serves_its_png_and_still_pastes_its_text() {
     s.pump(now);
     assert!(none.taken.borrow().is_empty());
 }
+
+/// Given 캡처가 PNG와 함께 선택을 잡았다, When mirror 붙여넣기가 이미지를 묻는다, Then 그 PNG를
+/// 기다리지 않고 준다. 텍스트만 잡았거나 다른 앱이 선택을 가져갔으면 없다.
+#[test]
+fn only_our_own_published_capture_gives_its_png_without_waiting() {
+    let mut s = Selection::default();
+    assert_eq!(s.own_png(), None);
+    s.own_with_png(40, Arc::from("/tmp/shot.png"), Some(Arc::from(&b"PNG"[..])));
+    assert_eq!(s.own_png().as_deref(), Some(&b"PNG"[..]));
+    assert!(s.cancelled(40));
+    offered(&mut s, 7, &[PNG_MIME, "text/plain"]);
+    assert_eq!(s.own_png(), None);
+    s.own(41, Arc::from("text"));
+    assert_eq!(s.own_png(), None);
+}

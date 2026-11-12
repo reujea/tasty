@@ -138,6 +138,14 @@ impl Clipboard {
         Ok(owner.state.clip.take_received(self.client))
     }
 
+    /// The PNG of a selection this process holds, read without waiting. Runs the queue first so a
+    /// selection another app took since is seen as gone.
+    pub(in crate::file::drag) fn own_png(&mut self) -> Result<Option<Arc<[u8]>>, String> {
+        let mut owner = self.owner.borrow_mut();
+        owner.poll()?;
+        Ok(owner.state.clip.own_png())
+    }
+
     /// This handle's read is still waiting; false once it finished or a newer paste replaced it.
     pub(in crate::file::drag) fn waiting(&self) -> bool {
         self.owner.borrow().state.clip.waiting(self.client)

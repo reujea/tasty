@@ -172,6 +172,12 @@ impl Selection {
             .map(|old| old.source)
     }
 
+    /// The PNG our current source serves; `None` when the selection is another app's or ours
+    /// carries text only.
+    pub(super) fn own_png(&self) -> Option<Arc<[u8]>> {
+        self.own.as_ref().and_then(|own| own.png.clone())
+    }
+
     /// Our source lost the selection. True when it was the current one.
     pub(super) fn cancelled(&mut self, source: u32) -> bool {
         if self.own.as_ref().is_some_and(|own| own.source == source) {

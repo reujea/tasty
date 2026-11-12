@@ -163,16 +163,41 @@ impl TerminalClipboard {
         false
     }
 
-    /// The clipboard image now, for a mirror paste of a local capture path. A Wayland selection
-    /// cannot be read synchronously, so there it is absent and the path text stays.
+    /// The clipboard image now, for a mirror paste of a local capture path. On a Wayland selection
+    /// only one this process holds is known without waiting: a capture published with its PNG
+    /// gives that image. Another app's selection is not read here, so the path text stays.
     pub(crate) fn get_image(
         &mut self,
     ) -> Result<Option<arboard::ImageData<'static>>, super::error::ClipboardError> {
-        if self.uses_wayland_selection() {
-            return Ok(None);
+        #[cfg(target_os = "linux")]
+        if let Some(wayland) = self.wayland.as_mut() {
+            let png = wayland
+                .selection
+                .own_png()
+                .map_err(ClipboardError::TransferFailed)?;
+            return own_image(png);
         }
         self.host.get_image()
     }
+}
+
+/// The image of our own selection's PNG; no PNG, no image.
+#[cfg(target_os = "linux")]
+fn own_image(
+    png: Option<std::sync::Arc<[u8]>>,
+) -> Result<Option<arboard::ImageData<'static>>, ClipboardError> {
+    let Some(png) = png else {
+        return Ok(None);
+    };
+    super::capture_image::decode_png(png.to_vec())
+        .map(|image| {
+            Some(arboard::ImageData {
+                width: image.width as usize,
+                height: image.height as usize,
+                bytes: image.rgba.into(),
+            })
+        })
+        .map_err(ClipboardError::TransferFailed)
 }
 
 /// An empty text pastes nothing, as on the arboard path.
@@ -277,6 +302,18 @@ mod tests {
             finish(1, vec![(1, R::Png(b"not a png".to_vec()))], false),
             Finish::Done(Err(ClipboardError::TransferFailed(_)))
         ));
+    }
+
+    /// Given 이 프로세스가 캡처를 PNG와 함께 게시했다, When mirror 붙여넣기가 이미지를 묻는다, Then
+    /// X11과 같이 그 이미지를 받는다. 자기 PNG가 없으면(다른 앱 소유) 없음.
+    #[test]
+    fn our_own_capture_png_is_the_mirror_paste_image() {
+        let image = own_image(Some(std::sync::Arc::from(png(3, 2))))
+            .expect("decode")
+            .expect("image");
+        assert_eq!((image.width, image.height), (3, 2));
+        assert_eq!(&image.bytes[..4], &[1, 2, 3, 255]);
+        assert!(own_image(None).expect("no png").is_none());
     }
 
     #[test]
