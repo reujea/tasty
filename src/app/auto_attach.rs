@@ -698,6 +698,45 @@ impl App {
     }
 }
 
+/// 엔드포인트의 터널이 주는 리스너 없음 판정 핸들. 시험은 터널 대신 판정 핸들이나 `()`를 넘긴다.
+pub(crate) trait TunnelVerdict {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict>;
+}
+
+impl TunnelVerdict for SshTunnel {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        Some(SshTunnel::listener_verdict(self))
+    }
+}
+
+#[cfg(test)]
+impl TunnelVerdict for () {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        None
+    }
+}
+
+#[cfg(test)]
+impl TunnelVerdict for tasty_ssh::ListenerVerdict {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        Some(self.clone())
+    }
+}
+
+/// 터널 너머 상대가 자기 자신이면 거절한다. 이 검사가 터널 뒤 첫 요청이므로, 원격 포트에 리스너가
+/// 없어 요청이 끊기면 그 판정을 오류에 붙인다.
+pub(crate) fn refuse_this_instance_over<T: TunnelVerdict>(
+    tunnel: Option<&T>,
+    port: u16,
+    attempt: &tasty_remote::outbound::AttemptToken,
+) -> anyhow::Result<()> {
+    tasty_remote::self_instance::refuse_this_instance(tunnel.is_some(), port, Some(attempt))
+        .map_err(|error| match tunnel.and_then(T::listener_verdict) {
+            Some(verdict) => verdict.explain_failure(error),
+            None => error,
+        })
+}
+
 /// 워커 스레드에서 프로필과 SSH 터널 또는 loopback 포트를 준비한다.
 fn resolve_endpoint_bound(
     profile: &str,
@@ -706,8 +745,9 @@ fn resolve_endpoint_bound(
     resolve_endpoint_bound_with(attempt, || resolve_endpoint(profile))
 }
 
-/// 해석 함수를 받아 취소 등록·자기 판정을 붙인다. 시험은 SSH 없이 해석 결과를 넣는다.
-fn resolve_endpoint_bound_with<T>(
+/// 해석 함수를 받아 취소 등록·자기 판정을 붙인다. 자기 판정이 원격 포트의 리스너 없음으로 끊기면
+/// 그 판정을 오류에 붙인다. 시험은 SSH 없이 해석 결과를 넣는다.
+fn resolve_endpoint_bound_with<T: TunnelVerdict>(
     attempt: &tasty_remote::outbound::AttemptToken,
     resolve: impl FnOnce() -> anyhow::Result<(Option<T>, u16)>,
 ) -> anyhow::Result<(Option<T>, u16)> {
@@ -720,7 +760,7 @@ fn resolve_endpoint_bound_with<T>(
     if !attempt.is_active() {
         anyhow::bail!("remote endpoint attempt cancelled");
     }
-    tasty_remote::self_instance::refuse_this_instance(result.0.is_some(), result.1, Some(attempt))?;
+    refuse_this_instance_over(result.0.as_ref(), result.1, attempt)?;
     Ok(result)
 }
 
@@ -947,6 +987,39 @@ mod tests {
         assert!(error.to_string().contains(&name), "{error}");
     }
 
+    /// 저장 행 연결에서 자기 판정이 원격 포트의 리스너 없음으로 끊기면 그 판정을 오류에 붙인다.
+    #[test]
+    fn a_saved_row_connect_reports_a_missing_remote_listener() {
+        let (port, server) = fake_peer::close_after_request();
+        let mut remote = tasty_remote::outbound::Remote::new();
+        let attempt = remote.begin_attempt(None, None).expect("attempt");
+        let verdict = tasty_ssh::ListenerVerdict::with_observation(4321, true);
+        let error = resolve_endpoint_bound_with(&attempt, || Ok((Some(verdict), port)))
+            .expect_err("dropped");
+        server.join().expect("server");
+        // 맥락으로 붙인 값은 chain()의 원소로는 downcast되지 않고 anyhow::Error에서만 된다.
+        let absent = error.downcast_ref::<tasty_ssh::RemoteListenerAbsent>();
+        assert_eq!(absent.map(|a| a.remote_port), Some(4321), "{error:#}");
+    }
+
+    /// 채널 연결 실패를 보지 못한 끊김은 리스너 없음으로 바꾸지 않고 원래 오류를 남긴다.
+    #[test]
+    fn a_saved_row_connect_keeps_the_original_error_when_a_listener_answered() {
+        let (port, server) = fake_peer::close_after_request();
+        let mut remote = tasty_remote::outbound::Remote::new();
+        let attempt = remote.begin_attempt(None, None).expect("attempt");
+        let verdict = tasty_ssh::ListenerVerdict::with_observation(4321, false);
+        let error = resolve_endpoint_bound_with(&attempt, || Ok((Some(verdict), port)))
+            .expect_err("dropped");
+        server.join().expect("server");
+        assert!(
+            error
+                .downcast_ref::<tasty_ssh::RemoteListenerAbsent>()
+                .is_none(),
+            "{error:#}"
+        );
+    }
+
     #[test]
     fn automatic_attach_does_not_ask_a_direct_endpoint() {
         let mut remote = tasty_remote::outbound::Remote::new();
@@ -974,6 +1047,22 @@ pub(crate) mod fake_peer {
             let reply = serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": result });
             writeln!(&stream, "{reply}").expect("write");
             line
+        });
+        (port, handle)
+    }
+
+    /// 요청 한 줄을 받고 응답 없이 닫는 대역. 원격 포트에 리스너가 없을 때 ssh가 로컬 연결을 닫는
+    /// 모양이다.
+    pub(crate) fn close_after_request() -> (u16, std::thread::JoinHandle<()>) {
+        use std::io::BufRead;
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let handle = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("accept");
+            let mut line = String::new();
+            std::io::BufReader::new(&stream)
+                .read_line(&mut line)
+                .expect("read");
         });
         (port, handle)
     }
