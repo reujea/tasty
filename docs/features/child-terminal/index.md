@@ -181,6 +181,7 @@ Claude 플러그인의 `error_scan`은 출력 정지가 일정 시간 이어지�
 [완료 알림 로그](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)에 남긴다.
 이 이벤트 이름은 기존 구독을 유지하기 위한 것이며 오류가 검출되지 않은 정지도 포함한다.
 알림 문구는 오류 뒤 정지, 오류 없이 정지한 경우, 백그라운드 작업을 기다리는 경우를 구분한다.
+오류 뒤 정지는 `[error]`, 나머지 둘은 `[warning]` 표지로 시작한다.
 
 오류 직후 정지는 `STALL_QUIET`(30초), 오류 없는 정지는 플러그인 설정 `no_output_notice_secs`(기본 600초)로 확인한다. 이 설정은 `stale` 분류의 `CHILD_OUTPUT_SILENCE`와 별개다.
 정지 시간·중복 여부·쿨다운을 먼저 확인하므로 매 tick마다 상태 조회를 보내지는 않는다.

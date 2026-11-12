@@ -3,6 +3,8 @@ use serde_json::{Value, json};
 use tasty_plugin_agent_common::host_call::{HostCall, cleanup_sibling_hooks, surface_is_alive};
 use tasty_plugin_sdk::{IpcMethodError, i18n::Translator};
 
+use crate::notice::NoticeKind;
+
 /// 완료 훅 등록과 정리에 같은 명령 문자열을 사용한다.
 /// 대상 터미널과 이 문자열이 모두 같은 훅을 한 그룹으로 찾는다.
 pub(crate) fn notify_done_command(
@@ -165,8 +167,8 @@ pub(crate) fn handle_notify_done<H: HostCall>(
         .and_then(|v| v.as_str())
         .ok_or_else(|| IpcMethodError::invalid_params(tr.t("claude.params.missing_command")))?;
 
-    let message = notify_done_line(tr, host, command_name, target_surface);
-    if let Err(e) = tasty_utils::notify::append_notify_line(caller_surface, &message) {
+    let (kind, message) = notify_done_line(tr, host, command_name, target_surface);
+    if let Err(e) = crate::notice::append(caller_surface, kind, &message) {
         tracing::warn!("claude notify-done completion-log append failed: {e}");
     }
 
@@ -200,31 +202,41 @@ pub(crate) fn handle_notify_error<H: HostCall>(
             IpcMethodError::invalid_params(tr.t("claude.params.missing_target_surface"))
         })? as u32;
 
-    let message = notify_error_message(tr, host, target_surface);
-    if let Err(e) = tasty_utils::notify::append_notify_line(caller_surface, &message) {
+    let (kind, message) = notify_error_message(tr, host, target_surface);
+    if let Err(e) = crate::notice::append(caller_surface, kind, &message) {
         tracing::warn!("claude notify-error completion-log append failed: {e}");
     }
     Ok(json!({}))
 }
 
-/// 완료 줄. 오류 힌트("입력을 기다린다")는 턴이 끝난 idle 줄에만 붙인다. 백그라운드 작업이 남아
+/// 완료 줄과 그 종류. 오류 힌트("입력을 기다린다")는 턴이 끝난 idle 줄에만 붙인다. 백그라운드 작업이 남아
 /// 대기 중에 기록된 오류가 needs-input·process-exit 줄에 붙지 않게 한다.
+/// 세 완료 훅이 같은 명령을 쓰므로 어느 사건인지 모른다. 대상 상태로 가른다: `exited` 와 힌트가 붙은 idle 은 error 다.
 pub(crate) fn notify_done_line<H: HostCall>(
     tr: &Translator,
     host: &H,
     command_name: &str,
     target_surface: u32,
-) -> String {
-    let error = if target_state(host, target_surface).as_deref() == Some("idle") {
+) -> (NoticeKind, String) {
+    let state = target_state(host, target_surface);
+    let error = if state.as_deref() == Some("idle") {
         last_stop_failure(host, target_surface)
     } else {
         None
     };
-    with_stop_failure_hint(
+    let kind = if error.is_some() {
+        NoticeKind::StopFailure
+    } else if state.as_deref() == Some("exited") {
+        NoticeKind::Exited
+    } else {
+        NoticeKind::StateChanged
+    };
+    let line = with_stop_failure_hint(
         tr,
         notify_done_message(tr, command_name, target_surface),
         error.as_deref(),
-    )
+    );
+    (kind, line)
 }
 
 /// 대상의 현재 상태(`idle`·`active`·`needs_input` 등). 조회에 실패하면 `None` 이다.
@@ -256,7 +268,9 @@ pub(crate) fn handle_notify_stop_failure<H: HostCall>(
     let Some(message) = stop_failure_notice(tr, host, target_surface) else {
         return Ok(json!({ "written": false }));
     };
-    if let Err(e) = tasty_utils::notify::append_notify_line(caller_surface, &message) {
+    if let Err(e) =
+        crate::notice::append(caller_surface, NoticeKind::StopFailureBackground, &message)
+    {
         tracing::warn!("claude notify-stop-failure completion-log append failed: {e}");
     }
     Ok(json!({ "written": true }))
@@ -385,22 +399,25 @@ pub(crate) fn quiet_task_message<H: HostCall>(
 /// 조용한 작업 이름 하나에 적는 최대 글자 수.
 const QUIET_LABEL_CHARS: usize = 80;
 
-/// 화면의 오류 줄을 알림에 덧붙인다. 조회에 실패하면 힌트를 생략한다.
+/// 정지 알림 문구와 그 종류. 화면의 오류 줄을 알림에 덧붙이며 조회에 실패하면 힌트를 생략한다.
 /// 자식이 백그라운드 작업을 기다리는 중이면 대기 문구를 쓴다.
 pub(crate) fn notify_error_message<H: HostCall>(
     tr: &Translator,
     host: &H,
     target_surface: u32,
-) -> String {
+) -> (NoticeKind, String) {
     if let Some(wait) = background_wait(host, target_surface) {
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
         if let Some(line) = quiet_task_message(tr, host, target_surface, &wait) {
-            return line;
+            return (NoticeKind::StalledBackgroundTaskQuiet, line);
         }
-        return background_wait_message(tr, target_surface, &wait, now_ms);
+        return (
+            NoticeKind::StalledBackgroundWait,
+            background_wait_message(tr, target_surface, &wait, now_ms),
+        );
     }
     let screen = host
         .call(
@@ -413,10 +430,13 @@ pub(crate) fn notify_error_message<H: HostCall>(
         .as_deref()
         .and_then(crate::error_scan::first_error_line);
     // 같은 이벤트로 들어오는 두 경우를 화면의 오류 줄 유무로 구분한다.
-    let key = if error_line.is_some() {
-        "claude.notify.stalled_message"
+    let (kind, key) = if error_line.is_some() {
+        (NoticeKind::Stalled, "claude.notify.stalled_message")
     } else {
-        "claude.notify.stalled_no_error_message"
+        (
+            NoticeKind::StalledNoError,
+            "claude.notify.stalled_no_error_message",
+        )
     };
     let mut message = tr.t_args(key, &[&target_surface.to_string()]);
     if let Some(line) = error_line {
@@ -424,7 +444,7 @@ pub(crate) fn notify_error_message<H: HostCall>(
         let hint: String = line.chars().take(160).collect();
         message.push_str(&tr.t_args("claude.notify.stalled_hint", &[&hint]));
     }
-    message
+    (kind, message)
 }
 
 /// 대상 터미널이 조회되면 완료 훅 3개를 다시 등록한다. 조회 실패 시 생략한다.
@@ -494,11 +514,52 @@ mod tests {
     fn the_stop_failure_hint_is_added_to_idle_lines_only() {
         let tr = tr();
         let hint = "waiting for input";
-        assert!(notify_done_line(&tr, &waiting_host("idle"), "spawn", 5).contains(hint));
+        let (kind, line) = notify_done_line(&tr, &waiting_host("idle"), "spawn", 5);
+        assert!(line.contains(hint), "{line}");
+        assert_eq!(kind, NoticeKind::StopFailure);
         for state in ["active", "needs_input", "exited", "stale"] {
-            let line = notify_done_line(&tr, &waiting_host(state), "spawn", 5);
+            let (_, line) = notify_done_line(&tr, &waiting_host(state), "spawn", 5);
             assert!(!line.contains(hint), "{state}: {line}");
             assert!(!line.contains("overloaded"), "{state}: {line}");
+        }
+    }
+
+    /// 완료 줄의 타입은 대상 상태로 정한다. `exited` 는 kill 로 끝난 경우도 error 이고, 힌트 없는 idle·needs_input 은 info 다.
+    #[test]
+    fn a_done_line_is_an_error_for_an_exit_or_an_api_error_and_info_otherwise() {
+        let tr = tr();
+        let plain = |state| StateHost {
+            state,
+            meta: Vec::new(),
+        };
+        let kind = |host: &StateHost| notify_done_line(&tr, host, "tell", 5).0;
+        assert_eq!(kind(&plain("idle")), NoticeKind::StateChanged);
+        assert_eq!(kind(&plain("needs_input")), NoticeKind::StateChanged);
+        assert_eq!(kind(&plain("exited")), NoticeKind::Exited);
+        assert_eq!(kind(&waiting_host("exited")), NoticeKind::Exited);
+        assert_eq!(kind(&waiting_host("idle")), NoticeKind::StopFailure);
+    }
+
+    /// 쓰기 함수는 종류의 타입 표지로 줄을 시작한다.
+    #[test]
+    fn the_written_line_starts_with_the_type_tag() {
+        let tr = tr();
+        crate::notice::test_log::take();
+        handle_notify_done(
+            &plain_exited(),
+            &json!({ "caller_surface": 3, "target_surface": 5, "command": "tell" }),
+            &tr,
+        )
+        .expect("notify-done");
+        let lines = crate::notice::test_log::take();
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(lines[0].1.starts_with("[error] surface 5: "), "{lines:?}");
+    }
+
+    fn plain_exited() -> StateHost {
+        StateHost {
+            state: "exited",
+            meta: Vec::new(),
         }
     }
 

@@ -129,13 +129,17 @@ impl RouteTo {
 /// 부모의 완료 로그(notify mod·Monitor 가 읽는 곳)에 한 줄을 쓴다.
 #[cfg(not(test))]
 fn append_line(surface: u32, line: &str) -> std::io::Result<()> {
-    tasty_utils::notify::append_notify_line(surface, line)
+    crate::notice::append(surface, crate::notice::NoticeKind::RemoteResult, line)
 }
 
 /// 시험은 실제 완료 로그(`TASTY_PARENT_HOME`)에 쓰지 않고 이 스레드에 모은다.
 #[cfg(test)]
 fn append_line(surface: u32, line: &str) -> std::io::Result<()> {
-    test_log::push(surface, line)
+    let tagged = tasty_utils::notify::notice_line(
+        crate::notice::NoticeKind::RemoteResult.notice_type(),
+        line,
+    );
+    test_log::push(surface, &tagged)
 }
 
 /// 물리 부모의 완료 로그에 남기는 줄. 조회 명령을 그대로 실어 부모가 바로 본문을 읽을 수 있게 한다.

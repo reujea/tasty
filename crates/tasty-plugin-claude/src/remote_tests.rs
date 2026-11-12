@@ -641,7 +641,11 @@ fn a_surface_parent_gets_each_turn_body_stored_before_its_notice() {
         "{}",
         lines[0].1
     );
-    assert!(lines[0].1.starts_with("surface 15: "), "{}", lines[0].1);
+    assert!(
+        lines[0].1.starts_with("[info] surface 15: "),
+        "{}",
+        lines[0].1
+    );
     let shown =
         crate::codex_return::handle_remote_results(&returns, &json!({ "id": id }), &tr()).unwrap();
     assert_eq!(shown["result"]["body"], json!("BODY-1"));

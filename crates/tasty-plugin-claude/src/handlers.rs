@@ -2053,6 +2053,8 @@ mod tests {
             &ScreenHost("working…\n  API Error: Connection error\n"),
             42,
         );
+        assert_eq!(with_hint.0, crate::notice::NoticeKind::Stalled);
+        let with_hint = with_hint.1;
         assert!(with_hint.contains("42"), "대상 surface 가 문구에 있어야 함");
         assert!(
             with_hint.contains("API Error: Connection error"),
@@ -2060,7 +2062,8 @@ mod tests {
         );
 
         // 화면에 에러 줄이 없으면 힌트 없이 본문만.
-        let plain = notify_error_message(&tr, &ScreenHost("all good\n"), 42);
+        let (kind, plain) = notify_error_message(&tr, &ScreenHost("all good\n"), 42);
+        assert_eq!(kind, crate::notice::NoticeKind::StalledNoError);
         assert!(!plain.contains("Last error"), "{plain}");
     }
 
@@ -2096,12 +2099,13 @@ mod tests {
             - 11 * 60_000;
         let wait = json!({ "since_ms": since_ms, "tasks": 1, "types": ["shell"] }).to_string();
         let tr = test_translator();
-        let message = notify_error_message(&tr, &WaitHost(wait.clone()), 42);
+        let (kind, message) = notify_error_message(&tr, &WaitHost(wait.clone()), 42);
+        assert_eq!(kind, crate::notice::NoticeKind::StalledBackgroundWait);
         assert_eq!(
             message,
             "surface 42: waiting on background work (shell) for 11 min, with no output meanwhile"
         );
-        let ko = notify_error_message(&test_translator_ko(), &WaitHost(wait), 42);
+        let (_, ko) = notify_error_message(&test_translator_ko(), &WaitHost(wait), 42);
         assert!(
             ko.contains("백그라운드 작업(shell)") && ko.contains("11분째"),
             "{ko}"
@@ -2135,7 +2139,8 @@ mod tests {
                 .to_string()
         };
         let tr = test_translator();
-        let line = notify_error_message(&tr, &QuietHost(wait.clone(), quiet(5_000)), 42);
+        let (kind, line) = notify_error_message(&tr, &QuietHost(wait.clone(), quiet(5_000)), 42);
+        assert_eq!(kind, crate::notice::NoticeKind::StalledBackgroundTaskQuiet);
         assert_eq!(
             line,
             format!(
@@ -2143,7 +2148,7 @@ mod tests {
                 "x".repeat(80)
             )
         );
-        let other = notify_error_message(&tr, &QuietHost(wait, quiet(4_000)), 42);
+        let (_, other) = notify_error_message(&tr, &QuietHost(wait, quiet(4_000)), 42);
         assert!(
             other.contains("waiting on background work (shell)"),
             "{other}"

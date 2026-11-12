@@ -123,13 +123,6 @@ pub fn append_notice(caller_surface: u32, ty: NoticeType, line: &str) -> io::Res
     append_line_to(&path, &notice_line(ty, line), NOTIFY_LOG_CAP_BYTES)
 }
 
-/// 옮기는 동안만 남긴 타입 없는 쓰기. 모든 writer 가 [`append_notice`] 로 옮기면 지운다.
-pub fn append_notify_line(caller_surface: u32, line: &str) -> io::Result<()> {
-    let path = notify_log_path(caller_surface)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "tasty_home() unavailable"))?;
-    append_line_to(&path, line, NOTIFY_LOG_CAP_BYTES)
-}
-
 /// 경로와 크기 기준을 받아 완료 알림을 기록한다.
 /// 여러 writer가 같은 로그를 쓰므로 항상 append 모드로 열고 한 줄을 먼저 조립한다.
 /// write_all은 부분 쓰기를 재시도할 수 있어 한 번의 OS write나 줄 단위 원자성을

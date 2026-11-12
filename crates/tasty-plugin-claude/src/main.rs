@@ -14,6 +14,7 @@ mod handlers;
 mod hook;
 mod install;
 mod monitor_tasks;
+mod notice;
 mod notifications;
 mod notify_mod;
 mod profile;

@@ -408,7 +408,7 @@ Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-s
   `claude-idle`·`surface.completion`·telemetry `wall_time_ms`·자동 재개 처리는 하지 않는다.
   작업이 끝나 열린 턴의 `Stop`이 idle을 기록한다.
 - spawn·tell은 `claude-stop-failure`에 상시 훅 `tasty claude notify-stop-failure`를 등록한다. 이 훅은 `claude-background-wait`가
-  있을 때만 부모 완료 로그에 한 줄을 남긴다. 영어 문구는 `surface <N>: the turn ended on an API error (<오류>), but background work (<종류>) is still running, so the child keeps waiting`이다.
+  있을 때만 부모 완료 로그에 `[error] `로 시작하는 한 줄을 남긴다. 영어 문구는 `surface <N>: the turn ended on an API error (<오류>), but background work (<종류>) is still running, so the child keeps waiting`이다.
   대기 기록이 없는 StopFailure(턴 종료)는 `claude-idle` 완료 줄이 오류를 적으므로 이 훅은 아무것도 쓰지 않는다.
   작업이 끝나 열린 턴이 `claude-last-stop-failure`를 지우므로, 그 턴의 완료 줄에는 오류가 붙지 않는다.
 - 작업이 바쁜 턴 중에 끝나 `<task-notification>` 턴 없이 결과가 소비된 뒤 `StopFailure`가 오면, 기록이 남아 `active`로 머물다
@@ -626,7 +626,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
   `<session_id>/tasks`를 찾는다. 못 찾으면 10초마다 다시 찾는다. 서브에이전트 링크는 대상 transcript가 생기기 전에 만들어지고, transcript 저장이 꺼진 세션(예: `CLAUDE_CODE_CHILD_SESSION`을 물려받은 자식)에서는 끝까지 대상이 없다. 대상이 없는 링크는 활동 판정에서 빼고, 대상이 생기면 그 시각을 활동으로 센다.
 - 판정: 파일 크기나 수정 시각이 바뀌면 활동이다. 찾은 모든 파일이 일반 기준(`no_output_notice_secs`) 동안 활동이 없으면 대기 한 번에 한 번 알린다.
   화면 출력은 보지 않는다. 알리기 전에 surface meta `claude-background-quiet`에 대기 시작 시각·작업 이름·조용한 시간·작업 id(`tasks`)·기록 시각(`at_ms`)을 남기고,
-  `notify-error`는 대기 시작 시각이 같을 때만 이 기록으로 `surface <N>: background work <이름> has written no output for <분> min` 줄을 쓴다.
+  `notify-error`는 대기 시작 시각이 같을 때만 이 기록으로 `[warning] surface <N>: background work <이름> has written no output for <분> min` 줄을 쓴다.
   이름은 80자까지 적는다. 이 meta는 지우지 않고 다음 기록이 덮어쓴다.
 - 되돌림: 대상이 있는 출력 파일이 하나도 없으면(경로 규칙이 바뀌었거나, 자식의 임시 폴더 설정이 플러그인과 다르거나, 대상이 없는 링크뿐임)
   아래 화면 기준을 쓴다. 이 상태가 120초 이어지면 플러그인 로그에 대기당 한 번 warn을 남긴다. 셸 파일과 대상이 없는 링크가 함께 있으면
@@ -641,7 +641,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 그 뒤에 meta가 생긴 surface도 일반 기준에 닿으면 알리기 전에 이 meta를 읽어 기록을 되살리고 대기 기준으로 다시 판정한다. 알림 문구도 이 meta를 읽으므로 기준과 문구가 같은 상태를 가리킨다.
 되살린 기록은 meta의 알림 여부와 출력 파일 단서를 이어받는다. 그래서 재시작 전에 알린 대기는 다시 알리지 않고, 출력 파일 감시도 이어 간다.
 이때 부모 로그 문구는 "looks stuck" 대신 대기 사실만 적는다.
-영어 문구는 `surface <N>: waiting on background work (<종류>) for <분> min, with no output meanwhile`이다.
+영어 줄은 `[warning] surface <N>: waiting on background work (<종류>) for <분> min, with no output meanwhile`이다.
 종류는 `claude-background-wait`의 `notice_types`(없는 옛 meta는 `types`)이며, 비어 있으면 판정에 쓴 `waiting_on_background_work`를 적는다.
 분은 `since_ms`부터 지난 시간을 버림한 값이다. 끝나지 않는 백그라운드 명령을 남긴 자식은 idle이 되지 않으므로, 이 알림이 부모가 받는 신호다. Monitor만 남긴 자식에는 이 신호도 없다.
 
@@ -656,6 +656,18 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 같은 caller·target의 정지 알림을 다시 등록할 때는 같은 명령 문자열로 등록된 기존 훅을 정리한다.
 
 `notify-error`는 대상의 `claude-background-wait` meta가 있으면 위 대기 문구를 쓴다. 없으면 `surface.screen_text`에서 오류 문구를 찾아 안내를 조립한다. 어느 쪽이든 조립한 문구를 `<parent_home>/notify/<caller_surface>.log`에 직접 추가한다. 다른 완료·상태 알림과 같은 [로그 경로](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)를 사용하며 화면 조회나 기록은 실패할 수 있다.
+
+#### 알림 타입 표지
+
+부모 완료 로그의 child 알림 줄은 모두 번역하지 않는 ASCII 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 기계가 읽는 계약이라 언어와 무관하다. 표지는 `tasty-utils::notify::append_notice`가 붙이며 타입 없이 줄을 쓰는 함수는 없다. 종류와 타입의 대응은 `notice.rs`의 `NoticeKind::notice_type`이 와일드카드 없는 `match`로 정하므로, 새 종류는 타입을 정하기 전까지 컴파일되지 않는다. 시험 `every_notify_message_key_belongs_to_a_notice_kind`는 `[claude.notify]`의 `_message` 키가 모두 어떤 종류의 문구인지 확인한다.
+
+| 타입 | 종류 |
+|---|---|
+| `info` | 상태 변경(`idle`·`needs_input`), 원격 결과 저장 |
+| `warning` | 무출력 3종(턴 진행 중 오류 없는 정지, 대기 중 화면 무출력, 작업 출력 파일 무출력) |
+| `error` | API 오류로 끝난 턴의 완료 줄, 백그라운드 작업이 남은 API 오류(`notify-stop-failure`), 오류 뒤 정지, child `exited` |
+
+세 완료 훅(`claude-idle`·`needs-input`·`process-exit`)은 같은 명령을 쓰므로 `notify-done`은 어느 사건인지 모른다. 그래서 대상 상태로 가른다. `exited`면 error(부모가 kill로 끝낸 경우도 구분하지 않는다), `idle`에 API 오류 힌트가 붙으면 error, 그 밖은 info다. 상태 조회에 실패하면 info로 쓴다.
 
 ## 인터페이스
 
