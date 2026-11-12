@@ -197,6 +197,10 @@ fn build_arg(arg: &CliArg, positional_index: Option<usize>) -> Arg {
         _ if arg.reject_repeat => a.action(ArgAction::Append),
         _ => a.action(ArgAction::Set),
     };
+    // 음수 값을 공백으로 띄워 줄 수 있게 한다(`--secs -1`). 없으면 clap 이 `-1` 을 플래그로 보고 거절한다.
+    if arg.ty == CliArgType::I64 {
+        a = a.allow_negative_numbers(true);
+    }
     if let Some(default) = &arg.default {
         let s = match default {
             toml::Value::String(s) => s.clone(),

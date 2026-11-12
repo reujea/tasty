@@ -56,6 +56,18 @@ fn sample_entry() -> PluginCliEntry {
                     reject_repeat: false,
                 },
                 CliArg {
+                    name: "secs".into(),
+                    ty: CliArgType::I64,
+                    flag: Some("--secs".into()),
+                    required: false,
+                    default: None,
+                    help: None,
+                    help_i18n_key: None,
+                    stdin_field: None,
+                    path_kind: None,
+                    reject_repeat: false,
+                },
+                CliArg {
                     name: "force".into(),
                     ty: CliArgType::Bool,
                     flag: Some("--force".into()),
@@ -235,6 +247,20 @@ fn flag_with_value_maps_to_params() {
     let p = req.params.as_object().unwrap();
     assert_eq!(p["surface"], Value::from(5_u32));
     assert_eq!(p["prompt"], Value::String("hello".into()));
+}
+
+/// 정수 인자는 공백으로 띄운 음수도 값으로 받는다.
+#[test]
+fn a_negative_number_after_a_space_is_the_value_of_an_i64_flag() {
+    let entries = vec![sample_entry()];
+    for args in [
+        ["codex", "spawn", "--secs", "-1"],
+        ["codex", "spawn", "--secs=-1", "--force"],
+    ] {
+        let m = parse(&args);
+        let (req, _polling, _auto) = matches_to_request(&entries, &[], &m, &mut |_| false).unwrap();
+        assert_eq!(req.params["secs"], Value::from(-1_i64), "{args:?}");
+    }
 }
 
 fn spawn_group(entry: &PluginCliEntry) -> &CliArgGroup {
