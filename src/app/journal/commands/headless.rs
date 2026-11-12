@@ -96,6 +96,9 @@ impl JournalApplication {
                     kind,
                     &crate::ipc::request_scope::RequestScope::capture(state, &session.core_state),
                     &session.as_ref(),
+                    &|surface| {
+                        crate::ipc::handler::workspace::named_source_cwd(&session.as_ref(), surface)
+                    },
                     &serde_json::Value::Null,
                 ) {
                     Ok(cwd) => self.resolve_workspace_creation(ticket, session, cwd),

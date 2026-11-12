@@ -1209,6 +1209,7 @@ fn an_explicit_cwd_opens_an_explorer_there_from_every_creation_method() {
             None,
         ),
         &scope_engine.as_ref(),
+        &|_| None,
         &serde_json::Value::Null,
     )
     .unwrap();

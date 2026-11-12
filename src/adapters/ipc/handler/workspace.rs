@@ -108,14 +108,38 @@ pub(crate) fn named_source_cwd(
     })
 }
 
+/// 명시 원본을 여러 engine(창·parked·임시)에서 찾는다. 창마다 engine이 따로라 요청을 처리하는 engine에
+/// 원본이 없을 수 있다. 어디에도 없으면 None이다. 헤드리스는 engine이 하나라 쓰지 않는다.
+#[cfg(any(feature = "gui", test))]
+pub(crate) fn named_source_in<'a>(
+    engines: impl IntoIterator<Item = EngineRef<'a>>,
+    surface: u32,
+) -> Option<Option<std::path::PathBuf>> {
+    engines
+        .into_iter()
+        .find_map(|engine| named_source_cwd(&engine, surface))
+}
+
+/// `inherit_cwd`가 지목한 원본 surface. 모르는 값이어도 None이다(거절은 [`resolve_create_cwd`]가 한다).
+#[cfg(feature = "gui")]
+pub(crate) fn named_inherit_surface(params: &serde_json::Value) -> Option<u32> {
+    params
+        .get("inherit_cwd")
+        .filter(|value| !value.is_null())
+        .and_then(|value| serde_json::from_value::<InheritCwd>(value.clone()).ok())
+        .and_then(|value| value.surface())
+}
+
 /// 첫 surface 생성의 cwd를 정한다. 명시값은 kind와 관계없이 create에 넘긴다(explorer는 시작 폴더로 쓴다).
 /// 명시값이 없을 때 상속하는 것은 terminal뿐이다. 원격 mirror의 경로는 로컬 workspace에 상속하지 않는다.
-/// 잘못된 surface_id는 포커스 대상으로 대체하지 않고 거절한다.
+/// 잘못된 surface_id는 포커스 대상으로 대체하지 않고 거절한다. `named`는 `inherit_cwd`가 지목한 원본을
+/// 모든 engine에서 찾은 결과다([`named_source_in`]).
 pub(crate) fn resolve_create_cwd(
     params: &serde_json::Value,
     kind: &str,
     window: &dyn crate::ipc::window_port::IpcWindow,
     engine: &EngineRef<'_>,
+    named: &dyn Fn(u32) -> Option<Option<std::path::PathBuf>>,
     id: &serde_json::Value,
 ) -> Result<Option<std::path::PathBuf>, JsonRpcResponse> {
     let explicit_cwd = params
@@ -131,46 +155,49 @@ pub(crate) fn resolve_create_cwd(
         ));
     }
     let named_surface = params::opt_int::<u32>(params, "surface_id", id)?;
-    let source = named_inherit_source(params, engine, id)?;
+    let source = named_inherit_source(params, named, id)?;
     Ok(match explicit_cwd {
         Some(cwd) => Some(cwd),
         None if kind == "terminal" => match source {
             None => inherit_cwd_for_create(window, engine, named_surface),
-            Some(InheritCwd::Surface(surface)) => engine.local_surface_cwd(surface),
-            Some(_) => None,
+            Some(Named::Cwd(cwd)) => cwd,
+            Some(Named::NoInherit) => None,
         },
         None => None,
     })
 }
 
-/// `inherit_cwd` 인자. 원격 client 가 자기 포커스로 고른 이 인스턴스의 터미널(`{"surface": N}`) 또는 상속 안 함
+/// `inherit_cwd`가 정한 원본.
+enum Named {
+    /// 지목한 원본의 cwd. 원본이 터미널이 아니거나 cwd를 모르면 None이다.
+    Cwd(Option<std::path::PathBuf>),
+    NoInherit,
+}
+
+/// `inherit_cwd` 인자. 원격 client 가 자기 포커스로 고른 이 인스턴스의 surface(`{"surface": N}`) 또는 상속 안 함
 /// (`"none"`)이다. 생략하면 None 이고 기존 규칙(`surface_id` 또는 창의 포커스, 이 인스턴스의 설정)을 쓴다.
 /// 원본을 고른 요청자는 이미 자기 설정으로 판단했으므로 이 인스턴스의 `inherit_cwd` 설정으로 막지 않는다.
-/// 원본은 실재하는 terminal 이어야 한다. 아니면 포커스로 대체하지 않고 거절한다. 모르는 값도 거절한다.
+/// 원본은 어느 창(parked 포함)의 engine에든 있어야 한다. 없으면 포커스로 대체하지 않고 거절한다.
+/// 원본이 터미널이 아니면 거절하지 않고 상속하지 않는다. 모르는 값은 거절한다.
 fn named_inherit_source(
     params: &serde_json::Value,
-    engine: &EngineRef<'_>,
+    named: &dyn Fn(u32) -> Option<Option<std::path::PathBuf>>,
     id: &serde_json::Value,
-) -> Result<Option<InheritCwd>, JsonRpcResponse> {
+) -> Result<Option<Named>, JsonRpcResponse> {
     let Some(value) = params.get("inherit_cwd").filter(|value| !value.is_null()) else {
         return Ok(None);
     };
     let refuse = |message: String| Err(JsonRpcResponse::invalid_params(id.clone(), message));
     match serde_json::from_value::<InheritCwd>(value.clone()) {
-        Ok(InheritCwd::NoInherit) => Ok(Some(InheritCwd::NoInherit)),
-        Ok(InheritCwd::Surface(surface)) => {
-            match engine.find_surface_by_id(surface).map(|found| found.kind()) {
-                Some("terminal") => Ok(Some(InheritCwd::Surface(surface))),
-                Some(kind) => refuse(format!(
-                    "inherit_cwd surface {surface} is a {kind} surface, not a terminal"
-                )),
-                None => refuse(tasty_utils::target::unowned_target_message(
-                    "surface",
-                    u64::from(surface),
-                    "workspace.create.inherit_cwd",
-                )),
-            }
-        }
+        Ok(InheritCwd::NoInherit) => Ok(Some(Named::NoInherit)),
+        Ok(InheritCwd::Surface(surface)) => match named(surface) {
+            Some(cwd) => Ok(Some(Named::Cwd(cwd))),
+            None => refuse(tasty_utils::target::unowned_target_message(
+                "surface",
+                u64::from(surface),
+                "workspace.create.inherit_cwd",
+            )),
+        },
         Ok(InheritCwd::Unknown(_)) | Err(_) => {
             refuse(format!("unsupported inherit_cwd value {value}"))
         }

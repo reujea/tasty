@@ -131,6 +131,24 @@ impl crate::app::App {
             None
         };
         let creation_cwd = if request.method == "workspace.create" {
+            // `inherit_cwd`의 원본은 다른 창이나 parked engine에 있을 수 있다. 모든 engine에서 미리 찾는다.
+            let named = crate::ipc::handler::workspace::named_inherit_surface(&request.params).map(
+                |surface| {
+                    (
+                        surface,
+                        crate::ipc::handler::workspace::named_source_in(
+                            self.engines().all(),
+                            surface,
+                        ),
+                    )
+                },
+            );
+            let lookup = |surface: u32| {
+                named
+                    .as_ref()
+                    .filter(|(found, _)| *found == surface)
+                    .and_then(|(_, cwd)| cwd.clone())
+            };
             id.and_then(|engine| self.engines_mut().resolve(engine))
                 .map(|context| {
                     let kind = request
@@ -147,6 +165,7 @@ impl crate::app::App {
                             None,
                         ),
                         &context.engine.as_ref(),
+                        &lookup,
                         &serde_json::Value::Null,
                     )
                 })

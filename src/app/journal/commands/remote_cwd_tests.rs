@@ -439,30 +439,37 @@ fn a_remote_child_source_must_be_in_its_pane() {
     }
 }
 
-/// `workspace.create` 의 `inherit_cwd`: 포커스는 폴더를 아는 explorer(101)다. 인자가 없으면 포커스의 폴더를
-/// 잇고, 터미널을 지목하면 포커스가 아니라 그 터미널(폴더를 모르면 없음)을, "none"이면 없음이다. 이 인스턴스의
-/// 설정이 꺼져 있어도 지목한 원본은 쓴다. 터미널이 아니거나 없는 surface, 모르는 값은 거절한다.
-#[test]
-fn a_workspace_create_follows_the_named_terminal() {
-    use tasty_core::DomainEvent as E;
+/// 한 창(engine)의 workspace 하나: pane `pane`에 탭 `explorer`(root를 아는 explorer)와 탭 `terminal`(cwd를
+/// 아는 터미널)이 있다. 포커스는 explorer다. 창마다 engine이 따로라 id가 겹치지 않게 고른다.
+fn window_engine(
+    workspace: u32,
+    pane: u32,
+    explorer: u32,
+    terminal: u32,
+    dir: &std::path::Path,
+) -> (
+    crate::state::RequestContext,
+    crate::runtime::engine_session::EngineSession,
+) {
+    use tasty_core::DomainEvent as Event;
     let mut events = vec![
-        E::CategoryCreated {
+        Event::CategoryCreated {
             id: 0,
             name: "normal".into(),
             index: 0,
         },
-        E::WorkspaceCreated {
-            id: 1,
+        Event::WorkspaceCreated {
+            id: workspace,
             name: "one".into(),
             category: 0,
             index: 0,
-            pane: 10,
+            pane,
         },
     ];
-    for (id, index, kind) in [(A, 0, "explorer"), (B, 1, "terminal")] {
-        events.push(E::TabCreated {
+    for (id, index, kind) in [(explorer, 0, "explorer"), (terminal, 1, "terminal")] {
+        events.push(Event::TabCreated {
             id,
-            pane: 10,
+            pane,
             index,
             name: kind.into(),
             surface: tasty_core::SurfaceSpec {
@@ -472,16 +479,32 @@ fn a_workspace_create_follows_the_named_terminal() {
             },
         });
     }
-    let (mut state, mut session) =
+    let (state, mut session) =
         crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
-    let dir = tempfile::tempdir().expect("temp dir");
+    let root = dir.join(format!("e{explorer}"));
+    let cwd = dir.join(format!("t{terminal}"));
+    std::fs::create_dir(&root).expect("explorer root");
+    std::fs::create_dir(&cwd).expect("terminal cwd");
     session.runtime.surfaces.insert(
-        A,
-        Box::new(crate::model::ExplorerPanel::new(
-            A,
-            dir.path().to_path_buf(),
-        )),
+        explorer,
+        Box::new(crate::model::ExplorerPanel::new(explorer, root)),
     );
+    let mut shell = tasty_terminal::Terminal::new_detached(20, 3);
+    shell.set_cached_cwd(cwd);
+    session.runtime.terminals.insert(terminal, shell, None);
+    (state, session)
+}
+
+/// `workspace.create` 의 `inherit_cwd`(한 창): 포커스는 explorer A다. 인자가 없으면 포커스의 폴더를 잇고,
+/// 터미널을 지목하면 포커스가 아니라 그 터미널의 cwd를, "none"이면 없음이다. 이 인스턴스의 설정이 꺼져 있어도
+/// 지목한 원본은 쓴다. 터미널이 아닌 원본은 거절하지 않고 상속하지 않는다. 없는 surface, 모르는 값은 거절한다.
+#[test]
+fn a_workspace_create_follows_the_named_terminal() {
+    use crate::ipc::handler::workspace::{named_source_cwd, resolve_create_cwd};
+    let dir = tempfile::tempdir().expect("temp dir");
+    let (mut state, mut session) = window_engine(1, 10, A, B, dir.path());
+    let root = dir.path().join(format!("e{A}"));
+    let terminal = dir.path().join(format!("t{B}"));
     let mut create = |inherit: bool, params: serde_json::Value| {
         session.runtime.settings.general.inherit_cwd = inherit;
         let scope = crate::ipc::request_scope::RequestScope::capture(
@@ -490,31 +513,35 @@ fn a_workspace_create_follows_the_named_terminal() {
             #[cfg(feature = "gui")]
             None,
         );
-        crate::ipc::handler::workspace::resolve_create_cwd(
+        let engine = session.as_ref();
+        resolve_create_cwd(
             &params,
             "terminal",
             &scope,
-            &session.as_ref(),
+            &engine,
+            &|surface| named_source_cwd(&engine, surface),
             &serde_json::Value::Null,
         )
         .map_err(|response| response.error.expect("refusal").message)
     };
-    let focused = Some(dir.path().to_path_buf());
-    assert_eq!(create(true, serde_json::json!({})), Ok(focused));
+    assert_eq!(create(true, serde_json::json!({})), Ok(Some(root)));
     assert_eq!(create(false, serde_json::json!({})), Ok(None));
     for inherit in [true, false] {
         assert_eq!(
             create(inherit, serde_json::json!({"inherit_cwd": {"surface": B}})),
-            Ok(None),
+            Ok(Some(terminal.clone())),
             "the named terminal, not the focus"
+        );
+        assert_eq!(
+            create(inherit, serde_json::json!({"inherit_cwd": {"surface": A}})),
+            Ok(None),
+            "a named explorer is not inherited"
         );
         assert_eq!(
             create(inherit, serde_json::json!({"inherit_cwd": "none"})),
             Ok(None)
         );
     }
-    let explorer = create(true, serde_json::json!({"inherit_cwd": {"surface": A}})).unwrap_err();
-    assert!(explorer.contains("not a terminal"), "{explorer}");
     let missing = create(true, serde_json::json!({"inherit_cwd": {"surface": 9999}})).unwrap_err();
     assert!(missing.contains("no live surface 9999"), "{missing}");
     let unknown = create(true, serde_json::json!({"inherit_cwd": "all"})).unwrap_err();
@@ -522,4 +549,45 @@ fn a_workspace_create_follows_the_named_terminal() {
         unknown.contains("unsupported inherit_cwd value"),
         "{unknown}"
     );
+}
+
+/// 서버 창 둘: 요청을 처리하는 포커스 창 1에는 원본이 없고, 원본 터미널은 창 2(다른 engine)에 있다. 원본은
+/// 모든 engine에서 찾으므로 거절하지 않고 그 터미널의 cwd로 만든다. 창 2의 explorer는 거절하지 않고 상속하지
+/// 않는다. 어느 창에도 없으면 거절한다.
+#[test]
+fn a_workspace_create_finds_the_named_terminal_in_another_window() {
+    use crate::ipc::handler::workspace::{named_source_in, resolve_create_cwd};
+    let dir = tempfile::tempdir().expect("temp dir");
+    let (mut state, focused) = window_engine(1, 10, 101, 102, dir.path());
+    let (_, other) = window_engine(2, 20, 201, 202, dir.path());
+    let other_terminal = dir.path().join("t202");
+    let scope = crate::ipc::request_scope::RequestScope::capture(
+        &mut state,
+        &focused.core_state,
+        #[cfg(feature = "gui")]
+        None,
+    );
+    let create = |params: serde_json::Value| {
+        let lookup = |surface| named_source_in([focused.as_ref(), other.as_ref()], surface);
+        resolve_create_cwd(
+            &params,
+            "terminal",
+            &scope,
+            &focused.as_ref(),
+            &lookup,
+            &serde_json::Value::Null,
+        )
+        .map_err(|response| response.error.expect("refusal").message)
+    };
+    assert!(focused.as_ref().find_surface_by_id(202).is_none());
+    assert_eq!(
+        create(serde_json::json!({"inherit_cwd": {"surface": 202}})),
+        Ok(Some(other_terminal))
+    );
+    assert_eq!(
+        create(serde_json::json!({"inherit_cwd": {"surface": 201}})),
+        Ok(None)
+    );
+    let missing = create(serde_json::json!({"inherit_cwd": {"surface": 9999}})).unwrap_err();
+    assert!(missing.contains("no live surface 9999"), "{missing}");
 }
