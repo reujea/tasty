@@ -18,7 +18,20 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
+      # 조상 판정에 main 이력이 필요하므로 전체 이력을 받는다.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 배포본은 main 에만 있다. main 에 반영되지 않은 커밋의 태그로는 릴리스하지 않는다.
+      - name: Verify the tag commit is on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          TAG_COMMIT=$(git rev-parse "HEAD^{commit}")
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::Tag ${GITHUB_REF#refs/tags/} points at $TAG_COMMIT, which is not on origin/main"
+            exit 1
+          fi
 
       - name: Extract and verify version
         id: version
