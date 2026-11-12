@@ -41,11 +41,14 @@ pub fn run_remote_check(
         )
     })?;
 
-    let info = probe_system_info(tunnel.local_port).with_context(|| {
-        t_args(
-            "cli.remote_check.no_ipc_response",
-            &[&remote_port.to_string(), dest.as_str()],
-        )
+    let info = probe_system_info(tunnel.local_port).map_err(|e| {
+        // 리스너가 없으면 터널이 연결된 것처럼 읽히는 문장을 쓰지 않는다.
+        let key = if tunnel.remote_listener_absent(&e) {
+            "cli.remote_check.listener_absent"
+        } else {
+            "cli.remote_check.no_ipc_response"
+        };
+        e.context(t_args(key, &[&remote_port.to_string(), dest.as_str()]))
     })?;
 
     let version = info.get("version").and_then(|v| v.as_str());
@@ -106,7 +109,7 @@ fn probe_system_info(port: u16) -> Result<serde_json::Value> {
         .read_line(&mut line)
         .context(t("cli.remote_check.read_failed"))?;
     if n == 0 || line.trim().is_empty() {
-        bail!("{}", t("cli.remote_check.eof"));
+        return Err(ssh::connection_closed_error(t("cli.remote_check.eof")));
     }
 
     let response: JsonRpcResponse =
@@ -165,6 +168,8 @@ mod tests {
         });
         let r = probe_system_info(port);
         assert!(r.is_err(), "EOF 는 dead(에러)여야 한다: {r:?}");
+        // 리스너 없음 판정이 끊긴 연결로 알아보는 형태다.
+        assert!(ssh::is_dropped_connection(&r.unwrap_err()));
         h.join().unwrap();
     }
 

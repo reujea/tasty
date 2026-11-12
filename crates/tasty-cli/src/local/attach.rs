@@ -328,7 +328,9 @@ pub fn run_attach_ssh(
         backoff.reset();
 
         // ③ 단계 4 attach (터널 localport 로).
-        match run_attach_on_port(tunnel.local_port, surface, dump_after, send, raw)? {
+        match run_attach_on_port(tunnel.local_port, surface, dump_after, send, raw)
+            .map_err(|e| tunnel.explain_failure(e))?
+        {
             AttachExit::Completed => return Ok(()),
             AttachExit::Disconnected if reconnect => {
                 crate::out::errln!("{}", tasty_i18n::t("cli.attach.disconnected_reconnect"));
@@ -539,7 +541,8 @@ pub fn run_attach_workspace_ssh(
         );
         backoff.reset();
 
-        match run_attach_workspace_on_port(tunnel.local_port, workspace, dump_after, send, send_to)?
+        match run_attach_workspace_on_port(tunnel.local_port, workspace, dump_after, send, send_to)
+            .map_err(|e| tunnel.explain_failure(e))?
         {
             AttachExit::Completed => return Ok(()),
             AttachExit::Disconnected if reconnect => {

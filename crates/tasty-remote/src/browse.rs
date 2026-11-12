@@ -160,7 +160,9 @@ pub(crate) fn probe_method_bound(
         .read_line(&mut line)
         .context("IPC 응답 read 실패 (타임아웃/연결 종료)")?;
     if n == 0 || line.trim().is_empty() {
-        bail!("IPC 응답 없음 (EOF) — 원격 서버가 응답하지 않습니다");
+        return Err(ssh::connection_closed_error(
+            "IPC 응답 없음 (EOF) — 원격 서버가 응답하지 않습니다",
+        ));
     }
 
     let response: JsonRpcResponse =
@@ -241,9 +243,18 @@ pub fn browse(
     port_mode: &str,
     port_file: Option<&str>,
 ) -> Result<Vec<RemoteWorkspace>> {
-    let (_tunnel, port) = resolve_endpoint(target, remote_tasty, port_mode, port_file)?;
-    // _tunnel 은 이 스코프 끝에서 Drop → 자식 ssh kill(단발 조회이므로 여기서 정리).
-    browse_via_port(port)
+    let (tunnel, port) = resolve_endpoint(target, remote_tasty, port_mode, port_file)?;
+    // tunnel 은 이 스코프 끝에서 Drop → 자식 ssh kill(단발 조회이므로 여기서 정리).
+    browse_via_port(port).map_err(|e| explain_tunnel_failure(tunnel.as_ref(), e))
+}
+
+/// 터널을 거친 요청의 실패를 원격 리스너 없음으로 분류할 수 있으면 그 맥락을 붙인다. loopback 직결은
+/// 터널이 없어 그대로 돌려준다.
+pub fn explain_tunnel_failure(tunnel: Option<&SshTunnel>, failure: anyhow::Error) -> anyhow::Error {
+    match tunnel {
+        Some(tunnel) => tunnel.explain_failure(failure),
+        None => failure,
+    }
 }
 
 #[cfg(test)]

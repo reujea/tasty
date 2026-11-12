@@ -2041,6 +2041,9 @@ gdk_backend = "GDK_BACKEND in Tasty's launch environment blocks X11, so this vie
 gdk_backend_sub = "Remove GDK_BACKEND from Tasty's launch environment, then restart Tasty."
 gtk_init_failed = "GTK failed to initialize, so this view and the tray icon are off."
 
+[ssh.tunnel]
+listener_absent = "Nothing is listening on remote port {}. The remote tasty is not running, or its port file is stale."
+
 [ssh.port_discovery]
 connection_failed = "SSH connection failed (this may be a network or authentication problem)."
 instance_not_running = "No tasty instance appears to be running on the remote host."
@@ -2053,6 +2056,7 @@ cancelled = "The port lookup was stopped."
 not_found = "Remote tasty not found (target={}, discovery mode={})."
 tunnel_failed = "Remote port {} was found, but the ssh -L tunnel could not be established (target={})."
 no_ipc_response = "Remote port {} was found and the tunnel was established, but the IPC check failed (target={})."
+listener_absent = "Nothing is listening on remote port {} (target={}). The remote tasty is not running, or its port file is stale."
 alive_full = "alive: {} (port {}, version {}, {} workspaces)"
 alive_full_one = "alive: {} (port {}, version {}, {} workspace)"
 alive_version = "alive: {} (port {}, version {})"

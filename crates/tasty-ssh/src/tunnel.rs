@@ -16,7 +16,18 @@ pub struct SshTunnel {
     child: Child,
     /// 로컬 끝점 포트 — client 가 `127.0.0.1:local_port` 로 붙는다.
     pub local_port: u16,
+    /// 포워드 대상 원격 포트.
+    pub remote_port: u16,
+    /// ssh stderr에 채널 연결 실패 줄이 나왔다([`crate::listener`]).
+    channel_connect_failed: Arc<AtomicBool>,
+    /// stderr를 넘기는 스레드. 준비 전 종료로 실패할 때만 끝나기를 기다린다.
+    stderr_relay: Option<std::thread::JoinHandle<()>>,
 }
+
+/// 준비 전에 끝난 ssh의 마지막 stderr를 넘기는 스레드를 기다리는 상한. ssh가 끝나면 파이프가
+/// 닫혀 스레드도 곧 끝난다. 파이프를 물려받은 다른 프로세스(ProxyCommand 등)가 남아 있으면
+/// 닫히지 않으므로 상한을 둔다.
+const STDERR_DRAIN_LIMIT: Duration = Duration::from_millis(500);
 
 impl SshTunnel {
     /// `ssh -L 127.0.0.1:local:127.0.0.1:remote -N <dest>` 백그라운드 spawn 후
@@ -26,6 +37,17 @@ impl SshTunnel {
         target: &SshTarget,
         remote_port: u16,
         verify: bool,
+    ) -> Result<Self> {
+        Self::establish_relaying_to(ssh, target, remote_port, verify, std::io::stderr)
+    }
+
+    /// [`Self::establish`]와 같고 ssh stderr를 `sink`가 만든 곳으로 넘긴다.
+    fn establish_relaying_to<W: std::io::Write + 'static>(
+        ssh: &Path,
+        target: &SshTarget,
+        remote_port: u16,
+        verify: bool,
+        sink: impl FnOnce() -> W + Send + 'static,
     ) -> Result<Self> {
         // ssh가 바인드하도록 예약을 해제한다. 그 사이 다른 프로세스가 차지할 수 있다.
         let (reservation, local_port) = reserve_local_port()?;
@@ -44,18 +66,54 @@ impl SshTunnel {
         args.push(target.destination.clone());
 
         let mut cmd = Command::new(ssh);
-        cmd.args(&args).stdin(Stdio::null());
-        // stderr 는 인증/에러 노출용으로 상속(첫 연결 host key/passphrase).
+        // stderr는 인증·오류를 보이도록 그대로 사용자 stderr로 넘긴다(첫 연결 host key/passphrase 질문은
+        // ssh가 터미널에 직접 쓴다). 넘기는 동안 리스너 없음 판정에 쓸 채널 연결 실패 줄을 표시한다.
+        cmd.args(&args).stdin(Stdio::null()).stderr(Stdio::piped());
         // 호스트 GUI(windows subsystem, 콘솔 없음)가 in-process 로 이 함수를 호출하므로
         // CREATE_NO_WINDOW 를 걸지 않으면 Windows 가 ssh.exe 용 새 콘솔 창을 띄운다.
         tasty_utils::process::hide_console(&mut cmd);
         // 호스트가 SIGTERM 등으로 끝나도 터널이 고아로 남지 않게 호스트 수명에 묶는다.
-        let child = tasty_reaper::spawn_bound_to_host(cmd)
+        let mut child = tasty_reaper::spawn_bound_to_host(cmd)
             .map_err(|e| anyhow::anyhow!("ssh 터널 spawn 실패({}): {e}", ssh.display()))?;
+        let channel_connect_failed = Arc::new(AtomicBool::new(false));
+        let stderr_relay = child.stderr.take().and_then(|stderr| {
+            let seen = Arc::clone(&channel_connect_failed);
+            // ssh가 끝나 stderr가 닫히면 스레드도 끝난다. Drop은 기다리지 않는다.
+            std::thread::Builder::new()
+                .name("ssh-tunnel-stderr".into())
+                .spawn(move || crate::listener::relay_stderr(stderr, sink(), &seen))
+                .map_err(|e| tracing::warn!(%e, "ssh tunnel stderr relay thread could not start"))
+                .ok()
+        });
 
-        let mut tunnel = SshTunnel { child, local_port };
+        let mut tunnel = SshTunnel {
+            child,
+            local_port,
+            remote_port,
+            channel_connect_failed,
+            stderr_relay,
+        };
         tunnel.wait_ready()?;
         Ok(tunnel)
+    }
+
+    /// ssh가 준비 전에 끝났을 때 마지막 stderr(인증 거절 등 실패 원인)가 오류보다 먼저 사용자에게
+    /// 가도록 넘기는 스레드를 [`STDERR_DRAIN_LIMIT`]까지 기다린다.
+    fn drain_stderr_relay(&mut self) {
+        let Some(relay) = self.stderr_relay.take() else {
+            return;
+        };
+        let deadline = Instant::now() + STDERR_DRAIN_LIMIT;
+        while !relay.is_finished() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if !relay.is_finished() {
+            tracing::debug!("ssh tunnel stderr relay still open after the tunnel exited");
+            return;
+        }
+        if relay.join().is_err() {
+            tracing::warn!("ssh tunnel stderr relay thread panicked");
+        }
     }
 
     /// 로컬 연결을 폴링하며 반복 사이에 5초 기한과 자식 종료를 확인한다.
@@ -64,6 +122,7 @@ impl SshTunnel {
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             if let Some(status) = self.child.try_wait()? {
+                self.drain_stderr_relay();
                 bail!(
                     "ssh 터널이 ready 전에 종료(status={status:?}) — 인증/포워드 실패 가능. \
                      (Windows 는 시스템 OpenSSH 풀경로/agent 확인)"
@@ -86,6 +145,23 @@ impl SshTunnel {
             tracing::debug!(%error,"SSH tunnel kill returned before wait");
         }
         self.child.wait()
+    }
+
+    /// 터널을 통한 요청이 `failure`로 실패한 뒤 원인이 원격 포트의 리스너 없음인지 판정한다. 연결이
+    /// 응답 없이 끊겼고 ssh가 채널 연결 실패를 보고했어야 한다. 그 줄을 최대 0.5초 기다린다.
+    pub fn remote_listener_absent(&self, failure: &anyhow::Error) -> bool {
+        crate::listener::judge_after_failure(&self.channel_connect_failed, failure)
+    }
+
+    /// 리스너 없음이면 `failure` 위에 [`crate::RemoteListenerAbsent`]를 맥락으로 붙이고, 아니면 그대로 돌려준다.
+    pub fn explain_failure(&self, failure: anyhow::Error) -> anyhow::Error {
+        if self.remote_listener_absent(&failure) {
+            failure.context(crate::RemoteListenerAbsent {
+                remote_port: self.remote_port,
+            })
+        } else {
+            failure
+        }
     }
 
     /// 터널 자식 ssh 가 살아있는지(끊김 감지 — 프로세스 레벨).
@@ -169,5 +245,65 @@ impl Backoff {
 impl Default for Backoff {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    /// 쓸 때마다 늦게 받는 stderr 대상. 넘기는 스레드가 ssh 종료보다 늦게 끝나게 한다.
+    struct SlowSink(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for SlowSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            std::thread::sleep(Duration::from_millis(100));
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// 준비 전에 끝난 ssh가 마지막에 쓴 stderr 줄은 오류를 돌려주기 전에 모두 넘어간다.
+    #[test]
+    fn stderr_written_before_an_early_exit_is_relayed_before_the_error() {
+        static SEQ: AtomicUsize = AtomicUsize::new(0);
+        let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+        let ssh =
+            std::env::temp_dir().join(format!("tasty-ssh-early-exit-{}-{seq}", std::process::id()));
+        crate::write_test_script(
+            &ssh,
+            "#!/bin/sh\necho 'first line' >&2\nsleep 0.05\necho 'Permission denied (publickey).' >&2\nexit 255\n",
+        );
+        let relayed = Arc::new(Mutex::new(Vec::new()));
+        let sink = SlowSink(Arc::clone(&relayed));
+        let result = SshTunnel::establish_relaying_to(
+            &ssh,
+            &SshTarget::parse("fake-host"),
+            45123,
+            false,
+            move || sink,
+        );
+        if let Err(e) = std::fs::remove_file(&ssh) {
+            tracing::warn!("fake ssh cleanup failed: {e}");
+        }
+        let error = result
+            .err()
+            .expect("the fake ssh exits before the tunnel is ready");
+        assert!(format!("{error:#}").contains("ready"), "{error:#}");
+        let relayed = String::from_utf8(
+            relayed
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone(),
+        )
+        .unwrap();
+        assert_eq!(relayed, "first line\nPermission denied (publickey).\n");
     }
 }

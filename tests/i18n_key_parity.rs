@@ -213,6 +213,12 @@ const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[
         "zh-Hans",
         "cli.request.connect_failed_instance_exited",
     ),
+    ("lang", "ko", "cli.remote_check.listener_absent"),
+    ("lang", "ja", "cli.remote_check.listener_absent"),
+    ("lang", "zh-Hans", "cli.remote_check.listener_absent"),
+    ("lang", "ko", "ssh.tunnel.listener_absent"),
+    ("lang", "ja", "ssh.tunnel.listener_absent"),
+    ("lang", "zh-Hans", "ssh.tunnel.listener_absent"),
 ];
 
 /// 누락이 알려진 키의 임시 예외다. 키가 추가되면 항목도 제거한다. 새 누락은 수정하는 것이 기본이다.

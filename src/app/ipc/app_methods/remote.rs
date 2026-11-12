@@ -442,6 +442,7 @@ fn remote_attach_create_worker(
     {
         Ok(c) => c,
         Err(e) => {
+            let e = tasty_remote::browse::explain_tunnel_failure(tunnel.as_ref(), e);
             send_response(
                 response_tx,
                 host_ipc::protocol::JsonRpcResponse::error(

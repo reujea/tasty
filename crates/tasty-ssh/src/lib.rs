@@ -19,8 +19,12 @@
 //! | [`detect_and_persist`] · [`tunnel_drop_totals`] | 본체 |
 //! | [`SSH_CONNECT_TIMEOUT`] · [`PORT_DISCOVERY_STEP_TIMEOUT`] · [`PORT_DISCOVERY_TOTAL_TIMEOUT`] | 소비자가 진행 표시·문구를 같은 값에 맞추도록 노출(`docs/dev-guide/attach-behavior.md#ssh-터널-원격-client-공통`) |
 //! | [`PortDiscoveryError`] · [`PortDiscoveryFailureKind`] | 실패 원인으로 분기하려는 소비자 |
+//! | [`PORT_COMMAND_EXITED_INSTANCE_CODE`] | `tasty port`(CLI)와 원격 포트 발견이 공유하는 종료 코드 |
+//! | [`RemoteListenerAbsent`] · [`connection_closed_error`] · [`is_dropped_connection`] | 터널 너머 IPC 실패를 [`SshTunnel::explain_failure`]로 분류하는 본체 · CLI · tasty-remote |
 
+mod listener;
 mod tunnel;
+pub use listener::{RemoteListenerAbsent, connection_closed_error, is_dropped_connection};
 #[cfg(test)]
 use tunnel::reserve_local_port;
 pub use tunnel::{Backoff, SshTunnel, tunnel_drop_totals};

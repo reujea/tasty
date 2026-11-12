@@ -65,6 +65,7 @@ pub fn create(
     name: Option<&str>,
     cwd: Option<&str>,
 ) -> Result<CreatedRemoteWorkspace> {
-    let (_tunnel, port) = resolve_endpoint(target, remote_tasty, port_mode, port_file)?;
+    let (tunnel, port) = resolve_endpoint(target, remote_tasty, port_mode, port_file)?;
     create_via_port(port, name, cwd)
+        .map_err(|e| crate::browse::explain_tunnel_failure(tunnel.as_ref(), e))
 }
