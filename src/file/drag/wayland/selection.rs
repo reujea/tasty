@@ -76,9 +76,30 @@ struct Reading {
     deadline: Instant,
 }
 
+/// What our source serves: its text, and a PNG when a capture published one with it.
+struct Own {
+    source: u32,
+    text: Arc<str>,
+    png: Option<Arc<[u8]>>,
+}
+
+#[derive(Clone)]
+enum Served {
+    Text(Arc<str>),
+    Png(Arc<[u8]>),
+}
+impl Served {
+    fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Text(text) => text.as_bytes(),
+            Self::Png(png) => png,
+        }
+    }
+}
+
 struct Sending {
     out: Box<dyn Write>,
-    text: Arc<str>,
+    data: Served,
     offset: usize,
     deadline: Instant,
 }
@@ -87,8 +108,8 @@ struct Sending {
 pub(super) struct Selection {
     /// The latest foreign selection offer and its mime list.
     offer: Option<(u32, Vec<String>)>,
-    /// Our current source and the text it serves.
-    own: Option<(u32, Arc<str>)>,
+    /// Our current source and what it serves.
+    own: Option<Own>,
     reading: Option<Reading>,
     sending: Vec<Sending>,
     commands: Vec<Command>,
@@ -134,13 +155,26 @@ impl Selection {
 
     /// Our new source now holds the selection. Returns the replaced source for the owner to
     /// destroy; transfers it already started keep their text.
+    #[cfg(test)]
     pub(super) fn own(&mut self, source: u32, text: Arc<str>) -> Option<u32> {
-        self.own.replace((source, text)).map(|(old, _)| old)
+        self.own_with_png(source, text, None)
+    }
+
+    /// Like `own`, also serving `png` as `image/png`.
+    pub(super) fn own_with_png(
+        &mut self,
+        source: u32,
+        text: Arc<str>,
+        png: Option<Arc<[u8]>>,
+    ) -> Option<u32> {
+        self.own
+            .replace(Own { source, text, png })
+            .map(|old| old.source)
     }
 
     /// Our source lost the selection. True when it was the current one.
     pub(super) fn cancelled(&mut self, source: u32) -> bool {
-        if self.own.as_ref().is_some_and(|(own, _)| *own == source) {
+        if self.own.as_ref().is_some_and(|own| own.source == source) {
             self.own = None;
             return true;
         }
@@ -150,15 +184,22 @@ impl Selection {
     /// A receiver asked our source for `mime`. Unknown mimes, stale sources and excess requests
     /// are answered by closing `out` unwritten.
     pub(super) fn send(&mut self, source: u32, mime: &str, out: Box<dyn Write>, now: Instant) {
-        let Some((_, text)) = self.own.as_ref().filter(|(own, _)| *own == source) else {
+        let Some(own) = self.own.as_ref().filter(|own| own.source == source) else {
             return;
         };
-        if !TEXT_MIMES.contains(&mime) || self.sending.len() >= MAX_SENDS {
+        let data = if TEXT_MIMES.contains(&mime) {
+            Served::Text(own.text.clone())
+        } else if let Some(png) = own.png.as_ref().filter(|_| mime == PNG_MIME) {
+            Served::Png(png.clone())
+        } else {
+            return;
+        };
+        if self.sending.len() >= MAX_SENDS {
             return;
         }
         self.sending.push(Sending {
             out,
-            text: text.clone(),
+            data,
             offset: 0,
             deadline: now + WRITE_LIMIT,
         });
@@ -168,8 +209,8 @@ impl Selection {
     /// gets no result (see `waiting`).
     pub(super) fn request(&mut self, target: Target, want: Want, now: Instant) -> Paste {
         self.reading = None;
-        if let Some((_, text)) = self.own.as_ref() {
-            return Paste::Ready(paste_text(text.as_bytes()));
+        if let Some(own) = self.own.as_ref() {
+            return Paste::Ready(paste_text(own.text.as_bytes()));
         }
         let Some((offer, mime)) = self
             .offer
@@ -238,7 +279,7 @@ impl Selection {
                 return false;
             }
             loop {
-                let rest = &send.text.as_bytes()[send.offset..];
+                let rest = &send.data.bytes()[send.offset..];
                 if rest.is_empty() {
                     return false;
                 }

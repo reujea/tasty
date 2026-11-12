@@ -45,7 +45,8 @@ GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 
 vi `"*` register(primary selection)는 외부 앱과 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다.
 `DISPLAY`가 없으면(XWayland 없음) `toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해
 내려갔으면 `toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)).
-OSC 52·IPC `clipboard.set_text`·캡처 게시는 네이티브 Wayland에서 `toast.clipboard_unavailable`이다. plugin 자체 클립보드는
+OSC 52 쓰기·IPC `clipboard.set_text`·캡처 게시도 같은 장치로 외부 앱에 올리고, OSC 52 읽기는 네이티브 Wayland에서
+응답하지 않는다. plugin 자체 클립보드는
 별도 경로다. 원격 출처·내부 파일 목록은 [Explorer 파일 작업](../../surfaces/explorer/file-operations.md#os-파일-클립보드)을 따른다.
 
 ### 로컬 이미지 붙여넣기 저장

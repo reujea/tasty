@@ -210,6 +210,14 @@ impl Context {
         Ok(Session(self.owner.clone()))
     }
 }
+/// An owner already living on this thread, for callers without a window (the Core clipboard
+/// port running on the event loop). `None` on any other thread, and before a window made one.
+fn thread_owner() -> Option<Rc<RefCell<Owner>>> {
+    OWNERS.with_borrow_mut(|owners| {
+        owners.retain(|(_, owner)| owner.strong_count() > 0);
+        owners.iter().find_map(|(_, owner)| owner.upgrade())
+    })
+}
 /// A connection's owner and one window's surface protocol id.
 type SharedOwner = (Rc<RefCell<Owner>>, u32);
 /// The owner of `window`'s libwayland connection, created on first use, and the window's surface

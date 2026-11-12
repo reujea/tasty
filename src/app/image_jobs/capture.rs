@@ -1,6 +1,8 @@
 //! attach client 가 올린 스크린샷을 서버에 저장하고 서버 클립보드에 경로·이미지를 올린다.
 //! 접수 검사는 이벤트 루프에서, 저장·재읽기·PNG 디코딩은 이미지 worker 에서 한다. 클립보드
 //! 게시는 macOS·Linux 는 worker 에서, Windows 는 이벤트 루프에서 한다([`PUBLISH_ON_EVENT_LOOP`]).
+//! 네이티브 Wayland 시작이면 Linux 도 이벤트 루프에서 게시한다. Wayland 선택 소유자가 이벤트 루프
+//! 스레드에만 있기 때문이다.
 //! 회신은 업로드를 시작한 연결이 그대로 붙어 있을 때만 보낸다.
 
 use super::{ImageJobDone, ImageJobRejected};
@@ -67,6 +69,9 @@ impl crate::app::App {
         };
         let clipboard = self.services.clipboard_arc();
         let dir = crate::remote::server::capture_dir();
+        // The worker cannot reach the native Wayland selection; it waits for nothing here.
+        let publish_in_worker = !PUBLISH_ON_EVENT_LOOP
+            && !crate::adapters::production::arboard_clip::publishes_on_this_thread();
         // 업로드 바이트는 디스크 spool 에 있으므로 메모리 상한에 세지 않는다.
         let submitted = self.image_jobs.submit(0, move || {
             let result = run_capture_job(
@@ -74,7 +79,7 @@ impl crate::app::App {
                 dir,
                 &file_name,
                 bytes,
-                !PUBLISH_ON_EVENT_LOOP,
+                publish_in_worker,
             );
             ImageJobDone::Capture(StoredCapture {
                 client_id,

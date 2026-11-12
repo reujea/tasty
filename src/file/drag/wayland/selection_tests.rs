@@ -432,3 +432,30 @@ fn a_failed_read_reports_to_its_target_but_a_replaced_one_does_not() {
         [(A.tag, Received::Text(String::new()))]
     );
 }
+
+#[test]
+fn a_published_capture_serves_its_png_and_still_pastes_its_text() {
+    let now = Instant::now();
+    let mut s = Selection::default();
+    s.own_with_png(40, Arc::from("/tmp/shot.png"), Some(Arc::from(&b"PNG"[..])));
+    let png = Sink::default();
+    *png.room.borrow_mut() = usize::MAX;
+    s.send(40, PNG_MIME, Box::new(png.clone()), now);
+    let text = Sink::default();
+    *text.room.borrow_mut() = usize::MAX;
+    s.send(40, "text/plain", Box::new(text.clone()), now);
+    s.pump(now);
+    assert_eq!(*png.taken.borrow(), b"PNG");
+    assert_eq!(*text.taken.borrow(), b"/tmp/shot.png");
+    assert_eq!(
+        s.request(A, Want::TextOrPng, now),
+        Paste::Ready("/tmp/shot.png".to_string())
+    );
+    // Plain text copies offer no image.
+    s.own(41, Arc::from("text"));
+    let none = Sink::default();
+    *none.room.borrow_mut() = usize::MAX;
+    s.send(41, PNG_MIME, Box::new(none.clone()), now);
+    s.pump(now);
+    assert!(none.taken.borrow().is_empty());
+}

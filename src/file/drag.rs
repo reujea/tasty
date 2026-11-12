@@ -117,6 +117,15 @@ impl TextSelection {
     pub(crate) fn busy(&self) -> bool {
         self.0.busy()
     }
+    /// The selection a window already set up on this thread, for the Core clipboard port. `None`
+    /// off the event loop thread and outside a native Wayland start.
+    pub(crate) fn on_this_thread() -> Option<Self> {
+        wayland::Clipboard::on_this_thread().map(Self)
+    }
+    /// Makes `text` the selection and also offers `png` as `image/png`.
+    pub(crate) fn copy_with_png(&mut self, text: String, png: Vec<u8>) -> Result<(), String> {
+        self.0.copy_with_png(text, Some(png))
+    }
     /// Like `copy`, for a caller that reports the failure itself (the terminal's copy toast).
     pub(crate) fn copy_checked(&mut self, text: String) -> Result<(), String> {
         self.0.copy(text)

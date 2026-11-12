@@ -1,7 +1,7 @@
 //! The text clipboard on the shared owner's standing data device. It exists only on a native
 //! Wayland start, where egui-winit (built without smithay-clipboard) has no system clipboard.
-use super::selection::{Command, Paste, Received, TEXT_MIMES, Target, Want};
-use super::{Owner, State, nonblocking, receive_as, shared_owner};
+use super::selection::{Command, PNG_MIME, Paste, Received, TEXT_MIMES, Target, Want};
+use super::{Owner, State, nonblocking, receive_as, shared_owner, thread_owner};
 use std::{cell::RefCell, rc::Rc, sync::Arc, time::Instant};
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
@@ -33,23 +33,44 @@ impl Clipboard {
         let Some((owner, _)) = shared_owner(window, display_owner, inbound)? else {
             return Ok(None);
         };
+        Ok(Self::ready(owner))
+    }
+
+    /// A handle on the owner a window already made on this thread. `None` on other threads and
+    /// unless the owner keeps a standing data device (a native Wayland start).
+    pub(in crate::file::drag) fn on_this_thread() -> Option<Self> {
+        thread_owner()
+            .filter(|owner| owner.borrow().state.inbound)
+            .and_then(Self::ready)
+    }
+
+    fn ready(owner: Rc<RefCell<Owner>>) -> Option<Self> {
         let ready = {
             let owner = owner.borrow();
             owner.state.manager.is_some() && owner.state.seats.iter().any(|s| s.device.is_some())
         };
         if !ready {
-            return Ok(None);
+            return None;
         }
         let client = {
             let mut owner = owner.borrow_mut();
             owner.state.next_client += 1;
             owner.state.next_client
         };
-        Ok(Some(Self { owner, client }))
+        Some(Self { owner, client })
     }
 
     /// Makes `text` the selection, using the latest keyboard or pointer serial this client got.
     pub(in crate::file::drag) fn copy(&mut self, text: String) -> Result<(), String> {
+        self.copy_with_png(text, None)
+    }
+
+    /// Like `copy`, also offering `png` as `image/png` (a screenshot's path and image together).
+    pub(in crate::file::drag) fn copy_with_png(
+        &mut self,
+        text: String,
+        png: Option<Vec<u8>>,
+    ) -> Result<(), String> {
         let mut owner = self.owner.borrow_mut();
         owner.poll()?;
         let Owner {
@@ -72,12 +93,17 @@ impl Clipboard {
         for mime in TEXT_MIMES {
             source.offer(mime.into());
         }
+        if png.is_some() {
+            source.offer(PNG_MIME.into());
+        }
         device.set_selection(Some(&source), serial);
         let id = source.id().protocol_id();
         if let Some(old) = state.own_source.replace(source) {
             old.destroy();
         }
-        state.clip.own(id, Arc::from(text));
+        state
+            .clip
+            .own_with_png(id, Arc::from(text), png.map(Arc::from));
         connection.flush().map_err(|e| e.to_string())
     }
 

@@ -39,7 +39,7 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 | 기능 | 동작 | 사용자에게 보이는 것 |
 |---|---|---|
 | 터미널 primary selection(vi `"*` register) | 외부 앱과 주고받지 못한다 | warning 토스트. 원인 1은 `toast.clipboard_wayland_unsupported`, 원인 1b는 `toast.clipboard_wayland_x_failed` |
-| 터미널 프로그램의 OSC 52 쓰기·읽기, IPC `clipboard.set_text`, 스크린샷·원격 캡처 게시 | 외부 앱과 주고받지 못한다 | info 토스트 `toast.clipboard_unavailable` |
+| 터미널 프로그램의 OSC 52 읽기(`general.allow_clipboard_read`를 켰을 때) | 응답하지 않는다 | 화면 안내 없음. `OSC 52 clipboard read failed` 경고 로그 |
 | Explorer 파일 복사·붙여넣기 | 같은 Tasty 인스턴스 안의 목록에만 남고 그 목록을 붙여넣는다 | warning 토스트 `toast.clipboard_files_wayland_{copy,paste}`, 원인 1b는 `toast.clipboard_files_wayland_x_failed_{copy,paste}` |
 | 네이티브 메뉴 | 뜨지 않는다 | 화면 안내 없음. `native context menu: not an X11 window` 경고 로그 |
 | html·markdown WebView | 만들지 못한다 | 페이지 영역에 원인과 해결책 안내(`native-wayland`, 원인 1b는 `native-wayland-x`). `Not an X11 window` 경고 로그 |
@@ -57,10 +57,11 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 - **egui 붙여넣기**: 붙여넣기 키(egui-winit과 같은 판정)가 오면 Tasty가 잡은 선택은 바로, 다른 앱의 선택은 그때 읽기 시작해 다 읽은 뒤 다음 egui 프레임 입력에 붙여넣기로 넣는다. 선택 offer는 최신 하나만 보관하고 미리 읽지 않는다. 포커스를 옮길 수 있는 입력(포인터 버튼 누름, Tab·Shift+Tab, 방향키, Escape)이 들어온 프레임과 그다음 프레임에는 넣지 않는다. egui는 Shift+Tab의 포커스 이동을 다음 프레임 시작에 적용하므로 두 프레임이 지나야 포커스가 정해진다. 그런 입력이 없는 프레임이 이어져 포커스가 정해진 뒤, 요청 때 포커스였던 입력칸이 그때도 포커스면 넣고 아니면 버린다. 포커스 이동 입력이 계속 이어지면 보관하되 도착 뒤 3초가 지나면 버린다. 앱 코드가 프레임 안에서 직접 포커스를 옮기는 경우는 이 대조가 막지 못한다. 새 붙여넣기, 선택 교체, 3초 경과, 16 MiB 초과도 읽기를 버린다.
 - **터미널 복사**: 선택·vi register(`"*` 제외)·링크·경로·서피스 ID 복사가 egui 복사와 같은 source·mime·serial로 선택을 잡는다. 창마다 egui 입력칸과 별개의 핸들이 있지만 선택은 하나다. 터미널에서 복사한 것을 입력칸에 붙여넣을 수 있고 반대도 된다. 잡지 못하면(아직 이 연결에 키보드·포인터 입력이 없어 serial이 없는 경우 등) `toast.clipboard_failed` error 토스트다.
 - **터미널 붙여넣기**: Tasty가 잡은 선택은 바로 넣는다. 다른 앱의 선택은 텍스트 mime(egui와 같은 순서)을, 텍스트가 없으면 `image/png`를 그때 읽기 시작한다. 읽는 동안 winit 스레드는 기다리지 않는다. 다 읽으면 요청 때 포커스였던 surface가 그때도 포커스이고 같은 세대일 때만 X11과 같은 경로로 넣는다(텍스트는 bracketed paste 포함, PNG는 RGBA로 풀어 이미지 붙여넣기). 아니면 결과와 오류를 모두 버린다. 3초 상한 초과, pipe 실패, 텍스트 16 MiB·PNG 64 MiB 초과, 읽는 동안 선택 교체, 풀리지 않는 PNG는 `toast.clipboard_failed`를 한 번 보이고 PTY에 아무것도 보내지 않는다. 다른 창이나 입력칸의 더 새 붙여넣기가 오면 읽던 것은 알리지 않고 버린다. 텍스트의 CRLF는 egui와 같이 LF로 바꾼다.
+- **Core 쪽 쓰기**: 터미널 프로그램의 OSC 52 쓰기, IPC `clipboard.set_text`, 로컬 스크린샷과 원격 캡처 게시는 이벤트 루프 스레드에서 같은 소유자로 선택을 잡는다. 캡처 게시는 경로 텍스트와 `image/png`를 한 source로 함께 offer한다. 이 소유자는 이벤트 루프 스레드에만 있으므로 원격 캡처의 저장 worker는 게시를 하지 않고 이벤트 루프에 넘긴다(Windows와 같은 경로). worker가 이벤트 루프를 기다리는 일은 없다. serial은 마지막 키보드·포인터 입력의 것이라, 사용자 입력과 무관한 쓰기를 컴포지터가 받아들이는지는 컴포지터마다 다르다.
 - 창이 Wayland인데 컴포지터가 `wl_data_device_manager` v3나 seat를 주지 않아 장치가 없으면 터미널 클립보드는 arboard로 떨어지고 위 표의 원인별 warning 토스트다.
 - X11·XWayland 창에는 Wayland 연결이 없어 장치·키보드·source를 만들지 않는다. egui·터미널 클립보드는 arboard다.
 - 갤러리(`tasty-gallery`)는 이 장치를 붙이지 않는다. 네이티브 Wayland에서 갤러리 입력칸은 외부 앱과 클립보드를 주고받지 않는다(앱 안 복사·붙여넣기만). smithay-clipboard는 갤러리에서도 끈다. 켜 두면 `--workspace` 빌드의 feature 통합으로 본체에도 다시 들어오기 때문이다.
-- Explorer 파일 클립보드, 터미널 primary selection, Core 쪽 클립보드(OSC 52·IPC·캡처 게시)는 이 장치를 쓰지 않는다(위 표).
+- Explorer 파일 클립보드, 터미널 primary selection, OSC 52 읽기는 이 장치를 쓰지 않는다(위 표).
 
 격리 GNOME Shell 46(`--no-x11`)에서 가상 키보드가 있는 채로 시작해 GNOME Files의 파일을 터미널로 10번 끌어 놓아 10번 모두 열렸고, Explorer 칸으로 놓으면 복사됐다. egui 입력칸과 GNOME Text Editor 사이의 텍스트 복사·붙여넣기를 양방향으로 확인했다. 원인 1b(`DISPLAY`의 X 서버 연결 실패)에서도 끌어오기와 양방향 클립보드를 한 번씩 확인했다. 물리 화면과 실제 사용자 세션은 재지 않았다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)).
 
