@@ -702,14 +702,9 @@ impl App {
 mod capture_file_tests {
     use super::*;
     use crate::app::preset_shutdown_tests::{make_gui, run_case};
-    use winit::platform::x11::EventLoopBuilderExtX11;
     #[test]
     fn app_capture_reply_is_collected_before_final_zero_and_timeout_returns() {
-        let event_loop = winit::event_loop::EventLoop::<crate::AppEvent>::with_user_event()
-            .with_x11()
-            .with_any_thread(true)
-            .build()
-            .unwrap();
+        let event_loop = crate::x11_test_loop::x11_event_loop::<crate::AppEvent>();
         for timeout in [true, false] {
             let proxy = event_loop.create_proxy();
             run_case(

@@ -1,7 +1,6 @@
 use super::*;
 use crate::app::settings_files::{SettingsFileRequest, export::PendingExport};
 use std::sync::{Arc, mpsc};
-use winit::platform::x11::EventLoopBuilderExtX11;
 
 fn state(file_drain: crate::app::writer_drain::WriterDrain) -> ShutdownState {
     ShutdownState {
@@ -59,11 +58,7 @@ fn accepted_export_is_collected_at_final_zero_and_timeout_even_after_view_loss()
     );
 }
 fn run_in_fresh_event_loop() {
-    let event_loop = winit::event_loop::EventLoop::<crate::AppEvent>::with_user_event()
-        .with_x11()
-        .with_any_thread(true)
-        .build()
-        .unwrap();
+    let event_loop = crate::x11_test_loop::x11_event_loop::<crate::AppEvent>();
     for timeout in [false, true] {
         run_case(event_loop.create_proxy(), timeout);
     }

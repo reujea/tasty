@@ -1,6 +1,5 @@
 use super::*;
 use crate::app::{plugin_file_lifecycle::shutdown_tests as cases, preset_shutdown_tests::make_gui};
-use winit::platform::x11::EventLoopBuilderExtX11;
 fn start(app: &mut App, file_drain: crate::app::writer_drain::WriterDrain) {
     app.stop_plugin_file_producers();
     app.state.shutdown = Some(ShutdownState {
@@ -84,11 +83,7 @@ fn gui_shutdown_body() {
         .with_writer(std::io::stderr)
         .finish();
     let _trace = tracing::subscriber::set_default(subscriber);
-    let event_loop = winit::event_loop::EventLoop::<crate::AppEvent>::with_user_event()
-        .with_x11()
-        .with_any_thread(true)
-        .build()
-        .unwrap();
+    let event_loop = crate::x11_test_loop::x11_event_loop::<crate::AppEvent>();
     let make = || make_gui(event_loop.create_proxy());
     let drain_engine = |app: &mut App, session| {
         app.engines

@@ -4,8 +4,8 @@ use std::sync::{Arc, mpsc};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    platform::{run_on_demand::EventLoopExtRunOnDemand, x11::EventLoopBuilderExtX11},
+    event_loop::{ActiveEventLoop, ControlFlow},
+    platform::run_on_demand::EventLoopExtRunOnDemand,
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::{Window as WinitWindow, WindowId},
 };
@@ -290,11 +290,7 @@ fn real_winit_gesture_drives_xdnd_copy() {
         ready: tx,
         deadline: Instant::now() + Duration::from_secs(15),
     };
-    let mut event_loop = EventLoop::builder()
-        .with_x11()
-        .with_any_thread(true)
-        .build()
-        .unwrap();
+    let mut event_loop = crate::x11_test_loop::x11_event_loop::<()>();
     event_loop.run_app_on_demand(&mut fixture).unwrap();
     let received = receiver.join().unwrap();
     assert!(

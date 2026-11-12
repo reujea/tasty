@@ -7,17 +7,12 @@ use crate::model::RemoteBinding;
 use std::collections::HashMap;
 use tasty_remote::client_session::SessionState;
 use winit::event_loop::EventLoop;
-use winit::platform::x11::EventLoopBuilderExtX11;
 use winit::window::WindowId;
 
 pub(crate) const ROW: u32 = 9_000;
 
 pub(crate) fn event_loop() -> EventLoop<crate::AppEvent> {
-    EventLoop::<crate::AppEvent>::with_user_event()
-        .with_x11()
-        .with_any_thread(true)
-        .build()
-        .unwrap()
+    crate::x11_test_loop::x11_event_loop()
 }
 
 pub(crate) fn binding() -> RemoteBinding {

@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use tasty_remote::client_session::SessionState;
 use tasty_remote::refusal::RowNoticeKind;
 use winit::event_loop::EventLoop;
-use winit::platform::x11::EventLoopBuilderExtX11;
 
 const ROW: u32 = 7;
 const CHAIN: &str = "workspace attach rejected: mirror_workspace";
@@ -18,11 +17,7 @@ fn app_on(event_loop: &EventLoop<crate::AppEvent>) -> App {
 }
 
 fn event_loop() -> EventLoop<crate::AppEvent> {
-    EventLoop::<crate::AppEvent>::with_user_event()
-        .with_x11()
-        .with_any_thread(true)
-        .build()
-        .unwrap()
+    crate::x11_test_loop::x11_event_loop()
 }
 
 fn binding() -> RemoteBinding {

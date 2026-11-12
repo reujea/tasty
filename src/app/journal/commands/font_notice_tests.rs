@@ -11,7 +11,6 @@ use crate::app::settings_change::test_support::{ProbeStorage, core_with};
 use crate::intent::{IntentOrigin, UserSource};
 use std::sync::Mutex;
 use winit::event_loop::EventLoop;
-use winit::platform::x11::EventLoopBuilderExtX11;
 
 const NO_WINDOW: &str = "settings result without a main window";
 
@@ -64,11 +63,7 @@ fn save() -> IntentOrigin {
 }
 
 fn event_loop() -> EventLoop<crate::AppEvent> {
-    EventLoop::<crate::AppEvent>::with_user_event()
-        .with_x11()
-        .with_any_thread(true)
-        .build()
-        .unwrap()
+    crate::x11_test_loop::x11_event_loop()
 }
 
 fn app_on(event_loop: &EventLoop<crate::AppEvent>, fail_saves: bool) -> App {
