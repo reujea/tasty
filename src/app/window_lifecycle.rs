@@ -68,6 +68,8 @@ pub(super) struct FirstBootEngine {
     pub(super) runner_registry: Arc<tasty_task_runtime::RunnerRegistry>,
     pub(super) layout_slot: crate::core::layout_persistence::LayoutSlotId,
     pub(super) registries: crate::runtime::registries::RuntimeRegistries,
+    /// `begin_boot`가 저장에 넣은 최종 snapshot. 저장 결과와 관계없이 engine은 이 값으로 시작한다.
+    pub(super) settings: crate::settings::Settings,
     #[cfg(debug_assertions)]
     pub(super) input_simulation_enabled: bool,
 }
@@ -111,6 +113,7 @@ fn build_core_state_first_boot(
         runner_registry,
         layout_slot,
         registries,
+        settings,
         #[cfg(debug_assertions)]
         input_simulation_enabled,
     } = boot;
@@ -127,6 +130,7 @@ fn build_core_state_first_boot(
             memory: memory_access,
             runner_registry,
         },
+        settings,
         registries,
     )?;
     engine.runtime.waker_factory = Some(factory);
@@ -224,12 +228,13 @@ impl WindowCreationTarget {
 
 impl App {
     /// 없는 engine·매니저만 초기화하며 새 engine은 기존 engine의 공용 상태를 공유한다.
+    /// 새 engine은 `settings`로 시작한다. 같은 창의 GPU 생성과 같은 값을 넘긴다.
     pub(super) fn ensure_engine_and_plugins(
         &mut self,
         gpu: &GpuState,
-        sidebar_width: tasty_type_geometry::length::LogicalPx,
+        settings: &crate::settings::Settings,
     ) -> anyhow::Result<()> {
-        let (cols, rows) = boot_grid_size(gpu, sidebar_width);
+        let (cols, rows) = boot_grid_size(gpu, settings.appearance.scaled_sidebar_width());
         let factory: crate::waker::SharedWakerFactory = Arc::new(
             crate::waker_factory_winit::WinitWakerFactory::new(self.view.proxy.clone()),
         );
@@ -268,6 +273,7 @@ impl App {
                         memory: self.services.memory_access().clone(),
                         runner_registry: Arc::clone(self.services.tasks.runner_registry()),
                     },
+                    settings.clone(),
                     self.services.registries.clone(),
                 )?;
                 engine.runtime.waker_factory = Some(factory.clone());
@@ -293,6 +299,7 @@ impl App {
                     runner_registry: Arc::clone(self.services.tasks.runner_registry()),
                     layout_slot,
                     registries: self.services.registries.clone(),
+                    settings: settings.clone(),
                     #[cfg(debug_assertions)]
                     input_simulation_enabled: self.state.input_simulation_enabled,
                 })?
@@ -577,11 +584,10 @@ impl App {
             );
         }
 
-        let settings = self
-            .services
-            .latest_settings()
-            .cloned()
-            .unwrap_or_else(crate::settings::Settings::load);
+        let settings = settings_for_new_engine(
+            self.services.latest_settings(),
+            crate::settings::Settings::load,
+        );
         let (settings, invalid_theme_name, changed) = normalize_window_settings(settings);
         if changed {
             self.services
@@ -606,7 +612,7 @@ impl App {
             );
             (state, engine)
         } else {
-            self.ensure_engine_and_plugins(&gpu, settings.appearance.scaled_sidebar_width())
+            self.ensure_engine_and_plugins(&gpu, &settings)
                 .map_err(|error| error.to_string())?;
             let engine = self
                 .engines
@@ -693,6 +699,15 @@ impl App {
         }
         body
     }
+}
+
+/// 새 창의 GPU와 engine이 함께 쓸 설정. 이번 실행에서 적용한 snapshot이 있으면 저장이 실패했거나
+/// 아직 쓰이지 않았어도 그 값을 쓰고, 제출 이력이 없을 때만 파일을 읽는다.
+fn settings_for_new_engine(
+    latest: Option<&crate::settings::Settings>,
+    load: impl FnOnce() -> crate::settings::Settings,
+) -> crate::settings::Settings {
+    latest.cloned().unwrap_or_else(load)
 }
 
 fn normalize_window_settings(
@@ -783,6 +798,9 @@ pub(crate) fn main_view_class(
         attrs
     }
 }
+
+#[cfg(test)]
+mod new_engine_settings_tests;
 
 #[cfg(test)]
 mod register_focus_tests;
