@@ -44,9 +44,65 @@ pub fn refuse_this_instance(
     Ok(())
 }
 
+/// 엔드포인트의 터널이 주는 리스너 없음 판정 핸들. 터널이 없는 엔드포인트와 시험은 `()`나
+/// 판정 핸들을 넘긴다.
+pub trait TunnelVerdict {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict>;
+}
+
+impl TunnelVerdict for tasty_ssh::SshTunnel {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        Some(tasty_ssh::SshTunnel::listener_verdict(self))
+    }
+}
+
+impl TunnelVerdict for () {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        None
+    }
+}
+
+impl TunnelVerdict for tasty_ssh::ListenerVerdict {
+    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
+        Some(self.clone())
+    }
+}
+
+/// 터널 너머 상대가 자기 자신이면 거절한다. 이 검사가 터널 뒤 첫 요청이므로, 원격 포트에 리스너가
+/// 없어 요청이 끊기면 그 판정을 오류에 붙인다.
+pub fn refuse_this_instance_over<T: TunnelVerdict>(
+    tunnel: Option<&T>,
+    port: u16,
+    attempt: Option<&AttemptToken>,
+) -> anyhow::Result<()> {
+    refuse_this_instance(tunnel.is_some(), port, attempt).map_err(|error| {
+        match tunnel.and_then(T::listener_verdict) {
+            Some(verdict) => verdict.explain_failure(error),
+            None => error,
+        }
+    })
+}
+
 fn reports_this_instance(info: &serde_json::Value) -> bool {
     info.get("instance_id").and_then(serde_json::Value::as_str)
         == Some(tasty_ipc::instance::instance_id())
+}
+
+/// 요청 한 줄을 받고 응답 없이 닫는 가짜 서버. 원격 포트에 리스너가 없을 때 ssh가 로컬 연결을
+/// 닫는 모양이다.
+#[cfg(test)]
+pub(crate) fn close_after_request() -> (u16, std::thread::JoinHandle<()>) {
+    use std::io::BufRead;
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    let handle = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().expect("accept");
+        let mut line = String::new();
+        std::io::BufReader::new(&stream)
+            .read_line(&mut line)
+            .expect("read");
+    });
+    (port, handle)
 }
 
 /// 요청 한 줄을 읽고 주어진 결과 한 줄을 돌려주는 가짜 서버. 받은 요청 줄을 돌려준다.

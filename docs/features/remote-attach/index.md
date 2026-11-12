@@ -450,8 +450,8 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 인�
 
 - 판정에 쓰는 `open failed: connect failed` 는 ssh 클라이언트가 거절 사유 코드를 바꾼 고정 문자열이라 원격 OS·로케일과 무관하다. 그 뒤의 사유 문구는 원격 OS 가 만들어 보지 않는다. 판정은 실패한 뒤에만 하며 줄을 최대 0.5초 기다린다. 성공 경로의 지연은 없다.
 - 리스너는 있지만 응답이 IPC 가 아니면(다른 서비스) 이 줄이 없어 기존 IPC 실패 안내가 나온다.
-- 적용 경로: `tasty remote check`·`remote workspaces`·`remote new-workspace`, GUI 를 거치지 않는 `tasty remote attach`·`tasty tool attach`, IPC `remote.attach` 의 새 workspace 생성(`--into-gui --new-workspace`)과 기존 workspace 연결(`--into-gui --workspace`), 그리고 저장된 원격 행의 연결·재연결.
-- GUI 의 SSH 엔드포인트 준비는 터널 뒤 첫 요청이 워커의 자기 인스턴스 검사(`system.info`)라 그 실패를 먼저 분류한다. IPC `remote.attach` 의 새 workspace·기존 workspace 두 경로와 저장 행 경로가 같은 판정 함수를 쓴다. `--into-gui --workspace` 가 같은 프로필·workspace 의 저장 행을 찾으면 그 행의 연결로 합류하므로 저장 행 경로의 분류를 받는다. 저장 행 경로는 행이 보일 때의 자동 연결, 연결 메뉴·버튼, 원격 브라우저에서 연 저장 행, 재연결 예약이 함께 지난다.
+- 적용 경로: `tasty remote check`·`remote workspaces`·`remote new-workspace`, GUI 를 거치지 않는 `tasty remote attach`·`tasty tool attach`, IPC `remote.attach` 의 새 workspace 생성(`--into-gui --new-workspace`)과 기존 workspace 연결(`--into-gui --workspace`), 저장된 원격 행의 연결·재연결, GUI 원격 브라우저 팝업의 목록 단계.
+- GUI 의 SSH 엔드포인트 준비는 터널 뒤 첫 요청이 워커의 자기 인스턴스 검사(`system.info`)라 그 실패를 먼저 분류한다. IPC `remote.attach` 의 새 workspace·기존 workspace 두 경로, 저장 행 경로, 원격 브라우저 팝업의 목록 단계가 같은 판정 함수(`tasty_remote::self_instance::refuse_this_instance_over`)를 쓴다. 팝업은 목록을 받기 전에 이 검사를 하고, 리스너 없음이면 안내와 끊긴 원인을 함께 보인다. `--into-gui --workspace` 가 같은 프로필·workspace 의 저장 행을 찾으면 그 행의 연결로 합류하므로 저장 행 경로의 분류를 받는다. 저장 행 경로는 행이 보일 때의 자동 연결, 연결 메뉴·버튼, 원격 브라우저에서 연 저장 행, 재연결 예약이 함께 지난다.
 - 새 workspace 는 이어지는 `workspace.create` 실패도 분류한다. 엔드포인트가 준비된 뒤의 첫 attach 연결은 연결 작업자(`queue_connection`)가 맡는데, 터널을 연결 안으로 넘기므로 넘기기 전에 판정 핸들(`tasty_ssh::ListenerVerdict`)을 받아 두고 연결 실패를 문자열로 바꾸기 전에 분류한다. 이 작업자는 IPC `remote.attach` 두 경로, 저장 행 연결·재연결, 원격 브라우저 팝업의 연결이 모두 지나며, 터널이 없는 연결(`--target-port`, loopback)은 분류하지 않는다.
 - 터널이 준비 전에 끝나면(인증 거절 등) ssh 가 마지막에 쓴 stderr 를 넘기는 스레드를 최대 0.5초 기다린 뒤 오류를 돌려줘, 원인 줄이 오류보다 먼저 나온다. 파이프를 물려받은 다른 프로세스(ProxyCommand 등)가 남아 그동안 닫히지 않으면 기다리지 않고 돌려준다.
 
@@ -656,6 +656,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given 같은 상태 When auto 모드 포트 발견 Then 파일 모드로 넘어가지 않고 원격 인스턴스 종료 확정으로 실패한다(`crates/tasty-ssh/src/lib.rs` 의 ssh 대역 시험).
 - Given 원격 포트 파일이 가리키는 포트에 리스너가 없다 When `tasty remote check`·`remote workspaces`·`remote new-workspace`·`tool attach` Then 오류가 원격 tasty 미실행 또는 오래된 포트 파일을 원인으로 적고 "터널을 연결했지만" 문장을 쓰지 않는다. 원격 포트에 다른 서비스가 리스닝 중이면 기존 IPC 실패 안내가 나온다(실측: 8945hs 의 빈 포트와 sshd 포트).
 - Given 같은 원격 When GUI 에서 `tasty remote attach --into-gui --workspace <id>`·`--into-gui --new-workspace` 또는 저장된 원격 행을 연결한다 Then 실패 결과가 같은 리스너 없음 안내다(`src/app/ipc/app_methods/remote.rs`·`src/app/auto_attach.rs` 시험, 실측: 저장 행이 없는 두 IPC 경로). 채널 연결 실패 줄 없이 끊긴 경우는 원래 오류를 남긴다.
+- Given 같은 원격 When 원격 연결 팝업이 그 프로필의 workspace 목록을 받는다 Then 팝업 문구에 리스너 없음 안내와 끊긴 원인이 함께 나온다. 채널 연결 실패 줄 없이 끊긴 경우는 원래 문구다(`crates/tasty-remote/src/browser.rs` 시험).
 - Given 부모 Tasty의 `TASTY_SESSION_TOKEN`을 상속한 GUI·CLI When 다른 인스턴스로 원격 브라우징·생성·생존 확인 요청을 보낸다 Then 요청에 세션 토큰이 없고, 원격은 `session_token unknown` 없이 응답한다.
 - Given workspace attach 대상에 egui-mesh surface(번들 image/mesh_demo 또는 커스텀 plugin 의 egui-mesh kind) 가 있음 When client 가 GUI mirror 로 attach Then 그 surface 의 실제 렌더 콘텐츠가 mirror pane 에 표시된다(placeholder 아님). markdown은 아래의 원문 전달 채널을 사용한다.
   - image — 미검증.

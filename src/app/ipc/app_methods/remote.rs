@@ -3,9 +3,9 @@
 use crate::AppEvent;
 use crate::adapters::ipc::handler::params;
 use crate::app::App;
-use crate::app::auto_attach::{TunnelVerdict, refuse_this_instance_over};
 use crate::ipc as host_ipc;
 use crate::ipc::server::{IpcCommand, send_response};
+use tasty_remote::self_instance::{TunnelVerdict, refuse_this_instance_over};
 
 impl App {
     pub(super) fn ipc_dispatch_remote_workspaces(&mut self, cmd: &IpcCommand) {
@@ -362,7 +362,7 @@ fn resolve_existing_endpoint<T: TunnelVerdict>(
     resolve: impl FnOnce() -> anyhow::Result<(Option<T>, u16)>,
 ) -> anyhow::Result<(Option<T>, u16)> {
     let (tunnel, port) = resolve()?;
-    refuse_this_instance_over(tunnel.as_ref(), port, attempt)?;
+    refuse_this_instance_over(tunnel.as_ref(), port, Some(attempt))?;
     Ok((tunnel, port))
 }
 
@@ -395,7 +395,7 @@ fn prepare_create_endpoint<T: TunnelVerdict>(
         ));
     }
     // 호스트명·LAN IP로 자기 머신을 가리킨 SSH 대상은 원격(=자기)에 workspace를 만들기 전에 거절한다.
-    if let Err(e) = refuse_this_instance_over(tunnel.as_ref(), port, attempt) {
+    if let Err(e) = refuse_this_instance_over(tunnel.as_ref(), port, Some(attempt)) {
         let response = if e
             .downcast_ref::<tasty_remote::self_instance::ThisInstance>()
             .is_some()

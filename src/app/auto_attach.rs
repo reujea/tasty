@@ -24,6 +24,7 @@ use crate::view::ui::View as _;
 use tasty_remote::client_session::SessionState;
 use tasty_remote::outbound::{AutoAttachOutcome, ReconnectSlot};
 use tasty_remote::refusal::RowNoticeKind;
+use tasty_remote::self_instance::{TunnelVerdict, refuse_this_instance_over};
 
 pub(crate) use notice::connect_failure_kind;
 
@@ -698,45 +699,6 @@ impl App {
     }
 }
 
-/// 엔드포인트의 터널이 주는 리스너 없음 판정 핸들. 시험은 터널 대신 판정 핸들이나 `()`를 넘긴다.
-pub(crate) trait TunnelVerdict {
-    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict>;
-}
-
-impl TunnelVerdict for SshTunnel {
-    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
-        Some(SshTunnel::listener_verdict(self))
-    }
-}
-
-#[cfg(test)]
-impl TunnelVerdict for () {
-    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
-        None
-    }
-}
-
-#[cfg(test)]
-impl TunnelVerdict for tasty_ssh::ListenerVerdict {
-    fn listener_verdict(&self) -> Option<tasty_ssh::ListenerVerdict> {
-        Some(self.clone())
-    }
-}
-
-/// 터널 너머 상대가 자기 자신이면 거절한다. 이 검사가 터널 뒤 첫 요청이므로, 원격 포트에 리스너가
-/// 없어 요청이 끊기면 그 판정을 오류에 붙인다.
-pub(crate) fn refuse_this_instance_over<T: TunnelVerdict>(
-    tunnel: Option<&T>,
-    port: u16,
-    attempt: &tasty_remote::outbound::AttemptToken,
-) -> anyhow::Result<()> {
-    tasty_remote::self_instance::refuse_this_instance(tunnel.is_some(), port, Some(attempt))
-        .map_err(|error| match tunnel.and_then(T::listener_verdict) {
-            Some(verdict) => verdict.explain_failure(error),
-            None => error,
-        })
-}
-
 /// 워커 스레드에서 프로필과 SSH 터널 또는 loopback 포트를 준비한다.
 fn resolve_endpoint_bound(
     profile: &str,
@@ -760,7 +722,7 @@ fn resolve_endpoint_bound_with<T: TunnelVerdict>(
     if !attempt.is_active() {
         anyhow::bail!("remote endpoint attempt cancelled");
     }
-    refuse_this_instance_over(result.0.as_ref(), result.1, attempt)?;
+    refuse_this_instance_over(result.0.as_ref(), result.1, Some(attempt))?;
     Ok(result)
 }
 

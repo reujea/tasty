@@ -53,7 +53,7 @@ impl Default for Browsers {
     }
 }
 /// 엔드포인트를 해석하고 원격 workspace 목록을 받는다. 해석은 시험에서 바꿔 끼울 수 있게 받는다.
-fn list_endpoint<T>(
+fn list_endpoint<T: crate::self_instance::TunnelVerdict>(
     resolve: impl FnOnce() -> anyhow::Result<(Option<T>, u16)>,
     token: &AttemptToken,
 ) -> anyhow::Result<(Option<T>, u16, Vec<RemoteWorkspace>)> {
@@ -62,18 +62,24 @@ fn list_endpoint<T>(
         anyhow::bail!("remote browser cancelled");
     }
     // 연결과 원격 workspace 생성이 모두 이 엔드포인트를 쓰므로 목록을 받기 전에 판정한다.
-    crate::self_instance::refuse_this_instance(tunnel.is_some(), port, Some(token))?;
+    crate::self_instance::refuse_this_instance_over(tunnel.as_ref(), port, Some(token))?;
     let rows = crate::browse::browse_via_port_bound(port, Some(token))?;
     Ok((tunnel, port, rows))
 }
 
-/// 팝업에 보일 실패 문구. 자기 자신 거절은 번역한 안내로 바꾼다.
+/// 팝업에 보일 실패 문구. 자기 자신 거절은 번역한 안내로 바꾼다. 리스너 없음 판정은 맥락으로
+/// 붙으므로 원인까지 함께 보인다.
 fn browser_error_text(error: anyhow::Error) -> String {
     if error
         .downcast_ref::<crate::self_instance::ThisInstance>()
         .is_some()
     {
         tasty_i18n::t("remote_attach.self_instance").to_owned()
+    } else if error
+        .downcast_ref::<tasty_ssh::RemoteListenerAbsent>()
+        .is_some()
+    {
+        format!("{error:#}")
     } else {
         error.to_string()
     }
@@ -343,6 +349,39 @@ mod tests {
             browser_error_text(error),
             tasty_i18n::t("remote_attach.self_instance")
         );
+    }
+
+    /// 목록 전 자기 판정이 원격 포트의 리스너 없음으로 끊기면 팝업 문구에 그 안내가 나온다.
+    #[test]
+    fn the_popup_says_nothing_listens_on_the_remote_port() {
+        tasty_i18n::init("en");
+        let (port, server) = crate::self_instance::close_after_request();
+        let (_remote, token) = token();
+        let verdict = tasty_ssh::ListenerVerdict::with_observation(4321, true);
+        let error = list_endpoint(|| Ok((Some(verdict), port)), &token).expect_err("dropped");
+        server.join().expect("server");
+        let expected = tasty_ssh::RemoteListenerAbsent { remote_port: 4321 }.to_string();
+        let cause = error.root_cause().to_string();
+        let text = browser_error_text(error);
+        // 안내와 끊긴 원인이 함께 보여야 한다.
+        assert!(text.contains(&expected), "{text}");
+        assert!(text.contains(&cause), "{text}");
+    }
+
+    /// 채널 연결 실패를 보지 못한 끊김은 원래 문구 그대로 보인다.
+    #[test]
+    fn the_popup_keeps_the_original_text_when_a_listener_answered() {
+        tasty_i18n::init("en");
+        let (port, server) = crate::self_instance::close_after_request();
+        let (_remote, token) = token();
+        let verdict = tasty_ssh::ListenerVerdict::with_observation(4321, false);
+        let error = list_endpoint(|| Ok((Some(verdict), port)), &token).expect_err("dropped");
+        server.join().expect("server");
+        let original = error.to_string();
+        let text = browser_error_text(error);
+        assert_eq!(text, original);
+        let absent = tasty_ssh::RemoteListenerAbsent { remote_port: 4321 }.to_string();
+        assert!(!text.contains(&absent), "{text}");
     }
 
     #[test]
