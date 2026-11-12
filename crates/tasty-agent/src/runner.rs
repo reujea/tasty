@@ -177,6 +177,12 @@ pub trait TaskExecutor {
     }
     /// 매 tick 처음에 부른다. 종료를 기다리는 자원의 정리 등에 쓴다.
     fn maintain(&mut self) {}
+    /// 러너 정지가 요청됐는가. tick 은 Ready 작업을 하나 보내기 전마다 확인하고, 참이면 남은 작업을
+    /// 보내지 않는다. dispatch 하나가 호스트 응답을 기다릴 수 있어 tick 끝까지 미루면 정지가 작업 수에
+    /// 비례해 늦어진다. 기본 구현은 정지를 모른다.
+    fn stop_requested(&self) -> bool {
+        false
+    }
 }
 
 /// 완료 보고 기록의 결과.
@@ -454,6 +460,9 @@ impl<E: TaskExecutor> RunnerLoop<E> {
             if self.running.contains_key(&task.id) || self.spawned.contains_key(&task.id) {
                 continue;
             }
+            if self.executor.stop_requested() {
+                break;
+            }
             let handle = match self.executor.dispatch(task) {
                 DispatchOutcome::Started(h) => h,
                 DispatchOutcome::Deferred => continue,
@@ -548,6 +557,9 @@ mod postprocess_tests;
 
 #[cfg(test)]
 mod spawned_tests;
+
+#[cfg(test)]
+mod stop_tests;
 
 #[cfg(test)]
 mod tests {

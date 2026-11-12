@@ -68,7 +68,7 @@ pub(crate) use store_keys::{
 use tasty_ipc::host_call::{HostIpcInjector, InjectError, LateAnswer, LateDispatch};
 
 /// 최초 IPC 요청과 후속 poll 요청에 공통으로 사용하는 응답 대기 시간.
-const HOST_DISPATCH_TIMEOUT: Duration = Duration::from_secs(5);
+pub(crate) const HOST_DISPATCH_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// injector 미준비 오류의 문구. agent 회차의 오류도 같은 문구를 쓴다.
 pub(crate) const INJECTOR_UNINIT_MSG: &str = "host IPC injector not initialized";
@@ -231,6 +231,8 @@ pub(crate) struct HostExecutor {
     late: late_answer::LateAnswers,
     /// task별 마지막 조회가 끝난 뒤의 다음 조회 시각. 결과나 응답은 공유하지 않는다.
     next_poll_ms: HashMap<TaskId, u64>,
+    /// 이 executor를 돌리는 러너의 정지 요청. tick이 dispatch 사이마다 읽는다.
+    stop_signal: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
 
 impl HostExecutor {
@@ -250,7 +252,14 @@ impl HostExecutor {
             holding_clock: HoldingClock::system(),
             late: Default::default(),
             next_poll_ms: HashMap::new(),
+            stop_signal: None,
         }
+    }
+
+    /// 러너의 정지 요청을 `signal` 로 받는다. 정지가 요청되면 같은 tick에서 남은 Ready 작업을 보내지 않는다.
+    pub(crate) fn with_stop_signal(mut self, signal: Arc<std::sync::atomic::AtomicBool>) -> Self {
+        self.stop_signal = Some(signal);
+        self
     }
 
     /// TTL 점유와 task 조회 간격·기한의 시각을 `clock` 으로 정한다.
@@ -462,6 +471,15 @@ impl TaskExecutor for HostExecutor {
             self.release_resources(&task_id);
         }
         self.renew_holdings();
+    }
+
+    fn stop_requested(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        self.ctx.scope_stopping.load(Ordering::Acquire)
+            || self
+                .stop_signal
+                .as_ref()
+                .is_some_and(|signal| signal.load(Ordering::Acquire))
     }
 }
 

@@ -70,7 +70,8 @@ fn store_list_failure_log(consecutive: u32) -> StoreListFailureLog {
 struct RunnerControl {
     owner: std::sync::Weak<crate::task_waker::TaskWakerHub>,
     stop_tx: mpsc::Sender<()>,
-    stopping: AtomicBool,
+    /// 정지 요청 표시. 러너 스레드의 executor도 같은 값을 읽어 tick 안에서 남은 dispatch를 멈춘다.
+    stopping: Arc<AtomicBool>,
     crashed: Arc<AtomicBool>,
     list_failures: Arc<AtomicU32>,
     join: Mutex<Option<thread::JoinHandle<()>>>,
@@ -260,6 +261,8 @@ impl RunnerRegistry {
         }
         threads.remove(&workspace_id);
         let (stop_tx, stop_rx) = mpsc::channel();
+        let stopping = Arc::new(AtomicBool::new(false));
+        let thread_stopping = stopping.clone();
         let crashed = Arc::new(AtomicBool::new(false));
         let thread_crashed = crashed.clone();
         let list_failures = Arc::new(AtomicU32::new(0));
@@ -269,7 +272,13 @@ impl RunnerRegistry {
             .name(format!("agent-runner-ws{workspace_id}"))
             .spawn(move || {
                 if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    run_loop(ctx, workspace_id, stop_rx, &thread_failures)
+                    run_loop(
+                        ctx,
+                        workspace_id,
+                        stop_rx,
+                        thread_stopping,
+                        &thread_failures,
+                    )
                 }))
                 .is_err()
                 {
@@ -292,7 +301,7 @@ impl RunnerRegistry {
             Arc::new(RunnerControl {
                 owner,
                 stop_tx,
-                stopping: AtomicBool::new(false),
+                stopping,
                 crashed,
                 list_failures,
                 join: Mutex::new(Some(join)),
@@ -1034,6 +1043,7 @@ fn run_loop(
     ctx: RunnerContext,
     workspace_id: u32,
     stop_rx: mpsc::Receiver<()>,
+    stopping: Arc<AtomicBool>,
     list_failures: &AtomicU32,
 ) {
     if ctx.scope_stopping.load(Ordering::Acquire)
@@ -1042,7 +1052,7 @@ fn run_loop(
         return;
     }
     let reloaded = purge_and_reload_on_restart(&ctx, workspace_id);
-    let executor = HostExecutor::new(ctx.clone());
+    let executor = HostExecutor::new(ctx.clone()).with_stop_signal(stopping);
     let mut runner = RunnerLoop::new(executor);
     let mut reports = CompletionReports::default();
     for (task_id, handle) in reloaded {
@@ -2097,7 +2107,7 @@ mod lifecycle_tests {
             Arc::new(RunnerControl {
                 owner: Arc::downgrade(owner),
                 stop_tx,
-                stopping: AtomicBool::new(false),
+                stopping: Arc::new(AtomicBool::new(false)),
                 crashed: Arc::new(AtomicBool::new(false)),
                 list_failures: Arc::new(AtomicU32::new(0)),
                 join: Mutex::new(Some(join)),
@@ -2179,3 +2189,7 @@ mod post_spawn_tests;
 #[cfg(test)]
 #[path = "runner_thread/unanswered_completion_tests.rs"]
 mod unanswered_completion_tests;
+
+#[cfg(test)]
+#[path = "runner_thread/stop_dispatch_tests.rs"]
+mod stop_dispatch_tests;

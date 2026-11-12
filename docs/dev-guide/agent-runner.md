@@ -323,6 +323,8 @@ scope 전체 stop 뒤에는 같은 scope의 늦은 runner 시작을 거절한다
 
 thread 본문은 `RunnerLoop::tick` + 500ms `recv_timeout`. tick 안 memory lock 은 *짧은 구간* 만(list → release → dispatch/poll(lock 밖) → re-lock for set_state) — 사용자 CLI 동시 호출과 락 경합 최소화.
 
+정지 신호는 tick 앞과 tick 뒤의 `recv_timeout` 에서 받고, tick 안에서는 Ready task 를 하나 dispatch 하기 전마다 `TaskExecutor::stop_requested` 로 다시 확인한다. 참이면 남은 Ready task 를 보내지 않고 tick 을 끝낸다. Custom dispatch 하나는 메인 스레드의 응답을 최대 5초(`HOST_DISPATCH_TIMEOUT`) 기다리므로, tick 끝에서만 정지를 보면 정지가 Ready task 수 × 5초만큼 늦어진다. `HostExecutor` 는 `RunnerControl` 의 정지 표시와 scope 정지 표시를 읽는다. 이미 시작한 dispatch 하나는 그 상한 안에 끝난다.
+
 tick 머리의 `TaskStore::list` 가 실패하면 **빈 목록으로 흡수하지 않고 로그를 남긴다.** `tick` 은 넘겨받은 task 슬라이스만 순회하므로(terminal 흡수 · Running poll · Ready dispatch 전부) 빈 목록으로 진행하는 것과 이번 tick 을 건너뛰는 것의 동작은 같다 — permit 회수도 snapshot 에서 terminal 로 바뀐 task 를 봤을 때만 일어난다. 그래서 흐름은 종전대로 빈 snapshot 으로 돌리고(다음 tick 에 회복되면 밀린 전이를 한꺼번에 흡수한다) 관측 가능성만 더한다: 첫 실패는 `warn`, 연속 6회(약 3초)째부터는 `error` 로 올리고 그 뒤로는 약 60초 주기로만 반복한다. 조회가 회복되면 `info` 로 연속 실패 횟수와 함께 남긴다. `error` 인 이유는 이 상태가 지속되면 task DAG 는 정지해 있는데 `task_list` 응답의 `ready_count`/`running_count` 는 여전히 진행 중으로 보이기 때문이다.
 
 `agent.task_run`(start/stop/status)은 `METHOD_TABLE` 에 `plugin(&[AgentManage])` 로 등록돼 있다 — 호스트가 재시작 시 runner 를 자동으로 켜지 않으므로(아래 "재시작 계약"), plugin 이 자기 workspace 의 runner 를 스스로 되살릴 수단이 필요하기 때문이다. `task_set_result` 는 `local_only()` 로 등재돼 있다 — 러너가 Custom task 의 생명주기를 단독 소유하므로 plugin 이 같은 task 를 별도로 전이시키면 쓰기 주체가 둘이 되어 러너의 완료 판정과 경합한다. plugin 은 완료 판정 전략 선언(아래 "완료 판정 전략 레지스트리")으로 우회한다.
