@@ -99,7 +99,7 @@ egui 0.31의 기본 텍스처 로더는 uri와 `TextureOptions`만 캐시 키로
   같은 심볼 참조가 핵심 사용법이므로, 오타·미정의 글리프는 컴파일 단계에서 걸린다.
 - **디자인 정본과 상수 비교** — `crates/tasty-doc-guards/tests/design_source_icons_match_the_app_transcription.rs`
   가 `crates/tasty-design-tokens/dtcg/SOURCE`에 기록한 tasty-page 커밋의 `vendor/` 아이콘과 `tasty-icons` const 를
-  대조한다(`doc-guards.yml`, main push · PR). tasty-page 체크아웃 경로는 `TASTY_PAGE_DIR`로 넘기며 없으면 실패한다.
+  대조한다(`doc-guards.yml`, develop·release·main push · PR). tasty-page 체크아웃 경로는 `TASTY_PAGE_DIR`로 넘기며 없으면 실패한다.
   앱 비교 기준은 tasty-page `vendor/components/core/Icon.jsx`이고, `vendor/icons/` SVG 파일과 `Icon.jsx`의 일치는
   tasty-page의 `npm run check-icons`가 맡는다.
   기록한 커밋 이후 tasty-page `main`에서 바뀐 아이콘은 이 가드 밖이다.

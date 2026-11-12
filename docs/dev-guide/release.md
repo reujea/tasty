@@ -4,22 +4,34 @@
 
 [플랫폼 원칙](../principles/platform-and-compatibility.md)은 Windows ARM을 1급 지원·릴리스 대상으로 포함한다. 릴리스 워크플로는 Windows x64와 ARM64 산출물을 함께 만들어 올리도록 구성돼 있으며, 빌드 방법과 확인 범위는 아래 [Windows ARM64](#windows-arm64)에 있다. Windows x64 개발 환경과 태그 없는 CI에서 두 아키텍처의 배포물 생성·검사를 확인했다. Windows ARM 기기의 설치·실행은 미측정이며, 태그 없는 빌드 검증은 실제 Release 게시와 구분한다. 0.12.2 이하 릴리스에는 Windows ARM64 자산이 없다.
 
-릴리스는 **Git 태그 push** 로 트리거된다(`.github/workflows/release.yml`). 버전 형식은 `MAJOR.MINOR.PATCH`. 버전 정책은 [`../../CLAUDE.md`](../../CLAUDE.md) "버전 정책" — 이 문서는 절차다.
+릴리스는 `main`에 붙인 **Git 태그 push** 로 트리거된다(`.github/workflows/release.yml`). `develop`·`release`·`main`의 뜻과 승격·hotfix 순서는 [브랜치 전략](branching.md)이 정본이다. 버전 형식은 `MAJOR.MINOR.PATCH`. 버전 정책은 [`../../CLAUDE.md`](../../CLAUDE.md) "버전 정책" — 이 문서는 절차다.
 
 ## 버전 자동 bump 규칙 (요약)
 
 CLAUDE.md 정책의 운영 형태:
 
-- **본체** (`Cargo.toml` 루트): 사용자가 *빌드를 요청* 했고, 마지막 빌드 이후 새 커밋이 있으며, 사용자가 막지 않았으면 **patch +1**. AI 자체 검증 빌드(`cargo build`/`test`)는 올리지 않는다.
-- **Plugin** (`crates/tasty-plugin-*/Cargo.toml`): 그 plugin 의 빌드 산출물이 달라지면(판정 기준은 staged 파일이 아니라 의존 폐포의 내용 — 루트 CLAUDE.md 의 plugin 버전 정책) **patch +1 을 같은 커밋에** 포함. 여러 plugin 변경 시 각각 독립 적용. 본체 규칙과 독립. `tasty.pluginBump=deferred`인 lane 작업 트리에서는 lane이 버전 줄을 건드리지 않고, 병합 단계가 `scripts/plugin-bump-fixup.sh`로 커밋마다 붙인다. `main`에 반영된 커밋이 증가를 함께 담는다는 점은 같다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)).
+- **본체** (`Cargo.toml` 루트): `release` 브랜치에서 올린다. `develop`의 버전은 역병합으로 따라간다([브랜치 전략](branching.md#버전)). 사용자가 *빌드를 요청* 했고, 마지막 빌드 이후 새 커밋이 있으며, 사용자가 막지 않았으면 **patch +1**. AI 자체 검증 빌드(`cargo build`/`test`)는 올리지 않는다.
+- **Plugin** (`crates/tasty-plugin-*/Cargo.toml`): 그 plugin 의 빌드 산출물이 달라지면(판정 기준은 staged 파일이 아니라 의존 폐포의 내용 — 루트 CLAUDE.md 의 plugin 버전 정책) **patch +1 을 같은 커밋에** 포함. 여러 plugin 변경 시 각각 독립 적용. 본체 규칙과 독립. `tasty.pluginBump=deferred`인 lane 작업 트리에서는 lane이 버전 줄을 건드리지 않고, 병합 단계가 `scripts/plugin-bump-fixup.sh`로 커밋마다 붙인다. `develop`에 반영된 커밋이 증가를 함께 담는다는 점은 같다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)).
 - **Plugin 매니페스트 lockstep** (`crates/tasty-plugin-*/tasty-plugin.toml`): 위 patch +1 과 함께 매니페스트 `version` 을 **동일 값**으로 맞춰 같은 커밋에 포함(`.sig` 는 `.gitignore` 된 빌드 산출물이라 커밋하지 않는다). Cargo.toml 만 올리면 `plugin.list`·업그레이드 판정이 노출·비교하는 매니페스트 version 이 어긋난다(version drift). `crates/tasty-doc-guards/tests/plugin_manifest_version_parity.rs` 가 정합을 강제한다(채널은 [ci-gates](ci-gates.md)). 자동 잡은 push 된 커밋만 보므로 커밋 전에는 직접 돌린다.
 - **minor / major**: 사용자가 직접 지정. AI 가 임의로 올리지 않는다.
 
-본체 patch bump 절차: `Cargo.toml` patch +1 → `cargo build`(Cargo.lock 갱신) → `README.md`·`README.ko.md` 의 Version 배지(`badge/version-X.Y.Z-blue`)를 같은 값으로 갱신 → `Cargo.toml` + `Cargo.lock` + 두 README 를 **함께** 커밋(`chore: bump version to X.Y.Z`) → 아래 릴리스 절차로 이어감. 배지를 빠뜨리면 `crates/tasty-doc-guards/tests/readme_badge_parity.rs` 가 실패시킨다 — `doc-guards.yml` 이 main push · PR 마다 자동으로 돌리므로([ci-gates](ci-gates.md)) 빠뜨린 bump 는 CI 에서 잡힌다. 다만 자동 잡은 push 된 커밋만 보니 **커밋 전에 직접 돌리면 그 자리에서 잡힌다** — 릴리스뿐 아니라 이 자동 patch +1 커밋에도 적용된다.
+본체 patch bump 절차: `Cargo.toml` patch +1 → `cargo build`(Cargo.lock 갱신) → `README.md`·`README.ko.md` 의 Version 배지(`badge/version-X.Y.Z-blue`)를 같은 값으로 갱신 → `Cargo.toml` + `Cargo.lock` + 두 README 를 **함께** 커밋(`chore: bump version to X.Y.Z`) → 아래 릴리스 절차로 이어감. 배지를 빠뜨리면 `crates/tasty-doc-guards/tests/readme_badge_parity.rs` 가 실패시킨다 — `doc-guards.yml` 이 develop·release·main push · PR 마다 자동으로 돌리므로([ci-gates](ci-gates.md)) 빠뜨린 bump 는 CI 에서 잡힌다. 다만 자동 잡은 push 된 커밋만 보니 **커밋 전에 직접 돌리면 그 자리에서 잡힌다** — 릴리스뿐 아니라 이 자동 patch +1 커밋에도 적용된다.
 
 버전만 올리는 요청에서도 위 네 파일의 정합을 확인하고 함께 커밋한다. 버전 변경 자체는 태그 생성이나 릴리스 배포를 뜻하지 않는다. 태그·push는 배포 요청 범위에서 진행한다.
 
 ## 릴리스 단계
+
+§1~§4는 `release` 브랜치에서 한다. 시작 전에 `release`를 `develop`에서 고른 커밋으로 올리고 push해 릴리스 후보의 CI를 돌린다. `release`가 그 커밋의 조상이면 fast-forward로, 아니면 merge 커밋으로 합친다([release 승격](branching.md#release-승격)).
+
+```bash
+git fetch origin
+git switch release
+git merge --ff-only origin/release
+git merge <develop에서 고른 커밋>
+git push origin release
+```
+
+릴리스 후보의 실제 실행 검증도 이 `release`에서 한다. 검증 중 고친 버그는 `release`에 커밋한다.
 
 ### 1. 버전 + CHANGELOG
 
@@ -32,7 +44,7 @@ CLAUDE.md 정책의 운영 형태:
    ### Fixed
    - `fix(...)`: ...
    ```
-3. `README.md`·`README.ko.md` 의 Version 배지(`img.shields.io/badge/version-X.Y.Z-blue`, `CHANGELOG.md` 로 링크)를 `Cargo.toml` 과 같은 값으로 갱신한다. shields.io static badge 라 URL 에 값이 박혀 있어 어디서도 파생되지 않는다 — 이 단계가 빠지면 배지와 `Cargo.toml`의 버전이 달라진다. 배지 변경은 §3 의 bump 커밋에 함께 넣는다. **`crates/tasty-doc-guards/tests/readme_badge_parity.rs` 가 이 정합을 강제하고, `doc-guards.yml` 이 main push · PR 마다 그것을 돌린다**([ci-gates](ci-gates.md)). **다만 자동 잡은 push 된 커밋만 본다 — 배지를 빠뜨린 bump 커밋은 push 전까지 통과한 것처럼 보이므로 아래 로컬 확인을 거르지 마라.** 로컬 확인:
+3. `README.md`·`README.ko.md` 의 Version 배지(`img.shields.io/badge/version-X.Y.Z-blue`, `CHANGELOG.md` 로 링크)를 `Cargo.toml` 과 같은 값으로 갱신한다. shields.io static badge 라 URL 에 값이 박혀 있어 어디서도 파생되지 않는다 — 이 단계가 빠지면 배지와 `Cargo.toml`의 버전이 달라진다. 배지 변경은 §3 의 bump 커밋에 함께 넣는다. **`crates/tasty-doc-guards/tests/readme_badge_parity.rs` 가 이 정합을 강제하고, `doc-guards.yml` 이 develop·release·main push · PR 마다 그것을 돌린다**([ci-gates](ci-gates.md)). **다만 자동 잡은 push 된 커밋만 본다 — 배지를 빠뜨린 bump 커밋은 push 전까지 통과한 것처럼 보이므로 아래 로컬 확인을 거르지 마라.** 로컬 확인:
    ```bash
    cargo test -p tasty-doc-guards --test readme_badge_parity
    ```
@@ -64,7 +76,7 @@ push할 때만 GitHub Pages로 배포한다. 사이트는 사용자가 받을 �
 
 ### 4. 커밋 — body 가 곧 릴리스 노트
 
-`Cargo.toml` + `Cargo.lock` 을 함께 커밋한다. **커밋 body에 변경 내용을 영어 평문으로 적는다** — 워크플로가 `git log -1 --format=%b` 로 추출해 GitHub Release 노트로 쓴다.
+`release` 브랜치에서 `Cargo.toml` + `Cargo.lock` 을 함께 커밋한다. **커밋 body에 변경 내용을 영어 평문으로 적는다** — 워크플로가 `git log -1 --format=%b` 로 추출해 GitHub Release 노트로 쓴다.
 
 ```
 chore: bump version to X.Y.Z
@@ -78,12 +90,30 @@ Fix the reported issue and describe the corrected behavior.
 
 ### 5. 태그 + push
 
+`main`을 `release`로 fast-forward하고 버전 커밋에 태그를 붙여 `main`과 태그를 한 번에 push한다.
+
 ```bash
+git switch main
+git merge --ff-only origin/main
+git merge --ff-only release
 git tag vX.Y.Z          # 'v' 접두사 + Cargo.toml 버전과 정확히 일치 (불일치 시 워크플로 fail)
-git push origin main --tags
+git push --atomic origin main vX.Y.Z
 ```
 
-이 push 뒤에는 태그로 시작한 release.yml 실행이 끝날 때까지 main 에 push 하지 않는다. main push 의 CI 가 같은 self-hosted 러너(특히 Windows arm64 전용 러너 `tasty-win-arm64`)를 먼저 잡으면 릴리스 빌드가 그만큼 늦게 시작한다. 실행이 끝났는지는 `gh run list --workflow=release.yml --limit 1` 의 상태나 `gh run watch <run-id>` 로 확인한다.
+릴리스 노트는 태그 커밋의 본문이므로 태그는 merge 커밋이 아니라 버전 커밋에 붙인다. `main`에 `release`에 없는 hotfix가 있어 fast-forward가 되지 않으면, 먼저 `main`을 `release`에 역병합하고 그 위에서 §1~§4의 버전 커밋을 다시 만든다. `release.yml`은 태그 커밋이 `origin/main`의 조상이 아니면 실패한다.
+
+이 push 뒤에는 태그로 시작한 release.yml 실행이 끝날 때까지 `develop`·`release`·`main` 어느 브랜치에도 push 하지 않는다. 브랜치 push 의 CI 가 같은 self-hosted 러너(특히 Windows arm64 전용 러너 `tasty-win-arm64`)를 먼저 잡으면 릴리스 빌드가 그만큼 늦게 시작한다. `main` push 자체도 브랜치 CI 를 시작하므로 태그 실행과 같은 러너를 나눠 쓴다. 두 실행이 겹칠 때의 지연은 미측정이다. 실행이 끝났는지는 `gh run list --workflow=release.yml --limit 1` 의 상태나 `gh run watch <run-id>` 로 확인한다.
+
+실행이 끝나면 `release`의 버전 커밋과 릴리스 버그 수정을 `develop`에 역병합한다. `develop`이 앞서 있으면 merge 커밋이 된다.
+
+```bash
+git switch develop
+git merge --ff-only origin/develop
+git merge release
+git push origin develop
+```
+
+hotfix는 `main`에서 갈라 `main`에 반영하고 같은 방식으로 태그를 붙인 뒤 `main`을 `release`와 `develop`에 역병합한다([hotfix](branching.md#hotfix)).
 
 ### 6. 워크플로 (release.yml)
 
@@ -185,7 +215,7 @@ Windows 호스트(x64)에는 러너가 둘 있다.
 
 예약 작업은 호스트에 로그온한 동안만 러너를 띄운다. 로그온하지 않았거나 예약 작업이 멈추면 이 러너는 offline 이고, arm64 잡 세 개는 다른 러너로 넘어가지 않고 러너가 돌아올 때까지 Queued 상태로 머문다. `timeout-minutes` 는 이 대기 시간을 세지 않고, 24시간 넘게 러너를 기다린 잡은 GitHub 가 취소한다. release 실행에서 `build-windows-arm64` 가 취소되면 `publish-release` 는 `needs` 에 이 잡을 두고 `if` 에 `always()` 가 없어 건너뛰므로, 릴리스는 일부 자산만 올라간 draft 로 남고 공개되지 않는다. 복구는 [트러블슈팅](#트러블슈팅)에 있다.
 
-같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · `main` 대상 PR · 수동 dispatch. 이 저장소는 PR 없이 main 에 직접 push 하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 PR 흐름을 쓰게 될 때를 위해 남아 있다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 다섯(`check-windows` · `check-windows-arm64` · `check-headless` · `check-release` · `check-android`)이고, macOS 잡 `check-macos` 는 같은 트리거의 `.github/workflows/crossplatform-check-macos.yml` 에 따로 있다. 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. `check-windows` 와 `check-macos` 는 러너의 네이티브 host 타깃(`x86_64-pc-windows-msvc` / `aarch64-apple-darwin`)으로 돌아 `--target` 을 지정하지 않는다. `check-windows-arm64` 는 같은 x64 Windows 호스트의 전용 러너 `tasty-win-arm64` 에서 `--target aarch64-pc-windows-msvc` 로 교차 컴파일만 한다([Windows ARM64](#windows-arm64)). `check-android` 는 Linux x64 러너에서 `--target aarch64-linux-android` 로 터미널 코어(`tasty-terminal` · `tasty-terminal-link`)를 교차 check 만 한다. 러너가 다른 잡들은 병렬로 돌 수 있어 `check-windows`(일반 Windows 러너)와 `check-windows-arm64`(전용 러너)도 서로 다른 러너에서 병렬로 돌 수 있다. 실제로 겹친 실행은 미측정이다. 같은 ref 의 앞선 실행을 취소하는 조건은 두 워크플로가 다르다([연속 push와 실행 취소](ci-gates.md#연속-push와-실행-취소)). (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
+같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `develop`·`release`·`main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · 세 브랜치 대상 PR · 수동 dispatch. 작업 브랜치는 PR 없이 `develop` 에 직접 반영하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 외부 기여 PR 과 hotfix·릴리스 PR 을 검사한다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 다섯(`check-windows` · `check-windows-arm64` · `check-headless` · `check-release` · `check-android`)이고, macOS 잡 `check-macos` 는 같은 트리거의 `.github/workflows/crossplatform-check-macos.yml` 에 따로 있다. 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. `check-windows` 와 `check-macos` 는 러너의 네이티브 host 타깃(`x86_64-pc-windows-msvc` / `aarch64-apple-darwin`)으로 돌아 `--target` 을 지정하지 않는다. `check-windows-arm64` 는 같은 x64 Windows 호스트의 전용 러너 `tasty-win-arm64` 에서 `--target aarch64-pc-windows-msvc` 로 교차 컴파일만 한다([Windows ARM64](#windows-arm64)). `check-android` 는 Linux x64 러너에서 `--target aarch64-linux-android` 로 터미널 코어(`tasty-terminal` · `tasty-terminal-link`)를 교차 check 만 한다. 러너가 다른 잡들은 병렬로 돌 수 있어 `check-windows`(일반 Windows 러너)와 `check-windows-arm64`(전용 러너)도 서로 다른 러너에서 병렬로 돌 수 있다. 실제로 겹친 실행은 미측정이다. 같은 ref 의 앞선 실행을 취소하는 조건은 두 워크플로가 다르다([연속 push와 실행 취소](ci-gates.md#연속-push와-실행-취소)). (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
 
 ### 1회 도구 설치 (러너 추가 / 새 도구 의존성 시)
 
@@ -228,7 +258,7 @@ Windows ARM64 산출물은 x64 Windows 호스트에 두 번째로 등록한 전�
   - ZIP·헤드리스 ZIP·MSI를 풀어 모든 `.exe`(본체와 번들 plugin)의 PE 헤더 Machine 값이 x64는 0x8664, ARM64는 0xAA64인지 확인한다. 실행 파일 수가 본체와 번들 plugin 수보다 적어도 실패한다.
   - `tasty.exe --version` 실행과 MSI 관리 설치(`msiexec /a`)는 호스트와 같은 아키텍처일 때만 한다. x64 러너의 ARM64 빌드는 실행 검사를 건너뛴다는 줄을 남기고 PE 검사로 아키텍처를 확인한다. MSI 안의 파일은 WiX `dark.exe -x`로 꺼내 `main.wxs`의 File Id·Source 짝으로 원래 경로에 놓은 뒤 고지 세트 대조와 PE 검사를 한다.
   - 체크섬 파일을 다시 읽어 그 아키텍처의 배포물 전부를 담는지와 각 해시가 맞는지 확인하고, 산출물 명부(이름과 크기)를 출력한다. staging 디렉터리는 `dist\tasty-windows-<arch>`처럼 아키텍처별이라 같은 dist에서 두 아키텍처를 만들어도 서로 덮지 않는다.
-- CI는 `crossplatform-check.yml`의 `check-windows-arm64`가 main push마다 ARM64 타깃 `cargo check`를 실행한다([ci-gates](ci-gates.md)). 테스트 실행과 링크는 포함하지 않는다.
+- CI는 `crossplatform-check.yml`의 `check-windows-arm64`가 develop·release·main push마다 ARM64 타깃 `cargo check`를 실행한다([ci-gates](ci-gates.md)). 테스트 실행과 링크는 포함하지 않는다.
 - 확인 범위: Windows x64 개발 환경에서 두 아키텍처의 GUI ZIP·MSI·헤드리스 ZIP 생성, 본체·번들 plugin의 PE, 고지 세트와 체크섬을 확인했다. 같은 dist에 양쪽 배포물과 두 체크섬 명부가 함께 유지되는 것도 확인했다. 두 아키텍처의 패키징·산출물 검사는 CI의 태그 없는 실행에서도 확인했으며, ARM64 교차 컴파일·링크와 cargo-wix의 MSI 생성·`dark.exe` 추출을 포함한다.
 - 미측정: Windows ARM 기기에서 설치·실행·제거는 확인하지 않았다. MSI 파일 추출·내용 검사는 실기기의 설치와 custom action 실행 검증을 대신하지 않는다. 제거 체크박스를 켠 삭제는 x64 Windows 11에서 시험 계정으로 확인했고, 제거 절차는 [build](build.md)의 Windows MSI 절에 있다. 실제 Release 자산 업로드도 별도 릴리스 단계의 확인 대상이다. 검증 환경이 없다는 이유로 ARM64 산출물을 제외하지 않는다.
 - 실제 릴리스 뒤에는 받은 산출물의 PE 머신 타입을 `dumpbin /headers` 등으로 다시 확인한다. ARM64 Windows 기기를 쓸 수 있으면 설치·실행·제거를 확인하고, 없으면 미측정으로 기록한다.

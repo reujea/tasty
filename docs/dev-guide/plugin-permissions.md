@@ -167,7 +167,7 @@ owner 미검증의 이유 — **install 순서 무관성**(B 가 A 보다 늦게
 2. `from_token`/`as_token` 매핑(scoped 면 `strip_prefix` + scope 검증 함수).
 3. `is_valid_<x>` 검증 함수 — **형식만**, owner 존재는 검증 안 함.
 4. runtime 게이트(`method_meta` 또는 manager) 연결.
-5. 이 문서의 [토큰 전체](#토큰-전체--무엇을-여나) 표 + [concepts/plugins](../concepts/plugins.md#권한-permissions) 나열 갱신 — `crates/tasty-doc-guards/tests/permission_token_docs_parity.rs` 가 둘 다 강제하고, `doc-guards.yml` 이 main push · PR 마다 그것을 돌린다 — 그 잡에는 경로 필터가 없어 **이 문서만 고친 push 에서도 돈다**([가드 검증](guard-verification.md) · [ci-gates](ci-gates.md)).
+5. 이 문서의 [토큰 전체](#토큰-전체--무엇을-여나) 표 + [concepts/plugins](../concepts/plugins.md#권한-permissions) 나열 갱신 — `crates/tasty-doc-guards/tests/permission_token_docs_parity.rs` 가 둘 다 강제하고, `doc-guards.yml` 이 develop·release·main push · PR 마다 그것을 돌린다 — 그 잡에는 경로 필터가 없어 **이 문서만 고친 push 에서도 돈다**([가드 검증](guard-verification.md) · [ci-gates](ci-gates.md)).
 
 `ipc.invoke`/`ext` 두 사례가 reference.
 

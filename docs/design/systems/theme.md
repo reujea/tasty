@@ -97,7 +97,7 @@ let pad = th.spacing_sm;
 
 host UI와 공용 위젯은 semantic 접근자를 사용한다. 원시 팔레트 필드는 테마 내부·색상 픽커·터미널 ANSI 처리·갤러리의 원시 팔레트 전시에 한정한다.
 
-직접 필드 접근은 [`design_token_adherence.rs`](../../../crates/tasty-doc-guards/tests/design_token_adherence.rs)가 소스를 읽어 검사한다. GUI 기능에 의존하지 않아 GUI·headless 빌드 조합과 관계없이 실행할 수 있다. CI의 `doc-guards.yml`은 경로 필터 없이 main push와 PR에서 이 검사를 실행하도록 설정돼 있다. `crossplatform-check.yml`의 Windows 문서 검사와 headless 전체 테스트에도 포함된다. 워크플로 실행 조건과 실제 결과 확인 방법은 [CI 가이드](../../dev-guide/ci-gates.md)를 따른다.
+직접 필드 접근은 [`design_token_adherence.rs`](../../../crates/tasty-doc-guards/tests/design_token_adherence.rs)가 소스를 읽어 검사한다. GUI 기능에 의존하지 않아 GUI·headless 빌드 조합과 관계없이 실행할 수 있다. CI의 `doc-guards.yml`은 경로 필터 없이 develop·release·main push와 PR에서 이 검사를 실행하도록 설정돼 있다. `crossplatform-check.yml`의 Windows 문서 검사와 headless 전체 테스트에도 포함된다. 워크플로 실행 조건과 실제 결과 확인 방법은 [CI 가이드](../../dev-guide/ci-gates.md)를 따른다.
 
 대응 역할이 없으면 원시 색으로 되돌리지 않고 가까운 역할의 임시 alias와 `divergence:` 사유를 남겨 디자인에 요청한다. 역할이 확정되면 임시 alias를 제거한다.
 

@@ -130,7 +130,7 @@ Core는 `UiIntent`를 모르므로 release의 Domain 처리에서 UI Intent를 �
 
 ## intent-discipline 강제
 
-`scripts/check-intent-discipline.sh`는 popup·preset·surface·tab·pane·workspace의 직접 변경 API 호출을 검사한다. `script-gates.yml`의 main push와 PR에서 실행하도록 설정돼 있다.
+`scripts/check-intent-discipline.sh`는 popup·preset·surface·tab·pane·workspace의 직접 변경 API 호출을 검사한다. `script-gates.yml`의 develop·release·main push와 PR에서 실행하도록 설정돼 있다.
 
 검사 대상은 `open`·`open_centered`·`open_centered_focused`·`open_with_scope`·`open_at_top_of_scope`·`open_at_focused`·`close`·`toggle*`다. 조회 함수인 `is_open`·`get_mut`·`open_geometry`는 포함하지 않는다.
 

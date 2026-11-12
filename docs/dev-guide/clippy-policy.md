@@ -24,7 +24,7 @@ rustc와 Clippy lint는 모두 멤버가 `[lints] workspace = true`로 상속한
 
 `workspace_lint_table_matches_the_manifest`는 이 표를 루트 `[workspace.lints]`와
 양방향으로 대조한다. 한쪽에만 있는 lint와 매니페스트 절을 가리키지 않는 행은 실패다.
-`doc-guards.yml`이 main push·PR에서 실행하며, 커밋 전에도 직접 실행할 수 있다
+`doc-guards.yml`이 develop·release·main push·PR에서 실행하며, 커밋 전에도 직접 실행할 수 있다
 ([CI 가이드](ci-gates.md)). lint 레벨이 아닌 설정값은 다음 절에서 설명한다.
 
 ### `clippy.toml` — 레벨이 아니라 설정값

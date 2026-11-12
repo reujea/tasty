@@ -3,7 +3,7 @@
 각 검증 명령을 어디서 실행하는지와 실행 결과를 확인하는 방법을 정리한다.
 명령의 정책과 임계값은 표에서 연결한 가이드를 따른다.
 
-CI 설정 설명은 작업 트리의 `.github/workflows/`를 기준으로 한다.
+CI 설정 설명은 작업 트리의 `.github/workflows/`를 기준으로 한다. 자동 트리거의 브랜치는 `develop`·`release`·`main` 셋이다([브랜치 전략](branching.md#ci)).
 원격에 반영됐는지와 실제 실행 결과는
 [원격 설정 확인](#트리거는-어느-ref-의-것인가--작업-트리와-원격이-갈린다)을 따른다.
 선택 이유는 CI와 복잡도 검사에 있다.
@@ -16,24 +16,24 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 
 | 검사 | 명령 | 채널 | 트리거 | 등급 |
 |---|---|---|---|---|
-| 포맷 | `cargo fmt --check` (+ `crates/tasty-plugin-sdk-wasm/` 매니페스트) | `format-check.yml` (ubuntu-latest) | main push · PR · 수동 | [실측] |
-| SemVer 가드 | `cargo test --locked --no-default-features --no-fail-fast --test api_baseline_0_7 --test changelog_unreleased --test cli_naming_count_drift` | `test.yml` 의 `semver-guards` (self-hosted Linux X64) | main push · 수동 | [실측] |
-| macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | main push(문서 제외) · PR · 수동 | [실측] |
-| Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [실측] |
-| Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 호스트의 전용 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (같은 Windows 호스트의 전용 러너 `win-arm64`) | main push(문서 제외) · PR · 수동 | [배선] |
-| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
-| **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
-| Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (x64 러너에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [배선] |
-| 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
-| 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
-| 동결 총합 래칫 | `bash scripts/check-frozen-sum-ratchet.sh` | `complexity-check.yml` (self-hosted Linux X64, 같은 잡) | main push(문서 제외) · PR · 수동 | [실측] |
-| Intent 규율 (범위와 한계는 [Intent 규율 검사](#intent-규율-검사)) | `bash scripts/check-intent-discipline.sh` — **`mask-source` 판정기를 먼저 짓는다** | `script-gates.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
-| 사유 없는 `#[allow]` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-allow-reason.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
-| 공용 순회를 안 거치는 직접 `read_dir` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-shared-walk-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
-| 구조 mutation 지표와 지정 실행 entry (**기준 파일 래칫**, 판정기 `strip-cfg-test`·`mask-source` 선행) | `bash scripts/check-core-writer-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동. 범위와 한계는 [구조 writer 래칫](#구조-writer-래칫) | 등급 미정 |
-| 셸 자산 정적 검사 | `bash scripts/check-shell-assets.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동. install-shellcheck.sh로 도구를 준비한다. 추적 셸 자산을 검사하며 staged 훅은 새 파일도 확인한다. warning 이상은 실패, 도구 부재는 rc 2다. | 등급 미정 |
-| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | main push · PR · 수동. 문서는 제외하되 `src/`·`lang/`·`assets/` 아래 `.md`를 포함한다. path 의존성 변경도 검사하며 패턴 순서가 중요하다. 잡이 strip-cfg-test를 먼저 빌드한다. staged 검사와 push 범위 검사는 구분한다([릴리스](release.md#플러그인-버전-비교)). | [실측] |
-| 공급망 | `cargo deny --workspace check`, `cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check` | `supply-chain-check.yml` | `--workspace`가 없으면 루트 패키지의 의존성만 보고 플러그인 전용 의존성을 놓친다. workspace에서 제외된 `tasty-plugin-sdk-wasm`은 자체 `Cargo.lock`을 쓰므로 `--workspace`에 잡히지 않아 `--manifest-path`로 따로 검사한다. 같은 잡의 두 번째 단계이며 앞 단계가 실패해도 실행한다. 루트 `deny.toml`을 함께 쓰므로 루트 그래프에만 있는 ignore 항목은 이 단계에서 `advisory-not-detected` 경고로 나오며 실패로 보지 않는다. main push는 `Cargo.lock`·`deny.toml`, `crates/tasty-plugin-sdk-wasm/`의 `Cargo.toml`·`Cargo.lock`, 이 워크플로 파일 변경 시, main 대상 PR은 경로 필터 없이 실행한다. 매주 월 09:00 UTC와 수동 실행도 지원한다. 의존성 변경은 push에서, 새 외부 권고는 주기 실행에서 확인한다. 올릴 수 없는 공지의 예외는 `deny.toml` 주석에 공지별 근거와 재검토 조건을 적고, 라이선스는 전역 `allow` 대신 크레이트별 `exceptions`를 먼저 쓴다. | [실측] |
+| 포맷 | `cargo fmt --check` (+ `crates/tasty-plugin-sdk-wasm/` 매니페스트) | `format-check.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 | [실측] |
+| SemVer 가드 | `cargo test --locked --no-default-features --no-fail-fast --test api_baseline_0_7 --test changelog_unreleased --test cli_naming_count_drift` | `test.yml` 의 `semver-guards` (self-hosted Linux X64) | develop·release·main push · 수동 | [실측] |
+| macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 호스트의 전용 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (같은 Windows 호스트의 전용 러너 `win-arm64`) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
+| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (x64 러너에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
+| 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
+| 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 동결 총합 래칫 | `bash scripts/check-frozen-sum-ratchet.sh` | `complexity-check.yml` (self-hosted Linux X64, 같은 잡) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Intent 규율 (범위와 한계는 [Intent 규율 검사](#intent-규율-검사)) | `bash scripts/check-intent-discipline.sh` — **`mask-source` 판정기를 먼저 짓는다** | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 사유 없는 `#[allow]` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-allow-reason.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 공용 순회를 안 거치는 직접 `read_dir` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-shared-walk-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 구조 mutation 지표와 지정 실행 entry (**기준 파일 래칫**, 판정기 `strip-cfg-test`·`mask-source` 선행) | `bash scripts/check-core-writer-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동. 범위와 한계는 [구조 writer 래칫](#구조-writer-래칫) | 등급 미정 |
+| 셸 자산 정적 검사 | `bash scripts/check-shell-assets.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동. install-shellcheck.sh로 도구를 준비한다. 추적 셸 자산을 검사하며 staged 훅은 새 파일도 확인한다. warning 이상은 실패, 도구 부재는 rc 2다. | 등급 미정 |
+| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | develop·release·main push · PR · 수동. 문서는 제외하되 `src/`·`lang/`·`assets/` 아래 `.md`를 포함한다. path 의존성 변경도 검사하며 패턴 순서가 중요하다. 잡이 strip-cfg-test를 먼저 빌드한다. staged 검사와 push 범위 검사는 구분한다([릴리스](release.md#플러그인-버전-비교)). | [실측] |
+| 공급망 | `cargo deny --workspace check`, `cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check` | `supply-chain-check.yml` | `--workspace`가 없으면 루트 패키지의 의존성만 보고 플러그인 전용 의존성을 놓친다. workspace에서 제외된 `tasty-plugin-sdk-wasm`은 자체 `Cargo.lock`을 쓰므로 `--workspace`에 잡히지 않아 `--manifest-path`로 따로 검사한다. 같은 잡의 두 번째 단계이며 앞 단계가 실패해도 실행한다. 루트 `deny.toml`을 함께 쓰므로 루트 그래프에만 있는 ignore 항목은 이 단계에서 `advisory-not-detected` 경고로 나오며 실패로 보지 않는다. develop·release·main push는 `Cargo.lock`·`deny.toml`, `crates/tasty-plugin-sdk-wasm/`의 `Cargo.toml`·`Cargo.lock`, 이 워크플로 파일 변경 시, 세 브랜치 대상 PR은 경로 필터 없이 실행한다. 매주 월 09:00 UTC와 수동 실행도 지원하며, 두 실행은 GitHub 기본 브랜치인 `develop`에서 돈다. 의존성 변경은 push에서, 새 외부 권고는 주기 실행에서 확인한다. 올릴 수 없는 공지의 예외는 `deny.toml` 주석에 공지별 근거와 재검토 조건을 적고, 라이선스는 전역 `allow` 대신 크레이트별 `exceptions`를 먼저 쓴다. | [실측] |
 
 ### 로컬에서 이 게이트들을 돌리기 전에 — **판정기부터**
 
@@ -188,8 +188,9 @@ GitHub 조건식의 의미나 단계 간 의존성을 증명하지 않는다.
 
 #### 경로 필터와 재실행
 
-경로 필터가 있는 워크플로는 실행 목록만으로 누락을 셀 수 없다. 경로 필터가 없는 main push
-이력을 기준으로 각 push의 변경 경로와 실제 실행 목록을 비교한다. 과거 실행을 조사할 때는
+경로 필터가 있는 워크플로는 실행 목록만으로 누락을 셀 수 없다. 경로 필터가 없는 develop push
+이력을 기준으로 각 push의 변경 경로와 실제 실행 목록을 비교한다. 같은 커밋을 `release`·`main`으로
+fast-forward한 push는 같은 변경을 다시 도는 것이므로 develop push와 따로 세지 않는다. 과거 실행을 조사할 때는
 `git show <sha>:.github/workflows/<이름>.yml`로 그 시점의 필터를 읽는다. 예측한 실행 목록과
 실제 목록이 다르면 필터 문제로 결론 내리기 전에 조사 방법부터 확인한다.
 
@@ -295,15 +296,17 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 
 워크플로마다 `concurrency` 그룹을 ref 단위로 두고 같은 ref의 새 실행이 들어오면 이전 실행을
 취소한다. crossplatform-check만 다르다. `cancel-in-progress`가
-`${{ github.event_name == 'pull_request' }}`라서 PR에서는 이전 실행을 취소하고, main push와
+`${{ github.event_name == 'pull_request' }}`라서 PR에서는 이전 실행을 취소하고, develop·release·main push와
 수동 실행에서는 실행 중인 run을 끝까지 둔다.
 
-- 이유: Windows·headless 잡은 13~16분 걸리고 main push 간격은 그보다 짧은 경우가 많다.
+- 이유: Windows·headless 잡은 13~16분 걸리고 develop push 간격은 그보다 짧은 경우가 많다.
   모두 취소하면 끝까지 가는 run이 거의 남지 않는다.
 - 대기(GitHub Actions 문서 기준): 그룹마다 실행 중 run 하나와 대기 run 하나를 둔다. 새 push가 오면
   대기 run이 새 run으로 바뀌므로 대기열은 쌓이지 않는다. 그래서 끝난 run의 다음 실행은 그때의
   최신 커밋을 잰다. 결과는 최신 push보다 한두 커밋 늦을 수 있고, 그 사이 커밋은 따로 재지 않는다.
-- 비용: main push가 이어지는 동안 Windows·X64 러너가 계속 이 그룹의 run을 실행한다.
+- 비용: develop push가 이어지는 동안 Windows·X64 러너가 계속 이 그룹의 run을 실행한다.
+  그룹은 ref마다 나뉘므로 같은 커밋을 `release`·`main`으로 fast-forward하면 그 커밋의 run이
+  브랜치마다 한 번씩 더 돈다([브랜치 전략](branching.md#ci)).
 - macOS 잡은 이 그룹에 없다. `crossplatform-check-macos.yml`이 같은 트리거로 따로 실행하고
   `cancel-in-progress: true`로 이전 run을 취소한다. macOS 러너가 offline이면 잡이 러너를 기다리며
   run이 끝나지 않는다. 같은 그룹에 두면 그 run이 그룹의 실행 자리를 차지해 이후 run이 모두
@@ -380,12 +383,14 @@ stat 차이로 Git이 다시 쓰므로 원래 문제와 다른 조건이 된다.
 
 문서에서 설명한 설정과 GitHub가 실제 읽은 설정이 같은지 확인한다.
 이벤트가 사용하는 원격 ref의 워크플로 파일 전체를 조회해 트리거와 명령을 함께 비교한다.
-갱신하지 않은 `origin/main`만으로 현재 원격 상태를 단정하지 않는다.
+push 이벤트는 push한 브랜치(`develop`·`release`·`main`)의 파일을 읽는다. `schedule`과 수동 실행의
+기본 ref는 GitHub 기본 브랜치인 `develop`이다. 갱신하지 않은 원격 추적 브랜치만으로 현재 원격 상태를
+단정하지 않는다. 아래 `<브랜치>`는 이벤트가 쓴 브랜치다(보통 `develop`).
 
 ```bash
-git fetch origin main
-git show origin/main:.github/workflows/<이름>.yml
-git diff origin/main -- .github/workflows/<이름>.yml
+git fetch origin <브랜치>
+git show origin/<브랜치>:.github/workflows/<이름>.yml
+git diff origin/<브랜치> -- .github/workflows/<이름>.yml
 gh run list --workflow=<이름>.yml --limit 20
 ```
 
@@ -458,7 +463,7 @@ gh run list --workflow=<이름>.yml --limit 20
 
 필터 없는 실행 경로가 유지되는지는 `filter_free_channel_still_exists.rs`가 별도로 검사한다.
 특정 디렉터리에 있다는 이유로 면제하지 않고, 워크플로에서 타깃·패키지·전체 실행을 읽는다.
-태그 전용 push와 수동 전용 잡을 매 main push 검사로 세지 않는다. 공용 판독 결과는 다음으로
+태그 전용 push와 수동 전용 잡을 매 브랜치 push 검사로 세지 않는다. 공용 판독 결과는 다음으로
 확인한다. 실행 전 `resolve_judge`와 `--check-fresh`의 최신성 검사를 따른다.
 
 ```bash
@@ -489,8 +494,8 @@ cargo build -p tasty-doc-guards --bin workflow-channels
 | lib 유닛 테스트 (`src/`·`crates/*/src/` 안의 `#[cfg(test)] mod tests`) | **있다** — 두 조합 모두가 유닛 타깃을 포함한다. 기본 조합은 `crossplatform-check`·`crossplatform-check-macos` 의 **세 잡 모두**가 `--lib --bins` 로 돌린다(`check-macos` · `check-windows` · `check-headless` 의 `cargo test (linux, gui, unit)` 스텝), 헤드리스 조합은 `check-headless` 의 전체 스위트가 담는다. 한때 조합 격자에 빈 칸(Linux + gui + debug)이 있었고 지금은 그 gui 스텝이 채운다 — 아래 절 | 있다 | `ui_font_size_tokens_are_integers_at_every_zoom` |
 | 통합 테스트 (`tests/*.rs`) | **헤드리스 조합에만 있다** — `check-headless` 가 전체 스위트를 돌린다(gui feature 로 묶여 이 조합에서 컴파일하지 않는 `multi_window_owner_routing` 은 같은 잡의 관측용 gui/Xvfb 스텝이 돌리지만 `continue-on-error` 라 **차단하지 않는다**). **기본 조합에는 없다** — 그 조합의 세 잡은 `--lib --bins` 이고(예외는 Windows 잡이 지목하는 `-p tasty-shm -p tasty-doc-guards` 뿐이다) `test.yml` 의 전체 스위트는 `workflow_dispatch` 전용 그리고 `check-headless` 는 `paths-ignore: docs/** · **/*.md` 뒤에 있어 **문서만 바뀐 push 에서는 이 칸이 통째로 비는 것**에 유의한다 | **있다** — clippy `--all-targets` 가 타깃으로 잡는다 | `tests/i18n_key_parity.rs` |
 | 문서 가드 통합 테스트 (`crates/tasty-doc-guards/tests/*.rs`) | **있다 — 두 조합과 무관하게** `doc-guards.yml` 이 `-p tasty-doc-guards` 로 돌리고, **Windows 잡도 같은 지목으로 돌린다**(그쪽은 OS 축을 연다). 이 잡에는 경로 필터가 없어 문서만 바뀐 push에서도 실행한다([가드 검증](guard-verification.md)). `check-headless` 의 전체 스위트에서도 함께 돈다 | 있다 | `crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs` |
-| SemVer 가드 3종 | **있다** — `semver-guards` 가 `--test` 로 이름을 지목한다 (main push) | 있다 | `api_baseline_0_7` · `changelog_unreleased` · `cli_naming_count_drift` |
-| 포맷 | **있다** — `format-check.yml` (main push · PR) + pre-commit | — | `cargo fmt --check` |
+| SemVer 가드 3종 | **있다** — `semver-guards` 가 `--test` 로 이름을 지목한다 (develop·release·main push) | 있다 | `api_baseline_0_7` · `changelog_unreleased` · `cli_naming_count_drift` |
+| 포맷 | **있다** — `format-check.yml` (develop·release·main push · PR) + pre-commit | — | `cargo fmt --check` |
 
 구조 저널 관련 시험도 위 표의 줄을 그대로 따른다. `tasty-core`·`tasty-event-store` 크레이트 안의 유닛 시험과
 본 바이너리의 `src/runtime/`·layout importer 유닛 시험은 lib 유닛 줄이라 기본 조합의 세 잡과 헤드리스 전체 스위트에서 돈다.
@@ -974,7 +979,7 @@ allow 검사에는 cfg_attr 안의 allow와 한글 `이유:` 표지도 포함한
 |---|---|---|
 | pre-commit | `cargo fmt --check` | ✅ `format-check.yml` |
 | pre-commit | mod/use 선언 순서 · `egui::Window` 직접 사용 · `println!`/`dbg!` | ❌ 훅에만 있다 |
-| pre-commit | plugin 산출물이 바뀌었는데 매니페스트 `version` 이 그대로 (P.1) | ✅ `plugin-version-check.yml` — **같은 스크립트를 부른다**. 훅은 index 를 `develop`(없으면 `origin/develop`) 과의 merge-base 와 비교하고(amend·rebase 에 안 흔들리게), CI 는 밀어넣은 범위의 두 끝점을 비교한다. `tasty.pluginBump=deferred` lane 작업 트리의 훅은 검사하지 않는다. `main`에 반영된 커밋마다의 증가는 병합 단계(`plugin-bump-fixup.sh` 와 그 뒤 커밋별 `--range c^ c` 검사)가 보장하고, B.9·CI 는 범위 끝점 두 개만 비교한다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)) |
+| pre-commit | plugin 산출물이 바뀌었는데 매니페스트 `version` 이 그대로 (P.1) | ✅ `plugin-version-check.yml` — **같은 스크립트를 부른다**. 훅은 index 를 `develop`(없으면 `origin/develop`) 과의 merge-base 와 비교하고(amend·rebase 에 안 흔들리게), CI 는 밀어넣은 범위의 두 끝점을 비교한다. `tasty.pluginBump=deferred` lane 작업 트리의 훅은 검사하지 않는다. `develop`에 반영된 커밋마다의 증가는 병합 단계(`plugin-bump-fixup.sh` 와 그 뒤 커밋별 `--range c^ c` 검사)가 보장하고, B.9·CI 는 범위 끝점 두 개만 비교한다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)) |
 | pre-commit | 주석 없는 `let _ =` (C.6) | 부분 — 전수판 `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 훅의 상위집합이고, 그 전수판을 `doc-guards.yml`(경로 필터 없음) · `check-windows` · `check-headless` 가 자동 실행한다. 자동 잡의 clippy는 `let_underscore_must_use`(warn)로 `let _ = <Result>`를 알린다. 주석의 사유는 검사하지 않아 사유가 있는 코드에도 경고하며, `-D warnings`가 없어 이 경고만으로 빌드를 막지는 않는다([error-handling](error-handling.md)) |
 | pre-commit | 로컬 티켓 인용(T.1) | ✅ doc-guards.yml과 pre-push B.7도 no_todo_file_citation을 실행한다. 이 검사는 staged diff가 아닌 전체 작업 트리를 읽는다. |
 | pre-push | 플러그인 버전 `--range <원격 tip> <로컬 tip>`(B.9) | ✅ plugin-version-check.yml과 같은 스크립트다. Git이 전달한 두 tip을 사용하며 비교 범위를 알 수 없으면 실패한다. staged 변경을 보는 P.1과 구분한다. |

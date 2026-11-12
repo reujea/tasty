@@ -30,7 +30,7 @@
 
 ## main과 태그
 
-1. `main`을 `release`로 올린다. hotfix가 `release`에 역병합돼 있으면 `git merge --ff-only release`로 된다.
+1. `main`을 `release`로 fast-forward한다(`git merge --ff-only release`). 릴리스 노트는 태그 커밋의 본문이므로 태그는 merge 커밋이 아니라 버전 커밋에 붙인다. `main`에 `release`에 없는 hotfix가 있어 fast-forward가 되지 않으면 먼저 `main`을 `release`에 역병합하고 그 위에서 버전 커밋을 만든다.
 2. 버전 커밋에 태그를 붙이고 `main`과 태그를 한 번에 push한다.
 
    ```bash
