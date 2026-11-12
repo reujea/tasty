@@ -294,7 +294,26 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 바꾼다. 처방은 **그 상태를 만지는 모든 테스트를 하나의 락으로 직렬화**하는 것이다.
 
 - cwd: `set_current_dir` 는 프로세스에 하나뿐이라 자원을 테스트-로컬로 만들 수 없다 —
-  직렬화가 유일하다(`tasty-cli` 의 `cwd_resolve` 테스트가 `CWD_LOCK` 을 함수 끝까지 잡는다).
+  직렬화가 유일하다(`tasty-cli` 의 `cwd_test::CwdGuard::enter` 가 `CWD_LOCK` 을 함수 끝까지 잡는다).
+  cwd를 **읽는** 시험도 같은 락을 잡는다. 상대 경로를 해석한 값과 `current_dir()` 를 따로 읽어
+  비교하면 두 읽기 사이에 다른 시험이 cwd를 바꿀 수 있다. 그런 시험은 함수 첫 줄에서
+  `cwd_test::hold()` 로 cwd를 바꾸지 않고 락만 잡는다. `cwd_test` 의
+  `every_test_that_reads_the_cwd_holds_the_cwd_lock` 이 `tasty-cli` lib 의 `#[test]` 함수 가운데
+  본문(주석·문자열 제외)에 `current_dir(` 호출이 있는데 `hold()`·`CwdGuard::enter(` 가 없는 것을
+  찾는다. 같은 함수 본문 안에 호출 문자열이 있는지만 보는 제한된 텍스트 검사라 아래 한계가 있다.
+  - 찾지 못한다: `current_dir(` 를 직접 부르지 않고 상대 경로를 해석해 고정값과 비교하는 시험,
+    도우미 함수 안에서 cwd를 읽는 시험.
+  - 찾지 못한다: 함수 이름과 여는 괄호 사이(`current_dir /* */ ()`)나 `#[test]` 속성 안
+    (`#[test /* */]`)에 공백·주석이 낀 형태.
+  - 잘못 귀속한다: `fn` 뒤에 공백 대신 줄바꿈이 오면 그 `#[test]` 본문 대신 다음에 나오는
+    `fn ` 함수의 본문을 읽는다. 그 시험은 빠지고, 다음 함수가 도우미면 거짓 위반이 나고,
+    다음 함수가 시험이면 두 번 센다.
+  - 찾지 못한다: `#[tokio::test]` 같은 다른 시험 속성은 수집하지 않는다.
+  - 수집 하한(200)은 전체 수만 보며 개별 함수의 누락·오귀속은 보지 않는다.
+  - 잠금으로 인정한다: `hold()`·`CwdGuard::enter(` 호출이 실행되는지, 그 시험에 귀속되는지 보지
+    않는다. 이름이 `hold` 인 다른 호출, `stringify!` 같은 매크로 토큰, 중첩 함수 안의 호출도 인정한다.
+  - 과하게 잡는다: `set_current_dir(`·`stringify!(current_dir())` 처럼 cwd를 읽지 않는 것도
+    읽기로 셀 수 있다.
 - `static` 전역: 그 전역을 reset/read 하는 테스트는 락을 함수 끝까지, register 만 하는
   헬퍼는 그 호출을 감싼다(`runtime::surface_registry::webview_kind` 의 `WEBVIEW_KIND_TEST_LOCK`).
 - env: §2 의 RAII 가드가 같은 처방의 특수형이다(획득 시 락, Drop 시 복원).

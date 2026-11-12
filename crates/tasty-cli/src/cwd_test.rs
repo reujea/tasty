@@ -174,6 +174,135 @@ mod tests {
         );
     }
 
+    /// 주석·문자열을 가린 원문에서 `#[test]` 함수마다 (이름, 본문)을 뽑는다.
+    /// 함수 경계는 줄이 아니라 `fn` 다음 첫 `{` 부터의 중괄호 균형으로 정한다.
+    fn test_fns(masked: &str) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (at, _) in masked.match_indices("#[test]") {
+            let Some(f) = masked[at..].find("fn ") else {
+                continue;
+            };
+            let after = at + f + 3;
+            let Some(paren) = masked[after..].find('(') else {
+                continue;
+            };
+            let name = masked[after..after + paren].trim().to_string();
+            let Some(open) = masked[after..].find('{') else {
+                continue;
+            };
+            let start = after + open;
+            let mut depth = 0usize;
+            let mut end = masked.len();
+            for (i, c) in masked[start..].char_indices() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = start + i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            out.push((name, masked[start..end].to_string()));
+        }
+        out
+    }
+
+    /// cwd를 읽으면서 `CWD_LOCK` 을 잡지 않는 `#[test]` 함수 이름을 모은다.
+    /// 반환값은 (검사한 시험 수, 위반 이름).
+    ///
+    /// 같은 함수 본문 안에 호출 문자열이 있는지만 보는 제한된 텍스트 검사다. 한계:
+    /// - 놓친다: `current_dir(` 를 직접 부르지 않고 상대 경로를 해석해 고정값과 비교하는
+    ///   시험, 도우미 함수 안에서 cwd를 읽는 시험.
+    /// - 놓친다: 함수 이름과 여는 괄호 사이(`current_dir /* */ ()`)나 `#[test]` 속성 안
+    ///   (`#[test /* */]`)에 공백·주석이 낀 형태.
+    /// - 잘못 귀속한다: `fn` 뒤에 공백 대신 줄바꿈이 오면 그 `#[test]` 본문 대신 다음에 나오는
+    ///   `fn ` 함수의 본문을 읽는다. 그 시험은 빠지고, 다음 함수가 도우미면 거짓 위반이 나고,
+    ///   다음 함수가 시험이면 두 번 센다.
+    /// - 놓친다: `#[tokio::test]` 같은 다른 시험 속성은 수집하지 않는다.
+    /// - 수집 하한(`MIN_SCANNED_TESTS`)은 전체 수만 보며 개별 함수의 누락·오귀속은 보지 않는다.
+    /// - 잠금으로 인정한다: `hold()`·`CwdGuard::enter(` 호출의 실행 여부와 귀속을 보지 않는다.
+    ///   이름이 `hold` 인 다른 호출, `stringify!` 같은 매크로 토큰, 중첩 함수 안의 호출도 인정한다.
+    /// - 과하게 잡는다: `set_current_dir(`·`stringify!(current_dir())` 처럼 cwd를 읽지 않는
+    ///   것도 읽기로 셀 수 있다.
+    fn unlocked_cwd_readers(text: &str) -> (usize, Vec<String>) {
+        let masked = tasty_doc_guards::source_text::mask_non_code(text);
+        let fns = test_fns(&masked);
+        let violations = fns
+            .iter()
+            .filter(|(_, body)| body.contains("current_dir("))
+            .filter(|(_, body)| !takes_the_cwd_lock(body))
+            .map(|(name, _)| name.clone())
+            .collect();
+        (fns.len(), violations)
+    }
+
+    /// `hold()`(경로 접두 허용, `threshold()` 같은 다른 이름 제외) 또는 `CwdGuard::enter(` 호출이 있는가.
+    fn takes_the_cwd_lock(body: &str) -> bool {
+        body.contains("CwdGuard::enter(")
+            || body.match_indices("hold()").any(|(i, _)| {
+                body[..i]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+            })
+    }
+
+    /// 2026-11-12 crates/tasty-cli/src 에서 주석·문자열을 가린 `#[test]` 함수는 337개였다. 수집이 크게 줄면 판정하지 않는다.
+    const MIN_SCANNED_TESTS: usize = 200;
+
+    /// 같은 lib 시험 바이너리에서 cwd를 읽는 시험은 cwd를 바꾸는 시험과 같은 락을 잡아야 한다.
+    /// 해석한 경로와 `current_dir()` 를 따로 읽어 비교하면 그 사이에 cwd가 바뀔 수 있다.
+    #[test]
+    fn every_test_that_reads_the_cwd_holds_the_cwd_lock() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut scanned = 0usize;
+        let mut violations = Vec::new();
+        walk_rs_sources(&src, &repo_root(), &mut |rel, text| {
+            let (n, bad) = unlocked_cwd_readers(text);
+            scanned += n;
+            violations.extend(bad.into_iter().map(|name| format!("{rel}::{name}")));
+        });
+        assert!(
+            scanned >= MIN_SCANNED_TESTS,
+            "#[test] 함수를 {scanned}개만 찾았다(하한 {MIN_SCANNED_TESTS}). 순회와 수집을 확인한다."
+        );
+        assert!(
+            violations.is_empty(),
+            "cwd를 읽지만 CWD_LOCK을 잡지 않는 시험이 있다. 함수 첫 줄에 \
+             let _cwd = crate::cwd_test::hold(); 를 넣는다(unit-test-isolation.md §7): {violations:#?}"
+        );
+    }
+
+    #[test]
+    fn cwd_read_detector_judges_whole_test_bodies() {
+        let unlocked = "#[test]\nfn x() {\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(unlocked), (1, vec!["x".to_string()]));
+        let held = "#[test]\nfn x() {\n    let _cwd = cwd_test::hold();\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(held), (1, vec![]));
+        let entered = "#[test]\nfn x() {\n    let _cwd = CwdGuard::enter(p);\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(entered), (1, vec![]));
+        let comment =
+            "#[test]\nfn x() {\n    // current_dir()\n    let s = \"current_dir()\";\n}\n";
+        assert_eq!(unlocked_cwd_readers(comment), (1, vec![]));
+        let nested = "#[test]\nfn x() {\n    for a in b {\n        if c { let h = std::env::current_dir(); }\n    }\n}\n";
+        assert_eq!(unlocked_cwd_readers(nested), (1, vec!["x".to_string()]));
+        // 앞 함수의 잠금이 다음 함수로 넘어가지 않는다.
+        let two = "#[test]\nfn a() {\n    let _cwd = cwd_test::hold();\n}\n#[test]\nfn b() {\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(two), (2, vec!["b".to_string()]));
+        let lookalike = "#[test]\nfn x() {\n    let t = threshold();\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(lookalike), (1, vec!["x".to_string()]));
+        let bare =
+            "#[test]\nfn x() {\n    let _cwd = hold();\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(bare), (1, vec![]));
+        // #[test] 가 아닌 도우미 함수는 대상이 아니다.
+        let helper = "fn helper() {\n    let h = std::env::current_dir();\n}\n";
+        assert_eq!(unlocked_cwd_readers(helper), (0, vec![]));
+    }
+
     #[test]
     fn hold_keeps_the_cwd_and_blocks_enter_until_released() {
         let tmp = tempfile::tempdir().expect("tempdir");

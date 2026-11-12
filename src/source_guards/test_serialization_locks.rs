@@ -122,7 +122,7 @@ const OTHER_LOCKS: &[(&str, &str, &str)] = &[
     (
         "crates/tasty-cli/src/cwd_test.rs",
         "CWD_LOCK",
-        "프로세스 cwd를 보호한다. 같은 크레이트의 set_current_dir 재진입 검사에서 별도로 확인한다.",
+        "프로세스 cwd를 보호한다. 같은 크레이트의 set_current_dir 재진입 검사와 cwd 읽기 검사에서 별도로 확인한다.",
     ),
     (
         "tests/attach_common/mod.rs",
