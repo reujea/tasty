@@ -148,6 +148,17 @@ final-zero와 timeout 두 실제 App 시나리오의 단언이 모두 끝난 뒤
 `output()`이 출력을 캡처하고 자식을 기다려 회수한다. DISPLAY와 격리된 홈 환경은
 검증 실행기가 제공하며, 자식의 시험 결과 줄은 부모의 통과 건수에 중복 합산하지 않는다.
 
+X11 EventLoop는 `src/x11_test_loop.rs`의 `x11_event_loop()`로만 만든다. winit은 X 연결을
+`XOpenDisplay(NULL)` 한 번으로 열고 실패도 프로세스 전역에 보관하므로 같은 프로세스에서는 다시 시도할 수
+없다. 이 도우미도 재시도하지 않는다. 연결에 실패하면 `DISPLAY`·`XAUTHORITY`와 인증 파일 상태(쿠키 제외),
+디스플레이 소켓·lock과 lock pid의 생존, 열린 fd 수, `RLIMIT_NOFILE`, 실패 시각을 panic 메시지에 싣는다.
+간헐적인 `XOpenDisplayFailed`가 다른 서버·인증 파일·서버 소멸·fd 고갈 중 무엇인지 이 메시지로 가르고,
+서버 쪽 사정(리셋·클라이언트 상한)은 CI의 Xvfb 로그와 함께 읽는다([CI 가이드](ci-gates.md#gui-단위-단계의-xvfb)).
+`src/source_guards/x11_test_loop_has_one_door.rs`는 `src`·`crates`에서 주석·리터럴을 가린 뒤 도우미와 제품
+부팅 경로(`src/boot/display_backend.rs`) 밖의 `with_x11(` 호출을 실패로 보고한다. `unwrap`이 아니라 builder
+호출 자체를 보므로 `expect`로 바꿔도 검출한다. 다른 이름으로 다시 내보낸 trait 메서드나 매크로 안의 조립은
+추적하지 않는다.
+
 ### 락은 **키 단위**로 하나 — 모듈마다 따로 두지 않는다
 
 같은 crate 안에서 같은 키(또는 서로를 덮는 키 쌍)를 건드리는 테스트가 **서로 다른 락**을
