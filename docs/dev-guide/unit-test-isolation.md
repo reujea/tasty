@@ -15,10 +15,13 @@ e2e 테스트의 격리 단위(프로세스 vs workspace)는 다른 축이다 �
 | 생성자 | 설정 출처 | 용도 |
 |---|---|---|
 | `EngineSession::new(cols, rows, waker)` | `Settings::default()` | 테스트 / non-host 진입점 |
-| `EngineSession::new_with_ids(...)` | `Settings::load()` (`$TASTY_HOME/config.toml`) | host 부팅 경로 |
+| `EngineSession::new_with_ids_and_settings(spec, settings)` | 호출자가 넘긴 설정 | 테스트(`cfg(test)`) |
+| `EngineSession::new_with_ids(spec, settings, registries)` | 호출자가 넘긴 설정. 앱 경로는 이번 실행의 최신 적용 설정을, 없으면 `config.toml`을 읽어 넘긴다 | host GUI 창 경로(첫 부팅·추가 창) |
+| `EngineSession::for_journal(spec, settings, registries)` | 호출자가 넘긴 설정 | 헤드리스 부팅, `new_with_ids`가 부르는 함수 |
 
-둘 다 내부 `new_with_ids_and_settings(..., settings)` 로 합류한다 — 설정 주입 지점이
-여기 하나뿐이라, 새 진입점을 만들 때도 "파일을 읽을 것인가" 를 명시적으로 고르게 된다.
+`new`는 `new_with_ids_and_settings`를 부르고, 이 함수는 `cfg(test)` 전용으로 조립 함수
+`assemble`을 바로 부른다. `new_with_ids`는 `for_journal`을 거쳐 같은 `assemble`에 닿는다.
+어느 생성자도 설정 파일을 읽지 않는다. 파일을 읽을지는 호출자가 정한다.
 
 **테스트에서 특정 설정이 필요하면 엔진을 만든 뒤 그 필드만 바꾼다** — 사용자 홈에 그 값이
 있기를 기대하지 않는다:
@@ -534,7 +537,7 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 (스레드 로컬, env 미조작, 테스트 전용 홈 경로 주입)로 그 시험 전용 임시 홈을 세운다.
 
 - 본체는 `EngineSession` 이 `IsolatedHome` 을 **마지막 필드**로 들고, 조립 지점
-  `new_with_ids_and_settings` 가 그것을 첫 줄에서 세운다. 그래서 생성자를 무엇으로 부르든
+  `assemble`(모든 생성자가 지나는 함수)이 그것을 첫 줄에서 세운다. 그래서 생성자를 무엇으로 부르든
   — 픽스처를 거치든 그 함수를 직접 부르든 — 같은 격리를 받고, 생성 이후의 `save()` 까지
   엔진 수명 내내 덮인다(마지막 필드인 것이 그 계약이다: drop 순서가 선언 순서다).
 - 엔진 없이 홈을 읽는 것을 만드는 시험은 그 헬퍼가 직접 가드를 쥔다 —
