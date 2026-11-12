@@ -22,14 +22,31 @@ function tasty.log(msg) end
 ---@param msg string
 function tasty.warn(msg) end
 
---- Not registered by the current host; this stub does not provide notifications.
----@param title string
----@param body string
-function tasty.notify(title, body) end
-
 --- Ask the main thread to spawn the Tasty CLI without waiting for completion. Stdio is nulled.
 ---@param args string[]
 function tasty.run_cli(args) end
+
+--- Return a copy of the workspace tree the main thread published last. The main
+--- thread publishes it once per event loop pass, so a change requested with
+--- tasty.run_cli is not guaranteed to appear in the next call. Each entry is
+--- one workspace with the same fields as IPC `list tree`. The workspaces of
+--- each session (engine) are appended in turn: sessions with a window first, in
+--- no fixed order, then parked sessions kept without a window (last window
+--- closed, window minimized on macOS) in the order they were kept. Changing the
+--- returned table does not change Tasty.
+---
+--- Focused surface of a session: the workspace with `active`, then its pane with
+--- `focused`, then that pane's tab with `active`, then `tab.surface.focused_surface`
+--- when `tab.surface.type == "SplitLayout"`, otherwise `tab.surface.id`.
+---
+--- Limit: `active` and `focused` are decided inside each session (a window or
+--- a parked session) and no field names the window or session, so with several
+--- sessions more than one workspace can have `active = true`. The tree cannot
+--- tell which window has the OS focus or which session is on screen; the lookup
+--- above can return a surface of another window, or of a parked session that is
+--- not shown when every window is closed or minimized on macOS.
+---@return TastyTreeWorkspace[]
+function tasty.tree() end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Event names
@@ -119,3 +136,65 @@ function tasty.run_cli(args) end
 ---@field surface_id integer
 ---@field kind string
 ---@field reason string
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- tasty.tree() shapes
+-- (Same fields as IPC `list tree`.)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+---@class TastyTreeWorkspace
+---@field id integer
+---@field name string
+---@field active boolean           -- the selected workspace of its session (window or parked session)
+---@field busy_count integer       -- busy surfaces in this workspace
+---@field panes TastyTreePane[]
+
+---@class TastyTreePane
+---@field id integer
+---@field focused boolean          -- the focused pane of its workspace
+---@field busy_count integer       -- sum of the tab `busy` values below; see TastyTreeTab.busy
+---@field tabs TastyTreeTab[]
+
+---@class TastyTreeTab
+---@field id integer
+---@field name string
+---@field active boolean           -- the selected tab of its pane
+---@field busy boolean             -- currently looked up with the tab id as a surface id; do not read it as the state of `surface`
+---@field surface TastyTreeSplitLayout|TastyTreeSurface
+
+--- Content of a tab whose surfaces are split.
+---@class TastyTreeSplitLayout
+---@field type "SplitLayout"
+---@field focused_surface integer  -- the focused surface of this tab
+---@field surfaces integer[]       -- every surface id in the tab
+---@field layout TastyTreeLayoutNode
+
+---@class TastyTreeLayoutNode
+---@field type "Leaf"|"Split"
+---@field id integer|nil           -- Leaf only
+---@field kind string|nil          -- Leaf only
+---@field direction "horizontal"|"vertical"|nil -- Split only
+---@field ratio number|nil         -- Split only
+---@field focus_second boolean|nil -- Split only
+---@field first TastyTreeLayoutNode|nil  -- Split only
+---@field second TastyTreeLayoutNode|nil -- Split only
+
+--- Content of a tab with one surface. Every surface has `id` and `type`; the
+--- other fields depend on the surface type. A JSON null arrives as the mlua
+--- null value (a light userdata), not as nil.
+---@class TastyTreeSurface
+---@field id integer
+---@field type "Terminal"|"Empty"|"Pending"|"DAG"|"Explorer"|"Remote"|"AttachMesh"|"EguiMesh"|string
+---@field kind string|nil          -- every type except Terminal and the {id, type = "Pending"} stand-in for a surface the engine cannot find
+---@field pty_ready boolean|nil    -- Terminal (true) and restoring Pending (false)
+---@field cols integer|nil         -- Terminal; always 0 in this tree
+---@field rows integer|nil         -- Terminal; always 0 in this tree
+---@field ready boolean|nil        -- Pending waiting for its plugin; always false
+---@field pending_reason "plugin_not_loaded"|nil -- Pending waiting for its plugin
+---@field surface_id integer|nil   -- Pending still being restored at startup; same as id
+---@field restore_error string|lightuserdata|nil -- Pending still being restored at startup; null unless recovery is blocked
+---@field direction "lr"|"td"|nil  -- DAG
+---@field dag_id string|nil        -- DAG; only when bound to a DAG
+---@field workspace_id integer|nil -- DAG; only when bound to a workspace
+---@field plugin_id string|nil     -- Remote, AttachMesh, EguiMesh
+---@field display_name string|nil  -- Remote, AttachMesh, EguiMesh

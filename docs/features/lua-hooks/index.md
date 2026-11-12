@@ -53,7 +53,52 @@ Lua5.4의 instruction-count hook이 기한을 확인해 초과 job을 오류로 
 
 ### 호스트 API
 
-`tasty.on(event, cb)` · `tasty.log/warn(msg)`(tracing) · `tasty.run_cli(args)`(메인 커맨드 큐 경유 detached spawn) · `tasty.tree()`(워크스페이스 트리 read, 스냅샷 경유). API는 열거된 것만 — 필요한 CRUD 마다 명시 등록으로 늘린다.
+`tasty.on(event, cb)` · `tasty.log/warn(msg)`(tracing) · `tasty.run_cli(args)`(메인 커맨드 큐 경유 detached spawn) · `tasty.tree()`(워크스페이스 트리 read, 스냅샷 경유). API는 열거된 것만 — 필요한 CRUD 마다 명시 등록으로 늘린다. 이 목록 밖의 함수(예: `tasty.notify`)는 없다. 정의 파일 `crates/tasty-lua/meta/tasty.lua`도 같은 목록을 정의한다.
+
+#### `tasty.tree()` 반환 구조
+
+메인 스레드는 이벤트 루프를 한 번 돌 때마다 트리를 만들어 스냅샷으로 발행한다. `tasty.tree()`는 호출한 시점에 마지막으로 발행된 스냅샷을 복사해 Lua table로 돌려준다. 돌려받은 table을 바꿔도 Tasty 상태는 바뀌지 않는다. 각 workspace의 필드는 IPC `list tree`와 같다. 두 경로가 같은 함수(`build_engine_tree`)로 JSON을 만들기 때문이다. 반환값은 workspace 배열이다. 세션(engine)마다 그 workspace를 차례로 이어 붙인다. 세션에는 창이 있는 세션과 창 없이 보관된 parked 세션(마지막 창을 닫았을 때, macOS에서 창을 최소화했을 때)이 있다. 창이 있는 세션이 먼저 오고(창 사이 순서는 고정돼 있지 않다) parked 세션이 보관 순서대로 뒤에 온다.
+
+| 단계 | 필드 |
+|---|---|
+| workspace | `id`, `name`, `active`(그 세션에서 선택된 workspace), `busy_count`(workspace 안 surface 중 busy 수), `panes` |
+| pane | `id`, `focused`(그 workspace의 포커스 pane), `busy_count`, `tabs` |
+| tab | `id`, `name`, `active`(그 pane에서 선택된 tab), `busy`, `surface` |
+| `tab.surface`(나뉜 tab) | `type = "SplitLayout"`, `focused_surface`(그 tab의 포커스 surface id), `surfaces`(tab 안 surface id 배열), `layout` |
+| `layout` 노드 | `Leaf`: `type`, `id`, `kind`. `Split`: `type`, `direction`(`horizontal`·`vertical`), `ratio`, `focus_second`, `first`, `second` |
+| `tab.surface`(나뉘지 않은 tab) | surface 하나의 JSON. 모든 surface에 `id`와 `type`이 있고 나머지는 종류마다 다르다. 터미널은 `type = "Terminal"`, `pty_ready`, `cols`, `rows`(이 트리에서는 항상 0)이다. 종류별 필드 전체는 정의 파일의 `TastyTreeSurface`에 있다. |
+
+세션 하나의 포커스 surface id는 다음 순서로 찾는다.
+
+1. `active`가 참인 workspace
+2. 그 workspace에서 `focused`가 참인 pane
+3. 그 pane에서 `active`가 참인 tab
+4. `tab.surface.type`이 `"SplitLayout"`이면 `tab.surface.focused_surface`, 아니면 `tab.surface.id`
+
+```lua
+local function focused_surface_id()
+  for _, ws in ipairs(tasty.tree()) do
+    if ws.active then
+      for _, pane in ipairs(ws.panes) do
+        if pane.focused then
+          for _, tab in ipairs(pane.tabs) do
+            if tab.active then
+              local s = tab.surface
+              return s.type == "SplitLayout" and s.focused_surface or s.id
+            end
+          end
+        end
+      end
+    end
+  end
+end
+```
+
+한계는 다음과 같다.
+
+- `active`와 `focused`는 세션(창, 또는 창 없이 보관된 parked 세션) 안에서만 판정한다. 트리에는 창이나 세션을 나타내는 필드가 없다. 세션이 여러 개면 `active`가 참인 workspace가 세션마다 하나씩 나오고, OS 포커스를 가진 창이나 화면에 보이는 세션을 트리로 구분할 수 없다. 위 예처럼 첫 번째 `active` workspace를 고르면 다른 창의 surface가 나올 수 있다. 창을 모두 닫았거나 macOS에서 창을 최소화한 상태에서는 화면에 없는 parked 세션의 surface가 나올 수 있다.
+- busy 판정은 workspace의 `busy_count`만 surface 상태와 맞다. tab의 `busy`는 tab id를 surface id로 조회한 값이고, pane의 `busy_count`는 그 tab 값을 더한 수다. surface JSON에는 `busy`가 없다.
+- 스냅샷은 발행 시점의 값이다. `tasty.run_cli`는 CLI 실행을 요청만 하고 완료를 기다리지 않으므로, 바로 뒤의 `tasty.tree()`에 그 결과가 반영됐다고 가정할 수 없다.
 
 ### 이벤트 hook
 
@@ -103,7 +148,7 @@ plugin에서 사용자 스크립트를 지원하려면 이 경계를 별도로 �
 
 ### 콜백 모델
 
-`tasty.on(event, cb)`(동일 event 다중 등록, 순서대로). 인자는 단일 table(payload). 콜백 에러는 `tracing::warn!` 기록 후 다음 콜백 계속(한 콜백의 오류가 다른 콜백을 막지 않음). 리턴값 무시(observe-only). 호스트 API 목록(현재): `tasty.on`/`log`/`warn`/`run_cli`(커맨드 큐 경유)/`tree`(read).
+`tasty.on(event, cb)`(동일 event 다중 등록, 순서대로). 인자는 단일 table(payload). 콜백 에러는 `tracing::warn!` 기록 후 다음 콜백 계속(한 콜백의 오류가 다른 콜백을 막지 않음). 리턴값 무시(observe-only). 호스트 API 목록(현재): `tasty.on`/`log`/`warn`/`run_cli`(커맨드 큐 경유)/`tree`(read, 반환 구조는 [`tasty.tree()` 반환 구조](#tastytree-반환-구조)).
 
 이벤트 자동실행은 콜백 등록과 별개다. `ScriptEntry.triggers`에 연결한 스크립트 소스를
 이벤트가 발생할 때 읽고 해시를 다시 확인한 뒤 실행한다.
