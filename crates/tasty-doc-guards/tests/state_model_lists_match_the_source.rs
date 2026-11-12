@@ -25,8 +25,10 @@ fn read(rel: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{rel}을 읽지 못했다: {e}"))
 }
 
-/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 중괄호 수만 센다.
-fn fn_body<'a>(source: &'a str, name: &str, rel: &str) -> &'a str {
+/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 주석을 먼저 지우고(`strip_comments`)
+/// 문자열 리터럴 밖의 중괄호만 센다. 주석이나 문자열 속 `{`·`}`로 함수 범위가 바뀌지 않는다.
+fn fn_body(source: &str, name: &str, rel: &str) -> String {
+    let source = strip_comments(source);
     let start = source
         .find(&format!("fn {name}("))
         .unwrap_or_else(|| panic!("{rel}에서 fn {name}을 찾지 못했다"));
@@ -35,13 +37,25 @@ fn fn_body<'a>(source: &'a str, name: &str, rel: &str) -> &'a str {
             .find('{')
             .unwrap_or_else(|| panic!("{rel}의 fn {name}에 본문이 없다"));
     let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
     for (i, c) in source[open..].char_indices() {
+        if in_string {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
         match c {
+            '"' => in_string = true,
             '{' => depth += 1,
             '}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return &source[open..=open + i];
+                    return source[open..=open + i].to_string();
                 }
             }
             _ => {}
@@ -152,7 +166,7 @@ fn activation_transition_table_matches_the_journal_rule() {
     let lifecycle = read(LIFECYCLE);
     let variants = enum_variants(&read(OPERATION), "ActivationPhase", OPERATION);
     // 시그니처와 `matches!`의 `(from, to)`처럼 단계 이름이 아닌 괄호는 버린다.
-    let code: BTreeSet<_> = code_transitions(fn_body(&lifecycle, "phase_transition", LIFECYCLE))
+    let code: BTreeSet<_> = code_transitions(&fn_body(&lifecycle, "phase_transition", LIFECYCLE))
         .into_iter()
         .filter(|(f, t)| variants.contains(f) && variants.contains(t))
         .collect();
@@ -345,14 +359,14 @@ fn code_sidebar_map(body: &str) -> (Vec<(String, String)>, String) {
 #[test]
 fn row_state_table_matches_the_row_state_source() {
     let row_use = read(ROW_USE);
-    let code = code_row_states(fn_body(&row_use, "row_state_name", ROW_USE));
+    let code = code_row_states(&fn_body(&row_use, "row_state_name", ROW_USE));
     assert!(
         code.len() >= 3,
         "{ROW_USE}의 row_state_name에서 상태 문자열을 {}개만 읽었다. 파서가 형태를 놓쳤다",
         code.len()
     );
     let engine_read = read(ENGINE_READ);
-    let (map, fallback) = code_sidebar_map(fn_body(&engine_read, "remote_row_state", ENGINE_READ));
+    let (map, fallback) = code_sidebar_map(&fn_body(&engine_read, "remote_row_state", ENGINE_READ));
 
     let rows = table_rows(&read(WORKSPACE_DOC), "연결 상태", WORKSPACE_DOC);
     let mut doc = BTreeSet::new();
