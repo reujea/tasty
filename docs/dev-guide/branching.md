@@ -43,7 +43,7 @@
 ## hotfix
 
 1. `main`에서 갈라 수정하고 `main`에 반영한다.
-2. 본체 patch 버전을 올리고 태그를 붙여 릴리스한다([main과 태그](#main과-태그)).
+2. `main`에서 본체 patch 버전을 올리고 그 버전 커밋에 태그를 붙여 `main`과 태그를 한 번에 push한다(`git push --atomic origin main vX.Y.Z`). `release`는 이 push에 넣지 않는다. 태그 커밋 확인은 [main과 태그](#main과-태그)의 3번과 같다.
 3. `main`을 `release`와 `develop`에 역병합한다. 대상이 앞서 있으면 merge 커밋이 된다.
 
 역병합을 cherry-pick으로 하지 않는다. cherry-pick한 커밋은 해시가 달라 다음 `release` → `main` 승격이 fast-forward로 되지 않는다.
@@ -64,7 +64,7 @@ merge 커밋은 아래 다섯 경우에만 만든다. 그 밖의 merge(작업 �
 
 ## 버전
 
-- 본체 patch 버전은 `release`에서 올린다. hotfix는 `main`에서 올린다. `develop`의 버전은 역병합으로 따라간다. 두 README 배지와 `Cargo.toml`은 같은 커밋에서 바뀌므로 어느 브랜치에서든 `readme_badge_parity`가 통과한다.
+- 본체 patch 버전은 `release`에서 올린다. `develop`의 버전은 역병합으로 따라간다. 예외로 hotfix의 patch는 `main`에서 올리고, `release`와 `develop`은 역병합으로 따라간다. 두 README 배지와 `Cargo.toml`은 같은 커밋에서 바뀌므로 어느 브랜치에서든 `readme_badge_parity`가 통과한다.
 - 플러그인 patch 버전은 `develop`에 반영할 때 올린다.
 
 ## CI

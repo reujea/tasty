@@ -68,7 +68,7 @@ Conventional Commits 형식을 따른다 (예: `feat(themes): add latte theme`).
 
 ### 본체 (`Cargo.toml` 루트)
 
-- **패치 버전**: 사용자가 빌드를 요청했을 때, 마지막 빌드 이후 새 커밋이 있고 사용자가 막지 않았다면 AI 가 자동으로 +1 한다. 올리는 커밋은 `release` 브랜치에 넣고 `develop`은 역병합으로 따라간다. 브랜치 규칙은 [브랜치 전략](docs/dev-guide/branching.md)에 있다.
+- **패치 버전**: 사용자가 빌드를 요청했을 때, 마지막 빌드 이후 새 커밋이 있고 사용자가 막지 않았다면 AI 가 자동으로 +1 한다. 올리는 커밋은 `release` 브랜치에 넣고 `develop`은 역병합으로 따라간다. 예외로 hotfix의 patch는 `main`에서 올리고, `release`와 `develop`은 역병합으로 따라간다. 브랜치 규칙은 [브랜치 전략](docs/dev-guide/branching.md)에 있다.
 - **README 버전 배지 동기화 (필수)**: 본체 patch를 올리면 `README.md`와 `README.ko.md`의 `badge/version-X.Y.Z-blue`도 같은 값으로 바꿔 같은 커밋에 넣는다. `readme_badge_parity` 검사가 Cargo.toml과 배지의 일치를 확인한다. `doc-guards.yml`은 경로 필터 없이 develop·release·main push와 PR에서 이 검사를 실행하므로, 커밋 전에도 직접 검사한다([CI 가이드](docs/dev-guide/ci-gates.md)).
 - **마이너 / 메이저**: 사용자가 직접 지정한다. 임의로 올리지 않는다.
 - **자체 검증용 빌드** (`cargo build` / `cargo test`): 버전을 올리지 않는다.
