@@ -80,7 +80,8 @@ impl App {
                 if !self.browser_target_is_current(id, engine) {
                     return Err("remote browser target retired".into());
                 }
-                if let Err(message) = self.remote.create_in_browser(id, wake) {
+                let inherit_cwd = self.browser_inherit_cwd(id);
+                if let Err(message) = self.remote.create_in_browser(id, wake, inherit_cwd) {
                     self.display_browser_update(
                         id,
                         tasty_remote::browser::BrowserUpdate::Failed {
@@ -177,6 +178,43 @@ impl App {
         }
     }
 
+    /// 원격 "+ 새 워크스페이스"가 싣는 cwd 상속 원본. 팝업을 연 창의 포커스가 같은 원격(같은 attach 프로필)의
+    /// mirror 터미널이면 그 원격 ID 를 싣는다. client `inherit_cwd`가 꺼져 있으면 "상속 안 함"이다. 같은
+    /// 서버인지 판정할 수 없으면(포커스가 로컬 surface, 프로필 없이 붙은 mirror, 다른 프로필) 싣지 않아
+    /// 원격 Tasty가 자기 포커스와 자기 설정으로 정한다.
+    fn browser_inherit_cwd(&mut self, id: u64) -> Option<tasty_ipc::stream::InheritCwd> {
+        let (engine, window, profile) = self
+            .state
+            .remote_browsers
+            .get(&id)
+            .map(|target| (target.engine, target.window, target.profile.clone()))?;
+        let (main, session) = self.engines().window_pair(window)?;
+        if self.engines.of_window(window) != Some(engine) {
+            return None;
+        }
+        let inherit = session.runtime.settings.general.inherit_cwd;
+        let focused = main
+            .state
+            .focused_surface_id(session.core)
+            .filter(|surface| {
+                session
+                    .core
+                    .find_surface_by_id(*surface)
+                    .is_some_and(|found| found.kind() == "terminal")
+            });
+        let remote = focused.and_then(|local| {
+            remote_surface_of_profile(
+                self.remote
+                    .sessions
+                    .iter()
+                    .map(|s| (s.state.profile.as_deref(), &s.state.remote_to_local)),
+                &profile,
+                local,
+            )
+        });
+        tasty_ipc::stream::InheritCwd::of_client(inherit, remote)
+    }
+
     fn browser_target_is_current(
         &self,
         id: u64,
@@ -229,5 +267,48 @@ impl App {
         for (id, update) in self.remote.poll_browsers() {
             self.display_browser_update(id, update);
         }
+    }
+}
+
+/// 로컬 mirror surface 의 원격 ID. 그 surface 를 가진 mirror 세션이 같은 attach 프로필로 연결됐을 때만 준다.
+/// 세션에는 서버 `instance_id` 가 없으므로 같은 서버인지는 연결 때 고른 프로필로 판정한다.
+fn remote_surface_of_profile<'a>(
+    sessions: impl IntoIterator<Item = (Option<&'a str>, &'a std::collections::HashMap<u32, u32>)>,
+    profile: &str,
+    local: u32,
+) -> Option<u32> {
+    sessions
+        .into_iter()
+        .filter(|(session_profile, _)| *session_profile == Some(profile))
+        .find_map(|(_, remote_to_local)| {
+            remote_to_local
+                .iter()
+                .find(|(_, mapped)| **mapped == local)
+                .map(|(remote, _)| *remote)
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::remote_surface_of_profile;
+    use std::collections::HashMap;
+
+    /// 같은 프로필의 세션만 원격 ID 를 준다. 프로필 없는 mirror 와 다른 프로필은 같은 서버로 보지 않는다.
+    #[test]
+    fn only_a_mirror_of_the_same_profile_names_its_remote_surface() {
+        let same: HashMap<u32, u32> = [(40, 3)].into_iter().collect();
+        let other: HashMap<u32, u32> = [(50, 4)].into_iter().collect();
+        let unnamed: HashMap<u32, u32> = [(60, 5)].into_iter().collect();
+        let sessions = || {
+            [
+                (Some("other"), &other),
+                (None, &unnamed),
+                (Some("gx10"), &same),
+            ]
+        };
+        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 3), Some(40));
+        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 4), None);
+        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 5), None);
+        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 9), None);
     }
 }

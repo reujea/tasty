@@ -384,3 +384,88 @@ fn a_remote_child_source_must_be_in_its_pane() {
         assert!(source(refused.clone()).is_err(), "{refused}");
     }
 }
+
+/// `workspace.create` 의 `inherit_cwd`: 포커스는 폴더를 아는 explorer(101)다. 인자가 없으면 포커스의 폴더를
+/// 잇고, 터미널을 지목하면 포커스가 아니라 그 터미널(폴더를 모르면 없음)을, "none"이면 없음이다. 이 인스턴스의
+/// 설정이 꺼져 있어도 지목한 원본은 쓴다. 터미널이 아니거나 없는 surface, 모르는 값은 거절한다.
+#[test]
+fn a_workspace_create_follows_the_named_terminal() {
+    use tasty_core::DomainEvent as E;
+    let mut events = vec![
+        E::CategoryCreated {
+            id: 0,
+            name: "normal".into(),
+            index: 0,
+        },
+        E::WorkspaceCreated {
+            id: 1,
+            name: "one".into(),
+            category: 0,
+            index: 0,
+            pane: 10,
+        },
+    ];
+    for (id, index, kind) in [(A, 0, "explorer"), (B, 1, "terminal")] {
+        events.push(E::TabCreated {
+            id,
+            pane: 10,
+            index,
+            name: kind.into(),
+            surface: tasty_core::SurfaceSpec {
+                id,
+                kind: kind.into(),
+                data: None,
+            },
+        });
+    }
+    let (mut state, mut session) =
+        crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
+    let dir = tempfile::tempdir().expect("temp dir");
+    session.runtime.surfaces.insert(
+        A,
+        Box::new(crate::model::ExplorerPanel::new(
+            A,
+            dir.path().to_path_buf(),
+        )),
+    );
+    let mut create = |inherit: bool, params: serde_json::Value| {
+        session.runtime.settings.general.inherit_cwd = inherit;
+        let scope = crate::ipc::request_scope::RequestScope::capture(
+            &mut state,
+            &session.core_state,
+            #[cfg(feature = "gui")]
+            None,
+        );
+        crate::ipc::handler::workspace::resolve_create_cwd(
+            &params,
+            "terminal",
+            &scope,
+            &session.as_ref(),
+            &serde_json::Value::Null,
+        )
+        .map_err(|response| response.error.expect("refusal").message)
+    };
+    let focused = Some(dir.path().to_path_buf());
+    assert_eq!(create(true, serde_json::json!({})), Ok(focused));
+    assert_eq!(create(false, serde_json::json!({})), Ok(None));
+    for inherit in [true, false] {
+        assert_eq!(
+            create(inherit, serde_json::json!({"inherit_cwd": {"surface": B}})),
+            Ok(None),
+            "the named terminal, not the focus"
+        );
+        assert_eq!(
+            create(inherit, serde_json::json!({"inherit_cwd": "none"})),
+            Ok(None)
+        );
+    }
+    let explorer = create(true, serde_json::json!({"inherit_cwd": {"surface": A}})).unwrap_err();
+    assert!(explorer.contains("not a terminal"), "{explorer}");
+    let missing = create(true, serde_json::json!({"inherit_cwd": {"surface": 9999}})).unwrap_err();
+    assert!(missing.contains("no live surface 9999"), "{missing}");
+    let unknown = create(true, serde_json::json!({"inherit_cwd": "all"})).unwrap_err();
+    assert!(
+        unknown.contains("unsupported inherit_cwd value"),
+        "{unknown}"
+    );
+}

@@ -139,10 +139,13 @@ impl Remote {
         }
         result
     }
+    /// 원격 workspace 를 만든다. `inherit_cwd` 는 client 가 정한 첫 터미널의 cwd 상속 원본이다.
+    /// None 이면 싣지 않고 원격이 자기 포커스와 자기 설정으로 정한다.
     pub fn create_in_browser(
         &mut self,
         id: BrowserId,
         wake: Arc<dyn Fn() + Send + Sync>,
+        inherit_cwd: Option<tasty_ipc::stream::InheritCwd>,
     ) -> Result<(), String> {
         let session = self
             .browsers
@@ -161,22 +164,24 @@ impl Remote {
             session.started = Instant::now();
             session.creating = true;
         }
+        let mut params = serde_json::json!({});
+        if let Some(inherit_cwd) = &inherit_cwd {
+            params["inherit_cwd"] = serde_json::json!(inherit_cwd);
+        }
         let result = self.spawn_attempt(attempt, move || {
-            let result = crate::browse::probe_method_bound(
-                port,
-                "workspace.create",
-                serde_json::json!({}),
-                Some(&token),
-            )
-            .map_err(|error| error.to_string())
-            .and_then(|value| {
-                value
-                    .get("id")
-                    .and_then(|id| id.as_u64())
-                    .and_then(|id| u32::try_from(id).ok())
-                    .map(ResultValue::Created)
-                    .ok_or_else(|| tasty_i18n::t("remote_attach.create_failed_generic").to_owned())
-            });
+            let result =
+                crate::browse::probe_method_bound(port, "workspace.create", params, Some(&token))
+                    .map_err(|error| error.to_string())
+                    .and_then(|value| {
+                        value
+                            .get("id")
+                            .and_then(|id| id.as_u64())
+                            .and_then(|id| u32::try_from(id).ok())
+                            .map(ResultValue::Created)
+                            .ok_or_else(|| {
+                                tasty_i18n::t("remote_attach.create_failed_generic").to_owned()
+                            })
+                    });
             crate::outbound::send_attempt_result(
                 &tx,
                 &token,

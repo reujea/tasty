@@ -3,6 +3,7 @@ use serde_json::json;
 use super::params;
 use crate::runtime::engine_access::EngineRef;
 use tasty_ipc::protocol::JsonRpcResponse;
+use tasty_ipc::stream::InheritCwd;
 
 /// create/update params 의 `category` 를 카테고리 id 로 해석한다.
 /// - 필드 없음 → `Ok(None)` (호출자가 normal 기본값 유지).
@@ -115,11 +116,50 @@ pub(crate) fn resolve_create_cwd(
         ));
     }
     let named_surface = params::opt_int::<u32>(params, "surface_id", id)?;
+    let source = named_inherit_source(params, engine, id)?;
     Ok(match explicit_cwd {
         Some(cwd) => Some(cwd),
-        None if kind == "terminal" => inherit_cwd_for_create(window, engine, named_surface),
+        None if kind == "terminal" => match source {
+            None => inherit_cwd_for_create(window, engine, named_surface),
+            Some(InheritCwd::Surface(surface)) => engine.local_surface_cwd(surface),
+            Some(_) => None,
+        },
         None => None,
     })
+}
+
+/// `inherit_cwd` 인자. 원격 client 가 자기 포커스로 고른 이 인스턴스의 터미널(`{"surface": N}`) 또는 상속 안 함
+/// (`"none"`)이다. 생략하면 None 이고 기존 규칙(`surface_id` 또는 창의 포커스, 이 인스턴스의 설정)을 쓴다.
+/// 원본을 고른 요청자는 이미 자기 설정으로 판단했으므로 이 인스턴스의 `inherit_cwd` 설정으로 막지 않는다.
+/// 원본은 실재하는 terminal 이어야 한다. 아니면 포커스로 대체하지 않고 거절한다. 모르는 값도 거절한다.
+fn named_inherit_source(
+    params: &serde_json::Value,
+    engine: &EngineRef<'_>,
+    id: &serde_json::Value,
+) -> Result<Option<InheritCwd>, JsonRpcResponse> {
+    let Some(value) = params.get("inherit_cwd").filter(|value| !value.is_null()) else {
+        return Ok(None);
+    };
+    let refuse = |message: String| Err(JsonRpcResponse::invalid_params(id.clone(), message));
+    match serde_json::from_value::<InheritCwd>(value.clone()) {
+        Ok(InheritCwd::NoInherit) => Ok(Some(InheritCwd::NoInherit)),
+        Ok(InheritCwd::Surface(surface)) => {
+            match engine.find_surface_by_id(surface).map(|found| found.kind()) {
+                Some("terminal") => Ok(Some(InheritCwd::Surface(surface))),
+                Some(kind) => refuse(format!(
+                    "inherit_cwd surface {surface} is a {kind} surface, not a terminal"
+                )),
+                None => refuse(tasty_utils::target::unowned_target_message(
+                    "surface",
+                    u64::from(surface),
+                    "workspace.create.inherit_cwd",
+                )),
+            }
+        }
+        Ok(InheritCwd::Unknown(_)) | Err(_) => {
+            refuse(format!("unsupported inherit_cwd value {value}"))
+        }
+    }
 }
 
 pub(crate) fn last_workspace_refusal() -> &'static str {
