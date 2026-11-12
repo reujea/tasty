@@ -129,11 +129,17 @@ GitHub Releases 에서 노트를 확인하고, 자산이 아래 [릴리스 자�
 ### 8. 사이트 게시
 
 publish-release가 끝나 GitHub Release가 공개된 뒤 tasty-page의 최신 페이지(`develop`)를 게시본(`main`)으로
-승격한다. 승격 명령, 태그, 배포를 시작하는 push와 확인할 워크플로는 tasty-page 레포의 문서를 따른다.
+승격한다. tasty-page도 `develop`·`release`·`main`을 쓰며 `main` push가 사이트 배포를 시작한다.
+
+1. tasty-page `develop`에서 고른 시점을 그 레포의 `release`에 merge하고 그 레포의 검사를 통과시킨다.
+2. `release`를 `main`에 merge 커밋으로 합치고 태그를 붙인다.
+3. `git push --atomic origin main <태그>`로 `main`과 태그를 함께 push한다. 이 `main` push가 배포다.
+
+태그 이름, 검사와 배포 워크플로의 이름은 tasty-page 레포의 문서를 따른다.
 
 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 사이트 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로
-게시한다. 게시본에 넣는 방법도 tasty-page 레포의 문서를 따른다. 기능 설명이나 버전이 바뀌는 변경은 릴리스와 함께
-승격한다.
+게시한다. 이런 게시용 수정은 tasty-page `main`에 커밋해 배포한 뒤 그 레포의 `release`와 `develop`에 역병합한다.
+기능 설명이나 버전이 바뀌는 변경은 `develop`에 넣고 릴리스와 함께 승격한다.
 
 ## 릴리스 자산
 
