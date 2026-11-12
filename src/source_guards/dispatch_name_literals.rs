@@ -30,6 +30,7 @@ const ROUTERS: &[&str] = &[
     "src/app/journal/commands/child_input_tests.rs",
     "src/app/journal/commands/recovery_tests.rs",
     "src/app/journal/commands/close_history_tests.rs",
+    "src/app/journal/commands/remote_selection_tests.rs",
     "src/app/journal/commands/category.rs",
     "src/app/journal/commands/create_spec.rs",
     "src/app/journal/commands/assembly.rs",

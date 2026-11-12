@@ -1043,6 +1043,9 @@ mod close_pause_tests;
 mod close_remote_tests;
 #[cfg(test)]
 mod remote_cwd_tests;
+// The selection follows a completed intent only in the GUI; headless keeps no View activation.
+#[cfg(all(test, feature = "gui"))]
+mod remote_selection_tests;
 #[cfg(test)]
 mod tests;
 
