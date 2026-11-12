@@ -3,6 +3,7 @@
 //! - `pump`: plugin 알림 처리, healthcheck/PING, 호스트→plugin 핸드셰이크, surface 등록, restart.
 //! - `drain_host_cmds`: registry/file_format/popup closure 가 큐잉한 `HostCmd` 일괄 처리.
 
+mod healthcheck;
 mod retirement;
 
 use std::collections::HashSet;
@@ -119,9 +120,11 @@ impl PluginManager {
         for key in self.timers.drain_due(now) {
             match key {
                 PluginTick::Ping => {
-                    self.send_periodic_ping();
-                    // 무응답 재시작 판정은 ping tick에서 한다.
-                    self.restart_unresponsive_plugins();
+                    // 송신·판정 모두 이번 발화의 격자 시각을 쓴다. 루프가 깨어난 시각의 흔들림이
+                    // 60초 비교를 한 tick 밀지 않게 한다.
+                    let tick = self.ping_grid_time(now);
+                    self.send_periodic_ping(tick);
+                    self.restart_unresponsive_plugins(tick);
                 }
                 PluginTick::Rss => self.sample_plugin_rss(),
                 PluginTick::AutoReload => self.poll_auto_reload(),
@@ -730,21 +733,46 @@ impl PluginManager {
         hello_pairs
     }
 
-    /// 주기적 ping — 전 프로세스에 ping 송신. 주기 판정은 `PluginTick::Ping` 이 한다.
-    fn send_periodic_ping(&mut self) {
-        for proc in self.processes.values() {
-            let id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
-            proc.ping(id);
+    /// 방금 발화한 Ping 타이머의 격자 시각. 발화 뒤 다음 예정 시각에서 한 주기를 뺀다.
+    fn ping_grid_time(&self, now: Instant) -> Instant {
+        let next = self
+            .timers
+            .snapshot()
+            .into_iter()
+            .find(|s| s.key == PluginTick::Ping);
+        match next {
+            Some(s) => healthcheck::grid_time(s.next_due, s.interval, now),
+            None => now,
         }
     }
 
-    /// 헬스체크 — `HEALTHCHECK_TIMEOUT` 무응답 plugin 을 재시작.
-    pub(super) fn restart_unresponsive_plugins(&mut self) {
+    /// 주기적 ping — 전 프로세스에 ping 송신. 주기 판정은 `PluginTick::Ping` 이 한다.
+    /// 송신이 실패해도(큐 포화 등) 미응답 송신 시각은 잡는다. 송신 큐가 막힌 것도 행 상태다.
+    fn send_periodic_ping(&mut self, now: Instant) {
+        for proc in self.processes.values_mut() {
+            let id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
+            proc.ping(id);
+            let owed = healthcheck::owed_since_after_ping(
+                proc.ping_owed_since(),
+                proc.last_pong_at(),
+                now,
+            );
+            proc.set_ping_owed_since(owed);
+        }
+    }
+
+    /// 헬스체크 — 답하지 않은 ping을 보낸 지 `HEALTHCHECK_TIMEOUT` 이 지난 plugin 을 재시작.
+    pub(super) fn restart_unresponsive_plugins(&mut self, now: Instant) {
         let mut unresponsive: Vec<RestartCause> = self
             .processes
             .iter()
             .filter_map(|(id, p)| {
-                if p.since_last_pong() > HEALTHCHECK_TIMEOUT {
+                if healthcheck::is_unresponsive(
+                    p.ping_owed_since(),
+                    p.last_pong_at(),
+                    now,
+                    HEALTHCHECK_TIMEOUT,
+                ) {
                     Some(RestartCause {
                         plugin_id: id.clone(),
                         error_kind: "unresponsive",

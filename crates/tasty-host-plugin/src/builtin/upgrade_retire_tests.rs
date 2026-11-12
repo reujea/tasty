@@ -23,8 +23,8 @@ fn restarting(home: &HomeEnvGuard) -> (PluginManager, std::path::PathBuf, std::p
     let mut mgr = PluginManager::new(Arc::new(NoopWakerFactory));
     mgr.set_packages_for_tests(vec![fake::package(&dest)]);
     let stalled = Command::new("sleep").arg("30").spawn().expect("child");
-    let proc = PluginProcess::stub_with_child(ID, stalled);
-    proc.backdate_pong_for_test(Duration::from_secs(120));
+    let mut proc = PluginProcess::stub_with_child(ID, stalled);
+    proc.owe_ping_for_test(Duration::from_secs(120));
     mgr.processes.insert(ID.into(), proc);
     mgr.restart_unresponsive_for_test();
     assert_eq!(

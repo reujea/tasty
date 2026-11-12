@@ -1,7 +1,7 @@
 //! 플러그인 자식 프로세스와 양방향 채널.
 //! spawn은 자식을 실행한 뒤 연결 대기를 별도 스레드에 맡긴다.
 //! 연결 전 요청은 큐에 쌓이며, 연결 뒤 송수신 스레드가 처리한다.
-//! 수신 시각을 last_pong에 기록해 무응답 여부를 판단한다.
+//! 수신 시각을 last_pong에 기록하고, 매니저가 미응답 ping 송신 시각과 비교해 무응답을 판정한다.
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -124,6 +124,9 @@ pub struct PluginProcess {
     pub resp_rx: MeteredReceiver<PluginResponse>,
     pub event_rx: MeteredReceiver<PluginEvent>,
     last_pong: Arc<Mutex<Instant>>,
+    /// 답을 받지 못한 가장 오래된 ping의 송신 시각(pump의 now). 메인 스레드만 읽고 쓴다.
+    /// 첫 ping 전에는 None이라 무응답 판정을 하지 않는다.
+    ping_owed_since: Option<Instant>,
     /// 보조 핸들 채널 상태. 첫 사용 시 Pending → Ready 전이하며 reader 스레드 시작.
     handle_state: Mutex<HandleStreamState>,
     /// reader 스레드가 누적하는 dirty rect. `Some(rect)`는 union된 영역, `None`은
@@ -150,11 +153,22 @@ impl PluginProcess {
         self.connected_at = None;
     }
 
-    /// 실제 대기 없이 무응답 상태를 시험하도록 마지막 수신 시각을 과거로 옮긴다.
+    /// 실제 대기 없이 수신 시각을 시험하도록 마지막 수신 시각을 과거로 옮긴다.
     pub(crate) fn backdate_pong_for_test(&self, by: Duration) {
         let mut last = self.last_pong.lock().expect("fresh mutex");
         *last = Instant::now()
             .checked_sub(by)
+            .expect("the clock goes back far enough");
+    }
+
+    /// 답하지 않은 ping을 `by` 전에 보낸 상태로 만든다. 마지막 수신은 그 송신보다 이르다.
+    pub(crate) fn owe_ping_for_test(&mut self, by: Duration) {
+        let sent = Instant::now()
+            .checked_sub(by)
+            .expect("the clock goes back far enough");
+        self.ping_owed_since = Some(sent);
+        *self.last_pong.lock().expect("fresh mutex") = sent
+            .checked_sub(Duration::from_secs(1))
             .expect("the clock goes back far enough");
     }
 }
@@ -216,6 +230,7 @@ impl PluginProcess {
             resp_rx,
             event_rx,
             last_pong: Arc::new(Mutex::new(Instant::now())),
+            ping_owed_since: None,
             handle_state: Mutex::new(HandleStreamState::Unavailable),
             dirty_rects: Arc::new(Mutex::new(HashMap::new())),
             connect: connect::ConnectSlot::reported(),
@@ -338,6 +353,7 @@ impl PluginProcess {
             resp_rx,
             event_rx,
             last_pong,
+            ping_owed_since: None,
             handle_state: Mutex::new(initial_state),
             dirty_rects: Arc::new(Mutex::new(HashMap::new())),
             connect,
@@ -562,13 +578,22 @@ impl PluginProcess {
         }
     }
 
-    pub fn since_last_pong(&self) -> Duration {
-        tasty_utils::poison::recover_mutex(
+    /// 수신 스레드가 마지막으로 응답을 받은 시각. ping 응답이 아니어도 갱신된다.
+    pub fn last_pong_at(&self) -> Instant {
+        *tasty_utils::poison::recover_mutex(
             self.last_pong.lock(),
             LAST_PONG_WHAT,
             &LAST_PONG_POISONED,
         )
-        .elapsed()
+    }
+
+    /// 답을 받지 못한 가장 오래된 ping의 송신 시각.
+    pub(crate) fn ping_owed_since(&self) -> Option<Instant> {
+        self.ping_owed_since
+    }
+
+    pub(crate) fn set_ping_owed_since(&mut self, sent: Option<Instant>) {
+        self.ping_owed_since = sent;
     }
 
     /// 종료를 요청하고 자식 핸들을 PendingShutdown으로 옮긴다. 여기서는 기다리지 않는다.

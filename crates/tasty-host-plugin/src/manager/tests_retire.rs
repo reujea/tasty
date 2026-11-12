@@ -118,10 +118,10 @@ fn disable_returns_before_a_stalled_child_exits() {
 fn a_disable_during_a_restart_cancels_the_restart() {
     let home = HomeEnvGuard::tasty_home();
     let mut mgr = installed(&home);
-    let proc = PluginProcess::stub_with_child(ID, slow_child());
-    proc.backdate_pong_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
+    let mut proc = PluginProcess::stub_with_child(ID, slow_child());
+    proc.owe_ping_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
     mgr.processes.insert(ID.into(), proc);
-    mgr.restart_unresponsive_plugins();
+    mgr.restart_unresponsive_plugins(Instant::now());
     assert_eq!(mgr.retiring_respawn(ID), Some(true));
 
     mgr.disable(ID).expect("disable");
@@ -178,10 +178,10 @@ fn the_start_gate_defers_a_plugin_that_is_still_retiring() {
     fake::write(&dir);
     let mut mgr = PluginManager::new(Arc::new(NoopWakerFactory));
     mgr.set_packages_for_tests(vec![fake::package(&dir)]);
-    let proc = PluginProcess::stub_with_child(ID, slow_child());
-    proc.backdate_pong_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
+    let mut proc = PluginProcess::stub_with_child(ID, slow_child());
+    proc.owe_ping_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
     mgr.processes.insert(ID.into(), proc);
-    mgr.restart_unresponsive_plugins();
+    mgr.restart_unresponsive_plugins(Instant::now());
 
     mgr.ensure_listener();
     mgr.start_plugin_internal(&fake::package(&dir));
@@ -207,12 +207,12 @@ fn the_start_gate_defers_a_plugin_that_is_still_retiring() {
 fn an_unresponsive_restart_waits_for_the_old_process_before_starting() {
     let home = HomeEnvGuard::tasty_home();
     let mut mgr = installed(&home);
-    let proc = PluginProcess::stub_with_child(ID, slow_child());
-    proc.backdate_pong_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
+    let mut proc = PluginProcess::stub_with_child(ID, slow_child());
+    proc.owe_ping_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
     mgr.processes.insert(ID.into(), proc);
 
     let t = Instant::now();
-    mgr.restart_unresponsive_plugins();
+    mgr.restart_unresponsive_plugins(Instant::now());
     assert!(
         t.elapsed() < Duration::from_millis(500),
         "재시작이 회수를 기다렸다: {:?}",
@@ -232,10 +232,10 @@ fn an_unresponsive_restart_waits_for_the_old_process_before_starting() {
 fn exit_waits_for_a_retiring_plugin_and_does_not_respawn_it() {
     let home = HomeEnvGuard::tasty_home();
     let mut mgr = installed(&home);
-    let proc = PluginProcess::stub_with_child(ID, slow_child());
-    proc.backdate_pong_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
+    let mut proc = PluginProcess::stub_with_child(ID, slow_child());
+    proc.owe_ping_for_test(super::HEALTHCHECK_TIMEOUT + Duration::from_secs(1));
     mgr.processes.insert(ID.into(), proc);
-    mgr.restart_unresponsive_plugins();
+    mgr.restart_unresponsive_plugins(Instant::now());
 
     mgr.begin_shutdown_all();
     assert!(

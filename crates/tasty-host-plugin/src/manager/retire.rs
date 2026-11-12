@@ -468,7 +468,7 @@ impl PluginManager {
     /// 헬스체크의 무응답 재시작 한 번 — 시험 전용(다른 모듈의 시험이 부른다).
     #[cfg(all(test, unix))]
     pub(crate) fn restart_unresponsive_for_test(&mut self) {
-        self.restart_unresponsive_plugins();
+        self.restart_unresponsive_plugins(Instant::now());
     }
 
     /// 지금 회수 중인 plugin 수 — 시험 전용.

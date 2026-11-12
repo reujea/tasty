@@ -614,6 +614,10 @@ mod tests_namespace_table;
 #[cfg(test)]
 mod tests_timers;
 
+// 메인 루프 정지 시간을 ping 무응답으로 세지 않는가(docs/dev-guide/timer-hub.md).
+#[cfg(test)]
+mod tests_healthcheck;
+
 #[cfg(test)]
 mod tests_lifecycle_toggle;
 
@@ -1015,14 +1019,14 @@ prefix = "{prefix}"
             "com.example.silent",
             NAMESPACE_EXPIRY_RESTART_LIMIT - 1,
         );
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             mgr.processes.contains_key("com.example.silent"),
             "상한 전인데 거둬졌다"
         );
 
         expire_namespace_calls(&mut mgr, "com.example.silent", 1);
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             !mgr.processes.contains_key("com.example.silent"),
             "연속 만료가 상한에 닿았는데 재시작이 안 걸렸다"
@@ -1042,7 +1046,7 @@ prefix = "{prefix}"
             "com.example.silent",
             NAMESPACE_EXPIRY_RESTART_LIMIT,
         );
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
 
         assert!(!mgr.processes.contains_key("com.example.silent"));
         assert!(
@@ -1063,7 +1067,7 @@ prefix = "{prefix}"
             "com.example.silent",
             NAMESPACE_EXPIRY_RESTART_LIMIT,
         );
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             !mgr.processes.contains_key("com.example.silent"),
             "연속 만료가 상한에 닿았는데 재시작이 안 걸렸다"
@@ -1072,7 +1076,7 @@ prefix = "{prefix}"
         // 새 프로세스가 떴다 — 재시작 경로가 스스로 띄우지 않으므로 시험이 대신 둔다.
         mgr.processes
             .insert("com.example.silent".into(), stub_process());
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             mgr.processes.contains_key("com.example.silent"),
             "재시작된 새 프로세스가 옛 계수로 또 재시작됐다 — 중복 소비"
@@ -1116,7 +1120,7 @@ prefix = "{prefix}"
             "com.example.silent",
             NAMESPACE_EXPIRY_RESTART_LIMIT,
         );
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
 
         assert!(
             !mgr.has_pending_surface_restores(),
@@ -1175,7 +1179,7 @@ prefix = "{prefix}"
         );
 
         expire_namespace_calls(&mut mgr, "com.example.slow", 1);
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             mgr.processes.contains_key("com.example.slow"),
             "계수가 리셋됐는데 재시작이 걸렸다"
@@ -1213,7 +1217,7 @@ prefix = "{prefix}"
             "늦은 namespace 응답이 계수를 안 지웠다"
         );
 
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             mgr.processes.contains_key("com.example.slow"),
             "답한 plugin 이 재시작됐다"
@@ -1268,7 +1272,7 @@ prefix = "{prefix}"
             "한 id 를 소비하면서 다른 거둬진 id 까지 지웠다"
         );
 
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             mgr.processes.contains_key("com.example.echo"),
             "답한 plugin 이 재시작됐다"
@@ -1323,7 +1327,7 @@ prefix = "{prefix}"
             "namespace 만료로 기억된 적 없는 id 가 계수를 지웠다"
         );
 
-        mgr.restart_unresponsive_plugins();
+        mgr.restart_unresponsive_plugins(Instant::now());
         assert!(
             !mgr.processes.contains_key("com.example.silent"),
             "계수가 상한인데 재시작이 안 걸렸다"
