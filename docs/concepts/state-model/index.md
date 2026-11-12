@@ -5,6 +5,7 @@ Window·Workspace·Pane·Tab·Surface 다섯 계층이 가지는 상태를 축�
 | 계층 | 문서 | 대표 축 |
 |---|---|---|
 | Surface | [surface](surface.md) | 구조 leaf와 kind, 활성화 단계, 실행 객체, busy, attention, soft·hard 점유, 자식 상태 |
+| Tab | [tab](tab.md) | pane별 선택, 탭 안 선택 surface, 제목 결정, busy·attention 집계 |
 
 ## 읽는 방법
 

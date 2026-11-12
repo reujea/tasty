@@ -142,6 +142,7 @@ PTY·busy·자식 상태는 terminal의 축이다. 다른 kind에는 필수 공�
 ## 관련
 
 - [상태 모델](index.md)
+- [tab 상태 모델](tab.md) — 선택 surface, 탭 집계
 - [Surface 종류](../../surfaces/index.md)
 - [Surface Highlight](../../features/surface-highlight/index.md)
 - [busy 표시 정책](../../design/policies/busy-indicator.md)
