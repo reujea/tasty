@@ -538,7 +538,7 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 
 - 본체는 `EngineSession` 이 `IsolatedHome` 을 **실행 자원 필드보다 뒤에** 들고, 조립 지점
   `assemble`(모든 생성자가 지나는 함수)이 그것을 첫 줄에서 세운다. 그래서 생성자를 무엇으로 부르든
-  — 픽스처를 거치든 `new`·`new_with_ids_and_settings`·`for_journal`을 직접 부르든 — 같은 격리를 받고, 생성 이후의 `save()` 까지
+  — 픽스처를 거치든 `new`·`new_with_ids_and_settings`·`new_with_ids`·`for_journal`을 직접 부르든 — 같은 격리를 받고, 생성 이후의 `save()` 까지
   엔진 수명 내내 덮인다. 필드는 선언 순서대로 drop되므로, 계약은 drop 때 홈 아래 파일을 쓸 수 있는
   필드(`runtime` 등 실행 자원)가 모두 `_isolated_home` 보다 앞에 선언되는 것이다. 그 뒤에 오는
   gui 시험 빌드 전용 `test_host_commands` 는 `HostCmd` 수신자라 drop 때 메모리만 정리하고 파일을
