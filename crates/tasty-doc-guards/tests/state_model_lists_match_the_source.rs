@@ -25,34 +25,39 @@ fn read(rel: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{rel}을 읽지 못했다: {e}"))
 }
 
-/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 선언 위치는 이름으로 찾고, 그 위치부터
-/// 주석을 지운 뒤(`strip_comments`) 리터럴(`literal_end`) 밖의 중괄호만 센다.
-fn fn_body(source: &str, name: &str, rel: &str) -> String {
+/// 함수 하나의 원본 조각과 같은 길이의 가린 사본(`mask_code`). 같은 바이트 오프셋이 같은 글자를
+/// 가리키므로 구조는 `mask`에서 찾고 문자열 값은 같은 위치의 `src`에서 꺼낸다.
+struct Masked {
+    src: String,
+    mask: String,
+}
+
+/// `fn <name>` 선언부터 그 함수의 닫는 중괄호까지. 선언 위치는 원본에서 이름으로 찾고, 그 위치부터
+/// 파일 끝까지 가린 사본을 만든 뒤 사본에서 중괄호 짝을 센다.
+fn fn_body(source: &str, name: &str, rel: &str) -> Masked {
     let start = source
         .find(&format!("fn {name}("))
         .unwrap_or_else(|| panic!("{rel}에서 fn {name}을 찾지 못했다"));
-    let code = strip_comments(&source[start..]);
-    let open = code
+    let src = &source[start..];
+    let mask = mask_code(src);
+    let open = mask
         .find('{')
         .unwrap_or_else(|| panic!("{rel}의 fn {name}에 본문이 없다"));
     let mut depth = 0usize;
-    let mut i = open;
-    while let Some(c) = code[i..].chars().next() {
-        if let Some(end) = literal_end(&code, i) {
-            i = end;
-            continue;
-        }
+    for (i, c) in mask.bytes().enumerate().skip(open) {
         match c {
-            '{' => depth += 1,
-            '}' => {
+            b'{' => depth += 1,
+            b'}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return code[open..=i].to_string();
+                    return Masked {
+                        src: src[open..=i].to_string(),
+                        mask: mask[open..=i].to_string(),
+                    };
                 }
             }
             _ => {}
         }
-        i += c.len_utf8();
     }
     panic!("{rel}의 fn {name} 본문이 닫히지 않는다")
 }
@@ -159,10 +164,11 @@ fn activation_transition_table_matches_the_journal_rule() {
     let lifecycle = read(LIFECYCLE);
     let variants = enum_variants(&read(OPERATION), "ActivationPhase", OPERATION);
     // 시그니처와 `matches!`의 `(from, to)`처럼 단계 이름이 아닌 괄호는 버린다.
-    let code: BTreeSet<_> = code_transitions(&fn_body(&lifecycle, "phase_transition", LIFECYCLE))
-        .into_iter()
-        .filter(|(f, t)| variants.contains(f) && variants.contains(t))
-        .collect();
+    let code: BTreeSet<_> =
+        code_transitions(&fn_body(&lifecycle, "phase_transition", LIFECYCLE).mask)
+            .into_iter()
+            .filter(|(f, t)| variants.contains(f) && variants.contains(t))
+            .collect();
     assert!(
         code.len() >= 10,
         "{LIFECYCLE}의 phase_transition에서 전이 쌍을 {}개만 읽었다. 파서가 형태를 놓쳤다",
@@ -183,166 +189,207 @@ fn activation_transition_table_matches_the_journal_rule() {
     );
 }
 
-/// `code[i..]`가 리터럴로 시작하면 그 리터럴 바로 다음 위치. 다루는 리터럴은 문자열 `"…"`과
-/// 바이트 문자열 `b"…"`(이스케이프 포함), 원시 문자열 `r"…"`·`r#"…"#`·`br#"…"#`(해시 개수까지
-/// 맞춘다), 문자 리터럴 `'x'`·`'\n'`·`'\''`·`'\u{..}'`·`b'x'`다. 따옴표 다음 다음 글자가
-/// 따옴표이거나 따옴표 다음이 역슬래시일 때만 문자 리터럴로 보므로 수명(`'a`, `'static`)은
-/// 리터럴이 아니다. 식별자 중간(앞 글자가 식별자 글자)은 리터럴로 보지 않는다.
-fn literal_end(code: &str, i: usize) -> Option<usize> {
-    let bytes = code.as_bytes();
-    if i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_') {
-        return None;
-    }
+/// `b[i..]`에서 시작하는 리터럴의 (내용 시작, 내용 끝, 리터럴 끝). 다루는 리터럴은 일반·바이트·C
+/// 문자열(`"…"`·`b"…"`·`c"…"`, 이스케이프 포함), 원시·바이트 원시·C 원시 문자열(`r#"…"#`·`br#"…"#`·
+/// `cr#"…"#`, 해시 개수까지 맞춘다), 문자·바이트 문자 리터럴(`'x'`·`'\''`·`'\u{..}'`·`b'x'`)이다.
+/// 따옴표 다음이 역슬래시이거나 한 글자 뒤가 따옴표일 때만 문자 리터럴로 보므로 수명(`'a`)은
+/// 코드로 남는다. 앞 글자가 식별자 글자이면 `b`·`c`·`r`을 접두로 보지 않지만, 그 뒤에 바로 오는
+/// 큰따옴표는 일반 문자열로 읽는다.
+fn literal_span(code: &str, i: usize) -> Option<(usize, usize, usize)> {
+    let b = code.as_bytes();
+    let at = |k: usize| b.get(k).copied();
     let mut j = i;
-    if bytes.get(j) == Some(&b'b') {
-        j += 1;
-    }
-    if bytes.get(j) == Some(&b'r') {
-        let hashes = bytes[j + 1..].iter().take_while(|&&b| b == b'#').count();
-        let quote = j + 1 + hashes;
-        if bytes.get(quote) != Some(&b'"') {
-            return None;
+    if i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_') {
+        if matches!(at(j), Some(b'b' | b'c')) {
+            j += 1;
         }
-        let close = format!("\"{}", "#".repeat(hashes));
-        return Some(
-            code[quote + 1..]
+        if at(j) == Some(b'r') {
+            let hashes = b[j + 1..].iter().take_while(|&&c| c == b'#').count();
+            let quote = j + 1 + hashes;
+            if at(quote) != Some(b'"') {
+                return None;
+            }
+            let close = format!("\"{}", "#".repeat(hashes));
+            let end = code[quote + 1..]
                 .find(&close)
-                .map_or(code.len(), |e| quote + 1 + e + close.len()),
-        );
+                .map_or(b.len(), |e| quote + 1 + e);
+            return Some((quote + 1, end, (end + close.len()).min(b.len())));
+        }
     }
-    match bytes.get(j) {
+    match at(j) {
         Some(b'"') => {
             let mut k = j + 1;
-            while k < bytes.len() {
-                match bytes[k] {
-                    b'\\' => k += 2,
-                    b'"' => return Some(k + 1),
-                    _ => k += 1,
-                }
+            while k < b.len() && b[k] != b'"' {
+                k += if b[k] == b'\\' { 2 } else { 1 };
             }
-            Some(code.len())
+            let k = k.min(b.len());
+            Some((j + 1, k, (k + 1).min(b.len())))
         }
-        Some(b'\'') if bytes.get(j + 1) == Some(&b'\\') => {
-            code.get(j + 3..)?.find('\'').map(|e| j + 3 + e + 1)
-        }
-        Some(b'\'') => {
-            let after = j + 1 + code[j + 1..].chars().next()?.len_utf8();
-            (bytes.get(after) == Some(&b'\'')).then_some(after + 1)
+        Some(b'\'') if j == i || at(i) == Some(b'b') => {
+            let close = if at(j + 1) == Some(b'\\') {
+                j + 3 + code.get(j + 3..)?.find('\'')?
+            } else {
+                let after = j + 1 + code.get(j + 1..)?.chars().next()?.len_utf8();
+                (at(after) == Some(b'\'')).then_some(after)?
+            };
+            Some((j + 1, close, close + 1))
         }
         _ => None,
     }
 }
 
-/// 줄 주석(`//`)과 블록 주석(`/* */`, 중첩 포함)을 지운 코드. 리터럴(`literal_end`)은 그대로
-/// 옮기므로 리터럴 속 `//`·`/*`는 주석이 아니다. 주석 속 `=> "x"`·`=> S::X`·중괄호를 읽지 않게 한다.
-fn strip_comments(code: &str) -> String {
-    let mut out = String::with_capacity(code.len());
-    let mut i = 0;
-    while let Some(c) = code[i..].chars().next() {
-        let rest = &code[i..];
-        if rest.starts_with("//") {
-            i = rest.find('\n').map_or(code.len(), |e| i + e);
-            continue;
+/// `code`와 같은 길이의 가린 사본. 줄·블록 주석(중첩 포함)은 공백으로, 리터럴(`literal_span`)은
+/// 접두와 따옴표를 남기고 안쪽을 공백으로 바꾼다. 줄바꿈은 그대로 둔다.
+fn mask_code(code: &str) -> String {
+    let b = code.as_bytes();
+    let mut out = b.to_vec();
+    let mut blank = |from: usize, to: usize| {
+        for c in &mut out[from..to] {
+            if *c != b'\n' {
+                *c = b' ';
+            }
         }
-        if rest.starts_with("/*") {
-            let mut depth = 0usize;
-            while let Some(c) = code[i..].chars().next() {
-                if code[i..].starts_with("/*") {
+    };
+    let mut i = 0;
+    while i < b.len() {
+        if b[i..].starts_with(b"//") {
+            let end = b[i..]
+                .iter()
+                .position(|&c| c == b'\n')
+                .map_or(b.len(), |e| i + e);
+            blank(i, end);
+            i = end;
+        } else if b[i..].starts_with(b"/*") {
+            let (mut k, mut depth) = (i, 0usize);
+            while k < b.len() {
+                if b[k..].starts_with(b"/*") {
                     depth += 1;
-                    i += 2;
-                } else if code[i..].starts_with("*/") {
+                    k += 2;
+                } else if b[k..].starts_with(b"*/") {
                     depth -= 1;
-                    i += 2;
+                    k += 2;
                     if depth == 0 {
                         break;
                     }
                 } else {
-                    i += c.len_utf8();
+                    k += 1;
                 }
             }
-            out.push(' ');
-            continue;
-        }
-        if let Some(end) = literal_end(code, i) {
-            out.push_str(&code[i..end]);
+            blank(i, k);
+            i = k;
+        } else if let Some((from, to, end)) = literal_span(code, i) {
+            blank(from, to);
             i = end;
-            continue;
+        } else {
+            i += 1;
         }
-        out.push(c);
-        i += c.len_utf8();
     }
-    out
+    String::from_utf8(out).expect("ASCII 공백으로 바꾼 사본은 UTF-8이다")
 }
 
-/// 함수 본문의 첫 `match` 블록을 갈래 `(패턴, 값)` 목록으로 나눈다. 주석을 먼저 지우고,
-/// 괄호 깊이 0의 쉼표로 갈래를 자르므로 여러 줄로 나뉜 OR 패턴도 갈래 하나로 모인다.
-/// 화살표(`=>`)가 없는 갈래가 있으면 실패한다.
-fn match_arms(body: &str, what: &str) -> Vec<(String, String)> {
-    let code = strip_comments(body);
-    let start = code
-        .find("match ")
-        .unwrap_or_else(|| panic!("{what}에서 match를 찾지 못했다"));
-    let open = start
-        + code[start..]
-            .find('{')
-            .unwrap_or_else(|| panic!("{what}의 match에 블록이 없다"));
-    let mut arms = Vec::new();
-    let mut current = String::new();
-    let mut depth = 0usize;
-    let mut i = open + 1;
-    while let Some(c) = code[i..].chars().next() {
-        if let Some(end) = literal_end(&code, i) {
-            current.push_str(&code[i..end]);
-            i = end;
-            continue;
-        }
-        i += c.len_utf8();
-        match c {
-            '(' | '[' | '{' => depth += 1,
-            ')' | ']' => depth -= 1,
-            '}' if depth == 0 => break,
-            '}' => depth -= 1,
-            ',' if depth == 0 => {
-                arms.push(std::mem::take(&mut current));
-                continue;
-            }
-            _ => {}
-        }
-        current.push(c);
-    }
-    arms.push(current);
-    arms.iter()
-        .map(|arm| arm.split_whitespace().collect::<Vec<_>>().join(" "))
-        .filter(|arm| !arm.is_empty())
-        .map(|arm| {
-            let (pattern, value) = arm
-                .split_once("=>")
-                .unwrap_or_else(|| panic!("{what}에 화살표 없는 갈래가 있다: {arm}"));
-            (pattern.trim().to_string(), value.trim().to_string())
+fn normalized(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// match 갈래 하나. `pattern`·`value`는 가린 사본의 글자(공백 정규화), `*_strings`는 그 범위의
+/// 문자열 리터럴 내용을 원본에서 꺼낸 것이고 `text`는 실패 메시지용 원본이다.
+struct Arm {
+    pattern: String,
+    value: String,
+    pattern_strings: Vec<String>,
+    value_strings: Vec<String>,
+    text: String,
+}
+
+/// `body.mask[from..to]`의 큰따옴표 쌍마다 같은 위치의 원본 내용. 사본에 남은 큰따옴표는
+/// 문자열 리터럴의 여닫이뿐이다.
+fn strings_in(body: &Masked, from: usize, to: usize) -> Vec<String> {
+    let quotes: Vec<usize> = body.mask[from..to]
+        .match_indices('"')
+        .map(|(k, _)| from + k)
+        .collect();
+    quotes
+        .chunks(2)
+        .map(|pair| match pair {
+            [open, close] => body.src[open + 1..*close].to_string(),
+            _ => panic!("짝이 없는 큰따옴표: {}", &body.src[from..to]),
         })
         .collect()
 }
 
-/// 패턴 안의 문자열 리터럴 전부. `Some("a" | "b")` 같은 OR 패턴은 두 문자열을 모두 돌려준다.
-fn quoted(pattern: &str) -> Vec<String> {
-    pattern
-        .split('"')
-        .skip(1)
-        .step_by(2)
-        .map(str::to_string)
+/// 함수 본문의 첫 `match` 블록을 갈래 목록으로 나눈다. `match` 키워드, 블록 시작, 괄호 깊이 0의
+/// 쉼표, 화살표는 모두 가린 사본에서 찾으므로 주석이나 리터럴 속 글자는 구조로 읽지 않는다.
+/// 여러 줄로 나뉜 OR 패턴도 갈래 하나로 모인다. 화살표(`=>`)가 없는 갈래가 있으면 실패한다.
+fn match_arms(body: &Masked, what: &str) -> Vec<Arm> {
+    let m = body.mask.as_bytes();
+    let ident = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let start = body
+        .mask
+        .match_indices("match")
+        .map(|(k, _)| k)
+        .find(|&k| {
+            (k == 0 || !ident(m[k - 1])) && m.get(k + 5).is_some_and(u8::is_ascii_whitespace)
+        })
+        .unwrap_or_else(|| panic!("{what}에서 match를 찾지 못했다"));
+    let open = start
+        + body.mask[start..]
+            .find('{')
+            .unwrap_or_else(|| panic!("{what}의 match에 블록이 없다"));
+    let mut ranges = Vec::new();
+    let mut from = open + 1;
+    let mut depth = 0usize;
+    for (k, &c) in m.iter().enumerate().skip(open + 1) {
+        match c {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' => depth -= 1,
+            b'}' if depth == 0 => {
+                ranges.push((from, k));
+                break;
+            }
+            b'}' => depth -= 1,
+            b',' if depth == 0 => {
+                ranges.push((from, k));
+                from = k + 1;
+            }
+            _ => {}
+        }
+    }
+    ranges
+        .into_iter()
+        .filter(|&(from, to)| !body.mask[from..to].trim().is_empty())
+        .map(|(from, to)| {
+            let text = normalized(&body.src[from..to]);
+            let arrow = from
+                + body.mask[from..to]
+                    .find("=>")
+                    .unwrap_or_else(|| panic!("{what}에 화살표 없는 갈래가 있다: {text}"));
+            Arm {
+                pattern: normalized(&body.mask[from..arrow]),
+                value: normalized(&body.mask[arrow + 2..to]),
+                pattern_strings: strings_in(body, from, arrow),
+                value_strings: strings_in(body, arrow + 2, to),
+                text,
+            }
+        })
         .collect()
 }
 
 /// `row_state_name`이 돌려주는 문자열. 갈래 값이 문자열 리터럴 하나가 아니면 실패한다.
-fn code_row_states(body: &str) -> BTreeSet<String> {
+fn code_row_states(body: &Masked) -> BTreeSet<String> {
     let what = format!("{ROW_USE}의 row_state_name");
     match_arms(body, &what)
         .into_iter()
-        .map(|(_, value)| {
-            let names = quoted(&value);
-            match names.as_slice() {
-                [name] if value == format!("\"{name}\"") => name.clone(),
-                _ => panic!("{what}의 갈래 값이 문자열 리터럴 하나가 아니다: {value}"),
+        .map(|arm| {
+            let one_literal = arm.value.len() >= 2
+                && arm.value.starts_with('"')
+                && arm.value.ends_with('"')
+                && arm.value[1..arm.value.len() - 1].trim().is_empty();
+            match arm.value_strings.as_slice() {
+                [name] if one_literal => name.clone(),
+                _ => panic!(
+                    "{what}의 갈래 값이 문자열 리터럴 하나가 아니다: {}",
+                    arm.text
+                ),
             }
         })
         .collect()
@@ -351,28 +398,27 @@ fn code_row_states(body: &str) -> BTreeSet<String> {
 /// `remote_row_state`의 문자열 → `S::<값>` 대응과 나머지 갈래(`_ =>`)의 값.
 /// OR 패턴은 줄 수와 관계없이 모든 문자열을 같은 값으로 읽는다. 가드가 있거나 문자열이 없는
 /// 패턴, `S::<이름>`이 아닌 값처럼 읽지 못하는 형태는 실패한다.
-fn code_sidebar_map(body: &str) -> (Vec<(String, String)>, String) {
+fn code_sidebar_map(body: &Masked) -> (Vec<(String, String)>, String) {
     let what = format!("{ENGINE_READ}의 remote_row_state");
     let mut map = Vec::new();
     let mut fallback = None;
-    for (pattern, value) in match_arms(body, &what) {
-        let name = value
+    for arm in match_arms(body, &what) {
+        let name = arm
+            .value
             .strip_prefix("S::")
             .filter(|v| !v.is_empty() && v.chars().all(char::is_alphanumeric))
-            .unwrap_or_else(|| {
-                panic!("{what}의 갈래 값이 `S::<이름>`이 아니다: {pattern} => {value}")
-            })
+            .unwrap_or_else(|| panic!("{what}의 갈래 값이 `S::<이름>`이 아니다: {}", arm.text))
             .to_string();
-        if pattern == "_" {
+        if arm.pattern == "_" {
             fallback = Some(name);
             continue;
         }
-        let names = quoted(&pattern);
         assert!(
-            !names.is_empty() && !pattern.contains(" if "),
-            "{what}에 읽지 못하는 패턴이 있다(문자열 리터럴과 `|`만 읽는다): {pattern}"
+            !arm.pattern_strings.is_empty() && !arm.pattern.contains(" if "),
+            "{what}에 읽지 못하는 패턴이 있다(문자열 리터럴과 `|`만 읽는다): {}",
+            arm.text
         );
-        for n in names {
+        for n in arm.pattern_strings {
             map.push((n, name.clone()));
         }
     }
