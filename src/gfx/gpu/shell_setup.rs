@@ -50,7 +50,7 @@ impl GpuState {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let raw_input = self.egui_state.take_egui_input(window);
+        let raw_input = self.take_egui_input(window);
         let mut action = ShellSetupAction::None;
 
         let title = t("boot.shell_setup.title");

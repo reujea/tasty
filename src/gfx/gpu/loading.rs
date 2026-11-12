@@ -31,7 +31,7 @@ impl GpuState {
         let th = crate::theme::theme();
         let bg = th.bg_app();
 
-        let raw_input = self.egui_state.take_egui_input(window);
+        let raw_input = self.take_egui_input(window);
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
             tasty_egui_theme::apply_theme_to_egui(&th, ctx);
             egui::CentralPanel::default()

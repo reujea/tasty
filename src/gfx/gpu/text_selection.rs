@@ -74,20 +74,28 @@ impl GpuState {
         self.egui_state.handle_platform_output(window, output);
     }
 
-    /// Feeds finished pastes to egui. True when one was added and the window should redraw.
-    /// A paste whose widget lost focus meanwhile is dropped.
+    /// Collects finished pastes for the next egui frame. True while one waits and the window
+    /// should redraw.
     pub fn poll_text_selection(&mut self) -> bool {
         let Some(selection) = self.text_selection.as_mut() else {
             return false;
         };
-        let finished = selection.poll();
-        let pastes = pastes_for(finished, self.focus_tag());
-        let added = !pastes.is_empty();
-        self.egui_state
-            .egui_input_mut()
-            .events
-            .extend(pastes.into_iter().map(egui::Event::Paste));
-        added
+        self.held_pastes.extend(selection.poll());
+        !self.held_pastes.is_empty()
+    }
+
+    /// The input of this window's next egui frame. Every frame takes its input here, so a waiting
+    /// paste is checked against the focus at the moment egui will apply it.
+    pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
+        let mut raw_input = self.egui_state.take_egui_input(window);
+        if !self.held_pastes.is_empty() {
+            let focused = self.focus_tag();
+            let pastes = release_pastes(&mut self.held_pastes, &raw_input.events, focused);
+            raw_input
+                .events
+                .extend(pastes.into_iter().map(egui::Event::Paste));
+        }
+        raw_input
     }
 
     /// The Wayland selection needs polling: a paste is being read or copied text is being sent.
@@ -95,6 +103,43 @@ impl GpuState {
         self.text_selection
             .as_ref()
             .is_some_and(crate::file::drag::TextSelection::busy)
+            || !self.held_pastes.is_empty()
+    }
+}
+
+/// The waiting pastes a frame with `events` may apply, given the widget focused before it.
+/// Input that can move egui's focus inside that frame keeps them for the next frame, because egui
+/// would apply a paste to whichever widget holds focus once the frame has handled that input.
+pub(crate) fn release_pastes(
+    held: &mut Vec<(u64, String)>,
+    events: &[egui::Event],
+    focused: u64,
+) -> Vec<String> {
+    if events.iter().any(moves_focus) {
+        return Vec::new();
+    }
+    pastes_for(std::mem::take(held), focused)
+}
+
+/// Input egui turns into a focus change during the frame: a pressed pointer button, and the keys
+/// egui's memory reads for focus movement (Tab, Shift+Tab, the arrows, Escape).
+pub(crate) fn moves_focus(event: &egui::Event) -> bool {
+    use egui::Key;
+    match event {
+        egui::Event::PointerButton { pressed, .. } => *pressed,
+        egui::Event::Key { key, pressed, .. } => {
+            *pressed
+                && matches!(
+                    key,
+                    Key::Tab
+                        | Key::ArrowUp
+                        | Key::ArrowDown
+                        | Key::ArrowLeft
+                        | Key::ArrowRight
+                        | Key::Escape
+                )
+        }
+        _ => false,
     }
 }
 

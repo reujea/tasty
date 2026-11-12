@@ -139,7 +139,7 @@ impl GpuState {
         plugin_manager: Option<crate::app::plugin_display::PluginDisplay<'_>>,
         host_popup_on_top: bool,
     ) -> egui::FullOutput {
-        let mut raw_input = self.egui_state.take_egui_input(window);
+        let mut raw_input = self.take_egui_input(window);
         // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
         keep_screen_while_minimized(
             &mut raw_input,
@@ -290,11 +290,6 @@ impl GpuState {
     /// App settings 적용에서 main과 modal에 같은 스타일을 전달한다.
     pub fn refresh_theme(&self) {
         tasty_egui_theme::apply_theme_to_egui(&crate::theme::theme(), &self.egui_ctx);
-    }
-
-    /// Take egui input from a window.
-    pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
-        self.egui_state.take_egui_input(window)
     }
 
     /// Run an egui frame with a custom UI closure.

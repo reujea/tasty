@@ -83,6 +83,8 @@ pub struct GpuState {
     pub(super) egui_state: egui_winit::State,
     /// egui's clipboard on a native Wayland start (`text_selection.rs`).
     pub(super) text_selection: Option<crate::file::drag::TextSelection>,
+    /// Pastes read from the selection that wait for the next egui frame, with their target tag.
+    pub(super) held_pastes: Vec<(u64, String)>,
     pub(super) egui_renderer: egui_wgpu::Renderer,
     /// native WebView 위 창 단위 오버레이 host 와 그 surface. 그림 위치가 오버레이 창인 모드가 필요할 때
     /// WebView 동기화 뒤 훅이 붙인다. OS host 를 만들지 못하면 `None` 이다.
@@ -276,6 +278,7 @@ impl GpuState {
             egui_ctx,
             egui_state,
             text_selection: None,
+            held_pastes: Vec::new(),
             egui_renderer,
             overlay_surface: None,
             scale_factor,
@@ -667,7 +670,7 @@ impl GpuState {
         // 무대에서도 입력을 소비해 나간 뒤 한꺼번에 전달되지 않게 한다.
         stall_watchdog::set_phase(stall_watchdog::Phase::Acquire);
         let output = self.acquire_surface()?;
-        let raw_input = self.egui_state.take_egui_input(window);
+        let raw_input = self.take_egui_input(window);
         let egui::FullOutput {
             platform_output,
             textures_delta,

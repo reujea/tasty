@@ -18,7 +18,7 @@ impl GpuState {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let raw_input = self.egui_state.take_egui_input(window);
+        let raw_input = self.take_egui_input(window);
         let mut quit = false;
 
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
