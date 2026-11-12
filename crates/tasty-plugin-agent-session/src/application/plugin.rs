@@ -257,7 +257,7 @@ impl<H: crate::ports::host::SendHost, S: crate::ports::supervisor::SupervisorHan
         let Some(host) = self.host.clone() else {
             return;
         };
-        // 설정을 짧은 캐시로 다시 읽는다 — 트래픽 한도가 이 자리에서 조절기에 걸린다(`KnobCache::get`).
+        // 설정을 짧은 캐시로 다시 읽는다(`KnobCache::get`).
         // 쌓인 말을 보내기 전이라, 그 전송이 세션을 다시 띄우면 그 자식은 지금 설정으로 뜬다.
         let knobs = self.knobs.get(&host, std::time::Instant::now());
         // 상태줄의 두 시계 — 휴식 시계는 탭 조작 · 명령으로도 밀리는데 그 자리는 상태줄을 안 그린다.

@@ -100,11 +100,6 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
     ),
     (
-        "sup.settings.traffic_suffix",
-        &["ko", "ja", "zh-Hans"],
-        "단위 기호",
-    ),
-    (
         "settings.anomaly.rss_surge_min_mib.unit",
         &["ko", "ja", "zh-Hans"],
         "MiB is the same binary size unit in all locales",

@@ -38,6 +38,7 @@
 
 ### Changed
 
+- **에이전트 세션 설정 페이지를 다시 짜고 사용 한도 현행화 · API 트래픽 조절을 없앴다.** 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 메모리 절약 → 기타 순서다. 컨텍스트 묶음의 두 현행화는 이름을 **작업 중 현행화 (권장: 켬)** · **세션 캐시 현행화 (권장: 켬)**(예전 유휴 현행화)로, 기준 칸은 **유효 임계값** 으로 바꿨고 저장 키 · 토큰 단위는 그대로다. 유휴 세션 프로세스 회수와 메모리 절약(가려진 탭의 화면 내리기)은 메모리 절약 묶음의 **세션 최적화 (권장: 켬)** 스위치 하나로 합쳤다 — 저장 키는 `release_hidden_webview`, 기본 켬이고 예전 `idle_reclaim` 값은 읽지 않는다. 그래서 예전에 메모리 절약을 켰다 끈(`release_hidden_webview = false`) 설정은 유휴 회수도 꺼지고, 유휴 회수만 끈 설정은 회수와 화면 내리기가 다시 켜진다. 프롬프트 캐시 재작성 알림은 기타 묶음으로 옮겼다. 설명은 장전 → 실행 순서 · 1회 수행 · 권장 설정을 한 줄에 한 문장으로 적고, 설정 창은 플러그인 설명의 `- ` 줄을 목록(•)으로, `  - ` 줄을 하위 목록(–)으로 내어쓰기해 그린다(목록 줄이 없는 설명은 그대로). 사용 한도 현행화(`limit_sync_on` · `limit_sync_percent`)와 API 트래픽 조절(`traffic_on` · `traffic_up_kbps` · `traffic_down_kbps` · CLI `tasty agent-session traffic` · IPC `agent_session.traffic` · 권한 `network`)은 없앴다. — [에이전트 세션](docs/surfaces/agent-session/index.md#설정)
 - **(BREAK) `remote.refusals` 항목의 `anchor_workspace`가 `row_workspace`(저장된 원격 행의 로컬 workspace)로 바뀐다.** 안내 `notices`의 `kind`에 `remote_workspace_missing`·`occupied`·`mirror_workspace`가 더해진다.
 - **macOS·Linux 터미널 셸의 `SHELL`이 바뀐다.** 셸은 Tasty가 받은 `SHELL`을 그대로 받는다. 전에는 항상 계정의 로그인 셸로 덮었고, 지금은 Tasty를 띄운 환경에 `SHELL`이 없을 때만 그 값을 넣는다. 실행 권한이 없는 셸의 오류 문구는 `because it is not executable`이다.
 - **셸 설정 값을 판정한 파일 그대로 실행한다.** 셸 설정(`general.shell`)은 한 번 절대 경로로 풀어 판정하고 같은 파일을 실행한다. 규칙은 [경로 해석](docs/concepts/path-resolution.md)에 있다.

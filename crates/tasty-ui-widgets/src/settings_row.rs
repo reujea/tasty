@@ -215,18 +215,54 @@ fn below_width(ui: &egui::Ui, theme: &Theme) -> f32 {
 
 /// 한 행에 딸린 설명. 행 왼쪽 끝에서 시작하고 `measure-md` 폭(남은 폭이 더 좁으면 그 폭)에서 줄을 바꾼다.
 /// 행과의 간격은 호출하는 쪽의 세로 간격이 정한다([`SettingsRow::caption`] 은 `settings-row-caption-gap`).
+///
+/// `- ` 로 시작하는 줄은 목록 항목(•), `  - ` 는 한 단계 안쪽 항목(–)이다. 항목이 줄을 넘기면 글머리표
+/// 뒤 자리에서 이어진다. 목록 줄이 없는 글은 한 덩어리로 그린다.
 pub fn settings_row_caption(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.scope(|ui| {
         ui.set_max_width(below_width(ui, theme));
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new(text)
-                    .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
-            )
-            .wrap(),
-        );
+        if !text.lines().any(|l| caption_list_item(l).is_some()) {
+            ui.add(caption_label(theme, text));
+            return;
+        }
+        ui.spacing_mut().item_spacing.y = 0.0;
+        for line in text.lines() {
+            let Some((depth, body)) = caption_list_item(line) else {
+                ui.add(caption_label(theme, line));
+                continue;
+            };
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let step = theme.spacing_md.value();
+                ui.add_space(step * depth as f32);
+                let mark = ui.add(caption_label(theme, if depth == 0 { "•" } else { "–" }));
+                ui.add_space((step - mark.rect.width()).max(0.0));
+                let rest = ui.available_width();
+                ui.vertical(|ui| {
+                    ui.set_max_width(rest);
+                    ui.add(caption_label(theme, body));
+                });
+            });
+        }
     });
+}
+
+/// 설명 한 줄이 목록 항목이면 (깊이, 본문). 깊이 0 은 `- `, 1 은 `  - ` 로 시작한다.
+fn caption_list_item(line: &str) -> Option<(usize, &str)> {
+    if let Some(body) = line.strip_prefix("- ") {
+        Some((0, body))
+    } else {
+        line.strip_prefix("  - ").map(|body| (1, body))
+    }
+}
+
+fn caption_label(theme: &Theme, text: &str) -> egui::Label {
+    egui::Label::new(
+        egui::RichText::new(text)
+            .size(theme.font_size_caption.value())
+            .color(theme.text_muted().to_egui()),
+    )
+    .wrap()
 }
 
 /// 서브탭 맨 위, 행들 위에 한 번 두는 중립 안내. info 글리프와 caption 본문이며 `measure-md`
@@ -402,5 +438,63 @@ mod tests {
         let (_, held, drawn) = error_row(620.0, false);
         assert_eq!(drawn, 0);
         assert_eq!(shown.top(), held.top());
+    }
+
+    /// 설명을 그리고 글 조각마다 (글, 왼쪽 위, 줄 수)를 돌려준다.
+    fn caption_texts(width: f32, text: &str) -> Vec<(String, egui::Pos2, usize)> {
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        let mut out = egui::FullOutput::default();
+        for _ in 0..2 {
+            out = ctx.run(Default::default(), |ctx| {
+                egui::Area::new(egui::Id::new("host"))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .show(ctx, |ui| {
+                        ui.set_width(width);
+                        ui.set_max_width(width);
+                        settings_row_caption(ui, &theme, text);
+                    });
+            });
+        }
+        out.shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) => {
+                    Some((t.galley.text().to_owned(), t.pos, t.galley.rows.len()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `- ` 줄은 글머리표 뒤에서 시작하고 줄을 넘겨도 그 자리에서 이어진다. `  - ` 는 한 단계 더 들어간다.
+    /// 목록 줄 앞의 글과 목록 아닌 설명은 왼쪽 끝에서 시작한다.
+    #[test]
+    fn list_lines_in_a_caption_hang_after_their_bullet() {
+        let step = tasty_themes::mocha_fallback().spacing_md.value();
+        let long = "a long item that keeps going well past one row of this narrow caption";
+        let texts = caption_texts(
+            200.0,
+            &format!("Intro sentence.\n- {long}\n  - nested item"),
+        );
+        let at = |s: &str| {
+            texts
+                .iter()
+                .find(|(t, ..)| t == s)
+                .unwrap_or_else(|| panic!("{s} 가 없다: {texts:?}"))
+                .clone()
+        };
+        let (_, intro, _) = at("Intro sentence.");
+        let (_, bullet, _) = at("•");
+        let (_, item, rows) = at(long);
+        let (_, sub_mark, _) = at("–");
+        let (_, sub, _) = at("nested item");
+        assert!(rows > 1, "좁은 폭에서 항목이 줄을 넘기지 않았다");
+        assert!((bullet.x - intro.x).abs() < 0.5, "{texts:?}");
+        assert!((item.x - intro.x - step).abs() < 0.5, "{texts:?}");
+        assert!((sub_mark.x - intro.x - step).abs() < 0.5, "{texts:?}");
+        assert!((sub.x - intro.x - 2.0 * step).abs() < 0.5, "{texts:?}");
+        let plain = caption_texts(200.0, "One line.\nTwo line.");
+        assert_eq!(plain.len(), 1, "목록 없는 설명은 한 덩어리다: {plain:?}");
     }
 }

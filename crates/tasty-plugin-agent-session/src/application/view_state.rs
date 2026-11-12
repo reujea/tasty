@@ -1,6 +1,6 @@
-//! 메모리 절약 — 가려진 대화 탭의 WebView 를 내리고, 화면에만 있던 것은 디스크에 둔다.
+//! 「세션 최적화」의 화면 쪽 — 가려진 대화 탭의 WebView 를 내리고, 화면에만 있던 것은 디스크에 둔다.
 //!
-//! 설정 [`SAVER_KEY`] 를 켜면 호스트가 가려진 대화 탭의 WebView 를 없앤다(렌더링 프로세스도 내려간다).
+//! 설정 [`SAVER_KEY`] 를 켜면(기본 켬 — 같은 스위치가 유휴 회수도 켠다, `sync_compact::RECLAIM_KEY`) 호스트가 가려진 대화 탭의 WebView 를 없앤다(렌더링 프로세스도 내려간다).
 //! 다시 보이면 새로 만들고 `surface.webview_created` 를 보내므로 문서를 다시 싣는다(`lazy_webview`).
 //! 대화 · 대기열 · 상태는 plugin 이 쥐고 있어 잃지 않는다. 페이지에만 있던 **입력칸에 쓰던 글**은 페이지가
 //! 바뀔 때마다(300ms 묶음) 보내고 plugin 이 `<데이터 폴더>/view-state/<세션 id>.json` 에 둔다 — 다시 실은
@@ -247,7 +247,8 @@ mod tests {
         );
     }
 
-    /// 매니페스트 기본값이 코드 기본값(꺼짐)과 같고, 키가 호스트가 읽는 키와 같다.
+    /// 매니페스트 기본값이 코드 기본값(켬 — 「세션 최적화」는 회수와 한 스위치다)과 같고, 키가 호스트가
+    /// 읽는 키와 같다.
     #[test]
     fn the_manifest_toggle_matches_the_code() {
         let m = include_str!("../../tasty-plugin.toml");
@@ -255,7 +256,13 @@ mod tests {
             .find(&format!("storage_key = \"{SAVER_KEY}\""))
             .expect("토글이 없다");
         let item = &m[at..at + m[at..].find("\n\n").unwrap_or(m.len() - at)];
-        assert!(item.contains("default = false"), "{item}");
+        assert!(
+            item.contains(&format!(
+                "default = {}",
+                crate::application::sync_compact::DEFAULT_RECLAIM
+            )),
+            "{item}"
+        );
         assert!(
             m.contains("lazy_webview = true"),
             "lazy 가 아니면 호스트가 안 내린다"

@@ -540,14 +540,8 @@ mod tests {
             .split("[[contributes.settings_pages.items]]")
             .find(|b| b.contains(&format!("storage_key = \"{SETTING_KEY}\"")))
             .expect("cache_watch setting");
-        assert!(
-            block.contains("kind = \"toggle\""),
-            "세션 관리 묶음의 토글이다"
-        );
-        assert!(
-            block.contains("group = \"session\""),
-            "세션 관리 묶음에 든다"
-        );
+        assert!(block.contains("kind = \"toggle\""), "기타 묶음의 토글이다");
+        assert!(block.contains("group = \"etc\""), "기타 묶음에 든다");
         assert!(block.contains(&format!("default = {DEFAULT_ON}")));
     }
 }

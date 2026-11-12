@@ -42,7 +42,6 @@ pub fn compact_text(mode: Mode) -> String {
         Mode::Auto => "sup.sys.compact_auto",
         Mode::Idle => "sup.sys.compact_idle",
         Mode::Manual => "sup.sys.compact_manual",
-        Mode::Limit => "sup.sys.compact_limit",
     })
 }
 
@@ -132,7 +131,7 @@ mod tests {
 
     #[test]
     fn each_mode_names_its_setting() {
-        let texts: Vec<String> = [Mode::Auto, Mode::Idle, Mode::Manual, Mode::Limit]
+        let texts: Vec<String> = [Mode::Auto, Mode::Idle, Mode::Manual]
             .into_iter()
             .map(compact_text)
             .collect();

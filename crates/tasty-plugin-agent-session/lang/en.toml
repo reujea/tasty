@@ -360,9 +360,6 @@ help = "The whole profile as a JSON object, e.g. '{\"model\":\"opus\",\"env\":{\
 [sup.cli.sub.link-list]
 description = "Every surface-to-session pair currently tied, plus how many surfaces could not be read."
 
-[sup.cli.sub.traffic]
-description = "API traffic shaping: whether it is on, the upload and download limits (KB/s), bytes relayed, open and failed tunnels, and the local proxies with their upstream."
-
 [sup.cli.arg.link_args.surface_id]
 help = "Surface to tie (defaults to the caller's TASTY_SURFACE_ID)"
 
@@ -443,25 +440,18 @@ memory_turns = "Turns kept in memory (0 = all)"
 memory_turns_suffix = "turns"
 disk_swap = "Move overflow turns to disk"
 group_context = "Automatic context cost control"
-sync_on = "Sync while working"
-sync_threshold = "Context at turn end"
+sync_on = "Sync while working (recommended: on)"
+sync_threshold = "Effective threshold"
 sync_threshold_suffix = "tokens"
-idle_sync_on = "Sync when idle"
-idle_sync = "Context after idling (240 s/3,540 s)"
+idle_sync_on = "Session cache sync (recommended: on)"
+idle_sync = "Effective threshold"
 idle_sync_suffix = "tokens"
-limit_sync_on = "Sync before 5-hour/7-day usage limits"
-limit_sync = "Limit usage (claude.ai login only)"
-limit_sync_suffix = "%"
 sync_prompt = "Sync instruction"
 compact_prompt = "Compact focus instruction"
-group_session = "Session management"
-idle_reclaim = "Release idle sessions"
-cache_watch = "Prompt cache rewrite notices"
-memory_saver = "Memory saver (unload hidden tabs)"
-group_traffic = "API traffic shaping"
-traffic_up = "Upload limit (0 = unlimited)"
-traffic_down = "Download limit (0 = unlimited)"
-traffic_suffix = "KB/s"
+group_memory = "Memory saver"
+session_optimize = "Session optimization (recommended: on)"
+group_etc = "Other"
+cache_watch = "Prompt cache rewrite notices (recommended: on)"
 
 [sup.sync]
 over = "⚠ sync"
@@ -479,8 +469,7 @@ busy = "A turn is running or messages are queued — try project sync again when
 need_tab = "Project sync runs only in a chat tab"
 tag_auto = "[sync-compact:auto] automatic sync — context {} tokens · threshold {} tokens"
 tag_manual = "[sync-compact:manual] sync started on request"
-tag_idle = "[sync-compact:idle] idle sync — before the cache goes cold · context {} tokens · threshold {} tokens"
-tag_limit = "[sync-compact:limit] usage-limit sync — 5-hour/7-day limit at {}% · saving before requests get cut off"
+tag_idle = "[sync-compact:idle] session cache sync — before the cache goes cold · context {} tokens · threshold {} tokens"
 
 [sup.cache]
 rewrite_token = "cache rewrite"
@@ -497,9 +486,8 @@ gave_up = "Profile {} has been blocked by the API rate limit (429) for more than
 
 [sup.sys]
 compact_auto = "[system] /compact — sent after sync by the \"Sync while working\" setting (turn-end threshold)"
-compact_idle = "[system] /compact — sent after sync by the \"Sync when idle\" setting (before the cache goes cold)"
+compact_idle = "[system] /compact — sent after sync by the \"Session cache sync\" setting (before the cache goes cold)"
 compact_manual = "[system] /compact — sent by the plugin after the requested sync"
-compact_limit = "[system] /compact — sent by the plugin after sync because usage passed the share set in \"Sync before 5-hour/7-day usage limits\""
 running = "· summarizing…"
 done = "· done"
 failed = "· failed: {}"
@@ -518,13 +506,11 @@ bad_cache_ttl = "cache_ttl must be 5m or 1h: {}"
 denied = "The user denied this"
 
 [sup.about]
-context = "Solves the problem that an agent's auto-compact (for example, Claude Code) writes no documents (it only summarizes in memory).\nApply the same settings to many agents at once to keep the context fresh and light (lower cost and response latency).\n- Automatic run: when a session's context reaches the threshold (tokens), the steps below run on their own.\n- Steps: send the \"Sync instruction\" as a prompt (saves the current state and resume-point documents) → compact with the \"Compact focus instruction\""
-sync = "Recommended: on. When the context at the end of a turn passes the threshold, the tab syncs after it has been quiet for 60 seconds. If the context is 200,000 tokens or more over the threshold, it does not wait. The threshold is lowered so it never exceeds 90% of the context window (180,000 for a 200k window). Automatic runs in one session are at least 10 minutes apart, and if the context is still over the threshold after compact, it stops until the context drops below it."
-idle_sync = "Recommended: on. The prompt cache goes cold 5 minutes (or 1 hour) after the last request, and the first request after that writes the whole context to the cache again (more than 12 times the cost of a cache read). So one minute before the cache expires after the last turn that called the API (240 s/3,540 s), the tab syncs, but only when the context is at or above the threshold. It runs once per rest and opens again after you send the next message, and only one tab per agent profile runs it at a time. The threshold being lower than the working one is intended."
-limit_sync = "Recommended: on. When the larger of the 5-hour and 7-day usage limits reaches this share, the tab syncs and compacts before the limit cuts the session off. It runs once until the limit resets. Usage is only reported for claude.ai login profiles, so it does not run for API key profiles."
-reclaim = "Recommended: on. Every resting tab keeps a claude process holding memory. One minute before the cache lifetime has passed since you last touched the session (a message, a tab action or a command aimed at the session) (240 s/3,540 s), the process is shut down. A tab that will run the idle sync is released after that sync ends (even if it fails); below the threshold or with the idle sync off it is released right away. A session with background work left is not released, and the next message starts it again and continues the conversation."
-cache_watch = "Recommended: on. When the first request of a turn writes the whole conversation to the cache again although the session did not rest (for example after a system prompt or tool definition change), the status line and a notice line say so. When a 1-hour cache drops to a 5-minute cache, you get one notice per session. Turning it off removes only the notices; the metrics stay."
-memory_saver = "Recommended: on when you keep many chat tabs open (off by default). Hidden chat tabs drop their page (WebView) to save memory. The conversation, the queue and unsent drafts stay, and the page is drawn again when the tab shows. Long conversations take longer to draw again, and scrolling starts at the bottom."
+context = "Complements an agent's auto-compact (for example, Claude Code).\nAuto-compact only summarizes in memory and cannot update documents.\nIt runs on its own to keep the context light, lowering cost and latency.\n- Order: arm (armed, the threshold is passed) → fire (shot)\n  - Fire: \"Sync instruction\" sync → \"Compact focus instruction\" compact\n- Once only: after a run, even a failed one, it stays unarmed while over.\n  - Each feature below says when it arms again."
+sync = "Syncs a session while you work.\nIt cuts the cost of resending the grown context on every call (cache reads).\nThe more calls repeat, the more it saves.\n- Arm: when the context at a turn's end passes the effective threshold.\n  - The turn before must have ended below it.\n  - It does not arm within 10 minutes of the last automatic run (cooldown).\n- Fire: when the agent is idle 60 seconds after the last turn ends.\n  - Idle: no running turn, no queue, no question waiting for an answer\n  - It skips the wait when 200,000 tokens or more over the threshold.\n- Arm again: if still over after a run, failure or compact, it stays unarmed.\n  - It arms again only after dropping below the threshold and passing it.\n- Effective threshold: the smaller of your value and 90% of the window.\n  - For example, a 200k window gives 180,000.\n- Recommended: keep the default 400,000.\n  - A 200k window is lowered to 180,000 on its own.\n  - Raising it near 900,000 on a 1M window lets auto-compact run first.\n  - Measured replay savings: 38% at 400,000 and 22% at 700,000."
+idle_sync = "Syncs a session before its cache goes cold, cutting the cost of rewriting it.\nThe prompt cache goes cold 5 minutes (or 1 hour) after the last request.\nAfter that, the next message writes the whole context to the cache again.\nThat costs more than 12 times a cache read.\n- Fire: one minute before the cache expires after the last API turn.\n  - That is 240 s for a 5-minute cache and 3,540 s for a 1-hour cache.\n  - It runs only if the context is at or above the effective threshold.\n  - The lifetime follows what the session used, not the sign-in method.\n- Once only: it runs once per rest.\n  - After a run (even failed or refused), your next message arms it again.\n- Queueing: only one tab per agent profile runs it at a time.\n  - If another tab is running it, it waits for the next check.\n  - It also waits while the profile is blocked by the API limit (429) or resending.\n- Then: with \"Session optimization\" on, the process is shut down after it.\n  - Even after a failed sync; a new touch or a 429 block defers it.\n- Recommended: set it lower than \"Sync while working\" (default 150,000).\n  - A cold cache is rewritten in full anyway, so even small contexts gain.\n  - Below 50,000 compact removes little, so it costs more than it saves."
+session_optimize = "Saves memory by shutting down resting sessions and unloading hidden tabs.\nOff does neither.\n- Process release: the claude process of a resting tab is shut down.\n  - It happens one minute before the cache lifetime after your last touch.\n  - That is 240 s for a 5-minute cache and 3,540 s for a 1-hour cache.\n  - Touching means a message, a tab action or a command aimed at the session.\n  - With a session cache sync due, release waits for it (even if it fails).\n  - A new touch or a 429 block on the profile defers it to the next check.\n  - A context below that sync's effective threshold is released right away.\n  - With the session cache sync off, it is also released right away.\n  - Then a large session rewrites its whole cache on the next message.\n  - A session with background work left is not released.\n  - The next message continues the conversation (resume) and starts it again.\n- Page unload: hidden chat tabs drop their page (WebView).\n  - The page is drawn again when the tab shows.\n  - The conversation, queue and drafts stay.\n  - Long conversations take longer to draw again.\n  - Scrolling starts at the bottom."
+cache_watch = "Tells you when the cache is written again (e.g. a model change or a reload).\nTurning it off removes only the notices; the metrics stay.\n- Full rewrite: a turn's first request rewrote everything without a rest.\n  - Without a rest means the session rested no longer than the cache lifetime.\n  - The status line and a notice line say so, with the likely cause.\n  - Causes: model change, last command, or other (system prompt, tools)\n  - Commands: /model · /reload-plugins · /reload-skills · /add-dir\n- What counts as a full rewrite: all of the following hold.\n  - The first request writes 50,000 tokens or more to the cache.\n  - The write is at least half of the previous context.\n  - The cache read is less than half of the previous context.\n  - So sessions with less than 50,000 tokens of context are not reported.\n- Cache downgrade: a 1-hour cache falling to 5 minutes, once per session.\n  - The cause is a sign-in or process environment change.\n- Not checked: a turn after the cache went cold, and a tab's first turn.\n  - Nor the first turn after a plugin restart, a compact or a clear."
 
 [sup.default]
 sync_prompt = "project sync"

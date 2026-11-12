@@ -9,4 +9,3 @@ pub(crate) mod shell_path;
 pub(crate) mod skills;
 pub(crate) mod store;
 pub(crate) mod subagents;
-pub(crate) mod traffic;

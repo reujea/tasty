@@ -1,4 +1,4 @@
-//! 자식 프로세스의 환경 — 물려받은 것 중 뺄 것, 역할 지침, 프로필 `env`, API 트래픽 프록시.
+//! 자식 프로세스의 환경 — 물려받은 것 중 뺄 것, 역할 지침, 프로필 `env`.
 
 use std::ffi::OsStr;
 use std::process::Command;
@@ -43,7 +43,7 @@ pub(super) fn stripped_env(key: &str, value: &OsStr) -> bool {
                 .is_some_and(|v| AI_AGENT_CLAUDE_VALUES.iter().any(|p| v.starts_with(p))))
 }
 
-/// 자식 환경을 채운다 — 뺄 것을 빼고, 프로필 `env` 를 얹고, 트래픽 조절이 켜졌으면 프록시를 건다.
+/// 자식 환경을 채운다 — 뺄 것을 빼고, 프로필 `env` 를 얹는다.
 pub(super) fn apply(cmd: &mut Command, profile: &AgentProfile, has_roles: bool) {
     for (k, v) in std::env::vars_os() {
         if k.to_str().is_some_and(|k| stripped_env(k, &v)) {
@@ -57,15 +57,6 @@ pub(super) fn apply(cmd: &mut Command, profile: &AgentProfile, has_roles: bool) 
         );
     }
     cmd.envs(&profile.env);
-    // API 트래픽 조절 — 켜져 있으면 이 프로세스의 loopback 프록시를 거치게 한다. 원래 받을 프록시는 그 뒤로
-    // 잇는다. pi 는 `HTTPS_PROXY` 를 따르는지 확인되지 않아 claude 만 건다.
-    if profile.kind == "claude"
-        && let Some(url) = crate::adapters::driven::traffic::global()
-            .proxy_url(crate::adapters::driven::traffic::inherited_proxy(&profile.env).as_deref())
-    {
-        cmd.env("HTTPS_PROXY", &url);
-        cmd.env("https_proxy", &url);
-    }
 }
 
 #[cfg(test)]

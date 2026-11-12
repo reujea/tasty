@@ -7,7 +7,4 @@ pub enum Mode {
     Manual,
     /// 쉬는 탭의 캐시가 식기 전(`sync_compact::idle_wait`) — 임계 초과 자동(`Auto`)과 따로 센다.
     Idle,
-    /// 5시간·7일 사용 한도가 설정 문턱(`sync_compact::Knobs::limit_share`)을 넘었다 — 한도에 막혀
-    /// 마지막 요청이 끊기기 전에 남긴다.
-    Limit,
 }

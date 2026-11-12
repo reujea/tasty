@@ -17,10 +17,10 @@
 //!   [`AUTO_URGENT_OVER`] 넘게 넘으면 다음 판정에서 바로 시작한다. 가드는 [`judge`] 에 모았다 —
 //!   넘을 때 1회 · 쿨다운 · compact 뒤에도 넘으면 해제(바닥값: 시스템 프롬프트와 도구 정의는
 //!   compact 로 안 준다) · 실패 뒤 재시도 안 함 · 내려가면 다시 장전.
-//! - **유휴**: 설정 묶음 스위치 `idle_sync_on` 이 켜져 있고 `idle_sync_tokens` 가 0 이 아니고, **캐시 시계**가 [`idle_wait`](캐시 수명 − 1분)를
+//! - **유휴**(설정 이름 「세션 캐시 현행화」): 설정 묶음 스위치 `idle_sync_on` 이 켜져 있고 `idle_sync_tokens` 가 0 이 아니고, **캐시 시계**가 [`idle_wait`](캐시 수명 − 1분)를
 //!   넘었고 점유가 그 토큰 수 이상일 때 — 그 세션의 프롬프트 캐시가 식기 전에 정리한다. 쉼 하나에 한
 //!   번이고, 사람이 다음 말을 보내야 다시 열린다([`ready_for_idle`]).
-//! - **유휴 회수**: 설정 `idle_reclaim`(기본 켬)이면 **휴식 시계**가 같은 기한을 넘었을 때 세션의 claude 를
+//! - **유휴 회수**: 설정 「세션 최적화」(`release_hidden_webview`, 기본 켬)이면 **휴식 시계**가 같은 기한을 넘었을 때 세션의 claude 를
 //!   내린다 — 기준 이상이면 위 현행화 → compact 가 끝난 뒤, 미만이거나 유휴 현행화가 꺼졌으면 바로([`idle_step`] ·
 //!   `idle_reclaim`). 다음 입력이 `--resume` 으로 다시 띄운다.
 //!
@@ -61,16 +61,15 @@ pub const THRESHOLD_KEY: &str = "sync_threshold_tokens";
 pub const PROMPT_KEY: &str = "sync_prompt";
 pub const COMPACT_KEY: &str = "compact_prompt";
 pub const IDLE_KEY: &str = "idle_sync_tokens";
-pub const RECLAIM_KEY: &str = "idle_reclaim";
+/// 유휴 회수 — 「세션 최적화」 스위치 하나가 회수와 가려진 탭의 화면 내리기(`view_state`)를 함께 켠다.
+/// 저장 키는 호스트가 화면을 내릴 때 읽는 이름이다.
+pub const RECLAIM_KEY: &str = crate::application::view_state::SAVER_KEY;
 /// 설정 창 묶음 머리의 스위치 — 끄면 그 기준을 0(끔)으로 읽는다. 기준 칸의 0 도 계속 끔이다.
 pub const THRESHOLD_ON_KEY: &str = "sync_threshold_on";
 pub const IDLE_ON_KEY: &str = "idle_sync_on";
-/// 컨텍스트 묶음 머리 스위치 — 끄면 세 현행화(작업 중 · 유휴 · 사용 한도)를 모두 끈다. 기능 스위치 값은 남는다.
+/// 컨텍스트 묶음 머리 스위치 — 끄면 두 현행화(작업 중 · 유휴)를 모두 끈다. 기능 스위치 값은 남는다.
 pub const CONTEXT_ON_KEY: &str = "context_on";
 pub const DEFAULT_CONTEXT_ON: bool = true;
-/// 사용 한도 현행화 — 스위치와 문턱(%). 문턱은 5시간 · 7일 창 중 큰 쪽의 사용률이다.
-pub const LIMIT_ON_KEY: &str = "limit_sync_on";
-pub const LIMIT_PERCENT_KEY: &str = "limit_sync_percent";
 
 /// 기본값 — 매니페스트의 `default` 와 같아야 한다(`manifest_defaults_match_the_code`).
 pub const DEFAULT_THRESHOLD_TOKENS: f64 = 400_000.0;
@@ -78,11 +77,6 @@ pub const DEFAULT_IDLE_TOKENS: f64 = 150_000.0;
 pub const DEFAULT_RECLAIM: bool = true;
 pub const DEFAULT_THRESHOLD_ON: bool = true;
 pub const DEFAULT_IDLE_ON: bool = true;
-pub const DEFAULT_LIMIT_ON: bool = true;
-pub const DEFAULT_LIMIT_PERCENT: f64 = 90.0;
-/// 문턱 칸의 범위 — 끄는 것은 스위치뿐이라 1 미만은 기본값으로 읽는다.
-pub const LIMIT_PERCENT_MIN: f64 = 1.0;
-pub const LIMIT_PERCENT_MAX: f64 = 100.0;
 
 /// 유휴 기준의 위 끝 — 가장 큰 창(1M)의 두 배면 막을 일이 없다.
 pub const IDLE_TOKENS_MAX: f64 = 2_000_000.0;
@@ -162,7 +156,7 @@ pub const COOLDOWN: Duration = Duration::from_secs(600);
 pub enum Hold {
     /// 그 프로필이 429 로 막혀 기다리는 중이다(`rate_block`).
     RateLimited,
-    /// 같은 프로필의 다른 탭이 유휴 · 한도 현행화 중이다.
+    /// 같은 프로필의 다른 탭이 유휴 현행화 중이다.
     OtherBackgroundSync,
     /// 같은 프로필의 어느 탭이 429 재전송을 기다린다.
     RetryPending,
@@ -170,7 +164,7 @@ pub enum Hold {
     OpenedThisPass,
 }
 
-/// 사용자가 시키지 않은 현행화(유휴 · 한도)를 그 agent 프로필에서 지금 열면 안 되는 사유 — 열어도 되면
+/// 사용자가 시키지 않은 쉬는 탭의 현행화(유휴)를 그 agent 프로필에서 지금 열면 안 되는 사유 — 열어도 되면
 /// `None`.
 ///
 /// 한도는 프로필이 쓰는 계정 단위다. 쉰 탭의 현행화는 캐시가 식었으면 컨텍스트 전체를 다시 보내 그 한도를
@@ -191,7 +185,7 @@ pub fn background_sync_hold<'a>(
         .into_iter()
         .filter(|c| crate::domain::rate_block::profile_of(c) == profile)
     {
-        if matches!(phase_mode(&c.sync.phase), Some(Mode::Idle | Mode::Limit)) {
+        if phase_mode(&c.sync.phase) == Some(Mode::Idle) {
             return Some(Hold::OtherBackgroundSync);
         }
         if c.retry.pending.is_some() {
@@ -199,26 +193,6 @@ pub fn background_sync_hold<'a>(
         }
     }
     None
-}
-
-/// 한도 창 중 사용률이 큰 쪽 — `(사용률, 그 창이 풀리는 시각)`. 창 값은 claude.ai 로그인 세션만 받으므로
-/// API 프로필 세션은 늘 `None` 이고 한도 현행화가 돌지 않는다.
-pub fn limit_use(u: &Usage) -> Option<(f64, i64)> {
-    [u.five_hour.as_ref(), u.seven_day.as_ref()]
-        .into_iter()
-        .flatten()
-        .map(|w| (w.utilization, w.resets_at))
-        .max_by(|a, b| a.0.total_cmp(&b.0))
-}
-
-/// 한도 현행화를 열 창 — 사용률이 문턱(`bar`, 0..=1)을 넘었고 이 창(풀리는 시각)에서 아직 안 열었으면
-/// 그 창의 풀리는 시각. `bar` 가 0 이면 끔이다.
-pub fn limit_due(u: &Usage, spent: Option<i64>, bar: f64) -> Option<i64> {
-    if bar <= 0.0 {
-        return None;
-    }
-    let (share, resets) = limit_use(u)?;
-    (share >= bar && spent != Some(resets)).then_some(resets)
 }
 
 /// 진행 단계.
@@ -271,8 +245,6 @@ pub struct SyncState {
     pub turn_judged: bool,
     /// 데몬 행이 실은 마지막 호출의 컨텍스트(`context_tokens`) — 탭이 못 잰 때 예고 판정이 본다.
     pub row_context: Option<u64>,
-    /// 한도 현행화를 이미 연 창(그 창이 풀리는 시각) — 창마다 한 번만 연다([`limit_due`]).
-    pub limit_spent: Option<i64>,
     /// 상태줄의 두 시계가 쓰는 설정 · 마지막으로 그린 기한(`idle_clock`).
     pub clock: crate::application::idle_clock::ClockState,
 }
@@ -296,7 +268,6 @@ impl Default for SyncState {
             reclaimed: false,
             turn_judged: false,
             row_context: None,
-            limit_spent: None,
             clock: crate::application::idle_clock::ClockState::default(),
         }
     }
@@ -327,16 +298,12 @@ pub struct Knobs {
     pub turn_tokens: f64,
     /// 유휴 현행화 기준(토큰) — 0 이면 끔.
     pub idle_tokens: f64,
-    /// 쉰 세션의 claude 를 내린다(유휴 회수).
+    /// 쉰 세션의 claude 를 내린다(유휴 회수) — 「세션 최적화」 스위치로 [`Self::memory_saver`] 와 같은 값이다.
     pub reclaim: bool,
-    /// 사용 한도 현행화의 문턱(사용률 0..=1) — 0 이면 끔.
-    pub limit_share: f64,
     /// 프로필별 `cache_ttl` — 탭이 캐시 종류를 아직 못 봤을 때 [`idle_wait`] 가 쓴다.
     pub cache_ttl:
         std::collections::BTreeMap<String, crate::adapters::driven::store::agents::CacheTtl>,
-    /// API 트래픽 조절(`traffic`) — 다시 읽을 때마다 조절기에 건다([`KnobCache::get`]).
-    pub traffic: crate::adapters::driven::traffic::Limits,
-    /// 메모리 절약(`view_state`) — 가려진 탭의 WebView 를 호스트가 내린다.
+    /// 「세션 최적화」(`view_state`) — 가려진 탭의 WebView 를 호스트가 내린다.
     pub memory_saver: bool,
     pub prompt: String,
     pub compact: String,
@@ -379,7 +346,7 @@ fn tokens_if_on<H: HostCall>(
 }
 
 /// 설정을 읽는다. 두 기준 모두 토큰이다. 스위치를 끈 기준만 0(끔)으로 읽는다 — 기준 칸의 0 은 끔이
-/// 아니라 잘못된 값이라 기본값이 된다. 컨텍스트 묶음 머리 스위치를 끄면 세 현행화가 모두 0 이다.
+/// 아니라 잘못된 값이라 기본값이 된다. 컨텍스트 묶음 머리 스위치를 끄면 두 현행화가 모두 0 이다.
 pub fn read_knobs<H: HostCall>(host: &H) -> Knobs {
     let context_on = setting(host, CONTEXT_ON_KEY)
         .and_then(|v| v.as_bool())
@@ -399,58 +366,18 @@ pub fn read_knobs<H: HostCall>(host: &H) -> Knobs {
         IDLE_KEY,
         DEFAULT_IDLE_TOKENS,
     );
+    // 「세션 최적화」 — 스위치 하나가 회수와 화면 내리기를 함께 켠다.
+    let optimize = setting(host, RECLAIM_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(DEFAULT_RECLAIM);
     Knobs {
         turn_tokens: gate(turn_tokens),
         idle_tokens: gate(idle_tokens),
-        reclaim: setting(host, RECLAIM_KEY)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(DEFAULT_RECLAIM),
-        limit_share: gate(read_limit_share(host)),
+        reclaim: optimize,
         prompt: text_or(host, PROMPT_KEY, &default_sync_prompt()),
         compact: text_or(host, COMPACT_KEY, &default_compact_prompt()),
         cache_ttl: profile_cache_ttl(),
-        traffic: read_traffic(host),
-        memory_saver: setting(host, crate::application::view_state::SAVER_KEY)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
-    }
-}
-
-/// 사용 한도 현행화의 문턱 — 스위치가 꺼졌으면 0(끔), 켜졌으면 % 칸을 0..=1 로 바꾼다. 1 미만 · 빈 값은
-/// 기본값이다.
-fn read_limit_share<H: HostCall>(host: &H) -> f64 {
-    let on = setting(host, LIMIT_ON_KEY)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(DEFAULT_LIMIT_ON);
-    if !on {
-        return 0.0;
-    }
-    setting(host, LIMIT_PERCENT_KEY)
-        .and_then(|v| v.as_f64())
-        .filter(|n| n.is_finite() && *n >= LIMIT_PERCENT_MIN)
-        .unwrap_or(DEFAULT_LIMIT_PERCENT)
-        .min(LIMIT_PERCENT_MAX)
-        / 100.0
-}
-
-/// 트래픽 조절 세 칸 — 한도 칸의 0 · 빈 값은 그 방향 무제한이다.
-fn read_traffic<H: HostCall>(host: &H) -> crate::adapters::driven::traffic::Limits {
-    use crate::adapters::driven::traffic::{
-        DEFAULT_KBPS, DEFAULT_ON, DOWN_KEY, MAX_KBPS, ON_KEY, UP_KEY,
-    };
-    let kbps = |key: &str| {
-        setting(host, key)
-            .and_then(|v| v.as_f64())
-            .filter(|n| n.is_finite())
-            .unwrap_or(DEFAULT_KBPS)
-            .clamp(0.0, MAX_KBPS)
-    };
-    crate::adapters::driven::traffic::Limits {
-        on: setting(host, ON_KEY)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(DEFAULT_ON),
-        up_kbps: kbps(UP_KEY),
-        down_kbps: kbps(DOWN_KEY),
+        memory_saver: optimize,
     }
 }
 
@@ -497,8 +424,6 @@ impl KnobCache {
             return k.clone();
         }
         let k = read_knobs(host);
-        // 트래픽 한도는 이미 열린 터널에도 바로 걸린다 — 설정을 다시 읽는 이 자리가 곧 반영 시점이다.
-        crate::adapters::driven::traffic::global().apply(k.traffic);
         self.held = Some((now, k.clone()));
         k
     }
@@ -533,11 +458,6 @@ pub fn sync_input(prompt: &str, mode: Mode, usage: &Usage, base: f64) -> String 
                 "sup.sync.tag_idle",
                 &[&used, &format!("{:.0}k", base / 1000.0)],
             )
-        }
-        Mode::Limit => {
-            let share = limit_use(usage)
-                .map_or_else(|| "?".to_string(), |(s, _)| format!("{:.0}", s * 100.0));
-            i18n::t1("sup.sync.tag_limit", &share)
         }
     };
     format!("{prompt}\n\n{tag}")
@@ -867,7 +787,6 @@ impl<H: crate::ports::host::SendHost, S: crate::ports::supervisor::SupervisorHan
             Mode::Auto => "sync_compact_auto",
             Mode::Manual => "sync_compact_manual",
             Mode::Idle => "sync_compact_idle",
-            Mode::Limit => "sync_compact_limit",
         };
         let before = c.usage.context_used.unwrap_or(0) as f64;
         if let Err(e) = crate::application::surface_link::record_metric(host, sid, metric, before) {
@@ -986,55 +905,6 @@ impl<H: crate::ports::host::SendHost, S: crate::ports::supervisor::SupervisorHan
             }
         }
         self.run_idle_syncs(&host);
-        self.run_limit_syncs(&host);
-    }
-
-    /// 사용 한도가 문턱을 넘은 탭을 한 번 현행화한다 — 한도에 막혀 끊기면 작업이 미커밋으로 남는다.
-    ///
-    /// 한가한 탭만 연다(도는 턴 위에 얹지 않는다). 거절돼도 이 창에서는 다시 안 쏜다 — 2초마다 같은 거절을
-    /// 되풀이하지 않게. 창이 풀려 시각이 바뀌면 다시 열 수 있다.
-    fn run_limit_syncs(&mut self, host: &impl SendHost) {
-        let now = Instant::now();
-        let bar = self.knobs.get(host, now).limit_share;
-        let mut opened: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-        let due: Vec<(u32, i64, String)> = self
-            .convos
-            .iter()
-            .filter(|(_, c)| {
-                !self.activity.turn_busy(c)
-                    && !c.sync.running()
-                    && !c.clearing
-                    && c.session_id.is_some()
-            })
-            .filter_map(|(&sid, c)| {
-                limit_due(&c.usage, c.sync.limit_spent, bar)
-                    .map(|r| (sid, r, crate::domain::rate_block::profile_of(c).to_string()))
-            })
-            .collect();
-        // 프로필마다 하나 — 나머지 탭은 이것이 끝난 뒤 다음 판정에서 연다([`background_sync_hold`]).
-        for (sid, resets, profile) in due {
-            let hold = if opened.contains(&profile) {
-                Some(Hold::OpenedThisPass)
-            } else {
-                background_sync_hold(self.convos.values(), &profile, &self.blocks, now)
-            };
-            if let Some(why) = hold {
-                tracing::debug!("[agent_session] surface={sid}: 한도 현행화를 미룬다: {why:?}");
-                continue;
-            }
-            if let Some(c) = self.convos.get_mut(&sid) {
-                c.sync.limit_spent = Some(resets);
-            }
-            match self.start_sync(host, sid, Mode::Limit) {
-                Ok(()) => {
-                    self.blocks.take_probe(&profile, now);
-                    opened.insert(profile);
-                }
-                Err(why) => {
-                    tracing::info!("[agent_session] surface={sid}: 한도 현행화를 못 열었다: {why}")
-                }
-            }
-        }
     }
 
     /// 쉬는 탭을 캐시가 식기 전에 현행화하거나 내린다 — 설정은 후보가 있을 때만 읽는다(2초마다 도는
@@ -1627,73 +1497,6 @@ mod tests {
         assert_eq!(next_step(&c, false, at(0)), Step::Compact(Mode::Auto));
     }
 
-    /// 한도 현행화는 문턱을 넘은 창에서 **한 번** 연다 — 창이 풀려 시각이 바뀌면 다시 열 수 있다.
-    #[test]
-    fn the_limit_sync_fires_once_per_window_past_the_bar() {
-        use crate::domain::usage::Window;
-        const BAR90: f64 = DEFAULT_LIMIT_PERCENT / 100.0;
-        let mut u = Usage::default();
-        assert_eq!(
-            limit_due(&u, None, BAR90),
-            None,
-            "창 값이 없는 세션(API 프로필)은 안 연다"
-        );
-
-        u.five_hour = Some(Window {
-            utilization: 0.5,
-            resets_at: 100,
-        });
-        u.seven_day = Some(Window {
-            utilization: 0.89,
-            resets_at: 200,
-        });
-        assert_eq!(limit_due(&u, None, BAR90), None, "문턱 아래");
-
-        u.five_hour = Some(Window {
-            utilization: 0.93,
-            resets_at: 100,
-        });
-        assert_eq!(
-            limit_due(&u, None, BAR90),
-            Some(100),
-            "큰 쪽 창으로 판정한다"
-        );
-        assert_eq!(
-            limit_due(&u, Some(100), BAR90),
-            None,
-            "같은 창에서 두 번 열지 않는다"
-        );
-        u.five_hour = Some(Window {
-            utilization: 0.95,
-            resets_at: 400,
-        });
-        assert_eq!(
-            limit_due(&u, Some(100), BAR90),
-            Some(400),
-            "새 창에서는 다시 연다"
-        );
-        // 문턱은 설정값이다 — 그 아래면 안 열고, 0(스위치 끔)이면 어느 사용률에서도 안 연다.
-        assert_eq!(limit_due(&u, None, 0.96), None, "설정 문턱 아래");
-        assert_eq!(limit_due(&u, None, 0.95), Some(400), "설정 문턱에 닿았다");
-        assert_eq!(limit_due(&u, None, 0.0), None, "끈 설정");
-
-        let t = sync_input(&default_sync_prompt(), Mode::Limit, &u, BAR);
-        assert!(
-            t.contains("[sync-compact:limit]") && t.contains("95"),
-            "{t}"
-        );
-    }
-
-    /// 한도 현행화가 판정 루프에 물려 있다 — 함수만 있고 안 불리면 아무 일도 안 한다.
-    #[test]
-    fn the_limit_sync_is_wired_into_the_loop() {
-        let src = include_str!("sync_compact.rs");
-        let prod = src.split("#[cfg(test)]").next().unwrap_or(src);
-        assert!(prod.contains("self.run_limit_syncs(&host);"));
-        assert!(prod.contains("c.sync.limit_spent = Some(resets);"));
-        assert!(prod.contains("self.start_sync(host, sid, Mode::Limit)"));
-    }
-
     /// 보내는 말과 턴을 찾는 말이 같은 값이다 — 하나만 꼬리표 없는 문구로 돌아가면
     /// 현행화 턴을 못 찾아(`lost`) compact 가 영영 안 나간다.
     #[test]
@@ -1725,6 +1528,7 @@ mod tests {
             ("en", include_str!("../../lang/en.toml")),
             ("ko", include_str!("../../lang/ko.toml")),
             ("ja", include_str!("../../lang/ja.toml")),
+            ("zh-Hans", include_str!("../../lang/zh-Hans.toml")),
         ] {
             for (key, marker) in [
                 ("tag_auto", "[sync-compact:auto] "),
@@ -1789,12 +1593,10 @@ mod tests {
             turn_tokens: 0.0,
             idle_tokens: BAR,
             reclaim: true,
-            limit_share: DEFAULT_LIMIT_PERCENT / 100.0,
             prompt: String::new(),
             compact: String::new(),
             cache_ttl: Default::default(),
-            traffic: Default::default(),
-            memory_saver: false,
+            memory_saver: true,
         };
         let off = Knobs {
             reclaim: false,
@@ -1881,7 +1683,6 @@ mod tests {
 
         for (mode, held) in [
             (Mode::Idle, true),
-            (Mode::Limit, true),
             (Mode::Auto, false),
             (Mode::Manual, false),
         ] {
@@ -1980,12 +1781,10 @@ mod tests {
             turn_tokens: 0.0,
             idle_tokens: BAR,
             reclaim: true,
-            limit_share: DEFAULT_LIMIT_PERCENT / 100.0,
             prompt: String::new(),
             compact: String::new(),
             cache_ttl: Default::default(),
-            memory_saver: false,
-            traffic: Default::default(),
+            memory_saver: true,
         }
     }
 
@@ -2162,15 +1961,6 @@ mod tests {
         assert!(
             body("fn after_idle_sync(").contains("self.blocks.gate(&profile"),
             "막힌 프로필의 세션을 회수한다"
-        );
-        let limit = body("fn run_limit_syncs(");
-        assert!(
-            limit.contains("background_sync_hold("),
-            "한도 현행화가 줄을 안 선다"
-        );
-        assert!(
-            limit.contains("Hold::OpenedThisPass"),
-            "한도 현행화를 한꺼번에 연다"
         );
         assert!(body("fn judge_after_result(").contains("c.sync.last_result = Some(now);"));
         // 유휴 현행화의 꼬리표는 유휴 기준을 적는다 — 임계 초과 기준(70%)과 섞이면 기록이 틀린다.
@@ -2427,8 +2217,8 @@ mod tests {
             .unwrap_or_else(|| panic!("{storage_key} 칸이 없다"))
     }
 
-    /// 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 세션 관리 → API 트래픽 조절 순서이고, 묶음마다 칸 수가
-    /// 정해져 있다 — 칸이 다른 묶음으로 새거나 빠지면 걸린다. 머리 스위치는 컨텍스트 · 트래픽 묶음에 있다.
+    /// 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 메모리 절약 → 기타 순서이고, 묶음마다 칸 수가
+    /// 정해져 있다 — 칸이 다른 묶음으로 새거나 빠지면 걸린다. 머리 스위치는 컨텍스트 묶음에만 있다.
     /// 기능 설명은 따로 된 글 칸이 아니라 스위치 아래 설명(`caption_key`)이다.
     #[test]
     fn the_settings_page_keeps_its_groups_in_order() {
@@ -2438,7 +2228,7 @@ mod tests {
             .filter(|b| item_field(b, "kind") == Some("group"))
             .filter_map(|b| item_field(b, "id"))
             .collect();
-        assert_eq!(groups, ["history", "context", "session", "traffic"]);
+        assert_eq!(groups, ["history", "context", "memory", "etc"]);
         let count = |g: &str| {
             items
                 .iter()
@@ -2447,17 +2237,15 @@ mod tests {
         };
         assert_eq!(
             groups.iter().map(|g| count(g)).collect::<Vec<_>>(),
-            [2, 8, 3, 2]
+            [2, 6, 1, 1]
         );
         let switched: Vec<&&str> = groups.iter().filter(|g| group_has_switch(g)).collect();
-        assert_eq!(switched, [&"context", &"traffic"]);
+        assert_eq!(switched, [&"context"]);
         for (key, about) in [
             (THRESHOLD_ON_KEY, "sync"),
             (IDLE_ON_KEY, "idle_sync"),
-            (LIMIT_ON_KEY, "limit_sync"),
-            (RECLAIM_KEY, "reclaim"),
+            (RECLAIM_KEY, "session_optimize"),
             (crate::application::cache_watch::SETTING_KEY, "cache_watch"),
-            (crate::application::view_state::SAVER_KEY, "memory_saver"),
             (CONTEXT_ON_KEY, "context"),
         ] {
             assert_eq!(
@@ -2474,7 +2262,7 @@ mod tests {
         );
     }
 
-    /// 컨텍스트 묶음 머리 스위치를 끄면 세 현행화가 모두 꺼진다 — 기능 스위치 · 기준 칸 값과 상관없다. 유휴
+    /// 컨텍스트 묶음 머리 스위치를 끄면 두 현행화가 모두 꺼진다 — 기능 스위치 · 기준 칸 값과 상관없다. 유휴
     /// 회수는 다른 묶음이라 그대로다. 다시 켜면 기능 스위치 값이 돌아온다.
     #[test]
     fn the_context_switch_turns_every_sync_off() {
@@ -2488,18 +2276,13 @@ mod tests {
                 (CONTEXT_ON_KEY, json!(on)),
                 (THRESHOLD_KEY, json!(300_000.0)),
                 (IDLE_KEY, json!(120_000.0)),
-                (LIMIT_PERCENT_KEY, json!(80.0)),
             ]))
         };
         let k = read(false);
-        assert_eq!(
-            (k.turn_tokens, k.idle_tokens, k.limit_share),
-            (0.0, 0.0, 0.0)
-        );
+        assert_eq!((k.turn_tokens, k.idle_tokens), (0.0, 0.0));
         assert!(k.reclaim, "유휴 회수는 따로 끈다");
         let k = read(true);
         assert_eq!((k.turn_tokens, k.idle_tokens), (300_000.0, 120_000.0));
-        assert!((k.limit_share - 0.8).abs() < 1e-9);
         assert_eq!(
             read_knobs(&Settings(vec![])).turn_tokens,
             DEFAULT_THRESHOLD_TOKENS,
@@ -2525,6 +2308,7 @@ mod tests {
             AUTO_URGENT_OVER as u64 / 1000,
             AUTO_URGENT_OVER as u64 % 1000
         );
+        let rewrite = grouped(crate::application::cache_watch::MIN_REWRITE);
         let want: [(&str, Vec<String>); 4] = [
             (
                 "sync",
@@ -2536,13 +2320,14 @@ mod tests {
                 ],
             ),
             ("idle_sync", vec![short.clone(), long.clone()]),
-            ("reclaim", vec![short, long]),
-            ("limit_sync", vec!["claude.ai".into()]),
+            ("session_optimize", vec![short, long]),
+            ("cache_watch", vec![rewrite]),
         ];
         for (lang, src) in [
             ("ko", include_str!("../../lang/ko.toml")),
             ("en", include_str!("../../lang/en.toml")),
             ("ja", include_str!("../../lang/ja.toml")),
+            ("zh-Hans", include_str!("../../lang/zh-Hans.toml")),
         ] {
             let sec = src
                 .split("[sup.about]")
@@ -2564,7 +2349,7 @@ mod tests {
     #[test]
     fn the_sync_prompts_are_editable_text_with_a_default() {
         // 문구 칸(`sync_prompt` · `compact_prompt`)은 고칠 수 있는 글이고 기본 글은 코드와 같은 번역 키다.
-        // 고친 값을 따르고 비우면 기본 글이다(`text_or`). 세 현행화가 함께 쓰므로 컨텍스트 묶음에 든다.
+        // 고친 값을 따르고 비우면 기본 글이다(`text_or`). 두 현행화가 함께 쓰므로 컨텍스트 묶음에 든다.
         for (key, default_key) in [
             (PROMPT_KEY, "sup.default.sync_prompt"),
             (COMPACT_KEY, "sup.default.compact_prompt"),
@@ -2602,14 +2387,10 @@ mod tests {
             manifest_field(IDLE_ON_KEY, "default"),
             DEFAULT_IDLE_ON.to_string()
         );
-        // 세 현행화의 스위치는 한 묶음 안의 토글이고 기준 칸이 바로 뒤에 같은 묶음으로 온다. 그 묶음은 머리
+        // 두 현행화의 스위치는 한 묶음 안의 토글이고 기준 칸이 바로 뒤에 같은 묶음으로 온다. 그 묶음은 머리
         // 스위치가 없어 한 기능을 꺼도 다른 기능의 칸이 숨지 않는다. 저장 키는 예전 머리 스위치와 같다.
         let mut groups = Vec::new();
-        for (on, key) in [
-            (THRESHOLD_ON_KEY, THRESHOLD_KEY),
-            (IDLE_ON_KEY, IDLE_KEY),
-            (LIMIT_ON_KEY, LIMIT_PERCENT_KEY),
-        ] {
+        for (on, key) in [(THRESHOLD_ON_KEY, THRESHOLD_KEY), (IDLE_ON_KEY, IDLE_KEY)] {
             assert_eq!(manifest_field(on, "kind"), "toggle", "{on}");
             let group = manifest_field(on, "group");
             assert_eq!(manifest_field(key, "group"), group, "{key}");
@@ -2625,11 +2406,7 @@ mod tests {
             groups.windows(2).all(|w| w[0] == w[1]),
             "현행화가 한 묶음이 아니다"
         );
-        assert_eq!(
-            manifest_field(LIMIT_ON_KEY, "default"),
-            DEFAULT_LIMIT_ON.to_string()
-        );
-        // 유휴 회수는 현행화 묶음 밖(세션 관리)의 토글이다 — 머리 스위치가 없는 묶음이라 유휴 현행화를 꺼도
+        // 유휴 회수는 현행화 묶음 밖(메모리 절약)의 토글이다 — 머리 스위치가 없는 묶음이라 유휴 현행화를 꺼도
         // 회수 스위치는 숨지 않는다.
         assert_eq!(manifest_field(RECLAIM_KEY, "kind"), "toggle");
         let reclaim_group = manifest_field(RECLAIM_KEY, "group");
@@ -2638,76 +2415,6 @@ mod tests {
         for key in [THRESHOLD_KEY, IDLE_KEY] {
             assert_eq!(num(key, "min"), IDLE_TOKENS_MIN, "끄는 것은 스위치뿐이다");
         }
-    }
-
-    /// 트래픽 조절 칸의 기본값 · 범위가 코드와 같다.
-    #[test]
-    fn traffic_manifest_defaults_match_the_code() {
-        let num = |k: &str, f: &str| manifest_field(k, f).parse::<f64>().expect("number");
-        use crate::adapters::driven::traffic::{
-            DEFAULT_KBPS, DEFAULT_ON, DOWN_KEY, MAX_KBPS, ON_KEY, UP_KEY,
-        };
-        assert_eq!(manifest_field(ON_KEY, "kind"), "group");
-        assert_eq!(manifest_field(ON_KEY, "default"), DEFAULT_ON.to_string());
-        let group = manifest_field(ON_KEY, "id");
-        for key in [UP_KEY, DOWN_KEY] {
-            assert_eq!(manifest_field(key, "group"), group);
-            assert_eq!(num(key, "default"), DEFAULT_KBPS);
-            assert_eq!(num(key, "min"), 0.0);
-            assert_eq!(num(key, "max"), MAX_KBPS);
-        }
-    }
-
-    /// 사용 한도 현행화는 켬 · 90% 가 기본이고, 스위치를 끄면 0(끔), 1 미만 · 빈 값은 기본값, 100 초과는
-    /// 100 으로 읽는다.
-    #[test]
-    fn the_limit_sync_setting_reads_its_switch_and_percent() {
-        assert_eq!(read_knobs(&Settings(vec![])).limit_share, 0.9);
-        let share = |on: Value, pct: Value| {
-            read_knobs(&Settings(vec![
-                (LIMIT_ON_KEY, on),
-                (LIMIT_PERCENT_KEY, pct),
-            ]))
-            .limit_share
-        };
-        assert_eq!(share(json!(true), json!(75.0)), 0.75);
-        assert_eq!(share(json!(false), json!(75.0)), 0.0, "끈 스위치");
-        assert_eq!(share(json!(true), json!(0.0)), 0.9, "0 은 끔이 아니다");
-        assert_eq!(share(json!(true), json!(250.0)), 1.0);
-        assert_eq!(share(Value::Null, Value::Null), 0.9);
-    }
-
-    /// 사용 한도 현행화 칸의 기본값 · 범위가 코드와 같다.
-    #[test]
-    fn limit_sync_manifest_defaults_match_the_code() {
-        let num = |k: &str, f: &str| manifest_field(k, f).parse::<f64>().expect("number");
-        assert_eq!(
-            manifest_field(LIMIT_ON_KEY, "default"),
-            DEFAULT_LIMIT_ON.to_string()
-        );
-        assert_eq!(num(LIMIT_PERCENT_KEY, "default"), DEFAULT_LIMIT_PERCENT);
-        assert_eq!(num(LIMIT_PERCENT_KEY, "min"), LIMIT_PERCENT_MIN);
-        assert_eq!(num(LIMIT_PERCENT_KEY, "max"), LIMIT_PERCENT_MAX);
-        assert_eq!(
-            manifest_field(LIMIT_PERCENT_KEY, "suffix_key"),
-            "sup.settings.limit_sync_suffix"
-        );
-    }
-
-    /// 트래픽 칸은 꺼짐이 기본이고, 한도는 0 미만 · 위 끝 초과를 잘라 읽는다.
-    #[test]
-    fn traffic_settings_read_with_their_defaults_and_bounds() {
-        use crate::adapters::driven::traffic::{DOWN_KEY, MAX_KBPS, ON_KEY, UP_KEY};
-        let k = read_knobs(&Settings(vec![]));
-        assert!(!k.traffic.on);
-        assert_eq!((k.traffic.up_kbps, k.traffic.down_kbps), (0.0, 0.0));
-        let k = read_knobs(&Settings(vec![
-            (ON_KEY, json!(true)),
-            (UP_KEY, json!(-5.0)),
-            (DOWN_KEY, json!(9.0e9)),
-        ]));
-        assert!(k.traffic.on);
-        assert_eq!((k.traffic.up_kbps, k.traffic.down_kbps), (0.0, MAX_KBPS));
     }
 
     /// 기준 칸의 0 은 끔이 아니다 — 스위치가 켜져 있으면 기본값으로 읽어 기능이 그대로 돈다.
@@ -2727,6 +2434,25 @@ mod tests {
     fn the_manifest_no_longer_offers_a_sync_button_switch() {
         let m = include_str!("../../tasty-plugin.toml");
         assert!(!m.contains("storage_key = \"sync_button\""));
+    }
+
+    /// 사용 한도 현행화 · API 트래픽 조절 · 따로 된 회수 스위치는 없앴다 — 칸이 남으면 아무것도 안 하는
+    /// 스위치가 보인다. 회수는 「세션 최적화」(`release_hidden_webview`) 하나로 켠다.
+    #[test]
+    fn the_manifest_no_longer_offers_removed_switches() {
+        let m = include_str!("../../tasty-plugin.toml");
+        for key in [
+            "limit_sync_on",
+            "limit_sync_percent",
+            "traffic_on",
+            "traffic_up_kbps",
+            "traffic_down_kbps",
+            "idle_reclaim",
+        ] {
+            assert!(!m.contains(&format!("storage_key = \"{key}\"")), "{key}");
+        }
+        assert!(!m.contains("agent_session.traffic"));
+        assert_eq!(RECLAIM_KEY, crate::application::view_state::SAVER_KEY);
     }
 
     /// 첫 턴 안내에 덧붙일 한 줄은 없앴다 — CLAUDE.md 와 스킬이 같은 일을 한다.
@@ -2755,6 +2481,7 @@ mod tests {
             ("ko", include_str!("../../lang/ko.toml")),
             ("en", include_str!("../../lang/en.toml")),
             ("ja", include_str!("../../lang/ja.toml")),
+            ("zh-Hans", include_str!("../../lang/zh-Hans.toml")),
         ] {
             let sec = src
                 .split("[sup.settings]")
@@ -2775,10 +2502,10 @@ mod tests {
         }
     }
 
-    /// 유휴 체크 라벨이 적은 고정 만료가 코드의 판정 시각과 같다 — 칸이 없어 화면에서 고칠 수 없으므로
-    /// 라벨이 틀리면 사용자는 틀린 값을 믿는다.
+    /// 세션 캐시 현행화 설명이 적은 고정 만료가 코드의 판정 시각과 같고 다른 수의 일부가 아니다 — 칸이 없어
+    /// 화면에서 고칠 수 없으므로 설명이 틀리면 사용자는 틀린 값을 믿는다.
     #[test]
-    fn the_idle_label_states_the_fixed_expiry_the_code_uses() {
+    fn the_idle_caption_states_the_fixed_expiry_the_code_uses() {
         let short = CACHE_TTL_5M.saturating_sub(IDLE_LEAD).as_secs();
         let long = CACHE_TTL_1H.saturating_sub(IDLE_LEAD).as_secs();
         assert_eq!((short, long), (240, 3540));
@@ -2794,11 +2521,14 @@ mod tests {
             ("ko", include_str!("../../lang/ko.toml")),
             ("en", include_str!("../../lang/en.toml")),
             ("ja", include_str!("../../lang/ja.toml")),
+            ("zh-Hans", include_str!("../../lang/zh-Hans.toml")),
         ] {
+            // 칸 이름은 「유효 임계값」이라 기한은 스위치 아래 설명이 적는다.
             let line = src
-                .lines()
-                .find(|l| l.starts_with("idle_sync = "))
-                .unwrap_or_else(|| panic!("{lang}: idle_sync 라벨이 없다"));
+                .split("[sup.about]")
+                .nth(1)
+                .and_then(|sec| sec.lines().find(|l| l.starts_with("idle_sync = ")))
+                .unwrap_or_else(|| panic!("{lang}: idle_sync 설명이 없다"));
             assert!(standalone(line, &short.to_string()), "{lang}: {line}");
             assert!(standalone(line, &grouped), "{lang}: {line}");
         }

@@ -48,7 +48,6 @@ fn mode_name(m: Mode) -> &'static str {
         Mode::Auto => "auto",
         Mode::Manual => "manual",
         Mode::Idle => "idle",
-        Mode::Limit => "limit",
     }
 }
 

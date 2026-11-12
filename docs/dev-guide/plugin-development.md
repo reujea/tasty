@@ -281,7 +281,7 @@ self-loop·backoff로 건너뛸 hook은 시작하지 않고 소유자 기동 실
 `[[contributes.settings_pages.items]]` 의 `kind` (공통 필드: `id` · `label_key` · `storage_key` — `group` · `text` 는 `storage_key` 가 선택):
 
 - `font_override` — surface 폰트 override. host 가 `plugin_font_overrides.<storage_key>` 슬롯에 read/write (아래 generic 컨트롤과 **별개 전역 네임스페이스**).
-- `toggle` — on/off. `default`(bool) · `caption_key`(선택, 설명 글 i18n 키). host 는 Switch 로 렌더, bool 저장. `caption_key` 가 있으면 행 아래에 설명을 둔다(설정 행 caption 과 같은 모양).
+- `toggle` — on/off. `default`(bool) · `caption_key`(선택, 설명 글 i18n 키). host 는 Switch 로 렌더, bool 저장. `caption_key` 가 있으면 행 아래에 설명을 둔다(설정 행 caption 과 같은 모양). 설명은 줄(`\n`)마다 나뉘고, `- ` 로 시작하는 줄은 목록(•), `  - ` 로 시작하는 줄은 한 단계 안쪽 목록(–)이다. 항목이 줄을 넘기면 글머리표 뒤 자리에서 이어진다. 목록 줄이 없는 설명은 한 덩어리 글로 그린다.
 - `select` — 드롭다운. `options = [{ value, label_key }]` + `default`(반드시 options.value 중 하나). Select 로 렌더, 선택 value(문자열) 저장.
 - `number` — 수치. `default`(f64) · `min`/`max`(선택; 주어지면 min≤default≤max) · `suffix_key`(선택, 단위 i18n 키). 설정 창의 [숫자 한 모양](../features/settings/screens/settings.md#숫자-입력-한-모양)으로 렌더(mono Input + 필드 밖 정적 suffix, **확정 때만** min/max 로 끌어온다), f64 저장.
 - `text` — 글. `default`(문자열) · `default_key`(선택, 기본 글 i18n 키) — 둘 중 하나는 있어야 한다. `editable`(bool, 기본 `false`). 읽기 전용이면 host 는 라벨을 위에 맞추고 컨트롤 열에서 줄을 바꾼 고칠 수 없는 글(선택·복사는 된다)로 그린다. 보이는 값은 `storage_key` 의 저장 문자열(앞뒤 공백 제외, 공백뿐이면 없는 것), 없으면 `default_key` 번역, 그것도 없으면 `default` 다. 이때 host 는 이 칸에 쓰지 않는다. `editable = true` 면 host 는 컨트롤 열에 여러 줄 입력(CodeArea)을 그리고 고칠 때마다 `storage_key` 에 문자열로 저장한다. 고칠 글은 저장 문자열 그대로(빈 값 포함)이고 저장값이 없으면 기본 글에서 시작한다. 비운 칸은 기본 글을 자리표시로 보이며, plugin 은 빈 값을 기본 글로 읽어야 한다. 검증: `editable` 이면 `storage_key` 가 있어야 한다. 예: [agent-session](../surfaces/agent-session/index.md#설정)의 현행화 문구.

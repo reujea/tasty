@@ -663,7 +663,7 @@ mod tests {
     }
 
     /// 번들 agent-session 페이지 — 실제 매니페스트를 호스트 검증으로 읽어 그리는 줄을 본다. 현행화 기능
-    /// 스위치는 묶음 안의 토글이라 꺼도 기준 칸이 남고, 머리 스위치(컨텍스트 · 트래픽)만 칸을 숨긴다.
+    /// 스위치는 묶음 안의 토글이라 꺼도 기준 칸이 남고, 머리 스위치(컨텍스트)만 칸을 숨긴다.
     #[test]
     fn the_bundled_agent_session_page_keeps_thresholds_visible_when_a_switch_is_off() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -694,16 +694,14 @@ mod tests {
             .filter(|r| matches!(r, PageRow::Header { .. }))
             .map(id)
             .collect();
-        assert_eq!(headers, ["history", "context", "session", "traffic"]);
-        // 트래픽은 기본 끔이라 머리만 보인다 — 페이지의 19 칸 중 한도 두 칸이 빠진 17 줄이다.
-        assert_eq!(p.items.len(), 19);
-        assert_eq!(on.len(), 17, "{on:?}");
-        assert!(!on.iter().any(|i| i == "traffic_up_kbps"));
+        assert_eq!(headers, ["history", "context", "memory", "etc"]);
+        // 머리 스위치는 컨텍스트 묶음에만 있고 기본 켬이라 페이지의 14 칸이 모두 보인다.
+        assert_eq!(p.items.len(), 14);
+        assert_eq!(on.len(), 14, "{on:?}");
         for key in [
             "sync_threshold_on",
             "idle_sync_on",
-            "limit_sync_on",
-            "idle_reclaim",
+            "release_hidden_webview",
         ] {
             s.set_plugin_setting(&m.id, key, PluginSettingValue::Bool(false));
         }
@@ -711,12 +709,11 @@ mod tests {
         assert_eq!(off, on, "기능 스위치를 끄자 칸이 숨었다");
         s.set_plugin_setting(&m.id, "context_on", PluginSettingValue::Bool(false));
         let closed: Vec<String> = page_rows(&s, &m.id, p).iter().map(id).collect();
-        assert_eq!(closed.len(), 9, "{closed:?}");
+        assert_eq!(closed.len(), 8, "{closed:?}");
         assert!(closed.iter().any(|i| i == "context"), "머리는 남는다");
         assert!(!closed.iter().any(|i| i == "sync_prompt"));
         s.set_plugin_setting(&m.id, "context_on", PluginSettingValue::Bool(true));
-        s.set_plugin_setting(&m.id, "traffic_on", PluginSettingValue::Bool(true));
-        assert_eq!(page_rows(&s, &m.id, p).len(), 19);
+        assert_eq!(page_rows(&s, &m.id, p).len(), 14);
     }
 
     /// 고칠 수 있는 글은 저장값을 그대로(빈 값도) 고칠 글로 쓴다 — 지우는 중에 기본 글이 되살아나지 않는다.

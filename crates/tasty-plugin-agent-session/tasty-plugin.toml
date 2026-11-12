@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.agent-session"
 name = "Agent Session"
-version = "0.1.40"
+version = "0.1.41"
 description = "Chat tabs that run Claude Code (stream-json) or pi (rpc) sessions, started from agent profiles and role folders"
 api_version = "1"
 
@@ -47,9 +47,6 @@ permissions = [
     # 상태줄의 작업 폴더를 누르면 전체 경로를 복사한다 — webview 의 `navigator.clipboard` 는
     # `about:blank` 문서에서 막힐 수 있어 호스트 클립보드(`clipboard.set_text`)를 쓴다.
     "clipboard.write",
-    # API 트래픽 조절(`traffic_on`)이 켜지면 이 프로세스가 loopback 에 CONNECT 프록시를 열고 claude 의
-    # API 연결을 중계한다. 호스트가 강제하지 못하는 소켓 사용이라 이 토큰은 그 사실의 선언이다.
-    "network",
 ]
 
 lang_dir = "lang"
@@ -165,10 +162,10 @@ required = false
 # (`caption_key`, 번역 `sup.about.*`)에 권장안으로 두고, 전체 세부는 `docs/surfaces/agent-session/index.md`
 # 의 설정 절에 있다.
 #
-# 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 세션 관리 → API 트래픽 조절 순서다. 컨텍스트 묶음의 머리
-# 스위치는 세 현행화를 한꺼번에 끄고, 그 안에서 기능마다 스위치(`kind = "toggle"`)를 둔다 — 기능 스위치를 꺼도
-# 그 기준 칸은 보인다. 기능 스위치의 저장 키는 예전 묶음 머리 스위치와 같아 저장값이 그대로 이어진다. 세션 묶음은
-# 스위치 없는 머리다. 모델에게 보내는 문구는 고칠 수 있는 글(`editable`)이다 — 기본 문구는 plugin 번역 키
+# 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 메모리 절약 → 기타 순서다. 컨텍스트 묶음의 머리
+# 스위치는 두 현행화를 한꺼번에 끄고, 그 안에서 기능마다 스위치(`kind = "toggle"`)를 둔다 — 기능 스위치를 꺼도
+# 그 기준 칸은 보인다. 기능 스위치의 저장 키는 예전 묶음 머리 스위치와 같아 저장값이 그대로 이어진다. 메모리 절약 ·
+# 기타 묶음은 스위치 없는 머리다. 모델에게 보내는 문구는 고칠 수 있는 글(`editable`)이다 — 기본 문구는 plugin 번역 키
 # (`default_key`)이고, 비우면 그 기본 문구를 쓴다. 각 `default` 는 코드의 기본값과 같아야 한다(호스트는 안
 # 건드린 값을 비워서 돌려준다) — 어느 시험이 보는지는 칸마다 적었다.
 [[contributes.settings_pages]]
@@ -202,8 +199,8 @@ storage_key = "disk_swap"
 default = false
 group = "history"
 
-# 컨텍스트 비용 자동 관리 — 현행화 → compact 를 여는 세 자리(작업 중 · 유휴 · 사용 한도)와 그들이 함께 쓰는 문구
-# (`sync_compact`). 머리 스위치(`context_on`)를 끄면 세 자리를 모두 끈다 — 기능 스위치 값은 남는다
+# 컨텍스트 비용 자동 관리 — 현행화 → compact 를 여는 두 자리(작업 중 · 세션 캐시)와 그들이 함께 쓰는 문구
+# (`sync_compact`). 머리 스위치(`context_on`)를 끄면 두 자리를 모두 끈다 — 기능 스위치 값은 남는다
 # (`sync_compact::tests::the_context_switch_turns_every_sync_off`).
 [[contributes.settings_pages.items]]
 kind = "group"
@@ -214,7 +211,7 @@ default = true
 caption_key = "sup.about.context"
 
 # 작업 중 현행화 — 턴 끝 컨텍스트(토큰)가 기준을 넘으면 현행화 → compact. 기준은 창의 90% 를 넘지 않게 끌어내려
-# 쓴다. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
+# 쓴다(유효 임계값). 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
 [[contributes.settings_pages.items]]
 kind = "toggle"
 id = "sync_working"
@@ -235,8 +232,8 @@ max = 2000000.0
 suffix_key = "sup.settings.sync_threshold_suffix"
 group = "context"
 
-# 유휴 현행화 — 캐시가 식기 전(5분 캐시 240초 · 1시간 캐시 3,540초 쉰 뒤) 컨텍스트가 기준 이상이면 현행화 →
-# compact. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
+# 세션 캐시 현행화(코드 이름 유휴 현행화) — 캐시가 식기 전(5분 캐시 240초 · 1시간 캐시 3,540초 쉰 뒤) 컨텍스트가
+# 기준 이상이면 현행화 → compact. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
 [[contributes.settings_pages.items]]
 kind = "toggle"
 id = "idle_sync"
@@ -257,30 +254,7 @@ max = 2000000.0
 suffix_key = "sup.settings.idle_sync_suffix"
 group = "context"
 
-# 사용 한도 현행화 — 5시간 · 7일 창 중 큰 쪽의 사용률이 문턱(%)을 넘으면 한도에 끊기기 전에 현행화 → compact.
-# 창마다 한 번이다. 사용률은 claude.ai 로그인 프로필만 받는다. 끄는 것은 스위치뿐이다 — 문턱은 1 이상이다
-# (`sync_compact::tests::limit_sync_manifest_defaults_match_the_code`).
-[[contributes.settings_pages.items]]
-kind = "toggle"
-id = "limit_sync"
-label_key = "sup.settings.limit_sync_on"
-storage_key = "limit_sync_on"
-default = true
-caption_key = "sup.about.limit_sync"
-group = "context"
-
-[[contributes.settings_pages.items]]
-kind = "number"
-id = "limit_sync_percent"
-label_key = "sup.settings.limit_sync"
-storage_key = "limit_sync_percent"
-default = 90.0
-min = 1.0
-max = 100.0
-suffix_key = "sup.settings.limit_sync_suffix"
-group = "context"
-
-# 현행화 문구 — 세 현행화가 함께 쓴다. 설정 창에서 고친다. 비우면 기본 문구다
+# 현행화 문구 — 두 현행화가 함께 쓴다. 설정 창에서 고친다. 비우면 기본 문구다
 # (`sync_compact::tests::the_sync_prompts_are_editable_text_with_a_default`).
 [[contributes.settings_pages.items]]
 kind = "text"
@@ -300,23 +274,31 @@ default_key = "sup.default.compact_prompt"
 editable = true
 group = "context"
 
-# 세션 관리 — 쉬는 세션의 프로세스 · 화면 자원과 캐시 알림. 스위치 없는 머리라 유휴 현행화를 꺼도 회수 스위치가
+# 메모리 절약 — 쉬는 세션의 프로세스와 가려진 탭의 화면. 스위치 없는 머리라 세션 캐시 현행화를 꺼도 이 스위치가
 # 숨지 않는다.
 [[contributes.settings_pages.items]]
 kind = "group"
-id = "session"
-label_key = "sup.settings.group_session"
+id = "memory"
+label_key = "sup.settings.group_memory"
 
-# 유휴 회수(`idle_reclaim`) — 휴식 시계가 유휴 기한을 넘기면 세션의 claude 를 내리고 다음 입력에 `--resume` 으로
-# 다시 띄운다(`sync_compact::tests::manifest_defaults_match_the_code`).
+# 세션 최적화 — 스위치 하나가 유휴 회수(휴식 시계가 유휴 기한을 넘기면 세션의 claude 를 내리고 다음 입력에
+# `--resume` 으로 다시 띄운다)와 화면 내리기(호스트가 가려진 대화 탭의 WebView 를 없애고 다시 보일 때 만든다,
+# `view_state`)를 함께 켠다. 저장 키는 호스트가 읽는 이름(`release_hidden_webview`)이다. 기본 켬
+# (`sync_compact::tests::manifest_defaults_match_the_code` · `view_state::tests::the_manifest_toggle_matches_the_code`).
 [[contributes.settings_pages.items]]
 kind = "toggle"
-id = "idle_reclaim"
-label_key = "sup.settings.idle_reclaim"
-storage_key = "idle_reclaim"
+id = "session_optimize"
+label_key = "sup.settings.session_optimize"
+storage_key = "release_hidden_webview"
 default = true
-caption_key = "sup.about.reclaim"
-group = "session"
+caption_key = "sup.about.session_optimize"
+group = "memory"
+
+# 기타
+[[contributes.settings_pages.items]]
+kind = "group"
+id = "etc"
+label_key = "sup.settings.group_etc"
 
 # 캐시 재작성 알림(`cache_watch`, `docs/surfaces/agent-session/index.md` § 설정) — 끄면 알림·상태줄 토큰만 끄고
 # 지표는 남긴다(`cache_watch::tests::manifest_default_matches_the_code`).
@@ -327,51 +309,7 @@ label_key = "sup.settings.cache_watch"
 storage_key = "cache_watch"
 default = true
 caption_key = "sup.about.cache_watch"
-group = "session"
-
-# 메모리 절약(`view_state`) — 켜면 호스트가 가려진 대화 탭의 WebView 를 없애고 다시 보일 때 만든다. 저장 키는
-# 호스트가 읽는 이름(`release_hidden_webview`)이다. 기본 끔(`view_state::tests::the_manifest_toggle_matches_the_code`).
-[[contributes.settings_pages.items]]
-kind = "toggle"
-id = "memory_saver"
-label_key = "sup.settings.memory_saver"
-storage_key = "release_hidden_webview"
-default = false
-caption_key = "sup.about.memory_saver"
-group = "session"
-
-# API 트래픽 조절(`traffic`) — 상단 장비의 policing · shaping 한도보다 빠르게 보내 버려지는 일이 없게 claude 의 API
-# 연결을 loopback 프록시로 흘린다. 한도는 이 단말기의 agent 세션 전체가 나눠 쓴다. 머리 스위치는 기본 끔이고
-# 켜면 새로 뜨거나 재개되는 세션부터 적용된다. 한도 칸의 0 은 그 방향 무제한
-# (`sync_compact::tests::manifest_defaults_match_the_code`).
-[[contributes.settings_pages.items]]
-kind = "group"
-id = "traffic"
-label_key = "sup.settings.group_traffic"
-storage_key = "traffic_on"
-default = false
-
-[[contributes.settings_pages.items]]
-kind = "number"
-id = "traffic_up_kbps"
-label_key = "sup.settings.traffic_up"
-storage_key = "traffic_up_kbps"
-default = 0.0
-min = 0.0
-max = 1250000.0
-suffix_key = "sup.settings.traffic_suffix"
-group = "traffic"
-
-[[contributes.settings_pages.items]]
-kind = "number"
-id = "traffic_down_kbps"
-label_key = "sup.settings.traffic_down"
-storage_key = "traffic_down_kbps"
-default = 0.0
-min = 0.0
-max = 1250000.0
-suffix_key = "sup.settings.traffic_suffix"
-group = "traffic"
+group = "etc"
 
 # 작업 그래프(`tasty agent task`)의 `agent_session.tell` 노드가 **그 턴이 끝날 때까지** 기다리게 한다 —
 # claude plugin 의 `tell-wait` 와 같은 자리다. `tell` 은 답을 2분까지만 기다리고 돌아오므로, 더 긴 턴은
@@ -424,7 +362,6 @@ subcommands = [
     { name = "role-scan", ipc_method = "agent_session.role_scan", args = "role_scan_args", description = "Register every subfolder that holds a CLAUDE.md as a role named after the folder.", description_i18n_key = "sup.cli.sub.role-scan.description" },
     { name = "role-remove", ipc_method = "agent_session.role_remove", args = "role_args", description = "Remove a role from the list. The folder itself is not touched.", description_i18n_key = "sup.cli.sub.role-remove.description" },
     { name = "link-list", ipc_method = "agent_session.links", args = "no_args", description = "Every surface-to-session pair currently tied, plus how many surfaces could not be read.", description_i18n_key = "sup.cli.sub.link-list.description" },
-    { name = "traffic", ipc_method = "agent_session.traffic", args = "no_args", description = "API traffic shaping: whether it is on, the upload and download limits (KB/s), bytes relayed, open and failed tunnels, and the local proxies with their upstream.", description_i18n_key = "sup.cli.sub.traffic.description" },
 ]
 
 [contributes.cli.arg_groups.no_args]

@@ -906,8 +906,6 @@ impl<H: crate::ports::host::SendHost, S: crate::ports::supervisor::SupervisorHan
             "agent_session.unlink" => handle_unlink(host, params),
             "agent_session.siblings" => handle_siblings(host, params),
             "agent_session.links" => handle_links(host),
-            // API 트래픽 조절의 한도 · 바이트 · 터널 수.
-            "agent_session.traffic" => Ok(crate::adapters::driven::traffic::global().report()),
             "agent_session.status" => handle_status(host, &sup, params),
             "agent_session.sleep" => handle_sleep(host, &sup, params),
             "agent_session.tell" => match deferred {
