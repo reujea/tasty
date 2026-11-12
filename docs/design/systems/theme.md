@@ -107,7 +107,7 @@ host UI와 공용 위젯은 semantic 접근자를 사용한다. 원시 팔레트
 | 탭 스트립 스크롤 화살표 | `tab_scroll_arrow_fg()`(스크롤할 수 있음) · `tab_scroll_arrow_fg_disabled()`(끝에 닿음). 이동 대기 대상 탭 칸이 가려진 쪽은 `tab_scroll_arrow_move_fg()`. hover 채움 `tab_scroll_arrow_hover_bg()`는 disabled가 아닌 쪽에만 깐다 |
 | surface-raised(메뉴·드롭다운 목록) 위의 보조 글자 | `text_secondary_raised()`. Mocha는 `text_secondary()`와 같고 Latte는 `text_primary()`와 같다 |
 | 배너 본문 | `banner_body_fg()`(→ `text_muted_raised()`). Mocha는 `text_muted()`와 같고 Latte는 `text_primary()`와 같다 |
-| 입력 전 안내 | `text_placeholder()`. 입력 상자 안의 일반 글자 등급이다 |
+| 입력 전 안내 | `text_placeholder()`. 입력 상자 안의 일반 글자 등급이다. 원시 `egui::TextEdit::hint_text`에는 `tasty_egui_theme::hint_text(theme, ..)`로 색을 정한 글자를 넘긴다. 전역 visuals의 `override_text_color`(본문색)가 색 없는 `RichText`에 먼저 적용되어 `&str`·`String` hint는 본문색으로 그려지기 때문이다. 루트 lib 소스 검사 `text_edit_hint_color`가 `.hint_text(` 인자가 헬퍼 호출, `.color(`를 붙인 `RichText`, 명부의 지역 변수 중 하나인지 확인한다. 헬퍼를 줄여 부른 형태와 변수에 담긴 실제 색은 보지 않는다 |
 | 입력 상자 채움·테두리 | `surface_field()` · `border_control()`, raised 바탕은 `border_control_raised()`. Latte의 채움은 base와 같은 색이라 상자는 테두리로 보인다. hover는 채움을 바꾸지 않고 테두리만 바꾼다 |
 | 스크롤바 thumb | `scrollbar_thumb()`, raised 바탕은 `scrollbar_thumb_raised()`, hover·drag는 `scrollbar_thumb_hover()`. egui `ScrollArea`는 상태별 `fg_stroke`를 읽으므로 전역 visuals에 넣고, raised 바탕은 `apply_raised_scrollbar()`가 호출 범위에서 바꾼다 |
 | 약하게 표시하는 chrome 글리프 | `glyph_dim()` |

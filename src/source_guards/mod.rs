@@ -762,6 +762,9 @@ mod theme_changed_after_install;
 mod popover_frame_call_sites;
 
 #[cfg(test)]
+mod text_edit_hint_color;
+
+#[cfg(test)]
 mod modifier_hint_paint_order;
 
 #[cfg(test)]

@@ -4,6 +4,7 @@
 //! 호출 형태와 문자 패턴을 검사하므로 모든 사용자 문구를 찾는 것은 아니다.
 //! - W: egui 위젯 인자에서 연속 영문자 두 개 또는 CJK를 찾는다.
 //! - H: hint_text는 예시 식별자를 허용하고 문장 형태(공백과 네 글자 이상 영단어)·CJK를 찾는다.
+//!   색을 정하는 헬퍼 `tasty_egui_theme::hint_text(theme, ..)`는 같은 줄의 두 번째 인자를 본다.
 //! - N/F/E: 네이티브 메뉴, unwrap_or 폴백, 출력 매크로에서 문장·대문자 시작 영단어·CJK를 찾는다.
 //!   소문자 한 단어는 식별자일 수 있어 허용하지만 실제 화면에 표시한다면 번역해야 한다.
 //! - P: PushNotification의 title 리터럴을 찾는다.
@@ -332,6 +333,22 @@ fn leading_literal(after: &str) -> Option<&str> {
     None
 }
 
+/// 플레이스홀더 색 헬퍼의 글자 인자(첫 쉼표 뒤)가 같은 줄의 리터럴이면 H 규칙으로 판정한다.
+fn find_hint_helper_calls(line: &str, out: &mut Vec<String>) {
+    const HELPER: &str = "tasty_egui_theme::hint_text(";
+    for (pos, _) in line.match_indices(HELPER) {
+        let rest = &line[pos + HELPER.len()..];
+        let Some(comma) = rest.find(',') else {
+            continue;
+        };
+        if let Some(lit) = leading_literal(&rest[comma + 1..])
+            && hint_violation(lit)
+        {
+            out.push(format!("hint_text {lit:?}"));
+        }
+    }
+}
+
 /// `line` 에서 `call` 뒤에 리터럴이 오는 자리를 전부 찾아 `judge` 로 판정한다.
 fn find_calls(line: &str, calls: &[&str], judge: fn(&str) -> bool, out: &mut Vec<String>) {
     for call in calls {
@@ -477,6 +494,7 @@ fn scan_file(contents: &str) -> Vec<(usize, String)> {
         let mut hits = Vec::new();
         find_calls(line, WIDGET_CALLS, strict_violation, &mut hits);
         find_calls(line, &[".hint_text("], hint_violation, &mut hits);
+        find_hint_helper_calls(line, &mut hits);
         find_calls(line, NATIVE_CALLS, prose_violation, &mut hits);
         find_calls(line, FALLBACK_CALLS, prose_violation, &mut hits);
         find_calls(line, PRINT_CALLS, prose_violation, &mut hits);
@@ -629,6 +647,17 @@ fn clap_help_text_is_english_only() {
          Move Korean/Japanese background notes to `//` comments or docs/:\n{}",
         violations.join("\n")
     );
+}
+
+/// 색 헬퍼로 감싼 hint 의 문장 리터럴도 감싸지 않은 hint 와 같이 잡는다.
+#[test]
+fn a_sentence_inside_the_hint_color_helper_is_reported() {
+    let wrapped = ".hint_text(tasty_egui_theme::hint_text(th, \"Enter a host name\"))";
+    assert_eq!(scan_file(wrapped).len(), 1, "헬퍼 안의 문장을 놓쳤다");
+    let example = ".hint_text(tasty_egui_theme::hint_text(th, \"10.0.4.12\"))";
+    assert!(scan_file(example).is_empty(), "기술 예시는 허용한다");
+    let bare = ".hint_text(\"Enter a host name\")";
+    assert_eq!(scan_file(bare).len(), 1);
 }
 
 /// 예외 경로의 존재만 확인한다. 해당 예외가 아직 필요한지는 별도 검토해야 한다.

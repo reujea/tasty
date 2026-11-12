@@ -490,7 +490,10 @@ fn draw_file_open(
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut st.path_input)
                         .desired_width(field_w)
-                        .hint_text(tr.t("markdown.file_open.path_label"))
+                        .hint_text(tasty_egui_theme::hint_text(
+                            theme,
+                            tr.t("markdown.file_open.path_label"),
+                        ))
                         .font(egui::FontId::new(
                             theme.font_size_body.value(),
                             egui::FontFamily::Monospace,

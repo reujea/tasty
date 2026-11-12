@@ -65,7 +65,7 @@ fn two_depth_layout_inner(
                     if let Some((filter, placeholder)) = filter {
                         ui.add(
                             egui::TextEdit::singleline(filter)
-                                .hint_text(placeholder)
+                                .hint_text(tasty_egui_theme::hint_text(theme, placeholder))
                                 .desired_width(f32::INFINITY),
                         );
                         ui.add_space(tokens::PANEL_SPACING);

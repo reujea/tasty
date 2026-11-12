@@ -156,7 +156,10 @@ pub fn draw_approval_view(
         egui::TextEdit::singleline(props.comment_buffer)
             .id(egui::Id::new(COMMENT_FIELD_ID))
             .desired_width(ui.available_width())
-            .hint_text(props.comment_hint.clone()),
+            .hint_text(tasty_egui_theme::hint_text(
+                theme,
+                props.comment_hint.clone(),
+            )),
     );
     let digits_choose = props.keyboard_focused && !comment.has_focus();
     vspace(ui, theme.spacing_sm);

@@ -56,7 +56,10 @@ pub(super) fn draw_toolbar_editing(
         let sub_resp = ui.add(
             egui::TextEdit::singleline(&mut meta.subtitle)
                 .desired_width(RENAME_W.value())
-                .hint_text(t("preset.edit.subtitle_hint"))
+                .hint_text(tasty_egui_theme::hint_text(
+                    theme,
+                    t("preset.edit.subtitle_hint"),
+                ))
                 .id(egui::Id::new("preset_edit_subtitle")),
         );
         if sub_resp.changed() {

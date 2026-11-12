@@ -2,6 +2,8 @@
 //! tasty-attach 프로필은 Attach 탭에서만 다루며 SSH 프로필 참조 또는 직접 입력을 지원한다.
 
 mod forms;
+#[cfg(test)]
+mod hint_color_tests;
 mod receipts;
 mod reveal;
 #[cfg(test)]
@@ -1165,7 +1167,7 @@ fn draw_profile_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
                         ui.add(
                             egui::TextEdit::singleline(k)
                                 .desired_width(LABEL_COL_WIDTH.value())
-                                .hint_text("key")
+                                .hint_text(tasty_egui_theme::hint_text(th, "key"))
                                 .font(egui::TextStyle::Monospace),
                         );
                         let btn_w = th.item_height_interactive.value();
@@ -1174,7 +1176,7 @@ fn draw_profile_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
                         ui.add(
                             egui::TextEdit::singleline(v)
                                 .desired_width(val_w)
-                                .hint_text("value")
+                                .hint_text(tasty_egui_theme::hint_text(th, "value"))
                                 .font(egui::TextStyle::Monospace),
                         );
                         if ghost_button(ui, th, "×").clicked() {
@@ -1869,7 +1871,10 @@ fn draw_passkey_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState) {
                         .add(
                             egui::TextEdit::multiline(&mut f.value)
                                 .desired_rows(3)
-                                .hint_text(t("remote_tool.value_inline_hint")),
+                                .hint_text(tasty_egui_theme::hint_text(
+                                    th,
+                                    t("remote_tool.value_inline_hint"),
+                                )),
                         )
                         .changed();
                 } else {
@@ -1877,7 +1882,7 @@ fn draw_passkey_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState) {
                         .add(
                             egui::TextEdit::singleline(&mut f.value)
                                 .desired_width(f32::INFINITY)
-                                .hint_text("~/.ssh/id_ed25519"),
+                                .hint_text(tasty_egui_theme::hint_text(th, "~/.ssh/id_ed25519")),
                         )
                         .changed();
                 }
@@ -2006,7 +2011,7 @@ fn text_row(
     form_row(ui, th, label, |ui| {
         let mut edit = egui::TextEdit::singleline(value)
             .desired_width(f32::INFINITY)
-            .hint_text(placeholder);
+            .hint_text(tasty_egui_theme::hint_text(th, placeholder));
         if mono {
             edit = edit.font(egui::TextStyle::Monospace);
         }
