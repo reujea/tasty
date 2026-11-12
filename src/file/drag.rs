@@ -94,7 +94,7 @@ impl TextSelection {
     /// once; a foreign one is read in the background and arrives from `poll` with the same tag. A
     /// newer request or `cancel` drops a read still waiting.
     pub(crate) fn request(&mut self, tag: u64) -> Option<String> {
-        match self.0.request(tag) {
+        match self.0.request(tag, wayland::Want::Text) {
             Ok(wayland::Paste::Ready(text)) => Some(text).filter(|t| !t.is_empty()),
             Ok(wayland::Paste::Pending | wayland::Paste::Empty) => None,
             Err(error) => {
@@ -117,7 +117,27 @@ impl TextSelection {
     pub(crate) fn busy(&self) -> bool {
         self.0.busy()
     }
+    /// Like `copy`, for a caller that reports the failure itself (the terminal's copy toast).
+    pub(crate) fn copy_checked(&mut self, text: String) -> Result<(), String> {
+        self.0.copy(text)
+    }
+    /// The terminal's paste: text first, a PNG only when the selection has no text. A foreign
+    /// selection is read in the background and its result, failures included, comes from
+    /// `poll_received`.
+    pub(crate) fn request_terminal(&mut self, tag: u64) -> Result<SelectionPaste, String> {
+        self.0.request(tag, wayland::Want::TextOrPng)
+    }
+    /// Runs the shared queue and returns this handle's finished reads as `(tag, result)`.
+    pub(crate) fn poll_received(&mut self) -> Result<Vec<(u64, SelectionReceived)>, String> {
+        self.0.poll_received()
+    }
+    /// This handle's read is still waiting; false once it finished or a newer paste replaced it.
+    pub(crate) fn waiting(&self) -> bool {
+        self.0.waiting()
+    }
 }
+#[cfg(target_os = "linux")]
+pub(crate) use wayland::{Paste as SelectionPaste, Received as SelectionReceived};
 /// No other OS has a system clipboard of its own here: egui-winit's stays in use, so no value exists.
 #[cfg(not(target_os = "linux"))]
 pub(crate) enum TextSelection {}

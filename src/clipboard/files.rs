@@ -1,8 +1,8 @@
 //! OS 파일 클립보드. Explorer 의 복사·잘라내기를 OS 파일 관리자와 다른 Tasty 창이 받고, 그쪽에서
 //! 복사한 파일을 Explorer 가 붙여넣는다.
 //!
-//! - Linux: X11 CLIPBOARD 선택을 직접 소유하고 읽는다(`x11.rs`). Wayland 세션에서는 텍스트
-//!   클립보드와 같이 XWayland 를 거친다.
+//! - Linux: X11 CLIPBOARD 선택을 직접 소유하고 읽는다(`x11.rs`). Wayland 세션에서는 XWayland 를
+//!   거친다. 터미널 텍스트 클립보드와 달리 네이티브 Wayland 의 data device 는 쓰지 않는다.
 //! - Windows: `CF_HDROP` + `Preferred DropEffect`(`windows.rs`).
 //! - macOS: 파일 URL(`macos.rs`). Finder 의 클립보드에는 잘라내기 표지가 없어 늘 복사로 읽고, 파일이 아닌 URL 이
 //!   섞이면 목록 전체를 이 컴퓨터의 파일이 아닌 것으로 본다.

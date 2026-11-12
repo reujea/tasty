@@ -445,7 +445,7 @@ mod tests {
             mode: SelectionMode::Normal,
             dragging: false,
         };
-        let mut clipboard = crate::clipboard::ClipboardContext::unavailable(
+        let mut clipboard = crate::clipboard::terminal::TerminalClipboard::unavailable(
             crate::clipboard::error::ClipboardError::BackendUnavailable("fixture".into()),
         );
         let mut writes = 0;

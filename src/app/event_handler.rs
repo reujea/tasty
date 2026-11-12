@@ -2083,7 +2083,10 @@ impl App {
                 let inbound = m.has_inbound_drop();
                 #[cfg(not(target_os = "linux"))]
                 let inbound = false;
-                m.has_pending_native_menu() || m.has_outbound_drag() || inbound
+                m.has_pending_native_menu()
+                    || m.has_outbound_drag()
+                    || inbound
+                    || m.terminal_paste_pending()
             })
         }) || self.text_selection_busy()
     }
@@ -2200,6 +2203,10 @@ impl App {
             main.poll_outbound_drag(&engine.read());
         }
         self.poll_text_selections();
+        // After the egui handles: their poll may finish a terminal paste on the shared queue.
+        for (_, main, engine) in self.engines_mut().window_pairs() {
+            main.poll_terminal_paste(&engine.read());
+        }
         self.close_self_requesting_windows();
     }
 }

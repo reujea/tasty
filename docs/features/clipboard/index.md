@@ -3,7 +3,7 @@
 - **Status**: Implemented
 - **주체**: 로컬 사용자 (복사/붙여넣기는 사용자 행동)
 - **설계**: [플러그인 권한 모델](../../dev-guide/plugin-permissions.md) (뷰어의 plugin 직접-read 모델)
-- **코드**: 시스템 클립보드 `arboard`; 복사/붙여넣기/선택 = `src/view/main/`
+- **코드**: 시스템 클립보드 `arboard`(네이티브 Wayland 터미널은 `src/clipboard/terminal.rs`); 복사/붙여넣기/선택 = `src/view/main/`
 - **화면**: 현재 클립보드 뷰어는 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md)
 
 ## 목적
@@ -38,11 +38,14 @@
 
 Linux 호스트의 터미널 텍스트와 Explorer 파일 전송은 X11 경로다. `DISPLAY`가 있으면 Tasty는
 X11로 뜨고([백엔드 선택](../../design/systems/linux-display-backend.md)) Wayland 앱과의 왕복은 XWayland가 잇는다. 격리 GNOME 세션에서
-GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). X 서버에 연결할 수 없는 네이티브 Wayland에서는 외부 앱과
-주고받지 못하고 원인과 해결책을 warning 토스트로 알린다. `DISPLAY`가 없으면(XWayland 없음)
-`toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해 내려갔으면
-`toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)). egui 입력 위젯은 X11·XWayland에서 arboard로,
-네이티브 Wayland에서 Tasty의 data device로 외부 앱과 주고받는다([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). plugin 자체 클립보드는
+GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). 네이티브 Wayland(`DISPLAY`가 없거나
+그 X 서버에 연결하지 못함)에서는 터미널 복사·붙여넣기와 egui 입력 위젯이 Tasty의 data device로 외부 앱과
+주고받는다. 다른 앱의 선택은 winit 스레드를 막지 않고 읽어 요청 때 포커스였던 surface에만 넣는다
+([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). 그 장치가 없는 컴포지터와
+vi `"*` register(primary selection)는 외부 앱과 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다.
+`DISPLAY`가 없으면(XWayland 없음) `toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해
+내려갔으면 `toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)).
+OSC 52·IPC `clipboard.set_text`·캡처 게시는 네이티브 Wayland에서 `toast.clipboard_unavailable`이다. plugin 자체 클립보드는
 별도 경로다. 원격 출처·내부 파일 목록은 [Explorer 파일 작업](../../surfaces/explorer/file-operations.md#os-파일-클립보드)을 따른다.
 
 ### 로컬 이미지 붙여넣기 저장

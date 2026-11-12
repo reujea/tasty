@@ -66,6 +66,13 @@ pub(crate) fn dispatch_bound_paste(
     );
 }
 
+/// A terminal paste whose content is still being read. It is delivered only while the surface
+/// that was focused at the key press is still focused and still the same surface.
+pub(crate) struct PendingPaste {
+    target: Option<crate::runtime::surface_binding::SurfaceBinding>,
+    scope: crate::adapters::ui::ToastScope,
+}
+
 impl MainView {
     pub fn paste_to_terminal(&mut self, engine: &EngineRead<'_>) {
         let scope = self
@@ -73,7 +80,58 @@ impl MainView {
             .focused_surface_id(engine)
             .map(crate::adapters::ui::ToastScope::Surface)
             .unwrap_or(crate::adapters::ui::ToastScope::Window);
-        let content = match self.clipboard.read_paste() {
+        self.pending_terminal_paste = None;
+        match self.clipboard.start_paste() {
+            crate::clipboard::terminal::PasteStart::Now(result) => {
+                self.deliver_paste(engine, result, scope);
+            }
+            #[cfg(target_os = "linux")]
+            crate::clipboard::terminal::PasteStart::Pending => {
+                let target = self.state.focused_surface_id(engine).and_then(|sid| {
+                    crate::runtime::surface_binding::SurfaceBinding::capture(engine, sid)
+                });
+                self.pending_terminal_paste = Some(PendingPaste { target, scope });
+            }
+        }
+    }
+
+    /// Delivers a paste read in the background. A result for a surface that is no longer focused,
+    /// or was replaced, is dropped; so is its failure toast.
+    pub(crate) fn poll_terminal_paste(&mut self, engine: &EngineRead<'_>) {
+        if self.pending_terminal_paste.is_none() {
+            return;
+        }
+        let Some(result) = self.clipboard.poll_paste() else {
+            if !self.clipboard.paste_pending() {
+                self.pending_terminal_paste = None;
+            }
+            return;
+        };
+        let Some(pending) = self.pending_terminal_paste.take() else {
+            return;
+        };
+        if !pending_target_is_current(&pending, engine, self.state.focused_surface_id(engine)) {
+            tracing::debug!("terminal paste dropped: its surface is no longer focused");
+            return;
+        }
+        self.deliver_paste(engine, result, pending.scope);
+    }
+
+    /// A terminal paste is being read; the event loop keeps polling.
+    pub(crate) fn terminal_paste_pending(&self) -> bool {
+        self.pending_terminal_paste.is_some()
+    }
+
+    fn deliver_paste(
+        &mut self,
+        engine: &EngineRead<'_>,
+        result: Result<
+            Option<crate::clipboard::context::PasteContent>,
+            crate::clipboard::error::ClipboardError,
+        >,
+        scope: crate::adapters::ui::ToastScope,
+    ) {
+        let content = match result {
             Ok(content) => content,
             Err(error) => {
                 self.state.clipboard_error_toast(&error, scope);
@@ -184,6 +242,23 @@ impl MainView {
     }
 }
 
+/// The paste's surface is still the focused one and the same surface generation. A paste asked
+/// with no focused surface stays undeliverable.
+fn pending_target_is_current(
+    pending: &PendingPaste,
+    engine: &EngineRead<'_>,
+    focused: Option<u32>,
+) -> bool {
+    let target = pending.target.as_ref();
+    still_targeted(target.map(|t| t.surface_id()), focused, || {
+        target.is_some_and(|t| t.current_in(engine))
+    })
+}
+
+fn still_targeted(asked: Option<u32>, focused: Option<u32>, same: impl FnOnce() -> bool) -> bool {
+    asked.is_some() && asked == focused && same()
+}
+
 /// 캡처 저장 폴더 바로 아래의 파일 경로인가.
 fn is_capture_path(text: &str, captures: &std::path::Path) -> bool {
     std::path::Path::new(text).parent() == Some(captures)
@@ -270,6 +345,16 @@ impl crate::state::MainViewState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Given 붙여넣기를 읽는 중, When 포커스가 바뀌거나 surface가 바뀌었다, Then 늦은 결과는 버린다.
+    #[test]
+    fn a_late_paste_reaches_only_the_surface_still_focused() {
+        assert!(still_targeted(Some(3), Some(3), || true));
+        assert!(!still_targeted(Some(3), Some(4), || true));
+        assert!(!still_targeted(Some(3), None, || true));
+        assert!(!still_targeted(Some(3), Some(3), || false));
+        assert!(!still_targeted(None, None, || true));
+    }
 
     #[test]
     fn only_a_file_directly_in_the_capture_folder_is_a_capture_path() {

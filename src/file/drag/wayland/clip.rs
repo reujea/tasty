@@ -1,6 +1,6 @@
 //! The text clipboard on the shared owner's standing data device. It exists only on a native
 //! Wayland start, where egui-winit (built without smithay-clipboard) has no system clipboard.
-use super::selection::{Command, Paste, TEXT_MIMES, Target};
+use super::selection::{Command, Paste, Received, TEXT_MIMES, Target, Want};
 use super::{Owner, State, nonblocking, receive_as, shared_owner};
 use std::{cell::RefCell, rc::Rc, sync::Arc, time::Instant};
 use wayland_client::{
@@ -81,15 +81,15 @@ impl Clipboard {
         connection.flush().map_err(|e| e.to_string())
     }
 
-    /// Starts a paste for `tag` (the caller's input target).
-    pub(in crate::file::drag) fn request(&mut self, tag: u64) -> Result<Paste, String> {
+    /// Starts a paste of `want` for `tag` (the caller's input target).
+    pub(in crate::file::drag) fn request(&mut self, tag: u64, want: Want) -> Result<Paste, String> {
         let mut owner = self.owner.borrow_mut();
         owner.poll()?;
         let target = Target {
             client: self.client,
             tag,
         };
-        let paste = owner.state.clip.request(target, Instant::now());
+        let paste = owner.state.clip.request(target, want, Instant::now());
         owner.poll()?;
         Ok(paste)
     }
@@ -103,6 +103,18 @@ impl Clipboard {
         let mut owner = self.owner.borrow_mut();
         owner.poll()?;
         Ok(owner.state.clip.take_results(self.client))
+    }
+
+    /// Runs the shared queue and returns this handle's finished reads, failures included.
+    pub(in crate::file::drag) fn poll_received(&mut self) -> Result<Vec<(u64, Received)>, String> {
+        let mut owner = self.owner.borrow_mut();
+        owner.poll()?;
+        Ok(owner.state.clip.take_received(self.client))
+    }
+
+    /// This handle's read is still waiting; false once it finished or a newer paste replaced it.
+    pub(in crate::file::drag) fn waiting(&self) -> bool {
+        self.owner.borrow().state.clip.waiting(self.client)
     }
 
     pub(in crate::file::drag) fn busy(&self) -> bool {

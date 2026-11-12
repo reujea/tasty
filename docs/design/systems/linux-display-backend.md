@@ -2,7 +2,7 @@
 
 - **Status**: Implemented. 네이티브 Wayland 경로는 `DISPLAY`가 없는 환경에만 쓰이며 아래 한계가 있다.
 - **주체**: 로컬 사용자
-- **코드**: 판정 `src/boot/display_backend.rs`, 데이터 장치 `src/file/drag/wayland.rs`·`src/file/drag/wayland/`, egui 연결 `src/gfx/gpu/text_selection.rs`, 호출 `src/boot/event_loop.rs`, 두 번째 실행이 보내는 값 `src/boot/single_instance/second.rs`, GTK 초기화 결과 `crates/tasty-platform/src/gtk_init.rs`, 안내 타일 `crates/tasty-ui-widgets/src/webview_page_tile.rs`
+- **코드**: 판정 `src/boot/display_backend.rs`, 데이터 장치 `src/file/drag/wayland.rs`·`src/file/drag/wayland/`, egui 연결 `src/gfx/gpu/text_selection.rs`, 터미널 연결 `src/clipboard/terminal.rs`·`src/view/main/clipboard.rs`, 호출 `src/boot/event_loop.rs`, 두 번째 실행이 보내는 값 `src/boot/single_instance/second.rs`, GTK 초기화 결과 `crates/tasty-platform/src/gtk_init.rs`, 안내 타일 `crates/tasty-ui-widgets/src/webview_page_tile.rs`
 
 ## 선택 규칙
 
@@ -38,13 +38,14 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 
 | 기능 | 동작 | 사용자에게 보이는 것 |
 |---|---|---|
-| 터미널 복사·붙여넣기 | 외부 앱과 주고받지 못한다 | warning 토스트. 원인 1은 `toast.clipboard_wayland_unsupported`, 원인 1b는 `toast.clipboard_wayland_x_failed` |
+| 터미널 primary selection(vi `"*` register) | 외부 앱과 주고받지 못한다 | warning 토스트. 원인 1은 `toast.clipboard_wayland_unsupported`, 원인 1b는 `toast.clipboard_wayland_x_failed` |
+| 터미널 프로그램의 OSC 52 쓰기·읽기, IPC `clipboard.set_text`, 스크린샷·원격 캡처 게시 | 외부 앱과 주고받지 못한다 | info 토스트 `toast.clipboard_unavailable` |
 | Explorer 파일 복사·붙여넣기 | 같은 Tasty 인스턴스 안의 목록에만 남고 그 목록을 붙여넣는다 | warning 토스트 `toast.clipboard_files_wayland_{copy,paste}`, 원인 1b는 `toast.clipboard_files_wayland_x_failed_{copy,paste}` |
 | 네이티브 메뉴 | 뜨지 않는다 | 화면 안내 없음. `native context menu: not an X11 window` 경고 로그 |
 | html·markdown WebView | 만들지 못한다 | 페이지 영역에 원인과 해결책 안내(`native-wayland`, 원인 1b는 `native-wayland-x`). `Not an X11 window` 경고 로그 |
 | 원격 웹주소 | 사용 가능으로 알리지 않는다 | html mirror surface도 같은 안내다. [HTML surface](../../surfaces/html/index.md#원격-https-native-viewer) 참고 |
 
-외부 앱에서 파일을 끌어 오고 외부 앱으로 끌어내는 것, egui 입력칸(설정·이름 바꾸기·주소창 등)의 텍스트 복사·붙여넣기는 네이티브 Wayland에서도 외부 앱과 주고받는다. 아래 데이터 장치가 맡는다.
+외부 앱에서 파일을 끌어 오고 외부 앱으로 끌어내는 것, egui 입력칸(설정·이름 바꾸기·주소창 등)의 텍스트 복사·붙여넣기, 터미널 복사·붙여넣기(텍스트, 붙여넣기의 PNG 이미지)는 네이티브 Wayland에서도 외부 앱과 주고받는다. 아래 데이터 장치가 맡는다.
 
 ## 네이티브 Wayland의 데이터 장치
 
@@ -54,9 +55,12 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 - **끌어오기**: 다른 클라이언트의 `text/uri-list` offer만 Copy로 받고 목록을 비차단으로 읽는다(30초·1 MiB 상한). enter·motion·leave·drop은 끌기가 들어온 창으로 보낸다. 놓은 자리는 drop 때 고정하고, 받은 목록과 Copy가 모두 확인된 뒤에만 `finish`를 보낸다. 이 프로세스가 끌어내는 동안에는 자기 offer를 받지 않는다. 처리는 [Explorer 드래그 앤 드롭](../../surfaces/explorer/file-operations.md#드래그-앤-드롭)과 X11 `DroppedFile` 경로와 같다.
 - **egui 복사**: egui가 내놓은 복사 텍스트(`OutputCommand::CopyText`)를 egui-winit에 넘기기 전에 가져와 data source로 선택을 잡는다. mime은 `text/plain;charset=utf-8`·`UTF8_STRING`·`text/plain`이다. serial은 이 연결이 마지막으로 받은 키보드 입력이나 포인터 버튼의 것이다. 받는 쪽에는 비차단으로 쓰고(30초 상한) 끝나면 닫는다. 다른 앱이 선택을 가져가면 source를 버린다.
 - **egui 붙여넣기**: 붙여넣기 키(egui-winit과 같은 판정)가 오면 Tasty가 잡은 선택은 바로, 다른 앱의 선택은 그때 읽기 시작해 다 읽은 뒤 다음 egui 프레임 입력에 붙여넣기로 넣는다. 선택 offer는 최신 하나만 보관하고 미리 읽지 않는다. 포커스를 옮길 수 있는 입력(포인터 버튼 누름, Tab·Shift+Tab, 방향키, Escape)이 들어온 프레임과 그다음 프레임에는 넣지 않는다. egui는 Shift+Tab의 포커스 이동을 다음 프레임 시작에 적용하므로 두 프레임이 지나야 포커스가 정해진다. 그런 입력이 없는 프레임이 이어져 포커스가 정해진 뒤, 요청 때 포커스였던 입력칸이 그때도 포커스면 넣고 아니면 버린다. 포커스 이동 입력이 계속 이어지면 보관하되 도착 뒤 3초가 지나면 버린다. 앱 코드가 프레임 안에서 직접 포커스를 옮기는 경우는 이 대조가 막지 못한다. 새 붙여넣기, 선택 교체, 3초 경과, 16 MiB 초과도 읽기를 버린다.
-- X11·XWayland 창에는 Wayland 연결이 없어 장치·키보드·source를 만들지 않는다. egui 클립보드는 arboard다.
+- **터미널 복사**: 선택·vi register(`"*` 제외)·링크·경로·서피스 ID 복사가 egui 복사와 같은 source·mime·serial로 선택을 잡는다. 창마다 egui 입력칸과 별개의 핸들이 있지만 선택은 하나다. 터미널에서 복사한 것을 입력칸에 붙여넣을 수 있고 반대도 된다. 잡지 못하면(아직 이 연결에 키보드·포인터 입력이 없어 serial이 없는 경우 등) `toast.clipboard_failed` error 토스트다.
+- **터미널 붙여넣기**: Tasty가 잡은 선택은 바로 넣는다. 다른 앱의 선택은 텍스트 mime(egui와 같은 순서)을, 텍스트가 없으면 `image/png`를 그때 읽기 시작한다. 읽는 동안 winit 스레드는 기다리지 않는다. 다 읽으면 요청 때 포커스였던 surface가 그때도 포커스이고 같은 세대일 때만 X11과 같은 경로로 넣는다(텍스트는 bracketed paste 포함, PNG는 RGBA로 풀어 이미지 붙여넣기). 아니면 결과와 오류를 모두 버린다. 3초 상한 초과, pipe 실패, 텍스트 16 MiB·PNG 64 MiB 초과, 읽는 동안 선택 교체, 풀리지 않는 PNG는 `toast.clipboard_failed`를 한 번 보이고 PTY에 아무것도 보내지 않는다. 다른 창이나 입력칸의 더 새 붙여넣기가 오면 읽던 것은 알리지 않고 버린다. 텍스트의 CRLF는 egui와 같이 LF로 바꾼다.
+- 창이 Wayland인데 컴포지터가 `wl_data_device_manager` v3나 seat를 주지 않아 장치가 없으면 터미널 클립보드는 arboard로 떨어지고 위 표의 원인별 warning 토스트다.
+- X11·XWayland 창에는 Wayland 연결이 없어 장치·키보드·source를 만들지 않는다. egui·터미널 클립보드는 arboard다.
 - 갤러리(`tasty-gallery`)는 이 장치를 붙이지 않는다. 네이티브 Wayland에서 갤러리 입력칸은 외부 앱과 클립보드를 주고받지 않는다(앱 안 복사·붙여넣기만). smithay-clipboard는 갤러리에서도 끈다. 켜 두면 `--workspace` 빌드의 feature 통합으로 본체에도 다시 들어오기 때문이다.
-- 터미널 복사·붙여넣기와 Explorer 파일 클립보드는 이 장치를 쓰지 않는다(위 표).
+- Explorer 파일 클립보드, 터미널 primary selection, Core 쪽 클립보드(OSC 52·IPC·캡처 게시)는 이 장치를 쓰지 않는다(위 표).
 
 격리 GNOME Shell 46(`--no-x11`)에서 가상 키보드가 있는 채로 시작해 GNOME Files의 파일을 터미널로 10번 끌어 놓아 10번 모두 열렸고, Explorer 칸으로 놓으면 복사됐다. egui 입력칸과 GNOME Text Editor 사이의 텍스트 복사·붙여넣기를 양방향으로 확인했다. 원인 1b(`DISPLAY`의 X 서버 연결 실패)에서도 끌어오기와 양방향 클립보드를 한 번씩 확인했다. 물리 화면과 실제 사용자 세션은 재지 않았다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)).
 
@@ -91,7 +95,11 @@ WebView를 만들 수 없는 표시 경로면 html·markdown·html mirror surfac
 - Given `WAYLAND_DISPLAY`와 서버가 없는 `DISPLAY`가 있다, When 시작하면, Then 사유를 경고로 남기고 네이티브 Wayland로 뜬다.
 - Given Tasty 터미널 안 셸, Then `DISPLAY`·`WAYLAND_DISPLAY`가 세션 값이고 `GDK_BACKEND`가 추가되지 않았다.
 - Given 원인 1 또는 1b, When html·markdown 파일을 연다, Then 페이지 영역에 해당 kind의 제목과 해결책이 말줄임 없이 보인다.
-- Given 원인 1 또는 1b, When 터미널이나 Explorer에서 복사·붙여넣기를 한다, Then 원인별 키의 warning 토스트가 보인다.
+- Given 원인 1 또는 1b, When 터미널에서 복사하고 다른 앱에 붙여넣거나 다른 앱에서 복사한 텍스트를 터미널에 붙여넣는다, Then 같은 텍스트가 들어가고 클립보드 토스트는 복사 성공 토스트만 보인다.
+- Given 원인 1 또는 1b, When 다른 앱이 PNG 이미지만 복사했고 터미널에 붙여넣는다, Then X11과 같은 이미지 붙여넣기 경로로 간다.
+- Given 원인 1 또는 1b, When 다른 앱의 선택을 읽는 중에 포커스 surface를 바꾸거나 닫는다, Then 늦게 온 결과는 버려진다.
+- Given 원인 1 또는 1b, When 다른 앱이 선택을 주고 3초 안에 보내지 않는다, Then `toast.clipboard_failed`가 한 번 보이고 PTY에는 아무 바이트도 가지 않는다.
+- Given 원인 1 또는 1b, When vi `"*` register로 복사하거나 Explorer에서 파일을 복사·붙여넣는다, Then 원인별 키의 warning 토스트가 보인다.
 - Given X11에서 시스템 클립보드 쓰기·읽기가 실패했다, Then Explorer는 `toast.clipboard_files_internal_copy`/`_paste`를 info로 보인다.
 - Given `DISPLAY`가 있어 X11로 뜨고 x11을 허용하지 않는 `GDK_BACKEND` 때문에 GTK 초기화가 실패했다, When html·markdown 파일을 연다, Then `gdk-backend` 안내가 보인다.
 - Given 원인 2 환경의 Tasty 터미널 안 셸, Then `GDK_BACKEND`가 사용자가 설정한 값 그대로다.

@@ -77,7 +77,7 @@ fn only_the_latest_selection_offer_is_kept() {
     assert!(s.take_commands().is_empty());
     s.offered(None);
     assert_eq!(s.take_commands(), [Command::Destroy { offer: 4 }]);
-    assert_eq!(s.request(A, Instant::now()), Paste::Empty);
+    assert_eq!(s.request(A, Want::Text, Instant::now()), Paste::Empty);
 }
 
 #[test]
@@ -99,11 +99,11 @@ fn a_paste_reads_the_preferred_text_mime() {
 
     let mut s = Selection::default();
     offered(&mut s, 3, &["image/png"]);
-    assert_eq!(s.request(A, Instant::now()), Paste::Empty);
+    assert_eq!(s.request(A, Want::Text, Instant::now()), Paste::Empty);
     assert!(s.take_commands().is_empty());
     offered(&mut s, 5, &["text/plain", "UTF8_STRING"]);
     s.take_commands();
-    assert_eq!(s.request(A, Instant::now()), Paste::Pending);
+    assert_eq!(s.request(A, Want::Text, Instant::now()), Paste::Pending);
     assert_eq!(
         s.take_commands(),
         [Command::Receive {
@@ -118,7 +118,7 @@ fn a_read_paste_reaches_only_the_handle_that_asked() {
     let now = Instant::now();
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain;charset=utf-8"]);
-    assert_eq!(s.request(A, now), Paste::Pending);
+    assert_eq!(s.request(A, Want::Text, now), Paste::Pending);
     let pipe = Pipe::default();
     s.attach(5, Ok(Box::new(pipe.clone())));
     pipe.push(Step::Data("한글\r\nline".as_bytes()));
@@ -143,7 +143,7 @@ fn a_paste_that_does_not_arrive_in_time_is_dropped() {
     let now = Instant::now();
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain"]);
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     let pipe = Pipe::default();
     s.attach(5, Ok(Box::new(pipe.clone())));
     pipe.push(Step::Data(b"partial"));
@@ -163,7 +163,7 @@ fn text_already_waiting_when_the_limit_passes_is_not_delivered() {
     let now = Instant::now();
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain"]);
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     let pipe = Pipe::default();
     s.attach(5, Ok(Box::new(pipe.clone())));
     // The source wrote everything and closed, but the first pump after that is past the limit.
@@ -179,7 +179,7 @@ fn a_receive_that_never_got_a_pipe_also_times_out() {
     let now = Instant::now();
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain"]);
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     s.pump(now + READ_LIMIT);
     assert!(!s.busy());
 }
@@ -190,10 +190,10 @@ fn late_results_are_dropped_when_the_target_changed() {
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain"]);
     // A newer request replaces the waiting read: the first pipe's text is never delivered.
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     let first = Pipe::default();
     s.attach(5, Ok(Box::new(first.clone())));
-    s.request(B, now);
+    s.request(B, Want::Text, now);
     first.push(Step::Data(b"old"));
     first.push(Step::Eof);
     s.pump(now);
@@ -206,7 +206,7 @@ fn late_results_are_dropped_when_the_target_changed() {
     assert_eq!(s.take_results(B.client), [(B.tag, "new".to_string())]);
 
     // A selection change while reading drops the read.
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     let pipe = Pipe::default();
     s.attach(5, Ok(Box::new(pipe.clone())));
     offered(&mut s, 6, &["text/plain"]);
@@ -217,12 +217,12 @@ fn late_results_are_dropped_when_the_target_changed() {
     assert!(!s.busy());
 
     // A cancelled read and a forgotten handle deliver nothing.
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     s.cancel(B.client);
     assert!(s.busy());
     s.cancel(A.client);
     assert!(!s.busy());
-    s.request(B, now);
+    s.request(B, Want::Text, now);
     s.forget(B.client);
     assert!(!s.busy());
 }
@@ -232,11 +232,11 @@ fn a_failed_or_oversized_read_is_dropped() {
     let now = Instant::now();
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain"]);
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     s.attach(5, Err(io::Error::other("no pipe")));
     assert!(!s.busy());
 
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     let pipe = Pipe::default();
     s.attach(5, Ok(Box::new(pipe.clone())));
     pipe.push(Step::Fail);
@@ -244,7 +244,7 @@ fn a_failed_or_oversized_read_is_dropped() {
     assert!(!s.busy());
 
     // An empty selection pastes nothing.
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     let pipe = Pipe::default();
     s.attach(5, Ok(Box::new(pipe.clone())));
     pipe.push(Step::Eof);
@@ -258,7 +258,7 @@ fn a_failed_or_oversized_read_is_dropped() {
             Ok(buf.len())
         }
     }
-    s.request(A, now);
+    s.request(A, Want::Text, now);
     s.attach(5, Ok(Box::new(Endless)));
     s.pump(now);
     assert!(!s.busy());
@@ -271,13 +271,19 @@ fn our_own_copy_pastes_at_once_until_another_client_takes_the_selection() {
     let mut s = Selection::default();
     offered(&mut s, 5, &["text/plain"]);
     assert_eq!(s.own(40, Arc::from("mine\r\n")), None);
-    assert_eq!(s.request(A, now), Paste::Ready("mine\n".to_string()));
+    assert_eq!(
+        s.request(A, Want::Text, now),
+        Paste::Ready("mine\n".to_string())
+    );
     assert!(s.take_commands().is_empty());
     assert_eq!(s.own(41, Arc::from("newer")), Some(40));
     assert!(!s.cancelled(40));
-    assert_eq!(s.request(A, now), Paste::Ready("newer".to_string()));
+    assert_eq!(
+        s.request(A, Want::Text, now),
+        Paste::Ready("newer".to_string())
+    );
     assert!(s.cancelled(41));
-    assert_eq!(s.request(A, now), Paste::Pending);
+    assert_eq!(s.request(A, Want::Text, now), Paste::Pending);
 }
 
 #[test]
@@ -333,4 +339,96 @@ fn unknown_mimes_stale_sources_and_slow_receivers_get_nothing_more() {
         s.send(41, "text/plain", Box::new(Sink::default()), now);
     }
     assert_eq!(s.sending.len(), MAX_SENDS);
+}
+
+#[test]
+fn a_terminal_paste_takes_a_png_only_when_the_offer_has_no_text() {
+    let now = Instant::now();
+    let mut s = Selection::default();
+    offered(&mut s, 3, &["image/png", "text/plain"]);
+    s.take_commands();
+    assert_eq!(s.request(A, Want::TextOrPng, now), Paste::Pending);
+    assert_eq!(
+        s.take_commands(),
+        [Command::Receive {
+            offer: 3,
+            mime: "text/plain"
+        }]
+    );
+    offered(&mut s, 4, &["image/png"]);
+    s.take_commands();
+    // The text read was cut short by the new selection.
+    assert!(matches!(
+        s.take_received(A.client).as_slice(),
+        [(7, Received::Failed(_))]
+    ));
+    // egui text fields never read an image.
+    assert_eq!(s.request(A, Want::Text, now), Paste::Empty);
+    assert_eq!(s.request(A, Want::TextOrPng, now), Paste::Pending);
+    assert_eq!(
+        s.take_commands(),
+        [Command::Receive {
+            offer: 4,
+            mime: "image/png"
+        }]
+    );
+    let pipe = Pipe::default();
+    s.attach(4, Ok(Box::new(pipe.clone())));
+    pipe.push(Step::Data(b"\x89PNG\r\n"));
+    pipe.push(Step::Eof);
+    s.pump(now);
+    // The image bytes are kept as sent: no text conversion.
+    assert_eq!(
+        s.take_received(A.client),
+        [(A.tag, Received::Png(b"\x89PNG\r\n".to_vec()))]
+    );
+}
+
+#[test]
+fn a_failed_read_reports_to_its_target_but_a_replaced_one_does_not() {
+    let now = Instant::now();
+    let mut s = Selection::default();
+    offered(&mut s, 5, &["text/plain"]);
+
+    // Timeout.
+    s.request(A, Want::TextOrPng, now);
+    assert!(s.waiting(A.client));
+    assert!(!s.waiting(B.client));
+    s.pump(now + READ_LIMIT);
+    assert!(!s.waiting(A.client));
+    assert!(matches!(
+        s.take_received(A.client).as_slice(),
+        [(7, Received::Failed(_))]
+    ));
+
+    // Pipe error and a selection change while reading.
+    s.request(A, Want::TextOrPng, now);
+    s.attach(5, Err(io::Error::other("no pipe")));
+    s.request(A, Want::TextOrPng, now);
+    offered(&mut s, 6, &["text/plain"]);
+    let received = s.take_received(A.client);
+    assert_eq!(received.len(), 2);
+    assert!(
+        received
+            .iter()
+            .all(|(_, r)| matches!(r, Received::Failed(_)))
+    );
+
+    // A newer request from another handle replaces the read silently.
+    s.request(A, Want::TextOrPng, now);
+    s.request(B, Want::Text, now);
+    assert!(!s.waiting(A.client));
+    assert!(s.take_received(A.client).is_empty());
+
+    // An empty selection is a finished read; text fields still paste nothing.
+    s.take_commands();
+    s.request(A, Want::TextOrPng, now);
+    let pipe = Pipe::default();
+    s.attach(6, Ok(Box::new(pipe.clone())));
+    pipe.push(Step::Eof);
+    s.pump(now);
+    assert_eq!(
+        s.take_received(A.client),
+        [(A.tag, Received::Text(String::new()))]
+    );
 }

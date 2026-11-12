@@ -2,8 +2,10 @@
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ClipboardError {
-    /// Wayland 창이라 X11 클립보드에 닿지 못했다. `x_failed`는 `DISPLAY`의 X 서버에 연결하지 못해
-    /// Wayland로 내려간 경우(원인 1b)다.
+    /// Wayland 창이라 X11 클립보드에 닿지 못했다. 터미널 텍스트 클립보드는 창에 Wayland selection
+    /// 소유자가 없을 때(컴포지터에 data device가 없을 때)만 이 값을 만난다. 소유자가 있으면 arboard를
+    /// 거치지 않는다. primary selection과 Explorer 파일 클립보드는 소유자와 관계없이 이 값이다.
+    /// `x_failed`는 `DISPLAY`의 X 서버에 연결하지 못해 Wayland로 내려간 경우(원인 1b)다.
     #[cfg(feature = "gui")]
     UnsupportedNativeWayland {
         reason: String,
@@ -141,7 +143,7 @@ impl std::fmt::Display for ClipboardError {
         let (label, reason) = match self {
             #[cfg(feature = "gui")]
             Self::UnsupportedNativeWayland { reason, .. } => (
-                "native Wayland clipboard is unsupported; X11 clipboard unavailable",
+                "no Wayland selection for this clipboard; X11 clipboard unavailable",
                 reason,
             ),
             Self::BackendUnavailable(reason) => ("clipboard backend unavailable", reason),
@@ -187,7 +189,8 @@ mod tests {
         }
     }
 
-    /// Given 네이티브 Wayland, When 터미널 복사·붙여넣기가 실패한다, Then 원인별 키의 warning이다.
+    /// Given 네이티브 Wayland에서 selection 소유자가 없는 창, When 터미널 복사·붙여넣기가 실패한다,
+    /// Then 원인별 키의 warning이다.
     #[test]
     fn terminal_clipboard_on_native_wayland_warns_with_its_cause() {
         assert_eq!(

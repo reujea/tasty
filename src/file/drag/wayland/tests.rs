@@ -175,7 +175,10 @@ fn a_text_clipboard_exists_only_on_a_native_wayland_start() {
         .unwrap()
         .unwrap();
     // Nothing was copied: no selection of ours to paste at once.
-    assert!(!matches!(clipboard.request(1).unwrap(), Paste::Ready(_)));
+    assert!(!matches!(
+        clipboard.request(1, Want::Text).unwrap(),
+        Paste::Ready(_)
+    ));
     assert!(clipboard.poll().unwrap().is_empty());
     let owner = clipboard.owner.borrow();
     assert!(owner.state.own_source.is_none());

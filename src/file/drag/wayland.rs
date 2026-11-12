@@ -10,7 +10,7 @@ mod selection;
 mod tests;
 
 pub(super) use clip::Clipboard;
-pub(crate) use selection::Paste;
+pub(crate) use selection::{Paste, Received, Want};
 
 use super::{InboundEvent, Outcome};
 use inbound::{Action, Command, Enter, Gate, Inbound, URI_LIST};

@@ -37,13 +37,14 @@ use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::keyboard::ModifiersState;
 
+use crate::AppEvent;
+use crate::clipboard::terminal::TerminalClipboard;
 use crate::gpu::{GpuState, ImePreeditState};
 use crate::model::{PhysicalPx, PhysicalRect};
 use crate::selection::TextSelection;
 use crate::state::MainViewState;
 use crate::view::ui::{View, sealed};
 use crate::view::{ViewAction, ViewBase, ViewCtx};
-use crate::{AppEvent, ClipboardContext};
 
 /// 메인 터미널 윈도우. 워크스페이스/사이드바/탭을 갖고 터미널 계열 Surface를 호스팅한다.
 /// `View` + `sealed::Sealed` 를 직접 구현한다.
@@ -52,7 +53,9 @@ pub struct MainView {
     pub(crate) state: MainViewState,
     pub(crate) cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
     pub(crate) dragging_divider: Option<DividerDrag>,
-    pub(crate) clipboard: ClipboardContext,
+    pub(crate) clipboard: TerminalClipboard,
+    /// The terminal paste still being read from a foreign Wayland selection.
+    pub(crate) pending_terminal_paste: Option<clipboard::PendingPaste>,
     pub(crate) ime_preedit: Option<ImePreeditState>,
     pub(crate) ime_request_target: Option<ime::CompositionTarget>,
     #[cfg(target_os = "linux")]
@@ -216,13 +219,15 @@ impl MainView {
         state.file_clipboard.set_display(display);
         let base = ViewBase::new(gpu, window);
         state.webview_identity = base.state.identity();
+        let clipboard = TerminalClipboard::new(&base.winit, display_owner.clone());
         let file_drag = file_drag::Gesture::new(base.winit.clone(), display_owner);
         Self {
             base,
             state,
             cursor_position: None,
             dragging_divider: None,
-            clipboard: ClipboardContext::new(display),
+            clipboard,
+            pending_terminal_paste: None,
             ime_preedit: None,
             #[cfg(target_os = "linux")]
             explorer_ime_keys: Default::default(),

@@ -93,8 +93,6 @@ pub(crate) use app::event::AppEvent;
 #[cfg(feature = "gui")]
 pub(crate) use boot::waker as waker_factory_winit;
 #[cfg(feature = "gui")]
-pub(crate) use clipboard::ClipboardContext;
-#[cfg(feature = "gui")]
 pub(crate) use file::dispatch as file_dispatch;
 #[cfg(feature = "gui")]
 pub(crate) use file::identify_worker;
