@@ -32,6 +32,7 @@
 
 ### Changed
 
+- **`agent.task_run` stop(`tasty agent task-run --action stop`)이 runner가 끝나기를 기다리지 않고 바로 응답한다.** 응답과 runner 상태(`task_run`·`task_list`·`task_graph`의 `runner`)에 `state`(`running`·`stopping`·`stopped`·`crashed`)가 실린다. runner가 진행 중인 dispatch 하나를 끝내는 동안은 `stopping`이고 그동안 start는 새 runner를 띄우지 않는다. 정지 완료는 status의 `state: stopped`로 확인한다. 전에는 응답이 runner 종료 뒤에 왔다.
 - **(BREAK) `remote.refusals` 항목의 `anchor_workspace`가 `row_workspace`(저장된 원격 행의 로컬 workspace)로 바뀐다.** 안내 `notices`의 `kind`에 `remote_workspace_missing`·`occupied`·`mirror_workspace`가 더해진다.
 - **macOS·Linux 터미널 셸의 `SHELL`이 바뀐다.** 셸은 Tasty가 받은 `SHELL`을 그대로 받는다. 전에는 항상 계정의 로그인 셸로 덮었고, 지금은 Tasty를 띄운 환경에 `SHELL`이 없을 때만 그 값을 넣는다. 실행 권한이 없는 셸의 오류 문구는 `because it is not executable`이다.
 - **셸 설정 값을 판정한 파일 그대로 실행한다.** 셸 설정(`general.shell`)은 한 번 절대 경로로 풀어 판정하고 같은 파일을 실행한다. 규칙은 [경로 해석](docs/concepts/path-resolution.md)에 있다.
@@ -44,6 +45,7 @@
 
 ### Fixed
 
+- **ready Custom task가 쌓인 workspace에서 runner를 멈춰도 창이 멈추지 않는다.** 전에는 stop이 메인 스레드에서 runner를 기다리고 runner는 ready task마다 메인 스레드의 응답을 5초까지 기다려, task 수 × 5초 동안 입력·화면·IPC가 멈췄다. 이제 정지 요청 뒤에는 남은 ready task를 보내지 않는다.
 - **같은 알림이 짧은 간격으로 다시 와도 떠 있던 토스트가 깜빡이지 않는다.** 전에는 합쳐질 때 한 프레임 사라졌다가 다시 페이드인했다.
 - **저장한 터미널 custom 글꼴 파일과 줄 높이가 재시작 뒤와 새 창에서도 적용된다.** 전에는 설정을 적용한 창에서만 쓰였고, 재시작하거나 새 창을 열면 파일과 줄 높이 없이 그려 칸 크기와 글꼴이 달라졌다.
 
