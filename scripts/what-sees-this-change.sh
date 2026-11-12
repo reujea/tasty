@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # 변경 파일 경로를 직접 언급하는 검사·스크립트를 찾아 실행 후보로 보여 준다.
-# 사용: scripts/what-sees-this-change.sh [base] (기본 main). 공통 조상부터 작업 트리 변경과 미추적 파일을 포함한다.
+# 사용: scripts/what-sees-this-change.sh [base] (기본 develop, 로컬 develop이 없으면 origin/develop). 공통 조상부터 작업 트리 변경과 미추적 파일을 포함한다.
 # 파일명을 적지 않고 디렉터리를 순회하는 검사, 간접 의존성과 오래된 줄 번호는 찾지 못한다.
 # 주석 여부는 줄 앞 표지만 보는 근사이며, 목록에 나왔다고 수정이 필요한 것은 아니다.
 # 결과가 없어도 정상 종료 0이며 기준 revision을 찾지 못하면 2다. 검색 오류 전체를 판정하는 도구는 아니다.
 set -u
 
-BASE=${1:-main}
+if [ $# -ge 1 ]; then
+    BASE=$1
+elif git rev-parse --verify --quiet develop >/dev/null; then
+    BASE=develop
+else
+    BASE=origin/develop
+fi
 
 if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
     echo "판정 불가: base '$BASE' 를 못 찾는다." >&2

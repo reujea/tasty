@@ -2,7 +2,8 @@
 """Check that the decision rules section still has its first committed bytes.
 
 With --raw it also checks the order rules for raw result files: every line names
-a rules version that exists on main, and the first rules commit came first.
+a rules version that exists on the integration branch (origin/develop by default),
+and the first rules commit came first.
 
 Exit codes: 0 same in the file and in every committed version, 1 changed, 2 could not judge.
 """
@@ -58,7 +59,7 @@ def _on_main(commit, root, main_ref):
     return done.returncode == 0
 
 
-def rules_provenance(root=REPO_ROOT, main_ref="origin/main"):
+def rules_provenance(root=REPO_ROOT, main_ref="origin/develop"):
     """Return the rules commit and blob of a run, or raise ValueError when they cannot be used."""
     try:
         commit = _git(root, "log", "-1", "--format=%H", "--", RULES_REL)
@@ -77,7 +78,7 @@ def rules_provenance(root=REPO_ROOT, main_ref="origin/main"):
     return {"rules_commit": commit, "rules_blob": blob}
 
 
-def raw_problems(rows, root=REPO_ROOT, main_ref="origin/main", raw_files=()):
+def raw_problems(rows, root=REPO_ROOT, main_ref="origin/develop", raw_files=()):
     """Return the order rule violations of raw lines as (kind, value) pairs."""
     problems = []
     pairs = {(r.get("rules_commit"), r.get("rules_blob")) for r in rows}
@@ -115,7 +116,7 @@ def raw_problems(rows, root=REPO_ROOT, main_ref="origin/main", raw_files=()):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw", nargs="*", default=[], help="raw result files to check")
-    parser.add_argument("--main-ref", default="origin/main")
+    parser.add_argument("--main-ref", default="origin/develop")
     args = parser.parse_args(argv)
     current = section_hash(RULES_PATH.read_bytes())
     if current is None:
