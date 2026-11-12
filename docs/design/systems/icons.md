@@ -102,7 +102,7 @@ egui 0.31의 기본 텍스처 로더는 uri와 `TextureOptions`만 캐시 키로
   대조한다(`doc-guards.yml`, develop·release·main push · PR). tasty-page 체크아웃 경로는 `TASTY_PAGE_DIR`로 넘기며 없으면 실패한다.
   앱 비교 기준은 tasty-page `vendor/components/core/Icon.jsx`이고, `vendor/icons/` SVG 파일과 `Icon.jsx`의 일치는
   tasty-page의 `npm run check-icons`가 맡는다.
-  기록한 커밋 이후 tasty-page `main`에서 바뀐 아이콘은 이 가드 밖이다.
+  기록한 커밋 이후 tasty-page `develop`에서 바뀐 아이콘은 이 가드 밖이다.
 
 ## 알려진 한계
 

@@ -63,16 +63,15 @@ git push origin release
 ### 3. 사이트 갱신
 
 공개 사이트(`https://tasty.zilhak.org/`)와 사용자 가이드는 [tasty-page](https://github.com/zilhak/tasty-page) 레포에 있다.
-그 레포의 `main`은 개발 중 갱신하는 최신 페이지이며 push 때 빌드와 검사만 한다. 게시용 `release` 브랜치에
-push할 때만 GitHub Pages로 배포한다. 사이트는 사용자가 받을 수 있는 버전을 설명하므로 기능 설명이나 버전이 바뀌는
-변경은 Tasty 릴리스와 함께 `release`로 승격한다. 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 변경(문구,
-메타데이터 등)은 릴리스와 무관하게 바로 게시한다([8. 사이트 게시](#8-사이트-게시)). 태그를 만들기 전에 tasty-page
-`main`을 준비한다.
+그 레포의 `develop`은 개발 중 갱신하는 최신 페이지이고 `main`이 사이트 게시본이다. 사이트는 사용자가 받을 수 있는
+버전을 설명하므로 기능 설명이나 버전이 바뀌는 변경은 Tasty 릴리스와 함께 게시본으로 승격한다. 공개된 Tasty 버전의
+기능 설명이나 버전이 바뀌지 않는 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로 게시한다([8. 사이트 게시](#8-사이트-게시)).
+태그를 만들기 전에 tasty-page `develop`을 준비한다.
 
-1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서가 tasty-page `main`의 랜딩, 디자인 소개, 사용자 가이드에 반영됐는지 확인하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다.
-2. **검사:** tasty-page `main`의 최신 커밋에서 그 레포의 CI(`pages.yml`·`checks.yml`·`design.yml`)가 통과했는지 확인한다. `checks.yml`은 사용자 가이드를 본체 `main`과 대조한다.
+1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서가 tasty-page `develop`의 랜딩, 디자인 소개, 사용자 가이드에 반영됐는지 확인하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다.
+2. **검사:** tasty-page `develop`의 최신 커밋에서 그 레포의 CI가 통과했는지 확인한다. 사용자 가이드와 본체의 대조는 그 레포의 `checks.yml`이 한다. 워크플로 이름과 본체를 받는 ref는 그 레포의 문서를 따른다.
 
-기획서를 읽을 수 없거나 tasty-page `main`의 CI가 실패하면 태그를 만들지 않고 사용자에게 알린다.
+기획서를 읽을 수 없거나 tasty-page `develop`의 CI가 실패하면 태그를 만들지 않고 사용자에게 알린다.
 
 ### 4. 커밋 — body 가 곧 릴리스 노트
 
@@ -129,23 +128,12 @@ GitHub Releases 에서 노트를 확인하고, 자산이 아래 [릴리스 자�
 
 ### 8. 사이트 게시
 
-publish-release가 끝나 GitHub Release가 공개된 뒤 tasty-page에서 실행한다. tasty-page의 `release`를 `main`으로
-fast-forward하고 Tasty 릴리스와 같은 태그를 붙여 브랜치와 태그를 한 번에 push한다.
-
-```bash
-git -C <tasty-page> fetch origin
-git -C <tasty-page> switch release
-git -C <tasty-page> merge --ff-only origin/main
-git -C <tasty-page> tag v<X.Y.Z>
-git -C <tasty-page> push --atomic origin release v<X.Y.Z>
-```
-
-`release` push가 배포를 시작한다. tasty-page의 `checks.yml`은 `release`에서 가장 가까운 태그로 본체를 받아
-사용자 가이드를 대조하므로 태그를 함께 push해야 한다. 배포 워크플로와 `checks.yml`이 통과했는지 확인한다.
+publish-release가 끝나 GitHub Release가 공개된 뒤 tasty-page의 최신 페이지(`develop`)를 게시본(`main`)으로
+승격한다. 승격 명령, 태그, 배포를 시작하는 push와 확인할 워크플로는 tasty-page 레포의 문서를 따른다.
 
 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 사이트 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로
-게시한다. tasty-page `release`에 커밋해 태그 없이 push하고, 곧바로 `release`를 `main`에 합친다. 기능 설명이나 버전이
-바뀌는 변경은 위 절차대로 릴리스와 함께 승격한다.
+게시한다. 게시본에 넣는 방법도 tasty-page 레포의 문서를 따른다. 기능 설명이나 버전이 바뀌는 변경은 릴리스와 함께
+승격한다.
 
 ## 릴리스 자산
 

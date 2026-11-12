@@ -29,7 +29,7 @@ Tasty는 화면 없이도 동작한다. 기능 문서는 내부 동작을 먼저
 | 용어 | `docs/concepts/` | 프로젝트 공통 용어 | 문서를 직접 갱신 |
 | 제품 원칙 | `docs/principles/` | 판단 기준·적용 범위·충돌 시 우선순위 | 최신 유효 내용만 유지 |
 | 예외 결정(ADR) | `docs/adr/` | 원칙의 예외·미충족을 채택한 범위와 이유 | [ADR 작성 규칙](adr/template.md)을 따름 |
-| 디자인 원본 | tasty-page 레포 `main`의 `vendor/`(갤러리 포함). 앱이 따르는 판은 `crates/tasty-design-tokens/dtcg/SOURCE` | 픽셀·토큰·컴포넌트 정의 | 디자이너 세션에 요청문서로 변경 요청 |
+| 디자인 원본 | tasty-page 레포 `develop`의 `vendor/`(갤러리 포함). 앱이 따르는 판은 `crates/tasty-design-tokens/dtcg/SOURCE` | 픽셀·토큰·컴포넌트 정의 | 디자이너 세션에 요청문서로 변경 요청 |
 
 화면정의서는 요소 목록과 상태별 표시 관계를 적는다. 픽셀·토큰 값을 다시 정의하지 않고 tasty-page `vendor/`의 디자인 원본을 연결한다. 값을 복사해 적으면 원본이 바뀔 때 설명 사본이 서로 달라질 수 있다.
 
@@ -98,7 +98,7 @@ docs/features/<feature>/
 
 ## 5. design ↔ code 연계 (디자인 정본 협업)
 
-디자인 원본은 [tasty-page](https://github.com/zilhak/tasty-page) 레포 `main`의 `vendor/`에 있고 이 저장소에는 사본을 두지 않는다. 코드 작업자는 원본을 직접 수정하지 않는다. docs에는 화면 요소와 동작 관계를 설명하고 픽셀·토큰 정의는 디자인 원본으로 연결한다.
+디자인 원본은 [tasty-page](https://github.com/zilhak/tasty-page) 레포 `develop`의 `vendor/`에 있고 이 저장소에는 사본을 두지 않는다. 코드 작업자는 원본을 직접 수정하지 않는다. docs에는 화면 요소와 동작 관계를 설명하고 픽셀·토큰 정의는 디자인 원본으로 연결한다.
 
 디자인 변경은 [디자인 변경 워크플로](dev-guide/design-change-workflow.md)대로 디자이너 세션에 요청한 뒤 받은 결과를 코드에 반영한다. 소스를 먼저 바꾸어 새 디자인 값을 정하지 않는다. 문서는 §6의 배치 규칙에 따라 동작을 features·surfaces에, 디자인 원본 링크를 화면 설명에, 일반 선택의 이유는 해당 명세에, 원칙의 예외·미충족 결정은 ADR에 반영한다. 요청 제출과 결과 확인은 [디자인 변경 절차](dev-guide/design-change-workflow.md)를 따른다.
 

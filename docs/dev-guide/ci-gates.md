@@ -103,11 +103,11 @@ CI에 해당 캐시가 없었다면 그 실행으로 캐시가 있는 환경까�
 
 | 내용 | 검사 |
 |---|---|
-| CLI 명령, CLI 예시 파싱, 릴리스 산출물 파일명, 설치 위치와 패키지 의존성, 훅 이벤트 이름, 설정 절 이름과 컨텍스트 메뉴 항목, 원격 포트 모드 값 | [tasty-page 레포의 checks](https://github.com/zilhak/tasty-page/tree/main/checks)(본체를 main 또는 릴리스 태그로 받아 대조) |
+| CLI 명령, CLI 예시 파싱, 릴리스 산출물 파일명, 설치 위치와 패키지 의존성, 훅 이벤트 이름, 설정 절 이름과 컨텍스트 메뉴 항목, 원격 포트 모드 값 | [tasty-page 레포의 checks](https://github.com/zilhak/tasty-page/tree/develop/checks)(본체를 받는 ref는 그 레포 문서) |
 | 릴리스 자산 목록(개발 가이드 표와 업로드 대상) | `crates/tasty-doc-guards/tests/release_assets_match_the_guide.rs` |
 
 사용자 가이드는 tasty-page 레포에 있다. 가이드와 본체 소스의 대조는 그 레포의 CI가 실행하며
-이 레포의 검사로는 확인하지 않는다. 대조 범위와 한계는 [그 레포의 checks](https://github.com/zilhak/tasty-page/tree/main/checks)에서 확인한다.
+이 레포의 검사로는 확인하지 않는다. 대조 범위와 한계는 [그 레포의 checks](https://github.com/zilhak/tasty-page/tree/develop/checks)에서 확인한다.
 
 앱 문구(`lang/*.toml`)의 용어 일관성은 `one_concept_one_word_on_the_user_facing_surface.rs`처럼
 사용자에게 보이는 문자열을 기준으로 검사할 수 있다.
@@ -201,13 +201,13 @@ fast-forward한 push는 같은 변경을 다시 도는 것이므로 develop push
 
 홈페이지·사용자 가이드·디자인 정본의 빌드, 링크·대비 검사, 가이드와 본체의 대조, 배포는
 [tasty-page](https://github.com/zilhak/tasty-page) 레포의 워크플로(`pages.yml`·`checks.yml`·`design.yml`)가
-실행한다. 범위와 트리거는 [그 레포의 워크플로](https://github.com/zilhak/tasty-page/tree/main/.github/workflows)와
-[사이트 문서](https://github.com/zilhak/tasty-page/blob/main/docs/dev/site.md)에서 확인한다.
+실행한다. 범위와 트리거는 [그 레포의 워크플로](https://github.com/zilhak/tasty-page/tree/develop/.github/workflows)와
+[사이트 문서](https://github.com/zilhak/tasty-page/blob/develop/docs/dev/site.md)에서 확인한다.
 
 앱의 토큰·아이콘이 디자인 정본과 같은지는 `doc-guards.yml`이 확인한다. 이 워크플로는
 `crates/tasty-design-tokens/dtcg/SOURCE`에 기록한 tasty-page 커밋을 받아 `TASTY_PAGE_DIR`로 넘기고,
 `design_source_*` 시험이 그 트리와 앱을 비교한다. 경로 필터가 없으므로 SOURCE만 바꾼 push에서도 실행된다.
-CI 통과는 앱이 기록한 커밋과 같다는 뜻이며, tasty-page `main`이 그 뒤에 바뀌었는지는 확인하지 않는다.
+CI 통과는 앱이 기록한 커밋과 같다는 뜻이며, 디자인 정본인 tasty-page `develop`이 그 뒤에 바뀌었는지는 확인하지 않는다.
 
 재실행 뒤 성공만 보고 앞선 실패를 지우지 않는다. 실패한 잡만 재실행하면 나머지 잡은 이전
 결과를 사용한다. 시도별 jobs 응답의 `run_attempt`만으로 실제 재실행을 판단하지 말고

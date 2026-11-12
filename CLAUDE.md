@@ -48,7 +48,7 @@ Rust 기반 네이티브 GUI 앱으로 Windows, macOS, Linux 를 모두 지원�
 - 새 기능이 구현되면 [`docs/features/`](docs/features/index.md) 의 해당 카테고리 문서에 추가 (인덱스는 `docs/features/index.md`).
 - Surface 종류(kind)의 동작은 제공 주체(host·plugin)와 관계없이 [`docs/surfaces/`](docs/surfaces/index.md) 의 kind 문서에 둔다.
 - 기존 기능이 변경되면 해당 문서 업데이트.
-- **사용자에게 보이는 동작**(메뉴·단축키·설정 키·CLI 명령·설치 절차)이 바뀌면 로컬 지침이 정한 홈페이지 기획서를 바로 고친다. 공개 사이트와 사용자 가이드는 [tasty-page](https://github.com/zilhak/tasty-page) 레포에 있다. 그 레포의 `main`이 최신 페이지이고, 기능 설명이나 버전이 바뀌는 변경은 게시용 `release` 브랜치를 **릴리스할 때** `main`으로 승격해 공개한다. 사이트는 사용자가 받을 수 있는 버전을 설명하기 때문이다. 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로 게시한다([릴리스 절차](docs/dev-guide/release.md#3-사이트-갱신)). 가이드는 `docs/` 명세와 독자가 다르다(설치해서 쓰는 사람). 집필 규칙·번역·사이트 구조는 그 레포의 문서를 따른다.
+- **사용자에게 보이는 동작**(메뉴·단축키·설정 키·CLI 명령·설치 절차)이 바뀌면 로컬 지침이 정한 홈페이지 기획서를 바로 고친다. 공개 사이트와 사용자 가이드는 [tasty-page](https://github.com/zilhak/tasty-page) 레포에 있다. 그 레포의 `develop`이 최신 페이지이고 `main`이 게시본이다. 기능 설명이나 버전이 바뀌는 변경은 **릴리스할 때** 게시본으로 승격해 공개한다. 사이트는 사용자가 받을 수 있는 버전을 설명하기 때문이다. 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로 게시한다([릴리스 절차](docs/dev-guide/release.md#3-사이트-갱신)). 가이드는 `docs/` 명세와 독자가 다르다(설치해서 쓰는 사람). 집필 규칙·번역·사이트 구조는 그 레포의 문서를 따른다.
 - 해당 카테고리의 인덱스(예: [`docs/features/index.md`](docs/features/index.md), [`docs/dev-guide/index.md`](docs/dev-guide/index.md))를 갱신. [`docs/index.md`](docs/index.md) 는 카테고리 진입점 표라, 카테고리 자체가 신설/폐지될 때만 손댄다.
 - 구현 히스토리는 남기지 않는다. **현재 상태만** 기술한다.
 - docs 문서에는 마크다운 체크박스(task list)를 넣지 않는다. 진행 상태는 계속 바뀌므로 로컬 작업 문서에서 관리한다. 완료 조건은 Given/When/Then 형식의 평문 불릿으로, 검증·절차 항목은 평문 불릿이나 번호 목록으로 적는다([`docs/documentation-model.md`](docs/documentation-model.md) §6). `crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs`가 이를 검사한다.
@@ -169,7 +169,7 @@ Cargo에는 별도 의존성 설치 단계가 없고 build/test 때 필요한 �
 
 갤러리(`crates/tasty-gallery`)에는 본체의 모든 UI 컴포넌트를 포함한다. 디자인 카탈로그에서 빠진 컴포넌트도 갤러리에서 삭제하지 않고 디자인 요청으로 보완한다.
 
-디자인 정본은 [tasty-page](https://github.com/zilhak/tasty-page) 레포 `main`의 `vendor/`다. 디자인은 구현 세션이 정하지 않는다. 디자인 변경은 디자이너 세션이 tasty-page 갤러리에 먼저 반영하고, 이 레포의 갤러리에 같은 형상을 구현한 뒤 본체에 적용한다. 갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 갤러리 단계에서 본체에도 반영된다. 앱이 따르는 디자인 판은 `crates/tasty-design-tokens/dtcg/SOURCE`의 tasty-page 커밋이다. 절차는 [디자인 변경 워크플로](docs/dev-guide/design-change-workflow.md)에 있다.
+디자인 정본은 [tasty-page](https://github.com/zilhak/tasty-page) 레포 `develop`의 `vendor/`다. 디자인은 구현 세션이 정하지 않는다. 디자인 변경은 디자이너 세션이 tasty-page 갤러리에 먼저 반영하고, 이 레포의 갤러리에 같은 형상을 구현한 뒤 본체에 적용한다. 갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 갤러리 단계에서 본체에도 반영된다. 앱이 따르는 디자인 판은 `crates/tasty-design-tokens/dtcg/SOURCE`의 tasty-page 커밋이다. 절차는 [디자인 변경 워크플로](docs/dev-guide/design-change-workflow.md)에 있다.
 
 상세·근거: [테마 시스템 (운영 상세)](docs/design/systems/theme.md) · [`docs/dev-guide/gallery-first.md`](docs/dev-guide/gallery-first.md) · [`docs/design/policies/gallery-completeness.md`](docs/design/policies/gallery-completeness.md).
 

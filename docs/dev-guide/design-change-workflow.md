@@ -6,7 +6,7 @@
 > 디자인에 *이미 있는데* 소스만 못 따라간 경우(구현 누락/불일치)는 이 워크플로가 필요 없다 —
 > 디자인 변경이 아니므로 바로 [gallery-first](gallery-first.md) 의 구조 전사(1단계)로 간다.
 
-디자인 정본은 공개 레포 [tasty-page](https://github.com/zilhak/tasty-page)의 `main`에 있는 `vendor/`다.
+디자인 정본은 공개 레포 [tasty-page](https://github.com/zilhak/tasty-page)의 `develop`에 있는 `vendor/`다.
 그 안의 갤러리(tasty-page `vendor/gallery/`)가 UI 디자인의 기준이며 이 저장소에는 디자인 사본을 두지 않는다.
 디자인은 구현 세션이 정하지 않는다. 디자인을 맡은 별도의 Claude 세션(디자이너 세션)이 tasty-page worktree에서
 `vendor/`를 고쳐 커밋한다. 정합 순서와 그 근거·재검토 조건은 [테마 시스템 (운영 상세)](../design/systems/theme.md) 에 있다.
@@ -28,7 +28,7 @@
 | 단계 | 행위자 | 하는 일 | 산출물 |
 |------|--------|---------|--------|
 | 1 | 구현 세션 | 무엇을 어떻게 보이게 할지 정의한 요청문서를 작성해 디자이너 세션에 넘긴다. **사용자 허락을 따로 받지 않는다** | 요청문서 |
-| 2 | 디자이너 세션 | 디자인을 결정하고 tasty-page `vendor/`(갤러리 포함)를 고친다. 그 레포의 디자인 검사를 통과시킨 뒤 `main`에 커밋하고 보고한다 | tasty-page 커밋, 결정표 |
+| 2 | 디자이너 세션 | 디자인을 결정하고 tasty-page `vendor/`(갤러리 포함)를 고친다. 그 레포의 디자인 검사를 통과시킨 뒤 `develop`에 커밋하고 보고한다 | tasty-page 커밋, 결정표 |
 | 3 | 구현 세션 | 보고를 tasty-page 커밋의 실제 변경과 대조한 뒤 이 저장소의 갤러리(`crates/tasty-gallery`)에 같은 형상을 구현하고 본체에 반영한다 | 코드, `dtcg/SOURCE` 갱신 |
 
 갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 3단계의 갤러리 구현에서 본체에도 반영된다.
@@ -96,7 +96,7 @@
 
 앱이 반영한 디자인 판은 `crates/tasty-design-tokens/dtcg/SOURCE`에 tasty-page 커밋 해시 한 줄로 기록한다.
 디자인 커밋을 갤러리·본체에 반영하면 같은 커밋에서 SOURCE를 그 tasty-page 커밋으로 올린다.
-tasty-page `main`이 앞서 있는 것은 정상이다. 아직 반영하지 않은 디자인이 있다는 뜻이다.
+tasty-page `develop`이 앞서 있는 것은 정상이다. 아직 반영하지 않은 디자인이 있다는 뜻이다.
 
 | 대상 | 검사 | 안 따라오면 |
 |------|------|-------------|
