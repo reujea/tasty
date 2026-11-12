@@ -114,3 +114,18 @@ fn the_fifth_waiting_capture_is_refused_as_busy() {
         std::thread::yield_now();
     }
 }
+
+/// Given 네이티브 Wayland로 시작했다, When 원격 캡처 전 지문 읽기가 실패한다, Then 예상된 분기라
+/// 캡처마다 warn을 남기지 않는다. X11 시작이나 알 수 없는 시작의 실패는 그대로 warn이다.
+#[test]
+fn a_fingerprint_failure_is_expected_only_on_a_native_wayland_start() {
+    use crate::clipboard::error::DisplayBackend;
+    assert!(fingerprint_read_fails_by_design(DisplayBackend::Wayland {
+        x_failed: false
+    }));
+    assert!(fingerprint_read_fails_by_design(DisplayBackend::Wayland {
+        x_failed: true
+    }));
+    assert!(!fingerprint_read_fails_by_design(DisplayBackend::Unknown));
+    assert!(!fingerprint_read_fails_by_design(DisplayBackend::Other));
+}

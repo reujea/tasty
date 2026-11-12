@@ -469,10 +469,26 @@ fn local_clipboard_fingerprint() -> Option<u64> {
             content.as_ref(),
         )),
         Err(error) => {
-            tracing::warn!("screenshot capture: local clipboard read failed: {error}");
+            if fingerprint_read_fails_by_design(crate::clipboard::error::DisplayBackend::at_start())
+            {
+                tracing::debug!(
+                    "screenshot capture: no local clipboard fingerprint on a native Wayland start: {error}"
+                );
+            } else {
+                tracing::warn!("screenshot capture: local clipboard read failed: {error}");
+            }
             None
         }
     }
+}
+
+/// The fingerprint reads through arboard, which cannot read a native Wayland selection; there
+/// every read fails and is an expected branch, not a fault worth a warning per capture.
+fn fingerprint_read_fails_by_design(start: crate::clipboard::error::DisplayBackend) -> bool {
+    matches!(
+        start,
+        crate::clipboard::error::DisplayBackend::Wayland { .. }
+    )
 }
 
 /// Native capture may wait for the user. No timeout is treated as completion or OS cancellation.

@@ -39,6 +39,7 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 | 기능 | 동작 | 사용자에게 보이는 것 |
 |---|---|---|
 | 터미널 primary selection(vi `"*` register) | 외부 앱에 닿지 않는다(`"+`는 닿는다) | warning 토스트. 원인 1은 `toast.clipboard_primary_wayland_unsupported`, 원인 1b는 `toast.clipboard_primary_wayland_x_failed`. 아래 데이터 장치가 없는 창이면 터미널 키가 우선한다 |
+| 원격으로 보낸 캡처를 mirror 터미널에 붙여넣기 | 원격 저장 경로로 바뀌지 않고 로컬 클립보드 내용을 붙여넣는다. 캡처 전 지문을 arboard로 읽는데 arboard가 네이티브 Wayland 선택을 읽지 못해 지문이 없고, 그 캡처는 기록되지 않는다 | 화면 안내 없음. 지문 읽기 실패는 debug 로그다. [원격 캡처](../../features/remote-screenshot-clipboard/index.md#mirror-터미널에-붙여넣기) 참고 |
 | Explorer 파일 복사·붙여넣기 | 같은 Tasty 인스턴스 안의 목록에만 남고 그 목록을 붙여넣는다 | warning 토스트 `toast.clipboard_files_wayland_{copy,paste}`, 원인 1b는 `toast.clipboard_files_wayland_x_failed_{copy,paste}` |
 | 네이티브 메뉴 | 뜨지 않는다 | 화면 안내 없음. `native context menu: not an X11 window` 경고 로그 |
 | html·markdown WebView | 만들지 못한다 | 페이지 영역에 원인과 해결책 안내(`native-wayland`, 원인 1b는 `native-wayland-x`). `Not an X11 window` 경고 로그 |
