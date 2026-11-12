@@ -1,6 +1,6 @@
 # Surface 상태 모델
 
-Surface는 상태를 직접 저장하는 유일한 계층이다. busy·attention·점유처럼 상위 계층에 표시되는 값도 surface ID별로 저장되고, 상위 계층은 이 값을 모아 계산한다([상태 모델](index.md#계층-사이의-관계)). 이 문서의 축은 kind와 관계없이 적용되는 것과 특정 kind에만 적용되는 것을 구분한다.
+busy·attention과 surface 점유처럼 상위 계층에도 표시되는 실행 상태는 surface ID별로만 저장되고, 상위 계층은 이 값을 모아 계산한다. 다른 계층도 자기 상태를 저장한다. Tab·Pane·Workspace는 구조와 이름 같은 자기 값을, View는 선택을 가지며, workspace 점유는 surface 점유와 별도의 workspace lock으로 저장된다([상태 모델](index.md#계층-사이의-관계)). 이 문서의 축은 kind와 관계없이 적용되는 것과 특정 kind에만 적용되는 것을 구분한다.
 
 ## 상태 축
 
@@ -71,7 +71,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 
 | 사건 | 조건 | 결과 | 실패·거절 |
 |---|---|---|---|
-| soft 획득 `acquire_soft` | 같은 parent의 soft가 있거나 soft가 없음 | soft 항목 기록(같은 parent면 라벨·순번 갱신) | 다른 parent의 soft가 있으면 `AlreadyOccupied` |
+| soft 획득 `acquire_soft` | 같은 parent의 soft가 있거나 soft가 없음 | soft 항목 기록(같은 parent면 라벨·순번 갱신) | 다른 parent의 soft가 있으면 `AlreadyOccupied`. 기존 surface에 soft를 거는 진입점 `terminal.adopt`는 대상이 hard 점유면 이 함수를 부르기 전에 거절한다(`src/adapters/ipc/handler/terminal.rs`) |
 | soft 해제 `release_soft` | 기록된 parent와 같음 | 항목 제거 | 항목 없음 `NotOccupied`, parent 불일치 `NotHolder` |
 | hard 획득 `acquire` | 같은 client이거나 lock이 없거나 기존 holder가 끊김 표시됨 | surface lock 기록 | 살아 있는 다른 holder가 있으면 `AlreadyAttached` |
 | hard 해제 `release` | 실제 holder | lock 제거 | `NotAttached`, `NotHolder` |
@@ -80,7 +80,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 | surface 닫기 `forget_closed_surface` | 닫힌 surface | 그 surface의 lock·멤버 매핑·soft 제거. 같은 workspace의 다른 멤버는 유지 | — |
 | 사용자 포커스 `reconcile_soft_occupancy_on_focus` | 대표 점유가 soft이고 parent surface가 트리에 없음 | soft 제거 | External parent는 이 경로로 정리하지 않는다 |
 
-hard 획득은 soft 표를 보지 않고 soft 획득은 hard 표를 보지 않는다. 그래서 한 surface에 soft와 hard가 함께 있을 수 있고, `occupancy_of`는 hard를 먼저 보고한다. 이 경우 위 포커스 정리는 대표 점유가 hard이므로 soft를 정리하지 않는다. 입력 제한은 hard만 사용한다(`is_hard_occupied`).
+레지스트리 함수 수준에서는 hard 획득 `acquire`가 soft 표를 보지 않고 soft 획득 `acquire_soft`도 hard 표를 보지 않는다. 진입점은 다르다. `terminal.adopt`는 hard 점유 대상을 먼저 거절하고, 자식 spawn은 새로 만든 surface에 soft를 건다. 반대로 원격 attach(`src/adapters/ipc/handler/attach.rs`)는 soft를 보지 않고 `acquire`를 부른다. 그래서 soft가 먼저 걸린 surface에 뒤이어 hard attach가 오면 한 surface에 soft와 hard가 함께 있게 되고, `occupancy_of`는 hard를 먼저 보고한다. 이 경우 위 포커스 정리는 대표 점유가 hard이므로 soft를 정리하지 않는다. 입력 제한은 hard만 사용한다(`is_hard_occupied`).
 
 ### 자식 상태
 

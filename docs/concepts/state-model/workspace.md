@@ -54,8 +54,9 @@ workspace hard 점유(`acquire_workspace`)는 workspace lock을 기록하고, �
 | — | 사용자 생성 | 새 workspace가 생기고 선택된다 | — | — |
 | — | 에이전트 `workspace.create` | 새 workspace, 선택 불변 | 지정 surface를 가진 창이 없으면 거절 | — |
 | workspace 둘 이상 | 사용자 전환 | 그 View의 선택 변경 | — | 다른 View 불변. 새로 보이는 복원 자리는 활성화된다 |
-| 로컬 workspace | 닫기 | workspace와 모든 하위 객체 제거 | 마지막 workspace, mirror, hard 점유 surface 포함, 호출자 자기 surface 포함이면 거절(`src/app/journal/commands/close.rs`) | 선택이었으면 생존 workspace로 보정 |
-| mirror | 사용자 닫기(서버 닫기) | 서버 성공 회신 뒤 mirror·세션 정리 | 재연결 중·미지원·이미 닫기 대기 중이면 보내지 않는다(`src/app/attach_client/workspace_close.rs`). 서버 거절이면 mirror 유지 | 저장 행이면 행도 지운다 |
+| 로컬 workspace | IPC `workspace.close` | workspace와 모든 하위 객체 제거 | 마지막 workspace, mirror, hard 점유 surface 포함, 호출자 자기 surface 포함이면 거절(`src/app/journal/commands/close.rs`) | 선택이었으면 생존 workspace로 보정 |
+| 로컬 workspace | GUI 사용자 닫기(`intent.close`) | workspace와 모든 하위 객체 제거. 마지막 workspace도 닫는다 | mirror, hard 점유 surface 포함이면 거절. 마지막 workspace는 거절하지 않는다 | 선택이었으면 생존 workspace로 보정. engine에 workspace가 남지 않으면 그 View가 `close_requested`를 세워 창 닫기로 이어진다([window](window.md#전이)) |
+| mirror | 서버 닫기(Close remote workspace, 에이전트 요청) | 서버 성공 회신 뒤 mirror·세션 정리 | 재연결 중·미지원·이미 닫기 대기 중이면 보내지 않는다(`src/app/attach_client/workspace_close.rs`). 서버 거절이면 mirror 유지 | 저장 행이면 행도 지운다 |
 | mirror, 닫기 회신 대기 | 회신 전 연결 종료 | 결과 불명 안내. 기존 단절 처리를 따른다 | 성공으로 단정하지 않는다 | — |
 | mirror | 연결 끊기(`remote.disconnect`) | mirror 정리. 서버 workspace와 프로세스는 남는다 | — | 저장 행은 `disconnected`로 남는다 |
 | 저장된 원격 행, 연결됨 | 네트워크 단절 | `reconnecting`. 형상 유지 | 시간 창이 지나거나 다른 client가 점유하면 `disconnected` | — |
@@ -64,7 +65,12 @@ workspace hard 점유(`acquire_workspace`)는 workspace lock을 기록하고, �
 | hard 점유 | 연결 종료, 강제 해제 | 점유 없음 | release에는 강제 해제 IPC가 없다 | 멤버 lock 해제 |
 | — | 앱 재시작 | 로컬 workspace는 journal에서, 저장된 원격 행은 형상 없는 행으로 돌아온다 | — | 에이전트 mirror는 돌아오지 않는다 |
 
-mirror 닫기와 연결 끊기, 저장된 원격 행의 메뉴는 [원격 attach](../../features/remote-attach/index.md#mirror-닫기와-연결-끊기)가 정본이다. 로컬 닫기의 거절 문구와 마지막 workspace 경계는 [작업 영역](../../features/work-area/index.md#인터페이스)에 있다. mirror는 무조건 닫기 거절 대상이 아니다. 로컬 닫기 명령은 mirror를 거절하지만 사용자 닫기는 서버 닫기로 전달된다.
+mirror 닫기와 연결 끊기, 저장된 원격 행의 메뉴는 [원격 attach](../../features/remote-attach/index.md#mirror-닫기와-연결-끊기)가 정본이다. 로컬 닫기의 거절 문구와 마지막 workspace 경계는 [작업 영역](../../features/work-area/index.md#인터페이스)에 있다. 마지막 workspace 거절은 IPC `workspace.close`에만 있다. GUI 사용자 닫기는 같은 검사에 마지막 workspace 허용을 넘긴다(`src/app/journal/commands/close.rs`의 `allow_last`).
+
+mirror는 무조건 닫기 거절 대상이 아니다. 로컬 닫기 명령은 mirror를 거절하지만, mirror의 닫기는 종류에 따라 두 갈래다([저장된 원격 행의 메뉴와 닫기](../../features/remote-attach/index.md#저장된-원격-행의-메뉴와-닫기)).
+
+- 저장된 원격 행의 일반 닫기(사용자 닫기, `close_workspace` 단축키, Close locally)는 이 Tasty에서만 닫는다(`SavedRowAction::CloseLocally`, `src/state/workspace.rs`). 진행 중인 연결 시도를 취소하고 행과 로컬 세션을 없애며 서버 workspace는 남긴다(`src/app/attach_client/workspace_close.rs`).
+- 서버 닫기는 명시적인 Close remote workspace(확인 대화 뒤)와 에이전트 요청에서만 나간다. 위 표의 서버 닫기 행이 이 경우다.
 
 단절은 원격 프로세스 종료가 아니다. 연결이 끊겨도 서버의 workspace와 PTY는 그대로 남는다.
 
@@ -78,7 +84,7 @@ mirror 닫기와 연결 끊기, 저장된 원격 행의 메뉴는 [원격 attach
 | 저장된 원격 행 + 형상 없음 | 가능 | 재시작 뒤 연결 전, 첫 연결 실패 |
 | `reconnecting` + 형상 유지 | 가능 | 재연결 중에도 mirror를 걷어내지 않는다 |
 | 두 holder의 workspace hard 점유 | 불가 | `acquire_workspace`가 거절한다 |
-| workspace 0개인 View | 불가 | 마지막 workspace 닫기를 거절하고, mirror 정리로 비면 기본 workspace를 만든다 |
+| 정상 표시 중인 View + workspace 0개 | 불가 | IPC는 마지막 workspace 닫기를 거절하고, mirror 정리로 비면 기본 workspace를 만든다. GUI 사용자가 마지막 workspace를 닫으면 engine이 잠깐 비지만 그 View는 `close_requested`로 닫히는 중이며 정상 표시 상태가 아니다 |
 | headless + 선택 | N/A | 로컬 View가 없다 |
 
 ## 문서 예시

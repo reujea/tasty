@@ -30,7 +30,7 @@ Window·Workspace·Pane·Tab·Surface 다섯 계층이 가지는 상태를 축�
 |---|---|---|---|
 | 구조 journal과 `CoreState` | Workspace·Pane·Tab·Surface 트리, 분할, surface의 kind와 활성화 generation | journal에 저장. `CoreState`는 확정 batch의 읽기 projection | `crates/tasty-core/src/state.rs` |
 | `LiveDomainState` | busy, attention, 점유, 제목 관측값, 알림 | 메모리 | `src/core/live.rs` |
-| `EngineRuntime` | surface 실행 객체, PTY, kind 레지스트리, 자식 터미널 목록 | 메모리. 자식 목록만 파일에 저장 | `src/runtime/engine_session.rs` |
+| `EngineRuntime` | surface 실행 객체, PTY, kind 레지스트리, 자식 터미널 목록 | 메모리. 자식 목록만 파일에 저장 | `src/runtime/engine_runtime.rs` |
 | View의 `NavigationState` | 선택한 workspace·pane·탭·surface, 분할 노드 선택 힌트 | 메모리. View 복원 자료로 보존할 수 있다 | `src/state/navigation.rs` |
 | App의 `ViewRegistry`·`EngineRegistry` | View 목록, 활성 모달, 포커스 View, View와 engine의 관계 | 메모리 | `src/view/mod.rs`, `src/app/engine_registry.rs` |
 

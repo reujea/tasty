@@ -20,7 +20,9 @@ Window는 winit OS 창이고 View는 Tasty가 그 창에 두는 표현이다(1 V
 최소화·최대화·OS 전체화면은 `ViewState`에 필드가 없다. 코드는 필요할 때 `is_minimized`·`is_maximized`·`fullscreen`으로 winit에 묻는다. 플랫폼 차이는 다음과 같다.
 
 - Windows에서 최소화 중인 창은 작업 표시줄 아이콘 크기를 client 크기로 보고하므로 표면과 터미널 격자 크기를 유지한다([작업 영역](../../features/work-area/index.md#분할-비율과-탐색기-칸-하한)).
-- 최소화 요청의 결과가 다르다. macOS는 모든 MainView를 park한다. Windows와 Linux는 트레이가 있으면 창을 숨기고 없으면 OS 최소화를 한다(`handle_minimize`, `src/app/event_handler.rs`). 트레이 동작은 [시스템 트레이](../../design/policies/system-tray.md)에 있다.
+- 최소화는 두 종류다.
+  - 창 하나의 OS 최소화: titlebar 최소화 버튼(`src/adapters/ui/titlebar/mod.rs`)과 팔레트 `minimize_window`(`src/adapters/ui/input/shortcuts/dispatch.rs`)는 모든 OS에서 그 창에 `set_minimized(true)`를 부른다. 창 관계는 그대로다.
+  - 앱 수준 최소화 `AppEvent::Minimize`: 종료 확인 모달의 최소화, `close_behavior` 최소화, `quit_minimize` 단축키에서 나온다. `handle_minimize`(`src/app/event_handler.rs`)가 처리하며 macOS는 모든 MainView를 park한다. Windows와 Linux는 트레이가 있으면 모든 창을 숨기고 없으면 모든 창을 OS 최소화한다. 트레이 동작은 [시스템 트레이](../../design/policies/system-tray.md)에 있다.
 - 최대화·전체화면 창은 Tasty의 가장자리 리사이즈 밴드를 쓰지 않는다. macOS는 OS 장식이 리사이즈를 맡는다.
 
 ### 포커스와 모달
@@ -69,7 +71,7 @@ parked는 OS 최소화가 아니고 headless도 아니다. OS 최소화된 창�
 | MainView 하나 | 사용자 창 닫기 | 설정 `close_behavior`에 따라 종료, 최소화, 종료 확인 모달(`src/app/modal/quit.rs`) | 확인 모달을 만들 수 없으면 확인 없이 종료를 진행한다 | — |
 | MainView 하나 | 마지막 workspace가 닫혀 View가 스스로 닫기 요청(`close_requested`) | engine을 park | — | 레이아웃 슬롯 유지 |
 | MainView 둘 이상 | 위와 같은 스스로 닫기 요청 | engine retiring | — | — |
-| macOS MainView들 | 최소화 | 모든 MainView를 park | — | engine·PTY·원격 세션 유지 |
+| macOS MainView들 | 앱 수준 최소화(`AppEvent::Minimize`) | 모든 MainView를 park | — | engine·PTY·원격 세션 유지 |
 | retiring | 저장·retirement·자원 회수 완료 | engine 제거(`finish_retiring`) | 회수는 timeout으로 완료를 가장하지 않는다 | 이 시점에야 실행 자원이 사라진다 |
 | 창 | 전체화면 무대 열기 | 무대 표시. 진입 전 OS 전체화면·최대화를 기록하고, OS 전체화면이 아니었으면 테두리 없는 전체화면으로 바꾼다 | — | 무대 뒤 콘텐츠는 다시 그리지 않는다 |
 | 무대 | 무대 닫기 | 진입 전 OS 전체화면이었으면 그대로 둔다. 아니었으면 전체화면을 풀고 기록한 최대화 상태로 되돌린다 | — | 무대가 열린 동안에는 attention 포커스 확인을 하지 않는다 |
@@ -87,14 +89,14 @@ parked는 OS 최소화가 아니고 headless도 아니다. OS 최소화된 창�
 | 포커스 View가 모달 | 불가 | `focused_view_id`는 MainView만 가리킨다 |
 | 창 0개 + engine 살아 있음 | 가능 | parked. 트레이가 프로세스를 유지할 수 있다 |
 | parked engine + busy·attention 변화 | 가능 | busy 폴링(`poll_busy_states`, `src/app/busy.rs`)과 mirror 이벤트는 parked engine에도 적용된다 |
-| 최소화된 창 + parked | 불가 | Windows·Linux의 최소화(또는 트레이로 숨김)는 창 관계를 유지한다. macOS의 최소화는 MainView를 없애고 park하므로 최소화된 창이 남지 않는다 |
+| 최소화된 창 + 그 창의 engine parked | 불가 | OS 최소화(모든 OS의 창 하나 최소화, Windows·Linux의 앱 수준 최소화)와 트레이 숨김은 창 관계를 유지한다. macOS의 앱 수준 최소화는 OS 최소화가 아니라 MainView를 없애고 park하므로 최소화된 창이 남지 않는다 |
 | 이미 OS 전체화면 + 무대 | 가능 | 무대를 닫아도 OS 전체화면은 유지된다 |
 | headless + 창 상태 | N/A | View가 없다 |
 
 ## 문서 예시
 
 - **MainView 둘과 모달 하나**: 창 A·B가 열려 있고 설정 모달이 열렸다. A·B는 입력을 무시하지만 크기 변경과 다시 그리기는 처리한다. A를 클릭하면 OS 포커스는 A로 가도 모달에 포커스를 다시 요청하고, A·B의 workspace 선택은 그대로다. 모달을 닫으면 각 창은 OS 포커스를 따른다.
-- **마지막 MainView를 park했다가 복원**: macOS에서 최소화하면 MainView가 사라지고 engine은 parked가 된다. PTY와 원격 attach 세션은 그대로이고 그동안 온 출력·mirror 이벤트도 engine에 적용된다. 새 창을 열면 그 engine과 보관한 `MainViewState`를 이어받아 같은 workspace·선택으로 다시 보인다.
+- **마지막 MainView를 park했다가 복원**: macOS에서 앱 수준 최소화(종료 확인 모달의 최소화, `quit_minimize` 단축키)를 하면 MainView가 사라지고 engine은 parked가 된다. 신호등 버튼으로 창 하나를 OS 최소화하면 창 관계가 남으므로 이 예시에 해당하지 않는다. PTY와 원격 attach 세션은 그대로이고 그동안 온 출력·mirror 이벤트도 engine에 적용된다. 새 창을 열면 그 engine과 보관한 `MainViewState`를 이어받아 같은 workspace·선택으로 다시 보인다.
 - **headless**: View가 없으므로 OS 창, 모달, 포커스 View, parked가 모두 N/A다. engine은 하나이며 busy·attention·원격 세션은 engine에 있다. `window.close`는 headless에 없다.
 - **전체화면 무대**: 이미 OS 전체화면인 창은 무대를 열고 닫아도 OS 전체화면이 유지된다. 일반 창은 무대를 열 때 전체화면이 되고, 닫을 때 원래의 일반 또는 최대화 상태로 돌아간다.
 

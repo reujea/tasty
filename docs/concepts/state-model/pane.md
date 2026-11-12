@@ -13,7 +13,7 @@ Pane은 구조 트리에서 ID와 탭 목록만 가진다(`crates/tasty-model/sr
 | busy·attention | N/A | — | — | — | pane 단위 값과 소비처가 없다 |
 | 점유 | N/A | — | — | — | 점유는 surface·workspace 단위다. pane 닫기는 pane 안 모든 surface의 hard 점유를 검사한다 |
 
-포커스 pane이 없거나 사라졌으면 workspace의 첫 pane을 쓴다(`NavigationState::pane_id`). 선택 탭도 같은 방식으로 첫 탭으로 내려간다. 활성 탭 추종 스크롤 규칙은 [작업 영역](../../features/work-area/index.md#pane--상위-레이아웃-탭-무관)에 있다.
+포커스 pane이 없거나 사라졌으면 workspace의 첫 pane을 쓴다(`NavigationState::pane_id`). 선택 탭은 다르다. 선택 기록이 없을 때만 첫 탭을 쓰고, 선택한 탭이 사라졌으면 직전 순서의 다음 생존 탭, 없으면 이전 생존 탭을 고른다(`NavigationState::tab_id`, [포커스 정책](../../design/policies/focus.md#삭제로-인한-인덱스-이동에서도-포커스-대상은-보존된다)). 활성 탭 추종 스크롤 규칙은 [작업 영역](../../features/work-area/index.md#pane--상위-레이아웃-탭-무관)에 있다.
 
 ### 표시와 포커스
 
