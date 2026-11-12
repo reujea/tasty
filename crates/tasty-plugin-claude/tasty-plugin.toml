@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.claude"
 name = "Claude Code"
-version = "0.2.57"
+version = "0.2.58"
 description = "Claude Code CLI integration for Tasty"
 api_version = "1"
 permissions = [
@@ -86,7 +86,7 @@ prefix = "claude"
 [contributes.remote_attach]
 methods = ["spawn", "tell", "kill"]
 receive = "remote_receive"
-relay_meta = ["claude-last-stop-failure", "claude-background-wait", "claude-background-quiet"]
+relay_meta = ["claude-last-stop-failure", "claude-background-wait", "claude-background-quiet", "claude-stall-notice"]
 
 # 등록·실행할 훅 이벤트는 이 목록에 선언해야 한다.
 [[contributes.hook_events]]

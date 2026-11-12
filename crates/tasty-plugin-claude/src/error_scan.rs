@@ -833,11 +833,21 @@ impl ErrorScanner {
             }
             record_quiet_tasks(host, surface_id, b, quiet);
         }
-        self.fire_stall(host, surface_id, now);
+        // 대기가 아니면 오류 뒤 멈춤(error)과 오류 없는 멈춤(warning)을 여기서 가른다. 문구도 이 판정을 따른다.
+        let wording = wait.is_none().then(|| StallWording::read(host, surface_id));
+        self.fire_stall(host, surface_id, now, wording.as_ref());
     }
 
-    /// 정지 의심 훅을 요청하고, 성공하면 같은 정지 구간·대기에서 다시 알리지 않도록 기록한다.
-    fn fire_stall<H: HostCall>(&mut self, host: &H, surface_id: u32, now: Instant) {
+    /// 알림 기록을 남기고 정지 의심 훅을 요청한다. 성공하면 같은 정지 구간·대기에서 다시 알리지 않도록 기록한다.
+    /// 기록을 먼저 쓰는 것은 훅이 실행한 문구 처리가 이 판정을 읽게 하려는 것이다. 요청이 실패하면 기록을 지운다.
+    fn fire_stall<H: HostCall>(
+        &mut self,
+        host: &H,
+        surface_id: u32,
+        now: Instant,
+        wording: Option<&StallWording>,
+    ) {
+        self.record_notice(host, surface_id, wording);
         if let Err(e) = host.call(
             "surface.fire_hook",
             json!({
@@ -846,21 +856,43 @@ impl ErrorScanner {
             }),
         ) {
             tracing::warn!("claude stall fire_hook failed for surface {surface_id}: {e}");
+            if self.notice_recorded.remove(&surface_id)
+                && let Err(e) = host.call(
+                    "surface.meta.unset",
+                    json!({ "surface_id": surface_id, "key": STALL_NOTICE_META_KEY }),
+                )
+            {
+                tracing::warn!(
+                    "claude stall s{surface_id}: clearing the stall notice meta failed: {e}"
+                );
+            }
             return;
         }
         if let Some(w) = self.watch.get_mut(&surface_id) {
             w.stall_notified = true;
         }
-        self.record_notice(host, surface_id);
         self.record_wait_notice(host, surface_id);
         self.last_stall_notify.insert(surface_id, now);
     }
 
-    /// 플러그인이 다시 시작돼도 같은 조용한 구간을 다시 알리지 않도록 알림 시각을 남긴다.
-    fn record_notice<H: HostCall>(&mut self, host: &H, surface_id: u32) {
+    /// 플러그인이 다시 시작돼도 같은 조용한 구간을 다시 알리지 않도록 알림 시각을 남긴다. 대기가 아닌 정지면 문구 종류와
+    /// 오류 줄도 함께 남긴다.
+    fn record_notice<H: HostCall>(
+        &mut self,
+        host: &H,
+        surface_id: u32,
+        wording: Option<&StallWording>,
+    ) {
+        let mut value = json!({ "at_ms": unix_now_ms() });
+        if let Some(wording) = wording {
+            value["kind"] = json!(wording.kind());
+            if let Some(hint) = &wording.error_line {
+                value["hint"] = json!(hint);
+            }
+        }
         match host.call(
             "surface.meta.set",
-            json!({ "surface_id": surface_id, "key": STALL_NOTICE_META_KEY, "value": json!({ "at_ms": unix_now_ms() }).to_string() }),
+            json!({ "surface_id": surface_id, "key": STALL_NOTICE_META_KEY, "value": value.to_string() }),
         ) {
             Ok(_) => {
                 self.notice_recorded.insert(surface_id);
@@ -879,6 +911,43 @@ impl ErrorScanner {
             ) {
                 tracing::warn!("claude stall s{surface_id}: recording the notice in the wait meta failed: {e}");
             }
+        }
+    }
+}
+
+/// 대기가 아닌 정지의 문구 판정. 발화 직전 화면의 오류 줄로 정하고 meta [`STALL_NOTICE_META_KEY`] 에 남긴다.
+pub(crate) struct StallWording {
+    /// 화면의 첫 오류 줄(앞 [`STALL_HINT_CHARS`] 글자). 있으면 오류 뒤 멈춤이다.
+    pub error_line: Option<String>,
+}
+
+/// 알림에 넣을 오류 줄의 최대 글자 수.
+pub(crate) const STALL_HINT_CHARS: usize = 160;
+
+/// 오류 뒤 멈춤과 오류 없는 멈춤의 meta 값.
+pub(crate) const STALL_KIND_ERROR: &str = "stalled";
+pub(crate) const STALL_KIND_NO_ERROR: &str = "stalled_no_error";
+
+impl StallWording {
+    /// 화면을 읽어 판정한다. 조회에 실패하면 오류 줄이 없는 것으로 본다.
+    pub(crate) fn read<H: HostCall>(host: &H, surface_id: u32) -> Self {
+        let screen = host
+            .call("surface.screen_text", json!({ "surface_id": surface_id }))
+            .ok()
+            .and_then(|r| r.get("text").and_then(|t| t.as_str()).map(str::to_string));
+        Self {
+            error_line: screen
+                .as_deref()
+                .and_then(first_error_line)
+                .map(|l| l.chars().take(STALL_HINT_CHARS).collect()),
+        }
+    }
+
+    pub(crate) fn kind(&self) -> &'static str {
+        if self.error_line.is_some() {
+            STALL_KIND_ERROR
+        } else {
+            STALL_KIND_NO_ERROR
         }
     }
 }
@@ -1229,6 +1298,8 @@ mod tests {
         /// 플러그인 설정 값.
         setting: std::cell::RefCell<Option<serde_json::Value>>,
         setting_fails: std::cell::RefCell<bool>,
+        /// `surface.screen_text` 의 화면. 처음 출력과 같게 시작한다.
+        screen: std::cell::RefCell<String>,
     }
 
     impl ScanHost {
@@ -1243,7 +1314,17 @@ mod tests {
                 quiet_meta: std::cell::RefCell::new(None),
                 setting: std::cell::RefCell::new(None),
                 setting_fails: std::cell::RefCell::new(false),
+                screen: std::cell::RefCell::new(text.to_string()),
             }
+        }
+        /// 마지막으로 남긴 정지 알림 meta.
+        fn stall_notice(&self) -> Option<serde_json::Value> {
+            self.meta_sets
+                .borrow()
+                .iter()
+                .rev()
+                .find(|(k, _)| k == STALL_NOTICE_META_KEY)
+                .and_then(|(_, v)| serde_json::from_str(v).ok())
         }
         fn count(&self, method: &str) -> usize {
             self.calls.borrow().iter().filter(|m| *m == method).count()
@@ -1272,6 +1353,7 @@ mod tests {
                     Ok(json!({ "text": delta }))
                 }
                 "terminal.state" => Ok(json!({ "state": *self.state.borrow() })),
+                "surface.screen_text" => Ok(json!({ "text": *self.screen.borrow() })),
                 "settings.get_plugin_setting" if *self.setting_fails.borrow() => {
                     Err(tasty_plugin_sdk::PluginError::HostCall {
                         method: method.to_string(),
@@ -1362,6 +1444,9 @@ mod tests {
             1,
             "출력 변화가 없는 시간이 기준에 도달하면 한 번 알린다"
         );
+        let notice = host.stall_notice().expect("판정을 발화 전에 남긴다");
+        assert_eq!(notice["kind"], STALL_KIND_ERROR);
+        assert_eq!(notice["hint"], "⎿ API Error: Connection error");
 
         // 계속 조용해도 같은 정적 구간에서는 다시 알리지 않는다.
         s.scan_one_at(&host, 1, t0 + STALL_QUIET * 3);
@@ -1754,6 +1839,9 @@ mod tests {
         assert_eq!(host.stalled_count(), 0);
         s.scan_one_at(&host, 1, t0 + NO_OUTPUT_NOTICE_DEFAULT);
         assert_eq!(host.stalled_count(), 1, "에러가 없어도 정적이 길면 알린다");
+        let notice = host.stall_notice().expect("판정을 발화 전에 남긴다");
+        assert_eq!(notice["kind"], STALL_KIND_NO_ERROR);
+        assert!(notice.get("hint").is_none(), "{notice}");
         assert!(
             host.events()
                 .iter()
@@ -2095,8 +2183,8 @@ mod tests {
             host.events(),
             [
                 format!("meta-set:{}", crate::task_watch::BACKGROUND_QUIET_META_KEY),
-                STALLED_EVENT.to_string(),
                 format!("meta-set:{STALL_NOTICE_META_KEY}"),
+                STALLED_EVENT.to_string(),
                 format!("meta-set:{}", crate::hook::BACKGROUND_WAIT_META_KEY),
             ]
         );

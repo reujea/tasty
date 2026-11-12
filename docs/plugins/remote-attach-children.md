@@ -12,7 +12,7 @@ attach 로 연결한 원격 워크스페이스(mirror)에 `tasty claude spawn` /
 
 | plugin | `methods`(S 에서 holder 대신 실행) | `receive`(C 에서 원격 결과 수신) | `relay_meta`(S→C 로 옮기는 메타) |
 |---|---|---|---|
-| claude | `spawn`·`tell`·`kill` | `remote_receive` | `claude-last-stop-failure`·`claude-background-wait`·`claude-background-quiet` |
+| claude | `spawn`·`tell`·`kill` | `remote_receive` | `claude-last-stop-failure`·`claude-background-wait`·`claude-background-quiet`·`claude-stall-notice` |
 | codex | `spawn`·`tell`·`kill` | `remote_receive` | 없음 |
 
 `relay_meta` 는 C 의 완료 알림 문구(`notify-done`·`notify-stop-failure`)가 L 에서 읽는 메타다. 중계되는 훅 이벤트는 각 plugin 의 `[[contributes.hook_events]]` 와 host 가 만드는 `process-exit` 뿐이다.

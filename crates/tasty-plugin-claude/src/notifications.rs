@@ -419,17 +419,11 @@ pub(crate) fn notify_error_message<H: HostCall>(
             background_wait_message(tr, target_surface, &wait, now_ms),
         );
     }
-    let screen = host
-        .call(
-            "surface.screen_text",
-            json!({ "surface_id": target_surface }),
-        )
-        .ok()
-        .and_then(|r| r.get("text").and_then(|t| t.as_str()).map(str::to_string));
-    let error_line = screen
-        .as_deref()
-        .and_then(crate::error_scan::first_error_line);
-    // 같은 이벤트로 들어오는 두 경우를 화면의 오류 줄 유무로 구분한다.
+    // 같은 이벤트로 들어오는 두 경우를 스캐너가 발화 직전에 정한 판정으로 구분한다. 판정이 없으면(이전 플러그인이
+    // 남긴 기록) 지금 화면의 오류 줄로 정한다.
+    let wording = stall_wording(host, target_surface)
+        .unwrap_or_else(|| crate::error_scan::StallWording::read(host, target_surface));
+    let error_line = wording.error_line;
     let (kind, key) = if error_line.is_some() {
         (NoticeKind::Stalled, "claude.notify.stalled_message")
     } else {
@@ -440,11 +434,33 @@ pub(crate) fn notify_error_message<H: HostCall>(
     };
     let mut message = tr.t_args(key, &[&target_surface.to_string()]);
     if let Some(line) = error_line {
-        // 알림에 넣을 오류 줄의 길이를 제한한다.
-        let hint: String = line.chars().take(160).collect();
-        message.push_str(&tr.t_args("claude.notify.stalled_hint", &[&hint]));
+        message.push_str(&tr.t_args("claude.notify.stalled_hint", &[&line]));
     }
     (kind, message)
+}
+
+/// 스캐너가 남긴 정지 문구 판정. 종류가 없으면 `None` 이다.
+fn stall_wording<H: HostCall>(
+    host: &H,
+    target_surface: u32,
+) -> Option<crate::error_scan::StallWording> {
+    let raw = crate::stop_pairing::meta_value(
+        host,
+        target_surface,
+        crate::error_scan::STALL_NOTICE_META_KEY,
+    )?;
+    let v: Value = serde_json::from_str(&raw).ok()?;
+    let error_line = match v.get("kind")?.as_str()? {
+        crate::error_scan::STALL_KIND_ERROR => Some(
+            v.get("hint")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        ),
+        crate::error_scan::STALL_KIND_NO_ERROR => None,
+        _ => return None,
+    };
+    Some(crate::error_scan::StallWording { error_line })
 }
 
 /// 대상 터미널이 조회되면 완료 훅 3개를 다시 등록한다. 조회 실패 시 생략한다.
@@ -554,6 +570,29 @@ mod tests {
         let lines = crate::notice::test_log::take();
         assert_eq!(lines.len(), 1, "{lines:?}");
         assert!(lines[0].1.starts_with("[error] surface 5: "), "{lines:?}");
+    }
+
+    /// 대기가 아닌 정지는 스캐너가 발화 직전에 정한 종류와 오류 줄을 쓴다. 그 뒤 화면이 바뀌어도 판정이 같다.
+    #[test]
+    fn a_stall_uses_the_kind_the_scanner_recorded() {
+        let tr = tr();
+        let recorded = |value: &str| StateHost {
+            state: "active",
+            meta: vec![(crate::error_scan::STALL_NOTICE_META_KEY, value.to_string())],
+        };
+        let (kind, line) = notify_error_message(
+            &tr,
+            &recorded(r#"{"at_ms":1,"kind":"stalled","hint":"API Error: overloaded"}"#),
+            5,
+        );
+        assert_eq!(kind, NoticeKind::Stalled);
+        assert!(line.contains("API Error: overloaded"), "{line}");
+        let (kind, _) = notify_error_message(
+            &tr,
+            &recorded(r#"{"at_ms":1,"kind":"stalled_no_error"}"#),
+            5,
+        );
+        assert_eq!(kind, NoticeKind::StalledNoError);
     }
 
     fn plain_exited() -> StateHost {
