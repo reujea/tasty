@@ -176,27 +176,62 @@ fn activation_transition_table_matches_the_journal_rule() {
     );
 }
 
+/// 함수 본문의 줄에서 `//` 주석을 뗀 코드 부분. 주석 속 `=> "`·`=> S::`를 값으로 읽지 않게 한다.
+fn code_lines(body: &str) -> impl Iterator<Item = &str> {
+    body.lines()
+        .map(|line| line.split_once("//").map_or(line, |(code, _)| code).trim())
+        .filter(|line| !line.is_empty())
+}
+
+/// 패턴 안의 문자열 리터럴 전부. `Some("a" | "b")` 같은 OR 패턴은 두 문자열을 모두 돌려준다.
+fn quoted(pattern: &str) -> Vec<String> {
+    pattern
+        .split('"')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_string)
+        .collect()
+}
+
 /// `row_state_name`이 돌려주는 문자열.
 fn code_row_states(body: &str) -> BTreeSet<String> {
-    body.split("=> \"")
-        .skip(1)
+    code_lines(body)
+        .flat_map(|line| line.split("=> \"").skip(1))
         .filter_map(|tail| tail.split_once('"').map(|(name, _)| name.to_string()))
         .collect()
 }
 
 /// `remote_row_state`의 문자열 → `S::<값>` 대응과 나머지 갈래(`_ =>`)의 값.
+/// OR 패턴은 모든 문자열을 같은 값으로 읽고, 가드나 문자열이 없는 패턴처럼 읽지 못하는 형태는 실패한다.
 fn code_sidebar_map(body: &str) -> (Vec<(String, String)>, String) {
     let mut map = Vec::new();
     let mut fallback = None;
-    for line in body.lines().map(str::trim) {
-        let Some((pattern, value)) = line.split_once("=> S::") else {
+    for line in code_lines(body) {
+        if !line.contains("=>") {
             continue;
+        }
+        let Some((pattern, value)) = line.split_once("=> S::") else {
+            panic!(
+                "{ENGINE_READ}의 remote_row_state에 읽지 못하는 갈래가 있다(`=> S::<값>` 형태만 읽는다): {line}"
+            )
         };
         let value = value.trim_end_matches(',').trim().to_string();
-        if pattern.trim() == "_" {
+        assert!(
+            !value.is_empty() && value.chars().all(char::is_alphanumeric),
+            "{ENGINE_READ}의 remote_row_state 갈래 값이 단순 이름이 아니다: {line}"
+        );
+        let pattern = pattern.trim();
+        if pattern == "_" {
             fallback = Some(value);
-        } else if let Some(name) = pattern.split('"').nth(1) {
-            map.push((name.to_string(), value));
+            continue;
+        }
+        let names = quoted(pattern);
+        assert!(
+            !names.is_empty() && !pattern.contains(" if "),
+            "{ENGINE_READ}의 remote_row_state에 읽지 못하는 패턴이 있다(문자열 리터럴과 `|`만 읽는다): {line}"
+        );
+        for name in names {
+            map.push((name, value.clone()));
         }
     }
     let fallback = fallback.unwrap_or_else(|| {
