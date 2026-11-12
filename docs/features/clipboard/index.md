@@ -40,7 +40,7 @@ Linux 호스트의 터미널 텍스트와 Explorer 파일 전송은 X11 경로�
 X11로 뜨고([백엔드 선택](../../design/systems/linux-display-backend.md)) Wayland 앱과의 왕복은 XWayland가 잇는다. 격리 GNOME 세션에서
 GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). 네이티브 Wayland(`DISPLAY`가 없거나
 그 X 서버에 연결하지 못함)에서는 터미널 복사·붙여넣기와 egui 입력 위젯이 Tasty의 data device로 외부 앱과
-주고받는다. 다른 앱의 선택은 winit 스레드를 막지 않고 읽어 요청 때 포커스였던 surface에만 넣는다
+주고받는다. 다른 앱의 선택은 winit 스레드를 막지 않고 읽어 요청한 창이 키보드 포커스를 유지하고 요청 때 포커스였던 surface가 그대로일 때만 넣는다
 ([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). 그 장치가 없는 컴포지터에서는
 외부 앱과 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다. `DISPLAY`가 없으면(XWayland 없음)
 `toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해 내려갔으면

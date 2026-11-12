@@ -95,8 +95,8 @@ impl MainView {
         }
     }
 
-    /// Delivers a paste read in the background. A result for a surface that is no longer focused,
-    /// or was replaced, is dropped; so is its failure toast.
+    /// Delivers a paste read in the background. A result for a window that lost keyboard focus, or
+    /// a surface that is no longer focused or was replaced, is dropped; so is its failure toast.
     pub(crate) fn poll_terminal_paste(&mut self, engine: &EngineRead<'_>) {
         if self.pending_terminal_paste.is_none() {
             return;
@@ -110,8 +110,13 @@ impl MainView {
         let Some(pending) = self.pending_terminal_paste.take() else {
             return;
         };
-        if !pending_target_is_current(&pending, engine, self.state.focused_surface_id(engine)) {
-            tracing::debug!("terminal paste dropped: its surface is no longer focused");
+        if !pending_target_is_current(
+            &pending,
+            engine,
+            self.base.state.focused,
+            self.state.focused_surface_id(engine),
+        ) {
+            tracing::debug!("terminal paste dropped: its window or surface is no longer focused");
             return;
         }
         self.deliver_paste(engine, result, pending.scope);
@@ -242,21 +247,31 @@ impl MainView {
     }
 }
 
-/// The paste's surface is still the focused one and the same surface generation. A paste asked
-/// with no focused surface stays undeliverable.
+/// The paste's window still has keyboard focus, and its surface is still the focused one and the
+/// same surface generation. A paste starts only from a key press, so its window had focus then. A
+/// paste asked with no focused surface stays undeliverable.
 fn pending_target_is_current(
     pending: &PendingPaste,
     engine: &EngineRead<'_>,
+    window_focused: bool,
     focused: Option<u32>,
 ) -> bool {
     let target = pending.target.as_ref();
-    still_targeted(target.map(|t| t.surface_id()), focused, || {
-        target.is_some_and(|t| t.current_in(engine))
-    })
+    still_targeted(
+        target.map(|t| t.surface_id()),
+        window_focused,
+        focused,
+        || target.is_some_and(|t| t.current_in(engine)),
+    )
 }
 
-fn still_targeted(asked: Option<u32>, focused: Option<u32>, same: impl FnOnce() -> bool) -> bool {
-    asked.is_some() && asked == focused && same()
+fn still_targeted(
+    asked: Option<u32>,
+    window_focused: bool,
+    focused: Option<u32>,
+    same: impl FnOnce() -> bool,
+) -> bool {
+    window_focused && asked.is_some() && asked == focused && same()
 }
 
 /// 캡처 저장 폴더 바로 아래의 파일 경로인가.
@@ -349,11 +364,18 @@ mod tests {
     /// Given 붙여넣기를 읽는 중, When 포커스가 바뀌거나 surface가 바뀌었다, Then 늦은 결과는 버린다.
     #[test]
     fn a_late_paste_reaches_only_the_surface_still_focused() {
-        assert!(still_targeted(Some(3), Some(3), || true));
-        assert!(!still_targeted(Some(3), Some(4), || true));
-        assert!(!still_targeted(Some(3), None, || true));
-        assert!(!still_targeted(Some(3), Some(3), || false));
-        assert!(!still_targeted(None, None, || true));
+        assert!(still_targeted(Some(3), true, Some(3), || true));
+        assert!(!still_targeted(Some(3), true, Some(4), || true));
+        assert!(!still_targeted(Some(3), true, None, || true));
+        assert!(!still_targeted(Some(3), true, Some(3), || false));
+        assert!(!still_targeted(None, true, None, || true));
+    }
+
+    /// Given 창 A에서 붙여넣기를 읽는 중, When 키보드 포커스가 다른 창이나 앱으로 갔다(A 안의
+    /// surface 선택은 그대로), Then 늦은 결과와 실패 토스트를 A에 전달하지 않는다.
+    #[test]
+    fn a_late_paste_is_dropped_once_its_window_loses_focus() {
+        assert!(!still_targeted(Some(3), false, Some(3), || true));
     }
 
     #[test]
