@@ -2,7 +2,7 @@
 # 허용 범위: docs/dev-guide/git-hooks.md#merge-커밋-판정
 # shellcheck shell=bash
 
-# 장기 브랜치. 합치는 브랜치의 이름은 이 셋 중에서만 찾는다.
+# 장기 브랜치. 합치는 커밋의 출처는 이 셋 중 그 커밋을 포함하는 브랜치다.
 MERGE_POLICY_BRANCHES="develop release main"
 
 # 현재 브랜치 $1 에 브랜치 $2 를 merge 커밋으로 합쳐도 되면 0, 아니면 1.
@@ -34,19 +34,29 @@ merge_heads() {
     return 0
 }
 
-# 커밋 $1 을 가리키는 장기 브랜치 이름을 한 줄에 하나씩 쓴다.
-# 로컬 브랜치와 origin 의 원격 추적 브랜치를 함께 본다.
-branches_at() {
-    local head b ref sha
-    head=$(git rev-parse -q --verify "$1^{commit}" 2>/dev/null) || return 0
+# 장기 브랜치 $1 의 ref 를 쓴다. 로컬 브랜치가 있으면 그것을, 없으면 origin 의 원격 추적 브랜치를 쓴다.
+# 둘 다 없으면 아무것도 쓰지 않는다(그 브랜치는 출처 후보에서 빠진다).
+long_branch_ref() {
+    local ref
+    for ref in "refs/heads/$1" "refs/remotes/origin/$1"; do
+        if git rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1; then
+            printf '%s\n' "$ref"
+            return 0
+        fi
+    done
+    return 0
+}
+
+# 커밋 $1 을 포함하는(그 커밋이 조상이거나 tip 인) 장기 브랜치 이름을 한 줄에 하나씩 쓴다.
+branches_containing() {
+    local b ref
+    git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1 || return 0
     for b in $MERGE_POLICY_BRANCHES; do
-        for ref in "refs/heads/$b" "refs/remotes/origin/$b"; do
-            sha=$(git rev-parse -q --verify "$ref^{commit}" 2>/dev/null) || continue
-            if [ "$sha" = "$head" ]; then
-                printf '%s\n' "$b"
-                break
-            fi
-        done
+        ref=$(long_branch_ref "$b")
+        [ -n "$ref" ] || continue
+        if git merge-base --is-ancestor "$1" "$ref" 2>/dev/null; then
+            printf '%s\n' "$b"
+        fi
     done
     return 0
 }
@@ -75,11 +85,11 @@ merge_commit_allowed() {
             printf '[merge] %s ← %s merge 커밋을 허용한다.\n' "$current" "$src" >&2
             return 0
         fi
-    done <<< "$(branches_at "$heads")"
+    done <<< "$(branches_containing "$heads")"
     if [ -n "$found" ]; then
         printf '[merge] %s ←%s 는 허용한 역병합·승격이 아니다.\n' "$current" "$found" >&2
     else
-        printf '[merge] 합치는 커밋을 가리키는 develop·release·main 브랜치가 없다(현재 브랜치 %s).\n' "$current" >&2
+        printf '[merge] 합치는 커밋을 포함하는 develop·release·main 브랜치가 없다(현재 브랜치 %s).\n' "$current" >&2
     fi
     return 1
 }
