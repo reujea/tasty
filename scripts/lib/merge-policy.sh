@@ -34,29 +34,32 @@ merge_heads() {
     return 0
 }
 
-# 장기 브랜치 $1 의 ref 를 쓴다. 로컬 브랜치가 있으면 그것을, 없으면 origin 의 원격 추적 브랜치를 쓴다.
+# 장기 브랜치 $1 의 ref 를 한 줄에 하나씩 쓴다. 로컬 브랜치와 origin 의 원격 추적 브랜치 중 있는 것을 모두 쓴다.
+# 둘 다 공유 장기 브랜치의 기록이라, 로컬이 origin 보다 뒤처져도 origin 쪽 커밋을 출처로 인정한다.
 # 둘 다 없으면 아무것도 쓰지 않는다(그 브랜치는 출처 후보에서 빠진다).
-long_branch_ref() {
+long_branch_refs() {
     local ref
     for ref in "refs/heads/$1" "refs/remotes/origin/$1"; do
         if git rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1; then
             printf '%s\n' "$ref"
-            return 0
         fi
     done
     return 0
 }
 
 # 커밋 $1 을 포함하는(그 커밋이 조상이거나 tip 인) 장기 브랜치 이름을 한 줄에 하나씩 쓴다.
+# 브랜치의 ref 중 하나라도 그 커밋을 포함하면 그 브랜치를 쓴다.
 branches_containing() {
     local b ref
     git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1 || return 0
     for b in $MERGE_POLICY_BRANCHES; do
-        ref=$(long_branch_ref "$b")
-        [ -n "$ref" ] || continue
-        if git merge-base --is-ancestor "$1" "$ref" 2>/dev/null; then
-            printf '%s\n' "$b"
-        fi
+        while IFS= read -r ref; do
+            [ -n "$ref" ] || continue
+            if git merge-base --is-ancestor "$1" "$ref" 2>/dev/null; then
+                printf '%s\n' "$b"
+                break
+            fi
+        done <<< "$(long_branch_refs "$b")"
     done
     return 0
 }

@@ -148,13 +148,13 @@ pre-merge-commit과 M.1은 `scripts/lib/merge-policy.sh`의 `merge_commit_allowe
 
 - 현재 브랜치는 `HEAD`가 가리키는 브랜치 이름이다. detached HEAD에서는 거부한다.
 - 합치는 커밋은 M.1에서는 `MERGE_HEAD` 파일에서 읽는다. pre-merge-commit이 실행될 때는 Git이 `MERGE_HEAD`를 아직 쓰지 않으므로, `git merge`가 합치는 커밋마다 넘기는 `GITHEAD_<커밋>` 환경 변수에서 읽는다(Git 2.43.0에서 확인).
-- 출처는 합치는 커밋을 포함하는(그 커밋이 tip이거나 조상인, `git merge-base --is-ancestor`) `develop`·`release`·`main`이다. 장기 브랜치마다 로컬 브랜치를 쓰고, 로컬 브랜치가 없으면 `origin/<이름>`을 쓴다. 둘 다 없는 브랜치는 출처 후보에서 빠진다.
+- 출처는 합치는 커밋을 포함하는(그 커밋이 tip이거나 조상인, `git merge-base --is-ancestor`) `develop`·`release`·`main`이다. 장기 브랜치마다 로컬 브랜치와 `origin/<이름>` 중 있는 것을 모두 보고, 그중 하나라도 커밋을 포함하면 그 브랜치를 출처로 인정한다. 둘 다 공유 장기 브랜치의 기록이므로 로컬 브랜치가 `origin`보다 뒤처져도 `origin` 쪽 커밋을 합칠 수 있다. `origin`에서도 `develop`·`release`·`main` 이름만 보므로 `origin/<작업 브랜치>`는 출처가 되지 않는다. 둘 다 없는 브랜치는 출처 후보에서 빠진다.
 - 그래서 `develop`에서 고른 과거 시점을 `release`에 비-fast-forward로 합치거나 `release`의 과거 시점을 `main`에 합칠 수 있다. 해시로 지정해도 결과는 같다. 커밋이 장기 브랜치 둘에 있으면 그중 하나라도 허용 방향이면 허용한다.
 - 어느 장기 브랜치에도 없는 커밋(작업 브랜치 tip, 갈라진 원격 사본 등)은 출처가 없어 거부한다.
 - 커밋 두 개 이상을 한 번에 합치는 merge, 합치는 커밋을 `MERGE_HEAD`와 `GITHEAD_*` 어디에서도 찾지 못한 경우는 거부한다.
 - 판정 파일이 없는 트리에서는 모든 merge 커밋을 막는다.
 
-`scripts/tests/merge-policy.sh`가 판정 표 전체와 일회용 저장소의 실제 merge를 확인한다. 일회용 저장소에는 이 저장소의 pre-commit·pre-merge-commit을 설치하고, pre-commit의 다른 검사가 부르는 cargo와 검사 스크립트는 항상 성공하는 대역으로 바꾼다. 확인하는 경우는 허용 다섯 방향, 장기 브랜치의 과거 시점, 장기 브랜치 둘에 있는 커밋, 로컬 브랜치 없이 `origin/`만 있는 경우, 작업 브랜치 tip(이름과 해시), detached HEAD, 여러 커밋 merge, merge 상태가 아닌 판정, merge가 아닌 커밋의 pre-commit 통과, 충돌을 해결한 merge의 pre-commit 판정이다. `githooks_are_pinned` 시험이 이 스크립트를 실행한다.
+`scripts/tests/merge-policy.sh`가 판정 표 전체와 일회용 저장소의 실제 merge를 확인한다. 일회용 저장소에는 이 저장소의 pre-commit·pre-merge-commit을 설치하고, pre-commit의 다른 검사가 부르는 cargo와 검사 스크립트는 항상 성공하는 대역으로 바꾼다. 확인하는 경우는 허용 다섯 방향, 장기 브랜치의 과거 시점, 장기 브랜치 둘에 있는 커밋, 로컬 브랜치 없이 `origin/`만 있는 경우, 로컬 브랜치가 `origin`보다 뒤처진 경우(역병합과 과거 시점 승격), `origin/<작업 브랜치>`에만 있는 커밋, 작업 브랜치 tip(이름과 해시), detached HEAD, 여러 커밋 merge, merge 상태가 아닌 판정, merge가 아닌 커밋의 pre-commit 통과, 충돌을 해결한 merge의 pre-commit 판정이다. `githooks_are_pinned` 시험이 이 스크립트를 실행한다.
 
 ## 검사 추가와 검증
 

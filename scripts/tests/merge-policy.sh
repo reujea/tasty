@@ -161,6 +161,26 @@ git switch -q release
 git branch -q -D main
 expect 0 "$(merge origin/main)" "역병합 release ← origin/main (로컬 main 없음)"
 git branch -q main origin/main
+# 로컬 장기 브랜치가 origin 보다 뒤처져도 origin 쪽 커밋을 출처로 인정한다.
+git switch -q main
+commit h5
+git update-ref refs/remotes/origin/main "$(git rev-parse HEAD)"
+git reset -q --hard HEAD~1
+git switch -q develop
+expect 0 "$(merge origin/main)" "역병합 develop ← origin/main (로컬 main 이 뒤처짐)"
+commit d8
+commit d9
+git update-ref refs/remotes/origin/develop "$(git rev-parse HEAD)"
+git reset -q --hard HEAD~2
+git switch -q release
+expect 0 "$(merge origin/develop~1)" "승격 release ← origin/develop 과거 시점 (로컬 develop 이 뒤처짐)"
+# origin 에서도 장기 브랜치 이름만 본다. origin/<작업 브랜치> 에만 있는 커밋은 거부한다.
+git switch -q -c work/q develop
+commit q1
+git update-ref refs/remotes/origin/work/q "$(git rev-parse HEAD)"
+git switch -q develop
+git branch -q -D work/q
+expect 1 "$(merge origin/work/q)" "merge develop ← origin/work/q"
 
 # (g) 충돌한 merge 는 git commit 의 실제 pre-commit(M.1)이 판정한다.
 conflict_commit() {

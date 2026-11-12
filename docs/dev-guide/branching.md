@@ -60,7 +60,7 @@ merge 커밋은 아래 다섯 경우에만 만든다. 그 밖의 merge(작업 �
 | `release` | `develop` | 승격 |
 | `main` | `release` | 승격 |
 
-`pre-merge-commit`과 pre-commit의 M.1이 같은 판정 함수(`scripts/lib/merge-policy.sh`)로 허용 여부를 정한다. 출처는 합치는 커밋을 포함하는 `develop`·`release`·`main`(로컬 브랜치가 없으면 `origin/<이름>`)이고, 그 가운데 하나라도 위 표의 방향이면 허용한다. 그래서 `develop`의 과거 시점도 `release`로 승격할 수 있고, 어느 장기 브랜치에도 없는 작업 브랜치 커밋은 거부된다. 판정 세부와 시험은 [merge 커밋 판정](git-hooks.md#merge-커밋-판정)에 있다.
+`pre-merge-commit`과 pre-commit의 M.1이 같은 판정 함수(`scripts/lib/merge-policy.sh`)로 허용 여부를 정한다. 출처는 합치는 커밋을 포함하는 `develop`·`release`·`main`(로컬 브랜치와 `origin/<이름>` 중 하나라도 그 커밋을 포함하면 된다)이고, 그 가운데 하나라도 위 표의 방향이면 허용한다. 그래서 `develop`의 과거 시점도 `release`로 승격할 수 있고, 어느 장기 브랜치에도 없는 작업 브랜치 커밋은 거부된다. 판정 세부와 시험은 [merge 커밋 판정](git-hooks.md#merge-커밋-판정)에 있다.
 
 ## 버전
 
