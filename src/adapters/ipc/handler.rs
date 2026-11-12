@@ -84,6 +84,7 @@ mod terminal_input;
 pub(crate) mod theme;
 #[cfg(all(debug_assertions, feature = "gui"))]
 mod tool;
+mod tree_busy;
 mod webhook;
 pub(crate) mod webview;
 pub(crate) mod workspace;
@@ -1289,79 +1290,10 @@ pub(crate) fn build_engine_tree(
             });
             t["active"] = json!(i == active_workspace);
             t["busy_count"] = json!(engine.busy_count(&ws.all_surface_ids()));
-            annotate_tree_busy(&mut t, engine);
+            tree_busy::annotate_tree_busy(&mut t, &|sid| engine.is_surface_busy(sid));
             t
         })
         .collect()
-}
-
-/// Walk a workspace tree JSON value and annotate every node that owns surface
-/// ids with a `busy_count` field. Surface-leaf nodes also get a `busy` boolean.
-fn annotate_tree_busy(
-    node: &mut serde_json::Value,
-    engine: &crate::runtime::engine_read::EngineRead<'_>,
-) {
-    if let Some(obj) = node.as_object_mut() {
-        // Surface leaf: has "id" but no "tabs"/"panes"/"first"/"second"
-        let is_leaf = !obj.contains_key("tabs")
-            && !obj.contains_key("panes")
-            && !obj.contains_key("first")
-            && !obj.contains_key("second")
-            && obj.get("id").is_some();
-        if is_leaf {
-            if let Some(sid) = obj.get("id").and_then(|v| v.as_u64()) {
-                obj.insert("busy".into(), json!(engine.is_surface_busy(sid as u32)));
-            }
-            return;
-        }
-
-        for key in ["panes", "tabs"] {
-            if let Some(arr) = obj.get_mut(key).and_then(|v| v.as_array_mut()) {
-                for child in arr.iter_mut() {
-                    annotate_tree_busy(child, engine);
-                }
-            }
-        }
-        for key in ["first", "second", "surface"] {
-            if let Some(child) = obj.get_mut(key) {
-                annotate_tree_busy(child, engine);
-            }
-        }
-
-        let mut count: u64 = 0;
-        for key in ["panes", "tabs"] {
-            if let Some(arr) = obj.get(key).and_then(|v| v.as_array()) {
-                for child in arr {
-                    count += child
-                        .get("busy_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    if child.get("busy").and_then(|v| v.as_bool()).unwrap_or(false)
-                        && child.get("busy_count").is_none()
-                    {
-                        count += 1;
-                    }
-                }
-            }
-        }
-        for key in ["first", "second", "surface"] {
-            if let Some(child) = obj.get(key) {
-                count += child
-                    .get("busy_count")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-                if child.get("busy").and_then(|v| v.as_bool()).unwrap_or(false)
-                    && child.get("busy_count").is_none()
-                {
-                    count += 1;
-                }
-            }
-        }
-        // Workspaces already had busy_count set by the caller; only insert if missing.
-        if !obj.contains_key("busy_count") {
-            obj.insert("busy_count".into(), json!(count));
-        }
-    }
 }
 
 fn handle_is_typing(

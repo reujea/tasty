@@ -152,14 +152,15 @@ function tasty.tree() end
 ---@class TastyTreePane
 ---@field id integer
 ---@field focused boolean          -- the focused pane of its workspace
----@field busy_count integer       -- sum of the tab `busy` values below; see TastyTreeTab.busy
+---@field busy_count integer       -- busy surfaces in every tab of this pane, selected or not
 ---@field tabs TastyTreeTab[]
 
 ---@class TastyTreeTab
 ---@field id integer
 ---@field name string
 ---@field active boolean           -- the selected tab of its pane
----@field busy boolean             -- currently looked up with the tab id as a surface id; do not read it as the state of `surface`
+---@field busy_count integer       -- busy surfaces in this tab
+---@field busy boolean             -- true when any surface in this tab is busy
 ---@field surface TastyTreeSplitLayout|TastyTreeSurface
 
 --- Content of a tab whose surfaces are split.
@@ -173,9 +174,10 @@ function tasty.tree() end
 ---@field type "Leaf"|"Split"
 ---@field id integer|nil           -- Leaf only
 ---@field kind string|nil          -- Leaf only
+---@field busy boolean|nil         -- Leaf only
 ---@field direction "horizontal"|"vertical"|nil -- Split only
 ---@field ratio number|nil         -- Split only
----@field focus_second boolean|nil -- Split only
+---@field focus_second boolean|nil -- Split only; the hint set when the split was made or restored, not the current focus (see TastyTreeSplitLayout.focused_surface)
 ---@field first TastyTreeLayoutNode|nil  -- Split only
 ---@field second TastyTreeLayoutNode|nil -- Split only
 
@@ -185,6 +187,7 @@ function tasty.tree() end
 ---@class TastyTreeSurface
 ---@field id integer
 ---@field type "Terminal"|"Empty"|"Pending"|"DAG"|"Explorer"|"Remote"|"AttachMesh"|"EguiMesh"|string
+---@field busy boolean             -- false for the Pending stand-in
 ---@field kind string|nil          -- every type except Terminal and the {id, type = "Pending"} stand-in for a surface the engine cannot find
 ---@field pty_ready boolean|nil    -- Terminal (true) and restoring Pending (false)
 ---@field cols integer|nil         -- Terminal; always 0 in this tree

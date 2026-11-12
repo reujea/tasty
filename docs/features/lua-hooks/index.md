@@ -62,11 +62,11 @@ Lua5.4의 instruction-count hook이 기한을 확인해 초과 job을 오류로 
 | 단계 | 필드 |
 |---|---|
 | workspace | `id`, `name`, `active`(그 세션에서 선택된 workspace), `busy_count`(workspace 안 surface 중 busy 수), `panes` |
-| pane | `id`, `focused`(그 workspace의 포커스 pane), `busy_count`, `tabs` |
-| tab | `id`, `name`, `active`(그 pane에서 선택된 tab), `busy`, `surface` |
+| pane | `id`, `focused`(그 workspace의 포커스 pane), `busy_count`(pane 안 모든 tab의 surface 중 busy 수. 선택되지 않은 tab 포함), `tabs` |
+| tab | `id`, `name`, `active`(그 pane에서 선택된 tab), `busy_count`(tab 안 surface 중 busy 수), `busy`(tab 안 surface 중 하나라도 busy), `surface` |
 | `tab.surface`(나뉜 tab) | `type = "SplitLayout"`, `focused_surface`(그 tab의 포커스 surface id), `surfaces`(tab 안 surface id 배열), `layout` |
-| `layout` 노드 | `Leaf`: `type`, `id`, `kind`. `Split`: `type`, `direction`(`horizontal`·`vertical`), `ratio`, `focus_second`, `first`, `second` |
-| `tab.surface`(나뉘지 않은 tab) | surface 하나의 JSON. 모든 surface에 `id`와 `type`이 있고 나머지는 종류마다 다르다. 터미널은 `type = "Terminal"`, `pty_ready`, `cols`, `rows`(이 트리에서는 항상 0)이다. 종류별 필드 전체는 정의 파일의 `TastyTreeSurface`에 있다. |
+| `layout` 노드 | `Leaf`: `type`, `id`, `kind`, `busy`. `Split`: `type`, `direction`(`horizontal`·`vertical`), `ratio`, `focus_second`, `first`, `second`. `focus_second`는 분할을 만들거나 복원할 때의 hint라 현재 포커스와 다를 수 있다. 포커스는 `focused_surface`로 판단한다 |
+| `tab.surface`(나뉘지 않은 tab) | surface 하나의 JSON. 모든 surface에 `id`, `type`, `busy`가 있고 나머지는 종류마다 다르다. 터미널은 `type = "Terminal"`, `pty_ready`, `cols`, `rows`(이 트리에서는 항상 0)이다. 종류별 필드 전체는 정의 파일의 `TastyTreeSurface`에 있다. |
 
 세션 하나의 포커스 surface id는 다음 순서로 찾는다.
 
@@ -97,7 +97,6 @@ end
 한계는 다음과 같다.
 
 - `active`와 `focused`는 세션(창, 또는 창 없이 보관된 parked 세션) 안에서만 판정한다. 트리에는 창이나 세션을 나타내는 필드가 없다. 세션이 여러 개면 `active`가 참인 workspace가 세션마다 하나씩 나오고, OS 포커스를 가진 창이나 화면에 보이는 세션을 트리로 구분할 수 없다. 위 예처럼 첫 번째 `active` workspace를 고르면 다른 창의 surface가 나올 수 있다. 창을 모두 닫았거나 macOS에서 창을 최소화한 상태에서는 화면에 없는 parked 세션의 surface가 나올 수 있다.
-- busy 판정은 workspace의 `busy_count`만 surface 상태와 맞다. tab의 `busy`는 tab id를 surface id로 조회한 값이고, pane의 `busy_count`는 그 tab 값을 더한 수다. surface JSON에는 `busy`가 없다.
 - 스냅샷은 발행 시점의 값이다. `tasty.run_cli`는 CLI 실행을 요청만 하고 완료를 기다리지 않으므로, 바로 뒤의 `tasty.tree()`에 그 결과가 반영됐다고 가정할 수 없다.
 
 ### 이벤트 hook

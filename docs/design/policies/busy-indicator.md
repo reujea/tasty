@@ -81,7 +81,7 @@ StatusBar의 프로세스명도 이 1Hz 캐시(`CoreState::foreground_name`)를 
 
 ## CLI/IPC
 
-`surface.list`는 `busy: bool`, `tree`·`workspace.list`·`tab.list`는 `busy_count: number`를 제공한다(`annotate_tree_busy`). 포커스와 관계없이 해당 surface의 상태를 반환한다.
+`surface.list`는 `busy: bool`, `workspace.list`·`tab.list`는 `busy_count: number`를 제공한다. `tree`는 workspace·pane·tab에 `busy_count`, tab과 surface(나뉘지 않은 tab의 `surface` 객체, `layout`의 `Leaf` 노드)에 `busy`를 준다(`annotate_tree_busy`). pane의 `busy_count`는 선택되지 않은 tab의 surface도 센다. 포커스와 관계없이 해당 surface의 상태를 반환한다.
 
 ## 비-목표
 

@@ -51,6 +51,7 @@
 
 ### Fixed
 
+- **IPC `tree`와 Lua `tasty.tree()`의 busy 값이 surface 상태를 따른다.** tab의 `busy`는 그 tab의 surface 중 하나라도 busy인지, pane의 `busy_count`는 그 pane 안 모든 tab(선택되지 않은 tab 포함)의 surface 중 busy 수다. 나뉘지 않은 tab의 `surface` 객체와 `layout`의 `Leaf` 노드에 `busy`, tab에 `busy_count`가 새로 실린다. 전에는 tab id를 surface id로 보고 조회해 tab `busy`와 pane `busy_count`가 틀렸고 surface에는 `busy`가 없었다. workspace의 `busy_count`와 사람이 읽는 `tasty list tree` 출력은 그대로다.
 - **ready Custom task가 쌓인 workspace에서 runner를 멈춰도 창이 멈추지 않는다.** 전에는 stop이 메인 스레드에서 runner를 기다리고 runner는 ready task마다 메인 스레드의 응답을 5초까지 기다려, task 수 × 5초 동안 입력·화면·IPC가 멈췄다. 이제 정지 요청 뒤에는 남은 ready task를 보내지 않는다.
 - **같은 알림이 짧은 간격으로 다시 와도 떠 있던 토스트가 깜빡이지 않는다.** 전에는 합쳐질 때 한 프레임 사라졌다가 다시 페이드인했다.
 - **저장한 터미널 custom 글꼴 파일과 줄 높이가 재시작 뒤와 새 창에서도 적용된다.** 전에는 설정을 적용한 창에서만 쓰였고, 재시작하거나 새 창을 열면 파일과 줄 높이 없이 그려 칸 크기와 글꼴이 달라졌다.
