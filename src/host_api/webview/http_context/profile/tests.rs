@@ -637,7 +637,7 @@ fn deletion_error_retains_ownership_record_for_remaining_root() {
 pub(super) fn admitted<T>(
     mut operation: impl FnMut() -> Result<T, ProfileError>,
 ) -> Result<T, ProfileError> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let deadline = std::time::Instant::now() + SWEEP_LIMIT;
     loop {
         match operation() {
             Err(ProfileError::Busy) if std::time::Instant::now() < deadline => {
@@ -659,8 +659,12 @@ pub(super) fn reclaim_positive(parent: &Path, max: usize) -> CleanupReport {
 pub(super) fn swept_until_removed(parent: &Path, max: usize) -> CleanupReport {
     until_removed(|| reclaim_positive(parent, max))
 }
+/// How long a retried sweep or admission may be refused. A child forked elsewhere in this binary
+/// holds what it copied until it execs, and a loaded machine can leave it unscheduled for seconds.
+/// Both loops return at their first success, so only something that keeps holding reaches this.
+pub(super) const SWEEP_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
 pub(super) fn until_removed(mut sweep: impl FnMut() -> CleanupReport) -> CleanupReport {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let deadline = std::time::Instant::now() + SWEEP_LIMIT;
     loop {
         let report = sweep();
         if report.removed > 0 || std::time::Instant::now() >= deadline {
