@@ -89,21 +89,21 @@ Fix the reported issue and describe the corrected behavior.
 
 ### 5. 태그 + push
 
-`main`을 `release`로 fast-forward하고 버전 커밋에 태그를 붙여 `main`과 태그를 한 번에 push한다.
+`main`을 `release`로 fast-forward하고 버전 커밋에 태그를 붙여 `release`·`main`과 태그를 한 번에 push한다. `--atomic`이라 셋 중 하나라도 거부되면 아무것도 갱신되지 않으므로, 원격에 태그만 있거나 `main`만 앞선 상태가 생기지 않는다.
 
 ```bash
 git switch main
 git merge --ff-only origin/main
 git merge --ff-only release
 git tag vX.Y.Z          # 'v' 접두사 + Cargo.toml 버전과 정확히 일치 (불일치 시 워크플로 fail)
-git push --atomic origin main vX.Y.Z
+git push --atomic origin release main vX.Y.Z
 ```
 
 릴리스 노트는 태그 커밋의 본문이므로 태그는 merge 커밋이 아니라 버전 커밋에 붙인다. `main`에 `release`에 없는 hotfix가 있어 fast-forward가 되지 않으면, 먼저 `main`을 `release`에 역병합하고 그 위에서 §1~§4의 버전 커밋을 다시 만든다. `release.yml`은 태그 커밋이 `origin/main`의 조상이 아니면 실패한다.
 
-이 push 뒤에는 태그로 시작한 release.yml 실행이 끝날 때까지 `develop`·`release`·`main` 어느 브랜치에도 push 하지 않는다. 브랜치 push 의 CI 가 같은 self-hosted 러너(특히 Windows arm64 전용 러너 `tasty-win-arm64`)를 먼저 잡으면 릴리스 빌드가 그만큼 늦게 시작한다. `main` push 자체도 브랜치 CI 를 시작하므로 태그 실행과 같은 러너를 나눠 쓴다. 두 실행이 겹칠 때의 지연은 미측정이다. 실행이 끝났는지는 `gh run list --workflow=release.yml --limit 1` 의 상태나 `gh run watch <run-id>` 로 확인한다.
+이 push 뒤에는 태그로 시작한 release.yml 실행이 끝날 때까지 `develop`·`release`·`main` 어느 브랜치에도 push 하지 않는다. 브랜치 push 의 CI 가 같은 self-hosted 러너(특히 Windows arm64 전용 러너 `tasty-win-arm64`)를 먼저 잡으면 릴리스 빌드가 그만큼 늦게 시작한다. 이 push 에 포함된 `release`·`main` push 도 브랜치 CI 를 시작하므로 태그 실행과 같은 러너를 나눠 쓴다. 두 실행이 겹칠 때의 지연은 미측정이다. 실행이 끝났는지는 `gh run list --workflow=release.yml --limit 1` 의 상태나 `gh run watch <run-id>` 로 확인한다.
 
-실행이 끝나면 `release`의 버전 커밋과 릴리스 버그 수정을 `develop`에 역병합한다. `develop`이 앞서 있으면 merge 커밋이 된다.
+실행이 끝나면 `release`의 버전 커밋과 릴리스 버그 수정을 `develop`에 역병합한다. 이때 `release`와 `main`은 같은 커밋이다(§5의 fast-forward). `develop`이 앞서 있으면 merge 커밋이 된다.
 
 ```bash
 git switch develop

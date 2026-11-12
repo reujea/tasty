@@ -31,11 +31,11 @@
 ## main과 태그
 
 1. `main`을 `release`로 fast-forward한다(`git merge --ff-only release`). 릴리스 노트는 태그 커밋의 본문이므로 태그는 merge 커밋이 아니라 버전 커밋에 붙인다. `main`에 `release`에 없는 hotfix가 있어 fast-forward가 되지 않으면 먼저 `main`을 `release`에 역병합하고 그 위에서 버전 커밋을 만든다.
-2. 버전 커밋에 태그를 붙이고 `main`과 태그를 한 번에 push한다.
+2. 버전 커밋에 태그를 붙이고 `release`·`main`과 태그를 한 번에 push한다. `--atomic`이라 하나라도 거부되면 셋 다 갱신되지 않는다.
 
    ```bash
    git tag vX.Y.Z
-   git push --atomic origin main vX.Y.Z
+   git push --atomic origin release main vX.Y.Z
    ```
 
 3. 태그 push가 릴리스 워크플로(`release.yml`)를 시작한다. `create-release` 잡은 태그 커밋이 `origin/main`의 조상인지 먼저 확인하고, 아니면 실패한다. `main`에 반영하지 않은 커밋에 태그를 붙여도 릴리스되지 않는다.
