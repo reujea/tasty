@@ -399,21 +399,18 @@ fn meta_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     );
 }
 
-/// 긴 텍스트를 스크롤 영역에 표시한다.
-/// 가로 방향으로 벗어난 드래그 선택을 지원하도록 Label 대신 TextEdit를 사용한다.
-/// interactive(false)는 선택도 막으므로 지역 버퍼에 생긴 편집 결과만 버린다.
+/// 긴 텍스트를 스크롤 영역에 표시한다. 공용 선택 가능한 표시 텍스트라 드래그 선택·복사만 되고
+/// 캐럿·키 입력은 없다.
 fn text_body(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     well(ui, theme, |ui| {
-        // 이 영역의 캐럿만 숨기고 선택 강조는 유지한다.
-        ui.visuals_mut().text_cursor.stroke = egui::Stroke::NONE;
-        let mut buf = text.to_owned();
-        ui.add(
-            egui::TextEdit::multiline(&mut buf)
-                .font(egui::FontId::monospace(theme.font_size_term_sm.value()))
-                .text_color(theme.text_primary().to_egui())
-                .frame(false)
-                .desired_width(ui.available_width())
-                .desired_rows(1),
+        tasty_ui_widgets::selectable_text(
+            ui,
+            text,
+            theme.text_primary().to_egui(),
+            theme.font_size_term_sm.value(),
+            true,
+            false,
+            tasty_ui_widgets::TextWrap::Wrap,
         );
     });
 }

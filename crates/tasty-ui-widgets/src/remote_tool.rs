@@ -7,6 +7,9 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
 use crate::ControlSize;
+use crate::selectable_text::{
+    TextWrap, selectable_label, selectable_label_tracked, selectable_text,
+};
 use crate::tokens::{STRUCT_GAP_1, STRUCT_GAP_2};
 use crate::vspace;
 use crate::{TagVariant, tag};
@@ -18,125 +21,6 @@ pub fn filter_dropdown_content_width(th: &Theme, frame_x: LogicalPx) -> LogicalP
 }
 /// 프로토콜 목록이 길어질 때의 스크롤 상한. 드롭다운이 팝업 밖으로 자라지 않게 한다.
 pub const FILTER_DROPDOWN_MAX_HEIGHT: LogicalPx = LogicalPx(168.0);
-
-// 복사할 수 있지만 변경 내용은 저장하지 않는 텍스트다. 매 프레임 원본으로 버퍼를 만든다.
-
-/// [`selectable_text`] 의 줄바꿈 모드.
-#[derive(Clone, Copy)]
-pub enum TextWrap {
-    /// 줄바꿈 없음, 콘텐츠 폭만큼만 차지(`egui::Label` 기본값과 동형).
-    None,
-    /// 가용 폭에서 여러 줄로 줄바꿈(`Label::wrap()` 과 동형).
-    Wrap,
-    /// 지정 폭에서 한 줄로 줄인다. 폭은 egui LayoutJob에 직접 전달한다.
-    Truncate(f32),
-}
-
-/// 선택·복사 가능한 텍스트를 그린다. 편집 결과는 보존하지 않는다.
-pub fn selectable_text(
-    ui: &mut egui::Ui,
-    text: &str,
-    color: impl Into<egui::Color32>,
-    size: f32,
-    monospace: bool,
-    italic: bool,
-    wrap: TextWrap,
-) -> egui::Response {
-    selectable_text_tracked(ui, text, color, size, monospace, italic, wrap, 0.0)
-}
-
-/// 선택 가능한 텍스트에 논리 픽셀 단위 자간을 추가한다.
-#[allow(clippy::too_many_arguments)] // reason: 한 줄 텍스트의 표현 축이 그만큼이다
-pub fn selectable_text_tracked(
-    ui: &mut egui::Ui,
-    text: &str,
-    color: impl Into<egui::Color32>,
-    size: f32,
-    monospace: bool,
-    italic: bool,
-    wrap: TextWrap,
-    tracking: f32,
-) -> egui::Response {
-    let color = color.into();
-    let font_id = if monospace {
-        egui::FontId::monospace(size)
-    } else {
-        egui::FontId::proportional(size)
-    };
-    let mut buffer = text.to_string();
-    let mut layouter = move |ui: &egui::Ui, text: &str, wrap_width: f32| {
-        let mut job = egui::text::LayoutJob::default();
-        job.append(
-            text,
-            0.0,
-            egui::TextFormat {
-                font_id: font_id.clone(),
-                color,
-                italics: italic,
-                extra_letter_spacing: tracking,
-                ..Default::default()
-            },
-        );
-        match wrap {
-            TextWrap::None => job.wrap.max_width = f32::INFINITY,
-            TextWrap::Wrap => {
-                job.wrap.max_width = wrap_width;
-                job.break_on_newline = true;
-            }
-            TextWrap::Truncate(w) => {
-                job.wrap.max_width = w;
-                job.wrap.max_rows = 1;
-                job.wrap.break_anywhere = true;
-            }
-        }
-        ui.fonts(|f| f.layout_job(job))
-    };
-    // Wrap만 가용 폭을 채운다. 나머지는 내용 폭을 사용해 짧은 텍스트가 정렬 공간을 독점하지 않게 한다.
-    let desired_width = if matches!(wrap, TextWrap::Wrap) {
-        f32::INFINITY
-    } else {
-        0.0
-    };
-    ui.add(
-        egui::TextEdit::multiline(&mut buffer)
-            .frame(false)
-            .desired_rows(1)
-            .desired_width(desired_width)
-            .layouter(&mut layouter),
-    )
-}
-
-/// [`selectable_text`] 축약형 — 줄바꿈 없음·italic 아님(가장 흔한 경우).
-pub fn selectable_label(
-    ui: &mut egui::Ui,
-    text: &str,
-    color: impl Into<egui::Color32>,
-    size: f32,
-    monospace: bool,
-) -> egui::Response {
-    selectable_text(ui, text, color, size, monospace, false, TextWrap::None)
-}
-
-/// [`selectable_label`] 에 자간을 더한 것 — 대문자 섹션 헤딩용.
-pub fn selectable_label_tracked(
-    ui: &mut egui::Ui,
-    text: &str,
-    color: impl Into<egui::Color32>,
-    size: f32,
-    monospace: bool,
-    tracking: f32,
-) -> egui::Response {
-    selectable_text_tracked(
-        ui,
-        text,
-        color,
-        size,
-        monospace,
-        false,
-        TextWrap::None,
-        tracking,
-    )
-}
 
 // ── 구역 구분선 · 버튼 ───────────────────────────────────────────────────
 
@@ -381,7 +265,8 @@ pub fn remote_row_title(
 }
 
 /// 앞 `split` 바이트는 `head`, 나머지는 `tail` 색으로 그리는 선택 가능한 한 줄. 폭을 넘으면
-/// 끝을 말줄임한다.
+/// 끝을 말줄임한다. [`selectable_text`]와 같은 표시 텍스트라 편집 위젯이 아니다(드래그 선택·복사만,
+/// 캐럿·키 입력 없음).
 fn title_text(
     ui: &mut egui::Ui,
     th: &Theme,
@@ -417,7 +302,8 @@ fn title_text(
     };
     // 칸 폭은 말줄임한 글자 폭이다. 짧은 이름이 뒤 칩을 오른쪽 끝으로 밀지 않게 한다.
     let content_w = ui.fonts(|f| f.layout_job(job_for(text))).size().x;
-    let mut buffer = text.to_string();
+    // 변경할 수 없는 버퍼라 egui가 캐럿·IME를 내지 않고 키 입력을 넣지 않는다.
+    let mut buffer: &str = text;
     let mut layouter = move |ui: &egui::Ui, text: &str, _wrap_width: f32| {
         ui.fonts(|f| f.layout_job(job_for(text)))
     };

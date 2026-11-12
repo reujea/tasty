@@ -2027,8 +2027,7 @@ const LABEL_COL_WIDTH: LogicalPx = LogicalPx(112.0);
 /// 디자인 `marginLeft: 124px`.
 const HINT_INDENT: LogicalPx = LABEL_COL_WIDTH.plus(LogicalPx(12.0));
 
-// Label의 가로 드래그 선택을 보완하기 위해 TextEdit을 사용한다.
-// interactive(false)는 선택도 막으므로 편집 결과를 버리는 임시 버퍼를 매 프레임 전달한다.
+// 아래 글자는 공용 selectable_text(선택·복사만 되는 표시 텍스트)로 그린다.
 // RichText에서 스타일을 다시 꺼낼 수 없어 스타일 값을 별도 인자로 받는다.
 
 /// 공통 고정 폭으로 오른쪽 정렬하는 폼 라벨.

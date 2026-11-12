@@ -93,6 +93,7 @@ mod script_trigger;
 mod searchable_select;
 mod segmented;
 mod select;
+mod selectable_text;
 mod sequence_editor;
 mod settings_anomaly;
 mod settings_row;
@@ -335,11 +336,10 @@ pub use remote_row_popup::{
 };
 pub use remote_tool::{
     FILTER_DROPDOWN_MAX_HEIGHT, LocalSshHost, LocalSshSectionData, ProtocolFilterItem,
-    ProtocolFilterLabels, RemoteRowChip, TabStripData, TextWrap, draw_local_ssh_section,
+    ProtocolFilterLabels, RemoteRowChip, TabStripData, draw_local_ssh_section,
     draw_protocol_filter_body, draw_protocol_filter_button, draw_tab_strip,
     filter_dropdown_content_width, ghost_button, primary_button, remote_list_row,
-    remote_row_actions_width, remote_row_title, secondary_button, selectable_label,
-    selectable_text, warn_badge, warn_badge_width,
+    remote_row_actions_width, remote_row_title, secondary_button, warn_badge, warn_badge_width,
 };
 pub use rename_popup::{
     RenamePopupAction, RenamePopupLayout, RenamePopupView, rename_pad_x, rename_popup,
@@ -369,6 +369,7 @@ pub use segmented::segmented;
 pub use select::{
     SelectLook, select, select_on, select_or_placeholder, select_or_placeholder_on, select_pinned,
 };
+pub use selectable_text::{TextWrap, selectable_label, selectable_text};
 pub use sequence_editor::{
     SequenceEditorAction, SequenceEditorError, SequenceEditorView, sequence_editor,
 };

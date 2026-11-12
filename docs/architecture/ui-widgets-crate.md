@@ -143,6 +143,12 @@ if let Some(new) = selected_new { *sub_tab = new; }
 - [design/systems/theme](../design/systems/theme.md#ui-디자인-규칙-필수) — 4px 그리드·1px 보더 등 UI 디자인 규칙 — 위젯 내부 색·간격·상태 오버레이가 따르는 시각 규칙
 - [dev-guide/model-view-split](../dev-guide/model-view-split.md) — Model 에 `egui::*` 를 두지 않는 분리 원칙(위젯은 View 측 primitive).
 
+## 선택 가능한 표시 텍스트
+
+`selectable_text`·`selectable_label`(모듈 `selectable_text`)은 선택 가능한 표시 텍스트이며 편집 위젯이 아니다. 드래그로 글자를 선택하고 복사(Ctrl+C, macOS Cmd+C)할 수 있다. 캐럿을 그리지 않고 키 입력과 IME 조합을 받지 않는다. 클릭하면 포커스는 받으므로 포커스 중 화살표·Shift 선택 확장과 전체 선택은 동작한다. 원격 행 제목(`remote_row_title` 안의 이름·라벨 줄)도 같은 방식으로 그린다.
+
+`egui::Label::selectable(true)`는 포인터가 위젯 밖으로 가로로 나가면 드래그 선택이 멈추므로(egui #3816) `TextEdit`을 쓴다. `TextEdit::interactive(false)`는 선택까지 막아 쓰지 않는다. 대신 변경할 수 없는 `&str` 버퍼를 넘긴다. egui는 이 버퍼에 캐럿과 IME 출력을 내지 않고 글자를 넣거나 지우지 않는다. 회귀 검사는 `crates/tasty-ui-widgets/tests/selectable_text.rs`다. 실제 egui Context로 프레임을 돌려 클릭 뒤 캐럿·IME 출력이 없는지, 글자·IME 입력 뒤 표시 글자가 그대로인지, 위젯 밖 오른쪽까지 끈 드래그 선택 뒤 복사가 줄 전체를 내는지 본다.
+
 ## 행 선택 표의 클릭과 복사
 
 `Table::selectable(true)`는 본문 셀에서 기본 라벨 텍스트 선택을 끈다. 파일 이름 글자 위에서도 행 선택·우클릭·더블클릭이 작동해야 하기 때문이다. 헤더의 명시적인 정렬 클릭은 유지한다. 행 선택을 사용하지 않는 `selectable(false)` 표는 기본 텍스트 선택을 유지한다.
