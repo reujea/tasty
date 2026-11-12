@@ -10,7 +10,9 @@ winit = "0.30"
 wgpu = "24"
 egui = "0.31"
 egui-wgpu = "0.31"
-egui-winit = "0.31"
+# Same features as the tasty package: a workspace build unifies them, so smithay-clipboard must
+# be left out here too.
+egui-winit = { version = "0.31", default-features = false, features = ["arboard", "bytemuck", "links", "wayland", "x11"] }
 # "image" 는 공용 워드마크의 로고 PNG(bytes 로더)를 디코드한다.
 egui_extras = { version = "0.31", features = ["svg", "image"] }
 image = { version = "0.25", default-features = false, features = ["png"] }

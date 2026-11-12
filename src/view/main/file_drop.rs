@@ -1,5 +1,6 @@
 //! 외부 파일 드롭. hover 경로는 안내에, 완료 경로는 프레임 끝의 DispatchFile 처리에 사용한다.
-//! DroppedFile에 좌표가 없어 보관 중인 cursor_position으로 대상을 고른다.
+//! X11 DroppedFile에는 좌표가 없어 보관 중인 cursor_position으로 대상을 고른다.
+//! 네이티브 Wayland는 끄는 동안 포인터가 창을 떠난 것으로 보이므로 data device 좌표를 함께 넘긴다.
 
 use std::path::PathBuf;
 
@@ -22,6 +23,14 @@ enum Route {
     Outside,
     /// 놓은 좌표(물리 px) 아래 칸이 받는다. explorer 칸이면 그 폴더로, 아니면 파일을 연다.
     AtCursor(f32, f32),
+}
+
+/// 놓은 자리. drop과 함께 온 좌표가 있으면 그것을, 없으면 마지막 포인터 좌표를 쓴다.
+fn drop_point(
+    dropped_at: Option<(PhysicalPx, PhysicalPx)>,
+    cursor: Option<winit::dpi::PhysicalPosition<f64>>,
+) -> Option<(PhysicalPx, PhysicalPx)> {
+    dropped_at.or_else(|| cursor.map(|pos| (PhysicalPx(pos.x as f32), PhysicalPx(pos.y as f32))))
 }
 
 /// hover 가 정한 explorer 칸이 먼저다. 없으면 놓은 좌표와 그 좌표가 터미널 영역 안인지로 정한다.
@@ -57,6 +66,10 @@ fn explorer_drop(
 impl MainView {
     pub(crate) fn handle_hovered_file(&mut self, path: PathBuf) {
         let cursor = self.cursor_position.map(|p| (p.x as f32, p.y as f32));
+        self.hover_file_at(path, cursor);
+    }
+
+    fn hover_file_at(&mut self, path: PathBuf, cursor: Option<(f32, f32)>) {
         match self.state.drop_hover.as_mut() {
             Some(s) => s.paths.push(path),
             None => {
@@ -74,6 +87,48 @@ impl MainView {
         if self.state.drop_hover.take().is_some() {
             self.base.state.dirty = true;
         }
+    }
+
+    /// 네이티브 Wayland data device가 넘긴 끌어오기. X11 경로와 같은 함수로 들어간다.
+    /// 좌표는 surface 기준 논리 px이므로 이 창의 배율로 물리 px로 바꾼다.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn apply_inbound_drag(&mut self, events: Vec<crate::file::drag::InboundEvent>) {
+        use crate::file::drag::InboundEvent;
+        use tasty_type_geometry::length::LogicalPx;
+        if events.is_empty() {
+            return;
+        }
+        let sf = self.base.gpu.scale_factor();
+        let physical = |(x, y): (f64, f64)| {
+            (
+                LogicalPx(x as f32).to_physical(sf),
+                LogicalPx(y as f32).to_physical(sf),
+            )
+        };
+        // The hover state and its callers still take bare physical px pairs.
+        let bare = |(x, y): (PhysicalPx, PhysicalPx)| (x.value(), y.value());
+        for event in events {
+            match event {
+                InboundEvent::Hover { paths, at } => {
+                    for path in paths {
+                        self.hover_file_at(path, Some(bare(physical(at))));
+                    }
+                }
+                InboundEvent::Motion { at } => {
+                    if let Some(hover) = self.state.drop_hover.as_mut() {
+                        hover.cursor = Some(bare(physical(at)));
+                    }
+                }
+                InboundEvent::Leave => self.handle_hovered_file_cancelled(),
+                InboundEvent::Drop { paths, at } => {
+                    self.state.pending_drop_position = Some(physical(at));
+                    for path in paths {
+                        self.handle_dropped_file(path);
+                    }
+                }
+            }
+        }
+        self.base.mark_dirty();
     }
 
     pub(crate) fn handle_dropped_file(&mut self, path: PathBuf) {
@@ -111,16 +166,15 @@ impl MainView {
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
     ) {
+        let dropped_at = self.state.pending_drop_position.take();
         let drops = std::mem::take(&mut self.state.pending_file_drops);
         if drops.is_empty() {
             return;
         }
         let hovered = crate::explorer_ui::view::drag::take_os_drop(&mut self.state.explorer_views);
         let terminal_rect = self.compute_terminal_rect();
-        let cursor = self.cursor_position.map(|pos| {
-            let (x, y) = (pos.x as f32, pos.y as f32);
-            ((x, y), terminal_rect.contains(PhysicalPx(x), PhysicalPx(y)))
-        });
+        let cursor = drop_point(dropped_at, self.cursor_position)
+            .map(|(x, y)| ((x.value(), y.value()), terminal_rect.contains(x, y)));
         let (x, y) = match route(hovered, cursor) {
             Route::Hovered(sid, dest, decided) => {
                 self.drop_into_explorer(engine, sid, dest, decided, drops);

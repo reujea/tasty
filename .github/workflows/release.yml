@@ -18,7 +18,20 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
+      # 조상 판정에 main 이력이 필요하므로 전체 이력을 받는다.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 배포본은 main 에만 있다. main 에 반영되지 않은 커밋의 태그로는 릴리스하지 않는다.
+      - name: Verify the tag commit is on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          TAG_COMMIT=$(git rev-parse "HEAD^{commit}")
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::Tag ${GITHUB_REF#refs/tags/} points at $TAG_COMMIT, which is not on origin/main"
+            exit 1
+          fi
 
       - name: Extract and verify version
         id: version
@@ -47,7 +60,7 @@ jobs:
     needs: create-release
     if: ${{ always() && (needs.create-release.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: [self-hosted, macOS]
-    # 업무용 맥과 러너를 함께 쓴다. 부하가 높으면 40분으로 끝나지 않는다. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    # macOS 전용 러너에서 아직 실측이 없어 이전 값을 둔다. 첫 실행 뒤 다시 정한다. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4

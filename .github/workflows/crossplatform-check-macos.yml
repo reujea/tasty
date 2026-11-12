@@ -3,13 +3,13 @@ name: Cross-platform Check (macOS)
 # macOS 컴파일과 단위 테스트를 실행한다. 트리거는 crossplatform-check.yml과 같다.
 on:
   push:
-    branches: [main]
+    branches: [develop, release, main]
     # 문서만 바뀐 push는 생략한다. 문서 검사는 doc-guards.yml에서 실행한다.
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
   pull_request:
-    branches: [main]
+    branches: [develop, release, main]
   workflow_dispatch:
 
 # macOS 러너는 offline일 때가 있어 잡이 러너를 기다리며 끝나지 않을 수 있다.

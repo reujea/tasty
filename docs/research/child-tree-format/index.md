@@ -48,6 +48,8 @@ AI 에이전트가 child 트리와 DAG를 어떤 텍스트 형식으로 받을 �
 | 공개 패턴 검사 | `python3 -B scripts/child-tree-format/check_anonymity.py --public-only` | 0 위반 없음, 1 위반, 2 판정 불가 |
 | 요약 생성과 대조 | `python3 -B scripts/child-tree-format/summarize.py`, 대조는 `--check`를 더한다 | 0 같음, 1 다름, 2 판정 불가 |
 
+`check_rules.py --raw`와 `runner.py run`은 규칙 커밋이 통합 브랜치의 조상인지 확인한다. 비교 ref는 `--main-ref`로 주며, 생략하면 로컬 `develop`, 없으면 `origin/develop`을 쓴다. 둘 다 없으면 `--main-ref`를 요구하며 판정 불가로 멈춘다. HEAD로 대신 비교하지 않는다. shallow 이력에서 조상임을 확인하지 못하면 조상이 아니라고 판정하지 않고 판정 불가로 멈춘다(`git fetch --unshallow` 뒤 다시 실행). 전체 이력에서 조상이 아니면 그때 실패로 판정한다.
+
 `selftest.py`는 수동으로 실행한다. CI가 돌리지 않으므로 스크립트를 고친 뒤에는 직접 실행한다.
 
 스냅샷 원본, 대응표, 금지어 파일은 커밋하지 않으므로 `capture_snapshot.py`와 `anonymize.py`의 재실행은 원본을 가진 컴퓨터에서만 된다. `generate_inputs.py`는 추적한 `data/trees/real.json`을 입력으로 삼으므로 어디서든 같은 바이트를 만든다.

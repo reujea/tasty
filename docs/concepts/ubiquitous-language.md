@@ -51,7 +51,7 @@
 
 ### 사용자 화면 표기
 
-위 정의는 영어 용어와 코드 심볼을 연결한다. 화면 문구에는 아래 한국어·일본어·중국어(간체) 표기를 일관되게 사용한다. 간체 열은 [tasty-page 용어집](https://github.com/zilhak/tasty-page/blob/main/vendor/i18n/zh-Hans/glossary.json)의 값이다.
+위 정의는 영어 용어와 코드 심볼을 연결한다. 화면 문구에는 아래 한국어·일본어·중국어(간체) 표기를 일관되게 사용한다. 간체 열은 [tasty-page 용어집](https://github.com/zilhak/tasty-page/blob/develop/vendor/i18n/zh-Hans/glossary.json)의 값이다.
 
 | 용어 | 한국어 | 일본어 | 중국어(간체) |
 |---|---|---|---|
@@ -68,7 +68,7 @@
   의 Window / Popup 구분이고, OS 창을 소유하는 것(= `View` 구현)만 `윈도우` 다. 이상 신호 설정의 `판정 창`은 호출을 세는 시간 구간이며 초 단위 기간을 뜻하므로 그대로 쓴다.
 - 일본어 “새 윈도우”는 메뉴·설정에서 모두 `新しいウィンドウ`로 쓴다. 이 규칙은 그 동작 이름에만 적용한다. `[pane_context_menu]`의 `新規ターミナル`과 `[explorer.tab]`의 `新しいタブ`까지 같은 단어로 바꾸지 않는다.
 - 화면 문구(`lang/*.toml`)는 `crates/tasty-doc-guards/tests/one_concept_one_word_on_the_user_facing_surface.rs`에서 검사한다. 이 검사는 한국어·일본어 표기만 본다. 간체 표기는 검사하지 않는다.
-  사용자 가이드는 [tasty-page 레포의 checks](https://github.com/zilhak/tasty-page/tree/main/checks)가 검사한다.
+  사용자 가이드는 [tasty-page 레포의 checks](https://github.com/zilhak/tasty-page/tree/develop/checks)가 검사한다.
   이전 표기인 `패인`·`ウインドウ`는 사용하지 않는다. `창`을 OS Window 이외의 뜻으로 사용하는 경우에는 해당 검사 파일에 위치와 근거를 등록한다.
 
 ### View 내부 (→ hierarchy.md, `design/systems/`)

@@ -41,7 +41,8 @@ X11로 뜨고([백엔드 선택](../../design/systems/linux-display-backend.md))
 GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). X 서버에 연결할 수 없는 네이티브 Wayland에서는 외부 앱과
 주고받지 못하고 원인과 해결책을 warning 토스트로 알린다. `DISPLAY`가 없으면(XWayland 없음)
 `toast.clipboard_wayland_unsupported`, `DISPLAY`의 X 서버에 연결하지 못해 내려갔으면
-`toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)). egui 입력 위젯과 plugin 자체 클립보드는
+`toast.clipboard_wayland_x_failed`다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)). egui 입력 위젯은 X11·XWayland에서 arboard로,
+네이티브 Wayland에서 Tasty의 data device로 외부 앱과 주고받는다([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). plugin 자체 클립보드는
 별도 경로다. 원격 출처·내부 파일 목록은 [Explorer 파일 작업](../../surfaces/explorer/file-operations.md#os-파일-클립보드)을 따른다.
 
 ### 로컬 이미지 붙여넣기 저장

@@ -973,6 +973,58 @@ class Provenance(unittest.TestCase):
         self.assertEqual(self.problems([self.row(rules_commit="1" * 40)]), ["unknown_rules_commit"])
         self.assertEqual(self.problems([self.row(started_at="2001-01-01T00:00:00.000000Z")]), ["rules_committed_after_first_call"])
 
+    def side_commit(self):
+        self.git("checkout", "-qb", "side")
+        self.rules.write_bytes(self.rules.read_bytes() + b"\nextra\n")
+        self.git("commit", "-qam", "side")
+
+    def test_without_develop_the_default_names_the_ref_argument(self):
+        with self.assertRaisesRegex(ValueError, "--main-ref"):
+            check_rules.rules_provenance(self.repo)
+        with self.assertRaisesRegex(ValueError, "--main-ref"):
+            check_rules.raw_problems([], self.repo)
+
+    def test_a_missing_ref_argument_is_named(self):
+        with self.assertRaisesRegex(ValueError, "--main-ref does not exist: nowhere"):
+            check_rules.rules_provenance(self.repo, "nowhere")
+
+    def test_the_default_uses_local_develop_first(self):
+        self.side_commit()
+        self.git("branch", "develop", "side")
+        self.git("update-ref", "refs/remotes/origin/develop", "main")
+        self.assertEqual(check_rules.resolve_main_ref(self.repo), "develop")
+        self.assertEqual(check_rules.rules_provenance(self.repo)["rules_commit"], self.git("rev-parse", "side"))
+
+    def test_the_default_falls_back_to_origin_develop(self):
+        self.side_commit()
+        self.git("update-ref", "refs/remotes/origin/develop", "side")
+        self.assertEqual(check_rules.resolve_main_ref(self.repo), "origin/develop")
+        self.assertEqual(check_rules.rules_provenance(self.repo)["rules_commit"], self.git("rev-parse", "side"))
+        self.git("update-ref", "refs/remotes/origin/develop", "main")
+        with self.assertRaisesRegex(ValueError, "not an ancestor of origin/develop"):
+            check_rules.rules_provenance(self.repo)
+
+    def test_head_is_not_used_in_place_of_develop(self):
+        self.side_commit()
+        with self.assertRaisesRegex(ValueError, "--main-ref"):
+            check_rules.rules_provenance(self.repo)
+
+    def test_a_shallow_history_cannot_judge_instead_of_failing_ancestry(self):
+        (self.repo / "later.txt").write_text("later\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "later")
+        self.git("branch", "develop")
+        self.git("reset", "-q", "--hard", "HEAD~1")
+        with tempfile.TemporaryDirectory() as other:
+            clone = Path(other) / "clone"
+            subprocess.run(
+                ["git", "clone", "-q", "--depth", "1", "--no-single-branch", self.repo.as_uri(), str(clone)],
+                check=True, capture_output=True,
+            )
+            with self.assertRaisesRegex(ValueError, "shallow"):
+                check_rules.rules_provenance(clone, "origin/develop")
+        self.assertEqual(check_rules.rules_provenance(self.repo)["rules_commit"], self.git("rev-parse", "main"))
+
 
 if __name__ == "__main__":
     unittest.main()

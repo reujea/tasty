@@ -119,7 +119,7 @@ General 의 닫기 동작(`close_behavior`: ask · minimize · quit), Terminal �
 - 직렬화·역직렬화에 실패하면 창의 결과를 그대로 쓰고 사유를 같은 warn 로그로 남긴다. 직렬화하지 않는 필드(`serde` skip — 저장 정책 `origin`, 레거시 `appearance.markdown_font`·`explorer_font`)는 비교에 나타나지 않으므로 `carry_unserialized` 가 창의 결과에서 잇는다. `tasty-settings` 소스의 skip 사용이 이 목록과 다르면 `serde_skipped_fields_match_the_carried_list` 시험이 실패하므로, 새 skip 필드를 더할 때 목록과 잇는 함수를 함께 고친다.
 - 사용자 입력으로 바꾸는 설정(테마 토글·줌·힌트 위치·마우스 캡처 메뉴 등)은 modal 이 열린 동안 메인 윈도우 입력이 막혀 이 병합에 들어오지 않는다(`src/view/main.rs` `handle_engine_event`). 일부 항목(FileHandler 의 파일 서브탭 → `~/.tasty/file-handlers.toml`, Hook Handlers → `~/.tasty/hook-handlers.toml`)은 Save 시 각 registry commit 후 user TOML 에 직접 atomic write.
 
-**설정 적용 결과도 기존 토스트로 알린다.** Save 한 설정이 검사·admission 에서 거절되면 Error 토스트(`toast.settings_not_applied`), 메모리에는 적용됐지만 `config.toml` 에 저장하지 못하면 Warning 토스트(`toast.settings_not_saved` — 이번 실행에만 적용되고 다시 시작하면 사라진다)를 포커스된 main window(없으면 첫 main window)에 띄운다. 두 경우를 다른 종류·문구로 구분한다. 사유는 `t_fmt_fit` 으로 가운데를 줄인다. category 초기화(`workspace_categories_enabled` 끄기)의 journal 실패는 공통 적용 오류 보고가 맡는다. 에이전트·plugin 요청의 같은 결과는 토스트 대신 응답으로 돌려준다 → [완료 의미](../../architecture/data-flows.md#에이전트plugin-설정-변경-요청의-완료-의미)
+**설정 적용 결과도 기존 토스트로 알린다.** Save 한 설정이 검사·admission 에서 거절되면 Error 토스트(`toast.settings_not_applied`), 메모리에는 적용됐지만 `config.toml` 에 저장하지 못하면 Warning 토스트(`toast.settings_not_saved` — 이번 실행에만 적용되고 다시 시작하면 사라진다. 같은 실행에서 새로 여는 창도 적용한 값으로 시작한다)를 포커스된 main window(없으면 첫 main window)에 띄운다. 두 경우를 다른 종류·문구로 구분한다. 사유는 `t_fmt_fit` 으로 가운데를 줄인다. category 초기화(`workspace_categories_enabled` 끄기)의 journal 실패는 공통 적용 오류 보고가 맡는다. 에이전트·plugin 요청의 같은 결과는 토스트 대신 응답으로 돌려준다 → [완료 의미](../../architecture/data-flows.md#에이전트plugin-설정-변경-요청의-완료-의미)
 
 ### 단축키 탭 (Keybindings)
 

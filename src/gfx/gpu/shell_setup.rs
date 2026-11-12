@@ -50,7 +50,7 @@ impl GpuState {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let raw_input = self.egui_state.take_egui_input(window);
+        let raw_input = self.take_egui_input(window);
         let mut action = ShellSetupAction::None;
 
         let title = t("boot.shell_setup.title");
@@ -98,8 +98,7 @@ impl GpuState {
                 });
         });
 
-        self.egui_state
-            .handle_platform_output(window, full_output.platform_output);
+        self.apply_egui_output(window, full_output.platform_output);
 
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [self.size.width, self.size.height],

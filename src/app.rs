@@ -101,6 +101,8 @@ pub(crate) mod storage_notice;
 pub(crate) mod stream_round;
 #[cfg(feature = "gui")]
 pub(crate) mod sweeps;
+#[cfg(feature = "gui")]
+mod text_selection;
 pub(crate) mod timer_report;
 pub(crate) mod timers;
 #[cfg(feature = "gui")]
@@ -556,7 +558,9 @@ impl App {
                 .unwrap_or_default()
         };
         let proxy = self.view.proxy.clone();
-        pollster::block_on(async move {
+        let display_owner = self.view.display_owner.clone();
+        let window_for_clipboard = window.clone();
+        let mut gpu = pollster::block_on(async move {
             if self.gpu_adapter.is_none() {
                 let adapter = select_gpu_adapter(&instance, &window).await?;
                 self.gpu_adapter = Some(Arc::new(adapter));
@@ -576,7 +580,9 @@ impl App {
                 proxy,
             )
             .await
-        })
+        })?;
+        gpu.attach_text_selection(&window_for_clipboard, display_owner);
+        Ok(gpu)
     }
 }
 

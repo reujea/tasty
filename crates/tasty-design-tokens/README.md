@@ -3,12 +3,12 @@
 디자인 정본의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 생성한다.
 배율 적용과 색 접근 규칙은 `src/lib.rs`의 크레이트 문서를 따른다.
 
-디자인 정본은 공개 레포 [tasty-page](https://github.com/zilhak/tasty-page)의 `main`에 있는 `vendor/`다.
+디자인 정본은 공개 레포 [tasty-page](https://github.com/zilhak/tasty-page)의 `develop`에 있는 `vendor/`다.
 `dtcg/SOURCE`에는 앱이 따르는 tasty-page 커밋 해시(40자) 한 줄을 적는다.
 
 ## 토큰 갱신 절차
 
-1. tasty-page `main`의 커밋 X에서 `vendor/tokens/tasty.tokens.json`을 가져와
+1. tasty-page `develop`의 커밋 X에서 `vendor/tokens/tasty.tokens.json`을 가져와
    `dtcg/tasty.tokens.json`을 교체하고 `dtcg/SOURCE`에 X를 적는다. 이 JSON은 디자인 측 CSS에서
    생성하므로 누락된 토큰이나 값을 직접 채우지 않는다.
 2. 커밋 X로 둔 tasty-page 체크아웃에서 JSON과 토큰 CSS를 비교한다. 이름·값·별칭·Latte 값을

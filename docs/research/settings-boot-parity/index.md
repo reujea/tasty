@@ -21,7 +21,7 @@
 | 일치 | 251 | 나머지 |
 | 합계 | 321 | |
 
-D3과 D4는 특정 키가 아니라 값을 읽는 경로의 결함이다. 어느 키에서든 일어나므로 표의 행 판정에는 세지 않았다.
+D3과 D4는 특정 키가 아니라 값을 읽는 경로를 다룬다. 어느 키에서든 일어나므로 표의 행 판정에는 세지 않았다. D3은 측정 커밋의 결함이며 현재 코드에는 없다(아래 D3).
 
 ## 범위
 
@@ -29,8 +29,8 @@ D3과 D4는 특정 키가 아니라 값을 읽는 경로의 결함이다. 어느
 
 칸의 뜻은 다음과 같다.
 
-- 시작 경로: 앱을 시작할 때 값을 읽는 위치다. `resumed`에서 `boot_load_normalized_settings`가 파일을 읽어 정규화하고, `begin_boot`이 테마를 적용한 뒤 그 값을 저장한다. 그다음 엔진이 `new_with_ids`에서 파일을 다시 읽는다.
-- 새 창 경로: 실행 중 새 창을 만들 때 값을 읽는 위치다. GPU와 테마는 메모리의 `latest_settings`를 쓰고, 새 엔진은 파일을 읽는다(D3). 표의 parked는 엔진을 남겨 둔 창의 복원 경로이고 미측정이다.
+- 시작 경로: 앱을 시작할 때 값을 읽는 위치다. `resumed`에서 `boot_load_normalized_settings`가 파일을 읽어 정규화하고, `begin_boot`이 테마를 적용한 뒤 그 값을 저장한다. 엔진은 `begin_boot`이 저장에 제출한 그 값을 `new_with_ids`의 인자로 받는다(D3).
+- 새 창 경로: 실행 중 새 창을 만들 때 값을 읽는 위치다. GPU와 새 엔진은 메모리의 최신 적용 설정을 보정한 같은 값을 받는다(D3). 표의 parked는 엔진을 남겨 둔 창의 복원 경로이고 미측정이다.
 - 적용 경로: 설정 화면과 IPC 저장이 지나는 `apply_settings_after_structure`다.
 - 소비 지점: 값을 실제로 쓰는 코드다.
 - 헤드리스: `--no-default-features` 빌드의 읽기와 적용 위치다. 코드로만 판정했다.
@@ -157,15 +157,15 @@ F1과 F2의 재시작 뒤 값이 F3과 같으므로 파일이 렌더러에 들�
 
 고치는 방향 후보: 렌더러를 만들 때 재구성과 같은 입력(family, 파일, 행 높이)을 넘긴다. 파일만 지정한 경우의 결과는 별도로 정한다. 측정 커밋에는 이 수정이 들어 있지 않다.
 
-### D3. 새 엔진이 메모리 값 대신 파일 값을 읽는다
+### D3. 새 엔진의 설정 출처
 
 대상: 키와 무관한 읽기 경로.
 
-새 창의 GPU와 테마는 `src/app/window_lifecycle.rs` 578행 `create_new_window`의 `latest_settings`를 쓴다. 엔진은 `src/app/window_lifecycle.rs` 261행 `ensure_engine_and_plugins`에서 `src/runtime/engine_session/bootstrap.rs` 51행 `new_with_ids`를 불러 파일을 읽는다. 저장에 실패했으면 한 창 안에서 두 값이 갈린다.
+현재 코드에서 새 엔진은 호출자가 넘긴 설정으로 시작한다. `src/runtime/engine_session/bootstrap.rs`의 `new_with_ids`는 설정을 인자로 받아 `for_journal`에 넘기며 파일을 읽지 않는다. 추가 창은 `src/app/window_lifecycle.rs`의 `create_new_window`가 `settings_for_new_engine`으로 값을 고른다. 이번 실행에서 적용한 설정(`latest_settings`)이 있으면 그 값을 쓰고, 없을 때만 `config.toml`을 읽는다. 고른 값은 보정한 뒤 GPU와 `ensure_engine_and_plugins`에 함께 넘긴다. 첫 부팅은 `begin_boot`이 저장에 제출한 snapshot을 부팅 워커와 동기 대체 경로에 넘긴다. 그래서 저장에 실패해도 한 창 안의 GPU와 엔진 값이 같다.
 
-측정 E5: 외부에서 파일을 바꾼 뒤 `coalesce_ms`를 적용했다. 응답은 `Error (-32603): settings applied for this run but not saved`이고 데이터는 `{"applied":true,"saved":false}`다. 파일 값은 500으로 남았고, 새 창의 엔진은 메모리 값이 아니라 파일 값 500으로 동작했다(2초 간격 알림 두 건이 따로 표시). 저장이 성공한 경우의 대조에서는 병합됐다. 저장 대기 중 경합은 미측정이다.
+측정 E5(측정 커밋 `0459df0c8`): 외부에서 파일을 바꾼 뒤 `coalesce_ms`를 적용했다. 응답은 `Error (-32603): settings applied for this run but not saved`이고 데이터는 `{"applied":true,"saved":false}`다. 파일 값은 500으로 남았고, 그 커밋의 새 창 엔진은 메모리 값이 아니라 파일 값 500으로 동작했다(2초 간격 알림 두 건이 따로 표시). 저장이 성공한 경우의 대조에서는 병합됐다. 저장 대기 중 경합은 미측정이다.
 
-고치는 방향 후보: 새 창 경로가 `src/runtime/engine_session/bootstrap.rs` 56행 `for_journal`로 메모리의 최신 값을 넘긴다. `new_with_ids`는 이 함수에 `Settings::load()`를 넘길 뿐이다. 같은 파일의 `new_with_ids_and_settings`는 `cfg(test)`라 제품 코드에서 부를 수 없다.
+현재 코드의 측정(커밋 `9f8913c8a`, 같은 방식으로 파일을 바꿔 저장을 거절시킴): `remote_transfer.max_mb`를 7로 적용한 뒤 연 새 창의 엔진이 7을 돌려줬고 파일은 500이었다. `overlay.toast_duration_ms`를 10000으로 적용한 뒤 연 새 창의 토스트는 5초 뒤에도 보였고 12초 뒤에는 사라졌다. `coalesce_ms` 자체는 다시 재지 않았다.
 
 ### D4. quit 모달이 파일 값으로 전역 테마를 다시 설치한다
 

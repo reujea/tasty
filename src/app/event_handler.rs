@@ -2078,9 +2078,14 @@ impl App {
 
     fn any_pending_native_menu(&self) -> bool {
         self.view.views.values().any(|w| {
-            w.as_main()
-                .is_some_and(|m| m.has_pending_native_menu() || m.has_outbound_drag())
-        })
+            w.as_main().is_some_and(|m| {
+                #[cfg(target_os = "linux")]
+                let inbound = m.has_inbound_drop();
+                #[cfg(not(target_os = "linux"))]
+                let inbound = false;
+                m.has_pending_native_menu() || m.has_outbound_drag() || inbound
+            })
+        }) || self.text_selection_busy()
     }
 
     /// 본체·플러그인 타이머의 가장 이른 기한을 WaitUntil과 별도 waker에 함께 전달한다.
@@ -2194,6 +2199,7 @@ impl App {
             main.poll_pending_native_menu(&engine.read());
             main.poll_outbound_drag(&engine.read());
         }
+        self.poll_text_selections();
         self.close_self_requesting_windows();
     }
 }

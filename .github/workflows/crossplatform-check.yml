@@ -3,16 +3,16 @@ name: Cross-platform Check
 # Windows·Linux 컴파일과 테스트를 실행한다. Windows ARM64는 컴파일만, Android는 터미널 코어 컴파일만 검사한다. macOS 잡은 crossplatform-check-macos.yml에 있다.
 on:
   push:
-    branches: [main]
+    branches: [develop, release, main]
     # 문서만 바뀐 push는 생략한다. 문서 검사는 doc-guards.yml에서 실행한다.
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
   pull_request:
-    branches: [main]
+    branches: [develop, release, main]
   workflow_dispatch:
 
-# main push는 실행 중인 run을 취소하지 않는다. 잡이 push 간격보다 길어 취소하면 끝까지 가는 run이 없다.
+# 브랜치(develop·release·main) push는 실행 중인 run을 취소하지 않는다. 잡이 push 간격보다 길어 취소하면 끝까지 가는 run이 없다.
 # 대기 run은 새 push가 대신하므로 대기열은 쌓이지 않는다. PR은 최신 커밋만 보면 되므로 취소한다.
 # 러너가 offline일 수 있는 macOS 잡은 이 그룹을 붙잡지 않도록 별도 워크플로로 나눴다.
 # 기준: docs/dev-guide/ci-gates.md#연속-push와-실행-취소

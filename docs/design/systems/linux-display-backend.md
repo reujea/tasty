@@ -2,7 +2,7 @@
 
 - **Status**: Implemented. 네이티브 Wayland 경로는 `DISPLAY`가 없는 환경에만 쓰이며 아래 한계가 있다.
 - **주체**: 로컬 사용자
-- **코드**: 판정 `src/boot/display_backend.rs`, 호출 `src/boot/event_loop.rs`, 두 번째 실행이 보내는 값 `src/boot/single_instance/second.rs`, GTK 초기화 결과 `crates/tasty-platform/src/gtk_init.rs`, 안내 타일 `crates/tasty-ui-widgets/src/webview_page_tile.rs`
+- **코드**: 판정 `src/boot/display_backend.rs`, 데이터 장치 `src/file/drag/wayland.rs`·`src/file/drag/wayland/`, egui 연결 `src/gfx/gpu/text_selection.rs`, 호출 `src/boot/event_loop.rs`, 두 번째 실행이 보내는 값 `src/boot/single_instance/second.rs`, GTK 초기화 결과 `crates/tasty-platform/src/gtk_init.rs`, 안내 타일 `crates/tasty-ui-widgets/src/webview_page_tile.rs`
 
 ## 선택 규칙
 
@@ -43,9 +43,22 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 | 네이티브 메뉴 | 뜨지 않는다 | 화면 안내 없음. `native context menu: not an X11 window` 경고 로그 |
 | html·markdown WebView | 만들지 못한다 | 페이지 영역에 원인과 해결책 안내(`native-wayland`, 원인 1b는 `native-wayland-x`). `Not an X11 window` 경고 로그 |
 | 원격 웹주소 | 사용 가능으로 알리지 않는다 | html mirror surface도 같은 안내다. [HTML surface](../../surfaces/html/index.md#원격-https-native-viewer) 참고 |
-| 외부 파일 끌어오기 | 받지 못한다 | 화면 안내 없음 |
 
-외부 앱으로 파일 끌어내기는 네이티브 Wayland에서도 파일이 복사된다.
+외부 앱에서 파일을 끌어 오고 외부 앱으로 끌어내는 것, egui 입력칸(설정·이름 바꾸기·주소창 등)의 텍스트 복사·붙여넣기는 네이티브 Wayland에서도 외부 앱과 주고받는다. 아래 데이터 장치가 맡는다.
+
+## 네이티브 Wayland의 데이터 장치
+
+시작 판정이 네이티브 Wayland(원인 1·1b)면 Tasty는 winit과 같은 Wayland 연결에 소유자 하나를 두고, seat마다 `wl_data_device` 하나를 프로세스가 끝날 때까지 둔다. 모든 창이 이 장치를 같이 쓴다. 컴포지터는 끌기와 선택(selection)을 클라이언트의 장치 가운데 하나에 보내므로 한 클라이언트에 장치가 둘이면 끌어 온 파일이 다른 장치로 가서 버려진다. 그래서 장치는 하나만 둔다.
+
+- egui-winit은 smithay-clipboard 없이 빌드한다. smithay-clipboard는 키보드가 생기면 같은 연결에 장치를 하나 더 만든다. egui-winit의 나머지 클립보드인 arboard는 X11만 쓰므로 원인 1·1b에서는 앱 안 문자열로 떨어진다. 그 자리를 이 장치가 채운다.
+- **끌어오기**: 다른 클라이언트의 `text/uri-list` offer만 Copy로 받고 목록을 비차단으로 읽는다(30초·1 MiB 상한). enter·motion·leave·drop은 끌기가 들어온 창으로 보낸다. 놓은 자리는 drop 때 고정하고, 받은 목록과 Copy가 모두 확인된 뒤에만 `finish`를 보낸다. 이 프로세스가 끌어내는 동안에는 자기 offer를 받지 않는다. 처리는 [Explorer 드래그 앤 드롭](../../surfaces/explorer/file-operations.md#드래그-앤-드롭)과 X11 `DroppedFile` 경로와 같다.
+- **egui 복사**: egui가 내놓은 복사 텍스트(`OutputCommand::CopyText`)를 egui-winit에 넘기기 전에 가져와 data source로 선택을 잡는다. mime은 `text/plain;charset=utf-8`·`UTF8_STRING`·`text/plain`이다. serial은 이 연결이 마지막으로 받은 키보드 입력이나 포인터 버튼의 것이다. 받는 쪽에는 비차단으로 쓰고(30초 상한) 끝나면 닫는다. 다른 앱이 선택을 가져가면 source를 버린다.
+- **egui 붙여넣기**: 붙여넣기 키(egui-winit과 같은 판정)가 오면 Tasty가 잡은 선택은 바로, 다른 앱의 선택은 그때 읽기 시작해 다 읽은 뒤 다음 egui 프레임 입력에 붙여넣기로 넣는다. 선택 offer는 최신 하나만 보관하고 미리 읽지 않는다. 포커스를 옮길 수 있는 입력(포인터 버튼 누름, Tab·Shift+Tab, 방향키, Escape)이 들어온 프레임과 그다음 프레임에는 넣지 않는다. egui는 Shift+Tab의 포커스 이동을 다음 프레임 시작에 적용하므로 두 프레임이 지나야 포커스가 정해진다. 그런 입력이 없는 프레임이 이어져 포커스가 정해진 뒤, 요청 때 포커스였던 입력칸이 그때도 포커스면 넣고 아니면 버린다. 포커스 이동 입력이 계속 이어지면 보관하되 도착 뒤 3초가 지나면 버린다. 앱 코드가 프레임 안에서 직접 포커스를 옮기는 경우는 이 대조가 막지 못한다. 새 붙여넣기, 선택 교체, 3초 경과, 16 MiB 초과도 읽기를 버린다.
+- X11·XWayland 창에는 Wayland 연결이 없어 장치·키보드·source를 만들지 않는다. egui 클립보드는 arboard다.
+- 갤러리(`tasty-gallery`)는 이 장치를 붙이지 않는다. 네이티브 Wayland에서 갤러리 입력칸은 외부 앱과 클립보드를 주고받지 않는다(앱 안 복사·붙여넣기만). smithay-clipboard는 갤러리에서도 끈다. 켜 두면 `--workspace` 빌드의 feature 통합으로 본체에도 다시 들어오기 때문이다.
+- 터미널 복사·붙여넣기와 Explorer 파일 클립보드는 이 장치를 쓰지 않는다(위 표).
+
+격리 GNOME Shell 46(`--no-x11`)에서 가상 키보드가 있는 채로 시작해 GNOME Files의 파일을 터미널로 10번 끌어 놓아 10번 모두 열렸고, Explorer 칸으로 놓으면 복사됐다. egui 입력칸과 GNOME Text Editor 사이의 텍스트 복사·붙여넣기를 양방향으로 확인했다. 원인 1b(`DISPLAY`의 X 서버 연결 실패)에서도 끌어오기와 양방향 클립보드를 한 번씩 확인했다. 물리 화면과 실제 사용자 세션은 재지 않았다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)).
 
 ## 표시 경로 안내
 

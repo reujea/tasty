@@ -1,6 +1,6 @@
 name: Test
 
-# semver-guards는 main push와 수동 실행에서 API 호환성·변경 기록·CLI 명칭을 검사한다.
+# semver-guards는 develop·release·main push와 수동 실행에서 API 호환성·변경 기록·CLI 명칭을 검사한다.
 # GUI가 필요하지 않으므로 --no-default-features로 실행한다.
 # test-linux-x64는 기본 feature의 전체 테스트를 수동으로만 실행한다.
 # GUI 테스트에 필요한 러너 환경을 확인한 뒤 자동 실행 여부를 결정한다.
@@ -8,7 +8,7 @@ name: Test
 # 실행 조건과 범위: docs/dev-guide/ci-gates.md
 on:
   push:
-    branches: [main]
+    branches: [develop, release, main]
   workflow_dispatch:
 
 concurrency:

@@ -3,7 +3,7 @@
 //! 버전 자리(`${VERSION}` → `{ver}`)만 정규화한다. glob·셸 변수처럼 이름을 펼칠 수 없는 대상은
 //! 그대로 남겨 표에 없는 자산으로 실패시킨다.
 //! 빌드 스크립트가 그 이름의 파일을 실제로 만드는지는 검사하지 않는다.
-//! doc-guards.yml의 경로 필터 없는 main push·PR에서 실행된다.
+//! doc-guards.yml의 경로 필터 없는 develop·release·main push·PR에서 실행된다.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

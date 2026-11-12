@@ -139,7 +139,7 @@ impl GpuState {
         plugin_manager: Option<crate::app::plugin_display::PluginDisplay<'_>>,
         host_popup_on_top: bool,
     ) -> egui::FullOutput {
-        let mut raw_input = self.egui_state.take_egui_input(window);
+        let mut raw_input = self.take_egui_input(window);
         // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
         keep_screen_while_minimized(
             &mut raw_input,
@@ -292,11 +292,6 @@ impl GpuState {
         tasty_egui_theme::apply_theme_to_egui(&crate::theme::theme(), &self.egui_ctx);
     }
 
-    /// Take egui input from a window.
-    pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
-        self.egui_state.take_egui_input(window)
-    }
-
     /// Run an egui frame with a custom UI closure.
     pub fn run_egui(
         &self,
@@ -310,8 +305,7 @@ impl GpuState {
     pub fn finish_egui_frame(&mut self, window: &Window, full_output: egui::FullOutput) {
         // egui의 비입력 프레임이 창 IME를 끄지 않게 한다.
         self.egui_state.set_allow_ime(false);
-        self.egui_state
-            .handle_platform_output(window, full_output.platform_output);
+        self.apply_egui_output(window, full_output.platform_output);
 
         let paint_jobs = self
             .egui_ctx

@@ -42,13 +42,15 @@ impl EngineSession {
     }
 
     /// 다른 engine과 발급기를 공유할 수 있다. 슬롯이 있고 restore_layout이 켜져 있을 때만 읽는다.
-    /// runner 등록부는 TaskService가 가진 Arc를 넘긴다.
+    /// runner 등록부는 TaskService가 가진 Arc를 넘긴다. 설정은 호출자가 고른다. 이번 실행에서 적용한
+    /// 값이 저장되지 않았을 수 있으므로 여기서 파일을 읽지 않는다.
     #[cfg(feature = "gui")]
     pub fn new_with_ids(
         spec: EngineSessionSpec,
+        settings: Settings,
         registries: super::super::registries::RuntimeRegistries,
     ) -> anyhow::Result<Self> {
-        let state = Self::for_journal(spec, Settings::load(), registries)?;
+        let state = Self::for_journal(spec, settings, registries)?;
         Ok(state)
     }
 

@@ -72,7 +72,7 @@ OS 호출은 `tasty-platform` 크레이트에 둬 본체 타입에 직접 의존
 
 계층 예외는 도메인-IO의 세 의존이다: `tasty-remote → tasty-ipc`, `tasty-file-format → tasty-plugin-protocol`, `tasty-file-handler → tasty-plugin-protocol`. 이유는 해당 절에서 설명한다.
 
-`architecture_crate_list_complete`가 `crates/*/`의 전체 이름과 개수를 비교한다. `doc-guards.yml`이 경로 필터 없이 main push·PR에서 두 검사를 실행하며, 크레이트를 추가할 때는 push 전에 직접 확인한다([CI 가이드](../dev-guide/ci-gates.md)).
+`architecture_crate_list_complete`가 `crates/*/`의 전체 이름과 개수를 비교한다. `doc-guards.yml`이 경로 필터 없이 develop·release·main push·PR에서 두 검사를 실행하며, 크레이트를 추가할 때는 push 전에 직접 확인한다([CI 가이드](../dev-guide/ci-gates.md)).
 
 ### type-\* / primitive (leaf)
 `tasty-type-geometry`(길이·도형 타입: LogicalPx·PhysicalPx·Rect, 의존 없음) · `tasty-type-appearance`(색·테마 스키마·ToastKind. 그리기와 이벤트 처리에서 같은 타입 사용. egui 변환은 egui-compat, → type-geometry) · `tasty-design-tokens`(DTCG 디자인 토큰 사본·코드 생성, → type-geometry) · `tasty-utils`(경로 등 공용 함수, 저장소별 전담 writer가 공유하는 접수·묶음·완료·종료 실행기 `batch_writer`) · `tasty-cell-width`(렌더러·선택·링크가 공유하는 코드포인트별 셀 폭, 의존 없음) · `tasty-ansi`(CSI·OSC 제거 정규식. terminal의 strip-ansi와 output 파서가 공유, → regex, docs/architecture/index.md) · `tasty-timer`(주기 작업을 키로 등록하고 drain_due로 실행. 다음 기한까지 기다리는 waker 스레드 1개, → utils) · `tasty-shm`(공유 메모리와 FD/HANDLE 전달. POSIX shm·SCM_RIGHTS·Windows DuplicateHandle, workspace 및 외부 의존 없음)
@@ -189,7 +189,7 @@ mirror 이름·부제·설명·분류와 혼합 표시 순서는 비영속 App c
 `tasty-cli`(clap CLI — request/format/transport/dynamic plugin subcommand. → ipc/host-plugin/terminal/approval/remote-profiles/remote/ssh/i18n/plugin-manifest/plugin-protocol/tui-simulator/utils)
 
 ### 테스트·가드 전용 (제품 산출물 밖)
-`tasty-latency-control`(CPU 작업 또는 자식 프로세스 시작으로 지연의 대조군 제공. 실패 메시지는 사용한 종류를 표시. 의존 없음, dev-dependencies로만 사용, [수정 후 자체 검증 (Self-verification)](../dev-guide/self-verification.md)) · `tasty-doc-guards`(문서·소스·workflow를 대조. 의존 없이 빠르게 실행해 문서만 바뀐 main push도 검사, [가드 검증](../dev-guide/guard-verification.md)) · `tasty-test-support`(테스트 동안 전역 env·TASTY_HOME을 바꾸고 Drop에서 복원하는 RAII 가드, ETXTBSY 없이 시험용 실행 파일을 쓰는 `write_executable`(unix), `/proc/<pid>/stat`으로 프로세스 종료를 읽는 `proc_stat_reads_finished`, 시험 하나를 자기 바이너리의 새 프로세스에서 혼자 다시 실행하는 `rerun_alone`과 그 자식 안인지 확인하는 `is_rerun_alone`, → utils/tempfile. dev-dependencies로만 사용)
+`tasty-latency-control`(CPU 작업 또는 자식 프로세스 시작으로 지연의 대조군 제공. 실패 메시지는 사용한 종류를 표시. 의존 없음, dev-dependencies로만 사용, [수정 후 자체 검증 (Self-verification)](../dev-guide/self-verification.md)) · `tasty-doc-guards`(문서·소스·workflow를 대조. 의존 없이 빠르게 실행해 문서만 바뀐 브랜치 push도 검사, [가드 검증](../dev-guide/guard-verification.md)) · `tasty-test-support`(테스트 동안 전역 env·TASTY_HOME을 바꾸고 Drop에서 복원하는 RAII 가드, ETXTBSY 없이 시험용 실행 파일을 쓰는 `write_executable`(unix), `/proc/<pid>/stat`으로 프로세스 종료를 읽는 `proc_stat_reads_finished`, 시험 하나를 자기 바이너리의 새 프로세스에서 혼자 다시 실행하는 `rerun_alone`과 그 자식 안인지 확인하는 `is_rerun_alone`, → utils/tempfile. dev-dependencies로만 사용)
 
 ### 본 바이너리 (`tasty`)
 위 크레이트를 의존하며 App/View/GPU/IPC 라우터/부팅을 제공.

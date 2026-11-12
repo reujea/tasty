@@ -332,10 +332,7 @@ impl App {
                 }
                 // 스레드 생성 실패나 워커 패닉으로 결과가 없으면 동기로 다시 시도한다.
                 tracing::error!("boot engine worker channel disconnected — synchronous fallback");
-                if let Err(e) = self.ensure_engine_and_plugins(
-                    &boot.gpu,
-                    progress.settings.appearance.scaled_sidebar_width(),
-                ) {
+                if let Err(e) = self.ensure_engine_and_plugins(&boot.gpu, &progress.settings) {
                     self.state.boot_error_info = Some(boot_engine_error_info(&e));
                     return false;
                 }
@@ -419,6 +416,7 @@ impl App {
         let runner_registry = Arc::clone(self.services.tasks.runner_registry());
         let gauges = self.services.plugin_gauges();
         let registries = self.services.registries.clone();
+        let settings = progress.settings.clone();
         // 점유 중인 슬롯을 확인해야 하므로 메인 스레드에서 선택해 워커로 전달한다.
         let layout_slot = self.claim_free_layout_slot();
         // 첫 engine 이 자식 관계를 읽기 전에 어느 창에도 돌아오지 않을 항목을 지운다.
@@ -442,6 +440,7 @@ impl App {
                         runner_registry,
                         layout_slot,
                         registries,
+                        settings,
                         #[cfg(debug_assertions)]
                         input_simulation_enabled,
                     },

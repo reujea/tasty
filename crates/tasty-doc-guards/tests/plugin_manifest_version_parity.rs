@@ -140,7 +140,7 @@ const CRATES_FLOOR: Floor = Floor {
     measured: 576,
     measured_on: "2026-09-08",
     counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree(
-        "b134d28e3에서 측정한 과거 값이다. 이력 재작성 전 커밋이라 현재 main의 조상에서는 재현할 수 없다.",
+        "b134d28e3에서 측정한 과거 값이다. 이력 재작성 전 커밋이라 현재 develop의 조상에서는 재현할 수 없다.",
     ),
     why_this_gap: "crates/<크레이트>/src 아래 Rust 파일 수다. 2026-09-08의 b134d28e3에서 576개를 측정했고 가장 큰 크레이트 하나의 당시 파일 수 126개를 여유로 둬 하한 450으로 정했다. tests 등 src 밖의 Rust 파일은 이 값에 포함하지 않는다. 옛 측정값이며 현재 트리에서 다시 센 값은 아니다.",
 };
