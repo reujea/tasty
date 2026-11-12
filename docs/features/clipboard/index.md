@@ -36,7 +36,7 @@
 이미지를 읽으며 빈 텍스트나 빈 클립보드는 조용한 no-op이다. 오류 뒤 bracketed-paste
 시작·종료 바이트나 일부 텍스트를 보내지 않는다. mirror 터미널에서 원격 캡처나 로컬 캡처 경로를 다루는 예외는 [원격 스크린샷](../remote-screenshot-clipboard/index.md#mirror-터미널에-붙여넣기)에 있다.
 
-Linux 호스트의 터미널 텍스트와 Explorer 파일 전송은 X11 경로다. `DISPLAY`가 있으면 Tasty는
+Linux 호스트가 X11·XWayland로 떴으면 터미널 텍스트와 Explorer 파일 전송은 X11 경로다. 네이티브 Wayland로 떴으면 터미널 텍스트는 아래 data device로 오가고 Explorer 파일은 여전히 X11 경로만 쓴다. `DISPLAY`가 있으면 Tasty는
 X11로 뜨고([백엔드 선택](../../design/systems/linux-display-backend.md)) Wayland 앱과의 왕복은 XWayland가 잇는다. 격리 GNOME 세션에서
 GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). 네이티브 Wayland(`DISPLAY`가 없거나
 그 X 서버에 연결하지 못함)에서는 터미널 복사·붙여넣기와 egui 입력 위젯이 Tasty의 data device로 외부 앱과
@@ -53,7 +53,7 @@ OSC 52 쓰기·읽기, IPC `clipboard.set_text`, 캡처 게시도 같은 장치�
 
 ### 로컬 이미지 붙여넣기 저장
 
-로컬(비-mirror) 터미널의 이미지 붙여넣기는 PNG 인코딩까지 View 에서 하고, 임시 디렉터리 생성과 파일 쓰기는 App 의 이미지 worker(`src/app/image_jobs.rs`)가 한다. GUI 이벤트 루프는 파일 I/O 를 기다리지 않는다. PNG 인코딩은 아직 View 의 호출 스택에서 한다.
+로컬(비-mirror) 터미널의 이미지 붙여넣기는 PNG 인코딩까지 View 에서 하고, 임시 디렉터리 생성과 파일 쓰기는 App 의 이미지 worker(`src/app/image_jobs.rs`)가 한다. GUI 이벤트 루프는 파일 I/O 를 기다리지 않는다. PNG 인코딩은 아직 View 의 호출 스택에서 한다. 네이티브 Wayland 에서 다른 앱의 `image/png` 를 받으면 그 PNG 를 RGBA 로 푸는 디코딩도 winit 스레드의 같은 호출 스택에서 한다. 읽기 상한 64 MiB 는 압축 바이트의 상한이고 디코딩·재인코딩에 드는 CPU 시간의 상한은 아니다.
 
 - **계약**: 붙여넣기 시점의 대상 binding(surface 와 activation·자원 세대), bracketed 여부, 파일 이름, PNG 바이트를 고정한다(`image_jobs::paste::PendingImageSave`). 붙여넣기 뒤 포커스가 바뀌어도 대상은 바뀌지 않는다.
 - **상한**: worker 스레드 하나가 접수 순서대로 한 건씩 실행한다. GUI 서버가 받은 원격 캡처의 저장·디코딩([remote-screenshot-clipboard](../remote-screenshot-clipboard/index.md))도 같은 worker 와 건수 상한을 쓴다. 결과를 회수하지 않은 작업은 최대 8건(`MAX_JOBS`), 메모리에 든 입력 바이트 합은 최대 256 MiB(`MAX_HELD_BYTES`)다. 넘으면 저장하지 않고 요청한 창의 그 터미널 범위에 경고 토스트(`toast.image_paste_busy`)를 띄운다.
@@ -105,7 +105,7 @@ IME preedit와 OS 후보창 위치도 같은 epoch·행 좌표를 사용한다. 
 앱 서비스는 RPC·OSC52 요청 사이에 클립보드 소유자를 유지한다. `clipboard.set_text` 실패는
 기존 JSON-RPC `-32000`과 백엔드 사유로만 응답하며 사용자 토스트나 성공 이벤트를 만들지 않는다.
 
-**쓰기(set)**: 터미널 프로그램이 OSC 52 로 시스템 클립보드에 텍스트를 설정할 수 있다(termwiz `SetSelection` → arboard 반영). **쓰기 성공 후에만 성공 토스트를 낸다**(`toast.copied_osc52`, 그 surface 스코프). 실패는 접근 불가·실패 토스트로 알리며 결과 이벤트는 원 터미널 generation에 묶인다 — 보이지 않는 클립보드 쓰기를 사용자에게 보이게 하는 목적이다. 같은 surface 에서 500 ms 안에 반복된 쓰기는 토스트 coalesce 로 한 장에 합쳐진다.
+**쓰기(set)**: 터미널 프로그램이 OSC 52 로 시스템 클립보드에 텍스트를 설정할 수 있다(termwiz `SetSelection` → 시스템 클립보드 반영. X11·XWayland 로 뜬 Linux 와 macOS·Windows 는 arboard 소유자, 네이티브 Wayland 로 뜬 Linux 는 이벤트 루프의 data device 소유자다). **쓰기 성공 후에만 성공 토스트를 낸다**(`toast.copied_osc52`, 그 surface 스코프). 실패는 접근 불가·실패 토스트로 알리며 결과 이벤트는 원 터미널 generation에 묶인다 — 보이지 않는 클립보드 쓰기를 사용자에게 보이게 하는 목적이다. 같은 surface 에서 500 ms 안에 반복된 쓰기는 토스트 coalesce 로 한 장에 합쳐진다.
 
 **읽기(query)**: `OSC 52 ; c ; ? ST` 클립보드 읽기 질의는 설정 토글 `general.allow_clipboard_read`(기본 **off**)로 게이트된다. off 면 **무응답**(1바이트도 내보내지 않음) — 터미널 안의 임의 프로그램(원격/SSH 프로세스 포함)이 로컬 클립보드(비밀번호·토큰)를 조용히 탈취하는 것을 차단한다(xterm/iTerm 계열 정책). on 이면 시스템 클립보드를 base64 로 인코딩해 `OSC 52 ; c ; <base64> ST` 로 회신. 네이티브 Wayland 에서 다른 앱의 선택은 비차단으로 읽은 뒤 같은 터미널 세대이고 설정이 그대로 켜져 있을 때만 회신한다([데이터 장치](../../design/systems/linux-display-backend.md#네이티브-wayland의-데이터-장치)). 경로: 터미널 크레이트가 `TerminalEventKind::ClipboardQuery` 이벤트만 발생(설정과 클립보드 접근은 호스트가 담당) → host(`Core::drain_terminal_events`)가 게이트·읽기·인코딩 후 해당 surface 의 PTY 로 `send_bytes`. 설정 UI 는 Terminal › TUI 섹션(토글 + 바로 아래 bordered warning callout). 토스트 없음.
 

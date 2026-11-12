@@ -56,8 +56,6 @@ impl ClipboardSystem for ArboardClipboard {
         self.with_clipboard(|cb| cb.set_text(text))
     }
 
-    /// arboard 의 setter 는 매번 이전 형식을 지워 두 형식을 함께 올리지 못한다. 파일 클립보드와 같은
-    /// 플랫폼 소유자로 한 번에 올린다. 이 소유자가 선택을 가져가면 arboard 의 이전 텍스트는 사라진다.
     /// On the event loop of a native Wayland start, a foreign selection is read in the background:
     /// the handle waits in this thread's table until `finish_read_text` takes its result.
     fn begin_read_text(&self) -> TextRead {
@@ -75,6 +73,8 @@ impl ClipboardSystem for ArboardClipboard {
         Some(Err(anyhow::anyhow!("no pending clipboard read {token}")))
     }
 
+    /// arboard 의 setter 는 매번 이전 형식을 지워 두 형식을 함께 올리지 못한다. 파일 클립보드와 같은
+    /// 플랫폼 소유자로 한 번에 올린다. 이 소유자가 선택을 가져가면 arboard 의 이전 텍스트는 사라진다.
     fn write_text_and_image(&self, text: &str, image: &ClipboardImage) -> anyhow::Result<()> {
         #[cfg(target_os = "linux")]
         if let Some(mut selection) = crate::file::drag::TextSelection::on_this_thread() {
