@@ -4,6 +4,7 @@
 //! 같은 프로세스에서는 다시 시도할 수 없으므로 여기서도 재시도하지 않는다. 대신 실패하면
 //! 연결 실패의 원인 후보(다른 서버·인증 파일·서버 소멸·fd 고갈)를 가를 수 있는 환경 상태를
 //! panic 메시지에 싣는다. 서버 쪽 사정(리셋, 클라이언트 상한)은 Xvfb 로그와 함께 읽는다.
+//! 공유 도우미 밖의 `.with_x11()` 은 `source_guards::x11_test_loop_has_one_door` 가 막는다.
 
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;

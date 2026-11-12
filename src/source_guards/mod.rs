@@ -692,6 +692,10 @@ mod repo_relative_paths;
 #[cfg(test)]
 mod home_env_has_one_door;
 
+/// 시험의 X11 EventLoop 는 연결 실패 진단을 싣는 도우미 한 곳에서 만든다.
+#[cfg(test)]
+mod x11_test_loop_has_one_door;
+
 /// OS 휴지통 호출은 시험 빌드의 대역을 지나는 한 곳에서만 한다.
 #[cfg(test)]
 mod trash_has_one_door;
