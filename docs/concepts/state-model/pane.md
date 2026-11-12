@@ -30,7 +30,7 @@ pane 포커스는 탭바 클릭, 영역 클릭, 방향 이동 단축키처럼 �
 | pane P | P의 탭 재정렬 | 순서 변경 | — | P의 선택 탭 ID 유지 |
 | workspace에 pane 둘 이상 | pane 닫기 | pane과 그 안의 모든 탭·surface 제거. 탭을 다른 pane으로 옮기지 않는다(`drop_pane`, `crates/tasty-core/src/evolve.rs`) | hard 점유 surface가 있으면 거절. mirror pane은 서버로 전달 | 닫힌 pane이 포커스였으면 첫 생존 pane으로 보정. 그 pane의 선택 탭·탭바 스크롤·분할 힌트는 회수 |
 | workspace에 pane 하나 | pane 닫기 | 변화 없음 | 구조 명령이 거절한다(`close_facts`) | — |
-| 마지막 탭의 마지막 surface | surface 닫기 | pane 닫기로 올라간다. workspace의 마지막 pane이면 workspace 닫기로 올라간다 | 각 단계의 거절 조건 | workspace 구조 변경 |
+| 마지막 탭의 마지막 surface | surface 닫기 | pane 닫기로 올라간다. workspace의 마지막 pane이면 workspace 닫기로 올라간다 | 각 단계의 거절 조건 | [workspace](workspace.md#전이) |
 | 분할선 | 비율 변경 | 상위 레이아웃 비율 변경 | 0.1~0.9 밖이면 거절 | 탭·선택 불변 |
 
 pane을 합치는 구조 명령은 없다. pane을 줄이는 방법은 닫기뿐이며 닫힌 pane의 탭은 함께 사라진다.
@@ -61,5 +61,6 @@ workspace W가 좌우 pane P·Q로 나뉘고 각각 탭 둘을 가진다. 두 pa
 
 - [상태 모델](index.md)
 - [tab 상태 모델](tab.md)
+- [workspace 상태 모델](workspace.md)
 - [작업 영역](../../features/work-area/index.md)
 - [포커스 정책](../../design/policies/focus.md)
