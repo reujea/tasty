@@ -461,7 +461,7 @@ fn start_call(
 }
 
 /// client 가 실은 cwd 상속 원본은 이 연결이 점유한 workspace 의, anchor 와 같은 pane 의 surface 여야 한다.
-/// 모르는 값도 거절한다. 원본이 터미널이 아니거나 cwd 를 모르는 것은 거절하지 않는다(상속하지 않는다).
+/// 모르는 값도 거절한다. 원본의 kind 나 cwd 를 모르는 것은 거절 사유가 아니다.
 fn check_inherit_cwd(
     engine: &EngineRef<'_>,
     value: Option<&tasty_ipc::stream::InheritCwd>,

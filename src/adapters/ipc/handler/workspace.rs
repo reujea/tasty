@@ -94,18 +94,14 @@ fn inherit_cwd_for_create(
 }
 
 /// 명시한 상속 원본 surface의 cwd를 이 engine에서 찾는다. 이 engine에 그 surface가 없으면 None이다.
-/// 있으면 `Some(cwd)`이고, 원본이 터미널이 아니면 거절하지 않고 상속하지 않는다(`Some(None)`).
-/// explorer root 같은 비터미널 위치는 새 터미널의 시작 폴더가 아니다.
+/// 있으면 `Some(cwd)`이고, cwd는 로컬 상속과 같은 [`EngineRef::local_surface_cwd`]다. 터미널은 셸 위치,
+/// 비터미널은 `source_cwd`(explorer root, 파일의 부모 폴더 등)이고 모르면 `Some(None)`이다.
 pub(crate) fn named_source_cwd(
     engine: &EngineRef<'_>,
     surface: u32,
 ) -> Option<Option<std::path::PathBuf>> {
-    let found = engine.find_surface_by_id(surface)?;
-    Some(if found.kind() == "terminal" {
-        engine.local_surface_cwd(surface)
-    } else {
-        None
-    })
+    engine.find_surface_by_id(surface)?;
+    Some(engine.local_surface_cwd(surface))
 }
 
 /// 명시 원본을 여러 engine(창·parked·임시)에서 찾는다. 창마다 engine이 따로라 요청을 처리하는 engine에
@@ -169,7 +165,7 @@ pub(crate) fn resolve_create_cwd(
 
 /// `inherit_cwd`가 정한 원본.
 enum Named {
-    /// 지목한 원본의 cwd. 원본이 터미널이 아니거나 cwd를 모르면 None이다.
+    /// 지목한 원본의 cwd([`named_source_cwd`]). cwd를 모르면 None이다.
     Cwd(Option<std::path::PathBuf>),
     NoInherit,
 }
@@ -178,7 +174,7 @@ enum Named {
 /// (`"none"`)이다. 생략하면 None 이고 기존 규칙(`surface_id` 또는 창의 포커스, 이 인스턴스의 설정)을 쓴다.
 /// 원본을 고른 요청자는 이미 자기 설정으로 판단했으므로 이 인스턴스의 `inherit_cwd` 설정으로 막지 않는다.
 /// 원본은 어느 창(parked 포함)의 engine에든 있어야 한다. 없으면 포커스로 대체하지 않고 거절한다.
-/// 원본이 터미널이 아니면 거절하지 않고 상속하지 않는다. 모르는 값은 거절한다.
+/// 원본의 cwd는 로컬 상속과 같은 규칙으로 읽는다(비터미널은 `source_cwd`). 모르는 값은 거절한다.
 fn named_inherit_source(
     params: &serde_json::Value,
     named: &dyn Fn(u32) -> Option<Option<std::path::PathBuf>>,

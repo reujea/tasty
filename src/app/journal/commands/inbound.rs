@@ -316,7 +316,7 @@ impl JournalApplication {
     }
 }
 /// 원격 kind 변환의 cwd. 명시 cwd가 먼저다. 기준이 없으면 이 서버의 설정으로 변환할 surface의 cwd를 잇고
-/// (fallback), 명시한 기준은 터미널일 때만 잇는다.
+/// (fallback), 명시한 기준이 있으면 그 기준의 cwd를 로컬 규칙(`local_surface_cwd`)으로 잇는다.
 pub(super) fn convert_cwd(
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     surface: u32,
@@ -341,7 +341,7 @@ pub(super) fn convert_cwd(
 }
 /// 생성 op가 실은 cwd 상속 원본을 확인한다. 원본 surface는 이 연결이 점유한 workspace에 있고, 새 탭·pane
 /// 분할은 anchor와, surface 분할·변환은 대상 surface와 같은 pane에 있어야 한다. 모르는 값도 거절한다.
-/// 거절하면 아무것도 만들지 않는다. 원본이 터미널이 아니거나 cwd를 모르는 것은 거절 사유가 아니다(상속하지 않는다).
+/// 거절하면 아무것도 만들지 않는다. 원본의 kind나 cwd를 모르는 것은 거절 사유가 아니다.
 pub(super) fn check_inherit_cwd(
     core: &crate::core::CoreState,
     op: &StructuralOp,

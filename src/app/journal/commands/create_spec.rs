@@ -86,8 +86,8 @@ impl CwdSource {
     }
 }
 
-/// 원격 요청이 명시한 상속 원본의 cwd. 원본이 터미널일 때만 잇는다. 터미널이 아니면 거절하지 않고
-/// 상속하지 않는다(그 뒤로는 kind 기본 규칙). 규칙은 `workspace.create`와 같다.
+/// 원격 요청이 명시한 상속 원본의 cwd. 로컬 상속과 같이 `local_surface_cwd`로 읽는다(비터미널은
+/// `source_cwd`). 모르면 None이고 그 뒤로는 kind 기본 규칙이다. 규칙은 `workspace.create`와 같다.
 pub(super) fn named_source_cwd(
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     surface: u32,

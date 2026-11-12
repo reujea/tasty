@@ -169,24 +169,30 @@ fn a_named_source_wins_over_the_server_selection_and_setting() {
     }
 }
 
-/// client가 터미널이 아닌 surface를 기준으로 실으면 거절하지 않고 상속하지 않는다. explorer root는 새 터미널의
-/// 시작 폴더가 아니다. 서버 선택(탭 A)으로 대신하지도 않는다.
+/// client가 터미널이 아닌 surface를 기준으로 실으면 로컬 상속과 같이 그 surface의 `source_cwd`(explorer root)를
+/// 잇는다. 서버 선택(탭 A)으로 대신하지 않고, 값은 로컬 규칙 `local_surface_cwd`의 결과와 같다.
 #[test]
-fn a_named_source_that_is_not_a_terminal_is_not_inherited() {
+fn a_named_source_that_is_not_a_terminal_gives_its_source_folder() {
     let mut fixture = fixture();
+    let root = fixture.roots[&E].clone();
+    assert_eq!(
+        fixture.session.as_ref().local_surface_cwd(E),
+        Some(root.clone()),
+        "the local rule"
+    );
     for inherit in [true, false] {
         assert_eq!(
             cwd_of(&mut fixture, inherit, CwdSource::Surface(E)),
-            vec![None, None, None],
+            vec![Some(root.clone()); 3],
             "server inherit_cwd = {inherit}"
         );
     }
 }
 
-/// 원격 kind 변환도 같다. 명시 cwd가 먼저이고, 기준이 터미널이면 그 cwd, 터미널이 아니면 없음이다. 기준이
-/// 없을 때 변환할 surface의 위치를 잇는 fallback(서버 설정)은 그대로다.
+/// 원격 kind 변환도 같다. 명시 cwd가 먼저이고, 기준이 있으면 로컬 규칙으로 그 기준의 위치(터미널은 cwd,
+/// explorer는 root)를 잇는다. 기준이 없을 때 변환할 surface의 위치를 잇는 fallback(서버 설정)은 그대로다.
 #[test]
-fn a_remote_convert_inherits_only_a_named_terminal() {
+fn a_remote_convert_inherits_the_named_source() {
     use super::inbound::convert_cwd;
     let mut fixture = fixture();
     let (b, e) = (fixture.roots[&B].clone(), fixture.roots[&E].clone());
@@ -199,7 +205,7 @@ fn a_remote_convert_inherits_only_a_named_terminal() {
             convert_cwd(&engine, E, cwd, source.as_ref())
         };
         assert_eq!(convert(None, Some(InheritCwd::Surface(B))), Some(b.clone()));
-        assert_eq!(convert(None, Some(InheritCwd::Surface(E))), None);
+        assert_eq!(convert(None, Some(InheritCwd::Surface(E))), Some(e.clone()));
         assert_eq!(convert(None, Some(InheritCwd::NoInherit)), None);
         assert_eq!(
             convert(None, None),
@@ -383,6 +389,7 @@ fn a_remote_child_starts_in_the_client_selected_folder() {
     use super::child::launch_cwd;
     let mut fixture = fixture();
     let (a, b) = (fixture.roots[&A].clone(), fixture.roots[&B].clone());
+    let fixture_root_e = fixture.roots[&E].clone();
     let other = fixture.roots[&OTHER_PANE].to_string_lossy().into_owned();
     for inherit in [true, false] {
         fixture.session.runtime.settings.general.inherit_cwd = inherit;
@@ -392,7 +399,11 @@ fn a_remote_child_starts_in_the_client_selected_folder() {
             launch_cwd(&engine, &server_view_on_a(), 10, explicit, source)
         };
         assert_eq!(launch(None, CwdSource::Surface(B)), Some(b.clone()));
-        assert_eq!(launch(None, CwdSource::Surface(E)), None, "not a terminal");
+        assert_eq!(
+            launch(None, CwdSource::Surface(E)),
+            Some(fixture_root_e.clone()),
+            "an explorer source gives its root"
+        );
         assert_eq!(launch(None, CwdSource::NoInherit), None);
         assert_eq!(
             launch(None, CwdSource::View),
@@ -497,9 +508,9 @@ fn window_engine(
 
 /// `workspace.create` 의 `inherit_cwd`(한 창): 포커스는 explorer A다. 인자가 없으면 포커스의 폴더를 잇고,
 /// 터미널을 지목하면 포커스가 아니라 그 터미널의 cwd를, "none"이면 없음이다. 이 인스턴스의 설정이 꺼져 있어도
-/// 지목한 원본은 쓴다. 터미널이 아닌 원본은 거절하지 않고 상속하지 않는다. 없는 surface, 모르는 값은 거절한다.
+/// 지목한 원본은 쓴다. explorer 원본은 로컬 규칙대로 그 root를 잇는다. 없는 surface, 모르는 값은 거절한다.
 #[test]
-fn a_workspace_create_follows_the_named_terminal() {
+fn a_workspace_create_follows_the_named_source() {
     use crate::ipc::handler::workspace::{named_source_cwd, resolve_create_cwd};
     let dir = tempfile::tempdir().expect("temp dir");
     let (mut state, mut session) = window_engine(1, 10, A, B, dir.path());
@@ -524,7 +535,7 @@ fn a_workspace_create_follows_the_named_terminal() {
         )
         .map_err(|response| response.error.expect("refusal").message)
     };
-    assert_eq!(create(true, serde_json::json!({})), Ok(Some(root)));
+    assert_eq!(create(true, serde_json::json!({})), Ok(Some(root.clone())));
     assert_eq!(create(false, serde_json::json!({})), Ok(None));
     for inherit in [true, false] {
         assert_eq!(
@@ -534,8 +545,8 @@ fn a_workspace_create_follows_the_named_terminal() {
         );
         assert_eq!(
             create(inherit, serde_json::json!({"inherit_cwd": {"surface": A}})),
-            Ok(None),
-            "a named explorer is not inherited"
+            Ok(Some(root.clone())),
+            "a named explorer gives its root"
         );
         assert_eq!(
             create(inherit, serde_json::json!({"inherit_cwd": "none"})),
@@ -552,10 +563,10 @@ fn a_workspace_create_follows_the_named_terminal() {
 }
 
 /// 서버 창 둘: 요청을 처리하는 포커스 창 1에는 원본이 없고, 원본 터미널은 창 2(다른 engine)에 있다. 원본은
-/// 모든 engine에서 찾으므로 거절하지 않고 그 터미널의 cwd로 만든다. 창 2의 explorer는 거절하지 않고 상속하지
-/// 않는다. 어느 창에도 없으면 거절한다.
+/// 모든 engine에서 찾으므로 거절하지 않고 그 터미널의 cwd로 만든다. 창 2의 explorer는 로컬 규칙대로 그 root를
+/// 잇는다. 어느 창에도 없으면 거절한다.
 #[test]
-fn a_workspace_create_finds_the_named_terminal_in_another_window() {
+fn a_workspace_create_finds_the_named_source_in_another_window() {
     use crate::ipc::handler::workspace::{named_source_in, resolve_create_cwd};
     let dir = tempfile::tempdir().expect("temp dir");
     let (mut state, focused) = window_engine(1, 10, 101, 102, dir.path());
@@ -586,7 +597,7 @@ fn a_workspace_create_finds_the_named_terminal_in_another_window() {
     );
     assert_eq!(
         create(serde_json::json!({"inherit_cwd": {"surface": 201}})),
-        Ok(None)
+        Ok(Some(dir.path().join("e201")))
     );
     let missing = create(serde_json::json!({"inherit_cwd": {"surface": 9999}})).unwrap_err();
     assert!(missing.contains("no live surface 9999"), "{missing}");

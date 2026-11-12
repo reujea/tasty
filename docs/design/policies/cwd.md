@@ -105,7 +105,7 @@ mirror 워크스페이스의 새 탭·pane 분할·surface 분할·convert 는 �
 | `inherit_cwd` | client 가 싣는 때 | 서버 동작 |
 |---|---|---|
 | 없음(또는 `null`) | client `inherit_cwd` 설정이 켜져 있는데 고를 surface 가 없을 때(예: 창 정보 없이 온 요청). 이 필드를 모르는 client 도 같다 | 서버 View 의 선택으로 상속 원본을 고른다. 게이트는 서버 자신의 `inherit_cwd` 설정이다. 일반 fallback 규칙이며 구버전 전용 분기가 아니다 |
-| `{"surface": <원격 surface id>}` | client 설정이 켜져 있을 때 client View 가 고른 surface. 새 탭·pane 분할은 anchor pane 에서 client View 가 선택한 탭의 선택 surface, surface 분할·convert 는 대상 surface 자신 | 그 surface 의 실행 시점 cwd(서버 PTY 기준)를 잇는다. 서버 `inherit_cwd` 설정으로 막지 않는다. client 가 이미 판단했다 |
+| `{"surface": <원격 surface id>}` | client 설정이 켜져 있을 때 client View 가 고른 surface. 새 탭·pane 분할은 anchor pane 에서 client View 가 선택한 탭의 선택 surface, surface 분할·convert 는 대상 surface 자신 | 그 surface 의 실행 시점 위치를 서버 쪽 로컬 규칙(`local_surface_cwd`)으로 잇는다. 터미널은 서버 PTY 기준 cwd, 비터미널은 `source_cwd` 다. 서버 `inherit_cwd` 설정으로 막지 않는다. client 가 이미 판단했다 |
 | `"none"` | client `inherit_cwd` 설정이 꺼져 있을 때 | 상속하지 않는다. 서버 선택도 쓰지 않는다. 명시 `cwd` 가 없으면 kind 기본(터미널은 셸 기본 위치) |
 
 | 단계 | 담당 | 값 |
@@ -116,7 +116,7 @@ mirror 워크스페이스의 새 탭·pane 분할·surface 분할·convert 는 �
 | 원격 실행 | `src/app/journal/commands/inbound.rs`와 `src/app/journal/commands/create_spec.rs` (원 요청 해석) | `inherit_cwd` 를 검증한 뒤 상속 원본을 정하고, **실제 원격 PTY** 기준(OSC 7 캐시 → Linux `/proc`·macOS `proc_pidinfo`) cwd 를 직접 판정한다 |
 | 관측 push (server → client) | `EngineMut::forward_surface_cwd` → `StreamControl::Cwd` → client `mirror_surface_cwd` 맵 | 서버가 1Hz 로 점유 surface 의 cwd 를 자기 트리에서 계산해 값이 바뀐 것만 holder 에 보낸다. 실행이 아니라 **관측**이다([원격 attach (Remote attach)](../../features/remote-attach/index.md)) |
 
-**서버 검증**: 서버는 `{"surface": N}` 의 N 이 요청 연결이 점유한 workspace 에 있고 anchor(새 탭·pane 분할)나 대상 surface(surface 분할·convert)와 같은 pane 에 있는지 확인한다. 아니면 아무것도 만들지 않고 `StructuralResult { ok: false, reason }` 으로 거절한다. 이 빌드가 모르는 값(`"all"`, `{"pane": 1}` 등)도 `unsupported inherit_cwd value …` 로 거절한다. 모르는 값을 상속 안 함이나 필드 없음으로 읽지 않는다. 원본이 터미널이 아니거나 cwd 를 모르면 거절하지 않고 상속하지 않는다(로컬 `local_surface_cwd` 가 `None` 일 때와 같다).
+**서버 검증**: 서버는 `{"surface": N}` 의 N 이 요청 연결이 점유한 workspace 에 있고 anchor(새 탭·pane 분할)나 대상 surface(surface 분할·convert)와 같은 pane 에 있는지 확인한다. 아니면 아무것도 만들지 않고 `StructuralResult { ok: false, reason }` 으로 거절한다. 이 빌드가 모르는 값(`"all"`, `{"pane": 1}` 등)도 `unsupported inherit_cwd value …` 로 거절한다. 모르는 값을 상속 안 함이나 필드 없음으로 읽지 않는다. 원본의 cwd 는 로컬 상속과 같은 `local_surface_cwd` 규칙으로 읽는다. 터미널은 셸 위치, 비터미널은 `source_cwd`(explorer root, 파일의 부모 폴더 등)다. cwd 를 모르면 거절하지 않고 상속하지 않는다.
 
 **게이트**: `inherit_cwd` 설정 게이트는 요청을 만든 쪽(client)의 설정이다. 서버 자신의 설정은 필드가 없을 때(fallback)만 쓴다. **이 게이트는 실행 경로에 한정된다** — 관측 push 는 `inherit_cwd` 와 무관하게 raw cwd 를 보내고, 게이트는 소비 시점(client)이 건다. `inherit_cwd` 는 "새 surface 가 cwd 를 상속하는가" 이지 "cwd 를 아는가" 가 아니다.
 
@@ -133,10 +133,10 @@ mirror 워크스페이스의 새 탭·pane 분할·surface 분할·convert 는 �
 | 소비 지점 | cwd 가 가는 곳 | 판정 |
 |---|---|---|
 | `intent/workspace.rs` (새 워크스페이스 intent — GUI 경로) | 새 **로컬** 워크스페이스의 첫 PTY | 상속 원본은 그 창의 포커스 surface. 그것이 mirror 면 `None`(= 홈) |
-| `adapters/ipc/handler/workspace.rs` (`workspace.create`) | 새 **로컬** 워크스페이스의 첫 surface | 상속(terminal 만) 원본은 `inherit_cwd` 가 명시한 surface, 없으면 지목한 `surface_id`, 그것도 없으면 그 창의 포커스 surface([CLI 크레이트 내부 구조 — 세 갈래 대칭](../../dev-guide/cli-structure.md)). 그것이 mirror 면 `None`(= 홈). `inherit_cwd` 의 surface 는 모든 창(parked 포함)의 engine 에서 찾고, 어디에도 없으면 거절한다. 그 surface 가 terminal 이 아니면 거절하지 않고 상속하지 않는다. 명시 원본은 이 인스턴스의 `inherit_cwd` 설정으로 막지 않고, `"none"` 이면 상속하지 않는다. 명시 `cwd` 는 kind 와 관계없이 그대로 존중 |
+| `adapters/ipc/handler/workspace.rs` (`workspace.create`) | 새 **로컬** 워크스페이스의 첫 surface | 상속(terminal 만) 원본은 `inherit_cwd` 가 명시한 surface, 없으면 지목한 `surface_id`, 그것도 없으면 그 창의 포커스 surface([CLI 크레이트 내부 구조 — 세 갈래 대칭](../../dev-guide/cli-structure.md)). 그것이 mirror 면 `None`(= 홈). `inherit_cwd` 의 surface 는 모든 창(parked 포함)의 engine 에서 찾고, 어디에도 없으면 거절한다. 그 surface 의 cwd 는 로컬 상속과 같은 `local_surface_cwd` 규칙으로 읽는다(비터미널은 `source_cwd`). 명시 원본은 이 인스턴스의 `inherit_cwd` 설정으로 막지 않고, `"none"` 이면 상속하지 않는다. 명시 `cwd` 는 kind 와 관계없이 그대로 존중 |
 | `state/tab.rs` (`add_tab` · `add_kind_tab`) | mirror 면 cwd 를 읽기 **전에** forward 로 return | 로컬 워크스페이스에서만 값이 쓰인다 |
 | `state/tab.rs` (`add_kind_tab_by_owner`) | owner surface 의 pane 에 `DomainIntent::CreateTab` 을 보낸다. 상속 원본은 owner surface 다. 그 창의 포커스는 결과에 영향을 주지 않는다 | owner surface 가 mirror 면 `None`. owner pane 이 mirror 면 App journal 이 `NewTab` 으로 forward 해 cwd 가 버려진다. 유일한 호출처인 explorer "새 탭으로 열기"는 `path` param 이 root 를 정하고 mirror 에서는 핸들러가 먼저 막는다 |
-| `intent/pane.rs` · `intent/surface.rs` (split) · `intent/tab.rs` · `adapters/ipc/handler/{pane,tab}.rs` | App journal의 mirror 대상 해소가 forward — 그 op(`SplitPane`/`NewTab`/`SplitSurface`)는 cwd 경로 대신 상속 원본 `inherit_cwd`(원격 surface id)를 싣는다 | mirror 에서 계산된 로컬 cwd 는 `None` 이라 버려진다. 서버가 client 가 고른 원본의 자기 PTY cwd 로 결정(§3-1) |
+| `intent/pane.rs` · `intent/surface.rs` (split) · `intent/tab.rs` · `adapters/ipc/handler/{pane,tab}.rs` | App journal의 mirror 대상 해소가 forward — 그 op(`SplitPane`/`NewTab`/`SplitSurface`)는 cwd 경로 대신 상속 원본 `inherit_cwd`(원격 surface id)를 싣는다 | mirror 에서 계산된 로컬 cwd 는 `None` 이라 버려진다. 서버가 client 가 고른 원본의 서버 쪽 위치(터미널은 자기 PTY cwd, 비터미널은 `source_cwd`)로 결정(§3-1) |
 | `intent/surface.rs` (convert) | mirror 면 `StructuralOp::ConvertSurface.cwd` | 명시값만 실린다(§3-1 표) |
 | `app/journal/commands/inbound.rs` · `create_spec.rs` (원격 요청 해석) | **서버측** 로컬 실행 | 서버 자기 트리의 surface 라 `Local` — 이 규칙의 대상이 아니다 |
 | `state.rs` (`enqueue_convert_input_popup`) · `adapters/ui/tools_menu.rs` | plugin popup context 의 `cwd` 키 | `cwd` 키에는 `Local` 만. 원격 값은 별도 키로만 나간다(docs/features/remote-attach/index.md) |
