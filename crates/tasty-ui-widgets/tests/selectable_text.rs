@@ -6,6 +6,7 @@
 #![allow(clippy::let_underscore_must_use)]
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Stroke, pos2, vec2};
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{TextWrap, remote_row_title, selectable_text};
 
 const TEXT: &str = "gx10 deploy@10.0.4.12";
@@ -75,10 +76,10 @@ impl Harness {
                                     ui,
                                     TEXT,
                                     self.theme.text_muted(),
-                                    self.theme.font_size_caption.value(),
+                                    self.theme.font_size_caption,
                                     false,
                                     false,
-                                    TextWrap::Truncate(300.0),
+                                    TextWrap::Truncate(LogicalPx(300.0)),
                                 )
                                 .rect
                             }

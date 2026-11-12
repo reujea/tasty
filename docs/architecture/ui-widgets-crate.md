@@ -145,7 +145,7 @@ if let Some(new) = selected_new { *sub_tab = new; }
 
 ## 선택 가능한 표시 텍스트
 
-`selectable_text`·`selectable_label`(모듈 `selectable_text`)은 선택 가능한 표시 텍스트이며 편집 위젯이 아니다. 드래그로 글자를 선택하고 복사(Ctrl+C, macOS Cmd+C)할 수 있다. 캐럿을 그리지 않고 키 입력과 IME 조합을 받지 않는다. 클릭하면 포커스는 받으므로 포커스 중 화살표·Shift 선택 확장과 전체 선택은 동작한다. 원격 행 제목(`remote_row_title` 안의 이름·라벨 줄)도 같은 방식으로 그린다.
+`selectable_text`·`selectable_label`(모듈 `selectable_text`)은 선택 가능한 표시 텍스트이며 편집 위젯이 아니다. 드래그로 글자를 선택하고 복사(Ctrl+C, macOS Cmd+C)할 수 있다. 캐럿을 그리지 않고 키 입력과 IME 조합을 받지 않는다. 클릭하면 포커스는 받으므로 포커스 중 화살표·Shift 선택 확장과 전체 선택은 동작한다. 원격 행 제목(`remote_row_title` 안의 이름·라벨 줄)도 같은 방식으로 그린다. 길이 인자(글자 크기 `size`, 자간 `tracking`, 말줄임 폭 `TextWrap::Truncate`)는 `LogicalPx`로 받고 egui에 넘기는 경계에서만 숫자로 꺼낸다.
 
 `egui::Label::selectable(true)`는 포인터가 위젯 밖으로 가로로 나가면 드래그 선택이 멈추므로(egui #3816) `TextEdit`을 쓴다. `TextEdit::interactive(false)`는 선택까지 막아 쓰지 않는다. 대신 변경할 수 없는 `&str` 버퍼를 넘긴다. egui는 이 버퍼에 캐럿과 IME 출력을 내지 않고 글자를 넣거나 지우지 않는다. 회귀 검사는 `crates/tasty-ui-widgets/tests/selectable_text.rs`다. 실제 egui Context로 프레임을 돌려 클릭 뒤 캐럿·IME 출력이 없는지, 글자·IME 입력 뒤 표시 글자가 그대로인지, 위젯 밖 오른쪽까지 끈 드래그 선택 뒤 복사가 줄 전체를 내는지 본다.
 

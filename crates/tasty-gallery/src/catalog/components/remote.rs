@@ -444,10 +444,10 @@ fn attach_row(ui: &mut egui::Ui, theme: &Theme, a: &Attach) {
                 ui,
                 a.target,
                 theme.text_muted(),
-                theme.font_size_caption.value(),
+                theme.font_size_caption,
                 true,
                 false,
-                TextWrap::Truncate(w),
+                TextWrap::Truncate(LogicalPx(w)),
             );
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_md.value();
@@ -769,10 +769,10 @@ fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Profile) {
                 ui,
                 p.target,
                 theme.text_muted(),
-                theme.font_size_caption.value(),
+                theme.font_size_caption,
                 true,
                 false,
-                TextWrap::Truncate(w),
+                TextWrap::Truncate(LogicalPx(w)),
             );
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();

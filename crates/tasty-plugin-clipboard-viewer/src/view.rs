@@ -407,7 +407,7 @@ fn text_body(ui: &mut egui::Ui, theme: &Theme, text: &str) {
             ui,
             text,
             theme.text_primary().to_egui(),
-            theme.font_size_term_sm.value(),
+            theme.font_size_term_sm,
             true,
             false,
             tasty_ui_widgets::TextWrap::Wrap,

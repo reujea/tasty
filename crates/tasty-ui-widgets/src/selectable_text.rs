@@ -8,7 +8,11 @@
 //! `TextEdit::interactive(false)`는 선택까지 막으므로 쓰지 않는다. 대신 변경할 수 없는 `&str`
 //! 버퍼를 넘긴다. egui는 `&str` 버퍼에 캐럿·IME 출력을 내지 않고 삽입·삭제를 하지 않는다.
 //!
+//! 길이 인자(글자 크기·자간·말줄임 폭)는 `LogicalPx`로 받고 egui에 넘기는 지점에서만 숫자로 꺼낸다.
+//!
 //! 회귀 시험: `crates/tasty-ui-widgets/tests/selectable_text.rs`.
+
+use tasty_type_geometry::length::LogicalPx;
 
 /// [`selectable_text`] 의 줄바꿈 모드.
 #[derive(Clone, Copy)]
@@ -18,7 +22,7 @@ pub enum TextWrap {
     /// 가용 폭에서 여러 줄로 줄바꿈(`Label::wrap()` 과 동형).
     Wrap,
     /// 지정 폭에서 한 줄로 줄인다. 폭은 egui LayoutJob에 직접 전달한다.
-    Truncate(f32),
+    Truncate(LogicalPx),
 }
 
 /// 선택·복사 가능한 표시 텍스트를 그린다. 편집 위젯이 아니다.
@@ -28,12 +32,21 @@ pub fn selectable_text(
     ui: &mut egui::Ui,
     text: &str,
     color: impl Into<egui::Color32>,
-    size: f32,
+    size: LogicalPx,
     monospace: bool,
     italic: bool,
     wrap: TextWrap,
 ) -> egui::Response {
-    selectable_text_tracked(ui, text, color, size, monospace, italic, wrap, 0.0)
+    selectable_text_tracked(
+        ui,
+        text,
+        color,
+        size,
+        monospace,
+        italic,
+        wrap,
+        LogicalPx(0.0),
+    )
 }
 
 /// [`selectable_text`]에 논리 픽셀 단위 자간을 추가한다. 편집 위젯이 아니다.
@@ -42,17 +55,17 @@ pub fn selectable_text_tracked(
     ui: &mut egui::Ui,
     text: &str,
     color: impl Into<egui::Color32>,
-    size: f32,
+    size: LogicalPx,
     monospace: bool,
     italic: bool,
     wrap: TextWrap,
-    tracking: f32,
+    tracking: LogicalPx,
 ) -> egui::Response {
     let color = color.into();
     let font_id = if monospace {
-        egui::FontId::monospace(size)
+        egui::FontId::monospace(size.value())
     } else {
-        egui::FontId::proportional(size)
+        egui::FontId::proportional(size.value())
     };
     // 변경할 수 없는 버퍼라 egui가 캐럿·IME를 내지 않고 키 입력을 넣지 않는다.
     let mut buffer: &str = text;
@@ -65,7 +78,7 @@ pub fn selectable_text_tracked(
                 font_id: font_id.clone(),
                 color,
                 italics: italic,
-                extra_letter_spacing: tracking,
+                extra_letter_spacing: tracking.value(),
                 ..Default::default()
             },
         );
@@ -76,7 +89,7 @@ pub fn selectable_text_tracked(
                 job.break_on_newline = true;
             }
             TextWrap::Truncate(w) => {
-                job.wrap.max_width = w;
+                job.wrap.max_width = w.value();
                 job.wrap.max_rows = 1;
                 job.wrap.break_anywhere = true;
             }
@@ -103,7 +116,7 @@ pub fn selectable_label(
     ui: &mut egui::Ui,
     text: &str,
     color: impl Into<egui::Color32>,
-    size: f32,
+    size: LogicalPx,
     monospace: bool,
 ) -> egui::Response {
     selectable_text(ui, text, color, size, monospace, false, TextWrap::None)
@@ -114,9 +127,9 @@ pub fn selectable_label_tracked(
     ui: &mut egui::Ui,
     text: &str,
     color: impl Into<egui::Color32>,
-    size: f32,
+    size: LogicalPx,
     monospace: bool,
-    tracking: f32,
+    tracking: LogicalPx,
 ) -> egui::Response {
     selectable_text_tracked(
         ui,

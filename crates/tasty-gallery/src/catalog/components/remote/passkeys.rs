@@ -154,10 +154,10 @@ fn passkey_row(ui: &mut egui::Ui, theme: &Theme, k: &PasskeySample) {
                 ui,
                 &format!("{} · {}", k.kind, value),
                 theme.text_muted(),
-                theme.font_size_caption.value(),
+                theme.font_size_caption,
                 true,
                 false,
-                TextWrap::Truncate(w),
+                TextWrap::Truncate(LogicalPx(w)),
             );
         },
         |ui| {

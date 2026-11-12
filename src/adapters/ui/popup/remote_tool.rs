@@ -612,7 +612,7 @@ fn draw_profile_list(
                     ui,
                     msg,
                     th.text_muted(),
-                    th.font_size_body.value(),
+                    th.font_size_body,
                     false,
                     true,
                     TextWrap::None,
@@ -820,10 +820,10 @@ fn draw_profile_row(
                 ui,
                 &profile_summary(p),
                 th.text_muted(),
-                th.font_size_caption.value(),
+                th.font_size_caption,
                 true,
                 false,
-                TextWrap::Truncate(w),
+                TextWrap::Truncate(LogicalPx(w)),
             );
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
@@ -833,7 +833,7 @@ fn draw_profile_row(
                             ui,
                             &format!("passkey: {pr}"),
                             th.text_muted(),
-                            th.font_size_caption.value(),
+                            th.font_size_caption,
                             false,
                         );
                         if !passkey_names.contains(pr) {
@@ -850,7 +850,7 @@ fn draw_profile_row(
                             ui,
                             "passkey: —",
                             th.text_muted(),
-                            th.font_size_caption.value(),
+                            th.font_size_caption,
                             false,
                         );
                     }
@@ -860,7 +860,7 @@ fn draw_profile_row(
                         ui,
                         &format!("shell: {}", v.shell()),
                         th.text_muted(),
-                        th.font_size_caption.value(),
+                        th.font_size_caption,
                         false,
                     );
                     if detecting_now {
@@ -869,7 +869,7 @@ fn draw_profile_row(
                             ui,
                             t("remote_tool.detecting"),
                             th.text_muted(),
-                            th.font_size_caption.value(),
+                            th.font_size_caption,
                             false,
                         );
                     } else if disabled {
@@ -877,7 +877,7 @@ fn draw_profile_row(
                             ui,
                             t("remote_tool.detect_failed"),
                             th.accent_danger_raised(),
-                            th.font_size_caption.value(),
+                            th.font_size_caption,
                             false,
                         );
                     }
@@ -1041,7 +1041,7 @@ fn draw_profile_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
                     t("remote_tool.profile_form_add")
                 },
                 th.text_primary(),
-                th.font_size_body.value(),
+                th.font_size_body,
                 false,
             );
             ui.add_space(th.spacing_md.value());
@@ -1148,7 +1148,7 @@ fn draw_profile_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
                         ui,
                         t("remote_tool.fields_section"),
                         th.text_muted(),
-                        th.font_size_caption.value(),
+                        th.font_size_caption,
                         true,
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1284,7 +1284,7 @@ fn draw_attach_list(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, profiles: &
                 ui,
                 t("remote_tool.attach_empty"),
                 th.text_muted(),
-                th.font_size_body.value(),
+                th.font_size_body,
                 false,
                 true,
                 TextWrap::None,
@@ -1366,10 +1366,10 @@ fn draw_attach_row(
                     ui,
                     &target,
                     th.text_muted(),
-                    th.font_size_caption.value(),
+                    th.font_size_caption,
                     true,
                     false,
-                    TextWrap::Truncate((w - missing_w).max(0.0)),
+                    TextWrap::Truncate(LogicalPx((w - missing_w).max(0.0))),
                 );
                 if missing {
                     warn_badge(
@@ -1386,14 +1386,14 @@ fn draw_attach_row(
                     ui,
                     &format!("tasty: {}", v.remote_tasty()),
                     th.text_muted(),
-                    th.font_size_caption.value(),
+                    th.font_size_caption,
                     false,
                 );
                 selectable_label(
                     ui,
                     &format!("port: {}", v.port_mode()),
                     th.text_muted(),
-                    th.font_size_caption.value(),
+                    th.font_size_caption,
                     false,
                 );
             });
@@ -1485,7 +1485,7 @@ fn draw_attach_form(
                     t("remote_tool.attach_form_add")
                 },
                 th.text_primary(),
-                th.font_size_body.value(),
+                th.font_size_body,
                 false,
             );
             ui.add_space(th.spacing_md.value());
@@ -1567,7 +1567,7 @@ fn draw_attach_form(
                 ui,
                 t("remote_tool.remote_tasty_section"),
                 th.text_muted(),
-                th.font_size_caption.value(),
+                th.font_size_caption,
                 true,
             );
             text_row(
@@ -1671,7 +1671,7 @@ fn draw_passkey_list(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
             ui,
             error,
             th.accent_danger_raised(),
-            th.font_size_caption.value(),
+            th.font_size_caption,
             false,
         );
     }
@@ -1682,7 +1682,7 @@ fn draw_passkey_list(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
                 ui,
                 t("remote_tool.passkey_empty"),
                 th.text_muted(),
-                th.font_size_body.value(),
+                th.font_size_body,
                 false,
                 true,
                 TextWrap::None,
@@ -1795,10 +1795,10 @@ fn draw_passkey_row(
                 ui,
                 &format!("{} · {}", k.kind, val),
                 th.text_muted(),
-                th.font_size_caption.value(),
+                th.font_size_caption,
                 true,
                 false,
-                TextWrap::Truncate(w),
+                TextWrap::Truncate(LogicalPx(w)),
             );
         },
         |ui| {
@@ -1850,7 +1850,7 @@ fn draw_passkey_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState) {
                     t("remote_tool.passkey_form_add")
                 },
                 th.text_primary(),
-                th.font_size_body.value(),
+                th.font_size_body,
                 false,
             );
             ui.add_space(th.spacing_md.value());
@@ -1894,7 +1894,7 @@ fn draw_passkey_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState) {
                 ui,
                 t("remote_tool.passkey_value_note"),
                 th.text_muted(),
-                th.font_size_caption.value(),
+                th.font_size_caption,
                 false,
             );
             if let Some(err) = &st.kerr {
@@ -1902,7 +1902,7 @@ fn draw_passkey_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState) {
                     ui,
                     err,
                     th.accent_danger_raised(),
-                    th.font_size_caption.value(),
+                    th.font_size_caption,
                     false,
                 );
             }
@@ -1933,11 +1933,11 @@ fn draw_confirm_delete(
         ui,
         &format!("{}: \"{name}\"?", noun),
         th.text_primary(),
-        th.font_size_body.value(),
+        th.font_size_body,
         false,
     );
     if let Some(h) = hint {
-        selectable_label(ui, h, th.text_muted(), th.font_size_caption.value(), false);
+        selectable_label(ui, h, th.text_muted(), th.font_size_caption, false);
     }
     ui.add_space(th.spacing_sm.value());
     ui.horizontal(|ui| {
@@ -2040,10 +2040,10 @@ fn field_label(ui: &mut egui::Ui, th: &Theme, label: &str) {
                 ui,
                 label,
                 th.text_muted(),
-                th.font_size_body.value(),
+                th.font_size_body,
                 false,
                 false,
-                TextWrap::Truncate(LABEL_COL_WIDTH.value()),
+                TextWrap::Truncate(LABEL_COL_WIDTH),
             );
         },
     );
@@ -2063,7 +2063,7 @@ fn indented_hint(
             ui,
             text,
             color,
-            th.font_size_caption.value(),
+            th.font_size_caption,
             false,
             italic,
             TextWrap::Wrap,

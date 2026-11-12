@@ -460,24 +460,18 @@ pub fn draw_local_ssh_section(
                 ui,
                 &data.heading.to_uppercase(),
                 th.text_secondary(),
-                th.font_size_caption.value(),
+                th.font_size_caption,
                 false,
-                th.letter_spacing_caps(th.font_size_caption).value(),
+                th.letter_spacing_caps(th.font_size_caption),
             );
-            selectable_label(
-                ui,
-                data.path,
-                th.text_muted(),
-                th.font_size_caption.value(),
-                true,
-            );
+            selectable_label(ui, data.path, th.text_muted(), th.font_size_caption, true);
             if !data.hosts.is_empty() {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     selectable_label(
                         ui,
                         &data.hosts.len().to_string(),
                         th.text_muted(),
-                        th.font_size_caption.value(),
+                        th.font_size_caption,
                         true,
                     );
                 });
@@ -494,7 +488,7 @@ pub fn draw_local_ssh_section(
                 ui,
                 data.empty_message,
                 th.text_muted(),
-                th.font_size_caption.value(),
+                th.font_size_caption,
                 false,
                 false,
                 TextWrap::Wrap,
@@ -546,19 +540,19 @@ fn draw_local_ssh_row(
                         ui,
                         h.alias,
                         th.text_secondary(),
-                        th.font_size_body.value(),
+                        th.font_size_body,
                         false,
                         false,
-                        TextWrap::Truncate(w),
+                        TextWrap::Truncate(LogicalPx(w)),
                     );
                     selectable_text(
                         ui,
                         h.target,
                         th.text_muted(),
-                        th.font_size_caption.value(),
+                        th.font_size_caption,
                         true,
                         false,
-                        TextWrap::Truncate(w),
+                        TextWrap::Truncate(LogicalPx(w)),
                     );
                 });
             });
