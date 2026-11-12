@@ -42,3 +42,7 @@
 ## macOS 원격 HTTP viewer 하한
 
 원격 HTTP(S) viewer를 선언하는 macOS 하한은 `src/host_api/webview/macos/http.rs`의 `FIRST_MEASURED`(macOS 메이저 버전)다. 문서는 이 값을 지원 표기(`macOS 27 이상`)와 미지원 범위(`macOS 11–26`)로 여러 곳에 산문으로 적는다. `macos_http_viewer_floor_matches_the_source`가 docs 전체의 `macOS 11–N` 범위 상한을 상수보다 1 작은 값과 대조한다. 그래서 docs 안에서 `macOS 11–N` 형태는 이 미지원 범위에만 쓰고, 다른 사실(per-store proxy API가 없는 버전 등)은 "macOS 14 이전"처럼 적는다. 지원 표기와 `macOS 14–26` 같은 다른 범위는 검사하지 않으므로 하한을 바꿀 때 `git grep -nE "macOS (1[1-9]|2[0-9])"`로 함께 확인한다.
+
+## 상태 모델의 상태 목록
+
+[상태 모델](../concepts/state-model/index.md)은 코드의 상태 목록을 표 두 개로 옮겨 적는다. surface 문서의 활성화 단계 전이 표는 `crates/tasty-core/src/evolve/lifecycle.rs`의 `phase_transition`과 `crates/tasty-core/src/operation.rs`의 `ActivationPhase`, workspace 문서의 연결 상태 표는 `src/app/auto_attach/row_use.rs`의 `row_state_name`과 `src/runtime/engine_read.rs`의 `remote_row_state`가 실물이다. `state_model_lists_match_the_source`가 두 표를 집합으로 대조한다. 전이 하나 삭제, 단계 추가, 상태 문자열 변경, 사이드바 대응 변경을 코드와 문서 양쪽에서 바꿔 검출하는 것을 확인했다. 산문 문장에 적은 목록(`ChildState`·`SessionState`·`RetiringView`의 값)은 검사하지 않으므로 그 enum을 바꿀 때 `docs/concepts/state-model/`을 함께 검색한다.
