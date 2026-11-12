@@ -116,7 +116,7 @@ impl DeadRoot {
     #[track_caller]
     fn assert_removed_after(&self, audit: Audit<'_>) {
         let mut sweeps = 0;
-        let r = until_removed(|| {
+        let r = until_removed(self.parent.path(), || {
             sweeps += 1;
             admitted(|| reclaim::run_audited(self.parent.path(), 1, audit, &lease::KERNEL)).unwrap()
         });

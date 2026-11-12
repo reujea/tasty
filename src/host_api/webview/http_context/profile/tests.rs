@@ -656,20 +656,189 @@ pub(super) fn reclaim_positive(parent: &Path, max: usize) -> CleanupReport {
 }
 /// A process another test forks keeps every description open here until it execs, so a file this
 /// test just closed can still refuse a lease for a moment. Production leaves that to its next sweep.
+#[track_caller]
 pub(super) fn swept_until_removed(parent: &Path, max: usize) -> CleanupReport {
-    until_removed(|| reclaim_positive(parent, max))
+    until_removed(parent, || reclaim_positive(parent, max))
 }
 /// How long a retried sweep or admission may be refused. A child forked elsewhere in this binary
 /// holds what it copied until it execs, and a loaded machine can leave it unscheduled for seconds.
 /// Both loops return at their first success, so only something that keeps holding reaches this.
 pub(super) const SWEEP_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
-pub(super) fn until_removed(mut sweep: impl FnMut() -> CleanupReport) -> CleanupReport {
-    let deadline = std::time::Instant::now() + SWEEP_LIMIT;
+/// Sweeps until one removes a root under `parent`. A root still retained at `SWEEP_LIMIT` fails
+/// with what was holding it, since the last report alone cannot tell the causes apart.
+#[track_caller]
+pub(super) fn until_removed(
+    parent: &Path,
+    mut sweep: impl FnMut() -> CleanupReport,
+) -> CleanupReport {
+    let started = std::time::Instant::now();
+    let mut sweeps = 0;
     loop {
         let report = sweep();
-        if report.removed > 0 || std::time::Instant::now() >= deadline {
+        sweeps += 1;
+        if report.removed > 0 {
             return report;
+        }
+        if started.elapsed() >= SWEEP_LIMIT {
+            panic!(
+                "root still retained after {sweeps} sweeps in {:?}, last {report:?}\n{}",
+                started.elapsed(),
+                retention_diagnosis(parent)
+            );
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
+}
+/// What holds each root under `parent`: the owner pid of its record, a lease tried on each of its
+/// regular files, and every process of this user that shows one of its objects or denies the look.
+fn retention_diagnosis(parent: &Path) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let entries = match disk::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(error) => return format!("namespace {}: {error}", parent.display()),
+    };
+    for root in entries.filter_map(Result::ok).map(|e| e.path()) {
+        if !root.is_dir() {
+            continue;
+        }
+        writeln!(out, "root {}", root.display()).unwrap();
+        match disk::read(root.join(record::NAME)) {
+            Ok(text) => {
+                let owner = serde_json::from_slice::<record::Record>(&text)
+                    .ok()
+                    .map(|r| r.owner.pid);
+                let alive = owner.map(|pid| Path::new(&format!("/proc/{pid}/stat")).exists());
+                writeln!(
+                    out,
+                    "  owner pid {owner:?}, /proc/<pid>/stat exists {alive:?}"
+                )
+                .unwrap();
+            }
+            Err(error) => writeln!(out, "  record: {error}").unwrap(),
+        }
+        let mut objects = std::collections::HashSet::new();
+        let mut files = Vec::new();
+        collect_objects(&root, &mut objects, &mut files);
+        for file in &files {
+            writeln!(out, "  lease {}: {}", file.display(), lease_attempt(file)).unwrap();
+        }
+        holding_processes(&root, &objects, &mut out);
+    }
+    out
+}
+fn collect_objects(
+    path: &Path,
+    objects: &mut std::collections::HashSet<(u64, u64)>,
+    files: &mut Vec<PathBuf>,
+) {
+    let Ok(m) = disk::symlink_metadata(path) else {
+        return;
+    };
+    objects.insert((m.dev(), m.ino()));
+    if m.is_file() {
+        files.push(path.to_owned());
+    } else if m.is_dir() {
+        for entry in disk::read_dir(path).into_iter().flatten().flatten() {
+            collect_objects(&entry.path(), objects, files);
+        }
+    }
+}
+/// A write lease is refused while any other description of the file is open anywhere.
+fn lease_attempt(file: &Path) -> String {
+    use std::os::fd::AsRawFd;
+    if let Err(error) = lease::survive_lease_breaks() {
+        return format!("lease break handler: {error}");
+    }
+    let file = match disk::File::open(file) {
+        Ok(file) => file,
+        Err(error) => return format!("open: {error}"),
+    };
+    match lease::set_write(&file) {
+        Ok(()) => {
+            // SAFETY: fcntl on a descriptor this function owns.
+            let released =
+                unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_UNLCK) };
+            format!("granted (released {released})")
+        }
+        Err(error) => format!("refused: {error}"),
+    }
+}
+/// Every process of this user whose descriptors, mappings, cwd, root or exe show an object of
+/// `root`, or that refuses the look; a child of this test process that has not exec'd yet shows
+/// here as a process whose parent is this one and whose exe is this binary.
+fn holding_processes(
+    root: &Path,
+    objects: &std::collections::HashSet<(u64, u64)>,
+    out: &mut String,
+) {
+    use std::fmt::Write;
+    let own = std::process::id();
+    let shows = |link: PathBuf| {
+        disk::metadata(&link).is_ok_and(|m| objects.contains(&(m.dev(), m.ino())))
+            || disk::read_link(&link).is_ok_and(|target| target.starts_with(root))
+    };
+    let mut found = 0;
+    for entry in disk::read_dir("/proc").into_iter().flatten().flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|n| n.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        let process = entry.path();
+        if pid == own || !disk::metadata(&process).is_ok_and(|m| m.uid() == fs::uid()) {
+            continue;
+        }
+        let mut seen = Vec::new();
+        let mut denied = Vec::new();
+        match disk::read_dir(process.join("fd")) {
+            Ok(fds) => {
+                for fd in fds.flatten() {
+                    if shows(fd.path()) {
+                        seen.push(format!("fd {}", fd.file_name().to_string_lossy()));
+                    }
+                }
+            }
+            Err(error) => denied.push(format!("fd: {error}")),
+        }
+        match disk::read_to_string(process.join("maps")) {
+            Ok(maps) => {
+                let root_text = root.to_string_lossy();
+                let mapped = maps.lines().filter(|line| {
+                    let inode = line.split_whitespace().nth(4).and_then(|i| i.parse().ok());
+                    line.contains(root_text.as_ref())
+                        || inode.is_some_and(|i: u64| objects.iter().any(|o| o.1 == i))
+                });
+                seen.extend(mapped.map(|line| format!("map {line}")));
+            }
+            Err(error) => denied.push(format!("maps: {error}")),
+        }
+        for link in ["cwd", "root", "exe"] {
+            if shows(process.join(link)) {
+                seen.push(link.to_owned());
+            }
+        }
+        if seen.is_empty() && denied.is_empty() {
+            continue;
+        }
+        found += 1;
+        let stat = disk::read_to_string(process.join("stat")).unwrap_or_default();
+        // comm is parenthesized and may hold spaces, so the fields after it start at its last ')'.
+        let (comm, rest) = stat.rsplit_once(')').unwrap_or((&stat, ""));
+        let comm = comm.split_once('(').map_or("", |c| c.1);
+        let mut rest = rest.split_whitespace();
+        let state = rest.next().unwrap_or("?");
+        let ppid = rest.next().unwrap_or("?");
+        let exe = disk::read_link(process.join("exe"))
+            .map_or_else(|e| format!("<{e}>"), |p| p.display().to_string());
+        writeln!(
+            out,
+            "  pid {pid} ppid {ppid}{} comm {comm} state {state} exe {exe}: shows {seen:?} denied {denied:?}",
+            if ppid == own.to_string() { " (this test process)" } else { "" }
+        )
+        .unwrap();
+    }
+    writeln!(out, "  {found} processes listed").unwrap();
 }
