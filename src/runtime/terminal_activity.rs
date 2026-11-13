@@ -66,6 +66,38 @@ impl EngineMut<'_> {
         }
     }
 
+    /// 내려간 plugin이 알린 busy를 지운다 — 그 plugin이 소유한 surface만. 지운 개수를 돌려준다.
+    ///
+    /// plugin surface는 터미널과 달리 폴링이 값을 다시 계산하지 않는다. 그래서 plugin이 끄지 못하고
+    /// 내려가면 surface를 닫을 때까지 점이 남는다. 값을 끌 주체가 사라진 순간 호스트가 지운다
+    /// (docs/design/policies/busy-indicator.md (P)).
+    pub(crate) fn clear_reported_busy_of_plugin(&mut self, plugin_id: &str) -> usize {
+        let owned: Vec<u32> = self
+            .live
+            .reported_busy_surfaces
+            .keys()
+            .copied()
+            .filter(|sid| {
+                // 터미널은 소유자가 없다 — 알린 값은 전경 pid가 바뀔 때 폴링이 지운다.
+                self.runtime.terminals.get(*sid).is_none()
+                    && self
+                        .find_surface_by_id(*sid)
+                        .and_then(crate::ipc::handler::surface::busy::owning_plugin)
+                        == Some(plugin_id)
+            })
+            .collect();
+        for sid in &owned {
+            self.live.reported_busy_surfaces.remove(sid);
+        }
+        if !owned.is_empty() {
+            tracing::debug!(
+                "plugin '{plugin_id}' went down: cleared reported busy on {:?}",
+                owned
+            );
+        }
+        owned.len()
+    }
+
     #[cfg(test)]
     pub fn any_busy(&self, surface_ids: &[u32]) -> bool {
         surface_ids
