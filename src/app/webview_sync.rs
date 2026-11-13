@@ -602,17 +602,26 @@ fn resync_webview_urls(
 
 /// plugin 이 `webview.post_message` 로 쌓은 메시지 스크립트를 실린 문서에서 돌린다.
 /// URL 재동기화 뒤에 돌아 같은 프레임에 문서를 바꿨으면 새 문서가 받는다.
-/// WebView 가 아직 없으면 큐를 남겨 다음 프레임에 돌린다.
+///
+/// WebView 가 없으면 큐를 버린다(docs/reference/api.md `webview.post_message`):
+/// - WebView 가 없다 — 아직 만들지 않았거나(lazy kind) 가려져 해제됐다. 큐를 남기면 호스트
+///   메모리에 쌓이고 WebView 가 생기는 순간 밀린 것이 한꺼번에 돈다.
 fn drain_pending_scripts(
     view: &MainView,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     all_html_ids: &[u32],
 ) {
     for &sid in all_html_ids {
-        let Some(wv) = view.webviews.get(&sid) else {
+        let Some(rs) = find_remote_surface(view, engine, sid) else {
             continue;
         };
-        let Some(rs) = find_remote_surface(view, engine, sid) else {
+        let Some(wv) = view.webviews.get(&sid) else {
+            let dropped = rs.drop_scripts();
+            if dropped > 0 {
+                tracing::debug!(
+                    "WebView surface {sid}: dropped {dropped} pending message(s); no WebView"
+                );
+            }
             continue;
         };
         for script in rs.take_scripts() {
@@ -1529,3 +1538,4 @@ mod failed_nav_tests {
         }
     }
 }
+
