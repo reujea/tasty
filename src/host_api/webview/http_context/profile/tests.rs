@@ -707,7 +707,10 @@ fn retention_diagnosis(parent: &Path) -> String {
     );
     let entries = match disk::read_dir(parent) {
         Ok(entries) => entries,
-        Err(error) => return format!("namespace {}: {error}", parent.display()),
+        Err(error) => {
+            writeln!(out, "namespace {}: {error}", parent.display()).unwrap();
+            return out;
+        }
     };
     for root in entries.filter_map(Result::ok).map(|e| e.path()) {
         if !root.is_dir() {
@@ -777,7 +780,9 @@ fn lease_attempt(file: &Path) -> String {
 }
 /// Every process of this user whose descriptors, mappings, cwd, root or exe show an object of
 /// `root`, or that refuses the look; a child of this test process that has not exec'd yet shows
-/// here as a process whose parent is this one and whose exe is this binary.
+/// here as a process whose parent is this one and whose exe is this binary. This process is looked
+/// at too: the diagnosis has closed what it opened under `root` by now, so what shows here is held
+/// by this test or another thread of the binary.
 fn holding_processes(
     root: &Path,
     objects: &std::collections::HashSet<(u64, u64)>,
@@ -799,7 +804,7 @@ fn holding_processes(
             continue;
         };
         let process = entry.path();
-        if pid == own || !disk::metadata(&process).is_ok_and(|m| m.uid() == fs::uid()) {
+        if !disk::metadata(&process).is_ok_and(|m| m.uid() == fs::uid()) {
             continue;
         }
         let mut seen = Vec::new();
@@ -818,9 +823,8 @@ fn holding_processes(
             Ok(maps) => {
                 let root_text = root.to_string_lossy();
                 let mapped = maps.lines().filter(|line| {
-                    let inode = line.split_whitespace().nth(4).and_then(|i| i.parse().ok());
                     line.contains(root_text.as_ref())
-                        || inode.is_some_and(|i: u64| objects.iter().any(|o| o.1 == i))
+                        || map_object(line).is_some_and(|object| objects.contains(&object))
                 });
                 seen.extend(mapped.map(|line| format!("map {line}")));
             }
@@ -846,10 +850,28 @@ fn holding_processes(
             .map_or_else(|e| format!("<{e}>"), |p| p.display().to_string());
         writeln!(
             out,
-            "  pid {pid} ppid {ppid}{} comm {comm} state {state} exe {exe}: shows {seen:?} denied {denied:?}",
+            "  pid {pid}{} ppid {ppid}{} comm {comm} state {state} exe {exe}: shows {seen:?} denied {denied:?}",
+            if pid == own { " (this process)" } else { "" },
             if ppid == own.to_string() { " (this test process)" } else { "" }
         )
         .unwrap();
     }
     writeln!(out, "  {found} processes listed").unwrap();
+}
+/// The (device, inode) of a maps line, read as the product audit does (process.rs `mapped`): the
+/// fourth field is the device as hexadecimal major:minor, the fifth the inode.
+fn map_object(line: &str) -> Option<(u64, u64)> {
+    let mut fields = line.split_whitespace().skip(3);
+    let (major, minor) = fields.next()?.split_once(':')?;
+    let major = u32::from_str_radix(major, 16).ok()?;
+    let minor = u32::from_str_radix(minor, 16).ok()?;
+    let ino = fields.next()?.parse::<u64>().ok()?;
+    Some((libc::makedev(major, minor), ino))
+}
+#[test]
+fn a_maps_line_names_its_object_by_hexadecimal_device_and_inode() {
+    let line = "7f00-7f10 r--s 00000000 103:0a 4242   /tmp/a root/file";
+    assert_eq!(map_object(line), Some((libc::makedev(0x103, 0x0a), 4242)));
+    assert_eq!(map_object("7f00-7f10 rw-p 00000000 00:00 0"), Some((0, 0)));
+    assert_eq!(map_object("7f00-7f10 rw-p 00000000"), None);
 }
