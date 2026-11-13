@@ -402,6 +402,16 @@ Copy·Paste 는 위 표대로 각각 `egui_copy`·`egui_paste` capability 를 �
 와 SDK 매핑만 있고 호스트는 아직 보내지 않는다. attach mesh mirror 와 popup 미러 경로에는 Copy·Paste
 전달이 없다.
 
+복사·잘라내기 결과는 프레임과 별개인 `PluginEvent::CopyText { target, text }` 로 나간다. `target` 은
+`CopyTargetWire::Surface { surface_id }` 또는 `Popup { instance_id }` 중 하나다. SDK 의 surface·popup
+`paint`·`repaint_last` 는 egui 패스 직후, 출력이 같아 프레임 송신을 생략하는 판정보다 먼저 이 알림을
+보낸다. 선택만 복사하면 화면이 바뀌지 않아 프레임이 생략되기 때문이다. 알린 값은 소비하므로
+`take_copied_text` 로 다시 나오지 않고, 한 패스에 복사가 여럿이면 마지막 값을 쓴다. banner 는 키 입력을
+받지 않으므로 대상이 아니다. host 는 이 알림을 채널의 plugin id 와 함께 일회성 큐에 담는다
+(`PluginManager::take_copied_texts`, 상한을 넘으면 오래된 결과부터 버린다). 수신 스레드가 알림 줄마다
+이벤트 루프를 깨우므로 프레임 없이 복사 결과만 온 tick 에도 pump 직후 꺼낼 수 있다. headless host 는
+GUI 클립보드가 없어 큐를 버린다. GUI 에서 큐를 꺼내 OS 클립보드에 쓰는 경로는 아직 없다.
+
 `RawInputEventWire` 는 `#[serde(other)] Unknown` fallback 을 가진다. 이 fallback 이 있는 SDK 로
 빌드한 plugin 은 모르는 입력 이벤트를 `Unknown` 으로 읽고 버리며, 같은 `set_context` 의 나머지
 이벤트는 그대로 처리한다. 그래서 다음 입력 변형부터는 추가가 minor 다
