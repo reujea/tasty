@@ -133,13 +133,10 @@ const RULES: &[Rule] = &[
         what: "macOS pasteboard 직접 쓰기",
         calls: &["setString_forType(", "setData_forType(", "writeObjects("],
         receiver: None,
-        allowed: &[
-            within(
-                "crates/tasty-platform/src/pasteboard.rs",
-                &["write_text_and_png"],
-            ),
-            within("src/clipboard/files/macos.rs", &["write"]),
-        ],
+        allowed: &[within(
+            "crates/tasty-platform/src/pasteboard.rs",
+            &["write_text_and_png"],
+        )],
     },
     Rule {
         what: "텍스트와 이미지를 함께 올리는 플랫폼 쓰기",
@@ -187,10 +184,11 @@ const RULES: &[Rule] = &[
     },
 ];
 
-/// 줄에서 `call` 을 쓰는 첫 자리. 앞 글자가 이름의 일부면(`my_handle_platform_output(`) 세지 않고,
-/// `fn` 바로 뒤의 정의도 세지 않는다.
-fn use_at(line: &str, call: &str) -> Option<usize> {
-    line.match_indices(call).map(|(at, _)| at).find(|&at| {
+/// 줄에서 `call` 을 쓰는 모든 자리. 앞 글자가 이름의 일부면(`my_handle_platform_output(`) 세지
+/// 않고, `fn` 바로 뒤의 정의도 세지 않는다.
+fn uses_at(line: &str, call: &str) -> Vec<usize> {
+    let mut found: Vec<usize> = line.match_indices(call).map(|(at, _)| at).collect();
+    found.retain(|&at| {
         if call.starts_with('.') {
             return true;
         }
@@ -201,20 +199,26 @@ fn use_at(line: &str, call: &str) -> Option<usize> {
             .strip_suffix("fn")
             .is_some_and(|rest| !rest.chars().next_back().is_some_and(ident));
         !defines && !before.chars().next_back().is_some_and(ident)
-    })
+    });
+    found
 }
 
-fn rule_use_at(rule: &Rule, line: &str) -> Option<usize> {
+/// 줄에서 이 형태를 쓰는 모든 자리. 자리마다 소속 함수를 따로 판정한다.
+fn rule_uses_at(rule: &Rule, line: &str) -> Vec<usize> {
     if rule
         .receiver
         .is_some_and(|word| !line.to_ascii_lowercase().contains(word))
     {
-        return None;
+        return Vec::new();
     }
-    rule.calls
+    let mut found: Vec<usize> = rule
+        .calls
         .iter()
-        .filter_map(|call| use_at(line, call))
-        .min()
+        .flat_map(|call| uses_at(line, call))
+        .collect();
+    found.sort_unstable();
+    found.dedup();
+    found
 }
 
 /// `rel` 파일의 `function` 안(함수 밖이면 `None`)에서 이 형태를 쓸 수 있는가.
@@ -238,21 +242,20 @@ fn offenders_in(rel: &str, raw: &str) -> (Vec<String>, usize) {
     let mut start = 0usize;
     for (i, line) in masked.split_inclusive('\n').enumerate() {
         for rule in RULES {
-            let Some(at) = rule_use_at(rule, line) else {
-                continue;
-            };
-            if rel == DOOR {
-                door_calls += 1;
-            }
-            let function = super::enclosing_fn(&spans, start + at).map(|span| span.0.as_str());
-            if !allowed(rule, rel, function) {
-                offenders.push(format!(
-                    "  {rel}:{} (fn {})  [{}]  {}",
-                    i + 1,
-                    function.unwrap_or("-"),
-                    rule.what,
-                    line.trim()
-                ));
+            for at in rule_uses_at(rule, line) {
+                if rel == DOOR {
+                    door_calls += 1;
+                }
+                let function = super::enclosing_fn(&spans, start + at).map(|span| span.0.as_str());
+                if !allowed(rule, rel, function) {
+                    offenders.push(format!(
+                        "  {rel}:{} (fn {})  [{}]  {}",
+                        i + 1,
+                        function.unwrap_or("-"),
+                        rule.what,
+                        line.trim()
+                    ));
+                }
             }
         }
         start += line.len();
@@ -327,7 +330,7 @@ fn each_write_shape_is_found_and_other_calls_pass() {
     ];
     for (what, line, expected) in cases {
         assert_eq!(
-            rule_use_at(rule(what), line).is_some(),
+            !rule_uses_at(rule(what), line).is_empty(),
             expected,
             "{what}: {line}"
         );
@@ -360,6 +363,16 @@ fn a_write_in_another_function_of_an_allowed_file_is_found() {
             "src/clipboard/terminal.rs",
             "fn set_text(&mut self) { self.host.set_text(t) }\n\
              fn copy_now(&mut self) { self.host.set_text(t) }\n",
+        ),
+        // 같은 줄에서 허용 함수 뒤에 비허용 함수가 쓴다.
+        (
+            "src/clipboard/context.rs",
+            "fn set_text() { cb.set_text(t); } fn copy_now() { cb.set_text(t); }\n",
+        ),
+        // 같은 줄의 허용 함수 본문 안에 비허용 함수를 넣었다.
+        (
+            "src/clipboard/context.rs",
+            "fn set_text() { cb.set_text(t); fn copy_now() { cb.set_text(t); } }\n",
         ),
         (
             "src/clipboard/context.rs",
