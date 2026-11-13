@@ -153,7 +153,13 @@ fn handle_post_message(
                     tracing::warn!("webview.post_message: surface {sid} refused: {reason}");
                     return JsonRpcResponse::error(id, -32000, reason);
                 }
-                rs.queue_script(script);
+                let dropped = rs.queue_script(script);
+                if dropped > 0 {
+                    tracing::warn!(
+                        "webview.post_message: surface {sid} queue is full; \
+                         dropped {dropped} older message(s)"
+                    );
+                }
                 return JsonRpcResponse::success(id, serde_json::json!({ "ok": true }));
             }
         }
@@ -698,10 +704,38 @@ mod tests {
         );
         assert_eq!(refused(&engine.as_ref()), None);
         assert_eq!(
-            remote_surface(&engine.as_ref(), md_sid).take_scripts().len(),
+            remote_surface(&engine.as_ref(), md_sid)
+                .take_scripts()
+                .len(),
             1
         );
         crate::runtime::surface_registry::webview_kind::reset_for_test();
     }
 
+    // 상한을 넘으면 접수는 하되 가장 오래된 것부터 버리고 그 사실을 호출자에게 알린다(로그).
+    #[test]
+    fn a_full_queue_drops_its_oldest_messages_and_still_accepts_the_call() {
+        use crate::plugin_bridge::remote_surface::MAX_PENDING_SCRIPTS;
+        let (state, mut engine_session) = fixture(0, true);
+        let _guard = crate::runtime::surface_registry::webview_kind::WEBVIEW_KIND_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        register_markdown_kind(Some(false));
+        let engine = engine_session.borrow_mut();
+        let md_sid = focused_surface_id(&state, &engine.as_ref());
+        let owner = plugin_caller(&remote_surface(&engine.as_ref(), md_sid).plugin_id.clone());
+
+        for _ in 0..MAX_PENDING_SCRIPTS + 5 {
+            let resp = post_message_as(&engine.as_ref(), &owner, md_sid);
+            assert_eq!(resp.result, Some(json!({ "ok": true })), "{:?}", resp.error);
+        }
+        assert_eq!(
+            remote_surface(&engine.as_ref(), md_sid)
+                .take_scripts()
+                .len(),
+            MAX_PENDING_SCRIPTS,
+            "큐는 상한에서 멈춘다"
+        );
+        crate::runtime::surface_registry::webview_kind::reset_for_test();
+    }
 }
