@@ -90,6 +90,26 @@ pub(crate) fn copy_feedback(
     }
 }
 
+/// Writes `text` and reports only a failure. A success shows no toast, for callers whose surface a
+/// toast card would cover: a plugin webview is hidden whole while a toast overlaps it
+/// (`webview_sync::hidden_under_toast`), so a success toast would hide the page the copy came from.
+/// Those callers tell the user inside their own surface instead. Returns whether the write
+/// succeeded.
+pub(crate) fn copy_text_reporting_failure(
+    clipboard: &mut TerminalClipboard,
+    toasts: &mut ToastManager,
+    text: &str,
+    scope: ToastScope,
+) -> bool {
+    match write(clipboard, text, false) {
+        Ok(()) => true,
+        Err(error) => {
+            error_toast(toasts, &error, scope);
+            false
+        }
+    }
+}
+
 pub(crate) fn error_toast(toasts: &mut ToastManager, error: &ClipboardError, scope: ToastScope) {
     let (key, kind) = error.feedback();
     toasts.push(crate::i18n::t(key), kind, scope);
