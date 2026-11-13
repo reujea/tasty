@@ -14,8 +14,10 @@
 //!
 //! 찾지 못하는 것: 호출을 여러 줄에 나눠 쓴 것(`.set()` 뒤 다음 줄의 `.text(` 는 `.set()` 줄로
 //! 찾는다), 수신자 이름에 `clipboard` 가 없는 Core 포트 쓰기, 별칭으로 바꾼 메서드 이름, 허용한
-//! 함수와 이름이 같은 새 함수, 허용한 함수 안에 더한 쓰기. WebView 와 markdown 페이지 스크립트의
-//! 복사는 Rust 호출이 아니라 이 검사 범위 밖이다(`docs/features/clipboard/index.md` 의 예외 표).
+//! 함수와 이름이 같은 새 함수, 허용한 함수 안에 더한 쓰기, 형태로 넣지 않은 하위 함수(X11 `own`,
+//! Windows `set`, 파일 클립보드 `Handle::write`)를 새 자리에서 부르는 것. WebView 와 markdown 페이지
+//! 스크립트의 복사는 Rust 호출이 아니라 이 검사 범위 밖이다(`docs/features/clipboard/index.md` 의
+//! 예외 표).
 
 use tasty_doc_guards::source_text::mask_non_code;
 
