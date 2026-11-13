@@ -216,14 +216,15 @@ impl EguiMeshCore {
         run_ui: impl FnMut(&Context),
     ) -> Option<MeshFrame> {
         let full = self.ctx.run(raw, run_ui);
-        // 한 패스에 여러 번 복사하면 호스트 선택 복사처럼 마지막 값을 쓴다.
+        // 한 패스에 여러 번 복사하면 호스트 선택 복사처럼 마지막 CopyText 값을 쓴다.
+        // 마지막 값이 빈 문자열이면 빈 문자열이다.
         self.last_copied_text = full
             .platform_output
             .commands
             .iter()
             .rev()
             .find_map(|c| match c {
-                OutputCommand::CopyText(text) if !text.is_empty() => Some(text.clone()),
+                OutputCommand::CopyText(text) => Some(text.clone()),
                 _ => None,
             });
         self.last_ime_cursor = full.platform_output.ime.map(|ime| ImeCursorWire {
@@ -2645,5 +2646,65 @@ mod tests {
             "Some→None IME 변화는 프레임을 보낸다"
         );
         assert!(surface.run_frame(&params, label).is_none());
+    }
+
+    /// 마지막 CopyText 가 빈 문자열이면 앞의 값 대신 빈 문자열을 쓴다(호스트와 같은 규칙).
+    #[test]
+    fn an_empty_last_copy_wins_over_an_earlier_one() {
+        let mut surface = EguiMeshSurface::new(1);
+        surface.run_frame(&ctx_params(200, 50, 1.0), |ctx| {
+            ctx.copy_text("first".into());
+            ctx.copy_text(String::new());
+        });
+        assert_eq!(surface.take_copied_text().as_deref(), Some(""));
+    }
+
+    /// 화면 출력이 같아 PopupPaintFrame 이 생략되는 Copy 도 popup 복사 결과 알림은 한 번 나가고,
+    /// 다음 무복사 paint 에서는 추가 알림이 없다.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn popup_paint_reports_a_copy_even_when_the_frame_is_skipped() {
+        let (host, host_side) = loopback_host();
+        let mut popup = EguiMeshPopup::new(6);
+        let id = egui::Id::new("popup_copy_notify");
+        let mut buf = "hello world".to_string();
+        let params = PopupSetContextParams {
+            instance_id: 6,
+            width_px: 400,
+            height_px: 100,
+            pixels_per_point: 1.0,
+            raw_input: RawInputWire::default(),
+            theme: None,
+            need_full_textures: false,
+        };
+        let mut settled = false;
+        for _ in 0..8 {
+            if popup
+                .run_frame(&params, selected_text_edit_ui(id, &mut buf))
+                .is_none()
+            {
+                settled = true;
+                break;
+            }
+        }
+        assert!(settled, "시험 전에 출력이 안정되어야 한다");
+
+        let mut copy_params = params.clone();
+        copy_params.raw_input.events = vec![RawInputEventWire::Copy];
+        let sent = popup.paint(&host, &copy_params, selected_text_edit_ui(id, &mut buf));
+        assert!(
+            matches!(sent, Ok(None)),
+            "같은 출력은 프레임을 생략한다: {sent:?}"
+        );
+        let sent = popup.paint(&host, &params, selected_text_edit_ui(id, &mut buf));
+        assert!(matches!(sent, Ok(None)), "{sent:?}");
+
+        assert_eq!(
+            copied(&read_events(&host_side)),
+            vec![(
+                CopyTargetWire::Popup { instance_id: 6 },
+                "hello".to_string()
+            )]
+        );
     }
 }
