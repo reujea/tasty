@@ -154,10 +154,11 @@ X11 EventLoop는 `src/x11_test_loop.rs`의 `x11_event_loop()`로만 만든다. w
 디스플레이 소켓·lock과 lock pid의 생존, 열린 fd 수, `RLIMIT_NOFILE`, 실패 시각을 panic 메시지에 싣는다.
 간헐적인 `XOpenDisplayFailed`가 다른 서버·인증 파일·서버 소멸·fd 고갈 중 무엇인지 이 메시지로 가르고,
 서버 쪽 사정(리셋·클라이언트 상한)은 CI의 Xvfb 로그와 함께 읽는다([CI 가이드](ci-gates.md#gui-단위-단계의-xvfb)).
-`src/source_guards/x11_test_loop_has_one_door.rs`는 `src`·`crates`에서 주석·리터럴을 가린 뒤 도우미와 제품
-부팅 경로(`src/boot/display_backend.rs`) 밖의 `with_x11(` 호출을 실패로 보고한다. `unwrap`이 아니라 builder
-호출 자체를 보므로 `expect`로 바꿔도 검출한다. 다른 이름으로 다시 내보낸 trait 메서드나 매크로 안의 조립은
-추적하지 않는다.
+`src/source_guards/x11_test_loop_has_one_door.rs`는 `src`·`crates`에서 주석·리터럴을 가린 뒤 도우미 밖의
+`with_x11` 호출을 실패로 보고한다. 이름 뒤에 공백·줄바꿈·주석이 있어도 `(`가 오면 호출로 본다. 예외는 제품
+부팅 경로(`src/boot/display_backend.rs`)의 시험 항목 밖 호출 1개뿐이고, 같은 파일의 `#[cfg(test)]` 항목 안
+호출은 위반이다. `unwrap`이 아니라 builder 호출 자체를 보므로 `expect`로 바꿔도 검출한다. 다른 이름으로 다시
+내보낸 trait 메서드나 매크로 안의 조립은 추적하지 않는다.
 
 ### 락은 **키 단위**로 하나 — 모듈마다 따로 두지 않는다
 
