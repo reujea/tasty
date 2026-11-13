@@ -3,6 +3,7 @@
 //! toast stack reports the result. Terminal selections, vi yanks, link menus, copy shortcuts and
 //! egui widget copies (a text field's Ctrl+C or Ctrl+X, a selectable label, `ctx.copy_text`) all
 //! end here, so a failed write never shows a success toast.
+//! `src/source_guards/clipboard_write_has_one_door.rs` keeps other clipboard writes out.
 
 use super::error::ClipboardError;
 use super::terminal::TerminalClipboard;

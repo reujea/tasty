@@ -700,6 +700,10 @@ mod x11_test_loop_has_one_door;
 #[cfg(test)]
 mod trash_has_one_door;
 
+/// 호스트의 클립보드 텍스트 쓰기는 공통 복사 함수 하나와 문서에 적은 예외에서만 한다.
+#[cfg(test)]
+mod clipboard_write_has_one_door;
+
 /// 스트림 수신 깨움은 StreamWakeGate를 거쳐서만 보낸다.
 #[cfg(test)]
 mod stream_wakes_go_through_the_gate;
