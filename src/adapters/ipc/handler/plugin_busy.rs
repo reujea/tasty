@@ -380,10 +380,11 @@ mod tests {
         assert!(free.busy_refusal(json!(7)).is_none());
     }
 
-    // GUI와 헤드리스 진입부 모두 권한 게이트 앞에서 묻고, 게이트를 통과한 뒤에 거절한다.
-    // 순서가 바뀌면 권한이 없는 호출자가 권한 거절 대신 바쁨을 받거나, 묻기 전에 실행된다.
+    // GUI와 헤드리스 진입부 모두 권한 게이트를 **통과한 뒤에** 묻고, 그 뒤에 거절한다.
+    // 묻기가 게이트보다 앞서면 권한 없는 호출자가 반복 호출로 대상 plugin을 깨우고 자기 요청을
+    // 게이트 줄에 남길 수 있다. 거절이 묻기보다 앞서면 답을 읽기 전에 판정하는 것이다.
     #[test]
-    fn both_entry_points_ask_before_the_gate_and_refuse_after_it() {
+    fn both_entry_points_ask_after_the_gate_and_refuse_after_asking() {
         for (file, src, gate) in [
             (
                 "src/app/ipc.rs",
@@ -406,8 +407,9 @@ mod tests {
                 .find("progress.busy_refusal(")
                 .unwrap_or_else(|| panic!("{file}: 거절하지 않는다"));
             assert!(
-                ask < gate_at && gate_at < refuse,
-                "{file}: 묻기·게이트·거절 순서가 어긋났다"
+                gate_at < ask && ask < refuse,
+                "{file}: 게이트·묻기·거절 순서가 어긋났다 \
+                 (게이트 {gate_at} < 묻기 {ask} < 거절 {refuse} 이어야 한다)"
             );
         }
     }

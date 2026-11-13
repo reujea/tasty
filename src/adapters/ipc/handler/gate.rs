@@ -81,7 +81,8 @@ impl GateProgress {
     }
 
     /// plugin 정지 요청이면 대상 plugin에 바쁜지 묻기 시작한다. 물었으면 `Pending`이고 요청을 줄에 둔다.
-    /// 권한 게이트보다 먼저 부르고, 답은 [`Self::busy_refusal`]로 권한 게이트 뒤에 읽는다.
+    /// 권한 게이트를 **통과한 뒤에** 부른다 — 권한 없는 호출자가 질문으로 plugin 을 깨우거나
+    /// 자기 요청을 줄에 남기지 못하게 한다. 답은 [`Self::busy_refusal`]로 곧바로 읽는다.
     pub(crate) fn ask_busy(
         &mut self,
         plugins: Option<&mut crate::plugin::PluginManager>,
