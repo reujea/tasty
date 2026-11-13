@@ -282,6 +282,9 @@ pub(crate) struct App {
     /// 창이 없거나 최소화되어도 send_event로 타이머 처리를 깨운다.
     #[cfg(feature = "gui")]
     pub(crate) timer_waker: tasty_timer::TimerWakerHandle,
+    /// plugin 이 자기 webview 에 여는 컨텍스트 메뉴의 호출 빈도 조절기.
+    #[cfg(feature = "gui")]
+    pub(crate) webview_menu_gate: crate::app::dispatch::plugin_webview_menu::WebviewMenuGate,
     /// IPC 회차 사이에 대기 시간을 두어 타이머·사용자 이벤트 처리가 계속되게 한다.
     #[cfg(feature = "gui")]
     pub(crate) ipc_pacer: crate::app::ipc::IpcPacer,
@@ -468,6 +471,7 @@ impl App {
             scripts_after_save: Vec::new(),
             timers,
             timer_waker,
+            webview_menu_gate: Default::default(),
             ipc_pacer: crate::app::ipc::IpcPacer::new({
                 let proxy = proxy.clone();
                 Box::new(move || {

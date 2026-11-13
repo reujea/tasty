@@ -153,12 +153,13 @@ pub(crate) enum AppEvent {
     /// 업로드 진행 채널을 읽어 표시를 갱신한다.
     #[cfg(feature = "gui")]
     TransferProgressTick,
-    /// plugin webview 우클릭 메뉴에서 고른 항목을 소유 plugin 에 알린다(`webview.context_menu_selected`).
+    /// plugin webview 우클릭 메뉴가 닫혔다. 항목을 골랐으면 `payload` 로 소유 plugin 에
+    /// `webview.context_menu_selected` 를 보내고, 고르지 않았으면 조절기만 푼다.
     /// 메뉴 뒤처리는 창 View 에서 돌아 plugin 매니저를 쥔 App 으로 넘긴다.
     #[cfg(feature = "gui")]
-    WebviewMenuChosen {
+    WebviewMenuClosed {
         plugin_id: String,
-        payload: serde_json::Value,
+        payload: Option<serde_json::Value>,
     },
     /// 파일 식별 결과. 명시한 origin이 사라졌으면 다른 창으로 보내지 않고 폐기한다.
     #[cfg(feature = "gui")]

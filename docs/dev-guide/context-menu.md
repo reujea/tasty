@@ -32,6 +32,15 @@ surface 우클릭 컨텍스트 메뉴는 surface 종류에 따라 생산 경로�
   webview는 토스트가 닫힐 때까지 통째로 숨겨지기 때문이다(`hidden_under_toast`). 대신 소유 plugin에만
   `webview.context_menu_selected`(`surface_id` · `item` · `copied` · 요청한 페이지 좌표 `x` · `y`)를 보내 페이지 안에서
   알리게 한다. 클립보드 쓰기 실패는 host 토스트로 알린다.
+  host 는 사용자가 실제로 우클릭했는지 볼 수 없다 — 페이지가 OS 메뉴를 막고 plugin 이 중계하기
+  때문이다. 대신 세 조건을 건다: 창이 OS 포커스를 가질 것(페이지가 포커스를 쥐면 winit 이 부모 창에
+  `Focused(false)` 를 보내므로 webview 자식의 포커스도 함께 본다), 그 plugin 의 메뉴가 떠 있지 않을 것,
+  그 plugin 의 직전 요청에서 `MIN_MENU_INTERVAL`(500ms) 이 지났을 것. 조건에 걸리면 `-32602` 로
+  거절한다. 조절기(`WebviewMenuGate`)는 plugin 단위라 surface 를 번갈아 불러도 간격을 피하지 못하고,
+  메뉴가 닫히면(고르든 안 고르든) 진행 중 표시를 푼다. 사용자가 같은 프레임에 탭·사이드바에서
+  우클릭해 둔 요청이 이미 슬롯에 있으면 덮어쓰지 않고 거절한다 — 사용자 조작이 우선이다.
+  확대 배율이 100% 가 아니면 `contextmenu` 의 `clientX/Y` 는 CSS px 라 논리 px 보다 작으므로,
+  host 는 kind 설정의 `zoom` 을 배율로 바꿔 곱한 뒤 영역으로 clamp 한다.
 - **explorer의 나머지 영역**: 파일 셀, content의 빈 영역, 트리 노드, 즐겨찾기는 각 위치에 맞는
   메뉴를 만든다. `draw_explorer` 마지막에서는 전체 rect를 확인해 툴바·주소창·내부 탭바·상태줄·
   빈 사이드바의 우클릭에도 Empty 메뉴를 제공한다. 파일 브라우저 위에 무관한 Surface 메뉴
