@@ -6,9 +6,8 @@ use serde_json::{Value, json};
 
 use crate::host_call::HostCall;
 
-/// 호스트가 agent task 지시 끝에 붙이는 회차 표지의 앞부분. 표지는 `[tasty-task-attempt:<token>]`
-/// 이다. 호스트 쪽 같은 상수(`tasty_agent::task::agent::ATTEMPT_MARKER_PREFIX`)와 같아야 한다.
-pub const ATTEMPT_MARKER_PREFIX: &str = "[tasty-task-attempt:";
+/// 호스트가 agent task 지시 끝에 붙이는 회차 표지의 앞부분. 계약은 protocol 크레이트에 있다.
+pub use tasty_plugin_protocol::task_turn::ATTEMPT_MARKER_PREFIX;
 
 /// 프롬프트에 실린 회차 표지의 토큰. 마지막 표지를 쓴다.
 pub fn attempt_marker(prompt: &str) -> Option<&str> {

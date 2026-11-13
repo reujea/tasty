@@ -585,23 +585,6 @@ fn attempt_tokens_are_fresh_for_every_attempt() {
     );
 }
 
-/// 호스트가 붙이는 표지를 provider 플러그인이 같은 토큰으로 읽는다. 두 크레이트가 같은 앞부분을
-/// 따로 갖고 있어 여기서 맞춰 본다.
-#[test]
-fn the_plugins_read_the_marker_the_host_writes() {
-    use tasty_plugin_agent_common::task_turn as plugin;
-    assert_eq!(
-        plugin::ATTEMPT_MARKER_PREFIX,
-        tasty_agent::task::agent::ATTEMPT_MARKER_PREFIX
-    );
-    let token = super::new_attempt_token();
-    let prompt = format!(
-        "review\n\n{}",
-        tasty_agent::task::agent::attempt_marker_line(&token)
-    );
-    assert_eq!(plugin::attempt_marker(&prompt), Some(token.as_str()));
-}
-
 #[path = "agent_tell_tests.rs"]
 mod tell;
 

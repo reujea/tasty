@@ -12,6 +12,7 @@ pub mod line;
 #[cfg(feature = "egui-mesh")]
 pub mod mesh_wire;
 pub mod protocol;
+pub mod task_turn;
 
 pub use events::{EventEnvelope, EventMeta, EventOrigin, EventScope, LifecycleReason, MAX_HOP};
 pub use ipc_method::{IpcInvokeParams, METHOD_IPC_INVOKE};

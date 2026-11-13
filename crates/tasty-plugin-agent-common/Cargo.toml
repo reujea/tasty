@@ -7,6 +7,8 @@ description = "Shared helpers for the AI-CLI child-manager plugins (claude, code
 
 [dependencies]
 tasty-plugin-sdk = { path = "../tasty-plugin-sdk" }
+# 호스트와 함께 쓰는 계약 상수(회차 표지). sdk도 이 크레이트를 의존한다.
+tasty-plugin-protocol = { path = "../tasty-plugin-protocol" }
 serde_json = "1"
 tracing = "0.1"
 

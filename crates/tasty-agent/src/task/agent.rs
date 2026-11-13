@@ -134,7 +134,8 @@ pub(crate) fn candidate(
 }
 
 /// 지시 끝에 붙이는 회차 표지의 앞부분. provider 플러그인이 프롬프트에서 같은 앞부분으로 토큰을
-/// 찾는다(`tasty_plugin_agent_common::task_turn::ATTEMPT_MARKER_PREFIX`).
+/// 찾는다. 계약 값은 `tasty_plugin_protocol::task_turn::ATTEMPT_MARKER_PREFIX`이고, 이 크레이트는
+/// 계층 규칙상 protocol에 의존하지 않아 같은 값을 둔다. 루트 패키지의 시험이 두 값을 대조한다.
 pub const ATTEMPT_MARKER_PREFIX: &str = "[tasty-task-attempt:";
 
 /// 지시의 마지막 줄. 세션이 받은 프롬프트가 이 회차의 지시인지 가리는 데 쓴다.

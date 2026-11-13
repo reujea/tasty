@@ -200,6 +200,16 @@ mod tests {
         );
     }
 
+    /// 작업 실행기가 붙이는 회차 표지와 플러그인 계약의 표지가 같다. `tasty-agent`는 계층 규칙상
+    /// protocol에 의존하지 않아 값을 따로 두므로, 둘을 다 의존하는 여기서 대조한다.
+    #[test]
+    fn the_host_marker_prefix_is_the_protocol_contract() {
+        assert_eq!(
+            tasty_agent::task::agent::ATTEMPT_MARKER_PREFIX,
+            tasty_plugin_protocol::task_turn::ATTEMPT_MARKER_PREFIX
+        );
+    }
+
     #[test]
     fn the_session_surface_comes_from_the_issued_agent_id() {
         assert_eq!(session_surface("claude_s12"), Some(12));
