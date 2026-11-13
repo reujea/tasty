@@ -40,6 +40,22 @@ use crate::host::HostHandle;
 #[cfg(any(unix, windows))]
 use crate::shared_buffer::SharedBuffer;
 
+/// 한 패스의 복사 결과를 호스트 선택 복사와 같은 규칙으로 고른다. 마지막 CopyText 값
+/// (빈 문자열 포함)을 고르고, deprecated `copied_text` 가 비어 있지 않으면 그 값을 쓴다.
+fn pick_copied_text(output: &egui::PlatformOutput) -> Option<String> {
+    let mut copied = output.commands.iter().rev().find_map(|c| match c {
+        OutputCommand::CopyText(text) => Some(text.clone()),
+        _ => None,
+    });
+    // reason: egui 0.31 still fills the deprecated field for older callers; the host reads it too.
+    #[allow(deprecated)]
+    let legacy = &output.copied_text;
+    if !legacy.is_empty() {
+        copied = Some(legacy.clone());
+    }
+    copied
+}
+
 /// egui 사각형을 좌상단 좌표와 너비·높이로 옮긴다.
 fn rect_wire(r: Rect) -> RectWire {
     RectWire {
@@ -77,7 +93,8 @@ struct EguiMeshCore {
     buffer: Option<SharedBuffer>,
     /// egui가 요청한 다음 렌더링 지연. 호스트에 갱신 요청을 보내는 데 쓴다.
     pending_self_repaint: Option<Duration>,
-    /// 직전 렌더의 복사 결과. 마지막 CopyText 값이며 빈 문자열도 포함한다.
+    /// 직전 렌더의 복사 결과. 마지막 CopyText 값(빈 문자열 포함)이고, deprecated
+    /// `copied_text` 가 비어 있지 않으면 그 값이다([`pick_copied_text`]).
     /// paint·repaint_last 가 호스트에 알리며 소비하고, run_frame 만 쓰는 호출자는
     /// take_copied_text 로 꺼낸다.
     last_copied_text: Option<String>,
@@ -217,17 +234,7 @@ impl EguiMeshCore {
         run_ui: impl FnMut(&Context),
     ) -> Option<MeshFrame> {
         let full = self.ctx.run(raw, run_ui);
-        // 한 패스에 여러 번 복사하면 호스트 선택 복사처럼 마지막 CopyText 값을 쓴다.
-        // 마지막 값이 빈 문자열이면 빈 문자열이다.
-        self.last_copied_text = full
-            .platform_output
-            .commands
-            .iter()
-            .rev()
-            .find_map(|c| match c {
-                OutputCommand::CopyText(text) => Some(text.clone()),
-                _ => None,
-            });
+        self.last_copied_text = pick_copied_text(&full.platform_output);
         self.last_ime_cursor = full.platform_output.ime.map(|ime| ImeCursorWire {
             rect: rect_wire(ime.rect),
             cursor_rect: rect_wire(ime.cursor_rect),
@@ -2707,5 +2714,23 @@ mod tests {
                 "hello".to_string()
             )]
         );
+    }
+
+    /// 비어 있지 않은 deprecated `copied_text` 는 CopyText 보다 우선하고, 비어 있으면
+    /// 마지막 CopyText 값을 쓴다(호스트 take_copied_text 와 같은 규칙).
+    #[test]
+    #[allow(deprecated)] // reason: 시험이 deprecated 필드의 우선 규칙을 직접 채운다.
+    fn a_non_empty_legacy_copied_text_wins_over_copy_commands() {
+        let mut output = egui::PlatformOutput {
+            commands: vec![
+                OutputCommand::CopyText("first".into()),
+                OutputCommand::CopyText("last".into()),
+            ],
+            copied_text: "legacy".into(),
+            ..Default::default()
+        };
+        assert_eq!(pick_copied_text(&output).as_deref(), Some("legacy"));
+        output.copied_text = String::new();
+        assert_eq!(pick_copied_text(&output).as_deref(), Some("last"));
     }
 }
