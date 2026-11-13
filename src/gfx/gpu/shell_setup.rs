@@ -38,11 +38,12 @@ fn git_bash_notice_key(detected: Option<String>) -> Option<&'static str> {
 }
 
 impl GpuState {
-    /// 첫 실행 셸 설정 화면을 그린다. 터미널 없이 egui만 사용한다.
+    /// 첫 실행 셸 설정 화면을 그린다. 터미널 없이 egui만 사용한다. `toasts`는 이 화면의 복사 결과다.
     pub fn render_shell_setup(
         &mut self,
         window: &Window,
         shell_path: &mut String,
+        toasts: &mut crate::adapters::ui::ToastManager,
     ) -> Result<ShellSetupAction, wgpu::SurfaceError> {
         let th = crate::theme::theme();
         let output = self.acquire_surface()?;
@@ -96,6 +97,11 @@ impl GpuState {
                         action = ShellSetupAction::Exit;
                     }
                 });
+            toasts.draw(
+                ctx,
+                &crate::adapters::ui::LayoutContext::window_only(),
+                false,
+            );
         });
 
         self.apply_egui_output(window, full_output.platform_output);

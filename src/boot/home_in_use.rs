@@ -54,6 +54,7 @@ pub(crate) fn run_screen_on(
         instance: Arc::new(crate::app::new_gpu_instance()),
         window: None,
         gpu: None,
+        toasts: crate::adapters::ui::ToastManager::new(),
     };
     event_loop.run_app(&mut screen)?;
     Ok(std::process::ExitCode::from(EXIT_CODE))
@@ -65,6 +66,7 @@ struct HomeInUseScreen {
     instance: Arc<wgpu::Instance>,
     window: Option<Arc<Window>>,
     gpu: Option<GpuState>,
+    toasts: crate::adapters::ui::ToastManager,
 }
 
 impl HomeInUseScreen {
@@ -101,7 +103,7 @@ impl HomeInUseScreen {
         let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) else {
             return;
         };
-        let result = gpu.render_boot_error(window, &self.info);
+        let result = gpu.render_boot_error(window, &self.info, &mut self.toasts);
         // This screen runs outside App, without a display owner or a toast stack, so a copy keeps
         // egui-winit's clipboard rather than the copy door.
         if let Some(text) = gpu.take_egui_copy() {

@@ -24,23 +24,34 @@ impl App {
         }
     }
 
-    /// Writes what the shell setup or boot error screen copied through the copy door. These screens
-    /// have no toast stack, so a failure is only logged. The clipboard is made on the first copy and
-    /// dropped when a screen is entered (`enter_shell_setup_mode`, `enter_boot_error_mode`), so it
-    /// always belongs to the window shown now.
+    /// Starts the clipboard and toasts of a shell setup or boot error screen being entered. The
+    /// toast lifetime is `toast_ms`, or the default when no settings are known.
+    pub(crate) fn reset_boot_screen_feedback(&mut self, toast_ms: Option<u64>) {
+        self.boot_screen_clipboard = None;
+        self.boot_screen_toasts = crate::adapters::ui::ToastManager::new();
+        self.boot_screen_toasts.set_lifetime_ms_or_default(toast_ms);
+    }
+
+    /// Writes what the shell setup or boot error screen copied through the copy door and shows the
+    /// result in that screen, which is redrawn to show it. The clipboard is made on the first copy
+    /// and dropped when a screen is entered (`reset_boot_screen_feedback`), so it always belongs to
+    /// the window shown now.
     pub(crate) fn copy_boot_screen_text(
         clipboard: &mut Option<crate::clipboard::terminal::TerminalClipboard>,
+        toasts: &mut crate::adapters::ui::ToastManager,
         display_owner: &Option<winit::event_loop::OwnedDisplayHandle>,
         gpu: &mut crate::gpu::GpuState,
         window: &winit::window::Window,
     ) {
-        let Some(text) = gpu.take_egui_copy() else {
+        if !gpu.has_egui_copy() {
             return;
-        };
+        }
         let clipboard = clipboard.get_or_insert_with(|| {
             crate::clipboard::terminal::TerminalClipboard::new(window, display_owner.clone())
         });
-        crate::clipboard::copy::copy_text_unannounced(clipboard, &text);
+        if crate::clipboard::copy::copy_egui_text(gpu, clipboard, toasts) {
+            window.request_redraw();
+        }
     }
 
     /// Answers OSC 52 reads whose clipboard text arrived, in the engine that holds the terminal.

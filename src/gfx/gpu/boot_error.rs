@@ -7,11 +7,12 @@ use super::{BootErrorInfo, GpuState};
 impl GpuState {
     /// 부팅 실패 진단을 그린다. 반환 `Ok(true)` = 사용자가 종료를 눌렀다(caller 가
     /// `exit` 한다). 터미널 없이 egui 만 그린다 — `render_shell_setup` 과 같은 구조다.
-    /// 화면은 갤러리와 같은 `tasty_ui_widgets::boot_error_screen`이다.
+    /// 화면은 갤러리와 같은 `tasty_ui_widgets::boot_error_screen`이다. `toasts`는 이 화면의 복사 결과다.
     pub fn render_boot_error(
         &mut self,
         window: &Window,
         info: &BootErrorInfo,
+        toasts: &mut crate::adapters::ui::ToastManager,
     ) -> Result<bool, wgpu::SurfaceError> {
         let output = self.acquire_surface()?;
         let view = output
@@ -42,6 +43,11 @@ impl GpuState {
                         quit = true;
                     }
                 });
+            toasts.draw(
+                ctx,
+                &crate::adapters::ui::LayoutContext::window_only(),
+                false,
+            );
         });
 
         self.apply_egui_output(window, full_output.platform_output);

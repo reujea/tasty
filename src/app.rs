@@ -225,9 +225,13 @@ pub(crate) struct App {
     #[cfg(feature = "gui")]
     pub(crate) boot_error_window: Option<Arc<Window>>,
     /// The clipboard of the shell setup or boot error screen shown now. Its copies go through the
-    /// copy door without a toast (`App::copy_boot_screen_text`).
+    /// copy door (`App::copy_boot_screen_text`).
     #[cfg(feature = "gui")]
     pub(crate) boot_screen_clipboard: Option<crate::clipboard::terminal::TerminalClipboard>,
+    /// The toast stack of the shell setup or boot error screen shown now, made anew on entering a
+    /// screen (`App::reset_boot_screen_feedback`).
+    #[cfg(feature = "gui")]
+    pub(crate) boot_screen_toasts: crate::adapters::ui::ToastManager,
     /// System tray / status item. Must be kept alive for the tray to remain visible.
     /// `None` when the platform tray is unavailable (graceful degradation, docs/architecture/shutdown-sequence.md).
     #[cfg(all(
@@ -431,6 +435,7 @@ impl App {
             boot_error_gpu: None,
             boot_error_window: None,
             boot_screen_clipboard: None,
+            boot_screen_toasts: crate::adapters::ui::ToastManager::new(),
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             tray_icon: None,
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]

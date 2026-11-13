@@ -75,6 +75,11 @@ impl GpuState {
         self.egui_copy.take()
     }
 
+    /// An egui copy waits for [`Self::take_egui_copy`].
+    pub fn has_egui_copy(&self) -> bool {
+        self.egui_copy.is_some()
+    }
+
     /// Gives a copy to egui-winit's own clipboard, as before the copy door. Only the home-in-use
     /// screen does this: it runs its own event loop outside App and has no `TerminalClipboard`.
     pub(crate) fn copy_with_egui_winit(&mut self, window: &Window, text: String) {

@@ -33,7 +33,16 @@ pub(crate) fn copy_egui_text(
     clipboard: &mut TerminalClipboard,
     toasts: &mut ToastManager,
 ) -> bool {
-    let Some(text) = gpu.take_egui_copy() else {
+    copy_taken_egui_text(gpu.take_egui_copy(), clipboard, toasts)
+}
+
+/// [`copy_egui_text`] once the copy is taken out of the window's egui state.
+fn copy_taken_egui_text(
+    copied: Option<String>,
+    clipboard: &mut TerminalClipboard,
+    toasts: &mut ToastManager,
+) -> bool {
+    let Some(text) = copied else {
         return false;
     };
     copy_text(
@@ -46,18 +55,6 @@ pub(crate) fn copy_egui_text(
         ToastScope::Window,
     );
     true
-}
-
-/// Writes `text` for a screen that has no toast stack (the boot error and shell setup screens, the quit dialog).
-/// A failure is only logged.
-pub(crate) fn copy_text_unannounced(clipboard: &mut TerminalClipboard, text: &str) -> bool {
-    match write(clipboard, text, false) {
-        Ok(()) => true,
-        Err(error) => {
-            tracing::warn!("clipboard copy failed: {error}");
-            false
-        }
-    }
 }
 
 fn write(
@@ -142,9 +139,22 @@ mod tests {
         assert_eq!(toasts.messages(), vec![crate::i18n::t("toast.copied")]);
     }
 
-    /// Given a screen without toasts, When its copy fails, Then the door reports failure only.
+    /// Given a window (a boot screen, the quit dialog) whose clipboard cannot be written, When an
+    /// egui widget's copy is handed over, Then one failure toast shows and the window is told to
+    /// redraw; without a copy nothing shows.
     #[test]
-    fn an_unannounced_copy_reports_its_failure() {
-        assert!(!copy_text_unannounced(&mut unavailable(), "text"));
+    fn an_egui_copy_that_fails_shows_one_failure_toast() {
+        let mut toasts = ToastManager::new();
+        assert!(!copy_taken_egui_text(None, &mut unavailable(), &mut toasts));
+        assert!(toasts.messages().is_empty());
+        assert!(copy_taken_egui_text(
+            Some("text".into()),
+            &mut unavailable(),
+            &mut toasts
+        ));
+        assert_eq!(
+            toasts.messages(),
+            vec![crate::i18n::t("toast.clipboard_unavailable")]
+        );
     }
 }

@@ -678,7 +678,12 @@ impl App {
             return Some((window, gpu));
         }
         // 설정한 경로를 입력란에 그대로 넣어 판정 줄이 원인(경로 없음·폴더·실행 권한 없음)을 바로 보인다.
-        self.enter_shell_setup_mode(window, gpu, settings.general.shell.clone());
+        self.enter_shell_setup_mode(
+            window,
+            gpu,
+            settings.general.shell.clone(),
+            settings.overlay.toast_duration_ms,
+        );
         None
     }
 
@@ -688,6 +693,7 @@ impl App {
         window: std::sync::Arc<winit::window::Window>,
         mut gpu: crate::gpu::GpuState,
         initial_path: String,
+        toast_ms: u64,
     ) {
         tracing::warn!(
             shell = %initial_path,
@@ -695,8 +701,12 @@ impl App {
         );
         self.state.shell_setup_mode = true;
         self.state.shell_setup_path = initial_path;
-        self.boot_screen_clipboard = None;
-        if let Err(e) = gpu.render_shell_setup(&window, &mut self.state.shell_setup_path) {
+        self.reset_boot_screen_feedback(Some(toast_ms));
+        if let Err(e) = gpu.render_shell_setup(
+            &window,
+            &mut self.state.shell_setup_path,
+            &mut self.boot_screen_toasts,
+        ) {
             tracing::warn!("shell setup first frame render failed: {e} — showing window anyway");
         }
         #[cfg(debug_assertions)]
@@ -1011,9 +1021,14 @@ impl App {
         if let WindowEvent::RedrawRequested = &event {
             if let (Some(gpu), Some(window)) = (&mut self.shell_setup_gpu, &self.shell_setup_window)
             {
-                let result = gpu.render_shell_setup(window, &mut self.state.shell_setup_path);
+                let result = gpu.render_shell_setup(
+                    window,
+                    &mut self.state.shell_setup_path,
+                    &mut self.boot_screen_toasts,
+                );
                 Self::copy_boot_screen_text(
                     &mut self.boot_screen_clipboard,
+                    &mut self.boot_screen_toasts,
                     &self.view.display_owner,
                     gpu,
                     window,
@@ -1068,10 +1083,14 @@ impl App {
     ) {
         tracing::warn!("boot failed with a live GPU — showing the boot error screen");
         self.state.boot_error_mode = true;
-        self.boot_screen_clipboard = None;
+        let toast_ms = self
+            .services
+            .latest_settings()
+            .map(|s| s.overlay.toast_duration_ms);
+        self.reset_boot_screen_feedback(toast_ms);
         // 렌더 실패 시에도 창은 표시한다.
         if let Some(info) = &self.state.boot_error_info
-            && let Err(e) = gpu.render_boot_error(&window, info)
+            && let Err(e) = gpu.render_boot_error(&window, info, &mut self.boot_screen_toasts)
         {
             tracing::warn!("boot error first frame render failed: {e} — showing window anyway");
         }
@@ -1092,9 +1111,10 @@ impl App {
                 &self.boot_error_window,
                 &self.state.boot_error_info,
             ) {
-                let result = gpu.render_boot_error(window, info);
+                let result = gpu.render_boot_error(window, info, &mut self.boot_screen_toasts);
                 Self::copy_boot_screen_text(
                     &mut self.boot_screen_clipboard,
+                    &mut self.boot_screen_toasts,
                     &self.view.display_owner,
                     gpu,
                     window,

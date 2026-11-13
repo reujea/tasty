@@ -534,7 +534,7 @@ fn clipboard_text_is_only_written_through_its_one_door() {
     }
     assert!(
         offenders.is_empty(),
-        "공통 복사 함수 밖에서 클립보드에 쓰는 곳이 {}개다:\n{}\n텍스트 복사는 `crate::clipboard::copy::copy_text`(토스트가 없는 화면은 `copy_text_unannounced`)로 쓴다. 새 예외가 필요하면 docs/features/clipboard/index.md 의 예외 표와 이 검사의 허용 목록을 함께 고친다.",
+        "공통 복사 함수 밖에서 클립보드에 쓰는 곳이 {}개다:\n{}\n텍스트 복사는 `crate::clipboard::copy::copy_text`(egui 위젯 복사는 `copy_egui_text`)로 쓴다. 새 예외가 필요하면 docs/features/clipboard/index.md 의 예외 표와 이 검사의 허용 목록을 함께 고친다.",
         offenders.len(),
         offenders.join("\n")
     );
