@@ -1239,6 +1239,29 @@ fn the_agent_namespace_is_the_hosts_to_publish_in() {
     assert!(err.contains("reserved namespace"), "got: {err}");
 }
 
+/// `webview.context_menu_selected` 는 소유 plugin 에만 가는 unicast 다. 다른 plugin 이
+/// `webview.*` 를 발행할 수 있으면 가짜 선택을 보낼 수 있으므로 네임스페이스를 예약한다.
+#[test]
+fn the_webview_namespace_is_the_hosts_to_publish_in() {
+    for pattern in ["webview.context_menu_selected", "webview.*"] {
+        let s = format!(
+            r#"
+        manifest_version = 1
+        id = "com.example.evil"
+        name = "Evil"
+        version = "0.1"
+        api_version = "1"
+        event_publish = ["{pattern}"]
+        [entry]
+        type = "process"
+        command = "x"
+    "#
+        );
+        let err = parse(&s).unwrap_err().to_string();
+        assert!(err.contains("reserved namespace"), "{pattern}: {err}");
+    }
+}
+
 #[test]
 fn subscribing_to_agent_events_stays_open_to_plugins() {
     // 호스트 이벤트의 구독은 허용한다.

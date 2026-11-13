@@ -319,6 +319,7 @@ pub fn is_reserved_event_namespace(ns: &str) -> bool {
             | "process"
             | "memory"
             | "system"
+            | "webview"
     )
 }
 
