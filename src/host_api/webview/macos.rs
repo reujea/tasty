@@ -1193,13 +1193,31 @@ impl PlatformWebView {
         }
     }
 
-    /// 실린 문서를 다시 싣지 않고 그 안에서 스크립트를 돌린다. 결과는 받지 않고 실패만 로그에 남긴다.
+    /// 실린 문서를 다시 싣지 않고 그 안에서 스크립트를 돌린다. 값은 쓰지 않고 실패만 로그에 남긴다.
     /// 페이지 JS 설정과 무관하게 실행되므로 허용 판정은 호출 전(`webview.post_message` 핸들러)에 끝나 있어야 한다.
+    ///
+    /// WKWebView는 완료 블록을 준 호출에만 오류를 알린다. 블록을 `None`으로 두면 평가 실패가
+    /// 아무 데도 남지 않으므로(linux·windows backend 는 같은 호출에서 실패를 로그에 남긴다)
+    /// 값을 버리는 블록을 주어 오류만 기록한다. 블록은 WebKit 이 비동기로 부르며 평가가 끝날 때
+    /// 해제된다 — `RcBlock` 이 그동안 수명을 쥔다.
     pub fn eval_js(&self, script: &str) {
-        // SAFETY: main thread WKWebView API. NSString은 호출 동안 살아있는 local Retained.
+        let sid = self.surface_id;
+        let handler = block2::RcBlock::new(
+            move |_value: *mut objc2::runtime::AnyObject, error: *mut NSError| {
+                if error.is_null() {
+                    return;
+                }
+                // SAFETY: WebKit 이 완료 블록에 넘긴 NSError 는 이 호출 동안 유효하다.
+                let message = unsafe { &*error }.localizedDescription().to_string();
+                tracing::warn!("WebView surface {sid}: evaluateJavaScript failed: {message}");
+            },
+        );
+        // SAFETY: main thread WKWebView API. NSString 과 블록은 호출 동안 살아있는 local 값이고
+        // WebKit 은 블록을 자기 쪽에서 retain 한다.
         unsafe {
             let ns = NSString::from_str(script);
-            self.webview.evaluateJavaScript_completionHandler(&ns, None);
+            self.webview
+                .evaluateJavaScript_completionHandler(&ns, Some(&handler));
         }
     }
 }
