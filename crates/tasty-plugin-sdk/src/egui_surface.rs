@@ -1,6 +1,6 @@
 //! 플러그인의 egui Context로 그린 결과를 공유 버퍼로 전달한다.
 //! 호스트의 set_context 입력을 받아 egui 실행, tessellation과 mesh 인코딩을 한다.
-//! 출력 해시가 직전과 같으면 송신을 생략하되 전체 텍스처 복구 요청은 처리한다.
+//! 출력 해시와 IME 위치가 직전과 같으면 송신을 생략하되 전체 텍스처 복구 요청은 처리한다.
 //!
 //! Context와 폰트 atlas는 플러그인 소유다. 호스트와 글꼴을 맞추려면
 //! context().set_fonts로 같은 폰트를 설치한다.
@@ -53,8 +53,11 @@ fn rect_wire(r: Rect) -> RectWire {
 /// Surface, Popup, Banner가 공유하는 egui 렌더 상태와 버퍼 전송 기능.
 struct EguiMeshCore {
     ctx: Context,
-    /// 직전 frame 에 인코드한 mesh 바이트의 해시. 같으면 정적 화면으로 보고 송신 생략.
+    /// 직전 frame 에 인코드한 mesh 바이트의 해시. 이 값과 IME 위치가 모두 같으면 송신 생략.
     last_hash: Option<u64>,
+    /// 직전에 보낸 frame 의 IME 위치. 그림이 같아도 입력칸 포커스가 바뀌면 frame 을 보내
+    /// 호스트의 `ime_cursor` 캐시를 갱신한다.
+    last_sent_ime: Option<ImeCursorWire>,
     /// 직전 set_context 의 렌더 컨텍스트(geom/ppp/theme). out-of-band 상태 변경 뒤
     /// [`repaint_last`](Self::repaint_last)가 **빈 입력**으로 재-run 할 때 재사용한다.
     /// 첫 set_context 도착 전엔 `None` — 그 때 repaint 는 no-op.
@@ -116,6 +119,7 @@ impl EguiMeshCore {
         Self {
             ctx,
             last_hash: None,
+            last_sent_ime: None,
             last_ctx: None,
             tex_state: BTreeMap::new(),
             frame_seq: 0,
@@ -203,7 +207,7 @@ impl EguiMeshCore {
         self.last_ime_cursor
     }
 
-    /// 렌더링과 인코딩 후 출력 해시를 비교한다. 같으면 None을 반환한다.
+    /// 렌더링과 인코딩 후 출력 해시와 IME 위치를 비교한다. 둘 다 같으면 None을 반환한다.
     /// need_full이면 해시 비교로 생략하지 않고 누적 텍스처 전체를 넣는다.
     fn render(
         &mut self,
@@ -252,10 +256,12 @@ impl EguiMeshCore {
         };
 
         let hash = hash_bytes(&bytes);
-        if !need_full && self.last_hash == Some(hash) {
+        if !need_full && self.last_hash == Some(hash) && self.last_sent_ime == self.last_ime_cursor
+        {
             return None;
         }
         self.last_hash = Some(hash);
+        self.last_sent_ime = self.last_ime_cursor;
         Some(MeshFrame {
             bytes,
             full_textures,
@@ -2596,5 +2602,48 @@ mod tests {
             ctx.copy_text("last".into());
         });
         assert_eq!(surface.take_copied_text().as_deref(), Some("last"));
+    }
+
+    /// 그림이 같아도 IME 위치가 Some↔None 으로 바뀐 패스는 프레임을 보낸다. 호스트는
+    /// PaintFrame 의 `ime_cursor` 로 입력칸 포커스를 판정하기 때문이다. IME 도 같으면 생략한다.
+    #[test]
+    fn an_ime_change_alone_is_not_skipped() {
+        let mut surface = EguiMeshSurface::new(1);
+        let params = ctx_params(200, 50, 1.0);
+        let label = |ctx: &Context| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.label("static");
+            });
+        };
+        let with_ime = |ctx: &Context| {
+            label(ctx);
+            ctx.output_mut(|o| {
+                o.ime = Some(egui::output::IMEOutput {
+                    rect: Rect::from_min_size(Pos2::new(1.0, 2.0), vec2(30.0, 10.0)),
+                    cursor_rect: Rect::from_min_size(Pos2::new(3.0, 2.0), vec2(1.0, 10.0)),
+                });
+            });
+        };
+        let mut settled = false;
+        for _ in 0..8 {
+            if surface.run_frame(&params, label).is_none() {
+                settled = true;
+                break;
+            }
+        }
+        assert!(settled, "시험 전에 출력이 안정되어야 한다");
+        assert!(
+            surface.run_frame(&params, with_ime).is_some(),
+            "None→Some IME 변화는 프레임을 보낸다"
+        );
+        assert!(
+            surface.run_frame(&params, with_ime).is_none(),
+            "같은 IME 는 생략한다"
+        );
+        assert!(
+            surface.run_frame(&params, label).is_some(),
+            "Some→None IME 변화는 프레임을 보낸다"
+        );
+        assert!(surface.run_frame(&params, label).is_none());
     }
 }

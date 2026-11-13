@@ -380,10 +380,9 @@ Option<ImeCursorWire>` 칸에 실어 보내고, host 가 콘텐츠 영역의 물
 순서로** 고른다: 키 포커스를 가진 plugin popup → 포커스된 egui-mesh surface → 터미널
 preedit. 조합을 받는 쪽이 후보창 위치도 정한다.
 
-**dedup 에 종속된다**: 출력 바이트가 직전과 같으면 SDK 는 알림을 아예 안 보내므로 그 tick
-에는 값이 갱신되지 않는다. 캐럿이 mesh 의 일부라 캐럿이 움직이면 바이트가 달라지고 안
-움직이면 직전 값이 여전히 맞다 — 그래서 관측되는 결함이 없지만, 이 정합은 "캐럿이
-그려진다" 는 사실에 의존한다.
+**dedup 이 IME 위치도 본다**: SDK 는 출력 바이트 해시와 IME 위치가 모두 직전에 보낸 frame 과
+같을 때만 알림을 생략한다. 그림이 같아도 입력칸 포커스가 생기거나 사라져 `ime_cursor` 가
+Some↔None 으로 바뀌면 frame 을 보내므로, host 의 최신 frame 캐시가 지금 입력칸 포커스를 반영한다.
 
 **banner 는 대상이 아니다** — 키/텍스트/IME 를 forward 받지 않으므로(포커스를 주지 않는
 non-modal 공지) `BannerPaintFrame` 에는 그 칸이 없다.
