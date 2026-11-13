@@ -56,7 +56,8 @@ pub(super) fn push_bounded(queue: &mut VecDeque<PluginCopiedText>, item: PluginC
 }
 
 impl PluginManager {
-    /// 받은 순서대로 복사 결과를 모두 꺼낸다. pump 뒤 같은 tick에서 부른다.
+    /// 받은 순서대로 surface·popup 복사 결과를 함께 모두 꺼낸다. pump 뒤 같은 tick에서
+    /// 한 번 부른다. 결과에는 창 정보가 없으므로 어느 창으로 보낼지는 호출자가 정한다.
     /// 수신 스레드가 알림 줄마다 이벤트 루프를 깨우므로, 프레임 없이 복사 결과만 온
     /// tick에도 pump와 이 호출이 실행된다.
     pub fn take_copied_texts(&mut self) -> Vec<PluginCopiedText> {

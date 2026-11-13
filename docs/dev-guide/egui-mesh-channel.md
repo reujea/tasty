@@ -407,7 +407,9 @@ Copy·Paste 는 위 표대로 각각 `egui_copy`·`egui_paste` capability 를 �
 보낸다. 선택만 복사하면 화면이 바뀌지 않아 프레임이 생략되기 때문이다. 알린 값은 소비하므로
 `take_copied_text` 로 다시 나오지 않고, 한 패스에 복사가 여럿이면 마지막 값을 쓴다. banner 는 키 입력을
 받지 않으므로 대상이 아니다. host 는 이 알림을 채널의 plugin id 와 함께 일회성 큐에 담는다
-(`PluginManager::take_copied_texts`, 상한을 넘으면 오래된 결과부터 버린다). 수신 스레드가 알림 줄마다
+(`PluginManager::take_copied_texts`, 상한을 넘으면 오래된 결과부터 버린다). 이 함수는 surface·popup
+결과를 함께 꺼낸다. wire 와 결과에는 창 id 가 없으므로 GUI 에서는 pump 직후 한 번 꺼내 대상을 가진
+창으로 나눈다. 수신 스레드가 알림 줄마다
 이벤트 루프를 깨우므로 프레임 없이 복사 결과만 온 tick 에도 pump 직후 꺼낼 수 있다. headless host 는
 GUI 클립보드가 없어 큐를 버린다. GUI 에서 큐를 꺼내 OS 클립보드에 쓰는 경로는 아직 없다.
 
