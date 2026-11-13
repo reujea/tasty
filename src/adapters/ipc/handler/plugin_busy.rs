@@ -37,8 +37,25 @@ pub(crate) const PROBE_TIMEOUT: Duration = Duration::from_millis(1500);
 pub(crate) enum Wanted {
     Nothing,
     One(String),
-    /// `upgrade_builtins`(`restart_running`) — 설치된 전부.
-    Every,
+    /// `upgrade_builtins`(`restart_running`) — 이 인자로 실제로 교체될 내장 plugin만.
+    /// 설치된 전부가 아니다. 무관한 plugin이 바쁘다고 답해 업그레이드를 막으면 안 된다.
+    Upgrade {
+        force: bool,
+        restore_removed: Vec<String>,
+        restore_all: bool,
+    },
+}
+
+fn string_list(params: &Value, key: &str) -> Vec<String> {
+    params
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub(crate) fn plugins_to_ask(method: &str, params: &Value) -> Wanted {
@@ -53,7 +70,11 @@ pub(crate) fn plugins_to_ask(method: &str, params: &Value) -> Wanted {
         "plugin.upgrade_builtins"
             if params.get("restart_running").and_then(Value::as_bool) == Some(true) =>
         {
-            Wanted::Every
+            Wanted::Upgrade {
+                force: params.get("force").and_then(Value::as_bool) == Some(true),
+                restore_removed: string_list(params, "restore_removed"),
+                restore_all: params.get("restore_all").and_then(Value::as_bool) == Some(true),
+            }
         }
         _ => Wanted::Nothing,
     }
@@ -64,11 +85,18 @@ pub(crate) fn stop_targets(mgr: &PluginManager, wanted: Wanted) -> Vec<(String, 
     let ids: Vec<String> = match wanted {
         Wanted::Nothing => return Vec::new(),
         Wanted::One(id) => vec![id],
-        Wanted::Every => mgr
-            .packages()
-            .iter()
-            .map(|p| p.manifest.id.clone())
-            .collect(),
+        // `upgrade_builtins`는 `BUILTINS`만 돌고 그 안에서도 버전·내용 비교로 고른다 —
+        // 같은 판정을 파일을 쓰지 않고 다시 해 교체 대상만 고른다.
+        Wanted::Upgrade {
+            force,
+            restore_removed,
+            restore_all,
+        } => tasty_host_plugin::builtin::builtin_restart_candidates(
+            mgr,
+            force,
+            &restore_removed,
+            restore_all,
+        ),
     };
     ids.into_iter()
         .filter(|id| mgr.is_running(id))
@@ -285,7 +313,28 @@ mod tests {
         );
         assert_eq!(
             plugins_to_ask("plugin.upgrade_builtins", &json!({"restart_running": true})),
-            Wanted::Every
+            Wanted::Upgrade {
+                force: false,
+                restore_removed: Vec::new(),
+                restore_all: false,
+            }
+        );
+        // 교체 대상을 고를 때 쓰는 인자를 그대로 들고 간다 — 묻는 범위가 실제 교체 범위와 같아진다.
+        assert_eq!(
+            plugins_to_ask(
+                "plugin.upgrade_builtins",
+                &json!({
+                    "restart_running": true,
+                    "force": true,
+                    "restore_removed": ["com.tasty.codex"],
+                    "restore_all": true,
+                })
+            ),
+            Wanted::Upgrade {
+                force: true,
+                restore_removed: vec!["com.tasty.codex".into()],
+                restore_all: true,
+            }
         );
     }
 

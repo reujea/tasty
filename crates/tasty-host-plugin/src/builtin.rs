@@ -6,6 +6,7 @@
 //! 설치 절차: docs/dev-guide/plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요.
 
 pub mod file_upgrade;
+pub use restart_candidates::builtin_restart_candidates;
 
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -1274,6 +1275,7 @@ fn fill(f: &mut std::fs::File, buf: &mut [u8]) -> std::io::Result<usize> {
     Ok(filled)
 }
 
+mod restart_candidates;
 mod sync_probe;
 
 #[cfg(test)]
@@ -1287,6 +1289,7 @@ mod upgrade_retire_tests;
 
 #[cfg(test)]
 mod tests {
+    use super::restart_candidates::paths_would_restart;
     use super::*;
 
     #[test]
@@ -1327,6 +1330,94 @@ mod tests {
     #[test]
     fn unknown_is_not_builtin() {
         assert!(!is_builtin_plugin("com.example.foo"));
+    }
+
+    fn plugin_dir(root: &Path, name: &str, version: &str, body: &str) -> PathBuf {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        // `Manifest::load` 는 읽기만이 아니라 `validate()` 도 돈다 — 필수 칸이 빠지거나
+        // id 가 역도메인 형식이 아니면 실패하고, 버전이 None 이 되어 판정이 Skip 으로 빠진다.
+        // 그러면 내용 비교까지 가지 못해 이 시험이 보려는 갈래를 보지 못한다.
+        std::fs::write(
+            dir.join("tasty-plugin.toml"),
+            format!(
+                "manifest_version = 1\nid = \"com.example.{name}\"\nname = \"{name}\"\n\
+                 version = \"{version}\"\napi_version = \"1\"\n\
+                 [entry]\ntype = \"process\"\ncommand = \"{name}\"\n"
+            ),
+        )
+        .expect("manifest");
+        std::fs::write(dir.join("body"), body).expect("body");
+        // 매니페스트가 실제로 읽히는지 여기서 못박는다 — 안 읽히면 아래 판정들이
+        // 전부 Skip 으로 통과해 "아무것도 안 본" 초록불이 된다.
+        assert_eq!(
+            read_installed_version(&dir).map(|v| v.to_string()),
+            Some(version.to_string()),
+            "픽스처 매니페스트를 Manifest::load 가 읽지 못한다 — 시험이 무의미해진다"
+        );
+        dir
+    }
+
+    // 묻는 범위는 실제로 교체될 것과 같아야 한다 — 바뀌지 않는 plugin 을 물으면 무관한
+    // busy 답 하나가 업그레이드 전체를 막는다.
+    #[test]
+    fn only_a_builtin_that_would_actually_be_replaced_is_a_restart_candidate() {
+        let t = tempfile::tempdir().expect("tempdir");
+        let (bundle, installed) = (t.path().join("bundle"), t.path().join("installed"));
+
+        // 같은 버전 · 같은 내용 — 아무것도 쓰지 않으므로 후보가 아니다.
+        let same_src = plugin_dir(&bundle, "same", "1.0.0", "x");
+        let same_dst = plugin_dir(&installed, "same", "1.0.0", "x");
+        assert!(
+            !paths_would_restart(&same_src, &same_dst, false),
+            "바뀌지 않는 plugin 을 후보로 넣었다"
+        );
+
+        // 같은 버전인데 내용이 다르다 — 다시 쓰므로 후보다.
+        let resync_src = plugin_dir(&bundle, "resync", "1.0.0", "new");
+        let resync_dst = plugin_dir(&installed, "resync", "1.0.0", "old");
+        assert!(paths_would_restart(&resync_src, &resync_dst, false));
+
+        // 설치본이 더 새롭다 — 건너뛰므로 후보가 아니다.
+        let newer_src = plugin_dir(&bundle, "newer", "1.0.0", "x");
+        let newer_dst = plugin_dir(&installed, "newer", "2.0.0", "x");
+        assert!(!paths_would_restart(&newer_src, &newer_dst, false));
+
+        // 번들이 더 새롭다 — 교체하므로 후보다.
+        let up_src = plugin_dir(&bundle, "up", "2.0.0", "x");
+        let up_dst = plugin_dir(&installed, "up", "1.0.0", "x");
+        assert!(paths_would_restart(&up_src, &up_dst, false));
+
+        // force 면 내용이 같아도 다시 쓴다.
+        assert!(paths_would_restart(&same_src, &same_dst, true));
+        assert!(paths_would_restart(&newer_src, &newer_dst, true));
+
+        // 설치본이 없으면 새로 깔므로 후보, 번들에 없으면 아무것도 안 하므로 후보가 아니다.
+        assert!(paths_would_restart(
+            &same_src,
+            &installed.join("absent"),
+            false
+        ));
+        assert!(!paths_would_restart(
+            &bundle.join("absent"),
+            &same_dst,
+            false
+        ));
+    }
+
+    // 후보는 언제나 BUILTINS 안에서만 나온다 — 사용자가 깐 custom plugin 은 묻지 않는다.
+    #[test]
+    fn a_custom_plugin_is_never_a_restart_candidate() {
+        let mgr = PluginManager::new(std::sync::Arc::new(
+            tasty_terminal::waker_factory::NoopWakerFactory,
+        ));
+        let builtin_ids: Vec<&str> = BUILTINS.iter().map(|s| s.id).collect();
+        for id in builtin_restart_candidates(&mgr, true, &[], true) {
+            assert!(
+                builtin_ids.contains(&id.as_str()),
+                "BUILTINS 밖의 '{id}' 를 후보로 냈다"
+            );
+        }
     }
 
     fn v(s: &str) -> semver::Version {
