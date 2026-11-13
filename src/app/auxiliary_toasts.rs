@@ -43,12 +43,12 @@ impl App {
 }
 
 /// 보조 창 수명은 최신 적용 snapshot 하나로 맞춘다. 부팅(`begin_boot`)과 설정 적용이 저장 성공과
-/// 관계없이 채우고, 보조 창은 부팅 뒤에만 열리므로 비어 있으면 안 된다.
+/// 관계없이 채우고, 보조 창은 부팅 뒤에만 열리므로 비어 있으면 안 된다. 비어 있으면 기본 수명이다.
 fn apply_global_lifetime(toasts: &mut ToastManager, latest: Option<u64>) {
-    match latest {
-        Some(ms) => toasts.set_lifetime_ms(ms),
-        None => tracing::warn!("no applied settings snapshot for an auxiliary window toast"),
+    if latest.is_none() {
+        tracing::warn!("no applied settings snapshot for an auxiliary window toast");
     }
+    toasts.set_lifetime_ms_or_default(latest);
 }
 
 #[cfg(test)]
@@ -76,15 +76,16 @@ mod tests {
         );
     }
 
-    /// Given snapshot이 없다(도달하면 안 되는 상태), Then 관리자 수명을 바꾸지 않는다.
+    /// Given 7000ms로 맞춘 관리자, When snapshot 없이(도달하면 안 되는 상태) 동기화한다,
+    /// Then 이전 값이 아니라 기본 수명 2000ms다.
     #[test]
-    fn without_a_snapshot_the_manager_keeps_its_lifetime() {
+    fn without_a_snapshot_the_manager_uses_the_default_lifetime() {
         let mut toasts = ToastManager::new();
         toasts.set_lifetime_ms(7000);
         apply_global_lifetime(&mut toasts, None);
         assert_eq!(
             pushed_lifetime(&mut toasts),
-            vec![Duration::from_millis(7000)]
+            vec![Duration::from_millis(2000)]
         );
     }
 }

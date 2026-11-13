@@ -109,6 +109,12 @@ impl ToastManager {
         self.lifetime = Duration::from_millis(ms);
     }
 
+    /// 설정값이 있으면 그 값을, 설정 snapshot이 없으면 [`DEFAULT_LIFETIME`]을 수명으로 쓴다.
+    /// 이전에 맞춘 수명은 남기지 않는다.
+    pub fn set_lifetime_ms_or_default(&mut self, ms: Option<u64>) {
+        self.lifetime = ms.map_or(DEFAULT_LIFETIME, Duration::from_millis);
+    }
+
     #[cfg(test)]
     pub(crate) fn card_lifetimes(&self) -> Vec<Duration> {
         self.toasts.iter().map(|t| t.lifetime).collect()
