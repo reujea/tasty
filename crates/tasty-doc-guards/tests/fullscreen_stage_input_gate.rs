@@ -156,12 +156,23 @@ fn os_level_ui_is_suppressed_during_a_stage() {
         "self.sync_fullscreen_stage_transition(engine);",
         "무대 진입 정리 훅 호출",
     );
+    // 버리는 방법은 둘이다: 슬롯을 직접 비우거나, 조절기까지 푸는 도우미를 부르거나.
+    // plugin webview 요청은 조절기를 함께 풀어야 그 plugin 이 다시 메뉴를 열 수 있다.
     let menu_guard = "if self.state.fullscreen_stage_active() {\n            self.state.dialogs.pending_native_menu = None;\n            return;\n        }";
+    let menu_guard_via_helper = "if self.state.fullscreen_stage_active() {\n            self.drop_pending_menu_for_stage();\n            return;\n        }";
     assert!(
-        src.contains(menu_guard),
+        src.contains(menu_guard) || src.contains(menu_guard_via_helper),
         "무대 중 네이티브 컨텍스트 메뉴 억제가 사라졌다 — OS 팝업은 wgpu 표면 위에 떠서 \
          무대가 덮지 못한다."
     );
+    if src.contains(menu_guard_via_helper) {
+        let menu = read("src/view/main/webview_menu.rs");
+        assert!(
+            menu.contains("pub(super) fn drop_pending_menu_for_stage")
+                && menu.contains("self.state.dialogs.pending_native_menu.take()"),
+            "drop_pending_menu_for_stage 가 슬롯을 비우지 않는다 — 억제가 이름만 남았다."
+        );
+    }
     let drag = read("src/view/main/file_drag.rs");
     let poll = drag
         .split("pub(crate) fn poll_outbound_drag(")

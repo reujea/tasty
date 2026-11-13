@@ -37,27 +37,43 @@ impl MainView {
         )];
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
             // 메뉴가 열려 있는 동안 대상 surface 가 닫혔을 수 있다.
-            if !engine.has_surface(surface_id) || result != Some(ITEM_COPY_SURFACE_ID) {
-                return;
-            }
-            let copied = match this.clipboard.set_text(&surface_id.to_string()) {
-                Ok(()) => true,
-                Err(e) => {
-                    this.state.clipboard_error_toast(
-                        &e,
-                        crate::adapters::ui::ToastScope::Surface(surface_id),
-                    );
-                    false
-                }
-            };
+            let chosen = engine.has_surface(surface_id) && result == Some(ITEM_COPY_SURFACE_ID);
+            let payload = chosen.then(|| {
+                let copied = match this.clipboard.set_text(&surface_id.to_string()) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        this.state.clipboard_error_toast(
+                            &e,
+                            crate::adapters::ui::ToastScope::Surface(surface_id),
+                        );
+                        false
+                    }
+                };
+                selected_payload(surface_id, copied, page_x, page_y)
+            });
+            // 고르지 않고 닫아도 진행 중 표시는 반드시 푼다 — 아니면 그 plugin 은
+            // 다시는 메뉴를 열지 못한다.
             crate::shortcuts::send_app_event(
                 &this.proxy,
-                crate::AppEvent::WebviewMenuChosen {
-                    plugin_id,
-                    payload: selected_payload(surface_id, copied, page_x, page_y),
-                },
+                crate::AppEvent::WebviewMenuClosed { plugin_id, payload },
             );
         });
+    }
+
+    /// 무대(fullscreen stage)가 떠 요청을 버린다. 버린 것이 plugin webview 의 요청이면 조절기를
+    /// 풀어 그 plugin 이 다시는 메뉴를 열지 못하는 상태로 남지 않게 한다.
+    pub(super) fn drop_pending_menu_for_stage(&mut self) {
+        if let Some(PendingNativeMenu::WebviewSurface { plugin_id, .. }) =
+            self.state.dialogs.pending_native_menu.take()
+        {
+            crate::shortcuts::send_app_event(
+                &self.proxy,
+                crate::AppEvent::WebviewMenuClosed {
+                    plugin_id,
+                    payload: None,
+                },
+            );
+        }
     }
 }
 

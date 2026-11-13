@@ -518,7 +518,7 @@ impl MainView {
 
         // OS 메뉴는 무대 위에 뜨므로 요청을 버린다. 무대 종료 뒤에는 좌표도 유효하지 않다.
         if self.state.fullscreen_stage_active() {
-            self.state.dialogs.pending_native_menu = None;
+            self.drop_pending_menu_for_stage();
             return;
         }
 

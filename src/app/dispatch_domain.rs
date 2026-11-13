@@ -460,6 +460,9 @@ impl App {
             .registries
             .plugin_hook_events
             .unregister(&plugin_id);
+        // 메뉴 조절기의 자리도 비운다 — 안 그러면 다시 올라온 plugin 이 간격·진행 중을 물려받는다.
+        #[cfg(feature = "gui")]
+        self.webview_menu_gate.forget(&plugin_id);
         self.enqueue_plugin_host_event(crate::state::PendingHostEvent::PluginUnloaded {
             plugin_id,
             reason: reason_str.to_string(),
