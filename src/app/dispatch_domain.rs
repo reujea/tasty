@@ -464,6 +464,13 @@ impl App {
             .registries
             .plugin_hook_events
             .unregister(&plugin_id);
+        // 끄지 못하고 내려간 plugin이 알린 busy를 지운다 — 그 값을 끌 주체가 사라졌다.
+        // 그 plugin의 surface는 어느 engine 에나 있을 수 있어 전부 훑는다.
+        for session in self.engines.all_sessions_mut() {
+            session
+                .borrow_mut()
+                .clear_reported_busy_of_plugin(&plugin_id);
+        }
         self.enqueue_plugin_host_event(crate::state::PendingHostEvent::PluginUnloaded {
             plugin_id,
             reason: reason_str.to_string(),

@@ -74,7 +74,9 @@ plugin이 그리는 surface에는 전경 프로세스가 없어 호스트가 판
 - attach 사본(`AttachMeshSurface`)은 원격 호스트의 surface를 비추기만 하고 그 `plugin_id`로 로컬 plugin을 조회하지 않는다. 로컬 plugin이 원격 surface의 표시를 바꾸지 못하게 소유자로 보지 않는다.
 - 값은 폴링이 다시 계산하는 터미널 busy와 따로 보관하고, 판정은 둘의 합집합이다. 폴링이 plugin 값을 지우지 않는다.
 - surface가 닫히면 값도 지운다. 턴 도중 닫힌 탭이 워크스페이스를 busy로 남기지 않는다.
-- plugin이 내려가며 끄지 못한 값은 surface가 닫힐 때까지 남는다.
+- plugin이 꺼지며 끄지 못한 값은 호스트가 지운다. 값을 끌 주체가 사라졌고, 터미널과 달리 폴링이 다시 계산하지도 않아 그냥 두면 surface를 닫을 때까지 남기 때문이다. plugin surface는 폴링 대상이 아니므로 지우는 비용은 내려가는 그 순간 한 번뿐이다.
+  - 지우는 시점은 호스트가 plugin이 내려간 것을 아는 때 — `PluginUnloaded`다. 사용자 비활성화(`plugin.disable`)와 제거가 여기 들어간다. 그 plugin이 소유한 surface의 값만 지우고, 소유자가 없는 터미널의 값은 건드리지 않는다.
+  - **프로세스가 그냥 죽은 경우는 아직 덮지 못한다.** 호스트에 plugin 프로세스 종료를 알리는 경로가 없어 `PluginUnloaded`가 나오지 않는다. 그 값은 종전대로 surface를 닫을 때까지 남는다. 종료 감지가 생기면 같은 지우기를 그 경로에도 건다.
 
 ### (R) 터미널에 알린 busy
 

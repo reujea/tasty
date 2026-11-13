@@ -68,6 +68,7 @@ Agent caller 는 메서드별 권한 토큰이 필요하다(`method_meta`). Loca
 - 메타: `surface.meta.{set,get,unset,list}` · `surface.set_cwd`
   - 지금 열린 surface 에만 쓰고 읽는다. 닫혔거나 없는 `surface_id` 는 다른 surface 대상 요청과 같은 `-32602`(`no live surface <id> (named by 'surface.meta.set')`)로 거절하고 저장소에 항목을 만들지 않는다. surface 를 닫으면 그 surface 의 metadata 도 함께 지운다.
 - 주의 환기(attention): `surface.completion`(발동) · `surface.attention.{get,clear}`(조회·해제). 해제는 `kind` 선택 필터를 받고, 하드 점유 중인 surface 와 mirror surface 는 거절한다(그 상태의 소유자가 다른 인스턴스다) — [surface-highlight](../features/surface-highlight/index.md)
+- 실행 중 표시: `surface.set_busy {surface_id, busy}` → `{ok, surface_id, busy}` — 탭 점·사이드바 점과 개수·`surface.list` 의 `busy` 가 읽는 값을 켜고 끈다. 터미널은 소유자가 없어 누구나 알리고 전경 프로세스 판정과 합치며, plugin 이 그리는 surface 는 그 소유 plugin 만 바꾼다. 그 밖의 surface 는 `-32000` 으로 거절한다(`surface is neither a terminal nor a plugin surface` · `caller does not own this surface`). 권한 `surface.write`, CLI `tasty surface set-busy [--surface <id>] --busy true|false` — [busy-indicator](../design/policies/busy-indicator.md)
 - 출력 옵저버: `output.observe_{start,stop,list,info}`
 - 동작·파서는 [terminal-output](../features/terminal-output/index.md), 파서 카탈로그 [output-parsers](output-parsers.md). (IME `surface.ime_*` 는 debug 빌드 전용 local-only — release 표면에 없다.)
 

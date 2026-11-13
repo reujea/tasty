@@ -228,6 +228,39 @@ mod tests {
         assert!(!e.read().is_surface_busy(21));
     }
 
+    // plugin 이 끄지 못하고 내려가면 호스트가 그 plugin 소유 surface 의 값만 지운다.
+    // plugin surface 는 폴링이 다시 계산하지 않아 그냥 두면 surface 를 닫을 때까지 남는다.
+    #[test]
+    fn a_departing_plugin_takes_only_its_own_reported_busy() {
+        let mut s = engine();
+        let mut e = s.borrow_mut();
+        add_plugin_surface(&mut e, 7); // com.example.chat (webview/remote)
+        add_egui_mesh_surface(&mut e, 11, "com.example.chat");
+        add_egui_mesh_surface(&mut e, 12, "com.example.other");
+        e.runtime
+            .terminals
+            .insert(5, tasty_terminal::Terminal::new_detached(80, 24), None);
+        set(&mut e, &plugin("com.example.chat"), 7, true);
+        set(&mut e, &plugin("com.example.chat"), 11, true);
+        set(&mut e, &plugin("com.example.other"), 12, true);
+        set(&mut e, &tasty_ipc::caller::CallerContext::local(), 5, true);
+
+        assert_eq!(e.clear_reported_busy_of_plugin("com.example.chat"), 2);
+        assert!(!e.read().is_surface_busy(7), "webview surface 값이 남았다");
+        assert!(
+            !e.read().is_surface_busy(11),
+            "egui-mesh surface 값이 남았다"
+        );
+        assert!(
+            e.read().is_surface_busy(12),
+            "다른 plugin 의 surface 까지 지웠다"
+        );
+        assert!(
+            e.read().is_surface_busy(5),
+            "소유자 없는 터미널의 값까지 지웠다"
+        );
+    }
+
     // 폴링은 터미널 busy 집합을 통째로 바꾼다. plugin 값이 그때 지워지면 점이 1초 만에 꺼진다.
     // surface가 닫히면 값도 지워야 턴 도중 닫힌 탭이 워크스페이스를 busy로 남기지 않는다.
     #[test]
