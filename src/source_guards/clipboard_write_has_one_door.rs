@@ -318,7 +318,20 @@ fn each_write_shape_is_found_and_other_calls_pass() {
     const X11: &str = "X11 프로토콜 선택 소유";
     const MAC: &str = "macOS pasteboard 직접 쓰기";
     const PLATFORM: &str = "텍스트와 이미지를 함께 올리는 플랫폼 쓰기";
+    const HANDOVER: &str = "egui-winit 클립보드로 복사 넘기기";
     let cases = [
+        (
+            WAYLAND_TEXT,
+            "selection.copy_checked(text.to_string())",
+            true,
+        ),
+        (WAYLAND_TEXT, "self.0.copy_with_png(text, Some(png))", true),
+        (
+            MAC,
+            "pasteboard.setString_forType(&string, string_type)",
+            true,
+        ),
+        (HANDOVER, "gpu.copy_with_egui_winit(window, text);", true),
         (TEXT, "self.clipboard.set_text(text)", true),
         (TEXT, "clipboard.set_text_primary(text)", true),
         (TEXT, "cb.set_text(text)", true),
