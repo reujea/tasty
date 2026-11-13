@@ -673,6 +673,18 @@ struct MaskInput {
     scale_factor: f64,
 }
 
+/// 포인터(`hitTest:`)에서 뺄 구멍 — 안내 카드와 host 입력 영역.
+/// 불투명 오버레이는 포인터를 막지 않으므로 넣지 않는다.
+fn pointer_holes(mask: &MaskInput) -> impl Iterator<Item = &[i32; 4]> {
+    mask.clip.iter().chain(&mask.input)
+}
+
+/// 그림(layer mask)에서 뺄 구멍 — 안내 카드와 불투명 오버레이.
+/// host 입력 영역은 포인터만 넘기고 그림에는 남으므로 넣지 않는다.
+fn drawing_holes(mask: &MaskInput) -> impl Iterator<Item = &[i32; 4]> {
+    mask.clip.iter().chain(&mask.overlay)
+}
+
 /// 이 backend의 생성 실패는 Permanent로 분류해 같은 생성 요청을 재시도하지 않는다.
 fn perm(msg: impl std::fmt::Display) -> super::WebViewCreateError {
     super::WebViewCreateError::Permanent(msg.to_string())
@@ -920,13 +932,9 @@ impl PlatformWebView {
             };
             NSRect::new(NSPoint::new(x, origin_y), NSSize::new(w, h))
         };
-        *self.webview.ivars().clip_holes.borrow_mut() = input
-            .clip
-            .iter()
-            .chain(&input.input)
-            .map(to_points)
-            .collect();
-        if input.clip.is_empty() && input.overlay.is_empty() {
+        *self.webview.ivars().clip_holes.borrow_mut() =
+            pointer_holes(&input).map(to_points).collect();
+        if drawing_holes(&input).next().is_none() {
             // SAFETY: main thread AppKit. 이 뷰의 layer를 읽기만 한다.
             let layer: Option<Retained<objc2_quartz_core::CALayer>> =
                 unsafe { msg_send![&*self.webview, layer] };
@@ -944,7 +952,7 @@ impl PlatformWebView {
         let Some(layer) = layer else {
             return false;
         };
-        let holes: Vec<[i32; 4]> = input.clip.iter().chain(&input.overlay).copied().collect();
+        let holes: Vec<[i32; 4]> = drawing_holes(&input).copied().collect();
         // 뷰 크기를 물리 px 로 올림해 오른쪽·아래 끝까지 덮는다. layer 밖은 mask 와 관계없다.
         let px = |points: f64| (points * scale).ceil() as i32;
         let visible = super::page_mask::visible_rects(
@@ -1251,7 +1259,70 @@ unsafe fn logical_to_nsrect(parent: &NSView, bounds: WebViewBounds, _scale_facto
 #[cfg(test)]
 mod tests {
     use super::keyboard::ns_chars_to_winit_key;
+    use super::{MaskInput, drawing_holes, pointer_holes};
     use winit::keyboard::{Key, NamedKey};
+
+    fn mask(clip: &[[i32; 4]], host_input: &[[i32; 4]], overlay: &[[i32; 4]]) -> MaskInput {
+        MaskInput {
+            clip: clip.to_vec(),
+            input: host_input.to_vec(),
+            overlay: overlay.to_vec(),
+            scale_factor: 1.0,
+        }
+    }
+
+    const CARD: [i32; 4] = [10, 10, 100, 40];
+    const DIVIDER: [i32; 4] = [0, 0, 8, 600];
+    const OVERLAY: [i32; 4] = [200, 0, 50, 50];
+
+    /// host 입력 영역(분할선 hit 띠 · 창 리사이즈 밴드)은 포인터에서 빠져야 분할선 드래그가
+    /// webview 뒤의 host 뷰로 간다. 이 PR 전에는 `input` 이 버려져 드래그가 webview 에 먹혔다.
+    #[test]
+    fn host_input_zones_are_subtracted_from_the_pointer() {
+        let m = mask(&[CARD], &[DIVIDER], &[]);
+        let holes: Vec<[i32; 4]> = pointer_holes(&m).copied().collect();
+        assert!(
+            holes.contains(&DIVIDER),
+            "분할선 띠가 포인터 구멍에 없다: {holes:?}"
+        );
+        assert!(holes.contains(&CARD), "안내 카드도 포인터 구멍이다");
+    }
+
+    /// 같은 영역을 그림에서는 빼지 않는다 — 빼면 분할선 옆 페이지에 구멍이 보인다.
+    #[test]
+    fn host_input_zones_stay_in_the_drawing() {
+        let m = mask(&[CARD], &[DIVIDER], &[OVERLAY]);
+        let holes: Vec<[i32; 4]> = drawing_holes(&m).copied().collect();
+        assert!(
+            !holes.contains(&DIVIDER),
+            "host 입력 영역이 layer mask 에 들어갔다: {holes:?}"
+        );
+        assert!(holes.contains(&CARD), "안내 카드는 그림에서도 뺀다");
+        assert!(holes.contains(&OVERLAY), "불투명 오버레이도 그림에서 뺀다");
+    }
+
+    /// 반대로 불투명 오버레이는 포인터를 막지 않는다.
+    #[test]
+    fn an_opaque_overlay_does_not_take_the_pointer() {
+        let m = mask(&[], &[], &[OVERLAY]);
+        assert_eq!(pointer_holes(&m).count(), 0);
+        assert_eq!(drawing_holes(&m).count(), 1);
+    }
+
+    /// host 입력 영역만 있으면 그림에서 뺄 것이 없다 — layer mask 를 세우지 않는 갈래로 간다.
+    #[test]
+    fn only_host_input_zones_need_no_layer_mask() {
+        let m = mask(&[], &[DIVIDER], &[]);
+        assert!(
+            drawing_holes(&m).next().is_none(),
+            "그림에서 뺄 구멍이 없어야 한다"
+        );
+        assert_eq!(
+            pointer_holes(&m).count(),
+            1,
+            "그래도 포인터에서는 빼야 한다"
+        );
+    }
 
     #[test]
     fn ns_chars_map_to_character_and_named() {
