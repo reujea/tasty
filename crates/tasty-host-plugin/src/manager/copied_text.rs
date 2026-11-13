@@ -56,6 +56,12 @@ pub(super) fn push_bounded(queue: &mut VecDeque<PluginCopiedText>, item: PluginC
 }
 
 impl PluginManager {
+    /// 이 플러그인 실행이 남긴 복사 결과를 지운다. 종료·비활성화·재시작·연결 끊김 때 불러
+    /// 다음 실행이 같은 id·대상을 다시 쓰더라도 이전 실행의 결과가 나오지 않게 한다.
+    pub(super) fn forget_copied_texts(&mut self, plugin_id: &str) {
+        self.copied_texts.retain(|c| c.plugin_id != plugin_id);
+    }
+
     /// 받은 순서대로 surface·popup 복사 결과를 함께 모두 꺼낸다. pump 뒤 같은 tick에서
     /// 한 번 부른다. 결과에는 창 정보가 없으므로 어느 창으로 보낼지는 호출자가 정한다.
     /// 수신 스레드가 알림 줄마다 이벤트 루프를 깨우므로, 프레임 없이 복사 결과만 온

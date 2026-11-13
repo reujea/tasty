@@ -787,6 +787,7 @@ impl PluginManager {
         // 거둔다(`reclaim_requests_sent_to`).
         self.cancel_pending_namespace_calls(plugin_id, reason);
         self.plugin_buffers.remove(plugin_id);
+        self.forget_copied_texts(plugin_id);
         self.settings_pages.unregister_plugin(plugin_id);
         // 다음 hello에서 권한과 설정 페이지 등을 다시 등록할 수 있게 한다.
         self.registered_plugins.remove(plugin_id);

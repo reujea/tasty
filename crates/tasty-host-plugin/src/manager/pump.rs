@@ -607,7 +607,11 @@ impl PluginManager {
         if !new_invalidated_banners.is_empty() {
             self.invalidated_banners.extend(new_invalidated_banners);
         }
+        // 같은 배치에서 연결이 끊긴 플러그인의 결과는 위 정리 뒤에 다시 넣지 않는다.
         for item in new_copied_texts {
+            if disconnected.contains(&item.plugin_id) {
+                continue;
+            }
             super::copied_text::push_bounded(&mut self.copied_texts, item);
         }
         for (plugin_id, buffer_id) in released_buffers {
@@ -644,6 +648,7 @@ impl PluginManager {
     /// 연결이 종료된 플러그인의 프레임을 제거한다.
     fn clear_dead_plugin_frames(&mut self, disconnected: &[String]) {
         for dead in disconnected {
+            self.forget_copied_texts(dead);
             self.egui_mesh_frames.retain(|_, f| &f.plugin_id != dead);
             self.popup_mesh_frames.retain(|_, f| &f.plugin_id != dead);
             self.banner_mesh_frames.retain(|_, f| &f.plugin_id != dead);
@@ -1391,6 +1396,61 @@ mod tests {
             ]
         );
         assert!(mgr.take_copied_texts().is_empty());
+    }
+
+    /// 같은 배치에서 연결이 끊긴 플러그인의 복사 결과는 이미 담긴 것과 새로 모은 것 모두
+    /// 큐에 남지 않는다. 다른 플러그인의 결과는 남는다.
+    #[test]
+    fn copied_texts_of_a_disconnected_plugin_are_dropped_in_the_same_batch() {
+        use tasty_plugin_protocol::CopyTargetWire;
+        let mut mgr = mgr();
+        let copy = |sid, text: &str| PluginEvent::CopyText {
+            target: CopyTargetWire::Surface { surface_id: sid },
+            text: text.into(),
+        };
+        let mut first = CollectedPluginEvents::default();
+        mgr.classify_event("com.tasty.markdown", copy(1, "old"), &mut first);
+        mgr.apply_collected_events(first);
+
+        let mut out = CollectedPluginEvents::default();
+        mgr.classify_event("com.tasty.markdown", copy(1, "new"), &mut out);
+        mgr.classify_event("com.tasty.image", copy(2, "keep"), &mut out);
+        out.disconnected.push("com.tasty.markdown".to_string());
+        mgr.apply_collected_events(out);
+
+        let texts: Vec<String> = mgr
+            .take_copied_texts()
+            .into_iter()
+            .map(|c| c.text)
+            .collect();
+        assert_eq!(texts, vec!["keep".to_string()]);
+    }
+
+    /// 종료·비활성화·재시작이 공통으로 거치는 실행 상태 정리 뒤에는 그 실행의 복사 결과가
+    /// drain 에 나오지 않는다.
+    #[test]
+    fn forgetting_a_plugin_runtime_drops_its_copied_texts() {
+        use tasty_plugin_protocol::CopyTargetWire;
+        let mut mgr = mgr();
+        let mut out = CollectedPluginEvents::default();
+        for (id, text) in [("com.tasty.markdown", "gone"), ("com.tasty.image", "keep")] {
+            mgr.classify_event(
+                id,
+                PluginEvent::CopyText {
+                    target: CopyTargetWire::Popup { instance_id: 1 },
+                    text: text.into(),
+                },
+                &mut out,
+            );
+        }
+        mgr.apply_collected_events(out);
+        mgr.forget_plugin_runtime("com.tasty.markdown", "plugin disabled");
+        let texts: Vec<String> = mgr
+            .take_copied_texts()
+            .into_iter()
+            .map(|c| c.text)
+            .collect();
+        assert_eq!(texts, vec!["keep".to_string()]);
     }
 
     #[test]
