@@ -51,9 +51,15 @@ arboard다. 성공하면 호출한 쪽이 정한 키의 Info 토스트를, 실�
   egui에 넘기지 않아 복사가 생기지 않는다.
 
 공통 함수를 거치지 않는 쓰기는 아래뿐이다. `src/source_guards/clipboard_write_has_one_door.rs`가
-쓰기 호출 형태마다 허용한 파일 밖의 호출을 막는다. 줄 단위로 찾으므로 여러 줄로 나눈 호출과
-이름을 바꾼 호출, 수신자 이름에 `clipboard`가 없는 Core 포트 쓰기는 찾지 못한다. 허용한 파일
-안에 새로 생긴 쓰기도 찾지 못한다. WebView와 페이지 스크립트의 복사는 Rust 호출이 아니라 범위 밖이다.
+쓰기 호출 형태마다 허용한 구현 함수 밖의 호출을 막는다. 형태에는 상위 API(arboard,
+`TerminalClipboard`, egui-winit 출력 처리, Core 포트)와 프로토콜 쓰기(Wayland `set_selection`, X11
+`set_selection_owner`, macOS pasteboard, Windows `SetClipboardData`)가 들어 있다. egui 이미지
+복사(`OutputCommand::CopyImage`, `copy_image`)는 egui-winit이 직접 쓰므로 예외 없이 막는다. 같은
+파일이라도 허용하지 않은 함수에 새로 쓰면 걸린다. 파일 전체를 허용하는 곳은 클립보드가 아닌 같은
+이름의 메서드를 쓰는 글꼴 크레이트와 갤러리뿐이다. 줄 단위로 찾으므로 여러 줄로 나눈 호출과
+이름을 바꾼 호출, 수신자 이름에 `clipboard`가 없는 Core 포트 쓰기는 찾지 못한다. 허용한 함수 안에
+더한 쓰기와 허용한 함수와 이름이 같은 새 함수도 찾지 못한다. WebView와 페이지 스크립트의 복사는
+Rust 호출이 아니라 범위 밖이다.
 
 | 쓰기 | 공통 함수를 거치지 않는 이유 |
 |---|---|
