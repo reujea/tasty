@@ -5,8 +5,10 @@
 //! src, crates 의 주석·문자열을 뺀 소스에서 줄 단위로 쓰기 호출 형태를 찾는다. 형태는 상위 API
 //! (arboard, `TerminalClipboard`, Wayland 선택 객체, egui-winit 출력 처리, Core 포트)와 그 아래
 //! 프로토콜 쓰기(Wayland `set_selection`, X11 `set_selection_owner`, macOS pasteboard, Windows
-//! `SetClipboardData`), egui 의 이미지 복사(`OutputCommand::CopyImage`, `copy_image`)다. 허용은
-//! 형태마다 파일 안의 구현 함수 이름으로 정한다. 같은 파일이라도 다른 함수에 새로 쓰면 실패한다.
+//! `SetClipboardData`), egui 의 이미지 복사(`OutputCommand::CopyImage`, `copy_image`), 허용한
+//! 구현의 진입 함수(Wayland `copy_selection_text`, 캡처 게시 `write_text_and_image`·
+//! `publish_text_with_image`)다. 허용은 형태마다 파일 안의 구현 함수 이름으로 정한다. 같은 파일
+//! 이라도 다른 함수에 새로 쓰면 실패하고, 한 줄에 쓰기가 여럿이면 자리마다 따로 판정한다.
 //! 파일 전체를 허용하는 곳은 클립보드가 아닌 같은 이름의 메서드를 쓰는 글꼴 크레이트와 따로 도는
 //! 갤러리뿐이다. 이미지 복사는 허용한 곳이 없다. egui 출력에서 꺼내지 않고 egui-winit 이 직접 쓴다.
 //!
@@ -97,7 +99,7 @@ const RULES: &[Rule] = &[
     },
     Rule {
         what: "Wayland 선택 쓰기",
-        calls: &[".copy_checked(", ".copy_with_png("],
+        calls: &[".copy_checked(", ".copy_with_png(", "copy_selection_text("],
         receiver: None,
         allowed: &[
             within("src/clipboard/terminal.rs", &["set_text"]),
@@ -105,7 +107,7 @@ const RULES: &[Rule] = &[
                 "src/adapters/production/arboard_clip.rs",
                 &["write_text", "write_text_and_image"],
             ),
-            within("src/file/drag.rs", &["copy_with_png"]),
+            within("src/file/drag.rs", &["copy_with_png", "copy_checked"]),
             within("src/file/drag/wayland/clip.rs", &["copy_selection_text"]),
         ],
     },
@@ -173,13 +175,46 @@ const RULES: &[Rule] = &[
     },
     Rule {
         what: "Core 클립보드 포트 쓰기",
-        calls: &[".write_text(", ".write_text_and_image("],
+        calls: &[".write_text("],
         receiver: Some("clipboard"),
         allowed: &[
-            // OSC 52, IPC clipboard.set_text, 캡처 게시.
+            // OSC 52, IPC clipboard.set_text.
             within("src/app/services/impl_pty.rs", &["drain_terminal_events"]),
             within("src/app/services/surface.rs", &["clipboard_set_text"]),
             within("src/ports/clipboard.rs", &["publish_text_with_image"]),
+        ],
+    },
+    Rule {
+        what: "캡처 게시(텍스트와 이미지를 한 소유자로 올린다)",
+        calls: &["write_text_and_image(", "publish_text_with_image("],
+        receiver: None,
+        allowed: &[
+            within(
+                "src/app/screenshot_capture.rs",
+                &["write_capture_to_local_clipboard"],
+            ),
+            within("src/remote/server.rs", &["publish_capture"]),
+            within(
+                "src/ports/clipboard.rs",
+                &[
+                    "publish_text_with_image",
+                    "both_formats_are_published_together",
+                    "an_unsupported_image_falls_back_to_the_text_alone",
+                    "a_decode_failure_still_publishes_the_text",
+                    "a_failing_clipboard_reports_failure_not_partial_success",
+                ],
+            ),
+            within(
+                "src/adapters/production/arboard_clip.rs",
+                &["write_text_and_image"],
+            ),
+            within(
+                "src/clipboard/files.rs",
+                &[
+                    "write_text_and_image",
+                    "the_os_clipboard_keeps_text_and_image_published_together",
+                ],
+            ),
         ],
     },
 ];
@@ -277,6 +312,8 @@ fn each_write_shape_is_found_and_other_calls_pass() {
     const EGUI: &str = "egui-winit 출력 처리(복사를 직접 쓴다)";
     const IMAGE: &str = "egui 이미지 복사(egui-winit 이 직접 쓴다)";
     const PORT: &str = "Core 클립보드 포트 쓰기";
+    const CAPTURE: &str = "캡처 게시(텍스트와 이미지를 한 소유자로 올린다)";
+    const WAYLAND_TEXT: &str = "Wayland 선택 쓰기";
     const WAYLAND: &str = "Wayland 프로토콜 선택 지정";
     const X11: &str = "X11 프로토콜 선택 소유";
     const MAC: &str = "macOS pasteboard 직접 쓰기";
@@ -304,10 +341,26 @@ fn each_write_shape_is_found_and_other_calls_pass() {
         (IMAGE, "ui.ctx().copy_image(img);", true),
         (PORT, "core.clipboard_arc().write_text(text)", true),
         (
-            PORT,
+            CAPTURE,
             "self.clipboard.write_text_and_image(text, image)",
             true,
         ),
+        (
+            CAPTURE,
+            "Ok(crate::clipboard::files::write_text_and_image(text, image)?)",
+            true,
+        ),
+        (
+            CAPTURE,
+            "let c = crate::ports::clipboard::publish_text_with_image(",
+            true,
+        ),
+        (
+            CAPTURE,
+            "fn write_text_and_image(&self, text: &str) -> Result<()> {",
+            false,
+        ),
+        (WAYLAND_TEXT, "self.0.copy_selection_text(text)", true),
         // PTY 에 글자를 보내는 같은 이름의 메서드는 클립보드 쓰기가 아니다.
         (PORT, "self.write_text(surface_id, &text)", false),
         (
@@ -364,6 +417,17 @@ fn a_write_in_another_function_of_an_allowed_file_is_found() {
             "fn set_text(&mut self) { self.host.set_text(t) }\n\
              fn copy_now(&mut self) { self.host.set_text(t) }\n",
         ),
+        // 허용한 진입 함수를 같은 파일의 새 함수가 부른다.
+        (
+            "src/file/drag.rs",
+            "fn copy_checked(&mut self) { self.0.copy_selection_text(t) }\n\
+             fn copy_now(&mut self) { self.0.copy_selection_text(t) }\n",
+        ),
+        (
+            "src/ports/clipboard.rs",
+            "fn publish_text_with_image() { c.write_text_and_image(t, i) }\n\
+             fn copy_now() { publish_text_with_image(&c, t, i) }\n",
+        ),
         // 같은 줄에서 허용 함수 뒤에 비허용 함수가 쓴다.
         (
             "src/clipboard/context.rs",
@@ -417,7 +481,7 @@ fn a_write_in_another_function_of_an_allowed_file_is_found() {
     }
 }
 
-/// Given 허용 목록 밖의 파일, When 프로토콜 쓰기나 이미지 복사를 하면, Then 모두 걸린다.
+/// Given 허용 목록 밖의 파일, When 프로토콜 쓰기, 이미지 복사, 진입 함수 호출을 하면, Then 모두 걸린다.
 #[test]
 fn protocol_writes_and_image_copies_elsewhere_are_found() {
     let src = "fn f(ctx: &egui::Context) {\n\
@@ -426,6 +490,9 @@ fn protocol_writes_and_image_copies_elsewhere_are_found() {
                device.set_selection(Some(&s), serial);\n\
                conn.set_selection_owner(w, a, t);\n\
                pb.writeObjects(&o);\n\
+               crate::clipboard::files::write_text_and_image(t, i);\n\
+               crate::ports::clipboard::publish_text_with_image(&c, t, i);\n\
+               self.0.copy_selection_text(t);\n\
                }\n";
     for rel in [
         "src/view/main/clipboard.rs",
@@ -433,7 +500,7 @@ fn protocol_writes_and_image_copies_elsewhere_are_found() {
         "src/clipboard/files/other.rs",
     ] {
         let (offenders, _) = offenders_in(rel, src);
-        assert_eq!(offenders.len(), 5, "{rel}: {offenders:?}");
+        assert_eq!(offenders.len(), 8, "{rel}: {offenders:?}");
     }
 }
 
