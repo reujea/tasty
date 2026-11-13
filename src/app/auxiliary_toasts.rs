@@ -1,4 +1,4 @@
-//! 보조 창(설정·프리셋·플러그인)의 토스트 스택과 전역 수명 동기화.
+//! 보조 창(설정·프리셋·플러그인·종료 확인)의 토스트 스택과 전역 수명 동기화.
 //! 메인 창은 overlay가 draw 직전에 전역 수명을 맞추지만, 보조 창의 View는 engine을 받지 않는다.
 //! 그래서 App이 이벤트를 넘기기 전에 같은 값을 넣는다. 값은 메인 창·엔진이 아니라 최신 적용 설정
 //! snapshot에서 읽으므로 메인 창이 없어도(마지막 창 park, macOS 최소화) 전역 값을 쓴다.
@@ -22,6 +22,11 @@ pub(crate) fn auxiliary_toasts(
         return view
             .downcast_mut::<crate::view::preset::PresetView>()
             .map(|v| ("preset", &mut v.toasts));
+    }
+    if view.is::<crate::view::QuitView>() {
+        return view
+            .downcast_mut::<crate::view::QuitView>()
+            .map(|v| ("quit", &mut v.toasts));
     }
     view.downcast_mut::<crate::view::plugins::PluginsView>()
         .map(|v| ("plugins", &mut v.toasts))

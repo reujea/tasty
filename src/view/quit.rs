@@ -14,9 +14,11 @@ pub struct QuitView {
     pub base: ViewBase,
     shown: bool,
     pending_action: ViewAction,
-    /// This window's clipboard. The dialog has no toast stack, so a copy from its selectable
-    /// labels is written through the copy door without a toast.
+    /// This window's clipboard. A copy from its selectable labels goes through the copy door.
     clipboard: crate::clipboard::terminal::TerminalClipboard,
+    /// The window's own toast stack, which shows the copy result. App keeps its lifetime on the
+    /// global value (`App::sync_auxiliary_toast_lifetime`).
+    pub(crate) toasts: crate::adapters::ui::ToastManager,
 }
 
 impl QuitView {
@@ -30,6 +32,7 @@ impl QuitView {
             shown: false,
             pending_action: ViewAction::None,
             clipboard,
+            toasts: crate::adapters::ui::ToastManager::new(),
         }
     }
 }
@@ -97,6 +100,7 @@ impl View for QuitView {
 
         let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
         let pending = &mut self.pending_action;
+        let toasts = &mut self.toasts;
         let th = crate::theme::theme();
 
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
@@ -144,13 +148,23 @@ impl View for QuitView {
                     );
                 });
             });
+
+            toasts.draw(
+                ctx,
+                &crate::adapters::ui::LayoutContext::window_only(),
+                false,
+            );
         });
 
         self.base
             .gpu
             .finish_egui_frame(&self.base.winit, full_output);
-        if let Some(text) = self.base.gpu.take_egui_copy() {
-            crate::clipboard::copy::copy_text_unannounced(&mut self.clipboard, &text);
+        if crate::clipboard::copy::copy_egui_text(
+            &mut self.base.gpu,
+            &mut self.clipboard,
+            &mut self.toasts,
+        ) {
+            self.mark_dirty();
         }
 
         self.reveal_after_first_render();

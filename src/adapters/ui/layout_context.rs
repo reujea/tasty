@@ -15,6 +15,22 @@ pub struct LayoutContext {
     pub workspace_rect: Option<egui::Rect>,
 }
 
+impl LayoutContext {
+    /// A window without workspaces or panes, for a window that draws only `Window` scope toasts
+    /// (the quit dialog and the boot screens).
+    pub(crate) fn window_only() -> Self {
+        Self {
+            active_workspace: 0,
+            active_workspace_id: 0,
+            pane_rects: Vec::new(),
+            surface_rects: Vec::new(),
+            active_tabs: Vec::new(),
+            active_tab_ids: Vec::new(),
+            workspace_rect: None,
+        }
+    }
+}
+
 /// 현재 상태와 레이아웃으로 팝업·토스트·배너가 공유할 영역 정보를 만든다.
 pub(crate) fn build_layout_context(
     state: &crate::state::MainViewState,
