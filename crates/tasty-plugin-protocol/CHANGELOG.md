@@ -15,6 +15,8 @@
 
 ### Added
 
+- `bed_focus::BED_FOCUSED_PROPERTY`(`"--tasty-bed-focused"`)를 추가했다. 호스트가 바탕 포커스 상태인 동안 문서 `:root`에 정의하는 CSS 속성 이름이다. 호스트와 바탕 kind 페이지가 각자 사본을 두던 값을 계약 크레이트로 옮겼고 값은 그대로다. wire 형식 변경이 아니므로 `api_version`은 유지한다. [WebView §바탕 포커스 상태](../../docs/design/systems/webview.md#바탕-포커스-상태).
+
 - `PluginRequest`에 `dropped_requests: u64`를 추가했다. 호스트 요청 큐가 포화되면 기다리지 않고 요청을 버리며, 다음으로 큐에 넣는 요청에 그 수를 전달한다. 기본값은 0이고, 0이면 직렬화에서 생략한다. 알 수 없는 필드는 기본 Serde 동작으로 무시된다. 선택 필드 추가이므로 `api_version`은 유지한다. [IPC 서버](../../docs/architecture/ipc-server.md).
 
   SDK는 `Plugin::on_host_dropped_requests` 콜백과 `HostHandle::dropped_by_host()` 조회, `warn` 로그로 이 수를 알린다. 콜백의 기본 구현은 아무것도 하지 않는다.

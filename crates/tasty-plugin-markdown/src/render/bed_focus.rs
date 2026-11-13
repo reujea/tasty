@@ -6,7 +6,7 @@ use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
 
 /// 호스트가 바탕 포커스 상태인 동안 빈 값으로 정의하는 속성.
-pub(super) const BED_FOCUSED_PROPERTY: &str = "--tasty-bed-focused";
+pub(super) use tasty_plugin_protocol::bed_focus::BED_FOCUSED_PROPERTY;
 
 /// 상태로 바뀌는 값 셋. 바탕, 표 본문 칸, 표 zebra 줄이다. 나머지 문서 값은 포커스로 바뀌지 않는다.
 fn pairs(theme: &Theme) -> [(&'static str, HexColor, HexColor); 3] {

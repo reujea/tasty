@@ -9,7 +9,7 @@ use webkit2gtk::{
     WebViewExt,
 };
 
-use crate::webview::bed_focus::BED_FOCUSED_SHEET;
+use crate::webview::bed_focus::bed_focused_sheet;
 
 /// 스타일시트에 할 일.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +38,7 @@ impl BedFocusSheet {
     pub(super) fn new() -> Self {
         Self {
             sheet: UserStyleSheet::new(
-                BED_FOCUSED_SHEET,
+                &bed_focused_sheet(),
                 UserContentInjectedFrames::TopFrame,
                 UserStyleLevel::User,
                 &[],

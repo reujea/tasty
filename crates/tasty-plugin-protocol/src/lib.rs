@@ -4,6 +4,7 @@
 //! 기본 빌드에는 egui와 wgpu가 필요하지 않다. egui-mesh 기능을 켜면
 //! mesh_wire 코덱과 egui 의존성을 함께 사용한다.
 
+pub mod bed_focus;
 pub mod events;
 pub mod host_port;
 pub mod ipc_method;
