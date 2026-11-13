@@ -179,7 +179,8 @@ jobs:
       # 잡 이름은 외부의 required status check에서 참조할 수 있어 유지한다.
       # gui 조합의 단위 시험 중 winit EventLoop를 X11로 만드는 시험(src/x11_test_loop.rs를 쓰는 시험)은
       # 디스플레이가 없으면 XOpenDisplayFailed로 실패하므로 스텝 전체를 Xvfb 안에서 실행한다.
-      # 시험 자식이 연결을 열고 닫으므로 클라이언트가 0이 된 순간의 서버 리셋을 -noreset으로 막고,
+      # 이 스텝에서 간헐적인 XOpenDisplayFailed가 관측됐고 원인은 아직 확정되지 않았다.
+      # 시험 자식이 연결을 열고 닫아 클라이언트 수가 0이 될 때의 서버 리셋을 후보에서 지우려고 -noreset을 쓰고,
       # 연결 실패를 서버 쪽에서도 읽을 수 있게 Xvfb 출력을 -e 파일에 남긴다(아래 xvfb 진단 스텝이 출력).
       # 기준과 확인 절차는 docs/dev-guide/ci-gates.md의 gui 단위 단계 절에 있다.
       - name: cargo test (linux, gui, unit)

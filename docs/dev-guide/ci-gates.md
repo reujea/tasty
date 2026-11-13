@@ -673,8 +673,9 @@ cargo clippy --workspace --all-targets \
 디스플레이가 없으면 `XOpenDisplayFailed`로 실패한다. 러너에 `xvfb-run`이
 없으면 단계가 먼저 실패한다. 이 단계는 `continue-on-error`가 없는 차단 단계다.
 
-- `-noreset`: 자식 시험이 연결을 열고 닫아 클라이언트 수가 0이 되면 Xvfb는 기본값으로 서버를 리셋한다.
-  리셋 중에 연결하는 자식이 실패하지 않도록 서버를 실행 내내 한 번만 초기화한다.
+- `-noreset`: 이 단계에서 시험 자식의 `XOpenDisplayFailed`가 간헐적으로 관측됐고 원인은 확정되지 않았다.
+  자식 시험이 연결을 열고 닫아 클라이언트 수가 0이 되면 Xvfb는 기본값으로 서버를 리셋한다. 이 리셋을
+  원인 후보에서 지우려고 서버를 실행 내내 한 번만 초기화한다.
 - `-e`: Xvfb 출력(xauth 오류 포함)을 파일에 남긴다. 바로 뒤의 `xvfb (diagnostic)` 단계
   (`continue-on-error: true`)가 `xvfb-run`·`xvfb` 판과 그 파일 전체를 출력하고, 파일이 없거나 비면
   "Xvfb 로그 없음"을 출력한다.

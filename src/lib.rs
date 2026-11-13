@@ -49,8 +49,8 @@ mod system_notice;
 #[cfg(feature = "gui")]
 mod view;
 mod waker;
-// 시험이 X11 EventLoop 를 만드는 유일한 입구(연결 실패 진단 포함).
 mod webhook;
+// winit X11 EventLoop 를 만드는 도우미라 X11 이 있는 Linux, winit 이 들어오는 gui 조합의 시험 빌드에만 둔다.
 #[cfg(all(test, target_os = "linux", feature = "gui"))]
 mod x11_test_loop;
 
