@@ -457,8 +457,11 @@ mod tests {
                 writes += 1;
                 assert_eq!(target, sid);
                 assert_eq!(text, "fixture");
-                state.clipboard_copy_feedback(
-                    clipboard.set_text(text),
+                crate::clipboard::copy::copy_text(
+                    &mut clipboard,
+                    &mut state.toasts,
+                    text,
+                    false,
                     "toast.copied",
                     Vec::new(),
                     crate::adapters::ui::ToastScope::Surface(sid),

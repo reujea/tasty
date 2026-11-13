@@ -313,12 +313,15 @@ impl MainView {
         hint: Vec<String>,
         scope: crate::adapters::ui::ToastScope,
     ) -> bool {
-        let result = if primary {
-            self.clipboard.set_text_primary(text)
-        } else {
-            self.clipboard.set_text(text)
-        };
-        self.state.clipboard_copy_feedback(result, key, hint, scope)
+        crate::clipboard::copy::copy_text(
+            &mut self.clipboard,
+            &mut self.state.toasts,
+            text,
+            primary,
+            key,
+            hint,
+            scope,
+        )
     }
 }
 
@@ -328,8 +331,7 @@ impl crate::state::MainViewState {
         error: &crate::clipboard::error::ClipboardError,
         scope: crate::adapters::ui::ToastScope,
     ) {
-        let (key, kind) = error.feedback();
-        self.toasts.push(crate::i18n::t(key), kind, scope);
+        crate::clipboard::copy::error_toast(&mut self.toasts, error, scope);
     }
 
     pub(crate) fn clipboard_copy_feedback(
@@ -339,21 +341,7 @@ impl crate::state::MainViewState {
         hint: Vec<String>,
         scope: crate::adapters::ui::ToastScope,
     ) -> bool {
-        match result {
-            Ok(()) => {
-                self.toasts.push_with_hint(
-                    crate::i18n::t(key),
-                    crate::adapters::ui::ToastKind::Info,
-                    hint,
-                    scope,
-                );
-                true
-            }
-            Err(error) => {
-                self.clipboard_error_toast(&error, scope);
-                false
-            }
-        }
+        crate::clipboard::copy::copy_feedback(&mut self.toasts, result, key, hint, scope)
     }
 }
 
