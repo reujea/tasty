@@ -8,6 +8,13 @@ use serde_json::Value;
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_ipc::server::send_response;
 
+/// 클립보드에 올리는 텍스트의 바이트 상한. 외부 IPC 의 한 줄 상한
+/// (`tasty_ipc::protocol::MAX_REQUEST_LINE_BYTES`)과 같게 둔다 — 외부 경로는 그 줄 상한에
+/// 먼저 걸려 여기까지 오지 못하므로, 이 상한이 실제로 거르는 것은 줄 상한이 없는 plugin
+/// 경로다(plugin 채널은 큐 합계만 보고 **메시지 하나의 크기는 제한하지 않는다**,
+/// `tasty_host_plugin::process::channel_bytes`). 두 경로가 같은 답을 받게 한 자리에 둔다.
+pub(crate) const CLIPBOARD_TEXT_MAX_BYTES: usize = tasty_ipc::protocol::MAX_REQUEST_LINE_BYTES;
+
 /// 클립보드가 없는 환경도 메서드 부재 대신 포트의 쓰기 오류로 응답한다.
 pub(crate) fn clipboard_set_text(
     core: &crate::app::services::AppServices,
@@ -17,10 +24,24 @@ pub(crate) fn clipboard_set_text(
     let Some(text) = params.get("text").and_then(|v| v.as_str()) else {
         return JsonRpcResponse::error(rpc_id, -32602, "Missing 'text' parameter (string)");
     };
+    // 잘라서 올리지 않는다 — 호출자는 올렸다고 믿고 다른 것이 붙는다. 거절해 알린다.
+    if let Err(message) = check_clipboard_text_len(text.len()) {
+        return JsonRpcResponse::error(rpc_id, -32602, message);
+    }
     match core.clipboard_arc().write_text(text) {
         Ok(()) => JsonRpcResponse::success(rpc_id, serde_json::json!({"ok": true})),
         Err(e) => JsonRpcResponse::error(rpc_id, -32000, format!("Failed to write clipboard: {e}")),
     }
+}
+
+/// 상한 검사. 넘으면 호출자에게 그대로 보낼 메시지를 돌려준다.
+fn check_clipboard_text_len(len: usize) -> Result<(), String> {
+    if len > CLIPBOARD_TEXT_MAX_BYTES {
+        return Err(format!(
+            "'text' is {len} bytes, over the {CLIPBOARD_TEXT_MAX_BYTES} byte clipboard limit"
+        ));
+    }
+    Ok(())
 }
 
 /// remote.workspaces와 remote.attach가 공유하는 접속 인자. profile과 ssh 중 하나만 받는다.
@@ -185,5 +206,32 @@ mod tests {
     fn clipboard_without_text_is_an_invalid_params_error() {
         let params = serde_json::json!({});
         assert!(params.get("text").and_then(|v| v.as_str()).is_none());
+    }
+
+    /// 상한까지는 받고 한 바이트라도 넘으면 거절한다. 상한이 사라지면 둘째 단언이 걸린다.
+    #[test]
+    fn clipboard_text_over_the_limit_is_refused() {
+        assert!(check_clipboard_text_len(0).is_ok());
+        assert!(check_clipboard_text_len(CLIPBOARD_TEXT_MAX_BYTES).is_ok());
+        let err = check_clipboard_text_len(CLIPBOARD_TEXT_MAX_BYTES + 1)
+            .expect_err("상한을 넘은 텍스트를 받았다");
+        // 호출자가 무엇에 걸렸는지 알 수 있어야 한다.
+        assert!(err.contains(&CLIPBOARD_TEXT_MAX_BYTES.to_string()), "{err}");
+    }
+
+    /// 수백 MB 는 확실히 막힌다 — 리뷰가 든 경우를 그대로 잰다.
+    #[test]
+    fn a_several_hundred_megabyte_clipboard_write_is_refused() {
+        assert!(check_clipboard_text_len(500 * 1024 * 1024).is_err());
+    }
+
+    /// 상한이 실제로 거르는 것은 plugin 경로다 — 외부 IPC 는 줄 상한에 먼저 걸린다.
+    /// 둘이 어긋나면 한쪽만 통과하는 크기가 생긴다.
+    #[test]
+    fn the_clipboard_limit_matches_the_external_ipc_line_limit() {
+        assert_eq!(
+            CLIPBOARD_TEXT_MAX_BYTES,
+            tasty_ipc::protocol::MAX_REQUEST_LINE_BYTES
+        );
     }
 }
