@@ -10,7 +10,7 @@ use tasty_type_appearance::theme::Theme;
 use webkit2gtk::{LoadEvent, WebView, WebViewExt as _};
 
 use super::webview_layout_tests::{Page, VIEW_H, VIEW_W, document, long_source, spin_until};
-/// 호스트가 넣는 바탕 포커스 시트(본체 `src/host_api/webview/bed_focus.rs`의 `bed_focused_sheet`와 같은 문자열).
+/// Tasty 본체가 바탕 포커스 상태인 동안 넣는 시트와 같은 문자열. 계약 속성을 빈 값으로 정의한다.
 fn bed_focus_sheet() -> webkit2gtk::UserStyleSheet {
     webkit2gtk::UserStyleSheet::new(
         &format!(":root{{{}: ;}}", super::bed_focus::BED_FOCUSED_PROPERTY),
