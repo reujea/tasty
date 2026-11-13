@@ -11,6 +11,8 @@
 //! 이라도 다른 함수에 새로 쓰면 실패하고, 한 줄에 쓰기가 여럿이면 자리마다 따로 판정한다.
 //! 파일 전체를 허용하는 곳은 클립보드가 아닌 같은 이름의 메서드를 쓰는 글꼴 크레이트와 따로 도는
 //! 갤러리뿐이다. 이미지 복사는 허용한 곳이 없다. egui 출력에서 꺼내지 않고 egui-winit 이 직접 쓴다.
+//! egui 위젯 복사를 창 상태에서 꺼내는 `take_egui_copy` 도 형태로 넣어 공통 함수 `copy_egui_text`
+//! 안에서만 허용한다. 화면 배선이 꺼내기만 하고 쓰지 않으면 복사가 토스트 없이 사라지기 때문이다.
 //!
 //! 찾지 못하는 것: 호출을 여러 줄에 나눠 쓴 것(`.set()` 뒤 다음 줄의 `.text(` 는 `.set()` 줄로
 //! 찾는다), 수신자 이름에 `clipboard` 가 없는 Core 포트 쓰기, 별칭으로 바꾼 메서드 이름, 허용한
@@ -168,6 +170,13 @@ const RULES: &[Rule] = &[
         allowed: &[],
     },
     Rule {
+        what: "egui 위젯 복사 꺼내기(꺼낸 창이 써야 한다)",
+        calls: &["take_egui_copy("],
+        receiver: None,
+        // 꺼내고 쓰지 않으면 복사가 조용히 사라진다. 꺼내기는 쓰기와 토스트를 함께 하는 공통 함수만 한다.
+        allowed: &[within(DOOR, &["copy_egui_text"])],
+    },
+    Rule {
         what: "egui 이미지 복사(egui-winit 이 직접 쓴다)",
         calls: &["CopyImage(", ".copy_image("],
         receiver: None,
@@ -319,6 +328,7 @@ fn each_write_shape_is_found_and_other_calls_pass() {
     const MAC: &str = "macOS pasteboard 직접 쓰기";
     const PLATFORM: &str = "텍스트와 이미지를 함께 올리는 플랫폼 쓰기";
     const HANDOVER: &str = "egui-winit 클립보드로 복사 넘기기";
+    const TAKE: &str = "egui 위젯 복사 꺼내기(꺼낸 창이 써야 한다)";
     let cases = [
         (
             WAYLAND_TEXT,
@@ -332,6 +342,13 @@ fn each_write_shape_is_found_and_other_calls_pass() {
             true,
         ),
         (HANDOVER, "gpu.copy_with_egui_winit(window, text);", true),
+        (TAKE, "if gpu.take_egui_copy().is_some() {", true),
+        (TAKE, "GpuState::take_egui_copy(gpu)", true),
+        (
+            TAKE,
+            "pub fn take_egui_copy(&mut self) -> Option<String> {",
+            false,
+        ),
         (TEXT, "self.clipboard.set_text(text)", true),
         (TEXT, "clipboard.set_text_primary(text)", true),
         (TEXT, "cb.set_text(text)", true),
@@ -465,6 +482,11 @@ fn a_write_in_another_function_of_an_allowed_file_is_found() {
             "src/gfx/gpu/text_selection.rs",
             "fn apply_egui_output(&mut self) { self.egui_state.handle_platform_output(w, o); }\n\
              fn copy_now(&mut self) { self.egui_state.handle_platform_output(w, o); }\n",
+        ),
+        (
+            "src/clipboard/copy.rs",
+            "fn copy_egui_text(gpu: &mut G) -> bool { take(gpu.take_egui_copy()) }\n\
+             fn copy_now(gpu: &mut G) { gpu.take_egui_copy(); }\n",
         ),
         (
             "crates/tasty-plugin-claude/src/error_scan.rs",

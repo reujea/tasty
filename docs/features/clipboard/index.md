@@ -67,7 +67,9 @@ arboard다. 성공하면 호출한 쪽이 정한 키의 Info 토스트를, 실�
 걸린다. egui 이미지
 복사(`OutputCommand::CopyImage`, `copy_image`)는 egui-winit이 직접 쓰므로 예외 없이 막는다. egui
 복사를 egui-winit 클립보드에 넘기는 것(`copy_with_egui_winit`, 꺼내기 함수 밖의
-`handle_platform_output`)도 예외 없이 막는다. 같은
+`handle_platform_output`)도 예외 없이 막는다. egui 복사를 창 상태에서 꺼내는 `take_egui_copy`는
+공통 함수 `copy_egui_text` 안에서만 허용한다. 화면 배선이 꺼내기만 하고 쓰지 않으면 복사가 토스트
+없이 사라지기 때문이다. 같은
 파일이라도 허용하지 않은 함수에 새로 쓰면 걸리고, 한 줄에 쓰기가 여럿이면 자리마다 따로 판정한다.
 파일 전체를 허용하는 곳은 클립보드가 아닌 같은
 이름의 메서드를 쓰는 글꼴 크레이트와 갤러리뿐이다. 줄 단위로 찾으므로 여러 줄로 나눈 호출과
