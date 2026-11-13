@@ -402,6 +402,48 @@ fn id_of(gated: &crate::app::request_gate::Gated) -> Value {
     }
 }
 
+// 답하지 않는 plugin 에게 묻는 요청은 뒤를 막지 않는다. 막으면 (1) 그 plugin 하나가
+// PROBE_TIMEOUT 동안 모든 IPC 를 멈추고, (2) lifecycle_busy 처리기가 호스트를 부르면 그 호출이
+// 이 요청 뒤에 갇혀 영영 답하지 못한다 — 질문이 항상 무력해진다.
+#[test]
+fn a_request_waiting_on_a_plugin_busy_answer_does_not_block_the_queue() {
+    let (core, _faults) = rig();
+    let mut queue = crate::app::request_gate::GateQueue::default();
+
+    // 아무도 답하지 않는 질문 — 보낸 쪽을 살려 두어야 '끊김'으로 끝나지 않는다.
+    let (_never_answers, rx) = std::sync::mpsc::sync_channel(1);
+    let probe = crate::ipc::handler::plugin_busy::BusyProbe::for_test(vec![("com.x".into(), rx)]);
+    let (asking, _asking_rx) = command(1, None);
+    queue.park(
+        crate::app::request_gate::Gated::Ipc {
+            cmd: asking,
+            progress: GateProgress::with_busy_probe(probe),
+        },
+        false,
+    );
+
+    // 뒤에 선 무관한 요청은 그 답을 기다릴 이유가 없다.
+    let (second, _second_rx) = command(2, None);
+    queue.park(
+        crate::app::request_gate::Gated::Ipc {
+            cmd: second,
+            progress: GateProgress::default(),
+        },
+        false,
+    );
+    assert_eq!(
+        id_of(&queue.pop_ready(&core).expect("뒤 요청이 막혔다")),
+        json!(2),
+        "busy 답을 기다리는 요청이 뒤를 막았다"
+    );
+    // 묻는 요청은 자리를 잃지 않고 계속 기다린다.
+    assert!(
+        queue.pop_ready(&core).is_none(),
+        "답하지 않은 질문이 끝난 것으로 처리됐다"
+    );
+    assert!(!queue.is_empty());
+}
+
 #[test]
 fn a_later_request_waits_behind_the_request_whose_gate_is_pending() {
     let (core, _faults) = rig();

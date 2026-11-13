@@ -70,6 +70,16 @@ impl GateProgress {
         self.poll_with(core, false)
     }
 
+    /// 이 요청이 기다리는 것이 plugin 의 busy 답뿐인지. 그렇다면 요청 게이트가 이 요청을 건너뛰고
+    /// 뒤 요청을 진행해도 된다 — 그 답은 호스트 상태가 아니라 plugin 프로세스가 정한다
+    /// ([`crate::app::request_gate`]).
+    pub(crate) fn waiting_on_plugin(&self) -> bool {
+        self.busy.is_some()
+            && self.session.is_none()
+            && self.lookups.is_none()
+            && self.record.is_none()
+    }
+
     /// plugin 정지 요청이면 대상 plugin에 바쁜지 묻기 시작한다. 물었으면 `Pending`이고 요청을 줄에 둔다.
     /// 권한 게이트보다 먼저 부르고, 답은 [`Self::busy_refusal`]로 권한 게이트 뒤에 읽는다.
     pub(crate) fn ask_busy(
