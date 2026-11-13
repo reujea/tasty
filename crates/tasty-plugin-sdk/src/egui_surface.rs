@@ -2241,4 +2241,86 @@ mod tests {
         // 1회 소비 — 바로 다시 물으면 비어 있다.
         assert_eq!(surface.take_copied_text(), None);
     }
+
+    /// 포커스된 singleline `TextEdit` 의 `[start, end)` 문자 범위를 선택한 상태로 한 프레임을 그린다.
+    fn seed_text_edit_selection(
+        surface: &mut EguiMeshSurface,
+        id: egui::Id,
+        buf: &mut String,
+        start: usize,
+        end: usize,
+    ) {
+        surface.run_frame(&ctx_params(400, 100, 1.0), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.memory_mut(|m| m.request_focus(id));
+                let mut output = egui::TextEdit::singleline(buf).id(id).show(ui);
+                let range = egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(start),
+                    egui::text::CCursor::new(end),
+                );
+                output.state.cursor.set_char_range(Some(range));
+                output.state.store(ui.ctx(), output.response.id);
+            });
+        });
+    }
+
+    /// 같은 포커스된 `TextEdit` 을 다시 그리며 와이어 입력 이벤트를 넣는다.
+    fn feed_text_edit(
+        surface: &mut EguiMeshSurface,
+        id: egui::Id,
+        buf: &mut String,
+        events: Vec<RawInputEventWire>,
+    ) {
+        let mut params = ctx_params(400, 100, 1.0);
+        params.raw_input.events = events;
+        surface.run_frame(&params, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.memory_mut(|m| m.request_focus(id));
+                ui.add(egui::TextEdit::singleline(buf).id(id));
+            });
+        });
+    }
+
+    /// PasteText 와이어 이벤트가 텍스트를 담은 egui::Event::Paste 로, Cut 이 egui::Event::Cut 으로 바뀐다.
+    #[test]
+    fn paste_text_and_cut_wire_events_map_to_egui_events() {
+        assert_eq!(
+            map_event(&RawInputEventWire::PasteText {
+                text: "/tmp/a.md".into()
+            }),
+            Some(Event::Paste("/tmp/a.md".into()))
+        );
+        assert_eq!(map_event(&RawInputEventWire::Cut), Some(Event::Cut));
+    }
+
+    /// 포커스된 `TextEdit` 에 PasteText 가 오면 그 텍스트가 값에 들어간다.
+    #[test]
+    fn paste_text_event_inserts_into_the_focused_text_edit() {
+        let mut surface = EguiMeshSurface::new(1);
+        let id = egui::Id::new("paste_text_test");
+        let mut buf = String::new();
+        seed_text_edit_selection(&mut surface, id, &mut buf, 0, 0);
+        feed_text_edit(
+            &mut surface,
+            id,
+            &mut buf,
+            vec![RawInputEventWire::PasteText {
+                text: "/tmp/a.md".into(),
+            }],
+        );
+        assert_eq!(buf, "/tmp/a.md");
+    }
+
+    /// 선택이 있을 때 Cut 이 오면 선택이 지워지고 그 문자열이 복사 결과가 된다.
+    #[test]
+    fn cut_event_removes_the_selection_and_copies_it() {
+        let mut surface = EguiMeshSurface::new(1);
+        let id = egui::Id::new("cut_test");
+        let mut buf = "hello world".to_string();
+        seed_text_edit_selection(&mut surface, id, &mut buf, 0, 6);
+        feed_text_edit(&mut surface, id, &mut buf, vec![RawInputEventWire::Cut]);
+        assert_eq!(buf, "world");
+        assert_eq!(surface.take_copied_text().as_deref(), Some("hello "));
+        assert_eq!(surface.take_copied_text(), None);
+    }
 }

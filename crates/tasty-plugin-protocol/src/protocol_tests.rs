@@ -658,3 +658,48 @@ fn set_context_with_an_unknown_input_event_keeps_the_other_events() {
         ]
     );
 }
+
+/// 붙여넣기 텍스트와 잘라내기를 모르는 이전 정의의 축소 복제. 실제 이전 정의처럼
+/// `t` 태그와 `#[serde(other)]` fallback 을 쓴다.
+#[derive(Debug, serde::Deserialize, PartialEq)]
+#[serde(tag = "t", rename_all = "snake_case")]
+enum PreviousRawInputEventWire {
+    Copy,
+    Paste,
+    #[serde(other)]
+    Unknown,
+}
+
+/// 새 붙여넣기 텍스트·잘라내기 이벤트는 이전 정의에서 오류 없이 Unknown 으로 읽힌다.
+#[test]
+fn paste_text_and_cut_read_as_unknown_in_the_previous_definition() {
+    for raw in [
+        serde_json::json!({ "t": "paste_text", "text": "x" }),
+        serde_json::json!({ "t": "cut" }),
+    ] {
+        let old: PreviousRawInputEventWire =
+            serde_json::from_value(raw.clone()).expect("이전 정의도 읽어야 한다");
+        assert_eq!(old, PreviousRawInputEventWire::Unknown, "{raw}");
+    }
+}
+
+/// 붙여넣기 텍스트와 잘라내기는 정한 와이어 모양으로 나가고 그대로 되읽힌다.
+#[test]
+fn paste_text_and_cut_round_trip_on_the_wire() {
+    let paste = RawInputEventWire::PasteText {
+        text: "/tmp/a.md".into(),
+    };
+    assert_eq!(
+        serde_json::to_value(&paste).unwrap(),
+        serde_json::json!({ "t": "paste_text", "text": "/tmp/a.md" })
+    );
+    assert_eq!(
+        serde_json::to_value(RawInputEventWire::Cut).unwrap(),
+        serde_json::json!({ "t": "cut" })
+    );
+    for ev in [paste, RawInputEventWire::Cut] {
+        let back: RawInputEventWire =
+            serde_json::from_value(serde_json::to_value(&ev).unwrap()).unwrap();
+        assert_eq!(back, ev);
+    }
+}

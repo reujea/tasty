@@ -395,9 +395,12 @@ non-modal 공지) `BannerPaintFrame` 에는 그 칸이 없다.
 편집할 때 후보창은 여전히 마지막 위치나 창 원점 근처에 뜬다.
 
 Copy·Paste 는 위 표대로 각각 `egui_copy`·`egui_paste` capability 를 가진 kind 한정으로 wire 에 있다.
-`Paste` 는 클립보드 내용을 싣지 않고 SDK 가 내용 없는 `egui::Event::Paste` 로 바꾸므로, egui `TextEdit`
-에 텍스트가 들어가지 않는다 — plugin 이 이벤트를 보고 필요한 형식을 클립보드에서 직접 읽는다.
-Cut 은 wire 에 없다. attach mesh mirror 와 popup 미러 경로에는 Copy·Paste 전달이 없다.
+`Paste` 는 형식 붙여넣기 신호다. 클립보드 내용을 싣지 않고 SDK 가 내용 없는 `egui::Event::Paste` 로
+바꾸므로, egui `TextEdit` 에 텍스트가 들어가지 않는다 — plugin 이 이벤트를 보고 필요한 형식을 클립보드에서
+직접 읽는다. 텍스트 붙여넣기는 `PasteText { text }` 가 나르고 SDK 가 `egui::Event::Paste(text)` 로 바꿔
+포커스된 `TextEdit` 에 넣는다. `Cut` 은 SDK 가 `egui::Event::Cut` 으로 바꾼다. `PasteText`·`Cut` 은 wire
+와 SDK 매핑만 있고 호스트는 아직 보내지 않는다. attach mesh mirror 와 popup 미러 경로에는 Copy·Paste
+전달이 없다.
 
 `RawInputEventWire` 는 `#[serde(other)] Unknown` fallback 을 가진다. 이 fallback 이 있는 SDK 로
 빌드한 plugin 은 모르는 입력 이벤트를 `Unknown` 으로 읽고 버리며, 같은 `set_context` 의 나머지

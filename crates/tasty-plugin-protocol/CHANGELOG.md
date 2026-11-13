@@ -27,6 +27,8 @@
 
 - `PluginEvent::BannerInvalidated { instance_id }`를 추가했다. `PopupInvalidated`와 같은 방식으로 배너의 다음 렌더링을 요청한다. SDK가 egui의 `viewport_output`에서 받은 재렌더 요청을 호스트에 전달할 때 사용한다. `#[serde(other)]`가 있는 구버전 호스트는 `PluginEvent::Unknown`으로 읽어 무시한다. 변형 추가이며 `api_version`은 유지한다.
 
+- `RawInputEventWire::PasteText { text }`와 `RawInputEventWire::Cut`을 추가했다. `PasteText`는 호스트가 OS 클립보드에서 읽은 붙여넣기 텍스트를 나르고, SDK는 `egui::Event::Paste(text)`로 바꿔 포커스된 `TextEdit`에 넣는다. `Cut`은 잘라내기 요청이며 SDK는 `egui::Event::Cut`으로 바꾼다. 기존 `Paste`는 내용 없는 형식 붙여넣기 신호로 그대로 둔다. `#[serde(other)]`가 있는 구버전 SDK는 두 이벤트를 `RawInputEventWire::Unknown`으로 읽어 버린다. 변형 추가이며 `api_version`은 유지한다.
+
 ## [0.10.2] - 2026-08-29
 
 ### Added

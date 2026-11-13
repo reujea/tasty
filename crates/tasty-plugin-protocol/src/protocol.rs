@@ -202,10 +202,18 @@ pub enum RawInputEventWire {
     /// 호스트 단축키 설정에서 해석한 복사 요청. SDK는 egui::Event::Copy로
     /// 변환하고 egui가 선택 내용에 따라 CopyText 출력을 만든다.
     Copy,
-    /// 호스트 단축키 설정에서 해석한 붙여넣기 요청. `egui_paste` kind 에만 보낸다.
-    /// 클립보드 내용은 싣지 않는다 — plugin 이 필요한 형식(이미지 등)을 직접 읽는다.
-    /// SDK 는 빈 문자열의 `egui::Event::Paste` 로 변환한다.
+    /// 형식 붙여넣기 신호. 호스트 단축키 설정에서 해석한 붙여넣기 요청이며 `egui_paste`
+    /// kind 에만 보낸다. 클립보드 내용은 싣지 않는다 — plugin 이 필요한 형식(이미지 등)을
+    /// 직접 읽는다. SDK 는 빈 문자열의 `egui::Event::Paste` 로 변환하므로 `TextEdit` 에는
+    /// 효과가 없다. 텍스트 붙여넣기는 [`RawInputEventWire::PasteText`] 가 나른다.
     Paste,
+    /// 호스트가 OS 클립보드에서 읽은 붙여넣기 텍스트. SDK 는 `egui::Event::Paste(text)` 로
+    /// 변환해 포커스된 `TextEdit` 에 넣는다. 키 입력 문자인 [`RawInputEventWire::Text`] 와
+    /// 달리 붙여넣기 의미를 유지한다.
+    PasteText { text: String },
+    /// 호스트 단축키 설정에서 해석한 잘라내기 요청. SDK 는 `egui::Event::Cut` 으로
+    /// 변환하고, egui 가 선택을 지우며 `CopyText` 출력을 만든다.
+    Cut,
     /// 미래 variant 의 forward-compat fallback — 이 변형을 아는 SDK 로 빌드한 plugin 은
     /// 모르는 입력 이벤트를 받아도 `surface.set_context` 전체를 실패하지 않고 그 이벤트만
     /// 버린다([`PluginEvent::Unknown`] 과 같은 정책: 새 variant 는 fallback 가능한 형태로만).
