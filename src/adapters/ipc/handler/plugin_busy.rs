@@ -10,9 +10,17 @@
 //! - `ignore_busy: true`면 묻지 않는다.
 //!
 //! 질문은 IPC 큐를 거치지 않고 plugin에 바로 보내며, 답을 기다리는 동안 요청은 요청 게이트 줄에 머문다
-//! ([`crate::ipc::handler::gate::GateProgress`]). 그래서 요청 순서와 원 호출자가 그대로이고 App 스레드는
-//! 막히지 않는다. 질문은 권한 게이트 앞에서 시작하지만 거절은 권한 게이트를 통과한 뒤에만 낸다 —
-//! 권한이 없는 호출자는 바쁨이 아니라 권한 거절을 받는다.
+//! ([`crate::ipc::handler::gate::GateProgress`]). 그래서 원 호출자가 그대로이고 App 스레드는 막히지 않는다.
+//!
+//! 두 가지를 지킨다.
+//!
+//! - **권한 게이트를 통과한 뒤에 묻는다.** `plugin.disable/remove/upgrade_builtins`는 `local_only`라
+//!   plugin 호출자는 어차피 거절된다. 질문이 앞서면 권한 없는 호출자가 반복 호출로 대상 plugin을
+//!   깨우고 자기 요청을 줄에 남길 수 있다.
+//! - **답을 기다리는 동안 뒤 요청이 진행된다.** 요청 게이트는 busy 답만 기다리는 요청을 건너뛴다
+//!   ([`crate::app::request_gate`]). 그래야 답하지 않는 plugin 하나가 [`PROBE_TIMEOUT`] 동안 모든
+//!   IPC를 멈추지 않고, `lifecycle_busy` 처리기가 답하기 전에 호스트를 불러도 그 호출이 질문 뒤에
+//!   갇히지 않는다. 그래서 처리기 안에서 호스트를 불러도 된다.
 
 use std::sync::mpsc::{Receiver, TryRecvError, sync_channel};
 use std::time::{Duration, Instant};
@@ -116,18 +124,27 @@ pub(crate) fn stop_targets(mgr: &PluginManager, wanted: Wanted) -> Vec<(String, 
         .collect()
 }
 
+/// 사유 문자열의 길이 상한(문자 수). plugin이 정하는 값이고 오류 응답과 화면에 그대로 실리므로
+/// 자른다. 넘으면 `…`를 붙인다.
+pub(crate) const REASON_MAX_CHARS: usize = 200;
+
+/// 사유를 상한까지 자른다. 경계는 문자 단위라 UTF-8 중간에서 끊지 않는다.
+fn clamp_reason(reason: &str) -> String {
+    let mut out: String = reason.chars().take(REASON_MAX_CHARS).collect();
+    if reason.chars().nth(REASON_MAX_CHARS).is_some() {
+        out.push('…');
+    }
+    out
+}
+
 /// 답 하나를 읽는다 — 바쁘면 그 사유.
 pub(crate) fn busy_reason(answer: &JsonRpcResponse) -> Option<String> {
     if answer.error.is_some() {
         return None;
     }
     let v = answer.result.as_ref()?;
-    (v.get("busy").and_then(Value::as_bool) == Some(true)).then(|| {
-        v.get("reason")
-            .and_then(Value::as_str)
-            .unwrap_or("busy")
-            .to_string()
-    })
+    (v.get("busy").and_then(Value::as_bool) == Some(true))
+        .then(|| clamp_reason(v.get("reason").and_then(Value::as_str).unwrap_or("busy")))
 }
 
 /// 바쁜 plugin들로 거절하는 응답.
@@ -336,6 +353,18 @@ mod tests {
                 restore_all: true,
             }
         );
+    }
+
+    // 사유 문자열은 plugin이 정하고 오류 응답·화면에 그대로 실린다 — 상한까지 자른다.
+    #[test]
+    fn a_long_busy_reason_is_clamped() {
+        let long = "가".repeat(REASON_MAX_CHARS + 50);
+        let why = busy_reason(&ok(json!({"busy": true, "reason": long}))).expect("busy");
+        assert_eq!(why.chars().count(), REASON_MAX_CHARS + 1, "상한을 넘겼다");
+        assert!(why.ends_with('…'), "자른 표시가 없다");
+        // 상한 안쪽은 그대로 둔다 — 짧은 사유에 꼬리표가 붙으면 안 된다.
+        let short = busy_reason(&ok(json!({"busy": true, "reason": "a turn runs"})));
+        assert_eq!(short, Some("a turn runs".into()));
     }
 
     // 게이트 단계: 정지 요청이 아니면 묻지 않고, 바쁘다는 답은 거절 응답 하나가 된다. 거절은 한 번만 낸다.
