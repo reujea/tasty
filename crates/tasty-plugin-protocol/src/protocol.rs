@@ -547,7 +547,8 @@ pub enum PluginEvent {
     /// surface/popup/banner *닫힘* 경로는 host 가 frame 메타 기반으로 자체 해제
     /// 하므로, 이 이벤트는 인스턴스 생존 중 교체 시점용이다. fire-and-forget.
     SharedBufferReleased { id: SharedBufferId },
-    /// plugin 의 egui 가 복사·잘라내기로 만든 텍스트. 호스트가 OS 클립보드에 쓴다.
+    /// plugin 의 egui 가 복사·잘라내기로 만든 텍스트를 호스트에 알린다. 호스트는 대상과
+    /// plugin id 와 함께 받아 두며, 이 텍스트를 클립보드에 쓰는 일은 호스트 구현이 맡는다.
     /// 화면이 바뀌지 않는 복사는 프레임 알림이 생략되므로 프레임과 별개로 보낸다.
     /// fire-and-forget.
     CopyText {
