@@ -77,8 +77,9 @@ struct EguiMeshCore {
     buffer: Option<SharedBuffer>,
     /// egui가 요청한 다음 렌더링 지연. 호스트에 갱신 요청을 보내는 데 쓴다.
     pending_self_repaint: Option<Duration>,
-    /// 직전 렌더에서 나온 첫 번째 비어 있지 않은 CopyText 값.
-    /// 호출자가 가져가 OS 클립보드에 기록할 수 있다.
+    /// 직전 렌더의 복사 결과. 마지막 CopyText 값이며 빈 문자열도 포함한다.
+    /// paint·repaint_last 가 호스트에 알리며 소비하고, run_frame 만 쓰는 호출자는
+    /// take_copied_text 로 꺼낸다.
     last_copied_text: Option<String>,
     /// 직전 렌더의 IME 위젯 위치. 콘텐츠 영역의 논리 좌표로 호스트에 전달한다.
     last_ime_cursor: Option<ImeCursorWire>,
