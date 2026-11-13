@@ -32,6 +32,7 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `load_url` | `&str` | — | Linux 는 로드가 끝난(`Done`) 상태에서 지금 문서의 `#fragment` 주소를 받으면 `Loading` 을 세우지 않는다. `Failed`·`Loading` 상태의 같은 경우와 표기 정규화 차이는 남은 한계다. WebKitGTK 가 이 이동을 load 신호 없이 처리해서다(측정, [html surface §문서 주소와 히스토리](../../surfaces/html/index.md#내부-동작)). macOS·Windows 는 이 경우를 따로 다루지 않으며 미측정이다 |
 | `load_html` | `&str` | — | |
 | `nav_state` | — | `NavState` | |
+| `eval_js` | `&str` | — | 실린 문서 안에서 호스트가 만든 스크립트를 돌린다. 값은 쓰지 않고 실패만 로그에 남긴다 — Linux 는 `evaluate_javascript` 완료 콜백, Windows 는 `ExecuteScript` 반환값, macOS 는 `evaluateJavaScript:completionHandler:` 의 `NSError` 다. 페이지 JS 설정과 무관하게 실행되므로 허용 판정은 호출 전에 끝나 있어야 한다 — 아래 "페이지에 보내는 메시지" |
 | `take_pending_navigations` | — | `Vec<PendingNavigation>` | `user_gesture` 는 Linux 가 `is_user_gesture`, Windows 가 `IsUserInitiated` 에서 옮긴다. macOS 와 Windows 의 같은 문서 fragment 이동은 그 뷰가 받은 OS 클릭으로 정한다 — 아래 "탐색" |
 | `set_zoom` | `f64` | — | |
 | `set_javascript_enabled` | `bool` | — | 스크립트 게이트가 붙은 webview 에서는 값을 전역 sandbox 설정으로 `gate.set_sandbox` 에 넘기고, 적용하는 값은 문서별 판정이다([HTML Viewer (`com.tasty.html`)](../../surfaces/html/index.md)). macOS 는 전역 preference 를 켜 두고 문서별 값을 navigation 정책의 webpage preferences 로 준다 |
@@ -44,6 +45,41 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux는 사용자 스타일시트, macOS·Windows는 스크립트로 둔다 |
 | `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
+
+## 페이지에 보내는 메시지 — `webview.post_message`
+
+소유 plugin 이 실린 문서를 다시 싣지 않고 JSON 값을 보낸다. 호스트가 그 값을 `tasty:message`
+CustomEvent 로 내는 스크립트를 만들어 `RemoteSurface` 의 큐에 넣고, 동기화가 `eval_js` 로 돌린다
+(API 는 [api.md](../../reference/api.md)). 허용 판정(소유자인가 · 스크립트 실효 설정이 켜졌나)은
+IPC 핸들러가 받을 때 한 번 하고, 전달 시점에는 아래 두 가지만 본다.
+
+### 전달 시점의 문서 확인
+
+큐에 넣을 때의 문서와 돌릴 때의 문서가 다를 수 있다. 사용자가 링크를 따라가면 plugin 이 보낸
+데이터를 그 문서가 받게 되므로, 동기화는 **지금 실린 문서가 호스트가 이 surface 에 실은 문서일
+때만** 돌린다.
+
+- 주소로 연 문서(`file:`·`http(s):`): 지금 commit 된 주소가 호스트가 실은 주소와 같아야 한다.
+  `#fragment` 이동은 같은 문서라 그대로 받는다.
+- raw HTML 로 실은 문서: 비교할 주소가 없으므로 "탐색 가능한 주소로 가 있지 않다"로 가른다.
+  그 문서를 떠나는 이동은 어느 플랫폼에서나 `file:`·`http(s):` 주소를 남기고, 바탕 주소
+  (`about:blank` 등)는 플랫폼마다 달라 그 값에 기대지 않는다.
+
+문서가 다르면 그 surface 의 큐를 **버리고** 경고를 남긴다. 되살리지 않는다 — plugin 이 보낸 값은
+그 문서의 상태를 전제하므로 다른 문서로 돌아온 뒤에 돌리면 뜻이 달라진다. plugin 은 다시 실을 때
+그 시점 상태를 문서에 담는다.
+
+### 큐 상한
+
+큐는 **WebView 가 있는 프레임에만** 빈다. 아직 만들지 않았거나(lazy kind) 가려져 해제된 surface 에
+계속 보내면 호스트 메모리에 무한히 쌓이고 WebView 가 생기는 순간 밀린 것이 한꺼번에 돈다. 그래서:
+
+- WebView 가 없는 surface 의 큐는 그 프레임에 **버린다**. 보관하지 않는다.
+- 메시지 하나는 직렬화 1 MiB 를 넘으면 호출을 거절한다(`invalid params`).
+- surface 하나의 큐는 `MAX_PENDING_SCRIPTS`(64) 개 · `MAX_PENDING_SCRIPT_BYTES`(4 MiB) 를 넘으면
+  **가장 오래된 것부터 버린다**. 가장 새 메시지가 가장 쓸모 있는 상태라 새 것을 거절하지 않는다.
+  버림은 경고로 남는다. 하나로 바이트 상한을 넘기는 메시지는 그 하나를 남긴다 — 호출 시점에
+  이미 받아들인 값이다.
 
 ## 생성 — 부모 handle 과 실패 분류
 
