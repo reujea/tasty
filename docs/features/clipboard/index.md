@@ -3,7 +3,7 @@
 - **Status**: Implemented
 - **주체**: 로컬 사용자 (복사/붙여넣기는 사용자 행동)
 - **설계**: [플러그인 권한 모델](../../dev-guide/plugin-permissions.md) (뷰어의 plugin 직접-read 모델)
-- **코드**: 시스템 클립보드 `arboard`(네이티브 Wayland 터미널은 `src/clipboard/terminal.rs`); 복사/붙여넣기/선택 = `src/view/main/`
+- **코드**: 시스템 클립보드 `arboard`(네이티브 Wayland는 `src/clipboard/terminal.rs`); 텍스트 복사의 공통 경로 = `src/clipboard/copy.rs`; 복사/붙여넣기/선택 = `src/view/main/`
 - **화면**: 현재 클립보드 뷰어는 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md)
 
 ## 목적
@@ -31,6 +31,36 @@
 토스트를 표시한다. 실패는 기존 Info(접근 불가·미지원) 또는 Error(전송 실패) 토스트로
 알린다. 선택이 있는 Copy는 실패해도 처리된 입력이므로 Ctrl+C를 PTY의 SIGINT로
 넘기지 않는다. 선택과 포커스는 유지하며 vi 복사도 실패하면 모드를 유지한다.
+
+### 텍스트 복사의 공통 경로
+
+호스트의 텍스트 복사는 모두 `src/clipboard/copy.rs`의 공통 함수를 거친다. 이 함수는 그 창의
+`TerminalClipboard`로 쓰고 결과를 그 창의 토스트로 보인다. 쓰기 백엔드는 `TerminalClipboard`가
+고른다. 네이티브 Wayland로 뜬 창은 그 창의 Wayland 선택, 그 밖(X11·XWayland·macOS·Windows)은
+arboard다. 성공하면 호출한 쪽이 정한 키의 Info 토스트를, 실패하면 위의 접근 불가·실패 토스트를
+한 장 띄운다.
+
+- **터미널**: 선택 복사, vi register, 링크·경로·서피스 ID 복사, 복사 단축키.
+- **egui 위젯**: 입력칸의 Ctrl+C·Ctrl+X, 선택 가능한 label의 복사, 복사 버튼(`ctx.copy_text`)이
+  만드는 egui 복사 출력은 egui-winit이 쓰지 않는다. `GpuState`가 출력에서 꺼내 두고 그 창이
+  렌더 뒤에 공통 함수로 넘긴다. 토스트는 창 범위의 `toast.copied`다. egui 출력은 복사와
+  잘라내기를 구별하지 않으므로 잘라내기도 같은 토스트다. 메인 창과 설정·Preset·Plugins 창이
+  이렇게 동작한다. 보조 창은 창마다 `TerminalClipboard`를 하나씩 가진다.
+- **토스트가 없는 화면**: 종료 확인 창, 셸 경로 설정 화면, 부팅 오류 화면은 토스트를 그리지
+  않는다. 쓰기는 같은 공통 함수로 하고 실패는 로그로만 남긴다. 부팅·종료 로딩 화면은 키 입력을
+  egui에 넘기지 않아 복사가 생기지 않는다.
+
+공통 함수를 거치지 않는 쓰기는 아래뿐이다.
+
+| 쓰기 | 공통 함수를 거치지 않는 이유 |
+|---|---|
+| OSC 52 쓰기 | Core 쪽 사건이라 창의 클립보드가 쓰지 않는다. 결과 토스트는 같은 피드백 함수를 쓴다 |
+| IPC `clipboard.set_text` | 에이전트 경로는 사용자 시각 상태를 건드리지 않는다. 헤드리스에는 창이 없다 |
+| 캡처 경로와 이미지 게시 | 텍스트와 이미지를 한 소유자로 함께 올린다 |
+| Explorer 파일 클립보드 | 파일 형식과 텍스트 대체 표현을 함께 올린다 |
+| 홈 사용 중 화면 | App 밖의 독립 이벤트 루프라 표시 소유자와 토스트가 없다. egui-winit 클립보드를 쓴다 |
+| WebView 편집 복사, markdown 코드 복사 버튼 | WebView와 페이지 스크립트가 여러 형식을 직접 쓴다. 문자열로 다시 쓰면 형식을 잃는다 |
+| 갤러리 | 별도 개발용 바이너리다 |
 
 붙여넣기 읽기 오류는 한 번 알리고 입력을 보내지 않는다. 텍스트 형식이 없을 때만
 이미지를 읽으며 빈 텍스트나 빈 클립보드는 조용한 no-op이다. 오류 뒤 bracketed-paste

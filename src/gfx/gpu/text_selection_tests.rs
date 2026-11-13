@@ -1,5 +1,5 @@
 //! The egui side of the native Wayland clipboard: which keys paste and which output copies.
-use super::{HeldPastes, moves_focus, paste_key, pastes_for, take_copied_text};
+use super::{HeldPastes, hold_copied_text, moves_focus, paste_key, pastes_for, take_copied_text};
 use std::time::{Duration, Instant};
 use winit::keyboard::{Key, KeyCode, NamedKey, NativeKey, NativeKeyCode, PhysicalKey, SmolStr};
 
@@ -84,6 +84,31 @@ fn the_deprecated_copied_text_is_taken_too() {
     assert!(left);
     let (_, none) = take_copied_text(egui::PlatformOutput::default());
     assert_eq!(none, None);
+}
+
+/// Given egui output with a copy, When it is applied on any OS, Then the copy leaves the output
+/// (egui-winit never writes it) and waits for the window's owner; a later frame without copies
+/// keeps it and a newer copy replaces it.
+#[test]
+fn every_egui_copy_is_held_for_the_copy_door() {
+    let mut held = None;
+    let mut output = egui::PlatformOutput::default();
+    output
+        .commands
+        .push(egui::OutputCommand::CopyText("field".into()));
+    let output = hold_copied_text(&mut held, output);
+    assert!(output.commands.is_empty());
+    assert_eq!(held.as_deref(), Some("field"));
+    let quiet = hold_copied_text(&mut held, egui::PlatformOutput::default());
+    assert!(quiet.commands.is_empty());
+    assert_eq!(held.as_deref(), Some("field"));
+    let mut newer = egui::PlatformOutput::default();
+    newer
+        .commands
+        .push(egui::OutputCommand::CopyText("label".into()));
+    let newer = hold_copied_text(&mut held, newer);
+    assert!(newer.commands.is_empty());
+    assert_eq!(held.as_deref(), Some("label"));
 }
 
 #[test]

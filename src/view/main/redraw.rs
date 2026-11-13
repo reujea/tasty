@@ -346,6 +346,7 @@ impl MainView {
             }
             Err(e) => self.base.surface_failed(&e),
         }
+        self.copy_egui_text();
     }
 
     /// egui-mesh(로컬 plugin 대상) + attach mesh mirror(원격 대상) full 재전송

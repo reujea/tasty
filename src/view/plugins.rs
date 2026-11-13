@@ -21,16 +21,20 @@ pub struct PluginsView {
     shown: bool,
     should_close: bool,
     pub(crate) toasts: ToastManager,
+    /// This window's clipboard: egui widget copies go through the copy door with it.
+    clipboard: crate::clipboard::terminal::TerminalClipboard,
 }
 
 impl PluginsView {
     pub fn new(
         gpu: GpuState,
         winit: Arc<winit::window::Window>,
+        clipboard: crate::clipboard::terminal::TerminalClipboard,
         snapshot: PluginsSnapshot,
     ) -> Self {
         Self {
             base: ViewBase::new(gpu, winit),
+            clipboard,
             snapshot,
             pending_actions: Vec::new(),
             ui_state: PluginsUiState::default(),
@@ -156,6 +160,13 @@ impl View for PluginsView {
         self.base
             .gpu
             .finish_egui_frame(&self.base.winit, full_output);
+        if crate::clipboard::copy::copy_egui_text(
+            &mut self.base.gpu,
+            &mut self.clipboard,
+            &mut self.toasts,
+        ) {
+            self.mark_dirty();
+        }
 
         self.reveal_after_first_render();
 

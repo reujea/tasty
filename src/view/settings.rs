@@ -6,7 +6,6 @@ use winit::event::WindowEvent;
 
 use crate::adapters::ui::{LayoutContext, ToastManager, ToastScope};
 use crate::gpu::GpuState;
-use crate::i18n::t;
 use crate::runtime::file_catalog::FormatCatalog as FileFormatRegistry;
 use crate::runtime::file_catalog::HandlerCatalog as FileHandlerRegistry;
 use crate::settings::Settings;
@@ -34,6 +33,8 @@ pub struct SettingsView {
     /// 창을 열 때의 설정. 저장할 때 창이 바꾸지 않은 값을 그사이 다른 경로가 바꿨는지 가린다.
     opened_settings: Settings,
     pub(crate) toasts: ToastManager,
+    /// This window's clipboard: egui widget copies go through the copy door with it.
+    clipboard: crate::clipboard::terminal::TerminalClipboard,
 }
 
 impl SettingsView {
@@ -54,12 +55,14 @@ impl SettingsView {
     pub fn new(
         gpu: GpuState,
         winit: Arc<winit::window::Window>,
+        clipboard: crate::clipboard::terminal::TerminalClipboard,
         settings: Settings,
         file_format: FileFormatRegistry,
         file_handler: FileHandlerRegistry,
     ) -> Self {
         Self {
             base: ViewBase::new(gpu, winit),
+            clipboard,
             original_restore_content: settings.general.restore_surface_content,
             opened_settings: settings.clone(),
             settings,
@@ -344,19 +347,16 @@ impl View for SettingsView {
             self.mark_dirty();
         }
 
-        let has_copy = full_output
-            .platform_output
-            .commands
-            .iter()
-            .any(|cmd| matches!(cmd, egui::OutputCommand::CopyText(_)));
-        if has_copy {
-            self.toasts.push_info(t("toast.copied"), ToastScope::Window);
-            self.mark_dirty();
-        }
-
         self.base
             .gpu
             .finish_egui_frame(&self.base.winit, full_output);
+        if crate::clipboard::copy::copy_egui_text(
+            &mut self.base.gpu,
+            &mut self.clipboard,
+            &mut self.toasts,
+        ) {
+            self.mark_dirty();
+        }
 
         self.reveal_after_first_render();
 

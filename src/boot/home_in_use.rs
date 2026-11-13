@@ -101,7 +101,13 @@ impl HomeInUseScreen {
         let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) else {
             return;
         };
-        match gpu.render_boot_error(window, &self.info) {
+        let result = gpu.render_boot_error(window, &self.info);
+        // This screen runs outside App, without a display owner or a toast stack, so a copy keeps
+        // egui-winit's clipboard rather than the copy door.
+        if let Some(text) = gpu.take_egui_copy() {
+            gpu.copy_with_egui_winit(window, text);
+        }
+        match result {
             Ok(true) => event_loop.exit(),
             Ok(false) => {}
             Err(e) => tracing::warn!("home-in-use screen render failed: {e}"),

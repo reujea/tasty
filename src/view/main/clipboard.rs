@@ -323,6 +323,18 @@ impl MainView {
             scope,
         )
     }
+
+    /// Writes what an egui widget of this window copied through the copy door. Runs after both
+    /// render outcomes, because egui ran before presenting.
+    pub(super) fn copy_egui_text(&mut self) {
+        if crate::clipboard::copy::copy_egui_text(
+            &mut self.base.gpu,
+            &mut self.clipboard,
+            &mut self.state.toasts,
+        ) {
+            self.base.mark_dirty();
+        }
+    }
 }
 
 impl crate::state::MainViewState {

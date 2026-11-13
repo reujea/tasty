@@ -224,6 +224,10 @@ pub(crate) struct App {
     pub(crate) boot_error_gpu: Option<GpuState>,
     #[cfg(feature = "gui")]
     pub(crate) boot_error_window: Option<Arc<Window>>,
+    /// The clipboard of the shell setup or boot error screen shown now. Its copies go through the
+    /// copy door without a toast (`App::copy_boot_screen_text`).
+    #[cfg(feature = "gui")]
+    pub(crate) boot_screen_clipboard: Option<crate::clipboard::terminal::TerminalClipboard>,
     /// System tray / status item. Must be kept alive for the tray to remain visible.
     /// `None` when the platform tray is unavailable (graceful degradation, docs/architecture/shutdown-sequence.md).
     #[cfg(all(
@@ -426,6 +430,7 @@ impl App {
             shell_setup_window: None,
             boot_error_gpu: None,
             boot_error_window: None,
+            boot_screen_clipboard: None,
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             tray_icon: None,
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
@@ -532,6 +537,16 @@ impl App {
             .or_else(|| engines.parked().next())
             .map(|e| e.runtime.settings.scripts.clone())
             .unwrap_or_default()
+    }
+
+    /// The clipboard a window's copies go through (`crate::clipboard::copy`). On a native Wayland
+    /// start it shares the connection's selection owner with the window's GPU state.
+    #[cfg(feature = "gui")]
+    pub(crate) fn window_clipboard(
+        &self,
+        window: &Window,
+    ) -> crate::clipboard::terminal::TerminalClipboard {
+        crate::clipboard::terminal::TerminalClipboard::new(window, self.view.display_owner.clone())
     }
 
     /// 창별 GPU 상태를 만들되 instance와 첫 창에서 선택한 adapter는 공유한다.

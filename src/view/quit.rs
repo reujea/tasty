@@ -14,14 +14,22 @@ pub struct QuitView {
     pub base: ViewBase,
     shown: bool,
     pending_action: ViewAction,
+    /// This window's clipboard. The dialog has no toast stack, so a copy from its selectable
+    /// labels is written through the copy door without a toast.
+    clipboard: crate::clipboard::terminal::TerminalClipboard,
 }
 
 impl QuitView {
-    pub fn new(gpu: GpuState, winit: Arc<winit::window::Window>) -> Self {
+    pub fn new(
+        gpu: GpuState,
+        winit: Arc<winit::window::Window>,
+        clipboard: crate::clipboard::terminal::TerminalClipboard,
+    ) -> Self {
         Self {
             base: ViewBase::new(gpu, winit),
             shown: false,
             pending_action: ViewAction::None,
+            clipboard,
         }
     }
 }
@@ -141,6 +149,9 @@ impl View for QuitView {
         self.base
             .gpu
             .finish_egui_frame(&self.base.winit, full_output);
+        if let Some(text) = self.base.gpu.take_egui_copy() {
+            crate::clipboard::copy::copy_text_unannounced(&mut self.clipboard, &text);
+        }
 
         self.reveal_after_first_render();
 

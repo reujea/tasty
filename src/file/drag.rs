@@ -84,12 +84,6 @@ impl TextSelection {
             }
         }
     }
-    /// Makes `text` the system selection.
-    pub(crate) fn copy(&mut self, text: String) {
-        if let Err(error) = self.0.copy(text) {
-            tracing::warn!(%error, "could not set the Wayland clipboard");
-        }
-    }
     /// Asks for the selection text on behalf of input target `tag`. Our own copy is returned at
     /// once; a foreign one is read in the background and arrives from `poll` with the same tag. A
     /// newer request or `cancel` drops a read still waiting.
@@ -126,7 +120,7 @@ impl TextSelection {
     pub(crate) fn copy_with_png(&mut self, text: String, png: Vec<u8>) -> Result<(), String> {
         self.0.copy_with_png(text, Some(png))
     }
-    /// Like `copy`, for a caller that reports the failure itself (the terminal's copy toast).
+    /// Makes `text` the system selection. The caller reports a failure (the copy door's toast).
     pub(crate) fn copy_checked(&mut self, text: String) -> Result<(), String> {
         self.0.copy(text)
     }
@@ -155,7 +149,8 @@ impl TextSelection {
 }
 #[cfg(target_os = "linux")]
 pub(crate) use wayland::{Paste as SelectionPaste, Received as SelectionReceived};
-/// No other OS has a system clipboard of its own here: egui-winit's stays in use, so no value exists.
+/// No other OS has a Wayland selection: egui-winit's clipboard serves egui pastes and arboard serves
+/// copies, so no value exists.
 #[cfg(not(target_os = "linux"))]
 pub(crate) enum TextSelection {}
 #[cfg(not(target_os = "linux"))]
@@ -165,9 +160,6 @@ impl TextSelection {
         _: Option<winit::event_loop::OwnedDisplayHandle>,
     ) -> Option<Self> {
         None
-    }
-    pub(crate) fn copy(&mut self, _: String) {
-        match *self {}
     }
     pub(crate) fn request(&mut self, _: u64) -> Option<String> {
         match *self {}

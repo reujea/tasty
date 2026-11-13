@@ -695,6 +695,7 @@ impl App {
         );
         self.state.shell_setup_mode = true;
         self.state.shell_setup_path = initial_path;
+        self.boot_screen_clipboard = None;
         if let Err(e) = gpu.render_shell_setup(&window, &mut self.state.shell_setup_path) {
             tracing::warn!("shell setup first frame render failed: {e} — showing window anyway");
         }
@@ -1011,6 +1012,12 @@ impl App {
             if let (Some(gpu), Some(window)) = (&mut self.shell_setup_gpu, &self.shell_setup_window)
             {
                 let result = gpu.render_shell_setup(window, &mut self.state.shell_setup_path);
+                Self::copy_boot_screen_text(
+                    &mut self.boot_screen_clipboard,
+                    &self.view.display_owner,
+                    gpu,
+                    window,
+                );
                 match result {
                     Ok(crate::gpu::ShellSetupAction::None) => {}
                     Ok(crate::gpu::ShellSetupAction::Confirmed) => {
@@ -1061,6 +1068,7 @@ impl App {
     ) {
         tracing::warn!("boot failed with a live GPU — showing the boot error screen");
         self.state.boot_error_mode = true;
+        self.boot_screen_clipboard = None;
         // 렌더 실패 시에도 창은 표시한다.
         if let Some(info) = &self.state.boot_error_info
             && let Err(e) = gpu.render_boot_error(&window, info)
@@ -1084,7 +1092,14 @@ impl App {
                 &self.boot_error_window,
                 &self.state.boot_error_info,
             ) {
-                match gpu.render_boot_error(window, info) {
+                let result = gpu.render_boot_error(window, info);
+                Self::copy_boot_screen_text(
+                    &mut self.boot_screen_clipboard,
+                    &self.view.display_owner,
+                    gpu,
+                    window,
+                );
+                match result {
                     Ok(quit) => quit,
                     Err(e) if render_error_reconfigures(&e) => {
                         gpu.resize(window.inner_size());

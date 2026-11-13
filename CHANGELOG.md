@@ -49,6 +49,8 @@
 - **(BREAK) 부모 완료 로그의 Claude child 알림 줄이 타입 표지 `[info] `·`[warning] `·`[error] `로 시작한다.** 상태 변경(`idle`·`needs_input`)과 원격 결과 저장은 `[info] `, 출력이 없다는 정지 알림 3종은 `[warning] `, API 오류로 끝난 턴·백그라운드 작업이 남은 API 오류·오류 뒤 정지·`exited`는 `[error] `다. 무출력 알림만 거르려면 `^\[warning\] `로 고른다.
 - **mirror의 새 탭·분할·convert와 원격 agent child, 원격 연결 팝업의 `+ 새 워크스페이스`가 client가 고른 surface의 cwd에서 시작한다.** 새 탭·pane 분할·원격 child는 대상 pane에서 client 창이 선택한 탭의 선택 surface, surface 분할·convert는 대상 surface, `+ 새 워크스페이스`는 팝업을 연 창의 포커스가 같은 원격(같은 attach 프로필)의 mirror 터미널일 때 그 surface가 원본이다. 상속 여부는 client의 `general.inherit_cwd` 설정을 따르고, 꺼져 있으면 상속하지 않는다. 원본이 터미널이 아니면 로컬과 같이 explorer root나 파일의 폴더를 잇는다. 전에는 서버 창의 선택과 서버 설정으로 정해 client에서 보던 위치와 다른 폴더에서 열렸다. 원격 요청은 서버 창의 선택을 바꾸지 않는다. 요청에 원본이 없으면 서버 창의 선택과 서버 설정을 쓴다. `ipc.stream.inherit-cwd`가 없는 옛 서버는 원본을 무시하고 전처럼 서버 선택으로 만들며, client 설정이 꺼져 있어도 서버 설정이 켜져 있으면 상속한다.
 
+- **호스트 화면의 텍스트 복사가 모두 같은 경로로 쓰고 결과를 토스트로 알린다.** 메인 창과 설정·Preset·Plugins 창에서 입력칸의 Ctrl+C·Ctrl+X, 선택한 label의 복사, 복사 버튼(탐색기 속성·포트 스캐너·복원 안내 등)이 성공하면 그 창에 `Copied` 토스트가 한 장 뜨고, 실패하면 실패 토스트가 뜬다. 전에는 메인 창과 Plugins 창은 토스트가 없었고, 설정·Preset 창은 쓰기에 실패해도 성공 토스트를 띄웠다. 잘라내기도 같은 토스트다. 네이티브 Wayland 창은 터미널 복사와 같은 Wayland 선택으로 쓴다. 종료 확인 창·셸 경로 설정·부팅 오류 화면은 토스트 없이 같은 경로로 쓴다.
+
 ### Fixed
 
 - **IPC `tree`와 Lua `tasty.tree()`의 busy 값이 surface 상태를 따른다.** tab의 `busy`는 그 tab의 surface 중 하나라도 busy인지, pane의 `busy_count`는 그 pane 안 모든 tab(선택되지 않은 tab 포함)의 surface 중 busy 수다. 나뉘지 않은 tab의 `surface` 객체와 `layout`의 `Leaf` 노드에 `busy`, tab에 `busy_count`가 새로 실린다. 전에는 tab id를 surface id로 보고 조회해 tab `busy`와 pane `busy_count`가 틀렸고 surface에는 `busy`가 없었다. workspace의 `busy_count`와 사람이 읽는 `tasty list tree` 출력은 그대로다.

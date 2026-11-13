@@ -56,7 +56,10 @@ impl App {
 
         let snapshot = self.snapshot_plugins();
         let modal_window_id = window.id();
-        let mut modal = view::PluginsView::new(gpu, window, snapshot);
+        let mut modal = {
+            let clipboard = self.window_clipboard(&window);
+            view::PluginsView::new(gpu, window, clipboard, snapshot)
+        };
         crate::view::ui::present_first_frame(&mut modal);
         self.open_modal(
             Box::new(modal),

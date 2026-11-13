@@ -24,6 +24,25 @@ impl App {
         }
     }
 
+    /// Writes what the shell setup or boot error screen copied through the copy door. These screens
+    /// have no toast stack, so a failure is only logged. The clipboard is made on the first copy and
+    /// dropped when a screen is entered (`enter_shell_setup_mode`, `enter_boot_error_mode`), so it
+    /// always belongs to the window shown now.
+    pub(crate) fn copy_boot_screen_text(
+        clipboard: &mut Option<crate::clipboard::terminal::TerminalClipboard>,
+        display_owner: &Option<winit::event_loop::OwnedDisplayHandle>,
+        gpu: &mut crate::gpu::GpuState,
+        window: &winit::window::Window,
+    ) {
+        let Some(text) = gpu.take_egui_copy() else {
+            return;
+        };
+        let clipboard = clipboard.get_or_insert_with(|| {
+            crate::clipboard::terminal::TerminalClipboard::new(window, display_owner.clone())
+        });
+        crate::clipboard::copy::copy_text_unannounced(clipboard, &text);
+    }
+
     /// Answers OSC 52 reads whose clipboard text arrived, in the engine that holds the terminal.
     /// A terminal that is gone gets nothing.
     pub(crate) fn poll_clipboard_reads(&mut self) {

@@ -47,7 +47,10 @@ impl App {
             self.services.registries.surface_registry.clone(),
         ));
         let window_id = window.id();
-        let mut preset = view::PresetView::new(gpu, window, drafts, registry, keybindings);
+        let mut preset = {
+            let clipboard = self.window_clipboard(&window);
+            view::PresetView::new(gpu, window, clipboard, drafts, registry, keybindings)
+        };
         crate::view::ui::present_first_frame(&mut preset);
         self.view.views.insert(window_id, Box::new(preset));
         self.state.preset_view_id = Some(window_id);

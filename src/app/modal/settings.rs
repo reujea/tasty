@@ -66,9 +66,11 @@ impl App {
             format: init.file_format.clone(),
             handler: init.file_handler.clone(),
         });
+        let clipboard = self.window_clipboard(&window);
         let mut modal = view::SettingsView::new(
             gpu,
             window,
+            clipboard,
             init.settings,
             crate::runtime::file_catalog::FormatCatalog::new(init.file_format),
             crate::runtime::file_catalog::HandlerCatalog::new(init.file_handler),

@@ -1,6 +1,7 @@
 //! The one door every host text copy goes through: the window's [`TerminalClipboard`] picks the
 //! backend (its Wayland selection on a native Wayland start, arboard elsewhere) and the window's
-//! toast stack reports the result. Terminal selections, vi yanks, link menus and copy shortcuts
+//! toast stack reports the result. Terminal selections, vi yanks, link menus, copy shortcuts and
+//! egui widget copies (a text field's Ctrl+C or Ctrl+X, a selectable label, `ctx.copy_text`) all
 //! end here, so a failed write never shows a success toast.
 
 use super::error::ClipboardError;
@@ -20,6 +21,42 @@ pub(crate) fn copy_text(
 ) -> bool {
     let result = write(clipboard, text, primary);
     copy_feedback(toasts, result, key, hint, scope)
+}
+
+/// Writes what an egui widget of the window copied since the last call, if anything, and shows
+/// the result in that window. A widget belongs to no surface, so the toast is window-wide; a cut
+/// shows the same toast because egui's output does not tell the two apart. Returns whether there
+/// was a copy, so the caller redraws to show the toast.
+pub(crate) fn copy_egui_text(
+    gpu: &mut crate::gpu::GpuState,
+    clipboard: &mut TerminalClipboard,
+    toasts: &mut ToastManager,
+) -> bool {
+    let Some(text) = gpu.take_egui_copy() else {
+        return false;
+    };
+    copy_text(
+        clipboard,
+        toasts,
+        &text,
+        false,
+        "toast.copied",
+        Vec::new(),
+        ToastScope::Window,
+    );
+    true
+}
+
+/// Writes `text` for a screen that has no toast stack (the boot error and shell setup screens, the quit dialog).
+/// A failure is only logged.
+pub(crate) fn copy_text_unannounced(clipboard: &mut TerminalClipboard, text: &str) -> bool {
+    match write(clipboard, text, false) {
+        Ok(()) => true,
+        Err(error) => {
+            tracing::warn!("clipboard copy failed: {error}");
+            false
+        }
+    }
 }
 
 fn write(
@@ -102,5 +139,11 @@ mod tests {
             ToastScope::Window,
         ));
         assert_eq!(toasts.messages(), vec![crate::i18n::t("toast.copied")]);
+    }
+
+    /// Given a screen without toasts, When its copy fails, Then the door reports failure only.
+    #[test]
+    fn an_unannounced_copy_reports_its_failure() {
+        assert!(!copy_text_unannounced(&mut unavailable(), "text"));
     }
 }

@@ -1,8 +1,11 @@
-//! egui's text clipboard. On a native Wayland start the window's [`crate::file::drag::TextSelection`]
-//! takes copies and pastes, because egui-winit is built without smithay-clipboard (its second data
-//! device would compete with the standing one for incoming drags) and its arboard fallback speaks
-//! only X11. X11, XWayland and the other OSes keep egui-winit's clipboard unchanged: there the
-//! window has no `TextSelection` and every path below falls through to egui-winit.
+//! egui's text clipboard. Copies never reach egui-winit: `apply_egui_output` takes every copy out
+//! of egui's output and keeps the text until the window's owner passes it to the copy door
+//! (`crate::clipboard::copy`), which writes through the window's `TerminalClipboard` and shows the
+//! result. Pastes on a native Wayland start come from the window's
+//! [`crate::file::drag::TextSelection`], because egui-winit is built without smithay-clipboard (its
+//! second data device would compete with the standing one for incoming drags) and its arboard
+//! fallback speaks only X11. X11, XWayland and the other OSes keep egui-winit's paste: there the
+//! window has no `TextSelection` and the paste paths below fall through to egui-winit.
 use super::GpuState;
 use winit::{event::WindowEvent, window::Window};
 
@@ -59,18 +62,24 @@ impl GpuState {
             .map_or(0, |id| id.value())
     }
 
-    /// Hands egui's output to egui-winit after taking the copied text for the Wayland selection.
+    /// Hands egui's output to egui-winit after taking out the copied text, which waits for
+    /// [`Self::take_egui_copy`]. A newer copy replaces one not yet taken.
     pub(super) fn apply_egui_output(&mut self, window: &Window, output: egui::PlatformOutput) {
-        let output = match self.text_selection.as_mut() {
-            Some(selection) => {
-                let (output, copied) = take_copied_text(output);
-                if let Some(text) = copied {
-                    selection.copy(text);
-                }
-                output
-            }
-            None => output,
-        };
+        let output = hold_copied_text(&mut self.egui_copy, output);
+        self.egui_state.handle_platform_output(window, output);
+    }
+
+    /// The text an egui widget of this window copied since the last call. The window's owner
+    /// writes it through the copy door.
+    pub fn take_egui_copy(&mut self) -> Option<String> {
+        self.egui_copy.take()
+    }
+
+    /// Gives a copy to egui-winit's own clipboard, as before the copy door. Only the home-in-use
+    /// screen does this: it runs its own event loop outside App and has no `TerminalClipboard`.
+    pub(crate) fn copy_with_egui_winit(&mut self, window: &Window, text: String) {
+        let mut output = egui::PlatformOutput::default();
+        output.commands.push(egui::OutputCommand::CopyText(text));
         self.egui_state.handle_platform_output(window, output);
     }
 
@@ -240,6 +249,19 @@ pub(crate) fn paste_key(
         _ => None,
     });
     key == Some(egui::Key::Paste) || (command && key == Some(egui::Key::V))
+}
+
+/// Moves every copy out of `output` into `held`. A copy still held stays unless a newer one replaces
+/// it, so a frame without copies never drops one the owner has not taken yet.
+pub(crate) fn hold_copied_text(
+    held: &mut Option<String>,
+    output: egui::PlatformOutput,
+) -> egui::PlatformOutput {
+    let (output, copied) = take_copied_text(output);
+    if copied.is_some() {
+        *held = copied;
+    }
+    output
 }
 
 /// Removes every copy request from `output` and returns the last copied text.

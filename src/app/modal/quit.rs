@@ -105,7 +105,10 @@ impl App {
         };
 
         let window_id = window.id();
-        let mut modal = crate::view::QuitView::new(gpu, window);
+        let mut modal = {
+            let clipboard = self.window_clipboard(&window);
+            crate::view::QuitView::new(gpu, window, clipboard)
+        };
         crate::view::ui::present_first_frame(&mut modal);
         self.open_modal(Box::new(modal), window_id, crate::view::ModalKind::Quit);
     }

@@ -48,6 +48,8 @@ pub struct PresetView {
     file_chooser: crate::view::file_chooser::WindowFileChooser,
     pending_browse: Option<crate::adapters::ui::preset::surface_settings::FieldBrowseRequest>,
     pub(crate) toasts: ToastManager,
+    /// This window's clipboard: egui widget copies go through the copy door with it.
+    clipboard: crate::clipboard::terminal::TerminalClipboard,
     pending_presentation: Option<PendingPresentation>,
     shown: bool,
 }
@@ -66,12 +68,14 @@ impl PresetView {
     pub fn new(
         gpu: GpuState,
         winit: Arc<winit::window::Window>,
+        clipboard: crate::clipboard::terminal::TerminalClipboard,
         drafts: PresetDrafts,
         surface_registry: Option<SurfaceKindCatalog>,
         keybindings: KeybindingSettings,
     ) -> Self {
         Self {
             base: ViewBase::new(gpu, winit),
+            clipboard,
             drafts,
             surface_registry,
             keybindings,
@@ -344,19 +348,16 @@ impl View for PresetView {
             }
         }
 
-        let has_copy = full_output
-            .platform_output
-            .commands
-            .iter()
-            .any(|c| matches!(c, egui::OutputCommand::CopyText(_)));
-        if has_copy {
-            self.toasts.push_info(t("toast.copied"), ToastScope::Window);
-            self.mark_dirty();
-        }
-
         self.base
             .gpu
             .finish_egui_frame(&self.base.winit, full_output);
+        if crate::clipboard::copy::copy_egui_text(
+            &mut self.base.gpu,
+            &mut self.clipboard,
+            &mut self.toasts,
+        ) {
+            self.mark_dirty();
+        }
 
         if !self.shown {
             self.base.winit.set_visible(true);
