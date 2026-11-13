@@ -62,6 +62,11 @@ arboard다. 성공하면 호출한 쪽이 정한 키의 Info 토스트를, 실�
   꺼내 두는 구조는 같아서, 복사가 생겼다면 같은 `GpuState`로 이어서 뜨는 부팅 오류 화면이 그
   글자를 꺼내 쓴다. 이 화면에 고를 수 있는 위젯을 넣으면 다른 화면처럼 토스트 스택을 두고 공통
   함수로 넘긴다.
+- **성공 토스트를 띄우면 안 되는 화면**: plugin webview 페이지의 우클릭 메뉴
+  ([컨텍스트 메뉴](../../dev-guide/context-menu.md))는 토스트 카드가 겹친 webview 가 통째로
+  숨겨져(`webview_sync::hidden_under_toast`) 복사한 그 페이지를 가린다. 공통 함수의
+  `copy_text_reporting_failure` 로 써서 **실패만** 토스트로 알리고, 성공은 소유 plugin 에
+  `webview.context_menu_selected` 로 보내 페이지 안에서 알리게 한다.
 
 공통 함수를 거치지 않는 쓰기는 아래뿐이다. `src/source_guards/clipboard_write_has_one_door.rs`가
 쓰기 호출 형태마다 허용한 구현 함수 밖의 호출을 막는다. 형태에는 상위 API(arboard,
