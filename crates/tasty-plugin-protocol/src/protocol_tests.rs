@@ -703,3 +703,71 @@ fn paste_text_and_cut_round_trip_on_the_wire() {
         assert_eq!(back, ev);
     }
 }
+
+/// 복사 결과 알림을 모르는 이전 `PluginEvent` 의 축소 복제. 실제 이전 정의처럼
+/// `kind` 태그와 `#[serde(other)]` fallback 을 쓴다.
+#[derive(Debug, serde::Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum PreviousPluginEvent {
+    SurfaceInvalidated {
+        surface_id: u32,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+/// 복사 결과 알림은 surface·popup 대상마다 정한 모양으로 나가고 되읽히며,
+/// 이전 호스트 정의에서는 Unknown 으로 읽힌다.
+#[test]
+fn copy_text_event_round_trips_and_reads_as_unknown_in_the_previous_host() {
+    let cases = [
+        (
+            CopyTargetWire::Surface { surface_id: 4 },
+            serde_json::json!({ "t": "surface", "surface_id": 4 }),
+        ),
+        (
+            CopyTargetWire::Popup { instance_id: 9 },
+            serde_json::json!({ "t": "popup", "instance_id": 9 }),
+        ),
+    ];
+    for (target, target_json) in cases {
+        let ev = PluginEvent::CopyText {
+            target,
+            text: "hello".into(),
+        };
+        let v = serde_json::to_value(&ev).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({ "kind": "copy_text", "target": target_json, "text": "hello" })
+        );
+        let back: PluginEvent = serde_json::from_value(v.clone()).unwrap();
+        assert!(
+            matches!(back, PluginEvent::CopyText { target: t, ref text } if t == target && text == "hello"),
+            "{back:?}"
+        );
+        let old: PreviousPluginEvent =
+            serde_json::from_value(v).expect("이전 호스트도 읽어야 한다");
+        assert_eq!(old, PreviousPluginEvent::Unknown);
+    }
+}
+
+/// 모르는 복사 대상은 알림 전체를 깨뜨리지 않고 Unknown 대상으로 읽힌다.
+#[test]
+fn copy_text_with_a_future_target_reads_the_target_as_unknown() {
+    let v = serde_json::json!({
+        "kind": "copy_text",
+        "target": { "t": "banner", "instance_id": 1 },
+        "text": "x"
+    });
+    let ev: PluginEvent = serde_json::from_value(v).expect("모르는 대상도 읽어야 한다");
+    assert!(
+        matches!(
+            ev,
+            PluginEvent::CopyText {
+                target: CopyTargetWire::Unknown,
+                ..
+            }
+        ),
+        "{ev:?}"
+    );
+}

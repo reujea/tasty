@@ -189,6 +189,7 @@ impl PluginManager {
             fresh_frame_surfaces: std::collections::HashSet::new(),
             invalidated_popups: Vec::new(),
             invalidated_banners: Vec::new(),
+            copied_texts: std::collections::VecDeque::new(),
             sys: sysinfo::System::new(),
             pending_rss_samples: Vec::new(),
             file_format,

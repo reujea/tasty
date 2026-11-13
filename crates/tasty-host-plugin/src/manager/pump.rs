@@ -43,6 +43,8 @@ struct CollectedPluginEvents {
     new_invalidated_popups: Vec<u64>,
     // banner의 무입력 갱신 요청.
     new_invalidated_banners: Vec<u64>,
+    // 플러그인 egui의 복사 결과. 채널의 플러그인 id를 담는다.
+    new_copied_texts: Vec<super::PluginCopiedText>,
     // plugin 이 폐기한 shared buffer (성장 재생성 등): (plugin_id, buffer_id).
     // host 매핑을 해제하지 않으면 구세대 버퍼가 plugin 수명 내내 남는다.
     released_buffers: Vec<(String, SharedBufferId)>,
@@ -544,6 +546,16 @@ impl PluginManager {
             PluginEvent::SharedBufferReleased { id: buffer_id } => {
                 out.released_buffers.push((id.to_string(), buffer_id));
             }
+            PluginEvent::CopyText { target, text } => {
+                match super::PluginCopyTarget::from_wire(target) {
+                    Some(target) => out.new_copied_texts.push(super::PluginCopiedText {
+                        plugin_id: id.to_string(),
+                        target,
+                        text,
+                    }),
+                    None => tracing::debug!("[plugin {}] copy_text with unknown target", id),
+                }
+            }
             PluginEvent::Unknown => {
                 // forward-compat fallback — 신버전 plugin 의 미지 이벤트는 무시.
                 tracing::debug!("[plugin {}] unknown event kind (ignored)", id);
@@ -571,6 +583,7 @@ impl PluginManager {
             new_invalidated_popups,
             new_invalidated_banners,
             released_buffers,
+            new_copied_texts,
             disconnected,
         } = collected;
 
@@ -593,6 +606,9 @@ impl PluginManager {
         }
         if !new_invalidated_banners.is_empty() {
             self.invalidated_banners.extend(new_invalidated_banners);
+        }
+        for item in new_copied_texts {
+            super::copied_text::push_bounded(&mut self.copied_texts, item);
         }
         for (plugin_id, buffer_id) in released_buffers {
             self.release_plugin_buffer(&plugin_id, buffer_id);
@@ -1329,6 +1345,52 @@ mod tests {
         );
         assert_eq!(out.new_invalidated_banners, vec![7]);
         assert_eq!(out.new_invalidated_popups, vec![9]);
+    }
+
+    /// 복사 결과는 채널의 플러그인 id와 함께 큐에 담기고, 한 번 꺼내면 다시 나오지 않는다.
+    /// 모르는 대상의 결과는 담지 않는다.
+    #[test]
+    fn copy_text_events_queue_with_the_channel_id_and_drain_once() {
+        use tasty_plugin_protocol::CopyTargetWire;
+        let mut mgr = mgr();
+        let mut out = CollectedPluginEvents::default();
+        let copy = |target, text: &str| PluginEvent::CopyText {
+            target,
+            text: text.into(),
+        };
+        mgr.classify_event(
+            "com.tasty.markdown",
+            copy(CopyTargetWire::Popup { instance_id: 2 }, "a"),
+            &mut out,
+        );
+        mgr.classify_event(
+            "com.tasty.image",
+            copy(CopyTargetWire::Surface { surface_id: 5 }, "b"),
+            &mut out,
+        );
+        mgr.classify_event(
+            "com.tasty.image",
+            copy(CopyTargetWire::Unknown, "c"),
+            &mut out,
+        );
+        mgr.apply_collected_events(out);
+        let got = mgr.take_copied_texts();
+        assert_eq!(
+            got,
+            vec![
+                crate::PluginCopiedText {
+                    plugin_id: "com.tasty.markdown".into(),
+                    target: crate::PluginCopyTarget::Popup(2),
+                    text: "a".into(),
+                },
+                crate::PluginCopiedText {
+                    plugin_id: "com.tasty.image".into(),
+                    target: crate::PluginCopyTarget::Surface(5),
+                    text: "b".into(),
+                },
+            ]
+        );
+        assert!(mgr.take_copied_texts().is_empty());
     }
 
     #[test]

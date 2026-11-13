@@ -20,13 +20,14 @@ pub use line::write_line;
 pub use protocol::{
     AuthAck, AuthAckEnvelope, AuthMessage, BannerBodyCutWire, BannerCloseReason,
     BannerClosedParams, BannerOpenParams, BannerOpenResult, BannerSetContextParams,
-    CommandInvokeParams, EventDispatchParams, ExtensionHookInvokeParams, ExtensionHookKind,
-    ExtensionHookMode, ExtensionHookPhase, ExtensionHookResult, HandleChannelMessage,
-    ImeCursorWire, ImeWire, IpcCallResult, ModifiersWire, PixelRect, PluginEvent, PluginRequest,
-    PluginResponse, PointerButtonWire, PopupCloseReason, PopupClosedParams, PopupOpenParams,
-    PopupOpenResult, PopupSetContextParams, RawInputEventWire, RawInputWire, RectWire,
-    SharedBufferCreateParams, SharedBufferCreateResult, SharedBufferDirtyParams, SharedBufferId,
-    SurfaceResult, SurfaceSetContextParams, ThemeWire, WebviewNavigationAttemptParams,
+    CommandInvokeParams, CopyTargetWire, EventDispatchParams, ExtensionHookInvokeParams,
+    ExtensionHookKind, ExtensionHookMode, ExtensionHookPhase, ExtensionHookResult,
+    HandleChannelMessage, ImeCursorWire, ImeWire, IpcCallResult, ModifiersWire, PixelRect,
+    PluginEvent, PluginRequest, PluginResponse, PointerButtonWire, PopupCloseReason,
+    PopupClosedParams, PopupOpenParams, PopupOpenResult, PopupSetContextParams, RawInputEventWire,
+    RawInputWire, RectWire, SharedBufferCreateParams, SharedBufferCreateResult,
+    SharedBufferDirtyParams, SharedBufferId, SurfaceResult, SurfaceSetContextParams, ThemeWire,
+    WebviewNavigationAttemptParams,
 };
 pub use protocol::{
     METHOD_BANNER_CLOSED, METHOD_BANNER_OPEN, METHOD_BANNER_SET_CONTEXT, METHOD_COMMAND_INVOKE,

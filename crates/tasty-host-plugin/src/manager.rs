@@ -466,6 +466,8 @@ pub struct PluginManager {
     pub(super) invalidated_popups: Vec<u64>,
     /// 입력 없이도 재그리기가 필요한 banner의 요청. pump가 넣고 take_invalidated_banners가 가져간다.
     pub(super) invalidated_banners: Vec<u64>,
+    /// 플러그인 egui의 복사 결과. pump가 넣고 take_copied_texts가 꺼낸다. 덮어쓰지 않는 일회성 큐다.
+    pub(super) copied_texts: VecDeque<PluginCopiedText>,
     /// sysinfo 측정 핸들 — tick 마다 새로 만들지 않고 재사용(할당 비용 절감).
     pub(super) sys: sysinfo::System,
     /// 이번 tick의 plugin별 RSS. App이 가져가 이상 탐지·저장·알림을 처리한다.
@@ -566,6 +568,8 @@ pub struct PluginPopupEntry {
 mod banner;
 mod buffer;
 mod connect;
+mod copied_text;
+pub use copied_text::{PluginCopiedText, PluginCopyTarget};
 mod events;
 mod ipc_dispatch;
 mod lifecycle;

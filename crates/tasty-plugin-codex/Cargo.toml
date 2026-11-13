@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-codex"
-version = "0.2.102"
+version = "0.2.103"
 edition = "2024"
 license = "MIT"
 description = "External Tasty plugin: codex CLI integration"

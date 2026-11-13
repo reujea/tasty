@@ -92,6 +92,8 @@ pub(crate) fn pump_plugins(app: &mut App, state: &mut RequestContext, engine: &m
         let hello_pairs = mgr.pump(std::time::Instant::now());
         // headless에는 다시 그릴 창이 없다. 기록을 비워 쌓이지 않게 한다.
         drop(mgr.take_fresh_frame_surfaces());
+        // 복사 결과를 쓸 GUI 클립보드가 없다. 버려서 쌓이지 않게 한다.
+        drop(mgr.take_copied_texts());
         crate::app::plugin_failure_notice::report_plugin_failures(mgr, engine);
         hello_pairs
     };

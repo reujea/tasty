@@ -547,9 +547,29 @@ pub enum PluginEvent {
     /// surface/popup/banner *닫힘* 경로는 host 가 frame 메타 기반으로 자체 해제
     /// 하므로, 이 이벤트는 인스턴스 생존 중 교체 시점용이다. fire-and-forget.
     SharedBufferReleased { id: SharedBufferId },
+    /// plugin 의 egui 가 복사·잘라내기로 만든 텍스트. 호스트가 OS 클립보드에 쓴다.
+    /// 화면이 바뀌지 않는 복사는 프레임 알림이 생략되므로 프레임과 별개로 보낸다.
+    /// fire-and-forget.
+    CopyText {
+        target: CopyTargetWire,
+        text: String,
+    },
     /// 미래 variant 의 forward-compat fallback — 구버전 host 가 모르는 kind 를
     /// 받아도 메시지 단위 파싱 실패 없이 무시할 수 있게 한다 (CHANGELOG 정책:
     /// 새 variant 는 fallback 가능한 형태로만). host 는 debug 로그 후 버린다.
+    #[serde(other)]
+    Unknown,
+}
+
+/// [`PluginEvent::CopyText`] 의 대상. surface 와 popup 중 정확히 하나를 가리킨다.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "t", rename_all = "snake_case")]
+pub enum CopyTargetWire {
+    /// egui-mesh surface.
+    Surface { surface_id: u32 },
+    /// egui-mesh popup 인스턴스.
+    Popup { instance_id: u64 },
+    /// 미래 대상의 forward-compat fallback. 호스트는 이 대상의 복사 결과를 버린다.
     #[serde(other)]
     Unknown,
 }
