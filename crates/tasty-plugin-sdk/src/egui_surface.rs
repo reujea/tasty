@@ -31,7 +31,7 @@ use tasty_plugin_protocol::{
 };
 
 #[cfg(any(unix, windows))]
-use tasty_plugin_protocol::{PluginEvent, SharedBufferId};
+use tasty_plugin_protocol::{CopyTargetWire, PluginEvent, SharedBufferId};
 
 #[cfg(any(unix, windows))]
 use crate::error::PluginError;
@@ -184,6 +184,20 @@ impl EguiMeshCore {
         self.last_copied_text.take()
     }
 
+    /// 직전 렌더의 복사 결과가 있으면 호스트에 [`PluginEvent::CopyText`] 로 알리고 소비한다.
+    /// 화면이 바뀌지 않는 복사는 프레임 송신이 생략되므로 생략 판정 전에 부른다.
+    #[cfg(any(unix, windows))]
+    fn notify_copied_text(
+        &mut self,
+        host: &HostHandle,
+        target: CopyTargetWire,
+    ) -> Result<(), PluginError> {
+        let Some(text) = self.take_copied_text() else {
+            return Ok(());
+        };
+        host.notify(&PluginEvent::CopyText { target, text })
+    }
+
     /// 직전 렌더의 IME 커서 위치를 복사한다. 송신을 생략해도 최신 렌더 값을 유지한다.
     fn ime_cursor(&self) -> Option<ImeCursorWire> {
         self.last_ime_cursor
@@ -198,10 +212,16 @@ impl EguiMeshCore {
         run_ui: impl FnMut(&Context),
     ) -> Option<MeshFrame> {
         let full = self.ctx.run(raw, run_ui);
-        self.last_copied_text = full.platform_output.commands.iter().find_map(|c| match c {
-            OutputCommand::CopyText(text) if !text.is_empty() => Some(text.clone()),
-            _ => None,
-        });
+        // 한 패스에 여러 번 복사하면 호스트 선택 복사처럼 마지막 값을 쓴다.
+        self.last_copied_text = full
+            .platform_output
+            .commands
+            .iter()
+            .rev()
+            .find_map(|c| match c {
+                OutputCommand::CopyText(text) if !text.is_empty() => Some(text.clone()),
+                _ => None,
+            });
         self.last_ime_cursor = full.platform_output.ime.map(|ime| ImeCursorWire {
             rect: rect_wire(ime.rect),
             cursor_rect: rect_wire(ime.cursor_rect),
@@ -659,7 +679,9 @@ impl EguiMeshSurface {
         self.core.last_theme()
     }
 
-    /// 직전 렌더에서 나온 CopyText를 한 번 꺼낸다. OS 클립보드 기록은 호출자가 맡는다.
+    /// 직전 렌더에서 나온 CopyText를 한 번 꺼낸다. [`Self::paint`]·[`Self::repaint_last`] 는
+    /// 이 값을 호스트에 알리며 소비하므로, 그 뒤에는 `None` 이다. [`Self::run_frame`] 만 쓰는
+    /// 호출자가 꺼낼 때 쓴다.
     pub fn take_copied_text(&mut self) -> Option<String> {
         self.core.take_copied_text()
     }
@@ -676,6 +698,12 @@ impl EguiMeshSurface {
     ) -> Result<Option<u64>, PluginError> {
         let frame = self.run_frame_inner(params, run_ui);
         self.schedule_self_repaint(host);
+        self.core.notify_copied_text(
+            host,
+            CopyTargetWire::Surface {
+                surface_id: self.surface_id,
+            },
+        )?;
         let Some(frame) = frame else {
             return Ok(None);
         };
@@ -715,6 +743,12 @@ impl EguiMeshSurface {
     ) -> Result<Option<u64>, PluginError> {
         let frame = self.core.repaint_last(run_ui);
         self.schedule_self_repaint(host);
+        self.core.notify_copied_text(
+            host,
+            CopyTargetWire::Surface {
+                surface_id: self.surface_id,
+            },
+        )?;
         let Some(frame) = frame else {
             return Ok(None);
         };
@@ -798,6 +832,12 @@ impl EguiMeshPopup {
         self.core.last_theme()
     }
 
+    /// [`EguiMeshSurface::take_copied_text`] 의 popup 대응. [`Self::paint`]·[`Self::repaint_last`]
+    /// 는 이 값을 호스트에 알리며 소비한다.
+    pub fn take_copied_text(&mut self) -> Option<String> {
+        self.core.take_copied_text()
+    }
+
     /// `popup.set_context` 한 frame 을 그려 shared buffer 에 commit 하고 host 에
     /// [`PluginEvent::PopupPaintFrame`] 알림을 보낸다. 정적 화면이면 `Ok(None)`.
     #[cfg(any(unix, windows))]
@@ -809,6 +849,12 @@ impl EguiMeshPopup {
     ) -> Result<Option<u64>, PluginError> {
         let frame = self.run_frame_inner(params, run_ui);
         self.schedule_self_repaint(host);
+        self.core.notify_copied_text(
+            host,
+            CopyTargetWire::Popup {
+                instance_id: self.instance_id,
+            },
+        )?;
         let Some(frame) = frame else {
             return Ok(None);
         };
@@ -833,6 +879,12 @@ impl EguiMeshPopup {
     ) -> Result<Option<u64>, PluginError> {
         let frame = self.core.repaint_last(run_ui);
         self.schedule_self_repaint(host);
+        self.core.notify_copied_text(
+            host,
+            CopyTargetWire::Popup {
+                instance_id: self.instance_id,
+            },
+        )?;
         let Some(frame) = frame else {
             return Ok(None);
         };
@@ -2322,5 +2374,227 @@ mod tests {
         assert_eq!(buf, "world");
         assert_eq!(surface.take_copied_text().as_deref(), Some("hello "));
         assert_eq!(surface.take_copied_text(), None);
+    }
+
+    /// 루프백 소켓으로 이은 시험용 [`HostHandle`] 과 호스트 쪽 소켓.
+    /// 출력이 dedup 되지 않아 commit 으로 가면 공유 버퍼 요청이 200ms 안에 실패한다.
+    #[cfg(any(unix, windows))]
+    fn loopback_host() -> (HostHandle, std::net::TcpStream) {
+        use std::net::{TcpListener, TcpStream};
+        use std::sync::{Arc, Mutex};
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind localhost");
+        let port = listener.local_addr().expect("local addr").port();
+        let accept = std::thread::spawn(move || listener.accept().expect("accept").0);
+        let plugin_side = TcpStream::connect(("127.0.0.1", port)).expect("connect");
+        let host_side = accept.join().expect("accept thread");
+        let mut host = HostHandle::new(
+            Arc::new(Mutex::new(plugin_side)),
+            Arc::new(Mutex::new(std::collections::HashMap::new())),
+        );
+        host.timeout = Duration::from_millis(200);
+        host_side
+            .set_read_timeout(Some(Duration::from_millis(300)))
+            .expect("read timeout");
+        (host, host_side)
+    }
+
+    /// 호스트 쪽 소켓에서 읽기 시간이 끝날 때까지 받은 알림을 모두 읽는다.
+    /// `event` 가 아닌 줄(공유 버퍼 요청 등)은 건너뛴다.
+    #[cfg(any(unix, windows))]
+    fn read_events(host_side: &std::net::TcpStream) -> Vec<PluginEvent> {
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(host_side.try_clone().expect("clone"));
+        let mut events = Vec::new();
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    let payload: serde_json::Value =
+                        serde_json::from_str(&line).expect("한 줄은 json 이다");
+                    if let Ok(event) = serde_json::from_value(payload["event"].clone()) {
+                        events.push(event);
+                    }
+                }
+            }
+        }
+        events
+    }
+
+    /// 받은 알림 중 복사 결과만 (대상, 텍스트) 로 모은다.
+    #[cfg(any(unix, windows))]
+    fn copied(events: &[PluginEvent]) -> Vec<(CopyTargetWire, String)> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                PluginEvent::CopyText { target, text } => Some((*target, text.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// 전체가 선택된 포커스 `TextEdit` 을 그리는 UI. 매 프레임 같은 선택을 다시 넣어 출력이 안정된다.
+    fn selected_text_edit_ui(id: egui::Id, buf: &mut String) -> impl FnMut(&Context) + '_ {
+        move |ctx: &Context| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.memory_mut(|m| m.request_focus(id));
+                let mut output = egui::TextEdit::singleline(&mut *buf).id(id).show(ui);
+                let range = egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(0),
+                    egui::text::CCursor::new(5),
+                );
+                output.state.cursor.set_char_range(Some(range));
+                output.state.store(ui.ctx(), output.response.id);
+            });
+        }
+    }
+
+    /// 화면 출력이 같아 PaintFrame 이 생략되는 Copy 도 surface 복사 결과 알림은 한 번 나가고,
+    /// 알린 값은 소비되어 take_copied_text 와 다음 paint 에서 다시 나오지 않는다.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn surface_paint_reports_a_copy_even_when_the_frame_is_skipped() {
+        let (host, host_side) = loopback_host();
+        let mut surface = EguiMeshSurface::new(4);
+        let id = egui::Id::new("surface_copy_notify");
+        let mut buf = "hello world".to_string();
+        let mut params = ctx_params(400, 100, 1.0);
+        params.surface_id = 4;
+        let mut settled = false;
+        for _ in 0..8 {
+            if surface
+                .run_frame(&params, selected_text_edit_ui(id, &mut buf))
+                .is_none()
+            {
+                settled = true;
+                break;
+            }
+        }
+        assert!(settled, "시험 전에 출력이 안정되어야 한다");
+
+        let mut copy_params = params.clone();
+        copy_params.raw_input.events = vec![RawInputEventWire::Copy];
+        let sent = surface.paint(&host, &copy_params, selected_text_edit_ui(id, &mut buf));
+        assert!(
+            matches!(sent, Ok(None)),
+            "같은 출력은 프레임을 생략한다: {sent:?}"
+        );
+        assert_eq!(surface.take_copied_text(), None, "알린 값은 소비된다");
+        let sent = surface.paint(&host, &params, selected_text_edit_ui(id, &mut buf));
+        assert!(matches!(sent, Ok(None)), "{sent:?}");
+
+        assert_eq!(
+            copied(&read_events(&host_side)),
+            vec![(
+                CopyTargetWire::Surface { surface_id: 4 },
+                "hello".to_string()
+            )]
+        );
+    }
+
+    /// popup 의 Cut 은 선택을 지우고 popup 대상 복사 결과를 한 번 알린다.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn popup_paint_reports_a_cut_once() {
+        let (host, host_side) = loopback_host();
+        let mut popup = EguiMeshPopup::new(9);
+        let id = egui::Id::new("popup_cut_notify");
+        let mut buf = "hello world".to_string();
+        let params = PopupSetContextParams {
+            instance_id: 9,
+            width_px: 400,
+            height_px: 100,
+            pixels_per_point: 1.0,
+            raw_input: RawInputWire::default(),
+            theme: None,
+            need_full_textures: false,
+        };
+        popup.run_frame(&params, selected_text_edit_ui(id, &mut buf));
+        let mut cut_params = params.clone();
+        cut_params.raw_input.events = vec![RawInputEventWire::Cut];
+        // Cut 은 화면을 바꾸므로 프레임 commit 을 시도한다. 시험 대역은 공유 버퍼 요청에
+        // 답하지 않아 commit 이 실패하므로, 복사 결과 알림은 그 전에 나가야 한다.
+        let sent = popup.paint(&host, &cut_params, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.memory_mut(|m| m.request_focus(id));
+                ui.add(egui::TextEdit::singleline(&mut buf).id(id));
+            });
+        });
+        assert!(
+            !matches!(sent, Ok(None)),
+            "Cut 은 화면을 바꾸므로 프레임을 생략하지 않는다: {sent:?}"
+        );
+        assert_eq!(buf, " world");
+        assert_eq!(popup.take_copied_text(), None, "알린 값은 소비된다");
+
+        assert_eq!(
+            copied(&read_events(&host_side)),
+            vec![(
+                CopyTargetWire::Popup { instance_id: 9 },
+                "hello".to_string()
+            )]
+        );
+    }
+
+    /// 입력 없는 다시 그리기에서 UI 코드가 복사한 텍스트도 surface·popup 모두 알린다.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn repaint_last_reports_text_copied_by_ui_code() {
+        let (host, host_side) = loopback_host();
+        let label = |ctx: &Context| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.label("static");
+            });
+        };
+        let copy_and_label = |ctx: &Context| {
+            ctx.copy_text("from ui".into());
+            label(ctx);
+        };
+        let mut surface = EguiMeshSurface::new(2);
+        let mut popup = EguiMeshPopup::new(3);
+        let popup_params = PopupSetContextParams {
+            instance_id: 3,
+            width_px: 200,
+            height_px: 50,
+            pixels_per_point: 1.0,
+            raw_input: RawInputWire::default(),
+            theme: None,
+            need_full_textures: false,
+        };
+        for _ in 0..8 {
+            surface.run_frame(&ctx_params(200, 50, 1.0), label);
+            popup.run_frame(&popup_params, label);
+        }
+        let s = surface.repaint_last(&host, copy_and_label);
+        let p = popup.repaint_last(&host, copy_and_label);
+        assert!(
+            matches!(s, Ok(None)) && matches!(p, Ok(None)),
+            "{s:?} {p:?}"
+        );
+        assert_eq!(
+            copied(&read_events(&host_side)),
+            vec![
+                (
+                    CopyTargetWire::Surface { surface_id: 2 },
+                    "from ui".to_string()
+                ),
+                (
+                    CopyTargetWire::Popup { instance_id: 3 },
+                    "from ui".to_string()
+                ),
+            ]
+        );
+    }
+
+    /// 한 패스에 여러 번 복사하면 호스트 선택 복사와 같게 마지막 값을 쓴다.
+    #[test]
+    fn several_copies_in_one_pass_keep_the_last() {
+        let mut surface = EguiMeshSurface::new(1);
+        surface.run_frame(&ctx_params(200, 50, 1.0), |ctx| {
+            ctx.copy_text("first".into());
+            ctx.copy_text("last".into());
+        });
+        assert_eq!(surface.take_copied_text().as_deref(), Some("last"));
     }
 }
