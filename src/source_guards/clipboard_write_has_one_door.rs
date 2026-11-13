@@ -106,7 +106,7 @@ const RULES: &[Rule] = &[
                 &["write_text", "write_text_and_image"],
             ),
             within("src/file/drag.rs", &["copy_with_png"]),
-            within("src/file/drag/wayland/clip.rs", &["copy"]),
+            within("src/file/drag/wayland/clip.rs", &["copy_selection_text"]),
         ],
     },
     Rule {

@@ -61,11 +61,15 @@ impl Clipboard {
     }
 
     /// Makes `text` the selection, using the latest keyboard or pointer serial this client got.
-    pub(in crate::file::drag) fn copy(&mut self, text: String) -> Result<(), String> {
+    pub(in crate::file::drag) fn copy_selection_text(
+        &mut self,
+        text: String,
+    ) -> Result<(), String> {
         self.copy_with_png(text, None)
     }
 
-    /// Like `copy`, also offering `png` as `image/png` (a screenshot's path and image together).
+    /// Like `copy_selection_text`, also offering `png` as `image/png` (a screenshot's path and
+    /// image together).
     pub(in crate::file::drag) fn copy_with_png(
         &mut self,
         text: String,

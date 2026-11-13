@@ -122,7 +122,7 @@ impl TextSelection {
     }
     /// Makes `text` the system selection. The caller reports a failure (the copy door's toast).
     pub(crate) fn copy_checked(&mut self, text: String) -> Result<(), String> {
-        self.0.copy(text)
+        self.0.copy_selection_text(text)
     }
     /// The terminal's paste: text first, a PNG only when the selection has no text. A foreign
     /// selection is read in the background and its result, failures included, comes from
