@@ -142,6 +142,11 @@ impl Clipboard {
         Ok(owner.state.clip.take_received(self.client))
     }
 
+    /// Runs the shared queue only, so a selection this process holds keeps answering other apps.
+    pub(in crate::file::drag) fn pump(&mut self) -> Result<(), String> {
+        self.owner.borrow_mut().poll()
+    }
+
     /// The PNG of a selection this process holds, read without waiting. Runs the queue first so a
     /// selection another app took since is seen as gone.
     pub(in crate::file::drag) fn own_png(&mut self) -> Result<Option<Arc<[u8]>>, String> {

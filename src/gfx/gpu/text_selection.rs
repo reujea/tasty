@@ -80,14 +80,6 @@ impl GpuState {
         self.egui_copy.is_some()
     }
 
-    /// Gives a copy to egui-winit's own clipboard, as before the copy door. Only the home-in-use
-    /// screen does this: it runs its own event loop outside App and has no `TerminalClipboard`.
-    pub(crate) fn copy_with_egui_winit(&mut self, window: &Window, text: String) {
-        let mut output = egui::PlatformOutput::default();
-        output.commands.push(egui::OutputCommand::CopyText(text));
-        self.egui_state.handle_platform_output(window, output);
-    }
-
     /// Collects finished pastes for the next egui frame. True while one waits and the window
     /// should redraw.
     pub fn poll_text_selection(&mut self) -> bool {

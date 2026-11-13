@@ -155,6 +155,18 @@ impl TerminalClipboard {
         None
     }
 
+    /// Runs the Wayland selection's queue for a window whose loop does not poll text selections
+    /// (the home-in-use screen). True while copied text is still being sent, so the caller polls
+    /// again soon. Without a Wayland selection there is nothing to run.
+    pub(crate) fn pump_selection(&mut self) -> bool {
+        #[cfg(target_os = "linux")]
+        if let Some(wayland) = self.wayland.as_mut() {
+            wayland.selection.pump();
+            return wayland.selection.busy();
+        }
+        false
+    }
+
     /// A paste is being read; the window must keep polling.
     pub(crate) fn paste_pending(&self) -> bool {
         #[cfg(target_os = "linux")]

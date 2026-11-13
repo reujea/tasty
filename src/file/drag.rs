@@ -142,6 +142,13 @@ impl TextSelection {
     pub(crate) fn waiting(&self) -> bool {
         self.0.waiting()
     }
+    /// Runs the shared queue without taking any result, for a window outside App whose loop
+    /// does not poll text selections. Copied text reaches other apps only while this runs.
+    pub(crate) fn pump(&mut self) {
+        if let Err(error) = self.0.pump() {
+            tracing::warn!(%error, "Wayland clipboard queue failed");
+        }
+    }
     /// The PNG of a selection this process holds (a published capture); `None` for another app's.
     pub(crate) fn own_png(&mut self) -> Result<Option<std::sync::Arc<[u8]>>, String> {
         self.0.own_png()

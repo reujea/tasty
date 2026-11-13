@@ -156,10 +156,7 @@ const RULES: &[Rule] = &[
         calls: &["handle_platform_output("],
         receiver: None,
         allowed: &[
-            within(
-                "src/gfx/gpu/text_selection.rs",
-                &["apply_egui_output", "copy_with_egui_winit"],
-            ),
+            within("src/gfx/gpu/text_selection.rs", &["apply_egui_output"]),
             whole("crates/tasty-gallery/"),
         ],
     },
@@ -167,7 +164,8 @@ const RULES: &[Rule] = &[
         what: "egui-winit 클립보드로 복사 넘기기",
         calls: &["copy_with_egui_winit("],
         receiver: None,
-        allowed: &[within("src/boot/home_in_use.rs", &["render"])],
+        // 홈 사용 중 화면도 공통 함수로 쓴다. 이 이름의 우회를 다시 만들면 걸린다.
+        allowed: &[],
     },
     Rule {
         what: "egui 이미지 복사(egui-winit 이 직접 쓴다)",

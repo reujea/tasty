@@ -4,9 +4,13 @@
 //! 부작용을 내지 않도록 로그 파일·memory.db·저널·설정 저장·플러그인·테마·IPC·트레이를 만들지 않고,
 //! 창과 GPU만 만들어 기존 부팅 오류 화면을 보여 준다. 종료는 실패 코드 1이다.
 //! App을 만들지 못했을 때도 같은 화면으로 실행을 막는다.
+//!
+//! 화면의 복사는 다른 창처럼 공통 복사 함수로 쓰고 토스트로 결과를 보인다. App 루프가 없으므로
+//! egui repaint 요청과 네이티브 Wayland 선택의 큐는 이 루프가 직접 처리한다.
 
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -54,7 +58,9 @@ pub(crate) fn run_screen_on(
         instance: Arc::new(crate::app::new_gpu_instance()),
         window: None,
         gpu: None,
+        clipboard: None,
         toasts: crate::adapters::ui::ToastManager::new(),
+        repaint_at: None,
     };
     event_loop.run_app(&mut screen)?;
     Ok(std::process::ExitCode::from(EXIT_CODE))
@@ -66,7 +72,12 @@ struct HomeInUseScreen {
     instance: Arc<wgpu::Instance>,
     window: Option<Arc<Window>>,
     gpu: Option<GpuState>,
+    /// Made on the first copy, with the event loop's display so a native Wayland start writes the
+    /// system selection.
+    clipboard: Option<crate::clipboard::terminal::TerminalClipboard>,
     toasts: crate::adapters::ui::ToastManager,
+    /// A delayed egui repaint (a toast fading out) not yet due.
+    repaint_at: Option<Instant>,
 }
 
 impl HomeInUseScreen {
@@ -77,9 +88,12 @@ impl HomeInUseScreen {
         tracing::error!("boot error shown without a window: {shown}");
     }
 
-    fn create_gpu(&self, window: &Arc<Window>) -> anyhow::Result<GpuState> {
+    fn create_gpu(&mut self, window: &Arc<Window>) -> anyhow::Result<GpuState> {
         // 설정 파일은 읽기만 한다. 정규화 결과를 저장하는 일반 부팅과 달리 쓰지 않는다.
+        // 읽지 못하면 기본값이라 토스트 수명도 기본 수명이다.
         let settings = crate::settings::Settings::load();
+        self.toasts
+            .set_lifetime_ms(settings.overlay.toast_duration_ms);
         let theme_runtime = tasty_themes::ThemeRuntime {
             ui_zoom: settings.appearance.ui_scale_factor(),
             ..settings.theme_runtime()
@@ -104,10 +118,16 @@ impl HomeInUseScreen {
             return;
         };
         let result = gpu.render_boot_error(window, &self.info, &mut self.toasts);
-        // This screen runs outside App, without a display owner or a toast stack, so a copy keeps
-        // egui-winit's clipboard rather than the copy door.
-        if let Some(text) = gpu.take_egui_copy() {
-            gpu.copy_with_egui_winit(window, text);
+        if gpu.has_egui_copy() {
+            let clipboard = self.clipboard.get_or_insert_with(|| {
+                crate::clipboard::terminal::TerminalClipboard::new(
+                    window,
+                    Some(event_loop.owned_display_handle()),
+                )
+            });
+            if crate::clipboard::copy::copy_egui_text(gpu, clipboard, &mut self.toasts) {
+                window.request_redraw();
+            }
         }
         match result {
             Ok(true) => event_loop.exit(),
@@ -180,5 +200,45 @@ impl ApplicationHandler<AppEvent> for HomeInUseScreen {
                 window.request_redraw();
             }
         }
+    }
+
+    /// egui's repaint requests (a toast fading) come as events, as in App.
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::EguiRepaint { .. } => {
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            AppEvent::EguiRepaintAfter { at, .. } => {
+                self.repaint_at = Some(self.repaint_at.map_or(at, |cur| cur.min(at)));
+            }
+            _ => {}
+        }
+    }
+
+    /// Draws a delayed repaint once due and keeps the Wayland selection's queue running, then
+    /// sleeps until the next of the two.
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let sending = self
+            .clipboard
+            .as_mut()
+            .is_some_and(|clipboard| clipboard.pump_selection());
+        let now = Instant::now();
+        if self.repaint_at.is_some_and(|at| at <= now) {
+            self.repaint_at = None;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        let poll_at = sending.then(|| now + crate::app::timers::PENDING_MENU_POLL_INTERVAL);
+        let wake = match (self.repaint_at, poll_at) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        event_loop.set_control_flow(match wake {
+            Some(at) => winit::event_loop::ControlFlow::WaitUntil(at),
+            None => winit::event_loop::ControlFlow::Wait,
+        });
     }
 }
