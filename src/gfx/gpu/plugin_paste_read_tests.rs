@@ -85,8 +85,8 @@ fn cancelling_drops_an_arrived_result_not_yet_taken() {
 }
 
 /// 연결은 `GpuState` 없이 시험할 수 없어 소스로 고정한다. 끝난 읽기는 호스트 입력칸(`edit_keys_text_arrived`)과
-/// `HeldPastes`보다 먼저 플러그인 기다림이 가려 가고, 기다리는 동안 실패도 받으며, 폴링이 이어진다. 팝업은 회신을
-/// 약속한 것만 기다린다.
+/// `HeldPastes`보다 먼저 플러그인 기다림이 가려 가고, 기다리는 동안 실패도 받으며, 폴링이 이어진다. 기다리는 키 시점
+/// 읽기는 읽는 중인 선택을 취소하지 않고 기다림으로 돌려준다. 팝업은 회신을 약속한 것만 기다린다.
 #[test]
 fn the_window_sorts_plugin_reads_before_host_pastes() {
     let squash = |s: &str| s.split_whitespace().collect::<String>();
@@ -105,6 +105,12 @@ fn the_window_sorts_plugin_reads_before_host_pastes() {
         .find(&squash("if !self.edit_keys_text_arrived(text.clone())"))
         .expect("호스트 입력칸 전달");
     assert!(failures < sorted && sorted < host, "순서가 바뀌었다");
+    assert!(
+        src.contains(&squash(
+            "None if wait => { self.plugin_reads.started(tag); PluginClip::Pending(tag) }"
+        )),
+        "읽는 중인 선택을 기다리지 않는다"
+    );
     assert!(
         src.contains(&squash(
             "|| self.edit_keys.awaits_text() || self.plugin_reads.busy()"
