@@ -395,6 +395,22 @@ SDK는 `plugin_catalog::load`만, `tasty-egui-theme`는 `font` 모듈만 부른�
 의존 경로는 `cargo tree -e normal,build -i tasty-i18n -p <플러그인>`으로 확인한다.
 그때는 다시 측정하고 루트 `lang/`을 검사 대상에 넣는다.
 
+이 비교 위치 밖에 플러그인 빌드 입력이 생기면 `plugin_build_inputs_are_judged` 시험이 실패한다.
+시험은 `crates/*`·`vendor/*`의 test 밖 소스에서 `include_str!`·`include_bytes!`·`include!`의 경로와
+크레이트 루트 `build.rs`의 `rerun-if-changed` 경로를 모은다.
+각 경로는 읽는 크레이트 안의 비교 위치(`src/`·`lang/`·`assets/`·`build.rs`·`Cargo.toml`·`tasty-plugin.toml`)이거나
+시험의 예외 표에 근거와 함께 있어야 한다. 근거는 두 가지다.
+하나는 위 루트 `lang/`처럼 바이너리 비교로 링크에서 빠진다고 잰 것이다.
+다른 하나는 읽는 크레이트가 플러그인 폐포 밖이라는 것이다. 이 예외는 그 크레이트가 매니페스트 플러그인의
+normal·build 폐포(모든 target)에 들어오면 실패한다. 폐포는 Cargo.lock과 각 매니페스트로 구한다.
+`tasty-ui-widgets`의 `LOGO_PNG`(`assets/icons/icon_256.png`)도 링크에서 빠진다고 잰 예외다.
+번들 플러그인 9개의 release 바이너리(aarch64 Linux)에서 이 PNG의 바이트열을 찾지 못했고,
+같은 빌드의 호스트 바이너리에서는 PNG 전체를 찾았다. 플러그인 소스는 `LOGO_PNG`와 `draw_wordmark`를 부르지 않는다.
+`dist` 프로필과 다른 target은 재지 않았다.
+링크에서 빠진다는 예외는 사용처를 감시하지 않는다. 플러그인 쪽 코드가 `builtin_toml`에 닿는 함수나
+`LOGO_PNG`를 쓰게 되어도 시험은 통과하므로, 다시 측정할 조건은 계속 사람이 확인한다.
+`build.rs`가 `rerun-if-changed` 없이 직접 읽는 파일도 모으지 않는다.
+
 Cargo.toml과 매니페스트 버전은 함께 맞추고 Cargo.lock도 갱신해 같은 커밋에 넣는다.
 현재 설치본 반영 방법은 [플러그인 개발](plugin-development.md)에 있다.
 같은 버전에서 내용이 달라 재동기화될 수 있다는 사실이 배포 버전 관리 의무를 없애지는 않는다.
