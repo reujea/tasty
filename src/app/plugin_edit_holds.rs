@@ -327,11 +327,9 @@ fn plugin_replay(
 
 impl App {
     /// 보류 중인 창의 입력이면 줄 세운다. 줄을 섰으면 true 다. 글자를 기다리는 창의 포인터 누름·포커스 상실은
-    /// 기다림을 끝내 줄 선 입력을 먼저 재생한 뒤 그 입력을 처리하게 한다.
+    /// 기다림을 끝내 줄 선 입력을 먼저 재생한 뒤 그 입력을 처리하게 한다. 재생이 만든 새 기다림도 끝낸다.
     pub(super) fn queue_behind_plugin_edit(&mut self, id: WindowId, event: &WindowEvent) -> bool {
-        if let Some(ended) = self.plugin_edit_holds.interrupt_await(id, event) {
-            self.apply_await_settled(ended);
-        }
+        paste_await::interrupt_awaits(self, id, event);
         self.plugin_edit_holds.queue(id, event)
     }
 
@@ -441,6 +439,16 @@ impl App {
             main.copy_text(&text, false, "toast.copied", Vec::new(), copy_scope(target));
         }
         self.replay_edit_steps(window, steps);
+    }
+}
+
+impl paste_await::AwaitSink for App {
+    fn awaits(&mut self) -> &mut PluginEditHolds {
+        &mut self.plugin_edit_holds
+    }
+
+    fn apply_awaited(&mut self, settled: AwaitSettled) {
+        self.apply_await_settled(settled);
     }
 }
 

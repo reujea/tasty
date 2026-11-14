@@ -302,6 +302,110 @@ fn focus_loss_and_a_pointer_press_end_the_await_without_the_key() {
     }
 }
 
+/// App 처럼 정리를 실행하는 시험 쪽. 재생한 입력은 평소 경로처럼 기다림 뒤에 줄을 서거나 view 에 간다. view 가
+/// 붙여넣기 키(`PASTE`)를 받으면 네이티브 Wayland 처럼 다시 읽기 시작하고 새 기다림을 만든다.
+struct ReplayingApp {
+    holds: PluginEditHolds,
+    mgr: PluginManager,
+    next_tag: u64,
+    originals: Vec<WindowEvent>,
+    dispatched: Vec<WindowEvent>,
+    cancelled: Vec<u64>,
+    reads: Vec<(WindowId, u64)>,
+}
+
+const PASTE: usize = 9;
+
+impl super::AwaitSink for ReplayingApp {
+    fn awaits(&mut self) -> &mut PluginEditHolds {
+        &mut self.holds
+    }
+
+    fn apply_awaited(&mut self, settled: AwaitSettled) {
+        assert!(settled.sends.is_empty(), "중단된 기다림이 요청을 보냈다");
+        self.cancelled.extend(settled.cancelled);
+        self.reads.extend(settled.reads);
+        for item in settled.resolved {
+            for step in item.steps {
+                let event = match step {
+                    ReplayStep::Original(event, _) => {
+                        self.originals.push(event);
+                        continue;
+                    }
+                    ReplayStep::Input(event) | ReplayStep::View(event) => event,
+                };
+                if self.holds.queue(window(), &event) {
+                    continue;
+                }
+                if event == key(PASTE) {
+                    let request = self
+                        .mgr
+                        .begin_edit_request(DEMO, SURFACE)
+                        .expect("stub 은 회신을 약속했다");
+                    self.next_tag += 1;
+                    self.holds.await_paste(
+                        window(),
+                        request,
+                        self.next_tag,
+                        Some(event),
+                        false,
+                        Instant::now(),
+                    );
+                } else {
+                    self.dispatched.push(event);
+                }
+            }
+        }
+    }
+}
+
+/// 읽기를 기다리는 동안 붙여넣기 키를 한 번 더 누른 뒤 창이 포커스를 잃거나 포인터를 누르면, 줄 선 두 번째 키의
+/// 재생이 만든 새 기다림도 같은 이벤트로 끝난다. 이 이벤트 뒤에는 기다림이 남지 않고, 두 읽기 모두 취소되며,
+/// 원래 키는 어느 것도 재생하지 않고, 그 뒤에 줄 선 키만 순서대로 간다. 늦게 온 글자는 보내지 않는다.
+#[test]
+fn a_second_paste_queued_behind_an_await_does_not_outlive_focus_loss() {
+    let press = WindowEvent::MouseInput {
+        device_id: winit::event::DeviceId::dummy(),
+        state: ElementState::Pressed,
+        button: winit::event::MouseButton::Left,
+    };
+    for end in [WindowEvent::Focused(false), press] {
+        let now = Instant::now();
+        let mut app = ReplayingApp {
+            holds: PluginEditHolds::default(),
+            mgr: mgr(),
+            next_tag: TAG,
+            originals: Vec::new(),
+            dispatched: Vec::new(),
+            cancelled: Vec::new(),
+            reads: Vec::new(),
+        };
+        let first = await_paste(&mut app.holds, &mut app.mgr, true, false, now);
+        assert!(app.holds.queue(window(), &key(PASTE)));
+        assert!(app.holds.queue(window(), &key(2)));
+        super::interrupt_awaits(&mut app, window(), &end);
+        assert!(app.holds.await_deadline().is_none(), "기다림이 남았다");
+        assert!(
+            !app.holds.queue(window(), &key(3)),
+            "끝난 기다림이 줄 세웠다"
+        );
+        assert_eq!(app.cancelled.len(), 2, "두 기다림의 요청을 모두 거둔다");
+        assert_eq!(app.cancelled[0], first);
+        assert_eq!(app.reads, vec![(window(), TAG), (window(), TAG + 1)]);
+        assert!(app.originals.is_empty(), "원래 키를 재생했다");
+        assert_eq!(app.dispatched, vec![key(2)]);
+        let mut outcomes = app.mgr.take_edit_outcomes();
+        let late = vec![
+            (window(), TAG, PluginPasteEnd::Text("late".into())),
+            (window(), TAG + 1, PluginPasteEnd::Text("late".into())),
+        ];
+        let out = app
+            .holds
+            .settle_awaits(&mut outcomes, late, now, &|_, _| true);
+        assert!(out.sends.is_empty(), "포커스를 잃은 창에 늦게 붙여넣었다");
+    }
+}
+
 /// 기다리는 동안 플러그인 실행이 끝나면(종료·재시작) 그 요청의 `Gone`으로 기다림을 끝낸다. 새 실행에 이전
 /// 붙여넣기를 보내지 않고 원래 키도 재생하지 않는다.
 #[test]

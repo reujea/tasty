@@ -272,6 +272,21 @@ impl PluginEditHolds {
     }
 }
 
+/// 기다림 정리를 실행하는 쪽(App). 정리가 재생한 입력은 그 창의 평소 경로를 다시 거친다.
+pub(crate) trait AwaitSink {
+    fn awaits(&mut self) -> &mut PluginEditHolds;
+    fn apply_awaited(&mut self, settled: AwaitSettled);
+}
+
+/// 그 창의 포인터 누름·포커스 상실로 기다림을 끝내고 정리를 실행한다. 정리가 재생한 줄 선 붙여넣기 키는 새 읽기와
+/// 새 기다림을 만들 수 있으므로, 기다림이 남지 않을 때까지 같은 이벤트로 다시 끝낸다. 그래서 이 이벤트 뒤에는 어떤
+/// 기다림도 남지 않고 늦게 온 글자가 포커스를 잃은 창에 가지 않는다. 다시 끝낼 때마다 재생할 입력이 줄어 반복이 끝난다.
+pub(crate) fn interrupt_awaits(sink: &mut impl AwaitSink, window: WindowId, event: &WindowEvent) {
+    while let Some(ended) = sink.awaits().interrupt_await(window, event) {
+        sink.apply_awaited(ended);
+    }
+}
+
 /// 기다림을 끝낸다. 요청은 보내지 않았으므로 취소한다. `replay`면 원래 키를 한 번 재생한다(편집이 일어나지 않았음이
 /// 확실하다). `cancel_read`면 아직 진행 중일 수 있는 읽기도 취소한다. 줄 선 입력은 늘 재생한다.
 fn end_await(

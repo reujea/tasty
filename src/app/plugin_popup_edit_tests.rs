@@ -326,3 +326,140 @@ fn begin_queues_the_request_then_holds_the_key_or_tracks_a_keyless_edit() {
     );
     assert!(code.contains(&wiring), "보류 계획 실행 연결이 바뀌었다");
 }
+
+/// 글자를 읽는 중인 붙여넣기(`awaiting`)는 회신을 약속한 대상이면 요청 id 를 받아 기다린다. 요청은 아직 붙이지
+/// 않으며 원래 키·tag·형식 붙여넣기 여부를 그대로 넘긴다. 약속하지 않은 팝업·닫힌 팝업·관리자 없음은 기다리지
+/// 않고 원래 키를 한 번 재생한다(그 읽기는 `begin_plugin_field_edit`이 거둔다).
+#[test]
+fn a_pending_paste_awaits_only_where_a_reply_is_promised() {
+    use crate::view::main::plugin_popup_keys::AwaitedPaste;
+    let mut mgr = mgr();
+    let pending = |ask: PluginEditAsk, tag, format_paste| PluginEditAsk {
+        edit: EditKey::Paste,
+        text: None,
+        awaiting: Some(AwaitedPaste { tag, format_paste }),
+        ..ask
+    };
+    let cases = [
+        (
+            pending(ask(1), 41, false),
+            PluginCopyTarget::Popup(1),
+            41,
+            false,
+        ),
+        (
+            pending(surface_ask(Some(OPTED)), 42, true),
+            PluginCopyTarget::Surface(5),
+            42,
+            true,
+        ),
+    ];
+    for (ask, target, want_tag, want_format) in cases {
+        match popup_edit_plan(Some(&mut mgr), ask) {
+            PopupEditPlan::Await(waiting) => {
+                let PopupEditAwait {
+                    request,
+                    tag,
+                    original,
+                    format_paste,
+                } = *waiting;
+                assert_eq!(request.target, target);
+                assert_eq!(request.plugin_id, OPTED);
+                assert_eq!(
+                    (tag, original, format_paste),
+                    (want_tag, Some(WindowEvent::Focused(true)), want_format)
+                );
+            }
+            other => panic!("{target:?} 가 기다리지 않는다: {other:?}"),
+        }
+    }
+    let replay = vec![ReplayStep::Original(
+        WindowEvent::Focused(true),
+        EditKey::Paste,
+    )];
+    for instance in [2, 3] {
+        match popup_edit_plan(Some(&mut mgr), pending(ask(instance), 43, false)) {
+            PopupEditPlan::Replay(steps) => assert_eq!(steps, replay, "팝업 {instance}"),
+            other => panic!("팝업 {instance} 이 기다렸다: {other:?}"),
+        }
+    }
+    match popup_edit_plan(None, pending(ask(1), 44, false)) {
+        PopupEditPlan::Replay(steps) => assert_eq!(steps, replay),
+        other => panic!("관리자 없이 기다렸다: {other:?}"),
+    }
+}
+
+/// 계획 실행의 기다림 연결은 `App` 없이 시험할 수 없어 소스로 고정한다. 재생하는 붙여넣기는 시작한 읽기를 거두고,
+/// 기다림은 그 창의 보류에 남긴다.
+#[test]
+fn begin_cancels_the_read_of_a_replayed_paste_and_keeps_an_await() {
+    let squash = |s: &str| s.split_whitespace().collect::<String>();
+    let src = include_str!("plugin_popup_edit.rs");
+    let (code, _) = src.split_once("#[cfg(test)]").expect("시험 모듈 앞의 코드");
+    let code = squash(code);
+    for (wiring, what) in [
+        (
+            "let read = ask.awaiting.map(|awaiting| awaiting.tag);
+             match popup_edit_plan(self.plugin_manager.as_mut(), ask) {
+             PopupEditPlan::Replay(steps) => {
+             if let Some(tag) = read && let Some(view) = self.view.views.get_mut(&id) {
+             view.base_mut().gpu.cancel_plugin_paste(tag); }
+             self.replay_edit_steps(id, steps); }",
+            "재생하는 붙여넣기가 읽기를 거두지 않는다",
+        ),
+        (
+            "PopupEditPlan::Await(waiting) => { let PopupEditAwait { request, tag, original, format_paste, } = *waiting;
+             self.plugin_edit_holds.await_paste( id, request, tag, original, format_paste, Instant::now(), ); }",
+            "기다림을 창의 보류에 남기지 않는다",
+        ),
+    ] {
+        assert!(code.contains(&squash(wiring)), "{what}");
+    }
+}
+
+/// 중단 연결도 `App` 없이 시험할 수 없어 소스로 고정한다. 창 입력은 줄 서기 전에 포인터 누름·포커스 상실로 기다림을
+/// 반복해 끝내고(`interrupt_awaits`), App 의 정리는 요청 취소 → 읽기 취소 → 요청 붙이기 → 재생 순서다.
+#[test]
+fn window_input_interrupts_awaits_and_the_app_applies_them_in_order() {
+    let squash = |s: &str| s.split_whitespace().collect::<String>();
+    let src = squash(include_str!("plugin_edit_holds.rs"));
+    let interrupt = squash(
+        "pub(super) fn queue_behind_plugin_edit(&mut self, id: WindowId, event: &WindowEvent) -> bool {
+         paste_await::interrupt_awaits(self, id, event);
+         self.plugin_edit_holds.queue(id, event) }",
+    );
+    assert!(src.contains(&interrupt), "창 입력이 기다림을 끝내지 않는다");
+    let sink = squash(
+        "impl paste_await::AwaitSink for App { fn awaits(&mut self) -> &mut PluginEditHolds { &mut self.plugin_edit_holds }
+         fn apply_awaited(&mut self, settled: AwaitSettled) { self.apply_await_settled(settled); } }",
+    );
+    assert!(src.contains(&sink), "중단 정리가 App 정리를 타지 않는다");
+    let body = src
+        .split_once(&squash(
+            "fn apply_await_settled(&mut self, settled: AwaitSettled) {",
+        ))
+        .and_then(|(_, rest)| rest.split_once(&squash("pub(super) fn settle_plugin_edit_holds(")))
+        .map(|(body, _)| body.to_string())
+        .expect("apply_await_settled 본문");
+    let at = |needle: &str| {
+        body.find(&squash(needle))
+            .unwrap_or_else(|| panic!("apply_await_settled 에 {needle} 이 없다"))
+    };
+    let order = [
+        at("mgr.cancel_edit_request(edit_id);"),
+        at("view.base_mut().gpu.cancel_plugin_paste(tag);"),
+        at("main.queue_plugin_edit_request(target, wire);"),
+        at("self.finish_plugin_edit(item);"),
+    ];
+    assert!(
+        order.windows(2).all(|w| w[0] < w[1]),
+        "정리 순서가 바뀌었다: {order:?}"
+    );
+    let driver = squash(include_str!("plugin_paste_await.rs"));
+    assert!(
+        driver.contains(&squash(
+            "while let Some(ended) = sink.awaits().interrupt_await(window, event) { sink.apply_awaited(ended); }"
+        )),
+        "재생이 만든 새 기다림을 다시 끝내지 않는다"
+    );
+}
