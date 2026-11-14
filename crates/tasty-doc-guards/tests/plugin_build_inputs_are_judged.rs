@@ -6,17 +6,21 @@
 //! 이 시험은 crates/*와 vendor/*의 test 밖 Rust 소스에서 include_str!·include_bytes!·include!의 경로와
 //! 크레이트 루트 build.rs의 rerun-if-changed 경로를 모은다. 각 경로는 읽는 크레이트 안의 비교 위치이거나
 //! 아래 예외 표에 이유와 함께 있어야 한다. 쓰지 않는 예외도 실패로 본다.
+//! 매크로 호출은 이름·`!`·구분자를 따로 읽으므로 세 가지 괄호와 그 사이의 공백·주석을 받는다.
+//! 파일 예외는 그 경로만, 디렉터리 예외는 그 아래 경로만 덮는다.
 //! "플러그인 폐포 밖" 예외는 읽는 크레이트가 매니페스트 플러그인의 normal·build 폐포(모든 target)에
 //! 들어오면 실패한다. 폐포는 Cargo.lock과 각 매니페스트로 구하므로 cargo나 네트워크가 필요 없다.
+//! 폐포의 시작점은 tasty-plugin.toml이 있는 크레이트의 패키지 이름이다(디렉터리 이름과 다를 수 있다).
 //! Cargo.lock은 optional 의존도 담으므로 폐포는 cargo tree보다 넓을 수 있다(조건부 예외가 더 일찍 실패할 뿐이다).
 //!
 //! 한계:
 //! - "링크에서 빠짐(측정)" 예외는 측정 당시의 사용처를 전제로 한다. 플러그인 쪽 코드가 그 데이터를
 //!   쓰게 되는지(예: tasty-i18n의 builtin_toml에 닿는 함수)는 이 시험이 감시하지 않는다.
 //!   전제와 다시 측정할 조건은 docs/dev-guide/release.md "플러그인 버전 비교"에 있다.
+//! - 크레이트 루트가 아닌 위치의 빌드 스크립트(매니페스트 `build = "..."`)는 읽지 않는다.
 //! - build.rs가 rerun-if-changed 없이 std::fs로 읽는 파일, env!로 만든 경로, OUT_DIR 생성물은
 //!   입력으로 모으지 않는다. OUT_DIR 생성물은 build.rs 자체가 비교 대상이다.
-//! - 알 수 없는 인자 형태의 include는 누락하지 않고 실패로 보고한다.
+//! - include 매크로 이름과 `!`를 찾았는데 인자를 읽지 못하면 누락하지 않고 실패로 보고한다.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -47,11 +51,33 @@ enum Kind {
     OutsideClosure,
 }
 
+/// 예외가 덮는 경로. 파일은 정확히 같은 경로만, 디렉터리는 그 아래 경로만 덮는다.
+#[derive(Clone, Copy, Debug)]
+enum Target {
+    File(&'static str),
+    Dir(&'static str),
+}
+
+impl Target {
+    fn path(self) -> &'static str {
+        match self {
+            Target::File(p) | Target::Dir(p) => p,
+        }
+    }
+
+    /// path는 저장소 상대 경로이고 open이면 정해지지 않은 접두어다.
+    fn covers(self, path: &str, open: bool) -> bool {
+        match self {
+            Target::File(f) => !open && path == f,
+            Target::Dir(d) => path == d || path.strip_prefix(d).is_some_and(|r| r.starts_with('/')),
+        }
+    }
+}
+
 struct Exception {
     /// include를 쓰는 크레이트 디렉터리(저장소 상대).
     includer: &'static str,
-    /// 입력 경로의 접두어(저장소 상대).
-    prefix: &'static str,
+    target: Target,
     kind: Kind,
     why: &'static str,
 }
@@ -59,55 +85,55 @@ struct Exception {
 const EXCEPTIONS: &[Exception] = &[
     Exception {
         includer: "crates/tasty-i18n",
-        prefix: "lang/",
+        target: Target::Dir("lang"),
         kind: Kind::NotLinkedMeasured,
         why: "번들 플러그인이 builtin_toml에 닿지 않아 번역표가 링크에서 빠진다. release.md 플러그인 버전 비교의 sha256 측정",
     },
     Exception {
         includer: "crates/tasty-ui-widgets",
-        prefix: "assets/icons/icon_256.png",
+        target: Target::File("assets/icons/icon_256.png"),
         kind: Kind::NotLinkedMeasured,
         why: "LOGO_PNG. 번들 플러그인 release 바이너리 9개에 이 PNG 바이트가 없고 같은 빌드의 호스트 바이너리에는 있었다. release.md 플러그인 버전 비교",
     },
     Exception {
         includer: "crates/tasty-gallery",
-        prefix: "lang/",
+        target: Target::Dir("lang"),
         kind: Kind::OutsideClosure,
         why: "갤러리 앱의 번역표",
     },
     Exception {
         includer: "crates/tasty-gallery",
-        prefix: "assets/icons/",
+        target: Target::Dir("assets/icons"),
         kind: Kind::OutsideClosure,
         why: "갤러리 앱의 아이콘",
     },
     Exception {
         includer: "crates/tasty-platform",
-        prefix: "assets/icons/",
+        target: Target::Dir("assets/icons"),
         kind: Kind::OutsideClosure,
         why: "호스트 창 아이콘",
     },
     Exception {
         includer: "crates/tasty-themes",
-        prefix: "crates/tasty-themes/themes/",
+        target: Target::Dir("crates/tasty-themes/themes"),
         kind: Kind::OutsideClosure,
         why: "내장 테마 TOML",
     },
     Exception {
         includer: "crates/tasty-design-tokens",
-        prefix: "crates/tasty-design-tokens/dtcg/",
+        target: Target::Dir("crates/tasty-design-tokens/dtcg"),
         kind: Kind::OutsideClosure,
         why: "디자인 토큰 사본",
     },
     Exception {
         includer: "crates/tasty-ipc",
-        prefix: "crates/tasty-ipc/fixtures/",
+        target: Target::Dir("crates/tasty-ipc/fixtures"),
         kind: Kind::OutsideClosure,
         why: "IPC 메서드 0.7.0 동결 목록",
     },
     Exception {
         includer: "crates/tasty-host-plugin",
-        prefix: "crates/tasty-host-plugin/keys",
+        target: Target::Dir("crates/tasty-host-plugin/keys"),
         kind: Kind::OutsideClosure,
         why: "번들 서명 공개키(build.rs가 OUT_DIR로 옮긴다)",
     },
@@ -152,7 +178,7 @@ fn parse_arg(lits: &str, at: usize) -> Result<Arg, String> {
         return Err(format!("읽을 수 없는 인자: {}", head(rest)));
     };
     let inner = inner.trim_start();
-    let Some(mut cur) = inner.strip_prefix('(') else {
+    let Some(mut cur) = inner.strip_prefix(['(', '[', '{']) else {
         return Err(format!("concat! 뒤에 괄호가 없다: {}", head(inner)));
     };
     let mut base = Base::SourceDir;
@@ -160,7 +186,7 @@ fn parse_arg(lits: &str, at: usize) -> Result<Arg, String> {
     let mut first = true;
     loop {
         cur = cur.trim_start();
-        if cur.starts_with(')') {
+        if cur.starts_with([')', ']', '}']) {
             return Ok(Arg::Path {
                 base,
                 rel,
@@ -174,7 +200,7 @@ fn parse_arg(lits: &str, at: usize) -> Result<Arg, String> {
         } else if let Some(after) = cur.strip_prefix("env!") {
             let after = after
                 .trim_start()
-                .strip_prefix('(')
+                .strip_prefix(['(', '[', '{'])
                 .unwrap_or(after)
                 .trim_start();
             let (name, n) = read_literal(after)?;
@@ -187,7 +213,7 @@ fn parse_arg(lits: &str, at: usize) -> Result<Arg, String> {
                 other => return Err(format!("알 수 없는 env!({other})")),
             }
             cur = after[n..].trim_start();
-            cur = cur.strip_prefix(')').unwrap_or(cur);
+            cur = cur.strip_prefix([')', ']', '}']).unwrap_or(cur);
         } else {
             // 매크로 변수 등 리터럴이 아닌 조각부터는 정해지지 않는다.
             if rel.is_empty() {
@@ -339,66 +365,85 @@ fn inputs_of(root: &Path, krate: &str, out: &mut Vec<Input>, problems: &mut Vec<
         }
         let rel_s = rel.to_string_lossy().replace('\\', "/");
         let text = blank_gated_lines(src, "test");
-        let code = mask_non_code_aligned(&text);
         let lits = mask_comments_aligned(&text);
-        let src_dir = rel_s.rsplit_once('/').map_or("", |(d, _)| d).to_string();
-        for mac in ["include_str!", "include_bytes!", "include!"] {
-            let mut from = 0;
-            while let Some(off) = code[from..].find(mac) {
-                let pos = from + off;
-                from = pos + mac.len();
-                // include_str!을 찾을 때 include!가 다시 맞지 않게 앞 글자를 확인한다.
-                if code[..pos]
-                    .chars()
-                    .next_back()
-                    .is_some_and(|c| c.is_alphanumeric() || c == '_')
-                {
-                    continue;
-                }
-                let after = code[from..].trim_start();
-                if !after.starts_with('(') {
-                    continue;
-                }
-                let open_at = from + (code[from..].len() - after.len()) + 1;
-                let line = text[..pos].matches('\n').count() + 1;
-                let site = format!("{rel_s}:{line}");
-                match parse_arg(&lits, open_at) {
-                    Ok(Arg::Generated) => {}
-                    Ok(Arg::Path { base, rel, open }) => {
-                        let dir = match base {
-                            Base::SourceDir => src_dir.as_str(),
-                            Base::CrateDir => krate,
-                        };
-                        let rel = match base {
-                            Base::CrateDir => rel.trim_start_matches('/').to_string(),
-                            Base::SourceDir => rel,
-                        };
-                        if rel.starts_with('/') {
-                            problems.push(format!("{site}: 절대 경로 {rel}"));
-                            continue;
-                        }
-                        match normalize(&format!("{dir}/{rel}")) {
-                            Some(path) => out.push(Input {
-                                includer: krate.to_string(),
-                                site,
-                                path: if open && rel.ends_with('/') {
-                                    format!("{path}/")
-                                } else {
-                                    path
-                                },
-                                open,
-                            }),
-                            None => problems.push(format!("{site}: 저장소 밖 경로 {rel}")),
-                        }
-                    }
-                    Err(e) => problems.push(format!("{site}: {mac} {e}")),
-                }
-            }
-        }
+        let (found, bad) = scan_includes(&rel_s, krate, &text);
+        out.extend(found);
+        problems.extend(bad);
         if rel_s == format!("{krate}/build.rs") {
             rerun_inputs(krate, &rel_s, &text, &lits, out, problems);
         }
     }
+}
+
+const INCLUDE_MACROS: &[&str] = &["include_str", "include_bytes", "include"];
+
+/// 파일 하나에서 include 매크로 호출을 찾아 입력으로 바꾼다. text는 test 범위를 비운 원문이다.
+/// 이름 뒤의 `!`와 구분자 사이의 공백·주석을 허용하고 세 가지 괄호를 모두 받는다.
+/// 이름과 `!`는 찾았는데 인자를 읽지 못하면 건너뛰지 않고 문제로 돌려준다.
+fn scan_includes(rel_s: &str, krate: &str, text: &str) -> (Vec<Input>, Vec<String>) {
+    let code = mask_non_code_aligned(text);
+    let lits = mask_comments_aligned(text);
+    let src_dir = rel_s.rsplit_once('/').map_or("", |(d, _)| d);
+    let mut out = Vec::new();
+    let mut problems = Vec::new();
+    let bytes = code.as_bytes();
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut i = 0;
+    while i < bytes.len() {
+        if !is_ident(bytes[i]) || (i > 0 && is_ident(bytes[i - 1])) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < bytes.len() && is_ident(bytes[i]) {
+            i += 1;
+        }
+        let name = &code[start..i];
+        if !INCLUDE_MACROS.contains(&name) {
+            continue;
+        }
+        let rest = code[i..].trim_start();
+        let Some(after_bang) = rest.strip_prefix('!') else {
+            // 함수나 use 경로처럼 매크로 호출이 아닌 같은 이름이다.
+            continue;
+        };
+        let line = text[..start].matches('\n').count() + 1;
+        let site = format!("{rel_s}:{line}");
+        let after = after_bang.trim_start();
+        if !after.starts_with(['(', '[', '{']) {
+            problems.push(format!("{site}: {name}! 뒤에 괄호가 없다: {}", head(after)));
+            continue;
+        }
+        let open_at = code.len() - after.len() + 1;
+        match parse_arg(&lits, open_at) {
+            Ok(Arg::Generated) => {}
+            Ok(Arg::Path { base, rel, open }) => {
+                let (dir, rel) = match base {
+                    Base::SourceDir => (src_dir, rel),
+                    Base::CrateDir => (krate, rel.trim_start_matches('/').to_string()),
+                };
+                if rel.starts_with('/') {
+                    problems.push(format!("{site}: 절대 경로 {rel}"));
+                    continue;
+                }
+                match normalize(&format!("{dir}/{rel}")) {
+                    Some(path) => out.push(Input {
+                        includer: krate.to_string(),
+                        site,
+                        path: if open && rel.ends_with('/') {
+                            format!("{path}/")
+                        } else {
+                            path
+                        },
+                        open,
+                    }),
+                    None => problems.push(format!("{site}: 저장소 밖 경로 {rel}")),
+                }
+            }
+            Err(e) => problems.push(format!("{site}: {name}! {e}")),
+        }
+    }
+    (out, problems)
 }
 
 /// build.rs의 rerun-if-changed 경로는 크레이트 디렉터리 기준이다. `{`부터는 접두어로 본다.
@@ -523,7 +568,13 @@ fn plugin_closure(root: &Path, krates: &[String]) -> BTreeSet<String> {
     let mut stack: Vec<String> = krates
         .iter()
         .filter(|k| k.starts_with("crates/") && root.join(k).join("tasty-plugin.toml").is_file())
-        .map(|k| k.rsplit('/').next().expect("이름").to_string())
+        .map(|k| {
+            dir_of
+                .iter()
+                .find(|(_, d)| *d == k)
+                .map(|(n, _)| n.clone())
+                .unwrap_or_else(|| panic!("{k}의 패키지 이름을 읽지 못했다"))
+        })
         .collect();
     assert!(!stack.is_empty(), "매니페스트 플러그인을 하나도 못 찾았다");
     while let Some(n) = stack.pop() {
@@ -537,11 +588,10 @@ fn plugin_closure(root: &Path, krates: &[String]) -> BTreeSet<String> {
     seen.iter().filter_map(|n| dir_of.get(n).cloned()).collect()
 }
 
-fn covering<'a>(input: &Input) -> Option<&'a Exception> {
-    let stem = input.path.as_str();
-    EXCEPTIONS
+fn covering<'a>(table: &'a [Exception], input: &Input) -> Option<&'a Exception> {
+    table
         .iter()
-        .find(|e| e.includer == input.includer && stem.starts_with(e.prefix))
+        .find(|e| e.includer == input.includer && e.target.covers(&input.path, input.open))
 }
 
 #[test]
@@ -569,7 +619,7 @@ fn every_build_input_is_judged_or_listed_with_a_reason() {
         if judged(&root, input) {
             continue;
         }
-        match covering(input) {
+        match covering(EXCEPTIONS, input) {
             None => problems.push(format!(
                 "{}: {}{} — 플러그인 버전 검사가 비교하지 않는 입력이다. 크레이트의 src·lang·assets로 옮기거나 \
                  예외 표에 근거와 함께 더한다",
@@ -578,7 +628,7 @@ fn every_build_input_is_judged_or_listed_with_a_reason() {
                 if input.open { "…" } else { "" }
             )),
             Some(e) => {
-                used.insert((e.includer, e.prefix));
+                used.insert((e.includer, e.target.path()));
                 if e.kind == Kind::OutsideClosure && closure.contains(e.includer) {
                     problems.push(format!(
                         "{}: {} — 예외 근거가 '플러그인 폐포 밖'인데 {}가 플러그인 폐포에 들어왔다. \
@@ -590,10 +640,12 @@ fn every_build_input_is_judged_or_listed_with_a_reason() {
         }
     }
     for e in EXCEPTIONS {
-        if !used.contains(&(e.includer, e.prefix)) {
+        if !used.contains(&(e.includer, e.target.path())) {
             problems.push(format!(
                 "쓰이지 않는 예외: {} {} ({}). 표에서 지운다",
-                e.includer, e.prefix, e.why
+                e.includer,
+                e.target.path(),
+                e.why
             ));
         }
     }
@@ -671,4 +723,124 @@ fn the_argument_reader_covers_the_forms_in_use() {
     );
     assert!(glob("*/src/*", "crates/a/src/b.rs"));
     assert!(!glob("*/src/*", "crates/a/themes/b.toml"));
+}
+
+fn write_fixture(root: &Path, rel: &str, body: &str) {
+    let p = root.join(rel);
+    std::fs::create_dir_all(p.parent().expect("부모")).expect("디렉터리");
+    std::fs::write(&p, body).expect("쓰기");
+}
+
+#[test]
+fn a_plugin_whose_package_name_differs_from_its_directory_still_has_a_closure() {
+    let scratch = tasty_doc_guards::temp_scratch::Scratch::new("build-inputs-renamed");
+    let root = scratch.path();
+    write_fixture(
+        root,
+        "crates/plug-dir/Cargo.toml",
+        "[package]\nname = \"renamed-plugin\"\nversion = \"0.1.0\"\n\
+         [dependencies]\nshared = { path = \"../shared\" }\n",
+    );
+    write_fixture(
+        root,
+        "crates/plug-dir/tasty-plugin.toml",
+        "id = \"x\"\nversion = \"0.1.0\"\n",
+    );
+    write_fixture(
+        root,
+        "crates/shared/Cargo.toml",
+        "[package]\nname = \"shared\"\nversion = \"0.1.0\"\n",
+    );
+    write_fixture(
+        root,
+        "Cargo.lock",
+        "version = 4\n\n[[package]]\nname = \"renamed-plugin\"\nversion = \"0.1.0\"\n\
+         dependencies = [\n \"shared\",\n]\n\n[[package]]\nname = \"shared\"\nversion = \"0.1.0\"\n",
+    );
+    let krates = vec!["crates/plug-dir".to_string(), "crates/shared".to_string()];
+    let closure = plugin_closure(root, &krates);
+    assert!(
+        closure.contains("crates/shared") && closure.contains("crates/plug-dir"),
+        "디렉터리 이름으로 시작해 폐포가 비었다: {closure:?}"
+    );
+}
+
+#[test]
+fn every_delimiter_and_spacing_of_an_include_call_is_collected() {
+    let forms = [
+        r#"include_bytes!("../data/x.bin")"#,
+        r#"include_bytes! { "../data/x.bin" }"#,
+        r#"include_bytes!["../data/x.bin"]"#,
+        r#"include_bytes !("../data/x.bin")"#,
+        r#"include_bytes /* c */ ! /* d */ ("../data/x.bin")"#,
+        "include_bytes\n    !\n    (\"../data/x.bin\")",
+        r#"include_str!(concat!["../data/", "x.bin"])"#,
+    ];
+    for form in forms {
+        let text = format!("pub const X: &[u8] = {form};\n");
+        let (found, bad) = scan_includes("crates/demo/src/lib.rs", "crates/demo", &text);
+        assert!(bad.is_empty(), "{form}: 문제로 보고했다 {bad:?}");
+        assert_eq!(found.len(), 1, "{form}: 호출을 놓쳤다");
+        assert_eq!(found[0].path, "crates/demo/data/x.bin", "{form}");
+    }
+}
+
+#[test]
+fn an_include_call_whose_argument_cannot_be_read_is_reported_not_skipped() {
+    for form in [
+        "include_bytes!(some_path!())",
+        "include_str!(r\"../raw.txt\")",
+        "include_bytes!;",
+        "include!(SOURCE)",
+    ] {
+        let text = format!("const X: () = {form};\n");
+        let (found, bad) = scan_includes("crates/demo/src/lib.rs", "crates/demo", &text);
+        assert!(found.is_empty(), "{form}: 입력으로 읽었다 {found:?}");
+        assert_eq!(bad.len(), 1, "{form}: 조용히 건너뛰었다");
+    }
+    let (found, bad) = scan_includes(
+        "crates/demo/src/lib.rs",
+        "crates/demo",
+        "use std::include_str;\nfn include(x: u8) -> u8 { x }\n// include_bytes!(\"a\")\nconst S: &str = \"include_str!(x)\";\n",
+    );
+    assert!(
+        found.is_empty() && bad.is_empty(),
+        "매크로 호출이 아닌 이름·주석·문자열을 읽었다: {found:?} {bad:?}"
+    );
+}
+
+#[test]
+fn a_file_exception_covers_only_that_file_and_a_directory_only_its_subtree() {
+    let table = [
+        Exception {
+            includer: "crates/a",
+            target: Target::File("assets/icons/icon_256.png"),
+            kind: Kind::NotLinkedMeasured,
+            why: "시험",
+        },
+        Exception {
+            includer: "crates/a",
+            target: Target::Dir("crates/a/keys"),
+            kind: Kind::OutsideClosure,
+            why: "시험",
+        },
+    ];
+    let input = |path: &str, open: bool| Input {
+        includer: "crates/a".into(),
+        site: "x".into(),
+        path: path.into(),
+        open,
+    };
+    let covered = |path: &str, open: bool| covering(&table, &input(path, open)).is_some();
+    assert!(covered("assets/icons/icon_256.png", false));
+    assert!(!covered("assets/icons/icon_256.png.extra", false));
+    assert!(
+        !covered("assets/icons/icon_256.png", true),
+        "파일 예외가 접두어를 덮었다"
+    );
+    assert!(covered("crates/a/keys", false));
+    assert!(covered("crates/a/keys/release.pem", false));
+    assert!(covered("crates/a/keys/", true));
+    assert!(!covered("crates/a/keys-other/x", false));
+    assert!(!covered("crates/a/keysx", false));
 }
