@@ -91,6 +91,18 @@
                         <Component Id='NoticeMermaid' Guid='*'>
                             <File Id='NoticeMermaidFile' Name='mermaid-MIT.txt' DiskId='1' Source='LICENSES\mermaid-MIT.txt' KeyPath='yes'/>
                         </Component>
+                        <Component Id='NoticeHack' Guid='*'>
+                            <File Id='NoticeHackFile' Name='Hack-MIT-Bitstream-Vera.txt' DiskId='1' Source='LICENSES\Hack-MIT-Bitstream-Vera.txt' KeyPath='yes'/>
+                        </Component>
+                        <Component Id='NoticeNotoEmoji' Guid='*'>
+                            <File Id='NoticeNotoEmojiFile' Name='NotoEmoji-OFL-1.1.txt' DiskId='1' Source='LICENSES\NotoEmoji-OFL-1.1.txt' KeyPath='yes'/>
+                        </Component>
+                        <Component Id='NoticeUbuntu' Guid='*'>
+                            <File Id='NoticeUbuntuFile' Name='Ubuntu-Ubuntu-font-1.0.txt' DiskId='1' Source='LICENSES\Ubuntu-Ubuntu-font-1.0.txt' KeyPath='yes'/>
+                        </Component>
+                        <Component Id='NoticeEmojiIcon' Guid='*'>
+                            <File Id='NoticeEmojiIconFile' Name='emoji-icon-font-MIT.txt' DiskId='1' Source='LICENSES\emoji-icon-font-MIT.txt' KeyPath='yes'/>
+                        </Component>
                     </Directory>
 
                     <Directory Id='Bin' Name='bin'>
@@ -336,6 +348,10 @@
             <ComponentRef Id='NoticeKaTeX'/>
             <ComponentRef Id='NoticeHighlightjs'/>
             <ComponentRef Id='NoticeMermaid'/>
+            <ComponentRef Id='NoticeHack'/>
+            <ComponentRef Id='NoticeNotoEmoji'/>
+            <ComponentRef Id='NoticeUbuntu'/>
+            <ComponentRef Id='NoticeEmojiIcon'/>
             <ComponentRef Id='binary0'/>
             <ComponentRef Id='ApplicationShortcut'/>
 
