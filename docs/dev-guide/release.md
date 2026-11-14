@@ -350,6 +350,8 @@ GitHub Secret을 필수로 요구하지 않으며 `.sig`와 로컬 키 산출물
 `check-plugin-version-bump.sh`는 매니페스트를 가진 번들 플러그인의 실제 내용 변경을 검사한다.
 대상은 해당 디렉터리와 normal/build 의존성이다. dev 의존성은 제외한다.
 Cargo가 보고하는 저장소 안 path 의존성은 workspace 밖에 있어도 포함한다.
+폐포는 `cargo tree -e normal,build --target all --offline`으로 구하므로 다른 OS 전용 의존도 포함한다.
+오프라인으로 읽으므로 다른 target의 크레이트를 받지 않은 환경에서는 판정 불가로 끝난다. 그때는 `cargo fetch --locked`를 먼저 실행한다.
 `vendor` 같은 디렉터리 이름을 따로 목록으로 관리하지 않는다.
 
 - 인라인 `cfg(test)`와 테스트 선언으로만 도달하는 파일은 제품 비교에서 제외한다.

@@ -862,6 +862,94 @@ fn staged_mode_sees_an_outside_path_dependency_committed_after_the_base() {
     );
 }
 
+/// 어느 시험 호스트에서도 참이 아닌 target 전용 path 의존을 둔다. 결과가 호스트 OS와 무관하다.
+fn seed_target_only_workspace(extra_dep: &str) -> tempfile::TempDir {
+    let tmp = tempfile::tempdir().expect("임시 디렉토리");
+    let d = tmp.path();
+    run_git(d, &["init", "--quiet"]);
+    run_git(d, &["config", "user.email", "fixture@example.invalid"]);
+    run_git(d, &["config", "user.name", "fixture"]);
+    run_git(d, &["config", "core.hooksPath", "/dev/null"]);
+    write(
+        d,
+        "Cargo.toml",
+        "[workspace]\nresolver = \"2\"\nmembers = [\"crates/*\"]\n\
+         [workspace.package]\nedition = \"2024\"\n",
+    );
+    write(
+        d,
+        "crates/plug/Cargo.toml",
+        &format!(
+            "[package]\nname = \"plug\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
+             [target.'cfg(target_os = \"haiku\")'.dependencies]\n\
+             shared = {{ path = \"../shared\" }}\n{extra_dep}"
+        ),
+    );
+    write(
+        d,
+        "crates/plug/tasty-plugin.toml",
+        "id = \"com.tasty.plug\"\nversion = \"0.1.0\"\n",
+    );
+    write(d, "crates/plug/src/main.rs", "fn main() {}\n");
+    write(
+        d,
+        "crates/shared/Cargo.toml",
+        "[package]\nname = \"shared\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        d,
+        "crates/shared/src/lib.rs",
+        "pub fn greet() {\n    let _ = 1;\n}\n",
+    );
+    run_git(d, &["add", "-A"]);
+    run_git(d, &["commit", "--quiet", "-m", "seed"]);
+    write(
+        d,
+        "crates/shared/src/lib.rs",
+        "pub fn greet() {\n    let _ = 2;\n}\n",
+    );
+    commit_all(d, "fix(shared): change behaviour");
+    tmp
+}
+
+#[test]
+fn a_change_in_a_dependency_for_another_target_demands_a_bump() {
+    let tmp = seed_target_only_workspace("");
+    let (code, text) = check(tmp.path(), &["--range", "HEAD^", "HEAD"]);
+    assert_eq!(
+        code, 1,
+        "다른 target 전용 의존의 변경을 폐포에서 놓쳤다:\n{text}"
+    );
+    assert!(
+        text.contains("crates/shared/src/lib.rs"),
+        "어느 파일 때문인지 메시지에 없다:\n{text}"
+    );
+}
+
+#[test]
+fn an_unfetched_dependency_for_another_target_is_undecidable_and_says_to_fetch() {
+    let tmp = seed_target_only_workspace("itoa = \"1\"\n");
+    let home = tempfile::tempdir().expect("빈 CARGO_HOME");
+    let out = git_env::command("bash")
+        .arg(script())
+        .args(["--range", "HEAD^", "HEAD"])
+        .current_dir(tmp.path())
+        .env("CARGO_HOME", home.path())
+        .output()
+        .expect("게이트 스크립트 실행");
+    let run = gate_env::GateRun::from_output(&out);
+    assert_eq!(
+        run.code, 2,
+        "받지 않은 의존이 있는데 판정 불가가 아니다:\n{}",
+        run.output
+    );
+    assert!(
+        run.output.contains("cargo fetch --locked"),
+        "cargo fetch 안내가 없다:\n{}",
+        run.output
+    );
+}
+
 #[test]
 fn a_change_in_an_unlinked_path_dependency_outside_the_workspace_does_not() {
     let tmp = seed_vendored_workspace();

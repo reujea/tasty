@@ -85,9 +85,11 @@ closure_of() {
     CLOSURE_FILE="$cache"
     CLOSURE_PATHS="$cache.paths"
     [ -f "$cache" ] && return 0
-    if ! cargo tree -p "$pname" -e normal,build --prefix none --offline 2>"$cache.err" \
-        > "$cache.raw"; then
-        die "판정 불가: cargo tree 가 실패했다 ($pname). cargo 의 stderr:
+    # 플러그인은 여러 OS로 출하하므로 다른 target 전용 의존도 폐포에 넣는다.
+    if ! cargo tree -p "$pname" -e normal,build --target all --prefix none --offline \
+        2>"$cache.err" > "$cache.raw"; then
+        die "판정 불가: cargo tree 가 실패했다 ($pname). 다른 target 의 크레이트를 받지 않았으면
+    cargo fetch --locked 를 먼저 실행한다. cargo 의 stderr:
 $(cat "$cache.err")"
     fi
     awk '{print $1}' "$cache.raw" | sort -u > "$cache.tmp"

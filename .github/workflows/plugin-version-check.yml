@@ -59,6 +59,11 @@ jobs:
       - name: Build the shipping-scope judge
         run: cargo build --locked -p tasty-doc-guards --bin strip-cfg-test
 
+      # 검사는 cargo tree --target all --offline 으로 모든 target 의 의존 폐포를 읽는다.
+      # --target 없이 fetch 하면 모든 target 의 의존을 받는다.
+      - name: Fetch dependencies for every target
+        run: cargo fetch --locked
+
       - name: Plugin version bump gate
         run: |
           if [ "${{ github.event_name }}" = pull_request ]; then
