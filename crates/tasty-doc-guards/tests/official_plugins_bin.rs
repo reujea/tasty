@@ -320,6 +320,7 @@ fn unpack_args<'a>(lock: &'a Path, dl: &'a Path, out: &'a Path) -> Vec<&'a str> 
 
 /// alpha linux-x64 산출물을 `archive`로 바꾸고 잠금 파일의 해시도 맞춘다. 해시 대조를 지나
 /// 아카이브 검사까지 가게 한다.
+#[cfg(unix)]
 fn replace_alpha(lock: &Path, dl: &Path, archive: &Path) {
     let file = artifact_file("com.tasty.alpha", "0.2.0", "linux-x64");
     let new_sha = sha256_hex(&std::fs::read(archive).expect("read archive"));
