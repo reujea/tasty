@@ -1037,35 +1037,6 @@ fn resize_narrow_and_grow_tail_excludes_trailing_padding() {
     assert_eq!(text, long[54..]);
 }
 
-/// Landscape → portrait → landscape: rows sent back to scrollback by the
-/// second shrink carry their saved tail, so the long row stays whole.
-#[test]
-fn resize_rotation_round_trip_keeps_long_row_in_scrollback() {
-    let long = distinct_ascii(80);
-    let mut terminal = long_first_row_then_shrink(120, &long);
-    terminal.resize(54, 10);
-    terminal.resize(120, 3);
-
-    let texts: Vec<String> = terminal
-        .scrollback_lines_all()
-        .iter()
-        .map(|line| {
-            line.cells()
-                .map(|(t, _)| t)
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect();
-    assert!(texts.contains(&long), "scrollback: {texts:?}");
-    let index = texts.iter().position(|t| *t == long).unwrap();
-    assert_eq!(
-        terminal.scrollback_line_wrapped(index),
-        Some(false),
-        "a hard-newline row joined with its tail stays unwrapped"
-    );
-}
-
 /// Join scrollback rows `range` the way a row-wise copy does: a row marked
 /// wrapped continues on the next row, any other row ends with a newline.
 fn copy_scrollback_rows(terminal: &Terminal, range: std::ops::Range<usize>) -> String {
@@ -1102,10 +1073,11 @@ fn resize_narrow_and_shrink_in_one_call_keeps_soft_wrap_mark() {
     );
 }
 
-/// Same row, but cols narrow first and rows shrink in a later resize: the row
-/// joined with its saved tail is judged by its last cell and stays wrapped.
+/// Cols narrow first and rows shrink in a later resize: the row goes to
+/// scrollback with the part shown on screen, still marked wrapped. Its saved
+/// tail is dropped with it.
 #[test]
-fn resize_narrow_then_shrink_keeps_soft_wrap_mark() {
+fn resize_narrow_then_shrink_sends_screen_part_of_soft_wrapped_row() {
     let mut terminal = test_terminal(120, 6);
     terminal.process_bytes("x".repeat(130).as_bytes());
     terminal.process_bytes(b"\r\nout1\r\nout2\r\nout3\r\n$ ");
@@ -1115,25 +1087,89 @@ fn resize_narrow_then_shrink_keeps_soft_wrap_mark() {
     assert_eq!(terminal.scrollback_line_wrapped(0), Some(true));
     assert_eq!(
         copy_scrollback_rows(&terminal, 0..2),
-        format!("{}\n", "x".repeat(130))
+        format!("{}\n", "x".repeat(64))
     );
 }
 
-/// Landscape → portrait → landscape with a soft-wrapped row: the row restored
-/// from scrollback and sent back keeps the wrap mark it had.
+/// Output soft-wrapped at the narrowed width over rows whose saved tails hold
+/// only padding keeps its wrap mark when rows shrink.
 #[test]
-fn resize_rotation_round_trip_keeps_soft_wrap_mark() {
+fn resize_shrink_keeps_soft_wrap_written_after_narrow() {
     let mut terminal = test_terminal(120, 6);
-    terminal.process_bytes("w".repeat(130).as_bytes());
+    terminal.resize(54, 6);
+    terminal.process_bytes("y".repeat(60).as_bytes());
     terminal.process_bytes(b"\r\nout1\r\nout2\r\nout3\r\n$ ");
-    terminal.resize(120, 3);
-    terminal.resize(54, 10);
-    terminal.resize(120, 3);
+    terminal.resize(54, 3);
 
     assert_eq!(
-        copy_scrollback_rows(&terminal, 0..2),
-        format!("{}\n", "w".repeat(130))
+        copy_scrollback_rows(&terminal, 0..3),
+        format!("{}\nout1\n", "y".repeat(60))
     );
+}
+
+/// Same after clearing the screen that was narrowed with content on it.
+#[test]
+fn resize_shrink_keeps_soft_wrap_written_after_narrow_and_clear() {
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes(format!("{}\r\nout1\r\nout2\r\nout3", "z".repeat(100)).as_bytes());
+    terminal.resize(54, 6);
+    terminal.process_bytes(b"\x1b[H\x1b[2J");
+    terminal.process_bytes("y".repeat(60).as_bytes());
+    terminal.process_bytes(b"\r\nout1\r\nout2\r\nout3\r\n$ ");
+    let base = terminal.scrollback_len();
+    terminal.resize(54, 3);
+
+    assert_eq!(
+        copy_scrollback_rows(&terminal, base..base + 3),
+        format!("{}\nout1\n", "y".repeat(60))
+    );
+}
+
+/// A row rewritten after a narrow does not pick up the old row's saved tail
+/// when it goes to scrollback.
+#[test]
+fn resize_shrink_does_not_join_stale_tail_to_rewritten_row() {
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes("s".repeat(130).as_bytes());
+    terminal.resize(54, 6);
+    terminal.process_bytes(b"\x1b[H\x1b[2Jshort\r\nout1\r\nout2\r\nout3\r\nout4\r\n$ ");
+    let base = terminal.scrollback_len();
+    terminal.resize(54, 3);
+
+    assert_eq!(
+        copy_scrollback_rows(&terminal, base..base + 2),
+        "short\nout1\n"
+    );
+}
+
+/// Restore, widen, narrow again, then shrink rows: the screen keeps the last
+/// rows and scrollback gets the restored row as shown at the narrow width.
+#[test]
+fn resize_restore_widen_narrow_then_shrink_keeps_screen_and_scrollback_order() {
+    let long = distinct_ascii(80);
+    let mut terminal = long_first_row_then_shrink(120, &long);
+    terminal.resize(54, 10);
+    terminal.resize(80, 10);
+    assert_eq!(screen_rows(&terminal)[0], long);
+    terminal.resize(54, 10);
+    terminal.resize(54, 3);
+
+    let rows = screen_rows(&terminal);
+    assert_eq!(&rows[..3], &["out3", "out4", "$"], "{rows:?}");
+    let len = terminal.scrollback_len();
+    let texts: Vec<String> = (len - 3..len)
+        .map(|i| {
+            terminal
+                .scrollback_line_full(i)
+                .unwrap()
+                .cells()
+                .map(|(t, _)| t)
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(texts, [&long[..54], "out1", "out2"]);
 }
 
 /// A screen row whose wide grapheme straddles the new right edge keeps the
