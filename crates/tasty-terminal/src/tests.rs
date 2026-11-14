@@ -732,6 +732,159 @@ fn resize_ping_pong_does_not_accumulate_visible_lines_when_cursor_is_high() {
     }
 }
 
+fn screen_rows(terminal: &Terminal) -> Vec<String> {
+    terminal
+        .screen_lines()
+        .iter()
+        .map(|line| {
+            line.visible_cells()
+                .map(|c| c.str().to_string())
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .collect()
+}
+
+/// Regression: shrinking rows and then narrowing cols while growing rows used to
+/// write each restored scrollback row with its old width. termwiz soft-wrapped the
+/// 120-cell row into the 54-col grid and blanked the rows pushed down below it.
+#[test]
+fn resize_narrow_and_grow_restores_rows_without_overwriting_screen() {
+    let mut terminal = test_terminal(120, 6);
+    for i in 1..=12 {
+        terminal.process_bytes(format!("out{i}\r\n").as_bytes());
+    }
+    terminal.process_bytes(b"$ ");
+    terminal.resize(120, 3);
+    terminal.process_bytes(b"echo land\r\nland\r\n$ ");
+
+    terminal.resize(54, 10);
+
+    let rows = screen_rows(&terminal);
+    assert_eq!(
+        &rows[..6],
+        &["out10", "out11", "out12", "$ echo land", "land", "$"],
+        "screen after narrow+grow: {rows:?}"
+    );
+    assert!(rows[6..].iter().all(String::is_empty), "{rows:?}");
+    assert_eq!(terminal.scrollback_len(), 9);
+    assert_eq!(terminal.cursor_position(), (2, 5));
+}
+
+/// Widening while growing rows restores the scrollback rows unchanged, text and
+/// attributes included.
+#[test]
+fn resize_widen_and_grow_restores_rows_with_text_and_attributes() {
+    let mut terminal = test_terminal(54, 6);
+    for i in 1..=5 {
+        terminal.process_bytes(format!("\x1b[31mred{i}\x1b[0m plain{i}\r\n").as_bytes());
+    }
+    terminal.process_bytes(b"$ ");
+    let before: Vec<_> = (0..5).map(|row| terminal.row_cells(row)).collect();
+
+    terminal.resize(54, 3);
+    terminal.resize(120, 10);
+
+    let rows = screen_rows(&terminal);
+    assert_eq!(
+        &rows[..6],
+        &[
+            "red1 plain1",
+            "red2 plain2",
+            "red3 plain3",
+            "red4 plain4",
+            "red5 plain5",
+            "$"
+        ],
+        "screen after widen+grow: {rows:?}"
+    );
+    for (row, expected) in before.iter().enumerate() {
+        let after = terminal.row_cells(row);
+        let visible = |cells: &[(usize, crate::CellInfo)]| -> Vec<(usize, String, String)> {
+            cells
+                .iter()
+                .filter(|(_, c)| !c.text.trim().is_empty())
+                .map(|(col, c)| (*col, c.text.clone(), c.fg.clone()))
+                .collect()
+        };
+        assert_eq!(
+            visible(&after),
+            visible(expected),
+            "row {row} cells changed"
+        );
+    }
+}
+
+/// A restored row wider than the new grid keeps only what fits; the rest waits
+/// in the row's saved tail and comes back when the grid widens again.
+#[test]
+fn resize_narrow_and_grow_keeps_overflow_of_restored_row_for_later_widen() {
+    let long: String = (0..80).map(|i| char::from(b'a' + (i % 26) as u8)).collect();
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes(format!("{long}\r\n").as_bytes());
+    for i in 1..=4 {
+        terminal.process_bytes(format!("out{i}\r\n").as_bytes());
+    }
+    terminal.process_bytes(b"$ ");
+    terminal.resize(120, 3);
+
+    terminal.resize(54, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], long[..54], "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+
+    terminal.resize(120, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], long, "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+}
+
+/// A wide grapheme straddling the new right edge is not split: it goes to the
+/// saved tail whole instead of leaving half a cell on the restored row.
+#[test]
+fn resize_narrow_and_grow_does_not_split_wide_grapheme_at_edge() {
+    let head = "x".repeat(53);
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes(format!("{head}한글\r\n").as_bytes());
+    for i in 1..=4 {
+        terminal.process_bytes(format!("out{i}\r\n").as_bytes());
+    }
+    terminal.process_bytes(b"$ ");
+    terminal.resize(120, 3);
+
+    terminal.resize(54, 10);
+    let lines = terminal.screen_lines();
+    for cell in lines[0].visible_cells() {
+        assert!(
+            cell.cell_index() + cell.width().max(1) <= 54,
+            "cell {:?} at {} crosses the right edge",
+            cell.str(),
+            cell.cell_index()
+        );
+    }
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], head, "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+
+    terminal.resize(120, 10);
+    let rows = screen_rows(&terminal);
+    assert!(rows[0].starts_with(&head), "{rows:?}");
+    assert!(rows[0].ends_with("한글"), "{rows:?}");
+}
+
 /// A representative byte sequence exercising text, CR/LF, SGR color/intensity,
 /// absolute cursor moves, EraseLine, a DECSET mode toggle, and a clear.
 const MIRROR_SEQ: &[u8] = b"hello\r\n\x1b[31mred\x1b[0m world\r\n\x1b[2J\x1b[H\x1b[1mbold\x1b[0m\x1b[?1h\x1b[3;5Hxy\x1b[K";

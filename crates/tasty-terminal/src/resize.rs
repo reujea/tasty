@@ -7,6 +7,11 @@ use termwiz::surface::Change;
 
 use crate::{Terminal, TerminalState};
 
+/// A cell borrowed from a scrollback row, in column order.
+type BorrowedCell<'a> = (&'a str, &'a CellAttributes);
+/// An owned cell as kept in `saved_line_tails`.
+type OwnedCell = (String, CellAttributes);
+
 impl TerminalState {
     /// Resize the grid (surfaces, scroll region, line tails). Returns true if the
     /// dimensions actually changed (the caller then schedules a PTY notify).
@@ -139,26 +144,66 @@ impl TerminalState {
             scroll_count: actual_restored,
         });
 
+        let cols = self.cols;
+        let mut restored_tails = Vec::with_capacity(actual_restored);
         for (row, line) in to_restore.iter().enumerate() {
             self.primary_surface.add_change(Change::CursorPosition {
                 x: Position::Absolute(0),
                 y: Position::Absolute(row),
             });
-            for (text, attrs) in line.cells() {
+            let (fits, tail) = Self::split_restored_row(line, cols);
+            for (text, attrs) in fits {
                 self.primary_surface
                     .add_change(Change::AllAttributes(attrs.clone()));
                 self.primary_surface
                     .add_change(Change::Text(text.to_string()));
             }
+            restored_tails.push(tail);
         }
 
-        if !self.saved_line_tails.is_empty() {
-            let mut shifted = vec![Vec::new(); actual_restored];
-            shifted.append(&mut self.saved_line_tails);
-            self.saved_line_tails = shifted;
+        let any_restored_tail = restored_tails.iter().any(|tail| !tail.is_empty());
+        if any_restored_tail || !self.saved_line_tails.is_empty() {
+            restored_tails.append(&mut self.saved_line_tails);
+            self.saved_line_tails = restored_tails;
         }
 
         actual_restored
+    }
+
+    /// Split a scrollback row into the cells that fit in `cols` and the overflow
+    /// tail. The row keeps the width it had when it scrolled off, so writing it
+    /// whole into a narrower grid would soft-wrap over the rows below. Trailing
+    /// default blank cells are dropped; a wide grapheme crossing the right edge
+    /// moves to the tail whole instead of being split.
+    fn split_restored_row(
+        line: &crate::scrollback::ScrollbackLine,
+        cols: usize,
+    ) -> (Vec<BorrowedCell<'_>>, Vec<OwnedCell>) {
+        let default_attrs = CellAttributes::default();
+        let mut cells: Vec<BorrowedCell<'_>> = line.cells().collect();
+        while cells
+            .last()
+            .is_some_and(|(text, attrs)| text.trim().is_empty() && **attrs == default_attrs)
+        {
+            cells.pop();
+        }
+
+        let mut col = 0usize;
+        let mut split_at = cells.len();
+        for (i, (text, _)) in cells.iter().enumerate() {
+            let width = termwiz::cell::grapheme_column_width(text, None).max(1);
+            if col + width > cols {
+                split_at = i;
+                break;
+            }
+            col += width;
+        }
+        let tail = cells[split_at..]
+            .iter()
+            .map(|(text, attrs)| ((*text).to_string(), (*attrs).clone()))
+            .collect();
+        cells.truncate(split_at);
+        (cells, tail)
     }
 
     /// Check if a line is visually blank (see [`crate::scrollback::cell_is_blank`]).
