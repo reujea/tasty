@@ -126,16 +126,21 @@ MIT는 위 저작권 고지와 허가 문구를 "소프트웨어의 모든 사�
 | 산출물 | 고지 파일 위치 |
 |---|---|
 | GitHub 릴리스 | 고지 파일을 릴리스 에셋으로 따로 올리지 않습니다. 아래 모든 배포물 안에 들어 있고 저장소에서도 볼 수 있습니다. |
-| Windows `.msi` | 설치 디렉토리(`<설치 폴더>\tasty\`) 최상단, `LICENSES\` 하위 경로 유지. MIT 본문은 설치 동의 화면용 `License.rtf` 로도 한 번 더 들어갑니다. 설치 정의와 빌드 검사에 반영했으며, Windows 빌더가 만드는 MSI 실물의 확인 기록은 없습니다. |
+| Windows `.msi` | 설치 디렉토리(`<설치 폴더>\tasty\`) 최상단, `LICENSES\` 하위 경로 유지. MIT 본문은 설치 동의 화면용 `License.rtf` 로도 한 번 더 들어갑니다. |
 | Linux `tar.gz` | 압축을 풀면 나오는 디렉토리 최상단 |
 | Linux 헤드리스 `tar.gz` | 압축을 풀면 나오는 디렉토리 최상단(`LICENSES/` 하위 경로 유지) |
 | Linux `.deb` | `/usr/share/doc/tasty/` (Debian 관례. `LICENSES/` 하위 경로를 그대로 유지합니다) |
 | Linux `.rpm` | `/usr/share/licenses/tasty/` (RPM 관례라 deb 과 배치가 다릅니다 — `LICENSES/` 의 본문도 하위 디렉토리 없이 이 자리에 바로 놓입니다) |
 | Linux `.AppImage` | `usr/share/licenses/tasty/` |
-| macOS `.dmg` | `Tasty.app/Contents/Resources/` (`LICENSES/` 하위 경로를 그대로 유지합니다). 파일 준비와 빌드 검사에 반영했으며, macOS 빌더가 만드는 DMG 실물의 확인 기록은 없습니다. |
+| macOS `.dmg` | `Tasty.app/Contents/Resources/` (`LICENSES/` 하위 경로를 그대로 유지합니다). |
 | macOS 헤드리스 `tar.gz` | 압축을 풀면 나오는 디렉토리 최상단(`LICENSES/` 하위 경로 유지) |
-| Windows `.zip` | 압축을 풀면 나오는 최상단(`tasty.exe` 옆). MSI와 마찬가지로 빌드 설정에 반영했으며 ZIP 실물의 확인 기록은 없습니다. |
+| Windows `.zip` | 압축을 풀면 나오는 최상단(`tasty.exe` 옆). |
 | Windows 헤드리스 `.zip` | 압축을 풀면 나오는 최상단(`tasty.exe` 옆, `LICENSES\` 하위 경로 유지) |
+
+빌드 스크립트는 만든 산출물을 다시 열어 고지 파일을 확인합니다. Linux `tar.gz`(헤드리스 포함)·
+`.deb`·`.rpm`은 목록에서 위 자리의 경로를 확인합니다. macOS `.dmg`(읽기 전용 마운트)·macOS 헤드리스
+`tar.gz`·Windows `.zip`(헤드리스 포함)·`.msi`(관리 설치, 다른 아키텍처는 WiX `dark` 추출)는 꺼낸 파일을, `.AppImage`는 패키징 직전
+AppDir를 저장소 사본과 바이트 비교합니다.
 
 OFL 1.1, Ubuntu Font Licence 1.0, MIT, BSD-3-Clause의 고지는 산출물 안에도 포함해야 합니다. 릴리스에서 별도로
 다운로드할 수 있게 하는 것만으로는 이를 대신하지 못합니다.
