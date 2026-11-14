@@ -9,8 +9,34 @@ use crate::{Terminal, TerminalState};
 
 /// A cell borrowed from a scrollback row, in column order.
 type BorrowedCell<'a> = (&'a str, &'a CellAttributes);
-/// An owned cell as kept in `saved_line_tails`.
+/// An owned cell as kept in a [`LineTail`].
 type OwnedCell = (String, CellAttributes);
+
+/// Cells of one screen row that do not fit in the current width, kept so a
+/// later widen can put them back. `cells` are contiguous graphemes in column
+/// order whose first one starts at `start_col`.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LineTail {
+    pub(crate) start_col: usize,
+    pub(crate) cells: Vec<OwnedCell>,
+}
+
+impl LineTail {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.cells.is_empty()
+    }
+}
+
+/// Column width of one grapheme as termwiz prints it.
+fn grapheme_width(text: &str) -> usize {
+    termwiz::cell::grapheme_column_width(text, None).max(1)
+}
+
+/// The padding a row keeps after its content: a default-attribute ASCII space
+/// or an empty cell. Other whitespace (NBSP, U+3000) is content the program printed.
+fn is_default_padding(text: &str, attrs: &CellAttributes) -> bool {
+    (text.is_empty() || text == " ") && *attrs == CellAttributes::default()
+}
 
 impl TerminalState {
     /// Resize the grid (surfaces, scroll region, line tails). Returns true if the
@@ -25,13 +51,15 @@ impl TerminalState {
         let old_rows = self.rows;
 
         if cols != old_cols && !self.use_alternate {
-            self.save_or_restore_line_tails(old_cols, cols, rows);
+            self.save_or_restore_line_tails(old_cols, cols);
         }
 
         // Handle rows shrink BEFORE resize (need to capture lines before they're lost)
         if rows < old_rows && !self.use_alternate {
             self.handle_rows_shrink(rows, old_rows);
         }
+        // Tails are indexed by screen row; rows past the new bottom are gone.
+        self.saved_line_tails.truncate(rows);
 
         let old_cursor = self.primary_surface.cursor_position();
 
@@ -53,7 +81,7 @@ impl TerminalState {
         }
 
         if cols > old_cols && !self.use_alternate {
-            self.restore_tails_to_surface(old_cols, cols);
+            self.restore_tails_to_surface(cols);
         }
 
         if !self.use_alternate {
@@ -95,14 +123,22 @@ impl TerminalState {
 
         let lines_to_scroll = rows_to_remove.saturating_sub(blank_below);
         if lines_to_scroll > 0 {
-            let captured = self.capture_top_lines(lines_to_scroll);
+            let mut captured = self.capture_top_lines(lines_to_scroll);
             let count = captured.len();
+            // A row going to scrollback takes its saved tail with it, so the
+            // whole row survives instead of only the part that fit on screen.
+            let tails: Vec<LineTail> = self
+                .saved_line_tails
+                .drain(..count.min(self.saved_line_tails.len()))
+                .collect();
+            for (line, tail) in captured.iter_mut().zip(tails) {
+                if !tail.is_empty() {
+                    *line = Self::join_tail(line, tail);
+                }
+            }
             self.scrollback.push_lines(captured);
             // These lines are owed back to a symmetric grow.
             self.restorable_scrollback_count += count;
-            for _ in 0..count.min(self.saved_line_tails.len()) {
-                self.saved_line_tails.remove(0);
-            }
 
             self.primary_surface.add_change(Change::ScrollRegionUp {
                 first_row: 0,
@@ -173,17 +209,16 @@ impl TerminalState {
     /// Split a scrollback row into the cells that fit in `cols` and the overflow
     /// tail. The row keeps the width it had when it scrolled off, so writing it
     /// whole into a narrower grid would soft-wrap over the rows below. Trailing
-    /// default blank cells are dropped; a wide grapheme crossing the right edge
-    /// moves to the tail whole instead of being split.
+    /// padding is dropped; a wide grapheme crossing the right edge moves to the
+    /// tail whole, and the tail starts at that grapheme's column.
     fn split_restored_row(
         line: &crate::scrollback::ScrollbackLine,
         cols: usize,
-    ) -> (Vec<BorrowedCell<'_>>, Vec<OwnedCell>) {
-        let default_attrs = CellAttributes::default();
+    ) -> (Vec<BorrowedCell<'_>>, LineTail) {
         let mut cells: Vec<BorrowedCell<'_>> = line.cells().collect();
         while cells
             .last()
-            .is_some_and(|(text, attrs)| text.trim().is_empty() && **attrs == default_attrs)
+            .is_some_and(|(text, attrs)| is_default_padding(text, attrs))
         {
             cells.pop();
         }
@@ -191,19 +226,55 @@ impl TerminalState {
         let mut col = 0usize;
         let mut split_at = cells.len();
         for (i, (text, _)) in cells.iter().enumerate() {
-            let width = termwiz::cell::grapheme_column_width(text, None).max(1);
+            let width = grapheme_width(text);
             if col + width > cols {
                 split_at = i;
                 break;
             }
             col += width;
         }
-        let tail = cells[split_at..]
-            .iter()
-            .map(|(text, attrs)| ((*text).to_string(), (*attrs).clone()))
-            .collect();
+        let tail = LineTail {
+            start_col: col,
+            cells: cells[split_at..]
+                .iter()
+                .map(|(text, attrs)| ((*text).to_string(), (*attrs).clone()))
+                .collect(),
+        };
         cells.truncate(split_at);
         (cells, tail)
+    }
+
+    /// Rebuild a captured row with its saved tail: the row's cells left of
+    /// `tail.start_col`, blank padding up to it, then the tail cells. The soft
+    /// wrap guess was made against the narrower width, so a row whose tail holds
+    /// content is stored as not wrapped.
+    fn join_tail(
+        line: &crate::scrollback::ScrollbackLine,
+        tail: LineTail,
+    ) -> crate::scrollback::ScrollbackLine {
+        let blank_attrs = CellAttributes::default();
+        let mut builder = crate::scrollback::ScrollbackLineBuilder::new();
+        let mut col = 0usize;
+        for (text, attrs) in line.cells() {
+            let width = grapheme_width(text);
+            if col + width > tail.start_col {
+                break;
+            }
+            builder.push(text, attrs);
+            col += width;
+        }
+        while col < tail.start_col {
+            builder.push(" ", &blank_attrs);
+            col += 1;
+        }
+        let tail_has_content = tail
+            .cells
+            .iter()
+            .any(|(text, attrs)| !is_default_padding(text, attrs));
+        for (text, attrs) in &tail.cells {
+            builder.push(text, attrs);
+        }
+        builder.finish(line.wrapped && !tail_has_content)
     }
 
     /// Check if a line is visually blank (see [`crate::scrollback::cell_is_blank`]).
@@ -230,61 +301,83 @@ impl TerminalState {
         false
     }
 
-    /// Before termwiz truncates lines, capture cells that would be lost (cols
-    /// shrinking) or merge saved tails back when cols grow.
-    pub(crate) fn save_or_restore_line_tails(
-        &mut self,
-        old_cols: usize,
-        new_cols: usize,
-        new_rows: usize,
-    ) {
+    /// Before termwiz truncates lines on a cols shrink, move the cells that would
+    /// be lost to each row's tail, ahead of what the tail already holds. Also
+    /// gives every screen row a tail slot.
+    pub(crate) fn save_or_restore_line_tails(&mut self, old_cols: usize, new_cols: usize) {
         let lines = self.primary_surface.screen_lines();
         let line_count = lines.len();
 
         if self.saved_line_tails.len() < line_count {
-            self.saved_line_tails.resize(line_count, Vec::new());
+            self.saved_line_tails
+                .resize(line_count, LineTail::default());
         }
 
         if new_cols < old_cols {
             for (i, line) in lines.iter().enumerate() {
-                let mut tail_cells: Vec<(String, CellAttributes)> = line
-                    .visible_cells()
-                    .filter(|cell| cell.cell_index() >= new_cols)
-                    .map(|cell| (cell.str().to_string(), cell.attrs().clone()))
-                    .collect();
-                // Prepend to any previously saved tail for this line
-                if !self.saved_line_tails[i].is_empty() {
-                    tail_cells.append(&mut self.saved_line_tails[i]);
+                let saved = std::mem::take(&mut self.saved_line_tails[i]);
+                // Cells right of an existing tail's start are blank on screen;
+                // the tail already holds what belongs there.
+                let limit = if saved.is_empty() {
+                    usize::MAX
+                } else {
+                    saved.start_col
+                };
+                let mut start_col = None;
+                let mut cells: Vec<OwnedCell> = Vec::new();
+                for cell in line.visible_cells() {
+                    let idx = cell.cell_index();
+                    if idx < new_cols || idx >= limit {
+                        continue;
+                    }
+                    start_col.get_or_insert(idx);
+                    cells.push((cell.str().to_string(), cell.attrs().clone()));
                 }
-                self.saved_line_tails[i] = tail_cells;
+                let start_col = start_col.unwrap_or(if saved.is_empty() {
+                    new_cols
+                } else {
+                    saved.start_col
+                });
+                cells.extend(saved.cells);
+                self.saved_line_tails[i] = LineTail { start_col, cells };
             }
         }
-
-        self.saved_line_tails.truncate(new_rows);
     }
 
-    /// After termwiz Surface::resize expanded cols, write back saved tail cells.
-    pub(crate) fn restore_tails_to_surface(&mut self, old_cols: usize, new_cols: usize) {
+    /// After termwiz Surface::resize expanded cols, write back the saved tail
+    /// cells that now fit, each at its own column. Graphemes are counted by
+    /// column width so a wide one is never written across the right edge.
+    pub(crate) fn restore_tails_to_surface(&mut self, new_cols: usize) {
         use termwiz::surface::Position;
-
-        let restore_count = new_cols - old_cols;
 
         for (row, tail) in self.saved_line_tails.iter_mut().enumerate() {
             if tail.is_empty() {
                 continue;
             }
-            let cells_to_restore = restore_count.min(tail.len());
-            let restored: Vec<(String, CellAttributes)> = tail.drain(..cells_to_restore).collect();
+            let mut col = tail.start_col;
+            let mut take = 0usize;
+            for (text, _) in &tail.cells {
+                let width = grapheme_width(text);
+                if col + width > new_cols {
+                    break;
+                }
+                col += width;
+                take += 1;
+            }
+            if take == 0 {
+                continue;
+            }
 
             self.primary_surface.add_change(Change::CursorPosition {
-                x: Position::Absolute(old_cols),
+                x: Position::Absolute(tail.start_col),
                 y: Position::Absolute(row),
             });
-            for (text, attrs) in restored {
+            for (text, attrs) in tail.cells.drain(..take) {
                 self.primary_surface
                     .add_change(Change::AllAttributes(attrs));
                 self.primary_surface.add_change(Change::Text(text));
             }
+            tail.start_col = col;
         }
     }
 }

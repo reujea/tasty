@@ -188,8 +188,8 @@ pub(crate) struct TerminalState {
     /// CWD cached from OSC 7 (CurrentWorkingDirectory) sequences emitted by the shell.
     /// Used by get_cwd() to avoid spawning external processes.
     pub(crate) cached_cwd: Option<std::path::PathBuf>,
-    /// Saved right-side cells for each line, preserved when cols shrink.
-    saved_line_tails: Vec<Vec<(String, CellAttributes)>>,
+    /// Saved right-side cells for each screen row, preserved when cols shrink.
+    saved_line_tails: Vec<resize::LineTail>,
     /// Number of scrollback lines pushed by `handle_rows_shrink` awaiting a
     /// symmetric `handle_rows_grow` to restore them.
     restorable_scrollback_count: usize,

@@ -879,10 +879,185 @@ fn resize_narrow_and_grow_does_not_split_wide_grapheme_at_edge() {
         "{rows:?}"
     );
 
+    // Widening by one column fits the first wide grapheme at its own column.
+    terminal.resize(55, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], format!("{head}한"), "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+
     terminal.resize(120, 10);
     let rows = screen_rows(&terminal);
-    assert!(rows[0].starts_with(&head), "{rows:?}");
-    assert!(rows[0].ends_with("한글"), "{rows:?}");
+    assert_eq!(rows[0], format!("{head}한글"), "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+}
+
+/// Fill a `cols`-wide terminal with `first` and four more rows plus a prompt so
+/// the screen is full, then shrink it to three rows (pushing `first` and the
+/// next two rows to scrollback).
+fn long_first_row_then_shrink(cols: usize, first: &str) -> Terminal {
+    let mut terminal = test_terminal(cols, 6);
+    terminal.process_bytes(format!("{first}\r\n").as_bytes());
+    for i in 1..=4 {
+        terminal.process_bytes(format!("out{i}\r\n").as_bytes());
+    }
+    terminal.process_bytes(b"$ ");
+    terminal.resize(cols, 3);
+    terminal
+}
+
+fn distinct_ascii(len: usize) -> String {
+    (0..len)
+        .map(|i| char::from(b'!' + (i % 94) as u8))
+        .collect()
+}
+
+/// Widening while growing rows must not let the restored row's own tail be
+/// written back at the old width's column over the cells it already shows.
+#[test]
+fn resize_widen_and_grow_keeps_restored_row_wider_than_new_cols_intact() {
+    let long = distinct_ascii(150);
+    let mut terminal = long_first_row_then_shrink(200, &long);
+    terminal.resize(54, 3);
+
+    terminal.resize(120, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], long[..120], "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+
+    terminal.resize(200, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], long, "{rows:?}");
+}
+
+/// Same as above with a small widen: the restored row fills 60 columns and its
+/// tail stays at column 60.
+#[test]
+fn resize_small_widen_and_grow_keeps_restored_row_intact() {
+    let long = distinct_ascii(80);
+    let mut terminal = long_first_row_then_shrink(120, &long);
+    terminal.resize(54, 3);
+
+    terminal.resize(60, 6);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], long[..60], "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+
+    terminal.resize(120, 6);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], long, "{rows:?}");
+}
+
+/// Wide graphemes restored by a widen are counted by column width: a widen of
+/// six columns fits three of them and leaves the rows below untouched.
+#[test]
+fn resize_widen_restores_wide_graphemes_by_column_width() {
+    let head = "x".repeat(53);
+    let wide = "가나다라마바사아자차";
+    let mut terminal = long_first_row_then_shrink(120, &format!("{head}{wide}"));
+    terminal.resize(54, 10);
+    assert_eq!(screen_rows(&terminal)[0], head);
+
+    terminal.resize(60, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], format!("{head}가나다"), "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+
+    terminal.resize(120, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], format!("{head}{wide}"), "{rows:?}");
+    assert_eq!(
+        &rows[1..6],
+        &["out1", "out2", "out3", "out4", "$"],
+        "{rows:?}"
+    );
+}
+
+/// A one-column grid cannot hold a wide grapheme; the whole restored row waits
+/// in its tail from column 0 and comes back unchanged.
+#[test]
+fn resize_one_column_then_widen_restores_row_from_column_zero() {
+    let mut terminal = long_first_row_then_shrink(120, "한글abc");
+    terminal.resize(1, 10);
+    terminal.resize(120, 10);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], "한글abc", "{rows:?}");
+}
+
+/// Trailing whitespace the program printed (U+3000) is content, not padding.
+#[test]
+fn resize_grow_keeps_printed_ideographic_space() {
+    let mut terminal = long_first_row_then_shrink(120, "A\u{3000}");
+    terminal.resize(120, 10);
+    let cells: Vec<(usize, String)> = terminal.screen_lines()[0]
+        .visible_cells()
+        .take(3)
+        .map(|c| (c.cell_index(), c.str().to_string()))
+        .collect();
+    assert_eq!(
+        cells,
+        vec![
+            (0, "A".to_string()),
+            (1, "\u{3000}".to_string()),
+            (3, " ".to_string())
+        ]
+    );
+}
+
+/// The restored row's tail holds only its content past the new width, not the
+/// default padding the row carried from its old width.
+#[test]
+fn resize_narrow_and_grow_tail_excludes_trailing_padding() {
+    let long = distinct_ascii(80);
+    let mut terminal = long_first_row_then_shrink(120, &long);
+    terminal.resize(54, 10);
+    let state = terminal.lock_state();
+    let tail = &state.saved_line_tails[0];
+    assert_eq!(tail.start_col, 54);
+    let text: String = tail.cells.iter().map(|(t, _)| t.as_str()).collect();
+    assert_eq!(text, long[54..]);
+}
+
+/// Landscape → portrait → landscape: rows sent back to scrollback by the
+/// second shrink carry their saved tail, so the long row stays whole.
+#[test]
+fn resize_rotation_round_trip_keeps_long_row_in_scrollback() {
+    let long = distinct_ascii(80);
+    let mut terminal = long_first_row_then_shrink(120, &long);
+    terminal.resize(54, 10);
+    terminal.resize(120, 3);
+
+    let texts: Vec<String> = terminal
+        .scrollback_lines_all()
+        .iter()
+        .map(|line| {
+            line.cells()
+                .map(|(t, _)| t)
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .collect();
+    assert!(texts.contains(&long), "scrollback: {texts:?}");
 }
 
 /// A representative byte sequence exercising text, CR/LF, SGR color/intensity,
