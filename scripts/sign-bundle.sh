@@ -3,19 +3,24 @@
 # bundle_sig.rs의 검증과 같은 두 단계다. 원문 직접 서명이나 Ed25519ph로 임의 변경하지 않는다.
 # 사용: ./scripts/sign-bundle.sh --key <private-key.pem> --manifest <manifest>
 #       ./scripts/sign-bundle.sh --key <private-key.pem> --all-builtins
-# --all-builtins는 crates 바로 아래 디렉터리들의 tasty-plugin.toml을 찾는다. OpenSSL이 필요하다.
+#       ./scripts/sign-bundle.sh --key <private-key.pem> --dir <staged-plugins-dir>
+# --all-builtins는 crates 바로 아래 디렉터리들의 tasty-plugin.toml을 찾는다.
+# --dir는 <dir>/<id>/tasty-plugin.toml을 모두 서명한다. 받은 산출물은 서명하지 않은 채로 와야 하므로
+# 그 아래에 .sig가 하나라도 있으면 아무것도 서명하지 않고 실패한다. OpenSSL이 필요하다.
 
 set -euo pipefail
 
 KEY_PATH=""
 MANIFEST=""
 ALL_BUILTINS=0
+STAGE_DIR=""
 
 usage() {
     cat <<'USAGE'
 Usage:
   sign-bundle.sh --key <private-key.pem> --manifest <path-to-tasty-plugin.toml>
   sign-bundle.sh --key <private-key.pem> --all-builtins
+  sign-bundle.sh --key <private-key.pem> --dir <staged-plugins-dir>
 USAGE
     exit "${1:-2}"
 }
@@ -35,6 +40,11 @@ while [[ $# -gt 0 ]]; do
         --all-builtins)
             ALL_BUILTINS=1
             shift
+            ;;
+        --dir)
+            [[ $# -ge 2 ]] || usage 2
+            STAGE_DIR="$2"
+            shift 2
             ;;
         -h|--help)
             usage 0
@@ -62,12 +72,16 @@ if [[ ! -f "$KEY_PATH" ]]; then
     exit 1
 fi
 
-if [[ -n "$MANIFEST" && "$ALL_BUILTINS" -eq 1 ]]; then
-    echo "Error: --manifest and --all-builtins are mutually exclusive" >&2
+MODES=0
+[[ -n "$MANIFEST" ]] && MODES=$((MODES + 1))
+[[ "$ALL_BUILTINS" -eq 1 ]] && MODES=$((MODES + 1))
+[[ -n "$STAGE_DIR" ]] && MODES=$((MODES + 1))
+if [[ "$MODES" -gt 1 ]]; then
+    echo "Error: --manifest, --all-builtins and --dir are mutually exclusive" >&2
     usage 2
 fi
-if [[ -z "$MANIFEST" && "$ALL_BUILTINS" -eq 0 ]]; then
-    echo "Error: must specify --manifest or --all-builtins" >&2
+if [[ "$MODES" -eq 0 ]]; then
+    echo "Error: must specify --manifest, --all-builtins or --dir" >&2
     usage 2
 fi
 
@@ -79,6 +93,27 @@ if [[ "$ALL_BUILTINS" -eq 1 ]]; then
     done < <(find "$REPO_ROOT/crates" -mindepth 2 -maxdepth 2 -name 'tasty-plugin.toml' -print0)
     if [[ ${#MANIFESTS[@]} -eq 0 ]]; then
         echo "Error: no crates/tasty-plugin-*/tasty-plugin.toml found" >&2
+        exit 1
+    fi
+elif [[ -n "$STAGE_DIR" ]]; then
+    if [[ ! -d "$STAGE_DIR" ]]; then
+        echo "Error: directory not found: $STAGE_DIR" >&2
+        exit 1
+    fi
+    while IFS= read -r -d '' f; do
+        MANIFESTS+=("$f")
+    done < <(find "$STAGE_DIR" -mindepth 2 -maxdepth 2 -name 'tasty-plugin.toml' -print0 | sort -z)
+    if [[ ${#MANIFESTS[@]} -eq 0 ]]; then
+        echo "Error: no $STAGE_DIR/*/tasty-plugin.toml found" >&2
+        exit 1
+    fi
+    declare -a PRESIGNED=()
+    while IFS= read -r -d '' f; do
+        PRESIGNED+=("$f")
+    done < <(find "$STAGE_DIR" -name '*.sig' -print0 | sort -z)
+    if [[ ${#PRESIGNED[@]} -gt 0 ]]; then
+        echo "Error: $STAGE_DIR already contains signatures; staged plugins must arrive unsigned:" >&2
+        printf '  %s\n' "${PRESIGNED[@]}" >&2
         exit 1
     fi
 else
