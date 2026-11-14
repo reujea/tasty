@@ -1058,6 +1058,97 @@ fn resize_rotation_round_trip_keeps_long_row_in_scrollback() {
         })
         .collect();
     assert!(texts.contains(&long), "scrollback: {texts:?}");
+    let index = texts.iter().position(|t| *t == long).unwrap();
+    assert_eq!(
+        terminal.scrollback_line_wrapped(index),
+        Some(false),
+        "a hard-newline row joined with its tail stays unwrapped"
+    );
+}
+
+/// Join scrollback rows `range` the way a row-wise copy does: a row marked
+/// wrapped continues on the next row, any other row ends with a newline.
+fn copy_scrollback_rows(terminal: &Terminal, range: std::ops::Range<usize>) -> String {
+    let mut out = String::new();
+    for index in range {
+        let line = terminal
+            .scrollback_line_full(index)
+            .expect("scrollback row");
+        let text: String = line.cells().map(|(t, _)| t).collect();
+        if line.wrapped {
+            out.push_str(&text);
+        } else {
+            out.push_str(text.trim_end());
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// A soft-wrapped row sent to scrollback by a resize that narrows cols and
+/// shrinks rows in one call keeps its wrap mark, judged at the old width.
+#[test]
+fn resize_narrow_and_shrink_in_one_call_keeps_soft_wrap_mark() {
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes("a".repeat(130).as_bytes());
+    terminal.process_bytes(b"\r\nout1\r\nout2\r\nout3\r\n$ ");
+    terminal.resize(54, 3);
+
+    assert_eq!(terminal.scrollback_line_wrapped(0), Some(true));
+    assert_eq!(terminal.scrollback_line_wrapped(1), Some(false));
+    assert_eq!(
+        copy_scrollback_rows(&terminal, 0..2),
+        format!("{}\n", "a".repeat(130))
+    );
+}
+
+/// Same row, but cols narrow first and rows shrink in a later resize: the row
+/// joined with its saved tail is judged by its last cell and stays wrapped.
+#[test]
+fn resize_narrow_then_shrink_keeps_soft_wrap_mark() {
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes("x".repeat(130).as_bytes());
+    terminal.process_bytes(b"\r\nout1\r\nout2\r\nout3\r\n$ ");
+    terminal.resize(54, 6);
+    terminal.resize(54, 3);
+
+    assert_eq!(terminal.scrollback_line_wrapped(0), Some(true));
+    assert_eq!(
+        copy_scrollback_rows(&terminal, 0..2),
+        format!("{}\n", "x".repeat(130))
+    );
+}
+
+/// Landscape → portrait → landscape with a soft-wrapped row: the row restored
+/// from scrollback and sent back keeps the wrap mark it had.
+#[test]
+fn resize_rotation_round_trip_keeps_soft_wrap_mark() {
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes("w".repeat(130).as_bytes());
+    terminal.process_bytes(b"\r\nout1\r\nout2\r\nout3\r\n$ ");
+    terminal.resize(120, 3);
+    terminal.resize(54, 10);
+    terminal.resize(120, 3);
+
+    assert_eq!(
+        copy_scrollback_rows(&terminal, 0..2),
+        format!("{}\n", "w".repeat(130))
+    );
+}
+
+/// A screen row whose wide grapheme straddles the new right edge keeps the
+/// cells after it in a tail that starts at their own column, so widening back
+/// gives the original row.
+#[test]
+fn resize_narrow_then_widen_keeps_screen_row_with_wide_grapheme_at_edge() {
+    let row = format!("{}한글abc", "x".repeat(53));
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes(format!("{row}\r\nout1\r\n$ ").as_bytes());
+    terminal.resize(54, 6);
+    terminal.resize(120, 6);
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows[0], row, "{rows:?}");
+    assert_eq!(&rows[1..3], &["out1", "$"], "{rows:?}");
 }
 
 /// A representative byte sequence exercising text, CR/LF, SGR color/intensity,

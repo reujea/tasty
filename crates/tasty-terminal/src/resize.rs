@@ -19,6 +19,11 @@ type OwnedCell = (String, CellAttributes);
 pub(crate) struct LineTail {
     pub(crate) start_col: usize,
     pub(crate) cells: Vec<OwnedCell>,
+    /// Soft-wrap mark of the whole row when it is known: a row restored from
+    /// scrollback keeps the mark judged at its original width, because its tail
+    /// dropped the trailing padding. `None` means the tail runs to the row's
+    /// full width, so the tail's last cell decides.
+    pub(crate) row_wrapped: Option<bool>,
 }
 
 impl LineTail {
@@ -235,6 +240,7 @@ impl TerminalState {
         }
         let tail = LineTail {
             start_col: col,
+            row_wrapped: (split_at < cells.len()).then_some(line.wrapped),
             cells: cells[split_at..]
                 .iter()
                 .map(|(text, attrs)| ((*text).to_string(), (*attrs).clone()))
@@ -245,9 +251,11 @@ impl TerminalState {
     }
 
     /// Rebuild a captured row with its saved tail: the row's cells left of
-    /// `tail.start_col`, blank padding up to it, then the tail cells. The soft
-    /// wrap guess was made against the narrower width, so a row whose tail holds
-    /// content is stored as not wrapped.
+    /// `tail.start_col`, blank padding up to it, then the tail cells. The row's
+    /// own wrap guess may have been made at the narrower width, so the joined
+    /// row is judged again like [`Self::line_was_soft_wrapped`]: a non-blank
+    /// last cell at the full width means a soft wrap. A tail that knows the
+    /// row's mark (see [`LineTail::row_wrapped`]) gives it instead.
     fn join_tail(
         line: &crate::scrollback::ScrollbackLine,
         tail: LineTail,
@@ -267,14 +275,15 @@ impl TerminalState {
             builder.push(" ", &blank_attrs);
             col += 1;
         }
-        let tail_has_content = tail
-            .cells
-            .iter()
-            .any(|(text, attrs)| !is_default_padding(text, attrs));
+        let wrapped = tail.row_wrapped.unwrap_or_else(|| {
+            tail.cells
+                .last()
+                .is_some_and(|(text, _)| !text.is_empty() && !text.trim().is_empty())
+        });
         for (text, attrs) in &tail.cells {
             builder.push(text, attrs);
         }
-        builder.finish(line.wrapped && !tail_has_content)
+        builder.finish(wrapped)
     }
 
     /// Check if a line is visually blank (see [`crate::scrollback::cell_is_blank`]).
@@ -338,8 +347,17 @@ impl TerminalState {
                 } else {
                     saved.start_col
                 });
+                let row_wrapped = if saved.is_empty() {
+                    None
+                } else {
+                    saved.row_wrapped
+                };
                 cells.extend(saved.cells);
-                self.saved_line_tails[i] = LineTail { start_col, cells };
+                self.saved_line_tails[i] = LineTail {
+                    start_col,
+                    cells,
+                    row_wrapped,
+                };
             }
         }
     }
@@ -378,6 +396,9 @@ impl TerminalState {
                 self.primary_surface.add_change(Change::Text(text));
             }
             tail.start_col = col;
+            if tail.cells.is_empty() {
+                tail.row_wrapped = None;
+            }
         }
     }
 }
