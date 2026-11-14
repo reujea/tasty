@@ -7,6 +7,7 @@
 - `HOST_API_VERSION`은 메이저 버전 단위로 호스트와 plugin 사이에 매치된다 (`crates/tasty-plugin-manifest/src/types.rs::HOST_API_VERSION`).
 - minor 추가는 같은 `api_version` 내에서 호환되어야 한다. 새 필드는 **optional + default**, 새 enum variant는 `#[serde(other)]`로 fallback 가능한 형태로만 허용한다.
 - major 증가가 필요한 변경은 별도 RFC가 동반되어야 한다 (필드 의미 변경/제거, required 필드 추가, 에러 코드 의미 변경 등).
+- 본체와 공식 플러그인은 다른 커밋에서 빌드된다. 번들 플러그인은 루트 `official-plugins.lock.toml`이 가리키는 공식 플러그인 레포 릴리스이고, 그 릴리스는 잠금 파일의 `tasty_rev`에서 빌드됐다. 그래서 호스트는 `tasty_rev`부터 현재까지의 protocol과 호환돼야 하고, 플러그인은 그 뒤에 더해진 필드·변형을 모르는 채로 동작한다. 잠금 파일의 계약 호환 가드는 이 크레이트의 버전 값만 비교하므로 버전을 그대로 둔 schema 변경은 잡지 못한다([플러그인 패키징 — 계약 호환 가드](../../docs/dev-guide/plugin-packaging.md#계약-호환-가드)). 아래 과거 항목 중 "in-tree 재빌드"나 "본체와 함께 재빌드"를 근거로 구버전 조합의 영향을 생략한 문장은 분리 전 사실이며 지금은 성립하지 않는다.
 - 자세한 break 분류와 deprecation 절차는 [docs/dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류 §4](../../docs/dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류) + [docs/dev-guide/api-conventions.md](../../docs/dev-guide/api-conventions.md) 의 "안정성 정책" 절 참조.
 
 본 changelog는 [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/) 형식을 따른다.
