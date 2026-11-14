@@ -327,13 +327,47 @@ fi
 verify_notice_tree "$HEADLESS_STAGE" "$HEADLESS_PKG_DIR" || exit 1
 
 rm -f "$DIST_DIR/$HEADLESS_ARCHIVE_NAME"
-tar -czf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" -C "$DIST_DIR" "$HEADLESS_PKG_DIR"
+# macOS bsdtar는 확장 속성이 있는 파일에 AppleDouble(._*) 항목이나 LIBARCHIVE.xattr pax 헤더를 넣는다.
+# 다른 OS에서 풀면 ._ 파일이 남거나 GNU tar가 모르는 키워드로 경고하므로 macOS 메타데이터를 싣지 않는다.
+# --no-mac-metadata만으로는 com.apple.provenance 같은 속성이 pax 헤더로 남아 --no-xattrs도 준다.
+COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -czf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" -C "$DIST_DIR" "$HEADLESS_PKG_DIR"
 rm -rf "${HEADLESS_STAGE:?}"
+
+echo "==> Verifying $HEADLESS_ARCHIVE_NAME..."
 HEADLESS_LISTING=$(tar -tzf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME")
 grep -q "$HEADLESS_PKG_DIR/plugins/" <<<"$HEADLESS_LISTING" || {
     echo "Error: plugins not in $HEADLESS_ARCHIVE_NAME" >&2
     exit 1
 }
+APPLEDOUBLE=$(grep -E '(^|/)\._' <<<"$HEADLESS_LISTING" || true)
+if [[ -n "$APPLEDOUBLE" ]]; then
+    echo "Error: $HEADLESS_ARCHIVE_NAME holds AppleDouble entries:" >&2
+    head -5 <<<"$APPLEDOUBLE" >&2
+    exit 1
+fi
+XATTR_HEADERS=$(gunzip -c "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" | LC_ALL=C grep -a -c 'LIBARCHIVE\.xattr\.' || true)
+if [[ "$XATTR_HEADERS" != "0" ]]; then
+    echo "Error: $HEADLESS_ARCHIVE_NAME holds $XATTR_HEADERS LIBARCHIVE.xattr headers" >&2
+    exit 1
+fi
+verify_notice_listing "$HEADLESS_LISTING" "$HEADLESS_PKG_DIR/" "$HEADLESS_ARCHIVE_NAME" || exit 1
+# 압축 전 검사와 별개로, 받는 사람이 푸는 트리에서 실행·서명·고지 바이트를 다시 확인한다.
+VERIFY_TMP=$(mktemp -d)
+tar -xzf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" -C "$VERIFY_TMP"
+headless_rc=0
+"$VERIFY_TMP/$HEADLESS_PKG_DIR/tasty" --version >/dev/null || {
+    echo "Error: tasty --version failed (from $HEADLESS_ARCHIVE_NAME)" >&2
+    headless_rc=1
+}
+if [[ "$headless_rc" -eq 0 ]] && ! codesign --verify --strict "$VERIFY_TMP/$HEADLESS_PKG_DIR/tasty"; then
+    echo "Error: tasty from $HEADLESS_ARCHIVE_NAME failed codesign --verify" >&2
+    headless_rc=1
+fi
+if [[ "$headless_rc" -eq 0 ]]; then
+    verify_notice_tree "$VERIFY_TMP/$HEADLESS_PKG_DIR" "$HEADLESS_ARCHIVE_NAME" || headless_rc=1
+fi
+rm -rf "$VERIFY_TMP"
+[[ "$headless_rc" -eq 0 ]] || exit 1
 
 SHASUMS_FILE="SHA256SUMS-macos.txt"
 (cd "$DIST_DIR" && shasum -a 256 "$DMG_NAME" "$HEADLESS_ARCHIVE_NAME" > "$SHASUMS_FILE")
