@@ -519,3 +519,50 @@ fn unpack_refuses_an_out_folder_with_unplanned_entries() {
     let out = run(&unpack_args(&lock, &dl, &out_dir));
     assert_eq!(out.status.code(), Some(0), "{}", text(&out));
 }
+
+#[cfg(unix)]
+#[test]
+fn unpack_accepts_regular_files_whose_names_look_like_link_notation() {
+    let scratch = Scratch::new("official-plugins-link-names");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    let archive = evil_archive(scratch.path(), &["com.tasty.alpha"], |evil| {
+        let root = evil.join("com.tasty.alpha");
+        write_exe(&root.join("tasty-plugin-alpha"));
+        std::fs::create_dir_all(root.join("lang")).expect("mkdir lang");
+        std::fs::write(root.join("lang/a link to b.toml"), "x = \"y\"\n").expect("write");
+        std::fs::write(root.join("a -> b"), "z").expect("write");
+    });
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out));
+    let root = out_dir.join("com.tasty.alpha");
+    assert!(root.join("lang/a link to b.toml").is_file());
+    assert!(root.join("a -> b").is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn unpack_rejects_a_fifo_entry() {
+    let scratch = Scratch::new("official-plugins-fifo");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    let archive = evil_archive(scratch.path(), &["com.tasty.alpha"], |evil| {
+        let root = evil.join("com.tasty.alpha");
+        write_exe(&root.join("tasty-plugin-alpha"));
+        let status = Command::new("mkfifo")
+            .arg(root.join("fifo"))
+            .status()
+            .expect("run mkfifo");
+        assert!(status.success(), "mkfifo");
+    });
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    assert!(
+        text(&out).contains("일반 파일·디렉터리가 아닌 항목: com.tasty.alpha/fifo"),
+        "{}",
+        text(&out)
+    );
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+}

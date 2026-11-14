@@ -340,9 +340,9 @@ fn check_entries(archive_dir: &Path, item: &PlanItem) -> Vec<String> {
                 item.file
             ));
         }
-        let kind = line.chars().next();
-        let link = line.contains(" -> ") || line.contains(" link to ");
-        if !matches!(kind, Some('-' | 'd')) || link {
+        // 종류는 줄 첫 글자로만 판정한다. GNU tar와 bsdtar 모두 심볼릭 링크는 `l`, 하드 링크는 `h`로
+        // 시작한다. 이름에 ` -> `·` link to `가 든 일반 파일이 있으므로 줄 안의 문자열은 보지 않는다.
+        if !matches!(line.chars().next(), Some('-' | 'd')) {
             problems.push(format!(
                 "{}: 일반 파일·디렉터리가 아닌 항목: {name} ({line})",
                 item.file
