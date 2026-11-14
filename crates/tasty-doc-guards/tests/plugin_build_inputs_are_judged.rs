@@ -69,7 +69,10 @@ impl Target {
     fn covers(self, path: &str, open: bool) -> bool {
         match self {
             Target::File(f) => !open && path == f,
-            Target::Dir(d) => path == d || path.strip_prefix(d).is_some_and(|r| r.starts_with('/')),
+            // 닫힌 경로는 디렉터리 자신도 덮는다. 접두어는 `d/`로 시작해야 그 아래에 머문다.
+            Target::Dir(d) => {
+                (!open && path == d) || path.strip_prefix(d).is_some_and(|r| r.starts_with('/'))
+            }
         }
     }
 }
@@ -841,6 +844,26 @@ fn a_file_exception_covers_only_that_file_and_a_directory_only_its_subtree() {
     assert!(covered("crates/a/keys", false));
     assert!(covered("crates/a/keys/release.pem", false));
     assert!(covered("crates/a/keys/", true));
+    assert!(
+        !covered("crates/a/keys", true),
+        "뒤가 정해지지 않은 접두어는 keys-other처럼 디렉터리 밖으로 갈 수 있다"
+    );
     assert!(!covered("crates/a/keys-other/x", false));
     assert!(!covered("crates/a/keysx", false));
+}
+
+#[test]
+fn an_open_prefix_that_can_leave_an_excepted_directory_is_not_covered() {
+    let (found, bad) = scan_includes(
+        "crates/tasty-i18n/src/lib.rs",
+        "crates/tasty-i18n",
+        "pub const X: &str = include_str!(concat!(\"../../../lang\", SUFFIX));\n",
+    );
+    assert!(bad.is_empty(), "{bad:?}");
+    assert_eq!(found.len(), 1, "호출을 놓쳤다");
+    assert!(found[0].open && found[0].path == "lang", "{:?}", found[0]);
+    assert!(
+        covering(EXCEPTIONS, &found[0]).is_none(),
+        "lang_extra/·lang-extra.toml일 수 있는 접두어를 lang 디렉터리 예외가 덮었다"
+    );
 }
