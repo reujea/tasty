@@ -313,12 +313,21 @@ fn entry_name_is_safe(name: &str, id: &str) -> bool {
     parts.first() == Some(&id) && !parts.contains(&"..")
 }
 
-/// `-tv` 줄이 같은 순번 `-t` 이름으로 끝나고, 이름 앞 부분에 링크 표기가 없는지 본다. 대상이 이름과
-/// 같은 문자열로 끝나는 링크도 이름 앞에 ` link to`·` ->`가 남아 걸린다.
+/// `-tv` 줄이 같은 순번 `-t` 이름으로 끝나고, 그 이름 바로 뒤에 링크 표기가 붙은 곳이 없는지 본다.
+/// 링크 줄은 `<이름> link to <대상>`·`<이름> -> <대상>` 형식이라 대상이 이름과 같은 문자열로 끝나도
+/// 앞쪽에 `<이름> link to `가 남아 걸린다. 표기는 공백 경계 뒤의 이름에 붙은 것만 찾으므로 소유자·그룹
+/// 필드에 든 같은 문자열은 링크로 보지 않는다.
 fn line_ends_with_name(line: &str, name: &str) -> bool {
-    line.strip_suffix(name)
-        .and_then(|head| head.strip_suffix(' '))
-        .is_some_and(|head| !head.contains(" link to") && !head.contains(" ->"))
+    let Some(head) = line.strip_suffix(name) else {
+        return false;
+    };
+    if !head.ends_with(' ') {
+        return false;
+    }
+    // head 는 끝 공백을 포함한다. 대상이 이름과 같을 때도 `<이름> link to `가 온전히 남는다.
+    ![" link to ", " -> "]
+        .iter()
+        .any(|mark| head.contains(&format!(" {name}{mark}")))
 }
 
 /// 풀기 전에 아카이브 항목을 검사한다. 공식 플러그인 아카이브에는 `<id>/` 아래의 일반 파일과
@@ -575,9 +584,32 @@ mod tests {
             name
         ));
         assert!(!line_ends_with_name(
-            "-rw-r--r--  0 0  0  0 Jan  1  1970 com.tasty.alpha/x link to y com.tasty.alpha/hl",
+            "-rw-r--r--  0 0  0  0 Jan  1  1970 com.tasty.alpha/hl link to y com.tasty.alpha/hl",
             name
         ));
         assert!(!line_ends_with_name("com.tasty.alpha/hl", name));
+    }
+
+    #[test]
+    fn owner_and_group_names_with_link_words_are_not_links() {
+        let name = "com.tasty.alpha/file";
+        // bsdtar는 uname·gname을 공백으로, GNU tar는 uname/gname으로 보인다.
+        for line in [
+            "-rw-r--r--  0 a link to b  wheel  2 Jan  1  1970 com.tasty.alpha/file",
+            "-rw-r--r--  0 x -> y  wheel  2 Jan  1  1970 com.tasty.alpha/file",
+            "-rw-r--r--  0 root  a link to b  2 Jan  1  1970 com.tasty.alpha/file",
+            "-rw-r--r-- a link to b/x -> y 2 2026-11-15 00:36 com.tasty.alpha/file",
+        ] {
+            assert!(line_ends_with_name(line, name), "{line}");
+        }
+        // 같은 소유자 필드여도 이름 바로 뒤의 링크 표기는 걸린다.
+        assert!(!line_ends_with_name(
+            "-rw-r--r--  0 a link to b  wheel  0 Jan  1  1970 com.tasty.alpha/file link to com.tasty.alpha/file",
+            name
+        ));
+        assert!(!line_ends_with_name(
+            "-rw-r--r--  0 x -> y  wheel  0 Jan  1  1970 com.tasty.alpha/file -> z com.tasty.alpha/file",
+            name
+        ));
     }
 }
