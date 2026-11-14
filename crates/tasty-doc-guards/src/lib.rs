@@ -56,8 +56,11 @@ pub mod floored_walk;
 /// 저장소 외부 경로를 수정 대상으로 안내하지 않게 한다.
 pub mod tracked_scope;
 
-/// 사본 대조용 SHA-256.
+/// 사본 대조와 공개 해시 대조용 SHA-256.
 pub mod sha256;
+
+/// 공식 플러그인 잠금 파일의 형식·생성·검사·계약 대조. `official-plugins` bin과 가드가 쓴다.
+pub mod official_plugins;
 
 /// 시험의 자식 프로세스가 부모의 저장소 지정 Git 환경을 상속하지 않게 한다.
 pub mod git_env;
