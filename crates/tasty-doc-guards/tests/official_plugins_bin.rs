@@ -295,3 +295,226 @@ fn unknown_subcommand_and_missing_lock_are_usage_errors() {
     let out = run(&["check", "--lock", "no/such/official-plugins.lock.toml"]);
     assert_eq!(out.status.code(), Some(2), "{}", text(&out));
 }
+
+fn run_in(dir: &Path, args: &[&str]) -> Output {
+    Command::new(BIN)
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .expect("run bin")
+}
+
+fn unpack_args<'a>(lock: &'a Path, dl: &'a Path, out: &'a Path) -> Vec<&'a str> {
+    vec![
+        "unpack",
+        "--lock",
+        s(lock),
+        "--dir",
+        s(dl),
+        "--out",
+        s(out),
+        "--platform",
+        "linux-x64",
+    ]
+}
+
+/// alpha linux-x64 산출물을 `archive`로 바꾸고 잠금 파일의 해시도 맞춘다. 해시 대조를 지나
+/// 아카이브 검사까지 가게 한다.
+fn replace_alpha(lock: &Path, dl: &Path, archive: &Path) {
+    let file = artifact_file("com.tasty.alpha", "0.2.0", "linux-x64");
+    let new_sha = sha256_hex(&std::fs::read(archive).expect("read archive"));
+    let old_sha = sha256_hex(&std::fs::read(dl.join(&file)).expect("read old"));
+    let t = std::fs::read_to_string(lock).expect("read lock");
+    assert!(t.contains(&old_sha), "lock has the old sha");
+    std::fs::write(lock, t.replace(&old_sha, &new_sha)).expect("write lock");
+    std::fs::copy(archive, dl.join(file)).expect("copy archive");
+}
+
+/// `<work>/evil/` 아래에서 `entries`를 그대로(-P) 묶는다. `prepare`가 `<work>/evil/`을 채운다.
+#[cfg(unix)]
+fn evil_archive(work: &Path, entries: &[&str], prepare: impl FnOnce(&Path)) -> PathBuf {
+    let evil = work.join("evil");
+    let root = evil.join("com.tasty.alpha");
+    std::fs::create_dir_all(&root).expect("mkdir");
+    std::fs::write(
+        root.join("tasty-plugin.toml"),
+        "manifest_version = 1\nid = \"com.tasty.alpha\"\nversion = \"0.2.0\"\n",
+    )
+    .expect("write manifest");
+    prepare(&evil);
+    let file = work.join("evil.tar.gz");
+    let status = Command::new("tar")
+        .current_dir(&evil)
+        .arg("-czPf")
+        .arg(&file)
+        .args(entries)
+        .status()
+        .expect("run tar");
+    assert!(status.success(), "tar -czPf evil");
+    file
+}
+
+#[cfg(unix)]
+fn write_exe(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(path, "#!/bin/sh\n").expect("write exe");
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+}
+
+#[cfg(unix)]
+#[test]
+fn unpack_rejects_an_archive_entry_with_a_dot_dot_component() {
+    let scratch = Scratch::new("official-plugins-dotdot");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    let archive = evil_archive(
+        scratch.path(),
+        &[
+            "com.tasty.alpha/tasty-plugin.toml",
+            "com.tasty.alpha/tasty-plugin-alpha",
+            "com.tasty.alpha/../escape",
+        ],
+        |evil| {
+            write_exe(&evil.join("com.tasty.alpha/tasty-plugin-alpha"));
+            std::fs::write(evil.join("escape"), "x").expect("write escape");
+        },
+    );
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    assert!(
+        text(&out).contains("아카이브 항목이 안전하지 않다: com.tasty.alpha/../escape"),
+        "{}",
+        text(&out)
+    );
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+    assert!(!out_dir.join("escape").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn unpack_rejects_an_absolute_archive_entry() {
+    let scratch = Scratch::new("official-plugins-absolute");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    let outside = scratch.path().join("outside-target");
+    std::fs::write(&outside, "x").expect("write outside");
+    let outside_s = s(&outside).to_string();
+    let archive = evil_archive(
+        scratch.path(),
+        &[
+            "com.tasty.alpha/tasty-plugin.toml",
+            "com.tasty.alpha/tasty-plugin-alpha",
+            &outside_s,
+        ],
+        |evil| write_exe(&evil.join("com.tasty.alpha/tasty-plugin-alpha")),
+    );
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    assert!(
+        text(&out).contains(&format!("아카이브 항목이 안전하지 않다: {outside_s}")),
+        "{}",
+        text(&out)
+    );
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn unpack_rejects_links_in_the_archive() {
+    let scratch = Scratch::new("official-plugins-links");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    // 실행 파일 자리에 밖을 가리키는 심볼릭 링크를 둔다. 링크를 따라가는 검사는 통과시킨다.
+    let archive = evil_archive(scratch.path(), &["com.tasty.alpha"], |evil| {
+        std::os::unix::fs::symlink("/bin/sh", evil.join("com.tasty.alpha/tasty-plugin-alpha"))
+            .expect("symlink");
+    });
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    assert!(
+        text(&out).contains("일반 파일·디렉터리가 아닌 항목: com.tasty.alpha/tasty-plugin-alpha"),
+        "{}",
+        text(&out)
+    );
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+
+    // 하드 링크도 거부한다.
+    let work = scratch.path().join("hard");
+    std::fs::create_dir_all(&work).expect("mkdir");
+    let archive = evil_archive(&work, &["com.tasty.alpha"], |evil| {
+        let root = evil.join("com.tasty.alpha");
+        write_exe(&root.join("tasty-plugin-alpha"));
+        std::fs::hard_link(root.join("tasty-plugin-alpha"), root.join("copy")).expect("link");
+    });
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    assert!(
+        text(&out).contains("일반 파일·디렉터리가 아닌 항목: com.tasty.alpha/"),
+        "{}",
+        text(&out)
+    );
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+}
+
+#[test]
+fn unpack_accepts_relative_dir_and_out() {
+    let scratch = Scratch::new("official-plugins-relative");
+    let (_, _) = fixture(scratch.path());
+    let out = run_in(
+        scratch.path(),
+        &[
+            "unpack",
+            "--lock",
+            "official-plugins.lock.toml",
+            "--dir",
+            "dl",
+            "--out",
+            "out",
+            "--platform",
+            "linux-x64",
+            "--all",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out));
+    for (id, _, _) in PLUGINS {
+        assert!(
+            scratch
+                .path()
+                .join("out")
+                .join(id)
+                .join("tasty-plugin.toml")
+                .is_file(),
+            "{id}"
+        );
+    }
+}
+
+#[test]
+fn unpack_refuses_an_out_folder_with_unplanned_entries() {
+    let scratch = Scratch::new("official-plugins-stale");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    let stale = out_dir.join("com.tasty.removed");
+    std::fs::create_dir_all(&stale).expect("mkdir stale");
+    std::fs::write(stale.join("tasty-plugin.toml"), "id = \"x\"\n").expect("write");
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    assert!(
+        text(&out).contains("이번 계획에 없는 항목: com.tasty.removed"),
+        "{}",
+        text(&out)
+    );
+    assert!(stale.join("tasty-plugin.toml").is_file(), "지우지 않는다");
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+
+    // 계획에 있는 폴더만 있으면 다시 풀어도 된다.
+    std::fs::remove_dir_all(&stale).expect("rm stale");
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out));
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out));
+}

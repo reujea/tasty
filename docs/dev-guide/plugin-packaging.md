@@ -64,7 +64,7 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 | `check [--lock <파일>]` | 형식과 완비(모든 플러그인에 5플랫폼, 64자리 sha256, 계산한 파일 이름·URL)를 확인한다. 받기 스크립트가 경로 조각으로 쓰는 값도 제한한다. `id`는 `com.tasty.` 뒤에 `[a-z0-9-]`만, `tag`는 `[A-Za-z0-9._-]`로만 된 `.`·`..`이 아닌 값, `file`은 `/`·`\`·`..`이 없는 단일 이름이어야 한다 |
 | `plan --platform <p> [--all]` | 받을 산출물을 `id`, `version`, `file`, `url`, `sha256` 탭 구분 한 줄씩 출력한다. `--all`이 없으면 `bundle = true`만 |
 | `verify --dir <폴더> --platform <p> [--all]` | 받은 파일의 SHA-256을 대조한다. 없는 파일은 `missing: <file>`, 다른 파일은 `sha256 mismatch: <file>`로 이름을 댄다 |
-| `unpack --dir <폴더> --out <폴더> --platform <p> [--all]` | `verify` 뒤 시스템 `tar`로 풀어 `<out>/<id>/`에 둔다. 최상위 `<id>/`, 매니페스트, 실행 파일이 있고 매니페스트 `id`·`version`이 잠금 파일과 같아야 한다 |
+| `unpack --dir <폴더> --out <폴더> --platform <p> [--all]` | `verify` 뒤 시스템 `tar`로 풀어 `<out>/<id>/`에 둔다. 풀기 전에 아카이브 목록을 읽어 `<id>/` 밖의 이름, 절대 경로, `..` 구성요소, 심볼릭·하드 링크, 일반 파일·디렉터리가 아닌 항목을 거부한다. 푼 뒤에는 링크를 따라가지 않고 최상위 `<id>/`, 매니페스트, 실행 파일을 확인하며 매니페스트 `id`·`version`이 잠금 파일과 같아야 한다. `<out>`에 이번 계획에 없는 항목이 있으면 그 이름을 대고 실패하며 지우지 않는다 |
 
 doc-guards 크레이트는 의존성을 두지 않으므로 이 도구는 잠금 파일과 메타데이터가 쓰는 TOML 부분집합만 읽고, 모르는 형식은 줄 번호와 함께 거절한다.
 
@@ -74,7 +74,7 @@ doc-guards 크레이트는 의존성을 두지 않으므로 이 도구는 잠금
 scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock <파일>]
 ```
 
-`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
+`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. 스테이징 폴더(`--out`)는 매번 비우거나 새로 만든다. 이전에 푼 다른 플러그인이 남아 있으면 `unpack`이 실패한다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
 
 ### 잠금 파일 갱신
 

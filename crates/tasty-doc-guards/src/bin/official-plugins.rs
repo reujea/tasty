@@ -14,7 +14,10 @@
 //! `--all`이 없으면 `bundle = true` 플러그인만 다룬다.
 //! `plan`은 플러그인마다 `id\tversion\tfile\turl\tsha256` 한 줄을 출력한다.
 //! `unpack`은 먼저 `verify`와 같은 대조를 하고, 시스템 `tar`로 풀어 `<out>/<id>/`에 둔다.
-//! 이미 있는 `<out>/<id>/`는 새것으로 바꾼다. 아카이브의 최상위는 `<id>/` 하나여야 하고,
+//! 이미 있는 `<out>/<id>/`는 새것으로 바꾼다. `<out>`에 이번 계획에 없는 항목이 있으면 이름을 대고
+//! 실패하며 지우지 않는다. 스테이징 폴더는 매번 비우거나 새로 만든다.
+//! 풀기 전에 아카이브 목록을 읽어 `<id>/` 밖의 이름, 절대 경로, `..` 구성요소, 링크, 일반 파일·디렉터리가
+//! 아닌 항목을 거부한다. 아카이브의 최상위는 `<id>/` 하나여야 하고,
 //! 그 아래 `tasty-plugin.toml`과 실행 파일이 있어야 하며, 매니페스트의 id·version이 잠금 파일과
 //! 같아야 한다. 그 밖의 파일(언어 파일, 고지 파일 등)은 목록을 고정하지 않는다.
 //! 종료코드: 0은 통과, 1은 검사 실패(형식·완비·해시·누락·구조), 2는 인자·읽기·쓰기 오류다.
@@ -209,8 +212,16 @@ fn check_unpacked(tmp: &Path, item: &PlanItem) -> Vec<String> {
         }
     }
     let root = tmp.join(&item.id);
+    // 링크를 따라가지 않는다. 풀기 전 목록 검사가 링크를 거부하지만, 풀린 결과도 다시 확인한다.
+    let mut links = Vec::new();
+    find_links(&root, &mut links);
+    if !links.is_empty() {
+        problems.push(format!("{}: 푼 결과에 링크가 있다: {links:?}", item.file));
+        return problems;
+    }
     let exe = root.join(&item.executable);
-    if !exe.is_file() {
+    let exe_meta = std::fs::symlink_metadata(&exe).ok().filter(|m| m.is_file());
+    if exe_meta.is_none() {
         problems.push(format!(
             "{}: 실행 파일 {} 이 없다",
             item.file, item.executable
@@ -219,7 +230,7 @@ fn check_unpacked(tmp: &Path, item: &PlanItem) -> Vec<String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = std::fs::metadata(&exe)
+        if let Some(meta) = &exe_meta
             && meta.permissions().mode() & 0o111 == 0
         {
             problems.push(format!(
@@ -228,7 +239,13 @@ fn check_unpacked(tmp: &Path, item: &PlanItem) -> Vec<String> {
             ));
         }
     }
-    match std::fs::read_to_string(root.join("tasty-plugin.toml")) {
+    let manifest = root.join("tasty-plugin.toml");
+    let manifest_text = match std::fs::symlink_metadata(&manifest) {
+        Ok(m) if m.is_file() => std::fs::read_to_string(&manifest),
+        Ok(_) => Err(std::io::Error::other("일반 파일이 아니다")),
+        Err(e) => Err(e),
+    };
+    match manifest_text {
         Ok(text) => {
             for (key, want) in [("id", &item.id), ("version", &item.version)] {
                 let got = manifest_top_level_str(&text, key);
@@ -241,6 +258,96 @@ fn check_unpacked(tmp: &Path, item: &PlanItem) -> Vec<String> {
             }
         }
         Err(e) => problems.push(format!("{}: tasty-plugin.toml 이 없다 ({e})", item.file)),
+    }
+    problems
+}
+
+/// `root` 아래(자신 포함)의 심볼릭 링크를 따라가지 않고 모은다.
+fn find_links(root: &Path, links: &mut Vec<PathBuf>) {
+    let Ok(meta) = std::fs::symlink_metadata(root) else {
+        return;
+    };
+    if meta.file_type().is_symlink() {
+        links.push(root.to_path_buf());
+        return;
+    }
+    if meta.is_dir()
+        && let Ok(entries) = std::fs::read_dir(root)
+    {
+        for entry in entries.flatten() {
+            find_links(&entry.path(), links);
+        }
+    }
+}
+
+fn tar_list(archive_dir: &Path, item: &PlanItem, verbose: bool) -> Result<Vec<String>, String> {
+    let flag = if verbose { "-tvzf" } else { "-tzf" };
+    let out = Command::new("tar")
+        .current_dir(archive_dir)
+        .env("LC_ALL", "C")
+        .arg(flag)
+        .arg(&item.file)
+        .output()
+        .map_err(|e| format!("{}: tar 를 실행하지 못했다: {e}", item.file))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{}: tar {flag} 실패 ({}): {}",
+            item.file,
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect())
+}
+
+/// 이름이 `<id>` 또는 `<id>/...`이고, 절대 경로·드라이브 문자·`..` 구성요소가 없는지 본다.
+fn entry_name_is_safe(name: &str, id: &str) -> bool {
+    let bytes = name.as_bytes();
+    if name.starts_with(['/', '\\']) || (bytes.len() >= 2 && bytes[1] == b':') {
+        return false;
+    }
+    let parts: Vec<&str> = name.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+    parts.first() == Some(&id) && !parts.contains(&"..")
+}
+
+/// 풀기 전에 아카이브 항목을 검사한다. 공식 플러그인 아카이브에는 `<id>/` 아래의 일반 파일과
+/// 디렉터리만 있다. 절대 경로, `..` 구성요소, 심볼릭·하드 링크, 그 밖의 종류는 모두 거부한다.
+fn check_entries(archive_dir: &Path, item: &PlanItem) -> Vec<String> {
+    let names = match tar_list(archive_dir, item, false) {
+        Ok(names) => names,
+        Err(e) => return vec![e],
+    };
+    let long = match tar_list(archive_dir, item, true) {
+        Ok(long) => long,
+        Err(e) => return vec![e],
+    };
+    if names.is_empty() || names.len() != long.len() {
+        return vec![format!(
+            "{}: 아카이브 목록을 읽지 못했다 (이름 {}줄, 자세한 목록 {}줄)",
+            item.file,
+            names.len(),
+            long.len()
+        )];
+    }
+    let mut problems = Vec::new();
+    for (name, line) in names.iter().zip(&long) {
+        if !entry_name_is_safe(name, &item.id) {
+            problems.push(format!(
+                "{}: 아카이브 항목이 안전하지 않다: {name}",
+                item.file
+            ));
+        }
+        let kind = line.chars().next();
+        let link = line.contains(" -> ") || line.contains(" link to ");
+        if !matches!(kind, Some('-' | 'd')) || link {
+            problems.push(format!(
+                "{}: 일반 파일·디렉터리가 아닌 항목: {name} ({line})",
+                item.file
+            ));
+        }
     }
     problems
 }
@@ -271,19 +378,63 @@ fn io(what: &str, path: &Path, e: std::io::Error) -> UsageError {
     UsageError(format!("{what} {}: {e}", path.display()))
 }
 
+const TMP_NAME: &str = ".official-plugins-unpack";
+
+fn absolute(path: &Path) -> Result<PathBuf, UsageError> {
+    std::path::absolute(path).map_err(|e| io("절대 경로로 바꾸지 못했다", path, e))
+}
+
+/// `<out>`에 이번 계획의 id와 작업 폴더가 아닌 항목이 있으면 그 이름을 돌려준다. 지우지 않는다.
+fn unplanned_entries(out: &Path, items: &[PlanItem]) -> Result<Vec<String>, UsageError> {
+    let entries = match std::fs::read_dir(out) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(io("폴더를 읽지 못했다", out, e)),
+    };
+    let mut stale = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| io("폴더를 읽지 못했다", out, e))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name != TMP_NAME && !items.iter().any(|i| i.id == name) {
+            stale.push(name);
+        }
+    }
+    stale.sort();
+    Ok(stale)
+}
+
 fn cmd_unpack(args: &Args, lock: &Lock) -> Result<ExitCode, UsageError> {
-    let dir = required(&args.dir, "--dir")?;
-    let out = required(&args.out, "--out")?;
+    // tar 는 받은 폴더를 현재 디렉터리로 삼아 실행하므로 경로를 처음에 절대 경로로 확정한다.
+    let dir = absolute(required(&args.dir, "--dir")?)?;
+    let out = absolute(required(&args.out, "--out")?)?;
+    let dir = dir.as_path();
+    let out = out.as_path();
     let items = planned(args, lock)?;
     let problems = verify_items(dir, &items);
     if !problems.is_empty() {
         report(dir, &problems);
         return Ok(ExitCode::from(1));
     }
+    let stale = unplanned_entries(out, &items)?;
+    if !stale.is_empty() {
+        let problems: Vec<String> = stale
+            .iter()
+            .map(|name| {
+                format!("이번 계획에 없는 항목: {name} (스테이징 폴더는 매번 비우거나 새로 만든다)")
+            })
+            .collect();
+        report(out, &problems);
+        return Ok(ExitCode::from(1));
+    }
     std::fs::create_dir_all(out).map_err(|e| io("폴더를 만들지 못했다", out, e))?;
-    let tmp = out.join(".official-plugins-unpack");
+    let tmp = out.join(TMP_NAME);
     let mut failures = Vec::new();
     for item in &items {
+        let problems = check_entries(dir, item);
+        if !problems.is_empty() {
+            failures.extend(problems);
+            continue;
+        }
         if tmp.exists() {
             std::fs::remove_dir_all(&tmp).map_err(|e| io("지우지 못했다", &tmp, e))?;
         }

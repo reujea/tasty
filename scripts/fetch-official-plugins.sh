@@ -4,6 +4,7 @@
 # 사용: scripts/fetch-official-plugins.sh --platform <p> --out <dir> [--all] [--lock <path>]
 #   <p>: macos-arm64 | windows-x64 | windows-arm64 | linux-x64 | linux-arm64
 #   --all: bundle = false 플러그인까지 받는다(개발 경로용). 없으면 배포 대상만.
+#   --out: 매번 비우거나 새로 만든다. 이번 계획에 없는 폴더가 남아 있으면 unpack이 실패한다.
 # 받은 파일은 ${CARGO_TARGET_DIR:-target}/official-plugins/<tag>/<platform>/에 둔다.
 # 해시가 맞는 파일은 다시 받지 않고, 맞지 않는 파일은 지우고 다시 받는다.
 # 해시 계산과 TOML 읽기는 official-plugins 도구(crates/tasty-doc-guards)가 한다.
