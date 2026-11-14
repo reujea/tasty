@@ -1,6 +1,6 @@
 //! 공식 플러그인 잠금 파일(`official-plugins.lock.toml`)을 만들고 읽는다.
 //! 셸·PowerShell 스크립트가 TOML을 직접 읽지 않도록 이 도구가 잠금 파일을 줄 단위 출력으로 바꾼다.
-//! 네트워크는 쓰지 않는다. 내려받기는 이 도구를 부르는 받기 스크립트가 한다.
+//! 네트워크는 쓰지 않는다. 내려받기는 호출하는 스크립트(`scripts/fetch-official-plugins.sh`)가 한다.
 //!
 //! ```text
 //! official-plugins generate --meta <release-meta.toml> --tsv <plugins-<p>.tsv>... --out <lock>

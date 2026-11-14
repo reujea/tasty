@@ -1,7 +1,7 @@
 //! `official-plugins` bin을 합성 릴리스로 실행해 종료 상태와 출력을 확인한다.
 //! 합성 아카이브는 시스템 `tar`로 만들고, 잠금 파일은 라이브러리의 `generate`로 만든다.
 //! linux-x64 산출물만 실제 파일이고 나머지 플랫폼의 해시는 형식만 맞춘 값이다.
-//! 실제 릴리스 파일을 받는 확인은 받기 스크립트 실행으로 따로 한다.
+//! 실제 릴리스 파일을 받는 확인은 `scripts/fetch-official-plugins.sh` 실행으로 따로 한다.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
