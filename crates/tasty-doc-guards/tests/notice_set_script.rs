@@ -2,8 +2,9 @@
 //! - `verify_notice_listing`은 목록의 각 줄을 경로 하나로 보고 앞의 `./` 하나만 뗀 뒤
 //!   `prefix+경로`와 줄 전체를 비교한다. 다른 폴더 아래에 같은 이름이 있어도 통과하지 않는다.
 //! - `LICENSES/`는 일반 파일만 담는다. 폴더·링크가 있으면 목록·스테이징이 실패한다.
-//!   점으로 시작하는 항목도 열거해 거부한다. PowerShell(`Get-NoticeSetFiles`)도 같은 규칙이며
-//!   그 쪽은 이 시험이 실행하지 않는다.
+//!   점으로 시작하는 항목도 열거해 거부한다. PowerShell(`Get-NoticeSetFiles`)도 같은 규칙이다.
+//!   이 시험은 PowerShell을 실행하지 않는다. 그 함수가 규칙의 요소(`-Force`, 점 이름·폴더·링크
+//!   거부)를 갖췄는지는 `notice_set_powershell_source`가 소스에서 확인한다.
 
 #![cfg(unix)]
 
