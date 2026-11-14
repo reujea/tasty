@@ -172,6 +172,35 @@ fn a_surface_edit_goes_to_the_plugin_that_view_read_at_key_time() {
     }
 }
 
+/// `egui_paste` surface 의 글자 없는 붙여넣기는 내용 없는 형식 붙여넣기(`paste`) 요청이 된다. 원래 키가 있으면
+/// 붙잡고, 팔레트처럼 키가 없으면 키 없이 기록한다.
+#[test]
+fn a_format_paste_surface_edit_requests_paste_and_holds_or_tracks() {
+    let mut mgr = mgr();
+    let format_paste = |original: Option<WindowEvent>| PluginEditAsk {
+        edit: EditKey::Paste,
+        text: None,
+        original,
+        ..surface_ask(Some(OPTED))
+    };
+    for original in [Some(WindowEvent::Focused(true)), None] {
+        match popup_edit_plan(Some(&mut mgr), format_paste(original.clone())) {
+            PopupEditPlan::Hold(hold) => {
+                assert_eq!(hold.target, PluginCopyTarget::Surface(5));
+                assert_eq!(
+                    hold.wire,
+                    RawInputEventWire::EditRequest {
+                        edit_id: hold.request.edit_id,
+                        edit: tasty_plugin_protocol::EditRequestWire::Paste,
+                    }
+                );
+                assert_eq!((hold.original, hold.edit), (original, EditKey::Paste));
+            }
+            other => panic!("형식 붙여넣기가 재생됐다: {other:?}"),
+        }
+    }
+}
+
 /// 보류 대상 판정: 팝업은 열려 있고 그 창의 키를 받을 때만, surface 는 그 창의 키를 지금도 받을 때만 살아
 /// 있다. 닫힌 팝업, 다른 팝업이나 surface 가 키를 받는 창, 플러그인 관리자가 없는 경우는 끝난다.
 #[test]

@@ -20,22 +20,22 @@ pub(crate) struct PluginEditAsk {
     /// surface 대상의 플러그인. 팝업 대상은 App이 열린 팝업에서 찾는다.
     pub(crate) plugin_id: Option<String>,
     pub(crate) edit: EditKey,
-    /// 붙여넣을 글자. 붙여넣기에만 있다.
+    /// 붙여넣을 글자. 붙여넣기에만 있다. 글자 없는 붙여넣기는 형식 붙여넣기다(`egui_paste` surface 만 남긴다).
     pub(crate) text: Option<String>,
     /// 붙잡을 원래 키. 팔레트처럼 키 없이 보낸 편집은 없고, 회신이 와도 재생할 것이 없다.
     pub(crate) original: Option<WindowEvent>,
 }
 
 impl PluginEditAsk {
-    /// 플러그인에 보낼 요청 내용.
+    /// 플러그인에 보낼 요청 내용. 글자 없는 붙여넣기는 내용 없는 형식 붙여넣기이고 플러그인이 필요한 형식을
+    /// 클립보드에서 직접 읽는다.
     pub(crate) fn wire(&self) -> tasty_plugin_protocol::EditRequestWire {
         use tasty_plugin_protocol::EditRequestWire as W;
         match (self.edit, &self.text) {
             (EditKey::Copy, _) => W::Copy,
             (EditKey::Cut, _) => W::Cut,
-            (EditKey::Paste, text) => W::PasteText {
-                text: text.clone().unwrap_or_default(),
-            },
+            (EditKey::Paste, Some(text)) => W::PasteText { text: text.clone() },
+            (EditKey::Paste, None) => W::Paste,
         }
     }
 }
@@ -186,7 +186,7 @@ mod tests {
         );
     }
 
-    /// 요청 내용은 편집과 붙여넣을 글자 그대로다.
+    /// 요청 내용은 편집과 붙여넣을 글자 그대로다. 글자 없는 붙여넣기는 형식 붙여넣기다.
     #[test]
     fn the_request_carries_the_edit_and_the_pasted_text() {
         use tasty_plugin_protocol::EditRequestWire as W;
@@ -198,5 +198,6 @@ mod tests {
                 text: "/tmp/a.md".into()
             }
         );
+        assert_eq!(ask(EditKey::Paste, None).wire(), W::Paste);
     }
 }

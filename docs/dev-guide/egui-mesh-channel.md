@@ -400,7 +400,8 @@ Copy·Paste 는 위 표대로 회신을 약속하지 않은 plugin 에서 각각
 직접 읽는다. 텍스트 붙여넣기는 `PasteText { text }` 가 나르고 SDK 가 `egui::Event::Paste(text)` 로 바꿔
 포커스된 `TextEdit` 에 넣는다. `Cut` 은 SDK 가 `egui::Event::Cut` 으로 바꾼다. plugin popup 에는 호스트가 편집 키 판정 뒤
 `PasteText`·`Copy`·`Cut` 을 보낸다(아래 "egui-mesh popup 채널"의 입력 게이트). egui-mesh surface 에는 회신을
-약속한 plugin 에만 아래 `EditRequest` 로 보낸다. attach mesh mirror 와 popup 미러 경로에는 Copy·Paste 전달이 없다.
+약속한 plugin 에만 아래 `EditRequest` 로 보낸다. `egui_paste` kind 의 surface 이면 클립보드에 글자가 없는 붙여넣기도
+형식 붙여넣기 `paste` 요청으로 보낸다. attach mesh mirror 와 popup 미러 경로에는 Copy·Paste 전달이 없다.
 
 편집 키 결과를 회신하는 plugin(hello `capabilities` 의 `edit_outcome`)에는 호스트가 위 편집 이벤트 대신
 `EditRequest { edit_id, edit }` 를 보낸다. `edit` 은 `copy`·`cut`·`paste_text { text }`·`paste` 이고 SDK 가 위와
@@ -412,7 +413,8 @@ Copy·Paste 는 위 표대로 회신을 약속하지 않은 plugin 에서 각각
 surface 요청은 `MainView::queue_plugin_edit_request` 가 그 surface 의 다음 컨텍스트 전송 입력 끝에 붙인다. 원격 mirror
 에는 보내지 않는다. 현재 한계로, 네이티브 Wayland 에서 다른 앱의 선택을 읽는 중이면 붙여넣을 글자가 없는 것으로 보고
 원래 키를 넘기는데 surface 에는 egui-winit 기본 붙여넣기 경로가 없어 회신을 약속한 plugin 의 surface 에서는 그 붙여넣기가
-사라지고, 팔레트 붙여넣기는 요청 없이 끝난다.
+사라지고, 팔레트 붙여넣기는 요청 없이 끝난다. `egui_paste` kind 의 surface 는 글자가 없을 때와 같이 형식 붙여넣기 `paste`
+요청을 받는다.
 
 요청과 무관한 복사·잘라내기(id 없는 `Copy`·`Cut` 이벤트, 버튼의 복사 등)의 결과는 프레임과 별개인
 `PluginEvent::CopyText { target, text }` 로 나간다. `EditRequest` 패스의 복사는 `CopyText` 로 보내지 않고 그

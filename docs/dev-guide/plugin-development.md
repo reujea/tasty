@@ -106,7 +106,7 @@ surface kind 선언에는 host 가 kind-agnostic 하게 소비하는 메타가 �
   - **`zoomable`** — 줌 in/out/reset 단축키로 폰트 크기 override 조절(예: markdown/explorer).
   - **`egui_copy`** — 폐기 예정. 편집 결과 회신(`edit_outcome`)을 약속한 plugin 에는 효과가 없다(편집 키 판정이 요청으로 보낸다). 약속하지 않은 plugin 이면 copy 단축키를 이 kind 의 egui-mesh surface 에 `Copy` wire 이벤트로 forward한다. plugin 자신의 egui `Context` 가 텍스트 선택(selectable label/`TextEdit`)을 복사하면, SDK 의 `paint`·`repaint_last` 가 그 텍스트를 `CopyText` 알림으로 host 에 보낸다. 화면이 바뀌지 않아 프레임 송신을 생략해도 알림은 나간다. host 는 알림을 보낸 plugin 의 id 와 함께 일회성 큐에 담는다(`PluginManager::take_copied_texts`). plugin 이 OS 클립보드에 직접 쓰지 않는 이유는 네이티브 Wayland 에서 selection 을 Tasty 프로세스가 소유하고 plugin 의 `arboard` 는 X11 만 쓰기 때문이다. App 은 pump 직후 이 큐를 꺼낸다. egui-mesh popup·surface 의 결과는 호스트 공통 복사 함수가 클립보드에 쓰고 토스트를 띄운다([클립보드](../features/clipboard/index.md#egui-mesh-surface-입력칸의-붙여넣기복사잘라내기)). markdown 이 webview 로 전환된 뒤([WebView 호스트 계약](../design/systems/webview.md)) 현재 이를 선언하는 번들 plugin 은 없다.
   - **`copy_path`** — select-all / copy-path 단축키(선택 항목 경로 복사) 소비(예: explorer).
-  - **`egui_paste`** — 편집 결과 회신을 약속하지 않은 plugin 이면 paste 단축키를 이 kind 가 소비한다. host 는 terminal paste 로 흘리지 않고 포커스된 egui-mesh surface 에 `Paste` wire 이벤트(클립보드 내용 없음)를 보낸다. SDK 는 내용 없는 `egui::Event::Paste` 로 바꾸고, plugin 이 클립보드에서 필요한 형식을 직접 읽는다(예: image 는 이미지를 떠 있는 선택으로 붙인다). 텍스트를 싣는 `PasteText { text }` 와 잘라내기 `Cut` wire 이벤트도 있고 SDK 가 각각 `egui::Event::Paste(text)`·`egui::Event::Cut` 으로 바꾼다. host 는 키를 받는 egui-mesh popup 에 이 둘과 `Copy` 를 편집 키 판정 뒤 보낸다(capability 선언 없이, [클립보드](../features/clipboard/index.md#플러그인-팝업-입력칸의-붙여넣기복사잘라내기)). surface 에는 편집 결과 회신을 약속한 plugin 에만 `EditRequest` 로 보낸다([클립보드](../features/clipboard/index.md#egui-mesh-surface-입력칸의-붙여넣기복사잘라내기)).
+  - **`egui_paste`** — 편집 결과 회신을 약속하지 않은 plugin 이면 paste 단축키를 이 kind 가 소비한다. host 는 terminal paste 로 흘리지 않고 포커스된 egui-mesh surface 에 `Paste` wire 이벤트(클립보드 내용 없음)를 보낸다. SDK 는 내용 없는 `egui::Event::Paste` 로 바꾸고, plugin 이 클립보드에서 필요한 형식을 직접 읽는다(예: image 는 이미지를 떠 있는 선택으로 붙인다). 텍스트를 싣는 `PasteText { text }` 와 잘라내기 `Cut` wire 이벤트도 있고 SDK 가 각각 `egui::Event::Paste(text)`·`egui::Event::Cut` 으로 바꾼다. host 는 키를 받는 egui-mesh popup 에 이 둘과 `Copy` 를 편집 키 판정 뒤 보낸다(capability 선언 없이, [클립보드](../features/clipboard/index.md#플러그인-팝업-입력칸의-붙여넣기복사잘라내기)). surface 에는 편집 결과 회신을 약속한 plugin 에만 `EditRequest` 로 보낸다([클립보드](../features/clipboard/index.md#egui-mesh-surface-입력칸의-붙여넣기복사잘라내기)). 회신을 약속한 plugin 의 이 kind surface 는 클립보드에 글자가 있으면 `paste_text` 요청을, 없으면 내용 없는 `paste` 요청을 받는다.
 - **`name_from_param`** — 자동 탭 명명 시 basename 을 파생할 params 키. 선언하면 그 키 값의 basename 을 탭 표시명으로 쓴다(예: markdown/image 는 `"file"`, explorer(builtin)는 `"path"` → `README.md`). 미선언이거나 params 에 그 키가 없으면 kind 표시명(`display_name_i18n_key`)으로 fallback. host 의 `kind == "markdown"` basename 명명 하드코딩을 대체. host 내장 kind 는 그 사이에 `SurfaceKindDef::tab_name_from_params`(create 에 넘길 cwd 와 params 를 받는 함수)를 둘 수 있다. explorer 는 이것으로 capture 한 preset 의 이름을 짓는다([explorer](../surfaces/explorer/index.md#저장복원)). 매니페스트 필드가 아니라 플러그인 kind 는 쓰지 않는다.
 - **`records_recent`**(기본 false) — 이 kind 의 surface 를 파일로 열 때 host 가 "최근 연 파일" 목록에 kind 별로 기록할지. host 는 특정 kind 이름을 모르고 이 플래그로 기록 대상을 판정한다(generic per-kind). plugin 은 host 의 generic `recent.query {kind}` IPC 로 자기 최근 목록을 조회한다(예: markdown 주소창 드롭다운). 예: markdown 은 `true`.
 - **`convert_requires_input`**(기본 false) + **`convert_input_popup`** — 이 kind 로 convert 하려면 host 가 먼저 "파일 입력 팝업"을 띄워야 하는지, 그리고 그때 열 이 plugin 의 팝업 **local id**. host 는 kind 이름·event key 하드코딩 없이 이 데이터만 따라 `<plugin_id>/<popup_id>` 팝업을 `open_popup_instance` 로 연다(payload 의 `surface_id` 로 제자리 변환 / 새 탭 분기). 예: markdown 은 `convert_requires_input = true`, `convert_input_popup = "file-open"`([파일 핸들러 (File handler)](../features/file-handler/index.md)). 미선언이면 빈 params 즉시 변환.
@@ -377,7 +377,7 @@ plugin `build.rs` 의 `ICONS` 목록에 한 줄. 근거·대안은 [테마 시�
 - 기능 협상: plugin 이 `Hello.capabilities`에 `edit_outcome`을 넣었을 때만 호스트가 편집 요청을 보낸다. 넣지 않은
   plugin 에는 요청을 보내지 않고, 그 대상의 편집 키는 넘긴다(`Pass`).
 - 요청: 입력 이벤트 `EditRequest { edit_id, edit }`. `edit`은 `copy`·`cut`·`paste_text { text }`·`paste`(내용 없는
-  형식 붙여넣기)다. id 는 이벤트마다 붙는다. 입력을 이어 붙이는 경로가 이벤트 목록만 합치기 때문이다.
+  형식 붙여넣기)다. `paste`는 `egui_paste` kind 의 surface 에서 클립보드에 글자가 없는 붙여넣기에만 보낸다. id 는 이벤트마다 붙는다. 입력을 이어 붙이는 경로가 이벤트 목록만 합치기 때문이다.
 - 회신: 요청마다 `EditOutcome { target, edit_id, result, copied }`를 정확히 한 번 보낸다. `result`는 `acted`(편집이
   일어남, 호스트가 키를 소비), `not_acted`(일어나지 않음, 호스트가 원래 키를 넘김), `unknown`(알 수 없음, 실행됐을 수
   있으므로 호스트가 키를 소비하고 재생하지 않음)이다. 모르는 동작의 요청은 실행하지 않고 `not_acted`로 회신한다.
@@ -387,7 +387,9 @@ plugin `build.rs` 의 `ICONS` 목록에 한 줄. 근거·대안은 [테마 시�
 SDK(`tasty_plugin_sdk::egui_surface::edit`)가 회신을 만든다.
 
 - 약속: `Plugin::reports_edit_outcomes`가 true 를 돌려주면 hello 가 `edit_outcome`을 알린다. 기본값은 false 다. 편집
-  입력칸을 모두 아래 어댑터로 그리고, 패스 밖에서 처리하는 붙여넣기는 결과를 알리는 plugin 만 true 로 한다.
+  입력칸을 모두 아래 어댑터로 그리고, 패스 밖에서 처리하는 붙여넣기는 결과를 알리는 plugin 만 true 로 한다. `egui_paste` kind 를
+  선언하고 true 로 하면 `paste` 요청의 결과를 알린다(패스 안이면 `report_edit`, 패스 밖이면 `report_edit_outcome`). 붙일
+  형식이 없으면 `not_acted`로 알려 원래 키를 넘긴다. 알리지 않으면 `unknown`이라 호스트가 키를 소비한다.
 - 패스 나누기: 요청이 든 입력은 요청 앞, 요청 하나, 요청 뒤로 나눠 각각 egui 패스로 돌린다. 앞뒤의 글자 입력·클릭이 바꾼
   내용을 편집 결과로 세지 않기 위해서다. 그림·IME 위치·다음 렌더 요청은 마지막 패스의 것이고 텍스처 변경은 모든 패스의
   것을 순서대로 합친다. 요청이 없는 입력은 예전처럼 패스 하나다.

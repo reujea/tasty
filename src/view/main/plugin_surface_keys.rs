@@ -15,8 +15,13 @@ use crate::runtime::engine_read::EngineRead;
 /// 키를 받는 surface 중 이 판정이 맡는 것.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum SurfaceEditTarget {
-    /// 회신을 약속한 플러그인의 로컬 egui-mesh surface.
-    Local { surface: u32, plugin_id: String },
+    /// 회신을 약속한 플러그인의 로컬 egui-mesh surface. `format_paste`는 그 kind 가 `egui_paste`를 선언해
+    /// 플러그인이 글자 밖의 형식(이미지 등)을 클립보드에서 직접 읽는지다.
+    Local {
+        surface: u32,
+        plugin_id: String,
+        format_paste: bool,
+    },
     /// 원격 egui-mesh mirror. 편집 이벤트를 보내지 않고 원래 키를 원격 플러그인에 넘긴다.
     Mirror,
 }
@@ -25,16 +30,17 @@ pub(super) enum SurfaceEditTarget {
 /// egui-mesh 가 아니거나, 그 플러그인이 회신을 약속하지 않았으면(직전 렌더 기준) 없다.
 pub(super) fn surface_edit_target(
     overlay: bool,
-    local: Option<(u32, &str, bool)>,
+    local: Option<(u32, &str, bool, bool)>,
     mirror: bool,
 ) -> Option<SurfaceEditTarget> {
     if overlay {
         return None;
     }
-    if let Some((surface, plugin_id, reports)) = local {
+    if let Some((surface, plugin_id, reports, format_paste)) = local {
         return reports.then(|| SurfaceEditTarget::Local {
             surface,
             plugin_id: plugin_id.to_string(),
+            format_paste,
         });
     }
     mirror.then_some(SurfaceEditTarget::Mirror)
@@ -46,9 +52,19 @@ fn mirror_key(binding: Option<EditKey>) -> EguiKey {
     popup_key(verdict(binding, |_| Capability::No)).0
 }
 
+/// 로컬 surface 대상의 능력. 팝업과 같되, `egui_paste` surface 는 글자가 없어도 플러그인이 다른 형식을 붙일 수
+/// 있어 회신을 봐야 안다. 그때 요청은 글자 없는 형식 붙여넣기(`paste`)다.
+fn surface_capability(edit: EditKey, clipboard_text: bool, format_paste: bool) -> Capability {
+    match edit {
+        EditKey::Paste if format_paste => Capability::Unknown,
+        _ => popup_capability(edit, clipboard_text),
+    }
+}
+
 /// surface 판정이 키에 하는 일과 남길 편집 요청. 대상이 없으면 `None`이고 다음 판정이 받는다. 뗌은 그대로
 /// 보낸다. mirror 는 넘기고, 회신을 약속한 로컬 surface 는 팝업과 같은 규칙으로 판정해 기다리는 키를 Tasty 가
-/// 가져가고 원래 키를 붙잡은 요청을 남긴다. 붙여넣을 글자는 붙여넣기 바인딩일 때만 읽는다.
+/// 가져가고 원래 키를 붙잡은 요청을 남긴다. 붙여넣을 글자는 붙여넣기 바인딩일 때만 읽는다. `egui_paste`
+/// surface 는 글자가 없어도 형식 붙여넣기 요청을 남긴다.
 pub(super) fn surface_key(
     target: Option<SurfaceEditTarget>,
     pressed: bool,
@@ -60,16 +76,20 @@ pub(super) fn surface_key(
     if !pressed {
         return Some((EguiKey::Free, None));
     }
-    let (surface, plugin_id) = match target {
+    let (surface, plugin_id, format_paste) = match target {
         SurfaceEditTarget::Mirror => return Some((mirror_key(binding), None)),
-        SurfaceEditTarget::Local { surface, plugin_id } => (surface, plugin_id),
+        SurfaceEditTarget::Local {
+            surface,
+            plugin_id,
+            format_paste,
+        } => (surface, plugin_id, format_paste),
     };
     let mut text = None;
     let judged = verdict(binding, |edit| {
         if edit == EditKey::Paste {
             text = paste_text();
         }
-        popup_capability(edit, text.is_some())
+        surface_capability(edit, text.is_some(), format_paste)
     });
     let (key, asked) = popup_key(judged);
     let ask = asked.map(|edit| PluginEditAsk {
@@ -87,7 +107,8 @@ pub(super) fn surface_key(
 pub(super) enum PaletteSurfaceEdit {
     /// 이 판정의 대상이 아니다. 기존 팔레트 경로(`run_copy`·탐색기·`run_paste`)가 받는다.
     NotMine,
-    /// 대상이지만 보낼 것이 없다(빈 클립보드의 붙여넣기). 터미널 붙여넣기로 넘기지 않는다.
+    /// 대상이지만 보낼 것이 없다(`egui_paste`가 아닌 surface 에 빈 클립보드의 붙여넣기). 터미널 붙여넣기로
+    /// 넘기지 않는다.
     Nothing,
     /// 이 surface 의 플러그인에 편집 요청을 보낸다.
     Ask { surface: u32, plugin_id: String },
@@ -100,10 +121,15 @@ pub(super) fn palette_surface_edit(
     edit: EditKey,
     clipboard_text: bool,
 ) -> PaletteSurfaceEdit {
-    let Some(SurfaceEditTarget::Local { surface, plugin_id }) = target else {
+    let Some(SurfaceEditTarget::Local {
+        surface,
+        plugin_id,
+        format_paste,
+    }) = target
+    else {
         return PaletteSurfaceEdit::NotMine;
     };
-    match popup_capability(edit, clipboard_text) {
+    match surface_capability(edit, clipboard_text, format_paste) {
         Capability::No => PaletteSurfaceEdit::Nothing,
         _ => PaletteSurfaceEdit::Ask { surface, plugin_id },
     }
@@ -112,6 +138,7 @@ pub(super) fn palette_surface_edit(
 impl MainView {
     /// 팔레트의 복사·잘라내기·붙여넣기를 회신을 약속한 플러그인 surface 에 요청으로 보낸다. 맡았으면 true 이고
     /// 기존 팔레트 경로를 타지 않는다. 키가 없으므로 원래 키 없이 남기고, App 이 회신의 복사 글자만 쓴다.
+    /// 글자가 없는 붙여넣기는 `egui_paste` surface 에만 형식 붙여넣기 요청으로 보낸다.
     pub(crate) fn ask_plugin_surface_palette_edit(
         &mut self,
         engine: &EngineRead<'_>,
@@ -162,13 +189,23 @@ impl MainView {
                 .egui_mesh
                 .get(&sid)
                 .is_some_and(|st| st.reports_edit_outcomes);
-            Some((sid, plugin_id, reports))
+            Some((sid, plugin_id, reports, self.egui_paste_kind(engine, sid)))
         });
         let mirror = self.focused_attach_mesh_surface_id(engine).is_some();
         let local = local
             .as_ref()
-            .map(|(sid, plugin_id, reports)| (*sid, plugin_id.as_str(), *reports));
+            .map(|(sid, plugin_id, reports, format_paste)| {
+                (*sid, plugin_id.as_str(), *reports, *format_paste)
+            });
         surface_edit_target(overlay, local, mirror)
+    }
+
+    /// surface 의 kind 가 `egui_paste`를 선언했는지. 판정한 그 surface 의 kind 로 직접 찾는다.
+    fn egui_paste_kind(&self, engine: &EngineRead<'_>, sid: u32) -> bool {
+        engine
+            .find_surface_by_id(sid)
+            .and_then(|surface| engine.surface_registry.get(surface.kind()))
+            .is_some_and(|kind| kind.egui_paste)
     }
 
     /// 키를 받는 surface 가 이 판정의 대상일 때의 편집 키 판정. 다른 대상이면 `None`이고 다음 판정이 받는다.
@@ -213,14 +250,23 @@ mod tests {
     #[test]
     fn only_surfaces_of_plugins_that_reply_or_mirrors_are_judged() {
         assert_eq!(
-            surface_edit_target(false, Some((4, "demo", true)), false),
+            surface_edit_target(false, Some((4, "demo", true, false)), false),
             Some(SurfaceEditTarget::Local {
                 surface: 4,
-                plugin_id: "demo".into()
+                plugin_id: "demo".into(),
+                format_paste: false,
             })
         );
         assert_eq!(
-            surface_edit_target(false, Some((4, "image", false)), false),
+            surface_edit_target(false, Some((4, "demo", true, true)), false),
+            Some(SurfaceEditTarget::Local {
+                surface: 4,
+                plugin_id: "demo".into(),
+                format_paste: true,
+            })
+        );
+        assert_eq!(
+            surface_edit_target(false, Some((4, "image", false, true)), false),
             None
         );
         assert_eq!(
@@ -250,6 +296,16 @@ mod tests {
         Some(SurfaceEditTarget::Local {
             surface: 4,
             plugin_id: "demo".into(),
+            format_paste: false,
+        })
+    }
+
+    /// `egui_paste`를 선언한 kind 의 surface.
+    fn format_paste_local() -> Option<SurfaceEditTarget> {
+        Some(SurfaceEditTarget::Local {
+            surface: 4,
+            plugin_id: "demo".into(),
+            format_paste: true,
         })
     }
 
@@ -291,6 +347,34 @@ mod tests {
         let (key, ask) = judge(local(), true, None, Some("hi")).expect("판정 대상");
         assert_eq!((key, ask.is_none()), (EguiKey::Free, true));
         let (key, ask) = judge(local(), false, Some(EditKey::Copy), None).expect("판정 대상");
+        assert_eq!((key, ask.is_none()), (EguiKey::Free, true));
+    }
+
+    /// `egui_paste` surface 는 글자 없는 붙여넣기도 가져가 원래 키를 붙잡은 형식 붙여넣기(`paste`) 요청을 남긴다.
+    /// 글자가 있으면 글자 붙여넣기 요청 하나만 남기고, 붙여넣기가 아닌 편집과 뗌은 다른 surface 와 같다.
+    #[test]
+    fn an_egui_paste_surface_asks_a_format_paste_when_there_is_no_text() {
+        use tasty_plugin_protocol::EditRequestWire as W;
+        let (key, ask) =
+            judge(format_paste_local(), true, Some(EditKey::Paste), None).expect("판정 대상");
+        assert_eq!(key, EguiKey::Taken);
+        let ask = ask.expect("요청");
+        assert_eq!(ask.target, PluginCopyTarget::Surface(4));
+        assert_eq!(ask.plugin_id.as_deref(), Some("demo"));
+        assert_eq!(ask.wire(), W::Paste);
+        assert_eq!(ask.original, Some(WindowEvent::Focused(true)));
+        let (key, ask) =
+            judge(format_paste_local(), true, Some(EditKey::Paste), Some("hi")).expect("판정 대상");
+        assert_eq!(key, EguiKey::Taken);
+        assert_eq!(
+            ask.expect("요청").wire(),
+            W::PasteText { text: "hi".into() }
+        );
+        let (key, ask) =
+            judge(format_paste_local(), true, Some(EditKey::Copy), None).expect("판정 대상");
+        assert_eq!((key, ask.expect("요청").wire()), (EguiKey::Taken, W::Copy));
+        let (key, ask) =
+            judge(format_paste_local(), false, Some(EditKey::Paste), None).expect("판정 대상");
         assert_eq!((key, ask.is_none()), (EguiKey::Free, true));
     }
 
@@ -346,7 +430,8 @@ mod tests {
         );
     }
 
-    /// 팔레트 편집은 회신을 약속한 로컬 surface 만 요청으로 보낸다. 빈 클립보드의 붙여넣기는 보내지 않고 끝내며
+    /// 팔레트 편집은 회신을 약속한 로컬 surface 만 요청으로 보낸다. 빈 클립보드의 붙여넣기는 `egui_paste` surface 에만
+    /// 형식 붙여넣기로 보내고 그 밖에는 보내지 않고 끝내며
     /// (터미널로 넘기지 않는다) mirror·약속 없는 플러그인·대상 없음은 기존 경로로 간다.
     #[test]
     fn a_palette_edit_asks_only_a_surface_that_replies() {
@@ -360,6 +445,14 @@ mod tests {
         assert_eq!(
             palette_surface_edit(local(), EditKey::Paste, false),
             PaletteSurfaceEdit::Nothing
+        );
+        assert_eq!(
+            palette_surface_edit(format_paste_local(), EditKey::Paste, false),
+            ask
+        );
+        assert_eq!(
+            palette_surface_edit(format_paste_local(), EditKey::Paste, true),
+            ask
         );
         assert_eq!(
             palette_surface_edit(Some(SurfaceEditTarget::Mirror), EditKey::Paste, true),
