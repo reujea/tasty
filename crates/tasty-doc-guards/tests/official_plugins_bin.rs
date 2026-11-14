@@ -566,3 +566,92 @@ fn unpack_rejects_a_fifo_entry() {
     );
     assert!(!out_dir.join("com.tasty.alpha").exists());
 }
+
+/// ustar 헤더에서 하드 링크(typeflag `1`)의 mode 필드를 `0100644`(종류 비트 포함)로 바꾸고 checksum을
+/// 다시 계산한다. libarchive(bsdtar)는 이 헤더를 `-tv`에서 `-`로 보인다.
+#[cfg(unix)]
+fn set_regular_mode_on_hard_links(tar: &mut [u8]) -> usize {
+    let mut patched = 0;
+    let mut at = 0;
+    while at + 512 <= tar.len() {
+        let header = &mut tar[at..at + 512];
+        if header.iter().all(|b| *b == 0) {
+            break;
+        }
+        let size_field = String::from_utf8_lossy(&header[124..136]).to_string();
+        let size =
+            usize::from_str_radix(size_field.trim_matches(|c: char| c == '\0' || c == ' '), 8)
+                .expect("octal size");
+        if header[156] == b'1' {
+            header[100..108].copy_from_slice(b"0100644\0");
+            header[148..156].copy_from_slice(b"        ");
+            let sum: u32 = header.iter().map(|b| u32::from(*b)).sum();
+            header[148..156].copy_from_slice(format!("{sum:06o}\0 ").as_bytes());
+            patched += 1;
+        }
+        at += 512 + size.div_ceil(512) * 512;
+    }
+    patched
+}
+
+#[cfg(unix)]
+#[test]
+fn unpack_rejects_a_hard_link_whose_mode_claims_a_regular_file() {
+    let scratch = Scratch::new("official-plugins-hardlink-mode");
+    let (lock, dl) = fixture(scratch.path());
+    let out_dir = scratch.path().join("out");
+    let evil = scratch.path().join("evil");
+    let root = evil.join("com.tasty.alpha");
+    std::fs::create_dir_all(&root).expect("mkdir");
+    std::fs::write(
+        root.join("tasty-plugin.toml"),
+        "manifest_version = 1\nid = \"com.tasty.alpha\"\nversion = \"0.2.0\"\n",
+    )
+    .expect("write manifest");
+    write_exe(&root.join("tasty-plugin-alpha"));
+    std::fs::hard_link(root.join("tasty-plugin-alpha"), root.join("hl")).expect("link");
+    let plain = scratch.path().join("evil.tar");
+    let status = Command::new("tar")
+        .current_dir(&evil)
+        .arg("--format=ustar")
+        .arg("-cf")
+        .arg(&plain)
+        // 순서를 고정해 링크 헤더가 hl 쪽에 오게 한다. 디렉터리를 주면 읽는 순서에 따라 바뀐다.
+        .args([
+            "com.tasty.alpha/tasty-plugin.toml",
+            "com.tasty.alpha/tasty-plugin-alpha",
+            "com.tasty.alpha/hl",
+        ])
+        .status()
+        .expect("run tar");
+    assert!(status.success(), "tar -cf");
+    let mut bytes = std::fs::read(&plain).expect("read tar");
+    assert_eq!(
+        set_regular_mode_on_hard_links(&mut bytes),
+        1,
+        "one hard link"
+    );
+    std::fs::write(&plain, &bytes).expect("write tar");
+    let gz = Command::new("gzip")
+        .arg("-n")
+        .arg("-c")
+        .arg(&plain)
+        .output()
+        .expect("run gzip");
+    assert!(gz.status.success(), "gzip");
+    let archive = scratch.path().join("evil.tar.gz");
+    std::fs::write(&archive, &gz.stdout).expect("write gz");
+    replace_alpha(&lock, &dl, &archive);
+    let out = run(&unpack_args(&lock, &dl, &out_dir));
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+    // GNU tar는 종류 문자 `h`로, bsdtar는 줄 끝의 링크 표기로 거부한다.
+    let t = text(&out);
+    assert!(
+        t.contains("일반 파일·디렉터리가 아닌 항목: com.tasty.alpha/hl")
+            || t.contains(
+                "자세한 목록 줄이 항목 이름으로 끝나지 않는다(링크 표기): com.tasty.alpha/hl"
+            ),
+        "{t}"
+    );
+    assert!(!out_dir.join("com.tasty.alpha").exists());
+}

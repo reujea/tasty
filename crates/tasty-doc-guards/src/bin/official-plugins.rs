@@ -16,8 +16,8 @@
 //! `unpack`은 먼저 `verify`와 같은 대조를 하고, 시스템 `tar`로 풀어 `<out>/<id>/`에 둔다.
 //! 이미 있는 `<out>/<id>/`는 새것으로 바꾼다. `<out>`에 이번 계획에 없는 항목이 있으면 이름을 대고
 //! 실패하며 지우지 않는다. 스테이징 폴더는 매번 비우거나 새로 만든다.
-//! 풀기 전에 아카이브 목록을 읽어 `<id>/` 밖의 이름, 절대 경로, `..` 구성요소, 링크, 일반 파일·디렉터리가
-//! 아닌 항목을 거부한다. 아카이브의 최상위는 `<id>/` 하나여야 하고,
+//! 풀기 전에 아카이브 목록을 읽어 `<id>/` 밖의 이름, 절대 경로, `..` 구성요소, 일반 파일·디렉터리가
+//! 아닌 항목, 링크(종류 문자 `l`·`h` 또는 줄 끝의 링크 표기)를 거부한다. 아카이브의 최상위는 `<id>/` 하나여야 하고,
 //! 그 아래 `tasty-plugin.toml`과 실행 파일이 있어야 하며, 매니페스트의 id·version이 잠금 파일과
 //! 같아야 한다. 그 밖의 파일(언어 파일, 고지 파일 등)은 목록을 고정하지 않는다.
 //! 종료코드: 0은 통과, 1은 검사 실패(형식·완비·해시·누락·구조), 2는 인자·읽기·쓰기 오류다.
@@ -313,8 +313,17 @@ fn entry_name_is_safe(name: &str, id: &str) -> bool {
     parts.first() == Some(&id) && !parts.contains(&"..")
 }
 
+/// `-tv` 줄이 같은 순번 `-t` 이름으로 끝나고, 이름 앞 부분에 링크 표기가 없는지 본다. 대상이 이름과
+/// 같은 문자열로 끝나는 링크도 이름 앞에 ` link to`·` ->`가 남아 걸린다.
+fn line_ends_with_name(line: &str, name: &str) -> bool {
+    line.strip_suffix(name)
+        .and_then(|head| head.strip_suffix(' '))
+        .is_some_and(|head| !head.contains(" link to") && !head.contains(" ->"))
+}
+
 /// 풀기 전에 아카이브 항목을 검사한다. 공식 플러그인 아카이브에는 `<id>/` 아래의 일반 파일과
-/// 디렉터리만 있다. 절대 경로, `..` 구성요소, 심볼릭·하드 링크, 그 밖의 종류는 모두 거부한다.
+/// 디렉터리만 있다. 절대 경로, `..` 구성요소, 그 밖의 종류는 거부한다. 링크는 종류 문자(`l`·`h`)와,
+/// 자세한 목록 줄이 이름 뒤에 링크 표기를 붙였는지로 거부한다.
 fn check_entries(archive_dir: &Path, item: &PlanItem) -> Vec<String> {
     let names = match tar_list(archive_dir, item, false) {
         Ok(names) => names,
@@ -340,11 +349,18 @@ fn check_entries(archive_dir: &Path, item: &PlanItem) -> Vec<String> {
                 item.file
             ));
         }
-        // 종류는 줄 첫 글자로만 판정한다. GNU tar와 bsdtar 모두 심볼릭 링크는 `l`, 하드 링크는 `h`로
-        // 시작한다. 이름에 ` -> `·` link to `가 든 일반 파일이 있으므로 줄 안의 문자열은 보지 않는다.
+        // 종류 문자는 줄 첫 글자다. 정상 헤더라면 GNU tar와 bsdtar 모두 심볼릭 링크는 `l`, 하드 링크는
+        // `h`로 시작한다. 이름 안의 ` -> `·` link to `는 일반 파일일 수 있어 종류 판정에 쓰지 않는다.
         if !matches!(line.chars().next(), Some('-' | 'd')) {
             problems.push(format!(
                 "{}: 일반 파일·디렉터리가 아닌 항목: {name} ({line})",
+                item.file
+            ));
+        } else if !line_ends_with_name(line, name) {
+            // bsdtar는 mode 필드에 종류 비트가 든 하드 링크 헤더를 `-`로 보인다. 링크 줄은 이름 뒤에
+            // ` link to <대상>`(하드)이나 ` -> <대상>`(심볼릭)이 붙으므로 줄이 이름으로 끝나는지 본다.
+            problems.push(format!(
+                "{}: 자세한 목록 줄이 항목 이름으로 끝나지 않는다(링크 표기): {name} ({line})",
                 item.file
             ));
         }
@@ -513,5 +529,55 @@ fn main() -> ExitCode {
             eprintln!("[official-plugins] {msg}\n{USAGE}");
             ExitCode::from(2)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::line_ends_with_name;
+
+    #[test]
+    fn listing_lines_must_end_with_the_entry_name() {
+        let name = "com.tasty.alpha/hl";
+        // 정상 줄(GNU tar, bsdtar).
+        assert!(line_ends_with_name(
+            "-rw-r--r-- u/g 2 2026-11-15 00:36 com.tasty.alpha/hl",
+            name
+        ));
+        assert!(line_ends_with_name(
+            "-rw-r--r--  0 0  0  2 Jan  1  1970 com.tasty.alpha/hl",
+            name
+        ));
+        assert!(line_ends_with_name(
+            "drwxr-xr-x  0 0  0  0 Jan  1  1970 com.tasty.alpha/",
+            "com.tasty.alpha/"
+        ));
+        // 이름에 링크 표기가 든 일반 파일.
+        assert!(line_ends_with_name(
+            "-rw-r--r--  0 0  0  2 Jan  1  1970 com.tasty.alpha/lang/a link to b.toml",
+            "com.tasty.alpha/lang/a link to b.toml"
+        ));
+        assert!(line_ends_with_name(
+            "-rw-r--r-- u/g 1 2026-11-15 00:36 com.tasty.alpha/a -> b",
+            "com.tasty.alpha/a -> b"
+        ));
+        // bsdtar가 `-`로 보인 하드 링크, 심볼릭 링크, 대상이 이름과 같은 문자열로 끝나는 링크.
+        assert!(!line_ends_with_name(
+            "-rw-r--r--  0 0  0  0 Jan  1  1970 com.tasty.alpha/hl link to com.tasty.alpha/exe",
+            name
+        ));
+        assert!(!line_ends_with_name(
+            "-rw-r--r--  0 0  0  0 Jan  1  1970 com.tasty.alpha/hl -> /bin/sh",
+            name
+        ));
+        assert!(!line_ends_with_name(
+            "-rw-r--r--  0 0  0  0 Jan  1  1970 com.tasty.alpha/hl link to com.tasty.alpha/hl",
+            name
+        ));
+        assert!(!line_ends_with_name(
+            "-rw-r--r--  0 0  0  0 Jan  1  1970 com.tasty.alpha/x link to y com.tasty.alpha/hl",
+            name
+        ));
+        assert!(!line_ends_with_name("com.tasty.alpha/hl", name));
     }
 }
