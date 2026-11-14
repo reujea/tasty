@@ -1,6 +1,6 @@
 # Git Hooks
 
-`.githooks/`에는 커밋, push, merge 전에 실행하는 검사 세 가지가 있다. clone 후 `./scripts/dev-setup.sh`를 실행하면 설치된다. `git config core.hooksPath .githooks`로 직접 설정할 수도 있다. 셸 스크립트를 커밋하려면 PATH에 `shellcheck`가 필요하다.
+`.githooks/`에는 커밋, push, merge 전에 실행하는 검사 세 가지가 있다. clone 후 `./scripts/dev-setup.sh`를 실행하면 설치되고 모든 target의 Cargo 의존도 받는다. `git config core.hooksPath .githooks`로 직접 설정할 수도 있다. 셸 스크립트를 커밋하려면 PATH에 `shellcheck`가 필요하다.
 
 CI에서도 실행하는 검사와 로컬 훅에서만 실행하는 검사는 [ci-gates](ci-gates.md)에서 확인한다. 브랜치 규칙과 merge 커밋을 허용하는 경우는 [브랜치 전략](branching.md)에 있다.
 
@@ -19,7 +19,7 @@ CI에서도 실행하는 검사와 로컬 훅에서만 실행하는 검사는 [c
 | C.9 | `egui::Window` 직접 사용 | 추가된 코드에서는 PopupManager/PopupDef를 사용한다. 예외는 [popup-implementation](popup-implementation.md)에 있다. |
 | C.11 | `println!`와 `eprintln!` 사용 | 추가된 로그는 `tracing`으로 출력한다. CLI 등 표준 출력이 필요한 파일과 `vendor/` 사본은 제외한다. |
 | C.12 | `dbg!` 사용 | 추가된 코드에서 디버그 매크로를 제거한다. |
-| P.1 | 플러그인 버전 변경 | `scripts/check-plugin-version-bump.sh`로 staged 내용과 통합 브랜치 `develop`의 공통 조상 커밋을 비교한다. 로컬 `develop`이 없으면 `origin/develop`을 쓰고, 둘 다 공통 조상을 찾지 못하면 안내를 출력한 뒤 HEAD를 사용한다. 이때는 이 커밋의 staged 변경만 비교하므로, `develop`에서 갈라진 뒤 앞선 커밋에서 바뀐 플러그인 내용은 보지 않는다. 연결된 작업 트리에 `tasty.pluginBump=deferred`가 worktree 범위로 있으면 검사하지 않고 안내만 출력한다([lane 작업 트리의 P.1 보류](#lane-작업-트리의-p1-보류)). |
+| P.1 | 플러그인 버전 변경 | `scripts/check-plugin-version-bump.sh`로 staged 내용과 통합 브랜치 `develop`의 공통 조상 커밋을 비교한다. 로컬 `develop`이 없으면 `origin/develop`을 쓰고, 둘 다 공통 조상을 찾지 못하면 안내를 출력한 뒤 HEAD를 사용한다. 이때는 이 커밋의 staged 변경만 비교하므로, `develop`에서 갈라진 뒤 앞선 커밋에서 바뀐 플러그인 내용은 보지 않는다. 연결된 작업 트리에 `tasty.pluginBump=deferred`가 worktree 범위로 있으면 검사하지 않고 안내만 출력한다([lane 작업 트리의 P.1 보류](#lane-작업-트리의-p1-보류)). 의존 폐포를 모든 target에 대해 오프라인으로 읽으므로 다른 OS 전용 크레이트를 받아 두어야 한다. `dev-setup.sh`가 `cargo fetch --locked`를 한 번 실행하며, 받지 않았으면 판정 불가로 멈추고 같은 명령을 안내한다. |
 | T.1 | 로컬 전용 문서 참조 | `cargo test -q -p tasty-doc-guards --test no_todo_file_citation`으로 저장소 전체를 검사한다. 커밋 대상이 아닌 파일도 포함된다. |
 | W.1 | CHANGELOG 누락 안내 | 사용자 기능 관련 선언이 바뀌었지만 CHANGELOG가 변경되지 않았으면 안내한다. 커밋은 막지 않는다. |
 | W.2 | 새 파일에 필요한 검사 안내 | 새 파일의 종류에 따라 테스트 명령을 안내한다. 커밋은 막지 않는다. |
@@ -98,7 +98,7 @@ push 저장소의 경로를 전달하지 않는다. 이는 [Git 훅의 저장소
 
 | ID | 검사 |
 |----|------|
-| B.9 | `scripts/check-plugin-version-bump.sh --range <원격 커밋> <로컬 커밋>`으로 원격에 게시된 플러그인 버전과 비교한다. |
+| B.9 | `scripts/check-plugin-version-bump.sh --range <원격 커밋> <로컬 커밋>`으로 원격에 게시된 플러그인 버전과 비교한다. P.1과 같이 모든 target의 의존을 받아 둔 상태(`cargo fetch --locked`)를 전제로 한다. |
 | B.4 | `cargo clippy --workspace --all-targets -- -D clippy::correctness`로 워크스페이스의 개발 빌드·테스트 코드 컴파일과 lint를 함께 검사한다. |
 | B.8 | `cargo check --workspace --release --locked` |
 | B.6 | `cargo check --no-default-features` |
