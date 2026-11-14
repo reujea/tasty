@@ -505,9 +505,9 @@ fn check_release(lock: &Lock) -> Vec<String> {
             r.repository
         ));
     }
-    if r.tag.is_empty() || r.tag.contains(|c: char| c.is_whitespace() || c == '/') {
+    if !is_safe_tag(&r.tag) {
         problems.push(format!(
-            "release.tag가 비었거나 공백·/를 담았다: {:?}",
+            "release.tag가 [A-Za-z0-9._-]로만 된 이름이 아니거나 . 또는 ..이다: {:?}",
             r.tag
         ));
     }
@@ -534,6 +534,31 @@ fn check_release(lock: &Lock) -> Vec<String> {
     problems
 }
 
+/// 받는 스크립트가 tag·id·file을 경로 조각으로 쓰므로 경로를 벗어날 수 있는 값은 받지 않는다.
+fn is_safe_tag(tag: &str) -> bool {
+    !tag.is_empty()
+        && tag != "."
+        && tag != ".."
+        && tag
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-')
+}
+
+/// `com.tasty.` 뒤에 `[a-z0-9-]+`가 오는 id.
+fn is_official_id(id: &str) -> bool {
+    id.strip_prefix(ID_PREFIX).is_some_and(|rest| {
+        !rest.is_empty()
+            && rest
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    })
+}
+
+/// 경로 구분자(`/`, `\`)와 `..`가 없는 단일 파일 이름.
+fn is_single_file_name(file: &str) -> bool {
+    !file.is_empty() && file != "." && !file.contains(['/', '\\']) && !file.contains("..")
+}
+
 /// 잠금 파일의 값과 완비를 검사한다. 비어 있으면 통과다.
 /// 모든 플러그인(`bundle = false` 포함)에 5플랫폼 산출물이 하나씩 있어야 하고,
 /// 파일 이름·URL은 id·version·플랫폼·릴리스에서 계산한 값과 같아야 한다.
@@ -548,9 +573,9 @@ pub fn check(lock: &Lock) -> Vec<String> {
         if !seen.insert(p.id.as_str()) {
             problems.push(format!("plugin {}가 두 번 나왔다", p.id));
         }
-        if !p.id.starts_with(ID_PREFIX) || p.id.len() == ID_PREFIX.len() {
+        if !is_official_id(&p.id) {
             problems.push(format!(
-                "plugin id가 {ID_PREFIX}로 시작하지 않는다: {}",
+                "plugin id가 {ID_PREFIX} 뒤에 [a-z0-9-]만 오는 이름이 아니다: {:?}",
                 p.id
             ));
         }
@@ -567,6 +592,12 @@ pub fn check(lock: &Lock) -> Vec<String> {
             }
             if !platforms.insert(a.platform.as_str()) {
                 problems.push(format!("{}: 플랫폼 {}가 두 번 나왔다", p.id, a.platform));
+            }
+            if !is_single_file_name(&a.file) {
+                problems.push(format!(
+                    "{} {}: file이 단일 파일 이름이 아니다: {:?}",
+                    p.id, a.platform, a.file
+                ));
             }
             let file = artifact_file(&p.id, &p.version, &a.platform);
             if a.file != file {
@@ -1008,6 +1039,70 @@ bundle = true
             "{problems:?}"
         );
         assert!(problems.iter().any(|p| p.contains("url이")), "{problems:?}");
+    }
+
+    /// id·tag를 바꾸고 file·url을 그 값으로 다시 계산한다. 계산 값과의 대조만으로는 걸리지 않는 입력을 만든다.
+    fn relabel(lock: &mut Lock, plugin: usize, id: &str, tag: &str) {
+        lock.release.tag = tag.to_string();
+        let release = lock.release.clone();
+        let p = &mut lock.plugins[plugin];
+        p.id = id.to_string();
+        for a in &mut p.artifacts {
+            a.file = artifact_file(id, &p.version, &a.platform);
+            a.url = artifact_url(&release, &a.file);
+        }
+    }
+
+    #[test]
+    fn check_rejects_an_id_with_a_path_separator() {
+        let mut lock = generate(META, &tsvs()).expect("generate");
+        relabel(&mut lock, 0, "com.tasty.x/../../escape", "v0.1.0");
+        let problems = check(&lock);
+        assert!(
+            problems.iter().any(|p| p.contains("plugin id가")),
+            "{problems:?}"
+        );
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.contains("단일 파일 이름이 아니다")),
+            "{problems:?}"
+        );
+    }
+
+    #[test]
+    fn check_rejects_a_dot_dot_tag() {
+        for tag in ["..", ".", "v0.1.0/..", "v 1"] {
+            let mut lock = generate(META, &tsvs()).expect("generate");
+            relabel(&mut lock, 0, "com.tasty.a", tag);
+            relabel(&mut lock, 1, "com.tasty.b", tag);
+            let problems = check(&lock);
+            assert!(
+                problems.iter().any(|p| p.contains("release.tag가")),
+                "{tag}: {problems:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn check_rejects_a_backslash_in_an_artifact_file() {
+        let mut lock = generate(META, &tsvs()).expect("generate");
+        relabel(&mut lock, 1, "com.tasty.b\\..\\x", "v0.1.0");
+        let problems = check(&lock);
+        assert!(
+            problems.iter().any(|p| p.contains("plugin id가")),
+            "{problems:?}"
+        );
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.contains("단일 파일 이름이 아니다")),
+            "{problems:?}"
+        );
+        assert!(
+            !problems.iter().any(|p| p.contains("com.tasty.a")),
+            "{problems:?}"
+        );
     }
 
     #[test]

@@ -61,7 +61,7 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 | 하위 명령 | 하는 일 |
 |---|---|
 | `generate --meta <release-meta.toml> --tsv <plugins-<p>.tsv>... --out <파일>` | 릴리스의 메타데이터와 TSV 5개로 잠금 파일을 만든다. TSV마다 (id, version) 집합이 메타데이터와 같아야 하고 다섯 플랫폼이 한 번씩 있어야 한다 |
-| `check [--lock <파일>]` | 형식과 완비(모든 플러그인에 5플랫폼, 64자리 sha256, 계산한 파일 이름·URL)를 확인한다 |
+| `check [--lock <파일>]` | 형식과 완비(모든 플러그인에 5플랫폼, 64자리 sha256, 계산한 파일 이름·URL)를 확인한다. 받기 스크립트가 경로 조각으로 쓰는 값도 제한한다. `id`는 `com.tasty.` 뒤에 `[a-z0-9-]`만, `tag`는 `[A-Za-z0-9._-]`로만 된 `.`·`..`이 아닌 값, `file`은 `/`·`\`·`..`이 없는 단일 이름이어야 한다 |
 | `plan --platform <p> [--all]` | 받을 산출물을 `id`, `version`, `file`, `url`, `sha256` 탭 구분 한 줄씩 출력한다. `--all`이 없으면 `bundle = true`만 |
 | `verify --dir <폴더> --platform <p> [--all]` | 받은 파일의 SHA-256을 대조한다. 없는 파일은 `missing: <file>`, 다른 파일은 `sha256 mismatch: <file>`로 이름을 댄다 |
 | `unpack --dir <폴더> --out <폴더> --platform <p> [--all]` | `verify` 뒤 시스템 `tar`로 풀어 `<out>/<id>/`에 둔다. 최상위 `<id>/`, 매니페스트, 실행 파일이 있고 매니페스트 `id`·`version`이 잠금 파일과 같아야 한다 |
