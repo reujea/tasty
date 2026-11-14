@@ -24,6 +24,8 @@ struct MeshDemoPlugin {
     clicks: HashMap<u32, u32>,
     /// surface_id → 입력칸 글자. 호스트 편집 요청(복사·잘라내기·붙여넣기)과 결과 회신을 확인한다.
     texts: HashMap<u32, String>,
+    /// surface_id → 형식 붙여넣기 상태. 입력칸 밖에서 받은 형식 붙여넣기(`paste`) 요청의 회신을 확인한다.
+    format_pastes: HashMap<u32, FormatPaste>,
     /// Popup 인스턴스별 렌더 상태. 열 때 만들고 닫을 때 해제한다.
     popups: HashMap<u64, EguiMeshPopup>,
     /// popup instance_id → 클릭 횟수. 입력 forward 가 popup mesh 를 바꾸는 데모 상태.
@@ -60,6 +62,7 @@ impl Plugin for MeshDemoPlugin {
         self.surfaces.remove(&surface_id);
         self.clicks.remove(&surface_id);
         self.texts.remove(&surface_id);
+        self.format_pastes.remove(&surface_id);
     }
 
     fn paint_surface(&mut self, ctx: SurfaceSetContextCtx) {
@@ -113,10 +116,11 @@ impl MeshDemoPlugin {
             .or_insert_with(|| EguiMeshSurface::new(sid));
         let clicks = self.clicks.entry(sid).or_insert(0);
         let text = self.texts.entry(sid).or_default();
+        let format_paste = self.format_pastes.entry(sid).or_default();
         // tessellate+encode+commit 지연 측정 (docs/dev-guide/egui-mesh-channel.md#데이터-흐름 성능 확인).
         let t0 = std::time::Instant::now();
         let result = surface.paint(&ctx.host, &ctx.params, |egui_ctx| {
-            draw_demo(egui_ctx, clicks, text);
+            draw_demo(egui_ctx, clicks, text, format_paste);
         });
         match result {
             Ok(Some(_gen)) => {
@@ -190,7 +194,12 @@ impl MeshDemoPlugin {
 /// 기본 egui 색과 폰트를 사용하는 클릭·스크롤 데모. 편집 결과를 회신하는 입력칸(`EditField`)으로 호스트
 /// 편집 요청이 surface 입력칸에 닿고 결과가 회신되는지 검증한다.
 #[cfg(unix)]
-fn draw_demo(ctx: &egui::Context, clicks: &mut u32, text: &mut String) {
+fn draw_demo(
+    ctx: &egui::Context,
+    clicks: &mut u32,
+    text: &mut String,
+    format_paste: &mut FormatPaste,
+) {
     egui::CentralPanel::default().show(ctx, |ui| {
         // 카운터를 heading 에 둬 입력 forward 효과(클릭)가 한눈에 보이게 한다.
         ui.heading(format!("Hello egui-mesh — clicks: {clicks}"));
@@ -200,9 +209,10 @@ fn draw_demo(ctx: &egui::Context, clicks: &mut u32, text: &mut String) {
         if btn.clicked() {
             *clicks += 1;
         }
-        tasty_plugin_sdk::egui_surface::edit::EditField::singleline(text)
+        let field = tasty_plugin_sdk::egui_surface::edit::EditField::singleline(text)
             .id_salt("mesh_demo_surface_text")
             .show(ui, |t| t.desired_width(f32::INFINITY));
+        take_format_paste(ui, format_paste, field.response.has_focus());
         ui.separator();
         // 가로 자동 축소를 끄면 짧은 라벨의 오른쪽 빈 영역에서도 휠 입력을 받는다.
         egui::ScrollArea::vertical()
@@ -214,6 +224,42 @@ fn draw_demo(ctx: &egui::Context, clicks: &mut u32, text: &mut String) {
                     ui.label(format!("scrollable line {i}"));
                 }
             });
+    });
+}
+
+/// 입력칸 밖에서 받은 형식 붙여넣기 요청의 상태. 실제 클립보드 형식은 읽지 않는다. 받으면 횟수를 올려
+/// `acted`로 알리고, 받지 않게 하면 `not_acted`로 알려 호스트가 원래 키를 넘기는지 확인한다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FormatPaste {
+    count: u32,
+    accept: bool,
+}
+
+impl Default for FormatPaste {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            accept: true,
+        }
+    }
+}
+
+/// 형식 붙여넣기의 횟수와 받기 여부를 그리고, 이 패스의 형식 붙여넣기 요청에 결과를 알린다. 입력칸 뒤에 불러야
+/// 한다. 입력칸이 포커스를 가지면 입력칸 어댑터가 먼저 `not_acted`로 정하고 그 결과가 남는다.
+#[cfg(unix)]
+fn take_format_paste(ui: &mut egui::Ui, state: &mut FormatPaste, field_focused: bool) {
+    use tasty_plugin_protocol::EditRequestWire;
+    use tasty_plugin_sdk::egui_surface::edit::{edit_request, report_edit};
+    let ctx = ui.ctx().clone();
+    if edit_request(&ctx).is_some_and(|request| request.edit == EditRequestWire::Paste) {
+        if state.accept && !field_focused {
+            state.count += 1;
+        }
+        report_edit(&ctx, state.accept);
+    }
+    ui.horizontal(|ui| {
+        ui.label(format!("format pastes: {}", state.count));
+        ui.checkbox(&mut state.accept, "accept format paste");
     });
 }
 
@@ -298,6 +344,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut clicks = 0_u32;
         let mut text = String::new();
+        let mut format_paste = FormatPaste::default();
         let mut draw = |events: Vec<egui::Event>| -> Option<f32> {
             let raw = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -307,7 +354,9 @@ mod tests {
                 events,
                 ..Default::default()
             };
-            let out = ctx.run(raw, |ctx| draw_demo(ctx, &mut clicks, &mut text));
+            let out = ctx.run(raw, |ctx| {
+                draw_demo(ctx, &mut clicks, &mut text, &mut format_paste)
+            });
             probe_line_y(&out)
         };
 

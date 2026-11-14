@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.mesh-demo"
 name = "egui-mesh Demo"
-version = "0.1.411"
+version = "0.1.412"
 description = "egui-mesh channel proof-of-concept surface (A1)"
 api_version = "1"
 # 배포 패키지에서는 제외하고 개발용 build-plugins / link-plugins에서는 준비한다.
@@ -25,6 +25,8 @@ command = "tasty-plugin-mesh-demo"
 kind = "mesh_demo"
 display_name_i18n_key = "surface.kind.mesh_demo"
 rendering = "egui-mesh"
+# 글자 없는 붙여넣기를 형식 붙여넣기(`paste`) 요청으로 받아 회신 경로를 확인한다.
+egui_paste = true
 
 # `.meshdemo` 파일을 열면 mesh_demo surface 로 띄운다 (markdown/image 와 동일 패턴).
 # convert popup 외에 파일 연결로도 surface 를 만들 수 있게 해 헤드리스 검증을 돕는다.

@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-mesh-demo"
-version = "0.1.411"
+version = "0.1.412"
 edition = "2024"
 license = "MIT"
 description = "egui-mesh channel PoC surface plugin (A1)"
@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 tasty-plugin-sdk = { path = "../tasty-plugin-sdk", features = ["egui-mesh"] }
+tasty-plugin-protocol = { path = "../tasty-plugin-protocol" }
 serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

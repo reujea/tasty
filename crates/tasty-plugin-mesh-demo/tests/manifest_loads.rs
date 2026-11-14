@@ -16,4 +16,8 @@ fn manifest_loads_and_validates() {
         SurfaceKindRendering::EguiMesh,
         "rendering must parse to EguiMesh (wire key 'egui-mesh')"
     );
+    assert!(
+        m.surface_kinds[0].egui_paste,
+        "the demo takes format pastes to check the reply path"
+    );
 }
