@@ -514,6 +514,10 @@ fn a_base_that_is_not_a_commit_is_undecidable() {
         "없는 --base 를 첫 커밋으로 보고 통과시켰다:\n{text}"
     );
     assert!(
+        text.contains("--base rev 를 못 찾았다"),
+        "같은 rc 2를 내는 다른 거절과 구별되는 --base 문구가 출력에 없다:\n{text}"
+    );
+    assert!(
         text.contains("nosuchrev"),
         "어느 rev 를 못 찾았는지 출력에 없다:\n{text}"
     );
