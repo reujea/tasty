@@ -74,6 +74,7 @@ assets = [
     ["assets/icons/icon_512.png", "usr/share/icons/hicolor/512x512/apps/tasty.png", "644"],
     # LICENSES 하위 경로를 유지해 THIRD_PARTY_LICENSES.md의 링크가 설치 후에도 열리게 한다.
     # 라이선스 파일 목록은 중복해서 열거하지 않고 디렉터리 전체를 포함한다.
+    # LICENSES는 일반 파일만 담는다. 하위 폴더·링크가 있으면 build-linux.sh의 고지 스테이징이 cargo deb 전에 실패한다.
     ["LICENSE", "usr/share/doc/tasty/", "644"],
     ["THIRD_PARTY_LICENSES.md", "usr/share/doc/tasty/", "644"],
     ["LICENSES/*", "usr/share/doc/tasty/LICENSES/", "644"],
@@ -123,6 +124,7 @@ assets = [
     { source = "assets/icons/icon_256.png", dest = "/usr/share/icons/hicolor/256x256/apps/tasty.png", mode = "644" },
     { source = "assets/icons/icon_512.png", dest = "/usr/share/icons/hicolor/512x512/apps/tasty.png", mode = "644" },
     # RPM의 라이선스 설치 경로를 사용한다. 목록 범위는 Debian과 같다.
+    # 본문을 한 폴더에 펼치므로 LICENSES에 하위 폴더를 두지 않는다(scripts/lib/notice-set.sh가 거부한다).
     { source = "LICENSE", dest = "/usr/share/licenses/tasty/LICENSE", mode = "644" },
     { source = "THIRD_PARTY_LICENSES.md", dest = "/usr/share/licenses/tasty/THIRD_PARTY_LICENSES.md", mode = "644" },
     { source = "LICENSES/*", dest = "/usr/share/licenses/tasty/", mode = "644" },

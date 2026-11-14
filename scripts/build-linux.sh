@@ -383,7 +383,11 @@ if [[ -n "$DEB_FILE" ]]; then
         echo "Error: dpkg-deb -I failed on $DEB_FILE" >&2
         exit 1
     }
-    DEB_LISTING=$(dpkg-deb -c "$DEB_FILE")
+    # dpkg-deb -c는 권한·크기가 앞에 붙으므로 경로만 나오는 payload 목록을 읽는다.
+    DEB_LISTING=$(dpkg-deb --fsys-tarfile "$DEB_FILE" | tar -t) || {
+        echo "Error: cannot list the payload of $DEB_FILE" >&2
+        exit 1
+    }
     verify_notice_listing "$DEB_LISTING" "usr/share/doc/tasty/" "$DEB_FILE" || exit 1
 fi
 if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
