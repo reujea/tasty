@@ -409,7 +409,7 @@ normal·build 폐포(모든 target)에 들어오면 실패한다. 폐포는 Carg
 `dist` 프로필과 다른 target은 재지 않았다.
 링크에서 빠진다는 예외는 사용처를 감시하지 않는다. 플러그인 쪽 코드가 `builtin_toml`에 닿는 함수나
 `LOGO_PNG`를 쓰게 되어도 시험은 통과하므로, 다시 측정할 조건은 계속 사람이 확인한다.
-`build.rs`가 `rerun-if-changed` 없이 직접 읽는 파일도 모으지 않는다.
+`build.rs`가 `rerun-if-changed` 없이 직접 읽는 파일과 크레이트 루트가 아닌 빌드 스크립트(매니페스트의 `build = "..."`)도 모으지 않는다.
 
 Cargo.toml과 매니페스트 버전은 함께 맞추고 Cargo.lock도 갱신해 같은 커밋에 넣는다.
 현재 설치본 반영 방법은 [플러그인 개발](plugin-development.md)에 있다.
