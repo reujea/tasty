@@ -52,8 +52,12 @@ fi
 
 if [ "$MODE" = staged ]; then
     if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
-        echo "[plugin-version] skip: 비교할 커밋이 없다(첫 커밋). 판정 대상 0."
-        exit 0
+        # HEAD가 아직 없는 첫 커밋만 비교 기준이 없는 정상 경우다. 그 밖의 rev는 오타일 수 있다.
+        if [ "$BASE" = HEAD ] && ! git rev-parse --verify --quiet HEAD >/dev/null; then
+            echo "[plugin-version] skip: 비교할 커밋이 없다(첫 커밋). 판정 대상 0."
+            exit 0
+        fi
+        die "판정 불가: --base rev 를 못 찾았다: $BASE"
     fi
     BEFORE_REV="$BASE"
     AFTER_PREFIX=""          # `:경로`
@@ -204,8 +208,9 @@ ver_gt() {
 SCAN_ROOT=crates
 
 if [ "$MODE" = staged ]; then
-    CHANGED=$(git diff --cached --name-only --diff-filter=ACMRD -- "$SCAN_ROOT/")
-    OUTSIDE=$(git diff --cached --name-only --diff-filter=ACMRD -- . ":(exclude)$SCAN_ROOT/")
+    # 비교 기준과 같은 BASE↔index 차이다. base 뒤 앞선 커밋의 변경도 여기에 들어온다.
+    CHANGED=$(git diff --cached --name-only --diff-filter=ACMRD "$BASE" -- "$SCAN_ROOT/")
+    OUTSIDE=$(git diff --cached --name-only --diff-filter=ACMRD "$BASE" -- . ":(exclude)$SCAN_ROOT/")
 else
     CHANGED=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- "$SCAN_ROOT/")
     OUTSIDE=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- . ":(exclude)$SCAN_ROOT/")

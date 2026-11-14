@@ -492,6 +492,94 @@ fn the_first_commit_has_no_baseline_and_says_so() {
     );
 }
 
+fn rev_parse(dir: &Path, rev: &str) -> String {
+    let out = git_env::command("git")
+        .args(["rev-parse", "--verify", rev])
+        .current_dir(dir)
+        .output()
+        .unwrap_or_else(|e| panic!("git rev-parse {rev} 실행 실패: {e}"));
+    assert!(out.status.success(), "rev 를 못 찾았다: {rev}");
+    String::from_utf8_lossy(&out.stdout).trim().to_owned()
+}
+
+// staged 모드는 --base와 index를 비교한다. pre-commit이 develop 공통 조상을 넘기므로
+// base 뒤에 이미 커밋된 변경도 이 커밋의 판정에 들어와야 한다.
+
+#[test]
+fn a_base_that_is_not_a_commit_is_undecidable() {
+    let tmp = seed_repo();
+    let (code, text) = check(tmp.path(), &["--staged", "--base", "nosuchrev"]);
+    assert_eq!(
+        code, 2,
+        "없는 --base 를 첫 커밋으로 보고 통과시켰다:\n{text}"
+    );
+    assert!(
+        text.contains("nosuchrev"),
+        "어느 rev 를 못 찾았는지 출력에 없다:\n{text}"
+    );
+}
+
+#[test]
+fn staged_mode_sees_commits_between_the_base_and_head() {
+    let tmp = seed_repo();
+    let d = tmp.path();
+    let seed = rev_parse(d, "HEAD");
+    write(
+        d,
+        &format!("{PLUGIN}/src/main.rs"),
+        "fn main() {\n    let msg = \"b\";\n}\n",
+    );
+    commit_all(d, "unbumped change");
+    write(d, "README.txt", "x\n");
+    run_git(d, &["add", "README.txt"]);
+
+    let (code, text) = check(d, &["--staged", "--base", &seed]);
+    assert_eq!(code, 1, "base 뒤의 커밋된 변경을 놓쳤다:\n{text}");
+    assert!(
+        text.contains("src/main.rs"),
+        "어느 파일 때문인지 출력에 없다:\n{text}"
+    );
+}
+
+#[test]
+fn staged_mode_passes_when_the_commits_after_the_base_carry_their_bump() {
+    let tmp = seed_repo();
+    let d = tmp.path();
+    let seed = rev_parse(d, "HEAD");
+    write(
+        d,
+        &format!("{PLUGIN}/src/main.rs"),
+        "fn main() {\n    let msg = \"b\";\n}\n",
+    );
+    bump_to(d, "0.1.1");
+    commit_all(d, "bumped change");
+    write(d, "README.txt", "x\n");
+    run_git(d, &["add", "README.txt"]);
+
+    let (code, text) = check(d, &["--staged", "--base", &seed]);
+    assert_eq!(code, 0, "base 뒤 커밋이 버전을 올렸는데 막혔다:\n{text}");
+    assert!(text.contains("판정 대상 1 건"), "{text}");
+}
+
+#[test]
+fn staged_mode_passes_when_only_the_bump_is_staged_after_an_unbumped_commit() {
+    let tmp = seed_repo();
+    let d = tmp.path();
+    let seed = rev_parse(d, "HEAD");
+    write(
+        d,
+        &format!("{PLUGIN}/src/main.rs"),
+        "fn main() {\n    let msg = \"b\";\n}\n",
+    );
+    commit_all(d, "unbumped change");
+    bump_to(d, "0.1.1");
+    run_git(d, &["add", "-A"]);
+
+    let (code, text) = check(d, &["--staged", "--base", &seed]);
+    assert_eq!(code, 0, "index의 버전 증가를 보지 못했다:\n{text}");
+    assert!(text.contains("판정 대상 1 건"), "{text}");
+}
+
 // 판정 도구가 낡았는지는 --check-fresh 결과로 판단한다. 낡으면 test 코드 제외를 생략하고 그 사실을 알린다.
 // 여기서는 종료 코드 계약을 검사하며 지문 계산은 공용 freshness 시험에서 확인한다.
 
@@ -746,6 +834,31 @@ fn a_change_in_a_linked_path_dependency_outside_the_workspace_demands_a_bump() {
     assert_eq!(
         code, 1,
         "--range 모드에서 외부 의존의 변경을 찾지 못했다:\n{text}"
+    );
+}
+
+#[test]
+fn staged_mode_sees_an_outside_path_dependency_committed_after_the_base() {
+    let tmp = seed_vendored_workspace();
+    let d = tmp.path();
+    let seed = rev_parse(d, "HEAD");
+    write(
+        d,
+        "vendor/upstream/src/lib.rs",
+        "pub fn greet() {\n    let _ = 2;\n}\n",
+    );
+    commit_all(d, "fix(upstream): change behaviour");
+    write(d, "README.txt", "x\n");
+    run_git(d, &["add", "README.txt"]);
+
+    let (code, text) = check(d, &["--staged", "--base", &seed]);
+    assert_eq!(
+        code, 1,
+        "base 뒤에 커밋된 워크스페이스 밖 path 의존 변경을 놓쳤다:\n{text}"
+    );
+    assert!(
+        text.contains("vendor/upstream/src/lib.rs"),
+        "어느 파일 때문인지 메시지에 없다:\n{text}"
     );
 }
 
