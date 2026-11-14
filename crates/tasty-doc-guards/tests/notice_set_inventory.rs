@@ -14,19 +14,35 @@ const INVENTORY: &str = "THIRD_PARTY_LICENSES.md";
 const TEXTS_DIR: &str = "LICENSES";
 const WXS: &str = "wix/main.wxs";
 
-/// `LICENSES/` 바로 아래 일반 파일 이름.
-fn license_files(root: &Path) -> BTreeSet<String> {
-    let dir = root.join(TEXTS_DIR);
+/// `dir` 바로 아래 항목을 (일반 파일 이름, 받지 않는 항목)으로 나눈다.
+/// 패키징 스크립트와 같은 규칙이다: 점으로 시작하는 항목, 폴더, 링크는 라이선스 본문이 아니다.
+/// 받지 않는 항목을 건너뛰기만 하면 그 본문이 배포물에서 빠진 것을 가리므로 따로 돌려준다.
+fn classify_texts(dir: &Path) -> (BTreeSet<String>, Vec<String>) {
     let entries =
-        std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{} 을 읽지 못했다: {e}", dir.display()));
+        std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{} 을 읽지 못했다: {e}", dir.display()));
     let mut files = BTreeSet::new();
+    let mut rejected = Vec::new();
     for entry in entries {
         let entry = entry.expect("디렉터리 항목");
+        let name = entry.file_name().to_string_lossy().into_owned();
         // file_type은 링크를 따라가지 않으므로 링크를 파일로 세지 않는다.
-        if entry.file_type().expect("파일 종류").is_file() {
-            files.insert(entry.file_name().to_string_lossy().into_owned());
+        if !name.starts_with('.') && entry.file_type().expect("파일 종류").is_file() {
+            files.insert(name);
+        } else {
+            rejected.push(name);
         }
     }
+    rejected.sort();
+    (files, rejected)
+}
+
+/// `LICENSES/` 바로 아래 일반 파일 이름. 받지 않는 항목이 있으면 실패한다.
+fn license_files(root: &Path) -> BTreeSet<String> {
+    let (files, rejected) = classify_texts(&root.join(TEXTS_DIR));
+    assert!(
+        rejected.is_empty(),
+        "{TEXTS_DIR}/ 에는 라이선스 본문 파일만 둔다. 패키징 스크립트가 거부하는 항목: {rejected:?}"
+    );
     files
 }
 
@@ -146,6 +162,25 @@ fn wix_reader_pairs_files_with_their_component() {
         ]
     );
     assert_eq!(wix_component_refs(wxs), BTreeSet::from(["A".to_string()]));
+}
+
+#[cfg(unix)]
+#[test]
+fn hidden_entries_folders_and_links_are_not_license_texts() {
+    let dir = tasty_doc_guards::temp_scratch::Scratch::new("notice-classify");
+    let root = dir.path();
+    std::fs::write(root.join("a.txt"), "a").expect("a");
+    std::fs::write(root.join(".DS_Store"), "x").expect("dot file");
+    std::fs::create_dir(root.join(".sub")).expect("hidden dir");
+    std::fs::create_dir(root.join("sub")).expect("dir");
+    std::os::unix::fs::symlink("a.txt", root.join(".link")).expect("hidden link");
+    std::os::unix::fs::symlink("a.txt", root.join("link.txt")).expect("link");
+    let (files, rejected) = classify_texts(root);
+    assert_eq!(files, BTreeSet::from(["a.txt".to_string()]));
+    assert_eq!(
+        rejected,
+        vec![".DS_Store", ".link", ".sub", "link.txt", "sub"]
+    );
 }
 
 #[test]

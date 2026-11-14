@@ -5,12 +5,18 @@
 # LICENSES가 비면 고지 파일이 누락된 checkout으로 보고 거부한다.
 # LICENSES는 일반 파일만 담는다. RPM은 본문을 한 폴더에 펼쳐 놓으므로 하위 폴더를 둘 수 없다.
 # 폴더·링크를 건너뛰면 그 본문이 배포물에서 조용히 빠지므로 실패한다.
+# 점으로 시작하는 항목도 열거해 거부한다(.DS_Store 같은 파일은 라이선스 본문이 아니다).
+# 호출자의 dotglob을 바꾸지 않도록 점 패턴을 따로 돈다. 맞는 항목이 없으면 패턴이 그대로 남아 건너뛴다.
 # build-windows.ps1의 Get-NoticeSetFiles도 같은 규칙이다.
 notice_set_files() {
     local f found=0 out
     out="LICENSE"$'\n'"THIRD_PARTY_LICENSES.md"
-    for f in LICENSES/*; do
+    for f in LICENSES/* LICENSES/.[!.]* LICENSES/..?*; do
         [[ -e "$f" || -L "$f" ]] || continue
+        if [[ "${f#LICENSES/}" == .* ]]; then
+            echo "Error: $f is a hidden entry; LICENSES/ holds licence texts only" >&2
+            return 1
+        fi
         if [[ -L "$f" || ! -f "$f" ]]; then
             echo "Error: $f is not a regular file; LICENSES/ holds licence texts only" >&2
             return 1

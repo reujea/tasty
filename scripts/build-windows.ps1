@@ -253,10 +253,15 @@ function Stage-Plugins {
 
 # notice 파일은 LICENSE·THIRD_PARTY_LICENSES.md·LICENSES 바로 아래 파일이다. Linux/macOS와 같은 목록을 사용한다.
 # LICENSES는 일반 파일만 담는다. 폴더·링크를 건너뛰면 그 본문이 빠지므로 scripts/lib/notice-set.sh처럼 실패한다.
+# -Force로 Hidden 항목도 열거하고, 점으로 시작하는 이름은 셸과 같이 거부한다.
 function Get-NoticeSetFiles {
     $files = @("LICENSE", "THIRD_PARTY_LICENSES.md")
-    $entries = @(Get-ChildItem -Path "LICENSES" | Sort-Object Name)
+    $entries = @(Get-ChildItem -Force -Path "LICENSES" | Sort-Object Name)
     foreach ($e in $entries) {
+        if ($e.Name.StartsWith(".")) {
+            Write-Error "LICENSES\$($e.Name) is a hidden entry; LICENSES\ holds licence texts only"
+            exit 1
+        }
         if ($e.PSIsContainer -or ($e.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
             Write-Error "LICENSES\$($e.Name) is not a regular file; LICENSES\ holds licence texts only"
             exit 1

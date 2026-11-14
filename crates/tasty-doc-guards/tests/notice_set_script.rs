@@ -2,7 +2,8 @@
 //! - `verify_notice_listing`은 목록의 각 줄을 경로 하나로 보고 앞의 `./` 하나만 뗀 뒤
 //!   `prefix+경로`와 줄 전체를 비교한다. 다른 폴더 아래에 같은 이름이 있어도 통과하지 않는다.
 //! - `LICENSES/`는 일반 파일만 담는다. 폴더·링크가 있으면 목록·스테이징이 실패한다.
-//!   PowerShell(`Get-NoticeSetFiles`)도 같은 규칙이며 그 쪽은 이 시험이 실행하지 않는다.
+//!   점으로 시작하는 항목도 열거해 거부한다. PowerShell(`Get-NoticeSetFiles`)도 같은 규칙이며
+//!   그 쪽은 이 시험이 실행하지 않는다.
 
 #![cfg(unix)]
 
@@ -145,6 +146,44 @@ fn a_link_in_licenses_is_rejected() {
     let (rc, _, err) = run(repo.path(), "notice_set_files");
     assert_eq!(rc, 1);
     assert!(err.contains("LICENSES/c.txt"), "stderr: {err}");
+}
+
+/// 점으로 시작하는 항목도 열거해 같은 규칙을 적용한다. 숨김 폴더·링크가 열거에서 빠지면
+/// 거부 분기를 우회하고, 숨김 파일은 라이선스 본문이 아니므로 받지 않는다.
+#[test]
+fn hidden_entries_in_licenses_are_rejected() {
+    let cases: [(&str, fn(&Path)); 3] = [
+        (".sub", |root| {
+            std::fs::create_dir(root.join("LICENSES/.sub")).expect("hidden dir");
+            std::fs::write(root.join("LICENSES/.sub/New-MIT.txt"), "n\n").expect("new");
+        }),
+        (".link", |root| {
+            std::os::unix::fs::symlink("a.txt", root.join("LICENSES/.link")).expect("link");
+        }),
+        (".DS_Store", |root| {
+            std::fs::write(root.join("LICENSES/.DS_Store"), "x").expect("dot file");
+        }),
+    ];
+    for (name, make) in cases {
+        let repo = notice_repo("notice-hidden");
+        make(repo.path());
+        let (rc, out, err) = run(repo.path(), "notice_set_files");
+        assert_eq!(rc, 1, "LICENSES/{name} 를 받으면 안 된다. stdout: {out}");
+        assert!(err.contains(&format!("LICENSES/{name}")), "stderr: {err}");
+    }
+}
+
+/// 숨김 항목을 열거하려고 켠 셸 옵션이 호출자 셸에 남지 않는다.
+#[test]
+fn listing_keeps_the_callers_glob_options() {
+    let repo = notice_repo("notice-shopt");
+    let (rc, out, err) = run(
+        repo.path(),
+        "notice_set_files >/dev/null; shopt -q dotglob && echo dotglob-on || echo dotglob-off\n\
+         shopt -s dotglob; notice_set_files >/dev/null; shopt -q dotglob && echo dotglob-on || echo dotglob-off",
+    );
+    assert_eq!(rc, 0, "stderr: {err}");
+    assert_eq!(out, "dotglob-off\ndotglob-on\n");
 }
 
 #[test]
