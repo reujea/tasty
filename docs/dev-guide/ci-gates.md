@@ -117,6 +117,15 @@ CI에 해당 캐시가 없었다면 그 실행으로 캐시가 있는 환경까�
 확인한다. 이것이 사유의 타당성까지 증명하지는 않는다.
 가드가 있다는 사실만으로 보호 범위를 단정하지 말고 실제 조건식과 실패 메시지를 읽는다.
 
+#### 공식 플러그인 잠금 파일
+
+`official-plugins.lock.toml`의 완비·계약 호환·id 집합은 `crates/tasty-doc-guards/tests/official_plugins_lock.rs`가,
+읽기 도구 `official-plugins`의 동작은 `official_plugins_bin.rs`가, `sign-bundle.sh --dir`의 계약은
+`sign_bundle_dir_contract.rs`가 확인한다. 모두 문서 가드라 `doc-guards.yml`(경로 필터 없음)과 Windows 잡의
+`-p tasty-doc-guards` 지목이 실행한다. 이 시험들은 네트워크를 쓰지 않는다. 실제 릴리스를 받아 해시를 대조하고
+매니페스트를 읽는 `scripts/fetch-official-plugins.sh`는 지금 어느 자동 잡에도 없으며, 잠금 파일을 갱신할 때
+직접 실행한다. 계약 호환 가드가 버전 값만 비교한다는 한계는 [플러그인 패키징](plugin-packaging.md#계약-호환-가드)에 있다.
+
 #### 간헐 실패를 조사할 때
 
 시간·프로세스·외부 자원이 관련된 실패는 같은 커밋과 같은 명령으로 한 번 재실행해 비교한다.

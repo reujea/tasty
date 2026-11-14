@@ -35,6 +35,88 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 
 런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 건너뛰므로, 개발 빌드는 스테이징된 plugin을 설치하고, 배포 빌드는 번들에 없는 항목을 건너뛴다. 현재 `com.tasty.mesh-demo`와 `com.tasty.agent-stream`이 `bundle = false`다. **주의**: `bundle = false` 는 glob 기반 위치(4/5/6)와 바이너리 빌드에만 자동 적용되고, 아래 "staging 7 위치 동기화" 표의 **명시(explicit) 위치(1/2/3)는 자동으로 걸러지지 않는다** — 새로 `bundle = false` 를 붙인 plugin 이 있으면 `[package.metadata.deb] assets`/`[package.metadata.generate-rpm] assets`/`wix/main.wxs` 에서도 그 plugin 항목을 수동으로 빼야 한다. 누락하면 패키저가 만들지 않은 바이너리를 찾다가 실패한다.
 
+## 공식 플러그인 잠금 파일
+
+공식 플러그인(mesh-demo를 뺀 8개)은 [tasty-official-plugins](https://github.com/zilhak/tasty-official-plugins) 레포가 릴리스한다. 루트의 `official-plugins.lock.toml`이 그 릴리스 하나를 고정한다. 패키징 스크립트와 개발 스테이징은 아직 이 파일을 읽지 않고 같은 빌드에서 플러그인을 만든다. 잠금 파일과 아래 도구는 그 전환에 쓰는 입력이다.
+
+### 형식
+
+손으로 고치지 않는다. 아래 [갱신](#잠금-파일-갱신) 절차의 `generate`가 만든다.
+
+| 위치 | 키 | 뜻 |
+|---|---|---|
+| 최상위 | `schema` | 파일 형식 버전. 지금 `1` |
+| `[release]` | `repository` · `tag` · `commit` | 플러그인 레포 이름, 릴리스 태그, 그 태그의 커밋 |
+| `[release]` | `tasty_rev` | 그 릴리스가 빌드에 쓴 tasty 커밋 |
+| `[release]` | `host_api_version` · `protocol_version` · `manifest_version` · `epaint_version` · `epaint_patch_tree` | 그 릴리스가 빌드에 쓴 계약 값. 아래 [계약 호환 가드](#계약-호환-가드)가 현재 tasty와 대조한다 |
+| `[[plugin]]` | `id` · `version` · `bundle` | 플러그인. `bundle = false`(agent-stream)는 배포 패키지에 넣지 않고 개발 경로만 받는다 |
+| `[[plugin.artifact]]` | `platform` · `file` · `url` · `sha256` | 플랫폼별 산출물. 플랫폼은 `macos-arm64`, `windows-x64`, `windows-arm64`, `linux-x64`, `linux-arm64` 다섯이다(`release.yml`의 다섯 빌드 잡) |
+
+산출물은 다섯 플랫폼 모두 `<id>-<version>-<platform>.tar.gz`이고 URL은 `https://github.com/<repository>/releases/download/<tag>/<file>`이다. 아카이브 최상위는 `<id>/` 하나이고 그 아래 실행 파일 `tasty-plugin-<id의 com.tasty. 뒤>`(Windows는 `.exe`), `tasty-plugin.toml`, `lang/`이 있다. 서명(`.sig`)은 없다. 패키징이 받은 뒤 `sign-bundle.sh --dir`로 서명한다. 그 밖의 파일(라이선스·고지)은 릴리스마다 달라질 수 있어 도구가 목록을 고정하지 않는다.
+
+### 읽기 도구
+
+셸·PowerShell이 TOML을 직접 읽지 않도록 `crates/tasty-doc-guards`의 bin `official-plugins`가 잠금 파일을 줄 단위로 바꾼다. 네트워크는 쓰지 않는다. 종료코드는 0 통과, 1 검사 실패, 2 인자·입출력 오류다.
+
+| 하위 명령 | 하는 일 |
+|---|---|
+| `generate --meta <release-meta.toml> --tsv <plugins-<p>.tsv>... --out <파일>` | 릴리스의 메타데이터와 TSV 5개로 잠금 파일을 만든다. TSV마다 (id, version) 집합이 메타데이터와 같아야 하고 다섯 플랫폼이 한 번씩 있어야 한다 |
+| `check [--lock <파일>]` | 형식과 완비(모든 플러그인에 5플랫폼, 64자리 sha256, 계산한 파일 이름·URL)를 확인한다 |
+| `plan --platform <p> [--all]` | 받을 산출물을 `id`, `version`, `file`, `url`, `sha256` 탭 구분 한 줄씩 출력한다. `--all`이 없으면 `bundle = true`만 |
+| `verify --dir <폴더> --platform <p> [--all]` | 받은 파일의 SHA-256을 대조한다. 없는 파일은 `missing: <file>`, 다른 파일은 `sha256 mismatch: <file>`로 이름을 댄다 |
+| `unpack --dir <폴더> --out <폴더> --platform <p> [--all]` | `verify` 뒤 시스템 `tar`로 풀어 `<out>/<id>/`에 둔다. 최상위 `<id>/`, 매니페스트, 실행 파일이 있고 매니페스트 `id`·`version`이 잠금 파일과 같아야 한다 |
+
+doc-guards 크레이트는 의존성을 두지 않으므로 이 도구는 잠금 파일과 메타데이터가 쓰는 TOML 부분집합만 읽고, 모르는 형식은 줄 번호와 함께 거절한다.
+
+### 받기 스크립트
+
+```bash
+scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock <파일>]
+```
+
+`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
+
+### 잠금 파일 갱신
+
+플러그인 레포가 새 릴리스를 올리거나 아래 계약 호환 가드가 실패하면 갱신한다.
+
+1. 릴리스의 `release-meta.toml`과 `plugins-<platform>.tsv` 5개를 받는다.
+
+   ```bash
+   gh release download <tag> -R zilhak/tasty-official-plugins -p 'release-meta.toml' -p 'plugins-*.tsv' -D <임시 폴더>
+   ```
+
+2. 잠금 파일을 만든다.
+
+   ```bash
+   cargo run -p tasty-doc-guards --bin official-plugins -- generate \
+     --meta <임시 폴더>/release-meta.toml \
+     --tsv <임시 폴더>/plugins-macos-arm64.tsv --tsv <임시 폴더>/plugins-windows-x64.tsv \
+     --tsv <임시 폴더>/plugins-windows-arm64.tsv --tsv <임시 폴더>/plugins-linux-x64.tsv \
+     --tsv <임시 폴더>/plugins-linux-arm64.tsv --out official-plugins.lock.toml
+   ```
+
+3. `cargo test -p tasty-doc-guards --test official_plugins_lock`로 완비·계약·집합 가드를 확인한다.
+4. 한 플랫폼 이상에서 `scripts/fetch-official-plugins.sh --platform <p> --out <임시 폴더> --all`로 실제로 받아 본다.
+
+### 계약 호환 가드
+
+본체와 공식 플러그인은 다른 커밋에서 빌드된다. 잠금 파일이 가리키는 플러그인은 그 릴리스의 `tasty_rev`에서 빌드됐으므로, 지금 tasty와 계약이 맞는지 doc-guards `official_plugins_lock`이 확인한다. 다르면 "공식 플러그인 레포의 새 릴리스로 잠금 파일을 갱신해야 한다"로 실패한다.
+
+| 축 | 잠금 파일 | 현재 tasty |
+|---|---|---|
+| (a) | `host_api_version` | `crates/tasty-plugin-manifest/src/types.rs` `HOST_API_VERSION` |
+| (b) | `protocol_version` | `crates/tasty-plugin-protocol/Cargo.toml` version |
+| (c) | `manifest_version` | `types.rs` `MANIFEST_VERSION` |
+| (d) | `epaint_version` | `Cargo.lock`의 epaint |
+| (e) | `epaint_patch_tree` | `git rev-parse HEAD:vendor/epaint` |
+
+같은 시험이 집합 두 가지도 본다. `BUILTINS`(두 cfg 벌)와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 mesh-demo를 더한 집합이어야 하고, 배포 스크립트가 고르는 플러그인(크레이트 매니페스트 중 `bundle = false`가 아닌 것)은 잠금 파일의 `bundle = true` 집합이어야 한다. 받은 매니페스트는 받기 스크립트가 현재 검증기로 읽는다.
+
+한계: 이 가드는 버전 값만 비교한다. protocol schema를 바꾸고 버전을 그대로 두면 지나간다. protocol 버전과 `CHANGELOG.md`는 tasty 릴리스 때 올리므로([릴리스 절차](release.md#1-버전--changelog)) 릴리스 사이의 develop에서는 버전이 그대로인 채 schema가 바뀌는 것이 정상 흐름이고, 그 변경은 가드가 보지 못한다. 실제로 v0.1.0의 `tasty_rev` 뒤에 편집 결과 회신(`PluginEvent::Hello`의 `capabilities`, `EditOutcome`)이 protocol 0.2.16 그대로 들어왔다. 추가 변형이라 옛 플러그인과 호환되지만 호환되지 않는 변경도 같은 길로 지나갈 수 있다. 그래서 protocol 변경은 [protocol CHANGELOG 정책](../../crates/tasty-plugin-protocol/CHANGELOG.md#정책)대로 `tasty_rev` 시점의 플러그인과 호환되게 만든다.
+
+`tasty_rev` 시점과 지금의 `crates/tasty-plugin-protocol`·`crates/tasty-plugin-manifest` 트리 id를 비교하는 엄격안은 쓰지 않는다. 주석 한 줄에도 실패해서 계약 크레이트를 고칠 때마다 플러그인 레포 릴리스를 강제하고, v0.1.0에서도 바로 실패한다. 버전 축 가드와 CHANGELOG 정책으로 시작하고, 호환되지 않는 변경이 버전 없이 들어온 사례가 생기면 다시 판단한다.
+
 ## 서명
 
 | 항목 | 값 |

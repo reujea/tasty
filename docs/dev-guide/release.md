@@ -49,6 +49,10 @@ git push origin release
    cargo test -p tasty-doc-guards --test readme_badge_parity
    ```
 4. schema 변경이 있었다면 `crates/tasty-plugin-protocol/CHANGELOG.md` 도 동일 처리. break/deprecation 분류는 [api-conventions](api-conventions.md) "안정성 정책".
+5. 공식 플러그인 잠금 파일(`official-plugins.lock.toml`)을 확인한다. 공식 플러그인 레포에 이번 릴리스에 넣을 새 릴리스가 있거나, 4번에서 protocol 버전을 올려 계약 호환 가드가 실패하면 [잠금 파일 갱신](plugin-packaging.md#잠금-파일-갱신) 절차로 갱신해 이 단계의 커밋에 넣는다. protocol 버전을 올린 경우는 그 버전으로 빌드한 플러그인 릴리스가 먼저 있어야 한다. 갱신 뒤 확인:
+   ```bash
+   cargo test -p tasty-doc-guards --test official_plugins_lock
+   ```
 
 ### 2. Plugin 매니페스트 서명
 
