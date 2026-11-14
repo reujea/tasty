@@ -411,10 +411,9 @@ Copy·Paste 는 위 표대로 회신을 약속하지 않은 plugin 에서 각각
 를 한 번 보낸다. 판정·약속·보고 API 는 [plugin 개발 가이드의 편집 결과 회신](plugin-development.md#편집-결과-회신)에
 있다. 호스트는 플러그인 팝업과 로컬 egui-mesh surface 에 요청을 보낸다([키 매핑의 플러그인 입력칸](../design/policies/key-mapping.md#플러그인-입력칸)).
 surface 요청은 `MainView::queue_plugin_edit_request` 가 그 surface 의 다음 컨텍스트 전송 입력 끝에 붙인다. 원격 mirror
-에는 보내지 않는다. 현재 한계로, 네이티브 Wayland 에서 다른 앱의 선택을 읽는 중이면 붙여넣을 글자가 없는 것으로 보고
-원래 키를 넘기는데 surface 에는 egui-winit 기본 붙여넣기 경로가 없어 회신을 약속한 plugin 의 surface 에서는 그 붙여넣기가
-사라지고, 팔레트 붙여넣기는 요청 없이 끝난다. `egui_paste` kind 의 surface 는 글자가 없을 때와 같이 형식 붙여넣기 `paste`
-요청을 받는다.
+에는 보내지 않는다. 네이티브 Wayland 에서 다른 앱의 선택을 읽는 중이면 호스트가 원래 키를 붙잡고 읽기를 기다린 뒤 그
+글자로 `paste_text` 요청을 보낸다. 글자 없이 끝나면 `egui_paste` kind 의 surface 는 `paste` 요청을 받고, 그 밖은 요청 없이
+원래 키를 넘긴다([키 매핑의 플러그인 입력칸](../design/policies/key-mapping.md#플러그인-입력칸)).
 
 요청과 무관한 복사·잘라내기(id 없는 `Copy`·`Cut` 이벤트, 버튼의 복사 등)의 결과는 프레임과 별개인
 `PluginEvent::CopyText { target, text }` 로 나간다. `EditRequest` 패스의 복사는 `CopyText` 로 보내지 않고 그

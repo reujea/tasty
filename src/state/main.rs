@@ -166,6 +166,10 @@ pub struct MainViewState {
     /// 키를 받을 팝업 판정(`popup_key_owner`)의 plugin 후보다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_key_candidates: Vec<(u64, u64)>,
+    /// 이전 프레임에 배치한 플러그인 팝업 중 그 플러그인이 편집 결과 회신을 약속한 instance. 붙여넣을 글자를 읽는
+    /// 동안 기다릴지 키 시점에 정한다(`judge_plugin_popup_edit_key`).
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_replies: std::collections::HashSet<u64>,
     /// 다음 렌더에 플러그인 팝업 입력으로 보낼 편집 요청(instance id, 요청). App이 원래 키를 보류하며 넣는다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_edit_requests: Vec<(u64, tasty_plugin_protocol::RawInputEventWire)>,

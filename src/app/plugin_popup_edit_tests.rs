@@ -57,6 +57,7 @@ fn ask(instance: u64) -> PluginEditAsk {
         edit: EditKey::Paste,
         text: Some("/tmp/a.md".into()),
         original: Some(WindowEvent::Focused(true)),
+        awaiting: None,
     }
 }
 
@@ -137,6 +138,7 @@ fn surface_ask(plugin_id: Option<&str>) -> PluginEditAsk {
         edit: EditKey::Cut,
         text: None,
         original: Some(WindowEvent::Focused(true)),
+        awaiting: None,
     }
 }
 
@@ -296,6 +298,9 @@ fn settle_reads_the_window_key_target_into_the_hold_judgment() {
         .and_then(|(main, engine)| main.plugin_surface_key_target(&engine)),\
         }\
         });\
+        let awaited = self\
+        .plugin_edit_holds\
+        .settle_awaits(&mut outcomes, arrivals, now, &live);\
         let (resolved, cancelled) = self.plugin_edit_holds.settle(outcomes, now, live);";
     let wiring: String = wiring.split_whitespace().collect::<Vec<_>>().join(" ");
     let code: String = code.split_whitespace().collect::<Vec<_>>().join(" ");

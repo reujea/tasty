@@ -2,7 +2,8 @@
 //! 남긴 편집을 view 처리 직후(플러그인 단축키 단계 뒤) 꺼낸다. 회신을 약속한 플러그인이면 요청 id를 붙여 그
 //! 대상의 입력으로 보내고 원래 키를 그 창에 붙잡는다. 약속하지 않았거나 대상이 사라졌으면 원래 키를 넘긴
 //! 편집으로 한 번 재생한다(팝업은 egui-winit 기본 처리, surface 는 플러그인에 가는 `Key`). 팔레트처럼 키 없이
-//! 보낸 편집은 붙잡을 키가 없어 요청만 기록하고, 회신의 복사 글자만 쓴다.
+//! 보낸 편집은 붙잡을 키가 없어 요청만 기록하고, 회신의 복사 글자만 쓴다. 붙여넣을 글자를 아직 읽는 붙여넣기는
+//! 요청 id 만 받아 두고 읽기가 끝날 때까지 기다린다(`plugin_paste_await`).
 //! 계약: `docs/design/policies/key-mapping.md`의 "플러그인 입력칸" 절.
 
 use std::time::Instant;
@@ -25,6 +26,17 @@ enum PopupEditPlan {
     Replay(Vec<ReplayStep<WindowEvent>>),
     /// 요청을 대상 입력에 붙이고 원래 키를 회신까지 붙잡는다.
     Hold(Box<PopupEditHold>),
+    /// 붙여넣을 글자를 읽는 중이다. 요청은 아직 보내지 않고 원래 키를 읽기가 끝날 때까지 붙잡는다.
+    Await(Box<PopupEditAwait>),
+}
+
+/// 글자를 기다리는 붙여넣기. 읽기 `tag`가 끝나면 `request`의 id 로 보낸다.
+#[derive(Debug)]
+struct PopupEditAwait {
+    request: PluginEditRequest,
+    tag: u64,
+    original: Option<WindowEvent>,
+    format_paste: bool,
 }
 
 /// `wire`를 `target`의 다음 입력에 붙이고 원래 키를 `request`의 회신까지 붙잡는다.
@@ -50,8 +62,33 @@ impl App {
         else {
             return;
         };
+        // 요청을 만들지 못해 재생하는 붙여넣기는 시작한 읽기를 거둔다. 그 결과는 받을 곳이 없다.
+        let read = ask.awaiting.map(|awaiting| awaiting.tag);
         match popup_edit_plan(self.plugin_manager.as_mut(), ask) {
-            PopupEditPlan::Replay(steps) => self.replay_edit_steps(id, steps),
+            PopupEditPlan::Replay(steps) => {
+                if let Some(tag) = read
+                    && let Some(view) = self.view.views.get_mut(&id)
+                {
+                    view.base_mut().gpu.cancel_plugin_paste(tag);
+                }
+                self.replay_edit_steps(id, steps);
+            }
+            PopupEditPlan::Await(waiting) => {
+                let PopupEditAwait {
+                    request,
+                    tag,
+                    original,
+                    format_paste,
+                } = *waiting;
+                self.plugin_edit_holds.await_paste(
+                    id,
+                    request,
+                    tag,
+                    original,
+                    format_paste,
+                    Instant::now(),
+                );
+            }
             PopupEditPlan::Hold(hold) => {
                 let PopupEditHold {
                     target,
@@ -87,6 +124,14 @@ fn popup_edit_plan(mgr: Option<&mut PluginManager>, ask: PluginEditAsk) -> Popup
                 .collect(),
         );
     };
+    if let Some(awaiting) = ask.awaiting {
+        return PopupEditPlan::Await(Box::new(PopupEditAwait {
+            request,
+            tag: awaiting.tag,
+            original: ask.original,
+            format_paste: awaiting.format_paste,
+        }));
+    }
     PopupEditPlan::Hold(Box::new(PopupEditHold {
         target: ask.target,
         wire: RawInputEventWire::EditRequest {

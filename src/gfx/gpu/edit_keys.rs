@@ -18,7 +18,7 @@ use crate::adapters::ui::input::edit_key::{
 const HOST_HOLD_LIMIT: Duration = Duration::from_secs(1);
 
 /// A native Wayland read that has not answered after the selection's own read limit is given up.
-const AWAIT_TEXT_LIMIT: Duration =
+pub(crate) const AWAIT_TEXT_LIMIT: Duration =
     crate::file::drag::PASTE_LIMIT.saturating_add(Duration::from_millis(500));
 
 /// Who replays a released key. egui-only windows (settings, preset, plugins, quit, boot screens,

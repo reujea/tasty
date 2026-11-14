@@ -6,9 +6,10 @@
 use winit::event::{ElementState, WindowEvent};
 
 use super::MainView;
-use super::plugin_popup_keys::{PluginEditAsk, popup_capability, popup_key};
+use super::plugin_popup_keys::{AwaitedPaste, PluginEditAsk, popup_capability, popup_key};
 use crate::adapters::ui::input::edit_key::{Capability, EditBindings, EditKey, verdict};
 use crate::gfx::gpu::edit_keys::EguiKey;
+use crate::gfx::gpu::plugin_paste_read::PluginClip;
 use crate::plugin::manager::PluginCopyTarget;
 use crate::runtime::engine_read::EngineRead;
 
@@ -54,22 +55,22 @@ fn mirror_key(binding: Option<EditKey>) -> EguiKey {
 
 /// 로컬 surface 대상의 능력. 팝업과 같되, `egui_paste` surface 는 글자가 없어도 플러그인이 다른 형식을 붙일 수
 /// 있어 회신을 봐야 안다. 그때 요청은 글자 없는 형식 붙여넣기(`paste`)다.
-fn surface_capability(edit: EditKey, clipboard_text: bool, format_paste: bool) -> Capability {
+fn surface_capability(edit: EditKey, clip: &PluginClip, format_paste: bool) -> Capability {
     match edit {
         EditKey::Paste if format_paste => Capability::Unknown,
-        _ => popup_capability(edit, clipboard_text),
+        _ => popup_capability(edit, clip),
     }
 }
 
 /// surface 판정이 키에 하는 일과 남길 편집 요청. 대상이 없으면 `None`이고 다음 판정이 받는다. 뗌은 그대로
 /// 보낸다. mirror 는 넘기고, 회신을 약속한 로컬 surface 는 팝업과 같은 규칙으로 판정해 기다리는 키를 Tasty 가
 /// 가져가고 원래 키를 붙잡은 요청을 남긴다. 붙여넣을 글자는 붙여넣기 바인딩일 때만 읽는다. `egui_paste`
-/// surface 는 글자가 없어도 형식 붙여넣기 요청을 남긴다.
+/// surface 는 글자가 없어도 형식 붙여넣기 요청을 남긴다. 글자를 읽는 중이면 그 기다림을 남긴다.
 pub(super) fn surface_key(
     target: Option<SurfaceEditTarget>,
     pressed: bool,
     binding: Option<EditKey>,
-    paste_text: impl FnOnce() -> Option<String>,
+    paste_clip: impl FnOnce() -> PluginClip,
     original: &WindowEvent,
 ) -> Option<(EguiKey, Option<PluginEditAsk>)> {
     let target = target?;
@@ -84,20 +85,21 @@ pub(super) fn surface_key(
             format_paste,
         } => (surface, plugin_id, format_paste),
     };
-    let mut text = None;
+    let mut clip = PluginClip::Empty;
     let judged = verdict(binding, |edit| {
         if edit == EditKey::Paste {
-            text = paste_text();
+            clip = paste_clip();
         }
-        surface_capability(edit, text.is_some(), format_paste)
+        surface_capability(edit, &clip, format_paste)
     });
     let (key, asked) = popup_key(judged);
     let ask = asked.map(|edit| PluginEditAsk {
         target: PluginCopyTarget::Surface(surface),
         plugin_id: Some(plugin_id),
         edit,
-        text,
+        text: clip.text().map(str::to_string),
         original: Some(original.clone()),
+        awaiting: AwaitedPaste::of(&clip, format_paste),
     });
     Some((key, ask))
 }
@@ -108,7 +110,7 @@ pub(super) enum PaletteSurfaceEdit {
     /// 이 판정의 대상이 아니다. 기존 팔레트 경로(`run_copy`·탐색기·`run_paste`)가 받는다.
     NotMine,
     /// 대상이지만 보낼 것이 없다(`egui_paste`가 아닌 surface 에 빈 클립보드의 붙여넣기). 터미널 붙여넣기로
-    /// 넘기지 않는다.
+    /// 넘기지 않는다. 글자를 읽는 중이면 `Ask`이고 App 이 읽기를 기다린다.
     Nothing,
     /// 이 surface 의 플러그인에 편집 요청을 보낸다.
     Ask { surface: u32, plugin_id: String },
@@ -119,7 +121,7 @@ pub(super) enum PaletteSurfaceEdit {
 pub(super) fn palette_surface_edit(
     target: Option<SurfaceEditTarget>,
     edit: EditKey,
-    clipboard_text: bool,
+    clip: &PluginClip,
 ) -> PaletteSurfaceEdit {
     let Some(SurfaceEditTarget::Local {
         surface,
@@ -129,7 +131,7 @@ pub(super) fn palette_surface_edit(
     else {
         return PaletteSurfaceEdit::NotMine;
     };
-    match surface_capability(edit, clipboard_text, format_paste) {
+    match surface_capability(edit, clip, format_paste) {
         Capability::No => PaletteSurfaceEdit::Nothing,
         _ => PaletteSurfaceEdit::Ask { surface, plugin_id },
     }
@@ -145,13 +147,13 @@ impl MainView {
         edit: EditKey,
     ) -> bool {
         let target = self.surface_edit_target_now(engine);
-        let text = match (&target, edit) {
-            (Some(SurfaceEditTarget::Local { .. }), EditKey::Paste) => {
-                self.base.gpu.plugin_paste_text()
+        let (clip, format_paste) = match (&target, edit) {
+            (Some(SurfaceEditTarget::Local { format_paste, .. }), EditKey::Paste) => {
+                (self.base.gpu.plugin_paste(true), *format_paste)
             }
-            _ => None,
+            _ => (PluginClip::Empty, false),
         };
-        match palette_surface_edit(target, edit, text.is_some()) {
+        match palette_surface_edit(target, edit, &clip) {
             PaletteSurfaceEdit::NotMine => false,
             PaletteSurfaceEdit::Nothing => true,
             PaletteSurfaceEdit::Ask { surface, plugin_id } => {
@@ -159,8 +161,9 @@ impl MainView {
                     target: PluginCopyTarget::Surface(surface),
                     plugin_id: Some(plugin_id),
                     edit,
-                    text,
+                    text: clip.text().map(str::to_string),
                     original: None,
+                    awaiting: AwaitedPaste::of(&clip, format_paste),
                 });
                 true
             }
@@ -233,7 +236,7 @@ impl MainView {
         };
         let gpu = &mut self.base.gpu;
         let (judged, ask) =
-            surface_key(target, pressed, binding, || gpu.plugin_paste_text(), event)?;
+            surface_key(target, pressed, binding, || gpu.plugin_paste(true), event)?;
         if let Some(ask) = ask {
             self.plugin_edit_ask = Some(ask);
         }
@@ -315,11 +318,24 @@ mod tests {
         binding: Option<EditKey>,
         clipboard: Option<&str>,
     ) -> Option<(EguiKey, Option<PluginEditAsk>)> {
+        let clip = match clipboard {
+            Some(text) => PluginClip::Text(text.to_string()),
+            None => PluginClip::Empty,
+        };
+        judge_clip(target, pressed, binding, clip)
+    }
+
+    fn judge_clip(
+        target: Option<SurfaceEditTarget>,
+        pressed: bool,
+        binding: Option<EditKey>,
+        clip: PluginClip,
+    ) -> Option<(EguiKey, Option<PluginEditAsk>)> {
         surface_key(
             target,
             pressed,
             binding,
-            || clipboard.map(str::to_string),
+            || clip,
             &WindowEvent::Focused(true),
         )
     }
@@ -378,6 +394,36 @@ mod tests {
         assert_eq!((key, ask.is_none()), (EguiKey::Free, true));
     }
 
+    /// 붙여넣을 글자를 읽는 중이면(네이티브 Wayland 의 다른 앱 선택) 키를 가져가고 원래 키를 붙잡은 기다림을
+    /// 남긴다. 글자 없이 끝났을 때 형식 붙여넣기를 보낼지는 대상의 `egui_paste`다.
+    #[test]
+    fn a_pending_read_takes_the_key_and_leaves_an_await() {
+        for (target, format_paste) in [(local(), false), (format_paste_local(), true)] {
+            let (key, ask) = judge_clip(target, true, Some(EditKey::Paste), PluginClip::Pending(9))
+                .expect("판정 대상");
+            assert_eq!(key, EguiKey::Taken);
+            let ask = ask.expect("요청");
+            assert_eq!(ask.text, None);
+            assert_eq!(ask.original, Some(WindowEvent::Focused(true)));
+            assert_eq!(
+                ask.awaiting,
+                Some(AwaitedPaste {
+                    tag: 9,
+                    format_paste
+                })
+            );
+        }
+        let (_, ask) = judge(local(), true, Some(EditKey::Paste), Some("hi")).expect("판정 대상");
+        assert_eq!(ask.expect("요청").awaiting, None);
+        assert_eq!(
+            palette_surface_edit(local(), EditKey::Paste, &PluginClip::Pending(9)),
+            PaletteSurfaceEdit::Ask {
+                surface: 4,
+                plugin_id: "demo".into()
+            }
+        );
+    }
+
     /// mirror 는 요청 없이 넘기고, 대상이 없으면 이 판정이 받지 않는다.
     #[test]
     fn a_mirror_passes_without_a_request_and_no_target_is_not_judged() {
@@ -422,7 +468,7 @@ mod tests {
                     EditBindings::from_settings(&engine.settings.keybindings).binding(&lookup, mods)
                 } else { None };
                 let gpu = &mut self.base.gpu;
-                let (judged, ask) = surface_key(target, pressed, binding, || gpu.plugin_paste_text(), event)?;
+                let (judged, ask) = surface_key(target, pressed, binding, || gpu.plugin_paste(true), event)?;
                 if let Some(ask) = ask { self.plugin_edit_ask = Some(ask); }
                 Some(judged)"
             ),
@@ -435,31 +481,38 @@ mod tests {
     /// (터미널로 넘기지 않는다) mirror·약속 없는 플러그인·대상 없음은 기존 경로로 간다.
     #[test]
     fn a_palette_edit_asks_only_a_surface_that_replies() {
+        let text = || PluginClip::Text("hi".into());
         let ask = PaletteSurfaceEdit::Ask {
             surface: 4,
             plugin_id: "demo".into(),
         };
-        assert_eq!(palette_surface_edit(local(), EditKey::Copy, false), ask);
-        assert_eq!(palette_surface_edit(local(), EditKey::Cut, false), ask);
-        assert_eq!(palette_surface_edit(local(), EditKey::Paste, true), ask);
         assert_eq!(
-            palette_surface_edit(local(), EditKey::Paste, false),
+            palette_surface_edit(local(), EditKey::Copy, &PluginClip::Empty),
+            ask
+        );
+        assert_eq!(
+            palette_surface_edit(local(), EditKey::Cut, &PluginClip::Empty),
+            ask
+        );
+        assert_eq!(palette_surface_edit(local(), EditKey::Paste, &text()), ask);
+        assert_eq!(
+            palette_surface_edit(local(), EditKey::Paste, &PluginClip::Empty),
             PaletteSurfaceEdit::Nothing
         );
         assert_eq!(
-            palette_surface_edit(format_paste_local(), EditKey::Paste, false),
+            palette_surface_edit(format_paste_local(), EditKey::Paste, &PluginClip::Empty),
             ask
         );
         assert_eq!(
-            palette_surface_edit(format_paste_local(), EditKey::Paste, true),
+            palette_surface_edit(format_paste_local(), EditKey::Paste, &text()),
             ask
         );
         assert_eq!(
-            palette_surface_edit(Some(SurfaceEditTarget::Mirror), EditKey::Paste, true),
+            palette_surface_edit(Some(SurfaceEditTarget::Mirror), EditKey::Paste, &text()),
             PaletteSurfaceEdit::NotMine
         );
         assert_eq!(
-            palette_surface_edit(None, EditKey::Copy, false),
+            palette_surface_edit(None, EditKey::Copy, &PluginClip::Empty),
             PaletteSurfaceEdit::NotMine
         );
     }

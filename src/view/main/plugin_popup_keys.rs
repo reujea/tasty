@@ -8,6 +8,7 @@ use winit::event::{ElementState, WindowEvent};
 use super::MainView;
 use crate::adapters::ui::input::edit_key::{Capability, EditBindings, EditKey, Verdict, verdict};
 use crate::gfx::gpu::edit_keys::EguiKey;
+use crate::gfx::gpu::plugin_paste_read::PluginClip;
 use crate::plugin::manager::PluginCopyTarget;
 use crate::runtime::engine_read::EngineRead;
 
@@ -24,6 +25,31 @@ pub(crate) struct PluginEditAsk {
     pub(crate) text: Option<String>,
     /// 붙잡을 원래 키. 팔레트처럼 키 없이 보낸 편집은 없고, 회신이 와도 재생할 것이 없다.
     pub(crate) original: Option<WindowEvent>,
+    /// 붙여넣을 글자를 아직 읽는 중이다(네이티브 Wayland 의 다른 앱 선택). App 은 요청을 보내지 않고 읽기가
+    /// 끝날 때까지 기다린다.
+    pub(crate) awaiting: Option<AwaitedPaste>,
+}
+
+/// 읽는 중인 붙여넣기 글자.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AwaitedPaste {
+    /// 읽기의 tag(`GpuState::plugin_paste`).
+    pub(crate) tag: u64,
+    /// 대상이 글자 없이도 다른 형식을 붙일 수 있다(`egui_paste` surface). 글자 없이 끝나면 형식 붙여넣기를 보낸다.
+    pub(crate) format_paste: bool,
+}
+
+impl AwaitedPaste {
+    /// `clip`이 읽는 중이면 그 기다림.
+    pub(crate) fn of(clip: &PluginClip, format_paste: bool) -> Option<Self> {
+        match clip {
+            PluginClip::Pending(tag) => Some(Self {
+                tag: *tag,
+                format_paste,
+            }),
+            _ => None,
+        }
+    }
 }
 
 impl PluginEditAsk {
@@ -40,10 +66,11 @@ impl PluginEditAsk {
     }
 }
 
-/// 플러그인 팝업 대상의 능력. 붙여넣기는 클립보드에 글자가 없으면 할 수 없다. 그 밖은 회신을 봐야 안다.
-pub(super) fn popup_capability(edit: EditKey, clipboard_text: bool) -> Capability {
-    match edit {
-        EditKey::Paste if !clipboard_text => Capability::No,
+/// 플러그인 팝업 대상의 능력. 붙여넣기는 클립보드에 글자가 없으면 할 수 없다. 글자를 읽는 중이면 아직 모른다.
+/// 그 밖은 회신을 봐야 안다.
+pub(super) fn popup_capability(edit: EditKey, clip: &PluginClip) -> Capability {
+    match (edit, clip) {
+        (EditKey::Paste, PluginClip::Empty) => Capability::No,
         _ => Capability::Unknown,
     }
 }
@@ -81,14 +108,16 @@ impl MainView {
             crate::shortcuts::shortcut_lookup_key(&key.logical_key, &key.physical_key, mods);
         let binding =
             EditBindings::from_settings(&engine.settings.keybindings).binding(&lookup, mods);
-        // 붙여넣을 글자는 키 시점에 그 팝업을 위해 읽는다(네이티브 Wayland 읽기의 대상 표시).
+        // 붙여넣을 글자는 키 시점에 그 팝업을 위해 읽는다(네이티브 Wayland 읽기의 대상 표시). 다른 앱의 선택을
+        // 읽는 중이면 회신을 약속한 팝업만 기다린다. 약속하지 않은 팝업은 키를 넘기고 egui-winit 이 다시 읽는다.
         self.base.gpu.set_plugin_paste_target(Some(instance));
-        let mut text = None;
+        let replies = self.state.plugin_popup_replies.contains(&instance);
+        let mut clip = PluginClip::Empty;
         let judged = verdict(binding, |edit| {
             if edit == EditKey::Paste {
-                text = self.base.gpu.plugin_paste_text();
+                clip = self.base.gpu.plugin_paste(replies);
             }
-            popup_capability(edit, text.is_some())
+            popup_capability(edit, &clip)
         });
         let (key, asked) = popup_key(judged);
         if let Some(edit) = asked {
@@ -96,8 +125,9 @@ impl MainView {
                 target: PluginCopyTarget::Popup(instance),
                 plugin_id: None,
                 edit,
-                text,
+                text: clip.text().map(str::to_string),
                 original: Some(event.clone()),
+                awaiting: AwaitedPaste::of(&clip, false),
             });
         }
         Some(key)
@@ -113,28 +143,48 @@ impl MainView {
 mod tests {
     use super::*;
 
-    /// 빈 클립보드의 붙여넣기는 할 수 없음을 알아 넘긴다. 복사·잘라내기와 글자가 있는 붙여넣기는 플러그인
-    /// 회신을 기다린다. 바인딩이 아니면 판정하지 않는다.
+    /// 빈 클립보드의 붙여넣기는 할 수 없음을 알아 넘긴다. 복사·잘라내기와 글자가 있거나 읽는 중인 붙여넣기는
+    /// 플러그인 회신을 기다린다. 바인딩이 아니면 판정하지 않는다.
     #[test]
     fn a_plugin_popup_waits_for_the_reply_unless_the_paste_is_empty() {
-        let judge = |binding, clip| verdict(binding, |edit| popup_capability(edit, clip));
+        let judge =
+            |binding, clip: PluginClip| verdict(binding, |edit| popup_capability(edit, &clip));
+        let text = || PluginClip::Text("hi".into());
         assert_eq!(
-            judge(Some(EditKey::Paste), false),
+            judge(Some(EditKey::Paste), PluginClip::Empty),
             Verdict::Pass(EditKey::Paste)
         );
         assert_eq!(
-            judge(Some(EditKey::Paste), true),
+            judge(Some(EditKey::Paste), text()),
             Verdict::Hold(EditKey::Paste)
         );
         assert_eq!(
-            judge(Some(EditKey::Copy), false),
+            judge(Some(EditKey::Paste), PluginClip::Pending(9)),
+            Verdict::Hold(EditKey::Paste)
+        );
+        assert_eq!(
+            judge(Some(EditKey::Copy), PluginClip::Empty),
             Verdict::Hold(EditKey::Copy)
         );
         assert_eq!(
-            judge(Some(EditKey::Cut), false),
+            judge(Some(EditKey::Cut), PluginClip::Empty),
             Verdict::Hold(EditKey::Cut)
         );
-        assert_eq!(judge(None, true), Verdict::NoBinding);
+        assert_eq!(judge(None, text()), Verdict::NoBinding);
+    }
+
+    /// 읽는 중인 글자만 기다림이 된다. 형식 붙여넣기 여부는 대상이 정한다.
+    #[test]
+    fn only_a_pending_clip_becomes_an_awaited_paste() {
+        assert_eq!(
+            AwaitedPaste::of(&PluginClip::Pending(9), true),
+            Some(AwaitedPaste {
+                tag: 9,
+                format_paste: true
+            })
+        );
+        assert_eq!(AwaitedPaste::of(&PluginClip::Empty, true), None);
+        assert_eq!(AwaitedPaste::of(&PluginClip::Text("a".into()), false), None);
     }
 
     /// 바인딩이 아닌 키와 넘기는 키는 egui-winit 에 그대로 가고 플러그인 편집을 남기지 않는다. 기다리는 키만
@@ -159,6 +209,7 @@ mod tests {
             edit,
             text: text.map(str::to_string),
             original: Some(WindowEvent::Focused(true)),
+            awaiting: None,
         }
     }
 

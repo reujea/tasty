@@ -42,6 +42,7 @@ pub fn draw_plugin_popups(
     state.plugin_popup_hittest.clear();
     state.plugin_popup_placed_scopes.clear();
     state.plugin_popup_key_candidates.clear();
+    state.plugin_popup_replies.clear();
     state.plugin_popup_ime_cursor_area = None;
 
     let Some(mgr) = plugin_manager else {
@@ -87,6 +88,12 @@ pub fn draw_plugin_popups(
         placed
             .iter()
             .map(|(snap, _)| (snap.instance_id, snap.z_seq)),
+    );
+    state.plugin_popup_replies.extend(
+        placed
+            .iter()
+            .filter(|(snap, _)| mgr.supports_edit_outcome(&snap.plugin_id))
+            .map(|(snap, _)| snap.instance_id),
     );
 
     if placed.is_empty() {

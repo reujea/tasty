@@ -220,6 +220,9 @@ impl TextSelection {
     pub(crate) fn busy(&self) -> bool {
         match *self {}
     }
+    pub(crate) fn waiting(&self) -> bool {
+        match *self {}
+    }
 }
 
 pub(crate) struct Context {

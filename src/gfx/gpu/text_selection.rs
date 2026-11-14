@@ -7,6 +7,7 @@
 //! fallback speaks only X11. X11, XWayland and the other OSes keep egui-winit's paste: there the
 //! window has no `TextSelection` and the paste paths below fall through to egui-winit.
 use super::GpuState;
+use super::plugin_paste_read::{PluginClip, PluginPasteEnd};
 use winit::{event::WindowEvent, window::Window};
 
 impl GpuState {
@@ -46,18 +47,50 @@ impl GpuState {
         }
     }
 
-    /// The clipboard text a paste key sent to the plugin popup receiving keys would insert, read at
-    /// key time; `None` when there is nothing to paste. A native Wayland read of another app's
-    /// selection is not waited for: it is cancelled and the key passes on unconsumed.
-    pub(crate) fn plugin_paste_text(&mut self) -> Option<String> {
-        let tag = self.focus_tag();
-        match self.text_selection.as_mut() {
-            Some(selection) => selection.request_held_text(tag).unwrap_or_else(|| {
+    /// The clipboard text a paste key sent to a plugin text field would insert, read at key time.
+    /// A native Wayland read of another app's selection is waited for only when `wait` (the
+    /// field's plugin replies with edit outcomes): it gets a tag of its own and its result comes
+    /// from [`Self::take_plugin_paste_arrivals`]. Otherwise it is cancelled and reads as empty.
+    pub(crate) fn plugin_paste(&mut self, wait: bool) -> PluginClip {
+        let tag = if wait {
+            self.plugin_reads.next_tag()
+        } else {
+            self.focus_tag()
+        };
+        let Some(selection) = self.text_selection.as_mut() else {
+            return match self.egui_state.clipboard_text().filter(|t| !t.is_empty()) {
+                Some(text) => PluginClip::Text(text),
+                None => PluginClip::Empty,
+            };
+        };
+        match selection.request_held_text(tag) {
+            Some(Some(text)) => PluginClip::Text(text),
+            Some(None) => PluginClip::Empty,
+            None if wait => {
+                self.plugin_reads.started(tag);
+                PluginClip::Pending(tag)
+            }
+            None => {
                 selection.cancel();
-                None
-            }),
-            None => self.egui_state.clipboard_text().filter(|t| !t.is_empty()),
+                PluginClip::Empty
+            }
         }
+    }
+
+    /// Stops waiting for the plugin paste read `tag`, cancelling it when it is still being read.
+    /// Its result, if it comes late, is dropped.
+    pub(crate) fn cancel_plugin_paste(&mut self, tag: u64) {
+        if self.plugin_reads.cancel(tag)
+            && let Some(selection) = self.text_selection.as_mut()
+            && selection.waiting()
+        {
+            selection.cancel();
+        }
+    }
+
+    /// Plugin paste reads that ended since the last call, for App to send or replay.
+    pub(crate) fn take_plugin_paste_arrivals(&mut self) -> Vec<(u64, PluginPasteEnd)> {
+        self.plugin_reads.take_arrived()
     }
 
     /// The plugin popup that receives this window's keys, set by the window before keys reach egui
@@ -102,7 +135,7 @@ impl GpuState {
         let Some(selection) = self.text_selection.as_mut() else {
             return false;
         };
-        let finished = if self.edit_keys.awaits_text() {
+        let finished = if self.edit_keys.awaits_text() || self.plugin_reads.wants_failures() {
             selection.poll_with_failures()
         } else {
             selection
@@ -111,6 +144,9 @@ impl GpuState {
                 .map(|(tag, text)| (tag, Some(text)))
                 .collect()
         };
+        // A plugin field's read goes to App before the host's: its text must not also reach a host
+        // field or egui's `Paste` through `HeldPastes`.
+        let finished = self.plugin_reads.sort(finished, selection.waiting());
         let mut pastes = Vec::new();
         for (tag, text) in finished {
             if !self.edit_keys_text_arrived(text.clone())
@@ -120,7 +156,7 @@ impl GpuState {
             }
         }
         self.held_pastes.add(pastes, std::time::Instant::now());
-        !self.held_pastes.is_empty() || self.edit_keys_busy()
+        !self.held_pastes.is_empty() || self.edit_keys_busy() || self.plugin_reads.busy()
     }
 
     /// The input of this window's next egui frame. Every frame takes its input here, so each
@@ -154,6 +190,7 @@ impl GpuState {
             .is_some_and(crate::file::drag::TextSelection::busy)
             || !self.held_pastes.is_empty()
             || self.edit_keys.awaits_text()
+            || self.plugin_reads.busy()
     }
 }
 

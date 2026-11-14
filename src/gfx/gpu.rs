@@ -9,6 +9,7 @@ mod fonts;
 pub(crate) mod loading;
 mod overlay_paint;
 pub(crate) mod overlay_surface;
+pub(crate) mod plugin_paste_read;
 mod render_pass;
 mod screenshot;
 mod shell_setup;
@@ -88,6 +89,8 @@ pub struct GpuState {
     pub(super) held_pastes: text_selection::HeldPastes,
     /// The plugin popup receiving this window's keys. Paste targets use it (`focus_tag`).
     pub(super) plugin_paste_target: Option<u64>,
+    /// Native Wayland reads for plugin text fields that wait for another app's selection.
+    pub(super) plugin_reads: plugin_paste_read::PluginPasteReads,
     /// Text an egui widget copied, waiting for the window's owner (`take_egui_copy`).
     pub(super) egui_copy: Option<String>,
     /// Edit keys judged before egui-winit (`edit_keys.rs`).
@@ -287,6 +290,7 @@ impl GpuState {
             text_selection: None,
             held_pastes: text_selection::HeldPastes::default(),
             plugin_paste_target: None,
+            plugin_reads: plugin_paste_read::PluginPasteReads::default(),
             egui_copy: None,
             edit_keys: edit_keys::EditKeyState::default(),
             egui_renderer,

@@ -245,6 +245,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             plugin_popup_key_candidates: Vec::new(),
             #[cfg(feature = "gui")]
+            plugin_popup_replies: std::collections::HashSet::new(),
+            #[cfg(feature = "gui")]
             plugin_popup_edit_requests: Vec::new(),
             #[cfg(feature = "gui")]
             plugin_popup_edit_sent: std::collections::HashMap::new(),

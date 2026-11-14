@@ -1,5 +1,6 @@
 //! 플러그인 입력칸에 보낸 편집 키의 보류. 편집 요청을 보낸 원래 키를 그 창에 붙잡아 두고, pump 직후 꺼낸
 //! 플러그인 회신으로 소비·재생을 정한다. 보류 중에 그 창에 온 키·IME·포인터 입력은 받은 순서대로 줄을 선다.
+//! 붙여넣을 글자를 아직 읽는 붙여넣기는 요청을 보내기 전 단계로 먼저 기다린다(`plugin_paste_await`).
 //! 계약: `docs/design/policies/key-mapping.md`의 "플러그인 입력칸" 절.
 
 use std::collections::{HashMap, HashSet};
@@ -16,6 +17,10 @@ use crate::plugin::PluginManager;
 use crate::plugin::manager::{
     PluginCopyTarget, PluginEditOutcome, PluginEditRequest, PluginEditResult,
 };
+
+#[path = "plugin_paste_await.rs"]
+mod paste_await;
+pub(crate) use paste_await::AwaitSettled;
 
 /// 회신을 기다리는 상한. 넘으면 실행됐을 수 있으므로 원래 키를 소비하고 재생하지 않는다.
 const PLUGIN_HOLD_LIMIT: Duration = Duration::from_secs(1);
@@ -40,6 +45,8 @@ pub(crate) struct PluginEditHolds {
     holds: HashMap<WindowId, PluginEditHold>,
     /// 요청 id 별 키 없는 편집 요청.
     keyless: HashMap<u64, KeylessEdit>,
+    /// 붙여넣을 글자를 기다리는 창. 그 창에는 회신 보류가 없다(입력이 줄을 선다).
+    awaits: HashMap<WindowId, paste_await::PasteAwait>,
 }
 
 /// 풀린 보류. `steps`는 재생할 입력, `copied`는 소비한 편집이 복사한 글자다. `target`은 요청을 보낸 때의 대상이다.
@@ -97,6 +104,9 @@ impl PluginEditHolds {
 
     /// 보류 중인 창의 키·IME·modifier·포인터 입력을 줄 세운다. 줄을 섰으면 true 이고 호출자는 처리하지 않는다.
     pub(crate) fn queue(&mut self, window: WindowId, event: &WindowEvent) -> bool {
+        if let Some(queued) = self.queue_behind_await(window, event) {
+            return queued;
+        }
         let Some(held) = self.holds.get_mut(&window) else {
             return false;
         };
@@ -253,9 +263,14 @@ impl PluginEditHolds {
     pub(crate) fn deadline(&self) -> Option<Instant> {
         let held = self.holds.values().map(|h| h.since);
         let keyless = self.keyless.values().map(|k| k.since);
-        held.chain(keyless)
+        let replies = held
+            .chain(keyless)
             .map(|since| since + PLUGIN_HOLD_LIMIT)
-            .min()
+            .min();
+        match (replies, self.await_deadline()) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
     }
 }
 
@@ -311,20 +326,75 @@ fn plugin_replay(
 }
 
 impl App {
-    /// 보류 중인 창의 입력이면 줄 세운다. 줄을 섰으면 true 다.
+    /// 보류 중인 창의 입력이면 줄 세운다. 줄을 섰으면 true 다. 글자를 기다리는 창의 포인터 누름·포커스 상실은
+    /// 기다림을 끝내 줄 선 입력을 먼저 재생한 뒤 그 입력을 처리하게 한다.
     pub(super) fn queue_behind_plugin_edit(&mut self, id: WindowId, event: &WindowEvent) -> bool {
+        if let Some(ended) = self.plugin_edit_holds.interrupt_await(id, event) {
+            self.apply_await_settled(ended);
+        }
         self.plugin_edit_holds.queue(id, event)
+    }
+
+    /// 창마다 끝난 플러그인 붙여넣기 읽기.
+    fn take_plugin_paste_arrivals(
+        &mut self,
+    ) -> Vec<(
+        WindowId,
+        u64,
+        crate::gfx::gpu::plugin_paste_read::PluginPasteEnd,
+    )> {
+        let mut arrivals = Vec::new();
+        for (id, view) in self.view.views.iter_mut() {
+            for (tag, end) in view.base_mut().gpu.take_plugin_paste_arrivals() {
+                arrivals.push((*id, tag, end));
+            }
+        }
+        arrivals
+    }
+
+    /// 기다림 정리를 실행한다. 요청과 읽기를 취소하고, 글자가 온 요청을 대상 입력에 붙이고, 입력을 재생한다.
+    fn apply_await_settled(&mut self, settled: AwaitSettled) {
+        let AwaitSettled {
+            resolved,
+            cancelled,
+            reads,
+            sends,
+        } = settled;
+        if let Some(mgr) = self.plugin_manager.as_mut() {
+            for edit_id in cancelled {
+                mgr.cancel_edit_request(edit_id);
+            }
+        }
+        for (window, tag) in reads {
+            if let Some(view) = self.view.views.get_mut(&window) {
+                view.base_mut().gpu.cancel_plugin_paste(tag);
+            }
+        }
+        for (window, target, wire) in sends {
+            if let Some(main) = self
+                .view
+                .views
+                .get_mut(&window)
+                .and_then(|v| v.as_main_mut())
+            {
+                main.queue_plugin_edit_request(target, wire);
+            }
+        }
+        for item in resolved {
+            self.finish_plugin_edit(item);
+        }
     }
 
     /// pump 직후 플러그인 편집 회신을 꺼내 보낸 창의 보류를 풀고, 시간이 지난 보류도 푼다. 소비한 편집의 복사
     /// 글자는 그 창의 복사 문으로 쓰고, 넘길 키와 줄 선 입력은 그 창의 평소 이벤트 경로로 재생한다. 그 사이 창이
     /// 닫혔으면 복사 글자와 재생할 입력은 받을 곳이 없어 버려진다.
     pub(super) fn settle_plugin_edit_holds(&mut self, now: Instant) {
-        let outcomes = self
+        let mut outcomes = self
             .plugin_manager
             .as_mut()
             .map(|mgr| mgr.take_edit_outcomes())
             .unwrap_or_default();
+        let arrivals = self.take_plugin_paste_arrivals();
         let views = &self.view.views;
         let engines = &self.engines;
         let live = hold_target_live(self.plugin_manager.as_ref(), |window| {
@@ -336,7 +406,11 @@ impl App {
                     .and_then(|(main, engine)| main.plugin_surface_key_target(&engine)),
             }
         });
+        let awaited = self
+            .plugin_edit_holds
+            .settle_awaits(&mut outcomes, arrivals, now, &live);
         let (resolved, cancelled) = self.plugin_edit_holds.settle(outcomes, now, live);
+        self.apply_await_settled(awaited);
         if let Some(mgr) = self.plugin_manager.as_mut() {
             for edit_id in cancelled {
                 mgr.cancel_edit_request(edit_id);
