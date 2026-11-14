@@ -129,6 +129,8 @@ bash scripts/check-frozen-sum-ratchet.sh
 `strip-cfg-test`는 인라인 테스트와 테스트 전용 파일을 빈 줄로 바꾼다.
 줄 번호는 유지한다. 파일 전체가 테스트 전용인지는 파일명이 아닌 선언 경로로 판단한다.
 여러 선언 중 하나라도 제품 코드에서 도달할 수 있으면 제품 파일로 남긴다.
+tasty-official-plugins 레포도 이 bin을 `cargo install --git`으로 설치해 플러그인 버전 검사에 쓴다.
+이름·호출 형태·종료 코드의 계약은 bin 머리 주석에 있고 `strip_cfg_test_bin` 시험이 고정한다.
 두 SLOC 스크립트는 같은 `SCAN_DIRS`, 임계값, 전처리 플래그를 사용한다.
 공유 설정을 읽지 못하면 기본값으로 진행하지 않고 측정 실패로 끝낸다.
 

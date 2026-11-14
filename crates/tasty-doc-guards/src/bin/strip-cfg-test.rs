@@ -12,6 +12,23 @@
 //!
 //! 종료코드 0은 사본 생성 완료, 2는 인자·루트·수집/쓰기 오류다. 파일이 없으면 실패한다.
 //! 위반 여부는 이 도구를 호출한 검사가 판정한다.
+//!
+//! 외부 계약: tasty-official-plugins 레포의 플러그인 버전 검사가 이 bin을
+//! `cargo install --git <tasty url> --rev <기준 커밋> --locked tasty-doc-guards --bin strip-cfg-test`로
+//! 설치해 쓴다. 설치 확인은 `--check-fresh .`의 rc 0 또는 3이고, 호출 형태는
+//! `--blank-test-only-files <out> <repo-root> <scan-root>...`이며 stdout은 버린다.
+//! 다음을 유지한다.
+//! - 패키지 이름 tasty-doc-guards와 bin 이름 strip-cfg-test.
+//! - git 설치 가능성. 이 크레이트 밖의 파일을 빌드 입력으로 읽지 않는다. 의존을 더할 수는 있지만
+//!   설치 시간이 늘고, 시스템 라이브러리가 필요한 의존은 그 레포 러너에서 설치를 깨뜨릴 수 있다.
+//! - `[--blank-test-only-files] [--neutralize-char-literal-quotes] <out-dir> <repo-root> <scan-root>...` 형태,
+//!   종료 코드 0·2, `--check-fresh <root>`의 0(일치)·1(재빌드 필요)·3(`<root>`에 이 크레이트 소스 없음).
+//! - scan root 아래에 모듈 선언 체인이 있어야 테스트 전용 파일을 판정한다. 그 레포는 크레이트
+//!   디렉터리 전체를 scan root로 넘긴다.
+//!
+//! 이 계약을 바꿀 때는 tasty-official-plugins/scripts/install-judge.sh와
+//! tasty-official-plugins/scripts/check-plugin-version-bump.sh를
+//! 함께 고친다. tests/strip_cfg_test_bin.rs의 계약 시험이 이름·종료 코드를 고정한다.
 
 use std::path::{Path, PathBuf};
 

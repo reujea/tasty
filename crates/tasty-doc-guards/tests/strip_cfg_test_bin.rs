@@ -2,6 +2,10 @@
 //! 기본값은 인라인 테스트 범위만 제거하며 파일 전체 제거와 문자 중화는 명시적으로 켜야 한다.
 //! SLOC 검사는 문자 중화를 쓰지만 내용 변경을 보는 플러그인 버전 검사는 쓰면 안 된다.
 //! cfg_attr의 test 전용 속성 제거도 실제 바이너리 출력으로 확인한다.
+//! 외부 계약: tasty-official-plugins 레포의 install-judge가 이 bin을 이름으로 설치하고
+//! 종료 코드로 설치 성공을 판정한다. 계약 시험의 기대값을 바꾸려면 bin 머리 주석의 계약과
+//! tasty-official-plugins/scripts/install-judge.sh·tasty-official-plugins/scripts/check-plugin-version-bump.sh를
+//! 함께 고친다.
 
 // 이유: 테스트의 값 무시를 제품 코드의 lint 목록에서 제외한다.
 #![allow(clippy::let_underscore_must_use)]
@@ -206,4 +210,59 @@ fn a_cfg_attr_that_requires_test_is_stripped_and_its_opposite_is_not() {
             "속성이 붙은 항목까지 지웠다 (flag={flag:?}): {got:?}"
         );
     }
+}
+
+// 외부 계약 시험: tasty-official-plugins 레포의 install-judge가 기대는 이름과 종료 코드다.
+
+fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn exit_code(args: &[&std::ffi::OsStr]) -> Option<i32> {
+    Command::new(BIN)
+        .args(args)
+        .output()
+        .expect("strip-cfg-test 를 실행할 수 없다")
+        .status
+        .code()
+}
+
+#[test]
+fn the_package_name_is_the_one_outside_consumers_install() {
+    assert_eq!(
+        env!("CARGO_PKG_NAME"),
+        "tasty-doc-guards",
+        "plugins 레포가 `cargo install ... tasty-doc-guards --bin strip-cfg-test`로 설치한다"
+    );
+}
+
+#[test]
+fn check_fresh_without_the_library_source_is_undecidable_for_outside_consumers() {
+    let root = Tmp::new("fresh-absent");
+    let rc = exit_code(&["--check-fresh".as_ref(), root.path().as_os_str()]);
+    assert_eq!(
+        rc,
+        Some(3),
+        "plugins 레포 install-judge가 rc 0·3만 설치 성공으로 본다"
+    );
+}
+
+#[test]
+fn check_fresh_on_this_repository_is_fresh() {
+    let root = repo_root();
+    let rc = exit_code(&["--check-fresh".as_ref(), root.as_os_str()]);
+    assert_eq!(
+        rc,
+        Some(0),
+        "방금 빌드한 bin이 자기 소스와 다르다고 판정했다"
+    );
+}
+
+#[test]
+fn no_arguments_is_a_usage_error() {
+    assert_eq!(
+        exit_code(&[]),
+        Some(2),
+        "인자 오류는 rc 2다. plugins 레포는 이 값으로 호출 실패를 구별한다"
+    );
 }
