@@ -720,7 +720,7 @@ impl PluginManager {
                 ),
                 HelloDrift::Version { manifest } => tracing::warn!(
                     "plugin '{channel_id}' version drift: binary v{version} != manifest \
-                     v{manifest} — stale build? (dev: `cargo build --workspace` 후 재실행)"
+                     v{manifest} — stale build? (dev: `just build-plugins` 후 재실행)"
                 ),
             }
         }

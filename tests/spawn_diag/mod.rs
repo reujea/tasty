@@ -524,13 +524,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_empty_target_dir_tells_an_opted_in_suite_what_to_build() {
+    fn an_empty_bundle_dir_tells_an_opted_in_suite_what_to_stage() {
         let probe = Scratch::new("bundle-empty");
         let dir = probe.path();
-        let note = staged_bundle_note(dir, true).expect("0 개면 진단이 나와야 한다");
+        let note = staged_bundle_note(dir, true).expect("비어 있으면 진단이 나와야 한다");
         assert!(
-            note.contains("cargo build --workspace"),
-            "무엇을 지을지 말해야 한다: {note}"
+            note.contains("just build-plugins"),
+            "무엇을 실행할지 말해야 한다: {note}"
+        );
+        assert!(
+            note.contains("--with-local-tasty"),
+            "계약을 바꾼 작업의 경로도 말해야 한다: {note}"
         );
         assert!(
             note.contains(&dir.display().to_string()),
@@ -538,25 +542,41 @@ mod tests {
         );
     }
 
-    /// 플러그인이 아닌 파일은 있어도 플러그인 준비로 인정하지 않아야 한다.
+    /// 모든 공식 플러그인의 매니페스트가 있어야 조용하고, 하나라도 빠지면 그 id를 말한다.
     #[test]
-    fn a_staged_plugin_binary_silences_the_note_but_a_lookalike_does_not() {
+    fn every_official_plugin_must_be_staged_to_silence_the_note() {
         let probe = Scratch::new("bundle-staged");
         let dir = probe.path();
-
-        std::fs::write(dir.join("tasty-not-a-plugin"), b"x")
-            .expect("가짜 파일을 쓸 수 있어야 한다");
+        let official: Vec<&str> = tasty_host_plugin::official::OFFICIAL_PLUGIN_IDS
+            .iter()
+            .copied()
+            .filter(|id| *id != WORKSPACE_SYNCED_PLUGIN)
+            .collect();
         assert!(
-            staged_bundle_note(dir, true).is_some(),
-            "plugin 이 아닌 이름은 스테이징으로 세면 안 된다"
+            official.len() >= 2,
+            "공식 플러그인 목록이 너무 작다: {official:?}"
         );
 
-        std::fs::write(dir.join("tasty-plugin-markdown"), b"x")
-            .expect("가짜 바이너리를 쓸 수 있어야 한다");
+        std::fs::create_dir_all(dir.join("com.tasty.not-a-plugin")).expect("가짜 폴더");
+        std::fs::write(dir.join("com.tasty.not-a-plugin/tasty-plugin.toml"), b"x")
+            .expect("가짜 매니페스트");
+        for id in &official[1..] {
+            std::fs::create_dir_all(dir.join(id)).expect("폴더");
+            std::fs::write(dir.join(id).join("tasty-plugin.toml"), b"x").expect("매니페스트");
+        }
+        let note = staged_bundle_note(dir, true).expect("하나가 빠졌으면 진단이 나와야 한다");
+        assert!(note.contains(official[0]), "빠진 id를 말해야 한다: {note}");
+        assert!(
+            !note.contains(official[1]),
+            "준비된 id는 말하지 않는다: {note}"
+        );
+
+        std::fs::create_dir_all(dir.join(official[0])).expect("폴더");
+        std::fs::write(dir.join(official[0]).join("tasty-plugin.toml"), b"x").expect("매니페스트");
         assert_eq!(
             staged_bundle_note(dir, true),
             None,
-            "하나라도 지어져 있으면 조용해야 한다"
+            "모두 준비돼 있으면 조용해야 한다"
         );
     }
 
@@ -1262,46 +1282,50 @@ pub fn current_suite_name() -> Option<String> {
     }
 }
 
-const PLUGIN_BIN_PREFIX: &str = "tasty-plugin-";
+/// 부팅이 workspace에서 동기화하는 플러그인. 미리 스테이징하지 않아도 되므로 진단에서 뺀다.
+const WORKSPACE_SYNCED_PLUGIN: &str = "com.tasty.mesh-demo";
 
 fn suite_calls_bundled_plugins() -> bool {
     current_suite_name().is_some_and(|s| SUITES_THAT_CALL_BUNDLED_PLUGINS.contains(&s.as_str()))
 }
 
-/// exe 옆에서 플러그인 접두사의 일반 파일을 하나도 찾지 못하면 빌드 방법을 안내한다.
-/// 실행 권한이나 부분 빌드·필요 플러그인의 완전성까지 검사하지는 않는다.
-fn staged_bundle_note(exe_dir: &std::path::Path, opted_in: bool) -> Option<String> {
+/// 번들 폴더에 매니페스트가 없는 공식 플러그인이 있으면 준비 방법을 안내한다.
+/// 매니페스트 유무만 보며 실행 파일·버전·계약 호환까지 검사하지는 않는다.
+fn staged_bundle_note(bundle_dir: &std::path::Path, opted_in: bool) -> Option<String> {
     if !opted_in {
         return None;
     }
-    let staged = std::fs::read_dir(exe_dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .filter(|e| {
-                    // Cargo 의존 목록인 .d 파일은 바이너리 후보에서 제외한다.
-                    e.file_name()
-                        .to_str()
-                        .is_some_and(|n| n.starts_with(PLUGIN_BIN_PREFIX) && !n.ends_with(".d"))
-                        && e.file_type().is_ok_and(|k| k.is_file())
-                })
-                .count()
-        })
-        .unwrap_or(0);
-    if staged > 0 {
+    let missing: Vec<&str> = tasty_host_plugin::official::OFFICIAL_PLUGIN_IDS
+        .iter()
+        .copied()
+        .filter(|id| *id != WORKSPACE_SYNCED_PLUGIN)
+        .filter(|id| !bundle_dir.join(id).join("tasty-plugin.toml").is_file())
+        .collect();
+    if missing.is_empty() {
         return None;
     }
     Some(format!(
-        "\n이 스위트는 번들 플러그인이 필요한데 {}에서 플러그인 바이너리 이름의 일반 파일을 찾지 못했다. 경로와 빌드 결과를 확인한다. cargo test --test <스위트>만으로 플러그인이 준비되지는 않는다.\n  cargo build --workspace\n",
-        exe_dir.display()
+        "\n이 스위트는 번들 플러그인이 필요한데 {}에 공식 플러그인 {}의 매니페스트가 없다. cargo build·cargo test는 공식 플러그인을 준비하지 않는다. 잠금 파일의 릴리스 산출물을 먼저 받는다(just가 없으면 bash scripts/stage-dev-plugins.sh --profile debug).\n  PROFILE=debug just build-plugins\n호스트 계약(SDK·protocol)을 바꾼 작업이면 받은 산출물은 옛 계약으로 만들어졌다. 공식 플러그인 레포 체크아웃에서 이 체크아웃의 tasty로 빌드한다.\n  PROFILE=debug just build-plugins --from-checkout <공식 플러그인 레포> --with-local-tasty\n",
+        bundle_dir.display(),
+        missing.join(", ")
     ))
+}
+
+/// 자식이 쓰는 번들 폴더. 상속한 override가 있으면 그것, 없으면 실행 파일 옆 builtin-plugins다.
+fn expected_bundle_dir(exe_dir: &std::path::Path) -> std::path::PathBuf {
+    std::env::var_os("TASTY_BUILTIN_PLUGINS_DIR")
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_dir())
+        .unwrap_or_else(|| exe_dir.join("builtin-plugins"))
 }
 
 /// 번들 누락 진단은 해당 시험이 실패했을 때 붙여 플러그인을 쓰지 않는 시험까지 막지 않는다.
 pub fn bundle_staging_note() -> String {
     std::path::PathBuf::from(instance_bin())
         .parent()
-        .and_then(|dir| staged_bundle_note(dir, suite_calls_bundled_plugins()))
+        .and_then(|dir| {
+            staged_bundle_note(&expected_bundle_dir(dir), suite_calls_bundled_plugins())
+        })
         .unwrap_or_default()
 }
 
