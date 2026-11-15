@@ -114,7 +114,8 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 63 개 — 그중 `
 | 목적 | 명령 |
 |---|---|
 | 개발 빌드 | `cargo build` |
-| 플러그인을 포함한 개발 빌드 | `cargo build --workspace` |
+| workspace 전체 개발 빌드 | `cargo build --workspace` |
+| 개발 번들(공식 플러그인·mesh-demo) 준비 | `PROFILE=debug just build-plugins` |
 | release 컴파일·빌드 확인 | `cargo build --release` |
 | lint | `cargo clippy --workspace --all-targets --locked` |
 | 포맷 | `cargo fmt --check` |

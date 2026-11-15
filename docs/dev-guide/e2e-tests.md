@@ -34,15 +34,17 @@ mtime이 바이너리보다 새롭거나 같으면 거부한다. 동률은 빌�
 mtime을 읽지 못하는 파일은 두 검사 모두 놓치는 한계가 있다.
 
 ```bash
-CARGO_TARGET_DIR=target-e2e-headless cargo build --no-default-features --workspace
-TASTY_E2E_BIN=$PWD/target-e2e-headless/debug/tasty cargo test --test shared_instance_harness
+BIN=$(scripts/build-e2e-headless.sh) && export TASTY_E2E_BIN=$BIN
+cargo test --test shared_instance_harness
 ```
 
 기본 target/debug/tasty와 별도 경로를 사용해야 다음 GUI test 빌드가 override를 덮어쓰지 않는다.
-플러그인도 필요한 target에 빌드한다. 번들은 exe 옆 builtin-plugins에서 찾고, 없으면 exe 위치로
-개발 저장소를 찾아 구성한다. 저장소 밖 target에서는 이 추론이 실패할 수 있으므로 번들을
-명시적으로 준비해야 한다. 복사한 번들은 자동 갱신되지 않아 플러그인을 바꾸면 다시 준비한다.
-현재 빌드 스크립트의 스테이징 절차를 우선 사용한다.
+번들 플러그인도 같은 target에 준비한다. 번들은 exe 옆 builtin-plugins에서 찾는다.
+공식 플러그인은 `scripts/stage-dev-plugins.sh`(`just build-plugins`)가 잠금 파일의 릴리스 산출물로 채우고,
+부팅은 workspace 크레이트로 덮지 않는다. debug 부팅이 exe 위치로 개발 저장소를 찾아 채우는 것은 mesh-demo뿐이다.
+`scripts/build-e2e-headless.sh`는 빌드 뒤 이 준비까지 한다. 기본 target을 쓰는 스위트는 먼저
+`PROFILE=debug just build-plugins`를 실행한다. 공식 플러그인을 바꾸면 그 레포 체크아웃에서
+`--from-checkout`으로 다시 준비한다([build.md](build.md#plugin-빌드--스테이징)).
 
 namespace 첫 호출은 활성 소유자와 필요한 IPC hook extension의 기동을 기다린다.
 소속은 매니페스트로 먼저 확인한다. -32601이면 이름·설치를, -32002이면 비활성 상태나
