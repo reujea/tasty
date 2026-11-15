@@ -12,6 +12,9 @@
 #   dist\tasty-{version}-windows-{arch}.msi   (installer; cargo-wix + WiX 3.x auto-installed if missing)
 #   dist\tasty-headless-{version}-windows-{arch}.zip   (gui feature 없는 헤드리스 빌드, portable)
 #   dist\SHA256SUMS-windows.txt (x64) / dist\SHA256SUMS-windows-arm64.txt (arm64)
+#
+# Requires: Git for Windows (Git Bash, curl, tar). 번들 플러그인은 official-plugins.lock.toml의
+# 산출물을 받는다(빌드하지 않는다). 받기·서명 스크립트는 Git Bash로 실행한다.
 
 param(
     [ValidateSet("x64", "arm64")]
@@ -170,34 +173,29 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 매니페스트가 있고 bundle=false가 아닌 plugin을 배포에 포함한다.
-$PluginCrates = @()
-foreach ($d in (Get-ChildItem -Path "crates" -Filter "tasty-plugin-*" -Directory)) {
-    $manifest = Join-Path $d.FullName "tasty-plugin.toml"
-    if (Test-Path $manifest) {
-        if (Select-String -Path $manifest -Pattern '^\s*bundle\s*=\s*false' -Quiet) {
-            Write-Host "==> Skipping $($d.Name) (bundle = false)"
-            continue
-        }
-        $PluginCrates += $d.Name
+# 번들 플러그인은 여기서 빌드하지 않는다. 잠금 파일의 bundle = true 산출물을 받아 넣는다.
+# 받기·SHA-256 대조·tar.gz 풀기·매니페스트 검증은 scripts/fetch-official-plugins.sh가 Git Bash에서 한다.
+# 산출물이 없거나 해시가 다르면 실패하고 폴더를 남기지 않는다. 셸 쪽 규칙: scripts/lib/bundled-plugins.sh.
+$BundledPluginsDir = Join-Path "target" "bundled-plugins"
+$PluginPlatform = "windows-$Arch"
+function Get-BundledPlugins {
+    $Bash = Resolve-Bash
+    if (-not $Bash) {
+        Write-Error "Git Bash not found. Install Git for Windows to run scripts/fetch-official-plugins.sh."
+        exit 1
+    }
+    # 이전 실행의 폴더가 있으면 unpack이 거부하므로 먼저 지운다.
+    if (Test-Path $BundledPluginsDir) { Remove-Item -Recurse -Force $BundledPluginsDir }
+    Write-Host "==> Fetching locked official plugins ($PluginPlatform)..."
+    & $Bash ./scripts/fetch-official-plugins.sh --platform $PluginPlatform --out target/bundled-plugins
+    if ($LASTEXITCODE -ne 0) {
+        if (Test-Path $BundledPluginsDir) { Remove-Item -Recurse -Force $BundledPluginsDir }
+        Write-Error "fetch-official-plugins.sh failed with exit code $LASTEXITCODE"
+        exit 1
     }
 }
 
-if ($PluginCrates.Count -eq 0) {
-    Write-Error "No plugin crates with tasty-plugin.toml found under crates\"
-    exit 1
-}
-
-Write-Host "==> Building $($PluginCrates.Count) plugins ($BuildProfile)..."
-$PluginCargoArgs = @()
-foreach ($c in $PluginCrates) {
-    $PluginCargoArgs += @("-p", $c)
-}
-cargo build @CargoFlags @PluginCargoArgs
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "cargo build (plugins) failed with exit code $LASTEXITCODE"
-    exit 1
-}
+Get-BundledPlugins
 
 # 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
 function Sign-BundledPlugins {
@@ -208,7 +206,8 @@ function Sign-BundledPlugins {
         exit 1
     }
     Write-Host "==> Signing plugin manifests with $SignKeyPath..."
-    & $Bash ./scripts/sign-bundle.sh --key $SignKeyPath --all-builtins
+    # 받은 산출물에 .sig가 있으면 sign-bundle.sh가 실패한다(공식 플러그인은 서명 없이 온다).
+    & $Bash ./scripts/sign-bundle.sh --key $SignKeyPath --dir target/bundled-plugins
     if ($LASTEXITCODE -ne 0) {
         Write-Error "sign-bundle.sh failed with exit code $LASTEXITCODE"
         exit 1
@@ -219,41 +218,96 @@ if ($BuildProfile -ne "debug") {
     Sign-BundledPlugins
 }
 
+# 받은 <id>\ 폴더를 통째로 복사한다. 고지 파일(LICENSE 등)도 플러그인과 함께 간다.
 function Stage-Plugins {
     param([string]$PluginsDir)
     New-Item -ItemType Directory -Force -Path $PluginsDir | Out-Null
-    foreach ($c in $PluginCrates) {
-        $manifest = Join-Path "crates" (Join-Path $c "tasty-plugin.toml")
-        $idMatch = Select-String -Path $manifest -Pattern '^\s*id\s*=\s*"([^"]+)"' | Select-Object -First 1
-        if (-not $idMatch) {
-            Write-Error "Cannot parse id from $manifest"
-            exit 1
-        }
-        $id = $idMatch.Matches[0].Groups[1].Value
-        $srcBin = Join-Path $BuildDir "$c.exe"
-        if (-not (Test-Path $srcBin)) {
-            Write-Error "Plugin binary missing: $srcBin"
-            exit 1
-        }
-        $dest = Join-Path $PluginsDir $id
-        New-Item -ItemType Directory -Force -Path $dest | Out-Null
-        Copy-Item $srcBin -Destination (Join-Path $dest "$c.exe")
-        Copy-Item $manifest -Destination (Join-Path $dest "tasty-plugin.toml")
-        $sigPath = Join-Path "crates" (Join-Path $c "tasty-plugin.toml.sig")
-        if (Test-Path $sigPath) {
-            Copy-Item $sigPath -Destination (Join-Path $dest "tasty-plugin.toml.sig")
-        } elseif ($BuildProfile -ne "debug") {
-            Write-Error "Missing $sigPath (signing failed?)"
-            exit 1
-        }
-        $langDir = Join-Path "crates" (Join-Path $c "lang")
-        if (Test-Path $langDir) {
-            $destLang = Join-Path $dest "lang"
-            if (Test-Path $destLang) { Remove-Item -Recurse -Force $destLang }
-            Copy-Item -Recurse $langDir $destLang
-        }
-        Write-Host "  staged $id"
+    Copy-Item -Recurse -Force -Path (Join-Path $BundledPluginsDir "*") -Destination $PluginsDir
+}
+
+# 폴더 아래 파일의 상대 경로(\ 구분)를 낸다.
+function Get-BundledPluginFiles([string]$Root) {
+    $base = (Resolve-Path $Root).Path.TrimEnd('\') + '\'
+    return @(Get-ChildItem -Path $Root -Recurse -File -Force | ForEach-Object { $_.FullName.Substring($base.Length) })
+}
+
+# 풀린 트리의 plugins 폴더가 스테이징 폴더와 파일 집합·SHA256 모두 같은지 본다.
+function Test-BundledPluginTree([string]$Root, [string]$Label) {
+    if (-not (Test-Path $Root)) {
+        Write-Error "$Label has no plugins folder ($Root)"
+        exit 1
     }
+    $want = Get-BundledPluginFiles $BundledPluginsDir
+    $got = Get-BundledPluginFiles $Root
+    $missing = @($want | Where-Object { $got -notcontains $_ })
+    $extra = @($got | Where-Object { $want -notcontains $_ })
+    if ($missing.Count -gt 0 -or $extra.Count -gt 0) {
+        Write-Error "bundled plugins in $Label differ from $BundledPluginsDir; missing: $($missing -join ', '); extra: $($extra -join ', ')"
+        exit 1
+    }
+    foreach ($f in $want) {
+        $a = (Get-FileHash (Join-Path $BundledPluginsDir $f) -Algorithm SHA256).Hash
+        $b = (Get-FileHash (Join-Path $Root $f) -Algorithm SHA256).Hash
+        if ($a -ne $b) {
+            Write-Error "$f in $Label differs from $BundledPluginsDir"
+            exit 1
+        }
+    }
+    Write-Host "  plugins $Label :: $($want.Count) files match $BundledPluginsDir"
+}
+
+# WiX는 파일을 하나씩 적어야 하므로 받은 폴더에서 플러그인 fragment를 만든다. main.wxs의 PluginsDir 아래에
+# 놓이고 Feature가 ComponentGroupRef BundledPlugins로 담는다. Id는 상대 경로의 SHA-256 앞 24자리라
+# 같은 폴더 구성이면 같은 Id가 나온다. Source는 저장소 루트 기준 상대 경로다(cargo wix가 루트에서 실행).
+$BundledPluginsWxs = Join-Path "target" "bundled-plugins.wxs"
+$BundledPluginsSourcePrefix = "target\bundled-plugins\"
+function Get-WixId([string]$Prefix, [string]$Rel) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Rel.ToLowerInvariant()))
+    } finally {
+        $sha.Dispose()
+    }
+    return $Prefix + (($bytes[0..11] | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+function Add-WixDirectory($Lines, $Refs, [string]$Full, [string]$Rel, [string]$Indent) {
+    foreach ($f in @(Get-ChildItem -Path $Full -File -Force | Sort-Object Name)) {
+        $fileRel = if ($Rel) { "$Rel\$($f.Name)" } else { $f.Name }
+        $cid = Get-WixId "bpc" $fileRel
+        $fid = Get-WixId "bpf" $fileRel
+        $name = [System.Security.SecurityElement]::Escape($f.Name)
+        $src = [System.Security.SecurityElement]::Escape($BundledPluginsSourcePrefix + $fileRel)
+        $Lines.Add("$Indent<Component Id='$cid' Guid='*'>") | Out-Null
+        $Lines.Add("$Indent    <File Id='$fid' Name='$name' DiskId='1' Source='$src' KeyPath='yes'/>") | Out-Null
+        $Lines.Add("$Indent</Component>") | Out-Null
+        $Refs.Add($cid) | Out-Null
+    }
+    foreach ($d in @(Get-ChildItem -Path $Full -Directory -Force | Sort-Object Name)) {
+        $dirRel = if ($Rel) { "$Rel\$($d.Name)" } else { $d.Name }
+        $did = Get-WixId "bpd" $dirRel
+        $name = [System.Security.SecurityElement]::Escape($d.Name)
+        $Lines.Add("$Indent<Directory Id='$did' Name='$name'>") | Out-Null
+        Add-WixDirectory $Lines $Refs $d.FullName $dirRel ($Indent + "    ")
+        $Lines.Add("$Indent</Directory>") | Out-Null
+    }
+}
+function New-BundledPluginsWxs {
+    $lines = New-Object System.Collections.ArrayList
+    $refs = New-Object System.Collections.ArrayList
+    $lines.Add("<?xml version='1.0' encoding='utf-8'?>") | Out-Null
+    $lines.Add("<!-- Generated by scripts/build-windows.ps1 from target\bundled-plugins. Do not edit. -->") | Out-Null
+    $lines.Add("<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>") | Out-Null
+    $lines.Add("    <Fragment>") | Out-Null
+    $lines.Add("        <DirectoryRef Id='PluginsDir'>") | Out-Null
+    Add-WixDirectory $lines $refs (Resolve-Path $BundledPluginsDir).Path "" "            "
+    $lines.Add("        </DirectoryRef>") | Out-Null
+    $lines.Add("        <ComponentGroup Id='BundledPlugins'>") | Out-Null
+    foreach ($r in $refs) { $lines.Add("            <ComponentRef Id='$r'/>") | Out-Null }
+    $lines.Add("        </ComponentGroup>") | Out-Null
+    $lines.Add("    </Fragment>") | Out-Null
+    $lines.Add("</Wix>") | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path (Get-Location).Path $BundledPluginsWxs), (($lines -join "`r`n") + "`r`n"), (New-Object System.Text.UTF8Encoding $false))
+    Write-Host "  wrote $BundledPluginsWxs ($($refs.Count) plugin files)"
 }
 
 # notice 파일은 LICENSE·THIRD_PARTY_LICENSES.md·LICENSES 바로 아래 파일이다. Linux/macOS와 같은 목록을 사용한다.
@@ -334,7 +388,7 @@ Remove-Item -Recurse -Force $StageDir
 Write-Host ""
 Write-Host "Portable archive: $DistDir\$ArchiveName"
 
-# MSI의 plugin 파일 목록은 wix/main.wxs가 별도로 관리한다.
+# MSI의 plugin 파일 목록은 아래 New-BundledPluginsWxs가 받은 폴더에서 만든다.
 if (-not $SkipMsi) {
     Write-Host ""
     Write-Host "==> Building MSI installer..."
@@ -414,6 +468,8 @@ if (-not $SkipMsi) {
             }
         }
 
+        New-BundledPluginsWxs
+
         # WiX는 파일을 명시하므로 notice 목록의 Source 항목이 선언됐는지 먼저 확인한다.
         $WxsContent = Get-Content (Join-Path "wix" "main.wxs") -Raw
         foreach ($f in Get-NoticeSetFiles) {
@@ -431,6 +487,7 @@ if (-not $SkipMsi) {
                 "--target", $Triple,
                 "--no-build",
                 "--nocapture",
+                "--include", $BundledPluginsWxs,
                 "--output", (Join-Path $DistDir $MsiName)
             )
             cargo @WixArgs
@@ -445,7 +502,7 @@ if (-not $SkipMsi) {
 
 # 헤드리스는 gui feature를 끈 빌드라 별도 target 디렉터리를 쓴다. 같은 target을 쓰면
 # 위 ZIP·MSI가 읽은 target\<triple>\<profile>\tasty.exe를 헤드리스 바이너리로 덮는다.
-# plugin은 헤드리스 호스트도 실행하므로 위에서 빌드·서명한 번들을 그대로 넣는다.
+# plugin은 헤드리스 호스트도 실행하므로 위에서 받아 서명한 번들을 그대로 넣는다.
 $HeadlessTargetDir = Join-Path "target" "headless"
 $HeadlessStageDir = Join-Path $DistDir "tasty-headless-windows-${Arch}"
 Write-Host "==> Building headless tasty ($BuildProfile, --no-default-features)..."
@@ -539,8 +596,9 @@ function Test-Launch([string]$Exe, [string]$Label) {
     Write-Host "  ran $Label --version"
 }
 
-# tasty.exe와 번들 plugin 실행 파일 수
-$BundleExeCount = 1 + $PluginCrates.Count
+# tasty.exe와 번들 plugin 실행 파일 수. 스테이징 폴더는 잠금 파일의 이 플랫폼 bundle = true 계획과
+# 같은 <id> 폴더만 담는다(받기 스크립트의 unpack이 다른 폴더를 거부한다). 고지 파일은 .exe가 아니라 세지 않는다.
+$BundleExeCount = 1 + @(Get-ChildItem -Path $BundledPluginsDir -Directory).Count
 
 Write-Host "==> Verifying artifacts ($Arch)..."
 $VerifyDir = Join-Path $env:TEMP "tasty-verify-$([guid]::NewGuid())"
@@ -554,6 +612,7 @@ if (-not (Test-Path $VerifyExe)) {
 Test-PeTree $VerifyDir $ArchiveName $BundleExeCount
 Test-Launch $VerifyExe "$ArchiveName tasty.exe"
 Test-NoticeTree $VerifyDir $ArchiveName
+Test-BundledPluginTree (Join-Path $VerifyDir "plugins") $ArchiveName
 Remove-Item -Recurse -Force $VerifyDir -ErrorAction SilentlyContinue
 
 $HeadlessVerifyDir = Join-Path $env:TEMP "tasty-verify-headless-$([guid]::NewGuid())"
@@ -572,6 +631,7 @@ if (-not (Test-Path (Join-Path $HeadlessVerifyDir "plugins"))) {
 Test-PeTree $HeadlessVerifyDir $HeadlessArchiveName $BundleExeCount
 Test-Launch $HeadlessVerifyExe "$HeadlessArchiveName tasty.exe"
 Test-NoticeTree $HeadlessVerifyDir $HeadlessArchiveName
+Test-BundledPluginTree (Join-Path $HeadlessVerifyDir "plugins") $HeadlessArchiveName
 Remove-Item -Recurse -Force $HeadlessVerifyDir -ErrorAction SilentlyContinue
 
 $BuildsMsi = (-not $SkipMsi -and $BuildProfile -ne "debug")
@@ -591,17 +651,27 @@ if ($BuildsMsi) {
             Write-Error "msiexec /a failed with exit code $($msiProc.ExitCode)"
             exit 1
         }
-        $inventory = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "THIRD_PARTY_LICENSES.md")
+        # 플러그인 폴더는 자기 고지 파일을 담을 수 있으므로 루트 인벤토리는 bin\plugins 밖에서 센다.
+        $inventory = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "THIRD_PARTY_LICENSES.md" |
+            Where-Object { $_.FullName -notmatch '\\bin\\plugins\\' })
         if ($inventory.Count -ne 1) {
             Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
-            Write-Error "expected one THIRD_PARTY_LICENSES.md in the MSI, found $($inventory.Count)"
+            Write-Error "expected one THIRD_PARTY_LICENSES.md outside bin\plugins in the MSI, found $($inventory.Count)"
             exit 1
         }
         Test-NoticeTree $inventory[0].DirectoryName $MsiName
         Test-PeTree $MsiExtract $MsiName $BundleExeCount
+        $msiExe = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "tasty.exe")
+        if ($msiExe.Count -ne 1) {
+            Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
+            Write-Error "expected one tasty.exe in the MSI, found $($msiExe.Count)"
+            exit 1
+        }
+        Test-BundledPluginTree (Join-Path $msiExe[0].DirectoryName "plugins") $MsiName
     } else {
         # 다른 아키텍처의 MSI는 이 호스트에서 관리 설치할 수 없으므로 WiX dark로 cabinet의 파일을 꺼낸다.
-        # 꺼낸 파일은 File Id 이름이라 main.wxs의 Id·Source 짝으로 원래 상대 경로에 다시 놓는다.
+        # 꺼낸 파일은 File Id 이름이라 main.wxs와 플러그인 fragment의 Id·Source 짝으로 상대 경로에 다시 놓는다.
+        # 플러그인 파일은 plugins\<id>\... 로 놓아 받은 폴더와 대조한다.
         $Dark = Get-Command dark.exe -ErrorAction SilentlyContinue
         if (-not $Dark) {
             Write-Error "dark.exe not found next to candle.exe; cannot inspect the $Arch MSI on this $HostArch host"
@@ -615,12 +685,15 @@ if ($BuildsMsi) {
             exit 1
         }
         $MsiTree = Join-Path $MsiExtract "tree"
-        $WxsText = Get-Content (Join-Path "wix" "main.wxs") -Raw
+        $WxsText = (Get-Content (Join-Path "wix" "main.wxs") -Raw) + (Get-Content $BundledPluginsWxs -Raw)
         foreach ($fileElement in [regex]::Matches($WxsText, '<File\b[^>]*>')) {
             $id = [regex]::Match($fileElement.Value, "\bId='([^']+)'").Groups[1].Value
             $src = [regex]::Match($fileElement.Value, "\bSource='([^']+)'").Groups[1].Value
             if (-not $id -or -not $src) { continue }
             $rel = $src -replace '^\$\(var\.CargoTargetBinDir\)\\', ''
+            if ($rel.StartsWith($BundledPluginsSourcePrefix)) {
+                $rel = Join-Path "plugins" $rel.Substring($BundledPluginsSourcePrefix.Length)
+            }
             $extracted = Join-Path (Join-Path $DarkOut "File") $id
             if (-not (Test-Path $extracted)) {
                 $found = @(Get-ChildItem -Path $DarkOut -Recurse -File | Select-Object -First 5 | ForEach-Object { $_.FullName })
@@ -634,6 +707,7 @@ if ($BuildsMsi) {
         }
         Test-NoticeTree $MsiTree $MsiName
         Test-PeTree $MsiTree $MsiName $BundleExeCount
+        Test-BundledPluginTree (Join-Path $MsiTree "plugins") $MsiName
     }
     Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
 }
