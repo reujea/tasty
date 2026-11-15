@@ -1187,6 +1187,36 @@ fn resize_narrow_then_widen_keeps_screen_row_with_wide_grapheme_at_edge() {
     assert_eq!(&rows[1..3], &["out1", "$"], "{rows:?}");
 }
 
+/// Narrowing and shrinking rows in one call keeps the saved tail of a row that
+/// stays on screen, so widening back gives the whole row.
+#[test]
+fn resize_narrow_and_shrink_in_one_call_keeps_tail_of_row_left_on_screen() {
+    let long = "L".repeat(100);
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes(format!("out1\r\nout2\r\nout3\r\nout4\r\n{long}\r\n$ ").as_bytes());
+    terminal.resize(54, 3);
+    terminal.resize(120, 3);
+
+    let rows = screen_rows(&terminal);
+    assert_eq!(&rows[..3], &["out4", long.as_str(), "$"], "{rows:?}");
+}
+
+/// Shrinking rows at the same width drops the saved tails of rows past the new
+/// bottom, so growing and widening later does not put them on blank rows.
+#[test]
+fn resize_rows_only_shrink_drops_tails_of_rows_past_new_bottom() {
+    let mut terminal = test_terminal(120, 6);
+    terminal.process_bytes(format!("$ \r\nout1\r\n{}\r\nout2", "L".repeat(100)).as_bytes());
+    terminal.resize(54, 6);
+    terminal.process_bytes(b"\x1b[3;1H\x1b[J\x1b[1;3H");
+    terminal.resize(54, 2);
+    terminal.resize(54, 6);
+    terminal.resize(120, 6);
+
+    let rows = screen_rows(&terminal);
+    assert_eq!(rows, ["$", "out1", "", "", "", ""], "{rows:?}");
+}
+
 /// A representative byte sequence exercising text, CR/LF, SGR color/intensity,
 /// absolute cursor moves, EraseLine, a DECSET mode toggle, and a clear.
 const MIRROR_SEQ: &[u8] = b"hello\r\n\x1b[31mred\x1b[0m world\r\n\x1b[2J\x1b[H\x1b[1mbold\x1b[0m\x1b[?1h\x1b[3;5Hxy\x1b[K";
