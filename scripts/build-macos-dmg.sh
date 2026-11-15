@@ -10,6 +10,8 @@
 #   dist/Tasty.app    — the application bundle
 #   dist/Tasty-{version}-macos-arm64.dmg — the disk image (Apple Silicon only)
 #   dist/tasty-headless-{version}-macos-arm64.tar.gz — gui feature 없는 헤드리스 빌드 (NO_DMG=1이면 생략)
+#
+# Requires: curl, tar — 번들 플러그인은 official-plugins.lock.toml의 산출물을 받는다(빌드하지 않는다).
 
 set -euo pipefail
 
@@ -58,28 +60,12 @@ fi
 echo "==> Building tasty ($PROFILE) for $TARGET..."
 cargo build $CARGO_FLAGS --target "$TARGET"
 
-# 매니페스트가 있고 bundle=false가 아닌 plugin을 배포에 포함한다.
-PLUGIN_CRATES=()
-for d in crates/tasty-plugin-*; do
-    [ -f "$d/tasty-plugin.toml" ] || continue
-    if grep -Eq '^[[:space:]]*bundle[[:space:]]*=[[:space:]]*false' "$d/tasty-plugin.toml"; then
-        echo "==> Skipping $(basename "$d") (bundle = false)"
-        continue
-    fi
-    PLUGIN_CRATES+=("$(basename "$d")")
-done
+# 번들 플러그인은 여기서 빌드하지 않는다. 잠금 파일의 bundle = true 산출물을 받아 넣는다.
+# shellcheck source=scripts/lib/bundled-plugins.sh
+. "scripts/lib/bundled-plugins.sh"
 
-if [[ ${#PLUGIN_CRATES[@]} -eq 0 ]]; then
-    echo "Error: no plugin crates with tasty-plugin.toml found under crates/" >&2
-    exit 1
-fi
-
-echo "==> Building ${#PLUGIN_CRATES[@]} plugins ($PROFILE) for $TARGET..."
-PLUGIN_CARGO_ARGS=()
-for c in "${PLUGIN_CRATES[@]}"; do
-    PLUGIN_CARGO_ARGS+=("-p" "$c")
-done
-cargo build $CARGO_FLAGS --target "$TARGET" "${PLUGIN_CARGO_ARGS[@]}"
+echo "==> Fetching locked official plugins (macos-arm64)..."
+fetch_bundled_plugins macos-arm64
 
 # $1 = 바이너리 이름 (target/$TARGET/$PROFILE/<name> 아래에서 찾음), $2 = 출력 경로.
 stage_binary() {
@@ -93,14 +79,16 @@ stage_binary() {
 }
 
 # 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
+# 받은 산출물에 .sig가 있으면 sign-bundle.sh가 실패한다(공식 플러그인은 서명 없이 온다).
 sign_bundled_plugins() {
     echo "==> Signing plugin manifests with $SIGN_KEY_PATH..."
-    ./scripts/sign-bundle.sh --key "$SIGN_KEY_PATH" --all-builtins
+    ./scripts/sign-bundle.sh --key "$SIGN_KEY_PATH" --dir "$BUNDLED_PLUGINS_DIR"
 }
 
 if [[ "$PROFILE" != "debug" ]]; then
     sign_bundled_plugins
 fi
+normalize_bundled_plugin_modes
 
 echo "==> Assembling $APP_NAME.app..."
 rm -rf "$APP_DIR"
@@ -111,30 +99,7 @@ stage_binary tasty "$APP_DIR/Contents/MacOS/tasty"
 
 # plugin 디렉터리를 별도 코드 번들로 해석하지 않도록 Contents/MacOS 대신 Resources에 둔다.
 PLUGINS_DIR="$APP_DIR/Contents/Resources/plugins"
-mkdir -p "$PLUGINS_DIR"
-for c in "${PLUGIN_CRATES[@]}"; do
-    manifest="crates/$c/tasty-plugin.toml"
-    id=$(grep -m1 -E '^id[[:space:]]*=' "$manifest" | sed 's/.*"\([^"]*\)".*/\1/')
-    if [[ -z "$id" ]]; then
-        echo "Error: cannot parse id from $manifest" >&2
-        exit 1
-    fi
-    dest="$PLUGINS_DIR/$id"
-    mkdir -p "$dest"
-    stage_binary "$c" "$dest/$c"
-    cp "$manifest" "$dest/tasty-plugin.toml"
-    if [[ -f "crates/$c/tasty-plugin.toml.sig" ]]; then
-        cp "crates/$c/tasty-plugin.toml.sig" "$dest/tasty-plugin.toml.sig"
-    elif [[ "$PROFILE" != "debug" ]]; then
-        echo "Error: missing crates/$c/tasty-plugin.toml.sig (signing failed?)" >&2
-        exit 1
-    fi
-    if [[ -d "crates/$c/lang" ]]; then
-        rm -rf "$dest/lang"
-        cp -R "crates/$c/lang" "$dest/lang"
-    fi
-    echo "  staged $id"
-done
+stage_bundled_plugins "$PLUGINS_DIR"
 
 cp "assets/icons/icon.icns" "$APP_DIR/Contents/Resources/icon.icns"
 
@@ -247,6 +212,7 @@ if ! codesign --verify --deep --strict "$APP_DIR"; then
     exit 1
 fi
 verify_notice_tree "$APP_DIR/Contents/Resources" "$APP_NAME.app" || exit 1
+verify_bundled_plugin_tree "$PLUGINS_DIR" "$APP_NAME.app" || exit 1
 PLIST_VER=$(plutil -extract CFBundleVersion raw "$APP_DIR/Contents/Info.plist")
 [[ "$PLIST_VER" == "$VERSION" ]] || {
     echo "Error: Info.plist version $PLIST_VER != Cargo.toml $VERSION" >&2
@@ -287,13 +253,16 @@ DMG_MOUNT=$(mktemp -d)
 hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$DMG_MOUNT" "$DIST_DIR/$DMG_NAME" >/dev/null
 dmg_notice_rc=0
 verify_notice_tree "$DMG_MOUNT/$APP_NAME.app/Contents/Resources" "$DMG_NAME" || dmg_notice_rc=$?
+if [[ "$dmg_notice_rc" -eq 0 ]]; then
+    verify_bundled_plugin_tree "$DMG_MOUNT/$APP_NAME.app/Contents/Resources/plugins" "$DMG_NAME" || dmg_notice_rc=$?
+fi
 hdiutil detach "$DMG_MOUNT" >/dev/null || echo "Warning: could not detach $DMG_MOUNT" >&2
 rmdir "$DMG_MOUNT" 2>/dev/null || true
 [[ "$dmg_notice_rc" -eq 0 ]] || exit 1
 
 # 헤드리스는 gui feature를 끈 빌드라 별도 target 디렉터리를 쓴다. 같은 target을 쓰면
 # 위 앱 번들에 넣은 바이너리 경로를 헤드리스 바이너리로 덮는다.
-# plugin은 헤드리스 호스트도 실행하므로 앱 번들에 넣은 서명된 번들을 그대로 복사한다.
+# plugin은 헤드리스 호스트도 실행하므로 앱 번들에 넣은 것과 같은 받아 서명한 번들을 복사한다.
 # .app이 아니므로 plugin은 실행 파일 옆 plugins/에 둔다.
 HEADLESS_TARGET_DIR="target/headless"
 HEADLESS_PKG_DIR="tasty-headless-macos-arm64"
@@ -306,7 +275,7 @@ echo "==> Assembling headless archive..."
 rm -rf "${HEADLESS_STAGE:?}"
 mkdir -p "$HEADLESS_STAGE/plugins"
 cp "$HEADLESS_TARGET_DIR/$TARGET/$PROFILE/tasty" "$HEADLESS_STAGE/tasty"
-cp -R "$PLUGINS_DIR/." "$HEADLESS_STAGE/plugins/"
+stage_bundled_plugins "$HEADLESS_STAGE/plugins"
 stage_notice "$HEADLESS_STAGE"
 codesign --force --sign "$SIGN_IDENTITY" "$HEADLESS_STAGE/tasty"
 
@@ -356,6 +325,7 @@ if [[ "$XATTR_HEADERS" != "0" ]]; then
     exit 1
 fi
 verify_notice_listing "$HEADLESS_LISTING" "$HEADLESS_PKG_DIR/" "$HEADLESS_ARCHIVE_NAME" || exit 1
+verify_bundled_plugin_listing "$HEADLESS_LISTING" "$HEADLESS_PKG_DIR/plugins/" "$HEADLESS_ARCHIVE_NAME" || exit 1
 # 압축 전 검사와 별개로, 받는 사람이 푸는 트리에서 실행·서명·고지 바이트를 다시 확인한다.
 VERIFY_TMP=$(mktemp -d)
 tar -xzf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" -C "$VERIFY_TMP"
@@ -370,6 +340,9 @@ if [[ "$headless_rc" -eq 0 ]] && ! codesign --verify --strict "$VERIFY_TMP/$HEAD
 fi
 if [[ "$headless_rc" -eq 0 ]]; then
     verify_notice_tree "$VERIFY_TMP/$HEADLESS_PKG_DIR" "$HEADLESS_ARCHIVE_NAME" || headless_rc=1
+fi
+if [[ "$headless_rc" -eq 0 ]]; then
+    verify_bundled_plugin_tree "$VERIFY_TMP/$HEADLESS_PKG_DIR/plugins" "$HEADLESS_ARCHIVE_NAME" || headless_rc=1
 fi
 rm -rf "$VERIFY_TMP"
 [[ "$headless_rc" -eq 0 ]] || exit 1

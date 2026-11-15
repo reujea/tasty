@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Tasty (host + plugins, dist profile) and install it to /Applications.
+# Build Tasty (host, dist profile) with the locked official plugins and install it to /Applications.
 #
 # Usage:
 #   ./scripts/install-macos.sh            # dist build (full LTO, 배포용)
