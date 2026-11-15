@@ -62,7 +62,7 @@ git push origin release
 ./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --all-builtins
 ```
 
-생성/갱신되는 `*.toml.sig`(번들 plugin 매니페스트 전부 — `--all-builtins` 가 `crates/tasty-plugin-*/tasty-plugin.toml` 을 자동 검색한다)는 **`.gitignore` 로 제외된 빌드 산출물**이라 커밋되지 않는다 — 로컬 release 빌드·dev 검증용이며, CI 정식 release는 각 러너가 선택한 로컬 키로 재서명한다. 키가 없으면 생성하고 기존 개인키는 재사용한다. dev/debug 빌드는 서명을 검증하지 않는다. 따라서 매니페스트 version bump 시 커밋되는 건 `tasty-plugin.toml` 자체뿐이고 `.sig` 재생성은 커밋 절차 밖이다. 알고리즘·키 보관은 [plugin-packaging](plugin-packaging.md).
+생성/갱신되는 `*.toml.sig`(번들 plugin 매니페스트 전부 — `--all-builtins` 가 `crates/tasty-plugin-*/tasty-plugin.toml` 을 자동 검색한다)는 **`.gitignore` 로 제외된 빌드 산출물**이라 커밋되지 않는다 — 로컬 release 빌드·dev 검증용이다. CI 정식 release의 번들 plugin은 크레이트가 아니라 잠금 파일의 공식 플러그인 산출물이고, 각 러너가 받은 폴더를 선택한 로컬 키로 `--dir` 서명한다([배포 패키지의 번들 플러그인](plugin-packaging.md#배포-패키지의-번들-플러그인)). 키가 없으면 생성하고 기존 개인키는 재사용한다. dev/debug 빌드는 서명을 검증하지 않는다. 따라서 매니페스트 version bump 시 커밋되는 건 `tasty-plugin.toml` 자체뿐이고 `.sig` 재생성은 커밋 절차 밖이다. 알고리즘·키 보관은 [plugin-packaging](plugin-packaging.md).
 
 ### 3. 사이트 갱신
 
@@ -121,7 +121,7 @@ hotfix는 `main`에서 갈라 `main`에 반영하고, `main`에서 patch를 올�
 ### 6. 워크플로 (release.yml)
 
 1. **create-release** — 태그 커밋이 `origin/main`의 조상인지 확인 → 버전 검증 → draft release 생성(body = 릴리스 노트). `main`에 반영하지 않은 커밋의 태그면 여기서 실패한다.
-2. **build-macos / build-windows / build-windows-arm64 / build-linux-x64 / build-linux-arm64** — 각 빌드 스크립트가 로컬 키를 준비해(Linux·macOS 는 `ensure-sign-key.sh`, Windows 는 `build-windows.ps1` 이 직접) plugin 재서명 → 빌드(`--profile dist`) → GUI 패키징 → 헤드리스 압축 파일(아래 "헤드리스 산출물") → 아티팩트 업로드. GitHub Secret 관여 없음(배경은 [plugin-packaging](plugin-packaging.md) "영구 release 키를 두지 않는 이유").
+2. **build-macos / build-windows / build-windows-arm64 / build-linux-x64 / build-linux-arm64** — 각 빌드 스크립트가 로컬 키를 준비해(Linux·macOS 는 `ensure-sign-key.sh`, Windows 는 `build-windows.ps1` 이 직접) 빌드(`--profile dist`) → 잠금 파일의 공식 플러그인 받기(GitHub Releases, SHA-256 대조) → 매니페스트 서명 → GUI 패키징 → 헤드리스 압축 파일(아래 "헤드리스 산출물") → 아티팩트 업로드. GitHub Secret 관여 없음(배경은 [plugin-packaging](plugin-packaging.md) "영구 release 키를 두지 않는 이유").
 3. **publish-release** — draft를 해제해 공개한다. 파일을 올리지 않는다. 사이트 게시는 [8. 사이트 게시](#8-사이트-게시)에서 한다.
 
 ### 7. 검증
@@ -256,7 +256,7 @@ Windows ARM64 산출물은 x64 Windows 호스트에 두 번째로 등록한 전�
 - 사전 조건: Rust 타깃(없으면 스크립트가 `rustup target add`로 추가), MSVC ARM64 빌드 도구와 clang-cl(`aws-lc-sys`의 AArch64 어셈블리에 필요하다. 스크립트가 `vswhere`로 둘 다 확인하고 없으면 중단), ARM64 MSI를 만드는 WiX 3.14 이상(스크립트가 `candle.exe` 버전을 확인). `wix/main.wxs`는 ARM64에서 64비트 Program Files와 Windows Installer 5.0(`InstallerVersion` 500)을 쓴다. x64 MSI의 `InstallerVersion` 450과 UpgradeCode는 그대로다.
 - 산출물 검사는 빌드 스크립트 안에서 dist를 지우기 전에 실행하고 결과를 잡 로그에 남긴다. 태그 없는 `workflow_dispatch` 실행도 같은 로그로 확인한다.
   - ZIP·헤드리스 ZIP·MSI를 풀어 모든 `.exe`(본체와 번들 plugin)의 PE 헤더 Machine 값이 x64는 0x8664, ARM64는 0xAA64인지 확인한다. 실행 파일 수가 본체와 번들 plugin 수보다 적어도 실패한다.
-  - `tasty.exe --version` 실행과 MSI 관리 설치(`msiexec /a`)는 호스트와 같은 아키텍처일 때만 한다. x64 러너의 ARM64 빌드는 실행 검사를 건너뛴다는 줄을 남기고 PE 검사로 아키텍처를 확인한다. MSI 안의 파일은 WiX `dark.exe -x`로 꺼내 `main.wxs`의 File Id·Source 짝으로 원래 경로에 놓은 뒤 고지 세트 대조와 PE 검사를 한다.
+  - `tasty.exe --version` 실행과 MSI 관리 설치(`msiexec /a`)는 호스트와 같은 아키텍처일 때만 한다. x64 러너의 ARM64 빌드는 실행 검사를 건너뛴다는 줄을 남기고 PE 검사로 아키텍처를 확인한다. MSI 안의 파일은 WiX `dark.exe -x`로 꺼내 `main.wxs`와 빌드 때 만든 플러그인 fragment의 File Id·Source 짝으로 원래 경로에 놓은 뒤 고지 세트 대조, PE 검사, 번들 plugin 대조를 한다.
   - 체크섬 파일을 다시 읽어 그 아키텍처의 배포물 전부를 담는지와 각 해시가 맞는지 확인하고, 산출물 명부(이름과 크기)를 출력한다. staging 디렉터리는 `dist\tasty-windows-<arch>`처럼 아키텍처별이라 같은 dist에서 두 아키텍처를 만들어도 서로 덮지 않는다.
 - CI는 `crossplatform-check.yml`의 `check-windows-arm64`가 develop·release·main push마다 ARM64 타깃 `cargo check`를 실행한다([ci-gates](ci-gates.md)). 테스트 실행과 링크는 포함하지 않는다.
 - 확인 범위: Windows x64 개발 환경에서 두 아키텍처의 GUI ZIP·MSI·헤드리스 ZIP 생성, 본체·번들 plugin의 PE, 고지 세트와 체크섬을 확인했다. 같은 dist에 양쪽 배포물과 두 체크섬 명부가 함께 유지되는 것도 확인했다. 두 아키텍처의 패키징·산출물 검사는 CI의 태그 없는 실행에서도 확인했으며, ARM64 교차 컴파일·링크와 cargo-wix의 MSI 생성·`dark.exe` 추출을 포함한다.
@@ -303,6 +303,7 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 |------|------|
 | `cargo-deb`/`cargo-generate-rpm`/`linuxdeploy` not found | 1회 설치 누락 + `release.yml` Setup PATH 점검 |
 | `cmake`/`freetype`/`fontconfig` 빠짐 | `build-linux.sh` 안내대로 `apt install` |
+| `could not fetch the locked official plugins`, `fetch-official-plugins.sh failed` | 받기 단계의 앞 줄에서 원인(`missing`·`sha256 mismatch`·curl 오류)을 본다. 해시가 다르면 잠금 파일과 공식 플러그인 릴리스가 어긋난 것이라 [잠금 파일 갱신](plugin-packaging.md#잠금-파일-갱신)으로 다시 만든다. 러너에서 GitHub Releases에 접근할 수 있는지 확인한다 |
 | 러너 offline | `systemctl status` → `restart` |
 | Windows arm64 잡(release·build-check 의 `build-windows-arm64`, `check-windows-arm64`)이 Queued 에 머묾, 또는 24시간 뒤 취소됨 | 전용 러너 `tasty-win-arm64` 가 offline 이다. `timeout-minutes` 는 러너를 기다린 시간을 세지 않아 러너가 돌아올 때까지 Queued 로 머물고, 24시간이 지나면 GitHub 가 잡을 취소한다. 호스트가 로그온 상태인지 확인하고 예약 작업 `tasty-runner-arm64` 를 실행한다([운영 명령](#운영-명령)). 잡이 이미 취소됐으면 `gh run rerun <run-id> --failed` 로 다시 실행한다. release 실행이면 `publish-release` 도 건너뛴 상태라 함께 확인한다 |
 | release upload 실패 | `GH_TOKEN` 권한/tag 이름 확인 (`--clobber` 재업로드) |
@@ -334,7 +335,7 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 
 - 각 스크립트가 GUI 패키징을 마친 뒤 `CARGO_TARGET_DIR=target/headless`로 같은 프로필의 `cargo build --no-default-features`를 실행한다. GUI 패키지가 읽는 `target/<프로필>/tasty`를 덮지 않도록 target 디렉터리를 나눈다.
 - 압축 파일 안에는 실행 파일 `tasty`(Windows `tasty.exe`), GUI 산출물과 같은 서명된 번들 plugin(`plugins/`), 고지 파일이 들어간다. Linux는 GUI `.tar.gz`와 같은 launcher 스크립트가 `tasty.bin`을 실행한다. macOS 헤드리스 바이너리는 앱 번들과 같은 identity로 단독 서명하고 공증하지 않는다.
-- 검증: 압축 파일에서 `tasty --version` 실행, `plugins/`와 고지 파일 포함, GUI 바이너리와 같은 파일이 아님을 확인한다. macOS는 `codesign --verify`와 arm64 Mach-O도 확인한다. macOS tar.gz는 `COPYFILE_DISABLE=1`, `--no-mac-metadata`, `--no-xattrs`로 AppleDouble(`._*`) 항목과 확장 속성 pax 헤더(`LIBARCHIVE.xattr.*`)를 싣지 않는다. 압축 뒤 목록에 `._` 항목과 xattr 헤더가 없는지, 고지 경로가 있는지 확인하고, 풀어 낸 트리에서 `--version`·`codesign --verify`·고지 바이트를 다시 확인한다. Windows는 PE 머신 타입도 확인하며, 호스트에서 실행할 수 없는 아키텍처는 `--version` 대신 이 검사로 확인한다([Windows ARM64](#windows-arm64)).
+- 검증: 압축 파일에서 `tasty --version` 실행, `plugins/`와 고지 파일 포함, GUI 바이너리와 같은 파일이 아님을 확인한다. `plugins/`는 받아 서명한 폴더와 파일 집합·내용이 같아야 한다. macOS는 `codesign --verify`와 arm64 Mach-O도 확인한다. macOS tar.gz는 `COPYFILE_DISABLE=1`, `--no-mac-metadata`, `--no-xattrs`로 AppleDouble(`._*`) 항목과 확장 속성 pax 헤더(`LIBARCHIVE.xattr.*`)를 싣지 않는다. 압축 뒤 목록에 `._` 항목과 xattr 헤더가 없는지, 고지 경로가 있는지 확인하고, 풀어 낸 트리에서 `--version`·`codesign --verify`·고지 바이트를 다시 확인한다. Windows는 PE 머신 타입도 확인하며, 호스트에서 실행할 수 없는 아키텍처는 `--version` 대신 이 검사로 확인한다([Windows ARM64](#windows-arm64)).
 - 체크섬은 OS별 `SHA256SUMS-*.txt`에 GUI 산출물과 함께 들어간다.
 - 설치 형식(`.deb`·`.rpm`·`.AppImage`·`.dmg`·`.msi`)에는 헤드리스를 넣지 않는다.
 

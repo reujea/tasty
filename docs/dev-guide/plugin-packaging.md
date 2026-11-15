@@ -1,6 +1,6 @@
 # Plugin 패키징 — 서명 + staging 동기화 + 생태계 정책
 
-번들 plugin 을 release/dist 빌드에 포함시키는 절차: **Ed25519 매니페스트 서명** + **빌드 staging 7 위치 동기화**. 런타임 라이프사이클(자동 install/upgrade)과 작성 형식·신뢰·호환성 정책은 아래 [생태계 정책](#생태계-정책--자동-upgrade--호환성-분류) 절, 제작은 [plugin-development](plugin-development.md).
+번들 plugin 을 release/dist 빌드에 포함시키는 절차: **공식 플러그인 잠금 파일의 산출물 받기** + **Ed25519 매니페스트 서명** + **패키지별 배치와 대조**. 런타임 라이프사이클(자동 install/upgrade)과 작성 형식·신뢰·호환성 정책은 아래 [생태계 정책](#생태계-정책--자동-upgrade--호환성-분류) 절, 제작은 [plugin-development](plugin-development.md).
 
 ## 번들 plugin 목록 (SoT)
 
@@ -27,17 +27,17 @@
 - 새 공식 플러그인은 `BUILTINS`와 별도로 이 목록에 한 줄을 넣는다. 위 시험들과 목록 길이 단언(`every_official_id_is_admitted`)을 함께 고친다.
 - 번들 설치·갱신은 번들 폴더 매니페스트의 `id`가 폴더 이름(`BuiltinSpec::id`)과 같은지 복사 전에 확인한다. 다르면 복사·권한 기록 없이 실패로 남긴다.
 
-plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페스트) · `tasty-plugin.toml.sig`(서명 sidecar, non-debug 필수) · `lang/{en,ja,ko}.toml`.
+배포 패키지의 plugin 폴더(`plugins/<id>/`)에는 받은 산출물 폴더가 통째로 들어가고, non-debug 패키징이 `tasty-plugin.toml.sig`(서명 sidecar)를 더한다: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페스트) · `lang/*.toml` · 고지 파일(`LICENSE` 등, 릴리스마다 다를 수 있다) · `tasty-plugin.toml.sig`.
 
 ### 배포 제외 플래그 (`bundle = false`)
 
-매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. `false` 면 dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)의 plugin 탐색 glob 이 그 crate 를 건너뛰어 DMG/AppImage/MSI 산출물과 실제 바이너리 빌드에는 넣지 않는다. **dev 스테이징**(`just build-plugins`)은 이 플래그와 관계없이 모든 공식 플러그인을 받으므로(`--all`) 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 배포 패키지에서는 빼는 용도.
+매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. 배포 패키징이 따르는 값은 잠금 파일의 `[[plugin]] bundle`이다. dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 `bundle = true`인 산출물만 받는다. **dev 스테이징**(`just build-plugins`)은 이 플래그와 관계없이 모든 공식 플러그인을 받으므로(`--all`) 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 배포 패키지에서는 빼는 용도.
 
-런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 건너뛰므로, 개발 빌드는 스테이징된 plugin을 설치하고, 배포 빌드는 번들에 없는 항목을 건너뛴다. 현재 `com.tasty.mesh-demo`와 `com.tasty.agent-stream`이 `bundle = false`다. **주의**: `bundle = false` 는 glob 기반 위치(4/5/6)와 바이너리 빌드에만 자동 적용되고, 아래 "staging 7 위치 동기화" 표의 **명시(explicit) 위치(1/2/3)는 자동으로 걸러지지 않는다** — 새로 `bundle = false` 를 붙인 plugin 이 있으면 `[package.metadata.deb] assets`/`[package.metadata.generate-rpm] assets`/`wix/main.wxs` 에서도 그 plugin 항목을 수동으로 빼야 한다. 누락하면 패키저가 만들지 않은 바이너리를 찾다가 실패한다.
+런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 건너뛰므로, 개발 빌드는 스테이징된 plugin을 설치하고, 배포 빌드는 번들에 없는 항목을 건너뛴다. 현재 `com.tasty.mesh-demo`와 `com.tasty.agent-stream`이 `bundle = false`다(mesh-demo는 잠금 파일에 없다). deb/rpm assets와 MSI 목록은 받은 폴더에서 나오므로 `bundle` 값을 바꿀 때 패키징 설정에서 따로 뺄 항목은 없다.
 
 ## 공식 플러그인 잠금 파일
 
-공식 플러그인(mesh-demo를 뺀 8개)은 [tasty-official-plugins](https://github.com/zilhak/tasty-official-plugins) 레포가 릴리스한다. 루트의 `official-plugins.lock.toml`이 그 릴리스 하나를 고정한다. 패키징 스크립트와 개발 스테이징은 아직 이 파일을 읽지 않고 같은 빌드에서 플러그인을 만든다. 잠금 파일과 아래 도구는 그 전환에 쓰는 입력이다.
+공식 플러그인(mesh-demo를 뺀 8개)은 [tasty-official-plugins](https://github.com/zilhak/tasty-official-plugins) 레포가 릴리스한다. 루트의 `official-plugins.lock.toml`이 그 릴리스 하나를 고정한다. 배포 패키징 스크립트는 이 파일의 산출물을 받아 넣는다([배포 패키지의 번들 플러그인](#배포-패키지의-번들-플러그인)). 개발 스테이징(`just build-plugins` 등)은 아직 이 파일을 읽지 않고 같은 빌드에서 플러그인을 만든다.
 
 ### 형식
 
@@ -111,7 +111,7 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 | (d) | `epaint_version` | `Cargo.lock`의 epaint |
 | (e) | `epaint_patch_tree` | `git rev-parse HEAD:vendor/epaint` |
 
-같은 시험이 집합 두 가지도 본다. `BUILTINS`(두 cfg 벌)와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 mesh-demo를 더한 집합이어야 하고, 배포 스크립트가 고르는 플러그인(크레이트 매니페스트 중 `bundle = false`가 아닌 것)은 잠금 파일의 `bundle = true` 집합이어야 한다. 받은 매니페스트는 받기 스크립트가 현재 검증기로 읽는다.
+같은 시험이 집합 두 가지도 본다. `BUILTINS`(두 cfg 벌)와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 mesh-demo를 더한 집합이어야 하고, 크레이트 매니페스트 중 `bundle = false`가 아닌 것은 잠금 파일의 `bundle = true` 집합이어야 한다. 배포 스크립트는 잠금 파일의 `bundle = true`를 받는다. 받은 매니페스트는 받기 스크립트가 현재 검증기로 읽는다.
 
 한계: 이 가드는 버전 값만 비교한다. protocol schema를 바꾸고 버전을 그대로 두면 지나간다. protocol 버전과 `CHANGELOG.md`는 tasty 릴리스 때 올리므로([릴리스 절차](release.md#1-버전--changelog)) 릴리스 사이의 develop에서는 버전이 그대로인 채 schema가 바뀌는 것이 정상 흐름이고, 그 변경은 가드가 보지 못한다. 실제로 v0.1.0의 `tasty_rev` 뒤에 편집 결과 회신(`PluginEvent::Hello`의 `capabilities`, `EditOutcome`)이 protocol 0.2.16 그대로 들어왔다. 추가 변형이라 옛 플러그인과 호환되지만 호환되지 않는 변경도 같은 길로 지나갈 수 있다. 그래서 protocol 변경은 [protocol CHANGELOG 정책](../../crates/tasty-plugin-protocol/CHANGELOG.md#정책)대로 `tasty_rev` 시점의 플러그인과 호환되게 만든다.
 
@@ -150,9 +150,9 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 ./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --all-builtins
 ```
 
-dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 패키징 직전 자동으로 `sign-bundle.sh --all-builtins` 를 호출한다 — 매니페스트만 고치고 빌드 없이 확인할 때만 수동 호출. **로컬 release/dist `just` 빌드**(`build-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)는 받거나 빌드한 공식 플러그인을 `--dir` 로, mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 서명한다([build.md](build.md#plugin-빌드--스테이징)). debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
+**로컬 release/dist `just` 빌드**(`build-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)는 받거나 빌드한 공식 플러그인을 `--dir` 로, mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 서명한다([build.md](build.md#plugin-빌드--스테이징)). dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 받은 폴더를 아래 `--dir`로 서명한다. 매니페스트만 고치고 빌드 없이 확인할 때만 위 명령을 수동으로 부른다. debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
 
-받아서 스테이징한 플러그인 폴더는 `--dir`로 서명한다. `<dir>/<id>/tasty-plugin.toml`을 모두 서명하고, 그 폴더 아래에 `.sig`가 하나라도 있으면 아무것도 서명하지 않고 실패한다. 공식 플러그인 릴리스 산출물은 서명 없이 오고 tasty 패키징이 서명한다는 계약을 이 실패로 확인한다. 서명할 매니페스트가 없을 때와 키 파일이 없을 때도 실패한다. 계약은 `scripts/tests/sign-bundle-dir.sh`(doc-guards `sign_bundle_dir_contract`가 실행)가 확인한다.
+받아서 스테이징한 플러그인 폴더는 `--dir`로 서명한다. dist 스크립트는 각자 서명 함수 하나(`sign_bundled_plugins`, Windows `Sign-BundledPlugins`)에서만 이 명령을 부른다. `<dir>/<id>/tasty-plugin.toml`을 모두 서명하고, 그 폴더 아래에 `.sig`가 하나라도 있으면 아무것도 서명하지 않고 실패한다. 공식 플러그인 릴리스 산출물은 서명 없이 오고 tasty 패키징이 서명한다는 계약을 이 실패로 확인한다. 서명할 매니페스트가 없을 때와 키 파일이 없을 때도 실패한다. 계약은 `scripts/tests/sign-bundle-dir.sh`(doc-guards `sign_bundle_dir_contract`가 실행)가 확인한다.
 
 ```bash
 ./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --dir <스테이징 폴더>
@@ -185,32 +185,36 @@ release workflow는 각 빌드 러너에서 서명 스크립트를 실행한다.
 구체적인 빌드·배포 절차는 [release](release.md), 공식 플러그인 판별은
 [플러그인 원칙](../principles/plugins.md#배포)을 따른다.
 
-## staging 7 위치 동기화
+## 배포 패키지의 번들 플러그인
 
-새 plugin 추가/제거 시 동시 갱신할 위치:
+dist 스크립트는 플러그인을 빌드하지 않는다. 본체를 빌드한 뒤 아래 순서로 번들 플러그인을 준비한다. 셸 쪽 공용 함수는 `scripts/lib/bundled-plugins.sh`, Windows는 `build-windows.ps1`의 `Get-BundledPlugins`·`Stage-Plugins`·`Test-BundledPluginTree`다.
 
-| # | 위치 | 명시/동적 |
-|---|------|-----------|
-| 1 | `Cargo.toml [package.metadata.deb] assets` | **명시** (per-plugin ×4) |
-| 2 | `Cargo.toml [package.metadata.generate-rpm]` | **명시** (×4) |
-| 3 | `wix/main.wxs` `<Component>` + `<ComponentRef>` | **명시** (×7: bin/manifest/sig/en/ja/ko/zh-Hans) |
-| 4 | `scripts/build-macos-dmg.sh` staging 루프 | 동적 (`crates/tasty-plugin-*` glob) |
-| 5 | `scripts/build-linux.sh::stage_plugins()` | 동적 |
-| 6 | `scripts/build-windows.ps1::Stage-Plugins` | 동적 |
-| 7 | `builtin.rs::BUILTINS` | **명시** (windows + non-windows cfg) |
+1. **받기**: `fetch-official-plugins.sh --platform <p> --out target/bundled-plugins`로 잠금 파일의 `bundle = true` 산출물을 받는다. 플랫폼은 Linux `linux-x64`·`linux-arm64`, macOS `macos-arm64`, Windows `windows-x64`·`windows-arm64`다. Windows는 Git Bash로 이 스크립트를 실행하고 `.tar.gz`도 그 셸에서 찾은 `tar`가 푼다. 산출물이 없거나 SHA-256이 다르면 받기에서 실패하고 패키지를 만들지 않는다. 스테이징 폴더는 매번 지우고 새로 만든다.
+2. **서명**: non-debug 프로필이면 `sign-bundle.sh --dir target/bundled-plugins`로 매니페스트를 서명한다. 받은 산출물에 `.sig`가 있으면 실패한다. 키는 본체 빌드 전에 준비한 것을 쓴다([서명](#서명)).
+3. **배치**: 받은 `<id>/` 폴더를 통째로 패키지의 plugin 폴더에 복사한다. 고지 파일(`LICENSE`, 릴리스에 따라 `THIRD_PARTY_LICENSES.md`·`LICENSES/`·`NOTICE.md`)도 플러그인과 함께 간다. 루트 고지 세트([배포물의 고지 파일](release.md#배포물의-고지-파일))는 본체 몫이고 플러그인 고지를 대신하지 않는다.
+4. **대조**: 패키지를 만든 뒤 그 안의 plugin 폴더를 스테이징 폴더와 비교한다. 다르면 실패한다.
 
-1/2/3/7 은 새 plugin 시 **반드시 수정**, 4/5/6 은 glob 자동 발견.
+| 패키지 | plugin 폴더 | 목록의 원천 | 대조 |
+|---|---|---|---|
+| Linux `.tar.gz`·헤드리스 `.tar.gz` | `plugins/` | 스테이징 폴더 복사 | 목록의 파일 집합, 푼 트리의 바이트 |
+| Linux `.deb`·`.rpm` | `/usr/lib/tasty/plugins/` | `Cargo.toml` assets의 `target/bundled-plugins/**/*` glob 하나 | 패키지 목록의 파일 집합(`rpm` 명령이 없으면 rpm은 건너뛴다) |
+| Linux `.AppImage` | `usr/bin/plugins/` | 스테이징 폴더 복사 | linuxdeploy에 넘긴 AppDir의 바이트 |
+| macOS `Tasty.app`·`.dmg`·헤드리스 `.tar.gz` | `Contents/Resources/plugins/`, 헤드리스는 `plugins/` | 스테이징 폴더 복사(앱 codesign 전) | 앱·마운트한 DMG·푼 헤드리스 트리의 바이트, 헤드리스 목록의 파일 집합 |
+| Windows `.zip`·헤드리스 `.zip` | `plugins\` | 스테이징 폴더 복사 | 푼 트리의 파일 집합·SHA256 |
+| Windows `.msi` | `bin\plugins\` | 빌드 때 만드는 `target\bundled-plugins.wxs` | 관리 설치(또는 `dark.exe -x`) 트리의 파일 집합·SHA256 |
 
-### drift 함정
+- deb·rpm assets는 mode를 적지 않아 파일 권한을 그대로 싣는다. `build-linux.sh`가 서명 뒤 실행 권한이 있는 파일은 755, 나머지는 644로 맞춘다. 두 도구는 `--profile <p>`를 받으면 assets의 `target/release/` 접두를 `target/<p>/`로 바꿔 읽고, `target/bundled-plugins`는 그대로 읽는다.
+- MSI fragment는 받은 폴더를 그대로 옮긴 `DirectoryRef Id='PluginsDir'`와 `ComponentGroup Id='BundledPlugins'`다. Directory·Component·File Id는 상대 경로의 SHA-256 앞 24자리라 폴더 구성이 같으면 같다. `wix/main.wxs`는 `Bin` 아래에 빈 `PluginsDir`만 두고 `Binaries` 기능이 그 그룹을 담는다. `cargo wix --include`로 fragment를 넘긴다. doc-guards `wix_takes_bundled_plugins_from_the_generated_group`가 `main.wxs`에 플러그인 파일이 남지 않았는지와 이 연결을 확인한다. 생성 결과는 MSI를 만든 뒤 위 대조가 확인한다.
+- MSI의 루트 인벤토리 검사는 `bin\plugins\` 밖의 `THIRD_PARTY_LICENSES.md`만 센다. PE 검사의 실행 파일 수는 본체 하나와 스테이징 폴더의 `<id>` 폴더 수다.
+- 플러그인 레포가 새 릴리스에서 파일을 더하거나 빼도 패키징 설정은 고치지 않는다. 잠금 파일만 갱신한다([잠금 파일 갱신](#잠금-파일-갱신)).
 
-- **`.sig` 빌드 시점 의존**: git 에 commit 안 되는 빌드 산출물. 6 staging 위치 모두 비존재 시 non-debug 빌드 fail — CI 가 `sign-bundle.sh` 를 항상 실행하도록 보장.
-- **`bundle = false` — 명시 위치(1/2/3)는 자동으로 안 걸러짐**: glob 위치(4/5/6)는 빌드 자체가 그 crate 를 건너뛰지만, deb/rpm assets·wix components 는 plugin 마다 하드코딩된 목록이라 `bundle = false` 여부와 무관하게 그대로 남아있다. 새로 `bundle = false` 를 붙일 때 1/2/3 에서도 그 plugin 항목을 반드시 제거할 것.
+새 공식 플러그인을 번들에 넣을 때 tasty에서 고칠 곳은 잠금 파일(`generate`), `builtin.rs::BUILTINS`(windows·non-windows 두 벌), [공식 id 목록](#공식-id-목록)이다.
 
 비-staging(번들 산출물 아님): `~/.tasty/known-plugins.toml`(사용자 trust DB, 런타임 생성) · `.pub` sidecar(번들 plugin 은 없음 — 공개키는 호스트 바이너리 embed. 커스텀 plugin 은 위 서명 표).
 
 ## 생태계 정책 — 자동 upgrade · 호환성 분류
 
-plugin 시스템의 작성 형식·배포·신뢰·호환성·hot reload 정책과, 번들 plugin 자동 upgrade 동작. 3 카테고리(host-native/bundled/user) 정의는 [concepts/plugins](../concepts/plugins.md), 패키징/서명은 위 [서명](#서명) · [staging 7 위치 동기화](#staging-7-위치-동기화) 절. 이 절의 "built-in"/`BUILTINS` 는 *bundled plugin* 을 가리킨다.
+plugin 시스템의 작성 형식·배포·신뢰·호환성·hot reload 정책과, 번들 plugin 자동 upgrade 동작. 3 카테고리(host-native/bundled/user) 정의는 [concepts/plugins](../concepts/plugins.md), 패키징/서명은 위 [서명](#서명) · [배포 패키지의 번들 플러그인](#배포-패키지의-번들-플러그인) 절. 이 절의 "built-in"/`BUILTINS` 는 *bundled plugin* 을 가리킨다.
 
 ### 정책 (현행)
 

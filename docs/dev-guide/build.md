@@ -182,8 +182,9 @@ trust 게이트가 켜지므로(debug 는 `#[cfg(debug_assertions)]` 로 우회)
 받거나 빌드한 공식 플러그인은 서명 없이 오므로 `sign-bundle.sh --dir` 로 그 매니페스트들을,
 mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 그 키로 서명한다. 순서는 키 준비 → 받기(또는 빌드) → 서명이다.
 `just build`/`just run`(debug)은 게이트가 꺼져 있어 서명 단계를 건너뛴다(기본
-dev 워크플로에 openssl 의존 미부과). dist 스크립트(`build-*.{sh,ps1}`)도 같은 규칙을
-쓴다 — 상세는 [plugin-packaging](plugin-packaging.md).
+dev 워크플로에 openssl 의존 미부과). dist 스크립트(`build-*.{sh,ps1}`)는 플러그인을 빌드하지 않고
+잠금 파일의 공식 플러그인 산출물을 받아 같은 키로 서명한다(debug 는 서명 생략) — 상세는
+[plugin-packaging](plugin-packaging.md#배포-패키지의-번들-플러그인).
 
 ## 빌드 스크립트 (`build.rs`)
 
@@ -346,7 +347,7 @@ just build-all                                          # 번들 준비 + 본체
 - **Windows** MSI 는 `cargo-wix` + `wix/main.wxs`. **UpgradeCode GUID 는 절대 변경 금지** — 바뀌면 새 제품으로 인식되어 구버전과 공존.
 - CI: `.github/workflows/release.yml` (self-hosted runner, Linux x64/arm64 라벨 분기, Windows). `workflow_dispatch` 로 태그 없는 수동 검증 빌드 가능.
 
-현재 머신에 바로 설치하려면 `just install` — 본체+플러그인을 dist 빌드해 현재 OS 에 설치한다 (자동 감지). macOS 는 `scripts/install-macos.sh` 가 `build-macos-dmg.sh` 를 `NO_DMG=1` 로 재사용해 `dist/Tasty.app` 만 조립한 뒤 `/Applications/Tasty.app` 을 덮어쓴다. 번들 플러그인은 앱 실행 시 `~/.tasty/plugins` 로 동기화된다(설치본 버전이 더 높으면 건너뛴다). (Linux/Windows 자동 설치는 미구현 — `just dist-linux`/`dist-windows` 산출물로 수동 설치.)
+현재 머신에 바로 설치하려면 `just install` — 본체를 dist 빌드하고 잠금 파일의 공식 플러그인을 받아 현재 OS 에 설치한다 (자동 감지). macOS 는 `scripts/install-macos.sh` 가 `build-macos-dmg.sh` 를 `NO_DMG=1` 로 재사용해 `dist/Tasty.app` 만 조립한 뒤 `/Applications/Tasty.app` 을 덮어쓴다. 번들 플러그인은 앱 실행 시 `~/.tasty/plugins` 로 동기화된다(설치본 버전이 더 높으면 건너뛴다). (Linux/Windows 자동 설치는 미구현 — `just dist-linux`/`dist-windows` 산출물로 수동 설치.)
 
 ### dist 빌드 명령 카탈로그
 

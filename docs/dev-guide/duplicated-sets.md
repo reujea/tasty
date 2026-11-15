@@ -53,4 +53,4 @@
 
 ## 공식 플러그인 id 집합
 
-공식 플러그인 id는 잠금 파일 `official-plugins.lock.toml`의 `[[plugin]]`, `crates/tasty-host-plugin/src/builtin.rs`의 `BUILTINS`(windows·not windows 두 벌), `crates/tasty-host-plugin/src/official.rs`의 `OFFICIAL_PLUGIN_IDS`에 있다. `BUILTINS`와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 tasty에 남는 `com.tasty.mesh-demo`를 더한 집합이다. 배포 패키지에 넣는 집합은 잠금 파일의 `bundle = true`이고, 지금 배포 스크립트가 고르는 크레이트 매니페스트(`bundle = false`가 아닌 것)의 id와 같아야 한다. `BUILTINS`에는 배포 여부 필드가 없으므로 두 집합을 따로 대조한다. 대조는 doc-guards `official_plugins_lock`이 하고, 잠금 파일 형식과 갱신 절차는 [플러그인 패키징](plugin-packaging.md#공식-플러그인-잠금-파일)에 있다.
+공식 플러그인 id는 잠금 파일 `official-plugins.lock.toml`의 `[[plugin]]`, `crates/tasty-host-plugin/src/builtin.rs`의 `BUILTINS`(windows·not windows 두 벌), `crates/tasty-host-plugin/src/official.rs`의 `OFFICIAL_PLUGIN_IDS`에 있다. `BUILTINS`와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 tasty에 남는 `com.tasty.mesh-demo`를 더한 집합이다. 배포 패키지에 넣는 집합은 잠금 파일의 `bundle = true`이고(배포 스크립트가 이 집합을 받는다), 크레이트 매니페스트(`bundle = false`가 아닌 것)의 id와 같아야 한다. `BUILTINS`에는 배포 여부 필드가 없으므로 두 집합을 따로 대조한다. 대조는 doc-guards `official_plugins_lock`이 하고, 잠금 파일 형식과 갱신 절차는 [플러그인 패키징](plugin-packaging.md#공식-플러그인-잠금-파일)에 있다.
