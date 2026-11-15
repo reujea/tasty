@@ -82,6 +82,7 @@ mod plugin_popup_edit;
 pub(crate) mod preset_commands;
 pub(crate) mod process_exit;
 pub(crate) mod publication_input;
+pub(crate) mod queue_notice_writer;
 #[cfg(feature = "gui")]
 mod recovery_notices;
 pub(crate) mod request_gate;

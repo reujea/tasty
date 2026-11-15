@@ -124,6 +124,7 @@ impl App {
             let _ = session.poll_runner_stop(&self.services.tasks);
         }
         self.services.webhooks.begin_shutdown();
+        self.services.queue_notices.begin_shutdown();
         self.port_scans.begin_shutdown();
         self.services.profile_detections.begin_shutdown();
         self.screenshot_workers.begin_shutdown();

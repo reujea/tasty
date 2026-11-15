@@ -27,6 +27,8 @@ pub(crate) struct LiveDomainState {
     pub(crate) command_index: crate::core::command_index::CommandIndex,
     pub(crate) surface_messages: HashMap<u32, Vec<SurfaceMessage>>,
     pub(crate) surface_next_message_id: u32,
+    /// 큐 도착 알림 줄을 마지막으로 쓴 시각. 큐를 바꾸는 곳에서 함께 정리한다.
+    pub(crate) queue_notice_times: crate::core::state::queue_notice::QueueNoticeTimes,
 }
 
 impl Default for LiveDomainState {
@@ -51,6 +53,7 @@ impl Default for LiveDomainState {
             command_index: crate::core::command_index::CommandIndex::new(),
             surface_messages: HashMap::new(),
             surface_next_message_id: 0,
+            queue_notice_times: Default::default(),
         }
     }
 }

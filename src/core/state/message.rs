@@ -50,8 +50,25 @@ impl crate::runtime::engine_access::EngineMut<'_> {
                 }
             }
             *queue = retained;
+            if queue.is_empty() {
+                self.live.queue_notice_times.forget(surface_id);
+            }
             taken
         }
+    }
+
+    /// 메시지를 넣은 뒤 받는 surface의 notify 로그에 알릴지 정한다. 없는 surface면 알리지 않는다.
+    /// 알려야 하면 현재 대기 수를 돌려준다. 파일 I/O는 호출자가 백그라운드로 넘긴다.
+    pub fn queue_notice_due(&mut self, to: u32, now: std::time::Instant) -> Option<usize> {
+        if !self.has_surface(to) {
+            return None;
+        }
+        let pending = self.message_count(to);
+        let pending_before = pending.saturating_sub(1);
+        self.live
+            .queue_notice_times
+            .should_notify(to, pending_before, now)
+            .then_some(pending)
     }
 
     /// Count messages queued for a surface.
@@ -66,5 +83,6 @@ impl crate::runtime::engine_access::EngineMut<'_> {
     /// Clear all messages queued for a surface.
     pub fn clear_messages(&mut self, surface_id: u32) {
         self.live.surface_messages.remove(&surface_id);
+        self.live.queue_notice_times.forget(surface_id);
     }
 }

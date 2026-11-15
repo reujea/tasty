@@ -7295,3 +7295,6 @@ title = "Close remote workspace {}?"
 body = "The workspace and all its processes will end on the remote Tasty for profile {}. This cannot be undone."
 last = "Closing the last tab also closes the workspace on the remote Tasty."
 confirm = "Close remote workspace"
+
+[notify]
+queue_waiting = "surface {0}: {1} queued message(s), latest from surface {2}. Read with: tasty read queue --surface {0}"

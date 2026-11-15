@@ -242,6 +242,13 @@ impl AppServicesBuilder {
             journal_metrics: None,
             ports: Default::default(),
             webhooks,
+            // 받는 surface의 셸이 TASTY_PARENT_HOME으로 받는 값과 부팅 정리 대상이 이 데이터 루트다.
+            #[cfg(not(test))]
+            queue_notices: crate::app::queue_notice_writer::QueueNoticeWriter::new(
+                tasty_utils::path::tasty_home(),
+            ),
+            #[cfg(test)]
+            queue_notices: crate::app::queue_notice_writer::QueueNoticeWriter::recording().0,
             tasks,
             pressure: tasty_telemetry::PressureStats::default(),
             gate: tasty_telemetry::GateStats::default(),

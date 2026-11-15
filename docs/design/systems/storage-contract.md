@@ -388,7 +388,7 @@ port 변경과 형식 마이그레이션은 한 번에 교체해
 만들거나 열지 못해도 파일을 다시 읽어 최신 유효 문서의 포트만 메모리에서 해석하며, 잠금 밖에서
 저장하지 않는다. 최신 읽기에서 삭제·손상·읽기 불가를 확인하면 최초 읽기의 포트를 재사용하지 않는다.
 
-`notify/<surface>.log`는 호스트가 쓰지 않는다. 플러그인 프로세스가 쓰고 호스트는 IPC 시작 때 디렉터리를 정리한다.
+`notify/<surface>.log`의 완료 줄은 플러그인 프로세스가 쓴다. 호스트는 `message.send` 뒤 큐 도착 줄(`[queue]`)만 전용 스레드에서 쓰고, 종료 때 남은 큐 줄은 버린다. 호스트는 IPC 시작 때 디렉터리를 정리한다([큐 도착 줄](../../dev-guide/external-interaction.md#큐-도착-줄--queue)).
 
 Settings Keybindings Export는 현재 draft와 plugin override를 인코딩한 불변 text/path를 기존 file writer의 명령으로 접수한다. 항목·바이트 예산은 receipt 소비까지 유지하며 사용자 Export 명령을 snapshot으로 합치지 않는다. 원래 Settings View의 수명과 요청 identity, bundle draft 지문이 같은 경우에만 완료를 표시한다. Cancel·닫기·새 draft는 표시 observer만 버리고 접수된 쓰기는 취소하지 않는다. 일반 회차와 최종 file drain은 완료를 거두며, 결과 불명은 성공이나 알려진 실패로 바꾸지 않고 자동 재실행하지 않는다. 알려진 성공만 경로 토스트를 표시한다. 거절·저장 실패는 기존 행의 재시도/다른 위치 선택으로, 결과 불명은 대상 확인 안내로 구분한다. 명시적 재시도는 그때의 draft를 한 번 인코딩한다. Import의 파일 읽기·decode는 기존 동기 경로이며 이번 writer 명령이 아니다.
 

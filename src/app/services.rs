@@ -71,6 +71,8 @@ pub(crate) struct AppServices {
     /// 이 인스턴스가 bind한 IPC·웹훅 포트. 포트가 필요한 곳은 여기서 읽는다.
     pub(crate) ports: Arc<crate::runtime_ports::RuntimePorts>,
     pub(crate) webhooks: Arc<crate::webhook::registry::Registry>,
+    /// 큐 도착 알림 줄을 notify 로그에 쓰는 writer. 시험 구성은 파일 대신 줄을 모은다.
+    pub(crate) queue_notices: crate::app::queue_notice_writer::QueueNoticeWriter,
 
     /// 러너·완료 대기·훅-작업 연결을 가진 작업 실행 서비스.
     pub(crate) tasks: tasty_task_runtime::TaskService,
@@ -482,7 +484,16 @@ impl AppServices {
         to: u32,
         content: String,
     ) -> u32 {
-        engine.send_message(from, to, content)
+        let id = engine.send_message(from, to, content);
+        // 받는 surface의 notify 로그에 알린다. 메시지 내용은 넣지 않는다(받는 쪽이 read queue로 소비한다).
+        if let Some(pending) = engine.queue_notice_due(to, self.clock.now_instant()) {
+            let line = crate::i18n::t_args(
+                "notify.queue_waiting",
+                &[&to.to_string(), &pending.to_string(), &from.to_string()],
+            );
+            self.queue_notices.submit(to, line);
+        }
+        id
     }
 
     pub(crate) fn read_surface_messages(

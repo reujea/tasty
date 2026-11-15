@@ -1074,6 +1074,7 @@ fn finish_headless_shutdown(
     session: &mut crate::runtime::engine_session::EngineSession,
 ) {
     app.services.webhooks.begin_shutdown();
+    app.services.queue_notices.begin_shutdown();
     let file_drain = file_drain::begin(app, session);
     // 게이트 결과를 기다리던 요청은 실행하지 않고 종료 오류로 답한다.
     app.gate_queue.reject_all(app.plugin_manager.as_mut());

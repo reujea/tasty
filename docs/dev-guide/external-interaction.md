@@ -15,7 +15,7 @@ Tasty가 PTY로 Claude Code·Codex CLI 등 외부 프로그램을 실행할 때 
 | 노트 | 요지 |
 |------|------|
 | [tell-autosubmit-paste-threshold](#child-tell-단일라인-자동제출--63자-paste-임계) | child `tell` 단일라인이 63자(code point) 이상이면 자동제출 안 됨 — 본문+`\r` 한 burst 가 수신측 paste 휴리스틱에 흡수. 본문과 제출 `\r` 을 별도 PTY write 로 분리해 해결 |
-| [child-completion-notify-log](#child-완료-알림--completion-log) | 완료는 부모 종류와 무관하게 로그 한 줄로 나가고 부모 Claude는 그것을 Monitor 로 tail 한다. 완료 이벤트의 PTY tell fallback은 없다. |
+| [child-completion-notify-log](#child-완료-알림--completion-log) | 완료는 부모 종류와 무관하게 notify 로그 한 줄로 나가고 부모 Claude는 notify mod나 Monitor tail로 받는다. 같은 로그에 호스트가 큐 도착 줄(`[queue]`)도 쓴다. 완료 이벤트의 PTY tell fallback은 없다. |
 | [bash-resize-first-byte-loss](#bashmsys-resize-후-다음-입력의-첫-바이트-유실) | **Windows 전용**(ConPTY+MSYS bash). resize 후 다음 입력의 첫 1바이트를 지연 SIGWINCH 처리에 소모 (~25–33%, 시간 무관, cmd.exe 무결). 상류 버그 — 에이전트는 `\n` 프리픽스 또는 echo 검증으로 방어 |
 
 ## child tell 단일라인 자동제출 — 63자 paste 임계
@@ -132,8 +132,35 @@ plugin writer와 부모의 PTY는 같은 값을 받는다. release·debug 경로
 메시지는 플러그인의 언어를 따르는 한 줄이다. 고정된 자연어 문구만으로 상태를 파싱하지 않는다.
 줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 상태 변경·결과 저장은 info, 출력이 없다는 알림과 그 묶음은 warning, 오류가 섞이면 무조건 error다. 무출력 알림만 거르려면 `^\[warning\] `로 고른다. 종류별 대응은 [Claude 알림 타입 표지](../plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](../plugins/codex/index.md)에 있다.
 Claude의 정지 알림도 같은 파일에 쓰며 기준은 [Claude 정지 알림](../plugins/claude/index.md)을 따른다.
-기록 구현은 `tasty-utils::notify::append_notice`(타입을 받는다), 호출자는 Claude의 `handle_notify_done`·`handle_notify_error`·`handle_notify_stop_failure`·`handle_notify_quiet_release`·원격 결과 저장과
+완료 줄의 기록 구현은 `tasty-utils::notify::append_notice`(타입을 받는다), 호출자는 Claude의 `handle_notify_done`·`handle_notify_error`·`handle_notify_stop_failure`·`handle_notify_quiet_release`·원격 결과 저장과
 Codex의 `handle_notify_caller`·원격 결과 저장이다.
+
+#### 큐 도착 줄 — `[queue]`
+
+이 파일은 notify 로그(완료 줄과 큐 줄)다. 파일 이름 `notify/<surface>.log`는 그대로다.
+`message.send`(CLI `tasty send queue`, 플러그인 호출 포함)가 성공하면 호스트가 받는 surface의
+notify 로그에 `[queue] ` 표지로 시작하는 줄을 쓴다. 받는 surface에서 무엇이 실행 중인지와
+무관하게 쓴다. 읽는 쪽이 없으면 파일만 남고 위 크기 기준과 부팅 정리가 크기를 묶는다.
+
+- 경로는 받는 surface를 가진 호스트의 데이터 루트(`tasty_home()`) 아래다. 받는 surface의 셸이
+  `TASTY_PARENT_HOME`으로 받는 값과 같다. 호스트는 자기 프로세스 환경의 `TASTY_PARENT_HOME`을
+  읽지 않으므로, 다른 Tasty의 터미널에서 띄운 호스트도 바깥 인스턴스의 로그에 쓰지 않는다
+  (`tasty-utils::notify::append_notice_under`).
+- 본문은 호스트 언어의 `notify.queue_waiting` 번역으로 만든다. 영어는
+  `surface <받는 surface>: <대기 수> queued message(s), latest from surface <보낸 surface>. Read with: tasty read queue --surface <받는 surface>`다.
+  메시지 내용은 넣지 않는다. 받는 쪽은 `tasty read queue`로 읽어야 큐가 빈다.
+- 큐가 비어 있다가 메시지가 들어오면 바로 한 줄을 쓴다. 안 읽은 메시지가 남아 있으면 그 surface에
+  마지막 큐 줄을 쓴 뒤 60초가 지난 다음 메시지에서만 다시 쓴다. 소비 읽기(`--peek` 없는
+  `message.read`)로 큐가 비거나, `message.clear`, surface 정리 때 이 기록을 지운다. `--peek`은
+  기록을 지우지 않는다.
+- 없는 surface ID로 보내면 큐 저장은 지금처럼 하지만 줄은 쓰지 않는다. `message.send` 응답은 바뀌지 않는다.
+- IPC 핸들러는 이벤트 루프에서 실행되므로 파일 쓰기는 전용 스레드(`queue-notice`)로 넘긴다.
+  종료가 시작되면 아직 쓰지 않은 줄은 버리고 버린 수를 `tasty::shutdown` 로그에 남긴다.
+- 한계: 원격 attach mirror surface로 보낸 메시지는 로컬 엔진 큐에 쌓이고 줄도 로컬 데이터 루트에
+  쓰인다. 원격 Claude는 이 줄을 받지 않는다.
+
+notify mod는 줄 종류를 거르지 않으므로 큐 줄도 받는 Claude의 프롬프트로 들어간다.
+Monitor tail로 완료를 기다리는 reader는 `[queue] ` 줄을 완료로 판정하지 않도록 표지로 구분한다.
 
 여러 writer가 같은 파일을 사용하므로 쓰기 핸들은 항상 append로 연다.
 메시지와 개행을 버퍼 하나로 만든 뒤 `write_all`을 한 번 호출한다.

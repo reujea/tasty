@@ -9,6 +9,8 @@
 
 부모 Claude의 자식 상태 수신은 [완료 알림 mod](../../plugins/claude/notify-mod.md)가 담당하며, mod가 없는 세션에서는 Monitor로 구독한다. 상태 알림은 task 결과 검증과 별개다.
 
+`tasty send queue`(`message.send`)로 보낸 메시지가 도착하면 호스트가 받는 surface의 notify 로그에 `[queue]` 줄을 쓴다. 같은 mod가 이 줄도 받는 Claude의 프롬프트로 넣으므로 큐를 기다리는 데 Monitor를 켜지 않아도 된다. 줄에는 메시지 내용이 없고, 안 읽은 메시지가 남아 있으면 60초에 한 번만 다시 알린다([큐 도착 줄](../../dev-guide/external-interaction.md#큐-도착-줄--queue)).
+
 ## 목적
 
 여러 AI 에이전트가 같은 인스턴스에서 작업을 조율하는 6가지 기능이다. 모두 `agent`(AgentManage) 권한으로 사용한다 — `agent.*` 단일 네임스페이스 + `<verb>_<modifier>` 패턴. 영속은 `tasty.agent.*` memory 키(task/barrier/semaphore/lease 는 `workspace:<id>` scope, rate-limit 은 `global`).

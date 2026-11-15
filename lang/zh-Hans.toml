@@ -7514,3 +7514,6 @@ title = "关闭远程工作区 {}？"
 body = "将终止配置档 {} 对应的远程 Tasty 上的工作区及其中的所有进程。此操作无法撤销。"
 last = "关闭最后一个标签页也会关闭远程 Tasty 上的工作区。"
 confirm = "关闭远程工作区"
+
+[notify]
+queue_waiting = "Surface {0}：有 {1} 条排队消息，最新来自 Surface {2}。读取命令：tasty read queue --surface {0}"

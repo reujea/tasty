@@ -7218,3 +7218,6 @@ title = "リモートワークスペース {} を閉じますか？"
 body = "プロファイル {} のリモート Tasty で、ワークスペースとその中の全プロセスを終了します。取り消せません。"
 last = "最後のタブを閉じると、リモートの Tasty でもワークスペースが閉じます。"
 confirm = "リモートワークスペースを閉じる"
+
+[notify]
+queue_waiting = "surface {0}: 待機中のメッセージ {1} 件、最新の送信元 surface {2}。読み取り: tasty read queue --surface {0}"

@@ -47,6 +47,7 @@ impl EngineMut<'_> {
         self.live.foreground_names.remove(&surface_id);
         self.live.foreground_generation.remove(&surface_id);
         self.live.surface_messages.remove(&surface_id);
+        self.live.queue_notice_times.forget(surface_id);
         self.forget_closed_surface(surface_id);
         self.forget_mirror_surface_extras(surface_id);
         self.remote.forget_surface_observations(surface_id);

@@ -6,10 +6,10 @@
 //! 스케줄 지연이나 저장소 오류가 있으면 정리가 더 늦어진다. 엄격한 메모리·디스크 상한은 아니다.
 //! 결정 근거는 [저장소 시스템 (Storage System)](../../docs/design/systems/storage.md)를 참고한다.
 //!
-//! 파일 로그에는 이 정책을 적용하지 않는다. 완료 알림은 tasty_utils::notify,
+//! 파일 로그에는 이 정책을 적용하지 않는다. notify 로그(완료 줄과 큐 줄)는 tasty_utils::notify,
 //! hook 실패는 crates/tasty-cli/src/hook_failure.rs, 호스트 로그는 crash_report,
 //! 플러그인 로그는 tasty_host_plugin::process에서 관리한다.
-//! 완료 알림 로그는 TASTY_PARENT_HOME을 우선하며 나머지는 tasty_home()을 사용한다.
+//! 플러그인의 완료 줄은 TASTY_PARENT_HOME을 우선하며 호스트의 큐 줄과 나머지는 tasty_home()을 사용한다.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 

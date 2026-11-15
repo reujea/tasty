@@ -37,6 +37,8 @@ mod hook_handler;
 pub(crate) mod idempotency;
 #[cfg(test)]
 mod intent_order_tests;
+#[cfg(test)]
+mod message_queue_notice_tests;
 // 창 라우터 호출자 검사는 해당 라우터와 같은 GUI 조건에서 실행한다.
 #[cfg(all(test, feature = "gui"))]
 mod window_router_caller_tests;
