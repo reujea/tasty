@@ -57,15 +57,16 @@ if [[ "$PROFILE" != "debug" ]]; then
     export SIGN_KEY_PATH
 fi
 
-echo "==> Building tasty ($PROFILE) for $TARGET..."
-cargo build $CARGO_FLAGS --target "$TARGET"
-
 # 번들 플러그인은 여기서 빌드하지 않는다. 잠금 파일의 bundle = true 산출물을 받아 넣는다.
+# 받기가 실패하면 본체를 빌드하기 전에 멈춘다.
 # shellcheck source=scripts/lib/bundled-plugins.sh
 . "scripts/lib/bundled-plugins.sh"
 
 echo "==> Fetching locked official plugins (macos-arm64)..."
 fetch_bundled_plugins macos-arm64
+
+echo "==> Building tasty ($PROFILE) for $TARGET..."
+cargo build $CARGO_FLAGS --target "$TARGET"
 
 # $1 = 바이너리 이름 (target/$TARGET/$PROFILE/<name> 아래에서 찾음), $2 = 출력 경로.
 stage_binary() {

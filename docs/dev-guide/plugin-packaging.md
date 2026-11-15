@@ -187,10 +187,10 @@ release workflow는 각 빌드 러너에서 서명 스크립트를 실행한다.
 
 ## 배포 패키지의 번들 플러그인
 
-dist 스크립트는 플러그인을 빌드하지 않는다. 본체를 빌드한 뒤 아래 순서로 번들 플러그인을 준비한다. 셸 쪽 공용 함수는 `scripts/lib/bundled-plugins.sh`, Windows는 `build-windows.ps1`의 `Get-BundledPlugins`·`Stage-Plugins`·`Test-BundledPluginTree`다.
+dist 스크립트는 플러그인을 빌드하지 않는다. 서명 키를 준비한 뒤 본체 빌드보다 먼저 받기를 해서, 받기가 실패하면 본체를 빌드하지 않고 멈춘다. 순서는 아래와 같다. 셸 쪽 공용 함수는 `scripts/lib/bundled-plugins.sh`, Windows는 `build-windows.ps1`의 `Get-BundledPlugins`·`Stage-Plugins`·`Test-BundledPluginTree`다.
 
 1. **받기**: `fetch-official-plugins.sh --platform <p> --out target/bundled-plugins`로 잠금 파일의 `bundle = true` 산출물을 받는다. 플랫폼은 Linux `linux-x64`·`linux-arm64`, macOS `macos-arm64`, Windows `windows-x64`·`windows-arm64`다. Windows는 Git Bash로 이 스크립트를 실행하고 `.tar.gz`도 그 셸에서 찾은 `tar`가 푼다. 산출물이 없거나 SHA-256이 다르면 받기에서 실패하고 패키지를 만들지 않는다. 스테이징 폴더는 매번 지우고 새로 만든다.
-2. **서명**: non-debug 프로필이면 `sign-bundle.sh --dir target/bundled-plugins`로 매니페스트를 서명한다. 받은 산출물에 `.sig`가 있으면 실패한다. 키는 본체 빌드 전에 준비한 것을 쓴다([서명](#서명)).
+2. **서명**: 본체를 빌드한 뒤 non-debug 프로필이면 `sign-bundle.sh --dir target/bundled-plugins`로 매니페스트를 서명한다. 받은 산출물에 `.sig`가 있으면 실패한다. 키는 본체 빌드 전에 준비한 것을 쓴다([서명](#서명)).
 3. **배치**: 받은 `<id>/` 폴더를 통째로 패키지의 plugin 폴더에 복사한다. 고지 파일(`LICENSE`, 릴리스에 따라 `THIRD_PARTY_LICENSES.md`·`LICENSES/`·`NOTICE.md`)도 플러그인과 함께 간다. 루트 고지 세트([배포물의 고지 파일](release.md#배포물의-고지-파일))는 본체 몫이고 플러그인 고지를 대신하지 않는다.
 4. **대조**: 패키지를 만든 뒤 그 안의 plugin 폴더를 스테이징 폴더와 비교한다. 다르면 실패한다.
 

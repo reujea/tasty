@@ -144,15 +144,16 @@ if [[ "$PROFILE" != "debug" ]]; then
     export SIGN_KEY_PATH
 fi
 
-echo "==> Building tasty ($PROFILE)..."
-cargo build $CARGO_FLAGS
-
 # 번들 플러그인은 여기서 빌드하지 않는다. 잠금 파일의 bundle = true 산출물을 받아 넣는다.
+# 받기가 실패하면 본체를 빌드하기 전에 멈춘다.
 # shellcheck source=scripts/lib/bundled-plugins.sh
 . "scripts/lib/bundled-plugins.sh"
 
 echo "==> Fetching locked official plugins (linux-$ARCH)..."
 fetch_bundled_plugins "linux-$ARCH"
+
+echo "==> Building tasty ($PROFILE)..."
+cargo build $CARGO_FLAGS
 
 # 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
 # 받은 산출물에 .sig가 있으면 sign-bundle.sh가 실패한다(공식 플러그인은 서명 없이 온다).

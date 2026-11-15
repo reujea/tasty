@@ -166,13 +166,6 @@ if ($BuildProfile -ne "debug") {
     $env:SIGN_KEY_PATH = $SignKeyPath
 }
 
-Write-Host "==> Building tasty ($BuildProfile)..."
-cargo build @CargoFlags
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "cargo build failed with exit code $LASTEXITCODE"
-    exit 1
-}
-
 # 번들 플러그인은 여기서 빌드하지 않는다. 잠금 파일의 bundle = true 산출물을 받아 넣는다.
 # 받기·SHA-256 대조·tar.gz 풀기·매니페스트 검증은 scripts/fetch-official-plugins.sh가 Git Bash에서 한다.
 # 산출물이 없거나 해시가 다르면 실패하고 폴더를 남기지 않는다. 셸 쪽 규칙: scripts/lib/bundled-plugins.sh.
@@ -195,7 +188,15 @@ function Get-BundledPlugins {
     }
 }
 
+# 받기가 실패하면 본체를 빌드하기 전에 멈춘다.
 Get-BundledPlugins
+
+Write-Host "==> Building tasty ($BuildProfile)..."
+cargo build @CargoFlags
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "cargo build failed with exit code $LASTEXITCODE"
+    exit 1
+}
 
 # 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
 function Sign-BundledPlugins {
