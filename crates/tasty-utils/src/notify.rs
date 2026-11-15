@@ -1,7 +1,9 @@
-//! child 완료 알림을 caller별 로그에 한 줄씩 덧붙인다. reader는 tail -F 등으로 읽는다.
-//! 경로는 TASTY_PARENT_HOME을 우선하고 없으면 tasty_home 아래 notify/<surface>.log를 쓴다.
-//! writer와 reader에 같은 부모 경로를 전달해야 한다. 부모 정보를 TASTY_HOME과 분리해
-//! 자식의 debug/release 데이터 경로 선택을 덮어쓰지 않는다.
+//! surface별 notify 로그에 한 줄씩 덧붙인다. reader는 tail -F 등으로 읽는다.
+//! 플러그인이 쓰는 child 완료 줄은 TASTY_PARENT_HOME을 우선하고 없으면 tasty_home 아래
+//! notify/<surface>.log를 쓴다. writer와 reader에 같은 부모 경로를 전달해야 한다. 부모 정보를
+//! TASTY_HOME과 분리해 자식의 debug/release 데이터 경로 선택을 덮어쓰지 않는다.
+//! 호스트가 쓰는 큐 도착 줄은 자기 환경의 TASTY_PARENT_HOME을 읽지 않고 데이터 루트를 인자로
+//! 받는다(append_notice_under). 바깥 Tasty에서 띄운 호스트가 바깥 로그에 쓰지 않게 한다.
 //!
 //! 로그에는 호스트 세대 ID가 없다. 재시작 시 surface 번호가 다시 쓰이므로 호스트는
 //! 부팅 때 notify 디렉터리를 정리한다. 같은 데이터 루트를 두 호스트가 공유하면 서로의
@@ -22,7 +24,7 @@
 //! 이때 append와 겹칠 수 있고, reader가 모든 비우기를 알아내지는 못한다. 잠금·메타 갱신
 //! 실패는 로그에 남긴다. 공유 잠금 획득과 파일 I/O에는 별도 시간 제한이 없다.
 //!
-//! 데이터 파일은 완료 알림만 담고 보존 메타를 섞지 않는다. reader 절차와 한계는
+//! 데이터 파일은 알림 줄(완료 줄과 큐 줄)만 담고 보존 메타를 섞지 않는다. reader 절차와 한계는
 //! docs/dev-guide/external-interaction.md#재개하는-reader--caller_surfacelogmeta 참조.
 
 use std::io::{self, Write};
@@ -55,6 +57,11 @@ fn resolve_home(
         }
     }
     fallback()
+}
+
+/// 데이터 루트를 직접 받아 notify 로그 경로를 만든다. 환경변수를 읽지 않는다.
+pub fn notify_log_path_under(home: &Path, surface: u32) -> PathBuf {
+    notify_log_path_in(home, surface)
 }
 
 /// 순수 경로 조립(파일시스템 접근 없음) — 단위 테스트 대상.
@@ -92,11 +99,13 @@ fn format_retention_start(value: u64) -> String {
 
 /// child 알림 한 줄의 타입. 줄 맨 앞의 번역하지 않는 ASCII 표지로 남아 reader 가 언어와 무관하게 거를 수 있다.
 /// 상태 변경·결과 저장은 `Info`, 출력이 없다는 알림은 `Warning`, 오류가 섞이면 무조건 `Error` 다.
+/// 호스트가 받는 surface의 메시지 큐에 안 읽은 메시지가 있다고 알리는 줄은 `Queue` 다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoticeType {
     Info,
     Warning,
     Error,
+    Queue,
 }
 
 impl NoticeType {
@@ -106,6 +115,7 @@ impl NoticeType {
             Self::Info => "[info]",
             Self::Warning => "[warning]",
             Self::Error => "[error]",
+            Self::Queue => "[queue]",
         }
     }
 }
@@ -123,7 +133,22 @@ pub fn append_notice(caller_surface: u32, ty: NoticeType, line: &str) -> io::Res
     append_line_to(&path, &notice_line(ty, line), NOTIFY_LOG_CAP_BYTES)
 }
 
-/// 경로와 크기 기준을 받아 완료 알림을 기록한다.
+/// 데이터 루트를 인자로 받아 쓴다. 호출 프로세스의 TASTY_PARENT_HOME을 읽지 않는다.
+/// 크기 기준·잠금은 [`append_notice`]와 같다.
+pub fn append_notice_under(
+    home: &Path,
+    surface: u32,
+    ty: NoticeType,
+    line: &str,
+) -> io::Result<()> {
+    append_line_to(
+        &notify_log_path_in(home, surface),
+        &notice_line(ty, line),
+        NOTIFY_LOG_CAP_BYTES,
+    )
+}
+
+/// 경로와 크기 기준을 받아 알림 줄을 기록한다.
 /// 여러 writer가 같은 로그를 쓰므로 항상 append 모드로 열고 한 줄을 먼저 조립한다.
 /// write_all은 부분 쓰기를 재시도할 수 있어 한 번의 OS write나 줄 단위 원자성을
 /// 보장하지는 않는다. 크기 확인·비우기는 별도 핸들에서 수행하며 잠금 실패 시의
@@ -408,6 +433,23 @@ mod tests {
         assert_eq!(
             notice_line(NoticeType::Error, "surface 3: x"),
             "[error] surface 3: x"
+        );
+        assert_eq!(
+            notice_line(NoticeType::Queue, "surface 3: x"),
+            "[queue] surface 3: x"
+        );
+    }
+
+    /// 데이터 루트를 받는 쓰기는 그 루트의 notify/<surface>.log에 표지 붙은 줄을 남긴다.
+    #[test]
+    fn append_under_writes_to_the_given_home_with_its_tag() {
+        let tmp = tempfile::tempdir().unwrap();
+        append_notice_under(tmp.path(), 5, NoticeType::Queue, "surface 5: 1").unwrap();
+        let path = notify_log_path_under(tmp.path(), 5);
+        assert_eq!(path, tmp.path().join("notify").join("5.log"));
+        assert_eq!(
+            std::fs::read_to_string(path).unwrap(),
+            "[queue] surface 5: 1\n"
         );
     }
 
