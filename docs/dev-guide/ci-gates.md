@@ -123,8 +123,19 @@ CI에 해당 캐시가 없었다면 그 실행으로 캐시가 있는 환경까�
 읽기 도구 `official-plugins`의 동작은 `official_plugins_bin.rs`가, `sign-bundle.sh --dir`의 계약은
 `sign_bundle_dir_contract.rs`가 확인한다. 모두 문서 가드라 `doc-guards.yml`(경로 필터 없음)과 Windows 잡의
 `-p tasty-doc-guards` 지목이 실행한다. 이 시험들은 네트워크를 쓰지 않는다. 실제 릴리스를 받아 해시를 대조하고
-매니페스트를 읽는 `scripts/fetch-official-plugins.sh`는 지금 어느 자동 잡에도 없으며, 잠금 파일을 갱신할 때
-직접 실행한다. 계약 호환 가드가 버전 값만 비교한다는 한계는 [플러그인 패키징](plugin-packaging.md#계약-호환-가드)에 있다.
+매니페스트를 읽는 `scripts/fetch-official-plugins.sh`는 아래 번들 플러그인 준비 단계가 실행한다. 계약 호환 가드가 버전 값만 비교한다는 한계는 [플러그인 패키징](plugin-packaging.md#계약-호환-가드)에 있다.
+
+#### 번들 플러그인 준비
+
+번들 플러그인이 필요한 통합 시험(`tests/spawn_diag/mod.rs`의 `SUITES_THAT_CALL_BUNDLED_PLUGINS`)을 돌리는 잡은
+시험 전에 `bash scripts/stage-dev-plugins.sh --profile debug`로 `target/debug/builtin-plugins/`를 준비한다.
+`crossplatform-check.yml`의 `check-headless`(`stage official plugins` 단계, 같은 잡의 관측용 gui e2e 단계도 이 폴더를 쓴다)와
+`test.yml`의 `test-linux-x64`(수동 실행)다. 공식 플러그인은 잠금 파일의 릴리스 산출물을 받고 mesh-demo만 workspace에서 빌드한다.
+`check-windows`·`check-macos`는 `--lib --bins`와 지목한 패키지만 돌려 번들이 필요 없으므로 이 단계가 없다.
+
+- 네트워크: 이 단계는 GitHub 릴리스에서 산출물을 받는다. 받기나 SHA-256 대조가 실패하면 단계가 실패하고 잡이 실패한다.
+- 캐시: `actions/cache`를 쓰지 않는다. 받은 압축 파일은 `target/official-plugins/<tag>/<platform>/`에 두고 해시가 맞으면 다시 받지 않지만, 체크아웃의 `git clean -ffdx`([self-hosted 러너의 작업 트리](#self-hosted-러너의-작업-트리))가 무시 파일인 `target`을 지우면 매번 받는다. 산출물은 8개 압축 파일이다.
+- 계약 차이: 받은 산출물은 공식 플러그인 레포가 기준으로 삼은 tasty 커밋의 SDK·protocol로 빌드됐다. 이 레포가 그 뒤 계약을 바꿨다면 새 계약에 기대는 통합 시험은 받은 번들로 통과하지 않는다. 그런 시험은 공식 플러그인 레포가 새 계약으로 릴리스하고 잠금 파일을 갱신한 뒤에 켠다. 로컬에서는 `just build-plugins --from-checkout <체크아웃> --with-local-tasty`로 먼저 확인할 수 있다([build.md](build.md#plugin-빌드--스테이징)).
 
 #### 간헐 실패를 조사할 때
 

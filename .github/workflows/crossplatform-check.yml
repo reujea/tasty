@@ -155,6 +155,13 @@ jobs:
       - name: cargo check (headless)
         run: cargo check --workspace --no-default-features --locked
 
+      # 번들 플러그인이 필요한 통합 시험(e2e·attach·plugin disable 등)을 위해 공식 플러그인을 받아
+      # target/debug/builtin-plugins에 놓는다. 잠금 파일의 릴리스 산출물이며 mesh-demo는 workspace에서 빌드한다.
+      # 아래 headless 시험과 gui e2e 단계가 같은 target/debug를 쓰므로 한 번 준비한다.
+      # 기준: docs/dev-guide/ci-gates.md#번들-플러그인-준비
+      - name: stage official plugins
+        run: bash scripts/stage-dev-plugins.sh --profile debug
+
       # headless 전용 구현과 IPC·attach·PTY 통합 경로를 검사한다.
       # GUI 전용 gui_tests 타깃은 Cargo의 required-features로 제외된다.
       # e2e 하네스는 같은 feature로 빌드한 headless 바이너리를 실행한다.

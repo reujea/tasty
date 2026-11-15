@@ -59,6 +59,11 @@ jobs:
       - name: Build tests
         run: cargo test --workspace --no-run --locked
 
+      # 번들 플러그인이 필요한 통합 시험을 위해 공식 플러그인(잠금 파일의 릴리스 산출물)과 mesh-demo를
+      # target/debug/builtin-plugins에 놓는다. 기준: docs/dev-guide/ci-gates.md#번들-플러그인-준비
+      - name: Stage official plugins
+        run: bash scripts/stage-dev-plugins.sh --profile debug
+
       # 문서 검사의 design_source_* 시험은 dtcg/SOURCE 커밋의 tasty-page가 필요하다.
       - name: Run tests
         run: |
