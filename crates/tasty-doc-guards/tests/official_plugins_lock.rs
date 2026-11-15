@@ -22,6 +22,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use tasty_doc_guards::floored_walk::{CountedOn, Floor, Pick, walk_dirs_with_floor};
 use tasty_doc_guards::official_plugins::{
     LOCK_FILE, Lock, REFRESH_HINT, check, contract_mismatches, parse_lock, read_host_contract,
 };
@@ -76,20 +77,36 @@ fn read(rel: &str) -> String {
         .unwrap_or_else(|e| panic!("{rel}를 읽지 못했다: {e}"))
 }
 
+/// `crates/` 바로 아래 디렉터리 순회의 하한. 하한은 방문한 디렉터리 수에 적용한다.
+const CRATES_DIR_FLOOR: Floor = Floor {
+    min: 50,
+    measured: 63,
+    measured_on: "2026-11-16",
+    counted_on: CountedOn::Tree(
+        "8b44acc6e — git ls-tree -d --name-only HEAD crates/ 로 센 crates 바로 아래 디렉터리 63개.",
+    ),
+    why_this_gap: "crates 바로 아래 디렉터리만 방문하고 그 아래로는 내려가지 않는다. 63개 중 tasty-plugin-* 는 14개이고 매니페스트가 있는 것은 9개다. 플러그인 크레이트가 공식 플러그인 레포로 한꺼번에 옮겨지는 경우(최대 9개 정도)를 허용해 하한을 50으로 정했다. 그보다 줄면 루트를 잘못 잡았거나 read_dir이 실패한 것이므로 재측정한다.",
+};
+
 /// 배포 스크립트(`scripts/build-linux.sh` 등)와 같은 판정: 매니페스트가 있고 `bundle = false`가 아닌
 /// 플러그인 크레이트. id는 매니페스트 최상위 `id`다.
 fn shipped_ids(root: &Path) -> BTreeSet<String> {
+    let crates = walk_dirs_with_floor(&root.join("crates"), root, &CRATES_DIR_FLOOR, &|_| {
+        Pick::TakeAndStop
+    })
+    .unwrap_or_else(|why| panic!("{why}"));
     let mut ids = BTreeSet::new();
-    let crates = root.join("crates");
-    let entries = std::fs::read_dir(&crates)
-        .unwrap_or_else(|e| panic!("{}를 읽지 못했다: {e}", crates.display()));
-    for entry in entries {
-        let entry = entry.unwrap_or_else(|e| panic!("crates 항목을 읽지 못했다: {e}"));
-        let name = entry.file_name().to_string_lossy().to_string();
+    for krate in crates {
+        let name = krate
+            .path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         if !name.starts_with("tasty-plugin-") {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(entry.path().join("tasty-plugin.toml")) else {
+        let Ok(text) = std::fs::read_to_string(krate.path.join("tasty-plugin.toml")) else {
             continue;
         };
         let unbundled = text.lines().any(|l| {
