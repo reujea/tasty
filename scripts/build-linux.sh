@@ -14,6 +14,7 @@
 #   dist/tasty-headless-{version}-linux-{arch}.tar.gz  # gui feature 없는 헤드리스 빌드
 #
 # Requires:
+#   curl, tar                          # 번들 플러그인: official-plugins.lock.toml의 산출물을 받는다(빌드하지 않는다)
 #   cargo install cargo-deb            # .deb 패키지 생성 (debug 빌드에선 생략)
 #   cargo install cargo-generate-rpm   # .rpm 패키지 생성 (debug 빌드에선 생략)
 #   linuxdeploy (PATH에 위치)          # .AppImage 생성. 다음 한 번만 실행:
@@ -146,72 +147,28 @@ fi
 echo "==> Building tasty ($PROFILE)..."
 cargo build $CARGO_FLAGS
 
-# 매니페스트가 있고 bundle=false가 아닌 plugin을 배포에 포함한다.
-PLUGIN_CRATES=()
-for d in crates/tasty-plugin-*; do
-    [ -f "$d/tasty-plugin.toml" ] || continue
-    if grep -Eq '^[[:space:]]*bundle[[:space:]]*=[[:space:]]*false' "$d/tasty-plugin.toml"; then
-        echo "==> Skipping $(basename "$d") (bundle = false)"
-        continue
-    fi
-    PLUGIN_CRATES+=("$(basename "$d")")
-done
+# 번들 플러그인은 여기서 빌드하지 않는다. 잠금 파일의 bundle = true 산출물을 받아 넣는다.
+# shellcheck source=scripts/lib/bundled-plugins.sh
+. "scripts/lib/bundled-plugins.sh"
 
-if [[ ${#PLUGIN_CRATES[@]} -eq 0 ]]; then
-    echo "Error: no plugin crates with tasty-plugin.toml found under crates/" >&2
-    exit 1
-fi
-
-echo "==> Building ${#PLUGIN_CRATES[@]} plugins ($PROFILE)..."
-PLUGIN_CARGO_ARGS=()
-for c in "${PLUGIN_CRATES[@]}"; do
-    PLUGIN_CARGO_ARGS+=("-p" "$c")
-done
-cargo build $CARGO_FLAGS "${PLUGIN_CARGO_ARGS[@]}"
+echo "==> Fetching locked official plugins (linux-$ARCH)..."
+fetch_bundled_plugins "linux-$ARCH"
 
 # 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
+# 받은 산출물에 .sig가 있으면 sign-bundle.sh가 실패한다(공식 플러그인은 서명 없이 온다).
 sign_bundled_plugins() {
     echo "==> Signing plugin manifests with $SIGN_KEY_PATH..."
-    ./scripts/sign-bundle.sh --key "$SIGN_KEY_PATH" --all-builtins
+    ./scripts/sign-bundle.sh --key "$SIGN_KEY_PATH" --dir "$BUNDLED_PLUGINS_DIR"
 }
 
 if [[ "$PROFILE" != "debug" ]]; then
     sign_bundled_plugins
 fi
+normalize_bundled_plugin_modes
 
 # 실행 파일 옆의 plugins/<id>에 배치한다. 번들 탐색 경로와 맞아야 한다.
 stage_plugins() {
-    local plugins_dir="$1"
-    mkdir -p "$plugins_dir"
-    for c in "${PLUGIN_CRATES[@]}"; do
-        local manifest="crates/$c/tasty-plugin.toml"
-        local id
-        id=$(grep -m1 -E '^id[[:space:]]*=' "$manifest" | sed 's/.*"\([^"]*\)".*/\1/')
-        if [[ -z "$id" ]]; then
-            echo "Error: cannot parse id from $manifest" >&2
-            exit 1
-        fi
-        local src_bin="target/$PROFILE/$c"
-        if [[ ! -f "$src_bin" ]]; then
-            echo "Error: plugin binary missing: $src_bin" >&2
-            exit 1
-        fi
-        local dest="$plugins_dir/$id"
-        mkdir -p "$dest"
-        cp "$src_bin" "$dest/$c"
-        cp "$manifest" "$dest/tasty-plugin.toml"
-        if [[ -f "crates/$c/tasty-plugin.toml.sig" ]]; then
-            cp "crates/$c/tasty-plugin.toml.sig" "$dest/tasty-plugin.toml.sig"
-        elif [[ "$PROFILE" != "debug" ]]; then
-            echo "Error: missing crates/$c/tasty-plugin.toml.sig (signing failed?)" >&2
-            exit 1
-        fi
-        if [[ -d "crates/$c/lang" ]]; then
-            rm -rf "$dest/lang"
-            cp -R "crates/$c/lang" "$dest/lang"
-        fi
-        echo "  staged $id"
-    done
+    stage_bundled_plugins "$1"
 }
 
 # 공용 notice 목록을 읽어 Linux와 macOS가 같은 파일을 배포한다.
@@ -287,7 +244,8 @@ if [[ "$PROFILE" != "debug" ]]; then
         exit 1
     fi
 
-    # deb/rpm의 plugin 파일 목록은 Cargo.toml 패키징 설정에 있다. --no-build 전에 바이너리가 필요하다.
+    # deb/rpm assets(Cargo.toml)는 본체를 target/release에서, 번들 플러그인을 $BUNDLED_PLUGINS_DIR 에서 읽는다.
+    # 두 도구 모두 --profile을 주면 target/release/ 를 target/<profile>/ 로 바꿔 읽는다.
 
     echo "==> Building .deb package..."
     cargo deb --no-build --profile "$PROFILE"
@@ -323,7 +281,7 @@ fi
 
 # 헤드리스는 gui feature를 끈 빌드라 별도 target 디렉터리를 쓴다. 같은 target을 쓰면
 # 위 패키지가 읽은 target/$PROFILE/tasty를 헤드리스 바이너리로 덮는다.
-# plugin은 헤드리스 호스트도 실행하므로 위에서 빌드·서명한 번들을 그대로 넣는다.
+# plugin은 헤드리스 호스트도 실행하므로 위에서 받아 서명한 번들을 그대로 넣는다.
 HEADLESS_TARGET_DIR="target/headless"
 HEADLESS_PKG_DIR="tasty-headless-linux-${ARCH}"
 HEADLESS_ARCHIVE_NAME="tasty-headless-${VERSION}-linux-${ARCH}.tar.gz"
@@ -351,11 +309,16 @@ grep -q "$PKG_DIR/tasty" <<<"$TAR_LISTING" || {
     exit 1
 }
 verify_notice_listing "$TAR_LISTING" "$PKG_DIR/" "$ARCHIVE_NAME" || exit 1
+verify_bundled_plugin_listing "$TAR_LISTING" "$PKG_DIR/plugins/" "$ARCHIVE_NAME" || exit 1
 VERIFY_TMP=$(mktemp -d)
 tar -xzf "$DIST_DIR/$ARCHIVE_NAME" -C "$VERIFY_TMP"
 "$VERIFY_TMP/$PKG_DIR/tasty" --version >/dev/null || {
     rm -rf "$VERIFY_TMP"
     echo "Error: tasty --version failed (from tar.gz)" >&2
+    exit 1
+}
+verify_bundled_plugin_tree "$VERIFY_TMP/$PKG_DIR/plugins" "$ARCHIVE_NAME" || {
+    rm -rf "$VERIFY_TMP"
     exit 1
 }
 rm -rf "$VERIFY_TMP"
@@ -369,11 +332,16 @@ grep -q "$HEADLESS_PKG_DIR/plugins/" <<<"$HEADLESS_LISTING" || {
     exit 1
 }
 verify_notice_listing "$HEADLESS_LISTING" "$HEADLESS_PKG_DIR/" "$HEADLESS_ARCHIVE_NAME" || exit 1
+verify_bundled_plugin_listing "$HEADLESS_LISTING" "$HEADLESS_PKG_DIR/plugins/" "$HEADLESS_ARCHIVE_NAME" || exit 1
 VERIFY_TMP=$(mktemp -d)
 tar -xzf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" -C "$VERIFY_TMP"
 "$VERIFY_TMP/$HEADLESS_PKG_DIR/tasty" --version >/dev/null || {
     rm -rf "$VERIFY_TMP"
     echo "Error: tasty --version failed (from $HEADLESS_ARCHIVE_NAME)" >&2
+    exit 1
+}
+verify_bundled_plugin_tree "$VERIFY_TMP/$HEADLESS_PKG_DIR/plugins" "$HEADLESS_ARCHIVE_NAME" || {
+    rm -rf "$VERIFY_TMP"
     exit 1
 }
 # 두 빌드의 feature가 다르므로 GUI 바이너리와 같은 파일이면 헤드리스 빌드가 적용되지 않은 것이다.
@@ -394,6 +362,7 @@ if [[ -n "$DEB_FILE" ]]; then
         exit 1
     }
     verify_notice_listing "$DEB_LISTING" "usr/share/doc/tasty/" "$DEB_FILE" || exit 1
+    verify_bundled_plugin_listing "$DEB_LISTING" "usr/lib/tasty/plugins/" "$DEB_FILE" || exit 1
 fi
 if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
     rpm -qpi "$RPM_FILE" >/dev/null 2>&1 || {
@@ -402,6 +371,7 @@ if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
     }
     RPM_LISTING=$(rpm -qpl "$RPM_FILE" 2>/dev/null)
     verify_notice_listing "$RPM_LISTING" "/usr/share/licenses/tasty/" "$RPM_FILE" flat || exit 1
+    verify_bundled_plugin_listing "$RPM_LISTING" "/usr/lib/tasty/plugins/" "$RPM_FILE" || exit 1
 fi
 # AppImage는 실행하지 않고 파일 종류와 패키징 입력 AppDir만 확인한다.
 if [[ -n "$APPIMAGE_FILE" ]]; then
@@ -416,6 +386,7 @@ if [[ -n "$APPIMAGE_FILE" ]]; then
     }
     # 완성 AppImage 내부가 아니라 linuxdeploy에 넘긴 AppDir의 notice 파일을 검사한다.
     verify_notice_tree "$APPDIR/usr/share/licenses/tasty" "$APPDIR" || exit 1
+    verify_bundled_plugin_tree "$APPDIR/usr/bin/plugins" "$APPDIR" || exit 1
 fi
 
 SHASUMS_FILE="SHA256SUMS-linux-${ARCH}.txt"
