@@ -92,9 +92,14 @@ stage_binary() {
     cp "$src" "$out"
 }
 
-if [[ "$PROFILE" != "debug" ]]; then
+# 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
+sign_bundled_plugins() {
     echo "==> Signing plugin manifests with $SIGN_KEY_PATH..."
     ./scripts/sign-bundle.sh --key "$SIGN_KEY_PATH" --all-builtins
+}
+
+if [[ "$PROFILE" != "debug" ]]; then
+    sign_bundled_plugins
 fi
 
 echo "==> Assembling $APP_NAME.app..."

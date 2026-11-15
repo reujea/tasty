@@ -169,9 +169,14 @@ for c in "${PLUGIN_CRATES[@]}"; do
 done
 cargo build $CARGO_FLAGS "${PLUGIN_CARGO_ARGS[@]}"
 
-if [[ "$PROFILE" != "debug" ]]; then
+# 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
+sign_bundled_plugins() {
     echo "==> Signing plugin manifests with $SIGN_KEY_PATH..."
     ./scripts/sign-bundle.sh --key "$SIGN_KEY_PATH" --all-builtins
+}
+
+if [[ "$PROFILE" != "debug" ]]; then
+    sign_bundled_plugins
 fi
 
 # 실행 파일 옆의 plugins/<id>에 배치한다. 번들 탐색 경로와 맞아야 한다.

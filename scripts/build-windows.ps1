@@ -199,7 +199,8 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-if ($BuildProfile -ne "debug") {
+# 매니페스트 서명은 이 함수 하나가 맡는다. 서명 주체가 바뀌면 이 함수만 바꾼다.
+function Sign-BundledPlugins {
     $SignKeyPath = $env:SIGN_KEY_PATH
     $Bash = Resolve-Bash
     if (-not $Bash) {
@@ -212,6 +213,10 @@ if ($BuildProfile -ne "debug") {
         Write-Error "sign-bundle.sh failed with exit code $LASTEXITCODE"
         exit 1
     }
+}
+
+if ($BuildProfile -ne "debug") {
+    Sign-BundledPlugins
 }
 
 function Stage-Plugins {
