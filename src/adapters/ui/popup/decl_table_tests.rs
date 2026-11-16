@@ -1,7 +1,8 @@
 //! 정의마다 선언 값이 지금 그리기 결과와 같은지 표로 고정한다.
 //!
 //! `EXPECTED`는 선언 값을 도입하기 전 id 명부(scrim·scrim 포인터·탐색기 끌어 놓기 차단·그림자·
-//! 콘텐츠 여백·배경·테두리·제목줄 아래 선)가 정의마다 낸 결과를 옮겨 적은 것이다.
+//! 콘텐츠 여백·배경·테두리·제목줄 아래 선)가 정의마다 낸 결과를 옮겨 적은 것이다. 명부를 지우기 전
+//! 커밋에서 명부 함수의 결과와 이 표가 같은 것을 확인했다.
 //! 정의를 더하면 이 표에도 행을 더한다. 표에 없는 정의가 있으면 실패한다.
 
 use super::super::{
@@ -165,7 +166,7 @@ const EXPECTED: &[Row] = &[
 ];
 
 /// 표의 모든 행이 가리키는 팝업을 등록한 그대로 모은다. 정의 목록, 설정 창의 두 팝업 순서다.
-fn declared() -> Vec<(&'static str, PopupLook)> {
+fn registered() -> Vec<PopupState> {
     let mut mgr = PopupManager::new();
     for def in super::all_defs() {
         mgr.register_def(def, 1.0);
@@ -178,7 +179,11 @@ fn declared() -> Vec<(&'static str, PopupLook)> {
         None,
     ));
     crate::view::file_chooser::register(&mut mgr);
-    mgr.popups.iter().map(|p| (p.id, p.look)).collect()
+    mgr.popups
+}
+
+fn declared() -> Vec<(&'static str, PopupLook)> {
+    registered().iter().map(|p| (p.id, p.look)).collect()
 }
 
 /// 선언의 셸 값이 가리키는 토큰. 그리기 코드가 같은 묶음을 쓰는지는 아래 시험이 색으로 확인한다.
@@ -243,56 +248,39 @@ fn every_declaration_reproduces_the_old_lists() {
     }
 }
 
-/// 두 내장 테마에서 옛 명부 함수의 결과가 표와 같다.
+/// 두 내장 테마에서 그리기 코드가 선언으로 고른 색·그림자·여백이 표와 같다.
 #[test]
-fn the_old_lists_match_the_table() {
-    let popover = crate::theme::theme().shadow_popover();
+fn drawing_reads_the_declarations_as_the_table_says() {
+    let global = crate::theme::theme();
     for text in [tasty_themes::MOCHA_TOML_TEXT, tasty_themes::LATTE_TOML_TEXT] {
         let file = tasty_themes::ThemeFile::parse(text).expect("built-in theme");
         let (partial, is_light) = file.to_partial();
         let mut colors = tasty_themes::mocha_fallback_colors();
         colors.apply_partial(&partial);
         let th = Theme::with_colors(colors, is_light.unwrap_or(false));
-        for r in EXPECTED {
-            let id = r.id;
+        for state in registered() {
+            let id = state.id;
+            let r = expected(id);
+            let shell = super::super::draw::shell_colors(state.look.shell, &th);
+            assert_eq!(shell.bg, color(r.bg, &th), "{id} bg");
+            assert_eq!(shell.border, color(r.border, &th), "{id} border");
             assert_eq!(
-                crate::adapters::ui::PopupManager::popup_has_scrim(id),
-                r.scrim,
-                "{id} scrim"
-            );
-            assert_eq!(
-                super::super::remote_row::scrim_takes_pointer(id),
-                r.scrim_pointer,
-                "{id} scrim pointer"
-            );
-            assert_eq!(
-                id == super::super::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID,
-                r.blocks_drop,
-                "{id} drop"
-            );
-            assert_eq!(
-                super::super::draw::popup_shadow(id) == Some(popover),
-                r.popover_shadow,
-                "{id} shadow"
-            );
-            let popup = PopupState::new(id, "t", egui::vec2(300.0, 200.0)).with_headless(true);
-            let margin = popup.content_rect().min.x - popup.popup_rect().min.x;
-            assert_eq!(margin == 0.0, r.margin_zero, "{id} margin");
-            assert_eq!(
-                super::super::draw::popup_bg_fill(id, &th),
-                color(r.bg, &th),
-                "{id} bg"
-            );
-            assert_eq!(
-                super::super::draw::popup_border(id, &th),
-                color(r.border, &th),
-                "{id} border"
-            );
-            assert_eq!(
-                super::super::draw::popup_title_edge(id, &th),
+                shell.title_edge,
                 color(r.title_edge, &th),
                 "{id} title edge"
             );
+            let shadow = super::super::draw::shadow_token(state.look.shadow, &global);
+            let want = if r.popover_shadow {
+                global.shadow_popover()
+            } else {
+                global.shadow_modal()
+            };
+            assert_eq!(shadow, want, "{id} shadow");
+            let mut sized = state.clone();
+            sized.size = egui::vec2(300.0, 200.0);
+            sized.headless = true;
+            let margin = sized.content_rect().min.x - sized.popup_rect().min.x;
+            assert_eq!(margin == 0.0, r.margin_zero, "{id} margin");
         }
     }
 }

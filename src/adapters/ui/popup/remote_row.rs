@@ -27,11 +27,6 @@ pub(crate) fn is_remote_row(id: PopupId) -> bool {
     id == REMOTE_ROW_POPUP_ID || id == REMOTE_ROW_SCRIM_POPUP_ID
 }
 
-/// scrim 이 포인터를 받는 팝업(R-58 Q1). 마지막 화면은 선택·복사·스크롤·링크가 막힌다.
-pub(crate) fn scrim_takes_pointer(id: PopupId) -> bool {
-    id == REMOTE_ROW_SCRIM_POPUP_ID
-}
-
 /// 이 창의 연결 팝업 상태.
 #[derive(Debug, Clone, Default)]
 pub struct RemoteRowPopupState {
@@ -285,6 +280,7 @@ fn draw(ui: &mut egui::Ui, state: &mut MainViewState, engine: &EngineRead<'_>) -
 
 /// 두 팝업의 정의. 제목줄·닫기·이동이 없고 바깥을 눌러도 닫히지 않는다.
 /// `over_screen`이면 마지막 화면 위 팝업이다. 콘텐츠 영역을 scrim 으로 덮고 그 scrim 이 포인터를 받는다.
+/// 마지막 화면은 선택·복사·스크롤·링크가 막힌다.
 pub(crate) fn def(id: PopupId, over_screen: bool) -> PopupDef {
     PopupDef {
         id,
@@ -618,11 +614,7 @@ mod tests {
         assert!(state.popups.is_open(REMOTE_ROW_POPUP_ID));
         assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
         assert!(!state.dialogs.remote_row_popup.take_dropped());
-        assert!(!crate::adapters::ui::PopupManager::popup_has_scrim(
-            REMOTE_ROW_POPUP_ID
-        ));
-        assert!(crate::adapters::ui::PopupManager::popup_has_scrim(
-            REMOTE_ROW_SCRIM_POPUP_ID
-        ));
+        assert!(!state.popups.covers_scope(REMOTE_ROW_POPUP_ID));
+        assert!(state.popups.covers_scope(REMOTE_ROW_SCRIM_POPUP_ID));
     }
 }

@@ -154,6 +154,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::TitleBar,
                     resizable: false,
                     min_size: None,
+                    // dialog 라 dialog-bg 다. 그 위라야 읽기 전용 이름 칸의 상자가 보인다.
                     shell: PopupShell::Dialog,
                     content_margin: PopupContentMargin::None,
                     keyboard: PopupKeyboard::Text,
@@ -178,6 +179,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
+                    // 시안 바탕이 bg-panel 이고 읽기 실패 화면의 Retry 가 Secondary 버튼이다.
                     shell: PopupShell::Panel,
                     escape: PopupEscape::Unfocus,
                     ..host_decl(popup_size(super::explorer_properties::default_size()))
@@ -200,6 +202,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
+                    // 검색 바 테두리는 search-bar-border 다.
                     shell: PopupShell::SearchBar,
                     shadow: PopupShadow::Popover,
                     anchor: PopupAnchor::ScopeTop,
@@ -224,6 +227,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::TitleBar,
                     resizable: false,
                     min_size: None,
+                    // 제목줄 아래 선은 info modal 셸 규칙(info-modal-title-edge)을 따른다.
                     shell: PopupShell::InfoPanel,
                     content_margin: PopupContentMargin::None,
                     ..host_decl(popup_size(egui::vec2(440.0, 160.0)))
@@ -269,6 +273,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::Region,
                     resizable: false,
                     min_size: None,
+                    // 배경은 default Tag 채움색과 달라야 한다(popup_shell_fill_keeps_the_default_tag_visible).
                     shell: PopupShell::Panel,
                     ..host_decl(popup_size(super::file_handler_picker::picker_default_size()))
                 },
@@ -292,6 +297,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::Region,
                     resizable: false,
                     min_size: None,
+                    // 오류 상태의 Secondary 버튼(surface-raised)이 묻히지 않도록 시안 창 배경 bg-panel 을 쓴다.
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
                     ..host_decl(popup_size(egui::vec2(640.0, 480.0)))
@@ -365,6 +371,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::TitleBar,
                     resizable: true,
                     min_size: Some(popup_size(egui::vec2(360.0, 280.0))),
+                    // 시안 바탕이 bg-panel 이다. surface-raised 위에서는 검색 칸의 input-bg·input-border 가 바탕과 같아진다.
                     shell: PopupShell::Panel,
                     // sizer가 배율을 적용한 토큰으로 크기를 계산한다.
                     ..host_decl(popup_size(egui::vec2(560.0, 460.0)))
@@ -609,6 +616,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
+                    // 메뉴형 셸은 egui 팝오버와 같은 menu-border 를 쓴다.
                     shell: PopupShell::Menu,
                     shadow: PopupShadow::Popover,
                     anchor: PopupAnchor::AtPoint,
@@ -633,6 +641,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
+                    // 배너 더보기 메뉴의 테두리는 banner-more-menu-border 다.
                     shell: PopupShell::BannerMenu,
                     shadow: PopupShadow::Popover,
                     anchor: PopupAnchor::AtPoint,
@@ -749,6 +758,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
+                    // 메뉴형 셸은 egui 팝오버와 같은 menu-border 를 쓴다.
                     shell: PopupShell::Menu,
                     shadow: PopupShadow::Popover,
                     anchor: PopupAnchor::AtPoint,

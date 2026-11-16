@@ -535,25 +535,9 @@ impl PopupState {
     fn content_rect(&self) -> egui::Rect {
         let popup = self.popup_rect();
         // 구역별로 여백을 주는 팝업은 공통 내부 여백을 적용하지 않는다.
-        let margin = if matches!(
-            self.id,
-            "remote_tool"
-                | "notifications"
-                | "remote_attach"
-                | "command_palette"
-                | "port_scanner"
-                | "script_changed_confirm"
-                | "rename"
-                | transfer::TRANSFER_PROGRESS_POPUP_ID
-                | transfer::TRANSFER_ERROR_POPUP_ID
-                | crate::adapters::ui::info_modal::INFO_MODAL_ID
-                | file_picker::FILE_PICKER_POPUP_ID
-                | crate::view::file_chooser::FILE_CHOOSER_POPUP_ID
-                | explorer_conflict::EXPLORER_CONFLICT_POPUP_ID
-        ) {
-            LogicalPx(0.0)
-        } else {
-            content_margin()
+        let margin = match self.look.content_margin {
+            PopupContentMargin::None => LogicalPx(0.0),
+            PopupContentMargin::Default => content_margin(),
         };
         let top_offset = if self.headless {
             margin
@@ -797,6 +781,21 @@ impl PopupManager {
     /// 닫힌 팝업 목록을 꺼내 비운다. 호출부가 훅을 실행하며 다른 팝업도 닫을 수 있다.
     pub fn take_closed_queue(&mut self) -> Vec<PopupId> {
         std::mem::take(&mut self.closed_queue)
+    }
+
+    /// 선언이 소속 범위를 덮는다고 한 팝업인지. 등록되지 않았으면 false다.
+    #[cfg(test)]
+    pub fn covers_scope(&self, id: PopupId) -> bool {
+        self.popups
+            .iter()
+            .any(|p| p.id == id && p.look.covers_scope)
+    }
+
+    /// 범위 아래 탐색기로 끌어 놓기를 막는 팝업이 열려 있는지.
+    pub fn any_open_blocks_drop(&self) -> bool {
+        self.popups
+            .iter()
+            .any(|p| p.open && p.look.scrim_input == ScrimInput::BlocksDrop)
     }
 
     /// Check if a popup is open.

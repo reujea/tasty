@@ -6,87 +6,78 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::elide_popup_title as elide_for_width;
 
 use super::occlusion::{Occluder, PointOwnership, point_ownership};
-use super::{PopupDrawResult, PopupId, PopupManager, PopupScope, ResizeEdges};
+use super::{
+    PopupDrawResult, PopupId, PopupManager, PopupScope, PopupShadow, PopupShell, ResizeEdges,
+    ScrimInput,
+};
 
 /// 리사이즈 테두리 밴드 폭(px). popup_rect 가장자리 안쪽 이 폭 안에서 누르면 리사이즈.
 const RESIZE_BAND: LogicalPx = LogicalPx(6.0);
 
-/// scrim 없이 콘텐츠 위에 붙는 팝업 목록. 트리거 옆 또는 범위 상단에 표시한다.
-/// 위치는 열 때 지정되므로 PopupDef에서 읽을 수 없어 별도 목록으로 관리한다.
-const ANCHORED_POPUPS: &[PopupId] = &[
-    "tools_menu",
-    "search_bar",
-    super::rail_category::RAIL_CATEGORY_POPUP_ID,
-    crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
-];
+/// 셸 토큰 묶음의 색.
+pub(super) struct ShellColors {
+    pub(super) bg: egui::Color32,
+    pub(super) border: egui::Color32,
+    pub(super) title_edge: egui::Color32,
+}
 
-/// popover 목록에 없는 팝업은 modal 그림자를 사용한다.
-/// scrim 여부와는 별개인 분류다(docs/architecture/ui-widgets-crate.md).
-pub(super) fn popup_shadow(popup_id: PopupId) -> Option<tasty_type_appearance::theme::ShadowToken> {
-    let th = theme::theme();
-    // 빈 workspace 위 원격 행 팝업은 scrim 이 없어 popover 그림자다.
-    if ANCHORED_POPUPS.contains(&popup_id) || popup_id == super::remote_row::REMOTE_ROW_POPUP_ID {
-        Some(th.shadow_popover())
-    } else {
-        Some(th.shadow_modal())
+/// 선언한 셸 묶음의 배경·테두리·제목줄 아래 선 색. 팝업마다 이 묶음을 고른 이유는 정의(`defs.rs`)에 적는다.
+pub(super) fn shell_colors(
+    shell: PopupShell,
+    th: &tasty_type_appearance::theme::Theme,
+) -> ShellColors {
+    let (bg, border, title_edge): (egui::Color32, egui::Color32, egui::Color32) = match shell {
+        PopupShell::Raised => (
+            th.surface_raised().into(),
+            th.border_frame().into(),
+            th.border_frame().into(),
+        ),
+        PopupShell::Panel => (
+            th.bg_panel().into(),
+            th.border_frame().into(),
+            th.border_frame().into(),
+        ),
+        PopupShell::InfoPanel => (
+            th.bg_panel().into(),
+            th.border_frame().into(),
+            th.info_modal_title_edge().into(),
+        ),
+        PopupShell::Dialog => (
+            th.dialog_bg().into(),
+            th.border_frame().into(),
+            th.border_frame().into(),
+        ),
+        PopupShell::Menu => (
+            th.surface_raised().into(),
+            th.menu_border().into(),
+            th.border_frame().into(),
+        ),
+        PopupShell::BannerMenu => (
+            th.surface_raised().into(),
+            th.banner_more_menu_border().into(),
+            th.border_frame().into(),
+        ),
+        PopupShell::SearchBar => (
+            th.surface_raised().into(),
+            th.search_bar_border().into(),
+            th.border_frame().into(),
+        ),
+    };
+    ShellColors {
+        bg,
+        border,
+        title_edge,
     }
 }
 
-/// 팝업 종류별 배경. file_handler_picker의 배경은 default Tag 채움색과 구분해야 한다.
-/// popup_shell_fill_keeps_the_default_tag_visible에서 두 색을 비교한다.
-/// file picker(설정 창 파일 선택기 포함)는 오류 상태의 Secondary 버튼(`button-secondary-bg` = surface-raised)이 셸에
-/// 묻히지 않도록 시안 창 배경 bg-panel 을 쓴다. 탐색기 Properties 도 시안 YProps 바탕이 bg-panel 이고
-/// 읽기 실패 화면의 Retry 가 같은 Secondary 버튼이다. rename 팝업(workspace·탭·카테고리·탐색기 항목·
-/// 즐겨찾기 추가)은 dialog 라 dialog-bg 이며, 그 위라야 읽기 전용 이름 칸의 상자가 보인다.
-/// DAG 목록 팝업은 시안 `DagWindow` 바탕이 bg-panel 이고 검색 칸은 기본 바탕 Input 이다. surface-raised
-/// 위에서는 input-bg·input-border 가 바탕과 같은 색이 되어 칸이 사라진다.
-pub(super) fn popup_bg_fill(
-    popup_id: PopupId,
+/// 선언한 그림자 토큰. scrim 여부와는 별개인 분류다(docs/architecture/ui-widgets-crate.md).
+pub(super) fn shadow_token(
+    shadow: PopupShadow,
     th: &tasty_type_appearance::theme::Theme,
-) -> egui::Color32 {
-    match popup_id {
-        "notifications" | "remote_tool" | "port_scanner" | "tutorial_topics" | "remote_attach"
-        | "convert_surface" => th.bg_panel().into(),
-        super::transfer::TRANSFER_PROGRESS_POPUP_ID
-        | super::transfer::TRANSFER_ERROR_POPUP_ID
-        | super::file_handler_picker::PICKER_POPUP_ID
-        | super::file_picker::FILE_PICKER_POPUP_ID
-        | crate::view::file_chooser::FILE_CHOOSER_POPUP_ID
-        | super::explorer_properties::EXPLORER_PROPERTIES_POPUP_ID
-        | super::dag_list::DAG_LIST_POPUP_ID
-        | crate::adapters::ui::info_modal::INFO_MODAL_ID => th.bg_panel().into(),
-        "rename" => th.dialog_bg().into(),
-        _ => th.surface_raised().into(),
-    }
-}
-
-/// 셸 테두리 색. 메뉴형 팝업(Tools 메뉴·레일 카테고리 메뉴)은 egui 팝오버와 같은 `menu-border`,
-/// 검색 바는 `search-bar-border`, 마우스 캡처 배너 메뉴는 `banner-more-menu-border` 다(셋 다
-/// → border-strong). 나머지는 공통 frame 색이다.
-pub(super) fn popup_border(
-    popup_id: PopupId,
-    th: &tasty_type_appearance::theme::Theme,
-) -> egui::Color32 {
-    match popup_id {
-        crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID => {
-            th.banner_more_menu_border().into()
-        }
-        "tools_menu" | super::rail_category::RAIL_CATEGORY_POPUP_ID => th.menu_border().into(),
-        "search_bar" => th.search_bar_border().into(),
-        _ => th.border_frame().into(),
-    }
-}
-
-/// 타이틀바 아래 선 색. 안내 모달은 디자인의 info modal 셸 규칙(`info-modal-title-edge`)을
-/// 따르고 나머지는 공통 값을 쓴다.
-pub(super) fn popup_title_edge(
-    popup_id: PopupId,
-    th: &tasty_type_appearance::theme::Theme,
-) -> egui::Color32 {
-    if popup_id == crate::adapters::ui::info_modal::INFO_MODAL_ID {
-        th.info_modal_title_edge().into()
-    } else {
-        th.border_frame().into()
+) -> tasty_type_appearance::theme::ShadowToken {
+    match shadow {
+        PopupShadow::Modal => th.shadow_modal(),
+        PopupShadow::Popover => th.shadow_popover(),
     }
 }
 
@@ -252,7 +243,7 @@ impl PopupManager {
         {
             hovered_popup = open_indices.iter().rev().find_map(|&i| {
                 let popup = &self.popups[i];
-                (super::remote_row::scrim_takes_pointer(popup.id)
+                (popup.look.scrim_input == ScrimInput::TakesPointer
                     && Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx)
                         .is_some_and(|r| r.contains(pos)))
                 .then_some(popup.id)
@@ -424,7 +415,7 @@ impl PopupManager {
         let scrim_candidates: Vec<(usize, egui::Rect)> = open_indices
             .iter()
             .filter(|&&i| !closed.contains(&self.popups[i].id))
-            .filter(|&&i| Self::popup_has_scrim(self.popups[i].id))
+            .filter(|&&i| self.popups[i].look.covers_scope)
             .map(|&i| {
                 (
                     i,
@@ -491,12 +482,11 @@ impl PopupManager {
                 painter.rect_filled(scrim_rect, 0.0, th.scrim().to_egui());
             }
 
-            let bg_fill: egui::Color32 = popup_bg_fill(popup_id, &th);
+            let shell = shell_colors(popup.look.shell, &th);
+            let bg_fill = shell.bg;
             // 그림자는 scrim 위, 셸 아래에 그린다.
-            let shadow = popup_shadow(popup_id).map(|s| edge.shadow(&th, s));
-            if let Some(shadow) = shadow {
-                painter.add(shadow.to_egui().as_shape(popup_rect, radius));
-            }
+            let shadow = edge.shadow(&th, shadow_token(popup.look.shadow, &th));
+            painter.add(shadow.to_egui().as_shape(popup_rect, radius));
             if !popup.passive {
                 overlay_targets.push(crate::state::webview_overlay::OverlayTarget {
                     kind: crate::state::webview_overlay::TargetKind::HostPopup,
@@ -508,9 +498,7 @@ impl PopupManager {
                         scope_clip,
                         ctx.pixels_per_point(),
                     ),
-                    paint_rect: shadow
-                        .map_or(popup_rect, |s| popup_rect + s.to_egui().margin())
-                        .intersect(scope_clip),
+                    paint_rect: (popup_rect + shadow.to_egui().margin()).intersect(scope_clip),
                     scrim,
                 });
             }
@@ -518,7 +506,7 @@ impl PopupManager {
             painter.rect_stroke(
                 popup_rect,
                 radius,
-                egui::Stroke::new(th.border_width.value(), popup_border(popup_id, &th)),
+                egui::Stroke::new(th.border_width.value(), shell.border),
                 egui::StrokeKind::Outside,
             );
 
@@ -538,7 +526,7 @@ impl PopupManager {
                     },
                     th.bg_sidebar(),
                 );
-                let title_edge = popup_title_edge(popup_id, &th);
+                let title_edge = shell.title_edge;
                 painter.line_segment(
                     [
                         egui::pos2(title_rect.min.x, title_rect.max.y),
@@ -791,23 +779,6 @@ impl PopupManager {
         }
         paints
     }
-
-    /// scrim은 범위가 아니라 팝업 ID로 정한다. surface 소속인 search_bar도 scrim은 사용하지 않는다.
-    pub(crate) fn popup_has_scrim(id: PopupId) -> bool {
-        matches!(
-            id,
-            "remote_tool"
-                | "remote_attach"
-                | "command_palette"
-                | "port_scanner"
-                | "convert_surface"
-                | super::transfer::TRANSFER_PROGRESS_POPUP_ID
-                | super::transfer::TRANSFER_ERROR_POPUP_ID
-                | super::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID
-                | super::confirm_close_remote::CONFIRM_CLOSE_REMOTE_POPUP_ID
-                | super::remote_row::REMOTE_ROW_SCRIM_POPUP_ID
-        )
-    }
 }
 
 #[cfg(test)]
@@ -863,7 +834,7 @@ mod tests {
     fn popup_shell_fill_keeps_the_default_tag_visible() {
         let th = theme::theme();
         let shell: egui::Color32 =
-            popup_bg_fill(super::super::file_handler_picker::PICKER_POPUP_ID, &th);
+            declared_bg(super::super::file_handler_picker::PICKER_POPUP_ID, &th);
         let tag: egui::Color32 = th.tag_bg().into();
         assert_ne!(
             shell, tag,
@@ -882,7 +853,7 @@ mod tests {
             colors.apply_partial(&partial);
             let th =
                 tasty_type_appearance::theme::Theme::with_colors(colors, is_light.unwrap_or(false));
-            let shell = popup_bg_fill("rename", &th);
+            let shell = declared_bg("rename", &th);
             assert_eq!(shell, egui::Color32::from(th.dialog_bg()));
             for (what, fill) in [
                 ("readonly", th.input_readonly_bg()),
@@ -907,7 +878,7 @@ mod tests {
             colors.apply_partial(&partial);
             let th =
                 tasty_type_appearance::theme::Theme::with_colors(colors, is_light.unwrap_or(false));
-            let shell = popup_bg_fill(super::super::dag_list::DAG_LIST_POPUP_ID, &th);
+            let shell = declared_bg(super::super::dag_list::DAG_LIST_POPUP_ID, &th);
             assert_eq!(shell, egui::Color32::from(th.bg_panel()));
             assert_ne!(
                 shell,
@@ -926,7 +897,7 @@ mod tests {
             super::super::file_picker::FILE_PICKER_POPUP_ID,
             super::super::explorer_properties::EXPLORER_PROPERTIES_POPUP_ID,
         ] {
-            let shell: egui::Color32 = popup_bg_fill(id, &th);
+            let shell: egui::Color32 = declared_bg(id, &th);
             let fill: egui::Color32 = th.button_secondary_bg().into();
             let edge: egui::Color32 = th.button_secondary_border().into();
             assert_ne!(shell, fill, "{id}: 셸과 Secondary 버튼 채움이 같은 색이다");
@@ -1084,28 +1055,50 @@ mod tests {
         assert_eq!(paints, vec![true, true]);
     }
 
-    /// scrim 여부는 범위가 아니라 id 로 정한다 — `search_bar` 는 surface 범위를 쓰지만
+    fn decl_of(id: &str) -> super::super::PopupDecl {
+        super::super::defs::find(id)
+            .unwrap_or_else(|| panic!("{id} 정의가 없다"))
+            .decl
+    }
+
+    /// 셸 배경은 선언한 셸 묶음이 정한다.
+    fn declared_bg(id: &str, th: &tasty_type_appearance::theme::Theme) -> egui::Color32 {
+        shell_colors(decl_of(id).shell, th).bg
+    }
+
+    /// scrim 여부는 범위가 아니라 선언으로 정한다 — `search_bar` 는 surface 범위를 쓰지만
     /// anchored + scrim-less 갈래다(docs/architecture/ui-widgets-crate.md).
     #[test]
     fn the_anchored_search_bar_takes_no_scrim_although_it_is_surface_scoped() {
-        assert!(!PopupManager::popup_has_scrim("search_bar"));
-        assert!(PopupManager::popup_has_scrim("convert_surface"));
-        assert!(PopupManager::popup_has_scrim("command_palette"));
+        assert!(!decl_of("search_bar").covers_scope);
+        assert!(decl_of("convert_surface").covers_scope);
+        assert!(decl_of("command_palette").covers_scope);
         assert!(
-            !PopupManager::popup_has_scrim(super::super::file_picker::FILE_PICKER_POPUP_ID),
+            !decl_of(super::super::file_picker::FILE_PICKER_POPUP_ID).covers_scope,
             "자식 picker 는 부모의 scrim 위에 얹힌다 — 자기 것을 덧그리지 않는다"
         );
     }
 
-    /// popover 그림자를 사용하는 팝업에는 scrim이 없는지 두 목록을 대조한다.
+    /// 범위 가운데가 아닌 곳에 붙는 팝업은 popover 그림자이고 scrim이 없다.
     #[test]
     fn no_anchored_popup_takes_a_scrim() {
-        for id in ANCHORED_POPUPS {
+        let anchored: Vec<_> = super::super::defs::all_defs()
+            .iter()
+            .filter(|d| d.decl.anchor != super::super::PopupAnchor::ScopeCenter)
+            .collect();
+        assert_eq!(
+            anchored.len(),
+            4,
+            "tools_menu·search_bar·rail_category·배너 더보기 메뉴"
+        );
+        for def in anchored {
             assert!(
-                !PopupManager::popup_has_scrim(id),
-                "`{id}` 는 anchored + scrim-less 갈래인데 scrim 명부에 있다 — 둘 중 \
-                 하나가 틀렸다(docs/architecture/ui-widgets-crate.md)"
+                !def.decl.covers_scope,
+                "`{}` 는 anchored + scrim-less 갈래인데 scope를 덮는다고 선언했다 — 둘 중 \
+                 하나가 틀렸다(docs/architecture/ui-widgets-crate.md)",
+                def.id
             );
+            assert_eq!(def.decl.shadow, PopupShadow::Popover, "{}", def.id);
         }
     }
 }

@@ -162,10 +162,7 @@ pub fn draw_egui_panels(
         })
     });
     // 충돌 질문은 포커스를 잡지 않는 popup 이라 따로 본다. scrim 아래 칸에 놓으면 안 된다.
-    let drag_blocked = overlay_open
-        || state
-            .popups
-            .is_open(crate::adapters::ui::popup::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID);
+    let drag_blocked = overlay_open || state.popups.any_open_blocks_drop();
     // 키 바인딩 전체를 파싱하는 작업이라, explorer 패널이 하나도 없는 프레임에서는
     // 만들지 않는다(`explorer_cwd`는 `ExplorerPanel`일 때만 채워진다).
     let explorer_shortcut_chars = if infos.iter().any(|i| i.explorer_cwd.is_some()) {
