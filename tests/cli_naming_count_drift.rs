@@ -38,7 +38,7 @@ const EXPECTED: &[(&str, usize)] = &[
     ("session", 3),
     ("settings", 8),
     // 입력 재현 메서드는 release에서 제외된 debug 표에 있어 이 개수에 포함되지 않는다(docs/dev-guide/plugin-permissions.md).
-    ("surface", 40),
+    ("surface", 41), // + surface.set_busy
     ("system", 3),
     ("tab", 4),
     ("telemetry", 12),

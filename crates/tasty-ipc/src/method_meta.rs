@@ -286,6 +286,8 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("surface.set_mark", plugin(Mutate, &[TerminalRead])),
         // 완료 신호는 attention 상태를 바꾸므로 알림 권한을 요구한다.
         ("surface.completion", plugin(Mutate, &[Notification])),
+        // plugin이 자기 surface의 실행 중 표시를 켜고 끈다. 탭·사이드바 점만 바꾸므로 set_url과 같은 권한이다.
+        ("surface.set_busy", plugin(Idempotent, &[SurfaceWrite])),
         // 같은 attention 상태의 조회·해제도 Notification 권한으로 묶는다.
         ("surface.attention.get", plugin(Read, &[Notification])),
         (
