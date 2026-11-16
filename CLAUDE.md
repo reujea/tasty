@@ -127,8 +127,9 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 63 개 — 그중 `
 필요한 보조 도구가 없거나 오래됐으면 먼저 준비한다. 실제 위반인지 확인하기 전에
 상한이나 예외를 바꿔 검사를 통과시키지 않는다.
 
-루트의 `cargo build`만으로 플러그인 실행 파일은 갱신되지 않는다.
-`PROFILE=debug just build-plugins`로 빌드와 스테이징을 하고,
+루트의 `cargo build`만으로 개발 번들은 준비되지 않는다.
+`PROFILE=debug just build-plugins`가 공식 플러그인(잠금 파일의 릴리스 산출물)과 mesh-demo를 스테이징한다.
+공식 플러그인 코드를 바꾼 검증은 `--from-checkout`(계약도 바꿨다면 `--with-local-tasty`)으로 옆 체크아웃에서 빌드하고,
 검증할 실행 파일과 번들 사본이 새 코드인지 확인한다.
 공개키와 번들 준비는 빌드 전에 수행한다.
 `cp -p` 등으로 오래된 시각을 복원했다면 내용이 바뀌었어도 갱신이 생략될 수 있다.

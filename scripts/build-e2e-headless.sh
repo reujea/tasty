@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GUI feature를 끈 workspace를 별도 target에 빌드하고 검사에 사용할 바이너리 경로를 출력한다.
+# GUI feature를 끈 workspace를 별도 target에 빌드하고 번들 플러그인을 준비한 뒤 검사에 사용할 바이너리 경로를 출력한다.
 # target-e2e-headless/debug 위치는 개발용 plugin 탐색의 저장소 경로 계산에 맞춘다.
 # 실패하면 stdout에 경로를 내지 않는다. 호출자는 TASTY_E2E_BIN을 설정하지 않고 기본 하네스를 사용할 수 있다.
 # 사용: BIN=$(scripts/build-e2e-headless.sh) && export TASTY_E2E_BIN=$BIN
@@ -13,6 +13,15 @@ CARGO_TARGET_DIR="$HL_DIR" cargo build --workspace --no-default-features >&2
 rc=$?
 if [ $rc -ne 0 ]; then
   echo "헤드리스 빌드 실패(rc=$rc) — TASTY_E2E_BIN 을 넘기지 마라." >&2
+  exit "$rc"
+fi
+
+# 번들 플러그인이 필요한 스위트를 위해 같은 target 옆에 공식 플러그인과 mesh-demo를 준비한다.
+# stdout은 바이너리 경로 하나만 내야 하므로 준비 출력은 stderr로 보낸다.
+CARGO_TARGET_DIR="$HL_DIR" bash "$ROOT/scripts/stage-dev-plugins.sh" --profile debug >&2
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "번들 플러그인 준비 실패(rc=$rc) — TASTY_E2E_BIN 을 넘기지 마라." >&2
   exit "$rc"
 fi
 

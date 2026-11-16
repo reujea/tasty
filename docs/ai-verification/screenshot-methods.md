@@ -202,7 +202,7 @@ macOS에서도 기록한 PID와 이번 실행 기록, 실행 파일 경로로 �
 
 ### 측정 전에 — 대상 바이너리가 최신인지 확인한다 (plugin)
 
-루트의 `cargo build`만으로 플러그인 실행 파일이 다시 만들어지지는 않는다. `cargo build --workspace` 또는 `cargo build -p tasty-plugin-<name>`으로 해당 바이너리를 빌드한다.
+루트의 `cargo build`만으로 플러그인 실행 파일이 다시 만들어지지는 않는다. 공식 플러그인은 `just build-plugins`가 `target/<profile>/builtin-plugins/<id>/`에 놓는다. 기본은 잠금 파일의 릴리스 산출물이고, 플러그인 코드를 고친 검증은 공식 플러그인 레포 체크아웃에서 `--from-checkout`으로 빌드해 놓는다(호스트 계약도 바꿨다면 `--with-local-tasty`, [build.md](../dev-guide/build.md#plugin-빌드--스테이징)). 이 workspace에서 빌드하는 mesh-demo는 `cargo build -p tasty-plugin-mesh-demo`로 빌드한다.
 
 여기에 스테이징이 겹친다. host 는 **debug 빌드에서 부팅할 때만** `copy_if_newer` 로
 `target/debug/builtin-plugins/` 를 갱신한다. release/dist 는 빌드 단계에서 스테이징한다. 모든 프로필은 번들에서 `<TASTY_HOME>/plugins/` 로
@@ -215,20 +215,18 @@ sync 한다(`crates/tasty-host-plugin/src/builtin.rs`). debug 스테이징 판�
 
 빌드나 스테이징이 빠지면 이전 플러그인을 실행해 변경 결과를 잘못 판단할 수 있다. 플러그인 바이너리와 번들 사본을 모두 확인한다.
 
-기동 전에 다음 중 하나를 돌린다:
+기동 전에 돌린다:
 
 ```bash
-PROFILE=debug just build-plugins        # 정식 절차 — 빌드 + 스테이징까지
-cargo build --workspace                 # 최소한 이것 (스테이징은 부팅이 한다)
+PROFILE=debug just build-plugins                  # 릴리스 산출물로 공식 플러그인 + mesh-demo
+PROFILE=debug just build-plugins --from-checkout  # 고친 공식 플러그인을 옆 체크아웃에서 빌드
 ```
 
-확인은 mtime·크기 비교가 제일 싸다. **묻는 것은 "스테이징이 반영했나" 가 아니라
-"빌드가 산출물을 다시 만들었나" 다** — 산출물이 소스보다 뒤면 만들어진 것이고, 그 뒤는
-부팅이 위 판정으로 옮긴다:
+확인은 번들 사본과 원본의 sha256 비교가 제일 확실하다. 받은 산출물은 캐시의 압축 파일에서 풀린 것이고, 체크아웃 빌드는 그 레포의 `target/<profile>/` 실행 파일이 원본이다:
 
 ```bash
-ls -la target/debug/tasty-plugin-<name> \
-       target/debug/builtin-plugins/<manifest-id>/tasty-plugin-<name>
+sha256sum target/debug/builtin-plugins/<manifest-id>/tasty-plugin-<name> \
+          ../tasty-official-plugins/target/debug/tasty-plugin-<name>
 ```
 
 ### Xvfb 에서 실제 입력(휠·클릭)을 굴릴 때

@@ -56,7 +56,7 @@ pub struct Manifest {
     #[serde(default = "default_lang_dir")]
     pub lang_dir: String,
     /// 배포 패키지에 포함할지 여부. 기본값은 true다.
-    /// false여도 개발용 build-plugins/link-plugins에는 영향을 주지 않는다.
+    /// false여도 개발용 just build-plugins는 공식 플러그인을 모두 받는다.
     #[serde(default = "default_bundle")]
     pub bundle: bool,
 }

@@ -166,21 +166,22 @@ reason)`)와 그것을 재는 여덟 칸이 거기 있다. 아래 표는 이 빌
 [crash-diagnostics](crash-diagnostics.md), 저장소 접근은
 [storage](../design/systems/storage.md)를 따른다.
 
-본체+플러그인을 한 번에 다루는 래퍼가 있다. `just build` 는 빌드·스테이징만(실행 X), `just run` 은 빌드 후 호스트까지 실행한다. 둘 다 플러그인을 빌드·스테이징하며, 호스트는 부팅 시 builtin 을 동기화하므로(버전으로 갈래를 고르고 같은 버전이면 내용이 다른 파일만 옮긴다 — 설치본이 더 높으면 건너뛴다) 플러그인 소스 변경이 (`just build` 면 다음 실행 시, `just run` 이면 그 실행에서) 반영된다.
+본체+플러그인을 한 번에 다루는 래퍼가 있다. `just build` 는 빌드·스테이징만(실행 X), `just run` 은 빌드 후 호스트까지 실행한다. 둘 다 먼저 `just build-plugins` 로 개발 번들을 준비한다(아래 "Plugin 빌드 / 스테이징"). 호스트는 부팅 시 builtin 을 동기화하므로(버전으로 갈래를 고르고 같은 버전이면 내용이 다른 파일만 옮긴다 — 설치본이 더 높으면 건너뛴다) 새로 스테이징한 플러그인이 (`just build` 면 다음 실행 시, `just run` 이면 그 실행에서) 반영된다.
 
 ```bash
-just build                  # 본체+플러그인 debug 빌드·스테이징 (실행 X)
+just build                  # 본체 debug 빌드 + 개발 번들 준비 (실행 X)
 just build --release        # 동일, release 프로필
-just run                    # 본체+플러그인 debug 빌드 + 실행
+just run                    # 본체 debug 빌드 + 개발 번들 준비 + 실행
 just run --release          # 동일, release 프로필 (나머지 인자는 호스트로 passthrough)
 ```
 
-**release/dist 로컬 빌드는 builtin 을 자동 재서명한다.** `--release`(및 `--profile dist`)는
+**release/dist 로컬 빌드는 번들을 자동 서명한다.** `--release`(및 `--profile dist`)는
 trust 게이트가 켜지므로(debug 는 `#[cfg(debug_assertions)]` 로 우회), `build-plugins` 가
-cargo build 전에 서명 키를 보장(`scripts/ensure-sign-key.sh`: `SIGN_KEY_PATH` env →
-`release.pem` → `dev.pem`+`gen-dev-key.sh`)하고 임베드 `dev-pubkey.bin` 을 재도출한 뒤,
-plugin 빌드 후 `sign-bundle.sh --all-builtins` 로 전체 매니페스트를 재서명한다. 따라서
-매니페스트를 언제 고치든(plugin 버전 자동 bump 포함) 로컬 release 빌드도 변경된 매니페스트에 맞춰 서명을 준비한다. `just build`/`just run`(debug)은 게이트가 꺼져 있어 서명 단계를 건너뛴다(기본
+본체 빌드보다 먼저 서명 키를 보장(`scripts/ensure-sign-key.sh`: `SIGN_KEY_PATH` env →
+`release.pem` → `dev.pem`+`gen-dev-key.sh`)하고 임베드 `dev-pubkey.bin` 을 재도출한다.
+받거나 빌드한 공식 플러그인은 서명 없이 오므로 `sign-bundle.sh --dir` 로 그 매니페스트들을,
+mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 그 키로 서명한다. 순서는 키 준비 → 받기(또는 빌드) → 서명이다.
+`just build`/`just run`(debug)은 게이트가 꺼져 있어 서명 단계를 건너뛴다(기본
 dev 워크플로에 openssl 의존 미부과). dist 스크립트(`build-*.{sh,ps1}`)도 같은 규칙을
 쓴다 — 상세는 [plugin-packaging](plugin-packaging.md).
 
@@ -298,18 +299,25 @@ tasty-icons  lib   dirty: FsStatusOutdated
 
 ## Plugin 빌드 / 스테이징
 
-번들 plugin(`crates/tasty-plugin-*` 중 `tasty-plugin.toml` 보유)은 부팅 시 `install_builtins_if_needed` 가 `~/.tasty/plugins/<id>/` 로 자동 sync 한다. `bundle_root()` fallback 이 `<exe_dir>/builtin-plugins/`(= `target/<profile>/builtin-plugins/`)라, **그 경로에 스테이징만 해두면** 부팅 시 user dir 까지 흐른다. **debug 빌드만** `ensure_dev_bundle` 이 매 부팅 mtime(동률이면 내용) 비교로 workspace→bundle 을 sync 한다 — 소스가 bundle 보다 옛 시각이면 내용이 달라도 안 옮긴다(`cp -p` 복원 등). 플러그인까지 빌드한 `cargo build --workspace` 후 실행하면 반영된다. **release/dist 는 소스가 옆에 있어도 workspace→bundle 자동 동기화를 하지 않는다.** `just build --release` 또는 해당 프로필의 `just build-plugins` 로 서명과 함께 스테이징한 번들을 사용한다. 빌드 후 소스 매니페스트를 수정해도 다음 실행이 서명된 번들을 덮어쓰지 않는다. `cargo build --release --workspace` 만으로는 번들 스테이징이 되지 않는다.
+공식 플러그인 8개(`bundle = false` 인 agent-stream 포함)는 공식 플러그인 레포에서 얻고, mesh-demo 만 이 workspace 에서 빌드한다. `just build-plugins`(`scripts/stage-dev-plugins.sh`)가 둘을 `${CARGO_TARGET_DIR:-target}/<profile>/builtin-plugins/<id>/` 에 스테이징한다. 번들 plugin 은 부팅 시 `install_builtins_if_needed` 가 `~/.tasty/plugins/<id>/` 로 자동 sync 한다. `bundle_root()` fallback 이 `<exe_dir>/builtin-plugins/`(= `target/<profile>/builtin-plugins/`)라, **그 경로에 스테이징만 해두면** 부팅 시 user dir 까지 흐른다.
 
 ```bash
-just build-plugins                # 모든 bin plugin → release 스테이징
-just build-plugin claude          # 단일 plugin
-just build-all                    # plugins + 본 바이너리
-just link-plugins                 # cp 대신 symlink (rebuild 즉시 반영)
+PROFILE=debug just build-plugins                       # 잠금 파일의 릴리스 산출물 받기 (기본)
+PROFILE=debug just build-plugins --from-checkout       # ../tasty-official-plugins 에서 빌드
+PROFILE=debug just build-plugins --from-checkout ../tasty-official-plugins --with-local-tasty
+just build-all                                          # 번들 준비 + 본체 (기본 release)
 ```
 
-산출물: `${CARGO_TARGET_DIR:-target}/<profile>/builtin-plugins/<id>/{tasty-plugin.toml, <bin>, tasty-plugin.toml.sig(non-debug), lang/}`. **세 레시피(`build-plugins`·`build-plugin`·`link-plugins`)는 `CARGO_TARGET_DIR` 를 cargo 와 같은 자리에서 읽는다** — 레포 밖 target 을 쓰는 작업 트리에서도 cargo 가 실제로 쓴 자리에 스테이징한다. 안 읽으면 cargo 는 새 자리에 짓고 레시피는 `target/` 에서 옛 산출물을 찾으므로, 스테이징이 조용히 비거나 낡은 채로 남는다. lib-only crate(protocol/sdk/manifest)는 manifest 부재로 자동 skip. release/dist 프로필은 `build-plugins`·`link-plugins` 가 위 자동 서명 단계를 수행해 `.sig` 까지 스테이징한다(`link-plugins` 는 crate-dir `.sig` 를 symlink 해 재서명이 자동 반영). debug 는 서명 없이 매니페스트/bin/lang 만.
+- **기본(받기)**: `official-plugins.lock.toml` 이 가리키는 릴리스에서 현재 플랫폼 산출물을 받아 SHA-256 을 대조하고 푼다(`scripts/fetch-official-plugins.sh --all`, 형식과 캐시는 [plugin-packaging](plugin-packaging.md)). 패키징과 같은 바이너리이고, 플러그인 빌드가 없으며, 플러그인 레포 체크아웃이 없는 CI·원격 머신에서도 같은 명령이다. 플랫폼은 호스트에서 정하고 `--platform` 으로 바꿀 수 있다.
+- **옆 체크아웃(`--from-checkout [DIR]`)**: 공식 플러그인 레포 체크아웃(기본 `../tasty-official-plugins`)의 `tasty-official-plugins/scripts/dev-bundle.sh --profile <profile> --out <임시 폴더>` 로 빌드한다. 플러그인 레포는 자기 `target` 에 빌드한다(이 workspace 의 `CARGO_TARGET_DIR` 를 넘기지 않는다). `--profile` 은 debug·release·dist 만 받는다.
+- **`--with-local-tasty`**: `--from-checkout` 빌드에 `--tasty <이 체크아웃>` 을 넘겨, 플러그인이 쓰는 tasty 패키지(SDK·protocol 등)를 이 체크아웃으로 바꿔 빌드한다. 호스트 계약과 플러그인을 함께 바꾸는 작업은 이 경로를 쓴다. 받은 산출물과 `--with-local-tasty` 없는 빌드는 둘 다 플러그인 레포가 기준으로 삼은 tasty 커밋의 SDK·protocol 로 만들어진다. 그 뒤 이 체크아웃이 계약을 바꿨다면 새 계약에 기대는 시험은 받은 번들로 통과하지 않는다.
+- **교체 단위**: 공식 플러그인은 `<id>/` 폴더를 통째로 바꾸고, mesh-demo 도 같은 방식으로 다시 놓는다. 그 밖의 폴더는 건드리지 않는다. 교체는 기존 폴더를 옆 이름으로 옮기는 것으로 시작한다. Windows 에서 실행 중인 Tasty 가 플러그인 실행 파일을 쥐고 있으면 옮기기가 실패하고 그 폴더는 그대로 남는다. 그때는 `tasty plugin disable <id>` 뒤 다시 실행하고 [§9.1](plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요) 순서로 반영한다.
+- **debug 부팅 동기화**: debug 빌드만 `ensure_dev_bundle` 이 매 부팅 mtime(동률이면 내용) 비교로 workspace 의 플러그인 빌드(`target/<profile>/<bin>`, 크레이트의 매니페스트·lang)를 bundle 로 sync 한다. workspace 에 공식 플러그인 크레이트가 남아 있으므로 그 빌드가 스테이징한 산출물보다 새로우면 덮는다. release/dist 는 자동 동기화하지 않는다.
+- **최적화 수준**: 이 workspace 는 `[profile.dev.package."*"]` 와 플러그인 크레이트별로 `opt-level = 3` 을 둔다(`Cargo.toml`). 플러그인 레포의 dev 프로필 설정은 그 레포가 정하므로 `--from-checkout` debug 번들은 여기서 빌드하던 debug 플러그인과 속도가 다를 수 있다. 받은 산출물은 릴리스 빌드라 해당 없다.
 
-> **위 스테이징은 "부팅 시 user dir 로 흐른다" 전제(=호스트 재시작)다.** **이미 실행 중인 tasty 에** 플러그인 변경만(호스트 재빌드·재시작 없이) 반영·검증하려면 — 실행 프로필 확인 → 그 프로필로 플러그인 빌드 → 재서명 → `plugin disable → upgrade-builtins[ --force] → enable` 절차를 쓴다: [plugin-development §9.1](plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요).
+산출물: `${CARGO_TARGET_DIR:-target}/<profile>/builtin-plugins/<id>/{tasty-plugin.toml, <bin>, tasty-plugin.toml.sig(non-debug), lang/}`(받은 공식 플러그인은 고지 파일도 담을 수 있다). 스크립트는 `CARGO_TARGET_DIR` 를 cargo 와 같은 자리(호출 위치 기준)에서 읽는다 — 레포 밖 target 을 쓰는 작업 트리에서도 cargo 가 실제로 쓴 자리에 스테이징한다. `--target <triple>` 을 주면 `target/<triple>/<profile>/` 아래에 놓는다.
+
+> **위 스테이징은 "부팅 시 user dir 로 흐른다" 전제(=호스트 재시작)다.** **이미 실행 중인 tasty 에** 플러그인 변경만(호스트 재빌드·재시작 없이) 반영·검증하려면 — 실행 프로필 확인 → 그 프로필로 번들 준비(서명 포함) → `plugin disable → upgrade-builtins[ --force] → enable` 절차를 쓴다: [plugin-development §9.1](plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요).
 
 ## 배포 패키징
 

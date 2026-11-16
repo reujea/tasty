@@ -733,7 +733,7 @@ openssl pkey -in my-plugin.pem -pubout -outform DER | tail -c 32 > <plugin-dir>/
 - `.pub` 가 없거나 서명 키와 다르면 각각 `missing-pubkey`·`signature-error` 미인증이다. 서명 판정은 매니페스트 한 파일이 그 키로 서명됐는지만 확인한다. 바이너리 내용이나 실행 중 동작은 확인하지 않으며, 원칙의 인증(공식 플러그인은 공식 릴리스 절차로 만든 산출물, 커스텀 플러그인은 마켓플레이스가 소스를 확인하고 직접 빌드한 산출물. 향후 기능)과 다르다.
 - 부팅 탐색은 release 에서 신뢰했거나 사용자가 고른 plugin 만 등록하고, debug 에서는 서명을 건너뛴다. debug 에서 설치가 통과했다는 사실만으로 release 사용자 경험을 확인했다고 보지 않는다.
 
-**워크스페이스 내 번들 플러그인 개발**: `BUILTINS`(`crates/tasty-host-plugin/src/builtin.rs`) 등록 플러그인은 debug 빌드에서만 호스트가 부팅에 workspace→bundle 자동 sync(`ensure_dev_bundle`)한다. release/dist 는 `just build --release` 또는 해당 프로필의 `just build-plugins` 로 미리 스테이징해야 한다. bundle→설치 디렉터리 sync(`install_builtins_if_needed`)는 모든 프로필에서 유지된다. 이 복사는 macOS의 `com.apple.quarantine` 같은 확장 속성을 지우지 않는다. 앱 번들 안 파일에 그 속성이 남아 있으면 복사본도 같은 속성을 가질 수 있고, 처리는 사용자가 정한다([본체와 기반 기술](../principles/control-and-data.md#본체와-기반-기술)). 단 루트 `cargo build` 는 본 바이너리만 빌드하므로 플러그인 변경은 `cargo build -p <crate>` 또는 `--workspace` 필요. **부팅 없이, 실행 중인 tasty 에 플러그인 변경만 반영하는 절차(호스트 재빌드·재시작 불필요)는 아래 §9.1.**
+**번들 플러그인 개발**: 공식 플러그인(`BUILTINS`(`crates/tasty-host-plugin/src/builtin.rs`) 중 mesh-demo 를 뺀 것)의 소스는 공식 플러그인 레포에 있다. 개발 번들(`target/<profile>/builtin-plugins/`)은 `just build-plugins` 가 잠금 파일의 릴리스 산출물을 받아 준비하고, 플러그인 코드를 고칠 때는 그 레포 체크아웃에서 `just build-plugins --from-checkout [DIR]` 로 빌드해 같은 자리에 놓는다. 호스트 계약(SDK·protocol 등)과 플러그인을 함께 바꾸면 `--with-local-tasty` 를 더해 이 체크아웃의 tasty 패키지로 빌드한다. 받은 산출물과 `--with-local-tasty` 없는 빌드는 플러그인 레포가 기준으로 삼은 tasty 커밋의 계약으로 만들어지므로, 그 뒤 이 체크아웃이 바꾼 계약에는 맞지 않을 수 있다. 명령·옵션·서명 순서는 [build.md "Plugin 빌드 / 스테이징"](build.md#plugin-빌드--스테이징)에 있다. debug 빌드에서는 호스트가 부팅에 workspace→bundle 자동 sync(`ensure_dev_bundle`)한다 — workspace 에 남은 플러그인 크레이트의 빌드가 더 새로우면 스테이징한 번들을 덮는다. 루트 `cargo build` 는 본 바이너리만 빌드하므로 mesh-demo 변경은 `cargo build -p tasty-plugin-mesh-demo` 뒤에 반영된다. release/dist 는 `just build --release` 또는 해당 프로필의 `just build-plugins` 로 미리 스테이징해야 한다. bundle→설치 디렉터리 sync(`install_builtins_if_needed`)는 모든 프로필에서 유지된다. 이 복사는 macOS의 `com.apple.quarantine` 같은 확장 속성을 지우지 않는다. 앱 번들 안 파일에 그 속성이 남아 있으면 복사본도 같은 속성을 가질 수 있고, 처리는 사용자가 정한다([본체와 기반 기술](../principles/control-and-data.md#본체와-기반-기술)). **부팅 없이, 실행 중인 tasty 에 플러그인 변경만 반영하는 절차(호스트 재빌드·재시작 불필요)는 아래 §9.1.**
 
 디버깅: `tasty plugin logs <id> --follow` / `~/.tasty/plugins-logs/<id>.log` / `RUST_LOG=debug`.
 
@@ -748,20 +748,21 @@ openssl pkey -in my-plugin.pem -pubout -outform DER | tail -c 32 > <plugin-dir>/
 # 개발 중이면 보통 target/release/tasty → 이하 예시도 --release.
 ```
 
-**1) 그 프로필로 플러그인 빌드·스테이징**
+**1) 정지** — Windows 는 실행 중인 플러그인 실행 파일을 잠가 다음 단계의 폴더 교체가 실패한다. 다른 OS 도 같은 순서로 한다.
 ```bash
-PROFILE=release just build-plugin <name>       # 실행 중 tasty 와 같은 프로필
+tasty plugin disable com.tasty.<name>
 ```
 
-**2) 재서명 (release/dist 호스트는 매니페스트 서명을 검증)** — 안 하면 다음 단계가 `untrusted: UnknownKey` 로 skip. debug 호스트는 서명 안 보므로 불필요. 단일 `build-plugin` 은 서명을 복사하지 않으므로 서명 후 번들에도 명시적으로 배치한다. release/dist 의 `upgrade-builtins` 는 workspace 소스를 읽지 않는다.
+**2) 그 프로필로 번들 준비(서명 포함)**
 ```bash
-./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --manifest crates/tasty-plugin-<name>/tasty-plugin.toml
-cp crates/tasty-plugin-<name>/tasty-plugin.toml.sig target/release/builtin-plugins/<manifest-id>/tasty-plugin.toml.sig
+PROFILE=release just build-plugins --from-checkout     # 실행 중 tasty 와 같은 프로필. 고친 플러그인 레포 체크아웃에서 빌드
+PROFILE=release just build-plugins                     # 잠금 파일의 릴리스 산출물로 되돌릴 때
 ```
+release/dist 프로필은 같은 명령이 키 준비 → 빌드(또는 받기) → `sign-bundle.sh --dir` 서명까지 한다. 서명이 없으면 다음 단계가 `untrusted: UnknownKey` 로 skip 한다. debug 호스트는 서명을 보지 않는다. release/dist 의 `upgrade-builtins` 는 workspace 소스를 읽지 않는다. mesh-demo 만 고쳤다면 `cargo build -p tasty-plugin-mesh-demo`(프로필 맞춤) 뒤 같은 `just build-plugins` 로 다시 놓는다.
 
-**3) 정지 → 재동기화 → 재기동 (순서 중요)**
+**3) 재동기화 → 재기동 (순서 중요)**
 ```bash
-tasty plugin disable com.x.<name>     # 먼저 정지. 안 하면 실행 중 .exe 를 잠가 upgrade 가 'os error 5(액세스 거부)'
+# 1) 에서 disable 하지 않았다면 여기서 먼저 정지한다. 안 하면 실행 중 .exe 를 잠가 upgrade 가 'os error 5(액세스 거부)'
 # disable은 보통 회수를 별도 스레드에 맡긴다. 다음 upgrade-builtins는 실제로 쓸 때만
 # 기존 회수 작업을 기다린다. 정상 종료 기한은 2s이며 kill/wait까지 포함한 전체 상한은 아니다.
 # 변경이 없어 건너뛰는 플러그인은 기다리지 않는다.
@@ -769,7 +770,7 @@ tasty plugin upgrade-builtins         # 번들→user dir(~/.tasty/plugins) 재s
 #   ※ version 을 안 올려도 반영된다 — 같은 버전 갈래는 **내용으로** 판정해 다른 파일만 옮긴다
 #      보고문은 여전히 'skipped' 로 나오지만 사유가 갈린다 — 'content resync: files rewritten' 이면 옮긴 것이고
 #      'nothing to write' 면 이미 같았다는 뜻이다. `--force` 는 **설치본 버전이 번들보다 높아** 건너뛰는 갈래에만 필요하다.
-tasty plugin enable com.x.<name>      # 재기동 — 호스트가 새 매니페스트를 레지스트리에 재적재
+tasty plugin enable com.tasty.<name>  # 재기동 — 호스트가 새 매니페스트를 레지스트리에 재적재
 # 기존 회수가 진행 중이면 enable이 그 작업의 완료를 기다린 뒤 새 프로세스를 시작한다.
 # 이 대기도 전체 2s 상한은 아니다. enable 성공은 spawn 완료이며 연결·hello 완료는 아니다(docs/dev-guide/plugin-development.md).
 # 새 프로세스가 뜨면 열어 둔 surface 를 다시 게시한다(§ Surface kind 의 재게시 문단).

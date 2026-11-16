@@ -31,7 +31,7 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 
 ### 배포 제외 플래그 (`bundle = false`)
 
-매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. `false` 면 dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)의 plugin 탐색 glob 이 그 crate 를 건너뛰어 DMG/AppImage/MSI 산출물과 실제 바이너리 빌드에는 넣지 않는다. **dev 스테이징**(`just build-plugins`/`link-plugins`)은 이 플래그를 보지 않으므로 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 배포 패키지에서는 빼는 용도.
+매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. `false` 면 dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)의 plugin 탐색 glob 이 그 crate 를 건너뛰어 DMG/AppImage/MSI 산출물과 실제 바이너리 빌드에는 넣지 않는다. **dev 스테이징**(`just build-plugins`)은 이 플래그와 관계없이 모든 공식 플러그인을 받으므로(`--all`) 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 배포 패키지에서는 빼는 용도.
 
 런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 건너뛰므로, 개발 빌드는 스테이징된 plugin을 설치하고, 배포 빌드는 번들에 없는 항목을 건너뛴다. 현재 `com.tasty.mesh-demo`와 `com.tasty.agent-stream`이 `bundle = false`다. **주의**: `bundle = false` 는 glob 기반 위치(4/5/6)와 바이너리 빌드에만 자동 적용되고, 아래 "staging 7 위치 동기화" 표의 **명시(explicit) 위치(1/2/3)는 자동으로 걸러지지 않는다** — 새로 `bundle = false` 를 붙인 plugin 이 있으면 `[package.metadata.deb] assets`/`[package.metadata.generate-rpm] assets`/`wix/main.wxs` 에서도 그 plugin 항목을 수동으로 빼야 한다. 누락하면 패키저가 만들지 않은 바이너리를 찾다가 실패한다.
 
@@ -150,7 +150,7 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 ./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --all-builtins
 ```
 
-dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)와 **로컬 release/dist `just` 빌드**(`build-plugins`/`link-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)가 모두 패키징/스테이징 직전 자동으로 `sign-bundle.sh --all-builtins` 를 호출한다 — 매니페스트만 고치고 빌드 없이 확인할 때만 수동 호출. debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
+dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 패키징 직전 자동으로 `sign-bundle.sh --all-builtins` 를 호출한다 — 매니페스트만 고치고 빌드 없이 확인할 때만 수동 호출. **로컬 release/dist `just` 빌드**(`build-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)는 받거나 빌드한 공식 플러그인을 `--dir` 로, mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 서명한다([build.md](build.md#plugin-빌드--스테이징)). debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
 
 받아서 스테이징한 플러그인 폴더는 `--dir`로 서명한다. `<dir>/<id>/tasty-plugin.toml`을 모두 서명하고, 그 폴더 아래에 `.sig`가 하나라도 있으면 아무것도 서명하지 않고 실패한다. 공식 플러그인 릴리스 산출물은 서명 없이 오고 tasty 패키징이 서명한다는 계약을 이 실패로 확인한다. 서명할 매니페스트가 없을 때와 키 파일이 없을 때도 실패한다. 계약은 `scripts/tests/sign-bundle-dir.sh`(doc-guards `sign_bundle_dir_contract`가 실행)가 확인한다.
 
