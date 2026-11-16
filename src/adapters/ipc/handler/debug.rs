@@ -99,6 +99,17 @@ pub(super) fn handle_debug_host_popup_list(
                     .popups
                     .open_scope(def.id)
                     .map(crate::adapters::ui::popup::scope_kind),
+                // 범위 대상 ID. 창 범위와 닫힌 팝업은 null이다.
+                "open_scope_target": state.popups.open_scope(def.id).and_then(|scope| {
+                    use crate::adapters::ui::popup::PopupScope;
+                    match scope {
+                        PopupScope::Window => None,
+                        PopupScope::Workspace(id)
+                        | PopupScope::Pane(id)
+                        | PopupScope::Tab(id)
+                        | PopupScope::Surface(id) => Some(id),
+                    }
+                }),
                 "open": geom.is_some(),
                 "z_seq": geom.map(|(z, _)| z),
                 "rect": geom.map(|(_, r)| {
