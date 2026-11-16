@@ -67,13 +67,13 @@ pub(crate) fn scope_kind(scope: &PopupScope) -> PopupScopeKind {
 /// `egui::Vec2`를 선언 크기로 옮긴다.
 pub const fn popup_size(v: egui::Vec2) -> PopupSize {
     PopupSize {
-        width: v.x,
-        height: v.y,
+        width: LogicalPx(v.x),
+        height: LogicalPx(v.y),
     }
 }
 
 fn vec2_of(size: PopupSize) -> egui::Vec2 {
-    egui::vec2(size.width, size.height)
+    egui::vec2(size.width.value(), size.height.value())
 }
 
 /// scrim이 받는 입력. `covers_scope`인 팝업만 의미가 있다.
@@ -91,8 +91,8 @@ pub enum ScrimInput {
 
 /// 정의 없이 만든 팝업의 선언 값. 크기는 생성자가 따로 받는다.
 const PLAIN_DECL: PopupDecl = defs::host_decl(PopupSize {
-    width: 0.0,
-    height: 0.0,
+    width: LogicalPx(0.0),
+    height: LogicalPx(0.0),
 });
 
 /// 셸을 그릴 때 읽는 선언 값.

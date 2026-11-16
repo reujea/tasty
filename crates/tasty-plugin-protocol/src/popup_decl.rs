@@ -7,6 +7,7 @@
 //! 읽는 곳이 없는 필드는 값과 실제 동작이 다를 수 있다. 그때 동작은 여는 쪽 코드가 정한다.
 
 use serde::{Deserialize, Serialize};
+use tasty_type_geometry::length::LogicalPx;
 
 /// 팝업이 속하는 범위의 종류. 대상 id는 열 때 정한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,11 +158,11 @@ pub enum PopupContentMargin {
     None,
 }
 
-/// 논리 픽셀 크기.
+/// 논리 픽셀 크기. JSON에는 각 값이 숫자 하나로 들어간다.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PopupSize {
-    pub width: f32,
-    pub height: f32,
+    pub width: LogicalPx,
+    pub height: LogicalPx,
 }
 
 /// 팝업 공통 선언. 함수가 아닌 속성만 담는다.
@@ -249,8 +250,8 @@ mod tests {
     use super::*;
 
     const SIZE: PopupSize = PopupSize {
-        width: 200.0,
-        height: 100.0,
+        width: LogicalPx(200.0),
+        height: LogicalPx(100.0),
     };
 
     #[test]
@@ -271,12 +272,21 @@ mod tests {
         d.shell = PopupShell::SearchBar;
         d.fit = PopupFit::Shrink;
         d.min_size = Some(PopupSize {
-            width: 10.0,
-            height: 20.0,
+            width: LogicalPx(10.0),
+            height: LogicalPx(20.0),
         });
         let json = serde_json::to_value(d).expect("serialize");
         assert_eq!(json["shell"], "search_bar");
         assert_eq!(json["scope_kind"], "window");
+        // 길이는 단위 이름 없이 숫자 그대로 직렬화된다.
+        assert_eq!(
+            json["size"],
+            serde_json::json!({ "width": 200.0, "height": 100.0 })
+        );
+        assert_eq!(
+            json["min_size"],
+            serde_json::json!({ "width": 10.0, "height": 20.0 })
+        );
         let back: PopupDecl = serde_json::from_value(json).expect("deserialize");
         assert_eq!(back, d);
     }
