@@ -52,12 +52,13 @@ pub fn handle_list(mgr: Option<&PluginManager>, id: serde_json::Value) -> JsonRp
 }
 
 /// `debug.popup.open` — `{ plugin_id, popup_id, surface_id?, context? }`로 popup 인스턴스 강제 open.
-/// surface 선언 popup은 `surface_id`로 대상을 결속한다. 없으면 열지 않고 -32602다.
+/// surface 선언 popup은 `surface_id`로 대상을 결속한다. 없거나 없는 surface를 가리키면 열지 않고 -32602다.
 #[cfg(feature = "gui")]
 pub fn handle_open(
     mgr: Option<&mut PluginManager>,
     id: serde_json::Value,
     params: &serde_json::Value,
+    surface_exists: impl Fn(u32) -> bool,
 ) -> JsonRpcResponse {
     let Some(plugin_id) = params.get("plugin_id").and_then(|v| v.as_str()) else {
         return JsonRpcResponse::invalid_params(id, "Missing required 'plugin_id' parameter");
@@ -73,6 +74,11 @@ pub fn handle_open(
         Ok(sid) => sid,
         Err(msg) => return JsonRpcResponse::invalid_params(id, msg),
     };
+    if let Some(sid) = surface_id
+        && !surface_exists(sid)
+    {
+        return JsonRpcResponse::invalid_params(id, format!("surface {sid} not found"));
+    }
     let Some(mgr) = mgr else {
         return JsonRpcResponse::error(id, -32002, "plugin manager not initialized");
     };

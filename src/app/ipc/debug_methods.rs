@@ -95,11 +95,19 @@ impl App {
                 "debug.popup.list" => {
                     host_ipc::handler::popup::handle_list(self.plugin_manager.as_ref(), id)
                 }
-                "debug.popup.open" => host_ipc::handler::popup::handle_open(
-                    self.plugin_manager.as_mut(),
-                    id,
-                    &cmd.request.params,
-                ),
+                "debug.popup.open" => {
+                    let asked = params::read_int::<u32>(&cmd.request.params, "surface_id")
+                        .ok()
+                        .flatten();
+                    let asked_exists =
+                        asked.is_some_and(|sid| self.find_main_with_surface(sid).is_some());
+                    host_ipc::handler::popup::handle_open(
+                        self.plugin_manager.as_mut(),
+                        id,
+                        &cmd.request.params,
+                        |sid| asked == Some(sid) && asked_exists,
+                    )
+                }
                 // 공통 닫기 큐를 거쳐 자식 파일 피커도 정리한다.
                 "debug.popup.close" => {
                     match params::read_int::<u64>(&cmd.request.params, "instance_id") {

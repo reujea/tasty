@@ -204,7 +204,7 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 
 `surface` 선언 popup 에 대상이 없으면 `window` 로 바꾸지 않고 열지 않는다. 변환 입력 popup·도구 메뉴는
 focus surface 가 없을 때(예: attach 대기 초안 선택) 열지 않고 경고 로그를 남긴다. 대상 없는 이벤트도
-열지 않고 경고 로그만 남긴다(이벤트는 응답이 없다). `debug.popup.open` 은 `-32602` 로 거절한다.
+열지 않고 경고 로그만 남긴다(이벤트는 응답이 없다). `debug.popup.open` 은 `surface_id` 가 없거나 없는 surface 를 가리키면 `-32602` 로 거절한다.
 `window` 선언 popup 은 대상이 없어도 그대로 열린다.
 
 `surface` 범위 popup은 앵커의 가운데 기준도 그 surface 영역이다. 범위가 안 보이는 frame 에는
