@@ -1025,6 +1025,11 @@ impl PlatformWebView {
         self.bed_focus.set(&self.webview, self.surface_id, focused);
     }
 
+    /// 마지막으로 둔 바탕 포커스 값이 실패했는지 돌려주고 표시를 지운다(`bed_focus`).
+    pub fn take_bed_focus_failed(&self) -> bool {
+        self.bed_focus.take_failed()
+    }
+
     /// 현재 Windows에서는 적용하지 않고 로그만 남긴다.
     pub fn set_color_scheme(&self, scheme: super::ColorScheme) {
         tracing::debug!("set_color_scheme({scheme:?}) is not implemented for Windows WebView2");

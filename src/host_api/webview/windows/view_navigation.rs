@@ -79,14 +79,9 @@ impl PlatformWebView {
         }
         self.begin_load();
         self.top_level.borrow_mut().designate(Designation::Next);
-        // SAFETY: HSTRING은 호출 끝까지 살아있고 Navigate는 main thread 호출.
-        unsafe {
-            let url = HSTRING::from(url);
-            if let Err(e) = self.webview.Navigate(&url) {
-                tracing::warn!("WebView2 Navigate failed: {e}");
-                self.withdraw_next();
-            }
-        }
+        let url = HSTRING::from(url);
+        // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 Navigate는 main thread 호출.
+        self.send_navigation("Navigate", true, move |wv| unsafe { wv.Navigate(&url) });
     }
 
     pub fn load_html(&self, html: &str) {
@@ -95,13 +90,35 @@ impl PlatformWebView {
             return;
         }
         self.begin_load();
-        // SAFETY: HSTRING은 호출 끝까지 살아있고 NavigateToString은 main thread 호출.
-        unsafe {
-            let html = HSTRING::from(html);
-            if let Err(e) = self.webview.NavigateToString(&html) {
-                tracing::warn!("WebView2 NavigateToString failed: {e}");
+        let html = HSTRING::from(html);
+        // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 NavigateToString은 main thread 호출.
+        self.send_navigation("NavigateToString", false, move |wv| unsafe {
+            wv.NavigateToString(&html)
+        });
+    }
+
+    /// 탐색을 바탕 포커스 문서 생성 스크립트 등록 뒤로 보낸다(`bed_focus`). 그래야 새 문서가 첫 렌더부터
+    /// 요청한 값이다. 실패하면 경고하고, `withdraw`면 세운 지목을 거둔다. 남으면 뒤의 페이지 이동이 그
+    /// 지목을 소비한다.
+    fn send_navigation(
+        &self,
+        call: &'static str,
+        withdraw: bool,
+        navigate: impl FnOnce(
+            &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
+        ) -> windows::core::Result<()>
+        + 'static,
+    ) {
+        let webview = self.webview.clone();
+        let top_level = self.top_level.clone();
+        self.bed_focus.navigate(Box::new(move || {
+            if let Err(e) = navigate(&webview) {
+                tracing::warn!("WebView2 {call} failed: {e}");
+                if withdraw {
+                    top_level.borrow_mut().withdraw(&Designation::Next);
+                }
             }
-        }
+        }));
     }
 
     /// 호스트 출처 로드·이동. 스캔 재시작 상태를 갱신하고 남은 사용자 클릭을 지운다.
@@ -115,11 +132,8 @@ impl PlatformWebView {
     pub fn reload(&self) {
         self.host_request(None);
         self.top_level.borrow_mut().designate(Designation::Next);
-        // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
-        if let Err(e) = unsafe { self.webview.Reload() } {
-            tracing::warn!("WebView2 Reload failed: {e}");
-            self.withdraw_next();
-        }
+        // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
+        self.send_navigation("Reload", true, |wv| unsafe { wv.Reload() });
     }
 
     pub fn go_back(&self) {
@@ -128,11 +142,8 @@ impl PlatformWebView {
             // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출. 출력 BOOL은 지역 변수다.
             unsafe { wv.CanGoBack(out) }
         });
-        // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
-        if let Err(e) = unsafe { self.webview.GoBack() } {
-            tracing::warn!("WebView2 GoBack failed: {e}");
-            self.withdraw_next();
-        }
+        // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
+        self.send_navigation("GoBack", true, |wv| unsafe { wv.GoBack() });
     }
 
     pub fn go_forward(&self) {
@@ -141,11 +152,8 @@ impl PlatformWebView {
             // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출. 출력 BOOL은 지역 변수다.
             unsafe { wv.CanGoForward(out) }
         });
-        // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
-        if let Err(e) = unsafe { self.webview.GoForward() } {
-            tracing::warn!("WebView2 GoForward failed: {e}");
-            self.withdraw_next();
-        }
+        // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
+        self.send_navigation("GoForward", true, |wv| unsafe { wv.GoForward() });
     }
 
     /// 주소 표시용 탐색 정보. 주소 선택 규칙은 `committed_document_url`이 정한다.
@@ -191,11 +199,6 @@ impl PlatformWebView {
                 tracing::warn!("WebView2 history query failed: {e}; the step is not designated")
             }
         }
-    }
-
-    /// 탐색을 시작하지 못한 호출이 세운 지목을 거둔다. 남으면 뒤의 페이지 이동이 그 지목을 소비한다.
-    fn withdraw_next(&self) {
-        self.top_level.borrow_mut().withdraw(&Designation::Next);
     }
 
     /// `nav_info` 실패를 웹뷰별 첫 번째만 warn, 이후는 debug로 남긴다.

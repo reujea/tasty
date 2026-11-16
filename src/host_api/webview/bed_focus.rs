@@ -32,30 +32,100 @@ pub(crate) fn bed_state_script(focused: bool) -> String {
     )
 }
 
-/// 문서 생성 스크립트 등록의 순서 정리. 상태가 바뀔 때마다 새 스크립트를 등록하고 앞 것을 지운다.
-/// 등록 완료는 비동기로 오므로, 마지막 요청의 등록만 남기고 나머지 id는 지울 목록으로 돌려준다.
+/// 스크립트로 상태를 두는 백엔드의 전달 기록. 문서 생성 스크립트 등록은 완료가 비동기로 오므로,
+/// 마지막 요청의 등록이 끝나기 전에는 호스트 탐색을 붙잡아 두었다가 끝나면 내보낸다. 그래서 그 뒤
+/// 생기는 문서는 첫 렌더부터 요청한 값이다. 마지막 요청의 어느 단계든 실패하면 기록을 지우고
+/// [`Self::take_failed`]로 알려, 상위층이 같은 값을 다시 보내게 한다. `T`는 붙잡은 탐색이다.
 #[cfg(any(windows, test))]
-#[derive(Debug, Default)]
-pub(crate) struct ScriptRegistrations {
+pub(crate) struct BedFocusDelivery<T> {
+    /// 마지막으로 요청한 값. 실패하면 지운다.
+    sent: Option<bool>,
     latest: u64,
+    /// 마지막 요청의 문서 생성 스크립트 등록이 아직 끝나지 않았다.
+    registering: bool,
+    /// 남겨 둔 등록 id. 마지막 요청의 것 하나만 남긴다.
     held: Vec<String>,
+    /// 등록이 끝나기를 기다리는 탐색. 나중 요청이 앞 것을 대신한다.
+    deferred: Option<T>,
+    failed: bool,
 }
 
 #[cfg(any(windows, test))]
-impl ScriptRegistrations {
-    /// 새 등록을 요청한다. 돌려준 번호를 완료 때 [`Self::added`]에 넘긴다.
-    pub(crate) fn begin(&mut self) -> u64 {
+impl<T> Default for BedFocusDelivery<T> {
+    fn default() -> Self {
+        Self {
+            sent: None,
+            latest: 0,
+            registering: false,
+            held: Vec::new(),
+            deferred: None,
+            failed: false,
+        }
+    }
+}
+
+#[cfg(any(windows, test))]
+impl<T> BedFocusDelivery<T> {
+    /// 값을 요청한다. 이미 그 값이면 `None`, 아니면 이 요청의 세대 번호다. 세대마다 문서 생성 스크립트를
+    /// 새로 등록하고 지금 문서에 실행한 뒤, 완료를 같은 번호로 알린다.
+    pub(crate) fn request(&mut self, focused: bool) -> Option<u64> {
+        if self.sent == Some(focused) {
+            return None;
+        }
+        self.sent = Some(focused);
         self.latest += 1;
-        self.latest
+        self.registering = true;
+        self.failed = false;
+        Some(self.latest)
     }
 
-    /// `generation` 요청의 등록이 `id`로 끝났다. 지울 id 목록을 돌려준다.
-    pub(crate) fn added(&mut self, generation: u64, id: String) -> Vec<String> {
-        if generation == self.latest {
-            std::mem::replace(&mut self.held, vec![id])
+    /// 호스트 탐색을 지금 보낼지 정한다. 등록을 기다리는 중이면 붙잡고 `None`을 돌려준다.
+    pub(crate) fn navigate(&mut self, navigation: T) -> Option<T> {
+        if self.registering {
+            self.deferred = Some(navigation);
+            None
         } else {
-            vec![id]
+            Some(navigation)
         }
+    }
+
+    /// `generation` 요청의 등록이 `id`로 끝났다. 지울 id와, 마지막 요청이면 붙잡았던 탐색을 돌려준다.
+    pub(crate) fn registered(&mut self, generation: u64, id: String) -> (Vec<String>, Option<T>) {
+        if generation != self.latest {
+            return (vec![id], None);
+        }
+        self.registering = false;
+        (
+            std::mem::replace(&mut self.held, vec![id]),
+            self.deferred.take(),
+        )
+    }
+
+    /// `generation` 요청의 등록이 실패했다. 마지막 요청이면 실패로 두고 붙잡았던 탐색을 돌려준다.
+    pub(crate) fn registration_failed(&mut self, generation: u64) -> Option<T> {
+        if generation != self.latest {
+            return None;
+        }
+        self.registering = false;
+        self.fail();
+        self.deferred.take()
+    }
+
+    /// `generation` 요청을 지금 문서에 적용하지 못했다. 마지막 요청일 때만 실패로 둔다.
+    pub(crate) fn apply_failed(&mut self, generation: u64) {
+        if generation == self.latest {
+            self.fail();
+        }
+    }
+
+    fn fail(&mut self) {
+        self.failed = true;
+        self.sent = None;
+    }
+
+    /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다.
+    pub(crate) fn take_failed(&mut self) -> bool {
+        std::mem::replace(&mut self.failed, false)
     }
 }
 
@@ -90,17 +160,55 @@ mod tests {
         }
     }
 
+    type Delivery = BedFocusDelivery<&'static str>;
+
     #[test]
-    fn only_the_latest_registration_is_kept() {
-        let mut regs = ScriptRegistrations::default();
-        let a = regs.begin();
-        assert!(regs.added(a, "a".into()).is_empty());
-        // 앞 요청의 완료가 뒤 요청보다 늦게 오면 그 등록을 바로 지운다.
-        let b = regs.begin();
-        let c = regs.begin();
-        assert_eq!(regs.added(c, "c".into()), vec!["a".to_string()]);
-        assert_eq!(regs.added(b, "b".into()), vec!["b".to_string()]);
-        let d = regs.begin();
-        assert_eq!(regs.added(d, "d".into()), vec!["c".to_string()]);
+    fn a_navigation_waits_for_the_latest_registration() {
+        let mut d = Delivery::default();
+        assert_eq!(d.navigate("before"), Some("before"));
+        let g = d.request(false).unwrap();
+        assert_eq!(d.navigate("first"), None);
+        assert_eq!(d.navigate("second"), None);
+        assert_eq!(d.registered(g, "a".into()), (vec![], Some("second")));
+        assert_eq!(d.navigate("after"), Some("after"));
+    }
+
+    #[test]
+    fn an_older_registration_does_not_release_the_navigation() {
+        let mut d = Delivery::default();
+        let a = d.request(true).unwrap();
+        let b = d.request(false).unwrap();
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(d.registered(a, "a".into()), (vec!["a".to_string()], None));
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(d.registered(b, "b".into()), (vec![], Some("load")));
+        let c = d.request(true).unwrap();
+        assert_eq!(d.registered(c, "c".into()), (vec!["b".to_string()], None));
+    }
+
+    #[test]
+    fn a_failed_registration_releases_the_navigation_and_reports_once() {
+        let mut d = Delivery::default();
+        let g = d.request(false).unwrap();
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(d.registration_failed(g), Some("load"));
+        assert!(d.take_failed());
+        assert!(!d.take_failed());
+        // 실패한 값은 기록에서 지워져 같은 값을 다시 요청할 수 있다.
+        assert!(d.request(false).is_some());
+    }
+
+    #[test]
+    fn only_a_failure_of_the_latest_request_counts() {
+        let mut d = Delivery::default();
+        let a = d.request(true).unwrap();
+        let b = d.request(false).unwrap();
+        d.apply_failed(a);
+        assert_eq!(d.registration_failed(a), None);
+        assert!(!d.take_failed());
+        assert_eq!(d.request(false), None);
+        d.apply_failed(b);
+        assert!(d.take_failed());
+        assert!(d.request(false).is_some());
     }
 }
