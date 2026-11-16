@@ -49,6 +49,8 @@ pub(crate) struct BedFocusDelivery<T> {
     value: Option<bool>,
     /// 마지막 등록 세대.
     latest: u64,
+    /// 등록이 끝난 마지막 세대. `held`가 이 세대의 스크립트다.
+    confirmed: u64,
     /// 호스트 탐색이 `latest` 등록을 기다린다.
     barrier: bool,
     /// 남겨 둔 등록 id. 마지막으로 끝난 등록 하나만 남긴다.
@@ -88,6 +90,7 @@ impl<T> Default for BedFocusDelivery<T> {
         Self {
             value: None,
             latest: 0,
+            confirmed: 0,
             barrier: false,
             held: Vec::new(),
             deferred: Vec::new(),
@@ -162,6 +165,7 @@ impl<T> BedFocusDelivery<T> {
             return (vec![id], Vec::new());
         }
         self.barrier = false;
+        self.confirmed = generation;
         (
             std::mem::replace(&mut self.held, vec![id]),
             std::mem::take(&mut self.deferred),
@@ -200,7 +204,9 @@ impl<T> BedFocusDelivery<T> {
 
     /// 문서 탐색이 성공으로 끝났다. 상위층이 다시 보내기를 멈춘 값을 한 번 더 보낼 기회다.
     /// process가 끝난 뒤 실린 문서라면, 그 문서에 값이 실행됐는지 알 수 없으므로 적용을 실패로 두어
-    /// 상위층이 다시 보내게 한다.
+    /// 상위층이 다시 보내게 한다. 마지막 세대 등록이 아직 끝나지 않았으면(process 종료 때 기다리던
+    /// 등록이나 process가 없는 동안 시작한 등록) 그 완료가 끝내 오지 않을 수 있어 등록도 실패로 둔다.
+    /// 그래야 `held`에 앞 값이 남아 다음 문서가 앞 값으로 시작하지 않는다.
     pub(crate) fn document_loaded(&mut self) {
         if self.closed {
             return;
@@ -208,6 +214,9 @@ impl<T> BedFocusDelivery<T> {
         self.loaded = true;
         if std::mem::take(&mut self.renderer_gone) && self.value.is_some() {
             self.apply_failed = true;
+            if self.confirmed != self.latest {
+                self.registration_failed = true;
+            }
             self.failed = true;
         }
     }
@@ -399,9 +408,56 @@ mod tests {
         // 새 문서가 실리면 적용을 다시 하게 하고, 그 뒤로는 다시 장벽을 세운다.
         d.document_loaded();
         assert!(d.take_failed());
-        assert_eq!(d.request(false), work(None, Some(4)));
-        assert_eq!(d.request(true), work(Some(4), Some(5)));
+        assert_eq!(d.request(false), work(Some(4), Some(4)));
+        assert_eq!(d.request(true), work(Some(5), Some(5)));
         assert_eq!(d.navigate("later"), None);
+    }
+
+    #[test]
+    fn a_registration_that_never_completes_across_an_ended_renderer_is_registered_again() {
+        let mut d = Delivery::default();
+        assert_eq!(d.request(false), work(Some(1), Some(1)));
+        assert_eq!(d.registered(1, "a".into()), (vec![], vec![]));
+        // 등록 2를 기다리는 동안 process가 끝나고, 그 완료는 끝내 오지 않는다.
+        assert_eq!(d.request(true), work(Some(2), Some(2)));
+        assert_eq!(d.renderer_ended(), Vec::<&str>::new());
+        assert_eq!(d.navigate("reload"), Some("reload"));
+        // 복구 문서가 실리면 같은 값을 새 세대로 다시 등록하고 적용한다.
+        d.document_loaded();
+        assert!(d.take_failed());
+        assert_eq!(d.request(true), work(Some(3), Some(3)));
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(
+            d.registered(3, "c".into()),
+            (vec!["a".to_string()], vec!["load"])
+        );
+        // 그 뒤 값이 그대로면 더 할 일이 없다.
+        assert_eq!(d.request(true), None);
+    }
+
+    #[test]
+    fn a_late_completion_of_an_older_generation_does_not_change_the_newer_one() {
+        let mut d = Delivery::default();
+        assert_eq!(d.request(true), work(Some(1), Some(1)));
+        assert_eq!(d.renderer_ended(), Vec::<&str>::new());
+        d.document_loaded();
+        assert!(d.take_failed());
+        assert_eq!(d.request(true), work(Some(2), Some(2)));
+        assert_eq!(d.navigate("load"), None);
+        // 늦게 온 세대 1 완료는 지울 id로만 돌아오고 장벽·붙잡은 탐색·실패 상태를 바꾸지 않는다.
+        assert_eq!(
+            d.registered(1, "old".into()),
+            (vec!["old".to_string()], vec![])
+        );
+        d.registration_failed(1);
+        assert!(!d.take_failed());
+        assert_eq!(d.navigate("again"), None);
+        assert_eq!(d.held_navigations(), 2);
+        assert_eq!(
+            d.registered(2, "new".into()),
+            (vec![], vec!["load", "again"])
+        );
+        assert_eq!(d.request(true), None);
     }
 
     #[test]
