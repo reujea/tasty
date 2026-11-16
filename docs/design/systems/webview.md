@@ -554,7 +554,7 @@ Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른
 
 - 새 WebView는 첫 문서를 싣기 전에 값을 둔다(`webview_sync::bed_focus::apply_initial`). 포커스가 있으면 첫 렌더부터 focus 값이다.
 - 그 뒤 프레임마다 목표 값을 계산하고, 마지막으로 둔 값과 다를 때만 백엔드를 부른다. 계산은 표시 판정보다 먼저 한다. 숨긴 WebView도 갱신하므로 다시 보일 때 숨기기 전 값을 쓰지 않는다.
-- 상위층은 백엔드를 `BedFocusSink`로 본다. `set_bed_focused(bool)`로 값을 두고, `take_bed_focus_failed()`로 마지막으로 둔 값이 실패했는지, `take_bed_focus_document_loaded()`로 지난번 뒤로 문서 탐색이 성공으로 끝났는지 받아 표시를 지운다. surface마다 둔 값, 실패 여부, 다시 보낸 횟수를 기록한다(`webview_sync::bed_focus::BedFocusRecord`, `step`). 실패를 받으면 같은 동기화에서 같은 값을 한 번 다시 보낸다. 그 뒤에도 실패하면 목표 값이 바뀌거나 그 view의 문서 탐색이 성공으로 끝날 때까지 보내지 않는다. 바뀐 값은 다시 보낼 횟수를 새로 갖고, 탐색 완료 하나마다 한 번 더 보낸다. 실패가 계속되는 WebView에 프레임마다 다시 보내지 않기 위해서다. 브라우저 프로세스가 끝난 WebView에는 탐색 완료가 오지 않아 더 보내지 않는다. 그 surface가 더 이상 값을 받지 않으면 기록만 지운다. Linux는 넣고 빼는 호출이 같은 호출 안에서 끝나 실패도 탐색 완료도 보고하지 않으므로 값이 바뀔 때만 둔다. Windows는 `NavigationCompleted`가 성공일 때 탐색 완료를 기록한다. macOS는 값을 두지만 실패와 탐색 완료를 아직 보고하지 않는다.
+- 상위층은 백엔드를 `BedFocusSink`로 본다. `set_bed_focused(bool)`로 값을 두고, `take_bed_focus_failed()`로 마지막으로 둔 값이 실패했는지, `take_bed_focus_document_loaded()`로 지난번 뒤로 문서 탐색이 성공으로 끝났는지 받아 표시를 지운다. surface마다 둔 값, 실패 여부, 다시 보낸 횟수를 기록한다(`webview_sync::bed_focus::BedFocusRecord`, `step`). 실패를 받으면 같은 동기화에서 같은 값을 한 번 다시 보낸다. 그 뒤에도 실패하면 목표 값이 바뀌거나 그 view의 문서 탐색이 성공으로 끝날 때까지 보내지 않는다. 바뀐 값은 다시 보낼 횟수를 새로 갖고, 탐색 완료 하나마다 한 번 더 보낸다. 실패가 계속되는 WebView에 프레임마다 다시 보내지 않기 위해서다. 브라우저 프로세스가 끝난 WebView에는 탐색 완료가 오지 않아 더 보내지 않는다. 그 surface가 더 이상 값을 받지 않으면 기록만 지운다. Linux는 넣고 빼는 호출이 같은 호출 안에서 끝나 실패도 탐색 완료도 보고하지 않으므로 값이 바뀔 때만 둔다. Windows는 `NavigationCompleted`가 성공일 때 탐색 완료를 기록한다. macOS는 `didFinishNavigation`에서 탐색 완료를 기록한다.
 
 ### Linux 구현
 
@@ -606,6 +606,8 @@ WKWebView에는 공개 사용자 스타일시트 API가 없어 스크립트로 `
 - 지금 문서에는 `evaluateJavaScript`로 쓴다. 그 뒤 싣는 문서(파일 변경 재로드, 테마 변경)에는 같은 스크립트를 main frame 문서 시작 사용자 스크립트로 두어 첫 렌더 전에 쓴다. 값이 바뀔 때마다 그 사용자 스크립트를 바꾼다. 컨트롤러에는 스크립트 하나를 빼는 공개 API가 없어 모두 뺀 뒤 다른 스크립트(WebRTC 완화)를 다시 넣는다.
 - 두 스크립트 모두 페이지와 분리된 client content world에서 실행한다. markdown `sandbox_scripts = true`는 전역 `setJavaScriptEnabled:`를 끄는데, 이때 page world의 `evaluateJavaScript`는 `A JavaScript exception occurred`로 실패했다. 문서 시작 사용자 스크립트는 page world에서도 실행됐다.
 - html은 Linux와 같이 받지 않으며 스크립트를 넣지 않는다.
+- 지금 문서 적용은 값이 바뀌거나 실패해 다시 할 때마다 번호를 올린다(`bed_focus::BedFocusApply`). 마지막 적용의 완료가 실패를 알리면 실패로 표시해 상위층에 알린다. 상위층이 같은 값을 다시 보내면 적용만 다시 하고 문서 시작 스크립트는 바꾸지 않는다. 앞선 적용의 늦은 실패는 무시한다. 실패 경고는 view마다 첫 번째만 warn이고 그 뒤는 debug다.
+- 문서 시작 스크립트는 같은 호출 안에서 바뀌고 실패를 알리지 않는다. 그래서 Windows의 등록 세대와 탐색 장벽(`BedFocusDelivery`)이 없다.
 
 측정(macOS, 격리 debug 인스턴스, debug `webview.snapshot`의 WebView 그림·문서 계산값과 `ui.screenshot`의 호스트 그림):
 
