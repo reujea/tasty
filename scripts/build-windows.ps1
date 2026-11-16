@@ -186,6 +186,16 @@ function Get-BundledPlugins {
         Write-Error "fetch-official-plugins.sh failed with exit code $LASTEXITCODE"
         exit 1
     }
+    # 매니페스트 서명은 이 빌드의 키로만 만든다. 받은 산출물에 .sig가 있으면 서명을 생략하는 debug를
+    # 포함해 어느 프로필에서든 실패한다(sign-bundle.sh --dir과 같은 계약).
+    $Presigned = @(Get-ChildItem -Path $BundledPluginsDir -Recurse -File |
+        Where-Object { $_.Name -like "*.sig" } | ForEach-Object { $_.FullName } | Sort-Object)
+    if ($Presigned.Count -gt 0) {
+        Remove-Item -Recurse -Force $BundledPluginsDir
+        Write-Error ("$BundledPluginsDir already contains signatures; fetched plugins must arrive unsigned:`n  " +
+            ($Presigned -join "`n  "))
+        exit 1
+    }
 }
 
 # 받기가 실패하면 본체를 빌드하기 전에 멈춘다.

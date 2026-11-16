@@ -152,7 +152,7 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 
 **로컬 release/dist `just` 빌드**(`build-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)는 받거나 빌드한 공식 플러그인을 `--dir` 로, mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 서명한다([build.md](build.md#plugin-빌드--스테이징)). dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 받은 폴더를 아래 `--dir`로 서명한다. 매니페스트만 고치고 빌드 없이 확인할 때만 위 명령을 수동으로 부른다. debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
 
-받아서 스테이징한 플러그인 폴더는 `--dir`로 서명한다. dist 스크립트는 각자 서명 함수 하나(`sign_bundled_plugins`, Windows `Sign-BundledPlugins`)에서만 이 명령을 부른다. `<dir>/<id>/tasty-plugin.toml`을 모두 서명하고, 그 폴더 아래에 `.sig`가 하나라도 있으면 아무것도 서명하지 않고 실패한다. 공식 플러그인 릴리스 산출물은 서명 없이 오고 tasty 패키징이 서명한다는 계약을 이 실패로 확인한다. 서명할 매니페스트가 없을 때와 키 파일이 없을 때도 실패한다. 계약은 `scripts/tests/sign-bundle-dir.sh`(doc-guards `sign_bundle_dir_contract`가 실행)가 확인한다.
+받아서 스테이징한 플러그인 폴더는 `--dir`로 서명한다. dist 스크립트는 각자 서명 함수 하나(`sign_bundled_plugins`, Windows `Sign-BundledPlugins`)에서만 이 명령을 부른다. `<dir>/<id>/tasty-plugin.toml`을 모두 서명하고, 그 폴더 아래에 `.sig`가 하나라도 있으면 아무것도 서명하지 않고 실패한다. 공식 플러그인 릴리스 산출물은 서명 없이 오고 tasty 패키징이 서명한다는 계약을 이 실패로 확인한다. dist 스크립트는 서명을 만들지 않는 debug에서도 이 계약을 지키도록 받기 직후 같은 검사를 따로 한다([배포 패키지의 번들 플러그인](#배포-패키지의-번들-플러그인)). 서명할 매니페스트가 없을 때와 키 파일이 없을 때도 실패한다. 계약은 `scripts/tests/sign-bundle-dir.sh`(doc-guards `sign_bundle_dir_contract`가 실행)가 확인한다.
 
 ```bash
 ./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --dir <스테이징 폴더>
@@ -189,8 +189,8 @@ release workflow는 각 빌드 러너에서 서명 스크립트를 실행한다.
 
 dist 스크립트는 플러그인을 빌드하지 않는다. 서명 키를 준비한 뒤 본체 빌드보다 먼저 받기를 해서, 받기가 실패하면 본체를 빌드하지 않고 멈춘다. 순서는 아래와 같다. 셸 쪽 공용 함수는 `scripts/lib/bundled-plugins.sh`, Windows는 `build-windows.ps1`의 `Get-BundledPlugins`·`Stage-Plugins`·`Test-BundledPluginTree`다.
 
-1. **받기**: `fetch-official-plugins.sh --platform <p> --out target/bundled-plugins`로 잠금 파일의 `bundle = true` 산출물을 받는다. 플랫폼은 Linux `linux-x64`·`linux-arm64`, macOS `macos-arm64`, Windows `windows-x64`·`windows-arm64`다. Windows는 Git Bash로 이 스크립트를 실행하고 `.tar.gz`도 그 셸에서 찾은 `tar`가 푼다. 산출물이 없거나 SHA-256이 다르면 받기에서 실패하고 패키지를 만들지 않는다. 스테이징 폴더는 매번 지우고 새로 만든다.
-2. **서명**: 본체를 빌드한 뒤 non-debug 프로필이면 `sign-bundle.sh --dir target/bundled-plugins`로 매니페스트를 서명한다. 받은 산출물에 `.sig`가 있으면 실패한다. 키는 본체 빌드 전에 준비한 것을 쓴다([서명](#서명)).
+1. **받기**: `fetch-official-plugins.sh --platform <p> --out target/bundled-plugins`로 잠금 파일의 `bundle = true` 산출물을 받는다. 플랫폼은 Linux `linux-x64`·`linux-arm64`, macOS `macos-arm64`, Windows `windows-x64`·`windows-arm64`다. Windows는 Git Bash로 이 스크립트를 실행하고 `.tar.gz`도 그 셸에서 찾은 `tar`가 푼다. 산출물이 없거나 SHA-256이 다르면 받기에서 실패하고 패키지를 만들지 않는다. 받은 폴더에 `.sig`가 하나라도 있어도 debug를 포함한 모든 프로필에서 받기 직후 실패한다. 매니페스트 서명은 이 빌드의 키로만 만든다. 스테이징 폴더는 매번 지우고 새로 만든다.
+2. **서명**: 본체를 빌드한 뒤 non-debug 프로필이면 `sign-bundle.sh --dir target/bundled-plugins`로 매니페스트를 서명한다. debug는 서명을 만들지 않는다. 키는 본체 빌드 전에 준비한 것을 쓴다([서명](#서명)).
 3. **배치**: 받은 `<id>/` 폴더를 통째로 패키지의 plugin 폴더에 복사한다. 고지 파일(`LICENSE`, 릴리스에 따라 `THIRD_PARTY_LICENSES.md`·`LICENSES/`·`NOTICE.md`)도 플러그인과 함께 간다. 루트 고지 세트([배포물의 고지 파일](release.md#배포물의-고지-파일))는 본체 몫이고 플러그인 고지를 대신하지 않는다.
 4. **대조**: 패키지를 만든 뒤 그 안의 plugin 폴더를 스테이징 폴더와 비교한다. 다르면 실패한다.
 

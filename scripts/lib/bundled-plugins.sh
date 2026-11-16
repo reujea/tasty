@@ -10,12 +10,21 @@ BUNDLED_PLUGINS_DIR="target/bundled-plugins"
 
 # 받기·SHA-256 대조·매니페스트 검증은 fetch-official-plugins.sh가 한다. 산출물이 없거나 해시가 다르면
 # 실패하고 폴더를 남기지 않는다. 이전 실행의 폴더가 있으면 unpack이 거부하므로 먼저 지운다.
+# 매니페스트 서명은 이 빌드의 키로만 만든다. 받은 산출물에 .sig가 있으면 서명을 생략하는 debug를
+# 포함해 어느 프로필에서든 실패한다(sign-bundle.sh --dir과 같은 계약).
 fetch_bundled_plugins() {
-    local platform="$1"
+    local platform="$1" presigned
     rm -rf "${BUNDLED_PLUGINS_DIR:?}"
     if ! ./scripts/fetch-official-plugins.sh --platform "$platform" --out "$BUNDLED_PLUGINS_DIR"; then
         rm -rf "${BUNDLED_PLUGINS_DIR:?}"
         echo "Error: could not fetch the locked official plugins for $platform" >&2
+        return 1
+    fi
+    presigned=$(find "$BUNDLED_PLUGINS_DIR" -name '*.sig' | LC_ALL=C sort)
+    if [[ -n "$presigned" ]]; then
+        echo "Error: $BUNDLED_PLUGINS_DIR already contains signatures; fetched plugins must arrive unsigned:" >&2
+        printf '  %s\n' "$presigned" >&2
+        rm -rf "${BUNDLED_PLUGINS_DIR:?}"
         return 1
     fi
 }
