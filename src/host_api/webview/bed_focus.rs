@@ -4,7 +4,7 @@
 
 use tasty_plugin_protocol::bed_focus::BED_FOCUSED_PROPERTY;
 
-/// 상태를 만드는 고정 스타일시트. 계약 속성을 빈 값으로 정의하는 것뿐이다. 호스트는 이 문자열 말고는
+/// 상태를 만드는 고정 스타일시트. 계약 속성을 빈 값으로 정의하는 것뿐이다. Linux 호스트는 이 문자열 말고는
 /// 페이지에 넣지 않는다.
 #[cfg(any(target_os = "linux", test))]
 pub(crate) fn bed_focused_sheet() -> String {
@@ -251,6 +251,20 @@ impl<T> BedFocusDelivery<T> {
     }
 }
 
+/// 사용자 스타일시트가 없는 백엔드가 같은 상태를 문서에 두는 스크립트. `:root`의 인라인 스타일에
+/// 계약 속성을 둔다. 바탕 포커스 상태면 빈 값, 아니면 `initial`(무효 값)이다. 인라인 선언이 페이지
+/// 스타일시트의 `:root` 선언보다 앞서므로 페이지가 표지를 스스로 선언해도 unfocus 값이 된다.
+/// 빈 값을 받지 않는 엔진에서도 먼저 지운 뒤 두므로 앞 상태의 `initial`이 남지 않는다.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn bed_focus_script(focused: bool) -> String {
+    let value = if focused { " " } else { "initial" };
+    format!(
+        "(()=>{{const e=document.documentElement;if(!e)return;\
+         e.style.removeProperty('{BED_FOCUSED_PROPERTY}');\
+         e.style.setProperty('{BED_FOCUSED_PROPERTY}','{value}');}})();"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,5 +480,21 @@ mod tests {
         assert!(d.first_failure());
         assert!(!d.first_failure());
         assert!(!d.first_failure());
+    }
+
+    #[test]
+    fn the_script_sets_only_the_property_on_the_root_inline_style() {
+        assert_eq!(
+            bed_focus_script(true),
+            "(()=>{const e=document.documentElement;if(!e)return;\
+             e.style.removeProperty('--tasty-bed-focused');\
+             e.style.setProperty('--tasty-bed-focused',' ');})();"
+        );
+        assert_eq!(
+            bed_focus_script(false),
+            "(()=>{const e=document.documentElement;if(!e)return;\
+             e.style.removeProperty('--tasty-bed-focused');\
+             e.style.setProperty('--tasty-bed-focused','initial');})();"
+        );
     }
 }

@@ -72,10 +72,12 @@ impl BedFocusSink for PlatformWebView {
     }
 }
 
-/// macOS 백엔드에는 이 연산이 아직 없다(`docs/design/systems/webview.md` 연산 표).
-#[cfg(not(any(target_os = "linux", windows)))]
+/// macOS는 아직 지금 문서 적용의 실패를 알리지 않는다.
+#[cfg(target_os = "macos")]
 impl BedFocusSink for PlatformWebView {
-    fn set_bed_focused(&self, _focused: bool) {}
+    fn set_bed_focused(&self, focused: bool) {
+        PlatformWebView::set_bed_focused(self, focused);
+    }
     fn take_bed_focus_failed(&self) -> bool {
         false
     }

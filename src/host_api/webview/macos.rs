@@ -1,6 +1,7 @@
 //! macOS WKWebView wrapper.
 //! Reference: wry/src/wkwebview/mod.rs (MIT license, Tauri)
 
+mod bed_focus;
 mod content_rules;
 mod delegate_state;
 mod http;
@@ -652,6 +653,7 @@ pub struct PlatformWebView {
     mask: RefCell<MaskInput>,
     /// 마지막으로 적용한 mask 입력과 그때의 뷰 크기. 같으면 mask를 다시 만들지 않는다.
     applied_mask: RefCell<Option<(MaskInput, f64, f64)>>,
+    bed_focus: bed_focus::BedFocus,
 }
 
 /// WebView 그림에서 뺄 구멍. WebView 왼쪽 위 기준 물리 px `[x, y, 너비, 높이]` 다.
@@ -800,6 +802,7 @@ impl PlatformWebView {
                 _nav_delegate: nav_delegate,
                 mask: RefCell::new(MaskInput::default()),
                 applied_mask: RefCell::new(None),
+                bed_focus: bed_focus::BedFocus::default(),
             })
         }
     }
@@ -1144,6 +1147,15 @@ impl PlatformWebView {
     }
 
     /// Follow는 상속, Light/Dark는 AppKit appearance를 지정한다.
+    /// 바탕 포커스 상태를 문서에 둔다. 다음에 싣는 문서에도 남는다(`bed_focus`).
+    pub fn set_bed_focused(&self, focused: bool) {
+        let Some(mtm) = MainThreadMarker::new() else {
+            tracing::warn!("set_bed_focused called off the main thread; bed focus is not applied");
+            return;
+        };
+        self.bed_focus.set(&self.webview, focused, mtm);
+    }
+
     pub fn set_color_scheme(&self, scheme: super::ColorScheme) {
         // SAFETY: main thread AppKit. self 는 main thread 객체(Retained<WKWebView>),
         // WKWebView : NSView 가 setAppearance: 에 응답한다. appearanceNamed: 와
