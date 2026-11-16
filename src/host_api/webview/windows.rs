@@ -646,6 +646,8 @@ impl PlatformWebView {
                 .add_ContentLoading(&h_content, &mut tok_content)
                 .map_err(|e| transient(format!("add_ContentLoading failed: {e}")))?;
 
+            let bed_focus = bed_focus::BedFocusScript::default();
+            let bed_done = bed_focus.clone();
             let nav_done = nav_state.clone();
             let gate_done = script_gate.clone();
             let generation_done = gate_generation.clone();
@@ -725,6 +727,7 @@ impl PlatformWebView {
                     args.IsSuccess(&mut is_success)?;
                     if is_success.as_bool() {
                         tracing::debug!("WebView surface {surface_id}: load finished");
+                        bed_done.document_loaded();
                     } else {
                         let mut status = COREWEBVIEW2_WEB_ERROR_STATUS::default();
                         if let Err(e) = args.WebErrorStatus(&mut status) {
@@ -869,7 +872,7 @@ impl PlatformWebView {
                 pointer: RefCell::new(PointerGate::default()),
                 host_input,
                 key_replay,
-                bed_focus: bed_focus::BedFocusScript::default(),
+                bed_focus,
             })
         }
     }
@@ -1028,6 +1031,11 @@ impl PlatformWebView {
     /// 마지막으로 둔 바탕 포커스 값이 실패했는지 돌려주고 표시를 지운다(`bed_focus`).
     pub fn take_bed_focus_failed(&self) -> bool {
         self.bed_focus.take_failed()
+    }
+
+    /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다(`bed_focus`).
+    pub fn take_bed_focus_document_loaded(&self) -> bool {
+        self.bed_focus.take_loaded()
     }
 
     /// 현재 Windows에서는 적용하지 않고 로그만 남긴다.

@@ -17,7 +17,7 @@ pub(super) type Navigation = Box<dyn FnOnce()>;
 
 type Delivery = Rc<RefCell<BedFocusDelivery<Navigation>>>;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(super) struct BedFocusScript {
     delivery: Delivery,
 }
@@ -50,6 +50,16 @@ impl BedFocusScript {
     /// view가 사라진다. 붙잡은 탐색을 버리고 늦게 온 완료가 아무것도 하지 않게 한다.
     pub(super) fn close(&self) {
         self.delivery.borrow_mut().close();
+    }
+
+    /// 문서 탐색이 성공으로 끝났다(`NavigationCompleted`).
+    pub(super) fn document_loaded(&self) {
+        self.delivery.borrow_mut().document_loaded();
+    }
+
+    /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다.
+    pub(super) fn take_loaded(&self) -> bool {
+        self.delivery.borrow_mut().take_loaded()
     }
 
     /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다. 참이면 같은 값을 다시 받아 적용한다.

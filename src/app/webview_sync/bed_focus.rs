@@ -40,6 +40,9 @@ pub(crate) trait BedFocusSink {
     fn set_bed_focused(&self, focused: bool);
     /// 마지막으로 둔 값이 실패했는지 돌려주고 표시를 지운다.
     fn take_bed_focus_failed(&self) -> bool;
+    /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다. 다시 보내기를 멈춘 값을 한 번 더
+    /// 보낼 기회다. 실패를 보고하지 않는 백엔드는 늘 거짓이다.
+    fn take_bed_focus_document_loaded(&self) -> bool;
 }
 
 #[cfg(windows)]
@@ -49,6 +52,9 @@ impl BedFocusSink for PlatformWebView {
     }
     fn take_bed_focus_failed(&self) -> bool {
         PlatformWebView::take_bed_focus_failed(self)
+    }
+    fn take_bed_focus_document_loaded(&self) -> bool {
+        PlatformWebView::take_bed_focus_document_loaded(self)
     }
 }
 
@@ -61,6 +67,9 @@ impl BedFocusSink for PlatformWebView {
     fn take_bed_focus_failed(&self) -> bool {
         false
     }
+    fn take_bed_focus_document_loaded(&self) -> bool {
+        false
+    }
 }
 
 /// macOS 백엔드에는 이 연산이 아직 없다(`docs/design/systems/webview.md` 연산 표).
@@ -70,10 +79,15 @@ impl BedFocusSink for PlatformWebView {
     fn take_bed_focus_failed(&self) -> bool {
         false
     }
+    fn take_bed_focus_document_loaded(&self) -> bool {
+        false
+    }
 }
 
-/// 같은 값을 다시 보내는 최대 횟수. 그 뒤에도 실패하면 목표 값이 바뀔 때까지 보내지 않는다. 실패가
-/// 계속되는 WebView(브라우저 프로세스가 끝난 뒤 남은 것 등)에 프레임마다 다시 보내지 않기 위해서다.
+/// 같은 값을 다시 보내는 최대 횟수. 그 뒤에도 실패하면 목표 값이 바뀌거나 그 view의 문서 탐색이 성공으로
+/// 끝날 때까지 보내지 않는다. 탐색 완료 하나마다 한 번 더 보낸다. 실패가 계속되는 WebView(브라우저
+/// 프로세스가 끝난 뒤 남은 것 등)에 프레임마다 다시 보내지 않기 위해서다. 그런 view에는 탐색 완료도 오지
+/// 않는다.
 const MAX_RETRIES: u8 = 1;
 
 /// 한 surface에 마지막으로 둔 값.
@@ -87,7 +101,8 @@ pub(crate) struct BedFocusRecord {
 }
 
 /// 한 WebView의 한 번 동기화. `record`는 마지막으로 둔 값이고 돌려준 값이 새 기록이다. 백엔드가 실패를
-/// 알리면 같은 값을 [`MAX_RETRIES`]번까지 다시 보낸다. 값을 받지 않게 된 surface에서 실패하면 기록을 지운다.
+/// 알리면 같은 값을 [`MAX_RETRIES`]번까지 다시 보내고, 다 쓴 뒤에는 문서 탐색 완료마다 한 번 더 보낸다. 값을
+/// 받지 않게 된 surface에서 실패하면 기록을 지운다.
 fn step(
     sink: &impl BedFocusSink,
     wanted: Option<bool>,
@@ -98,6 +113,13 @@ fn step(
         && let Some(record) = record.as_mut()
     {
         record.failed = true;
+    }
+    if sink.take_bed_focus_document_loaded()
+        && let Some(record) = record.as_mut()
+        && record.failed
+        && record.retries >= MAX_RETRIES
+    {
+        record.retries = MAX_RETRIES - 1;
     }
     let Some(focused) = wanted else {
         return record.filter(|record| !record.failed);
@@ -164,12 +186,14 @@ mod tests {
     use std::cell::{Cell, RefCell};
 
     use super::{BedFocusRecord, BedFocusSink, MAX_RETRIES, receives, step, to_send};
+    use crate::webview::bed_focus::{BedFocusDelivery, BedFocusWork};
 
     /// 받은 값을 적고, 다음 회수에서 돌려줄 실패 표시를 갖는 가짜 백엔드.
     #[derive(Default)]
     struct FakeSink {
         sets: RefCell<Vec<bool>>,
         failed: Cell<bool>,
+        loaded: Cell<bool>,
     }
 
     impl BedFocusSink for FakeSink {
@@ -178,6 +202,30 @@ mod tests {
         }
         fn take_bed_focus_failed(&self) -> bool {
             self.failed.replace(false)
+        }
+        fn take_bed_focus_document_loaded(&self) -> bool {
+            self.loaded.replace(false)
+        }
+    }
+
+    /// 실제 백엔드 기록(`BedFocusDelivery`)에 요청을 넘기고 할 일을 적는 가짜 백엔드. 실패와 탐색 완료는
+    /// 시험이 백엔드 기록에 직접 알린다.
+    #[derive(Default)]
+    struct DeliverySink {
+        delivery: RefCell<BedFocusDelivery<()>>,
+        work: RefCell<Vec<BedFocusWork>>,
+    }
+
+    impl BedFocusSink for DeliverySink {
+        fn set_bed_focused(&self, focused: bool) {
+            let work = self.delivery.borrow_mut().request(focused);
+            self.work.borrow_mut().extend(work);
+        }
+        fn take_bed_focus_failed(&self) -> bool {
+            self.delivery.borrow_mut().take_failed()
+        }
+        fn take_bed_focus_document_loaded(&self) -> bool {
+            self.delivery.borrow_mut().take_loaded()
         }
     }
 
@@ -266,6 +314,98 @@ mod tests {
         sink.failed.set(true);
         step(&sink, Some(true), sent);
         assert_eq!(sink.sets.borrow().len(), before + 2);
+    }
+
+    /// 최초 등록과 재등록이 모두 실패해 상한에 걸린 뒤, 같은 view가 문서를 다시 실으면 한 번 더 보낸다.
+    #[test]
+    fn a_registration_that_ran_out_of_retries_is_sent_again_after_a_navigation() {
+        let sink = DeliverySink::default();
+        let sent = step(&sink, Some(false), None);
+        sink.delivery.borrow_mut().registration_failed(1);
+        let sent = step(&sink, Some(false), sent);
+        sink.delivery.borrow_mut().registration_failed(2);
+        let mut sent = step(&sink, Some(false), sent);
+        for _ in 0..5 {
+            sent = step(&sink, Some(false), sent);
+        }
+        assert_eq!(sink.work.borrow().len(), 2);
+        sink.delivery.borrow_mut().document_loaded();
+        let mut sent = step(&sink, Some(false), sent);
+        assert_eq!(
+            sink.work.borrow().last(),
+            Some(&BedFocusWork {
+                register: Some(3),
+                apply: Some(3)
+            })
+        );
+        // 다시 보낸 등록이 끝나면 더 보내지 않는다. 그 뒤 탐색 완료도 다시 보내게 하지 않는다.
+        sink.delivery.borrow_mut().registered(3, "c".into());
+        sink.delivery.borrow_mut().document_loaded();
+        for _ in 0..5 {
+            sent = step(&sink, Some(false), sent);
+        }
+        assert_eq!(sink.work.borrow().len(), 3);
+    }
+
+    /// 적용 실패로 재전송을 쓴 뒤 등록이 실패하면 상한에 걸린다. 탐색 완료 뒤 등록을 다시 한다.
+    #[test]
+    fn a_registration_failure_after_an_apply_retry_is_sent_again_after_a_navigation() {
+        let sink = DeliverySink::default();
+        let sent = step(&sink, Some(true), None);
+        sink.delivery.borrow_mut().apply_failed(1);
+        let sent = step(&sink, Some(true), sent);
+        assert_eq!(
+            sink.work.borrow().last(),
+            Some(&BedFocusWork {
+                register: None,
+                apply: Some(2)
+            })
+        );
+        sink.delivery.borrow_mut().registration_failed(1);
+        let mut sent = step(&sink, Some(true), sent);
+        for _ in 0..5 {
+            sent = step(&sink, Some(true), sent);
+        }
+        assert_eq!(sink.work.borrow().len(), 2);
+        sink.delivery.borrow_mut().document_loaded();
+        step(&sink, Some(true), sent);
+        assert_eq!(
+            sink.work.borrow().last(),
+            Some(&BedFocusWork {
+                register: Some(2),
+                apply: Some(3)
+            })
+        );
+    }
+
+    /// 탐색 완료 하나에 한 번만 더 보낸다. 실패가 계속되고 탐색 완료가 없으면 더 보내지 않는다.
+    #[test]
+    fn a_value_that_keeps_failing_is_sent_once_per_completed_navigation() {
+        let sink = FakeSink::default();
+        let mut sent = None;
+        for _ in 0..10 {
+            sent = step(&sink, Some(false), sent);
+            sink.failed.set(true);
+        }
+        let capped = sink.sets.borrow().len();
+        sink.loaded.set(true);
+        for _ in 0..10 {
+            sent = step(&sink, Some(false), sent);
+            sink.failed.set(true);
+        }
+        assert_eq!(sink.sets.borrow().len(), capped + 1);
+    }
+
+    /// 성공한 값은 탐색 완료가 와도 다시 보내지 않는다.
+    #[test]
+    fn a_completed_navigation_does_not_resend_a_value_that_holds() {
+        let sink = FakeSink::default();
+        let mut sent = step(&sink, Some(true), None);
+        for _ in 0..3 {
+            sink.loaded.set(true);
+            sent = step(&sink, Some(true), sent);
+        }
+        assert_eq!(*sink.sets.borrow(), vec![true]);
     }
 
     #[test]

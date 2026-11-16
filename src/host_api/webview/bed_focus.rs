@@ -65,6 +65,8 @@ pub(crate) struct BedFocusDelivery<T> {
     warned: bool,
     /// view가 사라졌다. 그 뒤 오는 요청·탐색·완료는 아무것도 하지 않는다.
     closed: bool,
+    /// 상위층에 아직 알리지 않은 문서 탐색 완료.
+    loaded: bool,
 }
 
 /// [`BedFocusDelivery::request`]가 정한 할 일.
@@ -92,6 +94,7 @@ impl<T> Default for BedFocusDelivery<T> {
             failed: false,
             warned: false,
             closed: false,
+            loaded: false,
         }
     }
 }
@@ -189,6 +192,18 @@ impl<T> BedFocusDelivery<T> {
     /// 실패를 경고로 남길지. view마다 첫 실패만 참이다.
     pub(crate) fn first_failure(&mut self) -> bool {
         !std::mem::replace(&mut self.warned, true)
+    }
+
+    /// 문서 탐색이 성공으로 끝났다. 상위층이 다시 보내기를 멈춘 값을 한 번 더 보낼 기회다.
+    pub(crate) fn document_loaded(&mut self) {
+        if !self.closed {
+            self.loaded = true;
+        }
+    }
+
+    /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다.
+    pub(crate) fn take_loaded(&mut self) -> bool {
+        std::mem::replace(&mut self.loaded, false)
     }
 
     /// view가 사라진다. 붙잡은 탐색을 버리고, 그 뒤 오는 요청·탐색·완료를 무시한다. 늦게 온 등록
@@ -332,6 +347,19 @@ mod tests {
         assert_eq!(d.navigate("late"), None);
         assert_eq!(d.held_navigations(), 0);
         assert_eq!(d.request(true), None);
+    }
+
+    #[test]
+    fn a_completed_navigation_is_reported_once() {
+        let mut d = Delivery::default();
+        assert!(!d.take_loaded());
+        d.document_loaded();
+        d.document_loaded();
+        assert!(d.take_loaded());
+        assert!(!d.take_loaded());
+        d.close();
+        d.document_loaded();
+        assert!(!d.take_loaded());
     }
 
     #[test]
