@@ -295,14 +295,12 @@ impl MainView {
                         let current_name =
                             engine.tab_display_name(tab, state.navigation.surface_id(tab));
                         let target = crate::state::RenameTarget::TabName { tab_id: tab.id };
-                        let scope = target.popup_scope(engine);
-                        state.dialogs.rename = Some((target, current_name));
-                        state.dispatch_intent(
-                            UiIntent::OpenPopup {
-                                id: "rename",
-                                mode: OpenPopupMode::CenteredFocused(scope),
-                            }
-                            .from_user_shortcut("rename_tab"),
+                        crate::adapters::ui::rename_popup::open(
+                            state,
+                            engine,
+                            target,
+                            current_name,
+                            |intent| intent.from_user_shortcut("rename_tab"),
                         );
                     }
                 }
@@ -313,14 +311,12 @@ impl MainView {
                     let target = crate::state::RenameTarget::WorkspaceName {
                         workspace_id: ws.id,
                     };
-                    let scope = target.popup_scope(engine);
-                    state.dialogs.rename = Some((target, ws.name.clone()));
-                    state.dispatch_intent(
-                        UiIntent::OpenPopup {
-                            id: "rename",
-                            mode: OpenPopupMode::CenteredFocused(scope),
-                        }
-                        .from_user_shortcut("rename_workspace"),
+                    crate::adapters::ui::rename_popup::open(
+                        state,
+                        engine,
+                        target,
+                        ws.name.clone(),
+                        |intent| intent.from_user_shortcut("rename_workspace"),
                     );
                 }
             }
@@ -330,14 +326,12 @@ impl MainView {
                     let target = crate::state::RenameTarget::WorkspaceSubtitle {
                         workspace_id: ws.id,
                     };
-                    let scope = target.popup_scope(engine);
-                    state.dialogs.rename = Some((target, ws.subtitle.clone()));
-                    state.dispatch_intent(
-                        UiIntent::OpenPopup {
-                            id: "rename",
-                            mode: OpenPopupMode::CenteredFocused(scope),
-                        }
-                        .from_user_shortcut("rename_workspace_subtitle"),
+                    crate::adapters::ui::rename_popup::open(
+                        state,
+                        engine,
+                        target,
+                        ws.subtitle.clone(),
+                        |intent| intent.from_user_shortcut("rename_workspace_subtitle"),
                     );
                 }
             }

@@ -1120,31 +1120,12 @@ impl MainView {
         target: crate::state::RenameTarget,
         current_value: String,
     ) {
-        let scope = target.popup_scope(engine);
-        let workspace = match (&target, &scope) {
-            (
-                crate::state::RenameTarget::WorkspaceName { workspace_id }
-                | crate::state::RenameTarget::WorkspaceSubtitle { workspace_id },
-                crate::model::popup_kind::PopupScope::Workspace(_),
-            ) => Some(*workspace_id),
-            _ => None,
-        };
-        self.state.dialogs.rename = Some((target, current_value));
-        if let Some(workspace_id) = workspace {
-            crate::adapters::ui::workspace_action_popup::open(
-                &mut self.state,
-                workspace_id,
-                "rename",
-                crate::intent::UiIntent::from_user_context_menu,
-            );
-            return;
-        }
-        self.state.dispatch_intent(
-            crate::intent::UiIntent::OpenPopup {
-                id: "rename",
-                mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-            }
-            .from_user_context_menu(),
+        crate::adapters::ui::rename_popup::open(
+            &mut self.state,
+            engine,
+            target,
+            current_value,
+            crate::intent::UiIntent::from_user_context_menu,
         );
     }
 

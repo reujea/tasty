@@ -31,6 +31,7 @@ pub(crate) mod notification;
 pub(crate) mod overlay;
 pub mod popup;
 pub mod preset;
+pub(crate) mod rename_popup;
 pub(crate) mod restore_notice;
 pub(crate) mod search_bar;
 pub mod surface;

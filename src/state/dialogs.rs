@@ -561,27 +561,24 @@ impl RenameTarget {
         }
     }
 
-    /// 대상 ID로 표시 범위를 정한다. 대상을 찾지 못하면 창 범위로 연다.
+    /// 대상 ID로 표시 범위를 정한다. workspace·탭 대상을 찾지 못하면 None이다(열지 않는다).
     pub fn popup_scope(
         &self,
         engine: &crate::core::CoreState,
-    ) -> crate::model::popup_kind::PopupScope {
+    ) -> Option<crate::model::popup_kind::PopupScope> {
         use crate::model::popup_kind::PopupScope;
         match self {
             Self::WorkspaceName { workspace_id } | Self::WorkspaceSubtitle { workspace_id } => {
                 engine
                     .find_workspace_index_for_id(*workspace_id)
-                    .map_or(PopupScope::Window, |_| PopupScope::Workspace(*workspace_id))
+                    .map(|_| PopupScope::Workspace(*workspace_id))
             }
             Self::TabName { tab_id } => engine
                 .find_pane_for_tab(*tab_id)
-                .map_or(PopupScope::Window, |_| PopupScope::Tab(*tab_id)),
-            Self::ExplorerEntry { surface_id, .. } => {
-                crate::model::popup_kind::PopupScope::Surface(*surface_id)
-            }
-            Self::ExplorerAddFavorite { .. } => crate::model::popup_kind::PopupScope::Window,
-            Self::NewCategory | Self::CategoryName { .. } => {
-                crate::model::popup_kind::PopupScope::Window
+                .map(|_| PopupScope::Tab(*tab_id)),
+            Self::ExplorerEntry { surface_id, .. } => Some(PopupScope::Surface(*surface_id)),
+            Self::ExplorerAddFavorite { .. } | Self::NewCategory | Self::CategoryName { .. } => {
+                Some(PopupScope::Window)
             }
         }
     }
