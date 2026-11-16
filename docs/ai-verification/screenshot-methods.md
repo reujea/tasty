@@ -204,8 +204,8 @@ macOS에서도 기록한 PID와 이번 실행 기록, 실행 파일 경로로 �
 
 루트의 `cargo build`만으로 플러그인 실행 파일이 다시 만들어지지는 않는다. 공식 플러그인은 `just build-plugins`가 `target/<profile>/builtin-plugins/<id>/`에 놓는다. 기본은 잠금 파일의 릴리스 산출물이고, 플러그인 코드를 고친 검증은 공식 플러그인 레포 체크아웃에서 `--from-checkout`으로 빌드해 놓는다(호스트 계약도 바꿨다면 `--with-local-tasty`, [build.md](../dev-guide/build.md#plugin-빌드--스테이징)). 이 workspace에서 빌드하는 mesh-demo는 `cargo build -p tasty-plugin-mesh-demo`로 빌드한다.
 
-여기에 스테이징이 겹친다. host 는 **debug 빌드에서 부팅할 때만** `copy_if_newer` 로
-`target/debug/builtin-plugins/` 를 갱신한다. release/dist 는 빌드 단계에서 스테이징한다. 모든 프로필은 번들에서 `<TASTY_HOME>/plugins/` 로
+여기에 스테이징이 겹친다. host 는 **debug 빌드에서 부팅할 때만** mesh-demo 를 `copy_if_newer` 로
+`target/debug/builtin-plugins/` 에 갱신한다. 공식 플러그인은 부팅이 갱신하지 않고 스테이징한 그대로 쓴다. release/dist 는 빌드 단계에서 스테이징한다. 모든 프로필은 번들에서 `<TASTY_HOME>/plugins/` 로
 sync 한다(`crates/tasty-host-plugin/src/builtin.rs`). debug 스테이징 판정(`copy_if_newer`)은
 **mtime 우선**이다(번들 → 홈 sync 는 내용 판정이다) — src 가 새것이면 내용을 안 보고 옮기고, dest 가 새것이면 내용을 안 보고
 건너뛰며, **시각이 같을 때만 내용을 본다.** 그래서 "시각이 같아 조용히 건너뛴다" 는 갈래는

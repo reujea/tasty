@@ -14,14 +14,28 @@ use std::path::{Path, PathBuf};
 use crate::{PluginManager, PluginsConfig, discovery};
 use tasty_plugin_manifest::Manifest;
 
-/// 한 builtin plugin의 패키지 메타 — id, dev workspace crate 경로, plugin 바이너리 이름.
+/// 한 builtin plugin의 패키지 메타 — id, 크레이트 이름, 원천, plugin 바이너리 이름.
 pub(crate) struct BuiltinSpec {
     pub(crate) id: &'static str,
-    /// `crates/<crate_dir>/` — workspace 빌드의 매니페스트/lang 원본 위치.
-    /// workspace 가 실제로 존재할 때만 dev sync 에 사용된다 (배포 패키지에서는 미사용).
+    /// 플러그인 크레이트 이름. 원천이 [`BuiltinSource::Workspace`]면 `crates/<crate_dir>/`가
+    /// debug 동기화의 매니페스트/lang 원본이다. 공식 플러그인 레포의 릴리스로 받는 플러그인은
+    /// 그 레포의 크레이트 이름이며 동기화에는 쓰지 않는다.
     crate_dir: &'static str,
+    /// 개발 번들을 어디서 얻는지. 배포 패키지의 번들 탐색에는 영향이 없다.
+    source: BuiltinSource,
     /// `target/<profile>/<bin_name>` — workspace 빌드된 plugin 실행 바이너리 이름.
     bin_name: &'static str,
+}
+
+/// 개발 번들(`target/<profile>/builtin-plugins/<id>/`)의 원천.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BuiltinSource {
+    /// 공식 플러그인 레포의 릴리스 산출물(잠금 파일)이나 그 레포 체크아웃의 빌드를
+    /// `scripts/stage-dev-plugins.sh`가 스테이징한다. debug 부팅이 workspace 파일로 덮지 않는다.
+    OfficialRelease,
+    /// 이 workspace에서 빌드한다. debug 부팅이 `target/<profile>/<bin>`과 크레이트의
+    /// 매니페스트·lang을 개발 번들로 동기화한다.
+    Workspace,
 }
 
 #[cfg(windows)]
@@ -29,46 +43,55 @@ pub(crate) const BUILTINS: &[BuiltinSpec] = &[
     BuiltinSpec {
         id: "com.tasty.codex",
         crate_dir: "tasty-plugin-codex",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-codex.exe",
     },
     BuiltinSpec {
         id: "com.tasty.claude",
         crate_dir: "tasty-plugin-claude",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-claude.exe",
     },
     BuiltinSpec {
         id: "com.tasty.image",
         crate_dir: "tasty-plugin-image",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-image.exe",
     },
     BuiltinSpec {
         id: "com.tasty.markdown",
         crate_dir: "tasty-plugin-markdown",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-markdown.exe",
     },
     BuiltinSpec {
         id: "com.tasty.clipboard-viewer",
         crate_dir: "tasty-plugin-clipboard-viewer",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-clipboard-viewer.exe",
     },
     BuiltinSpec {
         id: "com.tasty.html",
         crate_dir: "tasty-plugin-html",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-html.exe",
     },
     BuiltinSpec {
         id: "com.tasty.git-viewer",
         crate_dir: "tasty-plugin-git-viewer",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-git-viewer.exe",
     },
     BuiltinSpec {
         id: "com.tasty.mesh-demo",
         crate_dir: "tasty-plugin-mesh-demo",
+        source: BuiltinSource::Workspace,
         bin_name: "tasty-plugin-mesh-demo.exe",
     },
     BuiltinSpec {
         id: "com.tasty.agent-stream",
         crate_dir: "tasty-plugin-agent-stream",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-agent-stream.exe",
     },
 ];
@@ -78,46 +101,55 @@ pub(crate) const BUILTINS: &[BuiltinSpec] = &[
     BuiltinSpec {
         id: "com.tasty.codex",
         crate_dir: "tasty-plugin-codex",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-codex",
     },
     BuiltinSpec {
         id: "com.tasty.claude",
         crate_dir: "tasty-plugin-claude",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-claude",
     },
     BuiltinSpec {
         id: "com.tasty.image",
         crate_dir: "tasty-plugin-image",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-image",
     },
     BuiltinSpec {
         id: "com.tasty.markdown",
         crate_dir: "tasty-plugin-markdown",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-markdown",
     },
     BuiltinSpec {
         id: "com.tasty.clipboard-viewer",
         crate_dir: "tasty-plugin-clipboard-viewer",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-clipboard-viewer",
     },
     BuiltinSpec {
         id: "com.tasty.html",
         crate_dir: "tasty-plugin-html",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-html",
     },
     BuiltinSpec {
         id: "com.tasty.git-viewer",
         crate_dir: "tasty-plugin-git-viewer",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-git-viewer",
     },
     BuiltinSpec {
         id: "com.tasty.mesh-demo",
         crate_dir: "tasty-plugin-mesh-demo",
+        source: BuiltinSource::Workspace,
         bin_name: "tasty-plugin-mesh-demo",
     },
     BuiltinSpec {
         id: "com.tasty.agent-stream",
         crate_dir: "tasty-plugin-agent-stream",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "tasty-plugin-agent-stream",
     },
 ];
@@ -252,7 +284,8 @@ fn overwrite_builtin_dir(src: &Path, dest: &Path) -> std::io::Result<()> {
 /// - 둘째 (macOS 한정): `.app` 번들의 `Contents/Resources/plugins/`.
 /// - 셋째: 실행 파일 옆 `plugins/` (release/dist에서 packaging 시 함께 복사,
 ///   portable .tar.gz / .zip 설치).
-/// - 넷째: 실행 파일 옆 `builtin-plugins/`. debug 에서만 workspace 원본을
+/// - 넷째: 실행 파일 옆 `builtin-plugins/`. 공식 플러그인은 `scripts/stage-dev-plugins.sh`가
+///   스테이징한 것을 그대로 쓴다. debug 에서만 workspace 원천 플러그인(mesh-demo)을
 ///   mtime 및 동률 시 내용 비교로 동기화한다. release/dist 는 빌드 단계가 스테이징한 번들을
 ///   그대로 사용하며, 시작 시 workspace 원본을 복사하지 않는다.
 /// - 다섯째 (linux 한정): FHS 표준 경로 `/usr/lib/tasty/plugins/`,
@@ -323,7 +356,9 @@ pub fn bundle_root_from_exe_dir(exe_dir: &Path) -> Option<PathBuf> {
     None
 }
 
-/// debug 실행 파일 위의 워크스페이스에서 매니페스트·바이너리·번역을 동기화한다.
+/// debug 실행 파일 위의 워크스페이스에서 workspace 원천 플러그인의 매니페스트·바이너리·번역을
+/// 동기화한다. 공식 플러그인은 동기화하지 않는다. workspace에 같은 크레이트가 남아 있어도
+/// 스테이징한 릴리스 산출물을 새 빌드로 덮지 않기 위해서다.
 /// 하나라도 준비되면 번들 경로를 반환하며 워크스페이스가 없으면 동기화하지 않는다.
 fn ensure_dev_bundle(exe_dir: &Path) -> Option<PathBuf> {
     // exe_dir = .../target/<profile>
@@ -332,7 +367,10 @@ fn ensure_dev_bundle(exe_dir: &Path) -> Option<PathBuf> {
 
     let bundle_root = exe_dir.join("builtin-plugins");
     let mut any_synced = false;
-    for spec in BUILTINS {
+    for spec in BUILTINS
+        .iter()
+        .filter(|s| s.source == BuiltinSource::Workspace)
+    {
         if sync_builtin_dev(workspace, exe_dir, &bundle_root, spec) {
             any_synced = true;
         }
@@ -350,8 +388,8 @@ fn ensure_dev_bundle(exe_dir: &Path) -> Option<PathBuf> {
     }
 }
 
-/// 한 builtin plugin을 dev bundle로 동기화. 바이너리 또는 매니페스트가
-/// workspace에 없으면 (예: codex만 빌드 안 됨, 또는 배포 패키지라 `crates/`가 아예
+/// 한 workspace 원천 builtin plugin을 dev bundle로 동기화. 바이너리 또는 매니페스트가
+/// workspace에 없으면 (예: 아직 빌드하지 않음, 또는 배포 패키지라 `crates/`가 아예
 /// 없음) false 반환. release/dist 는 이 경로를 호출하지 않는다.
 fn sync_builtin_dev(
     workspace: &Path,

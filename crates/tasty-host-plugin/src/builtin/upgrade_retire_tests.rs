@@ -6,7 +6,7 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::{BuiltinSpec, BuiltinUpgradeAction, apply_builtin_upgrade_decision};
+use super::{BuiltinSource, BuiltinSpec, BuiltinUpgradeAction, apply_builtin_upgrade_decision};
 use crate::manager::PluginManager;
 use crate::process::PluginProcess;
 use crate::test_fake_plugin::{self as fake, ID};
@@ -47,6 +47,7 @@ fn upgrade(
     let spec = BuiltinSpec {
         id: ID,
         crate_dir: "",
+        source: BuiltinSource::OfficialRelease,
         bin_name: "",
     };
     apply_builtin_upgrade_decision(
