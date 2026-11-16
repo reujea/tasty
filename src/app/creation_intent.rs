@@ -45,10 +45,11 @@ pub(crate) fn resolve(
             kind,
             name,
             category,
+            target_pane_id,
         } => DomainIntent::ApplyPreset {
             kind: *kind,
             name: name.clone(),
-            target_pane_id: Some(state.focused_pane_id(&read)),
+            target_pane_id: Some(target_pane_id.unwrap_or_else(|| state.focused_pane_id(&read))),
             category: *category,
         },
         Intent::RestoreClosedItem => DomainIntent::RestoreClosedItem {

@@ -39,7 +39,89 @@ pub enum ApplyPresetAction {
     Apply(String),
 }
 
-/// 팝업이 닫힐 때 선택과 대상 카테고리를 비운다. 세 종류 팝업이 공유한다.
+/// 탭·pane 프리셋 적용 팝업이 작용하는 대상. 열 때 정하고 적용할 때 그대로 쓴다.
+/// 팝업이 열린 채 포커스가 다른 pane 으로 옮겨져도 적용 대상은 바뀌지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PresetApplyTarget {
+    /// 탭 프리셋. 그 탭이 속한 pane 에 적용한다.
+    Tab(u32),
+    /// pane 프리셋.
+    Pane(u32),
+}
+
+impl PresetApplyTarget {
+    fn popup_id(self) -> crate::adapters::ui::popup::PopupId {
+        match self {
+            Self::Tab(_) => APPLY_TAB_POPUP_ID,
+            Self::Pane(_) => APPLY_PANE_POPUP_ID,
+        }
+    }
+
+    fn scope(self) -> crate::adapters::ui::popup::PopupScope {
+        match self {
+            Self::Tab(id) => crate::adapters::ui::popup::PopupScope::Tab(id),
+            Self::Pane(id) => crate::adapters::ui::popup::PopupScope::Pane(id),
+        }
+    }
+
+    /// 적용할 pane. 대상이 사라졌으면 None이다.
+    fn pane(self, engine: &crate::runtime::engine_read::EngineRead<'_>) -> Option<u32> {
+        match self {
+            Self::Tab(tab) => engine.find_pane_for_tab(tab),
+            Self::Pane(pane) => engine.has_pane(pane).then_some(pane),
+        }
+    }
+}
+
+/// 적용할 pane. 워크스페이스 프리셋은 대상 pane 이 없다(None).
+/// 탭·pane 프리셋은 열 때 정한 대상에 적용하며, 대상이 사라졌으면 Err 로 적용하지 않는다.
+fn apply_target_pane(
+    kind: PresetKind,
+    target: Option<PresetApplyTarget>,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> Result<Option<u32>, ()> {
+    match kind {
+        PresetKind::Workspace => Ok(None),
+        PresetKind::Tab | PresetKind::Pane => target
+            .and_then(|target| target.pane(engine))
+            .map(Some)
+            .ok_or(()),
+    }
+}
+
+/// pane 의 탭 또는 pane 프리셋 적용 팝업을 그 대상 범위로 연다. 탭 프리셋은 그 pane 에서 선택된 탭이 대상이다.
+/// 대상을 찾지 못하면 열지 않고 warn 을 남긴다.
+pub(crate) fn open_for_pane(
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    kind: PresetKind,
+    pane_id: u32,
+    dispatch: impl FnOnce(crate::intent::UiIntent) -> crate::intent::DispatchedIntent,
+) -> bool {
+    let target = match kind {
+        PresetKind::Pane => engine
+            .has_pane(pane_id)
+            .then_some(PresetApplyTarget::Pane(pane_id)),
+        PresetKind::Tab => engine
+            .find_pane_by_id(pane_id)
+            .and_then(|pane| pane.tabs.get(state.navigation.tab_index(pane)))
+            .map(|tab| PresetApplyTarget::Tab(tab.id)),
+        PresetKind::Workspace => None,
+    };
+    let Some(target) = target else {
+        tracing::warn!("{kind:?} preset popup not opened: pane {pane_id} has no target");
+        return false;
+    };
+    state.dialogs.preset_picker_selected = None;
+    state.dialogs.preset_apply_target = Some(target);
+    state.dispatch_intent(dispatch(crate::intent::UiIntent::OpenPopup {
+        id: target.popup_id(),
+        mode: crate::intent::OpenPopupMode::CenteredFocused(target.scope()),
+    }));
+    true
+}
+
+/// 팝업이 닫힐 때 선택과 대상을 비운다. 세 종류 팝업이 공유한다.
 pub fn on_close_apply_preset_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
@@ -47,6 +129,7 @@ pub fn on_close_apply_preset_popup(
 ) {
     state.dialogs.preset_picker_selected = None;
     state.dialogs.preset_apply_target_category = None;
+    state.dialogs.preset_apply_target = None;
 }
 
 pub fn draw_apply_workspace_popup(
@@ -76,7 +159,7 @@ pub fn draw_apply_pane_popup(
 fn draw_apply_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
     kind: PresetKind,
 ) -> PopupAction {
     let th = theme::theme();
@@ -116,11 +199,18 @@ fn draw_apply_popup(
         }
         ApplyPresetAction::Apply(name) => {
             let category = state.dialogs.preset_apply_target_category.take();
+            let Ok(target_pane_id) =
+                apply_target_pane(kind, state.dialogs.preset_apply_target, engine)
+            else {
+                tracing::warn!("{kind:?} preset '{name}' not applied: its target is gone");
+                return PopupAction::Close;
+            };
             state.dispatch_intent(
                 Intent::ApplyPreset {
                     kind,
                     name: name.clone(),
                     category,
+                    target_pane_id,
                 }
                 .from_user_menu("preset_apply_popup"),
             );
@@ -277,6 +367,7 @@ pub fn draw_apply_preset_view(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapters::ui::popup::{PopupId, PopupScope};
 
     fn test_theme() -> Theme {
         tasty_themes::mocha_fallback()
@@ -365,6 +456,135 @@ mod tests {
         raw.events.push(key_event(egui::Key::Enter));
         let action = run_with_input(raw, &names, Some("alpha"));
         assert_eq!(action, ApplyPresetAction::Apply("beta".to_string()));
+    }
+
+    /// 두 pane fixture: pane 10 에 탭 101(선택)·102, pane 20 에 탭 201. 포커스는 pane 20.
+    fn open_on_left_pane(
+        kind: PresetKind,
+    ) -> (
+        crate::state::RequestContext,
+        crate::runtime::engine_session::EngineSession,
+        crate::intent::DispatchedIntent,
+    ) {
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        let opened = open_for_pane(
+            &mut state,
+            &session.read(),
+            kind,
+            10,
+            crate::intent::UiIntent::from_user_context_menu,
+        );
+        assert!(opened);
+        let mut intents = state.take_pending_intents();
+        assert_eq!(intents.len(), 1);
+        let intent = intents.remove(0);
+        (state, session, intent)
+    }
+
+    fn opened_popup(intent: &crate::intent::DispatchedIntent) -> (PopupId, PopupScope) {
+        match &intent.body {
+            Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                id,
+                mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
+            }) => (*id, scope.clone()),
+            other => panic!("expected a centered popup open, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_tab_preset_popup_opens_in_the_selected_tab_of_its_pane() {
+        let (state, _session, intent) = open_on_left_pane(PresetKind::Tab);
+        assert_eq!(
+            opened_popup(&intent),
+            (APPLY_TAB_POPUP_ID, PopupScope::Tab(101))
+        );
+        assert_eq!(
+            state.dialogs.preset_apply_target,
+            Some(PresetApplyTarget::Tab(101))
+        );
+    }
+
+    #[test]
+    fn the_pane_preset_popup_opens_in_its_pane() {
+        let (state, _session, intent) = open_on_left_pane(PresetKind::Pane);
+        assert_eq!(
+            opened_popup(&intent),
+            (APPLY_PANE_POPUP_ID, PopupScope::Pane(10))
+        );
+        assert_eq!(
+            state.dialogs.preset_apply_target,
+            Some(PresetApplyTarget::Pane(10))
+        );
+    }
+
+    #[test]
+    fn a_pane_without_a_target_does_not_open() {
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        for kind in [PresetKind::Tab, PresetKind::Pane] {
+            let opened = open_for_pane(
+                &mut state,
+                &session.read(),
+                kind,
+                999,
+                crate::intent::UiIntent::from_user_context_menu,
+            );
+            assert!(!opened, "{kind:?}");
+        }
+        assert!(state.take_pending_intents().is_empty());
+        assert_eq!(state.dialogs.preset_apply_target, None);
+    }
+
+    /// 팝업을 연 뒤 포커스가 다른 pane 에 있어도 열 때 정한 pane 에 적용한다.
+    #[test]
+    fn apply_targets_the_pane_chosen_at_open_not_the_focused_pane() {
+        for kind in [PresetKind::Tab, PresetKind::Pane] {
+            let (mut state, session, _) = open_on_left_pane(kind);
+            let read = session.read();
+            assert_eq!(state.focused_pane_id(&read), 20);
+            let target_pane_id =
+                apply_target_pane(kind, state.dialogs.preset_apply_target, &read).unwrap();
+            assert_eq!(target_pane_id, Some(10), "{kind:?}");
+
+            let dispatched = Intent::ApplyPreset {
+                kind,
+                name: "p".into(),
+                category: None,
+                target_pane_id,
+            }
+            .from_user_menu("preset_apply_popup");
+            drop(read);
+            let resolved = crate::app::creation_intent::resolve(
+                &state,
+                &session.as_ref(),
+                &dispatched.body,
+                &dispatched.origin,
+            )
+            .unwrap();
+            match resolved {
+                Some(crate::app::command::DomainIntent::ApplyPreset { target_pane_id, .. }) => {
+                    assert_eq!(target_pane_id, Some(10), "{kind:?}")
+                }
+                other => panic!("{other:?}"),
+            }
+            state.dialogs.preset_apply_target = None;
+            assert!(apply_target_pane(kind, None, &session.read()).is_err());
+        }
+    }
+
+    #[test]
+    fn a_gone_target_is_not_applied() {
+        let (_state, session) = crate::state::tests::two_pane_fixture();
+        let read = session.read();
+        assert!(
+            apply_target_pane(PresetKind::Tab, Some(PresetApplyTarget::Tab(999)), &read).is_err()
+        );
+        assert!(
+            apply_target_pane(PresetKind::Pane, Some(PresetApplyTarget::Pane(999)), &read).is_err()
+        );
+        assert_eq!(
+            apply_target_pane(PresetKind::Workspace, None, &read),
+            Ok(None)
+        );
     }
 
     #[test]

@@ -146,6 +146,8 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 | 부모 없는 plugin 파일 피커(`file_picker`) | Surface | 요청의 `origin_surface_id` |
 | 새 탭 메뉴의 파일 피커(`file_picker`) | Pane | 새 탭을 만들 pane id |
 | 마우스 캡처 배너 메뉴(`mouse_capture_banner_menu`) | Surface | 배너가 있는 surface |
+| 탭 프리셋 적용(`apply_tab_preset`) | Tab | 메뉴를 연 pane(단축키는 포커스 pane)에서 선택된 탭. 적용은 그 탭의 pane에 한다 |
+| pane 프리셋 적용(`apply_pane_preset`) | Pane | 메뉴를 연 pane(단축키는 포커스 pane). 적용도 그 pane에 한다 |
 | 파일 처리기 선택(`file_handler_picker`) | Surface 또는 Window | 요청 출처 surface. 터미널 링크의 연결 동작은 링크를 누른 터미널. 출처 없는 창 단위 요청(출처 없는 IPC·에이전트 요청)은 Window |
 
 `Workspace` 스코프 팝업은 워크스페이스를 옮기면 **그리지 않는다** — 상태는 그대로 남아 있어

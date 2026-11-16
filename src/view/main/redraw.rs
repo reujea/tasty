@@ -880,28 +880,22 @@ impl MainView {
             }
             Some(7) => {
                 self.state.select_pane(engine, pane_id);
-                self.state.dialogs.preset_picker_selected = None;
-                self.state.dispatch_intent(
-                    crate::intent::UiIntent::OpenPopup {
-                        id: crate::adapters::ui::popup::preset_apply::APPLY_TAB_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Window,
-                        ),
-                    }
-                    .from_user_context_menu(),
+                crate::adapters::ui::popup::preset_apply::open_for_pane(
+                    &mut self.state,
+                    engine,
+                    tasty_presets::PresetKind::Tab,
+                    pane_id,
+                    crate::intent::UiIntent::from_user_context_menu,
                 );
             }
             Some(8) => {
                 self.state.select_pane(engine, pane_id);
-                self.state.dialogs.preset_picker_selected = None;
-                self.state.dispatch_intent(
-                    crate::intent::UiIntent::OpenPopup {
-                        id: crate::adapters::ui::popup::preset_apply::APPLY_PANE_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Window,
-                        ),
-                    }
-                    .from_user_context_menu(),
+                crate::adapters::ui::popup::preset_apply::open_for_pane(
+                    &mut self.state,
+                    engine,
+                    tasty_presets::PresetKind::Pane,
+                    pane_id,
+                    crate::intent::UiIntent::from_user_context_menu,
                 );
             }
             _ => {}
@@ -2008,28 +2002,22 @@ impl MainView {
             match result {
                 Some(1) => {
                     this.state.select_pane(engine, pane_id);
-                    this.state.dialogs.preset_picker_selected = None;
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::preset_apply::APPLY_TAB_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
+                    crate::adapters::ui::popup::preset_apply::open_for_pane(
+                        &mut this.state,
+                        engine,
+                        tasty_presets::PresetKind::Tab,
+                        pane_id,
+                        crate::intent::UiIntent::from_user_context_menu,
                     );
                 }
                 Some(2) => {
                     this.state.select_pane(engine, pane_id);
-                    this.state.dialogs.preset_picker_selected = None;
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::preset_apply::APPLY_PANE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
+                    crate::adapters::ui::popup::preset_apply::open_for_pane(
+                        &mut this.state,
+                        engine,
+                        tasty_presets::PresetKind::Pane,
+                        pane_id,
+                        crate::intent::UiIntent::from_user_context_menu,
                     );
                 }
                 _ => {}

@@ -451,10 +451,14 @@ impl MainView {
             "open_file_picker" => Self::open_file_picker_tool(state, engine),
             "screenshot_to_clipboard" => Self::queue_screenshot_to_clipboard(state, engine),
             "apply_workspace_preset" => {
-                Self::open_preset_apply_popup(state, PresetApplyScope::Workspace);
+                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Workspace);
             }
-            "apply_tab_preset" => Self::open_preset_apply_popup(state, PresetApplyScope::Tab),
-            "apply_pane_preset" => Self::open_preset_apply_popup(state, PresetApplyScope::Pane),
+            "apply_tab_preset" => {
+                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab)
+            }
+            "apply_pane_preset" => {
+                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Pane)
+            }
             "zoom_in" => {
                 Self::apply_zoom(state, engine, ZoomAction::In);
             }

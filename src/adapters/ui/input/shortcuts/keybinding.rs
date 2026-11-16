@@ -104,7 +104,7 @@ impl MainView {
         if Self::match_explorer_bindings(state, engine, kb, key, mods) {
             return true;
         }
-        if Self::match_preset_bindings(state, kb, key, mods) {
+        if Self::match_preset_bindings(state, engine, kb, key, mods) {
             return true;
         }
         if Self::match_tools_menu_bindings(state, engine, kb, key, mods) {
@@ -688,6 +688,7 @@ impl MainView {
 
     fn match_preset_bindings(
         state: &mut crate::state::MainViewState,
+        engine: &EngineRead<'_>,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -705,15 +706,15 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.apply_workspace_preset, key, mods) {
-            Self::open_preset_apply_popup(state, PresetApplyScope::Workspace);
+            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Workspace);
             return true;
         }
         if matches_any_binding(&kb.apply_tab_preset, key, mods) {
-            Self::open_preset_apply_popup(state, PresetApplyScope::Tab);
+            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab);
             return true;
         }
         if matches_any_binding(&kb.apply_pane_preset, key, mods) {
-            Self::open_preset_apply_popup(state, PresetApplyScope::Pane);
+            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Pane);
             return true;
         }
         false
@@ -872,26 +873,34 @@ impl MainView {
         );
     }
 
+    /// 프리셋 적용 팝업을 연다. 워크스페이스 프리셋은 창 범위, 탭·pane 프리셋은 포커스 pane 의 대상 범위다.
     pub(crate) fn open_preset_apply_popup(
         state: &mut crate::state::MainViewState,
+        engine: &EngineRead<'_>,
         scope: PresetApplyScope,
     ) {
         use crate::adapters::ui::popup::preset_apply;
-        let (id, action) = match scope {
-            PresetApplyScope::Workspace => (
-                preset_apply::APPLY_WORKSPACE_POPUP_ID,
-                "apply_workspace_preset",
-            ),
-            PresetApplyScope::Tab => (preset_apply::APPLY_TAB_POPUP_ID, "apply_tab_preset"),
-            PresetApplyScope::Pane => (preset_apply::APPLY_PANE_POPUP_ID, "apply_pane_preset"),
-        };
-        state.dialogs.preset_picker_selected = None;
-        state.dispatch_intent(
-            UiIntent::OpenPopup {
-                id,
-                mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
+        use tasty_presets::PresetKind;
+        let (kind, action) = match scope {
+            PresetApplyScope::Workspace => {
+                state.dialogs.preset_picker_selected = None;
+                state.dispatch_intent(
+                    UiIntent::OpenPopup {
+                        id: preset_apply::APPLY_WORKSPACE_POPUP_ID,
+                        mode: OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Window,
+                        ),
+                    }
+                    .from_user_shortcut("apply_workspace_preset"),
+                );
+                return;
             }
-            .from_user_shortcut(action),
-        );
+            PresetApplyScope::Tab => (PresetKind::Tab, "apply_tab_preset"),
+            PresetApplyScope::Pane => (PresetKind::Pane, "apply_pane_preset"),
+        };
+        let pane_id = state.focused_pane_id(engine);
+        preset_apply::open_for_pane(state, engine, kind, pane_id, |intent| {
+            intent.from_user_shortcut(action)
+        });
     }
 }

@@ -150,6 +150,8 @@ pub enum Intent {
         name: String,
         /// Workspace 프리셋의 소속 카테고리. None이면 normal이며 Tab/Pane에서는 무시한다.
         category: Option<crate::model::WorkspaceCategoryId>,
+        /// 탭·pane 프리셋을 적용할 pane. 팝업을 열 때 정한 대상이다. None이면 포커스 pane이다.
+        target_pane_id: Option<u32>,
     },
     /// explicit_name을 우선 사용하고, 없으면 base_name으로 중복되지 않는 이름을 만든다.
     #[cfg_attr(

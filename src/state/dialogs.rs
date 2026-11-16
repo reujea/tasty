@@ -176,6 +176,10 @@ pub struct DialogState {
     pub(crate) rail_category_popup: Option<crate::model::WorkspaceCategoryId>,
     /// 워크스페이스 프리셋 적용 대상 카테고리. 적용할 때 소비하고 닫을 때 지운다.
     pub(crate) preset_apply_target_category: Option<crate::model::WorkspaceCategoryId>,
+    /// 탭·pane 프리셋 적용 대상. 열 때 정하고 닫을 때 지운다.
+    #[cfg(feature = "gui")]
+    pub(crate) preset_apply_target:
+        Option<crate::adapters::ui::popup::preset_apply::PresetApplyTarget>,
     pub(crate) pending_category_delete: Option<crate::model::WorkspaceCategoryId>,
     /// 강제 연결 해제 대상 워크스페이스 ID. 팝업이 열린 동안 재정렬될 수 있어 인덱스를 쓰지 않는다.
     pub(crate) pending_force_detach_workspace: Option<crate::model::WorkspaceId>,
@@ -261,6 +265,8 @@ impl DialogState {
             pending_enter_copy_mode: false,
             rail_category_popup: None,
             preset_apply_target_category: None,
+            #[cfg(feature = "gui")]
+            preset_apply_target: None,
             pending_category_delete: None,
             pending_force_detach_workspace: None,
             pending_close_remote: None,
