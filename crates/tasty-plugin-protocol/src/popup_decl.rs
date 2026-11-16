@@ -188,6 +188,8 @@ pub struct PopupDecl {
     /// 지금 host의 notifications는 이 값이 참이지만 단축키로 열 때는 포커스를 가져가지 않는다(열기 경로 불일치).
     pub focus_on_open: bool,
     pub keyboard: PopupKeyboard,
+    /// 포커스된 팝업에서 Esc를 눌렀을 때. 지금 host에서 하위 화면이 있는 팝업(dag_list, remote_tool)은
+    /// `Close`지만 하위 화면에서는 첫 Esc가 하위 화면만 닫는다.
     pub escape: PopupEscape,
     pub outside_click: PopupOutsideClick,
     /// 바깥을 눌러도 키보드 포커스를 유지한다.

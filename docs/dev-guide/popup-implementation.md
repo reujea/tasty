@@ -129,7 +129,7 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | `scope_inset` | bool | true | 없음. Surface 범위의 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다 |
 | `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenPopupMode` 와 요청 출처가 정한다. 값은 사용자가 여는 주 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 둘이 false 다. `notifications` 는 true 지만 단축키로 열 때는 지금 포커스를 가져가지 않는다(사이드바 클릭과 열기 경로가 다르다) |
 | `keyboard` | None / Keys / Text | Keys | 없음. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸)와 그 선언을 복사한 설정 창 파일 선택기 |
-| `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 둘이 `Unfocus` 다 |
+| `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 둘이 `Unfocus` 다. 하위 화면이 있는 팝업은 `Close` 지만 하위 화면에서는 첫 Esc 가 하위 화면만 닫는다(`dag_list` 상세 보기는 목록으로, `remote_tool` 양식은 앞 화면으로) |
 | `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |
 | `sticky_focus` | bool | false | 바깥 클릭에도 키보드 포커스 유지 |
 | `chrome` | TitleBar / Headless | TitleBar | 공통 타이틀바·닫기 버튼을 그릴지 |
