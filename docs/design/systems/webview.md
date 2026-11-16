@@ -585,7 +585,9 @@ WebView2에는 사용자 스타일시트가 없어 스크립트로 둔다(`windo
 - `sandbox_scripts = true`로 페이지 스크립트를 끈 문서에서도 두 스크립트가 실행돼 같은 값으로 바뀐다. 페이지에 넣은 `<script>`는 실행되지 않음을 함께 확인했다.
 - hard 점유 중인 포커스 markdown은 unfocus 값이고 점유가 풀리면 focus 값으로 돌아온다.
 - html surface는 포커스를 옮겨도 adopted stylesheet와 스크립트 흔적이 없다.
-- 미측정: 사람 손의 클릭으로 옮긴 포커스, mirror markdown, 새 surface를 포커스와 함께 만드는 경로(split은 포커스를 옮기지 않아 재현하지 못했다. 다시 싣는 경로로 첫 렌더를 쟀다).
+- split으로 새로 만든 비포커스 markdown은 첫 문서의 첫 `requestAnimationFrame` 계산값이 unfocus 값이다. 개발자 도구 포트에서 새 페이지를 시작 대기 상태로 붙잡아 측정 스크립트를 넣은 뒤 재었다. 로그에서는 첫 `NavigateToString`이 붙잡힌 뒤 등록이 끝나고(30~160ms) 문서가 실리기 시작했다.
+- 새 surface 다섯 개(복원 포함)를 만드는 동안 바탕 포커스 경고가 없었다. 첫 문서 전 `about:blank`에 보낸 `ExecuteScript`도 실패하지 않았다.
+- 미측정: 사람 손의 클릭으로 옮긴 포커스, mirror markdown, 새 surface를 포커스와 함께 만드는 경로(split과 새 탭은 포커스를 옮기지 않는다), `ExecuteScript`·등록 실패 뒤의 재전송(실패를 일으킬 debug 경로가 없어 단위 시험으로만 확인).
 
 macOS 백엔드는 아직 표지를 넣지 않는다. 그동안 그 OS의 번들 markdown은 페이지 CSS에 표지를 스스로 선언해(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`) 늘 focus 값으로 그린다. macOS에서 측정하지 않았다.
 
