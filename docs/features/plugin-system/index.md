@@ -85,6 +85,22 @@ GUI·headless 모두 실패하며, 설정 파일과 메모리의 활성/비활�
 닫거나 바꾸지 않는다 — 다시 켜면 이어진다. 닫은 탭 복원 · 프리셋 적용처럼 복원하는 경로는 그 자리를
 kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 
+### 내리기 전에 묻는 바쁨 확인
+
+`disable` · `remove` · `upgrade_builtins` 는 떠 있는 플러그인을 내리기 전에 그 플러그인에게
+지금 바쁜지 먼저 묻는다. 플러그인이 바쁘다고 답하면 요청은 `-32023` 과 그 플러그인이 준 사유로
+거절되고 아무것도 바뀌지 않는다. 답하지 않거나 그 메서드가 없으면 바쁘지 않은 것으로 보고 그대로 내린다.
+`--ignore-busy`(IPC `ignore_busy: true`)를 주면 묻지 않고 내린다.
+
+- 묻는 대상은 그 호출이 실제로 내리거나 바꾸는 플러그인뿐이다. `upgrade_builtins` 는 이번에
+  교체될 내장 plugin 에만 묻고, 버전·내용이 같아 다시 쓰지 않는 plugin 과 사용자가 깐 plugin 에는
+  묻지 않는다.
+- 질문은 권한 검사를 통과한 요청에만 나간다.
+- 번들 Claude·Codex 등 내장 plugin 에는 아직 이 처리기가 없어 항상 바쁘지 않음으로 판정된다.
+- 관리 창의 enable/disable 스위치와 `Uninstall` 은 이 경로를 거치지 않고 바로 내린다.
+- 처리기를 만드는 쪽은 [플러그인 제작 가이드](../../dev-guide/plugin-development.md) 의
+  `lifecycle_busy` 를 본다.
+
 ### 설정(configure)
 
 플러그인별 설정은 이 창이 아니라 [설정 창](../settings/index.md) 의 Plugins 탭에서 편집한다.

@@ -255,8 +255,9 @@ Tasty가 주입하는 bash·zsh 프롬프트 함수는 OSC 133 D·A를 보낸 �
   - `plugin.upgrade_builtins` 는 **이번 호출로 실제 교체될 내장 plugin에만** 묻는다. 버전·내용이 같아
     다시 쓰지 않는 plugin과 사용자가 깐 plugin은 묻지 않으므로, 무관한 플러그인이 바쁘다고 해서
     업그레이드가 막히지 않는다.
-  - 번들 Claude·Codex 등 내장 plugin에는 아직 이 처리기가 없다. 내장 plugin은 지금은 항상
-    바쁘지 않음으로 판정된다 — 이 PR의 의도한 범위다.
+  - 번들 Claude·Codex 등 내장 plugin에는 아직 이 처리기가 없어 항상 바쁘지 않음으로 판정된다.
+  - 관리 창의 enable/disable 스위치와 `Uninstall` 은 이 경로를 거치지 않고 바로 내린다.
+    질문이 나가는 것은 IPC·CLI 요청뿐이다.
 
 선언된 인자 타입은 문서용 힌트가 아니다. flag와 stdin에서 받은 잘못된 타입은 요청 전체를 거절한다.
 실패한 변환을 None으로 바꾸어 현재 대상이나 기본값으로 실행하지 않는다.
