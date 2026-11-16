@@ -340,6 +340,7 @@ mod tests {
             active_tab_ids: Vec::new(),
             workspace_rect: None,
             surface_owners: Vec::new(),
+            tab_content_rects: Vec::new(),
         }
     }
 

@@ -23,13 +23,7 @@ impl RequestContext {
         let mut result = Vec::new();
         for (pane_id, pane_rect) in pane_rects {
             if let Some(pane) = ws.pane_layout().find_pane(pane_id) {
-                let tab_bar_h = self.tab_bar_height;
-                let content_rect = PhysicalRect {
-                    x: pane_rect.x,
-                    y: pane_rect.y + tab_bar_h,
-                    width: pane_rect.width,
-                    height: (pane_rect.height - tab_bar_h).max(PhysicalPx(1.0)),
-                };
+                let content_rect = self.tab_content_rect(pane_rect);
                 let regions = match pane.tabs.get(self.navigation.tab_index(pane)) {
                     Some(tab) => self.tab_surface_regions(engine, tab, content_rect, scale_factor),
                     None => Vec::new(),
@@ -38,6 +32,18 @@ impl RequestContext {
             }
         }
         result
+    }
+
+    /// pane 사각형에서 탭 바를 뺀 탭 콘텐츠 영역. 활성 탭의 surface 들은 이 안에 배치된다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn tab_content_rect(&self, pane_rect: PhysicalRect) -> PhysicalRect {
+        let tab_bar_h = self.tab_bar_height;
+        PhysicalRect {
+            x: pane_rect.x,
+            y: pane_rect.y + tab_bar_h,
+            width: pane_rect.width,
+            height: (pane_rect.height - tab_bar_h).max(PhysicalPx(1.0)),
+        }
     }
 
     /// 보이지 않는 탭도 포함해 모든 egui-mesh surface의 ID와 소유 플러그인을 반환한다.

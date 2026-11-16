@@ -41,6 +41,7 @@ fn layout_of(surface_rects: Vec<(u32, egui::Rect)>) -> LayoutContext {
         active_tab_ids: vec![],
         workspace_rect: None,
         surface_owners: Vec::new(),
+        tab_content_rects: Vec::new(),
     }
 }
 

@@ -673,6 +673,7 @@ mod tests {
             active_tab_ids: Vec::new(),
             workspace_rect: None,
             surface_owners: Vec::new(),
+            tab_content_rects: Vec::new(),
         };
         let mut mgr = ToastManager::new();
         for i in 0..4 {
@@ -708,6 +709,7 @@ mod tests {
             active_tab_ids: Vec::new(),
             workspace_rect: None,
             surface_owners: Vec::new(),
+            tab_content_rects: Vec::new(),
         }
     }
 

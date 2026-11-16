@@ -75,36 +75,21 @@ pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
     }
 }
 
-/// `pane` 의 활성 탭 콘텐츠 영역 안이면 그 탭. 콘텐츠 영역은 그 탭 surface 들을 감싸는 사각형이다.
-/// surface 들은 탭 바 아래 콘텐츠 영역을 간격을 두고 나눠 덮으므로 감싼 사각형이 콘텐츠 영역과 같다.
+/// `pane` 의 활성 탭 콘텐츠 영역(`tab_content_rects`, 탭 바 아래) 안이면 그 활성 탭. 콘텐츠 영역은 surface
+/// 배치에 쓰는 사각형이라 surface 사이 분할선과 attach 대기 중인 새 탭·새 surface 자리도 덮는다.
 fn tab_content_at(layout: &LayoutContext, pane: u32, x: LogicalPx, y: LogicalPx) -> Option<u32> {
-    let mut owned = layout
-        .surface_owners
+    let (_, content) = layout
+        .tab_content_rects
         .iter()
-        .filter(|o| o.pane == pane)
-        .filter_map(|o| {
-            layout
-                .surface_rects
-                .iter()
-                .find(|(id, _)| *id == o.surface)
-                .map(|(_, r)| (o.tab, logical(*r)))
-        });
-    let (tab, first) = owned.next()?;
-    let content = owned.fold(first, |acc, (_, r)| bounding(acc, r));
-    content.contains(x, y).then_some(tab)
-}
-
-/// 두 사각형을 함께 감싸는 사각형.
-fn bounding(a: LogicalRect, b: LogicalRect) -> LogicalRect {
-    let (x, y) = (a.x.min(b.x), a.y.min(b.y));
-    let right = (a.x + a.width).max(b.x + b.width);
-    let bottom = (a.y + a.height).max(b.y + b.height);
-    LogicalRect {
-        x,
-        y,
-        width: right - x,
-        height: bottom - y,
+        .find(|(id, _)| *id == pane)?;
+    if !logical(*content).contains(x, y) {
+        return None;
     }
+    layout
+        .active_tab_ids
+        .iter()
+        .find(|(id, _)| *id == pane)
+        .map(|(_, tab)| *tab)
 }
 
 /// egui 가 준 논리 사각형을 길이 타입 사각형으로 옮긴다.

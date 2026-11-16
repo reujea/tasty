@@ -15,6 +15,9 @@ pub struct LayoutContext {
     pub workspace_rect: Option<egui::Rect>,
     /// 보이는 surface 마다 소속 (surface_id, tab_id, pane_id). 이벤트의 범위 경로를 계산할 때 쓴다.
     pub surface_owners: Vec<SurfaceOwner>,
+    /// (pane_id, rect): pane 마다 탭 바 아래 활성 탭의 콘텐츠 영역. surface 배치와 같은 사각형이며, attach
+    /// 대기 중인 새 탭·새 surface 자리처럼 surface 가 없는 곳도 덮는다.
+    pub tab_content_rects: Vec<(u32, egui::Rect)>,
 }
 
 /// surface 하나가 속한 tab 과 pane.
@@ -38,6 +41,7 @@ impl LayoutContext {
             active_tab_ids: Vec::new(),
             workspace_rect: None,
             surface_owners: Vec::new(),
+            tab_content_rects: Vec::new(),
         }
     }
 }
@@ -71,12 +75,19 @@ pub(crate) fn build_layout_context(
 
     let mut surface_rects = Vec::new();
     let mut surface_owners = Vec::new();
-    for (pane_id, _pane_rect, regions) in state.surface_regions(engine, terminal_rect, scale_factor)
+    let mut tab_content_rects = Vec::new();
+    for (pane_id, pane_rect, regions) in state.surface_regions(engine, terminal_rect, scale_factor)
     {
         let tab = active_tab_ids
             .iter()
             .find(|(pid, _)| *pid == pane_id)
             .map(|(_, tid)| *tid);
+        if tab.is_some() {
+            tab_content_rects.push((
+                pane_id,
+                crate::adapters::ui::to_egui_rect(state.tab_content_rect(pane_rect), scale_factor),
+            ));
+        }
         for r in regions {
             surface_rects.push((
                 r.id,
@@ -104,5 +115,6 @@ pub(crate) fn build_layout_context(
             scale_factor,
         )),
         surface_owners,
+        tab_content_rects,
     }
 }

@@ -84,6 +84,8 @@ pub(super) fn layout() -> LayoutContext {
                 pane: PANE_R,
             },
         ],
+        // 각 pane 에 surface 가 하나라 탭 콘텐츠 영역이 surface 와 같다.
+        tab_content_rects: vec![(PANE_L, surface_rect_l()), (PANE_R, surface_rect_r())],
     }
 }
 
@@ -279,6 +281,7 @@ fn one_tab_split_in_two() -> LayoutContext {
         ),
         (SURFACE_R, to_egui(rect(HALF, TAB_BAR, HALF, body))),
     ];
+    split.tab_content_rects = vec![(PANE_L, to_egui(rect(LogicalPx(0.0), TAB_BAR, WIDTH, body)))];
     split.active_tabs = vec![(PANE_L, 0)];
     split.active_tab_ids = vec![(PANE_L, TAB)];
     split.surface_owners = [SURFACE_L, SURFACE_R]
@@ -343,7 +346,9 @@ fn the_focus_path_is_the_same_from_the_engine_and_the_core_state() {
 #[test]
 fn the_layout_built_from_the_engine_records_who_owns_each_surface() {
     use crate::model::{PhysicalPx, PhysicalRect};
-    let (state, mut session) = scene(PANE_L);
+    let (mut state, mut session) = scene(PANE_L);
+    // 탭 바가 있어야 콘텐츠 영역과 pane 사각형이 구별된다.
+    state.tab_bar_height = PhysicalPx(30.0);
     let engine = session.borrow_mut();
     let terminal = PhysicalRect {
         x: PhysicalPx(0.0),
@@ -361,6 +366,24 @@ fn the_layout_built_from_the_engine_records_who_owns_each_surface() {
     let mut owners = built.surface_owners.clone();
     owners.sort_by_key(|o| o.surface);
     assert_eq!(owners, layout().surface_owners);
+    // 탭 콘텐츠 영역은 pane 마다 하나이고 그 pane 의 surface 를 담는다.
+    for owner in &owners {
+        let (_, content) = built
+            .tab_content_rects
+            .iter()
+            .find(|(pane, _)| *pane == owner.pane)
+            .expect("pane 마다 탭 콘텐츠 영역이 있다");
+        let (_, surface) = built
+            .surface_rects
+            .iter()
+            .find(|(id, _)| *id == owner.surface)
+            .unwrap();
+        assert!(content.contains_rect(*surface));
+        // 탭 바는 콘텐츠 영역에 들지 않는다. surface 하나인 탭이라 둘의 위쪽 끝이 같다.
+        assert_eq!(content.top(), surface.top());
+        // 두 pane 이 좌우로 놓여 pane 위쪽 끝이 작업 영역 위쪽 끝이다.
+        assert!(content.top() > built.workspace_rect.unwrap().top());
+    }
 }
 
 #[test]
@@ -391,3 +414,6 @@ fn the_fullscreen_stage_takes_the_keys() {
 
 #[path = "route_repro_tests.rs"]
 mod repro;
+
+#[path = "route_pending_tests.rs"]
+mod pending;
