@@ -24,31 +24,15 @@ pub(super) struct BedFocusScript {
 
 impl BedFocusScript {
     pub(super) fn set(&self, webview: &ICoreWebView2, surface_id: u32, focused: bool) {
-        let Some(generation) = self.delivery.borrow_mut().request(focused) else {
+        let Some(work) = self.delivery.borrow_mut().request(focused) else {
             return;
         };
         let script = HSTRING::from(bed_state_script(focused));
-        register(&self.delivery, webview, surface_id, generation, &script);
-        let delivery = self.delivery.clone();
-        let done = ExecuteScriptCompletedHandler::create(Box::new(
-            move |result, _json| -> windows::core::Result<()> {
-                if let Err(e) = result {
-                    tracing::warn!(
-                        "WebView surface {surface_id}: bed focus script failed ({e}); \
-                         it is sent again"
-                    );
-                    delivery.borrow_mut().apply_failed(generation);
-                }
-                Ok(())
-            },
-        ));
-        // SAFETY: webview는 호출 동안 valid, main thread 호출. HSTRING은 호출 끝까지 산다.
-        let executed = unsafe { webview.ExecuteScript(&script, &done) };
-        if let Err(e) = executed {
-            tracing::warn!(
-                "WebView surface {surface_id}: ExecuteScript failed ({e}); it is sent again"
-            );
-            self.delivery.borrow_mut().apply_failed(generation);
+        if let Some(generation) = work.register {
+            register(&self.delivery, webview, surface_id, generation, &script);
+        }
+        if let Some(number) = work.apply {
+            apply(&self.delivery, webview, surface_id, number, &script);
         }
     }
 
@@ -66,6 +50,37 @@ impl BedFocusScript {
     /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다. 참이면 같은 값을 다시 받아 적용한다.
     pub(super) fn take_failed(&self) -> bool {
         self.delivery.borrow_mut().take_failed()
+    }
+}
+
+/// 지금 문서에 `number` 적용으로 스크립트를 실행한다. 실패하면 마지막 적용일 때 실패로 둔다.
+fn apply(
+    delivery: &Delivery,
+    webview: &ICoreWebView2,
+    surface_id: u32,
+    number: u64,
+    script: &HSTRING,
+) {
+    let on_done = delivery.clone();
+    let done = ExecuteScriptCompletedHandler::create(Box::new(
+        move |result, _json| -> windows::core::Result<()> {
+            if let Err(e) = result {
+                tracing::warn!(
+                    "WebView surface {surface_id}: bed focus script failed ({e}); \
+                     it is sent again"
+                );
+                on_done.borrow_mut().apply_failed(number);
+            }
+            Ok(())
+        },
+    ));
+    // SAFETY: webview는 호출 동안 valid, main thread 호출. HSTRING은 호출 끝까지 산다.
+    let executed = unsafe { webview.ExecuteScript(script, &done) };
+    if let Err(e) = executed {
+        tracing::warn!(
+            "WebView surface {surface_id}: ExecuteScript failed ({e}); it is sent again"
+        );
+        delivery.borrow_mut().apply_failed(number);
     }
 }
 

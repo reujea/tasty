@@ -32,33 +32,59 @@ pub(crate) fn bed_state_script(focused: bool) -> String {
     )
 }
 
-/// 스크립트로 상태를 두는 백엔드의 전달 기록. 문서 생성 스크립트 등록은 완료가 비동기로 오므로,
-/// 마지막 요청의 등록이 끝나기 전에는 호스트 탐색을 붙잡아 두었다가 끝나면 내보낸다. 그래서 그 뒤
-/// 생기는 문서는 첫 렌더부터 요청한 값이다. 마지막 요청의 어느 단계든 실패하면 기록을 지우고
-/// [`Self::take_failed`]로 알려, 상위층이 같은 값을 다시 보내게 한다. `T`는 붙잡은 탐색이다.
+/// 스크립트로 상태를 두는 백엔드의 전달 기록. 두 상태를 따로 센다.
+///
+/// - 등록: 그 뒤 생기는 문서에 실행할 문서 생성 스크립트. 완료가 비동기로 오므로 값이 바뀔 때마다 새
+///   세대를 세우고, 그 세대의 등록이 끝나거나 실패할 때까지 호스트 탐색을 붙잡아 둔다. 그래서 그 뒤
+///   생기는 문서는 첫 렌더부터 요청한 값이다.
+/// - 적용: 지금 문서에 실행한 스크립트. 값이 바뀔 때마다 번호를 올린다.
+///
+/// 어느 쪽이든 마지막 것이 실패하면 [`Self::take_failed`]로 알린다. 상위층이 같은 값을 다시 요청하면
+/// 실패한 쪽만 다시 한다. 적용만 실패했으면 등록 세대를 올리지 않고 장벽도 다시 세우지 않는다. 등록이
+/// 실패했으면 그 사이 풀린 탐색의 문서에도 값이 없으므로, 새 세대로 다시 등록해 장벽을 세우고 지금
+/// 문서에도 다시 적용한다. 재시도 횟수는 상위층이 정한다. `T`는 붙잡은 탐색이다.
 #[cfg(any(windows, test))]
 pub(crate) struct BedFocusDelivery<T> {
-    /// 마지막으로 요청한 값. 실패하면 지운다.
-    sent: Option<bool>,
+    /// 마지막으로 요청한 값.
+    value: Option<bool>,
+    /// 마지막 등록 세대.
     latest: u64,
-    /// 마지막 요청의 문서 생성 스크립트 등록이 아직 끝나지 않았다.
-    registering: bool,
-    /// 남겨 둔 등록 id. 마지막 요청의 것 하나만 남긴다.
+    /// 호스트 탐색이 `latest` 등록을 기다린다.
+    barrier: bool,
+    /// 남겨 둔 등록 id. 마지막으로 끝난 등록 하나만 남긴다.
     held: Vec<String>,
     /// 등록이 끝나기를 기다리는 탐색. 받은 순서대로 모두 보낸다.
     deferred: Vec<T>,
+    /// 마지막 적용 번호.
+    applied: u64,
+    registration_failed: bool,
+    apply_failed: bool,
+    /// 상위층에 아직 알리지 않은 실패.
     failed: bool,
+}
+
+/// [`BedFocusDelivery::request`]가 정한 할 일.
+#[cfg(any(windows, test))]
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct BedFocusWork {
+    /// 이 세대로 문서 생성 스크립트를 등록한다.
+    pub(crate) register: Option<u64>,
+    /// 이 번호로 지금 문서에 스크립트를 실행한다.
+    pub(crate) apply: Option<u64>,
 }
 
 #[cfg(any(windows, test))]
 impl<T> Default for BedFocusDelivery<T> {
     fn default() -> Self {
         Self {
-            sent: None,
+            value: None,
             latest: 0,
-            registering: false,
+            barrier: false,
             held: Vec::new(),
             deferred: Vec::new(),
+            applied: 0,
+            registration_failed: false,
+            apply_failed: false,
             failed: false,
         }
     }
@@ -66,22 +92,39 @@ impl<T> Default for BedFocusDelivery<T> {
 
 #[cfg(any(windows, test))]
 impl<T> BedFocusDelivery<T> {
-    /// 값을 요청한다. 이미 그 값이면 `None`, 아니면 이 요청의 세대 번호다. 세대마다 문서 생성 스크립트를
-    /// 새로 등록하고 지금 문서에 실행한 뒤, 완료를 같은 번호로 알린다.
-    pub(crate) fn request(&mut self, focused: bool) -> Option<u64> {
-        if self.sent == Some(focused) {
-            return None;
+    /// 값을 요청한다. 새 값이면 등록과 적용을 모두 하고 장벽을 세운다. 같은 값이면 실패한 쪽만 다시
+    /// 한다. 할 일이 없으면 `None`이다.
+    pub(crate) fn request(&mut self, focused: bool) -> Option<BedFocusWork> {
+        if self.value != Some(focused) {
+            self.value = Some(focused);
+            self.latest += 1;
+            self.barrier = true;
+            self.applied += 1;
+            self.registration_failed = false;
+            self.apply_failed = false;
+            self.failed = false;
+            return Some(BedFocusWork {
+                register: Some(self.latest),
+                apply: Some(self.applied),
+            });
         }
-        self.sent = Some(focused);
-        self.latest += 1;
-        self.registering = true;
-        self.failed = false;
-        Some(self.latest)
+        let registration_failed = std::mem::take(&mut self.registration_failed);
+        let register = registration_failed.then(|| {
+            self.latest += 1;
+            self.barrier = true;
+            self.latest
+        });
+        let apply_failed = std::mem::take(&mut self.apply_failed);
+        let apply = (apply_failed || registration_failed).then(|| {
+            self.applied += 1;
+            self.applied
+        });
+        (register.is_some() || apply.is_some()).then_some(BedFocusWork { register, apply })
     }
 
     /// 호스트 탐색을 지금 보낼지 정한다. 등록을 기다리는 중이면 붙잡고 `None`을 돌려준다.
     pub(crate) fn navigate(&mut self, navigation: T) -> Option<T> {
-        if self.registering {
+        if self.barrier {
             self.deferred.push(navigation);
             None
         } else {
@@ -89,39 +132,37 @@ impl<T> BedFocusDelivery<T> {
         }
     }
 
-    /// `generation` 요청의 등록이 `id`로 끝났다. 지울 id와, 마지막 요청이면 붙잡았던 탐색을 받은
-    /// 순서대로 돌려준다.
+    /// `generation` 등록이 `id`로 끝났다. 지울 id와, 마지막 세대면 붙잡았던 탐색을 받은 순서대로
+    /// 돌려준다.
     pub(crate) fn registered(&mut self, generation: u64, id: String) -> (Vec<String>, Vec<T>) {
         if generation != self.latest {
             return (vec![id], Vec::new());
         }
-        self.registering = false;
+        self.barrier = false;
         (
             std::mem::replace(&mut self.held, vec![id]),
             std::mem::take(&mut self.deferred),
         )
     }
 
-    /// `generation` 요청의 등록이 실패했다. 마지막 요청이면 실패로 두고 붙잡았던 탐색을 돌려준다.
+    /// `generation` 등록이 실패했다. 마지막 세대면 실패로 두고 붙잡았던 탐색을 돌려준다.
     pub(crate) fn registration_failed(&mut self, generation: u64) -> Vec<T> {
         if generation != self.latest {
             return Vec::new();
         }
-        self.registering = false;
-        self.fail();
+        self.barrier = false;
+        self.registration_failed = true;
+        self.failed = true;
         std::mem::take(&mut self.deferred)
     }
 
-    /// `generation` 요청을 지금 문서에 적용하지 못했다. 마지막 요청일 때만 실패로 둔다.
-    pub(crate) fn apply_failed(&mut self, generation: u64) {
-        if generation == self.latest {
-            self.fail();
+    /// `number` 적용이 실패했다. 마지막 적용일 때만 실패로 둔다.
+    pub(crate) fn apply_failed(&mut self, number: u64) {
+        if number != self.applied {
+            return;
         }
-    }
-
-    fn fail(&mut self) {
+        self.apply_failed = true;
         self.failed = true;
-        self.sent = None;
     }
 
     /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다.
@@ -163,59 +204,82 @@ mod tests {
 
     type Delivery = BedFocusDelivery<&'static str>;
 
+    fn work(register: Option<u64>, apply: Option<u64>) -> Option<BedFocusWork> {
+        Some(BedFocusWork { register, apply })
+    }
+
     #[test]
-    fn a_navigation_waits_for_the_latest_registration() {
+    fn a_new_value_registers_and_applies_and_holds_navigations() {
         let mut d = Delivery::default();
         assert_eq!(d.navigate("before"), Some("before"));
-        let g = d.request(false).unwrap();
+        assert_eq!(d.request(false), work(Some(1), Some(1)));
         assert_eq!(d.navigate("first"), None);
         assert_eq!(d.navigate("second"), None);
         assert_eq!(
-            d.registered(g, "a".into()),
+            d.registered(1, "a".into()),
             (vec![], vec!["first", "second"])
         );
         assert_eq!(d.navigate("after"), Some("after"));
+        // 값이 그대로면 할 일이 없다.
+        assert_eq!(d.request(false), None);
     }
 
     #[test]
     fn an_older_registration_does_not_release_the_navigation() {
         let mut d = Delivery::default();
-        let a = d.request(true).unwrap();
-        let b = d.request(false).unwrap();
+        assert_eq!(d.request(true), work(Some(1), Some(1)));
+        assert_eq!(d.request(false), work(Some(2), Some(2)));
         assert_eq!(d.navigate("load"), None);
-        assert_eq!(d.registered(a, "a".into()), (vec!["a".to_string()], vec![]));
+        assert_eq!(d.registered(1, "a".into()), (vec!["a".to_string()], vec![]));
         assert_eq!(d.navigate("reload"), None);
         assert_eq!(
-            d.registered(b, "b".into()),
+            d.registered(2, "b".into()),
             (vec![], vec!["load", "reload"])
         );
-        let c = d.request(true).unwrap();
-        assert_eq!(d.registered(c, "c".into()), (vec!["b".to_string()], vec![]));
+        assert_eq!(d.request(true), work(Some(3), Some(3)));
+        assert_eq!(d.registered(3, "c".into()), (vec!["b".to_string()], vec![]));
     }
 
     #[test]
-    fn a_failed_registration_releases_the_navigation_and_reports_once() {
+    fn retrying_a_failed_apply_keeps_the_registration_that_holds_the_navigation() {
         let mut d = Delivery::default();
-        let g = d.request(false).unwrap();
+        assert_eq!(d.request(false), work(Some(1), Some(1)));
         assert_eq!(d.navigate("load"), None);
-        assert_eq!(d.registration_failed(g), vec!["load"]);
+        d.apply_failed(1);
+        assert!(d.take_failed());
+        // 같은 값의 적용만 다시 한다. 등록 세대를 올리지 않는다.
+        assert_eq!(d.request(false), work(None, Some(2)));
+        assert_eq!(d.registered(1, "a".into()), (vec![], vec!["load"]));
+        assert_eq!(d.request(false), None);
+    }
+
+    #[test]
+    fn a_failed_registration_releases_the_navigation_and_is_retried_with_an_apply() {
+        let mut d = Delivery::default();
+        assert_eq!(d.request(false), work(Some(1), Some(1)));
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(d.registration_failed(1), vec!["load"]);
+        assert_eq!(d.navigate("between"), Some("between"));
         assert!(d.take_failed());
         assert!(!d.take_failed());
-        // 실패한 값은 기록에서 지워져 같은 값을 다시 요청할 수 있다.
-        assert!(d.request(false).is_some());
+        // 풀린 문서에도 값이 없으므로 다시 등록하며 지금 문서에도 다시 적용한다.
+        assert_eq!(d.request(false), work(Some(2), Some(2)));
+        assert_eq!(d.navigate("reload"), None);
+        assert_eq!(d.registered(2, "b".into()), (vec![], vec!["reload"]));
+        assert_eq!(d.request(false), None);
     }
 
     #[test]
     fn only_a_failure_of_the_latest_request_counts() {
         let mut d = Delivery::default();
-        let a = d.request(true).unwrap();
-        let b = d.request(false).unwrap();
-        d.apply_failed(a);
-        assert_eq!(d.registration_failed(a), Vec::<&str>::new());
+        assert_eq!(d.request(true), work(Some(1), Some(1)));
+        assert_eq!(d.request(false), work(Some(2), Some(2)));
+        d.apply_failed(1);
+        assert_eq!(d.registration_failed(1), Vec::<&str>::new());
         assert!(!d.take_failed());
         assert_eq!(d.request(false), None);
-        d.apply_failed(b);
+        d.apply_failed(2);
         assert!(d.take_failed());
-        assert!(d.request(false).is_some());
+        assert_eq!(d.request(false), work(None, Some(3)));
     }
 }
