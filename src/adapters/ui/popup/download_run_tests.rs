@@ -210,3 +210,48 @@ fn a_second_ask_from_another_surface_moves_the_dialog_there() {
     assert_eq!((ask.surface, ask.path.as_str()), (201, "/remote/b.bin"));
     assert!(state.popups.take_closed_queue().is_empty());
 }
+
+fn run(id: u64, surface: u32, receiving: bool) -> DownloadRunEntry {
+    DownloadRunEntry {
+        id,
+        surface,
+        name: String::new(),
+        received: 0,
+        total: 0,
+        receiving,
+        started: None,
+    }
+}
+
+/// 첫 크기 확인은 그 다운로드를 시작한 surface 범위로 연다(App 의 크기 질문 경로).
+#[test]
+fn the_first_size_confirm_opens_in_the_surface_that_started_it() {
+    let (mut state, _session) = crate::state::tests::two_pane_fixture();
+    state.dialogs.download_run.runs.push(run(5, 201, false));
+    queue_large_confirm(&mut state, 5, "big.bin".into(), 2 << 20);
+    assert_eq!(
+        opened_scope(&mut state, DOWNLOAD_RUN_LARGE_POPUP_ID),
+        crate::model::popup_kind::PopupScope::Surface(201)
+    );
+    // 두 번째 확인은 큐에서 기다린다.
+    state.dialogs.download_run.runs.push(run(6, 101, false));
+    queue_large_confirm(&mut state, 6, "big2.bin".into(), 2 << 20);
+    assert!(state.take_pending_intents().is_empty());
+}
+
+/// 진행 팝업은 처음 받는 다운로드의 surface 범위로 열고, 뒤에 다른 다운로드가 받기 시작해도
+/// 범위를 바꾸지 않는다(App 의 진행 동기화 경로).
+#[test]
+fn the_progress_opens_in_the_first_receiving_surface_and_stays() {
+    let (mut state, _session) = crate::state::tests::two_pane_fixture();
+    state.dialogs.download_run.runs.push(run(5, 201, false));
+    assert!(!open_progress_for_receiving(&mut state));
+    state.dialogs.download_run.runs[0].receiving = true;
+    assert!(open_progress_for_receiving(&mut state));
+    state.dialogs.download_run.runs.push(run(6, 101, true));
+    assert!(!open_progress_for_receiving(&mut state));
+    assert_eq!(
+        state.popups.open_scope(DOWNLOAD_RUN_PROGRESS_POPUP_ID),
+        Some(&crate::model::popup_kind::PopupScope::Surface(201))
+    );
+}
