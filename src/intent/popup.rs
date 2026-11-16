@@ -408,4 +408,43 @@ mod tests {
         );
         assert!(state.popups.is_open("test_popup"));
     }
+
+    /// 범위는 열 때마다 정한다. 닫은 뒤 다른 범위로 다시 열면 직전 범위가 남지 않는다.
+    #[test]
+    fn every_mode_sets_the_scope_and_a_reopen_does_not_keep_the_last_one() {
+        let modes = |scope: PopupScope| {
+            [
+                OpenPopupMode::Default(scope.clone()),
+                OpenPopupMode::CenteredFocused(scope.clone()),
+                OpenPopupMode::AtTopOfScope(scope.clone()),
+                OpenPopupMode::AtFocused(scope, egui::pos2(10.0, 10.0)),
+            ]
+        };
+        for (first, second) in modes(PopupScope::Surface(7))
+            .into_iter()
+            .zip(modes(PopupScope::Window))
+        {
+            let (mut state, mut engine_session) = make_state();
+            let mut engine = engine_session.borrow_mut();
+            handle(
+                &mut state,
+                &mut engine,
+                &dispatched_open("test_popup", first),
+            );
+            assert_eq!(
+                state.popups.open_scope("test_popup"),
+                Some(&PopupScope::Surface(7))
+            );
+            handle(&mut state, &mut engine, &dispatched_close("test_popup"));
+            handle(
+                &mut state,
+                &mut engine,
+                &dispatched_open("test_popup", second),
+            );
+            assert_eq!(
+                state.popups.open_scope("test_popup"),
+                Some(&PopupScope::Window)
+            );
+        }
+    }
 }
