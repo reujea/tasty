@@ -57,6 +57,21 @@ impl BedFocusScript {
         self.delivery.borrow_mut().document_loaded();
     }
 
+    /// 문서를 그리던 process가 끝났다. 붙잡았던 탐색을 보내고 복구 탐색을 붙잡지 않는다. 그 process가
+    /// 없는 동안 문서 생성 스크립트 등록이 끝나지 않아, 붙잡으면 복구 탐색이 영영 나가지 않는다.
+    pub(super) fn renderer_ended(&self, surface_id: u32) {
+        let navigations = self.delivery.borrow_mut().renderer_ended();
+        if !navigations.is_empty() {
+            tracing::debug!(
+                "WebView surface {surface_id}: the renderer ended; sending {} held navigation(s)",
+                navigations.len()
+            );
+        }
+        for navigation in navigations {
+            navigation();
+        }
+    }
+
     /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다.
     pub(super) fn take_loaded(&self) -> bool {
         self.delivery.borrow_mut().take_loaded()

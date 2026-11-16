@@ -67,6 +67,9 @@ pub(crate) struct BedFocusDelivery<T> {
     closed: bool,
     /// 상위층에 아직 알리지 않은 문서 탐색 완료.
     loaded: bool,
+    /// 문서를 그리던 process가 끝나 아직 새 문서가 실리지 않았다. 그동안 등록 완료가 오지 않으므로
+    /// 탐색을 붙잡지 않는다.
+    renderer_gone: bool,
 }
 
 /// [`BedFocusDelivery::request`]가 정한 할 일.
@@ -95,6 +98,7 @@ impl<T> Default for BedFocusDelivery<T> {
             warned: false,
             closed: false,
             loaded: false,
+            renderer_gone: false,
         }
     }
 }
@@ -110,7 +114,7 @@ impl<T> BedFocusDelivery<T> {
         if self.value != Some(focused) {
             self.value = Some(focused);
             self.latest += 1;
-            self.barrier = true;
+            self.barrier = !self.renderer_gone;
             self.applied += 1;
             self.registration_failed = false;
             self.apply_failed = false;
@@ -123,7 +127,7 @@ impl<T> BedFocusDelivery<T> {
         let registration_failed = std::mem::take(&mut self.registration_failed);
         let register = registration_failed.then(|| {
             self.latest += 1;
-            self.barrier = true;
+            self.barrier = !self.renderer_gone;
             self.latest
         });
         let apply_failed = std::mem::take(&mut self.apply_failed);
@@ -195,10 +199,28 @@ impl<T> BedFocusDelivery<T> {
     }
 
     /// 문서 탐색이 성공으로 끝났다. 상위층이 다시 보내기를 멈춘 값을 한 번 더 보낼 기회다.
+    /// process가 끝난 뒤 실린 문서라면, 그 문서에 값이 실행됐는지 알 수 없으므로 적용을 실패로 두어
+    /// 상위층이 다시 보내게 한다.
     pub(crate) fn document_loaded(&mut self) {
-        if !self.closed {
-            self.loaded = true;
+        if self.closed {
+            return;
         }
+        self.loaded = true;
+        if std::mem::take(&mut self.renderer_gone) && self.value.is_some() {
+            self.apply_failed = true;
+            self.failed = true;
+        }
+    }
+
+    /// 문서를 그리던 process가 끝났다. 새 문서가 실릴 때까지 등록 완료가 오지 않으므로 장벽을 내리고
+    /// 붙잡았던 탐색을 받은 순서대로 돌려준다. 그 뒤 실리는 문서가 복구 탐색이다.
+    pub(crate) fn renderer_ended(&mut self) -> Vec<T> {
+        if self.closed {
+            return Vec::new();
+        }
+        self.renderer_gone = true;
+        self.barrier = false;
+        std::mem::take(&mut self.deferred)
     }
 
     /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다.
@@ -360,6 +382,26 @@ mod tests {
         d.close();
         d.document_loaded();
         assert!(!d.take_loaded());
+    }
+
+    #[test]
+    fn an_ended_renderer_releases_the_navigation_and_the_next_document_is_applied_again() {
+        let mut d = Delivery::default();
+        assert_eq!(d.request(false), work(Some(1), Some(1)));
+        // process가 끝난 뒤 값이 바뀌어 등록이 끝나지 않은 채 남는다.
+        assert_eq!(d.request(true), work(Some(2), Some(2)));
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(d.renderer_ended(), vec!["load"]);
+        // 복구 탐색과 그 사이의 새 값은 붙잡지 않는다.
+        assert_eq!(d.navigate("reload"), Some("reload"));
+        assert_eq!(d.request(false), work(Some(3), Some(3)));
+        assert_eq!(d.navigate("again"), Some("again"));
+        // 새 문서가 실리면 적용을 다시 하게 하고, 그 뒤로는 다시 장벽을 세운다.
+        d.document_loaded();
+        assert!(d.take_failed());
+        assert_eq!(d.request(false), work(None, Some(4)));
+        assert_eq!(d.request(true), work(Some(4), Some(5)));
+        assert_eq!(d.navigate("later"), None);
     }
 
     #[test]

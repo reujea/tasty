@@ -764,6 +764,7 @@ impl PlatformWebView {
             // NavigationCompleted가 뒤따라 와도 finished()는 로드 중이 아닐 때 아무것도 하지 않는다.
             // iframe·GPU·utility process 종료는 main frame 로드를 끝내지 않으므로 건너뛴다.
             let nav_failed = nav_state.clone();
+            let bed_failed = bed_focus.clone();
             let ended_failed = content_process_ended.clone();
             let gate_failed = script_gate.clone();
             let resume_failed = scan_resume.clone();
@@ -786,6 +787,7 @@ impl PlatformWebView {
                     // browser process가 끝난 WebView는 다시 만들어야 하므로 표시하지 않는다.
                     if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
                         ended_failed.set(true);
+                        bed_failed.renderer_ended(surface_id);
                     }
                     resume_failed.borrow_mut().clear();
                     if let Some(gate) = gate_failed.borrow().as_ref() {
