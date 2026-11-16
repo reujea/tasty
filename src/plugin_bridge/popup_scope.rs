@@ -17,6 +17,11 @@ pub(crate) fn popup_scope(decl: PopupScopeDecl, scope_surface: Option<u32>) -> O
     }
 }
 
+/// surface 범위로 선언한 팝업인데 결속할 대상이 없는지. 그런 요청은 창 범위로 바꾸지 않고 열지 않는다.
+pub(crate) fn lacks_required_target(decl: Option<PopupScopeDecl>, target: Option<u32>) -> bool {
+    target.is_none() && decl == Some(PopupScopeDecl::Surface)
+}
+
 /// 활성 플러그인이 선언한 팝업의 범위 종류. 선언이 없으면 None이다.
 pub(crate) fn declared_popup_scope(
     mgr: &tasty_host_plugin::PluginManager,
@@ -109,5 +114,21 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
     };
     if let Some(popup) = state.popups.get_mut(FILE_PICKER_POPUP_ID) {
         popup.scope = scope;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_surface_popup_without_a_target_lacks_its_target() {
+        assert!(lacks_required_target(Some(PopupScopeDecl::Surface), None));
+        assert!(!lacks_required_target(
+            Some(PopupScopeDecl::Surface),
+            Some(7)
+        ));
+        assert!(!lacks_required_target(Some(PopupScopeDecl::Window), None));
+        assert!(!lacks_required_target(None, None));
     }
 }

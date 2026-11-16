@@ -3,6 +3,8 @@ mod accessors;
 pub(crate) mod attach_pending;
 #[cfg(feature = "gui")]
 pub(crate) mod branch;
+#[cfg(all(test, feature = "gui"))]
+mod convert_input_popup_tests;
 #[cfg(feature = "gui")]
 mod detect;
 #[cfg(feature = "gui")]
@@ -377,7 +379,8 @@ impl RequestContext {
     }
 
     /// 등록된 convert_input_popup을 열도록 요청한다. 변환 대상이 있으면 context에 담는다.
-    /// kind나 팝업 선언을 찾지 못하면 경고를 기록하고 false를 반환한다.
+    /// kind나 팝업 선언을 찾지 못하면 경고를 기록하고 false를 반환한다. surface 범위로 선언한 팝업인데
+    /// 변환 대상도 포커스 surface 도 없으면 창 범위로 바꾸지 않고 큐에 넣지 않으며 false를 반환한다.
     #[cfg(feature = "gui")]
     pub(crate) fn enqueue_convert_input_popup(
         &mut self,
@@ -401,6 +404,12 @@ impl RequestContext {
         };
         // 변환 대상이 있으면 포커스와 달라도 그 surface의 cwd를 사용한다.
         let origin = convert_surface_id.or_else(|| self.focused_surface_id(engine));
+        if origin.is_none() && self.tool_registry.is_surface_popup(&popup_ref) {
+            tracing::warn!(
+                "convert-input popup '{popup_ref}' not opened: it needs a surface target and none is focused"
+            );
+            return false;
+        }
         let mut context = self.popup_surface_context(engine, origin);
         if let Some(sid) = convert_surface_id {
             context["surface_id"] = serde_json::json!(sid);

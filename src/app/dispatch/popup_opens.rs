@@ -15,14 +15,15 @@ impl App {
             return;
         };
         for open in drained {
-            // surface 선언 팝업은 대상 surface 가 없으면 창 범위로 바꾸지 않고 열지 않는다.
-            if open.target_surface.is_none()
-                && crate::plugin_bridge::popup_scope::declared_popup_scope(
+            // 큐에 넣는 쪽이 먼저 거르지만, 큐에 넣은 뒤 선언이 바뀐 경우를 위해 여기서도 거른다.
+            if crate::plugin_bridge::popup_scope::lacks_required_target(
+                crate::plugin_bridge::popup_scope::declared_popup_scope(
                     mgr,
                     &open.plugin_id,
                     &open.popup_id,
-                ) == Some(tasty_plugin_manifest::PopupScopeDecl::Surface)
-            {
+                ),
+                open.target_surface,
+            ) {
                 tracing::warn!(
                     "popup '{}/{}' not opened: it needs a surface target and none is focused",
                     open.plugin_id,

@@ -46,7 +46,12 @@ impl ToolRegistry {
 
     /// 이 동작이 대상 surface 를 필요로 하는지. surface 선언 팝업을 여는 동작만 해당한다.
     pub fn needs_surface(&self, action: &ToolAction) -> bool {
-        matches!(action, ToolAction::OpenPopup { popup_id } if self.surface_popups.contains(popup_id))
+        matches!(action, ToolAction::OpenPopup { popup_id } if self.is_surface_popup(popup_id))
+    }
+
+    /// `<plugin_id>/<popup_id>` 팝업이 surface 범위로 선언됐는지.
+    pub fn is_surface_popup(&self, popup_ref: &str) -> bool {
+        self.surface_popups.contains(popup_ref)
     }
 
     /// plugin 출처 항목을 통째로 교체한다.
