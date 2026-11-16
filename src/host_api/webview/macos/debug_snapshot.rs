@@ -1,7 +1,7 @@
 //! debug 빌드에서 WebView 자체 그림과 문서 계산값을 파일로 남긴다(`debug.webview.snapshot`).
 //! 화면 기록 권한 없이 WKWebView `takeSnapshotWithConfiguration:`으로 찍으므로 WebView 밖의 호스트
-//! 그림(chrome·띠)은 담기지 않는다. 문서 값은 제품 경로와 같은 page world의 `evaluateJavaScript`로
-//! 읽으므로, 페이지 스크립트가 꺼진 문서에서 실패하면 제품 스크립트도 같은 조건에 있다.
+//! 그림(chrome·띠)은 담기지 않는다. 문서 값은 제품의 바탕 포커스 스크립트와 같은 client world에서
+//! 읽으므로 페이지 스크립트가 꺼진 문서에서도 읽힌다.
 
 use std::path::{Path, PathBuf};
 
@@ -10,6 +10,7 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{class, msg_send};
 use objc2_foundation::{NSError, NSString};
+use objc2_web_kit::WKContentWorld;
 
 /// 읽는 값. 계약 속성의 계산값과 인라인 선언, 문서 바탕, 스크롤 위치다.
 const PROBE: &str = "(()=>{const r=document.documentElement;\
@@ -71,10 +72,21 @@ impl super::PlatformWebView {
             }
         });
         let source = NSString::from_str(PROBE);
-        // SAFETY: main thread WKWebView API. WebKit이 블록을 복사해 완료 때 한 번 부른다.
+        let Some(mtm) = objc2::MainThreadMarker::new() else {
+            tracing::warn!("debug webview probe called off the main thread");
+            return;
+        };
+        // SAFETY: main thread WKWebView API. frame이 None이면 main frame이다. WebKit이 블록을 복사해
+        // 완료 때 한 번 부른다.
+        #[allow(clippy::multiple_unsafe_ops_per_block)]
         unsafe {
             self.webview
-                .evaluateJavaScript_completionHandler(&source, Some(&probe));
+                .evaluateJavaScript_inFrame_inContentWorld_completionHandler(
+                    &source,
+                    None,
+                    &WKContentWorld::defaultClientWorld(mtm),
+                    Some(&probe),
+                );
         }
     }
 }
