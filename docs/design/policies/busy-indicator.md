@@ -41,7 +41,7 @@ busy를 해제하는 조건은 (1)과 (2)다. 입력은 해제 조건이 아니�
 | idle인 마우스 트래킹 TUI에서 마우스 이동 | 마우스 보고도 입력이므로 (3)에 따라 idle. 직전이 busy라면 출력이 이어지는 동안 busy 유지 |
 | DSR(`ESC[6n`)·DA·OSC 색상 질의를 반복하면서 출력하는 TUI | 터미널의 질의 응답은 입력이 아니므로 busy |
 
-200ms보다 짧은 간격으로 계속 타이핑하면 그동안의 출력도 에코 구간에 들어가 busy 전환이 늦어질 수 있다. 타이핑이 멈춘 뒤 다음 폴링에서 다시 판단한다. 비터미널 surface(Markdown/Explorer/Image)는 항상 idle이다.
+200ms보다 짧은 간격으로 계속 타이핑하면 그동안의 출력도 에코 구간에 들어가 busy 전환이 늦어질 수 있다. 타이핑이 멈춘 뒤 다음 폴링에서 다시 판단한다. 호스트가 전경 프로세스로 판단하는 것은 터미널뿐이다. 나머지 surface는 호스트가 스스로 판단하지 않고, plugin이 그리는 surface만 그 소유 plugin이 `surface.set_busy`로 알린 값을 쓴다 — 아래 (P). 알린 값이 없으면 idle이다. 터미널도 같은 입구로 알린 값을 위 판정과 합친다 — 아래 (R).
 
 ### (3) 의 억제 창을 갱신하는 write / 갱신하지 않는 write
 
@@ -55,11 +55,52 @@ PTY로 보내는 데이터는 같은 채널을 사용하지만, `last_input_at`�
 
 터미널 자체 응답까지 입력으로 기록하면 200ms보다 짧게 질의를 반복하는 TUI가 계속 에코 구간에 머무른다. 출력이 있어도 `busy == false`가 되는 오류를 피하려고 두 경우를 구분한다. 실제 전송 경로와 `enqueued_count`·`WriteAck` 규칙은 같다.
 
+### (P) plugin surface
+
+plugin이 그리는 surface에는 전경 프로세스가 없어 호스트가 판단하지 못한다. 소유 plugin이 `surface.set_busy { surface_id, busy }`로 알린 값을 쓴다.
+
+소유자는 surface의 종류(`markdown`·`image` 같은 kind 이름)가 아니라 **타입**으로 가른다. plugin이 그리는 surface는 매니페스트 `[[surface_kinds]]`의 `rendering`에 따라 호스트 안에서 타입이 갈리지만, 어느 쪽이든 그 plugin이 그리므로 소유자가 있다. 아래 표는 터미널 (R)까지 함께 놓아 `surface.set_busy`가 받는 것과 거절하는 것을 모두 적는다.
+
+| 지원 | surface | 예 |
+|---|---|---|
+| 알릴 수 있다 | 터미널 — 소유자 없음, 누구나 (R) | `terminal` |
+| 알릴 수 있다 | `rendering = "remote"`·`"webview"` plugin surface — 소유 plugin만 | `markdown`(`com.tasty.markdown`) · `html`(`com.tasty.html`) |
+| 알릴 수 있다 | `rendering = "egui-mesh"` plugin surface — 소유 plugin만 | `image`(`com.tasty.image`) · `mesh_demo` |
+| 거절한다 | 호스트 builtin surface — 소유 plugin이 없다 | `explorer` · `dag_graph` · `empty` |
+| 거절한다 | 복원 대기 placeholder · 원격 호스트의 mesh 사본 | 저널 복원 전 surface · attach 사본 |
+
+- 호출자는 그 surface를 소유한 plugin이어야 한다. 다른 호출자는 `-32000`으로 거절한다. 소유 plugin이 없는 surface(`explorer` 등)도 같은 코드로 거절한다. 거절 사유는 두 가지가 구분된다 — `caller does not own this surface`와 `surface is neither a terminal nor a plugin surface`.
+- Markdown·Image는 **plugin이 제공하는 종류**이므로 "항상 idle"이 아니다. 그 plugin이 알리지 않으면 idle일 뿐이다.
+- attach 사본(`AttachMeshSurface`)은 원격 호스트의 surface를 비추기만 하고 그 `plugin_id`로 로컬 plugin을 조회하지 않는다. 로컬 plugin이 원격 surface의 표시를 바꾸지 못하게 소유자로 보지 않는다.
+- 값은 폴링이 다시 계산하는 터미널 busy와 따로 보관하고, 판정은 둘의 합집합이다. 폴링이 plugin 값을 지우지 않는다.
+- surface가 닫히면 값도 지운다. 턴 도중 닫힌 탭이 워크스페이스를 busy로 남기지 않는다.
+- plugin이 내려가며 끄지 못한 값은 surface가 닫힐 때까지 남는다.
+
+### (R) 터미널에 알린 busy
+
+터미널의 판정은 PTY 출력으로 한다. 그래서 출력 없이 일하는 프로그램은 2초 뒤 idle로 보인다. 응답을 기다리는 에이전트가 그렇다. 그 프로그램이나 그 훅이 같은 입구 `surface.set_busy`(CLI `tasty surface set-busy [--surface <id>] --busy true|false`, `--surface`를 생략하면 그 터미널의 `TASTY_SURFACE_ID`)로 알린다.
+
+- 터미널에는 소유자가 없다. 셸(로컬 CLI)과 plugin 누구나 알린다.
+- 판정은 위 (1)~(4)의 결과와 알린 값의 합집합이다. 알린 값이 출력 판정을 끄지는 않는다.
+- 알린 뒤 첫 폴링에서 본 전경 pid를 기억한다. 전경이 셸 자신이 되거나 비거나 다른 pid로 바뀌면 지운다. 알린 프로그램이 idle을 알리지 못하고 끝나도 점이 남지 않는다. 그래서 셸 프롬프트에서 직접 부른 표시는 다음 폴링에서 지워진다. 스크립트 안에서 부르면 스크립트가 끝날 때까지 남는다.
+- **전경이 바뀌지 않는 동안은 지워지지 않는다.** 터미널에 소유자가 없다는 것은 어떤 plugin이든 아무 터미널의 busy를 켜고 끌 수 있다는 뜻이다(Claude 훅이 켠 값을 끄는 것도 포함한다). 설계대로이고 표시에만 영향이 있지만, `vim`처럼 오래 떠 있는 전경 아래에 사실과 다른 busy를 켜면 그 전경이 끝날 때까지 점이 남는다. 위 지우기 조건이 전부 전경 pid의 변화를 보기 때문이다. 잘못 켠 값을 즉시 되돌리려면 같은 입구로 `busy false`를 보낸다.
+- surface가 닫히면 값도 지운다.
+- 에이전트 plugin의 훅은 자식 상태를 `active`로 알릴 때 켜고 idle·입력 대기로 알릴 때 끈다. 세션 시작에서는 끄기만 한다. 사용자가 아직 아무것도 시키지 않았으면 Stop이 오지 않아 점이 계속 켜져 있게 되기 때문이다.
+
+| 상황 | 판정 |
+|---|---|
+| `claude`·`codex`가 API 응답을 기다리며 출력이 없음 | 프롬프트 제출 훅이 켠 값이 있으면 busy |
+| `claude` 턴이 끝남(Stop 훅) | 훅이 끈다. 출력 판정도 idle이면 idle |
+| `claude`가 훅 없이 죽어 셸이 앞으로 옴 | 다음 폴링이 지워 idle |
+
 ## 집계 — OR
 
 | 단위 | busy 판정 |
 |------|-----------|
 | Surface(terminal) | 위 판정 |
+| Surface(terminal) — 알린 값 | 위 판정과 합집합 (R) |
+| Surface(plugin) | 소유 plugin이 알린 값 (P). 알린 값이 없으면 idle |
+| Surface(호스트 builtin) | 항상 idle — 알릴 입구가 없다 (P) |
 | Tab | 포함 surface 중 하나라도 busy |
 | Workspace | 포함 surface 중 하나라도 busy. 개수도 제공 |
 
