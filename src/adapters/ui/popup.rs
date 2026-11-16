@@ -39,6 +39,83 @@ use tasty_type_geometry::length::LogicalPx;
 // 새 팝업은 popup::defs의 all_defs()에 등록한다.
 
 pub use crate::model::popup_kind::{PopupId, PopupScope};
+pub use tasty_plugin_protocol::popup_decl::{
+    PopupAnchor, PopupChrome, PopupContentMargin, PopupDecl, PopupDragHandle, PopupEscape,
+    PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupScopeKind, PopupScopeTarget,
+    PopupShadow, PopupShell, PopupSize,
+};
+
+/// host 범위 값의 종류. 대상 id는 버린다.
+// 이유: 지금은 debug 팝업 목록과 시험만 읽는다. 열기 요청이 범위 종류를 검사하면 release에서도 쓴다.
+#[cfg_attr(
+    not(any(test, debug_assertions)),
+    expect(
+        dead_code,
+        reason = "only the debug popup list reads scope kinds for now"
+    )
+)]
+pub(crate) fn scope_kind(scope: &PopupScope) -> PopupScopeKind {
+    match scope {
+        PopupScope::Window => PopupScopeKind::Window,
+        PopupScope::Workspace(_) => PopupScopeKind::Workspace,
+        PopupScope::Pane(_) => PopupScopeKind::Pane,
+        PopupScope::Tab(_) => PopupScopeKind::Tab,
+        PopupScope::Surface(_) => PopupScopeKind::Surface,
+    }
+}
+
+/// `egui::Vec2`를 선언 크기로 옮긴다.
+pub const fn popup_size(v: egui::Vec2) -> PopupSize {
+    PopupSize {
+        width: v.x,
+        height: v.y,
+    }
+}
+
+fn vec2_of(size: PopupSize) -> egui::Vec2 {
+    egui::vec2(size.width, size.height)
+}
+
+/// scrim이 받는 입력. `covers_scope`인 팝업만 의미가 있다.
+///
+/// 덮는 팝업의 scrim이 범위 안 입력을 모두 받게 되면 이 값은 사라진다. 그때까지 지금 동작을 그대로 적는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrimInput {
+    /// scrim은 보이기만 한다. 누르면 바깥 클릭이다.
+    VisualOnly,
+    /// scrim 위 포인터가 팝업 것이다.
+    TakesPointer,
+    /// 열려 있는 동안 범위 아래 탐색기로 끌어 놓기를 막는다.
+    BlocksDrop,
+}
+
+/// 정의 없이 만든 팝업의 선언 값. 크기는 생성자가 따로 받는다.
+const PLAIN_DECL: PopupDecl = defs::host_decl(PopupSize {
+    width: 0.0,
+    height: 0.0,
+});
+
+/// 셸을 그릴 때 읽는 선언 값.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PopupLook {
+    pub(crate) covers_scope: bool,
+    pub(crate) scrim_input: ScrimInput,
+    pub(crate) shell: PopupShell,
+    pub(crate) shadow: PopupShadow,
+    pub(crate) content_margin: PopupContentMargin,
+}
+
+impl PopupLook {
+    fn of(decl: &PopupDecl, scrim_input: ScrimInput) -> Self {
+        Self {
+            covers_scope: decl.covers_scope,
+            scrim_input,
+            shell: decl.shell,
+            shadow: decl.shadow,
+            content_margin: decl.content_margin,
+        }
+    }
+}
 
 /// Result of a popup's draw call.
 pub enum PopupAction {
@@ -98,34 +175,24 @@ pub struct PopupDrawResult {
     pub overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget>,
 }
 
-/// 등록 속성과 매 프레임 그리기 함수를 담은 팝업 정의.
+/// 팝업 정의. 공통 선언 `decl`과 host만 쓰는 함수 값을 담는다.
 pub struct PopupDef {
     pub id: PopupId,
+    /// 팝업 사이 동작 차이를 정하는 공통 선언.
+    pub decl: PopupDecl,
+    /// scrim이 받는 입력. 덮는 팝업만 의미가 있다.
+    pub scrim_input: ScrimInput,
     /// i18n 키. `t()`로 런타임 번역하여 popup title로 사용.
     pub title_key: &'static str,
     /// 동적 타이틀. 매 프레임 호출. `title_key` 대신 사용된다. (예: rename popup의
     /// 대상별 제목)
     pub title_fn:
         Option<fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>) -> String>,
-    /// 기본 크기. 동적 크기가 필요하면 `sizer`로 덮어쓸 수 있다.
-    pub default_size: egui::Vec2,
     /// 매 프레임 크기를 계산한다. 사용자가 크기를 지정한 팝업에는 적용하지 않는다.
     pub sizer:
         Option<fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>) -> egui::Vec2>,
-    pub default_scope: PopupScope,
-    pub close_on_outside_click: bool,
-    /// true면 타이틀바·닫기 버튼 없이 콘텐츠만 렌더링한다 (컨텍스트 메뉴 스타일).
-    pub headless: bool,
-    /// true면 팝업 바깥 클릭해도 키보드 포커스가 유지된다.
-    /// 닫기(Escape 등)로만 포커스 해제 가능. 검색 바 같은 오버레이용.
-    pub sticky_focus: bool,
-    /// 이동(드래그) 핸들 선언. `None`이면 이동 불가. `movable` 여부는 별도 bool 없이
-    /// 이 값으로 표현한다.
-    pub drag_handle: DragHandle,
-    /// true면 테두리 8방향 드래그로 크기 조절 가능.
-    pub resizable: bool,
-    /// 리사이즈 최소 크기. `None`이면 `default_size`를 최소로 사용.
-    pub min_size: Option<egui::Vec2>,
+    /// `decl.drag_handle`이 `Region`일 때 끌어 옮길 영역을 계산한다. 다른 값이면 `None`이다.
+    pub drag_region: Option<fn(&PopupState) -> egui::Rect>,
     /// 렌더링 함수. 매 프레임 호출. MainViewState에서 필요한 데이터를 꺼낸다.
     pub draw_fn: fn(
         &mut egui::Ui,
@@ -200,6 +267,8 @@ pub struct PopupState {
     /// 타이틀바 전체화면 버튼이 올릴 무대 id. `register_def` 가 `PopupDef` 에서
     /// 전파한다. `None` 이면 버튼 없음.
     fullscreen_stage: Option<crate::adapters::ui::fullscreen::StageId>,
+    /// 셸을 그릴 때 읽는 선언 값.
+    look: PopupLook,
 }
 
 /// UI 배율을 적용한 Theme.item_height_interactive를 반올림한 타이틀바 높이.
@@ -344,7 +413,38 @@ impl PopupState {
             resize_start_rect: egui::Rect::ZERO,
             size_user_overridden: false,
             fullscreen_stage: None,
+            look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
         }
+    }
+
+    /// 선언으로 팝업을 만든다. 크기와 최소 크기는 선언 값 그대로다.
+    /// `drag_region`은 `decl.drag_handle`이 `Region`일 때 쓴다.
+    pub fn declared(
+        id: PopupId,
+        title: impl Into<String>,
+        decl: &PopupDecl,
+        scrim_input: ScrimInput,
+        drag_region: Option<fn(&PopupState) -> egui::Rect>,
+    ) -> Self {
+        let size = vec2_of(decl.size);
+        let drag_handle = match (decl.drag_handle, drag_region) {
+            (PopupDragHandle::None, _) => DragHandle::None,
+            (PopupDragHandle::TitleBar, _) => DragHandle::TitleBar,
+            (PopupDragHandle::Region, Some(f)) => DragHandle::Region(f),
+            (PopupDragHandle::Region, None) => {
+                tracing::error!("popup {id} declares a drag region without a region function");
+                DragHandle::None
+            }
+        };
+        let mut popup = Self::new(id, title, size)
+            .with_close_on_outside_click(decl.closes_on_outside_click())
+            .with_headless(decl.is_headless())
+            .with_sticky_focus(decl.sticky_focus)
+            .with_drag_handle(drag_handle)
+            .with_resizable(decl.resizable)
+            .with_min_size(decl.min_size.map_or(size, vec2_of));
+        popup.look = PopupLook::of(decl, scrim_input);
+        popup
     }
 
     /// Create a popup with a specific scope.
@@ -550,26 +650,20 @@ impl PopupManager {
         if self.popups.iter().any(|p| p.id == def.id) {
             return;
         }
-        let initial_size = if def.sizer.is_some() {
-            def.default_size
-        } else {
-            def.default_size * ui_zoom
-        };
-        let resolved_min = def.min_size.unwrap_or(def.default_size);
-        let resolved_min = if def.sizer.is_some() {
-            resolved_min
-        } else {
-            resolved_min * ui_zoom
-        };
-        let popup = PopupState::new(def.id, crate::i18n::t(def.title_key), initial_size)
-            .with_scope(def.default_scope.clone())
-            .with_close_on_outside_click(def.close_on_outside_click)
-            .with_headless(def.headless)
-            .with_sticky_focus(def.sticky_focus)
-            .with_drag_handle(def.drag_handle)
-            .with_resizable(def.resizable)
-            .with_min_size(resolved_min)
-            .with_fullscreen_stage(def.fullscreen_stage);
+        // 등록 때는 대상 id가 없으므로 Window 범위로 둔다. 다른 범위는 여는 쪽이 대상과 함께 정한다.
+        let mut popup = PopupState::declared(
+            def.id,
+            crate::i18n::t(def.title_key),
+            &def.decl,
+            def.scrim_input,
+            def.drag_region,
+        )
+        .with_scope(PopupScope::Window)
+        .with_fullscreen_stage(def.fullscreen_stage);
+        if def.sizer.is_none() {
+            popup.size *= ui_zoom;
+            popup.min_size *= ui_zoom;
+        }
         self.popups.push(popup);
     }
 
@@ -953,7 +1047,7 @@ mod tests {
     fn no_popup_is_both_sticky_focused_and_immune_to_an_outside_click() {
         let offenders: Vec<&str> = defs::all_defs()
             .iter()
-            .filter(|d| d.sticky_focus && !d.close_on_outside_click)
+            .filter(|d| d.decl.sticky_focus && !d.decl.closes_on_outside_click())
             .map(|d| d.id)
             .collect();
         assert!(

@@ -24,7 +24,15 @@ pub(crate) use debug_tabs::DebugTabsApplied;
 pub(crate) use keybindings_tab::PluginBundleContext;
 pub use keybindings_tab::{KeyCapture, capture_bare_key, capture_winit_key_combo};
 
-use crate::adapters::ui::popup::{PopupManager, PopupState};
+use crate::adapters::ui::popup::{
+    PopupDecl, PopupManager, PopupOutsideClick, PopupState, ScrimInput, popup_size,
+};
+
+/// 단축키 충돌 확인 팝업의 선언. 크기는 열 때 `conflict_popup_size`가 다시 정하므로 첫 프레임 값이다.
+pub(crate) const KEYBINDING_CONFLICT_DECL: PopupDecl = PopupDecl {
+    outside_click: PopupOutsideClick::Unfocus,
+    ..crate::adapters::ui::popup::defs::host_decl(popup_size(egui::vec2(340.0, 120.0)))
+};
 use crate::file::format::DetectorId;
 use crate::i18n::t;
 use crate::plugin::manifest::BindingMode;
@@ -410,15 +418,13 @@ impl SettingsUiState {
 
     pub fn new() -> Self {
         let mut popups = PopupManager::new();
-        // 크기는 열 때 `conflict_popup_size` 가 다시 정하므로 등록 값은 첫 프레임 placeholder 다.
-        popups.register(
-            PopupState::new(
-                "keybinding_conflict",
-                t("settings.keybindings.conflict_title"),
-                egui::vec2(340.0, 120.0),
-            )
-            .with_close_on_outside_click(false),
-        );
+        popups.register(PopupState::declared(
+            "keybinding_conflict",
+            t("settings.keybindings.conflict_title"),
+            &KEYBINDING_CONFLICT_DECL,
+            ScrimInput::VisualOnly,
+            None,
+        ));
         file_chooser::register(&mut popups);
         Self {
             active_tab: SettingsTab::General,

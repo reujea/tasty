@@ -12,6 +12,7 @@ pub mod ipc_method;
 pub mod line;
 #[cfg(feature = "egui-mesh")]
 pub mod mesh_wire;
+pub mod popup_decl;
 pub mod protocol;
 pub mod task_turn;
 

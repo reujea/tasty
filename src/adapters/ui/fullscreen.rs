@@ -196,7 +196,7 @@ mod tests {
                 def.id
             );
             assert!(
-                !def.headless,
+                !def.decl.is_headless(),
                 "headless popup '{}' 은 타이틀바가 없어 전체화면 버튼을 그릴 자리가 없다",
                 def.id
             );

@@ -4,7 +4,10 @@
 //! 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::remote_row_popup`이 그린다.
 
 use crate::adapters::ui::icons;
-use crate::adapters::ui::popup::{DragHandle, PopupAction, PopupDef, PopupId, PopupScope};
+use crate::adapters::ui::popup::{
+    PopupAction, PopupChrome, PopupDecl, PopupDef, PopupDragHandle, PopupEscape, PopupId,
+    PopupOutsideClick, PopupScope, PopupShadow, ScrimInput, popup_size,
+};
 use crate::i18n::t;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
@@ -281,21 +284,42 @@ fn draw(ui: &mut egui::Ui, state: &mut MainViewState, engine: &EngineRead<'_>) -
 }
 
 /// 두 팝업의 정의. 제목줄·닫기·이동이 없고 바깥을 눌러도 닫히지 않는다.
-pub(crate) fn def(id: PopupId) -> PopupDef {
+/// `over_screen`이면 마지막 화면 위 팝업이다. 콘텐츠 영역을 scrim 으로 덮고 그 scrim 이 포인터를 받는다.
+pub(crate) fn def(id: PopupId, over_screen: bool) -> PopupDef {
     PopupDef {
         id,
+        decl: PopupDecl {
+            outside_click: PopupOutsideClick::Unfocus,
+            sticky_focus: false,
+            chrome: PopupChrome::Headless,
+            drag_handle: PopupDragHandle::None,
+            resizable: false,
+            min_size: None,
+            covers_scope: over_screen,
+            shadow: if over_screen {
+                PopupShadow::Modal
+            } else {
+                PopupShadow::Popover
+            },
+            // 범위 경계는 workspace 콘텐츠 영역이고 안쪽 여백이 없다.
+            scope_inset: false,
+            escape: PopupEscape::Unfocus,
+            focus_on_open: false,
+            ..super::defs::host_decl(popup_size(egui::vec2(
+                width().value(),
+                estimate_h().value(),
+            )))
+        },
+        scrim_input: if over_screen {
+            ScrimInput::TakesPointer
+        } else {
+            ScrimInput::VisualOnly
+        },
         title_key: "remote.row.popup.connect",
         fullscreen_stage: None,
         title_fn: None,
-        default_size: egui::vec2(width().value(), estimate_h().value()),
         sizer: Some(sizer),
-        default_scope: PopupScope::Window,
-        close_on_outside_click: false,
-        headless: true,
-        sticky_focus: false,
-        drag_handle: DragHandle::None,
-        resizable: false,
-        min_size: None,
+        drag_region: None,
         draw_fn: draw,
         on_close: Some(on_close),
     }

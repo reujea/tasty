@@ -22,7 +22,7 @@ const ANCHORED_POPUPS: &[PopupId] = &[
 
 /// popover 목록에 없는 팝업은 modal 그림자를 사용한다.
 /// scrim 여부와는 별개인 분류다(docs/architecture/ui-widgets-crate.md).
-fn popup_shadow(popup_id: PopupId) -> Option<tasty_type_appearance::theme::ShadowToken> {
+pub(super) fn popup_shadow(popup_id: PopupId) -> Option<tasty_type_appearance::theme::ShadowToken> {
     let th = theme::theme();
     // 빈 workspace 위 원격 행 팝업은 scrim 이 없어 popover 그림자다.
     if ANCHORED_POPUPS.contains(&popup_id) || popup_id == super::remote_row::REMOTE_ROW_POPUP_ID {
@@ -40,7 +40,10 @@ fn popup_shadow(popup_id: PopupId) -> Option<tasty_type_appearance::theme::Shado
 /// 즐겨찾기 추가)은 dialog 라 dialog-bg 이며, 그 위라야 읽기 전용 이름 칸의 상자가 보인다.
 /// DAG 목록 팝업은 시안 `DagWindow` 바탕이 bg-panel 이고 검색 칸은 기본 바탕 Input 이다. surface-raised
 /// 위에서는 input-bg·input-border 가 바탕과 같은 색이 되어 칸이 사라진다.
-fn popup_bg_fill(popup_id: PopupId, th: &tasty_type_appearance::theme::Theme) -> egui::Color32 {
+pub(super) fn popup_bg_fill(
+    popup_id: PopupId,
+    th: &tasty_type_appearance::theme::Theme,
+) -> egui::Color32 {
     match popup_id {
         "notifications" | "remote_tool" | "port_scanner" | "tutorial_topics" | "remote_attach"
         | "convert_surface" => th.bg_panel().into(),
@@ -60,7 +63,10 @@ fn popup_bg_fill(popup_id: PopupId, th: &tasty_type_appearance::theme::Theme) ->
 /// 셸 테두리 색. 메뉴형 팝업(Tools 메뉴·레일 카테고리 메뉴)은 egui 팝오버와 같은 `menu-border`,
 /// 검색 바는 `search-bar-border`, 마우스 캡처 배너 메뉴는 `banner-more-menu-border` 다(셋 다
 /// → border-strong). 나머지는 공통 frame 색이다.
-fn popup_border(popup_id: PopupId, th: &tasty_type_appearance::theme::Theme) -> egui::Color32 {
+pub(super) fn popup_border(
+    popup_id: PopupId,
+    th: &tasty_type_appearance::theme::Theme,
+) -> egui::Color32 {
     match popup_id {
         crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID => {
             th.banner_more_menu_border().into()
@@ -73,7 +79,10 @@ fn popup_border(popup_id: PopupId, th: &tasty_type_appearance::theme::Theme) -> 
 
 /// 타이틀바 아래 선 색. 안내 모달은 디자인의 info modal 셸 규칙(`info-modal-title-edge`)을
 /// 따르고 나머지는 공통 값을 쓴다.
-fn popup_title_edge(popup_id: PopupId, th: &tasty_type_appearance::theme::Theme) -> egui::Color32 {
+pub(super) fn popup_title_edge(
+    popup_id: PopupId,
+    th: &tasty_type_appearance::theme::Theme,
+) -> egui::Color32 {
     if popup_id == crate::adapters::ui::info_modal::INFO_MODAL_ID {
         th.info_modal_title_edge().into()
     } else {

@@ -8,8 +8,15 @@ const CANCEL: &str = "CANCEL-LABEL";
 fn picker_state(size: egui::Vec2) -> crate::adapters::ui::popup::PopupState {
     let def = crate::adapters::ui::popup::defs::find(FILE_PICKER_POPUP_ID)
         .expect("file picker PopupDef 가 등록돼 있어야 한다");
-    crate::adapters::ui::popup::PopupState::new(FILE_PICKER_POPUP_ID, "t", size)
-        .with_headless(def.headless)
+    let mut popup = crate::adapters::ui::popup::PopupState::declared(
+        FILE_PICKER_POPUP_ID,
+        "t",
+        &def.decl,
+        def.scrim_input,
+        def.drag_region,
+    );
+    popup.size = size;
+    popup
 }
 
 fn deep_crumbs(depth: usize, seg: &str) -> Vec<CrumbView> {
@@ -279,13 +286,14 @@ fn the_path_bar_band_is_filled_edge_to_edge_with_bg_sidebar() {
 /// 같은 뷰를 쓰는 설정 창 파일 선택기도 셸 공통 여백 없이 띠가 창 끝까지 닿는다.
 #[test]
 fn the_settings_chooser_path_bar_band_is_filled_edge_to_edge() {
-    let popup = crate::adapters::ui::popup::PopupState::new(
-        crate::view::settings::ui::file_chooser::FILE_CHOOSER_POPUP_ID,
-        "t",
-        egui::vec2(640.0, 480.0),
-    )
-    .with_headless(true);
-    assert_path_band_is_full_width(&popup);
+    let id = crate::view::settings::ui::file_chooser::FILE_CHOOSER_POPUP_ID;
+    let mut popups = crate::adapters::ui::popup::PopupManager::new();
+    crate::view::settings::ui::file_chooser::register(&mut popups);
+    let popup = popups
+        .get_mut(id)
+        .expect("설정 창 파일 선택기가 등록돼 있어야 한다");
+    popup.size = egui::vec2(640.0, 480.0);
+    assert_path_band_is_full_width(popup);
 }
 
 fn assert_path_band_is_full_width(popup_state: &crate::adapters::ui::popup::PopupState) {

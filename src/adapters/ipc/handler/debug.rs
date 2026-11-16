@@ -92,8 +92,13 @@ pub(super) fn handle_debug_host_popup_list(
             json!({
                 "id": def.id,
                 "title_key": def.title_key,
-                "headless": def.headless,
-                "close_on_outside_click": def.close_on_outside_click,
+                "headless": def.decl.is_headless(),
+                "close_on_outside_click": def.decl.closes_on_outside_click(),
+                "decl": def.decl,
+                "open_scope_kind": state
+                    .popups
+                    .open_scope(def.id)
+                    .map(crate::adapters::ui::popup::scope_kind),
                 "open": geom.is_some(),
                 "z_seq": geom.map(|(z, _)| z),
                 "rect": geom.map(|(_, r)| {
