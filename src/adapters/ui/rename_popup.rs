@@ -1,5 +1,6 @@
 //! 이름 바꾸기 입력 팝업을 여는 한 지점. 범위는 바꿀 대상에서 나온다.
-//! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다. 새 요청이 대상을 바꾸면 범위도 그 대상으로 다시 연다.
+//! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다. 새 요청이 대상을 바꾸면 범위도 그 대상으로 다시 열고,
+//! 앞 요청의 원격 대기 상태는 넘기지 않는다.
 
 use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
 use crate::model::popup_kind::PopupScope;
@@ -21,6 +22,9 @@ pub(crate) fn open(
         return false;
     };
     state.dialogs.rename = Some((target, current_value));
+    // 다시 열면 닫는 훅이 돌지 않는다. 앞 요청의 원격 대기와 높이가 새 요청에 남지 않게 여기서 비운다.
+    state.dialogs.rename_waiting = None;
+    state.dialogs.rename_content_height = None;
     if let PopupScope::Workspace(workspace_id) = scope {
         crate::adapters::ui::workspace_action_popup::open(
             state,
@@ -133,5 +137,36 @@ mod tests {
             Some(RenameTarget::TabName { tab_id: 102 })
         );
         assert!(state.popups.take_closed_queue().is_empty());
+    }
+
+    /// 원격 이름 바꾸기를 기다리는 동안 다른 대상의 이름 바꾸기를 열면 대기 표시가 없고,
+    /// 앞 요청의 늦은 성공 응답이 새 팝업을 닫지 않는다.
+    #[test]
+    fn a_second_request_drops_the_remote_wait_of_the_first() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        state.dialogs.rename_waiting = Some(crate::state::RenameWaiting {
+            request: 5,
+            host: "host".into(),
+            done: false,
+        });
+        state.dialogs.rename_content_height = Some(tasty_type_geometry::length::LogicalPx(40.0));
+        let read = session.read();
+        assert!(open(
+            &mut state,
+            &read,
+            RenameTarget::TabName { tab_id: 102 },
+            String::new(),
+            UiIntent::from_user_context_menu
+        ));
+        drop(read);
+        crate::intent::popup::apply_pending(&mut state, &mut session);
+        assert!(state.dialogs.rename_waiting.is_none());
+        assert!(state.dialogs.rename_content_height.is_none());
+        assert!(!crate::app::explorer_files::mark_rename_done(&mut state, 5));
+        assert!(state.dialogs.rename_waiting.is_none());
+        assert_eq!(
+            state.dialogs.rename.as_ref().map(|(t, _)| t.clone()),
+            Some(RenameTarget::TabName { tab_id: 102 })
+        );
     }
 }

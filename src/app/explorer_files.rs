@@ -4,6 +4,8 @@ pub(crate) mod remote;
 mod ui_sync;
 pub(crate) use super::file_jobs::job;
 use super::file_jobs::named;
+#[cfg(test)]
+pub(crate) use ui_sync::mark_rename_done;
 pub(crate) use ui_sync::{forget_press_request, open_conflict};
 use ui_sync::{push_result, show_running};
 

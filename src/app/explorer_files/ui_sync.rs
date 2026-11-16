@@ -401,12 +401,20 @@ pub(super) fn close_renamed(registry: &mut crate::view::ViewRegistry, request: u
         let Some(view) = view.as_main_mut() else {
             continue;
         };
-        if let Some(waiting) = view.state.dialogs.rename_waiting.as_mut()
-            && waiting.request == request
-        {
-            waiting.done = true;
+        if mark_rename_done(&mut view.state, request) {
             view.mark_dirty();
         }
+    }
+}
+
+/// 지금 기다리는 이름 변경이 `request` 일 때만 끝났다고 표시한다. 다른 요청의 응답은 무시한다.
+pub(crate) fn mark_rename_done(state: &mut MainViewState, request: u64) -> bool {
+    match state.dialogs.rename_waiting.as_mut() {
+        Some(waiting) if waiting.request == request => {
+            waiting.done = true;
+            true
+        }
+        _ => false,
     }
 }
 
