@@ -171,6 +171,43 @@ fn a_point_in_the_left_surface_is_on_the_left_path_only() {
     assert!(!path.contains(&PopupScope::Surface(SURFACE_R)));
 }
 
+/// 맞닿은 경계 점은 포인터의 surface 판정처럼 오른쪽 surface 하나에만 든다.
+#[test]
+fn a_point_on_a_shared_edge_belongs_to_the_right_side_only() {
+    let path = path_at(&layout(), point(HALF, LogicalPx(100.0)));
+    assert_eq!(
+        all_scopes_of(&path),
+        [
+            PopupScope::Window,
+            PopupScope::Workspace(WORKSPACE),
+            PopupScope::Pane(PANE_R),
+            PopupScope::Tab(SURFACE_R),
+            PopupScope::Surface(SURFACE_R),
+        ]
+    );
+}
+
+/// 1px 간격으로 나눈 두 pane 사이의 분할선은 어느 pane·surface 에도 들지 않는다.
+#[test]
+fn a_point_on_a_one_pixel_divider_is_on_no_pane() {
+    let mut gap = layout();
+    let divider = HALF - LogicalPx(1.0);
+    gap.pane_rects[0].1 = to_egui(rect(LogicalPx(0.0), LogicalPx(0.0), divider, WORK_H));
+    gap.surface_rects[0].1 = to_egui(rect(LogicalPx(0.0), TAB_BAR, divider, WORK_H - TAB_BAR));
+    let path = path_at(&gap, point(divider, LogicalPx(100.0)));
+    assert_eq!(
+        all_scopes_of(&path),
+        [PopupScope::Window, PopupScope::Workspace(WORKSPACE)]
+    );
+}
+
+/// 작업 영역의 아래 끝 줄은 상태바의 첫 줄이라 Window 만 담는다.
+#[test]
+fn the_bottom_edge_of_the_work_area_is_outside_it() {
+    let path = path_at(&layout(), point(LogicalPx(100.0), WORK_H));
+    assert_eq!(all_scopes_of(&path), [PopupScope::Window]);
+}
+
 #[test]
 fn a_point_on_the_status_bar_is_on_the_window_only() {
     // 작업 영역(0..680) 아래 상태바 자리.

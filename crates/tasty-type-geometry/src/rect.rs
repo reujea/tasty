@@ -32,6 +32,12 @@ impl LogicalRect {
             height: self.height.to_physical(scale_factor),
         }
     }
+
+    /// 점 (x, y) 가 이 사각형 안인지. `PhysicalRect::contains` 와 같이 왼쪽·위 끝은 넣고 오른쪽·아래 끝은
+    /// 뺀다. 맞닿은 두 사각형의 경계 점은 오른쪽·아래 사각형 하나에만 든다.
+    pub fn contains(&self, x: LogicalPx, y: LogicalPx) -> bool {
+        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
 }
 
 impl PhysicalRect {
@@ -152,5 +158,33 @@ mod tests {
         assert_eq!(l.y, LogicalPx(100.0));
         assert_eq!(l.width, LogicalPx(150.0));
         assert_eq!(l.height, LogicalPx(200.0));
+    }
+
+    /// 논리 사각형도 물리 사각형과 같은 반열림 규칙으로 점을 판정한다.
+    #[test]
+    fn logical_contains_uses_the_same_half_open_rule_as_physical() {
+        let physical = PhysicalRect {
+            x: PhysicalPx(10.0),
+            y: PhysicalPx(20.0),
+            width: PhysicalPx(30.0),
+            height: PhysicalPx(40.0),
+        };
+        let logical = physical.to_logical(1.0);
+        for (x, y) in [
+            (10.0, 20.0),
+            (39.9, 59.9),
+            (40.0, 30.0),
+            (20.0, 60.0),
+            (9.9, 30.0),
+        ] {
+            assert_eq!(
+                logical.contains(LogicalPx(x), LogicalPx(y)),
+                physical.contains(PhysicalPx(x), PhysicalPx(y)),
+                "({x}, {y})"
+            );
+        }
+        assert!(logical.contains(LogicalPx(10.0), LogicalPx(20.0)));
+        assert!(!logical.contains(LogicalPx(40.0), LogicalPx(30.0)));
+        assert!(!logical.contains(LogicalPx(20.0), LogicalPx(60.0)));
     }
 }

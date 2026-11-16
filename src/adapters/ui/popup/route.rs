@@ -5,6 +5,7 @@
 use crate::adapters::ui::LayoutContext;
 use crate::adapters::ui::popup::PopupScope;
 use crate::core::CoreState;
+use crate::model::{LogicalPx, LogicalRect};
 use crate::state::MainViewState;
 
 /// 이벤트가 속한 범위 노드들. 비어 있는 단계는 이벤트가 그 깊이까지 내려가지 않았다는 뜻이다.
@@ -33,12 +34,16 @@ impl ScopePath {
 /// 좌표 `pos` 의 범위 경로. surface 안이면 surface 와 그 조상을, 탭 바처럼 pane 안이지만 surface 밖이면
 /// pane 과 workspace 를, workspace 작업 영역 밖(사이드바·상태바)이면 window 만 담는다.
 /// Workspace 는 작업 영역(`workspace_rect`) 안일 때만 담는다. 작업 영역이 없는 창은 담지 않는다.
+/// 사각형 판정은 포인터의 surface 판정(`surface_id_at_position`)과 같은 반열림 규칙이라, 맞닿은 경계 점은
+/// 오른쪽·아래 영역에 든다.
 pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
+    let (x, y) = (LogicalPx(pos.x), LogicalPx(pos.y));
+    let hit = |r: &egui::Rect| logical(*r).contains(x, y);
     let workspace = layout
         .workspace_rect
-        .is_some_and(|r| r.contains(pos))
+        .is_some_and(|r| hit(&r))
         .then_some(layout.active_workspace_id);
-    if let Some(&(surface, _)) = layout.surface_rects.iter().find(|(_, r)| r.contains(pos)) {
+    if let Some(&(surface, _)) = layout.surface_rects.iter().find(|(_, r)| hit(r)) {
         let owner = layout.surface_owners.iter().find(|o| o.surface == surface);
         return ScopePath {
             workspace,
@@ -47,7 +52,7 @@ pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
             surface: Some(surface),
         };
     }
-    if let Some(&(pane, _)) = layout.pane_rects.iter().find(|(_, r)| r.contains(pos)) {
+    if let Some(&(pane, _)) = layout.pane_rects.iter().find(|(_, r)| hit(r)) {
         return ScopePath {
             workspace,
             pane: Some(pane),
@@ -57,6 +62,16 @@ pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
     ScopePath {
         workspace,
         ..ScopePath::default()
+    }
+}
+
+/// egui 가 준 논리 사각형을 길이 타입 사각형으로 옮긴다.
+fn logical(r: egui::Rect) -> LogicalRect {
+    LogicalRect {
+        x: LogicalPx(r.min.x),
+        y: LogicalPx(r.min.y),
+        width: LogicalPx(r.width()),
+        height: LogicalPx(r.height()),
     }
 }
 
