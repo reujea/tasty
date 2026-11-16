@@ -13,8 +13,8 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{Button, ButtonVariant, ControlSize};
 
 use super::transfer::{
-    TRANSFER_ERROR_POPUP_ID, TransferError, TransferErrorKind, TransferRow, body_region,
-    footer_buttons, header_band, header_content_h, line_h, progress_row, progress_row_h, row_pct,
+    TransferError, TransferErrorKind, TransferRow, body_region, footer_buttons, header_band,
+    header_content_h, line_h, progress_row, progress_row_h, row_pct,
 };
 use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::PopupAction;
@@ -144,23 +144,17 @@ pub(crate) fn report_failure(
     let Some(key) = failure_key(failure) else {
         return;
     };
-    state.dialogs.transfer_error.push_back(TransferError {
-        surface_id: surface,
-        name,
-        reason: t(key).to_string(),
-        retry: None,
-        kind: TransferErrorKind::DownloadRun {
-            content_height: None,
+    crate::adapters::ui::popup::transfer::push_error(
+        state,
+        TransferError {
+            scope: crate::model::popup_kind::PopupScope::Surface(surface),
+            name,
+            reason: t(key).to_string(),
+            retry: None,
+            kind: TransferErrorKind::DownloadRun {
+                content_height: None,
+            },
         },
-    });
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: TRANSFER_ERROR_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                crate::model::popup_kind::PopupScope::Surface(surface),
-            ),
-        }
-        .from_user_menu("download_run_failed"),
     );
 }
 

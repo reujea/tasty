@@ -3,10 +3,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::adapters::ui::popup::transfer::{
-    TRANSFER_ERROR_POPUP_ID, TRANSFER_PROGRESS_POPUP_ID, TransferError, TransferErrorKind,
-    TransferProgress, TransferRow,
-};
+use crate::adapters::ui::popup::transfer::{TransferError, TransferErrorKind, TransferRow};
 use crate::app::App;
 use crate::view::ui::View as _;
 
@@ -207,24 +204,16 @@ impl App {
             return;
         };
         if let Some(main) = self.view.views.get_mut(&wid).and_then(|w| w.as_main_mut()) {
-            let prog = main
-                .state
-                .dialogs
-                .transfer_progress
-                .get_or_insert_with(TransferProgress::default);
-            prog.rows.push(TransferRow {
-                id: transfer_id,
-                surface_id,
-                name: file_name.to_string(),
-                sent: 0,
-                total,
-                rate: String::new(),
-            });
-            // 여러 surface 의 전송이 한 진행 팝업을 공유하므로 마지막에 시작한 surface 범위로 연다.
-            // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
-            main.state.popups.open_centered(
-                TRANSFER_PROGRESS_POPUP_ID,
-                crate::model::popup_kind::PopupScope::Surface(surface_id),
+            crate::adapters::ui::popup::transfer::begin_progress_row(
+                &mut main.state,
+                TransferRow {
+                    id: transfer_id,
+                    surface_id,
+                    name: file_name.to_string(),
+                    sent: 0,
+                    total,
+                    rate: String::new(),
+                },
             );
             main.mark_dirty();
         }
@@ -342,26 +331,13 @@ impl App {
         if let Some(wid) = wid
             && let Some(main) = self.view.views.get_mut(&wid).and_then(|w| w.as_main_mut())
         {
-            if let Some(prog) = main.state.dialogs.transfer_progress.as_mut() {
-                prog.rows.retain(|r| r.id != transfer_id);
-                match prog.rows.last() {
-                    // popup의 on_close가 상태를 정리하므로 여기서 중복 삭제하지 않는다.
-                    None => main.state.popups.close(TRANSFER_PROGRESS_POPUP_ID), // intent-exempt: popup lifecycle.
-                    // 남은 전송 중 마지막에 시작한 surface 범위로 옮긴다.
-                    Some(row) => {
-                        if let Some(popup) = main.state.popups.get_mut(TRANSFER_PROGRESS_POPUP_ID) {
-                            popup.scope =
-                                crate::model::popup_kind::PopupScope::Surface(row.surface_id);
-                        }
-                    }
-                }
-            }
+            crate::adapters::ui::popup::transfer::finish_progress_row(&mut main.state, transfer_id);
             main.mark_dirty();
         }
     }
 
-    /// 대상 surface의 창에서 그 surface 범위로 실패를 알린다. retry가 있으면 재시도를 제공한다.
-    /// surface가 사라졌으면 알릴 범위가 없어 로그만 남긴다.
+    /// 대상 surface의 창에서 그 surface 범위로 실패를 알린다. surface가 닫혔으면 그 업로드가 속한
+    /// mirror workspace 범위로 알린다. retry가 있으면 재시도를 제공한다. 둘 다 없으면 로그만 남긴다.
     fn push_transfer_error(
         &mut self,
         surface_id: u32,
@@ -370,35 +346,34 @@ impl App {
         reason: String,
         retry: Option<crate::core::PendingImageUpload>,
     ) {
-        let wid = self.find_main_with_surface(surface_id);
-        if wid.is_none() {
+        let surface_window = self.find_main_with_surface(surface_id);
+        let wid = surface_window.or_else(|| self.find_main_with_workspace(mirror_ws_id));
+        let scope = crate::adapters::ui::popup::transfer::upload_error_scope(
+            surface_id,
+            surface_window.is_some(),
+            mirror_ws_id,
+            wid.is_some(),
+        );
+        let (Some(wid), Some(scope)) = (wid, scope) else {
             tracing::warn!(
                 surface_id,
                 mirror_ws_id,
                 file = %name,
                 %reason,
-                "image upload failed after its surface closed; not shown",
+                "image upload failed after its surface and workspace closed; not shown",
             );
-        }
-        if let Some(wid) = wid
-            && let Some(main) = self.view.views.get_mut(&wid).and_then(|w| w.as_main_mut())
-        {
-            main.state.dialogs.transfer_error.push_back(TransferError {
-                surface_id,
-                name,
-                reason,
-                retry,
-                kind: TransferErrorKind::Upload,
-            });
-            // 업로드는 사용자의 붙여넣기나 재시도 버튼에서 시작된다.
-            main.state.dispatch_intent(
-                crate::intent::UiIntent::OpenPopup {
-                    id: TRANSFER_ERROR_POPUP_ID,
-                    mode: crate::intent::OpenPopupMode::CenteredFocused(
-                        crate::model::popup_kind::PopupScope::Surface(surface_id),
-                    ),
-                }
-                .from_user_menu("transfer_error"),
+            return;
+        };
+        if let Some(main) = self.view.views.get_mut(&wid).and_then(|w| w.as_main_mut()) {
+            crate::adapters::ui::popup::transfer::push_error(
+                &mut main.state,
+                TransferError {
+                    scope,
+                    name,
+                    reason,
+                    retry,
+                    kind: TransferErrorKind::Upload,
+                },
             );
             main.mark_dirty();
         }

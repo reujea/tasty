@@ -55,6 +55,69 @@ impl TransferProgress {
     }
 }
 
+/// 진행 행을 더한다. 진행 팝업이 닫혀 있으면 그 행의 surface 범위로 포커스 없이 연다.
+/// 이미 열려 있으면 처음 연 범위를 그대로 둔다. 여러 surface 의 전송이 한 팝업을 공유한다.
+pub(crate) fn begin_progress_row(state: &mut MainViewState, row: TransferRow) {
+    let surface_id = row.surface_id;
+    state
+        .dialogs
+        .transfer_progress
+        .get_or_insert_with(TransferProgress::default)
+        .rows
+        .push(row);
+    if !state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID) {
+        // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
+        state.popups.open_centered(
+            TRANSFER_PROGRESS_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Surface(surface_id),
+        );
+    }
+}
+
+/// 진행 행을 지운다. 남은 행이 없으면 팝업을 닫는다. 범위는 바꾸지 않는다.
+pub(crate) fn finish_progress_row(state: &mut MainViewState, transfer_id: u64) {
+    let Some(prog) = state.dialogs.transfer_progress.as_mut() else {
+        return;
+    };
+    prog.rows.retain(|r| r.id != transfer_id);
+    if prog.rows.is_empty() {
+        // popup의 on_close가 상태를 정리하므로 여기서 중복 삭제하지 않는다.
+        state.popups.close(TRANSFER_PROGRESS_POPUP_ID); // intent-exempt: popup lifecycle.
+    }
+}
+
+/// 업로드 실패를 알릴 범위. 업로드한 surface 가 있으면 그 surface, 닫혔으면 그 업로드가 속한
+/// mirror workspace 다. 둘 다 없으면 None이다.
+pub(crate) fn upload_error_scope(
+    surface_id: u32,
+    surface_alive: bool,
+    mirror_ws_id: u32,
+    workspace_alive: bool,
+) -> Option<crate::model::popup_kind::PopupScope> {
+    use crate::model::popup_kind::PopupScope;
+    if surface_alive {
+        Some(PopupScope::Surface(surface_id))
+    } else if workspace_alive {
+        Some(PopupScope::Workspace(mirror_ws_id))
+    } else {
+        None
+    }
+}
+
+/// 실패를 큐에 넣고 그 항목의 범위로 실패 팝업을 연다. 이미 열려 있으면 큐에서 차례를 기다린다.
+pub(crate) fn push_error(state: &mut MainViewState, error: TransferError) {
+    let scope = error.scope.clone();
+    state.dialogs.transfer_error.push_back(error);
+    // 업로드와 다운로드는 사용자의 붙여넣기·버튼에서 시작된다.
+    state.dispatch_intent(
+        crate::intent::UiIntent::OpenPopup {
+            id: TRANSFER_ERROR_POPUP_ID,
+            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
+        }
+        .from_user_menu("transfer_error"),
+    );
+}
+
 /// 한 파일의 진행 상태.
 #[derive(Debug, Clone)]
 pub struct TransferRow {
@@ -74,8 +137,8 @@ pub struct TransferRow {
 
 /// 실패 팝업 큐 항목.
 pub struct TransferError {
-    /// 전송을 시작한 surface. 실패 팝업의 범위다.
-    pub surface_id: u32,
+    /// 실패 팝업의 범위. 전송을 시작한 surface, 그 surface 가 닫힌 업로드는 그 mirror workspace 다.
+    pub scope: crate::model::popup_kind::PopupScope,
     /// 실패한 파일명.
     pub name: String,
     /// 실패 사유(원격 reason 또는 전송/프로토콜 에러 메시지).
@@ -231,10 +294,9 @@ pub fn on_close_transfer_error(
     state.dialogs.transfer_error.pop_front();
     if let Some(next) = state.dialogs.transfer_error.front() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
-        state.popups.open_centered_focused(
-            TRANSFER_ERROR_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Surface(next.surface_id),
-        );
+        state
+            .popups
+            .open_centered_focused(TRANSFER_ERROR_POPUP_ID, next.scope.clone());
     }
 }
 

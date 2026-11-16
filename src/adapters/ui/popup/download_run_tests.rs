@@ -148,8 +148,12 @@ fn a_failure_opens_in_the_surface_that_started_the_download() {
         crate::model::popup_kind::PopupScope::Surface(101)
     );
     assert_eq!(
-        state.dialogs.transfer_error.front().map(|e| e.surface_id),
-        Some(101)
+        state
+            .dialogs
+            .transfer_error
+            .front()
+            .map(|e| e.scope.clone()),
+        Some(crate::model::popup_kind::PopupScope::Surface(101))
     );
 }
 

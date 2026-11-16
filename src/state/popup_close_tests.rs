@@ -387,7 +387,7 @@ fn transfer_progress_close_intent_now_clears_dialog_state() {
 
 fn xfer_err(name: &str) -> TransferError {
     TransferError {
-        surface_id: 1,
+        scope: crate::model::popup_kind::PopupScope::Surface(1),
         name: name.to_string(),
         reason: "boom".to_string(),
         retry: None,
@@ -1510,15 +1510,15 @@ fn preset_apply_cancel_action_close_clears_selection_and_target_category() {
     assert!(state.dialogs.preset_picker_selected.is_none());
 }
 
-/// 다음 실패는 그 실패의 surface 범위로 다시 연다.
+/// 다음 실패는 그 실패의 범위로 다시 연다.
 #[test]
 fn the_next_transfer_error_opens_in_its_own_surface() {
     let (mut state, mut engine_session) = test_state();
     let engine = engine_session.borrow_mut();
     let mut first = xfer_err("a.txt");
-    first.surface_id = 7;
+    first.scope = crate::model::popup_kind::PopupScope::Surface(7);
     let mut second = xfer_err("b.txt");
-    second.surface_id = 8;
+    second.scope = crate::model::popup_kind::PopupScope::Workspace(8);
     state.dialogs.transfer_error.push_back(first);
     state.dialogs.transfer_error.push_back(second);
     crate::adapters::ui::popup::transfer::on_close_transfer_error(
@@ -1533,6 +1533,83 @@ fn the_next_transfer_error_opens_in_its_own_surface() {
     assert!(popup.open);
     assert_eq!(
         popup.scope,
-        crate::model::popup_kind::PopupScope::Surface(8)
+        crate::model::popup_kind::PopupScope::Workspace(8)
     );
+}
+
+fn xfer_row(id: u64, surface_id: u32) -> crate::adapters::ui::popup::transfer::TransferRow {
+    crate::adapters::ui::popup::transfer::TransferRow {
+        id,
+        surface_id,
+        name: "x".into(),
+        sent: 0,
+        total: 1,
+        rate: String::new(),
+    }
+}
+
+/// 업로드 진행 팝업은 처음 연 surface 범위에 고정된다. 행이 끝나거나 새 업로드가 시작돼도
+/// 범위를 다시 쓰지 않는다(App 의 업로드 시작·종료 경로).
+#[test]
+fn the_upload_progress_stays_in_the_surface_it_opened_in() {
+    use crate::adapters::ui::popup::transfer::{
+        TRANSFER_PROGRESS_POPUP_ID, begin_progress_row, finish_progress_row,
+    };
+    use crate::model::popup_kind::PopupScope;
+    let (mut state, _engine_session) = test_state();
+    begin_progress_row(&mut state, xfer_row(1, 7));
+    begin_progress_row(&mut state, xfer_row(2, 8));
+    assert_eq!(
+        state.popups.open_scope(TRANSFER_PROGRESS_POPUP_ID),
+        Some(&PopupScope::Surface(7))
+    );
+    finish_progress_row(&mut state, 1);
+    assert_eq!(
+        state.popups.open_scope(TRANSFER_PROGRESS_POPUP_ID),
+        Some(&PopupScope::Surface(7))
+    );
+    finish_progress_row(&mut state, 2);
+    assert!(!state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID));
+}
+
+/// 업로드 실패는 surface 가 있으면 그 surface, 닫혔으면 그 mirror workspace 범위로 알린다.
+#[test]
+fn an_upload_failure_falls_back_to_its_mirror_workspace() {
+    use crate::adapters::ui::popup::transfer::upload_error_scope;
+    use crate::model::popup_kind::PopupScope;
+    assert_eq!(
+        upload_error_scope(7, true, 3, true),
+        Some(PopupScope::Surface(7))
+    );
+    assert_eq!(
+        upload_error_scope(7, false, 3, true),
+        Some(PopupScope::Workspace(3))
+    );
+    assert_eq!(upload_error_scope(7, false, 3, false), None);
+}
+
+/// 실패 항목은 재시도 내용과 함께 큐에 남고 그 항목의 범위로 실패 팝업을 연다.
+#[test]
+fn a_pushed_failure_opens_in_its_own_scope() {
+    use crate::adapters::ui::popup::transfer::push_error;
+    use crate::model::popup_kind::PopupScope;
+    let (mut state, _engine_session) = test_state();
+    let mut err = xfer_err("a.png");
+    err.scope = PopupScope::Workspace(3);
+    push_error(&mut state, err);
+    let intents = state.take_pending_intents();
+    assert!(
+        matches!(
+            &intents[..],
+            [crate::intent::DispatchedIntent {
+                body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                    id: TRANSFER_ERROR_POPUP_ID,
+                    mode: crate::intent::OpenPopupMode::CenteredFocused(PopupScope::Workspace(3)),
+                }),
+                ..
+            }]
+        ),
+        "{intents:?}"
+    );
+    assert_eq!(state.dialogs.transfer_error.len(), 1);
 }
