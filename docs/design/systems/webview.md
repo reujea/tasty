@@ -41,7 +41,7 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `nav_info` | — | `WebViewNavInfo` | commit 주소의 출처는 Linux 가 WebKitGTK `load-changed` Committed, macOS 가 WKWebView `didCommitNavigation`, Windows 가 WebView2 `ContentLoading` 이다. 주소 선택은 공통 `committed_document_url`(로드가 끝났으면 엔진 현재 주소, 로드 중·실패면 마지막 commit 주소)이다. 이동 가능 여부는 WebKitGTK `can_go_back`·`can_go_forward`, WKWebView `canGoBack`·`canGoForward`, WebView2 `CanGoBack`·`CanGoForward` 다. Windows 는 조회 실패를 웹뷰별 첫 번째만 warn 으로 남긴다. macOS·Windows 는 실 기기 미측정이다([html surface §문서 주소와 히스토리](../../surfaces/html/index.md#내부-동작)) |
 | `debug_stop` | — | — | debug 빌드 전용이다. 로드 중지를 재현한다. 사용자 진입점이 없는 조작이라 사용자 탐색 큐와 나눈다 |
 | `set_color_scheme` | `ColorScheme` | — | |
-| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux만 구현했다. macOS·Windows 백엔드에는 아직 없고 공통 호출부가 cfg로 비워 둔다. 그 OS의 markdown은 늘 focus 값이다(호스트 표지 미구현) |
+| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux는 사용자 스타일시트, Windows는 WebView2 스크립트로 둔다. macOS 백엔드에는 아직 없고 공통 호출부가 cfg로 비워 둔다. 그 OS의 markdown은 늘 focus 값이다(호스트 표지 미구현) |
 | `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
 
@@ -545,7 +545,7 @@ Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른
 
 ### 페이지 쪽 계약
 
-- 상태 표지는 CSS 사용자 정의 속성 `--tasty-bed-focused` 하나다. 이름은 호스트와 페이지가 함께 쓰는 계약이라 `tasty-plugin-protocol`의 `bed_focus::BED_FOCUSED_PROPERTY`에 한 번만 정의한다. 바탕 포커스 상태인 동안 `:root`에 빈 값으로 정의되고, 아니면 정의되지 않는다. 호스트가 넣는 것은 그 속성으로 만든 고정 문자열 `:root{--tasty-bed-focused: ;}`(`crate::webview::bed_focus`)뿐이며 색 값은 넘기지 않는다.
+- 상태 표지는 CSS 사용자 정의 속성 `--tasty-bed-focused` 하나다. 이름은 호스트와 페이지가 함께 쓰는 계약이라 `tasty-plugin-protocol`의 `bed_focus::BED_FOCUSED_PROPERTY`에 한 번만 정의한다. 바탕 포커스 상태인 동안 `:root`에 빈 값으로 정의되고, 아니면 정의되지 않는다. 호스트가 넣는 것은 그 속성으로 만든 고정 규칙(`crate::webview::bed_focus`)뿐이며 색 값은 넘기지 않는다. Linux는 `:root{--tasty-bed-focused: ;}`를 넣고 뺀다. Windows는 두 상태를 모두 적은 `:root:root{--tasty-bed-focused: ;}`·`:root:root{--tasty-bed-focused:initial;}` 중 하나를 둔다(아래 "Windows 구현").
 - 페이지는 두 상태의 값을 자기 CSS에 함께 둔다. `--x-on: var(--tasty-bed-focused) <focus 값>;`은 표지가 없으면 무효가 되고, `--x: var(--x-on, <unfocus 값>);`이 그때 unfocus 값을 쓴다. 표지가 없을 때가 unfocus이므로 호스트가 아무것도 넣지 못한 페이지는 unfocus 값이다.
 - 테마가 바뀌면 지금처럼 문서를 다시 만든다. 표지는 테마와 무관하다.
 - 받는 kind: `focus_mark`가 바탕으로 분류한 WebView kind다. 지금은 `com.tasty.markdown`의 markdown뿐이며 client가 그리는 mirror markdown도 같다. html은 원격·mirror를 포함해 받지 않고, 호스트는 html 페이지에 스타일시트도 스크립트도 넣지 않는다. 제3자 webview 플러그인에 여는지는 플러그인 신호 작업이 정한다.
@@ -565,7 +565,24 @@ WebKitGTK `UserContentManager`에 User 단계 사용자 스타일시트로 표�
 - 시트를 먼저 넣고 실은 문서는 첫 계산값부터 focus 값이다.
 - JS를 끈 문서에서 `evaluate_javascript`는 `Cannot execute JavaScript in this document`로 실패한다. 스크립트로 표지를 쓰는 방식은 markdown의 `sandbox_scripts = true`에서 동작하지 않는다. 스타일시트 방식은 JS 설정과 관계없다.
 
-macOS·Windows 백엔드는 아직 표지를 넣지 않는다. 그동안 그 OS의 번들 markdown은 페이지 CSS에 표지를 스스로 선언해(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`) 늘 focus 값으로 그린다. 호스트 구현이 생기면 이 선언을 뺀다. 두 OS에서 측정하지 않았다.
+### Windows 구현
+
+WebView2에는 사용자 스타일시트가 없어 스크립트로 둔다(`windows/bed_focus.rs`). 규칙을 문서의 adopted stylesheet 하나에 넣는 고정 스크립트(`bed_focus::bed_state_script`)를 지금 문서에는 `ExecuteScript`로, 그 뒤 싣는 문서에는 `AddScriptToExecuteOnDocumentCreated`로 실행한다. 값이 바뀔 때마다 새 문서 생성 스크립트를 등록하고, 가장 최근 요청의 등록이 끝나면 그 전 등록을 지운다. 등록 완료 순서가 뒤바뀌어도 마지막 요청의 값만 남는다.
+
+규칙은 focus면 표지를 빈 값으로, 아니면 `initial`로 둔다. 사용자 정의 속성의 `initial`은 `var()`를 무효로 만들어 페이지의 unfocus 값이 쓰인다. 번들 markdown 페이지는 Linux가 아닌 OS에서 표지를 스스로 선언하므로(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`), 규칙의 구체성을 `:root`보다 높여(`:root:root`) 그 선언을 덮는다. 페이지가 선언하지 않아도 같은 값이 된다.
+
+측정(Windows 11, WebView2, 격리 debug 인스턴스, 계산값은 개발자 도구 포트의 `Runtime.evaluate`로 읽음):
+
+- 포커스를 옮기면 문서를 다시 싣지 않고 바탕·표 본문 칸·zebra가 Mocha·Latte의 두 상태 값으로 바뀐다. 주소칸 입력값·찾기어·스크롤 위치·선택이 그대로다.
+- 포커스 이동 명령이 돌아온 직후 첫 조회에서 이미 바뀌어 있었다. 명령 왕복이 약 200ms라 그보다 짧은 지연은 재지 않았다.
+- 파일 변경으로 문서를 다시 실으면 첫 `requestAnimationFrame`의 계산값이 그때의 상태 값이다(focus·unfocus 모두). 상태를 다섯 번 빠르게 바꾼 뒤 다시 실어도 마지막 값이다.
+- 숨긴 WebView(다른 workspace로 전환, `visibilityState` hidden)도 값을 받고, 다시 보이면 그 값이다.
+- `sandbox_scripts = true`로 페이지 스크립트를 끈 문서에서도 두 스크립트가 실행돼 같은 값으로 바뀐다. 페이지에 넣은 `<script>`는 실행되지 않음을 함께 확인했다.
+- hard 점유 중인 포커스 markdown은 unfocus 값이고 점유가 풀리면 focus 값으로 돌아온다.
+- html surface는 포커스를 옮겨도 adopted stylesheet와 스크립트 흔적이 없다.
+- 미측정: 사람 손의 클릭으로 옮긴 포커스, mirror markdown, 새 surface를 포커스와 함께 만드는 경로(split은 포커스를 옮기지 않아 재현하지 못했다. 다시 싣는 경로로 첫 렌더를 쟀다).
+
+macOS 백엔드는 아직 표지를 넣지 않는다. 그동안 그 OS의 번들 markdown은 페이지 CSS에 표지를 스스로 선언해(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`) 늘 focus 값으로 그린다. macOS에서 측정하지 않았다.
 
 ## egui 오버레이와 native WebView
 
