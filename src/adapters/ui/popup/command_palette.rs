@@ -390,12 +390,11 @@ pub fn command_palette_sizer(
     egui::vec2(th.palette_width().value(), palette_height(&th, matched))
 }
 
-/// 앱 상태를 화면 입력으로 바꾸고 반환된 동작을 처리한다.
-pub fn draw_command_palette_popup(
-    ui: &mut egui::Ui,
-    state: &mut MainViewState,
+/// 지금 검색어에 맞는 팔레트 행과 그 명령. 행마다 지금 실행할 수 있는지(`enabled`)를 공용 판정으로 정한다.
+fn palette_rows(
+    state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-) -> PopupAction {
+) -> (Vec<CommandItemView>, Vec<PaletteCommand>) {
     let commands = command_palette::all_commands(&state.palette_plugin_commands);
     let labels: Vec<String> = commands.iter().map(label_for).collect();
     let (items, matched_commands) =
@@ -418,6 +417,16 @@ pub fn draw_command_palette_popup(
     for (item, cmd) in items.iter_mut().zip(&matched_commands) {
         item.enabled = palette_command_enabled(state, engine, cmd);
     }
+    (items, matched_commands)
+}
+
+/// 앱 상태를 화면 입력으로 바꾸고 반환된 동작을 처리한다.
+pub fn draw_command_palette_popup(
+    ui: &mut egui::Ui,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> PopupAction {
+    let (items, matched_commands) = palette_rows(state, engine);
 
     if items.is_empty() {
         state.command_palette.selected = 0;
@@ -1039,5 +1048,52 @@ mod sizer_wiring_tests {
             full > empty,
             "full list should be taller than the empty state"
         );
+    }
+}
+
+#[cfg(test)]
+mod enabled_tests {
+    use super::*;
+
+    const SURFACE_POPUP: &str = "com.example.viewer/confirm";
+
+    /// 대상이 없을 때 surface 팝업을 여는 plugin 명령은 목록에 남고 실행할 수 없는 행이 된다.
+    /// 호스트 명령과 대상이 있을 때의 같은 명령은 실행할 수 있다.
+    #[test]
+    fn a_surface_popup_command_stays_listed_and_is_disabled_without_a_target() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        state
+            .tool_registry
+            .set_surface_popups([SURFACE_POPUP.to_string()].into_iter().collect());
+        state
+            .palette_plugin_commands
+            .push(crate::plugin::command_registry::PluginCommandEntry {
+                plugin_id: "com.example.viewer".into(),
+                command_id: "confirm".into(),
+                title_i18n_key: "viewer.confirm".into(),
+                manifest_default: None,
+                binding_mode: Default::default(),
+                scope: Default::default(),
+                action: Some(crate::plugin::manifest::ToolAction::OpenPopup {
+                    popup_id: SURFACE_POPUP.into(),
+                }),
+            });
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let enabled_of = |state: &MainViewState| {
+            let (items, commands) = palette_rows(state, &read);
+            let plugin = commands
+                .iter()
+                .position(|c| matches!(c, PaletteCommand::Plugin { command_id, .. } if command_id == "confirm"))
+                .expect("the plugin command is listed");
+            let host = commands
+                .iter()
+                .position(|c| matches!(c, PaletteCommand::Host { .. }))
+                .expect("a host command is listed");
+            (items[plugin].enabled, items[host].enabled)
+        };
+        assert_eq!(enabled_of(&state), (true, true));
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        assert_eq!(enabled_of(&state), (false, true));
     }
 }

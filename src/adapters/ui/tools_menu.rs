@@ -139,14 +139,7 @@ pub fn draw_tools_menu(
         menu_separator(ui, &th);
     }
 
-    let mut clicked: Option<ToolItem> = None;
-    for item in &items {
-        let label = crate::adapters::ui::label_or_raw_key(&item.label_i18n_key);
-        let enabled = !tool_action_blocked(state, engine, &item.action);
-        if row(ui, &th, &label, enabled).clicked() && enabled {
-            clicked = Some(item.clone());
-        }
-    }
+    let (clicked, _) = draw_plugin_rows(ui, &th, state, engine, &items);
 
     if let Some(item) = clicked {
         if let Err(blocked) = invoke_tool(state, engine, &item) {
@@ -155,6 +148,29 @@ pub fn draw_tools_menu(
         return PopupAction::Close;
     }
     PopupAction::None
+}
+
+/// 플러그인 항목 행을 그린다. 실행할 수 없는 항목도 그리되 비활성 행으로 그린다.
+/// 누른 실행 가능한 항목과, 그린 행마다 라벨과 응답을 돌려준다.
+fn draw_plugin_rows(
+    ui: &mut egui::Ui,
+    th: &theme::Theme,
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    items: &[ToolItem],
+) -> (Option<ToolItem>, Vec<(String, egui::Response)>) {
+    let mut clicked: Option<ToolItem> = None;
+    let mut drawn = Vec::with_capacity(items.len());
+    for item in items {
+        let label = crate::adapters::ui::label_or_raw_key(&item.label_i18n_key);
+        let enabled = !tool_action_blocked(state, engine, &item.action);
+        let response = row(ui, th, &label, enabled);
+        if response.clicked() && enabled {
+            clicked = Some(item.clone());
+        }
+        drawn.push((label, response));
+    }
+    (clicked, drawn)
 }
 
 /// 아이콘·단축키 없는 공용 MenuItem 행. 넘친 라벨은 공용 행이 끝을 줄인다.
@@ -487,6 +503,36 @@ mod block_tests {
         });
     }
 
+    /// 대상이 없을 때 surface 팝업 도구는 그려지되 누를 수 없는 행이고, 창 팝업 도구는 누를 수 있다.
+    #[test]
+    fn a_blocked_tool_is_drawn_as_a_disabled_row() {
+        with_pending_draft(|state, read| {
+            let mut a = item(SURFACE_POPUP);
+            a.label_i18n_key = "tool.surface".into();
+            let mut b = item(WINDOW_POPUP);
+            b.label_i18n_key = "tool.window".into();
+            let ctx = egui::Context::default();
+            let th = theme::theme();
+            let mut drawn = Vec::new();
+            let _output = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    drawn = draw_plugin_rows(ui, &th, state, read, &[a.clone(), b.clone()]).1;
+                });
+            });
+            let senses: Vec<(String, bool)> = drawn
+                .iter()
+                .map(|(label, r)| (label.clone(), r.sense.senses_click()))
+                .collect();
+            assert_eq!(
+                senses,
+                vec![
+                    ("tool.surface".to_string(), false),
+                    ("tool.window".to_string(), true)
+                ]
+            );
+        });
+    }
+
     #[test]
     fn a_blocked_tool_queues_nothing() {
         with_pending_draft(|state, read| {
@@ -498,6 +544,26 @@ mod block_tests {
             assert_eq!(invoke_tool(state, read, &item(WINDOW_POPUP)), Ok(()));
             assert_eq!(state.pending_popup_opens.len(), 1);
             assert_eq!(state.pending_popup_opens[0].target_surface, None);
+        });
+    }
+
+    /// 팔레트 실행은 실행할 수 없으면 command.invoked 를 알리지도, 동작을 실행하지도 않는다.
+    #[test]
+    fn a_blocked_palette_command_neither_notifies_nor_runs() {
+        with_pending_draft(|state, read| {
+            let mut notified = 0;
+            assert_eq!(
+                run_command_action(state, read, &item(SURFACE_POPUP), || notified += 1),
+                Err(ToolBlocked::NoSurfaceTarget)
+            );
+            assert_eq!(notified, 0);
+            assert!(state.pending_popup_opens.is_empty());
+            assert_eq!(
+                run_command_action(state, read, &item(WINDOW_POPUP), || notified += 1),
+                Ok(())
+            );
+            assert_eq!(notified, 1);
+            assert_eq!(state.pending_popup_opens.len(), 1);
         });
     }
 }
