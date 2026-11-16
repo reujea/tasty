@@ -144,13 +144,15 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 
 ### 재서명 (로컬)
 
-`tasty-plugin.toml` 을 한 줄이라도 고치면 기존 `.sig` 무효화. 빌드 직전 재서명:
+서명은 번들에 들어가는 매니페스트 사본에 만든다. `tasty-plugin.toml` 을 한 줄이라도 고치면 그 사본의 기존 `.sig` 는 무효가 되므로, 매니페스트를 고쳤으면 그 사본을 만드는 빌드를 다시 실행해 서명을 새로 만든다.
+
+**로컬 release/dist `just` 빌드**(`build-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)는 받거나 빌드한 공식 플러그인을 `--dir` 로, mesh-demo 는 스테이징한 매니페스트 사본을 `--manifest` 로 서명한다([build.md](build.md#plugin-빌드--스테이징)). dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 받은 폴더를 아래 `--dir`로 서명한다. debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
+
+`--all-builtins` 는 workspace 크레이트 매니페스트(`crates/*/tasty-plugin.toml`) 옆에 `.sig` 를 제자리로 쓰는 수동 도구다. 패키징과 스테이징은 이 서명을 쓰지 않는다. 크레이트 옆 `.sig` 를 읽는 곳은 debug 부팅 동기화(`crates/tasty-host-plugin/src/builtin.rs` 의 `sync_builtin_dev_sig`)뿐이다. 이 동기화는 workspace 원천 플러그인(mesh-demo)만 다루고 서명을 검증하지 않는다.
 
 ```bash
 ./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --all-builtins
 ```
-
-**로컬 release/dist `just` 빌드**(`build-plugins`, 즉 `just build --release`·`just run --release`·`just build-all`)는 받거나 빌드한 공식 플러그인을 `--dir` 로, mesh-demo 는 스테이징한 매니페스트를 `--manifest` 로 서명한다([build.md](build.md#plugin-빌드--스테이징)). dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)는 받은 폴더를 아래 `--dir`로 서명한다. 매니페스트만 고치고 빌드 없이 확인할 때만 위 명령을 수동으로 부른다. debug 프로필은 게이트가 꺼져 있어 서명 단계를 건너뛴다.
 
 받아서 스테이징한 플러그인 폴더는 `--dir`로 서명한다. dist 스크립트는 각자 서명 함수 하나(`sign_bundled_plugins`, Windows `Sign-BundledPlugins`)에서만 이 명령을 부른다. `<dir>/<id>/tasty-plugin.toml`을 모두 서명하고, 그 폴더 아래에 `.sig`가 하나라도 있으면 아무것도 서명하지 않고 실패한다. 공식 플러그인 릴리스 산출물은 서명 없이 오고 tasty 패키징이 서명한다는 계약을 이 실패로 확인한다. dist 스크립트는 서명을 만들지 않는 debug에서도 이 계약을 지키도록 받기 직후 같은 검사를 따로 한다([배포 패키지의 번들 플러그인](#배포-패키지의-번들-플러그인)). 서명할 매니페스트가 없을 때와 키 파일이 없을 때도 실패한다. 계약은 `scripts/tests/sign-bundle-dir.sh`(doc-guards `sign_bundle_dir_contract`가 실행)가 확인한다.
 

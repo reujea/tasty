@@ -56,13 +56,9 @@ git push origin release
 
 ### 2. Plugin 매니페스트 서명
 
-`crates/tasty-plugin-*/tasty-plugin.toml` 가 이번 사이클에 하나라도 변경됐으면(또는 첫 release 빌드면) 서명을 갱신한다.
+릴리스 단계에서 따로 서명하지 않는다. CI 정식 release의 번들 plugin은 크레이트가 아니라 잠금 파일의 공식 플러그인 산출물이고, 각 러너가 받은 폴더를 선택한 로컬 키로 `--dir` 서명한다([배포 패키지의 번들 플러그인](plugin-packaging.md#배포-패키지의-번들-플러그인)). 키가 없으면 생성하고 기존 개인키는 재사용한다. 로컬 release·dist 빌드도 스테이징한 사본에 서명한다([재서명 (로컬)](plugin-packaging.md#재서명-로컬)). dev/debug 빌드는 서명을 검증하지 않는다.
 
-```bash
-./scripts/sign-bundle.sh --key ~/.tasty-keys/dev.pem --all-builtins
-```
-
-생성/갱신되는 `*.toml.sig`(번들 plugin 매니페스트 전부 — `--all-builtins` 가 `crates/tasty-plugin-*/tasty-plugin.toml` 을 자동 검색한다)는 **`.gitignore` 로 제외된 빌드 산출물**이라 커밋되지 않는다 — 로컬 release 빌드·dev 검증용이다. CI 정식 release의 번들 plugin은 크레이트가 아니라 잠금 파일의 공식 플러그인 산출물이고, 각 러너가 받은 폴더를 선택한 로컬 키로 `--dir` 서명한다([배포 패키지의 번들 플러그인](plugin-packaging.md#배포-패키지의-번들-플러그인)). 키가 없으면 생성하고 기존 개인키는 재사용한다. dev/debug 빌드는 서명을 검증하지 않는다. 따라서 매니페스트 version bump 시 커밋되는 건 `tasty-plugin.toml` 자체뿐이고 `.sig` 재생성은 커밋 절차 밖이다. 알고리즘·키 보관은 [plugin-packaging](plugin-packaging.md).
+`*.toml.sig`는 `.gitignore`로 제외된 빌드 산출물이라 커밋되지 않는다. 매니페스트 version bump 시 커밋되는 건 `tasty-plugin.toml` 자체뿐이다. `--all-builtins`는 크레이트 매니페스트 옆에만 서명을 쓰고 어떤 배포물에도 반영되지 않으므로 이 절차에 쓰지 않는다. 알고리즘·키 보관은 [plugin-packaging](plugin-packaging.md).
 
 ### 3. 사이트 갱신
 
