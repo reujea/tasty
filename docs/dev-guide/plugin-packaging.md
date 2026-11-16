@@ -37,7 +37,7 @@
 
 ## 공식 플러그인 잠금 파일
 
-공식 플러그인(mesh-demo를 뺀 8개)은 [tasty-official-plugins](https://github.com/zilhak/tasty-official-plugins) 레포가 릴리스한다. 루트의 `official-plugins.lock.toml`이 그 릴리스 하나를 고정한다. 배포 패키징 스크립트는 이 파일의 산출물을 받아 넣는다([배포 패키지의 번들 플러그인](#배포-패키지의-번들-플러그인)). 개발 스테이징(`just build-plugins` 등)은 아직 이 파일을 읽지 않고 같은 빌드에서 플러그인을 만든다.
+공식 플러그인(mesh-demo를 뺀 8개)은 [tasty-official-plugins](https://github.com/zilhak/tasty-official-plugins) 레포가 릴리스한다. 루트의 `official-plugins.lock.toml`이 그 릴리스 하나를 고정한다. 배포 패키징 스크립트는 이 파일의 산출물을 받아 넣는다([배포 패키지의 번들 플러그인](#배포-패키지의-번들-플러그인)). 개발 스테이징(`just build-plugins`, 즉 `scripts/stage-dev-plugins.sh`)도 기본으로 이 파일의 산출물을 받는다(`fetch-official-plugins.sh --all`이라 `bundle = false`인 플러그인도 받는다). 공식 플러그인을 빌드하는 것은 `--from-checkout`으로 공식 플러그인 레포 체크아웃을 줄 때뿐이다. mesh-demo는 잠금 파일에 없어 어느 경로에서든 이 workspace에서 빌드한다([build.md](build.md#plugin-빌드--스테이징)).
 
 ### 형식
 
