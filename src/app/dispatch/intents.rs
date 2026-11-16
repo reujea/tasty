@@ -578,6 +578,45 @@ mod tests {
             missing.join("\n")
         );
     }
+
+    /// `dispatch_checked`는 요청을 넘길 때마다 바로 앞에서 plugin 팝업의 결속 범위를 요청 메서드로
+    /// 다시 만든다. 빠지면 owner 팝업을 연 직후 첫 그리기 전에 온 `file_picker.trigger`가 거절된다.
+    /// 원문 위치만 보는 텍스트 검사이며 실제 실행 경로와 넘기는 인스턴스는 증명하지 않는다.
+    #[test]
+    fn every_dispatch_handover_refreshes_the_bound_popup_scopes_first() {
+        const REFRESH: &str = "popup_scope::refresh_for_request(";
+        const METHOD: &str = "&request.method,";
+        const HANDOVER: &str = "handle_checked_request(";
+        let full = include_str!("intents.rs");
+        let src = full.split("\n#[cfg(test)]").next().unwrap_or(full);
+        let body = src
+            .split("\n    pub(crate) fn dispatch_checked(")
+            .nth(1)
+            .expect("dispatch_checked");
+        let body = body.split("\n    pub(crate) fn ").next().unwrap_or(body);
+        let segments: Vec<&str> = body.split(HANDOVER).collect();
+        let handovers = segments.len() - 1;
+        assert_eq!(
+            handovers, 3,
+            "dispatch_checked 의 `{HANDOVER}` 를 {handovers}개 찾았다. 넘기는 경로가 바뀌었으면 이 검사를 고친다."
+        );
+        let mut missing = Vec::new();
+        for (index, before) in segments[..handovers].iter().enumerate() {
+            let refreshed = before.rfind(REFRESH).is_some_and(|at| {
+                before[at..]
+                    .split(')')
+                    .next()
+                    .is_some_and(|args| args.contains(METHOD))
+            });
+            if !refreshed {
+                missing.push(index + 1);
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "{missing:?}번째 `{HANDOVER}` 앞에 `{REFRESH}..{METHOD}` 가 없다"
+        );
+    }
 }
 
 #[cfg(test)]
