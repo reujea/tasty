@@ -483,7 +483,7 @@ impl App {
     }
 
     /// 저장된 원격 행의 연결 상태 이름. `workspace.list`의 `remote_state`다.
-    fn row_state_name(&self, row: u32) -> &'static str {
+    pub(crate) fn row_state_name(&self, row: u32) -> &'static str {
         match self.row_session_phase(row) {
             // 손실 뒤 재동기화(Resync)는 단계가 Connected여도 소켓을 놓은 동안이라 재연결 중으로 본다.
             Some(SessionState::Connected) if !self.row_link_live(row) => "reconnecting",
@@ -874,3 +874,8 @@ mod app_tests;
 #[cfg(all(test, target_os = "linux"))]
 #[path = "row_connect_app_tests.rs"]
 mod connect_app_tests;
+
+// `remote.disconnect` 를 실제 `App` 의 행 상태로 잰다. 위 app_tests 와 같은 이유로 Linux 에서만 컴파일한다.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "row_disconnect_app_tests.rs"]
+mod disconnect_app_tests;

@@ -1,6 +1,7 @@
 //! `remote.connect`(명시적 연결 요청)를 실제 `App` 의 행 상태로 잰다. 새 프로세스에서 혼자 돈다(`test_rig`).
 
 use super::*;
+use crate::app::attach_client::workspace_close::MirrorDisconnect;
 use crate::app::auto_attach::test_rig::{ROW, app_with_saved_row, event_loop};
 
 macro_rules! alone {
@@ -80,7 +81,10 @@ fn a_user_disconnected_row_refuses_use_and_remote_attach() {
     alone!("a_user_disconnected_row_refuses_use_and_remote_attach");
     let event_loop = event_loop();
     let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
-    assert!(app.disconnect_mirror_workspace(ROW));
+    assert!(matches!(
+        app.disconnect_mirror_workspace(ROW),
+        MirrorDisconnect::Disconnected { .. }
+    ));
 
     let answered = serde_json::to_value(hold_send(&mut app).try_recv().unwrap()).unwrap();
     assert_eq!(reason(&answered), "user_disconnected", "{answered}");
@@ -104,7 +108,10 @@ fn remote_connect_clears_the_user_disconnect_and_a_held_request_runs_after_it() 
     alone!("remote_connect_clears_the_user_disconnect_and_a_held_request_runs_after_it");
     let event_loop = event_loop();
     let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
-    assert!(app.disconnect_mirror_workspace(ROW));
+    assert!(matches!(
+        app.disconnect_mirror_workspace(ROW),
+        MirrorDisconnect::Disconnected { .. }
+    ));
 
     let accepted = connect(&mut app, ROW);
     let result = &accepted["result"];

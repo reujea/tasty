@@ -87,6 +87,40 @@ pub(super) fn cancel_mirror_attempts(
     )
 }
 
+/// mirror 연결 끊기의 결과.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MirrorDisconnect {
+    /// 이번 호출이 연결이나 진행 중인 시도를 끊었다. 저장된 원격 행이면 호출 전 상태 이름이 있다.
+    Disconnected {
+        previous_state: Option<&'static str>,
+    },
+    /// 저장된 원격 행이 이미 끊겨 있었다(연결·시도 없음). 끊음 표지만 남겼다.
+    AlreadyDisconnected { previous_state: &'static str },
+    /// 저장된 원격 행도, attach 세션이 있는 mirror도 아니다.
+    NotMirror,
+}
+
+/// 시도가 이 mirror의 재연결이거나 이 저장된 원격 행의 연결인지.
+fn attempt_targets(target: &super::pending::PendingMirrorInstall, local_workspace: u32) -> bool {
+    target.reconnect.as_ref().map(|(id, _)| *id) == Some(local_workspace)
+        || target.row == Some(local_workspace)
+}
+
+/// 이 행을 위해 진행 중인 endpoint·connection 시도 수. 취소하지 않고 센다.
+fn row_attempt_count(attempts: &MirrorAttempts, row: u32) -> usize {
+    let mine = |target: &super::pending::PendingMirrorInstall| attempt_targets(target, row);
+    attempts
+        .endpoint_snapshot()
+        .iter()
+        .filter(|(_, target)| mine(target))
+        .count()
+        + attempts
+            .connection_snapshot()
+            .iter()
+            .filter(|(_, target)| mine(target))
+            .count()
+}
+
 /// `reason`은 취소한 시도의 run에 남는다. 저장된 원격 행이면 첫 연결 시도도 취소한다.
 pub(super) fn cancel_mirror_attempts_for(
     attempts: &mut MirrorAttempts,
@@ -94,10 +128,8 @@ pub(super) fn cancel_mirror_attempts_for(
     local_workspace: u32,
     reason: &str,
 ) -> usize {
-    let mine = |target: &super::pending::PendingMirrorInstall| {
-        target.reconnect.as_ref().map(|(id, _)| *id) == Some(local_workspace)
-            || target.row == Some(local_workspace)
-    };
+    let mine =
+        |target: &super::pending::PendingMirrorInstall| attempt_targets(target, local_workspace);
     let mut cancelled = 0;
     for (token, target) in attempts.endpoint_snapshot() {
         if mine(&target) {
@@ -250,7 +282,7 @@ impl App {
     /// 사용자가 mirror 연결을 끊는다. 서버 workspace와 프로세스는 유지한다.
     /// 저장된 원격 행은 형상을 남긴 끊긴 행이 되고 명시적으로 연결할 때까지 자동으로 붙지 않는다.
     /// 시도 중인 행도 시도를 취소하고 같은 상태가 된다. 에이전트 mirror는 로컬 mirror와 세션을 정리한다.
-    pub(crate) fn disconnect_mirror_workspace(&mut self, workspace_id: u32) -> bool {
+    pub(crate) fn disconnect_mirror_workspace(&mut self, workspace_id: u32) -> MirrorDisconnect {
         if self.saved_row_binding(workspace_id).is_some() {
             return self.disconnect_saved_row(workspace_id);
         }
@@ -261,7 +293,7 @@ impl App {
             .position(|session| session.state.local_workspace == workspace_id)
         else {
             tracing::info!("mirror disconnect: workspace {workspace_id} has no attach session");
-            return false;
+            return MirrorDisconnect::NotMirror;
         };
         let cancelled = cancel_mirror_attempts(
             &mut self.state.mirror_attempts,
@@ -282,11 +314,25 @@ impl App {
             session.state.phase
         );
         self.end_mirror_locally(session);
-        true
+        MirrorDisconnect::Disconnected {
+            previous_state: None,
+        }
     }
 
-    /// 저장된 원격 행의 연결을 사용자가 끊는다. 아직 붙지 않은 행이면 바뀔 것이 없지만 시도는 취소한다.
-    fn disconnect_saved_row(&mut self, row: u32) -> bool {
+    /// 저장된 원격 행의 연결을 사용자가 끊는다. 연결·시도가 없는 행은 끊음 표지만 남긴다.
+    /// 상태는 시도를 취소하기 전에 읽는다. 취소가 `remote.active`를 지워 `connecting`이
+    /// `not_connected`로 바뀌기 때문이다.
+    fn disconnect_saved_row(&mut self, row: u32) -> MirrorDisconnect {
+        let previous_state = self.row_state_name(row);
+        let idle = matches!(previous_state, "disconnected" | "failed" | "not_connected");
+        if idle && row_attempt_count(&self.state.mirror_attempts, row) == 0 {
+            // 이미 끊긴 행은 토큰 교체·닫기 결과 안내·Detach·재연결 표지를 다시 만들지 않는다.
+            self.remote.user_disconnected.insert(row);
+            tracing::info!(
+                "mirror disconnect: saved remote row {row} was already {previous_state}"
+            );
+            return MirrorDisconnect::AlreadyDisconnected { previous_state };
+        }
         let cancelled =
             self.abandon_row_attempts(row, "the mirror workspace was disconnected by the user");
         self.remote.user_disconnected.insert(row);
@@ -313,7 +359,9 @@ impl App {
         tracing::info!(
             "mirror disconnect: saved remote row {row} (cancelled attempts {cancelled})"
         );
-        true
+        MirrorDisconnect::Disconnected {
+            previous_state: Some(previous_state),
+        }
     }
 
     /// 저장된 원격 행의 메뉴·팝업 동작을 적용한다. 행이 이미 없으면 아무것도 하지 않는다.

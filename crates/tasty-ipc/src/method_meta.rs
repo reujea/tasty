@@ -635,8 +635,9 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("remote.attach", plugin(Mutate, &[]).kept_by_app_layer()),
         // remote.attach 응답의 attempt 로 비동기 거절을 찾으므로 호출자 범위를 같이 둔다.
         ("remote.refusals", plugin(Read, &[])),
-        // remote.attach 로 붙인 mirror 만 뗀다. 원격 workspace 는 남고, 두 번째 호출은 같은 끝 상태에서
-        // mirror 가 없다는 오류로 답한다. 연결 경계는 remote.attach 와 같아 권한 토큰을 요구하지 않는다.
+        // mirror 를 뗀다. 원격 workspace 는 남는다. 두 번째 호출은 같은 끝 상태에서 답한다. 에이전트 mirror 는
+        // mirror 가 없다는 오류로, 저장된 원격 행은 already_disconnected 성공으로 답한다.
+        // 연결 경계는 remote.attach 와 같아 권한 토큰을 요구하지 않는다.
         ("remote.disconnect", plugin(Idempotent, &[])),
         // 저장된 원격 행만 연결한다. 사용자가 끊은 행을 다시 붙이는 명시적 요청이라 그 표지를 지운다.
         // 연결 경계는 remote.attach 와 같아 권한 토큰을 요구하지 않고 포커스도 옮기지 않는다.

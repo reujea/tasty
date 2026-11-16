@@ -2079,6 +2079,9 @@ header = "Remote workspaces on {} ({} total):"
 row_free = "  #{} {} (panes={}, busy={}) — free"
 row_attached = "  #{} {} (panes={}, busy={}) — attached by client {}"
 
+[cli.remote_disconnect]
+already_disconnected = "Workspace {} was already disconnected. Nothing changed."
+
 [cli.remote_new_workspace]
 create_failed = "Failed to create a workspace on remote (target={})"
 serialize_failed = "Failed to serialize the created remote workspace to JSON"
@@ -3127,7 +3130,7 @@ long = "List recent attach attempts refused because they targeted this instance.
 
 [cli.help._root.remote.disconnect]
 about = "Detach a mirror from the local GUI and leave the remote workspace running"
-long = "Detach a mirror from the local GUI and leave the remote workspace running.\n\nDoes what the mirror card's \"Disconnect Workspace\" menu item does: the local mirror workspace, its attach session, and its reconnect attempts are cleared, while the remote workspace and its processes keep running. Attach again later with `tasty remote attach --into-gui --workspace <remote id>`. A saved remote workspace row stays in the list; connect it again with `tasty remote connect --workspace <local id>`. The reply carries that remote id. Fails if the workspace is not a mirror with an attach session. Use `tasty close surface` only when the remote workspace should close too."
+long = "Detach a mirror from the local GUI and leave the remote workspace running.\n\nDoes what the mirror card's \"Disconnect Workspace\" menu item does: the local mirror workspace, its attach session, and its reconnect attempts are cleared, while the remote workspace and its processes keep running. Attach again later with `tasty remote attach --into-gui --workspace <remote id>`. A saved remote workspace row stays in the list; connect it again with `tasty remote connect --workspace <local id>`. The reply carries that remote id. A saved row that has no connection or attempt to cancel (already disconnected, failed, or not connected yet) still succeeds with `disconnected: false` and `already_disconnected: true`, and a notice goes to stderr. Fails with `data.reason` `workspace_not_found` or `not_a_mirror` if the workspace does not exist or is neither a saved row nor a mirror with an attach session; an agent mirror is gone once disconnected. Use `tasty close surface` only when the remote workspace should close too."
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "Local id of the mirror workspace (the `[mirror]` entry in `tasty list workspaces`), not the remote id"

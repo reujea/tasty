@@ -2024,6 +2024,9 @@ header = "{} 上的远程工作区（共 {} 个）："
 row_free = "  #{} {}（窗格={}，忙碌={}）— 空闲"
 row_attached = "  #{} {}（窗格={}，忙碌={}）— 已被客户端 {} 附加"
 
+[cli.remote_disconnect]
+already_disconnected = "工作区 {} 的连接已断开。未做任何更改。"
+
 [cli.remote_new_workspace]
 create_failed = "在远程创建工作区失败（目标={}）"
 serialize_failed = "将已创建的远程工作区序列化为 JSON 失败"
@@ -3133,7 +3136,7 @@ about = "从本地 GUI 分离镜像并保持远程工作区运行"
 long = """
 从本地 GUI 分离镜像并保持远程工作区运行。
 
-执行与镜像卡片的“断开工作区连接”菜单项相同的操作：清除本地镜像工作区、其附加会话和重新连接尝试，远程工作区及其进程继续运行。之后可使用 `tasty remote attach --into-gui --workspace <remote id>` 再次附加。已保存的远程工作区行保留在列表中；使用 `tasty remote connect --workspace <local id>` 再次连接。响应包含该远程 ID。如果工作区不是具有附加会话的镜像，则操作失败。仅在也要关闭远程工作区时使用 `tasty close surface`。"""
+执行与镜像卡片的“断开工作区连接”菜单项相同的操作：清除本地镜像工作区、其附加会话和重新连接尝试，远程工作区及其进程继续运行。之后可使用 `tasty remote attach --into-gui --workspace <remote id>` 再次附加。已保存的远程工作区行保留在列表中；使用 `tasty remote connect --workspace <local id>` 再次连接。响应包含该远程 ID。没有可断开的连接或可取消的尝试的已保存行（连接已断开、连接失败或尚未连接的行）仍会成功，响应为 `disconnected: false`、`already_disconnected: true`，并在 stderr 输出提示。如果工作区不存在，或既不是已保存行也不是具有附加会话的镜像，则以 `data.reason` `workspace_not_found` 或 `not_a_mirror` 失败。代理镜像断开连接后即消失。仅在也要关闭远程工作区时使用 `tasty close surface`。"""
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "镜像工作区的本地 ID（`tasty list workspaces` 中的 `[mirror]` 条目），而非远程 ID"

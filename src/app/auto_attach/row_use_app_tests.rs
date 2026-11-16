@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::adapters::ui::popup::remote_row::popup_kind;
+use crate::app::attach_client::workspace_close::MirrorDisconnect;
 use crate::app::auto_attach::test_rig::{ROW, app_with_saved_row, event_loop};
 use tasty_ui_widgets::{RemoteRowPopupKind, RemoteRowState};
 
@@ -21,7 +22,10 @@ fn an_explicit_reconnect_clears_the_user_disconnect_mark() {
     alone!("an_explicit_reconnect_clears_the_user_disconnect_mark");
     let event_loop = event_loop();
     let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
-    assert!(app.disconnect_mirror_workspace(ROW));
+    assert!(matches!(
+        app.disconnect_mirror_workspace(ROW),
+        MirrorDisconnect::Disconnected { .. }
+    ));
     assert!(app.remote.user_disconnected.contains(&ROW));
 
     app.connect_saved_row(ROW, true);

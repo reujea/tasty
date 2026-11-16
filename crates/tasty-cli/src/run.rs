@@ -271,6 +271,9 @@ fn run_dynamic_client(
                 "{}",
                 serde_json::to_string_pretty(&value).unwrap_or_default()
             )?;
+            if let Some(notice) = already_disconnected_notice(&request.method, &value) {
+                crate::out::errln!("{notice}");
+            }
             Ok(())
         }
         Err(e) => {
@@ -287,6 +290,19 @@ fn run_dynamic_client(
             crate::rpc_error::exit_with(&e);
         }
     }
+}
+
+/// `remote.disconnect` 가 이미 끊긴 저장된 원격 행에 답했을 때 stderr 에 쓰는 안내.
+/// stdout 의 JSON 은 그대로 두어 응답을 읽는 스크립트에 영향이 없다.
+fn already_disconnected_notice(method: &str, value: &serde_json::Value) -> Option<String> {
+    if method != "remote.disconnect" || value.get("already_disconnected") != Some(&true.into()) {
+        return None;
+    }
+    let workspace = value.get("workspace_id")?.to_string();
+    Some(tasty_i18n::t_fmt(
+        "cli.remote_disconnect.already_disconnected",
+        &workspace,
+    ))
 }
 
 /// auto-wait/polling 응답 하나를 한 줄 JSON으로 만든다. 마지막 줄을 읽는 호출자의 형식을 유지한다.
@@ -856,6 +872,25 @@ mod language_split_tests {
         };
         instance_file::write(home.path(), &stale).unwrap();
         assert!(failure(59999).judged(Some(port_file)).exited);
+    }
+
+    /// Given `remote.disconnect` 가 이미 끊긴 행이라고 답했을 때, Then stderr 안내가 workspace id 를 싣는다.
+    /// 실제로 끊은 응답과 다른 메서드의 같은 필드에는 안내가 없다.
+    #[test]
+    fn only_an_already_disconnected_reply_gets_the_notice() {
+        tasty_i18n::init("en");
+        let already = serde_json::json!({
+            "disconnected": false, "already_disconnected": true, "workspace_id": 6170,
+        });
+        assert_eq!(
+            already_disconnected_notice("remote.disconnect", &already).as_deref(),
+            Some("Workspace 6170 was already disconnected. Nothing changed.")
+        );
+        let now = serde_json::json!({
+            "disconnected": true, "already_disconnected": false, "workspace_id": 6170,
+        });
+        assert!(already_disconnected_notice("remote.disconnect", &now).is_none());
+        assert!(already_disconnected_notice("remote.connect", &already).is_none());
     }
 
     /// OnceLock으로 로케일을 재설정할 수 없어 진단문이 i18n 없이 고정되는지 확인한다.

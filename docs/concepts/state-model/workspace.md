@@ -58,7 +58,7 @@ workspace hard 점유(`acquire_workspace`)는 workspace lock을 기록하고, �
 | 로컬 workspace | GUI 사용자 닫기(`intent.close`) | workspace와 모든 하위 객체 제거. 마지막 workspace도 닫는다 | mirror, hard 점유 surface 포함이면 거절. 마지막 workspace는 거절하지 않는다 | 선택이었으면 생존 workspace로 보정. engine에 workspace가 남지 않으면 그 View가 `close_requested`를 세워 창 닫기로 이어진다([window](window.md#전이)) |
 | mirror | 서버 닫기(아래 목록의 경우) | 서버 성공 회신 뒤 mirror·세션 정리 | 재연결 중·미지원·이미 닫기 대기 중이면 보내지 않는다(`src/app/attach_client/workspace_close.rs`). 서버 거절이면 mirror 유지 | 저장 행이면 행도 지운다 |
 | mirror, 닫기 회신 대기 | 회신 전 연결 종료 | 결과 불명 안내. 기존 단절 처리를 따른다 | 성공으로 단정하지 않는다 | — |
-| mirror | 연결 끊기(`remote.disconnect`) | mirror 정리. 서버 workspace와 프로세스는 남는다 | — | 저장 행은 `disconnected`로 남는다 |
+| mirror | 연결 끊기(`remote.disconnect`) | mirror 정리. 서버 workspace와 프로세스는 남는다 | 이미 끊긴 저장 행은 바꾸지 않고 `already_disconnected`로 답한다 | 저장 행은 `disconnected`로 남는다 |
 | 저장된 원격 행, 연결됨 | 네트워크 단절 | `reconnecting`. 형상 유지 | 시간 창이 지나거나 다른 client가 점유하면 `disconnected` | — |
 | 에이전트 mirror, 연결됨 | 단절 | mirror 정리 | — | 마지막 workspace였으면 기본 터미널 workspace를 만든다 |
 | 로컬 workspace | 원격 client의 hard 점유 | workspace lock, 터미널 surface lock | 살아 있는 다른 holder가 있으면 거절 | 서버 로컬의 구조 변경 IPC 거절 |

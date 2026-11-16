@@ -2017,6 +2017,9 @@ header = "{} のリモートワークスペース (合計{}件):"
 row_free = "  #{} {} (pane={}, busy={}) — 未占有"
 row_attached = "  #{} {} (pane={}, busy={}) — client {} が占有中"
 
+[cli.remote_disconnect]
+already_disconnected = "ワークスペース {} はすでに接続が切れています。何も変更されていません。"
+
 [cli.remote_new_workspace]
 create_failed = "リモートワークスペースの作成に失敗しました (対象={})"
 serialize_failed = "作成したリモートワークスペースのJSONシリアライズに失敗しました"
@@ -3052,7 +3055,7 @@ long = "このインスタンス自身を対象にしたため拒否した最近
 
 [cli.help._root.remote.disconnect]
 about = "ローカル GUI からミラーを切断し、リモートのワークスペースの実行を維持"
-long = "ローカル GUI からミラーを切断し、リモートのワークスペースは実行したままにします。\n\nミラーカードのメニュー項目「ワークスペースの接続を切る」と同じ動作をします。ローカルのミラーワークスペース、その attach セッション、再接続の試行を削除し、リモートのワークスペースとそのプロセスは実行を継続します。後で `tasty remote attach --into-gui --workspace <remote id>` を使って再度 attach できます。保存済みのリモートワークスペース行は一覧に残ります。`tasty remote connect --workspace <local id>` で再接続できます。応答には、そのリモート ID が含まれます。対象のワークスペースが attach セッションを持つミラーでなければ失敗します。リモートのワークスペースも閉じる場合にのみ `tasty close surface` を使用してください。"
+long = "ローカル GUI からミラーを切断し、リモートのワークスペースは実行したままにします。\n\nミラーカードのメニュー項目「ワークスペースの接続を切る」と同じ動作をします。ローカルのミラーワークスペース、その attach セッション、再接続の試行を削除し、リモートのワークスペースとそのプロセスは実行を継続します。後で `tasty remote attach --into-gui --workspace <remote id>` を使って再度 attach できます。保存済みのリモートワークスペース行は一覧に残ります。`tasty remote connect --workspace <local id>` で再接続できます。応答には、そのリモート ID が含まれます。切る接続も取り消す試行もない保存済みの行（すでに接続が切れている行、失敗した行、まだ接続していない行）は `disconnected: false`、`already_disconnected: true` で成功し、stderr に案内を出力します。ワークスペースが存在しないか、保存済みの行でも attach セッションを持つミラーでもなければ、`data.reason` `workspace_not_found` または `not_a_mirror` で失敗します。エージェントのミラーは接続を切ると消えます。リモートのワークスペースも閉じる場合にのみ `tasty close surface` を使用してください。"
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "ミラーワークスペースのローカル ID（`tasty list workspaces` の `[mirror]` 項目）。リモート ID ではありません"

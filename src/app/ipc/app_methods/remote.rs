@@ -45,7 +45,10 @@ impl App {
 
     /// GUI의 "워크스페이스 연결 끊기"와 같다. 이쪽 mirror·세션·재연결 시도만 정리하고
     /// 원격 workspace와 그 프로세스는 남긴다. 같은 원격 workspace에 다시 attach할 수 있다.
-    pub(super) fn ipc_dispatch_remote_disconnect(&mut self, cmd: &IpcCommand) {
+    /// 이미 끊긴 저장된 원격 행은 성공으로 답하되 `disconnected: false`,
+    /// `already_disconnected: true`로 이번 호출이 끊은 것이 없음을 알린다.
+    pub(crate) fn ipc_dispatch_remote_disconnect(&mut self, cmd: &IpcCommand) {
+        use crate::app::attach_client::workspace_close::MirrorDisconnect;
         let rpc_id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
         let workspace_id = match params::require_u32(&cmd.request.params, "workspace_id", &rpc_id) {
             Ok(id) => id,
@@ -65,23 +68,52 @@ impl App {
                 self.saved_row_binding(workspace_id)
                     .map(|binding| binding.remote_workspace)
             });
-        let response = match remote_workspace {
-            Some(remote_workspace) if self.disconnect_mirror_workspace(workspace_id) => {
-                host_ipc::protocol::JsonRpcResponse::success(
-                    rpc_id,
-                    serde_json::json!({
-                        "disconnected": true,
-                        "workspace_id": workspace_id,
-                        "remote_workspace": remote_workspace,
-                    }),
-                )
-            }
-            _ => host_ipc::protocol::JsonRpcResponse::invalid_params(
-                rpc_id,
-                format!("workspace {workspace_id} is not a mirror with an attach session"),
-            ),
+        let outcome = match remote_workspace {
+            Some(_) => self.disconnect_mirror_workspace(workspace_id),
+            None => MirrorDisconnect::NotMirror,
         };
-        send_response(&cmd.response_tx, response);
+        let (disconnected, previous_state) = match outcome {
+            MirrorDisconnect::Disconnected { previous_state } => (true, previous_state),
+            MirrorDisconnect::AlreadyDisconnected { previous_state } => {
+                (false, Some(previous_state))
+            }
+            MirrorDisconnect::NotMirror => {
+                let reason = if self.workspace_exists(workspace_id) {
+                    "not_a_mirror"
+                } else {
+                    "workspace_not_found"
+                };
+                send_response(
+                    &cmd.response_tx,
+                    host_ipc::protocol::JsonRpcResponse::error_with_data(
+                        rpc_id,
+                        -32602,
+                        format!("workspace {workspace_id} is not a mirror with an attach session"),
+                        serde_json::json!({ "reason": reason, "workspace_id": workspace_id }),
+                    ),
+                );
+                return;
+            }
+        };
+        let mut reply = serde_json::json!({
+            "disconnected": disconnected,
+            "already_disconnected": !disconnected,
+            "workspace_id": workspace_id,
+            "remote_workspace": remote_workspace,
+        });
+        if let Some(previous_state) = previous_state {
+            reply["previous_state"] = previous_state.into();
+        }
+        send_response(
+            &cmd.response_tx,
+            host_ipc::protocol::JsonRpcResponse::success(rpc_id, reply),
+        );
+    }
+
+    fn workspace_exists(&self, workspace_id: u32) -> bool {
+        self.engines
+            .all_sessions()
+            .any(|session| session.core_state.has_workspace(workspace_id))
     }
 
     /// 저장된 원격 행을 명시적으로 연결한다. 사용자가 끊은 행도 붙인다. 포커스는 옮기지 않는다.

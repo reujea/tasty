@@ -660,8 +660,12 @@ client 가 mirror 를 걷어내면 원격에 `Detach` 를 보내 원격 점유(h
   모두 같은 경로다. 저장되지 않은 mirror는 먼저 `cancel_mirror_attempts`가 그 mirror를 가리키는 endpoint·connection 시도를
   취소하고(run은 `cancelled`), 세션을 vec에서 뺀 뒤 `end_mirror_locally`가 `cleanup_mirror_workspace(.., false)`로
   정리하고 transport를 drop해 socket·worker·소유 터널을 retirement에 넘긴다.
-  저장된 원격 행은 `disconnect_saved_row`가 맡는다. 시도를 취소하고 행 토큰을 바꿔 늦은 결과를 버리게 한 뒤
-  `Remote.user_disconnected`에 넣고, 원격에 `Detach`를 보내고 `enter_disconnected`로 형상을 남긴 끊긴 행으로 둔다.
+  저장된 원격 행은 `disconnect_saved_row`가 맡는다. 먼저 호출 전 상태 이름(`row_state_name`)을 읽는다. 시도 취소가
+  `Remote.active`를 지워 `connecting`이 `not_connected`로 바뀌기 때문이다. 상태가 `disconnected`·`failed`·`not_connected`이고
+  취소할 시도가 없으면 `Remote.user_disconnected`에만 넣고 `MirrorDisconnect::AlreadyDisconnected`를 돌려준다.
+  토큰 교체·닫기 결과 안내·`Detach`·재연결 표지는 다시 만들지 않는다. 그 밖에는 시도를 취소하고 행 토큰을 바꿔 늦은 결과를
+  버리게 한 뒤 `Remote.user_disconnected`에 넣고, 원격에 `Detach`를 보내고 `enter_disconnected`로 형상을 남긴 끊긴 행으로
+  둔다(`MirrorDisconnect::Disconnected`). IPC는 이 결과로 `already_disconnected`를 답한다.
   mirror의 **워크스페이스 닫기**는 이 경로가 아니라 아래 "서버 workspace 닫기"다.
 - **서버 workspace 닫기**: `build_mirror_forward_op`가 `DomainIntent::CloseWorkspace`를 `StructuralOp::CloseWorkspace`로 바꾼다.
   `apply_domain_intent`는 admission 전에 `workspace_close_refusal`로 연결(`Connected`·활성 epoch)·capability
