@@ -5,6 +5,7 @@
 // 이유: native 포인터·핸들 호출을 묶는 FFI 모듈이다. 파일 단위 면제는 새 코드에도 적용되므로 안전 래퍼로 옮기면 범위를 줄여야 한다.
 #![allow(clippy::multiple_unsafe_ops_per_block)]
 
+mod bed_focus;
 #[cfg(debug_assertions)]
 mod debug_host_input;
 mod host_input;
@@ -87,6 +88,7 @@ pub struct PlatformWebView {
     host_input: Option<host_input::RouteGuard>,
     /// host가 가져간 키를 결과까지 붙잡는다. 훅과 accelerator 경로가 같이 쓴다.
     key_replay: Rc<key_replay::KeyReplay>,
+    bed_focus: bed_focus::BedFocusScript,
 }
 
 /// WebView2에는 편집 명령 API가 없어 DevTools `Input.dispatchKeyEvent`의 `commands`로 엔진 편집
@@ -867,6 +869,7 @@ impl PlatformWebView {
                 pointer: RefCell::new(PointerGate::default()),
                 host_input,
                 key_replay,
+                bed_focus: bed_focus::BedFocusScript::default(),
             })
         }
     }
@@ -1015,6 +1018,11 @@ impl PlatformWebView {
     /// 팔레트·host 키 경로의 편집 명령. 엔진이 포커스 frame과 편집 가능 여부를 판단한다.
     pub fn execute_edit(&self, action: super::WebViewEditAction) {
         run_editing_command(&self.webview, action, self.surface_id);
+    }
+
+    /// 바탕 포커스 상태를 지금 문서와 다음에 싣는 문서에 둔다(`bed_focus`).
+    pub fn set_bed_focused(&self, focused: bool) {
+        self.bed_focus.set(&self.webview, self.surface_id, focused);
     }
 
     /// 현재 Windows에서는 적용하지 않고 로그만 남긴다.

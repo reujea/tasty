@@ -34,13 +34,13 @@ fn target(
     to_send(remote.kind_static, &remote.plugin_id, focused, sent)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn apply(wv: &PlatformWebView, focused: bool) {
     wv.set_bed_focused(focused);
 }
 
-/// macOS·Windows 백엔드에는 이 연산이 아직 없다(`docs/design/systems/webview.md` 연산 표).
-#[cfg(not(target_os = "linux"))]
+/// macOS 백엔드에는 이 연산이 아직 없다(`docs/design/systems/webview.md` 연산 표).
+#[cfg(not(any(target_os = "linux", windows)))]
 fn apply(_wv: &PlatformWebView, _focused: bool) {}
 
 /// 새 WebView에 첫 문서를 싣기 전에 상태를 둔다. 포커스를 알면 첫 렌더부터 그 값이다.
