@@ -581,6 +581,32 @@ mod tests {
         );
     }
 
+    /// 진단은 자식과 같은 번들을 본다. 실행 파일 옆 plugins/가 있으면 builtin-plugins/보다 먼저다.
+    #[test]
+    fn the_note_inspects_the_bundle_the_child_picks() {
+        let probe = Scratch::new("bundle-pick");
+        let exe_dir = probe.path();
+        std::fs::create_dir_all(exe_dir.join("builtin-plugins")).expect("개발 번들");
+        assert_eq!(
+            expected_bundle_dir(exe_dir, None),
+            exe_dir.join("builtin-plugins")
+        );
+        std::fs::create_dir_all(exe_dir.join("plugins")).expect("portable 번들");
+        assert_eq!(expected_bundle_dir(exe_dir, None), exe_dir.join("plugins"));
+
+        let inherited = exe_dir.join("inherited");
+        std::fs::create_dir_all(&inherited).expect("상속 번들");
+        assert_eq!(
+            expected_bundle_dir(exe_dir, Some(inherited.clone().into_os_string())),
+            inherited
+        );
+        assert_eq!(
+            expected_bundle_dir(exe_dir, Some(exe_dir.join("missing").into_os_string())),
+            exe_dir.join("plugins"),
+            "없는 상속 경로는 무시한다"
+        );
+    }
+
     #[test]
     fn a_suite_outside_the_roster_gets_no_build_prescription() {
         let probe = Scratch::new("bundle-optout");
@@ -1311,12 +1337,13 @@ fn staged_bundle_note(bundle_dir: &std::path::Path, opted_in: bool) -> Option<St
     ))
 }
 
-/// 자식이 쓰는 번들 폴더. 상속한 override가 있으면 그것, 없으면 실행 파일 옆 builtin-plugins다.
-fn expected_bundle_dir(exe_dir: &std::path::Path) -> std::path::PathBuf {
-    std::env::var_os("TASTY_BUILTIN_PLUGINS_DIR")
-        .map(std::path::PathBuf::from)
-        .filter(|p| p.is_dir())
-        .unwrap_or_else(|| exe_dir.join("builtin-plugins"))
+/// 자식이 쓰는 번들 폴더. 자식과 같은 선택(`pick_bundle_root`)을 따르고, 고를 폴더가 없으면
+/// 준비 스크립트가 채울 실행 파일 옆 builtin-plugins를 가리킨다.
+fn expected_bundle_dir(
+    exe_dir: &std::path::Path,
+    inherited: Option<std::ffi::OsString>,
+) -> std::path::PathBuf {
+    pick_bundle_root(exe_dir, inherited).unwrap_or_else(|| exe_dir.join("builtin-plugins"))
 }
 
 /// 번들 누락 진단은 해당 시험이 실패했을 때 붙여 플러그인을 쓰지 않는 시험까지 막지 않는다.
@@ -1324,7 +1351,10 @@ pub fn bundle_staging_note() -> String {
     std::path::PathBuf::from(instance_bin())
         .parent()
         .and_then(|dir| {
-            staged_bundle_note(&expected_bundle_dir(dir), suite_calls_bundled_plugins())
+            staged_bundle_note(
+                &expected_bundle_dir(dir, std::env::var_os("TASTY_BUILTIN_PLUGINS_DIR")),
+                suite_calls_bundled_plugins(),
+            )
         })
         .unwrap_or_default()
 }
@@ -1455,15 +1485,22 @@ fn build_bundle_link_snapshot() -> Result<std::path::PathBuf, String> {
     Ok(snapshot)
 }
 
-/// 상속한 번들 환경변수를 우선 사용하고 없으면 제품의 exe 기준 탐색 함수를 호출한다.
 fn child_bundle_root(bin_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
-    if let Some(p) = std::env::var_os("TASTY_BUILTIN_PLUGINS_DIR").map(std::path::PathBuf::from)
+    pick_bundle_root(bin_dir, std::env::var_os("TASTY_BUILTIN_PLUGINS_DIR"))
+        .ok_or_else(|| format!("{} 옆에 번들이 없다", bin_dir.display()))
+}
+
+/// 상속한 번들 환경변수를 우선 사용하고 없으면 제품의 exe 기준 탐색 함수를 호출한다.
+fn pick_bundle_root(
+    bin_dir: &std::path::Path,
+    inherited: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    if let Some(p) = inherited.map(std::path::PathBuf::from)
         && p.is_dir()
     {
-        return Ok(p);
+        return Some(p);
     }
     tasty_host_plugin::builtin::bundle_root_from_exe_dir(bin_dir)
-        .ok_or_else(|| format!("{} 옆에 번들이 없다", bin_dir.display()))
 }
 
 /// 큰 스냅숏을 복사하기 전에 캐시와 임시 홈 사이 hardlink 가능 여부를 확인한다.
