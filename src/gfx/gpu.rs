@@ -71,6 +71,32 @@ fn clamp_surface_dims(w: u32, h: u32, max: u32) -> (u32, u32) {
     (w.clamp(1, max), h.clamp(1, max))
 }
 
+/// 창의 첫 surface 설정. 크기는 resize와 같은 어댑터 한계로 제한한다.
+fn initial_surface_config(
+    size: PhysicalSize<u32>,
+    max_dim: u32,
+    format: wgpu::TextureFormat,
+    present_mode: wgpu::PresentMode,
+    alpha_mode: wgpu::CompositeAlphaMode,
+) -> wgpu::SurfaceConfiguration {
+    let (width, height) = clamp_surface_dims(size.width, size.height, max_dim);
+    wgpu::SurfaceConfiguration {
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        format,
+        width,
+        height,
+        present_mode,
+        alpha_mode,
+        view_formats: vec![],
+        desired_maximum_frame_latency: 2,
+    }
+}
+
+/// 첫 프레임 전에 셀 셰이더 uniform에 쓸 viewport 크기. 설정한 surface 크기와 같다.
+fn initial_viewport(config: &wgpu::SurfaceConfiguration) -> (u32, u32) {
+    (config.width, config.height)
+}
+
 pub struct GpuState {
     pub(super) surface: wgpu::Surface<'static>,
     pub(super) surface_invalid: bool,
@@ -192,34 +218,33 @@ impl GpuState {
             .or_else(|| surface_caps.formats.first().copied())
             .ok_or_else(|| anyhow::anyhow!("no supported surface format found"))?;
 
-        // 초기 크기도 resize와 같은 어댑터 한계로 제한한다.
-        let max_dim = device.limits().max_texture_dimension_2d;
-        let (config_width, config_height) = clamp_surface_dims(size.width, size.height, max_dim);
         // 가상 디스플레이에서는 Fifo만으로 프레임 상한을 알 수 없어 실제 선택값을 기록한다.
         let present_mode = pick_present_mode(&surface_caps.present_modes);
         tracing::info!(
             "surface present_mode={present_mode:?} (available: {:?})",
             surface_caps.present_modes
         );
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            format: surface_format,
-            width: config_width,
-            height: config_height,
+        let config = initial_surface_config(
+            size,
+            device.limits().max_texture_dimension_2d,
+            surface_format,
             present_mode,
-            alpha_mode: surface_caps
+            surface_caps
                 .alpha_modes
                 .first()
                 .copied()
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
+        );
         surface.configure(&device, &config);
 
         let (term_font, last_term_font_sig) =
             egui_bridge::boot_terminal_font(appearance, scale_factor);
         let renderer = CellRenderer::new(&device, &queue, surface_format, term_font);
+        // 첫 프레임 전에 셀 셰이더의 viewport를 실제 surface 크기로 맞춘다. 시작 직후 오는
+        // Resized는 같은 크기라 configure_surface가 건너뛰므로 여기서 맞추지 않으면
+        // 배율 2 화면에서 터미널이 2배로 그려진다.
+        let (viewport_width, viewport_height) = initial_viewport(&config);
+        renderer.resize(&queue, viewport_width, viewport_height);
 
         let egui_ctx = egui::Context::default();
 
@@ -941,7 +966,8 @@ impl GpuState {
 
 #[cfg(test)]
 mod tests {
-    use super::clamp_surface_dims;
+    use super::{clamp_surface_dims, initial_surface_config, initial_viewport};
+    use winit::dpi::PhysicalSize;
 
     const MAX: u32 = 8192;
 
@@ -963,5 +989,30 @@ mod tests {
     fn raises_zero_to_lower_bound() {
         assert_eq!(clamp_surface_dims(0, 720, MAX), (1, 720));
         assert_eq!(clamp_surface_dims(1280, 0, MAX), (1280, 1));
+    }
+
+    fn config_for(width: u32, height: u32) -> wgpu::SurfaceConfiguration {
+        initial_surface_config(
+            PhysicalSize::new(width, height),
+            MAX,
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::PresentMode::Fifo,
+            wgpu::CompositeAlphaMode::Auto,
+        )
+    }
+
+    #[test]
+    fn initial_viewport_matches_the_configured_surface_at_scale_two() {
+        // 논리 1280x720 창을 배율 2에서 만들면 surface는 2560x1440이다.
+        let config = config_for(2560, 1440);
+        assert_eq!((config.width, config.height), (2560, 1440));
+        assert_eq!(initial_viewport(&config), (2560, 1440));
+    }
+
+    #[test]
+    fn initial_viewport_follows_the_clamped_surface_size() {
+        let config = config_for(MAX + 100, 0);
+        assert_eq!(initial_viewport(&config), (config.width, config.height));
+        assert_eq!(initial_viewport(&config), (MAX, 1));
     }
 }

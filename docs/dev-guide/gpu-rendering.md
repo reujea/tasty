@@ -183,11 +183,13 @@ present는 별도 표면 경로다. 완료 로그가 없다고 호출을 취소�
 
 | 버퍼 | 내용 |
 |------|------|
-| `uniform_buffer` | **전역** cell_size + viewport_size (윈도우 리사이즈 시만 갱신) |
+| `uniform_buffer` | **전역** cell_size + viewport_size (창 생성 직후·크기 변경·글꼴 변경 때 갱신) |
 | `bg_instance_buffer` | 셀 배경 인스턴스 (pos + bg_color), per-instance viewport offset baked |
 | `glyph_instance_buffer` | 글리프 인스턴스 (pos + uv + fg_color + glyph_size), offset baked |
 
 per-surface 위치 정보가 인스턴스에 들어가 있으므로 uniform 은 전역 1개로 충분하다.
+
+`GpuState`는 renderer를 만든 직후, 첫 프레임을 그리기 전에 uniform의 viewport_size를 처음 configure한 surface 크기로 쓴다. 시작 직후 오는 크기 통지는 같은 크기라 위의 중복 생략으로 renderer 치수를 갱신하지 않기 때문이다. 이 값이 surface 크기와 다르면 셰이더의 NDC 변환이 어긋나 터미널이 확대·이동되어 그려진다(배율 2 화면에서 2배).
 
 ## 프레임 구동 정책 — 무엇이 프레임을 유발하고 무엇이 상한을 거는가
 

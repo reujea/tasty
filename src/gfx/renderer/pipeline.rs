@@ -268,7 +268,8 @@ impl CellRenderer {
                 font_config.metrics.cell_width,
                 font_config.metrics.cell_height,
             ],
-            viewport_size: [1280.0, 720.0],
+            // 실제 크기는 GpuState가 생성 직후 첫 프레임 전에 resize로 쓴다.
+            viewport_size: [0.0, 0.0],
         };
         queue.write_buffer(&uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
