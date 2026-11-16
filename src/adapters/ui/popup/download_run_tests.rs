@@ -99,10 +99,16 @@ fn opened_scope(state: &mut MainViewState, id: &str) -> crate::model::popup_kind
         [
             crate::intent::DispatchedIntent {
                 body:
-                    crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
-                        id: opened,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-                    }),
+                    crate::intent::Intent::Ui(
+                        crate::intent::UiIntent::OpenPopup {
+                            id: opened,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
+                        }
+                        | crate::intent::UiIntent::ReopenPopup {
+                            id: opened,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
+                        },
+                    ),
                 ..
             },
         ] if *opened == id => scope.clone(),
@@ -175,4 +181,28 @@ fn the_next_size_confirm_opens_in_its_own_surface() {
         popup.scope,
         crate::model::popup_kind::PopupScope::Surface(101)
     );
+}
+
+/// S1 에서 연 묻기 대화상자에 S2 요청이 오면 범위와 대상이 모두 S2 다.
+#[test]
+fn a_second_ask_from_another_surface_moves_the_dialog_there() {
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    for (surface, path) in [(101, "/remote/a.bin"), (201, "/remote/b.bin")] {
+        ask(
+            &mut state,
+            1,
+            surface,
+            path.into(),
+            String::new(),
+            crate::file::dispatch::FileDispatchOrigin::User,
+        );
+        crate::intent::popup::apply_pending(&mut state, &mut session);
+    }
+    assert_eq!(
+        state.popups.open_scope(DOWNLOAD_RUN_POPUP_ID),
+        Some(&crate::model::popup_kind::PopupScope::Surface(201))
+    );
+    let ask = state.dialogs.download_run.ask.as_ref().unwrap();
+    assert_eq!((ask.surface, ask.path.as_str()), (201, "/remote/b.bin"));
+    assert!(state.popups.take_closed_queue().is_empty());
 }

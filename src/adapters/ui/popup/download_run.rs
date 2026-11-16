@@ -98,7 +98,8 @@ pub(crate) fn ask(
         capable,
         content_height: None,
     });
-    let intent = crate::intent::UiIntent::OpenPopup {
+    // 새 요청이 내용을 바꾸므로 다른 surface에 열려 있으면 그 surface 범위로 다시 연다.
+    let intent = crate::intent::UiIntent::ReopenPopup {
         id: DOWNLOAD_RUN_POPUP_ID,
         mode: crate::intent::OpenPopupMode::CenteredFocused(
             crate::model::popup_kind::PopupScope::Surface(surface),

@@ -1,5 +1,5 @@
 //! 이름 바꾸기 입력 팝업을 여는 한 지점. 범위는 바꿀 대상에서 나온다.
-//! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다.
+//! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다. 새 요청이 대상을 바꾸면 범위도 그 대상으로 다시 연다.
 
 use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
 use crate::model::popup_kind::PopupScope;
@@ -30,7 +30,7 @@ pub(crate) fn open(
         );
         return true;
     }
-    state.dispatch_intent(origin(UiIntent::OpenPopup {
+    state.dispatch_intent(origin(UiIntent::ReopenPopup {
         id: RENAME_POPUP_ID,
         mode: OpenPopupMode::CenteredFocused(scope),
     }));
@@ -48,7 +48,7 @@ mod tests {
             [
                 DispatchedIntent {
                     body:
-                        crate::intent::Intent::Ui(UiIntent::OpenPopup {
+                        crate::intent::Intent::Ui(UiIntent::ReopenPopup {
                             id: RENAME_POPUP_ID,
                             mode: OpenPopupMode::CenteredFocused(scope),
                         }),
@@ -106,5 +106,32 @@ mod tests {
             assert_eq!(opened_scope(&mut state), None, "{target:?}");
             assert!(state.dialogs.rename.is_none(), "{target:?}");
         }
+    }
+
+    /// 한 대상에서 연 이름 바꾸기에 다른 대상의 요청이 오면 범위와 대상이 모두 새 대상이다.
+    #[test]
+    fn a_second_request_for_another_target_moves_the_popup_there() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        for tab_id in [101, 102] {
+            let read = session.read();
+            assert!(open(
+                &mut state,
+                &read,
+                RenameTarget::TabName { tab_id },
+                String::new(),
+                UiIntent::from_user_context_menu
+            ));
+            drop(read);
+            crate::intent::popup::apply_pending(&mut state, &mut session);
+        }
+        assert_eq!(
+            state.popups.open_scope(RENAME_POPUP_ID),
+            Some(&PopupScope::Tab(102))
+        );
+        assert_eq!(
+            state.dialogs.rename.as_ref().map(|(t, _)| t.clone()),
+            Some(RenameTarget::TabName { tab_id: 102 })
+        );
+        assert!(state.popups.take_closed_queue().is_empty());
     }
 }

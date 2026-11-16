@@ -782,6 +782,19 @@ impl PopupManager {
             .any(|p| p.id == id && p.look.covers_scope)
     }
 
+    /// 다른 범위로 다시 열기 위해 팝업을 닫는다. 내용은 새 요청이 이미 채웠으므로
+    /// closed_queue에 넣지 않아 on_close 훅이 새 요청을 지우지 않는다.
+    pub fn close_for_reopen(&mut self, id: PopupId) {
+        if let Some(p) = self.popups.iter_mut().find(|p| p.id == id) {
+            p.open = false;
+            p.dragging = false;
+            p.focused = false;
+            p.passive = false;
+            p.resizing = None;
+            p.size_user_overridden = false;
+        }
+    }
+
     /// 범위 아래 탐색기로 끌어 놓기를 막는 팝업이 열려 있는지.
     pub fn any_open_blocks_drop(&self) -> bool {
         self.popups

@@ -27,7 +27,8 @@ pub struct PendingCloseRemote {
     pub(crate) focused: bool,
 }
 
-/// 확인을 연다. 이미 열려 있으면 새 요청으로 바꾼다. 범위는 닫을 원격 행의 workspace다.
+/// 확인을 연다. 이미 열려 있으면 새 요청으로 바꾸고 범위도 새 요청의 workspace로 다시 연다.
+/// 범위는 닫을 원격 행의 workspace다.
 pub(crate) fn open(state: &mut MainViewState, close: SavedRowClose, intent: DomainIntent) {
     let workspace_id = close.row;
     state.dialogs.pending_close_remote = Some(PendingCloseRemote {
@@ -227,7 +228,7 @@ mod tests {
             matches!(
                 &intents[..],
                 [crate::intent::DispatchedIntent {
-                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup {
                         id: CONFIRM_CLOSE_REMOTE_POPUP_ID,
                         mode: crate::intent::OpenPopupMode::CenteredFocused(
                             crate::model::popup_kind::PopupScope::Workspace(9)
@@ -238,6 +239,40 @@ mod tests {
             ),
             "{intents:?}"
         );
+    }
+
+    /// W1 에서 연 확인창에 W2 요청이 오면 범위와 대상이 모두 W2 다.
+    #[test]
+    fn a_second_request_for_another_workspace_moves_the_confirm_there() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        for ws in [8, 9] {
+            open(
+                &mut state,
+                SavedRowClose {
+                    row: ws,
+                    last: false,
+                },
+                DomainIntent::CloseWorkspace { workspace_id: ws },
+            );
+            crate::intent::popup::apply_pending(&mut state, &mut session);
+        }
+        assert_eq!(
+            state.popups.open_scope(CONFIRM_CLOSE_REMOTE_POPUP_ID),
+            Some(&crate::model::popup_kind::PopupScope::Workspace(9))
+        );
+        assert!(
+            matches!(
+                state
+                    .dialogs
+                    .pending_close_remote
+                    .as_ref()
+                    .map(|p| &p.close),
+                Some(SavedRowClose { row: 9, .. })
+            ),
+            "{:?}",
+            state.dialogs.pending_close_remote
+        );
+        assert!(state.popups.take_closed_queue().is_empty());
     }
 }
 

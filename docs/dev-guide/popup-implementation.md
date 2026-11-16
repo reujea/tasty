@@ -98,7 +98,7 @@ use crate::intent::{UiIntent, OpenPopupMode};
 state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode::CenteredFocused(PopupScope::Window) }.from_user_menu("my_button"));
 ```
 
-`OpenPopupMode`: `Default(scope)` · `CenteredFocused(scope)` · `AtTopOfScope(scope)` · `AtFocused(scope, pos)`. 모든 갈래가 범위를 받는다. 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상에서 고른다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 작용 대상이 있는 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다.
+`OpenPopupMode`: `Default(scope)` · `CenteredFocused(scope)` · `AtTopOfScope(scope)` · `AtFocused(scope, pos)`. 모든 갈래가 범위를 받는다. 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상에서 고른다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 작용 대상이 있는 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다. 새 요청이 열린 팝업의 내용과 대상을 바꾸는 열기 지점(다운로드 후 실행 묻기, 원격 닫기·강제 분리 확인, 이름 바꾸기, 탭·pane 프리셋 적용)은 `UiIntent::ReopenPopup`을 보낸다. 열린 팝업의 범위가 요청 범위와 다르면 닫고 새 범위로 다시 연다. 이때 on_close 훅은 부르지 않는다(새 요청이 이미 채운 상태를 지우지 않게). 범위가 같으면 그대로 둔다. 범위를 열린 팝업에 덮어쓰는 경로는 두지 않는다.
 
 ## `PopupDef` 필드
 

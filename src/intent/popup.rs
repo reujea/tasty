@@ -58,6 +58,16 @@ pub fn handle(
             }
 
             UiIntent::OpenPopup { id, mode } => open(state, id, mode, intent.origin.is_user()),
+            UiIntent::ReopenPopup { id, mode } => {
+                if state
+                    .popups
+                    .open_scope(id)
+                    .is_some_and(|scope| scope != mode.scope())
+                {
+                    state.popups.close_for_reopen(id);
+                }
+                open(state, id, mode, intent.origin.is_user());
+            }
             UiIntent::ClosePopup { id } => state.popups.close(id),
             UiIntent::FocusPassivePopup { id } => {
                 if intent.origin.is_user() {
@@ -144,6 +154,18 @@ fn open(state: &mut RequestContext, id: &'static str, mode: &OpenPopupMode, by_u
     // 에이전트·플러그인·시스템 요청이 사용자의 키 입력을 가로채지 않게 한다.
     if !by_user {
         state.popups.mark_passive(id);
+    }
+}
+
+/// 시험용: 쌓인 intent 를 팝업 처리기로 차례로 반영한다(팝업 열기·닫기만 바뀐다).
+#[cfg(all(test, feature = "gui"))]
+pub(crate) fn apply_pending(
+    state: &mut RequestContext,
+    session: &mut crate::runtime::engine_session::EngineSession,
+) {
+    let mut engine = session.borrow_mut();
+    for intent in state.take_pending_intents() {
+        handle(state, &mut engine, &intent);
     }
 }
 
@@ -235,6 +257,81 @@ mod tests {
         );
         handle(&mut state, &mut engine, &dispatched_close("test_popup"));
         assert_eq!(state.popups.take_closed_queue(), vec!["test_popup"]);
+    }
+
+    fn dispatched_reopen(id: &'static str, scope: PopupScope) -> DispatchedIntent {
+        UiIntent::ReopenPopup {
+            id,
+            mode: OpenPopupMode::CenteredFocused(scope),
+        }
+        .from_user_shortcut("test")
+    }
+
+    /// 다른 범위의 다시 열기 요청은 닫고 새 범위로 연다. 내용은 새 요청이 채웠으므로 on_close 를 부르지 않는다.
+    #[test]
+    fn reopen_in_another_scope_moves_the_popup_without_a_close_hook() {
+        let (mut state, mut engine_session) = make_state();
+        let mut engine = engine_session.borrow_mut();
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_reopen("test_popup", PopupScope::Surface(1)),
+        );
+        assert_eq!(
+            state.popups.open_scope("test_popup"),
+            Some(&PopupScope::Surface(1))
+        );
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_reopen("test_popup", PopupScope::Surface(2)),
+        );
+        assert_eq!(
+            state.popups.open_scope("test_popup"),
+            Some(&PopupScope::Surface(2))
+        );
+        assert!(state.popups.take_closed_queue().is_empty());
+    }
+
+    /// 같은 범위의 다시 열기 요청은 열린 팝업을 그대로 둔다.
+    #[test]
+    fn reopen_in_the_same_scope_keeps_the_popup() {
+        let (mut state, mut engine_session) = make_state();
+        let mut engine = engine_session.borrow_mut();
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_reopen("test_popup", PopupScope::Surface(1)),
+        );
+        let z = state.popups.max_open_z_seq();
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_reopen("test_popup", PopupScope::Surface(1)),
+        );
+        assert_eq!(state.popups.max_open_z_seq(), z);
+        assert!(state.popups.take_closed_queue().is_empty());
+    }
+
+    /// 열기 요청은 이미 열린 팝업의 범위를 바꾸지 않는다(다시 열기만 바꾼다).
+    #[test]
+    fn a_plain_open_keeps_the_scope_of_an_open_popup() {
+        let (mut state, mut engine_session) = make_state();
+        let mut engine = engine_session.borrow_mut();
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_open("test_popup", OpenPopupMode::Default(PopupScope::Surface(1))),
+        );
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_open("test_popup", OpenPopupMode::Default(PopupScope::Surface(2))),
+        );
+        assert_eq!(
+            state.popups.open_scope("test_popup"),
+            Some(&PopupScope::Surface(1))
+        );
     }
 
     #[test]

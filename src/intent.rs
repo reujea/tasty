@@ -281,6 +281,12 @@ pub enum UiIntent {
         id: PopupId,
         mode: OpenPopupMode,
     },
+    /// 새 요청이 내용과 대상을 바꾼 팝업을 그 요청의 범위로 연다. 이미 다른 범위로 열려 있으면
+    /// 닫고 새 범위로 다시 연다. 같은 범위로 열려 있으면 그대로 둔다.
+    ReopenPopup {
+        id: PopupId,
+        mode: OpenPopupMode,
+    },
     ClosePopup {
         id: PopupId,
     },
@@ -445,6 +451,19 @@ pub enum OpenPopupMode {
     /// 컨텍스트 메뉴에서 지정한 위치에 연다.
     #[cfg(feature = "gui")]
     AtFocused(PopupScope, egui::Pos2),
+}
+
+#[cfg(feature = "gui")]
+impl OpenPopupMode {
+    /// 이 요청이 정한 범위.
+    pub fn scope(&self) -> &PopupScope {
+        match self {
+            Self::Default(scope) | Self::CenteredFocused(scope) | Self::AtTopOfScope(scope) => {
+                scope
+            }
+            Self::AtFocused(scope, _) => scope,
+        }
+    }
 }
 
 impl Intent {

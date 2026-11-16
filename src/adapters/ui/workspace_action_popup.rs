@@ -1,6 +1,7 @@
 //! workspace 하나에 작용하는 확인·입력 팝업을 여는 한 지점.
 //! 강제 분리 확인, 원격 닫기 확인, 사이드바의 workspace 이름·부제 바꾸기가 여기서 연다.
 //! 범위는 작용 대상 workspace다. 그 workspace가 활성일 때만 그린다.
+//! 새 요청은 열린 팝업의 내용과 대상을 바꾸므로, 다른 workspace 범위로 열려 있으면 닫고 새 범위로 다시 연다.
 
 use crate::adapters::ui::popup::PopupId;
 use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
@@ -14,7 +15,7 @@ pub(crate) fn open(
     id: PopupId,
     origin: impl FnOnce(UiIntent) -> DispatchedIntent,
 ) {
-    state.dispatch_intent(origin(UiIntent::OpenPopup {
+    state.dispatch_intent(origin(UiIntent::ReopenPopup {
         id,
         mode: OpenPopupMode::CenteredFocused(PopupScope::Workspace(workspace_id)),
     }));

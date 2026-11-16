@@ -218,7 +218,7 @@ fn assert_asked_to_download(state: &crate::state::RequestContext, path: &str) {
     );
     assert!(state.pending_intents.iter().any(|i| matches!(
         &i.body,
-        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+        crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup { id, .. })
             if *id == crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_POPUP_ID
     ) && i.origin.is_user()));
 }
@@ -478,7 +478,7 @@ fn an_unopenable_remote_file_opened_by_name_asks_unless_an_agent_opened_it() {
         let popup = state.pending_intents.iter().find(|i| {
             matches!(
                 &i.body,
-                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+                crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup { id, .. })
                     if *id == crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_POPUP_ID
             )
         });

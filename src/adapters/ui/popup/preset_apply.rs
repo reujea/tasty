@@ -71,10 +71,52 @@ impl PresetApplyTarget {
             Self::Pane(pane) => engine.has_pane(pane).then_some(pane),
         }
     }
+
+    /// 이 대상을 쓰는 프리셋 종류.
+    fn kind(self) -> PresetKind {
+        match self {
+            Self::Tab(_) => PresetKind::Tab,
+            Self::Pane(_) => PresetKind::Pane,
+        }
+    }
+}
+
+/// 탭 팝업과 pane 팝업의 대상. 두 팝업이 함께 열릴 수 있어 팝업마다 따로 둔다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct PresetApplyTargets {
+    tab: Option<PresetApplyTarget>,
+    pane: Option<PresetApplyTarget>,
+}
+
+impl PresetApplyTargets {
+    /// 그 종류의 팝업이 열 때 정한 대상.
+    pub(crate) fn get(&self, kind: PresetKind) -> Option<PresetApplyTarget> {
+        match kind {
+            PresetKind::Tab => self.tab,
+            PresetKind::Pane => self.pane,
+            PresetKind::Workspace => None,
+        }
+    }
+
+    fn set(&mut self, target: PresetApplyTarget) {
+        match target.kind() {
+            PresetKind::Tab => self.tab = Some(target),
+            _ => self.pane = Some(target),
+        }
+    }
+
+    fn clear(&mut self, kind: PresetKind) {
+        match kind {
+            PresetKind::Tab => self.tab = None,
+            PresetKind::Pane => self.pane = None,
+            PresetKind::Workspace => {}
+        }
+    }
 }
 
 /// 적용할 pane. 워크스페이스 프리셋은 대상 pane 이 없다(None).
-/// 탭·pane 프리셋은 열 때 정한 대상에 적용하며, 대상이 사라졌으면 Err 로 적용하지 않는다.
+/// 탭·pane 프리셋은 열 때 정한 대상에 적용한다. 대상이 사라졌거나 팝업 종류와 대상 종류가 다르면
+/// Err 로 적용하지 않는다.
 fn apply_target_pane(
     kind: PresetKind,
     target: Option<PresetApplyTarget>,
@@ -83,6 +125,7 @@ fn apply_target_pane(
     match kind {
         PresetKind::Workspace => Ok(None),
         PresetKind::Tab | PresetKind::Pane => target
+            .filter(|target| target.kind() == kind)
             .and_then(|target| target.pane(engine))
             .map(Some)
             .ok_or(()),
@@ -113,23 +156,43 @@ pub(crate) fn open_for_pane(
         return false;
     };
     state.dialogs.preset_picker_selected = None;
-    state.dialogs.preset_apply_target = Some(target);
-    state.dispatch_intent(dispatch(crate::intent::UiIntent::OpenPopup {
+    state.dialogs.preset_apply_targets.set(target);
+    // 새 요청이 대상을 바꾸므로 다른 탭·pane 에 열려 있으면 새 범위로 다시 연다.
+    state.dispatch_intent(dispatch(crate::intent::UiIntent::ReopenPopup {
         id: target.popup_id(),
         mode: crate::intent::OpenPopupMode::CenteredFocused(target.scope()),
     }));
     true
 }
 
-/// 팝업이 닫힐 때 선택과 대상을 비운다. 세 종류 팝업이 공유한다.
-pub fn on_close_apply_preset_popup(
+/// 워크스페이스 프리셋 팝업이 닫힐 때 선택과 대상 카테고리를 비운다.
+pub fn on_close_apply_workspace_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
     state.dialogs.preset_picker_selected = None;
     state.dialogs.preset_apply_target_category = None;
-    state.dialogs.preset_apply_target = None;
+}
+
+/// 탭 프리셋 팝업이 닫힐 때 선택과 그 팝업의 대상만 비운다. pane 팝업의 대상은 그대로 둔다.
+pub fn on_close_apply_tab_popup(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    state.dialogs.preset_picker_selected = None;
+    state.dialogs.preset_apply_targets.clear(PresetKind::Tab);
+}
+
+/// pane 프리셋 팝업이 닫힐 때 선택과 그 팝업의 대상만 비운다. 탭 팝업의 대상은 그대로 둔다.
+pub fn on_close_apply_pane_popup(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    state.dialogs.preset_picker_selected = None;
+    state.dialogs.preset_apply_targets.clear(PresetKind::Pane);
 }
 
 pub fn draw_apply_workspace_popup(
@@ -200,7 +263,7 @@ fn draw_apply_popup(
         ApplyPresetAction::Apply(name) => {
             let category = state.dialogs.preset_apply_target_category.take();
             let Ok(target_pane_id) =
-                apply_target_pane(kind, state.dialogs.preset_apply_target, engine)
+                apply_target_pane(kind, state.dialogs.preset_apply_targets.get(kind), engine)
             else {
                 tracing::warn!("{kind:?} preset '{name}' not applied: its target is gone");
                 return PopupAction::Close;
@@ -483,7 +546,7 @@ mod tests {
 
     fn opened_popup(intent: &crate::intent::DispatchedIntent) -> (PopupId, PopupScope) {
         match &intent.body {
-            Intent::Ui(crate::intent::UiIntent::OpenPopup {
+            Intent::Ui(crate::intent::UiIntent::ReopenPopup {
                 id,
                 mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
             }) => (*id, scope.clone()),
@@ -499,7 +562,7 @@ mod tests {
             (APPLY_TAB_POPUP_ID, PopupScope::Tab(101))
         );
         assert_eq!(
-            state.dialogs.preset_apply_target,
+            state.dialogs.preset_apply_targets.get(PresetKind::Tab),
             Some(PresetApplyTarget::Tab(101))
         );
     }
@@ -512,7 +575,7 @@ mod tests {
             (APPLY_PANE_POPUP_ID, PopupScope::Pane(10))
         );
         assert_eq!(
-            state.dialogs.preset_apply_target,
+            state.dialogs.preset_apply_targets.get(PresetKind::Pane),
             Some(PresetApplyTarget::Pane(10))
         );
     }
@@ -531,7 +594,10 @@ mod tests {
             assert!(!opened, "{kind:?}");
         }
         assert!(state.take_pending_intents().is_empty());
-        assert_eq!(state.dialogs.preset_apply_target, None);
+        assert_eq!(
+            state.dialogs.preset_apply_targets,
+            PresetApplyTargets::default()
+        );
     }
 
     /// 팝업을 연 뒤 포커스가 다른 pane 에 있어도 열 때 정한 pane 에 적용한다.
@@ -542,7 +608,8 @@ mod tests {
             let read = session.read();
             assert_eq!(state.focused_pane_id(&read), 20);
             let target_pane_id =
-                apply_target_pane(kind, state.dialogs.preset_apply_target, &read).unwrap();
+                apply_target_pane(kind, state.dialogs.preset_apply_targets.get(kind), &read)
+                    .unwrap();
             assert_eq!(target_pane_id, Some(10), "{kind:?}");
 
             let dispatched = Intent::ApplyPreset {
@@ -566,7 +633,7 @@ mod tests {
                 }
                 other => panic!("{other:?}"),
             }
-            state.dialogs.preset_apply_target = None;
+            state.dialogs.preset_apply_targets.clear(kind);
             assert!(apply_target_pane(kind, None, &session.read()).is_err());
         }
     }
@@ -584,6 +651,108 @@ mod tests {
         assert_eq!(
             apply_target_pane(PresetKind::Workspace, None, &read),
             Ok(None)
+        );
+    }
+
+    /// 열린 팝업에 다른 대상의 요청이 오면 범위와 대상이 모두 새 요청을 따른다.
+    #[test]
+    fn a_second_request_for_another_target_moves_scope_and_target_together() {
+        for (kind, popup, second_pane, scope, target) in [
+            (
+                PresetKind::Tab,
+                APPLY_TAB_POPUP_ID,
+                20,
+                PopupScope::Tab(201),
+                PresetApplyTarget::Tab(201),
+            ),
+            (
+                PresetKind::Pane,
+                APPLY_PANE_POPUP_ID,
+                20,
+                PopupScope::Pane(20),
+                PresetApplyTarget::Pane(20),
+            ),
+        ] {
+            let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+            for pane in [10, second_pane] {
+                let read = session.read();
+                assert!(open_for_pane(
+                    &mut state,
+                    &read,
+                    kind,
+                    pane,
+                    crate::intent::UiIntent::from_user_context_menu,
+                ));
+                drop(read);
+                crate::intent::popup::apply_pending(&mut state, &mut session);
+            }
+            assert_eq!(state.popups.open_scope(popup), Some(&scope), "{kind:?}");
+            assert_eq!(
+                state.dialogs.preset_apply_targets.get(kind),
+                Some(target),
+                "{kind:?}"
+            );
+            assert_eq!(
+                apply_target_pane(
+                    kind,
+                    state.dialogs.preset_apply_targets.get(kind),
+                    &session.read()
+                ),
+                Ok(Some(20)),
+                "{kind:?}"
+            );
+            assert!(state.popups.take_closed_queue().is_empty(), "{kind:?}");
+        }
+    }
+
+    /// 탭 팝업이 열린 채 pane 팝업을 열고 닫아도 탭 팝업의 대상은 그대로다.
+    #[test]
+    fn closing_the_pane_popup_keeps_the_tab_popup_target() {
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        let read = session.read();
+        assert!(open_for_pane(
+            &mut state,
+            &read,
+            PresetKind::Tab,
+            10,
+            crate::intent::UiIntent::from_user_context_menu,
+        ));
+        assert!(open_for_pane(
+            &mut state,
+            &read,
+            PresetKind::Pane,
+            20,
+            crate::intent::UiIntent::from_user_context_menu,
+        ));
+        on_close_apply_pane_popup(&egui::Context::default(), &mut state, &read);
+        assert_eq!(
+            state.dialogs.preset_apply_targets.get(PresetKind::Tab),
+            Some(PresetApplyTarget::Tab(101))
+        );
+        assert_eq!(
+            state.dialogs.preset_apply_targets.get(PresetKind::Pane),
+            None
+        );
+        assert_eq!(
+            apply_target_pane(
+                PresetKind::Tab,
+                state.dialogs.preset_apply_targets.get(PresetKind::Tab),
+                &read
+            ),
+            Ok(Some(10))
+        );
+    }
+
+    /// 팝업 종류와 대상 종류가 다르면 적용하지 않는다.
+    #[test]
+    fn a_target_of_the_other_kind_is_not_applied() {
+        let (_state, session) = crate::state::tests::two_pane_fixture();
+        let read = session.read();
+        assert!(
+            apply_target_pane(PresetKind::Tab, Some(PresetApplyTarget::Pane(20)), &read).is_err()
+        );
+        assert!(
+            apply_target_pane(PresetKind::Pane, Some(PresetApplyTarget::Tab(101)), &read).is_err()
         );
     }
 

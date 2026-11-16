@@ -211,7 +211,7 @@ mod tests {
             matches!(
                 &intents[..],
                 [crate::intent::DispatchedIntent {
-                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup {
                         id: CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
                         mode: crate::intent::OpenPopupMode::CenteredFocused(
                             crate::model::popup_kind::PopupScope::Workspace(7)
@@ -222,5 +222,23 @@ mod tests {
             ),
             "{intents:?}"
         );
+    }
+
+    /// W1 에서 연 확인창에 W2 요청이 오면 범위와 대상이 모두 W2 다.
+    #[test]
+    fn a_second_request_for_another_workspace_moves_the_confirm_there() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        for ws in [7, 8] {
+            open(&mut state, ws);
+            crate::intent::popup::apply_pending(&mut state, &mut session);
+        }
+        assert_eq!(
+            state
+                .popups
+                .open_scope(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID),
+            Some(&crate::model::popup_kind::PopupScope::Workspace(8))
+        );
+        assert_eq!(state.dialogs.pending_force_detach_workspace, Some(8));
+        assert!(state.popups.take_closed_queue().is_empty());
     }
 }
