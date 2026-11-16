@@ -69,6 +69,21 @@ impl CallerStub {
 }
 
 impl PluginManager {
+    /// 디스크를 읽지 않고 설치 목록과 각 플러그인의 허가 권한을 정한다. 기여 목록 조회를 시험할 때 쓴다.
+    pub fn install_packages_for_test(
+        &mut self,
+        packages: Vec<crate::PluginPackage>,
+        granted: &[&str],
+    ) {
+        for pkg in &packages {
+            self.config.set_granted(
+                &pkg.manifest.id,
+                granted.iter().map(|t| t.to_string()).collect(),
+            );
+        }
+        self.set_packages_for_tests(packages);
+    }
+
     /// `prefix` namespace를 소유하는 연결된 stub 플러그인을 붙인다. 설치 목록은 이 하나로 바뀐다.
     pub fn attach_namespace_stub_for_test(
         &mut self,

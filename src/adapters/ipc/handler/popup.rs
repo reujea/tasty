@@ -111,3 +111,7 @@ pub fn handle_open(
 
 // 닫기는 App::enqueue_plugin_popup_close를 통해 렌더의 닫기 큐에 넣어야 자식 피커도 정리된다.
 // 헤드리스는 목록 조회만 제공한다. 닫기 경로가 없어 열기를 허용하지 않는다.
+
+#[cfg(all(test, feature = "gui"))]
+#[path = "popup_tests.rs"]
+mod tests;

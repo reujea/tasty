@@ -435,3 +435,29 @@ pub(super) fn handle_debug_gpu_stall(
     crate::stall_watchdog::arm_debug_stall(ms);
     JsonRpcResponse::success(id, serde_json::json!({ "armed_ms": ms }))
 }
+
+#[cfg(all(test, debug_assertions, feature = "gui"))]
+mod host_popup_open_tests {
+    use super::handle_debug_host_popup_open;
+
+    /// surface 범위를 요청했는데 포커스 surface 가 없으면 다른 범위로 바꾸지 않고 거절한다.
+    #[test]
+    fn surface_scope_without_a_focused_surface_is_refused() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let params = serde_json::json!({ "popup_id": "convert_surface", "surface_scope": true });
+        let opened = handle_debug_host_popup_open(&mut state, &read, serde_json::json!(1), &params);
+        assert!(opened.error.is_none(), "{opened:?}");
+        state.take_pending_intents();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let refused =
+            handle_debug_host_popup_open(&mut state, &read, serde_json::json!(2), &params);
+        let e = refused.error.as_ref().expect("refused");
+        assert_eq!(
+            (e.code, e.message.as_str()),
+            (-32602, "surface_scope requested but no surface is focused")
+        );
+        assert!(state.take_pending_intents().is_empty());
+    }
+}

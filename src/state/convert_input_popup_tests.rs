@@ -1,7 +1,5 @@
 //! 변환 입력 팝업 요청을 큐에 넣는 판정. surface 범위 팝업은 대상이 없으면 받지 않는다.
 
-use std::sync::Arc;
-
 const PLUGIN: &str = "com.example.viewer";
 const POPUP_REF: &str = "com.example.viewer/convert";
 
@@ -31,28 +29,8 @@ fn enqueue(surface_scoped: bool, pending_draft: bool) -> (bool, usize) {
         )
     );
     let read = engine.read();
-    let (sender, _queue) = tasty_remote::connection::channel();
-    let view = Arc::new(());
-    if pending_draft {
-        let anchor = state.focused_surface_id(&read).unwrap();
-        state
-            .attach_pending
-            .begin(
-                &read,
-                &state.navigation,
-                &crate::ipc::stream::StructuralOp::NewTab {
-                    anchor_surface_id: anchor,
-                    surface_kind: "terminal".into(),
-                    params: serde_json::json!({}),
-                    inherit_cwd: None,
-                },
-                sender.epoch(),
-                Arc::downgrade(&view),
-                std::time::Instant::now(),
-            )
-            .unwrap();
-        assert_eq!(state.focused_surface_id(&read), None);
-    }
+    let _draft =
+        pending_draft.then(|| crate::state::tests::select_pending_draft(&mut state, &read));
     let queued = state.enqueue_convert_input_popup(&read, "widget", None);
     (queued, state.pending_popup_opens.len())
 }

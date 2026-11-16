@@ -75,3 +75,48 @@ pub fn handle_invoke(
     }
     JsonRpcResponse::success(id, json!({ "invoked": key }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::handle_invoke;
+    use crate::plugin::manifest::ToolAction;
+    use crate::plugin::tool_registry::{ToolItem, ToolSource};
+
+    const SURFACE_POPUP: &str = "com.example.viewer/confirm";
+
+    /// surface 범위 팝업을 여는 도구는 포커스 surface 가 없으면 -32602로 거절하고 아무것도 열지 않는다.
+    #[test]
+    fn a_surface_popup_tool_without_a_target_is_refused() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        state
+            .tool_registry
+            .set_surface_popups([SURFACE_POPUP.to_string()].into_iter().collect());
+        state.tool_registry.set_plugin_items(vec![ToolItem {
+            source: ToolSource::Plugin {
+                plugin_id: "com.example.viewer".into(),
+                tool_id: "t".into(),
+            },
+            key: "com.example.viewer/t".into(),
+            label_i18n_key: String::new(),
+            icon: None,
+            action: ToolAction::OpenPopup {
+                popup_id: SURFACE_POPUP.into(),
+            },
+            order_hint: 0,
+        }]);
+        let mut engine = session.borrow_mut();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &engine.read());
+        let params = serde_json::json!({ "key": "com.example.viewer/t" });
+        let refused = handle_invoke(&mut state, &mut engine, serde_json::json!(1), &params);
+        let e = refused.error.as_ref().expect("refused");
+        assert_eq!(
+            (e.code, e.message.as_str()),
+            (
+                -32602,
+                "tool item 'com.example.viewer/t' cannot run: the popup needs a surface target and no surface is focused"
+            )
+        );
+        assert!(state.pending_popup_opens.is_empty());
+        assert!(state.take_pending_intents().is_empty());
+    }
+}

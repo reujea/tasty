@@ -26,6 +26,37 @@ pub(crate) fn test_state_with_memory(
     state_fixture(memory, false, None)
 }
 
+/// attach 대기 초안을 골라 포커스 surface 가 없는 장면을 만든다. 돌려준 값을 쥐고 있는 동안 초안이 남는다.
+#[cfg(feature = "gui")]
+pub(crate) fn select_pending_draft(
+    state: &mut RequestContext,
+    read: &crate::runtime::engine_read::EngineRead<'_>,
+) -> impl Sized + use<> {
+    let anchor = state
+        .focused_surface_id(read)
+        .expect("a focused surface to anchor the draft");
+    let (sender, queue) = tasty_remote::connection::channel();
+    let view = std::sync::Arc::new(());
+    state
+        .attach_pending
+        .begin(
+            read,
+            &state.navigation,
+            &crate::ipc::stream::StructuralOp::NewTab {
+                anchor_surface_id: anchor,
+                surface_kind: "terminal".into(),
+                params: serde_json::json!({}),
+                inherit_cwd: None,
+            },
+            sender.epoch(),
+            std::sync::Arc::downgrade(&view),
+            std::time::Instant::now(),
+        )
+        .expect("the draft begins");
+    assert_eq!(state.focused_surface_id(read), None);
+    (sender, queue, view)
+}
+
 /// A display-only mirror fixture; transport/materialization tests install a real Remote session.
 pub(crate) fn test_mirror_state() -> (
     RequestContext,
