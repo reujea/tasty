@@ -27,6 +27,7 @@ pub(crate) fn owning_plugin(surface: &dyn tasty_model::Surface) -> Option<&str> 
 
 /// surface의 busy를 켜거나 끈다. 탭 점·사이드바 점과 개수·`surface.list`의 `busy`가 같은 판정을
 /// 읽는다. plugin surface는 소유 plugin만, 터미널은 누구나 바꿀 수 있고 나머지 surface는 거절한다.
+/// attach mirror는 로컬 PTY가 없어 폴링이 알린 값을 지워 줄 수 없으므로 켜지 못하게 거절한다.
 pub(crate) fn handle_set_busy(
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
     caller: &tasty_ipc::caller::CallerContext,
@@ -40,6 +41,13 @@ pub(crate) fn handle_set_busy(
     let Some(busy) = params.get("busy").and_then(|v| v.as_bool()) else {
         return JsonRpcResponse::invalid_params(id, "missing boolean 'busy'");
     };
+    if engine.is_mirror_surface(surface_id) {
+        return JsonRpcResponse::error(
+            id,
+            -32000,
+            "surface is a mirror of a remote attach session",
+        );
+    }
     if engine.runtime.terminals.get(surface_id).is_none() {
         let Some(surface) = engine.find_surface_by_id(surface_id) else {
             return JsonRpcResponse::error(id, -32000, "surface_id not found");
@@ -107,6 +115,26 @@ mod tests {
                 "com.example.chat".into(),
                 "chat".into(),
             )),
+        );
+    }
+
+    // attach mirror 는 로컬 PTY 가 없어 폴링이 알린 값을 지워 주지 못한다. 켠 값이 surface 를
+    // 닫을 때까지 남으므로 아예 거절한다 — surface.attention.clear 와 같은 판정이다.
+    #[test]
+    fn a_mirror_surface_is_refused_and_keeps_its_value() {
+        let (state, mut engine_session) = crate::state::tests::test_mirror_state();
+        let mut e = engine_session.borrow_mut();
+        let sid = state.focused_surface_id(&e).expect("focused surface");
+
+        let resp = set(&mut e, &plugin("com.example.chat"), sid, true);
+        let message = resp.error.expect("mirror 는 거절해야 한다").message;
+        assert!(
+            message.contains("mirror"),
+            "거절 사유가 mirror 임을 밝혀야 한다: {message}"
+        );
+        assert!(
+            !e.read().is_surface_busy(sid),
+            "거절한 요청이 값을 바꾸면 안 된다"
         );
     }
 
