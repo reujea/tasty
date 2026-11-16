@@ -655,8 +655,11 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given 서버가 닫기를 거절하거나 capability 가 없는 구 서버 When **워크스페이스 닫기** Then mirror 는 남고 실패·미지원 안내가 뜬다. 회신 전에 연결이 끝나면 결과를 모른다고 안내하며 성공으로 표시하지 않는다.
 - Given 연결된 mirror R When **워크스페이스 연결 끊기** Then client 의 R mirror 만 사라지고 서버의 R 과 프로세스는 같은 ID 로 남으며 서버 점유가 풀린다. 저장된 원격 행이면 행은 연결 끊김으로 남는다. 다시 attach 하면 같은 workspace 와 출력에 접근한다.
 - Given mirror 로 붙은 원격 workspace R When 에이전트가 `tasty remote disconnect --workspace <mirror id>` Then 이쪽 mirror 는 사라지고 원격 R 과 그 프로세스는 남으며, `remote attach --into-gui --workspace <R>` 로 다시 붙으면 같은 화면이 보인다.
-- Given 사용자가 끊어 `disconnected` 인 저장된 원격 행 When `tasty remote disconnect --workspace <행 id>` 를 다시 실행 Then 종료 코드 0 으로 `disconnected:false, already_disconnected:true, previous_state:"disconnected"` 를 출력하고 stderr 에 이미 끊겨 있다는 안내를 쓰며, 세션·시도·표지와 토스트에 변화가 없다. 시험은 `src/app/auto_attach/row_disconnect_app_tests.rs` 가 고정한다.
-- Given 일반 workspace 나 없는 id When `tasty remote disconnect` Then 종료 코드 1 이고 stderr 의 `data:` 줄에 각각 `not_a_mirror`·`workspace_not_found` 가 있다.
+- Given 사용자가 끊어 `disconnected` 인 저장된 원격 행 When `tasty remote disconnect --workspace <행 id>` 를 다시 실행 Then 종료 코드 0 으로 `disconnected:false, already_disconnected:true, previous_state:"disconnected"` 를 출력하고 stderr 에 이미 끊겨 있다는 안내를 쓰며, 세션·시도·표지와 토스트에 변화가 없다.
+  - 응답 필드, `Detach` 를 다시 보내지 않음, 행 토큰·세션 단계·끊음 표지가 그대로임은 앱 층 시험 `src/app/auto_attach/row_disconnect_app_tests.rs` 가 잰다. 그 장치에는 토스트를 받을 창이 없어 토스트는 재지 않는다.
+  - 토스트가 다시 뜨지 않는 근거는 코드 구조다. 닫기 결과 안내는 `Detach` 전송과 같은 갈래에 있고, 이미 끊긴 행은 그 앞에서 돌아간다(`disconnect_saved_row`).
+  - stdout JSON·stderr 안내·종료 코드는 실제 바이너리를 가짜 호스트에 붙이는 `tests/cli_remote_disconnect_notice.rs` 가 잰다. 저장 행을 실제 인스턴스로 만든 실행은 하지 않았다(저장 행은 GUI 원격 연결 팝업에서만 생긴다).
+- Given 일반 workspace 나 없는 id When `tasty remote disconnect` Then 종료 코드 1 이고 stderr 의 `data:` 줄에 각각 `not_a_mirror`·`workspace_not_found` 가 있다. 두 이유의 판정은 앱 층 시험이 잰다. CLI 의 stderr 오류·`data:` 줄·종료 코드 1 은 위 CLI 시험이 `not_a_mirror` 응답으로 잰다.
 - Given 그 항목을 누른 상태 When 확인 팝업이 떠 있다 Then 점유는 아직 유지되고, 취소·Escape·바깥 클릭 어느 쪽으로 닫아도 점유가 그대로 남는다.
 - Given 확인 팝업이 떠 있는 동안 원격이 스스로 끊었다 When 다음 프레임 Then 팝업은 즉시 닫힌다(대상 없는 확인을 남기지 않는다).
 - Given client 연결 종료(EOF) Then 점유 lock 이 자동 free 된다.
