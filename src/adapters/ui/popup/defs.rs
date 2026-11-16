@@ -47,7 +47,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
-                    focus_on_open: false,
+                    // 사이드바 클릭은 AtFocused로 열어 포커스를 준다. 단축키는 지금 Default로 열어
+                    // 포커스를 주지 않는다(열기 경로 사이의 불일치).
                     ..host_decl(popup_size(crate::adapters::ui::notification::notifications_popup_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,

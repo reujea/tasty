@@ -185,6 +185,7 @@ pub struct PopupDecl {
     /// Surface 범위일 때 경계에서 안쪽으로 띄운다.
     pub scope_inset: bool,
     /// 사용자가 열면 키보드 포커스를 가져간다. 사용자 조작이 아닌 열기는 이 값과 관계없이 포커스가 없다.
+    /// 지금 host의 notifications는 이 값이 참이지만 단축키로 열 때는 포커스를 가져가지 않는다(열기 경로 불일치).
     pub focus_on_open: bool,
     pub keyboard: PopupKeyboard,
     pub escape: PopupEscape,
