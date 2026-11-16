@@ -613,37 +613,40 @@ $BundleExeCount = 1 + @(Get-ChildItem -Path $BundledPluginsDir -Directory).Count
 
 Write-Host "==> Verifying artifacts ($Arch)..."
 $VerifyDir = Join-Path $env:TEMP "tasty-verify-$([guid]::NewGuid())"
-Expand-Archive -Path $ArchivePath -DestinationPath $VerifyDir
-$VerifyExe = Join-Path $VerifyDir "tasty.exe"
-if (-not (Test-Path $VerifyExe)) {
+try {
+    Expand-Archive -Path $ArchivePath -DestinationPath $VerifyDir
+    $VerifyExe = Join-Path $VerifyDir "tasty.exe"
+    if (-not (Test-Path $VerifyExe)) {
+        Write-Error "tasty.exe not found in ZIP"
+        exit 1
+    }
+    Test-PeTree $VerifyDir $ArchiveName $BundleExeCount
+    Test-Launch $VerifyExe "$ArchiveName tasty.exe"
+    Test-NoticeTree $VerifyDir $ArchiveName
+    Test-BundledPluginTree (Join-Path $VerifyDir "plugins") $ArchiveName
+} finally {
     Remove-Item -Recurse -Force $VerifyDir -ErrorAction SilentlyContinue
-    Write-Error "tasty.exe not found in ZIP"
-    exit 1
 }
-Test-PeTree $VerifyDir $ArchiveName $BundleExeCount
-Test-Launch $VerifyExe "$ArchiveName tasty.exe"
-Test-NoticeTree $VerifyDir $ArchiveName
-Test-BundledPluginTree (Join-Path $VerifyDir "plugins") $ArchiveName
-Remove-Item -Recurse -Force $VerifyDir -ErrorAction SilentlyContinue
 
 $HeadlessVerifyDir = Join-Path $env:TEMP "tasty-verify-headless-$([guid]::NewGuid())"
-Expand-Archive -Path $HeadlessArchivePath -DestinationPath $HeadlessVerifyDir
-$HeadlessVerifyExe = Join-Path $HeadlessVerifyDir "tasty.exe"
-if (-not (Test-Path $HeadlessVerifyExe)) {
+try {
+    Expand-Archive -Path $HeadlessArchivePath -DestinationPath $HeadlessVerifyDir
+    $HeadlessVerifyExe = Join-Path $HeadlessVerifyDir "tasty.exe"
+    if (-not (Test-Path $HeadlessVerifyExe)) {
+        Write-Error "tasty.exe not found in $HeadlessArchiveName"
+        exit 1
+    }
+    if (-not (Test-Path (Join-Path $HeadlessVerifyDir "plugins"))) {
+        Write-Error "plugins not found in $HeadlessArchiveName"
+        exit 1
+    }
+    Test-PeTree $HeadlessVerifyDir $HeadlessArchiveName $BundleExeCount
+    Test-Launch $HeadlessVerifyExe "$HeadlessArchiveName tasty.exe"
+    Test-NoticeTree $HeadlessVerifyDir $HeadlessArchiveName
+    Test-BundledPluginTree (Join-Path $HeadlessVerifyDir "plugins") $HeadlessArchiveName
+} finally {
     Remove-Item -Recurse -Force $HeadlessVerifyDir -ErrorAction SilentlyContinue
-    Write-Error "tasty.exe not found in $HeadlessArchiveName"
-    exit 1
 }
-if (-not (Test-Path (Join-Path $HeadlessVerifyDir "plugins"))) {
-    Remove-Item -Recurse -Force $HeadlessVerifyDir -ErrorAction SilentlyContinue
-    Write-Error "plugins not found in $HeadlessArchiveName"
-    exit 1
-}
-Test-PeTree $HeadlessVerifyDir $HeadlessArchiveName $BundleExeCount
-Test-Launch $HeadlessVerifyExe "$HeadlessArchiveName tasty.exe"
-Test-NoticeTree $HeadlessVerifyDir $HeadlessArchiveName
-Test-BundledPluginTree (Join-Path $HeadlessVerifyDir "plugins") $HeadlessArchiveName
-Remove-Item -Recurse -Force $HeadlessVerifyDir -ErrorAction SilentlyContinue
 
 $BuildsMsi = (-not $SkipMsi -and $BuildProfile -ne "debug")
 $MsiPath = Join-Path $DistDir $MsiName
@@ -653,74 +656,72 @@ if ($BuildsMsi) {
         exit 1
     }
     $MsiExtract = Join-Path $env:TEMP "tasty-msi-$([guid]::NewGuid())"
-    if ($CanRunTarget) {
-        # 관리 설치로 MSI를 별도 디렉터리에 풀어 설치 트리 그대로 대조한다.
-        $msiProc = Start-Process -FilePath "msiexec.exe" -Wait -PassThru `
-            -ArgumentList @("/a", "`"$((Resolve-Path $MsiPath).Path)`"", "/qn", "TARGETDIR=`"$MsiExtract`"")
-        if ($msiProc.ExitCode -ne 0) {
-            Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
-            Write-Error "msiexec /a failed with exit code $($msiProc.ExitCode)"
-            exit 1
-        }
-        # 플러그인 폴더는 자기 고지 파일을 담을 수 있으므로 루트 인벤토리는 bin\plugins 밖에서 센다.
-        $inventory = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "THIRD_PARTY_LICENSES.md" |
-            Where-Object { $_.FullName -notmatch '\\bin\\plugins\\' })
-        if ($inventory.Count -ne 1) {
-            Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
-            Write-Error "expected one THIRD_PARTY_LICENSES.md outside bin\plugins in the MSI, found $($inventory.Count)"
-            exit 1
-        }
-        Test-NoticeTree $inventory[0].DirectoryName $MsiName
-        Test-PeTree $MsiExtract $MsiName $BundleExeCount
-        $msiExe = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "tasty.exe")
-        if ($msiExe.Count -ne 1) {
-            Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
-            Write-Error "expected one tasty.exe in the MSI, found $($msiExe.Count)"
-            exit 1
-        }
-        Test-BundledPluginTree (Join-Path $msiExe[0].DirectoryName "plugins") $MsiName
-    } else {
-        # 다른 아키텍처의 MSI는 이 호스트에서 관리 설치할 수 없으므로 WiX dark로 cabinet의 파일을 꺼낸다.
-        # 꺼낸 파일은 File Id 이름이라 main.wxs와 플러그인 fragment의 Id·Source 짝으로 상대 경로에 다시 놓는다.
-        # 플러그인 파일은 plugins\<id>\... 로 놓아 받은 폴더와 대조한다.
-        $Dark = Get-Command dark.exe -ErrorAction SilentlyContinue
-        if (-not $Dark) {
-            Write-Error "dark.exe not found next to candle.exe; cannot inspect the $Arch MSI on this $HostArch host"
-            exit 1
-        }
-        $DarkOut = Join-Path $MsiExtract "dark"
-        & $Dark.Source -nologo -x $DarkOut (Resolve-Path $MsiPath).Path (Join-Path $MsiExtract "decompiled.wxs")
-        if ($LASTEXITCODE -ne 0) {
-            Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
-            Write-Error "dark.exe failed with exit code $LASTEXITCODE"
-            exit 1
-        }
-        $MsiTree = Join-Path $MsiExtract "tree"
-        $WxsText = (Get-Content (Join-Path "wix" "main.wxs") -Raw) + (Get-Content $BundledPluginsWxs -Raw)
-        foreach ($fileElement in [regex]::Matches($WxsText, '<File\b[^>]*>')) {
-            $id = [regex]::Match($fileElement.Value, "\bId='([^']+)'").Groups[1].Value
-            $src = [regex]::Match($fileElement.Value, "\bSource='([^']+)'").Groups[1].Value
-            if (-not $id -or -not $src) { continue }
-            $rel = $src -replace '^\$\(var\.CargoTargetBinDir\)\\', ''
-            if ($rel.StartsWith($BundledPluginsSourcePrefix)) {
-                $rel = Join-Path "plugins" $rel.Substring($BundledPluginsSourcePrefix.Length)
-            }
-            $extracted = Join-Path (Join-Path $DarkOut "File") $id
-            if (-not (Test-Path $extracted)) {
-                $found = @(Get-ChildItem -Path $DarkOut -Recurse -File | Select-Object -First 5 | ForEach-Object { $_.FullName })
-                Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
-                Write-Error "File Id $id ($src) was not extracted from $MsiName; sample of extracted files: $($found -join ', ')"
+    try {
+        if ($CanRunTarget) {
+            # 관리 설치로 MSI를 별도 디렉터리에 풀어 설치 트리 그대로 대조한다.
+            $msiProc = Start-Process -FilePath "msiexec.exe" -Wait -PassThru `
+                -ArgumentList @("/a", "`"$((Resolve-Path $MsiPath).Path)`"", "/qn", "TARGETDIR=`"$MsiExtract`"")
+            if ($msiProc.ExitCode -ne 0) {
+                Write-Error "msiexec /a failed with exit code $($msiProc.ExitCode)"
                 exit 1
             }
-            $dest = Join-Path $MsiTree $rel
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null
-            Copy-Item $extracted -Destination $dest
+            # 플러그인 폴더는 자기 고지 파일을 담을 수 있으므로 루트 인벤토리는 bin\plugins 밖에서 센다.
+            $inventory = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "THIRD_PARTY_LICENSES.md" |
+                Where-Object { $_.FullName -notmatch '\\bin\\plugins\\' })
+            if ($inventory.Count -ne 1) {
+                Write-Error "expected one THIRD_PARTY_LICENSES.md outside bin\plugins in the MSI, found $($inventory.Count)"
+                exit 1
+            }
+            Test-NoticeTree $inventory[0].DirectoryName $MsiName
+            Test-PeTree $MsiExtract $MsiName $BundleExeCount
+            $msiExe = @(Get-ChildItem -Path $MsiExtract -Recurse -File -Filter "tasty.exe")
+            if ($msiExe.Count -ne 1) {
+                Write-Error "expected one tasty.exe in the MSI, found $($msiExe.Count)"
+                exit 1
+            }
+            Test-BundledPluginTree (Join-Path $msiExe[0].DirectoryName "plugins") $MsiName
+        } else {
+            # 다른 아키텍처의 MSI는 이 호스트에서 관리 설치할 수 없으므로 WiX dark로 cabinet의 파일을 꺼낸다.
+            # 꺼낸 파일은 File Id 이름이라 main.wxs와 플러그인 fragment의 Id·Source 짝으로 상대 경로에 다시 놓는다.
+            # 플러그인 파일은 plugins\<id>\... 로 놓아 받은 폴더와 대조한다.
+            $Dark = Get-Command dark.exe -ErrorAction SilentlyContinue
+            if (-not $Dark) {
+                Write-Error "dark.exe not found next to candle.exe; cannot inspect the $Arch MSI on this $HostArch host"
+                exit 1
+            }
+            $DarkOut = Join-Path $MsiExtract "dark"
+            & $Dark.Source -nologo -x $DarkOut (Resolve-Path $MsiPath).Path (Join-Path $MsiExtract "decompiled.wxs")
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "dark.exe failed with exit code $LASTEXITCODE"
+                exit 1
+            }
+            $MsiTree = Join-Path $MsiExtract "tree"
+            $WxsText = (Get-Content (Join-Path "wix" "main.wxs") -Raw) + (Get-Content $BundledPluginsWxs -Raw)
+            foreach ($fileElement in [regex]::Matches($WxsText, '<File\b[^>]*>')) {
+                $id = [regex]::Match($fileElement.Value, "\bId='([^']+)'").Groups[1].Value
+                $src = [regex]::Match($fileElement.Value, "\bSource='([^']+)'").Groups[1].Value
+                if (-not $id -or -not $src) { continue }
+                $rel = $src -replace '^\$\(var\.CargoTargetBinDir\)\\', ''
+                if ($rel.StartsWith($BundledPluginsSourcePrefix)) {
+                    $rel = Join-Path "plugins" $rel.Substring($BundledPluginsSourcePrefix.Length)
+                }
+                $extracted = Join-Path (Join-Path $DarkOut "File") $id
+                if (-not (Test-Path $extracted)) {
+                    $found = @(Get-ChildItem -Path $DarkOut -Recurse -File | Select-Object -First 5 | ForEach-Object { $_.FullName })
+                    Write-Error "File Id $id ($src) was not extracted from $MsiName; sample of extracted files: $($found -join ', ')"
+                    exit 1
+                }
+                $dest = Join-Path $MsiTree $rel
+                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null
+                Copy-Item $extracted -Destination $dest
+            }
+            Test-NoticeTree $MsiTree $MsiName
+            Test-PeTree $MsiTree $MsiName $BundleExeCount
+            Test-BundledPluginTree (Join-Path $MsiTree "plugins") $MsiName
         }
-        Test-NoticeTree $MsiTree $MsiName
-        Test-PeTree $MsiTree $MsiName $BundleExeCount
-        Test-BundledPluginTree (Join-Path $MsiTree "plugins") $MsiName
+    } finally {
+        Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
     }
-    Remove-Item -Recurse -Force $MsiExtract -ErrorAction SilentlyContinue
 }
 
 $ShaSumsPath = Join-Path $DistDir $ShaSumsName
