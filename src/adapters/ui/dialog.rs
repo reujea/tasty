@@ -288,6 +288,19 @@ fn category_validation(
     }
 }
 
+/// 이름 바꾸기 팝업의 대상이 아직 있는지. 범위가 대상의 상위 자리라 범위만으로는 대상 소멸을 알 수 없어
+/// 팝업 정리 단계가 그리기와 무관하게 매 프레임 부른다. 요청이 비었으면 거짓이다(그리기도 닫는다).
+pub(crate) fn rename_popup_target_alive(
+    state: &MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool {
+    state
+        .dialogs
+        .rename
+        .as_ref()
+        .is_some_and(|(target, _)| rename_target_exists(target, engine))
+}
+
 fn rename_target_exists(
     target: &RenameTarget,
     engine: &crate::runtime::engine_read::EngineRead<'_>,

@@ -189,6 +189,25 @@ fn apply_target_pane(
     }
 }
 
+/// 탭 프리셋 팝업의 대상 탭이 아직 있는지. 범위(그 탭의 pane)가 남아도 탭이 닫히면 거짓이다.
+/// 팝업 정리 단계가 그리기와 무관하게 매 프레임 부른다.
+pub(crate) fn tab_popup_target_alive(
+    state: &MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool {
+    let target = state.dialogs.preset_apply_targets.get(PresetKind::Tab);
+    apply_target_pane(PresetKind::Tab, target, engine).is_ok()
+}
+
+/// pane 프리셋 팝업의 대상 pane 이 아직 있는지. 범위(그 pane 의 workspace)가 남아도 pane 이 닫히면 거짓이다.
+pub(crate) fn pane_popup_target_alive(
+    state: &MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool {
+    let target = state.dialogs.preset_apply_targets.get(PresetKind::Pane);
+    apply_target_pane(PresetKind::Pane, target, engine).is_ok()
+}
+
 /// pane 의 탭 또는 pane 프리셋 적용 팝업을 대상이 보이는 상위 범위로 연다. 탭 프리셋은 그 pane 에서 선택된 탭이
 /// 대상이고 범위는 그 pane, pane 프리셋은 범위가 그 pane 의 workspace 다. 대상을 찾지 못하면 열지 않고 warn 을 남긴다.
 pub(crate) fn open_for_pane(

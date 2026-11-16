@@ -67,6 +67,14 @@ fn target(
     Some((ws.name.clone(), binding.profile.clone(), pending.close.last))
 }
 
+/// 닫을 원격 행이 아직 저장된 원격 행으로 있는지. 범위가 창이라 팝업 정리 단계가 매 프레임 부른다.
+pub(crate) fn target_alive(
+    state: &MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool {
+    target(state, engine).is_some()
+}
+
 pub fn confirm_close_remote_title(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,

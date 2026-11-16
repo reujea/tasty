@@ -776,10 +776,8 @@ fn surface_display_path_unknown_surface_is_none() {
 // 포커스가 없는 pane에서 발생한 탭 바 입력으로 해당 pane이 선택되는지 검사한다.
 
 #[cfg(feature = "gui")]
-pub(crate) fn two_pane_fixture() -> (
-    RequestContext,
-    crate::runtime::engine_session::EngineSession,
-) {
+/// `two_pane_fixture`의 구조 사건. 시험이 같은 기록 위에 닫기 사건을 이어 적용할 때 쓴다.
+pub(crate) fn two_pane_events() -> Vec<tasty_core::DomainEvent> {
     use tasty_core::DomainEvent as E;
     let mut events = vec![
         E::CategoryCreated {
@@ -817,7 +815,15 @@ pub(crate) fn two_pane_fixture() -> (
             },
         });
     }
-    let (mut state, session) = test_state_from_model(test_model(events));
+    events
+}
+
+#[cfg(feature = "gui")]
+pub(crate) fn two_pane_fixture() -> (
+    RequestContext,
+    crate::runtime::engine_session::EngineSession,
+) {
+    let (mut state, session) = test_state_from_model(test_model(two_pane_events()));
     state
         .navigation
         .select_pane(session.core_state.workspace_at(0).unwrap(), 20);

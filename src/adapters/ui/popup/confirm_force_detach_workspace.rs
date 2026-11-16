@@ -83,6 +83,14 @@ pub fn confirm_force_detach_workspace_sizer(
     size_for(body_len)
 }
 
+/// 확인할 workspace 가 아직 있고 점유돼 있는지. 범위가 창이라 팝업 정리 단계가 매 프레임 부른다.
+pub(crate) fn target_alive(
+    state: &MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool {
+    resolve_target(state, engine).is_some()
+}
+
 /// PopupDef::on_close entry point — 어떤 경로로 닫히든(취소/외부/Escape) 대상을 비운다.
 pub fn on_close_confirm_force_detach_workspace(
     _ctx: &egui::Context,

@@ -5,7 +5,7 @@
 use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
 use crate::state::{MainViewState, RenameTarget};
 
-const RENAME_POPUP_ID: crate::adapters::ui::popup::PopupId = "rename";
+pub(crate) const RENAME_POPUP_ID: crate::adapters::ui::popup::PopupId = "rename";
 
 /// `target`의 범위로 이름 바꾸기를 연다. 대상이 없으면 경고 로그만 남기고 false다.
 pub(crate) fn open(

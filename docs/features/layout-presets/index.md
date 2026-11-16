@@ -104,7 +104,7 @@ mini-tab strip 은 `tab_bar.rs`, split 라인은 `divider.rs` 위젯을 재사�
 ### 적용 — 포커스 규칙
 
 - 단축키(`apply_workspace_preset`/`apply_tab_preset`/`apply_pane_preset`, 기본 빈 칸): 적용 popup → 선택 → 새 인스턴스 생성 + **포커스 이동**.
-- 탭·pane 적용 popup은 열 때 대상을 정한다. 탭 프리셋은 그 pane에서 선택된 탭, pane 프리셋은 그 pane이 대상이다. 대상을 통째로 바꾸므로 popup은 대상이 보이는 상위 자리에 연다. 탭 popup은 그 탭의 pane 영역, pane popup은 그 pane이 있는 workspace 범위다. popup이 열린 동안 포커스가 다른 pane으로 옮겨져도 적용은 처음 대상의 pane에 한다. 대상이 사라졌으면 적용하지 않고 warn 로그를 남긴다. 대상 탭·pane을 찾지 못하면 popup을 열지 않는다. 탭 popup과 pane popup은 대상과 고른 프리셋을 따로 가진다. 한쪽을 열거나 닫아도, 둘이 함께 그려져도 다른 쪽의 대상과 선택은 그대로다. 같은 종류의 popup이 열린 채 다른 탭·pane에서 다시 열면 범위와 대상이 모두 새 요청으로 바뀐다. 범위가 다르면 기존 popup을 닫고 새 범위로 다시 열고, 같은 workspace의 다른 pane처럼 범위가 같으면 popup은 그대로 두고 대상만 바뀐다.
+- 탭·pane 적용 popup은 열 때 대상을 정한다. 탭 프리셋은 그 pane에서 선택된 탭, pane 프리셋은 그 pane이 대상이다. 대상을 통째로 바꾸므로 popup은 대상이 보이는 상위 자리에 연다. 탭 popup은 그 탭의 pane 영역, pane popup은 그 pane이 있는 workspace 범위다. popup이 열린 동안 포커스가 다른 pane으로 옮겨져도 적용은 처음 대상의 pane에 한다. 대상 탭·pane이 닫히면 popup이 보이든 보이지 않든 다음 프레임에 popup을 닫고 대상과 선택을 비운다. 탭 프리셋은 pane이 남고 탭만 닫혀도 닫힌다. 적용하는 순간 대상이 이미 없으면 적용하지 않고 warn 로그를 남긴다. 대상 탭·pane을 찾지 못하면 popup을 열지 않는다. 탭 popup과 pane popup은 대상과 고른 프리셋을 따로 가진다. 한쪽을 열거나 닫아도, 둘이 함께 그려져도 다른 쪽의 대상과 선택은 그대로다. 같은 종류의 popup이 열린 채 다른 탭·pane에서 다시 열면 범위와 대상이 모두 새 요청으로 바뀐다. 범위가 다르면 기존 popup을 닫고 새 범위로 다시 열고, 같은 workspace의 다른 pane처럼 범위가 같으면 popup은 그대로 두고 대상만 바뀐다.
 - **CLI/IPC `preset.apply` 는 항상 `focus: false`** — 포커스 독립 원칙. 단축키 호출만 포커스 이동.
 
 terminal 시작 명령어는 `cd <cwd>\r` 와 합쳐 고정 preset 준비 입력으로 만들어 journal 실행에 전달한다(`src/runtime/preset_plan.rs`).

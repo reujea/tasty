@@ -27,7 +27,7 @@ fn drain_on_close_hooks(
     });
 }
 
-/// workspace·탭·surface 범위의 대상 ID가 아직 엔진에 있는지 확인한다. 창·pane 범위는 대상 소멸로 닫지 않는다.
+/// 창을 뺀 범위의 대상 ID가 아직 엔진에 있는지 확인한다. 창 범위는 대상 소멸로 닫지 않는다.
 /// surface는 비활성 탭에 있어도 살아 있는 것으로 본다. 변환은 같은 surface ID를 유지한다.
 fn scope_target_exists(
     scope: &crate::adapters::ui::popup::PopupScope,
@@ -38,7 +38,54 @@ fn scope_target_exists(
         PopupScope::Workspace(ws_id) => engine.find_workspace_index_for_id(*ws_id).is_some(),
         PopupScope::Tab(tab_id) => engine.find_pane_for_tab(*tab_id).is_some(),
         PopupScope::Surface(sid) => engine.find_workspace_index_for_surface(*sid).is_some(),
-        PopupScope::Window | PopupScope::Pane(_) => true,
+        PopupScope::Pane(pane_id) => engine.has_pane(*pane_id),
+        PopupScope::Window => true,
+    }
+}
+
+/// 대상 생존 판정. 범위가 살아 있으면 참일 때만 팝업을 남긴다.
+type TargetAlive = fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>) -> bool;
+
+/// 범위와 작용 대상이 다른 팝업(대상이 보이는 상위 자리로 여는 팝업)과 그 대상 생존 판정.
+/// 범위가 살아 있어도 대상이 사라지면 닫는다. 범위가 보이지 않으면 그리기 단계의 대상 검사가 돌지 않으므로
+/// 이 판정은 그리기와 무관하게 정리 단계에서 한다.
+const TARGET_CHECKS: [(crate::adapters::ui::popup::PopupId, TargetAlive); 5] = [
+    (
+        crate::adapters::ui::rename_popup::RENAME_POPUP_ID,
+        crate::adapters::ui::dialog::rename_popup_target_alive,
+    ),
+    (
+        crate::adapters::ui::popup::preset_apply::APPLY_TAB_POPUP_ID,
+        crate::adapters::ui::popup::preset_apply::tab_popup_target_alive,
+    ),
+    (
+        crate::adapters::ui::popup::preset_apply::APPLY_PANE_POPUP_ID,
+        crate::adapters::ui::popup::preset_apply::pane_popup_target_alive,
+    ),
+    (
+        crate::adapters::ui::popup::confirm_force_detach_workspace::CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+        crate::adapters::ui::popup::confirm_force_detach_workspace::target_alive,
+    ),
+    (
+        crate::adapters::ui::popup::confirm_close_remote::CONFIRM_CLOSE_REMOTE_POPUP_ID,
+        crate::adapters::ui::popup::confirm_close_remote::target_alive,
+    ),
+];
+
+/// 범위 대상이나 작용 대상이 사라진 열린 팝업을 닫는다. 매 프레임 그리기 전에 돈다.
+/// 닫힌 팝업은 closed_queue에 들어가 같은 프레임의 on_close 훅이 대상·대기 상태를 비운다.
+fn close_orphans(state: &mut MainViewState, engine: &crate::runtime::engine_read::EngineRead<'_>) {
+    state
+        .popups
+        .close_scope_orphans(|scope| scope_target_exists(scope, engine));
+    let gone: Vec<crate::adapters::ui::popup::PopupId> = TARGET_CHECKS
+        .iter()
+        .filter(|(id, alive)| state.popups.is_open(id) && !alive(state, engine))
+        .map(|(id, _)| *id)
+        .collect();
+    for id in gone {
+        // intent-exempt: 작용 대상이 사라진 팝업의 수명 정리. 범위 고아 정리와 같은 단계이며 포커스·선택은 바꾸지 않는다.
+        state.popups.close(id);
     }
 }
 
@@ -103,10 +150,8 @@ pub(crate) fn draw_popup_layer(
         }
     }
 
-    // intent-exempt: 범위 대상이 사라진 팝업의 수명 정리. 포커스·선택은 바꾸지 않는다.
-    state
-        .popups
-        .close_scope_orphans(|scope| scope_target_exists(scope, engine));
+    // intent-exempt: 범위 대상이나 작용 대상이 사라진 팝업의 수명 정리. 포커스·선택은 바꾸지 않는다.
+    close_orphans(state, engine);
 
     // host·plugin 중 최상단 팝업 하나가 Escape를 처리한다. plugin 순번은 직전 프레임
     // 값이므로 plugin 팝업을 처음 연 프레임에는 host가 대상으로 남을 수 있다.
@@ -314,3 +359,7 @@ mod on_close_drain_tests {
         assert!(state.popups.take_closed_queue().is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "frame_orphan_tests.rs"]
+mod orphan_tests;
