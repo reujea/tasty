@@ -293,7 +293,7 @@ fn escape_after_a_terminal_click_keeps_the_bar_open() {
         "the next frame surrenders the input's focus"
     );
     // Known limit: an Escape on the frame right after the click frame would still close the bar,
-    // because no frame has surrendered the focus yet. Key bubbling (popup-scope T6) removes it.
+    // because no frame has surrendered the focus yet. Key bubbling from the focus position removes it.
     escape_frame(&ctx, &mut state, &engine, vec![escape_event()]);
     assert!(state.popups.is_open(SEARCH_BAR_POPUP_ID));
     assert_eq!(state.search.query, "needle");

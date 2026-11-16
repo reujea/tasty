@@ -146,7 +146,7 @@ pub fn draw_search_bar(
 
         // winit Esc 단계가 팝업 포커스를 먼저 놓고, egui는 그 Esc 프레임 시작에 입력칸
         // 포커스를 푼다. 직전 프레임에 입력칸이 포커스였다면 이 Esc는 검색 바를 향한 것이다.
-        // 이 판정은 popup-scope T6 키 버블링이 Esc를 검색 바에 먼저 주게 되면 대체한다.
+        // Esc를 포커스 위치에서 위로 넘기는 키 버블링이 들어오면 이 판정을 대체한다.
         let escape_ended_input_focus = !response.has_focus()
             && ui.memory(|m| m.had_focus_last_frame(query_id))
             && ui.input(|i| i.key_pressed(egui::Key::Escape));
