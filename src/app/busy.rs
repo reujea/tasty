@@ -103,7 +103,7 @@ mod tests {
         state.dialogs.mouse_capture_banner_menu_target = Some(sid);
         state.popups.open(
             MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Window,
+            crate::model::popup_kind::PopupScope::Surface(sid),
         );
     }
 

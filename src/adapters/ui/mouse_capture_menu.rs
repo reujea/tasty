@@ -164,7 +164,11 @@ pub fn open(
     state.dispatch_intent(
         UiIntent::OpenPopup {
             id: MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
-            mode: OpenPopupMode::AtFocused(crate::model::popup_kind::PopupScope::Window, pos),
+            // 메뉴는 배너가 있는 surface 하나에 작용한다. 배너와 같은 surface 범위로 연다.
+            mode: OpenPopupMode::AtFocused(
+                crate::model::popup_kind::PopupScope::Surface(*surface_id),
+                pos,
+            ),
         }
         .from_user_menu("mouse_capture_banner"),
     );
@@ -681,5 +685,33 @@ mod tests {
         let rows = height.value() - pad * 2.0;
         assert!(rows > th.menu_item_height().value() * 2.0, "a row wrapped");
         assert_eq!(drawn.expect("drawn"), rows);
+    }
+
+    /// 메뉴는 배너가 있는 surface 하나에 작용하므로 그 surface 범위로 연다.
+    #[test]
+    fn the_menu_opens_in_the_banner_surface() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let mut engine = session.borrow_mut();
+        for def in crate::adapters::ui::popup::defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        let ctx = egui::Context::default();
+        let trigger = egui::Rect::from_min_size(egui::pos2(300.0, 40.0), egui::vec2(24.0, 24.0));
+        let _frame = ctx.run(egui::RawInput::default(), |ctx| {
+            open(
+                &mut state,
+                &engine.read(),
+                ctx,
+                &BannerScope::Surface(101),
+                trigger,
+            );
+        });
+        for intent in state.take_pending_intents() {
+            crate::intent::popup::handle(&mut state, &mut engine, &intent);
+        }
+        assert_eq!(
+            state.popups.open_scope(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID),
+            Some(&crate::model::popup_kind::PopupScope::Surface(101))
+        );
     }
 }
