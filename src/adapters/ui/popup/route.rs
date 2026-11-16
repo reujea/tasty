@@ -31,8 +31,9 @@ impl ScopePath {
     }
 }
 
-/// 좌표 `pos` 의 범위 경로. surface 안이면 surface 와 그 조상을, 탭 바처럼 pane 안이지만 surface 밖이면
-/// pane 과 workspace 를, workspace 작업 영역 밖(사이드바·상태바)이면 window 만 담는다.
+/// 좌표 `pos` 의 범위 경로. surface 안이면 surface 와 그 조상을, 같은 탭의 surface 사이 분할선처럼 탭
+/// 콘텐츠 안이지만 surface 밖이면 tab 까지를, 탭 바처럼 pane 안이지만 탭 콘텐츠 밖이면 pane 과 workspace
+/// 를, workspace 작업 영역 밖(사이드바·상태바)이면 window 만 담는다.
 /// Workspace 는 작업 영역(`workspace_rect`) 안일 때만 담는다. 작업 영역이 없는 창은 담지 않는다.
 /// 사각형 판정은 포인터의 surface 판정(`surface_id_at_position`)과 같은 반열림 규칙이라, 맞닿은 경계 점은
 /// 오른쪽·아래 영역에 든다.
@@ -56,12 +57,45 @@ pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
         return ScopePath {
             workspace,
             pane: Some(pane),
+            tab: tab_content_at(layout, pane, x, y),
             ..ScopePath::default()
         };
     }
     ScopePath {
         workspace,
         ..ScopePath::default()
+    }
+}
+
+/// `pane` 의 활성 탭 콘텐츠 영역 안이면 그 탭. 콘텐츠 영역은 그 탭 surface 들을 감싸는 사각형이다.
+/// surface 들은 탭 바 아래 콘텐츠 영역을 간격을 두고 나눠 덮으므로 감싼 사각형이 콘텐츠 영역과 같다.
+fn tab_content_at(layout: &LayoutContext, pane: u32, x: LogicalPx, y: LogicalPx) -> Option<u32> {
+    let mut owned = layout
+        .surface_owners
+        .iter()
+        .filter(|o| o.pane == pane)
+        .filter_map(|o| {
+            layout
+                .surface_rects
+                .iter()
+                .find(|(id, _)| *id == o.surface)
+                .map(|(_, r)| (o.tab, logical(*r)))
+        });
+    let (tab, first) = owned.next()?;
+    let content = owned.fold(first, |acc, (_, r)| bounding(acc, r));
+    content.contains(x, y).then_some(tab)
+}
+
+/// 두 사각형을 함께 감싸는 사각형.
+fn bounding(a: LogicalRect, b: LogicalRect) -> LogicalRect {
+    let (x, y) = (a.x.min(b.x), a.y.min(b.y));
+    let right = (a.x + a.width).max(b.x + b.width);
+    let bottom = (a.y + a.height).max(b.y + b.height);
+    LogicalRect {
+        x,
+        y,
+        width: right - x,
+        height: bottom - y,
     }
 }
 

@@ -262,6 +262,52 @@ fn a_point_on_the_tab_bar_reaches_the_pane_but_no_surface() {
     );
 }
 
+/// 한 pane 의 탭 하나를 surface 둘로 1px 간격을 두고 나눈 레이아웃.
+fn one_tab_split_in_two() -> LayoutContext {
+    const TAB: u32 = 301;
+    let divider = HALF - LogicalPx(1.0);
+    let body = WORK_H - TAB_BAR;
+    let mut split = layout();
+    split.pane_rects = vec![(
+        PANE_L,
+        to_egui(rect(LogicalPx(0.0), LogicalPx(0.0), WIDTH, WORK_H)),
+    )];
+    split.surface_rects = vec![
+        (
+            SURFACE_L,
+            to_egui(rect(LogicalPx(0.0), TAB_BAR, divider, body)),
+        ),
+        (SURFACE_R, to_egui(rect(HALF, TAB_BAR, HALF, body))),
+    ];
+    split.active_tabs = vec![(PANE_L, 0)];
+    split.active_tab_ids = vec![(PANE_L, TAB)];
+    split.surface_owners = [SURFACE_L, SURFACE_R]
+        .into_iter()
+        .map(|surface| SurfaceOwner {
+            surface,
+            tab: TAB,
+            pane: PANE_L,
+        })
+        .collect();
+    split
+}
+
+/// 같은 탭 surface 사이의 분할선은 탭 콘텐츠라 Tab 까지 담고 어떤 Surface 도 담지 않는다.
+#[test]
+fn a_point_on_a_divider_inside_a_tab_stays_on_the_tab() {
+    let split = one_tab_split_in_two();
+    let path = path_at(&split, point(HALF - LogicalPx(0.5), LogicalPx(100.0)));
+    assert!(path.contains(&PopupScope::Tab(301)));
+    assert!(path.contains(&PopupScope::Pane(PANE_L)));
+    assert!(path.contains(&PopupScope::Workspace(WORKSPACE)));
+    assert!(!path.contains(&PopupScope::Surface(SURFACE_L)));
+    assert!(!path.contains(&PopupScope::Surface(SURFACE_R)));
+    // 같은 pane 의 탭 바는 여전히 Tab 을 담지 않는다.
+    let bar = path_at(&split, point(LogicalPx(100.0), TAB_BAR / 2.0));
+    assert!(bar.contains(&PopupScope::Pane(PANE_L)));
+    assert!(!bar.contains(&PopupScope::Tab(301)));
+}
+
 #[test]
 fn a_window_without_a_layout_puts_every_point_on_the_window_only() {
     let path = path_at(
