@@ -506,3 +506,59 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
     let placed = egui::Rect::from_min_size(popup.pos, popup.size);
     assert!(right.contains_rect(placed), "picker left R: {placed:?}");
 }
+
+/// owner 팝업을 연 직후, 그리기 전에 온 요청도 owner 의 결속 범위로 연다.
+/// 요청 직전에 manager 인스턴스로 범위를 다시 만들기 때문이다.
+#[test]
+fn a_trigger_before_the_first_draw_finds_a_just_opened_owner() {
+    let (mut state, mut session) = test_state();
+    let mut engine = session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let sid = state.focused_surface_id(&engine.read()).expect("surface");
+    let mut mgr = crate::plugin::PluginManager::with_registries(
+        std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+        std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+        std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+    );
+    mgr.insert_popup_instance_for_test(7, parent("surface", Some(sid)));
+    assert!(
+        state.plugin_popup_bound_scopes.is_empty(),
+        "no frame drawn yet"
+    );
+    crate::plugin_bridge::popup_scope::refresh_for_request(
+        &mut state,
+        "file_picker.trigger",
+        mgr.popup_instances(),
+    );
+    let caller = CallerContext::Plugin {
+        plugin_id: PLUGIN.into(),
+        permissions: std::sync::Arc::new(Default::default()),
+    };
+    let response = handle_trigger(
+        &mut state,
+        &mut engine,
+        &caller,
+        json!(1),
+        &json!({"owner_popup_instance": 7}),
+    );
+    assert!(response.result.is_some(), "{response:?}");
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(&mut state, &mut engine, &intent);
+    }
+    assert_eq!(picker_scope(&mut state), PopupScope::Surface(sid));
+}
+
+/// 다른 요청은 그리기 단계가 만든 결속 범위를 바꾸지 않는다.
+#[test]
+fn other_requests_leave_the_bound_scopes_alone() {
+    let (mut state, _session) = test_state();
+    let inst = parent("window", None);
+    crate::plugin_bridge::popup_scope::refresh_for_request(
+        &mut state,
+        "surface.list",
+        [(7, &inst)].into_iter(),
+    );
+    assert!(state.plugin_popup_bound_scopes.is_empty());
+}

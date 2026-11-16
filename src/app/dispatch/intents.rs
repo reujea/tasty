@@ -378,7 +378,14 @@ impl App {
         };
         if let Some(id) = target_id {
             let core = &mut self.services;
+            let mgr = self.plugin_manager.as_ref();
             let resp_opt = engines_mut!(self).window_pair(id).map(|(w, mut engine)| {
+                #[cfg(feature = "gui")]
+                crate::plugin_bridge::popup_scope::refresh_for_request(
+                    &mut w.state,
+                    &request.method,
+                    mgr.into_iter().flat_map(|m| m.popup_instances()),
+                );
                 let r =
                     ipc::handler::handle_checked_request(core, &mut w.state, &mut engine, checked);
                 w.base.state.dirty = true;
@@ -392,6 +399,12 @@ impl App {
         let owner_in_parked =
             named.and_then(|rid| engines_mut!(self).parked_session_with_resource(rid));
         if let Some((state, mut engine)) = owner_in_parked {
+            #[cfg(feature = "gui")]
+            crate::plugin_bridge::popup_scope::refresh_for_request(
+                state,
+                &request.method,
+                self.plugin_manager.iter().flat_map(|m| m.popup_instances()),
+            );
             let response = ipc::handler::handle_checked_request(
                 &mut self.services,
                 state,
@@ -408,7 +421,14 @@ impl App {
                 crate::core::request_target::unowned_target_message(rid, &request.method),
             ));
         }
+        let mgr = self.plugin_manager.as_ref();
         if let Some((state, mut engine)) = engines_mut!(self).first_parked_session() {
+            #[cfg(feature = "gui")]
+            crate::plugin_bridge::popup_scope::refresh_for_request(
+                state,
+                &request.method,
+                mgr.into_iter().flat_map(|m| m.popup_instances()),
+            );
             let response = ipc::handler::handle_checked_request(
                 &mut self.services,
                 state,

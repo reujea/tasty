@@ -34,7 +34,7 @@ pub(crate) fn declared_popup_scope(
         .map(|e| e.contribute.scope)
 }
 
-/// 열린 플러그인 팝업 인스턴스마다 소유 플러그인과 결속 범위. 매 프레임 그리기 전에 다시 만든다.
+/// 열린 플러그인 팝업 인스턴스마다 소유 플러그인과 결속 범위. 매 프레임 그리기 전과 파일 피커 요청 직전에 다시 만든다.
 /// 배치 결과(좁은 surface 라 창에 그린 범위)가 아니라 선언과 결속 대상으로 정한 값이다.
 pub(crate) type BoundPopupScopes = std::collections::HashMap<u64, (String, Option<PopupScope>)>;
 
@@ -81,14 +81,11 @@ pub(crate) fn plugin_picker_scope(
     }
 }
 
-/// 그리기 전에 인스턴스의 결속 범위를 기록하고, owner 팝업이 있는 파일 피커가 owner 를 따라가게 한다.
-/// owner 가 없는 피커와 owner 가 사라진 피커는 열 때 정한 범위를 그대로 둔다.
-/// 화면 배치만 바꾸며 입력 초안·선택·요청 ID는 유지한다.
-pub(crate) fn sync_plugin_popup_scopes<'a>(
-    state: &mut RequestContext,
+/// 열린 인스턴스마다 소유 플러그인과 선언·결속 대상으로 정한 범위.
+fn bound_popup_scopes<'a>(
     instances: impl Iterator<Item = (u64, &'a PopupInstance)>,
-) {
-    state.plugin_popup_bound_scopes = instances
+) -> BoundPopupScopes {
+    instances
         .map(|(id, inst)| {
             (
                 id,
@@ -98,7 +95,29 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
                 ),
             )
         })
-        .collect();
+        .collect()
+}
+
+/// 파일 피커 요청은 그리기 전에도 올 수 있다. 방금 연 owner 팝업도 찾도록
+/// 요청을 처리하기 직전에 plugin manager의 인스턴스로 결속 범위를 다시 만든다.
+pub(crate) fn refresh_for_request<'a>(
+    state: &mut RequestContext,
+    method: &str,
+    instances: impl Iterator<Item = (u64, &'a PopupInstance)>,
+) {
+    if method == "file_picker.trigger" {
+        state.plugin_popup_bound_scopes = bound_popup_scopes(instances);
+    }
+}
+
+/// 그리기 전에 인스턴스의 결속 범위를 기록하고, owner 팝업이 있는 파일 피커가 owner 를 따라가게 한다.
+/// owner 가 없는 피커와 owner 가 사라진 피커는 열 때 정한 범위를 그대로 둔다.
+/// 화면 배치만 바꾸며 입력 초안·선택·요청 ID는 유지한다.
+pub(crate) fn sync_plugin_popup_scopes<'a>(
+    state: &mut RequestContext,
+    instances: impl Iterator<Item = (u64, &'a PopupInstance)>,
+) {
+    state.plugin_popup_bound_scopes = bound_popup_scopes(instances);
     let Some(requester) = state
         .dialogs
         .file_picker
