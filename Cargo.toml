@@ -270,7 +270,7 @@ tray-icon = { version = "0.22", optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }
 objc2-foundation = { version = "0.3", features = ["NSString", "NSURL", "NSURLRequest", "NSObject", "NSArray", "NSDate", "NSSet", "NSURLAuthenticationChallenge", "NSURLCredential", "NSURLProtectionSpace", "NSURLSession", "NSProcessInfo"], optional = true }
-objc2-web-kit = { version = "0.3", features = ["WKWebView", "WKWebViewConfiguration", "WKPreferences", "WKWebsiteDataStore", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKFrameInfo", "WKWebpagePreferences", "WKContentRuleList", "WKContentRuleListStore", "WKUserContentController", "WKUserScript", "WKURLSchemeHandler", "WKURLSchemeTask", "WKWebsiteDataRecord", "block2"], optional = true }
+objc2-web-kit = { version = "0.3", features = ["WKWebView", "WKWebViewConfiguration", "WKPreferences", "WKWebsiteDataStore", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKFrameInfo", "WKWebpagePreferences", "WKContentRuleList", "WKContentRuleListStore", "WKUserContentController", "WKUserScript", "WKContentWorld", "WKURLSchemeHandler", "WKURLSchemeTask", "WKWebsiteDataRecord", "block2"], optional = true }
 objc2-app-kit = { version = "0.3", features = ["NSView", "NSWindow", "NSResponder", "NSMenu", "NSMenuItem", "NSEvent", "NSGraphics", "NSPasteboard", "NSPasteboardItem", "NSApplication", "NSRunningApplication", "NSImage", "NSDragging", "NSDraggingItem", "NSDraggingSession", "NSWorkspace", "libc"], optional = true }
 # WKContentRuleList의 completion handler에 필요한 블록 타입이다.
 block2 = { version = "0.6", optional = true }

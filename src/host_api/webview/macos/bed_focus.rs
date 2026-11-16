@@ -1,7 +1,9 @@
 //! 바탕 포커스 상태를 WKWebView 문서에 둔다. WKWebView에는 공개 사용자 스타일시트 API가 없어
 //! 스크립트로 `:root` 인라인 스타일에 계약 속성을 쓴다(`super::super::bed_focus::bed_focus_script`).
 //! 지금 문서에는 `evaluateJavaScript`로 쓰고, 그 뒤 싣는 문서에는 같은 내용의 문서 시작 사용자
-//! 스크립트가 첫 렌더 전에 쓴다. 측정은 `docs/design/systems/webview.md`의 "바탕 포커스 상태" 절에 있다.
+//! 스크립트가 첫 렌더 전에 쓴다. 둘 다 페이지와 분리된 client world에서 실행한다. page world의
+//! `evaluateJavaScript`는 페이지 스크립트를 끈 문서(`sandbox_scripts`)에서 실패한다.
+//! 측정은 `docs/design/systems/webview.md`의 "바탕 포커스 상태" 절에 있다.
 
 use std::cell::{Cell, RefCell};
 
@@ -10,7 +12,7 @@ use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_foundation::{NSError, NSString};
-use objc2_web_kit::{WKUserScript, WKUserScriptInjectionTime, WKWebView};
+use objc2_web_kit::{WKContentWorld, WKUserScript, WKUserScriptInjectionTime, WKWebView};
 
 use crate::webview::bed_focus::bed_focus_script;
 
@@ -39,8 +41,17 @@ impl BedFocus {
                 );
             }
         });
-        // SAFETY: main thread WKWebView API. WebKit이 블록을 복사해 완료 때 한 번 부른다.
-        unsafe { webview.evaluateJavaScript_completionHandler(&source, Some(&handler)) };
+        // SAFETY: main thread WKWebView API. frame이 None이면 main frame이다. WebKit이 블록을 복사해
+        // 완료 때 한 번 부른다.
+        #[allow(clippy::multiple_unsafe_ops_per_block)]
+        unsafe {
+            webview.evaluateJavaScript_inFrame_inContentWorld_completionHandler(
+                &source,
+                None,
+                &WKContentWorld::defaultClientWorld(mtm),
+                Some(&handler),
+            )
+        };
         self.state.set(Some(focused));
     }
 
@@ -52,13 +63,15 @@ impl BedFocus {
         source: &NSString,
         mtm: MainThreadMarker,
     ) {
-        // SAFETY: main thread. 새 page world 스크립트이고 아래 컨트롤러가 보관한다.
+        // SAFETY: main thread. 새 client world 스크립트이고 아래 컨트롤러가 보관한다.
+        #[allow(clippy::multiple_unsafe_ops_per_block)]
         let script = unsafe {
-            WKUserScript::initWithSource_injectionTime_forMainFrameOnly(
+            WKUserScript::initWithSource_injectionTime_forMainFrameOnly_inContentWorld(
                 mtm.alloc(),
                 source,
                 WKUserScriptInjectionTime::AtDocumentStart,
                 true,
+                &WKContentWorld::defaultClientWorld(mtm),
             )
         };
         let mut current = self.script.borrow_mut();
