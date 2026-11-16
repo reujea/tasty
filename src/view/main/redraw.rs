@@ -1,6 +1,7 @@
 use crate::app::plugin_display::PluginDisplay;
 use crate::runtime::engine_read::EngineRead;
 use crate::view::ui::View;
+use tasty_presets::PresetKind;
 
 use super::MainView;
 
@@ -654,22 +655,12 @@ impl MainView {
             }
             Some(5) => {
                 if let Err(e) = self.save_tab_preset_from_pane_tab(engine, pane_id, tab_index) {
-                    tracing::warn!("save tab preset failed: {e}");
-                    self.state.toasts.push(
-                        crate::i18n::t("preset.toast.save_failed"),
-                        crate::adapters::ui::ToastKind::Error,
-                        crate::adapters::ui::ToastScope::Window,
-                    );
+                    warn_preset_save_failed(&mut self.state, "tab", e);
                 }
             }
             Some(6) => {
                 if let Err(e) = self.save_pane_preset_from_pane_id(engine, pane_id) {
-                    tracing::warn!("save pane preset failed: {e}");
-                    self.state.toasts.push(
-                        crate::i18n::t("preset.toast.save_failed"),
-                        crate::adapters::ui::ToastKind::Error,
-                        crate::adapters::ui::ToastScope::Window,
-                    );
+                    warn_preset_save_failed(&mut self.state, "pane", e);
                 }
             }
             _ => {}
@@ -870,34 +861,11 @@ impl MainView {
             }
             Some(6) => {
                 if let Err(e) = self.save_pane_preset_from_pane_id(engine, pane_id) {
-                    tracing::warn!("save pane preset failed: {e}");
-                    self.state.toasts.push(
-                        crate::i18n::t("preset.toast.save_failed"),
-                        crate::adapters::ui::ToastKind::Error,
-                        crate::adapters::ui::ToastScope::Window,
-                    );
+                    warn_preset_save_failed(&mut self.state, "pane", e);
                 }
             }
-            Some(7) => {
-                self.state.select_pane(engine, pane_id);
-                crate::adapters::ui::popup::preset_apply::open_for_pane(
-                    &mut self.state,
-                    engine,
-                    tasty_presets::PresetKind::Tab,
-                    pane_id,
-                    crate::intent::UiIntent::from_user_context_menu,
-                );
-            }
-            Some(8) => {
-                self.state.select_pane(engine, pane_id);
-                crate::adapters::ui::popup::preset_apply::open_for_pane(
-                    &mut self.state,
-                    engine,
-                    tasty_presets::PresetKind::Pane,
-                    pane_id,
-                    crate::intent::UiIntent::from_user_context_menu,
-                );
-            }
+            Some(7) => open_pane_preset_popup(&mut self.state, engine, pane_id, PresetKind::Tab),
+            Some(8) => open_pane_preset_popup(&mut self.state, engine, pane_id, PresetKind::Pane),
             _ => {}
         }
     }
@@ -953,12 +921,7 @@ impl MainView {
                 }
                 Some(5) => {
                     if let Err(e) = this.save_workspace_preset_from_idx(engine, ws_idx) {
-                        tracing::warn!("save workspace preset failed: {e}");
-                        this.state.toasts.push(
-                            crate::i18n::t("preset.toast.save_failed"),
-                            crate::adapters::ui::ToastKind::Error,
-                            crate::adapters::ui::ToastScope::Window,
-                        );
+                        warn_preset_save_failed(&mut this.state, "workspace", e);
                     }
                 }
                 // 상태를 변경하는 닫기 호출은 match guard에 넣지 않는다.
@@ -1191,33 +1154,16 @@ impl MainView {
                 }
                 Some(4) => {
                     // 원격 워크스페이스 추가 팝업 — 카테고리 헤더 우클릭 진입(사용자 조작).
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
+                    open_window_popup(
+                        &mut this.state,
+                        crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
                     );
                 }
                 Some(5) => {
                     // 이 카테고리 소속으로 프리셋 적용 — "+" 버튼 메뉴와 동일 팝업
                     // (APPLY_WORKSPACE_POPUP_ID) 재사용, 대상 카테고리만 임시 상태로 기억.
                     this.state.dialogs.preset_apply_target_category = Some(cat_id);
-                    this.state
-                        .dialogs
-                        .preset_picker_selection
-                        .clear(tasty_presets::PresetKind::Workspace);
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
-                    );
+                    open_apply_workspace_popup(&mut this.state);
                 }
                 Some(1) => {
                     crate::adapters::ui::category_actions::open_rename_category_dialog(
@@ -1274,14 +1220,9 @@ impl MainView {
                     );
                 }
                 Some(2) => {
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
+                    open_window_popup(
+                        &mut this.state,
+                        crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
                     );
                 }
                 _ => {}
@@ -1950,29 +1891,12 @@ impl MainView {
             &items,
             move |this, _engine, result| match result {
                 Some(1) => {
-                    this.state
-                        .dialogs
-                        .preset_picker_selection
-                        .clear(tasty_presets::PresetKind::Workspace);
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
-                    );
+                    open_apply_workspace_popup(&mut this.state);
                 }
                 Some(2) => {
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                                crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
-                        .from_user_context_menu(),
+                    open_window_popup(
+                        &mut this.state,
+                        crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
                     );
                 }
                 _ => {}
@@ -1999,29 +1923,68 @@ impl MainView {
             }
             match result {
                 Some(1) => {
-                    this.state.select_pane(engine, pane_id);
-                    crate::adapters::ui::popup::preset_apply::open_for_pane(
-                        &mut this.state,
-                        engine,
-                        tasty_presets::PresetKind::Tab,
-                        pane_id,
-                        crate::intent::UiIntent::from_user_context_menu,
-                    );
+                    open_pane_preset_popup(&mut this.state, engine, pane_id, PresetKind::Tab)
                 }
                 Some(2) => {
-                    this.state.select_pane(engine, pane_id);
-                    crate::adapters::ui::popup::preset_apply::open_for_pane(
-                        &mut this.state,
-                        engine,
-                        tasty_presets::PresetKind::Pane,
-                        pane_id,
-                        crate::intent::UiIntent::from_user_context_menu,
-                    );
+                    open_pane_preset_popup(&mut this.state, engine, pane_id, PresetKind::Pane)
                 }
                 _ => {}
             }
         });
     }
+}
+
+fn warn_preset_save_failed(
+    state: &mut crate::state::MainViewState,
+    what: &str,
+    e: impl std::fmt::Display,
+) {
+    tracing::warn!("save {what} preset failed: {e}");
+    state.toasts.push(
+        crate::i18n::t("preset.toast.save_failed"),
+        crate::adapters::ui::ToastKind::Error,
+        crate::adapters::ui::ToastScope::Window,
+    );
+}
+
+fn open_pane_preset_popup(
+    state: &mut crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+    pane_id: u32,
+    kind: PresetKind,
+) {
+    state.select_pane(engine, pane_id);
+    crate::adapters::ui::popup::preset_apply::open_for_pane(
+        state,
+        engine,
+        kind,
+        pane_id,
+        crate::intent::UiIntent::from_user_context_menu,
+    );
+}
+
+/// 특정 대상에 매이지 않는 팝업이라 창 범위로 연다.
+fn open_window_popup(state: &mut crate::state::MainViewState, id: &'static str) {
+    state.dispatch_intent(
+        crate::intent::UiIntent::OpenPopup {
+            id,
+            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                crate::model::popup_kind::PopupScope::Window,
+            ),
+        }
+        .from_user_context_menu(),
+    );
+}
+
+fn open_apply_workspace_popup(state: &mut crate::state::MainViewState) {
+    state
+        .dialogs
+        .preset_picker_selection
+        .clear(PresetKind::Workspace);
+    open_window_popup(
+        state,
+        crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
+    );
 }
 
 /// workspace 메뉴의 마지막 묶음. 에이전트 mirror에는 서버를 유지하는 연결 끊기(8)를 서버 닫기(6) 위에
