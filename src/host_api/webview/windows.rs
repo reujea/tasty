@@ -1049,6 +1049,8 @@ impl PlatformWebView {
 
 impl Drop for PlatformWebView {
     fn drop(&mut self) {
+        // 붙잡은 탐색을 버리고, controller를 닫은 뒤 늦게 온 바탕 포커스 완료가 탐색을 보내지 않게 한다.
+        self.bed_focus.close();
         if let Some(source) = &self.entry_source {
             source.retire();
             entry_adapter::poll(source, &self._environment, &self.entry_pending);

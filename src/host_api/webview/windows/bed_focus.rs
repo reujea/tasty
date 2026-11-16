@@ -47,6 +47,11 @@ impl BedFocusScript {
         }
     }
 
+    /// view가 사라진다. 붙잡은 탐색을 버리고 늦게 온 완료가 아무것도 하지 않게 한다.
+    pub(super) fn close(&self) {
+        self.delivery.borrow_mut().close();
+    }
+
     /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다. 참이면 같은 값을 다시 받아 적용한다.
     pub(super) fn take_failed(&self) -> bool {
         self.delivery.borrow_mut().take_failed()

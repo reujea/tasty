@@ -63,6 +63,8 @@ pub(crate) struct BedFocusDelivery<T> {
     failed: bool,
     /// 이미 경고를 남겼다. 그 뒤 실패는 debug로 남긴다.
     warned: bool,
+    /// view가 사라졌다. 그 뒤 오는 요청·탐색·완료는 아무것도 하지 않는다.
+    closed: bool,
 }
 
 /// [`BedFocusDelivery::request`]가 정한 할 일.
@@ -89,6 +91,7 @@ impl<T> Default for BedFocusDelivery<T> {
             apply_failed: false,
             failed: false,
             warned: false,
+            closed: false,
         }
     }
 }
@@ -96,8 +99,11 @@ impl<T> Default for BedFocusDelivery<T> {
 #[cfg(any(windows, test))]
 impl<T> BedFocusDelivery<T> {
     /// 값을 요청한다. 새 값이면 등록과 적용을 모두 하고 장벽을 세운다. 같은 값이면 실패한 쪽만 다시
-    /// 한다. 할 일이 없으면 `None`이다.
+    /// 한다. 할 일이 없거나 view가 사라졌으면 `None`이다.
     pub(crate) fn request(&mut self, focused: bool) -> Option<BedFocusWork> {
+        if self.closed {
+            return None;
+        }
         if self.value != Some(focused) {
             self.value = Some(focused);
             self.latest += 1;
@@ -125,8 +131,12 @@ impl<T> BedFocusDelivery<T> {
         (register.is_some() || apply.is_some()).then_some(BedFocusWork { register, apply })
     }
 
-    /// 호스트 탐색을 지금 보낼지 정한다. 등록을 기다리는 중이면 붙잡고 `None`을 돌려준다.
+    /// 호스트 탐색을 지금 보낼지 정한다. 등록을 기다리는 중이면 붙잡고 `None`을 돌려준다. view가
+    /// 사라졌으면 버린다.
     pub(crate) fn navigate(&mut self, navigation: T) -> Option<T> {
+        if self.closed {
+            return None;
+        }
         if self.barrier {
             self.deferred.push(navigation);
             None
@@ -136,8 +146,11 @@ impl<T> BedFocusDelivery<T> {
     }
 
     /// `generation` 등록이 `id`로 끝났다. 지울 id와, 마지막 세대면 붙잡았던 탐색을 받은 순서대로
-    /// 돌려준다.
+    /// 돌려준다. view가 사라졌으면 아무것도 돌려주지 않는다.
     pub(crate) fn registered(&mut self, generation: u64, id: String) -> (Vec<String>, Vec<T>) {
+        if self.closed {
+            return (Vec::new(), Vec::new());
+        }
         if generation != self.latest {
             return (vec![id], Vec::new());
         }
@@ -150,7 +163,7 @@ impl<T> BedFocusDelivery<T> {
 
     /// `generation` 등록이 실패했다. 마지막 세대면 실패로 두고 붙잡았던 탐색을 돌려준다.
     pub(crate) fn registration_failed(&mut self, generation: u64) -> Vec<T> {
-        if generation != self.latest {
+        if self.closed || generation != self.latest {
             return Vec::new();
         }
         self.barrier = false;
@@ -161,7 +174,7 @@ impl<T> BedFocusDelivery<T> {
 
     /// `number` 적용이 실패했다. 마지막 적용일 때만 실패로 둔다.
     pub(crate) fn apply_failed(&mut self, number: u64) {
-        if number != self.applied {
+        if self.closed || number != self.applied {
             return;
         }
         self.apply_failed = true;
@@ -176,6 +189,19 @@ impl<T> BedFocusDelivery<T> {
     /// 실패를 경고로 남길지. view마다 첫 실패만 참이다.
     pub(crate) fn first_failure(&mut self) -> bool {
         !std::mem::replace(&mut self.warned, true)
+    }
+
+    /// view가 사라진다. 붙잡은 탐색을 버리고, 그 뒤 오는 요청·탐색·완료를 무시한다. 늦게 온 등록
+    /// 완료가 닫힌 view에 탐색을 보내지 않게 한다.
+    pub(crate) fn close(&mut self) {
+        self.closed = true;
+        self.barrier = false;
+        self.deferred.clear();
+    }
+
+    #[cfg(test)]
+    fn held_navigations(&self) -> usize {
+        self.deferred.len()
     }
 }
 
@@ -289,6 +315,23 @@ mod tests {
         d.apply_failed(2);
         assert!(d.take_failed());
         assert_eq!(d.request(false), work(None, Some(3)));
+    }
+
+    #[test]
+    fn a_closed_view_drops_held_navigations_and_ignores_late_completions() {
+        let mut d = Delivery::default();
+        assert_eq!(d.request(false), work(Some(1), Some(1)));
+        assert_eq!(d.navigate("load"), None);
+        assert_eq!(d.navigate("reload"), None);
+        d.close();
+        assert_eq!(d.held_navigations(), 0);
+        assert_eq!(d.registered(1, "a".into()), (vec![], vec![]));
+        assert_eq!(d.registration_failed(1), Vec::<&str>::new());
+        d.apply_failed(1);
+        assert!(!d.take_failed());
+        assert_eq!(d.navigate("late"), None);
+        assert_eq!(d.held_navigations(), 0);
+        assert_eq!(d.request(true), None);
     }
 
     #[test]
