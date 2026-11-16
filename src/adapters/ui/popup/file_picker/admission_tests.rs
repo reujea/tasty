@@ -30,6 +30,10 @@ fn enter(
             &["html"],
         ),
         Caller::Plugin => {
+            // owner 팝업은 그리기 전 단계가 기록한 결속 범위로 찾는다.
+            state
+                .plugin_popup_bound_scopes
+                .insert(7, ("com.example.picker".into(), Some(PopupScope::Window)));
             return Some(handle_trigger(
                 state,
                 engine,

@@ -20,7 +20,11 @@ fn trigger(
         engine,
         &plugin_caller(),
         serde_json::json!(1),
-        &serde_json::json!({ "filters": ["md"] }),
+        // 범위는 출발 surface 에서 나온다. 없으면 피커가 열리지 않는다.
+        &serde_json::json!({
+            "filters": ["md"],
+            "origin_surface_id": state.focused_surface_id(&engine.read()),
+        }),
     );
     resp.result.expect("trigger succeeds")["request_id"]
         .as_u64()

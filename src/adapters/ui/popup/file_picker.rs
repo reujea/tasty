@@ -999,6 +999,7 @@ pub(crate) fn ensure_available(state: &MainViewState) -> Result<(), FilePickerBu
 /// 결과는 `request_id`와 함께 `FilePickerData::result`에 남아 App이 호출자에게 넘긴다.
 /// 로컬은 navigate에서 동기로 읽기 시작하고 원격은 요청을 큐에 넣는다.
 /// filters가 비면 확장자를 제한하지 않는다. Busy면 기존 상태와 pending intent를 그대로 둔다.
+/// `scope`는 피커가 작용하는 대상의 범위다. 여는 쪽이 정한다.
 pub(crate) fn open(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
@@ -1006,6 +1007,7 @@ pub(crate) fn open(
     location: crate::state::FilePickerLocation,
     filters: Vec<String>,
     opened_by: FilePickerOpenedBy,
+    scope: crate::model::popup_kind::PopupScope,
 ) -> Result<(), FilePickerBusy> {
     ensure_available(state)?;
     let (mirror_ws_id, dir) = match location {
@@ -1042,9 +1044,7 @@ pub(crate) fn open(
 
     let open_popup = crate::intent::UiIntent::OpenPopup {
         id: FILE_PICKER_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused(
-            crate::model::popup_kind::PopupScope::Window,
-        ),
+        mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
     };
     let dispatched = match opened_by {
         FilePickerOpenedBy::Plugin(req) => open_popup.from_agent_plugin(req.plugin_id),

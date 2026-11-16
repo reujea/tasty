@@ -258,7 +258,7 @@ markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저
 이미지 플러그인의 [저장]이 담당한다. 피커가 이미 열렸으면 `-32000`으로 거절하고 이미지 쪽은
 경고 로그를 남기며 입력칸을 보존한다. 취소·저장 카드 닫힘·surface 재생성·새 요청 뒤의 이전 결과는
 버리고 일치하는 request ID와 카드 세대의 결과만 한 번 받는다. 이미지 카드는 host popup이 아니므로
-`owner_popup_instance`를 보내지 않으며 피커는 창 범위로 열린다.
+`owner_popup_instance`를 보내지 않으며 피커는 요청에 실은 surface 범위로 열린다.
 
 **`filters`**: 확장자 목록(점 없이, 예: `["md", "markdown"]`) — `draw_file_picker` 가 렌더
 직전 `matches_filters` 로 파일 엔트리만 걸러낸다(디렉토리는 필터와 무관하게 항상 표시 —
@@ -273,7 +273,8 @@ mono caption 이며, 칩은 내용 폭이다. `fp-filter-max-width` 를 넘으�
 
 **시작 위치 — `start_dir?: string` · `origin_surface_id?: u32`**: 피커는 그것을 띄운 surface 의
 폴더에서 출발한다(`popup::file_picker::locate`). 두 필드 모두
-옵셔널이라 기존 호출자는 그대로 동작한다.
+옵셔널이다. 다만 `owner_popup_instance`가 없으면 `origin_surface_id`가 피커의 범위를 정하므로
+그 경우에는 있어야 한다(아래 "범위").
 
 - **로컬/원격 판정은 출발 surface 의 workspace 로 한다** — `origin_surface_id` 가 있고 찾아지면
   그 surface 가 속한 workspace 가 mirror 인지 보고, 없으면 활성 workspace 로 폴백한다. plugin
@@ -291,11 +292,20 @@ mono caption 이며, 칩은 내용 폭이다. `fp-filter-max-width` 를 넘으�
   쓰면 설정을 끈 사용자에게서 시작 위치가 사라진다.
 - `path_input` 등 plugin 팝업에 사용자가 이미 적어 둔 경로를 시작점으로 삼는 것은 다루지 않는다.
 
-**부모 범위와 숨김**: `owner_popup_instance`가 요청자 plugin의 부모 popup을 가리키면 host가
-선언 종류와 target으로 유효 scope를 해석해 첫 paint 전에 적용한다([내부 팝업 시스템](../../design/systems/popup.md)).
+**범위**: 피커는 작용 대상의 범위로 열린다([내부 팝업 시스템](../../design/systems/popup.md)).
+host는 trigger 때 아래 순서로 범위를 정한다.
+
+1. `owner_popup_instance`가 요청자 plugin의 열린 popup을 가리키면 그 popup의 선언 종류와 결속
+   target으로 정한 범위다. 부모가 좁은 surface 라 창 범위로 옮겨 그려져도 그 배치는 쓰지 않는다.
+2. owner가 없고 `origin_surface_id`가 있는 surface를 가리키면 그 surface 범위다.
+3. 그 밖에는 열지 않고 `-32602`로 거절한다. owner가 다른 plugin의 popup이거나 닫혔을 때,
+   부모가 대상 없는 surface 선언일 때, `origin_surface_id`가 없는 surface를 가리킬 때도 같다.
+   창 범위로 바꾸지 않는다.
+
+Tools 메뉴로 연 피커는 창 범위이고, 새 탭 메뉴로 연 피커는 새 탭을 만들 pane 범위다.
 Surface 부모가 보이지 않으면 자식도 paint/hit/Esc/키 게이트에서 빠진다. 숨김은 close가 아니며
-부모·자식 draft, 선택, 요청 ID를 보존한다. 돌아오면 같은 작업을 계속한다. Window 부모와
-owner 없는 단독 피커는 창 범위다. surface가 작으면 기존 clamp가 피커 크기를 제한한다.
+부모·자식 draft, 선택, 요청 ID를 보존한다. 돌아오면 같은 작업을 계속한다. surface가 작으면
+기존 clamp가 피커 크기를 제한한다.
 부모 close는 기존 cancel/settled 규약을 따른다. 확정 이벤트를 받은 markdown은 경로 입력만
 채우며, 부모 Open에서 최초 context의 대상을 실행한다. 호스트는 확정한 경로로 파일을 따로 열지 않는다.
 

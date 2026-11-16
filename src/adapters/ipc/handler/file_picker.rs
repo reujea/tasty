@@ -39,7 +39,8 @@ struct FilePickerTriggerReq {
     #[serde(default)]
     start_dir: Option<String>,
     /// 피커를 띄운 surface id. 로컬/원격 판정을 이 surface 의 workspace 로 한다
-    /// (생략하거나 찾지 못하면 활성 workspace).
+    /// (생략하거나 찾지 못하면 활성 workspace). `owner_popup_instance`가 없으면 피커를 이 surface
+    /// 범위로 연다. 둘 다 없거나 이 surface 가 없으면 열지 않고 -32602 를 돌려준다.
     #[serde(default)]
     origin_surface_id: Option<u32>,
     /// 플러그인 페이지에서 사용자가 눌러 생긴 navigation URL. `origin_surface_id` 의 WebView 에서
@@ -123,6 +124,20 @@ pub fn handle_trigger_with_proofs(
         owner_popup_instance: req.owner_popup_instance,
         origin_surface_id: req.origin_surface_id,
     };
+    // 피커는 작용 대상(owner 팝업 또는 출발 surface)의 범위로 연다. 대상이 없으면 창 범위로
+    // 바꾸지 않고 열지 않는다(docs/design/systems/popup.md "작용 대상 범위 규칙").
+    let scope = {
+        let engine = engine.read();
+        crate::plugin_bridge::popup_scope::plugin_picker_scope(
+            &state.plugin_popup_bound_scopes,
+            &requester,
+            |sid| engine.find_workspace_index_for_surface(sid).is_some(),
+        )
+    };
+    let scope = match scope {
+        Ok(scope) => scope,
+        Err(refusal) => return JsonRpcResponse::error(id, -32602, refusal.message()),
+    };
 
     // 확인하지 못하면 포커스 없는 passive 피커가 되고, 키를 받는 WebView 가 피커를 덮는다
     // (docs/design/systems/popup.md#passive-팝업).
@@ -163,7 +178,17 @@ pub fn handle_trigger_with_proofs(
     {
         return JsonRpcResponse::error(id, -32602, "save mode requires a local location");
     }
-    if file_picker::open(state, &engine, request_id, location, req.filters, opened_by).is_err() {
+    if file_picker::open(
+        state,
+        &engine,
+        request_id,
+        location,
+        req.filters,
+        opened_by,
+        scope,
+    )
+    .is_err()
+    {
         return busy_response(id);
     }
 
@@ -312,6 +337,11 @@ mod tests {
         crate::state::tests::test_state()
     }
 
+    /// 범위를 정할 출발 surface. owner 가 없으면 이 값이 있어야 피커가 열린다.
+    fn origin(state: &RequestContext, engine: &EngineMut<'_>) -> Option<u32> {
+        state.focused_surface_id(&engine.read())
+    }
+
     fn plugin_caller(id: &str) -> CallerContext {
         CallerContext::Plugin {
             plugin_id: id.to_string(),
@@ -323,12 +353,13 @@ mod tests {
     fn trigger_from_plugin_records_requester() {
         let (mut state, mut engine_session) = make_test_state();
         let mut engine = engine_session.borrow_mut();
+        let sid = origin(&state, &engine);
         let resp = handle_trigger(
             &mut state,
             &mut engine,
             &plugin_caller("com.tasty.markdown"),
             json!(1),
-            &json!({}),
+            &json!({ "origin_surface_id": sid }),
         );
         let result = resp.result.expect("trigger should succeed");
         let request_id = result["request_id"].as_u64().expect("request_id");
@@ -348,6 +379,13 @@ mod tests {
     fn trigger_records_the_declared_owner_popup_instance() {
         let (mut state, mut engine_session) = make_test_state();
         let mut engine = engine_session.borrow_mut();
+        state.plugin_popup_bound_scopes.insert(
+            42,
+            (
+                "com.tasty.markdown".into(),
+                Some(crate::adapters::ui::popup::PopupScope::Window),
+            ),
+        );
         let resp = handle_trigger(
             &mut state,
             &mut engine,
@@ -390,12 +428,13 @@ mod tests {
     fn second_trigger_while_open_is_rejected() {
         let (mut state, mut engine_session) = make_test_state();
         let mut engine = engine_session.borrow_mut();
+        let sid = origin(&state, &engine);
         let first = handle_trigger(
             &mut state,
             &mut engine,
             &plugin_caller("com.tasty.markdown"),
             json!(1),
-            &json!({}),
+            &json!({ "origin_surface_id": sid }),
         );
         assert!(first.result.is_some());
 
@@ -404,7 +443,7 @@ mod tests {
             &mut engine,
             &plugin_caller("com.tasty.other"),
             json!(2),
-            &json!({}),
+            &json!({ "origin_surface_id": sid }),
         );
         assert!(second.result.is_none());
         assert!(second.error.is_some());
@@ -422,12 +461,13 @@ mod tests {
     fn trigger_passes_filters_through_to_popup_state() {
         let (mut state, mut engine_session) = make_test_state();
         let mut engine = engine_session.borrow_mut();
+        let sid = origin(&state, &engine);
         let resp = handle_trigger(
             &mut state,
             &mut engine,
             &plugin_caller("com.tasty.markdown"),
             json!(1),
-            &json!({ "filters": ["md", "markdown"] }),
+            &json!({ "filters": ["md", "markdown"], "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
         let data = state.dialogs.file_picker.as_ref().expect("popup open");
@@ -452,12 +492,13 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir");
         let (mut state, mut engine_session) = make_test_state();
         let mut engine = engine_session.borrow_mut();
+        let sid = origin(&state, &engine);
         let resp = handle_trigger(
             &mut state,
             &mut engine,
             &plugin_caller("com.tasty.markdown"),
             json!(1),
-            &json!({ "start_dir": dir.to_string_lossy() }),
+            &json!({ "start_dir": dir.to_string_lossy(), "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
         let data = state.dialogs.file_picker.as_ref().expect("popup open");
@@ -470,12 +511,13 @@ mod tests {
     fn missing_local_start_dir_falls_back_to_home() {
         let (mut state, mut engine_session) = make_test_state();
         let mut engine = engine_session.borrow_mut();
+        let sid = origin(&state, &engine);
         let resp = handle_trigger(
             &mut state,
             &mut engine,
             &plugin_caller("com.tasty.markdown"),
             json!(1),
-            &json!({ "start_dir": "/definitely/not/a/tasty/dir" }),
+            &json!({ "start_dir": "/definitely/not/a/tasty/dir", "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
         let data = state.dialogs.file_picker.as_ref().expect("popup open");

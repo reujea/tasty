@@ -49,7 +49,9 @@ fn open_as(
                 engine,
                 &caller,
                 serde_json::json!(1),
-                &serde_json::json!({}),
+                &serde_json::json!({
+                    "origin_surface_id": state.focused_surface_id(&engine.read()),
+                }),
             );
             let id = resp.result.expect("trigger succeeds")["request_id"]
                 .as_u64()

@@ -79,6 +79,8 @@ pub(crate) fn open(
         location,
         extensions.iter().map(|e| e.to_string()).collect(),
         file_picker::FilePickerOpenedBy::ContextMenu,
+        // 고른 파일로 이 pane 에 새 탭을 만든다.
+        crate::model::popup_kind::PopupScope::Pane(pane_id),
     )
     .is_err()
     {

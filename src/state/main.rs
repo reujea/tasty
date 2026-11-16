@@ -178,11 +178,10 @@ pub struct MainViewState {
     /// 받는다(`App::deliver_plugin_copied_texts`). 팝업이 닫히면 지운다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_edit_sent: std::collections::HashMap<u64, u64>,
-    /// 이전 프레임에 플러그인 팝업을 실제로 배치한 범위. 좁은 surface 라 창 범위로 연
-    /// 팝업의 자식 파일 피커가 선언이 아니라 이 범위를 따른다. 숨은 팝업은 들어 있지 않다.
+    /// 열린 플러그인 팝업의 소유 플러그인과 결속 범위. 그리기 전에 매 프레임 다시 만든다.
+    /// 배치 결과가 아니라 선언과 결속 대상으로 정한 값이며, 파일 피커의 owner 범위를 정할 때 쓴다.
     #[cfg(feature = "gui")]
-    pub(crate) plugin_popup_placed_scopes:
-        std::collections::HashMap<u64, crate::adapters::ui::popup::PopupScope>,
+    pub(crate) plugin_popup_bound_scopes: crate::plugin_bridge::popup_scope::BoundPopupScopes,
     /// 현재 프레임 배너 Area의 레이어. 오버레이 그리기 순서를 정할 때 쓴다.
     #[cfg(feature = "gui")]
     pub(crate) banner_layer: Option<egui::LayerId>,

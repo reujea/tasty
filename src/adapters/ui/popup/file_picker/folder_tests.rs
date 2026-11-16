@@ -10,7 +10,8 @@ fn open_folder_picker(
         plugin_id: "com.example.folder".into(),
         permissions: std::sync::Arc::new(Default::default()),
     };
-    let params = json!({"mode": "folder", "location": "local", "start_dir": dir});
+    let origin = state.focused_surface_id(&engine.read());
+    let params = json!({"mode": "folder", "location": "local", "start_dir": dir, "origin_surface_id": origin});
     let response = crate::adapters::ipc::handler::file_picker::handle_trigger(
         state,
         engine,

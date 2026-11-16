@@ -40,7 +40,6 @@ pub fn draw_plugin_popups(
     state.plugin_popup_layers.clear();
     state.plugin_popup_open = false;
     state.plugin_popup_hittest.clear();
-    state.plugin_popup_placed_scopes.clear();
     state.plugin_popup_key_candidates.clear();
     state.plugin_popup_replies.clear();
     state.plugin_popup_ime_cursor_area = None;
@@ -79,11 +78,6 @@ pub fn draw_plugin_popups(
 
     // 다른 팝업에 가린 좌표를 판정하려면 모든 팝업의 배치가 먼저 필요하다.
     let placed = place_visible(mesh_snaps, layout, screen_rect, pointer_pos);
-    state.plugin_popup_placed_scopes.extend(
-        placed
-            .iter()
-            .map(|(snap, _)| (snap.instance_id, snap.scope.clone())),
-    );
     state.plugin_popup_key_candidates.extend(
         placed
             .iter()
@@ -371,7 +365,8 @@ fn mesh_snapshots<'a>(
                 instance_id: id,
                 plugin_id: inst.plugin_id.clone(),
                 anchor: inst.contribute.anchor,
-                scope: popup_scope(inst.contribute.scope, inst.scope_surface),
+                scope: popup_scope(inst.contribute.scope, inst.scope_surface)
+                    .unwrap_or(PopupScope::Window),
                 size,
                 dismiss_on_outside_click: inst.contribute.dismiss_on_outside_click,
                 z_seq: inst.z_seq,

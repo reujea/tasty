@@ -52,11 +52,11 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 ### plugin popup ↔ host popup 부모-자식
 
-plugin 이 `file_picker.trigger`로 host popup 을 열 때 `owner_popup_instance` 로 **자기 popup instance_id 를 전달**하면, host 는 그 값을 자식 쪽 요청자 기록에 보관해 두 popup 을 스택으로 다룬다(이 문서). 전달하지 않으면(예: popup 밖 surface 위젯에서의 호출, Tools 메뉴 진입) 지금까지처럼 관계 없는 단독 popup 이다.
+plugin 이 `file_picker.trigger`로 host popup 을 열 때 `owner_popup_instance` 로 **자기 popup instance_id 를 전달**하면, host 는 그 값을 자식 쪽 요청자 기록에 보관해 두 popup 을 스택으로 다룬다(이 문서). 전달하지 않으면(예: popup 밖 surface 위젯에서의 호출, Tools 메뉴 진입) 관계 없는 단독 popup 이다.
 
 관계가 성립하면:
 
-- **범위 상속·숨김 보존** — host는 요청자와 부모 instance를 대조해 부모가 직전 frame 에 실제로 놓인 범위(좁은 surface 라 창 범위로 대체된 경우 포함)를, 아직 놓이지 않았으면 선언 종류+target의 유효 범위를 자식 파일 피커에 적용한다(이 문서). 부모가 숨으면 자식도 paint/hit/Esc/키 게이트에서 빠지고, 돌아오면 draft·선택·pending 요청을 그대로 이어간다. 숨김은 닫기로 처리하지 않는다. Window 부모와 owner 없는 피커는 창 범위다.
+- **범위 상속·숨김 보존** — host는 요청자와 부모 instance를 대조해 부모의 선언 종류와 결속 target으로 정한 범위를 자식 파일 피커에 적용한다(이 문서). 부모가 좁은 surface 라 그 frame 에 창 범위로 옮겨 그려져도 그 배치 결과는 쓰지 않는다. 부모가 숨으면 자식도 paint/hit/Esc/키 게이트에서 빠지고, 돌아오면 draft·선택·pending 요청을 그대로 이어간다. 숨김은 닫기로 처리하지 않는다. Window 부모의 피커는 창 범위다. owner 없는 피커의 범위는 아래 "파일 피커의 범위"를 따른다.
 - **스택 유지** — 자식이 열려 있는 동안 부모는 outside-click dismiss 대상에서 빠진다. 부모를 모달로 잠그는 것이 아니라 dismiss 목록에서만 제외한다(popup은 포커스를 독점하지 않으므로).
 - **Esc 소유권** — host/plugin 통틀어 그 프레임 최상단 popup **하나만** Esc 를 소비한다. Esc 를 한 번 누르면 최상단 팝업 하나가 닫힌다. host 쪽 판정은 `MainViewState.popup_escape_owner`(`popup::frame` 이 매 프레임 결정), plugin 쪽은 `popup_render` 가 같은 z 축으로 비교한다. **host popup 끼리의 Esc 중재는 범위 밖** — 각 view 가 자기 Esc 를 직접 소비하며, 현재 스택에 참여하는 `file_picker` 에만 게이트가 붙어 있다.
 - **연쇄 정리** — 부모가 어떤 경로로 닫히든 자식 피커에 취소 결과가 채워져, 평소 result 경로 그대로 plugin 에 `cancelled: true` 가 전달되고 피커도 닫힌다. 부모 없는 피커나 결과 유실을 남기지 않는다. 사용자가 이미 확정한 결과는 덮지 않는다.
@@ -142,7 +142,9 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 |------|--------|----------------------|
 | [DAG 목록](../../features/agent-collaboration/screens/dag-list-popup.md) (`dag_list`) | Workspace | 여는 시점의 활성 workspace ID |
 | 변환(`convert_surface`) · 검색바(`search_bar`) | Surface | 포커스 surface id |
-| 부모가 있는 파일 피커(`file_picker`) | 부모의 유효 범위 | host가 첫 paint 전에 부모 선언 종류+target을 해석 |
+| 부모가 있는 파일 피커(`file_picker`) | 부모의 결속 범위 | trigger 때 부모 선언 종류+target을 해석하고, 그리기 전마다 같은 계산으로 따라간다 |
+| 부모 없는 plugin 파일 피커(`file_picker`) | Surface | 요청의 `origin_surface_id` |
+| 새 탭 메뉴의 파일 피커(`file_picker`) | Pane | 새 탭을 만들 pane id |
 
 `Workspace` 스코프 팝업은 워크스페이스를 옮기면 **그리지 않는다** — 상태는 그대로 남아 있어
 돌아오면 보던 화면이 그대로 복원된다. 그 상태의 수명은 스코프가 아니라 `on_close` 가 정한다.
@@ -198,9 +200,8 @@ scrim 도 그 범위를 덮는다(위 §scrim 의 범위). 보이는 범위의 �
 줄이면 버튼이 잘려 확정할 수 없기 때문이다. 배치·scrim·히트테스트가 모두 이 실효 범위를 쓰고,
 surface 가 다시 넓어지면 surface 범위로 돌아온다. 숨은 범위는 대체하지 않고 계속 숨긴다.
 창보다 큰 셸은 창 크기로 줄어든다 — plugin 콘텐츠는 GPU 합성으로 올라가 egui 레이어 클립이
-그것까지 잘라 주지 않기 때문이다. 자식 파일 피커는 부모가 직전 frame 에 실제로 놓인 범위를
-상속하므로, 부모가 창 범위로 대체되면 피커도 창 범위로 뜬다. 부모가 아직 그려지지 않았거나
-숨었으면 선언 종류와 대상으로 정한다.
+그것까지 잘라 주지 않기 때문이다. 이 대체는 표시만 바꾼다. 자식 파일 피커는 부모의 선언 종류와
+결속 대상으로 정한 범위를 쓰므로, 부모가 창 범위로 대체돼도 피커는 부모 surface 범위로 뜬다.
 
 현재 `scope = "surface"` 선언: markdown `file-open` · `large-file-confirm`.
 

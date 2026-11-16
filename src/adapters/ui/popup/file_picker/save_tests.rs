@@ -12,7 +12,8 @@ fn plugin_save_picker_returns_one_path_without_writing_and_preserves_admission()
         plugin_id: "com.tasty.image".into(),
         permissions: std::sync::Arc::new(Default::default()),
     };
-    let params = json!({"mode":"save", "location":"local", "default_name":"new.png", "filters":["png"], "start_dir":dir.path()});
+    let origin = state.focused_surface_id(&engine.read());
+    let params = json!({"mode":"save", "location":"local", "default_name":"new.png", "filters":["png"], "start_dir":dir.path(), "origin_surface_id": origin});
     let response = crate::adapters::ipc::handler::file_picker::handle_trigger(
         &mut state,
         &mut engine,

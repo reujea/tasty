@@ -27,6 +27,8 @@ pub(crate) fn open(state: &mut MainViewState, engine: &EngineRead<'_>) {
         location.clone(),
         Vec::new(),
         file_picker::FilePickerOpenedBy::ToolsMenu,
+        // 창 기능이다. 포커스 surface 는 시작 위치만 정한다.
+        crate::model::popup_kind::PopupScope::Window,
     )
     .is_err()
     {

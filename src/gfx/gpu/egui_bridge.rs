@@ -185,7 +185,7 @@ impl GpuState {
             // host 팝업을 먼저 그려 같은 프레임의 영역을 plugin hit-test에 전달한다.
             // 반대로 host가 보는 plugin 영역은 직전 프레임 값이다.
             // source_guards::frame_draw_order가 호출 순서를 검사한다.
-            crate::plugin_bridge::popup_scope::inherit_file_picker_scope(
+            crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
                 state,
                 plugin_manager
                     .into_iter()

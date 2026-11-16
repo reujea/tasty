@@ -698,7 +698,7 @@ fn plugin_caller_of(plugin_id: &str) -> CallerContext {
 }
 
 impl PassivePicker {
-    /// `origin` 을 주지 않으면 소스를 설치한 surface 를 출발지로 삼는다.
+    /// `origin` 을 주지 않으면 소스를 설치한 surface 를 출발지로 삼는다. 주면 요청자 기록의 출발지만 그 값이다.
     fn opened(origin: Option<u32>, drain: bool) -> Self {
         let (mut state, mut engine_session) = source_fixture();
         for def in crate::adapters::ui::popup::defs::all_defs() {
@@ -715,12 +715,22 @@ impl PassivePicker {
                 &mut engine,
                 &plugin_caller_of(PLUGIN),
                 json!(1),
-                &json!({ "origin_surface_id": origin.unwrap_or(sid) }),
+                &json!({ "origin_surface_id": sid }),
                 None,
             );
             let first = resp.result.expect("first trigger")["request_id"]
                 .as_u64()
                 .unwrap();
+            // 범위를 정하려면 출발 surface 가 있어야 하므로 열린 뒤 요청자 기록만 다른 출발지로 바꾼다.
+            if let Some(origin) = origin {
+                state
+                    .dialogs
+                    .file_picker
+                    .as_mut()
+                    .and_then(|d| d.requester.as_mut())
+                    .expect("requester")
+                    .origin_surface_id = Some(origin);
+            }
             (sid, first)
         };
         let mut this = Self {

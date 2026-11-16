@@ -121,11 +121,6 @@ fn a_press_on_the_left_surface_does_not_close_a_popup_scoped_to_the_right() {
         super::surface_rect_r().contains_rect(placed),
         "R 안에 놓여야 재현 장면이다: {placed:?}"
     );
-    assert_eq!(
-        state.plugin_popup_placed_scopes.get(&POPUP),
-        Some(&PopupScope::Surface(SURFACE_R))
-    );
-
     let on_left = surface_rect_l().center();
     plugin_frame(
         &ctx,
@@ -156,6 +151,12 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
     assert!(state.plugin_popup_open, "R 팝업이 보이는 상태여야 한다");
 
     // markdown 의 찾아보기처럼 R 팝업을 owner 로 가진 피커를 연다.
+    // 창의 그리기 전 단계처럼 열린 plugin 팝업의 결속 범위를 먼저 기록한다.
+    let inst = instance(0);
+    crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
+        &mut state,
+        [(POPUP, &inst)].into_iter(),
+    );
     let caller = tasty_ipc::caller::CallerContext::Plugin {
         plugin_id: PLUGIN.into(),
         permissions: Arc::new(Default::default()),
@@ -174,11 +175,6 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
     for intent in state.take_pending_intents() {
         crate::intent::popup::handle(&mut state, &mut engine, &intent);
     }
-    let inst = instance(0);
-    crate::plugin_bridge::popup_scope::inherit_file_picker_scope(
-        &mut state,
-        [(POPUP, &inst)].into_iter(),
-    );
     assert_eq!(
         state
             .popups
