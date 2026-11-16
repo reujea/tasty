@@ -41,7 +41,7 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `nav_info` | — | `WebViewNavInfo` | commit 주소의 출처는 Linux 가 WebKitGTK `load-changed` Committed, macOS 가 WKWebView `didCommitNavigation`, Windows 가 WebView2 `ContentLoading` 이다. 주소 선택은 공통 `committed_document_url`(로드가 끝났으면 엔진 현재 주소, 로드 중·실패면 마지막 commit 주소)이다. 이동 가능 여부는 WebKitGTK `can_go_back`·`can_go_forward`, WKWebView `canGoBack`·`canGoForward`, WebView2 `CanGoBack`·`CanGoForward` 다. Windows 는 조회 실패를 웹뷰별 첫 번째만 warn 으로 남긴다. macOS·Windows 는 실 기기 미측정이다([html surface §문서 주소와 히스토리](../../surfaces/html/index.md#내부-동작)) |
 | `debug_stop` | — | — | debug 빌드 전용이다. 로드 중지를 재현한다. 사용자 진입점이 없는 조작이라 사용자 탐색 큐와 나눈다 |
 | `set_color_scheme` | `ColorScheme` | — | |
-| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux는 사용자 스타일시트, Windows는 WebView2 스크립트로 둔다. macOS 백엔드에는 아직 없고 공통 호출부가 cfg로 비워 둔다. 그 OS의 markdown은 늘 focus 값이다(호스트 표지 미구현) |
+| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux는 사용자 스타일시트, macOS·Windows는 스크립트로 둔다 |
 | `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
 
@@ -545,7 +545,7 @@ Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른
 
 ### 페이지 쪽 계약
 
-- 상태 표지는 CSS 사용자 정의 속성 `--tasty-bed-focused` 하나다. 이름은 호스트와 페이지가 함께 쓰는 계약이라 `tasty-plugin-protocol`의 `bed_focus::BED_FOCUSED_PROPERTY`에 한 번만 정의한다. 바탕 포커스 상태인 동안 `:root`에 빈 값으로 정의되고, 아니면 정의되지 않는다. 호스트가 넣는 것은 그 속성으로 만든 고정 규칙(`crate::webview::bed_focus`)뿐이며 색 값은 넘기지 않는다. Linux는 `:root{--tasty-bed-focused: ;}`를 넣고 뺀다. Windows는 두 상태를 모두 적은 `:root:root{--tasty-bed-focused: ;}`·`:root:root{--tasty-bed-focused:initial;}` 중 하나를 둔다(아래 "Windows 구현").
+- 상태 표지는 CSS 사용자 정의 속성 `--tasty-bed-focused` 하나다. 이름은 호스트와 페이지가 함께 쓰는 계약이라 `tasty-plugin-protocol`의 `bed_focus::BED_FOCUSED_PROPERTY`에 한 번만 정의한다. 바탕 포커스 상태인 동안 `:root`에 빈 값으로 정의되고, 아니면 정의되지 않거나 무효 값(`initial`)이다. 호스트가 넣는 것은 그 속성으로 만든 고정 규칙(`crate::webview::bed_focus`)뿐이며 색 값은 넘기지 않는다. Linux는 `:root{--tasty-bed-focused: ;}`를 넣고 뺀다. Windows는 두 상태를 모두 적은 `:root:root{--tasty-bed-focused: ;}`·`:root:root{--tasty-bed-focused:initial;}` 중 하나를 둔다(아래 "Windows 구현"). macOS는 `:root` 인라인 스타일에 그 속성만 빈 값 또는 `initial`로 쓴다(아래 "macOS 구현").
 - 페이지는 두 상태의 값을 자기 CSS에 함께 둔다. `--x-on: var(--tasty-bed-focused) <focus 값>;`은 표지가 없으면 무효가 되고, `--x: var(--x-on, <unfocus 값>);`이 그때 unfocus 값을 쓴다. 표지가 없을 때가 unfocus이므로 호스트가 아무것도 넣지 못한 페이지는 unfocus 값이다.
 - 테마가 바뀌면 지금처럼 문서를 다시 만든다. 표지는 테마와 무관하다.
 - 받는 kind: `focus_mark`가 바탕으로 분류한 WebView kind다. 지금은 `com.tasty.markdown`의 markdown뿐이며 client가 그리는 mirror markdown도 같다. html은 원격·mirror를 포함해 받지 않고, 호스트는 html 페이지에 스타일시트도 스크립트도 넣지 않는다. 제3자 webview 플러그인에 여는지는 플러그인 신호 작업이 정한다.
@@ -554,7 +554,7 @@ Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른
 
 - 새 WebView는 첫 문서를 싣기 전에 값을 둔다(`webview_sync::bed_focus::apply_initial`). 포커스가 있으면 첫 렌더부터 focus 값이다.
 - 그 뒤 프레임마다 목표 값을 계산하고, 마지막으로 둔 값과 다를 때만 백엔드를 부른다. 계산은 표시 판정보다 먼저 한다. 숨긴 WebView도 갱신하므로 다시 보일 때 숨기기 전 값을 쓰지 않는다.
-- 상위층은 백엔드를 `BedFocusSink`로 본다. `set_bed_focused(bool)`로 값을 두고, `take_bed_focus_failed()`로 마지막으로 둔 값이 실패했는지, `take_bed_focus_document_loaded()`로 지난번 뒤로 문서 탐색이 성공으로 끝났는지 받아 표시를 지운다. surface마다 둔 값, 실패 여부, 다시 보낸 횟수를 기록한다(`webview_sync::bed_focus::BedFocusRecord`, `step`). 실패를 받으면 같은 동기화에서 같은 값을 한 번 다시 보낸다. 그 뒤에도 실패하면 목표 값이 바뀌거나 그 view의 문서 탐색이 성공으로 끝날 때까지 보내지 않는다. 바뀐 값은 다시 보낼 횟수를 새로 갖고, 탐색 완료 하나마다 한 번 더 보낸다. 실패가 계속되는 WebView에 프레임마다 다시 보내지 않기 위해서다. 브라우저 프로세스가 끝난 WebView에는 탐색 완료가 오지 않아 더 보내지 않는다. 그 surface가 더 이상 값을 받지 않으면 기록만 지운다. Linux는 넣고 빼는 호출이 같은 호출 안에서 끝나 실패도 탐색 완료도 보고하지 않으므로 값이 바뀔 때만 둔다. Windows는 `NavigationCompleted`가 성공일 때 탐색 완료를 기록한다. macOS는 백엔드가 없어 셋 다 비어 있다.
+- 상위층은 백엔드를 `BedFocusSink`로 본다. `set_bed_focused(bool)`로 값을 두고, `take_bed_focus_failed()`로 마지막으로 둔 값이 실패했는지, `take_bed_focus_document_loaded()`로 지난번 뒤로 문서 탐색이 성공으로 끝났는지 받아 표시를 지운다. surface마다 둔 값, 실패 여부, 다시 보낸 횟수를 기록한다(`webview_sync::bed_focus::BedFocusRecord`, `step`). 실패를 받으면 같은 동기화에서 같은 값을 한 번 다시 보낸다. 그 뒤에도 실패하면 목표 값이 바뀌거나 그 view의 문서 탐색이 성공으로 끝날 때까지 보내지 않는다. 바뀐 값은 다시 보낼 횟수를 새로 갖고, 탐색 완료 하나마다 한 번 더 보낸다. 실패가 계속되는 WebView에 프레임마다 다시 보내지 않기 위해서다. 브라우저 프로세스가 끝난 WebView에는 탐색 완료가 오지 않아 더 보내지 않는다. 그 surface가 더 이상 값을 받지 않으면 기록만 지운다. Linux는 넣고 빼는 호출이 같은 호출 안에서 끝나 실패도 탐색 완료도 보고하지 않으므로 값이 바뀔 때만 둔다. Windows는 `NavigationCompleted`가 성공일 때 탐색 완료를 기록한다. macOS는 값을 두지만 실패와 탐색 완료를 아직 보고하지 않는다.
 
 ### Linux 구현
 
@@ -599,7 +599,24 @@ view가 사라지면(`PlatformWebView`의 drop) 붙잡은 탐색을 버리고, �
 - render process를 끝내고 곧바로 그 markdown으로 포커스를 옮기면, 복구 재로드가 붙잡히지 않고 나간다. 그 사이의 등록은 실패하고, 재로드 뒤 다시 보내 포커스 view만 focus 값이 된다(다섯 번 반복).
 - 미측정: 사람 손의 클릭으로 옮긴 포커스, mirror markdown, 새 surface를 포커스와 함께 만드는 경로(split과 새 탭은 포커스를 옮기지 않는다), 적용만 실패하고 등록은 성공하는 경우, 등록을 기다리는 동안 view가 사라지는 경우, 일시 실패로 재시도를 다 쓴 뒤 탐색 완료로 다시 보내는 경우, render process 종료 전 등록이 끝내 완료되지 않아 복구 문서 뒤 다시 등록하는 경우(넷 다 단위 시험으로만 확인), render process 종료 전에 시작한 등록의 완료가 복구 문서가 실린 뒤에 오는지.
 
-macOS 백엔드는 아직 표지를 넣지 않는다. 그동안 그 OS의 번들 markdown은 페이지 CSS에 표지를 스스로 선언해(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`) 늘 focus 값으로 그린다. macOS에서 측정하지 않았다.
+### macOS 구현
+
+WKWebView에는 공개 사용자 스타일시트 API가 없어 스크립트로 `:root` 인라인 스타일에 계약 속성을 쓴다(`macos/bed_focus.rs`). 바탕 포커스 상태면 빈 값, 아니면 `initial`이다. 인라인 선언은 페이지 스타일시트의 `:root` 선언보다 앞서므로, 이 OS에서 페이지가 표지를 스스로 선언해도(아래) 호스트 값이 이긴다. 앞 상태의 값을 먼저 지운 뒤 새 값을 둔다.
+
+- 지금 문서에는 `evaluateJavaScript`로 쓴다. 그 뒤 싣는 문서(파일 변경 재로드, 테마 변경)에는 같은 스크립트를 main frame 문서 시작 사용자 스크립트로 두어 첫 렌더 전에 쓴다. 값이 바뀔 때마다 그 사용자 스크립트를 바꾼다. 컨트롤러에는 스크립트 하나를 빼는 공개 API가 없어 모두 뺀 뒤 다른 스크립트(WebRTC 완화)를 다시 넣는다.
+- 두 스크립트 모두 페이지와 분리된 client content world에서 실행한다. markdown `sandbox_scripts = true`는 전역 `setJavaScriptEnabled:`를 끄는데, 이때 page world의 `evaluateJavaScript`는 `A JavaScript exception occurred`로 실패했다. 문서 시작 사용자 스크립트는 page world에서도 실행됐다.
+- html은 Linux와 같이 받지 않으며 스크립트를 넣지 않는다.
+
+측정(macOS, 격리 debug 인스턴스, debug `webview.snapshot`의 WebView 그림·문서 계산값과 `ui.screenshot`의 호스트 그림):
+
+- 수정 전 호스트는 표지를 넣지 않아 Mocha 문서 바탕이 포커스와 관계없이 `#000000`이었다. 바뀌는 것은 WebView 바깥 띠와 다른 surface뿐이었다.
+- Mocha 포커스 문서 `#000000`·표 `#1e1e2e`/`#181825`, 비포커스 `#1e1e2e`·`#181825`/`#1e1e2e`. Latte 포커스 `#ffffff`, 비포커스 `#dce0e8`. 전환 동안 문서를 다시 싣지 않았다(load 시작 수 불변). 측정 해상도(약 0.06초) 안에서 전환 뒤 첫 장부터 새 값이었다.
+- 파일 변경 재로드 직후 연속 캡처(포커스 30장·비포커스 40장)에서 반대 상태 값은 0장이었다. 숨긴 WebView도 갱신돼 다시 보인 첫 장부터 지금 상태 값이었다. hard 점유 중에는 unfocus 값이었다.
+- `sandbox_scripts = true`에서도 재로드 없는 전환과 재로드 뒤 값이 모두 맞았다.
+- html 시험 페이지(`--tasty-bed-focused`로 바탕을 고르는 페이지)는 포커스와 관계없이 표지를 받지 않았고 `:root`에 style 속성이 생기지 않았다.
+- 스크롤을 내린 상태의 위치 유지, 주소칸 입력·찾기어·선택 유지, 포커스와 함께 새로 연 문서의 첫 프레임은 측정하지 않았다. debug 휠 주입이 native WebView에 닿지 않고, 키 입력 자동화를 쓰지 않았으며, split·새 탭이 포커스를 옮기지 않는다. 문서를 다시 싣지 않는 것은 load 시작 수로 확인했다.
+
+번들 markdown 페이지는 Linux가 아닌 OS에서 페이지 CSS에 표지를 스스로 선언한다(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`). 위 인라인 선언이 그 선언보다 앞선다.
 
 ## egui 오버레이와 native WebView
 
