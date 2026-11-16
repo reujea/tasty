@@ -271,9 +271,6 @@ fn run_dynamic_client(
                 "{}",
                 serde_json::to_string_pretty(&value).unwrap_or_default()
             )?;
-            if let Some(notice) = already_disconnected_notice(&request.method, &value) {
-                crate::out::errln!("{notice}");
-            }
             Ok(())
         }
         Err(e) => {
@@ -567,6 +564,9 @@ fn run_client_inner(command: Commands, port_file: Option<&str>, envelope: Envelo
             );
             merge_cli_warnings(&mut value, cli_warnings);
             format_output(&command, &value)?;
+            if let Some(notice) = already_disconnected_notice(&request.method, &value) {
+                crate::out::errln!("{notice}");
+            }
             if let Some(failure) = failure {
                 crate::out::errln!("{failure}");
                 std::process::exit(1);
