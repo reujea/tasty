@@ -150,10 +150,6 @@ fn bundle_selection_does_not_build_a_bundle_from_official_workspace_crates() {
 /// workspace에서 동기화하는 것은 이 레포에 남는 mesh-demo뿐이다.
 #[test]
 fn only_mesh_demo_is_synced_from_the_workspace() {
-    let synced: Vec<&str> = BUILTINS
-        .iter()
-        .filter(|s| s.source == BuiltinSource::Workspace)
-        .map(|s| s.id)
-        .collect();
+    let synced: Vec<&str> = workspace_synced_plugin_ids().collect();
     assert_eq!(synced, vec!["com.tasty.mesh-demo"]);
 }

@@ -321,6 +321,15 @@ fn bundle_root_exe_relative() -> Option<PathBuf> {
     bundle_root_from_exe_dir(exe.parent()?)
 }
 
+/// debug 부팅이 workspace에서 개발 번들로 동기화하는 플러그인 id.
+/// 나머지 builtin은 개발 번들에 미리 스테이징해야 한다. 통합 테스트의 준비 누락 진단이 읽는다.
+pub fn workspace_synced_plugin_ids() -> impl Iterator<Item = &'static str> {
+    BUILTINS
+        .iter()
+        .filter(|s| s.source == BuiltinSource::Workspace)
+        .map(|s| s.id)
+}
+
 /// 실행 파일 기준으로 번들을 찾는다. debug에서는 개발 번들도 준비한다.
 /// 통합 테스트도 이 함수를 사용해 자식 인스턴스와 같은 번들을 선택한다.
 pub fn bundle_root_from_exe_dir(exe_dir: &Path) -> Option<PathBuf> {
