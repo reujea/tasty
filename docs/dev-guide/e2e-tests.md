@@ -3,15 +3,19 @@
 `tests/e2e_tests.rs` 를 비롯한 e2e 테스트는 실 tasty 바이너리를 spawn 하여 IPC 로 조작한다. `tests/common/mod.rs` 가 공통 하네스이며 진입점이 둘이다 — 공유 인스턴스 `common::shared()`(기본)와 전용 인스턴스 `TastyInstance::spawn`(예외). 자체 검증 절차는 [self-verification.md](self-verification.md), debug 전용 IPC 는 [debug-ipc.md](debug-ipc.md).
 
 
-## 0. 전제: plugin 바이너리 최신화 (필수)
+## 0. 전제: 개발 번들 준비 (필수)
 
-번들을 사용하는 E2E를 개별 실행하기 전에 `cargo build --workspace`를 실행하거나
-처음부터 `cargo test --workspace`를 사용한다. 패키지 한정 test는 플러그인 bin을 모두
-빌드하지 않는다. 개발 번들은 매니페스트와 바이너리를 각각 복사하므로 옛 바이너리에 새
-매니페스트가 붙을 수 있다. 실패 시 stderr의 version drift와 identity drift를 확인한다.
+번들을 사용하는 E2E를 실행하기 전에 `PROFILE=debug just build-plugins`로 실행 파일 옆
+`builtin-plugins/`에 공식 플러그인(잠금 파일의 릴리스 산출물)과 mesh-demo를 준비한다.
+`cargo build --workspace`와 `cargo test --workspace`는 공식 플러그인을 준비하지 않는다.
+debug 부팅이 workspace에서 채우는 것은 mesh-demo뿐이다. 공식 플러그인 코드나 호스트 계약을
+바꾼 작업은 `--from-checkout`(계약도 바꿨다면 `--with-local-tasty`)으로 그 레포 체크아웃에서
+빌드해 준비한다([build.md](build.md#plugin-빌드--스테이징)). 실패 시 stderr의 version drift와
+identity drift를 확인한다.
 
-spawn_diag::staged_bundle_note는 번들 사용 스위트의 실패 메시지에 바이너리가 0개일 때
-빌드 안내를 붙인다. 부분 스테이징이나 모든 버전 불일치를 검출하는 검사는 아니다.
+spawn_diag::staged_bundle_note는 번들 사용 스위트의 실패 메시지에, 자식이 고르는 번들 폴더에서
+매니페스트가 없는 공식 플러그인 id를 들고 준비 명령을 안내한다. 매니페스트 유무만 보며
+실행 파일·버전·계약 호환까지 검출하지는 않는다.
 플러그인을 쓰지 않는 스위트의 정상 실행을 막지 않도록 부팅 전 강제 실패 대신 진단에 사용한다.
 
 ## 0-1. 어느 바이너리를 띄우는가
