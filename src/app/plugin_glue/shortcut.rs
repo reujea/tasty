@@ -255,6 +255,17 @@ impl App {
             .and_then(|e| e.action.clone());
 
         if let Some(action) = action {
+            // 실행할 수 없는 동작이면 실행도 알림도 하지 않고 키를 다음 처리자에 넘긴다.
+            if crate::adapters::ui::tools_menu::tool_action_blocked(
+                &main.state,
+                &engine.read(),
+                &action,
+            ) {
+                tracing::warn!(
+                    "plugin command '{plugin_id}/{cmd_id}' not run: its popup needs a surface target and no surface is focused"
+                );
+                return false;
+            }
             // action과 command.invoke를 함께 실행하면 같은 명령이 두 번 처리된다.
             // 호스트 action만 실행하되 command.invoked 알림은 보낸다.
             if let Some(mgr) = self.plugin_manager.as_mut() {
@@ -273,7 +284,15 @@ impl App {
                 action,
                 order_hint: 0,
             };
-            crate::adapters::ui::tools_menu::invoke_tool(&mut main.state, &engine.read(), &item);
+            if let Err(blocked) =
+                crate::adapters::ui::tools_menu::invoke_tool(&mut main.state, &engine.read(), &item)
+            {
+                tracing::warn!(
+                    "plugin command '{}' not run: {}",
+                    item.key,
+                    blocked.message()
+                );
+            }
         } else if let Some(mgr) = self.plugin_manager.as_mut() {
             crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
                 mgr, &plugin_id, &cmd_id, surface_id,

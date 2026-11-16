@@ -91,7 +91,7 @@ pub fn draw_tools_menu(
     let mut open_window: Option<WindowKind> = None;
     let mut open_file_picker = false;
     for entry in BUILTIN_TOOLS {
-        if row(ui, &th, t(entry.label_key)).clicked() {
+        if row(ui, &th, t(entry.label_key), true).clicked() {
             match entry.action {
                 BuiltinAction::Popup(id) => open_popup = Some(id),
                 BuiltinAction::WorkspacePopup(id) => open_workspace_popup = Some(id),
@@ -142,20 +142,24 @@ pub fn draw_tools_menu(
     let mut clicked: Option<ToolItem> = None;
     for item in &items {
         let label = crate::adapters::ui::label_or_raw_key(&item.label_i18n_key);
-        if row(ui, &th, &label).clicked() {
+        let enabled = !tool_action_blocked(state, engine, &item.action);
+        if row(ui, &th, &label, enabled).clicked() && enabled {
             clicked = Some(item.clone());
         }
     }
 
     if let Some(item) = clicked {
-        invoke_tool(state, engine, &item);
+        if let Err(blocked) = invoke_tool(state, engine, &item) {
+            tracing::warn!("tool '{}' not run: {}", item.key, blocked.message());
+        }
         return PopupAction::Close;
     }
     PopupAction::None
 }
 
 /// 아이콘·단축키 없는 공용 MenuItem 행. 넘친 라벨은 공용 행이 끝을 줄인다.
-fn row(ui: &mut egui::Ui, th: &theme::Theme, label: &str) -> egui::Response {
+/// 실행할 수 없는 항목은 숨기지 않고 비활성 상태로 그린다.
+fn row(ui: &mut egui::Ui, th: &theme::Theme, label: &str, enabled: bool) -> egui::Response {
     menu_item(
         ui,
         th,
@@ -164,7 +168,7 @@ fn row(ui: &mut egui::Ui, th: &theme::Theme, label: &str) -> egui::Response {
         None,
         MenuItemVariant::Normal,
         false,
-        true,
+        enabled,
     )
 }
 
@@ -203,8 +207,48 @@ pub fn measure_on_open(ctx: &egui::Context, state: &mut MainViewState) {
     state.dialogs.tools_menu_width = Some(measure_inner_width(ctx, state));
 }
 
-/// 사용자 클릭의 플러그인 도구를 실행한다. debug.tool.invoke는 대상 ID를 받는 별도 경로다.
-pub fn invoke_tool(state: &mut MainViewState, engine: &EngineRead<'_>, item: &ToolItem) {
+/// 도구·명령 동작을 지금 실행할 수 없는 이유.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToolBlocked {
+    /// surface 범위로 선언한 팝업인데 포커스 surface 가 없다.
+    NoSurfaceTarget,
+}
+
+impl ToolBlocked {
+    pub(crate) fn message(self) -> &'static str {
+        match self {
+            Self::NoSurfaceTarget => "the popup needs a surface target and no surface is focused",
+        }
+    }
+}
+
+/// 이 동작을 지금 실행할 수 없는지. 도구 메뉴 비활성 표시와 모든 실행 경로가 같은 판정을 쓴다.
+pub(crate) fn tool_action_blocked(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    action: &ToolAction,
+) -> bool {
+    tool_action_block(state, engine, action).is_some()
+}
+
+fn tool_action_block(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    action: &ToolAction,
+) -> Option<ToolBlocked> {
+    (state.tool_registry.needs_surface(action) && state.focused_surface_id(engine).is_none())
+        .then_some(ToolBlocked::NoSurfaceTarget)
+}
+
+/// 플러그인 도구·명령 동작을 실행한다. 실행할 수 없으면 아무것도 하지 않고 이유를 돌려준다.
+pub(crate) fn invoke_tool(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    item: &ToolItem,
+) -> Result<(), ToolBlocked> {
+    if let Some(blocked) = tool_action_block(state, engine, &item.action) {
+        return Err(blocked);
+    }
     match &item.action {
         ToolAction::Event { event_key } => {
             let payload = serde_json::json!({ "tool_id": item.key });
@@ -241,6 +285,7 @@ pub fn invoke_tool(state: &mut MainViewState, engine: &EngineRead<'_>, item: &To
             }
         }
     }
+    Ok(())
 }
 
 /// 본체·플러그인 항목과 구분선 여백을 포함한 메뉴 크기. 행은 간격 없이 쌓고
@@ -349,5 +394,95 @@ mod size_tests {
         let size = tools_menu_size_for(W, 4, 0, row, LogicalPx(4.0 * 1.2));
         let needed = popup::content_margin().scaled(2.0) + row.scaled(4.0);
         assert!(LogicalPx(size.y) >= needed);
+    }
+}
+
+#[cfg(test)]
+mod block_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    const SURFACE_POPUP: &str = "com.example.viewer/confirm";
+    const WINDOW_POPUP: &str = "com.example.viewer/list";
+
+    fn open(popup_id: &str) -> ToolAction {
+        ToolAction::OpenPopup {
+            popup_id: popup_id.into(),
+        }
+    }
+
+    fn item(popup_id: &str) -> ToolItem {
+        ToolItem {
+            source: crate::plugin::tool_registry::ToolSource::Plugin {
+                plugin_id: "com.example.viewer".into(),
+                tool_id: "t".into(),
+            },
+            key: "com.example.viewer/t".into(),
+            label_i18n_key: String::new(),
+            icon: None,
+            action: open(popup_id),
+            order_hint: 0,
+        }
+    }
+
+    /// attach 대기 초안을 선택해 포커스 surface 가 없는 장면에서 판정한다.
+    fn with_pending_draft(check: impl FnOnce(&mut MainViewState, &EngineRead<'_>)) {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        state
+            .tool_registry
+            .set_surface_popups([SURFACE_POPUP.to_string()].into_iter().collect());
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let anchor = state.focused_surface_id(&read).unwrap();
+        assert!(!tool_action_blocked(&state, &read, &open(SURFACE_POPUP)));
+        let (sender, _queue) = tasty_remote::connection::channel();
+        let view = Arc::new(());
+        state
+            .attach_pending
+            .begin(
+                &read,
+                &state.navigation,
+                &crate::ipc::stream::StructuralOp::NewTab {
+                    anchor_surface_id: anchor,
+                    surface_kind: "terminal".into(),
+                    params: serde_json::json!({}),
+                    inherit_cwd: None,
+                },
+                sender.epoch(),
+                Arc::downgrade(&view),
+                std::time::Instant::now(),
+            )
+            .unwrap();
+        assert_eq!(state.focused_surface_id(&read), None);
+        check(&mut state, &read);
+    }
+
+    #[test]
+    fn a_surface_popup_tool_is_blocked_only_without_a_focused_surface() {
+        with_pending_draft(|state, read| {
+            assert!(tool_action_blocked(state, read, &open(SURFACE_POPUP)));
+            assert!(!tool_action_blocked(state, read, &open(WINDOW_POPUP)));
+            assert!(!tool_action_blocked(
+                state,
+                read,
+                &ToolAction::Event {
+                    event_key: "com.example.viewer.go".into()
+                }
+            ));
+        });
+    }
+
+    #[test]
+    fn a_blocked_tool_queues_nothing() {
+        with_pending_draft(|state, read| {
+            assert_eq!(
+                invoke_tool(state, read, &item(SURFACE_POPUP)),
+                Err(ToolBlocked::NoSurfaceTarget)
+            );
+            assert!(state.pending_popup_opens.is_empty());
+            assert_eq!(invoke_tool(state, read, &item(WINDOW_POPUP)), Ok(()));
+            assert_eq!(state.pending_popup_opens.len(), 1);
+            assert_eq!(state.pending_popup_opens[0].target_surface, None);
+        });
     }
 }

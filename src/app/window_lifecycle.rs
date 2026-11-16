@@ -332,6 +332,9 @@ impl App {
             state
                 .tool_registry
                 .set_plugin_items(mgr.plugin_tool_items());
+            state
+                .tool_registry
+                .set_surface_popups(mgr.plugin_surface_popup_ids());
             // 이후 목록 갱신을 기다리지 않고 첫 화면부터 플러그인 명령을 표시한다.
             state.palette_plugin_commands = mgr.plugin_palette_commands();
         }

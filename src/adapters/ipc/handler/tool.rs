@@ -65,6 +65,13 @@ pub fn handle_invoke(
     let Some(item) = state.tool_registry.find(key) else {
         return JsonRpcResponse::error(id, -32602, format!("tool item '{key}' not found"));
     };
-    crate::adapters::ui::tools_menu::invoke_tool(state, &engine.read(), &item);
+    if let Err(blocked) = crate::adapters::ui::tools_menu::invoke_tool(state, &engine.read(), &item)
+    {
+        return JsonRpcResponse::error(
+            id,
+            -32602,
+            format!("tool item '{key}' cannot run: {}", blocked.message()),
+        );
+    }
     JsonRpcResponse::success(id, json!({ "invoked": key }))
 }

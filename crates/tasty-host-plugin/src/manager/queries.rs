@@ -266,6 +266,15 @@ impl PluginManager {
         out
     }
 
+    /// surface 범위로 선언한 팝업의 `<plugin_id>/<popup_id>`. 도구·명령이 대상 없이 열지 않도록 쓴다.
+    pub fn plugin_surface_popup_ids(&self) -> std::collections::HashSet<String> {
+        self.plugin_popup_contributes()
+            .into_iter()
+            .filter(|e| e.contribute.scope == tasty_plugin_manifest::PopupScopeDecl::Surface)
+            .map(|e| format!("{}/{}", e.plugin_id, e.contribute.id))
+            .collect()
+    }
+
     /// 팔레트에 표시할 전역 명령. 단축키 설정과 달리 비활성 플러그인은 제외한다.
     /// contributes.commands에는 ui.tool_item 같은 별도 권한이 없다.
     pub fn plugin_palette_commands(&self) -> Vec<crate::command_registry::PluginCommandEntry> {

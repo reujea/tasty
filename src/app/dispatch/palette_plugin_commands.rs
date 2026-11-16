@@ -31,6 +31,22 @@ impl App {
                 .and_then(|e| e.action.clone());
 
             if let Some(action) = action {
+                // 팔레트 행은 실행할 수 없으면 실행하지 않는다. 큐에 남은 요청도 같은 판정으로 거른다.
+                let blocked = engines_mut!(self)
+                    .window_pair(wid)
+                    .is_some_and(|(main, engine)| {
+                        crate::adapters::ui::tools_menu::tool_action_blocked(
+                            &main.state,
+                            &engine.read(),
+                            &action,
+                        )
+                    });
+                if blocked {
+                    tracing::warn!(
+                        "plugin command '{plugin_id}/{command_id}' not run: its popup needs a surface target and no surface is focused"
+                    );
+                    continue;
+                }
                 if let Some(mgr) = self.plugin_manager.as_mut() {
                     crate::plugin_bridge::key_dispatch::emit_command_invoked(
                         mgr,
@@ -50,11 +66,17 @@ impl App {
                     action,
                     order_hint: 0,
                 };
-                if let Some((main, engine)) = engines_mut!(self).window_pair(wid) {
-                    crate::adapters::ui::tools_menu::invoke_tool(
+                if let Some((main, engine)) = engines_mut!(self).window_pair(wid)
+                    && let Err(blocked) = crate::adapters::ui::tools_menu::invoke_tool(
                         &mut main.state,
                         &engine.read(),
                         &item,
+                    )
+                {
+                    tracing::warn!(
+                        "plugin command '{}' not run: {}",
+                        item.key,
+                        blocked.message()
                     );
                 }
             } else if let Some(mgr) = self.plugin_manager.as_mut() {

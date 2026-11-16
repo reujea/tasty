@@ -30,11 +30,23 @@ pub enum ToolSource {
 #[derive(Debug, Default)]
 pub struct ToolRegistry {
     plugin: Vec<ToolItem>,
+    /// surface 범위로 선언한 플러그인 팝업(`<plugin_id>/<popup_id>`). 대상 surface 가 없으면 열 수 없다.
+    surface_popups: std::collections::HashSet<String>,
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
-        Self { plugin: Vec::new() }
+        Self::default()
+    }
+
+    /// surface 범위로 선언한 팝업 목록을 통째로 교체한다.
+    pub fn set_surface_popups(&mut self, ids: std::collections::HashSet<String>) {
+        self.surface_popups = ids;
+    }
+
+    /// 이 동작이 대상 surface 를 필요로 하는지. surface 선언 팝업을 여는 동작만 해당한다.
+    pub fn needs_surface(&self, action: &ToolAction) -> bool {
+        matches!(action, ToolAction::OpenPopup { popup_id } if self.surface_popups.contains(popup_id))
     }
 
     /// plugin 출처 항목을 통째로 교체한다.
@@ -109,6 +121,20 @@ mod tests {
             keys,
             vec!["com.example.b/c", "com.example.a/a", "com.example.a/b",]
         );
+    }
+
+    #[test]
+    fn only_a_surface_popup_action_needs_a_surface() {
+        let mut reg = ToolRegistry::new();
+        reg.set_surface_popups(["com.example.a/p".to_string()].into_iter().collect());
+        let open = |id: &str| ToolAction::OpenPopup {
+            popup_id: id.into(),
+        };
+        assert!(reg.needs_surface(&open("com.example.a/p")));
+        assert!(!reg.needs_surface(&open("com.example.a/w")));
+        assert!(!reg.needs_surface(&ToolAction::Event {
+            event_key: "com.example.a/p".into()
+        }));
     }
 
     #[test]

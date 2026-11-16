@@ -32,6 +32,7 @@
 
 - **빌트인**: 해당 popup 을 연다 (`BuiltinAction::OpenPopup` — 중앙 정렬 + 포커스). 대상 스코프를 여는 시점에야 아는 항목은 `BuiltinAction::OpenWorkspacePopup` 으로 갈라져 `OpenPopupMode::CenteredFocused(PopupScope::Workspace(활성 workspace ID))` 를 주입한다(현재 Task DAGs 하나). 별도 winit 창(`OpenWindow`)·파일 피커(`OpenFilePicker`)도 각각 자기 분기를 쓴다.
 - **플러그인**: `ToolAction` 종류별 — 이벤트 발생 또는 `<plugin_id>/<popup_id>` 형식 popup open (활성 surface 의 상속 cwd 를 실어 전달).
+- **대상 없는 플러그인 항목**: `surface` 범위로 선언한 popup 을 여는 항목은 포커스 surface 가 없으면(attach 대기 초안 선택 등) 숨기지 않고 비활성으로 그리며 눌러도 열지 않는다. `window` 선언 항목은 그대로 활성이다. 판정은 `tools_menu::tool_action_blocked` 하나이고 `debug.tool.invoke`(`-32602`), plugin 명령 단축키(실행·`command.invoked` 알림 없이 경고 로그, 키는 다음 처리자로 넘긴다), 명령 팔레트(아래)가 같은 판정을 쓴다.
 
 ## 인터페이스
 
