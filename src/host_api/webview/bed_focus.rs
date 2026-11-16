@@ -45,8 +45,8 @@ pub(crate) struct BedFocusDelivery<T> {
     registering: bool,
     /// 남겨 둔 등록 id. 마지막 요청의 것 하나만 남긴다.
     held: Vec<String>,
-    /// 등록이 끝나기를 기다리는 탐색. 나중 요청이 앞 것을 대신한다.
-    deferred: Option<T>,
+    /// 등록이 끝나기를 기다리는 탐색. 받은 순서대로 모두 보낸다.
+    deferred: Vec<T>,
     failed: bool,
 }
 
@@ -58,7 +58,7 @@ impl<T> Default for BedFocusDelivery<T> {
             latest: 0,
             registering: false,
             held: Vec::new(),
-            deferred: None,
+            deferred: Vec::new(),
             failed: false,
         }
     }
@@ -82,33 +82,34 @@ impl<T> BedFocusDelivery<T> {
     /// 호스트 탐색을 지금 보낼지 정한다. 등록을 기다리는 중이면 붙잡고 `None`을 돌려준다.
     pub(crate) fn navigate(&mut self, navigation: T) -> Option<T> {
         if self.registering {
-            self.deferred = Some(navigation);
+            self.deferred.push(navigation);
             None
         } else {
             Some(navigation)
         }
     }
 
-    /// `generation` 요청의 등록이 `id`로 끝났다. 지울 id와, 마지막 요청이면 붙잡았던 탐색을 돌려준다.
-    pub(crate) fn registered(&mut self, generation: u64, id: String) -> (Vec<String>, Option<T>) {
+    /// `generation` 요청의 등록이 `id`로 끝났다. 지울 id와, 마지막 요청이면 붙잡았던 탐색을 받은
+    /// 순서대로 돌려준다.
+    pub(crate) fn registered(&mut self, generation: u64, id: String) -> (Vec<String>, Vec<T>) {
         if generation != self.latest {
-            return (vec![id], None);
+            return (vec![id], Vec::new());
         }
         self.registering = false;
         (
             std::mem::replace(&mut self.held, vec![id]),
-            self.deferred.take(),
+            std::mem::take(&mut self.deferred),
         )
     }
 
     /// `generation` 요청의 등록이 실패했다. 마지막 요청이면 실패로 두고 붙잡았던 탐색을 돌려준다.
-    pub(crate) fn registration_failed(&mut self, generation: u64) -> Option<T> {
+    pub(crate) fn registration_failed(&mut self, generation: u64) -> Vec<T> {
         if generation != self.latest {
-            return None;
+            return Vec::new();
         }
         self.registering = false;
         self.fail();
-        self.deferred.take()
+        std::mem::take(&mut self.deferred)
     }
 
     /// `generation` 요청을 지금 문서에 적용하지 못했다. 마지막 요청일 때만 실패로 둔다.
@@ -169,7 +170,10 @@ mod tests {
         let g = d.request(false).unwrap();
         assert_eq!(d.navigate("first"), None);
         assert_eq!(d.navigate("second"), None);
-        assert_eq!(d.registered(g, "a".into()), (vec![], Some("second")));
+        assert_eq!(
+            d.registered(g, "a".into()),
+            (vec![], vec!["first", "second"])
+        );
         assert_eq!(d.navigate("after"), Some("after"));
     }
 
@@ -179,11 +183,14 @@ mod tests {
         let a = d.request(true).unwrap();
         let b = d.request(false).unwrap();
         assert_eq!(d.navigate("load"), None);
-        assert_eq!(d.registered(a, "a".into()), (vec!["a".to_string()], None));
-        assert_eq!(d.navigate("load"), None);
-        assert_eq!(d.registered(b, "b".into()), (vec![], Some("load")));
+        assert_eq!(d.registered(a, "a".into()), (vec!["a".to_string()], vec![]));
+        assert_eq!(d.navigate("reload"), None);
+        assert_eq!(
+            d.registered(b, "b".into()),
+            (vec![], vec!["load", "reload"])
+        );
         let c = d.request(true).unwrap();
-        assert_eq!(d.registered(c, "c".into()), (vec!["b".to_string()], None));
+        assert_eq!(d.registered(c, "c".into()), (vec!["b".to_string()], vec![]));
     }
 
     #[test]
@@ -191,7 +198,7 @@ mod tests {
         let mut d = Delivery::default();
         let g = d.request(false).unwrap();
         assert_eq!(d.navigate("load"), None);
-        assert_eq!(d.registration_failed(g), Some("load"));
+        assert_eq!(d.registration_failed(g), vec!["load"]);
         assert!(d.take_failed());
         assert!(!d.take_failed());
         // 실패한 값은 기록에서 지워져 같은 값을 다시 요청할 수 있다.
@@ -204,7 +211,7 @@ mod tests {
         let a = d.request(true).unwrap();
         let b = d.request(false).unwrap();
         d.apply_failed(a);
-        assert_eq!(d.registration_failed(a), None);
+        assert_eq!(d.registration_failed(a), Vec::<&str>::new());
         assert!(!d.take_failed());
         assert_eq!(d.request(false), None);
         d.apply_failed(b);

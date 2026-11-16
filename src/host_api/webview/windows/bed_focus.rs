@@ -66,7 +66,7 @@ impl BedFocusScript {
     }
 }
 
-/// `generation`의 문서 생성 스크립트를 등록한다. 완료되면 앞 등록을 지우고 붙잡았던 탐색을 보낸다.
+/// `generation`의 문서 생성 스크립트를 등록한다. 완료되면 앞 등록을 지우고 붙잡았던 탐색을 받은 순서대로 보낸다.
 fn register(
     delivery: &Delivery,
     webview: &ICoreWebView2,
@@ -78,7 +78,7 @@ fn register(
     let target = webview.clone();
     let registered = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(
         move |result, id| -> windows::core::Result<()> {
-            let (stale, navigation) = match result {
+            let (stale, navigations) = match result {
                 Ok(()) => on_done.borrow_mut().registered(generation, id),
                 Err(e) => {
                     tracing::warn!(
@@ -102,7 +102,7 @@ fn register(
                     );
                 }
             }
-            if let Some(navigation) = navigation {
+            for navigation in navigations {
                 navigation();
             }
             Ok(())
@@ -115,8 +115,8 @@ fn register(
             "WebView surface {surface_id}: adding the bed focus document script failed ({e}); \
              it is sent again"
         );
-        let navigation = delivery.borrow_mut().registration_failed(generation);
-        if let Some(navigation) = navigation {
+        let navigations = delivery.borrow_mut().registration_failed(generation);
+        for navigation in navigations {
             navigation();
         }
     }
