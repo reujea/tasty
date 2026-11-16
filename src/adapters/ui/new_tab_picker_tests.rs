@@ -278,3 +278,27 @@ fn mirror_pane_does_not_open_picker() {
 
 #[path = "new_tab_picker_tests/remote.rs"]
 mod remote;
+
+/// 새 탭 메뉴의 피커는 메뉴를 연 pane 범위로 연다.
+#[test]
+fn the_new_tab_picker_opens_in_the_pane_of_its_menu() {
+    let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
+    {
+        let engine = engine_session.borrow_mut();
+        open(
+            &mut state,
+            &engine.read(),
+            20,
+            "html",
+            "url",
+            HTML_EXTENSIONS,
+        );
+    }
+    crate::intent::popup::apply_pending(&mut state, &mut engine_session);
+    assert_eq!(
+        state
+            .popups
+            .open_scope(crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID),
+        Some(&crate::model::popup_kind::PopupScope::Pane(20))
+    );
+}

@@ -249,3 +249,20 @@ fn outcome_for_another_caller_leaves_the_tools_request() {
     );
     assert_eq!(stored(&state).request_id, tools);
 }
+
+/// 도구 메뉴의 파일 열기 피커는 창 범위로 연다. 포커스 surface 는 시작 위치만 정한다.
+#[test]
+fn the_tools_menu_picker_opens_in_the_window() {
+    let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
+    {
+        let engine = engine_session.borrow_mut();
+        open(&mut state, &engine.read());
+    }
+    crate::intent::popup::apply_pending(&mut state, &mut engine_session);
+    assert_eq!(
+        state
+            .popups
+            .open_scope(crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID),
+        Some(&crate::model::popup_kind::PopupScope::Window)
+    );
+}
