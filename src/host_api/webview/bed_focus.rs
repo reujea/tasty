@@ -61,6 +61,8 @@ pub(crate) struct BedFocusDelivery<T> {
     apply_failed: bool,
     /// 상위층에 아직 알리지 않은 실패.
     failed: bool,
+    /// 이미 경고를 남겼다. 그 뒤 실패는 debug로 남긴다.
+    warned: bool,
 }
 
 /// [`BedFocusDelivery::request`]가 정한 할 일.
@@ -86,6 +88,7 @@ impl<T> Default for BedFocusDelivery<T> {
             registration_failed: false,
             apply_failed: false,
             failed: false,
+            warned: false,
         }
     }
 }
@@ -168,6 +171,11 @@ impl<T> BedFocusDelivery<T> {
     /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다.
     pub(crate) fn take_failed(&mut self) -> bool {
         std::mem::replace(&mut self.failed, false)
+    }
+
+    /// 실패를 경고로 남길지. view마다 첫 실패만 참이다.
+    pub(crate) fn first_failure(&mut self) -> bool {
+        !std::mem::replace(&mut self.warned, true)
     }
 }
 
@@ -281,5 +289,13 @@ mod tests {
         d.apply_failed(2);
         assert!(d.take_failed());
         assert_eq!(d.request(false), work(None, Some(3)));
+    }
+
+    #[test]
+    fn only_the_first_failure_of_a_view_is_a_warning() {
+        let mut d = Delivery::default();
+        assert!(d.first_failure());
+        assert!(!d.first_failure());
+        assert!(!d.first_failure());
     }
 }

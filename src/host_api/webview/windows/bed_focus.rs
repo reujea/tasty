@@ -65,9 +65,10 @@ fn apply(
     let done = ExecuteScriptCompletedHandler::create(Box::new(
         move |result, _json| -> windows::core::Result<()> {
             if let Err(e) = result {
-                tracing::warn!(
-                    "WebView surface {surface_id}: bed focus script failed ({e}); \
-                     it is sent again"
+                note_failure(
+                    &on_done,
+                    surface_id,
+                    format_args!("the bed focus script failed ({e})"),
                 );
                 on_done.borrow_mut().apply_failed(number);
             }
@@ -77,8 +78,10 @@ fn apply(
     // SAFETY: webview는 호출 동안 valid, main thread 호출. HSTRING은 호출 끝까지 산다.
     let executed = unsafe { webview.ExecuteScript(script, &done) };
     if let Err(e) = executed {
-        tracing::warn!(
-            "WebView surface {surface_id}: ExecuteScript failed ({e}); it is sent again"
+        note_failure(
+            delivery,
+            surface_id,
+            format_args!("ExecuteScript for bed focus failed ({e})"),
         );
         delivery.borrow_mut().apply_failed(number);
     }
@@ -99,9 +102,10 @@ fn register(
             let (stale, navigations) = match result {
                 Ok(()) => on_done.borrow_mut().registered(generation, id),
                 Err(e) => {
-                    tracing::warn!(
-                        "WebView surface {surface_id}: the bed focus document script was not \
-                         added ({e}); it is sent again"
+                    note_failure(
+                        &on_done,
+                        surface_id,
+                        format_args!("the bed focus document script was not added ({e})"),
                     );
                     (
                         Vec::new(),
@@ -114,9 +118,10 @@ fn register(
                 // SAFETY: target은 이 view의 WebView이고 완료 콜백은 main thread에서 온다.
                 let removed = unsafe { target.RemoveScriptToExecuteOnDocumentCreated(&id) };
                 if let Err(e) = removed {
-                    tracing::warn!(
-                        "WebView surface {surface_id}: removing an old bed focus document \
-                         script failed ({e})"
+                    note_failure(
+                        &on_done,
+                        surface_id,
+                        format_args!("removing an old bed focus document script failed ({e})"),
                     );
                 }
             }
@@ -136,13 +141,25 @@ fn register(
     // SAFETY: webview와 handler는 호출 동안 valid, main thread 호출. HSTRING은 호출 끝까지 산다.
     let added = unsafe { webview.AddScriptToExecuteOnDocumentCreated(script, &registered) };
     if let Err(e) = added {
-        tracing::warn!(
-            "WebView surface {surface_id}: adding the bed focus document script failed ({e}); \
-             it is sent again"
+        note_failure(
+            delivery,
+            surface_id,
+            format_args!("adding the bed focus document script failed ({e})"),
         );
         let navigations = delivery.borrow_mut().registration_failed(generation);
         for navigation in navigations {
             navigation();
         }
+    }
+}
+
+/// 실패를 view마다 첫 번째만 warn, 그 뒤는 debug로 남긴다. 실패가 계속되는 view가 로그를 채우지 않게 한다.
+fn note_failure(delivery: &Delivery, surface_id: u32, what: std::fmt::Arguments<'_>) {
+    if delivery.borrow_mut().first_failure() {
+        tracing::warn!(
+            "WebView surface {surface_id}: {what} (later bed focus failures are logged at debug)"
+        );
+    } else {
+        tracing::debug!("WebView surface {surface_id}: {what}");
     }
 }
