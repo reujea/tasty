@@ -62,6 +62,13 @@ enum Sink {
     Recording(RecordedLines),
 }
 
+/// 큐 줄을 쓸 데이터 루트. 받는 surface의 셸이 TASTY_PARENT_HOME으로 받는 값이자 부팅 정리 대상인
+/// 호스트 자신의 `tasty_home()`이다. 호스트 프로세스 환경의 TASTY_PARENT_HOME은 바깥 Tasty를
+/// 가리킬 수 있으므로 읽지 않는다.
+pub(crate) fn queue_notice_home() -> Option<PathBuf> {
+    tasty_utils::path::tasty_home()
+}
+
 pub(crate) struct QueueNoticeWriter {
     sink: Sink,
     shared: Arc<Shared>,
@@ -224,6 +231,27 @@ mod tests {
 
     fn read(home: &std::path::Path, surface: u32) -> Option<String> {
         std::fs::read_to_string(tasty_utils::notify::notify_log_path_under(home, surface)).ok()
+    }
+
+    /// 제품 writer의 데이터 루트는 호스트의 home override(`tasty_home()`)다. 바깥 Tasty가 넘긴
+    /// TASTY_PARENT_HOME이 무엇이든(없어도) 이 값을 고르지 않는다. 스레드 로컬 override라 env를 바꾸지 않는다.
+    #[test]
+    fn the_product_home_is_the_host_home_not_the_outer_parent_home() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let host_home = tasty_utils::path::tasty_home().expect("isolated home");
+        assert_ne!(
+            std::env::var_os("TASTY_PARENT_HOME").map(PathBuf::from),
+            Some(host_home.clone()),
+            "격리 home은 바깥 TASTY_PARENT_HOME과 달라야 이 시험이 선택을 가른다"
+        );
+        assert_eq!(queue_notice_home(), Some(host_home.clone()));
+        let w = QueueNoticeWriter::new(queue_notice_home());
+        w.submit(9, "surface 9: 1".into());
+        w.wait_settled();
+        assert_eq!(
+            read(&host_home, 9).as_deref(),
+            Some("[queue] surface 9: 1\n")
+        );
     }
 
     #[test]
