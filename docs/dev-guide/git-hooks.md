@@ -85,7 +85,7 @@ lane의 커밋 하나하나가 각자 patch +1을 받는다. 같은 플러그인
 
 ## pre-push
 
-먼저 push할 커밋의 플러그인 버전을 검사한다. 실패하면 컴파일을 시작하지 않고 중단한다. 통과하면 아래 순서대로 빌드, 문서, 소스 가드를 검사한다. 빌드 검사 중 하나가 실패해도 나머지는 실행하여 오류를 한 번에 확인할 수 있다.
+먼저 push할 커밋의 플러그인 버전을 검사한다. 실패하면 컴파일을 시작하지 않고 중단한다. 통과하면 아래 순서대로 CI의 빠른 스크립트 검사(B.11~B.19), 빌드, 문서, 소스 가드를 검사한다. 검사 중 하나가 실패해도 나머지는 실행하여 오류를 한 번에 확인할 수 있다. 하나라도 실패하면 훅이 종료 코드 1로 끝나 push가 중단된다.
 
 Git은 훅에 `GIT_DIR`, `GIT_COMMON_DIR`, `GIT_INDEX_FILE` 같은 저장소 환경을 전달할 수 있다.
 pre-push는 먼저 원 저장소와 로그 위치를 확정하고, 각 검사를 실행하는 서브셸에서
@@ -99,6 +99,15 @@ push 저장소의 경로를 전달하지 않는다. 이는 [Git 훅의 저장소
 | ID | 검사 |
 |----|------|
 | B.9 | `scripts/check-plugin-version-bump.sh --range <원격 커밋> <로컬 커밋>`으로 원격에 게시된 플러그인 버전과 비교한다. P.1과 같이 모든 target의 의존을 받아 둔 상태(`cargo fetch --locked`)를 전제로 한다. |
+| B.11 | `cargo build --locked -p tasty-doc-guards --bin mask-source --bin strip-cfg-test`. B.12~B.17이 쓰는 판정기를 먼저 빌드한다. |
+| B.12 | `bash scripts/check-file-size.sh` (파일 SLOC 상한, `complexity-check.yml`과 같은 명령) |
+| B.13 | `bash scripts/check-frozen-sum-ratchet.sh` (동결 명부의 SLOC 총합 래칫, `complexity-check.yml`과 같은 명령) |
+| B.14 | `bash scripts/check-intent-discipline.sh` (`script-gates.yml`과 같은 명령) |
+| B.15 | `bash scripts/check-allow-reason.sh` (`script-gates.yml`과 같은 명령) |
+| B.16 | `bash scripts/check-shared-walk-ratchet.sh` (`script-gates.yml`과 같은 명령) |
+| B.17 | `bash scripts/check-core-writer-ratchet.sh` (`script-gates.yml`과 같은 명령) |
+| B.18 | `bash scripts/check-shell-assets.sh`로 추적 셸 자산 전체를 검사한다. CI와 달리 `install-shellcheck.sh`로 도구를 받지 않으며, 도구가 없으면 종료 코드 2로 실패한다. staged 파일만 보는 A.3와 구분한다. |
+| B.19 | `cargo fmt --check`와 `cargo fmt --check --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml`. 작업 트리 전체를 보며 staged Rust 파일이 있을 때만 도는 A.2와 구분한다. 둘 중 하나만 실패해도 실패한다. |
 | B.4 | `cargo clippy --workspace --all-targets -- -D clippy::correctness`로 워크스페이스의 개발 빌드·테스트 코드 컴파일과 lint를 함께 검사한다. |
 | B.8 | `cargo check --workspace --release --locked` |
 | B.6 | `cargo check --no-default-features` |
@@ -119,6 +128,8 @@ B.9는 Git이 전달한 ref별 커밋을 검사한다. 원격 커밋을 로컬�
 빌드·문서 검사는 현재 작업 트리에서 실행한다. 따라서 다른 커밋을 지정해 push하거나 미커밋 변경이 있는 경우에는 push할 커밋의 빌드를 검증한 것으로 볼 수 없다.
 
 ### 실행 시간과 로그
+
+B.11~B.19는 빌드가 필요 없거나 판정기만 빌드하는 검사다. 2026-11-17 20코어 aarch64 Linux에서 판정기가 이미 빌드된 상태로 한 번씩 잰 값은 B.11 0.1초, B.12 4.1초, B.13 1.1초, B.14 1.2초, B.15 8.0초, B.16 0.6초, B.17 1.4초, B.18 6.6초, B.19 5.8초다.
 
 각 검사는 `시작: 플러그인 버전`, `통과: 플러그인 버전 (1초)`처럼 이름과 상태·소요 시간을 표시하고 마지막에 전체 시간을 요약한다. 검사 ID는 진행·요약 문구에 붙이지 않으며 문서와 로그 파일을 연결하는 용도로 사용한다. 최초 빌드나 소스 변경 후에는 분 단위로 걸릴 수 있으며, 캐시가 있으면 짧아진다. 개발 빌드, release 빌드, headless 빌드는 설정이 달라 각각 검사한다.
 

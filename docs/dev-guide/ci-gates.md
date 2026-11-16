@@ -365,7 +365,7 @@ push 범위의 모든 중간 커밋을 다시 빌드하도록 요구하지 않�
 |---|---|
 | pre-commit | staged 트리. P.1의 비교 기준은 `develop`(없으면 `origin/develop`)과의 merge-base |
 | pre-push B.9 | Git이 전달한 원격 tip과 로컬 tip의 차이 |
-| pre-push B.4~B.8, B.10 | 훅이 실행되는 작업 트리 |
+| pre-push B.4~B.8, B.10~B.19 | 훅이 실행되는 작업 트리 |
 | CI | push된 tip. 플러그인 버전 검사는 `before`와 tip의 차이 |
 
 검사 결과에는 커밋과 미커밋 변경 유무를 함께 적는다.
@@ -1030,6 +1030,9 @@ allow 검사에는 cfg_attr 안의 allow와 한글 `이유:` 표지도 포함한
 | pre-push | `cargo check --no-default-features` | ✅ `crossplatform-check.yml` |
 | pre-push | `cargo test -p tasty-doc-guards` | ✅ `doc-guards.yml` — **같은 크레이트를 부른다**. 훅은 push 하는 머신에서만 돌아 worker 머신엔 이 채널이 없다 |
 | pre-push | `cargo check --workspace --release --locked` | ✅ crossplatform-check.yml의 check-release와 같은 명령이다. debug 검사와 별도로 실행하며 bin 하나로 좁히지 않는다. |
+| pre-push | 파일 SLOC·동결 총합 래칫(B.12·B.13) | ✅ `complexity-check.yml`과 같은 스크립트다. 판정기는 B.11이 먼저 빌드한다. |
+| pre-push | Intent 규율·allow 사유·공용 순회·구조 writer 래칫·셸 자산(B.14~B.18) | ✅ `script-gates.yml`과 같은 스크립트다. 셸 자산은 추적 파일 전체를 보며, CI와 달리 shellcheck를 받지 않아 도구가 없으면 실패한다. |
+| pre-push | 작업 트리 전체 `cargo fmt --check`(B.19, workspace 제외 크레이트 포함) | ✅ `format-check.yml`과 같은 두 명령이다. pre-commit A.2는 staged Rust 파일이 있을 때만 돈다. |
 | pre-push | `cargo test --lib --locked --no-fail-fast -- source_guards`(B.10) | ✅ `crossplatform-check.yml`·`crossplatform-check-macos.yml`의 `cargo test --workspace --lib --bins`가 이 모듈을 포함한다. 훅은 Linux·Windows·macOS 중 push하는 머신에서만 돌고 소스 가드만 실행한다. |
 
 pre-push의 기본 feature 개발 빌드·테스트 코드 컴파일 검사는 위 Clippy 명령에 통합한다.

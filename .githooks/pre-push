@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# push할 커밋의 플러그인 버전과 파일 수를 확인한 뒤 빌드·문서·소스 가드를 검사한다.
+# push할 커밋의 플러그인 버전을 확인한 뒤 CI의 빠른 스크립트 검사와 빌드·문서·소스 가드를 검사한다.
 # 설치: git config core.hooksPath .githooks
 # 검사별 실행 방법: docs/dev-guide/git-hooks.md
 set -e -o pipefail
@@ -120,6 +120,50 @@ else
     yellow '직접 검사: bash scripts/check-plugin-version-bump.sh --range <원격 커밋> HEAD'
     printf '생략: 플러그인 버전 — Git의 ref 정보 없음\n' >> "$SUMMARY"
 fi
+
+# ─
+# B.11  CI 스크립트 검사가 쓰는 판정기(문자열 마스킹·test 전용 코드 제외) 빌드
+run_check B.11 '판정기 빌드' cargo build --locked -p tasty-doc-guards --bin mask-source --bin strip-cfg-test
+
+# ─
+# B.12  파일 SLOC 상한 (complexity-check.yml)
+run_check B.12 '파일 SLOC' bash scripts/check-file-size.sh
+
+# ─
+# B.13  동결 명부 파일의 SLOC 총합 래칫 (complexity-check.yml)
+run_check B.13 '동결 총합 래칫' bash scripts/check-frozen-sum-ratchet.sh
+
+# ─
+# B.14  Intent를 거치지 않는 상태 변경 (script-gates.yml)
+run_check B.14 'Intent 규율' bash scripts/check-intent-discipline.sh
+
+# ─
+# B.15  근거 없는 allow 속성 수 래칫 (script-gates.yml)
+run_check B.15 '근거 없는 allow 래칫' bash scripts/check-allow-reason.sh
+
+# ─
+# B.16  공용 순회를 거치지 않는 read_dir 수 래칫 (script-gates.yml)
+run_check B.16 '공용 순회 래칫' bash scripts/check-shared-walk-ratchet.sh
+
+# ─
+# B.17  Core::apply 밖의 구조 writer 래칫 (script-gates.yml)
+run_check B.17 '구조 writer 래칫' bash scripts/check-core-writer-ratchet.sh
+
+# ─
+# B.18  추적 셸 자산 전체의 shellcheck (script-gates.yml)
+# 검사 도구는 받지 않는다. 없으면 스크립트가 설치 안내와 함께 종료 코드 2로 실패한다.
+run_check B.18 '셸 자산' bash scripts/check-shell-assets.sh
+
+# ─
+# B.19  작업 트리 전체의 형식 (format-check.yml). pre-commit A.2는 staged Rust 파일이 있을 때만 돈다.
+# workspace에서 제외한 tasty-plugin-sdk-wasm도 검사한다. 앞 검사가 실패해도 뒤 검사를 실행한다.
+fmt_check_all() {
+    local rc=0
+    cargo fmt --check || rc=1
+    cargo fmt --check --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml || rc=1
+    return "$rc"
+}
+run_check B.19 'cargo fmt --check' fmt_check_all
 
 # ─
 # B.4  개발 빌드와 테스트 코드의 컴파일·Clippy 검사: correctness 경고는 오류로 처리

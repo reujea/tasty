@@ -41,6 +41,9 @@ CHECK
 chmod +x "$fixture/check"
 cp "$fixture/check" "$fixture/bin/cargo"
 cp "$fixture/check" "$repo/scripts/check-plugin-version-bump.sh"
+for gate in file-size frozen-sum-ratchet intent-discipline allow-reason shared-walk-ratchet core-writer-ratchet shell-assets; do
+    cp "$fixture/check" "$repo/scripts/check-$gate.sh"
+done
 EXPECTED_PARENT="$(git -C "$repo" rev-parse --show-toplevel)"
 EXPECTED_FIXTURE="$fixture"
 export EXPECTED_PARENT EXPECTED_FIXTURE
@@ -56,4 +59,4 @@ printf 'refs/heads/main %s refs/heads/main %s\n' "$before_head" "$before_head" |
 cmp "$fixture/config.before" "$repo/.git/config"
 cmp "$fixture/index.before" "$repo/.git/index"
 [ "$(git config --get core.bare)" = false ]
-[ "$(wc -l < "$fixture/checks" | tr -d ' ')" = 6 ]
+[ "$(wc -l < "$fixture/checks" | tr -d ' ')" = 16 ]

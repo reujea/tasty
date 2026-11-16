@@ -97,7 +97,13 @@ const HOOK_STEPS: &[(&str, &[&str])] = &[
         ],
     ),
     ("pre-merge-commit", &[]),
-    ("pre-push", &["B.4", "B.6", "B.7", "B.8", "B.9", "B.10"]),
+    (
+        "pre-push",
+        &[
+            "B.4", "B.6", "B.7", "B.8", "B.9", "B.10", "B.11", "B.12", "B.13", "B.14", "B.15",
+            "B.16", "B.17", "B.18", "B.19",
+        ],
+    ),
 ];
 
 /// 표의 첫 열에 검사 ID를 적는 운영 문서.
@@ -231,6 +237,7 @@ fn run_pre_push_fixture(
         version_rc,
         cargo_rc,
         "test source_guards::fixture ... ok",
+        None,
     )
 }
 
@@ -241,6 +248,8 @@ fn run_pre_push_fixture_with(
     version_rc: i32,
     cargo_rc: i32,
     source_guard_output: &str,
+    // 인자가 정확히 같은 cargo 호출 하나만 실패시킨다. 나머지 호출은 cargo_rc를 따른다.
+    failing_cargo: Option<&str>,
 ) -> (bool, String, String, String) {
     use std::io::Write;
     use std::process::Stdio;
@@ -267,6 +276,7 @@ bash() {
     printf '%s\n' "$*" >> "$HOOK_FIXTURE/calls"
     case "$1" in
         *check-plugin-version-bump.sh) return "$HOOK_VERSION_RC" ;;
+        scripts/check-*.sh) return "$HOOK_SCRIPT_RC" ;;
         *) return 99 ;;
     esac
 }
@@ -275,6 +285,9 @@ cargo() {
     printf 'first diagnostic\n'
     printf '%s\n' "$HOOK_SOURCE_GUARD_OUTPUT"
     for ((i=0; i<70; i++)); do printf 'detail %s\n' "$i"; done
+    if [ -n "$HOOK_CARGO_FAIL_ARGS" ] && [ "$*" = "$HOOK_CARGO_FAIL_ARGS" ]; then
+        return 1
+    fi
     return "$HOOK_CARGO_RC"
 }
 "#,
@@ -287,6 +300,8 @@ cargo() {
         .env("HOOK_FIXTURE", hook_path(&root))
         .env("HOOK_VERSION_RC", version_rc.to_string())
         .env("HOOK_CARGO_RC", cargo_rc.to_string())
+        .env("HOOK_CARGO_FAIL_ARGS", failing_cargo.unwrap_or(""))
+        .env("HOOK_SCRIPT_RC", cargo_rc.to_string())
         .env("HOOK_SOURCE_GUARD_OUTPUT", source_guard_output)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -343,6 +358,16 @@ fn pre_push_reports_failures_and_retains_complete_logs() {
     // Clippy covers the development targets once; release and headless remain separate.
     let expected_calls = [
         "scripts/check-plugin-version-bump.sh --range bbbbbbbb aaaaaaaa",
+        "cargo build --locked -p tasty-doc-guards --bin mask-source --bin strip-cfg-test",
+        "scripts/check-file-size.sh",
+        "scripts/check-frozen-sum-ratchet.sh",
+        "scripts/check-intent-discipline.sh",
+        "scripts/check-allow-reason.sh",
+        "scripts/check-shared-walk-ratchet.sh",
+        "scripts/check-core-writer-ratchet.sh",
+        "scripts/check-shell-assets.sh",
+        "cargo fmt --check",
+        "cargo fmt --check --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml",
         "cargo clippy --workspace --all-targets -- -D clippy::correctness",
         "cargo check --workspace --release --locked",
         "cargo check --no-default-features",
@@ -352,6 +377,15 @@ fn pre_push_reports_failures_and_retains_complete_logs() {
     assert_eq!(calls.lines().collect::<Vec<_>>(), expected_calls);
     for title in [
         "플러그인 버전",
+        "판정기 빌드",
+        "파일 SLOC",
+        "동결 총합 래칫",
+        "Intent 규율",
+        "근거 없는 allow 래칫",
+        "공용 순회 래칫",
+        "구조 writer 래칫",
+        "셸 자산",
+        "cargo fmt --check",
         "cargo clippy --workspace --all-targets -- -D clippy::correctness",
         "cargo check --workspace --release --locked",
         "cargo check --no-default-features",
@@ -379,11 +413,39 @@ fn pre_push_reports_failures_and_retains_complete_logs() {
         "full diagnostics must remain in the logs"
     );
     assert!(logs.contains("실패: cargo test -p tasty-doc-guards"));
+    // 스크립트 검사의 실패도 push를 막고, 형식 검사는 둘 중 하나만 실패해도 실패한다.
+    assert!(logs.contains("실패: 동결 총합 래칫"), "{logs}");
+    assert!(logs.contains("실패: cargo fmt --check ("), "{logs}");
     // 시험 줄이 있어도 cargo의 실패가 이긴다.
     assert!(
         logs.contains(&format!("실패: {SOURCE_GUARD_TITLE}")),
         "{logs}"
     );
+}
+
+/// 형식 검사는 두 명령을 모두 실행하고, 어느 한쪽만 실패해도 push를 막는다.
+#[test]
+fn pre_push_fails_when_only_one_fmt_command_fails() {
+    let refs = "refs/heads/main aaaaaaaa refs/heads/main bbbbbbbb\n";
+    let workspace = "fmt --check";
+    let wasm = "fmt --check --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml";
+    for failing in [workspace, wasm] {
+        let (success, output, calls, logs) = run_pre_push_fixture_with(
+            refs,
+            0,
+            0,
+            "test source_guards::fixture ... ok",
+            Some(failing),
+        );
+        assert!(!success, "{failing}: {output}");
+        assert!(calls.contains(&format!("cargo {workspace}\n")), "{calls}");
+        assert!(calls.contains(&format!("cargo {wasm}\n")), "{calls}");
+        assert!(
+            logs.contains("실패: cargo fmt --check ("),
+            "{failing}: {logs}"
+        );
+        assert!(logs.contains("통과: 판정기 빌드 ("), "{failing}: {logs}");
+    }
 }
 
 /// 이름 필터는 부분 일치라 passed 수만으로는 모듈이 사라진 경우를 구분할 수 없다.
@@ -395,7 +457,8 @@ fn pre_push_fails_when_no_source_guard_test_passed() {
         "running 1 test\ntest other::source_guards_like ... ok\ntest result: ok. 1 passed; 0 failed",
         "running 1 test\ntest source_guards::ignored ... ignored\ntest result: ok. 0 passed; 0 failed",
     ] {
-        let (success, output, calls, logs) = run_pre_push_fixture_with(refs, 0, 0, output_of_cargo);
+        let (success, output, calls, logs) =
+            run_pre_push_fixture_with(refs, 0, 0, output_of_cargo, None);
         assert!(!success, "{output_of_cargo}: {output}");
         assert!(calls.contains("-- source_guards"), "{calls}");
         assert!(
