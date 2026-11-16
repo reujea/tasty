@@ -145,6 +145,7 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 | 부모가 있는 파일 피커(`file_picker`) | 부모의 결속 범위 | trigger 때 부모 선언 종류+target을 해석하고, 그리기 전마다 같은 계산으로 따라간다 |
 | 부모 없는 plugin 파일 피커(`file_picker`) | Surface | 요청의 `origin_surface_id` |
 | 새 탭 메뉴의 파일 피커(`file_picker`) | Pane | 새 탭을 만들 pane id |
+| 파일 처리기 선택(`file_handler_picker`) | Surface 또는 Window | 요청 출처 surface. 터미널 링크의 연결 동작은 링크를 누른 터미널. 출처 없는 창 단위 요청(출처 없는 IPC·에이전트 요청)은 Window |
 
 `Workspace` 스코프 팝업은 워크스페이스를 옮기면 **그리지 않는다** — 상태는 그대로 남아 있어
 돌아오면 보던 화면이 그대로 복원된다. 그 상태의 수명은 스코프가 아니라 `on_close` 가 정한다.

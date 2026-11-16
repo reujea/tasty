@@ -160,36 +160,47 @@ impl MainView {
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         link: &TerminalLinkMenu,
     ) {
-        let Some(target) = link.open_with.clone() else {
-            return;
-        };
-        match target {
-            crate::file::dispatch::DispatchTarget::File(file) if link.remote_path => {
-                crate::file::dispatch::remote::open_remote_link_picker(
-                    &mut self.state,
-                    engine,
-                    file,
-                    link.surface_id,
-                );
-            }
-            target => {
-                let all = engine.file_handler.all_handlers();
-                crate::file::dispatch::open_picker_from_read(
-                    &mut self.state,
-                    engine,
-                    target,
-                    None,
-                    all,
-                    true,
-                    crate::file::dispatch::FileDispatchPolicy {
-                        dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
-                        ignore_size_limit: false,
-                        run: None,
-                    },
-                );
-            }
-        }
+        open_link_handler_picker(&mut self.state, engine, link);
         self.mark_dirty();
+    }
+}
+
+/// 링크의 "연결 동작". 링크를 누른 터미널 surface 가 선택창의 출처이자 범위다.
+fn open_link_handler_picker(
+    state: &mut crate::state::RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    link: &TerminalLinkMenu,
+) {
+    let Some(target) = link.open_with.clone() else {
+        return;
+    };
+    match target {
+        crate::file::dispatch::DispatchTarget::File(file) if link.remote_path => {
+            crate::file::dispatch::remote::open_remote_link_picker(
+                state,
+                engine,
+                file,
+                link.surface_id,
+            );
+        }
+        target => {
+            let all = engine.file_handler.all_handlers();
+            crate::file::dispatch::open_picker_from_read(
+                state,
+                engine,
+                target,
+                None,
+                all,
+                true,
+                // 선택창은 링크를 누른 터미널에 뜬다. 고른 처리기는 지금처럼 출처 없이 실행한다.
+                crate::file::dispatch::PickerOrigin::ShownIn(link.surface_id),
+                crate::file::dispatch::FileDispatchPolicy {
+                    dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
+                    ignore_size_limit: false,
+                    run: None,
+                },
+            );
+        }
     }
 }
 
@@ -371,5 +382,96 @@ mod tests {
         );
         assert!(remote);
         assert!(!link_open_target("file:///home/u/a.md", false).1);
+    }
+
+    fn link_on(surface_id: u32, url: &str) -> TerminalLinkMenu {
+        TerminalLinkMenu {
+            surface_id,
+            start: pt(0, 0),
+            end: pt(5, 0),
+            text: url.into(),
+            open_with: DispatchTarget::http_url(url),
+            remote_path: false,
+        }
+    }
+
+    fn picker_scope_after(
+        open: impl FnOnce(
+            &mut crate::state::RequestContext,
+            &crate::runtime::engine_read::EngineRead<'_>,
+            u32,
+        ),
+    ) -> (
+        Option<crate::adapters::ui::popup::PopupScope>,
+        Option<u32>,
+        u32,
+    ) {
+        use crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID;
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let mut engine = session.borrow_mut();
+        for def in crate::adapters::ui::popup::defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        // 포커스가 아닌 pane 의 surface 에서 연다.
+        let other = 101;
+        assert_ne!(state.focused_surface_id(&engine.read()), Some(other));
+        open(&mut state, &engine.read(), other);
+        for intent in state.take_pending_intents() {
+            crate::intent::popup::handle(&mut state, &mut engine, &intent);
+        }
+        let origin = state
+            .dialogs
+            .file_handler_picker
+            .as_ref()
+            .and_then(|p| p.origin_surface_id);
+        (
+            state.popups.open_scope(PICKER_POPUP_ID).cloned(),
+            origin,
+            other,
+        )
+    }
+
+    /// 링크의 연결 동작은 링크를 누른 터미널 범위로 선택창을 연다. 고른 처리기는 지금처럼 출처 없이 실행한다.
+    #[test]
+    fn the_link_handler_picker_opens_in_the_linked_terminal() {
+        let (scope, origin, sid) = picker_scope_after(|state, engine, sid| {
+            open_link_handler_picker(state, engine, &link_on(sid, "https://example.com/a"))
+        });
+        assert_eq!(
+            scope,
+            Some(crate::adapters::ui::popup::PopupScope::Surface(sid))
+        );
+        assert_eq!(origin, None);
+    }
+
+    /// 출처 surface 가 있는 요청은 그 surface 범위, 없는 요청은 창 범위로 연다.
+    #[test]
+    fn the_handler_picker_scope_follows_its_origin() {
+        use crate::adapters::ui::popup::PopupScope;
+        use crate::file::dispatch::PickerOrigin;
+        let open = |origin: fn(u32) -> PickerOrigin| {
+            move |state: &mut crate::state::RequestContext,
+                  engine: &crate::runtime::engine_read::EngineRead<'_>,
+                  sid: u32| {
+                crate::file::dispatch::open_picker_from_read(
+                    state,
+                    engine,
+                    DispatchTarget::http_url("https://example.com/b").unwrap(),
+                    None,
+                    engine.file_handler.all_handlers(),
+                    true,
+                    origin(sid),
+                    crate::file::dispatch::FileDispatchPolicy {
+                        dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
+                        ignore_size_limit: false,
+                        run: None,
+                    },
+                )
+            }
+        };
+        let (scope, origin, sid) = picker_scope_after(open(PickerOrigin::Surface));
+        assert_eq!((scope, origin), (Some(PopupScope::Surface(sid)), Some(sid)));
+        let (scope, origin, _) = picker_scope_after(open(|_| PickerOrigin::Window));
+        assert_eq!((scope, origin), (Some(PopupScope::Window), None));
     }
 }

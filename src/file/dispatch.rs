@@ -158,6 +158,10 @@ fn hex_val(b: u8) -> Option<u8> {
 
 /// 빈 후보도 picker로 표시한다. 대상에 맞는 핸들러만 후보·최근 목록에 남긴다.
 #[cfg(feature = "gui")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the picker takes the request, its candidates and its origin as separate facts"
+)]
 pub(crate) fn open_picker(
     state: &mut RequestContext,
     engine: &mut EngineMut<'_>,
@@ -165,6 +169,7 @@ pub(crate) fn open_picker(
     detector: Option<DetectorId>,
     candidates: Vec<FileHandler>,
     candidates_are_fallback: bool,
+    origin: PickerOrigin,
     policy: FileDispatchPolicy,
 ) {
     open_picker_from_read(
@@ -174,12 +179,53 @@ pub(crate) fn open_picker(
         detector,
         candidates,
         candidates_are_fallback,
+        origin,
         policy,
     );
 }
 
-/// Build only popup presentation from the borrowed handler catalog.
+/// 선택창이 작용하는 대상. 요청 출처 surface 와 선택창 범위를 함께 정한다.
 #[cfg(feature = "gui")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PickerOrigin {
+    /// 요청을 낸 surface. 선택 결과도 이 surface 를 출처로 실행하고, 선택창은 이 surface 범위다.
+    Surface(u32),
+    /// 출처 없이 실행하는 요청을 이 surface 에서 보여 준다(터미널 링크의 연결 동작).
+    ShownIn(u32),
+    /// 출처 surface 가 없는 창 단위 요청(출처 없는 IPC·에이전트 요청). 선택창은 창 범위다.
+    Window,
+}
+
+#[cfg(feature = "gui")]
+impl PickerOrigin {
+    pub(crate) fn of(origin_surface_id: Option<u32>) -> Self {
+        origin_surface_id.map_or(Self::Window, Self::Surface)
+    }
+
+    fn dispatch_origin(self) -> Option<u32> {
+        match self {
+            Self::Surface(sid) => Some(sid),
+            Self::ShownIn(_) | Self::Window => None,
+        }
+    }
+
+    fn scope(self) -> crate::model::popup_kind::PopupScope {
+        match self {
+            Self::Surface(sid) | Self::ShownIn(sid) => {
+                crate::model::popup_kind::PopupScope::Surface(sid)
+            }
+            Self::Window => crate::model::popup_kind::PopupScope::Window,
+        }
+    }
+}
+
+/// Build only popup presentation from the borrowed handler catalog.
+/// 선택창은 작용 대상의 범위로 연다(작용 대상 범위 규칙, [`PickerOrigin`]).
+#[cfg(feature = "gui")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the picker takes the request, its candidates and its origin as separate facts"
+)]
 pub(crate) fn open_picker_from_read(
     state: &mut RequestContext,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -187,6 +233,7 @@ pub(crate) fn open_picker_from_read(
     detector: Option<DetectorId>,
     candidates: Vec<FileHandler>,
     candidates_are_fallback: bool,
+    origin: PickerOrigin,
     policy: FileDispatchPolicy,
 ) {
     let FileDispatchPolicy {
@@ -255,11 +302,12 @@ pub(crate) fn open_picker_from_read(
         opened_in,
         row_link: crate::adapters::ui::popup::remote_row::picker_row_link(engine, opened_in),
     });
+    if let Some(picker) = state.dialogs.file_handler_picker.as_mut() {
+        set_picker_origin(picker, engine, origin.dispatch_origin());
+    }
     let intent = crate::intent::UiIntent::OpenPopup {
         id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused(
-            crate::model::popup_kind::PopupScope::Window,
-        ),
+        mode: crate::intent::OpenPopupMode::CenteredFocused(origin.scope()),
     };
     state.dispatch_intent(match dispatch_origin {
         FileDispatchOrigin::User => intent.from_user_menu("file_dispatch"),

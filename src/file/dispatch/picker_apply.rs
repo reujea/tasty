@@ -51,10 +51,16 @@ pub(crate) fn apply_identify_result(
     if handlers.is_empty() {
         // 매칭이 없으면 전체 핸들러를 일회성 선택지로 보여준다. detector 연결을 저장하지 않는다.
         let fallback = engine.runtime.file_handler.all_handlers();
-        crate::file::dispatch::open_picker(state, engine, target, detector, fallback, true, policy);
-        if let Some(picker) = state.dialogs.file_handler_picker.as_mut() {
-            crate::file::dispatch::set_picker_origin(picker, &engine.read(), origin_surface_id);
-        }
+        crate::file::dispatch::open_picker(
+            state,
+            engine,
+            target,
+            detector,
+            fallback,
+            true,
+            crate::file::dispatch::PickerOrigin::of(origin_surface_id),
+            policy,
+        );
         return;
     }
     let first = handlers.into_iter().next().expect("non-empty checked");

@@ -1518,6 +1518,7 @@ mod tests {
             None,
             all,
             true,
+            crate::file::dispatch::PickerOrigin::Window,
             crate::file::dispatch::FileDispatchPolicy {
                 dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                 ignore_size_limit: false,
