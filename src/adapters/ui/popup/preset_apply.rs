@@ -57,10 +57,18 @@ impl PresetApplyTarget {
         }
     }
 
-    fn scope(self) -> crate::adapters::ui::popup::PopupScope {
+    /// 대상 자체를 통째로 바꾸므로 대상이 보이는 상위 자리가 범위다. 탭은 그 탭의 pane, pane 은 그 pane 의 workspace.
+    fn scope(
+        self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+    ) -> Option<crate::adapters::ui::popup::PopupScope> {
+        use crate::adapters::ui::popup::PopupScope;
         match self {
-            Self::Tab(id) => crate::adapters::ui::popup::PopupScope::Tab(id),
-            Self::Pane(id) => crate::adapters::ui::popup::PopupScope::Pane(id),
+            Self::Tab(_) => self.pane(engine).map(PopupScope::Pane),
+            Self::Pane(pane) => engine
+                .find_workspace_index_for_pane(pane)
+                .and_then(|index| engine.workspace_at(index))
+                .map(|ws| PopupScope::Workspace(ws.id)),
         }
     }
 
@@ -181,8 +189,8 @@ fn apply_target_pane(
     }
 }
 
-/// pane 의 탭 또는 pane 프리셋 적용 팝업을 그 대상 범위로 연다. 탭 프리셋은 그 pane 에서 선택된 탭이 대상이다.
-/// 대상을 찾지 못하면 열지 않고 warn 을 남긴다.
+/// pane 의 탭 또는 pane 프리셋 적용 팝업을 대상이 보이는 상위 범위로 연다. 탭 프리셋은 그 pane 에서 선택된 탭이
+/// 대상이고 범위는 그 pane, pane 프리셋은 범위가 그 pane 의 workspace 다. 대상을 찾지 못하면 열지 않고 warn 을 남긴다.
 pub(crate) fn open_for_pane(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -200,16 +208,16 @@ pub(crate) fn open_for_pane(
             .map(|tab| PresetApplyTarget::Tab(tab.id)),
         PresetKind::Workspace => None,
     };
-    let Some(target) = target else {
+    let Some((target, scope)) = target.and_then(|t| t.scope(engine).map(|scope| (t, scope))) else {
         tracing::warn!("{kind:?} preset popup not opened: pane {pane_id} has no target");
         return false;
     };
     state.dialogs.preset_picker_selection.clear(kind);
     state.dialogs.preset_apply_targets.set(target);
-    // 새 요청이 대상을 바꾸므로 다른 탭·pane 에 열려 있으면 새 범위로 다시 연다.
+    // 새 요청이 대상을 바꾸므로 다른 범위에 열려 있으면 새 범위로 다시 연다. 범위가 같으면 대상만 바뀐다.
     state.dispatch_intent(dispatch(crate::intent::UiIntent::ReopenPopup {
         id: target.popup_id(),
-        mode: crate::intent::OpenPopupMode::CenteredFocused(target.scope()),
+        mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
     }));
     true
 }
@@ -605,11 +613,11 @@ mod tests {
     }
 
     #[test]
-    fn the_tab_preset_popup_opens_in_the_selected_tab_of_its_pane() {
+    fn the_tab_preset_popup_opens_in_the_pane_of_the_selected_tab() {
         let (state, _session, intent) = open_on_left_pane(PresetKind::Tab);
         assert_eq!(
             opened_popup(&intent),
-            (APPLY_TAB_POPUP_ID, PopupScope::Tab(101))
+            (APPLY_TAB_POPUP_ID, PopupScope::Pane(10))
         );
         assert_eq!(
             state.dialogs.preset_apply_targets.get(PresetKind::Tab),
@@ -618,11 +626,11 @@ mod tests {
     }
 
     #[test]
-    fn the_pane_preset_popup_opens_in_its_pane() {
+    fn the_pane_preset_popup_opens_in_the_workspace_of_its_pane() {
         let (state, _session, intent) = open_on_left_pane(PresetKind::Pane);
         assert_eq!(
             opened_popup(&intent),
-            (APPLY_PANE_POPUP_ID, PopupScope::Pane(10))
+            (APPLY_PANE_POPUP_ID, PopupScope::Workspace(1))
         );
         assert_eq!(
             state.dialogs.preset_apply_targets.get(PresetKind::Pane),
@@ -705,6 +713,7 @@ mod tests {
     }
 
     /// 열린 팝업에 다른 대상의 요청이 오면 범위와 대상이 모두 새 요청을 따른다.
+    /// 탭 팝업은 다른 pane 범위로 옮기고, pane 팝업은 같은 workspace 범위에서 대상만 바꾼다.
     #[test]
     fn a_second_request_for_another_target_moves_scope_and_target_together() {
         for (kind, popup, second_pane, scope, target) in [
@@ -712,14 +721,14 @@ mod tests {
                 PresetKind::Tab,
                 APPLY_TAB_POPUP_ID,
                 20,
-                PopupScope::Tab(201),
+                PopupScope::Pane(20),
                 PresetApplyTarget::Tab(201),
             ),
             (
                 PresetKind::Pane,
                 APPLY_PANE_POPUP_ID,
                 20,
-                PopupScope::Pane(20),
+                PopupScope::Workspace(1),
                 PresetApplyTarget::Pane(20),
             ),
         ] {
