@@ -6,7 +6,8 @@
 //! 정의를 더하면 이 표에도 행을 더한다. 표에 없는 정의가 있으면 실패한다.
 
 use super::super::{
-    PopupContentMargin, PopupLook, PopupManager, PopupShadow, PopupShell, PopupState, ScrimInput,
+    PopupContentMargin, PopupDecl, PopupEscape, PopupKeyboard, PopupLook, PopupManager,
+    PopupOutsideClick, PopupShadow, PopupShell, PopupState, ScrimInput,
 };
 use egui::Color32;
 use tasty_type_appearance::theme::Theme;
@@ -298,5 +299,97 @@ fn registered_scopes_match_the_declared_scope_kind() {
             "{}",
             def.id
         );
+    }
+}
+
+/// 아직 읽는 곳이 없는 입력 속성의 기대 값. 각 값은 지금 코드가 하는 일을 옮겨 적었다.
+/// - keyboard: 글자를 편집하는 입력칸이 있으면 Text.
+/// - escape: 포커스된 팝업에서 Esc를 누른 결과. 키 처리 경로는 포커스를 놓고, 바깥 클릭에 닫히는 팝업이면
+///   닫는다. 같은 키를 받은 그리기 함수가 닫으면 Close다. 둘 다 닫지 않으면 Unfocus다.
+/// - focus_on_open: 사용자가 여는 경로가 포커스를 주는지. 사용자 경로가 없는 팝업은 false다.
+const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bool)] = {
+    use PopupEscape::{Close as EscClose, Unfocus as EscUnfocus};
+    use PopupKeyboard::{Keys, Text};
+    use PopupOutsideClick::{Close as OutClose, Unfocus as OutUnfocus};
+    &[
+        ("notifications", Keys, EscClose, OutUnfocus, false),
+        ("convert_surface", Keys, EscClose, OutClose, true),
+        ("explorer_conflict", Keys, EscUnfocus, OutUnfocus, true),
+        ("script_changed_confirm", Keys, EscClose, OutUnfocus, true),
+        ("rename", Text, EscClose, OutUnfocus, true),
+        ("explorer_properties", Keys, EscUnfocus, OutUnfocus, true),
+        ("search_bar", Text, EscClose, OutUnfocus, true),
+        ("info_modal", Keys, EscClose, OutUnfocus, true),
+        ("approval", Text, EscUnfocus, OutUnfocus, false),
+        ("file_handler_picker", Keys, EscClose, OutUnfocus, true),
+        ("file_picker", Text, EscClose, OutUnfocus, true),
+        ("port_scanner", Text, EscClose, OutClose, true),
+        ("command_palette", Text, EscClose, OutClose, true),
+        ("dag_list", Text, EscClose, OutUnfocus, true),
+        ("remote_tool", Text, EscClose, OutUnfocus, true),
+        ("remote_attach", Keys, EscClose, OutUnfocus, true),
+        ("transfer_progress", Keys, EscUnfocus, OutUnfocus, false),
+        ("transfer_error", Keys, EscClose, OutClose, true),
+        ("download_run", Keys, EscClose, OutClose, true),
+        ("download_run_large", Keys, EscClose, OutClose, true),
+        ("download_run_progress", Keys, EscUnfocus, OutUnfocus, false),
+        ("apply_workspace_preset", Keys, EscClose, OutClose, true),
+        ("apply_tab_preset", Keys, EscClose, OutClose, true),
+        ("apply_pane_preset", Keys, EscClose, OutClose, true),
+        ("tools_menu", Keys, EscClose, OutClose, true),
+        ("mouse_capture_banner_menu", Keys, EscClose, OutClose, true),
+        ("confirm_delete_category", Keys, EscClose, OutClose, true),
+        (
+            "confirm_force_detach_workspace",
+            Keys,
+            EscClose,
+            OutClose,
+            true,
+        ),
+        ("confirm_close_remote", Keys, EscClose, OutUnfocus, true),
+        ("remote_row", Keys, EscUnfocus, OutUnfocus, false),
+        (
+            "remote_row_over_screen",
+            Keys,
+            EscUnfocus,
+            OutUnfocus,
+            false,
+        ),
+        ("tutorial_topics", Keys, EscClose, OutClose, true),
+        ("rail_category", Keys, EscClose, OutClose, true),
+        ("keybinding_conflict", Keys, EscClose, OutUnfocus, true),
+        ("local_file_chooser", Text, EscClose, OutUnfocus, true),
+    ]
+};
+
+/// 표의 모든 팝업의 선언. 설정 창 파일 선택기는 `file_chooser::register`처럼 file_picker 선언을 쓴다.
+fn all_decls() -> Vec<(&'static str, PopupDecl)> {
+    let mut out: Vec<_> = super::all_defs().iter().map(|d| (d.id, d.decl)).collect();
+    out.push((
+        "keybinding_conflict",
+        crate::view::settings::ui::KEYBINDING_CONFLICT_DECL,
+    ));
+    let picker = super::find(super::super::file_picker::FILE_PICKER_POPUP_ID).expect("file picker");
+    out.push((
+        crate::view::file_chooser::FILE_CHOOSER_POPUP_ID,
+        picker.decl,
+    ));
+    out
+}
+
+/// 입력 속성 표가 선언 목록과 같은 팝업을 가리키고 값이 같다.
+#[test]
+fn input_attributes_match_current_behavior() {
+    let decls = all_decls();
+    assert_eq!(decls.len(), INPUT_EXPECTED.len(), "표와 선언 수");
+    for (id, decl) in decls {
+        let &(_, keyboard, escape, outside, focus) = INPUT_EXPECTED
+            .iter()
+            .find(|r| r.0 == id)
+            .unwrap_or_else(|| panic!("`{id}` 행이 입력 속성 표에 없다"));
+        assert_eq!(decl.keyboard, keyboard, "{id} keyboard");
+        assert_eq!(decl.escape, escape, "{id} escape");
+        assert_eq!(decl.outside_click, outside, "{id} outside_click");
+        assert_eq!(decl.focus_on_open, focus, "{id} focus_on_open");
     }
 }

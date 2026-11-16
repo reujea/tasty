@@ -141,7 +141,7 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | `shadow` | Modal / Popover | Modal | 셸 그림자 토큰(`draw::shadow_token`) |
 | `content_margin` | Default / None | Default | 콘텐츠 둘레 공통 여백(`space-xs`). 구역별 여백을 직접 두는 팝업은 `None` |
 
-"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 35개(정의 33개와 설정 창 팝업 2개)의 scrim·scrim 입력·그림자·여백·셸 색을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
+"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 35개(정의 33개와 설정 창 팝업 2개)의 scrim·scrim 입력·그림자·여백·셸 색과 `keyboard`·`escape`·`outside_click`·`focus_on_open` 값을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
 
 ### sizer 는 매 프레임 돈다 (열 때 한 번이 아니다)
 
