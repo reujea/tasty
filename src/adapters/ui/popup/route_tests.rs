@@ -4,6 +4,7 @@ use super::{KeyTarget, ScopePath, keyboard_target, path_at, path_of_focus};
 use crate::adapters::ui::LayoutContext;
 use crate::adapters::ui::layout_context::SurfaceOwner;
 use crate::adapters::ui::popup::PopupScope;
+use crate::model::{LogicalPx, LogicalRect};
 use crate::state::RequestContext;
 
 pub(super) const WORKSPACE: u32 = 1;
@@ -14,23 +15,48 @@ pub(super) const SURFACE_L: u32 = 101;
 pub(super) const SURFACE_R: u32 = 201;
 
 /// 탭 바 높이. 디자인 토큰을 복제하지 않는 시험용 값이다.
-const TAB_BAR: f32 = 30.0;
+const TAB_BAR: LogicalPx = LogicalPx(30.0);
+/// 창 너비와 pane 하나의 너비, 작업 영역 높이(아래 20px 은 상태바다).
+const WIDTH: LogicalPx = LogicalPx(900.0);
+const HALF: LogicalPx = LogicalPx(450.0);
+const WORK_H: LogicalPx = LogicalPx(680.0);
+
+/// 시험의 길이는 길이 타입으로 계산하고 egui 를 부를 때만 값을 꺼낸다.
+pub(super) fn rect(x: LogicalPx, y: LogicalPx, width: LogicalPx, height: LogicalPx) -> LogicalRect {
+    LogicalRect {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+pub(super) fn to_egui(r: LogicalRect) -> egui::Rect {
+    egui::Rect::from_min_size(
+        egui::pos2(r.x.value(), r.y.value()),
+        egui::vec2(r.width.value(), r.height.value()),
+    )
+}
+
+pub(super) fn point(x: LogicalPx, y: LogicalPx) -> egui::Pos2 {
+    egui::pos2(x.value(), y.value())
+}
 
 /// 사이드바 자리를 비우지 않고 아래 20px 만 상태바로 남긴 workspace 영역.
 fn workspace_rect() -> egui::Rect {
-    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(900.0, 680.0))
+    to_egui(rect(LogicalPx(0.0), LogicalPx(0.0), WIDTH, WORK_H))
 }
 
-fn pane_rect(left: f32) -> egui::Rect {
-    egui::Rect::from_min_max(egui::pos2(left, 0.0), egui::pos2(left + 450.0, 680.0))
+fn pane_rect(left: LogicalPx) -> egui::Rect {
+    to_egui(rect(left, LogicalPx(0.0), HALF, WORK_H))
 }
 
 pub(super) fn surface_rect_l() -> egui::Rect {
-    egui::Rect::from_min_max(egui::pos2(0.0, TAB_BAR), egui::pos2(450.0, 680.0))
+    to_egui(rect(LogicalPx(0.0), TAB_BAR, HALF, WORK_H - TAB_BAR))
 }
 
 pub(super) fn surface_rect_r() -> egui::Rect {
-    egui::Rect::from_min_max(egui::pos2(450.0, TAB_BAR), egui::pos2(900.0, 680.0))
+    to_egui(rect(HALF, TAB_BAR, HALF, WORK_H - TAB_BAR))
 }
 
 /// L(0..450)·R(450..900) 두 surface 의 레이아웃.
@@ -38,7 +64,10 @@ pub(super) fn layout() -> LayoutContext {
     LayoutContext {
         active_workspace: 0,
         active_workspace_id: WORKSPACE,
-        pane_rects: vec![(PANE_L, pane_rect(0.0)), (PANE_R, pane_rect(450.0))],
+        pane_rects: vec![
+            (PANE_L, pane_rect(LogicalPx(0.0))),
+            (PANE_R, pane_rect(HALF)),
+        ],
         surface_rects: vec![(SURFACE_L, surface_rect_l()), (SURFACE_R, surface_rect_r())],
         active_tabs: vec![(PANE_L, 0), (PANE_R, 0)],
         active_tab_ids: vec![(PANE_L, SURFACE_L), (PANE_R, SURFACE_R)],
@@ -145,7 +174,7 @@ fn a_point_in_the_left_surface_is_on_the_left_path_only() {
 #[test]
 fn a_point_on_the_status_bar_is_on_the_window_only() {
     // 작업 영역(0..680) 아래 상태바 자리.
-    let path = path_at(&layout(), egui::pos2(300.0, 690.0));
+    let path = path_at(&layout(), point(LogicalPx(300.0), WORK_H + LogicalPx(10.0)));
     assert_eq!(all_scopes_of(&path), [PopupScope::Window]);
     assert!(!path.contains(&PopupScope::Workspace(WORKSPACE)));
 }
@@ -154,15 +183,18 @@ fn a_point_on_the_status_bar_is_on_the_window_only() {
 fn a_point_on_the_sidebar_is_on_the_window_only() {
     // 사이드바(0..180)를 둔 창. 작업 영역은 그 오른쪽이다.
     let mut with_sidebar = layout();
-    with_sidebar.workspace_rect = Some(egui::Rect::from_min_max(
-        egui::pos2(180.0, 0.0),
-        egui::pos2(900.0, 680.0),
-    ));
+    let sidebar = LogicalPx(180.0);
+    with_sidebar.workspace_rect = Some(to_egui(rect(
+        sidebar,
+        LogicalPx(0.0),
+        WIDTH - sidebar,
+        WORK_H,
+    )));
     with_sidebar.pane_rects.retain(|(id, _)| *id == PANE_R);
     with_sidebar
         .surface_rects
         .retain(|(id, _)| *id == SURFACE_R);
-    let path = path_at(&with_sidebar, egui::pos2(90.0, 300.0));
+    let path = path_at(&with_sidebar, point(sidebar / 2.0, LogicalPx(300.0)));
     assert_eq!(all_scopes_of(&path), [PopupScope::Window]);
     assert!(
         path_at(&with_sidebar, surface_rect_r().center())
@@ -182,7 +214,7 @@ fn without_a_workspace_area_no_point_is_on_the_workspace() {
 
 #[test]
 fn a_point_on_the_tab_bar_reaches_the_pane_but_no_surface() {
-    let path = path_at(&layout(), egui::pos2(600.0, TAB_BAR / 2.0));
+    let path = path_at(&layout(), point(LogicalPx(600.0), TAB_BAR / 2.0));
     assert_eq!(
         all_scopes_of(&path),
         [
@@ -195,7 +227,10 @@ fn a_point_on_the_tab_bar_reaches_the_pane_but_no_surface() {
 
 #[test]
 fn a_window_without_a_layout_puts_every_point_on_the_window_only() {
-    let path = path_at(&LayoutContext::window_only(), egui::pos2(10.0, 10.0));
+    let path = path_at(
+        &LayoutContext::window_only(),
+        point(LogicalPx(10.0), LogicalPx(10.0)),
+    );
     assert_eq!(path, ScopePath::default());
     assert!(path.contains(&PopupScope::Window));
 }

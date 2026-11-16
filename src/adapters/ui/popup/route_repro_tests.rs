@@ -6,11 +6,12 @@ use std::sync::Arc;
 use egui::{Context, Event, Pos2};
 use tasty_plugin_manifest::{PopupContribute, PopupRendering, PopupScopeDecl, PopupSizeHint};
 
-use super::{SURFACE_L, SURFACE_R, layout, scene, surface_rect_l};
+use super::{SURFACE_L, SURFACE_R, layout, rect, scene, surface_rect_l, to_egui};
 use crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
 use crate::adapters::ui::popup::frame::draw_popup_layer;
 use crate::adapters::ui::popup::route::{KeyTarget, keyboard_target};
 use crate::adapters::ui::popup::{PopupScope, defs};
+use crate::model::LogicalPx;
 use crate::plugin::PluginManager;
 use crate::plugin::manifest::PopupAnchor;
 use crate::plugin_bridge::popup_render::draw_plugin_popups;
@@ -20,7 +21,12 @@ const PLUGIN: &str = "com.example.markdown";
 const POPUP: u64 = 7;
 
 fn screen() -> egui::Rect {
-    egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 700.0))
+    to_egui(rect(
+        LogicalPx(0.0),
+        LogicalPx(0.0),
+        LogicalPx(900.0),
+        LogicalPx(700.0),
+    ))
 }
 
 fn instance(z_seq: u64) -> tasty_host_plugin::PopupInstance {
