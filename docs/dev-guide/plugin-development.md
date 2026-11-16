@@ -748,7 +748,7 @@ openssl pkey -in my-plugin.pem -pubout -outform DER | tail -c 32 > <plugin-dir>/
 # 개발 중이면 보통 target/release/tasty → 이하 예시도 --release.
 ```
 
-**1) 정지** — Windows 는 실행 중인 플러그인 실행 파일을 잠가 다음 단계의 폴더 교체가 실패한다. 다른 OS 도 같은 순서로 한다.
+**1) 정지** — 실행 중인 플러그인은 설치 폴더(`~/.tasty/plugins/<id>/`)의 실행 파일을 쓴다. Windows 는 그 실행 파일을 잠가 3) 의 `upgrade-builtins` 가 설치 폴더를 덮지 못한다. 2) 의 번들 준비는 설치 폴더를 건드리지 않지만 순서를 단순하게 하려고 먼저 정지한다. 다른 OS 도 같은 순서로 한다.
 ```bash
 tasty plugin disable com.tasty.<name>
 ```

@@ -12,8 +12,12 @@
 #     먼저 준비하고(ensure-sign-key.sh) 스테이징한 매니페스트를 그 키로 서명한다.
 #   --platform: 받을 산출물의 플랫폼 표지. 기본은 --target 또는 현재 호스트에서 정한다.
 # 공식 플러그인은 <id>/ 폴더 단위로 통째 교체한다. 그 밖의 폴더는 건드리지 않는다.
-# 교체는 폴더 이름 바꾸기로 시작하므로, Windows에서 실행 중인 Tasty가 플러그인 실행 파일을 쥐고 있으면
-# 그 폴더는 바뀌지 않고 실패한다. 그때는 플러그인을 끄고 다시 실행한다.
+# 교체는 기존 폴더를 옆 이름(.old-<id>.<pid>)으로 옮긴 뒤 새 폴더를 놓는다. 새 폴더를 놓지 못하거나
+# 그 사이에 INT·TERM으로 끝나면 옆 이름의 폴더를 <id>/로 되돌린다. 되돌리지 못하면 두 경로를 알리고 실패한다.
+# 실행 중인 Tasty는 설치 폴더(TASTY_HOME/plugins/<id>)의 실행 파일을 쓰므로 이 폴더를 잠그지 않는다.
+# 다른 프로세스(탐색기·백신 등)가 이 폴더의 파일을 열고 있으면 옮기기가 실패하고 폴더는 그대로 남는다.
+# 스테이징 폴더는 실행마다 새로 만들고 끝날 때 지운다. 같은 target·프로필의 동시 실행은
+# <profile>/builtin-plugins.lock 폴더로 막는다. 이 실행이 끝나면 잠금을 푼다.
 # 필요한 것: bash(3.2 이상), cargo, curl, tar. debug가 아니면 openssl. Windows는 Git Bash에서 실행한다.
 set -euo pipefail
 
@@ -162,8 +166,68 @@ fi
 target_dir="${CARGO_TARGET_DIR:-$root/target}"
 profile_dir="$target_dir${target:+/$target}/$profile"
 bundle="$profile_dir/builtin-plugins"
-stage="$profile_dir/.official-plugins-stage"
+lock="$profile_dir/builtin-plugins.lock"
 cd "$root"
+
+# 끝날 때 되돌리거나 지울 것. 교체 중인 폴더(pending_*)는 스테이징 폴더와 따로 다룬다.
+stage=""
+mesh_stage=""
+lock_held=0
+pending_old=""
+pending_dest=""
+pending_published=0
+
+# 옆 이름으로 옮긴 기존 폴더를 정리한다. 새 폴더를 놓았으면 지우고, 놓지 못했으면 되돌린다.
+settle_pending() {
+    [[ -n "$pending_old" ]] || return 0
+    local old="$pending_old" dest="$pending_dest" published="$pending_published"
+    pending_old=""
+    pending_dest=""
+    pending_published=0
+    [[ -e "$old" ]] || return 0
+    if [[ "$published" -eq 1 ]]; then
+        rm -rf "$old" || echo "Warning: could not remove $old" >&2
+        return 0
+    fi
+    if [[ ! -e "$dest" ]] && mv "$old" "$dest"; then
+        echo "Restored the previous $dest" >&2
+        return 0
+    fi
+    echo "Error: could not restore $dest." >&2
+    echo "  The previous folder is at $old. Move it back to $dest by hand." >&2
+    return 1
+}
+
+cleanup() {
+    local rc=$?
+    trap - EXIT INT TERM
+    settle_pending || rc=1
+    local dir
+    for dir in "$stage" "$mesh_stage"; do
+        if [[ -n "$dir" ]] && ! rm -rf "$dir"; then
+            echo "Warning: could not remove $dir" >&2
+        fi
+    done
+    if [[ "$lock_held" -eq 1 ]]; then
+        rmdir "$lock" || echo "Warning: could not remove $lock" >&2
+    fi
+    exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+mkdir -p "$profile_dir"
+if ! mkdir "$lock" 2>/dev/null; then
+    if [[ -d "$lock" ]]; then
+        echo "Error: another run is staging into $bundle ($lock exists)." >&2
+        echo "  Wait for it to finish and run this again. If no run is in progress, remove $lock." >&2
+    else
+        echo "Error: could not create $lock" >&2
+    fi
+    exit 1
+fi
+lock_held=1
 
 # 본체에 공개키를 포함할 수 있도록 본체 빌드보다 먼저 서명 키를 준비한다.
 if [[ "$profile" != debug ]]; then
@@ -171,8 +235,7 @@ if [[ "$profile" != debug ]]; then
     export SIGN_KEY_PATH
 fi
 
-rm -rf "$stage"
-mkdir -p "$stage"
+stage="$(mktemp -d "$profile_dir/.official-plugins-stage.XXXXXX")"
 if [[ "$from_checkout" -eq 1 ]]; then
     checkout="$(abs_path "${checkout:-../tasty-official-plugins}")"
     if [[ ! -f "$checkout/scripts/dev-bundle.sh" ]]; then
@@ -200,21 +263,30 @@ if [[ "$profile" != debug ]]; then
     bash "$root/scripts/sign-bundle.sh" --key "$SIGN_KEY_PATH" --dir "$stage"
 fi
 
-# 폴더를 옆 이름으로 먼저 옮겨, 실패해도 기존 폴더가 반쯤 지워진 채 남지 않게 한다.
+# 기존 폴더를 옆 이름으로 옮긴 뒤 새 폴더를 놓는다. 새 폴더를 놓지 못하면 기존 폴더를 되돌린다.
+# pending_*를 옮기기 전에 적어 두어, 두 이동 사이에 신호로 끝나도 cleanup이 되돌린다.
 replace_dir() {
     local src="$1" dest="$2" id="$3"
-    local old="$bundle/.old-$id.$$"
-    if [[ -e "$dest" ]] && ! mv "$dest" "$old"; then
-        echo "Error: could not replace $dest." >&2
-        echo "  A running Tasty may hold the plugin executable (Windows keeps it locked)." >&2
-        echo "  Run 'tasty plugin disable $id', run this again, then" >&2
-        echo "  'tasty plugin upgrade-builtins' and 'tasty plugin enable $id'." >&2
+    if [[ -e "$dest" ]]; then
+        pending_old="$bundle/.old-$id.$$"
+        pending_dest="$dest"
+        pending_published=0
+        if ! mv "$dest" "$pending_old"; then
+            pending_old=""
+            pending_dest=""
+            echo "Error: could not move $dest aside; it was left unchanged." >&2
+            echo "  Another process (Explorer, antivirus, an open file) may hold a file in it." >&2
+            echo "  Close it and run this again." >&2
+            return 1
+        fi
+    fi
+    if ! mv "$src" "$dest"; then
+        echo "Error: could not move the new $id folder into $dest" >&2
+        settle_pending || true
         return 1
     fi
-    mv "$src" "$dest"
-    if [[ -e "$old" ]] && ! rm -rf "$old"; then
-        echo "Warning: could not remove $old" >&2
-    fi
+    pending_published=1
+    settle_pending
 }
 
 mkdir -p "$bundle"
@@ -227,6 +299,7 @@ for dir in "$stage"/*/; do
     staged=$((staged + 1))
 done
 rmdir "$stage"
+stage=""
 if [[ "$staged" -eq 0 ]]; then
     echo "Error: no official plugin was staged" >&2
     exit 1
@@ -243,9 +316,9 @@ if [[ ! -f "$mesh_bin" ]]; then
     echo "Error: built binary missing at $mesh_bin" >&2
     exit 1
 fi
-mesh_stage="$profile_dir/.mesh-demo-stage"
-rm -rf "$mesh_stage"
-mkdir -p "$mesh_stage"
+mesh_stage="$(mktemp -d "$profile_dir/.mesh-demo-stage.XXXXXX")"
+# mktemp -d는 소유자만 읽는 폴더를 만든다. 이 폴더가 번들의 플러그인 폴더가 되므로 보통 권한으로 맞춘다.
+chmod 755 "$mesh_stage"
 cp "$mesh_bin" "$mesh_stage/"
 cp "$mesh_src/tasty-plugin.toml" "$mesh_stage/"
 if [[ -d "$mesh_src/lang" ]]; then
@@ -255,5 +328,6 @@ if [[ "$profile" != debug ]]; then
     bash "$root/scripts/sign-bundle.sh" --key "$SIGN_KEY_PATH" --manifest "$mesh_stage/tasty-plugin.toml"
 fi
 replace_dir "$mesh_stage" "$bundle/$mesh_id" "$mesh_id"
+mesh_stage=""
 echo "✓ staged $mesh_id → $bundle/$mesh_id"
 echo "==> Development bundle ready: $bundle ($((staged + 1)) plugins)"
