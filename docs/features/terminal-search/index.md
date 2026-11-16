@@ -39,6 +39,10 @@ OS 메뉴의 찾기와 탭 스트립의 검색 버튼도 같은 규칙을 따른
 
 검색 바는 일반 headless `PopupDef`(sticky_focus 아님) — 포커스가 터미널이면 떠 있어도 키(Escape 포함)를 가로채지 않고 PTY 로 흘린다. 라우팅 결정자는 `PopupState.focused` 플래그이고 find 단축키가 이걸 토글. 검색 바 포커스 상태의 find 는 winit 단축키 경로(overlay 게이트)에 막히므로, 검색 바 draw fn은 그리기 전의 `popup_keyboard_focus` 스냅샷으로 포커스를 읽는다. 그리기 중 팝업 관리자는 별도 대여되므로, 터미널 복귀는 `PopupAction::ReleaseFocus`를 반환하고 관리자를 복원한 뒤 적용한다. 검색 바 draw fn 안에서 `KeybindingSettings.find` 바인딩을 입력칸보다 먼저 egui 입력에서 소비(`consume_binding_egui`)해 감지한다(하드코딩 없음). 그 키 누름이 만든 글자도 함께 지우므로 `Alt+F` 같은 조합이 검색어에 `f` 를 넣지 않는다. popup 시스템은 [design/systems/popup](../../design/systems/popup.md).
 
+Escape는 winit 단계가 먼저 받는다. 이 단계는 포커스된 검색 바의 팝업 포커스만 놓고 닫지 않는다(`close_on_outside_click: false`, [keybindings](../keybindings/index.md)의 Escape 순서). egui도 그 Escape가 든 프레임을 시작할 때 입력칸 포커스를 푼다. 검색 바 draw fn은 "이 프레임에 Escape가 눌렸고 직전 프레임에 입력칸이 egui 포커스였다"이면 그 Escape를 자기 것으로 보고 검색 상태를 비운 뒤 `PopupAction::Close`를 반환한다. 팝업 포커스가 없는데 입력칸이 egui 포커스를 가진 상태(바깥 클릭 프레임에 그리기 전 스냅샷으로 포커스를 되찾은 경우)는 다음 프레임에 입력칸 포커스를 놓는다. 그래서 터미널을 누르거나 find 단축키로 터미널에 돌아간 뒤의 Escape로는 닫히지 않는다. 같은 프레임에 클릭으로 얻은 입력칸 포커스는 놓지 않는다.
+
+한계: 바깥 클릭 프레임 바로 다음 프레임이 Escape 프레임이면 포커스를 놓을 프레임이 없어 검색 바가 닫힌다.
+
 ## 인터페이스
 
 - **사용자**: `find` 단축키 토글, 검색 바 입력/탐색. (검색은 사용자 동작 — release IPC/CLI 비노출.)

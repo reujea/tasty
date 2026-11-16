@@ -134,8 +134,25 @@ pub fn draw_search_bar(
             .show(ui, &theme, &mut state.search.query);
 
         // 팝업이 포커스 상태인데 필드는 아니라면 포커스를 요청한다.
+        let input_focused = ui.memory(|m| m.has_focus(query_id));
         if want_focus && !response.has_focus() {
             response.request_focus();
+        } else if !want_focus && input_focused && !response.gained_focus() {
+            // 반대 방향 동기화. 바깥 클릭 프레임에는 want_focus가 그리기 전 스냅샷이라 위에서
+            // 포커스를 되찾는다. 다음 프레임에 놓지 않으면 터미널 포커스 상태의 Esc로도 닫힌다.
+            // 이번 프레임에 클릭으로 얻은 포커스는 남긴다(팝업 포커스가 다음 프레임에 따라온다).
+            response.surrender_focus();
+        }
+
+        // winit Esc 단계가 팝업 포커스를 먼저 놓고, egui는 그 Esc 프레임 시작에 입력칸
+        // 포커스를 푼다. 직전 프레임에 입력칸이 포커스였다면 이 Esc는 검색 바를 향한 것이다.
+        // 이 판정은 popup-scope T6 키 버블링이 Esc를 검색 바에 먼저 주게 되면 대체한다.
+        let escape_ended_input_focus = !response.has_focus()
+            && ui.memory(|m| m.had_focus_last_frame(query_id))
+            && ui.input(|i| i.key_pressed(egui::Key::Escape));
+        if escape_ended_input_focus {
+            state.search.clear();
+            action = PopupAction::Close;
         }
 
         // 실제 필드 포커스가 있을 때만 검색 키를 처리한다.

@@ -41,7 +41,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 ## 수명 계약 (open → close → 뒷정리)
 
-`draw_fn`은 그리기 전의 `popup_keyboard_focus` 스냅샷으로 키보드 포커스를 읽는다. 그리기 중에는 관리자를 별도로 대여한다. `PopupAction::ReleaseFocus`는 팝업을 닫지 않고 관리자를 복원한 뒤 포커스만 해제한다. 검색 바의 find 단축키가 이 경로로 터미널에 입력을 돌려준다.
+`draw_fn`은 그리기 전의 `popup_keyboard_focus` 스냅샷으로 키보드 포커스를 읽는다. 그리기 중에는 관리자를 별도로 대여한다. `PopupAction::ReleaseFocus`는 팝업을 닫지 않고 관리자를 복원한 뒤 포커스만 해제한다. 검색 바의 find 단축키가 이 경로로 터미널에 입력을 돌려준다. 스냅샷은 바깥 클릭이 팝업 포커스를 끄기 전 값이라 그 프레임에 입력칸이 포커스를 되찾을 수 있다. 검색 바는 다음 프레임에 스냅샷이 거짓이면 입력칸 포커스를 놓는다([터미널 검색](../../features/terminal-search/index.md#키보드-라우팅-headless-popup-sticky-아님)).
 
 닫기 경로는 draw_fn의 `PopupAction::Close`, X·바깥 클릭, `UiIntent::ClosePopup`, 열린 팝업의 `UiIntent::TogglePopup`, App의 직접 `close()`, debug IPC의 여섯 가지다. 모두 `PopupManager::close()`를 거쳐 `PopupState.open`을 false로 바꾼다.
 
