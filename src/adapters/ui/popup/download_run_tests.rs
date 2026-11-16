@@ -92,3 +92,87 @@ fn the_registration_placeholder_is_the_first_frame_size_of_the_sizer() {
         zoomed.transfer_popup_width().value()
     );
 }
+
+fn opened_scope(state: &mut MainViewState, id: &str) -> crate::model::popup_kind::PopupScope {
+    let intents = state.take_pending_intents();
+    match &intents[..] {
+        [
+            crate::intent::DispatchedIntent {
+                body:
+                    crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                        id: opened,
+                        mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
+                    }),
+                ..
+            },
+        ] if *opened == id => scope.clone(),
+        other => panic!("expected one {id} open, got {other:?}"),
+    }
+}
+
+/// 묻기 대화상자는 원격 파일을 연 surface 범위로 열고, 그 surface 를 상태에 둔다.
+#[test]
+fn the_ask_opens_in_the_surface_that_opened_the_remote_file() {
+    let (mut state, _session) = crate::state::tests::two_pane_fixture();
+    ask(
+        &mut state,
+        1,
+        101,
+        "/remote/a.bin".into(),
+        String::new(),
+        crate::file::dispatch::FileDispatchOrigin::User,
+    );
+    assert_eq!(
+        opened_scope(&mut state, DOWNLOAD_RUN_POPUP_ID),
+        crate::model::popup_kind::PopupScope::Surface(101)
+    );
+    assert_eq!(
+        state.dialogs.download_run.ask.as_ref().map(|a| a.surface),
+        Some(101)
+    );
+}
+
+/// 실패 팝업은 다운로드를 시작한 surface 범위로 연다.
+#[test]
+fn a_failure_opens_in_the_surface_that_started_the_download() {
+    let (mut state, _session) = crate::state::tests::two_pane_fixture();
+    report_failure(&mut state, 101, "a.bin".into(), &Failure::TimedOut);
+    assert_eq!(
+        opened_scope(&mut state, super::super::transfer::TRANSFER_ERROR_POPUP_ID),
+        crate::model::popup_kind::PopupScope::Surface(101)
+    );
+    assert_eq!(
+        state.dialogs.transfer_error.front().map(|e| e.surface_id),
+        Some(101)
+    );
+}
+
+/// 크기 확인을 닫으면 다음 확인을 그 다운로드의 surface 범위로 연다.
+#[test]
+fn the_next_size_confirm_opens_in_its_own_surface() {
+    let (mut state, session) = crate::state::tests::two_pane_fixture();
+    for (id, surface) in [(1, 201), (2, 101)] {
+        state
+            .dialogs
+            .download_run
+            .large
+            .push_back(DownloadRunLarge {
+                id,
+                surface,
+                name: format!("{id}.bin"),
+                size: 2 << 20,
+                confirmed: true,
+                content_height: None,
+            });
+    }
+    on_close_download_run_large(&egui::Context::default(), &mut state, &session.read());
+    let popup = state
+        .popups
+        .get_mut(DOWNLOAD_RUN_LARGE_POPUP_ID)
+        .expect("the size confirm is registered");
+    assert!(popup.open);
+    assert_eq!(
+        popup.scope,
+        crate::model::popup_kind::PopupScope::Surface(101)
+    );
+}

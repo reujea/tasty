@@ -82,11 +82,14 @@ impl App {
     fn ask_download_size(&mut self, id: u64, name: String, size: u64) {
         let asked = self.with_download_owner(id, |state| {
             let runs = &mut state.dialogs.download_run;
-            if let Some(run) = runs.runs.iter_mut().find(|r| r.id == id) {
-                run.name.clone_from(&name);
-            }
+            let Some(run) = runs.runs.iter_mut().find(|r| r.id == id) else {
+                return;
+            };
+            run.name.clone_from(&name);
+            let surface = run.surface;
             runs.large.push_back(DownloadRunLarge {
                 id,
+                surface,
                 name,
                 size,
                 confirmed: false,
@@ -97,7 +100,7 @@ impl App {
                     crate::intent::UiIntent::OpenPopup {
                         id: DOWNLOAD_RUN_LARGE_POPUP_ID,
                         mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Window,
+                            crate::model::popup_kind::PopupScope::Surface(surface),
                         ),
                     }
                     .from_user_menu("download_run_large"),
@@ -152,18 +155,22 @@ impl App {
                 }
                 run.started.get_or_insert_with(std::time::Instant::now);
             }
+            // 여러 다운로드가 한 진행 팝업을 공유하므로 처음 받는 다운로드의 surface 범위로 연다.
             let receiving = main
                 .state
                 .dialogs
                 .download_run
                 .runs
                 .iter()
-                .any(|r| r.receiving);
-            if receiving && !main.state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID) {
+                .find(|r| r.receiving)
+                .map(|r| r.surface);
+            if let Some(surface) = receiving
+                && !main.state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID)
+            {
                 // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
                 main.state.popups.open_centered(
                     DOWNLOAD_RUN_PROGRESS_POPUP_ID,
-                    crate::model::popup_kind::PopupScope::Window,
+                    crate::model::popup_kind::PopupScope::Surface(surface),
                 );
                 changed = true;
             }
@@ -203,12 +210,14 @@ impl App {
 /// 끝나지 못한 다운로드를 창 상태에서 지우고 실패를 알린다. 묻던 크기 확인은 취소하지 않고 닫는다.
 fn download_failed(state: &mut MainViewState, id: u64, failure: &Failure) {
     let runs = &mut state.dialogs.download_run;
-    let name = runs
+    let Some((surface, name)) = runs
         .runs
         .iter()
         .find(|r| r.id == id)
-        .map(|r| r.name.clone())
-        .unwrap_or_default();
+        .map(|r| (r.surface, r.name.clone()))
+    else {
+        return;
+    };
     runs.runs.retain(|r| r.id != id);
     match runs.large.front_mut() {
         Some(front) if front.id == id => {
@@ -217,5 +226,5 @@ fn download_failed(state: &mut MainViewState, id: u64, failure: &Failure) {
         }
         _ => runs.large.retain(|l| l.id != id),
     }
-    report_failure(state, name, failure);
+    report_failure(state, surface, name, failure);
 }

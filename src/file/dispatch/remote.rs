@@ -94,7 +94,13 @@ pub(crate) fn apply_remote_identify_result(
         let engine = engine.read();
         let workspace = mirror_workspace(&engine, origin_surface_id)
             .map(|id| (id, engine.mirror_host_text(origin_surface_id)));
-        report_unsupported(state, &target, dispatch_origin, workspace);
+        report_unsupported(
+            state,
+            &target,
+            dispatch_origin,
+            origin_surface_id,
+            workspace,
+        );
         crate::file::dispatch::fail_run(
             policy.run,
             format!(
@@ -206,7 +212,13 @@ pub(crate) fn open_remote_link_picker(
     if openable.is_empty() {
         let workspace = mirror_workspace(engine, origin_surface_id)
             .map(|id| (id, engine.mirror_host_text(origin_surface_id)));
-        report_unsupported(state, &target, FileDispatchOrigin::User, workspace);
+        report_unsupported(
+            state,
+            &target,
+            FileDispatchOrigin::User,
+            origin_surface_id,
+            workspace,
+        );
         return;
     }
     open_remote_picker(
@@ -239,6 +251,7 @@ fn report_unsupported(
     state: &mut RequestContext,
     target: &FileTarget,
     origin: FileDispatchOrigin,
+    origin_surface_id: u32,
     workspace: Option<(u32, String)>,
 ) {
     match (origin, workspace) {
@@ -249,6 +262,7 @@ fn report_unsupported(
         (_, Some((workspace, host))) => crate::adapters::ui::popup::download_run::ask(
             state,
             workspace,
+            origin_surface_id,
             target.display(),
             host,
             origin,

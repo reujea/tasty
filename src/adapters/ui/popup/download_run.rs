@@ -44,6 +44,8 @@ pub struct DownloadRunState {
 pub struct DownloadRunAsk {
     /// mirror workspace 의 로컬 ID.
     pub workspace: u32,
+    /// 원격 파일을 연 surface. 이 다운로드의 팝업 셋(묻기·크기 확인·진행)의 범위다.
+    pub surface: u32,
     /// 원격 호스트의 경로.
     pub path: String,
     /// 경로 줄 앞 표지의 호스트 글자(attach 프로필 이름). 비면 `Remote` 낱말을 쓴다.
@@ -56,6 +58,8 @@ pub struct DownloadRunAsk {
 #[derive(Debug)]
 pub struct DownloadRunLarge {
     pub id: u64,
+    /// 다운로드를 시작한 surface. 확인 팝업의 범위다.
+    pub surface: u32,
     pub name: String,
     pub size: u64,
     /// Download and run 으로 답했다. 닫힐 때 취소하지 않는다.
@@ -66,6 +70,8 @@ pub struct DownloadRunLarge {
 #[derive(Debug)]
 pub struct DownloadRunEntry {
     pub id: u64,
+    /// 다운로드를 시작한 surface. 크기 확인·진행·실패 팝업의 범위다.
+    pub surface: u32,
     pub name: String,
     pub received: u64,
     pub total: u64,
@@ -78,6 +84,7 @@ pub struct DownloadRunEntry {
 pub(crate) fn ask(
     state: &mut MainViewState,
     workspace: u32,
+    surface: u32,
     path: String,
     host: String,
     origin: crate::file::dispatch::FileDispatchOrigin,
@@ -85,6 +92,7 @@ pub(crate) fn ask(
     let capable = downloads::client().capable(workspace);
     state.dialogs.download_run.ask = Some(DownloadRunAsk {
         workspace,
+        surface,
         path,
         host,
         capable,
@@ -93,7 +101,7 @@ pub(crate) fn ask(
     let intent = crate::intent::UiIntent::OpenPopup {
         id: DOWNLOAD_RUN_POPUP_ID,
         mode: crate::intent::OpenPopupMode::CenteredFocused(
-            crate::model::popup_kind::PopupScope::Window,
+            crate::model::popup_kind::PopupScope::Surface(surface),
         ),
     };
     // 핸들러 picker와 같은 출처 규칙이다. 다운로드는 대화상자의 버튼을 누를 때만 시작한다.
@@ -126,11 +134,17 @@ pub(crate) fn failure_key(failure: &Failure) -> Option<&'static str> {
 }
 
 /// 실패 팝업을 연다. 사용자가 멈춘 다운로드면 아무것도 하지 않는다.
-pub(crate) fn report_failure(state: &mut MainViewState, name: String, failure: &Failure) {
+pub(crate) fn report_failure(
+    state: &mut MainViewState,
+    surface: u32,
+    name: String,
+    failure: &Failure,
+) {
     let Some(key) = failure_key(failure) else {
         return;
     };
     state.dialogs.transfer_error.push_back(TransferError {
+        surface_id: surface,
         name,
         reason: t(key).to_string(),
         retry: None,
@@ -142,7 +156,7 @@ pub(crate) fn report_failure(state: &mut MainViewState, name: String, failure: &
         crate::intent::UiIntent::OpenPopup {
             id: TRANSFER_ERROR_POPUP_ID,
             mode: crate::intent::OpenPopupMode::CenteredFocused(
-                crate::model::popup_kind::PopupScope::Window,
+                crate::model::popup_kind::PopupScope::Surface(surface),
             ),
         }
         .from_user_menu("download_run_failed"),
@@ -234,11 +248,11 @@ pub fn on_close_download_run_large(
     if !front.confirmed {
         downloads::client().cancel(front.id);
     }
-    if !state.dialogs.download_run.large.is_empty() {
+    if let Some(next) = state.dialogs.download_run.large.front() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
         state.popups.open_centered_focused(
             DOWNLOAD_RUN_LARGE_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Window,
+            crate::model::popup_kind::PopupScope::Surface(next.surface),
         );
     }
 }
@@ -349,13 +363,14 @@ pub fn draw_download_run(
         match downloads::client().start(ask.workspace, ask.path) {
             Ok(id) => state.dialogs.download_run.runs.push(DownloadRunEntry {
                 id,
+                surface: ask.surface,
                 name,
                 received: 0,
                 total: 0,
                 receiving: false,
                 started: None,
             }),
-            Err(failure) => report_failure(state, name, &failure),
+            Err(failure) => report_failure(state, ask.surface, name, &failure),
         }
         return PopupAction::Close;
     }
@@ -373,6 +388,7 @@ pub fn draw_download_run_large(
         return PopupAction::Close;
     };
     let name = front.name.clone();
+    let surface = front.surface;
     let size = format_size_up(front.size);
     let mut cancel = false;
     let mut run = false;
@@ -392,6 +408,7 @@ pub fn draw_download_run_large(
             ui.spacing_mut().item_spacing.y = th.transfer_body_gap().value();
             let row = TransferRow {
                 id: 0,
+                surface_id: surface,
                 name: name.clone(),
                 sent: 0,
                 total: 0,
@@ -452,6 +469,7 @@ pub fn draw_download_run_progress(
         .filter(|r| r.receiving)
         .map(|r| TransferRow {
             id: r.id,
+            surface_id: r.surface,
             name: r.name.clone(),
             sent: r.received,
             total: r.total,

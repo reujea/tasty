@@ -387,6 +387,7 @@ fn transfer_progress_close_intent_now_clears_dialog_state() {
 
 fn xfer_err(name: &str) -> TransferError {
     TransferError {
+        surface_id: 1,
         name: name.to_string(),
         reason: "boom".to_string(),
         retry: None,
@@ -1507,4 +1508,31 @@ fn preset_apply_cancel_action_close_clears_selection_and_target_category() {
     assert!(!state.popups.is_open(APPLY_WORKSPACE_POPUP_ID));
     assert!(state.dialogs.preset_apply_target_category.is_none());
     assert!(state.dialogs.preset_picker_selected.is_none());
+}
+
+/// 다음 실패는 그 실패의 surface 범위로 다시 연다.
+#[test]
+fn the_next_transfer_error_opens_in_its_own_surface() {
+    let (mut state, mut engine_session) = test_state();
+    let engine = engine_session.borrow_mut();
+    let mut first = xfer_err("a.txt");
+    first.surface_id = 7;
+    let mut second = xfer_err("b.txt");
+    second.surface_id = 8;
+    state.dialogs.transfer_error.push_back(first);
+    state.dialogs.transfer_error.push_back(second);
+    crate::adapters::ui::popup::transfer::on_close_transfer_error(
+        &egui::Context::default(),
+        &mut state,
+        &engine.read(),
+    );
+    let popup = state
+        .popups
+        .get_mut(TRANSFER_ERROR_POPUP_ID)
+        .expect("transfer error is registered");
+    assert!(popup.open);
+    assert_eq!(
+        popup.scope,
+        crate::model::popup_kind::PopupScope::Surface(8)
+    );
 }

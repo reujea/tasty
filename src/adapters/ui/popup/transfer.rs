@@ -60,6 +60,8 @@ impl TransferProgress {
 pub struct TransferRow {
     /// UI 상관 id(`app::image_upload` 가 발급, 진행 이벤트가 이 id 로 행을 지목).
     pub id: u64,
+    /// 전송을 시작한 surface. 진행 팝업의 범위다.
+    pub surface_id: u32,
     /// 표시 파일명(mono 말줄임).
     pub name: String,
     /// 지금까지 전송한 바이트.
@@ -72,6 +74,8 @@ pub struct TransferRow {
 
 /// 실패 팝업 큐 항목.
 pub struct TransferError {
+    /// 전송을 시작한 surface. 실패 팝업의 범위다.
+    pub surface_id: u32,
     /// 실패한 파일명.
     pub name: String,
     /// 실패 사유(원격 reason 또는 전송/프로토콜 에러 메시지).
@@ -225,11 +229,11 @@ pub fn on_close_transfer_error(
         return;
     }
     state.dialogs.transfer_error.pop_front();
-    if !state.dialogs.transfer_error.is_empty() {
+    if let Some(next) = state.dialogs.transfer_error.front() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
         state.popups.open_centered_focused(
             TRANSFER_ERROR_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Window,
+            crate::model::popup_kind::PopupScope::Surface(next.surface_id),
         );
     }
 }
@@ -625,6 +629,7 @@ mod tests {
     fn row(sent: u64, total: u64) -> TransferRow {
         TransferRow {
             id: 1,
+            surface_id: 1,
             name: "x".into(),
             sent,
             total,
