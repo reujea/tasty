@@ -111,14 +111,18 @@ impl PlatformWebView {
     ) {
         let webview = self.webview.clone();
         let top_level = self.top_level.clone();
-        self.bed_focus.navigate(Box::new(move || {
-            if let Err(e) = navigate(&webview) {
-                tracing::warn!("WebView2 {call} failed: {e}");
-                if withdraw {
-                    top_level.borrow_mut().withdraw(&Designation::Next);
+        self.bed_focus.navigate(
+            self.surface_id,
+            call,
+            Box::new(move || {
+                if let Err(e) = navigate(&webview) {
+                    tracing::warn!("WebView2 {call} failed: {e}");
+                    if withdraw {
+                        top_level.borrow_mut().withdraw(&Designation::Next);
+                    }
                 }
-            }
-        }));
+            }),
+        );
     }
 
     /// 호스트 출처 로드·이동. 스캔 재시작 상태를 갱신하고 남은 사용자 클릭을 지운다.

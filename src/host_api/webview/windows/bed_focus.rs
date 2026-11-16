@@ -53,10 +53,13 @@ impl BedFocusScript {
     }
 
     /// 호스트 탐색을 보낸다. 마지막 요청의 문서 생성 스크립트 등록이 끝나지 않았으면 끝날 때 보낸다.
-    pub(super) fn navigate(&self, navigation: Navigation) {
+    pub(super) fn navigate(&self, surface_id: u32, call: &str, navigation: Navigation) {
         let now = self.delivery.borrow_mut().navigate(navigation);
-        if let Some(navigation) = now {
-            navigation();
+        match now {
+            Some(navigation) => navigation(),
+            None => tracing::debug!(
+                "WebView surface {surface_id}: {call} waits for the bed focus document script"
+            ),
         }
     }
 
@@ -101,6 +104,13 @@ fn register(
                          script failed ({e})"
                     );
                 }
+            }
+            if !navigations.is_empty() {
+                tracing::debug!(
+                    "WebView surface {surface_id}: bed focus document script {generation} done; \
+                     sending {} held navigation(s)",
+                    navigations.len()
+                );
             }
             for navigation in navigations {
                 navigation();
