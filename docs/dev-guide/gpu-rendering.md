@@ -189,7 +189,7 @@ present는 별도 표면 경로다. 완료 로그가 없다고 호출을 취소�
 
 per-surface 위치 정보가 인스턴스에 들어가 있으므로 uniform 은 전역 1개로 충분하다.
 
-`CellRenderer::new`는 첫 viewport 크기로 `ViewportSize`를 받아 uniform을 처음부터 그 크기로 만든다. `ViewportSize`는 configure한 surface 설정(`ViewportSize::of_surface`)에서만 만들 수 있어, `GpuState`는 처음 configure한 surface 크기로 renderer를 만든다. 시작 직후 오는 크기 통지는 같은 크기라 위의 중복 생략으로 renderer 치수를 갱신하지 않기 때문이다. 생성과 `resize`는 같은 uniform 생성 함수를 쓴다. 이 값이 surface 크기와 다르면 셰이더의 NDC 변환이 어긋나 터미널이 확대·이동되어 그려진다(배율 2 화면에서 2배).
+`CellRenderer::new`는 첫 viewport 크기로 `ViewportSize`를 받아 uniform을 처음부터 그 크기로 만든다. `ViewportSize`는 숫자로 직접 만들 수 없고 `SurfaceConfiguration`에서만 만든다(`ViewportSize::of_surface`). 그 설정이 실제로 configure한 것인지는 타입이 확인하지 않는다. `GpuState`는 `surface.configure`에 쓴 같은 설정으로 `ViewportSize`를 만들어 넘긴다. 시작 직후 오는 크기 통지는 같은 크기라 위의 중복 생략으로 renderer 치수를 갱신하지 않기 때문이다. 생성과 `resize`는 같은 uniform 생성 함수를 쓴다. 이 값이 surface 크기와 다르면 셰이더의 NDC 변환이 어긋나 터미널이 확대·이동되어 그려진다(배율 2 화면에서 2배).
 
 ## 프레임 구동 정책 — 무엇이 프레임을 유발하고 무엇이 상한을 거는가
 

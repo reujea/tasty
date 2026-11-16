@@ -19,7 +19,8 @@ impl Uniforms {
 }
 
 /// renderer를 만들 때 셀 셰이더에 쓸 첫 viewport 크기.
-/// configure한 surface 설정에서만 만들 수 있어 고정값으로 renderer를 만들 수 없다.
+/// 숫자로 직접 만들 수 없고 `SurfaceConfiguration`에서만 만든다. 그 설정이 실제로
+/// configure한 것인지는 확인하지 않으므로, 같은 설정으로 configure한 뒤 넘기는 것은 호출부의 책임이다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ViewportSize {
     width: u32,
