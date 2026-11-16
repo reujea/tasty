@@ -31,6 +31,7 @@ use cell_decor::{
 use cell_paint::{CellOverlays, CellPaint, ScreenPaint, cursor_paint_at, paint_cell, screen_paint};
 use overlay::composite_over;
 pub use search_paint::SearchHighlights;
+pub use types::ViewportSize;
 
 /// How the text cursor cell is painted, derived from DECSCUSR (`cursor_shape()`).
 /// Blink variants collapse to their steady shape — terminal content does not
@@ -130,13 +131,14 @@ impl CellRenderer {
     /// Update viewport-size uniforms when the window resizes. Per-surface
     /// offset lives on each instance, so we only refresh the global size here.
     pub fn resize(&self, queue: &wgpu::Queue, width: u32, height: u32) {
-        let uniforms = Uniforms {
-            cell_size: [
+        let uniforms = Uniforms::new(
+            [
                 self.font_config.metrics.cell_width,
                 self.font_config.metrics.cell_height,
             ],
-            viewport_size: [width as f32, height as f32],
-        };
+            width,
+            height,
+        );
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
     }
 

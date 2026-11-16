@@ -1,6 +1,6 @@
 use super::CellRenderer;
 use super::shaders::{BG_SHADER, GLYPH_SHADER};
-use super::types::{BgInstance, GlyphInstance, Uniforms};
+use super::types::{BgInstance, GlyphInstance, Uniforms, ViewportSize};
 use tasty_font::{FontConfig, FontRequest, GlyphAtlas};
 
 impl CellRenderer {
@@ -9,6 +9,7 @@ impl CellRenderer {
         queue: &wgpu::Queue,
         surface_format: wgpu::TextureFormat,
         font_config: FontConfig,
+        viewport: ViewportSize,
     ) -> Self {
         let atlas = GlyphAtlas::new(device);
 
@@ -263,14 +264,10 @@ impl CellRenderer {
             cache: None,
         });
 
-        let uniforms = Uniforms {
-            cell_size: [
-                font_config.metrics.cell_width,
-                font_config.metrics.cell_height,
-            ],
-            // 실제 크기는 GpuState가 생성 직후 첫 프레임 전에 resize로 쓴다.
-            viewport_size: [0.0, 0.0],
-        };
+        let uniforms = viewport.uniforms([
+            font_config.metrics.cell_width,
+            font_config.metrics.cell_height,
+        ]);
         queue.write_buffer(&uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         let (cell_height, baseline) = (

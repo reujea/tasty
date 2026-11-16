@@ -29,7 +29,7 @@ use winit::window::Window;
 use crate::AppEvent;
 use crate::gfx::perf::{FrameSample, PerfAggregator};
 use crate::model::{LogicalPx, PhysicalPx, PhysicalRect};
-use crate::renderer::CellRenderer;
+use crate::renderer::{CellRenderer, ViewportSize};
 use crate::settings::AppearanceSettings;
 use crate::stall_watchdog;
 use crate::state::MainViewState;
@@ -90,11 +90,6 @@ fn initial_surface_config(
         view_formats: vec![],
         desired_maximum_frame_latency: 2,
     }
-}
-
-/// 첫 프레임 전에 셀 셰이더 uniform에 쓸 viewport 크기. 설정한 surface 크기와 같다.
-fn initial_viewport(config: &wgpu::SurfaceConfiguration) -> (u32, u32) {
-    (config.width, config.height)
 }
 
 pub struct GpuState {
@@ -239,12 +234,15 @@ impl GpuState {
 
         let (term_font, last_term_font_sig) =
             egui_bridge::boot_terminal_font(appearance, scale_factor);
-        let renderer = CellRenderer::new(&device, &queue, surface_format, term_font);
-        // 첫 프레임 전에 셀 셰이더의 viewport를 실제 surface 크기로 맞춘다. 시작 직후 오는
-        // Resized는 같은 크기라 configure_surface가 건너뛰므로 여기서 맞추지 않으면
-        // 배율 2 화면에서 터미널이 2배로 그려진다.
-        let (viewport_width, viewport_height) = initial_viewport(&config);
-        renderer.resize(&queue, viewport_width, viewport_height);
+        // 셀 셰이더 uniform을 처음부터 configure한 surface 크기로 만든다. 시작 직후 오는
+        // Resized는 같은 크기라 configure_surface가 renderer 치수를 갱신하지 않는다.
+        let renderer = CellRenderer::new(
+            &device,
+            &queue,
+            surface_format,
+            term_font,
+            ViewportSize::of_surface(&config),
+        );
 
         let egui_ctx = egui::Context::default();
 
@@ -966,7 +964,7 @@ impl GpuState {
 
 #[cfg(test)]
 mod tests {
-    use super::{clamp_surface_dims, initial_surface_config, initial_viewport};
+    use super::{ViewportSize, clamp_surface_dims, initial_surface_config};
     use winit::dpi::PhysicalSize;
 
     const MAX: u32 = 8192;
@@ -1001,18 +999,24 @@ mod tests {
         )
     }
 
-    #[test]
-    fn initial_viewport_matches_the_configured_surface_at_scale_two() {
-        // 논리 1280x720 창을 배율 2에서 만들면 surface는 2560x1440이다.
-        let config = config_for(2560, 1440);
-        assert_eq!((config.width, config.height), (2560, 1440));
-        assert_eq!(initial_viewport(&config), (2560, 1440));
+    fn first_viewport(config: &wgpu::SurfaceConfiguration) -> [f32; 2] {
+        ViewportSize::of_surface(config)
+            .uniforms([1.0, 1.0])
+            .viewport_size
     }
 
     #[test]
-    fn initial_viewport_follows_the_clamped_surface_size() {
+    fn first_viewport_is_the_configured_surface_at_scale_two() {
+        // 논리 1280x720 창을 배율 2에서 만들면 surface는 2560x1440이다.
+        let config = config_for(2560, 1440);
+        assert_eq!((config.width, config.height), (2560, 1440));
+        assert_eq!(first_viewport(&config), [2560.0, 1440.0]);
+    }
+
+    #[test]
+    fn first_viewport_follows_the_clamped_surface_size() {
         let config = config_for(MAX + 100, 0);
-        assert_eq!(initial_viewport(&config), (config.width, config.height));
-        assert_eq!(initial_viewport(&config), (MAX, 1));
+        assert_eq!((config.width, config.height), (MAX, 1));
+        assert_eq!(first_viewport(&config), [MAX as f32, 1.0]);
     }
 }
