@@ -1,5 +1,5 @@
 //! 사이드바에서 워크스페이스 점유를 강제로 해제하기 전 확인한다.
-//! 작용 대상인 워크스페이스 범위로 연다. 그 워크스페이스가 활성일 때 그린다.
+//! 워크스페이스 자체를 다루므로 그 워크스페이스가 보이는 창 범위로 연다. 활성 워크스페이스가 아니어도 지금 창에 보인다.
 //! 서버는 SSH 터널 밖의 사용자를 식별할 수 없어 워크스페이스 이름과 해제 결과만 안내한다.
 //! 대상이 사라졌거나 이미 점유가 풀렸으면 닫는다.
 
@@ -15,13 +15,12 @@ pub const CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID: &str = "confirm_force_detach_
 /// 다이얼로그 폭 (destructive confirm 공통 380px).
 const WIDTH: LogicalPx = LogicalPx(380.0);
 
-/// 대상 워크스페이스를 보류 상태에 두고 그 워크스페이스 범위로 확인을 연다.
+/// 대상 워크스페이스를 보류 상태에 두고 창 범위로 확인을 연다. 열려 있던 확인은 새 대상으로 바뀐다.
 /// 확인을 기다리는 동안 인덱스가 바뀔 수 있으므로 ID를 보관한다.
 pub(crate) fn open(state: &mut MainViewState, workspace_id: u32) {
     state.dialogs.pending_force_detach_workspace = Some(workspace_id);
     crate::adapters::ui::workspace_action_popup::open(
         state,
-        workspace_id,
         CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
         |intent| intent.from_user_menu("workspace/force-detach"),
     );
@@ -201,8 +200,9 @@ pub(crate) fn apply_force_detach(
 mod tests {
     use super::*;
 
+    /// 분리할 workspace 자체를 다루므로 창 범위로 연다.
     #[test]
-    fn the_confirm_opens_in_the_workspace_it_detaches() {
+    fn the_confirm_opens_in_the_window() {
         let (mut state, _session) = crate::state::tests::two_pane_fixture();
         open(&mut state, 7);
         assert_eq!(state.dialogs.pending_force_detach_workspace, Some(7));
@@ -214,7 +214,7 @@ mod tests {
                     body: crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup {
                         id: CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
                         mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Workspace(7)
+                            crate::model::popup_kind::PopupScope::Window
                         ),
                     }),
                     ..
@@ -224,9 +224,9 @@ mod tests {
         );
     }
 
-    /// W1 에서 연 확인창에 W2 요청이 오면 범위와 대상이 모두 W2 다.
+    /// W1 에서 연 확인창에 W2 요청이 오면 범위는 창 그대로이고 대상만 W2 로 바뀐다.
     #[test]
-    fn a_second_request_for_another_workspace_moves_the_confirm_there() {
+    fn a_second_request_for_another_workspace_retargets_the_confirm() {
         let (mut state, mut session) = crate::state::tests::two_pane_fixture();
         for ws in [7, 8] {
             open(&mut state, ws);
@@ -236,7 +236,7 @@ mod tests {
             state
                 .popups
                 .open_scope(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID),
-            Some(&crate::model::popup_kind::PopupScope::Workspace(8))
+            Some(&crate::model::popup_kind::PopupScope::Window)
         );
         assert_eq!(state.dialogs.pending_force_detach_workspace, Some(8));
         assert!(state.popups.take_closed_queue().is_empty());

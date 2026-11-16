@@ -27,10 +27,9 @@ pub struct PendingCloseRemote {
     pub(crate) focused: bool,
 }
 
-/// 확인을 연다. 이미 열려 있으면 새 요청으로 바꾸고 범위도 새 요청의 workspace로 다시 연다.
-/// 범위는 닫을 원격 행의 workspace다.
+/// 확인을 연다. 이미 열려 있으면 보류 요청을 새 요청으로 통째로 바꾼다.
+/// 닫을 원격 행의 workspace 자체를 다루므로 범위는 그 행이 보이는 창이다.
 pub(crate) fn open(state: &mut MainViewState, close: SavedRowClose, intent: DomainIntent) {
-    let workspace_id = close.row;
     state.dialogs.pending_close_remote = Some(PendingCloseRemote {
         close,
         intent,
@@ -39,7 +38,6 @@ pub(crate) fn open(state: &mut MainViewState, close: SavedRowClose, intent: Doma
     });
     crate::adapters::ui::workspace_action_popup::open(
         state,
-        workspace_id,
         CONFIRM_CLOSE_REMOTE_POPUP_ID,
         |intent| intent.from_user_menu("workspace/close-remote"),
     );
@@ -212,8 +210,9 @@ mod tests {
         assert!(!is_confirmed(&intent().from_agent_ipc().origin));
     }
 
+    /// 닫을 원격 workspace 자체를 다루므로 창 범위로 연다.
     #[test]
-    fn the_confirm_opens_in_the_workspace_it_closes() {
+    fn the_confirm_opens_in_the_window() {
         let (mut state, _session) = crate::state::tests::two_pane_fixture();
         open(
             &mut state,
@@ -231,7 +230,7 @@ mod tests {
                     body: crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup {
                         id: CONFIRM_CLOSE_REMOTE_POPUP_ID,
                         mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Workspace(9)
+                            crate::model::popup_kind::PopupScope::Window
                         ),
                     }),
                     ..
@@ -241,9 +240,9 @@ mod tests {
         );
     }
 
-    /// W1 에서 연 확인창에 W2 요청이 오면 범위와 대상이 모두 W2 다.
+    /// W1 에서 연 확인창에 W2 요청이 오면 범위는 창 그대로이고 대상만 W2 로 바뀐다.
     #[test]
-    fn a_second_request_for_another_workspace_moves_the_confirm_there() {
+    fn a_second_request_for_another_workspace_retargets_the_confirm() {
         let (mut state, mut session) = crate::state::tests::two_pane_fixture();
         for ws in [8, 9] {
             open(
@@ -258,7 +257,7 @@ mod tests {
         }
         assert_eq!(
             state.popups.open_scope(CONFIRM_CLOSE_REMOTE_POPUP_ID),
-            Some(&crate::model::popup_kind::PopupScope::Workspace(9))
+            Some(&crate::model::popup_kind::PopupScope::Window)
         );
         assert!(
             matches!(

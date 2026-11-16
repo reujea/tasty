@@ -1,15 +1,13 @@
-//! 이름 바꾸기 입력 팝업을 여는 한 지점. 범위는 바꿀 대상에서 나온다.
-//! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다. 새 요청이 대상을 바꾸면 범위도 그 대상으로 다시 열고,
+//! 이름 바꾸기 입력 팝업을 여는 한 지점. 범위는 바꿀 대상이 보이는 자리에서 나온다(`RenameTarget::popup_scope`).
+//! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다. 새 요청이 범위를 바꾸면 그 범위로 다시 열고,
 //! 앞 요청의 원격 대기 상태는 넘기지 않는다.
 
 use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
-use crate::model::popup_kind::PopupScope;
 use crate::state::{MainViewState, RenameTarget};
 
 const RENAME_POPUP_ID: crate::adapters::ui::popup::PopupId = "rename";
 
 /// `target`의 범위로 이름 바꾸기를 연다. 대상이 없으면 경고 로그만 남기고 false다.
-/// workspace 대상은 workspace 에 작용하는 팝업의 공용 열기 지점을 거친다.
 pub(crate) fn open(
     state: &mut MainViewState,
     engine: &crate::core::CoreState,
@@ -25,15 +23,6 @@ pub(crate) fn open(
     // 다시 열면 닫는 훅이 돌지 않는다. 앞 요청의 원격 대기와 높이가 새 요청에 남지 않게 여기서 비운다.
     state.dialogs.rename_waiting = None;
     state.dialogs.rename_content_height = None;
-    if let PopupScope::Workspace(workspace_id) = scope {
-        crate::adapters::ui::workspace_action_popup::open(
-            state,
-            workspace_id,
-            RENAME_POPUP_ID,
-            origin,
-        );
-        return true;
-    }
     state.dispatch_intent(origin(UiIntent::ReopenPopup {
         id: RENAME_POPUP_ID,
         mode: OpenPopupMode::CenteredFocused(scope),
@@ -44,6 +33,7 @@ pub(crate) fn open(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::popup_kind::PopupScope;
 
     fn opened_scope(state: &mut MainViewState) -> Option<PopupScope> {
         let intents = state.take_pending_intents();
@@ -70,11 +60,11 @@ mod tests {
         for (target, scope) in [
             (
                 RenameTarget::WorkspaceName { workspace_id: 1 },
-                PopupScope::Workspace(1),
+                PopupScope::Window,
             ),
             (
                 RenameTarget::WorkspaceSubtitle { workspace_id: 1 },
-                PopupScope::Workspace(1),
+                PopupScope::Window,
             ),
             (RenameTarget::TabName { tab_id: 102 }, PopupScope::Tab(102)),
             (RenameTarget::NewCategory, PopupScope::Window),
