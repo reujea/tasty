@@ -38,6 +38,7 @@ pub mod terminal_link;
 pub mod toast;
 pub(crate) mod tools_menu;
 pub(crate) mod tutorial;
+pub(crate) mod workspace_action_popup;
 
 pub mod input;
 

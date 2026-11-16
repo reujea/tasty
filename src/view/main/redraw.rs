@@ -989,19 +989,13 @@ impl MainView {
                     }
                 }
                 Some(7) => {
-                    // 확인 팝업을 기다리는 동안 인덱스가 바뀔 수 있으므로 ID를 보관한다.
                     let ws_id = engine
                         .workspace_at(ws_idx)
                         .expect("workspace index is valid")
                         .id;
-                    this.state.dialogs.pending_force_detach_workspace = Some(ws_id);
-                    this.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: crate::adapters::ui::popup::confirm_force_detach_workspace
-                                ::CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
-                        }
-                        .from_user_menu("workspace/force-detach"),
+                    crate::adapters::ui::popup::confirm_force_detach_workspace::open(
+                        &mut this.state,
+                        ws_id,
                     );
                 }
                 Some(100) => {
@@ -1127,7 +1121,24 @@ impl MainView {
         current_value: String,
     ) {
         let scope = target.popup_scope(engine);
+        let workspace = match (&target, &scope) {
+            (
+                crate::state::RenameTarget::WorkspaceName { workspace_id }
+                | crate::state::RenameTarget::WorkspaceSubtitle { workspace_id },
+                crate::model::popup_kind::PopupScope::Workspace(_),
+            ) => Some(*workspace_id),
+            _ => None,
+        };
         self.state.dialogs.rename = Some((target, current_value));
+        if let Some(workspace_id) = workspace {
+            crate::adapters::ui::workspace_action_popup::open(
+                &mut self.state,
+                workspace_id,
+                "rename",
+                crate::intent::UiIntent::from_user_context_menu,
+            );
+            return;
+        }
         self.state.dispatch_intent(
             crate::intent::UiIntent::OpenPopup {
                 id: "rename",

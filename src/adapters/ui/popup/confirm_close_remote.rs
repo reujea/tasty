@@ -27,22 +27,20 @@ pub struct PendingCloseRemote {
     pub(crate) focused: bool,
 }
 
-/// 확인을 연다. 이미 열려 있으면 새 요청으로 바꾼다.
+/// 확인을 연다. 이미 열려 있으면 새 요청으로 바꾼다. 범위는 닫을 원격 행의 workspace다.
 pub(crate) fn open(state: &mut MainViewState, close: SavedRowClose, intent: DomainIntent) {
+    let workspace_id = close.row;
     state.dialogs.pending_close_remote = Some(PendingCloseRemote {
         close,
         intent,
         measured_h: None,
         focused: false,
     });
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: CONFIRM_CLOSE_REMOTE_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                crate::model::popup_kind::PopupScope::Window,
-            ),
-        }
-        .from_user_menu("workspace/close-remote"),
+    crate::adapters::ui::workspace_action_popup::open(
+        state,
+        workspace_id,
+        CONFIRM_CLOSE_REMOTE_POPUP_ID,
+        |intent| intent.from_user_menu("workspace/close-remote"),
     );
 }
 
@@ -211,6 +209,35 @@ mod tests {
         ));
         assert!(!is_confirmed(&intent().from_user_context_menu().origin));
         assert!(!is_confirmed(&intent().from_agent_ipc().origin));
+    }
+
+    #[test]
+    fn the_confirm_opens_in_the_workspace_it_closes() {
+        let (mut state, _session) = crate::state::tests::two_pane_fixture();
+        open(
+            &mut state,
+            SavedRowClose {
+                row: 9,
+                last: false,
+            },
+            DomainIntent::CloseWorkspace { workspace_id: 9 },
+        );
+        let intents = state.take_pending_intents();
+        assert!(
+            matches!(
+                &intents[..],
+                [crate::intent::DispatchedIntent {
+                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                        id: CONFIRM_CLOSE_REMOTE_POPUP_ID,
+                        mode: crate::intent::OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Workspace(9)
+                        ),
+                    }),
+                    ..
+                }]
+            ),
+            "{intents:?}"
+        );
     }
 }
 

@@ -1,5 +1,5 @@
 //! 사이드바에서 워크스페이스 점유를 강제로 해제하기 전 확인한다.
-//! 대상 워크스페이스로 전환하지 않아도 보여야 하므로 Window 범위로 연다.
+//! 작용 대상인 워크스페이스 범위로 연다. 그 워크스페이스가 활성일 때 그린다.
 //! 서버는 SSH 터널 밖의 사용자를 식별할 수 없어 워크스페이스 이름과 해제 결과만 안내한다.
 //! 대상이 사라졌거나 이미 점유가 풀렸으면 닫는다.
 
@@ -14,6 +14,18 @@ pub const CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID: &str = "confirm_force_detach_
 
 /// 다이얼로그 폭 (destructive confirm 공통 380px).
 const WIDTH: LogicalPx = LogicalPx(380.0);
+
+/// 대상 워크스페이스를 보류 상태에 두고 그 워크스페이스 범위로 확인을 연다.
+/// 확인을 기다리는 동안 인덱스가 바뀔 수 있으므로 ID를 보관한다.
+pub(crate) fn open(state: &mut MainViewState, workspace_id: u32) {
+    state.dialogs.pending_force_detach_workspace = Some(workspace_id);
+    crate::adapters::ui::workspace_action_popup::open(
+        state,
+        workspace_id,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+        |intent| intent.from_user_menu("workspace/force-detach"),
+    );
+}
 
 /// 화면에 표시할 대상 이름. 실제 해제 대상 ID는 실행할 때 보류 상태에서 다시 읽는다.
 struct Target {
@@ -181,6 +193,34 @@ pub(crate) fn apply_force_detach(
                 },
             )
             .from_user_context_menu(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_confirm_opens_in_the_workspace_it_detaches() {
+        let (mut state, _session) = crate::state::tests::two_pane_fixture();
+        open(&mut state, 7);
+        assert_eq!(state.dialogs.pending_force_detach_workspace, Some(7));
+        let intents = state.take_pending_intents();
+        assert!(
+            matches!(
+                &intents[..],
+                [crate::intent::DispatchedIntent {
+                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
+                        id: CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+                        mode: crate::intent::OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Workspace(7)
+                        ),
+                    }),
+                    ..
+                }]
+            ),
+            "{intents:?}"
         );
     }
 }
