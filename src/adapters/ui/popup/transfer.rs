@@ -393,36 +393,52 @@ pub fn draw_transfer_error(
     }
 
     if retry {
-        // 저장한 페이로드를 기존 업로드 큐에 다시 넣는다.
-        if let Some(err) = state.dialogs.transfer_error.pop_front()
-            && let Some(payload) = err.retry
-            && let Some(target) =
-                crate::runtime::surface_binding::SurfaceBinding::capture(engine, payload.surface_id)
-        {
-            state.dispatch_intent(
-                crate::intent::Intent::Engine(
-                    crate::app::engine_action::EngineAction::ImageUpload {
-                        target,
-                        request: payload,
-                    },
-                )
-                .from_user_context_menu(),
-            );
-        }
-        return if state.dialogs.transfer_error.is_empty() {
-            PopupAction::Close
-        } else {
-            PopupAction::None
-        };
+        return retry_head_error(state, engine);
     }
     if dismiss {
-        state.dialogs.transfer_error.pop_front();
-        return if state.dialogs.transfer_error.is_empty() {
-            PopupAction::Close
-        } else {
-            PopupAction::None
-        };
+        return dismiss_head_error(state);
     }
+    PopupAction::None
+}
+
+/// 맨 앞 실패를 저장한 페이로드로 기존 업로드 큐에 다시 넣고 다음 실패를 보인다.
+fn retry_head_error(state: &mut MainViewState, engine: &EngineRead<'_>) -> PopupAction {
+    if let Some(err) = state.dialogs.transfer_error.pop_front()
+        && let Some(payload) = err.retry
+        && let Some(target) =
+            crate::runtime::surface_binding::SurfaceBinding::capture(engine, payload.surface_id)
+    {
+        state.dispatch_intent(
+            crate::intent::Intent::Engine(crate::app::engine_action::EngineAction::ImageUpload {
+                target,
+                request: payload,
+            })
+            .from_user_context_menu(),
+        );
+    }
+    show_next_error(state)
+}
+
+/// 맨 앞 실패를 닫고 다음 실패를 보인다.
+fn dismiss_head_error(state: &mut MainViewState) -> PopupAction {
+    state.dialogs.transfer_error.pop_front();
+    show_next_error(state)
+}
+
+/// 남은 실패가 없으면 팝업을 닫는다. 있으면 다음 실패의 범위로 다시 연다.
+/// 범위가 같으면 열린 팝업이 그대로 다음 항목을 그린다.
+fn show_next_error(state: &mut MainViewState) -> PopupAction {
+    let Some(next) = state.dialogs.transfer_error.front() else {
+        return PopupAction::Close;
+    };
+    let scope = next.scope.clone();
+    state.dispatch_intent(
+        crate::intent::UiIntent::ReopenPopup {
+            id: TRANSFER_ERROR_POPUP_ID,
+            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
+        }
+        .from_user_menu("transfer_error"),
+    );
     PopupAction::None
 }
 
@@ -683,6 +699,10 @@ fn format_mib(bytes: u64) -> String {
         format!("{v:.1} {}", UNITS[u])
     }
 }
+
+#[cfg(test)]
+#[path = "transfer_error_tests.rs"]
+mod error_tests;
 
 #[cfg(test)]
 mod tests {
