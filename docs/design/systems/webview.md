@@ -554,6 +554,7 @@ Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른
 
 - 새 WebView는 첫 문서를 싣기 전에 값을 둔다(`webview_sync::bed_focus::apply_initial`). 포커스가 있으면 첫 렌더부터 focus 값이다.
 - 그 뒤 프레임마다 목표 값을 계산하고, 마지막으로 둔 값과 다를 때만 백엔드를 부른다. 계산은 표시 판정보다 먼저 한다. 숨긴 WebView도 갱신하므로 다시 보일 때 숨기기 전 값을 쓰지 않는다.
+- 상위층은 백엔드를 `BedFocusSink`로 본다. `set_bed_focused(bool)`로 값을 두고, `take_bed_focus_failed()`로 마지막으로 둔 값이 실패했는지 받아 표시를 지운다. 실패를 받으면 마지막으로 둔 값을 잊어 같은 동기화에서 목표 값을 다시 보낸다(`webview_sync::bed_focus::step`). 그 surface가 더 이상 값을 받지 않으면 기록만 지운다. Linux는 넣고 빼는 호출이 같은 호출 안에서 끝나 실패를 보고하지 않는다. macOS는 백엔드가 없어 둘 다 비어 있다.
 
 ### Linux 구현
 
@@ -568,6 +569,10 @@ WebKitGTK `UserContentManager`에 User 단계 사용자 스타일시트로 표�
 ### Windows 구현
 
 WebView2에는 사용자 스타일시트가 없어 스크립트로 둔다(`windows/bed_focus.rs`). 규칙을 문서의 adopted stylesheet 하나에 넣는 고정 스크립트(`bed_focus::bed_state_script`)를 지금 문서에는 `ExecuteScript`로, 그 뒤 싣는 문서에는 `AddScriptToExecuteOnDocumentCreated`로 실행한다. 값이 바뀔 때마다 새 문서 생성 스크립트를 등록하고, 가장 최근 요청의 등록이 끝나면 그 전 등록을 지운다. 등록 완료 순서가 뒤바뀌어도 마지막 요청의 값만 남는다.
+
+문서 생성 스크립트 등록은 비동기로 끝난다. 그래서 마지막 요청의 등록이 끝나거나 실패할 때까지 호스트가 보내는 탐색(`load_url`·`load_html`·`reload`·`go_back`·`go_forward`)을 백엔드가 붙잡았다가 그때 받은 순서대로 보낸다(`bed_focus::BedFocusDelivery`). 새 WebView의 첫 문서도 `apply_initial`의 등록이 끝난 뒤에 실리므로 첫 렌더부터 그때의 값이다. 앞선 요청의 등록 완료는 탐색을 풀지 않는다. 페이지 안에서 시작한 탐색(링크 클릭, 페이지 스크립트)은 붙잡지 않는다. 붙잡고 보내는 시점은 debug 로그에 남는다.
+
+`ExecuteScript`와 등록이 즉시 실패하거나 완료 콜백이 실패를 알리면 마지막 요청일 때만 실패로 표시한다. 상위층이 표시를 받아 같은 값을 다시 보낸다. 실패한 등록도 붙잡은 탐색을 푼다. 그 문서는 앞서 등록된 값(없으면 unfocus 값)으로 시작하고, 다시 보낸 값이 실행되면 바뀐다. 탐색을 계속 막아 두지 않기 위해서다.
 
 규칙은 focus면 표지를 빈 값으로, 아니면 `initial`로 둔다. 사용자 정의 속성의 `initial`은 `var()`를 무효로 만들어 페이지의 unfocus 값이 쓰인다. 번들 markdown 페이지는 Linux가 아닌 OS에서 표지를 스스로 선언하므로(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`), 규칙의 구체성을 `:root`보다 높여(`:root:root`) 그 선언을 덮는다. 페이지가 선언하지 않아도 같은 값이 된다.
 
