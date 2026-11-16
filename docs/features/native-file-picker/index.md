@@ -292,7 +292,7 @@ mono caption 이며, 칩은 내용 폭이다. `fp-filter-max-width` 를 넘으�
   쓰면 설정을 끈 사용자에게서 시작 위치가 사라진다.
 - `path_input` 등 plugin 팝업에 사용자가 이미 적어 둔 경로를 시작점으로 삼는 것은 다루지 않는다.
 
-**범위**: 피커는 작용 대상의 범위로 열린다([내부 팝업 시스템](../../design/systems/popup.md)).
+**범위**: 피커는 요소의 내용 안에서 일어나는 팝업이라 작용 대상 그 자체의 범위로 열린다([내부 팝업 시스템](../../design/systems/popup.md)의 작용 대상 범위 규칙).
 host는 trigger 때 아래 순서로 범위를 정한다.
 
 1. `owner_popup_instance`가 요청자 plugin의 열린 popup을 가리키면 그 popup의 선언 종류와 결속
