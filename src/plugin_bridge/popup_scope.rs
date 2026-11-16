@@ -17,6 +17,18 @@ pub(crate) fn popup_scope(decl: PopupScopeDecl, scope_surface: Option<u32>) -> O
     }
 }
 
+/// 활성 플러그인이 선언한 팝업의 범위 종류. 선언이 없으면 None이다.
+pub(crate) fn declared_popup_scope(
+    mgr: &tasty_host_plugin::PluginManager,
+    plugin_id: &str,
+    popup_id: &str,
+) -> Option<PopupScopeDecl> {
+    mgr.plugin_popup_contributes()
+        .into_iter()
+        .find(|e| e.plugin_id == plugin_id && e.contribute.id == popup_id)
+        .map(|e| e.contribute.scope)
+}
+
 /// 열린 플러그인 팝업 인스턴스마다 소유 플러그인과 결속 범위. 매 프레임 그리기 전에 다시 만든다.
 /// 배치 결과(좁은 surface 라 창에 그린 범위)가 아니라 선언과 결속 대상으로 정한 값이다.
 pub(crate) type BoundPopupScopes = std::collections::HashMap<u64, (String, Option<PopupScope>)>;

@@ -360,13 +360,21 @@ fn mesh_snapshots<'a>(
             .size_hint
             .map(|s| Vec2::new(s.width as f32, s.height as f32))
             .unwrap_or(DEFAULT_POPUP_SIZE);
+        // 대상 없는 surface 선언 인스턴스는 그릴 범위가 없다. 여는 경로가 이런 인스턴스를 만들지 않는다.
+        let Some(scope) = popup_scope(inst.contribute.scope, inst.scope_surface) else {
+            tracing::debug!(
+                "popup '{}/{}' has no surface target; not drawn",
+                inst.plugin_id,
+                inst.popup_id
+            );
+            continue;
+        };
         match inst.contribute.rendering {
             PopupRendering::EguiMesh => mesh_snaps.push(MeshSnap {
                 instance_id: id,
                 plugin_id: inst.plugin_id.clone(),
                 anchor: inst.contribute.anchor,
-                scope: popup_scope(inst.contribute.scope, inst.scope_surface)
-                    .unwrap_or(PopupScope::Window),
+                scope,
                 size,
                 dismiss_on_outside_click: inst.contribute.dismiss_on_outside_click,
                 z_seq: inst.z_seq,
@@ -848,20 +856,24 @@ mod tests {
     #[test]
     fn the_scrim_of_a_window_scoped_plugin_popup_stays_the_whole_screen() {
         let hidden = layout_with_surface_7(false);
-        for inst in [
-            instance(PopupScopeDecl::Window, Some(7), PopupAnchor::ScreenCenter),
-            instance(PopupScopeDecl::Surface, None, PopupAnchor::ScreenCenter),
-        ] {
-            let placed = place_visible(
-                mesh_snapshots(std::iter::once((1, &inst))),
-                Some(&hidden),
-                SCREEN,
-                None,
-            );
-            let (rects, paints) = scrim_plan(&placed, Some(&hidden), SCREEN);
-            assert_eq!(rects, vec![SCREEN]);
-            assert_eq!(paints, vec![true]);
-        }
+        let inst = instance(PopupScopeDecl::Window, Some(7), PopupAnchor::ScreenCenter);
+        let placed = place_visible(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            Some(&hidden),
+            SCREEN,
+            None,
+        );
+        let (rects, paints) = scrim_plan(&placed, Some(&hidden), SCREEN);
+        assert_eq!(rects, vec![SCREEN]);
+        assert_eq!(paints, vec![true]);
+    }
+
+    /// 대상 없는 surface 선언 인스턴스는 창 범위로 바꿔 그리지 않는다.
+    #[test]
+    fn an_unbound_surface_popup_is_not_drawn_on_the_window() {
+        let inst = instance(PopupScopeDecl::Surface, None, PopupAnchor::ScreenCenter);
+        assert!(mesh_snapshots(std::iter::once((1, &inst))).is_empty());
+        assert_eq!(placed_rect(&inst, &layout_with_surface_7(true), None), None);
     }
 
     #[test]
@@ -925,15 +937,11 @@ mod tests {
     }
 
     #[test]
-    fn window_scope_and_unbound_surface_scope_keep_the_screen() {
+    fn window_scope_keeps_the_screen() {
         let hidden = layout_with_surface_7(false);
-        for inst in [
-            instance(PopupScopeDecl::Window, Some(7), PopupAnchor::ScreenCenter),
-            instance(PopupScopeDecl::Surface, None, PopupAnchor::ScreenCenter),
-        ] {
-            let rect = placed_rect(&inst, &hidden, None).expect("창 범위는 항상 그려진다");
-            assert_eq!(rect.center(), SCREEN.center());
-        }
+        let inst = instance(PopupScopeDecl::Window, Some(7), PopupAnchor::ScreenCenter);
+        let rect = placed_rect(&inst, &hidden, None).expect("창 범위는 항상 그려진다");
+        assert_eq!(rect.center(), SCREEN.center());
     }
 
     fn collected_scroll(unit: egui::MouseWheelUnit, delta: Vec2) -> Option<(f32, f32)> {

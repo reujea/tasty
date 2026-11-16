@@ -37,7 +37,6 @@ pub fn handle_list(mgr: Option<&PluginManager>, id: serde_json::Value) -> JsonRp
                 "popup_id": inst.popup_id,
                 // 호스트 팝업과 같은 순번을 써 겹침 순서를 비교할 수 있다.
                 "z_seq": inst.z_seq,
-                // surface 선언이어도 연결된 대상이 없으면 창 범위로 표시된다.
                 "scope": match inst.contribute.scope {
                     crate::plugin::manifest::PopupScopeDecl::Window => "window",
                     crate::plugin::manifest::PopupScopeDecl::Surface => "surface",
@@ -52,7 +51,8 @@ pub fn handle_list(mgr: Option<&PluginManager>, id: serde_json::Value) -> JsonRp
     )
 }
 
-/// `debug.popup.open` — `{ plugin_id, popup_id, context? }`로 popup 인스턴스 강제 open.
+/// `debug.popup.open` — `{ plugin_id, popup_id, surface_id?, context? }`로 popup 인스턴스 강제 open.
+/// surface 선언 popup은 `surface_id`로 대상을 결속한다. 없으면 열지 않고 -32602다.
 #[cfg(feature = "gui")]
 pub fn handle_open(
     mgr: Option<&mut PluginManager>,
@@ -69,11 +69,32 @@ pub fn handle_open(
         .get("context")
         .cloned()
         .unwrap_or(serde_json::Value::Null);
+    let surface_id = match super::params::read_int::<u32>(params, "surface_id") {
+        Ok(sid) => sid,
+        Err(msg) => return JsonRpcResponse::invalid_params(id, msg),
+    };
     let Some(mgr) = mgr else {
         return JsonRpcResponse::error(id, -32002, "plugin manager not initialized");
     };
+    if surface_id.is_none()
+        && crate::plugin_bridge::popup_scope::declared_popup_scope(mgr, plugin_id, popup_id)
+            == Some(crate::plugin::manifest::PopupScopeDecl::Surface)
+    {
+        return JsonRpcResponse::error(
+            id,
+            -32602,
+            format!(
+                "popup '{plugin_id}/{popup_id}' is declared with surface scope; surface_id required"
+            ),
+        );
+    }
     match mgr.open_popup_instance(plugin_id, popup_id, context) {
-        Some(instance_id) => JsonRpcResponse::success(id, json!({ "instance_id": instance_id })),
+        Some(instance_id) => {
+            if let Some(sid) = surface_id {
+                mgr.bind_popup_instance_surface(instance_id, sid);
+            }
+            JsonRpcResponse::success(id, json!({ "instance_id": instance_id }))
+        }
         None => JsonRpcResponse::error(
             id,
             -32602,

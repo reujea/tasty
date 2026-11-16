@@ -157,7 +157,7 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 
 scrim은 팝업이 속한 범위를 덮는다(이 문서). Surface 범위는 해당 surface의 보더까지 포함하고 인접 surface·사이드바·탭바·상태바는 제외한다. Pane·Tab 범위는 `PopupManager::scope_rect`가 `LayoutContext::pane_rects`에서 찾은 사각형이다.
 
-모서리 형태는 범위 대상에 맞춘다. 현재 surface의 반경은 0이며 코드는 범위와 관계없이 반경 0과 같은 `scrim()` 색을 사용한다. 창·workspace 범위, 그 프레임에서 범위를 찾지 못한 경우, surface 선언에 대상이 없는 호환 경로는 창 전체를 덮는다.
+모서리 형태는 범위 대상에 맞춘다. 현재 surface의 반경은 0이며 코드는 범위와 관계없이 반경 0과 같은 `scrim()` 색을 사용한다. 창·workspace 범위와 그 프레임에서 범위를 찾지 못한 경우는 창 전체를 덮는다.
 
 같은 범위의 팝업이 여럿이어도 scrim은 한 번 그린다. 창 scrim이 있으면 내부 surface scrim은 생략한다. 같은 알파를 중복 적용해 특정 영역만 더 어두워지는 것을 막는다.
 
@@ -194,7 +194,12 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 | 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface |
 | 도구 메뉴 popup | 여는 시점의 focus surface |
 | 이벤트 trigger popup | `surface` 범위 이벤트(`EventScope::Surface`)의 payload `surface_id`. 대상이 그 popup 을 선언한 plugin 의 surface 가 아니거나, 다른 plugin 이 발행한 이벤트면 열지 않는다 |
-| plugin 이 IPC 로 연 popup, 대상 없는 이벤트 | 없음 — 선언이 `surface` 여도 `window` 로 뜬다. 대상 없는 이벤트도 다른 plugin 이 발행했으면 열지 않는다 |
+| `debug.popup.open` | 요청의 `surface_id` |
+
+`surface` 선언 popup 에 대상이 없으면 `window` 로 바꾸지 않고 열지 않는다. 변환 입력 popup·도구 메뉴는
+focus surface 가 없을 때(예: attach 대기 초안 선택) 열지 않고 경고 로그를 남긴다. 대상 없는 이벤트도
+열지 않고 경고 로그만 남긴다(이벤트는 응답이 없다). `debug.popup.open` 은 `-32602` 로 거절한다.
+`window` 선언 popup 은 대상이 없어도 그대로 열린다.
 
 `surface` 범위 popup은 앵커의 가운데 기준도 그 surface 영역이다. 범위가 안 보이는 frame 에는
 셸·콘텐츠 합성·히트테스트 rect·Esc·바깥 클릭·키 게이트 어디에도 들어가지 않는다 — 보이지

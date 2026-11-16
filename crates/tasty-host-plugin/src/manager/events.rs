@@ -49,8 +49,8 @@ impl PluginManager {
             })
             .collect();
         for (plugin_id, popup_id, decl) in matches {
-            // surface 팝업은 그 플러그인이 발행한 이벤트로만 연다. 대상이 없어 창 범위로
-            // 열리는 경우에도 같다. 발행 권한은 플러그인 ID 에 묶이지 않기 때문이다.
+            // surface 팝업은 그 플러그인이 발행한 이벤트로만 연다. 발행 권한은 플러그인 ID 에
+            // 묶이지 않기 때문이다.
             if decl == PopupScopeDecl::Surface
                 && let Some(publisher) = publisher
                 && publisher != plugin_id
@@ -71,7 +71,13 @@ impl PluginManager {
                         surface_id,
                     });
                 }
-                _ => {
+                // 대상 surface 가 없으면 창 범위로 바꾸지 않고 열지 않는다. 이벤트는 응답이 없어 로그만 남긴다.
+                (PopupScopeDecl::Surface, None) => {
+                    tracing::warn!(
+                        "popup '{plugin_id}/{popup_id}' not opened: event '{event_key}' has no surface target"
+                    );
+                }
+                (PopupScopeDecl::Window, _) => {
                     self.open_popup_instance(&plugin_id, &popup_id, payload.clone());
                 }
             }

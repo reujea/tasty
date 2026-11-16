@@ -129,7 +129,7 @@ pub(super) fn handle_debug_host_popup_open(
         .get("workspace_scope")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    // surface 범위의 scrim과 여백을 시험한다. 포커스된 surface가 없으면 창 범위를 유지한다.
+    // surface 범위의 scrim과 여백을 시험한다. 포커스된 surface가 없으면 다른 범위로 바꾸지 않고 열지 않는다.
     let surface_scope = params
         .get("surface_scope")
         .and_then(|v| v.as_bool())
@@ -137,6 +137,13 @@ pub(super) fn handle_debug_host_popup_open(
     let bound_surface = surface_scope
         .then(|| state.focused_surface_id(engine))
         .flatten();
+    if surface_scope && bound_surface.is_none() {
+        return JsonRpcResponse::error(
+            id,
+            -32602,
+            "surface_scope requested but no surface is focused",
+        );
+    }
     let mode = match (workspace_scope, bound_surface) {
         (_, Some(sid)) => crate::intent::OpenPopupMode::CenteredFocused(
             crate::adapters::ui::popup::PopupScope::Surface(sid),

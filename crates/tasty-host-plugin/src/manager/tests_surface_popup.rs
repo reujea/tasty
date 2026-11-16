@@ -1,4 +1,5 @@
-//! surface 범위 이벤트 팝업은 대상 소유 확인을 기다리고, 그 밖의 이벤트 팝업은 바로 열린다.
+//! surface 범위 이벤트 팝업은 대상 소유 확인을 기다리고, 대상이 없으면 열리지 않는다.
+//! 창 범위 이벤트 팝업은 바로 열린다.
 
 use std::sync::Arc;
 
@@ -93,25 +94,25 @@ fn a_plugin_publish_records_the_publisher() {
 }
 
 #[test]
-fn a_window_popup_or_an_event_without_a_surface_opens_at_once() {
+fn a_window_popup_opens_at_once() {
     let mut mgr = manager("");
     mgr.emit_host_event(KEY, &surface_payload(), EventScope::Surface);
     assert!(mgr.take_pending_surface_popups().is_empty());
     assert_eq!(mgr.popup_instances().count(), 1);
+}
 
-    let mut mgr = manager(r#"scope = "surface""#);
-    mgr.emit_host_event(KEY, &surface_payload(), EventScope::System);
-    assert!(mgr.take_pending_surface_popups().is_empty());
-    assert_eq!(mgr.popup_instances().count(), 1);
-
-    let mut mgr = manager(r#"scope = "surface""#);
-    mgr.emit_host_event(
-        KEY,
-        &serde_json::json!({ "path": "/a.md" }),
-        EventScope::Surface,
-    );
-    assert!(mgr.take_pending_surface_popups().is_empty());
-    assert_eq!(mgr.popup_instances().count(), 1);
+/// surface 선언 팝업은 대상이 없는 이벤트로 열리지 않는다. 창 범위로 바꾸지 않는다.
+#[test]
+fn a_surface_popup_without_a_surface_target_does_not_open() {
+    for (payload, scope) in [
+        (surface_payload(), EventScope::System),
+        (serde_json::json!({ "path": "/a.md" }), EventScope::Surface),
+    ] {
+        let mut mgr = manager(r#"scope = "surface""#);
+        mgr.emit_host_event(KEY, &payload, scope);
+        assert!(mgr.take_pending_surface_popups().is_empty(), "{scope:?}");
+        assert_eq!(mgr.popup_instances().count(), 0, "{scope:?}");
+    }
 }
 
 fn publish_from(
@@ -155,7 +156,7 @@ fn another_plugins_event_opens_no_surface_popup_with_or_without_a_target() {
 }
 
 #[test]
-fn the_owners_own_event_without_a_target_still_opens_on_the_window() {
+fn the_owners_own_event_without_a_target_does_not_open() {
     let mut mgr = manager(r#"scope = "surface""#);
     publish_from(
         &mut mgr,
@@ -164,7 +165,7 @@ fn the_owners_own_event_without_a_target_still_opens_on_the_window() {
         EventScope::System,
     );
     assert!(mgr.take_pending_surface_popups().is_empty());
-    assert_eq!(mgr.popup_instances().count(), 1);
+    assert_eq!(mgr.popup_instances().count(), 0);
 }
 
 #[test]
