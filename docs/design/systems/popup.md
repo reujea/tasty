@@ -151,7 +151,7 @@ IPC 요청은 `-32602` 다. 대상 없이 창 전체에 작용하는 팝업(도�
 | 탭 프리셋 적용(`apply_tab_preset`) | Tab | 메뉴를 연 pane(단축키는 포커스 pane)에서 선택된 탭. 적용은 그 탭의 pane에 한다 |
 | pane 프리셋 적용(`apply_pane_preset`) | Pane | 메뉴를 연 pane(단축키는 포커스 pane). 적용도 그 pane에 한다 |
 | 강제 분리 확인(`confirm_force_detach_workspace`) · 원격 닫기 확인(`confirm_close_remote`) · workspace 이름·부제 바꾸기(`rename`) | Window | workspace 자체를 다루므로 그 workspace 가 보이는 창. 두 확인은 `src/adapters/ui/workspace_action_popup.rs` 한 함수로, 이름 바꾸기는 `RenameTarget::popup_scope`로 연다. 대상이 활성 workspace 가 아니어도 workspace 를 전환하지 않고 지금 창에 그린다. 다른 workspace 요청이 오면 범위는 그대로이고 내용과 대상만 바뀐다 |
-| 탭 이름 바꾸기(`rename`) | Tab | 그 탭 |
+| 탭 이름 바꾸기(`rename`) | Pane | 탭 자체를 다루므로 그 탭이 보이는 pane(탭 바가 있는 곳). 탭의 pane 을 찾지 못하면 열지 않고 경고 로그를 남긴다 |
 | 업로드 진행·실패(`transfer_progress` · `transfer_error`) | Surface | 업로드를 시작한 surface. 진행 팝업은 창마다 하나라 마지막에 시작한 전송의 surface 이고, 실패는 큐 맨 앞 항목의 surface 다 |
 | 다운로드 후 실행(`download_run` · `download_run_large` · `download_run_progress`) | Surface | 원격 파일을 연 surface. 크기 확인·진행·실패도 그 다운로드의 surface 다 |
 | 파일 처리기 선택(`file_handler_picker`) | Surface 또는 Window | 요청 출처 surface. 터미널 링크의 연결 동작은 링크를 누른 터미널. 출처 없는 창 단위 요청(출처 없는 IPC·에이전트 요청)은 Window |

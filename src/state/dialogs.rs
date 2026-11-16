@@ -563,7 +563,7 @@ impl RenameTarget {
     }
 
     /// 대상 ID로 표시 범위를 정한다. 요소 자체의 이름은 그 요소가 보이는 상위 자리에서 바꾼다.
-    /// workspace는 창 범위다. workspace·탭 대상을 찾지 못하면 None이다(열지 않는다).
+    /// workspace는 창, 탭은 그 탭이 든 pane 범위다. workspace·탭 대상을 찾지 못하면 None이다(열지 않는다).
     pub fn popup_scope(
         &self,
         engine: &crate::core::CoreState,
@@ -575,9 +575,7 @@ impl RenameTarget {
                     .find_workspace_index_for_id(*workspace_id)
                     .map(|_| PopupScope::Window)
             }
-            Self::TabName { tab_id } => engine
-                .find_pane_for_tab(*tab_id)
-                .map(|_| PopupScope::Tab(*tab_id)),
+            Self::TabName { tab_id } => engine.find_pane_for_tab(*tab_id).map(PopupScope::Pane),
             Self::ExplorerEntry { surface_id, .. } => Some(PopupScope::Surface(*surface_id)),
             Self::ExplorerAddFavorite { .. } | Self::NewCategory | Self::CategoryName { .. } => {
                 Some(PopupScope::Window)

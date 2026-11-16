@@ -66,7 +66,8 @@ mod tests {
                 RenameTarget::WorkspaceSubtitle { workspace_id: 1 },
                 PopupScope::Window,
             ),
-            (RenameTarget::TabName { tab_id: 102 }, PopupScope::Tab(102)),
+            (RenameTarget::TabName { tab_id: 102 }, PopupScope::Pane(10)),
+            (RenameTarget::TabName { tab_id: 201 }, PopupScope::Pane(20)),
             (RenameTarget::NewCategory, PopupScope::Window),
         ] {
             assert!(open(
@@ -102,9 +103,36 @@ mod tests {
         }
     }
 
-    /// 한 대상에서 연 이름 바꾸기에 다른 대상의 요청이 오면 범위와 대상이 모두 새 대상이다.
+    /// 한 pane 에서 연 탭 이름 바꾸기에 다른 pane 탭의 요청이 오면 범위와 대상이 모두 새 탭의 pane 이다.
     #[test]
     fn a_second_request_for_another_target_moves_the_popup_there() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        for tab_id in [101, 201] {
+            let read = session.read();
+            assert!(open(
+                &mut state,
+                &read,
+                RenameTarget::TabName { tab_id },
+                String::new(),
+                UiIntent::from_user_context_menu
+            ));
+            drop(read);
+            crate::intent::popup::apply_pending(&mut state, &mut session);
+        }
+        assert_eq!(
+            state.popups.open_scope(RENAME_POPUP_ID),
+            Some(&PopupScope::Pane(20))
+        );
+        assert_eq!(
+            state.dialogs.rename.as_ref().map(|(t, _)| t.clone()),
+            Some(RenameTarget::TabName { tab_id: 201 })
+        );
+        assert!(state.popups.take_closed_queue().is_empty());
+    }
+
+    /// 같은 pane 의 다른 탭 요청은 범위를 그대로 두고 대상만 바꾼다.
+    #[test]
+    fn a_second_request_for_a_tab_in_the_same_pane_retargets_the_popup() {
         let (mut state, mut session) = crate::state::tests::two_pane_fixture();
         for tab_id in [101, 102] {
             let read = session.read();
@@ -120,7 +148,7 @@ mod tests {
         }
         assert_eq!(
             state.popups.open_scope(RENAME_POPUP_ID),
-            Some(&PopupScope::Tab(102))
+            Some(&PopupScope::Pane(10))
         );
         assert_eq!(
             state.dialogs.rename.as_ref().map(|(t, _)| t.clone()),
