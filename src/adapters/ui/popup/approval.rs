@@ -263,7 +263,7 @@ pub fn on_close_approval_popup(
         state.dispatch_intent(
             crate::intent::UiIntent::OpenPopup {
                 id: APPROVAL_POPUP_ID,
-                mode: crate::intent::OpenPopupMode::WithScope(
+                mode: crate::intent::OpenPopupMode::CenteredFocused(
                     crate::adapters::ui::popup::PopupScope::Window,
                 ),
             }
@@ -362,7 +362,7 @@ pub fn enqueue_approval(
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup {
             id: APPROVAL_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::WithScope(
+            mode: crate::intent::OpenPopupMode::CenteredFocused(
                 crate::adapters::ui::popup::PopupScope::Window,
             ),
         }

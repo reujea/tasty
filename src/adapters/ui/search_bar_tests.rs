@@ -8,9 +8,11 @@ fn search_input_focus_text_and_invalid_edge_survive_popup_draw() {
     let (mut state, mut session) = test_state();
     let engine = session.borrow_mut();
     let ctx = egui::Context::default();
-    state
-        .popups
-        .open_at_focused(SEARCH_BAR_POPUP_ID, egui::pos2(100.0, 100.0));
+    state.popups.open_at_focused(
+        SEARCH_BAR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(100.0, 100.0),
+    );
     let frame = |state: &mut MainViewState, events, modifiers| {
         ctx.run(
             egui::RawInput {
@@ -104,9 +106,11 @@ fn search_input_has_canonical_height_and_unclipped_ring_in_the_sized_shell() {
     let (mut state, mut session) = test_state();
     let engine = session.borrow_mut();
     let ctx = egui::Context::default();
-    state
-        .popups
-        .open_at_focused(SEARCH_BAR_POPUP_ID, egui::pos2(100.0, 100.0));
+    state.popups.open_at_focused(
+        SEARCH_BAR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(100.0, 100.0),
+    );
     // An undersized stale instance must be repaired by the registered per-frame sizer.
     state.popups.get_mut(SEARCH_BAR_POPUP_ID).unwrap().size.y = 1.0;
     let mut last = None;
@@ -206,9 +210,11 @@ fn open_with_query(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
-    state
-        .popups
-        .open_at_focused(SEARCH_BAR_POPUP_ID, egui::pos2(100.0, 100.0));
+    state.popups.open_at_focused(
+        SEARCH_BAR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(100.0, 100.0),
+    );
     for _ in 0..20 {
         escape_frame(ctx, state, engine, vec![]);
     }

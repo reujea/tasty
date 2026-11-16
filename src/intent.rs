@@ -425,7 +425,8 @@ pub enum ConvertTarget {
     },
 }
 
-/// 팝업 위치와 포커스 정책.
+/// 팝업 범위·위치·포커스 정책. 모든 갈래가 범위를 받는다. 열 때마다 범위를 정하므로
+/// 등록 값이나 직전에 열렸을 때의 범위가 남지 않는다(docs/design/systems/popup.md).
 // 이유: 팝업 열기는 GUI 입력에서만 요청한다.
 #[cfg_attr(
     not(feature = "gui"),
@@ -434,16 +435,14 @@ pub enum ConvertTarget {
 #[derive(Debug, Clone)]
 pub enum OpenPopupMode {
     /// 위치를 지정하지 않고 포커스도 옮기지 않는다.
-    Default,
-    /// 화면 중앙에 열고 포커스를 옮긴다.
-    CenteredFocused,
-    /// 지정한 범위의 중앙에 연다.
-    WithScope(PopupScope),
-    /// 지정한 범위의 상단에 연다.
+    Default(PopupScope),
+    /// 범위의 중앙에 열고 포커스를 옮긴다.
+    CenteredFocused(PopupScope),
+    /// 범위의 상단에 연다.
     AtTopOfScope(PopupScope),
     /// 컨텍스트 메뉴에서 지정한 위치에 연다.
     #[cfg(feature = "gui")]
-    AtFocused(egui::Pos2),
+    AtFocused(PopupScope, egui::Pos2),
 }
 
 impl Intent {

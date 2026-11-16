@@ -30,7 +30,7 @@
 
 ### 항목 실행 (`invoke_tool`)
 
-- **빌트인**: 해당 popup 을 연다 (`BuiltinAction::OpenPopup` — 중앙 정렬 + 포커스). 대상 스코프를 여는 시점에야 아는 항목은 `BuiltinAction::OpenWorkspacePopup` 으로 갈라져 `OpenPopupMode::WithScope(PopupScope::Workspace(활성 workspace ID))` 를 주입한다(현재 Task DAGs 하나). 별도 winit 창(`OpenWindow`)·파일 피커(`OpenFilePicker`)도 각각 자기 분기를 쓴다.
+- **빌트인**: 해당 popup 을 연다 (`BuiltinAction::OpenPopup` — 중앙 정렬 + 포커스). 대상 스코프를 여는 시점에야 아는 항목은 `BuiltinAction::OpenWorkspacePopup` 으로 갈라져 `OpenPopupMode::CenteredFocused(PopupScope::Workspace(활성 workspace ID))` 를 주입한다(현재 Task DAGs 하나). 별도 winit 창(`OpenWindow`)·파일 피커(`OpenFilePicker`)도 각각 자기 분기를 쓴다.
 - **플러그인**: `ToolAction` 종류별 — 이벤트 발생 또는 `<plugin_id>/<popup_id>` 형식 popup open (활성 surface 의 상속 cwd 를 실어 전달).
 
 ## 인터페이스

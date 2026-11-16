@@ -163,7 +163,9 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
     state
         .popups
         .register(PopupState::new("rename", "", egui::Vec2::ZERO));
-    state.popups.open_centered_focused("rename");
+    state
+        .popups
+        .open_centered_focused("rename", crate::model::popup_kind::PopupScope::Window);
     let owner =
         rename_input_owner(&state, &read).expect("focused Explorer Rename must participate");
     assert_eq!(owner.surface(), sid);
@@ -176,11 +178,15 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
     state
         .popups
         .register(PopupState::new("other", "", egui::Vec2::ZERO));
-    state.popups.open_centered_focused("other");
+    state
+        .popups
+        .open_centered_focused("other", crate::model::popup_kind::PopupScope::Window);
     assert_eq!(rename_input_owner(&state, &read), None);
     state.popups.close("other");
     state.popups.close("rename");
-    state.popups.open_centered_focused("rename");
+    state
+        .popups
+        .open_centered_focused("rename", crate::model::popup_kind::PopupScope::Window);
     assert_ne!(
         rename_input_owner(&state, &read),
         Some(owner),

@@ -658,48 +658,38 @@ impl PopupManager {
         }
     }
 
-    /// Open a popup by id, bringing it to the front.
-    pub fn open(&mut self, id: PopupId) {
+    /// 팝업을 맨 앞으로 열고 범위를 정한다. 위치와 포커스는 바꾸지 않는다.
+    /// 모든 열기 함수가 범위를 받는다. 등록 값이나 직전에 열렸을 때의 범위를 쓰지 않는다.
+    pub fn open(&mut self, id: PopupId, scope: PopupScope) {
         if let Some(i) = self.popups.iter().position(|p| p.id == id) {
             self.popups[i].open = true;
+            self.popups[i].scope = scope;
             self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
             let popup = self.popups.remove(i);
             self.popups.push(popup);
         }
     }
 
-    /// Open a popup centered on screen, with focus.
-    pub fn open_centered_focused(&mut self, id: PopupId) {
+    /// 범위의 중앙에 열고 포커스를 준다.
+    pub fn open_centered_focused(&mut self, id: PopupId, scope: PopupScope) {
         if let Some(i) = self.popups.iter().position(|p| p.id == id) {
             self.popups[i].open = true;
             self.popups[i].focused = true;
             self.popups[i].passive = false;
             self.popups[i].request_center = true;
+            self.popups[i].scope = scope;
             self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
             let popup = self.popups.remove(i);
             self.popups.push(popup);
         }
     }
 
-    /// Open a popup centered on screen **without** focus (agent-initiated).
+    /// 범위의 중앙에 포커스 **없이** 연다(에이전트·시스템 요청).
     /// 사용자의 포커스를 훔치지 않는다. CLI/IPC 경유 open에 사용.
-    pub fn open_centered(&mut self, id: PopupId) {
+    pub fn open_centered(&mut self, id: PopupId, scope: PopupScope) {
         if let Some(i) = self.popups.iter().position(|p| p.id == id) {
             self.popups[i].open = true;
             self.popups[i].focused = false;
-            self.popups[i].request_center = true;
-            self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
-            let popup = self.popups.remove(i);
-            self.popups.push(popup);
-        }
-    }
-
-    /// Open a popup centered within a specific scope, with focus.
-    pub fn open_with_scope(&mut self, id: PopupId, scope: PopupScope) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
-            self.popups[i].open = true;
-            self.popups[i].focused = true;
-            self.popups[i].passive = false;
             self.popups[i].request_center = true;
             self.popups[i].scope = scope;
             self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
@@ -724,14 +714,15 @@ impl PopupManager {
         }
     }
 
-    /// Open a popup at a specific position, with focus.
-    pub fn open_at_focused(&mut self, id: PopupId, pos: egui::Pos2) {
+    /// 지정한 위치에 열고 포커스를 준다.
+    pub fn open_at_focused(&mut self, id: PopupId, scope: PopupScope, pos: egui::Pos2) {
         if let Some(i) = self.popups.iter().position(|p| p.id == id) {
             self.popups[i].open = true;
             self.popups[i].focused = true;
             self.popups[i].passive = false;
             self.popups[i].pos = pos;
             self.popups[i].request_center = false;
+            self.popups[i].scope = scope;
             self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
             let popup = self.popups.remove(i);
             self.popups.push(popup);
@@ -1116,7 +1107,7 @@ mod tests {
         mgr.close(DUMMY_ID);
         assert!(mgr.take_closed_queue().is_empty());
 
-        mgr.open(DUMMY_ID);
+        mgr.open(DUMMY_ID, crate::model::popup_kind::PopupScope::Window);
         mgr.close(DUMMY_ID);
         assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
     }
@@ -1125,7 +1116,7 @@ mod tests {
     fn close_on_already_closed_popup_does_not_repush() {
         let mut mgr = PopupManager::new();
         mgr.register(dummy(false));
-        mgr.open(DUMMY_ID);
+        mgr.open(DUMMY_ID, crate::model::popup_kind::PopupScope::Window);
         mgr.close(DUMMY_ID);
         assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
 
@@ -1137,7 +1128,7 @@ mod tests {
     fn take_closed_queue_drains() {
         let mut mgr = PopupManager::new();
         mgr.register(dummy(false));
-        mgr.open(DUMMY_ID);
+        mgr.open(DUMMY_ID, crate::model::popup_kind::PopupScope::Window);
         mgr.close(DUMMY_ID);
 
         assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
@@ -1149,7 +1140,11 @@ mod tests {
     fn outside_click_close_path_pushes_to_queue() {
         let mut mgr = PopupManager::new();
         mgr.register(dummy(true));
-        mgr.open_at_focused(DUMMY_ID, egui::pos2(500.0, 500.0));
+        mgr.open_at_focused(
+            DUMMY_ID,
+            crate::model::popup_kind::PopupScope::Window,
+            egui::pos2(500.0, 500.0),
+        );
 
         let ctx = egui::Context::default();
         let mut raw = egui::RawInput {

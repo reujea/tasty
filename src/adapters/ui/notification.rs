@@ -101,7 +101,10 @@ pub(crate) fn toggle_from_sidebar(state: &mut MainViewState, rect: egui::Rect) {
     state.dispatch_intent(
         crate::intent::UiIntent::TogglePopup {
             id: "notifications",
-            mode: crate::intent::OpenPopupMode::AtFocused(pos),
+            mode: crate::intent::OpenPopupMode::AtFocused(
+                crate::model::popup_kind::PopupScope::Window,
+                pos,
+            ),
         }
         .from_user_menu("notifications.summary"),
     );

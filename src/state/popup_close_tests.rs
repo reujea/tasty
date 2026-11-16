@@ -158,9 +158,11 @@ fn convert_surface_escape_close_clears_dialog_state() {
         .all_surface_ids()[0];
     state.dialogs.convert_popup = Some(surface_id);
     state.dialogs.convert_popup_selected = Some(0);
-    state
-        .popups
-        .open_at_focused(CONVERT_SURFACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONVERT_SURFACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -179,9 +181,11 @@ fn convert_surface_outside_click_clears_dialog_state() {
         .all_surface_ids()[0];
     state.dialogs.convert_popup = Some(surface_id);
     state.dialogs.convert_popup_selected = Some(0);
-    state
-        .popups
-        .open_at_focused(CONVERT_SURFACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONVERT_SURFACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -205,9 +209,11 @@ fn convert_surface_close_intent_now_clears_dialog_state() {
         .all_surface_ids()[0];
     state.dialogs.convert_popup = Some(surface_id);
     state.dialogs.convert_popup_selected = Some(0);
-    state
-        .popups
-        .open_at_focused(CONVERT_SURFACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONVERT_SURFACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -231,7 +237,11 @@ fn rename_escape_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.rename = Some((RenameTarget::NewCategory, "abc".to_string()));
-    state.popups.open_at_focused(RENAME_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        RENAME_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -244,7 +254,11 @@ fn rename_x_button_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.rename = Some((RenameTarget::NewCategory, "abc".to_string()));
-    state.popups.open_at_focused(RENAME_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        RENAME_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     let (pos, size) = primed_popup_geometry(RENAME_POPUP_ID, &mut state, &mut engine);
 
     run_frame(
@@ -263,9 +277,11 @@ fn rail_category_escape_close_clears_dialog_state() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
     state.dialogs.rail_category_popup = Some(cat_id);
-    state
-        .popups
-        .open_at_focused(RAIL_CATEGORY_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        RAIL_CATEGORY_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -279,9 +295,11 @@ fn rail_category_close_intent_now_clears_dialog_state() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
     state.dialogs.rail_category_popup = Some(cat_id);
-    state
-        .popups
-        .open_at_focused(RAIL_CATEGORY_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        RAIL_CATEGORY_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -305,9 +323,11 @@ fn rail_category_outside_click_clears_dialog_state() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
     state.dialogs.rail_category_popup = Some(cat_id);
-    state
-        .popups
-        .open_at_focused(RAIL_CATEGORY_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        RAIL_CATEGORY_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -326,9 +346,11 @@ fn transfer_progress_empty_rows_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.transfer_progress = Some(TransferProgress { rows: vec![] });
-    state
-        .popups
-        .open_at_focused(TRANSFER_PROGRESS_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        TRANSFER_PROGRESS_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(empty_input(), &mut state, &mut engine);
 
@@ -341,9 +363,11 @@ fn transfer_progress_close_intent_now_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.transfer_progress = Some(TransferProgress { rows: vec![] });
-    state
-        .popups
-        .open_at_focused(TRANSFER_PROGRESS_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        TRANSFER_PROGRESS_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -375,9 +399,11 @@ fn transfer_error_escape_close_pops_single_entry() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
-    state
-        .popups
-        .open_at_focused(TRANSFER_ERROR_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        TRANSFER_ERROR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -390,9 +416,11 @@ fn transfer_error_outside_click_with_single_entry_closes_without_reopen() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
-    state
-        .popups
-        .open_at_focused(TRANSFER_ERROR_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        TRANSFER_ERROR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -410,9 +438,11 @@ fn transfer_error_outside_click_with_two_entries_pops_head_and_reopens() {
     let mut engine = engine_session.borrow_mut();
     state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
     state.dialogs.transfer_error.push_back(xfer_err("b.txt"));
-    state
-        .popups
-        .open_at_focused(TRANSFER_ERROR_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        TRANSFER_ERROR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -431,9 +461,11 @@ fn transfer_error_close_intent_now_pops_head_and_reopens() {
     let mut engine = engine_session.borrow_mut();
     state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
     state.dialogs.transfer_error.push_back(xfer_err("b.txt"));
-    state
-        .popups
-        .open_at_focused(TRANSFER_ERROR_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        TRANSFER_ERROR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -469,9 +501,11 @@ fn script_changed_confirm_close_intent_now_clears_undecided_pending() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.pending_script_confirm = Some(pending_script_confirm(None));
-    state
-        .popups
-        .open_at_focused(SCRIPT_CHANGED_CONFIRM_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        SCRIPT_CHANGED_CONFIRM_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -495,9 +529,11 @@ fn script_changed_confirm_close_intent_preserves_decided_result_for_dispatch() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.pending_script_confirm = Some(pending_script_confirm(Some(true)));
-    state
-        .popups
-        .open_at_focused(SCRIPT_CHANGED_CONFIRM_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        SCRIPT_CHANGED_CONFIRM_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -523,9 +559,11 @@ fn command_palette_outside_click_close_resets_query_and_selection() {
     let mut engine = engine_session.borrow_mut();
     state.command_palette.query = "workspace".to_string();
     state.command_palette.selected = 2;
-    state
-        .popups
-        .open_at_focused(COMMAND_PALETTE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        COMMAND_PALETTE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -555,9 +593,11 @@ fn port_scanner_outside_click_close_preserves_scan_results() {
         }],
         scope: crate::adapters::ui::popup::port_scanner::ScanScope::Tasty,
     };
-    state
-        .popups
-        .open_at_focused(PORT_SCANNER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        PORT_SCANNER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -593,7 +633,11 @@ fn info_modal_close_intent_now_pops_head_and_reopens() {
         .dialogs
         .info_modal_queue
         .push_back(info_modal_entry("b"));
-    state.popups.open_at_focused(INFO_MODAL_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        INFO_MODAL_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -618,7 +662,11 @@ fn info_modal_close_intent_with_single_entry_pops_and_does_not_reopen() {
         .dialogs
         .info_modal_queue
         .push_back(info_modal_entry("only"));
-    state.popups.open_at_focused(INFO_MODAL_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        INFO_MODAL_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -637,9 +685,11 @@ fn confirm_delete_category_escape_close_clears_dialog_state() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = 1;
     state.dialogs.pending_category_delete = Some(cat_id);
-    state
-        .popups
-        .open_at_focused(CONFIRM_DELETE_CATEGORY_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONFIRM_DELETE_CATEGORY_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -653,9 +703,11 @@ fn confirm_delete_category_outside_click_clears_dialog_state() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = 1;
     state.dialogs.pending_category_delete = Some(cat_id);
-    state
-        .popups
-        .open_at_focused(CONFIRM_DELETE_CATEGORY_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONFIRM_DELETE_CATEGORY_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -673,9 +725,11 @@ fn confirm_delete_category_close_intent_now_clears_dialog_state() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = 1;
     state.dialogs.pending_category_delete = Some(cat_id);
-    state
-        .popups
-        .open_at_focused(CONFIRM_DELETE_CATEGORY_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONFIRM_DELETE_CATEGORY_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -709,9 +763,11 @@ fn occupied_workspace_with_popup(
         .acquire_workspace(ws_id, &members, &members, 7)
         .expect("workspace is free in the fixture");
     state.dialogs.pending_force_detach_workspace = Some(ws_id);
-    state
-        .popups
-        .open_at_focused(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     (ws_id, members)
 }
 
@@ -814,9 +870,11 @@ fn confirm_force_detach_closes_when_the_workspace_is_gone() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.pending_force_detach_workspace = Some(u32::MAX);
-    state
-        .popups
-        .open_at_focused(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(empty_input(), &mut state, &mut engine);
 
@@ -977,7 +1035,11 @@ fn file_handler_picker_escape_close_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.file_handler_picker = Some(mk_picker_data());
-    state.popups.open_at_focused(PICKER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        PICKER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -993,7 +1055,11 @@ fn file_handler_picker_close_intent_now_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.file_handler_picker = Some(mk_picker_data());
-    state.popups.open_at_focused(PICKER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        PICKER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -1045,9 +1111,11 @@ fn file_picker_escape_close_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.file_picker = Some(mk_file_picker_data());
-    state
-        .popups
-        .open_at_focused(FILE_PICKER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        FILE_PICKER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
@@ -1106,9 +1174,11 @@ fn file_picker_header_close_button_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.file_picker = Some(mk_file_picker_data());
-    state
-        .popups
-        .open_at_focused(FILE_PICKER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        FILE_PICKER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     let header = file_picker_header_rect(&mut state, &mut engine);
     let close = egui::pos2(header.right() - header.height() / 2.0, header.center().y);
 
@@ -1136,9 +1206,11 @@ fn file_picker_header_drag_moves_the_popup() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.file_picker = Some(mk_file_picker_data());
-    state
-        .popups
-        .open_at_focused(FILE_PICKER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        FILE_PICKER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     let header = file_picker_header_rect(&mut state, &mut engine);
     let before = state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap().pos;
     let grab = header.center();
@@ -1169,9 +1241,11 @@ fn file_picker_close_intent_now_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.file_picker = Some(mk_file_picker_data());
-    state
-        .popups
-        .open_at_focused(FILE_PICKER_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        FILE_PICKER_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -1231,7 +1305,11 @@ fn approval_empty_queue_close_clears_comment_buffer() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.approval_comment_buffer = "draft comment".to_string();
-    state.popups.open_at_focused(APPROVAL_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPROVAL_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(empty_input(), &mut state, &mut engine);
 
@@ -1244,7 +1322,11 @@ fn approval_x_button_close_with_empty_queue_does_not_refire() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.approval_comment_buffer = "draft comment".to_string();
-    state.popups.open_at_focused(APPROVAL_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPROVAL_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     push_approval(&mut engine, &mut state, "req-1");
     let (pos, size) = primed_popup_geometry(APPROVAL_POPUP_ID, &mut state, &mut engine);
     state.dialogs.pending_approval_ids.clear();
@@ -1272,7 +1354,11 @@ fn approval_x_button_close_with_pending_queue_refires_open_popup() {
     let mut engine = engine_session.borrow_mut();
     push_approval(&mut engine, &mut state, "req-1");
     push_approval(&mut engine, &mut state, "req-2");
-    state.popups.open_at_focused(APPROVAL_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPROVAL_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     let (pos, size) = primed_popup_geometry(APPROVAL_POPUP_ID, &mut state, &mut engine);
 
     run_frame(
@@ -1298,7 +1384,11 @@ fn approval_close_intent_now_refires_open_popup() {
     let mut engine = engine_session.borrow_mut();
     push_approval(&mut engine, &mut state, "req-1");
     push_approval(&mut engine, &mut state, "req-2");
-    state.popups.open_at_focused(APPROVAL_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPROVAL_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     crate::intent::popup::handle(
         &mut state,
@@ -1328,7 +1418,11 @@ fn close_intent_now_clears_cleanup_after_next_frame() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     state.dialogs.rename = Some((RenameTarget::NewCategory, "abc".to_string()));
-    state.popups.open_at_focused(RENAME_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        RENAME_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     let dispatched = UiIntent::ClosePopup {
         id: RENAME_POPUP_ID,
@@ -1353,9 +1447,11 @@ fn preset_apply_x_button_close_clears_selection_and_target_category() {
     let cat_id = engine.categories()[0].id;
     state.dialogs.preset_apply_target_category = Some(cat_id);
     state.dialogs.preset_picker_selected = Some("my-preset".to_string());
-    state
-        .popups
-        .open_at_focused(APPLY_WORKSPACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPLY_WORKSPACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
     let (pos, size) = primed_popup_geometry(APPLY_WORKSPACE_POPUP_ID, &mut state, &mut engine);
 
     run_frame(
@@ -1376,9 +1472,11 @@ fn preset_apply_outside_click_close_clears_selection_and_target_category() {
     let cat_id = engine.categories()[0].id;
     state.dialogs.preset_apply_target_category = Some(cat_id);
     state.dialogs.preset_picker_selected = Some("my-preset".to_string());
-    state
-        .popups
-        .open_at_focused(APPLY_WORKSPACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPLY_WORKSPACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -1398,9 +1496,11 @@ fn preset_apply_cancel_action_close_clears_selection_and_target_category() {
     let cat_id = engine.categories()[0].id;
     state.dialogs.preset_apply_target_category = Some(cat_id);
     state.dialogs.preset_picker_selected = Some("my-preset".to_string());
-    state
-        .popups
-        .open_at_focused(APPLY_WORKSPACE_POPUP_ID, FIXED_POS);
+    state.popups.open_at_focused(
+        APPLY_WORKSPACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 

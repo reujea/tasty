@@ -18,7 +18,7 @@ DAG 를 **잠깐 확인하고 닫는** 관측 창이다. 탭 하나를 통째로
   설정 → 단축키 → General 에서 바꾼다([../../keybindings/index.md](../../keybindings/index.md)).
 
 여는 경로는 둘 다 `UiIntent::OpenPopup` / `TogglePopup` +
-`OpenPopupMode::WithScope(PopupScope::Workspace(활성 workspace ID))` 로 연다. 스코프는 정의가
+`OpenPopupMode::CenteredFocused(PopupScope::Workspace(활성 workspace ID))` 로 연다. 스코프는 정의가
 아니라 **여는 시점**에 정해지므로 등록 범위는 안전한 기본(`Window`)이다.
 
 release에는 에이전트가 이 popup을 강제로 여는 IPC가 없다. 사용자 조작을 재현하는

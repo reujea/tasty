@@ -246,7 +246,7 @@ impl MainView {
             state.dispatch_intent(
                 UiIntent::TogglePopup {
                     id: "notifications",
-                    mode: OpenPopupMode::Default,
+                    mode: OpenPopupMode::Default(crate::model::popup_kind::PopupScope::Window),
                 }
                 .from_user_shortcut("toggle_notifications"),
             );
@@ -447,7 +447,7 @@ impl MainView {
                 state.dispatch_intent(
                     UiIntent::OpenPopup {
                         id: "convert_surface",
-                        mode: OpenPopupMode::WithScope(
+                        mode: OpenPopupMode::CenteredFocused(
                             crate::adapters::ui::popup::PopupScope::Surface(sid),
                         ),
                     }
@@ -565,7 +565,7 @@ impl MainView {
                     state.dispatch_intent(
                         UiIntent::OpenPopup {
                             id: "rename",
-                            mode: OpenPopupMode::WithScope(scope),
+                            mode: OpenPopupMode::CenteredFocused(scope),
                         }
                         .from_user_shortcut("rename_tab"),
                     );
@@ -584,7 +584,7 @@ impl MainView {
                 state.dispatch_intent(
                     UiIntent::OpenPopup {
                         id: "rename",
-                        mode: OpenPopupMode::WithScope(scope),
+                        mode: OpenPopupMode::CenteredFocused(scope),
                     }
                     .from_user_shortcut("rename_workspace"),
                 );
@@ -696,7 +696,9 @@ impl MainView {
             state.dispatch_intent(
                 UiIntent::TogglePopup {
                     id: crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
-                    mode: OpenPopupMode::CenteredFocused,
+                    mode: OpenPopupMode::CenteredFocused(
+                        crate::model::popup_kind::PopupScope::Window,
+                    ),
                 }
                 .from_user_shortcut("toggle_command_palette"),
             );
@@ -739,7 +741,7 @@ impl MainView {
                 state.dispatch_intent(
                     UiIntent::OpenPopup {
                         id: "rename",
-                        mode: OpenPopupMode::WithScope(scope),
+                        mode: OpenPopupMode::CenteredFocused(scope),
                     }
                     .from_user_shortcut("rename_workspace_subtitle"),
                 );
@@ -801,7 +803,7 @@ impl MainView {
         state.dispatch_intent(
             UiIntent::OpenPopup {
                 id: popup_id,
-                mode: OpenPopupMode::CenteredFocused,
+                mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
             }
             .from_user_shortcut(action),
         );
@@ -840,9 +842,9 @@ impl MainView {
         state.dispatch_intent(
             UiIntent::TogglePopup {
                 id: crate::adapters::ui::popup::dag_list::DAG_LIST_POPUP_ID,
-                mode: OpenPopupMode::WithScope(crate::adapters::ui::popup::PopupScope::Workspace(
-                    workspace_id,
-                )),
+                mode: OpenPopupMode::CenteredFocused(
+                    crate::adapters::ui::popup::PopupScope::Workspace(workspace_id),
+                ),
             }
             .from_user_shortcut("toggle_dag_list"),
         );
@@ -887,7 +889,7 @@ impl MainView {
         state.dispatch_intent(
             UiIntent::OpenPopup {
                 id,
-                mode: OpenPopupMode::CenteredFocused,
+                mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
             }
             .from_user_shortcut(action),
         );

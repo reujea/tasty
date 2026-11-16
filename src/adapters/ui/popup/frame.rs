@@ -221,7 +221,10 @@ mod on_close_drain_tests {
         PLAIN_HOOK_FIRES.store(0, Ordering::SeqCst);
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
-        state.popups.open("notifications"); // close() 는 open 이었던 popup 만 큐에 push.
+        state.popups.open(
+            "notifications",
+            crate::model::popup_kind::PopupScope::Window,
+        ); // close() 는 open 이었던 popup 만 큐에 push.
         state.popups.close("notifications");
 
         let mut map: Lookup = HashMap::new();
@@ -256,8 +259,13 @@ mod on_close_drain_tests {
 
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
-        state.popups.open("search_bar"); // hook_a 가 닫을 대상 — 먼저 열어둬야 close() 가 큐에 push.
-        state.popups.open("notifications"); // 최초 트리거 대상도 open 이어야 close() 가 큐에 push.
+        state
+            .popups
+            .open("search_bar", crate::model::popup_kind::PopupScope::Window); // hook_a 가 닫을 대상 — 먼저 열어둬야 close() 가 큐에 push.
+        state.popups.open(
+            "notifications",
+            crate::model::popup_kind::PopupScope::Window,
+        ); // 최초 트리거 대상도 open 이어야 close() 가 큐에 push.
         state.popups.close("notifications"); // 최초 트리거.
 
         let mut map: Lookup = HashMap::new();
@@ -282,13 +290,19 @@ mod on_close_drain_tests {
             _engine: &crate::runtime::engine_read::EngineRead<'_>,
         ) {
             LOOP_FIRES.fetch_add(1, Ordering::SeqCst);
-            state.popups.open("notifications");
+            state.popups.open(
+                "notifications",
+                crate::model::popup_kind::PopupScope::Window,
+            );
             state.popups.close("notifications");
         }
 
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
-        state.popups.open("notifications"); // close() 는 open 이었던 popup 만 큐에 push.
+        state.popups.open(
+            "notifications",
+            crate::model::popup_kind::PopupScope::Window,
+        ); // close() 는 open 이었던 popup 만 큐에 push.
         state.popups.close("notifications"); // 최초 트리거 — 1라운드째 큐에 이미 있음.
 
         let mut map: Lookup = HashMap::new();

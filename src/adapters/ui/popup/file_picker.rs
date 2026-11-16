@@ -1042,7 +1042,9 @@ pub(crate) fn open(
 
     let open_popup = crate::intent::UiIntent::OpenPopup {
         id: FILE_PICKER_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused,
+        mode: crate::intent::OpenPopupMode::CenteredFocused(
+            crate::model::popup_kind::PopupScope::Window,
+        ),
     };
     let dispatched = match opened_by {
         FilePickerOpenedBy::Plugin(req) => open_popup.from_agent_plugin(req.plugin_id),

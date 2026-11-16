@@ -38,7 +38,9 @@ pub(crate) fn open(state: &mut MainViewState, close: SavedRowClose, intent: Doma
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup {
             id: CONFIRM_CLOSE_REMOTE_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused,
+            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                crate::model::popup_kind::PopupScope::Window,
+            ),
         }
         .from_user_menu("workspace/close-remote"),
     );

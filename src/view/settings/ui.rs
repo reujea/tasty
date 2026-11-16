@@ -506,8 +506,10 @@ impl SettingsUiState {
             p.title = title.to_string();
         }
         // intent-exempt: 설정 창 내부 PopupManager 의 sub-popup open(충돌 팝업과 같은 경로).
-        self.popups
-            .open_centered_focused(file_chooser::FILE_CHOOSER_POPUP_ID);
+        self.popups.open_centered_focused(
+            file_chooser::FILE_CHOOSER_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        );
     }
 
     /// Plugin 이 contribute 한 settings page 스냅샷을 주입한다. 모달 오픈 직전에
@@ -770,7 +772,10 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                                 if let Some(p) = ui_state.popups.get_mut("keybinding_conflict") {
                                     p.size = size;
                                 }
-                                ui_state.popups.open_centered_focused("keybinding_conflict");
+                                ui_state.popups.open_centered_focused(
+                                    "keybinding_conflict",
+                                    crate::model::popup_kind::PopupScope::Window,
+                                );
                             }
 
                             // 충돌 팝업에서 수락/거부 처리

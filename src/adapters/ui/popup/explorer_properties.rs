@@ -109,7 +109,7 @@ pub(crate) fn open(
         state,
         crate::intent::UiIntent::OpenPopup {
             id: EXPLORER_PROPERTIES_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::WithScope(
+            mode: crate::intent::OpenPopupMode::CenteredFocused(
                 crate::model::popup_kind::PopupScope::Surface(surface_id),
             ),
         },

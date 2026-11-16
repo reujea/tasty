@@ -92,7 +92,9 @@ pub(crate) fn ask(
     });
     let intent = crate::intent::UiIntent::OpenPopup {
         id: DOWNLOAD_RUN_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused,
+        mode: crate::intent::OpenPopupMode::CenteredFocused(
+            crate::model::popup_kind::PopupScope::Window,
+        ),
     };
     // 핸들러 picker와 같은 출처 규칙이다. 다운로드는 대화상자의 버튼을 누를 때만 시작한다.
     state.dispatch_intent(match origin {
@@ -139,7 +141,9 @@ pub(crate) fn report_failure(state: &mut MainViewState, name: String, failure: &
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup {
             id: TRANSFER_ERROR_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused,
+            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                crate::model::popup_kind::PopupScope::Window,
+            ),
         }
         .from_user_menu("download_run_failed"),
     );
@@ -232,9 +236,10 @@ pub fn on_close_download_run_large(
     }
     if !state.dialogs.download_run.large.is_empty() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
-        state
-            .popups
-            .open_centered_focused(DOWNLOAD_RUN_LARGE_POPUP_ID);
+        state.popups.open_centered_focused(
+            DOWNLOAD_RUN_LARGE_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        );
     }
 }
 

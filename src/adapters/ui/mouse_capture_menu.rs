@@ -164,7 +164,7 @@ pub fn open(
     state.dispatch_intent(
         UiIntent::OpenPopup {
             id: MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
-            mode: OpenPopupMode::AtFocused(pos),
+            mode: OpenPopupMode::AtFocused(crate::model::popup_kind::PopupScope::Window, pos),
         }
         .from_user_menu("mouse_capture_banner"),
     );

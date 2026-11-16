@@ -888,9 +888,11 @@ mod sizer_wiring_tests {
     fn card_height_after_a_frame(query: &str) -> f32 {
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
-        state
-            .popups
-            .open_at_focused(COMMAND_PALETTE_POPUP_ID, egui::pos2(100.0, 100.0));
+        state.popups.open_at_focused(
+            COMMAND_PALETTE_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+            egui::pos2(100.0, 100.0),
+        );
         state.command_palette.query = query.to_string();
         run_one_frame(&mut state, &engine.read());
         state

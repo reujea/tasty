@@ -190,8 +190,8 @@ fn layout_ctx(active_workspace_id: u32) -> LayoutContext {
 #[test]
 fn topmost_visible_open_picks_the_highest_z() {
     let mut mgr = registered_manager();
-    mgr.open(FILE_PICKER_POPUP_ID);
-    mgr.open(PORT_SCANNER_ID);
+    mgr.open(FILE_PICKER_POPUP_ID, PopupScope::Window);
+    mgr.open(PORT_SCANNER_ID, PopupScope::Window);
     let (id, _) = mgr
         .topmost_visible_open(None)
         .expect("two popups are open, one must be topmost");
@@ -211,8 +211,8 @@ fn topmost_visible_open_is_none_without_open_popups() {
 #[test]
 fn scope_hidden_popup_is_not_the_escape_candidate() {
     let mut mgr = registered_manager();
-    mgr.open(FILE_PICKER_POPUP_ID);
-    mgr.open_with_scope(PORT_SCANNER_ID, PopupScope::Workspace(9));
+    mgr.open(FILE_PICKER_POPUP_ID, PopupScope::Window);
+    mgr.open_centered_focused(PORT_SCANNER_ID, PopupScope::Workspace(9));
     let ctx = layout_ctx(0);
     let (id, _) = mgr.topmost_visible_open(Some(&ctx)).unwrap();
     assert_eq!(id, FILE_PICKER_POPUP_ID);

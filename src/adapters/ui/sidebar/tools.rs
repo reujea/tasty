@@ -15,7 +15,10 @@ pub(crate) fn open_tools_menu(
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup {
             id: "tools_menu",
-            mode: crate::intent::OpenPopupMode::AtFocused(pos),
+            mode: crate::intent::OpenPopupMode::AtFocused(
+                crate::model::popup_kind::PopupScope::Window,
+                pos,
+            ),
         }
         .from_user_menu("tools_button"),
     );

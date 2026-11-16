@@ -82,7 +82,7 @@ mod tests {
 
         state
             .popups
-            .open_with_scope("host_popup", PopupScope::Window);
+            .open_centered_focused("host_popup", PopupScope::Window);
         assert_eq!(
             state.popup_key_owner(),
             Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Host)

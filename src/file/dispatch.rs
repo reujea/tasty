@@ -257,7 +257,9 @@ pub(crate) fn open_picker_from_read(
     });
     let intent = crate::intent::UiIntent::OpenPopup {
         id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused,
+        mode: crate::intent::OpenPopupMode::CenteredFocused(
+            crate::model::popup_kind::PopupScope::Window,
+        ),
     };
     state.dispatch_intent(match dispatch_origin {
         FileDispatchOrigin::User => intent.from_user_menu("file_dispatch"),

@@ -73,9 +73,11 @@ fn opened() -> (
         measured_h: None,
         focused: false,
     });
-    state
-        .popups
-        .open_at_focused(CONFIRM_CLOSE_REMOTE_POPUP_ID, AT);
+    state.popups.open_at_focused(
+        CONFIRM_CLOSE_REMOTE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        AT,
+    );
     (state, session)
 }
 

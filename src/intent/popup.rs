@@ -132,11 +132,14 @@ fn open(state: &mut RequestContext, id: &'static str, mode: &OpenPopupMode, by_u
             .observe(crate::adapters::ui::tutorial::PracticeEvent::OpenPalette);
     }
     match mode {
-        OpenPopupMode::Default => state.popups.open(id),
-        OpenPopupMode::CenteredFocused => state.popups.open_centered_focused(id),
-        OpenPopupMode::WithScope(scope) => state.popups.open_with_scope(id, scope.clone()),
+        OpenPopupMode::Default(scope) => state.popups.open(id, scope.clone()),
+        OpenPopupMode::CenteredFocused(scope) => {
+            state.popups.open_centered_focused(id, scope.clone())
+        }
         OpenPopupMode::AtTopOfScope(scope) => state.popups.open_at_top_of_scope(id, scope.clone()),
-        OpenPopupMode::AtFocused(pos) => state.popups.open_at_focused(id, *pos),
+        OpenPopupMode::AtFocused(scope, pos) => {
+            state.popups.open_at_focused(id, scope.clone(), *pos)
+        }
     }
     // 에이전트·플러그인·시스템 요청이 사용자의 키 입력을 가로채지 않게 한다.
     if !by_user {
@@ -177,13 +180,16 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::Default),
+            &dispatched_open("test_popup", OpenPopupMode::Default(PopupScope::Window)),
         );
         assert!(state.popups.is_open("test_popup"));
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::CenteredFocused),
+            &dispatched_open(
+                "test_popup",
+                OpenPopupMode::CenteredFocused(PopupScope::Window),
+            ),
         );
         assert!(state.popups.is_open("test_popup"));
     }
@@ -195,7 +201,7 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::Default),
+            &dispatched_open("test_popup", OpenPopupMode::Default(PopupScope::Window)),
         );
         assert!(state.popups.is_open("test_popup"));
         handle(&mut state, &mut engine, &dispatched_close("test_popup"));
@@ -208,7 +214,7 @@ mod tests {
         let mut engine = engine_session.borrow_mut();
         let toggle = UiIntent::TogglePopup {
             id: "test_popup",
-            mode: OpenPopupMode::Default,
+            mode: OpenPopupMode::Default(PopupScope::Window),
         }
         .from_user_shortcut("test");
         handle(&mut state, &mut engine, &toggle);
@@ -225,7 +231,7 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::Default),
+            &dispatched_open("test_popup", OpenPopupMode::Default(PopupScope::Window)),
         );
         handle(&mut state, &mut engine, &dispatched_close("test_popup"));
         assert_eq!(state.popups.take_closed_queue(), vec!["test_popup"]);
@@ -237,7 +243,7 @@ mod tests {
         let mut engine = engine_session.borrow_mut();
         let toggle = UiIntent::TogglePopup {
             id: "test_popup",
-            mode: OpenPopupMode::Default,
+            mode: OpenPopupMode::Default(PopupScope::Window),
         }
         .from_user_shortcut("test");
         handle(&mut state, &mut engine, &toggle);
@@ -255,7 +261,7 @@ mod tests {
             &mut engine,
             &UiIntent::OpenPopup {
                 id: "test_popup",
-                mode: OpenPopupMode::WithScope(PopupScope::Window),
+                mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
             }
             .from_agent_ipc(),
         );
@@ -273,7 +279,10 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::WithScope(PopupScope::Window)),
+            &dispatched_open(
+                "test_popup",
+                OpenPopupMode::CenteredFocused(PopupScope::Window),
+            ),
         );
         assert!(state.popups.is_focused("test_popup"));
         assert!(!state.popups.is_passive("test_popup"));
@@ -288,14 +297,17 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::WithScope(PopupScope::Window)),
+            &dispatched_open(
+                "test_popup",
+                OpenPopupMode::CenteredFocused(PopupScope::Window),
+            ),
         );
         handle(
             &mut state,
             &mut engine,
             &UiIntent::OpenPopup {
                 id: "test_popup",
-                mode: OpenPopupMode::WithScope(PopupScope::Window),
+                mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
             }
             .from_agent_ipc(),
         );
@@ -312,7 +324,7 @@ mod tests {
             engine,
             &UiIntent::OpenPopup {
                 id: "test_popup",
-                mode: OpenPopupMode::WithScope(PopupScope::Window),
+                mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
             }
             .from_agent_ipc(),
         );
@@ -332,7 +344,10 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("other_popup", OpenPopupMode::WithScope(PopupScope::Window)),
+            &dispatched_open(
+                "other_popup",
+                OpenPopupMode::CenteredFocused(PopupScope::Window),
+            ),
         );
         assert!(state.popups.is_focused("other_popup"));
         handle(
@@ -386,7 +401,10 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &dispatched_open("test_popup", OpenPopupMode::WithScope(PopupScope::Window)),
+            &dispatched_open(
+                "test_popup",
+                OpenPopupMode::CenteredFocused(PopupScope::Window),
+            ),
         );
         assert!(state.popups.is_open("test_popup"));
     }

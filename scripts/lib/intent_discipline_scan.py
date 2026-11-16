@@ -25,7 +25,7 @@ EXECUTION_CALLS = {(
                  "save_pane", "save_pane_overwrite")}
 
 POPUP_METHODS = (
-    "open|open_centered|open_centered_focused|open_with_scope|open_at_top_of_scope"
+    "open|open_centered|open_centered_focused|open_at_top_of_scope"
     "|open_at_focused|close|toggle|toggle_focused"
 )
 PRESET_METHODS = (

@@ -976,7 +976,9 @@ fn a_press_on_a_passive_picker_hidden_by_its_scope_keeps_the_proof_and_the_other
     // 범위 대상은 실제로 있어야 한다. 없으면 draw 가 고아 팝업으로 닫는다.
     let picker_workspace = p.engine_session.borrow_mut().workspace_at(0).unwrap().id;
     p.state.popups.get_mut(PICKER).unwrap().scope = PopupScope::Workspace(picker_workspace);
-    p.state.popups.open_with_scope(OTHER, PopupScope::Window);
+    p.state
+        .popups
+        .open_centered_focused(OTHER, PopupScope::Window);
     p.state.popups.set_focused(OTHER, true);
 
     // scope_visible 은 draw 만 갱신한다. 실제 프레임을 한 번 그려 범위 밖에 숨긴다.

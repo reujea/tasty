@@ -884,7 +884,9 @@ impl MainView {
                 self.state.dispatch_intent(
                     crate::intent::UiIntent::OpenPopup {
                         id: crate::adapters::ui::popup::preset_apply::APPLY_TAB_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused,
+                        mode: crate::intent::OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Window,
+                        ),
                     }
                     .from_user_context_menu(),
                 );
@@ -895,7 +897,9 @@ impl MainView {
                 self.state.dispatch_intent(
                     crate::intent::UiIntent::OpenPopup {
                         id: crate::adapters::ui::popup::preset_apply::APPLY_PANE_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused,
+                        mode: crate::intent::OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Window,
+                        ),
                     }
                     .from_user_context_menu(),
                 );
@@ -1001,7 +1005,7 @@ impl MainView {
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::confirm_force_detach_workspace
                                 ::CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
                         }
                         .from_user_menu("workspace/force-detach"),
                     );
@@ -1133,7 +1137,7 @@ impl MainView {
         self.state.dispatch_intent(
             crate::intent::UiIntent::OpenPopup {
                 id: "rename",
-                mode: crate::intent::OpenPopupMode::WithScope(scope),
+                mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
             }
             .from_user_context_menu(),
         );
@@ -1204,7 +1208,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );
@@ -1217,7 +1223,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );
@@ -1280,7 +1288,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );
@@ -1955,7 +1965,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );
@@ -1964,7 +1976,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::remote_attach::REMOTE_ATTACH_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );
@@ -1998,7 +2012,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::preset_apply::APPLY_TAB_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );
@@ -2009,7 +2025,9 @@ impl MainView {
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::preset_apply::APPLY_PANE_POPUP_ID,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused,
+                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                                crate::model::popup_kind::PopupScope::Window,
+                            ),
                         }
                         .from_user_context_menu(),
                     );

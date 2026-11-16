@@ -86,7 +86,7 @@ pub(crate) fn sync(
     // intent-exempt: 연결 상태를 따라 매 프레임 맞추는 수동 팝업이다. 포커스를 받지 않고 사용자 선택을 바꾸지 않는다.
     state
         .popups
-        .open_with_scope(id, PopupScope::Workspace(ws_id));
+        .open_centered_focused(id, PopupScope::Workspace(ws_id));
     state.popups.set_focused(id, false);
     state.popups.mark_passive(id);
     if id == REMOTE_ROW_SCRIM_POPUP_ID && previous.is_none_or(|(_, row)| row == ws_id) {
@@ -440,7 +440,9 @@ mod tests {
             opened_in: Some(opened_in),
             row_link: picker_row_link(engine, Some(opened_in)),
         });
-        state.popups.open(picker);
+        state
+            .popups
+            .open(picker, crate::model::popup_kind::PopupScope::Window);
         assert!(state.popups.is_open(picker));
     }
 

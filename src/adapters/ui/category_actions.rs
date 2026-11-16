@@ -15,7 +15,7 @@ pub(crate) fn open_new_category_dialog(
     state.dispatch_intent(
         UiIntent::OpenPopup {
             id: "rename",
-            mode: OpenPopupMode::WithScope(scope),
+            mode: OpenPopupMode::CenteredFocused(scope),
         }
         .from_user_menu("category/new"),
     );
@@ -33,7 +33,7 @@ pub(crate) fn open_rename_category_dialog(
     state.dispatch_intent(
         UiIntent::OpenPopup {
             id: "rename",
-            mode: OpenPopupMode::WithScope(scope),
+            mode: OpenPopupMode::CenteredFocused(scope),
         }
         .from_user_menu("category/rename"),
     );
@@ -44,7 +44,7 @@ pub(crate) fn open_delete_category_confirm(state: &mut MainViewState, cat_id: Wo
     state.dispatch_intent(
         UiIntent::OpenPopup {
             id: CONFIRM_DELETE_CATEGORY_POPUP_ID,
-            mode: OpenPopupMode::CenteredFocused,
+            mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
         }
         .from_user_menu("category/delete"),
     );

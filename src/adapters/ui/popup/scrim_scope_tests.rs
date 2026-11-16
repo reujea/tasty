@@ -138,7 +138,7 @@ fn a_surface_scoped_popup_dims_only_its_own_surface() {
     state.dialogs.convert_popup = Some(ids.surface);
     state
         .popups
-        .open_with_scope("convert_surface", PopupScope::Surface(ids.surface));
+        .open_centered_focused("convert_surface", PopupScope::Surface(ids.surface));
     let rects = scrim_rects(&mut state, &engine.read(), ids);
     assert_eq!(rects, vec![surface_rect()]);
 }
@@ -150,7 +150,7 @@ fn a_window_scoped_popup_still_dims_the_whole_window() {
     let engine = engine_session.borrow_mut();
     state
         .popups
-        .open_with_scope("command_palette", PopupScope::Window);
+        .open_centered_focused("command_palette", PopupScope::Window);
     let rects = scrim_rects(&mut state, &engine.read(), ids);
     assert_eq!(rects, vec![screen()]);
 }
@@ -163,8 +163,8 @@ fn a_parent_and_its_child_picker_share_one_scrim() {
     state.dialogs.convert_popup = Some(ids.surface);
     state
         .popups
-        .open_with_scope("convert_surface", PopupScope::Surface(ids.surface));
-    state.popups.open_with_scope(
+        .open_centered_focused("convert_surface", PopupScope::Surface(ids.surface));
+    state.popups.open_centered_focused(
         super::file_picker::FILE_PICKER_POPUP_ID,
         PopupScope::Surface(ids.surface),
     );
@@ -180,10 +180,10 @@ fn two_scrim_popups_in_one_scope_still_paint_one_scrim() {
     state.dialogs.convert_popup = Some(ids.surface);
     state
         .popups
-        .open_with_scope("convert_surface", PopupScope::Surface(ids.surface));
+        .open_centered_focused("convert_surface", PopupScope::Surface(ids.surface));
     state
         .popups
-        .open_with_scope("port_scanner", PopupScope::Surface(ids.surface));
+        .open_centered_focused("port_scanner", PopupScope::Surface(ids.surface));
     let rects = scrim_rects(&mut state, &engine.read(), ids);
     assert_eq!(rects, vec![surface_rect()]);
 }
@@ -196,10 +196,10 @@ fn a_window_scrim_absorbs_the_surface_scrim_under_it() {
     state.dialogs.convert_popup = Some(ids.surface);
     state
         .popups
-        .open_with_scope("convert_surface", PopupScope::Surface(ids.surface));
+        .open_centered_focused("convert_surface", PopupScope::Surface(ids.surface));
     state
         .popups
-        .open_with_scope("command_palette", PopupScope::Window);
+        .open_centered_focused("command_palette", PopupScope::Window);
     let rects = scrim_rects(&mut state, &engine.read(), ids);
     assert_eq!(rects, vec![screen()]);
 }
@@ -212,7 +212,7 @@ fn nothing_a_surface_scoped_popup_paints_lands_outside_its_surface() {
     state.dialogs.convert_popup = Some(ids.narrow);
     state
         .popups
-        .open_with_scope("convert_surface", PopupScope::Surface(ids.narrow));
+        .open_centered_focused("convert_surface", PopupScope::Surface(ids.narrow));
     // 경계 자신은 안쪽이다 — 반올림 한 칸까지만 봐준다.
     let bound = narrow_rect().expand(0.5);
     let shapes = painted_shapes(&mut state, &engine.read(), ids);
@@ -259,7 +259,7 @@ fn screen_input(size: egui::Vec2) -> egui::RawInput {
 fn a_minimized_frame_keeps_the_open_popup_where_it_was() {
     let (mut state, mut engine_session, ids) = prepared();
     let engine = engine_session.borrow_mut();
-    state.popups.open("convert_surface");
+    state.popups.open("convert_surface", PopupScope::Window);
     let ctx = egui::Context::default();
     let layout = layout(ids);
     frame_with(
@@ -297,7 +297,7 @@ fn a_scope_lower_than_the_title_bar_leaves_an_empty_content_area() {
     state.dialogs.convert_popup = Some(ids.surface);
     state
         .popups
-        .open_with_scope("convert_surface", PopupScope::Surface(ids.surface));
+        .open_centered_focused("convert_surface", PopupScope::Surface(ids.surface));
     let ctx = egui::Context::default();
     let wide = layout(ids);
     frame_with(

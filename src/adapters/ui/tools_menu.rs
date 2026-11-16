@@ -108,7 +108,7 @@ pub fn draw_tools_menu(
         state.dispatch_intent(
             UiIntent::OpenPopup {
                 id: popup_id,
-                mode: OpenPopupMode::WithScope(popup::PopupScope::Workspace(
+                mode: OpenPopupMode::CenteredFocused(popup::PopupScope::Workspace(
                     state.active_workspace(engine).id,
                 )),
             }
@@ -121,7 +121,7 @@ pub fn draw_tools_menu(
         state.dispatch_intent(
             UiIntent::OpenPopup {
                 id: popup_id,
-                mode: OpenPopupMode::CenteredFocused,
+                mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
             }
             .from_user_menu("tools_menu"),
         );

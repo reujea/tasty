@@ -91,7 +91,9 @@ pub fn draw_status_bar(
                 state.dispatch_intent(
                     UiIntent::TogglePopup {
                         id: crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
-                        mode: OpenPopupMode::CenteredFocused,
+                        mode: OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Window,
+                        ),
                     }
                     .from_user_menu("status_bar.palette"),
                 );

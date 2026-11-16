@@ -262,7 +262,11 @@ mod sizer_wiring_tests {
             let engine = engine_session.borrow_mut();
             // 그리는 프레임이 잰 값으로 덮어쓰므로, sizer 가 먼저 읽는 값만 본다.
             state.dialogs.pending_script_confirm = Some(pending(Some(content)));
-            state.popups.open_at_focused(ID, egui::pos2(100.0, 100.0));
+            state.popups.open_at_focused(
+                ID,
+                crate::model::popup_kind::PopupScope::Window,
+                egui::pos2(100.0, 100.0),
+            );
             run_one_frame(&mut state, &engine.read());
             let size = state.popups.get_mut(ID).expect("registered").size;
             assert_eq!(size.y, expected, "content {content:?}");
@@ -279,7 +283,11 @@ mod sizer_wiring_tests {
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
         state.dialogs.pending_script_confirm = Some(pending(None));
-        state.popups.open_at_focused(ID, egui::pos2(100.0, 100.0));
+        state.popups.open_at_focused(
+            ID,
+            crate::model::popup_kind::PopupScope::Window,
+            egui::pos2(100.0, 100.0),
+        );
         run_one_frame(&mut state, &engine.read());
         let measured = state
             .dialogs

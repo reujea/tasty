@@ -49,7 +49,7 @@ pub fn interrupt_and_reopen(state: &mut MainViewState) {
     state.dispatch_intent(
         UiIntent::OpenPopup {
             id: topic_popup::TUTORIAL_TOPICS_POPUP_ID,
-            mode: OpenPopupMode::CenteredFocused,
+            mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
         }
         .from_user_menu("tutorial.reopen"),
     );

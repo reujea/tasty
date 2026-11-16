@@ -606,9 +606,11 @@ mod tests {
             height: PhysicalPx(1080.0),
         };
         state.dialogs.rename = Some((RenameTarget::NewCategory, "Ops".into()));
-        state
-            .popups
-            .open_at_focused("rename", egui::pos2(100.0, 100.0));
+        state.popups.open_at_focused(
+            "rename",
+            crate::model::popup_kind::PopupScope::Window,
+            egui::pos2(100.0, 100.0),
+        );
         let frame = |state: &mut crate::state::RequestContext| {
             let out = ctx.run(egui::RawInput::default(), |ctx| {
                 crate::adapters::ui::draw_popups(ctx, state, &engine.read(), &[], term, 1.0);

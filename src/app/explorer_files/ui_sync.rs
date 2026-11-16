@@ -456,7 +456,7 @@ pub(crate) fn open_conflict(state: &mut MainViewState, surface: u32, source: &'s
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup {
             id: EXPLORER_CONFLICT_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::WithScope(PopupScope::Surface(surface)),
+            mode: crate::intent::OpenPopupMode::CenteredFocused(PopupScope::Surface(surface)),
         }
         .from_user_menu(source),
     );

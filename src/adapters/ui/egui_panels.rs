@@ -560,7 +560,7 @@ pub fn draw_egui_panels(
         state.dispatch_intent(
             crate::intent::UiIntent::OpenPopup {
                 id: "convert_surface",
-                mode: crate::intent::OpenPopupMode::WithScope(
+                mode: crate::intent::OpenPopupMode::CenteredFocused(
                     crate::adapters::ui::popup::PopupScope::Surface(sid),
                 ),
             }

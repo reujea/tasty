@@ -138,13 +138,15 @@ pub(super) fn handle_debug_host_popup_open(
         .then(|| state.focused_surface_id(engine))
         .flatten();
     let mode = match (workspace_scope, bound_surface) {
-        (_, Some(sid)) => crate::intent::OpenPopupMode::WithScope(
+        (_, Some(sid)) => crate::intent::OpenPopupMode::CenteredFocused(
             crate::adapters::ui::popup::PopupScope::Surface(sid),
         ),
-        (true, None) => crate::intent::OpenPopupMode::WithScope(
+        (true, None) => crate::intent::OpenPopupMode::CenteredFocused(
             crate::adapters::ui::popup::PopupScope::Workspace(state.active_workspace(engine).id),
         ),
-        (false, None) => crate::intent::OpenPopupMode::CenteredFocused,
+        (false, None) => crate::intent::OpenPopupMode::CenteredFocused(
+            crate::model::popup_kind::PopupScope::Window,
+        ),
     };
     // 변환 팝업은 범위 외에도 dialogs에서 대상 surface를 읽는다.
     if def.id == "convert_surface" {

@@ -142,7 +142,10 @@ pub fn draw_collapsed_sidebar(
                 state.dispatch_intent(
                     crate::intent::UiIntent::OpenPopup {
                         id: crate::adapters::ui::popup::rail_category::RAIL_CATEGORY_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::AtFocused(pos),
+                        mode: crate::intent::OpenPopupMode::AtFocused(
+                            crate::model::popup_kind::PopupScope::Window,
+                            pos,
+                        ),
                     }
                     .from_user_menu("rail_category_button"),
                 );

@@ -227,7 +227,10 @@ pub fn on_close_transfer_error(
     state.dialogs.transfer_error.pop_front();
     if !state.dialogs.transfer_error.is_empty() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
-        state.popups.open_centered_focused(TRANSFER_ERROR_POPUP_ID);
+        state.popups.open_centered_focused(
+            TRANSFER_ERROR_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        );
     }
 }
 

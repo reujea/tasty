@@ -96,7 +96,9 @@ impl App {
                 state.dispatch_intent(
                     crate::intent::UiIntent::OpenPopup {
                         id: DOWNLOAD_RUN_LARGE_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused,
+                        mode: crate::intent::OpenPopupMode::CenteredFocused(
+                            crate::model::popup_kind::PopupScope::Window,
+                        ),
                     }
                     .from_user_menu("download_run_large"),
                 );
@@ -159,9 +161,10 @@ impl App {
                 .any(|r| r.receiving);
             if receiving && !main.state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID) {
                 // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
-                main.state
-                    .popups
-                    .open_centered(DOWNLOAD_RUN_PROGRESS_POPUP_ID);
+                main.state.popups.open_centered(
+                    DOWNLOAD_RUN_PROGRESS_POPUP_ID,
+                    crate::model::popup_kind::PopupScope::Window,
+                );
                 changed = true;
             }
             if changed {

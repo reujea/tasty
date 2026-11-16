@@ -99,7 +99,10 @@ impl WindowFileChooser {
             };
         }
         // intent-exempt: user Browse in an independent View opens its own registered PopupDef.
-        self.popups.open_centered_focused(FILE_CHOOSER_POPUP_ID);
+        self.popups.open_centered_focused(
+            FILE_CHOOSER_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        );
         true
     }
     pub(crate) fn cancel(&mut self) {

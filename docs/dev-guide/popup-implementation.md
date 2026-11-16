@@ -15,7 +15,7 @@ tasty 에는 팝업을 만드는 경로가 **둘** 있다. 아래 문서 나머�
 | 셸(scrim·border·이동·리사이즈·outside-click·Esc) | `PopupManager` | **host `PopupManager`** (동일 — 셸은 언제나 host 소유) |
 | 여는 주체 | host — `UiIntent::OpenPopup { id }` | host 가 `PluginManager::open_popup_instance(plugin_id, popup_id, context)` 로 인스턴스화. 트리거는 (a) 매니페스트 `trigger = { kind = "event", event_key }` 를 host 이벤트로 실행, 또는 (b) surface-kind capability(`convert_input_popup`) 로 host 가 직접 open ([파일 핸들러 (File handler)](../features/file-handler/index.md)) |
 | 상태·입력 버퍼 | host `MainViewState.dialogs` | **plugin 프로세스** 내 인스턴스 상태(`instance_id` 키) |
-| 스코프(가시성·경계) | 등록 때 `Window` + 여는 쪽 `OpenPopupMode::WithScope` | 매니페스트 `scope`(`window` 기본 / `surface`) + 여는 host 진입점이 대상 surface 바인딩 — 판정 함수는 host 와 같다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프) |
+| 스코프(가시성·경계) | 등록 때 `Window` + 여는 쪽이 `OpenPopupMode`의 범위 인자로 정한다 | 매니페스트 `scope`(`window` 기본 / `surface`) + 여는 host 진입점이 대상 surface 바인딩 — 판정 함수는 host 와 같다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프) |
 
 **선택 기준 — 콘텐츠의 소유자가 누구인가:**
 
@@ -93,11 +93,12 @@ PopupDef {
 `state.popups.open*` 직접 호출 금지 — **Intent를 생성**한다 (origin 정책·디스패치 이유는 [`design/flows/action-dispatch.md`](../design/flows/action-dispatch.md)).
 
 ```rust
+use crate::adapters::ui::popup::PopupScope;
 use crate::intent::{UiIntent, OpenPopupMode};
-state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode::CenteredFocused }.from_user_menu("my_button"));
+state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode::CenteredFocused(PopupScope::Window) }.from_user_menu("my_button"));
 ```
 
-`OpenPopupMode`: `Default` · `CenteredFocused` · `WithScope(scope)` · `AtTopOfScope(scope)` · `AtFocused(pos)`. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다.
+`OpenPopupMode`: `Default(scope)` · `CenteredFocused(scope)` · `AtTopOfScope(scope)` · `AtFocused(scope, pos)`. 모든 갈래가 범위를 받는다. 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다.
 
 ## `PopupDef` 필드
 

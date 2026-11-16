@@ -144,7 +144,7 @@ impl MainView {
                 state.dispatch_intent(
                     UiIntent::TogglePopup {
                         id: "notifications",
-                        mode: OpenPopupMode::Default,
+                        mode: OpenPopupMode::Default(crate::model::popup_kind::PopupScope::Window),
                     }
                     .from_user_shortcut("toggle_notifications"),
                 );
@@ -257,7 +257,7 @@ impl MainView {
                     state.dispatch_intent(
                         UiIntent::OpenPopup {
                             id: "convert_surface",
-                            mode: OpenPopupMode::WithScope(PopupScope::Surface(sid)),
+                            mode: OpenPopupMode::CenteredFocused(PopupScope::Surface(sid)),
                         }
                         .from_user_shortcut("convert_surface"),
                     );
@@ -300,7 +300,7 @@ impl MainView {
                         state.dispatch_intent(
                             UiIntent::OpenPopup {
                                 id: "rename",
-                                mode: OpenPopupMode::WithScope(scope),
+                                mode: OpenPopupMode::CenteredFocused(scope),
                             }
                             .from_user_shortcut("rename_tab"),
                         );
@@ -318,7 +318,7 @@ impl MainView {
                     state.dispatch_intent(
                         UiIntent::OpenPopup {
                             id: "rename",
-                            mode: OpenPopupMode::WithScope(scope),
+                            mode: OpenPopupMode::CenteredFocused(scope),
                         }
                         .from_user_shortcut("rename_workspace"),
                     );
@@ -335,7 +335,7 @@ impl MainView {
                     state.dispatch_intent(
                         UiIntent::OpenPopup {
                             id: "rename",
-                            mode: OpenPopupMode::WithScope(scope),
+                            mode: OpenPopupMode::CenteredFocused(scope),
                         }
                         .from_user_shortcut("rename_workspace_subtitle"),
                     );

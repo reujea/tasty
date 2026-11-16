@@ -220,7 +220,10 @@ impl App {
                 rate: String::new(),
             });
             // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
-            main.state.popups.open_centered(TRANSFER_PROGRESS_POPUP_ID);
+            main.state.popups.open_centered(
+                TRANSFER_PROGRESS_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Window,
+            );
             main.mark_dirty();
         }
     }
@@ -373,7 +376,9 @@ impl App {
             main.state.dispatch_intent(
                 crate::intent::UiIntent::OpenPopup {
                     id: TRANSFER_ERROR_POPUP_ID,
-                    mode: crate::intent::OpenPopupMode::CenteredFocused,
+                    mode: crate::intent::OpenPopupMode::CenteredFocused(
+                        crate::model::popup_kind::PopupScope::Window,
+                    ),
                 }
                 .from_user_menu("transfer_error"),
             );

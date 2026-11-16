@@ -191,9 +191,11 @@ fn fullscreen_btn_center(pos: egui::Pos2, size: egui::Vec2) -> egui::Pos2 {
 fn clicking_the_popup_fullscreen_button_opens_the_stage_and_keeps_the_popup() {
     let (mut state, mut engine_session) = test_state();
     let engine = engine_session.borrow_mut();
-    state
-        .popups
-        .open_at_focused("notifications", egui::pos2(400.0, 300.0)); // intent-exempt: 테스트 하네스.
+    state.popups.open_at_focused(
+        "notifications",
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(400.0, 300.0),
+    ); // intent-exempt: 테스트 하네스.
 
     // 등록 시 적용한 배율이 포함된 크기를 읽는다.
     let (pos, size) = {
@@ -224,9 +226,11 @@ fn clicking_the_popup_fullscreen_button_opens_the_stage_and_keeps_the_popup() {
 fn the_same_click_on_a_popup_without_the_flag_does_nothing() {
     let (mut state, mut engine_session) = test_state();
     let engine = engine_session.borrow_mut();
-    state
-        .popups
-        .open_at_focused("rename", egui::pos2(400.0, 300.0)); // intent-exempt: 테스트 하네스.
+    state.popups.open_at_focused(
+        "rename",
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(400.0, 300.0),
+    ); // intent-exempt: 테스트 하네스.
     let (pos, size) = {
         let p = state.popups.get_mut("rename").expect("등록된 popup");
         (p.pos, p.size)
@@ -254,9 +258,11 @@ fn the_stage_scroll_state_is_a_different_entry_from_the_popups() {
     let engine = engine_session.borrow_mut();
     let ctx = egui::Context::default();
 
-    state
-        .popups
-        .open_at_focused("notifications", egui::pos2(400.0, 300.0)); // intent-exempt: 테스트 하네스.
+    state.popups.open_at_focused(
+        "notifications",
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(400.0, 300.0),
+    ); // intent-exempt: 테스트 하네스.
     drop(ctx.run(screen_input(), |ctx| {
         draw_popups(
             ctx,

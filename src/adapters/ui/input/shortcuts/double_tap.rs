@@ -42,7 +42,7 @@ impl MainView {
             self.state.dispatch_intent(
                 UiIntent::TogglePopup {
                     id: "notifications",
-                    mode: OpenPopupMode::Default,
+                    mode: OpenPopupMode::Default(crate::model::popup_kind::PopupScope::Window),
                 }
                 .from_user_shortcut("toggle_notifications_double_tap"),
             );
@@ -235,7 +235,7 @@ impl MainView {
                     self.state.dispatch_intent(
                         UiIntent::OpenPopup {
                             id: "convert_surface",
-                            mode: OpenPopupMode::WithScope(
+                            mode: OpenPopupMode::CenteredFocused(
                                 crate::adapters::ui::popup::PopupScope::Surface(sid),
                             ),
                         }
