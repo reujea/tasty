@@ -4356,6 +4356,15 @@ about = "直前のフレームの native WebView オーバーレイモードと�
 [cli.help._root.debug.webview-overlay.arg.force]
 help = "off、hide、opaque、transparent のいずれか。省略すると状態の読み取りのみ"
 
+[cli.help._root.debug.webview-snapshot]
+about = "サーフェスのネイティブ WebView の画像を <path>.png に、ドキュメントの値（--tasty-bed-focused プロパティ、背景、スクロール）を <path>.json に保存します。両方とも非同期で書き込まれるため、ファイルが作成されるまでお待ちください。画面収録の権限は不要です。macOS のデバッグビルドでのみ使用できます。"
+
+[cli.help._root.debug.webview-snapshot.arg.surface]
+help = "対象のサーフェス ID です（既定値: TASTY_SURFACE_ID）。"
+
+[cli.help._root.debug.webview-snapshot.arg.path]
+help = "拡張子を除いた絶対パスです。"
+
 [cli.help._root.debug.stream-echo]
 about = "ストリーミングチャネルを開きサーバー→クライアントのpush経路を検証：N個のデータフレームを送り、それぞれのエコー応答を確認（debugビルド専用）"
 

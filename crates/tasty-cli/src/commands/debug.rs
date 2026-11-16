@@ -310,6 +310,18 @@ pub enum DebugCommands {
         #[arg(long, value_parser = ["off", "hide", "opaque", "transparent"])]
         force: Option<String>,
     },
+    /// Write the native WebView picture of a surface to <path>.png and its
+    /// document values (the --tasty-bed-focused property, background, scroll)
+    /// to <path>.json. Both are written asynchronously; wait for the files.
+    /// Needs no screen recording permission. Debug builds on macOS only.
+    WebviewSnapshot {
+        /// Target surface ID (defaults to TASTY_SURFACE_ID).
+        #[arg(long)]
+        surface: Option<u32>,
+        /// Absolute path without extension.
+        #[arg(long)]
+        path: String,
+    },
     /// Open a streaming channel and verify the server→client push path: send N
     /// data frames and expect each one echoed back (debug builds only).
     StreamEcho {

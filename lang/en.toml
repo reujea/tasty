@@ -4431,6 +4431,15 @@ about = "Show the native WebView overlay mode of the last frame and the popup bo
 [cli.help._root.debug.webview-overlay.arg.force]
 help = "One of off, hide, opaque, transparent. Omit to only read the state"
 
+[cli.help._root.debug.webview-snapshot]
+about = "Write the native WebView picture of a surface to <path>.png and its document values (the --tasty-bed-focused property, background, scroll) to <path>.json. Both are written asynchronously; wait for the files. Needs no screen recording permission. Debug builds on macOS only"
+
+[cli.help._root.debug.webview-snapshot.arg.surface]
+help = "Target surface ID (defaults to TASTY_SURFACE_ID)"
+
+[cli.help._root.debug.webview-snapshot.arg.path]
+help = "Absolute path without extension"
+
 [cli.help._root.debug.stream-echo]
 about = "Open a streaming channel and verify the server→client push path: send N data frames and expect each one echoed back (debug builds only)"
 

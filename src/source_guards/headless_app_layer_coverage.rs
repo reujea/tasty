@@ -394,6 +394,10 @@ const DEBUG_NOT_IN_HEADLESS: &[(&str, &str)] = &[
          `MainView` 에서 연다. 헤드리스엔 attach client 도 view 도 없다",
     ),
     (
+        "debug.webview.snapshot",
+        "native WebView 는 창마다 `MainView.webviews` 에 있고 `self.view.views` 에서 찾는다 — view 가 없다",
+    ),
+    (
         "debug.toast",
         "토스트 스택은 창마다 따로 있다 — 메인 창은 `MainViewState.toasts`, 설정·preset·plugins 창은 \
          각 view 의 `toasts` 를 `self.view.views` 에서 고른다. view 가 없다",

@@ -923,6 +923,8 @@ pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[
     ("debug.webview.history", local_only(MethodEffect::Mutate)),
     // native WebView 오버레이 모드 조회와 backend 지원 모드 강제. release 미노출.
     ("debug.webview.overlay", local_only(MethodEffect::Mutate)),
+    // native WebView 그림과 문서 계산값을 파일로 남긴다. 화면 기록 권한 없는 측정용. release 미노출.
+    ("debug.webview.snapshot", local_only(MethodEffect::Read)),
     (
         "debug.event_bus.list_subscribers",
         local_only(MethodEffect::Read),

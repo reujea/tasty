@@ -4518,6 +4518,15 @@ about = "显示上一帧的原生 WebView 叠加层模式及其覆盖的弹窗�
 [cli.help._root.debug.webview-overlay.arg.force]
 help = "off、hide、opaque、transparent 之一。省略则仅读取状态"
 
+[cli.help._root.debug.webview-snapshot]
+about = "将 surface 的原生 WebView 图像写入 <path>.png，并将其文档值（--tasty-bed-focused 属性、背景、滚动）写入 <path>.json。两个文件均以异步方式写入，请等待文件生成。无需屏幕录制权限。仅适用于 macOS 上的调试构建。"
+
+[cli.help._root.debug.webview-snapshot.arg.surface]
+help = "目标 surface ID（默认为 TASTY_SURFACE_ID）"
+
+[cli.help._root.debug.webview-snapshot.arg.path]
+help = "不含扩展名的绝对路径"
+
 [cli.help._root.debug.stream-echo]
 about = "打开流式通道并验证服务器→客户端推送路径：发送 N 个数据帧，并等待每帧回显（仅限调试构建）"
 

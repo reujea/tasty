@@ -3,6 +3,8 @@
 
 mod bed_focus;
 mod content_rules;
+#[cfg(debug_assertions)]
+mod debug_snapshot;
 mod delegate_state;
 mod http;
 mod key_replay;

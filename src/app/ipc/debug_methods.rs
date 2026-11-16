@@ -45,6 +45,11 @@ impl App {
         if cmd.request.method == "debug.toast" {
             return self.ipc_handle_debug_toast(cmd);
         }
+        // WebView는 창마다 view가 가진다. 그림과 문서 값을 파일로 남긴다.
+        #[cfg(feature = "gui")]
+        if cmd.request.method == "debug.webview.snapshot" {
+            return self.ipc_handle_debug_webview_snapshot(cmd);
+        }
         // 다운로드 대기 상태는 App 의 attach 세션과 함께 움직인다.
         #[cfg(feature = "gui")]
         if cmd.request.method.starts_with("debug.remote_download.") {

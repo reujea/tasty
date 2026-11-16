@@ -177,6 +177,13 @@ pub(super) fn debug_command_to_method_params(
             "debug.webview.overlay",
             serde_json::json!({ "force": force }),
         ),
+        DebugCommands::WebviewSnapshot { surface, path } => (
+            "debug.webview.snapshot",
+            serde_json::json!({
+                "surface_id": resolve_surface_id(*surface),
+                "path": path,
+            }),
+        ),
         DebugCommands::StreamEcho { .. } => {
             unreachable!("debug stream-echo is dispatched before request mapping")
         }
