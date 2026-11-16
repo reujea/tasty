@@ -240,6 +240,21 @@ fn tool_action_block(
         .then_some(ToolBlocked::NoSurfaceTarget)
 }
 
+/// 팔레트의 플러그인 명령 동작을 실행한다. 실행할 수 있을 때만 `notify_invoked`로 command.invoked 를
+/// 알린 뒤 실행한다. 실행할 수 없으면 알리지도 실행하지도 않고 이유를 돌려준다.
+pub(crate) fn run_command_action(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    item: &ToolItem,
+    notify_invoked: impl FnOnce(),
+) -> Result<(), ToolBlocked> {
+    if let Some(blocked) = tool_action_block(state, engine, &item.action) {
+        return Err(blocked);
+    }
+    notify_invoked();
+    invoke_tool(state, engine, item)
+}
+
 /// 플러그인 도구·명령 동작을 실행한다. 실행할 수 없으면 아무것도 하지 않고 이유를 돌려준다.
 pub(crate) fn invoke_tool(
     state: &mut MainViewState,

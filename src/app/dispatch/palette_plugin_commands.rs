@@ -31,30 +31,6 @@ impl App {
                 .and_then(|e| e.action.clone());
 
             if let Some(action) = action {
-                // 팔레트 행은 실행할 수 없으면 실행하지 않는다. 큐에 남은 요청도 같은 판정으로 거른다.
-                let blocked = engines_mut!(self)
-                    .window_pair(wid)
-                    .is_some_and(|(main, engine)| {
-                        crate::adapters::ui::tools_menu::tool_action_blocked(
-                            &main.state,
-                            &engine.read(),
-                            &action,
-                        )
-                    });
-                if blocked {
-                    tracing::warn!(
-                        "plugin command '{plugin_id}/{command_id}' not run: its popup needs a surface target and no surface is focused"
-                    );
-                    continue;
-                }
-                if let Some(mgr) = self.plugin_manager.as_mut() {
-                    crate::plugin_bridge::key_dispatch::emit_command_invoked(
-                        mgr,
-                        &plugin_id,
-                        &command_id,
-                        None,
-                    );
-                }
                 let item = plugin::tool_registry::ToolItem {
                     source: plugin::tool_registry::ToolSource::Plugin {
                         plugin_id: plugin_id.clone(),
@@ -66,11 +42,23 @@ impl App {
                     action,
                     order_hint: 0,
                 };
+                // 팔레트 행은 실행할 수 없으면 알리지도 실행하지도 않는다. 큐에 남은 요청도 같은 판정으로 거른다.
+                let mgr = self.plugin_manager.as_mut();
                 if let Some((main, engine)) = engines_mut!(self).window_pair(wid)
-                    && let Err(blocked) = crate::adapters::ui::tools_menu::invoke_tool(
+                    && let Err(blocked) = crate::adapters::ui::tools_menu::run_command_action(
                         &mut main.state,
                         &engine.read(),
                         &item,
+                        || {
+                            if let Some(mgr) = mgr {
+                                crate::plugin_bridge::key_dispatch::emit_command_invoked(
+                                    mgr,
+                                    &plugin_id,
+                                    &command_id,
+                                    None,
+                                );
+                            }
+                        },
                     )
                 {
                     tracing::warn!(

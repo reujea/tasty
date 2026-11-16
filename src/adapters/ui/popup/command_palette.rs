@@ -74,6 +74,8 @@ pub struct CommandItemView {
     /// 행 좌측 leading 아이콘. 6개 디자인 명시 명령은 전용 아이콘, 나머지 동적
     /// 명령은 `COMMAND` fallback 글리프. None 이면 빈 슬롯 (라벨 정렬은 유지).
     pub icon: Option<icons::Icon>,
+    /// 지금 실행할 수 있는지. false 면 클릭과 Enter 로 실행하지 않는다. 모양은 아직 같다.
+    pub enabled: bool,
 }
 
 /// 명령 팔레트 입력. 검색 버퍼는 호출부에서 빌려 쓴다.
@@ -258,7 +260,7 @@ pub fn draw_command_palette_view(
                             &item.shortcut_keys,
                             is_selected,
                         );
-                        if resp.clicked() {
+                        if resp.clicked() && item.enabled {
                             action = CommandPaletteAction::Execute { index: i };
                         }
                     }
@@ -296,7 +298,12 @@ pub fn draw_command_palette_view(
             });
         });
 
-    if enter && !props.items.is_empty() {
+    if enter
+        && props
+            .items
+            .get(props.selected_index)
+            .is_some_and(|item| item.enabled)
+    {
         action = CommandPaletteAction::Execute {
             index: props.selected_index,
         };
@@ -354,6 +361,7 @@ fn items_from_state(
             label: raw_label,
             shortcut_keys: keys_for(cmd),
             icon: icon_for(cmd),
+            enabled: true,
         });
         ids.push(cmd.clone());
     }
@@ -406,6 +414,11 @@ pub fn draw_command_palette_popup(
                 .unwrap_or_default()
         });
 
+    let mut items = items;
+    for (item, cmd) in items.iter_mut().zip(&matched_commands) {
+        item.enabled = palette_command_enabled(state, engine, cmd);
+    }
+
     if items.is_empty() {
         state.command_palette.selected = 0;
     } else if state.command_palette.selected >= items.len() {
@@ -447,6 +460,31 @@ pub fn draw_command_palette_popup(
             PopupAction::Close
         }
     }
+}
+
+/// 팔레트 명령을 지금 실행할 수 있는지. 플러그인 명령의 동작이 대상 surface 없이 열 수 없는
+/// 팝업이면 false 다. 도구 메뉴와 같은 판정을 쓴다.
+fn palette_command_enabled(
+    state: &MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    cmd: &PaletteCommand,
+) -> bool {
+    let PaletteCommand::Plugin {
+        plugin_id,
+        command_id,
+        ..
+    } = cmd
+    else {
+        return true;
+    };
+    state
+        .palette_plugin_commands
+        .iter()
+        .find(|e| e.plugin_id == *plugin_id && e.command_id == *command_id)
+        .and_then(|e| e.action.as_ref())
+        .is_none_or(|action| {
+            !crate::adapters::ui::tools_menu::tool_action_blocked(state, engine, action)
+        })
 }
 
 /// leading 아이콘. 디자인(`command_palette.jsx`)이 명시한 6개 호스트 명령은 전용
@@ -555,6 +593,7 @@ mod view_tests {
                 label: format!("Item {i}"),
                 shortcut_keys: Vec::new(),
                 icon: None,
+                enabled: true,
             })
             .collect()
     }
@@ -816,6 +855,89 @@ mod view_tests {
     fn enter_key_executes_selected_item() {
         let action = run_view(make_items(3), 1, Some(egui::Key::Enter));
         assert_eq!(action, CommandPaletteAction::Execute { index: 1 });
+    }
+
+    fn with_disabled(count: usize, disabled: usize) -> Vec<CommandItemView> {
+        let mut items = make_items(count);
+        items[disabled].enabled = false;
+        items
+    }
+
+    /// 행 라벨 위를 눌렀다 떼는 프레임을 차례로 그리고, 그동안 나온 실행 동작을 모은다.
+    fn click_row(items: Vec<CommandItemView>, label: &str) -> Vec<CommandPaletteAction> {
+        let ctx = egui::Context::default();
+        let theme = mocha_fallback();
+        let mut buf = String::new();
+        let mut frame = |events: Vec<egui::Event>| {
+            let raw = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let mut action = CommandPaletteAction::None;
+            let out = ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let mut props = CommandPaletteProps {
+                        placeholder: "Search…".to_string(),
+                        no_results_text: "No matches".to_string(),
+                        items: items.clone(),
+                        selected_index: 0,
+                        query_buffer: &mut buf,
+                        hint_navigate: "navigate".to_string(),
+                        hint_run: "run".to_string(),
+                        hint_close: "close".to_string(),
+                    };
+                    action = draw_command_palette_view(ui, &theme, &mut props);
+                });
+            });
+            (action, out)
+        };
+        let (_, out) = frame(Vec::new());
+        let pos = out
+            .shapes
+            .iter()
+            .find_map(|cs| match &cs.shape {
+                egui::epaint::Shape::Text(t) if t.galley.text() == label => {
+                    Some(t.pos + t.galley.rect.center().to_vec2())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{label} was not painted"));
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        [
+            vec![egui::Event::PointerMoved(pos)],
+            vec![button(true)],
+            vec![button(false)],
+            Vec::new(),
+        ]
+        .into_iter()
+        .map(|events| frame(events).0)
+        .filter(|a| matches!(a, CommandPaletteAction::Execute { .. }))
+        .collect()
+    }
+
+    /// 실행할 수 없는 행은 Enter 로 실행하지 않는다.
+    #[test]
+    fn enter_on_a_disabled_row_does_not_execute() {
+        let action = run_view(with_disabled(3, 1), 1, Some(egui::Key::Enter));
+        assert_eq!(action, CommandPaletteAction::None);
+        let action = run_view(with_disabled(3, 1), 2, Some(egui::Key::Enter));
+        assert_eq!(action, CommandPaletteAction::Execute { index: 2 });
+    }
+
+    /// 실행할 수 없는 행은 눌러도 실행하지 않는다. 같은 방법으로 누른 다른 행은 실행한다.
+    #[test]
+    fn a_click_on_a_disabled_row_does_not_execute() {
+        assert_eq!(
+            click_row(make_items(3), "Item 1"),
+            vec![CommandPaletteAction::Execute { index: 1 }],
+            "the click helper must reach an enabled row"
+        );
+        assert_eq!(click_row(with_disabled(3, 1), "Item 1"), Vec::new());
     }
 
     #[test]
