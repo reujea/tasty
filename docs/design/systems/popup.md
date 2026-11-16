@@ -136,7 +136,9 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 
 **스코프는 `PopupDef` 에 못 박히지 않는다.** 등록 때는 `Window` 로 두고, 여는 쪽이 열 때마다
 범위를 정한다. `OpenPopupMode`의 모든 갈래와 `PopupManager`의 모든 열기 함수가 범위를 받으므로
-범위를 주지 않는 열기는 컴파일되지 않는다. 등록 값이나 직전에 열렸을 때의 범위는 다음 열기에 남지 않는다. 선언의 `decl.scope_kind`는 지금 모든 정의가 `Window`이고 등록 범위와 같다는 것만 시험이 확인한다. 현재 소비자:
+범위를 주지 않는 열기는 컴파일되지 않는다. 범위는 팝업이 작용하는 대상(surface·탭·pane·workspace)에서
+나온다. 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다 — 사용자 동작은 비활성 항목이거나 경고 로그,
+IPC 요청은 `-32602` 다. 대상 없이 창 전체에 작용하는 팝업(도구 메뉴, 명령 팔레트, 설정 등)만 Window 다. 등록 값이나 직전에 열렸을 때의 범위는 다음 열기에 남지 않는다. 선언의 `decl.scope_kind`는 지금 모든 정의가 `Window`이고 등록 범위와 같다는 것만 시험이 확인한다. 현재 소비자:
 
 | 팝업 | 스코프 | 여는 쪽이 주입하는 값 |
 |------|--------|----------------------|
@@ -148,6 +150,10 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 | 마우스 캡처 배너 메뉴(`mouse_capture_banner_menu`) | Surface | 배너가 있는 surface |
 | 탭 프리셋 적용(`apply_tab_preset`) | Tab | 메뉴를 연 pane(단축키는 포커스 pane)에서 선택된 탭. 적용은 그 탭의 pane에 한다 |
 | pane 프리셋 적용(`apply_pane_preset`) | Pane | 메뉴를 연 pane(단축키는 포커스 pane). 적용도 그 pane에 한다 |
+| 강제 분리 확인(`confirm_force_detach_workspace`) · 원격 닫기 확인(`confirm_close_remote`) · workspace 이름·부제 바꾸기(`rename`) | Workspace | 작용 대상 workspace. 세 팝업 모두 `src/adapters/ui/workspace_action_popup.rs` 한 함수로 연다. 그 workspace 가 활성일 때만 그린다 |
+| 탭 이름 바꾸기(`rename`) | Tab | 그 탭 |
+| 업로드 진행·실패(`transfer_progress` · `transfer_error`) | Surface | 업로드를 시작한 surface. 진행 팝업은 창마다 하나라 마지막에 시작한 전송의 surface 이고, 실패는 큐 맨 앞 항목의 surface 다 |
+| 다운로드 후 실행(`download_run` · `download_run_large` · `download_run_progress`) | Surface | 원격 파일을 연 surface. 크기 확인·진행·실패도 그 다운로드의 surface 다 |
 | 파일 처리기 선택(`file_handler_picker`) | Surface 또는 Window | 요청 출처 surface. 터미널 링크의 연결 동작은 링크를 누른 터미널. 출처 없는 창 단위 요청(출처 없는 IPC·에이전트 요청)은 Window |
 
 `Workspace` 스코프 팝업은 워크스페이스를 옮기면 **그리지 않는다** — 상태는 그대로 남아 있어

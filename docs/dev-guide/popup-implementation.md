@@ -98,7 +98,7 @@ use crate::intent::{UiIntent, OpenPopupMode};
 state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode::CenteredFocused(PopupScope::Window) }.from_user_menu("my_button"));
 ```
 
-`OpenPopupMode`: `Default(scope)` · `CenteredFocused(scope)` · `AtTopOfScope(scope)` · `AtFocused(scope, pos)`. 모든 갈래가 범위를 받는다. 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다.
+`OpenPopupMode`: `Default(scope)` · `CenteredFocused(scope)` · `AtTopOfScope(scope)` · `AtFocused(scope, pos)`. 모든 갈래가 범위를 받는다. 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상에서 고른다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 작용 대상이 있는 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다.
 
 ## `PopupDef` 필드
 
