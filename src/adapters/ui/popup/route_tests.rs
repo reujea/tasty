@@ -314,7 +314,7 @@ fn a_window_without_a_layout_puts_every_point_on_the_window_only() {
         &LayoutContext::window_only(),
         point(LogicalPx(10.0), LogicalPx(10.0)),
     );
-    assert_eq!(path, ScopePath::default());
+    assert_eq!(path, ScopePath::WINDOW);
     assert!(path.contains(&PopupScope::Window));
 }
 

@@ -10,7 +10,7 @@ use crate::state::MainViewState;
 
 /// 이벤트가 속한 범위 노드들. 비어 있는 단계는 이벤트가 그 깊이까지 내려가지 않았다는 뜻이다.
 /// 경로는 이 모듈의 계산 함수로만 만든다.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ScopePath {
     workspace: Option<u32>,
     pane: Option<u32>,
@@ -19,6 +19,14 @@ pub(crate) struct ScopePath {
 }
 
 impl ScopePath {
+    /// Window 만 담은 경로. 모듈 밖에서 계산 없이 경로를 만들지 못하게 `Default` 대신 비공개로 둔다.
+    const WINDOW: Self = Self {
+        workspace: None,
+        pane: None,
+        tab: None,
+        surface: None,
+    };
+
     /// `scope` 가 이 경로 위에 있는지. `Window` 는 모든 경로의 뿌리라 항상 참이다.
     pub(crate) fn contains(&self, scope: &PopupScope) -> bool {
         match scope {
@@ -58,12 +66,12 @@ pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
             workspace,
             pane: Some(pane),
             tab: tab_content_at(layout, pane, x, y),
-            ..ScopePath::default()
+            ..ScopePath::WINDOW
         };
     }
     ScopePath {
         workspace,
-        ..ScopePath::default()
+        ..ScopePath::WINDOW
     }
 }
 
@@ -113,12 +121,12 @@ fn logical(r: egui::Rect) -> LogicalRect {
 /// 있다. 포커스된 surface 가 없으면 활성 workspace 까지만 담는다.
 pub(crate) fn path_of_focus(state: &MainViewState, core: &CoreState) -> ScopePath {
     if core.workspaces().is_empty() {
-        return ScopePath::default();
+        return ScopePath::WINDOW;
     }
     let Some(surface) = state.focused_surface_id(core) else {
         return ScopePath {
             workspace: Some(state.active_workspace(core).id),
-            ..ScopePath::default()
+            ..ScopePath::WINDOW
         };
     };
     let workspace = core
