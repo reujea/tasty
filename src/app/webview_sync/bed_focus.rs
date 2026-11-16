@@ -34,7 +34,8 @@ fn wanted(
 }
 
 /// 백엔드가 상위층에 주는 연산. 값 두기는 비동기일 수 있으므로, 실패는 나중 동기화에서
-/// `take_bed_focus_failed`로 회수한다. 참이면 그 백엔드는 자기 기록을 지운 상태라 같은 값을 다시 받는다.
+/// `take_bed_focus_failed`로 회수한다. 참이면 상위층이 같은 값을 다시 둔다. 백엔드는 같은 값을 다시 받으면
+/// 실패한 부분만 다시 한다.
 pub(crate) trait BedFocusSink {
     fn set_bed_focused(&self, focused: bool);
     /// 마지막으로 둔 값이 실패했는지 돌려주고 표시를 지운다.
@@ -71,26 +72,63 @@ impl BedFocusSink for PlatformWebView {
     }
 }
 
-/// 한 WebView의 한 번 동기화. `sent`는 마지막으로 보낸 값이고 돌려준 값이 새 기록이다. 백엔드가 실패를
-/// 알리면 기록을 지워 같은 값을 다시 보낸다.
-fn step(sink: &impl BedFocusSink, wanted: Option<bool>, sent: Option<bool>) -> Option<bool> {
-    let sent = if sink.take_bed_focus_failed() {
-        None
-    } else {
-        sent
+/// 같은 값을 다시 보내는 최대 횟수. 그 뒤에도 실패하면 목표 값이 바뀔 때까지 보내지 않는다. 실패가
+/// 계속되는 WebView(브라우저 프로세스가 끝난 뒤 남은 것 등)에 프레임마다 다시 보내지 않기 위해서다.
+const MAX_RETRIES: u8 = 1;
+
+/// 한 surface에 마지막으로 둔 값.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BedFocusRecord {
+    value: bool,
+    /// 백엔드가 이 값의 실패를 알렸다.
+    failed: bool,
+    /// 이 값을 다시 보낸 횟수.
+    retries: u8,
+}
+
+/// 한 WebView의 한 번 동기화. `record`는 마지막으로 둔 값이고 돌려준 값이 새 기록이다. 백엔드가 실패를
+/// 알리면 같은 값을 [`MAX_RETRIES`]번까지 다시 보낸다. 값을 받지 않게 된 surface에서 실패하면 기록을 지운다.
+fn step(
+    sink: &impl BedFocusSink,
+    wanted: Option<bool>,
+    record: Option<BedFocusRecord>,
+) -> Option<BedFocusRecord> {
+    let mut record = record;
+    if sink.take_bed_focus_failed()
+        && let Some(record) = record.as_mut()
+    {
+        record.failed = true;
+    }
+    let Some(focused) = wanted else {
+        return record.filter(|record| !record.failed);
     };
-    match wanted {
-        Some(focused) if sent != Some(focused) => {
+    match record {
+        Some(record) if record.value == focused && !record.failed => Some(record),
+        Some(record) if record.value == focused => {
+            if record.retries >= MAX_RETRIES {
+                return Some(record);
+            }
             sink.set_bed_focused(focused);
-            Some(focused)
+            Some(BedFocusRecord {
+                failed: false,
+                retries: record.retries + 1,
+                ..record
+            })
         }
-        _ => sent,
+        _ => {
+            sink.set_bed_focused(focused);
+            Some(BedFocusRecord {
+                value: focused,
+                failed: false,
+                retries: 0,
+            })
+        }
     }
 }
 
-fn record(view: &mut MainView, sid: u32, sent: Option<bool>) {
+fn record(view: &mut MainView, sid: u32, sent: Option<BedFocusRecord>) {
     match sent {
-        Some(focused) => view.webview_bed_focus.insert(sid, focused),
+        Some(sent) => view.webview_bed_focus.insert(sid, sent),
         None => view.webview_bed_focus.remove(&sid),
     };
 }
@@ -125,7 +163,7 @@ pub(super) fn sync(view: &mut MainView, engine: &crate::runtime::engine_access::
 mod tests {
     use std::cell::{Cell, RefCell};
 
-    use super::{BedFocusSink, receives, step, to_send};
+    use super::{BedFocusRecord, BedFocusSink, MAX_RETRIES, receives, step, to_send};
 
     /// 받은 값을 적고, 다음 회수에서 돌려줄 실패 표시를 갖는 가짜 백엔드.
     #[derive(Default)]
@@ -143,13 +181,48 @@ mod tests {
         }
     }
 
+    fn value(record: Option<BedFocusRecord>) -> Option<bool> {
+        record.map(|record| record.value)
+    }
+
     #[test]
     fn a_value_is_set_once_while_it_holds() {
         let sink = FakeSink::default();
         let sent = step(&sink, Some(false), None);
-        assert_eq!(sent, Some(false));
-        assert_eq!(step(&sink, Some(false), sent), Some(false));
+        assert_eq!(value(sent), Some(false));
+        assert_eq!(step(&sink, Some(false), sent), sent);
         assert_eq!(*sink.sets.borrow(), vec![false]);
+    }
+
+    /// 실패가 없는 백엔드(Linux)는 기점과 같은 전이다. 값이 바뀔 때만 두고, 값을 받지 않게 된 surface는
+    /// 기록을 그대로 둔다.
+    #[test]
+    fn without_failures_a_value_is_set_only_when_it_changes() {
+        let sink = FakeSink::default();
+        let mut sent = None;
+        let mut expected = Vec::new();
+        let mut last = None;
+        for wanted in [
+            Some(true),
+            Some(true),
+            Some(false),
+            None,
+            Some(false),
+            Some(true),
+            None,
+            None,
+            Some(true),
+        ] {
+            sent = step(&sink, wanted, sent);
+            if let Some(focused) = wanted
+                && last != Some(focused)
+            {
+                expected.push(focused);
+                last = Some(focused);
+            }
+            assert_eq!(value(sent), last);
+        }
+        assert_eq!(*sink.sets.borrow(), expected);
     }
 
     #[test]
@@ -158,19 +231,50 @@ mod tests {
         let sent = step(&sink, Some(false), None);
         sink.failed.set(true);
         let sent = step(&sink, Some(false), sent);
-        assert_eq!(sent, Some(false));
+        assert_eq!(value(sent), Some(false));
         assert_eq!(*sink.sets.borrow(), vec![false, false]);
         // 다시 보낸 뒤 실패가 없으면 더 보내지 않는다.
-        assert_eq!(step(&sink, Some(false), sent), Some(false));
+        assert_eq!(step(&sink, Some(false), sent), sent);
         assert_eq!(sink.sets.borrow().len(), 2);
+    }
+
+    #[test]
+    fn a_value_that_keeps_failing_is_sent_again_only_up_to_the_limit() {
+        let sink = FakeSink::default();
+        let mut sent = None;
+        for _ in 0..10 {
+            sent = step(&sink, Some(false), sent);
+            sink.failed.set(true);
+        }
+        assert_eq!(sink.sets.borrow().len(), 1 + usize::from(MAX_RETRIES));
+    }
+
+    #[test]
+    fn a_new_target_is_sent_after_the_retries_ran_out() {
+        let sink = FakeSink::default();
+        let mut sent = None;
+        for _ in 0..10 {
+            sent = step(&sink, Some(false), sent);
+            sink.failed.set(true);
+        }
+        let before = sink.sets.borrow().len();
+        let sent = step(&sink, Some(true), sent);
+        assert_eq!(sink.sets.borrow().len(), before + 1);
+        assert_eq!(sink.sets.borrow().last(), Some(&true));
+        assert_eq!(value(sent), Some(true));
+        // 새 값은 다시 보낼 횟수를 새로 갖는다.
+        sink.failed.set(true);
+        step(&sink, Some(true), sent);
+        assert_eq!(sink.sets.borrow().len(), before + 2);
     }
 
     #[test]
     fn a_failure_on_a_surface_that_no_longer_receives_clears_the_record() {
         let sink = FakeSink::default();
+        let sent = step(&sink, Some(true), None);
         sink.failed.set(true);
-        assert_eq!(step(&sink, None, Some(true)), None);
-        assert!(sink.sets.borrow().is_empty());
+        assert_eq!(step(&sink, None, sent), None);
+        assert_eq!(*sink.sets.borrow(), vec![true]);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! App synchronizes native WebView effects against the originating runtime resources.
 //! Native windows, geometry caches and input handles remain owned by MainView.
-mod bed_focus;
+pub(crate) mod bed_focus;
 mod construction;
 mod navigation;
 use construction::create_missing_webviews;
