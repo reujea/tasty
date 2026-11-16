@@ -313,7 +313,7 @@ pub fn draw_transfer_error(
     };
     let name = head.name.clone();
     let reason = head.reason.clone();
-    let retryable = head.retry.is_some();
+    let retry_button = retry_button_state(head, engine);
     let download_run = matches!(head.kind, TransferErrorKind::DownloadRun { .. });
 
     let esc = ui
@@ -357,31 +357,9 @@ pub fn draw_transfer_error(
             ui.add_space(th.transfer_body_gap().value());
             reason_well(ui, &th, &reason, download_run);
         });
-        // danger-fill 금지 — ghost/secondary 만.
-        footer_buttons(ui, &th, |ui| {
-            if retryable {
-                retry = Button::new(t("transfer.error.retry"))
-                    .variant(ButtonVariant::Secondary)
-                    .size(ControlSize::Sm)
-                    .show(ui, &th)
-                    .clicked();
-                if Button::new(t("transfer.error.dismiss"))
-                    .variant(ButtonVariant::Ghost)
-                    .size(ControlSize::Sm)
-                    .show(ui, &th)
-                    .clicked()
-                {
-                    dismiss = true;
-                }
-            } else if Button::new(t("transfer.error.dismiss"))
-                .variant(ButtonVariant::Secondary)
-                .size(ControlSize::Sm)
-                .show(ui, &th)
-                .clicked()
-            {
-                dismiss = true;
-            }
-        });
+        let clicks = draw_error_footer(ui, &th, retry_button);
+        retry = clicks.retry;
+        dismiss |= clicks.dismiss;
     });
     if let Some(TransferErrorKind::DownloadRun { content_height }) = state
         .dialogs
@@ -401,12 +379,91 @@ pub fn draw_transfer_error(
     PopupAction::None
 }
 
-/// 맨 앞 실패를 저장한 페이로드로 기존 업로드 큐에 다시 넣고 다음 실패를 보인다.
+/// 실패 항목의 Retry 버튼. None은 재시도 데이터가 없어 버튼을 그리지 않는다.
+/// Some(false)는 업로드한 surface에 결속할 수 없어 비활성으로 그린다. 재시도는 붙여넣은
+/// 그 surface의 터미널에 경로를 넣는 일이라 다른 surface로 보내지 않는다.
+fn retry_button_state(error: &TransferError, engine: &EngineRead<'_>) -> Option<bool> {
+    error.retry.as_ref().map(|payload| {
+        crate::runtime::surface_binding::SurfaceBinding::capture(engine, payload.surface_id)
+            .is_some()
+    })
+}
+
+/// 실패 팝업 아래쪽 버튼에서 눌린 것.
+struct ErrorFooterClicks {
+    retry: bool,
+    dismiss: bool,
+    /// 그린 Retry 버튼의 응답. 시험이 활성 여부를 본다.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "only tests read the drawn response")
+    )]
+    retry_response: Option<egui::Response>,
+}
+
+/// danger-fill 금지 — ghost/secondary 만. `retry_button`은 [`retry_button_state`]의 값이다.
+fn draw_error_footer(
+    ui: &mut egui::Ui,
+    th: &theme::Theme,
+    retry_button: Option<bool>,
+) -> ErrorFooterClicks {
+    footer_buttons(ui, th, |ui| {
+        if let Some(enabled) = retry_button {
+            let response = Button::new(t("transfer.error.retry"))
+                .variant(ButtonVariant::Secondary)
+                .size(ControlSize::Sm)
+                .enabled(enabled)
+                .show(ui, th);
+            let dismiss = Button::new(t("transfer.error.dismiss"))
+                .variant(ButtonVariant::Ghost)
+                .size(ControlSize::Sm)
+                .show(ui, th)
+                .clicked();
+            ErrorFooterClicks {
+                retry: enabled && response.clicked(),
+                dismiss,
+                retry_response: Some(response),
+            }
+        } else {
+            let dismiss = Button::new(t("transfer.error.dismiss"))
+                .variant(ButtonVariant::Secondary)
+                .size(ControlSize::Sm)
+                .show(ui, th)
+                .clicked();
+            ErrorFooterClicks {
+                retry: false,
+                dismiss,
+                retry_response: None,
+            }
+        }
+    })
+}
+
+/// 맨 앞 실패를 저장한 페이로드로 다시 업로드한다. 업로드한 surface에 결속할 수 없으면
+/// 항목을 그대로 두고 경고만 남긴다.
 fn retry_head_error(state: &mut MainViewState, engine: &EngineRead<'_>) -> PopupAction {
-    if let Some(err) = state.dialogs.transfer_error.pop_front()
-        && let Some(payload) = err.retry
-        && let Some(target) =
-            crate::runtime::surface_binding::SurfaceBinding::capture(engine, payload.surface_id)
+    let Some(surface_id) = state
+        .dialogs
+        .transfer_error
+        .front()
+        .and_then(|err| err.retry.as_ref())
+        .map(|payload| payload.surface_id)
+    else {
+        return PopupAction::None;
+    };
+    let Some(target) = crate::runtime::surface_binding::SurfaceBinding::capture(engine, surface_id)
+    else {
+        tracing::warn!(
+            surface_id,
+            "upload retry not run: its surface is gone; the failure stays listed"
+        );
+        return PopupAction::None;
+    };
+    if let Some(payload) = state
+        .dialogs
+        .transfer_error
+        .pop_front()
+        .and_then(|err| err.retry)
     {
         state.dispatch_intent(
             crate::intent::Intent::Engine(crate::app::engine_action::EngineAction::ImageUpload {

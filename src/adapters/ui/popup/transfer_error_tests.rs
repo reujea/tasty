@@ -3,6 +3,8 @@
 use super::*;
 use crate::model::popup_kind::PopupScope;
 
+const GONE_SURFACE: u32 = 9_999;
+
 fn failure(scope: PopupScope, retry_surface: Option<u32>) -> TransferError {
     TransferError {
         scope,
@@ -30,6 +32,52 @@ fn fixture() -> (
         .focused_surface_id(&session.borrow_mut().read())
         .expect("surface");
     (state, session, sid)
+}
+
+/// 그린 Retry 버튼이 누를 수 있는지. 버튼이 없으면 None.
+fn drawn_retry_clickable(error: &TransferError, engine: &EngineRead<'_>) -> Option<bool> {
+    let ctx = egui::Context::default();
+    let th = theme::theme();
+    let mut drawn = None;
+    let _output = ctx.run(egui::RawInput::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            drawn = draw_error_footer(ui, &th, retry_button_state(error, engine))
+                .retry_response
+                .map(|r| r.sense.senses_click());
+        });
+    });
+    drawn
+}
+
+/// 업로드한 surface가 닫혀 workspace에서 알린 실패는 Retry를 비활성으로 그린다.
+/// 업로드한 surface가 살아 있는 실패는 활성, 재시도 데이터가 없는 실패는 버튼이 없다.
+#[test]
+fn a_failure_whose_surface_is_gone_draws_retry_disabled() {
+    let (_state, mut session, sid) = fixture();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let gone = failure(PopupScope::Workspace(8), Some(GONE_SURFACE));
+    let live = failure(PopupScope::Surface(sid), Some(sid));
+    let rejected = failure(PopupScope::Surface(sid), None);
+    assert_eq!(drawn_retry_clickable(&gone, &read), Some(false));
+    assert_eq!(drawn_retry_clickable(&live, &read), Some(true));
+    assert_eq!(drawn_retry_clickable(&rejected, &read), None);
+}
+
+/// 결속할 surface가 없는 Retry는 항목과 재시도 데이터를 그대로 두고 아무것도 실행하지 않는다.
+#[test]
+fn retry_for_a_gone_surface_keeps_the_failure() {
+    let (mut state, mut session, _sid) = fixture();
+    state
+        .dialogs
+        .transfer_error
+        .push_back(failure(PopupScope::Workspace(8), Some(GONE_SURFACE)));
+    let engine = session.borrow_mut();
+    let action = retry_head_error(&mut state, &engine.read());
+    assert!(matches!(action, PopupAction::None));
+    assert_eq!(state.dialogs.transfer_error.len(), 1);
+    assert!(state.dialogs.transfer_error[0].retry.is_some());
+    assert!(state.take_pending_intents().is_empty());
 }
 
 /// 살아 있는 surface의 Retry는 업로드를 다시 넣고 마지막 항목이면 팝업을 닫는다.
