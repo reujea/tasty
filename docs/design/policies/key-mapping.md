@@ -391,7 +391,7 @@ plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSett
 
 `CommandDecl.action`이 있으면 호스트가 `ToolAction::Event`·`OpenSurface`·`OpenPopup`을 도구 메뉴와 같은 방식으로 실행한다. 이때 `command.invoke`(`handle_command`)는 보내지 않아 중복 실행을 막는다. `action`이 없으면 기존 `handle_command` IPC를 사용한다.
 
-Event Bus의 `command.invoked`는 소유 plugin에 보내는 알림이다. `action`과 대상 surface의 유무에 관계없이 명령이 매칭되면 보낸다.
+Event Bus의 `command.invoked`는 소유 plugin에 보내는 알림이다. 명령이 매칭되고 실행할 수 있으면 보낸다. `action`이 없는 명령은 대상 surface가 없어도 보낸다. `action`이 `surface` 범위 popup을 여는데 포커스 surface가 없거나, 팔레트 요청을 처리할 때 그 창이 사라졌으면 실행할 수 없으므로 실행하지 않고 알리지도 않는다.
 
 ## 텍스트 입력과 단축키의 우선순위
 

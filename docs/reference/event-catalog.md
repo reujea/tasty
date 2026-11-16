@@ -167,6 +167,8 @@ agent
 
 scope=global command 단축키는 조합키만, scope=surface 는 단일 키도 허용.
 
+`command.invoked` 는 명령을 실행할 때만 보낸다. `action` 이 `surface` 범위 popup 을 여는데 포커스 surface 가 없거나, 팔레트 요청을 처리할 때 그 창이 사라졌으면 실행하지 않으므로 보내지 않는다([단축키 정책](../design/policies/key-mapping.md)).
+
 ### Memory (scope=system, Stable)
 `memory.changed`: regular entry 의 put/delete/expire/cleanup 이 commit 된 뒤 — `scope, key, kind∈{created,updated,deleted,expired}, version?`. **secret 영역은 발행하지 않음**(owner/key 노출 방지). 1 변경 = 1 envelope. 정리되지 않은 만료 행을 덮어쓴 put 은 `expired`(version 없음) 다음 `created`(version 1)를 같은 commit 순서로 낸다 — 주기 정리가 먼저 지운 경우와 구독자가 보는 순서가 같다. 구독 권한 `memory.read`. GUI 와 headless 모두 메인 루프가 회차마다 발행한다.
 

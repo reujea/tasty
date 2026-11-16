@@ -32,7 +32,7 @@ VS Code 스타일 명령 팔레트. 모든 단축키 명령을 쿼리로 검색�
 Enter/클릭 시 `command_palette.pending_run` 에 선택된 `PaletteCommand` 적재 → `MainView::handle_redraw` 가 다음 프레임에 drain:
 
 - `Host`: `dispatch_action_by_id` 호출 — **단축키와 정확히 같은 action body** 를 타므로 효과 동일.
-- `Plugin`: `MainViewState.pending_plugin_command_invokes` 에 `(plugin_id, command_id)` 를 enqueue(팔레트 draw/redraw 경로는 `PluginManager` 에 접근할 수 없음 — `PopupDef` 고정 시그니처 제약). `App::dispatch_pending_palette_plugin_commands` 가 다음 IPC 처리 틱에 drain 해 `command_registry` 로 조회: `action` 이 있으면 `invoke_tool` 로 직접 실행(`try_plugin_shortcut` 의 action 분기와 동일 패턴), 없으면 `key_dispatch::dispatch_plugin_command(.., surface_id: None)` 으로 `command.invoked` 이벤트만 발생(포커스 없이 매칭된 global 단축키와 동일 — 옛 `command.invoke` IPC 는 대상 surface 가 없어 생략).
+- `Plugin`: `MainViewState.pending_plugin_command_invokes` 에 `(plugin_id, command_id)` 를 enqueue(팔레트 draw/redraw 경로는 `PluginManager` 에 접근할 수 없음 — `PopupDef` 고정 시그니처 제약). `App::dispatch_pending_palette_plugin_commands` 가 다음 IPC 처리 틱에 drain 해 `command_registry` 로 조회: `action` 이 있으면 `tools_menu::run_command_action` 이 실행할 수 있는지 먼저 보고, 실행할 수 있을 때만 `command.invoked` 를 보낸 뒤 `invoke_tool` 로 직접 실행한다(`try_plugin_shortcut` 의 action 분기와 동일 패턴). 실행할 수 없거나 그 창이 사라졌으면 알리지도 실행하지도 않는다. `action` 이 없으면 `key_dispatch::dispatch_plugin_command(.., surface_id: None)` 으로 `command.invoked` 이벤트만 발생(포커스 없이 매칭된 global 단축키와 동일 — 옛 `command.invoke` IPC 는 대상 surface 가 없어 생략).
 
 ### MainViewState 동기화
 
