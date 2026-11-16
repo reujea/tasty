@@ -114,6 +114,55 @@ impl PresetApplyTargets {
     }
 }
 
+/// 프리셋 적용 팝업마다 고른 프리셋 이름. 탭 팝업과 pane 팝업이 함께 열릴 수 있어 종류별로 둔다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct PresetPickerSelection {
+    workspace: Option<String>,
+    tab: Option<String>,
+    pane: Option<String>,
+}
+
+impl PresetPickerSelection {
+    pub(crate) fn get(&self, kind: PresetKind) -> Option<&str> {
+        self.slot(kind).as_deref()
+    }
+
+    pub(crate) fn set(&mut self, kind: PresetKind, name: Option<String>) {
+        *self.slot_mut(kind) = name;
+    }
+
+    pub(crate) fn clear(&mut self, kind: PresetKind) {
+        self.set(kind, None);
+    }
+
+    /// 그 종류 팝업의 선택만 자기 목록에 맞춘다. 없거나 목록에 없으면 첫 항목을 고른다.
+    /// 함께 열린 다른 종류 팝업의 선택은 건드리지 않는다.
+    fn fit_to_list(&mut self, kind: PresetKind, names: &[String]) {
+        if self
+            .get(kind)
+            .is_none_or(|sel| !names.iter().any(|n| n == sel))
+        {
+            self.set(kind, names.first().cloned());
+        }
+    }
+
+    fn slot(&self, kind: PresetKind) -> &Option<String> {
+        match kind {
+            PresetKind::Workspace => &self.workspace,
+            PresetKind::Tab => &self.tab,
+            PresetKind::Pane => &self.pane,
+        }
+    }
+
+    fn slot_mut(&mut self, kind: PresetKind) -> &mut Option<String> {
+        match kind {
+            PresetKind::Workspace => &mut self.workspace,
+            PresetKind::Tab => &mut self.tab,
+            PresetKind::Pane => &mut self.pane,
+        }
+    }
+}
+
 /// 적용할 pane. 워크스페이스 프리셋은 대상 pane 이 없다(None).
 /// 탭·pane 프리셋은 열 때 정한 대상에 적용한다. 대상이 사라졌거나 팝업 종류와 대상 종류가 다르면
 /// Err 로 적용하지 않는다.
@@ -155,7 +204,7 @@ pub(crate) fn open_for_pane(
         tracing::warn!("{kind:?} preset popup not opened: pane {pane_id} has no target");
         return false;
     };
-    state.dialogs.preset_picker_selected = None;
+    state.dialogs.preset_picker_selection.clear(kind);
     state.dialogs.preset_apply_targets.set(target);
     // 새 요청이 대상을 바꾸므로 다른 탭·pane 에 열려 있으면 새 범위로 다시 연다.
     state.dispatch_intent(dispatch(crate::intent::UiIntent::ReopenPopup {
@@ -171,27 +220,33 @@ pub fn on_close_apply_workspace_popup(
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
-    state.dialogs.preset_picker_selected = None;
+    state
+        .dialogs
+        .preset_picker_selection
+        .clear(PresetKind::Workspace);
     state.dialogs.preset_apply_target_category = None;
 }
 
-/// 탭 프리셋 팝업이 닫힐 때 선택과 그 팝업의 대상만 비운다. pane 팝업의 대상은 그대로 둔다.
+/// 탭 프리셋 팝업이 닫힐 때 그 팝업의 선택과 대상만 비운다. pane 팝업의 선택과 대상은 그대로 둔다.
 pub fn on_close_apply_tab_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
-    state.dialogs.preset_picker_selected = None;
+    state.dialogs.preset_picker_selection.clear(PresetKind::Tab);
     state.dialogs.preset_apply_targets.clear(PresetKind::Tab);
 }
 
-/// pane 프리셋 팝업이 닫힐 때 선택과 그 팝업의 대상만 비운다. 탭 팝업의 대상은 그대로 둔다.
+/// pane 프리셋 팝업이 닫힐 때 그 팝업의 선택과 대상만 비운다. 탭 팝업의 선택과 대상은 그대로 둔다.
 pub fn on_close_apply_pane_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
-    state.dialogs.preset_picker_selected = None;
+    state
+        .dialogs
+        .preset_picker_selection
+        .clear(PresetKind::Pane);
     state.dialogs.preset_apply_targets.clear(PresetKind::Pane);
 }
 
@@ -228,15 +283,10 @@ fn draw_apply_popup(
     let th = theme::theme();
     let names = state.preset_store.list(kind);
 
-    if state.dialogs.preset_picker_selected.is_none() {
-        if let Some(first) = names.first() {
-            state.dialogs.preset_picker_selected = Some(first.clone());
-        }
-    } else if let Some(sel) = state.dialogs.preset_picker_selected.as_deref()
-        && !names.iter().any(|n| n == sel)
-    {
-        state.dialogs.preset_picker_selected = names.first().cloned();
-    }
+    state
+        .dialogs
+        .preset_picker_selection
+        .fit_to_list(kind, &names);
 
     let empty_label = t("preset.popup.empty");
     let apply_label = t("preset.popup.apply_button");
@@ -248,7 +298,7 @@ fn draw_apply_popup(
         apply_button_label: apply_label,
         cancel_button_label: cancel_label,
         names: &names,
-        selected: state.dialogs.preset_picker_selected.as_deref(),
+        selected: state.dialogs.preset_picker_selection.get(kind),
     };
 
     let action = draw_apply_preset_view(ui, &props);
@@ -257,7 +307,7 @@ fn draw_apply_popup(
         ApplyPresetAction::None => PopupAction::None,
         ApplyPresetAction::Cancel => PopupAction::Close,
         ApplyPresetAction::Select(name) => {
-            state.dialogs.preset_picker_selected = Some(name);
+            state.dialogs.preset_picker_selection.set(kind, Some(name));
             PopupAction::None
         }
         ApplyPresetAction::Apply(name) => {
@@ -277,7 +327,7 @@ fn draw_apply_popup(
                 }
                 .from_user_menu("preset_apply_popup"),
             );
-            state.dialogs.preset_picker_selected = None;
+            state.dialogs.preset_picker_selection.clear(kind);
             PopupAction::Close
         }
     }
@@ -740,6 +790,51 @@ mod tests {
                 &read
             ),
             Ok(Some(10))
+        );
+    }
+
+    /// 탭 팝업과 pane 팝업이 함께 그려져도 탭 팝업의 선택은 pane 목록에 맞춰지지 않는다.
+    #[test]
+    fn drawing_the_pane_popup_keeps_the_tab_popup_selection() {
+        let mut selection = PresetPickerSelection::default();
+        let tabs = vec!["alpha".to_string(), "beta".to_string()];
+        let panes = vec!["solo".to_string()];
+        selection.set(PresetKind::Tab, Some("beta".into()));
+        for _ in 0..2 {
+            selection.fit_to_list(PresetKind::Tab, &tabs);
+            selection.fit_to_list(PresetKind::Pane, &panes);
+        }
+        assert_eq!(selection.get(PresetKind::Tab), Some("beta"));
+        assert_eq!(selection.get(PresetKind::Pane), Some("solo"));
+    }
+
+    /// pane 팝업을 열고 닫아도 탭 팝업의 선택은 그대로다.
+    #[test]
+    fn opening_and_closing_the_pane_popup_keeps_the_tab_popup_selection() {
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        let read = session.read();
+        assert!(open_for_pane(
+            &mut state,
+            &read,
+            PresetKind::Tab,
+            10,
+            crate::intent::UiIntent::from_user_context_menu,
+        ));
+        state
+            .dialogs
+            .preset_picker_selection
+            .set(PresetKind::Tab, Some("beta".into()));
+        assert!(open_for_pane(
+            &mut state,
+            &read,
+            PresetKind::Pane,
+            20,
+            crate::intent::UiIntent::from_user_context_menu,
+        ));
+        on_close_apply_pane_popup(&egui::Context::default(), &mut state, &read);
+        assert_eq!(
+            state.dialogs.preset_picker_selection.get(PresetKind::Tab),
+            Some("beta")
         );
     }
 

@@ -1447,7 +1447,10 @@ fn preset_apply_x_button_close_clears_selection_and_target_category() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
     state.dialogs.preset_apply_target_category = Some(cat_id);
-    state.dialogs.preset_picker_selected = Some("my-preset".to_string());
+    state.dialogs.preset_picker_selection.set(
+        tasty_presets::PresetKind::Workspace,
+        Some("my-preset".to_string()),
+    );
     state.popups.open_at_focused(
         APPLY_WORKSPACE_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -1463,7 +1466,13 @@ fn preset_apply_x_button_close_clears_selection_and_target_category() {
 
     assert!(!state.popups.is_open(APPLY_WORKSPACE_POPUP_ID));
     assert!(state.dialogs.preset_apply_target_category.is_none());
-    assert!(state.dialogs.preset_picker_selected.is_none());
+    assert!(
+        state
+            .dialogs
+            .preset_picker_selection
+            .get(tasty_presets::PresetKind::Workspace)
+            .is_none()
+    );
 }
 
 #[test]
@@ -1472,7 +1481,10 @@ fn preset_apply_outside_click_close_clears_selection_and_target_category() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
     state.dialogs.preset_apply_target_category = Some(cat_id);
-    state.dialogs.preset_picker_selected = Some("my-preset".to_string());
+    state.dialogs.preset_picker_selection.set(
+        tasty_presets::PresetKind::Workspace,
+        Some("my-preset".to_string()),
+    );
     state.popups.open_at_focused(
         APPLY_WORKSPACE_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -1487,7 +1499,13 @@ fn preset_apply_outside_click_close_clears_selection_and_target_category() {
 
     assert!(!state.popups.is_open(APPLY_WORKSPACE_POPUP_ID));
     assert!(state.dialogs.preset_apply_target_category.is_none());
-    assert!(state.dialogs.preset_picker_selected.is_none());
+    assert!(
+        state
+            .dialogs
+            .preset_picker_selection
+            .get(tasty_presets::PresetKind::Workspace)
+            .is_none()
+    );
 }
 
 #[test]
@@ -1496,7 +1514,10 @@ fn preset_apply_cancel_action_close_clears_selection_and_target_category() {
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
     state.dialogs.preset_apply_target_category = Some(cat_id);
-    state.dialogs.preset_picker_selected = Some("my-preset".to_string());
+    state.dialogs.preset_picker_selection.set(
+        tasty_presets::PresetKind::Workspace,
+        Some("my-preset".to_string()),
+    );
     state.popups.open_at_focused(
         APPLY_WORKSPACE_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -1507,7 +1528,13 @@ fn preset_apply_cancel_action_close_clears_selection_and_target_category() {
 
     assert!(!state.popups.is_open(APPLY_WORKSPACE_POPUP_ID));
     assert!(state.dialogs.preset_apply_target_category.is_none());
-    assert!(state.dialogs.preset_picker_selected.is_none());
+    assert!(
+        state
+            .dialogs
+            .preset_picker_selection
+            .get(tasty_presets::PresetKind::Workspace)
+            .is_none()
+    );
 }
 
 /// 다음 실패는 그 실패의 범위로 다시 연다.

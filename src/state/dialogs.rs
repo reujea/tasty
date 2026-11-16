@@ -169,7 +169,9 @@ pub struct DialogState {
     pub(crate) pending_open_preset_window: bool,
     /// 프리셋 창을 열 때 선택할 항목.
     pub(crate) pending_preset_window_selection: Option<(tasty_presets::PresetKind, String)>,
-    pub(crate) preset_picker_selected: Option<String>,
+    /// 프리셋 적용 팝업마다의 선택. 탭·pane 팝업이 함께 열릴 수 있어 종류별로 둔다.
+    pub(crate) preset_picker_selection:
+        crate::adapters::ui::popup::preset_apply::PresetPickerSelection,
     /// 복사 모드 진입 요청. 후속 단축키 처리에서 포커스를 확인한다.
     pub(crate) pending_enter_copy_mode: bool,
     /// 축소 사이드바 카테고리 팝업의 대상 ID.
@@ -260,7 +262,7 @@ impl DialogState {
             dag_list: Default::default(),
             pending_preset_window_selection: None,
             pending_open_preset_window: false,
-            preset_picker_selected: None,
+            preset_picker_selection: Default::default(),
             pending_enter_copy_mode: false,
             rail_category_popup: None,
             preset_apply_target_category: None,

@@ -877,7 +877,10 @@ impl MainView {
         use tasty_presets::PresetKind;
         let (kind, action) = match scope {
             PresetApplyScope::Workspace => {
-                state.dialogs.preset_picker_selected = None;
+                state
+                    .dialogs
+                    .preset_picker_selection
+                    .clear(tasty_presets::PresetKind::Workspace);
                 state.dispatch_intent(
                     UiIntent::OpenPopup {
                         id: preset_apply::APPLY_WORKSPACE_POPUP_ID,

@@ -1205,7 +1205,10 @@ impl MainView {
                     // 이 카테고리 소속으로 프리셋 적용 — "+" 버튼 메뉴와 동일 팝업
                     // (APPLY_WORKSPACE_POPUP_ID) 재사용, 대상 카테고리만 임시 상태로 기억.
                     this.state.dialogs.preset_apply_target_category = Some(cat_id);
-                    this.state.dialogs.preset_picker_selected = None;
+                    this.state
+                        .dialogs
+                        .preset_picker_selection
+                        .clear(tasty_presets::PresetKind::Workspace);
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
@@ -1947,7 +1950,10 @@ impl MainView {
             &items,
             move |this, _engine, result| match result {
                 Some(1) => {
-                    this.state.dialogs.preset_picker_selected = None;
+                    this.state
+                        .dialogs
+                        .preset_picker_selection
+                        .clear(tasty_presets::PresetKind::Workspace);
                     this.state.dispatch_intent(
                         crate::intent::UiIntent::OpenPopup {
                             id: crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID,
