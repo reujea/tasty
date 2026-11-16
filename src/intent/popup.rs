@@ -183,6 +183,7 @@ mod tests {
             "test_popup",
             "Test".to_string(),
             egui::vec2(200.0, 100.0),
+            crate::model::popup_kind::PopupScope::Window,
         ));
         (state, engine_session)
     }
@@ -435,6 +436,7 @@ mod tests {
             "other_popup",
             "Other".to_string(),
             egui::vec2(200.0, 100.0),
+            crate::model::popup_kind::PopupScope::Window,
         ));
         let mut engine = engine_session.borrow_mut();
         open_passive(&mut state, &mut engine);

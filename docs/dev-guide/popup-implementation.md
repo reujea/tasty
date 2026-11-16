@@ -117,7 +117,7 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 
 ### `PopupDecl` 속성
 
-`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `covers_scope = false`, `instances = Single` 만 다르다. 정의 없이 쓰는 팝업(설정 창의 `keybinding_conflict`)도 `PopupState::declared` 로 같은 선언을 쓴다. 설정 창 파일 선택기는 `file_picker` 정의의 선언을 그대로 복사한다.
+`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `covers_scope = false`, `instances = Single` 만 다르다. 정의 없이 쓰는 팝업(설정 창의 `keybinding_conflict`)도 `PopupState::declared` 로 같은 선언을 쓴다. `PopupState::new`·`declared`는 범위를 인자로 받으며 기본 범위가 없다. 등록(`register_def`)과 설정 창의 `keybinding_conflict`는 `Window`를 넘긴다. 열 때는 열기 함수가 범위를 다시 정한다. 설정 창 파일 선택기는 `file_picker` 정의의 선언을 그대로 복사한다.
 
 | 속성 | 값 | `PopupDecl::new` 기본값 | 지금 읽는 곳 |
 |------|----|------|------|

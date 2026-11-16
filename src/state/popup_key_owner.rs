@@ -61,6 +61,7 @@ mod tests {
             "host_popup",
             "Host".to_string(),
             egui::vec2(200.0, 100.0),
+            crate::model::popup_kind::PopupScope::Window,
         ));
         state
     }

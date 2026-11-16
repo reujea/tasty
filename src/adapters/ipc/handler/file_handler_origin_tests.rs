@@ -982,6 +982,7 @@ fn a_press_on_a_passive_picker_hidden_by_its_scope_keeps_the_proof_and_the_other
             OTHER,
             "Other".to_string(),
             egui::vec2(200.0, 100.0),
+            crate::model::popup_kind::PopupScope::Window,
         ));
     // 범위 대상은 실제로 있어야 한다. 없으면 draw 가 고아 팝업으로 닫는다.
     let picker_workspace = p.engine_session.borrow_mut().workspace_at(0).unwrap().id;

@@ -14,6 +14,7 @@ fn picker_state(size: egui::Vec2) -> crate::adapters::ui::popup::PopupState {
         &def.decl,
         def.scrim_input,
         def.drag_region,
+        crate::model::popup_kind::PopupScope::Window,
     );
     popup.size = size;
     popup

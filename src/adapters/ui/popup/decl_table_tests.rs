@@ -178,6 +178,7 @@ fn registered() -> Vec<PopupState> {
         &crate::view::settings::ui::KEYBINDING_CONFLICT_DECL,
         ScrimInput::VisualOnly,
         None,
+        crate::model::popup_kind::PopupScope::Window,
     ));
     crate::view::file_chooser::register(&mut mgr);
     mgr.popups

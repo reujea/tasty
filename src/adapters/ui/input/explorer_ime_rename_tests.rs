@@ -160,9 +160,12 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
         },
         String::new(),
     ));
-    state
-        .popups
-        .register(PopupState::new("rename", "", egui::Vec2::ZERO));
+    state.popups.register(PopupState::new(
+        "rename",
+        "",
+        egui::Vec2::ZERO,
+        crate::model::popup_kind::PopupScope::Window,
+    ));
     state
         .popups
         .open_centered_focused("rename", crate::model::popup_kind::PopupScope::Window);
@@ -175,9 +178,12 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
     state.plugin_popup_open = true;
     assert_eq!(rename_input_owner(&state, &read), None);
     state.plugin_popup_open = false;
-    state
-        .popups
-        .register(PopupState::new("other", "", egui::Vec2::ZERO));
+    state.popups.register(PopupState::new(
+        "other",
+        "",
+        egui::Vec2::ZERO,
+        crate::model::popup_kind::PopupScope::Window,
+    ));
     state
         .popups
         .open_centered_focused("other", crate::model::popup_kind::PopupScope::Window);

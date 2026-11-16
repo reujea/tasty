@@ -386,7 +386,13 @@ fn child_overlay_hit(ctx: &egui::Context, popup_id: PopupId, pos: egui::Pos2) ->
 }
 
 impl PopupState {
-    pub fn new(id: PopupId, title: impl Into<String>, default_size: egui::Vec2) -> Self {
+    /// 범위는 만들 때 받는다. 기본값을 두지 않는다. 열 때마다 열기 함수가 다시 정한다.
+    pub fn new(
+        id: PopupId,
+        title: impl Into<String>,
+        default_size: egui::Vec2,
+        scope: PopupScope,
+    ) -> Self {
         Self {
             id,
             title: title.into(),
@@ -396,7 +402,7 @@ impl PopupState {
             size: default_size,
             dragging: false,
             drag_offset: egui::Vec2::ZERO,
-            scope: PopupScope::Window,
+            scope,
             focused: false,
             passive: false,
             close_on_outside_click: false,
@@ -425,6 +431,7 @@ impl PopupState {
         decl: &PopupDecl,
         scrim_input: ScrimInput,
         drag_region: Option<fn(&PopupState) -> egui::Rect>,
+        scope: PopupScope,
     ) -> Self {
         let size = vec2_of(decl.size);
         let drag_handle = match (decl.drag_handle, drag_region) {
@@ -436,7 +443,7 @@ impl PopupState {
                 DragHandle::None
             }
         };
-        let mut popup = Self::new(id, title, size)
+        let mut popup = Self::new(id, title, size, scope)
             .with_close_on_outside_click(decl.closes_on_outside_click())
             .with_headless(decl.is_headless())
             .with_sticky_focus(decl.sticky_focus)
@@ -445,12 +452,6 @@ impl PopupState {
             .with_min_size(decl.min_size.map_or(size, vec2_of));
         popup.look = PopupLook::of(decl, scrim_input);
         popup
-    }
-
-    /// Create a popup with a specific scope.
-    pub fn with_scope(mut self, scope: PopupScope) -> Self {
-        self.scope = scope;
-        self
     }
 
     /// Set whether clicking outside this popup should close it.
@@ -641,8 +642,8 @@ impl PopupManager {
             &def.decl,
             def.scrim_input,
             def.drag_region,
+            PopupScope::Window,
         )
-        .with_scope(PopupScope::Window)
         .with_fullscreen_stage(def.fullscreen_stage);
         if def.sizer.is_none() {
             popup.size *= ui_zoom;
@@ -964,8 +965,13 @@ mod tests {
     const DUMMY_ID: PopupId = "on_close_hook_test_dummy";
 
     fn dummy(close_on_outside_click: bool) -> PopupState {
-        PopupState::new(DUMMY_ID, "dummy", egui::vec2(200.0, 100.0))
-            .with_close_on_outside_click(close_on_outside_click)
+        PopupState::new(
+            DUMMY_ID,
+            "dummy",
+            egui::vec2(200.0, 100.0),
+            PopupScope::Window,
+        )
+        .with_close_on_outside_click(close_on_outside_click)
     }
 
     /// 타이틀바 전체화면 버튼용 더미 — 크기/위치를 고정해 rect 산술을 단정한다.
@@ -973,9 +979,14 @@ mod tests {
         stage: Option<crate::adapters::ui::fullscreen::StageId>,
         headless: bool,
     ) -> PopupState {
-        PopupState::new(DUMMY_ID, "dummy", egui::vec2(300.0, 200.0))
-            .with_headless(headless)
-            .with_fullscreen_stage(stage)
+        PopupState::new(
+            DUMMY_ID,
+            "dummy",
+            egui::vec2(300.0, 200.0),
+            PopupScope::Window,
+        )
+        .with_headless(headless)
+        .with_fullscreen_stage(stage)
     }
 
     /// 버튼은 **무대를 선언한 non-headless popup 에만** 그려진다. 플래그가 없으면

@@ -424,6 +424,8 @@ impl SettingsUiState {
             &KEYBINDING_CONFLICT_DECL,
             ScrimInput::VisualOnly,
             None,
+            // 설정 창 전체에 작용한다.
+            crate::model::popup_kind::PopupScope::Window,
         ));
         file_chooser::register(&mut popups);
         Self {
