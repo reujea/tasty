@@ -127,9 +127,9 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | `fit` | Collapse / Shrink | Collapse | 없음. 지금은 모든 host 팝업이 범위에 맞춰 줄어든다. `search_bar` 만 `Shrink` 로 선언했다 |
 | `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor | ScopeCenter | 없음. 위치는 여는 쪽 `OpenPopupMode` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
 | `scope_inset` | bool | true | 없음. Surface 범위의 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다 |
-| `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenPopupMode` 와 요청 출처가 정한다 |
-| `keyboard` | None / Keys / Text | Keys | 없음. `rename` 만 `Text` 다 |
-| `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 값은 지금 각 팝업이 Esc 에 하는 일을 적었다 |
+| `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenPopupMode` 와 요청 출처가 정한다. 값은 사용자가 여는 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `notifications`·`transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 둘이 false 다 |
+| `keyboard` | None / Keys / Text | Keys | 없음. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸)와 그 선언을 복사한 설정 창 파일 선택기 |
+| `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 둘이 `Unfocus` 다 |
 | `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |
 | `sticky_focus` | bool | false | 바깥 클릭에도 키보드 포커스 유지 |
 | `chrome` | TitleBar / Headless | TitleBar | 공통 타이틀바·닫기 버튼을 그릴지 |

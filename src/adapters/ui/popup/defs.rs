@@ -207,6 +207,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     shadow: PopupShadow::Popover,
                     anchor: PopupAnchor::ScopeTop,
                     fit: PopupFit::Shrink,
+                    // 검색어 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(crate::adapters::ui::search_bar::search_bar_default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -252,6 +254,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     escape: PopupEscape::Unfocus,
                     focus_on_open: false,
+                    // 의견 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(480.0, 240.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -300,6 +304,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // 오류 상태의 Secondary 버튼(surface-raised)이 묻히지 않도록 시안 창 배경 bg-panel 을 쓴다.
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
+                    // 저장 모드의 이름 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(640.0, 480.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -323,6 +329,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
+                    // 검색 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(660.0, 520.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -348,6 +356,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     // 처음 등록할 때의 전역 UI 배율로 palette-width를 한 번 계산한다. sizer가 매 프레임
                     // 실제 크기로 덮어쓰므로 이후 배율이 바뀌어도 동작에는 영향이 없다.
+                    // 검색어 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(palette_width, 412.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -374,6 +384,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // 시안 바탕이 bg-panel 이다. surface-raised 위에서는 검색 칸의 input-bg·input-border 가 바탕과 같아진다.
                     shell: PopupShell::Panel,
                     // sizer가 배율을 적용한 토큰으로 크기를 계산한다.
+                    // 검색 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(560.0, 460.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -397,6 +409,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
+                    // 프로필 양식의 입력칸이 글자를 편집한다.
+                    keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(520.0, 460.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -536,6 +550,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     resizable: false,
                     min_size: None,
                     escape: PopupEscape::Unfocus,
+                    // 수신을 시작하면 open_centered로 열려 포커스를 받지 않는다.
+                    focus_on_open: false,
                     ..host_decl(popup_size(super::download_run::download_run_default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,
