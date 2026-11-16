@@ -441,6 +441,15 @@ impl App {
         })
     }
     pub(crate) fn remote_target_is_current(&self, target: &RemoteTarget) -> bool {
+        self.remote_target_surface_is_current(target, true)
+    }
+
+    /// 요청을 받은 연결과 그 mirror workspace가 아직 살아 있는지만 본다. 대상 surface는 보지 않는다.
+    pub(crate) fn remote_connection_is_current(&self, target: &RemoteTarget) -> bool {
+        self.remote_target_surface_is_current(target, false)
+    }
+
+    fn remote_target_surface_is_current(&self, target: &RemoteTarget, check_surface: bool) -> bool {
         if !target.sender.epoch().is_active() {
             return false;
         }
@@ -464,6 +473,9 @@ impl App {
         };
         if !engine.has_workspace(target.workspace) {
             return false;
+        }
+        if !check_surface {
+            return true;
         }
         target.surface.is_none_or(|(local, remote, generation)| {
             session.state.remote_to_local.get(&remote) == Some(&local)

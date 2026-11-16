@@ -252,12 +252,30 @@ impl App {
         {
             return;
         }
-        if remote_target
-            .as_ref()
-            .is_some_and(|target| !self.remote_target_is_current(target))
-        {
-            tracing::debug!("discarding upload result for retired remote target");
-            return;
+        let route = upload_result_route(
+            result.is_ok(),
+            remote_target.as_ref().map(|target| {
+                (
+                    self.remote_target_is_current(target),
+                    self.remote_connection_is_current(target),
+                )
+            }),
+        );
+        match route {
+            UploadResultRoute::Deliver => {}
+            UploadResultRoute::Stale => {
+                tracing::debug!("discarding upload result for retired remote target");
+                return;
+            }
+            UploadResultRoute::Disconnected => {
+                tracing::warn!(
+                    surface_id,
+                    mirror_ws_id,
+                    file = %file_name,
+                    "image upload failed after its connection closed; not shown",
+                );
+                return;
+            }
         }
         match result {
             Ok(remote_path) => {
@@ -380,6 +398,32 @@ impl App {
     }
 }
 
+/// 업로드 결과를 어디까지 전달할지.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UploadResultRoute {
+    /// 결과를 처리한다. 실패면 실패 팝업까지 보낸다.
+    Deliver,
+    /// 성공했지만 원래 surface가 바뀌었다. 다른 터미널에 경로를 넣지 않도록 버린다.
+    Stale,
+    /// 실패했고 연결도 끊겼다. 알릴 곳이 없어 버린다.
+    Disconnected,
+}
+
+/// `target`은 원격 대상이 있을 때 (원래 surface까지 그대로인지, 연결과 mirror workspace가 살아 있는지)다.
+/// 성공은 원래 surface가 그대로일 때만 전달한다. 실패는 surface가 닫혔어도 연결이 살아 있으면
+/// 전달해 그 workspace에서 알리게 한다.
+pub(crate) fn upload_result_route(
+    succeeded: bool,
+    target: Option<(bool, bool)>,
+) -> UploadResultRoute {
+    match target {
+        None | Some((true, _)) => UploadResultRoute::Deliver,
+        Some((false, _)) if succeeded => UploadResultRoute::Stale,
+        Some((false, true)) => UploadResultRoute::Deliver,
+        Some((false, false)) => UploadResultRoute::Disconnected,
+    }
+}
+
 /// 평균 전송률을 표시한다. 경과 시간이 0이면 대시를 반환한다.
 pub(crate) fn format_rate(sent: u64, elapsed: std::time::Duration) -> String {
     let secs = elapsed.as_secs_f64();
@@ -395,4 +439,40 @@ pub(crate) fn format_rate(sent: u64, elapsed: std::time::Duration) -> String {
         u += 1;
     }
     format!("{v:.1} {}", UNITS[u])
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::{UploadResultRoute, upload_result_route};
+
+    /// 업로드 중 surface가 닫혀도 연결이 살아 있으면 실패는 전달되어 workspace 범위로 알린다.
+    #[test]
+    fn a_failure_after_its_surface_closed_still_reaches_the_failure_popup() {
+        assert_eq!(
+            upload_result_route(false, Some((false, true))),
+            UploadResultRoute::Deliver
+        );
+    }
+
+    /// 성공은 원래 surface가 그대로일 때만 경로를 넣는다.
+    #[test]
+    fn a_success_for_a_changed_surface_is_discarded() {
+        assert_eq!(
+            upload_result_route(true, Some((false, true))),
+            UploadResultRoute::Stale
+        );
+        assert_eq!(
+            upload_result_route(true, Some((true, true))),
+            UploadResultRoute::Deliver
+        );
+    }
+
+    #[test]
+    fn a_failure_after_its_connection_closed_is_dropped() {
+        assert_eq!(
+            upload_result_route(false, Some((false, false))),
+            UploadResultRoute::Disconnected
+        );
+        assert_eq!(upload_result_route(false, None), UploadResultRoute::Deliver);
+    }
 }
