@@ -265,6 +265,86 @@ pub(crate) fn bed_focus_script(focused: bool) -> String {
     )
 }
 
+/// 다음 문서용 스크립트를 같은 호출 안에서 바꾸고 지금 문서 적용만 비동기로 끝나는 백엔드(macOS)의
+/// 전달 기록. 등록에는 완료도 실패도 없어 [`BedFocusDelivery`]의 등록 세대와 탐색 장벽이 필요 없다.
+/// 적용은 값이 바뀌거나 실패해 다시 할 때마다 번호를 올리고, 마지막 적용이 실패했을 때만
+/// [`Self::take_failed`]로 알린다. 상위층이 같은 값을 다시 요청하면 적용만 다시 한다.
+#[cfg(any(target_os = "macos", test))]
+#[derive(Default)]
+pub(crate) struct BedFocusApply {
+    /// 마지막으로 요청한 값.
+    value: Option<bool>,
+    /// 마지막 적용 번호.
+    applied: u64,
+    /// 마지막 적용이 실패해 같은 값의 요청이 오면 다시 한다.
+    apply_failed: bool,
+    /// 상위층에 아직 알리지 않은 실패.
+    failed: bool,
+    /// 상위층에 아직 알리지 않은 문서 탐색 완료.
+    loaded: bool,
+    /// 이미 경고를 남겼다. 그 뒤 실패는 debug로 남긴다.
+    warned: bool,
+}
+
+/// [`BedFocusApply::request`]가 정한 할 일.
+#[cfg(any(target_os = "macos", test))]
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct BedFocusApplyWork {
+    /// 다음 문서용 스크립트를 이 값으로 바꾼다.
+    pub(crate) replace_script: bool,
+    /// 이 번호로 지금 문서에 스크립트를 실행한다.
+    pub(crate) apply: u64,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl BedFocusApply {
+    /// 값을 요청한다. 새 값이면 스크립트를 바꾸고 적용한다. 같은 값이면 마지막 적용이 실패했을 때만
+    /// 적용을 다시 한다. 할 일이 없으면 `None`이다.
+    pub(crate) fn request(&mut self, focused: bool) -> Option<BedFocusApplyWork> {
+        let replace_script = self.value != Some(focused);
+        if replace_script {
+            self.value = Some(focused);
+            self.failed = false;
+        } else if !std::mem::take(&mut self.apply_failed) {
+            return None;
+        }
+        self.apply_failed = false;
+        self.applied += 1;
+        Some(BedFocusApplyWork {
+            replace_script,
+            apply: self.applied,
+        })
+    }
+
+    /// `number` 적용이 실패했다. 마지막 적용일 때만 실패로 둔다.
+    pub(crate) fn apply_failed(&mut self, number: u64) {
+        if number == self.applied {
+            self.apply_failed = true;
+            self.failed = true;
+        }
+    }
+
+    /// 마지막 요청이 실패했는지 돌려주고 표시를 지운다.
+    pub(crate) fn take_failed(&mut self) -> bool {
+        std::mem::take(&mut self.failed)
+    }
+
+    /// 실패를 경고로 남길지. view마다 첫 실패만 참이다.
+    pub(crate) fn first_failure(&mut self) -> bool {
+        !std::mem::replace(&mut self.warned, true)
+    }
+
+    /// 문서 탐색이 성공으로 끝났다. 상위층이 다시 보내기를 멈춘 값을 한 번 더 보낼 기회다.
+    pub(crate) fn document_loaded(&mut self) {
+        self.loaded = true;
+    }
+
+    /// 지난번 뒤로 문서 탐색이 성공으로 끝났는지 돌려주고 표시를 지운다.
+    pub(crate) fn take_loaded(&mut self) -> bool {
+        std::mem::take(&mut self.loaded)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,5 +576,65 @@ mod tests {
              e.style.removeProperty('--tasty-bed-focused');\
              e.style.setProperty('--tasty-bed-focused','initial');})();"
         );
+    }
+
+    fn apply_work(replace_script: bool, apply: u64) -> Option<BedFocusApplyWork> {
+        Some(BedFocusApplyWork {
+            replace_script,
+            apply,
+        })
+    }
+
+    #[test]
+    fn a_new_value_replaces_the_script_and_applies() {
+        let mut a = BedFocusApply::default();
+        assert_eq!(a.request(false), apply_work(true, 1));
+        assert_eq!(a.request(false), None);
+        assert_eq!(a.request(true), apply_work(true, 2));
+    }
+
+    #[test]
+    fn a_failed_apply_is_reported_once_and_only_the_apply_is_retried() {
+        let mut a = BedFocusApply::default();
+        assert_eq!(a.request(false), apply_work(true, 1));
+        a.apply_failed(1);
+        assert!(a.take_failed());
+        assert!(!a.take_failed());
+        assert_eq!(a.request(false), apply_work(false, 2));
+        // 다시 한 적용이 실패하지 않으면 더 할 일이 없다.
+        assert_eq!(a.request(false), None);
+        assert!(!a.take_failed());
+    }
+
+    #[test]
+    fn only_a_failure_of_the_latest_apply_counts() {
+        let mut a = BedFocusApply::default();
+        assert_eq!(a.request(true), apply_work(true, 1));
+        assert_eq!(a.request(false), apply_work(true, 2));
+        a.apply_failed(1);
+        assert!(!a.take_failed());
+        assert_eq!(a.request(false), None);
+    }
+
+    #[test]
+    fn a_new_value_clears_an_unreported_failure() {
+        let mut a = BedFocusApply::default();
+        assert_eq!(a.request(true), apply_work(true, 1));
+        a.apply_failed(1);
+        assert_eq!(a.request(false), apply_work(true, 2));
+        assert!(!a.take_failed());
+        assert_eq!(a.request(false), None);
+    }
+
+    #[test]
+    fn a_completed_navigation_is_reported_once_and_the_first_failure_warns() {
+        let mut a = BedFocusApply::default();
+        assert!(!a.take_loaded());
+        a.document_loaded();
+        a.document_loaded();
+        assert!(a.take_loaded());
+        assert!(!a.take_loaded());
+        assert!(a.first_failure());
+        assert!(!a.first_failure());
     }
 }

@@ -45,7 +45,7 @@ pub(crate) trait BedFocusSink {
     fn take_bed_focus_document_loaded(&self) -> bool;
 }
 
-#[cfg(windows)]
+#[cfg(any(target_os = "macos", windows))]
 impl BedFocusSink for PlatformWebView {
     fn set_bed_focused(&self, focused: bool) {
         PlatformWebView::set_bed_focused(self, focused);
@@ -60,20 +60,6 @@ impl BedFocusSink for PlatformWebView {
 
 /// Linux는 사용자 스타일시트를 같은 호출 안에서 넣고 빼며 다시 보내서 고칠 실패가 없다.
 #[cfg(target_os = "linux")]
-impl BedFocusSink for PlatformWebView {
-    fn set_bed_focused(&self, focused: bool) {
-        PlatformWebView::set_bed_focused(self, focused);
-    }
-    fn take_bed_focus_failed(&self) -> bool {
-        false
-    }
-    fn take_bed_focus_document_loaded(&self) -> bool {
-        false
-    }
-}
-
-/// macOS는 아직 지금 문서 적용의 실패를 알리지 않는다.
-#[cfg(target_os = "macos")]
 impl BedFocusSink for PlatformWebView {
     fn set_bed_focused(&self, focused: bool) {
         PlatformWebView::set_bed_focused(self, focused);
@@ -188,7 +174,7 @@ mod tests {
     use std::cell::{Cell, RefCell};
 
     use super::{BedFocusRecord, BedFocusSink, MAX_RETRIES, receives, step, to_send};
-    use crate::webview::bed_focus::{BedFocusDelivery, BedFocusWork};
+    use crate::webview::bed_focus::{BedFocusApply, BedFocusDelivery, BedFocusWork};
 
     /// 받은 값을 적고, 다음 회수에서 돌려줄 실패 표시를 갖는 가짜 백엔드.
     #[derive(Default)]
@@ -222,6 +208,27 @@ mod tests {
         fn set_bed_focused(&self, focused: bool) {
             let work = self.delivery.borrow_mut().request(focused);
             self.work.borrow_mut().extend(work);
+        }
+        fn take_bed_focus_failed(&self) -> bool {
+            self.delivery.borrow_mut().take_failed()
+        }
+        fn take_bed_focus_document_loaded(&self) -> bool {
+            self.delivery.borrow_mut().take_loaded()
+        }
+    }
+
+    /// macOS 백엔드 기록(`BedFocusApply`)에 요청을 넘기고 지금 문서 적용 번호를 적는 가짜 백엔드.
+    #[derive(Default)]
+    struct ApplySink {
+        delivery: RefCell<BedFocusApply>,
+        applies: RefCell<Vec<(bool, u64)>>,
+    }
+
+    impl BedFocusSink for ApplySink {
+        fn set_bed_focused(&self, focused: bool) {
+            if let Some(work) = self.delivery.borrow_mut().request(focused) {
+                self.applies.borrow_mut().push((focused, work.apply));
+            }
         }
         fn take_bed_focus_failed(&self) -> bool {
             self.delivery.borrow_mut().take_failed()
@@ -467,5 +474,41 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// macOS: 지금 문서 적용이 실패하면 다음 동기화에서 다시 적용하고, 성공하면 더 보내지 않는다.
+    #[test]
+    fn a_failed_apply_is_applied_again_and_stops_after_it_holds() {
+        let sink = ApplySink::default();
+        let sent = step(&sink, Some(false), None);
+        sink.delivery.borrow_mut().apply_failed(1);
+        let mut sent = step(&sink, Some(false), sent);
+        assert_eq!(*sink.applies.borrow(), vec![(false, 1), (false, 2)]);
+        for _ in 0..5 {
+            sent = step(&sink, Some(false), sent);
+        }
+        assert_eq!(sink.applies.borrow().len(), 2);
+        // 탐색 완료가 와도 성공한 값은 다시 보내지 않는다.
+        sink.delivery.borrow_mut().document_loaded();
+        step(&sink, Some(false), sent);
+        assert_eq!(sink.applies.borrow().len(), 2);
+    }
+
+    /// macOS: 실패가 계속되면 한 번 다시 적용한 뒤 멈추고, 탐색 완료 하나마다 한 번 더 적용한다.
+    #[test]
+    fn an_apply_that_keeps_failing_is_applied_again_once_per_completed_navigation() {
+        let sink = ApplySink::default();
+        let mut sent = None;
+        for _ in 0..5 {
+            sent = step(&sink, Some(true), sent);
+            let last = sink.applies.borrow().last().map(|(_, n)| *n);
+            if let Some(n) = last {
+                sink.delivery.borrow_mut().apply_failed(n);
+            }
+        }
+        assert_eq!(sink.applies.borrow().len(), 1 + usize::from(MAX_RETRIES));
+        sink.delivery.borrow_mut().document_loaded();
+        step(&sink, Some(true), sent);
+        assert_eq!(sink.applies.borrow().len(), 2 + usize::from(MAX_RETRIES));
     }
 }

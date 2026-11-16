@@ -84,6 +84,8 @@ struct NavDelegateIvars {
     cancelled_decisions: RefCell<CancelledDecisions>,
     /// web content process가 끝났고 동기화 루프가 아직 꺼내 가지 않았다.
     content_process_ended: Cell<bool>,
+    /// 성공한 탐색을 바탕 포커스 전달에 알린다(`bed_focus`).
+    bed_focus: bed_focus::Delivery,
 }
 
 define_class!(
@@ -119,6 +121,7 @@ define_class!(
             tracing::debug!("WebView surface {sid}: load finished");
             self.ivars().chrome_navigation_ended(navigation, true);
             self.ivars().gate_navigation_ended(navigation);
+            self.ivars().bed_focus.borrow_mut().document_loaded();
         }
 
         /// main frame 문서가 commit됐다(docs/surfaces/html/index.md 후보 이벤트, 미측정).
@@ -413,7 +416,7 @@ impl NavDelegate {
     fn new(
         mtm: MainThreadMarker,
         surface_id: u32,
-        nav_state: Rc<Cell<NavState>>,
+        (nav_state, bed_focus): (Rc<Cell<NavState>>, bed_focus::Delivery),
         navigations: NavigationRecorder,
         (script_gate, remote): (Rc<RefCell<Option<ScriptGate>>>, RemoteBlock),
         entry_source: Option<EntryResponseSource>,
@@ -435,6 +438,7 @@ impl NavDelegate {
             pending_decision: RefCell::new(None),
             cancelled_decisions: RefCell::new(CancelledDecisions::default()),
             content_process_ended: Cell::new(false),
+            bed_focus,
         });
         // SAFETY: NSObject 의 지정 초기화자 init 을 super 로 호출.
         unsafe { msg_send![super(this), init] }
@@ -776,10 +780,11 @@ impl PlatformWebView {
                 http.is_some(),
                 mtm,
             );
+            let bed_focus = bed_focus::BedFocus::default();
             let nav_delegate = NavDelegate::new(
                 mtm,
                 surface_id,
-                nav_state.clone(),
+                (nav_state.clone(), bed_focus.delivery()),
                 NavigationRecorder {
                     attempts: pending_navigations.clone(),
                     click,
@@ -804,7 +809,7 @@ impl PlatformWebView {
                 _nav_delegate: nav_delegate,
                 mask: RefCell::new(MaskInput::default()),
                 applied_mask: RefCell::new(None),
-                bed_focus: bed_focus::BedFocus::default(),
+                bed_focus,
             })
         }
     }
@@ -1146,15 +1151,6 @@ impl PlatformWebView {
     pub fn debug_stop(&self) {
         // SAFETY: main thread WKWebView API.
         unsafe { self.webview.stopLoading() };
-    }
-
-    /// 바탕 포커스 상태를 문서에 둔다. 다음에 싣는 문서에도 남는다(`bed_focus`).
-    pub fn set_bed_focused(&self, focused: bool) {
-        let Some(mtm) = MainThreadMarker::new() else {
-            tracing::warn!("set_bed_focused called off the main thread; bed focus is not applied");
-            return;
-        };
-        self.bed_focus.set(&self.webview, focused, mtm);
     }
 
     /// Follow는 상속, Light/Dark는 AppKit appearance를 지정한다.
