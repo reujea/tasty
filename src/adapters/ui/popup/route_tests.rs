@@ -240,3 +240,6 @@ fn the_fullscreen_stage_takes_the_keys() {
         Some(KeyTarget::Overlay)
     );
 }
+
+#[path = "route_repro_tests.rs"]
+mod repro;
