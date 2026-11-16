@@ -71,7 +71,7 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 | `debug.popup.list` | `{}` | contribute 된 popup 정의 + 현재 열린 instance (각 instance 에 `z_seq` — host popup 과 공유하는 전역 시퀀스라 `debug.host_popup.list` 값과 직접 비교 가능 — 와 소속 범위 `scope`(매니페스트 선언) · `scope_surface`(host 진입점이 바인딩한 대상, 없으면 `null`)) |
 | `debug.popup.open` | `plugin_id, popup_id, context?` | popup 인스턴스 강제 open (응답에 `instance_id`) |
 | `debug.popup.close` | `instance_id` | 팝업 인스턴스를 닫는다. release의 플러그인 `popup.close`와 같은 큐를 사용해 부모·자식 팝업 정리까지 같은 경로로 검증한다([내부 팝업 시스템](../design/systems/popup.md)) |
-| `debug.host_popup.list` | `{}` | 호스트 빌트인 popup(`PopupDef`) 전체 목록 (id + title_key + `close_on_outside_click`). 열려 있는 항목은 `open:true` 와 함께 `z_seq`·`rect`(논리 pt) 를 노출한다 — 겹친 popup 의 마우스 소유권 판정을 좌표 실측 없이 검증하기 위한 관찰면 |
+| `debug.host_popup.list` | `{}` | 호스트 빌트인 popup(`PopupDef`) 전체 목록 (id + title_key + `close_on_outside_click` + 선언 `decl` 전체 + 열린 범위의 종류 `open_scope_kind`). 열려 있는 항목은 `open:true` 와 함께 `z_seq`·`rect`(논리 pt) 를 노출한다 — 겹친 popup 의 마우스 소유권 판정을 좌표 실측 없이 검증하기 위한 관찰면 |
 | `debug.host_popup.open` | `popup_id, workspace_scope?` | 호스트 빌트인 popup 을 focused window 중앙에 강제 open (사용자 클릭 경로 우회, 시각 검증용). 사용자 조작 재현이므로 사용자 출처로 열어 키보드 포커스를 준다. `workspace_scope:true` 면 활성 workspace 스코프로 연다 — 런타임 스코프 주입(`OpenPopupMode::WithScope`)을 쓰는 popup(`dag_list`)의 가시성 게이트를 재현하려면 이 플래그가 필요하다 |
 | `debug.host_popup.close` | `popup_id` | 호스트 빌트인 popup 강제 close |
 | `debug.modifier_hint.hold` | `ctrl?`, `alt?`, `option?`, `shift?`, `elapsed_ms?` | modifier-hint 오버레이의 홀드 조합을 직접 세팅(생략 축=false, 모두 false 면 홀드 해제). `elapsed_ms` 는 홀드 타이머를 그만큼 과거로 백데이트해 표시 지연(500/1200ms) 게이트를 즉시 통과. 실 modifier 홀드 우회 force-state(사용자 홀드 경로 우회). 응답은 `state` 와 동일한 렌더 상태 덤프 |

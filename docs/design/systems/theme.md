@@ -419,7 +419,7 @@ disabled 컨트롤은 opacity로 흐리게 그리지 않는다. 변형과 관계
 
 search bar는 범위 상단 중앙에 있어도 scrim 없이 콘텐츠 위에 놓이므로 popover에 속한다. 좌표를 계산한 방식만으로 종류를 정하지 않는다. 갤러리 공용 셸도 `frame_card`·`frame_card_popover`·`frame_card_flat`으로 같은 구분을 사용한다. Settings 창 셸, image surface의 pane 콘텐츠, 다른 표면 안의 섹션은 flat이다.
 
-셸을 직접 그리는 갤러리 예제도 확인한다. 공용 셸 호출만 검색하면 DAG·remote attach·transfer·file picker·popup frame 등이 빠질 수 있다. popup 대응 목록은 `gallery_specimen_parity.rs`, 앱의 선택 함수는 `popup_shadow`다.
+셸을 직접 그리는 갤러리 예제도 확인한다. 공용 셸 호출만 검색하면 DAG·remote attach·transfer·file picker·popup frame 등이 빠질 수 있다. popup 대응 목록은 `gallery_specimen_parity.rs`, 앱은 정의의 `decl.shadow`(`PopupShadow::Modal`·`Popover`)로 그림자를 고른다(`popup::draw::shadow_token`).
 
 `Shadow {}` 생성은 `ShadowToken::to_egui()`로 모은다. 페이드가 필요하면 변환 결과의 color에만 opacity를 적용하고 offset·blur·spread는 바꾸지 않는다. egui 기본값도 `visuals.popup_shadow`는 popover, `visuals.window_shadow`는 modal에 연결한다. 직접 프레임을 넘긴 호출부는 자신의 shadow 설정을 사용한다.
 

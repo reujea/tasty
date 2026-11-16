@@ -76,7 +76,7 @@ pub fn on_close_script_confirm_popup(
 /// 등록 크기. 본문 높이를 아직 재지 않은 첫 프레임에도 쓴다(배율 전 값).
 const DEFAULT_SIZE: (LogicalPx, LogicalPx) = (LogicalPx(360.0), LogicalPx(152.0));
 
-/// PopupDef.default_size.
+/// PopupDef.decl.size.
 pub fn script_confirm_default_size() -> egui::Vec2 {
     egui::vec2(DEFAULT_SIZE.0.value(), DEFAULT_SIZE.1.value())
 }

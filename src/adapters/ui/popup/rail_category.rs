@@ -262,7 +262,7 @@ pub fn rail_category_sizer(
     )
 }
 
-/// PopupDef.default_size — register 시점 placeholder. sizer 가 매 프레임 재계산.
+/// PopupDef.decl.size — register 시점 placeholder. sizer 가 매 프레임 재계산.
 pub fn rail_category_default_size() -> egui::Vec2 {
     let th = theme::theme();
     egui::vec2(

@@ -9,7 +9,7 @@
 | 디자인 토큰 | tasty Theme | mocha hex | 비고 |
 |---|---|---|---|
 | `bg-sidebar` | `mantle` | `#181825` | 사이드바·**탭 바** 등 한 단계 더 어두운 면 |
-| `bg-panel` | `base` | `#1e1e2e` | 패널형 팝업 본문 (remote_tool / port_scanner / file_handler_picker / file picker / 탐색기 Properties / 전송 진행·실패 / DAG 목록). DAG 목록의 검색 칸은 이 바탕 위 기본 바탕 Input 이다(시안 `DagWindow`). 실제 배경 선택은 다음 함수가 정한다: `popup::draw::popup_bg_fill` |
+| `bg-panel` | `base` | `#1e1e2e` | 패널형 팝업 본문 (remote_tool / port_scanner / file_handler_picker / file picker / 탐색기 Properties / 전송 진행·실패 / DAG 목록). DAG 목록의 검색 칸은 이 바탕 위 기본 바탕 Input 이다(시안 `DagWindow`). 팝업마다 배경은 정의의 `decl.shell`(셸 묶음)이 정하고 색은 `popup::draw::shell_colors`가 고른다 |
 | `surface-raised` | `surface0` | `#313244` | 카드·입력·메뉴·command_palette 본문, secondary 버튼 fill |
 | `border-default` | `surface0` | `#313244` | |
 | `border-strong` | `surface1` | `#45475a` | 팝업 외곽선·강한 구분 |
@@ -22,7 +22,7 @@
 | `state-disabled-fill` | `state_disabled_fill()` → `surface-raised` | `#313244` | disabled 컨트롤의 박스 채움. 모든 Button 변형(ghost 제외)·solid IconButton·Input·Select 트리거·Checkbox 박스·Switch 트랙이 같은 채움을 쓴다. component `button-disabled-bg` |
 | `state-disabled-border` | `state_disabled_border()` → `border-default` | — | disabled 컨트롤의 박스 테두리. component `button-disabled-border` |
 | `glyph-dim` | `overlay0` | `#6c7086` | 덜 강조할 창 아이콘(사이드바 dim chevron·dim 아이콘·상태바 글리프)과 DAG 빈 상태 글리프. `text-placeholder` 와 값만 같고 role 이 다르다 — **disabled 용이 아니다** |
-| `border-frame` | `surface2` | `#585b70` | 틀의 선 **넷**(popup 프레임 · titlebar 아래 선 · pane divider · GPU 비활성 보더). popup **내부** 구분선은 `border-strong` 에 남는다. 시안이 메뉴형으로 그리는 host 팝업(Tools 메뉴 · 레일 카테고리 메뉴 · 검색 바 · 마우스 캡처 배너 더보기 메뉴)의 셸 테두리도 `border-strong` 이다(`popup/draw.rs` 의 `popup_border`). `surface-active` 와 값만 같다 |
+| `border-frame` | `surface2` | `#585b70` | 틀의 선 **넷**(popup 프레임 · titlebar 아래 선 · pane divider · GPU 비활성 보더). popup **내부** 구분선은 `border-strong` 에 남는다. 시안이 메뉴형으로 그리는 host 팝업(Tools 메뉴 · 레일 카테고리 메뉴 · 검색 바 · 마우스 캡처 배너 더보기 메뉴)의 셸 테두리도 `border-strong` 이다(셸 묶음 `Menu`·`SearchBar`·`BannerMenu`, `popup/draw.rs` 의 `shell_colors`). `surface-active` 와 값만 같다 |
 | `accent-decorative` | `peach` | `#fab387` | 헤더 장식 accent(Plugins 창 헤더 glyph). `accent-attention`(주의 환기)과 값만 같다 |
 | `accent-primary` | `accent_primary()` | `#89b4fa` | primary 버튼·포커스·활성 탭 언더라인 |
 | `accent-danger` | `accent_danger()` | — | |
@@ -551,7 +551,7 @@ max 를 이긴다(트리거가 320 보다 넓으면 트리거를 따른다). 행
 
 > **셸 채움은 `bg-panel` 이다 — 그것이 헤더의 Tag 를 보이게 한다.** popup 셸의 기본은
 > `surface-raised` 이고 host 는 헤더 + 리스트형만 `bg-panel` 로 가른다
-> (`popup::draw::popup_bg_fill`). 이 화면이 그 갈래인 이유는 형상만이 아니다 —
+> (정의의 `decl.shell = Panel`, 색은 `popup::draw::shell_colors`). 이 화면이 그 갈래인 이유는 형상만이 아니다 —
 > 형식을 못 알아봤을 때 헤더가 다는 Tag 가 default 변형이고 그 채움이 `tag-bg`
 > (= `surface-raised`) 라, 셸이 같은 값이면 그 칩이 배경과 구분되지 않는다(실측: Mocha 에서
 > 두 색이 `#313244` 로 동일했다). `popup_shell_fill_keeps_the_default_tag_visible`

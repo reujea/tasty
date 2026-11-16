@@ -15,7 +15,7 @@ tasty 에는 팝업을 만드는 경로가 **둘** 있다. 아래 문서 나머�
 | 셸(scrim·border·이동·리사이즈·outside-click·Esc) | `PopupManager` | **host `PopupManager`** (동일 — 셸은 언제나 host 소유) |
 | 여는 주체 | host — `UiIntent::OpenPopup { id }` | host 가 `PluginManager::open_popup_instance(plugin_id, popup_id, context)` 로 인스턴스화. 트리거는 (a) 매니페스트 `trigger = { kind = "event", event_key }` 를 host 이벤트로 실행, 또는 (b) surface-kind capability(`convert_input_popup`) 로 host 가 직접 open ([파일 핸들러 (File handler)](../features/file-handler/index.md)) |
 | 상태·입력 버퍼 | host `MainViewState.dialogs` | **plugin 프로세스** 내 인스턴스 상태(`instance_id` 키) |
-| 스코프(가시성·경계) | `PopupDef.default_scope` + 여는 쪽 `OpenPopupMode::WithScope` | 매니페스트 `scope`(`window` 기본 / `surface`) + 여는 host 진입점이 대상 surface 바인딩 — 판정 함수는 host 와 같다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프) |
+| 스코프(가시성·경계) | 등록 때 `Window` + 여는 쪽 `OpenPopupMode::WithScope` | 매니페스트 `scope`(`window` 기본 / `surface`) + 여는 host 진입점이 대상 surface 바인딩 — 판정 함수는 host 와 같다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프) |
 
 **선택 기준 — 콘텐츠의 소유자가 누구인가:**
 
@@ -64,17 +64,22 @@ pub fn draw_my_popup(
 ```rust
 PopupDef {
     id: "my_popup",
+    decl: PopupDecl {
+        outside_click: PopupOutsideClick::Unfocus, // Close = 바깥 클릭에 닫힘
+        sticky_focus: false,                       // true = 바깥 클릭해도 키보드 포커스 유지
+        chrome: PopupChrome::TitleBar,             // Headless = 타이틀바·닫기버튼 없이 콘텐츠만
+        drag_handle: PopupDragHandle::TitleBar,
+        resizable: false,
+        min_size: None,
+        covers_scope: false,                       // true = 소속 범위를 scrim 으로 덮음
+        shell: PopupShell::Raised,                 // 배경·테두리·제목선 토큰 묶음
+        ..host_decl(popup_size(egui::vec2(280.0, 120.0)))
+    },
+    scrim_input: ScrimInput::VisualOnly,
     title_key: "my_popup.title",     // i18n 키 (t() 로 번역)
     title_fn: None,                  // 동적 제목이면 Some(fn(&MainViewState, &CoreState) -> String)
-    default_size: egui::vec2(280.0, 120.0),
     sizer: None,                     // 동적 크기면 Some(fn(&MainViewState, &CoreState) -> Vec2)
-    default_scope: PopupScope::Window,  // Window/Workspace/Pane/Tab/Surface
-    close_on_outside_click: false,
-    headless: false,                 // true = 타이틀바·닫기버튼 없이 콘텐츠만 (컨텍스트 메뉴 스타일)
-    sticky_focus: false,             // true = 바깥 클릭해도 키보드 포커스 유지 (검색바 등)
-    drag_handle: DragHandle::TitleBar,
-    resizable: false,
-    min_size: None,
+    drag_region: None,               // drag_handle 이 Region 이면 Some(영역 fn)
     fullscreen_stage: None,          // Some(stage_id) = 타이틀바에 전체화면 버튼 노출 (아래 참고)
     draw_fn: super::my_popup::draw_my_popup,
     on_close: None,                  // 상태를 가지면 Some(정리 fn) (아래 "닫힘 정리")
@@ -99,20 +104,44 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `id` | `PopupId`(`&'static str`) | 고유 식별자 |
+| `decl` | `PopupDecl` | 공통 선언. 팝업 사이 동작 차이는 이 값으로만 정한다(아래 "`PopupDecl` 속성") |
+| `scrim_input` | `ScrimInput` | scrim 이 받는 입력. `VisualOnly`(보이기만 함, 누르면 바깥 클릭) / `TakesPointer`(scrim 위 포인터가 팝업 것) / `BlocksDrop`(열린 동안 탐색기 끌어 놓기 차단). `covers_scope` 인 팝업만 의미가 있다 |
 | `title_key` | `&'static str` | i18n 키 → 타이틀바 |
 | `title_fn` | `Option<fn(&MainViewState, &CoreState) -> String>` | 동적 제목. 설정 시 `title_key` 대신 매 프레임 호출. 길이 걱정 없이 원본 문자열 반환 — 폭 초과 시 elide 는 `draw.rs`가 공통 처리(아래 "타이틀 길이 처리" 참고) |
-| `default_size` | `egui::Vec2` | 기본 크기 (unzoomed baseline) |
 | `sizer` | `Option<fn(&MainViewState, &CoreState) -> Vec2>` | 동적 크기. **매 프레임 호출된다** — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
-| `default_scope` | `PopupScope` | 가시성/경계 범위. `Surface` 범위면 경계가 그 칸 **안쪽 8pt** 이고 scrim 도 그 칸만 덮는다(아래 "scrim 의 범위") |
-| `close_on_outside_click` | `bool` | 바깥 클릭 시 닫힘 |
-| `headless` | `bool` | 타이틀바 없이 콘텐츠만 |
-| `sticky_focus` | `bool` | 바깥 클릭해도 키보드 포커스 유지 |
-| `drag_handle` | `DragHandle` | 이동(드래그) 핸들 선언. `None`(이동 불가) / `TitleBar`(타이틀바=핸들, 기존 동작; headless 면 핸들 없음) / `Region(fn(&PopupState)->Rect)`(팝업이 pos/size 로부터 **전용 핸들 띠** 계산 — 타이틀바 없는 팝업도 이동 가능). `movable` 여부는 별도 bool 없이 이 값으로 표현 |
-| `resizable` | `bool` | true 면 테두리 8방향 드래그로 크기 조절(min_size·scope 경계 클램프, 엣지별 리사이즈 커서) |
-| `min_size` | `Option<egui::Vec2>` | 리사이즈 최소 크기. `None`이면 `default_size`를 최소로 사용 |
+| `drag_region` | `Option<fn(&PopupState) -> Rect>` | `decl.drag_handle` 이 `Region` 일 때 팝업이 pos/size 로부터 계산하는 전용 핸들 띠. 타이틀바 없는 팝업도 이동할 수 있다 |
 | `fullscreen_stage` | `Option<StageId>` | `Some(id)` 면 타이틀바 X 왼쪽에 전체화면 버튼이 붙고, 누르면 그 [무대](../design/systems/fullscreen-stage.md)가 뜬다. 노출 여부와 대상이 한 필드라 "버튼은 있는데 갈 곳이 없는" 상태가 생기지 않는다. 아래 "전체화면 버튼" 참고 |
 | `draw_fn` | `fn(&mut Ui, &mut MainViewState, &mut CoreState) -> PopupAction` | 매 프레임 렌더 |
 | `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &mut CoreState)>` | 닫힘 뒷정리 훅. `PopupManager::close()`(6개 close 경로 전부가 거치는 유일한 지점)를 통해 어떤 경로로 닫히든 정확히 한 번 실행(아래 "닫힘 정리" 참고) |
+
+### `PopupDecl` 속성
+
+`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `covers_scope = false`, `instances = Single` 만 다르다. 정의 없이 쓰는 팝업(설정 창의 `keybinding_conflict`)도 `PopupState::declared` 로 같은 선언을 쓴다. 설정 창 파일 선택기는 `file_picker` 정의의 선언을 그대로 복사한다.
+
+| 속성 | 값 | `PopupDecl::new` 기본값 | 지금 읽는 곳 |
+|------|----|------|------|
+| `scope_kind` | Window / Workspace / Pane / Tab / Surface | 인자 | 없음. 등록 범위는 `Window` 이고 실제 범위는 여는 쪽이 준다 |
+| `scope_target` | Origin / Parent / Explicit | Origin | 없음 |
+| `instances` | Single / PerScopeTarget / Multi / Queue | PerScopeTarget | 없음. 지금은 id 마다 인스턴스 하나다 |
+| `covers_scope` | bool | true | scrim 을 깔지(`PopupManager::draw`) |
+| `fit` | Collapse / Shrink | Collapse | 없음. 지금은 모든 host 팝업이 범위에 맞춰 줄어든다. `search_bar` 만 `Shrink` 로 선언했다 |
+| `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor | ScopeCenter | 없음. 위치는 여는 쪽 `OpenPopupMode` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
+| `scope_inset` | bool | true | 없음. Surface 범위의 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다 |
+| `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenPopupMode` 와 요청 출처가 정한다 |
+| `keyboard` | None / Keys / Text | Keys | 없음. `rename` 만 `Text` 다 |
+| `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 값은 지금 각 팝업이 Esc 에 하는 일을 적었다 |
+| `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |
+| `sticky_focus` | bool | false | 바깥 클릭에도 키보드 포커스 유지 |
+| `chrome` | TitleBar / Headless | TitleBar | 공통 타이틀바·닫기 버튼을 그릴지 |
+| `drag_handle` | None / TitleBar / Region | TitleBar | 이동 영역. `Region` 이면 정의의 `drag_region` 함수를 쓴다 |
+| `resizable` | bool | false | 테두리 8방향 드래그로 크기 조절(min_size·scope 경계 클램프, 엣지별 리사이즈 커서) |
+| `min_size` | `Option<PopupSize>` | None | 리사이즈 최소 크기. 없으면 `size` |
+| `size` | `PopupSize`(논리 px) | 인자 | 처음 크기(unzoomed baseline). `sizer` 가 없으면 등록 때 UI 배율을 곱한다 |
+| `shell` | Raised / Panel / InfoPanel / Dialog / Menu / BannerMenu / SearchBar | Raised | 배경·테두리·제목줄 아래 선 토큰 묶음(`draw::shell_colors`) |
+| `shadow` | Modal / Popover | Modal | 셸 그림자 토큰(`draw::shadow_token`) |
+| `content_margin` | Default / None | Default | 콘텐츠 둘레 공통 여백(`space-xs`). 구역별 여백을 직접 두는 팝업은 `None` |
+
+"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 35개(정의 33개와 설정 창 팝업 2개)의 scrim·scrim 입력·그림자·여백·셸 색을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
 
 ### sizer 는 매 프레임 돈다 (열 때 한 번이 아니다)
 
@@ -126,7 +155,7 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 - **draw 와 sizer 가 같은 식을 본다.** 높이를 구역별로 쪼갠 함수/상수를 양쪽이 **같이**
   읽게 하고, 한쪽에만 리터럴을 두지 않는다. 두 식이 갈리면 목록 마지막 행이 footer 밑으로
   밀리는데, 빌드도 테스트도 그대로 통과한다.
-- **배율은 sizer 의 몫이다.** `sizer` 가 있는 popup 은 등록 시 `default_size` 에 host UI zoom 이
+- **배율은 sizer 의 몫이다.** `sizer` 가 있는 popup 은 등록 시 `decl.size` 에 host UI zoom 이
   곱해지지 않는다(`PopupManager::register`). 그래서 폭이 콘텐츠를 안 따르더라도 sizer 가
   `zoomed_px` 로 직접 곱해 돌려줘야 한다. 높이 식도 같다 — `Theme` 값은 생성 때 배율을
   이미 탔고 파일 안 const 는 안 탔으므로, 한 식에서 섞으면 팝업 크기는 고정된 채 글자만
@@ -147,17 +176,17 @@ scrim 이 덮는 rect 는 그 팝업의 `PopupScope` rect 다 — `Surface` 범�
 규칙 본문은 [design/systems/popup.md](../design/systems/popup.md) §scrim 의 범위. 새 팝업을
 만들 때 손댈 자리는 둘이다.
 
-- **scrim 을 깔 것인가** — `PopupManager::popup_has_scrim` 의 id 명부에 더한다. 범위로
+- **scrim 을 깔 것인가** — 정의의 `decl.covers_scope` 로 선언한다. 범위로
   판정하지 않는다: `search_bar` 처럼 `Surface` 범위를 쓰면서도 anchored + scrim-less 인
   갈래가 있고([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../architecture/ui-widgets-crate.md)), 범위로
-  판정하면 그 갈래가 조용히 뒤집힌다. anchored 명부(`ANCHORED_POPUPS`)와 이 명부가
-  어긋나면 `no_anchored_popup_takes_a_scrim` 이 잡는다. 이 명부는 host 팝업의 것이다 —
-  plugin 팝업은 명부 없이 예외 없이 scrim 을 깐다(`src/plugin_bridge/popup_render.rs`).
+  판정하면 그 갈래가 조용히 뒤집힌다. `anchor` 를 범위 가운데가 아닌 값으로 선언한 팝업이
+  scrim 을 깔거나 modal 그림자를 쓰면 `no_anchored_popup_takes_a_scrim` 이 잡는다. 이 선언은 host 팝업의 것이다 —
+  plugin 팝업은 예외 없이 scrim 을 깐다(`src/plugin_bridge/popup_render.rs`).
 - **부모-자식이면 자식은 안 깐다** — 한 경로(host 또는 plugin) 안에서는 같은 범위에 팝업이
   여럿이어도 scrim 은 한 번이다. `PopupManager::pick_scrim_layers` 가 두 경로에서 같은 판정을
   하지만 입력은 경로별로 갈린다 — host 는 host 팝업만, plugin 은 plugin 팝업만 모아 따로
-  판정한다. 그래서 plugin 부모 + host 자식처럼 경로가 갈리면 자식이 명부에 없는 것만이 이중
-  scrim 을 막는다. 자식 팝업을 scrim 명부에 넣지 마라.
+  판정한다. 그래서 plugin 부모 + host 자식처럼 경로가 갈리면 자식이 `covers_scope = false` 인 것만이 이중
+  scrim 을 막는다. 자식 팝업은 `covers_scope = true` 로 선언하지 마라.
 
 경계를 지키는 것은 layer clip(`ctx.layer_painter(..).with_clip_rect(..)` 에 그 범위 rect 를
 넘긴다)이고, **그 clip 은 매니저가 그리는 것만 덮는다** — scrim · 배경 · 프레임 · 그림자.

@@ -57,7 +57,7 @@ fn size_for(body_len: usize) -> egui::Vec2 {
     )
 }
 
-/// PopupDef.default_size — 등록 시점의 placeholder. 대상이 아직 없을 때 sizer 가 내는
+/// PopupDef.decl.size — 등록 시점의 placeholder. 대상이 아직 없을 때 sizer 가 내는
 /// 값과 **같은 식에서** 나온다.
 pub fn confirm_delete_category_default_size() -> egui::Vec2 {
     size_for(BASE_BODY_LEN)

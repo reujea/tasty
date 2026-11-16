@@ -8,7 +8,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 2. **타이틀바**: 제목은 `font-size-max` 크기로 가운데에, 닫기 버튼은 오른쪽에 둔다. 버튼은 IconButton sm(`close` 아이콘)과 같은 모양·호버·누름 표시를 쓴다. `PopupDef.fullscreen_stage`를 선언한 팝업만 닫기 버튼 왼쪽에 같은 형태의 `fit` 전체화면 버튼과 툴팁을 표시한다. 제목은 버튼 수에 맞는 예약 폭을 양쪽에 대칭으로 비운 스트립 가운데에 오고 그 폭에서 말줄임한다([구현 가이드](../../dev-guide/popup-implementation.md#타이틀-길이-처리-elide)). [무대](fullscreen-stage.md)를 열어도 원본 팝업은 열린 채 유지한다. 무대는 같은 형태의 별도 콘텐츠다.
 3. **드래그 이동**: `drag_handle` 영역에서 이동한다. 기본은 타이틀바이며, 타이틀바 없는 `port_scanner`·`remote_tool`·`file_picker`는 실제로 그린 헤더 사각형을 매니저에 전달한다. 첫 프레임은 `DragHandle::Region`을 사용한다. 헤더 글자는 선택하지 않게 하고, 버튼·입력이 포인터를 사용 중이면 드래그를 시작하지 않는다(`is_using_pointer`).
 4. **커서**: 드래그 핸들은 grab, 크기 조절 테두리는 해당 방향의 리사이즈 커서를 표시한다.
-5. **배경**: 기본은 `surface_raised`, 패널형 팝업은 `bg_panel`이며 타이틀바는 `mantle`을 쓴다. 실제 선택은 `popup::draw::popup_bg_fill`이 담당한다. 터미널과 같은 배경색일 수 있으므로 색 하나만으로 팝업 경계를 판단하지 않는다.
+5. **배경**: 기본은 `surface_raised`, 패널형 팝업은 `bg_panel`이며 타이틀바는 `mantle`을 쓴다. 팝업마다 정의의 `decl.shell`(셸 묶음: Raised·Panel·InfoPanel·Dialog·Menu·BannerMenu·SearchBar)이 배경·테두리·제목줄 아래 선 토큰을 함께 정하고, `popup::draw::shell_colors`가 색을 고른다. 터미널과 같은 배경색일 수 있으므로 색 하나만으로 팝업 경계를 판단하지 않는다.
 6. **경계**: 팝업은 소속 범위 밖으로 나가지 않으며 크기 조절 때 자동 재배치한다.
 7. **다중 팝업**: 나중에 열거나 클릭한 팝업을 앞에 둔다. 겹친 영역의 마우스 입력은 최상단 팝업만 받는다([호스트·plugin 순서](#host--plugin-popup-z-order)).
 8. **크기 조절과 입력**: `resizable` 팝업은 8방향 테두리에서 크기를 바꾸고 `min_size`와 범위 경계를 지킨다. 우선순위는 egui 위젯 → 닫기·전체화면 버튼 → 크기 조절 테두리 → 드래그 핸들 → 콘텐츠다. 콘텐츠를 그린 뒤 `is_using_pointer()`로 위젯의 입력 사용 여부를 확인한다. 사용자가 직접 크기를 바꾸면 닫기 전까지 sizer가 덮어쓰지 않는다.
@@ -17,7 +17,8 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 ## 구조
 
-- **`PopupDef`** — 정적·데이터 지향 정의(id, title_key/title_fn, default_size/sizer, default_scope, close_on_outside_click, headless, sticky_focus, drag_handle, resizable, min_size, fullscreen_stage, draw_fn). 전부 `src/adapters/ui/popup/defs.rs::all_defs()` 에 모은다. 필드 상세 → [popup-implementation](../../dev-guide/popup-implementation.md).
+- **`PopupDef`** — 정적·데이터 지향 정의. 팝업 사이 동작 차이를 정하는 공통 선언 `decl: PopupDecl`(`tasty-plugin-protocol`의 직렬화 가능한 타입)과 host만 쓰는 함수 값(title_key/title_fn, sizer, drag_region, draw_fn, on_close, fullscreen_stage)을 담는다. 전부 `src/adapters/ui/popup/defs.rs::all_defs()` 에 모은다. 필드 상세 → [popup-implementation](../../dev-guide/popup-implementation.md).
+- **선언 값으로만 갈린다** — scrim·그림자·콘텐츠 여백·셸 색처럼 팝업마다 다른 그리기 값은 `decl`에서 읽는다. 팝업 id를 비교해 정하지 않는다. `popup_attributes_are_declared`가 팝업 공용 코드의 id 명부를 검사한다.
 - **`PopupManager`** — 공통 동작(z-order, 드래그, 리사이즈, 타이틀바, clamp, 포커스) 중앙 관리. `register_def` / `open*` / `close` / `draw`.
 - **`PopupState`** — 개별 인스턴스 상태(id, title, pos, size, open, focused, scope, dragging/resizing, size_user_overridden).
 - **범용 render 루프** — `src/adapters/ui/popup/frame.rs::draw_popup_layer`(등록된 모든 `PopupDef` 순회 + close 경로별 `on_close` 훅 drain). toast/banner/modifier-hint/tutorial 오버레이 체인은 개념이 다르므로(docs/design/systems/popup.md) `src/adapters/ui/overlay.rs` 로 분리돼 있다. 진입점 `src/adapters/ui.rs::draw_popups` 가 둘을 z-order 순서로 호출한다.
@@ -134,8 +135,8 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 차지하므로 둘이 같은 사각형이다. 따라서 이 스코프가 실질적으로 결정하는 것은 **가시성**이다.
 
 **스코프는 `PopupDef` 에 못 박히지 않는다.** `Workspace(u32)` / `Pane(u32)` 처럼 대상을
-런타임에야 아는 스코프는 `default_scope` 에 안전한 기본만 두고, 여는 쪽이
-`OpenPopupMode::WithScope(scope)` 로 실제 값을 주입한다. 현재 소비자:
+런타임에야 아는 스코프는 등록 때 `Window` 로 두고, 여는 쪽이
+`OpenPopupMode::WithScope(scope)` 로 실제 값을 주입한다. 선언의 `decl.scope_kind`는 지금 모든 정의가 `Window`이고 등록 범위와 같다는 것만 시험이 확인한다. 현재 소비자:
 
 | 팝업 | 스코프 | 여는 쪽이 주입하는 값 |
 |------|--------|----------------------|
@@ -154,10 +155,14 @@ scrim은 팝업이 속한 범위를 덮는다(이 문서). Surface 범위는 해
 
 같은 범위의 팝업이 여럿이어도 scrim은 한 번 그린다. 창 scrim이 있으면 내부 surface scrim은 생략한다. 같은 알파를 중복 적용해 특정 영역만 더 어두워지는 것을 막는다.
 
-**어느 팝업이 scrim 을 까는가는 범위가 아니라 id 로 정한다.** `search_bar` 는 `Surface`
+**어느 팝업이 scrim 을 까는가는 범위가 아니라 선언 `decl.covers_scope` 로 정한다.** `search_bar` 는 `Surface`
 범위를 쓰지만 anchored + scrim-less 갈래이므로 scrim 이 없다([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md)).
 현재 scrim 을 까는 host 팝업: `remote_tool` · `remote_attach` · `command_palette` ·
-`port_scanner` · `convert_surface` · 전송 진행/오류. plugin 팝업은 예외 없이 깐다.
+`port_scanner` · `convert_surface` · 전송 진행/오류 · `explorer_conflict` · `confirm_close_remote` ·
+`remote_row_over_screen`. plugin 팝업은 예외 없이 깐다.
+
+scrim 이 받는 입력은 정의의 `scrim_input` 이 정한다. `remote_row_over_screen` 의 scrim 은 포인터를 받는다(`TakesPointer`).
+`explorer_conflict` 가 열려 있는 동안에는 탐색기로 끌어 놓기를 막는다(`BlocksDrop`). 나머지 scrim 은 보이기만 하고, scrim 을 누르는 것은 바깥 클릭이다(`VisualOnly`).
 
 어둡게 하는 것과 입력을 막는 것은 다른 일이다 — scrim 은 dim 만 하고, Esc 와 바깥 클릭의
 순서는 위 §수명 계약이 정한다.
