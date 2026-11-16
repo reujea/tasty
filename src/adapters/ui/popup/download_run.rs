@@ -113,6 +113,60 @@ pub(crate) fn ask(
     });
 }
 
+/// 1 MiB 를 넘는 다운로드의 크기 확인을 큐에 넣는다. 첫 항목이면 그 다운로드를 시작한 surface
+/// 범위로 확인을 연다. 다음 항목은 앞 확인이 닫힐 때 그 항목의 surface 로 연다.
+pub(crate) fn queue_large_confirm(state: &mut MainViewState, id: u64, name: String, size: u64) {
+    let runs = &mut state.dialogs.download_run;
+    let Some(run) = runs.runs.iter_mut().find(|r| r.id == id) else {
+        return;
+    };
+    run.name.clone_from(&name);
+    let surface = run.surface;
+    runs.large.push_back(DownloadRunLarge {
+        id,
+        surface,
+        name,
+        size,
+        confirmed: false,
+        content_height: None,
+    });
+    if runs.large.len() == 1 {
+        state.dispatch_intent(
+            crate::intent::UiIntent::OpenPopup {
+                id: DOWNLOAD_RUN_LARGE_POPUP_ID,
+                mode: crate::intent::OpenPopupMode::CenteredFocused(
+                    crate::model::popup_kind::PopupScope::Surface(surface),
+                ),
+            }
+            .from_user_menu("download_run_large"),
+        );
+    }
+}
+
+/// 받는 중인 다운로드가 있고 진행 팝업이 닫혀 있으면 처음 받는 다운로드의 surface 범위로
+/// 포커스 없이 연다. 여러 다운로드가 한 팝업을 공유하며, 열린 뒤에는 범위를 바꾸지 않는다.
+pub(crate) fn open_progress_for_receiving(state: &mut MainViewState) -> bool {
+    let receiving = state
+        .dialogs
+        .download_run
+        .runs
+        .iter()
+        .find(|r| r.receiving)
+        .map(|r| r.surface);
+    let Some(surface) = receiving else {
+        return false;
+    };
+    if state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID) {
+        return false;
+    }
+    // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
+    state.popups.open_centered(
+        DOWNLOAD_RUN_PROGRESS_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Surface(surface),
+    );
+    true
+}
+
 /// 실패 이유의 문장 키. 사용자가 멈춘 다운로드는 알리지 않는다.
 pub(crate) fn failure_key(failure: &Failure) -> Option<&'static str> {
     Some(match failure {

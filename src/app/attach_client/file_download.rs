@@ -1,8 +1,6 @@
 //! 원격 파일 다운로드의 송신과 결과 처리. 대기 상태는 [`crate::remote::file_download::client`] 에 있다.
 
-use crate::adapters::ui::popup::download_run::{
-    DOWNLOAD_RUN_LARGE_POPUP_ID, DOWNLOAD_RUN_PROGRESS_POPUP_ID, DownloadRunLarge, report_failure,
-};
+use crate::adapters::ui::popup::download_run::{DOWNLOAD_RUN_LARGE_POPUP_ID, report_failure};
 use crate::app::App;
 use crate::remote::file_download::client::{self as downloads, Event, Failure, SessionView};
 use crate::state::MainViewState;
@@ -81,31 +79,7 @@ impl App {
     /// 1 MiB 를 넘는 파일을 그 다운로드를 시작한 창에서 묻는다. 창에서 시작하지 않았으면 기록만 한다.
     fn ask_download_size(&mut self, id: u64, name: String, size: u64) {
         let asked = self.with_download_owner(id, |state| {
-            let runs = &mut state.dialogs.download_run;
-            let Some(run) = runs.runs.iter_mut().find(|r| r.id == id) else {
-                return;
-            };
-            run.name.clone_from(&name);
-            let surface = run.surface;
-            runs.large.push_back(DownloadRunLarge {
-                id,
-                surface,
-                name,
-                size,
-                confirmed: false,
-                content_height: None,
-            });
-            if runs.large.len() == 1 {
-                state.dispatch_intent(
-                    crate::intent::UiIntent::OpenPopup {
-                        id: DOWNLOAD_RUN_LARGE_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Surface(surface),
-                        ),
-                    }
-                    .from_user_menu("download_run_large"),
-                );
-            }
+            crate::adapters::ui::popup::download_run::queue_large_confirm(state, id, name, size);
         });
         if !asked {
             tracing::info!(id, size, "remote file download waits for confirmation");
@@ -155,23 +129,9 @@ impl App {
                 }
                 run.started.get_or_insert_with(std::time::Instant::now);
             }
-            // 여러 다운로드가 한 진행 팝업을 공유하므로 처음 받는 다운로드의 surface 범위로 연다.
-            let receiving = main
-                .state
-                .dialogs
-                .download_run
-                .runs
-                .iter()
-                .find(|r| r.receiving)
-                .map(|r| r.surface);
-            if let Some(surface) = receiving
-                && !main.state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID)
-            {
-                // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
-                main.state.popups.open_centered(
-                    DOWNLOAD_RUN_PROGRESS_POPUP_ID,
-                    crate::model::popup_kind::PopupScope::Surface(surface),
-                );
+            if crate::adapters::ui::popup::download_run::open_progress_for_receiving(
+                &mut main.state,
+            ) {
                 changed = true;
             }
             if changed {
