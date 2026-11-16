@@ -31,9 +31,13 @@ impl ScopePath {
 }
 
 /// 좌표 `pos` 의 범위 경로. surface 안이면 surface 와 그 조상을, 탭 바처럼 pane 안이지만 surface 밖이면
-/// pane 과 workspace 를, workspace 콘텐츠 영역 밖(사이드바·상태바)이면 window 만 담는다.
+/// pane 과 workspace 를, workspace 작업 영역 밖(사이드바·상태바)이면 window 만 담는다.
+/// Workspace 는 작업 영역(`workspace_rect`) 안일 때만 담는다. 작업 영역이 없는 창은 담지 않는다.
 pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
-    let workspace = Some(layout.active_workspace_id);
+    let workspace = layout
+        .workspace_rect
+        .is_some_and(|r| r.contains(pos))
+        .then_some(layout.active_workspace_id);
     if let Some(&(surface, _)) = layout.surface_rects.iter().find(|(_, r)| r.contains(pos)) {
         let owner = layout.surface_owners.iter().find(|o| o.surface == surface);
         return ScopePath {
@@ -50,13 +54,10 @@ pub(crate) fn path_at(layout: &LayoutContext, pos: egui::Pos2) -> ScopePath {
             ..ScopePath::default()
         };
     }
-    if layout.workspace_rect.is_some_and(|r| r.contains(pos)) {
-        return ScopePath {
-            workspace,
-            ..ScopePath::default()
-        };
+    ScopePath {
+        workspace,
+        ..ScopePath::default()
     }
-    ScopePath::default()
 }
 
 /// 포커스된 surface 와 그 조상의 범위 경로. `EngineRead` 는 `CoreState` 로 역참조되므로 두 쪽에서 부를 수

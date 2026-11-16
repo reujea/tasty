@@ -143,10 +143,40 @@ fn a_point_in_the_left_surface_is_on_the_left_path_only() {
 }
 
 #[test]
-fn a_point_outside_the_workspace_is_on_the_window_only() {
-    // 상태바 자리.
+fn a_point_on_the_status_bar_is_on_the_window_only() {
+    // 작업 영역(0..680) 아래 상태바 자리.
     let path = path_at(&layout(), egui::pos2(300.0, 690.0));
     assert_eq!(all_scopes_of(&path), [PopupScope::Window]);
+    assert!(!path.contains(&PopupScope::Workspace(WORKSPACE)));
+}
+
+#[test]
+fn a_point_on_the_sidebar_is_on_the_window_only() {
+    // 사이드바(0..180)를 둔 창. 작업 영역은 그 오른쪽이다.
+    let mut with_sidebar = layout();
+    with_sidebar.workspace_rect = Some(egui::Rect::from_min_max(
+        egui::pos2(180.0, 0.0),
+        egui::pos2(900.0, 680.0),
+    ));
+    with_sidebar.pane_rects.retain(|(id, _)| *id == PANE_R);
+    with_sidebar
+        .surface_rects
+        .retain(|(id, _)| *id == SURFACE_R);
+    let path = path_at(&with_sidebar, egui::pos2(90.0, 300.0));
+    assert_eq!(all_scopes_of(&path), [PopupScope::Window]);
+    assert!(
+        path_at(&with_sidebar, surface_rect_r().center())
+            .contains(&PopupScope::Workspace(WORKSPACE))
+    );
+}
+
+#[test]
+fn without_a_workspace_area_no_point_is_on_the_workspace() {
+    // 작업 영역이 없으면 surface 위 좌표도 Workspace 를 담지 않는다.
+    let mut no_area = layout();
+    no_area.workspace_rect = None;
+    let path = path_at(&no_area, surface_rect_l().center());
+    assert!(path.contains(&PopupScope::Surface(SURFACE_L)));
     assert!(!path.contains(&PopupScope::Workspace(WORKSPACE)));
 }
 
