@@ -1148,7 +1148,6 @@ impl PlatformWebView {
         unsafe { self.webview.stopLoading() };
     }
 
-    /// Follow는 상속, Light/Dark는 AppKit appearance를 지정한다.
     /// 바탕 포커스 상태를 문서에 둔다. 다음에 싣는 문서에도 남는다(`bed_focus`).
     pub fn set_bed_focused(&self, focused: bool) {
         let Some(mtm) = MainThreadMarker::new() else {
@@ -1158,6 +1157,7 @@ impl PlatformWebView {
         self.bed_focus.set(&self.webview, focused, mtm);
     }
 
+    /// Follow는 상속, Light/Dark는 AppKit appearance를 지정한다.
     pub fn set_color_scheme(&self, scheme: super::ColorScheme) {
         // SAFETY: main thread AppKit. self 는 main thread 객체(Retained<WKWebView>),
         // WKWebView : NSView 가 setAppearance: 에 응답한다. appearanceNamed: 와
