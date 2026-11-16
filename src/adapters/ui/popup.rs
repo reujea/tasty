@@ -41,8 +41,8 @@ use tasty_type_geometry::length::LogicalPx;
 pub use crate::model::popup_kind::{PopupId, PopupScope};
 pub use tasty_plugin_protocol::popup_decl::{
     PopupAnchor, PopupChrome, PopupContentMargin, PopupDecl, PopupDragHandle, PopupEscape,
-    PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupScopeKind, PopupScopeTarget,
-    PopupShadow, PopupShell, PopupSize,
+    PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupScopeKind, PopupShadow,
+    PopupShell, PopupSize,
 };
 
 /// host 범위 값의 종류. 대상 id는 버린다.

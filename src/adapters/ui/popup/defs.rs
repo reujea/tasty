@@ -13,26 +13,9 @@ use super::{
 /// 바깥 클릭·제목줄·이동·크기 조절처럼 팝업마다 다른 값은 정의마다 다시 적는다.
 pub(crate) const fn host_decl(size: PopupSize) -> PopupDecl {
     PopupDecl {
-        scope_kind: PopupScopeKind::Window,
-        scope_target: super::PopupScopeTarget::Origin,
-        instances: PopupInstances::Single,
         covers_scope: false,
-        fit: PopupFit::Collapse,
-        anchor: PopupAnchor::ScopeCenter,
-        scope_inset: true,
-        focus_on_open: true,
-        keyboard: PopupKeyboard::Keys,
-        escape: PopupEscape::Close,
-        outside_click: PopupOutsideClick::Unfocus,
-        sticky_focus: false,
-        chrome: PopupChrome::TitleBar,
-        drag_handle: PopupDragHandle::TitleBar,
-        resizable: false,
-        min_size: None,
-        size,
-        shell: PopupShell::Raised,
-        shadow: PopupShadow::Modal,
-        content_margin: PopupContentMargin::Default,
+        instances: PopupInstances::Single,
+        ..PopupDecl::new(PopupScopeKind::Window, size)
     }
 }
 
