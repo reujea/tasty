@@ -204,6 +204,7 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
         active_tabs: vec![],
         active_tab_ids: vec![],
         workspace_rect: None,
+        surface_owners: Vec::new(),
     };
     let draw = |state: &mut RequestContext, layout: &LayoutContext, events| {
         let raw = egui::RawInput {

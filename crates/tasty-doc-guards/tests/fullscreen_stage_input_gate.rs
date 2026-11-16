@@ -324,6 +324,7 @@ fn every_overlay_open_composite_is_stage_aware() {
             "src/adapters/ipc/handler/debug_state.rs".to_string(),
             "src/adapters/ui/egui_panels.rs".to_string(),
             "src/adapters/ui/input/explorer_ime.rs".to_string(),
+            "src/adapters/ui/popup/route.rs".to_string(),
             "src/app/plugin_glue/shortcut.rs".to_string(),
             "src/app/webview_keys.rs".to_string(),
             "src/app/webview_sync.rs".to_string(),

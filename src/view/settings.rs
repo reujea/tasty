@@ -224,6 +224,7 @@ impl View for SettingsView {
                 active_tabs: Vec::new(),
                 active_tab_ids: Vec::new(),
                 workspace_rect: None,
+                surface_owners: Vec::new(),
             };
             toasts.draw(ctx, &empty_layout, reduced_motion);
         });

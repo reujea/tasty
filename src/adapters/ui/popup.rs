@@ -20,6 +20,12 @@ pub(crate) mod rail_category;
 pub(crate) mod remote_attach;
 pub(crate) mod remote_row;
 pub(crate) mod remote_tool;
+// 이유: 범위 경로는 입력 경로를 옮기는 다음 단계부터 쓰인다. 지금은 시험만 부른다.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "input routing adopts scope paths in a later step")
+)]
+pub(crate) mod route;
 /// 프레임을 그려 scrim의 실제 영역을 검사한다.
 #[cfg(test)]
 #[path = "popup/scrim_scope_tests.rs"]

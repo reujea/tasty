@@ -957,6 +957,7 @@ mod tests {
             active_tabs: vec![(1, 0)],
             active_tab_ids: vec![],
             workspace_rect: None,
+            surface_owners: Vec::new(),
         }
     }
 
@@ -1031,6 +1032,7 @@ mod tests {
             active_tabs: vec![],
             active_tab_ids: vec![],
             workspace_rect: None,
+            surface_owners: Vec::new(),
         };
         let bounds = PopupManager::scope_bounds(
             &PopupScope::Surface(SURFACE_A),
