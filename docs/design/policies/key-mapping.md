@@ -393,7 +393,15 @@ plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSett
 
 Event Bus의 `command.invoked`는 소유 plugin에 보내는 알림이다. 명령을 실제로 실행할 때 보낸다. `action`이 없는 명령은 대상 surface가 없어도 보낸다. 명령의 대상 surface는 키를 누른 시점에 정한다. attach 생성 대기 초안이 선택돼 있으면 popup을 여는 `action`은 초안에 걸어 두고 키를 소비하며, 생성된 surface에서 실행할 때 알린다. 생성이 실패해 버린 명령은 알리지 않는다. 대상 surface도 초안도 없는데 `action`이 `surface` 범위 popup을 열거나, 팔레트 요청을 처리할 때 그 창이 사라졌거나, 고른 surface·생성된 surface가 실행 전에 사라졌거나, 팔레트에서 초안을 대상으로 고른 명령이 입력 뒤 popup을 여는 명령으로 바뀌었으면 실행하지 않고 알리지도 않는다. 단축키는 대상 surface도 초안도 없어 실행할 수 없을 때 키를 다음 처리자에 넘긴다.
 
-내장 단축키도 대상 surface를 키를 누른 시점에 정한다. 생성 대기 초안이 선택돼 있으면 surface 하나를
+내장 단축키도 대상 surface를 키를 누른 시점에 정한다. native WebView가 넘긴 키는 그 키를 받은
+WebView의 surface가 대상이다. surface 하나를 대상으로 하는 내장 액션은 그 surface의 kind가 받으면 그
+surface에서 실행하고, 받지 않으면 모델 포커스가 다른 surface일 때 그쪽으로 보내지 않고 페이지로 넘긴다.
+단 같은 키가 surface 하나를 대상으로 하지 않는 전역 단축키(F2의 `rename_tab` 등)에도 묶여 있으면 페이지로
+넘기지 않고 전역 단축키만 처리한다. 이 단축키의 대상은 모델 포커스다. 포커스 surface의 목록 범위 키(탐색기
+목록의 `explorer_rename` 등)를 고르는 단계는 거치지 않으므로, 모델 포커스가 탐색기여도 키를 받은 surface가 아닌
+그 탐색기의 항목 이름 바꾸기는 실행되지 않는다. 예를 들어 html이 받은 F2는 모델 포커스와 관계없이 `rename_tab`으로
+실행된다.
+새로고침은 앞 단계가 키를 받은 surface로 처리하고, 페이지 편집 키는 이 판정에서 고르지 않는다. 생성 대기 초안이 선택돼 있으면 surface 하나를
 대상으로 하는 내장 액션은 초안이 만들 kind가 받을 때 초안에 걸고 키를 소비하며, 생성된 surface에서
 실행한다. 받지 않는 액션은 걸지 않으며 초안 뒤의 기존 surface·탭·workspace를 대상으로 삼지 않는다. 그
 키는 다음 처리자로 넘길 수 있다. 초안 뒤 기존 탭의 kind에 따라 대상 없이 소비하는 경우도 있다. 대상
