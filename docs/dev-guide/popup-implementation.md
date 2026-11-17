@@ -317,4 +317,4 @@ if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { /* apply
 
 부모를 신고하지 않은 요청은 단독 팝업이다. 현재 host끼리의 Esc 중재는 공통 처리되지 않으며, 부모·자식 스택에 참여하는 파일 피커만 Esc 소유권을 확인한다.
 
-팝업의 context와 host 범위 바인딩은 같은 원본 surface에서 만든다. 단일 인스턴스 제한으로 기존 팝업을 재사용하면 최초 context가 남으므로 범위도 덮어쓰지 않는다. 다른 surface에서 열기를 요청해도 기존 대상이 숨겨져 있으면 팝업이 보이지 않을 수 있다. 다른 surface의 요청에서 context를 바꾸는 팝업은 공통 dedup에 기대지 말고 같은 차례에 `ClosePopup`을 먼저 보낸 뒤 새 범위로 `OpenPopup`을 보낸다. 그 팝업의 `on_close`는 같은 id가 다시 열려 있으면 새 context를 지우지 않는다. 탐색기 Properties(`explorer_properties.rs`)가 이 방식이다.
+팝업의 context와 host 범위 바인딩은 같은 원본 surface에서 만든다. 단일 인스턴스 제한으로 기존 팝업을 재사용하면 최초 context가 남으므로 범위도 덮어쓰지 않는다. 다른 surface에서 열기를 요청해도 기존 대상이 숨겨져 있으면 팝업이 보이지 않을 수 있다. 다른 surface의 요청에서 context를 바꾸는 팝업은 공통 dedup에 기대지 말고 같은 차례에 `ClosePopup`을 먼저 보낸 뒤 새 범위로 `OpenPopup`을 보낸다. 그 팝업의 `on_close`는 같은 id가 다시 열려 있으면 새 context를 지우지 않는다. 탐색기 Properties(`explorer_properties.rs`)가 이 방식이다. 검색 바(`search_bar.rs`)는 창에 하나지만 검색할 surface를 인스턴스 데이터(`PopupPayload::Search`)로 싣고, 다른 surface에서 연 요청은 `UiIntent::ReopenPopup`으로 범위와 대상을 함께 옮긴다.

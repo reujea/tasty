@@ -23,7 +23,7 @@
 `find` 바인딩([keybindings](../keybindings/index.md), Tasty 프리셋 `Ctrl+F`/`Alt+F`)은 **포커스 토글**이다:
 - 터미널 포커스 + find → 포커스된 surface에 검색 바 열림 + 검색 바로 포커스
 - 같은 surface에 검색 바가 떠 있고 터미널 포커스 + find → 검색 바로 포커스만 이동(검색어·결과 유지)
-- 검색 바가 다른 surface에 열려 있음(다른 탭이라 숨은 경우, 같은 탭의 다른 분할 surface) + find → 그 검색을 비우고 검색 바를 현재 surface로 옮겨 포커스. 닫았다 다시 열지 않고 범위만 옮긴다.
+- 검색 바가 다른 surface에 열려 있음(다른 탭이라 숨은 경우, 같은 탭의 다른 분할 surface) + find → 그 검색을 비우고 검색 바를 현재 surface로 옮겨 포커스. 검색 바는 창 안에 하나라 다시 열기 요청(`UiIntent::ReopenPopup`)이 범위와 인스턴스의 검색 대상 surface를 함께 옮기며, 닫기 훅(검색 비우기)은 돌지 않는다.
 - 검색 바 포커스 + find → 포커스만 터미널로 복귀(검색 바는 유지)
 - explorer 포커스 + find → 터미널 검색 대신 그 explorer 의 Find 바를 열고 입력에 포커스([Explorer 찾기](../../surfaces/explorer/index.md#찾기--하위-폴더-검색))
 

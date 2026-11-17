@@ -52,8 +52,8 @@ pub fn on_close_search_bar(
 
 /// 포커스된 surface에 검색창을 연다. 그 surface에 이미 열려 있으면 입력 포커스만 준다.
 /// 다른 surface에 열려 있으면(다른 탭이라 숨은 경우 포함) 그 검색을 비우고 창을 현재 surface로
-/// 옮긴다. 닫았다 다시 열면 on_close 훅이 다음 프레임에 늦게 돌아 새 대상의 검색 상태를 지우고,
-/// 열린 팝업에 보내는 OpenPopup intent는 무시되므로 창의 범위를 직접 옮긴다.
+/// 옮긴다. 검색창은 창 안에 하나라 다시 열기 요청이 범위와 인스턴스의 검색 대상을 함께 옮긴다.
+/// 다시 열기는 닫기 훅을 부르지 않으므로 여기서 비운 뒤 채운 검색이 지워지지 않는다.
 pub(crate) fn open_or_focus_for(
     state: &mut MainViewState,
     focused_surface: Option<u32>,
@@ -68,31 +68,19 @@ pub(crate) fn open_or_focus_for(
         state.popups.set_focused(SEARCH_BAR_POPUP_ID, true);
         return;
     }
-    let open_elsewhere = state.popups.is_open(SEARCH_BAR_POPUP_ID);
-    if open_elsewhere {
+    if state.popups.is_open(SEARCH_BAR_POPUP_ID) {
         state.search.clear();
     }
     state.search.surface_id = sid;
-    if open_elsewhere {
-        state
-            .popups
-            // intent-exempt: 열린 팝업의 OpenPopup은 무시되고 close→reopen은 늦은 on_close가 새 검색을 지운다. intent 로그 없음.
-            .open_request(
-                &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, scope)
-                    .at_top()
-                    .focused(),
-                true,
-            );
-    } else {
-        state.dispatch_intent(
-            UiIntent::OpenPopup(
-                crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, scope)
-                    .at_top()
-                    .focused(),
-            )
-            .from_user_shortcut(source),
-        );
-    }
+    state.dispatch_intent(
+        UiIntent::ReopenPopup(
+            crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, scope)
+                .at_top()
+                .focused()
+                .with_payload(crate::adapters::ui::popup::PopupPayload::Search { surface_id: sid }),
+        )
+        .from_user_shortcut(source),
+    );
 }
 
 /// Draw the search bar popup content.
@@ -106,6 +94,11 @@ pub fn draw_search_bar(
 
     // 팝업의 focused 상태에 텍스트 필드 포커스를 맞춘다.
     let want_focus = cx.focused;
+    // 검색 대상은 인스턴스가 가진 surface다. 대상 없이 연 검색창만 포커스된 터미널을 찾는다.
+    let target = match cx.payload {
+        crate::adapters::ui::popup::PopupPayload::Search { surface_id } => *surface_id,
+        _ => focused_terminal_surface_id(state, engine),
+    };
 
     // Layout stays inside the body. Allow the Input's outside ring into the shell padding.
     ui.set_clip_rect(
@@ -179,8 +172,7 @@ pub fn draw_search_bar(
                 action = PopupAction::Close;
             } else {
                 if response.changed() {
-                    let surface_id = focused_terminal_surface_id(state, engine);
-                    state.search.surface_id = surface_id;
+                    state.search.surface_id = target;
                     run_search(state, &engine.as_ref());
                 }
 

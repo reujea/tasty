@@ -147,6 +147,8 @@ pub enum PopupPayload {
     None,
     /// 변환 팝업의 대상 surface와 키보드 선택.
     Convert(convert::ConvertPayload),
+    /// 검색창이 검색하는 터미널 surface.
+    Search { surface_id: u32 },
 }
 
 /// 그리기 함수가 받는 인스턴스 문맥.

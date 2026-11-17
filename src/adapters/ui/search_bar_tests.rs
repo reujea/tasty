@@ -357,3 +357,68 @@ fn escape_after_the_find_shortcut_keeps_the_bar_open() {
     assert!(state.popups.is_open(SEARCH_BAR_POPUP_ID));
     assert_eq!(state.search.query, "needle");
 }
+
+/// 다른 surface에서 find를 누르면 하나뿐인 검색창이 그 surface로 옮겨 간다. 옛 검색은 비우고,
+/// 닫기 훅은 돌지 않아 옮긴 뒤에 채운 검색이 남는다.
+#[test]
+fn find_on_another_surface_moves_the_one_bar_without_its_close_hook() {
+    let (mut state, mut session) = test_state();
+    open_or_focus_for(&mut state, Some(1), "find");
+    crate::intent::popup::apply_pending(&mut state, &mut session);
+    state.search.query = "needle".into();
+
+    open_or_focus_for(&mut state, Some(2), "find");
+    assert!(state.search.query.is_empty());
+    assert_eq!(state.search.surface_id, 2);
+    state.search.query = "typed".into();
+    crate::intent::popup::apply_pending(&mut state, &mut session);
+
+    let bars: Vec<(PopupScope, Option<u32>)> = state
+        .popups
+        .instances_of(SEARCH_BAR_POPUP_ID)
+        .map(|p| (p.scope.clone(), search_target(&p.payload)))
+        .collect();
+    assert_eq!(bars, vec![(PopupScope::Surface(2), Some(2))]);
+    assert!(state.popups.take_closed_ids().is_empty());
+    assert_eq!(state.search.query, "typed");
+}
+
+fn search_target(payload: &crate::adapters::ui::popup::PopupPayload) -> Option<u32> {
+    match payload {
+        crate::adapters::ui::popup::PopupPayload::Search { surface_id } => Some(*surface_id),
+        _ => None,
+    }
+}
+
+/// Given 검색창 인스턴스의 대상이 포커스된 터미널과 다른 surface일 때, When 검색어를 입력하면,
+/// Then 검색은 포커스된 터미널이 아니라 인스턴스의 대상 surface에 걸린다.
+#[test]
+fn typing_searches_the_instance_target_not_the_focused_terminal() {
+    const TARGET: u32 = 4_242;
+    let (mut state, mut session) = test_state();
+    let session = session.borrow_mut();
+    let engine = session.read();
+    assert_ne!(state.focused_surface_id(&engine), Some(TARGET));
+    let ctx = egui::Context::default();
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(
+            SEARCH_BAR_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        )
+        .at(egui::pos2(100.0, 100.0))
+        .focused()
+        .with_payload(crate::adapters::ui::popup::PopupPayload::Search { surface_id: TARGET }),
+        true,
+    );
+    for _ in 0..20 {
+        escape_frame(&ctx, &mut state, &engine, vec![]);
+    }
+    escape_frame(
+        &ctx,
+        &mut state,
+        &engine,
+        vec![egui::Event::Text("needle".into())],
+    );
+    assert_eq!(state.search.query, "needle");
+    assert_eq!(state.search.surface_id, TARGET);
+}
