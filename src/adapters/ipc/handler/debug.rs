@@ -111,6 +111,8 @@ pub(super) fn handle_debug_host_popup_list(
                     }
                 }),
                 "open": geom.is_some(),
+                // 위 범위·z·사각형은 맨 위 인스턴스 값이다. 인스턴스마다의 값은 여기에 있다.
+                "instances": state.popups.debug_instances(def.id),
                 "z_seq": geom.map(|(z, _)| z),
                 "rect": geom.map(|(_, r)| {
                     json!({ "x": r.min.x, "y": r.min.y, "w": r.width(), "h": r.height() })
@@ -197,8 +199,31 @@ pub(super) fn handle_debug_host_popup_close(
     let Some(def) = crate::adapters::ui::popup::defs::find(popup_id) else {
         return JsonRpcResponse::error(id, -32602, format!("host popup '{popup_id}' not found"));
     };
-    state.dispatch_intent(crate::intent::UiIntent::ClosePopup { id: def.id }.from_agent_ipc());
-    JsonRpcResponse::success(id, json!({ "closed": def.id }))
+    // `instance` 를 주면 그 인스턴스만 닫는다. 같은 선언의 다른 인스턴스는 그대로다.
+    let Some(instance) = p_try!(params::opt_int::<u64>(params, "instance", &id)) else {
+        state.dispatch_intent(crate::intent::UiIntent::ClosePopup { id: def.id }.from_agent_ipc());
+        return JsonRpcResponse::success(id, json!({ "closed": def.id }));
+    };
+    let instance = crate::adapters::ui::popup::PopupInstanceId(instance);
+    if state
+        .popups
+        .instance(instance)
+        .is_none_or(|p| p.id != def.id)
+    {
+        return JsonRpcResponse::error(
+            id,
+            -32602,
+            format!("no open instance {} of host popup '{popup_id}'", instance.0),
+        );
+    }
+    state.dispatch_intent(
+        crate::intent::UiIntent::CloseInstance {
+            instance,
+            reason: crate::adapters::ui::popup::PopupCloseReason::Command,
+        }
+        .from_agent_ipc(),
+    );
+    JsonRpcResponse::success(id, json!({ "closed": def.id, "instance": instance.0 }))
 }
 
 /// modifier 홀드 상태와 경과 시간을 지정한다. 생략한 키는 false이며 모두 false면 해제한다.
@@ -435,6 +460,10 @@ pub(super) fn handle_debug_gpu_stall(
     crate::stall_watchdog::arm_debug_stall(ms);
     JsonRpcResponse::success(id, serde_json::json!({ "armed_ms": ms }))
 }
+
+#[cfg(all(test, debug_assertions, feature = "gui"))]
+#[path = "debug_host_popup_instance_tests.rs"]
+mod host_popup_instance_tests;
 
 #[cfg(all(test, debug_assertions, feature = "gui"))]
 mod host_popup_open_tests {

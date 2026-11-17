@@ -5,6 +5,8 @@ pub(crate) mod confirm_delete_category;
 pub(crate) mod confirm_force_detach_workspace;
 pub(crate) mod convert;
 pub(crate) mod dag_list;
+#[cfg(all(debug_assertions, feature = "gui"))]
+mod debug_view;
 pub(crate) mod defs;
 pub(crate) mod download_run;
 mod draw;
