@@ -30,7 +30,7 @@
 ## 생성·갱신·종료
 
 - **빈 자리**: `tasty new tab --pane <P> --type empty` 또는 `tasty split ... --type empty`로 만든다. 필수 params는 없다. attach client는 mirror 워크스페이스에서 대응하는 로컬 객체가 없는 leaf를 빈 자리로 채운다(`install_mirror_fallbacks`, `src/app/attach_client/survivors.rs`).
-- **plugin 대기 자리**: attach client가 원격 markdown leaf를 받았는데 로컬에 markdown kind가 없을 때 만든다(`deferred_mirror_markdown_surface`). kind가 등록된 뒤 화면에 보이면 그 kind의 `restore`로 바뀐다(`reify_displayed_mirror_resources`). 이 자리는 로컬 journal에 들어가지 않는다.
+- **plugin 대기 자리**: attach client가 원격 문서 leaf(원문 mirror나 viewer)를 받았는데 descriptor가 알린 `kind`가 로컬에 아직 등록되지 않았을 때 만든다(`DocumentMirror::materialize`, `src/app/attach_client/documents.rs`). kind가 등록된 뒤 화면에 보이면, 그 kind가 처음 받은 role의 능력을 선언했을 때만 그 kind의 `restore`로 바뀐다(`reify_displayed_mirror_resources`). 이 자리는 로컬 journal에 들어가지 않는다.
 - **복원 자리**: journal 복원 때 `initialize_instances`가 실행 객체가 없는 모든 surface에 하나씩 만든다. 활성화는 별도 확정 작업이다.
   - 부팅 단계(`poll_restore_bootstrap`)는 복원한 View에서 선택된 터미널과 kind가 이미 등록된 non-terminal surface를 활성화한다. 선택되지 않은 터미널과 아직 등록되지 않은 kind는 자리로 남는다. 부팅은 복원 자리가 기다리는 plugin kind의 등록을 기한 안에서 기다린다(`boot_required_plugin_kinds`).
   - 부팅 뒤 창에 보이는 surface(활성 워크스페이스에서 각 pane의 선택된 탭)는 `App::activate_displayed_restorations`(`src/app/window_lifecycle/pending.rs`)가 차례로 활성화한다. 한 번의 갱신에서 창마다 하나씩 시작한다.
