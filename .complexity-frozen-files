@@ -41,3 +41,5 @@ src/app/attach_client/wire.rs
 src/app/attach_client/bulk.rs
 src/app/attach_client/navigation.rs
 src/app/attach_client/resources.rs
+src/app/attach_client/documents.rs
+src/app/attach_client/git_query.rs
