@@ -1,5 +1,5 @@
 //! IPC 메서드의 호출자·권한·재시도 계약을 정의한다. 새 호스트 메서드는 이 표에 등록한다.
-//! Plugin/Agent는 이 메타데이터로 권한을 검사한다. Local의 권한 검사는 별도로 면제된다.
+//! Agent는 이 메타데이터로 권한을, Plugin은 호출 가능 여부를 검사한다. Local의 권한 검사는 별도로 면제된다.
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -76,7 +76,7 @@ pub struct MethodMeta {
     pub plugin_callable: bool,
     /// 플러그인 host-call에서만 처리하며 외부 CLI·네트워크 dispatch 경로는 없는 메서드.
     pub plugin_only: bool,
-    /// plugin이 호출하려면 매니페스트에 이 권한들이 모두 선언돼 있어야 함.
+    /// Agent가 호출하려면 세션에 이 권한들이 모두 있어야 한다. Plugin 호출자는 보지 않는다.
     pub required: &'static [Permission],
     /// 정적 표 대신 등록된 플러그인 prefix로 찾은 이름이다.
     /// required가 비어 있어도 호출 게이트가 ipc.invoke:<prefix>를 요구한다.
@@ -373,7 +373,7 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("global_hook.list", plugin(Read, &[SurfaceRead])),
         ("global_hook.unset", plugin(Idempotent, &[SurfaceWrite])),
         // ── webhook (인바운드 웹훅 리스너 — lifetime 6종/영속화 포함) ──────
-        // 플러그인은 Network 권한으로 자기 hook handler만 등록할 수 있다.
+        // 플러그인은 자기 hook handler만 등록할 수 있다.
         // 인라인 sequence는 거절하며 조회·해제·설정은 Local 전용이다.
         ("webhook.register", plugin(Mutate, &[Network])),
         ("webhook.list", local_only(Read)),
@@ -604,7 +604,7 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("attach.into_gui", plugin(Mutate, &[]).kept_by_app_layer()),
         ("attach.list", plugin(Read, &[])),
         // 원격 자식 에이전트. client 쪽 plugin 이 자기 namespace 로 holder 연결을 거쳐 서버 plugin 을 부르고,
-        // 서버 쪽 plugin 이 그 자식의 고유 결과를 보낸다. 호출 plugin 의 기존 터미널 권한을 그대로 요구한다.
+        // 서버 쪽 plugin 이 그 자식의 고유 결과를 보낸다. 아래 터미널 권한은 Agent 게이트 표기이고 plugin 은 토큰 없이 부른다.
         // agent_target 은 읽기 전용이라 CLI 도 경로 인자를 어느 머신 기준으로 다룰지 정하려고 묻는다.
         // call·commit·notice 는 외부 arm 이 있고 핸들러가 plugin 이 아닌 호출을 거절한다(file_picker.trigger 와 같다).
         ("attach.agent_target", plugin(Read, &[])),

@@ -1,5 +1,5 @@
 //! Plugin 생명주기: 인스턴스 생성, listener bind, discover→spawn, healthcheck restart 후
-//! plugin process 정리, enable/disable, 권한 갱신, log path 조회.
+//! plugin process 정리, enable/disable, log path 조회.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

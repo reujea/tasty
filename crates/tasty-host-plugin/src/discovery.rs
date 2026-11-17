@@ -22,7 +22,7 @@ pub struct Discovered {
     /// trust gate를 통과해 등록할 plugin. ID순이며 같은 ID는 첫 항목만 남는다.
     /// 설치 목록(`PluginManager::packages`)은 lifecycle이 이 값으로 갱신한다.
     pub trusted: Vec<PluginPackage>,
-    /// trust gate 에서 거부된 plugin(서명 미신뢰 / 검증 실패 / 권한 변경). UI 의 "확인 필요"
+    /// trust gate 에서 거부된 plugin(서명 미신뢰 / 검증 실패). UI 의 "확인 필요"
     /// 목록과 사이드바 경고 배지가 소비한다. debug 빌드는 trust gate 를 우회하므로
     /// (`trust_outcome` 가 항상 Trusted) 항상 비어 있다.
     pub rejected: Vec<RejectedPlugin>,

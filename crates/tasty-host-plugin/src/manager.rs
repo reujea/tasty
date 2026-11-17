@@ -343,7 +343,7 @@ pub struct EguiMeshFrame {
 
 pub struct PluginManager {
     packages: Vec<PluginPackage>,
-    /// trust gate 에서 거부된 plugin 들 (서명 미신뢰/검증 실패/권한 변경).
+    /// trust gate 에서 거부된 plugin 들 (서명 미신뢰/검증 실패).
     /// `refresh_packages` 가 `packages` 와 함께 갱신한다. UI "확인 필요" 탭 +
     /// 사이드바 경고 배지가 소비. debug 빌드는 trust gate 우회라 항상 비어 있다.
     pub rejected: Vec<crate::discovery::RejectedPlugin>,
@@ -422,7 +422,7 @@ pub struct PluginManager {
     extensions: super::extension_registry::ExtensionRegistry,
     /// 설치·활성 플러그인의 상속 환경변수 제거 규칙. `recompute_extensions`가 함께 갱신한다.
     inherited_env: std::collections::BTreeMap<String, tasty_utils::process::InheritedEnvRules>,
-    /// 설치된 플러그인의 namespace 별 소유 상태(활성·허가 권한). agent provider 자격 판정이 읽는다.
+    /// 설치된 플러그인의 namespace 별 소유 상태(활성 여부). agent provider 자격 판정이 읽는다.
     namespace_owners:
         std::collections::BTreeMap<String, tasty_utils::plugin_namespaces::NamespaceOwner>,
     /// 부팅 매니저만 켠다. 켜져 있으면 위 규칙과 소유 상태를 다른 스레드가 읽는 공용 표에 반영한다.

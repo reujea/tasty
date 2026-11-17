@@ -303,7 +303,7 @@ pub(crate) fn check_permission_gate(
         let mut response =
             JsonRpcResponse::error(id.clone(), -32001, format!("permission_denied: {e}"));
         // 알 수 없는 메서드·plugin 호출 금지는 권한을 추가해도 해결되지 않는다.
-        // Plugin 권한은 매니페스트·grant로 관리하므로 Agent 승인 요청을 만들지 않는다.
+        // Plugin 호출자는 권한 토큰을 쓰지 않으므로 승인 요청은 Agent에만 만든다.
         if let (
             tasty_ipc::caller::CallerError::MissingPermission { permission, .. },
             CallerContext::Agent { agent_id, .. },

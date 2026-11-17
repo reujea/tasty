@@ -16,7 +16,7 @@ pub(crate) enum InstallChoice {
     VerifiedOnly,
     /// 미인증 경고를 보고 그래도 쓰기로 골랐다. 매니페스트 내용과 함께 선택을 기록한다.
     AllowUnverified,
-    /// 공개 키 파일의 키를 신뢰하고 설치한다. 신뢰한 키의 권한 변경 재승인도 이 선택이다.
+    /// 공개 키 파일의 키를 신뢰하고 설치한다.
     TrustKey {
         /// 화면이 공개 키 파일에서 읽어 보인 키(base64). 서명 키와 다르면 설치하지 않는다.
         pubkey_b64: String,

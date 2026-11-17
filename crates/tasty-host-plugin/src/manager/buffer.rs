@@ -77,8 +77,8 @@ impl PluginManager {
         call_id: u64,
         size: u64,
     ) -> Result<SharedBufferCreateResult, String> {
-        // TODO(권한모델): manifest 권한 도입 후 plugin별 permissions.max_shared_buffer_bytes 로 대체.
-        const MAX_BYTES: u64 = 1 << 30; // 1 GiB. manifest 권한 도입 전 임시 상한.
+        // TODO(버퍼 상한): plugin별 상한이 필요해지면 매니페스트 선언으로 받는다.
+        const MAX_BYTES: u64 = 1 << 30; // 1 GiB. 모든 plugin 공통 상한.
         if size == 0 {
             return Err("shared_buffer.create: size must be > 0".into());
         }
@@ -154,8 +154,8 @@ impl PluginManager {
         call_id: u64,
         size: u64,
     ) -> Result<SharedBufferCreateResult, String> {
-        // TODO(권한모델): manifest 권한 도입 후 plugin별 permissions.max_shared_buffer_bytes 로 대체.
-        const MAX_BYTES: u64 = 1 << 30; // 1 GiB. manifest 권한 도입 전 임시 상한.
+        // TODO(버퍼 상한): plugin별 상한이 필요해지면 매니페스트 선언으로 받는다.
+        const MAX_BYTES: u64 = 1 << 30; // 1 GiB. 모든 plugin 공통 상한.
         if size == 0 {
             return Err("shared_buffer.create: size must be > 0".into());
         }

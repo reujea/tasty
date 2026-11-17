@@ -12,7 +12,7 @@ use crate::{TaskScope, TaskService};
 /// 제출한 쪽. 세션 토큰을 가진 agent 는 자기 세션의 회차에만 낼 수 있다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Submitter {
-    /// 사용자 CLI 또는 권한 검사를 통과한 플러그인.
+    /// 사용자 CLI 또는 호출 검사를 통과한 플러그인.
     Trusted,
     /// 세션 토큰으로 확인한 agent 세션. 값은 그 세션의 surface 다.
     Session(u32),

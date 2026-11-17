@@ -8,7 +8,7 @@ use crate::app::App;
 use crate::runtime::engine_access::{EngineMut, EngineRef};
 use crate::state::RequestContext;
 
-/// 조회에 필요한 매니저와 설치 목록을 준비한다. 플러그인 설치·권한 부여·프로세스 실행은 하지 않는다.
+/// 조회에 필요한 매니저와 설치 목록을 준비한다. 플러그인 설치·프로세스 실행은 하지 않는다.
 /// 매니저 생성 과정에서 로그 디렉터리는 만들어질 수 있다. waker_factory가 없으면 경고 후 생략한다.
 pub(crate) fn ensure_plugin_manager_metadata(app: &mut App, engine: &EngineRef<'_>) {
     if app.plugin_manager.is_some() {

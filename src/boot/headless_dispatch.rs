@@ -250,7 +250,7 @@ fn intercept_app_layer(
         send_response(&cmd.response_tx, resp);
         return Some(Intercepted::Answered);
     }
-    // 조회에는 매니저 메타데이터만 필요하다. 플러그인 설치·권한 부여·실행을 하지 않는다.
+    // 조회에는 매니저 메타데이터만 필요하다. 플러그인 설치·실행을 하지 않는다.
     if crate::ipc::handler::plugin::is_readonly_method(&cmd.request.method) {
         super::headless_plugins::ensure_plugin_manager_metadata(app, &engine.as_ref());
         let surface_registry = engine.runtime.surface_registry.clone();

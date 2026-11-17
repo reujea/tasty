@@ -409,7 +409,7 @@ fn tag_list(ui: &mut egui::Ui, theme: &Theme, label: &str, items: &[String], non
 
 /// 액션 바 문구와 상태.
 pub struct PluginAddBarView<'a> {
-    /// 왼쪽 문구. 추가할 수 없으면 이유, 아니면 부여할 권한 수. 매니페스트가 없으면 빈 문자열.
+    /// 왼쪽 문구. 추가할 수 없으면 이유, 아니면 빈 문자열.
     pub left: &'a str,
     pub cancel: &'a str,
     /// 추가 버튼 문구. 매니페스트를 확인하기 전에는 `None`이다. 추가 중에도 바뀌지 않는다.
