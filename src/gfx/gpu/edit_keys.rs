@@ -746,7 +746,8 @@ impl super::GpuState {
 
 /// The window draws no frames: it is minimized or hidden. winit cannot tell on every platform
 /// (Wayland answers neither), and an unknown answer counts as drawing. An occluded window is not
-/// told apart either: Tasty keeps no occlusion state, and an occluded X11 window still draws.
+/// told apart either: drawing does not read occlusion (only hang reports record it), and an
+/// occluded X11 window still draws.
 fn frames_stopped(window: &winit::window::Window) -> bool {
     window.is_minimized() == Some(true) || window.is_visible() == Some(false)
 }

@@ -285,23 +285,45 @@ fn record_panic(
     write_panic_report(&dir, &report)
 }
 
-/// 이벤트 루프 무응답 보고서를 별도 hang 파일로 남긴다.
-/// 호스트 재시작이 공유 로그를 덮어써도 보고서는 유지된다.
+/// 새 hang 보고서의 자리. 경로를 먼저 정해 두면 같은 이름을 쓰는 부속 파일(스택 표본)을
+/// 보고서를 쓰기 전에 시작할 수 있다.
 #[cfg(feature = "gui")]
-pub fn write_hang_report(site: &str, phase: &str, stuck_ms: u64) -> Option<PathBuf> {
+pub struct HangReportTarget {
+    pub path: PathBuf,
+    timestamp: String,
+}
+
+/// 보고서 폴더를 만들고 이번 hang 보고서의 경로를 정한다.
+#[cfg(feature = "gui")]
+pub fn hang_report_target() -> Option<HangReportTarget> {
     let dir = crash_report_dir()?;
     fs::create_dir_all(&dir).ok()?;
-
     let timestamp = format_timestamp(SystemTime::now());
-    let path = dir.join(format!("hang-{timestamp}.log"));
-    let mut file = fs::File::create(&path).ok()?;
+    Some(HangReportTarget {
+        path: dir.join(format!("hang-{timestamp}.log")),
+        timestamp,
+    })
+}
 
-    write_report_header(&mut file, "Tasty Hang Report", &timestamp);
+/// 이벤트 루프 무응답 보고서를 별도 hang 파일로 남긴다.
+/// 호스트 재시작이 공유 로그를 덮어써도 보고서는 유지된다. `details`는 stall 절 뒤에 그대로 붙인다.
+#[cfg(feature = "gui")]
+pub fn write_hang_report(
+    target: &HangReportTarget,
+    site: &str,
+    phase: &str,
+    stuck_ms: u64,
+    details: &str,
+) -> Option<PathBuf> {
+    let mut file = fs::File::create(&target.path).ok()?;
+
+    write_report_header(&mut file, "Tasty Hang Report", &target.timestamp);
 
     writeln!(file, "=== Stall ===").ok();
     writeln!(file, "Callback: {site}").ok();
     writeln!(file, "Render phase: {phase}").ok();
     writeln!(file, "Stuck for: {stuck_ms} ms").ok();
+    write!(file, "{details}").ok();
     writeln!(file).ok();
     writeln!(
         file,
@@ -312,7 +334,7 @@ pub fn write_hang_report(site: &str, phase: &str, stuck_ms: u64) -> Option<PathB
     )
     .ok();
 
-    Some(path)
+    Some(target.path.clone())
 }
 
 /// panic hook과 stderr·파일 로그 레이어를 설치한다. app_version은 본체 버전이다.
@@ -779,8 +801,9 @@ mod tests {
     fn a_hang_report_written_under_tasty_home_carries_the_version_given_to_init() {
         with_test_version();
         let home = tasty_test_support::TastyHomeGuard::new();
-        let path =
-            write_hang_report("redraw", "present", 5000).expect("hang report 가 써져야 한다");
+        let target = hang_report_target().expect("hang report 자리");
+        let path = write_hang_report(&target, "redraw", "present", 5000, "Extra: 1\n")
+            .expect("hang report 가 써져야 한다");
         assert!(path.starts_with(home.path().join("crash-reports")));
         let text = fs::read_to_string(&path).expect("read hang report");
         assert!(text.starts_with("=== Tasty Hang Report ==="));
@@ -788,6 +811,10 @@ mod tests {
             text.lines()
                 .any(|l| l == format!("Version: {TEST_VERSION}")),
             "hang 보고서 머리에 넘긴 버전이 없다:\n{text}"
+        );
+        assert!(
+            text.contains("Stuck for: 5000 ms\nExtra: 1\n\nThe event loop"),
+            "stall 절 뒤에 details 가 그대로 붙어야 한다:\n{text}"
         );
     }
 }

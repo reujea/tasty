@@ -426,6 +426,15 @@ impl MainView {
         }
     }
 
+    /// 가림 상태는 hang 보고서에 적기만 하고 가려진 창의 렌더 동작은 바꾸지 않는다.
+    /// 다시 보이면 한 번 다시 그린다.
+    fn note_occlusion(&mut self, occluded: bool) {
+        crate::stall_watchdog::record_window_occluded(occluded);
+        if !occluded {
+            self.mark_dirty();
+        }
+    }
+
     /// 창의 engine과 함께 창 이벤트를 처리한다. engine은 App registry가 창 ID로 찾아 넘긴다.
     fn handle_engine_event(
         &mut self,
@@ -537,6 +546,7 @@ impl MainView {
             }
             WindowEvent::Focused(focused) => {
                 self.base.state.focused = focused;
+                crate::stall_watchdog::record_window_focused(focused);
                 // 포커스가 바뀌면 누름·뗌 짝이 끊길 수 있어 double-tap 추적을 초기화한다.
                 self.double_tap.reset();
                 if !focused {
@@ -549,9 +559,7 @@ impl MainView {
                 }
                 self.mark_dirty();
             }
-            WindowEvent::Occluded(false) => {
-                self.mark_dirty();
-            }
+            WindowEvent::Occluded(occluded) => self.note_occlusion(occluded),
             // 오버레이 host 가 별도 최상위 창인 OS 는 주 창 이동을 직접 따라가야 한다.
             WindowEvent::Moved(_) => self.base.gpu.follow_overlay_host(),
             WindowEvent::ModifiersChanged(modifiers) => {

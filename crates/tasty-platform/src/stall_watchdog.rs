@@ -7,6 +7,10 @@ use std::sync::atomic::{AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{LazyLock, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::stall_context::{
+    self, Context, CpuTimes, PollHistory, PollSummary, SampleGate, WindowState,
+};
+
 /// 콜백이 반환하지 않았다고 처음 보고할 시간. 정상 블로킹 구간은 별도로 제외해야 한다.
 const REPORT_AFTER: Duration = Duration::from_secs(5);
 
@@ -39,6 +43,31 @@ static LAST_PHASE: AtomicU8 = AtomicU8::new(0);
 /// 짧은 콜백이 끝없이 이어져 `about_to_wait` 에 닿지 못하는 기아는 콜백 하나의 시간으로는 보이지 않는다.
 static ITERATION_OPEN_NS: AtomicU64 = AtomicU64::new(0);
 static LAST_PHASE_NS: AtomicU64 = AtomicU64::new(0);
+/// 마지막으로 받은 창 이벤트 값. 0 = 받지 못함, 1 = false, 2 = true. 보고서에 적기만 한다.
+static WINDOW_FOCUSED: AtomicU8 = AtomicU8::new(0);
+static WINDOW_OCCLUDED: AtomicU8 = AtomicU8::new(0);
+
+/// 창 `Focused` 이벤트 값을 기록한다. 워치독은 보고서에 적기만 하고 동작을 바꾸지 않는다.
+pub fn record_window_focused(focused: bool) {
+    WINDOW_FOCUSED.store(1 + u8::from(focused), Ordering::Relaxed);
+}
+
+/// 창 `Occluded` 이벤트 값을 기록한다. 워치독은 보고서에 적기만 하고 동작을 바꾸지 않는다.
+pub fn record_window_occluded(occluded: bool) {
+    WINDOW_OCCLUDED.store(1 + u8::from(occluded), Ordering::Relaxed);
+}
+
+fn window_state() -> WindowState {
+    let read = |cell: &AtomicU8| match cell.load(Ordering::Relaxed) {
+        1 => Some(false),
+        2 => Some(true),
+        _ => None,
+    };
+    WindowState {
+        focused: read(&WINDOW_FOCUSED),
+        occluded: read(&WINDOW_OCCLUDED),
+    }
+}
 
 /// Start of a continuous nonempty main-loop queue-obligation period.
 #[derive(Clone, Copy, Debug)]
@@ -300,6 +329,7 @@ fn should_report(snap: Snapshot, reported: Option<Reported>) -> Option<Verdict> 
 /// 워치독 스레드를 띄운다. 이벤트 루프 진입 전에 한 번 호출한다.
 pub fn spawn() {
     LazyLock::force(&ORIGIN);
+    stall_context::remember_main_thread();
     if let Err(e) = std::thread::Builder::new()
         .name("tasty-stall-watchdog".to_string())
         .spawn(watch_loop)
@@ -360,8 +390,16 @@ fn sample() -> Option<Snapshot> {
         .then_some(snap)
 }
 
+/// 보고 시점의 관측값. 매 폴링에서 갱신하는 값과 보고 때 읽는 값을 함께 넘긴다.
+struct Observation<'a> {
+    poll: PollSummary,
+    cpu: &'a Result<CpuTimes, String>,
+    cpu_previous: Option<(CpuTimes, Duration)>,
+    gate: &'a mut SampleGate,
+}
+
 /// stall 1 건 보고. `first` 면 파일 리포트까지 남긴다(재보고는 로그만 — 파일 폭주 방지).
-fn report(snap: Snapshot, verdict: Verdict) {
+fn report(snap: Snapshot, verdict: Verdict, obs: Observation<'_>) {
     let first = verdict.first;
     let inside_callback = !snap.seq.is_multiple_of(2);
     let site = if verdict.starved {
@@ -383,37 +421,104 @@ fn report(snap: Snapshot, verdict: Verdict) {
         pending_age_ms = snap.pending_age.as_millis() as u64,
         last_callback = site_label(snap.site), last_phase = phase_label(snap.last_phase),
         last_phase_age_ms = snap.last_phase_age.as_millis() as u64,
+        poll_latest_ms = obs.poll.latest.as_millis() as u64,
+        poll_max_ms = obs.poll.max.as_millis() as u64,
         "event loop stalled — no observed main-loop progress; recorded regions do not establish the cause");
     if first {
-        write_report_file(site, phase, stuck_ms, snap);
+        let started = Instant::now();
+        let mut context = Context::collect(
+            obs.poll,
+            POLL_INTERVAL,
+            obs.cpu.clone(),
+            obs.cpu_previous,
+            window_state(),
+        );
+        let written = write_report_file(site, phase, stuck_ms, snap, &mut context, obs.gate);
+        tracing::error!(
+            target: "tasty::stall",
+            path = ?written,
+            write_ms = started.elapsed().as_millis() as u64,
+            "hang report written (path = None means the write failed)"
+        );
     }
 }
 
-/// stall 리포트 파일 1 개를 남기고 결과를 로그로 확인한다.
-fn write_report_file(site: &str, phase: &str, stuck_ms: u64, snap: Snapshot) {
+/// stall 이후의 진행 정보와 관측값. hang 보고서의 stall 절 뒤에 붙는다.
+fn report_details(snap: Snapshot, context: &Context) -> String {
+    format!(
+        "Inside callback: {}\nPending main-loop work: {}\nLast progress age: {} ms\nPending period age: {} ms\nLast callback: {}\nLast recorded render phase: {} ({} ms ago)\n\n{}",
+        !snap.seq.is_multiple_of(2),
+        snap.pending,
+        snap.progress_age.as_millis(),
+        snap.pending_age.as_millis(),
+        site_label(snap.site),
+        phase_label(snap.last_phase),
+        snap.last_phase_age.as_millis(),
+        context.describe()
+    )
+}
+
+/// stall 리포트 파일 1 개를 남긴다. 스택 표본은 보고서보다 먼저 시작해 멈춘 순간에 가깝게 잡는다.
+fn write_report_file(
+    site: &str,
+    phase: &str,
+    stuck_ms: u64,
+    snap: Snapshot,
+    context: &mut Context,
+    gate: &mut SampleGate,
+) -> Option<std::path::PathBuf> {
     // 리포트를 못 써도 호출자의 error 로그는 이미 남았다 — 진단이 얕아질 뿐이다.
-    let written = crate::crash_report::write_hang_report(site, phase, stuck_ms);
-    if let Some(path) = &written {
-        use std::io::Write;
-        let result = std::fs::OpenOptions::new().append(true).open(path).and_then(|mut file| {
-            writeln!(file, "Inside callback: {}\nPending main-loop work: {}\nLast progress age: {} ms\nPending period age: {} ms\nLast callback: {}\nLast recorded render phase: {} ({} ms ago)",
-                !snap.seq.is_multiple_of(2), snap.pending, snap.progress_age.as_millis(), snap.pending_age.as_millis(), site_label(snap.site), phase_label(snap.last_phase), snap.last_phase_age.as_millis())
-        });
-        if let Err(error) = result {
-            tracing::warn!(%error, "hang progress context append failed");
+    let target = crate::crash_report::hang_report_target()?;
+    if stall_context::STACK_SAMPLE_SUPPORTED && gate.admit(ORIGIN.elapsed(), true) {
+        context.stack_sample =
+            stall_context::start_stack_sample(&target.path.with_extension("sample.txt"));
+        if let Err(error) = &context.stack_sample {
+            tracing::warn!(target: "tasty::stall", %error, "hang stack sample did not start");
         }
     }
-    tracing::error!(
-        target: "tasty::stall",
-        path = ?written,
-        "hang report written (path = None means the write failed)"
-    );
+    crate::crash_report::write_hang_report(
+        &target,
+        site,
+        phase,
+        stuck_ms,
+        &report_details(snap, context),
+    )
+}
+
+/// 한 폴링의 CPU 시간 기록. 보고 때 직전 폴링 값과 차이를 낸다.
+struct CpuTrack {
+    previous: Option<(Instant, CpuTimes)>,
+}
+
+impl CpuTrack {
+    /// 이번 값을 읽고, (이번 값, 직전 값과 그때부터 지난 시간)을 돌려준다.
+    fn advance(
+        &mut self,
+        now: Instant,
+    ) -> (Result<CpuTimes, String>, Option<(CpuTimes, Duration)>) {
+        let current = stall_context::cpu_times();
+        let previous = self
+            .previous
+            .take()
+            .map(|(at, cpu)| (cpu, now.saturating_duration_since(at)));
+        self.previous = current.as_ref().ok().map(|cpu| (now, cpu.clone()));
+        (current, previous)
+    }
 }
 
 fn watch_loop() {
     let mut reported: Option<Reported> = None;
+    let mut polls = PollHistory::default();
+    let mut gate = SampleGate::default();
+    let mut cpu_track = CpuTrack { previous: None };
+    let mut last_wake = Instant::now();
     loop {
         std::thread::sleep(POLL_INTERVAL);
+        let woke = Instant::now();
+        // 잠든 시간이 아니라 직전 깨어남부터의 간격을 잰다. 표본·보고에 쓴 시간도 지연에 들어간다.
+        polls.record(ORIGIN.elapsed(), woke.saturating_duration_since(last_wake));
+        last_wake = woke;
+        let (cpu, cpu_previous) = cpu_track.advance(woke);
 
         let Some(snap) = sample() else { continue };
         let Some(verdict) = should_report(snap, reported) else {
@@ -433,7 +538,13 @@ fn watch_loop() {
                 0
             },
         });
-        report(snap, verdict);
+        let obs = Observation {
+            poll: polls.summary(),
+            cpu: &cpu,
+            cpu_previous,
+            gate: &mut gate,
+        };
+        report(snap, verdict, obs);
     }
 }
 
@@ -744,6 +855,47 @@ mod tests {
             Some(true),
             "a nested callback without a pause must not erase real outer work"
         );
+    }
+
+    /// 수집에 실패한 항목이 있어도 hang 보고서의 다른 줄은 그대로 남는다.
+    #[test]
+    fn a_failed_context_item_leaves_the_rest_of_the_hang_report() {
+        let home = tasty_test_support::TastyHomeGuard::new();
+        let mut context = Context::collect(
+            PollSummary {
+                latest: Duration::from_millis(7003),
+                max: Duration::from_millis(7003),
+            },
+            POLL_INTERVAL,
+            Err("getrusage: injected".into()),
+            None,
+            WindowState::default(),
+        );
+        let mut gate = SampleGate::default();
+        let path = write_report_file(
+            "redraw",
+            "present",
+            5745,
+            snap(1, 5),
+            &mut context,
+            &mut gate,
+        )
+        .expect("hang report");
+        assert!(path.starts_with(home.path().join("crash-reports")));
+        let text = std::fs::read_to_string(&path).expect("read hang report");
+        for expected in [
+            "=== Tasty Hang Report ===\n",
+            "=== Stall ===\nCallback: redraw\nRender phase: present\nStuck for: 5745 ms\nInside callback: true\n",
+            "Last recorded render phase: none (0 ms ago)\n\n=== Load ===\n",
+            "Watchdog poll interval: latest 7003 ms, max 7003 ms in last 60 s (expected 1000 ms)\n",
+            "Process CPU: unavailable (getrusage: injected)\n",
+            "Main thread CPU: unavailable (getrusage: injected)\n",
+            "Window: focused unknown, occluded unknown\n",
+            "\nThe event loop made no observed progress",
+        ] {
+            assert!(text.contains(expected), "missing {expected:?} in\n{text}");
+        }
+        assert!(text.contains("Stack sample: "), "{text}");
     }
 
     #[test]

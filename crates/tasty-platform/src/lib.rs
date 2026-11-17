@@ -37,6 +37,9 @@ pub mod reveal;
 pub mod screen_capture;
 /// Windows 단일 실행: MainView 창 탐색·등록 활성화 메시지·포그라운드 권한 위임.
 pub mod single_instance_windows;
+// hang 보고서에 붙이는 부하·CPU·스케줄 관측. 워치독만 쓴다.
+#[cfg(feature = "gui")]
+mod stall_context;
 #[cfg(feature = "gui")]
 pub mod stall_watchdog;
 #[cfg(all(

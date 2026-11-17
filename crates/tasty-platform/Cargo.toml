@@ -52,6 +52,8 @@ gdkx11 = { version = "0.18", optional = true }
 x11-dl = { version = "2.21", optional = true }
 # GTK 메뉴 행의 아이콘–라벨 간격을 Theme 원본 간격 토큰에서 읽는다(`native_menu/linux_icon.rs`).
 tasty-type-appearance = { path = "../tasty-type-appearance", optional = true }
+# hang 보고서의 프로세스 CPU·문맥 전환·page fault(getrusage)와 clock tick(sysconf).
+libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
 tasty-icons = { path = "../tasty-icons" }
@@ -77,6 +79,7 @@ gui = [
     "dep:gdkx11",
     "dep:tasty-type-appearance",
     "dep:x11-dl",
+    "dep:libc",
 ]
 
 [lints]

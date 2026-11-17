@@ -170,11 +170,41 @@ Last progress age: 5745 ms
 Pending period age: 5745 ms
 Last callback: redraw
 Last recorded render phase: present (5745 ms ago)
+
+=== Load ===
+Watchdog poll interval: latest 1001 ms, max 1001 ms in last 60 s (expected 1000 ms)
+Load average: 0.52 0.40 0.31
+Process CPU: user 8123 ms, system 912 ms (+3 ms user, +1 ms system over 1001 ms)
+Main thread CPU: 6210 ms (+0 ms over 1001 ms)
+Main thread state: S (wchan hrtimer_nanosleep)
+Involuntary context switches: 1534
+Major page faults: 0
+Scheduling: main thread priority 20, nice 0, policy 0
+Window: focused true, occluded unknown
+Stack sample: unavailable (not supported on this OS)
 ```
+
+`=== Load ===` 절은 원인을 가르는 관측값이다. 모두 워치독 스레드가 읽으며 메인 루프를 깨우거나 동작을 바꾸지 않는다. 읽지 못한 항목은 `unavailable (<이유>)`로 쓰고 나머지 줄은 그대로 남긴다.
+
+| 줄 | 뜻 | 읽는 법 |
+|---|---|---|
+| `Watchdog poll interval` | 워치독이 1초마다 깨어난 실제 간격. 직전 60초 안의 최대와 마지막 값 | 간격은 1초 잠든 시간에 직전 폴링의 작업 시간(CPU 수집, 동기 로그, 보고서 쓰기)을 더한 값이다. 그래서 1000 ms보다 늦어도 그것만으로 CPU를 받지 못했다고 볼 수 없다. 보고서 쓰기에 7초가 걸렸다면 CPU 경쟁이 없어도 다음 간격은 약 8초다. CPU 미할당은 `Process CPU` 증가량, `Main thread state`, 직전 보고의 `write_ms`와 함께 판단한다 |
+| `Load average` | 시스템 부하 평균(1·5·15분) | 코어 수보다 크면 다른 프로세스와 CPU를 다투고 있다 |
+| `Process CPU` | 프로세스 전체의 누적 user·system CPU와 직전 폴링 대비 증가량 | 증가량이 경과 시간에 가까우면 어느 스레드가 바쁘게 돈다 |
+| `Main thread CPU` | 메인 스레드의 누적 CPU와 직전 폴링 대비 증가량 | 0에 가까우면 메인 스레드는 무언가를 기다리고 있다. 경과 시간에 가까우면 메인 스레드가 계산 중이다 |
+| `Main thread state` | 메인 스레드 상태 문자(`R` 실행·실행 대기, `S` 잠듦, `D` 끊을 수 없는 대기)와 잠든 커널 함수(`wchan`) | `R`인데 CPU 증가가 작으면 실행 대기열에서 CPU를 기다리고 있다. `D`는 I/O 등 커널 대기다 |
+| `Involuntary context switches` / `Major page faults` | 프로세스 전체 누적값 | 앞뒤 보고서와 비교해 크게 늘었으면 CPU 경쟁이나 디스크 읽기가 있었다 |
+| `Scheduling` | 메인 스레드의 우선순위·nice·스케줄 정책 | 낮은 등급으로 밀렸는지 본다 |
+| `Window` | 마지막으로 받은 창 `Focused`·`Occluded` 이벤트 값. 받지 못했으면 `unknown`. 여러 창이면 마지막 이벤트를 보낸 창의 값이다 | 가려지거나 포커스가 없는 창인지 본다. 이 값으로 렌더 동작을 바꾸지 않는다 |
+| `Stack sample` | 메인 스레드 스택 표본 파일 또는 만들지 않은 이유 | 아래 "스택 표본" |
+
+- **OS 범위**: Linux는 `Stack sample`을 뺀 항목을 모두 채운다(프로세스 값은 `getrusage`, 메인 스레드 값은 `/proc/self/task/<tid>`). `Stack sample`은 아래 "스택 표본"대로 아직 모든 OS에서 `unavailable`이다. 메인 스레드를 기록하지 못했으면 메인 스레드 줄이 `unavailable (main thread not recorded)`이고, 기록했는데 읽지 못했으면 읽기 실패 이유가 나온다. 메인 스레드는 워치독을 띄운 스레드(`stall_watchdog::spawn` 호출 스레드)다. macOS와 Windows는 아직 수집하지 않아 `Watchdog poll interval`과 `Window`를 뺀 줄이 `unavailable (not supported on this OS)`다.
+- **스택 표본**: 표본을 만들 수 있는 OS에서는 첫 보고 때 보고서와 같은 이름의 `hang-<시각>.sample.txt`에 메인 스레드 스택을 남기도록 표본 도구를 띄우고 기다리지 않는다. 사건마다 한 번, 전체로는 600초(`STACK_SAMPLE_EVERY`)에 한 번만 만든다. 표본 도구가 수 초 동안 CPU를 쓰기 때문이다. 지금은 표본을 만드는 OS가 없어 `unavailable (not supported on this OS)`다. Linux는 `Main thread state`와 `wchan`까지가 범위이고 Linux·Windows 스택 표본은 다루지 않는다.
 
 - `Render phase`는 현재 계측 구간이다. `acquire`/`submit`/`present`/`configure`도 드라이버 원인을 확정하는 증거는 아니다. 콜백 바깥에서는 `none`이며 `Last callback`과 `Last recorded render phase`는 나이를 함께 표시한 과거 관측이다. 이를 현재 GPU/IME 호출의 스택으로 해석하지 않는다.
 - pending은 응답을 기다리는 호출자 수가 아니라 성공적으로 큐에 게시된 메인 루프 처리 의무다. send 성공 뒤 기존 wake 전에 시작하며 dequeue·claim·실행 전 철회·명령 drop·확인한 응답으로 한 번만 끝난다. 이미 시작한 비동기 작업이나 늦은 응답 소유권은 pending을 유지하지 않는다. 기한 없이 보낸 명령은 호출자가 떠나도 실제 dequeue/drop까지 남는다. pending 나이는 개별 최장 요청이 아니라 큐 의무가 연속해서 남아 있는 기간이다.
 - probe는 고정 메타데이터만 읽고 요청을 소비하거나 저장소를 조회하지 않는다. 요청 본문·URL·인증 정보는 보고하지 않는다. 호스트 주입 대기 상한은 `tasty::ipc_wait`의 숫자 request_seq·timeout_ms 및 기존 slow-request 결과와 함께 대조한다. 대기 상한은 실행 취소나 완료 확인을 뜻하지 않는다. 소켓·호스트 주입의 기존 미실행/결과 불명/늦은 응답 계약은 유지한다.
+- **보고 비용**: `hang report written` 줄의 `write_ms`는 워치독 스레드 한 개가 관측값을 모으고 파일을 쓰는 데 걸린 시간이다. 이 스레드의 `/proc` 읽기나 파일 I/O만 늦어도 커지며, 그동안 다른 스레드는 계속 실행될 수 있다. 재보고 줄(`event loop stalled`)에는 `poll_latest_ms`·`poll_max_ms`가 실린다. 재보고는 30초가 지난 뒤 다음 폴링에서 허용되므로 실제 간격은 1초 폴링 오차와 직전 폴링의 수집·로그·I/O 비용만큼 30초를 넘는다. 두 값 모두 이런 비용이 들어간 관측값이라 그것만으로 프로세스 전체가 CPU를 받지 못했다고 볼 수 없다. 프로세스 전체 CPU 미할당은 `Process CPU` 증가량, `Main thread state`, `write_ms`를 함께 대조해 판단한다.
 - **파일은 stall 당 1 개**이고 `Stuck for` 는 최초 탐지 시점(≈5~6 초)의 값이다. 총 지속 시간이 실린 30 초 주기 재보고는 `tracing` 으로만 나가는데(`target: "tasty::stall"`), 그 로그 파일은 host 가 뜰 때마다 truncate 되므로 행을 겪고 강제 종료 후 다시 띄우면 사라진다. 즉 **재시작을 넘겨 남는 증거는 "어디서 멎었나" 까지이고 "얼마나 오래 멎었나" 는 아니다**(행이 진행되는 동안에는 파일에서 읽을 수 있다 — CLI 실행이 지우지는 않는다).
 - **워치독은 복구하지 않는다.** 기록만 남기며 프로세스를 종료하지도, 응답성을 되돌리지도 않는다 — 사용자는 여전히 강제 종료해야 한다. 근거·대안(렌더 스레드 분리 / 자동 종료)의 기각 사유는 [종료 시퀀스 — 종료 cascade + Drop tail](../architecture/shutdown-sequence.md).
 - native 파일 다이얼로그처럼 **의도적으로** 메인 스레드를 막는 구간은 pending 여부와 관계없이 보고 대상에서 빠지고, 구간 종료 뒤부터 다시 잰다(`stall_watchdog::without_stall_watch`) — 그런 리포트가 섞이면 이 디렉토리가 신호를 잃기 때문이다.
@@ -204,7 +234,7 @@ dev 빌드가 심볼이 온전해 위치 파악이 쉽다.
 | 파일 / 경로 | 빌드 | 내용 |
 |-------------|------|------|
 | `~/.tasty/crash-reports/crash-*.log` | 모두 | panic 시 자동, 패닉마다 새 파일(버전·OS·PID·순번·첫 패닉 요약·위치·메시지·backtrace). 프로세스당 초당 4개까지 |
-| `~/.tasty/crash-reports/hang-*.log` | 모두 | 이벤트 루프 stall 시 자동(콜백 안팎·pending·진행 나이·기록된 GPU 구간). stall 당 1 개, 복구는 하지 않음 |
+| `~/.tasty/crash-reports/hang-*.log` | 모두 | 이벤트 루프 stall 시 자동(콜백 안팎·pending·진행 나이·기록된 GPU 구간·부하·CPU·스케줄·창 상태). stall 당 1 개, 복구는 하지 않음 |
 | `~/.tasty-debug/debug-dev.log` | dev 만 | 전체 debug tracing(host 프로세스 전용, host 시작 시 truncate) |
 | `~/.tasty/debug.log` | release / dist 만 | warn 이상 tracing(host 프로세스 전용, host 시작 시 truncate) |
 | `~/.tasty/hook-failures.log` | 모두 | agent hook 전달 실패(CLI 프로세스가 tasty 에 닿지 못한 기록). append-only + 256KB 회전. 한 줄은 `<UTC> method=… event=… surface=… code=… reason=…`. **로케일 무관성은 좌표 필드(`method`/`event`/`surface`/`code`)가 지고 `reason` 산문은 그 문구를 만든 쪽의 언어를 따른다**([CLI 크레이트 내부 구조 — 세 갈래 대칭](cli-structure.md)). CLI 가 만드는 두 갈래(미실행·연결 실패)는 영어이고 타입이 그것을 지킨다. 오류 응답을 싣는 셋째 갈래는 답한 쪽이 문구를 만들며 `claude.hook`·`codex.hook` 은 설정 언어로 답한다 |
