@@ -1,4 +1,5 @@
-//! Attention › 예약 id. 디자인 Spec `plugin-reserved-id` 의 행 · 상세 세 상태 · 좁은 폭 · 언어 길이 · 알림 표본.
+//! Attention › 예약 id. 디자인 Spec `plugin-reserved-id` 의 행 · 상세 세 상태 · 좁은 폭 · 언어 길이 · 알림 표본과
+//! Spec `plugin-attention-four-reasons` 의 네 사유 목록.
 //! 본체 `src/view/plugins/ui/attention.rs` 와 같은 공용 위젯을 부른다.
 
 use tasty_type_appearance::theme::Theme;
@@ -12,7 +13,7 @@ use tasty_ui_widgets::{
     plugin_reserved_id_banner, plugin_uninstall_confirm_bar, plugin_uninstall_confirm_bar_height,
 };
 
-use super::attention::{ENTRIES, Entry, RESERVED_LONG, RESERVED_SAMPLE, row_view};
+use super::attention::{ENTRIES, Entry, HEALTH_ERROR, RESERVED_LONG, RESERVED_SAMPLE, row_view};
 use crate::catalog::spec;
 
 /// 디자인 `--tasty-size-560`. 넓은 상세 표본의 폭.
@@ -76,6 +77,73 @@ fn row(ui: &mut egui::Ui, theme: &Theme, entry: &Entry, selected: bool) {
         theme,
         rect.shrink(pad),
         &row_view(theme, entry, selected),
+    );
+}
+
+/// 디자인 `ATTN_REASONS` — 목록 순서대로 등록되지 않은 danger 셋, 그다음 실행 오류.
+const FOUR_REASONS: [usize; 4] = [0, 1, RESERVED_SAMPLE, HEALTH_ERROR];
+
+/// 디자인 `AttnList` — 목록 폭 사이드바에 네 사유를 한 행씩 둔다. 라벨은 그 언어의 사유 라벨이다.
+fn reason_list(ui: &mut egui::Ui, theme: &Theme, lang: &str, selected: Option<usize>) {
+    let width = theme.plugins_side_panel_width().value();
+    let pad = theme.spacing_sm.value();
+    let gap = theme.spacing_xs.value();
+    let row_h = PLUGIN_LIST_ROW_HEIGHT.value();
+    let n = FOUR_REASONS.len() as f32;
+    let height = 2.0 * pad + n * row_h + (n - 1.0) * gap;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let p = ui.painter_at(rect);
+    p.rect_filled(
+        rect,
+        theme.corner_radius.value(),
+        theme.bg_sidebar().to_egui(),
+    );
+    let mut y = rect.min.y + pad;
+    for (i, at) in FOUR_REASONS.into_iter().enumerate() {
+        let entry = &ENTRIES[at];
+        let r = egui::Rect::from_min_size(
+            egui::pos2(rect.min.x + pad, y),
+            egui::vec2(width - 2.0 * pad, row_h),
+        );
+        let mut view = row_view(theme, entry, selected == Some(i));
+        view.label = copy(lang, entry.kind.label_key());
+        paint_plugin_attention_row(&p, theme, r, &view);
+        y += row_h + gap;
+    }
+}
+
+/// Spec `plugin-attention-four-reasons`. 테마마다 첫 행 선택 · 실행 오류 선택 목록, Mocha 로 언어 길이.
+pub(super) fn draw_four_reasons(ui: &mut egui::Ui, theme: &Theme, mocha: &Theme, latte: &Theme) {
+    for (name, th) in [("Mocha", mocha), ("Latte", latte)] {
+        spec::cluster(
+            ui,
+            theme,
+            &format!("Needs attention — four reasons — {name}"),
+            |ui| {
+                themed(ui, theme, th, |ui| {
+                    caption(ui, th, "list, first row selected");
+                    reason_list(ui, th, "en", Some(0));
+                    caption(ui, th, "list, runtime error selected");
+                    reason_list(ui, th, "en", Some(FOUR_REASONS.len() - 1));
+                });
+            },
+        );
+    }
+    let langs: Vec<&str> = crate::i18n::translated_languages().collect();
+    spec::cluster(
+        ui,
+        theme,
+        &format!(
+            "Needs attention — four reasons — Mocha · {} length",
+            langs.join(" / ")
+        ),
+        |ui| {
+            themed(ui, theme, mocha, |ui| {
+                for lang in langs.iter().copied() {
+                    reason_list(ui, mocha, lang, None);
+                }
+            });
+        },
     );
 }
 

@@ -122,6 +122,8 @@ pub(crate) fn attention_entries(mgr: &plugin::PluginManager) -> Vec<plugins_ui::
             }
         })
         .collect();
+    // 목록 순서: 등록되지 않은 사유(서명 · 예약 id, danger)를 먼저, 등록됐지만 실패한 실행 오류를 뒤에.
+    attention.extend(mgr.reserved_blocked().iter().map(reserved_entry));
     attention.extend(mgr.packages().iter().filter_map(|pkg| {
         let id = &pkg.manifest.id;
         // 사용자가 직접 끈 플러그인은 오류로 표시하지 않는다.
@@ -145,7 +147,6 @@ pub(crate) fn attention_entries(mgr: &plugin::PluginManager) -> Vec<plugins_ui::
             folder: None,
         })
     }));
-    attention.extend(mgr.reserved_blocked().iter().map(reserved_entry));
     attention
 }
 

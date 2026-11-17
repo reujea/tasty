@@ -585,6 +585,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::cluster(ui, theme, "attention reasons (4)", |ui| {
         attention::reason_cards(ui, theme);
     });
+    reserved::draw_four_reasons(ui, theme, &mocha, &latte);
     reserved::draw(ui, theme, &mocha, &latte);
 
     spec::meta(

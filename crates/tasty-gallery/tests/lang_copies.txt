@@ -279,7 +279,6 @@ src/catalog/components/plugins_window/add.rs	Source	plugins.add_source_path
 src/catalog/components/plugins_window/add.rs	Surface kinds	plugins.surface_kinds
 src/catalog/components/plugins_window/add.rs	Verify	plugins.add_confirm_path
 src/catalog/components/plugins_window/add.rs	~/dev/my-plugin	plugins.add_path_placeholder
-src/catalog/components/plugins_window/attention.rs	Log	plugins.attn_error,plugins.log_path
 src/catalog/components/plugins_window/attention.rs	Markdown	explorer.kind.markdown
 src/catalog/components/plugins_window/attention.rs	Needs review	plugins.attn_needs_review
 src/catalog/components/plugins_window/attention.rs	Not registered	plugins.attn_not_registered

@@ -479,3 +479,109 @@ fn finishing_a_removal_returns_the_bar_to_rest() {
     assert_eq!(ui_state.confirm_remove_folder, None);
     assert_eq!(ui_state.removing_folder, None);
 }
+
+/// 글자 도형마다 (글, 첫 구간 색) 을 모은다.
+fn text_colors(out: &egui::FullOutput) -> Vec<(String, egui::Color32)> {
+    fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Color32)>) {
+        match shape {
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            egui::Shape::Text(t) => {
+                let color = t
+                    .galley
+                    .job
+                    .sections
+                    .first()
+                    .map_or(t.fallback_color, |s| s.format.color);
+                out.push((t.galley.text().to_owned(), color));
+            }
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for c in &out.shapes {
+        walk(&c.shape, &mut found);
+    }
+    found
+}
+
+/// 실행 오류 상세는 로그 경로를 Folder 와 같은 muted mono 로 보인다. 오류 색 상자로 감싸지 않는다.
+#[test]
+fn a_runtime_error_shows_the_log_path_in_muted_mono() {
+    crate::i18n::init("en");
+    let th = theme::theme();
+    let mut health = entry(AttentionKind::HealthError);
+    let path = "/home/u/.tasty/plugins-logs/com.example.log-tailer.log";
+    health.health_detail = Some(path.into());
+    let colors = text_colors(&draw_output(health));
+    let (_, ink) = colors
+        .iter()
+        .find(|(t, _)| t == path)
+        .unwrap_or_else(|| panic!("log path is not drawn: {colors:?}"));
+    assert_eq!(*ink, egui::Color32::from(th.text_muted()));
+}
+
+/// 사유 색으로 쓰는 글자(실행 오류 배너 제목, 상태 문구)는 사유마다 raised 잉크다. 점은 그대로 accent 색이다.
+/// 예약 id 배너는 서명 오류와 같은 신뢰 상자라 제목이 text-primary 이고, 선택된 목록 라벨은
+/// text-on-active 라서 예약 id 는 상태 문구만 본다.
+#[test]
+fn every_reason_text_uses_the_raised_ink() {
+    crate::i18n::init("en");
+    let th = theme::theme();
+    for (kind, keys, ink) in [
+        (
+            AttentionKind::HealthError,
+            &["plugins.attn_health_label", "plugins.attn_needs_review"][..],
+            egui::Color32::from(th.accent_warning_raised()),
+        ),
+        (
+            AttentionKind::ReservedId,
+            &["plugins.attn_not_registered"][..],
+            egui::Color32::from(th.accent_danger_raised()),
+        ),
+    ] {
+        let e = if kind == AttentionKind::ReservedId {
+            reserved("com.tasty.fake", "com.tasty.fake")
+        } else {
+            entry(kind)
+        };
+        let colors = text_colors(&draw_output(e));
+        for &key in keys {
+            let want = t(key);
+            assert!(
+                colors.iter().any(|(t, c)| t == want && *c == ink),
+                "{kind:?} {key}: {colors:?}"
+            );
+        }
+    }
+}
+
+fn latte() -> theme::Theme {
+    let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+    let (partial, is_light) = file.to_partial();
+    let mut colors = tasty_themes::mocha_fallback_colors();
+    colors.apply_partial(&partial);
+    theme::Theme::with_colors(colors, is_light.unwrap_or(true))
+}
+
+/// Mocha 는 raised 와 plain accent 가 같은 값이라 화면 시험으로는 둘을 가르지 못한다. 두 값이 갈리는
+/// Latte 에서 글자 잉크는 raised, 점·선택 가장자리 색은 plain 인지 본다.
+#[test]
+fn reason_ink_is_raised_and_the_dot_stays_plain_where_latte_separates_them() {
+    let th = latte();
+    for (kind, raised, plain) in [
+        (
+            AttentionKind::HealthError,
+            egui::Color32::from(th.accent_warning_raised()),
+            egui::Color32::from(th.accent_warning()),
+        ),
+        (
+            AttentionKind::ReservedId,
+            egui::Color32::from(th.accent_danger_raised()),
+            egui::Color32::from(th.accent_danger()),
+        ),
+    ] {
+        assert_ne!(raised, plain, "{kind:?}: Latte must separate the two inks");
+        assert_eq!(sev_ink(&th, kind), raised, "{kind:?} text ink");
+        assert_eq!(sev_color(&th, kind), plain, "{kind:?} dot colour");
+    }
+}

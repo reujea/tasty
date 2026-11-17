@@ -13,12 +13,11 @@ use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
 use tasty_ui_widgets::{
     PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
     PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
-    PluginUninstallConfirmView, is_web_homepage, margin_all, margin_sym,
-    paint_plugin_attention_row, plugin_attention_bar, plugin_detail_bar_height,
-    plugin_detail_desc_hidden, plugin_detail_description, plugin_detail_identity,
-    plugin_fingerprint_line, plugin_folder_path, plugin_label_header, plugin_reserved_id_banner,
-    plugin_signature_invalid_detail, plugin_trust_box, plugin_uninstall_confirm_bar,
-    plugin_uninstall_confirm_bar_height, vspace,
+    PluginUninstallConfirmView, is_web_homepage, margin_all, paint_plugin_attention_row,
+    plugin_attention_bar, plugin_detail_bar_height, plugin_detail_desc_hidden,
+    plugin_detail_description, plugin_detail_identity, plugin_fingerprint_line, plugin_folder_path,
+    plugin_label_header, plugin_reserved_id_banner, plugin_signature_invalid_detail,
+    plugin_trust_box, plugin_uninstall_confirm_bar, plugin_uninstall_confirm_bar_height, vspace,
 };
 
 /// 사유별 (라벨 키, 설명 키). 색은 `AttentionKind::is_danger` 로 분기.
@@ -40,12 +39,13 @@ fn reason_text(kind: AttentionKind) -> (&'static str, &'static str) {
     }
 }
 
-/// 라벨과 상태 문구의 색. 예약 id 는 Latte mantle 대비 때문에 raised 잉크다.
+/// 라벨·배너 제목·상태 문구의 색. Latte mantle 대비 때문에 모든 사유가 raised 잉크다.
+/// 점·선택 가장자리·배너 tint 는 `sev_color` 를 쓴다.
 fn sev_ink(th: &theme::Theme, kind: AttentionKind) -> egui::Color32 {
-    if kind == AttentionKind::ReservedId {
+    if kind.is_danger() {
         egui::Color32::from(th.accent_danger_raised())
     } else {
-        sev_color(th, kind)
+        egui::Color32::from(th.accent_warning_raised())
     }
 }
 
@@ -330,7 +330,7 @@ fn draw_detail(
                         egui::RichText::new(t(label_key))
                             .strong()
                             .size(th.font_size_body.value())
-                            .color(color),
+                            .color(sev_ink(th, entry.kind)),
                     );
                     vspace(ui, th.spacing_xs);
                     ui.label(
@@ -395,25 +395,9 @@ fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEnt
             }
         }
         AttentionKind::HealthError => {
-            if let Some(detail) = &entry.health_detail {
-                label_header(ui, "plugins.attn_error");
-                vspace(ui, th.spacing_xs);
-                egui::Frame::new()
-                    .fill(egui::Color32::from(th.bg_panel()))
-                    .stroke(egui::Stroke::new(
-                        th.border_width.value(),
-                        th.separator.to_egui_premultiplied(),
-                    ))
-                    .corner_radius(th.corner_radius.value())
-                    .inner_margin(margin_sym(th.spacing_md, th.spacing_sm))
-                    .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new(detail)
-                                .monospace()
-                                .size(ATTN_PRIMITIVE_12.value())
-                                .color(egui::Color32::from(th.accent_danger_raised())),
-                        );
-                    });
+            // 오류 본문이 아니라 로그 위치를 Folder 와 같은 muted·선택 가능 mono 로 보인다.
+            if let Some(log_path) = &entry.health_detail {
+                plugin_folder_path(ui, th, t("plugins.attn_error"), log_path);
             }
         }
         AttentionKind::ReservedId => {

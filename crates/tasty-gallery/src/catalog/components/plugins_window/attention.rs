@@ -43,6 +43,16 @@ impl Kind {
         }
     }
 
+    /// 사유 라벨의 번역 키. 언어별 표본이 쓴다.
+    pub(super) fn label_key(self) -> &'static str {
+        match self {
+            Self::UnknownKey => "plugins.attn_unknown_key_label",
+            Self::SignatureInvalid => "plugins.attn_sig_invalid_label",
+            Self::HealthError => "plugins.attn_health_label",
+            Self::ReservedId => "plugins.attn_reserved_id_label",
+        }
+    }
+
     fn blurb(self) -> &'static str {
         match self {
             Self::UnknownKey => {
@@ -132,17 +142,6 @@ pub(super) const ENTRIES: &[Entry] = &[
         dir: "",
     },
     Entry {
-        name: "Markdown",
-        version: "0.9.0",
-        id: "com.tasty.markdown",
-        authors: "tasty",
-        description: "Renders Markdown files as a surface.",
-        homepage: "https://github.com/zilhak/tasty",
-        builtin: true,
-        kind: Kind::HealthError,
-        dir: "",
-    },
-    Entry {
         name: "com.tasty.agent-stream-plus",
         version: "",
         id: "com.tasty.agent-stream-plus",
@@ -164,6 +163,17 @@ pub(super) const ENTRIES: &[Entry] = &[
         kind: Kind::ReservedId,
         dir: "~/.tasty/plugins/tasty-official-agent-stream-v2-preview-build",
     },
+    Entry {
+        name: "Markdown",
+        version: "0.9.0",
+        id: "com.tasty.markdown",
+        authors: "tasty",
+        description: "Renders Markdown files as a surface.",
+        homepage: "https://github.com/zilhak/tasty",
+        builtin: true,
+        kind: Kind::HealthError,
+        dir: "",
+    },
 ];
 
 /// 상세에 펼쳐 보이는 기본 항목 — 본체는 선택 행 하나를 그린다.
@@ -171,15 +181,29 @@ pub(super) const SELECTED: usize = 0;
 /// 서명이 깨진 항목. 상세가 설명과 homepage 대신 숨김 안내를 보인다.
 pub(super) const SIGNATURE_INVALID: usize = 1;
 /// 디자인 `RESERVED_SAMPLE`. 폴더 이름과 id 가 같다.
-pub(super) const RESERVED_SAMPLE: usize = 3;
+pub(super) const RESERVED_SAMPLE: usize = 2;
 /// 디자인 `RESERVED_LONG`. 폴더 이름과 id 가 다르고 둘 다 길다.
-pub(super) const RESERVED_LONG: usize = 4;
+pub(super) const RESERVED_LONG: usize = 3;
+/// 실행 오류 항목. 목록은 본체처럼 등록되지 않은 danger 사유 뒤에 둔다.
+pub(super) const HEALTH_ERROR: usize = 4;
+
+/// 실행 오류 사유의 로그 경로 예. 본체는 `PluginManager::log_path` 를 보인다.
+const HEALTH_LOG_PATH: &str = "~/.tasty/plugins-logs/com.tasty.markdown.log";
 
 fn sev_color(theme: &Theme, kind: Kind) -> egui::Color32 {
     if kind.is_danger() {
         theme.accent_danger().to_egui()
     } else {
         theme.accent_warning().to_egui()
+    }
+}
+
+/// 본체 `sev_ink` — 라벨·배너 제목·상태 문구는 Latte mantle 대비 때문에 모든 사유가 raised 잉크다.
+fn sev_ink(theme: &Theme, kind: Kind) -> egui::Color32 {
+    if kind.is_danger() {
+        theme.accent_danger_raised().to_egui()
+    } else {
+        theme.accent_warning_raised().to_egui()
     }
 }
 
@@ -200,7 +224,7 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, sele
     }
 }
 
-/// 목록 행 입력. 예약 id 의 라벨은 Latte mantle 대비 때문에 raised 잉크다.
+/// 목록 행 입력. 라벨은 사유마다 raised 잉크다.
 pub(super) fn row_view<'a>(
     theme: &Theme,
     entry: &'a Entry,
@@ -213,11 +237,7 @@ pub(super) fn row_view<'a>(
         selected,
         hovered: false,
         severity,
-        label_ink: if entry.kind == Kind::ReservedId {
-            theme.accent_danger_raised().to_egui()
-        } else {
-            severity
-        },
+        label_ink: sev_ink(theme, entry.kind),
     }
 }
 
@@ -247,7 +267,7 @@ fn banner(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
                 egui::RichText::new(kind.label())
                     .strong()
                     .size(theme.font_size_body.value())
-                    .color(color),
+                    .color(sev_ink(theme, kind)),
             );
             ui.label(
                 egui::RichText::new(kind.blurb())
@@ -276,25 +296,13 @@ fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
                 fingerprint_line(ui, theme, "SHA256:9f2c…a17e");
             }
         }
-        Kind::HealthError => {
-            label_header(ui, "Log");
-            egui::Frame::new()
-                .fill(theme.bg_panel().to_egui())
-                .stroke(egui::Stroke::new(
-                    theme.border_width.value(),
-                    theme.separator.to_egui_premultiplied(),
-                ))
-                .corner_radius(theme.corner_radius.value())
-                .inner_margin(margin_all(theme.spacing_sm))
-                .show(ui, |ui| {
-                    ui.label(
-                        egui::RichText::new("exited with status 101 (panicked at doc.rs:88)")
-                            .monospace()
-                            .size(ATTN_PRIMITIVE_12.value())
-                            .color(theme.accent_danger_raised().to_egui()),
-                    );
-                });
-        }
+        // 본체처럼 오류 본문이 아니라 로그 위치를 Folder 와 같은 muted mono 로 보인다.
+        Kind::HealthError => plugin_folder_path(
+            ui,
+            theme,
+            crate::i18n::t("plugins.attn_error"),
+            HEALTH_LOG_PATH,
+        ),
         Kind::ReservedId => plugin_folder_path(
             ui,
             theme,
@@ -338,11 +346,7 @@ fn action_bar(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
         &PluginAttentionBarView {
             status: kind.status(),
             dot: sev_color(theme, kind),
-            ink: if kind == Kind::ReservedId {
-                theme.accent_danger_raised().to_egui()
-            } else {
-                sev_color(theme, kind)
-            },
+            ink: sev_ink(theme, kind),
             action: kind.action(),
         },
     );
@@ -451,8 +455,8 @@ fn cards_row(ui: &mut egui::Ui, theme: &Theme, card_w: f32) {
     for kind in [
         Kind::UnknownKey,
         Kind::SignatureInvalid,
-        Kind::HealthError,
         Kind::ReservedId,
+        Kind::HealthError,
     ] {
         ui.allocate_ui_with_layout(
             egui::vec2(card_w, 0.0),
@@ -487,6 +491,15 @@ mod tests {
             ));
             assert!(!entry.dir.is_empty());
         }
+    }
+
+    /// 목록은 본체처럼 등록되지 않은 danger 사유를 먼저, 실행 오류를 마지막에 둔다.
+    #[test]
+    fn the_list_puts_the_unregistered_reasons_before_the_runtime_error() {
+        assert!(ENTRIES[HEALTH_ERROR].kind == Kind::HealthError);
+        let last_danger = ENTRIES.iter().rposition(|e| e.kind.is_danger());
+        let first_warning = ENTRIES.iter().position(|e| !e.kind.is_danger());
+        assert!(last_danger < first_warning, "danger first, then warning");
     }
 
     /// 상태 이름이 말하는 사유와 펼치는 항목의 사유가 같고, 서명이 깨진 항목은 본체처럼 매니페스트
