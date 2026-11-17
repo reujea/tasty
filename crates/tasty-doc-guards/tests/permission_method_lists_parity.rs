@@ -266,7 +266,8 @@ fn the_parsers_are_alive() {
     );
 }
 
-/// 문서가 이름으로 적은 메서드는 실재하고, plugin 이 부를 수 있고, 그 권한을 요구한다.
+/// 문서가 이름으로 적은 메서드는 실재하고, local_only 가 아니며, Agent 가 부를 때 그 권한 토큰을 요구한다.
+/// Plugin 호출자는 토큰 없이 메서드의 plugin_callable 여부만 검사받으므로 이 표의 대상이 아니다.
 #[test]
 fn every_method_the_doc_names_really_needs_that_permission() {
     let m = model();
@@ -289,7 +290,7 @@ fn every_method_the_doc_names_really_needs_that_permission() {
                         "  [{t}] `{lit}` → `{name}` 이 METHOD_TABLE 에 없다"
                     )),
                     Some(None) => bad.push(format!(
-                        "  [{t}] `{lit}` → `{name}` 은 local_only 라 plugin 이 못 부른다"
+                        "  [{t}] `{lit}` → `{name}` 은 local_only 라 agent 가 못 부른다"
                     )),
                     Some(Some(vs)) => {
                         let have: BTreeSet<&String> =

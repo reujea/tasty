@@ -658,9 +658,8 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ),
         ("notification.create", plugin(Mutate, &[Notification])),
         // ── settings (plugin 이 자기 plugin_settings 값을 read-back) ──────
-        // [[contributes.settings_pages]] 를 선언하려면 이미 UiSettingsPage 권한이
-        // 필요하므로(위 permission variant 재사용), 그 값을 다시 읽는 IPC 도
-        // 동일 권한으로 게이트한다. caller_plugin_id 는 요청 파라미터가 아니라
+        // plugin 은 토큰 없이 자기 값을 다시 읽는다. Agent 는 설정 페이지와 같은
+        // UiSettingsPage 권한으로 부른다. caller_plugin_id 는 요청 파라미터가 아니라
         // CallerContext 에서 강제 도출 — 다른 plugin 값 조회 불가.
         (
             "settings.get_plugin_setting",
@@ -702,7 +701,8 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // 비활성 항목을 포함한 전략 목록만 제공한다. 재로드·직접 실행 명령은 없다.
         ("completion_strategy.list", local_only(Read)),
         // markdown surface 제자리 이동 — 주어진 surface 를 새 파일의 markdown
-        // 으로 교체한다. 임의 path 를 읽으므로 FsRead. markdown 주소창 플러그인이 caller.
+        // 으로 교체한다. 임의 path 를 읽으므로 Agent 에게 FsRead 를 요구한다.
+        // markdown 주소창 플러그인은 토큰 없이 부른다.
         (
             "markdown.navigate",
             plugin(Mutate, &[FsRead]).kept_on_every_host_path(),

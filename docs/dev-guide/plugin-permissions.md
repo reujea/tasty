@@ -211,7 +211,7 @@ plugin 프로세스를 띄우는가** 를 다룬다 — 권한 토큰이 아니�
 | 허용된 namespace 호출 | 기존 METHOD_TABLE/PREFIX_RULES, Agent 는 `ipc.invoke:<prefix>` | 활성 owner, 그리고 실제 실행할 매칭 IPC hook의 active extension만 |
 | 미등록 prefix | 기존 unknown-method 오류 | 0 |
 | disabled/auto-disabled owner | 기존 not-running 오류 | 0 |
-| plugin kind 지목 생성 | `surface.write` | 해당 kind의 활성 owner만 |
+| plugin kind 지목 생성 | Agent 는 `surface.write`, plugin 은 토큰 없음 | 해당 kind의 활성 owner만 |
 
 - namespace 소유는 설치된 manifest의 prefix registry에서 찾는다. `commands`는 전체 IPC 메서드 명부가 아니므로 사전 allowlist로 쓰지 않는다. **등록 prefix 안의 오타는 owner가 시작된 뒤 오류를 반환할 수 있다.** 무관한 plugin은 시작하지 않는다.
 - owner를 찾거나 권한을 검사할 때는 기동하지 않는다. 이미 running인 owner/extension은 다시 시작하지 않는다. 매칭 hook이 없거나 self-loop/backoff로 우회되면 그 extension을 기동할 이유도 없다.

@@ -20,7 +20,7 @@
 
 같은 `memory.db` 안이지만 테이블·IPC 네임스페이스·가시성이 다르다.
 
-| 영역 | IPC | 권한 토큰 | 가시성 | 쓰기 |
+| 영역 | IPC | Agent 권한 토큰 | 가시성 | 쓰기 |
 |------|-----|-----------|--------|------|
 | Regular | `memory.*` | `memory.read` / `memory.write` | **모든 plugin 이 모든 entry 읽기** | **owner 본인** 또는 host |
 | Secret | `memory.secret.*` | `memory.secret` | **각 plugin 은 자기 영역만** | 자기 영역만 |

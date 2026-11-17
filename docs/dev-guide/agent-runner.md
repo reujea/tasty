@@ -327,7 +327,7 @@ thread 본문은 `RunnerLoop::tick` + 500ms `recv_timeout`. tick 안 memory lock
 
 tick 머리의 `TaskStore::list` 가 실패하면 **빈 목록으로 흡수하지 않고 로그를 남긴다.** `tick` 은 넘겨받은 task 슬라이스만 순회하므로(terminal 흡수 · Running poll · Ready dispatch 전부) 빈 목록으로 진행하는 것과 이번 tick 을 건너뛰는 것의 동작은 같다 — permit 회수도 snapshot 에서 terminal 로 바뀐 task 를 봤을 때만 일어난다. 그래서 흐름은 종전대로 빈 snapshot 으로 돌리고(다음 tick 에 회복되면 밀린 전이를 한꺼번에 흡수한다) 관측 가능성만 더한다: 첫 실패는 `warn`, 연속 6회(약 3초)째부터는 `error` 로 올리고 그 뒤로는 약 60초 주기로만 반복한다. 조회가 회복되면 `info` 로 연속 실패 횟수와 함께 남긴다. `error` 인 이유는 이 상태가 지속되면 task DAG 는 정지해 있는데 `task_list` 응답의 `ready_count`/`running_count` 는 여전히 진행 중으로 보이기 때문이다.
 
-`agent.task_run`(start/stop/status)은 `METHOD_TABLE` 에 `plugin(&[AgentManage])` 로 등록돼 있다 — 호스트가 재시작 시 runner 를 자동으로 켜지 않으므로(아래 "재시작 계약"), plugin 이 자기 workspace 의 runner 를 스스로 되살릴 수단이 필요하기 때문이다. `task_set_result` 는 `local_only()` 로 등재돼 있다 — 러너가 Custom task 의 생명주기를 단독 소유하므로 plugin 이 같은 task 를 별도로 전이시키면 쓰기 주체가 둘이 되어 러너의 완료 판정과 경합한다. plugin 은 완료 판정 전략 선언(아래 "완료 판정 전략 레지스트리")으로 우회한다.
+`agent.task_run`(start/stop/status)은 `METHOD_TABLE` 에서 plugin 이 토큰 없이 부를 수 있게 열려 있다(Agent 는 `AgentManage` 권한) — 호스트가 재시작 시 runner 를 자동으로 켜지 않으므로(아래 "재시작 계약"), plugin 이 자기 workspace 의 runner 를 스스로 되살릴 수단이 필요하기 때문이다. `task_set_result` 는 `local_only()` 로 등재돼 있다 — 러너가 Custom task 의 생명주기를 단독 소유하므로 plugin 이 같은 task 를 별도로 전이시키면 쓰기 주체가 둘이 되어 러너의 완료 판정과 경합한다. plugin 은 완료 판정 전략 선언(아래 "완료 판정 전략 레지스트리")으로 우회한다.
 
 ## 재시작 계약
 

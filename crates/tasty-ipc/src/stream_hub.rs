@@ -161,7 +161,7 @@ pub enum CaptureUploadMsg {
 }
 
 /// attach holder가 원격 디렉터리를 조회하는 제어 메시지.
-/// 일반 플러그인 IPC의 FsRead 검사가 아니라 해당 연결의 workspace 점유를 확인한다.
+/// Agent IPC의 FsRead 토큰 검사가 아니라 해당 연결의 workspace 점유를 확인한다.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum ListDirRequestMsg {

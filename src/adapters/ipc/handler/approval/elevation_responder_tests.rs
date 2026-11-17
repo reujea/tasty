@@ -1,5 +1,6 @@
-//! 권한 상승 요청은 사용자(GUI·Local caller)만 종결한다. `Approval` 권한을 가진 agent·plugin 이
+//! 권한 상승 요청은 사용자(GUI·Local caller)만 종결한다. `Approval` 권한을 가진 agent 도
 //! 다른 agent 의 요청을 승인·거절·취소하거나, 다른 agent 를 대상으로 요청을 만들 수 없다.
+//! plugin 호출자는 토큰 없이 plugin_callable 여부만 검사받으며, 역시 요청을 승인할 수 없다.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};

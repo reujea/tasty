@@ -9,7 +9,7 @@ use tasty_ipc::stream_hub::PushResult;
 use tasty_ipc::stream_hub::StreamHub;
 
 /// 이 engine의 workspace를 하나라도 점유한 client의 디렉터리 조회를 처리한다.
-/// plugin IPC의 FsRead 검사는 적용하지 않으며 경로를 점유 workspace 내부로 제한하지 않는다.
+/// Agent IPC의 FsRead 토큰 검사는 적용하지 않으며 경로를 점유 workspace 내부로 제한하지 않는다.
 pub(crate) fn handle_list_dir_request(
     engine: &mut EngineMut<'_>,
     hub: &StreamHub,

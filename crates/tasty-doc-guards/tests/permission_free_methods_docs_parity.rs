@@ -1,5 +1,8 @@
-//! 권한 없이 플러그인이 호출할 수 있는 메서드와 plugin-permissions 문서의 목록을 양방향으로 대조한다.
+//! plugin_callable 이면서 요구 토큰이 0개인 메서드, 곧 Agent 게이트가 토큰 없이 통과시키는 메서드와
+//! plugin-permissions 문서의 목록을 양방향으로 대조한다. plugin_only 메서드도 이 집합에 들지만 Agent 는
+//! 외부 호출에서 -32016 으로 거절되므로 문서가 따로 적는다.
 //! 권한별 표에는 토큰을 요구하지 않는 메서드가 빠질 수 있어 별도 목록이 필요하다.
+//! Plugin 호출자는 토큰을 보유하지 않고 메서드의 plugin_callable 여부만 검사받으므로 이 목록과 무관하다.
 //! METHOD_TABLE은 공용 텍스트 파서로 읽으며, 런타임 값과의 일치는 tests/method_table_readings_agree.rs에서 확인한다.
 //! 문서의 분류 사유가 맞는지는 판단하지 않는다.
 
@@ -66,7 +69,7 @@ fn permission_free_methods() -> BTreeSet<String> {
     method_table()
         .into_iter()
         .filter_map(|(name, required)| match required {
-            // `None` = plugin 이 못 부른다. `Some(v)` 에서 v 가 비면 토큰 0개로 열려 있다.
+            // `None` = plugin_callable 이 아니라 Local 만 부른다. `Some(v)` 에서 v 가 비면 토큰 0개로 열려 있다.
             Some(v) if v.is_empty() => Some(name),
             _ => None,
         })
@@ -83,7 +86,7 @@ fn every_permission_free_method_is_documented() {
         .collect();
     assert!(
         missing.is_empty(),
-        "요구 권한 0개로 plugin 에 열려 있는데 {DOC} 에 없는 메서드: {missing:?}\n\
+        "Agent 게이트가 토큰 0개로 통과시키는 plugin_callable 메서드인데 {DOC} 에 없는 메서드: {missing:?}\n\
          `method_meta.rs` 에 `plugin(&[])` 을 추가했으면 그 문서의 군 표에도 적어라 — \
          어느 군인지(근거가 무엇인지)까지 골라야 한다."
     );

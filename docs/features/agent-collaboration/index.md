@@ -225,7 +225,7 @@ task 는 영속되지만(`Scope::Workspace`) runner thread 는 in-memory 다 —
 - **후처리 단계의 v2 task 는 회차의 진행으로 복원한다** — 예약만 된 실행은 이어서 실행하고, 시작했는데 저장된 보고가 없으면 `outcome_unknown` 으로 끝내며 다시 실행하지 않는다. 그 후처리 프로세스가 재시작 뒤에도 살아 있으면(저장한 PID·시작 시각으로 확인) 끝날 때까지 Running 으로 두고 semaphore·lease 를 쥔 뒤 `outcome_unknown` 으로 끝내며 반환한다.
 - **`hook_task_waits`(push 완료 전략의 hook_id → task_id 매핑)는 비영속** — 재시작하면 그 task 는 훅으로는 깨어날 수 없다. 대신 `AwaitExternal` handle 자체가 `deadline_ms` 를 들고 다니므로(핸들은 영속), 다음 재시작의 reload 가 만료 여부를 독자적으로 판정해 마감한다.
 - **stop 은 기다리지 않는다** — `agent.task_run` stop 은 정지를 요청하고 바로 응답한다. 정지 요청 뒤에는 아직 보내지 않은 Ready task 를 dispatch 하지 않는다. 이미 진행 중인 dispatch, Running task 의 poll, 후처리 정리 대기가 끝날 때까지 runner 가 살아 있을 수 있어 종료까지 걸리는 시간의 상한은 없다. runner 가 끝나기 전까지 응답과 이후 status 의 `state` 는 `stopping` 이고, 그동안 start 는 새 runner 를 띄우지 않는다(오류는 아니다). 이미 끝난 runner(crash 포함)에 보낸 stop 은 `stopped` 로 답한다. 정지 완료는 status 의 `state: stopped` 로 확인한다.
-- `agent.task_run` 은 plugin 도 호출 가능(`AgentManage`) — 자동 시작이 없으므로 plugin 이 자기 workspace 의 runner를 직접 시작할 수 있어야 하기 때문이다.
+- `agent.task_run` 은 plugin 도 토큰 없이 호출 가능(Agent 는 `AgentManage`) — 자동 시작이 없으므로 plugin 이 자기 workspace 의 runner를 직접 시작할 수 있어야 하기 때문이다.
 
 상세: [dev-guide/agent-runner](../../dev-guide/agent-runner.md#재시작-계약).
 
