@@ -14,6 +14,8 @@ const DUMP_EVERY: u32 = 300;
 pub struct FrameSample {
     pub gpu_total_ms: f64,
     pub terminals_ms: f64,
+    /// `surface.get_current_texture()` 대기 시간.
+    pub acquire_ms: f64,
     pub draw_calls_total: u32,
     pub surfaces: u32,
     pub atlas_evictions: u64,
@@ -39,6 +41,7 @@ impl PerfAggregator {
             target: "tasty::gfx::perf",
             gpu_total_ms = s.gpu_total_ms,
             terminals_ms = s.terminals_ms,
+            acquire_ms = s.acquire_ms,
             surfaces = s.surfaces,
             "frame_sample"
         );
@@ -59,11 +62,13 @@ impl PerfAggregator {
         }
         let (tp50, tp99, tmax) = percentiles(&self.frames, |s| s.terminals_ms);
         let (gp50, gp99, gmax) = percentiles(&self.frames, |s| s.gpu_total_ms);
+        let (ap50, ap99, amax) = percentiles(&self.frames, |s| s.acquire_ms);
         let last = *self.frames.back().unwrap();
         tracing::info!(
             target: "tasty::gfx::perf",
             "perf n={} surfaces={} draws={} terminals_ms p50={:.2} p99={:.2} max={:.2} \
              gpu_total_ms p50={:.2} p99={:.2} max={:.2} \
+             acquire_ms p50={:.2} p99={:.2} max={:.2} \
              atlas_evictions={} atlas_pages={} atlas_entries={}",
             self.frames.len(),
             last.surfaces,
@@ -74,6 +79,9 @@ impl PerfAggregator {
             gp50,
             gp99,
             gmax,
+            ap50,
+            ap99,
+            amax,
             last.atlas_evictions,
             last.atlas_active_pages,
             last.atlas_entry_count_sum,
@@ -106,6 +114,7 @@ mod tests {
         FrameSample {
             gpu_total_ms: g,
             terminals_ms: t,
+            acquire_ms: 0.0,
             draw_calls_total: 20,
             surfaces: 10,
             atlas_evictions: 0,

@@ -270,12 +270,14 @@ GPU 렌더 파이프라인(단일 render pass batching + multi-page atlas — �
 
 ### 측정 segment (`src/gfx/gpu.rs::render()`)
 
-`Instant` 로 단계별 시간을, `CellRenderer` 카운터로 atlas/draw 통계를 잰다.
+`Instant` 로 단계별 시간을, `CellRenderer` 카운터로 atlas/draw 통계를 잰다. 단계별 시간은 `src/gfx/gpu/frame_timing.rs::FrameBreakdown` 한 값에 모인다.
 
 | 변수 | 의미 |
 |------|------|
 | `terminals_ms` | `begin_frame` + N×`append_terminal_viewport` + `flush_buffers` + `render_all`. 핵심 영역 |
-| `gpu_total_ms` | `render()` 전체(layout + egui + tessellate + clear + terminals + egui_pass + present) |
+| `acquire_ms` | `surface.get_current_texture()` 대기. 창이 보이지 않거나 compositor가 늦으면 여기서 기다린다 |
+| `gpu_total_ms` | `render()` 전체(layout + acquire + egui + tessellate + clear + terminals + egui_pass + present + other) |
+| `other` | `gpu_total_ms`에서 나머지 구간 합을 뺀 값. 글꼴 갱신, mesh surface·WebView 오버레이·배너 합성처럼 따로 재지 않는 구간이다. 이 값이 크면 계측하지 않은 구간이 느린 것이다 |
 | `draw_calls_total` | `RenderPass::draw()` 호출 수(`set_pipeline`/`set_scissor_rect` 별도; pipeline 스위치는 frame 당 2 고정) |
 | `surfaces` | 활성(bg/glyph range 비어있지 않은) surface 수 |
 | `atlas_evictions` | 누적 페이지 eviction(단조 증가 — *전후 차이* 가 의미) |
@@ -287,7 +289,7 @@ GPU 렌더 파이프라인(단일 render pass batching + multi-page atlas — �
 
 - log target: `tasty::gfx::perf` (본체 기본 필터에서 비활성).
 - 활성: `TASTY_LOG=tasty::gfx::perf=info` — 본체가 읽는 변수는 `TASTY_LOG` 다([crash-diagnostics](crash-diagnostics.md)).
-- 한 줄: `perf n=300 surfaces=10 draws=20 terminals_ms p50=… p99=… max=… gpu_total_ms p50=… p99=… max=… atlas_evictions=… atlas_pages=… atlas_entries=…`
+- 한 줄: `perf n=300 surfaces=10 draws=20 terminals_ms p50=… p99=… max=… gpu_total_ms p50=… p99=… max=… acquire_ms p50=… p99=… max=… atlas_evictions=… atlas_pages=… atlas_entries=…`
 
 ### 재현 시나리오 (`scripts/bench/`)
 
@@ -303,7 +305,10 @@ GPU 렌더 파이프라인(단일 render pass batching + multi-page atlas — �
 
 ### 회귀 임계값
 
-- `gpu_total_ms p99 > 30.0` → `SLOW_RENDER_MS`(`src/gfx/gpu.rs`) warn 트리거.
+- `gpu_total_ms > 30.0`인 프레임을 느린 프레임으로 센다(`SLOW_RENDER_MS`, `src/gfx/gpu/frame_timing.rs`). 경고는 프레임마다 내지 않는다. 메인 스레드가 파일 로그에 동기로 쓰므로 프레임마다 쓰면 로그 크기와 메인 스레드 I/O가 함께 늘기 때문이다.
+  - **구간 요약**: 첫 느린 프레임에서 60초 구간(`SUMMARY_WINDOW`)을 열고, 구간이 끝난 뒤 처음 렌더하는 프레임에서 warn 한 줄을 낸다. `slow gpu render summary: <느린 프레임 수> frames over 30ms in <구간 초>s; worst <최대 ms>ms [<최대 프레임의 분해>]; item max [<항목별 최대>]`. 렌더가 멈춘 동안에는 요약이 나오지 않고 다음 렌더 때 나온다. 그래서 구간 길이가 60초보다 길게 찍힐 수 있다. host가 종료되면 마지막 구간의 요약은 남지 않는다.
+  - **즉시 경고**: 1000ms 이상인 프레임(`IMMEDIATE_RENDER_MS`)은 요약을 기다리지 않고 바로 `slow gpu render: <총합>ms [<분해>]` 한 줄을 낸다. 이 프레임도 구간 요약에 들어간다.
+  - **분해 항목**: `layout, acquire, egui_frame, post_egui, platform_output, tessellate, clear, terminals, egui_pass, present, other` 순서다. 각 값은 위 측정 segment 표의 뜻이며 항목 합은 총합과 같다(`other`가 나머지를 받는다). 표시는 소수 첫째 자리로 반올림하므로 표시된 값의 합은 총합과 조금 다를 수 있다.
 - `draw_calls_total > 2 × surfaces` → batching 회귀 가능성(perf 로그 `draws` vs `surfaces` 비교).
 
 ### 범위 밖
@@ -313,7 +318,7 @@ RSS/GPU 메모리 profile, flamegraph, scrollback viewport scroll 부하(release
 ## 진단
 
 - `draw_call_count()` / `active_surface_count()` — 프레임의 bg/glyph draw 수, 활성 surface 수.
-- 프레임 타이밍 계측은 `src/gfx/perf.rs` / redraw 경로. `tracing::warn!` 은 임계값 초과 시만.
+- 프레임 타이밍 계측은 `src/gfx/gpu/frame_timing.rs`(구간 분해·느린 프레임 경고)와 `src/gfx/perf.rs`(perf 집계). `tracing::warn!` 은 위 "회귀 임계값"의 구간 요약과 즉시 경고만 낸다.
 - 셀 색이 의심되면 debug 의 `debug.glyph_color`(렌더러가 push 하는 실제 RGBA) — [debug-ipc.md](debug-ipc.md).
 - **이벤트 루프 stall 워치독** (`crates/tasty-platform/src/stall_watchdog.rs`, 전 빌드) — 콜백 안의 5초 지연과, 처리할 IPC 명령이 큐에 남은 채 콜백 바깥에서 진행이 없는 5초 구간을 구별해 보고한다. 정상 idle과 의도적 대기는 제외한다. 콜백 바깥의 기준점은 마지막 콜백 진행과 연속 pending 시작 중 더 늦은 시각이다. 현재 단계와 나이가 있는 과거 GPU 단계를 구분하며 GPU/IME 원인을 확정하거나 복구하지 않는다. 첫 hang 파일과 30초 재보고 제한을 유지하고 main-loop probe를 추가하지 않는다. 필드·한계는 [크래시 진단](crash-diagnostics.md)을 따른다. debug 재현은 `tasty debug gpu-stall --ms N`이다([debug-ipc.md](debug-ipc.md)).
   - **메인 스레드를 의도적으로 막는 동기 호출은 `stall_watchdog::without_stall_watch(..)` 로 감싼다.** 두 번째 실행 실패를 알리는 OS `MessageDialog`처럼 "돌아오지 않는 것이 정상" 인 구간을 감싸지 않으면, 사용자가 선택에 5 초만 써도 `crash-reports/` 에 오탐 리포트가 남아 그 디렉토리가 신호를 잃는다.

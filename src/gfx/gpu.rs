@@ -6,6 +6,7 @@ pub(crate) mod edit_keys;
 mod egui_bridge;
 mod egui_mesh_prepare;
 mod fonts;
+mod frame_timing;
 pub(crate) mod loading;
 mod overlay_paint;
 pub(crate) mod overlay_surface;
@@ -161,6 +162,8 @@ pub struct GpuState {
     pub pending_surface_screenshot: Option<(u32, std::path::PathBuf)>,
     /// Frame timing 집계기. `TASTY_LOG=tasty::gfx::perf=info` 일 때만 출력.
     pub(super) perf: PerfAggregator,
+    /// 느린 프레임 경고를 구간 요약으로 묶는다.
+    slow_render: frame_timing::SlowRenderLog,
     /// Set when a frame hid the focused terminal cursor during an output burst.
     /// The view consumes this to request one follow-up redraw so the cursor
     /// reappears after the burst settles even if no more PTY bytes arrive.
@@ -332,6 +335,7 @@ impl GpuState {
             pending_screenshot: None,
             pending_surface_screenshot: None,
             perf: PerfAggregator::new(),
+            slow_render: frame_timing::SlowRenderLog::default(),
             terminal_cursor_restore_pending: false,
             proxy,
         })
@@ -443,7 +447,10 @@ impl GpuState {
         let (pane_rects, dividers, focused_surface_id) =
             self.prepare_layout(state, engine, terminal_rect);
 
-        let layout_ms = render_start.elapsed().as_secs_f64() * 1000.0;
+        let mut timing = frame_timing::FrameBreakdown {
+            layout_ms: render_start.elapsed().as_secs_f64() * 1000.0,
+            ..Default::default()
+        };
 
         // 이름 있는 폰트 family를 첫 렌더 전에 등록한다.
         let prev_theme = engine.settings.appearance.theme.clone();
@@ -461,7 +468,9 @@ impl GpuState {
             egui_bridge::host_popup_should_render_on_top(host_top_z_seq, plugin_top_z_seq);
 
         stall_watchdog::set_phase(stall_watchdog::Phase::Acquire);
+        let t0 = std::time::Instant::now();
         let output = self.acquire_surface()?;
+        timing.acquire_ms = t0.elapsed().as_secs_f64() * 1000.0;
         let t0 = std::time::Instant::now();
         let mut full_output = self.run_egui_frame(
             state,
@@ -473,7 +482,7 @@ impl GpuState {
             plugin_manager,
             host_popup_on_top,
         );
-        let egui_frame_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.egui_frame_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         // 창 가장자리 리사이즈 커서를 surface·링크 커서로 덮지 않는다.
         if let Some(icon) = self.resolve_cursor_icon(state, engine, terminal_rect, link_hover) {
@@ -482,13 +491,13 @@ impl GpuState {
 
         let t0 = std::time::Instant::now();
         self.post_egui_update(engine, &prev_theme);
-        let post_egui_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.post_egui_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         // 터미널 IME가 egui의 비입력 프레임 때문에 꺼지지 않도록 처리한다.
         // 실제 허용 여부는 apply_platform_output에서 결정한다.
         let t0 = std::time::Instant::now();
         self.apply_platform_output(window, state, full_output.platform_output);
-        let platform_output_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.platform_output_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         let t0 = std::time::Instant::now();
         let paint_jobs = self
@@ -498,7 +507,7 @@ impl GpuState {
             size_in_pixels: [self.size.width, self.size.height],
             pixels_per_point: full_output.pixels_per_point,
         };
-        let tessellate_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.tessellate_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         let t0 = std::time::Instant::now();
         let regions = state.surface_regions(engine, terminal_rect, self.scale_factor);
@@ -508,7 +517,7 @@ impl GpuState {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         self.render_clear_pass(&view, state, engine);
-        let clear_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.clear_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         let t0 = std::time::Instant::now();
         let search_state = if state.search.matches.is_empty() {
@@ -528,7 +537,7 @@ impl GpuState {
             link_hover,
             search_state,
         );
-        let terminals_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.terminals_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         // 레이아웃에서 사라진 자원도 정리해야 하므로 합성 대상이 없어도 호출한다.
         if let Some(mgr) = plugin_manager {
@@ -573,7 +582,7 @@ impl GpuState {
             host_popup_on_top,
             None,
         );
-        let egui_pass_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.egui_pass_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
         // 구멍 방식 그림은 주 pass 가 이미 그렸다. 주 표면 present 뒤에 기록한다.
         let main_overlay_job =
@@ -604,25 +613,16 @@ impl GpuState {
             let size = [self.size.width, self.size.height];
             state.webview_overlay.record_present(job, size);
         }
-        let present_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        timing.present_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
-        let gpu_total_ms = render_start.elapsed().as_secs_f64() * 1000.0;
-        const SLOW_RENDER_MS: f64 = 30.0;
-        if gpu_total_ms > SLOW_RENDER_MS {
-            tracing::warn!(
-                "slow gpu render: {gpu_total_ms:.1}ms \
-                 [layout={layout_ms:.1}, egui_frame={egui_frame_ms:.1}, \
-                 post_egui={post_egui_ms:.1}, platform_output={platform_output_ms:.1}, \
-                 tessellate={tessellate_ms:.1}, clear={clear_ms:.1}, \
-                 terminals={terminals_ms:.1}, egui_pass={egui_pass_ms:.1}, \
-                 present={present_ms:.1}]"
-            );
-        }
+        timing.total_ms = render_start.elapsed().as_secs_f64() * 1000.0;
+        self.slow_render.record(&timing);
 
         let (_, _, draw_total) = self.renderer.draw_call_count();
         self.perf.push(FrameSample {
-            gpu_total_ms,
-            terminals_ms,
+            gpu_total_ms: timing.total_ms,
+            terminals_ms: timing.terminals_ms,
+            acquire_ms: timing.acquire_ms,
             draw_calls_total: draw_total,
             surfaces: self.renderer.active_surface_count(),
             atlas_evictions: self.renderer.atlas.eviction_count(),
