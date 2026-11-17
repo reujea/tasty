@@ -36,7 +36,7 @@ Enter/클릭 시 `command_palette.pending_run` 에 선택된 `PaletteCommand` �
 
 ### MainViewState 동기화
 
-`MainViewState.palette_plugin_commands` 는 `tool_registry` 와 동형 — 첫 창 조립(`assemble_app_state`) 시 1 회, 이후 plugin 라이프사이클 변경(`install`/`remove`/`enable`/`disable`/`grant`/`revoke`/`upgrade_builtins`) 시 `App::refresh_palette_plugin_commands`(`refresh_tool_registry` 와 동일 트리거·호출부)가 갱신한다.
+`MainViewState.palette_plugin_commands` 는 `tool_registry` 와 동형 — 첫 창 조립(`assemble_app_state`) 시 1 회, 이후 plugin 라이프사이클 변경(`install`/`remove`/`enable`/`disable`/`upgrade_builtins`) 시 `App::refresh_palette_plugin_commands`(`refresh_tool_registry` 와 동일 트리거·호출부)가 갱신한다.
 
 ## 인터페이스
 
