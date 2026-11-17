@@ -74,7 +74,8 @@ pub fn handle(
                 }
             }
             UiIntent::TogglePopup(request) => {
-                match state.popups.instance_for(request.id, &request.scope) {
+                let scope = state.popups.request_scope(request);
+                match state.popups.instance_for(request.id, &scope) {
                     Some(instance) => state.popups.close_instance(
                         instance,
                         crate::adapters::ui::popup::PopupCloseReason::Command,
@@ -139,11 +140,8 @@ fn open(
     request: &OpenRequest,
     by_user: bool,
 ) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
-    if state
-        .popups
-        .instance_for(request.id, &request.scope)
-        .is_some()
-    {
+    let scope = state.popups.request_scope(request);
+    if state.popups.instance_for(request.id, &scope).is_some() {
         return None;
     }
     if let Some(on_open) =
@@ -159,11 +157,12 @@ fn open(
 /// 닫고 새 범위로 연다. 같은 범위에 열려 있으면 위치·포커스는 그대로 두고 인스턴스 데이터만 바꾼다.
 #[cfg(feature = "gui")]
 fn reopen(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
-    if let Some(instance) = state.popups.instance_for(request.id, &request.scope) {
+    let scope = state.popups.request_scope(request);
+    if let Some(instance) = state.popups.instance_for(request.id, &scope) {
         let same_scope = state
             .popups
             .instance(instance)
-            .is_some_and(|p| p.scope == request.scope);
+            .is_some_and(|p| p.scope == scope);
         if same_scope {
             state
                 .popups
@@ -606,5 +605,129 @@ mod tests {
                 Some(&PopupScope::Window)
             );
         }
+    }
+
+    /// 부모 범위를 따르는 child 선언 하나와, 서로 다른 surface에 연 부모 둘.
+    fn parent_child_state() -> (
+        RequestContext,
+        crate::runtime::engine_session::EngineSession,
+        crate::adapters::ui::popup::PopupInstanceId,
+        crate::adapters::ui::popup::PopupInstanceId,
+    ) {
+        use crate::adapters::ui::popup::PopupInstances;
+        let (mut state, engine_session) = make_state();
+        for id in ["parent_popup", "child_popup"] {
+            state.popups.register(
+                PopupState::new(
+                    id,
+                    "T".to_string(),
+                    egui::vec2(200.0, 100.0),
+                    PopupScope::Window,
+                )
+                .with_instances(PopupInstances::PerScopeTarget),
+            );
+        }
+        let left = state
+            .popups
+            .open("parent_popup", PopupScope::Surface(1))
+            .unwrap();
+        let right = state
+            .popups
+            .open("parent_popup", PopupScope::Surface(2))
+            .unwrap();
+        (state, engine_session, left, right)
+    }
+
+    fn child_request(
+        scope: PopupScope,
+        parent: crate::adapters::ui::popup::PopupInstanceId,
+        surface_id: u32,
+    ) -> OpenRequest {
+        let mut request = OpenRequest::new("child_popup", scope).with_payload(
+            crate::adapters::ui::popup::PopupPayload::ExplorerConflict { surface_id },
+        );
+        request.parent = Some(parent);
+        request
+    }
+
+    fn child_targets(state: &RequestContext) -> Vec<(PopupScope, Option<u32>)> {
+        state
+            .popups
+            .instances_of("child_popup")
+            .map(|p| {
+                let target = match p.payload {
+                    crate::adapters::ui::popup::PopupPayload::ExplorerConflict { surface_id } => {
+                        Some(surface_id)
+                    }
+                    _ => None,
+                };
+                (p.scope.clone(), target)
+            })
+            .collect()
+    }
+
+    /// Given child가 L 부모 범위에 열려 있을 때, When 요청 범위는 L이지만 R 부모를 지정한 열기 intent가 오면,
+    /// Then 요청을 버리지 않고 R 범위에 새 child를 연다.
+    /// When 요청 범위는 비어 있는 surface지만 L 부모를 지정한 열기·다시 열기·토글 요청이 오면,
+    /// Then 이미 열린 L child를 찾는다. 열기는 그 데이터를 덮어쓰지 않고, 다시 열기는 그 자리에서 데이터만
+    /// 바꾸며, 토글은 그 child를 닫는다.
+    #[test]
+    fn open_intents_resolve_the_parent_scope_before_looking_for_an_instance() {
+        let (mut state, mut engine_session, left, right) = parent_child_state();
+        let mut engine = engine_session.borrow_mut();
+        let open = |request: OpenRequest| UiIntent::OpenPopup(request).from_user_shortcut("test");
+        handle(
+            &mut state,
+            &mut engine,
+            &open(child_request(PopupScope::Surface(1), left, 10)),
+        );
+        assert_eq!(child_targets(&state), [(PopupScope::Surface(1), Some(10))]);
+
+        handle(
+            &mut state,
+            &mut engine,
+            &open(child_request(PopupScope::Surface(1), right, 20)),
+        );
+        assert_eq!(
+            child_targets(&state),
+            [
+                (PopupScope::Surface(1), Some(10)),
+                (PopupScope::Surface(2), Some(20))
+            ],
+            "a request for the R parent opens its own child"
+        );
+
+        handle(
+            &mut state,
+            &mut engine,
+            &open(child_request(PopupScope::Surface(9), left, 30)),
+        );
+        assert_eq!(
+            child_targets(&state),
+            [
+                (PopupScope::Surface(1), Some(10)),
+                (PopupScope::Surface(2), Some(20))
+            ],
+            "the open L child keeps its target"
+        );
+
+        reopen(
+            &mut state,
+            &child_request(PopupScope::Surface(9), left, 50),
+            true,
+        );
+        assert_eq!(
+            child_targets(&state),
+            [
+                (PopupScope::Surface(1), Some(50)),
+                (PopupScope::Surface(2), Some(20))
+            ],
+            "a reopen for the L parent updates the L child in place"
+        );
+
+        let toggle = UiIntent::TogglePopup(child_request(PopupScope::Surface(9), left, 40))
+            .from_user_shortcut("test");
+        handle(&mut state, &mut engine, &toggle);
+        assert_eq!(child_targets(&state), [(PopupScope::Surface(2), Some(20))]);
     }
 }

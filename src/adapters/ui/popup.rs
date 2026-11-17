@@ -976,6 +976,15 @@ impl PopupManager {
         found.map(|p| p.instance)
     }
 
+    /// 요청이 실제로 열릴 범위. 부모가 있으면 부모의 범위를 따른다(부모가 보이지 않으면 자식도 보이지 않는다).
+    /// 중복 판정과 실제 열기가 같은 범위를 쓰도록 둘 다 이 값을 쓴다.
+    pub fn request_scope(&self, request: &crate::intent::OpenRequest) -> PopupScope {
+        request
+            .parent
+            .and_then(|parent| self.instance(parent))
+            .map_or_else(|| request.scope.clone(), |parent| parent.scope.clone())
+    }
+
     /// 열기 요청 하나를 인스턴스로 연다. 위치·포커스·부모·데이터는 요청을 따른다.
     /// 사용자 출처가 아니면 포커스 없이 passive로 연다. 선언이 등록되지 않았으면 `None`이다.
     pub fn open_request(
@@ -984,7 +993,7 @@ impl PopupManager {
         by_user: bool,
     ) -> Option<PopupInstanceId> {
         use crate::intent::PopupPlacement;
-        let p = self.open_slot(request.id, request.scope.clone())?;
+        let p = self.open_slot(request.id, self.request_scope(request))?;
         match request.placement {
             PopupPlacement::Keep => {}
             PopupPlacement::ScopeCenter => p.request_center = true,
@@ -1309,6 +1318,10 @@ impl PopupManager {
         self.popups.iter_mut().filter(move |p| p.id == id)
     }
 }
+
+#[cfg(test)]
+#[path = "popup/parent_tests.rs"]
+mod parent_tests;
 
 #[cfg(test)]
 mod tests {

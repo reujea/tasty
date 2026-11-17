@@ -42,7 +42,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 인스턴스 데이터(`PopupPayload`)는 인스턴스에 있고 닫으면 함께 사라진다. 열기 요청이 데이터를 실어 오고(`OpenRequest::with_payload`), 그리기 함수는 `PopupCx.payload`로, 제목·크기 함수는 세 번째 인자로 받는다. `PerScopeTarget`인 host 정의는 데이터를 인스턴스에 둔 `convert_surface`·`explorer_properties`·`explorer_conflict`·`rename`·`mouse_capture_banner_menu`·`file_handler_picker`·`file_picker`이다. 작용 대상이 범위와 다른 팝업(이름 바꾸기)은 대상 소멸도 인스턴스마다 데이터로 판정해 사유 `TargetGone`으로 닫는다. 열기 요청의 데이터는 `PayloadSlot`에 실려 요청을 복제해도 한 번만 꺼내지므로, 진행 중인 읽기처럼 복제할 수 없는 값도 실을 수 있다. `Queue`인 host 정의는 `info_modal`·`transfer_error`·`approval`이다. 큐는 아직 `DialogState`에 있다(`info_modal_queue`·`transfer_error`·`pending_approval_ids`). `search_bar`는 창에 하나(`Single`)지만 검색할 surface를 인스턴스 데이터(`PopupPayload::Search`)로 둔다. 나머지 host 정의는 `Single`이다. 데이터를 아직 `DialogState`·`MainViewState`의 단일 칸에 두는 팝업은 범위마다 인스턴스를 나누면 한 칸을 함께 쓰게 되기 때문이다.
 
-부모 인스턴스(`PopupState.parent`)가 닫히면 그 자식 인스턴스도 사유 `ParentClosed`로 닫힌다.
+어느 host 인스턴스든 자식을 가질 수 있다. 열기 요청에 부모(`OpenRequest.parent`)를 실으면 자식은 요청 범위 대신 열린 부모의 범위로 열린다. 부모가 이미 닫혔으면 요청 범위를 쓴다. 열린 자식이 있는 부모는 바깥 클릭으로 닫히지 않는다. 바깥 클릭에서는 자식만 자기 규칙대로 닫히고, 자식이 없어진 다음 바깥 클릭에서 부모가 닫힌다. 부모 인스턴스(`PopupState.parent`)가 닫히면 그 자식 인스턴스도 사유 `ParentClosed`로 닫힌다. plugin 팝업이 부모인 host 파일 피커는 아직 아래 "plugin popup ↔ host popup 부모-자식"의 요청자 기록으로 연결한다.
 
 ## Host ↔ Plugin popup z-order
 

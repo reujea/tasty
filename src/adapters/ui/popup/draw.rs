@@ -275,6 +275,13 @@ impl PopupManager {
                 // 위의 plugin 팝업이 덮은 곳은 바깥 클릭으로 처리하지 않는다.
                 // host를 먼저 그리므로 plugin 영역은 직전 프레임 값이다. 방금 닫힌
                 // plugin 팝업이 클릭을 한 번 막을 수 있지만 가려진 팝업을 잘못 닫는 것을 피한다.
+                // 열린 자식이 있는 부모는 바깥 클릭으로 닫지 않는다. 자식만 자기 규칙대로 닫힌다.
+                let parents: Vec<super::PopupInstanceId> = self
+                    .popups
+                    .iter()
+                    .filter(|p| p.open)
+                    .filter_map(|p| p.parent)
+                    .collect();
                 for popup in &mut self.popups {
                     if !popup.scope_visible {
                         continue;
@@ -288,7 +295,10 @@ impl PopupManager {
                     if occluded {
                         continue;
                     }
-                    if popup.open && popup.close_on_outside_click {
+                    if popup.open
+                        && popup.close_on_outside_click
+                        && !parents.contains(&popup.instance)
+                    {
                         closed.push((popup.instance, PopupCloseReason::OutsideClick));
                     }
                     // sticky_focus popups keep keyboard focus when clicking outside.
