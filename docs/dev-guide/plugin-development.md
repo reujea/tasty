@@ -112,8 +112,8 @@ surface kind 선언에는 host 가 kind-agnostic 하게 소비하는 메타가 �
 - **`convert_requires_input`**(기본 false) + **`convert_input_popup`** — 이 kind 로 convert 하려면 host 가 먼저 "파일 입력 팝업"을 띄워야 하는지, 그리고 그때 열 이 plugin 의 팝업 **local id**. host 는 kind 이름·event key 하드코딩 없이 이 데이터만 따라 `<plugin_id>/<popup_id>` 팝업을 `open_popup_instance` 로 연다(payload 의 `surface_id` 로 제자리 변환 / 새 탭 분기). 예: markdown 은 `convert_requires_input = true`, `convert_input_popup = "file-open"`([파일 핸들러 (File handler)](../features/file-handler/index.md)). 미선언이면 빈 params 즉시 변환.
 - **host 기능 능력**(`[[surface_kinds]]` 의 bool 키) — host 가 특정 문서 kind 를 위해 제공하는 기능을 켠다. host 는 kind 이름이나 plugin ID 로 판정하지 않는다. 등록 때 값을 한 번 정해(`KindCapabilities::resolve`, `src/runtime/surface_registry/capabilities.rs`) kind 정의와 그 정의로 만든 surface 에 싣는다:
   - **`address_band`** — host 가 그리는 주소 띠(주소 입력·뒤로·앞으로·새로고침)와 주소창 포커스 단축키, 그리고 같은 일을 하는 에이전트 IPC(`surface.html_nav`·`surface.html_back`·`surface.html_forward`·`surface.html_reload`).
-  - **`inset_notices`** — 주소 띠 아래에 쌓는 크기·원격 콘텐츠·스크립트 안내 카드.
-  - **`script_gate`** — 문서마다 스크립트를 판정하는 게이트(`attach_script_gate`)와 그 허용·조회 IPC.
+  - **`inset_notices`** — 페이지 위에 쌓는 안내 카드 중 스크립트 게이트가 맡지 않는 것(attach 로 받는 문서의 크기 안내). 주소 띠와 독립이다.
+  - **`script_gate`** — 문서마다 스크립트와 원격 콘텐츠를 판정하는 게이트(`attach_script_gate`), 그 차단 안내 카드(스크립트·원격 콘텐츠, 허용 버튼 포함)와 허용·조회 IPC(`surface.html_script`·`surface.html_script_allow`·`surface.html_remote_allow`). 안내 카드는 `inset_notices` 선언과 관계없이 그린다. 게이트를 붙이고 허용 수단을 주지 않는 조합을 만들지 않기 위해서다.
   - **`opens_url`** — mirror workspace 의 새 HTML 피커가 고른 원격 파일을 이 kind 로 연다. `mirror_viewer` 도 함께 선언해야 한다.
   - **`remote_http_serve`** — attach 서버가 이 kind 문서의 하위 파일과 HTTP 응답을 client 에 제공한다([HTML 전송](html-transfer.md)). 원격 파일 열기는 viewer 를 협상한 연결에서만 이 kind 를 고른다.
   - **`mirror_viewer`** — attach mirror 에서 서버 문서를 이 kind 의 원격 entry viewer(`remote.html_entry`)로 연다.

@@ -330,13 +330,16 @@ pub fn draw_egui_panels(
                 );
                 let nav = remote.nav_state();
                 let nav_info = remote.nav_info();
-                let capabilities = remote.capabilities();
-                let html_sid = info.surface_id.filter(|_| capabilities.address_band);
-                let notice_sid = info.surface_id.filter(|_| capabilities.inset_notices);
+                let targets =
+                    crate::adapters::ui::surface::webview_notices::WebviewChromeTargets::of(
+                        info.surface_id,
+                        remote.capabilities(),
+                    );
+                let html_sid = targets.band;
                 let cwd = html_sid.and_then(|sid| engine.local_surface_cwd(sid));
                 let mirror = html_sid.is_some_and(|sid| engine.is_mirror_surface(sid));
-                let received = html_sid.and_then(|sid| engine.html_receive(sid));
-                let html_snapshot = html_sid.and_then(|sid| engine.html_script(sid));
+                let received = targets.receive.and_then(|sid| engine.html_receive(sid));
+                let html_snapshot = targets.script.and_then(|sid| engine.html_script(sid));
                 let content_inset = draw_panel_frame(
                     ctx,
                     &format!("webview_chrome_{}", id_suffix),
@@ -387,7 +390,7 @@ pub fn draw_egui_panels(
                                 &mut receive_actions,
                             )
                         });
-                        let banners = notice_sid.map_or_else(
+                        let banners = targets.notices.map_or_else(
                             || {
                                 size.map(|h| th.banner_margin() + h + th.banner_inset_gap())
                                     .unwrap_or_default()
@@ -452,7 +455,7 @@ pub fn draw_egui_panels(
                                 html_sid.filter(|_| !mirror).and(html_hint.as_deref()),
                             );
                         }
-                        html_sid.or(notice_sid).map(|_| band_h + banners)
+                        html_sid.or(targets.notices).map(|_| band_h + banners)
                     },
                 );
                 if let (Some(sid), Some(inset)) = (info.surface_id, content_inset) {
