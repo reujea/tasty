@@ -531,7 +531,8 @@ opt-level = 3
 
 [profile.release]
 lto = "thin"
-strip = true
+# 디버그 정보만 지우고 함수 이름 표는 남겨 crash report backtrace에 함수 이름이 나오게 한다.
+strip = "debuginfo"
 opt-level = 3
 
 # 배포 패키지는 release 설정에 전체 LTO를 추가한다.

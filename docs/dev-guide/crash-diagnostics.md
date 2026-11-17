@@ -243,7 +243,7 @@ dev 빌드가 심볼이 온전해 위치 파악이 쉽다.
 ## 관련
 
 - [CLI 크레이트 내부 구조 — 세 갈래 대칭](cli-structure.md) — 파일 로그를 host 프로세스로 한정한 결정
-- [build.md](build.md) — release(`strip = true`) / dev / dist 프로필
+- [build.md](build.md) — release(`strip = "debuginfo"`) / dev / dist 프로필
 - [error-handling.md](error-handling.md) — `Result` 처리·로그 레벨 정책 (애초에 crash 를 줄이는 쪽)
 - [self-verification.md](self-verification.md) · [e2e-tests.md](e2e-tests.md) — 재현·검증
 - [종료 시퀀스 — 종료 cascade + Drop tail](../architecture/shutdown-sequence.md) · [gpu-rendering.md](gpu-rendering.md) — 이벤트 루프 stall 워치독의 결정 근거와 렌더 구조

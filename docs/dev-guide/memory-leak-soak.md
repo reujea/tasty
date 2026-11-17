@@ -30,11 +30,11 @@ SOAK_SCENARIO=s9 SOAK_DURATION_SECS=600 \
   cargo test --release --test soak_memory -- --ignored --nocapture
 
 # 본 실행 (24시간, release + 심볼 — attribution 대비)
-CARGO_PROFILE_RELEASE_DEBUG=1 SOAK_SCENARIO=s9 SOAK_DURATION_SECS=86400 \
+CARGO_PROFILE_RELEASE_DEBUG=1 CARGO_PROFILE_RELEASE_STRIP=none SOAK_SCENARIO=s9 SOAK_DURATION_SECS=86400 \
   cargo test --release --test soak_memory -- --ignored --nocapture
 ```
 
-**release 빌드를 권장한다.** debug 빌드는 ① `~/.tasty-debug/debug-dev.log` 파일 레이어가 debug 레벨 고정·무로테이션이라 24h 에 수 GB 가 쌓이고 ② attribution 도구도 release+심볼 조합을 원한다. 심볼은 `CARGO_PROFILE_RELEASE_DEBUG=1` 로 Cargo.toml 수정 없이 켠다.
+**release 빌드를 권장한다.** debug 빌드는 ① `~/.tasty-debug/debug-dev.log` 파일 레이어가 debug 레벨 고정·무로테이션이라 24h 에 수 GB 가 쌓이고 ② attribution 도구도 release+심볼 조합을 원한다. 심볼은 `CARGO_PROFILE_RELEASE_DEBUG=1` 과 `CARGO_PROFILE_RELEASE_STRIP=none` 으로 Cargo.toml 수정 없이 켠다. release 프로필이 `strip = "debuginfo"` 라 디버그 정보만 켜면 링크 뒤에 지워진다.
 
 env 제어:
 

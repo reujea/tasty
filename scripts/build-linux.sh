@@ -249,7 +249,9 @@ if [[ "$PROFILE" != "debug" ]]; then
     # 두 도구 모두 --profile을 주면 target/release/ 를 target/<profile>/ 로 바꿔 읽는다.
 
     echo "==> Building .deb package..."
-    cargo deb --no-build --profile "$PROFILE"
+    # cargo-deb는 debug 정보가 없는 프로필이면 strip --strip-unneeded로 함수 이름 표까지 지운다.
+    # 배포 바이너리는 Cargo 프로필이 디버그 정보만 지운 상태 그대로 싣는다.
+    cargo deb --no-build --no-strip --profile "$PROFILE"
     deb_candidates=$(ls -t target/debian/tasty_*.deb)
     DEB_SRC=$(head -1 <<<"$deb_candidates")
     cp "$DEB_SRC" "$DIST_DIR/"
@@ -269,7 +271,8 @@ if [[ "$PROFILE" != "debug" ]]; then
     mkdir -p "$APPDIR/usr/bin"
     stage_plugins "$APPDIR/usr/bin/plugins"
     stage_notice "$APPDIR/usr/share/licenses/tasty"
-    VERSION="$VERSION" OUTPUT="$APPIMAGE_NAME" linuxdeploy \
+    # linuxdeploy는 AppDir의 ELF마다 인자 없는 strip을 실행해 함수 이름 표를 지운다. NO_STRIP으로 끈다.
+    NO_STRIP=1 VERSION="$VERSION" OUTPUT="$APPIMAGE_NAME" linuxdeploy \
         --appdir "$APPDIR" \
         --executable "target/$PROFILE/tasty" \
         --desktop-file assets/linux/tasty.desktop \
@@ -303,6 +306,28 @@ tar -czf "$DIST_DIR/$HEADLESS_ARCHIVE_NAME" -C "$DIST_DIR" "$HEADLESS_PKG_DIR"
 rm -rf "${DIST_DIR:?}/${HEADLESS_PKG_DIR:?}"
 
 echo "==> Verifying artifacts..."
+# 배포 바이너리에 함수 이름 표(.symtab)가 남고 디버그 정보(.debug_info)는 없는지 확인한다.
+# 패키지 도구가 다시 strip하면 crash report의 backtrace에 주소만 남는다. debug 빌드는 디버그 정보를 싣는다.
+verify_symbol_table() {
+    local file=$1 label=$2 sections
+    [[ "$PROFILE" == "debug" ]] && return 0
+    command -v readelf &>/dev/null || {
+        echo "Error: readelf not found (binutils); cannot check the symbol table of $label" >&2
+        return 1
+    }
+    sections=$(readelf -S -W "$file") || {
+        echo "Error: readelf failed on $file ($label)" >&2
+        return 1
+    }
+    grep -q ' \.symtab ' <<<"$sections" || {
+        echo "Error: $file in $label has no symbol table; a packaging step stripped it" >&2
+        return 1
+    }
+    if grep -q ' \.debug_info ' <<<"$sections"; then
+        echo "Error: $file in $label carries debug info" >&2
+        return 1
+    fi
+}
 # 조기 종료하는 grep/head에 producer를 직접 연결하면 pipefail에서 SIGPIPE로 실패할 수 있어 출력을 먼저 받는다.
 TAR_LISTING=$(tar -tzf "$DIST_DIR/$ARCHIVE_NAME")
 grep -q "$PKG_DIR/tasty" <<<"$TAR_LISTING" || {
@@ -319,6 +344,10 @@ tar -xzf "$DIST_DIR/$ARCHIVE_NAME" -C "$VERIFY_TMP"
     exit 1
 }
 verify_bundled_plugin_tree "$VERIFY_TMP/$PKG_DIR/plugins" "$ARCHIVE_NAME" || {
+    rm -rf "$VERIFY_TMP"
+    exit 1
+}
+verify_symbol_table "$VERIFY_TMP/$PKG_DIR/tasty.bin" "$ARCHIVE_NAME" || {
     rm -rf "$VERIFY_TMP"
     exit 1
 }
@@ -345,6 +374,10 @@ verify_bundled_plugin_tree "$VERIFY_TMP/$HEADLESS_PKG_DIR/plugins" "$HEADLESS_AR
     rm -rf "$VERIFY_TMP"
     exit 1
 }
+verify_symbol_table "$VERIFY_TMP/$HEADLESS_PKG_DIR/tasty.bin" "$HEADLESS_ARCHIVE_NAME" || {
+    rm -rf "$VERIFY_TMP"
+    exit 1
+}
 # 두 빌드의 feature가 다르므로 GUI 바이너리와 같은 파일이면 헤드리스 빌드가 적용되지 않은 것이다.
 if cmp -s "$VERIFY_TMP/$HEADLESS_PKG_DIR/tasty.bin" "target/$PROFILE/tasty"; then
     rm -rf "$VERIFY_TMP"
@@ -364,6 +397,17 @@ if [[ -n "$DEB_FILE" ]]; then
     }
     verify_notice_listing "$DEB_LISTING" "usr/share/doc/tasty/" "$DEB_FILE" || exit 1
     verify_bundled_plugin_listing "$DEB_LISTING" "usr/lib/tasty/plugins/" "$DEB_FILE" || exit 1
+    VERIFY_TMP=$(mktemp -d)
+    dpkg-deb -x "$DEB_FILE" "$VERIFY_TMP" || {
+        rm -rf "$VERIFY_TMP"
+        echo "Error: cannot extract $DEB_FILE" >&2
+        exit 1
+    }
+    verify_symbol_table "$VERIFY_TMP/usr/bin/tasty" "$DEB_FILE" || {
+        rm -rf "$VERIFY_TMP"
+        exit 1
+    }
+    rm -rf "$VERIFY_TMP"
 fi
 if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
     rpm -qpi "$RPM_FILE" >/dev/null 2>&1 || {
@@ -373,6 +417,24 @@ if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
     RPM_LISTING=$(rpm -qpl "$RPM_FILE" 2>/dev/null)
     verify_notice_listing "$RPM_LISTING" "/usr/share/licenses/tasty/" "$RPM_FILE" flat || exit 1
     verify_bundled_plugin_listing "$RPM_LISTING" "/usr/lib/tasty/plugins/" "$RPM_FILE" || exit 1
+    # rpm 도구가 있는 환경에서만 payload를 풀어 바이너리를 확인한다.
+    if command -v rpm2cpio &>/dev/null && command -v cpio &>/dev/null; then
+        VERIFY_TMP=$(mktemp -d)
+        RPM_ABS="$(cd "$(dirname "$RPM_FILE")" && pwd)/$(basename "$RPM_FILE")"
+        # cargo-generate-rpm 패키지는 rpm2cpio가 payload를 모두 내보낸 뒤에도 1로 끝난다.
+        # 그 종료 코드 대신 cpio 결과와 바이너리가 풀렸는지로 판정한다.
+        rpm2cpio "$RPM_ABS" >"$VERIFY_TMP/payload.cpio" 2>/dev/null || true
+        if ! (cd "$VERIFY_TMP" && cpio -idm --quiet <payload.cpio) || [[ ! -f "$VERIFY_TMP/usr/bin/tasty" ]]; then
+            rm -rf "$VERIFY_TMP"
+            echo "Error: cannot extract usr/bin/tasty from $RPM_FILE" >&2
+            exit 1
+        fi
+        verify_symbol_table "$VERIFY_TMP/usr/bin/tasty" "$RPM_FILE" || {
+            rm -rf "$VERIFY_TMP"
+            exit 1
+        }
+        rm -rf "$VERIFY_TMP"
+    fi
 fi
 # AppImage는 실행하지 않고 파일 종류와 패키징 입력 AppDir만 확인한다.
 if [[ -n "$APPIMAGE_FILE" ]]; then
@@ -388,6 +450,8 @@ if [[ -n "$APPIMAGE_FILE" ]]; then
     # 완성 AppImage 내부가 아니라 linuxdeploy에 넘긴 AppDir의 notice 파일을 검사한다.
     verify_notice_tree "$APPDIR/usr/share/licenses/tasty" "$APPDIR" || exit 1
     verify_bundled_plugin_tree "$APPDIR/usr/bin/plugins" "$APPDIR" || exit 1
+    # linuxdeploy는 AppDir 안에서 strip하므로 AppDir의 바이너리가 AppImage에 들어간 것과 같다.
+    verify_symbol_table "$APPDIR/usr/bin/tasty" "$APPIMAGE_FILE" || exit 1
 fi
 
 SHASUMS_FILE="SHA256SUMS-linux-${ARCH}.txt"
