@@ -107,6 +107,7 @@ impl PluginManager {
     /// TimerHub의 주기 판정에는 호출자가 준 now를 사용한다.
     /// 처음 등록한 hello 목록을 반환하면 호스트가 surface 종류 등록과 상태 알림을 마친다.
     pub fn pump(&mut self, now: Instant) -> Vec<(String, String)> {
+        let stalled = self.reanchor_after_main_loop_stall(now);
         self.restore_retirement_control_responses();
         self.settle_connections();
 
@@ -127,7 +128,10 @@ impl PluginManager {
                     // 60초 비교를 한 tick 밀지 않게 한다.
                     let tick = self.ping_grid_time(now);
                     self.send_periodic_ping(tick);
-                    self.restart_unresponsive_plugins(tick);
+                    // 정지가 풀린 pump에서는 판정하지 않는다. 기한은 위에서 다시 잡았다.
+                    if !stalled {
+                        self.restart_unresponsive_plugins(tick);
+                    }
                 }
                 PluginTick::Rss => self.sample_plugin_rss(),
                 PluginTick::AutoReload => self.poll_auto_reload(),

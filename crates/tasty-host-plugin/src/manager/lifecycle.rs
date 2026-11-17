@@ -143,6 +143,7 @@ impl PluginManager {
             log_dir,
             next_request_id: AtomicU64::new(1),
             timers: Self::initial_timers(Instant::now()),
+            last_pump_at: None,
             spawn_failures: HashMap::new(),
             auto_disabled: std::collections::HashSet::new(),
             start_tracker: Default::default(),

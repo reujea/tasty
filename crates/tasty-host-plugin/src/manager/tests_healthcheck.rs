@@ -128,9 +128,10 @@ fn wake_jitter_does_not_push_the_restart_a_tick_later() {
     );
 }
 
-/// 정지 전에 보낸 ping에 답하지 않은 채 정지하면 정지 시간도 경과에 들어가 복구 첫 판정에서 재시작한다.
+/// 정지 전에 보낸 ping에 답하지 않은 채 정지해도(호스트 응답을 기다리던 plugin) 복구 첫 판정에서
+/// 재시작하지 않고, 기한을 복구 시각부터 다시 센다. 그 뒤에도 답하지 않으면 60초 뒤 재시작한다.
 #[test]
-fn an_unanswered_ping_before_a_stall_restarts_on_the_first_tick_after_it() {
+fn an_unanswered_ping_before_a_stall_restarts_its_deadline_at_the_resume() {
     let base = Instant::now() - S(400);
     let mut m = mgr_at(base);
     m.pump(base + S(15));
@@ -140,9 +141,78 @@ fn an_unanswered_ping_before_a_stall_restarts_on_the_first_tick_after_it() {
 
     m.pump(base + S(225));
     assert!(
-        !alive(&m),
-        "정지 전부터 답하지 않은 ping이 있는데 복구 첫 판정에서 재시작하지 않았다"
+        alive(&m),
+        "정지 전 미응답 ping을 정지 시간까지 세어 복구 첫 판정에서 재시작했다"
     );
+    for t in [240, 255, 270] {
+        m.pump(base + S(t));
+        assert!(alive(&m), "복구 뒤 {}초에 재시작했다", t - 225);
+    }
+    m.pump(base + S(285));
+    assert!(
+        !alive(&m),
+        "복구 뒤에도 60초 동안 답하지 않았는데 재시작하지 않았다"
+    );
+}
+
+/// 정지가 풀린 pump에서는 어떤 plugin도 재시작하지 않는다. 모두가 정지 전 ping에 답하지 못했어도 같다.
+#[test]
+fn a_stall_restarts_no_plugin_at_the_resume() {
+    const OTHER: &str = "com.example.other";
+    let base = Instant::now() - S(400);
+    let mut m = mgr_at(base);
+    m.processes
+        .insert(OTHER.into(), PluginProcess::stub_for_test(OTHER));
+    m.pump(base + S(15));
+    for id in [ID, OTHER] {
+        m.processes[id].backdate_pong_for_test(Instant::now() - (base + S(16)));
+    }
+    m.pump(base + S(30)); // 둘 다 답하지 않은 채 73초 정지한다.
+    m.pump(base + S(30 + 73));
+    assert!(
+        m.processes.contains_key(ID) && m.processes.contains_key(OTHER),
+        "정지 때문에 plugin을 재시작했다"
+    );
+    assert_eq!(m.retiring_count(), 0);
+}
+
+/// 정지가 풀린 판정은 namespace 연속 만료로도 재시작하지 않는다. 만료 기록은 남아 다음 판정에서 센다.
+#[test]
+fn the_resume_judgment_defers_a_namespace_expiry_restart() {
+    let base = Instant::now() - S(400);
+    let mut m = mgr_at(base);
+    m.pump(base + S(15));
+    answered_at(&m, base + S(16));
+    m.namespace_expiries
+        .insert(ID.into(), super::NAMESPACE_EXPIRY_RESTART_LIMIT);
+
+    m.pump(base + S(15 + 73));
+    answered_at(&m, base + S(89));
+    assert!(
+        alive(&m),
+        "정지가 풀린 판정에서 namespace 만료로 재시작했다"
+    );
+
+    m.pump(base + S(105));
+    assert!(
+        !alive(&m),
+        "다음 정상 판정에서 namespace 연속 만료를 세지 않았다"
+    );
+}
+
+/// 정상 간격으로 pump가 돌면 정지로 보지 않는다. 15초 간격 판정이 기한을 미루지 않는다.
+#[test]
+fn a_normal_pump_gap_is_not_a_stall() {
+    let base = Instant::now() - S(200);
+    let mut m = mgr_at(base);
+    assert!(!m.reanchor_after_main_loop_stall(base));
+    for t in [15, 30, 45] {
+        assert!(
+            !m.reanchor_after_main_loop_stall(base + S(t)),
+            "{t}초의 정상 pump를 정지로 보았다"
+        );
+    }
+    assert!(m.reanchor_after_main_loop_stall(base + S(45 + 30)));
 }
 
 /// 정지 직전 ping의 응답을 수신 스레드가 정지 중에 기록했으면 복구 때 재시작하지 않는다.

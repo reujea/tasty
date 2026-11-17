@@ -49,6 +49,10 @@ pub(super) const DEBUG_HOOK_INVOKE_TIMEOUT: Duration =
 /// namespace 연속 만료가 이 수에 도달하면 다음 ping tick에서 재시작 대상으로 삼는다.
 /// hook은 우회할 수 있지만 namespace 호출은 대체 실행이 없어 재시작을 사용한다.
 pub(super) const NAMESPACE_EXPIRY_RESTART_LIMIT: u32 = 3;
+/// pump 사이 간격이 이만큼 벌어지면 메인 루프가 그동안 돌지 않은 것으로 본다.
+/// Ping 타이머는 Strict라 정상 루프는 `PING_INTERVAL`마다 pump를 부른다. 두 주기를 건너뛴
+/// 간격은 무응답 기한의 절반이라, 정지가 기한을 다 먹기 전에 기한을 다시 잡는다.
+pub(super) const MAIN_LOOP_STALL_GAP: Duration = Duration::from_secs(2 * PING_INTERVAL.as_secs());
 pub(super) const RESTART_FAILURE_WINDOW: Duration = Duration::from_secs(10);
 pub(super) const RESTART_FAILURE_LIMIT: usize = 3;
 /// 정상 종료를 기다릴 기간. shutdown_all에서는 같은 deadline을 공유하며 병렬로 기다린다.
@@ -362,6 +366,9 @@ pub struct PluginManager {
     /// plugin 주기 작업 스케줄. `pump(now)` 가 `drain_due` 로 실행하고, 호스트는
     /// [`PluginManager::next_deadline`] 로 자기 대기 계산에 합성한다.
     pub(super) timers: tasty_timer::TimerHub<PluginTick>,
+    /// 직전 pump 시각. 간격이 [`MAIN_LOOP_STALL_GAP`] 이상이면 메인 루프 정지로 보고
+    /// 미응답 ping 기한을 다시 잡는다(`manager::pump::healthcheck`).
+    pub(super) last_pump_at: Option<Instant>,
     /// plugin id → 최근 spawn 실패 timestamps. 짧은 시간 내 반복 실패하면 자동 disable.
     pub(super) spawn_failures: HashMap<String, Vec<Instant>>,
     /// 자동 disable되어 사용자가 수동 enable하기 전까지 더 이상 spawn 시도 안 함.
