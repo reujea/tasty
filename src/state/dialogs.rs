@@ -138,7 +138,9 @@ pub struct DialogState {
     pub(crate) approval_submitting: Option<tasty_approval::ApprovalId>,
     pub(crate) pending_approval_ids: VecDeque<tasty_approval::ApprovalId>,
     pub(crate) approval_comment_buffer: String,
-    pub(crate) file_handler_picker: Option<FileHandlerPickerData>,
+    /// 닫힌 파일 처리기 선택. 선택 데이터는 인스턴스에 있고, 닫을 때 결과와 함께 여기로 옮겨
+    /// App이 프레임 끝에 실행한다.
+    pub(crate) finished_handler_pickers: Vec<FileHandlerPickerData>,
     /// 파일 피커의 탐색·조회·선택 상태. None이면 요청이 없다.
     pub(crate) file_picker: Option<FilePickerData>,
     /// 피커를 연 본체 호출자가 보관하는 요청 정보. 결과의 의미는 각 호출자가 정한다.
@@ -225,7 +227,7 @@ impl DialogState {
             approval_submitting: None,
             pending_approval_ids: VecDeque::new(),
             approval_comment_buffer: String::new(),
-            file_handler_picker: None,
+            finished_handler_pickers: Vec::new(),
             file_picker: None,
             file_picker_callers: FilePickerCallers::default(),
             dag_list: Default::default(),
@@ -263,7 +265,7 @@ pub struct PickerHandlerSummary {
     pub(crate) last_used_at: Option<i64>,
 }
 
-/// 핸들러 선택 결과를 보관한다. App이 프레임 끝에 실행하고 최근 선택을 기록한다.
+/// 파일 처리기 선택 인스턴스의 데이터. 닫히면 결과와 함께 App이 프레임 끝에 실행하고 최근 선택을 기록한다.
 #[derive(Debug, Clone)]
 pub struct FileHandlerPickerData {
     /// Explicit dispatch owner, retained through picker selection and cancellation.

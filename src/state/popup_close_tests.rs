@@ -1041,19 +1041,14 @@ fn mk_picker_data() -> FileHandlerPickerData {
 fn file_handler_picker_escape_close_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.file_handler_picker = Some(mk_picker_data());
-    state.popups.open_at_focused(
-        PICKER_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_picker_at_fixed_pos(&mut state);
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(PICKER_POPUP_ID));
     assert!(matches!(
-        state.dialogs.file_handler_picker.as_ref().unwrap().result,
-        Some(FileHandlerPickerResult::Cancelled)
+        finished_picker_results(&state)[..],
+        [Some(FileHandlerPickerResult::Cancelled)]
     ));
 }
 
@@ -1061,12 +1056,7 @@ fn file_handler_picker_escape_close_marks_cancelled() {
 fn file_handler_picker_close_intent_now_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.file_handler_picker = Some(mk_picker_data());
-    state.popups.open_at_focused(
-        PICKER_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_picker_at_fixed_pos(&mut state);
 
     crate::intent::popup::handle(
         &mut state,
@@ -1077,22 +1067,40 @@ fn file_handler_picker_close_intent_now_marks_cancelled() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(PICKER_POPUP_ID));
-    assert!(
-        state
-            .dialogs
-            .file_handler_picker
-            .as_ref()
-            .unwrap()
-            .result
-            .is_none()
-    );
+    assert!(finished_picker_results(&state).is_empty());
 
     run_frame(empty_input(), &mut state, &mut engine);
 
     assert!(matches!(
-        state.dialogs.file_handler_picker.as_ref().unwrap().result,
-        Some(FileHandlerPickerResult::Cancelled)
+        finished_picker_results(&state)[..],
+        [Some(FileHandlerPickerResult::Cancelled)]
     ));
+}
+
+fn open_picker_at_fixed_pos(state: &mut crate::state::MainViewState) {
+    crate::intent::popup::reopen_for_test(
+        state,
+        &crate::intent::OpenRequest::new(
+            PICKER_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        )
+        .at(FIXED_POS)
+        .focused()
+        .with_payload(crate::adapters::ui::popup::PopupPayload::HandlerPicker(
+            Box::new(mk_picker_data()),
+        )),
+    );
+}
+
+fn finished_picker_results(
+    state: &crate::state::MainViewState,
+) -> Vec<Option<FileHandlerPickerResult>> {
+    state
+        .dialogs
+        .finished_handler_pickers
+        .iter()
+        .map(|p| p.result.clone())
+        .collect()
 }
 
 fn mk_file_picker_data() -> FilePickerData {

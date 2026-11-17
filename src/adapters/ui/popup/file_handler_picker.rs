@@ -95,6 +95,8 @@ pub struct FileHandlerPickerProps<'a> {
 pub enum FileHandlerPickerAction {
     None,
     Cancel,
+    /// Escape로 취소했다. 결과는 Cancel과 같고 닫기 사유만 다르다.
+    Escape,
     Select(String),
     Dispatch(String),
     OpenSettings,
@@ -283,15 +285,12 @@ pub fn picker_default_size() -> egui::Vec2 {
 }
 
 pub fn picker_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
-    let (c, r, fallback) = state
-        .dialogs
-        .file_handler_picker
-        .as_ref()
+    let (c, r, fallback) = picker_of(payload)
         .map(|p| {
             (
                 p.candidates.len(),
@@ -844,15 +843,16 @@ fn footer_band(ui: &mut egui::Ui, props: &FileHandlerPickerProps<'_>) -> (bool, 
     (open, cancel)
 }
 
-/// 화면 입력을 받아 사용자 동작을 반환한다.
+/// 화면 입력을 받아 사용자 동작을 반환한다. 키 입력은 포커스를 가진 선택창(`keys`)만 읽는다.
 pub fn draw_file_handler_picker_view(
     ui: &mut egui::Ui,
     props: &FileHandlerPickerProps<'_>,
+    keys: bool,
 ) -> FileHandlerPickerAction {
     let mut action = FileHandlerPickerAction::None;
 
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return FileHandlerPickerAction::Cancel;
+    if keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+        return FileHandlerPickerAction::Escape;
     }
 
     let empty = props.candidates.is_empty() && props.recent.is_empty();
@@ -892,13 +892,108 @@ pub fn on_close_file_handler_picker(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    if let Some(p) = state.dialogs.file_handler_picker.as_mut()
-        && p.result.is_none()
-    {
-        p.result = Some(crate::state::FileHandlerPickerResult::Cancelled);
+    let Some(picker) = picker_of(&closed.payload) else {
+        return;
+    };
+    // 기다리는 요청은 사본과 함께 넘어간다. 원본 데이터가 버려져도 사본이 남아 있는 동안 끝나지 않는다.
+    let mut finished = picker.clone();
+    finished
+        .result
+        .get_or_insert(crate::state::FileHandlerPickerResult::Cancelled);
+    state.dialogs.finished_handler_pickers.push(finished);
+}
+
+/// 인스턴스 데이터 중 파일 처리기 선택.
+pub(crate) fn picker_of(
+    payload: &crate::adapters::ui::popup::PopupPayload,
+) -> Option<&crate::state::FileHandlerPickerData> {
+    match payload {
+        crate::adapters::ui::popup::PopupPayload::HandlerPicker(p) => Some(p),
+        _ => None,
     }
+}
+
+pub(crate) fn picker_of_mut(
+    payload: &mut crate::adapters::ui::popup::PopupPayload,
+) -> Option<&mut crate::state::FileHandlerPickerData> {
+    match payload {
+        crate::adapters::ui::popup::PopupPayload::HandlerPicker(p) => Some(p),
+        _ => None,
+    }
+}
+
+/// 열린 선택창들의 인스턴스 id와 데이터.
+pub(crate) fn open_pickers(
+    state: &MainViewState,
+) -> impl Iterator<
+    Item = (
+        crate::adapters::ui::popup::PopupInstanceId,
+        &crate::state::FileHandlerPickerData,
+    ),
+> {
+    state
+        .popups
+        .instances_of(PICKER_POPUP_ID)
+        .filter_map(|p| picker_of(&p.payload).map(|data| (p.instance, data)))
+}
+
+/// 모든 선택창 데이터(닫힌 원본 포함).
+pub(crate) fn pickers_mut(
+    state: &mut MainViewState,
+) -> impl Iterator<Item = &mut crate::state::FileHandlerPickerData> {
+    state
+        .popups
+        .entries_of_mut(PICKER_POPUP_ID)
+        .filter_map(|p| picker_of_mut(&mut p.payload))
+}
+
+/// 시험용: 쌓인 선택창 열기 요청을 반영하고 맨 위 선택창의 데이터 사본을 돌려준다. 다른 요청은 큐에 남긴다.
+#[cfg(test)]
+pub(crate) fn opened_picker(
+    state: &mut MainViewState,
+) -> Option<crate::state::FileHandlerPickerData> {
+    for intent in state.take_pending_intents() {
+        match &intent.body {
+            crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(request))
+                if request.id == PICKER_POPUP_ID =>
+            {
+                crate::intent::popup::reopen_for_test(state, request);
+            }
+            _ => state.dispatch_intent(intent),
+        }
+    }
+    let top = state.popups.instance_for(
+        PICKER_POPUP_ID,
+        &crate::model::popup_kind::PopupScope::Window,
+    );
+    let top = top.or_else(|| {
+        state
+            .popups
+            .instances_of(PICKER_POPUP_ID)
+            .last()
+            .map(|p| p.instance)
+    })?;
+    picker_of(&state.popups.instance(top)?.payload).cloned()
+}
+
+/// 시험용: `data` 로 선택창을 `scope` 에 바로 연다.
+#[cfg(test)]
+pub(crate) fn open_for_test(
+    state: &mut MainViewState,
+    scope: crate::model::popup_kind::PopupScope,
+    data: crate::state::FileHandlerPickerData,
+) {
+    crate::intent::popup::reopen_for_test(
+        state,
+        &crate::intent::OpenRequest::new(PICKER_POPUP_ID, scope)
+            .centered()
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::HandlerPicker(
+                Box::new(data),
+            )),
+    );
 }
 
 fn to_entry(s: &crate::state::PickerHandlerSummary, now: i64) -> FileHandlerPickerEntryView {
@@ -927,11 +1022,11 @@ fn to_entry(s: &crate::state::PickerHandlerSummary, now: i64) -> FileHandlerPick
 /// 실행 상태에서 화면 입력을 만들고 사용자가 고른 동작을 반영한다.
 pub fn draw_file_handler_picker(
     ui: &mut egui::Ui,
-    state: &mut MainViewState,
+    _state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some(picker) = state.dialogs.file_handler_picker.as_ref() else {
+    let Some(picker) = picker_of(cx.payload) else {
         return PopupAction::Close;
     };
 
@@ -994,24 +1089,28 @@ pub fn draw_file_handler_picker(
         open_settings_button_label: t("file_handler.picker.open_settings_button"),
     };
 
-    let action = draw_file_handler_picker_view(ui, &props);
+    let action = draw_file_handler_picker_view(ui, &props, cx.focused);
 
     match action {
         FileHandlerPickerAction::None => PopupAction::None,
-        FileHandlerPickerAction::Cancel => {
-            if let Some(p) = state.dialogs.file_handler_picker.as_mut() {
+        FileHandlerPickerAction::Cancel | FileHandlerPickerAction::Escape => {
+            if let Some(p) = picker_of_mut(cx.payload) {
                 p.result = Some(FileHandlerPickerResult::Cancelled);
             }
-            PopupAction::Close
+            if action == FileHandlerPickerAction::Escape {
+                PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
+            } else {
+                PopupAction::Close
+            }
         }
         FileHandlerPickerAction::Select(id) => {
-            if let Some(p) = state.dialogs.file_handler_picker.as_mut() {
+            if let Some(p) = picker_of_mut(cx.payload) {
                 p.selected = Some(crate::file::handler::HandlerId(id));
             }
             PopupAction::None
         }
         FileHandlerPickerAction::Dispatch(id) => {
-            if let Some(p) = state.dialogs.file_handler_picker.as_mut() {
+            if let Some(p) = picker_of_mut(cx.payload) {
                 p.result = Some(FileHandlerPickerResult::Selected(
                     crate::file::handler::HandlerId(id),
                 ));
@@ -1019,7 +1118,7 @@ pub fn draw_file_handler_picker(
             PopupAction::Close
         }
         FileHandlerPickerAction::OpenSettings => {
-            if let Some(p) = state.dialogs.file_handler_picker.as_mut() {
+            if let Some(p) = picker_of_mut(cx.payload) {
                 p.result = Some(FileHandlerPickerResult::OpenSettings);
             }
             PopupAction::Close
@@ -1140,7 +1239,7 @@ mod tests {
             let mut out = FileHandlerPickerAction::None;
             drop(ctx.run(raw, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    out = draw_file_handler_picker_view(ui, &self.props());
+                    out = draw_file_handler_picker_view(ui, &self.props(), true);
                 });
             }));
             out
@@ -1329,7 +1428,7 @@ mod tests {
         let ctx = egui::Context::default();
         assert_eq!(
             c.run(&ctx, key(egui::Key::Escape)),
-            FileHandlerPickerAction::Cancel
+            FileHandlerPickerAction::Escape
         );
     }
 
@@ -1523,6 +1622,9 @@ mod tests {
             },
         );
 
+        let mut payload = crate::adapters::ui::popup::PopupPayload::HandlerPicker(Box::new(
+            opened_picker(&mut state).expect("the link menu opens a picker"),
+        ));
         let th = test_theme();
         let ctx = egui::Context::default();
         crate::gfx::gpu::GpuState::setup_egui_fonts(&ctx);
@@ -1530,13 +1632,14 @@ mod tests {
         let out = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 expected_path = fh_model::elide_target_front(url, target_budget(ui, &th, None));
+                let mut cx = crate::adapters::ui::popup::PopupCx {
+                    id: PICKER_POPUP_ID,
+                    instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                    focused: false,
+                    payload: &mut payload,
+                };
                 assert!(matches!(
-                    draw_file_handler_picker(
-                        ui,
-                        &mut state,
-                        &read,
-                        &mut crate::adapters::ui::popup::PopupCx::test("test")
-                    ),
+                    draw_file_handler_picker(ui, &mut state, &read, &mut cx),
                     PopupAction::None
                 ));
             });
@@ -1561,5 +1664,72 @@ mod tests {
                 .any(|s| s == t("file_handler.picker.format_unknown")),
             "형식 Tag 는 format unknown 이어야 한다: {texts:?}"
         );
+    }
+
+    /// 두 범위의 선택창을 한 프레임에 그리며 Escape를 넣는다. 선택창마다 닫기 결과를 돌려준다.
+    fn escape_results(focused: [bool; 2]) -> [&'static str; 2] {
+        crate::i18n::init("en");
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let all = read.file_handler.all_handlers();
+        crate::file::dispatch::open_picker_from_read(
+            &mut state,
+            &read,
+            crate::file::dispatch::DispatchTarget::http_url("https://example.com/a.md")
+                .expect("http(s) url"),
+            None,
+            all,
+            true,
+            crate::file::dispatch::PickerOrigin::Window,
+            crate::file::dispatch::FileDispatchPolicy {
+                dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
+                ignore_size_limit: false,
+                run: None,
+            },
+        );
+        let picker = opened_picker(&mut state).expect("a picker");
+        let mut closed = ["none"; 2];
+        let raw = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: Some(egui::Key::Escape),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        drop(egui::Context::default().run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                for (i, done) in closed.iter_mut().enumerate() {
+                    let mut payload = crate::adapters::ui::popup::PopupPayload::HandlerPicker(
+                        Box::new(picker.clone()),
+                    );
+                    let mut cx = crate::adapters::ui::popup::PopupCx {
+                        id: PICKER_POPUP_ID,
+                        instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                        focused: focused[i],
+                        payload: &mut payload,
+                    };
+                    *done = match draw_file_handler_picker(ui, &mut state, &read, &mut cx) {
+                        PopupAction::None => "none",
+                        PopupAction::CloseBy(
+                            crate::adapters::ui::popup::PopupCloseReason::Escape,
+                        ) => "escape",
+                        _ => "closed",
+                    };
+                }
+            });
+        }));
+        closed
+    }
+
+    /// Given 두 범위에 선택창이 보이고 한쪽만 포커스를 가졌을 때, When Escape를 누르면,
+    /// Then 포커스를 가진 선택창만 닫힌다.
+    #[test]
+    fn escape_closes_only_the_focused_picker() {
+        assert_eq!(escape_results([false, true]), ["none", "escape"]);
+        assert_eq!(escape_results([true, false]), ["escape", "none"]);
     }
 }

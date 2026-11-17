@@ -91,20 +91,15 @@ pub(crate) fn sync(
     if id == REMOTE_ROW_SCRIM_POPUP_ID && previous.is_none_or(|(_, row)| row == ws_id) {
         state.dialogs.remote_row_popup.dropped = true;
         // 다른 workspace 에서 연 picker 는 그 행으로 옮겨 와도 닫지 않는다.
-        let opened_here = state
-            .dialogs
-            .file_handler_picker
-            .as_ref()
-            .is_some_and(|picker| picker.opened_in == Some(ws_id));
-        if opened_here
-            && state
-                .popups
-                .is_open(super::file_handler_picker::PICKER_POPUP_ID)
-        {
+        let opened_here: Vec<_> = super::file_handler_picker::open_pickers(state)
+            .filter(|(_, picker)| picker.opened_in == Some(ws_id))
+            .map(|(iid, _)| iid)
+            .collect();
+        for iid in opened_here {
             // intent-exempt: scrim 이 덮는 같은 프레임에 닫아야 picker 가 scrim 아래에서 입력을 받지 않는다.
             state
                 .popups
-                .close(super::file_handler_picker::PICKER_POPUP_ID);
+                .close_instance(iid, crate::adapters::ui::popup::PopupCloseReason::Command);
         }
     }
 }
@@ -128,18 +123,29 @@ pub(crate) fn picker_row_link(
 /// 파일 처리기 선택을 연 저장 행이 끊기면 사용자가 어느 workspace 에 있든 그 순간 선택을 닫는다.
 /// 다른 workspace 에서 연 선택은 두고, 끊긴 뒤 연 선택은 끊기는 순간이 없어 닫지 않는다.
 fn close_picker_of_dropped_row(state: &mut MainViewState, engine: &EngineRead<'_>) {
-    let Some(picker) = state.dialogs.file_handler_picker.as_mut() else {
-        return;
-    };
-    let now = picker_row_link(engine, picker.opened_in);
-    let before = std::mem::replace(&mut picker.row_link, now);
-    let picker = super::file_handler_picker::PICKER_POPUP_ID;
-    if let (Some((was, true)), Some((row, false))) = (before, now)
-        && was == row
-        && state.popups.is_open(picker)
+    let mut dropped = Vec::new();
+    for entry in state
+        .popups
+        .entries_of_mut(super::file_handler_picker::PICKER_POPUP_ID)
     {
+        let open = entry.open;
+        let Some(picker) = super::file_handler_picker::picker_of_mut(&mut entry.payload) else {
+            continue;
+        };
+        let now = picker_row_link(engine, picker.opened_in);
+        let before = std::mem::replace(&mut picker.row_link, now);
+        if let (Some((was, true)), Some((row, false))) = (before, now)
+            && was == row
+            && open
+        {
+            dropped.push(entry.instance);
+        }
+    }
+    for iid in dropped {
         // intent-exempt: 행이 끊기는 프레임에 닫아야 끊긴 연결에 보낼 선택을 받지 않는다.
-        state.popups.close(picker);
+        state
+            .popups
+            .close_instance(iid, crate::adapters::ui::popup::PopupCloseReason::Command);
     }
 }
 
@@ -436,7 +442,7 @@ mod tests {
         opened_in: u32,
     ) {
         let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
-        state.dialogs.file_handler_picker = Some(crate::state::FileHandlerPickerData {
+        let data = crate::state::FileHandlerPickerData {
             origin_surface_id: None,
             dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
             target: crate::file::format::FileTarget::new("/tmp/row-picker.txt").into(),
@@ -453,10 +459,12 @@ mod tests {
             remote_host: None,
             opened_in: Some(opened_in),
             row_link: picker_row_link(engine, Some(opened_in)),
-        });
-        state
-            .popups
-            .open(picker, crate::model::popup_kind::PopupScope::Window);
+        };
+        super::super::file_handler_picker::open_for_test(
+            state,
+            crate::model::popup_kind::PopupScope::Window,
+            data,
+        );
         assert!(state.popups.is_open(picker));
     }
 
@@ -512,16 +520,17 @@ mod tests {
         open_picker(&mut state, &session.read(), local);
         let engine = session.read();
         crate::file::dispatch::set_picker_origin(
-            state.dialogs.file_handler_picker.as_mut().unwrap(),
+            super::super::file_handler_picker::pickers_mut(&mut state)
+                .next()
+                .unwrap(),
             &engine,
             Some(row),
         );
         assert_eq!(
-            state
-                .dialogs
-                .file_handler_picker
-                .as_ref()
+            super::super::file_handler_picker::open_pickers(&state)
+                .next()
                 .unwrap()
+                .1
                 .opened_in,
             Some(row)
         );
@@ -548,7 +557,9 @@ mod tests {
         session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
         open_picker(&mut state, &session.read(), local);
         crate::file::dispatch::set_picker_origin(
-            state.dialogs.file_handler_picker.as_mut().unwrap(),
+            super::super::file_handler_picker::pickers_mut(&mut state)
+                .next()
+                .unwrap(),
             &session.read(),
             Some(row),
         );

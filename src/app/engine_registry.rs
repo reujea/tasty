@@ -379,12 +379,10 @@ pub(crate) struct RelationIds {
 /// parked 자료가 남아 있어도 그것을 보여 주던 View는 사라졌으므로, 그 View의 선택을 기다리던
 /// 요청은 지금 끝낸다. 복원한 창의 picker는 그대로 쓸 수 있고 그 선택은 결과를 남기지 않는다.
 fn end_view_bound_runs(state: &mut MainViewState) {
-    if let Some(guard) = state
-        .dialogs
-        .file_handler_picker
-        .as_mut()
-        .and_then(|picker| picker.run.take())
-    {
+    let pickers = crate::adapters::ui::popup::file_handler_picker::pickers_mut(state)
+        .filter_map(|picker| picker.run.take())
+        .collect::<Vec<_>>();
+    for guard in pickers {
         crate::request_runs::finish(
             guard.take(),
             crate::request_runs::RunState::Cancelled,
@@ -459,7 +457,7 @@ mod tests {
         open_window(&mut reg, wid(1), engine);
         let run =
             crate::request_runs::begin("file_handler.dispatch", None, serde_json::Value::Null);
-        state.dialogs.file_handler_picker = Some(crate::state::FileHandlerPickerData {
+        let data = crate::state::FileHandlerPickerData {
             origin_surface_id: None,
             dispatch_origin: crate::file::dispatch::FileDispatchOrigin::Agent,
             target: crate::file::format::FileTarget::new("/tmp/park-picker.txt").into(),
@@ -476,14 +474,21 @@ mod tests {
             remote_host: None,
             opened_in: None,
             row_link: None,
-        });
+        };
+        crate::adapters::ui::popup::file_handler_picker::open_for_test(
+            &mut state,
+            crate::model::popup_kind::PopupScope::Window,
+            data,
+        );
         assert!(reg.park(wid(1), state).is_some());
         let ended = crate::request_runs::lookup(run, None).unwrap();
         assert_eq!(ended["state"], "cancelled");
         assert_eq!(ended["result"], PICKER_VIEW_GONE);
         // 복원한 창에서 picker를 계속 쓸 수 있다.
         let (_, restored) = reg.unpark_first().unwrap();
-        let picker = restored.dialogs.file_handler_picker.as_ref().unwrap();
+        let (_, picker) = crate::adapters::ui::popup::file_handler_picker::open_pickers(&restored)
+            .next()
+            .unwrap();
         assert!(picker.run.is_none());
     }
 

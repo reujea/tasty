@@ -226,10 +226,7 @@ pub(super) mod tests {
             },
         );
 
-        let picker = state
-            .dialogs
-            .file_handler_picker
-            .as_ref()
+        let picker = crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
             .expect("picker popup should open with fallback candidates, not stay empty");
         assert!(
             !picker.candidates.is_empty(),

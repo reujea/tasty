@@ -483,7 +483,7 @@ fn only_an_unverified_plugin_request_opens_the_fallback_picker() {
             },
         );
         assert_eq!(
-            state.dialogs.file_handler_picker.is_some(),
+            crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_some(),
             opens,
             "{caller:?}"
         );

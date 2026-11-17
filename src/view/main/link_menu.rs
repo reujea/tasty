@@ -419,11 +419,9 @@ mod tests {
         for intent in state.take_pending_intents() {
             crate::intent::popup::handle(&mut state, &mut engine, &intent);
         }
-        let origin = state
-            .dialogs
-            .file_handler_picker
-            .as_ref()
-            .and_then(|p| p.origin_surface_id);
+        let origin = crate::adapters::ui::popup::file_handler_picker::open_pickers(&state)
+            .next()
+            .and_then(|(_, p)| p.origin_surface_id);
         (
             state.popups.open_scope(PICKER_POPUP_ID).cloned(),
             origin,

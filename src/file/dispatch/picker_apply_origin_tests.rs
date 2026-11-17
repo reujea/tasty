@@ -73,16 +73,25 @@ fn handler(action: HandlerAction) -> FileHandler {
     }
 }
 
-/// 식별 결과가 picker를 열면 요청 출처를 그대로 실은 OpenPopup 하나만 큐에 남는다.
-fn take_picker_open_request(state: &mut crate::state::RequestContext, agent: bool) {
+/// 식별 결과가 picker를 열면 요청 출처를 그대로 실은 열기 요청 하나만 큐에 남는다. 그 요청이 실은 선택 데이터를 돌려준다.
+fn take_picker_open_request(
+    state: &mut crate::state::RequestContext,
+    agent: bool,
+) -> crate::state::FileHandlerPickerData {
     let pending = state.take_pending_intents();
     assert_eq!(pending.len(), 1);
-    assert!(matches!(
-        &pending[0].body,
-        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. }))
-            if *id == crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID
-    ));
     assert_eq!(pending[0].origin.is_agent(), agent);
+    match &pending[0].body {
+        crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(request))
+            if request.id == crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID =>
+        {
+            match request.payload.take() {
+                crate::adapters::ui::popup::PopupPayload::HandlerPicker(picker) => *picker,
+                other => panic!("unexpected payload {other:?}"),
+            }
+        }
+        other => panic!("unexpected intent {other:?}"),
+    }
 }
 
 #[test]
@@ -117,8 +126,7 @@ fn delayed_picker_selection_uses_origin_pane_after_active_workspace_changes() {
             run: None,
         },
     );
-    let picker = state.dialogs.file_handler_picker.take().unwrap();
-    take_picker_open_request(&mut state, false);
+    let picker = take_picker_open_request(&mut state, false);
     state.set_active_workspace_index(&engine, 1);
     let before = engine
         .workspace_at(0)
@@ -251,8 +259,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_missing_target_do_not_dispatch(
             run: None,
         },
     );
-    let picker = state.dialogs.file_handler_picker.take().unwrap();
-    take_picker_open_request(&mut state, false);
+    let picker = take_picker_open_request(&mut state, false);
     assert_eq!(picker.origin_surface_id, Some(sid));
     assert!(picker.ignore_size_limit);
     let recent_before = state.file_handler_recent.list().len();
@@ -288,7 +295,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_missing_target_do_not_dispatch(
             run: None,
         },
     );
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
     let h = engine
         .runtime
         .file_handler
@@ -448,7 +455,10 @@ fn agent_dispatch_without_a_matching_handler_opens_no_picker() {
                     run: None,
                 },
             );
-            assert!(state.dialogs.file_handler_picker.is_none());
+            assert!(
+                crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
+                    .is_none()
+            );
             assert!(state.pending_intents.is_empty());
             assert!(state.pending_handler_ipc.is_empty());
         }
@@ -490,15 +500,10 @@ fn an_unverified_plugin_dispatch_without_a_matching_handler_opens_the_fallback_p
                 run: None,
             },
         );
-        let picker = state
-            .dialogs
-            .file_handler_picker
-            .take()
-            .expect("unverified plugin dispatch opens the fallback picker");
+        let picker = take_picker_open_request(&mut state, true);
         assert!(picker.candidates_are_fallback);
         assert_eq!(picker.dispatch_origin, FileDispatchOrigin::PluginUnverified);
         assert_eq!(picker.origin_surface_id, Some(sid));
-        take_picker_open_request(&mut state, true);
     }
 
     let pane_id = engine.find_pane_for_surface(sid).unwrap();

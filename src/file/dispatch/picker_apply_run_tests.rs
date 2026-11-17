@@ -65,7 +65,7 @@ fn an_agent_request_without_a_handler_fails_its_own_run_only() {
             )
         );
     }
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn the_fallback_picker_ends_its_run_when_cancelled_replaced_or_dropped() {
             None,
             policy(FileDispatchOrigin::PluginUnverified, run),
         );
-        assert!(state.dialogs.file_handler_picker.is_some());
+        assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(state).is_some());
     };
 
     let replaced = begin("file_handler.dispatch", None, serde_json::Value::Null);
@@ -204,11 +204,8 @@ fn the_fallback_picker_ends_its_run_when_cancelled_replaced_or_dropped() {
     assert_eq!(state_of(cancelled).0, "running");
 
     // App이 picker를 닫을 때처럼 run을 넘겨받아 취소 결과를 적용한다.
-    let guard = state
-        .dialogs
-        .file_handler_picker
-        .take()
-        .and_then(|picker| picker.run)
+    let guard = crate::adapters::ui::popup::file_handler_picker::pickers_mut(&mut state)
+        .find_map(|picker| picker.run.take())
         .expect("picker keeps the run");
     apply_file_picker_result(
         &mut core,
@@ -230,6 +227,42 @@ fn the_fallback_picker_ends_its_run_when_cancelled_replaced_or_dropped() {
 
     let dropped = begin("file_handler.dispatch", None, serde_json::Value::Null);
     open(&mut state, &mut engine, &mut core, dropped);
-    state.dialogs.file_handler_picker = None;
+    // 선택창을 닫고 닫힌 데이터를 버린다.
+    state
+        .popups
+        .close(crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID);
+    drop(state.popups.take_closed_queue());
     assert_eq!(state_of(dropped).0, "cancelled");
+}
+
+/// 다른 surface에서 연 선택창은 앞 선택창을 바꾸지 않는다. 두 선택창이 각자 대상과 기다리는 요청을 가진다.
+#[test]
+fn a_picker_from_another_surface_keeps_the_first_picker_and_its_run() {
+    use crate::adapters::ui::popup::file_handler_picker::{open_pickers, opened_picker};
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let all = read.file_handler.all_handlers();
+    let first = begin("file_handler.dispatch", None, serde_json::Value::Null);
+    let second = begin("file_handler.dispatch", None, serde_json::Value::Null);
+    for (sid, path, run) in [(1, "/a.zzz", first), (2, "/b.zzz", second)] {
+        crate::file::dispatch::open_picker_from_read(
+            &mut state,
+            &read,
+            DispatchTarget::File(FileTarget::new(path)),
+            None,
+            all.clone(),
+            true,
+            crate::file::dispatch::PickerOrigin::ShownIn(sid),
+            policy(FileDispatchOrigin::User, run),
+        );
+        assert!(opened_picker(&mut state).is_some());
+    }
+    assert_eq!(state_of(first).0, "running");
+    assert_eq!(state_of(second).0, "running");
+    let mut shown: Vec<String> = open_pickers(&state)
+        .map(|(_, p)| p.target_display.clone())
+        .collect();
+    shown.sort();
+    assert_eq!(shown, vec!["/a.zzz".to_string(), "/b.zzz".to_string()]);
 }

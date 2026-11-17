@@ -157,6 +157,8 @@ pub enum PopupPayload {
     Rename(Box<crate::adapters::ui::rename_popup::RenamePayload>),
     /// 탐색기 Properties가 연 항목과 진행 중인 읽기.
     ExplorerProperties(Box<explorer_properties::ExplorerProperties>),
+    /// 파일 처리기 선택의 대상·후보·고른 결과와 기다리는 요청.
+    HandlerPicker(Box<crate::state::FileHandlerPickerData>),
 }
 
 impl std::fmt::Debug for PopupPayload {
@@ -169,11 +171,15 @@ impl std::fmt::Debug for PopupPayload {
                 .debug_struct("ExplorerConflict")
                 .field("surface_id", surface_id)
                 .finish(),
-            Self::Rename(r) => f.debug_tuple("Rename").field(&r.target).finish(),
-            Self::ExplorerProperties(_) => f.write_str("ExplorerProperties"),
             Self::Search { surface_id } => f
                 .debug_struct("Search")
                 .field("surface_id", surface_id)
+                .finish(),
+            Self::Rename(r) => f.debug_tuple("Rename").field(&r.target).finish(),
+            Self::ExplorerProperties(_) => f.write_str("ExplorerProperties"),
+            Self::HandlerPicker(p) => f
+                .debug_tuple("HandlerPicker")
+                .field(&p.target_display)
                 .finish(),
         }
     }

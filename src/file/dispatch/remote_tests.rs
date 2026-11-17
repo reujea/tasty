@@ -120,7 +120,7 @@ fn apply_on_mirror(
 
 #[test]
 fn a_mirror_open_queues_one_user_create_tab_without_local_effects() {
-    let (state, mut engine_session, surfaces) = apply_on_mirror(FileDispatchOrigin::User);
+    let (mut state, mut engine_session, surfaces) = apply_on_mirror(FileDispatchOrigin::User);
     let engine = engine_session.borrow_mut();
     assert_eq!(queued_creates(&state).len(), 1);
     let forward = &queued_creates(&state)[0];
@@ -148,7 +148,7 @@ fn a_mirror_open_queues_one_user_create_tab_without_local_effects() {
     );
     assert_eq!(state.recent_files.get("markdown"), Vec::<String>::new());
     assert_eq!(state.pending_intents.len(), 1);
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
     assert_eq!(state.toasts.len(), 0);
 }
 
@@ -196,7 +196,7 @@ fn a_mirror_open_with_only_an_ipc_handler_runs_nothing_and_asks_to_download() {
     // 대화상자를 여는 요청 하나만 쌓인다.
     assert_eq!(state.pending_intents.len(), 1);
     assert!(
-        state.dialogs.file_handler_picker.is_none(),
+        crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none(),
         "로컬 핸들러 전체 picker를 띄우지 않는다"
     );
     assert_asked_to_download(&state, "/remote/doc.bin");
@@ -246,7 +246,7 @@ fn a_mirror_open_without_a_detector_opens_no_picker() {
         },
     );
     assert!(queued_creates(&state).is_empty());
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
     assert_asked_to_download(&state, "/remote/unknown");
 }
 
@@ -363,10 +363,7 @@ fn a_user_open_with_an_unopenable_first_handler_shows_only_remote_candidates() {
     );
     assert!(queued_creates(&state).is_empty());
     assert!(state.pending_handler_ipc.is_empty());
-    let picker = state
-        .dialogs
-        .file_handler_picker
-        .as_ref()
+    let picker = crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
         .expect("user open shows the remote picker");
     let ids: Vec<&str> = picker
         .candidates
@@ -401,7 +398,7 @@ fn an_agent_open_with_an_unopenable_first_handler_runs_the_first_remote_one() {
         },
     );
     assert!(
-        state.dialogs.file_handler_picker.is_none(),
+        crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none(),
         "에이전트 요청은 사용자 화면에 picker를 띄우지 않는다"
     );
     assert!(state.pending_handler_ipc.is_empty());
@@ -430,10 +427,7 @@ fn an_unverified_plugin_open_with_an_unopenable_first_handler_shows_the_remote_p
     );
     assert!(queued_creates(&state).is_empty());
     assert!(state.pending_handler_ipc.is_empty());
-    let picker = state
-        .dialogs
-        .file_handler_picker
-        .as_ref()
+    let picker = crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
         .expect("unverified plugin open shows the remote picker");
     assert_eq!(picker.dispatch_origin, FileDispatchOrigin::PluginUnverified);
     assert_eq!(picker.origin_surface_id, Some(sid));
@@ -470,7 +464,10 @@ fn an_unopenable_remote_file_opened_by_name_asks_unless_an_agent_opened_it() {
                 run: None,
             },
         );
-        assert!(state.dialogs.file_handler_picker.is_none(), "{origin:?}");
+        assert!(
+            crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none(),
+            "{origin:?}"
+        );
         assert!(queued_creates(&state).is_empty(), "{origin:?}");
         assert_eq!(state.toasts.len(), 0, "{origin:?}");
         let asks = state.dialogs.download_run.ask.is_some();
@@ -682,7 +679,7 @@ fn a_mirror_terminal_link_click_opens_a_remote_tab_without_reading_the_client_fi
         Some(DetectorId::new("remote-test")),
     );
     assert_eq!(spawned, vec![(DetectDepth::Name, Some(sid))]);
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
     assert_eq!(queued_creates(&state).len(), 1);
     let forward = &queued_creates(&state)[0];
     let crate::intent::Intent::Domain(DomainIntent::CreateTab {
@@ -726,7 +723,7 @@ fn a_mirror_terminal_link_click_opens_negotiated_html_on_the_remote() {
         Some(DetectorId::new("remote-test")),
     );
     assert_eq!(queued_creates(&state).len(), 1);
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
 }
 
 /// 원격에 열 수 있는 핸들러가 없으면 로컬 핸들러를 실행하지 않고 설정 등록을 권하는 빈 picker도 띄우지 않는다.
@@ -752,7 +749,7 @@ fn a_mirror_terminal_link_click_without_a_remote_handler_runs_nothing_locally() 
     );
     assert!(state.pending_handler_ipc.is_empty());
     assert!(queued_creates(&state).is_empty());
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
     assert_asked_to_download(&state, "/remote/data.bin");
 }
 
@@ -785,11 +782,22 @@ fn the_remote_link_menu_lists_only_remote_openable_handlers_without_running_one(
         FileTarget::new("/remote/doc.md"),
         sid,
     );
-    let picker = state
-        .dialogs
-        .file_handler_picker
-        .as_ref()
-        .expect("the remote link menu opens a picker");
+    assert!(queued_creates(&state).is_empty());
+    assert!(state.pending_handler_ipc.is_empty());
+    let pending = state.take_pending_intents();
+    assert_eq!(pending.len(), 1);
+    assert!(pending[0].origin.is_user());
+    let picker = match &pending[0].body {
+        crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(request))
+            if request.id == crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID =>
+        {
+            match request.payload.take() {
+                crate::adapters::ui::popup::PopupPayload::HandlerPicker(picker) => picker,
+                other => panic!("the remote link menu opens a picker, got {other:?}"),
+            }
+        }
+        other => panic!("the remote link menu opens a picker, got {other:?}"),
+    };
     let ids: Vec<&str> = picker
         .candidates
         .iter()
@@ -800,16 +808,6 @@ fn the_remote_link_menu_lists_only_remote_openable_handlers_without_running_one(
     assert_eq!(picker.origin_surface_id, Some(sid));
     assert_eq!(picker.dispatch_origin, FileDispatchOrigin::User);
     assert!(picker.default_handler.is_none());
-    assert!(queued_creates(&state).is_empty());
-    assert!(state.pending_handler_ipc.is_empty());
-    let pending = state.take_pending_intents();
-    assert_eq!(pending.len(), 1);
-    assert!(pending[0].origin.is_user());
-    assert!(matches!(
-        &pending[0].body,
-        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. }))
-            if *id == crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID
-    ));
     assert_eq!(state.toasts.len(), 0);
 }
 
@@ -824,7 +822,7 @@ fn the_remote_link_menu_without_a_remote_handler_shows_no_empty_picker() {
         FileTarget::new("/remote/data.bin"),
         sid,
     );
-    assert!(state.dialogs.file_handler_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
     assert_asked_to_download(&state, "/remote/data.bin");
 }
 

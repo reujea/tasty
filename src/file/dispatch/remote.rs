@@ -149,7 +149,7 @@ fn open_remote_picker(
     policy: crate::file::dispatch::FileDispatchPolicy,
 ) {
     let candidates_are_fallback = detector.is_none();
-    crate::file::dispatch::open_picker_from_read(
+    crate::file::dispatch::open_picker_adjusted(
         state,
         engine,
         DispatchTarget::File(target),
@@ -161,18 +161,17 @@ fn open_remote_picker(
             ignore_size_limit: false,
             ..policy
         },
+        |picker| {
+            picker.default_handler = None;
+            picker.remote_host = Some(engine.mirror_host_text(origin_surface_id));
+            picker.recent.retain(|summary| {
+                engine
+                    .file_handler
+                    .handler(&summary.id)
+                    .is_some_and(|h| is_remote_openable(engine, &h, Some(origin_surface_id)))
+            });
+        },
     );
-    let Some(picker) = state.dialogs.file_handler_picker.as_mut() else {
-        return;
-    };
-    picker.default_handler = None;
-    picker.remote_host = Some(engine.mirror_host_text(origin_surface_id));
-    picker.recent.retain(|summary| {
-        engine
-            .file_handler
-            .handler(&summary.id)
-            .is_some_and(|h| is_remote_openable(engine, &h, Some(origin_surface_id)))
-    });
 }
 
 /// 터미널 링크 Ctrl+클릭이 만드는 파일 열기 요청. mirror surface의 경로는 원격 경로라 그 surface를 origin으로 실어

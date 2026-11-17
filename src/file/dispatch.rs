@@ -236,17 +236,50 @@ pub(crate) fn open_picker_from_read(
     origin: PickerOrigin,
     policy: FileDispatchPolicy,
 ) {
+    open_picker_adjusted(
+        state,
+        engine,
+        target,
+        detector,
+        candidates,
+        candidates_are_fallback,
+        origin,
+        policy,
+        |_| {},
+    );
+}
+
+/// [`open_picker_from_read`] 와 같고, 열기 요청을 보내기 전에 `adjust` 로 선택 데이터를 고친다.
+#[cfg(feature = "gui")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the picker takes the request, its candidates and its origin as separate facts"
+)]
+pub(crate) fn open_picker_adjusted(
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: DispatchTarget,
+    detector: Option<DetectorId>,
+    candidates: Vec<FileHandler>,
+    candidates_are_fallback: bool,
+    origin: PickerOrigin,
+    policy: FileDispatchPolicy,
+    adjust: impl FnOnce(&mut crate::state::FileHandlerPickerData),
+) {
+    use crate::adapters::ui::popup::file_handler_picker::{PICKER_POPUP_ID, picker_of_mut};
     let FileDispatchPolicy {
         dispatch_origin,
         ignore_size_limit,
         run,
     } = policy;
-    // 이전 picker를 기다리던 요청은 결과 없이 끝난다.
+    let scope = origin.scope();
+    // 같은 범위의 선택창을 기다리던 요청은 결과 없이 끝난다. 새 요청이 그 선택창의 데이터를 바꾼다.
     if let Some(guard) = state
-        .dialogs
-        .file_handler_picker
-        .take()
-        .and_then(|old| old.run)
+        .popups
+        .instance_for(PICKER_POPUP_ID, &scope)
+        .and_then(|iid| state.popups.instance_mut(iid))
+        .and_then(|p| picker_of_mut(&mut p.payload))
+        .and_then(|old| old.run.take())
     {
         finish_run(
             Some(guard.take()),
@@ -279,7 +312,7 @@ pub(crate) fn open_picker_from_read(
     let opened_in = engine
         .workspace_at(state.active_workspace_index(engine))
         .map(|workspace| workspace.id);
-    state.dialogs.file_handler_picker = Some(FileHandlerPickerData {
+    let mut picker = FileHandlerPickerData {
         origin_surface_id: None,
         dispatch_origin,
         target,
@@ -301,17 +334,17 @@ pub(crate) fn open_picker_from_read(
         remote_host: None,
         opened_in,
         row_link: crate::adapters::ui::popup::remote_row::picker_row_link(engine, opened_in),
-    });
-    if let Some(picker) = state.dialogs.file_handler_picker.as_mut() {
-        set_picker_origin(picker, engine, origin.dispatch_origin());
-    }
-    let intent = crate::intent::UiIntent::OpenPopup(
-        crate::intent::OpenRequest::new(
-            crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
-            origin.scope(),
-        )
-        .centered()
-        .focused(),
+    };
+    set_picker_origin(&mut picker, engine, origin.dispatch_origin());
+    adjust(&mut picker);
+    // 같은 범위에 열린 선택창은 위치를 두고 데이터만 바꾼다. 다른 범위의 선택창은 그대로 둔다.
+    let intent = crate::intent::UiIntent::ReopenPopup(
+        crate::intent::OpenRequest::new(PICKER_POPUP_ID, scope)
+            .centered()
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::HandlerPicker(
+                Box::new(picker),
+            )),
     );
     state.dispatch_intent(match dispatch_origin {
         FileDispatchOrigin::User => intent.from_user_menu("file_dispatch"),

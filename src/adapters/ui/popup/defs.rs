@@ -283,6 +283,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     // 배경은 default Tag 채움색과 달라야 한다(popup_shell_fill_keeps_the_default_tag_visible).
                     shell: PopupShell::Panel,
+                    // 선택 대상과 기다리는 요청은 인스턴스 데이터다. 범위마다 따로 연다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::file_handler_picker::picker_default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,

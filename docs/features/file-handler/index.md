@@ -79,7 +79,7 @@ GUI에서는 부팅 때 활성 plugin의 detector·handler를 등록한다.
 
 ### Picker + Recent
 
-사용자가 고르게 할 때 `file_handler_picker` popup 이 뜬다. Recent 는 `~/.tasty/file-handler-recent.json` LRU(cap 10, atomic write). picker 는 dispatch 하지 않고 결과만 남기고 호스트 layer 가 frame 끝에 실행 + 저장.
+사용자가 고르게 할 때 `file_handler_picker` popup 이 뜬다. Recent 는 `~/.tasty/file-handler-recent.json` LRU(cap 10, atomic write). picker 는 dispatch 하지 않고 결과만 남기고 호스트 layer 가 frame 끝에 실행 + 저장. 선택창은 범위(요청 출처 surface 또는 창)마다 하나씩 열린다. 같은 범위에 새 요청이 오면 열린 선택창의 위치는 두고 대상·후보만 바꾸고, 다른 범위의 선택창은 그대로 남는다.
 
 #### 창과 목록
 
@@ -163,7 +163,7 @@ picker에서 고른 핸들러는 이번 한 번만 실행한다. 형식별 기�
 | `markdown.navigate` | 변환 journal 완료로 `succeeded`(같은 `surface_id`). 접수 뒤 대상 surface가 사라지는 등 변환 오류는 `failed`(오류 문장, `code`) |
 | mirror 대상(원격 `NewTab`·변환 forward) | 원격 큐 접수(`forwarded`)는 결과가 아니다. run은 보낸 연결과 op_id로 원격 `StructuralResult`를 기다린다(`src/app/attach_client/op_runs.rs`). 원격 성공은 `succeeded`이며 원격이 알린 `created_surface_id`를 다음 delta에서 로컬 ID로 바꿔 `surface_id`(로컬)·`remote_surface_id`로 싣는다. 그 delta에 없는 surface는 로컬 ID 없이 끝낸다. 원격 실패는 `failed`("the remote could not apply the change: <원격 사유>")이며 사유 원문을 `remote_reason` 에도 싣는다(사유가 없거나 비면 싣지 않는다). 원격이 없는 파일로 markdown surface 를 바꾸려는 변환을 거절하면(사유 `path not found: <경로>`) 결과에 `reason_code: "not_found"` 를 함께 싣는다. 호출자는 문구를 해석하지 않고 이 값으로 파일 없음을 구분한다. 보내기 전에 연결이나 매핑이 바뀌면 `cancelled`, 보내기 전에 journal이 멈추면 `failed`("the remote change was not sent because the journal stopped: <원인>"), 보낸 뒤 결과 전에 연결이 끝나면(재연결 포함) 원격 적용 여부를 모르므로 `unknown`이다 |
 | 실행 전 실패 | 맞는 핸들러 없음(Agent), 접수 뒤 origin pane 소멸, 원격에서 열 수 없음, 핸들러가 대상을 받지 않음, 식별 worker 없음, picker에서 고른 핸들러가 사라짐, origin 없는 요청의 식별이 끝났을 때 포커스된 창이 없음(마지막 창 park·닫힘 등, "no window was focused to open the file in")은 모두 `failed`와 그 이유다 |
-| fallback picker(PluginUnverified) | 선택하면 그 실행의 결과다. 취소·설정 열기는 `cancelled`, 새 picker로 대체되면 `cancelled`("replaced by a newer file handler picker"), picker 상태가 결과 없이 사라지면(창 닫힘 등) `cancelled`. 창이 park되면 picker 상태는 복원용으로 남지만 그것을 보여 주던 View가 사라졌으므로 park 시점에 `cancelled`("the window showing the file handler picker was closed")로 끝낸다. 복원한 창의 picker는 그대로 쓸 수 있고 그 선택은 결과를 남기지 않는다 |
+| fallback picker(PluginUnverified) | 선택하면 그 실행의 결과다. 취소·설정 열기는 `cancelled`, 같은 범위의 새 picker로 대체되면 `cancelled`("replaced by a newer file handler picker"), picker 상태가 결과 없이 사라지면(창 닫힘 등) `cancelled`. 창이 park되면 picker 상태는 복원용으로 남지만 그것을 보여 주던 View가 사라졌으므로 park 시점에 `cancelled`("the window showing the file handler picker was closed")로 끝낸다. 복원한 창의 picker는 그대로 쓸 수 있고 그 선택은 결과를 남기지 않는다 |
 
 - 실행한 핸들러는 결과의 `handler`와 `action`(`open_surface`·`ipc`·`system`)에 실린다.
 - 대용량 markdown 확인은 plugin이 surface를 만든 뒤 하므로 host에는 크기 상한 거절 경로가 없다. surface가 만들어지면 `succeeded`다.

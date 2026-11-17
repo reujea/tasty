@@ -13,53 +13,63 @@ impl App {
             .iter()
             .filter_map(|(id, w)| {
                 let main = w.as_main()?;
-                let data = main.state.dialogs.file_handler_picker.as_ref()?;
-                data.result.as_ref().map(|_| *id)
+                (!main.state.dialogs.finished_handler_pickers.is_empty()).then_some(*id)
             })
             .collect();
         for id in pending {
-            let core = &mut self.services;
-            let Some((main, mut engine)) = engines_mut!(self).window_pair(id) else {
+            let Some((main, _)) = engines_mut!(self).window_pair(id) else {
                 continue;
             };
-            let Some(data) = main.state.dialogs.file_handler_picker.as_mut() else {
-                continue;
-            };
-            let Some(result) = data.result.take() else {
-                continue;
-            };
-            let target = data.target.clone();
-            let origin_surface_id = data.origin_surface_id;
-            let dispatch_origin = data.dispatch_origin;
-            let ignore_size_limit = data.ignore_size_limit;
-            let run = data.run.take().map(|guard| guard.take());
-            main.state.dialogs.file_handler_picker = None;
-            // 설정 창 열기는 ActiveEventLoop가 필요해 App에서 처리한다.
-            if matches!(result, crate::state::FileHandlerPickerResult::OpenSettings) {
-                crate::file::dispatch::finish_run(
-                    run,
-                    crate::request_runs::RunState::Cancelled,
-                    "the file handler picker closed to open settings",
-                    serde_json::Value::Null,
-                );
-                self.state.pending_settings_file_handler_tab = true;
-                crate::shortcuts::send_app_event(&self.view.proxy, crate::AppEvent::OpenSettings);
-            } else {
-                crate::file::dispatch::apply_file_picker_result(
-                    core,
-                    &mut main.state,
-                    &mut engine,
-                    target,
-                    result,
-                    origin_surface_id,
-                    crate::file::dispatch::FileDispatchPolicy {
-                        dispatch_origin,
-                        ignore_size_limit,
-                        run,
-                    },
-                );
+            let finished = std::mem::take(&mut main.state.dialogs.finished_handler_pickers);
+            for data in finished {
+                self.apply_finished_picker(id, data);
             }
-            main.mark_dirty();
         }
+    }
+
+    /// 닫힌 선택창 하나의 결과를 실행한다.
+    fn apply_finished_picker(
+        &mut self,
+        id: winit::window::WindowId,
+        mut data: crate::state::FileHandlerPickerData,
+    ) {
+        let core = &mut self.services;
+        let Some((main, mut engine)) = engines_mut!(self).window_pair(id) else {
+            return;
+        };
+        let Some(result) = data.result.take() else {
+            return;
+        };
+        let target = data.target.clone();
+        let origin_surface_id = data.origin_surface_id;
+        let dispatch_origin = data.dispatch_origin;
+        let ignore_size_limit = data.ignore_size_limit;
+        let run = data.run.take().map(|guard| guard.take());
+        // 설정 창 열기는 ActiveEventLoop가 필요해 App에서 처리한다.
+        if matches!(result, crate::state::FileHandlerPickerResult::OpenSettings) {
+            crate::file::dispatch::finish_run(
+                run,
+                crate::request_runs::RunState::Cancelled,
+                "the file handler picker closed to open settings",
+                serde_json::Value::Null,
+            );
+            self.state.pending_settings_file_handler_tab = true;
+            crate::shortcuts::send_app_event(&self.view.proxy, crate::AppEvent::OpenSettings);
+        } else {
+            crate::file::dispatch::apply_file_picker_result(
+                core,
+                &mut main.state,
+                &mut engine,
+                target,
+                result,
+                origin_surface_id,
+                crate::file::dispatch::FileDispatchPolicy {
+                    dispatch_origin,
+                    ignore_size_limit,
+                    run,
+                },
+            );
+        }
+        main.mark_dirty();
     }
 }
