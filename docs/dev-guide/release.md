@@ -176,6 +176,7 @@ GitHub Release 에 올리는 파일은 아래 표가 전부다. 사용자가 받
 - 체크섬 파일은 같은 잡이 올리는 배포물의 SHA-256 을 담는다. Windows 는 x64 의 기존 이름 `SHA256SUMS-windows.txt` 를 유지하고 ARM64 는 `SHA256SUMS-windows-arm64.txt` 를 따로 올린다. 두 파일을 합쳐 모든 Windows 배포물을 검증한다.
 - 고지 파일(`LICENSE`, `THIRD_PARTY_LICENSES.md`, `LICENSES/`)은 자산으로 따로 올리지 않는다. 라이선스가 요구하는 고지 전달은 모든 배포물 안에 넣는 것으로 충족하고([배포물의 고지 파일](#배포물의-고지-파일)), 저장소에서도 공개돼 있다.
 - 문서·설정 예시 같은 부속 파일도 올리지 않는다. 사용자에게 필요한 내용은 사용자 가이드나 배포물 안에 둔다.
+- 심볼 파일도 자산으로 따로 올리지 않는다. Windows ZIP·헤드리스 ZIP·MSI 는 `tasty.exe` 옆에 짝이 맞는 `tasty.pdb` 를 담고, macOS·Linux 실행 파일은 함수 이름 표를 안에 담는다([배포본의 심볼](crash-diagnostics.md#배포본의-심볼)).
 - 자산을 추가·삭제하려면 이 표, `.github/workflows/release.yml` 의 업로드 줄, 해당 빌드 스크립트, 사용자 가이드의 설치 파일 표를 같은 커밋에서 고친다.
 - `crates/tasty-doc-guards/tests/release_assets_match_the_guide.rs` 가 이 표와 `release.yml` 의 모든 `gh release upload` 대상을 이름과 잡 단위로 양방향 대조한다. glob·셸 변수처럼 이름을 펼칠 수 없는 업로드 대상도 표에 없는 자산으로 실패시킨다. 빌드 스크립트가 실제로 그 이름의 파일을 만드는지는 이 검사가 보지 않는다.
 
@@ -252,7 +253,8 @@ Windows ARM64 산출물은 x64 Windows 호스트에 두 번째로 등록한 전�
 - 사전 조건: Rust 타깃(없으면 스크립트가 `rustup target add`로 추가), MSVC ARM64 빌드 도구와 clang-cl(`aws-lc-sys`의 AArch64 어셈블리에 필요하다. 스크립트가 `vswhere`로 둘 다 확인하고 없으면 중단), ARM64 MSI를 만드는 WiX 3.14 이상(스크립트가 `candle.exe` 버전을 확인). `wix/main.wxs`는 ARM64에서 64비트 Program Files와 Windows Installer 5.0(`InstallerVersion` 500)을 쓴다. x64 MSI의 `InstallerVersion` 450과 UpgradeCode는 그대로다.
 - 산출물 검사는 빌드 스크립트 안에서 dist를 지우기 전에 실행하고 결과를 잡 로그에 남긴다. 태그 없는 `workflow_dispatch` 실행도 같은 로그로 확인한다.
   - ZIP·헤드리스 ZIP·MSI를 풀어 모든 `.exe`(본체와 번들 plugin)의 PE 헤더 Machine 값이 x64는 0x8664, ARM64는 0xAA64인지 확인한다. 실행 파일 수가 본체와 번들 plugin 수보다 적어도 실패한다.
-  - `tasty.exe --version` 실행과 MSI 관리 설치(`msiexec /a`)는 호스트와 같은 아키텍처일 때만 한다. x64 러너의 ARM64 빌드는 실행 검사를 건너뛴다는 줄을 남기고 PE 검사로 아키텍처를 확인한다. MSI 안의 파일은 WiX `dark.exe -x`로 꺼내 `main.wxs`와 빌드 때 만든 플러그인 fragment의 File Id·Source 짝으로 원래 경로에 놓은 뒤 고지 세트 대조, PE 검사, 번들 plugin 대조를 한다.
+  - 스테이징 폴더, 풀어 낸 ZIP·헤드리스 ZIP, MSI(같은 아키텍처는 관리 설치, 다른 아키텍처는 `dark.exe` 추출 트리)에서 `Test-PdbPair`가 `tasty.exe` 옆의 `tasty.pdb`와 exe가 기록한 GUID·Age의 짝을 확인한다. PDB가 없거나 짝이 다르면 실패한다([배포본의 심볼](crash-diagnostics.md#배포본의-심볼)).
+  - `tasty.exe --version` 실행과 MSI 관리 설치(`msiexec /a`)는 호스트와 같은 아키텍처일 때만 한다. x64 러너의 ARM64 빌드는 실행 검사를 건너뛴다는 줄을 남기고 PE 검사로 아키텍처를 확인한다. MSI 안의 파일은 WiX `dark.exe -x`로 꺼내 `main.wxs`와 빌드 때 만든 플러그인 fragment의 File Id·Source 짝으로 원래 경로에 놓은 뒤 고지 세트 대조, PE 검사, pdb 짝 검사, 번들 plugin 대조를 한다.
   - 체크섬 파일을 다시 읽어 그 아키텍처의 배포물 전부를 담는지와 각 해시가 맞는지 확인하고, 산출물 명부(이름과 크기)를 출력한다. staging 디렉터리는 `dist\tasty-windows-<arch>`처럼 아키텍처별이라 같은 dist에서 두 아키텍처를 만들어도 서로 덮지 않는다.
 - CI는 `crossplatform-check.yml`의 `check-windows-arm64`가 develop·release·main push마다 ARM64 타깃 `cargo check`를 실행한다([ci-gates](ci-gates.md)). 테스트 실행과 링크는 포함하지 않는다.
 - 확인 범위: Windows x64 개발 환경에서 두 아키텍처의 GUI ZIP·MSI·헤드리스 ZIP 생성, 본체·번들 plugin의 PE, 고지 세트와 체크섬을 확인했다. 같은 dist에 양쪽 배포물과 두 체크섬 명부가 함께 유지되는 것도 확인했다. 두 아키텍처의 패키징·산출물 검사는 CI의 태그 없는 실행에서도 확인했으며, ARM64 교차 컴파일·링크와 cargo-wix의 MSI 생성·`dark.exe` 추출을 포함한다.
@@ -330,7 +332,7 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 | Windows x64·ARM64 | `tasty-headless-<버전>-windows-{x64,arm64}.zip` | `scripts/build-windows.ps1 -Arch {x64,arm64}` |
 
 - 각 스크립트가 GUI 패키징을 마친 뒤 `CARGO_TARGET_DIR=target/headless`로 같은 프로필의 `cargo build --no-default-features`를 실행한다. GUI 패키지가 읽는 `target/<프로필>/tasty`를 덮지 않도록 target 디렉터리를 나눈다.
-- 압축 파일 안에는 실행 파일 `tasty`(Windows `tasty.exe`), GUI 산출물과 같은 서명된 번들 plugin(`plugins/`), 고지 파일이 들어간다. Linux는 GUI `.tar.gz`와 같은 launcher 스크립트가 `tasty.bin`을 실행한다. macOS 헤드리스 바이너리는 앱 번들과 같은 identity로 단독 서명하고 공증하지 않는다.
+- 압축 파일 안에는 실행 파일 `tasty`(Windows `tasty.exe`와 짝인 `tasty.pdb`), GUI 산출물과 같은 서명된 번들 plugin(`plugins/`), 고지 파일이 들어간다. Linux는 GUI `.tar.gz`와 같은 launcher 스크립트가 `tasty.bin`을 실행한다. macOS 헤드리스 바이너리는 앱 번들과 같은 identity로 단독 서명하고 공증하지 않는다.
 - 검증: 압축 파일에서 `tasty --version` 실행, `plugins/`와 고지 파일 포함, GUI 바이너리와 같은 파일이 아님을 확인한다. `plugins/`는 받아 서명한 폴더와 파일 집합·내용이 같아야 한다. macOS는 `codesign --verify`와 arm64 Mach-O도 확인한다. macOS tar.gz는 `COPYFILE_DISABLE=1`, `--no-mac-metadata`, `--no-xattrs`로 AppleDouble(`._*`) 항목과 확장 속성 pax 헤더(`LIBARCHIVE.xattr.*`)를 싣지 않는다. 압축 뒤 목록에 `._` 항목과 xattr 헤더가 없는지, 고지 경로가 있는지 확인하고, 풀어 낸 트리에서 `--version`·`codesign --verify`·고지 바이트를 다시 확인한다. Windows는 PE 머신 타입도 확인하며, 호스트에서 실행할 수 없는 아키텍처는 `--version` 대신 이 검사로 확인한다([Windows ARM64](#windows-arm64)).
 - 체크섬은 OS별 `SHA256SUMS-*.txt`에 GUI 산출물과 함께 들어간다.
 - 설치 형식(`.deb`·`.rpm`·`.AppImage`·`.dmg`·`.msi`)에는 헤드리스를 넣지 않는다.

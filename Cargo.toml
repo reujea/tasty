@@ -532,6 +532,7 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 # 디버그 정보만 지우고 함수 이름 표는 남겨 crash report backtrace에 함수 이름이 나오게 한다.
+# 패키지 도구의 strip 차단과 Windows tasty.pdb는 docs/dev-guide/crash-diagnostics.md#배포본의-심볼에 있다.
 strip = "debuginfo"
 opt-level = 3
 

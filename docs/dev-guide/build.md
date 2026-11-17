@@ -399,7 +399,7 @@ cargo install cargo-wix; winget install WiXToolset.WiXToolset   # 1회
 
 산출물: `tasty-{v}-windows-{x64|arm64}.{zip,msi}` · 헤드리스 `tasty-headless-{v}-windows-{x64|arm64}.zip` + `SHA256SUMS-windows.txt`(x64) / `SHA256SUMS-windows-arm64.txt`(ARM64). Windows x64 개발 환경과 태그 없는 CI에서 두 아키텍처의 생성·패키지 추출·PE·고지·체크섬 검사를 확인했다.
 
-패키지 안의 본체·번들 plugin `.exe`의 PE 머신 타입을 검사한다. 호스트와 같은 아키텍처는 `tasty.exe --version`을 실행하고 MSI를 `msiexec /a`로 풀며, 다른 아키텍처는 실행 검사 대신 PE 검사와 `dark.exe` 추출을 사용한다. GUI ZIP·MSI·헤드리스 ZIP의 고지 세트는 저장소 사본과 바이트 대조한다. 관리 추출은 실제 설치가 아니며 Windows ARM 기기의 설치·실행·제거는 미측정이다. 태그 없는 패키징 검증을 실제 Release 게시로 보지 않는다.
+패키지 안의 본체·번들 plugin `.exe`의 PE 머신 타입을 검사한다. 호스트와 같은 아키텍처는 `tasty.exe --version`을 실행하고 MSI를 `msiexec /a`로 풀며, 다른 아키텍처는 실행 검사 대신 PE 검사와 `dark.exe` 추출을 사용한다. GUI ZIP·MSI·헤드리스 ZIP의 고지 세트는 저장소 사본과 바이트 대조한다. `Test-PdbPair`는 스테이징 폴더, 풀어 낸 ZIP·헤드리스 ZIP, MSI(같은 아키텍처는 관리 설치, 다른 아키텍처는 `dark.exe` 추출 트리)에서 `tasty.exe` 옆에 `tasty.pdb`가 있고 exe가 기록한 GUID·Age와 짝이 맞는지 확인한다. PDB가 없거나 짝이 다르면 빌드가 실패한다([배포본의 심볼](crash-diagnostics.md#배포본의-심볼)). 관리 추출은 실제 설치가 아니며 Windows ARM 기기의 설치·실행·제거는 미측정이다. 태그 없는 패키징 검증을 실제 Release 게시로 보지 않는다.
 
 `build-windows.ps1`은 MSI 단계에서 `$env:WIX\bin`을 PATH 앞에 붙인다. `wix/main.wxs`는 파일마다 이름을 적어야 하므로, MSI 빌드 전에 `LICENSES/`의 각 파일에 대응하는 `Source`가 있는지 검사한다. 검증 포인트: MSI UpgradeCode 유지(`wix/main.wxs`), 설치→시작 메뉴→제거.
 
@@ -420,7 +420,7 @@ just dist-setup-linux              # 또는 수동 (아래)
 
 수동 사전 도구: `sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev` + `cargo install cargo-deb cargo-generate-rpm` + `linuxdeploy`(GitHub continuous, `~/.local/bin`). 도구 역할은 위 [배포 패키징](#배포-패키징) 의 Linux 항목.
 
-산출물: `tar.gz` · `.deb` · `.rpm` · `.AppImage` · 헤드리스 `tasty-headless-{version}-linux-{x64|arm64}.tar.gz` + `SHA256SUMS-linux-{x64|arm64}.txt`. 헤드리스 tar.gz 는 `--debug` 에서도 만든다. 자동 sanity check(tar.gz `tasty --version`, `dpkg-deb -I`, `rpm -qpi`, AppImage ELF 확인 — 실행은 안 함, GUI hang 회피).
+산출물: `tar.gz` · `.deb` · `.rpm` · `.AppImage` · 헤드리스 `tasty-headless-{version}-linux-{x64|arm64}.tar.gz` + `SHA256SUMS-linux-{x64|arm64}.txt`. 헤드리스 tar.gz 는 `--debug` 에서도 만든다. 자동 sanity check(tar.gz `tasty --version`, `dpkg-deb -I`, `rpm -qpi`, AppImage ELF 확인 — 실행은 안 함, GUI hang 회피). release·dist 빌드에서는 `verify_symbol_table`이 GUI·헤드리스 tar.gz, deb(`dpkg-deb -x`로 푼다), rpm, AppImage의 입력 AppDir에서 실행 파일에 `.symtab`이 있고 `.debug_info`가 없는지 확인하고, 아니면 빌드가 실패한다. 이 검사에는 `readelf`(binutils)가 필요하며 없으면 빌드가 실패한다. rpm은 `rpm`·`rpm2cpio`·`cpio`가 모두 있을 때만 풀어 확인하고, 없으면 그 갈래는 미측정이다([배포본의 심볼](crash-diagnostics.md#배포본의-심볼)).
 
 넷 다 고지 세트(`LICENSE` · `THIRD_PARTY_LICENSES.md` · `LICENSES/` 의 모든 파일)를 함께 나른다 — 생성 단계는 없고 저장소의 파일을 그대로 스테이징한다. `LICENSES/` 는 파일 이름이 아니라 디렉토리로 읽는다(`scripts/lib/notice-set.sh` 의 `notice_set_files`, deb/rpm 은 `Cargo.toml` asset 의 glob). 이 폴더는 일반 파일만 담고, 하위 폴더·링크·점으로 시작하는 항목이 있으면 `notice_set_files` 가 실패해 deb/rpm 을 만들기 전에 빌드가 멈춘다(숨김 항목도 열거한다). 리스팅 확인은 줄마다 경로 하나인 목록(`tar -t`, `rpm -qpl`, deb 은 `dpkg-deb --fsys-tarfile` 뒤 `tar -t`)에서 앞의 `./` 만 떼고 줄 전체를 `<자리>/<파일>` 과 비교한다. 자리는 산출물마다 다르고(`tar.gz` 는 최상단, deb 은 `/usr/share/doc/tasty/`, rpm 과 AppImage 는 `usr/share/licenses/tasty/`) 정본 표는 [`THIRD_PARTY_LICENSES.md`](../../THIRD_PARTY_LICENSES.md) 에 있다. sanity check 가 tar.gz · deb · rpm 리스팅과 AppImage 의 AppDir 에서 세트의 파일 **전부**를 함께 보는데, **rpm 쪽 확인은 `rpm` 명령이 있는 빌더에서만 돈다** — 없으면 그 갈래는 통과가 아니라 미측정이다.
 

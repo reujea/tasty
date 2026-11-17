@@ -140,9 +140,18 @@ host 역할의 파일 로그는 공용 부팅 경로에서 설치한다.
 | stderr panic + backtrace | ✅ | ✅ |
 | 파일 tracing | ✅ `debug.log`(warn 이상) | ✅ `debug-dev.log`(전체 debug) |
 | 에러 루프 자동 감지 | GUI는 no-op; headless는 제외 | GUI에서만 동작 |
-| 심볼 / backtrace 품질 | `strip = true` 라 함수명 제한 → 주소만 보일 수 있음 | 미최적화·전 심볼 → 정확한 스택트레이스 |
+| 심볼 / backtrace 품질 | 함수 이름은 나오고 파일·줄 번호는 없다([배포본의 심볼](#배포본의-심볼)) | 미최적화·디버그 정보 포함 → 함수 이름과 파일·줄 번호 |
 
-**release 에서 backtrace 가 주소만 나올 때**: `RUST_BACKTRACE=full tasty` 로 강화하되, strip 된 상태에선 한계가 있다 — 정확한 함수명이 필요하면 dev 빌드로 재현한다.
+**release 에서 줄 번호가 필요할 때**: 배포본에는 디버그 정보가 없어 backtrace 프레임에 파일·줄 번호가 붙지 않는다. 줄 번호가 필요하면 dev 빌드로 재현하거나 `CARGO_PROFILE_RELEASE_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_STRIP=none` 으로 release 를 다시 빌드한다.
+
+## 배포본의 심볼
+
+release·dist 프로필은 `strip = "debuginfo"` 다(dist 는 release 를 상속한다). 디버그 정보는 지우고 함수 이름 표는 남기므로 배포본에서 난 패닉의 backtrace 에 함수 이름이 나온다. 파일·줄 번호는 나오지 않는다.
+
+- **macOS·Linux**: 실행 파일 안의 함수 이름 표만 쓰고 별도 심볼 파일은 배포하지 않는다. 패키지 도구가 다시 strip 하지 않도록 `scripts/build-linux.sh` 가 `cargo deb --no-strip` 과 linuxdeploy 의 `NO_STRIP=1` 을 쓴다. cargo-generate-rpm 에는 strip 단계가 없다. 같은 스크립트의 검증 단계가 GUI·헤드리스 tar.gz, deb, rpm(`rpm2cpio`·`cpio` 가 있을 때), AppImage 의 입력 AppDir 에서 실행 파일에 `.symtab` 이 있고 `.debug_info` 가 없는지 확인한다. `scripts/build-macos-dmg.sh` 는 실행 파일을 복사해 서명만 하며 strip 하지 않는다.
+- **Windows**: MSVC 링커는 strip 설정과 관계없이 PDB 를 만들고 exe 에는 PDB 파일 이름만 기록한다(`/PDBALTPATH:%_PDB%`). `scripts/build-windows.ps1` 이 GUI ZIP·헤드리스 ZIP·MSI 의 `tasty.exe` 옆에 `tasty.pdb` 를 둔다. 헤드리스 ZIP 에는 헤드리스 target 의 PDB 를 넣는다. 스테이징 폴더와 풀어 낸 패키지(ZIP, 같은 아키텍처 MSI 의 관리 설치, 다른 아키텍처 MSI 의 dark 추출)에서 exe 의 CodeView 항목(GUID·Age·PDB 이름)과 PDB 정보 스트림의 GUID·Age 가 같은지 확인하고, PDB 가 없거나 짝이 다르면 실패한다. PDB 는 Release 자산으로 따로 올리지 않는다.
+- **번들 plugin**: 공식 plugin 은 이 저장소에서 빌드하지 않고 잠금 파일의 릴리스 산출물을 받으므로 이 프로필을 따르지 않는다. plugin 바이너리의 심볼은 공식 plugin 저장소의 빌드 설정을 따른다.
+- 외부 도구로 뜬 스택 표본(아래 hang 절)도 같은 함수 이름 표를 쓴다. Windows 덤프는 같은 빌드의 `tasty.pdb` 가 있어야 이름을 푼다.
 
 ## panic 없이 멈춤 (이벤트 루프 stall / 무한루프 / 데드락)
 
@@ -227,7 +236,7 @@ strace -p <PID> -f -e trace=write,read 2>/tmp/tasty-strace.log
 - **데드락**: lock 을 잡고 대기하는 지점이 backtrace 에 보인다.
 - **무한루프**: 반복되는 호출 패턴이 backtrace 에 보인다.
 
-dev 빌드가 심볼이 온전해 위치 파악이 쉽다.
+배포본도 함수 이름은 보인다([배포본의 심볼](#배포본의-심볼)). 파일·줄 번호까지 보려면 dev 빌드로 재현한다.
 
 ## 진단 파일 위치 요약
 
@@ -244,6 +253,7 @@ dev 빌드가 심볼이 온전해 위치 파악이 쉽다.
 
 - [CLI 크레이트 내부 구조 — 세 갈래 대칭](cli-structure.md) — 파일 로그를 host 프로세스로 한정한 결정
 - [build.md](build.md) — release(`strip = "debuginfo"`) / dev / dist 프로필
+- [release.md](release.md#릴리스-자산) — Release 자산과 Windows 패키지 안의 `tasty.pdb`
 - [error-handling.md](error-handling.md) — `Result` 처리·로그 레벨 정책 (애초에 crash 를 줄이는 쪽)
 - [self-verification.md](self-verification.md) · [e2e-tests.md](e2e-tests.md) — 재현·검증
 - [종료 시퀀스 — 종료 cascade + Drop tail](../architecture/shutdown-sequence.md) · [gpu-rendering.md](gpu-rendering.md) — 이벤트 루프 stall 워치독의 결정 근거와 렌더 구조
