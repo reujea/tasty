@@ -34,3 +34,14 @@ fn close_pane_without_a_draft_still_requests_a_close() {
     crate::shortcuts::close_active_action(&mut state, &read);
     assert!(!state.take_pending_intents().is_empty());
 }
+
+/// 새 탭 초안이 선택돼 있으면 navigation 의 선택 탭은 기존 탭이다. `rename_tab` 은 그 탭을 대상으로 잡지
+/// 않는다.
+#[test]
+fn rename_tab_has_no_target_while_a_draft_is_selected() {
+    let (mut state, engine) = test_mirror_state();
+    let read = engine.read();
+    assert!(state.active_tab_rename(&read).is_some());
+    let _draft = select_pending_draft(&mut state, &read);
+    assert!(state.active_tab_rename(&read).is_none());
+}

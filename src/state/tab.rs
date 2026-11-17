@@ -258,11 +258,19 @@ impl RequestContext {
     }
 
     /// `rename_tab` 액션의 대상. 포커스 pane 의 선택 탭과 지금 보이는 이름이다.
+    /// 생성 대기 초안이 선택돼 있으면 navigation 의 선택 탭은 초안이 아니라 기존 탭이므로 대상이 없다.
     #[cfg(feature = "gui")]
     pub(crate) fn active_tab_rename(
         &self,
         engine: &EngineRead<'_>,
     ) -> Option<(super::RenameTarget, String)> {
+        if let Some(entry) = self.attach_pending.selected(engine, &self.navigation) {
+            tracing::info!(
+                "rename_tab ignored: pending attach draft {} is selected",
+                entry.id.0
+            );
+            return None;
+        }
         let pane_id = self.focused_pane_id(engine);
         let pane = self
             .active_workspace(engine)
