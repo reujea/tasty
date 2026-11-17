@@ -6,6 +6,7 @@
 pub mod caller_context;
 pub mod gates;
 pub mod host_actions;
+pub mod kind_capabilities;
 pub mod package;
 pub mod remote_attach;
 pub mod types;
@@ -18,6 +19,7 @@ mod tests;
 pub use caller_context::{CallerContextDecl, CallerIdFormat, CallerPathEnvDecl};
 pub use gates::{ContributesGate, GateToken};
 pub use host_actions::{INHERITABLE_HOST_ACTIONS, is_inheritable};
+pub use kind_capabilities::SurfaceKindCapabilityDecl;
 pub use package::PluginPackage;
 pub use remote_attach::RemoteAttachDecl;
 pub use types::{

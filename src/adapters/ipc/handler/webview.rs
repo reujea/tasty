@@ -12,16 +12,12 @@ fn notify_content_changed(
     surface: &crate::plugin_bridge::remote_surface::RemoteSurface,
     sid: u32,
 ) {
-    use crate::model::Surface;
-    if let Some((kind, plugin_id, _)) = surface.attach_content_info() {
-        crate::remote::server::notify_markdown_changed(
-            &engine.live.occupancy,
-            engine.remote,
-            kind,
-            plugin_id,
-            sid,
-        );
-    }
+    crate::remote::server::notify_markdown_changed(
+        &engine.live.occupancy,
+        engine.remote,
+        surface.capabilities,
+        sid,
+    );
 }
 
 /// RemoteSurface에 URL과 페이지 작성자 정보를 기록한다.
@@ -166,12 +162,20 @@ mod tests {
         for sid in ids {
             owner.runtime.surfaces.insert(
                 sid,
-                Box::new(crate::plugin_bridge::remote_surface::RemoteSurface::new(
-                    sid,
-                    "markdown",
-                    "com.tasty.markdown".into(),
-                    "markdown".into(),
-                )),
+                Box::new(
+                    crate::plugin_bridge::remote_surface::RemoteSurface::new(
+                        sid,
+                        "markdown",
+                        "com.tasty.markdown".into(),
+                        "markdown".into(),
+                    )
+                    .with_capabilities(
+                        crate::runtime::surface_registry::KindCapabilities::undeclared(
+                            "markdown",
+                            "com.tasty.markdown",
+                        ),
+                    ),
+                ),
             );
         }
         (state, owner)

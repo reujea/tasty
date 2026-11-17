@@ -244,7 +244,7 @@ impl<'a> EngineRead<'a> {
             .get(&sid)?
             .as_any()
             .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()?;
-        if remote.kind_static != "html" {
+        if !remote.capabilities.script_gate {
             return None;
         }
         let target = crate::runtime::surface_binding::SurfaceBinding::capture(self, sid)?;
@@ -422,8 +422,8 @@ impl WebviewRead<'_> {
     pub(crate) fn kind(&self) -> &'static str {
         self.inner.kind_static
     }
-    pub(crate) fn plugin_id(&self) -> &str {
-        &self.inner.plugin_id
+    pub(crate) fn capabilities(&self) -> crate::runtime::surface_registry::KindCapabilities {
+        self.inner.capabilities
     }
     pub(crate) fn url(&self) -> Option<String> {
         self.inner.webview_url()

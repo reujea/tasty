@@ -147,8 +147,8 @@ fn mirrored_nav_state(
     }
 }
 
-/// native WebView를 둘 surface인지. 호스트 주소가 있는 surface와, 주소 띠로 문서를 연 빈 html
-/// surface다. 빈 html 탭은 사용자가 처음 주소를 열 때(사용자 탐색 큐에 들어올 때) 만들고 그 뒤로 둔다.
+/// native WebView를 둘 surface인지. 호스트 주소가 있는 surface와, 주소 띠(`address_band`)로 문서를 연
+/// 빈 surface다. 빈 탭은 사용자가 처음 주소를 열 때(사용자 탐색 큐에 들어올 때) 만들고 그 뒤로 둔다.
 fn hosts_webview(view: &MainView, surface: &dyn crate::model::Surface, sid: u32) -> bool {
     if let Some(remote) = surface.as_any().downcast_ref::<RemoteSurface>() {
         #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -168,7 +168,10 @@ fn hosts_webview(view: &MainView, surface: &dyn crate::model::Surface, sid: u32)
         }
     }
     surface.webview_url().is_some()
-        || (surface.kind() == "html"
+        || (surface
+            .as_any()
+            .downcast_ref::<RemoteSurface>()
+            .is_some_and(|remote| remote.capabilities.address_band)
             && (view.webviews.contains_key(&sid)
                 || view.state.webview_user_nav.iter().any(|(s, _)| *s == sid)))
 }
@@ -729,7 +732,7 @@ fn sync_webviews(
             })
             .collect(),
     );
-    // 주소창 포커스 단축키는 주소 띠가 있는 html 페이지에서만 가져가고 다른 WebView 페이지에는 남긴다.
+    // 주소창 포커스 단축키는 주소 띠가 있는 페이지에서만 가져가고 다른 WebView 페이지에는 남긴다.
     // mirror 주소 띠는 읽기 전용이므로 편집 단축키 대상에서 제외한다.
     view.webview_key_bridge.set_address_surfaces(
         view.webviews
@@ -738,7 +741,8 @@ fn sync_webviews(
             .filter(|&sid| {
                 engine
                     .find_surface_by_id(sid)
-                    .is_some_and(|s| s.kind() == "html")
+                    .and_then(|s| s.as_any().downcast_ref::<RemoteSurface>())
+                    .is_some_and(|remote| remote.capabilities.address_band)
                     && !engine.is_mirror_surface(sid)
             })
             .collect(),
@@ -1094,7 +1098,7 @@ fn note_user_selection(view: &mut MainView, engine: &crate::runtime::engine_acce
     };
     if let Some(sid) = selected
         && let Some(rs) = find_remote_surface(view, engine, sid)
-        && rs.kind_static == "html"
+        && rs.capabilities.script_gate
     {
         tracing::debug!("html script banner: surface {sid} selected by the user");
         rs.with_html_script(|st| st.on_user_view());
@@ -1106,7 +1110,7 @@ fn update_html_script_banner(
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     sid: u32,
 ) -> Option<BannerPhase> {
-    let rs = find_remote_surface(view, engine, sid).filter(|rs| rs.kind_static == "html")?;
+    let rs = find_remote_surface(view, engine, sid).filter(|rs| rs.capabilities.script_gate)?;
     let phase = rs.with_html_script(|st| st.update_banner());
     let before = view
         .html_script_phases

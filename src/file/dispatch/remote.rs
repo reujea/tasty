@@ -44,24 +44,23 @@ pub(crate) fn rejects_handler_for_origin(
     rejected
 }
 
-/// client에 등록한 kind가 원문 전달 허용 목록에 있거나 egui-mesh인지 확인한다.
+/// client에 등록한 kind가 원문 mirror(`mirror_content`)를 선언했거나 egui-mesh인지 확인한다.
 /// egui-mesh는 서버가 plugin ID와 무관하게 mesh mirror로 보낸다(docs/dev-guide/attach-behavior.md).
-/// HTML은 원래 workspace의 viewer 협상과 소유 plugin을 추가로 확인한다.
+/// 원격 HTTP 제공(`remote_http_serve`)을 선언한 kind는 원래 workspace의 viewer 협상을 추가로 확인한다.
 fn mirrors_content(engine: &EngineRead<'_>, kind: &str, origin: Option<u32>) -> bool {
     let Some(def) = engine.surface_registry.get_live(kind) else {
         return false;
     };
-    let Some(plugin_id) = def.source.plugin_id() else {
+    if def.source.plugin_id().is_none() {
         return false;
-    };
-    if kind == "html" {
-        return plugin_id == "com.tasty.html"
-            && origin
-                .and_then(|id| engine.find_workspace_index_for_surface(id))
-                .and_then(|(index, _)| engine.workspace_at(index))
-                .is_some_and(|workspace| engine.html_entry_available(workspace.id));
     }
-    crate::remote::server::is_attach_content_allowed(kind, plugin_id)
+    if def.capabilities.remote_http_serve {
+        return origin
+            .and_then(|id| engine.find_workspace_index_for_surface(id))
+            .and_then(|(index, _)| engine.workspace_at(index))
+            .is_some_and(|workspace| engine.html_entry_available(workspace.id));
+    }
+    def.capabilities.mirror_content
         || def.rendering == crate::runtime::surface_registry::RegisteredRendering::EguiMesh
 }
 

@@ -23,13 +23,13 @@ pub(crate) fn open(
         .find_workspace_index_for_pane(pane_id)
         .and_then(|idx| engine.workspace_at(idx));
     let remote = workspace.filter(|workspace| workspace.mirror);
+    // 원격 파일은 원격 문서 viewer로 연다. 그 kind가 두 능력을 모두 선언해야 한다.
     if remote.is_some_and(|workspace| {
-        kind != "html"
-            || !engine.html_entry_available(workspace.id)
+        !engine.html_entry_available(workspace.id)
             || engine
                 .surface_registry
-                .get_live("html")
-                .is_none_or(|def| def.source.plugin_id() != Some("com.tasty.html"))
+                .get_live(kind)
+                .is_none_or(|def| !(def.capabilities.opens_url && def.capabilities.mirror_viewer))
     }) {
         state.toasts.push(
             crate::i18n::t("explorer.state.remote_open_unsupported").to_string(),

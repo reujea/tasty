@@ -131,6 +131,7 @@ fn build_and_register_egui_mesh_kind_def(
     let i18n_key_static: &'static str = leak_str(&decl.display_name_i18n_key);
     let plugin_id_for_create = plugin_id.to_string();
     let plugin_id_for_restore = plugin_id.to_string();
+    let capabilities = super::KindCapabilities::resolve(&decl.capabilities, &decl.kind, plugin_id);
 
     registry.register(SurfaceKindDef {
         kind: kind_static,
@@ -175,6 +176,7 @@ fn build_and_register_egui_mesh_kind_def(
             .convert_input_popup
             .as_ref()
             .map(|p| format!("{plugin_id}/{p}")),
+        capabilities,
     });
     kind_static
 }

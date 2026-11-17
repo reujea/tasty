@@ -2,6 +2,7 @@
 //! host 내장 종류는 부팅 때, plugin 종류는 hello를 처리할 때 등록한다.
 
 pub mod builtins;
+pub mod capabilities;
 pub mod meta;
 mod prepared;
 pub use prepared::{PreparedKind, PublicationAction};
@@ -13,6 +14,7 @@ use std::sync::{Arc, RwLock};
 use crate::model::{Surface, SurfaceId};
 
 pub use builtins::register_builtin_kinds;
+pub use capabilities::KindCapabilities;
 
 /// 직렬화할 데이터. None은 해당 surface를 영속화에서 제외한다.
 pub type SurfaceSnapshotFn = Arc<dyn Fn(&dyn Surface) -> Option<serde_json::Value> + Send + Sync>;
@@ -261,6 +263,9 @@ pub struct SurfaceKindDef {
         )
     )]
     pub convert_input_popup: Option<String>,
+
+    /// host 기능 능력. host 내장 kind는 모두 false다.
+    pub capabilities: KindCapabilities,
 }
 
 impl SurfaceKindDef {
@@ -424,6 +429,15 @@ impl SurfaceKindRegistry {
             .map(|e| e.def.clone())
     }
 
+    /// `plugin_id`가 등록한 `kind`의 능력. 다른 소유자의 정의이거나 없는 kind면 능력이 없다.
+    /// 철회된 정의도 본다. 열린 surface는 소유 plugin이 철회된 뒤에도 남는다.
+    pub fn owner_capabilities(&self, kind: &str, plugin_id: &str) -> KindCapabilities {
+        self.get(kind)
+            .filter(|def| def.source.plugin_id() == Some(plugin_id))
+            .map(|def| def.capabilities)
+            .unwrap_or_default()
+    }
+
     pub fn withdrawn_by(&self, kind: &str) -> Option<String> {
         self.lock_read()
             .get(kind)
@@ -541,6 +555,7 @@ mod tests {
             records_recent: false,
             convert_requires_input: false,
             convert_input_popup: None,
+            capabilities: KindCapabilities::default(),
         }
     }
 

@@ -1,6 +1,5 @@
 //! 점유된 원격 workspace의 파일·Git·문서 조회와 응답 바이트 예산.
 
-use super::is_attach_content_allowed;
 #[cfg(feature = "gui")]
 use crate::model::SurfaceId;
 use crate::runtime::engine_access::{EngineMut, EngineRef};
@@ -385,13 +384,10 @@ const MARKDOWN_CHANGED_EVENT: &str = "markdown_changed";
 pub(crate) fn notify_markdown_changed(
     attach: &crate::core::attach::OccupancyRegistry,
     remote: &crate::remote::state::RemoteState,
-    kind: &str,
-    plugin_id: &str,
+    capabilities: crate::runtime::surface_registry::KindCapabilities,
     surface_id: SurfaceId,
 ) -> usize {
-    let allowed = is_attach_content_allowed(kind, plugin_id)
-        || (kind == "html" && plugin_id == "com.tasty.html");
-    if !allowed {
+    if !(capabilities.mirror_content || capabilities.mirror_viewer) {
         return 0;
     }
     let Some(hub) = remote.notifier() else {
@@ -433,7 +429,12 @@ fn markdown_content_for_request(
     let (kind, plugin_id, file) = surface
         .attach_content_info()
         .ok_or_else(|| "surface does not carry content".to_string())?;
-    if !is_attach_content_allowed(kind, plugin_id) {
+    if !engine
+        .runtime
+        .surface_registry
+        .owner_capabilities(kind, plugin_id)
+        .mirror_content
+    {
         return Err(format!("surface kind '{kind}' is not content-mirrored"));
     }
     let Some(path) = file else {
@@ -570,6 +571,12 @@ mod markdown_content_tests {
 mod markdown_changed_tests {
     use super::notify_markdown_changed;
     use crate::core::attach::OccupancyRegistry;
+    use crate::runtime::surface_registry::KindCapabilities;
+
+    /// 아무것도 선언하지 않은 kind가 등록 때 받는 능력.
+    fn caps(kind: &str, plugin: &str) -> KindCapabilities {
+        KindCapabilities::resolve(&Default::default(), kind, plugin)
+    }
     use tasty_ipc::stream::StreamTag;
     use tasty_ipc::stream_hub::StreamHub;
 
@@ -597,7 +604,7 @@ mod markdown_changed_tests {
         reg.acquire_workspace(300, &[30], &[30], a).unwrap();
 
         assert_eq!(
-            notify_markdown_changed(&reg, &remote, "markdown", "com.tasty.markdown", 11),
+            notify_markdown_changed(&reg, &remote, caps("markdown", "com.tasty.markdown"), 11),
             2
         );
         assert_eq!(changed_surface_id(&rx_a.try_recv().unwrap()), Some(11));
@@ -611,7 +618,7 @@ mod markdown_changed_tests {
             "점유하지 않은 client 에는 가지 않는다"
         );
         assert_eq!(
-            notify_markdown_changed(&reg, &remote, "html", "com.tasty.html", 11),
+            notify_markdown_changed(&reg, &remote, caps("html", "com.tasty.html"), 11),
             2
         );
         assert_eq!(changed_surface_id(&rx_a.try_recv().unwrap()), Some(11));
@@ -630,18 +637,23 @@ mod markdown_changed_tests {
         let mut remote = crate::remote::state::RemoteState::new();
         remote.set_notifier(hub);
         assert_eq!(
-            notify_markdown_changed(&reg, &remote, "markdown", "com.tasty.markdown", 11),
+            notify_markdown_changed(&reg, &remote, caps("markdown", "com.tasty.markdown"), 11),
             0
         );
         assert!(rx.try_recv().is_err());
 
         reg.acquire_workspace(100, &[10], &[10, 11], a).unwrap();
         assert_eq!(
-            notify_markdown_changed(&reg, &remote, "html", "com.thirdparty.html", 11),
+            notify_markdown_changed(&reg, &remote, caps("html", "com.thirdparty.html"), 11),
             0
         );
         assert_eq!(
-            notify_markdown_changed(&reg, &remote, "markdown", "com.thirdparty.markdown", 11),
+            notify_markdown_changed(
+                &reg,
+                &remote,
+                caps("markdown", "com.thirdparty.markdown"),
+                11
+            ),
             0
         );
         assert!(rx.try_recv().is_err());

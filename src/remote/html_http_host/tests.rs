@@ -53,6 +53,12 @@ impl Host {
             "html",
             "com.tasty.html".into(),
             "fixture".into(),
+        )
+        .with_capabilities(
+            crate::runtime::surface_registry::KindCapabilities::undeclared(
+                "html",
+                "com.tasty.html",
+            ),
         );
         surface.set_webview_url(Some(url.into()), None, true);
         session.runtime.surfaces.insert(1, Box::new(surface));

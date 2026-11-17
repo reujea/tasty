@@ -1,5 +1,5 @@
 //! mirror workspace의 원격 git 조회. request_id를 즉시 반환하고
-//! attach 응답이 오면 git_viewer.query_result 이벤트를 요청 플러그인에게만 보낸다(docs/features/remote-attach/index.md).
+//! attach 응답이 오면 git_viewer.query_result 이벤트를 요청한 플러그인에게만 보낸다(docs/features/remote-attach/index.md).
 
 use serde::Deserialize;
 use serde_json::json;
@@ -30,8 +30,13 @@ pub fn handle_query(
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
     id: serde_json::Value,
     params: &serde_json::Value,
-    plugin_origin: bool,
+    caller: &tasty_ipc::caller::CallerContext,
 ) -> JsonRpcResponse {
+    // 결과는 요청한 plugin에게만 간다. plugin이 아닌 호출자는 결과 이벤트를 받을 수 없다.
+    let requester = match caller {
+        tasty_ipc::caller::CallerContext::Plugin { plugin_id, .. } => Some(plugin_id.clone()),
+        _ => None,
+    };
     let req: GitViewerQueryReq = match serde_json::from_value(params.clone()) {
         Ok(r) => r,
         Err(e) => return JsonRpcResponse::error(id, -32602, format!("invalid params: {e}")),
@@ -53,7 +58,8 @@ pub fn handle_query(
         .pending_git_query_forward
         .push(PendingGitQueryForward {
             admitted: std::time::Instant::now(),
-            consumer: plugin_origin.then_some(req.consumer).flatten(),
+            consumer: requester.as_ref().and(req.consumer),
+            requester,
             local_surface_id: req.local_surface_id,
             request_id,
             kind,

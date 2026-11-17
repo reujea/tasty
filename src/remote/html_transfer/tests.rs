@@ -281,13 +281,25 @@ fn source_create_restore_requested_url_and_native_commit_are_distinct() {
     let first = parent.join("first.html");
     let restored_path = parent.join("restored.html");
     let rs = RemoteSurface::new(1, "html", "com.tasty.html".into(), "html".into())
+        .with_capabilities(
+            crate::runtime::surface_registry::KindCapabilities::undeclared(
+                "html",
+                "com.tasty.html",
+            ),
+        )
         .with_initial_file(&serde_json::json!({"url":first}));
     assert_eq!(
         rs.html_source_info().0,
         tasty_remote::html_source::classify(first.to_str(), None)
     );
     assert_eq!(rs.source_cwd(), Some(parent.clone()));
-    let restored = RemoteSurface::new(2, "html", "com.tasty.html".into(), "html".into());
+    let restored = RemoteSurface::new(2, "html", "com.tasty.html".into(), "html".into())
+        .with_capabilities(
+            crate::runtime::surface_registry::KindCapabilities::undeclared(
+                "html",
+                "com.tasty.html",
+            ),
+        );
     restored.cache_snapshot(serde_json::json!({"url":restored_path}));
     assert_eq!(restored.source_cwd(), Some(parent));
     assert_eq!(

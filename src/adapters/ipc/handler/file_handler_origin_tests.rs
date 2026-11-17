@@ -294,12 +294,17 @@ struct Attempt {
 fn install_source(engine: &mut crate::runtime::engine_access::EngineMut<'_>, sid: u32) {
     engine.runtime.surfaces.insert(
         sid,
-        Box::new(crate::plugin_bridge::remote_surface::RemoteSurface::new(
-            sid,
-            "markdown",
-            PLUGIN.into(),
-            "source".into(),
-        )),
+        Box::new(
+            crate::plugin_bridge::remote_surface::RemoteSurface::new(
+                sid,
+                "markdown",
+                PLUGIN.into(),
+                "source".into(),
+            )
+            .with_capabilities(
+                crate::runtime::surface_registry::KindCapabilities::undeclared("markdown", PLUGIN),
+            ),
+        ),
     );
 }
 

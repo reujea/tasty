@@ -20,16 +20,15 @@ mod remote_entry_tests;
 mod tests;
 use super::agent_origin;
 use super::connection::find_parked_with_workspace;
+use super::deliver_git_query_result;
 use super::navigation::{capture_focused_remote, restore_focus_after_delta, set_focus_to_surface};
 use super::projection::{build_mirror_workspace, lease_mirror_ids, mirror_id_needs};
 use super::resources::{
-    destroy_mirror_markdown_surfaces, install_mirror_fallbacks, push_markdown_changed,
-    push_markdown_content_result,
+    install_mirror_fallbacks, push_markdown_changed, push_markdown_content_result,
 };
 use super::survivors::{keep_terminal_resize_state, merge_survivor_mapping};
 use super::user_waits;
 use crate::app::App;
-use crate::app::attach_client::{GIT_VIEWER_PLUGIN_ID, GIT_VIEWER_QUERY_RESULT_EVENT};
 use crate::app::window_access::engines_mut;
 use crate::ipc::stream::StreamTag;
 use crate::runtime::engine_access::EngineMut;
@@ -525,10 +524,11 @@ struct MirrorResultEnvelope {
     reason: Option<String>,
 }
 
-/// 요청 때 기록한 소비자로 목록을 전달한다. 요청 기록이 없으면 오래된 회신으로 보고 무시한다.
+/// 요청한 plugin에 결과를 전달한다. 요청 기록이 없으면 오래된 회신으로 보고 무시한다.
 fn apply_git_query_result_event(
     plugin_manager: &mut Option<crate::plugin::PluginManager>,
     state: &mut crate::state::MainViewState,
+    requester: Option<String>,
     envelope: MirrorResultEnvelope,
     kind: String,
     data: Option<Value>,
@@ -539,7 +539,7 @@ fn apply_git_query_result_event(
         truncated,
         reason,
     } = envelope;
-    let Some(mgr) = plugin_manager.as_mut() else {
+    let Some(requester) = requester else {
         return;
     };
     let payload = serde_json::json!({
@@ -550,18 +550,8 @@ fn apply_git_query_result_event(
         "truncated": truncated,
         "reason": reason,
     });
-    mgr.emit_host_event_to_plugin(
-        GIT_VIEWER_PLUGIN_ID,
-        GIT_VIEWER_QUERY_RESULT_EVENT,
-        &payload,
-        tasty_plugin_protocol::EventScope::System,
-    );
-    // 결과 이벤트만으로는 렌더 입력이 바뀌지 않아 플러그인 repaint도 요청한다.
-    for (iid, inst) in mgr.popup_instances() {
-        if inst.plugin_id == GIT_VIEWER_PLUGIN_ID {
-            state.plugin_mesh_popup_pending_repaint.insert(iid);
-        }
-    }
+    let popups = deliver_git_query_result(plugin_manager, &requester, &payload);
+    state.plugin_mesh_popup_pending_repaint.extend(popups);
 }
 
 fn markdown_mirror_local(sess: &AttachClientSession, remote_surface_id: u32) -> Option<u32> {

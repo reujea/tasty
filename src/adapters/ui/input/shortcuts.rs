@@ -144,7 +144,7 @@ fn html_focus_address_shortcut(
     let html = engine
         .find_surface_by_id(sid)
         .and_then(|s| s.remote_webview())
-        .is_some_and(|w| w.kind() == "html");
+        .is_some_and(|w| w.capabilities().address_band);
     if !html || engine.is_mirror_surface(sid) {
         return false;
     }

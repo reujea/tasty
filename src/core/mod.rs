@@ -94,7 +94,10 @@ pub(crate) struct PendingListDirForward {
 #[cfg(feature = "gui")]
 pub(crate) struct PendingGitQueryForward {
     pub(crate) admitted: std::time::Instant,
+    /// 대기 표시를 걸 popup instance. 요청한 plugin의 instance일 때만 쓴다.
     pub(crate) consumer: Option<u64>,
+    /// 결과 이벤트를 받을 plugin. plugin이 아닌 호출자면 결과를 보낼 곳이 없다.
+    pub(crate) requester: Option<String>,
     /// 원격 ID로 바꿀 로컬 mirror surface. worktree_path가 없으면 서버가 해당 터미널 cwd를 조회한다.
     pub(crate) local_surface_id: u32,
     pub(crate) request_id: u64,

@@ -1,4 +1,4 @@
-//! HTML leaves are exposed only after viewer negotiation on the current registration.
+//! Viewer-mirror leaves (`mirror_viewer`) are exposed only after viewer negotiation on the current registration.
 use crate::{plugin_bridge::remote_surface::RemoteSurface, runtime::engine_access::EngineRef};
 impl EngineRef<'_> {
     pub(super) fn project_html_entry_roles(
@@ -17,7 +17,7 @@ impl EngineRef<'_> {
             return;
         }
         for descriptor in surfaces {
-            if descriptor["role"] != "placeholder" || descriptor["kind"] != "html" {
+            if descriptor["role"] != "placeholder" {
                 continue;
             }
             let Some(id) = descriptor["remote_id"]
@@ -34,11 +34,11 @@ impl EngineRef<'_> {
             else {
                 continue;
             };
-            if surface.kind_static != "html" || surface.plugin_id != "com.tasty.html" {
+            if !surface.capabilities.mirror_viewer {
                 continue;
             }
             let (source, generation) = surface.html_source_info();
-            *descriptor = serde_json::json!({"remote_id":id,"role":"html","kind":"html","plugin_id":"com.tasty.html","display_name":crate::model::Surface::display_name(surface),"source":source,"source_generation":generation});
+            *descriptor = serde_json::json!({"remote_id":id,"role":super::mirror_role::VIEWER,"kind":surface.kind_static,"plugin_id":surface.plugin_id,"display_name":crate::model::Surface::display_name(surface),"source":source,"source_generation":generation});
         }
     }
 }

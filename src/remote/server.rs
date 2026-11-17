@@ -577,7 +577,8 @@ impl EngineRef<'_> {
         }
         let (mesh_whitelisted, mesh_rejected) =
             mesh_mirror_candidates(&self.runtime.surface_registry, class);
-        let (content_whitelisted, content_rejected) = content_mirror_candidates(class);
+        let (content_whitelisted, content_rejected) =
+            content_mirror_candidates(&self.runtime.surface_registry, class);
 
         let mut surfaces = Vec::new();
         for &sid in &class.terminals {
@@ -616,14 +617,15 @@ impl EngineRef<'_> {
             }));
         }
         // 파일 내용은 별도 요청으로 받는다. file은 표시용 서버 경로이며 client의 로컬 파일 경로가 아니다.
-        for (sid, _kind, file) in &content_whitelisted {
+        for (sid, kind, file) in &content_whitelisted {
             let display_name = display_names
                 .get(sid)
                 .cloned()
-                .unwrap_or_else(|| kinds.get(sid).copied().unwrap_or("markdown").to_string());
+                .unwrap_or_else(|| kind.to_string());
             surfaces.push(serde_json::json!({
                 "remote_id": sid,
-                "role": "markdown",
+                "role": crate::remote::mirror_role::CONTENT,
+                "kind": kind,
                 "file": file.as_ref().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(),
                 "display_name": display_name,
             }));
@@ -689,23 +691,22 @@ pub(crate) fn mesh_mirror_candidates<'a>(
     (whitelisted, rejected)
 }
 
-/// markdown의 파일 원문만 지원한다. 같은 webview 계열인 html의 URL을 파일 경로로 취급하면 안 된다.
-pub(crate) fn is_attach_content_allowed(kind: &str, plugin_id: &str) -> bool {
-    matches!((kind, plugin_id), ("markdown", "com.tasty.markdown"))
-}
-
 /// (허용한 (surface_id, kind, file) 목록, placeholder로 보낼 ID 목록).
 type ContentMirrorSplit<'a> = (
     Vec<(SurfaceId, &'a str, Option<&'a std::path::Path>)>,
     Vec<SurfaceId>,
 );
 
-/// model이 수집한 content 후보를 앱의 허용 목록으로 확인한다. 거절된 ID는 placeholder로 처리한다.
-pub(crate) fn content_mirror_candidates(class: &AttachSurfaceClass) -> ContentMirrorSplit<'_> {
+/// model이 수집한 content 후보 중 소유 plugin이 `mirror_content`를 선언한 kind만 원문으로 보낸다.
+/// 다른 webview 계열 kind의 URL을 파일 경로로 취급하지 않는다. 거절된 ID는 placeholder로 처리한다.
+pub(crate) fn content_mirror_candidates<'a>(
+    registry: &crate::runtime::surface_registry::SurfaceKindRegistry,
+    class: &'a AttachSurfaceClass,
+) -> ContentMirrorSplit<'a> {
     let mut whitelisted = Vec::new();
     let mut rejected = Vec::new();
     for (sid, kind, plugin_id, file) in &class.content_candidates {
-        if is_attach_content_allowed(kind, plugin_id) {
+        if registry.owner_capabilities(kind, plugin_id).mirror_content {
             whitelisted.push((*sid, kind.as_str(), file.as_deref()));
         } else {
             rejected.push(*sid);
@@ -718,10 +719,44 @@ pub(crate) fn content_mirror_candidates(class: &AttachSurfaceClass) -> ContentMi
 mod content_mirror_candidate_tests {
     use super::content_mirror_candidates;
     use crate::model::AttachSurfaceClass;
+    use crate::runtime::surface_registry::SurfaceKindRegistry;
     use std::path::PathBuf;
 
+    /// (plugin, kind, 선언) 목록을 remote kind로 등록한 등록부.
+    fn registry(kinds: &[(&str, &str, serde_json::Value)]) -> SurfaceKindRegistry {
+        let reg = SurfaceKindRegistry::new();
+        for (plugin, kind, extra) in kinds {
+            let mut decl = serde_json::json!({
+                "kind": kind,
+                "display_name_i18n_key": "surface.kind.markdown",
+                "rendering": "webview",
+            });
+            decl.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            let (sender, _receiver) = std::sync::mpsc::channel();
+            crate::plugin_bridge::remote_kind::register_remote_kind(
+                &reg,
+                plugin,
+                &serde_json::from_value(decl).unwrap(),
+                sender,
+            );
+        }
+        reg
+    }
+
     #[test]
-    fn content_mirror_candidates_filters_by_whitelist() {
+    fn content_mirror_candidates_follow_the_owner_declaration() {
+        let none = serde_json::json!({});
+        let reg = registry(&[
+            ("com.tasty.markdown", "markdown", none.clone()),
+            ("com.tasty.html", "html", none.clone()),
+            (
+                "com.example.notes",
+                "notes",
+                serde_json::json!({"mirror_content": true}),
+            ),
+        ]);
         let class = AttachSurfaceClass {
             content_candidates: vec![
                 (
@@ -737,28 +772,39 @@ mod content_mirror_candidate_tests {
                     "com.thirdparty.markdown".into(),
                     Some(PathBuf::from("/x.md")),
                 ),
+                (
+                    13,
+                    "notes".into(),
+                    "com.example.notes".into(),
+                    Some(PathBuf::from("/n.txt")),
+                ),
+                (14, "unregistered".into(), "com.example.x".into(), None),
             ],
             ..Default::default()
         };
-        let (whitelisted, rejected) = content_mirror_candidates(&class);
+        let (whitelisted, rejected) = content_mirror_candidates(&reg, &class);
         assert_eq!(
             whitelisted,
-            vec![(
-                10,
-                "markdown",
-                Some(std::path::Path::new("/proj/README.md"))
-            )]
+            vec![
+                (
+                    10,
+                    "markdown",
+                    Some(std::path::Path::new("/proj/README.md"))
+                ),
+                (13, "notes", Some(std::path::Path::new("/n.txt"))),
+            ]
         );
-        assert_eq!(rejected, vec![11, 12]);
+        assert_eq!(rejected, vec![11, 12, 14]);
     }
 
     #[test]
     fn a_markdown_surface_without_a_file_is_still_a_candidate() {
+        let reg = registry(&[("com.tasty.markdown", "markdown", serde_json::json!({}))]);
         let class = AttachSurfaceClass {
             content_candidates: vec![(7, "markdown".into(), "com.tasty.markdown".into(), None)],
             ..Default::default()
         };
-        let (whitelisted, rejected) = content_mirror_candidates(&class);
+        let (whitelisted, rejected) = content_mirror_candidates(&reg, &class);
         assert_eq!(whitelisted, vec![(7, "markdown", None)]);
         assert!(rejected.is_empty());
     }
@@ -1098,7 +1144,8 @@ impl crate::runtime::engine_access::EngineMut<'_> {
 
         let (mesh_whitelisted, _mesh_rejected) =
             mesh_mirror_candidates(&self.runtime.surface_registry, &class);
-        let (content_whitelisted, content_rejected) = content_mirror_candidates(&class);
+        let (content_whitelisted, content_rejected) =
+            content_mirror_candidates(&self.runtime.surface_registry, &class);
         tracing::debug!(
             "attach: workspace {workspace_id} -> client {client_id} ({} terminals, {} mesh, {} content, {} placeholders)",
             class.terminals.len(),

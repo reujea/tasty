@@ -34,7 +34,7 @@ fn surface<'a>(engine: &'a EngineRef<'_>, id: u32) -> Option<&'a RemoteSurface> 
         .find_surface_by_id(id)?
         .as_any()
         .downcast_ref::<RemoteSurface>()
-        .filter(|s| s.kind_static == "html" && s.plugin_id == "com.tasty.html")
+        .filter(|s| s.capabilities.remote_http_serve)
 }
 impl Authority {
     pub(super) fn capture(

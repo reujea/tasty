@@ -124,6 +124,7 @@ pub(crate) fn test_session_with_frames(
             remote_label: "127.0.0.1:0".to_string(),
             profile: None,
             pending_list_dir_consumers: HashMap::new(),
+            git_query_requesters: HashMap::new(),
             capture_uploads: HashMap::new(),
             html_locals: Default::default(),
             markdown_locals: HashSet::new(),
@@ -176,6 +177,7 @@ pub(super) fn markdown_descriptor(remote_id: u32) -> Value {
     serde_json::json!({
         "remote_id": remote_id,
         "role": "markdown",
+        "kind": "markdown",
         "file": "/remote/docs/README.md",
         "display_name": "README.md",
     })

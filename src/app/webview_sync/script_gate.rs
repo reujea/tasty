@@ -9,7 +9,7 @@ pub(super) fn attach_script_gate(
     wv: &crate::webview::PlatformWebView,
     settings: &crate::webview::HtmlWebViewSettings,
 ) {
-    let Some(rs) = find_remote_surface(view, engine, sid).filter(|rs| rs.kind_static == "html")
+    let Some(rs) = find_remote_surface(view, engine, sid).filter(|rs| rs.capabilities.script_gate)
     else {
         return;
     };

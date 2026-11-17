@@ -379,6 +379,9 @@ pub struct ClientSessionState {
     pub profile: Option<String>,
     /// 응답에 소비자 정보가 없어 요청별로 기록한다. None은 File Picker, Some은 explorer surface ID다.
     pub pending_list_dir_consumers: HashMap<u64, Option<u32>>,
+    /// 회신을 기다리는 원격 git 조회와 그 결과를 받을 plugin. 회신을 받으면 지운다.
+    /// 재연결 뒤에도 남겨, 세션을 닫을 때 기다리던 plugin에 취소를 보낸다.
+    pub git_query_requesters: HashMap<u64, String>,
     /// 회신을 기다리는 캡처 업로드와 그 요청을 만든 View. 회신은 이 View에만 알리고,
     /// 목록에 없는 upload_id 의 회신(중복·지연)은 안내하지 않는다.
     pub capture_uploads: HashMap<u64, std::sync::Weak<()>>,

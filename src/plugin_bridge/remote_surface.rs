@@ -19,6 +19,8 @@ pub struct RemoteSurface {
     /// 등록 시 프로세스 수명으로 할당한 kind 문자열.
     pub kind_static: &'static str,
     pub plugin_id: String,
+    /// 등록한 kind가 선언한 host 기능 능력. 생성·복원 때 정의에서 받는다.
+    pub capabilities: crate::runtime::surface_registry::KindCapabilities,
     /// 플러그인에서 받은 snapshot. 저장·복원에 사용한다.
     pub snapshot_cache: Arc<Mutex<Option<Value>>>,
     /// 플러그인 응답으로 갱신하는 표시 이름.
@@ -106,6 +108,7 @@ impl RemoteSurface {
             id,
             kind_static,
             plugin_id,
+            capabilities: Default::default(),
             snapshot_cache: Arc::new(Mutex::new(None)),
             display_name: Arc::new(Mutex::new(initial_name)),
             webview_url: Arc::new(Mutex::new(None)),
@@ -141,7 +144,7 @@ impl RemoteSurface {
     /// URL·chrome 라벨과 작성자를 갱신한다. by_owner는 호출자가 이 surface의 소유 플러그인인지 나타낸다.
     /// label이 None이면 이전 라벨을 지운다. 라벨은 URL과 함께 바뀌어야 다른 문서의 이름이 남지 않는다.
     pub fn set_webview_url(&self, url: Option<String>, label: Option<String>, by_owner: bool) {
-        if self.kind_static == "html" {
+        if self.capabilities.address_band {
             crate::poison::recover_mutex(
                 self.html_source.lock(),
                 "HTML source",
@@ -266,6 +269,15 @@ impl RemoteSurface {
         ) = name;
     }
 
+    /// 등록한 kind의 능력을 싣는다. 생성 인자를 읽는 [`Self::with_initial_file`]보다 먼저 부른다.
+    pub fn with_capabilities(
+        mut self,
+        capabilities: crate::runtime::surface_registry::KindCapabilities,
+    ) -> Self {
+        self.capabilities = capabilities;
+        self
+    }
+
     /// 생성 인자에서 비어 있지 않은 file을 기억한다.
     pub fn with_initial_file(mut self, params: &Value) -> Self {
         self.initial_file = params
@@ -273,14 +285,14 @@ impl RemoteSurface {
             .and_then(|v| v.as_str())
             .filter(|f| !f.is_empty())
             .map(PathBuf::from);
-        if self.kind_static == "html" {
+        if self.capabilities.address_band {
             self.set_html_source(params.get("url").and_then(Value::as_str));
         }
         self
     }
 
     pub fn cache_snapshot(&self, data: Value) {
-        if self.kind_static == "html" {
+        if self.capabilities.address_band {
             let mut source = crate::poison::recover_mutex(
                 self.html_source.lock(),
                 "HTML source",
@@ -324,7 +336,7 @@ impl Surface for RemoteSurface {
 
     /// 호스트에 보관된 cwd를 반환한다. 로컬 실행에 사용하기 전에는 출처를 확인해야 한다.
     fn source_cwd(&self) -> Option<std::path::PathBuf> {
-        if self.kind_static == "html" {
+        if self.capabilities.address_band {
             let state = crate::poison::recover_mutex(
                 self.html_source.lock(),
                 "HTML source",

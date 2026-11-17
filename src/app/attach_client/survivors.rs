@@ -3,24 +3,25 @@
 #[cfg(test)]
 mod tests;
 
+use super::documents::DocumentMirror;
 use super::projection::{MirrorMarkdownLeaves, MirrorMeshInfo};
-use super::resources::{
-    MARKDOWN_MIRROR_KIND, create_mirror_markdown_surface, deferred_mirror_markdown_surface,
-    make_mirror_surface, markdown_mirror_available,
-};
+use super::resources::make_mirror_surface;
 use crate::model::{EmptySurface, TerminalSurface};
 use crate::runtime::engine_access::EngineMut;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use tasty_remote::client_session::SharedFrameSender;
 
-fn mirror_descriptor_kind(s: &Value, markdown_available: bool, html_available: bool) -> &str {
+fn mirror_descriptor_kind<'a>(
+    s: &'a Value,
+    registry: &crate::runtime::surface_registry::SurfaceKindRegistry,
+) -> &'a str {
     match s.get("role").and_then(Value::as_str) {
         Some(role @ ("terminal" | "explorer")) => role,
         Some("mesh") => s.get("kind").and_then(Value::as_str).unwrap_or("mesh"),
-        Some("html") if html_available => "html",
-        Some("markdown") if markdown_available => MARKDOWN_MIRROR_KIND,
-        _ => "empty",
+        _ => DocumentMirror::of(s)
+            .and_then(|mirror| mirror.live_kind(registry, s))
+            .unwrap_or("empty"),
     }
 }
 
@@ -115,14 +116,12 @@ pub(super) fn merge_survivor_mapping(
     let mut markdown_locals: MirrorMarkdownLeaves = HashMap::new();
     let mut html_locals = HashSet::new();
     let mut newly_created_remote_ids: Vec<u32> = Vec::new();
-    let markdown_available = markdown_mirror_available(&engine.runtime.surface_registry);
-    let html_available = super::html::resources::available(&engine.runtime.surface_registry);
     for s in surfaces {
         let remote_id = s.get("remote_id").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
         let role = s.get("role").and_then(|v| v.as_str());
         let is_terminal = role == Some("terminal");
         // 재구성할 실제 kind로 비교한다. 미등록 markdown이나 지원하지 않는 role은 empty다.
-        let new_kind = mirror_descriptor_kind(s, markdown_available, html_available);
+        let new_kind = mirror_descriptor_kind(s, &engine.runtime.surface_registry);
         let survivor_local = old_map.get(&remote_id).copied();
         let old_kind: Option<&'static str> =
             survivor_local.and_then(|l| engine.find_surface_by_id(l).map(|s| s.kind()));
@@ -196,13 +195,12 @@ pub(super) fn merge_survivor_mapping(
                 .map(std::path::PathBuf::from)
                 .unwrap_or_default();
             explorer_locals.insert(local_id, root);
-        } else if matches!(role, Some("html" | "markdown")) {
-            let html = role == Some("html");
-            if html {
+        } else if let Some(mirror) = DocumentMirror::of(s) {
+            if mirror == DocumentMirror::Viewer {
                 html_locals.insert(local_id);
             }
-            let reuse = old_kind == Some(new_kind) && new_kind != "empty";
-            if let Some(kind) = materialize_document(s, local_id, html, reuse, engine) {
+            let reuse = (old_kind == Some(new_kind) && new_kind != "empty").then_some(new_kind);
+            if let Some(kind) = materialize_document(s, local_id, mirror, reuse, engine) {
                 markdown_locals.insert(local_id, kind);
             }
         }
@@ -272,29 +270,14 @@ pub(super) fn merge_survivor_mapping(
 fn materialize_document(
     descriptor: &Value,
     local: u32,
-    html: bool,
-    reuse: bool,
+    mirror: DocumentMirror,
+    reuse: Option<&str>,
     engine: &mut EngineMut<'_>,
 ) -> Option<String> {
-    let kind = if html { "html" } else { MARKDOWN_MIRROR_KIND };
-    if reuse {
+    if let Some(kind) = reuse {
         return Some(kind.to_owned());
     }
-    let registry = &engine.runtime.surface_registry;
-    let surface = if html {
-        super::html::resources::create(descriptor, local, registry)
-    } else {
-        create_mirror_markdown_surface(descriptor, local, registry)
-    }
-    .or_else(|| {
-        (!registry.contains(kind)).then(|| {
-            if html {
-                super::html::resources::deferred(descriptor, local)
-            } else {
-                deferred_mirror_markdown_surface(descriptor, local)
-            }
-        })
-    })?;
+    let surface = mirror.materialize(descriptor, local, &engine.runtime.surface_registry)?;
     let kind = surface.kind().to_owned();
     engine.runtime.surfaces.insert(local, surface);
     Some(kind)

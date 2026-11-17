@@ -10,7 +10,7 @@ use crate::plugin::manifest::SurfaceKindDecl;
 use crate::plugin_bridge::host_cmd::HostCmd;
 use crate::plugin_bridge::remote_surface::RemoteSurface;
 use crate::runtime::surface_registry::{
-    KindSource, RegisteredRendering, SurfaceKindDef, SurfaceKindRegistry,
+    KindCapabilities, KindSource, RegisteredRendering, SurfaceKindDef, SurfaceKindRegistry,
 };
 
 // Surface::kind가 static 문자열을 요구한다. 같은 kind를 다시 등록해도 추가 할당하며 해제하지 않는다.
@@ -59,6 +59,7 @@ pub fn register_remote_kind(
         crate::runtime::surface_registry::PresetFieldSpec::from_decls(&decl.preset_fields);
     let preset_fields_for_create = preset_fields.clone();
     let preset_fields_for_restore = preset_fields.clone();
+    let capabilities = KindCapabilities::resolve(&decl.capabilities, &decl.kind, plugin_id);
 
     registry.register(SurfaceKindDef {
         kind: kind_static,
@@ -74,6 +75,7 @@ pub fn register_remote_kind(
                 .unwrap_or_else(|| kind_static.to_string());
             let surface =
                 RemoteSurface::new(sid, kind_static, plugin_id_for_create.clone(), initial_name)
+                    .with_capabilities(capabilities)
                     .with_initial_file(params);
             // 선언한 파일 경로에서 얻은 cwd를 상속 cwd보다 우선한다.
             // 이 값은 호스트 source_cwd용이며 플러그인에 보내는 cwd는 원래 인자를 유지한다.
@@ -83,9 +85,8 @@ pub fn register_remote_kind(
             )
             .or_else(|| cwd.map(std::path::PathBuf::from));
             surface.set_cwd(surface_cwd);
-            if kind_static == "html" {
-                surface.set_html_source(params.get("url").and_then(serde_json::Value::as_str));
-            }
+            // cwd가 정해진 뒤 다시 기록해 상대 경로 url을 그 cwd 기준으로 푼다.
+            surface.set_html_source(params.get("url").and_then(serde_json::Value::as_str));
             let handles = surface.handles();
             let command = HostCmd::RemoteSurfaceCreated {
                 surface_id: sid,
@@ -111,7 +112,8 @@ pub fn register_remote_kind(
                 kind_static,
                 plugin_id_for_restore.clone(),
                 kind_static.to_string(),
-            );
+            )
+            .with_capabilities(capabilities);
             // 생성과 같은 규칙으로 저장 자료의 파일에서 cwd를 얻고, 없으면 저장한 cwd를 쓴다.
             surface.set_cwd(
                 crate::runtime::surface_registry::PresetFieldSpec::derive_cwd(
@@ -167,6 +169,7 @@ pub fn register_remote_kind(
             .convert_input_popup
             .as_ref()
             .map(|p| format!("{plugin_id}/{p}")),
+        capabilities,
     });
 
     tracing::info!(

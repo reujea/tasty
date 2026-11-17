@@ -223,7 +223,7 @@ fn bind_mirrors(
         else {
             continue;
         };
-        if surface.kind_static != "html" || surface.plugin_id != "com.tasty.html" {
+        if !surface.capabilities.mirror_viewer {
             continue;
         }
         if live

@@ -24,7 +24,7 @@ fn find_html_surface<'a>(
         ));
     };
     match surface.as_any().downcast_ref::<RemoteSurface>() {
-        Some(rs) if rs.kind_static == "html" => Ok(rs),
+        Some(rs) if rs.capabilities.script_gate => Ok(rs),
         _ => Err(JsonRpcResponse::error(
             id.clone(),
             -32000,

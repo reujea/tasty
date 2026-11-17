@@ -406,6 +406,9 @@ pub struct SurfaceKindDecl {
     /// 사용자 설정과 같은 저장 키의 설정 페이지 항목 기본값이 없을 때 적용한다.
     #[serde(default)]
     pub webview_defaults: Option<WebViewDefaultsDecl>,
+    /// host 기능 능력. 키는 이 표의 최상위에 둔다(예: `address_band = true`).
+    #[serde(flatten)]
+    pub capabilities: super::kind_capabilities::SurfaceKindCapabilityDecl,
 }
 
 /// webview kind의 설정 기본값. 키 이름은 `plugin_settings.<plugin_id>`의 저장 키와 같다.

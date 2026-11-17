@@ -39,18 +39,19 @@ pub(super) fn receive(sess: &mut AttachClientSession, reply: HtmlReply) {
         document.receive(reply);
     }
 }
+use crate::remote::mirror_role::VIEWER;
 pub(super) fn retain(sess: &mut AttachClientSession, surfaces: &[serde_json::Value]) {
     sess.transport
         .html
         .http_documents
         .retain_with_sender(&sess.transport.frame_tx, |remote| {
             surfaces.iter().any(|surface| {
-                surface["remote_id"].as_u64() == Some(remote as u64) && surface["role"] == "html"
+                surface["remote_id"].as_u64() == Some(remote as u64) && surface["role"] == VIEWER
             })
         });
     sess.transport.html.mirrors.retain(|remote, mirror| {
         let keep = surfaces.iter().any(|surface| {
-            surface["remote_id"].as_u64() == Some(*remote as u64) && surface["role"] == "html"
+            surface["remote_id"].as_u64() == Some(*remote as u64) && surface["role"] == VIEWER
         });
         if !keep {
             lock_mirror(mirror).disconnect();
@@ -59,7 +60,7 @@ pub(super) fn retain(sess: &mut AttachClientSession, surfaces: &[serde_json::Val
     });
     sess.transport.html.documents.retain(|remote, _| {
         surfaces.iter().any(|surface| {
-            surface["remote_id"].as_u64() == Some(*remote as u64) && surface["role"] == "html"
+            surface["remote_id"].as_u64() == Some(*remote as u64) && surface["role"] == VIEWER
         })
     });
 }
@@ -69,7 +70,6 @@ pub(super) fn retain(sess: &mut AttachClientSession, surfaces: &[serde_json::Val
     any(target_os = "linux", target_os = "macos", windows)
 ))]
 pub(super) mod http;
-pub(super) mod resources;
 mod viewer;
 pub(super) use viewer::synchronize;
 static MIRROR_POISONED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

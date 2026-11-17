@@ -2,15 +2,12 @@
 
 use crate::ipc::stream;
 use crate::ipc::stream::StreamTag;
-use crate::model::{DeferredPlugin, EmptySurface, Surface, Workspace};
+use crate::model::{EmptySurface, Surface, Workspace};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tasty_remote::client_session::{OutFrame, SharedFrameSender};
 use tasty_terminal::Terminal;
-/// 서버의 is_attach_content_allowed와 같은 kind·소유자 쌍만 로컬 문서로 만든다.
-pub(super) const MARKDOWN_MIRROR_KIND: &str = "markdown";
-const MARKDOWN_PLUGIN_ID: &str = "com.tasty.markdown";
 const MARKDOWN_MIRROR_CONTENT_RESULT_EVENT: &str = "markdown_mirror.content_result";
 const MARKDOWN_MIRROR_CHANGED_EVENT: &str = "markdown_mirror.changed";
 
@@ -42,97 +39,14 @@ pub(super) fn install_mirror_fallbacks(
     }
 }
 
-/// kind가 허용된 markdown 플러그인에 등록됐는지 확인한다.
-pub(super) fn markdown_mirror_available(
-    registry: &crate::runtime::surface_registry::SurfaceKindRegistry,
-) -> bool {
-    registry.get_live(MARKDOWN_MIRROR_KIND).is_some_and(|def| {
-        matches!(
-            &def.source,
-            crate::runtime::surface_registry::KindSource::Plugin(p) if p == MARKDOWN_PLUGIN_ID
-        )
-    })
-}
-
-/// 원격 경로는 remote.file로 전달한다. file을 쓰면 플러그인이 로컬 경로로 읽는다.
-pub(super) fn create_mirror_markdown_surface(
-    descriptor: &Value,
-    local_id: u32,
-    registry: &crate::runtime::surface_registry::SurfaceKindRegistry,
-) -> Option<Box<dyn Surface>> {
-    let params = mirror_markdown_params(descriptor);
-    let definition = registry.get_live(MARKDOWN_MIRROR_KIND)?;
-    if !matches!(&definition.source,crate::runtime::surface_registry::KindSource::Plugin(plugin) if plugin==MARKDOWN_PLUGIN_ID)
-    {
-        return None;
-    }
-    match (definition.create)(local_id, None, &params).and_then(|prepared| prepared.publish()) {
-        Ok(surface) => Some(surface),
-        Err(e) => {
-            tracing::warn!(
-                "attach mirror: markdown surface {local_id} 생성 실패 — 빈 surface: {e}"
-            );
-            None
-        }
-    }
-}
-
-/// 생성과 deferred 복원이 같은 remote params를 사용한다.
-fn mirror_markdown_params(descriptor: &Value) -> Value {
-    let file = descriptor
-        .get("file")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-    let display_name = descriptor
-        .get("display_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or(MARKDOWN_MIRROR_KIND);
-    serde_json::json!({
-        "display_name": display_name,
-        "remote": { "file": file },
-    })
-}
-
-pub(super) fn deferred_mirror_markdown_surface(
-    descriptor: &Value,
-    local_id: u32,
-) -> Box<dyn Surface> {
-    Box::new(EmptySurface::new_deferred_plugin(
-        local_id,
-        DeferredPlugin {
-            kind: MARKDOWN_MIRROR_KIND.to_string(),
-            snapshot: mirror_markdown_params(descriptor),
-        },
-    ))
-}
-
-/// mirror 삭제는 일반 lifecycle 큐를 거치지 않아 사라진 문서를 플러그인에 직접 알린다.
-pub(super) fn destroy_mirror_markdown_surfaces(
-    plugin_manager: &mut Option<crate::plugin::PluginManager>,
-    ids: impl IntoIterator<Item = u32>,
-) {
-    let Some(mgr) = plugin_manager.as_mut() else {
-        return;
-    };
-    for id in ids {
-        mgr.destroy_remote_surface(id, Some(MARKDOWN_MIRROR_KIND));
-    }
-}
-
 /// 이 이벤트의 surface ID는 로컬 ID다.
 pub(super) fn push_markdown_changed(
     plugin_manager: &mut Option<crate::plugin::PluginManager>,
     local_surface_id: u32,
 ) {
-    let Some(mgr) = plugin_manager.as_mut() else {
-        return;
-    };
-    mgr.emit_host_event_to_plugin(
-        MARKDOWN_PLUGIN_ID,
-        MARKDOWN_MIRROR_CHANGED_EVENT,
-        &serde_json::json!({ "surface_id": local_surface_id }),
-        tasty_plugin_protocol::EventScope::System,
-    );
+    let payload = serde_json::json!({ "surface_id": local_surface_id });
+    let event = MARKDOWN_MIRROR_CHANGED_EVENT;
+    super::documents::emit_to_owner(plugin_manager, local_surface_id, event, &payload);
 }
 
 /// payload.surface_id는 플러그인이 아는 로컬 ID여야 한다.
@@ -140,15 +54,14 @@ pub(super) fn push_markdown_content_result(
     plugin_manager: &mut Option<crate::plugin::PluginManager>,
     payload: &Value,
 ) {
-    let Some(mgr) = plugin_manager.as_mut() else {
+    let Some(local) = payload["surface_id"]
+        .as_u64()
+        .and_then(|id| u32::try_from(id).ok())
+    else {
         return;
     };
-    mgr.emit_host_event_to_plugin(
-        MARKDOWN_PLUGIN_ID,
-        MARKDOWN_MIRROR_CONTENT_RESULT_EVENT,
-        payload,
-        tasty_plugin_protocol::EventScope::System,
-    );
+    let event = MARKDOWN_MIRROR_CONTENT_RESULT_EVENT;
+    super::documents::emit_to_owner(plugin_manager, local, event, payload);
 }
 
 /// 요청을 보낼 수 없거나 연결이 끊기면 실패를 합성한다. request_id=0은 대기 요청 취소다.
@@ -213,12 +126,8 @@ impl crate::runtime::engine_access::EngineMut<'_> {
             let Some(deferred) = deferred else {
                 continue;
             };
-            let available = match deferred.kind.as_str() {
-                MARKDOWN_MIRROR_KIND => markdown_mirror_available(&self.runtime.surface_registry),
-                "html" => super::html::resources::available(&self.runtime.surface_registry),
-                _ => false,
-            };
-            if !available {
+            if !super::documents::deferred_available(&self.runtime.surface_registry, &deferred.kind)
+            {
                 continue;
             }
             let Some(definition) = self.runtime.surface_registry.get_live(&deferred.kind) else {

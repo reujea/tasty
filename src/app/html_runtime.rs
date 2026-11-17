@@ -282,7 +282,13 @@ mod tests {
                 sender.epoch(),
             )))
         };
-        let mut remote = RemoteSurface::new(sid, "html", "com.tasty.html".into(), "html".into());
+        let mut remote = RemoteSurface::new(sid, "html", "com.tasty.html".into(), "html".into())
+            .with_capabilities(
+                crate::runtime::surface_registry::KindCapabilities::undeclared(
+                    "html",
+                    "com.tasty.html",
+                ),
+            );
         remote.html_mirror = Some(mirror());
         engine.runtime.surfaces.insert(sid, Box::new(remote));
         let binding = NativeWebviewBinding::capture(&engine.as_ref(), sid).unwrap();

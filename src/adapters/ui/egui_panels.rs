@@ -325,15 +325,14 @@ pub fn draw_egui_panels(
                 let url = remote.url();
                 let chrome_label = remote.label();
                 let tile = crate::webview_chrome_ui::WebviewTile::of(
-                    crate::state::surface_focus::focus_mark(
-                        remote.kind(),
-                        Some(remote.plugin_id()),
-                    ),
+                    crate::state::surface_focus::focus_mark(remote.kind(), remote.capabilities()),
                     bed_focused,
                 );
                 let nav = remote.nav_state();
                 let nav_info = remote.nav_info();
-                let html_sid = info.surface_id.filter(|_| remote.kind() == "html");
+                let capabilities = remote.capabilities();
+                let html_sid = info.surface_id.filter(|_| capabilities.address_band);
+                let notice_sid = info.surface_id.filter(|_| capabilities.inset_notices);
                 let cwd = html_sid.and_then(|sid| engine.local_surface_cwd(sid));
                 let mirror = html_sid.is_some_and(|sid| engine.is_mirror_surface(sid));
                 let received = html_sid.and_then(|sid| engine.html_receive(sid));
@@ -388,7 +387,7 @@ pub fn draw_egui_panels(
                                 &mut receive_actions,
                             )
                         });
-                        let banners = html_sid.map_or_else(
+                        let banners = notice_sid.map_or_else(
                             || {
                                 size.map(|h| th.banner_margin() + h + th.banner_inset_gap())
                                     .unwrap_or_default()
@@ -453,7 +452,7 @@ pub fn draw_egui_panels(
                                 html_sid.filter(|_| !mirror).and(html_hint.as_deref()),
                             );
                         }
-                        html_sid.map(|_| band_h + banners)
+                        html_sid.or(notice_sid).map(|_| band_h + banners)
                     },
                 );
                 if let (Some(sid), Some(inset)) = (info.surface_id, content_inset) {

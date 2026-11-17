@@ -152,8 +152,8 @@ pub(super) fn apply_one_mirror_event(
                     );
                     host.focus_surface(sess.state.local_workspace, focus);
                     host.state.reconcile_presentation(host.engine);
-                    destroy_mirror_markdown_surfaces(plugin_manager, removed.markdown);
-                    super::super::html::resources::destroy(plugin_manager, removed.html);
+                    let documents = removed.markdown.into_iter().chain(removed.html);
+                    super::super::documents::destroy(plugin_manager, documents);
                 }
                 Err(error) => {
                     tracing::warn!(
@@ -219,6 +219,7 @@ pub(super) fn apply_one_mirror_event(
             apply_git_query_result_event(
                 plugin_manager,
                 host.state,
+                sess.state.git_query_requesters.remove(&request_id),
                 MirrorResultEnvelope {
                     request_id,
                     ok,

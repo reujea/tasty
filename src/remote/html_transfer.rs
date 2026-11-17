@@ -249,7 +249,7 @@ impl EngineMut<'_> {
             );
             return;
         };
-        if surface.kind_static != "html" || surface.plugin_id != "com.tasty.html" {
+        if !surface.capabilities.remote_http_serve {
             send(
                 hub,
                 client,

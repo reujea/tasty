@@ -15,11 +15,27 @@ pub fn handle_content_request(
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
     id: serde_json::Value,
     params: &serde_json::Value,
-    trusted_plugin: bool,
+    caller: &tasty_ipc::caller::CallerContext,
 ) -> JsonRpcResponse {
     let surface_id = match require_u32(params, "surface_id", &id) {
         Ok(v) => v,
         Err(e) => return e,
+    };
+    // 사용자 대기는 그 원문 mirror surface를 소유한 plugin의 요청에만 건다.
+    let owner_request = match caller {
+        tasty_ipc::caller::CallerContext::Plugin { plugin_id, .. } => engine
+            .runtime
+            .surfaces
+            .get(&surface_id)
+            .and_then(|surface| {
+                surface
+                    .as_any()
+                    .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()
+            })
+            .is_some_and(|remote| {
+                remote.plugin_id == *plugin_id && remote.capabilities.mirror_content
+            }),
+        _ => false,
     };
     // 에이전트 요청의 잘림 알림은 사용자에게 띄우지 않는다.
     let agent_origin = params
@@ -31,7 +47,7 @@ pub fn handle_content_request(
         .remote
         .pending_markdown_content_forward
         .push(PendingMarkdownContentForward {
-            user_wait: trusted_plugin
+            user_wait: owner_request
                 && !agent_origin
                 && params
                     .get("user_initiated")
@@ -48,6 +64,35 @@ pub fn handle_content_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::surface_registry::KindCapabilities;
+    use tasty_ipc::caller::CallerContext;
+
+    fn plugin(id: &str) -> CallerContext {
+        CallerContext::Plugin {
+            plugin_id: id.into(),
+            permissions: Default::default(),
+        }
+    }
+
+    /// 로컬 mirror 문서 surface `id`를 `owner` plugin 소유로 둔다.
+    fn document(
+        engine: &mut crate::runtime::engine_access::EngineMut<'_>,
+        id: u32,
+        owner: &str,
+        mirror_content: bool,
+    ) {
+        let surface = crate::plugin_bridge::remote_surface::RemoteSurface::new(
+            id,
+            "notes",
+            owner.into(),
+            "notes".into(),
+        )
+        .with_capabilities(KindCapabilities {
+            mirror_content,
+            ..KindCapabilities::default()
+        });
+        engine.runtime.surfaces.insert(id, Box::new(surface));
+    }
 
     #[test]
     fn content_request_queues_and_returns_nonzero_request_id() {
@@ -55,7 +100,12 @@ mod tests {
         let mut engine_session =
             crate::runtime::engine_session::EngineSession::new(80, 24, waker).unwrap();
         let mut engine = engine_session.borrow_mut();
-        let resp = handle_content_request(&mut engine, json!(1), &json!({ "surface_id": 7 }), true);
+        let resp = handle_content_request(
+            &mut engine,
+            json!(1),
+            &json!({ "surface_id": 7 }),
+            &plugin("com.example.notes"),
+        );
         let rid = resp
             .result
             .as_ref()
@@ -89,7 +139,7 @@ mod tests {
             &mut engine,
             json!(1),
             &json!({ "surface_id": 7, "agent_origin": true }),
-            true,
+            &plugin("com.example.notes"),
         );
         assert!(resp.error.is_none());
         assert!(engine.remote.pending_markdown_content_forward[0].agent_origin);
@@ -101,6 +151,7 @@ mod tests {
         let mut session =
             crate::runtime::engine_session::EngineSession::new(80, 24, waker).unwrap();
         let mut engine = session.borrow_mut();
+        document(&mut engine, 7, "com.example.notes", true);
         for (params, expected) in [
             (json!({"surface_id": 7}), false),
             (json!({"surface_id": 7, "user_initiated": true}), true),
@@ -110,9 +161,14 @@ mod tests {
             ),
         ] {
             assert!(
-                handle_content_request(&mut engine, json!(1), &params, true)
-                    .error
-                    .is_none()
+                handle_content_request(
+                    &mut engine,
+                    json!(1),
+                    &params,
+                    &plugin("com.example.notes")
+                )
+                .error
+                .is_none()
             );
             assert_eq!(
                 engine
@@ -139,8 +195,8 @@ mod tests {
             json!([7]),
             json!({"surface_id": "bad"}),
         ] {
-            for trusted in [false, true] {
-                let response = handle_content_request(&mut engine, json!(1), &params, trusted);
+            for caller in [CallerContext::local(), plugin("com.example.notes")] {
+                let response = handle_content_request(&mut engine, json!(1), &params, &caller);
                 assert_eq!(response.error.unwrap().code, -32602);
                 assert!(engine.remote.pending_markdown_content_forward.is_empty());
             }
@@ -149,7 +205,7 @@ mod tests {
             &mut engine,
             json!(1),
             &json!({"surface_id": 7, "user_initiated": true}),
-            false,
+            &CallerContext::local(),
         );
         assert!(response.error.is_none());
         assert!(!engine.remote.pending_markdown_content_forward[0].user_wait);
@@ -165,8 +221,38 @@ mod tests {
         let mut engine_session =
             crate::runtime::engine_session::EngineSession::new(80, 24, waker).unwrap();
         let mut engine = engine_session.borrow_mut();
-        let resp = handle_content_request(&mut engine, json!(1), &json!({}), true);
+        let resp =
+            handle_content_request(&mut engine, json!(1), &json!({}), &CallerContext::local());
         assert!(resp.error.is_some());
         assert!(engine.remote.pending_markdown_content_forward.is_empty());
+    }
+
+    /// 사용자 대기는 요청한 plugin이 원문 mirror를 선언한 그 surface의 소유자일 때만 건다.
+    #[test]
+    fn only_the_owner_of_a_content_document_starts_a_user_wait() {
+        let waker: tasty_terminal::Waker = std::sync::Arc::new(|| {});
+        let mut session =
+            crate::runtime::engine_session::EngineSession::new(80, 24, waker).unwrap();
+        let mut engine = session.borrow_mut();
+        document(&mut engine, 7, "com.example.notes", true);
+        document(&mut engine, 8, "com.example.notes", false);
+        let user = json!({"surface_id": 7, "user_initiated": true});
+        let undeclared = json!({"surface_id": 8, "user_initiated": true});
+        let absent = json!({"surface_id": 9, "user_initiated": true});
+        for (params, caller, expected) in [
+            (&user, plugin("com.example.notes"), true),
+            (&user, plugin("com.example.other"), false),
+            (&user, CallerContext::local(), false),
+            (&undeclared, plugin("com.example.notes"), false),
+            (&absent, plugin("com.example.notes"), false),
+        ] {
+            assert!(
+                handle_content_request(&mut engine, json!(1), params, &caller)
+                    .error
+                    .is_none()
+            );
+            let queued = engine.remote.pending_markdown_content_forward.pop();
+            assert_eq!(queued.unwrap().user_wait, expected, "{params} {caller:?}");
+        }
     }
 }

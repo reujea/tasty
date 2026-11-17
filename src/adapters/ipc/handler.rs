@@ -760,20 +760,12 @@ fn route_engine_handler(
         "recent.query" => recent::handle_query(window, id, request.params.clone()),
         // 결과를 전달하는 App::dispatch_pending_git_query_forwards가 GUI 전용이다(docs/features/remote-attach/index.md).
         #[cfg(feature = "gui")]
-        "git_viewer.query" => git_viewer::handle_query(
-            engine,
-            id,
-            &request.params,
-            matches!(caller, tasty_ipc::caller::CallerContext::Plugin { plugin_id, .. } if plugin_id == "com.tasty.git-viewer"),
-        ),
+        "git_viewer.query" => git_viewer::handle_query(engine, id, &request.params, caller),
         // mirror 원문도 GUI의 전달 큐에서 처리한다(docs/features/remote-attach/index.md).
         #[cfg(feature = "gui")]
-        "markdown_mirror.content_request" => markdown_mirror::handle_content_request(
-            engine,
-            id,
-            &request.params,
-            matches!(caller, tasty_ipc::caller::CallerContext::Plugin { plugin_id, .. } if plugin_id == "com.tasty.markdown"),
-        ),
+        "markdown_mirror.content_request" => {
+            markdown_mirror::handle_content_request(engine, id, &request.params, caller)
+        }
         // host는 surface 변환·목록만 처리하고 픽셀 편집은 plugin이 처리한다.
         #[cfg(feature = "gui")]
         "image.open" => {

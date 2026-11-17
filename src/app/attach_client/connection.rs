@@ -8,8 +8,8 @@ use super::navigation::{capture_focused_remote, restore_focus_after_delta};
 use super::pending;
 use super::projection::{build_mirror_workspace, lease_mirror_ids};
 use super::resources::{
-    bind_mirror_input, destroy_mirror_markdown_surfaces, install_mirror_fallbacks,
-    markdown_content_failure, push_markdown_changed, push_markdown_content_result,
+    bind_mirror_input, install_mirror_fallbacks, markdown_content_failure, push_markdown_changed,
+    push_markdown_content_result,
 };
 use super::survivors::{install_reconnected_survivors, merge_survivor_mapping};
 use crate::app::App;
@@ -218,6 +218,7 @@ impl App {
                 remote_label: format!("127.0.0.1:{port}"),
                 profile: target.profile.clone(),
                 pending_list_dir_consumers: HashMap::new(),
+                git_query_requesters: HashMap::new(),
                 capture_uploads: HashMap::new(),
                 markdown_locals,
                 html_locals,
@@ -383,8 +384,11 @@ impl App {
             finish_reconnected_view(&mut main.state, local_workspace);
             main.mark_dirty();
         }
-        destroy_mirror_markdown_surfaces(&mut self.plugin_manager, removed_documents.markdown);
-        super::html::resources::destroy(&mut self.plugin_manager, removed_documents.html);
+        let removed = removed_documents.markdown.into_iter();
+        super::documents::destroy(
+            &mut self.plugin_manager,
+            removed.chain(removed_documents.html),
+        );
 
         let sess = &mut self.remote.sessions[sess_idx];
         sess.transport = transport;
@@ -568,14 +572,15 @@ impl App {
         }
         // 응답을 받을 수 없어진 git-viewer 요청을 취소한다.
         if from_disconnect {
-            self.notify_git_viewer_mirror_lost();
+            self.notify_git_viewer_mirror_lost(&sess.state.git_query_requesters);
             self.abandon_capture_uploads(sess.state.capture_uploads.clone());
         }
-        destroy_mirror_markdown_surfaces(
-            &mut self.plugin_manager,
-            sess.state.markdown_locals.clone(),
-        );
-        super::html::resources::destroy(&mut self.plugin_manager, sess.state.html_locals.clone());
+        let documents = sess
+            .state
+            .markdown_locals
+            .iter()
+            .chain(&sess.state.html_locals);
+        super::documents::destroy(&mut self.plugin_manager, documents.copied());
         // 사용자 닫기도 heartbeat를 멈춰 소켓이 불필요하게 유지되지 않게 한다.
         sess.transport.disconnected.store(true, Ordering::SeqCst);
         if let Err(error) = sess.send_frame(StreamTag::Detach, Vec::new()) {

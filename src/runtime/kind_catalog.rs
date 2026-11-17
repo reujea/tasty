@@ -23,6 +23,9 @@ pub(crate) struct KindMetadata {
     pub(crate) display_name_i18n_key: &'static str,
     pub(crate) icon: Option<String>,
     pub(crate) preset_fields: Vec<PresetFieldSpec>,
+    /// host 기능 능력. 선언이 없을 때의 해석은 등록 때 이미 끝났다.
+    #[cfg(feature = "gui")]
+    pub(crate) capabilities: super::surface_registry::KindCapabilities,
     #[cfg(feature = "gui")]
     pub(crate) consumes_egui_input: bool,
     #[cfg(feature = "gui")]
@@ -80,6 +83,8 @@ impl KindCatalog {
             display_name_i18n_key: def.display_name_i18n_key,
             icon: def.icon.clone(),
             preset_fields: def.preset_fields.clone(),
+            #[cfg(feature = "gui")]
+            capabilities: def.capabilities,
             #[cfg(feature = "gui")]
             consumes_egui_input: def.consumes_egui_input,
             #[cfg(feature = "gui")]

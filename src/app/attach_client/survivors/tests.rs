@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::attach_client::projection::build_mirror_workspace;
-use crate::app::attach_client::resources::MARKDOWN_MIRROR_KIND;
+const MARKDOWN_MIRROR_KIND: &str = "markdown";
 use crate::app::attach_client::tests::{
     MARKDOWN_PLUGIN_ID, created_surfaces, markdown_descriptor, register_markdown_kind,
     single_leaf_tree, supply_ids, test_ids,

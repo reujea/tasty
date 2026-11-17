@@ -3,11 +3,11 @@
 #[cfg(test)]
 mod tests;
 
+use super::deliver_git_query_result;
 use super::navigation::pending_op_focus_for;
 use super::resources::{markdown_content_failure, push_markdown_content_result};
 use super::wire::send_control_frame;
 use crate::app::App;
-use crate::app::attach_client::{GIT_VIEWER_PLUGIN_ID, GIT_VIEWER_QUERY_RESULT_EVENT};
 use crate::ipc::stream::{InheritCwd, StreamControl, StreamTag, StructuralOp};
 use crate::runtime::engine_session::EngineId;
 use crate::state::attach_pending::QueryConsumer;
@@ -80,15 +80,10 @@ impl App {
             pending.append(&mut engine.remote.pending_git_query_forward);
         }
         for req in pending {
-            let send_result = self.send_git_query_request(
-                req.local_surface_id,
-                req.request_id,
-                req.kind,
-                req.worktree_path.as_deref(),
-                req.diff_path.as_deref(),
-            );
+            let send_result = self.send_git_query_request(&req);
             if send_result.is_ok()
                 && let Some(consumer) = req.consumer
+                && self.popup_belongs_to(consumer, req.requester.as_deref())
             {
                 self.begin_query_wait(
                     req.local_surface_id,
@@ -103,7 +98,14 @@ impl App {
                     req.local_surface_id,
                     req.request_id
                 );
-                self.fail_pending_git_query(req.request_id, req.kind, &e.to_string());
+                if let Some(requester) = &req.requester {
+                    self.fail_pending_git_query(
+                        requester,
+                        req.request_id,
+                        req.kind,
+                        &e.to_string(),
+                    );
+                }
             }
         }
     }
@@ -140,58 +142,62 @@ impl App {
 
     fn fail_pending_git_query(
         &mut self,
+        requester: &str,
         request_id: u64,
         kind: tasty_ipc::stream_hub::GitQueryKind,
         reason: &str,
     ) {
-        self.broadcast_git_query_reply(serde_json::json!({
-            "request_id": request_id,
-            "ok": false,
-            "kind": kind.as_wire_str(),
-            "data": serde_json::Value::Null,
-            "truncated": false,
-            "reason": reason,
-        }));
+        self.send_git_query_reply(
+            requester,
+            serde_json::json!({
+                "request_id": request_id,
+                "ok": false,
+                "kind": kind.as_wire_str(),
+                "data": serde_json::Value::Null,
+                "truncated": false,
+                "reason": reason,
+            }),
+        );
     }
 
-    /// request_id=0으로 플러그인이 기다리는 조회를 취소한다.
-    /// 호스트는 플러그인의 대기 ID를 몰라 다른 살아 있는 workspace의 조회도 취소될 수 있다.
-    pub(super) fn notify_git_viewer_mirror_lost(&mut self) {
-        self.broadcast_git_query_reply(serde_json::json!({
-            "request_id": 0,
-            "ok": false,
-            "kind": "",
-            "data": serde_json::Value::Null,
-            "truncated": false,
-            "reason": "mirror workspace disconnected",
-        }));
-    }
-
-    /// git-viewer에 결과를 전달하고 열린 인스턴스의 repaint를 예약한다.
-    fn broadcast_git_query_reply(&mut self, payload: serde_json::Value) {
-        let git_viewer_instances: Vec<u64> = match self.plugin_manager.as_mut() {
-            Some(mgr) => {
-                mgr.emit_host_event_to_plugin(
-                    GIT_VIEWER_PLUGIN_ID,
-                    GIT_VIEWER_QUERY_RESULT_EVENT,
-                    &payload,
-                    tasty_plugin_protocol::EventScope::System,
-                );
-                mgr.popup_instances()
-                    .filter(|(_, inst)| inst.plugin_id == GIT_VIEWER_PLUGIN_ID)
-                    .map(|(iid, _)| iid)
-                    .collect()
-            }
-            None => Vec::new(),
-        };
-        if git_viewer_instances.is_empty() {
-            return;
+    /// 세션이 끝나 회신을 받을 수 없어진 조회를 request_id=0으로 취소한다.
+    /// 호스트는 plugin의 대기 ID를 몰라, 그 plugin이 다른 workspace에서 기다리던 조회도 취소될 수 있다.
+    pub(super) fn notify_git_viewer_mirror_lost(&mut self, requesters: &HashMap<u64, String>) {
+        let mut requesters: Vec<&String> = requesters.values().collect();
+        requesters.sort_unstable();
+        requesters.dedup();
+        for requester in requesters {
+            self.send_git_query_reply(
+                requester,
+                serde_json::json!({
+                    "request_id": 0,
+                    "ok": false,
+                    "kind": "",
+                    "data": serde_json::Value::Null,
+                    "truncated": false,
+                    "reason": "mirror workspace disconnected",
+                }),
+            );
         }
+    }
+
+    /// 요청한 plugin에 결과를 전달하고 그 plugin의 열린 popup을 다시 그린다.
+    fn send_git_query_reply(&mut self, requester: &str, payload: serde_json::Value) {
+        let instances = deliver_git_query_result(&mut self.plugin_manager, requester, &payload);
         for main in self.main_windows_iter_mut() {
-            for iid in &git_viewer_instances {
-                main.state.plugin_mesh_popup_pending_repaint.insert(*iid);
-            }
+            main.state
+                .plugin_mesh_popup_pending_repaint
+                .extend(instances.iter().copied());
         }
+    }
+
+    /// 대기 표시는 요청한 plugin의 popup에만 건다.
+    fn popup_belongs_to(&self, instance: u64, requester: Option<&str>) -> bool {
+        self.plugin_manager.as_ref().is_some_and(|manager| {
+            manager
+                .popup_instances()
+                .any(|(id, popup)| id == instance && Some(popup.plugin_id.as_str()) == requester)
+        })
     }
 
     pub(crate) fn dispatch_pending_mesh_context_forwards(&mut self) {
@@ -626,13 +632,10 @@ impl App {
     /// 원격 surface ID를 보내 서버가 실제 cwd에서 Git 정보를 찾게 한다.
     fn send_git_query_request(
         &mut self,
-        local_surface_id: u32,
-        request_id: u64,
-        kind: tasty_ipc::stream_hub::GitQueryKind,
-        worktree_path: Option<&str>,
-        diff_path: Option<&str>,
+        req: &crate::core::PendingGitQueryForward,
     ) -> anyhow::Result<()> {
-        let Some(sess) = self.remote.sessions.iter().find(|s| {
+        let local_surface_id = req.local_surface_id;
+        let Some(sess) = self.remote.sessions.iter_mut().find(|s| {
             s.state
                 .remote_to_local
                 .values()
@@ -651,13 +654,19 @@ impl App {
         };
         let msg = serde_json::json!({
             "event": "git_query_request",
-            "request_id": request_id,
+            "request_id": req.request_id,
             "surface_id": remote_sid,
-            "kind": kind.as_wire_str(),
-            "worktree_path": worktree_path,
-            "diff_path": diff_path,
+            "kind": req.kind.as_wire_str(),
+            "worktree_path": req.worktree_path,
+            "diff_path": req.diff_path,
         });
-        send_control_frame(&sess.transport.frame_tx, &msg)
+        send_control_frame(&sess.transport.frame_tx, &msg)?;
+        if let Some(requester) = &req.requester {
+            sess.state
+                .git_query_requesters
+                .insert(req.request_id, requester.clone());
+        }
+        Ok(())
     }
 
     fn send_markdown_content_request(

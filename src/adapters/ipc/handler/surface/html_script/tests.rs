@@ -48,12 +48,15 @@ pub(in crate::adapters::ipc::handler::surface) fn state_with_html_tab() -> (
     for (sid, kind) in [(1, "html"), (2, "markdown")] {
         owner.runtime.surfaces.insert(
             sid,
-            Box::new(RemoteSurface::new(
-                sid,
-                kind,
-                format!("com.tasty.{kind}"),
-                kind.into(),
-            )),
+            Box::new(
+                RemoteSurface::new(sid, kind, format!("com.tasty.{kind}"), kind.into())
+                    .with_capabilities(
+                        crate::runtime::surface_registry::KindCapabilities::undeclared(
+                            kind,
+                            &format!("com.tasty.{kind}"),
+                        ),
+                    ),
+            ),
         );
     }
     (state, owner, 1)

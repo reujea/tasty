@@ -10,8 +10,20 @@ use crate::model::{
 };
 
 use super::{
-    KindSource, PresetFieldInput, PresetFieldSpec, PresetFieldTarget, RegisteredRendering,
-    SurfaceKindDef, SurfaceKindRegistry,
+    KindCapabilities, KindSource, PresetFieldInput, PresetFieldSpec, PresetFieldTarget,
+    RegisteredRendering, SurfaceKindDef, SurfaceKindRegistry,
+};
+
+/// host 내장 kind는 plugin kind와 같은 능력 스키마를 쓰고 어느 능력도 켜지 않는다.
+const HOST_KIND_CAPABILITIES: KindCapabilities = KindCapabilities {
+    address_band: false,
+    inset_notices: false,
+    script_gate: false,
+    opens_url: false,
+    remote_http_serve: false,
+    mirror_viewer: false,
+    mirror_content: false,
+    bed_focus: false,
 };
 
 pub fn register_builtin_kinds(registry: &SurfaceKindRegistry) {
@@ -78,6 +90,7 @@ fn register_terminal(registry: &SurfaceKindRegistry) {
         records_recent: false,
         convert_requires_input: false,
         convert_input_popup: None,
+        capabilities: HOST_KIND_CAPABILITIES,
     });
 }
 
@@ -179,6 +192,7 @@ fn register_explorer(registry: &SurfaceKindRegistry) {
         records_recent: false,
         convert_requires_input: false,
         convert_input_popup: None,
+        capabilities: HOST_KIND_CAPABILITIES,
     });
 }
 
@@ -317,6 +331,7 @@ fn register_empty(registry: &SurfaceKindRegistry) {
         records_recent: false,
         convert_requires_input: false,
         convert_input_popup: None,
+        capabilities: HOST_KIND_CAPABILITIES,
     });
 }
 
@@ -392,6 +407,7 @@ fn register_dag_graph(registry: &SurfaceKindRegistry) {
         records_recent: false,
         convert_requires_input: false,
         convert_input_popup: None,
+        capabilities: HOST_KIND_CAPABILITIES,
     });
 }
 

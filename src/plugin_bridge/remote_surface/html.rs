@@ -25,7 +25,7 @@ impl RemoteSurface {
     }
 
     pub fn set_html_source(&self, raw: Option<&str>) {
-        if self.kind_static != "html" {
+        if !self.capabilities.address_band {
             return;
         }
         let cwd = self.source_cwd();

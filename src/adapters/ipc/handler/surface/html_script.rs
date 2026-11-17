@@ -32,7 +32,7 @@ pub(super) fn find_html<'a>(
     surface
         .as_any()
         .downcast_ref::<RemoteSurface>()
-        .filter(|rs| rs.kind_static == "html")
+        .filter(|rs| rs.capabilities.script_gate)
         .map(|rs| (surface_id, rs))
         .ok_or_else(|| {
             JsonRpcResponse::invalid_params(

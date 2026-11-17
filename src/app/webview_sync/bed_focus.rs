@@ -1,6 +1,7 @@
 //! 바탕 kind WebView의 페이지에 바탕 포커스 상태를 넘긴다. 값은 `state::surface_focus::bed_focused`가
 //! 세션의 포커스와 점유로 정하고, 페이지 쪽 계약은 `crate::webview::bed_focus`에 있다.
 
+use crate::runtime::surface_registry::KindCapabilities;
 use crate::state::surface_focus::{FocusMark, bed_focused, focus_mark};
 use crate::view::MainView;
 use crate::webview::PlatformWebView;
@@ -9,13 +10,18 @@ use super::find_remote_surface;
 
 /// 페이지가 상태를 받는 surface인지. 바탕 kind인 WebView만 받는다.
 /// html은 원격·mirror를 포함해 띠 kind라 받지 않고, 페이지에 아무것도 넣지 않는다.
-fn receives(kind: &str, plugin_id: &str) -> bool {
-    focus_mark(kind, Some(plugin_id)) == FocusMark::Bed
+fn receives(kind: &str, capabilities: KindCapabilities) -> bool {
+    focus_mark(kind, capabilities) == FocusMark::Bed
 }
 
 /// 페이지에 보낼 값. 받지 않는 surface이거나 이미 보낸 값과 같으면 `None`이다.
-fn to_send(kind: &str, plugin_id: &str, focused: bool, sent: Option<bool>) -> Option<bool> {
-    (receives(kind, plugin_id) && sent != Some(focused)).then_some(focused)
+fn to_send(
+    kind: &str,
+    capabilities: KindCapabilities,
+    focused: bool,
+    sent: Option<bool>,
+) -> Option<bool> {
+    (receives(kind, capabilities) && sent != Some(focused)).then_some(focused)
 }
 
 /// surface가 받는 값. 받지 않는 surface면 `None`이다.
@@ -30,7 +36,7 @@ fn wanted(
         sid,
         &engine.live.occupancy,
     );
-    to_send(remote.kind_static, &remote.plugin_id, focused, None)
+    to_send(remote.kind_static, remote.capabilities, focused, None)
 }
 
 /// 백엔드가 상위층에 주는 연산. 값 두기는 비동기일 수 있으므로, 실패는 나중 동기화에서
@@ -174,6 +180,12 @@ mod tests {
     use std::cell::{Cell, RefCell};
 
     use super::{BedFocusRecord, BedFocusSink, MAX_RETRIES, receives, step, to_send};
+    use crate::runtime::surface_registry::KindCapabilities;
+
+    /// 아무것도 선언하지 않은 kind가 등록 때 받는 능력.
+    fn caps(kind: &str, plugin: &str) -> KindCapabilities {
+        KindCapabilities::resolve(&Default::default(), kind, plugin)
+    }
     use crate::webview::bed_focus::{BedFocusApply, BedFocusDelivery, BedFocusWork};
 
     /// 받은 값을 적고, 다음 회수에서 돌려줄 실패 표시를 갖는 가짜 백엔드.
@@ -427,38 +439,79 @@ mod tests {
     }
 
     #[test]
-    fn only_the_bundled_markdown_page_receives_the_state() {
-        assert!(receives("markdown", "com.tasty.markdown"));
-        assert!(!receives("html", "com.tasty.html"));
-        assert!(!receives("markdown", "com.example.markdown"));
-        assert!(!receives("custom-view", "com.example.view"));
+    fn only_a_bed_declaring_page_receives_the_state() {
+        assert!(receives("markdown", caps("markdown", "com.tasty.markdown")));
+        assert!(!receives("html", caps("html", "com.tasty.html")));
+        assert!(!receives(
+            "markdown",
+            caps("markdown", "com.example.markdown")
+        ));
+        assert!(!receives(
+            "custom-view",
+            caps("custom-view", "com.example.view")
+        ));
+        let declared = KindCapabilities {
+            bed_focus: true,
+            ..KindCapabilities::default()
+        };
+        assert!(receives("custom-view", declared), "a declared bed kind");
     }
 
     #[test]
     fn a_page_is_sent_the_value_only_when_it_changes() {
         // 첫 문서 전에는 보낸 값이 없으므로 두 상태 모두 보낸다.
         assert_eq!(
-            to_send("markdown", "com.tasty.markdown", true, None),
+            to_send(
+                "markdown",
+                caps("markdown", "com.tasty.markdown"),
+                true,
+                None
+            ),
             Some(true)
         );
         assert_eq!(
-            to_send("markdown", "com.tasty.markdown", false, None),
+            to_send(
+                "markdown",
+                caps("markdown", "com.tasty.markdown"),
+                false,
+                None
+            ),
             Some(false)
         );
         assert_eq!(
-            to_send("markdown", "com.tasty.markdown", true, Some(false)),
+            to_send(
+                "markdown",
+                caps("markdown", "com.tasty.markdown"),
+                true,
+                Some(false)
+            ),
             Some(true)
         );
         assert_eq!(
-            to_send("markdown", "com.tasty.markdown", false, Some(true)),
+            to_send(
+                "markdown",
+                caps("markdown", "com.tasty.markdown"),
+                false,
+                Some(true)
+            ),
             Some(false)
         );
         assert_eq!(
-            to_send("markdown", "com.tasty.markdown", true, Some(true)),
+            to_send(
+                "markdown",
+                caps("markdown", "com.tasty.markdown"),
+                true,
+                Some(true)
+            ),
             None
         );
         assert_eq!(
-            to_send("markdown", "com.tasty.markdown", false, Some(false)),
+            to_send(
+                "markdown",
+                caps("markdown", "com.tasty.markdown"),
+                false,
+                Some(false)
+            ),
             None
         );
     }
@@ -467,9 +520,17 @@ mod tests {
     fn a_page_outside_the_bed_kinds_is_never_sent_a_value() {
         for sent in [None, Some(false), Some(true)] {
             for focused in [false, true] {
-                assert_eq!(to_send("html", "com.tasty.html", focused, sent), None);
                 assert_eq!(
-                    to_send("markdown", "com.example.markdown", focused, sent),
+                    to_send("html", caps("html", "com.tasty.html"), focused, sent),
+                    None
+                );
+                assert_eq!(
+                    to_send(
+                        "markdown",
+                        caps("markdown", "com.example.markdown"),
+                        focused,
+                        sent
+                    ),
                     None
                 );
             }

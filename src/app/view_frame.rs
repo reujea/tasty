@@ -401,6 +401,12 @@ mod tests {
             "html",
             "com.tasty.html".into(),
             "html".into(),
+        )
+        .with_capabilities(
+            crate::runtime::surface_registry::KindCapabilities::undeclared(
+                "html",
+                "com.tasty.html",
+            ),
         );
         remote.with_html_script(|st| {
             st.on_host_load_requested();

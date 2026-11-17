@@ -36,12 +36,6 @@ pub(in crate::app::attach_client) fn source_changed(
     });
 }
 pub(super) fn synchronize(sess: &mut AttachClientSession, engine: &mut EngineMut<'_>) -> bool {
-    let settings_source =
-        crate::runtime::surface_registry::webview_kind::webview_settings_source("html");
-    let settings = crate::webview::HtmlWebViewSettings::resolve(
-        settings_source.as_ref(),
-        &engine.runtime.settings,
-    );
     let available = engine.runtime.http_viewer_available
         && sess.state.resync_pending.is_none()
         && !sess
@@ -63,27 +57,35 @@ pub(super) fn synchronize(sess: &mut AttachClientSession, engine: &mut EngineMut
         else {
             continue;
         };
+        // 원격 콘텐츠 허용은 그 viewer kind를 등록한 plugin의 설정을 따른다.
+        let settings = crate::webview::HtmlWebViewSettings::resolve(
+            crate::runtime::surface_registry::webview_kind::webview_settings_source(
+                surface.kind_static,
+            )
+            .as_ref(),
+            &engine.runtime.settings,
+        );
+        let allow_remote_content = settings.allow_remote_content;
         if let Some(session) = refresh(
             surface,
             sess,
             available,
-            settings.allow_remote_content,
+            allow_remote_content,
             engine.runtime.waker.clone(),
             projection.clone().unwrap_or_default(),
         ) {
-            sessions.push((remote, session));
+            sessions.push((remote, session, allow_remote_content));
         }
     }
-    drive_sessions(sess, engine, sessions, settings.allow_remote_content)
+    drive_sessions(sess, engine, sessions)
 }
 fn drive_sessions(
     sess: &mut AttachClientSession,
     engine: &mut EngineMut<'_>,
-    sessions: Vec<(u32, Arc<HttpSession>)>,
-    allow_remote_content: bool,
+    sessions: Vec<(u32, Arc<HttpSession>, bool)>,
 ) -> bool {
     let mut changed = false;
-    for (remote, session) in sessions {
+    for (remote, session, allow_remote_content) in sessions {
         if session.failed() {
             continue;
         }

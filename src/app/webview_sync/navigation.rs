@@ -168,7 +168,13 @@ mod tests {
                 .len(),
             1
         );
-        let mut remote = RemoteSurface::new(7, "html", "com.tasty.html".into(), "html".into());
+        let mut remote = RemoteSurface::new(7, "html", "com.tasty.html".into(), "html".into())
+            .with_capabilities(
+                crate::runtime::surface_registry::KindCapabilities::undeclared(
+                    "html",
+                    "com.tasty.html",
+                ),
+            );
         remote.html_mirror = Some(Arc::new(Mutex::new(mirror)));
         remote.with_html_script(|state| {
             *state = HtmlScriptState::new(true);

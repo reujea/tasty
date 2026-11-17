@@ -1,7 +1,6 @@
 //! User request admission and observable waits. View-only; never journals a preview.
 use super::forward::find_mirror_session_and_remote_id;
 use crate::app::App;
-use crate::app::attach_client::GIT_VIEWER_PLUGIN_ID;
 use crate::ipc::stream::StructuralOp;
 use crate::runtime::engine_session::EngineId;
 use crate::state::attach_pending::waits::{Wait, WaitKind};
@@ -71,12 +70,12 @@ impl App {
                 )
             })
             .unzip();
+        // 대기는 요청한 plugin의 popup에만 걸었으므로 열린 popup인지만 본다.
         let git_consumers: std::collections::HashSet<_> = self
             .plugin_manager
             .as_ref()
             .into_iter()
             .flat_map(|manager| manager.popup_instances())
-            .filter(|(_, instance)| instance.plugin_id == GIT_VIEWER_PLUGIN_ID)
             .map(|(id, _)| id)
             .collect();
         for (_, main, engine) in self.engines_mut().window_pairs() {

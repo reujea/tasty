@@ -11,16 +11,13 @@ pub(crate) enum FocusMark {
     Edge,
 }
 
-/// kind와 그 kind를 등록한 플러그인으로 표현을 고른다. 모르는 kind는 띠다.
-/// markdown·image는 이름만 보지 않는다. 번들 플러그인이 빠진 설치에서는 제3자가 같은 이름을
-/// 등록할 수 있고, 그 페이지의 바탕은 호스트가 보장하지 못한다. `com.tasty.` id는 공식
-/// 플러그인 전용이므로(`tasty_host_plugin::official`) 제3자가 이 id를 쓸 수 없다.
-pub(crate) fn focus_mark(kind: &str, plugin_id: Option<&str>) -> FocusMark {
-    let bundled_bed = matches!(
-        (kind, plugin_id),
-        ("markdown", Some("com.tasty.markdown")) | ("image", Some("com.tasty.image"))
-    );
-    if bundled_bed || is_host_builtin_kind(kind) {
+/// kind와 그 kind가 선언한 능력으로 표현을 고른다. `bed_focus`를 선언하지 않은 plugin kind는 띠다.
+/// 선언은 페이지가 바탕을 host 테마 값으로 칠한다는 약속이다. 호스트는 그 페이지의 바탕을 직접 보장하지 못한다.
+pub(crate) fn focus_mark(
+    kind: &str,
+    capabilities: crate::runtime::surface_registry::KindCapabilities,
+) -> FocusMark {
+    if capabilities.bed_focus || is_host_builtin_kind(kind) {
         FocusMark::Bed
     } else {
         FocusMark::Edge
@@ -75,25 +72,36 @@ mod tests {
 
     #[test]
     fn the_mark_follows_the_kind_and_its_source() {
+        use crate::runtime::surface_registry::KindCapabilities;
+        let none = KindCapabilities::default();
+        let bed = KindCapabilities {
+            bed_focus: true,
+            ..KindCapabilities::default()
+        };
         for kind in ["terminal", "empty", "explorer", "dag_graph"] {
-            assert_eq!(focus_mark(kind, None), FocusMark::Bed, "{kind}");
+            assert_eq!(focus_mark(kind, none), FocusMark::Bed, "{kind}");
         }
+        assert_eq!(focus_mark("my-viewer", bed), FocusMark::Bed);
         assert_eq!(
-            focus_mark("markdown", Some("com.tasty.markdown")),
-            FocusMark::Bed
+            focus_mark("markdown", none),
+            FocusMark::Edge,
+            "no declaration"
         );
-        assert_eq!(focus_mark("image", Some("com.tasty.image")), FocusMark::Bed);
-        assert_eq!(focus_mark("html", Some("com.tasty.html")), FocusMark::Edge);
+        // 선언하지 않은 공식 kind는 등록 때 해석한 능력으로 바탕을 받는다.
+        let resolve = |kind, plugin| {
+            focus_mark(
+                kind,
+                KindCapabilities::resolve(&Default::default(), kind, plugin),
+            )
+        };
+        assert_eq!(resolve("markdown", "com.tasty.markdown"), FocusMark::Bed);
+        assert_eq!(resolve("image", "com.tasty.image"), FocusMark::Bed);
+        assert_eq!(resolve("html", "com.tasty.html"), FocusMark::Edge);
         assert_eq!(
-            focus_mark("markdown", Some("com.example.markdown")),
+            resolve("markdown", "com.example.markdown"),
             FocusMark::Edge,
             "the same kind name from another plugin"
         );
-        assert_eq!(
-            focus_mark("image", Some("com.example.image")),
-            FocusMark::Edge
-        );
-        assert_eq!(focus_mark("markdown", None), FocusMark::Edge);
-        assert_eq!(focus_mark("unknown", Some("com.example")), FocusMark::Edge);
+        assert_eq!(resolve("image", "com.example.image"), FocusMark::Edge);
     }
 }

@@ -193,6 +193,13 @@ impl PluginManager {
         true
     }
 
+    /// 게시한 remote·webview surface를 소유한 plugin. 아직 게시 전이거나 닫힌 surface면 `None`이다.
+    pub fn remote_surface_owner(&self, surface_id: u32) -> Option<&str> {
+        self.surfaces
+            .get(&surface_id)
+            .map(|entry| entry.plugin_id.as_str())
+    }
+
     /// surface 종료를 플러그인에 알리고 호스트의 프레임·상태를 지운다.
     /// 소유자 정보가 없는 surface는 남아 있는 프레임 정보와 매니페스트 종류로 확인한다.
     pub fn destroy_remote_surface(&mut self, surface_id: u32, kind: Option<&str>) {
