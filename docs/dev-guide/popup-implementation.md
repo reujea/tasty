@@ -122,7 +122,7 @@ state.dispatch_intent(
 | `fullscreen_stage` | `Option<StageId>` | `Some(id)` 면 타이틀바 X 왼쪽에 전체화면 버튼이 붙고, 누르면 그 [무대](../design/systems/fullscreen-stage.md)가 뜬다. 노출 여부와 대상이 한 필드라 "버튼은 있는데 갈 곳이 없는" 상태가 생기지 않는다. 아래 "전체화면 버튼" 참고 |
 | `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 인스턴스 데이터를 준다 |
 | `on_open` | `Option<fn(&mut MainViewState)>` | 새 인스턴스를 열기 직전에 한 번 부른다. 이미 열린 인스턴스에 온 요청(dedup)에서는 부르지 않는다. 튜토리얼 목록과 명령 팔레트가 쓴다 |
-| `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &EngineRead, &ClosedPopup)>` | 닫힘 뒷정리 훅. 모든 닫기 경로가 거치는 관리자의 인스턴스 닫기를 통해 어떤 경로로 닫히든 인스턴스마다 정확히 한 번 실행한다. `ClosedPopup`은 선언 id, 인스턴스 id, 닫기 사유를 담는다(아래 "닫힘 정리" 참고) |
+| `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &EngineRead, &ClosedPopup)>` | 닫힘 뒷정리 훅. 모든 닫기 경로가 거치는 관리자의 인스턴스 닫기를 통해 어떤 경로로 닫히든 인스턴스마다 정확히 한 번 실행한다. `ClosedPopup`은 선언 id, 인스턴스 id, 닫기 사유, 닫히기 직전 범위, 인스턴스 데이터를 담는다(아래 "닫힘 정리" 참고). 큐의 다음 항목을 직접 여는 훅은 그 항목을 넣은 요청의 출처(`Queued.origin`)로 연다 |
 
 ### `PopupDecl` 속성
 

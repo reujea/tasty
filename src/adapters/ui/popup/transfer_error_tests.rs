@@ -71,7 +71,7 @@ fn retry_for_a_gone_surface_keeps_the_failure() {
     state
         .dialogs
         .transfer_error
-        .push_back(failure(PopupScope::Workspace(8), Some(GONE_SURFACE)));
+        .push_back(failure(PopupScope::Workspace(8), Some(GONE_SURFACE)).into());
     let engine = session.borrow_mut();
     let action = retry_head_error(&mut state, &engine.read());
     assert!(matches!(action, PopupAction::None));
@@ -80,18 +80,18 @@ fn retry_for_a_gone_surface_keeps_the_failure() {
     assert!(state.take_pending_intents().is_empty());
 }
 
-/// 살아 있는 surface의 Retry는 업로드를 다시 넣고 마지막 항목이면 팝업을 닫는다.
+/// 살아 있는 surface의 Retry는 업로드를 다시 넣고 팝업을 닫는다. 항목은 닫기 훅이 꺼낸다.
 #[test]
 fn retry_for_a_live_surface_queues_the_upload() {
     let (mut state, mut session, sid) = fixture();
     state
         .dialogs
         .transfer_error
-        .push_back(failure(PopupScope::Surface(sid), Some(sid)));
+        .push_back(failure(PopupScope::Surface(sid), Some(sid)).into());
     let engine = session.borrow_mut();
     let action = retry_head_error(&mut state, &engine.read());
     assert!(matches!(action, PopupAction::Close));
-    assert!(state.dialogs.transfer_error.is_empty());
+    assert!(state.dialogs.transfer_error[0].retry.is_none());
     let intents = state.take_pending_intents();
     assert!(
         matches!(
@@ -107,64 +107,81 @@ fn retry_for_a_live_surface_queues_the_upload() {
     );
 }
 
-/// S1 실패를 닫거나 다시 시도한 뒤 대기 중인 W2 실패는 W2 범위로 보인다.
+/// 버튼이 돌려준 닫기를 관리자에 반영하고 닫기 훅을 실행한다.
+fn close_with_hook(
+    state: &mut crate::state::RequestContext,
+    session: &mut crate::runtime::engine_session::EngineSession,
+    iid: crate::adapters::ui::popup::PopupInstanceId,
+) {
+    state
+        .popups
+        .close_instance(iid, crate::adapters::ui::popup::PopupCloseReason::Content);
+    let ctx = egui::Context::default();
+    let engine = session.borrow_mut();
+    for closed in state.popups.take_closed_queue() {
+        on_close_transfer_error(&ctx, state, &engine.read(), &closed);
+    }
+}
+
+/// S1 실패를 닫거나 다시 시도하면 팝업이 닫히고, 대기 중인 다음 실패가 자기 범위로 열린다.
 fn the_next_failure_moves_to_its_scope(
+    next_scope: PopupScope,
     press: impl FnOnce(&mut crate::state::RequestContext, &EngineRead<'_>) -> PopupAction,
 ) {
     let (mut state, mut session, sid) = fixture();
     state
         .dialogs
         .transfer_error
-        .push_back(failure(PopupScope::Surface(sid), Some(sid)));
+        .push_back(failure(PopupScope::Surface(sid), Some(sid)).into());
     state
         .dialogs
         .transfer_error
-        .push_back(failure(PopupScope::Workspace(8), None));
-    state
+        .push_back(failure(next_scope.clone(), None).into());
+    let iid = state
         .popups
-        .open_centered_focused(TRANSFER_ERROR_POPUP_ID, PopupScope::Surface(sid));
+        .open_centered_focused(TRANSFER_ERROR_POPUP_ID, PopupScope::Surface(sid))
+        .unwrap();
     let action = {
         let engine = session.borrow_mut();
         press(&mut state, &engine.read())
     };
-    assert!(matches!(action, PopupAction::None));
-    crate::intent::popup::apply_pending(&mut state, &mut session);
+    assert!(matches!(action, PopupAction::Close));
+    close_with_hook(&mut state, &mut session, iid);
     assert_eq!(state.dialogs.transfer_error.len(), 1);
     assert_eq!(
         state.popups.open_scope(TRANSFER_ERROR_POPUP_ID),
-        Some(&PopupScope::Workspace(8))
+        Some(&next_scope)
     );
+}
+
+/// 본문의 Enter(Dismiss)를 그린 프레임에 누른다.
+fn dismiss(state: &mut crate::state::RequestContext, engine: &EngineRead<'_>) -> PopupAction {
+    let mut action = PopupAction::None;
+    let ctx = egui::Context::default();
+    let mut raw = egui::RawInput::default();
+    raw.events.push(egui::Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    let _output = ctx.run(raw, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut cx = crate::adapters::ui::popup::PopupCx::test(TRANSFER_ERROR_POPUP_ID);
+            cx.focused = true;
+            action = draw_transfer_error(ui, state, engine, &mut cx);
+        });
+    });
+    action
 }
 
 #[test]
 fn dismiss_shows_the_next_failure_in_its_own_scope() {
-    the_next_failure_moves_to_its_scope(|state, _| dismiss_head_error(state));
+    the_next_failure_moves_to_its_scope(PopupScope::Workspace(8), dismiss);
 }
 
 #[test]
 fn retry_shows_the_next_failure_in_its_own_scope() {
-    the_next_failure_moves_to_its_scope(retry_head_error);
-}
-
-/// 다음 실패의 범위가 같으면 열린 팝업이 그대로 다음 항목을 그린다.
-#[test]
-fn the_next_failure_in_the_same_scope_keeps_the_popup() {
-    let (mut state, mut session, sid) = fixture();
-    for _ in 0..2 {
-        state
-            .dialogs
-            .transfer_error
-            .push_back(failure(PopupScope::Surface(sid), None));
-    }
-    state
-        .popups
-        .open_centered_focused(TRANSFER_ERROR_POPUP_ID, PopupScope::Surface(sid));
-    let before = state.popups.max_open_z_seq();
-    assert!(matches!(dismiss_head_error(&mut state), PopupAction::None));
-    crate::intent::popup::apply_pending(&mut state, &mut session);
-    assert_eq!(
-        state.popups.open_scope(TRANSFER_ERROR_POPUP_ID),
-        Some(&PopupScope::Surface(sid))
-    );
-    assert_eq!(state.popups.max_open_z_seq(), before);
+    the_next_failure_moves_to_its_scope(PopupScope::Workspace(8), retry_head_error);
 }

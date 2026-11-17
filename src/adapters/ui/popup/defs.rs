@@ -234,6 +234,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // 제목줄 아래 선은 info modal 셸 규칙(info-modal-title-edge)을 따른다.
                     shell: PopupShell::InfoPanel,
                     content_margin: PopupContentMargin::None,
+                    // 안내 여럿을 차례로 보인다. 다음 안내는 닫힌 안내의 출처로 연다.
+                    instances: PopupInstances::Queue,
                     ..host_decl(popup_size(egui::vec2(440.0, 160.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -259,6 +261,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     focus_on_open: false,
                     // 의견 입력칸이 글자를 편집한다.
                     keyboard: PopupKeyboard::Text,
+                    // 승인 요청 여럿을 차례로 보인다. 다음 요청도 에이전트 출처로 연다.
+                    instances: PopupInstances::Queue,
                     ..host_decl(popup_size(egui::vec2(480.0, 240.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -506,6 +510,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
+                    // 실패 여럿을 차례로 보인다. 다음 실패는 닫힌 팝업의 출처로 연다.
+                    instances: PopupInstances::Queue,
                     ..host_decl(popup_size(egui::vec2(400.0, 200.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,

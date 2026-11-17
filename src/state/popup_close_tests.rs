@@ -405,7 +405,10 @@ fn xfer_err(name: &str) -> TransferError {
 fn transfer_error_escape_close_pops_single_entry() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
+    state
+        .dialogs
+        .transfer_error
+        .push_back(xfer_err("a.txt").into());
     state.popups.open_at_focused(
         TRANSFER_ERROR_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -422,7 +425,10 @@ fn transfer_error_escape_close_pops_single_entry() {
 fn transfer_error_outside_click_with_single_entry_closes_without_reopen() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
+    state
+        .dialogs
+        .transfer_error
+        .push_back(xfer_err("a.txt").into());
     state.popups.open_at_focused(
         TRANSFER_ERROR_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -443,8 +449,14 @@ fn transfer_error_outside_click_with_single_entry_closes_without_reopen() {
 fn transfer_error_outside_click_with_two_entries_pops_head_and_reopens() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
-    state.dialogs.transfer_error.push_back(xfer_err("b.txt"));
+    state
+        .dialogs
+        .transfer_error
+        .push_back(xfer_err("a.txt").into());
+    state
+        .dialogs
+        .transfer_error
+        .push_back(xfer_err("b.txt").into());
     state.popups.open_at_focused(
         TRANSFER_ERROR_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -466,8 +478,14 @@ fn transfer_error_outside_click_with_two_entries_pops_head_and_reopens() {
 fn transfer_error_close_intent_now_pops_head_and_reopens() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.transfer_error.push_back(xfer_err("a.txt"));
-    state.dialogs.transfer_error.push_back(xfer_err("b.txt"));
+    state
+        .dialogs
+        .transfer_error
+        .push_back(xfer_err("a.txt").into());
+    state
+        .dialogs
+        .transfer_error
+        .push_back(xfer_err("b.txt").into());
     state.popups.open_at_focused(
         TRANSFER_ERROR_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -635,11 +653,11 @@ fn info_modal_close_intent_now_pops_head_and_reopens() {
     state
         .dialogs
         .info_modal_queue
-        .push_back(info_modal_entry("a"));
+        .push_back(info_modal_entry("a").into());
     state
         .dialogs
         .info_modal_queue
-        .push_back(info_modal_entry("b"));
+        .push_back(info_modal_entry("b").into());
     state.popups.open_at_focused(
         INFO_MODAL_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -668,7 +686,7 @@ fn info_modal_close_intent_with_single_entry_pops_and_does_not_reopen() {
     state
         .dialogs
         .info_modal_queue
-        .push_back(info_modal_entry("only"));
+        .push_back(info_modal_entry("only").into());
     state.popups.open_at_focused(
         INFO_MODAL_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -1572,8 +1590,8 @@ fn the_next_transfer_error_opens_in_its_own_surface() {
     first.scope = crate::model::popup_kind::PopupScope::Surface(7);
     let mut second = xfer_err("b.txt");
     second.scope = crate::model::popup_kind::PopupScope::Workspace(8);
-    state.dialogs.transfer_error.push_back(first);
-    state.dialogs.transfer_error.push_back(second);
+    state.dialogs.transfer_error.push_back(first.into());
+    state.dialogs.transfer_error.push_back(second.into());
     crate::adapters::ui::popup::transfer::on_close_transfer_error(
         &egui::Context::default(),
         &mut state,

@@ -46,18 +46,23 @@ pub const INFO_MODAL_ID: &str = "info_modal";
 
 /// 안내를 큐에 추가한다. 부팅 안내는 에이전트 요청이 아니므로 사용자 입력을 받는 팝업으로 연다.
 pub fn show_info_modal(state: &mut MainViewState, modal: InfoModal) {
-    state.dialogs.info_modal_queue.push_back(modal);
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(
-                INFO_MODAL_ID,
-                crate::model::popup_kind::PopupScope::Window,
-            )
-            .centered()
-            .focused(),
+    let open = crate::intent::UiIntent::OpenPopup(
+        crate::intent::OpenRequest::new(
+            INFO_MODAL_ID,
+            crate::model::popup_kind::PopupScope::Window,
         )
-        .from_user_menu("info_modal"),
-    );
+        .centered()
+        .focused(),
+    )
+    .from_user_menu("info_modal");
+    state
+        .dialogs
+        .info_modal_queue
+        .push_back(crate::state::Queued {
+            item: modal,
+            origin: open.origin.clone(),
+        });
+    state.dispatch_intent(open);
 }
 
 pub fn info_modal_title(
@@ -100,37 +105,49 @@ pub fn info_modal_sizer(
     egui::vec2(th.info_modal_width().value(), h.value())
 }
 
-/// 확인 버튼 외의 닫기 경로도 큐를 처리한다. 확인이 이미 큐를 비웠으면 다시 꺼내지 않는다.
+/// 확인 버튼을 포함한 모든 닫기 경로가 여기서 맨 앞 안내를 꺼낸다. 다음 안내는 그 안내를 넣은 요청의
+/// 출처로 연다. 사용자 출처가 아니면 포커스 없이 열린다.
 pub fn on_close_info_modal(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    if dismiss_info_modal(state) {
-        // intent-exempt: popup 자기-close cleanup — 이 훅에서 큐의 다음 안내를 잇는다
-        state.popups.open_request(
-            &crate::intent::OpenRequest::new(
-                INFO_MODAL_ID,
-                crate::model::popup_kind::PopupScope::Window,
-            )
-            .centered()
-            .focused(),
-            true,
-        );
+    if !dismiss_info_modal(state) {
+        return;
     }
+    let by_user = state
+        .dialogs
+        .info_modal_queue
+        .front()
+        .is_some_and(|next| next.origin.is_user());
+    // intent-exempt: popup 자기-close cleanup — 이 훅에서 큐의 다음 안내를 잇는다
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(
+            INFO_MODAL_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        )
+        .centered()
+        .focused(),
+        by_user,
+    );
 }
 
 pub fn draw_info_modal(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let ctx = ui.ctx().clone();
 
-    let Some(current) = state.dialogs.info_modal_queue.front().cloned() else {
+    let Some(current) = state
+        .dialogs
+        .info_modal_queue
+        .front()
+        .map(|q| q.item.clone())
+    else {
         return PopupAction::Close;
     };
 
@@ -161,8 +178,12 @@ pub fn draw_info_modal(
     state.dialogs.info_modal_body_height = Some(out.body_content_height);
 
     let dismiss_idx = buttons.len() - 1;
-    let confirm = out.clicked == Some(dismiss_idx)
-        || ctx.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape));
+    // passive로 열린 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
+    let keys = cx.focused;
+    let escape = keys && ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    let confirm = escape
+        || out.clicked == Some(dismiss_idx)
+        || (keys && ctx.input(|i| i.key_pressed(egui::Key::Enter)));
     let mut open_permission_settings = false;
     if let Some(i) = out.clicked
         && let Some(button) = current.extra_buttons.get(i)
@@ -176,18 +197,15 @@ pub fn draw_info_modal(
         state.dialogs.permission_settings_requested = true;
     }
 
-    if !confirm {
-        return PopupAction::None;
-    }
-
-    if dismiss_info_modal(state) {
-        PopupAction::None
-    } else {
-        PopupAction::Close
+    // 닫기 훅이 맨 앞 안내를 꺼내고 다음 안내를 그 출처로 다시 연다.
+    match (confirm, escape) {
+        (false, _) => PopupAction::None,
+        (true, true) => PopupAction::CloseBy(popup::PopupCloseReason::Escape),
+        (true, false) => PopupAction::Close,
     }
 }
 
-/// Confirmation and close callbacks consume the same message once.
+/// 맨 앞 안내를 꺼낸다. 남은 안내가 있으면 true다.
 fn dismiss_info_modal(state: &mut MainViewState) -> bool {
     if state.dialogs.info_modal_queue.pop_front().is_none() {
         return false;
@@ -195,3 +213,7 @@ fn dismiss_info_modal(state: &mut MainViewState) -> bool {
     state.dialogs.info_modal_body_height = None;
     !state.dialogs.info_modal_queue.is_empty()
 }
+
+#[cfg(test)]
+#[path = "info_modal_queue_tests.rs"]
+mod queue_tests;

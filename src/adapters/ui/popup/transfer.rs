@@ -110,17 +110,21 @@ pub(crate) fn upload_error_scope(
 
 /// 실패를 큐에 넣고 그 항목의 범위로 실패 팝업을 연다. 이미 열려 있으면 큐에서 차례를 기다린다.
 pub(crate) fn push_error(state: &mut MainViewState, error: TransferError) {
-    let scope = error.scope.clone();
-    state.dialogs.transfer_error.push_back(error);
     // 업로드와 다운로드는 사용자의 붙여넣기·버튼에서 시작된다.
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, scope)
-                .centered()
-                .focused(),
-        )
-        .from_user_menu("transfer_error"),
-    );
+    let open = crate::intent::UiIntent::OpenPopup(
+        crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, error.scope.clone())
+            .centered()
+            .focused(),
+    )
+    .from_user_menu("transfer_error");
+    state
+        .dialogs
+        .transfer_error
+        .push_back(crate::state::Queued {
+            item: error,
+            origin: open.origin.clone(),
+        });
+    state.dispatch_intent(open);
 }
 
 /// 한 파일의 진행 상태.
@@ -296,17 +300,14 @@ pub fn draw_transfer_progress(
     PopupAction::None
 }
 
-/// 이미 결과를 처리한 경로는 큐를 비웠다. 남은 항목이 있으면 첫 실패를 닫은 것으로
-/// 처리하고 다음 실패를 표시한다.
+/// Dismiss·Retry·Esc를 포함한 모든 닫기 경로가 여기서 맨 앞 실패를 꺼낸다. 남은 실패가 있으면 그 범위와
+/// 그 실패를 넣은 요청의 출처로 다시 연다. 사용자 출처가 아니면 포커스 없이 열린다.
 pub fn on_close_transfer_error(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
     _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    if state.dialogs.transfer_error.is_empty() {
-        return;
-    }
     state.dialogs.transfer_error.pop_front();
     if let Some(next) = state.dialogs.transfer_error.front() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
@@ -314,7 +315,7 @@ pub fn on_close_transfer_error(
             &crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, next.scope.clone())
                 .centered()
                 .focused(),
-            true,
+            next.origin.is_user(),
         );
     }
 }
@@ -325,7 +326,7 @@ pub fn draw_transfer_error(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let Some(head) = state.dialogs.transfer_error.front() else {
@@ -336,11 +337,10 @@ pub fn draw_transfer_error(
     let retry_button = retry_button_state(head, engine);
     let download_run = matches!(head.kind, TransferErrorKind::DownloadRun { .. });
 
-    let esc = ui
-        .ctx()
-        .input(|i| i.key_pressed(egui::Key::Escape) || i.key_pressed(egui::Key::Enter));
-
-    let mut dismiss = esc;
+    // passive로 열린 실패 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
+    let keys = cx.focused;
+    let esc = keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
+    let mut dismiss = esc || (keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)));
     let mut retry = false;
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
     let drawn = ui.vertical(|ui| {
@@ -393,10 +393,12 @@ pub fn draw_transfer_error(
     if retry {
         return retry_head_error(state, engine);
     }
-    if dismiss {
-        return dismiss_head_error(state);
+    // 닫기 훅이 맨 앞 실패를 꺼내고 다음 실패를 그 출처로 다시 연다.
+    match (dismiss, esc) {
+        (false, _) => PopupAction::None,
+        (true, true) => PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape),
+        (true, false) => PopupAction::Close,
     }
-    PopupAction::None
 }
 
 /// 실패 항목의 Retry 버튼. None은 재시도 데이터가 없어 버튼을 그리지 않는다.
@@ -482,8 +484,8 @@ fn retry_head_error(state: &mut MainViewState, engine: &EngineRead<'_>) -> Popup
     if let Some(payload) = state
         .dialogs
         .transfer_error
-        .pop_front()
-        .and_then(|err| err.retry)
+        .front_mut()
+        .and_then(|err| err.retry.take())
     {
         state.dispatch_intent(
             crate::intent::Intent::Engine(crate::app::engine_action::EngineAction::ImageUpload {
@@ -493,31 +495,8 @@ fn retry_head_error(state: &mut MainViewState, engine: &EngineRead<'_>) -> Popup
             .from_user_context_menu(),
         );
     }
-    show_next_error(state)
-}
-
-/// 맨 앞 실패를 닫고 다음 실패를 보인다.
-fn dismiss_head_error(state: &mut MainViewState) -> PopupAction {
-    state.dialogs.transfer_error.pop_front();
-    show_next_error(state)
-}
-
-/// 남은 실패가 없으면 팝업을 닫는다. 있으면 다음 실패의 범위로 다시 연다.
-/// 범위가 같으면 열린 팝업이 그대로 다음 항목을 그린다.
-fn show_next_error(state: &mut MainViewState) -> PopupAction {
-    let Some(next) = state.dialogs.transfer_error.front() else {
-        return PopupAction::Close;
-    };
-    let scope = next.scope.clone();
-    state.dispatch_intent(
-        crate::intent::UiIntent::ReopenPopup(
-            crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, scope)
-                .centered()
-                .focused(),
-        )
-        .from_user_menu("transfer_error"),
-    );
-    PopupAction::None
+    // 닫기 훅이 재시도한 실패를 꺼내고 다음 실패를 연다.
+    PopupAction::Close
 }
 
 /// 헤더 띠 — glyph + 제목(+ 우측 trailing mono). 하단 separator.

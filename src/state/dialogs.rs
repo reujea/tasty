@@ -116,6 +116,39 @@ pub(crate) struct RenameWaiting {
     pub(crate) done: bool,
 }
 
+/// 큐 팝업의 항목 하나와 그 항목을 넣은 요청의 출처. 앞 항목이 닫히면 다음 항목은 자기 출처로 열린다.
+/// 사용자 출처가 아니면 포커스 없이 passive로 열린다.
+pub(crate) struct Queued<T> {
+    pub(crate) item: T,
+    pub(crate) origin: crate::core::origin::IntentOrigin,
+}
+
+/// 시험용: 사용자 출처로 넣은 항목.
+#[cfg(test)]
+impl<T> From<T> for Queued<T> {
+    fn from(item: T) -> Self {
+        Self {
+            item,
+            origin: crate::core::origin::IntentOrigin::User {
+                source: crate::core::origin::UserSource::Menu("test"),
+            },
+        }
+    }
+}
+
+impl<T> std::ops::Deref for Queued<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.item
+    }
+}
+
+impl<T> std::ops::DerefMut for Queued<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.item
+    }
+}
+
 /// 대화상자·팝업의 임시 상태. 새 항목은 RequestContext 최상위 대신 여기에 둔다.
 pub struct DialogState {
     /// 도구 메뉴 셸 안쪽 폭. 열 때와 그릴 때 가장 넓은 라벨로 잰다.
@@ -124,7 +157,7 @@ pub struct DialogState {
     pub(crate) tab_drag: Option<TabDragState>,
     pub(crate) ws_drag: Option<WsDragState>,
     /// 부팅 안내 대기열. 확인 버튼으로 맨 앞 항목을 처리한다.
-    pub(crate) info_modal_queue: VecDeque<InfoModal>,
+    pub(crate) info_modal_queue: VecDeque<Queued<InfoModal>>,
     /// 맨 앞 안내의 본문 높이를 직전 프레임에 잰 값. sizer가 셸 높이를 정할 때 읽고,
     /// 맨 앞 항목이 바뀌면 비운다.
     pub(crate) info_modal_body_height: Option<tasty_type_geometry::length::LogicalPx>,
@@ -177,7 +210,7 @@ pub struct DialogState {
     /// 원격 파일 전송 진행 상태. 모든 행이 끝나면 지운다.
     pub(crate) transfer_progress: Option<TransferProgress>,
     /// 전송 실패 알림 큐. 맨 앞 항목을 표시하고 Dismiss로 제거한다.
-    pub(crate) transfer_error: VecDeque<TransferError>,
+    pub(crate) transfer_error: VecDeque<Queued<TransferError>>,
     /// "다운로드 후 실행" 대화상자·큰 파일 확인과 이 창에서 시작한 다운로드.
     pub(crate) download_run: crate::adapters::ui::popup::download_run::DownloadRunState,
 }
