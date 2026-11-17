@@ -42,15 +42,17 @@ plugin 팝업 제작 절차는 [plugin-development](plugin-development.md) · [e
 
 ```rust
 use crate::state::MainViewState;
-use crate::adapters::ui::popup::PopupAction;
+use crate::adapters::ui::popup::{PopupAction, PopupCx};
 
 pub fn draw_my_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
-    core: &mut crate::core::CoreState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    cx: &mut PopupCx<'_>,              // 인스턴스 id·포커스·인스턴스 데이터
 ) -> PopupAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;   // None | Close 둘뿐
+    if cx.focused && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+        // None | Close | CloseBy(사유) | ReleaseFocus
+        return PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape);
     }
     // 콘텐츠 렌더...
     PopupAction::None
@@ -112,8 +114,8 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | `sizer` | `Option<fn(&MainViewState, &CoreState) -> Vec2>` | 동적 크기. **매 프레임 호출된다** — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
 | `drag_region` | `Option<fn(&PopupState) -> Rect>` | `decl.drag_handle` 이 `Region` 일 때 팝업이 pos/size 로부터 계산하는 전용 핸들 띠. 타이틀바 없는 팝업도 이동할 수 있다 |
 | `fullscreen_stage` | `Option<StageId>` | `Some(id)` 면 타이틀바 X 왼쪽에 전체화면 버튼이 붙고, 누르면 그 [무대](../design/systems/fullscreen-stage.md)가 뜬다. 노출 여부와 대상이 한 필드라 "버튼은 있는데 갈 곳이 없는" 상태가 생기지 않는다. 아래 "전체화면 버튼" 참고 |
-| `draw_fn` | `fn(&mut Ui, &mut MainViewState, &mut CoreState) -> PopupAction` | 매 프레임 렌더 |
-| `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &mut CoreState)>` | 닫힘 뒷정리 훅. `PopupManager::close()`(6개 close 경로 전부가 거치는 유일한 지점)를 통해 어떤 경로로 닫히든 정확히 한 번 실행(아래 "닫힘 정리" 참고) |
+| `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 인스턴스 데이터를 준다 |
+| `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &EngineRead, &ClosedPopup)>` | 닫힘 뒷정리 훅. 모든 닫기 경로가 거치는 관리자의 인스턴스 닫기를 통해 어떤 경로로 닫히든 인스턴스마다 정확히 한 번 실행한다. `ClosedPopup`은 선언 id, 인스턴스 id, 닫기 사유를 담는다(아래 "닫힘 정리" 참고) |
 
 ### `PopupDecl` 속성
 
@@ -286,7 +288,7 @@ if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { /* apply
 
 ## 닫힘 정리
 
-**새 팝업이 draft 버퍼/대상 id 같은 상태를 가지면 반드시 `PopupDef.on_close` 를 선언한다.** draw_fn 내부에서 Escape/버튼 클릭 시에만 정리하면 X 버튼·바깥 클릭·`UiIntent::ClosePopup`(디버그 IPC 포함)처럼 draw_fn 을 거치지 않는 닫힘 경로에서 정리가 새고, 재오픈 시 이전 상태가 그대로 보이거나(가벼운 경우) 진행 중 워커/네트워크 연결이 살아남는다(무거운 경우 — 예: `remote_attach`/`remote_tool` 의 ssh 터널). `on_close` 는 어떤 닫힘 경로로도 정확히 한 번 호출되는 유일한 지점이므로, 상태 정리는 draw_fn 안에 흩어놓지 말고 여기 모은다. 상태가 전혀 없거나(예: `notifications`) 남아도 무해하다고 **판단**했다면(예: `mouse_capture_menu` 의 대상 id) `on_close: None` 옆에 근거를 한 줄 남긴다 — `src/adapters/ui/popup/defs.rs` 의 기존 항목들이 그 예시다.
+**새 팝업이 draft 버퍼/대상 id 같은 상태를 가지면 반드시 `PopupDef.on_close` 를 선언한다.** draw_fn 내부에서 Escape/버튼 클릭 시에만 정리하면 X 버튼·바깥 클릭·`UiIntent::ClosePopup`(디버그 IPC 포함)처럼 draw_fn 을 거치지 않는 닫힘 경로에서 정리가 새고, 재오픈 시 이전 상태가 그대로 보이거나(가벼운 경우) 진행 중 워커/네트워크 연결이 살아남는다(무거운 경우 — 예: `remote_attach`/`remote_tool` 의 ssh 터널). `on_close` 는 어떤 닫힘 경로로도 정확히 한 번 호출되는 유일한 지점이므로, 상태 정리는 draw_fn 안에 흩어놓지 말고 여기 모은다. 상태가 전혀 없거나(예: `notifications`) 남아도 무해하다고 **판단**했다면 `on_close: None` 옆에 근거를 한 줄 남긴다 — `src/adapters/ui/popup/defs.rs` 의 기존 항목들이 그 예시다. 닫힌 경로에 따라 정리를 달리해야 하면 draw_fn에서 경로를 나누지 말고 훅이 `ClosedPopup.reason`을 본다(예: `port_scanner`). 사유 표는 [design/systems/popup.md](../design/systems/popup.md#수명-계약-open--close--뒷정리)에 있다.
 
 닫힘 큐에는 실제로 열려 있던 인스턴스만 추가한다. 훅이 다른 팝업을 닫으면 같은 처리 과정에서 그 훅도 실행한다. `ON_CLOSE_DRAIN_MAX_ROUNDS = 8`을 넘으면 경고를 남기고 해당 라운드의 훅은 실행하지 않는다. 정상 사용이 상한에 걸리는 경우에는 상한을 무조건 늘리지 말고 닫힘 관계를 확인한다.
 

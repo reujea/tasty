@@ -239,8 +239,6 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             popup_escape_owner: None,
             #[cfg(feature = "gui")]
-            popup_keyboard_focus: Vec::new(),
-            #[cfg(feature = "gui")]
             plugin_popup_hittest: Vec::new(),
             #[cfg(feature = "gui")]
             plugin_popup_bound_scopes: std::collections::HashMap::new(),

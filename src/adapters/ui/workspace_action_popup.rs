@@ -46,7 +46,7 @@ mod tests {
         state
             .popups
             .topmost_visible_open(Some(&ctx))
-            .map(|(id, _)| id)
+            .map(|(id, _, _)| id)
     }
 
     /// 정리 단계와 그리기를 포함한 팝업 프레임 하나.

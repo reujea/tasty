@@ -290,6 +290,12 @@ pub enum UiIntent {
     ClosePopup {
         id: PopupId,
     },
+    /// 열린 인스턴스 하나를 사유와 함께 닫는다. 같은 선언의 다른 인스턴스는 그대로다.
+    #[cfg(feature = "gui")]
+    CloseInstance {
+        instance: crate::adapters::ui::popup::PopupInstanceId,
+        reason: crate::adapters::ui::popup::PopupCloseReason,
+    },
     /// 호스트가 확인한 사용자 입력으로 열린 passive 팝업에 포커스를 준다. 사용자 출처일 때만 동작한다.
     FocusPassivePopup {
         id: PopupId,

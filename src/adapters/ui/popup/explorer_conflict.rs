@@ -115,6 +115,7 @@ pub fn draw(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let Some(sid) = asking_surface(state) else {
         return PopupAction::Close;
@@ -166,6 +167,7 @@ pub fn on_close(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     for sid in state.explorer_views.cached_surfaces().collect::<Vec<_>>() {
         let Some(view) = state.explorer_views.get_mut(sid) else {

@@ -195,11 +195,21 @@ fn sizer(state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
     egui::vec2(w.value(), h.value())
 }
 
-fn on_close(_ctx: &egui::Context, state: &mut MainViewState, _engine: &EngineRead<'_>) {
+fn on_close(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _engine: &EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
+) {
     state.dialogs.remote_row_popup.measured_h = None;
 }
 
-fn draw(ui: &mut egui::Ui, state: &mut MainViewState, engine: &EngineRead<'_>) -> PopupAction {
+fn draw(
+    ui: &mut egui::Ui,
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+) -> PopupAction {
     let Some((id, row)) = state.dialogs.remote_row_popup.shown else {
         return PopupAction::None;
     };

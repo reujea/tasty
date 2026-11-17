@@ -48,7 +48,7 @@ fn the_three_escape_consumers_keep_their_order() {
     );
     let general = only_at(
         body,
-        "if let Some((id, closes)) = self.state.popups.focused_dismissal_target() {",
+        "if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {",
         "Escape 의 포커스된 popup 분기",
     );
 
@@ -88,12 +88,12 @@ fn escape_closes_only_what_an_outside_click_would_close() {
     let src = read(KEYBOARD);
     let start = only_at(
         &src,
-        "if let Some((id, closes)) = self.state.popups.focused_dismissal_target() {",
+        "if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {",
         "Escape 의 포커스된 popup 분기",
     );
     let body = &src[start..start + 400];
     assert!(
-        body.contains("set_focused(id, false)"),
+        body.contains("set_instance_focused(instance, false)"),
         "팝업 포커스 해제가 없어 오버레이 입력 차단에서 벗어날 수 없다: {body}"
     );
     assert!(

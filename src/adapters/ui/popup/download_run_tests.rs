@@ -175,7 +175,12 @@ fn the_next_size_confirm_opens_in_its_own_surface() {
                 content_height: None,
             });
     }
-    on_close_download_run_large(&egui::Context::default(), &mut state, &session.read());
+    on_close_download_run_large(
+        &egui::Context::default(),
+        &mut state,
+        &session.read(),
+        &crate::adapters::ui::popup::ClosedPopup::test("test"),
+    );
     let popup = state
         .popups
         .get_mut(DOWNLOAD_RUN_LARGE_POPUP_ID)
@@ -208,7 +213,7 @@ fn a_second_ask_from_another_surface_moves_the_dialog_there() {
     );
     let ask = state.dialogs.download_run.ask.as_ref().unwrap();
     assert_eq!((ask.surface, ask.path.as_str()), (201, "/remote/b.bin"));
-    assert!(state.popups.take_closed_queue().is_empty());
+    assert!(state.popups.take_closed_ids().is_empty());
 }
 
 fn run(id: u64, surface: u32, receiving: bool) -> DownloadRunEntry {

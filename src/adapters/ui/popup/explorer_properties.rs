@@ -225,7 +225,12 @@ pub fn sizer(state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
     egui::vec2(th.explorer_props_width().value(), h)
 }
 
-pub fn on_close(_ctx: &egui::Context, state: &mut MainViewState, _engine: &EngineRead<'_>) {
+pub fn on_close(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _engine: &EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
+) {
     // 다른 surface 로 옮기려고 닫은 뒤 같은 차례에 다시 열었다. 내용은 이미 새 대상이다.
     if state.popups.is_open(EXPLORER_PROPERTIES_POPUP_ID) {
         return;
@@ -277,7 +282,12 @@ fn time_field(label: &'static str, t: Option<SystemTime>, format: &str) -> Field
     }
 }
 
-pub fn draw(ui: &mut egui::Ui, state: &mut MainViewState, engine: &EngineRead<'_>) -> PopupAction {
+pub fn draw(
+    ui: &mut egui::Ui,
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+) -> PopupAction {
     let th = theme::theme();
     let Some(props) = state.dialogs.explorer_properties.as_ref() else {
         return PopupAction::Close;
@@ -1190,9 +1200,14 @@ mod tests {
             crate::intent::popup::handle(state, &mut engine, &intent);
         }
         let ctx = egui::Context::default();
-        for id in state.popups.take_closed_queue() {
+        for id in state.popups.take_closed_ids() {
             if id == EXPLORER_PROPERTIES_POPUP_ID {
-                on_close(&ctx, state, &engine.read());
+                on_close(
+                    &ctx,
+                    state,
+                    &engine.read(),
+                    &crate::adapters::ui::popup::ClosedPopup::test("test"),
+                );
             }
         }
     }
@@ -1261,7 +1276,7 @@ mod tests {
         for intent in pending {
             crate::intent::popup::handle(&mut state, &mut session.borrow_mut(), &intent);
         }
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
         assert_eq!(surface_scope(&state), Some(1));
         assert_eq!(props(&state).paths, [y]);
         assert!(first_cancel.load(Ordering::Relaxed), "the old count stops");

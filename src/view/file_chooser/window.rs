@@ -119,8 +119,8 @@ impl WindowFileChooser {
         let chooser = &mut self.chooser;
         let result = self.popups.draw(
             ctx,
-            &mut |id, ui| {
-                if id == FILE_CHOOSER_POPUP_ID {
+            &mut |cx, ui| {
+                if cx.id == FILE_CHOOSER_POPUP_ID {
                     finished |= chooser.draw(ui, &crate::theme::theme(), owns_escape);
                 }
             },
@@ -133,7 +133,8 @@ impl WindowFileChooser {
         }
         // Raw View-local drawing returns close receipts instead of dispatching MainViewState hooks.
         let queued = self.popups.take_closed_queue();
-        if result.closed.contains(&FILE_CHOOSER_POPUP_ID) || queued.contains(&FILE_CHOOSER_POPUP_ID)
+        if result.closed.contains(&FILE_CHOOSER_POPUP_ID)
+            || queued.iter().any(|c| c.id == FILE_CHOOSER_POPUP_ID)
         {
             self.chooser.cancel();
         }

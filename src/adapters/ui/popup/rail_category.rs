@@ -107,6 +107,7 @@ pub fn on_close_rail_category_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.rail_category_popup = None;
 }
@@ -115,6 +116,7 @@ pub fn draw_rail_category_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         return PopupAction::Close;

@@ -127,7 +127,7 @@ mod tests {
             state.dialogs.rename.as_ref().map(|(t, _)| t.clone()),
             Some(RenameTarget::TabName { tab_id: 201 })
         );
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 
     /// 같은 pane 의 다른 탭 요청은 범위를 그대로 두고 대상만 바꾼다.
@@ -154,7 +154,7 @@ mod tests {
             state.dialogs.rename.as_ref().map(|(t, _)| t.clone()),
             Some(RenameTarget::TabName { tab_id: 102 })
         );
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 
     /// 원격 이름 바꾸기를 기다리는 동안 다른 대상의 이름 바꾸기를 열면 대기 표시가 없고,

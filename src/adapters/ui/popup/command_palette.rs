@@ -373,6 +373,7 @@ pub fn on_close_command_palette_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.command_palette.reset();
 }
@@ -425,6 +426,7 @@ pub fn draw_command_palette_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let (items, matched_commands) = palette_rows(state, engine);
 
@@ -1140,7 +1142,12 @@ pub(crate) mod enabled_tests {
         };
         drop(ctx.run(input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                draw_command_palette_popup(ui, state, read);
+                draw_command_palette_popup(
+                    ui,
+                    state,
+                    read,
+                    &mut crate::adapters::ui::popup::PopupCx::test("test"),
+                );
             });
         }));
     }

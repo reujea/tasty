@@ -154,10 +154,6 @@ pub struct MainViewState {
     /// host/plugin 전체에서 최상단이 호스트 팝업일 때 그 ID. 해당 팝업만 Escape를 처리한다.
     #[cfg(feature = "gui")]
     pub(crate) popup_escape_owner: Option<crate::adapters::ui::popup::PopupId>,
-    /// 이번 프레임에 그리기 직전 키보드 포커스를 가진 호스트 팝업. draw 동안에는 매니저를
-    /// 빌릴 수 없어 팝업 내용이 자기 포커스를 이 값으로 확인한다.
-    #[cfg(feature = "gui")]
-    pub(crate) popup_keyboard_focus: Vec<crate::adapters::ui::popup::PopupId>,
     /// 이전 프레임 플러그인 팝업의 셸 rect와 z_seq. 호스트를 먼저 그리므로 입력 판정에
     /// 한 프레임 전 값을 사용한다. 콘텐츠의 물리 rect인 plugin_mesh_popup_regions와 다르다.
     #[cfg(feature = "gui")]

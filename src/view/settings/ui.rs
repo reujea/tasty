@@ -838,7 +838,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         let chooser_owns_escape = escape_owner == Some(file_chooser::FILE_CHOOSER_POPUP_ID);
         ui_state.popups.draw(
             ctx,
-            &mut |id, ui| {
+            &mut |&mut crate::adapters::ui::popup::PopupCx { id, .. }, ui| {
                 if id == file_chooser::FILE_CHOOSER_POPUP_ID {
                     chooser_done |= chooser.draw(ui, &th, chooser_owns_escape);
                     return;
@@ -905,7 +905,7 @@ fn settle_file_chooser(
         // intent-exempt: 설정 창 내부 sub-popup close.
         ui_state.popups.close(file_chooser::FILE_CHOOSER_POPUP_ID);
     }
-    let queued = ui_state.popups.take_closed_queue();
+    let queued = ui_state.popups.take_closed_ids();
     if closed.contains(&file_chooser::FILE_CHOOSER_POPUP_ID)
         || queued.contains(&file_chooser::FILE_CHOOSER_POPUP_ID)
     {

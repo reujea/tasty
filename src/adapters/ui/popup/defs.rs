@@ -323,9 +323,9 @@ pub fn all_defs() -> &'static [PopupDef] {
                 title_fn: None,
                 sizer: None,
                 drag_region: Some(panel_header_drag_strip),
-                draw_fn: super::port_scanner::draw_port_scanner_popup,
-                // 바깥 클릭으로 닫으면 스캔 상태를 유지한다. 내부 Close 버튼만 Idle로 되돌린다.
-                on_close: None,
+                draw_fn: |ui, state, engine, _| super::port_scanner::draw_port_scanner_popup(ui, state, engine),
+                // 닫힌 경로(사유)에 따라 스캔 상태를 남길지 정한다.
+                on_close: Some(super::port_scanner_close::on_close_port_scanner_popup),
             },
             PopupDef {
                 id: super::command_palette::COMMAND_PALETTE_POPUP_ID,
@@ -403,8 +403,10 @@ pub fn all_defs() -> &'static [PopupDef] {
                 title_fn: None,
                 sizer: None,
                 drag_region: Some(panel_header_drag_strip),
-                draw_fn: super::remote_tool::draw_remote_tool_popup,
-                on_close: Some(super::remote_tool::on_close_remote_tool_popup),
+                draw_fn: |ui, state, engine, _| super::remote_tool::draw_remote_tool_popup(ui, state, engine),
+                on_close: Some(|ctx, state, engine, _| {
+                    super::remote_tool::on_close_remote_tool_popup(ctx, state, engine)
+                }),
             },
             PopupDef {
                 id: super::remote_attach::REMOTE_ATTACH_POPUP_ID,
@@ -426,8 +428,10 @@ pub fn all_defs() -> &'static [PopupDef] {
                 title_fn: None,
                 sizer: None,
                 drag_region: None,
-                draw_fn: super::remote_attach::draw_remote_attach_popup,
-                on_close: Some(super::remote_attach::on_close_remote_attach_popup),
+                draw_fn: |ui, state, engine, _| super::remote_attach::draw_remote_attach_popup(ui, state, engine),
+                on_close: Some(|ctx, state, engine, _| {
+                    super::remote_attach::on_close_remote_attach_popup(ctx, state, engine)
+                }),
             },
             // 원격 전송 진행 — scrim 중앙 headless, close_on_outside_click=false
             // (전송 중 실수 dismiss 방지), 모든 행 완료 시 draw_fn 이 self-close.
@@ -654,8 +658,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 sizer: Some(crate::adapters::ui::mouse_capture_menu::menu_sizer),
                 drag_region: None,
                 draw_fn: crate::adapters::ui::mouse_capture_menu::draw_menu,
-                // 다음 open에서 대상을 덮어쓰며 닫힌 상태의 대상은 읽지 않는다.
-                on_close: None,
+                on_close: Some(crate::adapters::ui::mouse_capture_menu::on_close_menu),
             },
             PopupDef {
                 id: super::confirm_delete_category::CONFIRM_DELETE_CATEGORY_POPUP_ID,

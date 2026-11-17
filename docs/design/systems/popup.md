@@ -19,11 +19,28 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 - **`PopupDef`** — 정적·데이터 지향 정의. 팝업 사이 동작 차이를 정하는 공통 선언 `decl: PopupDecl`(`tasty-plugin-protocol`의 직렬화 가능한 타입)과 host만 쓰는 함수 값(title_key/title_fn, sizer, drag_region, draw_fn, on_close, fullscreen_stage)을 담는다. 전부 `src/adapters/ui/popup/defs.rs::all_defs()` 에 모은다. 필드 상세 → [popup-implementation](../../dev-guide/popup-implementation.md).
 - **선언 값으로만 갈린다** — scrim·그림자·콘텐츠 여백·셸 색처럼 팝업마다 다른 그리기 값은 `decl`에서 읽는다. 팝업 id를 비교해 정하지 않는다. `popup_attributes_are_declared`가 팝업 공용 코드의 id 명부를 검사한다.
-- **`PopupManager`** — 공통 동작(z-order, 드래그, 리사이즈, 타이틀바, clamp, 포커스) 중앙 관리. `register_def` / `open*` / `close` / `draw`.
-- **`PopupState`** — 개별 인스턴스 상태(id, title, pos, size, open, focused, scope, dragging/resizing, size_user_overridden).
+- **`PopupManager`** — 공통 동작(z-order, 드래그, 리사이즈, 타이틀바, clamp, 포커스) 중앙 관리. `register_def` / `open*` / `close` / `close_instance` / `draw`.
+- **`PopupState`** — 인스턴스 하나의 상태(선언 id, 인스턴스 id `PopupInstanceId`, 부모 인스턴스, 인스턴스 데이터 `payload`, title, pos, size, open, focused, scope, dragging/resizing, size_user_overridden).
 - **범용 render 루프** — `src/adapters/ui/popup/frame.rs::draw_popup_layer`(등록된 모든 `PopupDef` 순회 + close 경로별 `on_close` 훅 drain). toast/banner/modifier-hint/tutorial 오버레이 체인은 개념이 다르므로(docs/design/systems/popup.md) `src/adapters/ui/overlay.rs` 로 분리돼 있다. 진입점 `src/adapters/ui.rs::draw_popups` 가 둘을 z-order 순서로 호출한다.
 
 등록된 팝업은 `all_defs()` 가 단일 출처다(예: `notifications`, `convert_surface`, `rename`, `search_bar`, `tools_menu` …). 새 팝업 = 테이블 항목 1개 + draw 함수 하나. 단, plugin 이 소유하는 팝업(예: markdown 파일열기·large-file 확인)은 host `PopupDef` 가 아니라 plugin 매니페스트 `[[contributes.popup]]`(egui-mesh) 로 등록된다.
+
+## 인스턴스
+
+열린 팝업 하나하나가 인스턴스다. 인스턴스 id(`PopupInstanceId`)는 열 때 받으며 같은 선언으로 연 인스턴스끼리도 다르고, 닫았다 다시 열면 새 값이다. 관리자 목록에는 열린 인스턴스와, 열린 인스턴스가 없는 선언의 닫힌 원본이 함께 있다. 원본은 다음 인스턴스의 처음 위치·크기다.
+
+같은 선언으로 여러 번 열 때 몇 개를 두는지는 선언의 `instances`가 정한다.
+
+| 값 | 열기 요청이 쓰는 인스턴스 |
+|---|---|
+| `Single` | 창 안에 하나. 범위와 관계없이 열린 인스턴스가 요청이 쓸 인스턴스다. |
+| `PerScopeTarget` | 범위 대상마다 하나. 같은 범위에 열린 인스턴스가 요청이 쓸 인스턴스이고, 없으면 새로 만든다. |
+| `Multi` | 열 때마다 새 인스턴스. |
+| `Queue` | 창 안에 하나. |
+
+지금 host 정의는 모두 `Single`이다. 인스턴스 데이터를 아직 `DialogState`·`MainViewState`의 단일 칸에 두는 팝업은 범위마다 인스턴스를 나누면 한 칸을 함께 쓰게 되기 때문이다.
+
+부모 인스턴스(`PopupState.parent`)가 닫히면 그 자식 인스턴스도 사유 `ParentClosed`로 닫힌다.
 
 ## Host ↔ Plugin popup z-order
 
@@ -42,11 +59,24 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 ## 수명 계약 (open → close → 뒷정리)
 
-`draw_fn`은 그리기 전의 `popup_keyboard_focus` 스냅샷으로 키보드 포커스를 읽는다. 그리기 중에는 관리자를 별도로 대여한다. `PopupAction::ReleaseFocus`는 팝업을 닫지 않고 관리자를 복원한 뒤 포커스만 해제한다. 검색 바의 find 단축키가 이 경로로 터미널에 입력을 돌려준다. 스냅샷은 바깥 클릭이 팝업 포커스를 끄기 전 값이라 그 프레임에 입력칸이 포커스를 되찾을 수 있다. 검색 바는 다음 프레임에 스냅샷이 거짓이면 입력칸 포커스를 놓는다([터미널 검색](../../features/terminal-search/index.md#키보드-라우팅-headless-popup-sticky-아님)).
+`draw_fn`은 인스턴스 문맥 `PopupCx`(선언 id, 인스턴스 id, 포커스, 인스턴스 데이터)를 받는다. 키보드 포커스는 `PopupCx.focused`로 읽으며, 그 프레임의 클릭을 반영하기 전 값이다. 그리기 중에는 관리자를 별도로 대여한다. `PopupAction::ReleaseFocus`는 팝업을 닫지 않고 관리자를 복원한 뒤 포커스만 해제한다. 검색 바의 find 단축키가 이 경로로 터미널에 입력을 돌려준다. 스냅샷은 바깥 클릭이 팝업 포커스를 끄기 전 값이라 그 프레임에 입력칸이 포커스를 되찾을 수 있다. 검색 바는 다음 프레임에 스냅샷이 거짓이면 입력칸 포커스를 놓는다([터미널 검색](../../features/terminal-search/index.md#키보드-라우팅-headless-popup-sticky-아님)).
 
-닫기 경로는 draw_fn의 `PopupAction::Close`, X·바깥 클릭, `UiIntent::ClosePopup`, 열린 팝업의 `UiIntent::TogglePopup`, App의 직접 `close()`, debug IPC의 여섯 가지다. 모두 `PopupManager::close()`를 거쳐 `PopupState.open`을 false로 바꾼다.
+닫기 경로마다 닫기 사유(`PopupCloseReason`, plugin 팝업과 같은 enum)가 붙는다.
 
-초안이나 대상 ID의 정리를 draw_fn에만 두면 다른 닫기 경로에서 실행되지 않는다. `PopupDef.on_close`를 등록하면 close가 `closed_queue`에 넣고 다음 `draw_popup_layer`에서 한 번 호출한다. 훅이 다른 팝업을 닫으면 같은 처리 중 이어서 정리하되, 상호 재열기 같은 오류를 막는 라운드 상한을 둔다. `on_close: None`에는 상태가 없거나 남겨도 되는 이유를 적는다. 예를 들어 notifications는 펼친 항목과 스크롤 위치를 다시 열 때 유지하고 tutorial_topics도 남겨도 되는 상태다. notifications fullscreen 무대의 스크롤 상태는 무대 종료 시 별도로 지운다.
+| 경로 | 사유 |
+|---|---|
+| draw_fn의 `PopupAction::Close` | `Content` |
+| draw_fn의 `PopupAction::CloseBy(사유)` | 그 사유(콘텐츠가 Esc를 직접 처리하면 `Escape`) |
+| 제목줄 닫기 버튼 | `CloseButton` |
+| 바깥 클릭 | `OutsideClick` |
+| winit Esc의 포커스된 팝업 닫기(`UiIntent::CloseInstance`) | `Escape` |
+| `UiIntent::ClosePopup`, 열린 팝업의 `UiIntent::TogglePopup`, App의 직접 `close()`, debug IPC | `Command` |
+| 범위 대상·작용 대상 소멸 | `TargetGone` |
+| 부모 인스턴스가 닫힘 | `ParentClosed` |
+
+`close(id)`는 그 선언의 열린 인스턴스를 모두 닫고, `close_instance(인스턴스, 사유)`는 하나만 닫는다.
+
+초안이나 대상 ID의 정리를 draw_fn에만 두면 다른 닫기 경로에서 실행되지 않는다. `PopupDef.on_close`를 등록하면 닫을 때 `closed_queue`에 인스턴스와 사유(`ClosedPopup`)를 넣고 다음 `draw_popup_layer`에서 훅을 한 번 호출한다. 닫힌 경로에 따라 정리를 달리하는 팝업은 사유를 본다. 포트 스캐너는 `Content`·`Escape`일 때만 스캔 상태를 버리고 바깥 클릭·제목줄 닫기·명령으로 닫으면 남긴다. 훅이 다른 팝업을 닫으면 같은 처리 중 이어서 정리하되, 상호 재열기 같은 오류를 막는 라운드 상한을 둔다. `on_close: None`에는 상태가 없거나 남겨도 되는 이유를 적는다. 예를 들어 notifications는 펼친 항목과 스크롤 위치를 다시 열 때 유지하고 tutorial_topics도 남겨도 되는 상태다. notifications fullscreen 무대의 스크롤 상태는 무대 종료 시 별도로 지운다.
 
 절차·필드 상세는 [popup-implementation §닫힘 정리](../../dev-guide/popup-implementation.md#닫힘-정리).
 
@@ -82,7 +112,7 @@ origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenPop
 - native WebView 는 모두 숨기지 않고 키보드 포커스도 회수하지 않는다. 토스트 카드와 같이 팝업 영역과 겹치는 WebView 만, 그 WebView 가 키 입력을 받지 않을 때 숨긴다(`PopupManager::visible_passive_rects`, [webview](webview.md#포커스--회수는-조건부다)). 키를 받는 WebView 와 겹치면 그 WebView 가 팝업을 덮는다. native 위에 egui 를 그리는 층이 없어서이며, 요청은 함께 만든 알림으로도 보인다. 일반 팝업이 떠 있어도 페이지를 보이는 모드는 [WebView §egui 오버레이와 native WebView](webview.md#egui-오버레이와-native-webview)에 있다. 모드는 backend 가 보고한다. Linux(X11)는 XFixes 2.0 과 SHAPE 확장이 있을 때 합성 관리자가 있으면 투명, 없으면 불투명이고, 확장이 없거나 적용이 실패하면 숨김이다. Windows 와 macOS 는 불투명이다. passive 팝업은 그 모드의 대상이 아니다.
 - 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다. 호스트가 확인한 사용자 입력도 같은 전이를 낸다: 파일 피커를 연 plugin 이 같은 surface 에서 증명이 있는 `file_picker.trigger` 를 다시 보내면 사용자 출처 `UiIntent::FocusPassivePopup` 이 보이는 다른 팝업의 포커스를 풀고 그 피커를 맨 앞으로 올린다(`PopupManager::focus_passive`). 증명 없는 요청과 다른 plugin·surface 의 요청은 busy 로 남는다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
 - 비포커스 상태의 별도 시각 표현은 없다. 포커스가 없는 다른 팝업(알림 패널 등)과 같은 모양이다.
-- 팝업 내용이 자기 포커스를 확인할 때는 `MainViewState.popup_keyboard_focus` 를 읽는다. draw 동안에는 매니저를 빌릴 수 없어 그리기 직전에 복사한다.
+- 팝업 내용이 자기 포커스를 확인할 때는 `PopupCx.focused` 를 읽는다. draw 동안에는 매니저를 빌릴 수 없어 그리기를 시작할 때 복사한다.
 
 파일 피커의 범위 회귀시험(`src/adapters/ipc/handler/file_picker_scope_tests.rs`)은 plugin이 연 직후의
 passive 상태와 실제 포인터 클릭으로 포커스를 받은 상태를 각각 숨겼다가 복원한다. 두 경우 모두

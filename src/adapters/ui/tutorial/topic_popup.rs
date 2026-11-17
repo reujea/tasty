@@ -23,6 +23,7 @@ pub fn draw_tutorial_topics_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if !state.tutorial.catalog_loaded {
         crate::adapters::ui::tutorial::open_catalog(state);
@@ -264,6 +265,7 @@ pub fn on_close(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.tutorial.catalog_loaded = false;
 }

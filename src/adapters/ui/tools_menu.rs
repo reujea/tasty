@@ -80,6 +80,7 @@ pub fn draw_tools_menu(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         return PopupAction::Close;

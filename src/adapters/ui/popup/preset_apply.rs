@@ -246,6 +246,7 @@ pub fn on_close_apply_workspace_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state
         .dialogs
@@ -259,6 +260,7 @@ pub fn on_close_apply_tab_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.preset_picker_selection.clear(PresetKind::Tab);
     state.dialogs.preset_apply_targets.clear(PresetKind::Tab);
@@ -269,6 +271,7 @@ pub fn on_close_apply_pane_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state
         .dialogs
@@ -281,6 +284,7 @@ pub fn draw_apply_workspace_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     draw_apply_popup(ui, state, engine, PresetKind::Workspace)
 }
@@ -289,6 +293,7 @@ pub fn draw_apply_tab_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     draw_apply_popup(ui, state, engine, PresetKind::Tab)
 }
@@ -297,6 +302,7 @@ pub fn draw_apply_pane_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     draw_apply_popup(ui, state, engine, PresetKind::Pane)
 }
@@ -779,7 +785,7 @@ mod tests {
                 Ok(Some(20)),
                 "{kind:?}"
             );
-            assert!(state.popups.take_closed_queue().is_empty(), "{kind:?}");
+            assert!(state.popups.take_closed_ids().is_empty(), "{kind:?}");
         }
     }
 
@@ -802,7 +808,12 @@ mod tests {
             20,
             crate::intent::UiIntent::from_user_context_menu,
         ));
-        on_close_apply_pane_popup(&egui::Context::default(), &mut state, &read);
+        on_close_apply_pane_popup(
+            &egui::Context::default(),
+            &mut state,
+            &read,
+            &crate::adapters::ui::popup::ClosedPopup::test("test"),
+        );
         assert_eq!(
             state.dialogs.preset_apply_targets.get(PresetKind::Tab),
             Some(PresetApplyTarget::Tab(101))
@@ -859,7 +870,12 @@ mod tests {
             20,
             crate::intent::UiIntent::from_user_context_menu,
         ));
-        on_close_apply_pane_popup(&egui::Context::default(), &mut state, &read);
+        on_close_apply_pane_popup(
+            &egui::Context::default(),
+            &mut state,
+            &read,
+            &crate::adapters::ui::popup::ClosedPopup::test("test"),
+        );
         assert_eq!(
             state.dialogs.preset_picker_selection.get(PresetKind::Tab),
             Some("beta")

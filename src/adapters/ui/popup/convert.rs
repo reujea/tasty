@@ -101,6 +101,7 @@ pub fn on_close_convert_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.convert_popup = None;
     state.dialogs.convert_popup_selected = None;
@@ -111,6 +112,7 @@ pub fn draw_convert_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     match draw_convert_content(ui, state, engine) {
         Some(ConvertResult::Close) => PopupAction::Close,

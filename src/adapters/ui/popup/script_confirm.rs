@@ -65,6 +65,7 @@ pub fn on_close_script_confirm_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     if let Some(pending) = state.dialogs.pending_script_confirm.as_ref()
         && pending.result.is_none()
@@ -107,6 +108,7 @@ pub fn draw_script_confirm_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let Some(pending) = state.dialogs.pending_script_confirm.as_ref() else {
         return PopupAction::Close;

@@ -41,6 +41,7 @@ pub fn on_close_search_bar(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.search.clear();
 }
@@ -89,11 +90,12 @@ pub fn draw_search_bar(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let theme = crate::theme::theme();
 
     // 팝업의 focused 상태에 텍스트 필드 포커스를 맞춘다.
-    let want_focus = state.popup_keyboard_focus.contains(&SEARCH_BAR_POPUP_ID);
+    let want_focus = cx.focused;
 
     // Layout stays inside the body. Allow the Input's outside ring into the shell padding.
     ui.set_clip_rect(

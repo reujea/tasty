@@ -220,6 +220,7 @@ pub fn on_close_transfer_progress(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.transfer_progress = None;
 }
@@ -230,6 +231,7 @@ pub fn draw_transfer_progress(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let Some(progress) = state.dialogs.transfer_progress.as_ref() else {
@@ -287,6 +289,7 @@ pub fn on_close_transfer_error(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     if state.dialogs.transfer_error.is_empty() {
         return;
@@ -306,6 +309,7 @@ pub fn draw_transfer_error(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let Some(head) = state.dialogs.transfer_error.front() else {

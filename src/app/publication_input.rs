@@ -415,7 +415,7 @@ fn host_keyboard_focus(
                 view.state
                     .popups
                     .focused_dismissal_target()
-                    .map(|(id, _)| id),
+                    .map(|(id, _, _)| id),
                 view.base.gpu.egui_ctx.memory(|memory| memory.focused()),
             )
         })

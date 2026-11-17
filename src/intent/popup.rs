@@ -69,6 +69,9 @@ pub fn handle(
                 open(state, id, mode, intent.origin.is_user());
             }
             UiIntent::ClosePopup { id } => state.popups.close(id),
+            UiIntent::CloseInstance { instance, reason } => {
+                state.popups.close_instance(*instance, *reason)
+            }
             UiIntent::FocusPassivePopup { id } => {
                 if intent.origin.is_user() {
                     state.popups.focus_passive(id);
@@ -141,7 +144,7 @@ fn open(state: &mut RequestContext, id: &'static str, mode: &OpenPopupMode, by_u
             .tutorial
             .observe(crate::adapters::ui::tutorial::PracticeEvent::OpenPalette);
     }
-    match mode {
+    let _opened = match mode {
         OpenPopupMode::Default(scope) => state.popups.open(id, scope.clone()),
         OpenPopupMode::CenteredFocused(scope) => {
             state.popups.open_centered_focused(id, scope.clone())
@@ -150,7 +153,7 @@ fn open(state: &mut RequestContext, id: &'static str, mode: &OpenPopupMode, by_u
         OpenPopupMode::AtFocused(scope, pos) => {
             state.popups.open_at_focused(id, scope.clone(), *pos)
         }
-    }
+    };
     // 에이전트·플러그인·시스템 요청이 사용자의 키 입력을 가로채지 않게 한다.
     if !by_user {
         state.popups.mark_passive(id);
@@ -257,7 +260,7 @@ mod tests {
             &dispatched_open("test_popup", OpenPopupMode::Default(PopupScope::Window)),
         );
         handle(&mut state, &mut engine, &dispatched_close("test_popup"));
-        assert_eq!(state.popups.take_closed_queue(), vec!["test_popup"]);
+        assert_eq!(state.popups.take_closed_ids(), vec!["test_popup"]);
     }
 
     fn dispatched_reopen(id: &'static str, scope: PopupScope) -> DispatchedIntent {
@@ -291,7 +294,7 @@ mod tests {
             state.popups.open_scope("test_popup"),
             Some(&PopupScope::Surface(2))
         );
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 
     /// 같은 범위의 다시 열기 요청은 열린 팝업을 그대로 둔다.
@@ -311,7 +314,7 @@ mod tests {
             &dispatched_reopen("test_popup", PopupScope::Surface(1)),
         );
         assert_eq!(state.popups.max_open_z_seq(), z);
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 
     /// 열기 요청은 이미 열린 팝업의 범위를 바꾸지 않는다(다시 열기만 바꾼다).
@@ -345,9 +348,9 @@ mod tests {
         }
         .from_user_shortcut("test");
         handle(&mut state, &mut engine, &toggle);
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
         handle(&mut state, &mut engine, &toggle);
-        assert_eq!(state.popups.take_closed_queue(), vec!["test_popup"]);
+        assert_eq!(state.popups.take_closed_ids(), vec!["test_popup"]);
     }
 
     #[test]

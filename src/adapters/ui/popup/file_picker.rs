@@ -601,6 +601,7 @@ pub fn on_close_file_picker(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     if let Some(p) = state.dialogs.file_picker.as_mut()
         && p.result.is_none()
@@ -614,6 +615,7 @@ pub fn draw_file_picker(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let Some(data) = state.dialogs.file_picker.as_ref() else {
         return PopupAction::Close;

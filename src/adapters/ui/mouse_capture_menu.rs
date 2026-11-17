@@ -174,11 +174,22 @@ pub fn open(
     );
 }
 
+/// 닫기 훅. 어떤 경로로 닫히든(항목 선택, 바깥 클릭, Esc) 대상 surface를 비운다.
+pub fn on_close_menu(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
+) {
+    state.dialogs.mouse_capture_banner_menu_target = None;
+}
+
 /// `PopupDef.draw_fn` — 메뉴 콘텐츠만 그린다(셸은 headless popup 시스템이 그림).
 pub fn draw_menu(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         return PopupAction::Close;
@@ -264,6 +275,39 @@ fn draw_menu_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 메뉴가 어떤 사유로 닫히든 닫기 훅이 대상 surface를 비운다.
+    #[test]
+    fn the_close_hook_clears_the_target_for_every_reason() {
+        use crate::adapters::ui::popup::{ClosedPopup, PopupCloseReason, PopupScope};
+        for reason in [
+            PopupCloseReason::Content,
+            PopupCloseReason::OutsideClick,
+            PopupCloseReason::Escape,
+            PopupCloseReason::TargetGone,
+        ] {
+            let (mut state, mut session) = crate::state::tests::test_state();
+            let engine = session.borrow_mut();
+            state.dialogs.mouse_capture_banner_menu_target = Some(3);
+            state
+                .popups
+                .open(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID, PopupScope::Window);
+            state
+                .popups
+                .close_with(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID, reason);
+            let closed: Vec<ClosedPopup> = state.popups.take_closed_queue();
+            on_close_menu(
+                &egui::Context::default(),
+                &mut state,
+                &engine.read(),
+                &closed[0],
+            );
+            assert_eq!(
+                state.dialogs.mouse_capture_banner_menu_target, None,
+                "{reason:?}"
+            );
+        }
+    }
 
     /// 테두리까지 포함한 바깥 폭. 셸 폭에 바깥으로 그리는 테두리 두 줄을 더한다.
     fn outer(th: &Theme, widest: f32) -> f32 {
@@ -371,7 +415,12 @@ mod tests {
                     .show(ctx, |ui| {
                         ui.set_width(width);
                         ui.set_max_width(width);
-                        let _action = draw_menu(ui, state, engine);
+                        let _action = draw_menu(
+                            ui,
+                            state,
+                            engine,
+                            &mut crate::adapters::ui::popup::PopupCx::test("test"),
+                        );
                     });
             });
         }
@@ -460,7 +509,15 @@ mod tests {
                     .show(ctx, |ui| {
                         ui.set_width(width.value());
                         ui.set_max_width(width.value());
-                        if matches!(draw_menu(ui, state, engine), PopupAction::Close) {
+                        if matches!(
+                            draw_menu(
+                                ui,
+                                state,
+                                engine,
+                                &mut crate::adapters::ui::popup::PopupCx::test("test")
+                            ),
+                            PopupAction::Close
+                        ) {
                             closed = true;
                         }
                     });

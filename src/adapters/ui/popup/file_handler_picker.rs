@@ -891,6 +891,7 @@ pub fn on_close_file_handler_picker(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     if let Some(p) = state.dialogs.file_handler_picker.as_mut()
         && p.result.is_none()
@@ -927,6 +928,7 @@ pub fn draw_file_handler_picker(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let Some(picker) = state.dialogs.file_handler_picker.as_ref() else {
         return PopupAction::Close;
@@ -1528,7 +1530,12 @@ mod tests {
             egui::CentralPanel::default().show(ctx, |ui| {
                 expected_path = fh_model::elide_target_front(url, target_budget(ui, &th, None));
                 assert!(matches!(
-                    draw_file_handler_picker(ui, &mut state, &read),
+                    draw_file_handler_picker(
+                        ui,
+                        &mut state,
+                        &read,
+                        &mut crate::adapters::ui::popup::PopupCx::test("test")
+                    ),
                     PopupAction::None
                 ));
             });

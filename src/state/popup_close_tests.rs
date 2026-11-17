@@ -1552,6 +1552,7 @@ fn the_next_transfer_error_opens_in_its_own_surface() {
         &egui::Context::default(),
         &mut state,
         &engine.read(),
+        &crate::adapters::ui::popup::ClosedPopup::test("test"),
     );
     let popup = state
         .popups

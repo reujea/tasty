@@ -1,17 +1,5 @@
+use crate::adapters::ui::popup::{PopupCloseHook, PopupCloseReason, PopupInstanceId};
 use crate::state::MainViewState;
-
-/// 마우스 캡처 배너 "더보기" 메뉴가 (액션 클릭이든 outside click/Esc 든) 닫혔으면
-/// 대상 surface 필드를 비운다. 매번 확인해도 무해(idempotent)하다.
-fn cleanup_mouse_capture_menu_target(
-    state: &mut MainViewState,
-    dispatch_closed: &[&'static str],
-    draw_result_closed: &[&'static str],
-) {
-    let id = crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID;
-    if dispatch_closed.contains(&id) || draw_result_closed.contains(&id) {
-        state.dialogs.mouse_capture_banner_menu_target = None;
-    }
-}
 
 /// 훅이 서로 팝업을 계속 닫는 경우를 막기 위한 반복 상한.
 const ON_CLOSE_DRAIN_MAX_ROUNDS: u32 = 8;
@@ -85,7 +73,7 @@ fn close_orphans(state: &mut MainViewState, engine: &crate::runtime::engine_read
         .collect();
     for id in gone {
         // intent-exempt: 작용 대상이 사라진 팝업의 수명 정리. 범위 고아 정리와 같은 단계이며 포커스·선택은 바꾸지 않는다.
-        state.popups.close(id);
+        state.popups.close_with(id, PopupCloseReason::TargetGone);
     }
 }
 
@@ -94,11 +82,7 @@ fn drain_on_close_hooks_with_lookup(
     ctx: &egui::Context,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    lookup: impl Fn(
-        crate::adapters::ui::popup::PopupId,
-    ) -> Option<
-        fn(&egui::Context, &mut MainViewState, &crate::runtime::engine_read::EngineRead<'_>),
-    >,
+    lookup: impl Fn(crate::adapters::ui::popup::PopupId) -> Option<PopupCloseHook>,
 ) {
     let mut round = 0u32;
     loop {
@@ -114,9 +98,9 @@ fn drain_on_close_hooks_with_lookup(
             );
             return;
         }
-        for id in queue {
-            if let Some(hook) = lookup(id) {
-                hook(ctx, state, engine);
+        for closed in queue {
+            if let Some(hook) = lookup(closed.id) {
+                hook(ctx, state, engine, &closed);
             }
         }
     }
@@ -140,8 +124,8 @@ pub(crate) fn draw_popup_layer(
             crate::i18n::t(def.title_key).to_string()
         };
         let new_size = def.sizer.map(|f| f(state, engine));
-        if let Some(p) = state.popups.get_mut(def.id) {
-            p.title = new_title;
+        for p in state.popups.entries_of_mut(def.id) {
+            p.title.clone_from(&new_title);
             if let Some(sz) = new_size
                 && !p.size_user_overridden
             {
@@ -159,26 +143,30 @@ pub(crate) fn draw_popup_layer(
     state.popup_escape_owner = state
         .popups
         .topmost_visible_open(Some(draw_ctx))
-        .filter(|(_, z)| plugin_top_z.is_none_or(|pz| *z > pz))
-        .map(|(id, _)| id);
+        .filter(|(_, _, z)| plugin_top_z.is_none_or(|pz| *z > pz))
+        .map(|(id, _, _)| id);
 
-    state.popup_keyboard_focus = state.popups.keyboard_focused_ids();
     let mut popups = std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
 
     // content_fn이 state를 가변 대여하므로 plugin 팝업 영역을 미리 복사한다.
     let plugin_occluders: Vec<crate::adapters::ui::popup::occlusion::Occluder> =
         state.plugin_popup_hittest.clone();
 
-    let mut dispatch_closed: Vec<&'static str> = Vec::new();
-    let mut dispatch_unfocused = Vec::new();
+    let mut dispatch_closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
+    let mut dispatch_unfocused: Vec<PopupInstanceId> = Vec::new();
     let draw_result = popups.draw(
         ctx,
-        &mut |id, ui| {
-            if let Some(def) = crate::adapters::ui::popup::defs::find(id) {
-                match (def.draw_fn)(ui, state, engine) {
-                    crate::adapters::ui::PopupAction::Close => dispatch_closed.push(def.id),
+        &mut |cx, ui| {
+            if let Some(def) = crate::adapters::ui::popup::defs::find(cx.id) {
+                match (def.draw_fn)(ui, state, engine, cx) {
+                    crate::adapters::ui::PopupAction::Close => {
+                        dispatch_closed.push((cx.instance, PopupCloseReason::Content))
+                    }
+                    crate::adapters::ui::PopupAction::CloseBy(reason) => {
+                        dispatch_closed.push((cx.instance, reason))
+                    }
                     crate::adapters::ui::PopupAction::ReleaseFocus => {
-                        dispatch_unfocused.push(def.id)
+                        dispatch_unfocused.push(cx.instance)
                     }
                     crate::adapters::ui::PopupAction::None => {}
                 }
@@ -199,10 +187,8 @@ pub(crate) fn draw_popup_layer(
         .extend(draw_result.overlay_targets);
 
     state.popups = popups;
-    for id in dispatch_unfocused {
-        if state.popups.is_focused(id) {
-            state.popups.set_focused(id, false);
-        }
+    for iid in dispatch_unfocused {
+        state.popups.set_instance_focused(iid, false);
     }
 
     // 무대는 별도 콘텐츠이며 원본 팝업은 열린 채 아래에 남는다.
@@ -215,19 +201,18 @@ pub(crate) fn draw_popup_layer(
         }
     }
 
-    // 팝업 자체 닫기는 Intent를 거치지 않고 즉시 처리한다.
-    for id in dispatch_closed.iter().chain(draw_result.closed.iter()) {
-        state.popups.close(id); // intent-exempt: popup self-close lifecycle.
+    // 팝업 자체 닫기는 Intent를 거치지 않고 즉시 처리한다. 그리기가 닫은 인스턴스는 이미 닫혔다.
+    for (iid, reason) in dispatch_closed {
+        state.popups.close_instance(iid, reason); // intent-exempt: popup self-close lifecycle.
     }
 
     drain_on_close_hooks(ctx, state, engine);
-
-    cleanup_mouse_capture_menu_target(state, &dispatch_closed, &draw_result.closed);
 }
 
 #[cfg(test)]
 mod on_close_drain_tests {
     use super::*;
+    use crate::adapters::ui::popup::ClosedPopup;
     use crate::state::tests::test_state;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -237,18 +222,11 @@ mod on_close_drain_tests {
     }
 
     /// 실제 정의 목록 대신 테스트용 조회 함수를 넣어 닫기 반복·상한을 검사한다.
-    type Lookup = HashMap<
-        crate::adapters::ui::popup::PopupId,
-        fn(&egui::Context, &mut MainViewState, &crate::runtime::engine_read::EngineRead<'_>),
-    >;
+    type Lookup = HashMap<crate::adapters::ui::popup::PopupId, PopupCloseHook>;
 
     fn lookup_from(
         map: Lookup,
-    ) -> impl Fn(
-        crate::adapters::ui::popup::PopupId,
-    ) -> Option<
-        fn(&egui::Context, &mut MainViewState, &crate::runtime::engine_read::EngineRead<'_>),
-    > {
+    ) -> impl Fn(crate::adapters::ui::popup::PopupId) -> Option<PopupCloseHook> {
         move |id| map.get(id).copied()
     }
 
@@ -257,6 +235,7 @@ mod on_close_drain_tests {
         _ctx: &egui::Context,
         _state: &mut MainViewState,
         _engine: &crate::runtime::engine_read::EngineRead<'_>,
+        _closed: &ClosedPopup,
     ) {
         PLAIN_HOOK_FIRES.fetch_add(1, Ordering::SeqCst);
     }
@@ -290,6 +269,7 @@ mod on_close_drain_tests {
             _ctx: &egui::Context,
             state: &mut MainViewState,
             _engine: &crate::runtime::engine_read::EngineRead<'_>,
+            _closed: &ClosedPopup,
         ) {
             A_FIRES.fetch_add(1, Ordering::SeqCst);
             state.popups.close("search_bar");
@@ -298,6 +278,7 @@ mod on_close_drain_tests {
             _ctx: &egui::Context,
             _state: &mut MainViewState,
             _engine: &crate::runtime::engine_read::EngineRead<'_>,
+            _closed: &ClosedPopup,
         ) {
             B_FIRES.fetch_add(1, Ordering::SeqCst);
         }
@@ -333,6 +314,7 @@ mod on_close_drain_tests {
             _ctx: &egui::Context,
             state: &mut MainViewState,
             _engine: &crate::runtime::engine_read::EngineRead<'_>,
+            _closed: &ClosedPopup,
         ) {
             LOOP_FIRES.fetch_add(1, Ordering::SeqCst);
             state.popups.open(
@@ -356,7 +338,7 @@ mod on_close_drain_tests {
 
         assert_eq!(LOOP_FIRES.load(Ordering::SeqCst), ON_CLOSE_DRAIN_MAX_ROUNDS);
         // 상한을 넘긴 마지막 배치는 이미 큐에서 꺼냈으며 다시 넣지 않는다.
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 }
 

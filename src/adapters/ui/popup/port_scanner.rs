@@ -581,16 +581,16 @@ pub fn draw_port_scanner_popup(
         label_favorite_remove: t("port_scanner.favorite_remove_tooltip"),
     };
 
+    let escape = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
     let action = draw_port_scanner_view(ui, &props);
 
     match action {
         PortScannerAction::None => PopupAction::None,
-        PortScannerAction::Close => {
-            // 요청 identity를 버려 App이 이전 스캔 결과를 새 popup에 적용하지 않게 한다.
-            state.port_scan = PortScanState::Idle;
-            state.port_favorites_scan = PortScanState::Idle;
-            PopupAction::Close
+        // 스캔 상태는 닫기 훅이 사유를 보고 정리한다.
+        PortScannerAction::Close if escape => {
+            PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
         }
+        PortScannerAction::Close => PopupAction::Close,
         PortScannerAction::Refresh => {
             kick_off_scan(
                 &mut state.port_scan,
@@ -2165,6 +2165,70 @@ mod tests {
         });
         let action = run_view(raw, &[]);
         assert_eq!(action, PortScannerAction::Close);
+    }
+
+    /// 팝업 그리기 함수가 Esc로 닫을 때 사유 `Escape`를 붙인다. 닫기 버튼과 사유가 갈려야 닫기 훅이
+    /// 경로를 구분한다.
+    #[test]
+    fn the_popup_closes_with_the_escape_reason_on_escape() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let mut raw = egui::RawInput::default();
+        raw.events.push(egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        let ctx = egui::Context::default();
+        let mut action = None;
+        drop(ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                action = Some(draw_port_scanner_popup(ui, &mut state, &engine.read()));
+            });
+        }));
+        assert!(matches!(
+            action,
+            Some(PopupAction::CloseBy(
+                crate::adapters::ui::popup::PopupCloseReason::Escape
+            ))
+        ));
+    }
+
+    /// 닫힌 경로마다 사유가 다르고, 콘텐츠 닫기·Esc만 스캔 상태를 버린다. 바깥 클릭·명령으로
+    /// 닫으면 상태가 남는다.
+    #[test]
+    fn the_close_hook_keeps_the_scan_unless_the_popup_closed_itself() {
+        use crate::adapters::ui::popup::{ClosedPopup, PopupCloseReason, PopupScope};
+        let cases = [
+            (PopupCloseReason::Escape, true),
+            (PopupCloseReason::Content, true),
+            (PopupCloseReason::OutsideClick, false),
+            (PopupCloseReason::Command, false),
+            (PopupCloseReason::CloseButton, false),
+        ];
+        for (reason, resets) in cases {
+            let (mut state, mut session) = crate::state::tests::test_state();
+            let engine = session.borrow_mut();
+            state.port_scan = PortScanState::Failed("kept".into());
+            state.popups.open(PORT_SCANNER_POPUP_ID, PopupScope::Window);
+            state.popups.close_with(PORT_SCANNER_POPUP_ID, reason);
+            let closed: Vec<ClosedPopup> = state.popups.take_closed_queue();
+            assert_eq!(closed.len(), 1, "{reason:?}");
+            assert_eq!(closed[0].reason, reason);
+            super::super::port_scanner_close::on_close_port_scanner_popup(
+                &egui::Context::default(),
+                &mut state,
+                &engine.read(),
+                &closed[0],
+            );
+            assert_eq!(
+                matches!(state.port_scan, PortScanState::Idle),
+                resets,
+                "{reason:?}"
+            );
+        }
     }
 
     #[test]

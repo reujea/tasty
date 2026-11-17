@@ -281,7 +281,12 @@ pub fn download_run_progress_sizer(state: &MainViewState, _e: &EngineRead<'_>) -
 }
 
 /// 닫으면 묻던 파일을 버린다(Cancel·Esc·바깥 클릭).
-pub fn on_close_download_run(_ctx: &egui::Context, state: &mut MainViewState, _e: &EngineRead<'_>) {
+pub fn on_close_download_run(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _e: &EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
+) {
     state.dialogs.download_run.ask = None;
 }
 
@@ -290,6 +295,7 @@ pub fn on_close_download_run_large(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _e: &EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     let Some(front) = state.dialogs.download_run.large.pop_front() else {
         return;
@@ -311,6 +317,7 @@ pub fn draw_download_run(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let Some(ask) = state.dialogs.download_run.ask.as_ref() else {
@@ -431,6 +438,7 @@ pub fn draw_download_run_large(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let Some(front) = state.dialogs.download_run.large.front() else {
@@ -508,6 +516,7 @@ pub fn draw_download_run_progress(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let rows: Vec<TransferRow> = state

@@ -73,6 +73,7 @@ pub fn on_close_rename_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.rename = None;
     state.dialogs.rename_content_height = None;
@@ -83,6 +84,7 @@ pub fn draw_rename_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
 
@@ -558,7 +560,12 @@ mod tests {
                 drop(ctx.run(egui::RawInput::default(), |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
                         ui.set_width(rename_popup_default_size().x);
-                        draw_rename_popup(ui, state, &session.read());
+                        draw_rename_popup(
+                            ui,
+                            state,
+                            &session.read(),
+                            &mut crate::adapters::ui::popup::PopupCx::test("test"),
+                        );
                     });
                 }));
             }

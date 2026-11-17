@@ -227,6 +227,7 @@ pub fn draw_notification_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> crate::adapters::ui::popup::PopupAction {
     draw_notification_content_inner(ui, state, engine);
     crate::adapters::ui::popup::PopupAction::None

@@ -265,7 +265,7 @@ fn assert_hidden_gates(state: &mut RequestContext, user_focused: bool) {
     assert!(state.host_popup_hittest.is_empty());
     assert!(state.popup_layers.is_empty());
     assert!(state.popup_escape_owner.is_none());
-    assert!(state.popups.take_closed_queue().is_empty());
+    assert!(state.popups.take_closed_ids().is_empty());
 }
 
 fn assert_work_preserved(state: &RequestContext, dir: &str, request: u64) {
@@ -410,12 +410,12 @@ fn closing_a_hidden_parent_closes_the_shell_without_waiting_for_draw() {
         state.dialogs.file_picker.as_ref().unwrap().result,
         Some(crate::state::FilePickerResult::Cancelled)
     ));
-    assert_eq!(state.popups.take_closed_queue(), [FILE_PICKER_POPUP_ID]);
+    assert_eq!(state.popups.take_closed_ids(), [FILE_PICKER_POPUP_ID]);
     crate::app::dispatch::plugin_popup_events::cancel_child_file_picker(
         &mut state,
         &[(7, tasty_plugin_protocol::PopupCloseReason::PluginRequest)],
     );
-    assert!(state.popups.take_closed_queue().is_empty());
+    assert!(state.popups.take_closed_ids().is_empty());
 }
 
 /// R 이 owner 없이 요청한 피커는 `Surface(R)`이고 R 안에 놓인다. 포커스가 L 인 동안 누른 Escape 는

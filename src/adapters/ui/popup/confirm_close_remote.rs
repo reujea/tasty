@@ -131,6 +131,7 @@ pub fn on_close_confirm_close_remote(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.pending_close_remote = None;
 }
@@ -139,6 +140,7 @@ pub fn draw_confirm_close_remote(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         state.dialogs.pending_close_remote = None;
@@ -279,7 +281,7 @@ mod tests {
             "{:?}",
             state.dialogs.pending_close_remote
         );
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 }
 

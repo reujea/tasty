@@ -101,6 +101,7 @@ pub fn on_close_info_modal(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     if dismiss_info_modal(state) {
         // intent-exempt: popup 자기-close cleanup — 이 훅에서 큐의 다음 안내를 잇는다
@@ -114,6 +115,7 @@ pub fn draw_info_modal(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
     let ctx = ui.ctx().clone();

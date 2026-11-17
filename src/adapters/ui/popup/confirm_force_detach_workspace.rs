@@ -96,6 +96,7 @@ pub fn on_close_confirm_force_detach_workspace(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.pending_force_detach_workspace = None;
 }
@@ -104,6 +105,7 @@ pub fn draw_confirm_force_detach_workspace(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let ctx = ui.ctx().clone();
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -247,6 +249,6 @@ mod tests {
             Some(&crate::model::popup_kind::PopupScope::Window)
         );
         assert_eq!(state.dialogs.pending_force_detach_workspace, Some(8));
-        assert!(state.popups.take_closed_queue().is_empty());
+        assert!(state.popups.take_closed_ids().is_empty());
     }
 }

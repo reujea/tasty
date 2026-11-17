@@ -233,12 +233,15 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
     // The winit Escape stage runs before the frame that carries the same Escape. These are the
     // two calls of try_consume_escape_key in src/view/main/keyboard.rs; change them together.
     assert_eq!(
-        state.popups.focused_dismissal_target(),
+        state
+            .popups
+            .focused_dismissal_target()
+            .map(|(id, _, closes)| (id, closes)),
         Some((SEARCH_BAR_POPUP_ID, false)),
         "the search bar is the only focused popup"
     );
-    if let Some((id, closes)) = state.popups.focused_dismissal_target() {
-        state.popups.set_focused(id, false);
+    if let Some((_, instance, closes)) = state.popups.focused_dismissal_target() {
+        state.popups.set_instance_focused(instance, false);
         assert!(!closes);
     }
     assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));

@@ -79,6 +79,7 @@ pub fn on_close_confirm_delete_category(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.pending_category_delete = None;
 }
@@ -87,6 +88,7 @@ pub fn draw_confirm_delete_category(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let ctx = ui.ctx().clone();
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {

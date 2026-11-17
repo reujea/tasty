@@ -257,6 +257,7 @@ pub fn on_close_approval_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.approval_comment_buffer.clear();
     if !state.dialogs.pending_approval_ids.is_empty() {
@@ -277,6 +278,7 @@ pub fn draw_approval_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let Some(current_id) = state.dialogs.pending_approval_ids.front().cloned() else {
         return PopupAction::Close;
@@ -306,7 +308,7 @@ pub fn draw_approval_popup(
     let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(inner_rect));
     let ui = &mut child_ui;
 
-    let keyboard_focused = state.popup_keyboard_focus.contains(&APPROVAL_POPUP_ID);
+    let keyboard_focused = cx.focused;
     let mut props = props_from_record(
         &record,
         &mut state.dialogs.approval_comment_buffer,

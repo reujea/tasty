@@ -231,12 +231,15 @@ impl MainView {
             // 설정 요청과 알림을 먼저 처리한 뒤, 포커스된 팝업 하나의 포커스를 해제한다.
             // 바깥 클릭과 같이 close_on_outside_click인 팝업만 닫는다.
             // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
-            if let Some((id, closes)) = self.state.popups.focused_dismissal_target() {
-                self.state.popups.set_focused(id, false);
+            if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {
+                self.state.popups.set_instance_focused(instance, false);
                 if closes {
                     self.state.dispatch_intent(
-                        crate::intent::UiIntent::ClosePopup { id }
-                            .from_user_shortcut("escape_dismiss_focused_popup"),
+                        crate::intent::UiIntent::CloseInstance {
+                            instance,
+                            reason: crate::adapters::ui::popup::PopupCloseReason::Escape,
+                        }
+                        .from_user_shortcut("escape_dismiss_focused_popup"),
                     );
                 }
                 self.mark_dirty();

@@ -760,6 +760,16 @@ pub enum PopupCloseReason {
     PluginRequest,
     /// 호스트 측에서 강제 닫힘 (plugin disable / unload 등).
     HostShutdown,
+    /// 사용자가 제목줄의 닫기 버튼을 눌렀음. host 팝업에서만 나온다.
+    CloseButton,
+    /// 팝업 콘텐츠가 스스로 닫았음(확인·취소 버튼 등). host 팝업에서만 나온다.
+    Content,
+    /// 단축키·명령·IPC 같은 팝업 밖 요청으로 닫혔음. host 팝업에서만 나온다.
+    Command,
+    /// 범위 대상이나 작용 대상이 사라졌음. host 팝업에서만 나온다.
+    TargetGone,
+    /// 부모 팝업이 닫혀 함께 닫혔음. host 팝업에서만 나온다.
+    ParentClosed,
 }
 
 // ── Banner wire types (A3) ──

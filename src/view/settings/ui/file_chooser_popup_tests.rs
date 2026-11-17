@@ -50,7 +50,7 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
             let result = st.popups.draw(
                 ctx,
                 &mut |id, ui| {
-                    if id == file_chooser::FILE_CHOOSER_POPUP_ID {
+                    if id.id == file_chooser::FILE_CHOOSER_POPUP_ID {
                         done |= chooser.draw(ui, &th, true);
                     }
                 },
@@ -89,7 +89,7 @@ fn the_settings_chooser_has_no_shell_title_bar() {
         st.popups.draw(
             ctx,
             &mut |id, ui| {
-                if id == file_chooser::FILE_CHOOSER_POPUP_ID {
+                if id.id == file_chooser::FILE_CHOOSER_POPUP_ID {
                     chooser.draw(ui, &th, true);
                 }
             },

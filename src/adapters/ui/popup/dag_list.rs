@@ -242,6 +242,7 @@ pub fn draw_dag_list_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let active_workspace_id = engine
         .workspace_at(state.active_workspace_index(engine))
@@ -634,6 +635,7 @@ pub fn on_close_dag_list_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
     state.dialogs.dag_list = DagListState::default();
 }

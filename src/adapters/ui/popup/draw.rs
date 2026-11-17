@@ -7,8 +7,8 @@ use tasty_ui_widgets::elide_popup_title as elide_for_width;
 
 use super::occlusion::{Occluder, PointOwnership, point_ownership};
 use super::{
-    PopupDrawResult, PopupId, PopupManager, PopupScope, PopupShadow, PopupShell, ResizeEdges,
-    ScrimInput,
+    PopupCloseReason, PopupCx, PopupDrawResult, PopupId, PopupInstanceId, PopupManager, PopupScope,
+    PopupShadow, PopupShell, ResizeEdges, ScrimInput,
 };
 
 /// 리사이즈 테두리 밴드 폭(px). popup_rect 가장자리 안쪽 이 폭 안에서 누르면 리사이즈.
@@ -147,14 +147,14 @@ impl PopupManager {
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
-        content_fn: &mut dyn FnMut(&str, &mut egui::Ui),
+        content_fn: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui),
         draw_ctx: Option<&LayoutContext>,
         plugin_occluders: &[Occluder],
     ) -> PopupDrawResult {
         let th = theme::theme();
         let screen_rect = ctx.screen_rect();
-        let mut closed: Vec<PopupId> = Vec::new();
-        let mut bring_front: Option<PopupId> = None;
+        let mut closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
+        let mut bring_front: Option<PopupInstanceId> = None;
         let mut fullscreen_requested: Option<crate::adapters::ui::fullscreen::StageId> = None;
         let mut layers: Vec<egui::LayerId> = Vec::new();
         let mut overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget> = Vec::new();
@@ -163,6 +163,14 @@ impl PopupManager {
         let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_released = ctx.input(|i| i.pointer.any_released());
+
+        // 그리기 함수가 보는 포커스는 이번 프레임의 클릭을 반영하기 전 값이다.
+        let focused_at_start: Vec<PopupInstanceId> = self
+            .popups
+            .iter()
+            .filter(|p| p.open && p.scope_visible && p.focused)
+            .map(|p| p.instance)
+            .collect();
 
         // Hidden scopes retain focus intent, but cannot hold the keyboard gate or
         // continue a pointer gesture started before the scope disappeared.
@@ -193,12 +201,14 @@ impl PopupManager {
             .collect();
 
         // 입력 우선순위: 닫기·전체화면 버튼 > 리사이즈 테두리 > 이동 손잡이 > 콘텐츠.
-        let mut hovered_popup: Option<PopupId> = None;
-        let mut hovered_handle: Option<PopupId> = None;
-        let mut hovered_close: Option<PopupId> = None;
-        let mut hovered_fullscreen: Option<(PopupId, crate::adapters::ui::fullscreen::StageId)> =
-            None;
-        let mut hovered_resize: Option<(PopupId, ResizeEdges)> = None;
+        let mut hovered_popup: Option<PopupInstanceId> = None;
+        let mut hovered_handle: Option<PopupInstanceId> = None;
+        let mut hovered_close: Option<PopupInstanceId> = None;
+        let mut hovered_fullscreen: Option<(
+            PopupInstanceId,
+            crate::adapters::ui::fullscreen::StageId,
+        )> = None;
+        let mut hovered_resize: Option<(PopupInstanceId, ResizeEdges)> = None;
         if let Some(pos) = pointer_pos {
             for &idx in open_indices.iter().rev() {
                 let popup = &self.popups[idx];
@@ -211,27 +221,27 @@ impl PopupManager {
                     continue;
                 }
                 if rect.contains(pos) {
-                    hovered_popup = Some(popup.id);
+                    hovered_popup = Some(popup.instance);
                     if !popup.headless && popup.close_btn_rect().contains(pos) {
-                        hovered_close = Some(popup.id);
+                        hovered_close = Some(popup.instance);
                     } else if let Some((fs_rect, stage)) =
                         popup.fullscreen_btn_rect().zip(popup.fullscreen_stage)
                         && fs_rect.contains(pos)
                     {
-                        hovered_fullscreen = Some((popup.id, stage));
+                        hovered_fullscreen = Some((popup.instance, stage));
                     } else if popup.resizable
                         && let Some(edges) = resize_edges_at(rect, pos, RESIZE_BAND.value())
                     {
-                        hovered_resize = Some((popup.id, edges));
+                        hovered_resize = Some((popup.instance, edges));
                     } else if let Some(handle) = popup.effective_drag_handle_rect(ctx)
                         && handle.contains(pos)
                     {
-                        hovered_handle = Some(popup.id);
+                        hovered_handle = Some(popup.instance);
                     }
                     break; // topmost popup wins
                 } else if super::child_overlay_hit(ctx, popup.id, pos) {
                     // 부모 밖으로 나온 자식 드롭다운도 안쪽 클릭으로 취급한다.
-                    hovered_popup = Some(popup.id);
+                    hovered_popup = Some(popup.instance);
                     break;
                 }
             }
@@ -246,23 +256,23 @@ impl PopupManager {
                 (popup.look.scrim_input == ScrimInput::TakesPointer
                     && Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx)
                         .is_some_and(|r| r.contains(pos)))
-                .then_some(popup.id)
+                .then_some(popup.instance)
             });
         }
 
         // 닫기·포커스·맨 앞으로 올리기를 먼저 처리한다. 이동·리사이즈 시작은
         // 콘텐츠를 그린 뒤 위젯이 포인터를 사용했는지 확인하고 결정한다.
         if primary_pressed {
-            if let Some(id) = hovered_close {
-                closed.push(id);
+            if let Some(iid) = hovered_close {
+                closed.push((iid, PopupCloseReason::CloseButton));
             } else if let Some((_, stage)) = hovered_fullscreen {
                 // 무대는 별도 콘텐츠이므로 원본 팝업은 닫지 않는다.
                 fullscreen_requested = Some(stage);
-            } else if let Some(id) = hovered_popup {
-                bring_front = Some(id);
+            } else if let Some(iid) = hovered_popup {
+                bring_front = Some(iid);
                 for popup in &mut self.popups {
                     if popup.scope_visible {
-                        popup.focused = popup.id == id;
+                        popup.focused = popup.open && popup.instance == iid;
                         popup.passive &= !popup.focused;
                     }
                 }
@@ -284,7 +294,7 @@ impl PopupManager {
                         continue;
                     }
                     if popup.open && popup.close_on_outside_click {
-                        closed.push(popup.id);
+                        closed.push((popup.instance, PopupCloseReason::OutsideClick));
                     }
                     // sticky_focus popups keep keyboard focus when clicking outside.
                     if !popup.sticky_focus {
@@ -414,7 +424,7 @@ impl PopupManager {
         // 상위 팝업의 넓은 scrim이 하위 scrim을 덮을 수 있어 렌더링 전에 범위를 고른다.
         let scrim_candidates: Vec<(usize, egui::Rect)> = open_indices
             .iter()
-            .filter(|&&i| !closed.contains(&self.popups[i].id))
+            .filter(|&&i| !closed.iter().any(|(c, _)| *c == self.popups[i].instance))
             .filter(|&&i| self.popups[i].look.covers_scope)
             .map(|&i| {
                 (
@@ -433,9 +443,9 @@ impl PopupManager {
 
         // 불투명 모드 WebView 페이지(직전 동기화 값). 비어 있으면 모든 팝업이 원래 모양이다.
         let pages = tasty_egui_theme::overlay_edge::opaque_pages(ctx);
-        for (z_idx, &popup_idx) in open_indices.iter().enumerate() {
+        for &popup_idx in &open_indices {
             let popup = &mut self.popups[popup_idx];
-            if closed.contains(&popup.id) {
+            if closed.iter().any(|(c, _)| *c == popup.instance) {
                 continue;
             }
 
@@ -449,14 +459,14 @@ impl PopupManager {
             popup.clamp_to_screen(clamp_rect);
 
             let popup_id = popup.id;
+            let popup_iid = popup.instance;
             let is_headless = popup.headless;
             let popup_rect = popup.popup_rect();
             let content_rect = popup.content_rect();
 
-            let layer_id = egui::LayerId::new(
-                egui::Order::Foreground,
-                egui::Id::new("popup").with(popup_id).with(z_idx),
-            );
+            // 레이어·Area ID는 인스턴스로 정한다. 순서가 바뀌어도 스크롤·커서 같은 egui 상태가 따라간다.
+            let layer_id =
+                egui::LayerId::new(egui::Order::Foreground, area_id_of(popup_id, popup_iid));
             layers.push(layer_id);
 
             // 그림자가 이웃 영역까지 어둡게 하지 않도록 팝업 소속 범위로 자른다.
@@ -554,7 +564,7 @@ impl PopupManager {
                 // 잘린 제목만 호버 시 전체 제목을 보여 준다. 끌어 옮기는 중에는 띄우지 않는다.
                 if elided_title != popup.title {
                     let tip_id = egui::Id::new("popup.title_tooltip").with(popup_id);
-                    let band_hovered = hovered_popup == Some(popup_id)
+                    let band_hovered = hovered_popup == Some(popup_iid)
                         && !primary_down
                         && pointer_pos.is_some_and(|p| title_avail_rect.contains(p));
                     if tasty_ui_widgets::tooltip_hover_delay_elapsed(ctx, &th, tip_id, band_hovered)
@@ -570,7 +580,7 @@ impl PopupManager {
                 }
 
                 if let Some(rect) = fullscreen_btn_rect {
-                    let hovered = matches!(hovered_fullscreen, Some((id, _)) if id == popup_id);
+                    let hovered = matches!(hovered_fullscreen, Some((iid, _)) if iid == popup_iid);
                     title_icon_button(
                         ctx,
                         &painter,
@@ -598,7 +608,7 @@ impl PopupManager {
                     &th,
                     close_btn_rect,
                     crate::adapters::ui::icons::CLOSE,
-                    hovered_close == Some(popup_id),
+                    hovered_close == Some(popup_iid),
                     primary_down,
                 );
             }
@@ -606,8 +616,7 @@ impl PopupManager {
             // egui가 스크롤·호버 영역으로 인식하도록 같은 layer ID의 Area에 콘텐츠를 그린다.
             // 이동은 이 매니저가 처리하고 내부 위젯에는 클릭·드래그를 남긴다.
             {
-                let area_id = egui::Id::new("popup").with(popup_id).with(z_idx);
-                egui::Area::new(area_id)
+                egui::Area::new(layer_id.id)
                     .order(egui::Order::Foreground)
                     .fixed_pos(content_rect.min)
                     .movable(false)
@@ -627,7 +636,15 @@ impl PopupManager {
                         tasty_egui_theme::overlay_edge::with_opaque_parent(
                             ctx,
                             edge.opaque,
-                            || content_fn(popup_id, ui),
+                            || {
+                                let mut cx = PopupCx {
+                                    id: popup.id,
+                                    instance: popup.instance,
+                                    focused: focused_at_start.contains(&popup.instance),
+                                    payload: &mut popup.payload,
+                                };
+                                content_fn(&mut cx, ui)
+                            },
                         );
                     });
             }
@@ -636,13 +653,13 @@ impl PopupManager {
         // 콘텐츠 위젯이 포인터를 사용하지 않았을 때만 리사이즈·이동을 시작한다.
         // 수동 드래그는 egui 위젯이 아니므로 is_using_pointer를 스스로 설정하지 않는다.
         if primary_pressed && !ctx.is_using_pointer() {
-            if let Some((id, edges)) = hovered_resize {
-                if let Some(popup) = self.popups.iter_mut().find(|p| p.id == id) {
+            if let Some((iid, edges)) = hovered_resize {
+                if let Some(popup) = self.instance_mut(iid) {
                     popup.resizing = Some(edges);
                     popup.resize_start_rect = popup.popup_rect();
                 }
-            } else if let Some(id) = hovered_handle
-                && let Some(popup) = self.popups.iter_mut().find(|p| p.id == id)
+            } else if let Some(iid) = hovered_handle
+                && let Some(popup) = self.instance_mut(iid)
             {
                 popup.dragging = true;
                 if let Some(pos) = pointer_pos {
@@ -651,16 +668,22 @@ impl PopupManager {
             }
         }
 
-        for id in &closed {
-            self.close(id);
+        restack_layers(ctx, &layers);
+
+        let mut closed_ids = Vec::with_capacity(closed.len());
+        for (iid, reason) in closed {
+            if let Some(p) = self.instance(iid) {
+                closed_ids.push(p.id);
+            }
+            self.close_instance(iid, reason);
         }
 
-        if let Some(id) = bring_front {
-            self.bring_to_front(id);
+        if let Some(iid) = bring_front {
+            self.bring_to_front(iid);
         }
 
         PopupDrawResult {
-            closed,
+            closed: closed_ids,
             hovered: hovered_popup.is_some(),
             layers,
             fullscreen_requested,
@@ -670,12 +693,15 @@ impl PopupManager {
     }
 
     /// 현재 그릴 팝업 중 z가 가장 높은 것을 찾는다. Escape 처리 대상을 정할 때 쓴다.
-    pub fn topmost_visible_open(&self, draw_ctx: Option<&LayoutContext>) -> Option<(PopupId, u64)> {
+    pub fn topmost_visible_open(
+        &self,
+        draw_ctx: Option<&LayoutContext>,
+    ) -> Option<(PopupId, PopupInstanceId, u64)> {
         self.popups
             .iter()
             .filter(|p| p.open && Self::is_scope_visible(&p.scope, draw_ctx))
             .max_by_key(|p| p.z_seq)
-            .map(|p| (p.id, p.z_seq))
+            .map(|p| (p.id, p.instance, p.z_seq))
     }
 
     pub(crate) fn is_scope_visible(scope: &PopupScope, ctx: Option<&LayoutContext>) -> bool {
@@ -780,6 +806,49 @@ impl PopupManager {
         paints
     }
 }
+
+/// 팝업 인스턴스의 egui 레이어·Area ID.
+fn area_id_of(popup_id: PopupId, instance: PopupInstanceId) -> egui::Id {
+    egui::Id::new("popup").with(popup_id).with(instance.0)
+}
+
+/// egui는 새로 보이거나 눌린 영역만 맨 위로 올리고, 올린 영역끼리는 기존 순서를 지킨다. 매니저가 순서를 바꾼
+/// 프레임에는 직전 순서에서 제자리를 벗어난 레이어만 올려 그린 순서(아래에서 위)에 맞춘다. 순서가 그대로인
+/// 프레임에는 건드리지 않아 팝업 안에서 연 드롭다운이 아래로 내려가지 않는다. 한 번에 맞출 수 없는 순서는
+/// 다음 프레임에 이어서 맞춘다.
+fn restack_layers(ctx: &egui::Context, layers: &[egui::LayerId]) {
+    let key = egui::Id::new("popup.layer_order");
+    let last: Vec<egui::LayerId> = ctx.data(|d| d.get_temp(key)).unwrap_or_default();
+    // 직전 순서에서 사라진 레이어를 빼고, 처음 보이는 레이어는 egui가 맨 위에 둔다.
+    let fresh: Vec<egui::LayerId> = layers
+        .iter()
+        .filter(|l| !last.contains(l))
+        .copied()
+        .collect();
+    let mut now: Vec<egui::LayerId> = last.into_iter().filter(|l| layers.contains(l)).collect();
+    now.extend(&fresh);
+    let mut lifted = Vec::new();
+    let mut highest_kept: Option<usize> = None;
+    for layer in layers {
+        let at = now.iter().position(|l| l == layer).unwrap_or(now.len());
+        if highest_kept.is_none_or(|top| at > top) {
+            highest_kept = Some(at);
+        } else {
+            lifted.push(*layer);
+        }
+    }
+    for layer in &lifted {
+        ctx.move_to_top(*layer);
+    }
+    let raised = |l: &egui::LayerId| lifted.contains(l) || fresh.contains(l);
+    let mut next: Vec<egui::LayerId> = now.iter().filter(|l| !raised(l)).copied().collect();
+    next.extend(now.iter().filter(|l| raised(l)));
+    ctx.data_mut(|d| d.insert_temp(key, next));
+}
+
+#[cfg(test)]
+#[path = "area_id_tests.rs"]
+mod area_id_tests;
 
 #[cfg(test)]
 mod tests {

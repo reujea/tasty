@@ -272,6 +272,11 @@ fn popup_close_reason_serializes_snake_case() {
         (PopupCloseReason::Escape, "escape"),
         (PopupCloseReason::PluginRequest, "plugin_request"),
         (PopupCloseReason::HostShutdown, "host_shutdown"),
+        (PopupCloseReason::CloseButton, "close_button"),
+        (PopupCloseReason::Content, "content"),
+        (PopupCloseReason::Command, "command"),
+        (PopupCloseReason::TargetGone, "target_gone"),
+        (PopupCloseReason::ParentClosed, "parent_closed"),
     ];
     for (r, expected) in cases {
         let s = serde_json::to_string(&r).unwrap();

@@ -15,12 +15,16 @@ pub(crate) mod file_picker;
 pub(crate) mod frame;
 pub(crate) mod occlusion;
 pub(crate) mod port_scanner;
+pub(crate) mod port_scanner_close;
 pub(crate) mod preset_apply;
 pub(crate) mod rail_category;
 pub(crate) mod remote_attach;
 pub(crate) mod remote_row;
 pub(crate) mod remote_tool;
 // 이유: 범위 경로는 입력 경로를 옮기는 다음 단계부터 쓰인다. 지금은 시험만 부른다.
+#[cfg(test)]
+#[path = "popup/focus_owner_tests.rs"]
+mod focus_owner_tests;
 #[cfg_attr(
     not(test),
     expect(dead_code, reason = "input routing adopts scope paths in a later step")
@@ -39,6 +43,7 @@ use tasty_type_geometry::length::LogicalPx;
 // 새 팝업은 popup::defs의 all_defs()에 등록한다.
 
 pub use crate::model::popup_kind::{PopupId, PopupScope};
+pub use tasty_plugin_protocol::PopupCloseReason;
 pub use tasty_plugin_protocol::popup_decl::{
     PopupAnchor, PopupChrome, PopupContentMargin, PopupDecl, PopupDragHandle, PopupEscape,
     PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupScopeKind, PopupShadow,
@@ -117,12 +122,82 @@ impl PopupLook {
     }
 }
 
+/// 열린 팝업 인스턴스의 식별자. 같은 선언으로 연 인스턴스끼리도 다르다.
+///
+/// host·plugin 팝업 공용 순번(`next_popup_z_seq`)에서 받는다. 닫았다 다시 열면 새 값이다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PopupInstanceId(pub u64);
+
+impl PopupInstanceId {
+    /// 아직 열리지 않은 등록 원본의 값.
+    pub const NONE: Self = Self(0);
+
+    fn next() -> Self {
+        Self(tasty_host_plugin::next_popup_z_seq())
+    }
+}
+
+/// 인스턴스가 가진 팝업 데이터. 닫으면 함께 사라진다.
+///
+/// 아직 옮기지 않은 팝업의 데이터는 `DialogState`·`MainViewState`에 있다. 그 팝업의 인스턴스 값은 `None`이다.
+#[derive(Debug, Clone, Default)]
+pub enum PopupPayload {
+    #[default]
+    None,
+}
+
+/// 그리기 함수가 받는 인스턴스 문맥.
+pub struct PopupCx<'a> {
+    pub id: PopupId,
+    pub instance: PopupInstanceId,
+    /// 이 인스턴스가 이번 프레임을 시작할 때 키보드 포커스를 가졌는지.
+    pub focused: bool,
+    /// 인스턴스 데이터.
+    #[expect(dead_code, reason = "no popup keeps its data in the instance yet")]
+    pub payload: &'a mut PopupPayload,
+}
+
+#[cfg(test)]
+impl PopupCx<'static> {
+    /// 시험용: 정의 밖에서 그리기 함수를 직접 부를 때의 문맥. 포커스는 없다.
+    pub fn test(id: PopupId) -> Self {
+        Self {
+            id,
+            instance: PopupInstanceId::NONE,
+            focused: false,
+            payload: Box::leak(Box::new(PopupPayload::None)),
+        }
+    }
+}
+
+#[cfg(test)]
+impl ClosedPopup {
+    /// 시험용: 닫기 훅을 직접 부를 때의 값. 사유는 팝업 밖 요청이다.
+    pub fn test(id: PopupId) -> Self {
+        Self {
+            id,
+            instance: PopupInstanceId::NONE,
+            reason: PopupCloseReason::Command,
+        }
+    }
+}
+
+/// 닫힌 인스턴스. 닫기 훅이 사유와 데이터를 함께 받는다.
+#[derive(Debug, Clone)]
+pub struct ClosedPopup {
+    pub id: PopupId,
+    pub instance: PopupInstanceId,
+    pub reason: PopupCloseReason,
+}
+
 /// Result of a popup's draw call.
 pub enum PopupAction {
     /// No action needed.
     None,
     /// The popup requests to be closed.
     Close,
+    /// 사유를 붙여 닫는다. 콘텐츠가 Esc를 직접 처리하는 팝업이 쓴다.
+    CloseBy(PopupCloseReason),
     /// Keep the popup open and return keyboard input to its surface.
     ReleaseFocus,
 }
@@ -198,22 +273,37 @@ pub struct PopupDef {
         &mut egui::Ui,
         &mut MainViewState,
         &crate::runtime::engine_read::EngineRead<'_>,
+        &mut PopupCx<'_>,
     ) -> PopupAction,
     /// 전체화면 버튼으로 열 무대 ID. None이거나 headless면 버튼이 없다.
     /// 무대는 별도 콘텐츠이며 원본 팝업은 열린 채 그 아래 남는다.
     pub fullscreen_stage: Option<crate::adapters::ui::fullscreen::StageId>,
     /// 열린 팝업이 close()를 통해 닫히면 closed_queue에 기록하고 frame에서 훅을 호출한다.
     /// egui 임시 상태를 지울 수 있도록 Context를 받는다.
-    pub on_close: Option<
-        fn(&egui::Context, &mut MainViewState, &crate::runtime::engine_read::EngineRead<'_>),
-    >,
+    pub on_close: Option<PopupCloseHook>,
 }
+
+/// 닫기 훅. 닫힌 인스턴스의 사유와 데이터를 받는다.
+pub type PopupCloseHook = fn(
+    &egui::Context,
+    &mut MainViewState,
+    &crate::runtime::engine_read::EngineRead<'_>,
+    &ClosedPopup,
+);
 
 /// State for a single popup instance.
 #[derive(Debug, Clone)]
 pub struct PopupState {
-    /// Unique identifier.
+    /// 선언 id. 같은 선언의 인스턴스끼리 같다.
     pub id: PopupId,
+    /// 열린 인스턴스의 식별자. 닫힌 등록 원본은 `PopupInstanceId::NONE`이다.
+    pub instance: PopupInstanceId,
+    /// 같은 선언으로 인스턴스를 몇 개 여는지.
+    instances: PopupInstances,
+    /// 이 인스턴스를 연 부모 팝업. 부모가 닫히면 함께 닫힌다.
+    pub parent: Option<PopupInstanceId>,
+    /// 인스턴스 데이터. 닫으면 비운다.
+    pub payload: PopupPayload,
     /// Title text displayed in the title bar.
     pub title: String,
     /// Whether the popup is open (a hidden scope does not close it).
@@ -395,6 +485,10 @@ impl PopupState {
     ) -> Self {
         Self {
             id,
+            instance: PopupInstanceId::NONE,
+            instances: PopupInstances::Single,
+            parent: None,
+            payload: PopupPayload::None,
             title: title.into(),
             open: false,
             scope_visible: true,
@@ -451,7 +545,15 @@ impl PopupState {
             .with_resizable(decl.resizable)
             .with_min_size(decl.min_size.map_or(size, vec2_of));
         popup.look = PopupLook::of(decl, scrim_input);
+        popup.instances = decl.instances;
         popup
+    }
+
+    /// 같은 선언으로 인스턴스를 몇 개 여는지 정한다.
+    #[cfg(test)]
+    pub fn with_instances(mut self, v: PopupInstances) -> Self {
+        self.instances = v;
+        self
     }
 
     /// Set whether clicking outside this popup should close it.
@@ -497,6 +599,20 @@ impl PopupState {
     ) -> Self {
         self.fullscreen_stage = stage;
         self
+    }
+
+    /// 닫힌 상태로 되돌린다. 위치·크기와 선언 값은 남긴다.
+    fn reset_closed(&mut self) {
+        self.open = false;
+        self.dragging = false;
+        self.focused = false;
+        self.passive = false;
+        // 리사이즈 상태 리셋 → 다음 open 시 sizer 가 크기를 다시 결정하도록 복원.
+        self.resizing = None;
+        self.size_user_overridden = false;
+        self.instance = PopupInstanceId::NONE;
+        self.parent = None;
+        self.payload = PopupPayload::None;
     }
 
     fn popup_rect(&self) -> egui::Rect {
@@ -612,13 +728,17 @@ impl PopupState {
     }
 }
 
-/// Manager for all internal popups. Handles z-ordering, dragging, and window clamping.
+/// 창 하나의 host 팝업 관리자. 인스턴스의 z 순서, 이동, 범위 안 제한을 맡는다.
+///
+/// 목록에는 열린 인스턴스와, 선언마다 많아야 하나인 닫힌 등록 원본이 함께 있다. 열린 인스턴스가
+/// 없는 선언은 원본이 남아 다음 인스턴스의 처음 위치·크기가 된다. 같은 선언에 다른 항목이 있을 때
+/// 닫힌 인스턴스는 목록에서 빠진다.
 pub struct PopupManager {
-    /// Popups in z-order (last = topmost).
+    /// z 순서(마지막이 맨 위).
     popups: Vec<PopupState>,
-    /// `close()` 로 실제로 닫힌(= 그 호출 직전엔 열려 있던) popup id 대기열.
+    /// 실제로 닫힌(그 직전엔 열려 있던) 인스턴스 대기열.
     /// `on_close` 훅 drain 이 프레임당 1회 `take_closed_queue()` 로 비운다.
-    closed_queue: Vec<PopupId>,
+    closed_queue: Vec<ClosedPopup>,
 }
 
 impl PopupManager {
@@ -659,91 +779,184 @@ impl PopupManager {
         }
     }
 
+    /// 열 요청이 쓸 항목을 인스턴스 정책으로 고른다. 없으면 같은 선언의 항목을 본떠 만든다.
+    fn slot_for_open(&mut self, id: PopupId, scope: &PopupScope) -> Option<usize> {
+        let policy = self.popups.iter().find(|p| p.id == id)?.instances;
+        let open_same_scope = || {
+            self.popups
+                .iter()
+                .position(|p| p.id == id && p.open && p.scope == *scope)
+        };
+        let closed = || self.popups.iter().position(|p| p.id == id && !p.open);
+        let found = match policy {
+            PopupInstances::Single | PopupInstances::Queue => self
+                .popups
+                .iter()
+                .position(|p| p.id == id && p.open)
+                .or_else(closed),
+            PopupInstances::PerScopeTarget => open_same_scope().or_else(closed),
+            PopupInstances::Multi => closed(),
+        };
+        if found.is_some() {
+            return found;
+        }
+        let base = self.popups.iter().rposition(|p| p.id == id)?;
+        let mut fresh = self.popups[base].clone();
+        fresh.reset_closed();
+        fresh.request_center = false;
+        fresh.request_top = false;
+        self.popups.push(fresh);
+        Some(self.popups.len() - 1)
+    }
+
+    /// 항목을 열고 범위를 정해 맨 앞으로 올린다. 닫혀 있던 항목은 새 인스턴스 id를 받는다.
+    /// 올린 뒤의 위치(맨 끝)를 돌려준다.
+    fn raise_open(&mut self, i: usize, scope: PopupScope) -> usize {
+        let p = &mut self.popups[i];
+        if !p.open {
+            p.open = true;
+            p.instance = PopupInstanceId::next();
+        }
+        p.scope = scope;
+        p.z_seq = tasty_host_plugin::next_popup_z_seq();
+        let popup = self.popups.remove(i);
+        self.popups.push(popup);
+        self.popups.len() - 1
+    }
+
+    /// 인스턴스 정책에 따라 열 항목을 골라 맨 앞으로 연다. 선언이 등록되지 않았으면 `None`이다.
+    fn open_slot(&mut self, id: PopupId, scope: PopupScope) -> Option<&mut PopupState> {
+        let i = self.slot_for_open(id, &scope)?;
+        let i = self.raise_open(i, scope);
+        Some(&mut self.popups[i])
+    }
+
     /// 팝업을 맨 앞으로 열고 범위를 정한다. 위치와 포커스는 바꾸지 않는다.
     /// 모든 열기 함수가 범위를 받는다. 등록 값이나 직전에 열렸을 때의 범위를 쓰지 않는다.
-    pub fn open(&mut self, id: PopupId, scope: PopupScope) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
-            self.popups[i].open = true;
-            self.popups[i].scope = scope;
-            self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
-            let popup = self.popups.remove(i);
-            self.popups.push(popup);
-        }
+    pub fn open(&mut self, id: PopupId, scope: PopupScope) -> Option<PopupInstanceId> {
+        self.open_slot(id, scope).map(|p| p.instance)
     }
 
     /// 범위의 중앙에 열고 포커스를 준다.
-    pub fn open_centered_focused(&mut self, id: PopupId, scope: PopupScope) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
-            self.popups[i].open = true;
-            self.popups[i].focused = true;
-            self.popups[i].passive = false;
-            self.popups[i].request_center = true;
-            self.popups[i].scope = scope;
-            self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
-            let popup = self.popups.remove(i);
-            self.popups.push(popup);
-        }
+    pub fn open_centered_focused(
+        &mut self,
+        id: PopupId,
+        scope: PopupScope,
+    ) -> Option<PopupInstanceId> {
+        let p = self.open_slot(id, scope)?;
+        p.focused = true;
+        p.passive = false;
+        p.request_center = true;
+        Some(p.instance)
     }
 
     /// 범위의 중앙에 포커스 **없이** 연다(에이전트·시스템 요청).
     /// 사용자의 포커스를 훔치지 않는다. CLI/IPC 경유 open에 사용.
-    pub fn open_centered(&mut self, id: PopupId, scope: PopupScope) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
-            self.popups[i].open = true;
-            self.popups[i].focused = false;
-            self.popups[i].request_center = true;
-            self.popups[i].scope = scope;
-            self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
-            let popup = self.popups.remove(i);
-            self.popups.push(popup);
-        }
+    pub fn open_centered(&mut self, id: PopupId, scope: PopupScope) -> Option<PopupInstanceId> {
+        let p = self.open_slot(id, scope)?;
+        p.focused = false;
+        p.request_center = true;
+        Some(p.instance)
     }
 
     /// Open a popup at the top of a specific scope, with focus.
     /// scope rect의 상단에 가로 중앙 정렬로 배치한다.
-    pub fn open_at_top_of_scope(&mut self, id: PopupId, scope: PopupScope) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
-            self.popups[i].open = true;
-            self.popups[i].focused = true;
-            self.popups[i].passive = false;
-            self.popups[i].request_center = false;
-            self.popups[i].request_top = true;
-            self.popups[i].scope = scope;
-            self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
-            let popup = self.popups.remove(i);
-            self.popups.push(popup);
-        }
+    pub fn open_at_top_of_scope(
+        &mut self,
+        id: PopupId,
+        scope: PopupScope,
+    ) -> Option<PopupInstanceId> {
+        let p = self.open_slot(id, scope)?;
+        p.focused = true;
+        p.passive = false;
+        p.request_center = false;
+        p.request_top = true;
+        Some(p.instance)
     }
 
     /// 지정한 위치에 열고 포커스를 준다.
-    pub fn open_at_focused(&mut self, id: PopupId, scope: PopupScope, pos: egui::Pos2) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
-            self.popups[i].open = true;
-            self.popups[i].focused = true;
-            self.popups[i].passive = false;
-            self.popups[i].pos = pos;
-            self.popups[i].request_center = false;
-            self.popups[i].scope = scope;
-            self.popups[i].z_seq = tasty_host_plugin::next_popup_z_seq();
-            let popup = self.popups.remove(i);
-            self.popups.push(popup);
+    pub fn open_at_focused(
+        &mut self,
+        id: PopupId,
+        scope: PopupScope,
+        pos: egui::Pos2,
+    ) -> Option<PopupInstanceId> {
+        let p = self.open_slot(id, scope)?;
+        p.focused = true;
+        p.passive = false;
+        p.pos = pos;
+        p.request_center = false;
+        Some(p.instance)
+    }
+
+    /// 열린 인스턴스를 닫는다. `record`이면 closed_queue에 사유와 데이터를 남긴다.
+    /// 같은 선언의 다른 항목이 있으면 목록에서 빼고, 없으면 닫힌 원본으로 남긴다.
+    /// 이 인스턴스를 부모로 둔 자식도 함께 닫는다.
+    fn close_at(&mut self, i: usize, reason: PopupCloseReason, record: bool) {
+        let p = &mut self.popups[i];
+        if !p.open {
+            return;
+        }
+        let closed = ClosedPopup {
+            id: p.id,
+            instance: p.instance,
+            reason,
+        };
+        p.reset_closed();
+        let id = closed.id;
+        let iid = closed.instance;
+        if record {
+            self.closed_queue.push(closed);
+        }
+        let has_other = self
+            .popups
+            .iter()
+            .enumerate()
+            .any(|(j, q)| j != i && q.id == id);
+        if has_other {
+            self.popups.remove(i);
+        }
+        let children: Vec<PopupInstanceId> = self
+            .popups
+            .iter()
+            .filter(|q| q.open && q.parent == Some(iid))
+            .map(|q| q.instance)
+            .collect();
+        for child in children {
+            self.close_instance_with(child, PopupCloseReason::ParentClosed, record);
         }
     }
 
-    /// 열린 팝업을 닫고 closed_queue에 기록한다. 이미 닫혔으면 중복 기록하지 않는다.
+    fn close_instance_with(
+        &mut self,
+        iid: PopupInstanceId,
+        reason: PopupCloseReason,
+        record: bool,
+    ) {
+        if let Some(i) = self.index_of(iid) {
+            self.close_at(i, reason, record);
+        }
+    }
+
+    fn index_of(&self, iid: PopupInstanceId) -> Option<usize> {
+        self.popups.iter().position(|p| p.open && p.instance == iid)
+    }
+
+    /// 열린 인스턴스 하나를 사유와 함께 닫는다. 이미 닫혔으면 아무 일도 하지 않는다.
+    pub fn close_instance(&mut self, iid: PopupInstanceId, reason: PopupCloseReason) {
+        self.close_instance_with(iid, reason, true);
+    }
+
+    /// 이 선언의 열린 인스턴스를 모두 닫는다. 사유는 팝업 밖 요청(`Command`)이다.
     pub fn close(&mut self, id: PopupId) {
-        if let Some(p) = self.popups.iter_mut().find(|p| p.id == id) {
-            let was_open = p.open;
-            p.open = false;
-            p.dragging = false;
-            p.focused = false;
-            p.passive = false;
-            // 리사이즈 상태 리셋 → 다음 open 시 sizer 가 크기를 다시 결정하도록 복원.
-            p.resizing = None;
-            p.size_user_overridden = false;
-            if was_open {
-                self.closed_queue.push(id);
-            }
+        self.close_with(id, PopupCloseReason::Command);
+    }
+
+    /// 이 선언의 열린 인스턴스를 모두 사유와 함께 닫는다.
+    pub fn close_with(&mut self, id: PopupId, reason: PopupCloseReason) {
+        let open: Vec<PopupInstanceId> = self.instances_of(id).map(|p| p.instance).collect();
+        for iid in open {
+            self.close_instance(iid, reason);
         }
     }
 
@@ -759,20 +972,25 @@ impl PopupManager {
     /// 범위 대상이 사라진 열린 팝업을 닫는다. ID 범위는 어떤 화면과도 다시 맞지 않아 열린 채 숨기 때문이다.
     /// 닫힌 팝업은 closed_queue에 들어가 on_close 훅이 이어진다.
     pub fn close_scope_orphans(&mut self, target_exists: impl Fn(&PopupScope) -> bool) {
-        let orphans: Vec<PopupId> = self
+        let orphans: Vec<PopupInstanceId> = self
             .popups
             .iter()
             .filter(|p| p.open && !target_exists(&p.scope))
-            .map(|p| p.id)
+            .map(|p| p.instance)
             .collect();
-        for id in orphans {
-            self.close(id);
+        for iid in orphans {
+            self.close_instance(iid, PopupCloseReason::TargetGone);
         }
     }
 
-    /// 닫힌 팝업 목록을 꺼내 비운다. 호출부가 훅을 실행하며 다른 팝업도 닫을 수 있다.
-    pub fn take_closed_queue(&mut self) -> Vec<PopupId> {
+    /// 닫힌 인스턴스 목록을 꺼내 비운다. 호출부가 훅을 실행하며 다른 팝업도 닫을 수 있다.
+    pub fn take_closed_queue(&mut self) -> Vec<ClosedPopup> {
         std::mem::take(&mut self.closed_queue)
+    }
+
+    /// 닫힌 인스턴스의 선언 id만 꺼낸다. 사유와 데이터가 필요 없는 호출자가 쓴다.
+    pub fn take_closed_ids(&mut self) -> Vec<PopupId> {
+        self.take_closed_queue().into_iter().map(|c| c.id).collect()
     }
 
     /// 선언이 소속 범위를 덮는다고 한 팝업인지. 등록되지 않았으면 false다.
@@ -786,13 +1004,9 @@ impl PopupManager {
     /// 다른 범위로 다시 열기 위해 팝업을 닫는다. 내용은 새 요청이 이미 채웠으므로
     /// closed_queue에 넣지 않아 on_close 훅이 새 요청을 지우지 않는다.
     pub fn close_for_reopen(&mut self, id: PopupId) {
-        if let Some(p) = self.popups.iter_mut().find(|p| p.id == id) {
-            p.open = false;
-            p.dragging = false;
-            p.focused = false;
-            p.passive = false;
-            p.resizing = None;
-            p.size_user_overridden = false;
+        let open: Vec<PopupInstanceId> = self.instances_of(id).map(|p| p.instance).collect();
+        for iid in open {
+            self.close_instance_with(iid, PopupCloseReason::Command, false);
         }
     }
 
@@ -803,15 +1017,36 @@ impl PopupManager {
             .any(|p| p.open && p.look.scrim_input == ScrimInput::BlocksDrop)
     }
 
-    /// Check if a popup is open.
-    pub fn is_open(&self, id: PopupId) -> bool {
-        self.popups.iter().any(|p| p.id == id && p.open)
+    /// 이 선언의 열린 인스턴스. 아래에서 위 순서다.
+    pub fn instances_of(&self, id: PopupId) -> impl Iterator<Item = &PopupState> + '_ {
+        self.popups.iter().filter(move |p| p.id == id && p.open)
     }
 
-    /// 열려 있고 직전 그리기에서 범위가 보인 팝업의 사각형.
+    /// 이 선언의 맨 위 열린 인스턴스.
+    fn topmost_of(&self, id: PopupId) -> Option<&PopupState> {
+        self.popups.iter().rev().find(|p| p.id == id && p.open)
+    }
+
+    /// 열린 인스턴스.
+    pub fn instance(&self, iid: PopupInstanceId) -> Option<&PopupState> {
+        self.popups.iter().find(|p| p.open && p.instance == iid)
+    }
+
+    /// 열린 인스턴스.
+    pub fn instance_mut(&mut self, iid: PopupInstanceId) -> Option<&mut PopupState> {
+        self.popups.iter_mut().find(|p| p.open && p.instance == iid)
+    }
+
+    /// Check if a popup is open.
+    pub fn is_open(&self, id: PopupId) -> bool {
+        self.topmost_of(id).is_some()
+    }
+
+    /// 열려 있고 직전 그리기에서 범위가 보인 팝업의 사각형. 인스턴스가 여럿이면 맨 위 것이다.
     pub fn visible_rect(&self, id: PopupId) -> Option<egui::Rect> {
         self.popups
             .iter()
+            .rev()
             .find(|p| p.id == id && p.open && p.scope_visible)
             .map(|p| p.popup_rect())
     }
@@ -825,12 +1060,10 @@ impl PopupManager {
             .map(|p| p.z_seq)
     }
 
-    /// 열린 팝업의 범위. 닫혀 있으면 `None`이다. 범위가 지금 보이는지는 따지지 않는다.
+    /// 열린 팝업의 범위. 닫혀 있으면 `None`이다. 인스턴스가 여럿이면 맨 위 것이다.
+    /// 범위가 지금 보이는지는 따지지 않는다.
     pub fn open_scope(&self, id: PopupId) -> Option<&PopupScope> {
-        self.popups
-            .iter()
-            .find(|p| p.id == id && p.open)
-            .map(|p| &p.scope)
+        self.topmost_of(id).map(|p| &p.scope)
     }
 
     /// Check if any popup currently has keyboard focus.
@@ -840,34 +1073,56 @@ impl PopupManager {
             .any(|p| p.open && p.scope_visible && p.focused)
     }
 
-    /// Check whether a specific popup currently has keyboard focus.
+    /// 이 선언의 인스턴스 하나라도 키보드 포커스를 가졌는지.
+    #[cfg(test)]
     pub fn is_focused(&self, id: PopupId) -> bool {
         self.popups
             .iter()
             .any(|p| p.id == id && p.open && p.scope_visible && p.focused)
     }
 
-    /// Escape 대상인 포커스된 팝업 하나와 바깥 클릭 시 닫기 여부를 반환한다.
-    /// Escape에는 좌표가 없으므로 바깥 클릭처럼 여러 팝업을 한꺼번에 닫지 않는다.
-    pub fn focused_dismissal_target(&self) -> Option<(PopupId, bool)> {
+    /// Escape 대상인 포커스된 인스턴스 하나와 바깥 클릭 시 닫기 여부를 반환한다. 포커스된 인스턴스가
+    /// 여럿이면 맨 위 것이다. Escape에는 좌표가 없으므로 바깥 클릭처럼 여러 팝업을 한꺼번에 닫지 않는다.
+    pub fn focused_dismissal_target(&self) -> Option<(PopupId, PopupInstanceId, bool)> {
         self.popups
             .iter()
-            .find(|p| p.open && p.scope_visible && p.focused)
-            .map(|p| (p.id, p.close_on_outside_click))
+            .filter(|p| p.open && p.scope_visible && p.focused)
+            .max_by_key(|p| p.z_seq)
+            .map(|p| (p.id, p.instance, p.close_on_outside_click))
     }
 
-    /// Set the keyboard-focus flag of a specific popup. 다른 popup 의 포커스는
-    /// 건드리지 않는다 (검색창↔터미널 포커스 토글용).
+    /// 이 선언의 키보드 포커스 플래그를 바꾼다. 켤 때는 맨 위 인스턴스에만, 끌 때는 모든 인스턴스에서 끈다.
+    /// 다른 선언의 포커스는 건드리지 않는다 (검색창↔터미널 포커스 토글용).
     pub fn set_focused(&mut self, id: PopupId, focused: bool) {
-        if let Some(p) = self.popups.iter_mut().find(|p| p.id == id) {
+        if focused {
+            if let Some(iid) = self.topmost_of(id).map(|p| p.instance) {
+                self.set_instance_focused(iid, true);
+            }
+            return;
+        }
+        for p in self.popups.iter_mut().filter(|p| p.id == id) {
+            p.focused = false;
+        }
+    }
+
+    /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 다른 인스턴스는 건드리지 않는다.
+    pub fn set_instance_focused(&mut self, iid: PopupInstanceId, focused: bool) {
+        if let Some(p) = self.instance_mut(iid) {
             p.focused = focused;
             p.passive &= !focused;
         }
     }
 
-    /// 사용자 조작 근거가 없는 열기다. 키보드 포커스를 빼고 passive로 표시한다.
+    /// 사용자 조작 근거가 없는 열기다. 맨 위 인스턴스의 키보드 포커스를 빼고 passive로 표시한다.
     pub fn mark_passive(&mut self, id: PopupId) {
-        if let Some(p) = self.popups.iter_mut().find(|p| p.id == id && p.open) {
+        if let Some(iid) = self.topmost_of(id).map(|p| p.instance) {
+            self.mark_instance_passive(iid);
+        }
+    }
+
+    /// 인스턴스 하나를 passive로 표시한다.
+    pub fn mark_instance_passive(&mut self, iid: PopupInstanceId) {
+        if let Some(p) = self.instance_mut(iid) {
             p.focused = false;
             p.passive = true;
         }
@@ -876,16 +1131,22 @@ impl PopupManager {
     /// 호스트가 확인한 사용자 입력으로 passive popup에 포커스를 준다. 팝업 안을 누른 것과 같은 전이다:
     /// 보이는 다른 팝업의 포커스를 풀고 맨 앞으로 올린다. 열린 passive popup이 보일 때만 바뀐다.
     pub fn focus_passive(&mut self, id: PopupId) -> bool {
-        if !self.is_visible_passive(id) {
+        let Some(iid) = self
+            .popups
+            .iter()
+            .rev()
+            .find(|p| p.id == id && p.open && p.scope_visible && p.passive)
+            .map(|p| p.instance)
+        else {
             return false;
-        }
+        };
         for popup in &mut self.popups {
             if popup.scope_visible {
-                popup.focused = popup.id == id;
+                popup.focused = popup.open && popup.instance == iid;
                 popup.passive &= !popup.focused;
             }
         }
-        self.bring_to_front(id);
+        self.bring_to_front(iid);
         true
     }
 
@@ -921,7 +1182,8 @@ impl PopupManager {
             .collect()
     }
 
-    /// 키보드 포커스를 가진 열린 popup ID. draw 동안에는 매니저를 빌려 갈 수 없어 그리기 전에 복사해 둔다.
+    /// 키보드 포커스를 가진 열린 popup ID. Linux 탐색기 IME가 rename 입력의 소유를 판정할 때 쓴다.
+    #[cfg(target_os = "linux")]
     pub fn keyboard_focused_ids(&self) -> Vec<PopupId> {
         self.popups
             .iter()
@@ -931,8 +1193,8 @@ impl PopupManager {
     }
 
     /// 맨 앞으로 올리고 host·plugin 공용 순번도 갱신한다.
-    fn bring_to_front(&mut self, id: PopupId) {
-        if let Some(i) = self.popups.iter().position(|p| p.id == id) {
+    fn bring_to_front(&mut self, iid: PopupInstanceId) {
+        if let Some(i) = self.index_of(iid) {
             let mut popup = self.popups.remove(i);
             popup.z_seq = tasty_host_plugin::next_popup_z_seq();
             self.popups.push(popup);
@@ -944,17 +1206,24 @@ impl PopupManager {
         self.popups.iter().filter(|p| p.open).map(|p| p.z_seq).max()
     }
 
-    /// 열린 팝업의 순번과 화면 영역. 없거나 닫혔으면 None이다.
+    /// 열린 팝업의 순번과 화면 영역. 없거나 닫혔으면 None이다. 인스턴스가 여럿이면 맨 위 것이다.
     pub fn open_geometry(&self, id: PopupId) -> Option<(u64, egui::Rect)> {
-        self.popups
-            .iter()
-            .find(|p| p.id == id && p.open)
-            .map(|p| (p.z_seq, p.popup_rect()))
+        self.topmost_of(id).map(|p| (p.z_seq, p.popup_rect()))
     }
 
-    /// Get mutable access to a popup's state.
+    /// 이 선언의 맨 위 열린 인스턴스. 열린 것이 없으면 닫힌 등록 원본이다.
     pub fn get_mut(&mut self, id: PopupId) -> Option<&mut PopupState> {
-        self.popups.iter_mut().find(|p| p.id == id)
+        let i = self
+            .popups
+            .iter()
+            .rposition(|p| p.id == id && p.open)
+            .or_else(|| self.popups.iter().position(|p| p.id == id))?;
+        Some(&mut self.popups[i])
+    }
+
+    /// 이 선언의 항목 전부(열린 인스턴스와 닫힌 원본). 매 프레임 제목·크기를 갱신할 때 쓴다.
+    pub fn entries_of_mut(&mut self, id: PopupId) -> impl Iterator<Item = &mut PopupState> + '_ {
+        self.popups.iter_mut().filter(move |p| p.id == id)
     }
 }
 
@@ -1033,10 +1302,16 @@ mod tests {
     #[test]
     fn dismissal_target_is_the_focused_popup_and_carries_its_outside_click_flag() {
         let m = managed(vec![entry("a", true, true, true)]);
-        assert_eq!(m.focused_dismissal_target(), Some(("a", true)));
+        assert_eq!(
+            m.focused_dismissal_target().map(|(id, _, c)| (id, c)),
+            Some(("a", true))
+        );
 
         let m = managed(vec![entry("a", true, true, false)]);
-        assert_eq!(m.focused_dismissal_target(), Some(("a", false)));
+        assert_eq!(
+            m.focused_dismissal_target().map(|(id, _, c)| (id, c)),
+            Some(("a", false))
+        );
     }
 
     /// 포커스 없는 팝업은 Escape로 닫을 대상이 아니다.
@@ -1079,7 +1354,10 @@ mod tests {
             entry("bystander", true, false, true),
             entry("focused", true, true, false),
         ]);
-        assert_eq!(m.focused_dismissal_target(), Some(("focused", false)));
+        assert_eq!(
+            m.focused_dismissal_target().map(|(id, _, c)| (id, c)),
+            Some(("focused", false))
+        );
     }
 
     #[test]
@@ -1129,11 +1407,11 @@ mod tests {
         mgr.register(dummy(false));
 
         mgr.close(DUMMY_ID);
-        assert!(mgr.take_closed_queue().is_empty());
+        assert!(mgr.take_closed_ids().is_empty());
 
         mgr.open(DUMMY_ID, crate::model::popup_kind::PopupScope::Window);
         mgr.close(DUMMY_ID);
-        assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
+        assert_eq!(mgr.take_closed_ids(), vec![DUMMY_ID]);
     }
 
     #[test]
@@ -1142,10 +1420,10 @@ mod tests {
         mgr.register(dummy(false));
         mgr.open(DUMMY_ID, crate::model::popup_kind::PopupScope::Window);
         mgr.close(DUMMY_ID);
-        assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
+        assert_eq!(mgr.take_closed_ids(), vec![DUMMY_ID]);
 
         mgr.close(DUMMY_ID); // 이미 닫힌 상태에서 재호출.
-        assert!(mgr.take_closed_queue().is_empty());
+        assert!(mgr.take_closed_ids().is_empty());
     }
 
     #[test]
@@ -1155,8 +1433,119 @@ mod tests {
         mgr.open(DUMMY_ID, crate::model::popup_kind::PopupScope::Window);
         mgr.close(DUMMY_ID);
 
-        assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
-        assert!(mgr.take_closed_queue().is_empty());
+        assert_eq!(mgr.take_closed_ids(), vec![DUMMY_ID]);
+        assert!(mgr.take_closed_ids().is_empty());
+    }
+
+    fn policy_mgr(policy: PopupInstances) -> PopupManager {
+        let mut mgr = PopupManager::new();
+        mgr.register(dummy(false).with_instances(policy));
+        mgr
+    }
+
+    fn open_ids(mgr: &PopupManager) -> Vec<PopupInstanceId> {
+        mgr.instances_of(DUMMY_ID).map(|p| p.instance).collect()
+    }
+
+    /// 범위 대상마다 하나: 다른 범위면 새 인스턴스, 같은 범위면 그 인스턴스를 앞으로 가져온다.
+    #[test]
+    fn per_scope_target_opens_one_instance_per_scope() {
+        let mut mgr = policy_mgr(PopupInstances::PerScopeTarget);
+        let l = mgr.open(DUMMY_ID, PopupScope::Surface(1)).unwrap();
+        let r = mgr.open(DUMMY_ID, PopupScope::Surface(2)).unwrap();
+        assert_ne!(l, r);
+        assert_eq!(open_ids(&mgr), vec![l, r]);
+        assert_eq!(mgr.open(DUMMY_ID, PopupScope::Surface(1)), Some(l));
+        assert_eq!(
+            open_ids(&mgr),
+            vec![r, l],
+            "the reopened instance comes to the front"
+        );
+        assert_eq!(mgr.instance(r).unwrap().scope, PopupScope::Surface(2));
+    }
+
+    /// 한 인스턴스를 닫아도 다른 범위의 인스턴스는 열린 채 위치·범위가 그대로다.
+    #[test]
+    fn closing_one_scope_instance_leaves_the_other() {
+        let mut mgr = policy_mgr(PopupInstances::PerScopeTarget);
+        let l = mgr.open(DUMMY_ID, PopupScope::Surface(1)).unwrap();
+        let r = mgr.open(DUMMY_ID, PopupScope::Surface(2)).unwrap();
+        mgr.instance_mut(r).unwrap().pos = egui::pos2(40.0, 60.0);
+        mgr.close_instance(l, PopupCloseReason::Escape);
+        assert_eq!(open_ids(&mgr), vec![r]);
+        let rest = mgr.instance(r).unwrap();
+        assert_eq!(rest.pos, egui::pos2(40.0, 60.0));
+        assert_eq!(rest.scope, PopupScope::Surface(2));
+        let closed = mgr.take_closed_queue();
+        assert_eq!(closed.len(), 1);
+        assert_eq!(closed[0].instance, l);
+        assert_eq!(closed[0].reason, PopupCloseReason::Escape);
+    }
+
+    /// 인스턴스 하나: 다른 범위로 열면 같은 인스턴스가 옮겨진다.
+    #[test]
+    fn single_moves_the_one_instance() {
+        let mut mgr = policy_mgr(PopupInstances::Single);
+        let a = mgr.open(DUMMY_ID, PopupScope::Surface(1)).unwrap();
+        let b = mgr.open(DUMMY_ID, PopupScope::Surface(2)).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(open_ids(&mgr), vec![a]);
+        assert_eq!(mgr.instance(a).unwrap().scope, PopupScope::Surface(2));
+    }
+
+    /// 여럿을 선언하면 같은 범위에서 두 번 열어 인스턴스가 둘이 된다.
+    #[test]
+    fn multi_opens_a_new_instance_each_time_in_the_same_scope() {
+        let mut mgr = policy_mgr(PopupInstances::Multi);
+        let a = mgr.open(DUMMY_ID, PopupScope::Window).unwrap();
+        let b = mgr.open(DUMMY_ID, PopupScope::Window).unwrap();
+        assert_ne!(a, b);
+        assert_eq!(open_ids(&mgr), vec![a, b]);
+        mgr.close_instance(a, PopupCloseReason::Command);
+        mgr.close_instance(b, PopupCloseReason::Command);
+        assert!(!mgr.is_open(DUMMY_ID));
+        // 모두 닫혀도 다음 인스턴스의 원본은 하나 남는다. 이 매니저에는 이 선언 하나만 있다.
+        assert!(mgr.get_mut(DUMMY_ID).is_some());
+        assert_eq!(mgr.popups.len(), 1, "one closed template remains");
+    }
+
+    /// 부모 인스턴스를 닫으면 자식도 사유 `ParentClosed`로 닫힌다.
+    #[test]
+    fn closing_a_parent_closes_its_children() {
+        const CHILD: PopupId = "on_close_hook_test_child";
+        let mut mgr = PopupManager::new();
+        mgr.register(dummy(false));
+        mgr.register(PopupState::new(
+            CHILD,
+            "child",
+            egui::vec2(10.0, 10.0),
+            PopupScope::Window,
+        ));
+        let parent = mgr.open(DUMMY_ID, PopupScope::Window).unwrap();
+        let child = mgr.open(CHILD, PopupScope::Window).unwrap();
+        mgr.instance_mut(child).unwrap().parent = Some(parent);
+        mgr.close_instance(parent, PopupCloseReason::OutsideClick);
+        assert!(!mgr.is_open(CHILD));
+        let closed = mgr.take_closed_queue();
+        let reasons: Vec<_> = closed.iter().map(|c| (c.id, c.reason)).collect();
+        assert_eq!(
+            reasons,
+            vec![
+                (DUMMY_ID, PopupCloseReason::OutsideClick),
+                (CHILD, PopupCloseReason::ParentClosed)
+            ]
+        );
+    }
+
+    /// 닫았다 다시 열면 새 인스턴스 id다.
+    #[test]
+    fn reopening_after_close_gives_a_new_instance_id() {
+        let mut mgr = policy_mgr(PopupInstances::Single);
+        let a = mgr.open(DUMMY_ID, PopupScope::Window).unwrap();
+        mgr.close(DUMMY_ID);
+        let b = mgr.open(DUMMY_ID, PopupScope::Window).unwrap();
+        assert_ne!(a, b);
+        assert!(mgr.instance(a).is_none());
     }
 
     /// 바깥 클릭으로 닫혀도 closed_queue에 기록되는지 실제 draw로 확인한다.
@@ -1190,6 +1579,9 @@ mod tests {
             mgr.draw(ctx, &mut |_, _| {}, None, &[]);
         }));
 
-        assert_eq!(mgr.take_closed_queue(), vec![DUMMY_ID]);
+        let closed = mgr.take_closed_queue();
+        assert_eq!(closed.len(), 1);
+        assert_eq!(closed[0].id, DUMMY_ID);
+        assert_eq!(closed[0].reason, PopupCloseReason::OutsideClick);
     }
 }
