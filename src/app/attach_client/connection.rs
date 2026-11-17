@@ -384,11 +384,8 @@ impl App {
             finish_reconnected_view(&mut main.state, local_workspace);
             main.mark_dirty();
         }
-        let removed = removed_documents.markdown.into_iter();
-        super::documents::destroy(
-            &mut self.plugin_manager,
-            removed.chain(removed_documents.html),
-        );
+        let (markdown, html) = (removed_documents.markdown, removed_documents.html);
+        super::documents::destroy(&mut self.plugin_manager, markdown.into_iter().chain(html));
 
         let sess = &mut self.remote.sessions[sess_idx];
         sess.transport = transport;
@@ -575,12 +572,11 @@ impl App {
             self.notify_git_viewer_mirror_lost(&sess.state.git_query_requesters);
             self.abandon_capture_uploads(sess.state.capture_uploads.clone());
         }
-        let documents = sess
-            .state
-            .markdown_locals
-            .iter()
-            .chain(&sess.state.html_locals);
-        super::documents::destroy(&mut self.plugin_manager, documents.copied());
+        let (markdown, html) = (&sess.state.markdown_locals, &sess.state.html_locals);
+        super::documents::destroy(
+            &mut self.plugin_manager,
+            markdown.iter().chain(html).copied(),
+        );
         // 사용자 닫기도 heartbeat를 멈춰 소켓이 불필요하게 유지되지 않게 한다.
         sess.transport.disconnected.store(true, Ordering::SeqCst);
         if let Err(error) = sess.send_frame(StreamTag::Detach, Vec::new()) {

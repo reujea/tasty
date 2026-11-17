@@ -1,7 +1,5 @@
 //! 원격 git 조회 결과를 요청한 plugin에 전달한다. host는 결과를 받을 plugin을 이름으로 정하지 않는다.
 
-const GIT_QUERY_RESULT_EVENT: &str = "git_viewer.query_result";
-
 /// `requester`에 결과 이벤트를 보내고, 다시 그려야 할 그 plugin의 popup instance를 돌려준다.
 /// 결과 이벤트만으로는 렌더 입력이 바뀌지 않아 popup repaint도 함께 요청해야 한다.
 pub(super) fn deliver_git_query_result(
@@ -14,7 +12,7 @@ pub(super) fn deliver_git_query_result(
     };
     manager.emit_host_event_to_plugin(
         requester,
-        GIT_QUERY_RESULT_EVENT,
+        "git_viewer.query_result",
         payload,
         tasty_plugin_protocol::EventScope::System,
     );

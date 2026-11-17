@@ -99,12 +99,8 @@ impl App {
                     req.request_id
                 );
                 if let Some(requester) = &req.requester {
-                    self.fail_pending_git_query(
-                        requester,
-                        req.request_id,
-                        req.kind,
-                        &e.to_string(),
-                    );
+                    let kind = req.kind.as_wire_str();
+                    self.fail_git_query(requester, req.request_id, kind, &e.to_string());
                 }
             }
         }
@@ -140,54 +136,30 @@ impl App {
         }
     }
 
-    fn fail_pending_git_query(
-        &mut self,
-        requester: &str,
-        request_id: u64,
-        kind: tasty_ipc::stream_hub::GitQueryKind,
-        reason: &str,
-    ) {
-        self.send_git_query_reply(
-            requester,
-            serde_json::json!({
-                "request_id": request_id,
-                "ok": false,
-                "kind": kind.as_wire_str(),
-                "data": serde_json::Value::Null,
-                "truncated": false,
-                "reason": reason,
-            }),
-        );
-    }
-
-    /// 세션이 끝나 회신을 받을 수 없어진 조회를 request_id=0으로 취소한다.
-    /// 호스트는 plugin의 대기 ID를 몰라, 그 plugin이 다른 workspace에서 기다리던 조회도 취소될 수 있다.
-    pub(super) fn notify_git_viewer_mirror_lost(&mut self, requesters: &HashMap<u64, String>) {
-        let mut requesters: Vec<&String> = requesters.values().collect();
-        requesters.sort_unstable();
-        requesters.dedup();
-        for requester in requesters {
-            self.send_git_query_reply(
-                requester,
-                serde_json::json!({
-                    "request_id": 0,
-                    "ok": false,
-                    "kind": "",
-                    "data": serde_json::Value::Null,
-                    "truncated": false,
-                    "reason": "mirror workspace disconnected",
-                }),
-            );
-        }
-    }
-
-    /// 요청한 plugin에 결과를 전달하고 그 plugin의 열린 popup을 다시 그린다.
-    fn send_git_query_reply(&mut self, requester: &str, payload: serde_json::Value) {
+    /// 요청한 plugin에 조회 실패를 알리고 그 plugin의 열린 popup을 다시 그린다.
+    fn fail_git_query(&mut self, requester: &str, request_id: u64, kind: &str, reason: &str) {
+        let payload = serde_json::json!({
+            "request_id": request_id,
+            "ok": false,
+            "kind": kind,
+            "data": serde_json::Value::Null,
+            "truncated": false,
+            "reason": reason,
+        });
         let instances = deliver_git_query_result(&mut self.plugin_manager, requester, &payload);
         for main in self.main_windows_iter_mut() {
             main.state
                 .plugin_mesh_popup_pending_repaint
                 .extend(instances.iter().copied());
+        }
+    }
+
+    /// 세션이 끝나 회신을 받을 수 없어진 조회를 request_id=0으로 취소한다.
+    /// 호스트는 plugin의 대기 ID를 몰라, 그 plugin이 다른 workspace에서 기다리던 조회도 취소될 수 있다.
+    pub(super) fn notify_git_viewer_mirror_lost(&mut self, requesters: &HashMap<u64, String>) {
+        let requesters: std::collections::BTreeSet<&String> = requesters.values().collect();
+        for requester in requesters {
+            self.fail_git_query(requester, 0, "", "mirror workspace disconnected");
         }
     }
 

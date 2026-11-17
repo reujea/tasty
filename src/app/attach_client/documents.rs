@@ -5,6 +5,7 @@ use crate::model::{DeferredPlugin, EmptySurface, Surface};
 use crate::remote::mirror_role;
 use crate::runtime::surface_registry::{KindCapabilities, SurfaceKindRegistry};
 use serde_json::Value;
+use tasty_plugin_protocol::EventScope::System as SYSTEM;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum DocumentMirror {
@@ -58,22 +59,14 @@ impl DocumentMirror {
     }
 
     fn params(self, descriptor: &Value, kind: &str) -> Value {
-        let display_name = |fallback: &str| {
-            descriptor
-                .get("display_name")
-                .and_then(Value::as_str)
-                .unwrap_or(fallback)
-                .to_owned()
-        };
+        let name = descriptor.get("display_name").and_then(Value::as_str);
         match self {
             Self::Content => serde_json::json!({
-                "display_name": display_name(kind),
-                "remote": {
-                    "file": descriptor.get("file").and_then(Value::as_str).unwrap_or_default(),
-                },
+                "display_name": name.unwrap_or(kind),
+                "remote": {"file": descriptor.get("file").and_then(Value::as_str).unwrap_or_default()},
             }),
             Self::Viewer => serde_json::json!({
-                "display_name": display_name("HTML"),
+                "display_name": name.unwrap_or("HTML"),
                 "remote": {"html_entry": true, "source": descriptor.get("source")},
             }),
         }
@@ -86,18 +79,13 @@ impl DocumentMirror {
         local: u32,
         registry: &SurfaceKindRegistry,
     ) -> Option<Box<dyn Surface>> {
-        if let Some(kind) = self.live_kind(registry, descriptor) {
-            let definition = registry.get_live(kind)?;
-            let params = self.params(descriptor, kind);
-            return match (definition.create)(local, None, &params)
+        let live = self.live_kind(registry, descriptor);
+        if let Some(definition) = live.and_then(|kind| registry.get_live(kind)) {
+            let params = self.params(descriptor, definition.kind);
+            return (definition.create)(local, None, &params)
                 .and_then(|prepared| prepared.publish())
-            {
-                Ok(surface) => Some(surface),
-                Err(error) => {
-                    tracing::warn!(surface = local, kind, %error, "attach mirror document creation failed");
-                    None
-                }
-            };
+                .inspect_err(|error| tracing::warn!(surface = local, %error, "attach mirror document creation failed"))
+                .ok();
         }
         let kind = descriptor.get("kind").and_then(Value::as_str)?;
         (!registry.contains(kind)).then(|| {
@@ -146,20 +134,10 @@ pub(super) fn emit_to_owner(
     let Some(manager) = plugin_manager.as_mut() else {
         return;
     };
-    let Some(owner) = manager.remote_surface_owner(surface_id).map(str::to_owned) else {
-        tracing::debug!(
-            surface_id,
-            event,
-            "attach mirror document has no published owner"
-        );
-        return;
-    };
-    manager.emit_host_event_to_plugin(
-        &owner,
-        event,
-        payload,
-        tasty_plugin_protocol::EventScope::System,
-    );
+    match manager.remote_surface_owner(surface_id).map(str::to_owned) {
+        Some(owner) => manager.emit_host_event_to_plugin(&owner, event, payload, SYSTEM),
+        None => tracing::debug!(surface_id, event, "attach mirror document has no owner"),
+    }
 }
 
 #[cfg(test)]
