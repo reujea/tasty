@@ -45,3 +45,17 @@ fn rename_tab_has_no_target_while_a_draft_is_selected() {
     let _draft = select_pending_draft(&mut state, &read);
     assert!(state.active_tab_rename(&read).is_none());
 }
+
+/// 새 탭 초안이 선택돼 있으면 탐색기 단축키가 쓰는 포커스 탐색기는 없다. navigation 의 선택 탭에 남은
+/// 기존 탐색기를 대상으로 잡지 않는다.
+#[test]
+fn explorer_shortcuts_have_no_target_while_a_draft_is_selected() {
+    let (mut state, engine, sid, _dir) = crate::state::tests::explorer_fixture(true);
+    let read = engine.read();
+    let focused = |state: &crate::state::RequestContext| {
+        crate::shortcuts::focused_explorer_surface_id(state, &read)
+    };
+    assert_eq!(focused(&state), Some(sid));
+    let _draft = select_pending_draft(&mut state, &read);
+    assert_eq!(focused(&state), None);
+}

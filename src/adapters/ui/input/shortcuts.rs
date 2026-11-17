@@ -85,13 +85,12 @@ fn ignores_close_for_draft(
     draft.is_some()
 }
 
+/// 포커스 surface 의 탐색기. 생성 대기 초안이 선택돼 있으면 포커스 surface 가 없으므로 없다.
 fn focused_explorer_panel<'a>(
     state: &crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'a>,
 ) -> Option<&'a crate::model::ExplorerPanel> {
-    let pane = state.focused_pane(engine)?;
-    let tab = pane.tabs.get(state.navigation.tab_index(pane))?;
-    let focused = state.navigation.surface_id(tab).unwrap_or(0);
+    let focused = state.focused_surface_id(engine)?;
     engine.find_surface_by_id(focused)?.explorer()
 }
 
@@ -178,10 +177,7 @@ fn html_focus_address_shortcut(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> bool {
-    let Some(sid) = state.focused_pane(engine).and_then(|pane| {
-        let tab = pane.tabs.get(state.navigation.tab_index(pane))?;
-        state.navigation.surface_id(tab)
-    }) else {
+    let Some(sid) = state.focused_surface_id(engine) else {
         return false;
     };
     let html = engine
