@@ -300,7 +300,7 @@ if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { /* apply
 
 `<popup_id>.trigger`는 사용자 선택을 기다리지 않고 `{request_id}`를 돌려준다. 결과는 `<popup_id>.result` 이벤트로 요청 플러그인에게만 전송한다. 플러그인은 pending map에서 ID를 대조한다. 반대 방향인 호스트→플러그인 요청의 `PendingRequestKind`는 이 흐름에 쓰지 않는다.
 
-파일 피커는 `file_picker.trigger`와 `file_picker.result`를 사용한다. 결과에는 `request_id`, `paths`, 취소 여부가 들어가며 취소 시 `paths`는 빈 배열이다. 피커 내부의 원격 디렉터리 조회 ID는 외부 trigger ID와 별개다. 요청자는 플러그인으로 확인되어야 하며, 권한은 `FsRead`, 기능은 GUI 빌드에 한정된다. CLI·에이전트 호출은 피커를 열 수 없다. 피커 범위는 `owner_popup_instance`의 결속 범위, 없으면 `origin_surface_id`의 surface 범위다. 둘 다 없거나 대상을 찾지 못하면 `-32602`로 거절한다([파일 피커](../features/native-file-picker/index.md)). owner의 결속 범위는 요청을 처리하기 직전에 plugin manager의 열린 인스턴스로 다시 계산하므로, owner를 연 뒤 첫 그리기 전에 온 요청도 거절하지 않는다.
+파일 피커는 `file_picker.trigger`와 `file_picker.result`를 사용한다. 결과에는 `request_id`, `paths`, 취소 여부가 들어가며 취소 시 `paths`는 빈 배열이다. 피커 내부의 원격 디렉터리 조회 ID는 외부 trigger ID와 별개다. 요청자는 플러그인으로 확인되어야 하며, 기능은 GUI 빌드에 한정된다. CLI·에이전트 호출은 피커를 열 수 없다. 피커 범위는 `owner_popup_instance`의 결속 범위, 없으면 `origin_surface_id`의 surface 범위다. 둘 다 없거나 대상을 찾지 못하면 `-32602`로 거절한다([파일 피커](../features/native-file-picker/index.md)). owner의 결속 범위는 요청을 처리하기 직전에 plugin manager의 열린 인스턴스로 다시 계산하므로, owner를 연 뒤 첫 그리기 전에 온 요청도 거절하지 않는다.
 
 호스트는 플러그인의 이름이나 요청 목적을 하드코딩하지 않는다. 로컬·원격 파일 조회는 기존 피커가 처리한다. 새 팝업에 같은 패턴을 적용할 때에는 중복 요청의 거부·대기 정책과 확정/취소 양쪽의 결과 전송을 함께 확인한다.
 

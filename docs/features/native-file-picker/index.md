@@ -211,7 +211,7 @@ micro 대문자로 쓰고, 열 위치는 행과 같은 계산을 써서 값 바�
 ### 플러그인의 피커 요청 — 즉시 접수하고 결과는 이벤트로 전달
 
 CallerContext::Plugin 검사는 이미 열린 popup(-32000)이나 잘못된 인자(-32602)보다 먼저다.
-외부 CLI·Agent는 -32016으로 거절한다. FsRead 요구는 그대로다.
+외부 CLI·Agent는 -32016으로 거절한다. Plugin 호출자는 권한 토큰 없이 부른다.
 이 메서드는 window router의 외부 arm을 사용하므로 method table의 plugin_only 표식을 붙이지 않는다.
 그 표식은 별도 host-call interception 경로를 뜻한다. 에이전트는 파일 경로를 직접 지정한다.
 
@@ -219,8 +219,8 @@ markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저
 사용자 응답까지 `host.call`을 잡아 두면 plugin의 렌더·입력 루프가 멈추고 60초
 `HostCallTimeout`이 생길 수 있으므로 요청을 즉시 접수하고 결과는 나중에 이벤트로 보낸다.
 
-1. plugin 이 `file_picker.trigger { filters?: string[], user_navigation_url?: string }` 를 호출한다(`FsRead` 권한,
-   `gui` feature 전용). CLI·agent 호출자는 popup 을 열지 않고 `-32016` 을 받는다 — 결과를 받을
+1. plugin 이 `file_picker.trigger { filters?: string[], user_navigation_url?: string }` 를 호출한다(`gui`
+   feature 전용). CLI·agent 호출자는 popup 을 열지 않고 `-32016` 을 받는다 — 결과를 받을
    곳이 없고 popup 이 사용자 입력 포커스를 가져가기 때문이다([파일 핸들러 (File handler)](../file-handler/index.md)). host 는 popup 확정을 **기다리지 않고** `{ request_id }` 만 즉시
    회신한다(`src/adapters/ipc/handler/file_picker.rs::handle_trigger_with_proofs`, `handler.rs` 의 `file_picker.trigger` 분기가 부른다).
 2. host 는 `(plugin_id, request_id)` 를 `FilePickerData.requester`(`FilePickerRequester`)
@@ -254,7 +254,7 @@ markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저
 메인 popup과 Settings chooser는 `file_picker::save`의 이름·덮어쓰기 판정을 공유한다.
 `Loaded`/`Empty`에서 한 경로 성분인 이름만 확정하며 나열된 폴더 이름은 거절한다. 파일 행 클릭과
 더블클릭은 이름만 채우므로 덮어쓰기 경고를 건너뛰지 않는다. 확정 결과는 경로 하나의 배열이며
-호스트는 파일을 만들거나 쓰지 않는다. `FsRead` 권한은 그대로다. 실제 PNG 저장과 확장자 보충은
+호스트는 파일을 만들거나 쓰지 않는다. 실제 PNG 저장과 확장자 보충은
 이미지 플러그인의 [저장]이 담당한다. 피커가 이미 열렸으면 `-32000`으로 거절하고 이미지 쪽은
 경고 로그를 남기며 입력칸을 보존한다. 취소·저장 카드 닫힘·surface 재생성·새 요청 뒤의 이전 결과는
 버리고 일치하는 request ID와 카드 세대의 결과만 한 번 받는다. 이미지 카드는 host popup이 아니므로

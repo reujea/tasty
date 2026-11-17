@@ -46,7 +46,7 @@ Details: [`docs/features/agent-collaboration/index.md`](docs/features/agent-coll
 - Every plugin runs as a separate OS process and talks to the host over local TCP with JSON messages. The host checks that each plugin still responds, and one that stops responding is listed under "needs attention" in the plugin window.
 - Plugins are set up to exit when the host exits, using a Job Object on Windows, a parent-death signal on Linux, and an SDK watchdog on macOS.
 - A plugin can add CLI subcommands, IPC namespaces, its own surface types (rendered by the plugin itself or shown in a web view), popups and tool menu entries, file handlers, settings pages, hook events, and completion rules for DAG tasks.
-- Permissions such as file read and write, process spawn, network, clipboard, and terminal read and write are declared in the manifest and granted at install time. Manifests are signed with ed25519, and a plugin with an unknown key or changed permissions has to be trusted again.
+- The manifest is the plugin's contract with the host. It declares what the plugin adds and which events it subscribes to and publishes, and the host checks it for conflicts and duplicates at install and load time. Manifests are signed with ed25519, and a plugin with an unknown key or without verification asks for confirmation before it is installed.
 - The Markdown, Image, HTML, Git, and Clipboard viewers and the Claude Code and Codex integrations that ship with Tasty are plugins built on the same SDK as third-party ones.
 
 Details: [`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md), [`docs/dev-guide/plugin-development.md`](docs/dev-guide/plugin-development.md)
@@ -81,7 +81,7 @@ cargo build --release
 - **Runs fully headless** — create, tear down, and drive surface I/O with CLI/IPC alone, so it drops straight into CI/server environments (headless build: `cargo build --no-default-features`; the flag `--headless` does not make a GUI build headless, [`docs/features/headless-pty/index.md`](docs/features/headless-pty/index.md))
 - **Select and copy with the keyboard alone** — vi-style copy mode (hjkl movement, visual selection, search) with GPU cursor visualization ([`docs/features/clipboard/index.md`](docs/features/clipboard/index.md))
 - **Produce installers in one step** — `cargo build --profile dist` plus a Justfile wrapper auto-builds DMG / MSI / AppImage
-- **Extend it yourself with plugins** — an SDK with a manifest schema and a permission system ([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))
+- **Extend it yourself with plugins** — an SDK with a manifest schema and signature-based trust ([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))
 - **Share context between agents** — Blackboard / Plan / Cache let multiple agents exchange the same working context ([`docs/design/systems/memory.md`](docs/design/systems/memory.md))
 - **Pinpoint output per shell command** — recognizes shell prompt boundaries to capture exactly "this command's output" ([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))
 - **Watch terminal output live and trigger follow-up work** — parses PTY output lines and writes the results to memory or files ([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))

@@ -46,7 +46,7 @@ Tasty 의 모든 API 는 **사용자 행동**(키보드/마우스/OS 네이티�
 - 플러그인은 각각 별도의 OS 프로세스로 실행되고 로컬 TCP 위의 JSON 메시지로 호스트와 통신한다. 호스트는 플러그인마다 응답을 확인하고, 응답이 끊긴 플러그인은 플러그인 창의 "확인 필요" 에 표시한다.
 - 호스트가 종료되면 플러그인도 종료하도록 Windows의 Job Object, Linux의 부모 종료 시그널, macOS SDK의 watchdog을 사용한다.
 - 플러그인은 CLI 서브커맨드, IPC 네임스페이스, 자체 서피스 종류(플러그인이 직접 렌더하거나 웹뷰로 표시), 팝업과 도구 메뉴 항목, 파일 핸들러, 설정 페이지, 훅 이벤트, DAG 작업의 완료 판정 규칙을 추가할 수 있다.
-- 파일 읽기와 쓰기, 프로세스 실행, 네트워크, 클립보드, 터미널 읽기와 쓰기 같은 권한은 매니페스트에 선언하고 설치할 때 부여한다. 매니페스트는 ed25519 로 서명하며, 서명 키를 모르거나 권한이 바뀐 플러그인은 다시 신뢰 확인을 받아야 한다.
+- 매니페스트는 플러그인과 호스트의 계약이다. 플러그인이 더하는 기능과 구독·발행할 이벤트를 선언하고, 호스트는 설치·로드 때 충돌과 중복을 검사한다. 매니페스트는 ed25519 로 서명하며, 서명 키를 모르거나 인증되지 않은 플러그인은 설치하기 전에 확인을 받는다.
 - 기본으로 들어 있는 Markdown, Image, HTML, Git, Clipboard 뷰어와 Claude Code, Codex 연동은 모두 외부 플러그인과 같은 SDK 로 만든 플러그인이다.
 
 자세한 내용: [`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md), [`docs/dev-guide/plugin-development.md`](docs/dev-guide/plugin-development.md)
@@ -81,7 +81,7 @@ cargo build --release
 - **GUI 없이도 완전히 동작한다** — CLI/IPC 만으로 surface 를 만들고 끄고 입출력까지 다룰 수 있어 CI/서버 환경에 그대로 올라간다(headless 빌드: `cargo build --no-default-features` — gui 빌드에 `--headless` 를 줘도 headless 가 되지 않는다, [`docs/features/headless-pty/index.md`](docs/features/headless-pty/index.md))
 - **키보드만으로 화면을 선택·복사한다** — vi 스타일 카피 모드(hjkl 이동·visual 선택·검색)와 GPU 커서 시각화([`docs/features/clipboard/index.md`](docs/features/clipboard/index.md))
 - **배포용 설치 파일을 한 번에 뽑는다** — `cargo build --profile dist` + Justfile 로 DMG / MSI / AppImage 를 자동 빌드
-- **플러그인으로 기능을 직접 확장한다** — 매니페스트 스키마 + 권한 시스템을 갖춘 SDK 제공([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))
+- **플러그인으로 기능을 직접 확장한다** — 매니페스트 스키마와 서명 신뢰 확인을 갖춘 SDK 제공([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))
 - **에이전트끼리 정보를 공유한다** — Blackboard / Plan / Cache 로 여러 에이전트가 같은 작업 컨텍스트를 주고받음([`docs/design/systems/memory.md`](docs/design/systems/memory.md))
 - **셸 명령 단위로 출력을 정확히 짚어낸다** — shell prompt 경계를 인식해 "이 명령의 출력"만 골라 캡처([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))
 - **터미널 출력을 실시간으로 감시해 후속 작업을 건다** — PTY 출력 줄을 분석해 메모리나 파일로 전달([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))

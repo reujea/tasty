@@ -30,7 +30,7 @@ Text/Files/Image/HTML 어디에도 속하지 않는 나머지 raw 포맷은 **"O
 - **사용자**: 도구 메뉴 `Clipboard Viewer` 또는 설정 > 단축키 > 플러그인에서 지정한 단축키 → popup. type-bar 에서 타입 선택 → body 에서 내용 확인.
 - **AI Agent**: 단발 클립보드 읽기/쓰기는 host 가 아닌 각 에이전트 프로세스의 직접 접근 영역이다(docs/dev-guide/plugin-permissions.md). 이 plugin 은 IPC 네임스페이스를 노출하지 않는 순수 뷰어다.
 
-`clipboard.read` 선언은 이 직접 OS 읽기에 대한 의도 표시이며 호스트 API 권한으로 OS 접근을 차단하지는 않는다.
+호스트는 이 직접 OS 읽기를 막지 않는다. 플러그인 프로세스는 사용자와 같은 OS 권한으로 실행된다.
 호스트의 polling·history DB·clipboard.copied 이벤트와 clipboard history CLI/IPC는 제공하지 않는다.
 샌드박스나 history 기능을 새로 도입할 때 직접 접근과 보존 범위를 다시 정한다.
 

@@ -64,7 +64,7 @@ Local 분기에서 `owner()` 는 항상 `_host` 이고 `agent_id()` 는 호출�
 
 #### 보안 한계
 
-토큰 없는 Local 호출의 agent ID 는 호출자가 적어 보낸 값이다 — 다른 agent·plugin 의 ID 를 적으면 그 이름의 텔레메트리가 늘고 그 이름에 걸린 cap 이 발동할 수 있다. `telemetry record --agent` 로도 같은 일을 할 수 있다. 이 모델은 **악의보다 버그** 영역으로 처리한다 — *정직한 agent 의 폭주를 막는 안전망*. 적대적 agent 방어는 OS 권한·plugin 매니페스트가 우선.
+토큰 없는 Local 호출의 agent ID 는 호출자가 적어 보낸 값이다 — 다른 agent·plugin 의 ID 를 적으면 그 이름의 텔레메트리가 늘고 그 이름에 걸린 cap 이 발동할 수 있다. `telemetry record --agent` 로도 같은 일을 할 수 있다. 이 모델은 **악의보다 버그** 영역으로 처리한다 — *정직한 agent 의 폭주를 막는 안전망*. 적대적 agent 방어는 OS 권한이 우선.
 
 검증 가능한 신원: claude plugin 은 child 기동 때 `issue_session_token`(`crates/tasty-plugin-claude/src/handlers.rs`)으로 `session.issue` 토큰을 받아 `TASTY_SESSION_TOKEN` 으로 싣고, CLI 가 그 env 를 envelope 에 실으면 요청 게이트의 세션 판정(`src/adapters/ipc/handler/gate.rs` 의 `resolve_caller`, 판정 결과 해석은 `crates/tasty-ipc/src/caller.rs` 의 `caller_from_session`)이 `CallerContext::Agent` 로 해석한다. 토큰이 잘못됐거나 만료면 Local 로 떨어지지 않고 거부된다.
 
