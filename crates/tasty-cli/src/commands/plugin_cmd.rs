@@ -16,9 +16,8 @@ pub enum PluginCommands {
     },
     /// Install a plugin from a directory containing tasty-plugin.toml.
     ///
-    /// One more thing happens without being asked about: the plugin is enabled
-    /// and started unless a disabled mark for that id is already on file.
-    /// Inspect `tasty-plugin.toml` first.
+    /// The plugin is also enabled and started without asking, unless a disabled
+    /// mark for that id is already on file. Inspect `tasty-plugin.toml` first.
     ///
     /// A plugin whose signature Tasty cannot check against a trusted key is
     /// unverified. It is not installed unless `--allow-unverified` is given, and

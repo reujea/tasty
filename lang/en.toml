@@ -4682,7 +4682,7 @@ help = "Plugin id"
 
 [cli.help._root.plugin.install]
 about = "Install a plugin from a directory containing tasty-plugin.toml"
-long = "Install a plugin from a directory containing tasty-plugin.toml.\n\nOne more thing happens without being asked about: the plugin is enabled and started unless a disabled mark for that id is already on file. Inspect `tasty-plugin.toml` first.\n\nA plugin whose signature Tasty cannot check against a trusted key is unverified. It is not installed unless `--allow-unverified` is given, and the refusal explains why. The choice is remembered until the manifest changes or the plugin is removed."
+long = "Install a plugin from a directory containing tasty-plugin.toml.\n\nThe plugin is also enabled and started without asking, unless a disabled mark for that id is already on file. Inspect `tasty-plugin.toml` first.\n\nA plugin whose signature Tasty cannot check against a trusted key is unverified. It is not installed unless `--allow-unverified` is given, and the refusal explains why. The choice is remembered until the manifest changes or the plugin is removed."
 
 [cli.help._root.plugin.install.arg.path]
 help = "Path to plugin directory (must contain tasty-plugin.toml)"
