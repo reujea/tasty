@@ -158,6 +158,13 @@ PendingId로 식별하며 CoreState·journal·surface 저장소에 임시 도메
 잘라 그리고, 임시 분할을 이유로 원격 PTY를 resize하지 않는다. 입력 대상 조회는 선택된
 임시 영역에서 None을 반환한다. IME는 조합 시작의 선택·임시 선택 세대를 확인한다.
 
+명령 대상 조회(`command_surface_target`)는 선택된 생성 draft를 `Pending(PendingId)`로 돌려준다.
+도구·팔레트·plugin 명령 단축키·`debug.tool.invoke`의 popup 동작은 그 draft에 걸어 둔다
+(`attach_pending::deferred`). 정산이 생성 draft를 local surface로 끝내면(`applied`,
+`applied_before_result`) 선택·포커스 여부와 무관하게 그 surface로 실행 목록에 옮긴다. `retain`이
+지우는 draft(실패·epoch 종료·anchor 사라짐)와 합쳐진 스냅샷으로 접힌 draft의 명령은 info 로그를
+남기고 버린다. 실행은 App의 팝업 열기 단계가 접수 순서대로 하고, 그 surface가 이미 없으면 버린다.
+
 `StructuralResult.created_surface_id`는 서버가 생성 결과에서 알고 있는 정확한 remote ID다.
 이 필드를 모르는 peer는 무시하고, 옛 서버는 생략한다. 성공 결과와 Delta의 실제 적용을
 모두 확인한 요청만 완료한다. 생성 ID가 없으면 요청 종류·원래 anchor의 pane/tab·분할 축과

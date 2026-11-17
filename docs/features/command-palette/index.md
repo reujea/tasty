@@ -25,14 +25,14 @@ VS Code 스타일 명령 팔레트. 모든 단축키 명령을 쿼리로 검색�
 
 ### 탐색 / 실행
 
-`↑/↓` 이동, `Enter` 실행, `Esc` 닫기, 클릭으로도 실행. plugin 명령의 동작이 `surface` 범위 popup 을 여는데 포커스 surface 가 없으면 그 행은 실행할 수 없다 — 클릭과 `Enter` 를 무시하고 `command.invoked` 도 보내지 않는다. 행 모양은 다른 행과 같다. 행 우측에 첫 번째 바인딩을 키캡으로 표시(plugin 명령은 override 해석에 `PluginManager` 접근이 필요해 — 팔레트 draw 함수는 접근 불가 — 키캡을 표시하지 않는다). 아이콘은 호스트 6개 명령만 전용, 나머지(동적 호스트 명령 + plugin 명령)는 `COMMAND` fallback.
+`↑/↓` 이동, `Enter` 실행, `Esc` 닫기, 클릭으로도 실행. plugin 명령의 대상 surface 는 `Enter`·클릭으로 고른 시점에 정해 명령과 함께 넘긴다. attach 생성 대기 초안이 선택돼 있으면 그 초안이 대상이고, popup 을 여는 명령은 생성된 surface 에서 실행한다([도구 메뉴](../tools-menu/index.md)와 같은 규칙). 대상 surface 도 초안도 없을 때만 `surface` 범위 popup 을 여는 행을 실행할 수 없다 — 클릭과 `Enter` 를 무시하고 `command.invoked` 도 보내지 않는다. 행 모양은 다른 행과 같다. 행 우측에 첫 번째 바인딩을 키캡으로 표시(plugin 명령은 override 해석에 `PluginManager` 접근이 필요해 — 팔레트 draw 함수는 접근 불가 — 키캡을 표시하지 않는다). 아이콘은 호스트 6개 명령만 전용, 나머지(동적 호스트 명령 + plugin 명령)는 `COMMAND` fallback.
 
 ### 실행 경로
 
 Enter/클릭 시 `command_palette.pending_run` 에 선택된 `PaletteCommand` 적재 → `MainView::handle_redraw` 가 다음 프레임에 drain:
 
 - `Host`: `dispatch_action_by_id` 호출 — **단축키와 정확히 같은 action body** 를 타므로 효과 동일.
-- `Plugin`: `MainViewState.pending_plugin_command_invokes` 에 `(plugin_id, command_id)` 를 enqueue(팔레트 draw/redraw 경로는 `PluginManager` 에 접근할 수 없음 — `PopupDef` 고정 시그니처 제약). `App::dispatch_pending_palette_plugin_commands` 가 다음 IPC 처리 틱에 drain 해 `command_registry` 로 조회: `action` 이 있으면 `tools_menu::run_command_action` 이 실행할 수 있는지 먼저 보고, 실행할 수 있을 때만 `command.invoked` 를 보낸 뒤 `invoke_tool` 로 직접 실행한다(`try_plugin_shortcut` 의 action 분기와 동일 패턴). 실행할 수 없거나 그 창이 사라졌으면 알리지도 실행하지도 않는다. `action` 이 없으면 `key_dispatch::dispatch_plugin_command(.., surface_id: None)` 으로 `command.invoked` 이벤트만 발생(포커스 없이 매칭된 global 단축키와 동일 — 옛 `command.invoke` IPC 는 대상 surface 가 없어 생략).
+- `Plugin`: `MainViewState.pending_plugin_command_invokes` 에 `(plugin_id, command_id, 대상)` 을 enqueue(팔레트 draw/redraw 경로는 `PluginManager` 에 접근할 수 없음 — `PopupDef` 고정 시그니처 제약). 대상은 `Enter`·클릭 때 `pending_run` 에 함께 담은 값이다. `App::dispatch_pending_palette_plugin_commands` 가 다음 IPC 처리 틱에 drain 해 `command_registry` 로 조회: `action` 이 있으면 `tools_menu::run_tool` 이 그 대상으로 실행한다(`try_plugin_shortcut` 의 action 분기와 동일 패턴). 바로 실행하면 그때 `command.invoked` 를 보내고, 생성 대기 초안에 걸어 두면 실제로 실행할 때 보낸다. 실행할 수 없거나 그 창이 사라졌으면 알리지도 실행하지도 않는다. `action` 이 없으면 `key_dispatch::dispatch_plugin_command(.., surface_id: None)` 으로 `command.invoked` 이벤트만 발생(포커스 없이 매칭된 global 단축키와 동일 — 옛 `command.invoke` IPC 는 대상 surface 가 없어 생략).
 
 ### MainViewState 동기화
 
@@ -66,7 +66,7 @@ debug IPC(`debug.host_popup.open`/`debug.inject_egui_mouse`)로 확인할 수 �
 - popup: `src/adapters/ui/popup/command_palette.rs`.
 - plugin 명령 snapshot 동기화: `src/app/plugin_glue/palette_commands.rs`(`refresh_palette_plugin_commands`), 초기 populate `src/app/window_lifecycle.rs`(`assemble_app_state`).
 - plugin 명령 조회 필터: `crates/tasty-host-plugin/src/manager/queries.rs`(`plugin_palette_commands`).
-- dispatch: `src/view/main/redraw.rs` 가 `pending_run` drain → 호스트는 `dispatch_action_by_id`, plugin 은 `MainViewState.pending_plugin_command_invokes` 로 enqueue. `src/app/dispatch/palette_plugin_commands.rs`(`dispatch_pending_palette_plugin_commands`)가 App 메인 루프에서 drain해 action 실행 또는 이벤트 발생.
+- dispatch: `src/view/main/redraw.rs` 가 `pending_run` drain → 호스트는 `dispatch_action_by_id`, plugin 은 고른 시점의 대상과 함께 `MainViewState.pending_plugin_command_invokes` 로 enqueue. `src/app/dispatch/palette_plugin_commands.rs`(`dispatch_pending_palette_plugin_commands`)가 App 메인 루프에서 drain해 action 실행 또는 이벤트 발생.
 
 ## 화면
 

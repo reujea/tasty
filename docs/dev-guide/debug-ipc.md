@@ -67,7 +67,7 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 | `debug.attach.force_detach_workspace` | `workspace_id` | 사이드바 우클릭 **강제 끊기** 확인 재현 — workspace 점유와 멤버 제한을 풀고 holder 에 알린다. 응답은 `force_detached`·`workspace_id`·`holder` |
 | `debug.switch_tab` | `index` (0-based) | 포커스 pane 의 활성 탭 전환 — 사용자 탭 클릭 재현 (egui-mesh 탭 가시성 시나리오 검증 등). **대상이 포커스된 창의 포커스된 pane 이라 포커스 독립성을 만족하지 않는다** — 재현하려는 클릭 자체가 그 pane 에서 일어나므로 그것이 정답이다. 응답은 세 갈래다 — 옮겼으면 `switched:true`, **이미 그 탭을 보고 있었으면 성공에 `switched:false`**(정상이고 바뀔 것이 없었을 뿐이다), 그런 탭이 없으면 실패에 실제 탭 수를 실어 보낸다. 앞의 둘을 하나로 누르면 범위 안 인덱스가 "out of range" 로 나가고, 그 문구를 믿은 호출자가 대상을 의심하는 대신 없는 탭을 찾는다 |
 | `debug.tool.list` | `{}` | 도구 메뉴 항목 전체를 표시 순서대로 |
-| `debug.tool.invoke` | `key` (`<plugin_id>/<tool_id>`) | 도구 항목을 사용자 클릭과 동일하게 dispatch |
+| `debug.tool.invoke` | `key` (`<plugin_id>/<tool_id>`) | 도구 항목을 사용자 클릭과 동일하게 dispatch. 응답 `{"invoked": key}`. attach 생성 대기 초안에 걸어 두었으면 `deferred_pending_id`(초안 id)를 함께 싣는다 |
 | `debug.popup.list` | `{}` | contribute 된 popup 정의 + 현재 열린 instance (각 instance 에 `z_seq` — host popup 과 공유하는 전역 시퀀스라 `debug.host_popup.list` 값과 직접 비교 가능 — 와 소속 범위 `scope`(매니페스트 선언) · `scope_surface`(host 진입점이 바인딩한 대상, 없으면 `null`)) |
 | `debug.popup.open` | `plugin_id, popup_id, surface_id?, context?` | popup 인스턴스 강제 open (응답에 `instance_id`). surface 선언 popup은 `surface_id`가 필요하고 없으면 `-32602`. 없는 surface를 가리키는 `surface_id`도 `-32602` |
 | `debug.popup.close` | `instance_id` | 팝업 인스턴스를 닫는다. release의 플러그인 `popup.close`와 같은 큐를 사용해 부모·자식 팝업 정리까지 같은 경로로 검증한다([내부 팝업 시스템](../design/systems/popup.md)) |

@@ -28,11 +28,13 @@
 
 빌트인 섹션 + (둘 다 있으면 구분선) + 플러그인 섹션. 메뉴 높이는 **현재 등록된 항목 수로 매 프레임 동적 계산**(`tools_menu_sizer`). 높이는 위아래 안쪽 여백 `popup-content-margin` 둘, 행 높이 `menu-item-height` × 항목 수, 구분선 여백의 합이며 여분을 더하지 않는다. 그래서 위아래 여백이 같다.
 
-### 항목 실행 (`invoke_tool`)
+### 항목 실행 (`run_tool`)
 
 - **빌트인**: 해당 popup 을 연다 (`BuiltinAction::OpenPopup` — 중앙 정렬 + 포커스). 대상 스코프를 여는 시점에야 아는 항목은 `BuiltinAction::OpenWorkspacePopup` 으로 갈라져 `OpenPopupMode::CenteredFocused(PopupScope::Workspace(활성 workspace ID))` 를 주입한다(현재 Task DAGs 하나). 별도 winit 창(`OpenWindow`)·파일 피커(`OpenFilePicker`)도 각각 자기 분기를 쓴다.
 - **플러그인**: `ToolAction` 종류별 — 이벤트 발생 또는 `<plugin_id>/<popup_id>` 형식 popup open (활성 surface 의 상속 cwd 를 실어 전달).
-- **대상 없는 플러그인 항목**: `surface` 범위로 선언한 popup 을 여는 항목은 포커스 surface 가 없으면(attach 대기 초안 선택 등) 숨기지 않고 비활성으로 그리며 눌러도 열지 않는다. `window` 선언 항목은 그대로 활성이다. 판정은 `tools_menu::tool_action_blocked` 하나이고 `debug.tool.invoke`(`-32602`), plugin 명령 단축키(실행·`command.invoked` 알림 없이 경고 로그, 키는 다음 처리자로 넘긴다), 명령 팔레트(아래)가 같은 판정을 쓴다.
+- **실행 대상**: 플러그인 항목의 대상 surface 는 누른 시점에 정한다(`MainViewState::command_surface_target`). 실행할 때 포커스를 다시 읽지 않는다.
+- **생성 대기 중인 항목**: mirror workspace 에서 새 탭·분할 결과를 기다리는 초안이 선택돼 있으면 그 초안이 대상이다. popup 을 여는 항목(`surface`·`window` 선언 모두)은 활성이고, 누르면 초안에 걸어 두었다가 생성된 surface 를 대상으로 연다. 대기 중 사용자가 다른 surface 를 골라도 생성된 surface 에서 연다. 같은 초안에 건 명령은 누른 순서대로 실행한다. 요청이 실패하거나 연결 세대가 끝나거나 기준 surface 가 사라지거나 합쳐진 결과에서 생성 surface 를 하나로 정할 수 없으면 실행하지 않고 info 로그만 남긴다. 실행 직전에 생성된 surface 가 이미 닫혔어도 같다. `event`·`open_surface` 항목은 대상 surface 를 쓰지 않으므로 바로 실행한다. 보관과 정산은 `state::attach_pending::deferred`, 실행은 `tools_menu::run_deferred_tools`(App 의 팝업 열기 단계가 팝업 요청을 꺼내기 전에 부른다)다.
+- **대상 없는 플러그인 항목**: 대상 surface 도 생성 대기 초안도 없으면 `surface` 범위로 선언한 popup 을 여는 항목은 숨기지 않고 비활성으로 그리며 눌러도 열지 않는다. 판정은 `tools_menu::tool_action_blocked` 하나이고 `debug.tool.invoke`(`-32602`), plugin 명령 단축키(경고 로그, 키는 다음 처리자로 넘긴다), 명령 팔레트(아래)가 같은 판정을 쓴다.
 
 ## 인터페이스
 
@@ -66,7 +68,8 @@
 
 ## 구현
 
-- `src/adapters/ui/tools_menu.rs` — `BUILTIN_TOOLS`, `draw_tools_menu`, `invoke_tool`, `tools_menu_sizer`.
+- `src/adapters/ui/tools_menu.rs` — `BUILTIN_TOOLS`, `draw_tools_menu`, `run_tool`(입력 시점 대상으로 실행하거나 초안에 걸어 둔다), `invoke_tool_on`, `run_deferred_tools`, `tools_menu_sizer`.
+- `src/state/attach_pending/deferred.rs` — 생성 대기 초안에 건 명령의 보관과 정산(`DeferredCommands`), 명령 대상(`CommandSurfaceTarget`).
 - `src/adapters/ui/sidebar/tools.rs` — `open_tools_menu` (도구 버튼 → 메뉴 popup). 열기 전에 `measure_on_open`으로 폭을 재고, 그리는 동안에도 매 프레임 다시 재어 플러그인 항목 변화를 따른다. 폭 계산은 `tasty-ui-widgets`의 `fit_menu_width`, 행은 `menu_item`을 갤러리와 함께 쓴다. 라벨 말줄임은 공용 행이 처리한다.
 - 플러그인 항목: `MainViewState::tool_registry` (plugin `[[contributes.tool]]` 동기화).
 
