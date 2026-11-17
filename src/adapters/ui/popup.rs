@@ -151,6 +151,8 @@ pub enum PopupPayload {
     Search { surface_id: u32 },
     /// 파일 작업 충돌 질문을 띄운 탐색기 칸.
     ExplorerConflict { surface_id: u32 },
+    /// 이름 바꾸기의 대상·입력·원격 대기.
+    Rename(Box<crate::adapters::ui::rename_popup::RenamePayload>),
     /// 탐색기 Properties가 연 항목과 진행 중인 읽기.
     ExplorerProperties(Box<explorer_properties::ExplorerProperties>),
 }
@@ -164,6 +166,7 @@ impl std::fmt::Debug for PopupPayload {
                 .debug_struct("ExplorerConflict")
                 .field("surface_id", surface_id)
                 .finish(),
+            Self::Rename(r) => f.debug_tuple("Rename").field(&r.target).finish(),
             Self::ExplorerProperties(_) => f.write_str("ExplorerProperties"),
             Self::Search { surface_id } => f
                 .debug_struct("Search")

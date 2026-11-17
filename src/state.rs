@@ -508,7 +508,9 @@ impl RequestContext {
     pub fn has_input_dialog_open(&self) -> bool {
         #[cfg(feature = "gui")]
         {
-            self.dialogs.has_text_input_open()
+            // 텍스트를 입력받는 대화상자는 이름 바꾸기 팝업이다. 인스턴스가 열려 있으면 참이다.
+            self.popups
+                .is_open(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
         }
         #[cfg(not(feature = "gui"))]
         {
@@ -559,7 +561,10 @@ impl RequestContext {
     #[cfg(feature = "gui")]
     pub fn has_egui_overlay_open(&self) -> bool {
         // 모달은 별도 OS 창이므로 열기 요청이나 활성 모달 상태를 이 화면의 가림 조건에 넣지 않는다.
-        let open = self.dialogs.has_any_overlay() || self.plugin_popup_open;
+        let open = self
+            .popups
+            .is_open(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
+            || self.plugin_popup_open;
         // 무대가 열려도 OS 자식 WebView는 그대로 남으므로 표시를 명시적으로 꺼야 한다.
         open || self.popups.has_visible_open()
             || self.fullscreen_stage.is_some()

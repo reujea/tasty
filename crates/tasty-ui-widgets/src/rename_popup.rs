@@ -35,12 +35,17 @@ pub struct RenamePopupView<'a> {
     pub waiting: Option<&'a str>,
     /// 입력에 포커스를 주고 처음 포커스를 얻을 때 전체를 선택한다. 예제가 여럿인 갤러리는 끈다.
     pub autofocus: bool,
+    /// Esc와 글자 입력을 읽는다. false이면 입력 포커스를 가지고 있어도 놓는다. 같은 화면에 여럿 보일 때
+    /// 키보드 포커스를 가진 하나만 켠다.
+    pub keys: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenamePopupAction {
     None,
     Cancel,
+    /// Esc로 취소했다. 결과는 Cancel과 같고 닫기 사유만 다르다.
+    Escape,
     Confirm(String),
 }
 
@@ -108,13 +113,20 @@ fn content(
 ) -> RenamePopupAction {
     let ctx = ui.ctx().clone();
     let waiting = view.waiting.is_some();
-    if !waiting && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        return RenamePopupAction::Cancel;
+    if !waiting && view.keys && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        return RenamePopupAction::Escape;
     }
     ui.spacing_mut().item_spacing = egui::vec2(theme.spacing_sm.value(), 0.0);
 
+    // 키를 읽지 않는 인스턴스는 직전 프레임까지 가진 입력 포커스를 TextEdit가 이벤트를 읽기 전에 놓는다.
+    // 놓지 않으면 포커스가 다른 인스턴스로 옮겨 간 프레임의 글자가 이 버퍼에 들어간다.
+    let input_id = ui.make_persistent_id("rename_input");
+    if !view.keys {
+        ctx.memory_mut(|m| m.surrender_focus(input_id));
+    }
     // 기다리는 동안 보낸 이름은 Input readOnly 모양으로 보이고 고치지 못한다.
     let resp = Input::new()
+        .id(input_id)
         .read_only(waiting)
         .invalid(view.error.is_some())
         .show(ui, theme, buffer);

@@ -432,11 +432,25 @@ fn a_waiting_create_or_rename_resumes_editing_once_its_request_is_gone() {
             user(),
         )
         .expect("받아야 한다");
-    state.dialogs.rename_waiting = Some(crate::state::RenameWaiting {
+    let mut waiting_rename = crate::adapters::ui::rename_popup::RenamePayload::new(
+        crate::state::RenameTarget::NewCategory,
+        String::new(),
+    );
+    waiting_rename.waiting = Some(crate::state::RenameWaiting {
         request: rename,
         host: "build-eu".into(),
         done: false,
     });
+    crate::adapters::ui::rename_popup::open_for_test(
+        &mut state,
+        waiting_rename,
+        crate::model::popup_kind::PopupScope::Window,
+        None,
+    );
+    let rename_waits = |state: &crate::state::MainViewState| {
+        crate::adapters::ui::rename_popup::instances(state).any(|r| r.waiting.is_some())
+    };
+    assert!(rename_waits(&state));
     let waiting = |state: &crate::state::MainViewState| {
         state
             .explorer_views
@@ -478,5 +492,5 @@ fn a_waiting_create_or_rename_resumes_editing_once_its_request_is_gone() {
             .buf,
         name
     );
-    assert!(state.dialogs.rename_waiting.is_none());
+    assert!(!rename_waits(&state));
 }

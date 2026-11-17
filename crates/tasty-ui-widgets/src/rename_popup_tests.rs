@@ -47,6 +47,7 @@ fn view_in<'a>(
         save_enabled: error.is_none(),
         waiting,
         autofocus: true,
+        keys: true,
     }
 }
 
@@ -289,7 +290,23 @@ fn escape_cancels_and_enter_confirms_the_focused_field() {
         &mut buffer,
         vec![vec![key(egui::Key::Escape)]],
     );
-    assert_eq!(*f.action(), RenamePopupAction::Cancel);
+    assert_eq!(*f.action(), RenamePopupAction::Escape);
+
+    let mut buffer = "hello".to_owned();
+    let f = run(
+        &theme,
+        &RenamePopupView {
+            keys: false,
+            ..view(None, None)
+        },
+        &mut buffer,
+        vec![vec![key(egui::Key::Escape)]],
+    );
+    assert_eq!(
+        *f.action(),
+        RenamePopupAction::None,
+        "keys off ignores escape"
+    );
 
     let mut buffer = "hello".to_owned();
     let f = run(
@@ -381,4 +398,40 @@ fn without_autofocus_the_field_stays_unfocused() {
         strokes.contains(&theme.input_border().to_egui()),
         "{strokes:?}"
     );
+}
+
+/// Given 같은 컨텍스트에 A·B 두 입력이 있고 A가 입력 포커스를 가졌을 때, When 키 소유가 A에서 B로 옮겨 간
+/// 프레임에 글자가 들어오면, Then A 버퍼는 바뀌지 않는다.
+#[test]
+fn a_rename_that_loses_the_keys_drops_its_input_focus_before_reading_text() {
+    let theme = mocha(1.0);
+    let ctx = egui::Context::default();
+    let mut buffers = ["alpha".to_owned(), "beta".to_owned()];
+    // (A가 키를 가짐, B가 키를 가짐, 이벤트)
+    let frames = [
+        (true, false, vec![]),
+        (true, false, vec![]),
+        (false, true, vec![egui::Event::Text("x".into())]),
+    ];
+    for (a, b, events) in frames {
+        let raw = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        drop(ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                for (i, owns) in [a, b].into_iter().enumerate() {
+                    ui.push_id(i, |ui| {
+                        let v = RenamePopupView {
+                            autofocus: owns,
+                            keys: owns,
+                            ..view(None, None)
+                        };
+                        rename_popup(ui, &theme, &v, &mut buffers[i]);
+                    });
+                }
+            });
+        }));
+    }
+    assert_eq!(buffers[0], "alpha");
 }

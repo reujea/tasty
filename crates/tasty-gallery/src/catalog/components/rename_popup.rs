@@ -62,6 +62,7 @@ pub(crate) fn card(ui: &mut egui::Ui, theme: &Theme, card: Card<'_>) {
                 save_enabled: error.is_none(),
                 waiting,
                 autofocus: false,
+                keys: true,
             },
             &mut buffer,
         );

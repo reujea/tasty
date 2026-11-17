@@ -155,7 +155,7 @@ mod tests {
         crate::intent::popup::apply_pending(&mut state, &mut session);
         frame(&mut state, &session);
         assert_eq!(visible_in_workspace_1(&state), Some("rename"));
-        assert!(state.dialogs.rename.is_some());
+        assert!(crate::adapters::ui::rename_popup::current_target(&state).is_some());
         assert_eq!(state.active_workspace(&session.read()).id, 1);
     }
 

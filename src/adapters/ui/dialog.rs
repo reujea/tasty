@@ -19,18 +19,17 @@ const POPUP_WIDTH: LogicalPx = LogicalPx(360.0);
 /// 콘텐츠 여백은 공용 view 가 넣어 잰 높이에 들어 있으므로 공통 내부 여백은 이 popup 에 적용하지
 /// 않는다(`content_rect`). 아직 재지 않은 첫 프레임은 오류·대기 줄이 없는 콘텐츠 높이를 쓴다.
 pub fn rename_popup_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
-    let layout = state
-        .dialogs
-        .rename
-        .as_ref()
-        .map_or(RenamePopupLayout::Dialog, |(target, _)| {
-            rename_layout(target)
-        });
-    rename_popup_size(&theme::theme(), state.dialogs.rename_content_height, layout)
+    let rename = crate::adapters::ui::rename_popup::payload_of(payload);
+    let layout = rename.map_or(RenamePopupLayout::Dialog, |r| rename_layout(&r.target));
+    rename_popup_size(
+        &theme::theme(),
+        rename.and_then(|r| r.content_height),
+        layout,
+    )
 }
 
 pub fn rename_popup_default_size() -> egui::Vec2 {
@@ -58,69 +57,47 @@ fn rename_popup_size(
 }
 
 pub fn rename_popup_title(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
-    state
-        .dialogs
-        .rename
-        .as_ref()
-        .map(|(target, _)| t(target.heading_key()).to_string())
+    crate::adapters::ui::rename_popup::payload_of(payload)
+        .map(|r| t(r.target.heading_key()).to_string())
         .unwrap_or_else(|| t("rename_dialog.tab_heading").to_string())
-}
-
-/// 어떤 경로로 닫혀도 대상과 입력 버퍼를 정리한다.
-pub fn on_close_rename_popup(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.rename = None;
-    state.dialogs.rename_content_height = None;
-    state.dialogs.rename_waiting = None;
 }
 
 pub fn draw_rename_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
 
-    let Some((ref target, _)) = state.dialogs.rename else {
+    let crate::adapters::ui::popup::PopupPayload::Rename(rename) = cx.payload else {
         return PopupAction::Close;
     };
+    let target = &rename.target;
 
     let is_add_favorite = matches!(target, RenameTarget::ExplorerAddFavorite { .. });
 
-    if !rename_target_exists(target, engine)
-        || state
-            .dialogs
-            .rename_waiting
-            .as_ref()
-            .is_some_and(|w| w.done)
-    {
-        state.dialogs.rename = None;
+    if !rename_target_exists(target, engine) || rename.waiting.as_ref().is_some_and(|w| w.done) {
         return PopupAction::Close;
     }
-    let waiting = state
-        .dialogs
-        .rename_waiting
+    let waiting = rename
+        .waiting
         .as_ref()
         .map(|w| crate::i18n::t_fmt("explorer.remote.renaming", &w.host));
 
     // 직전 프레임의 입력으로 카테고리 이름과 탐색기 항목 이름을 검사한다. 다른 대상에는 이 제한이 없다.
-    let (validation_error, save_enabled) = {
-        let buffer = &state.dialogs.rename.as_ref().unwrap().1;
-        match target {
-            RenameTarget::ExplorerEntry {
-                surface_id, path, ..
-            } => explorer_validation(buffer, explorer_name_rules(engine, *surface_id, path)),
-            _ => category_validation(target, buffer, engine),
-        }
+    let (validation_error, save_enabled) = match target {
+        RenameTarget::ExplorerEntry {
+            surface_id, path, ..
+        } => explorer_validation(
+            &rename.buffer,
+            explorer_name_rules(engine, *surface_id, path),
+        ),
+        _ => category_validation(target, &rename.buffer, engine),
     };
 
     let save_label = if is_add_favorite {
@@ -135,38 +112,35 @@ pub fn draw_rename_popup(
         error: validation_error.as_deref(),
         save_enabled,
         waiting: waiting.as_deref(),
-        autofocus: true,
+        // 키 입력과 입력 포커스는 포커스를 가진 인스턴스만 가져간다. agent가 연 passive 인스턴스는 빼앗지 않는다.
+        autofocus: cx.focused,
+        keys: cx.focused,
     };
-    let buffer = &mut state.dialogs.rename.as_mut().unwrap().1;
-    let drawn = ui.scope(|ui| rename_popup(ui, &th, &view, buffer));
+    let drawn = ui.scope(|ui| rename_popup(ui, &th, &view, &mut rename.buffer));
     let measured = Some(LogicalPx(drawn.response.rect.height()));
     // 오류·대기 줄이 생기거나 사라진 프레임은 직전 높이로 잘려 있으므로 새 높이로 바로 다시 그린다.
-    if state.dialogs.rename_content_height != measured {
+    if rename.content_height != measured {
         ui.ctx().request_repaint();
     }
-    state.dialogs.rename_content_height = measured;
+    rename.content_height = measured;
 
     match drawn.inner {
         RenamePopupAction::None => PopupAction::None,
-        RenamePopupAction::Cancel => {
-            state.dialogs.rename = None;
-            PopupAction::Close
+        RenamePopupAction::Cancel => PopupAction::Close,
+        RenamePopupAction::Escape => {
+            PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
         }
         RenamePopupAction::Confirm(buffer) => {
-            match request_remote_rename(state, engine, &buffer) {
+            match request_remote_rename(state, engine, &rename.target, &buffer) {
                 Some(Some(waiting)) => {
-                    state.dialogs.rename_waiting = Some(waiting);
+                    rename.waiting = Some(waiting);
                     return PopupAction::None;
                 }
                 // 받지 않은 이유는 그 칸이 알린다.
-                Some(None) => {
-                    state.dialogs.rename = None;
-                    return PopupAction::Close;
-                }
+                Some(None) => return PopupAction::Close,
                 None => {}
             }
-            let (target, _) = state.dialogs.rename.take().unwrap();
-            apply_rename(state, engine, target, buffer);
+            apply_rename(state, engine, rename.target.clone(), buffer);
             PopupAction::Close
         }
     }
@@ -177,16 +151,14 @@ pub fn draw_rename_popup(
 fn request_remote_rename(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &RenameTarget,
     buffer: &str,
 ) -> Option<Option<crate::state::RenameWaiting>> {
-    let Some((
-        RenameTarget::ExplorerEntry {
-            surface_id,
-            path,
-            binding,
-        },
-        _,
-    )) = &state.dialogs.rename
+    let RenameTarget::ExplorerEntry {
+        surface_id,
+        path,
+        binding,
+    } = target
     else {
         return None;
     };
@@ -293,16 +265,13 @@ fn category_validation(
 }
 
 /// 이름 바꾸기 팝업의 대상이 아직 있는지. 범위가 대상의 상위 자리라 범위만으로는 대상 소멸을 알 수 없어
-/// 팝업 정리 단계가 그리기와 무관하게 매 프레임 부른다. 요청이 비었으면 거짓이다(그리기도 닫는다).
+/// 팝업 정리 단계가 그리기와 무관하게 인스턴스마다 매 프레임 부른다. 데이터가 없으면 거짓이다(그리기도 닫는다).
 pub(crate) fn rename_popup_target_alive(
-    state: &MainViewState,
+    payload: &crate::adapters::ui::popup::PopupPayload,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> bool {
-    state
-        .dialogs
-        .rename
-        .as_ref()
-        .is_some_and(|(target, _)| rename_target_exists(target, engine))
+    crate::adapters::ui::rename_popup::payload_of(payload)
+        .is_some_and(|r| rename_target_exists(&r.target, engine))
 }
 
 fn rename_target_exists(
@@ -555,8 +524,11 @@ mod tests {
         crate::i18n::init("en");
         let (mut state, session) = engine_with_state();
         let th = theme::theme();
+        use crate::adapters::ui::popup::PopupPayload;
+        use crate::adapters::ui::rename_popup::{RenamePayload, payload_of};
         let draw = |state: &mut crate::state::RequestContext,
-                    session: &crate::runtime::engine_session::EngineSession| {
+                    session: &crate::runtime::engine_session::EngineSession,
+                    payload: &mut PopupPayload| {
             let ctx = egui::Context::default();
             for _ in 0..2 {
                 drop(ctx.run(egui::RawInput::default(), |ctx| {
@@ -566,19 +538,28 @@ mod tests {
                             ui,
                             state,
                             &session.read(),
-                            &mut crate::adapters::ui::popup::PopupCx::test("test"),
+                            &mut crate::adapters::ui::popup::PopupCx {
+                                id: "rename",
+                                instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                                focused: false,
+                                payload: &mut *payload,
+                            },
                         );
                     });
                 }));
             }
-            state.dialogs.rename_content_height.expect("measured")
+            payload_of(payload)
+                .and_then(|r| r.content_height)
+                .expect("measured")
+        };
+        let category = |name: &str| {
+            PopupPayload::Rename(Box::new(RenamePayload::new(
+                RenameTarget::NewCategory,
+                name.into(),
+            )))
         };
         assert_eq!(
-            rename_popup_sizer(
-                &state,
-                &session.read(),
-                &crate::adapters::ui::popup::PopupPayload::None
-            ),
+            rename_popup_sizer(&state, &session.read(), &category("Ops")),
             rename_popup_default_size(),
             "unmeasured: base content"
         );
@@ -587,26 +568,101 @@ mod tests {
             crate::adapters::ui::zoomed_px(&th, POPUP_WIDTH).value()
         );
 
-        state.dialogs.rename = Some((RenameTarget::NewCategory, "Ops".into()));
-        let plain = draw(&mut state, &session);
+        let plain = draw(&mut state, &session, &mut category("Ops"));
         assert_eq!(
             plain,
             rename_popup_base_height(&th, RenamePopupLayout::Dialog)
         );
-        state.dialogs.rename = Some((RenameTarget::NewCategory, "normal".into()));
-        let error = draw(&mut state, &session);
+        let mut with_error = category("normal");
+        let error = draw(&mut state, &session, &mut with_error);
         assert!(error > plain, "{error:?} > {plain:?}");
         assert_eq!(
-            rename_popup_sizer(
-                &state,
-                &session.read(),
-                &crate::adapters::ui::popup::PopupPayload::None
-            )
-            .y,
+            rename_popup_sizer(&state, &session.read(), &with_error).y,
             (popup::title_bar_height() + error).value()
         );
-        state.dialogs.rename = Some((RenameTarget::NewCategory, "Web".into()));
-        assert_eq!(draw(&mut state, &session), plain, "no leftover room");
+        assert_eq!(
+            draw(&mut state, &session, &mut category("Web")),
+            plain,
+            "no leftover room"
+        );
+    }
+
+    /// rename 인스턴스들을 한 프레임씩 그린다. 인스턴스마다 마지막 프레임의 결과와, 그린 뒤 egui 입력 포커스가
+    /// 있는지를 돌려준다.
+    fn draw_renames(focused: &[bool], frames: Vec<Vec<egui::Event>>) -> (Vec<&'static str>, bool) {
+        crate::i18n::init("en");
+        let (mut state, session) = engine_with_state();
+        use crate::adapters::ui::popup::PopupPayload;
+        use crate::adapters::ui::rename_popup::RenamePayload;
+        let mut payloads: Vec<PopupPayload> = focused
+            .iter()
+            .map(|_| {
+                PopupPayload::Rename(Box::new(RenamePayload::new(
+                    RenameTarget::NewCategory,
+                    "Ops".into(),
+                )))
+            })
+            .collect();
+        let ctx = egui::Context::default();
+        let mut results = vec!["none"; focused.len()];
+        for events in frames {
+            let raw = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            drop(ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    for (i, payload) in payloads.iter_mut().enumerate() {
+                        ui.push_id(i, |ui| {
+                            let action = draw_rename_popup(
+                                ui,
+                                &mut state,
+                                &session.read(),
+                                &mut crate::adapters::ui::popup::PopupCx {
+                                    id: "rename",
+                                    instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                                    focused: focused[i],
+                                    payload: &mut *payload,
+                                },
+                            );
+                            results[i] = match action {
+                                PopupAction::None => "none",
+                                PopupAction::CloseBy(
+                                    crate::adapters::ui::popup::PopupCloseReason::Escape,
+                                ) => "escape",
+                                _ => "closed",
+                            };
+                        });
+                    }
+                });
+            }));
+        }
+        (results, ctx.memory(|m| m.focused()).is_some())
+    }
+
+    fn escape() -> Vec<egui::Event> {
+        vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]
+    }
+
+    /// Given rename 둘이 보이고 한쪽만 포커스를 가졌을 때, When Escape를 누르면, Then 포커스를 가진 쪽만 닫힌다.
+    #[test]
+    fn escape_closes_only_the_focused_rename() {
+        let (results, _) = draw_renames(&[false, true], vec![vec![], escape()]);
+        assert_eq!(results, ["none", "escape"]);
+    }
+
+    /// Given 포커스 없는(agent가 연 passive 같은) rename 하나만 보일 때, Then 입력 포커스를 가져가지 않는다.
+    /// 포커스를 가진 rename은 입력 포커스를 가져간다.
+    #[test]
+    fn only_a_focused_rename_takes_the_input_focus() {
+        assert!(!draw_renames(&[false], vec![vec![], vec![]]).1);
+        assert!(draw_renames(&[true], vec![vec![], vec![]]).1);
     }
 
     fn text_center(out: &egui::FullOutput, text: &str) -> egui::Pos2 {
@@ -636,11 +692,14 @@ mod tests {
             width: PhysicalPx(1920.0),
             height: PhysicalPx(1080.0),
         };
-        state.dialogs.rename = Some((RenameTarget::NewCategory, "Ops".into()));
-        state.popups.open_at_focused(
-            "rename",
+        crate::adapters::ui::rename_popup::open_for_test(
+            &mut state,
+            crate::adapters::ui::rename_popup::RenamePayload::new(
+                RenameTarget::NewCategory,
+                "Ops".into(),
+            ),
             crate::model::popup_kind::PopupScope::Window,
-            egui::pos2(100.0, 100.0),
+            Some(egui::pos2(100.0, 100.0)),
         );
         let frame = |state: &mut crate::state::RequestContext| {
             let out = ctx.run(egui::RawInput::default(), |ctx| {
@@ -709,7 +768,7 @@ mod tests {
             title + rename_popup_base_height(&theme::theme(), RenamePopupLayout::Dialog).value()
         );
 
-        state.dialogs.rename = Some((RenameTarget::NewCategory, "normal".into()));
+        crate::adapters::ui::rename_popup::set_buffer_for_test(&mut state, "normal");
         let (_, stale, repaint) = frame(&mut state);
         assert_eq!(
             stale, plain,
@@ -719,7 +778,7 @@ mod tests {
         let error = settle(&mut state, "error");
         assert!(error.y > plain.y);
 
-        state.dialogs.rename = Some((RenameTarget::NewCategory, "Web".into()));
+        crate::adapters::ui::rename_popup::set_buffer_for_test(&mut state, "Web");
         let (_, _, repaint) = frame(&mut state);
         assert!(repaint, "the shrunk content asks for an immediate repaint");
         assert_eq!(

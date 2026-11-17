@@ -152,23 +152,22 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
     let read = engine.read();
     let sid = read.workspace_at(0).unwrap().all_surface_ids()[0];
     // Target admission uses a real current binding; no filesystem or surface factory runs here.
-    state.dialogs.rename = Some((
-        RenameTarget::ExplorerEntry {
-            surface_id: sid,
-            path: "owned-fixture.txt".into(),
-            binding: SurfaceBinding::capture(&read, sid).unwrap(),
-        },
-        String::new(),
-    ));
-    state.popups.register(PopupState::new(
-        "rename",
-        "",
-        egui::Vec2::ZERO,
+    let entry = || {
+        crate::adapters::ui::rename_popup::RenamePayload::new(
+            RenameTarget::ExplorerEntry {
+                surface_id: sid,
+                path: "owned-fixture.txt".into(),
+                binding: SurfaceBinding::capture(&read, sid).unwrap(),
+            },
+            String::new(),
+        )
+    };
+    crate::adapters::ui::rename_popup::open_for_test(
+        &mut state,
+        entry(),
         crate::model::popup_kind::PopupScope::Window,
-    ));
-    state
-        .popups
-        .open_centered_focused("rename", crate::model::popup_kind::PopupScope::Window);
+        None,
+    );
     let owner =
         rename_input_owner(&state, &read).expect("focused Explorer Rename must participate");
     assert_eq!(owner.surface(), sid);
@@ -190,15 +189,20 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
     assert_eq!(rename_input_owner(&state, &read), None);
     state.popups.close("other");
     state.popups.close("rename");
-    state
-        .popups
-        .open_centered_focused("rename", crate::model::popup_kind::PopupScope::Window);
+    crate::adapters::ui::rename_popup::open_for_test(
+        &mut state,
+        entry(),
+        crate::model::popup_kind::PopupScope::Window,
+        None,
+    );
     assert_ne!(
         rename_input_owner(&state, &read),
         Some(owner),
         "reopening changes ownership"
     );
-    state.dialogs.rename = Some((RenameTarget::TabName { tab_id: 1 }, String::new()));
+    for rename in crate::adapters::ui::rename_popup::instances_mut(&mut state) {
+        rename.target = RenameTarget::TabName { tab_id: 1 };
+    }
     assert_eq!(
         rename_input_owner(&state, &read),
         None,

@@ -96,18 +96,22 @@ fn rename_input_owner(
         || state.has_settings_open_request()
         || state.has_plugin_popup()
         || state.popups.keyboard_focused_ids() != ["rename"]
-        || state.dialogs.rename_waiting.is_some()
     {
         return None;
     }
-    let (
-        crate::state::RenameTarget::ExplorerEntry {
-            surface_id,
-            binding,
-            ..
-        },
-        _,
-    ) = state.dialogs.rename.as_ref()?
+    let rename = state
+        .popups
+        .instances_of(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
+        .find(|p| p.focused)
+        .and_then(|p| crate::adapters::ui::rename_popup::payload_of(&p.payload))?;
+    if rename.waiting.is_some() {
+        return None;
+    }
+    let crate::state::RenameTarget::ExplorerEntry {
+        surface_id,
+        binding,
+        ..
+    } = &rename.target
     else {
         return None;
     };

@@ -327,15 +327,29 @@ pub(super) fn resume_unanswered_creates(
 /// 이름 변경 팝업이 기다리는 요청이 대기열에도 `running` 에도 없고 성공으로 끝나지 않았으면
 /// 기다림을 풀어 다시 편집하게 한다. 실패 이유는 그 칸이 따로 알린다.
 pub(super) fn resume_unanswered_rename(state: &mut MainViewState, running: &[u64]) -> bool {
-    let Some(waiting) = state.dialogs.rename_waiting.as_ref().filter(|w| !w.done) else {
-        return false;
-    };
-    let id = waiting.request;
-    if running.contains(&id) || state.explorer_file_requests.0.iter().any(|r| r.id == id) {
-        return false;
+    let queued: Vec<u64> = state
+        .explorer_file_requests
+        .0
+        .iter()
+        .map(|r| r.id)
+        .collect();
+    let mut resumed = false;
+    for rename in crate::adapters::ui::rename_popup::instances_mut(state) {
+        let Some(id) = rename
+            .waiting
+            .as_ref()
+            .filter(|w| !w.done)
+            .map(|w| w.request)
+        else {
+            continue;
+        };
+        if running.contains(&id) || queued.contains(&id) {
+            continue;
+        }
+        rename.waiting = None;
+        resumed = true;
     }
-    state.dialogs.rename_waiting = None;
-    true
+    resumed
 }
 
 /// 실행 중인 작업 가운데 `window` 가 넣은 요청 번호. 요청 번호는 창마다 따로 센다.
@@ -421,12 +435,15 @@ pub(super) fn close_renamed(registry: &mut crate::view::ViewRegistry, request: u
 
 /// 지금 기다리는 이름 변경이 `request` 일 때만 끝났다고 표시한다. 다른 요청의 응답은 무시한다.
 pub(crate) fn mark_rename_done(state: &mut MainViewState, request: u64) -> bool {
-    match state.dialogs.rename_waiting.as_mut() {
-        Some(waiting) if waiting.request == request => {
+    let waiting = crate::adapters::ui::rename_popup::instances_mut(state)
+        .filter_map(|rename| rename.waiting.as_mut())
+        .find(|waiting| waiting.request == request);
+    match waiting {
+        Some(waiting) => {
             waiting.done = true;
             true
         }
-        _ => false,
+        None => false,
     }
 }
 

@@ -118,12 +118,6 @@ pub(crate) struct RenameWaiting {
 
 /// 대화상자·팝업의 임시 상태. 새 항목은 RequestContext 최상위 대신 여기에 둔다.
 pub struct DialogState {
-    pub(crate) rename: Option<(RenameTarget, String)>,
-    /// 이름 변경 팝업이 직전 프레임에 그린 콘텐츠 높이. 오류·대기 줄이 생기고 사라지는 대로 sizer 가
-    /// 팝업 높이를 맞춘다. 아직 그리지 않았으면 `None`.
-    pub(crate) rename_content_height: Option<tasty_type_geometry::length::LogicalPx>,
-    /// 원격 이름 변경의 답을 기다린다. 기다리는 동안 팝업은 열린 채 입력과 버튼을 막는다.
-    pub(crate) rename_waiting: Option<RenameWaiting>,
     /// 마우스 캡처 배너 메뉴의 대상 surface ID.
     pub(crate) mouse_capture_banner_menu_target: Option<u32>,
     /// 열 때 프로그램 이름을 몰라 이름 미상 형태(사유 줄 + 비활성 두 행)로 열었는지.
@@ -231,9 +225,6 @@ pub struct WsDragState {
 impl DialogState {
     pub fn new() -> Self {
         Self {
-            rename: None,
-            rename_content_height: None,
-            rename_waiting: None,
             mouse_capture_banner_menu_target: None,
             mouse_capture_banner_menu_unknown: false,
             mouse_capture_banner_menu_size: None,
@@ -269,16 +260,6 @@ impl DialogState {
             transfer_error: VecDeque::new(),
             download_run: Default::default(),
         }
-    }
-
-    /// 텍스트 입력 중인 이름 변경 창이 있는지 확인한다.
-    pub fn has_text_input_open(&self) -> bool {
-        self.rename.is_some()
-    }
-
-    /// 현재 이 판정에서는 이름 변경 창만 포함한다.
-    pub fn has_any_overlay(&self) -> bool {
-        self.has_text_input_open()
     }
 }
 

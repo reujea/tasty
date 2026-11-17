@@ -236,28 +236,34 @@ fn convert_surface_close_intent_drops_the_instance_data() {
 fn rename_escape_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.rename = Some((RenameTarget::NewCategory, "abc".to_string()));
-    state.popups.open_at_focused(
-        RENAME_POPUP_ID,
+    crate::adapters::ui::rename_popup::open_for_test(
+        &mut state,
+        crate::adapters::ui::rename_popup::RenamePayload::new(
+            RenameTarget::NewCategory,
+            "abc".to_string(),
+        ),
         crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        Some(FIXED_POS),
     );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(RENAME_POPUP_ID));
-    assert!(state.dialogs.rename.is_none());
+    assert!(!crate::adapters::ui::rename_popup::data_left(&state));
 }
 
 #[test]
 fn rename_x_button_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.rename = Some((RenameTarget::NewCategory, "abc".to_string()));
-    state.popups.open_at_focused(
-        RENAME_POPUP_ID,
+    crate::adapters::ui::rename_popup::open_for_test(
+        &mut state,
+        crate::adapters::ui::rename_popup::RenamePayload::new(
+            RenameTarget::NewCategory,
+            "abc".to_string(),
+        ),
         crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        Some(FIXED_POS),
     );
     let (pos, size) = primed_popup_geometry(RENAME_POPUP_ID, &mut state, &mut engine);
 
@@ -268,7 +274,7 @@ fn rename_x_button_close_clears_dialog_state() {
     );
 
     assert!(!state.popups.is_open(RENAME_POPUP_ID));
-    assert!(state.dialogs.rename.is_none());
+    assert!(!crate::adapters::ui::rename_popup::data_left(&state));
 }
 
 #[test]
@@ -1418,11 +1424,14 @@ fn approval_close_intent_now_refires_open_popup() {
 fn close_intent_now_clears_cleanup_after_next_frame() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.rename = Some((RenameTarget::NewCategory, "abc".to_string()));
-    state.popups.open_at_focused(
-        RENAME_POPUP_ID,
+    crate::adapters::ui::rename_popup::open_for_test(
+        &mut state,
+        crate::adapters::ui::rename_popup::RenamePayload::new(
+            RenameTarget::NewCategory,
+            "abc".to_string(),
+        ),
         crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        Some(FIXED_POS),
     );
 
     let dispatched = UiIntent::ClosePopup {
@@ -1432,11 +1441,11 @@ fn close_intent_now_clears_cleanup_after_next_frame() {
     crate::intent::popup::handle(&mut state, &mut engine, &dispatched);
 
     assert!(!state.popups.is_open(RENAME_POPUP_ID));
-    assert!(state.dialogs.rename.is_some());
+    assert!(!crate::adapters::ui::rename_popup::data_left(&state));
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(state.dialogs.rename.is_none());
+    assert!(!crate::adapters::ui::rename_popup::data_left(&state));
 }
 
 // 프리셋 팝업 셋이 같은 닫기 훅을 사용해 workspace 팝업으로 공통 상태 정리를 검사한다.

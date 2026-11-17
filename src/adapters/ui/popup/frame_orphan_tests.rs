@@ -91,7 +91,7 @@ fn a_tab_rename_closes_when_its_pane_closes() {
     close_in_core(&mut session, vec![E::PaneClosed { id: 20 }]);
     frame(&mut state, &session);
     assert!(!state.popups.is_open(RENAME_POPUP_ID));
-    assert!(state.dialogs.rename.is_none());
+    assert!(!crate::adapters::ui::rename_popup::data_left(&state));
     assert!(!state.has_input_dialog_open());
 }
 
@@ -166,6 +166,6 @@ fn a_tab_rename_closes_when_its_tab_closes_and_the_pane_stays() {
     assert!(session.read().has_pane(10));
     frame(&mut state, &session);
     assert!(!state.popups.is_open(RENAME_POPUP_ID));
-    assert!(state.dialogs.rename.is_none());
+    assert!(!crate::adapters::ui::rename_popup::data_left(&state));
     assert!(!state.has_input_dialog_open());
 }

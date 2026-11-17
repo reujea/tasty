@@ -151,6 +151,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     shell: PopupShell::Dialog,
                     content_margin: PopupContentMargin::None,
                     keyboard: PopupKeyboard::Text,
+                    // 범위(대상이 보이는 자리)마다 따로 연다. 대상·입력은 인스턴스 데이터다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(crate::adapters::ui::dialog::rename_popup_default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -161,7 +163,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: crate::adapters::ui::dialog::draw_rename_popup,
-                on_close: Some(crate::adapters::ui::dialog::on_close_rename_popup),
+                // 대상·입력·원격 대기는 인스턴스 데이터라 닫으면 함께 사라진다.
+                on_close: None,
             },
             // 탐색기 Properties — 그 탐색기 칸 범위, 머리를 직접 그린다(글리프 · 이름 · 닫기).
             PopupDef {
