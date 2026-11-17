@@ -149,6 +149,8 @@ pub enum PopupPayload {
     Convert(convert::ConvertPayload),
     /// 검색창이 검색하는 터미널 surface.
     Search { surface_id: u32 },
+    /// 파일 작업 충돌 질문을 띄운 탐색기 칸.
+    ExplorerConflict { surface_id: u32 },
     /// 탐색기 Properties가 연 항목과 진행 중인 읽기.
     ExplorerProperties(Box<explorer_properties::ExplorerProperties>),
 }
@@ -158,6 +160,10 @@ impl std::fmt::Debug for PopupPayload {
         match self {
             Self::None => f.write_str("None"),
             Self::Convert(c) => f.debug_tuple("Convert").field(c).finish(),
+            Self::ExplorerConflict { surface_id } => f
+                .debug_struct("ExplorerConflict")
+                .field("surface_id", surface_id)
+                .finish(),
             Self::ExplorerProperties(_) => f.write_str("ExplorerProperties"),
             Self::Search { surface_id } => f
                 .debug_struct("Search")
@@ -226,16 +232,18 @@ impl ClosedPopup {
             id,
             instance: PopupInstanceId::NONE,
             reason: PopupCloseReason::Command,
+            payload: PopupPayload::None,
         }
     }
 }
 
-/// 닫힌 인스턴스. 닫기 훅이 사유와 데이터를 함께 받는다.
-#[derive(Debug, Clone)]
+/// 닫힌 인스턴스. 닫기 훅이 사유와 데이터를 함께 받는다. 데이터는 훅이 끝나면 버려진다.
+#[derive(Debug)]
 pub struct ClosedPopup {
     pub id: PopupId,
     pub instance: PopupInstanceId,
     pub reason: PopupCloseReason,
+    pub payload: PopupPayload,
 }
 
 /// Result of a popup's draw call.
@@ -1033,6 +1041,7 @@ impl PopupManager {
             id: p.id,
             instance: p.instance,
             reason,
+            payload: std::mem::take(&mut p.payload),
         };
         p.reset_closed();
         let id = closed.id;

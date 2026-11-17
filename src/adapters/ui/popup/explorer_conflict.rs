@@ -14,16 +14,23 @@ use crate::theme;
 
 pub(crate) const EXPLORER_CONFLICT_POPUP_ID: super::PopupId = "explorer_conflict";
 
-/// 답을 기다리는 칸. 파일 작업은 앱 전체에서 하나만 돌므로 질문하는 칸도 하나다.
-/// draw 동안에는 popup 관리자가 state 밖으로 옮겨져 있어 열린 범위를 읽을 수 없다.
-fn asking_surface(state: &MainViewState) -> Option<u32> {
-    state.explorer_views.cached_surfaces().find(|sid| {
-        state
-            .explorer_views
-            .get(*sid)
-            .and_then(|v| v.ops.running.as_ref())
-            .is_some_and(|r| r.shared.pending_ask().is_some())
-    })
+/// 질문을 띄운 칸. 인스턴스 데이터가 가진다.
+fn asking_surface(payload: &super::PopupPayload) -> Option<u32> {
+    match payload {
+        super::PopupPayload::ExplorerConflict { surface_id } => Some(*surface_id),
+        _ => None,
+    }
+}
+
+/// 충돌 질문을 그 칸에 띄우는 요청.
+pub(crate) fn open_request(surface_id: u32) -> crate::intent::OpenRequest {
+    crate::intent::OpenRequest::new(
+        EXPLORER_CONFLICT_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Surface(surface_id),
+    )
+    .centered()
+    .focused()
+    .with_payload(super::PopupPayload::ExplorerConflict { surface_id })
 }
 
 /// 첫 프레임 크기. 높이는 다음 프레임부터 잰 카드 높이를 쓴다.
@@ -39,9 +46,9 @@ pub fn default_size() -> egui::Vec2 {
 pub fn sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
-    let measured = asking_surface(state)
+    let measured = asking_surface(payload)
         .and_then(|sid| state.explorer_views.get(sid))
         .map(|v| v.ops.conflict_height)
         .filter(|h| *h > 0.0);
@@ -116,9 +123,9 @@ pub fn draw(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some(sid) = asking_surface(state) else {
+    let Some(sid) = asking_surface(cx.payload) else {
         return PopupAction::Close;
     };
     let Some(view) = state.explorer_views.get_mut(sid) else {
@@ -162,35 +169,108 @@ pub fn draw(
     PopupAction::Close
 }
 
-/// 답하지 않고 닫혔으면 남은 작업을 멈춘다. 닫힌 뒤에는 범위를 알 수 없어 작업을 가진 칸을 찾는다.
+/// 답하지 않고 닫혔으면 질문을 띄운 칸의 남은 작업을 멈춘다.
 /// 답하고 닫은 경우는 그 사이 다음 충돌이 올라왔어도 건드리지 않는다.
 pub fn on_close(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    for sid in state.explorer_views.cached_surfaces().collect::<Vec<_>>() {
-        let Some(view) = state.explorer_views.get_mut(sid) else {
-            continue;
-        };
-        if view.ops.running.is_none() || std::mem::take(&mut view.ops.conflict_answered) {
-            continue;
-        }
-        if let Some(running) = &view.ops.running
-            && running.shared.pending_ask().is_some()
-        {
-            running.shared.answer(Answer {
-                choice: Choice::CancelRest,
-                apply_all: true,
-            });
-        }
+    let Some(view) =
+        asking_surface(&closed.payload).and_then(|sid| state.explorer_views.get_mut(sid))
+    else {
+        return;
+    };
+    if view.ops.running.is_none() || std::mem::take(&mut view.ops.conflict_answered) {
+        return;
+    }
+    if let Some(running) = &view.ops.running
+        && running.shared.pending_ask().is_some()
+    {
+        running.shared.answer(Answer {
+            choice: Choice::CancelRest,
+            apply_all: true,
+        });
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
+    use crate::app::explorer_files::job::{EntryFacts, Shared, Snapshot};
+
+    /// `sid` 칸에 충돌 질문을 기다리는 작업을 둔다.
+    fn waiting(state: &mut MainViewState, sid: u32) -> Arc<Shared> {
+        let panel = crate::model::ExplorerPanel::new(sid, "/w".into());
+        state.explorer_views.get_or_init(&panel, None);
+        let shared = Arc::new(Shared::interactive(|| {}));
+        let facts = EntryFacts {
+            is_dir: false,
+            size: Some(1),
+            items: None,
+            modified: None,
+        };
+        shared.mirror(
+            &Snapshot {
+                files: None,
+                items_done: 0,
+                items_total: 1,
+                bytes_done: 0,
+                bytes_total: 1,
+                current: "a.txt".into(),
+                removing: false,
+            },
+            Some(Ask {
+                name: "a.txt".into(),
+                folder: "/w".into(),
+                existing: facts.clone(),
+                incoming: facts,
+                folder_conflict: false,
+                remaining: 0,
+            }),
+        );
+        let view = state.explorer_views.get_mut(sid).expect("explorer view");
+        view.ops.running = Some(crate::explorer_ui::view::ops::Running {
+            shared: shared.clone(),
+            kind: crate::app::explorer_files::job::OpKind::Copy,
+            dest: None,
+            total: 1,
+            in_history: false,
+        });
+        shared
+    }
+
+    /// 답하지 않고 닫은 질문은 그 질문을 띄운 칸의 남은 작업만 멈춘다.
+    #[test]
+    fn closing_an_unanswered_question_stops_only_its_own_job() {
+        let (mut state, session) = crate::state::tests::test_state();
+        let left = waiting(&mut state, 1);
+        let right = waiting(&mut state, 2);
+        let closed = crate::adapters::ui::popup::ClosedPopup {
+            payload: super::super::PopupPayload::ExplorerConflict { surface_id: 1 },
+            ..crate::adapters::ui::popup::ClosedPopup::test(EXPLORER_CONFLICT_POPUP_ID)
+        };
+
+        on_close(
+            &egui::Context::default(),
+            &mut state,
+            &session.read(),
+            &closed,
+        );
+
+        assert_eq!(
+            left.take_answer(),
+            Some(Answer {
+                choice: Choice::CancelRest,
+                apply_all: true
+            })
+        );
+        assert_eq!(right.take_answer(), None);
+        assert!(right.pending_ask().is_some());
+    }
 
     /// 비교 줄의 수정 시각은 로컬 시간대의 `YYYY-MM-DD HH:MM` 이다.
     #[test]

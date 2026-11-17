@@ -7,7 +7,6 @@ use std::time::{Duration, Instant};
 use super::Operation;
 use super::history::UndoOf;
 use super::job::{Report, Shared, Snapshot};
-use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID;
 use crate::explorer_ui::view::ops::{Running, result_is_timed};
 use crate::state::MainViewState;
@@ -265,7 +264,15 @@ fn sync_job(
     if changed {
         view.mark_dirty();
     }
-    if !asking || view.state.popups.is_open(EXPLORER_CONFLICT_POPUP_ID) {
+    let open_here = view
+        .state
+        .popups
+        .instance_for(
+            EXPLORER_CONFLICT_POPUP_ID,
+            &crate::model::popup_kind::PopupScope::Surface(surface),
+        )
+        .is_some();
+    if !asking || open_here {
         return;
     }
     let Some(session) = engines.get(engine) else {
@@ -468,12 +475,7 @@ fn sync_queues(state: &mut MainViewState) -> bool {
 pub(crate) fn open_conflict(state: &mut MainViewState, surface: u32, source: &'static str) {
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(
-                EXPLORER_CONFLICT_POPUP_ID,
-                PopupScope::Surface(surface),
-            )
-            .centered()
-            .focused(),
+            crate::adapters::ui::popup::explorer_conflict::open_request(surface),
         )
         .from_user_menu(source),
     );

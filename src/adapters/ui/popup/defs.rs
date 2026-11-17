@@ -102,6 +102,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     covers_scope: true,
                     content_margin: PopupContentMargin::None,
                     escape: PopupEscape::Unfocus,
+                    // 질문을 띄운 칸마다 따로 연다. 칸은 인스턴스 데이터다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::explorer_conflict::default_size()))
                 },
                 scrim_input: ScrimInput::BlocksDrop,
