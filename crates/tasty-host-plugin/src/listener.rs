@@ -29,8 +29,18 @@ pub struct HostListener {
 static PENDING_POISONED: AtomicBool = AtomicBool::new(false);
 const PENDING_WHAT: &str = "plugin handshake pending map";
 
+#[cfg(test)]
+thread_local! {
+    /// 이 스레드의 바인드를 실패시켜, 호스트 listener 를 열지 못한 기동을 시험한다.
+    pub(crate) static REFUSE_BIND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 impl HostListener {
     pub fn bind() -> anyhow::Result<Self> {
+        #[cfg(test)]
+        if REFUSE_BIND.with(std::cell::Cell::get) {
+            anyhow::bail!("plugin host listener bind refused by the test");
+        }
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let addr = listener.local_addr()?;
         let pending: Arc<Mutex<HashMap<String, mpsc::Sender<TcpStream>>>> = Arc::default();

@@ -398,9 +398,20 @@ impl PluginManager {
             );
             return;
         }
+        self.start_at_boot(&to_start);
+    }
+
+    /// 부팅 기동. 그 기동의 실패는 자동 재시작과 같이 연속 실패로 세어 다시 띄운다(manager::respawn).
+    pub(super) fn start_at_boot(&mut self, ids: &[String]) {
         self.ensure_listener();
-        for id in &to_start {
+        for id in ids {
+            // 이미 떠 있는 세대는 사용자 enable·요청별 기동이 띄운 것이다. 그 실패는 부팅 기동으로 세지 않는다.
+            if self.processes.contains_key(id) {
+                continue;
+            }
+            self.begin_respawn_streak(id);
             self.start_enabled_package(id);
+            self.end_streak_without_start(id);
         }
         // GUI 부팅 워커에서 연결을 먼저 기다려, 이후 hello 대기 시간을 연결에 쓰지 않는다.
         self.wait_for_connections();
@@ -524,12 +535,15 @@ impl PluginManager {
             Some(l) => l,
             None => {
                 tracing::warn!("plugin '{}' start skipped — no listener", pkg.manifest.id);
+                // 부팅·자동 재시작의 기동이면 다시 띄울 때 listener 를 다시 연다(start_if_still_wanted).
+                let now = Instant::now();
+                let auto_disabled = self.note_respawn_failure(&pkg.manifest.id, false, now);
                 self.start_tracker.failed(
                     &pkg.manifest.id,
                     super::FailureKind::SpawnFailed,
                     "the plugin host listener is not available".to_string(),
-                    None,
-                    Instant::now(),
+                    auto_disabled,
+                    now,
                 );
                 return;
             }

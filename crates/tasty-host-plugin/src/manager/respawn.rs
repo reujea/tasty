@@ -1,7 +1,8 @@
-//! 자동 재시작(무응답·namespace 연속 만료)의 기동이 실패했을 때의 재시도.
+//! 자동 재시작(무응답·namespace 연속 만료)과 부팅 기동이 실패했을 때의 재시도.
 //!
-//! 자동 재시작은 사용자가 지켜보지 않는 사이 일어나므로, 그 기동이 한 번 실패했다고 멈추면
-//! plugin 이 켜진 채 돌지 않는 상태로 남는다. 자동 재시작이 시작한 기동은 연결에 성공할 때까지
+//! 두 기동은 사용자가 지켜보지 않는 사이 일어나므로, 그 기동이 한 번 실패했다고 멈추면
+//! plugin 이 켜진 채 돌지 않는 상태로 남는다. 사용자가 켠 기동의 실패는 재시도하지 않고 바로
+//! 알린다. 자동 재시작과 부팅이 시작한 기동은 연결에 성공할 때까지
 //! 실패를 연속으로 세고, `RESTART_FAILURE_LIMIT` 번째 실패에서 자동 비활성화한다. 그 전에는
 //! 실패마다 `RESTART_FAILURE_WINDOW × 2^(n-1)` 뒤 다시 띄운다. 별도 백오프 상수를 두지 않고
 //! 실패 창을 기다림의 단위로 쓴다. 창을 넘겨 다시 띄우므로 10초 창의 연속 실패 집계와 겹쳐
@@ -183,18 +184,23 @@ impl PluginManager {
             }
             tracing::info!(plugin_id = id, "retrying plugin restart");
             self.start_if_still_wanted(&id);
-            // 꺼졌거나 제거돼 띄우지 않았으면 기다릴 결과가 없다.
-            let waiting = self.processes.contains_key(&id) || self.is_retiring(&id);
-            if !waiting
-                && self
-                    .respawn_streaks
-                    .get(&id)
-                    .is_some_and(|s| s.due.is_none())
-            {
-                self.end_respawn_streak(&id);
-            }
+            self.end_streak_without_start(&id);
         }
         self.sync_respawn_timer();
+    }
+
+    /// 꺼졌거나 제거돼 띄우지 않았으면 기다릴 결과가 없으므로 연속 기록을 지운다. 기동이 곧바로
+    /// 실패해 다음 재시도가 예약됐으면 남긴다.
+    pub(super) fn end_streak_without_start(&mut self, plugin_id: &str) {
+        let waiting = self.processes.contains_key(plugin_id) || self.is_retiring(plugin_id);
+        if !waiting
+            && self
+                .respawn_streaks
+                .get(plugin_id)
+                .is_some_and(|s| s.due.is_none())
+        {
+            self.end_respawn_streak(plugin_id);
+        }
     }
 
     /// 가장 이른 재시도 시각에 타이머를 맞춘다. 남은 재시도가 없으면 내린다.

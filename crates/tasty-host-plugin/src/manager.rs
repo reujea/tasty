@@ -639,6 +639,10 @@ mod tests_healthcheck;
 #[cfg(test)]
 mod tests_respawn;
 
+// 부팅 기동의 실패를 다시 띄우고, 사용자가 켠 기동의 실패는 바로 알리는가.
+#[cfg(test)]
+mod tests_boot_retry;
+
 #[cfg(test)]
 mod tests_lifecycle_toggle;
 
