@@ -6,7 +6,6 @@ use winit::window::WindowId;
 
 use crate::app::App;
 use crate::app::window_access::engines_mut;
-use crate::plugin;
 use crate::state::attach_pending::deferred::{CommandSurfaceTarget, InvokedNotice};
 
 impl App {
@@ -35,48 +34,20 @@ impl App {
                 .and_then(|e| e.action.clone());
 
             if let Some(action) = action {
-                let item = plugin::tool_registry::ToolItem {
-                    source: plugin::tool_registry::ToolSource::Plugin {
-                        plugin_id: plugin_id.clone(),
-                        tool_id: command_id.clone(),
-                    },
-                    key: format!("{plugin_id}/{command_id}"),
-                    label_i18n_key: String::new(),
-                    icon: None,
-                    action,
-                    order_hint: 0,
-                };
-                // 팔레트 행은 실행할 수 없으면 알리지도 실행하지도 않는다. 큐에 남은 요청도 같은 판정으로 거른다.
-                let invoked = InvokedNotice {
-                    plugin_id: plugin_id.clone(),
-                    command_id: command_id.clone(),
-                    surface_id: None,
-                };
+                let item =
+                    crate::adapters::ui::tools_menu::command_item(&plugin_id, &command_id, action);
                 let mgr = self.plugin_manager.as_mut();
-                if let Some((main, engine)) = engines_mut!(self).window_pair(wid)
-                    && let Err(blocked) = crate::adapters::ui::tools_menu::run_tool(
-                        &mut main.state,
-                        &engine.read(),
-                        &item,
-                        target,
-                        Some(invoked),
-                        |n| {
-                            if let Some(mgr) = mgr {
-                                crate::plugin_bridge::key_dispatch::emit_command_invoked(
-                                    mgr,
-                                    &n.plugin_id,
-                                    &n.command_id,
-                                    n.surface_id,
-                                );
-                            }
-                        },
-                    )
-                {
-                    tracing::warn!(
-                        "plugin command '{}' not run: {}",
-                        item.key,
-                        blocked.message()
-                    );
+                if let Some((main, engine)) = engines_mut!(self).window_pair(wid) {
+                    run_palette_command(&mut main.state, &engine.read(), &item, target, |n| {
+                        if let Some(mgr) = mgr {
+                            crate::plugin_bridge::key_dispatch::emit_command_invoked(
+                                mgr,
+                                &n.plugin_id,
+                                &n.command_id,
+                                n.surface_id,
+                            );
+                        }
+                    });
                 }
             } else if let Some(mgr) = self.plugin_manager.as_mut() {
                 crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
@@ -87,5 +58,99 @@ impl App {
                 );
             }
         }
+    }
+}
+
+/// 팔레트 큐의 plugin 명령 하나를 고른 시점의 대상으로 실행한다. 바로 실행할 surface 가 그 사이
+/// 사라졌으면 실행하지도 알리지도 않고 버린다. 실행할 수 없으면 알리지도 실행하지도 않는다.
+pub(crate) fn run_palette_command(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    item: &crate::plugin::tool_registry::ToolItem,
+    target: Option<CommandSurfaceTarget>,
+    notify: impl FnOnce(&InvokedNotice),
+) {
+    if let Some(CommandSurfaceTarget::Surface(sid)) = target
+        && !engine.has_surface(sid)
+    {
+        tracing::info!(
+            "plugin command '{}' dropped: its surface {sid} is gone",
+            item.key
+        );
+        return;
+    }
+    let crate::plugin::tool_registry::ToolSource::Plugin { plugin_id, tool_id } = &item.source;
+    let invoked = InvokedNotice {
+        plugin_id: plugin_id.clone(),
+        command_id: tool_id.clone(),
+        surface_id: None,
+    };
+    if let Err(blocked) = crate::adapters::ui::tools_menu::run_tool(
+        state,
+        engine,
+        item,
+        target,
+        Some(invoked),
+        notify,
+    ) {
+        tracing::warn!(
+            "plugin command '{}' not run: {}",
+            item.key,
+            blocked.message()
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_palette_command;
+    use crate::state::attach_pending::deferred::CommandSurfaceTarget;
+
+    fn item() -> crate::plugin::tool_registry::ToolItem {
+        crate::adapters::ui::tools_menu::command_item(
+            "com.example.viewer",
+            "confirm",
+            crate::plugin::manifest::ToolAction::OpenPopup {
+                popup_id: "com.example.viewer/confirm".into(),
+            },
+        )
+    }
+
+    /// 큐에 담긴 대상으로 실행한다. 그 사이 포커스가 옮겨져도 고른 시점의 surface 다.
+    #[test]
+    fn a_queued_command_runs_on_its_queued_surface_and_notifies_once() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        assert!(state.focus_surface_by_id(&read, 101));
+        let mut notified = Vec::new();
+        run_palette_command(
+            &mut state,
+            &read,
+            &item(),
+            Some(CommandSurfaceTarget::Surface(201)),
+            |n| notified.push(n.command_id.clone()),
+        );
+        assert_eq!(notified, vec!["confirm".to_string()]);
+        assert_eq!(state.pending_popup_opens.len(), 1);
+        assert_eq!(state.pending_popup_opens[0].target_surface, Some(201));
+    }
+
+    /// 고른 surface 가 실행 전에 사라졌으면 열지도 알리지도 않는다.
+    #[test]
+    fn a_queued_command_whose_surface_is_gone_is_dropped() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let mut notified = 0;
+        run_palette_command(
+            &mut state,
+            &read,
+            &item(),
+            Some(CommandSurfaceTarget::Surface(9_999)),
+            |_| notified += 1,
+        );
+        assert_eq!(notified, 0);
+        assert!(state.pending_popup_opens.is_empty());
     }
 }
