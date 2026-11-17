@@ -391,7 +391,7 @@ plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSett
 
 `CommandDecl.action`이 있으면 호스트가 `ToolAction::Event`·`OpenSurface`·`OpenPopup`을 도구 메뉴와 같은 방식으로 실행한다. 이때 `command.invoke`(`handle_command`)는 보내지 않아 중복 실행을 막는다. `action`이 없으면 기존 `handle_command` IPC를 사용한다.
 
-Event Bus의 `command.invoked`는 소유 plugin에 보내는 알림이다. 명령을 실제로 실행할 때 보낸다. `action`이 없는 명령은 대상 surface가 없어도 보낸다. 명령의 대상 surface는 키를 누른 시점에 정한다. attach 생성 대기 초안이 선택돼 있으면 popup을 여는 `action`은 초안에 걸어 두고 키를 소비하며, 생성된 surface에서 실행할 때 알린다. 생성이 실패해 버린 명령은 알리지 않는다. 대상 surface도 초안도 없는데 `action`이 `surface` 범위 popup을 열거나, 팔레트 요청을 처리할 때 그 창이 사라졌으면 실행할 수 없으므로 실행하지 않고 알리지도 않는다. 단축키는 이때 키를 다음 처리자에 넘긴다.
+Event Bus의 `command.invoked`는 소유 plugin에 보내는 알림이다. 명령을 실제로 실행할 때 보낸다. `action`이 없는 명령은 대상 surface가 없어도 보낸다. 명령의 대상 surface는 키를 누른 시점에 정한다. attach 생성 대기 초안이 선택돼 있으면 popup을 여는 `action`은 초안에 걸어 두고 키를 소비하며, 생성된 surface에서 실행할 때 알린다. 생성이 실패해 버린 명령은 알리지 않는다. 대상 surface도 초안도 없는데 `action`이 `surface` 범위 popup을 열거나, 팔레트 요청을 처리할 때 그 창이 사라졌거나, 고른 surface·생성된 surface가 실행 전에 사라졌거나, 팔레트에서 초안을 대상으로 고른 명령의 정의가 입력 뒤 바뀌었으면 실행하지 않고 알리지도 않는다. 단축키는 대상 surface도 초안도 없어 실행할 수 없을 때 키를 다음 처리자에 넘긴다.
 
 ## 텍스트 입력과 단축키의 우선순위
 
