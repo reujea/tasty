@@ -397,6 +397,93 @@ pub(crate) fn run_palette_action(
     }
 }
 
+/// native WebView 가 넘긴 키를 surface 액션으로 처리한 결과.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Received {
+    /// 키를 받은 surface 에서 실행할 surface 액션 바인딩이 아니다. 호출자가 지금처럼 처리한다.
+    Unbound,
+    /// surface 액션 바인딩이지만 키를 받은 surface 가 받지 않는다. 모델 포커스가 다른 surface 라 그쪽으로
+    /// 보내지 않고 처리하지 못한 키로 넘긴다.
+    Pass,
+    /// surface 액션 바인딩이지만 키를 받은 surface 가 받지 않고, 같은 키가 surface 하나를 대상으로 하지 않는
+    /// 전역 단축키이기도 하다. 호출자는 전역 단축키만 처리한다. 모델 포커스 surface 의 목록 범위 키(탐색기
+    /// 이름 바꾸기 등)는 고르지 않는다.
+    Global,
+    Done,
+    /// 창이 키를 받은 surface 에서 실행해야 하는 액션이다.
+    View(&'static str),
+}
+
+/// native WebView 가 넘긴 키가 surface 액션 바인딩이면 키를 받은 `sid` 에서 실행한다. 페이지 편집 키는
+/// 페이지 편집 경로가, 새로고침은 앞 단계가 받은 surface 로 처리하므로 여기서 고르지 않는다.
+pub(crate) fn run_received_key(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    kb: &crate::settings::KeybindingSettings,
+    key: &winit::keyboard::Key,
+    mods: winit::keyboard::ModifiersState,
+    sid: u32,
+) -> Received {
+    let Some(kind) = engine.find_surface_by_id(sid).map(|s| s.kind()) else {
+        return Received::Unbound;
+    };
+    let mut bound = false;
+    for &(id, takes) in SURFACE_ACTIONS {
+        if id == "refresh" || crate::webview::WebViewEditAction::from_field_id(id).is_some() {
+            continue;
+        }
+        if !kb
+            .get_bindings(id)
+            .is_some_and(|combos| super::matches_any_binding(combos, key, mods))
+        {
+            continue;
+        }
+        bound = true;
+        if !takes.accepts(kind, surface_capabilities(engine, sid)) {
+            continue;
+        }
+        match run_surface_action(
+            state,
+            engine,
+            id,
+            sid,
+            crate::intent::RefreshTrigger::Shortcut,
+        ) {
+            Ran::Done => return Received::Done,
+            Ran::NeedsView => return Received::View(id),
+            Ran::Nothing => {}
+        }
+    }
+    // 모델 포커스가 키를 받은 surface 면 지금 경로가 같은 surface 를 대상으로 처리한다. 같은 키에
+    // surface 액션이 아닌 전역 단축키(F2 의 `rename_tab` 등)가 있으면 그 단축키만 처리한다.
+    if !bound || state.focused_surface_id(engine) == Some(sid) {
+        Received::Unbound
+    } else if binds_host_command(kb, key, mods) {
+        Received::Global
+    } else {
+        Received::Pass
+    }
+}
+
+/// 키가 surface 하나를 대상으로 하지 않는 전역 단축키에 묶여 있다.
+fn binds_host_command(
+    kb: &crate::settings::KeybindingSettings,
+    key: &winit::keyboard::Key,
+    mods: winit::keyboard::ModifiersState,
+) -> bool {
+    crate::settings::KeybindingSettings::GENERAL_BINDING_FIELDS
+        .iter()
+        .map(|&(id, _)| id)
+        .filter(|id| {
+            surface_action(id).is_none()
+                && crate::webview::WebViewEditAction::from_field_id(id).is_none()
+        })
+        .any(|id| {
+            kb.get_bindings(id)
+                .is_some_and(|combos| super::matches_any_binding(combos, key, mods))
+        })
+}
+
 #[cfg(test)]
 #[path = "surface_action_tests.rs"]
 mod tests;

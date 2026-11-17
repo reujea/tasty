@@ -1,6 +1,8 @@
 //! 입력 대상이 생성 대기 초안일 때 내장 surface 액션을 거는 판정과, 생성된 surface 에서의 실행.
 
-use super::{PaletteRun, hold_for_draft, run_held_action, run_palette_action};
+use super::{
+    PaletteRun, Received, hold_for_draft, run_held_action, run_palette_action, run_received_key,
+};
 use crate::adapters::ui::tools_menu::run_deferred_tools;
 use crate::intent::Intent;
 use crate::intent::RefreshTrigger::Shortcut;
@@ -728,4 +730,146 @@ fn an_explorer_draft_focuses_the_address_of_the_created_explorer() {
             .get(sid)
             .is_some_and(|v| v.focus_address)
     );
+}
+
+/// native WebView 가 넘긴 키는 모델 포커스(B)가 아니라 키를 받은 surface(A)에서 실행한다. A 가 받지 않는
+/// 액션은 B 로 보내지 않고 넘기며, A 가 모델 포커스면 지금 경로에 맡긴다.
+#[test]
+fn a_key_from_a_webview_runs_on_the_surface_that_received_it() {
+    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    let (mut state, engine) = two_tabs();
+    let read = engine.read();
+    let focused = state.focused_surface_id(&read).expect("focused surface");
+    let received = if focused == 11 { 12 } else { 11 };
+    let mut kb = crate::settings::KeybindingSettings::default();
+    for (id, combo) in [
+        ("convert_to_explorer", "ctrl+f9"),
+        ("explorer_go_up", "ctrl+f10"),
+    ] {
+        assert!(
+            kb.clear_field(id) && kb.add_binding(id, combo.into()),
+            "{id}"
+        );
+    }
+    let ctrl = ModifiersState::CONTROL;
+    let f9 = Key::Named(NamedKey::F9);
+    let f10 = Key::Named(NamedKey::F10);
+    assert_eq!(
+        run_received_key(&mut state, &read, &kb, &f9, ctrl, received),
+        Received::Done
+    );
+    let intents = state.take_pending_intents();
+    assert!(converts(&intents, received) && !converts(&intents, focused));
+    assert_eq!(
+        run_received_key(&mut state, &read, &kb, &f10, ctrl, received),
+        Received::Pass
+    );
+    assert_eq!(
+        run_received_key(&mut state, &read, &kb, &f10, ctrl, focused),
+        Received::Unbound
+    );
+    assert!(state.take_pending_intents().is_empty());
+    const WEBVIEW_KEYS: &str = include_str!("../../../../app/webview_keys.rs");
+    assert!(WEBVIEW_KEYS.contains("main.run_received_surface_key("));
+}
+
+/// WebView 가 넘긴 F2 는 탐색기 이름 바꾸기(목록 범위)이자 탭 이름 바꾸기(전역)다. html 은 앞의 것을 받지
+/// 않으므로 페이지로 넘기지 않고 전역 단축키만 처리한다. 모델 포커스가 탐색기여도 그 탐색기의 이름 바꾸기를
+/// 고르는 목록 키 단계는 거치지 않는다. 전역 바인딩을 지우면 페이지로 넘긴다.
+#[test]
+fn a_webview_key_with_a_host_command_runs_only_the_global_shortcut() {
+    use tasty_core::{DomainEvent as E, SurfaceSpec};
+    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    let mut events = vec![
+        E::CategoryCreated {
+            id: 0,
+            name: "normal".into(),
+            index: 0,
+        },
+        E::WorkspaceCreated {
+            id: 1,
+            name: "w".into(),
+            category: 0,
+            index: 0,
+            pane: 1,
+        },
+    ];
+    for (index, (id, kind)) in [(1, "html"), (2, "explorer")].into_iter().enumerate() {
+        events.push(E::TabCreated {
+            id,
+            pane: 1,
+            index,
+            name: kind.into(),
+            surface: SurfaceSpec {
+                id,
+                kind: kind.into(),
+                data: None,
+            },
+        });
+    }
+    let (mut state, mut session) =
+        crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
+    session.runtime.surfaces.insert(
+        1,
+        Box::new(crate::plugin_bridge::remote_surface::RemoteSurface::new(
+            1,
+            "html",
+            "com.tasty.html".into(),
+            "html".into(),
+        )),
+    );
+    state.goto_tab_in_pane(&session.core_state, 1);
+    let read = session.read();
+    assert_eq!(state.focused_surface_id(&read), Some(2));
+    assert!(!crate::adapters::ui::input::shortcuts::focused_explorer_typing(&state, &read));
+    let f2 = Key::Named(NamedKey::F2);
+    let mut kb = crate::settings::KeybindingSettings::default();
+    assert_eq!(
+        run_received_key(&mut state, &read, &kb, &f2, ModifiersState::empty(), 1),
+        Received::Global
+    );
+    assert!(state.take_pending_intents().is_empty());
+    assert!(kb.clear_field("rename_tab"));
+    assert_eq!(
+        run_received_key(&mut state, &read, &kb, &f2, ModifiersState::empty(), 1),
+        Received::Pass
+    );
+    // 전역 갈래는 탐색기 목록 키(handle_explorer_shortcut)를 거치는 handle_shortcut 이 아니라 전역 단축키
+    // 처리만 부른다.
+    const VIEW: &str = include_str!("surface_view_actions.rs");
+    assert!(VIEW.contains(
+        "Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods)),"
+    ));
+    const DISPATCH: &str = include_str!("dispatch.rs");
+    let body = &DISPATCH[DISPATCH
+        .find("fn run_keybinding_shortcuts(")
+        .expect("global path")..];
+    let body = &body[..body.find("\n    }\n").expect("fn end")];
+    assert!(body.contains("Self::handle_keybinding_shortcuts("));
+    assert!(!body.contains("handle_shortcut") && !body.contains("handle_explorer_shortcut"));
+}
+
+/// WebView 가 넘긴 주소창 포커스 키도 받은 surface 의 주소 띠 능력으로 판정한다. 띠를 선언한 plugin kind 면
+/// html 이 아니어도 그 surface 의 띠에 포커스를 요청한다.
+#[test]
+fn a_webview_address_key_follows_the_declared_address_band() {
+    use crate::runtime::surface_registry::KindCapabilities;
+    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    let capabilities = KindCapabilities {
+        address_band: true,
+        ..KindCapabilities::default()
+    };
+    let (mut state, engine) = webview_tab("web", capabilities);
+    let read = engine.read();
+    let mut kb = crate::settings::KeybindingSettings::default();
+    assert!(
+        kb.clear_field("explorer_focus_address")
+            && kb.add_binding("explorer_focus_address", "ctrl+f11".into())
+    );
+    let f11 = Key::Named(NamedKey::F11);
+    assert_eq!(
+        run_received_key(&mut state, &read, &kb, &f11, ModifiersState::CONTROL, 1),
+        Received::Done
+    );
+    assert_eq!(state.html_address.focus_requested(), Some(1));
 }

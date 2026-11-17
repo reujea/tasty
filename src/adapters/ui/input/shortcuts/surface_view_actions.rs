@@ -2,7 +2,7 @@
 //! 시점에 정해 넘기며 여기서 포커스를 다시 읽지 않는다.
 
 use super::copy_paste::ExplorerAction;
-use super::surface_actions::{self, PaletteRun};
+use super::surface_actions::{self, PaletteRun, Received};
 use crate::runtime::engine_read::EngineRead;
 use crate::state::attach_pending::deferred::CommandSurfaceTarget;
 use crate::view::main::MainView;
@@ -92,5 +92,25 @@ impl MainView {
         }
         self.base.state.dirty = true;
         false
+    }
+
+    /// native WebView 가 넘긴 키가 surface 액션이면 키를 받은 `sid` 에서 실행한다. 처리했으면 `Some(true)`,
+    /// 그 surface 가 받지 않아 페이지로 넘길 키면 `Some(false)`, surface 액션 키가 아니면 `None` 이다. 그
+    /// surface 가 받지 않지만 같은 키가 전역 단축키이기도 하면 전역 단축키만 처리한 결과다.
+    pub(crate) fn run_received_surface_key(
+        &mut self,
+        engine: &EngineRead<'_>,
+        key: &winit::keyboard::Key,
+        mods: winit::keyboard::ModifiersState,
+        sid: u32,
+    ) -> Option<bool> {
+        let kb = &engine.settings.keybindings;
+        match surface_actions::run_received_key(&mut self.state, engine, kb, key, mods, sid) {
+            Received::Unbound => None,
+            Received::Pass => Some(false),
+            Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods)),
+            Received::Done => Some(true),
+            Received::View(id) => Some(self.run_view_surface_action(engine, id, sid)),
+        }
     }
 }

@@ -566,6 +566,40 @@ impl MainView {
         self.base.state.dirty = true;
     }
 
+    /// 전역 단축키(`handle_keybinding_shortcuts`)만 처리한다. 대상은 모델 포커스다. 마지막 workspace 를
+    /// 닫았으면 창 닫기를 요청한다.
+    pub(crate) fn run_keybinding_shortcuts(
+        &mut self,
+        engine: &EngineRead<'_>,
+        kb: &crate::settings::KeybindingSettings,
+        key: &Key,
+        mods: ModifiersState,
+    ) -> bool {
+        let cells = CellGeometry {
+            w: crate::model::PhysicalPx(self.base.gpu.cell_width()),
+            h: crate::model::PhysicalPx(self.base.gpu.cell_height()),
+            scale_factor: self.base.gpu.scale_factor(),
+        };
+        let terminal_rect = self.compute_terminal_rect();
+        if !Self::handle_keybinding_shortcuts(
+            &mut self.state,
+            engine,
+            kb,
+            key,
+            mods,
+            terminal_rect,
+            cells,
+            &self.proxy,
+        ) {
+            return false;
+        }
+        if engine.workspaces().is_empty() {
+            self.request_close();
+        }
+        self.base.state.dirty = true;
+        true
+    }
+
     pub(crate) fn handle_shortcut(
         &mut self,
         engine: &EngineRead<'_>,
@@ -588,10 +622,6 @@ impl MainView {
         let shift = mods.shift_key();
         // alt는 macOS의 Command, 다른 OS의 Alt다. option은 macOS의 Option, 다른 OS의 Win·Super다.
         let (alt, option) = tasty_key_match::token_axes(mods);
-
-        let terminal_rect = self.compute_terminal_rect();
-        let cell_w = self.base.gpu.cell_width();
-        let cell_h = self.base.gpu.cell_height();
 
         if !edit_judged && self.handle_webview_edit_shortcut(engine, key, mods) {
             return true;
@@ -618,25 +648,7 @@ impl MainView {
             return true;
         }
 
-        let cells = CellGeometry {
-            w: crate::model::PhysicalPx(cell_w),
-            h: crate::model::PhysicalPx(cell_h),
-            scale_factor: self.base.gpu.scale_factor(),
-        };
-        if Self::handle_keybinding_shortcuts(
-            &mut self.state,
-            engine,
-            &kb,
-            key,
-            mods,
-            terminal_rect,
-            cells,
-            &self.proxy,
-        ) {
-            if engine.workspaces().is_empty() {
-                self.request_close();
-            }
-            self.base.state.dirty = true;
+        if self.run_keybinding_shortcuts(engine, &kb, key, mods) {
             return true;
         }
 
