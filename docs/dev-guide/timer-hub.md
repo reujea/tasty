@@ -124,6 +124,15 @@ macOS 최소화나 트레이 상주처럼 창이 없을 때도 parked engine의 
 waker는 등록된 타이머가 없으면 무기한 기다린다. 새 데드라인이 생기면 `Condvar`로
 대기를 갱신하므로 고정 주기로 계속 깨우는 스레드는 필요 없다.
 
+이 전제를 지키려고 메인 스레드의 매 iteration 경로(`about_to_wait`, `redraw_main_window`와 그 안의
+폴링 함수)에서는 `EventLoopProxy`를 clone하거나 새로 만들지 않는다. 일을 시작하는 조건(대기 중 요청을
+꺼냈을 때 등)이 성립한 뒤에만 clone한다. winit의 macOS 구현은 clone마다 런루프 source를 추가하고
+`CFRunLoopWakeUp`을 부르며, Wayland 구현은 clone한 sender를 drop할 때마다 이벤트 루프를 ping한다.
+매 iteration에 clone하면 idle에도 다음 iteration이 바로 시작돼 메인 스레드가 한 코어를 계속 쓴다.
+X11과 Windows 구현은 clone·drop으로 깨우지 않으므로 Linux X11 시험 루프에서는 깨움 수로 이 결함을
+검출할 수 없다. 포트 스캔 폴링은 worker용 clone 수를 세는 시험과 요청보다 앞선 clone을 찾는 소스 검사로
+확인한다.
+
 **headless 는 waker 스레드조차 없다.** 메인 루프가 `rx.recv_timeout(deadline - now)` 로
 직접 데드라인을 지키므로 wake 신호가 필요 없다(`AppEvent::TimerTick` 은 gui 전용).
 

@@ -13,7 +13,7 @@ struct ScanJob {
     view: Weak<()>,
     ticket: Weak<()>,
     favorites: bool,
-    result: mpsc::Receiver<Result<Vec<PortRowView>, String>>,
+    result: mpsc::Receiver<ScanResult>,
     worker: JoinHandle<()>,
 }
 #[derive(Default)]
@@ -109,7 +109,6 @@ impl super::App {
     }
 
     fn start_pending_port_scans(&mut self) {
-        let proxy = self.view.proxy.clone();
         for (&window, view) in &mut self.view.views {
             let Some(view) = view.as_main_mut() else {
                 continue;
@@ -135,21 +134,8 @@ impl super::App {
                 let Some((ticket, snapshot)) = slot.take_request() else {
                     continue;
                 };
-                let (sender, result) = mpsc::channel();
-                let wake = proxy.clone();
-                match std::thread::Builder::new()
-                    .name("port-scan".into())
-                    .spawn(move || {
-                        let result = std::panic::catch_unwind(|| run_scan(snapshot))
-                            .unwrap_or_else(|_| Err("scan worker panicked".into()));
-                        if sender.send(result).is_err() {
-                            return;
-                        } // App has retired; no result consumer remains.
-                        if wake.send_event(crate::AppEvent::TimerTick).is_err() {
-                            tracing::debug!("port scan completion after App event loop closed");
-                        }
-                    }) {
-                    Ok(worker) => self.port_scans.jobs.push(ScanJob {
+                match spawn_scan_worker(&self.view.proxy, snapshot) {
+                    Ok((result, worker)) => self.port_scans.jobs.push(ScanJob {
                         window,
                         view: identity.clone(),
                         ticket,
@@ -167,6 +153,51 @@ impl super::App {
         }
     }
 }
+
+type ScanResult = Result<Vec<PortRowView>, String>;
+
+/// 대기 중인 요청을 꺼낸 뒤에만 부른다. 이 함수 밖에서 proxy를 미리 clone하지 않는다.
+/// 이 함수는 about_to_wait와 redraw_main_window마다 도는 poll_port_scans 경로에 있다.
+/// macOS winit은 EventLoopProxy clone마다 런루프 source를 추가하고 CFRunLoopWakeUp을 부르고,
+/// Wayland는 clone한 sender를 drop할 때마다 ping한다. 요청이 없을 때 clone하면 메인 루프가 쉬지 않는다.
+fn spawn_scan_worker(
+    proxy: &winit::event_loop::EventLoopProxy<crate::AppEvent>,
+    snapshot: ScanSnapshot,
+) -> std::io::Result<(mpsc::Receiver<ScanResult>, JoinHandle<()>)> {
+    let (sender, result) = mpsc::channel();
+    let wake = worker_wake(proxy);
+    let worker = std::thread::Builder::new()
+        .name("port-scan".into())
+        .spawn(move || {
+            let result = std::panic::catch_unwind(|| run_scan(snapshot))
+                .unwrap_or_else(|_| Err("scan worker panicked".into()));
+            if sender.send(result).is_err() {
+                return;
+            } // App has retired; no result consumer remains.
+            if wake.send_event(crate::AppEvent::TimerTick).is_err() {
+                tracing::debug!("port scan completion after App event loop closed");
+            }
+        })?;
+    Ok((result, worker))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// 이 스레드에서 worker용 proxy를 clone한 횟수. X11 시험 루프는 clone으로 깨지 않으므로 clone 자체를 센다.
+    static WORKER_WAKE_CLONES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn worker_wake(
+    proxy: &winit::event_loop::EventLoopProxy<crate::AppEvent>,
+) -> winit::event_loop::EventLoopProxy<crate::AppEvent> {
+    #[cfg(test)]
+    WORKER_WAKE_CLONES.with(|count| count.set(count.get() + 1));
+    proxy.clone()
+}
+
+#[cfg(all(test, target_os = "linux"))]
+#[path = "port_scans_tests.rs"]
+mod tests;
 
 /// Tasty 하위 프로세스의 소속을 모은 뒤 선택한 범위의 TCP 소켓을 조회한다.
 fn run_scan(snapshot: ScanSnapshot) -> Result<Vec<PortRowView>, String> {

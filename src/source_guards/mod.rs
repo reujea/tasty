@@ -774,6 +774,9 @@ mod theme_changed_after_install;
 mod popover_frame_call_sites;
 
 #[cfg(test)]
+mod port_scan_proxy_clone_order;
+
+#[cfg(test)]
 mod text_edit_hint_color;
 
 #[cfg(test)]
