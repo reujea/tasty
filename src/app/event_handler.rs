@@ -568,7 +568,7 @@ impl ApplicationHandler<AppEvent> for App {
         self.dispatch_pending_tool_events();
         self.dispatch_pending_palette_plugin_commands();
         self.dispatch_pending_intents();
-        self.publish_lua_snapshot();
+        self.refresh_lua_snapshot_for_pending_jobs();
         self.dispatch_pending_lua_commands();
         self.settle_lua_runs();
         self.dispatch_pending_popup_opens();
@@ -1432,7 +1432,7 @@ impl App {
             };
             mgr.emit_host_event("window.closed", &payload, EventScope::System);
             crate::hooks::lua::fire(
-                self.lua_engine.as_ref(),
+                crate::app::dispatch::lua_commands::lua_send!(self).as_ref(),
                 crate::hooks::lua::AutofireCtx {
                     scripts: &scripts,
                     guard: &mut self.lua_autofire,

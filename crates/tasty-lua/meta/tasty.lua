@@ -27,8 +27,12 @@ function tasty.warn(msg) end
 function tasty.run_cli(args) end
 
 --- Return a copy of the workspace tree the main thread published last. The main
---- thread publishes it once per event loop pass, so a change requested with
---- tasty.run_cli is not guaranteed to appear in the next call. Each entry is
+--- thread publishes it right before it sends a Lua job and again on every event
+--- loop pass while a job is queued or running, so a running job sees later
+--- changes on its next call. When the tree is published within a pass is not
+--- fixed. A change requested with tasty.run_cli is not guaranteed to appear in
+--- the next call. Calling it from a __gc finalizer while Tasty closes the Lua VM
+--- raises an error. Each entry is
 --- one workspace with the same fields as IPC `list tree`. The workspaces of
 --- each session (engine) are appended in turn: sessions with a window first, in
 --- no fixed order, then parked sessions kept without a window (last window

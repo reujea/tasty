@@ -6,14 +6,14 @@ use tasty_ipc::protocol::JsonRpcResponse;
 
 /// Lua 워커에 실행을 예약한다. scheduled 응답은 완료·성공을 보장하지 않는다.
 pub(crate) fn lua_eval(
-    engine: Option<&tasty_lua::LuaEngine>,
+    engine: Option<&crate::hooks::lua::LuaSend<'_>>,
     rpc_id: Value,
     params: &Value,
 ) -> JsonRpcResponse {
     let source = params.get("source").and_then(|v| v.as_str());
     match (source, engine) {
         (Some(src), Some(eng)) => {
-            eng.run_script(src, Some("debug.lua.eval"));
+            eng.engine().run_script(src, Some("debug.lua.eval"));
             JsonRpcResponse::success(rpc_id, serde_json::json!({ "scheduled": true }))
         }
         (None, _) => JsonRpcResponse::invalid_params(rpc_id, "Missing 'source'"),

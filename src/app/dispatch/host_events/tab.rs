@@ -25,7 +25,7 @@ pub(super) fn emit_focused(
 
 pub(super) fn emit_renamed(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     tab_id: u32,
     title: String,
@@ -40,7 +40,7 @@ pub(super) fn emit_renamed(
 
 pub(super) fn emit_created(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     tab_id: u32,
     pane_id: u32,
@@ -59,7 +59,7 @@ pub(super) fn emit_created(
 
 pub(super) fn emit_closed(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     tab_id: u32,
     pane_id: u32,

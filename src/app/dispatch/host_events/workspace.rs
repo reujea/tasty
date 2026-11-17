@@ -60,7 +60,7 @@ pub(super) struct RenameEvent {
 
 pub(super) fn emit_renamed(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     ev: RenameEvent,
 ) {
@@ -85,7 +85,7 @@ pub(super) fn emit_renamed(
 
 pub(super) fn emit_created(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     workspace_id: u32,
     window: CreatedWindow,
@@ -102,7 +102,7 @@ pub(super) fn emit_created(
 
 pub(super) fn emit_closed(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     workspace_id: u32,
 ) {

@@ -286,7 +286,7 @@ fn run_gui(
     };
     app.hub.webhook = Some(webhook);
     hooks::lua::fire(
-        app.lua_engine.as_ref(),
+        crate::app::dispatch::lua_commands::lua_send!(app).as_ref(),
         hooks::lua::AutofireCtx {
             scripts: &boot_settings.scripts,
             guard: &mut app.lua_autofire,
@@ -920,7 +920,10 @@ fn run_headless(cli: cli::Cli) -> anyhow::Result<std::process::ExitCode> {
     state.engine_id = Some(engine_id);
 
     hooks::lua::fire(
-        app.lua_engine.as_ref(),
+        app.lua_engine
+            .as_ref()
+            .map(hooks::lua::LuaSend::without_snapshot)
+            .as_ref(),
         hooks::lua::AutofireCtx {
             scripts: &boot_settings.scripts,
             guard: &mut app.lua_autofire,

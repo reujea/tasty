@@ -42,7 +42,8 @@ impl App {
             return;
         }
         let scripts = self.autofire_scripts();
-        let lua = self.lua_engine.as_ref();
+        let lua_send = crate::app::dispatch::lua_commands::lua_send!(self);
+        let lua = lua_send.as_ref();
         let Some(mgr) = self.plugin_manager.as_mut() else {
             return;
         };

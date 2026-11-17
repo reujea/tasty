@@ -418,8 +418,11 @@ fn intercept_debug_app_layer(
 ) -> Option<Intercepted> {
     let rpc_id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
     if cmd.request.method == "debug.lua.eval" {
-        let resp =
-            crate::app::services::lua_eval(app.lua_engine.as_ref(), rpc_id, &cmd.request.params);
+        let lua = app
+            .lua_engine
+            .as_ref()
+            .map(crate::hooks::lua::LuaSend::without_snapshot);
+        let resp = crate::app::services::lua_eval(lua.as_ref(), rpc_id, &cmd.request.params);
         send_response(&cmd.response_tx, resp);
         return Some(Intercepted::Answered);
     }

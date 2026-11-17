@@ -57,7 +57,7 @@ Lua5.4의 instruction-count hook이 기한을 확인해 초과 job을 오류로 
 
 #### `tasty.tree()` 반환 구조
 
-메인 스레드는 이벤트 루프를 한 번 돌 때마다 트리를 만들어 스냅샷으로 발행한다. `tasty.tree()`는 호출한 시점에 마지막으로 발행된 스냅샷을 복사해 Lua table로 돌려준다. 돌려받은 table을 바꿔도 Tasty 상태는 바뀌지 않는다. 각 workspace의 필드는 IPC `list tree`와 같다. 두 경로가 같은 함수(`build_engine_tree`)로 JSON을 만들기 때문이다. 반환값은 workspace 배열이다. 세션(engine)마다 그 workspace를 차례로 이어 붙인다. 세션에는 창이 있는 세션과 창 없이 보관된 parked 세션(마지막 창을 닫았을 때, macOS에서 창을 최소화했을 때)이 있다. 창이 있는 세션이 먼저 오고(창 사이 순서는 고정돼 있지 않다) parked 세션이 보관 순서대로 뒤에 온다.
+메인 스레드는 Lua job이 있을 때만 트리를 만들어 스냅샷으로 발행한다. job(hook 발화, 자동실행, 단축키 실행, `debug.lua.eval`)을 보내기 직전에 그 시점의 트리를 발행하고, 보낸 job이 큐에 있거나 실행 중인 동안에는 이벤트 루프를 한 번 돌 때마다 다시 발행한다. 실행 중인 job은 다음 `tasty.tree()`에서 그 사이의 상태 변화를 본다. job이 없는 동안에는 발행하지 않는다. 발행 시점은 iteration 안에서 정해지지 않는다. 같은 iteration 안에서도 job 송신 직전(다른 처리가 끝나기 전)과 iteration 후반에 각각 발행될 수 있어, 실행 중인 job은 그 중간 값을 읽을 수 있다. 읽는 값은 늘 발행한 순간의 실제 상태다. `tasty.tree()`는 호출한 시점에 마지막으로 발행된 스냅샷을 복사해 Lua table로 돌려준다. 돌려받은 table을 바꿔도 Tasty 상태는 바뀌지 않는다. 각 workspace의 필드는 IPC `list tree`와 같다. 두 경로가 같은 함수(`build_engine_tree`)로 JSON을 만들기 때문이다. 반환값은 workspace 배열이다. 세션(engine)마다 그 workspace를 차례로 이어 붙인다. 세션에는 창이 있는 세션과 창 없이 보관된 parked 세션(마지막 창을 닫았을 때, macOS에서 창을 최소화했을 때)이 있다. 창이 있는 세션이 먼저 오고(창 사이 순서는 고정돼 있지 않다) parked 세션이 보관 순서대로 뒤에 온다.
 
 | 단계 | 필드 |
 |---|---|
@@ -97,6 +97,7 @@ end
 한계는 다음과 같다.
 
 - `active`와 `focused`는 세션(창, 또는 창 없이 보관된 parked 세션) 안에서만 판정한다. 트리에는 창이나 세션을 나타내는 필드가 없다. 세션이 여러 개면 `active`가 참인 workspace가 세션마다 하나씩 나오고, OS 포커스를 가진 창이나 화면에 보이는 세션을 트리로 구분할 수 없다. 위 예처럼 첫 번째 `active` workspace를 고르면 다른 창의 surface가 나올 수 있다. 창을 모두 닫았거나 macOS에서 창을 최소화한 상태에서는 화면에 없는 parked 세션의 surface가 나올 수 있다.
+- 앱 종료로 Lua VM을 닫을 때 실행되는 `__gc` finalizer에서는 `tasty.tree()`가 오류를 낸다(mlua가 VM을 닫는 중에 table을 만들지 못한다). finalizer에서 트리를 읽지 않는다.
 - 스냅샷은 발행 시점의 값이다. `tasty.run_cli`는 CLI 실행을 요청만 하고 완료를 기다리지 않으므로, 바로 뒤의 `tasty.tree()`에 그 결과가 반영됐다고 가정할 수 없다.
 
 ### 이벤트 hook
@@ -179,7 +180,7 @@ crates/tasty-lua/
   meta/tasty.lua   # EmmyLua stub (LuaLS 용)
 ```
 
-`App` 가 `lua_engine: Option<LuaEngine>` 를 보유(`src/app.rs`). 부팅 시 `LuaEngine::new()` 로 VM 을 전용 워커 스레드에 기동한다. 메인은 `about_to_wait` 안전지점에서 읽기 스냅샷 발행(`publish_lua_snapshot`)과 워커 커맨드 drain(`dispatch_pending_lua_commands`)을 수행한다.
+`App` 가 `lua_engine: Option<LuaEngine>` 를 보유(`src/app.rs`). 부팅 시 `LuaEngine::new()` 로 VM 을 전용 워커 스레드에 기동한다. 메인은 job을 보낼 때 `LuaSend`(`src/host_api/hooks/lua.rs`, App에서는 `lua_send!`)를 거쳐 송신 직전에 읽기 스냅샷을 한 번 발행한다. `about_to_wait` 안전지점에서는 진행 중 job(`LuaEngine::pending_jobs`)이 있을 때만 스냅샷을 다시 발행하고(`refresh_lua_snapshot_for_pending_jobs`) 워커 커맨드를 drain한다(`dispatch_pending_lua_commands`). 진행 중 job 수는 Shutdown을 뺀 모든 job을 큐에 넣기 전에 늘리고, 워커가 처리를 마치거나 송신 거절·큐 폐기로 job이 버려질 때 줄인다. headless는 트리를 발행하지 않아 `tasty.tree()`가 빈 배열이다.
 
 이벤트 발생은 `hooks::lua::fire` 헬퍼 한 곳을 거친다(`src/host_api/hooks/lua.rs`):
 

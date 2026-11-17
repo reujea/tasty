@@ -1,11 +1,60 @@
 //! Lua 워커의 HostCommand를 about_to_wait에서 메인 스레드 상태에 적용한다.
+//!
+//! `tasty.tree()`가 읽는 스냅샷은 job이 있을 때만 만든다. job을 보내기 직전에 그 시점의 트리를
+//! 발행하고([`lua_send!`]), 보낸 job이 큐에 있거나 실행 중인 동안에는 iteration마다 다시 발행한다.
+//! job이 없는 동안에는 스냅샷을 읽는 Lua 코드가 없다. VM을 닫을 때의 `__gc` finalizer도
+//! 트리를 읽지 못한다(tasty-lua 시험이 고정한다).
 
 use crate::adapters::ipc::handler::build_engine_tree;
 use crate::app::App;
-use crate::app::window_access::engines_mut;
+use crate::app::window_access::{EngineScan, engines_mut};
 use crate::view::ui::View;
 use tasty_lua::{HostCommand, LuaSnapshot};
 use winit::window::WindowId;
+
+/// App의 Lua 엔진으로 job을 보내는 [`LuaSend`](crate::hooks::lua::LuaSend). View·engine 필드만
+/// 빌리므로 plugin manager·자동실행 상태를 함께 빌린 채로 쓸 수 있다. 엔진이 없으면 `None`이다.
+macro_rules! lua_send {
+    ($app:expr) => {
+        $app.lua_engine.as_ref().map(|engine| {
+            $crate::hooks::lua::LuaSend::new(engine, || {
+                $crate::app::dispatch::lua_commands::lua_tree(
+                    $crate::app::window_access::EngineScan::from_fields(
+                        &$app.view.views,
+                        &$app.engines,
+                    ),
+                )
+            })
+        })
+    };
+}
+pub(crate) use lua_send;
+
+/// 모든 MainView·parked workspace의 읽기 스냅샷. 세션 수·트리 크기에 비례해 비용이 든다.
+pub(crate) fn lua_tree(scan: EngineScan<'_>) -> LuaSnapshot {
+    let mut tree = Vec::new();
+    for (s, e) in scan.sessions() {
+        tree.extend(build_engine_tree(
+            &s.navigation,
+            s.active_workspace_index(e.core),
+            &e.read(),
+        ));
+    }
+    LuaSnapshot { tree }
+}
+
+/// 보낸 job이 큐에 있거나 실행 중일 때만 트리를 다시 발행한다. 실행 중인 job이 이번 iteration의
+/// 상태 변화를 다음 `tasty.tree()`에서 보게 한다.
+fn refresh_for_pending_jobs(
+    engine: Option<&tasty_lua::LuaEngine>,
+    tree: impl FnOnce() -> LuaSnapshot,
+) {
+    if let Some(engine) = engine
+        && engine.pending_jobs() > 0
+    {
+        engine.publish_snapshot(tree());
+    }
+}
 
 impl App {
     pub(crate) fn dispatch_pending_lua_commands(&mut self) {
@@ -19,21 +68,9 @@ impl App {
         }
     }
 
-    /// 모든 MainView·parked workspace의 읽기 스냅샷을 발행한다.
-    /// 매번 전체 트리를 다시 만들므로 큰 트리에서는 비용을 확인해야 한다.
-    pub(crate) fn publish_lua_snapshot(&self) {
-        let Some(engine) = self.lua_engine.as_ref() else {
-            return;
-        };
-        let mut tree = Vec::new();
-        for (s, e) in self.engines().sessions() {
-            tree.extend(build_engine_tree(
-                &s.navigation,
-                s.active_workspace_index(e.core),
-                &e.read(),
-            ));
-        }
-        engine.publish_snapshot(LuaSnapshot { tree });
+    /// about_to_wait가 job 송신 단계 뒤에 부른다. 진행 중 job이 없으면 트리를 만들지 않는다.
+    pub(crate) fn refresh_lua_snapshot_for_pending_jobs(&self) {
+        refresh_for_pending_jobs(self.lua_engine.as_ref(), || lua_tree(self.engines()));
     }
 
     /// 스크립트 변경을 승인하면 해시 저장을 시도하고 이미 읽은 소스를 실행한다.
@@ -108,8 +145,8 @@ impl App {
     /// 사용자가 시작한 스크립트 실행을 요청한다. 실행하지 못하면 요청한 창에 실패 토스트를 띄운다.
     pub(crate) fn submit_shortcut_script(&mut self, window: WindowId, source: &str, name: String) {
         use crate::hooks::lua_runs::{RunOrigin, ShortcutFailure};
-        let submitted = match self.lua_engine.as_ref() {
-            Some(engine) => engine.submit_script(source, Some(&name), None),
+        let submitted = match lua_send!(self) {
+            Some(lua) => lua.engine().submit_script(source, Some(&name), None),
             None => Err(tasty_lua::RunRejected::WorkerGone),
         };
         match submitted {
@@ -197,6 +234,69 @@ fn record_script_hash<'a>(
 #[cfg(test)]
 mod tests {
     use crate::settings::Settings;
+    use std::cell::Cell;
+    use std::time::{Duration, Instant};
+    use tasty_lua::{HostCommand, LuaEngine, LuaSnapshot};
+
+    fn named(name: &str) -> LuaSnapshot {
+        LuaSnapshot {
+            tree: vec![serde_json::json!({ "name": name })],
+        }
+    }
+
+    fn wait_until(what: &str, done: impl Fn() -> bool) {
+        let end = Instant::now() + Duration::from_secs(5);
+        while !done() {
+            assert!(Instant::now() < end, "시간 안에 {what}");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// Given 진행 중 job이 없다, When iteration 갱신을 여러 번 한다, Then 트리를 만들지 않는다.
+    /// Given 실행 중인 job, When 상태가 바뀐 뒤 갱신한다, Then 그 job의 다음 tree()가 새 값을 읽는다.
+    /// Given job이 끝났다, When 다시 갱신한다, Then 더 발행하지 않는다.
+    #[test]
+    fn the_iteration_refresh_publishes_only_while_a_job_is_pending() {
+        let engine = LuaEngine::new().expect("init");
+        let built = Cell::new(0);
+        let refresh = |name: &str| {
+            super::refresh_for_pending_jobs(Some(&engine), || {
+                built.set(built.get() + 1);
+                named(name)
+            })
+        };
+        for _ in 0..8 {
+            refresh("idle");
+        }
+        assert_eq!(built.get(), 0, "job이 없으면 트리를 만들지 않는다");
+        assert_eq!(engine.published_snapshots(), 0);
+
+        engine.run_script(
+            "while (tasty.tree()[1] or {}).name ~= 'changed' do end              tasty.run_cli({tasty.tree()[1].name})",
+            None,
+        );
+        refresh("first");
+        assert_eq!(
+            engine.pending_jobs(),
+            1,
+            "이름이 바뀌기 전에는 끝나지 않는다"
+        );
+        refresh("changed");
+        wait_until("job이 끝난다", || engine.pending_jobs() == 0);
+        let cmds = engine.drain_commands();
+        assert!(
+            matches!(cmds.as_slice(), [HostCommand::RunCli(a)] if a == &["changed"]),
+            "{cmds:?}"
+        );
+        let published = engine.published_snapshots();
+        refresh("after");
+        assert_eq!(
+            engine.published_snapshots(),
+            published,
+            "끝난 뒤에는 발행하지 않는다"
+        );
+        super::refresh_for_pending_jobs(None, || unreachable!("엔진 없음"));
+    }
 
     /// 두 스크립트를 해시 없이 등록한 사본과 그 id.
     fn with_scripts() -> (Settings, [String; 2]) {

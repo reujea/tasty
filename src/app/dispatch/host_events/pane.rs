@@ -9,7 +9,7 @@ use crate::plugin::PluginManager;
 
 pub(super) fn emit_created(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     pane_id: u32,
     workspace_id: u32,
@@ -25,7 +25,7 @@ pub(super) fn emit_created(
 
 pub(super) fn emit_closed(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     pane_id: u32,
 ) {

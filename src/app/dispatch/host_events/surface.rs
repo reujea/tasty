@@ -38,7 +38,7 @@ pub(super) fn emit_refresh_requested(
 #[allow(clippy::too_many_arguments)] // reason: host event payload 전체 컨텍스트
 pub(super) fn emit_created(
     mgr: &mut PluginManager,
-    lua: Option<&tasty_lua::LuaEngine>,
+    lua: Option<&crate::hooks::lua::LuaSend<'_>>,
     autofire: AutofireCtx<'_>,
     surface_id: u32,
     kind: &'static str,

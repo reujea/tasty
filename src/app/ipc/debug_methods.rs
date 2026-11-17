@@ -63,8 +63,8 @@ impl App {
         // 임의 Lua 실행은 debug 전용이며 헤드리스와 같은 함수를 사용한다.
         if cmd.request.method == "debug.lua.eval" {
             let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
-            let response =
-                crate::app::services::lua_eval(self.lua_engine.as_ref(), id, &cmd.request.params);
+            let lua = crate::app::dispatch::lua_commands::lua_send!(self);
+            let response = crate::app::services::lua_eval(lua.as_ref(), id, &cmd.request.params);
             send_response(&cmd.response_tx, response);
             return IpcStep::Handled;
         }

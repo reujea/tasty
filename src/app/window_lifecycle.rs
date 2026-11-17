@@ -525,7 +525,7 @@ impl App {
             };
             mgr.emit_host_event("window.created", &payload, EventScope::System);
             crate::hooks::lua::fire(
-                self.lua_engine.as_ref(),
+                crate::app::dispatch::lua_commands::lua_send!(self).as_ref(),
                 crate::hooks::lua::AutofireCtx {
                     scripts: &scripts,
                     guard: &mut self.lua_autofire,

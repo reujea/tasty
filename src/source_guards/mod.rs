@@ -722,6 +722,8 @@ mod key_contract_by_layer;
 
 #[cfg(test)]
 mod length_constant_frontier;
+#[cfg(test)]
+mod lua_send_paths;
 
 #[cfg(test)]
 mod test_gate;
