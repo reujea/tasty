@@ -255,51 +255,13 @@ impl App {
             .and_then(|e| e.action.clone());
 
         if let Some(action) = action {
-            // action과 command.invoke를 함께 실행하면 같은 명령이 두 번 처리된다.
-            // 호스트 action만 실행하되 command.invoked 알림은 보낸다. 대상은 키를 누른 지금 정한다.
-            let item = plugin::tool_registry::ToolItem {
-                source: plugin::tool_registry::ToolSource::Plugin {
-                    plugin_id: plugin_id.clone(),
-                    tool_id: cmd_id.clone(),
-                },
-                key: format!("{plugin_id}/{cmd_id}"),
-                label_i18n_key: String::new(),
-                icon: None,
-                action,
-                order_hint: 0,
-            };
-            let invoked = crate::state::attach_pending::deferred::InvokedNotice {
-                plugin_id,
-                command_id: cmd_id,
-                surface_id,
-            };
-            let target = main.state.command_surface_target(&engine.read());
-            let mgr = self.plugin_manager.as_mut();
-            // 실행할 수 없는 동작이면 실행도 알림도 하지 않고 키를 다음 처리자에 넘긴다.
-            if let Err(blocked) = crate::adapters::ui::tools_menu::run_tool(
+            return run_shortcut_action(
                 &mut main.state,
                 &engine.read(),
-                &item,
-                target,
-                Some(invoked),
-                |n| {
-                    if let Some(mgr) = mgr {
-                        crate::plugin_bridge::key_dispatch::emit_command_invoked(
-                            mgr,
-                            &n.plugin_id,
-                            &n.command_id,
-                            n.surface_id,
-                        );
-                    }
-                },
-            ) {
-                tracing::warn!(
-                    "plugin command '{}' not run: {}",
-                    item.key,
-                    blocked.message()
-                );
-                return false;
-            }
+                self.plugin_manager.as_mut(),
+                (plugin_id, cmd_id, surface_id),
+                action,
+            );
         } else if let Some(mgr) = self.plugin_manager.as_mut() {
             crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
                 mgr, &plugin_id, &cmd_id, surface_id,
@@ -309,6 +271,108 @@ impl App {
     }
 }
 
+/// 명령 단축키의 action 갈래. 대상은 키를 누른 지금 정한다. action과 command.invoke를 함께 실행하면
+/// 같은 명령이 두 번 처리되므로 호스트 action만 실행하고 command.invoked 알림은 실행할 때 보낸다.
+/// 실행했거나 생성 대기 초안에 걸어 두었으면 키를 소비해 true, 실행할 수 없으면 키를 다음 처리자에 넘겨 false.
+pub(crate) fn run_shortcut_action(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: Option<&mut tasty_host_plugin::PluginManager>,
+    (plugin_id, cmd_id, surface_id): (String, String, Option<u32>),
+    action: crate::plugin::manifest::ToolAction,
+) -> bool {
+    let item = crate::adapters::ui::tools_menu::command_item(&plugin_id, &cmd_id, action);
+    let invoked = crate::state::attach_pending::deferred::InvokedNotice {
+        plugin_id,
+        command_id: cmd_id,
+        surface_id,
+    };
+    let target = state.command_surface_target(engine);
+    if let Err(blocked) = crate::adapters::ui::tools_menu::run_tool(
+        state,
+        engine,
+        &item,
+        target,
+        Some(invoked),
+        |n| {
+            if let Some(mgr) = mgr {
+                crate::plugin_bridge::key_dispatch::emit_command_invoked(
+                    mgr,
+                    &n.plugin_id,
+                    &n.command_id,
+                    n.surface_id,
+                );
+            }
+        },
+    ) {
+        tracing::warn!(
+            "plugin command '{}' not run: {}",
+            item.key,
+            blocked.message()
+        );
+        return false;
+    }
+    true
+}
+
 pub(crate) fn draft_bytes(draft: &Draft) -> usize {
     crate::app::file_writer::command::value_bytes(&draft.iter().collect::<Vec<_>>())
+}
+
+#[cfg(test)]
+mod action_tests {
+    use super::run_shortcut_action;
+    use crate::plugin::manifest::ToolAction;
+
+    const SURFACE_POPUP: &str = "com.example.viewer/confirm";
+
+    fn open() -> ToolAction {
+        ToolAction::OpenPopup {
+            popup_id: SURFACE_POPUP.into(),
+        }
+    }
+
+    fn matched() -> (String, String, Option<u32>) {
+        ("com.example.viewer".into(), "confirm".into(), None)
+    }
+
+    /// 초안 선택 중 global 로 매칭된 명령 단축키는 초안에 걸어 두고 키를 소비한다.
+    #[test]
+    fn a_global_shortcut_on_a_pending_draft_is_held_and_consumes_the_key() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let pending = state.attach_pending.entries[0].id;
+        assert!(run_shortcut_action(
+            &mut state,
+            &read,
+            None,
+            matched(),
+            open()
+        ));
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
+        assert!(state.pending_popup_opens.is_empty());
+    }
+
+    /// 대상 surface 도 초안도 없으면 surface 팝업 명령은 실행하지 않고 키를 다음 처리자에 넘긴다.
+    #[test]
+    fn a_blocked_shortcut_runs_nothing_and_passes_the_key_on() {
+        let (mut state, mut session) =
+            crate::state::tests::test_state_from_model(crate::state::tests::test_model(vec![]));
+        state
+            .tool_registry
+            .set_surface_popups([SURFACE_POPUP.to_string()].into_iter().collect());
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        assert_eq!(state.command_surface_target(&read), None);
+        assert!(!run_shortcut_action(
+            &mut state,
+            &read,
+            None,
+            matched(),
+            open()
+        ));
+        assert!(state.pending_popup_opens.is_empty());
+    }
 }
