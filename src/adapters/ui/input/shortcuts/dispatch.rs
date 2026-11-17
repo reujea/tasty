@@ -8,6 +8,7 @@ use crate::view::main::MainView;
 
 use super::copy_paste::ExplorerAction;
 use super::keybinding::PresetApplyScope;
+use super::surface_actions;
 use super::zoom::ZoomAction;
 
 /// `&mut self` 가 필요해 match 뒤로 미루는 팔레트 액션.
@@ -45,7 +46,6 @@ impl MainView {
         engine: &EngineRead<'_>,
         action_id: &str,
     ) -> bool {
-        use crate::adapters::ui::popup::PopupScope;
         use crate::model::SplitDirection;
 
         // WebView가 포커스면 편집 액션은 그 페이지의 포커스 대상에만 실행한다.
@@ -232,14 +232,8 @@ impl MainView {
             "find" => {
                 // 터미널 검색만 처리한다. 다른 종류의 자체 검색을 빈 터미널 검색창으로 가리지 않는다.
                 // 탐색기는 자기 Find 바를 연다.
-                if let Some(sid) = super::focused_explorer_surface_id(state, engine) {
-                    state.open_explorer_find(sid);
-                } else if matches!(
-                    state.focused_surface_type(engine),
-                    crate::state::FocusedSurfaceType::Terminal
-                ) {
-                    let focused = state.focused_surface_id(engine);
-                    crate::adapters::ui::search_bar::open_or_focus_for(state, focused, "find");
+                if let Some(sid) = state.focused_surface_id(engine) {
+                    surface_actions::find_on(state, engine, sid, "find");
                 }
             }
             "open_markdown" => {
@@ -248,15 +242,7 @@ impl MainView {
             "open_explorer" => Self::open_explorer_tab(state),
             "convert_surface" => {
                 if let Some(sid) = state.focused_surface_id(engine) {
-                    state.dialogs.convert_popup = Some(sid);
-                    state.dialogs.convert_popup_selected = None;
-                    state.dispatch_intent(
-                        UiIntent::OpenPopup {
-                            id: "convert_surface",
-                            mode: OpenPopupMode::CenteredFocused(PopupScope::Surface(sid)),
-                        }
-                        .from_user_shortcut("convert_surface"),
-                    );
+                    surface_actions::open_convert_popup(state, sid, "convert_surface");
                 }
             }
             "convert_to_markdown" => {
@@ -266,17 +252,7 @@ impl MainView {
             }
             "convert_to_explorer" => {
                 if let Some(sid) = state.focused_surface_id(engine) {
-                    state.dispatch_intent(
-                        crate::intent::Intent::ConvertSurface {
-                            surface_id: sid,
-                            target: crate::intent::ConvertTarget::Kind {
-                                cwd: None,
-                                kind: "explorer".to_string(),
-                                params: serde_json::json!({}),
-                            },
-                        }
-                        .from_user_shortcut("convert_to_explorer"),
-                    );
+                    surface_actions::convert_to_explorer(state, sid, "convert_to_explorer");
                 }
             }
             "rename_tab" => {

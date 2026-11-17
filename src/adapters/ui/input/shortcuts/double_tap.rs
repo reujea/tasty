@@ -226,16 +226,10 @@ impl MainView {
             }
             "convert_surface" => {
                 if let Some(sid) = self.state.focused_surface_id(engine) {
-                    self.state.dialogs.convert_popup = Some(sid);
-                    self.state.dialogs.convert_popup_selected = None;
-                    self.state.dispatch_intent(
-                        UiIntent::OpenPopup {
-                            id: "convert_surface",
-                            mode: OpenPopupMode::CenteredFocused(
-                                crate::adapters::ui::popup::PopupScope::Surface(sid),
-                            ),
-                        }
-                        .from_user_shortcut("convert_surface_double_tap"),
+                    super::surface_actions::open_convert_popup(
+                        &mut self.state,
+                        sid,
+                        "convert_surface_double_tap",
                     );
                 }
             }
@@ -247,16 +241,10 @@ impl MainView {
             }
             "convert_to_explorer" => {
                 if let Some(sid) = self.state.focused_surface_id(engine) {
-                    self.state.dispatch_intent(
-                        crate::intent::Intent::ConvertSurface {
-                            surface_id: sid,
-                            target: crate::intent::ConvertTarget::Kind {
-                                cwd: None,
-                                kind: "explorer".to_string(),
-                                params: serde_json::json!({}),
-                            },
-                        }
-                        .from_user_shortcut("convert_to_explorer_double_tap"),
+                    super::surface_actions::convert_to_explorer(
+                        &mut self.state,
+                        sid,
+                        "convert_to_explorer_double_tap",
                     );
                 }
             }

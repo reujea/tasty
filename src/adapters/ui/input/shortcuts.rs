@@ -8,6 +8,7 @@ pub(crate) mod modifier_hint;
 mod numeric;
 #[cfg(test)]
 mod refresh_tests;
+pub(crate) mod surface_actions;
 #[cfg(test)]
 mod tests;
 mod webview_claims;
@@ -124,28 +125,9 @@ fn explorer_view_shortcut(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     action: &str,
 ) {
-    let Some(panel) = focused_explorer_panel(state, engine) else {
-        return;
-    };
-    let (sid, cwd) = (panel.id, panel.current_root().to_path_buf());
-    if action == "explorer_toggle_preview" {
-        if let Some(view) = state.explorer_views.get_mut(sid) {
-            view.preview.toggle();
-        }
-        return;
+    if let Some(sid) = focused_explorer_surface_id(state, engine) {
+        surface_actions::explorer_view_on(state, engine, sid, action);
     }
-    if action == "explorer_toggle_hidden" {
-        if let Some(view) = state.explorer_views.get_mut(sid) {
-            view.toggle_hidden();
-        }
-        return;
-    }
-    crate::adapters::ui::popup::explorer_properties::open_for_shortcut(
-        state,
-        engine.is_mirror_surface(sid),
-        sid,
-        &cwd,
-    );
 }
 
 /// 뒤로·앞으로·주소창 포커스 단축키. 포커스된 탐색기만 바꾼다. 주소창 포커스는 다음에 주소창을

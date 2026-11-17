@@ -260,19 +260,24 @@ impl MainView {
             // 터미널에서만 검색 팝업을 연다. 검색창이 이미 포커스를 받았으면 egui가 처리한다.
             // webview의 자체 find는 호스트로 전달하지 않으며 다른 비터미널도 여기서는 소비하지 않는다.
             // 탐색기는 자기 Find 바를 연다.
-            if let Some(sid) = focused_explorer_surface_id(state, engine) {
-                state.open_explorer_find(sid);
-                return true;
-            }
-            if !matches!(
-                state.focused_surface_type(engine),
-                crate::state::FocusedSurfaceType::Terminal
-            ) {
-                return false;
-            }
-            let focused = state.focused_surface_id(engine);
-            crate::adapters::ui::search_bar::open_or_focus_for(state, focused, "find_open");
-            return true;
+            return match state.focused_surface_id(engine) {
+                Some(sid) => super::surface_actions::find_on(state, engine, sid, "find_open"),
+                // 생성 대기 초안이 선택돼 있으면 뒤의 기존 탭이 터미널일 때 대상 없이 키를 소비한다.
+                None => {
+                    let terminal = matches!(
+                        state.focused_surface_type(engine),
+                        crate::state::FocusedSurfaceType::Terminal
+                    );
+                    if terminal {
+                        crate::adapters::ui::search_bar::open_or_focus_for(
+                            state,
+                            None,
+                            "find_open",
+                        );
+                    }
+                    terminal
+                }
+            };
         }
         false
     }
@@ -440,17 +445,7 @@ impl MainView {
         }
         if matches_any_binding(&kb.convert_surface, key, mods) {
             if let Some(sid) = state.focused_surface_id(engine) {
-                state.dialogs.convert_popup = Some(sid);
-                state.dialogs.convert_popup_selected = None;
-                state.dispatch_intent(
-                    UiIntent::OpenPopup {
-                        id: "convert_surface",
-                        mode: OpenPopupMode::CenteredFocused(
-                            crate::adapters::ui::popup::PopupScope::Surface(sid),
-                        ),
-                    }
-                    .from_user_shortcut("convert_surface"),
-                );
+                super::surface_actions::open_convert_popup(state, sid, "convert_surface");
             }
             return true;
         }
@@ -462,17 +457,7 @@ impl MainView {
         }
         if matches_any_binding(&kb.convert_to_explorer, key, mods) {
             if let Some(sid) = state.focused_surface_id(engine) {
-                state.dispatch_intent(
-                    crate::intent::Intent::ConvertSurface {
-                        surface_id: sid,
-                        target: crate::intent::ConvertTarget::Kind {
-                            cwd: None,
-                            kind: "explorer".to_string(),
-                            params: serde_json::json!({}),
-                        },
-                    }
-                    .from_user_shortcut("convert_to_explorer"),
-                );
+                super::surface_actions::convert_to_explorer(state, sid, "convert_to_explorer");
             }
             return true;
         }
