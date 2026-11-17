@@ -126,8 +126,7 @@ impl crate::runtime::engine_access::EngineMut<'_> {
             let Some(deferred) = deferred else {
                 continue;
             };
-            if !super::documents::deferred_available(&self.runtime.surface_registry, &deferred.kind)
-            {
+            if !super::documents::deferred_available(&self.runtime.surface_registry, &deferred) {
                 continue;
             }
             let Some(definition) = self.runtime.surface_registry.get_live(&deferred.kind) else {

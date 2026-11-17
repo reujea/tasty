@@ -881,3 +881,68 @@ fn a_content_document_takes_the_declared_kind_of_its_descriptor() {
     assert_eq!(created[0].0, mapping.remote_to_local[&30]);
     assert_eq!(created[0].1["remote"]["file"], "/remote/docs/README.md");
 }
+
+/// 등록되지 않은 kind로 미뤄 둔 원문 문서는, 나중에 등록된 그 kind가 `mirror_content`를 선언해야 복원한다.
+/// 다른 문서 능력(`mirror_viewer`)만 선언했으면 처음부터 등록돼 있을 때처럼 거절한다.
+#[test]
+fn a_deferred_content_document_waits_for_the_content_declaration() {
+    let mut navigation = crate::state::navigation::NavigationState::default();
+    let mut structure_ids = MirrorStructureIds::default();
+    let (_, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    let ids = test_ids();
+    let (tx, _frames) = tasty_remote::connection::channel();
+    let frame_tx: SharedFrameSender = tx;
+    let mut descriptor = markdown_descriptor(30);
+    descriptor["kind"] = "notes".into();
+    let mut mapping =
+        merge_survivor_mapping(&HashMap::new(), &[descriptor], &ids, &frame_tx, &mut engine)
+            .expect("fixture construction");
+    let local = mapping.remote_to_local[&30];
+    let ws = build_mirror_workspace(
+        &mut structure_ids,
+        &mut navigation,
+        999,
+        "mirror",
+        &single_leaf_tree(30),
+        &ids,
+        &mapping.remote_to_local,
+        &mapping.terminals,
+        &mapping.mesh,
+        &mapping.explorer,
+        &mut mapping.markdown,
+    )
+    .expect("fixture construction");
+    engine.push_mirror_workspace(ws);
+    let deferred = |engine: &EngineMut<'_>| {
+        engine
+            .runtime
+            .surfaces
+            .get(&local)
+            .and_then(|surface| surface.as_any().downcast_ref::<EmptySurface>())
+            .is_some_and(|empty| empty.deferred.is_some())
+    };
+    assert!(deferred(&engine), "unregistered kind waits");
+
+    let decl = serde_json::from_value(serde_json::json!({
+        "kind": "notes", "display_name_i18n_key": "surface.kind.markdown",
+        "rendering": "webview", "mirror_content": false, "mirror_viewer": true,
+    }))
+    .unwrap();
+    let (kind_tx, kind_rx) = std::sync::mpsc::channel();
+    crate::plugin_bridge::remote_kind::register_remote_kind(
+        &engine.runtime.surface_registry,
+        "com.example.docs",
+        &decl,
+        kind_tx,
+    );
+    engine.reify_displayed_mirror_resources(&[local]);
+    assert_eq!(engine.find_surface_by_id(local).unwrap().kind(), "empty");
+    assert!(deferred(&engine), "still waiting for a content kind");
+    assert_eq!(
+        kind_rx.try_iter().count(),
+        0,
+        "the plugin is never asked to restore"
+    );
+}

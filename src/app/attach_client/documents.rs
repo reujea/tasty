@@ -46,6 +46,17 @@ impl DocumentMirror {
         }
     }
 
+    /// `params`가 만든 생성 인자에서 문서 mirror 방식을 다시 읽는다. 미뤄 둔 placeholder는 이 인자를
+    /// 그대로 보관하므로, 복원할 때 처음 받은 role의 능력만 다시 검사할 수 있다.
+    fn of_params(params: &Value) -> Option<Self> {
+        let remote = params.get("remote")?;
+        if remote.get("html_entry").and_then(Value::as_bool) == Some(true) {
+            Some(Self::Viewer)
+        } else {
+            remote.get("file").is_some().then_some(Self::Content)
+        }
+    }
+
     fn params(self, descriptor: &Value, kind: &str) -> Value {
         let display_name = |fallback: &str| {
             descriptor
@@ -101,11 +112,15 @@ impl DocumentMirror {
     }
 }
 
-/// 미뤄 둔 문서의 kind가 이제 어느 문서 mirror로든 만들 수 있는지.
-pub(super) fn deferred_available(registry: &SurfaceKindRegistry, kind: &str) -> bool {
-    registry.get_live(kind).is_some_and(|def| {
-        DocumentMirror::Content.declared_by(&def.capabilities)
-            || DocumentMirror::Viewer.declared_by(&def.capabilities)
+/// 미뤄 둔 문서를 이제 만들 수 있는지. 등록된 kind가 처음 받은 role의 능력을 선언해야 한다.
+pub(super) fn deferred_available(
+    registry: &SurfaceKindRegistry,
+    deferred: &DeferredPlugin,
+) -> bool {
+    DocumentMirror::of_params(&deferred.snapshot).is_some_and(|mirror| {
+        registry
+            .get_live(&deferred.kind)
+            .is_some_and(|def| mirror.declared_by(&def.capabilities))
     })
 }
 
@@ -145,4 +160,70 @@ pub(super) fn emit_to_owner(
         payload,
         tasty_plugin_protocol::EventScope::System,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::surface_registry::SurfaceKindRegistry;
+
+    fn register(registry: &SurfaceKindRegistry, kind: &str, content: bool, viewer: bool) {
+        let decl = serde_json::from_value(serde_json::json!({
+            "kind": kind, "display_name_i18n_key": "surface.kind.markdown",
+            "rendering": "webview", "mirror_content": content, "mirror_viewer": viewer,
+        }))
+        .unwrap();
+        let (tx, _rx) = std::sync::mpsc::channel();
+        crate::plugin_bridge::remote_kind::register_remote_kind(
+            registry,
+            "com.example.docs",
+            &decl,
+            tx,
+        );
+    }
+
+    fn deferred(mirror: DocumentMirror, kind: &str) -> DeferredPlugin {
+        let descriptor =
+            serde_json::json!({"file": "/remote/a.md", "source": {"file": "/remote/a.html"}});
+        DeferredPlugin {
+            kind: kind.to_owned(),
+            snapshot: mirror.params(&descriptor, kind),
+        }
+    }
+
+    /// 미뤄 둔 문서는 처음 받은 role의 능력만 본다. 다른 role의 능력으로는 복원하지 않는다.
+    #[test]
+    fn a_deferred_document_is_restored_only_by_its_own_role() {
+        let registry = SurfaceKindRegistry::new();
+        register(&registry, "viewer-only", false, true);
+        register(&registry, "content-only", true, false);
+        assert_eq!(
+            DocumentMirror::of_params(&deferred(DocumentMirror::Content, "k").snapshot),
+            Some(DocumentMirror::Content)
+        );
+        assert_eq!(
+            DocumentMirror::of_params(&deferred(DocumentMirror::Viewer, "k").snapshot),
+            Some(DocumentMirror::Viewer)
+        );
+        assert!(!deferred_available(
+            &registry,
+            &deferred(DocumentMirror::Content, "viewer-only")
+        ));
+        assert!(!deferred_available(
+            &registry,
+            &deferred(DocumentMirror::Viewer, "content-only")
+        ));
+        assert!(deferred_available(
+            &registry,
+            &deferred(DocumentMirror::Content, "content-only")
+        ));
+        assert_eq!(
+            deferred_available(&registry, &deferred(DocumentMirror::Viewer, "viewer-only")),
+            super::super::html::viewer_available()
+        );
+        assert!(!deferred_available(
+            &registry,
+            &deferred(DocumentMirror::Content, "unregistered")
+        ));
+    }
 }
