@@ -149,6 +149,8 @@ pub enum PopupPayload {
     Convert(convert::ConvertPayload),
     /// 검색창이 검색하는 터미널 surface.
     Search { surface_id: u32 },
+    /// 마우스 캡처 배너 더보기 메뉴의 대상과 열 때 잰 크기.
+    MouseCaptureMenu(crate::adapters::ui::mouse_capture_menu::MenuPayload),
     /// 파일 작업 충돌 질문을 띄운 탐색기 칸.
     ExplorerConflict { surface_id: u32 },
     /// 이름 바꾸기의 대상·입력·원격 대기.
@@ -162,6 +164,7 @@ impl std::fmt::Debug for PopupPayload {
         match self {
             Self::None => f.write_str("None"),
             Self::Convert(c) => f.debug_tuple("Convert").field(c).finish(),
+            Self::MouseCaptureMenu(m) => f.debug_tuple("MouseCaptureMenu").field(m).finish(),
             Self::ExplorerConflict { surface_id } => f
                 .debug_struct("ExplorerConflict")
                 .field("surface_id", surface_id)

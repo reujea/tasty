@@ -3,20 +3,13 @@
 
 use crate::state::MainViewState;
 
-/// 더보기 메뉴가 열려 있는 배너의 범위. 팝업 상태와 대상 surface를 함께 확인한다.
+/// 더보기 메뉴가 열려 있는 배너의 범위들. 메뉴 인스턴스가 대상 surface를 가진다.
 fn mouse_capture_more_menu_open_for(
     state: &MainViewState,
-) -> Option<crate::adapters::ui::banner::BannerScope> {
-    if !state
-        .popups
-        .is_open(crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID)
-    {
-        return None;
-    }
-    state
-        .dialogs
-        .mouse_capture_banner_menu_target
+) -> Vec<crate::adapters::ui::banner::BannerScope> {
+    crate::adapters::ui::mouse_capture_menu::open_targets(state)
         .map(crate::adapters::ui::banner::BannerScope::Surface)
+        .collect()
 }
 
 /// 오버레이를 그린다. Foreground 레이어의 상대 순서는 egui_bridge에서도 조정한다.
@@ -69,7 +62,7 @@ pub(crate) fn draw_overlays(
         &th,
         view_placeholder,
         reduced_motion,
-        more_menu_open_for.as_ref(),
+        &more_menu_open_for,
     );
     state.banner_hovered = banner_result.hovered;
     state.banner_layer = Some(banner_result.layer);

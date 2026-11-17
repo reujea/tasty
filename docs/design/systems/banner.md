@@ -274,7 +274,7 @@ mirror 가 서버의 이름을 아직 받지 못했거나 이름을 보내지 �
 
 큐와 TTL 처리인 `push`·`close_shown`·`advance`는 egui 없이 단위 테스트로 확인한다. plugin 배너도 같은 수명 관리를 사용하며 채널 규칙은 [egui-mesh 가이드](../../dev-guide/egui-mesh-channel.md)의 banner 절을 따른다.
 
-`draw()`는 `LayoutContext`에서 배치 영역을 계산한다. 호출자가 현재 더보기 메뉴의 scope를 `more_menu_open_for: Option<&BannerScope>`로 전달하며, BannerManager가 팝업을 직접 조회하지는 않는다. 반환값은 `BannerDrawResult { hovered, more_clicked }`다.
+`draw()`는 `LayoutContext`에서 배치 영역을 계산한다. 호출자가 더보기 메뉴가 열린 scope 목록을 `more_menu_open_for: &[BannerScope]`로 전달하며(surface마다 메뉴가 따로 열린다), BannerManager가 팝업을 직접 조회하지는 않는다. 반환값은 `BannerDrawResult { hovered, more_clicked }`다.
 
 - `hovered`는 `MainViewState.banner_hovered`를 통해 [입력 계층](../../architecture/input-layer.md)에 전달한다.
 - `more_clicked: Option<(BannerScope, egui::Rect)>`는 버튼의 scope와 사각형이다. 호출자가 이 값으로 대상 필드를 채우고 컨텍스트 메뉴를 연다.

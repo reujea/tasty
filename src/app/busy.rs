@@ -79,19 +79,26 @@ fn close_mouse_capture_menu_for(
     let BannerScope::Surface(sid) = scope else {
         return;
     };
-    if state.dialogs.mouse_capture_banner_menu_target != Some(*sid) {
+    let Some(menu) = state.popups.instance_for(
+        MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
+        &crate::model::popup_kind::PopupScope::Surface(*sid),
+    ) else {
         return;
-    }
+    };
     // intent-exempt: 닫힌 배너에 딸린 메뉴의 수명 정리. 포커스·선택은 바꾸지 않는다.
-    state.popups.close(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID);
-    state.dialogs.mouse_capture_banner_menu_target = None;
+    state.popups.close_instance(
+        menu,
+        crate::adapters::ui::popup::PopupCloseReason::TargetGone,
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::close_stale_mouse_capture_banners;
     use crate::adapters::ui::banner::defs::BANNER_MOUSE_CAPTURE;
-    use crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID;
+    use crate::adapters::ui::mouse_capture_menu::{
+        MOUSE_CAPTURE_BANNER_MENU_POPUP_ID, open_targets,
+    };
     use crate::adapters::ui::{BannerScope, BannerState};
 
     /// surface `sid` 에 foreground 세대 `generation` 의 캡처 배너를 띄우고 그 배너의 메뉴를 연다.
@@ -100,10 +107,23 @@ mod tests {
             BannerState::persistent(BANNER_MOUSE_CAPTURE, BannerScope::Surface(sid))
                 .with_origin_generation(generation),
         );
-        state.dialogs.mouse_capture_banner_menu_target = Some(sid);
-        state.popups.open(
-            MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Surface(sid),
+        let menu = crate::adapters::ui::mouse_capture_menu::MenuPayload {
+            surface_id: sid,
+            unknown: false,
+            size: (
+                tasty_type_geometry::length::LogicalPx(100.0),
+                tasty_type_geometry::length::LogicalPx(50.0),
+            ),
+        };
+        crate::intent::popup::reopen_for_test(
+            state,
+            &crate::intent::OpenRequest::new(
+                MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Surface(sid),
+            )
+            .with_payload(crate::adapters::ui::popup::PopupPayload::MouseCaptureMenu(
+                menu,
+            )),
         );
     }
 
@@ -128,7 +148,7 @@ mod tests {
         e.live.foreground_generation.insert(42, 2);
         close_stale_mouse_capture_banners(&mut state, &e.read());
         assert!(!menu_open(&state));
-        assert_eq!(state.dialogs.mouse_capture_banner_menu_target, None);
+        assert_eq!(open_targets(&state).count(), 0);
     }
 
     /// 이름을 더 관측하지 못하면 세대 항목이 사라져 0으로 읽힌다.
@@ -144,7 +164,7 @@ mod tests {
         e.live.foreground_generation.remove(&42);
         close_stale_mouse_capture_banners(&mut state, &e.read());
         assert!(!menu_open(&state));
-        assert_eq!(state.dialogs.mouse_capture_banner_menu_target, None);
+        assert_eq!(open_targets(&state).count(), 0);
     }
 
     #[test]
@@ -162,7 +182,7 @@ mod tests {
         e.live.foreground_generation.insert(43, 2);
         close_stale_mouse_capture_banners(&mut state, &e.read());
         assert!(menu_open(&state));
-        assert_eq!(state.dialogs.mouse_capture_banner_menu_target, Some(42));
+        assert_eq!(open_targets(&state).collect::<Vec<_>>(), vec![42]);
         assert!(
             state
                 .banners

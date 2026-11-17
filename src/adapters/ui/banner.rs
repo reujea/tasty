@@ -499,7 +499,7 @@ pub struct BannerDrawResult {
 
 impl BannerManager {
     /// TTL과 표시·닫기를 처리한다. view_placeholder가 없으면 View 배너는 표시하지 않는다.
-    /// more_menu_open_for의 버튼은 hover와 관계없이 강조한다.
+    /// more_menu_open_for에 든 범위의 버튼은 hover와 관계없이 강조한다.
     /// 범위 우선순위대로 그려 높은 배너가 앞에 오게 하고 나머지는 어둡게 한다.
     pub fn draw(
         &mut self,
@@ -508,7 +508,7 @@ impl BannerManager {
         theme: &Theme,
         view_placeholder: Option<egui::Rect>,
         _reduced_motion: bool,
-        more_menu_open_for: Option<&BannerScope>,
+        more_menu_open_for: &[BannerScope],
     ) -> BannerDrawResult {
         // 경과 시간만 먼저 구하고 TTL 갱신은 hover 판정 뒤에 한다.
         let now = Instant::now();
@@ -656,7 +656,7 @@ impl BannerManager {
                         }
                         // mouse-capture는 더보기·닫기 두 버튼의 폭을 항상 비워 hover 때 본문이 흔들리지 않게 한다.
                         let show_more = slot.id == defs::BANNER_MOUSE_CAPTURE;
-                        let more_active = more_menu_open_for == Some(&slot.scope);
+                        let more_active = more_menu_open_for.contains(&slot.scope);
                         let avail = ui.max_rect();
                         let corner = if show_more {
                             // 시안의 ⋯/× 열은 본문 흐름 밖에 고정된다. 셸 안쪽 위 `banner-padding-y`,
@@ -1345,7 +1345,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
-                    let r = mgr.draw(ctx, &layout, &theme, None, false, None);
+                    let r = mgr.draw(ctx, &layout, &theme, None, false, &[]);
                     clicked = r.more_clicked.map(|(s, _)| s);
                 },
             );

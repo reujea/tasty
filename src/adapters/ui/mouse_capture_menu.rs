@@ -53,14 +53,43 @@ pub fn menu_default_size() -> egui::Vec2 {
     menu_size_for(&th, LogicalPx(min), th.menu_item_height().value() * 2.0)
 }
 
+/// 메뉴 인스턴스의 데이터.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MenuPayload {
+    /// 배너가 있는 surface. 메뉴 범위도 이 surface다.
+    pub surface_id: u32,
+    /// 열 때 프로그램 이름을 몰라 이름 미상 형태(사유 줄 + 비활성 두 행)로 열었는지.
+    pub unknown: bool,
+    /// 열 때 잰 셸 크기(폭, 높이).
+    pub size: (LogicalPx, LogicalPx),
+}
+
+fn payload_of(payload: &crate::adapters::ui::popup::PopupPayload) -> Option<&MenuPayload> {
+    match payload {
+        crate::adapters::ui::popup::PopupPayload::MouseCaptureMenu(m) => Some(m),
+        _ => None,
+    }
+}
+
+/// 메뉴가 열려 있는 surface들.
+pub(crate) fn open_targets(state: &MainViewState) -> impl Iterator<Item = u32> + '_ {
+    state
+        .popups
+        .instances_of(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID)
+        .filter_map(|p| payload_of(&p.payload).map(|m| m.surface_id))
+}
+
 /// `PopupDef.sizer` — 열 때 잰 크기를 쓴다. 매 프레임 호출되므로 글꼴 측정은 열 때 한 번만 한다.
 pub fn menu_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
-    match state.dialogs.mouse_capture_banner_menu_size {
-        Some((width, height)) => egui::vec2(width.value(), height.value()),
+    match payload_of(payload) {
+        Some(MenuPayload {
+            size: (width, height),
+            ..
+        }) => egui::vec2(width.value(), height.value()),
         None => menu_default_size(),
     }
 }
@@ -139,16 +168,17 @@ pub fn open(
     let BannerScope::Surface(surface_id) = scope else {
         return;
     };
-    state.dialogs.mouse_capture_banner_menu_target = Some(*surface_id);
-
     let th = theme::theme();
     let app_name = known_app_name(engine, *surface_id);
-    state.dialogs.mouse_capture_banner_menu_unknown = app_name.is_none();
     let (width, height) = match app_name {
         Some(name) => measured_size(ctx, &th, &row_labels(name)),
         None => unknown_size(ctx, &th),
     };
-    state.dialogs.mouse_capture_banner_menu_size = Some((width, height));
+    let menu = MenuPayload {
+        surface_id: *surface_id,
+        unknown: app_name.is_none(),
+        size: (width, height),
+    };
     let size = egui::vec2(width.value(), height.value());
     // 셸 테두리는 바깥으로 그리므로 border-box 의 오른쪽 끝이 트리거 오른쪽에 맞도록 테두리만큼 당긴다.
     let bw = th.border_width.value();
@@ -164,26 +194,20 @@ pub fn open(
 
     state.dispatch_intent(
         // 메뉴는 배너가 있는 surface 하나에 작용한다. 배너와 같은 surface 범위로 연다.
-        UiIntent::OpenPopup(
+        // 그 surface에 이미 열려 있으면 위치는 두고 대상 이름과 크기만 새로 잰 값으로 바꾼다.
+        UiIntent::ReopenPopup(
             crate::intent::OpenRequest::new(
                 MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
                 crate::model::popup_kind::PopupScope::Surface(*surface_id),
             )
             .at(pos)
-            .focused(),
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::MouseCaptureMenu(
+                menu,
+            )),
         )
         .from_user_menu("mouse_capture_banner"),
     );
-}
-
-/// 닫기 훅. 어떤 경로로 닫히든(항목 선택, 바깥 클릭, Esc) 대상 surface를 비운다.
-pub fn on_close_menu(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.mouse_capture_banner_menu_target = None;
 }
 
 /// `PopupDef.draw_fn` — 메뉴 콘텐츠만 그린다(셸은 headless popup 시스템이 그림).
@@ -191,16 +215,22 @@ pub fn draw_menu(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;
+    // 키 입력은 포커스를 가진 인스턴스만 읽는다. 다른 surface의 메뉴는 같은 Esc에 닫히지 않는다.
+    if cx.focused && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+        return PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape);
     }
-    let Some(surface_id) = state.dialogs.mouse_capture_banner_menu_target else {
+    let Some(&MenuPayload {
+        surface_id,
+        unknown,
+        ..
+    }) = payload_of(cx.payload)
+    else {
         return PopupAction::Close;
     };
     let th = theme::theme();
-    if state.dialogs.mouse_capture_banner_menu_unknown {
+    if unknown {
         // 비활성 행은 클릭을 받지 않는다. 저장·닫기 없이 메뉴를 유지하고 Esc·바깥 클릭으로만 닫는다.
         let _rows = draw_unknown_rows(ui, &th);
         return PopupAction::None;
@@ -278,10 +308,10 @@ fn draw_menu_row(
 mod tests {
     use super::*;
 
-    /// 메뉴가 어떤 사유로 닫히든 닫기 훅이 대상 surface를 비운다.
+    /// 메뉴가 어떤 사유로 닫히든 그 surface 메뉴의 데이터가 남지 않는다.
     #[test]
-    fn the_close_hook_clears_the_target_for_every_reason() {
-        use crate::adapters::ui::popup::{ClosedPopup, PopupCloseReason, PopupScope};
+    fn closing_the_menu_drops_its_target_for_every_reason() {
+        use crate::adapters::ui::popup::PopupCloseReason;
         for reason in [
             PopupCloseReason::Content,
             PopupCloseReason::OutsideClick,
@@ -290,25 +320,64 @@ mod tests {
         ] {
             let (mut state, mut session) = crate::state::tests::test_state();
             let engine = session.borrow_mut();
-            state.dialogs.mouse_capture_banner_menu_target = Some(3);
-            state
-                .popups
-                .open(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID, PopupScope::Window);
+            open_menu(&mut state, &engine.read(), 3);
+            assert_eq!(open_targets(&state).collect::<Vec<_>>(), vec![3]);
             state
                 .popups
                 .close_with(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID, reason);
-            let closed: Vec<ClosedPopup> = state.popups.take_closed_queue();
-            on_close_menu(
-                &egui::Context::default(),
-                &mut state,
-                &engine.read(),
-                &closed[0],
-            );
-            assert_eq!(
-                state.dialogs.mouse_capture_banner_menu_target, None,
+            let _closed = state.popups.take_closed_queue();
+            assert_eq!(open_targets(&state).count(), 0, "{reason:?}");
+            assert!(
+                state
+                    .popups
+                    .entries_of(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID)
+                    .all(|p| payload_of(&p.payload).is_none()),
                 "{reason:?}"
             );
         }
+    }
+
+    /// 두 surface의 배너 메뉴는 각자 열리고 각자의 대상을 가진다.
+    #[test]
+    fn menus_of_two_surfaces_keep_their_own_targets() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        e.live.foreground_names.insert(42, "vim".into());
+        open_menu(&mut state, &e.read(), 42);
+        open_menu(&mut state, &e.read(), 43);
+        let mut targets: Vec<u32> = open_targets(&state).collect();
+        targets.sort_unstable();
+        assert_eq!(targets, vec![42, 43]);
+        assert!(!menu(&state, 42).unknown);
+        assert!(menu(&state, 43).unknown);
+    }
+
+    /// `surface_id` 메뉴 인스턴스의 데이터.
+    fn menu(state: &crate::state::MainViewState, surface_id: u32) -> MenuPayload {
+        let scope = crate::model::popup_kind::PopupScope::Surface(surface_id);
+        let instance = state
+            .popups
+            .instance_for(MOUSE_CAPTURE_BANNER_MENU_POPUP_ID, &scope)
+            .expect("open");
+        *payload_of(&state.popups.instance(instance).expect("instance").payload).expect("payload")
+    }
+
+    /// 메뉴 데이터 `m` 으로 그리기 함수를 부른다.
+    fn draw_with(
+        ui: &mut egui::Ui,
+        state: &mut crate::state::MainViewState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        m: MenuPayload,
+        focused: bool,
+    ) -> PopupAction {
+        let mut payload = crate::adapters::ui::popup::PopupPayload::MouseCaptureMenu(m);
+        let mut cx = crate::adapters::ui::popup::PopupCx {
+            id: "test",
+            instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+            focused,
+            payload: &mut payload,
+        };
+        draw_menu(ui, state, engine, &mut cx)
     }
 
     /// 테두리까지 포함한 바깥 폭. 셸 폭에 바깥으로 그리는 테두리 두 줄을 더한다.
@@ -384,8 +453,15 @@ mod tests {
         row: usize,
     ) -> Vec<crate::intent::DispatchedIntent> {
         let th = theme::theme();
-        state.dialogs.mouse_capture_banner_menu_target = Some(surface_id);
         let width = th.banner_more_menu_max_width().value();
+        let m = MenuPayload {
+            surface_id,
+            unknown: false,
+            size: (
+                LogicalPx(width),
+                LogicalPx(th.menu_item_height().value() * 2.0),
+            ),
+        };
         let h = th.menu_item_height().value();
         let at = egui::pos2(width * 0.5, h * (row as f32 + 0.5));
         let ctx = egui::Context::default();
@@ -417,12 +493,7 @@ mod tests {
                     .show(ctx, |ui| {
                         ui.set_width(width);
                         ui.set_max_width(width);
-                        let _action = draw_menu(
-                            ui,
-                            state,
-                            engine,
-                            &mut crate::adapters::ui::popup::PopupCx::test("test"),
-                        );
+                        let _action = draw_with(ui, state, engine, m, true);
                     });
             });
         }
@@ -485,21 +556,37 @@ mod tests {
                 trigger,
             );
         });
-        let _open_intents = state.take_pending_intents();
+        for intent in state.take_pending_intents() {
+            if let crate::intent::Intent::Ui(UiIntent::ReopenPopup(request)) = &intent.body {
+                crate::intent::popup::reopen_for_test(state, request);
+            }
+        }
     }
 
     /// 열린 메뉴(열 때 잰 크기)를 그리고 `events` 프레임을 차례로 보낸다. 나온 요청과 Close 여부를 돌려준다.
     fn run_menu(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        surface_id: u32,
         frames: Vec<Vec<egui::Event>>,
     ) -> (Vec<crate::intent::DispatchedIntent>, bool) {
-        let (width, _) = state
-            .dialogs
-            .mouse_capture_banner_menu_size
-            .expect("opened");
+        let (intents, closed, _) = run_menu_focused(state, engine, surface_id, frames, true);
+        (intents, closed)
+    }
+
+    /// `run_menu`와 같지만 메뉴 인스턴스의 포커스를 정하고, 닫기 사유가 Escape였는지도 돌려준다.
+    fn run_menu_focused(
+        state: &mut crate::state::MainViewState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        surface_id: u32,
+        frames: Vec<Vec<egui::Event>>,
+        focused: bool,
+    ) -> (Vec<crate::intent::DispatchedIntent>, bool, bool) {
+        let m = menu(state, surface_id);
+        let (width, _) = m.size;
         let ctx = egui::Context::default();
         let mut closed = false;
+        let mut escaped = false;
         for events in std::iter::once(vec![]).chain(frames) {
             let input = egui::RawInput {
                 events,
@@ -511,29 +598,24 @@ mod tests {
                     .show(ctx, |ui| {
                         ui.set_width(width.value());
                         ui.set_max_width(width.value());
-                        if matches!(
-                            draw_menu(
-                                ui,
-                                state,
-                                engine,
-                                &mut crate::adapters::ui::popup::PopupCx::test("test")
-                            ),
-                            PopupAction::Close
-                        ) {
-                            closed = true;
-                        }
+                        closed |= match draw_with(ui, state, engine, m, focused) {
+                            PopupAction::Close => true,
+                            PopupAction::CloseBy(reason) => {
+                                escaped =
+                                    reason == crate::adapters::ui::popup::PopupCloseReason::Escape;
+                                true
+                            }
+                            _ => false,
+                        };
                     });
             });
         }
-        (state.take_pending_intents(), closed)
+        (state.take_pending_intents(), closed, escaped)
     }
 
     /// 메뉴 높이 전체를 위에서 아래로 4px 간격으로 누르고 떼는 프레임들. 사유 줄·구분선·두 행을 모두 지난다.
-    fn sweep_clicks(state: &crate::state::MainViewState) -> Vec<Vec<egui::Event>> {
-        let (width, height) = state
-            .dialogs
-            .mouse_capture_banner_menu_size
-            .expect("opened");
+    fn sweep_clicks(state: &crate::state::MainViewState, surface_id: u32) -> Vec<Vec<egui::Event>> {
+        let (width, height) = menu(state, surface_id).size;
         let x = width.value() * 0.5;
         let mut frames = Vec::new();
         let mut y = 1.0;
@@ -594,13 +676,10 @@ mod tests {
         e.live.foreground_names.insert(44, "  ".into());
         for (sid, unknown) in [(42, true), (43, false), (44, true)] {
             open_menu(&mut state, &e.read(), sid);
-            assert_eq!(state.dialogs.mouse_capture_banner_menu_target, Some(sid));
-            assert_eq!(
-                state.dialogs.mouse_capture_banner_menu_unknown, unknown,
-                "{sid}"
-            );
+            assert_eq!(menu(&state, sid).surface_id, sid);
+            assert_eq!(menu(&state, sid).unknown, unknown, "{sid}");
             if unknown {
-                let (width, height) = state.dialogs.mouse_capture_banner_menu_size.expect("size");
+                let (width, height) = menu(&state, sid).size;
                 assert_eq!(
                     width.value() + th.border_width.value() * 2.0,
                     th.banner_more_menu_max_width().value()
@@ -624,11 +703,11 @@ mod tests {
         assert_eq!(e.foreground_name(42), None);
         push_banner(&mut state, 42);
         open_menu(&mut state, &e.read(), 42);
-        let frames = sweep_clicks(&state);
-        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        let frames = sweep_clicks(&state, 42);
+        let (intents, closed) = run_menu(&mut state, &e.read(), 42, frames);
         assert!(intents.is_empty(), "{} intents", intents.len());
         assert!(!closed, "the menu stays open");
-        assert_eq!(state.dialogs.mouse_capture_banner_menu_target, Some(42));
+        assert_eq!(open_targets(&state).collect::<Vec<_>>(), vec![42]);
         assert!(banner_shown(&state, 42), "the banner stays");
     }
 
@@ -641,8 +720,8 @@ mod tests {
         e.live.foreground_names.insert(42, "vimtest".into());
         push_banner(&mut state, 42);
         open_menu(&mut state, &e.read(), 42);
-        let frames = sweep_clicks(&state);
-        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        let frames = sweep_clicks(&state, 42);
+        let (intents, closed) = run_menu(&mut state, &e.read(), 42, frames);
         assert!(!intents.is_empty());
         assert!(closed);
     }
@@ -656,9 +735,9 @@ mod tests {
         assert_eq!(known_app_name(&e.read(), 42), Some("vimtest"));
         push_banner(&mut state, 42);
         open_menu(&mut state, &e.read(), 42);
-        assert!(!state.dialogs.mouse_capture_banner_menu_unknown);
-        let frames = sweep_clicks(&state);
-        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        assert!(!menu(&state, 42).unknown);
+        let frames = sweep_clicks(&state, 42);
+        let (intents, closed) = run_menu(&mut state, &e.read(), 42, frames);
         assert!(!intents.is_empty());
         assert!(closed);
     }
@@ -670,12 +749,12 @@ mod tests {
         let e = session.borrow_mut();
         open_menu(&mut state, &e.read(), 42);
         e.live.foreground_names.insert(42, "vimtest".into());
-        let frames = sweep_clicks(&state);
-        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        let frames = sweep_clicks(&state, 42);
+        let (intents, closed) = run_menu(&mut state, &e.read(), 42, frames);
         assert!(intents.is_empty() && !closed);
-        assert!(state.dialogs.mouse_capture_banner_menu_unknown);
+        assert!(menu(&state, 42).unknown);
         open_menu(&mut state, &e.read(), 42);
-        assert!(!state.dialogs.mouse_capture_banner_menu_unknown);
+        assert!(!menu(&state, 42).unknown);
     }
 
     /// 이름 미상 형태에서 화살표·Tab·Enter·Space 는 저장도 닫기도 하지 않고, Esc 만 평소처럼 닫는다.
@@ -695,12 +774,36 @@ mod tests {
             egui::Key::Tab,
             egui::Key::Enter,
         ];
-        let (intents, closed) = run_menu(&mut state, &e.read(), keys.map(key).to_vec());
+        let (intents, closed) = run_menu(&mut state, &e.read(), 42, keys.map(key).to_vec());
         assert!(intents.is_empty() && !closed);
         assert!(banner_shown(&state, 42));
-        let (intents, closed) = run_menu(&mut state, &e.read(), vec![key(egui::Key::Escape)]);
+        let (intents, closed) = run_menu(&mut state, &e.read(), 42, vec![key(egui::Key::Escape)]);
         assert!(intents.is_empty());
         assert!(closed);
+    }
+
+    /// Given 다른 surface의 메뉴가 포커스를 가졌을 때, When Escape를 누르면, Then 포커스 없는 이 메뉴는 열린 채다.
+    #[test]
+    fn an_unfocused_menu_ignores_escape() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        push_banner(&mut state, 42);
+        open_menu(&mut state, &e.read(), 42);
+        let escape = vec![key(egui::Key::Escape)];
+        let (_, closed, _) = run_menu_focused(&mut state, &e.read(), 42, escape, false);
+        assert!(!closed);
+    }
+
+    /// When 포커스를 가진 메뉴에서 Escape를 누르면, Then 닫기 사유가 Escape다.
+    #[test]
+    fn escape_closes_the_menu_with_the_escape_reason() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        push_banner(&mut state, 42);
+        open_menu(&mut state, &e.read(), 42);
+        let escape = vec![key(egui::Key::Escape)];
+        let (_, closed, escaped) = run_menu_focused(&mut state, &e.read(), 42, escape, true);
+        assert!(closed && escaped);
     }
 
     /// ja 처럼 고정 문구가 상한 폭을 넘는 행이 있으면 메뉴는 288 에 머물고 셸이 그 행만큼 높아진다.

@@ -685,6 +685,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     shell: PopupShell::BannerMenu,
                     shadow: PopupShadow::Popover,
                     anchor: PopupAnchor::AtPoint,
+                    // 배너가 있는 surface마다 따로 연다. 대상은 인스턴스 데이터다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(crate::adapters::ui::mouse_capture_menu::menu_default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -695,7 +697,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: crate::adapters::ui::mouse_capture_menu::draw_menu,
-                on_close: Some(crate::adapters::ui::mouse_capture_menu::on_close_menu),
+                // 대상·크기는 인스턴스 데이터라 닫으면 함께 사라진다.
+                on_close: None,
             },
             PopupDef {
                 id: super::confirm_delete_category::CONFIRM_DELETE_CATEGORY_POPUP_ID,

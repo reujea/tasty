@@ -40,7 +40,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 요청이 쓸 인스턴스가 이미 열려 있을 때의 처리는 요청 종류마다 다르다. `OpenPopup`은 아무것도 바꾸지 않는다(범위 이동·앞으로 가져오기·포커스·데이터 교체가 없다). `TogglePopup`은 그 인스턴스를 닫는다. `ReopenPopup`은 그 인스턴스의 범위가 요청 범위와 다르면 닫기 훅 없이 닫고 요청 범위로 다시 열며, 같으면 위치·포커스·z 순서를 그대로 두고 인스턴스 데이터만 바꾼다. Intent를 거치지 않고 관리자를 직접 부르는 열기(`PopupManager::open_request`, 닫기 훅이 큐의 다음 항목을 열 때 등)는 그 인스턴스를 다시 쓴다. 요청 범위로 옮기고 맨 앞으로 올리며, 위치·데이터를 요청 값으로 바꾸고 요청이 포커스를 주면 포커스를 준다.
 
-인스턴스 데이터(`PopupPayload`)는 인스턴스에 있고 닫으면 함께 사라진다. 열기 요청이 데이터를 실어 오고(`OpenRequest::with_payload`), 그리기 함수는 `PopupCx.payload`로, 제목·크기 함수는 세 번째 인자로 받는다. `PerScopeTarget`인 host 정의는 데이터를 인스턴스에 둔 `convert_surface`·`explorer_properties`·`explorer_conflict`·`rename`이다. 작용 대상이 범위와 다른 팝업(이름 바꾸기)은 대상 소멸도 인스턴스마다 데이터로 판정해 사유 `TargetGone`으로 닫는다. 열기 요청의 데이터는 `PayloadSlot`에 실려 요청을 복제해도 한 번만 꺼내지므로, 진행 중인 읽기처럼 복제할 수 없는 값도 실을 수 있다. `search_bar`는 창에 하나(`Single`)지만 검색할 surface를 인스턴스 데이터(`PopupPayload::Search`)로 둔다. 나머지 host 정의는 `Single`이다. 데이터를 아직 `DialogState`·`MainViewState`의 단일 칸에 두는 팝업은 범위마다 인스턴스를 나누면 한 칸을 함께 쓰게 되기 때문이다.
+인스턴스 데이터(`PopupPayload`)는 인스턴스에 있고 닫으면 함께 사라진다. 열기 요청이 데이터를 실어 오고(`OpenRequest::with_payload`), 그리기 함수는 `PopupCx.payload`로, 제목·크기 함수는 세 번째 인자로 받는다. `PerScopeTarget`인 host 정의는 데이터를 인스턴스에 둔 `convert_surface`·`explorer_properties`·`explorer_conflict`·`rename`·`mouse_capture_banner_menu`이다. 작용 대상이 범위와 다른 팝업(이름 바꾸기)은 대상 소멸도 인스턴스마다 데이터로 판정해 사유 `TargetGone`으로 닫는다. 열기 요청의 데이터는 `PayloadSlot`에 실려 요청을 복제해도 한 번만 꺼내지므로, 진행 중인 읽기처럼 복제할 수 없는 값도 실을 수 있다. `search_bar`는 창에 하나(`Single`)지만 검색할 surface를 인스턴스 데이터(`PopupPayload::Search`)로 둔다. 나머지 host 정의는 `Single`이다. 데이터를 아직 `DialogState`·`MainViewState`의 단일 칸에 두는 팝업은 범위마다 인스턴스를 나누면 한 칸을 함께 쓰게 되기 때문이다.
 
 부모 인스턴스(`PopupState.parent`)가 닫히면 그 자식 인스턴스도 사유 `ParentClosed`로 닫힌다.
 

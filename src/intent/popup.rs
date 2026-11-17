@@ -172,6 +172,12 @@ fn reopen(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
     open(state, request, by_user);
 }
 
+/// 시험용: 엔진 없이 다시 열기 요청 하나를 사용자 요청으로 반영한다.
+#[cfg(all(test, feature = "gui"))]
+pub(crate) fn reopen_for_test(state: &mut RequestContext, request: &OpenRequest) {
+    reopen(state, request, true);
+}
+
 /// 시험용: 쌓인 intent 를 팝업 처리기로 차례로 반영한다(팝업 열기·닫기만 바뀐다).
 #[cfg(all(test, feature = "gui"))]
 pub(crate) fn apply_pending(
