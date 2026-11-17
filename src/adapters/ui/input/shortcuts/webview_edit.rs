@@ -24,6 +24,15 @@ impl MainView {
         true
     }
 
+    /// `sid` 가 WebView 면 그 페이지에 편집을 실행한다.
+    pub(crate) fn run_webview_edit_on(&self, sid: u32, action: WebViewEditAction) -> bool {
+        let Some(webview) = self.webviews.get(&sid) else {
+            return false;
+        };
+        webview.execute_edit(action);
+        true
+    }
+
     /// host 창이 받은 키가 편집 바인딩이고 포커스 surface가 WebView이면 그 편집이다.
     /// 우선순위는 페이지 편집 > plugin 명령 > 그 밖의 host 액션이며 native 경로와 같다.
     pub(crate) fn webview_edit_for_key(

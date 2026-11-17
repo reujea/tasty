@@ -225,6 +225,13 @@ impl MainView {
                 Self::open_explorer_tab(&mut self.state);
             }
             "convert_surface" => {
+                if super::surface_actions::held_for_draft(
+                    &mut self.state,
+                    engine,
+                    "convert_surface",
+                ) {
+                    return true;
+                }
                 if let Some(sid) = self.state.focused_surface_id(engine) {
                     super::surface_actions::open_convert_popup(
                         &mut self.state,
@@ -234,12 +241,26 @@ impl MainView {
                 }
             }
             "convert_to_markdown" => {
+                if super::surface_actions::held_for_draft(
+                    &mut self.state,
+                    engine,
+                    "convert_to_markdown",
+                ) {
+                    return true;
+                }
                 if let Some(sid) = self.state.focused_surface_id(engine) {
                     self.state
                         .enqueue_convert_input_popup(&engine.as_ref(), "markdown", Some(sid));
                 }
             }
             "convert_to_explorer" => {
+                if super::surface_actions::held_for_draft(
+                    &mut self.state,
+                    engine,
+                    "convert_to_explorer",
+                ) {
+                    return true;
+                }
                 if let Some(sid) = self.state.focused_surface_id(engine) {
                     super::surface_actions::convert_to_explorer(
                         &mut self.state,

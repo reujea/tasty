@@ -93,11 +93,12 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.refresh, key, mods)
-            && super::request_focused_surface_refresh(
-                state,
-                engine,
-                crate::intent::RefreshTrigger::Shortcut,
-            )
+            && (super::surface_actions::held_for_draft(state, engine, "refresh")
+                || super::request_focused_surface_refresh(
+                    state,
+                    engine,
+                    crate::intent::RefreshTrigger::Shortcut,
+                ))
         {
             return true;
         }
@@ -257,27 +258,15 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.find, key, mods) {
+            if super::surface_actions::held_for_draft(state, engine, "find") {
+                return true;
+            }
             // 터미널에서만 검색 팝업을 연다. 검색창이 이미 포커스를 받았으면 egui가 처리한다.
             // webview의 자체 find는 호스트로 전달하지 않으며 다른 비터미널도 여기서는 소비하지 않는다.
             // 탐색기는 자기 Find 바를 연다.
-            return match state.focused_surface_id(engine) {
-                Some(sid) => super::surface_actions::find_on(state, engine, sid, "find_open"),
-                // 생성 대기 초안이 선택돼 있으면 뒤의 기존 탭이 터미널일 때 대상 없이 키를 소비한다.
-                None => {
-                    let terminal = matches!(
-                        state.focused_surface_type(engine),
-                        crate::state::FocusedSurfaceType::Terminal
-                    );
-                    if terminal {
-                        crate::adapters::ui::search_bar::open_or_focus_for(
-                            state,
-                            None,
-                            "find_open",
-                        );
-                    }
-                    terminal
-                }
-            };
+            return state.focused_surface_id(engine).is_some_and(|sid| {
+                super::surface_actions::find_on(state, engine, sid, "find_open")
+            });
         }
         false
     }
@@ -444,18 +433,27 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.convert_surface, key, mods) {
+            if super::surface_actions::held_for_draft(state, engine, "convert_surface") {
+                return true;
+            }
             if let Some(sid) = state.focused_surface_id(engine) {
                 super::surface_actions::open_convert_popup(state, sid, "convert_surface");
             }
             return true;
         }
         if matches_any_binding(&kb.convert_to_markdown, key, mods) {
+            if super::surface_actions::held_for_draft(state, engine, "convert_to_markdown") {
+                return true;
+            }
             if let Some(sid) = state.focused_surface_id(engine) {
                 state.enqueue_convert_input_popup(&engine.as_ref(), "markdown", Some(sid));
             }
             return true;
         }
         if matches_any_binding(&kb.convert_to_explorer, key, mods) {
+            if super::surface_actions::held_for_draft(state, engine, "convert_to_explorer") {
+                return true;
+            }
             if let Some(sid) = state.focused_surface_id(engine) {
                 super::surface_actions::convert_to_explorer(state, sid, "convert_to_explorer");
             }
@@ -571,6 +569,11 @@ impl MainView {
             return false;
         }
         if matches_any_binding(&kb.explorer_refresh, key, mods)
+            && super::surface_actions::held_for_draft(state, engine, "explorer_refresh")
+        {
+            return true;
+        }
+        if matches_any_binding(&kb.explorer_refresh, key, mods)
             && state.focused_surface_type(engine).is_kind("explorer")
         {
             if let Some(sid) = focused_explorer_surface_id(state, engine) {
@@ -589,11 +592,17 @@ impl MainView {
             (&kb.explorer_properties, "explorer_properties"),
         ] {
             if matches_any_binding(binding, key, mods)
-                && state.focused_surface_type(engine).is_kind("explorer")
+                && (super::surface_actions::held_for_draft(state, engine, action)
+                    || state.focused_surface_type(engine).is_kind("explorer"))
             {
                 super::explorer_view_shortcut(state, engine, action);
                 return true;
             }
+        }
+        if matches_any_binding(&kb.explorer_go_up, key, mods)
+            && super::surface_actions::held_for_draft(state, engine, "explorer_go_up")
+        {
+            return true;
         }
         if matches_any_binding(&kb.explorer_go_up, key, mods)
             && state.focused_surface_type(engine).is_kind("explorer")
@@ -609,9 +618,24 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.explorer_focus_address, key, mods)
-            && super::html_focus_address_shortcut(state, engine)
+            && (super::surface_actions::held_for_draft(state, engine, "explorer_focus_address")
+                || super::html_focus_address_shortcut(state, engine))
         {
             return true;
+        }
+        for (binding, action) in [
+            (&kb.explorer_back, "explorer_back"),
+            (&kb.explorer_forward, "explorer_forward"),
+            (&kb.explorer_new_folder, "explorer_new_folder"),
+            (&kb.explorer_new_file, "explorer_new_file"),
+            (&kb.explorer_undo, "explorer_undo"),
+            (&kb.explorer_redo, "explorer_redo"),
+        ] {
+            if matches_any_binding(binding, key, mods)
+                && super::surface_actions::held_for_draft(state, engine, action)
+            {
+                return true;
+            }
         }
         for (binding, action) in [
             (&kb.explorer_back, "explorer_back"),
@@ -694,6 +718,9 @@ impl MainView {
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.enter_copy_mode, key, mods) {
+            if super::surface_actions::held_for_draft(state, engine, "enter_copy_mode") {
+                return true;
+            }
             state.dialogs.pending_enter_copy_mode = true;
             return true;
         }

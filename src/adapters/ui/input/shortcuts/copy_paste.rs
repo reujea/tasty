@@ -79,6 +79,19 @@ impl MainView {
         mods: ModifiersState,
         edit_judged: bool,
     ) -> bool {
+        let kb = &engine.settings.keybindings;
+        for (combos, id) in [
+            (&kb.select_all, "select_all"),
+            (&kb.copy_path, "copy_path"),
+            (&kb.explorer_rename, "explorer_rename"),
+            (&kb.explorer_trash, "explorer_trash"),
+        ] {
+            if matches_any_binding(combos, key, mods)
+                && super::surface_actions::held_for_draft(&mut self.state, engine, id)
+            {
+                return true;
+            }
+        }
         if !self
             .state
             .focused_surface_type(engine)
@@ -92,7 +105,6 @@ impl MainView {
         if super::focused_explorer_typing(&self.state, engine) {
             return false;
         }
-        let kb = &engine.settings.keybindings;
         // 편집 판정을 마친 키는 파일 복사·잘라내기·붙여넣기로 다시 고르지 않는다.
         let edit = |combos: &[String]| !edit_judged && matches_any_binding(combos, key, mods);
         let action = if matches_any_binding(&kb.select_all, key, mods) {

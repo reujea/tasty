@@ -127,6 +127,7 @@ impl MainView {
         self.sync_window_fullscreen();
 
         self.dispatch_pending_command_palette(engine);
+        self.run_held_view_actions(engine);
 
         // 닫힌 메뉴의 후처리를 먼저 마쳐 새 메뉴 요청을 처리할 수 있게 한다.
         self.poll_pending_native_menu(engine);
@@ -410,7 +411,9 @@ impl MainView {
             match cmd {
                 crate::state::command_palette::PaletteCommand::Host { id, .. } => {
                     // 알 수 없는 action_id는 dispatch_action_by_id가 경고를 기록한다.
-                    self.dispatch_action_by_id(engine, id);
+                    if self.run_palette_surface_command(engine, id, target) {
+                        self.dispatch_action_by_id(engine, id);
+                    }
                 }
                 crate::state::command_palette::PaletteCommand::Plugin {
                     plugin_id,

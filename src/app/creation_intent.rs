@@ -15,9 +15,11 @@ pub(crate) fn resolve(
     if origin.is_user()
         && let Some(pending) = state.attach_pending.selected(&read, &state.navigation)
     {
+        // 변환은 입력 시점에 정한 surface ID 를 담고 있어 draft 를 대상으로 하지 않는다. draft 에 걸어 두었다가
+        // 생성된 surface 에서 실행하는 변환도 그 사이 다른 draft 를 골랐다는 이유로 거절하지 않는다.
         let unsupported = matches!(
             intent,
-            Intent::SplitPane { .. } | Intent::SplitSurface { .. } | Intent::ConvertSurface { .. }
+            Intent::SplitPane { .. } | Intent::SplitSurface { .. }
         ) || (matches!(intent, Intent::NewTab { .. })
             && !matches!(
                 pending.creation,

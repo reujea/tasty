@@ -280,6 +280,11 @@ impl HtmlAddressBands {
         self.focus_request = Some(sid);
     }
 
+    #[cfg(test)]
+    pub(crate) fn focus_requested(&self) -> Option<u32> {
+        self.focus_request
+    }
+
     /// WebView 동기화가 부른다. `page_holds`는 그 surface의 페이지가 OS 키보드 포커스를 가졌는지다.
     /// 띠가 포커스를 새로 얻었고 페이지가 포커스를 가졌으면 회수할 surface를 돌려준다.
     /// 띠가 포커스를 가진 동안 페이지 포커스가 새로 생기면(페이지 클릭) 다음에 그릴 때 편집을 끝낸다.

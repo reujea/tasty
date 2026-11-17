@@ -824,10 +824,20 @@ fn take_vi_copy_entry(
         return None;
     }
     let focused = state.focused_surface_id(engine);
+    vi_copy_entry(state, engine, active_surface, focused)
+}
+
+/// `target` 터미널에서 진입을 시도하고 결과를 토스트로 알린다. 진입했을 때만 새 mode를 돌려준다.
+fn vi_copy_entry(
+    state: &mut crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+    active_surface: Option<u32>,
+    target: Option<u32>,
+) -> Option<ViCopyMode> {
+    let terminal = target.and_then(|sid| engine.as_ref().terminals.get(sid));
     let (outcome, scope_surface, mode) = if let Some(sid) = active_surface {
         (ViCopyEntry::AlreadyActive, Some(sid), None)
-    } else if let (Some(sid), Some(terminal)) = (focused, state.focused_terminal(&engine.as_ref()))
-    {
+    } else if let (Some(sid), Some(terminal)) = (target, terminal) {
         let mode = terminal.with_view(&state.terminal_views.get(engine, sid), |view| {
             (!view.is_alternate_screen()).then(|| ViCopyMode::enter(sid, &view))
         });
@@ -836,7 +846,7 @@ fn take_vi_copy_entry(
             None => (ViCopyEntry::AlternateScreen, Some(sid), None),
         }
     } else {
-        (ViCopyEntry::NoTerminal, focused, None)
+        (ViCopyEntry::NoTerminal, target, None)
     };
     let scope = scope_surface
         .map(crate::adapters::ui::ToastScope::Surface)
@@ -856,7 +866,19 @@ impl MainView {
     /// `pending_enter_copy_mode` 플래그를 소비하고 mode 진입을 시도한다.
     pub(crate) fn try_enter_vi_copy_mode(&mut self, engine: &EngineRead<'_>) {
         let active = self.vi_copy.as_ref().map(|vi| vi.surface_id);
-        let Some(mode) = take_vi_copy_entry(&mut self.state, engine, active) else {
+        let mode = take_vi_copy_entry(&mut self.state, engine, active);
+        self.start_vi_copy(mode);
+    }
+
+    /// 입력 시점에 정한 터미널 `sid` 에서 mode 진입을 시도한다.
+    pub(crate) fn enter_vi_copy_mode_on(&mut self, engine: &EngineRead<'_>, sid: u32) {
+        let active = self.vi_copy.as_ref().map(|vi| vi.surface_id);
+        let mode = vi_copy_entry(&mut self.state, engine, active, Some(sid));
+        self.start_vi_copy(mode);
+    }
+
+    fn start_vi_copy(&mut self, mode: Option<ViCopyMode>) {
+        let Some(mode) = mode else {
             return;
         };
         self.vi_copy = Some(mode);

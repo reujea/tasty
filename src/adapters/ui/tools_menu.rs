@@ -412,7 +412,7 @@ pub(crate) fn invoke_tool_on(
     }
 }
 
-/// 생성된 surface가 정해진 걸어 둔 명령(도구·변환 입력)을 그 surface에서 접수 순서대로 실행한다.
+/// 생성된 surface가 정해진 걸어 둔 명령(도구·변환 입력·내장 액션)을 그 surface에서 접수 순서대로 실행한다.
 /// 실행 직전에 surface가 사라졌으면 버린다. 실행한 명령의 `command.invoked` 알림을 돌려준다.
 pub(crate) fn run_deferred_tools(
     state: &mut MainViewState,
@@ -427,6 +427,11 @@ pub(crate) fn run_deferred_tools(
             );
             continue;
         }
+        // 앞의 창 액션이 아직 실행되지 않았으면 접수 순서를 지키려 그 뒤로 미룬다.
+        if state.attach_pending.deferred.waits_for_view(local) {
+            state.attach_pending.deferred.put_back(local, command);
+            continue;
+        }
         match command {
             DeferredCommand::Tool { item, invoked } => {
                 notices.extend(invoked);
@@ -434,6 +439,11 @@ pub(crate) fn run_deferred_tools(
             }
             DeferredCommand::ConvertInput { kind } => {
                 state.open_deferred_convert_input(engine, &kind, local);
+            }
+            DeferredCommand::Action { id, kind, trigger } => {
+                crate::shortcuts::surface_actions::run_held_action(
+                    state, engine, id, &kind, trigger, local,
+                );
             }
         }
     }

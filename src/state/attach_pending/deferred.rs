@@ -28,6 +28,12 @@ pub(crate) enum DeferredCommand {
     },
     /// 새 탭을 만들 `kind`의 변환 입력 팝업. 생성된 surface 를 문맥으로 연다.
     ConvertInput { kind: String },
+    /// surface 하나를 대상으로 하는 내장 액션. `kind` 는 접수 때 초안이 만들 surface 의 kind 다.
+    Action {
+        id: &'static str,
+        kind: String,
+        trigger: crate::intent::RefreshTrigger,
+    },
 }
 
 impl DeferredCommand {
@@ -35,6 +41,7 @@ impl DeferredCommand {
         match self {
             Self::Tool { item, .. } => &item.key,
             Self::ConvertInput { kind } => kind,
+            Self::Action { id, .. } => id,
         }
     }
 }
@@ -45,9 +52,31 @@ pub(crate) struct DeferredCommands {
     next_seq: u64,
     waiting: Vec<(PendingId, u64, DeferredCommand)>,
     ready: Vec<(u32, u64, DeferredCommand)>,
+    /// 생성된 surface 에서 실행할 차례가 됐지만 창이 가진 것(클립보드·복사 모드)이 필요한 액션.
+    view: Vec<(&'static str, u32)>,
 }
 
 impl DeferredCommands {
+    /// 창이 실행할 액션으로 넘긴다. 같은 surface 의 뒤 명령은 이 액션이 실행될 때까지 기다린다.
+    pub(crate) fn push_view(&mut self, id: &'static str, local: u32) {
+        self.view.push((id, local));
+    }
+
+    /// 창이 실행할 액션을 기다리는 surface 다. 그 surface 의 명령은 접수 순서를 지키려 뒤로 미룬다.
+    pub(crate) fn waits_for_view(&self, local: u32) -> bool {
+        self.view.iter().any(|(_, l)| *l == local)
+    }
+
+    /// `take_ready` 로 꺼냈지만 창 액션 뒤에 실행할 명령을 꺼낸 순서대로 되돌린다.
+    pub(crate) fn put_back(&mut self, local: u32, command: DeferredCommand) {
+        self.next_seq = self.next_seq.wrapping_add(1);
+        self.ready.push((local, self.next_seq, command));
+    }
+
+    pub(crate) fn take_view(&mut self) -> Vec<(&'static str, u32)> {
+        std::mem::take(&mut self.view)
+    }
+
     pub(crate) fn push(&mut self, pending: PendingId, command: DeferredCommand) {
         self.next_seq = self.next_seq.wrapping_add(1);
         self.waiting.push((pending, self.next_seq, command));
@@ -88,14 +117,30 @@ impl DeferredCommands {
         });
     }
 
-    /// 실행할 명령을 접수 순서대로 꺼낸다.
+    /// 실행할 명령을 접수 순서대로 꺼낸다. 창 액션을 기다리는 surface 의 명령은 남겨 둔다.
     pub(crate) fn take_ready(&mut self) -> Vec<(u32, DeferredCommand)> {
-        let mut ready = std::mem::take(&mut self.ready);
+        let (waiting, mut ready): (Vec<_>, Vec<_>) = std::mem::take(&mut self.ready)
+            .into_iter()
+            .partition(|(local, ..)| self.waits_for_view(*local));
+        self.ready = waiting;
         ready.sort_by_key(|(_, seq, _)| *seq);
         ready
             .into_iter()
             .map(|(local, _, command)| (local, command))
             .collect()
+    }
+}
+
+impl super::AttachPending {
+    /// 아직 생성을 기다리며 명령을 받을 수 있는 초안. 결과가 적용됐거나 실패·접힘으로 끝났으면 없다.
+    pub(crate) fn waiting_entry(
+        &self,
+        core: &crate::core::CoreState,
+        pending: PendingId,
+    ) -> Option<&super::Entry> {
+        self.entries.iter().find(|entry| {
+            entry.id == pending && entry.creation.is_some() && entry.visible && entry.live(core)
+        })
     }
 }
 
