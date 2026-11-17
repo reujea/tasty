@@ -12,6 +12,9 @@ pub mod boot;
 #[cfg(any(feature = "gui", debug_assertions))]
 mod cell_palette;
 mod clipboard;
+// 시각 표시는 GUI 화면과 GUI 실행의 기록에서만 쓴다.
+#[cfg(feature = "gui")]
+mod clock;
 mod completion_strategy;
 mod core;
 mod db;

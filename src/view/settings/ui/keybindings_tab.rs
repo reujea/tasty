@@ -510,6 +510,7 @@ use entries_scripts::draw_script_bindings;
 use import_export::draw_import_export_subtab;
 pub(crate) use import_export::{
     EXPORT_CONSUMER, IMPORT_CONSUMER, ImportExportRequest, ImportExportState, PluginBundleContext,
+    export_default_name,
 };
 use plugins::draw_plugins_subtab;
 use preset::draw_preset_subtab;

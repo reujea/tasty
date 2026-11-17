@@ -49,8 +49,7 @@ pub fn sizer(
 }
 
 fn when(modified: Option<SystemTime>) -> Option<String> {
-    let local: chrono::DateTime<chrono::Local> = modified?.into();
-    Some(local.format("%Y-%m-%d %H:%M").to_string())
+    crate::clock::local_system_time(modified?, "%Y-%m-%d %H:%M")
 }
 
 /// 비교 줄의 값: 파일은 크기 · 수정 시각, 폴더는 항목 수.
@@ -183,5 +182,21 @@ pub fn on_close(
                 apply_all: true,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 비교 줄의 수정 시각은 로컬 시간대의 `YYYY-MM-DD HH:MM` 이다.
+    #[test]
+    fn the_modified_time_is_a_local_date_and_minute() {
+        assert_eq!(when(None), None);
+        let t = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_794_963_723);
+        let at = jiff::Timestamp::from_second(1_794_963_723).unwrap();
+        let local = crate::clock::format_in(at, &crate::clock::local_zone(), "%Y-%m-%d %H:%M");
+        assert_eq!(when(Some(t)).as_deref(), Some(local.as_str()));
+        assert_eq!(local.len(), 16, "{local}");
     }
 }

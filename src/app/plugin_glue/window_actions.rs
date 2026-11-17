@@ -269,7 +269,7 @@ mod rfc3339_tests {
     /// UTC 초 단위 형식의 길이·접미사·구분자 위치를 확인한다.
     #[test]
     fn now_rfc3339_is_seconds_z_utc() {
-        let s = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let s = crate::clock::utc_now_rfc3339();
         assert_eq!(s.len(), 20, "unexpected length: {s}");
         assert!(s.ends_with('Z'), "must end with Z: {s}");
         assert_eq!(s.as_bytes()[4], b'-');

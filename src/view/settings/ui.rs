@@ -1766,10 +1766,7 @@ fn draw_active_content(
             );
             match ui_state.import_export.take_request() {
                 Some(ImportExportRequest::Export) => {
-                    let default_name = format!(
-                        "tasty-keybindings-{}.toml",
-                        chrono::Local::now().format("%Y-%m-%d")
-                    );
+                    let default_name = keybindings_tab::export_default_name();
                     ui_state.open_file_chooser(
                         EXPORT_CONSUMER,
                         file_chooser::FileChooserMode::Save { default_name },

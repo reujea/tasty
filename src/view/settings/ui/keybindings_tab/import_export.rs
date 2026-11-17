@@ -51,6 +51,16 @@ pub(crate) const EXPORT_CONSUMER: &str = "keybindings_export";
 /// 가져오기 파일 선택의 결과 키.
 pub(crate) const IMPORT_CONSUMER: &str = "keybindings_import";
 
+/// 내보내기 파일 선택이 처음 보여 주는 파일 이름. 날짜는 로컬 날짜다.
+pub(crate) fn export_default_name() -> String {
+    export_default_name_in(jiff::Timestamp::now(), &crate::clock::local_zone())
+}
+
+fn export_default_name_in(at: jiff::Timestamp, tz: &jiff::tz::TimeZone) -> String {
+    let date = crate::clock::format_in(at, tz, "%Y-%m-%d");
+    format!("tasty-keybindings-{date}.toml")
+}
+
 /// 모달을 열 때 host 가 주입하는 plugin 쪽 원본 — export 는 스냅샷이 아니라 이것에서 만든다.
 #[derive(Debug, Default, Clone)]
 pub struct PluginBundleContext {
@@ -574,6 +584,22 @@ pub(crate) fn draw_import_export_subtab(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn export_default_name_uses_the_local_date() {
+        use jiff::tz::{Offset, TimeZone};
+        // 2026-11-17T23:30:00Z
+        let at = jiff::Timestamp::from_second(1_794_958_200).expect("representable");
+        let east = TimeZone::fixed(Offset::constant(9));
+        assert_eq!(
+            export_default_name_in(at, &east),
+            "tasty-keybindings-2026-11-18.toml"
+        );
+        assert_eq!(
+            export_default_name_in(at, &TimeZone::UTC),
+            "tasty-keybindings-2026-11-17.toml"
+        );
+    }
 
     #[test]
     fn export_feedback_waits_for_app_result_and_recovers_after_retry() {

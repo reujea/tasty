@@ -48,7 +48,7 @@ impl std::fmt::Display for UnverifiedRefused {
 impl std::error::Error for UnverifiedRefused {}
 
 fn now_rfc3339() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+    crate::clock::utc_now_rfc3339()
 }
 
 /// `dir` 의 판정과 `choice` 로 설치·등록해도 되는지 정하고, 고른 것을 신뢰 DB에 남긴다.

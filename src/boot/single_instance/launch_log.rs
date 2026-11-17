@@ -43,7 +43,7 @@ impl LaunchLog {
     pub(crate) fn line(&self, message: &str) {
         let line = format!(
             "{} pid={} {}\n",
-            chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f%:z"),
+            crate::clock::local_now("%Y-%m-%dT%H:%M:%S%.3f%:z"),
             std::process::id(),
             message.replace('\n', " ")
         );
@@ -173,6 +173,22 @@ mod tests {
         }
         // 마지막 기록은 절단 뒤에 붙으므로 사라지지 않는다.
         assert!(text.lines().count() >= 10);
+    }
+
+    /// 줄 머리는 밀리초 셋째 자리와 `+09:00` 같은 숫자 오프셋을 가진 로컬 시각이다.
+    #[test]
+    fn each_line_starts_with_a_local_millisecond_time_and_numeric_offset() {
+        let home = tempfile::tempdir().unwrap();
+        LaunchLog::with_max_bytes(home.path(), 400).line("stamp");
+        let text = std::fs::read_to_string(path(home.path())).unwrap();
+        let stamp = text.split(' ').next().unwrap();
+        assert_eq!(stamp.len(), 29, "{stamp}");
+        let b = stamp.as_bytes();
+        for (i, c) in [(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b':')] {
+            assert_eq!(b[i], c, "{stamp}");
+        }
+        assert_eq!((b[19], b[26]), (b'.', b':'), "{stamp}");
+        assert!(matches!(b[23], b'+' | b'-'), "{stamp}");
     }
 
     #[test]

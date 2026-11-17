@@ -610,12 +610,10 @@ fn output_tail(output: &serde_json::Value) -> String {
 
 /// epoch ms → `HH:MM:SS`(로컬). 상세 패널의 `Started` 행.
 pub fn format_clock(epoch_ms: u64) -> String {
-    use chrono::{Local, TimeZone as _};
-    match Local.timestamp_millis_opt(epoch_ms as i64) {
-        chrono::LocalResult::Single(dt) => dt.format("%H:%M:%S").to_string(),
-        // 표현 불가능한 타임스탬프(손상된 레코드)는 값을 지어내지 않고 비운다.
-        _ => t("dag.detail.none").to_string(),
-    }
+    let ms = i64::try_from(epoch_ms).unwrap_or(i64::MAX);
+    // 표현 불가능한 타임스탬프(손상된 레코드)는 값을 지어내지 않고 비운다.
+    crate::clock::local_epoch_millis(ms, "%H:%M:%S")
+        .unwrap_or_else(|| t("dag.detail.none").to_string())
 }
 
 /// 시간 값의 단위와 자릿수 표기는 번역 키에서 정한다.
@@ -667,6 +665,17 @@ mod tests {
     use super::*;
     use serde_json::json;
     use tasty_agent::{OnFailure, RouteDecision, SkipReason};
+
+    /// `Started` 는 로컬 `HH:MM:SS` 이고, 표현할 수 없는 값은 지어내지 않는다.
+    #[test]
+    fn the_clock_is_local_hours_minutes_seconds() {
+        let ms = 1_794_963_723_456_i64;
+        let at = jiff::Timestamp::from_millisecond(ms).unwrap();
+        let local = crate::clock::format_in(at, &crate::clock::local_zone(), "%H:%M:%S");
+        assert_eq!(format_clock(ms as u64), local);
+        assert_eq!(local.len(), 8, "{local}");
+        assert_eq!(format_clock(u64::MAX), t("dag.detail.none"));
+    }
 
     fn task(id: &str, state: TaskState) -> Task {
         Task {

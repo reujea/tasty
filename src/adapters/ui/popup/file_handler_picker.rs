@@ -207,11 +207,7 @@ pub fn relative_when(now_secs: i64, used_at: i64) -> String {
 /// 일주일 이상 지난 기록은 숫자로 된 YYYY-MM-DD를 사용하므로 번역 키가 없다.
 /// 변환할 수 없는 시각은 빈 칸으로 두며 열 폭은 유지한다.
 fn local_date(unix_secs: i64) -> String {
-    chrono::DateTime::from_timestamp(unix_secs, 0).map_or_else(String::new, |t| {
-        t.with_timezone(&chrono::Local)
-            .format("%Y-%m-%d")
-            .to_string()
-    })
+    crate::clock::local_unix_seconds(unix_secs, "%Y-%m-%d").unwrap_or_default()
 }
 
 /// 그룹 헤딩 한 개의 공칭 높이(caption 유무로 갈린다).
@@ -1283,13 +1279,11 @@ mod tests {
             }),
             "{out}"
         );
-        let utc = chrono::DateTime::from_timestamp(used_at, 0).expect("representable");
         let near: Vec<String> = [-1i64, 0, 1]
             .iter()
             .map(|d| {
-                (utc + chrono::Duration::days(*d))
-                    .format("%Y-%m-%d")
-                    .to_string()
+                let at = jiff::Timestamp::from_second(used_at + d * DAY).expect("representable");
+                at.strftime("%Y-%m-%d").to_string()
             })
             .collect();
         assert!(near.contains(&out), "{out} not near {near:?}");

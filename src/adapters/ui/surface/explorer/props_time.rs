@@ -23,24 +23,23 @@ pub(crate) fn pattern(setting: &str) -> &'static str {
 /// 로컬 시각. 값이 없으면 대시다. 오프셋은 그 시각에 맞는 값(일광 절약 포함)이다.
 pub(crate) fn time_text(t: Option<SystemTime>, setting: &str) -> String {
     match t {
-        Some(t) => chrono::DateTime::<chrono::Local>::from(t)
-            .format(pattern(setting))
-            .to_string(),
+        Some(t) => {
+            crate::clock::local_system_time(t, pattern(setting)).unwrap_or_else(|| "—".to_owned())
+        }
         None => "—".to_owned(),
     }
 }
 
 /// 설정 화면 caption 의 예시. 고정한 로컬 시각 2026-10-21 12:12:05 를 고른 형식으로 보인다.
 pub(crate) fn example(setting: &str) -> String {
-    use chrono::TimeZone;
-    let sample = chrono::NaiveDate::from_ymd_opt(2026, 10, 21)
-        .and_then(|d| d.and_hms_opt(12, 12, 5))
-        .expect("valid sample date");
-    match chrono::Local.from_local_datetime(&sample).earliest() {
-        Some(local) => local.format(pattern(setting)).to_string(),
-        // 그 시각이 일광 절약 전환으로 없는 시간대면 오프셋 없이 보인다.
-        None => sample.format(pattern("seconds")).to_string(),
-    }
+    example_in(&crate::clock::local_zone(), setting)
+}
+
+fn example_in(tz: &jiff::tz::TimeZone, setting: &str) -> String {
+    let sample = jiff::civil::datetime(2026, 10, 21, 12, 12, 5, 0);
+    // 그 시각이 일광 절약 전환으로 없는 시간대면 오프셋 없이 보인다.
+    crate::clock::civil_in(sample, tz, pattern(setting))
+        .unwrap_or_else(|| sample.strftime(pattern("seconds")).to_string())
 }
 
 #[cfg(test)]
@@ -71,7 +70,25 @@ mod tests {
         );
         assert_eq!(time_text(None, "seconds_offset"), "—");
         let t = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_792_000_000);
+        let local = crate::clock::local_zone();
+        let at = jiff::Timestamp::from_second(1_792_000_000).unwrap();
+        let expected = crate::clock::format_in(at, &local, "%Y-%m-%d %H:%M:%S %:z");
+        assert_eq!(time_text(Some(t), "seconds_offset"), expected);
         assert_eq!(time_text(Some(t), "seconds").len(), 19);
         assert_eq!(time_text(Some(t), "minutes").len(), 16);
+    }
+
+    /// 고정 오프셋 시간대에서 예시는 벽시계 시각 그대로이고 오프셋은 숫자다.
+    #[test]
+    fn the_example_in_a_fixed_zone_shows_the_numeric_offset() {
+        let tz = jiff::tz::TimeZone::fixed(
+            jiff::tz::Offset::from_seconds(-(3 * 3600 + 30 * 60)).unwrap(),
+        );
+        assert_eq!(example_in(&tz, "minutes"), "2026-10-21 12:12");
+        assert_eq!(example_in(&tz, "seconds"), "2026-10-21 12:12:05");
+        assert_eq!(
+            example_in(&tz, "seconds_offset"),
+            "2026-10-21 12:12:05 -03:30"
+        );
     }
 }

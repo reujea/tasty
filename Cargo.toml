@@ -262,8 +262,8 @@ rusqlite = { version = "0.41", default-features = false, features = ["bundled", 
 
 rand = "0.9"
 
-# UTC 시각만 사용하므로 기본 시간대 데이터 의존성은 제외한다.
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# 로컬 시각 표시와 UTC rfc3339 문자열. Windows는 시간대 자료가 OS에 없어 기본 기능의 묶음 자료를 쓴다.
+jiff = "1"
 pulldown-cmark = { version = "0.12", default-features = false, optional = true }
 tray-icon = { version = "0.22", optional = true }
 
