@@ -42,6 +42,26 @@ pub(crate) fn focused_workspace_category(
     Some(state.active_workspace(engine).category)
 }
 
+/// `close_pane` 액션. 활성 pane 을 닫고, 닫지 못했으면 활성 workspace 를 닫는다.
+pub(crate) fn close_pane_action(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    if !state.close_active_pane(engine) {
+        state.close_active_workspace(engine);
+    }
+}
+
+/// `close_active` 액션. 활성 탭, pane, workspace 순서로 닫을 수 있는 첫 대상을 닫는다.
+pub(crate) fn close_active_action(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    if !state.close_active_tab(engine) && !state.close_active_pane(engine) {
+        state.close_active_workspace(engine);
+    }
+}
+
 fn focused_explorer_panel<'a>(
     state: &crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'a>,

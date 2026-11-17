@@ -300,9 +300,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.close_pane, key, mods) {
-            if !state.close_active_pane(engine) {
-                state.close_active_workspace(engine);
-            }
+            super::close_pane_action(state, engine);
             if !engine.workspaces().is_empty() {
                 state.resize_all(
                     engine,
@@ -516,9 +514,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.close_active, key, mods) {
-            if !state.close_active_tab(engine) && !state.close_active_pane(engine) {
-                state.close_active_workspace(engine);
-            }
+            super::close_active_action(state, engine);
             if !engine.workspaces().is_empty() {
                 state.resize_all(
                     engine,
@@ -549,25 +545,14 @@ impl MainView {
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.rename_tab, key, mods) {
-            let pane_id = state.focused_pane_id(engine);
-            if let Some(pane) = state
-                .active_workspace(engine)
-                .pane_layout()
-                .find_pane(pane_id)
-            {
-                let tab_index = state.navigation.tab_index(pane);
-                if let Some(tab) = pane.tabs.get(tab_index) {
-                    let current_name =
-                        engine.tab_display_name(tab, state.navigation.surface_id(tab));
-                    let target = crate::state::RenameTarget::TabName { tab_id: tab.id };
-                    crate::adapters::ui::rename_popup::open(
-                        state,
-                        engine,
-                        target,
-                        current_name,
-                        |intent| intent.from_user_shortcut("rename_tab"),
-                    );
-                }
+            if let Some((target, current_name)) = state.active_tab_rename(engine) {
+                crate::adapters::ui::rename_popup::open(
+                    state,
+                    engine,
+                    target,
+                    current_name,
+                    |intent| intent.from_user_shortcut("rename_tab"),
+                );
             }
             return true;
         }

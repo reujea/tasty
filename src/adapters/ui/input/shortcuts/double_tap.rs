@@ -120,9 +120,7 @@ impl MainView {
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "close_pane" => {
-                if !self.state.close_active_pane(engine) {
-                    self.state.close_active_workspace(engine);
-                }
+                super::close_pane_action(&mut self.state, engine);
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "split_pane_vertical" => {
@@ -173,9 +171,7 @@ impl MainView {
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "close_active" => {
-                if !self.state.close_active_tab(engine) && !self.state.close_active_pane(engine) {
-                    self.state.close_active_workspace(engine);
-                }
+                super::close_active_action(&mut self.state, engine);
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "restore_closed" => {

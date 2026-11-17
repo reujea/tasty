@@ -256,6 +256,25 @@ impl RequestContext {
         };
         self.close_tab_through_core(engine, tab_id)
     }
+
+    /// `rename_tab` 액션의 대상. 포커스 pane 의 선택 탭과 지금 보이는 이름이다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn active_tab_rename(
+        &self,
+        engine: &EngineRead<'_>,
+    ) -> Option<(super::RenameTarget, String)> {
+        let pane_id = self.focused_pane_id(engine);
+        let pane = self
+            .active_workspace(engine)
+            .pane_layout()
+            .find_pane(pane_id)?;
+        let tab = pane.tabs.get(self.navigation.tab_index(pane))?;
+        let current_name = engine.tab_display_name(tab, self.navigation.surface_id(tab));
+        Some((
+            super::RenameTarget::TabName { tab_id: tab.id },
+            current_name,
+        ))
+    }
 }
 
 #[cfg(feature = "gui")]
