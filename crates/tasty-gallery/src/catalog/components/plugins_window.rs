@@ -555,7 +555,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::cluster(
         ui,
         theme,
-        "Add plugin — action bar (trusted · permissions changed · 4 unverified · adding · already installed)",
+        "Add plugin — action bar (trusted · 4 unverified · adding · already installed)",
         |ui| {
             theme_pair(ui, theme, &mocha, &latte, |ui, th| {
                 add::add_bars(ui, th, th.measure_xl.value());
@@ -575,14 +575,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::cluster(
         ui,
         theme,
-        "Add plugin — trust judgment (6 kinds, 4 unverified share one danger box)",
+        "Add plugin — trust judgment (5 kinds, 4 unverified share one danger box)",
         |ui| {
             theme_pair(ui, theme, &mocha, &latte, |ui, th| {
                 add::trust_boxes(ui, th, th.measure_xl.value());
             });
         },
     );
-    spec::cluster(ui, theme, "attention reasons (5)", |ui| {
+    spec::cluster(ui, theme, "attention reasons (4)", |ui| {
         attention::reason_cards(ui, theme);
     });
     reserved::draw(ui, theme, &mocha, &latte);
@@ -609,7 +609,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "installed detail",
-                "identity(이름 font-size-max 보통 굵기 · 메타 작성자 · id · homepage 링크) → 설명(line-height-ui) → (health 박스) → Permissions Tag → Command(키캡 규칙) → Surface kinds Tag(있을 때만) → 경로",
+                "identity(이름 font-size-max 보통 굵기 · 메타 작성자 · id · homepage 링크) → 설명(line-height-ui) → (health 박스) → Command(키캡 규칙) → Surface kinds Tag(있을 때만) → 경로",
             ),
             (
                 "uninstall confirm",
@@ -622,7 +622,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "add",
-                "단일 열 · 제목 없이 경로 선택 블록(Plugin folder 머리글 · mono 입력 + Find folder…(secondary) + Verify(primary) · 설명 문단) 바로 아래에 확인 전 안내 상자 또는 매니페스트 카드(아바타 lg · 이름 + 버전 Tag · id · 작성자 · 설명 · Permissions/Surface kinds Tag, 비면 caption None · Source · Homepage 링크) + 신뢰 상자 · 액션 바는 왼쪽 Grants 문구 또는 막힌 이유(caption, text-muted) + 오른쪽 Cancel(ghost) + Add plugin(primary, 권한 변경이면 Trust & add), 미인증 네 가지는 Add anyway(danger, 모르는 키는 Trust key & add anyway)이고 처음 포커스는 Cancel, 추가 중에는 두 버튼 disabled + Spinner Adding…, 막힘은 이미 설치됨뿐, 확인 전에는 Cancel 만",
+                "단일 열 · 제목 없이 경로 선택 블록(Plugin folder 머리글 · mono 입력 + Find folder…(secondary) + Verify(primary) · 설명 문단) 바로 아래에 확인 전 안내 상자 또는 매니페스트 카드(아바타 lg · 이름 + 버전 Tag · id · 작성자 · 설명 · Surface kinds Tag, 비면 caption None · Source · Homepage 링크) + 신뢰 상자 · 액션 바는 왼쪽 막힌 이유(caption, text-muted, 막히지 않았으면 비움) + 오른쪽 Cancel(ghost) + Add plugin(primary), 미인증 네 가지는 Add anyway(danger, 모르는 키는 Trust key & add anyway)이고 처음 포커스는 Cancel, 추가 중에는 두 버튼 disabled + Spinner Adding…, 막힘은 이미 설치됨뿐, 확인 전에는 Cancel 만",
             ),
             (
                 "copy fingerprint",
@@ -640,10 +640,6 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "untrusted + .pub",
                 "Trust & add — Primary (agent is for AI-agent surfaces only)",
-            ),
-            (
-                "grants",
-                "No permissions · Grants 1 permission · Grants N permissions",
             ),
         ],
         &[

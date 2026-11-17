@@ -94,14 +94,12 @@ skipped = "확인 윈도우를 열 수 없어 확인 없이 종료합니다."
 title = "플러그인"
 empty = "설치된 플러그인이 없습니다."
 none_selected = "왼쪽에서 플러그인을 선택하세요."
-none = "(없음)"
 enabled = "활성화"
 disabled = "비활성"
 running = "실행 중"
 health_error = "연결에 실패했습니다. 설정에서 플러그인 구성을 확인하세요."
 homepage = "홈페이지"
 surface_kinds = "서피스 종류"
-permissions = "권한"
 log_path = "로그"
 install = "설치"
 install_path = "설치 경로"
@@ -122,22 +120,14 @@ attn_sig_invalid_label = "서명이 유효하지 않음"
 attn_sig_invalid_blurb = "서명이 없거나 검증에 실패해 등록하지 못했습니다."
 attn_sig_invalid_note = "서명이 이 플러그인의 파일과 일치하지 않습니다."
 attn_desc_hidden = "서명이 유효하지 않아 설명을 숨겼습니다."
-attn_perm_changed_label = "권한이 변경됨"
-attn_perm_changed_blurb = "요청한 권한이 변경되어 다시 승인이 필요합니다."
 attn_health_label = "실행 오류"
 attn_health_blurb = "활성화된 플러그인에서 실행 오류가 발생했습니다. 자세한 내용은 로그를 확인하세요."
-attn_permission_changes = "권한 변경"
 attn_signature = "서명"
 attn_error = "로그"
 attn_fingerprint = "지문"
-attn_newly_requested = "새로 요청됨"
-attn_no_longer_used = "더 이상 사용 안 함"
 attn_not_registered = "등록 안 됨"
 attn_needs_review = "검토 필요"
-attn_reapprove = "재승인"
 attn_copy_fingerprint = "지문 복사"
-attn_reapproved = "'{}' 플러그인을 다시 승인했습니다."
-attn_reapprove_failed = "재승인 실패: {}"
 attn_register_anyway = "그래도 등록"
 attn_registered = "'{}'을(를) 등록했습니다."
 attn_register_failed = "등록 실패: {}"
@@ -159,13 +149,10 @@ add_help = "`tasty-plugin.toml` 이 들어 있는 로컬 폴더를 지정합니�
 add_empty_hint = "폴더를 고른 뒤 {}을 누르면 매니페스트를 읽습니다."
 add_source_path = "원본 경로"
 add_button = "플러그인 추가"
-add_trust_and_add = "신뢰하고 추가"
 add_anyway = "그래도 추가"
 add_trust_key_anyway = "키 신뢰 후 그래도 추가"
 add_adding = "추가하는 중…"
 add_none = "없음"
-add_grants_none = "권한 없음"
-add_grants = "권한 {}개 부여"
 add_read_error = "tasty-plugin.toml을 읽을 수 없습니다"
 add_invalid = "tasty-plugin.toml이 올바르지 않습니다"
 add_blocked_installed = "이미 설치됨"
@@ -173,14 +160,12 @@ add_install_failed = "설치 실패: {}"
 add_installed = "플러그인이 추가되었습니다: {}"
 trust_trusted_body = "신뢰한 게시자가 서명했습니다. 이 키는 신뢰 목록에 있습니다."
 trust_unverified_title = "검증되지 않은 플러그인"
-trust_unverified_risk = "Tasty는 이 플러그인을 누가 만들었는지, 파일이 바뀌지 않았는지 확인할 수 없습니다. 플러그인은 내 계정 권한으로 실행되는 프로그램이라 파일을 읽고 바꾸거나, 네트워크를 쓰거나, 다른 프로그램을 실행할 수 있습니다. 위 권한 목록은 플러그인이 Tasty에 요청할 수 있는 범위만 제한합니다. 출처를 신뢰할 때만 추가하세요."
+trust_unverified_risk = "Tasty는 이 플러그인을 누가 만들었는지, 파일이 바뀌지 않았는지 확인할 수 없습니다. 플러그인은 내 계정 권한으로 실행되는 프로그램이라 파일을 읽고 바꾸거나, 네트워크를 쓰거나, 다른 프로그램을 실행할 수 있습니다. 출처를 신뢰할 때만 추가하세요."
 trust_key_note = "추가하면 이 키도 신뢰 목록에 들어갑니다."
 trust_cause_unknown_key = "신뢰 목록에 없는 키로 서명되었습니다."
 trust_cause_missing_pubkey = "서명은 있지만 배포자의 공개 키 파일(tasty-plugin.toml.pub)이 없거나 읽을 수 없습니다."
 trust_cause_unsigned = "서명이 없습니다."
 trust_cause_signature_error = "이 파일들로 서명을 검증하지 못했습니다."
-trust_permissions_changed_title = "권한 변경됨"
-trust_permissions_changed_body = "신뢰한 게시자이지만 이 버전은 신뢰한 버전에 없던 권한을 요청합니다. 위 목록을 검토하세요. 추가하면 새 권한 묶음을 신뢰합니다. 이 권한은 플러그인이 Tasty에 요청할 수 있는 범위만 제한하며, 플러그인 프로그램을 내 파일·네트워크·다른 프로그램으로부터 격리하지 않습니다."
 configure = "설정"
 commands = "명령"
 filter_placeholder = "설치된 플러그인 필터…"
@@ -2206,7 +2191,7 @@ enable_waiting = "플러그인 '{}'이(가) 아직 시작 중입니다(기동 �
 enable_failed = "플러그인 '{}'을(를) 시작하지 못했습니다 ({}): {}. 자세한 내용은 tasty plugin logs {}로 확인하세요."
 enable_cancelled = "플러그인 '{}'이(가) 연결되기 전에 꺼지거나 다시 시작됐습니다"
 enable_still_starting = "플러그인 '{}'이(가) {}초가 지나도 시작 중입니다. tasty plugin show {}로 확인하세요"
-unverified_refused = "경고: 플러그인 '{}'은(는) 검증되지 않았습니다 — {} Tasty는 이 플러그인을 누가 만들었는지, 파일이 바뀌지 않았는지 확인할 수 없습니다. 플러그인은 내 계정 권한으로 실행되는 프로그램이라 파일을 읽고 바꾸거나, 네트워크를 쓰거나, 다른 프로그램을 실행할 수 있습니다. 권한 목록은 플러그인이 Tasty에 요청할 수 있는 범위만 제한합니다. 아무것도 설치하지 않았습니다.\n출처를 신뢰한다면 다음 명령으로 그래도 설치할 수 있습니다:\n  tasty plugin install --allow-unverified {}"
+unverified_refused = "경고: 플러그인 '{}'은(는) 검증되지 않았습니다 — {} Tasty는 이 플러그인을 누가 만들었는지, 파일이 바뀌지 않았는지 확인할 수 없습니다. 플러그인은 내 계정 권한으로 실행되는 프로그램이라 파일을 읽고 바꾸거나, 네트워크를 쓰거나, 다른 프로그램을 실행할 수 있습니다. 아무것도 설치하지 않았습니다.\n출처를 신뢰한다면 다음 명령으로 그래도 설치할 수 있습니다:\n  tasty plugin install --allow-unverified {}"
 unverified_cause_unknown_key = "신뢰 목록에 없는 키로 서명되었습니다."
 unverified_cause_missing_pubkey = "서명은 있지만 배포자의 공개 키 파일(tasty-plugin.toml.pub)이 없거나 읽을 수 없습니다."
 unverified_cause_unsigned = "서명이 없습니다."
@@ -4616,14 +4601,14 @@ about = "플러그인 관리(목록, 설치, 제거, 활성화, 비활성화, �
 about = "설치된 plugin 을 나열한다 (id, 버전, 활성 여부, 기동 여부)"
 
 [cli.help._root.plugin.show]
-about = "plugin 의 매니페스트 전문, 권한, 명령, 실행 상태를 낸다"
+about = "plugin 의 매니페스트 전문, 명령, 실행 상태를 낸다"
 
 [cli.help._root.plugin.show.arg.id]
 help = "플러그인 ID"
 
 [cli.help._root.plugin.install]
 about = "tasty-plugin.toml 이 있는 디렉토리에서 plugin 을 설치한다"
-long = "tasty-plugin.toml이 있는 디렉터리에서 플러그인을 설치합니다.\n\n추가 확인 없이 매니페스트의 모든 권한을 부여합니다. 해당 ID의 비활성화 설정이 남아 있지 않으면 바로 활성화하고 실행합니다. 설치 전에 `tasty-plugin.toml`을 확인하세요. 설치 후에는 `plugin permissions <id>`로 권한을 확인하고 `plugin revoke <id> <permission>`으로 회수할 수 있습니다.\n\nTasty가 신뢰하는 키로 서명을 확인할 수 없는 플러그인은 검증되지 않은 플러그인입니다. `--allow-unverified`를 주지 않으면 설치하지 않고 그 이유를 알립니다. 이 선택은 매니페스트가 바뀌거나 플러그인을 제거할 때까지 기억합니다."
+long = "tasty-plugin.toml이 있는 디렉터리에서 플러그인을 설치합니다.\n\n추가 확인 없이, 해당 ID의 비활성화 설정이 남아 있지 않으면 바로 활성화하고 실행합니다. 설치 전에 `tasty-plugin.toml`을 확인하세요.\n\nTasty가 신뢰하는 키로 서명을 확인할 수 없는 플러그인은 검증되지 않은 플러그인입니다. `--allow-unverified`를 주지 않으면 설치하지 않고 그 이유를 알립니다. 이 선택은 매니페스트가 바뀌거나 플러그인을 제거할 때까지 기억합니다."
 
 [cli.help._root.plugin.install.arg.path]
 help = "plugin 디렉토리 경로 (tasty-plugin.toml 이 있어야 한다)"
@@ -4640,7 +4625,7 @@ help = "plugin id (예: com.example.explorer)"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "기본 제공 plugin 전부를 번들에서 다시 맞춘다"
-long = "번들의 기본 제공 플러그인을 설치본에 반영합니다.\n\n번들 버전이 높으면 플러그인 디렉터리를 교체합니다. 버전이 같으면 내용이 다른 파일만 바꿉니다. 설치본 버전이 더 높으면 내용을 읽지 않고 건너뛰며, 이 경우에도 덮어쓰려면 `--force`를 지정하세요. 변경한 기본 제공 플러그인이 새로 요청하는 권한은 같은 호출에서 부여합니다."
+long = "번들의 기본 제공 플러그인을 설치본에 반영합니다.\n\n번들 버전이 높으면 플러그인 디렉터리를 교체합니다. 버전이 같으면 내용이 다른 파일만 바꿉니다. 설치본 버전이 더 높으면 내용을 읽지 않고 건너뛰며, 이 경우에도 덮어쓰려면 `--force`를 지정하세요."
 
 [cli.help._root.plugin.upgrade-builtins.arg.force]
 help = "설치본 버전이 번들 버전 이상이어도 덮어쓴다"
@@ -4685,30 +4670,6 @@ about = "플러그인의 매니페스트를 검사합니다. 제공하는 디텍
 
 [cli.help._root.plugin.doctor.arg.id]
 help = "plugin id (예: com.example.foo)"
-
-[cli.help._root.plugin.permissions]
-about = "plugin 의 매니페스트 권한과 지금 부여된 권한을 낸다"
-
-[cli.help._root.plugin.permissions.arg.id]
-help = "플러그인 ID"
-
-[cli.help._root.plugin.grant]
-about = "plugin 에 권한을 부여한다 (그 매니페스트에 선언돼 있어야 한다)"
-
-[cli.help._root.plugin.grant.arg.id]
-help = "플러그인 ID"
-
-[cli.help._root.plugin.grant.arg.permission]
-help = "권한 토큰 (예: fs.read, surface.write)"
-
-[cli.help._root.plugin.revoke]
-about = "plugin 에 부여했던 권한을 회수한다"
-
-[cli.help._root.plugin.revoke.arg.id]
-help = "플러그인 ID"
-
-[cli.help._root.plugin.revoke.arg.permission]
-help = "권한 토큰"
 
 [cli.help._root.plugin.grant-agent-permission]
 about = "활성 에이전트 세션에 임시 권한을 부여합니다. TTL이 끝나거나 명시적으로 회수할 때까지 유효합니다. session.issue에서 발급한 기본 권한은 바뀌지 않습니다."

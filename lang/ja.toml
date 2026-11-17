@@ -94,14 +94,12 @@ skipped = "確認ウィンドウを開けなかったため、確認なしで終
 title = "プラグイン"
 empty = "インストール済みのプラグインはありません。"
 none_selected = "左側からプラグインを選択してください。"
-none = "(なし)"
 enabled = "有効"
 disabled = "無効"
 running = "実行中"
 health_error = "接続に失敗しました。設定でプラグインの構成を確認してください。"
 homepage = "ホームページ"
 surface_kinds = "サーフェスの種類"
-permissions = "権限"
 log_path = "ログ"
 install = "インストール"
 install_path = "インストール先"
@@ -122,22 +120,14 @@ attn_sig_invalid_label = "署名が無効です"
 attn_sig_invalid_blurb = "署名がないか検証に失敗したため、登録できませんでした。"
 attn_sig_invalid_note = "署名がこのプラグインのファイルと一致しません。"
 attn_desc_hidden = "署名が無効なため説明を非表示にしています。"
-attn_perm_changed_label = "権限が変更されました"
-attn_perm_changed_blurb = "要求する権限が変わりました。再承認が必要です。"
 attn_health_label = "実行エラー"
 attn_health_blurb = "有効ですが実行中に失敗しています。詳細はログを確認してください。"
-attn_permission_changes = "権限の変更"
 attn_signature = "署名"
 attn_error = "ログ"
 attn_fingerprint = "フィンガープリント"
-attn_newly_requested = "新規要求"
-attn_no_longer_used = "使用されなくなりました"
 attn_not_registered = "未登録"
 attn_needs_review = "確認が必要"
-attn_reapprove = "再承認"
 attn_copy_fingerprint = "フィンガープリントをコピー"
-attn_reapproved = "'{}' を再承認しました。"
-attn_reapprove_failed = "再承認に失敗しました: {}"
 attn_register_anyway = "それでも登録"
 attn_registered = "'{}' を登録しました。"
 attn_register_failed = "登録に失敗しました: {}"
@@ -159,13 +149,10 @@ add_help = "`tasty-plugin.toml` を含むローカルフォルダを指定しま
 add_empty_hint = "フォルダを選んで {} を押すと、マニフェストを読み込みます。"
 add_source_path = "ソース"
 add_button = "プラグインを追加"
-add_trust_and_add = "信頼して追加"
 add_anyway = "それでも追加"
 add_trust_key_anyway = "鍵を信頼してそれでも追加"
 add_adding = "追加中…"
 add_none = "なし"
-add_grants_none = "権限なし"
-add_grants = "{} 件の権限を付与"
 add_read_error = "tasty-plugin.toml を読み込めません"
 add_invalid = "tasty-plugin.toml が正しくありません"
 add_blocked_installed = "インストール済み"
@@ -173,14 +160,12 @@ add_install_failed = "インストール失敗: {}"
 add_installed = "プラグインを追加しました: {}"
 trust_trusted_body = "信頼済みの配布元が署名しています。この鍵は信頼リストにあります。"
 trust_unverified_title = "未検証のプラグイン"
-trust_unverified_risk = "Tasty はこのプラグインの作成者も、ファイルが改変されていないことも確認できません。プラグインはあなたのアカウントの権限で動くプログラムで、ファイルの読み書き、ネットワークの使用、他のプログラムの起動ができます。上の権限一覧は、プラグインが Tasty に要求できる範囲を制限するだけです。入手元を信頼できる場合にのみ追加してください。"
+trust_unverified_risk = "Tasty はこのプラグインの作成者も、ファイルが改変されていないことも確認できません。プラグインはあなたのアカウントの権限で動くプログラムで、ファイルの読み書き、ネットワークの使用、他のプログラムの起動ができます。入手元を信頼できる場合にのみ追加してください。"
 trust_key_note = "追加すると、この鍵も信頼済みになります。"
 trust_cause_unknown_key = "信頼済みでない鍵で署名されています。"
 trust_cause_missing_pubkey = "署名はありますが、発行者の公開鍵ファイル (tasty-plugin.toml.pub) がないか読み取れません。"
 trust_cause_unsigned = "署名がありません。"
 trust_cause_signature_error = "これらのファイルで署名を検証できませんでした。"
-trust_permissions_changed_title = "権限が変更されました"
-trust_permissions_changed_body = "信頼済みの配布元ですが、このバージョンは信頼したバージョンになかった権限を要求しています。上の一覧を確認してください。追加すると新しい権限の組を信頼します。 これらの権限はプラグインが Tasty に要求できる範囲を制限するだけで、プラグインのプログラムをあなたのファイル・ネットワーク・他のプログラムから隔離するものではありません。"
 configure = "設定"
 commands = "コマンド"
 filter_placeholder = "インストール済みを絞り込み…"
@@ -2206,7 +2191,7 @@ enable_waiting = "プラグイン '{}' はまだ起動中です (起動の世代
 enable_failed = "プラグイン '{}' を起動できませんでした ({}): {}。詳細は tasty plugin logs {} で確認してください。"
 enable_cancelled = "プラグイン '{}' は接続する前にオフまたは再起動されました"
 enable_still_starting = "プラグイン '{}' は {} 秒経っても起動中です。tasty plugin show {} で確認してください"
-unverified_refused = "警告: プラグイン '{}' は未検証です — {} Tasty はこのプラグインの作成者も、ファイルが改変されていないことも確認できません。プラグインはあなたのアカウントの権限で動くプログラムで、ファイルの読み書き、ネットワークの使用、他のプログラムの起動ができます。権限一覧は、プラグインが Tasty に要求できる範囲を制限するだけです。何もインストールしていません。\n入手元を信頼できる場合は、次のコマンドでそれでもインストールできます:\n  tasty plugin install --allow-unverified {}"
+unverified_refused = "警告: プラグイン '{}' は未検証です — {} Tasty はこのプラグインの作成者も、ファイルが改変されていないことも確認できません。プラグインはあなたのアカウントの権限で動くプログラムで、ファイルの読み書き、ネットワークの使用、他のプログラムの起動ができます。何もインストールしていません。\n入手元を信頼できる場合は、次のコマンドでそれでもインストールできます:\n  tasty plugin install --allow-unverified {}"
 unverified_cause_unknown_key = "信頼済みでない鍵で署名されています。"
 unverified_cause_missing_pubkey = "署名はありますが、発行者の公開鍵ファイル (tasty-plugin.toml.pub) がないか読み取れません。"
 unverified_cause_unsigned = "署名がありません。"
@@ -4616,14 +4601,14 @@ about = "プラグインの管理 (一覧、インストール、削除、有効
 about = "インストール済みの plugin を並べる（id、バージョン、有効か、動作中か）"
 
 [cli.help._root.plugin.show]
-about = "plugin のマニフェスト全文、権限、コマンド、実行状態を出す"
+about = "plugin のマニフェスト全文、コマンド、実行状態を出す"
 
 [cli.help._root.plugin.show.arg.id]
 help = "プラグイン ID"
 
 [cli.help._root.plugin.install]
 about = "tasty-plugin.toml のあるディレクトリから plugin をインストールする"
-long = "tasty-plugin.toml のあるディレクトリからプラグインをインストールします。\n\n追加の確認なしで 2 つの処理を行います。マニフェストの全権限を付与し、その ID の無効化設定が残っていなければ有効化して起動します。インストール前に `tasty-plugin.toml` を確認してください。インストール後は `plugin permissions <id>` で権限を確認し、`plugin revoke <id> <permission>` で取り消せます。\n\nTasty が信頼済みの鍵で署名を確認できないプラグインは未検証です。`--allow-unverified` を指定しない限りインストールせず、その理由を表示します。この選択はマニフェストが変わるかプラグインを削除するまで記憶されます。"
+long = "tasty-plugin.toml のあるディレクトリからプラグインをインストールします。\n\n追加の確認なしで、その ID の無効化設定が残っていなければ有効化して起動します。インストール前に `tasty-plugin.toml` を確認してください。\n\nTasty が信頼済みの鍵で署名を確認できないプラグインは未検証です。`--allow-unverified` を指定しない限りインストールせず、その理由を表示します。この選択はマニフェストが変わるかプラグインを削除するまで記憶されます。"
 
 [cli.help._root.plugin.install.arg.path]
 help = "plugin ディレクトリのパス（tasty-plugin.toml が必要）"
@@ -4640,7 +4625,7 @@ help = "plugin id（例: com.example.explorer）"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "組み込み plugin を全てバンドルから同期し直す"
-long = "バンドルの組み込みプラグインをインストール先へ反映します。\n\nバンドルのバージョンが高ければディレクトリを置き換えます。同じバージョンなら内容の異なるファイルだけを変更します。インストール済みのバージョンが高ければ内容を読まずにスキップします。この場合も上書きするには `--force` を指定してください。変更した組み込みプラグインが新たに要求する権限は、同じ呼び出しで付与します。"
+long = "バンドルの組み込みプラグインをインストール先へ反映します。\n\nバンドルのバージョンが高ければディレクトリを置き換えます。同じバージョンなら内容の異なるファイルだけを変更します。インストール済みのバージョンが高ければ内容を読まずにスキップします。この場合も上書きするには `--force` を指定してください。"
 
 [cli.help._root.plugin.upgrade-builtins.arg.force]
 help = "インストール済みのバージョンがバンドル以上でも上書きする"
@@ -4685,30 +4670,6 @@ about = "プラグインのマニフェストを検査します。提供する�
 
 [cli.help._root.plugin.doctor.arg.id]
 help = "plugin id（例: com.example.foo）"
-
-[cli.help._root.plugin.permissions]
-about = "plugin のマニフェスト権限と、今与えられている権限を出す"
-
-[cli.help._root.plugin.permissions.arg.id]
-help = "プラグイン ID"
-
-[cli.help._root.plugin.grant]
-about = "plugin に権限を与える（そのマニフェストで宣言されている必要がある）"
-
-[cli.help._root.plugin.grant.arg.id]
-help = "プラグイン ID"
-
-[cli.help._root.plugin.grant.arg.permission]
-help = "権限トークン（例: fs.read, surface.write）"
-
-[cli.help._root.plugin.revoke]
-about = "plugin に与えていた権限を取り消す"
-
-[cli.help._root.plugin.revoke.arg.id]
-help = "プラグイン ID"
-
-[cli.help._root.plugin.revoke.arg.permission]
-help = "権限トークン"
 
 [cli.help._root.plugin.grant-agent-permission]
 about = "有効なエージェントセッションに一時的な権限を付与します。TTL が切れるか明示的に取り消すまで有効です。session.issue で付与した基本権限は変わりません。"

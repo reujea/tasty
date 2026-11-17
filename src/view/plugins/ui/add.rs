@@ -1,4 +1,4 @@
-use crate::i18n::{t, t_count};
+use crate::i18n::t;
 use crate::theme;
 
 use tasty_ui_widgets::{
@@ -103,8 +103,7 @@ fn add_action(preview: &AddPreview) -> PluginsAction {
             src_path,
             manifest_sha256,
         },
-        AddTrustState::PermissionsChanged { pubkey_b64, .. }
-        | AddTrustState::UnknownKey { pubkey_b64, .. } => PluginsAction::TrustAndInstall {
+        AddTrustState::UnknownKey { pubkey_b64, .. } => PluginsAction::TrustAndInstall {
             src_path,
             pubkey_b64: pubkey_b64.clone(),
             manifest_sha256,
@@ -173,8 +172,6 @@ fn draw_preview(
                 id: &preview.id,
                 authors: &preview.authors,
                 description: &preview.description,
-                permissions_label: t("plugins.permissions"),
-                permissions: &preview.permissions,
                 surface_kinds_label: t("plugins.surface_kinds"),
                 surface_kinds: &preview.surface_kinds,
                 source_label: t("plugins.add_source_path"),
@@ -194,8 +191,8 @@ fn draw_preview(
 }
 
 /// 하단 액션 바. 높이 측정과 실제 그리기가 같은 함수를 쓴다.
-/// 매니페스트가 없으면 Cancel 만 둔다. 추가할 수 없으면 추가 버튼을 disabled로 두고 이유를,
-/// 아니면 부여할 권한 수를 왼쪽에 적는다. 미인증이면 추가 버튼이 danger 다.
+/// 매니페스트가 없으면 Cancel 만 둔다. 추가할 수 없으면 추가 버튼을 disabled로 두고 이유를
+/// 왼쪽에 적는다. 미인증이면 추가 버튼이 danger 다.
 fn draw_add_footer(
     ui: &mut egui::Ui,
     preview: Option<&AddPreview>,
@@ -204,17 +201,13 @@ fn draw_add_footer(
 ) -> PluginAddBarClicks {
     let th = theme::theme();
     let blocked_key = preview.and_then(add_blocked_reason_key);
-    let left = match (preview, blocked_key) {
-        (None, _) => String::new(),
-        (Some(_), Some(key)) => t(key).to_owned(),
-        (Some(preview), None) => grants_label(preview.permissions.len()),
-    };
+    let left = blocked_key.map_or("", t);
     let add = preview.map(|p| t(add_button_key(p, blocked_key)));
     plugin_add_bar(
         ui,
         &th,
         &PluginAddBarView {
-            left: &left,
+            left,
             cancel: t("button.cancel"),
             add,
             add_enabled: blocked_key.is_none(),
@@ -226,22 +219,13 @@ fn draw_add_footer(
     )
 }
 
-/// 부여할 권한 수 문구.
-fn grants_label(count: usize) -> String {
-    match count {
-        0 => t("plugins.add_grants_none").to_owned(),
-        n => t_count("plugins.add_grants", n as u64, &[&n.to_string()]),
-    }
-}
-
-/// 추가 버튼 키. 키나 새 권한 묶음을 신뢰하게 되면 그 사실을, 미인증이면 "그래도"를 버튼에 적는다.
+/// 추가 버튼 키. 키를 신뢰하게 되면 그 사실을, 미인증이면 "그래도"를 버튼에 적는다.
 fn add_button_key(preview: &AddPreview, blocked_key: Option<&'static str>) -> &'static str {
     if blocked_key.is_some() {
         return "plugins.add_button";
     }
     match preview.trust_state {
         AddTrustState::Trusted => "plugins.add_button",
-        AddTrustState::PermissionsChanged { .. } => "plugins.add_trust_and_add",
         AddTrustState::UnknownKey { .. } => "plugins.add_trust_key_anyway",
         AddTrustState::MissingPubkey { .. }
         | AddTrustState::Unsigned
@@ -260,9 +244,6 @@ fn add_blocked_reason_key(preview: &AddPreview) -> Option<&'static str> {
 fn trust_kind(state: &AddTrustState) -> (PluginTrustKind, Option<&str>) {
     match state {
         AddTrustState::Trusted => (PluginTrustKind::Trusted, None),
-        AddTrustState::PermissionsChanged { fingerprint, .. } => {
-            (PluginTrustKind::PermissionsChanged, Some(fingerprint))
-        }
         AddTrustState::UnknownKey { fingerprint, .. } => {
             (PluginTrustKind::UnknownKey, Some(fingerprint))
         }
@@ -279,10 +260,6 @@ fn trust_kind(state: &AddTrustState) -> (PluginTrustKind, Option<&str>) {
 fn trust_copy(kind: PluginTrustKind) -> (&'static str, Vec<String>) {
     match kind {
         PluginTrustKind::Trusted => ("", vec![t("plugins.trust_trusted_body").to_owned()]),
-        PluginTrustKind::PermissionsChanged => (
-            t("plugins.trust_permissions_changed_title"),
-            vec![t("plugins.trust_permissions_changed_body").to_owned()],
-        ),
         _ => {
             let mut risk = t("plugins.trust_unverified_risk").to_owned();
             if kind == PluginTrustKind::UnknownKey {
@@ -342,7 +319,7 @@ fn try_validate_path(ui_state: &mut PluginsUiState, snapshot: &PluginsSnapshot) 
     match checked {
         Ok(manifest) => {
             let already = snapshot.plugins.iter().any(|p| p.id == manifest.id);
-            let trust_state = compute_trust_state(&path, &manifest.id);
+            let trust_state = compute_trust_state(&path);
             // 미인증 판정을 처음 보이면 Cancel 이 포커스를 받는다. Enter 로 설치되지 않는다.
             ui_state.add_focus_pending = trust_state.is_unverified();
             ui_state.add_preview = Some(AddPreview {
@@ -358,7 +335,6 @@ fn try_validate_path(ui_state: &mut PluginsUiState, snapshot: &PluginsSnapshot) 
                     .iter()
                     .map(|k| k.kind.clone())
                     .collect(),
-                permissions: manifest.permissions,
                 already_installed: already,
                 trust_state,
                 manifest_sha256,
@@ -372,27 +348,12 @@ fn try_validate_path(ui_state: &mut PluginsUiState, snapshot: &PluginsSnapshot) 
 }
 
 /// 설치·부팅과 같은 서명 판정을 UI 상태로 바꾼다. 사용자 선택 기록은 보지 않는다.
-fn compute_trust_state(dir: &std::path::Path, plugin_id: &str) -> AddTrustState {
-    use tasty_host_plugin::known_plugins::{KnownPluginEntry, KnownPlugins};
+fn compute_trust_state(dir: &std::path::Path) -> AddTrustState {
+    use tasty_host_plugin::known_plugins::KnownPluginEntry;
     use tasty_host_plugin::trust_verdict::{TrustVerdict, UnverifiedCause, judge_signature};
 
     match judge_signature(dir) {
         TrustVerdict::Trusted | TrustVerdict::AcceptedUnverified => AddTrustState::Trusted,
-        TrustVerdict::PermissionsChanged { fingerprint, .. } => {
-            let key = KnownPlugins::load()
-                .ok()
-                .and_then(|db| db.lookup(plugin_id).map(|e| e.pubkey.clone()));
-            match key {
-                Some(pubkey_b64) => AddTrustState::PermissionsChanged {
-                    fingerprint,
-                    pubkey_b64,
-                },
-                None => {
-                    tracing::warn!(plugin_id, "trusted key vanished while verifying");
-                    AddTrustState::SignatureError
-                }
-            }
-        }
         TrustVerdict::Unverified(UnverifiedCause::UnknownKey {
             fingerprint,
             pubkey,
@@ -427,7 +388,6 @@ mod tests {
             authors: Vec::new(),
             homepage: String::new(),
             surface_kinds: Vec::new(),
-            permissions: Vec::new(),
             already_installed,
             trust_state,
             manifest_sha256: "digest".into(),
@@ -452,10 +412,6 @@ mod tests {
     fn only_an_already_installed_plugin_blocks_adding() {
         let mut states = unverified_states().to_vec();
         states.push(AddTrustState::Trusted);
-        states.push(AddTrustState::PermissionsChanged {
-            fingerprint: "fp".into(),
-            pubkey_b64: "k".into(),
-        });
         for state in states {
             assert_eq!(
                 add_blocked_reason_key(&preview(state.clone(), false)),
@@ -557,7 +513,7 @@ mod tests {
             .collect()
     }
 
-    /// 미인증 판정에서도 액션 바(권한 수·Cancel·그래도 추가)가 창 안에 보이고, 충분히 높은 창이면
+    /// 미인증 판정에서도 액션 바(Cancel·그래도 추가)가 창 안에 보이고, 충분히 높은 창이면
     /// 상자 제목과 원인 문장도 보인다.
     #[test]
     fn action_bar_stays_inside_the_window_below_an_unverified_warning() {
@@ -567,7 +523,6 @@ mod tests {
             let p = preview(trust_state.clone(), false);
             let (kind, _) = trust_kind(&trust_state);
             let wanted = [
-                t("plugins.add_grants_none").to_string(),
                 t("button.cancel").to_string(),
                 t(add_button_key(&p, None)).to_string(),
             ];
@@ -698,10 +653,7 @@ mod tests {
             "id = \"com.example.p\"\n",
         )
         .expect("manifest");
-        assert_eq!(
-            compute_trust_state(dir.path(), "com.example.p"),
-            AddTrustState::Unsigned
-        );
+        assert_eq!(compute_trust_state(dir.path()), AddTrustState::Unsigned);
     }
 
     /// 매니페스트 읽기 실패와 선언 검사 실패는 서로 다른 제목의 오류 상자로 남는다.

@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::protocol::{self, IpcCallResult, PluginRequest};
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_ipc::server::send_response;
-use tasty_plugin_manifest::{HookMode, IpcHookDecl, Permission};
+use tasty_plugin_manifest::{HookMode, IpcHookDecl};
 
 use super::{
     FinalCaller, HOOK_FAIL_BACKOFF, HOOK_FAIL_LIMIT, NAMESPACE_CALL_TIMEOUT, PendingPluginCall,
@@ -618,7 +618,7 @@ impl PluginManager {
         }
     }
 
-    /// 소유·caller 권한을 확인한 뒤 활성 owner만 준비한다. 성공 시 owner id를 반환.
+    /// 소유자를 확인하고 자기 namespace 호출을 거절한 뒤 활성 owner만 준비한다. 성공 시 owner id를 반환.
     /// 실패 시 (JSON-RPC code, message) 페어를 반환.
     pub(super) fn validate_namespace_call(
         &mut self,
@@ -630,31 +630,15 @@ impl PluginManager {
             .resolve(method)
             .map(str::to_string)
             .ok_or_else(|| (-32601, format!("method '{method}' not found")))?;
-        if let Some(caller) = caller_plugin_id {
-            if caller == plugin_id {
-                return Err((
-                    -32001,
-                    format!("plugin '{caller}' cannot invoke its own namespace method '{method}'"),
-                ));
-            }
-            let prefix = method.split('.').next().unwrap_or("");
-            let required = Permission::IpcInvoke(prefix.to_string());
-            let allowed = self
-                .plugin_permissions
-                .get(caller)
-                .map(|set| set.contains(&required))
-                .unwrap_or(false);
-            if !allowed {
-                return Err((
-                    -32001,
-                    format!(
-                        "permission_denied: plugin '{caller}' lacks 'ipc.invoke:{prefix}' \
-                         permission for namespace method '{method}'"
-                    ),
-                ));
-            }
+        if let Some(caller) = caller_plugin_id
+            && caller == plugin_id
+        {
+            return Err((
+                -32001,
+                format!("plugin '{caller}' cannot invoke its own namespace method '{method}'"),
+            ));
         }
-        // Does not enable, install, grant, or restart an already running owner.
+        // Does not enable, install, or restart an already running owner.
         self.start_one_enabled(&plugin_id);
         if !self.processes.contains_key(&plugin_id) {
             return Err((-32002, format!("plugin '{plugin_id}' is not running")));

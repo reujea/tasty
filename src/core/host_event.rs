@@ -151,7 +151,7 @@ pub enum PendingHostEvent {
         error_kind: String,
         message: String,
     },
-    /// change_kind는 installed·removed·permission_granted·permission_revoked 중 하나다.
+    /// change_kind는 installed·removed 중 하나다.
     PluginRegistryChanged {
         plugin_id: String,
         change_kind: String,

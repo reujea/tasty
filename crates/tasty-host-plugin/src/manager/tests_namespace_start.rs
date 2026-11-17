@@ -30,7 +30,7 @@ prefix="owner"
 }
 
 #[test]
-fn unknown_or_denied_namespace_does_not_start_a_listener() {
+fn unknown_or_own_namespace_does_not_start_a_listener() {
     let _home = HomeEnvGuard::tasty_home();
     let mut mgr = owner_manager();
     assert_eq!(
@@ -39,14 +39,12 @@ fn unknown_or_denied_namespace_does_not_start_a_listener() {
             .0,
         -32601
     );
-    for caller in ["com.example.owner", "com.example.unprivileged"] {
-        assert_eq!(
-            mgr.validate_namespace_call("owner.echo", Some(caller))
-                .unwrap_err()
-                .0,
-            -32001
-        );
-    }
+    assert_eq!(
+        mgr.validate_namespace_call("owner.echo", Some("com.example.owner"))
+            .unwrap_err()
+            .0,
+        -32001
+    );
     assert!(mgr.listener.is_none());
     assert!(mgr.processes.is_empty());
 }

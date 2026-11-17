@@ -883,7 +883,6 @@ mod tests {
             caller_scope(&CallerContext::local()),
             caller_scope(&CallerContext::Plugin {
                 plugin_id: "p".into(),
-                permissions: Arc::new(Default::default()),
             }),
             caller_scope(&CallerContext::Agent {
                 agent_id: "p".into(),

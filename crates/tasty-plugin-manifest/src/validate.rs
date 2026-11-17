@@ -1,15 +1,14 @@
-//! 매니페스트를 읽고 선언의 형식·참조·권한을 검사한다.
+//! 매니페스트를 읽고 선언의 형식·참조·충돌을 검사한다.
 //! 문자열 형식 검사는 validators 모듈을 사용한다.
 
 use std::collections::HashSet;
 use std::path::Path;
 
-use super::gates::ContributesGate;
 use super::types::{
     AutoWaitDecl, BindingMode, CliCommandDecl, CliSubcommandDecl, CommandDecl, CommandScope,
-    HOOK_TIMEOUT_MS_MAX, HOST_API_VERSION, HookMode, MANIFEST_VERSION, Manifest, Permission,
-    PopupTrigger, PresetFieldInputType, SettingsItemDecl, SettingsPageContribute, SurfaceKindDecl,
-    ToolAction, ToolContribute,
+    HOOK_TIMEOUT_MS_MAX, HOST_API_VERSION, HookMode, MANIFEST_VERSION, Manifest, PopupTrigger,
+    PresetFieldInputType, SettingsItemDecl, SettingsPageContribute, SurfaceKindDecl, ToolAction,
+    ToolContribute,
 };
 use super::validators::{
     event_pattern_covers, event_pattern_namespace, is_reserved_event_namespace,
@@ -68,14 +67,6 @@ impl Manifest {
             }
             self.validate_preset_fields(kind)?;
             validate_webview_defaults(kind)?;
-        }
-        for raw in &self.permissions {
-            if Permission::from_token(raw).is_none() {
-                anyhow::bail!(
-                    "unknown permission '{}' in manifest (host may be older than plugin)",
-                    raw
-                );
-            }
         }
         self.validate_contributes()?;
         self.validate_event_patterns()?;
@@ -148,10 +139,10 @@ impl Manifest {
         Ok(())
     }
 
-    /// 확장 대상 ID·버전·프로토콜·권한 선언과 훅을 검사한다.
+    /// 확장 대상 ID·버전·프로토콜과 훅을 검사한다.
     /// 훅은 최소 하나 필요하고 timeout_ms는 1..=HOOK_TIMEOUT_MS_MAX여야 한다.
     /// 이벤트는 정확한 키여야 하고 IPC 메서드는 비어 있거나 *를 포함하면 안 된다.
-    /// 대상 플러그인의 실제 선언과 사용자 권한 승인은 호스트가 추가로 확인한다.
+    /// 대상 플러그인의 실제 선언은 호스트가 추가로 확인한다.
     fn validate_extends(&self) -> anyhow::Result<()> {
         let Some(decl) = &self.extends else {
             return Ok(());
@@ -173,12 +164,6 @@ impl Manifest {
                 "extends.api_version '{}' incompatible with host '{}'",
                 decl.api_version,
                 HOST_API_VERSION
-            );
-        }
-        let required_token = ContributesGate::Extends.required(&decl.plugin_id);
-        if !self.permissions.iter().any(|p| p == &required_token) {
-            anyhow::bail!(
-                "[extends] requires permission '{required_token}' to be declared in manifest permissions[]"
             );
         }
         let total =
@@ -318,7 +303,6 @@ impl Manifest {
         self.validate_contributed_settings_pages()?;
         self.validate_contributed_detectors()?;
         self.validate_contributed_handlers()?;
-        self.validate_contributed_detector_permissions()?;
         self.validate_contributed_hook_handlers()?;
         self.validate_contributed_completion_strategies(&seen_prefixes)?;
         Ok(())
@@ -532,12 +516,6 @@ impl Manifest {
 
     fn validate_contributed_tools(&self) -> anyhow::Result<()> {
         if !self.contributes.tool.is_empty() {
-            let token = ContributesGate::Tool.required("");
-            if !self.permissions.iter().any(|p| p == &token) {
-                anyhow::bail!(
-                    "[[contributes.tool]] requires permission '{token}' to be declared in manifest permissions[]"
-                );
-            }
             let mut seen_tool_ids = HashSet::new();
             let surface_kinds: HashSet<&str> =
                 self.surface_kinds.iter().map(|k| k.kind.as_str()).collect();
@@ -621,18 +599,6 @@ impl Manifest {
         if self.contributes.commands.is_empty() {
             return Ok(());
         }
-        let has_popup_action = self
-            .contributes
-            .commands
-            .iter()
-            .any(|c| matches!(&c.action, Some(ToolAction::OpenPopup { .. })));
-        let popup_token = ContributesGate::CommandOpenPopup.required("");
-        if has_popup_action && !self.permissions.iter().any(|p| p == &popup_token) {
-            anyhow::bail!(
-                "[[contributes.commands]] with action.kind = 'open_popup' requires permission \
-                 '{popup_token}' to be declared in manifest permissions[]"
-            );
-        }
         let surface_kinds: HashSet<&str> =
             self.surface_kinds.iter().map(|k| k.kind.as_str()).collect();
         let mut seen_command_ids = HashSet::new();
@@ -692,12 +658,6 @@ impl Manifest {
 
     fn validate_contributed_popups(&self) -> anyhow::Result<()> {
         if !self.contributes.popup.is_empty() {
-            let token = ContributesGate::Popup.required("");
-            if !self.permissions.iter().any(|p| p == &token) {
-                anyhow::bail!(
-                    "[[contributes.popup]] requires permission '{token}' to be declared in manifest permissions[]"
-                );
-            }
             self.validate_popup_defs()?;
             self.validate_tool_popup_refs()?;
         }
@@ -796,12 +756,6 @@ impl Manifest {
 
     fn validate_contributed_banners(&self) -> anyhow::Result<()> {
         if !self.contributes.banner.is_empty() {
-            let token = ContributesGate::Banner.required("");
-            if !self.permissions.iter().any(|p| p == &token) {
-                anyhow::bail!(
-                    "[[contributes.banner]] requires permission '{token}' to be declared in manifest permissions[]"
-                );
-            }
             let mut seen_banner_ids = HashSet::new();
             for banner in &self.contributes.banner {
                 if !is_valid_tool_id(&banner.id) {
@@ -840,12 +794,6 @@ impl Manifest {
 
     fn validate_contributed_windows(&self) -> anyhow::Result<()> {
         if !self.contributes.window.is_empty() {
-            let token = ContributesGate::Window.required("");
-            if !self.permissions.iter().any(|p| p == &token) {
-                anyhow::bail!(
-                    "[[contributes.window]] requires permission '{token}' to be declared in manifest permissions[]"
-                );
-            }
             let mut seen_window_ids = HashSet::new();
             for w in &self.contributes.window {
                 if !is_valid_kind(&w.id) {
@@ -881,10 +829,6 @@ impl Manifest {
 
     fn validate_contributed_settings_pages(&self) -> anyhow::Result<()> {
         if !self.contributes.settings_pages.is_empty() {
-            let token = ContributesGate::SettingsPage.required("");
-            if !self.permissions.iter().any(|p| p == &token) {
-                anyhow::bail!("contributes.settings_pages requires the '{token}' permission");
-            }
             let mut seen_page_ids = HashSet::new();
             for page in &self.contributes.settings_pages {
                 if !is_valid_settings_id(&page.id) {
@@ -1052,40 +996,12 @@ impl Manifest {
                     "contributes.handler '{id}' missing required 'detector' string field"
                 );
             }
-            let needs = ContributesGate::Handler.required(detector);
-            if !self.permissions.iter().any(|p| p == &needs) {
-                anyhow::bail!(
-                    "contributes.handler '{id}' on detector '{detector}' requires permission '{needs}'"
-                );
-            }
         }
-        Ok(())
-    }
-
-    fn validate_contributed_detector_permissions(&self) -> anyhow::Result<()> {
-        // 기존 감지기 목록을 모르므로 정의 권한 또는 해당 ID 확장 권한 중 하나를 요구한다.
-        // 호스트는 설치 때 신규·기존 여부를 구분해 다시 검사한다.
-        let define = ContributesGate::DetectorDefine.required("");
-        for v in &self.contributes.detector {
-            let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
-            let has_define = self.permissions.iter().any(|p| p == &define);
-            let needs_extend = ContributesGate::DetectorExtend.required(id);
-            let has_extend = self.permissions.iter().any(|p| p == &needs_extend);
-            if !has_define && !has_extend {
-                anyhow::bail!(
-                    "contributes.detector '{id}' requires either 'file_handler.define' (new id) \
-                     or '{needs_extend}' (extending existing id)"
-                );
-            }
-        }
-
         Ok(())
     }
 
     fn validate_contributed_hook_handlers(&self) -> anyhow::Result<()> {
-        // ID·중복·선언 권한만 검사한다. 액션 본문은 호스트가 설치 때 해석·검증한다.
-        let hook_define = ContributesGate::HookHandler.required("");
-        let has_define = self.permissions.iter().any(|p| p == &hook_define);
+        // ID·중복만 검사한다. 액션 본문은 호스트가 설치 때 해석·검증한다.
         let mut seen_ids = HashSet::new();
         for v in &self.contributes.hook_handler {
             let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
@@ -1100,11 +1016,6 @@ impl Manifest {
             if !seen_ids.insert(id.to_string()) {
                 anyhow::bail!("contributes.hook_handler id '{id}' declared twice in this manifest");
             }
-            if !has_define {
-                anyhow::bail!(
-                    "contributes.hook_handler '{id}' requires permission '{hook_define}'"
-                );
-            }
         }
         Ok(())
     }
@@ -1113,10 +1024,8 @@ impl Manifest {
         &self,
         seen_prefixes: &HashSet<String>,
     ) -> anyhow::Result<()> {
-        // ID·중복·선언 권한과 메서드 namespace를 검사한다. 구체 전략은 호스트가 검사한다.
+        // ID·중복과 메서드 namespace를 검사한다. 구체 전략은 호스트가 검사한다.
         // namespace는 플러그인 ID가 아니라 ipc_namespace에 선언한 접두어다.
-        let strategy_define = ContributesGate::CompletionStrategy.required("");
-        let has_define = self.permissions.iter().any(|p| p == &strategy_define);
         let mut seen_ids = HashSet::new();
         for v in &self.contributes.completion_strategy {
             let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
@@ -1133,11 +1042,6 @@ impl Manifest {
             if !seen_ids.insert(id.to_string()) {
                 anyhow::bail!(
                     "contributes.completion_strategy id '{id}' declared twice in this manifest"
-                );
-            }
-            if !has_define {
-                anyhow::bail!(
-                    "contributes.completion_strategy '{id}' requires permission '{strategy_define}'"
                 );
             }
             // poll 메서드는 이 플러그인이 선언한 namespace에 속해야 한다.
@@ -1179,20 +1083,6 @@ impl Manifest {
             }
         }
         Ok(())
-    }
-
-    /// 권한 문자열을 집합으로 변환한다. 알 수 없는 토큰이 있으면 오류다.
-    pub fn parsed_permissions(&self) -> anyhow::Result<HashSet<Permission>> {
-        let mut out = HashSet::with_capacity(self.permissions.len());
-        for raw in &self.permissions {
-            match Permission::from_token(raw) {
-                Some(p) => {
-                    out.insert(p);
-                }
-                None => anyhow::bail!("unknown permission '{}'", raw),
-            }
-        }
-        Ok(out)
     }
 }
 

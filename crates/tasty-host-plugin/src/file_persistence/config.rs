@@ -37,21 +37,6 @@ impl ConfigUpdate {
         });
         self
     }
-    pub fn with_permission_intent(mut self, id: &str, token: &str, grant: bool) -> Self {
-        self.intents.push(Intent::Permission {
-            id: id.into(),
-            token: token.into(),
-            grant,
-        });
-        self
-    }
-    pub fn with_grants_intent(mut self, id: &str, tokens: Vec<String>) -> Self {
-        self.intents.push(Intent::Grants {
-            id: id.into(),
-            tokens,
-        });
-        self
-    }
     pub fn with_builtin_removed_intent(mut self, id: &str, present: bool) -> Self {
         self.intents.push(Intent::Flag {
             section: "removed_builtins",
@@ -115,7 +100,6 @@ impl ConfigUpdate {
                 for section in ["disabled", "removed_builtins"] {
                     merge_flags(table, &self.before, &self.after, section)?;
                 }
-                merge_grants(table, &self.before, &self.after)?;
                 merge_shortcuts(table, &self.before, &self.after)?;
                 for intent in &self.intents {
                     intent.apply(table)?;
@@ -168,41 +152,6 @@ fn keys<'a>(a: &'a toml::Table, b: &'a toml::Table, section: &str) -> BTreeSet<&
         .filter_map(|t| t.get(section).and_then(toml::Value::as_table))
         .flat_map(|t| t.keys())
         .collect()
-}
-fn merge_grants(
-    table: &mut toml::Table,
-    before: &toml::Table,
-    after: &toml::Table,
-) -> io::Result<()> {
-    for id in keys(before, after, "grants") {
-        let path = ["grants", id.as_str(), "granted"];
-        let tokens = |table: &toml::Table| -> BTreeSet<String> {
-            document::at(table, &path)
-                .and_then(toml::Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(toml::Value::as_str)
-                .map(str::to_owned)
-                .collect()
-        };
-        let a = tokens(before);
-        let b = tokens(after);
-        if a == b {
-            continue;
-        }
-        let mut current = tokens(table);
-        for token in a.symmetric_difference(&b) {
-            if b.contains(token) {
-                current.insert(token.clone());
-            } else {
-                current.remove(token);
-            }
-        }
-        let previous = document::at(table, &path).cloned();
-        let next = toml::Value::Array(current.into_iter().map(toml::Value::String).collect());
-        document::patch(table, &path, previous.as_ref(), Some(&next))?;
-    }
-    Ok(())
 }
 fn merge_shortcuts(
     table: &mut toml::Table,

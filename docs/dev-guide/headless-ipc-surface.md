@@ -6,11 +6,11 @@
 
 ## 조회와 개별 플러그인 실행
 
-플러그인 조회는 매니저 메타데이터와 디스크 목록만 읽는다. 설치 파일 복사, 권한 부여, 프로세스 기동을 조회의 부수효과로 실행하지 않는다. 설치된 항목이 없는 상태와 매니저를 사용할 수 없는 오류를 구분한다. GUI와 헤드리스는 읽기 메서드의 표와 핸들러를 공유하며 등록된 표에서 구현을 찾지 못하면 내부 오류로 보고한다. 매니페스트를 직접 읽는 방식은 더 얇은 조회 계층이 실제로 필요해질 때 검토한다.
+플러그인 조회는 매니저 메타데이터와 디스크 목록만 읽는다. 설치 파일 복사, 프로세스 기동을 조회의 부수효과로 실행하지 않는다. 설치된 항목이 없는 상태와 매니저를 사용할 수 없는 오류를 구분한다. GUI와 헤드리스는 읽기 메서드의 표와 핸들러를 공유하며 등록된 표에서 구현을 찾지 못하면 내부 오류로 보고한다. 매니페스트를 직접 읽는 방식은 더 얇은 조회 계층이 실제로 필요해질 때 검토한다.
 
 헤드리스도 명시된 호스트 대상 ID가 존재하는지 핸들러 실행 전에 확인한다. 검사는 호스트 예약 namespace에만 적용하고 GUI와 같은 대상 판정 함수를 쓴다. 플러그인 namespace의 ID 공간까지 호스트가 가정하지 않는다. 아직 설치되지 않은 플러그인 목록을 미리 읽어 전체 요청을 분류하는 방식은 깨끗한 홈에서 성립하지 않는다. 예약 namespace의 범위가 바뀌거나 헤드리스에 여러 engine이 생기면 대상 라우팅을 다시 검토한다.
 
-헤드리스의 `plugin.enable`과 `plugin.disable`은 GUI와 공용 핸들러를 사용한다. metadata 초기화 후 지정한 플러그인만 켜며 전체 플러그인 기동 함수를 사용하지 않는다. 헤드리스는 토글이 만드는 `PluginEnableToggled`와 `PluginUnloaded`만 처리한다. 다른 설치·삭제·권한 변경 기능은 이 지원에 포함되지 않는다. 새 이벤트가 생기면 소비자를 먼저 정한다. 창이 없는 GUI에서는 토글 이벤트가 발행되지 않지만 헤드리스에서는 발행되는 차이가 있다. 구독 플러그인의 실제 사용에서 이 차이가 문제가 되면 양쪽을 비교해 수정 범위를 정한다.
+헤드리스의 `plugin.enable`과 `plugin.disable`은 GUI와 공용 핸들러를 사용한다. metadata 초기화 후 지정한 플러그인만 켜며 전체 플러그인 기동 함수를 사용하지 않는다. 헤드리스는 토글이 만드는 `PluginEnableToggled`와 `PluginUnloaded`만 처리한다. 다른 설치·삭제 기능은 이 지원에 포함되지 않는다. 새 이벤트가 생기면 소비자를 먼저 정한다. 창이 없는 GUI에서는 토글 이벤트가 발행되지 않지만 헤드리스에서는 발행되는 차이가 있다. 구독 플러그인의 실제 사용에서 이 차이가 문제가 되면 양쪽을 비교해 수정 범위를 정한다.
 
 ## memory writer 응답
 
@@ -43,7 +43,7 @@ caller 인증 뒤 공통 요청 게이트(`handler/gate.rs`)가 권한·cap·rat
 한 번 집계한다. App 인터셉트·plugin namespace·일반 handler 모두 그 뒤에 온다.
 통과한 `CheckedRequest`를 일반 handler에 전달하므로 예산을 이중으로 차감하거나 사용량을 중복 집계하지 않는다.
 GUI 외부 IPC와 plugin host-call도 같은 경계를 사용한다.
-[플러그인 권한 모델](plugin-permissions.md).
+[호스트 호출 계약](plugin-permissions.md).
 
 권한 부족의 Agent 거부는 기존 capability elevation을 한 번 발행하고
 `error.data`에 approval_id·permission·method를 싣는다. 거부된 요청은 실행하지 않고 허용된 요청으로 집계하지 않는다. Local 및 복구 메서드의 기존 예외는 유지한다.
@@ -98,7 +98,7 @@ params는 바꾸지 않고, 소유자의 답은 호출자에게 같은 call id�
 
 ## `plugin.*` — 19 개 메서드의 판정
 
-### 답한다 — 읽기 (7)
+### 답한다 — 읽기 (6)
 
 `App.plugin_manager` 또는 `Core` 만 읽으면 답이 정해지는 것들이다. 창과 무관하다.
 
@@ -106,7 +106,6 @@ params는 바꾸지 않고, 소유자의 답은 호출자에게 같은 call id�
 |--------|---------|
 | `plugin.list` | `plugin_manager.packages` |
 | `plugin.show` | `plugin_manager.packages` + config + `EngineRuntime.surface_registry`(선언한 kind 가 등록됐는지) |
-| `plugin.permissions` | `plugin_manager` config |
 | `plugin.extension.list` | `plugin_manager.extensions` |
 | `plugin.audit_query` | `Core` 의 audit store |
 | `plugin.audit_summary` | `Core` 의 audit store |
@@ -148,11 +147,11 @@ params는 바꾸지 않고, 소유자의 답은 호출자에게 같은 call id�
 
 <a id="아직-없다--app-이분이-선행이다-6"></a>
 
-### 아직 없다 — 별도 lifecycle과 권한 계약이 필요한 기능 (6)
+### 아직 없다 — 별도 lifecycle 계약이 필요한 기능 (4)
 
-plugin의 GUI lifecycle 통지는 `src/app/dispatch_domain.rs`가 처리하며 headless 일반 plugin bus는 제공하지 않는다. enable·disable은 지정 plugin의 실행 경계로 처리한다. 설치·삭제·권한 변경을 headless에 추가하는 일은 각각의 공개 권한·오류·완료 계약과 이 문서에 따라 판단한다.
+plugin의 GUI lifecycle 통지는 `src/app/dispatch_domain.rs`가 처리하며 headless 일반 plugin bus는 제공하지 않는다. enable·disable은 지정 plugin의 실행 경계로 처리한다. 설치·삭제를 headless에 추가하는 일은 각각의 공개 오류·완료 계약과 이 문서에 따라 판단한다.
 
-`plugin.install` · `plugin.remove` · `plugin.grant` · `plugin.revoke` ·
+`plugin.install` · `plugin.remove` ·
 `plugin.upgrade_builtins` · `plugin.audit_follow`
 
 `plugin.audit_follow`는 `Core`의 데이터를 읽는 스트리밍 API다. 헤드리스에서 지원하려면
@@ -176,7 +175,7 @@ GUI 조건에 따른다. 창이 없다는 이유로 권한 요청 자체를 막�
 | `ensure_plugin_manager` | 위 + `install_builtins_if_needed` + `discover_and_start` | 아니오 |
 
 경계가 `install_builtins_if_needed` **위**인 것이 중요하다. 그 함수는 번들에서 파일을
-복사하고 매니페스트 권한을 `plugins.toml` 에 자동 grant 한다 — 관측 대상을 읽는 작업이 아니라 새 설치를 만드는 작업이다. 프로세스를 띄우는 것보다 앞서 배제된다.
+복사한다 — 관측 대상을 읽는 작업이 아니라 새 설치를 만드는 작업이다. 프로세스를 띄우는 것보다 앞서 배제된다.
 
 그 결과 아무것도 설치되지 않은 홈에서는 목록이 빌 수 있다. 그것은 거짓이 아니라 그 시점의
 사실이며, 매니저가 아예 없을 때의 응답과 구분된다.

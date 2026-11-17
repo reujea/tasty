@@ -485,13 +485,11 @@ fn entry_json(e: &webhook::WebhookEntry, url: &str) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
     use std::sync::Arc;
 
     fn plugin_caller(id: &str) -> CallerContext {
         CallerContext::Plugin {
             plugin_id: id.to_string(),
-            permissions: Arc::new(HashSet::new()),
         }
     }
 

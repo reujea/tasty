@@ -8,25 +8,12 @@ pub(super) enum Intent {
         id: String,
         present: bool,
     },
-    Permission {
-        id: String,
-        token: String,
-        grant: bool,
-    },
-    Grants {
-        id: String,
-        tokens: Vec<String>,
-    },
     RestoreAll,
 }
 impl Intent {
     pub(super) fn retained_bytes(&self) -> usize {
         match self {
             Self::Flag { id, .. } => id.len(),
-            Self::Permission { id, token, .. } => id.len().saturating_add(token.len()),
-            Self::Grants { id, tokens } => tokens
-                .iter()
-                .fold(id.len(), |n, t| n.saturating_add(t.len())),
             Self::RestoreAll => 0,
         }
     }
@@ -37,14 +24,6 @@ impl Intent {
                 id,
                 present,
             } => edit_set(table, &[section, "ids"], id, *present),
-            Self::Permission { id, token, grant } => {
-                edit_set(table, &["grants", id, "granted"], token, *grant)
-            }
-            Self::Grants { id, tokens } => replace_set(
-                table,
-                &["grants", id, "granted"],
-                tokens.iter().cloned().collect(),
-            ),
             Self::RestoreAll => replace_set(table, &["removed_builtins", "ids"], BTreeSet::new()),
         }
     }

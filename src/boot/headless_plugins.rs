@@ -518,7 +518,6 @@ fn dispatch_plugin_ipc_calls_headless(
 fn plugin_caller(call: &PendingPluginCall) -> crate::ipc::caller::CallerContext {
     crate::ipc::caller::CallerContext::Plugin {
         plugin_id: call.plugin_id.clone(),
-        permissions: call.permissions.clone(),
     }
 }
 

@@ -534,88 +534,6 @@ impl App {
                 )
                 .expect("plugin toggle method")
             }
-            "plugin.grant" => {
-                let plugin_id = match cmd.request.params.get("id").and_then(|v| v.as_str()) {
-                    Some(s) => s.to_string(),
-                    None => {
-                        send_response(
-                            &cmd.response_tx,
-                            host_ipc::protocol::JsonRpcResponse::invalid_params(
-                                id,
-                                "Missing 'id' parameter",
-                            ),
-                        );
-                        return IpcStep::Handled;
-                    }
-                };
-                let token = match cmd
-                    .request
-                    .params
-                    .get("permission")
-                    .and_then(|v| v.as_str())
-                {
-                    Some(s) => s.to_string(),
-                    None => {
-                        send_response(
-                            &cmd.response_tx,
-                            host_ipc::protocol::JsonRpcResponse::invalid_params(
-                                id,
-                                "Missing 'permission' parameter",
-                            ),
-                        );
-                        return IpcStep::Handled;
-                    }
-                };
-                self.reply_plugin_config(
-                    id,
-                    tasty_host_plugin::manager::file_config::ConfigChange::Permission {
-                        id: plugin_id,
-                        token,
-                        grant: true,
-                    },
-                )
-            }
-            "plugin.revoke" => {
-                let plugin_id = match cmd.request.params.get("id").and_then(|v| v.as_str()) {
-                    Some(s) => s.to_string(),
-                    None => {
-                        send_response(
-                            &cmd.response_tx,
-                            host_ipc::protocol::JsonRpcResponse::invalid_params(
-                                id,
-                                "Missing 'id' parameter",
-                            ),
-                        );
-                        return IpcStep::Handled;
-                    }
-                };
-                let token = match cmd
-                    .request
-                    .params
-                    .get("permission")
-                    .and_then(|v| v.as_str())
-                {
-                    Some(s) => s.to_string(),
-                    None => {
-                        send_response(
-                            &cmd.response_tx,
-                            host_ipc::protocol::JsonRpcResponse::invalid_params(
-                                id,
-                                "Missing 'permission' parameter",
-                            ),
-                        );
-                        return IpcStep::Handled;
-                    }
-                };
-                self.reply_plugin_config(
-                    id,
-                    tasty_host_plugin::manager::file_config::ConfigChange::Permission {
-                        id: plugin_id,
-                        token,
-                        grant: false,
-                    },
-                )
-            }
             "plugin.grant_agent_permission" => {
                 host_ipc::handler::session::handle_grant_agent_permission(
                     &self.services,
@@ -717,8 +635,6 @@ impl App {
                 | "plugin.remove"
                 | "plugin.enable"
                 | "plugin.disable"
-                | "plugin.grant"
-                | "plugin.revoke"
                 | "plugin.upgrade_builtins"
         );
         // 감사 화면·agent 권한 핸들러는 writer 결과를 기다릴 수 있다.

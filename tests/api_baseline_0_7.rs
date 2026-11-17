@@ -8,8 +8,9 @@ use tasty_ipc::method_meta::METHOD_TABLE;
 
 const BASELINE_0_7: &str = include_str!("../crates/tasty-ipc/fixtures/method_baseline_0_7.txt");
 
-/// 0.7.0 기준 목록은 고정돼 있으므로 하한 대신 정확한 수를 확인한다. 2026-09-05 주석·빈 줄 제외 191개를 측정했다.
-const BASELINE_METHOD_COUNT: usize = 191;
+/// 0.7.0 기준 목록은 고정돼 있으므로 하한 대신 정확한 수를 확인한다. 2026-09-05 주석·빈 줄 제외 191개를 측정했고,
+/// 플러그인 권한 승인 메서드 3개를 의도해 제거한 뒤 188개다(기준 파일 머리의 제거 사유).
+const BASELINE_METHOD_COUNT: usize = 188;
 
 /// 빈 목록이면 아래 비교가 통과할 수 있어 추출 시점에 고정 개수를 확인한다.
 fn baseline_methods() -> Vec<&'static str> {

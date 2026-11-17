@@ -94,14 +94,12 @@ skipped = "The confirmation window could not be opened, so Tasty is quitting wit
 title = "Plugins"
 empty = "No plugins installed."
 none_selected = "Select a plugin from the left."
-none = "(none)"
 enabled = "Enabled"
 disabled = "Disabled"
 running = "Running"
 health_error = "Failed to connect. Check the plugin's configuration in Settings."
 homepage = "Homepage"
 surface_kinds = "Surface kinds"
-permissions = "Permissions"
 log_path = "Log"
 install = "Install"
 install_path = "Install path"
@@ -122,22 +120,14 @@ attn_sig_invalid_label = "Signature invalid"
 attn_sig_invalid_blurb = "Registration was rejected because the signature is missing or could not be verified."
 attn_sig_invalid_note = "The signature does not match this plugin's files."
 attn_desc_hidden = "Description hidden — the signature is invalid."
-attn_perm_changed_label = "Permissions changed"
-attn_perm_changed_blurb = "The requested permissions have changed. Approval is required again."
 attn_health_label = "Runtime error"
 attn_health_blurb = "Enabled, but failing at runtime. See the log for details."
-attn_permission_changes = "Permission changes"
 attn_signature = "Signature"
 attn_error = "Log"
 attn_fingerprint = "fingerprint"
-attn_newly_requested = "newly requested"
-attn_no_longer_used = "no longer used"
 attn_not_registered = "Not registered"
 attn_needs_review = "Needs review"
-attn_reapprove = "Re-approve"
 attn_copy_fingerprint = "Copy fingerprint"
-attn_reapproved = "Re-approved '{}'."
-attn_reapprove_failed = "Re-approve failed: {}"
 attn_register_anyway = "Register anyway"
 attn_registered = "Registered '{}'."
 attn_register_failed = "Register failed: {}"
@@ -159,14 +149,10 @@ add_help = "Point Tasty at a local folder containing a `tasty-plugin.toml`. Veri
 add_empty_hint = "Choose a folder and press {} to read its manifest."
 add_source_path = "Source"
 add_button = "Add plugin"
-add_trust_and_add = "Trust & add"
 add_anyway = "Add anyway"
 add_trust_key_anyway = "Trust key & add anyway"
 add_adding = "Adding…"
 add_none = "None"
-add_grants_none = "No permissions"
-add_grants_one = "Grants {} permission"
-add_grants = "Grants {} permissions"
 add_read_error = "Can't read tasty-plugin.toml"
 add_invalid = "tasty-plugin.toml is not valid"
 add_blocked_installed = "Already installed"
@@ -174,14 +160,12 @@ add_install_failed = "Install failed: {}"
 add_installed = "Plugin '{}' installed."
 trust_trusted_body = "Signed by a trusted publisher — its key is in your trust store."
 trust_unverified_title = "Unverified plugin"
-trust_unverified_risk = "Tasty can't confirm who made this plugin or that its files are unchanged. A plugin runs as a program with your account's access: it can read and change your files, use the network, and start other programs. The permissions above only limit what it can ask Tasty to do. Add it only if you trust where it came from."
+trust_unverified_risk = "Tasty can't confirm who made this plugin or that its files are unchanged. A plugin runs as a program with your account's access: it can read and change your files, use the network, and start other programs. Add it only if you trust where it came from."
 trust_key_note = "Adding it also trusts this key."
 trust_cause_unknown_key = "It is signed by a key that isn't in your trust store."
 trust_cause_missing_pubkey = "It is signed, but the publisher's public key file (tasty-plugin.toml.pub) is missing or unreadable."
 trust_cause_unsigned = "It has no signature."
 trust_cause_signature_error = "Its signature could not be verified against these files."
-trust_permissions_changed_title = "Permissions changed"
-trust_permissions_changed_body = "This publisher is trusted, but this version asks for permissions the trusted version did not have. Review the list above; adding it trusts the new set. These permissions limit what the plugin can ask Tasty to do; they don't isolate the plugin program from your files, network or other programs."
 configure = "Configure"
 commands = "Commands"
 filter_placeholder = "Filter installed…"
@@ -2271,7 +2255,7 @@ enable_waiting = "plugin '{}' is still starting (start generation {}); waiting u
 enable_failed = "plugin '{}' did not start ({}): {}. See tasty plugin logs {} for details."
 enable_cancelled = "plugin '{}' was turned off or restarted before it connected"
 enable_still_starting = "plugin '{}' is still starting after {}s; check tasty plugin show {}"
-unverified_refused = "Warning: plugin '{}' is unverified — {} Tasty can't confirm who made it or that its files are unchanged. A plugin runs as a program with your account's access: it can read and change your files, use the network, and start other programs. Its permissions only limit what it can ask Tasty to do. Nothing was installed.\nIf you trust where it came from, install it anyway with:\n  tasty plugin install --allow-unverified {}"
+unverified_refused = "Warning: plugin '{}' is unverified — {} Tasty can't confirm who made it or that its files are unchanged. A plugin runs as a program with your account's access: it can read and change your files, use the network, and start other programs. Nothing was installed.\nIf you trust where it came from, install it anyway with:\n  tasty plugin install --allow-unverified {}"
 unverified_cause_unknown_key = "it is signed by a key that isn't in your trust store."
 unverified_cause_missing_pubkey = "it is signed, but the publisher's public key file (tasty-plugin.toml.pub) is missing or unreadable."
 unverified_cause_unsigned = "it has no signature."
@@ -4691,14 +4675,14 @@ about = "Manage plugins (list, install, remove, enable, disable, logs)"
 about = "List installed plugins (id, version, enabled, running)"
 
 [cli.help._root.plugin.show]
-about = "Show full manifest, permissions, commands, and runtime state for a plugin"
+about = "Show full manifest, commands, and runtime state for a plugin"
 
 [cli.help._root.plugin.show.arg.id]
 help = "Plugin id"
 
 [cli.help._root.plugin.install]
 about = "Install a plugin from a directory containing tasty-plugin.toml"
-long = "Install a plugin from a directory containing tasty-plugin.toml.\n\nTwo more things happen, and neither is asked about: every permission the manifest declares is granted immediately, and the plugin is enabled and started unless a disabled mark for that id is already on file. Inspect `tasty-plugin.toml` first, or check afterwards with `plugin permissions <id>` and `plugin revoke <id> <permission>`.\n\nA plugin whose signature Tasty cannot check against a trusted key is unverified. It is not installed unless `--allow-unverified` is given, and the refusal explains why. The choice is remembered until the manifest changes or the plugin is removed."
+long = "Install a plugin from a directory containing tasty-plugin.toml.\n\nOne more thing happens without being asked about: the plugin is enabled and started unless a disabled mark for that id is already on file. Inspect `tasty-plugin.toml` first.\n\nA plugin whose signature Tasty cannot check against a trusted key is unverified. It is not installed unless `--allow-unverified` is given, and the refusal explains why. The choice is remembered until the manifest changes or the plugin is removed."
 
 [cli.help._root.plugin.install.arg.path]
 help = "Path to plugin directory (must contain tasty-plugin.toml)"
@@ -4715,7 +4699,7 @@ help = "Plugin id (e.g. com.example.explorer)"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "Re-sync all built-in plugins from the bundle"
-long = "Re-sync all built-in plugins from the bundle.\n\nThe manifest version picks the branch and content decides inside it: a higher bundle version rewrites the whole directory, the same version rewrites only what differs, and an installed version higher than the bundle is skipped without reading content — `--force` is for that last branch. Permissions newly declared by a built-in that changed are granted in the same call."
+long = "Re-sync all built-in plugins from the bundle.\n\nThe manifest version picks the branch and content decides inside it: a higher bundle version rewrites the whole directory, the same version rewrites only what differs, and an installed version higher than the bundle is skipped without reading content — `--force` is for that last branch."
 
 [cli.help._root.plugin.upgrade-builtins.arg.force]
 help = "Overwrite even when installed version >= bundle version"
@@ -4760,30 +4744,6 @@ about = "Diagnose a plugin's manifest — list contributed detectors / handlers 
 
 [cli.help._root.plugin.doctor.arg.id]
 help = "Plugin id (e.g. com.example.foo)"
-
-[cli.help._root.plugin.permissions]
-about = "Show a plugin's manifest permissions and currently granted set"
-
-[cli.help._root.plugin.permissions.arg.id]
-help = "Plugin id"
-
-[cli.help._root.plugin.grant]
-about = "Grant a permission to a plugin (must be declared in its manifest)"
-
-[cli.help._root.plugin.grant.arg.id]
-help = "Plugin id"
-
-[cli.help._root.plugin.grant.arg.permission]
-help = "Permission token (e.g. fs.read, surface.write)"
-
-[cli.help._root.plugin.revoke]
-about = "Revoke a previously-granted permission from a plugin"
-
-[cli.help._root.plugin.revoke.arg.id]
-help = "Plugin id"
-
-[cli.help._root.plugin.revoke.arg.permission]
-help = "Permission token"
 
 [cli.help._root.plugin.grant-agent-permission]
 about = "Grant a temporary permission to an active agent session. Permission lives until TTL expiry or explicit revoke; base permissions (issued at session.issue) are unaffected"

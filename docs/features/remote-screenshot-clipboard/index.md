@@ -178,7 +178,7 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 - Given 동시에 올린 두 mirror 캡처 When 회신이 역순으로 오거나 같은 upload_id 의 회신이 두 번 옴 Then 각 요청은 자기 회신으로 한 번만 안내되고 기다리지 않는 회신은 안내되지 않는다.
 - Given mirror 업로드를 보낸 뒤 회신 전에 연결이 끊김 Then 요청한 윈도우에 복사가 확인되지 않았다는 안내가 뜬다.
 - Given `clipboard.set_text` IPC 호출(text 파라미터 포함) Then 로컬 클립보드가 그 텍스트로 바뀐다.
-- Given plugin 이 `ClipboardWrite` 권한 없이 `clipboard.set_text` 호출 Then permission_denied.
+- Given Agent 세션이 `clipboard.write` 권한 없이 `clipboard.set_text` 호출 Then permission_denied.
 
 ### 검증 범위
 
@@ -188,8 +188,7 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 
 로컬 캡처와 취소는 Xvfb 환경에서 입력을 주입하고 X11 클립보드를 읽어 확인했다.
 당시 GNOME 캡처 포털이 없어 테스트용 shim과 `scrot`으로 성공·파일 미생성을 재현했으므로,
-이 결과가 네이티브 영역 선택 UI의 검증을 뜻하지는 않는다. `clipboard.set_text`는 실제 CLI로,
-권한 거절은 `plugin_missing_clipboard_write_denied_for_clipboard_set_text` 단위 시험으로 확인했다.
+이 결과가 네이티브 영역 선택 UI의 검증을 뜻하지는 않는다. `clipboard.set_text`는 실제 CLI로 확인했다.
 
 결과 분류의 후보 순서·폴백·멈춤은 임시 `PATH` 의 도구 shim 으로 단위 시험한다
 (`crates/tasty-platform/src/screen_capture/linux_tests.rs`). shim 결과는 OS 네이티브 취소의 검증이 아니다.

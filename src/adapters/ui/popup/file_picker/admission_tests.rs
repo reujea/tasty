@@ -39,7 +39,6 @@ fn enter(
                 engine,
                 &tasty_ipc::caller::CallerContext::Plugin {
                     plugin_id: "com.example.picker".into(),
-                    permissions: std::sync::Arc::new(Default::default()),
                 },
                 serde_json::json!(1),
                 &serde_json::json!({"owner_popup_instance": 7, "filters": ["md"]}),

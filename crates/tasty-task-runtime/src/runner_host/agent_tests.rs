@@ -517,16 +517,12 @@ fn a_restored_handle_without_a_binding_cannot_be_attributed() {
 /// 생성 뒤 provider 자격을 잃은 task 는 실행 직전에 거절하고 원인을 구분해 남긴다.
 #[test]
 fn an_unsupported_provider_is_refused_at_dispatch() {
-    use tasty_test_support::namespace_owners::{DISABLED, NO_PERMISSION};
+    use tasty_test_support::namespace_owners::DISABLED;
     let (_td, ctx) = fresh_ctx();
     let mut exec = HostExecutor::new(ctx.clone());
     for (provider, reason) in [
         ("other", "no installed plugin owns the 'other' namespace"),
         (DISABLED, "that owns the 'off' namespace is disabled"),
-        (
-            NO_PERMISSION,
-            "does not have the agent.turn_report permission",
-        ),
     ] {
         let mut task = create(&ctx, existing(), v2());
         if let TaskCommand::Agent { provider: p, .. } = &mut task.command {

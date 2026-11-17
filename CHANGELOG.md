@@ -66,6 +66,8 @@
 
 ### Removed
 
+- **(BREAK) 플러그인 권한 승인이 없어진다.** 설치·활성된 플러그인은 플러그인에 연 호스트 IPC 메서드를 승인 없이 부르고, 다른 플러그인의 IPC namespace 도 부를 수 있다. Local 전용 메서드와 debug 메서드는 계속 부를 수 없다. IPC `plugin.grant`·`plugin.revoke`·`plugin.permissions`와 CLI `tasty plugin grant`·`revoke`·`permissions`, `plugin.show` 응답의 `permissions`(`manifest`·`granted`), 대기 사유 `permission_not_granted`, 이벤트 `plugin.permission_granted`·`plugin.permission_revoked`가 함께 없어진다. Plugins 창의 Permissions 절과 권한 태그, 권한이 바뀐 플러그인의 Re-approve와 설치 신뢰 상자의 Trust & add도 없어진다. 설치·업그레이드는 `plugins.toml`을 쓰지 않으며, 옛 `[grants]` 표는 읽지 않고 그대로 남긴다. Agent 세션의 권한 토큰(`session.issue`, `plugin.grant_agent_permission`, `plugin.request_permission`)은 그대로다.
+- **매니페스트 `permissions` 필드가 없어진다.** 남아 있는 `permissions` 줄은 무시한다. 신뢰한 키 목록(`known_plugins.toml`)도 권한 목록을 저장하지 않으며, 권한 목록이 바뀌었다는 이유로 다시 승인을 받지 않는다.
 - **자동 attach 거절 배너가 없어진다.** 연결하지 못한 저장된 원격 행의 이유는 행의 연결 팝업과 사이드바 행 표지·레일 칩 툴팁이 보인다. 배너의 **매핑 지우기** 버튼과 ×도 함께 없어진다.
 - **workspace의 원격 attach 매핑이 없어진다.** `tasty new workspace`·`tasty set workspace`의 `--ssh-profile`·`--ssh`·`--remote-workspace`, `set workspace --clear-mapping`, IPC `workspace.create`·`workspace.update`의 `attach_profile`·`attach_ssh`·`attach_remote_workspace`·`attach_clear`, `workspace.list`의 `attach_mapping`, 배너의 매핑 지우기 동작이 함께 없어진다. 원격 workspace를 기억하려면 원격 연결 팝업에서 붙인다. 저장된 옛 매핑은 읽고 버린다.
 - **Windows의 셸 모드와 설정 › Misc › Tastyrc가 없어진다.** Windows Git Bash도 다른 OS처럼 빌트인 통합(OSC 7, OSC 133, PATH, LANG)과 사용자 `~/.bashrc`를 읽는 `bashrc.default` 하나로 실행한다. 설정 키 `general.shell_mode`는 읽을 때 무시하고 저장할 때 남기지 않는다. Tasty는 `bashrc`·`bashrc.user`를 만들거나 읽지 않는다. 설정 창의 셸 모드 행, Tastyrc 편집 화면, 저장 실패 토스트, `tasty debug settings open --subtab tastyrc`도 함께 없어진다.

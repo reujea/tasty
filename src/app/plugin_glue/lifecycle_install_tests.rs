@@ -132,15 +132,14 @@ fn an_explicit_choice_installs_after_a_refusal() {
     assert!(known.lookup("com.example.other").is_some());
 }
 
-fn manifest_with(permissions: &str) -> String {
+fn manifest_with(name: &str) -> String {
     format!(
         r#"
 manifest_version = 1
 id = "{ID}"
-name = "Refused"
+name = "{name}"
 version = "0.1.0"
 api_version = "1"
-permissions = [{permissions}]
 [entry]
 type = "process"
 command = "refused-bin"
@@ -152,14 +151,18 @@ fn sha(dir: &std::path::Path) -> String {
     tasty_host_plugin::trust_verdict::manifest_sha256(dir).expect("digest")
 }
 
-/// Verify 로 본 뒤 매니페스트가 바뀌면 미리 보지 않은 권한을 승인하지 않는다.
+/// Verify 로 본 뒤 매니페스트가 바뀌면 미리 보지 않은 내용을 설치하지 않는다.
 /// 같은 키로 다시 서명해 신뢰 판정은 통과해도, 본 내용과 다르면 설치하지 않는다.
 #[test]
-fn a_manifest_resigned_with_more_permissions_after_review_is_not_installed() {
+fn a_manifest_resigned_after_review_is_not_installed() {
     let home = TempHome::new();
     let src = tempfile::tempdir().expect("tempdir");
     let seed = [7u8; 32];
-    std::fs::write(src.path().join("tasty-plugin.toml"), manifest_with("")).expect("v1");
+    std::fs::write(
+        src.path().join("tasty-plugin.toml"),
+        manifest_with("Refused"),
+    )
+    .expect("v1");
     let pubkey = tasty_host_plugin::trust_verdict::sign_manifest_for_tests(src.path(), seed)
         .expect("sign v1");
     std::fs::write(src.path().join("tasty-plugin.toml.pub"), pubkey).expect("pub");
@@ -167,7 +170,7 @@ fn a_manifest_resigned_with_more_permissions_after_review_is_not_installed() {
 
     std::fs::write(
         src.path().join("tasty-plugin.toml"),
-        manifest_with("\"fs.write\""),
+        manifest_with("Resigned"),
     )
     .expect("v2");
     tasty_host_plugin::trust_verdict::sign_manifest_for_tests(src.path(), seed).expect("sign v2");
@@ -179,12 +182,11 @@ fn a_manifest_resigned_with_more_permissions_after_review_is_not_installed() {
         .expect_err("the reviewed manifest changed");
     assert!(err.to_string().contains("changed after"), "{err}");
     assert!(!home.dir.path().join("plugins").join(ID).exists());
-    assert!(mgr.config.granted_permissions(ID).is_empty());
     assert!(KnownPlugins::load().expect("load").lookup(ID).is_none());
 
     // 지금 내용을 다시 보고 고르면 그 내용으로 설치한다.
     install_into(&mut mgr, src.path(), &choice, Some(&sha(src.path()))).expect("reviewed again");
-    assert!(mgr.config.granted_permissions(ID).contains("fs.write"));
+    assert!(home.dir.path().join("plugins").join(ID).exists());
 }
 
 /// 미인증 선택도 본 내용에 묶인다. 바뀐 매니페스트에는 선택을 기록하지 않는다.
@@ -195,7 +197,7 @@ fn an_unverified_choice_applies_only_to_the_reviewed_manifest() {
     let reviewed = sha(src.path());
     std::fs::write(
         src.path().join("tasty-plugin.toml"),
-        manifest_with("\"network\""),
+        manifest_with("Changed"),
     )
     .expect("changed");
     let mut mgr = manager();

@@ -17,7 +17,7 @@
 | 0009 | 저장소 시스템 (Storage System) | [저장소 시스템 (Storage System)](../design/systems/storage.md) |
 | 0010 | 저장 계약과 writer 명부 | [저장 계약과 writer 명부](../design/systems/storage-contract.md) |
 | 0011 | 에이전트 메모리 시스템 | [에이전트 메모리 시스템](../design/systems/memory.md) |
-| 0012 | 플러그인 권한 모델 | [플러그인 권한 모델](plugin-permissions.md) |
+| 0012 | 플러그인 권한 모델 | [호스트 호출 계약](plugin-permissions.md) |
 | 0013 | 터미널 (Terminal) | [터미널 (Terminal)](../surfaces/terminal/index.md) |
 | 0014 | 터미널 (Terminal) | [터미널 (Terminal)](../surfaces/terminal/index.md) |
 | 0015 | 터미널 (Terminal) | [터미널 (Terminal)](../surfaces/terminal/index.md) |
@@ -30,7 +30,7 @@
 | 0022 | 원격 attach (Remote attach) | [원격 attach (Remote attach)](../features/remote-attach/index.md) |
 | 0023 | Attach 메커니즘 | [Attach 메커니즘](attach-behavior.md) |
 | 0024 | Surface Highlight (주의 환기) | [Surface Highlight (주의 환기)](../features/surface-highlight/index.md) |
-| 0025 | 플러그인 권한 모델 | [플러그인 권한 모델](plugin-permissions.md) |
+| 0025 | 플러그인 권한 모델 | [호스트 호출 계약](plugin-permissions.md) |
 | 0026 | 플러그인 제작 가이드 | [플러그인 제작 가이드](plugin-development.md) |
 | 0027 | 훅 (Surface / Global hooks) | [훅 (Surface / Global hooks)](../features/hooks/index.md) |
 | 0028 | egui-mesh 렌더 채널 | [egui-mesh 렌더 채널](egui-mesh-channel.md) |
@@ -78,7 +78,7 @@
 | 0070 | Agent task runner | [Agent task runner](agent-runner.md) |
 | 0071 | 닫기와 실행 자원 회수 | [닫기와 실행 자원 회수](../architecture/close-sequence.md) |
 | 0072 | Agent task runner | [Agent task runner](agent-runner.md) |
-| 0073 | 플러그인 권한 모델 | [플러그인 권한 모델](plugin-permissions.md) |
+| 0073 | 플러그인 권한 모델 | [호스트 호출 계약](plugin-permissions.md) |
 | 0074 | macOS 권한 (TCC) | [macOS 권한 (TCC)](../features/macos-permissions/index.md) |
 | 0075 | Agent task runner | [Agent task runner](agent-runner.md) |
 | 0076 | Explorer (내장 파일 관리자 surface) | [Explorer (내장 파일 관리자 surface)](../surfaces/explorer/index.md) |

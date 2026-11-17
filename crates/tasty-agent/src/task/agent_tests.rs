@@ -137,7 +137,7 @@ fn agent_tasks_need_a_v2_contract_and_a_supported_provider() {
 /// provider 는 고정 목록이 아니라 설치 플러그인 정보로 판정하며 원인을 구분해 알린다.
 #[test]
 fn agent_provider_qualification_follows_plugin_information() {
-    use tasty_test_support::namespace_owners::{DISABLED, NO_PERMISSION};
+    use tasty_test_support::namespace_owners::DISABLED;
     let (_td, mut mem, seq) = fresh_store();
     let mut store = TaskStore::new(&mut mem, "host", &seq);
     store
@@ -148,10 +148,6 @@ fn agent_provider_qualification_follows_plugin_information() {
         (
             DISABLED,
             "plugin 'com.example.off' that owns the 'off' namespace is disabled",
-        ),
-        (
-            NO_PERMISSION,
-            "does not have the agent.turn_report permission",
         ),
     ] {
         let f = input_failure(

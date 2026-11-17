@@ -1,12 +1,11 @@
-//! 사용자가 승인한 외부 plugin의 공개키와 권한을 known-plugins.toml에 저장한다.
-//! 서명이 맞아도 권한이 달라지면 다시 승인이 필요하다.
+//! 사용자가 승인한 외부 plugin의 공개키를 known-plugins.toml에 저장한다.
+//! 옛 파일의 항목에 남은 `permissions` 줄은 읽지 않는다.
 //!
 //! ## 파일 포맷 (TOML)
 //!
 //! ```toml
 //! [plugins."com.example.myplugin"]
 //! pubkey = "BASE64_OF_32_BYTE_ED25519_PUBKEY"
-//! permissions = ["filesystem.read", "network"]
 //! trusted_at = "2026-06-09T09:50:00Z"
 //! publisher_fingerprint = "ab:cd:ef:..."
 //!
@@ -57,9 +56,6 @@ pub struct UnverifiedChoice {
 pub struct KnownPluginEntry {
     /// base64-encoded 32-byte ed25519 pubkey.
     pub pubkey: String,
-    /// 사용자가 trust 한 시점의 매니페스트 권한 목록 (변경 감지용).
-    #[serde(default)]
-    pub permissions: Vec<String>,
     /// RFC3339 timestamp (예: `2026-06-09T09:50:00Z`).
     pub trusted_at: String,
     /// 승인 화면에 표시한 지문. UnknownKey에서는 서명 R 값으로 계산한다.
@@ -127,20 +123,6 @@ impl KnownPlugins {
         self.plugins.get(plugin_id)
     }
 
-    /// 매니페스트의 현재 권한 목록이 trust 시점과 다른지 — 순서 무시 set 비교.
-    /// plugin_id 자체가 없으면 *변경됨* 으로 간주 (true) — 호출처에서는 lookup
-    /// 결과를 먼저 확인해야 의미 있다.
-    pub fn permissions_changed(&self, plugin_id: &str, new_perms: &[String]) -> bool {
-        let Some(entry) = self.plugins.get(plugin_id) else {
-            return true;
-        };
-        let mut a: Vec<&str> = entry.permissions.iter().map(|s| s.as_str()).collect();
-        let mut b: Vec<&str> = new_perms.iter().map(|s| s.as_str()).collect();
-        a.sort_unstable();
-        b.sort_unstable();
-        a != b
-    }
-
     /// 신규 trust 항목 추가 / 기존 항목 덮어쓰기. `save` 는 호출처가 별도로.
     pub fn add(&mut self, plugin_id: String, entry: KnownPluginEntry) {
         self.plugins.insert(plugin_id, entry);
@@ -176,11 +158,10 @@ impl KnownPlugins {
 mod tests {
     use super::*;
 
-    fn entry_for(pk_byte: u8, perms: &[&str]) -> KnownPluginEntry {
+    fn entry_for(pk_byte: u8) -> KnownPluginEntry {
         let pk = [pk_byte; 32];
         KnownPluginEntry {
             pubkey: KnownPluginEntry::encode_pubkey(&pk),
-            permissions: perms.iter().map(|s| s.to_string()).collect(),
             trusted_at: "2026-06-09T09:50:00Z".into(),
             publisher_fingerprint: String::new(),
         }
@@ -192,7 +173,6 @@ mod tests {
         let enc = KnownPluginEntry::encode_pubkey(&pk);
         let entry = KnownPluginEntry {
             pubkey: enc,
-            permissions: vec![],
             trusted_at: "2026-06-09T09:50:00Z".into(),
             publisher_fingerprint: String::new(),
         };
@@ -203,7 +183,6 @@ mod tests {
     fn pubkey_bytes_rejects_wrong_length() {
         let entry = KnownPluginEntry {
             pubkey: BASE64.encode(b"short"),
-            permissions: vec![],
             trusted_at: "2026-06-09T09:50:00Z".into(),
             publisher_fingerprint: String::new(),
         };
@@ -213,43 +192,18 @@ mod tests {
     #[test]
     fn lookup_returns_added_entry() {
         let mut db = KnownPlugins::default();
-        db.add(
-            "com.example.foo".into(),
-            entry_for(0x11, &["filesystem.read"]),
-        );
+        db.add("com.example.foo".into(), entry_for(0x11));
         assert!(db.lookup("com.example.foo").is_some());
         assert!(db.lookup("com.example.missing").is_none());
     }
 
     #[test]
-    fn permissions_changed_detects_addition() {
-        let mut db = KnownPlugins::default();
-        db.add("p".into(), entry_for(0x11, &["a", "b"]));
-        // 동일 set (순서 무관) → 변경 없음.
-        assert!(!db.permissions_changed("p", &["b".into(), "a".into()]));
-        // 신규 권한 추가 → 변경.
-        assert!(db.permissions_changed("p", &["a".into(), "b".into(), "c".into()]));
-        // 권한 제거 → 변경.
-        assert!(db.permissions_changed("p", &["a".into()]));
-    }
-
-    #[test]
-    fn permissions_changed_missing_plugin_is_true() {
-        let db = KnownPlugins::default();
-        assert!(db.permissions_changed("unknown", &[]));
-    }
-
-    #[test]
     fn toml_round_trip_via_string() {
         let mut db = KnownPlugins::default();
-        db.add(
-            "com.example.foo".into(),
-            entry_for(0x22, &["network", "filesystem.write"]),
-        );
+        db.add("com.example.foo".into(), entry_for(0x22));
         let dumped = toml::to_string_pretty(&db).unwrap();
         let parsed: KnownPlugins = toml::from_str(&dumped).unwrap();
         let e = parsed.lookup("com.example.foo").unwrap();
         assert_eq!(e.pubkey_bytes(), Some([0x22u8; 32]));
-        assert_eq!(e.permissions.len(), 2);
     }
 }

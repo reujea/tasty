@@ -26,7 +26,7 @@ claude·codex 는 attach 로 연결한 원격 워크스페이스에도 자식을
 
 ## 관련
 
-- 개념·분류 축·권한: [concepts/plugins](../concepts/plugins.md)
+- 개념·분류 축·매니페스트 선언: [concepts/plugins](../concepts/plugins.md)
 - **제작 가이드(예제 인용)**: [dev-guide/plugin-development](../dev-guide/plugin-development.md) · [plugin-permissions](../dev-guide/plugin-permissions.md) · [plugin-development 민감 데이터](../dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택)
-- 관리/설치/권한 UI: [features/plugin-system](../features/plugin-system/index.md)
+- 관리/설치 UI: [features/plugin-system](../features/plugin-system/index.md)
 - 도구 메뉴 기여 항목의 진입점: [features/tools-menu](../features/tools-menu/index.md)

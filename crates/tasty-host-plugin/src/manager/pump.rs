@@ -6,8 +6,6 @@
 mod healthcheck;
 mod retirement;
 
-use std::collections::HashSet;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
@@ -15,7 +13,6 @@ use serde_json::json;
 
 use crate::host_cmd::HostCmd;
 use crate::protocol::{self, PluginEvent};
-use tasty_plugin_manifest::Permission;
 use tasty_plugin_protocol::SharedBufferId;
 
 use super::{
@@ -530,11 +527,6 @@ impl PluginManager {
                 method,
                 params,
             } => {
-                let perms = self
-                    .plugin_permissions
-                    .get(id)
-                    .cloned()
-                    .unwrap_or_else(|| Arc::new(HashSet::new()));
                 let Some(process) = self.processes.get(id) else {
                     return;
                 };
@@ -544,7 +536,6 @@ impl PluginManager {
                     call_id,
                     method,
                     params,
-                    permissions: perms,
                 });
             }
             PluginEvent::EventPublish { envelope } => {
@@ -592,7 +583,6 @@ impl PluginManager {
     }
 
     /// 수집한 이벤트를 처리하고 처음 등록한 hello 목록을 반환한다.
-    /// IPC 호출에는 hello 등록 후의 권한을 붙여야 같은 배치의 첫 호출도 올바르게 검사한다.
     fn apply_collected_events(
         &mut self,
         collected: CollectedPluginEvents,
@@ -600,7 +590,7 @@ impl PluginManager {
         let CollectedPluginEvents {
             hello_log,
             to_register,
-            mut new_calls,
+            new_calls,
             new_event_publishes,
             new_event_subscribes,
             new_event_unsubscribes,
@@ -650,8 +640,6 @@ impl PluginManager {
         }
         self.log_hello_and_check_drift(hello_log);
         let hello_pairs = self.register_new_hellos(&to_register);
-        // 같은 배치의 hello와 첫 IPC 호출을 처리할 때도 등록된 권한을 사용한다.
-        self.restamp_permissions(&mut new_calls);
         if !new_calls.is_empty() {
             self.pending_plugin_calls.extend(new_calls);
         }
@@ -662,18 +650,6 @@ impl PluginManager {
         );
 
         hello_pairs
-    }
-
-    /// 현재 등록된 권한으로 바꾼다. 아직 모르는 플러그인은 수집 당시 값을 유지한다.
-    fn restamp_permissions(&self, calls: &mut [PendingPluginCall]) {
-        for call in calls.iter_mut() {
-            if !self.plugin_call_is_current(call) {
-                continue;
-            }
-            if let Some(perms) = self.plugin_permissions.get(&call.plugin_id) {
-                call.permissions = perms.clone();
-            }
-        }
     }
 
     /// 연결이 종료된 플러그인의 프레임을 제거한다.
@@ -749,7 +725,7 @@ impl PluginManager {
         }
     }
 
-    /// hello 를 처음 받은 plugin 의 권한 set / event_bus 패턴 / settings_pages 동기화.
+    /// hello 를 처음 받은 plugin 의 이벤트 선언 / settings_pages 동기화.
     /// surface_kind registry 등록 + `registered_plugins.insert` 는 호출자
     /// (App::finalize_plugin_hello) 가 처리 — CoreEvent 발화 위치 정렬.
     fn register_new_hellos(&mut self, to_register: &[String]) -> Vec<(String, String)> {
@@ -757,16 +733,6 @@ impl PluginManager {
         if !to_register.is_empty() {
             for plugin_id in to_register {
                 if let Some(pkg) = self.packages.iter().find(|p| &p.manifest.id == plugin_id) {
-                    let granted = self.config.granted_permissions(plugin_id);
-                    let perms: HashSet<Permission> = pkg
-                        .manifest
-                        .parsed_permissions()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .filter(|p| granted.contains(&p.as_token()))
-                        .collect();
-                    self.plugin_permissions
-                        .insert(plugin_id.clone(), Arc::new(perms));
                     self.event_bus.set_plugin_permissions(
                         plugin_id,
                         pkg.manifest.event_subscribe.clone(),
@@ -1030,7 +996,6 @@ mod tests {
     use tasty_terminal::waker_factory::NoopWakerFactory;
 
     use super::*;
-    use crate::PluginProcess;
     use crate::protocol::PluginEvent;
 
     fn mgr() -> PluginManager {
@@ -1098,58 +1063,6 @@ mod tests {
         let mut out = CollectedPluginEvents::default();
         mgr.classify_event("com.example.test", hello("com.example.test"), &mut out);
         assert_eq!(out.to_register, vec!["com.example.test".to_string()]);
-    }
-
-    /// 같은 배치의 hello 처리 후에는 첫 호출에도 등록된 권한을 붙여야 한다.
-    /// 이 시험은 권한 갱신 함수만 검사하며 pump의 호출 순서까지 확인하지는 않는다.
-    #[test]
-    fn a_call_queued_with_an_empty_permission_set_is_restamped_after_registration() {
-        let mut mgr = mgr();
-        mgr.set_plugin_permissions("com.example.test", HashSet::from([Permission::SurfaceRead]));
-        let (process, _requests) = PluginProcess::stub_with_request_rx("com.example.test");
-        let binding = process.reply_binding();
-        mgr.processes.insert("com.example.test".into(), process);
-        let mut calls = vec![PendingPluginCall {
-            binding,
-            plugin_id: "com.example.test".to_string(),
-            call_id: 1,
-            method: "recent.query".to_string(),
-            params: json!({}),
-            // 수집 시점의 상태 — 아직 등록 전이라 빈 셋.
-            permissions: Arc::new(HashSet::new()),
-        }];
-        assert!(mgr.plugin_call_is_current(&calls[0]));
-        mgr.restamp_permissions(&mut calls);
-        assert!(
-            calls[0].permissions.contains(&Permission::SurfaceRead),
-            "등록된 권한이 다시 붙어야 한다: {:?}",
-            calls[0].permissions
-        );
-    }
-
-    /// 반대 방향 — 모르는 plugin 을 허용으로 바꾸지 않는다. 재부착이 "없으면 비운다"
-    /// 가 아니라 "있으면 덮는다" 인지 가른다.
-    #[test]
-    fn an_unregistered_plugins_call_keeps_its_empty_permission_set() {
-        let mut mgr = mgr();
-        let (process, _requests) = PluginProcess::stub_with_request_rx("com.example.unknown");
-        let binding = process.reply_binding();
-        mgr.processes.insert("com.example.unknown".into(), process);
-        let mut calls = vec![PendingPluginCall {
-            binding,
-            plugin_id: "com.example.unknown".to_string(),
-            call_id: 2,
-            method: "recent.query".to_string(),
-            params: json!({}),
-            permissions: Arc::new(HashSet::new()),
-        }];
-        assert!(mgr.plugin_call_is_current(&calls[0]));
-        mgr.restamp_permissions(&mut calls);
-        assert!(
-            calls[0].permissions.is_empty(),
-            "모르는 plugin 은 그대로 비어 있어야 한다: {:?}",
-            calls[0].permissions
-        );
     }
 
     /// id와 버전이 모두 같으면 경고할 차이가 없다.

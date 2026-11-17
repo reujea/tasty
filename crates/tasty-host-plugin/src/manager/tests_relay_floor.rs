@@ -95,7 +95,6 @@ fn manifest(
             args: vec![],
         },
         surface_kinds: vec![],
-        permissions: vec![],
         event_subscribe: vec![],
         event_publish: vec![],
         events_emitted: vec![],
@@ -143,8 +142,7 @@ fn a_publish_held_by_a_pre_event_hook_keeps_the_floor_it_arrived_with() {
             post_ipc: vec![],
         }),
     );
-    mgr.extensions
-        .recompute(&[&target, &ext], &|_| false, &|_, _| true);
+    mgr.extensions.recompute(&[&target, &ext], &|_| false);
     for m in [target, ext] {
         mgr.packages.push(tasty_plugin_manifest::PluginPackage {
             dir: std::path::PathBuf::new(),

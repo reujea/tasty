@@ -156,28 +156,19 @@ impl PluginManager {
     }
 
     /// 설치된 모든 패키지의 namespace 를 담는다. 비활성 소유자도 남겨 "소유자 없음"과 구분한다.
-    /// 권한은 매니페스트가 선언하고 사용자가 허가한 것만 담는다. 프로세스 준비 여부와 무관하다.
+    /// 프로세스 준비 여부와 무관하다.
     fn freshly_computed_namespace_owners(
         &self,
     ) -> std::collections::BTreeMap<String, tasty_utils::plugin_namespaces::NamespaceOwner> {
         let mut out = std::collections::BTreeMap::new();
         for package in &self.packages {
             let id = &package.manifest.id;
-            let granted = self.config.granted_permissions(id);
-            let permissions: std::collections::BTreeSet<String> = package
-                .manifest
-                .permissions
-                .iter()
-                .filter(|token| granted.contains(*token))
-                .cloned()
-                .collect();
             for ns in &package.manifest.contributes.ipc_namespace {
                 // 겹친 prefix 는 namespace 표처럼 먼저 등록한 패키지가 갖는다.
                 out.entry(ns.prefix.clone()).or_insert_with(|| {
                     tasty_utils::plugin_namespaces::NamespaceOwner {
                         plugin_id: id.clone(),
                         enabled: !self.config.is_disabled(id),
-                        permissions: permissions.clone(),
                     }
                 });
             }
@@ -206,14 +197,7 @@ impl PluginManager {
             self.packages.iter().map(|p| &p.manifest).collect();
         let cfg = &self.config;
         let mut out = self.extensions.clone();
-        out.recompute(
-            &manifests,
-            &|id| cfg.is_disabled(id),
-            &|ext_id, target_id| {
-                let token = format!("ext:{target_id}");
-                cfg.granted_permissions(ext_id).contains(&token)
-            },
-        );
+        out.recompute(&manifests, &|id| cfg.is_disabled(id));
         out
     }
 
@@ -244,11 +228,6 @@ impl PluginManager {
             if self.config.is_disabled(&pkg.manifest.id) {
                 continue;
             }
-            // ui.tool_item 권한이 grant되어야 메뉴에 노출.
-            let granted = self.config.granted_permissions(&pkg.manifest.id);
-            if !granted.contains("ui.tool_item") {
-                continue;
-            }
             for tool in &pkg.manifest.contributes.tool {
                 out.push(ToolItem {
                     source: ToolSource::Plugin {
@@ -276,7 +255,6 @@ impl PluginManager {
     }
 
     /// 팔레트에 표시할 전역 명령. 단축키 설정과 달리 비활성 플러그인은 제외한다.
-    /// contributes.commands에는 ui.tool_item 같은 별도 권한이 없다.
     pub fn plugin_palette_commands(&self) -> Vec<crate::command_registry::PluginCommandEntry> {
         self.command_registry
             .iter_global()
@@ -285,15 +263,11 @@ impl PluginManager {
             .collect()
     }
 
-    /// 활성 상태이며 ui.popup 권한이 있는 플러그인의 팝업 선언을 모은다.
+    /// 활성 상태인 플러그인의 팝업 선언을 모은다.
     pub fn plugin_popup_contributes(&self) -> Vec<PluginPopupEntry> {
         let mut out = Vec::new();
         for pkg in &self.packages {
             if self.config.is_disabled(&pkg.manifest.id) {
-                continue;
-            }
-            let granted = self.config.granted_permissions(&pkg.manifest.id);
-            if !granted.contains("ui.popup") {
                 continue;
             }
             for popup in &pkg.manifest.contributes.popup {
@@ -335,7 +309,6 @@ mod palette_commands_tests {
                 args: vec![],
             },
             surface_kinds: vec![],
-            permissions: vec![],
             event_subscribe: vec![],
             event_publish: vec![],
             events_emitted: vec![],

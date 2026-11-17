@@ -52,7 +52,6 @@ fn source_fixture() -> (
 fn plugin_caller(plugin_id: &str) -> CallerContext {
     CallerContext::Plugin {
         plugin_id: plugin_id.to_string(),
-        permissions: Arc::new(HashSet::new()),
     }
 }
 
@@ -641,7 +640,6 @@ fn a_picker_opened_from_a_user_navigation_on_the_plugin_page_is_a_user_popup() {
         }
         let caller = CallerContext::Plugin {
             plugin_id: PLUGIN.into(),
-            permissions: Arc::new(HashSet::new()),
         };
         let params = json!({ "origin_surface_id": sid, "user_navigation_url": NAV_URL });
         if reuse {
@@ -698,7 +696,6 @@ struct PassivePicker {
 fn plugin_caller_of(plugin_id: &str) -> CallerContext {
     CallerContext::Plugin {
         plugin_id: plugin_id.into(),
-        permissions: Arc::new(HashSet::new()),
     }
 }
 

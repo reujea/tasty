@@ -48,12 +48,11 @@ fn pkg(id: &str, extends: bool) -> PluginPackage {
     }
 }
 
-/// 확장 권한을 주고 현재 설정으로 확장 상태까지 계산한 매니저.
+/// 현재 설정으로 확장 상태까지 계산한 매니저.
 fn manager_with_active_extension() -> PluginManager {
     let mut m = PluginManager::new(Arc::new(NoopWakerFactory));
     m.packages.push(pkg(TARGET, false));
     m.packages.push(pkg(EXT, true));
-    m.config.set_granted(EXT, vec![format!("ext:{TARGET}")]);
     m.recompute_extensions();
     m
 }

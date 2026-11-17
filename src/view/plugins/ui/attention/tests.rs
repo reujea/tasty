@@ -12,9 +12,12 @@ fn entry(kind: AttentionKind) -> AttentionEntry {
         builtin: false,
         kind,
         fingerprint: None,
-        permissions_added: (0..40).map(|i| format!("perm:{i}")).collect(),
-        permissions_removed: Vec::new(),
-        health_detail: None,
+        health_detail: Some(
+            (0..40)
+                .map(|i| format!("spawn failed: attempt {i}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
         cause: None,
         unverified: None,
         manifest_sha256: String::new(),
@@ -33,8 +36,6 @@ fn reserved(folder: &str, id: &str) -> AttentionEntry {
         builtin: false,
         kind: AttentionKind::ReservedId,
         fingerprint: None,
-        permissions_added: Vec::new(),
-        permissions_removed: Vec::new(),
         health_detail: None,
         cause: None,
         unverified: None,
@@ -75,11 +76,11 @@ fn draw_output(entry: AttentionEntry) -> egui::FullOutput {
 #[test]
 fn the_attention_bar_stays_inside_the_window_below_a_long_detail() {
     crate::i18n::init("en");
-    let texts = draw(entry(AttentionKind::PermissionsChanged));
+    let texts = draw(entry(AttentionKind::HealthError));
     let has = |label: &str| texts.iter().any(|(t, _)| t == label);
     for label in [
         t("plugins.attn_needs_review"),
-        t("plugins.attn_reapprove"),
+        t("plugins.configure"),
         "example",
         "com.example.log-tailer",
         "example.com/log-tailer",
@@ -97,7 +98,7 @@ fn the_attention_bar_stays_inside_the_window_below_a_long_detail() {
 fn the_attention_detail_stacks_its_blocks_a_large_space_apart() {
     crate::i18n::init("en");
     let th = theme::theme();
-    let texts = draw(entry(AttentionKind::PermissionsChanged));
+    let texts = draw(entry(AttentionKind::HealthError));
     // 목록 행에도 사유 문구가 있으므로 설명과 같은 열(상세 열)에서 시작하는 글자만 본다.
     let detail_x = texts
         .iter()
@@ -114,9 +115,9 @@ fn the_attention_detail_stacks_its_blocks_a_large_space_apart() {
     let inset = th.border_width.value() + th.spacing_md.value();
     let lg = th.spacing_lg.value();
     let description = rect("Tails log files.");
-    let title = rect(t("plugins.attn_perm_changed_label"));
-    let blurb = rect(t("plugins.attn_perm_changed_blurb"));
-    let header = rect(t("plugins.attn_permission_changes"));
+    let title = rect(t("plugins.attn_health_label"));
+    let blurb = rect(t("plugins.attn_health_blurb"));
+    let header = rect(t("plugins.attn_error"));
     for (what, gap, want) in [
         (
             "description → banner",
@@ -133,11 +134,7 @@ fn the_attention_detail_stacks_its_blocks_a_large_space_apart() {
 #[test]
 fn only_a_broken_signature_hides_the_manifest_text() {
     assert!(!AttentionKind::SignatureInvalid.shows_manifest_text());
-    for kind in [
-        AttentionKind::UnknownKey,
-        AttentionKind::PermissionsChanged,
-        AttentionKind::HealthError,
-    ] {
+    for kind in [AttentionKind::UnknownKey, AttentionKind::HealthError] {
         assert!(kind.shows_manifest_text(), "{kind:?}");
     }
 }
@@ -148,7 +145,7 @@ fn every_severity_dot_is_status_dot_sized() {
     crate::i18n::init("en");
     let th = theme::theme();
     let color = egui::Color32::from(th.accent_warning());
-    let out = draw_output(entry(AttentionKind::PermissionsChanged));
+    let out = draw_output(entry(AttentionKind::HealthError));
     fn walk(shape: &egui::Shape, color: egui::Color32, out: &mut Vec<f32>) {
         match shape {
             egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, color, out)),
@@ -255,7 +252,6 @@ fn the_reserved_detail_offers_only_remove() {
     }
     for label in [
         t("plugins.attn_register_anyway"),
-        t("plugins.attn_reapprove"),
         t("plugins.configure"),
         t("plugins.open_folder"),
         t("plugins.attn_desc_hidden"),

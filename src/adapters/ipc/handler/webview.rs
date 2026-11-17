@@ -218,7 +218,6 @@ mod tests {
     fn plugin_caller(plugin_id: &str) -> tasty_ipc::caller::CallerContext {
         tasty_ipc::caller::CallerContext::Plugin {
             plugin_id: plugin_id.to_string(),
-            permissions: std::sync::Arc::new(std::collections::HashSet::new()),
         }
     }
 

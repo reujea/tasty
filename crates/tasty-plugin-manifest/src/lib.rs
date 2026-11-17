@@ -4,7 +4,6 @@
 //! 파일 감지 규칙 등 호스트 타입이 필요한 추가 검증은 plugin_bridge::manifest_validate에서 한다.
 
 pub mod caller_context;
-pub mod gates;
 pub mod host_actions;
 pub mod kind_capabilities;
 pub mod package;
@@ -17,7 +16,6 @@ pub mod validators;
 mod tests;
 
 pub use caller_context::{CallerContextDecl, CallerIdFormat, CallerPathEnvDecl};
-pub use gates::{ContributesGate, GateToken};
 pub use host_actions::{INHERITABLE_HOST_ACTIONS, is_inheritable};
 pub use kind_capabilities::SurfaceKindCapabilityDecl;
 pub use package::PluginPackage;

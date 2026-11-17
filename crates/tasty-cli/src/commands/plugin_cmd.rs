@@ -9,18 +9,16 @@ use super::remote_profile::RemoteProfileCommands;
 pub enum PluginCommands {
     /// List installed plugins (id, version, enabled, running).
     List,
-    /// Show full manifest, permissions, commands, and runtime state for a plugin.
+    /// Show full manifest, commands, and runtime state for a plugin.
     Show {
         /// Plugin id.
         id: String,
     },
     /// Install a plugin from a directory containing tasty-plugin.toml.
     ///
-    /// Two more things happen, and neither is asked about: every permission the
-    /// manifest declares is granted immediately, and the plugin is enabled and
-    /// started unless a disabled mark for that id is already on file. Inspect
-    /// `tasty-plugin.toml` first, or check afterwards with
-    /// `plugin permissions <id>` and `plugin revoke <id> <permission>`.
+    /// One more thing happens without being asked about: the plugin is enabled
+    /// and started unless a disabled mark for that id is already on file.
+    /// Inspect `tasty-plugin.toml` first.
     ///
     /// A plugin whose signature Tasty cannot check against a trusted key is
     /// unverified. It is not installed unless `--allow-unverified` is given, and
@@ -50,8 +48,6 @@ pub enum PluginCommands {
     /// higher bundle version rewrites the whole directory, the same version
     /// rewrites only what differs, and an installed version higher than the bundle
     /// is skipped without reading content — `--force` is for that last branch.
-    /// Permissions newly declared by a built-in that changed are granted in the
-    /// same call.
     UpgradeBuiltins {
         /// Overwrite even when installed version >= bundle version.
         #[arg(long)]
@@ -110,25 +106,6 @@ pub enum PluginCommands {
     Doctor {
         /// Plugin id (e.g. com.example.foo).
         id: String,
-    },
-    /// Show a plugin's manifest permissions and currently granted set.
-    Permissions {
-        /// Plugin id.
-        id: String,
-    },
-    /// Grant a permission to a plugin (must be declared in its manifest).
-    Grant {
-        /// Plugin id.
-        id: String,
-        /// Permission token (e.g. fs.read, surface.write).
-        permission: String,
-    },
-    /// Revoke a previously-granted permission from a plugin.
-    Revoke {
-        /// Plugin id.
-        id: String,
-        /// Permission token.
-        permission: String,
     },
     /// Grant a temporary permission to an active agent session.
     /// Permission lives until TTL expiry or explicit revoke; base permissions

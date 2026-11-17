@@ -38,7 +38,6 @@ pub struct PluginEntry {
     pub health_error: bool,
     pub builtin: bool,
     pub surface_kinds: Vec<String>,
-    pub manifest_permissions: Vec<String>,
     /// plugin 이 contribute 한 command 목록 (`[[contributes.commands]]`).
     pub commands: Vec<PluginCommandEntry>,
     pub log_path: String,
@@ -63,8 +62,6 @@ pub enum AttentionKind {
     UnknownKey,
     /// 서명 누락/손상/검증 실패 → 등록 거부.
     SignatureInvalid,
-    /// 매니페스트 권한 변경 → 재승인 필요.
-    PermissionsChanged,
     /// enable 됐으나 런타임 반복 실패로 자동 비활성화.
     HealthError,
     /// 공식 목록에 없는 `com.tasty.*` id 라 등록하지 않은 폴더. 제거만 할 수 있다.
@@ -72,7 +69,7 @@ pub enum AttentionKind {
 }
 
 impl AttentionKind {
-    /// danger(등록 거부) 면 true, warning(재검토) 면 false.
+    /// danger(등록 거부) 면 true, warning(실행 오류) 면 false.
     pub fn is_danger(self) -> bool {
         matches!(
             self,
@@ -109,11 +106,8 @@ pub struct AttentionEntry {
     pub homepage: String,
     pub builtin: bool,
     pub kind: AttentionKind,
-    /// 서명 키 지문 (UnknownKey/PermissionsChanged). 표시용.
+    /// 서명 키 지문 (UnknownKey). 표시용.
     pub fingerprint: Option<String>,
-    /// PermissionsChanged 일 때 새로 요구된 / 더 이상 안 쓰는 권한.
-    pub permissions_added: Vec<String>,
-    pub permissions_removed: Vec<String>,
     /// HealthError 일 때 표시할 사유 (로그 경로 등). 없으면 일반 문구.
     pub health_detail: Option<String>,
     /// SignatureInvalid 일 때 서명 검증이 실패한 원인. 표시용.
@@ -148,12 +142,6 @@ pub enum PluginsAction {
     },
     /// 이 모달을 닫고 설정의 Plugins 탭을 연다.
     OpenSettings,
-    /// "확인 필요" 탭의 `Re-approve` — 권한 변경으로 거부된 plugin 을 현재
-    /// 매니페스트 권한으로 재신뢰한다. 호스트가 known-plugins.toml 의 권한 스냅샷을
-    /// 갱신 + 재grant + discover 재호출.
-    Reapprove {
-        id: String,
-    },
     /// 확인 필요 탭의 예약 id 폴더를 지운다. 경로는 호스트가 실행 시점에 다시 확인한다.
     RemoveReserved {
         dir: std::path::PathBuf,
@@ -215,7 +203,6 @@ pub struct AddPreview {
     pub authors: Vec<String>,
     pub homepage: String,
     pub surface_kinds: Vec<String>,
-    pub permissions: Vec<String>,
     /// 같은 id의 플러그인이 이미 설치됐다. 추가 버튼을 끄고 액션 바에 이유를 적는다.
     pub already_installed: bool,
     /// 매니페스트 sig 검증으로 결정된 trust 상태. 신뢰 상자의 종류를 정한다.
@@ -230,12 +217,6 @@ pub struct AddPreview {
 pub enum AddTrustState {
     /// 임베드 키 또는 known-plugins.toml 통과. 바로 install 가능.
     Trusted,
-    /// 신뢰한 키지만 권한이 늘었다. 그 키를 새 권한과 함께 다시 신뢰하며 추가한다.
-    PermissionsChanged {
-        fingerprint: String,
-        /// 신뢰 DB에 있는 키(base64) — TrustAndInstall action 으로 전달.
-        pubkey_b64: String,
-    },
     /// 미인증 — 신뢰 목록에 없는 키. 공개 키 파일의 키로 서명이 검증되며, 추가하면 그 키를 신뢰한다.
     UnknownKey {
         /// 공개 키의 SHA-256 지문.
@@ -254,10 +235,7 @@ pub enum AddTrustState {
 impl AddTrustState {
     /// 경고를 보고 명시적으로 골라야 추가하는 미인증 판정인지.
     pub fn is_unverified(&self) -> bool {
-        !matches!(
-            self,
-            AddTrustState::Trusted | AddTrustState::PermissionsChanged { .. }
-        )
+        !matches!(self, AddTrustState::Trusted)
     }
 }
 

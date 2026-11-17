@@ -117,8 +117,10 @@ fn accepts_minimal_valid() {
     assert_eq!(m.id, "com.example.x");
 }
 
+/// 옛 매니페스트에 남은 `permissions` 줄은 다른 미지 키처럼 무시한다. 알 수 없는 토큰이 있어도
+/// 설치·로드를 거절하지 않는다.
 #[test]
-fn rejects_unknown_permission() {
+fn leftover_permissions_line_is_ignored() {
     let s = r#"
         manifest_version = 1
         id = "com.example.x"
@@ -130,29 +132,8 @@ fn rejects_unknown_permission() {
         type = "process"
         command = "x"
     "#;
-    let err = parse(s).unwrap_err().to_string();
-    assert!(err.contains("unknown permission"), "got: {err}");
-}
-
-#[test]
-fn parsed_permissions_returns_enum_set() {
-    let s = r#"
-        manifest_version = 1
-        id = "com.example.x"
-        name = "X"
-        version = "0.1"
-        api_version = "1"
-        permissions = ["fs.read", "surface.write", "notification"]
-        [entry]
-        type = "process"
-        command = "x"
-    "#;
-    let m = parse(s).expect("should parse");
-    let perms = m.parsed_permissions().expect("should resolve");
-    assert!(perms.contains(&Permission::FsRead));
-    assert!(perms.contains(&Permission::SurfaceWrite));
-    assert!(perms.contains(&Permission::Notification));
-    assert_eq!(perms.len(), 3);
+    let m = parse(s).expect("a leftover permissions line must not fail the manifest");
+    assert_eq!(m.id, "com.example.x");
 }
 
 #[test]
@@ -167,7 +148,6 @@ fn accepts_full_manifest() {
         description = "File explorer"
         homepage = "https://example.com"
         api_version = "1"
-        permissions = ["fs.read", "surface.read"]
 
         [entry]
         type = "process"
@@ -188,7 +168,6 @@ fn accepts_full_manifest() {
     let m = parse(s).expect("should parse");
     assert_eq!(m.surface_kinds.len(), 1);
     assert_eq!(m.surface_kinds[0].kind, "explorer");
-    assert_eq!(m.permissions.len(), 2);
     assert_eq!(m.contributes.commands.len(), 1);
     // binding_mode 미지정 → Independent 기본값
     assert_eq!(
@@ -470,29 +449,6 @@ fn command_action_invalid_event_key_rejected() {
 }
 
 #[test]
-fn command_action_open_popup_requires_ui_popup_permission() {
-    let s = r#"
-        manifest_version = 1
-        id = "com.example.x"
-        name = "X"
-        version = "0.1"
-        api_version = "1"
-        [entry]
-        type = "process"
-        command = "x"
-        [[contributes.commands]]
-        id = "x.foo"
-        title_i18n_key = "x.foo"
-        default_keybinding = "ctrl+shift+g"
-        [contributes.commands.action]
-        kind = "open_popup"
-        popup_id = "com.example.x/main"
-    "#;
-    let err = parse(s).unwrap_err().to_string();
-    assert!(err.contains("'ui.popup'"), "got: {err}");
-}
-
-#[test]
 fn command_action_open_popup_unknown_popup_ref_rejected() {
     let s = r#"
         manifest_version = 1
@@ -500,7 +456,6 @@ fn command_action_open_popup_unknown_popup_ref_rejected() {
         name = "X"
         version = "0.1"
         api_version = "1"
-        permissions = ["ui.popup"]
         [entry]
         type = "process"
         command = "x"
@@ -529,7 +484,6 @@ fn command_action_open_popup_known_ref_accepted() {
         name = "X"
         version = "0.1"
         api_version = "1"
-        permissions = ["ui.popup"]
         [entry]
         type = "process"
         command = "x"
@@ -816,25 +770,6 @@ fn permission_ipc_invoke_reserved_prefix_rejected() {
     // 호스트 예약 prefix는 plugin이 점유할 수 없으므로 토큰도 거부.
     assert!(Permission::from_token("ipc.invoke:surface").is_none());
     assert!(Permission::from_token("ipc.invoke:pane").is_none());
-}
-
-#[test]
-fn manifest_accepts_ipc_invoke_permission() {
-    let s = r#"
-        manifest_version = 1
-        id = "com.example.codex-helper"
-        name = "Helper"
-        version = "0.1.0"
-        api_version = "1"
-        permissions = ["ipc.invoke:codex", "surface.read"]
-        [entry]
-        type = "process"
-        command = "x"
-    "#;
-    let m = parse(s).expect("should parse");
-    let perms = m.parsed_permissions().expect("resolve");
-    assert!(perms.contains(&Permission::IpcInvoke("codex".into())));
-    assert!(perms.contains(&Permission::SurfaceRead));
 }
 
 #[test]
@@ -1678,7 +1613,6 @@ fn extends_skeleton(extra: &str) -> String {
             name = "Ext"
             version = "0.1.0"
             api_version = "1"
-            permissions = ["ext:com.tasty.clipboard"]
             [entry]
             type = "process"
             command = "x"
@@ -1731,7 +1665,6 @@ fn extends_rejects_self_target() {
         name = "Ext"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ext:com.example.ext"]
         [entry]
         type = "process"
         command = "x"
@@ -1773,7 +1706,6 @@ fn extends_rejects_mismatched_api_version() {
         name = "Ext"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ext:com.tasty.clipboard"]
         [entry]
         type = "process"
         command = "x"
@@ -1867,26 +1799,6 @@ fn extends_rejects_transform_without_modifies() {
 }
 
 #[test]
-fn extends_requires_ext_permission_in_manifest() {
-    // skeleton에는 ext:com.tasty.clipboard 권한이 들어 있다. 그걸 빼면 거부되어야.
-    let s = extends_skeleton(
-        r#"
-            [[extends.pre_ipc]]
-            method = "clipboard.add"
-            modifies = ["entry"]
-            mode = "transform"
-            timeout_ms = 100
-        "#,
-    )
-    .replace(
-        "permissions = [\"ext:com.tasty.clipboard\"]",
-        "permissions = []",
-    );
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("ext:com.tasty.clipboard"), "got: {err}");
-}
-
-#[test]
 fn ext_permission_token_parses() {
     assert_eq!(
         Permission::from_token("ext:com.tasty.clipboard"),
@@ -1910,7 +1822,6 @@ fn tool_skeleton(extra: &str) -> String {
         name = "Tooly"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ui.tool_item"]
         [entry]
         type = "process"
         command = "tooly"
@@ -1958,21 +1869,6 @@ fn tool_open_surface_must_reference_declared_kind() {
         err.contains("not declared in this plugin's [[surface_kinds]]"),
         "got: {err}"
     );
-}
-
-#[test]
-fn tool_requires_ui_tool_item_permission() {
-    let s = tool_skeleton(
-        r#"
-            [[contributes.tool]]
-            id = "open-search"
-            label_i18n_key = "tooly.tool.open_search"
-            action = { kind = "event", event_key = "tooly.search_requested" }
-        "#,
-    )
-    .replace("permissions = [\"ui.tool_item\"]", "permissions = []");
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("ui.tool_item"), "got: {err}");
 }
 
 #[test]
@@ -2042,7 +1938,6 @@ fn popup_skeleton(extra: &str) -> String {
         name = "Popper"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ui.popup"]
         event_publish = ["com.example.popper.search_requested"]
         [entry]
         type = "process"
@@ -2131,20 +2026,6 @@ fn popup_ipc_trigger_with_size_and_anchor() {
 }
 
 #[test]
-fn popup_requires_ui_popup_permission() {
-    let s = popup_skeleton(
-        r#"
-            [[contributes.popup]]
-            id = "search"
-            trigger = { kind = "ipc" }
-        "#,
-    )
-    .replace("permissions = [\"ui.popup\"]", "permissions = []");
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("ui.popup"), "got: {err}");
-}
-
-#[test]
 fn popup_id_must_be_unique() {
     let s = popup_skeleton(
         r#"
@@ -2182,7 +2063,6 @@ fn banner_skeleton(extra: &str) -> String {
         name = "Notifier"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ui.banner"]
         [entry]
         type = "process"
         command = "notifier"
@@ -2227,20 +2107,6 @@ fn banner_with_ttl_and_size_hint() {
     let b = &m.contributes.banner[0];
     assert_eq!(b.ttl_seconds, Some(6));
     assert_eq!(b.size_hint.expect("size_hint set").height, 64);
-}
-
-#[test]
-fn banner_requires_ui_banner_permission() {
-    let s = banner_skeleton(
-        r#"
-            [[contributes.banner]]
-            id = "sync-status"
-            trigger = { kind = "ipc" }
-        "#,
-    )
-    .replace("permissions = [\"ui.banner\"]", "permissions = []");
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("ui.banner"), "got: {err}");
 }
 
 #[test]
@@ -2386,7 +2252,7 @@ fn hook_handler_handle_token_bad_scope_rejected() {
     assert!(Permission::from_token(&format!("hook_handler.handle:{too_long}")).is_none());
 }
 
-fn detector_skeleton(perms: &str, extra: &str) -> String {
+fn detector_skeleton(extra: &str) -> String {
     format!(
         r#"
         manifest_version = 1
@@ -2394,7 +2260,6 @@ fn detector_skeleton(perms: &str, extra: &str) -> String {
         name = "PDF"
         version = "0.1"
         api_version = "1"
-        permissions = [{perms}]
         [entry]
         type = "process"
         command = "x"
@@ -2404,9 +2269,8 @@ fn detector_skeleton(perms: &str, extra: &str) -> String {
 }
 
 #[test]
-fn detector_define_token_required_for_new_id() {
+fn new_detector_id_is_accepted() {
     let s = detector_skeleton(
-        r#""file_handler.define""#,
         r#"
             [[contributes.detector]]
             id = "pdf"
@@ -2415,14 +2279,12 @@ fn detector_define_token_required_for_new_id() {
             values = ["pdf"]
         "#,
     );
-    parse(&s).expect("with file_handler.define should accept new detector");
+    parse(&s).expect("a new detector id should be accepted");
 }
 
 #[test]
-fn hook_handler_contribute_requires_define() {
-    // define 권한 없이 [[contributes.hook_handler]] → reject.
+fn hook_handler_contribute_is_accepted() {
     let s = detector_skeleton(
-        r#""#,
         r#"
             [[contributes.hook_handler]]
             id = "notify"
@@ -2433,31 +2295,12 @@ fn hook_handler_contribute_requires_define() {
             calls = [{ method = "notification.create", params = { body = "hi" } }]
         "#,
     );
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("hook_handler.define"), "got: {err}");
-}
-
-#[test]
-fn hook_handler_contribute_with_define_ok() {
-    let s = detector_skeleton(
-        r#""hook_handler.define""#,
-        r#"
-            [[contributes.hook_handler]]
-            id = "notify"
-            source = "webhook"
-            priority = 100
-            [contributes.hook_handler.action]
-            kind = "ipc_sequence"
-            calls = [{ method = "notification.create", params = { body = "hi" } }]
-        "#,
-    );
-    parse(&s).expect("with hook_handler.define should accept hook handler");
+    parse(&s).expect("a hook handler should be accepted");
 }
 
 #[test]
 fn hook_handler_contribute_bad_id_rejected() {
     let s = detector_skeleton(
-        r#""hook_handler.define""#,
         r#"
             [[contributes.hook_handler]]
             id = "Bad_Id"
@@ -2478,7 +2321,6 @@ fn hook_handler_contribute_bad_id_rejected() {
 #[test]
 fn hook_handler_contribute_duplicate_id_rejected() {
     let s = detector_skeleton(
-        r#""hook_handler.define""#,
         r#"
             [[contributes.hook_handler]]
             id = "notify"
@@ -2502,25 +2344,8 @@ fn hook_handler_contribute_duplicate_id_rejected() {
 }
 
 #[test]
-fn detector_without_define_or_extend_rejected() {
-    let s = detector_skeleton(
-        r#""#,
-        r#"
-            [[contributes.detector]]
-            id = "pdf"
-            [[contributes.detector.rule]]
-            kind = "extension"
-            values = ["pdf"]
-        "#,
-    );
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("file_handler.define") || err.contains("file_handler.extend"));
-}
-
-#[test]
 fn detector_reserved_id_rejected_for_plugin() {
     let s = detector_skeleton(
-        r#""file_handler.define""#,
         r#"
             [[contributes.detector]]
             id = "$mything"
@@ -2533,40 +2358,10 @@ fn detector_reserved_id_rejected_for_plugin() {
 }
 
 #[test]
-fn handler_requires_handle_permission() {
-    let s = detector_skeleton(
-        r#""file_handler.define", "surface.write""#,
-        r#"
-            [[surface_kinds]]
-            kind = "pdf_view"
-            display_name_i18n_key = "x"
-
-            [[contributes.detector]]
-            id = "pdf"
-            [[contributes.detector.rule]]
-            kind = "extension"
-            values = ["pdf"]
-
-            [[contributes.handler]]
-            id = "viewer"
-            detector = "pdf"
-            priority = 100
-            [contributes.handler.action]
-            kind = "open_surface"
-            surface_kind = "pdf_view"
-        "#,
-    );
-    // permissions 에 file_handler.handle:pdf 가 없으므로 reject
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("file_handler.handle:pdf"), "got: {err}");
-}
-
-#[test]
 #[ignore = "production validation 미구현 — handler.action.surface_kind 가 plugin 의 surface_kinds 와 cross-ref 되지 않음. validator 추가 후 ignore 해제."]
 fn handler_open_surface_cross_ref() {
     // surface_kind 가 plugin 자체에 없으면 reject
     let s = detector_skeleton(
-        r#""file_handler.define", "file_handler.handle:pdf", "surface.write""#,
         r#"
             [[contributes.detector]]
             id = "pdf"
@@ -2590,7 +2385,6 @@ fn handler_open_surface_cross_ref() {
 #[ignore = "production validation 미구현 — PluginHandlerActionDecl 가 'system' kind 를 silently accept. 별 PluginHandlerAction enum (System 제외) 분리 후 ignore 해제."]
 fn handler_system_kind_rejected_in_plugin() {
     let s = detector_skeleton(
-        r#""file_handler.define", "file_handler.handle:pdf""#,
         r#"
             [[contributes.detector]]
             id = "pdf"
@@ -2668,7 +2462,7 @@ fn surface_kind_default_colors_invalid_hex_rejected() {
     assert!(m.is_err());
 }
 
-fn window_skeleton(perms: &str, extra: &str) -> String {
+fn window_skeleton(extra: &str) -> String {
     format!(
         r#"
         manifest_version = 1
@@ -2676,7 +2470,6 @@ fn window_skeleton(perms: &str, extra: &str) -> String {
         name = "WinApp"
         version = "0.1.0"
         api_version = "1"
-        permissions = [{perms}]
         [entry]
         type = "process"
         command = "winapp"
@@ -2689,7 +2482,6 @@ fn window_skeleton(perms: &str, extra: &str) -> String {
 #[test]
 fn window_contribute_parses_with_defaults() {
     let s = window_skeleton(
-        r#""window.spawn""#,
         r#"
             [[contributes.window]]
             id = "editor"
@@ -2707,7 +2499,6 @@ fn window_contribute_parses_with_defaults() {
 #[test]
 fn window_contribute_with_size_and_multi_instance() {
     let s = window_skeleton(
-        r#""window.spawn""#,
         r#"
             [[contributes.window]]
             id = "editor"
@@ -2725,23 +2516,8 @@ fn window_contribute_with_size_and_multi_instance() {
 }
 
 #[test]
-fn window_contribute_requires_permission() {
-    let s = window_skeleton(
-        "",
-        r#"
-            [[contributes.window]]
-            id = "editor"
-            display_name_i18n_key = "winapp.editor"
-        "#,
-    );
-    let err = parse(&s).unwrap_err().to_string();
-    assert!(err.contains("window.spawn"), "got: {err}");
-}
-
-#[test]
 fn window_contribute_id_must_be_unique() {
     let s = window_skeleton(
-        r#""window.spawn""#,
         r#"
             [[contributes.window]]
             id = "dup"
@@ -2758,7 +2534,6 @@ fn window_contribute_id_must_be_unique() {
 #[test]
 fn window_contribute_id_format_validated() {
     let s = window_skeleton(
-        r#""window.spawn""#,
         r#"
             [[contributes.window]]
             id = "Bad-Id"
@@ -2803,7 +2578,6 @@ fn settings_pages_with_font_override_parses() {
         name = "Markdown"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ui.settings_page"]
         [entry]
         type = "process"
         command = "x"
@@ -2855,7 +2629,6 @@ fn settings_items_manifest(items: &str) -> String {
         name = "X"
         version = "0.1.0"
         api_version = "1"
-        permissions = ["ui.settings_page"]
         [entry]
         type = "process"
         command = "x"
@@ -3004,28 +2777,6 @@ fn settings_pages_invalid_storage_key_rejected() {
 }
 
 #[test]
-fn settings_pages_requires_ui_permission() {
-    let s = r#"
-        manifest_version = 1
-        id = "com.tasty.markdown"
-        name = "Markdown"
-        version = "0.1.0"
-        api_version = "1"
-        permissions = []
-        [entry]
-        type = "process"
-        command = "x"
-
-        [[contributes.settings_pages]]
-        id = "markdown"
-        title_key = "settings.subtab.markdown"
-        category = "appearance"
-    "#;
-    let err = parse(s).unwrap_err().to_string();
-    assert!(err.contains("ui.settings_page"), "got: {err}");
-}
-
-#[test]
 fn settings_category_plugin_deserializes() {
     let cat: SettingsCategory =
         serde_json::from_str(r#""plugin""#).expect("\"plugin\" should deserialize");
@@ -3040,7 +2791,6 @@ fn settings_pages_with_plugin_category_parses() {
         name = "X"
         version = "0.1"
         api_version = "1"
-        permissions = ["ui.settings_page"]
         [entry]
         type = "process"
         command = "x"
@@ -3281,7 +3031,6 @@ fn required_params_must_match_required_preset_field() {
 #[test]
 fn window_contribute_zero_default_size_rejected() {
     let s = window_skeleton(
-        r#""window.spawn""#,
         r#"
             [[contributes.window]]
             id = "editor"

@@ -73,7 +73,6 @@ fn agent(id: &str) -> CallerContext {
 fn plugin() -> CallerContext {
     CallerContext::Plugin {
         plugin_id: "com.example.approver".into(),
-        permissions: Arc::new(approval_holder()),
     }
 }
 

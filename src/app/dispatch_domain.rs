@@ -500,14 +500,6 @@ impl App {
                 ("installed", serde_json::json!({ "version": version }))
             }
             PluginRegistryChange::Removed => ("removed", serde_json::Value::Null),
-            PluginRegistryChange::PermissionGranted { permission } => (
-                "permission_granted",
-                serde_json::json!({ "permission": permission }),
-            ),
-            PluginRegistryChange::PermissionRevoked { permission } => (
-                "permission_revoked",
-                serde_json::json!({ "permission": permission }),
-            ),
         };
         self.enqueue_plugin_host_event(crate::state::PendingHostEvent::PluginRegistryChanged {
             plugin_id,

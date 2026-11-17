@@ -1,6 +1,6 @@
 # Plugin 런타임 계약
 
-plugin 런타임 규칙의 위치를 안내한다. 상세 계약은 제작 가이드에 모아 관리한다. 호스트↔plugin 경계의 다른 축은 각자 문서가 있다: 권한은 [plugin-permissions](plugin-permissions.md), 렌더는 [egui-mesh-channel](egui-mesh-channel.md) · [webview](../design/systems/webview.md), 번들·배포·버전은 [plugin-packaging](plugin-packaging.md). plugin 을 **만드는 쪽**의 안내는 [plugin-development](plugin-development.md) 이고, 개별 번들 plugin 이 제공하는 동작은 [`docs/plugins/`](../plugins/index.md) 다.
+plugin 런타임 규칙의 위치를 안내한다. 상세 계약은 제작 가이드에 모아 관리한다. 호스트↔plugin 경계의 다른 축은 각자 문서가 있다: 호스트 호출 판정은 [plugin-permissions](plugin-permissions.md), 렌더는 [egui-mesh-channel](egui-mesh-channel.md) · [webview](../design/systems/webview.md), 번들·배포·버전은 [plugin-packaging](plugin-packaging.md). plugin 을 **만드는 쪽**의 안내는 [plugin-development](plugin-development.md) 이고, 개별 번들 plugin 이 제공하는 동작은 [`docs/plugins/`](../plugins/index.md) 다.
 
 ## 수명주기
 
@@ -72,5 +72,5 @@ namespace 요청의 만료와 연속 실패 처리는 [무응답과 늦은 응�
 ## 관련
 
 - [plugin-development](plugin-development.md) — 작성과 런타임 계약
-- [plugin-permissions](plugin-permissions.md) — 권한
+- [plugin-permissions](plugin-permissions.md) — 호스트 호출 판정
 - [plugin-packaging](plugin-packaging.md) — 번들·배포·버전

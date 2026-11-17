@@ -46,7 +46,6 @@ fn request(
     sync_plugin_popup_scopes(&mut state, instances.iter().map(|(id, inst)| (*id, inst)));
     let caller = CallerContext::Plugin {
         plugin_id: PLUGIN.into(),
-        permissions: std::sync::Arc::new(Default::default()),
     };
     let response = handle_trigger(&mut state, &mut engine, &caller, json!(1), &params);
     for intent in state.take_pending_intents() {
@@ -207,7 +206,6 @@ fn a_narrow_owner_drawn_in_the_window_still_gives_its_surface_scope() {
     let mut engine = session.borrow_mut();
     let caller = CallerContext::Plugin {
         plugin_id: PLUGIN.into(),
-        permissions: std::sync::Arc::new(Default::default()),
     };
     let response = handle_trigger(
         &mut state,
@@ -446,7 +444,6 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
     assert_eq!(state.focused_surface_id(&engine.read()), Some(L));
     let caller = CallerContext::Plugin {
         plugin_id: PLUGIN.into(),
-        permissions: std::sync::Arc::new(Default::default()),
     };
     let response = handle_trigger(
         &mut state,
@@ -534,7 +531,6 @@ fn a_trigger_before_the_first_draw_finds_a_just_opened_owner() {
     );
     let caller = CallerContext::Plugin {
         plugin_id: PLUGIN.into(),
-        permissions: std::sync::Arc::new(Default::default()),
     };
     let response = handle_trigger(
         &mut state,

@@ -1,6 +1,6 @@
 # IME 시뮬레이션 검증
 
-`surface.ime_*` IPC로 한글·CJK 입력을 재현한다. 사용자 입력기의 조합 과정을 재현하는 기능이므로 debug 빌드의 local caller에게만 허용한다([플러그인 권한 모델](../dev-guide/plugin-permissions.md)).
+`surface.ime_*` IPC로 한글·CJK 입력을 재현한다. 사용자 입력기의 조합 과정을 재현하는 기능이므로 debug 빌드의 local caller에게만 허용한다([호스트 호출 계약](../dev-guide/plugin-permissions.md)).
 
 상태는 창 단위다. 핸들러는 `src/adapters/ipc/handler/ime.rs`, 접근 규칙은 `crates/tasty-ipc/src/method_meta.rs::PREFIX_RULES`에 있다. 기본 debug 포트는 `~/.tasty-debug/tasty.port`, 격리 인스턴스는 `$TASTY_HOME/tasty.port`를 사용한다.
 

@@ -1,6 +1,6 @@
 # 플러그인 제작 가이드
 
-외부 Tasty 플러그인을 작성·빌드·설치하는 법. 개념(배포/통합 축·권한)은 [concepts/plugins](../concepts/plugins.md) 먼저. 권한 모델 상세는 [plugin-permissions](plugin-permissions.md), 민감 데이터는 [아래 "민감 데이터"](#민감-데이터--regular--secret--keyring-선택).
+외부 Tasty 플러그인을 작성·빌드·설치하는 법. 개념(배포/통합 축·매니페스트 선언)은 [concepts/plugins](../concepts/plugins.md) 먼저. 호스트 호출 계약 상세는 [plugin-permissions](plugin-permissions.md), 민감 데이터는 [아래 "민감 데이터"](#민감-데이터--regular--secret--keyring-선택).
 
 **번들 플러그인이 곧 reference 예제다** — 각 기여 타입을 만들 때 아래 표의 해당 플러그인 코드를 시작점으로 복사·수정하는 게 가장 빠르다.
 
@@ -13,11 +13,11 @@
 | **도구 메뉴 항목 + popup** | [git-viewer](../plugins/git-viewer/index.md)(view/logic 분리) · [clipboard-viewer](../plugins/clipboard-viewer/index.md)(master-detail) | ★★ |
 | **CLI + IPC namespace** | [codex](../plugins/codex/index.md) · [claude](../plugins/claude/index.md) | ★★★ |
 | **이벤트 구독 / 훅 / 외부 설치** | [claude](../plugins/claude/index.md)(`surface.closed`·Claude 훅·install) | ★★★ |
-| **agent task provider (턴 결과를 작업 결과로)** | [claude](../plugins/claude/index.md) · [codex](../plugins/codex/index.md) (namespace + `agent.turn_report`) | ★★★ |
+| **agent task provider (턴 결과를 작업 결과로)** | [claude](../plugins/claude/index.md) · [codex](../plugins/codex/index.md) (namespace 소유) | ★★★ |
 | **CLI 호출자(다른 프로그램의 대화) 알아보기** | [codex](../plugins/codex/index.md)(`caller_context`) · [claude](../plugins/claude/index.md)(`requires_caller_context`) (매니페스트만) | ★ |
 | **Tasty bash·zsh 셸에 넣는 셸 함수** | [codex](../plugins/codex/index.md)(`install`이 쓰는 `codex` 함수) | ★ |
 | **Tasty 자식에서 지울 상속 환경변수** | [claude](../plugins/claude/index.md#tasty-자식에서-지우는-세션-변수) · [codex](../plugins/codex/index.md#tasty-자식에서-지우는-세션-변수) (매니페스트만) | ★ |
-| **wasm 플러그인** (frozen POC) | `crates/tasty-plugin-sdk-wasm`(workspace-exclude harness) — [플러그인 권한 모델](plugin-permissions.md) | ★★ |
+| **wasm 플러그인** (frozen POC) | `crates/tasty-plugin-sdk-wasm`(workspace-exclude harness) — [호스트 호출 계약](plugin-permissions.md) | ★★ |
 
 전부 `crates/tasty-plugin-<name>/` 에 있다.
 
@@ -46,7 +46,6 @@ id = "com.example.myplugin"
 name = "My Plugin"
 version = "0.1.0"
 api_version = "1"
-permissions = ["fs.read", "surface.write"]
 lang_dir = "lang"
 
 [entry]
@@ -133,17 +132,17 @@ surface kind 선언에는 host 가 kind-agnostic 하게 소비하는 메타가 �
 
 ### 파일 핸들러 (detector + handler)
 
-확장자 → surface 매핑. `[[contributes.detector]]`(확장자 규칙) + `[[contributes.handler]]`(`action = open_surface{surface_kind}`). 권한: `file_handler.define`(신규 detector) / `file_handler.extend:<id>` / `file_handler.handle:<id>`. handler `id` 는 short name — install 단계가 `<plugin_id>/<id>` 로 자동 prefix. priority 동순위면 owner tiebreak `user > plugin > host`. 예: [image](../surfaces/image/index.md)·[markdown](../surfaces/markdown/index.md).
+확장자 → surface 매핑. `[[contributes.detector]]`(확장자 규칙) + `[[contributes.handler]]`(`action = open_surface{surface_kind}`). handler `id` 는 short name — install 단계가 `<plugin_id>/<id>` 로 자동 prefix. priority 동순위면 owner tiebreak `user > plugin > host`. 예: [image](../surfaces/image/index.md)·[markdown](../surfaces/markdown/index.md).
 
 ### 훅 핸들러 (webhook/hook 트리거)
 
-`[[contributes.hook_handler]]` — 인바운드 웹훅 또는 내부 hook 이벤트가 발사됐을 때 실행할 **IpcSequence**(고정 IPC 호출들 + 페이로드 값 치환)를 선언한다. 권한: `hook_handler.define`. plugin 은 `action.kind = "ipc_sequence"` 만 쓸 수 있고 셸(`shell_command`)은 타입 레벨에서 배제된다(host/user 전용). `source` 로 트리거 출처를 게이트한다 — `webhook`(외부 HTTP) / `hook`(내부 이벤트) / `any`. handler `id` 는 short name(`[a-z0-9-]{1,32}`) → install 단계가 `<plugin_id>/<id>` 로 자동 prefix. priority 동순위면 owner tiebreak `user > plugin > host`.
+`[[contributes.hook_handler]]` — 인바운드 웹훅 또는 내부 hook 이벤트가 발사됐을 때 실행할 **IpcSequence**(고정 IPC 호출들 + 페이로드 값 치환)를 선언한다. plugin 은 `action.kind = "ipc_sequence"` 만 쓸 수 있고 셸(`shell_command`)은 타입 레벨에서 배제된다(host/user 전용). `source` 로 트리거 출처를 게이트한다 — `webhook`(외부 HTTP) / `hook`(내부 이벤트) / `any`. handler `id` 는 short name(`[a-z0-9-]{1,32}`) → install 단계가 `<plugin_id>/<id>` 로 자동 prefix. priority 동순위면 owner tiebreak `user > plugin > host`.
 
-plugin 이 자기 훅 핸들러를 웹훅에 붙이려면 `webhook.register` 를 호출한다 — 이때 `network` 권한이 필요하고, plugin 은 **인라인 sequence 를 못 쓰고 자기 소유(`<plugin_id>/…`) 핸들러 id 만** 바인딩할 수 있다(임의 시퀀스는 owner=Local 전용 채널).
+plugin 이 자기 훅 핸들러를 웹훅에 붙이려면 `webhook.register` 를 호출한다 — plugin 은 **인라인 sequence 를 못 쓰고 자기 소유(`<plugin_id>/…`) 핸들러 id 만** 바인딩할 수 있다(임의 시퀀스는 owner=Local 전용 채널).
 
 ### 완료 판정 전략 (agent task `Custom` dispatch 완료 판정)
 
-`[[contributes.completion_strategy]]` — `agent.task_create` 의 `TaskCommand::Custom.poll` 이 이름으로 참조할 수 있는 완료 판정 전략을 선언한다(자세한 모델·결정 사항은 [agent-runner](agent-runner.md)의 "완료 판정 전략 레지스트리" 참고). 권한: `completion_strategy.define`. `spec.kind = "poll"`(`poll_method`/`state_field`/`terminal_states` 등, `PollSpec` 과 1:1) 또는 `"push"`(`notify_via`: 자기 자신 또는 host 소유 훅 핸들러 id + 필수 `timeout_ms`). `poll_method` 와 `default_for_methods`(이 전략을 기본으로 사용할 IPC 메서드 목록)는 plugin 소유면 자기 namespace(`<plugin_id>.*`) 만 가리킬 수 있다. id 는 short name → install 단계가 `<plugin_id>/<id>` 로 자동 prefix.
+`[[contributes.completion_strategy]]` — `agent.task_create` 의 `TaskCommand::Custom.poll` 이 이름으로 참조할 수 있는 완료 판정 전략을 선언한다(자세한 모델·결정 사항은 [agent-runner](agent-runner.md)의 "완료 판정 전략 레지스트리" 참고). `spec.kind = "poll"`(`poll_method`/`state_field`/`terminal_states` 등, `PollSpec` 과 1:1) 또는 `"push"`(`notify_via`: 자기 자신 또는 host 소유 훅 핸들러 id + 필수 `timeout_ms`). `poll_method` 와 `default_for_methods`(이 전략을 기본으로 사용할 IPC 메서드 목록)는 plugin 소유면 자기 namespace(`<plugin_id>.*`) 만 가리킬 수 있다. id 는 short name → install 단계가 `<plugin_id>/<id>` 로 자동 prefix.
 
 ### 상속 환경변수 제거 (`contributes.strip_inherited_env`)
 
@@ -166,7 +165,7 @@ values = [{ name = "AI_AGENT", prefixes = ["vendor_", "vendor/"] }]  # 이름이
 
 ### agent task provider
 
-플러그인이 IPC namespace `<p>` 를 소유하고 `agent.turn_report` 를 선언·허가받았으며 활성이면 agent task 의 `"provider": "<p>"` 를 받을 수 있다. 별도 매니페스트 선언은 없다. 플러그인은 `<p>.spawn`·`<p>.tell`·`<p>.state` 를 구현하고 훅에서 `agent.task_turn_report` 로 턴 시작·끝을 보고한다. 판정은 설치 목록과 설정만 보므로 프로세스가 준비되기 전에도 같다. 계약과 오류 문구는 [작업 러너 §agent task](agent-runner.md#agent-task), 권한은 [플러그인 권한](plugin-permissions.md)에 있다. 예: [Claude 플러그인](../plugins/claude/index.md), [Codex 플러그인](../plugins/codex/index.md).
+플러그인이 IPC namespace `<p>` 를 소유하고 활성이면 agent task 의 `"provider": "<p>"` 를 받을 수 있다. 별도 매니페스트 선언은 없다. 플러그인은 `<p>.spawn`·`<p>.tell`·`<p>.state` 를 구현하고 훅에서 `agent.task_turn_report` 로 턴 시작·끝을 보고한다. 판정은 설치 목록과 설정만 보므로 프로세스가 준비되기 전에도 같다. 계약과 오류 문구는 [작업 러너 §agent task](agent-runner.md#agent-task)에 있다. 예: [Claude 플러그인](../plugins/claude/index.md), [Codex 플러그인](../plugins/codex/index.md).
 
 ### CLI 호출자 문맥 (`contributes.caller_context`)
 
@@ -208,8 +207,8 @@ Tasty가 주입하는 bash·zsh 프롬프트 함수는 OSC 133 D·A를 보낸 �
 
 ### 도구 메뉴 항목 + popup
 
-- `[[contributes.tool]]`(`ui.tool_item`) — [도구 메뉴](../features/tools-menu/index.md)에 항목. `action.kind`: `event`(Event Bus 발화) / `open_surface`(탭 추가) / `open_popup`(`popup_id = <plugin_id>/<id>`). `order_hint` 오름차순(빌트인 0..99).
-- `[[contributes.popup]]`(`ui.popup`) — trigger `event`(자동 open) 또는 `ipc`(명시 호출). `scope` 로 소속 범위를 선언한다 — `window`(기본, 필드 생략 시) 또는 `surface`. `surface` 는 host 진입점(변환 입력 popup · 도구 메뉴)이 대상 surface 를 바인딩하거나, event trigger popup 을 연 이벤트가 `EventScope::Surface` + payload `surface_id` 로 **자기 plugin 의 surface** 를 가리킬 때 효과가 있다. 다른 plugin 의 surface·host surface 를 가리키거나 다른 plugin 이 발행한 이벤트면 host 가 popup 을 열지 않는다. 도구 메뉴·명령 팔레트·명령 단축키·새 탭용 변환 입력은 입력 시점의 surface 를 대상으로 하고, attach 생성 대기 초안이 선택돼 있으면 popup 을 걸어 두었다가 생성된 surface 에서 연다. `surface` 선언 popup 에 대상이 없으면(대상 surface 도 초안도 없는 도구 메뉴·변환 입력, 대상 없는 이벤트) `window` 로 바꾸지 않고 열지 않는다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프). SDK 콜백 `open_popup`/`paint_popup`/`on_popup_closed`(egui-mesh). 동일 `popup_id` 라도 `instance_id` 가 다르면 별개 인스턴스. 예: [git-viewer](../plugins/git-viewer/index.md)·[clipboard-viewer](../plugins/clipboard-viewer/index.md).
+- `[[contributes.tool]]` — [도구 메뉴](../features/tools-menu/index.md)에 항목. `action.kind`: `event`(Event Bus 발화) / `open_surface`(탭 추가) / `open_popup`(`popup_id = <plugin_id>/<id>`). `order_hint` 오름차순(빌트인 0..99).
+- `[[contributes.popup]]` — trigger `event`(자동 open) 또는 `ipc`(명시 호출). `scope` 로 소속 범위를 선언한다 — `window`(기본, 필드 생략 시) 또는 `surface`. `surface` 는 host 진입점(변환 입력 popup · 도구 메뉴)이 대상 surface 를 바인딩하거나, event trigger popup 을 연 이벤트가 `EventScope::Surface` + payload `surface_id` 로 **자기 plugin 의 surface** 를 가리킬 때 효과가 있다. 다른 plugin 의 surface·host surface 를 가리키거나 다른 plugin 이 발행한 이벤트면 host 가 popup 을 열지 않는다. 도구 메뉴·명령 팔레트·명령 단축키·새 탭용 변환 입력은 입력 시점의 surface 를 대상으로 하고, attach 생성 대기 초안이 선택돼 있으면 popup 을 걸어 두었다가 생성된 surface 에서 연다. `surface` 선언 popup 에 대상이 없으면(대상 surface 도 초안도 없는 도구 메뉴·변환 입력, 대상 없는 이벤트) `window` 로 바꾸지 않고 열지 않는다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프). SDK 콜백 `open_popup`/`paint_popup`/`on_popup_closed`(egui-mesh). 동일 `popup_id` 라도 `instance_id` 가 다르면 별개 인스턴스. 예: [git-viewer](../plugins/git-viewer/index.md)·[clipboard-viewer](../plugins/clipboard-viewer/index.md).
 
 ### CLI + IPC namespace
 
@@ -293,7 +292,7 @@ self-loop·backoff로 건너뛸 hook은 시작하지 않고 소유자 기동 실
 
 ### 설정 페이지
 
-`[[contributes.settings_pages]]`(`ui.settings_page`) — [설정 창](../features/settings/index.md)에 sub-tab 동적 등록. `category`(appearance/general/keybindings/plugin/…). 플러그인 비활성 시 sub-tab 자동 소멸. 예: [markdown](../surfaces/markdown/index.md).
+`[[contributes.settings_pages]]` — [설정 창](../features/settings/index.md)에 sub-tab 동적 등록. `category`(appearance/general/keybindings/plugin/…). 플러그인 비활성 시 sub-tab 자동 소멸. 예: [markdown](../surfaces/markdown/index.md).
 
 `[[contributes.settings_pages.items]]` 의 `kind` (공통 필드: `id` · `label_key` · `storage_key`):
 
@@ -309,8 +308,8 @@ self-loop·backoff로 건너뛸 hook은 시작하지 않고 소유자 기동 실
 - **event_subscribe** — `event_subscribe = ["surface.closed"]` + `on_start` 에서 `bus.subscribe(...)`. `on_event` 로 envelope 수신(`reason`: user/ipc/crash). 예: [claude](../plugins/claude/index.md)/[codex](../plugins/codex/index.md).
   - **공통 새로고침 받기**: 사용자의 새로고침 키를 자기 surface 의 갱신에 쓰려면 `event_subscribe` 에 `surface.refresh_requested` 를 넣고 `on_start` 에서 구독한다. 신호는 구독자 모두에게 가므로 `on_event` 에서 payload 의 `surface_id` 가 자기가 연 surface 인지(필요하면 `kind` 도) 확인한 뒤에만 갱신한다. 신호는 사용자 요청이므로 사용자 출처로 처리한다. 예는 markdown plugin 의 `on_refresh_requested` 이고, 계약은 [공통 새로고침](../features/keybindings/index.md#공통-새로고침--refresh)에 있다. 단축키를 따로 `[[contributes.commands]]` 로 등록할 필요는 없다. 같은 키를 plugin 명령으로 등록하면 plugin 명령이 먼저 가져가 신호가 나지 않는다.
   - **`event.dispatch` 에 응답하라.** 호스트는 그 응답을 기다리지 않지만, 응답이 오기 전까지 그 dispatch 의 hop 을 기억해 그 사이 이 plugin 이 publish 하는 사건의 hop 하한으로 쓴다. 응답하지 않으면 그 기억이 재시작 전까지 남아, hop 이 높은 사건을 한 번 받은 뒤의 publish 가 무엇이든 `MAX_HOP` 으로 거절될 수 있다. SDK 는 `on_event` 를 마친 뒤 자동으로 응답한다 — SDK 없이 프로토콜을 직접 구현할 때의 계약이다. 근거는 [Event Bus 1.0 카탈로그](../reference/event-catalog.md).
-- **window** — `[[contributes.window]]`(`window.spawn`). 현재는 schema + 등록 stub 까지(실 spawn 은 별도 영역).
-- **extension** — 다른 플러그인의 IPC/event 흐름을 가로채기. `[extends]` + `ext:<target>` 권한 + `handle_extension_hook`. mode: `transform`/`filter`/`observe`. target 당 활성 1개(나머지 `Conflict`). fail-open(timeout/에러 시 원래 값 사용).
+- **window** — `[[contributes.window]]`. 현재는 schema + 등록 stub 까지(실 spawn 은 별도 영역).
+- **extension** — 다른 플러그인의 IPC/event 흐름을 가로채기. `[extends]` + `handle_extension_hook`. mode: `transform`/`filter`/`observe`. target 당 활성 1개(나머지 `Conflict`). fail-open(timeout/에러 시 원래 값 사용).
 
 ### 열린 파일의 외부 변경 감지 (SDK `file_watch`)
 
@@ -433,7 +432,7 @@ SDK(`tasty_plugin_sdk::egui_surface::edit`)가 회신을 만든다.
 
 ## 5. 호스트 IPC 호출
 
-`HostHandle::call("surface.list", json!({}))` — 매니페스트에 해당 권한 선언 + grant 필요. `?` 한 번으로 `PluginError → IpcMethodError` 변환. 주요 에러 variant: `HostCall{message}`(permission_denied 등) · `HostCallTimeout` · `HandshakeRejected/Timeout` · `HostClosed`. 권한↔메서드 매핑은 [plugin-permissions](plugin-permissions.md).
+`HostHandle::call("surface.list", json!({}))` — plugin 에 연 메서드(`plugin_callable`)는 권한 선언 없이 부른다. `?` 한 번으로 `PluginError → IpcMethodError` 변환. 주요 에러 variant: `HostCall{message}`(Local 전용 메서드 거절 등) · `HostCallTimeout` · `HandshakeRejected/Timeout` · `HostClosed`. 호출자별 판정은 [plugin-permissions](plugin-permissions.md#호출자별-판정).
 
 ## 6. 데이터 저장 위치
 
@@ -546,7 +545,7 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
 
 headless도 hello의 webview·remote·egui-mesh kind를 등록한다. 새로 시작한 kind 소유자는 연결 한도까지,
 연결 성공 후에는 `KIND_REGISTRATION_WAIT`(5 초)까지 hello 등록을 기다린다.
-이미 실행 중인데 kind가 없으면 추가 대기를 하지 않는다. 이 경로는 설치·권한 승인을 수행하지 않는다.
+이미 실행 중인데 kind가 없으면 추가 대기를 하지 않는다. 이 경로는 설치를 수행하지 않는다.
 Local 이외 호출자도 기존 생성 권한을 만족하면 같은 시작 정책을 적용받는다.
 
 #### 기동과 연결
@@ -591,7 +590,7 @@ remove·swap·실제 쓰기가 있는 upgrade-builtins·명시적 enable은 해�
 disable 응답은 종료 완료가 아니며 회수 중 호출에는 `-32002`가 올 수 있다.
 호스트 종료는 회수 중 자식도 정리하고 다시 띄우지 않는다.
 
-재시작·disable·swap·연결 실패는 `forget_plugin_runtime`으로 권한·subscription·pending·shared buffer·설정 페이지·등록 gate를 정리한다.
+재시작·disable·swap·연결 실패는 `forget_plugin_runtime`으로 subscription·pending·shared buffer·설정 페이지·등록 gate를 정리한다.
 새 hello가 다시 등록되므로 plugin.loaded 등의 사건은 같은 plugin에 여러 번 올 수 있다.
 회신 대상 없는 surface.create·restore·popup open pending도 보낸 plugin 기준으로 회수한다.
 
@@ -717,7 +716,7 @@ Unix에서는 PTY master가 닫히며 SIGHUP이 전경 프로세스 그룹에 �
 
 - **이름**: crate `tasty-plugin-<name>` = binary 이름, id `com.x.<name>`(다어절 hyphen), IPC prefix = id 마지막 segment 의 `_` 변환, i18n key root = prefix.
 - **i18n**: 매니페스트 `*_i18n_key` 는 host 가 lookup. 플러그인이 직접 그리는 텍스트는 `tasty_plugin_sdk::i18n::Translator`(`TASTY_LOCALE` 주입 — host 가 부팅 시 `general.language` 에서 set, §7 표). 키는 자기 prefix 안에만(`surface.kind.<own>` 만 예외).
-- **권한 표기**: 실제 필요한 것만. 자기 namespace `ipc.invoke:<self>` 는 적지 않는다 — 자기 호출에는 필요 없고, 자식 agent 토큰에 넘길 때도 소유자라 쥐지 않고 넘긴다([plugin-permissions](plugin-permissions.md#agent-caller--session-token--temp-grants)).
+- **자식 agent 토큰**: 자식 agent 에게 줄 토큰은 `session.issue` 로 필요한 것만 넘긴다. plugin 은 자기가 쥐지 않은 토큰도 넘길 수 있다([plugin-permissions](plugin-permissions.md#agent-caller--session-token--temp-grants)).
 - **모듈 분리**: `main.rs`가 약 300줄을 넘으면 역할에 따라 `state.rs`·`handlers.rs`·
   `install.rs` 등으로 나눈다. Claude·Codex·image plugin의 모듈 구성을 참고한다.
   파일별 현재 줄 수는 문서에 복제하지 않는다(docs/documentation-model.md).
@@ -728,7 +727,7 @@ Unix에서는 PTY master가 닫히며 SIGHUP이 전경 프로세스 그룹에 �
 
 ```bash
 cargo build --release -p my-plugin
-tasty plugin install <plugin-dir>    # 신뢰 판정 → 복사 → 매니페스트 권한 자동 grant → spawn
+tasty plugin install <plugin-dir>    # 신뢰 판정 → 복사 → spawn
 ```
 
 **서명과 공개 키**: 설치(`tasty plugin install`·GUI Add 탭)는 debug·release 모두 폴더를 복사하기 전에 매니페스트 서명을 판정한다([플러그인 시스템](../features/plugin-system/index.md)). 서명하지 않은 커스텀 plugin 은 미인증이며, CLI 는 원인·위험 경고와 함께 거부하고 `--allow-unverified` 로 다시 설치하라고 안내한다. GUI 는 같은 경고를 보이고 사용자가 `Add anyway` 를 고를 때만 설치한다. 선택한 뒤에는 목록의 미인증 표시 외에 실행 제한이 없다. 사용자가 서명 키를 확인하고 신뢰할 수 있도록 서명과 공개 키 파일을 함께 배포한다. 처음 설치하는 사용자에게는 모르는 키라 경고가 보이며, 사용자가 키를 신뢰한 뒤에는 같은 키로 서명한 다음 버전을 묻지 않는다.
@@ -740,7 +739,7 @@ openssl pkey -in my-plugin.pem -pubout -outform DER | tail -c 32 > <plugin-dir>/
 ```
 
 - `tasty-plugin.toml.sig` 는 매니페스트 SHA-256 digest 의 Ed25519 서명(raw 64 byte)이고, `tasty-plugin.toml.pub` 는 raw 32 byte 공개 키다. 형식은 [플러그인 패키징](plugin-packaging.md#서명)에 있다. 매니페스트를 한 줄이라도 고치면 다시 서명한다.
-- 호스트에 내장된 키가 아니므로 처음 설치하는 사용자에게는 모르는 키다. GUI 는 fingerprint 를 보이고 `Trust key & add anyway` 로 그 키를 신뢰 목록(`known-plugins.toml`)에 넣으며, 다음 버전부터는 같은 키로 서명하면 묻지 않는다. 권한이 늘면 재승인을 묻는다. CLI `install` 은 키를 신뢰 목록에 넣지 않으므로 처음 설치는 `--allow-unverified` 또는 GUI 를 쓴다.
+- 호스트에 내장된 키가 아니므로 처음 설치하는 사용자에게는 모르는 키다. GUI 는 fingerprint 를 보이고 `Trust key & add anyway` 로 그 키를 신뢰 목록(`known-plugins.toml`)에 넣으며, 다음 버전부터는 같은 키로 서명하면 묻지 않는다. CLI `install` 은 키를 신뢰 목록에 넣지 않으므로 처음 설치는 `--allow-unverified` 또는 GUI 를 쓴다.
 - `.pub` 가 없거나 서명 키와 다르면 각각 `missing-pubkey`·`signature-error` 미인증이다. 서명 판정은 매니페스트 한 파일이 그 키로 서명됐는지만 확인한다. 바이너리 내용이나 실행 중 동작은 확인하지 않으며, 원칙의 인증(공식 플러그인은 공식 릴리스 절차로 만든 산출물, 커스텀 플러그인은 마켓플레이스가 소스를 확인하고 직접 빌드한 산출물. 향후 기능)과 다르다.
 - 부팅 탐색은 release 에서 신뢰했거나 사용자가 고른 plugin 만 등록하고, debug 에서는 서명을 건너뛴다. debug 에서 설치가 통과했다는 사실만으로 release 사용자 경험을 확인했다고 보지 않는다.
 
@@ -802,11 +801,11 @@ tasty <plugin-cli> <cmd> ...          # CLI→IPC→실행 중 호스트→플�
 
 - async 미지원 — 모든 콜백 동기(무거운 I/O 는 플러그인 내부 thread).
 - HotReload 미지원 — 코드 변경은 재빌드 후 `disable && enable`(전체 반복 절차는 [§9.1](#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요)). 단 플러그인만 갱신하면 되고 **호스트 재빌드·재시작은 불필요**.
-- 권한 게이트는 **호스트 IPC 호출만** 막는다 — 플러그인 프로세스의 직접 `std::fs` 는 OS 샌드박스가 없는 한 강제 안 됨([plugin-permissions 한계](plugin-permissions.md#한계)).
+- 플러그인 프로세스의 직접 `std::fs`·네트워크 접근은 OS 샌드박스가 없어 막지 않는다([plugin-permissions 한계](plugin-permissions.md#한계)).
 
 ## 관련
 
-- [concepts/plugins](../concepts/plugins.md) — 분류 축·권한 개요
+- [concepts/plugins](../concepts/plugins.md) — 분류 축·매니페스트 선언 개요
 - [plugin-permissions](plugin-permissions.md)
 - [plugins/](../plugins/index.md) — 번들 플러그인(= 예제) 카탈로그
 - [features/plugin-system](../features/plugin-system/index.md) — 설치/관리 UI

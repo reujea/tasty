@@ -216,7 +216,6 @@ mod tests {
                 args: vec![],
             },
             surface_kinds: vec![],
-            permissions: vec![],
             event_subscribe: vec![],
             event_publish: vec![],
             events_emitted: vec![],

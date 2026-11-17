@@ -293,7 +293,6 @@ mod tests {
         .unwrap();
         let plugin = CallerContext::Plugin {
             plugin_id: "gate-plugin".into(),
-            permissions: Arc::new([Permission::SurfaceRead].into_iter().collect()),
         };
         assert_eq!(call(&mut core, &plugin), Some(-32007));
         // Local 은 어느 게이트에도 안 걸린다.

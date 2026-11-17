@@ -5,23 +5,16 @@
 
 use serde::{Deserialize, Serialize};
 
-/// provider 가 턴의 시작·종료와 최종 답변을 호스트에 보고하는 데 필요한 권한.
-pub const TURN_REPORT_PERMISSION: &str = "agent.turn_report";
-
 /// 결과 수집을 지원하는 provider 인지 판정한다. provider 는 IPC namespace 이름이며, 그 namespace 를
-/// 소유한 설치 플러그인이 활성이고 `agent.turn_report` 를 허가받았으면 자격이 있다. 플러그인
-/// 프로세스가 아직 준비되지 않았어도 자격은 같다(첫 호출이 프로세스를 띄운다).
-/// 자격이 없으면 원인(소유자 없음·비활성·권한 없음·표 미발행)을 구분한 문구를 돌려준다.
+/// 소유한 설치 플러그인이 활성이면 자격이 있다. 턴 보고는 `agent.task_turn_report` 가 보고하는
+/// 플러그인이 그 provider namespace 를 소유하는지 따로 확인하므로, 다른 provider 의 보고는
+/// 여기서 막을 필요가 없다. 플러그인 프로세스가 아직 준비되지 않았어도 자격은 같다(첫 호출이
+/// 프로세스를 띄운다). 자격이 없으면 원인(소유자 없음·비활성·표 미발행)을 구분한 문구를 돌려준다.
 pub fn check_provider(provider: &str) -> Result<(), String> {
     use tasty_utils::plugin_namespaces::{Lookup, lookup};
     let reason = match lookup(provider) {
         Lookup::Owner(owner) if !owner.enabled => format!(
             "plugin '{}' that owns the '{provider}' namespace is disabled",
-            owner.plugin_id
-        ),
-        Lookup::Owner(owner) if !owner.permissions.contains(TURN_REPORT_PERMISSION) => format!(
-            "plugin '{}' that owns the '{provider}' namespace does not have the \
-             {TURN_REPORT_PERMISSION} permission, so it cannot report turns",
             owner.plugin_id
         ),
         Lookup::Owner(_) => return Ok(()),

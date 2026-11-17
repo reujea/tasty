@@ -105,9 +105,9 @@ fn reject_pty_space_surface_scope(scope: &Scope, id: &Value) -> Result<(), JsonR
 /// 개별 하위 namespace를 나열하지 않아 새 호스트 키도 같은 제한을 받는다.
 pub(super) const HOST_KEY_NAMESPACE: &str = "tasty.";
 
-/// 권한 집합이 있는 플러그인·에이전트를 제한한다. 신뢰하는 Local 호출은 제외한다.
+/// 플러그인·에이전트를 제한한다. 신뢰하는 Local 호출은 제외한다.
 fn is_permissioned(caller: &CallerContext) -> bool {
-    caller.permissions().is_some()
+    caller.is_external()
 }
 
 fn is_host_key(key: &str) -> bool {
@@ -679,7 +679,6 @@ mod tests {
     fn plugin() -> CallerContext {
         CallerContext::Plugin {
             plugin_id: "com.example.plugin".into(),
-            permissions: Arc::new(HashSet::new()),
         }
     }
 

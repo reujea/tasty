@@ -44,7 +44,7 @@ namespace 별 메서드 수는 `tests/cli_naming_count_drift.rs` 가 강제한�
 | **Write** | `create` · `update` · `set`/`unset` · `move` · `close`(소프트) · `clear` · `remove`(closed 안 남김) · `destroy`(영구, 예약) |
 | **Send/외부** | `send` · `paste` · `wait` · `wake` |
 | **프로세스/세션** | `spawn` · `launch` · `kill` · `respawn` · `shutdown` |
-| **권한/관리**(local-only) | `install`/`enable`/`disable`/`grant`/`revoke`/`permissions` |
+| **관리**(local-only) | `install`/`enable`/`disable`, Agent 세션 권한의 `grant_agent_permission`/`revoke_agent_permission` |
 
 **modifier 패턴** `<verb>_<modifier>` 로 변종 표현(`send_key`/`send_combo`/`read_since_mark`). 한 verb 에 modifier 5개 이상 누적되면 namespace 한 단계 분리 검토.
 
@@ -162,7 +162,7 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 | 이유 | 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
 | plugin → host 서비스 †plugin-only | `banner.open` · `banner.close` · `popup.close` | plugin 이 **자기** contribute UI 인스턴스를 여닫는다. 대상 식별이 caller plugin 자신이라 CLI 호출자가 존재하지 않는다 |
-| plugin → host 서비스 | `agent.task_turn_report` | provider 플러그인(namespace 를 소유하고 `agent.turn_report` 를 가진 플러그인. 번들은 claude·codex)이 자기 훅에서 agent task 의 턴 시작·끝을 알린다. 핸들러가 호출자가 그 provider namespace 를 소유한 플러그인인지 확인하므로 CLI 호출자는 쓸 수 없다. 에이전트가 결과를 내는 경로는 `tasty agent task-submit` 이다 |
+| plugin → host 서비스 | `agent.task_turn_report` | provider 플러그인(namespace 를 소유한 활성 플러그인. 번들은 claude·codex)이 자기 훅에서 agent task 의 턴 시작·끝을 알린다. 핸들러가 호출자가 그 provider namespace 를 소유한 플러그인인지 확인하므로 CLI 호출자는 쓸 수 없다. 에이전트가 결과를 내는 경로는 `tasty agent task-submit` 이다 |
 | plugin → host 서비스 | `file_picker.trigger` | plugin 프로세스가 못 여는 host 소유 popup 을 대신 연다. 결과는 응답이 아니라 `event.dispatch` 로 그 plugin 에 push 된다. 외부 arm 은 있지만 CLI·agent 호출은 popup 을 안 열고 `-32016` 을 받는다(아래 †plugin-only 절 끝, [파일 핸들러 (File handler)](../features/file-handler/index.md)) |
 | plugin → host 서비스 | `git_viewer.query` · `markdown.navigate` | 특정 plugin(git-viewer · markdown 주소창·파일열기 팝업)이 자기 surface 를 위해 부른다. `git_viewer.query` 는 `request_id` 만 회신하고 결과를 그 plugin 에 unicast push 하므로 셸이 결과를 받을 수 없고, `markdown.navigate` 는 그 namespace 를 번들 plugin 이 점유해 외부 호출이 plugin 으로 forward 된다([플러그인 제작 가이드](plugin-development.md)) |
 | plugin → host 서비스 | `attach.agent_call` · `attach.agent_commit` · `attach.child_notice` · `attach.child_notices` | claude·codex 같은 provider plugin 이 attach mirror 에 원격 자식을 만들고(`agent_call`·`agent_commit`), 서버 쪽에서 그 자식의 결과를 맡긴다(`child_notice`). 호출 plugin 자신의 namespace 와 부모 경로가 대상이라 CLI 호출자가 없고, 핸들러가 plugin 이 아닌 호출을 거절한다. 사용자 진입점은 `tasty claude spawn`·`tasty codex spawn` 이다. `child_notices` 는 서버에 남은 통지를 보는 진단 조회이며 `attach.list` 와 같은 진단 용도다([Attach 메커니즘](attach-behavior.md#원격-자식-에이전트-ipcstreamagent-children)) |

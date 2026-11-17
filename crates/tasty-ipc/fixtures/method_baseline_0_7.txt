@@ -15,6 +15,10 @@
 # 둘 다 사용자 입력 재현이라 release 표면에 있어선 안 되는 것이 원칙이었고
 # (docs/principles/control-and-data.md), TerminalWrite 권한 plugin 에까지 열려 있었다.
 # debug 전용 local_only() 로 옮겼다 — docs/dev-guide/plugin-permissions.md#사용자-입력-재현.
+#
+# 의도해 제거한 항목 (CHANGELOG.md 에 `(BREAK)` 로 적었다):
+#   plugin.grant, plugin.revoke, plugin.permissions — 플러그인 권한 승인을 없앴다.
+#   플러그인은 plugin_callable 메서드를 승인 없이 부른다(docs/dev-guide/plugin-permissions.md).
 
 agent.barrier_await
 agent.barrier_create
@@ -131,15 +135,12 @@ plugin.audit_summary
 plugin.disable
 plugin.enable
 plugin.extension.list
-plugin.grant
 plugin.grant_agent_permission
 plugin.install
 plugin.list
 plugin.list_agent_permissions
-plugin.permissions
 plugin.remove
 plugin.request_permission
-plugin.revoke
 plugin.revoke_agent_permission
 plugin.show
 popup.close

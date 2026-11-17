@@ -7,7 +7,6 @@ use crate::state::FilePickerResult;
 fn plugin_caller() -> tasty_ipc::caller::CallerContext {
     tasty_ipc::caller::CallerContext::Plugin {
         plugin_id: "com.tasty.markdown".to_string(),
-        permissions: std::sync::Arc::new(Default::default()),
     }
 }
 

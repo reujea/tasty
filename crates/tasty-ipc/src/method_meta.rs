@@ -174,7 +174,7 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("system.pressure", local_only(Read)),
         // ── plugin 보조 채널 ──────────────────────────────────────────
         // 보조 fd/HANDLE 채널을 다루는 plugin 진입부가 직접 처리한다.
-        // 별도 권한 토큰·할당량 정책은 미결정이며 현재 토큰 없이 cap·rate·audit 검사를 받는다.
+        // plugin_only 라 Agent·CLI 는 -32016 으로 거절된다. 개수·총량 상한은 미결정이며 현재 cap·rate·audit 검사를 받는다.
         ("host.shared_buffer.create", plugin_only(Mutate, &[])),
         // ── 타이머 관측 ───────────────────────────────────────────────
         // 호스트 내부 주기 작업의 진단 목록이므로 Local 전용이다.
@@ -547,8 +547,8 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
             "agent.task_submit_result",
             plugin(Idempotent, &[AgentManage]),
         ),
-        // provider 플러그인의 턴 시작·종료 보고. 다른 agent.* 를 열지 않는 전용 권한을 요구하고,
-        // 핸들러가 호출자가 provider namespace 를 소유한 플러그인인지도 확인한다(그 밖은 -32001).
+        // provider 플러그인의 턴 시작·종료 보고. AgentTurnReport 는 Agent 게이트의 표기이며 다른 agent.* 를
+        // 열지 않는다. plugin 은 토큰 없이 plugin_callable 검사만 받고, 핸들러가 호출자가 provider namespace 를 소유한 플러그인인지도 확인한다(그 밖은 -32001).
         (
             "agent.task_turn_report",
             plugin(Idempotent, &[AgentTurnReport]),
@@ -745,9 +745,6 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("plugin.disable", local_only(Idempotent)),
         // 번들 바이너리 교체는 운영자·업그레이드 경로가 맡으며 플러그인 자신에게 열지 않는다.
         ("plugin.upgrade_builtins", local_only(Idempotent)),
-        ("plugin.permissions", local_only(Read)),
-        ("plugin.grant", local_only(Idempotent)),
-        ("plugin.revoke", local_only(Idempotent)),
         // agent 임시 grant. grant/revoke 는 user/operator 만, list 는
         // readonly 라 plugin/agent 도 self-introspection 가능.
         ("plugin.grant_agent_permission", local_only(Idempotent)),

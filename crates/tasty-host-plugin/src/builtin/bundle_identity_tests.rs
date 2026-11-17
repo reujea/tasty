@@ -19,7 +19,7 @@ fn write_manifest(dir: &Path, id: &str) {
     std::fs::write(
         dir.join("tasty-plugin.toml"),
         format!(
-            "manifest_version = 1\nid = \"{id}\"\nname = \"x\"\nversion = \"0.1.0\"\napi_version = \"1\"\npermissions = [\"clipboard.read\"]\n[entry]\ntype = \"process\"\ncommand = \"x\"\n"
+            "manifest_version = 1\nid = \"{id}\"\nname = \"x\"\nversion = \"0.1.0\"\napi_version = \"1\"\n[entry]\ntype = \"process\"\ncommand = \"x\"\n"
         ),
     )
     .unwrap();
@@ -40,26 +40,9 @@ fn boot_install_skips_a_bundle_folder_that_declares_another_id() {
     let mgr = manager();
     assert!(
         install_builtin_bundle_step(&mgr, spec, &dest_root, &dest, false, Some(&bundle)),
-        "a mismatched bundle folder is a failure so the grant step is skipped"
+        "a mismatched bundle folder is a failure"
     );
     assert!(!dest.exists(), "nothing is copied");
-}
-
-#[test]
-fn boot_grant_ignores_an_installed_folder_that_declares_another_id() {
-    let home = HomeEnvGuard::tasty_home();
-    let spec = markdown_spec();
-    let dest = home.path().join("plugins").join(spec.id);
-    write_manifest(&dest, "com.tasty.fake");
-    let mut mgr = manager();
-    assert!(!install_builtin_grant_step(&mut mgr, spec, &dest));
-    assert!(!mgr.config.grants.contains_key(spec.id));
-    assert!(!mgr.config.grants.contains_key("com.tasty.fake"));
-    write_manifest(&dest, spec.id);
-    assert!(
-        install_builtin_grant_step(&mut mgr, spec, &dest),
-        "precondition: a matching folder records its grant"
-    );
 }
 
 #[test]
@@ -78,5 +61,4 @@ fn upgrade_refuses_a_bundle_folder_that_declares_another_id() {
     );
     assert!(!result.changed);
     assert!(!dest_root.join(spec.id).exists(), "nothing is copied");
-    assert!(!mgr.config.grants.contains_key(spec.id));
 }

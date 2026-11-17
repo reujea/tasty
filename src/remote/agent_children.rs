@@ -353,9 +353,6 @@ struct Target<'a> {
     inherit_cwd: Option<tasty_ipc::stream::InheritCwd>,
 }
 
-/// holder 출처 대신 실행하는 데 필요한 기존 권한. 새 승인 흐름 없이 매니페스트 선언·사용자 허가를 그대로 쓴다.
-const DRIVE_PERMISSIONS: &[&str] = &["terminal.spawn", "terminal.write"];
-
 /// holder·대상·매니페스트 선언을 확인하고 plugin 에 넘긴다. 바로 답할 것이 있으면 돌려준다.
 fn start_call(
     plugins: Option<&mut crate::plugin::PluginManager>,
@@ -491,18 +488,14 @@ fn check_inherit_cwd(
     }
 }
 
-/// namespace 소유 plugin 이 이 메서드를 원격 실행용으로 선언했고, 켜져 있으며 필요한 기존 권한을 허가받았는지.
+/// namespace 소유 plugin 이 이 메서드를 원격 실행용으로 선언했고 켜져 있는지.
 fn declared(
     plugins: &crate::plugin::PluginManager,
     namespace: &str,
     method: &str,
 ) -> Option<(String, Decl)> {
     let owner = plugins.namespace_owners().get(namespace)?;
-    if !owner.enabled
-        || !DRIVE_PERMISSIONS
-            .iter()
-            .all(|p| owner.permissions.contains(*p))
-    {
+    if !owner.enabled {
         return None;
     }
     let manifest = &plugins
@@ -602,7 +595,6 @@ mod tests {
     fn a_notice_that_can_never_be_accepted_is_rejected_not_an_error() {
         let caller = crate::ipc::caller::CallerContext::Plugin {
             plugin_id: "com.example.never".into(),
-            permissions: std::sync::Arc::new(std::collections::HashSet::new()),
         };
         // 이 서버 프로세스에서 이 plugin 이 만든 자식 기록이 없다(로컬 surface, 없는 surface, 서버 재시작 뒤).
         for surface in [1, 9_100_099] {

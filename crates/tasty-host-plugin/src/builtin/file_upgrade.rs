@@ -255,15 +255,8 @@ fn execute_inner(write: Write, before: PluginsConfig, after_copy: impl FnOnce())
         }
         after_copy();
         let manifest = validate_prepared(&write, &write.destination)?;
-        let mut after = before.clone();
-        for token in &manifest.permissions {
-            after.grant(&write.id, token);
-        }
-        let mut update = ConfigUpdate::between(&before, &after)?;
-        for token in &manifest.permissions {
-            update = update.with_permission_intent(&write.id, token, true);
-        }
-        config = update.execute()?;
+        // 복사하는 동안 다른 저장이 바꾼 플래그를 결과 설정에 담는다. 바뀐 필드가 없으면 파일을 쓰지 않는다.
+        config = ConfigUpdate::between(&before, &before)?.execute()?;
         package = Some(crate::PluginPackage {
             dir: write.destination.clone(),
             manifest,
@@ -330,20 +323,17 @@ pub(super) fn verify_trust(
             Ok(TrustDecision::Untrusted {
                 plugin_id,
                 fingerprint,
-                reason,
-                ..
             }) => {
                 // builtin 업데이트는 신뢰되지 않은 서명을 거절한다. 여기서 승인 UI를 열지 않는다.
                 tracing::warn!(
-                    "builtin '{}' is untrusted (reason: {reason:?}, fp: {fingerprint})",
-                    plugin_id
+                    "builtin '{plugin_id}' is untrusted (unknown key, fp: {fingerprint})"
                 );
                 Err(BuiltinUpgradeItem {
                     id: spec.id.into(),
                     action: BuiltinUpgradeAction::Skipped {
                         installed_version: read_installed_version(dest).map(|v| v.to_string()),
                         bundle_version: None,
-                        reason: format!("untrusted: {reason:?}"),
+                        reason: "untrusted: UnknownKey".into(),
                     },
                 })
             }
@@ -378,7 +368,7 @@ pub(super) fn verify_trust(
     }
 }
 
-/// Boot/synchronous callers publish only the latest receipt-confirmed grants and flags.
+/// Boot/synchronous callers publish only the latest receipt-confirmed flags.
 pub(super) fn persist_boot_config(
     mgr: &mut PluginManager,
     before: PluginsConfig,
@@ -413,7 +403,6 @@ id="com.tasty.html"
 name="test"
 version="1.0.0"
 api_version="1"
-permissions=["fs.read"]
 [entry]
 type="process"
 command="unused"
@@ -446,13 +435,13 @@ command="unused"
         (write, plan.config)
     }
     #[test]
-    fn retirement_gap_source_manifest_change_cannot_publish_new_grants_or_package() {
+    fn retirement_gap_source_manifest_change_cannot_publish_package() {
         let home = tempfile::tempdir().unwrap();
         let (write, config) = retirement_gap_plan(home.path());
         let path = home.path().join("bundle/com.tasty.html/tasty-plugin.toml");
         let text = std::fs::read_to_string(&path)
             .unwrap()
-            .replace("fs.read", "fs.write");
+            .replace(r#"name="test""#, r#"name="changed""#);
         std::fs::write(path, text).unwrap();
         let written = execute(write, config);
         assert!(matches!(
@@ -462,12 +451,6 @@ command="unused"
         assert!(written.package.is_none());
         assert!(!written.changed);
         assert!(!written.uncertain);
-        assert!(
-            !written
-                .config
-                .granted_permissions("com.tasty.html")
-                .contains("fs.write")
-        );
         assert!(!home.path().join("installed/com.tasty.html").exists());
     }
     #[test]
@@ -479,7 +462,6 @@ command="unused"
                 "com.tasty.html".into(),
                 crate::known_plugins::KnownPluginEntry {
                     pubkey: crate::known_plugins::KnownPluginEntry::encode_pubkey(&[7; 32]),
-                    permissions: vec!["fs.read".into()],
                     trusted_at: "owned fixture".into(),
                     publisher_fingerprint: String::new(),
                 },
@@ -530,7 +512,7 @@ command="unused"
         assert!(!written.uncertain);
     }
     #[test]
-    fn retirement_gap_post_copy_manifest_change_blocks_grants_and_package() {
+    fn retirement_gap_post_copy_manifest_change_blocks_package() {
         let home = tempfile::tempdir().unwrap();
         let (write, config) = retirement_gap_plan(home.path());
         let path = home
@@ -539,7 +521,7 @@ command="unused"
         let written = execute_inner(write, config, move || {
             let text = std::fs::read_to_string(&path)
                 .unwrap()
-                .replace("fs.read", "fs.write");
+                .replace(r#"name="test""#, r#"name="changed""#);
             std::fs::write(path, text).unwrap();
         });
         assert!(written.changed);
@@ -548,12 +530,18 @@ command="unused"
             BuiltinUpgradeAction::Failed { .. }
         ));
         assert!(written.package.is_none());
-        assert!(
-            written
-                .config
-                .granted_permissions("com.tasty.html")
-                .is_empty()
-        );
+    }
+    /// 복사하는 동안 다른 쪽이 저장한 플래그가 업그레이드 결과 설정에 담긴다.
+    #[test]
+    fn a_flag_saved_during_the_copy_reaches_the_returned_config() {
+        let home = tempfile::tempdir().unwrap();
+        let (write, config) = retirement_gap_plan(home.path());
+        let path = home.path().join("plugins.toml");
+        let written = execute_inner(write, config, move || {
+            std::fs::write(path, "[disabled]\nids = [\"com.example.other\"]\n").unwrap();
+        });
+        assert!(written.package.is_some());
+        assert!(written.config.is_disabled("com.example.other"));
     }
     #[test]
     fn stale_asset_unlink_is_observed_but_recursive_directory_cleanup_is_not() {
@@ -679,42 +667,37 @@ command="unused"
         ));
         assert!(written.changed);
         assert!(written.package.is_some());
-        assert!(
-            written
-                .config
-                .granted_permissions("com.tasty.html")
-                .contains("fs.read")
-        );
-        let bytes = std::fs::read(&path).unwrap();
+        // 설치는 plugins.toml 을 쓰지 않는다.
+        assert!(!path.exists());
         let plan = prepare(root, Some(bundle), known, written.config, false, &[], false).unwrap();
         assert!(
             plan.entries
                 .iter()
                 .all(|entry| matches!(entry, Entry::Done(_)))
         );
-        assert_eq!(std::fs::read(path).unwrap(), bytes);
+        assert!(!path.exists());
     }
     #[test]
-    fn boot_barrier_keeps_failed_grants_out_of_live_config_and_imports_latest_flags() {
+    fn boot_barrier_keeps_failed_flags_out_of_live_config_and_imports_latest_flags() {
         let home = crate::test_support::HomeEnvGuard::tasty_home();
         let mut mgr = PluginManager::new(std::sync::Arc::new(
             tasty_terminal::waker_factory::NoopWakerFactory,
         ));
         let before = mgr.config.clone();
-        mgr.config.grant("p", "fs.read");
+        mgr.config.mark_builtin_removed("p");
         std::fs::write(home.path().join("plugins.toml"), "PRIVATE = [[[\n").unwrap();
         assert!(persist_boot_config(&mut mgr, before).is_err());
-        assert!(mgr.config.granted_permissions("p").is_empty());
+        assert!(!mgr.config.is_builtin_removed("p"));
         std::fs::write(
             home.path().join("plugins.toml"),
             "[disabled]\nids=['external']\n",
         )
         .unwrap();
         let before = mgr.config.clone();
-        mgr.config.grant("p", "fs.read");
+        mgr.config.mark_builtin_removed("p");
         persist_boot_config(&mut mgr, before).unwrap();
         assert!(mgr.config.is_disabled("external"));
-        assert!(mgr.config.granted_permissions("p").contains("fs.read"));
+        assert!(mgr.config.is_builtin_removed("p"));
     }
 
     #[cfg(unix)]

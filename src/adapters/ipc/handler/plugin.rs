@@ -116,12 +116,6 @@ pub fn handle_show(
     };
     let manifest = &pkg.manifest;
 
-    let granted: Vec<String> = mgr
-        .config
-        .granted_permissions(&plugin_id)
-        .into_iter()
-        .collect();
-
     let surface_kinds: Vec<Value> = manifest
         .surface_kinds
         .iter()
@@ -261,10 +255,6 @@ pub fn handle_show(
             "last_failure": failure_json(mgr.last_failure(&plugin_id)),
             "start": start_json(mgr.start_status(&plugin_id)),
             "log_path": mgr.log_path(&plugin_id).to_string_lossy(),
-            "permissions": {
-                "manifest": manifest.permissions,
-                "granted": granted,
-            },
             "event_subscribe": manifest.event_subscribe,
             "event_publish": manifest.event_publish,
             "events_emitted": events_emitted,
@@ -337,9 +327,6 @@ fn extension_state_to_json(state: &crate::plugin::extension_registry::ExtensionS
                     "kind": "invalid_target_version",
                     "target_version": target_version,
                 }),
-                PendingReason::PermissionNotGranted => {
-                    json!({ "kind": "permission_not_granted" })
-                }
             };
             json!({ "status": "pending", "reason": r })
         }
@@ -351,56 +338,11 @@ fn extension_state_to_json(state: &crate::plugin::extension_registry::ExtensionS
     }
 }
 
-pub fn handle_permissions(
-    mgr: Option<&PluginManager>,
-    id: Value,
-    params: &Value,
-) -> JsonRpcResponse {
-    let mgr = match mgr {
-        Some(m) => m,
-        None => return JsonRpcResponse::error(id, -32000, "plugin manager not initialized"),
-    };
-    let plugin_id = match params.get("id").and_then(|v| v.as_str()) {
-        Some(s) => s.to_string(),
-        None => return JsonRpcResponse::invalid_params(id, "Missing 'id' parameter"),
-    };
-    let pkg = match mgr.packages().iter().find(|p| p.manifest.id == plugin_id) {
-        Some(p) => p,
-        None => {
-            return JsonRpcResponse::error(
-                id,
-                -32003,
-                format!("plugin '{plugin_id}' not installed"),
-            );
-        }
-    };
-    let manifest_perms: Vec<&str> = pkg
-        .manifest
-        .permissions
-        .iter()
-        .map(|s| s.as_str())
-        .collect();
-    let granted: Vec<String> = mgr
-        .config
-        .granted_permissions(&plugin_id)
-        .into_iter()
-        .collect();
-    JsonRpcResponse::success(
-        id,
-        json!({
-            "id": plugin_id,
-            "manifest": manifest_perms,
-            "granted": granted,
-        }),
-    )
-}
-
 /// 헤드리스에서 응답을 만들기 전 매니저 준비 여부를 결정할 때 쓰는 메서드 목록.
 /// dispatch_readonly의 match와 일치하는지는 시험으로 확인한다.
 pub const READONLY_METHODS: &[&str] = &[
     "plugin.list",
     "plugin.show",
-    "plugin.permissions",
     "plugin.extension.list",
     "plugin.audit_query",
     "plugin.audit_summary",
@@ -427,7 +369,6 @@ pub fn dispatch_readonly(
     let response = match method {
         "plugin.list" => handle_list(mgr, id),
         "plugin.show" => handle_show(mgr, registry, id, params),
-        "plugin.permissions" => handle_permissions(mgr, id, params),
         "plugin.extension.list" => handle_extension_list(mgr, id),
         "plugin.audit_query" => super::audit::handle_query(core, id, params),
         "plugin.audit_summary" => super::audit::handle_summary(core, id, params),
@@ -522,10 +463,6 @@ mod tests {
                 ),
             ),
             ("plugin.extension.list", handle_extension_list(None, id())),
-            (
-                "plugin.permissions",
-                handle_permissions(None, id(), &params),
-            ),
         ];
 
         for (method, resp) in &responses {
@@ -552,7 +489,7 @@ mod tests {
         }
         assert_eq!(
             READONLY_METHODS.len(),
-            7,
+            6,
             "표 크기가 바뀌었다 — 문서도 같이 고쳐라"
         );
 

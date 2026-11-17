@@ -1,7 +1,7 @@
 //! 자식 에이전트의 세션 토큰을 발급·조회·무효화한다.
 //! 자식은 TASTY_SESSION_TOKEN을 IPC에 보내고 호스트가 SessionStore로 검증한다.
-//! issue/revoke에는 AgentManage 권한이 필요하다. 발급은 호출자의 권한 범위로 제한하며
-//! Local은 제한하지 않는다. revoke는 부모 관계를 따로 검사하지 않는다. list는 Local 전용이다.
+//! issue/revoke에는 AgentManage 권한이 필요하다. Agent 호출자의 발급은 자기 권한 범위로 제한하며
+//! Local과 Plugin은 제한하지 않는다. revoke는 부모 관계를 따로 검사하지 않는다. list는 Local 전용이다.
 
 use super::params::{self, p_try};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -29,26 +29,10 @@ fn session_err_to_response(id: Value, err: SessionError) -> JsonRpcResponse {
     }
 }
 
-/// 호출자는 가진 권한만 넘길 수 있다. 플러그인은 자신이 소유한 namespace의 invoke 권한도
-/// 자식에게 줄 수 있어야 자식이 발급 플러그인에 다시 호출할 수 있다. Agent에는 이 예외가 없다.
-/// owns_prefix는 시험에서 전역 등록표를 바꾸지 않도록 주입한다(docs/dev-guide/plugin-permissions.md).
-fn caller_may_grant(
-    caller: &CallerContext,
-    p: &Permission,
-    owns_prefix: impl Fn(&str, &str) -> bool,
-) -> bool {
-    let Some(own) = caller.permissions() else {
-        return true;
-    };
-    if own.contains(p) {
-        return true;
-    }
-    match (caller, p) {
-        (CallerContext::Plugin { plugin_id, .. }, Permission::IpcInvoke(prefix)) => {
-            owns_prefix(plugin_id, prefix)
-        }
-        _ => false,
-    }
+/// Agent 호출자는 가진 권한만 자식에게 넘길 수 있다. Local과 설치된 플러그인은 권한으로 막지
+/// 않으므로 어떤 토큰이든 넘길 수 있다(docs/dev-guide/plugin-permissions.md).
+fn caller_may_grant(caller: &CallerContext, p: &Permission) -> bool {
+    caller.permissions().is_none_or(|own| own.contains(p))
 }
 
 /// `session.issue` — 자식 agent 에게 새 SessionToken 발급.
@@ -56,7 +40,7 @@ fn caller_may_grant(
 /// params:
 /// - `agent_id` (str, 필수) — 자식의 호스트-부여 식별자. 비어 있으면 거부.
 /// - `permissions` (array<str>, 옵션) — 자식에게 부여할 권한 토큰. caller 의
-///   권한 셋에 포함되지 않은 토큰이 있으면 거부 (escalation 방지). Local
+///   권한 셋에 포함되지 않은 토큰이 있으면 거부 (escalation 방지). Local·Plugin
 ///   caller 는 모든 토큰 허용.
 /// - `ttl_ms` (u64, 옵션) — 토큰 수명. 없으면 자식 프로세스 종료/`session.revoke`
 ///   까지 유효.
@@ -114,7 +98,7 @@ pub fn handle_issue(
     }
 
     for p in &perms {
-        if !caller_may_grant(caller, p, tasty_ipc::method_meta::plugin_owns_prefix) {
+        if !caller_may_grant(caller, p) {
             return JsonRpcResponse::error(
                 id,
                 -32001,
@@ -505,59 +489,45 @@ mod grant_tests {
 
     use super::*;
 
-    const OWNER: &str = "com.test.owner";
-
-    fn owns(plugin_id: &str, prefix: &str) -> bool {
-        plugin_id == OWNER && prefix == "own"
-    }
-
-    fn with(kind: &str, id: &str, perms: &[Permission]) -> CallerContext {
+    fn agent(id: &str, perms: &[Permission]) -> CallerContext {
         let permissions: Arc<HashSet<Permission>> = Arc::new(perms.iter().cloned().collect());
-        match kind {
-            "plugin" => CallerContext::Plugin {
-                plugin_id: id.into(),
-                permissions,
-            },
-            _ => CallerContext::Agent {
-                agent_id: id.into(),
-                permissions,
-            },
+        CallerContext::Agent {
+            agent_id: id.into(),
+            permissions,
         }
     }
 
+    /// 플러그인은 권한으로 막지 않으므로 어떤 토큰이든 자식에게 넘긴다.
     #[test]
-    fn a_plugin_may_hand_its_own_namespace_token_to_a_child_without_holding_it() {
-        let own = Permission::IpcInvoke("own".into());
-        assert!(caller_may_grant(&with("plugin", OWNER, &[]), &own, owns));
-    }
-
-    #[test]
-    fn the_owner_exemption_does_not_cover_other_namespaces_or_other_permissions() {
-        let owner = with("plugin", OWNER, &[]);
-        assert!(!caller_may_grant(
-            &owner,
-            &Permission::IpcInvoke("other".into()),
-            owns
-        ));
-        assert!(!caller_may_grant(&owner, &Permission::SurfaceWrite, owns));
-        // 남의 namespace 는 쥐고 있어야 넘긴다.
-        let holder = with("plugin", OWNER, &[Permission::IpcInvoke("other".into())]);
+    fn a_plugin_may_hand_any_token_to_a_child() {
+        let plugin = CallerContext::Plugin {
+            plugin_id: "com.test.owner".into(),
+        };
+        for p in [
+            Permission::IpcInvoke("own".into()),
+            Permission::IpcInvoke("other".into()),
+            Permission::SurfaceWrite,
+        ] {
+            assert!(caller_may_grant(&plugin, &p), "{}", p.as_token());
+        }
         assert!(caller_may_grant(
-            &holder,
-            &Permission::IpcInvoke("other".into()),
-            owns
+            &CallerContext::local(),
+            &Permission::SurfaceWrite
         ));
     }
 
+    /// Agent 는 쥔 권한만 넘긴다. 플러그인 ID 와 같은 이름이어도 예외가 없다.
     #[test]
-    fn an_agent_named_after_the_owner_does_not_get_the_owner_exemption() {
+    fn an_agent_hands_only_what_it_holds() {
         let own = Permission::IpcInvoke("own".into());
-        assert!(!caller_may_grant(&with("agent", OWNER, &[]), &own, owns));
-        assert!(!caller_may_grant(
-            &with("plugin", "com.test.stranger", &[]),
-            &own,
-            owns
+        assert!(!caller_may_grant(&agent("com.test.owner", &[]), &own));
+        assert!(caller_may_grant(
+            &agent("child:1", std::slice::from_ref(&own)),
+            &own
         ));
-        assert!(caller_may_grant(&CallerContext::local(), &own, owns));
+        assert!(!caller_may_grant(
+            &agent("child:1", &[own]),
+            &Permission::SurfaceWrite
+        ));
     }
 }

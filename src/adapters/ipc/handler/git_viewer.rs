@@ -84,7 +84,6 @@ mod tests {
         let params = json!({"kind": "snapshot", "local_surface_id": 7, "consumer": 41});
         let plugin = CallerContext::Plugin {
             plugin_id: "com.example.git".into(),
-            permissions: Default::default(),
         };
         for (caller, requester, consumer) in [
             (plugin, Some("com.example.git"), Some(41)),

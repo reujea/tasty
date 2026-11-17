@@ -1,7 +1,7 @@
 //! Plugin 생명주기: 인스턴스 생성, listener bind, discover→spawn, healthcheck restart 후
 //! plugin process 정리, enable/disable, 권한 갱신, log path 조회.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -15,7 +15,7 @@ use crate::listener::HostListener;
 use crate::process::{CHILD_EXIT_POLL_INTERVAL, PluginProcess, ShutdownBatch};
 use crate::registry_state::PluginsConfig;
 use tasty_ipc::ipc_namespace::IpcNamespaceRegistry;
-use tasty_plugin_manifest::{Permission, PluginPackage};
+use tasty_plugin_manifest::PluginPackage;
 
 use super::{
     AUTO_RELOAD_POLL_INTERVAL, PING_INTERVAL, PLUGIN_SHUTDOWN_TIMEOUT, PluginManager, PluginTick,
@@ -159,7 +159,6 @@ impl PluginManager {
             plugin_wait: None,
             slow_requests: None,
             channel_ledger: crate::process::channel_bytes::ChannelLedger::process_wide(),
-            plugin_permissions: HashMap::new(),
             pending_plugin_calls: Vec::new(),
             command_registry: crate::command_registry::PluginCommandRegistry::new(),
             settings_pages: crate::settings_registry::SettingsPageRegistry::new(),
@@ -229,13 +228,6 @@ impl PluginManager {
         registrar: Arc<dyn tasty_plugin_protocol::host_port::I18nNamespaceRegistrar>,
     ) {
         self.i18n_registrar = Some(registrar);
-    }
-
-    /// plugin에 grant된 권한 set을 갱신. 매니페스트 hello 시점 또는 사용자가
-    /// grant/revoke 했을 때 호출. plugin process 재시작 없이 즉시 반영된다.
-    pub fn set_plugin_permissions(&mut self, plugin_id: &str, perms: HashSet<Permission>) {
-        self.plugin_permissions
-            .insert(plugin_id.to_string(), Arc::new(perms));
     }
 
     /// 호스트 main loop이 라우팅하기 위해 plugin IPC 호출을 모두 가져간다.

@@ -245,7 +245,7 @@ fn the_attention_bar_shares_the_installed_bar_height() {
     let color = theme.accent_warning().to_egui();
     for action in [
         None,
-        Some(PluginAttentionBarAction::Reapprove("Re-approve")),
+        Some(PluginAttentionBarAction::RegisterAnyway("Register anyway")),
         Some(PluginAttentionBarAction::Configure("Configure")),
     ] {
         let rect = drawn_rect(540.0, |ui, theme| {
@@ -475,7 +475,7 @@ fn the_attention_bar_spans_the_column_without_a_button() {
     let color = theme.accent_danger().to_egui();
     for action in [
         None,
-        Some(PluginAttentionBarAction::Reapprove("Re-approve")),
+        Some(PluginAttentionBarAction::RegisterAnyway("Register anyway")),
     ] {
         let rect = drawn_rect(540.0, |ui, theme| {
             plugin_attention_bar(

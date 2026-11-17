@@ -1,4 +1,4 @@
-//! Permission::as_token의 모든 권한 토큰이 두 권한 문서에 있는지 확인한다.
+//! Permission::as_token의 모든 Agent 권한 토큰이 권한 문서에 있는지 확인한다.
 //! 함수의 match 분기에서 토큰을 읽으며 scope가 필요한 권한은 접두만 비교한다.
 //! 문서에는 IPC 메서드 이름도 섞여 있어 문서에만 있는 항목은 검사하지 않는다.
 
@@ -8,11 +8,8 @@ use tasty_doc_guards::manifest_text::TokenForm;
 
 const SOURCE: &str = "crates/tasty-plugin-manifest/src/types.rs";
 
-/// 토큰이 전부 등장해야 하는 문서. 앞은 토큰별 개방 범위 표, 뒤는 개념 나열.
-const DOCS: &[&str] = &[
-    "docs/dev-guide/plugin-permissions.md",
-    "docs/concepts/plugins.md",
-];
+/// 토큰이 전부 등장해야 하는 문서. 토큰별 개방 범위 표가 있다.
+const DOCS: &[&str] = &["docs/dev-guide/plugin-permissions.md"];
 
 fn root() -> PathBuf {
     tasty_doc_guards::repo_root()
@@ -78,13 +75,10 @@ fn a_method_name_sharing_the_prefix_does_not_satisfy_a_token() {
 /// 대상 문서를 늘리면 대조 입력도 추가하도록 개수를 함께 비교한다.
 #[test]
 fn every_doc_on_the_roster_is_named_by_a_literal_of_its_own() {
-    let cases: [(&str, &str); 2] = [
-        (
-            "docs/dev-guide/plugin-permissions.md",
-            "토큰별 개방 범위 표",
-        ),
-        ("docs/concepts/plugins.md", "개념 나열"),
-    ];
+    let cases: [(&str, &str); 1] = [(
+        "docs/dev-guide/plugin-permissions.md",
+        "토큰별 개방 범위 표",
+    )];
     let tokens = tokens_from_source(&read(SOURCE));
     for (path, role) in cases {
         assert!(

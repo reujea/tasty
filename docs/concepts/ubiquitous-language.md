@@ -11,7 +11,7 @@
 | 주체 | [actors.md](actors.md) | 로컬 사용자 · AI Agent · 원격 사용자 · 점유 |
 | 구조 | [hierarchy.md](hierarchy.md) | Engine · View · Workspace · Pane · Tab · Surface · 두 레벨 레이아웃 |
 | 상태 | [state-model](state-model/index.md) | 계층별 상태 축 · 활성화 단계 · busy · attention · 점유 · 선택 범위 |
-| 플러그인 | [plugins.md](plugins.md) | 배포/통합 축 · surface_kind · 권한 |
+| 플러그인 | [plugins.md](plugins.md) | 배포/통합 축 · surface_kind · 매니페스트 선언 |
 | Surface 종류 | [`../surfaces/index.md`](../surfaces/index.md) | kind별 명세 |
 | attach | [`../dev-guide/attach-behavior.md`](../dev-guide/attach-behavior.md) | server/client · mirror · lock |
 | 원격 연결 | [`../features/remote-profiles/index.md`](../features/remote-profiles/index.md) | 원격 접속 프로필 · Passkey · kind |

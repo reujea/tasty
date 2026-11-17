@@ -58,7 +58,7 @@ CallerContext::Local      → owner = "_host"    (HOST_OWNER, CLI·사용자)
 | Plugin A | Plugin B / `_host` | `OwnedByOther` (`-32006`) |
 | `_host` | 모든 소유자 | 허용(관리자) |
 
-regular 읽기는 공유 데이터를 조회하되, 권한을 받는 caller의 raw KV 요청에서는 `tasty.` 호스트 예약 키를 숨긴다([권한 규칙](../../dev-guide/plugin-permissions.md#호스트-키-namespace-는-memory-권한으로-열리지-않는다)). 응답에 `owner` 가 포함된다("누가 만들었나"). 권한 토큰(`memory.read`/`write`)은 *메서드 호출 가능 여부*, owner check 는 *그 entry 권한* — 둘 다 통과해야 쓰기 성공.
+regular 읽기는 공유 데이터를 조회하되, plugin·agent caller의 raw KV 요청에서는 `tasty.` 호스트 예약 키를 숨긴다([권한 규칙](../../dev-guide/plugin-permissions.md#호스트-키-namespace-는-memory-권한으로-열리지-않는다)). 응답에 `owner` 가 포함된다("누가 만들었나"). Agent 의 권한 토큰(`memory.read`/`write`)은 *메서드 호출 가능 여부*, owner check 는 *그 entry 권한* — 둘 다 통과해야 쓰기 성공. plugin 은 토큰 없이 호출하고 owner check 만 받는다.
 
 ## Secret — plugin 별 사전 분할
 

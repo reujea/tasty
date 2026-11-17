@@ -22,7 +22,7 @@
   - Tutorial → 튜토리얼 토픽 popup
   - Task DAGs → DAG 목록 popup (**workspace 스코프** — 아래 참조)
   - Open File → 네이티브 파일 피커
-- **플러그인 기여 항목**: 활성 + `ui.tool_item` 권한을 grant 받은 plugin 이 `[[contributes.tool]]` 로 선언한 항목. `MainViewState::tool_registry` 에 동기화된다.
+- **플러그인 기여 항목**: 활성 plugin 이 `[[contributes.tool]]` 로 선언한 항목. `MainViewState::tool_registry` 에 동기화된다.
 
 ### 레이아웃 / 크기
 
@@ -52,12 +52,12 @@
 ## 비-목표
 
 - 각 도구 항목의 *내용/동작* — 메뉴는 목록 + 실행 진입점만. 내용은 각 기능 문서.
-- 플러그인 도구의 기여/권한 메커니즘 — `features/plugin-system/` 영역.
+- 플러그인 도구의 기여 메커니즘 — `features/plugin-system/` 영역.
 
 ## Acceptance Criteria
 
 - 사이드바 도구 버튼 클릭 시 빌트인 7개(Command palette / Listening ports / Remote connections / Presets / Tutorial / Task DAGs / Open File)가 표시된다.
-- `ui.tool_item` 권한을 가진 활성 플러그인의 기여 항목이 빌트인 아래 구분선과 함께 추가된다.
+- 활성 플러그인이 `[[contributes.tool]]` 로 선언한 항목이 빌트인 아래 구분선과 함께 추가된다.
 - 항목 클릭 시 해당 popup(빌트인) 또는 plugin action(플러그인)이 실행된다.
 - 등록 항목 수에 따라 메뉴 높이가 달라진다.
 - 메뉴 폭은 가장 넓은 항목 라벨에 행 패딩(`menu-item-padding-x` 양쪽), 안쪽 고리(`popup-content-margin` 양쪽), 테두리를 더한 값이다. 테두리를 포함해 `tools-menu-min-width`(160)보다 좁아지지 않고 `tools-menu-max-width`(240)보다 넓어지지 않는다.
@@ -114,7 +114,7 @@
   - **Task DAGs** — 활성 워크스페이스의 DAG 목록 popup 을 연다. → [`features/agent-collaboration/`](../agent-collaboration/index.md)
   - **Open File** — 네이티브 파일 피커를 연다. → [`features/native-file-picker/`](../native-file-picker/index.md)
 - **구분선** — 빌트인과 플러그인 항목 사이 (둘 다 있을 때만).
-- **플러그인 기여 항목** — `ui.tool_item` 권한 플러그인이 추가한 항목 (예: Clipboard Viewer). **이 문서엔 항목을 나열하지 않는다** — 공식(번들) 플러그인 메뉴는 [번들 플러그인 문서](../../plugins/index.md)에서 다룬다.
+- **플러그인 기여 항목** — 활성 플러그인이 `[[contributes.tool]]` 로 추가한 항목 (예: Clipboard Viewer). **이 문서엔 항목을 나열하지 않는다** — 공식(번들) 플러그인 메뉴는 [번들 플러그인 문서](../../plugins/index.md)에서 다룬다.
 
 ### 상태별 시각
 

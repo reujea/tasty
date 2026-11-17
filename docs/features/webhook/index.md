@@ -5,7 +5,7 @@
 [실패·복구 원칙](../../principles/feedback-and-recovery.md)에 따라 webhook 실패와 기본 터미널 작업의 지속 가능성을 구분한다. 명시 포트를 열지 못하면 다른 포트로 옮기지 않고 리스너 없이 실행하며, 원인과 영향 범위를 경고 알림으로 남긴다. 실행 결과는 발신자에게 돌려주지 않고(아래 ACK 불변식) 실패를 알림으로 남긴다.
 
 - **Status**: Implemented
-- **주체**: 로컬 사용자 · AI Agent (`webhook.*` — `register` 만 plugin 허용(`Network` 권한), 나머지 local-only)
+- **주체**: 로컬 사용자 · AI Agent (`webhook.*` — `register` 만 plugin·Agent 허용(Agent 는 `network` 권한), 나머지 local-only)
 - **설계**: 이 문서(신뢰 모델·불변식) · [훅 (Surface / Global hooks)](../hooks/index.md)(공유 핸들러 레지스트리)
 - **코드**: `src/webhook/`(리스너·레지스트리·lifetime·인증·남용차단·영속화) · `src/adapters/ipc/handler/webhook.rs`(IPC) · `crates/tasty-cli/src/commands/webhook.rs`(CLI)
 - **화면**: 전용 화면 없음. GUI와 headless에서 동작하며 시작 경고와 실행 실패는 알림 저장소에 남긴다
@@ -204,7 +204,7 @@ GUI(`boot::run_gui`)와 headless(`boot::run_headless`)는 설정을 읽은 직�
 
 ## 인터페이스
 
-`webhook.register` 는 plugin 도 호출할 수 있고(`Network` 권한), 나머지는 **`local_only`** — CLI/로컬 클라이언트만 가능하다. 포커스 독립(대상은 `id` 로 지정, `list` 는 전 범위 순회).
+`webhook.register` 는 plugin 도 호출할 수 있고(Agent 는 `network` 권한), 나머지는 **`local_only`** — CLI/로컬 클라이언트만 가능하다. 포커스 독립(대상은 `id` 로 지정, `list` 는 전 범위 순회).
 
 | IPC | CLI | 동작 |
 |-----|-----|------|

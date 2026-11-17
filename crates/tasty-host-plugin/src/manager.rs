@@ -4,7 +4,7 @@
 
 pub mod file_config;
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -24,7 +24,7 @@ use crate::protocol::PluginResponse;
 use crate::registry_state::PluginsConfig;
 use tasty_ipc::ipc_namespace::IpcNamespaceRegistry;
 use tasty_ipc::protocol::JsonRpcResponse;
-use tasty_plugin_manifest::{HookMode, IpcHookDecl, Permission, PluginPackage};
+use tasty_plugin_manifest::{HookMode, IpcHookDecl, PluginPackage};
 
 /// host와 plugin 팝업이 함께 사용하는 z-order 순번.
 /// 열기·클릭·포커스 시 발급해 두 종류의 팝업 순서를 비교한다.
@@ -394,9 +394,6 @@ pub struct PluginManager {
     slow_requests: Option<Arc<tasty_telemetry::SlowRequestLog>>,
     /// 프로세스 전체의 plugin 채널 바이트 계측. 모든 매니저가 같은 ChannelLedger를 사용한다.
     pub(super) channel_ledger: Arc<crate::process::channel_bytes::ChannelLedger>,
-    /// 각 plugin에 grant된 권한. 매니페스트 + plugins.toml의 granted를 교집합한 결과.
-    /// `Arc`로 공유하여 CallerContext가 동시 호출 시 안전.
-    plugin_permissions: HashMap<String, Arc<HashSet<Permission>>>,
     /// plugin이 보낸 IpcCall을 호스트의 main loop에서 라우팅 처리하기 위해 모으는 큐.
     /// `App::process_plugin_ipc_calls()`가 매 tick에 비운다.
     pub(super) pending_plugin_calls: Vec<PendingPluginCall>,
@@ -556,7 +553,6 @@ pub struct PendingPluginCall {
     pub call_id: u64,
     pub method: String,
     pub params: serde_json::Value,
-    pub permissions: Arc<HashSet<Permission>>,
 }
 
 /// `[[contributes.popup]]` 한 항목 + 소유 plugin id. 호스트의 popup 라우터가
@@ -759,35 +755,13 @@ prefix = "{prefix}"
     }
 
     #[test]
-    fn validate_namespace_call_plugin_caller_without_grant_denied() {
+    fn validate_namespace_call_plugin_caller_of_another_namespace_allowed() {
         let mut mgr = mgr_with_namespace_owner("com.example.codex", "codex");
         mgr.processes
             .insert("com.example.codex".into(), stub_process());
-        // caller plugin은 ipc.invoke:codex 권한 없음
-        mgr.set_plugin_permissions(
-            "com.example.helper",
-            HashSet::from([Permission::SurfaceRead]),
-        );
-        let err = mgr
-            .validate_namespace_call("codex.spawn", Some("com.example.helper"))
-            .unwrap_err();
-        assert_eq!(err.0, -32001);
-        assert!(err.1.contains("permission_denied"));
-        assert!(err.1.contains("ipc.invoke:codex"));
-    }
-
-    #[test]
-    fn validate_namespace_call_plugin_caller_with_grant_allowed() {
-        let mut mgr = mgr_with_namespace_owner("com.example.codex", "codex");
-        mgr.processes
-            .insert("com.example.codex".into(), stub_process());
-        mgr.set_plugin_permissions(
-            "com.example.helper",
-            HashSet::from([Permission::IpcInvoke("codex".into())]),
-        );
         let id = mgr
             .validate_namespace_call("codex.spawn", Some("com.example.helper"))
-            .expect("granted caller should pass");
+            .expect("another plugin's namespace call should pass");
         assert_eq!(id, "com.example.codex");
     }
 

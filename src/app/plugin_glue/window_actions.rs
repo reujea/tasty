@@ -39,33 +39,6 @@ impl App {
         }
     }
 
-    fn handle_reapprove(&mut self, id: String) {
-        let modal = self.view.active_modal_id();
-        let display_id = id.clone();
-        let admitted = self.enqueue_plugin_reapprove(id, move |app, result| {
-            let (message, kind) = match result {
-                Ok(_) => (
-                    crate::i18n::t_fmt("plugins.attn_reapproved", &display_id),
-                    crate::adapters::ui::ToastKind::Success,
-                ),
-                Err(error) => (
-                    crate::i18n::t_fmt("plugins.attn_reapprove_failed", &error.message),
-                    crate::adapters::ui::ToastKind::Error,
-                ),
-            };
-            if let Some(modal) = modal.and_then(|id| app.view.views.get_mut(&id))
-                && let Some(view) = modal.as_any_mut().downcast_mut::<window::PluginsView>()
-            {
-                view.push_toast(message, kind);
-            } else {
-                app.toast_settings_result(message, kind);
-            }
-        });
-        if let Err(error) = admitted {
-            self.toast_settings_result(error.message, crate::adapters::ui::ToastKind::Error);
-        }
-    }
-
     /// 사용자가 누른 열기가 실패하면 이 창에 띄울 실패 토스트를 돌려준다. 성공은 알리지 않는다.
     fn handle_open_uri(
         &self,
@@ -212,9 +185,6 @@ impl App {
                 plugins_ui::PluginsAction::OpenSettings => {
                     close_modal = true;
                     open_settings_plugin_tab = true;
-                }
-                plugins_ui::PluginsAction::Reapprove { id } => {
-                    self.handle_reapprove(id);
                 }
                 plugins_ui::PluginsAction::RemoveReserved { dir } => {
                     self.handle_remove_reserved(dir);

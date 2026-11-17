@@ -4,7 +4,6 @@
 - **주체**: 로컬 사용자 (GUI surface) · AI Agent (`tasty image` CLI)
 - **배포/통합**: bundled · surface_kind(egui-mesh) · 파일 핸들러 — [plugins 개념](../../concepts/plugins.md)
 - **코드**: `crates/tasty-plugin-image/`(`main.rs`/`doc.rs`/`render.rs`/`picker.rs`), 등록 `src/runtime/surface_registry/egui_mesh.rs`(API 버전·이름 충돌 검사)
-- **권한**: 매니페스트 `permissions`; 저장 경로 선택도 기존 `fs.read`로 호스트 목록만 읽으며 호스트에 쓰기 권한을 추가하지 않는다.
 - **결정**: [egui-mesh 렌더링](../../dev-guide/egui-mesh-channel.md) — 이미지 렌더링과 공통 메시 전송 방식
 - **화면**: [아래 절](#화면)
 

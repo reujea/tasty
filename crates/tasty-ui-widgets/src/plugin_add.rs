@@ -23,13 +23,11 @@ use crate::tooltip::{Tooltip, tooltip_hover_delay_elapsed};
 /// 디자인 `plugins_window.jsx`의 `--tasty-size-14`·`gap: 14`이며 역할 토큰이 없다.
 pub const PLUGIN_ADD_INSET: LogicalPx = LogicalPx(14.0);
 
-/// 신뢰 판정 여섯 가지. 상자 톤은 추가가 무엇을 하는지를 나타낸다.
+/// 신뢰 판정 다섯 가지. 상자 톤은 추가가 무엇을 하는지를 나타낸다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PluginTrustKind {
     /// 신뢰 목록의 키로 서명됐다. 그대로 추가한다.
     Trusted,
-    /// 신뢰한 게시자지만 권한이 늘었다. 추가하면 새 권한 묶음을 신뢰한다.
-    PermissionsChanged,
     /// 미인증 — 신뢰 목록에 없는 키다. 추가하면 공개 키 파일의 키도 신뢰한다.
     UnknownKey,
     /// 미인증 — 서명은 있지만 공개 키 파일이 없거나 읽을 수 없다.
@@ -43,16 +41,12 @@ pub enum PluginTrustKind {
 impl PluginTrustKind {
     /// 미인증 네 가지. 같은 danger 상자·위험 문단을 쓰고, 사용자가 명시적으로 골라야 추가한다.
     pub fn is_unverified(self) -> bool {
-        !matches!(
-            self,
-            PluginTrustKind::Trusted | PluginTrustKind::PermissionsChanged
-        )
+        !matches!(self, PluginTrustKind::Trusted)
     }
 
     fn tone(self, theme: &Theme) -> HexColor {
         match self {
             PluginTrustKind::Trusted => theme.accent_success(),
-            PluginTrustKind::PermissionsChanged => theme.accent_warning(),
             _ => theme.accent_danger(),
         }
     }
@@ -60,7 +54,6 @@ impl PluginTrustKind {
     fn glyph_color(self, theme: &Theme) -> HexColor {
         match self {
             PluginTrustKind::Trusted => theme.plugin_trust_glyph_success(),
-            PluginTrustKind::PermissionsChanged => theme.plugin_trust_glyph_warning(),
             _ => theme.plugin_trust_glyph_danger(),
         }
     }
@@ -68,7 +61,6 @@ impl PluginTrustKind {
     fn glyph(self) -> tasty_icons::Icon {
         match self {
             PluginTrustKind::Trusted => tasty_icons::SHIELD_CHECK,
-            PluginTrustKind::PermissionsChanged => tasty_icons::ALERT_TRIANGLE,
             _ => tasty_icons::ALERT_CIRCLE,
         }
     }
@@ -77,9 +69,7 @@ impl PluginTrustKind {
     pub fn shows_fingerprint(self) -> bool {
         matches!(
             self,
-            PluginTrustKind::PermissionsChanged
-                | PluginTrustKind::UnknownKey
-                | PluginTrustKind::MissingPubkey
+            PluginTrustKind::UnknownKey | PluginTrustKind::MissingPubkey
         )
     }
 }
@@ -180,8 +170,6 @@ pub struct PluginManifestCardView<'a> {
     pub id: &'a str,
     pub authors: &'a [String],
     pub description: &'a str,
-    pub permissions_label: &'a str,
-    pub permissions: &'a [String],
     pub surface_kinds_label: &'a str,
     pub surface_kinds: &'a [String],
     pub source_label: &'a str,
@@ -189,7 +177,7 @@ pub struct PluginManifestCardView<'a> {
     pub homepage_label: &'a str,
     /// 비어 있으면 Homepage 줄을 그리지 않는다.
     pub homepage: &'a str,
-    /// 권한·surface 종류가 없을 때의 문구.
+    /// surface 종류가 없을 때의 문구.
     pub none: &'a str,
 }
 
@@ -201,7 +189,7 @@ pub struct PluginManifestCardOutput {
 }
 
 /// 매니페스트 카드. identity 줄(아바타 lg · 이름 + 버전 Tag · id · 작성자), 설명,
-/// Permissions·Surface kinds Tag 목록, Source, Homepage를 `space-md` 간격으로 쌓는다.
+/// Surface kinds Tag 목록, Source, Homepage를 `space-md` 간격으로 쌓는다.
 pub fn plugin_manifest_card(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -232,13 +220,6 @@ pub fn plugin_manifest_card(
                     .wrap(),
                 );
             }
-            tag_list(
-                ui,
-                theme,
-                view.permissions_label,
-                view.permissions,
-                view.none,
-            );
             tag_list(
                 ui,
                 theme,
@@ -916,8 +897,6 @@ mod tests {
                         id: "com.a.b",
                         authors: &[],
                         description: "",
-                        permissions_label: "Permissions",
-                        permissions: &[],
                         surface_kinds_label: "Surface kinds",
                         surface_kinds: &[],
                         source_label: "Source",
@@ -945,7 +924,6 @@ mod tests {
     fn only_signature_errors_and_trusted_boxes_have_no_fingerprint() {
         assert!(!PluginTrustKind::Trusted.shows_fingerprint());
         assert!(PluginTrustKind::UnknownKey.shows_fingerprint());
-        assert!(PluginTrustKind::PermissionsChanged.shows_fingerprint());
         assert!(PluginTrustKind::MissingPubkey.shows_fingerprint());
         assert!(!PluginTrustKind::SignatureError.shows_fingerprint());
     }

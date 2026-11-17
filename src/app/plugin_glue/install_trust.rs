@@ -35,8 +35,8 @@ impl std::fmt::Display for UnverifiedRefused {
         write!(
             f,
             "plugin '{}' is unverified: {}. Tasty cannot confirm who made it or that its files \
-             are unchanged; a plugin runs with your account's access, and its permissions only \
-             limit what it can ask Tasty to do. Nothing was installed. To install it anyway, \
+             are unchanged, and a plugin runs with your account's access. Nothing was installed. \
+             To install it anyway, \
              pass allow_unverified (tasty plugin install --allow-unverified) only if you trust \
              where it came from",
             self.plugin_id,
@@ -57,42 +57,23 @@ fn now_rfc3339() -> String {
 pub(crate) fn authorize(
     dir: &Path,
     plugin_id: &str,
-    permissions: &[String],
     choice: &InstallChoice,
 ) -> anyhow::Result<Option<TrustRecordUndo>> {
     let path = tasty_host_plugin::known_plugins::KnownPlugins::path()
         .ok_or_else(|| anyhow::anyhow!("known-plugins.toml path unavailable"))?;
-    authorize_in(path, dir, plugin_id, permissions, choice)
+    authorize_in(path, dir, plugin_id, choice)
 }
 
 pub(crate) fn authorize_in(
     path: std::path::PathBuf,
     dir: &Path,
     plugin_id: &str,
-    permissions: &[String],
     choice: &InstallChoice,
 ) -> anyhow::Result<Option<TrustRecordUndo>> {
     let known = tasty_host_plugin::known_plugins::KnownPlugins::load_from(path.clone())?;
     let save_err = |e: std::io::Error| anyhow::anyhow!("save known-plugins.toml failed: {e}");
     match (trust_verdict::judge_with(dir, &known), choice) {
         (TrustVerdict::Trusted | TrustVerdict::AcceptedUnverified, _) => Ok(None),
-        (
-            TrustVerdict::PermissionsChanged { fingerprint, .. },
-            InstallChoice::TrustKey { pubkey_b64 },
-        ) => {
-            let pubkey = decode_matching_key(dir, pubkey_b64)?;
-            trust_verdict::record_trusted_key_in(
-                path.clone(),
-                plugin_id,
-                key_entry(&pubkey, permissions, fingerprint),
-            )
-            .map(Some)
-            .map_err(save_err)
-        }
-        (TrustVerdict::PermissionsChanged { .. }, _) => anyhow::bail!(
-            "plugin '{plugin_id}' asks for permissions that were not approved with its trusted key; \
-             approve the new permissions in the Plugins window"
-        ),
         (
             TrustVerdict::Unverified(UnverifiedCause::UnknownKey {
                 fingerprint,
@@ -110,7 +91,7 @@ pub(crate) fn authorize_in(
             trust_verdict::record_trusted_key_in(
                 path.clone(),
                 plugin_id,
-                key_entry(&pubkey, permissions, fingerprint),
+                key_entry(&pubkey, fingerprint),
             )
             .map(Some)
             .map_err(save_err)
@@ -136,7 +117,6 @@ pub(crate) fn authorize_in(
 fn decode_matching_key(dir: &Path, pubkey_b64: &str) -> anyhow::Result<[u8; 32]> {
     let entry = KnownPluginEntry {
         pubkey: pubkey_b64.to_string(),
-        permissions: Vec::new(),
         trusted_at: String::new(),
         publisher_fingerprint: String::new(),
     };
@@ -150,10 +130,9 @@ fn decode_matching_key(dir: &Path, pubkey_b64: &str) -> anyhow::Result<[u8; 32]>
     }
 }
 
-fn key_entry(pubkey: &[u8; 32], permissions: &[String], fingerprint: String) -> KnownPluginEntry {
+fn key_entry(pubkey: &[u8; 32], fingerprint: String) -> KnownPluginEntry {
     KnownPluginEntry {
         pubkey: KnownPluginEntry::encode_pubkey(pubkey),
-        permissions: permissions.to_vec(),
         trusted_at: now_rfc3339(),
         publisher_fingerprint: fingerprint,
     }

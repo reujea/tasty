@@ -98,11 +98,6 @@ pub(super) fn form_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, veri
 /// 시안 `SAMPLE_MANIFEST` 카드. `open_values`면 Homepage 링크와 빈 목록(`None`)을 보인다.
 fn manifest_card(ui: &mut egui::Ui, theme: &Theme, open_values: bool) {
     let authors = sample_strings(&["aurelia"]);
-    let perms = if open_values {
-        Vec::new()
-    } else {
-        sample_strings(&["fs:read", "fs:watch", "ipc:logwatch.*"])
-    };
     let surfaces = if open_values {
         Vec::new()
     } else {
@@ -117,8 +112,6 @@ fn manifest_card(ui: &mut egui::Ui, theme: &Theme, open_values: bool) {
             id: "com.aurelia.logwatch",
             authors: &authors,
             description: "Tails and highlights structured log files as a dedicated surface — severity filters, a jump-to-error gutter, and live follow on the active workspace.",
-            permissions_label: "Permissions",
-            permissions: &perms,
             surface_kinds_label: "Surface kinds",
             surface_kinds: &surfaces,
             source_label: "Source",
@@ -177,10 +170,6 @@ fn trust_copy(kind: PluginTrustKind, with_key_note: bool) -> (&'static str, Vec<
     let t = crate::i18n::t;
     match kind {
         PluginTrustKind::Trusted => ("", vec![t("plugins.trust_trusted_body").to_owned()]),
-        PluginTrustKind::PermissionsChanged => (
-            t("plugins.trust_permissions_changed_title"),
-            vec![t("plugins.trust_permissions_changed_body").to_owned()],
-        ),
         _ => {
             let cause = match kind {
                 PluginTrustKind::UnknownKey => "plugins.trust_cause_unknown_key",
@@ -222,20 +211,11 @@ fn trust_box(ui: &mut egui::Ui, theme: &Theme, kind: PluginTrustKind, fingerprin
     unverified_box(ui, theme, kind, true, fingerprint);
 }
 
-/// 디자인 `grantsLabel`.
-fn grants(perms: usize) -> String {
-    match perms {
-        0 => "No permissions".to_owned(),
-        n => crate::i18n::t_count("plugins.add_grants", n as u64, &[&n.to_string()]),
-    }
-}
-
 /// 액션 바 한 줄의 상태 — 디자인 `Bar`의 판정·진행·포커스.
 #[derive(Clone, Copy)]
 struct BarSpec {
     kind: PluginTrustKind,
     blocked: bool,
-    perms: usize,
     busy: bool,
     focus_cancel: bool,
 }
@@ -245,7 +225,6 @@ impl BarSpec {
         Self {
             kind,
             blocked: false,
-            perms: 3,
             busy: false,
             focus_cancel: false,
         }
@@ -256,13 +235,11 @@ impl BarSpec {
 /// 막혔으면 추가 버튼을 disabled로 두고 이유를 왼쪽에 적는다. 미인증이면 추가 버튼이 danger 다.
 fn action_bar(ui: &mut egui::Ui, theme: &Theme, spec: BarSpec) {
     let t = crate::i18n::t;
-    let grants = grants(spec.perms);
     let label = if spec.blocked {
         t("plugins.add_button")
     } else {
         match spec.kind {
             PluginTrustKind::Trusted => t("plugins.add_button"),
-            PluginTrustKind::PermissionsChanged => t("plugins.add_trust_and_add"),
             PluginTrustKind::UnknownKey => t("plugins.add_trust_key_anyway"),
             _ => t("plugins.add_anyway"),
         }
@@ -274,7 +251,7 @@ fn action_bar(ui: &mut egui::Ui, theme: &Theme, spec: BarSpec) {
             left: if spec.blocked {
                 t("plugins.add_blocked_installed")
             } else {
-                &grants
+                ""
             },
             cancel: "Cancel",
             add: Some(label),
@@ -287,15 +264,14 @@ fn action_bar(ui: &mut egui::Ui, theme: &Theme, spec: BarSpec) {
     );
 }
 
-/// 디자인 `Bar`·`AddBarG` 줄. 신뢰·권한 변경·미인증 네 가지(모르는 키는 Cancel 포커스),
-/// 추가 중, 이미 설치됨, 권한 1개·0개.
+/// 디자인 `Bar`·`AddBarG` 줄. 신뢰·미인증 네 가지(모르는 키는 Cancel 포커스),
+/// 추가 중, 이미 설치됨.
 pub(super) fn add_bars(ui: &mut egui::Ui, theme: &Theme, width: f32) {
     use PluginTrustKind as K;
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
         for spec in [
             BarSpec::of(K::Trusted),
-            BarSpec::of(K::PermissionsChanged),
             BarSpec {
                 focus_cancel: true,
                 ..BarSpec::of(K::UnknownKey)
@@ -311,14 +287,6 @@ pub(super) fn add_bars(ui: &mut egui::Ui, theme: &Theme, width: f32) {
                 blocked: true,
                 ..BarSpec::of(K::Trusted)
             },
-            BarSpec {
-                perms: 1,
-                ..BarSpec::of(K::Trusted)
-            },
-            BarSpec {
-                perms: 0,
-                ..BarSpec::of(K::Trusted)
-            },
         ] {
             egui::Frame::new()
                 .fill(theme.bg_panel().to_egui())
@@ -330,7 +298,7 @@ pub(super) fn add_bars(ui: &mut egui::Ui, theme: &Theme, width: f32) {
     });
 }
 
-/// 디자인 `TrustBox2` 여섯 가지. 서명이 없거나 깨진 상자에는 fingerprint 줄이 없다.
+/// 디자인 `TrustBox2` 다섯 가지. 서명이 없거나 깨진 상자에는 fingerprint 줄이 없다.
 pub(super) fn trust_boxes(ui: &mut egui::Ui, theme: &Theme, width: f32) {
     ui.vertical(|ui| {
         ui.set_width(width);
@@ -347,7 +315,6 @@ pub(super) fn trust_boxes(ui: &mut egui::Ui, theme: &Theme, width: f32) {
             });
         }
         for kind in [
-            PluginTrustKind::PermissionsChanged,
             PluginTrustKind::UnknownKey,
             PluginTrustKind::MissingPubkey,
             PluginTrustKind::Unsigned,

@@ -590,8 +590,6 @@ pub(crate) enum CoreEvent {
 pub(crate) enum PluginRegistryChange {
     Installed { version: String },
     Removed,
-    PermissionGranted { permission: String },
-    PermissionRevoked { permission: String },
 }
 
 /// PTY 출력 처리 뒤 호출자가 이어 처리할 이벤트 목록.

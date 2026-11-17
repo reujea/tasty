@@ -75,7 +75,6 @@ pub fn handle_set_remote_transfer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
     use std::sync::Arc;
     use tasty_settings::PluginSettingValue;
 
@@ -87,7 +86,6 @@ mod tests {
     fn plugin_caller(plugin_id: &str) -> CallerContext {
         CallerContext::Plugin {
             plugin_id: plugin_id.to_string(),
-            permissions: Arc::new(HashSet::new()),
         }
     }
 

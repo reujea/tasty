@@ -1,5 +1,5 @@
 //! 번들 플러그인을 찾아 사용자 데이터 루트에 설치·동기화한다.
-//! 명시적으로 제거한 plugin은 자동 복구하지 않으며 외부 plugin과 같은 실행·권한 모델을 쓴다.
+//! 명시적으로 제거한 plugin은 자동 복구하지 않으며 외부 plugin과 같은 실행 모델을 쓴다.
 //!
 //! 같은 버전은 내용이 다른 파일만 복사하고, 번들 버전이 높으면 전체를 교체한다.
 //! 설치본 버전이 더 높으면 건너뛰며 --force로 덮어쓸 수 있다.
@@ -542,13 +542,8 @@ fn copy_atomic(src: &Path, dest: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// 모든 기본 제공 플러그인을 점검:
-/// 1. 사용자 디렉터리에 없고 `removed_builtins` 목록에도 없으면 번들에서 복사 +
-///    매니페스트 권한을 자동 grant.
-/// 2. 이미 사용자 디렉터리에 있지만 `plugins.toml`에 grant 엔트리가 한 번도
-///    기록된 적 없는 builtin은 매니페스트 권한을 자동 grant (이전 버전에서
-///    builtin으로 인식되지 않은 채 설치된 plugin 복구). 사용자가 명시적으로
-///    빈 리스트로 둔 경우(`granted = []`)는 entry는 있으니 건드리지 않는다.
+/// 모든 기본 제공 플러그인을 점검한다. 사용자 디렉터리에 없고 `removed_builtins` 목록에도
+/// 없으면 번들에서 복사하고, 이미 있으면 버전·내용을 비교해 갱신한다.
 ///
 /// 실패한 항목은 warn 로그만 남기고 계속 진행 (다른 builtin은 영향 없음).
 pub fn install_builtins_if_needed(mgr: &mut PluginManager) {
@@ -561,37 +556,24 @@ pub fn install_builtins_if_needed(mgr: &mut PluginManager) {
     };
     let bundle = bundle_root();
 
-    let before = mgr.config.clone();
-    let mut config_dirty = false;
     for spec in BUILTINS {
         let dest = dest_root.join(spec.id);
         let already_present = dest.exists();
-
-        // Step 1: 번들에서 복사. 항목별 실패는 warn 후 다음 spec 으로 (Step 2 skip).
-        if install_builtin_bundle_step(
+        // 항목별 실패는 이 함수가 warn 으로 남기고 다음 spec 으로 넘어간다.
+        install_builtin_bundle_step(
             mgr,
             spec,
             &dest_root,
             &dest,
             already_present,
             bundle.as_deref(),
-        ) {
-            continue;
-        }
-
-        // Step 2: dest가 존재하면 매니페스트 권한을 grant entry에 반영.
-        if install_builtin_grant_step(mgr, spec, &dest) {
-            config_dirty = true;
-        }
-    }
-    if config_dirty && let Err(e) = file_upgrade::persist_boot_config(mgr, before) {
-        tracing::warn!("install_builtins: save plugins.toml failed: {e}");
+        );
     }
 }
 
 /// 번들에서 신규 설치하거나 버전·내용 비교로 갱신한다. 명시적으로 제거한 plugin은 제외한다.
 /// 설치본이 더 높은 버전이면 유지하며 되돌리려면 upgrade-builtins --force를 사용한다.
-/// true는 실패를 뜻하며 호출자는 권한 갱신을 건너뛰고 다음 plugin을 처리한다.
+/// true는 실패를 뜻한다. 경고는 이 함수가 남긴다.
 fn install_builtin_bundle_step(
     mgr: &PluginManager,
     spec: &BuiltinSpec,
@@ -626,7 +608,7 @@ fn install_builtin_bundle_step(
 }
 
 /// 사용자 디렉터리에 아직 없는 builtin 을 번들에서 신규 복사.
-/// 반환값: `true` 면 실패(warn 후 계속) — caller 는 Step 2 skip.
+/// 반환값: `true` 면 실패(warn 후 계속).
 fn install_builtin_fresh_copy(spec: &BuiltinSpec, src: &Path, dest: &Path) -> bool {
     if let Err(e) = copy_dir_recursive(src, dest) {
         tracing::warn!("install_builtins: copy '{}' failed: {e}", spec.id);
@@ -736,45 +718,6 @@ fn run_dir_sync_step(op: impl FnOnce() -> std::io::Result<()>, id: &str, verb: &
     false
 }
 
-/// `install_builtins_if_needed` Step 2 — dest 존재 시 매니페스트 권한을 grant entry에 반영.
-///   - grant entry 없음 → 매니페스트 권한 전체를 set (최초 install).
-///   - grant entry 있음 → 매니페스트 신규 추가분만 증분 grant (기존 사용자 대상으로 새
-///     버전 builtin이 추가한 permission을 자동 수용).
-///
-/// 기존에 grant된 토큰은 *제거하지 않는다*. 사용자가 명시적 deny한 경우는 본 helper 책임 밖.
-/// 매니페스트에서 사라진 token은 다음 install 시점에 set_granted로 덮어쓰일 때만 정리된다.
-///
-/// 반환값: config 를 변경했으면 `true` (caller 가 dirty 마킹).
-fn install_builtin_grant_step(mgr: &mut PluginManager, spec: &BuiltinSpec, dest: &Path) -> bool {
-    if !dest.exists() {
-        return false;
-    }
-    let Ok(manifest) = Manifest::load(dest) else {
-        return false;
-    };
-    // 다른 id를 선언한 폴더의 권한을 이 공식 id로 기록하지 않는다.
-    if manifest.permissions.is_empty() || manifest.id != spec.id {
-        return false;
-    }
-    if !mgr.config.grants.contains_key(spec.id) {
-        mgr.config
-            .set_granted(spec.id, manifest.permissions.clone());
-        tracing::info!(
-            "auto-granted manifest permissions for builtin '{}'",
-            spec.id
-        );
-        true
-    } else if apply_builtin_permission_diff(&mut mgr.config, spec.id, &manifest.permissions) {
-        tracing::info!(
-            "auto-granted new manifest permissions for builtin '{}'",
-            spec.id
-        );
-        true
-    } else {
-        false
-    }
-}
-
 /// 한 builtin plugin 이 본 실행에서 처리된 결과. CLI/IPC 응답에 포함된다.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BuiltinUpgradeItem {
@@ -868,7 +811,7 @@ pub fn upgrade_builtins(
     }
 
     if !changed_ids.is_empty() {
-        finalize_builtin_upgrades(mgr, &dest_root, &changed_ids);
+        finalize_builtin_upgrades(mgr);
     }
 
     BuiltinUpgradeReport { items }
@@ -1218,50 +1161,10 @@ fn process_builtin_upgrade(
     )
 }
 
-/// changed builtin 들에 대해 PluginManager state 재계산 + 매니페스트 신규 permission
-/// 자동 grant (install_builtins_if_needed step 2 와 동일 규칙).
-fn finalize_builtin_upgrades(mgr: &mut PluginManager, dest_root: &Path, changed_ids: &[String]) {
-    // 디스크가 바뀌었으니 PluginManager state 재계산.
+/// 디스크가 바뀐 builtin 이 있으면 PluginManager 상태를 다시 계산한다.
+fn finalize_builtin_upgrades(mgr: &mut PluginManager) {
     mgr.refresh_packages();
     mgr.recompute_extensions();
-    let before = mgr.config.clone();
-    let mut config_dirty = false;
-    for id in changed_ids {
-        let dest = dest_root.join(id);
-        if !dest.exists() {
-            continue;
-        }
-        if let Ok(manifest) = Manifest::load(&dest) {
-            if manifest.permissions.is_empty() {
-                continue;
-            }
-            if !mgr.config.grants.contains_key(id) {
-                mgr.config.set_granted(id, manifest.permissions.clone());
-                config_dirty = true;
-            } else if apply_builtin_permission_diff(&mut mgr.config, id, &manifest.permissions) {
-                config_dirty = true;
-            }
-        }
-    }
-    if config_dirty && let Err(e) = file_upgrade::persist_boot_config(mgr, before) {
-        tracing::warn!("upgrade_builtins: save plugins.toml failed: {e}");
-    }
-}
-
-/// 기존 권한에 새 매니페스트의 권한을 추가한다. 기존 토큰은 제거하지 않는다.
-/// 하나라도 추가했으면 true를 반환한다.
-fn apply_builtin_permission_diff(
-    config: &mut PluginsConfig,
-    id: &str,
-    manifest_permissions: &[String],
-) -> bool {
-    let mut changed = false;
-    for token in manifest_permissions {
-        if config.grant(id, token) {
-            changed = true;
-        }
-    }
-    changed
 }
 
 /// uninstall 흐름에서 호출 — built-in인 경우 `removed_builtins`에 등록하여
@@ -1412,46 +1315,6 @@ mod tests {
     #[test]
     fn unknown_is_not_builtin() {
         assert!(!is_builtin_plugin("com.example.foo"));
-    }
-
-    #[test]
-    fn permission_diff_appends_new_tokens_only() {
-        let mut cfg = PluginsConfig::default();
-        cfg.set_granted(
-            "com.tasty.image",
-            vec!["surface.read".into(), "surface.write".into()],
-        );
-
-        let manifest = vec![
-            "surface.read".into(),
-            "surface.write".into(),
-            "file_handler.define".into(),
-            "file_handler.handle:image".into(),
-        ];
-
-        let changed = apply_builtin_permission_diff(&mut cfg, "com.tasty.image", &manifest);
-        assert!(changed);
-
-        let granted = cfg.granted_permissions("com.tasty.image");
-        assert!(granted.contains("surface.read"));
-        assert!(granted.contains("surface.write"));
-        assert!(granted.contains("file_handler.define"));
-        assert!(granted.contains("file_handler.handle:image"));
-    }
-
-    #[test]
-    fn permission_diff_is_noop_when_manifest_already_covered() {
-        let mut cfg = PluginsConfig::default();
-        cfg.set_granted(
-            "com.tasty.image",
-            vec!["surface.read".into(), "surface.write".into()],
-        );
-
-        let manifest = vec!["surface.read".into(), "surface.write".into()];
-
-        let changed = apply_builtin_permission_diff(&mut cfg, "com.tasty.image", &manifest);
-        assert!(!changed);
-        assert_eq!(cfg.granted_permissions("com.tasty.image").len(), 2);
     }
 
     fn v(s: &str) -> semver::Version {
@@ -2005,25 +1868,5 @@ mod tests {
             "en=new"
         );
         assert!(!dest.join("lang/old.toml").exists());
-    }
-
-    #[test]
-    fn permission_diff_preserves_existing_extra_tokens() {
-        // 사용자가 명시적으로 추가했을 수도 있는 매니페스트 외 토큰은 제거하지 않는다.
-        let mut cfg = PluginsConfig::default();
-        cfg.set_granted(
-            "com.tasty.image",
-            vec!["surface.read".into(), "user.extra.token".into()],
-        );
-
-        let manifest = vec!["surface.read".into(), "file_handler.define".into()];
-
-        let changed = apply_builtin_permission_diff(&mut cfg, "com.tasty.image", &manifest);
-        assert!(changed);
-
-        let granted = cfg.granted_permissions("com.tasty.image");
-        assert!(granted.contains("surface.read"));
-        assert!(granted.contains("user.extra.token")); // preserved
-        assert!(granted.contains("file_handler.define")); // newly added
     }
 }

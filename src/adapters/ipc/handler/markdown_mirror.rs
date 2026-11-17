@@ -70,7 +70,6 @@ mod tests {
     fn plugin(id: &str) -> CallerContext {
         CallerContext::Plugin {
             plugin_id: id.into(),
-            permissions: Default::default(),
         }
     }
 

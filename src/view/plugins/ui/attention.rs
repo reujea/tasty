@@ -32,10 +32,6 @@ fn reason_text(kind: AttentionKind) -> (&'static str, &'static str) {
             "plugins.attn_sig_invalid_label",
             "plugins.attn_sig_invalid_blurb",
         ),
-        AttentionKind::PermissionsChanged => (
-            "plugins.attn_perm_changed_label",
-            "plugins.attn_perm_changed_blurb",
-        ),
         AttentionKind::HealthError => ("plugins.attn_health_label", "plugins.attn_health_blurb"),
         AttentionKind::ReservedId => (
             "plugins.attn_reserved_id_label",
@@ -356,9 +352,7 @@ fn unverified_kind(entry: &AttentionEntry) -> Option<PluginTrustKind> {
     let by_reason = match entry.kind {
         AttentionKind::UnknownKey => PluginTrustKind::UnknownKey,
         AttentionKind::SignatureInvalid => PluginTrustKind::SignatureError,
-        AttentionKind::PermissionsChanged
-        | AttentionKind::HealthError
-        | AttentionKind::ReservedId => return None,
+        AttentionKind::HealthError | AttentionKind::ReservedId => return None,
     };
     Some(match entry.unverified {
         Some("unknown-key") => PluginTrustKind::UnknownKey,
@@ -379,57 +373,11 @@ pub(super) fn unverified_cause_key(kind: PluginTrustKind) -> &'static str {
     }
 }
 
-/// 사유별 추가 정보 — 권한 diff / 서명 지문 / health 상세.
+/// 사유별 추가 정보 — 서명 지문 / health 상세.
 fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEntry) {
     // 디자인 `Mono` 머리글(대문자 font-label micro · text-muted · letter-spacing-caps).
     let label_header = |ui: &mut egui::Ui, key: &str| plugin_label_header(ui, th, t(key));
     match entry.kind {
-        AttentionKind::PermissionsChanged => {
-            label_header(ui, "plugins.attn_permission_changes");
-            vspace(ui, th.spacing_xs);
-            for p in &entry.permissions_added {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("+")
-                            .monospace()
-                            .strong()
-                            .color(egui::Color32::from(th.accent_success_raised())),
-                    );
-                    ui.label(
-                        egui::RichText::new(p)
-                            .monospace()
-                            .size(ATTN_PRIMITIVE_12.value()),
-                    );
-                    ui.label(
-                        egui::RichText::new(t("plugins.attn_newly_requested"))
-                            .size(th.font_size_caption.value())
-                            .color(egui::Color32::from(th.text_muted())),
-                    );
-                });
-            }
-            for p in &entry.permissions_removed {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("−")
-                            .monospace()
-                            .strong()
-                            .color(egui::Color32::from(th.text_muted())),
-                    );
-                    ui.label(
-                        egui::RichText::new(p)
-                            .monospace()
-                            .size(ATTN_PRIMITIVE_12.value())
-                            .strikethrough()
-                            .color(egui::Color32::from(th.text_muted())),
-                    );
-                    ui.label(
-                        egui::RichText::new(t("plugins.attn_no_longer_used"))
-                            .size(th.font_size_caption.value())
-                            .color(egui::Color32::from(th.text_muted())),
-                    );
-                });
-            }
-        }
         AttentionKind::UnknownKey | AttentionKind::SignatureInvalid => {
             label_header(ui, "plugins.attn_signature");
             vspace(ui, th.spacing_xs);
@@ -503,9 +451,6 @@ fn draw_action_bar(
         "plugins.attn_needs_review"
     };
     let action = match entry.kind {
-        AttentionKind::PermissionsChanged => Some(PluginAttentionBarAction::Reapprove(t(
-            "plugins.attn_reapprove",
-        ))),
         AttentionKind::HealthError => {
             Some(PluginAttentionBarAction::Configure(t("plugins.configure")))
         }
@@ -535,9 +480,6 @@ fn draw_action_bar(
     }
     if clicked {
         actions.push(match entry.kind {
-            AttentionKind::PermissionsChanged => PluginsAction::Reapprove {
-                id: entry.id.clone(),
-            },
             AttentionKind::UnknownKey | AttentionKind::SignatureInvalid => {
                 PluginsAction::RegisterUnverified {
                     id: entry.id.clone(),

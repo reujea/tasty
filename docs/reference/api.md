@@ -44,7 +44,7 @@ def call(method, params=None):
 
 ## 권한
 
-plugin caller 는 메서드별 권한 토큰이 필요하다(`method_meta`). Local(CLI/사용자)은 이 메서드 권한 검사에서 면제된다. 토큰 목록·게이트는 [concepts/plugins](../concepts/plugins.md) · [dev-guide/plugin-permissions](../dev-guide/plugin-permissions.md). 런타임 권한 상승(capability elevation)·audit 은 [features/capability-elevation](../features/capability-elevation/index.md).
+Agent caller 는 메서드별 권한 토큰이 필요하다(`method_meta`). Local(CLI/사용자)은 이 메서드 권한 검사에서 면제되고, plugin caller 는 토큰 없이 plugin 에 연 메서드(`plugin_callable`)를 부른다. 호출자별 판정·토큰 목록은 [dev-guide/plugin-permissions](../dev-guide/plugin-permissions.md). 런타임 권한 상승(capability elevation)·audit 은 [features/capability-elevation](../features/capability-elevation/index.md).
 
 ## 네임스페이스
 
@@ -104,7 +104,7 @@ regular(`put/get/delete/list/exists/count/scopes/stats/query/export/import`) · 
 | `task_graph_{validate,submit}` | v2 task 그래프를 한 번에 검증·제출. 검증 실패(task 1000 개 초과 포함)는 `-32602` 이고 `error.data.location` 에 그래프 안의 위치가 실리며 아무것도 저장하지 않는다. `submit` 은 모두 저장한 뒤 활성화한다. memory 대체 모드에서는 `durability: "best_effort"` 를 밝힌 그래프만 받는다. 활성화 뒤 readiness 반영 실패는 `-32603` 이고 `error.data` 에 `graph_id`·`possibly_active: true` 가 실린다([agent-runner](../dev-guide/agent-runner.md#그래프-제출)). task 의 `transitions` 로 성공한 출력에 따라 후속 task 를 고르며, 고른 경로는 task 의 `route` 에, 고르지 않아 끝난 이유는 `skip` 에 실린다([agent-runner](../dev-guide/agent-runner.md#전이-조건과-경로-선택)) |
 | `task_submit_result` | v2 `agent` task 의 지금 회차에 구조화 결과를 제출한다(`workspace_id`·`id`·`attempt_id`·`token`·`output`. `token` 은 지시에 실린 회차 토큰). 도착할 때 출력 타입으로 검사하고 턴이 끝날 때 결과로 확정하며, 응답 `final: false` 는 task 가 아직 끝나지 않았다는 뜻이다. 거절은 `-32018` 과 `error.data.reason`(`not_running`·`stale_attempt`·`conflict`·`turn_ended`·`not_the_session`·`wrong_token`). 세션 토큰으로 부른 agent 는 자기 세션의 task 에만 낼 수 있다([agent-runner](../dev-guide/agent-runner.md#agent-task)) |
 | `report_append` | 실행 중인 v2 작업 회차의 report 에 텍스트 기록 하나를 더한다(`address`·`text`). `address` 는 러너가 자식에게 준 `TASTY_TASK_REPORT` 값이나 agent 지시에 실린 주소이며 토큰을 담는다. 크기 한도를 넘어 잘리거나 저장하지 않아도 성공이고 응답 `result` 가 `stored`·`omitted` 로 알린다. 토큰이 맞지 않거나 회차가 끝났으면 `-32018` 과 `error.data.reason`(`token_mismatch`·`closed`). agent task 의 세션이 세션 토큰으로 부르므로 `agent` 권한으로 연다. 세션 호출은 `task_submit_result` 처럼 자기 세션에 지시를 보낸 회차에만 쓰고, 아니면 `not_the_session` 이다. 세션이 아닌 agent id 는 `-32001`([agent-runner](../dev-guide/agent-runner.md#dag-report)) |
-| `task_turn_report` | provider 플러그인이 훅에서 턴 시작·끝(`final_answer` 또는 `error`)을 알린다. `agent.turn_report` 권한(이 메서드만 연다)을 가진 플러그인 중 그 provider namespace 를 소유한 플러그인만 부를 수 있고(그 밖은 `-32001`), surface 에 묶인 agent task 회차가 없으면 아무것도 하지 않는다 |
+| `task_turn_report` | provider 플러그인이 훅에서 턴 시작·끝(`final_answer` 또는 `error`)을 알린다. 그 provider namespace 를 소유한 플러그인만 부를 수 있고(그 밖은 `-32001`), surface 에 묶인 agent task 회차가 없으면 아무것도 하지 않는다 |
 
 다음 두 메서드는 **로컬 호출만 허용**하며 플러그인은 호출할 수 없다. 둘 다 [METHOD_TABLE](../../crates/tasty-ipc/src/method_meta.rs)에 `local_only()`로 등록되어 있다. 라우터가 처리하는 메서드는 모두 이 표에 등록한다. 미등록 메서드의 `UnknownMethod` 거부와 의도한 접근 제한을 구분하기 위해 `tests/ipc_router_table_parity.rs`로 누락을 검사한다.
 
@@ -156,7 +156,7 @@ CLI는 `tasty events fetch`와 `tasty events follow`다. `follow`는 다시 연�
 ### 기타 호스트
 - 알림: `notification.{list,create}` — [notifications](../features/notifications/index.md)
 - 훅: `hook.{set,list,unset}` · `global_hook.{set,list,unset}` · `surface.fire_hook`
-- 웹훅(인바운드 HTTP): `webhook.{register,list,info,unregister,sweep,config}` (`register`만 Network 권한을 가진 plugin도 허용, 나머지는 local-only) — [webhook](../features/webhook/index.md)
+- 웹훅(인바운드 HTTP): `webhook.{register,list,info,unregister,sweep,config}` (`register`만 plugin 과 `network` 권한을 가진 Agent 도 허용, 나머지는 local-only) — [webhook](../features/webhook/index.md)
 - 메시지 패싱: `message.{send,read,count,clear}`
 - 파일 핸들러: `file_handler.{reload,detectors,dispatch}` — `detectors` 는 finalize 된 detector 와 출처별 contribution 조회(local-only, 읽기 전용). `dispatch` 응답은 접수(`accepted`, `run`)이고 최종 결과는 `run.result {run}` 으로 조회한다 — [file-handler](../features/file-handler/index.md#접수-뒤-최종-결과)
 - 요청 결과: `run.result {run}` — `file_handler.dispatch`·`markdown.navigate`·`attach.into_gui`·기존 워크스페이스 `remote.attach`·`remote.connect` 접수의 진행·최종 결과(`state`: `running`/`succeeded`/`failed`/`cancelled`/`unknown`, `result` 영어 한 줄. `unknown`은 mirror 대상 요청을 보낸 뒤 원격 결과 전에 연결이 끝난 경우). plugin 도 권한 토큰 없이 부를 수 있고 자기가 시작한 run 만 읽는다 — [file-handler](../features/file-handler/index.md#접수-뒤-최종-결과)
@@ -234,11 +234,11 @@ CLI는 `tasty list pressure`다. 자세한 기준은 [telemetry](../features/tel
 `system.gpu_stats`는 local-only이며, GPU 리소스 수의 스냅샷을 반환한다. wgpu 전역 리포트, 창별 렌더러 카운트, 창별 explorer view 수(`explorer_views`)가 메모리 누수 검증에 쓰인다. CLI는 `tasty list gpu-stats`다. 검증 절차: [memory-leak-soak](../dev-guide/memory-leak-soak.md)
 - 타이머 관측: `timer.list` (local-only, 조회 전용 — 등록된 주기 작업의 키/주기/다음 데드라인/precision 스냅샷 + 지금 인스턴스를 깨우고 있는 hard deadline 요약. 본체 허브 + plugin manager 허브 합산. CLI `tasty list timers`) — [timer-hub](../dev-guide/timer-hub.md)
 - Plugin 설정 read-back: `settings.get_plugin_setting {storage_key}` — 자기 자신의 `plugin_settings` 값만 조회(caller 로 스코프 강제)
-- 터미널 입력 규칙: `settings.get_input_rules {}` → `{rules}`; `settings.set_input_rule {app, shift_enter_newline}` / `settings.remove_input_rule {app}` → `{changed}`. 응답은 실행 시점의 설정에 적용하고 저장한 뒤에 오며, 적용·저장 실패는 오류다([완료 의미](../architecture/data-flows.md#에이전트plugin-설정-변경-요청의-완료-의미)). 세 메서드는 local-only이며 전역 설정이다. `settings.initialize_input_rule {app, shift_enter_newline}`는 `ui.settings_page` 권한으로 호출 가능하고 호출자/앱별 한 번만 빈 규칙을 채운다. 이미 있는 규칙과 이후 사용자 삭제를 보존한다. CLI는 `tasty settings get-input-rules`, `set-input-rule`, `remove-input-rule`, `initialize-input-rule` — [terminal](../surfaces/terminal/index.md).
+- 터미널 입력 규칙: `settings.get_input_rules {}` → `{rules}`; `settings.set_input_rule {app, shift_enter_newline}` / `settings.remove_input_rule {app}` → `{changed}`. 응답은 실행 시점의 설정에 적용하고 저장한 뒤에 오며, 적용·저장 실패는 오류다([완료 의미](../architecture/data-flows.md#에이전트plugin-설정-변경-요청의-완료-의미)). 세 메서드는 local-only이며 전역 설정이다. `settings.initialize_input_rule {app, shift_enter_newline}`는 plugin(토큰 없음)과 `ui.settings_page` 권한을 가진 Agent 도 호출할 수 있고 호출자/앱별 한 번만 빈 규칙을 채운다. 이미 있는 규칙과 이후 사용자 삭제를 보존한다. CLI는 `tasty settings get-input-rules`, `set-input-rule`, `remove-input-rule`, `initialize-input-rule` — [terminal](../surfaces/terminal/index.md).
 - 원격 전송 저장 정책: `settings.get_remote_transfer` / `settings.set_remote_transfer {dir?, max_mb?}` (local-only, focus 독립 — 전역 설정) — 원격 bulk 파일 전송 수신측 저장 폴더(`dir`, 빈 값=기본 `~/.tasty/transfers/`)와 폴더 최대 용량(`max_mb`, MiB). set 은 지정 필드만 실행 시점의 설정에 적용하고 메모리 적용과 `config.toml` 저장이 끝난 뒤 응답한다. 응답 `remote_transfer`는 적용 뒤의 값이며, 저장 실패는 `-32603`(`data.saved: false`)이다([완료 의미](../architecture/data-flows.md#에이전트plugin-설정-변경-요청의-완료-의미)). CLI `tasty settings {get-remote-transfer,set-remote-transfer}`. — [remote-attach](../features/remote-attach/index.md)
 
 ### Plugin 관리 (`plugin.*`, local-only)
-`list,show,install,remove,enable,disable,upgrade_builtins,permissions,grant,revoke` · `grant_agent_permission`/`revoke_agent_permission`/`list_agent_permissions` · `request_permission`(Agent caller 는 자기 자신만 대상, 다른 `agent_id` 는 `-32602`) · `audit_{query,summary,follow,clear}`(**deny 만 기록된다** — allow 는 저장하지 않으므로 평시 조회 결과는 비어 있는 것이 정상이다, [저장소 시스템 (Storage System)](../design/systems/storage.md)) · `extension.list`. [plugin-system](../features/plugin-system/index.md) · [capability-elevation](../features/capability-elevation/index.md).
+`list,show,install,remove,enable,disable,upgrade_builtins` · `grant_agent_permission`/`revoke_agent_permission`/`list_agent_permissions` · `request_permission`(Agent caller 는 자기 자신만 대상, 다른 `agent_id` 는 `-32602`) · `audit_{query,summary,follow,clear}`(**deny 만 기록된다** — allow 는 저장하지 않으므로 평시 조회 결과는 비어 있는 것이 정상이다, [저장소 시스템 (Storage System)](../design/systems/storage.md)) · `extension.list`. [plugin-system](../features/plugin-system/index.md) · [capability-elevation](../features/capability-elevation/index.md).
 
 ### Lua 스크립트
 release IPC 없음 — 등록한 스크립트를 단축키 또는 이벤트 트리거로 실행한다(docs/features/hooks/index.md). 임의 Lua 주입은 debug 빌드 전용 `debug.lua.eval`. [lua-hooks](../features/lua-hooks/index.md).

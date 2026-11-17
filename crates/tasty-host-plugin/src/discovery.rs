@@ -142,12 +142,8 @@ pub struct RejectedPlugin {
     /// builtin(번들) plugin 이면 true — UI 가 "built-in" 태그를 붙인다.
     pub builtin: bool,
     pub reason: RejectionReason,
-    /// 서명 키 지문 (UnknownKey/PermissionsChanged 일 때). 표시용.
+    /// 서명 키 지문 (UnknownKey 일 때). 표시용.
     pub fingerprint: Option<String>,
-    /// PermissionsChanged 일 때 신뢰 시점 대비 새로 요구된 권한.
-    pub permissions_added: Vec<String>,
-    /// PermissionsChanged 일 때 더 이상 쓰지 않는 권한.
-    pub permissions_removed: Vec<String>,
     /// SignatureInvalid 일 때 서명 검증이 실패한 원인(`UnverifiedCause::describe`).
     pub cause: Option<String>,
     /// 서명 사유일 때 미인증 원인 이름(`UnverifiedCause::token`).
@@ -164,8 +160,6 @@ pub enum RejectionReason {
     UnknownKey,
     /// 서명 누락/손상/검증 실패. 사용자가 고르기 전까지 등록하지 않는다.
     SignatureInvalid,
-    /// 한 번 신뢰했으나 매니페스트 권한이 바뀜 → 재승인 필요.
-    PermissionsChanged,
 }
 
 // 이유: debug는 서명·신뢰 검사를 우회하므로 Rejected를 만들지 않는다.
@@ -182,7 +176,6 @@ enum TrustOutcome {
 ///
 /// release 빌드:
 /// - `Trusted`, 사용자가 고른 `AcceptedUnverified` → 통과
-/// - `PermissionsChanged` → 재승인 사유로 Rejected
 /// - 모르는 키(공개 키 파일 유무 무관) → UnknownKey Rejected
 /// - 서명 없음·검증 오류·공개 키 불일치 → SignatureInvalid Rejected
 fn trust_outcome(
@@ -198,12 +191,7 @@ fn trust_outcome(
     #[cfg(not(debug_assertions))]
     {
         use crate::trust_verdict::{TrustVerdict, UnverifiedCause, judge};
-        let mk = |reason,
-                  fingerprint,
-                  added: Vec<String>,
-                  removed: Vec<String>,
-                  cause,
-                  unverified: Option<&'static str>| {
+        let mk = |reason, fingerprint, cause, unverified: Option<&'static str>| {
             TrustOutcome::Rejected(Box::new(RejectedPlugin {
                 id: manifest.id.clone(),
                 dir: dir.to_path_buf(),
@@ -215,8 +203,6 @@ fn trust_outcome(
                 builtin: crate::builtin::is_builtin_plugin(&manifest.id),
                 reason,
                 fingerprint,
-                permissions_added: added,
-                permissions_removed: removed,
                 cause,
                 unverified,
                 manifest_sha256: manifest_sha256.clone(),
@@ -224,20 +210,6 @@ fn trust_outcome(
         };
         match judge(dir) {
             TrustVerdict::Trusted | TrustVerdict::AcceptedUnverified => TrustOutcome::Trusted,
-            TrustVerdict::PermissionsChanged {
-                fingerprint,
-                manifest_permissions,
-            } => {
-                let (added, removed) = perm_diff(&manifest.id, &manifest_permissions);
-                mk(
-                    RejectionReason::PermissionsChanged,
-                    Some(fingerprint),
-                    added,
-                    removed,
-                    None,
-                    None,
-                )
-            }
             TrustVerdict::Unverified(
                 ref cause @ (UnverifiedCause::UnknownKey {
                     ref fingerprint, ..
@@ -246,8 +218,6 @@ fn trust_outcome(
             ) => mk(
                 RejectionReason::UnknownKey,
                 Some(fingerprint.clone()),
-                vec![],
-                vec![],
                 None,
                 Some(cause.token()),
             ),
@@ -260,8 +230,6 @@ fn trust_outcome(
                 mk(
                     RejectionReason::SignatureInvalid,
                     None,
-                    vec![],
-                    vec![],
                     Some(cause.describe()),
                     Some(cause.token()),
                 )
@@ -273,23 +241,3 @@ fn trust_outcome(
 #[cfg(test)]
 #[path = "discovery_reserved_tests.rs"]
 mod reserved_tests;
-
-/// 신뢰 시점(known-plugins.toml)의 권한 대비 새 매니페스트 권한의 added/removed.
-#[cfg(not(debug_assertions))]
-fn perm_diff(plugin_id: &str, new_perms: &[String]) -> (Vec<String>, Vec<String>) {
-    let old: Vec<String> = crate::known_plugins::KnownPlugins::load()
-        .ok()
-        .and_then(|k| k.lookup(plugin_id).map(|e| e.permissions.clone()))
-        .unwrap_or_default();
-    let added = new_perms
-        .iter()
-        .filter(|p| !old.contains(p))
-        .cloned()
-        .collect();
-    let removed = old
-        .iter()
-        .filter(|p| !new_perms.contains(p))
-        .cloned()
-        .collect();
-    (added, removed)
-}

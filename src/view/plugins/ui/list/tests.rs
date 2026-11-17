@@ -18,7 +18,6 @@ fn entry() -> PluginEntry {
         health_error: false,
         builtin: false,
         surface_kinds: Vec::new(),
-        manifest_permissions: Vec::new(),
         commands: Vec::new(),
         log_path: format!("{INSTALL_DIR}/plugin.log"),
         install_dir: INSTALL_DIR.into(),
@@ -68,7 +67,7 @@ fn the_action_bar_stays_inside_the_window_below_a_long_detail() {
     crate::i18n::init("en");
     let mut long = entry();
     long.description = "A plugin with a long detail. ".repeat(40);
-    long.manifest_permissions = (0..30).map(|i| format!("perm:{i}")).collect();
+    long.surface_kinds = (0..30).map(|i| format!("kind-{i}")).collect();
     long.commands = (0..20)
         .map(|i| crate::view::plugins::ui::PluginCommandEntry {
             title_key: format!("command {i}"),
@@ -113,7 +112,7 @@ fn uninstall_confirmation_replaces_the_action_bar_in_place() {
     crate::i18n::init("en");
     let mut long = entry();
     long.description = "A plugin with a long detail. ".repeat(40);
-    long.manifest_permissions = (0..30).map(|i| format!("perm:{i}")).collect();
+    long.surface_kinds = (0..30).map(|i| format!("kind-{i}")).collect();
     let id = long.id.clone();
     let name = long.name.clone();
     let snapshot = PluginsSnapshot {

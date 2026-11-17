@@ -13,8 +13,6 @@ const STATUS_PRIMITIVE_12: LogicalPx = LogicalPx(12.0);
 /// 사유별 오른쪽 버튼. 서명 사유는 fingerprint 줄이 복사를 맡아 버튼이 없다.
 #[derive(Clone, Copy)]
 pub enum PluginAttentionBarAction<'a> {
-    /// 권한 변경 재승인 — primary.
-    Reapprove(&'a str),
     /// 실행 오류 — ghost, settings 아이콘.
     Configure(&'a str),
     /// 미인증 서명 사유 — danger. 누르기 전에는 등록하지 않는다.
@@ -63,10 +61,6 @@ pub fn plugin_attention_bar(
 
 fn action_button(ui: &mut egui::Ui, theme: &Theme, action: PluginAttentionBarAction<'_>) -> bool {
     match action {
-        PluginAttentionBarAction::Reapprove(label) => Button::new(label)
-            .variant(ButtonVariant::Primary)
-            .show(ui, theme)
-            .clicked(),
         PluginAttentionBarAction::Configure(label) => Button::new(label)
             .variant(ButtonVariant::Ghost)
             .leading_icon(&|ui, rect, c| {

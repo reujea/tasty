@@ -41,7 +41,7 @@ plugin은 surface의 cwd가 바뀌면 호스트에 알린다.
 { "method": "surface.set_cwd", "params": { "surface_id": 42, "cwd": "/foo/bar" } }  // cwd: null 도 허용(해제)
 ```
 
-권한은 `surface.write`다. plugin은 사용자가 보는 현재 폴더가 바뀌는 모든 경로에서 이 메서드를 호출한다. 공용 setter를 사용하면 누락을 줄일 수 있다. 호스트는 `RemoteSurface.cwd`에 저장하고 `source_cwd()`로 반환해 기존 상속 경로에 전달한다. 이 IPC를 사용하지 않는 옛 SDK는 None을 유지한다.
+Agent 호출자에게 필요한 권한은 `surface.write`다. plugin은 토큰 없이 부르며, 사용자가 보는 현재 폴더가 바뀌는 모든 경로에서 이 메서드를 호출한다. 공용 setter를 사용하면 누락을 줄일 수 있다. 호스트는 `RemoteSurface.cwd`에 저장하고 `source_cwd()`로 반환해 기존 상속 경로에 전달한다. 이 IPC를 사용하지 않는 옛 SDK는 None을 유지한다.
 
 <a id="surface-cwd-invariant"></a>
 

@@ -282,7 +282,6 @@ fn a_cap_read_failure_keeps_the_plugin_call_open() {
     );
     let plugin = CallerContext::Plugin {
         plugin_id: "gate-plugin".into(),
-        permissions: Arc::new([Permission::SurfaceRead].into_iter().collect()),
     };
     let mut request = split(json!(3));
     request.method = "surface.list".into();

@@ -10,8 +10,8 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 use crate::bundle_sig::{
-    SigVerifyError, TrustDecision, UntrustedReason, parse_manifest_basics, pubkey_fingerprint,
-    read_pubkey_sidecar, signature_verifies_with,
+    SigVerifyError, TrustDecision, parse_manifest_id, pubkey_fingerprint, read_pubkey_sidecar,
+    signature_verifies_with,
 };
 use crate::known_plugins::{KnownPluginEntry, KnownPlugins, UnverifiedChoice};
 
@@ -69,15 +69,10 @@ impl UnverifiedCause {
 /// 폴더 하나의 판정.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrustVerdict {
-    /// 임베드 키 또는 신뢰 DB의 키로 서명이 검증되고 권한도 신뢰 시점과 같다.
+    /// 임베드 키 또는 신뢰 DB의 키로 서명이 검증된다.
     Trusted,
     /// 키로 확인하지 못했지만 사용자가 같은 매니페스트를 쓰기로 골라 두었다.
     AcceptedUnverified,
-    /// 신뢰 DB의 키로 검증되지만 권한이 신뢰 시점과 다르다. 권한을 다시 승인해야 한다.
-    PermissionsChanged {
-        fingerprint: String,
-        manifest_permissions: Vec<String>,
-    },
     /// 키로 확인하지 못했고 사용자 선택 기록도 없다.
     Unverified(UnverifiedCause),
 }
@@ -104,20 +99,9 @@ pub fn judge_signature(dir: &Path) -> TrustVerdict {
 pub fn judge_signature_with(dir: &Path, known: &KnownPlugins) -> TrustVerdict {
     match crate::bundle_sig::verify_bundle_signature_with(dir, known) {
         Ok(TrustDecision::Trusted) => TrustVerdict::Trusted,
-        Ok(TrustDecision::Untrusted {
-            fingerprint,
-            manifest_permissions,
-            reason: UntrustedReason::PermissionsChanged,
-            ..
-        }) => TrustVerdict::PermissionsChanged {
-            fingerprint,
-            manifest_permissions,
-        },
-        Ok(TrustDecision::Untrusted {
-            fingerprint,
-            reason: UntrustedReason::UnknownKey,
-            ..
-        }) => TrustVerdict::Unverified(unknown_key_cause(dir, fingerprint)),
+        Ok(TrustDecision::Untrusted { fingerprint, .. }) => {
+            TrustVerdict::Unverified(unknown_key_cause(dir, fingerprint))
+        }
         Err(SigVerifyError::SidecarMissing) => TrustVerdict::Unverified(UnverifiedCause::Unsigned),
         // 파싱할 수 있는 임베드 키가 없는 빌드에서도 모르는 키의 서명은 같은 원인으로 본다.
         Err(SigVerifyError::NoValidTrustedKeys) => {
@@ -174,7 +158,7 @@ pub fn manifest_sha256(dir: &Path) -> std::io::Result<String> {
 
 /// 이 폴더의 매니페스트 ID에 같은 내용으로 고른 미인증 선택 기록이 있는지.
 fn unverified_choice_matches(dir: &Path, known: &KnownPlugins) -> bool {
-    let (plugin_id, _) = parse_manifest_basics(dir);
+    let plugin_id = parse_manifest_id(dir);
     let Ok(digest) = manifest_sha256(dir) else {
         return false;
     };
@@ -297,27 +281,6 @@ pub fn record_trusted_key_in(
     crate::file_persistence::update_known(&path, |db| {
         let mut undo = TrustRecordUndo::capture(db, plugin_id, path.clone());
         db.add(plugin_id.to_string(), entry);
-        undo.expect_current(db);
-        Ok(undo)
-    })
-}
-
-/// Reapprove only permissions while retaining the latest key under the same participating lock.
-pub fn reapprove_permissions_in(
-    path: std::path::PathBuf,
-    plugin_id: &str,
-    permissions: Vec<String>,
-    trusted_at: String,
-) -> std::io::Result<TrustRecordUndo> {
-    crate::file_persistence::update_known(&path, |db| {
-        let mut entry = db
-            .lookup(plugin_id)
-            .cloned()
-            .ok_or_else(|| std::io::Error::other("plugin trust record missing"))?;
-        let mut undo = TrustRecordUndo::capture(db, plugin_id, path.clone());
-        entry.permissions = permissions;
-        entry.trusted_at = trusted_at;
-        db.add(plugin_id.to_owned(), entry);
         undo.expect_current(db);
         Ok(undo)
     })

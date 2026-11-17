@@ -24,21 +24,17 @@ fn plugin_dir() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::write(
         dir.path().join("tasty-plugin.toml"),
-        format!("id = \"{ID}\"\npermissions = [\"fs.read\"]\n"),
+        format!("id = \"{ID}\"\n"),
     )
     .expect("manifest");
     dir
-}
-
-fn perms() -> Vec<String> {
-    vec!["fs.read".to_string()]
 }
 
 #[test]
 fn an_unverified_plugin_needs_an_explicit_choice_and_records_nothing_without_one() {
     let _home = TempHome::new();
     let dir = plugin_dir();
-    let err = authorize(dir.path(), ID, &perms(), &InstallChoice::VerifiedOnly)
+    let err = authorize(dir.path(), ID, &InstallChoice::VerifiedOnly)
         .expect_err("unverified plugin must not pass without a choice");
     let refused = err
         .downcast_ref::<UnverifiedRefused>()
@@ -62,13 +58,13 @@ fn an_unverified_plugin_needs_an_explicit_choice_and_records_nothing_without_one
             .is_none()
     );
 
-    let undo = authorize(dir.path(), ID, &perms(), &InstallChoice::AllowUnverified)
+    let undo = authorize(dir.path(), ID, &InstallChoice::AllowUnverified)
         .expect("explicit choice is accepted");
     assert!(undo.is_some());
     assert_eq!(judge(dir.path()), TrustVerdict::AcceptedUnverified);
     // 선택을 기록했으면 다음 판정은 그대로 통과하고 기록을 다시 바꾸지 않는다.
     assert!(
-        authorize(dir.path(), ID, &perms(), &InstallChoice::VerifiedOnly)
+        authorize(dir.path(), ID, &InstallChoice::VerifiedOnly)
             .expect("recorded choice")
             .is_none()
     );
@@ -95,7 +91,6 @@ fn trusting_a_key_that_did_not_sign_the_manifest_fails_before_anything_is_saved(
     let err = authorize(
         dir.path(),
         ID,
-        &perms(),
         &InstallChoice::TrustKey {
             pubkey_b64: KnownPluginEntry::encode_pubkey(&wrong),
         },
@@ -118,7 +113,6 @@ fn trusting_the_signing_key_records_its_real_fingerprint() {
     let undo = authorize(
         dir.path(),
         ID,
-        &perms(),
         &InstallChoice::TrustKey {
             pubkey_b64: KnownPluginEntry::encode_pubkey(&pubkey),
         },

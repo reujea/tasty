@@ -13,7 +13,6 @@ fn plugin(id: &str) -> PluginEntry {
         health_error: false,
         builtin: false,
         surface_kinds: Vec::new(),
-        manifest_permissions: Vec::new(),
         commands: Vec::new(),
         log_path: String::new(),
         install_dir: String::new(),

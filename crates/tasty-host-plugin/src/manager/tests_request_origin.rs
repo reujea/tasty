@@ -158,7 +158,6 @@ timeout_ms = {timeout_ms}
         dir: PathBuf::from("/nonexistent/origin_ext_fixture"),
         manifest: ext,
     });
-    mgr.config.set_granted(EXT, vec![format!("ext:{OWNER}")]);
     let (owner, owner_rx) = PluginProcess::stub_with_request_rx(OWNER);
     let (ext_proc, ext_rx) = PluginProcess::stub_with_request_rx(EXT);
     mgr.processes.insert(OWNER.into(), owner);

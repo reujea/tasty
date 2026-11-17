@@ -1401,25 +1401,23 @@ fn lifecycle_toggles_answer_without_a_window() {
     }
 }
 
-/// 헤드리스의 remove·grant는 지원하지 않는다. 조회·토글 허용 범위와 구별해 검사한다.
+/// 헤드리스의 remove는 지원하지 않는다. 조회·토글 허용 범위와 구별해 검사한다.
 #[cfg(not(feature = "gui"))]
 #[test]
 fn the_remaining_lifecycle_methods_are_still_absent_in_a_headless_daemon() {
     let _lane = lane();
     let tasty = common::shared();
-    for method in ["plugin.remove", "plugin.grant"] {
-        let resp = tasty.call_raw(method, json!({"id": "anything"}));
-        let code = resp
-            .get("error")
-            .and_then(|e| e.get("code"))
-            .and_then(|c| c.as_i64());
-        assert_eq!(
-            code,
-            Some(-32017),
-            "헤드리스에서 {method} 는 아직 arm 이 없는 메서드여야 한다. `-32601` 이 \
-             왔다면 표에서 이름이 빠진 것이고, 그러면 호출자가 오타와 구분할 수 없다: {resp}"
-        );
-    }
+    let resp = tasty.call_raw("plugin.remove", json!({"id": "anything"}));
+    let code = resp
+        .get("error")
+        .and_then(|e| e.get("code"))
+        .and_then(|c| c.as_i64());
+    assert_eq!(
+        code,
+        Some(-32017),
+        "헤드리스에서 plugin.remove 는 아직 arm 이 없는 메서드여야 한다. `-32601` 이 \
+         왔다면 표에서 이름이 빠진 것이고, 그러면 호출자가 오타와 구분할 수 없다: {resp}"
+    );
 }
 
 /// 헤드리스에는 파일 식별 결과를 열 창이 없으므로 dispatch를 수락하면 안 된다.

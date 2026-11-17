@@ -2,7 +2,7 @@
 
 - **Status**: Implemented
 - **주체**: AI Agent · 로컬 사용자. 에이전트별 활동을 측정하고 한도(cap)를 설정·해제한다.
-- **설계**: [플러그인 권한 모델](../../dev-guide/plugin-permissions.md) — 검사를 선택적으로 끄지 않는다, 권한 토큰은 선언이다
+- **설계**: [호스트 호출 계약](../../dev-guide/plugin-permissions.md) — 검사를 선택적으로 끄지 않는다
 - **코드**: `telemetry.*` 핸들러, `tasty-telemetry`, 영속 `tasty-memory`
 - **화면**: 없음 (cap 도달 시 알림)
 - **메서드 목록**: [reference/api](../../reference/api.md#텔레메트리-telemetry)
@@ -60,7 +60,7 @@ $ TASTY_SURFACE_ID=<surface_id> TASTY_AGENT_ID=claude_s<surface_id> TASTY_SESSIO
 | `CallerContext::owner()` | Local → `_host`, Plugin → `plugin_id`, Agent → `agent_id` |
 | `CallerContext::agent_id()` | Local → 봉투의 `caller_agent_id` 또는 `_host`, Plugin → `plugin_id`, Agent → `agent_id` |
 
-Local 분기에서 `owner()` 는 항상 `_host` 이고 `agent_id()` 는 호출자가 봉투로 밝힌 `caller_agent_id` 다. 이 값은 검증할 수 없는 자기 신고라 텔레메트리 기록(`telemetry record` 의 기본 agent, `ipc_calls` 집계)·감사 `caller_id`·헤드리스 PTY `owner_agent_id` 표시에만 쓰고, 권한·memory owner·rate limit·cap 차단 판단에는 쓰지 않는다([플러그인 권한 모델](../../dev-guide/plugin-permissions.md)). 형식(`[a-zA-Z0-9_-]`, 64자 이하)이 틀리면 버리고 `_host` 로 기록하며 요청은 거절하지 않는다. 세션 토큰이 있으면 세션의 ID 가 우선한다. 호스트 프로세스 자신의 `TASTY_AGENT_ID` 는 이 Tasty 를 띄운 바깥 인스턴스에서 상속한 값이라 읽지 않는다. 구 서버는 봉투 필드를 무시하고 `_host` 로 기록하며, 지원 여부는 capability `ipc.caller-agent-id` 로 확인한다.
+Local 분기에서 `owner()` 는 항상 `_host` 이고 `agent_id()` 는 호출자가 봉투로 밝힌 `caller_agent_id` 다. 이 값은 검증할 수 없는 자기 신고라 텔레메트리 기록(`telemetry record` 의 기본 agent, `ipc_calls` 집계)·감사 `caller_id`·헤드리스 PTY `owner_agent_id` 표시에만 쓰고, 권한·memory owner·rate limit·cap 차단 판단에는 쓰지 않는다([호스트 호출 계약](../../dev-guide/plugin-permissions.md)). 형식(`[a-zA-Z0-9_-]`, 64자 이하)이 틀리면 버리고 `_host` 로 기록하며 요청은 거절하지 않는다. 세션 토큰이 있으면 세션의 ID 가 우선한다. 호스트 프로세스 자신의 `TASTY_AGENT_ID` 는 이 Tasty 를 띄운 바깥 인스턴스에서 상속한 값이라 읽지 않는다. 구 서버는 봉투 필드를 무시하고 `_host` 로 기록하며, 지원 여부는 capability `ipc.caller-agent-id` 로 확인한다.
 
 #### 보안 한계
 
@@ -80,7 +80,7 @@ GUI·headless의 외부 소켓과 plugin host-call은 라우팅 전에 권한·c
 소비하거나 기록하지 않는다. 별칭은 canonical 메서드 태그로 남는다.
 권한/한도 거부는 Allow 관측을 남기지 않고 기존 Deny audit·권한 격상 흐름을 유지한다.
 `telemetry.*`와 호스트 caller의 관측 제외, Local의 rate 면제는 그대로다.
-[플러그인 권한 모델](../../dev-guide/plugin-permissions.md).
+[호스트 호출 계약](../../dev-guide/plugin-permissions.md).
 
 
 ### Cost Cap
@@ -93,7 +93,7 @@ GUI·headless의 외부 소켓과 plugin host-call은 라우팅 전에 권한·c
 | `pause` | 그 plugin agent 의 모든 IPC `-32007 cap_blocked`(과거 `stop` 값으로 저장된 cap 은 `pause` 로 자동 마이그레이션됨) |
 | `require_approval` | `approval.request`(severity=warn) 자동 + IPC 차단 → 사용자 응답 후 `cap.reset` 으로 재개 |
 
-차단된 plugin 본인은 `cap.reset` 도 막힌다 — 다른 plugin(`Telemetry` 권한)·Local(CLI)은 reset 할 수 있다. 누적 임계인 cap 과 *시간당 비율*인 [agent rate-limit](../agent-collaboration/index.md) 은 다른 시스템.
+차단된 plugin 본인은 `cap.reset` 도 막힌다 — 다른 plugin·`telemetry` 권한을 가진 Agent·Local(CLI)은 reset 할 수 있다. 누적 임계인 cap 과 *시간당 비율*인 [agent rate-limit](../agent-collaboration/index.md) 은 다른 시스템.
 
 ### 이상 탐지
 
@@ -348,7 +348,7 @@ in-memory" 가 안 갈린다([저장 계약과 writer 명부](../../design/syste
 앞에서 돌려보낸 요청은 뒤를 안 지나므로 한 요청은 많아야 한 칸에 세진다 — 그래서 `judged` 에서 세 거절을
 뺀 값이 세 게이트를 모두 지난 수와 같다. 셋을 한 칸으로 합치지 않는 것은 처방이 달라서다(권한을 청한다 ·
 cap 을 푼다 · 기다린다). 단 `permission_denied` 는 **권한 게이트가 돌려보낸 `-32001` 만** 센다 — 그
-거절은 모두 `-32001` 이지만 역은 아니다. 그리고 권한이 모자란 거절만 담지 않는다 — 권한 게이트는 권한 셋을 가진 호출자(plugin · agent)가 부른 없는 메서드 이름과 그 호출자에게
+거절은 모두 `-32001` 이지만 역은 아니다. 그리고 권한이 모자란 거절만 담지 않는다 — 권한 게이트는 plugin · agent 호출자가 부른 없는 메서드 이름과 그 호출자에게
 열리지 않은 메서드도 같은 코드로 돌려보내고, 그 둘은 권한을 청해도 안 풀리고 부르는 메서드를 바꿔야 한다.
 Local 호출자는 이 게이트에서 돌려보내지지 않으므로 없는 메서드를 불러도 이 칸에 안 든다. 응답
 메시지(`permission_denied: unknown ipc method …` 등)가 셋을 가른다. `-32001` 인데 이 칸에 안 드는 것이 두

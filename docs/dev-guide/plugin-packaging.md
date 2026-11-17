@@ -25,7 +25,7 @@
 - `BUILTINS`의 id는 모두 이 목록에 있어야 한다. `official::tests::bundled_ids_of_every_os_are_official`가 `builtin.rs` 원문에서 두 OS 벌(`#[cfg(windows)]`·`#[cfg(not(windows))]`)의 id 18개를 읽어 대조하고, `bundled_ids_of_this_build_are_official`가 이 빌드가 고른 벌을 대조한다.
 - 레포 `crates/*/tasty-plugin.toml`의 id도 모두 이 목록에 있어야 한다(`repository_plugin_manifests_are_official`, 매니페스트 9개).
 - 새 공식 플러그인은 `BUILTINS`와 별도로 이 목록에 한 줄을 넣는다. 위 시험들과 목록 길이 단언(`every_official_id_is_admitted`)을 함께 고친다.
-- 번들 설치·갱신은 번들 폴더 매니페스트의 `id`가 폴더 이름(`BuiltinSpec::id`)과 같은지 복사 전에 확인한다. 다르면 복사·권한 기록 없이 실패로 남긴다.
+- 번들 설치·갱신은 번들 폴더 매니페스트의 `id`가 폴더 이름(`BuiltinSpec::id`)과 같은지 복사 전에 확인한다. 다르면 복사 없이 실패로 남긴다.
 
 배포 패키지의 plugin 폴더(`plugins/<id>/`)에는 받은 산출물 폴더가 통째로 들어가고, non-debug 패키징이 `tasty-plugin.toml.sig`(서명 sidecar)를 더한다: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페스트) · `lang/*.toml` · 고지 파일(`LICENSE` 등, 릴리스마다 다를 수 있다) · `tasty-plugin.toml.sig`.
 
@@ -128,7 +128,7 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 | 검증 시점 | 설치·확인 필요 탭 등록(`trust_verdict::judge`, debug·release 공통 — 미인증은 사용자가 고를 때만 설치·등록), plugin 로드(`discovery.rs::trust_outcome`)와 `upgrade-builtins`(`builtin.rs::verify_builtin_bundle_trust`) — 뒤의 둘은 release/dist 에서 판정하고 debug 는 건너뛰거나 `debug!` 로그만(`#[cfg(debug_assertions)]`) |
 | 공개 키 파일 | 커스텀 plugin 은 `tasty-plugin.toml.pub`(raw 32 byte)를 함께 배포해야 사용자가 그 키를 신뢰할 수 있다. 서명은 공개 키를 드러내지 않는다 |
 
-보호 범위는 **매니페스트 한 파일만** — 권한/contributes/kind 가 매니페스트 안이라 변조되면 host가 잘못된 권한·기여 정보를 신뢰할 수 있다. binary 는 OS codesign(macOS notarization/Windows Authenticode)에 위임, lang/ 등 부속은 검증 밖.
+보호 범위는 **매니페스트 한 파일만** — contributes/kind 가 매니페스트 안이라 변조되면 host가 잘못된 기여 정보를 신뢰할 수 있다. binary 는 OS codesign(macOS notarization/Windows Authenticode)에 위임, lang/ 등 부속은 검증 밖.
 
 ### dev key (개발자 1회)
 
@@ -224,11 +224,11 @@ plugin 시스템의 작성 형식·배포·신뢰·호환성·hot reload 정책�
 |------|-----------|------------------|
 | 작성 형식 | 별도 OS 프로세스. Rust SDK 제공. WASM 실험은 보류 | 다른 언어·강제 격리가 필요한 실제 소비자 |
 | 배포 | 로컬 경로 설치와 앱 동봉 번들. 공개 마켓플레이스 미지원 | 외부 플러그인의 배포·독립 업데이트 요구 |
-| 신뢰 | 매니페스트 권한·사용자 승인·호스트 IPC 검사 | OS 접근까지 제한해야 하는 요구 |
+| 신뢰 | 매니페스트 서명 판정·미인증 설치 선택. 설치 뒤에는 권한 제한 없음 | OS 접근까지 제한해야 하는 요구 |
 | 호환 | HOST_API_VERSION 메이저 일치. 추가 필드는 optional+default | 기존 필드의 의미나 필수 조건 변경 |
 | 재적재 | disable→enable 또는 아래 개발용 자동 reload | 상태를 잃지 않는 교체가 실제로 필요할 때 |
 
-호스트 API 권한은 플러그인의 직접 파일·네트워크 접근을 제한하지 않는다.
+플러그인의 직접 파일·네트워크 접근은 제한하지 않는다.
 OS 샌드박스는 아직 제공하지 않으며 WASM도 지원 기능으로 안내하지 않는다.
 제품의 보안 기준은 [플러그인 원칙](../principles/plugins.md)의 인증과 미인증 설치 경고다. 마켓플레이스의 도입 조건으로 OS 샌드박스나 설치 후 권한 제약을 요구하지 않는다. 현재 release의 매니페스트 서명 거절·신뢰 DB 검사는 새 인증 제도와 다르며 원칙을 충족한 구현으로 설명하지 않는다.
 Lua는 호스트에 등록한 사용자 스크립트 실행 기능이며 플러그인 실행 형식과 별개다.
@@ -264,7 +264,7 @@ bundle 의 `tasty-plugin.toml` 은 ed25519 detached signature(`.sig` sidecar)로
 
 #### 사용자 수정 영역
 
-builtin 디렉토리는 **host-owned** — 자동/수동 upgrade 가 `overwrite_builtin_dir` 로 사용자 추가 파일 제거 가능. 보존 상태(grants/disabled/removed_builtins/단축키 override)는 디렉토리 *밖* `~/.tasty/plugins.toml` 에 있어 영향 없음.
+builtin 디렉토리는 **host-owned** — 자동/수동 upgrade 가 `overwrite_builtin_dir` 로 사용자 추가 파일 제거 가능. 보존 상태(disabled/removed_builtins/단축키 override)는 디렉토리 *밖* `~/.tasty/plugins.toml` 에 있어 영향 없음.
 
 #### 매니페스트 version bump
 

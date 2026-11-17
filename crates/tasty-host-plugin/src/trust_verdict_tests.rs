@@ -117,7 +117,6 @@ fn undo_restores_only_the_records_of_that_id() {
     let _home = HomeEnvGuard::tasty_home();
     let entry = |byte: u8| KnownPluginEntry {
         pubkey: KnownPluginEntry::encode_pubkey(&[byte; 32]),
-        permissions: vec!["fs.read".into()],
         trusted_at: "2026-10-01T00:00:00Z".into(),
         publisher_fingerprint: String::new(),
     };
@@ -170,7 +169,6 @@ fn trusting_the_matching_key_makes_the_plugin_trusted() {
         "com.example.trust",
         KnownPluginEntry {
             pubkey: KnownPluginEntry::encode_pubkey(&pubkey),
-            permissions: vec!["fs.read".into()],
             trusted_at: "2026-10-19T00:00:00Z".into(),
             publisher_fingerprint: fingerprint,
         },

@@ -105,8 +105,6 @@ pub(super) fn emit_plugin_registry_changed(
     let key = match change_kind.as_str() {
         "installed" => "plugin.installed",
         "removed" => "plugin.removed",
-        "permission_granted" => "plugin.permission_granted",
-        "permission_revoked" => "plugin.permission_revoked",
         other => {
             tracing::warn!("emit_plugin_registry_changed: unknown change_kind '{other}'");
             return;

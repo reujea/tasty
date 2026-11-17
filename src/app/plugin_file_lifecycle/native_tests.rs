@@ -4,10 +4,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use tasty_host_plugin::{
-    known_plugins::{KnownPluginEntry, KnownPlugins},
-    manager::file_config::ConfigChange,
-};
+use tasty_host_plugin::{known_plugins::KnownPlugins, manager::file_config::ConfigChange};
 const ID: &str = "com.example.native-files";
 const FAKE: &str = r#"#!/usr/bin/python3
 import os,socket,json,pathlib
@@ -24,7 +21,7 @@ for line in f:
  send({'id':request['id'],'result':{}})
  if request.get('method')=='shutdown':break
 "#;
-fn manifest(dir: &Path, extra: bool) {
+fn manifest(dir: &Path) {
     std::fs::write(
         dir.join("tasty-plugin.toml"),
         format!(
@@ -33,7 +30,6 @@ id="{ID}"
 name="Owned native file consumer"
 version="1.0.0"
 api_version="1"
-permissions={}
 [entry]
 type="process"
 command="fake.py"
@@ -42,12 +38,7 @@ id="probe"
 title_i18n_key="command.probe"
 scope="global"
 default_keybinding="ctrl+shift+g"
-"#,
-            if extra {
-                "[\"fs.read\",\"fs.write\"]"
-            } else {
-                "[\"fs.read\"]"
-            }
+"#
         ),
     )
     .unwrap();
@@ -154,65 +145,6 @@ fn register(app: &mut App, home: &Path, dir: &Path) {
     assert_eq!(pids(home).len(), 1);
     disable(app, home);
 }
-fn reapprove(app: &mut App, home: &Path, dir: &Path) {
-    manifest(dir, true);
-    let key = tasty_host_plugin::trust_verdict::sign_manifest_for_tests(dir, [91; 32]).unwrap();
-    std::fs::write(dir.join("tasty-plugin.toml.pub"), key).unwrap();
-    let known = home.join("known-plugins.toml");
-    let mut db = KnownPlugins::load_from(known.clone()).unwrap();
-    db.add(
-        ID.into(),
-        KnownPluginEntry {
-            pubkey: KnownPluginEntry::encode_pubkey(&key),
-            permissions: vec!["fs.read".into()],
-            trusted_at: "owned".into(),
-            publisher_fingerprint: String::new(),
-        },
-    );
-    db.save().unwrap();
-    let held = tasty_utils::file_replace::lock(&known).unwrap();
-    let done = Reply::default();
-    let completion = done.clone();
-    app.enqueue_plugin_reapprove(ID.into(), move |_, result| completion.finish(result))
-        .unwrap();
-    tick(app);
-    std::thread::sleep(Duration::from_millis(20));
-    tick(app);
-    assert!(done.poll().is_none());
-    assert_eq!(pids(home).len(), 1);
-    assert!(
-        !app.plugin_manager
-            .as_ref()
-            .unwrap()
-            .config
-            .granted_permissions(ID)
-            .contains("fs.write")
-    );
-    drop(held);
-    wait(app, &done);
-    assert!(
-        KnownPlugins::load_from(known)
-            .unwrap()
-            .lookup(ID)
-            .unwrap()
-            .permissions
-            .contains(&"fs.write".into())
-    );
-    assert!(
-        app.plugin_manager
-            .as_ref()
-            .unwrap()
-            .config
-            .granted_permissions(ID)
-            .contains("fs.write")
-    );
-    let end = Instant::now() + Duration::from_secs(5);
-    while pids(home).len() != 2 {
-        tick(app);
-        assert!(Instant::now() < end);
-        std::thread::sleep(Duration::from_millis(1));
-    }
-}
 fn shortcuts(app: &mut App, home: &Path) {
     let path = home.join("plugins.toml");
     let held = tasty_utils::file_replace::lock(&path).unwrap();
@@ -265,7 +197,7 @@ pub(crate) fn gui_only_consumers(make: impl FnOnce() -> App) {
     .unwrap();
     let dir = home.join("plugins").join(ID);
     std::fs::create_dir_all(&dir).unwrap();
-    manifest(&dir, false);
+    manifest(&dir);
     tasty_test_support::write_executable(&dir.join("fake.py"), FAKE).unwrap();
     let mut app = make();
     app.plugin_manager = Some(crate::plugin::PluginManager::with_registries(
@@ -274,9 +206,8 @@ pub(crate) fn gui_only_consumers(make: impl FnOnce() -> App) {
         app.services.registries.file_handler.clone(),
     ));
     register(&mut app, &home, &dir);
-    reapprove(&mut app, &home, &dir);
     shortcuts(&mut app, &home);
     disable(&mut app, &home);
-    tracing::info!(owned_pids=?pids(&home),"L1 native App GUI register/trust/reapprove/shortcut receipts; all owned PIDs reaped");
+    tracing::info!(owned_pids=?pids(&home),"L1 native App GUI register/trust/shortcut receipts; all owned PIDs reaped");
     super::shutdown_tests::cleanup(&mut app);
 }

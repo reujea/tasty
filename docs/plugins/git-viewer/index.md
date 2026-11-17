@@ -5,7 +5,6 @@
 - **배포/통합**: bundled · 도구 메뉴 항목 + popup — [plugins 개념](../../concepts/plugins.md)
 - **코드**: `crates/tasty-plugin-git-viewer/` · 조회 로직은 host core 와 공유하는
   `crates/tasty-git-core/`
-- **권한**: `ui.popup` · `ui.tool_item` · `fs.read`
 - **화면**: [screens/git-viewer.md](screens/git-viewer.md)
 
 > **예제로서**: **도구 메뉴 항목 + popup** 예제 — main/render 모듈(조회 로직은 `tasty-git-core`)로 분리한 구조의 레퍼런스 → [plugin-development](../../dev-guide/plugin-development.md#도구-메뉴-항목--popup).
@@ -18,7 +17,7 @@ git **status / log / diff 를 읽기 전용**으로 보여주는 popup 을 제�
 
 ## 내부 동작
 
-- **tool** `open-viewer` — [도구 메뉴](../../features/tools-menu/index.md)에 항목 추가(`ui.tool_item`), action `open_popup{com.tasty.git-viewer/viewer}`.
+- **tool** `open-viewer` — [도구 메뉴](../../features/tools-menu/index.md)에 항목 추가, action `open_popup{com.tasty.git-viewer/viewer}`.
 - **command** `open_viewer` — 단축키로도 뷰어를 연다(`scope = "global"`, `default_keybinding` 미지정 — 설정 > 단축키 > 플러그인에서 사용자가 직접 지정). action 은 tool 항목과 동일한 `open_popup{com.tasty.git-viewer/viewer}`.
 - **popup** `viewer` — trigger `ipc`(IPC 로도 열림), `rendering = egui-mesh`. status/log/diff 를 `fs.read` 로 읽어 표시. **읽기 전용**(커밋/스테이징 등 변경 없음).
 - **렌더링** — 팝업 콘텐츠를 **egui-mesh** 로 그린다(docs/dev-guide/egui-mesh-channel.md): plugin 이 자기 egui Context 에서
@@ -38,7 +37,6 @@ git **status / log / diff 를 읽기 전용**으로 보여주는 popup 을 제�
   가이드 참조). plugin 이 빈 값을 자기 lang 의 `git_viewer.no_message` / `git_viewer.unknown_author` 로 그리므로
   로컬·원격(mirror) 조회 모두 plugin 로케일(`TASTY_LOCALE`)을 따른다.
 - **fs 접근** — git2 가 파일을 직접 읽어(host fs 포트 우회) worktree 가 cwd 밖에 있어도 읽는다.
-  권한 선언은 `fs.read` 유지.
 - **attach mirror 워크스페이스** — 로컬 프로세스에 실제 PTY/파일시스템이 없는 mirror surface
   에서 열리면(`popup.open` context 의 `mirror`/`local_surface_id`), 로컬 `git2::Repository::
   discover` 대신 host 가 attach 채널로 **원격**(mirror 대상) tasty 인스턴스에 조회를 왕복시킨다

@@ -792,7 +792,7 @@ plugin `api_version` 이 호스트와 일치할 때만 열린다(`open_popup_ins
 ### plugin 작성
 
 `tasty-plugin.toml` 의 `[[contributes.popup]]` 에 `rendering = "egui-mesh"` 를 선언하고
-(`permissions` 에 `ui.popup`), `Plugin::paint_popup` 에서 `EguiMeshPopup::paint(&ctx.host,
+`Plugin::paint_popup` 에서 `EguiMeshPopup::paint(&ctx.host,
 &ctx.params, |egui_ctx| { ... })` 를 호출한다. `open_popup`/`on_popup_closed` 로
 인스턴스별 상태를 초기화/정리한다. 최소 예시는 `crates/tasty-plugin-mesh-demo/src/main.rs`
 의 `draw_popup`.
@@ -876,7 +876,7 @@ TTL 만료·close X 는 `BannerManager` 가 감지해 `closed_plugin_banners` �
 ### 개방 정책 · scope 소유권
 
 surface/popup 과 동일하게 plugin ID 와 무관한 api_version 게이트다(`open_banner_instance`). 트리거는 **IPC 전용**
-(`banner.open`, 권한 `ui.banner`). scope 는 `surface` 만 — host 는 그 plugin 이 **소유한**
+(`banner.open`). scope 는 `surface` 만 — host 는 그 plugin 이 **소유한**
 surface 에만 배너를 허용한다(`open_plugin_banner` 가 surface→plugin 매핑으로 검증). 단일
 인스턴스 가드로 같은 `(plugin_id, banner_id)` 는 하나만 연다.
 
@@ -897,7 +897,7 @@ surface 에만 배너를 허용한다(`open_plugin_banner` 가 surface→plugin 
 ### plugin 작성
 
 `tasty-plugin.toml` 의 `[[contributes.banner]]` 에 `rendering = "egui-mesh"` + `scope =
-"surface"` 를 선언하고(`permissions` 에 `ui.banner`), `Plugin::paint_banner` 에서
+"surface"` 를 선언하고, `Plugin::paint_banner` 에서
 `EguiMeshBanner::paint(&ctx.host, &ctx.params, |egui_ctx| { ... })` 를 호출한다.
 `open_banner`/`on_banner_closed` 로 인스턴스별 상태를 초기화/정리한다. plugin 은
 `banner.open { banner_id, surface_id }`(자기 소유 surface) 로 띄우고 `banner.close

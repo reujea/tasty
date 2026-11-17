@@ -538,7 +538,7 @@ pub enum PluginEvent {
     },
     /// plugin 측 로그 (호스트 로그에 합쳐짐).
     Log { level: String, message: String },
-    /// plugin → 호스트 IPC 호출. 호스트가 권한을 검사하고 라우터에 보낸 뒤,
+    /// plugin → 호스트 IPC 호출. 호스트가 플러그인이 부를 수 있는 메서드인지 확인하고 라우터에 보낸 뒤,
     /// 결과를 `ipc.result` 요청으로 회신한다 (`call_id`로 매칭).
     IpcCall {
         call_id: u64,

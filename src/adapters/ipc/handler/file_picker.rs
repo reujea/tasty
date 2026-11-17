@@ -345,7 +345,6 @@ mod tests {
     fn plugin_caller(id: &str) -> CallerContext {
         CallerContext::Plugin {
             plugin_id: id.to_string(),
-            permissions: Arc::new(Default::default()),
         }
     }
 

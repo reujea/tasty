@@ -159,7 +159,6 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
     );
     let caller = tasty_ipc::caller::CallerContext::Plugin {
         plugin_id: PLUGIN.into(),
-        permissions: Arc::new(Default::default()),
     };
     let response = crate::adapters::ipc::handler::file_picker::handle_trigger(
         &mut state,

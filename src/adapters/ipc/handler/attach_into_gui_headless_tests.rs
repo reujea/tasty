@@ -30,7 +30,6 @@ fn call(caller: &CallerContext, port: u16) -> JsonRpcResponse {
 fn plugin_caller() -> CallerContext {
     CallerContext::Plugin {
         plugin_id: "com.example.attach".to_string(),
-        permissions: std::sync::Arc::new(std::collections::HashSet::new()),
     }
 }
 

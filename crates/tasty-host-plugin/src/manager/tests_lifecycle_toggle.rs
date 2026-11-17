@@ -63,7 +63,6 @@ id="com.example.test"
 name="test"
 version="1.0.0"
 api_version="1"
-permissions=["fs.read"]
 [entry]
 type="process"
 command="unused"
@@ -78,37 +77,32 @@ command="unused"
 }
 
 #[test]
-fn prepared_permission_waits_for_receipt_and_failure_keeps_cache_unchanged() {
+fn prepared_config_change_waits_for_receipt_and_failure_keeps_cache_unchanged() {
     use super::file_config::ConfigChange;
+    use crate::registry_state::ShortcutOverride;
     let home = HomeEnvGuard::tasty_home();
     let mut mgr = installed(&home);
-    let change = ConfigChange::Permission {
-        id: "com.example.test".into(),
-        token: "fs.read".into(),
-        grant: true,
+    let change = ConfigChange::Shortcuts(vec![(
+        "com.example.test".into(),
+        "open".into(),
+        Some(ShortcutOverride::None),
+    )]);
+    let cleared = |mgr: &PluginManager| {
+        matches!(
+            mgr.config.shortcut_override("com.example.test", "open"),
+            Some(ShortcutOverride::None)
+        )
     };
     let request = mgr.prepare_config_change(&change).unwrap();
-    assert!(
-        mgr.config
-            .granted_permissions("com.example.test")
-            .is_empty()
-    );
+    assert!(!cleared(&mgr));
     assert!(!home.path().join("plugins.toml").exists());
     let committed = std::thread::spawn(move || request.execute())
         .join()
         .unwrap()
         .unwrap();
-    assert!(
-        mgr.config
-            .granted_permissions("com.example.test")
-            .is_empty()
-    );
+    assert!(!cleared(&mgr));
     mgr.apply_config_change(committed, &change).unwrap();
-    assert!(
-        mgr.config
-            .granted_permissions("com.example.test")
-            .contains("fs.read")
-    );
+    assert!(cleared(&mgr));
     let before = toml::to_string(&mgr.config).unwrap();
     std::fs::write(home.path().join("plugins.toml"), "PRIVATE = [[[\n").unwrap();
     let disabled = ConfigChange::Enabled {

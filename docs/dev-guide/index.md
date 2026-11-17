@@ -92,7 +92,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 | [paired-agent-handlers](paired-agent-handlers.md) | Claude/Codex 짝 핸들러의 공개 응답·번역·완료 알림 호환 경계 |
 | [plugin-persistence](plugin-persistence.md) | Plugin 설정·신뢰 기록의 잠금 병합·파일 확정과 런타임 효과 경계 |
 | [plugin-runtime](plugin-runtime.md) | 호스트가 plugin 프로세스에게 주는 런타임 계약 — 수명주기 · namespace · 채널 |
-| [plugin-permissions](plugin-permissions.md) | namespace owner 기동 범위 · 권한 모델 |
+| [plugin-permissions](plugin-permissions.md) | 호출자별 판정 · Agent 권한 토큰 · namespace owner 기동 범위 |
 | [plugin-packaging](plugin-packaging.md) | 서명 + staging 동기화 + 생태계 정책(자동 upgrade · 호환성 분류) |
 
 DAG 화면의 읽기 요청과 App 워커 소유 경계는 [Model + Host View 분리](model-view-split.md)에 설명한다.

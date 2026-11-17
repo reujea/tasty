@@ -143,7 +143,7 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 > 다른 표를 넣는 형식까지 검사하려면 별도 파서가 필요하다. 검사 도입 기준은
 > [duplicated-sets](duplicated-sets.md)를 따른다.
 
-† **런타임 추가 게이트** — `debug.inject_mouse` · `debug.inject_key` · `surface.raw_key` · `surface.switch_input_source` 는 `--enable-input-simulation` 으로 띄운 인스턴스에서만 동작한다(`engine.input_simulation_enabled`). 안 켜져 있으면 `-32001` 로 거부. 앞의 둘은 대상 surface 의 PTY 에, 뒤의 둘은 **tasty 프로세스 밖 OS 전역 입력 상태**에 작용해 cfg 격리만으로는 부족하다고 봤다. 반면 **게이트 없이 cfg 격리만 받는 입력 재현이 여섯 있다** — `surface.ime_*` 와 `debug.inject_window_mouse` · `debug.inject_egui_mouse` · `debug.inject_egui_key` · `debug.inject_egui_text` · `debug.inject_egui_clipboard`. 여섯 다 tasty 프로세스 **안**의 창 상태(IME 조합 / winit·egui 입력 큐)만 바꾸는 in-process 시뮬레이션이라, 인스턴스를 debug 로 띄운 사람 밖으로 효과가 나가지 않는다. 위 넷과 갈리는 기준이 PTY·OS 전역이냐 in-process 냐이므로 이쪽은 cfg 격리로 충분하다. 근거는 [플러그인 권한 모델](plugin-permissions.md).
+† **런타임 추가 게이트** — `debug.inject_mouse` · `debug.inject_key` · `surface.raw_key` · `surface.switch_input_source` 는 `--enable-input-simulation` 으로 띄운 인스턴스에서만 동작한다(`engine.input_simulation_enabled`). 안 켜져 있으면 `-32001` 로 거부. 앞의 둘은 대상 surface 의 PTY 에, 뒤의 둘은 **tasty 프로세스 밖 OS 전역 입력 상태**에 작용해 cfg 격리만으로는 부족하다고 봤다. 반면 **게이트 없이 cfg 격리만 받는 입력 재현이 여섯 있다** — `surface.ime_*` 와 `debug.inject_window_mouse` · `debug.inject_egui_mouse` · `debug.inject_egui_key` · `debug.inject_egui_text` · `debug.inject_egui_clipboard`. 여섯 다 tasty 프로세스 **안**의 창 상태(IME 조합 / winit·egui 입력 큐)만 바꾸는 in-process 시뮬레이션이라, 인스턴스를 debug 로 띄운 사람 밖으로 효과가 나가지 않는다. 위 넷과 갈리는 기준이 PTY·OS 전역이냐 in-process 냐이므로 이쪽은 cfg 격리로 충분하다. 근거는 [호스트 호출 계약](plugin-permissions.md).
 
 ‡ **다른 플랫폼의 답은 `-32601` 이 아니다.** 위 둘은 등재(`DEBUG_METHODS`)와 CLI 서브커맨드에 플랫폼 조건이 없다 — 이 저장소에서 그 두 층은 플랫폼 균일하고(실측 2026-09-05: `crates/tasty-cli/src/` 와 `crates/tasty-ipc/src/method_meta.rs` 에 `target_os` 게이트 0 건) 차이는 dispatch 층에만 둔다. 그래서 macOS gui 가 아닌 조합에서는 상보 arm 이 **`-32015` 와 사유**로 답한다("이 플랫폼엔 `CGEventPost`/`TISSelectInputSource` 대응물이 없다"). `-32601`("그런 메서드 없음")로 답하면 이름이 틀렸다는 뜻이 되어 호출자가 오타를 의심하게 되는데, 이름은 맞고 표에도 있다 — 고칠 방향이 달라진다. 짝이 빠지지 않게 `src/source_guards/platform_gated_dispatch_complement.rs` 가 강제한다. 근거는 [CLI / IPC API 규약 — 명명 + 안정성](api-conventions.md).
 
@@ -425,7 +425,7 @@ debug 메서드의 메타(`local_only()`)는 `crates/tasty-ipc/src/method_meta.r
 
 - [주체별 원칙](../principles/control-and-data.md) — 포커스와 debug 조작 범위
 - [원격 접속 프로필 + Passkey (remote_tool)](../features/remote-profiles/index.md) — 로컬 attach 를 debug 로 격리한 결정
-- [플러그인 권한 모델](plugin-permissions.md) — OS 전역 입력 조작(`raw_key`/`switch_input_source`/`ime_*`)을 debug 로 격리한 결정 + `tests/ipc_release_table_excludes_input_reproduction.rs` 회귀 가드
+- [호스트 호출 계약](plugin-permissions.md) — OS 전역 입력 조작(`raw_key`/`switch_input_source`/`ime_*`)을 debug 로 격리한 결정 + `tests/ipc_release_table_excludes_input_reproduction.rs` 회귀 가드
 - [CLI / IPC API 규약 — 명명 + 안정성](api-conventions.md) — 플랫폼 게이트가 걸린 dispatch arm 은 `-32601` 이 아니라 `-32015` 와 사유로 답한다 + `src/source_guards/platform_gated_dispatch_complement.rs` 짝 가드
 - [attach-behavior.md](attach-behavior.md) — attach 메커니즘
 - [self-verification 독립 검증](self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다) — debug IPC 를 쓴 자체 검증

@@ -1,10 +1,10 @@
 //! 설치된 플러그인의 IPC namespace 소유 상태 표.
 //!
-//! 플러그인 관리자가 설치 목록과 설정(비활성·권한 허가)으로 계산해 발행한다. 플러그인
+//! 플러그인 관리자가 설치 목록과 설정(비활성)으로 계산해 발행한다. 플러그인
 //! 프로세스의 실행 여부와 무관하므로 프로세스가 준비되기 전에도 같은 답을 준다. 러너 스레드처럼
 //! 플러그인 관리자에 접근할 수 없는 곳이 namespace 를 가진 플러그인의 자격을 판정할 때 읽는다.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 
@@ -14,8 +14,6 @@ pub struct NamespaceOwner {
     pub plugin_id: String,
     /// 사용자가 비활성화하지 않았다.
     pub enabled: bool,
-    /// 매니페스트가 선언하고 사용자가 허가한 권한 토큰.
-    pub permissions: BTreeSet<String>,
 }
 
 /// namespace prefix → 소유 상태. 발행 전에는 `None`.

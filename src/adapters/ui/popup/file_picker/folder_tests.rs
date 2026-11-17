@@ -8,7 +8,6 @@ fn open_folder_picker(
 ) {
     let caller = tasty_ipc::caller::CallerContext::Plugin {
         plugin_id: "com.example.folder".into(),
-        permissions: std::sync::Arc::new(Default::default()),
     };
     let origin = state.focused_surface_id(&engine.read());
     let params = json!({"mode": "folder", "location": "local", "start_dir": dir, "origin_surface_id": origin});

@@ -319,24 +319,18 @@ pub mod strip_env_keys {
 /// agent provider 자격 판정이 읽는 namespace 소유 표의 시험용 고정값.
 /// 한 시험 바이너리의 시험들이 공용 표를 공유하므로 모두 같은 표를 발행한다.
 pub mod namespace_owners {
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::BTreeMap;
     use tasty_utils::plugin_namespaces::{NamespaceOwner, publish};
 
     /// 자격이 있는 provider. 번들 Claude·Codex 와 임의 이름의 커스텀 플러그인.
     pub const READY: &[&str] = &["claude", "codex", "foo"];
     /// 소유 플러그인이 비활성인 provider.
     pub const DISABLED: &str = "off";
-    /// 소유 플러그인에 `agent.turn_report` 허가가 없는 provider.
-    pub const NO_PERMISSION: &str = "noperm";
 
-    fn owner(plugin_id: &str, enabled: bool, permissions: &[&str]) -> NamespaceOwner {
+    fn owner(plugin_id: &str, enabled: bool) -> NamespaceOwner {
         NamespaceOwner {
             plugin_id: plugin_id.to_string(),
             enabled,
-            permissions: permissions
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<BTreeSet<_>>(),
         }
     }
 
@@ -345,21 +339,10 @@ pub mod namespace_owners {
         for provider in READY {
             table.insert(
                 provider.to_string(),
-                owner(
-                    &format!("com.example.{provider}"),
-                    true,
-                    &["agent.turn_report"],
-                ),
+                owner(&format!("com.example.{provider}"), true),
             );
         }
-        table.insert(
-            DISABLED.into(),
-            owner("com.example.off", false, &["agent.turn_report"]),
-        );
-        table.insert(
-            NO_PERMISSION.into(),
-            owner("com.example.noperm", true, &["agent"]),
-        );
+        table.insert(DISABLED.into(), owner("com.example.off", false));
         publish(table);
     }
 }

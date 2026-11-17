@@ -11,7 +11,7 @@
 | [identity.md](identity.md) | **Tasty 정체성** — 목적과 범위, 적용 대상, 판단 기준. 판단 기준인 제품 원칙은 [principles](principles/index.md)에 있다. 설계·구현 전에 둘 다 읽는다 |
 | [concepts/actors.md](concepts/actors.md) | **주체(Actors)** — 로컬 사용자·에이전트·원격 사용자와 점유의 정의 |
 | [concepts/hierarchy.md](concepts/hierarchy.md) | **구조 계층** — Window/View › Workspace › Pane › Tab › Surface + 두 레벨 레이아웃 |
-| [concepts/plugins.md](concepts/plugins.md) | **플러그인** — 배포/통합 축, surface_kind 렌더 분기, 권한 |
+| [concepts/plugins.md](concepts/plugins.md) | **플러그인** — 배포/통합 축, surface_kind 렌더 분기, 매니페스트 선언 |
 | [concepts/ubiquitous-language.md](concepts/ubiquitous-language.md) | **통합 용어집** — 주요 용어와 상세 설명 링크, tmux/iTerm2 및 코드 심볼과의 대응 |
 | [concepts/typed-length.md](concepts/typed-length.md) | **타입 있는 길이** — `PhysicalPx`/`LogicalPx` newtype (DPI 혼동 컴파일 차단) |
 | [documentation-model.md](documentation-model.md) | **문서 모델** — 문서 분류와 기능·화면 설명의 분리 기준. 새 문서를 쓰기 전에 읽는다 |

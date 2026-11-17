@@ -201,7 +201,7 @@ Plugin 선언에는 ShellCommand variant가 없어 매니페스트 파싱 단계
 같은 ID의 기여는 Host→Plugin→User 순서로 병합하고 제공된 필드만 덮는다.
 조회 목록은 priority 오름차순, 같은 priority에서는 User·Plugin·Host 순서, 마지막으로 ID로 정렬한다.
 
-전부 **`local_only`** — plugin 은 호출할 수 없다. `IpcSequence` 는 Local 권한으로 실행되므로, plugin 이 시퀀스를 읽거나 고칠 수 있으면 자기 권한 집합을 넘어선 IPC escalation 이 된다(웹훅이 plugin 의 인라인 시퀀스를 거부하는 것과 같은 자리).
+전부 **`local_only`** — plugin 은 호출할 수 없다. `IpcSequence` 는 Local 권한으로 실행되므로, plugin 이 시퀀스를 읽거나 고칠 수 있으면 plugin 에 닫힌 Local 전용 메서드까지 실행하는 우회가 된다(웹훅이 plugin 의 인라인 시퀀스를 거부하는 것과 같은 자리).
 
 | IPC | CLI | 동작 |
 |-----|-----|------|

@@ -2,11 +2,9 @@
 //! 프로세스 없이 prefix를 소유하는 stub 플러그인을 붙이고, 그 stub이 받은 요청과
 //! 대기 항목의 원 요청 번호(`origin`)를 읽는다. 호출자 stub 플러그인으로 플러그인 사이 호출도 흉내 낸다.
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use tasty_ipc::server::RequestSeq;
-use tasty_plugin_manifest::Permission;
 
 use super::{PendingPluginCall, PluginManager};
 use crate::process::{PluginProcess, RequestTap};
@@ -69,18 +67,8 @@ impl CallerStub {
 }
 
 impl PluginManager {
-    /// 디스크를 읽지 않고 설치 목록과 각 플러그인의 허가 권한을 정한다. 기여 목록 조회를 시험할 때 쓴다.
-    pub fn install_packages_for_test(
-        &mut self,
-        packages: Vec<crate::PluginPackage>,
-        granted: &[&str],
-    ) {
-        for pkg in &packages {
-            self.config.set_granted(
-                &pkg.manifest.id,
-                granted.iter().map(|t| t.to_string()).collect(),
-            );
-        }
+    /// 디스크를 읽지 않고 설치 목록을 정한다. 기여 목록 조회를 시험할 때 쓴다.
+    pub fn install_packages_for_test(&mut self, packages: Vec<crate::PluginPackage>) {
         self.set_packages_for_tests(packages);
     }
 
@@ -120,15 +108,10 @@ prefix = "{prefix}"
         }
     }
 
-    /// 연결된 호출자 stub 플러그인을 붙이고 권한을 정한다. 설치 목록은 바꾸지 않는다.
-    pub fn attach_caller_stub_for_test(
-        &mut self,
-        plugin_id: &str,
-        permissions: HashSet<Permission>,
-    ) -> CallerStub {
+    /// 연결된 호출자 stub 플러그인을 붙인다. 설치 목록은 바꾸지 않는다.
+    pub fn attach_caller_stub_for_test(&mut self, plugin_id: &str) -> CallerStub {
         let (process, tap) = PluginProcess::stub_with_request_rx(plugin_id);
         self.processes.insert(plugin_id.to_string(), process);
-        self.set_plugin_permissions(plugin_id, permissions);
         CallerStub {
             plugin_id: plugin_id.to_string(),
             tap,
@@ -168,7 +151,7 @@ prefix = "{prefix}"
     }
 
     /// 붙인 호출자 stub이 host call 을 보낸 것처럼 호출 하나를 대기열에 넣는다.
-    /// 수집한 호출과 같이 현재 process 결속과 등록된 권한을 싣는다.
+    /// 수집한 호출과 같이 현재 process 결속을 싣는다.
     pub fn queue_plugin_call_for_test(
         &mut self,
         plugin_id: &str,
@@ -181,18 +164,12 @@ prefix = "{prefix}"
             .get(plugin_id)
             .expect("호출자 stub을 먼저 붙여야 한다")
             .reply_binding();
-        let permissions = self
-            .plugin_permissions
-            .get(plugin_id)
-            .cloned()
-            .unwrap_or_default();
         self.pending_plugin_calls.push(PendingPluginCall {
             binding,
             plugin_id: plugin_id.to_string(),
             call_id,
             method: method.to_string(),
             params,
-            permissions,
         });
     }
 
@@ -240,13 +217,11 @@ mod tests {
     const OWNER: &str = "com.example.owner";
     const CALLER: &str = "com.example.caller";
 
-    /// `ownns` 를 소유한 stub과 `caller_perms` 권한의 호출자 stub을 붙인 매니저.
-    fn caller_and_owner(
-        caller_perms: HashSet<Permission>,
-    ) -> (PluginManager, NamespaceStub, CallerStub) {
+    /// `ownns` 를 소유한 stub과 호출자 stub을 붙인 매니저.
+    fn caller_and_owner() -> (PluginManager, NamespaceStub, CallerStub) {
         let mut mgr = PluginManager::new(Arc::new(NoopWakerFactory));
         let owner = mgr.attach_namespace_stub_for_test(OWNER, "ownns");
-        let caller = mgr.attach_caller_stub_for_test(CALLER, caller_perms);
+        let caller = mgr.attach_caller_stub_for_test(CALLER);
         (mgr, owner, caller)
     }
 
@@ -256,12 +231,11 @@ mod tests {
         calls.remove(0)
     }
 
-    /// 허가된 호출자의 다른 namespace 호출은 소유자에 한 번 가고, 소유자의 답이 호출자에
+    /// 다른 플러그인의 namespace 호출은 소유자에 한 번 가고, 소유자의 답이 호출자에
     /// 같은 call_id 의 `ipc.result` 로 돌아온다. 호출자가 실은 params 는 바꾸지 않는다.
     #[test]
-    fn a_granted_cross_namespace_call_round_trips_to_the_caller() {
-        let (mut mgr, owner, caller) =
-            caller_and_owner(HashSet::from([Permission::IpcInvoke("ownns".into())]));
+    fn a_cross_namespace_call_round_trips_to_the_caller() {
+        let (mut mgr, owner, caller) = caller_and_owner();
         let params = serde_json::json!({"_tasty_context": {"provider": "x", "thread_id": "t"}});
         mgr.queue_plugin_call_for_test(CALLER, 41, "ownns.parent", params.clone());
         let call = take_one_call(&mut mgr);
@@ -281,32 +255,10 @@ mod tests {
         assert_eq!(replies[0].1["result"], serde_json::json!({"ok": 1}));
     }
 
-    /// 권한이 없으면 소유자에게 보내지 않고 호출자에게 권한 오류로 답한다. 전달 경로가
-    /// 처리했으므로 호스트 처리기로 넘기지 않는다(`true`).
-    #[test]
-    fn an_ungranted_cross_namespace_call_is_refused_to_the_caller() {
-        let (mut mgr, owner, caller) = caller_and_owner(HashSet::new());
-        mgr.queue_plugin_call_for_test(CALLER, 7, "ownns.parent", serde_json::json!({}));
-        let call = take_one_call(&mut mgr);
-        assert!(mgr.forward_plugin_call_to_other_namespace(&call, false));
-        assert!(owner.drain_invoke_params().is_empty());
-        let replies = caller.drain_requests();
-        assert_eq!(replies.len(), 1, "{replies:?}");
-        assert_eq!(replies[0].1["call_id"], 7);
-        assert_eq!(replies[0].1["error_code"], -32001, "{replies:?}");
-        assert!(
-            replies[0].1["error"]
-                .as_str()
-                .is_some_and(|e| e.contains("ipc.invoke:ownns")),
-            "{replies:?}"
-        );
-    }
-
     /// 자기 namespace·소유자 없는 메서드·호스트가 직접 처리하는 메서드는 전달하지 않는다.
     #[test]
     fn calls_the_host_answers_are_not_forwarded() {
-        let grant = HashSet::from([Permission::IpcInvoke("ownns".into())]);
-        let (mut mgr, owner, caller) = caller_and_owner(grant);
+        let (mut mgr, owner, caller) = caller_and_owner();
         for (from, method, host_handles) in [
             (OWNER, "ownns.parent", false),
             (CALLER, "workspace.list", false),

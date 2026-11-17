@@ -117,7 +117,6 @@ mod tests {
     fn plugin_caller(plugin_id: &str) -> CallerContext {
         CallerContext::Plugin {
             plugin_id: plugin_id.to_string(),
-            permissions: std::sync::Arc::new(std::collections::HashSet::new()),
         }
     }
 

@@ -21,7 +21,6 @@ id = "{PLUGIN}"
 name = "Viewer"
 version = "0.0.1"
 api_version = "{api}"
-permissions = ["ui.popup"]
 
 [entry]
 type = "process"

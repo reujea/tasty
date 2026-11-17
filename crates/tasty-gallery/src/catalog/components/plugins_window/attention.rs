@@ -1,5 +1,5 @@
-//! 서명·권한·실행 오류로 확인이 필요한 플러그인 예제.
-//! 본체는 선택한 하나를 표시하지만 갤러리는 다섯 사유를 나란히 보여준다.
+//! 서명·실행 오류·예약 id 로 확인이 필요한 플러그인 예제.
+//! 본체는 선택한 하나를 표시하지만 갤러리는 네 사유를 나란히 보여준다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -20,7 +20,6 @@ const ATTN_PRIMITIVE_12: LogicalPx = LogicalPx(12.0);
 pub(super) enum Kind {
     UnknownKey,
     SignatureInvalid,
-    PermissionsChanged,
     HealthError,
     /// 공식 목록에 없는 `com.tasty.*` 폴더. 제거만 할 수 있다.
     ReservedId,
@@ -39,7 +38,6 @@ impl Kind {
         match self {
             Self::UnknownKey => crate::i18n::t("plugins.attn_unknown_key_label"),
             Self::SignatureInvalid => "Signature invalid",
-            Self::PermissionsChanged => "Permissions changed",
             Self::HealthError => "Runtime error",
             Self::ReservedId => crate::i18n::t("plugins.attn_reserved_id_label"),
         }
@@ -53,9 +51,6 @@ impl Kind {
             Self::SignatureInvalid => {
                 "Signature missing or failed verification — registration rejected."
             }
-            Self::PermissionsChanged => {
-                "Manifest permissions changed since you trusted it — re-approval required."
-            }
             Self::HealthError => crate::i18n::t("plugins.attn_health_blurb"),
             Self::ReservedId => crate::i18n::t("plugins.attn_reserved_id_blurb"),
         }
@@ -66,9 +61,6 @@ impl Kind {
     /// 예약 id 는 `Remove` 뿐이다.
     fn action(self) -> Option<PluginAttentionBarAction<'static>> {
         match self {
-            Self::PermissionsChanged => Some(PluginAttentionBarAction::Reapprove(crate::i18n::t(
-                "plugins.attn_reapprove",
-            ))),
             Self::HealthError => Some(PluginAttentionBarAction::Configure(crate::i18n::t(
                 "plugins.configure",
             ))),
@@ -88,7 +80,7 @@ impl Kind {
         match self {
             Self::UnknownKey => Some(PluginTrustKind::UnknownKey),
             Self::SignatureInvalid => Some(PluginTrustKind::SignatureError),
-            Self::PermissionsChanged | Self::HealthError | Self::ReservedId => None,
+            Self::HealthError | Self::ReservedId => None,
         }
     }
 
@@ -140,17 +132,6 @@ pub(super) const ENTRIES: &[Entry] = &[
         dir: "",
     },
     Entry {
-        name: "Git viewer",
-        version: "0.3.1",
-        id: "com.tasty.git-viewer",
-        authors: "tasty",
-        description: "Read-only status, log and diff of the current repository.",
-        homepage: "https://github.com/zilhak/tasty",
-        builtin: true,
-        kind: Kind::PermissionsChanged,
-        dir: "",
-    },
-    Entry {
         name: "Markdown",
         version: "0.9.0",
         id: "com.tasty.markdown",
@@ -186,13 +167,13 @@ pub(super) const ENTRIES: &[Entry] = &[
 ];
 
 /// 상세에 펼쳐 보이는 기본 항목 — 본체는 선택 행 하나를 그린다.
-pub(super) const SELECTED: usize = 2;
+pub(super) const SELECTED: usize = 0;
 /// 서명이 깨진 항목. 상세가 설명과 homepage 대신 숨김 안내를 보인다.
 pub(super) const SIGNATURE_INVALID: usize = 1;
 /// 디자인 `RESERVED_SAMPLE`. 폴더 이름과 id 가 같다.
-pub(super) const RESERVED_SAMPLE: usize = 4;
+pub(super) const RESERVED_SAMPLE: usize = 3;
 /// 디자인 `RESERVED_LONG`. 폴더 이름과 id 가 다르고 둘 다 길다.
-pub(super) const RESERVED_LONG: usize = 5;
+pub(super) const RESERVED_LONG: usize = 4;
 
 fn sev_color(theme: &Theme, kind: Kind) -> egui::Color32 {
     if kind.is_danger() {
@@ -281,37 +262,6 @@ fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
     // 본체와 같은 디자인 `Mono` 머리글.
     let label_header = |ui: &mut egui::Ui, text: &str| plugin_label_header(ui, theme, text);
     match kind {
-        Kind::PermissionsChanged => {
-            label_header(ui, "Permission changes");
-            for (sign, token, note, color) in [
-                (
-                    "+",
-                    "fs:write",
-                    "newly requested",
-                    theme.accent_success().to_egui(),
-                ),
-                (
-                    "−",
-                    "clipboard",
-                    "no longer used",
-                    theme.text_muted().to_egui(),
-                ),
-            ] {
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(sign).monospace().strong().color(color));
-                    ui.label(
-                        egui::RichText::new(token)
-                            .monospace()
-                            .size(ATTN_PRIMITIVE_12.value()),
-                    );
-                    ui.label(
-                        egui::RichText::new(note)
-                            .size(theme.font_size_caption.value())
-                            .color(theme.text_muted().to_egui()),
-                    );
-                });
-            }
-        }
         Kind::UnknownKey | Kind::SignatureInvalid => {
             label_header(ui, "Signature");
             // 본체처럼 서명 무효에는 fingerprint 줄 대신 고정 설명과 실패 원인을 둔다.
@@ -501,7 +451,6 @@ fn cards_row(ui: &mut egui::Ui, theme: &Theme, card_w: f32) {
     for kind in [
         Kind::UnknownKey,
         Kind::SignatureInvalid,
-        Kind::PermissionsChanged,
         Kind::HealthError,
         Kind::ReservedId,
     ] {

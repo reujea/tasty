@@ -379,7 +379,6 @@ impl App {
     pub(crate) fn plugin_caller(call: &PendingPluginCall) -> ipc::caller::CallerContext {
         ipc::caller::CallerContext::Plugin {
             plugin_id: call.plugin_id.clone(),
-            permissions: call.permissions.clone(),
         }
     }
 
@@ -541,24 +540,32 @@ mod tests {
         );
     }
 
-    /// 허용·거절을 모두 확인하며 실제 매니페스트 변경에 영향받지 않도록 합성 권한을 사용한다.
+    /// 플러그인은 권한 토큰 없이 통과하고, 같은 메서드를 Agent 는 토큰이 있어야 부른다.
     #[test]
-    fn the_gate_denies_without_the_token_and_allows_with_it() {
-        let without = crate::ipc::caller::CallerContext::Plugin {
+    fn the_gate_passes_a_plugin_without_tokens_but_not_an_agent() {
+        use crate::ipc::caller::CallerContext;
+        let plugin = CallerContext::Plugin {
             plugin_id: "test.synthetic".into(),
-            permissions: HashSet::from([Permission::SurfaceRead]).into(),
         };
-        let with = crate::ipc::caller::CallerContext::Plugin {
-            plugin_id: "test.synthetic".into(),
-            permissions: HashSet::from([Permission::UiBanner]).into(),
+        let agent = |perms: &[Permission]| CallerContext::Agent {
+            agent_id: "child:1".into(),
+            permissions: perms.iter().cloned().collect::<HashSet<_>>().into(),
         };
         assert!(
-            without.ensure_allowed("banner.open").is_err(),
-            "ui.banner 없이 banner.open 이 통과했다"
+            plugin.ensure_allowed("banner.open").is_ok(),
+            "설치된 플러그인의 banner.open 이 거절됐다"
         );
         assert!(
-            with.ensure_allowed("banner.open").is_ok(),
-            "ui.banner 권한이 있는 호출도 거절됐다. 허용 입력이 통과하는지 확인한다."
+            agent(&[Permission::SurfaceRead])
+                .ensure_allowed("banner.open")
+                .is_err(),
+            "ui.banner 없는 Agent 의 banner.open 이 통과했다"
+        );
+        assert!(
+            agent(&[Permission::UiBanner])
+                .ensure_allowed("banner.open")
+                .is_ok(),
+            "ui.banner 가 있는 Agent 도 거절됐다"
         );
     }
 }

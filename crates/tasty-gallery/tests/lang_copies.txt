@@ -273,9 +273,7 @@ src/catalog/components/plugins_window.rs	Plugins	button.plugins,plugins.title,se
 src/catalog/components/plugins_window/add.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/plugins_window/add.rs	Find folder…	plugins.add_browse
 src/catalog/components/plugins_window/add.rs	Homepage	plugins.homepage
-src/catalog/components/plugins_window/add.rs	No permissions	plugins.add_grants_none
 src/catalog/components/plugins_window/add.rs	None	plugins.add_none,settings.keybindings.hint_none,settings.keybindings.plugins.mode_none
-src/catalog/components/plugins_window/add.rs	Permissions	explorer.properties.permissions,plugins.permissions,settings.tab.macos_permissions
 src/catalog/components/plugins_window/add.rs	Plugin folder	plugins.add_path_label
 src/catalog/components/plugins_window/add.rs	Source	plugins.add_source_path
 src/catalog/components/plugins_window/add.rs	Surface kinds	plugins.surface_kinds
@@ -285,20 +283,15 @@ src/catalog/components/plugins_window/attention.rs	Log	plugins.attn_error,plugin
 src/catalog/components/plugins_window/attention.rs	Markdown	explorer.kind.markdown
 src/catalog/components/plugins_window/attention.rs	Needs review	plugins.attn_needs_review
 src/catalog/components/plugins_window/attention.rs	Not registered	plugins.attn_not_registered
-src/catalog/components/plugins_window/attention.rs	Permission changes	plugins.attn_permission_changes
-src/catalog/components/plugins_window/attention.rs	Permissions changed	plugins.attn_perm_changed_label,plugins.trust_permissions_changed_title
 src/catalog/components/plugins_window/attention.rs	Runtime error	plugins.attn_health_label
 src/catalog/components/plugins_window/attention.rs	Signature	plugins.attn_signature
 src/catalog/components/plugins_window/attention.rs	Signature invalid	plugins.attn_sig_invalid_label
 src/catalog/components/plugins_window/attention.rs	fingerprint	plugins.attn_fingerprint
-src/catalog/components/plugins_window/attention.rs	newly requested	plugins.attn_newly_requested
-src/catalog/components/plugins_window/attention.rs	no longer used	plugins.attn_no_longer_used
-src/catalog/components/plugins_window/installed.rs	(none)	plugins.none,remote_tool.passkey_none
+src/catalog/components/plugins_window/installed.rs	(none)	remote_tool.passkey_none
 src/catalog/components/plugins_window/installed.rs	Commands	plugins.commands
 src/catalog/components/plugins_window/installed.rs	Install path	plugins.install_path
 src/catalog/components/plugins_window/installed.rs	Markdown	explorer.kind.markdown
 src/catalog/components/plugins_window/installed.rs	Open folder	plugins.open_folder
-src/catalog/components/plugins_window/installed.rs	Permissions	explorer.properties.permissions,plugins.permissions,settings.tab.macos_permissions
 src/catalog/components/plugins_window/installed.rs	Surface kinds	plugins.surface_kinds
 src/catalog/components/plugins_window/reserved.rs	{}	remote.size_sync.names
 src/catalog/components/port_scanner.rs	Address	port_scanner.column_address
@@ -328,7 +321,7 @@ src/catalog/components/preset_editor.rs	Pane	preset.tab.pane,settings.keybinding
 src/catalog/components/preset_editor.rs	Tab	port_scanner.column_tab,preset.tab.tab,settings.keybindings.subtab.tab,tutorial.step_tab_title
 src/catalog/components/preset_editor.rs	Terminal	convert_popup.terminal,settings.appearance.subtab.terminal,settings.tab.terminal,settings.terminal.heading,surface.kind.terminal
 src/catalog/components/preset_editor.rs	Workspace	port_scanner.column_workspace,preset.tab.workspace,settings.keybindings.subtab.workspace,tutorial.step_workspace_title
-src/catalog/components/preset_surface_settings.rs	(none)	plugins.none,remote_tool.passkey_none
+src/catalog/components/preset_surface_settings.rs	(none)	remote_tool.passkey_none
 src/catalog/components/preset_surface_settings.rs	Browse…	preset.field.browse,settings.remote_transfer.browse,settings.scripts.browse
 src/catalog/components/preset_surface_settings.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/preset_surface_settings.rs	Explorer	convert_popup.explorer,settings.appearance.subtab.explorer,settings.keybindings.subtab.explorer,surface.kind.explorer
@@ -443,7 +436,7 @@ src/catalog/components/prim_table.rs	State	port_scanner.column_state,port_scanne
 src/catalog/components/quit_modal.rs	Close Tasty	quit_modal.title
 src/catalog/components/quit_modal.rs	Minimize	menu.macos.minimize,quit_modal.minimize_button,titlebar.minimize
 src/catalog/components/quit_modal.rs	Quit	button.quit,quit_modal.quit_button,settings.general.close_behavior_quit,tray.quit
-src/catalog/components/remote.rs	(none)	plugins.none,remote_tool.passkey_none
+src/catalog/components/remote.rs	(none)	remote_tool.passkey_none
 src/catalog/components/remote.rs	(select a profile)	remote_tool.ssh_ref_none
 src/catalog/components/remote.rs	Add attach	remote_tool.attach_add
 src/catalog/components/remote.rs	Add profile	remote_tool.local_ssh_add,remote_tool.profile_add
@@ -482,7 +475,7 @@ src/catalog/components/remote.rs	passkey missing	remote_tool.passkey_missing
 src/catalog/components/remote.rs	profile	remote_tool.attach_tag_profile
 src/catalog/components/remote.rs	unknown	remote_tool.filter_unknown
 src/catalog/components/remote.rs	—	dag.detail.none,port_scanner.external_dash
-src/catalog/components/remote/forms.rs	(none)	plugins.none,remote_tool.passkey_none
+src/catalog/components/remote/forms.rs	(none)	remote_tool.passkey_none
 src/catalog/components/remote/forms.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/remote/forms.rs	FIELDS	remote_tool.fields_section
 src/catalog/components/remote/forms.rs	Host	remote_tool.field_host

@@ -170,9 +170,9 @@ picker에서 고른 핸들러는 이번 한 번만 실행한다. 형식별 기�
 - 사용자 출처의 toast·탭 선택 동작은 바뀌지 않는다. Agent 출처는 여전히 picker를 띄우지 않는다.
 - CLI `tasty file-handler dispatch`는 접수 줄을 출력한 뒤 `run.result`를 200ms 간격으로 최대 30초 조회해 결과 줄을 출력한다. 최종 상태가 `succeeded`가 아니면 종료 코드 1이다. 조회 응답도 남은 시간까지만 읽고, 상한을 넘기면 `timed_out: true`를 단 진행 중 결과를 출력한다. `--no-wait`는 접수 줄만 출력하며, 결과는 `tasty file-handler result --run <N>`(`run.result`)으로 조회한다. 기다리는 dispatch는 client-driven 명령이라 루트 옵션 `--response-timeout-ms`를 받지 않는다(종료 코드 2). `--no-wait`는 요청 하나라 그 옵션이 적용된다.
 
-### 권한
+### 선언 검사
 
-`file_handler.define`(새 detector+handler) · `file_handler.extend:<id>`(기존 detector 에 rule) · `file_handler.handle:<id>`(기존 detector 에 handler). `$` sentinel 은 모든 토큰에서 reject. ([plugin-permissions](../../dev-guide/plugin-permissions.md).)
+detector·handler 선언에는 권한 토큰이 필요 없다. 매니페스트 검증은 형식·참조·충돌을 보고, plugin 은 `$` 로 시작하는 예약 detector id 를 새로 정의할 수 없다. ([plugin-permissions](../../dev-guide/plugin-permissions.md#매니페스트-기여의-소유-검사).)
 
 ### Origin 소유권과 비동기 완료
 
@@ -215,7 +215,7 @@ Linux의 실행 확인과 Windows의 코드·컴파일 확인은 구별한다.
 
 - **사용자**: Settings **Handler** 탭의 파일 서브탭(File Detectors / File Handlers / File Extension Mapping — 토글·user 항목 추가/삭제, 확장자 우선순위). 이미 있는 detector id 로 추가하면 user contribution 을 더하거나 바꾸고(`upsert_user_detector`), detector 삭제는 user contribution 만 지운다(`remove_user_detector`) — host·plugin 기여는 남는다. 화면 계약은 [설정](../settings/index.md)에 있다. user 설정은 `~/.tasty/file-handlers.toml`(부팅 1 회 로드, Save는 합친 snapshot을 file writer에 제출하고 receipt로 완료·실패를 구분). 같은 탭의 Hook Handlers 서브탭은 파일 핸들러가 아니라 [공유 훅 핸들러 레지스트리](../webhook/index.md) 편집이다.
 - **저장 완료**: Save는 표시값을 먼저 적용하고 detector·handler·확장자 우선순위의 사용자 기여를 한 파일에 합쳐 비동기로 저장한다. 다른 최상위 절은 보존하며 외부 편집·읽기 실패·손상 원본은 덮지 않는다. 저장 실패는 설정 결과 토스트와 알림에 남고 표시값은 이번 실행에 유지된다. 저장 대기와 완료는 [파일 registry snapshot](../../design/systems/storage-contract.md#파일-registry-snapshot)에 있다.
-- **AI Agent / CLI**: `file_handler.dispatch`(임의 경로를 흐름에 진입, plugin 호출은 FsRead 권한 — 경로 자리의 URL 은 `-32602` 로 거절) · `file_handler.reload`(user 설정 reload — 응답 `{path, exists, rejected}`) · `file_handler.detectors`(아래) · `tasty file-handler` CLI.
+- **AI Agent / CLI**: `file_handler.dispatch`(임의 경로를 흐름에 진입, Agent 호출은 `fs.read` 권한 — 경로 자리의 URL 은 `-32602` 로 거절) · `file_handler.reload`(user 설정 reload — 응답 `{path, exists, rejected}`) · `file_handler.detectors`(아래) · `tasty file-handler` CLI.
 - **detector 조회**: `file_handler.detectors`(`tasty file-handler detectors`)는 finalize 된 detector 전부를 id 순으로 돌려준다 — `{"detectors": [...]}`. 항목마다 병합 결과(`id` · `display_name_i18n_key` · `icon` · `disabled` · `install_order` · `rules`)와 그것을 만든 출처별 원본 `contributions`(`origin` · `display_name_i18n_key` · `icon` · `disabled` · `rules`)를 함께 싣는다. `origin` 은 `host` · `plugin:<id>` · `user` 이고, rule 은 user 설정의 `[[detector.rule]]` 과 같은 키로 적히며 병합 결과 쪽 rule 에만 `origin` 이 붙는다. contribution 의 `disabled` 는 그 출처가 적은 켜기/끄기 patch 이고 적지 않았으면 `null` 이다. `contributions` 는 **설치 순서**이지 병합 순서가 아니다 — 어느 값이 이겼는지는 병합 결과 쪽을 본다. 읽기 전용(local-only, plugin 비노출)이고 두 빌드 모두 답한다.
 - **reload 의 거절 보고**: `rejected` 는 이번 reload 가 **적용하지 않은** user 항목의 배열이다 — `[{"id", "reason"}]`, 없으면 `[]`. 사유는 셋이다. `missing_owner_prefix`(id 에 `<owner>/` 접두사가 없어 설치 안 함 — 버려짐) · `missing_detector_or_action`(`user/…` 항목인데 detector 나 action 이 없어 등록 안 됨 — 버려짐) · `target_not_contributed`(host · plugin handler 를 patch 하는 항목인데 대상이 지금 없음 — plugin 이 안 떠 있거나 id 가 틀렸다. 둘은 가를 수 없다. 항목은 남아 있어 대상이 contribute 되면 그대로 적용된다). 헤드리스는 부팅 시 번들 plugin 이 떠 있지 않아, plugin 을 켜기 전까지 정상 plugin patch 도 `target_not_contributed` 로 보고된다. 저장이 pending이면 reload는 오류로 답하므로 저장 완료 뒤 다시 요청한다. 파일을 읽거나 파싱하지 못한 reload도 오류로 답하고 두 registry의 이전 user 설정과 원본 관측을 유지한다. 성공한 명시적 reload는 저장하지 못한 표시 변경도 파일 내용으로 바꾼다.
 - **헤드리스 제약**: `file_handler.dispatch` 는 gui 빌드에만 있다. 헤드리스(`--no-default-features`) 데몬은 식별 결과를 적용할 worker 도, 결과를 열 창도 없어 이 요청에 `-32017`(이 빌드 조합에 arm 이 없다)로 답한다 — 수락하고 버리지 않는다. `file_handler.reload` · `file_handler.detectors` 는 두 빌드 모두 답한다.

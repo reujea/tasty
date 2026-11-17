@@ -81,12 +81,7 @@ fn the_narrowed_scan_rests_on_the_fields_being_private() {
         .expect("필드 선언 파일을 읽지 못했다 — 옮겼으면 이 상수도 함께 고쳐라");
     let masked = super::mask_non_code(&src);
     // namespaces_write는 필드가 아니라 접근 함수이므로 이 선언 검사에서 제외한다.
-    for field in [
-        "packages",
-        "ipc_namespaces",
-        "extensions",
-        "plugin_permissions",
-    ] {
+    for field in ["packages", "ipc_namespaces", "extensions"] {
         let decls: Vec<&str> = masked
             .lines()
             .filter(|l| {

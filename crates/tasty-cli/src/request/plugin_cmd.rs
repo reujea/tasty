@@ -36,17 +36,6 @@ pub(super) fn plugin_command_to_method_params(
         PluginCommands::Logs { .. } => ("plugin.list", serde_json::json!({})),
         // Doctor도 IPC를 거치지 않음 — manifest 를 로컬에서 직접 읽는다.
         PluginCommands::Doctor { .. } => ("plugin.list", serde_json::json!({})),
-        PluginCommands::Permissions { id } => {
-            ("plugin.permissions", serde_json::json!({ "id": id }))
-        }
-        PluginCommands::Grant { id, permission } => (
-            "plugin.grant",
-            serde_json::json!({ "id": id, "permission": permission }),
-        ),
-        PluginCommands::Revoke { id, permission } => (
-            "plugin.revoke",
-            serde_json::json!({ "id": id, "permission": permission }),
-        ),
         PluginCommands::GrantAgentPermission {
             agent,
             permission,

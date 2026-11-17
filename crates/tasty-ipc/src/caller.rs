@@ -1,5 +1,6 @@
 //! Local·Plugin·Agent 호출자를 구분하고 요청 권한을 확인한다.
-//! Local은 이 권한 검사를 통과하며, 다른 호출자는 method_meta와 부여된 권한을 대조한다.
+//! Local은 이 권한 검사를 통과한다. Plugin은 method_meta가 플러그인에 연 메서드면 통과하고,
+//! Agent는 method_meta의 요구 권한을 세션에 부여된 권한과 대조한다.
 //! 호스트는 조기 응답 전에 검사해야 한다. 라우팅 순서는 every_routing_entry_gates_before_it_answers가 확인한다.
 
 use std::collections::HashSet;
@@ -82,13 +83,9 @@ pub enum CallerContext {
         /// 판단에는 쓰지 않는다(docs/dev-guide/plugin-permissions.md). 형식이 틀렸거나 없으면 None 이다.
         claimed_agent_id: Option<tasty_telemetry::AgentId>,
     },
-    /// 외부 plugin process가 호출. 매니페스트의 `permissions`만 허용.
-    Plugin {
-        plugin_id: String,
-        /// 매니페스트에 선언되고 사용자가 grant한 권한. 런타임에 in-place로
-        /// 갱신되지 않고 전체를 새 Arc로 교체하므로, 동시 호출 안전.
-        permissions: Arc<HashSet<Permission>>,
-    },
+    /// 설치·활성된 외부 plugin process가 호출. 설치 뒤에는 권한으로 막지 않으므로
+    /// method_meta가 플러그인에 연 메서드(`plugin_callable`)는 모두 부를 수 있다.
+    Plugin { plugin_id: String },
     /// claude.spawn 등으로 호스트가 띄운 child Claude / 외부 agent.
     /// SessionToken 으로 신원 검증한 뒤에만 이 variant 가 만들어진다.
     Agent {
@@ -165,15 +162,12 @@ impl CallerContext {
     pub fn ensure_allowed(&self, method: &str) -> Result<(), CallerError> {
         match self {
             CallerContext::Local { .. } => Ok(()),
-            CallerContext::Plugin {
-                plugin_id,
-                permissions,
-            } => check_permissions(plugin_id, Some(plugin_id), permissions, method),
+            CallerContext::Plugin { plugin_id } => check_plugin_callable(plugin_id, method),
             CallerContext::Agent {
                 agent_id,
                 permissions,
                 ..
-            } => check_permissions(agent_id, None, permissions, method),
+            } => check_permissions(agent_id, permissions, method),
         }
     }
 
@@ -181,13 +175,17 @@ impl CallerContext {
         matches!(self, CallerContext::Plugin { .. })
     }
 
-    /// 권한 집합. Local은 제한이 없어 None이다.
+    /// Agent 세션의 권한 집합. Local과 Plugin은 권한으로 제한하지 않아 None이다.
     pub fn permissions(&self) -> Option<&Arc<HashSet<Permission>>> {
         match self {
-            CallerContext::Plugin { permissions, .. }
-            | CallerContext::Agent { permissions, .. } => Some(permissions),
+            CallerContext::Agent { permissions, .. } => Some(permissions),
             _ => None,
         }
+    }
+
+    /// 사용자·호스트 경로(Local)가 아닌 호출자. 호스트 전용 데이터 같은 기능 규칙에 쓴다.
+    pub fn is_external(&self) -> bool {
+        !matches!(self, CallerContext::Local { .. })
     }
 
     /// memory.db `owner` 값 도출.
@@ -218,12 +216,24 @@ impl CallerContext {
     }
 }
 
-/// `caller_plugin_id` 는 caller 가 **plugin 프로세스일 때만** 준다. agent 의 `agent_id` 는
-/// 발급자가 고른 문자열이라 plugin id 와 같은 값일 수 있고, 그 값으로 소유자 면제를 받으면
-/// 토큰을 발급할 수 있는 누구나 임의 namespace 를 여는 셈이 된다.
+/// 플러그인은 method_meta 에 있고 플러그인에 연 메서드면 부를 수 있다. 설치·제거처럼
+/// `local_only` 인 메서드와 debug 메서드는 계속 닫혀 있다.
+fn check_plugin_callable(plugin_id: &str, method: &str) -> Result<(), CallerError> {
+    let meta = method_meta(method).ok_or_else(|| CallerError::UnknownMethod(method.to_string()))?;
+    if !meta.plugin_callable {
+        return Err(CallerError::NotPluginCallable {
+            caller_label: plugin_id.to_string(),
+            method: method.to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Agent 의 `agent_id` 는 발급자가 고른 문자열이라 plugin id 와 같은 값일 수 있다. 그래서
+/// namespace 소유자 면제를 주지 않는다. 면제하면 토큰을 발급할 수 있는 누구나 임의 namespace 를
+/// 여는 셈이 된다.
 fn check_permissions(
     caller_label: &str,
-    caller_plugin_id: Option<&str>,
     permissions: &Arc<HashSet<Permission>>,
     method: &str,
 ) -> Result<(), CallerError> {
@@ -245,12 +255,9 @@ fn check_permissions(
     }
     if meta.namespace_forward {
         // 표에 없는 namespace 메서드는 ipc.invoke:<prefix>가 필요하다.
-        // 소유 플러그인의 자기 namespace 호출만 면제하며, 같은 ID의 Agent는 면제하지 않는다.
         let prefix = method.split('.').next().unwrap_or("");
-        let is_owner =
-            caller_plugin_id.is_some_and(|id| crate::method_meta::plugin_owns_prefix(id, prefix));
         let needed = Permission::IpcInvoke(prefix.to_string());
-        if !is_owner && !permissions.contains(&needed) {
+        if !permissions.contains(&needed) {
             return Err(CallerError::MissingPermission {
                 caller_label: caller_label.to_string(),
                 method: method.to_string(),
@@ -448,10 +455,9 @@ mod tests {
         assert!(CallerContext::local().agent_id().is_host());
     }
 
-    fn plugin_with(perms: &[Permission]) -> CallerContext {
+    fn plugin() -> CallerContext {
         CallerContext::Plugin {
             plugin_id: "com.example.test".into(),
-            permissions: Arc::new(perms.iter().cloned().collect()),
         }
     }
 
@@ -481,51 +487,30 @@ mod tests {
         );
     }
 
-    #[test]
-    fn plugin_missing_permission_denied() {
-        let c = plugin_with(&[Permission::SurfaceRead]);
-        let err = c.ensure_allowed("tab.create").unwrap_err();
-        assert!(matches!(
-            err,
-            CallerError::MissingPermission {
-                permission: Permission::SurfaceWrite,
-                ..
-            }
-        ));
-    }
-
     /// 권한이 하나도 없는 호출자도 mirror attach 와 그 거절 조회를 게이트에서 거절당하지 않는다.
     #[test]
     fn remote_attach_passes_the_gate_without_any_permission() {
-        for caller in [plugin_with(&[]), agent_with(&[])] {
+        for caller in [plugin(), agent_with(&[])] {
             for method in ["remote.attach", "remote.refusals"] {
                 assert!(caller.ensure_allowed(method).is_ok(), "{method}");
             }
         }
     }
 
+    /// 플러그인은 권한 토큰 없이 플러그인에 연 메서드를 부른다. 같은 메서드도 Agent 는 권한이
+    /// 있어야 한다.
     #[test]
-    fn plugin_missing_clipboard_write_denied_for_clipboard_set_text() {
-        let c = plugin_with(&[Permission::SurfaceRead]);
-        let err = c.ensure_allowed("clipboard.set_text").unwrap_err();
-        assert!(matches!(
-            err,
-            CallerError::MissingPermission {
-                permission: Permission::ClipboardWrite,
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn plugin_with_permission_passes() {
-        let c = plugin_with(&[Permission::SurfaceWrite]);
-        assert!(c.ensure_allowed("tab.create").is_ok());
+    fn plugin_passes_plugin_callable_methods_without_tokens() {
+        let c = plugin();
+        for method in ["tab.create", "clipboard.set_text", "surface.list"] {
+            assert!(c.ensure_allowed(method).is_ok(), "{method}");
+            assert!(agent_with(&[]).ensure_allowed(method).is_err(), "{method}");
+        }
     }
 
     #[test]
     fn plugin_cannot_call_local_only_method() {
-        let c = plugin_with(&[Permission::SurfaceWrite]);
+        let c = plugin();
         let err = c.ensure_allowed("plugin.enable").unwrap_err();
         assert!(matches!(err, CallerError::NotPluginCallable { .. }));
     }
@@ -584,17 +569,8 @@ mod tests {
 
     #[test]
     #[cfg(debug_assertions)]
-    fn plugin_cannot_call_debug_method_even_with_all_perms() {
-        let all: Vec<Permission> = [
-            Permission::SurfaceRead,
-            Permission::SurfaceWrite,
-            Permission::TerminalRead,
-            Permission::TerminalWrite,
-            Permission::Notification,
-        ]
-        .into_iter()
-        .collect();
-        let c = plugin_with(&all);
+    fn plugin_cannot_call_debug_method() {
+        let c = plugin();
         let err = c.ensure_allowed("debug.inject_key").unwrap_err();
         assert!(matches!(err, CallerError::NotPluginCallable { .. }));
     }
@@ -605,7 +581,7 @@ mod tests {
     #[test]
     #[cfg(not(debug_assertions))]
     fn plugin_call_to_debug_method_is_unknown_in_release() {
-        let c = plugin_with(&[]);
+        let c = plugin();
         let err = c.ensure_allowed("debug.inject_key").unwrap_err();
         assert!(matches!(err, CallerError::UnknownMethod(_)));
     }
@@ -614,7 +590,7 @@ mod tests {
     /// debug 재현 메서드는 local 전용이라 debug 빌드에서도 plugin 에 닫혀 있다.
     #[test]
     fn plugin_cannot_call_force_detach() {
-        let c = plugin_with(&[Permission::SurfaceRead, Permission::SurfaceWrite]);
+        let c = plugin();
         assert!(c.ensure_allowed("attach.release").is_ok());
         for m in ["attach.force_detach", "attach.force_detach_workspace"] {
             let err = c.ensure_allowed(m).unwrap_err();
@@ -630,23 +606,8 @@ mod tests {
 
     #[test]
     fn plugin_unknown_method_errors() {
-        let c = plugin_with(&[]);
+        let c = plugin();
         let err = c.ensure_allowed("not.a.real.method").unwrap_err();
         assert!(matches!(err, CallerError::UnknownMethod(_)));
-    }
-
-    #[test]
-    fn plugin_ipc_invoke_permission_does_not_unlock_static_methods() {
-        // ipc.invoke 권한은 namespace forward 경로에서만 의미가 있고,
-        // 정적 method_meta 권한 검사를 우회하지 않는다.
-        let c = plugin_with(&[Permission::IpcInvoke("codex".into())]);
-        let err = c.ensure_allowed("tab.create").unwrap_err();
-        assert!(matches!(
-            err,
-            CallerError::MissingPermission {
-                permission: Permission::SurfaceWrite,
-                ..
-            }
-        ));
     }
 }

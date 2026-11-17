@@ -10,7 +10,6 @@ fn plugin_save_picker_returns_one_path_without_writing_and_preserves_admission()
     std::fs::create_dir(dir.path().join("folder.png")).unwrap();
     let caller = tasty_ipc::caller::CallerContext::Plugin {
         plugin_id: "com.tasty.image".into(),
-        permissions: std::sync::Arc::new(Default::default()),
     };
     let origin = state.focused_surface_id(&engine.read());
     let params = json!({"mode":"save", "location":"local", "default_name":"new.png", "filters":["png"], "start_dir":dir.path(), "origin_surface_id": origin});

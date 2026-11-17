@@ -1,8 +1,7 @@
 //! tasty-plugin.toml의 SHA-256 digest에 대한 Ed25519 서명을 검증한다.
 //! 바이너리·번역 파일 등 디렉터리 전체를 서명하는 것은 아니다.
 //!
-//! 임베드 키로 검증하거나, 사용자 신뢰 목록의 키와 승인한 권한을 확인한다.
-//! 사용자 키는 서명이 맞아도 권한이 바뀌면 재승인이 필요하다.
+//! 임베드 키로 검증하거나, 사용자 신뢰 목록의 키로 확인한다.
 //! 실제 설치·검색 경로는 release에서 검증하고 debug에서는 우회할 수 있다.
 
 use std::path::Path;
@@ -29,27 +28,14 @@ pub enum TrustDecision {
     Trusted,
     /// 알 수 없는 키 — 사용자 모달 결정 필요.
     ///
-    /// 호출처는 본 variant 의 `plugin_id` / `fingerprint` /
-    /// `manifest_permissions` 를 사용자에게 노출하고, 승인 시
+    /// known_plugins.toml 에도 없고 임베드 키와도 불일치한다.
+    /// 호출처는 본 variant 의 `plugin_id` / `fingerprint` 를 사용자에게 노출하고, 승인 시
     /// `KnownPlugins::add` 로 trust DB 에 기록해야 한다.
     Untrusted {
         plugin_id: String,
-        /// 권한 변경은 공개키, UnknownKey는 서명의 R 값에서 계산한 표시 지문.
+        /// 서명의 R 값에서 계산한 표시 지문.
         fingerprint: String,
-        /// 매니페스트가 요구하는 권한 목록 (UI 노출 + trust DB 저장용).
-        manifest_permissions: Vec<String>,
-        /// 사유 — UI 분기 (예: 권한 변경 vs 첫 설치).
-        reason: UntrustedReason,
     },
-}
-
-/// `Untrusted` 의 사유 — UI 가 다른 메시지 / 다른 모달 톤을 보여줄 수 있도록 분리.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UntrustedReason {
-    /// known_plugins.toml 에도 없고 임베드 키와도 불일치.
-    UnknownKey,
-    /// known_plugins.toml 에는 있지만 매니페스트 권한이 trust 시점과 다름.
-    PermissionsChanged,
 }
 
 #[derive(Debug)]
@@ -99,11 +85,11 @@ fn read_digest_and_sig(dir: &Path) -> Result<([u8; 32], [u8; 64]), SigVerifyErro
     Ok((digest, sig_array))
 }
 
-/// 매니페스트에서 plugin id 와 요구 권한 목록을 *최선 노력 (best-effort)* 추출.
+/// 매니페스트에서 plugin id 를 *최선 노력 (best-effort)* 추출.
 ///
 /// 매니페스트 파싱이 실패해도 trust 판단 자체는 진행 가능해야 하므로 panic 하지
 /// 않고 fallback 값을 반환한다. plugin_id 가 비면 디렉토리 basename 으로.
-pub(crate) fn parse_manifest_basics(dir: &Path) -> (String, Vec<String>) {
+pub(crate) fn parse_manifest_id(dir: &Path) -> String {
     let manifest_path = dir.join("tasty-plugin.toml");
     let text = std::fs::read_to_string(&manifest_path).unwrap_or_default();
     let value: toml::Value = match toml::from_str(&text) {
@@ -111,7 +97,7 @@ pub(crate) fn parse_manifest_basics(dir: &Path) -> (String, Vec<String>) {
         Err(_) => toml::Value::Table(Default::default()),
     };
 
-    let plugin_id = value
+    value
         .get("id")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
@@ -120,36 +106,14 @@ pub(crate) fn parse_manifest_basics(dir: &Path) -> (String, Vec<String>) {
                 .and_then(|n| n.to_str())
                 .unwrap_or("<unknown>")
                 .to_string()
-        });
-
-    // permissions 는 매니페스트 스키마에 따라 [permissions] table 또는
-    // [[permissions]] array 가능. 둘 다 지원하지 않더라도 빈 vec 으로.
-    let permissions = value
-        .get("permissions")
-        .and_then(|v| match v {
-            toml::Value::Array(arr) => Some(
-                arr.iter()
-                    .filter_map(|e| e.as_str().map(|s| s.to_string()))
-                    .collect::<Vec<_>>(),
-            ),
-            toml::Value::Table(tbl) => Some(
-                tbl.keys()
-                    .filter(|k| matches!(tbl.get(k.as_str()), Some(toml::Value::Boolean(true))))
-                    .cloned()
-                    .collect::<Vec<_>>(),
-            ),
-            _ => None,
         })
-        .unwrap_or_default();
-
-    (plugin_id, permissions)
 }
 
 /// 외부 publisher 가 동봉한 `tasty-plugin.toml.pub` sidecar 를 읽어
 /// raw 32 byte ed25519 pubkey 를 반환. 파일이 없거나 길이가 다르면 None.
 ///
 /// 본 함수는 [`verify_bundle_signature`] 의 *core 검증* 에는 참여하지 않는다.
-/// `TrustDecision::Untrusted { UnknownKey, .. }` 인 plugin 을 사용자가 trust
+/// `TrustDecision::Untrusted { .. }` 인 plugin 을 사용자가 trust
 /// 하기로 결정했을 때, [`crate::known_plugins::KnownPluginEntry::pubkey`] 에
 /// 저장할 raw pubkey 를 얻기 위한 *trust 저장 시점 helper*. signature 자체는
 /// pubkey 를 노출하지 않으므로 publisher 가 sidecar 로 제공해야 trust 가 가능.
@@ -193,10 +157,9 @@ pub fn pubkey_fingerprint(pk: &[u8; 32]) -> String {
 /// 1. sidecar (`tasty-plugin.toml.sig`) 존재 / 길이 / digest 계산 — 실패 시 Err.
 /// 2. [`TRUSTED_PUBKEYS`] 순회 — 매칭 키 발견 시 `Trusted` (early return).
 /// 3. 매니페스트에서 plugin_id 추출 → [`KnownPlugins`] lookup.
-///    - 매칭 + 서명 검증 통과 + 권한 동일 → `Trusted`.
-///    - 매칭 + 권한 다름 → `Untrusted { PermissionsChanged }`.
+///    - 매칭 + 서명 검증 통과 → `Trusted`.
 ///    - 매칭 + 서명 검증 실패 → 무시하고 다음 단계로 (DB 의 키와 sig 가 안 맞음).
-/// 4. 위 모두 실패 → `Untrusted { UnknownKey }`.
+/// 4. 위 모두 실패 → `Untrusted`.
 pub fn verify_bundle_signature(dir: &Path) -> Result<TrustDecision, SigVerifyError> {
     verify_bundle_signature_with(dir, &KnownPlugins::load().unwrap_or_default())
 }
@@ -222,21 +185,13 @@ pub fn verify_bundle_signature_with(
     }
 
     // Step 2: known_plugins.toml lookup. load 실패는 비치명 (DB 없을 수 있음).
-    let (plugin_id, manifest_permissions) = parse_manifest_basics(dir);
+    let plugin_id = parse_manifest_id(dir);
 
     if let Some(entry) = known.lookup(&plugin_id)
         && let Some(db_pk) = entry.pubkey_bytes()
         && let Ok(vk) = VerifyingKey::from_bytes(&db_pk)
         && vk.verify(&digest, &sig).is_ok()
     {
-        if known.permissions_changed(&plugin_id, &manifest_permissions) {
-            return Ok(TrustDecision::Untrusted {
-                plugin_id: plugin_id.clone(),
-                fingerprint: pubkey_fingerprint(&db_pk),
-                manifest_permissions,
-                reason: UntrustedReason::PermissionsChanged,
-            });
-        }
         return Ok(TrustDecision::Trusted);
     }
 
@@ -251,8 +206,6 @@ pub fn verify_bundle_signature_with(
     Ok(TrustDecision::Untrusted {
         plugin_id,
         fingerprint: pubkey_fingerprint(&r_component),
-        manifest_permissions,
-        reason: UntrustedReason::UnknownKey,
     })
 }
 
@@ -390,9 +343,7 @@ mod tests {
         // verify_bundle_signature 는 Untrusted (UnknownKey) — 단, placeholder
         // 키 환경에서는 NoValidTrustedKeys 도 가능 (테스트 환경 의존).
         match verify_bundle_signature(tmp.path()) {
-            Ok(TrustDecision::Untrusted { reason, .. }) => {
-                assert_eq!(reason, UntrustedReason::UnknownKey);
-            }
+            Ok(TrustDecision::Untrusted { .. }) => {}
             Err(SigVerifyError::NoValidTrustedKeys) => {} // placeholder key 환경
             other => panic!("expected Untrusted/UnknownKey, got {other:?}"),
         }
@@ -436,19 +387,8 @@ mod integration_tests {
     use crate::test_support::HomeEnvGuard;
 
     /// 매니페스트 작성 + ed25519 signing — 매니페스트 digest 에 sk 서명.
-    fn make_bundle(
-        bundle_dir: &Path,
-        sk: &SigningKey,
-        plugin_id: &str,
-        perms: &[&str],
-    ) -> [u8; 32] {
-        let perms_toml = perms
-            .iter()
-            .map(|p| format!("\"{p}\""))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let manifest =
-            format!("id = \"{plugin_id}\"\nversion = \"1.0.0\"\npermissions = [{perms_toml}]\n");
+    fn make_bundle(bundle_dir: &Path, sk: &SigningKey, plugin_id: &str) -> [u8; 32] {
+        let manifest = format!("id = \"{plugin_id}\"\nversion = \"1.0.0\"\n");
         std::fs::write(bundle_dir.join("tasty-plugin.toml"), &manifest).unwrap();
         let digest = Sha256::digest(manifest.as_bytes());
         let sig = sk.sign(digest.as_slice()).to_bytes().to_vec();
@@ -456,20 +396,16 @@ mod integration_tests {
         sk.verifying_key().to_bytes()
     }
 
-    /// `<home>/.tasty-debug/known-plugins.toml` 에 trust 항목 1 개 작성.
+    /// `<home>/.tasty-debug/known-plugins.toml` 에 trust 항목 1 개 작성. 옛 파일처럼
+    /// `permissions` 줄을 함께 남겨도 읽기와 판정에 영향이 없어야 한다.
     ///
     /// cargo test 는 debug 컴파일이라 코드(`tasty_home()`)가 `.tasty-debug` 루트를
     /// 본다 — HOME override 기반 테스트도 같은 디렉터리에 써야 정합한다.
-    fn write_known_db(home: &Path, plugin_id: &str, pk: &[u8; 32], perms: &[&str]) {
+    fn write_known_db(home: &Path, plugin_id: &str, pk: &[u8; 32]) {
         let tasty_dir = home.join(".tasty-debug");
         std::fs::create_dir_all(&tasty_dir).unwrap();
-        let perms_lines = perms
-            .iter()
-            .map(|p| format!("\"{p}\""))
-            .collect::<Vec<_>>()
-            .join(", ");
         let contents = format!(
-            "[plugins.\"{plugin_id}\"]\npubkey = \"{}\"\npermissions = [{perms_lines}]\ntrusted_at = \"2026-06-09T00:00:00Z\"\npublisher_fingerprint = \"\"\n",
+            "[plugins.\"{plugin_id}\"]\npubkey = \"{}\"\npermissions = [\"filesystem.read\"]\ntrusted_at = \"2026-06-09T00:00:00Z\"\npublisher_fingerprint = \"\"\n",
             KnownPluginEntry::encode_pubkey(pk),
         );
         std::fs::write(tasty_dir.join("known-plugins.toml"), contents).unwrap();
@@ -483,45 +419,14 @@ mod integration_tests {
 
         let bundle_tmp = TempDir::new().unwrap();
         let sk = SigningKey::from_bytes(&[99u8; 32]);
-        let perms = ["filesystem.read"];
-        let pk = make_bundle(bundle_tmp.path(), &sk, "com.example.bnk", &perms);
-        write_known_db(home_tmp.path(), "com.example.bnk", &pk, &perms);
+        let pk = make_bundle(bundle_tmp.path(), &sk, "com.example.bnk");
+        write_known_db(home_tmp.path(), "com.example.bnk", &pk);
 
         let result = verify_bundle_signature(bundle_tmp.path()).unwrap();
         assert!(
             matches!(result, TrustDecision::Trusted),
             "expected Trusted, got {result:?}"
         );
-    }
-
-    /// B-2: known_plugins.toml 에는 권한 `["filesystem.read"]` 만 trust 했는데
-    /// 매니페스트는 `["filesystem.read", "network.outbound"]` 를 요구 → 권한 변경
-    /// 감지로 `Untrusted { PermissionsChanged }`.
-    #[test]
-    fn known_plugins_permission_change_yields_untrusted() {
-        let home_tmp = HomeEnvGuard::derived_from_home();
-
-        let bundle_tmp = TempDir::new().unwrap();
-        let sk = SigningKey::from_bytes(&[88u8; 32]);
-        let manifest_perms = ["filesystem.read", "network.outbound"];
-        let old_perms = ["filesystem.read"];
-        let pk = make_bundle(bundle_tmp.path(), &sk, "com.example.pchg", &manifest_perms);
-        write_known_db(home_tmp.path(), "com.example.pchg", &pk, &old_perms);
-
-        let result = verify_bundle_signature(bundle_tmp.path()).unwrap();
-        match result {
-            TrustDecision::Untrusted {
-                reason,
-                plugin_id,
-                manifest_permissions,
-                ..
-            } => {
-                assert_eq!(reason, UntrustedReason::PermissionsChanged);
-                assert_eq!(plugin_id, "com.example.pchg");
-                assert_eq!(manifest_permissions.len(), 2);
-            }
-            other => panic!("expected PermissionsChanged, got {other:?}"),
-        }
     }
 
     /// 사용자 신뢰 목록이 비어 있고 임베드 키와 맞지 않는 서명은 신뢰하지 않는다.
@@ -534,20 +439,12 @@ mod integration_tests {
         let sk = SigningKey::from_bytes(&[17u8; 32]);
         // pk 반환값 무시 — placeholder 시나리오는 trust DB 가 비어 있어 어떤
         // pubkey 로도 매칭이 일어나지 않는다.
-        let _pk = make_bundle(
-            bundle_tmp.path(),
-            &sk,
-            "com.example.ph",
-            &["filesystem.read"],
-        );
+        let _pk = make_bundle(bundle_tmp.path(), &sk, "com.example.ph");
 
         let result = verify_bundle_signature(bundle_tmp.path());
         match result {
             Ok(TrustDecision::Trusted) => panic!("placeholder must never grant Trusted"),
-            Ok(TrustDecision::Untrusted {
-                reason: UntrustedReason::UnknownKey,
-                ..
-            }) => {}
+            Ok(TrustDecision::Untrusted { .. }) => {}
             Err(SigVerifyError::NoValidTrustedKeys) => {}
             other => panic!("unexpected result: {other:?}"),
         }

@@ -64,20 +64,10 @@ mod tests {
     use crate::intent::Intent;
 
     #[test]
-    fn plugins_can_only_seed_defaults_with_settings_permission() {
-        let mut caller = CallerContext::Plugin {
+    fn plugins_can_only_seed_defaults() {
+        let caller = CallerContext::Plugin {
             plugin_id: "com.tasty.claude".into(),
-            permissions: Default::default(),
         };
-        assert!(
-            caller
-                .ensure_allowed("settings.initialize_input_rule")
-                .is_err()
-        );
-        if let CallerContext::Plugin { permissions, .. } = &mut caller {
-            *permissions =
-                std::sync::Arc::new([tasty_plugin_manifest::Permission::UiSettingsPage].into());
-        }
         assert!(
             caller
                 .ensure_allowed("settings.initialize_input_rule")
@@ -225,7 +215,6 @@ mod tests {
         let mut engine = engine_session.borrow_mut();
         let caller = CallerContext::Plugin {
             plugin_id: "com.tasty.claude".into(),
-            permissions: Default::default(),
         };
         let params = json!({"app":"claude", "shift_enter_newline":true, "owner":"spoof"});
         let (_, intents) = update(

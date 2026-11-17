@@ -12,14 +12,11 @@ use crate::{
 };
 use serde_json::{Value, json};
 use std::path::PathBuf;
-use tasty_host_plugin::{
-    PluginsConfig, file_persistence::ConfigUpdate, known_plugins::KnownPlugins,
-};
+use tasty_host_plugin::known_plugins::KnownPlugins;
 
 struct Installed {
     manifest: Manifest,
     dir: PathBuf,
-    config: PluginsConfig,
 }
 
 fn failure(error: anyhow::Error) -> Failure {
@@ -37,8 +34,8 @@ fn failure(error: anyhow::Error) -> Failure {
     }
 }
 
-/// 등록 확정 직전의 마지막 예약 id 판정. 설치·재승인 관문을 거친 뒤라 닿지 않아야 한다.
-/// 닿으면 명령·번역 등록 전에 멈춘다. 파일·신뢰 DB·plugins.toml은 이미 커밋됐으므로
+/// 등록 확정 직전의 마지막 예약 id 판정. 설치 관문을 거친 뒤라 닿지 않아야 한다.
+/// 닿으면 명령·번역 등록 전에 멈춘다. 파일·신뢰 DB는 이미 커밋됐으므로
 /// 관리자 부재 실패(`post_commit::Stage::Registration`)와 같이 저장됨·부분 완료로 보고한다.
 fn admit_after_files(id: &str) -> Result<(), Failure> {
     tasty_host_plugin::official::admit_plugin_id(id).map_err(|e| Failure {
@@ -61,7 +58,6 @@ struct InstallRequest {
     known: PathBuf,
     choice: InstallChoice,
     reviewed: Option<String>,
-    before: PluginsConfig,
     copy: bool,
 }
 #[derive(Default)]
@@ -130,7 +126,6 @@ impl InstallRequest {
             self.known.clone(),
             &self.source,
             &manifest.id,
-            &manifest.permissions,
             &self.choice,
         )?;
         if self.copy {
@@ -147,16 +142,7 @@ impl InstallRequest {
         ) {
             anyhow::bail!("plugin did not pass discovery after its trust record was saved");
         }
-        let mut after = self.before.clone();
-        after.set_granted(&manifest.id, manifest.permissions.clone());
-        let config = ConfigUpdate::between(&self.before, &after)?
-            .with_grants_intent(&manifest.id, manifest.permissions.clone())
-            .execute()?;
-        Ok(Installed {
-            manifest,
-            dir,
-            config,
-        })
+        Ok(Installed { manifest, dir })
     }
 }
 
@@ -185,14 +171,11 @@ impl App {
             .saturating_add(reviewed.as_ref().map_or(0, String::len))
             .saturating_add(choice_bytes);
         self.plugin_files.enqueue_sized(input_bytes, move |app| {
-            let Some(mgr) = app.plugin_manager.as_ref() else {
+            if app.plugin_manager.is_none() {
                 finish(app, Err(Failure::before("plugin manager not initialized")));
                 return;
-            };
-            let before = mgr.config.clone();
-            let bytes = crate::app::file_writer::command::value_bytes(&before)
-                + source.as_os_str().len()
-                + reviewed.as_ref().map_or(0, String::len);
+            }
+            let bytes = source.as_os_str().len() + reviewed.as_ref().map_or(0, String::len);
             app.run_plugin_file(
                 (bytes, 0),
                 move || {
@@ -202,16 +185,13 @@ impl App {
                         known,
                         choice,
                         reviewed,
-                        before,
                         copy,
                     }
                     .execute()
                 },
                 |result| match result {
                     Ok(ready) => {
-                        crate::app::file_writer::command::value_bytes(&ready.config)
-                            + format!("{:?}", ready.manifest).len()
-                            + ready.dir.as_os_str().len()
+                        format!("{:?}", ready.manifest).len() + ready.dir.as_os_str().len()
                     }
                     Err(e) => e
                         .message
@@ -237,27 +217,12 @@ impl App {
     }
 
     fn apply_installed(&mut self, ready: Installed) -> Result<Value, Failure> {
-        let Installed {
-            manifest,
-            dir,
-            config,
-        } = ready;
-        self.apply_plugin_registration(manifest, dir, config, true)
-    }
-
-    pub(super) fn apply_plugin_registration(
-        &mut self,
-        manifest: Manifest,
-        dir: PathBuf,
-        config: PluginsConfig,
-        installed: bool,
-    ) -> Result<Value, Failure> {
+        let Installed { manifest, dir } = ready;
         admit_after_files(&manifest.id)?;
         let mgr = crate::app::plugin_file_lifecycle::post_commit::manager_after_files(
             &mut self.plugin_manager,
             crate::app::plugin_file_lifecycle::post_commit::Stage::Registration,
         )?;
-        mgr.config = config;
         mgr.replace_committed_package(
             &manifest.id,
             Some(PluginPackage {
@@ -267,15 +232,12 @@ impl App {
         );
         mgr.command_registry.register_plugin(&manifest);
         crate::i18n::register_namespace(&manifest.id, &dir.join(&manifest.lang_dir));
-        let mut events = Vec::new();
-        if installed {
-            events.push(CoreEvent::PluginRegistryChanged {
-                plugin_id: manifest.id.clone(),
-                change: PluginRegistryChange::Installed {
-                    version: manifest.version.clone(),
-                },
-            });
-        }
+        let mut events = vec![CoreEvent::PluginRegistryChanged {
+            plugin_id: manifest.id.clone(),
+            change: PluginRegistryChange::Installed {
+                version: manifest.version.clone(),
+            },
+        }];
         if !self.plugin_files.stopping() && !mgr.config.is_disabled(&manifest.id) {
             mgr.enable_committed(&manifest.id).map_err(|e| Failure {
                 message: e.to_string(),
@@ -310,7 +272,6 @@ id="com.example.worker-install"
 name="owned test"
 version="1.0.0"
 api_version="1"
-permissions=["fs.read"]
 [entry]
 type="process"
 command="unused"
@@ -323,35 +284,24 @@ command="unused"
             known: home.join("known-plugins.toml"),
             choice,
             reviewed: None,
-            before: PluginsConfig::load_from(home.join("plugins.toml")),
             copy: true,
         }
     }
     #[test]
-    fn install_worker_confirms_both_files_and_preserves_latest_foreign_edits() {
+    fn install_worker_records_trust_and_leaves_plugins_toml_untouched() {
         let home = tempfile::tempdir().unwrap();
         let request = request(home.path(), InstallChoice::AllowUnverified);
-        std::fs::write(
-            home.path().join("plugins.toml"),
-            "# external\n[foreign]\nvalue='keep'\n",
-        )
-        .unwrap();
+        let original = "# external\n[foreign]\nvalue='keep'\n";
+        std::fs::write(home.path().join("plugins.toml"), original).unwrap();
         let installed = std::thread::spawn(move || request.execute())
             .join()
             .unwrap()
             .unwrap();
         assert!(installed.dir.is_dir());
-        assert!(
-            installed
-                .config
-                .granted_permissions(&installed.manifest.id)
-                .contains("fs.read")
-        );
         let known = KnownPlugins::load_from(home.path().join("known-plugins.toml")).unwrap();
         assert!(known.unverified_choice(&installed.manifest.id).is_some());
         let text = std::fs::read_to_string(home.path().join("plugins.toml")).unwrap();
-        assert!(text.contains("# external"));
-        assert!(text.contains("value='keep'"));
+        assert_eq!(text, original);
     }
     #[test]
     fn refused_unverified_install_leaves_no_owned_directory_or_trust_approval() {
@@ -407,13 +357,16 @@ command="unused"
         assert!(admit_after_files("com.tasty.markdown").is_ok());
         assert!(admit_after_files("com.example.x").is_ok());
     }
+    /// 신뢰 기록을 남긴 뒤 복사가 실패하면 기록과 만든 사본을 되돌리고 원본은 그대로 둔다.
+    /// 원본의 깨진 링크가 복사를 실패시킨다.
+    #[cfg(unix)]
     #[test]
-    fn failed_config_restores_owned_trust_and_copy_without_touching_the_source() {
+    fn failed_copy_restores_owned_trust_and_copy_without_touching_the_source() {
         let home = tempfile::tempdir().unwrap();
         let request = request(home.path(), InstallChoice::AllowUnverified);
-        std::fs::write(home.path().join("plugins.toml"), "PRIVATE = [[[\n").unwrap();
+        std::os::unix::fs::symlink(home.path().join("missing"), request.source.join("dangling"))
+            .unwrap();
         let error = request.execute().err().unwrap();
-        assert!(!error.message.contains("PRIVATE"));
         assert_eq!(error.saved, Some(false));
         assert!(!error.applied);
         assert!(
@@ -423,6 +376,12 @@ command="unused"
                 .exists()
         );
         assert!(home.path().join("source/tasty-plugin.toml").exists());
+        assert!(
+            std::fs::symlink_metadata(home.path().join("source/dangling"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert!(
             KnownPlugins::load_from(home.path().join("known-plugins.toml"))
                 .unwrap()

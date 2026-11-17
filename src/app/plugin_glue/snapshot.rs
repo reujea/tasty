@@ -30,7 +30,6 @@ impl App {
                         .iter()
                         .map(|k| k.kind.clone())
                         .collect(),
-                    manifest_permissions: pkg.manifest.permissions.clone(),
                     commands: pkg
                         .manifest
                         .contributes
@@ -99,9 +98,6 @@ pub(crate) fn attention_entries(mgr: &plugin::PluginManager) -> Vec<plugins_ui::
             let kind = match r.reason {
                 RejectionReason::UnknownKey => plugins_ui::AttentionKind::UnknownKey,
                 RejectionReason::SignatureInvalid => plugins_ui::AttentionKind::SignatureInvalid,
-                RejectionReason::PermissionsChanged => {
-                    plugins_ui::AttentionKind::PermissionsChanged
-                }
             };
             let (description, homepage) = if kind.shows_manifest_text() {
                 (r.description.clone(), r.homepage.clone())
@@ -118,8 +114,6 @@ pub(crate) fn attention_entries(mgr: &plugin::PluginManager) -> Vec<plugins_ui::
                 builtin: r.builtin,
                 kind,
                 fingerprint: r.fingerprint.clone(),
-                permissions_added: r.permissions_added.clone(),
-                permissions_removed: r.permissions_removed.clone(),
                 health_detail: None,
                 cause: r.cause.clone(),
                 unverified: r.unverified,
@@ -144,8 +138,6 @@ pub(crate) fn attention_entries(mgr: &plugin::PluginManager) -> Vec<plugins_ui::
             builtin: plugin::is_builtin_plugin(id),
             kind: plugins_ui::AttentionKind::HealthError,
             fingerprint: None,
-            permissions_added: Vec::new(),
-            permissions_removed: Vec::new(),
             health_detail: Some(mgr.log_path(id).to_string_lossy().into_owned()),
             cause: None,
             unverified: None,
@@ -172,8 +164,6 @@ fn reserved_entry(
         builtin: false,
         kind: plugins_ui::AttentionKind::ReservedId,
         fingerprint: None,
-        permissions_added: Vec::new(),
-        permissions_removed: Vec::new(),
         health_detail: None,
         cause: None,
         unverified: None,

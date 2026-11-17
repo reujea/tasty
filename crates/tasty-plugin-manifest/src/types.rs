@@ -34,10 +34,8 @@ pub struct Manifest {
     pub entry: Entry,
     #[serde(default)]
     pub surface_kinds: Vec<SurfaceKindDecl>,
-    #[serde(default)]
-    pub permissions: Vec<String>,
-    /// Event Bus 구독 허용 패턴 일람. 정확한 키 또는 `<namespace>.*` 와일드카드.
-    /// 비어 있으면 plugin은 이벤트를 구독할 수 없다.
+    /// 구독할 Event Bus 이벤트의 선언. 정확한 키 또는 `<namespace>.*` 와일드카드.
+    /// 선언이 덮지 않는 구독은 계약 위반으로 거절한다. 비어 있으면 어떤 구독도 덮지 않는다.
     #[serde(default)]
     pub event_subscribe: Vec<String>,
     /// 발행할 수 있는 이벤트 패턴. 호스트 전용 namespace를 선언하면 검증에서 거부한다.
@@ -80,7 +78,7 @@ pub enum Entry {
     },
 }
 
-/// 선언할 수 있는 권한. 쓰기 권한이 읽기 권한을 포함하지 않으므로 각각 선언해야 한다.
+/// Agent 세션에 부여하는 IPC 권한. 쓰기 권한이 읽기 권한을 포함하지 않으므로 각각 부여해야 한다.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Permission {
     /// surface/tab/workspace 트리 조회
@@ -267,7 +265,7 @@ impl Permission {
 }
 
 /// 발행 이벤트의 설명.
-/// key는 와일드카드·예약 namespace 없이 event_publish 허용 범위에 들어야 한다.
+/// key는 와일드카드·예약 namespace 없이 event_publish 선언 범위에 들어야 한다.
 /// description은 설명, stability는 stable 또는 experimental이다.
 /// payload_schema는 매니페스트 기준 JSON Schema 경로이며 호스트의 본문 검증에는 사용하지 않는다.
 #[derive(Debug, Clone, Deserialize)]
@@ -541,11 +539,11 @@ pub struct Contributes {
     /// 파일 핸들러 선언. JSON으로 보관하고 허용 액션과 참조는 호스트가 설치 때 검사한다.
     #[serde(default)]
     pub handler: Vec<serde_json::Value>,
-    /// IpcSequence 훅 핸들러 선언. hook_handler.define 권한이 필요하다.
+    /// IpcSequence 훅 핸들러 선언.
     /// JSON으로 보관하고 호스트가 설치 때 해석·검증하며 ShellCommand는 허용하지 않는다.
     #[serde(default)]
     pub hook_handler: Vec<serde_json::Value>,
-    /// poll/push 완료 전략 선언. completion_strategy.define 권한이 필요하다.
+    /// poll/push 완료 전략 선언.
     /// JSON으로 보관하고 호스트가 설치 때 구체 전략과 참조를 검사한다.
     #[serde(default)]
     pub completion_strategy: Vec<serde_json::Value>,

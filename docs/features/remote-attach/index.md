@@ -147,7 +147,7 @@ client에 그 kind가 아직 등록되지 않았으면 placeholder를 유지하�
 미지원 kind는 기술적 제한이며 보안을 위해 제외한 것은 아니다. 콘텐츠 접근의 신뢰 경계는
 [SSH와 loopback](../../design/systems/memory.md)이다. 자세한 범위는
 [attach IPC](../../dev-guide/attach-behavior.md#ipc-표면-attach)와
-[plugin 권한](../../dev-guide/plugin-permissions.md)을 따른다.
+[호스트 호출 계약](../../dev-guide/plugin-permissions.md)을 따른다.
 
 ### 화면 동기화
 
@@ -488,7 +488,7 @@ IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty 
 - **실패**: 기존 workspace 는 접수 응답 뒤에 실패하므로 `run.result` 의 `state: failed` 와 `result` 로 받는다(닫힌 포트, 없는 프로필, 없는 원격 workspace, SSH 인증 실패). `new_workspace:true` 는 오류 응답 `-32050` 으로 받는다. 어느 쪽이든 mirror 행과 터널이 남지 않는다.
 - **SSH**: ssh 는 호출자가 아니라 호스트 프로세스에서 호스트의 환경·agent 로 실행되고 stdin 은 닫혀 있다. 호출자에게 프롬프트가 전달되는 경로는 없다.
 - **정리**: 에이전트가 붙인 mirror 는 저장된 행이 아니라서 끊기면 재연결 없이 바로 정리된다. 원격 workspace 를 남기고 mirror 만 떼려면 `tasty remote disconnect --workspace <mirror id>`(IPC `remote.disconnect`)를 쓴다. 대상은 원격 id 가 아니라 이쪽 mirror workspace id 이고, 응답의 `remote_workspace` 로 나중에 `remote attach --into-gui --workspace <원격 id>` 를 다시 부른다. mirror 워크스페이스를 `close workspace` 로 닫을 수는 없다. 마지막 surface 를 닫으면(`tasty close surface`, `surface.write` 필요) 원격 workspace 가 함께 닫히고 mirror 도 사라진다.
-- **plugin 호스트 호출**: 메서드 표는 plugin 을 막지 않지만 App 층 처리는 외부 IPC 전용이다. plugin 이 호스트 호출로 `remote.attach`·`remote.refusals`·`remote.workspaces`·`remote.disconnect` 를 부르면 권한 거절 없이 `-32017` 을 받는다. `attach.into_gui` 만 호스트 호출을 처리한다. plugin 프로세스가 외부 IPC 로 부르면 토큰 없이 접속하므로 권한 표와 무관하게 Local 로 처리된다.
+- **plugin 호스트 호출**: 메서드 표는 plugin 을 막지 않지만 App 층 처리는 외부 IPC 전용이다. plugin 이 호스트 호출로 `remote.attach`·`remote.refusals`·`remote.workspaces`·`remote.disconnect` 를 부르면 권한 거절 없이 `-32017` 을 받는다. `attach.into_gui` 만 호스트 호출을 처리한다. plugin 프로세스가 외부 IPC 로 부르면 토큰 없이 접속하므로 Local 로 처리된다.
 
 ### 원격 워크스페이스 추가 팝업 (GUI picker — 사용자 경로)
 

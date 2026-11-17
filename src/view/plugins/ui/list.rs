@@ -340,19 +340,7 @@ fn draw_detail_body(
     }
 
     // 디자인 상세는 절 사이에 구분선 없이 space-lg 만 띄운다.
-    // 순서: Permissions → Commands → Surface kinds(있을 때만) → 설치 경로.
-    plugin_detail_section_gap(ui, th);
-    plugin_detail_section(ui, th, t("plugins.permissions"), |ui| {
-        if entry.manifest_permissions.is_empty() {
-            ui.label(t("plugins.none"));
-        } else {
-            ui.horizontal_wrapped(|ui| {
-                for token in &entry.manifest_permissions {
-                    tag_mono(ui, th, token, TagVariant::Default, false);
-                }
-            });
-        }
-    });
+    // 순서: Commands(있을 때만) → Surface kinds(있을 때만) → 설치 경로.
 
     if !entry.commands.is_empty() {
         plugin_detail_section_gap(ui, th);

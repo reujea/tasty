@@ -2,7 +2,7 @@
 
 - **Status**: Implemented
 - **주체**: 로컬 사용자 (복사/붙여넣기는 사용자 행동)
-- **설계**: [플러그인 권한 모델](../../dev-guide/plugin-permissions.md) (뷰어의 plugin 직접-read 모델)
+- **설계**: [호스트 호출 계약](../../dev-guide/plugin-permissions.md) (뷰어의 plugin 직접-read 모델)
 - **코드**: 시스템 클립보드 `arboard`(네이티브 Wayland는 `src/clipboard/terminal.rs`); 텍스트 복사의 공통 경로 = `src/clipboard/copy.rs`; 복사/붙여넣기/선택 = `src/view/main/`
 - **화면**: 현재 클립보드 뷰어는 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md)
 
@@ -216,7 +216,7 @@ egui-mesh 플러그인 surface 가 키를 받는 동안의 편집 키도 [편집
 
 ### 현재 클립보드 뷰어
 
-지금 시스템 클립보드에 담긴 내용은 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) 이 popup 으로 보여준다. host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 한다([플러그인 권한 모델](../../dev-guide/plugin-permissions.md) — plugin 은 비-샌드박스 OS 프로세스라 host 가 OS 클립보드 접근을 막을 수 없으므로, 단발 read 는 host 를 경유하지 않는다). 히스토리 누적·재복사는 없다.
+지금 시스템 클립보드에 담긴 내용은 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) 이 popup 으로 보여준다. host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 한다([호스트 호출 계약](../../dev-guide/plugin-permissions.md) — plugin 은 비-샌드박스 OS 프로세스라 host 가 OS 클립보드 접근을 막을 수 없으므로, 단발 read 는 host 를 경유하지 않는다). 히스토리 누적·재복사는 없다.
 
 ## 인터페이스
 

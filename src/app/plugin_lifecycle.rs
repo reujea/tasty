@@ -1,8 +1,6 @@
 use super::App;
 use super::plugin_file_lifecycle::{Failure, Reply};
 use crate::app::command::CoreEvent;
-#[cfg(feature = "gui")]
-use crate::app::command::PluginRegistryChange;
 use serde_json::{Value, json};
 use tasty_host_plugin::manager::file_config::ConfigChange;
 
@@ -208,27 +206,6 @@ fn config_result(
             }
             (body, events)
         }
-        ConfigChange::Permission { id, token, grant } => {
-            #[cfg(feature = "gui")]
-            let events = vec![CoreEvent::PluginRegistryChanged {
-                plugin_id: id.clone(),
-                change: if *grant {
-                    PluginRegistryChange::PermissionGranted {
-                        permission: token.clone(),
-                    }
-                } else {
-                    PluginRegistryChange::PermissionRevoked {
-                        permission: token.clone(),
-                    }
-                },
-            }];
-            #[cfg(not(feature = "gui"))]
-            let events = {
-                let _grant = grant;
-                Vec::new()
-            };
-            (json!({"id":id,"permission":token}), events)
-        }
         ConfigChange::Shortcuts(_) => (json!({}), vec![]),
     }
 }
@@ -236,7 +213,6 @@ fn config_result(
 fn change_bytes(change: &ConfigChange) -> usize {
     match change {
         ConfigChange::Enabled { id, .. } => id.len(),
-        ConfigChange::Permission { id, token, .. } => id.len().saturating_add(token.len()),
         ConfigChange::Shortcuts(values) => super::file_writer::command::value_bytes(values),
     }
 }

@@ -94,14 +94,12 @@ skipped = "无法打开确认窗口，Tasty 将直接退出，不再询问。"
 title = "插件"
 empty = "未安装插件。"
 none_selected = "从左侧选择插件。"
-none = "（无）"
 enabled = "已启用"
 disabled = "已禁用"
 running = "运行中"
 health_error = "连接失败。请在设置中检查插件配置。"
 homepage = "主页"
 surface_kinds = "Surface 种类"
-permissions = "权限"
 log_path = "日志"
 install = "安装"
 install_path = "安装路径"
@@ -122,22 +120,14 @@ attn_sig_invalid_label = "签名无效"
 attn_sig_invalid_blurb = "签名缺失或无法验证，注册被拒绝。"
 attn_sig_invalid_note = "签名与此插件的文件不匹配。"
 attn_desc_hidden = "签名无效，已隐藏描述。"
-attn_perm_changed_label = "权限已更改"
-attn_perm_changed_blurb = "请求的权限已更改，需要重新批准。"
 attn_health_label = "运行时错误"
 attn_health_blurb = "已启用，但运行时出错。请查看日志了解详情。"
-attn_permission_changes = "权限更改"
 attn_signature = "签名"
 attn_error = "日志"
 attn_fingerprint = "指纹"
-attn_newly_requested = "新增请求"
-attn_no_longer_used = "不再使用"
 attn_not_registered = "未注册"
 attn_needs_review = "待审核"
-attn_reapprove = "重新批准"
 attn_copy_fingerprint = "复制指纹"
-attn_reapproved = "已重新批准“{}”。"
-attn_reapprove_failed = "重新批准失败：{}"
 attn_register_anyway = "仍然注册"
 attn_registered = "已注册“{}”。"
 attn_register_failed = "注册失败：{}"
@@ -159,13 +149,10 @@ add_help = "为 Tasty 指定包含 `tasty-plugin.toml` 的本地文件夹。验�
 add_empty_hint = "选择文件夹并按下 {} 以读取清单。"
 add_source_path = "来源"
 add_button = "添加插件"
-add_trust_and_add = "信任并添加"
 add_anyway = "仍然添加"
 add_trust_key_anyway = "信任密钥并仍然添加"
 add_adding = "正在添加…"
 add_none = "无"
-add_grants_none = "无权限"
-add_grants = "授予 {} 项权限"
 add_read_error = "无法读取 tasty-plugin.toml"
 add_invalid = "tasty-plugin.toml 无效"
 add_blocked_installed = "已安装"
@@ -173,14 +160,12 @@ add_install_failed = "安装失败：{}"
 add_installed = "插件“{}”已安装。"
 trust_trusted_body = "由受信任的发布者签名，其密钥在信任库中。"
 trust_unverified_title = "未经验证的插件"
-trust_unverified_risk = "Tasty 无法确认此插件的作者，也无法确认其文件未经更改。插件作为程序运行，拥有你的账户权限：可以读取和更改文件、使用网络以及启动其他程序。上述权限仅限制插件可以请求 Tasty 执行的操作。仅在信任其来源时添加。"
+trust_unverified_risk = "Tasty 无法确认此插件的作者，也无法确认其文件未经更改。插件作为程序运行，拥有你的账户权限：可以读取和更改文件、使用网络以及启动其他程序。仅在信任其来源时添加。"
 trust_key_note = "添加插件也会信任此密钥。"
 trust_cause_unknown_key = "签名所用密钥不在信任库中。"
 trust_cause_missing_pubkey = "插件已签名，但发布者的公钥文件（tasty-plugin.toml.pub）缺失或无法读取。"
 trust_cause_unsigned = "插件没有签名。"
 trust_cause_signature_error = "无法根据这些文件验证签名。"
-trust_permissions_changed_title = "权限已更改"
-trust_permissions_changed_body = "此发布者受信任，但此版本请求了已信任版本未拥有的权限。查看上述列表；添加插件即表示信任新的权限集合。这些权限限制插件可以请求 Tasty 执行的操作，并不会将插件程序与你的文件、网络或其他程序隔离。"
 configure = "配置"
 commands = "命令"
 filter_placeholder = "筛选已安装的插件…"
@@ -2220,7 +2205,7 @@ enable_failed = "插件 '{}' 未能启动（{}）：{}。使用 tasty plugin log
 enable_cancelled = "插件 '{}' 在连接前已被关闭或重启"
 enable_still_starting = "插件 '{}' 在 {} 秒后仍在启动；使用 tasty plugin show {} 查看"
 unverified_refused = """
-警告：插件 '{}' 未经验证。{} Tasty 无法确认其作者或文件是否未经更改。插件以当前账户的访问权限作为程序运行：可以读取和更改文件、使用网络以及启动其他程序。其权限仅限制它可以请求 Tasty 执行的操作。未安装任何内容。
+警告：插件 '{}' 未经验证。{} Tasty 无法确认其作者或文件是否未经更改。插件以当前账户的访问权限作为程序运行：可以读取和更改文件、使用网络以及启动其他程序。未安装任何内容。
 如果信任其来源，仍可使用以下命令安装：
   tasty plugin install --allow-unverified {}"""
 unverified_cause_unknown_key = "其签名所用的密钥不在信任存储中。"
@@ -4781,7 +4766,7 @@ about = "管理插件（list、install、remove、enable、disable、logs）"
 about = "列出已安装的插件（ID、版本、启用状态、运行状态）"
 
 [cli.help._root.plugin.show]
-about = "显示插件的完整清单、权限、命令和运行时状态"
+about = "显示插件的完整清单、命令和运行时状态"
 
 [cli.help._root.plugin.show.arg.id]
 help = "插件 ID"
@@ -4791,7 +4776,7 @@ about = "从包含 tasty-plugin.toml 的目录安装插件"
 long = """
 从包含 tasty-plugin.toml 的目录安装插件。
 
-还会执行两项操作，均不询问确认：立即授予清单声明的所有权限；启用并启动插件，除非已保存该 ID 的禁用标记。先检查 `tasty-plugin.toml`，或在安装后使用 `plugin permissions <id>` 检查权限并使用 `plugin revoke <id> <permission>` 撤销权限。
+还会执行一项操作，不询问确认：启用并启动插件，除非已保存该 ID 的禁用标记。先检查 `tasty-plugin.toml`。
 
 若 Tasty 无法通过受信任的密钥验证插件签名，则该插件未经验证。除非指定 `--allow-unverified`，否则不予安装，并说明拒绝原因。此选择会保留，直到清单更改或插件被移除。"""
 
@@ -4816,7 +4801,7 @@ about = "从捆绑包重新同步所有内置插件"
 long = """
 从捆绑包重新同步所有内置插件。
 
-清单版本决定处理分支，内容决定分支内的操作：捆绑包版本较高时重写整个目录；版本相同时仅重写存在差异的内容；已安装版本高于捆绑包版本时，不读取内容，直接跳过。`--force` 用于最后一种情况。发生变更的内置插件新声明的权限会在同一次调用中授予。"""
+清单版本决定处理分支，内容决定分支内的操作：捆绑包版本较高时重写整个目录；版本相同时仅重写存在差异的内容；已安装版本高于捆绑包版本时，不读取内容，直接跳过。`--force` 用于最后一种情况。"""
 
 [cli.help._root.plugin.upgrade-builtins.arg.force]
 help = "即使已安装版本 >= 捆绑包版本也覆盖"
@@ -4867,30 +4852,6 @@ about = "诊断插件清单，列出提供的检测器和处理器，并标记�
 
 [cli.help._root.plugin.doctor.arg.id]
 help = "插件 ID（例如 com.example.foo）"
-
-[cli.help._root.plugin.permissions]
-about = "显示插件清单中的权限及当前已授予的权限集"
-
-[cli.help._root.plugin.permissions.arg.id]
-help = "插件 ID"
-
-[cli.help._root.plugin.grant]
-about = "向插件授予权限（必须已在其清单中声明）"
-
-[cli.help._root.plugin.grant.arg.id]
-help = "插件 ID"
-
-[cli.help._root.plugin.grant.arg.permission]
-help = "权限令牌（例如 fs.read、surface.write）"
-
-[cli.help._root.plugin.revoke]
-about = "撤销此前授予插件的权限"
-
-[cli.help._root.plugin.revoke.arg.id]
-help = "插件 ID"
-
-[cli.help._root.plugin.revoke.arg.permission]
-help = "权限令牌"
 
 [cli.help._root.plugin.grant-agent-permission]
 about = "向活跃的智能体会话授予临时权限。权限在 TTL 到期或显式撤销前有效；基础权限（在 session.issue 时授予）不受影响"

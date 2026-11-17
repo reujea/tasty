@@ -38,13 +38,10 @@ fn manager() -> PluginManager {
         Arc::new(crate::file::handler::FileHandlerRegistry::new()),
     );
     let manifest = toml::from_str(MANIFEST).expect("manifest");
-    mgr.install_packages_for_test(
-        vec![tasty_plugin_manifest::PluginPackage {
-            dir: std::path::PathBuf::from("/nonexistent/popups"),
-            manifest,
-        }],
-        &["ui.popup"],
-    );
+    mgr.install_packages_for_test(vec![tasty_plugin_manifest::PluginPackage {
+        dir: std::path::PathBuf::from("/nonexistent/popups"),
+        manifest,
+    }]);
     mgr
 }
 

@@ -140,15 +140,12 @@ fn not_registered_reason(mgr: &PluginManager, plugin_id: &str) -> String {
                 Some(cause) => cause.clone(),
                 None => "the signature could not be verified".to_string(),
             },
-            RejectionReason::PermissionsChanged => {
-                "its permissions changed since its key was trusted".to_string()
-            }
         },
         None => "plugin discovery did not load it (see the log for details)".to_string(),
     }
 }
 
-/// 패키지 목록에 들어간 플러그인의 명령·번역·권한을 등록하고 비활성 설정이 없으면 실행한다.
+/// 패키지 목록에 들어간 플러그인의 명령·번역을 등록하고 비활성 설정이 없으면 실행한다.
 #[cfg(test)]
 fn register_installed(
     mgr: &mut PluginManager,
@@ -158,12 +155,7 @@ fn register_installed(
     mgr.command_registry.register_plugin(manifest);
     let lang_dir = dir.join(&manifest.lang_dir);
     crate::i18n::register_namespace(&manifest.id, &lang_dir);
-    mgr.config
-        .set_granted(&manifest.id, manifest.permissions.clone());
-    if let Err(e) = mgr.config.save() {
-        tracing::warn!("plugins.toml save failed: {e}");
-    }
-    // 확장자는 packages와 권한 설정에 의존하므로 마지막 설정 변경 뒤 다시 계산한다.
+    // 확장자는 packages에 의존하므로 등록 뒤 다시 계산한다.
     // 아래 enable은 생략될 수 있어 그 호출의 재계산에만 의존할 수 없다.
     mgr.recompute_extensions();
     mgr.debug_assert_extensions_fresh();
@@ -227,8 +219,7 @@ pub(crate) fn install_into(
             dest.display()
         );
     }
-    let undo =
-        super::install_trust::authorize(src_path, &manifest.id, &manifest.permissions, choice)?;
+    let undo = super::install_trust::authorize(src_path, &manifest.id, choice)?;
     if let Err(e) = copy_into_plugins(src_path, &dest_root, &dest) {
         remove_partial_install(&dest);
         super::install_trust::undo(undo, &manifest.id);

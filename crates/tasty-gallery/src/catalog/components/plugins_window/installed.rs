@@ -48,7 +48,6 @@ pub(super) struct Row {
     authors: &'static str,
     homepage: &'static str,
     surface_kinds: &'static [&'static str],
-    permissions: &'static [&'static str],
     commands: &'static [(&'static str, &'static str)],
     install_dir: &'static str,
     log_path: &'static str,
@@ -67,7 +66,6 @@ pub(super) const ROWS: &[Row] = &[
         authors: "tasty",
         homepage: "https://github.com/zilhak/tasty",
         surface_kinds: &["clipboard-viewer"],
-        permissions: &["clipboard", "surface:read"],
         // 매니페스트 원문 그대로. 키캡은 `Ctrl` `Shift` `V` 로 다듬어 그린다.
         commands: &[("Open clipboard viewer", "ctrl + shift + v")],
         install_dir: "~/.tasty/plugins/com.tasty.clipboard-viewer",
@@ -85,7 +83,6 @@ pub(super) const ROWS: &[Row] = &[
         authors: "tasty",
         homepage: "",
         surface_kinds: &[],
-        permissions: &["fs:read", "process:read"],
         commands: &[],
         install_dir: "~/.tasty/plugins/com.tasty.git-viewer",
         log_path: "~/.tasty/logs/com.tasty.git-viewer.log",
@@ -102,7 +99,6 @@ pub(super) const ROWS: &[Row] = &[
         authors: "tasty",
         homepage: "",
         surface_kinds: &["markdown"],
-        permissions: &["fs:read"],
         commands: &[],
         install_dir: "~/.tasty/plugins/com.tasty.markdown",
         log_path: "~/.tasty/logs/com.tasty.markdown.log",
@@ -346,10 +342,7 @@ pub(super) fn detail_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, de
         health_box(&mut child, theme);
     }
 
-    // 디자인 순서: Permissions → Command → Surface kinds(있을 때만) → Install path.
-    plugin_detail_section_gap(&mut child, theme);
-    tag_section(&mut child, theme, "Permissions", row.permissions);
-
+    // 디자인 순서: Command(있을 때만) → Surface kinds(있을 때만) → Install path.
     commands(&mut child, theme, row);
 
     if !row.surface_kinds.is_empty() {
@@ -410,10 +403,7 @@ pub fn draw_install_paths(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
-            (
-                "order",
-                "… Permissions · Command · Surface kinds · Install path",
-            ),
+            ("order", "… Command · Surface kinds · Install path"),
             (
                 "caption row",
                 "INSTALL PATH (font-label 10 caps) · flex · Open folder",

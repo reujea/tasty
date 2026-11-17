@@ -42,7 +42,6 @@ fn open_as(
         "plugin" => {
             let caller = tasty_ipc::caller::CallerContext::Plugin {
                 plugin_id: "com.example.p".to_string(),
-                permissions: std::sync::Arc::new(Default::default()),
             };
             let resp = crate::adapters::ipc::handler::file_picker::handle_trigger(
                 state,
