@@ -13,6 +13,7 @@ mod folder;
 #[cfg(test)]
 mod folder_tests;
 mod footer;
+pub(crate) mod instances;
 #[cfg(test)]
 mod layout_tests;
 mod location;
@@ -186,8 +187,10 @@ pub(super) fn selected_folder<'a>(props: &'a FilePickerProps<'a>) -> Option<&'a 
 pub enum FilePickerAction {
     ClearSelection,
     None,
-    /// ESC 또는 헤더 ✕/[취소] — popup 닫기 + result=Cancelled.
+    /// 헤더 ✕/[취소] — popup 닫기 + result=Cancelled.
     Cancel,
+    /// ESC — Cancel과 같고 닫기 사유가 Escape다.
+    Escape,
     /// 목록 행 단일 클릭 — 선택만 갱신, popup 유지.
     Select(String),
     /// 디렉토리 행 더블클릭 — 그 하위로 내비게이트.
@@ -224,7 +227,7 @@ pub fn draw_file_picker_view(ui: &mut egui::Ui, props: &FilePickerProps<'_>) -> 
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
     {
         return FilePickerViewOut {
-            action: FilePickerAction::Cancel,
+            action: FilePickerAction::Escape,
             header_rect: egui::Rect::NOTHING,
         };
     }
@@ -597,18 +600,14 @@ fn hline(ui: &egui::Ui, th: &Theme, x: egui::Rangef, y: f32) {
     );
 }
 
-/// 결과 없이 닫혔으면 Cancelled를 기록해 호출부가 계속 기다리지 않게 한다.
+/// 닫힌 피커의 결과를 넘긴다. 결과 없이 닫혔으면 취소로 넘겨 호출부가 계속 기다리지 않게 한다.
 pub fn on_close_file_picker(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    if let Some(p) = state.dialogs.file_picker.as_mut()
-        && p.result.is_none()
-    {
-        p.result = Some(crate::state::FilePickerResult::Cancelled);
-    }
+    instances::finish(state, closed);
 }
 
 /// 상태에서 화면 입력을 만들고 사용자 동작을 반영한다.
@@ -616,9 +615,9 @@ pub fn draw_file_picker(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some(data) = state.dialogs.file_picker.as_ref() else {
+    let Some(data) = instances::picker_of_mut(cx.payload) else {
         return PopupAction::Close;
     };
 
@@ -628,26 +627,19 @@ pub fn draw_file_picker(
         && engine.find_workspace_index_for_id(mirror_ws_id).is_none()
         && !matches!(data.load, FpLoadState::ErrorConn(_))
     {
-        let data = state.dialogs.file_picker.as_mut().unwrap();
         data.load = FpLoadState::ErrorConn(t("filepicker.error_conn.session_lost").to_string());
     }
 
-    if let Some(FpLoadState::Loading { sent_at, .. }) =
-        state.dialogs.file_picker.as_ref().map(|d| d.load.clone())
-        && state
-            .dialogs
-            .file_picker
-            .as_ref()
-            .is_some_and(|data| data.mirror_ws_id.is_some())
+    if let FpLoadState::Loading { sent_at, .. } = data.load
+        && data.mirror_ws_id.is_some()
         && sent_at.elapsed() > LIST_DIR_SOFT_TIMEOUT
     {
-        let data = state.dialogs.file_picker.as_mut().unwrap();
         data.load = FpLoadState::ErrorConn(t("filepicker.error_conn.timeout").to_string());
     }
 
     let th = theme::theme();
-    let owns_escape = state.popup_escape_owner == Some(FILE_PICKER_POPUP_ID);
-    let data = state.dialogs.file_picker.as_ref().unwrap();
+    // 키 입력은 포커스를 가진 맨 위 인스턴스만 읽는다. 다른 범위의 피커는 같은 키에 취소·확정되지 않는다.
+    let owns_escape = cx.focused && state.popup_escape_owner == Some(cx.instance);
 
     let is_remote = data.mirror_ws_id.is_some();
     let crumb_targets = path_ancestors(is_remote, &data.current_dir);
@@ -794,11 +786,12 @@ pub fn draw_file_picker(
 
     let out = draw_file_picker_view(ui, &props);
     // 셸 타이틀바가 없으므로 위젯 헤더 줄을 이동 손잡이로 보고한다.
-    super::report_header_drag_rect(ui.ctx(), FILE_PICKER_POPUP_ID, out.header_rect);
-    apply_action(state, engine, out.action)
+    super::header_drag::report(ui.ctx(), cx.instance, out.header_rect);
+    apply_action(data, state, engine, out.action)
 }
 
 fn apply_action(
+    d: &mut crate::state::FilePickerData,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     action: FilePickerAction,
@@ -806,21 +799,19 @@ fn apply_action(
     match action {
         FilePickerAction::None => PopupAction::None,
         FilePickerAction::ClearSelection => {
-            if let Some(d) = state.dialogs.file_picker.as_mut() {
-                d.selected.clear();
-            }
+            d.selected.clear();
             PopupAction::None
         }
         FilePickerAction::Cancel => {
-            if let Some(d) = state.dialogs.file_picker.as_mut() {
-                d.result = Some(FilePickerResult::Cancelled);
-            }
+            d.result = Some(FilePickerResult::Cancelled);
             PopupAction::Close
         }
+        FilePickerAction::Escape => {
+            d.result = Some(FilePickerResult::Cancelled);
+            PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
+        }
         FilePickerAction::EditName(name) => {
-            if let Some(d) = state.dialogs.file_picker.as_mut()
-                && d.save_name.is_some()
-            {
+            if d.save_name.is_some() {
                 if d.selected.first() != Some(&name) {
                     d.selected.clear();
                 }
@@ -829,53 +820,45 @@ fn apply_action(
             PopupAction::None
         }
         FilePickerAction::Select(name) => {
-            if let Some(d) = state.dialogs.file_picker.as_mut() {
-                if d.save_name.is_some()
-                    && d.entries.iter().any(|e| {
-                        e.name == name && !e.is_dir && matches_filters(&d.filters, &e.name)
-                    })
-                {
-                    d.save_name = Some(name.clone());
-                }
-                d.selected = vec![name];
+            if d.save_name.is_some()
+                && d.entries
+                    .iter()
+                    .any(|e| e.name == name && !e.is_dir && matches_filters(&d.filters, &e.name))
+            {
+                d.save_name = Some(name.clone());
             }
+            d.selected = vec![name];
             PopupAction::None
         }
         FilePickerAction::NavigateInto(name) => {
-            navigate(state, engine, |dir, is_remote| {
+            navigate(d, state, engine, |dir, is_remote| {
                 join_dir(is_remote, dir, &name)
             });
             PopupAction::None
         }
         FilePickerAction::NavigateTo(idx) => {
-            if let Some(d) = state.dialogs.file_picker.as_ref() {
-                let is_remote = d.mirror_ws_id.is_some();
-                let targets = path_ancestors(is_remote, &d.current_dir);
-                if let Some(target) = targets.get(idx).cloned() {
-                    navigate(state, engine, move |_dir, _is_remote| target.clone());
-                }
+            let is_remote = d.mirror_ws_id.is_some();
+            let targets = path_ancestors(is_remote, &d.current_dir);
+            if let Some(target) = targets.get(idx).cloned() {
+                navigate(d, state, engine, move |_dir, _is_remote| target.clone());
             }
             PopupAction::None
         }
         FilePickerAction::NavigateUp => {
-            if let Some(d) = state.dialogs.file_picker.as_ref() {
-                let is_remote = d.mirror_ws_id.is_some();
-                let targets = path_ancestors(is_remote, &d.current_dir);
-                if targets.len() > 1 {
-                    let parent = targets[targets.len() - 2].clone();
-                    navigate(state, engine, move |_dir, _is_remote| parent.clone());
-                }
+            let is_remote = d.mirror_ws_id.is_some();
+            let targets = path_ancestors(is_remote, &d.current_dir);
+            if targets.len() > 1 {
+                let parent = targets[targets.len() - 2].clone();
+                navigate(d, state, engine, move |_dir, _is_remote| parent.clone());
             }
             PopupAction::None
         }
         FilePickerAction::Refresh => {
-            navigate(state, engine, |dir, _is_remote| dir.to_string());
+            navigate(d, state, engine, |dir, _is_remote| dir.to_string());
             PopupAction::None
         }
         FilePickerAction::Confirm => {
-            if let Some(d) = state.dialogs.file_picker.as_mut()
-                && d.folder
-            {
+            if d.folder {
                 if !matches!(d.load, FpLoadState::Loaded | FpLoadState::Empty) {
                     return PopupAction::None;
                 }
@@ -883,9 +866,7 @@ fn apply_action(
                 d.result = Some(FilePickerResult::Confirmed { paths: vec![path] });
                 return PopupAction::Close;
             }
-            if let Some(d) = state.dialogs.file_picker.as_mut()
-                && let Some(name) = &d.save_name
-            {
+            if let Some(name) = &d.save_name {
                 if let Some(path) = save::confirmed_path(
                     std::path::Path::new(&d.current_dir),
                     name,
@@ -897,59 +878,48 @@ fn apply_action(
                 }
                 return PopupAction::None;
             }
-            let folder = state.dialogs.file_picker.as_ref().and_then(|d| {
-                let [name] = d.selected.as_slice() else {
-                    return None;
-                };
-                d.entries
+            let folder = match d.selected.as_slice() {
+                [name] => d
+                    .entries
                     .iter()
                     .find(|e| &e.name == name)
                     .filter(|e| e.is_dir)
-                    .map(|e| e.name.clone())
-            });
+                    .map(|e| e.name.clone()),
+                _ => None,
+            };
             if let Some(name) = folder {
-                navigate(state, engine, |dir, is_remote| {
+                navigate(d, state, engine, |dir, is_remote| {
                     join_dir(is_remote, dir, &name)
                 });
                 return PopupAction::None;
             }
-            if let Some(d) = state.dialogs.file_picker.as_mut() {
-                let is_remote = d.mirror_ws_id.is_some();
-                // 화면의 활성화 검사와 별개로 디렉터리를 파일로 확정하지 않게 재확인한다.
-                let all_files = d.selected.iter().all(|name| {
-                    d.entries
-                        .iter()
-                        .find(|e| &e.name == name)
-                        .is_some_and(|e| !e.is_dir)
-                });
-                let paths: Vec<String> = d
-                    .selected
+            let is_remote = d.mirror_ws_id.is_some();
+            // 화면의 활성화 검사와 별개로 디렉터리를 파일로 확정하지 않게 재확인한다.
+            let all_files = d.selected.iter().all(|name| {
+                d.entries
                     .iter()
-                    .map(|name| join_dir(is_remote, &d.current_dir, name))
-                    .collect();
-                if all_files && !paths.is_empty() {
-                    d.result = Some(FilePickerResult::Confirmed { paths });
-                    return PopupAction::Close;
-                }
+                    .find(|e| &e.name == name)
+                    .is_some_and(|e| !e.is_dir)
+            });
+            let paths: Vec<String> = d
+                .selected
+                .iter()
+                .map(|name| join_dir(is_remote, &d.current_dir, name))
+                .collect();
+            if all_files && !paths.is_empty() {
+                d.result = Some(FilePickerResult::Confirmed { paths });
+                return PopupAction::Close;
             }
             PopupAction::None
         }
         FilePickerAction::ConfirmEntry(name) => {
-            if state
-                .dialogs
-                .file_picker
-                .as_ref()
-                .is_some_and(|d| d.folder || d.save_name.is_some())
-            {
-                return apply_action(state, engine, FilePickerAction::Select(name));
+            if d.folder || d.save_name.is_some() {
+                return apply_action(d, state, engine, FilePickerAction::Select(name));
             }
-            if let Some(d) = state.dialogs.file_picker.as_mut() {
-                let is_remote = d.mirror_ws_id.is_some();
-                let path = join_dir(is_remote, &d.current_dir, &name);
-                d.result = Some(FilePickerResult::Confirmed { paths: vec![path] });
-                return PopupAction::Close;
-            }
-            PopupAction::None
+            let is_remote = d.mirror_ws_id.is_some();
+            let path = join_dir(is_remote, &d.current_dir, &name);
+            d.result = Some(FilePickerResult::Confirmed { paths: vec![path] });
+            PopupAction::Close
         }
     }
 }
@@ -989,30 +959,45 @@ pub(crate) enum FilePickerOpenedBy {
 #[derive(Debug)]
 pub(crate) struct FilePickerBusy;
 
-/// 열린 피커뿐 아니라 닫혔지만 아직 전달되지 않은 확정·취소 결과도 보호한다.
-pub(crate) fn ensure_available(state: &MainViewState) -> Result<(), FilePickerBusy> {
-    if state.dialogs.file_picker.is_some() {
+/// 같은 범위에 피커가 있으면 busy다. 열린 피커뿐 아니라 열기를 기다리는 요청과 닫혔지만 아직 전달되지 않은
+/// 확정·취소 결과도 보호한다. 다른 범위의 피커는 막지 않는다.
+pub(crate) fn ensure_available(
+    state: &MainViewState,
+    scope: &crate::model::popup_kind::PopupScope,
+) -> Result<(), FilePickerBusy> {
+    if instances::has_picker_in(state, scope) {
         Err(FilePickerBusy)
     } else {
         Ok(())
     }
 }
 
+/// 피커가 고르는 대상. 기본은 기존 파일을 연다.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FilePickerOptions {
+    /// 점 없는 확장자 필터. 비면 제한하지 않는다.
+    pub(crate) filters: Vec<String>,
+    /// 폴더 하나를 고른다.
+    pub(crate) folder: bool,
+    /// Some이면 이 이름으로 시작하는 저장 이름을 고른다.
+    pub(crate) save_name: Option<String>,
+}
+
 /// 호출자가 정한 위치를 둘러보는 피커를 연다. 피커는 경로를 고르는 데서 끝나며,
-/// 결과는 `request_id`와 함께 `FilePickerData::result`에 남아 App이 호출자에게 넘긴다.
+/// 결과는 `request_id`와 함께 닫힐 때 출력함에 남아 App이 호출자에게 넘긴다.
 /// 로컬은 navigate에서 동기로 읽기 시작하고 원격은 요청을 큐에 넣는다.
-/// filters가 비면 확장자를 제한하지 않는다. Busy면 기존 상태와 pending intent를 그대로 둔다.
-/// `scope`는 피커가 작용하는 대상의 범위다. 여는 쪽이 정한다.
+/// Busy면 기존 상태와 pending intent를 그대로 둔다.
+/// `scope`는 피커가 작용하는 대상의 범위다. 여는 쪽이 정한다. 범위마다 피커 하나가 열린다.
 pub(crate) fn open(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     request_id: crate::state::FilePickerRequestId,
     location: crate::state::FilePickerLocation,
-    filters: Vec<String>,
+    options: FilePickerOptions,
     opened_by: FilePickerOpenedBy,
     scope: crate::model::popup_kind::PopupScope,
 ) -> Result<(), FilePickerBusy> {
-    ensure_available(state)?;
+    ensure_available(state, &scope)?;
     let (mirror_ws_id, dir) = match location {
         crate::state::FilePickerLocation::Local { dir } => (None, dir),
         crate::state::FilePickerLocation::Remote {
@@ -1027,9 +1012,9 @@ pub(crate) fn open(
         FilePickerOpenedBy::ToolsMenu | FilePickerOpenedBy::ContextMenu => None,
     };
 
-    state.dialogs.file_picker = Some(crate::state::FilePickerData {
-        save_name: None,
-        folder: false,
+    let mut data = crate::state::FilePickerData {
+        save_name: options.save_name,
+        folder: options.folder,
         request_id,
         mirror_ws_id,
         remote_host: None,
@@ -1040,15 +1025,18 @@ pub(crate) fn open(
         selected: Vec::new(),
         result: None,
         requester,
-        filters,
-    });
+        filters: options.filters,
+    };
 
-    navigate(state, engine, |dir, _is_remote| dir.to_string());
+    navigate(&mut data, state, engine, |dir, _is_remote| dir.to_string());
 
     let open_popup = crate::intent::UiIntent::OpenPopup(
         crate::intent::OpenRequest::new(FILE_PICKER_POPUP_ID, scope)
             .centered()
-            .focused(),
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::FilePicker(
+                Box::new(data),
+            )),
     );
     let dispatched = match opened_by {
         FilePickerOpenedBy::Plugin(req) => open_popup.from_agent_plugin(req.plugin_id),
@@ -1063,13 +1051,11 @@ pub(crate) fn open(
 /// 새 대상 디렉토리로 내비게이트: 선택 초기화 + 로컬은 즉시 동기 로드, 원격은
 /// `pending_list_dir_forward` 큐잉 + `Loading` 전이.
 fn navigate(
+    d: &mut crate::state::FilePickerData,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     target_of: impl FnOnce(&str, bool) -> String,
 ) {
-    let Some(d) = state.dialogs.file_picker.as_mut() else {
-        return;
-    };
     let is_remote = d.mirror_ws_id.is_some();
     let target = target_of(&d.current_dir, is_remote);
     d.current_dir = target.clone();

@@ -210,7 +210,8 @@ micro 대문자로 쓰고, 열 위치는 행과 같은 계산을 써서 값 바�
 
 ### 플러그인의 피커 요청 — 즉시 접수하고 결과는 이벤트로 전달
 
-CallerContext::Plugin 검사는 이미 열린 popup(-32000)이나 잘못된 인자(-32602)보다 먼저다.
+CallerContext::Plugin 검사는 잘못된 인자·범위 거절(-32602)이나 같은 범위에 이미 있는 피커(-32000)보다 먼저다.
+범위를 정하지 못한 요청은 busy 검사 전에 `-32602`로 거절한다.
 외부 CLI·Agent는 -32016으로 거절한다. Plugin 호출자는 권한 토큰 없이 부른다.
 이 메서드는 window router의 외부 arm을 사용하므로 method table의 plugin_only 표식을 붙이지 않는다.
 그 표식은 별도 host-call interception 경로를 뜻한다. 에이전트는 파일 경로를 직접 지정한다.
@@ -255,7 +256,7 @@ markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저
 `Loaded`/`Empty`에서 한 경로 성분인 이름만 확정하며 나열된 폴더 이름은 거절한다. 파일 행 클릭과
 더블클릭은 이름만 채우므로 덮어쓰기 경고를 건너뛰지 않는다. 확정 결과는 경로 하나의 배열이며
 호스트는 파일을 만들거나 쓰지 않는다. 실제 PNG 저장과 확장자 보충은
-이미지 플러그인의 [저장]이 담당한다. 피커가 이미 열렸으면 `-32000`으로 거절하고 이미지 쪽은
+이미지 플러그인의 [저장]이 담당한다. 그 surface 범위에 피커가 이미 있으면 `-32000`으로 거절하고 이미지 쪽은
 경고 로그를 남기며 입력칸을 보존한다. 취소·저장 카드 닫힘·surface 재생성·새 요청 뒤의 이전 결과는
 버리고 일치하는 request ID와 카드 세대의 결과만 한 번 받는다. 이미지 카드는 host popup이 아니므로
 `owner_popup_instance`를 보내지 않으며 피커는 요청에 실은 surface 범위로 열린다.
@@ -309,9 +310,10 @@ Surface 부모가 보이지 않으면 자식도 paint/hit/Esc/키 게이트에�
 부모 close는 기존 cancel/settled 규약을 따른다. 확정 이벤트를 받은 markdown은 경로 입력만
 채우며, 부모 Open에서 최초 context의 대상을 실행한다. 호스트는 확정한 경로로 파일을 따로 열지 않는다.
 
-**동시 요청**: 메인 창의 파일 피커는 한 번에 요청 하나만 받는다. Tools 메뉴·단축키·새 HTML·plugin
-모두 `file_picker::open`의 공통 진입 검사를 거친다. 기존 피커가 열려 있거나 닫힌 결과를 아직
-`take_outcome`으로 꺼내지 않았다면 새 요청을 거절한다. 기존 요청의 ID·caller 정보·requester·부모 범위·
+**동시 요청**: 메인 창의 파일 피커는 범위마다 요청 하나를 받는다(`PerScopeTarget`). 피커 데이터(요청 ID,
+요청자, 위치, 선택, 결과)는 그 범위의 popup 인스턴스에 있다. 범위가 다른 요청은 서로 막지 않고 각자 피커를
+연다. Tools 메뉴·단축키·새 HTML·plugin 모두 `file_picker::open`의 공통 진입 검사를 거친다. 같은 범위에
+피커가 열려 있거나, 열기 요청이 대기 중이거나, 닫힌 결과를 아직 호출자에게 넘기지 않았다면 새 요청을 거절한다. 기존 요청의 ID·caller 정보·requester·부모 범위·
 선택·확정 또는 취소 결과는 그대로 둔다. 본체 caller는 열기가 성공한 뒤에만 자기 요청 정보를 저장한다.
 
 사용자의 메뉴·단축키 재진입에는 기존 선택을 마치거나 취소하라는 안내 토스트를 보여 준다. plugin의
@@ -325,8 +327,8 @@ Surface 부모가 보이지 않으면 자식도 paint/hit/Esc/키 게이트에�
 
 ### 설정 창에서의 로컬 전용 재사용
 
-설정 창은 메인 윈도우와 별개의 winit 창이라, 메인 창 popup 스택(`MainViewState.dialogs.file_picker`)
-에 상태를 둔 이 피커를 그대로 열 수 없다. 대신 **순수 view(`draw_file_picker_view`)만 재사용**한다 —
+설정 창은 메인 윈도우와 별개의 winit 창이라, 메인 창 popup 매니저의 인스턴스에 상태를 둔 이 피커를
+그대로 열 수 없다. 대신 **순수 view(`draw_file_picker_view`)만 재사용**한다 —
 view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상태를 어디에 두든 그릴 수 있다.
 
 - **상태**: 설정 창의 `SettingsUiState.file_chooser`(`LocalFileChooser`) 가 갖는다. 메인 창의
@@ -445,8 +447,8 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 - Given Tools 메뉴 원격 피커가 열린 동안 보관한 surface 가 닫힘 When 확정 Then 같은 mirror workspace 의
   다른 surface 로 열고, workspace 까지 사라졌으면 아무것도 열지 않는다.
 - Given 탭 스트립 "새 HTML..." 피커가 열린 동안 메뉴를 연 pane 이 닫힘 When 확정 Then 탭이 생기지 않는다.
-- Given 기존 피커가 열려 있거나 확정·취소 결과가 아직 전달되지 않음 When 어느 호출자가 다시 열기를
-  요청해도 Then 기존 요청과 부모 관계·결과를 보존하고 새 요청을 거절한다. 사용자 조작은 안내 토스트,
+- Given 같은 범위에 기존 피커가 열려 있거나 확정·취소 결과가 아직 전달되지 않음 When 어느 호출자가 그 범위에
+  다시 열기를 요청해도 Then 기존 요청과 부모 관계·결과를 보존하고 새 요청을 거절한다. 사용자 조작은 안내 토스트,
   plugin은 `-32000` 응답만 받으며 새 popup이나 후속 동작은 생기지 않는다.
 - Given 기존 요청의 결과를 꺼낸 뒤 같은 호출자가 피커를 다시 열었음 When 이전 요청 식별자의 결과가 도착
   Then 그 결과는 적용되지 않고, 현재 결과는 한 번만 적용된다.
@@ -468,12 +470,15 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   즉시 `{ request_id }` 로 회신하고 popup 이 열린다(확정을 기다리지 않음).
 - Given CLI(`Local`) 또는 agent 토큰 호출자 When `file_picker.trigger` 를 호출 Then `-32016` 으로
   거부되고 popup 이 열리지 않으며 사용자 입력 포커스·단축키 게이트가 그대로다.
-- Given `file_picker` popup 이 이미 열려 있음 When 두 번째 `file_picker.trigger` 가 옴
+- Given `file_picker` popup 이 이미 열려 있음 When 같은 범위로 두 번째 `file_picker.trigger` 가 옴
   Then 거부(`-32000` 에러) — 첫 요청의 `requester` 는 대체되지 않고 그대로 유지된다.
+- Given 한 surface 범위에 plugin 피커가 열려 있음 When 다른 surface 에서 `file_picker.trigger` 가 옴
+  Then busy 가 아니고 그 surface 범위에 두 번째 피커가 열린다. 각 피커의 결과는 자기 `request_id` 의 요청자에게
+  한 번씩 가고, 원격 목록 응답은 그 조회를 보낸 피커에만 반영된다.
 - Given passive 로 열린(또는 passive 로 열릴 Intent 가 대기 중인) 피커 When 같은 plugin·같은 `origin_surface_id` 의 유효한 `user_navigation_url` 로
   `file_picker.trigger` 가 옴 Then 증명을 소비하고 피커가 포커스를 받아 맨 앞에 오며 응답은 첫 요청의 `request_id` 다. 피커는 둘이 되지 않고
   결과는 첫 요청자에게 한 번만 간다.
-- Given passive 피커 When 증명 없는 요청, 다른 plugin 의 요청, 다른 surface 의 요청 Then `-32000` 이고 passive 를 유지하며 증명을 소비하지 않는다.
+- Given passive 피커 When 같은 범위로 온 증명 없는 요청, 다른 plugin 의 요청, 요청자 기록과 출발 surface 가 다른 요청 Then `-32000` 이고 passive 를 유지하며 증명을 소비하지 않는다.
   이미 포커스된 피커, 범위 밖에 숨은 피커, 닫혀 결과 전달을 기다리는 피커도 같다.
 - Given Markdown 문서의 Folder 에 키보드 포커스 When Enter 또는 Space(Windows·Linux) Then 피커가 사용자 요청으로 열려 페이지 위에 보이고 Esc 로 닫힌다.
   Enter 연타·누르고 있기도 피커가 포커스를 받는다.

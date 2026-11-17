@@ -132,7 +132,7 @@ state.dispatch_intent(
 |------|----|------|------|
 | `scope_kind` | Window / Workspace / Pane / Tab / Surface | 인자 | 없음. 등록 범위는 `Window` 이고 실제 범위는 여는 쪽이 준다 |
 | `scope_target` | Origin / Parent / Explicit | Origin | 없음 |
-| `instances` | Single / PerScopeTarget / Multi / Queue | PerScopeTarget | 없음. 지금은 id 마다 인스턴스 하나다 |
+| `instances` | Single / PerScopeTarget / Multi / Queue | PerScopeTarget | host `PopupManager::instance_for`가 열기·다시 열기 요청이 쓸 인스턴스를 고를 때 읽는다 |
 | `covers_scope` | bool | true | scrim 을 깔지(`PopupManager::draw`) |
 | `fit` | Collapse / Shrink | Collapse | 없음. 지금은 모든 host 팝업이 범위에 맞춰 줄어든다. `search_bar` 만 `Shrink` 로 선언했다 |
 | `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor | ScopeCenter | 없음. 위치는 여는 쪽 `OpenRequest` 의 `placement` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
@@ -317,4 +317,4 @@ if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { /* apply
 
 부모를 신고하지 않은 요청은 단독 팝업이다. 현재 host끼리의 Esc 중재는 공통 처리되지 않으며, 부모·자식 스택에 참여하는 파일 피커만 Esc 소유권을 확인한다.
 
-팝업의 context와 host 범위 바인딩은 같은 원본 surface에서 만든다. 단일 인스턴스 제한으로 기존 팝업을 재사용하면 최초 context가 남으므로 범위도 덮어쓰지 않는다. 다른 surface에서 열기를 요청해도 기존 대상이 숨겨져 있으면 팝업이 보이지 않을 수 있다. host 팝업은 대상을 인스턴스 데이터로 싣고 선언의 `instances`를 `PerScopeTarget`으로 두면 범위마다 따로 열린다. 같은 범위에서 대상을 바꾸는 요청은 `UiIntent::ReopenPopup`으로 보낸다. 탐색기 Properties(`explorer_properties.rs`)·surface 변환(`convert.rs`)·파일 처리기 선택(`file_handler_picker.rs`)이 이 방식이다. 검색 바(`search_bar.rs`)는 창에 하나(`Single`)지만 검색할 surface를 인스턴스 데이터(`PopupPayload::Search`)로 싣고, 다른 surface에서 연 요청은 `UiIntent::ReopenPopup`으로 범위와 대상을 함께 옮긴다. 닫힐 때 결과를 넘겨야 하는 팝업은 닫기 훅이 `ClosedPopup.payload`를 읽어 결과를 옮긴다. 파일 처리기 선택은 데이터 사본을 결과와 함께 `DialogState.finished_handler_pickers`에 넣고 App이 프레임 끝에 실행한다.
+팝업의 context와 host 범위 바인딩은 같은 원본 surface에서 만든다. 단일 인스턴스 제한으로 기존 팝업을 재사용하면 최초 context가 남으므로 범위도 덮어쓰지 않는다. 다른 surface에서 열기를 요청해도 기존 대상이 숨겨져 있으면 팝업이 보이지 않을 수 있다. host 팝업은 대상을 인스턴스 데이터로 싣고 선언의 `instances`를 `PerScopeTarget`으로 두면 범위마다 따로 열린다. 같은 범위에서 대상을 바꾸는 요청은 `UiIntent::ReopenPopup`으로 보낸다. 탐색기 Properties(`explorer_properties.rs`)·surface 변환(`convert.rs`)·파일 처리기 선택(`file_handler_picker.rs`)·파일 피커(`file_picker.rs`)가 이 방식이다. 검색 바(`search_bar.rs`)는 창에 하나(`Single`)지만 검색할 surface를 인스턴스 데이터(`PopupPayload::Search`)로 싣고, 다른 surface에서 연 요청은 `UiIntent::ReopenPopup`으로 범위와 대상을 함께 옮긴다. 닫힐 때 결과를 넘겨야 하는 팝업은 닫기 훅이 `ClosedPopup.payload`를 읽어 결과를 옮긴다. 파일 처리기 선택은 데이터 사본을 결과와 함께 `DialogState.finished_handler_pickers`에 넣고 App이 프레임 끝에 실행한다. 파일 피커는 범위·요청 ID·결과·요청자를 `DialogState.finished_file_pickers`에 넣고, App이 프레임 끝에 각 결과를 그 요청의 호출자에게 넘긴다.

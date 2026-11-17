@@ -118,21 +118,18 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
     instances: impl Iterator<Item = (u64, &'a PopupInstance)>,
 ) {
     state.plugin_popup_bound_scopes = bound_popup_scopes(instances);
-    let Some(requester) = state
-        .dialogs
-        .file_picker
-        .as_ref()
-        .and_then(|data| data.requester.as_ref())
-        .filter(|r| r.owner_popup_instance.is_some())
-    else {
-        return;
-    };
-    let Ok(scope) = plugin_picker_scope(&state.plugin_popup_bound_scopes, requester, |_| true)
-    else {
-        return;
-    };
-    if let Some(popup) = state.popups.get_mut(FILE_PICKER_POPUP_ID) {
-        popup.scope = scope;
+    let bound = &state.plugin_popup_bound_scopes;
+    for popup in state.popups.entries_of_mut(FILE_PICKER_POPUP_ID) {
+        let Some(requester) =
+            crate::adapters::ui::popup::file_picker::instances::picker_of(&popup.payload)
+                .and_then(|data| data.requester.as_ref())
+                .filter(|r| r.owner_popup_instance.is_some())
+        else {
+            continue;
+        };
+        if let Ok(scope) = plugin_picker_scope(bound, requester, |_| true) {
+            popup.scope = scope;
+        }
     }
 }
 

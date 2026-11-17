@@ -720,10 +720,7 @@ impl PassivePicker {
                 .unwrap();
             // 범위를 정하려면 출발 surface 가 있어야 하므로 열린 뒤 요청자 기록만 다른 출발지로 바꾼다.
             if let Some(origin) = origin {
-                state
-                    .dialogs
-                    .file_picker
-                    .as_mut()
+                crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
                     .and_then(|d| d.requester.as_mut())
                     .expect("requester")
                     .origin_surface_id = Some(origin);
@@ -813,11 +810,7 @@ impl PassivePicker {
     }
 
     fn assert_stays_first_request(&self) {
-        let requester = self
-            .state
-            .dialogs
-            .file_picker
-            .as_ref()
+        let requester = crate::adapters::ui::popup::file_picker::instances::latest(&self.state)
             .and_then(|d| d.requester.as_ref())
             .expect("first requester");
         assert_eq!(requester.plugin_id, PLUGIN);
@@ -910,8 +903,9 @@ fn a_press_on_a_focused_picker_stays_busy_without_consuming_the_proof() {
 #[test]
 fn a_press_after_the_picker_closed_stays_busy_without_consuming_the_proof() {
     let mut p = PassivePicker::opened(None, true);
-    p.state.dialogs.file_picker.as_mut().unwrap().result =
-        Some(crate::state::FilePickerResult::Cancelled);
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut p.state)
+        .unwrap()
+        .result = Some(crate::state::FilePickerResult::Cancelled);
     p.state.popups.close(PICKER);
     p.prove();
     let resp = p.trigger(PLUGIN, p.sid);
@@ -919,8 +913,9 @@ fn a_press_after_the_picker_closed_stays_busy_without_consuming_the_proof() {
 
     // 결과가 채워졌는데 팝업이 아직 닫히지 않은 틈도 같다.
     let mut p = PassivePicker::opened(None, true);
-    p.state.dialogs.file_picker.as_mut().unwrap().result =
-        Some(crate::state::FilePickerResult::Cancelled);
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut p.state)
+        .unwrap()
+        .result = Some(crate::state::FilePickerResult::Cancelled);
     p.prove();
     let resp = p.trigger(PLUGIN, p.sid);
     p.assert_busy(&resp, "결과가 채워진 피커");
@@ -981,9 +976,12 @@ fn a_press_on_a_passive_picker_hidden_by_its_scope_keeps_the_proof_and_the_other
             egui::vec2(200.0, 100.0),
             crate::model::popup_kind::PopupScope::Window,
         ));
-    // 범위 대상은 실제로 있어야 한다. 없으면 draw 가 고아 팝업으로 닫는다.
+    // 피커는 출발 surface 범위에 열린다. 그 surface 가 화면에 없으면 draw 가 숨긴다.
+    assert_eq!(
+        p.state.popups.get_mut(PICKER).unwrap().scope,
+        PopupScope::Surface(p.sid)
+    );
     let picker_workspace = p.engine_session.borrow_mut().workspace_at(0).unwrap().id;
-    p.state.popups.get_mut(PICKER).unwrap().scope = PopupScope::Workspace(picker_workspace);
     p.state
         .popups
         .open_centered_focused(OTHER, PopupScope::Window);

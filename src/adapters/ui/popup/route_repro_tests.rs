@@ -198,9 +198,12 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
         Some(KeyTarget::Surface(SURFACE_L)),
         "포커스는 L 인데 키가 오버레이로 간다"
     );
+    let picker = state
+        .popups
+        .get_mut(FILE_PICKER_POPUP_ID)
+        .map(|p| p.instance);
     assert_ne!(
-        state.popup_escape_owner,
-        Some(FILE_PICKER_POPUP_ID),
+        state.popup_escape_owner, picker,
         "포커스 경로에 없는 R 피커가 Escape 를 받는다"
     );
 }

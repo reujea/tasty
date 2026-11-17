@@ -99,28 +99,14 @@ pub fn handle_trigger_with_proofs(
         }
     };
 
-    if file_picker::ensure_available(state).is_err() {
-        return match focus_passive_picker(
-            state,
-            engine,
-            &requester_plugin,
-            params,
-            navigation_proofs,
-        ) {
-            Some(request_id) => JsonRpcResponse::success(id, json!({ "request_id": request_id })),
-            None => busy_response(id),
-        };
-    }
-
     let req: FilePickerTriggerReq = match serde_json::from_value(params.clone()) {
         Ok(r) => r,
         Err(e) => return JsonRpcResponse::error(id, -32602, format!("invalid params: {e}")),
     };
 
-    let request_id = crate::state::FilePickerRequestId::next();
-    let requester = FilePickerRequester {
+    let mut requester = FilePickerRequester {
         plugin_id: requester_plugin,
-        request_id: request_id.0,
+        request_id: 0,
         owner_popup_instance: req.owner_popup_instance,
         origin_surface_id: req.origin_surface_id,
     };
@@ -138,6 +124,22 @@ pub fn handle_trigger_with_proofs(
         Ok(scope) => scope,
         Err(refusal) => return JsonRpcResponse::error(id, -32602, refusal.message()),
     };
+    // 같은 범위에 피커가 있으면 busy다. 다른 범위의 피커는 이 요청을 막지 않는다.
+    if file_picker::ensure_available(state, &scope).is_err() {
+        return match focus_passive_picker(
+            state,
+            engine,
+            &requester.plugin_id,
+            &req,
+            &scope,
+            navigation_proofs,
+        ) {
+            Some(request_id) => JsonRpcResponse::success(id, json!({ "request_id": request_id })),
+            None => busy_response(id),
+        };
+    }
+    let request_id = crate::state::FilePickerRequestId::next();
+    requester.request_id = request_id.0;
 
     // 확인하지 못하면 포커스 없는 passive 피커가 되고, 키를 받는 WebView 가 피커를 덮는다
     // (docs/design/systems/popup.md#passive-팝업).
@@ -178,69 +180,60 @@ pub fn handle_trigger_with_proofs(
     {
         return JsonRpcResponse::error(id, -32602, "save mode requires a local location");
     }
+    let options = file_picker::FilePickerOptions {
+        filters: req.filters,
+        folder: req.mode == PickerMode::Folder,
+        save_name: (req.mode == PickerMode::Save).then_some(req.default_name),
+    };
     if file_picker::open(
-        state,
-        &engine,
-        request_id,
-        location,
-        req.filters,
-        opened_by,
-        scope,
+        state, &engine, request_id, location, options, opened_by, scope,
     )
     .is_err()
     {
         return busy_response(id);
     }
 
-    if req.mode == PickerMode::Folder {
-        state
-            .dialogs
-            .file_picker
-            .as_mut()
-            .expect("opened picker")
-            .folder = true;
-    }
-    if req.mode == PickerMode::Save {
-        state
-            .dialogs
-            .file_picker
-            .as_mut()
-            .expect("opened picker")
-            .save_name = Some(req.default_name);
-    }
     JsonRpcResponse::success(id, json!({ "request_id": request_id.0 }))
 }
 
 /// 연타 경합 때 첫 요청은 뒤 입력이 기록을 덮어 passive로 열린다. 그 뒤 요청의 입력이 확인되면 첫 요청의 피커에
-/// 포커스를 주고 첫 `request_id`를 돌려준다. 요청자·결과 전달은 그대로다. 같은 plugin·같은 surface의 피커만
-/// 올리고, 증명은 실제로 올릴 때만 소비한다. 그 밖에는 None이고 호출자는 busy로 답한다.
+/// 포커스를 주고 첫 `request_id`를 돌려준다. 요청자·결과 전달은 그대로다. 같은 범위에 있는 같은 plugin·같은
+/// surface의 피커만 올리고, 증명은 실제로 올릴 때만 소비한다. 그 밖에는 None이고 호출자는 busy로 답한다.
 fn focus_passive_picker(
     state: &mut RequestContext,
     engine: &EngineMut<'_>,
     plugin_id: &str,
-    params: &serde_json::Value,
+    req: &FilePickerTriggerReq,
+    scope: &crate::adapters::ui::popup::PopupScope,
     navigation_proofs: Option<&crate::app::html_runtime::NavigationProofs>,
 ) -> Option<u64> {
     let proofs = navigation_proofs?;
-    let req: FilePickerTriggerReq = serde_json::from_value(params.clone()).ok()?;
     let url = req.user_navigation_url.as_deref()?;
     let surface = req.origin_surface_id?;
-    let picker = state.dialogs.file_picker.as_ref()?;
-    let requester = picker.requester.as_ref()?;
-    if requester.plugin_id != plugin_id
-        || requester.origin_surface_id != Some(surface)
-        || picker.result.is_some()
-    {
-        return None;
-    }
-    let request_id = requester.request_id;
-    if !(state
+    let matches = |picker: &crate::state::FilePickerData| {
+        picker.requester.as_ref().and_then(|requester| {
+            (requester.plugin_id == plugin_id
+                && requester.origin_surface_id == Some(surface)
+                && picker.result.is_none())
+            .then_some(requester.request_id)
+        })
+    };
+    let open = state
         .popups
-        .is_visible_passive(file_picker::FILE_PICKER_POPUP_ID)
-        || passive_open_is_queued(state))
-    {
-        return None;
-    }
+        .instance_for(file_picker::FILE_PICKER_POPUP_ID, scope)
+        .and_then(|iid| state.popups.instance(iid))
+        .filter(|p| p.scope == *scope);
+    let request_id = match open {
+        Some(popup) => {
+            let request_id = file_picker::instances::picker_of(&popup.payload).and_then(matches)?;
+            if !state.popups.instance_is_visible_passive(popup.instance) {
+                return None;
+            }
+            request_id
+        }
+        // 첫 요청의 열기 Intent가 아직 처리되지 않았고 그 열기가 passive가 될 때. 포커스 Intent는 그 뒤에 처리된다.
+        None => queued_passive_open(state, scope, &matches)?,
+    };
     if !proofs.take(
         &state.webview_identity,
         &engine.as_ref(),
@@ -253,21 +246,33 @@ fn focus_passive_picker(
     state.dispatch_intent(
         crate::intent::UiIntent::FocusPassivePopup {
             id: file_picker::FILE_PICKER_POPUP_ID,
+            scope: Some(scope.clone()),
         }
         .from_user_menu("plugin_page"),
     );
     Some(request_id)
 }
 
-/// 첫 요청의 열기 Intent가 아직 처리되지 않았고 그 열기가 passive가 될 때. 포커스 Intent는 그 뒤에 처리된다.
-fn passive_open_is_queued(state: &RequestContext) -> bool {
-    state.pending_intents.iter().any(|intent| {
-        !intent.origin.is_user()
-            && matches!(
-                &intent.body,
-                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(request))
-                    if request.id == file_picker::FILE_PICKER_POPUP_ID
-            )
+/// `scope` 에 passive로 열릴 피커 열기 요청이 큐에 있으면 그 요청의 `request_id`.
+fn queued_passive_open(
+    state: &RequestContext,
+    scope: &crate::adapters::ui::popup::PopupScope,
+    matches: &impl Fn(&crate::state::FilePickerData) -> Option<u64>,
+) -> Option<u64> {
+    state.pending_intents.iter().find_map(|intent| {
+        if intent.origin.is_user() {
+            return None;
+        }
+        match &intent.body {
+            crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(request))
+                if request.id == file_picker::FILE_PICKER_POPUP_ID && request.scope == *scope =>
+            {
+                request
+                    .payload
+                    .peek(|payload| file_picker::instances::picker_of(payload).and_then(matches))
+            }
+            _ => None,
+        }
     })
 }
 
@@ -363,10 +368,7 @@ mod tests {
         let result = resp.result.expect("trigger should succeed");
         let request_id = result["request_id"].as_u64().expect("request_id");
 
-        let data = state
-            .dialogs
-            .file_picker
-            .as_ref()
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
             .expect("popup should be open");
         let req = data.requester.as_ref().expect("requester recorded");
         assert_eq!(req.plugin_id, "com.tasty.markdown");
@@ -393,7 +395,8 @@ mod tests {
             &json!({ "owner_popup_instance": 42 }),
         );
         assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .expect("popup open");
         let req = data.requester.as_ref().expect("requester recorded");
         assert_eq!(req.owner_popup_instance, Some(42));
         assert!(state.plugin_popup_has_open_child(42));
@@ -413,7 +416,7 @@ mod tests {
             let err = resp.error.expect("non-plugin caller must be refused");
             assert_eq!(err.code, -32016, "{caller:?}");
             assert!(
-                state.dialogs.file_picker.is_none(),
+                crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_none(),
                 "{caller:?} opened the picker"
             );
             assert!(
@@ -447,10 +450,7 @@ mod tests {
         assert!(second.result.is_none());
         assert!(second.error.is_some());
 
-        let req = state
-            .dialogs
-            .file_picker
-            .as_ref()
+        let req = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
             .and_then(|d| d.requester.as_ref())
             .expect("first requester still present");
         assert_eq!(req.plugin_id, "com.tasty.markdown");
@@ -469,7 +469,8 @@ mod tests {
             &json!({ "filters": ["md", "markdown"], "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .expect("popup open");
         assert_eq!(data.filters, vec!["md".to_string(), "markdown".to_string()]);
     }
 
@@ -500,7 +501,8 @@ mod tests {
             &json!({ "start_dir": dir.to_string_lossy(), "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .expect("popup open");
         assert!(data.mirror_ws_id.is_none());
         assert_eq!(data.current_dir, dir.to_string_lossy());
         std::fs::remove_dir_all(&dir).expect("cleanup temp dir");
@@ -519,7 +521,8 @@ mod tests {
             &json!({ "start_dir": "/definitely/not/a/tasty/dir", "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .expect("popup open");
         assert_eq!(data.current_dir, home());
     }
 
@@ -558,7 +561,8 @@ mod tests {
             &json!({ "start_dir": "/srv/remote/proj", "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .expect("popup open");
         assert_eq!(data.mirror_ws_id, Some(ws_id));
         assert_eq!(data.current_dir, "/srv/remote/proj");
         let requests: Vec<_> = state
@@ -605,7 +609,8 @@ mod tests {
             &json!({ "origin_surface_id": sid }),
         );
         assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
+        let data = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .expect("popup open");
         assert_eq!(data.mirror_ws_id, Some(ws_id));
         assert_eq!(data.current_dir, "/srv/pushed");
     }
@@ -614,3 +619,7 @@ mod tests {
 #[cfg(test)]
 #[path = "file_picker_scope_tests.rs"]
 mod scope_tests;
+
+#[cfg(test)]
+#[path = "file_picker_instance_tests.rs"]
+mod instance_tests;

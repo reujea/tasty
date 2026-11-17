@@ -77,7 +77,10 @@ pub(crate) fn open(
         engine,
         request_id,
         location,
-        extensions.iter().map(|e| e.to_string()).collect(),
+        file_picker::FilePickerOptions {
+            filters: extensions.iter().map(|e| e.to_string()).collect(),
+            ..Default::default()
+        },
         file_picker::FilePickerOpenedBy::ContextMenu,
         // 고른 파일로 이 pane 에 새 탭을 만든다.
         crate::model::popup_kind::PopupScope::Pane(pane_id),
@@ -87,13 +90,17 @@ pub(crate) fn open(
         super::file_open_tool::report_picker_busy(state);
         return;
     }
-    state.dialogs.file_picker_callers.new_tab = Some(NewTabPickerRequest {
-        mirror,
-        request_id,
-        pane_id,
-        kind: kind.to_string(),
-        param_key: param_key.to_string(),
-    });
+    state
+        .dialogs
+        .file_picker_callers
+        .new_tab
+        .push(NewTabPickerRequest {
+            mirror,
+            request_id,
+            pane_id,
+            kind: kind.to_string(),
+            param_key: param_key.to_string(),
+        });
 }
 
 /// 보관한 요청과 같은 식별자의 결과만 한 번 적용한다. 경로마다 탭을 하나씩 만든다.
@@ -104,12 +111,14 @@ pub(crate) fn apply_outcome(
     outcome: &FilePickerOutcome,
 ) {
     let callers = &mut state.dialogs.file_picker_callers;
-    if callers.new_tab.as_ref().map(|r| r.request_id) != Some(outcome.request_id) {
-        return;
-    }
-    let Some(request) = callers.new_tab.take() else {
+    let Some(index) = callers
+        .new_tab
+        .iter()
+        .position(|r| r.request_id == outcome.request_id)
+    else {
         return;
     };
+    let request = callers.new_tab.remove(index);
     if outcome.cancelled
         || !engine.has_pane(request.pane_id)
         || request

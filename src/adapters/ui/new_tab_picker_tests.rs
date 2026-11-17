@@ -20,7 +20,8 @@ fn stored_request(state: &RequestContext) -> NewTabPickerRequest {
         .dialogs
         .file_picker_callers
         .new_tab
-        .clone()
+        .last()
+        .cloned()
         .expect("caller keeps its request")
 }
 
@@ -52,7 +53,9 @@ fn new_html_picker_filters_html_htm_svg_and_keeps_its_pane() {
         HTML_EXTENSIONS,
     );
 
-    let data = state.dialogs.file_picker.as_ref().expect("picker opened");
+    crate::adapters::ui::popup::file_picker::instances::apply_opens_for_test(&mut state);
+    let data =
+        crate::adapters::ui::popup::file_picker::instances::latest(&state).expect("picker opened");
     assert_eq!(data.filters, vec!["html", "htm", "svg"]);
     assert!(data.requester.is_none());
     assert!(data.mirror_ws_id.is_none());
@@ -112,7 +115,7 @@ fn confirmed_outcome_creates_html_tab_in_that_pane() {
             source: crate::core::origin::UserSource::ContextMenu
         }
     ));
-    assert!(state.dialogs.file_picker_callers.new_tab.is_none());
+    assert!(state.dialogs.file_picker_callers.new_tab.is_empty());
 }
 
 /// 피커는 단일 선택이지만 결과는 목록이다. 경로마다 탭을 하나씩 만든다.
@@ -173,17 +176,17 @@ fn pane_closed_during_picker_creates_nothing() {
     let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
     let engine = engine_session.borrow_mut();
     let request_id = FilePickerRequestId::next();
-    state.dialogs.file_picker_callers.new_tab = Some(NewTabPickerRequest {
+    state.dialogs.file_picker_callers.new_tab = vec![NewTabPickerRequest {
         mirror: None,
         request_id,
         pane_id: 999,
         kind: "html".into(),
         param_key: "url".into(),
-    });
+    }];
     assert!(!engine.has_pane(999));
     apply_outcome(&mut state, &engine, &confirmed(request_id, &["/a.html"]));
     assert!(state.take_pending_intents().is_empty());
-    assert!(state.dialogs.file_picker_callers.new_tab.is_none());
+    assert!(state.dialogs.file_picker_callers.new_tab.is_empty());
 }
 
 #[test]
@@ -210,7 +213,7 @@ fn cancelled_outcome_creates_nothing_and_releases_the_request() {
         },
     );
     assert!(state.take_pending_intents().is_empty());
-    assert!(state.dialogs.file_picker_callers.new_tab.is_none());
+    assert!(state.dialogs.file_picker_callers.new_tab.is_empty());
 }
 
 /// 이전 요청의 결과는 다시 연 요청에 적용하지 않는다.
@@ -227,8 +230,9 @@ fn outcome_of_another_request_is_ignored() {
         HTML_EXTENSIONS,
     );
     let first = stored_request(&state).request_id;
-    state.dialogs.file_picker.as_mut().unwrap().result =
-        Some(crate::state::FilePickerResult::Cancelled);
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .unwrap()
+        .result = Some(crate::state::FilePickerResult::Cancelled);
     let (cancelled, _) = crate::app::dispatch::file_picker::take_outcome(&mut state).unwrap();
     apply_outcome(&mut state, &engine, &cancelled);
     open(
@@ -270,8 +274,8 @@ fn mirror_pane_does_not_open_picker() {
         HTML_EXTENSIONS,
     );
 
-    assert!(state.dialogs.file_picker.is_none());
-    assert!(state.dialogs.file_picker_callers.new_tab.is_none());
+    assert!(crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_none());
+    assert!(state.dialogs.file_picker_callers.new_tab.is_empty());
     assert!(state.take_pending_intents().is_empty());
     assert_eq!(state.toasts.len(), 1);
 }

@@ -313,6 +313,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     // 저장 모드의 이름 입력칸이 글자를 편집한다.
                     keyboard: PopupKeyboard::Text,
+                    // 탐색 상태와 결과를 받을 요청은 인스턴스 데이터다. 범위마다 피커 하나가 열린다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(egui::vec2(640.0, 480.0)))
                 },
                 scrim_input: ScrimInput::VisualOnly,

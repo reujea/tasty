@@ -1,7 +1,7 @@
 //! 피커는 어느 호출자가 열었든 경로 배열과 요청 식별자만 남기고 아무 동작도 하지 않는다.
 //! 위치 결정은 호출자가 열기 전에 끝낸다.
 
-use super::{FILE_PICKER_POPUP_ID, FilePickerAction, apply_action, locate};
+use super::{FILE_PICKER_POPUP_ID, FilePickerAction, locate};
 use crate::core::origin::{AgentSource, IntentOrigin, UserSource};
 use crate::intent::{DispatchedIntent, Intent, UiIntent};
 use crate::state::{FilePickerLocation, FilePickerRequestId, FilePickerRequester, RequestContext};
@@ -56,19 +56,15 @@ fn open_as(
                 .as_u64()
                 .expect("request_id");
             assert_eq!(
-                state.dialogs.file_picker.as_ref().map(|d| d.request_id),
+                crate::adapters::ui::popup::file_picker::instances::queued_request_id(state),
                 Some(FilePickerRequestId(id)),
                 "wire request_id is the picker request id"
             );
         }
         other => panic!("unknown caller {other}"),
     }
-    state
-        .dialogs
-        .file_picker
-        .as_ref()
+    crate::adapters::ui::popup::file_picker::instances::queued_request_id(state)
         .expect("picker opened")
-        .request_id
 }
 
 #[test]
@@ -77,15 +73,13 @@ fn confirming_picker_only_records_paths_and_dispatches_nothing() {
         let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
         let mut engine = engine_session.borrow_mut();
         let request_id = open_as(caller, &mut state, &mut engine);
+        crate::adapters::ui::popup::file_picker::instances::apply_opens_for_test(&mut state);
         state.take_pending_intents();
 
-        state
-            .dialogs
-            .file_picker
-            .as_mut()
+        crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
             .expect("open")
             .current_dir = "/x".to_string();
-        let action = apply_action(
+        let action = crate::adapters::ui::popup::file_picker::instances::apply_to_current(
             &mut state,
             &engine.read(),
             FilePickerAction::ConfirmEntry("a.md".to_string()),
@@ -109,7 +103,10 @@ fn confirming_picker_only_records_paths_and_dispatches_nothing() {
             "{caller}: picker and result take queued an intent"
         );
         assert!(state.toasts.len() == 0, "{caller}: picker pushed a toast");
-        assert!(state.dialogs.file_picker.is_none(), "{caller}");
+        assert!(
+            crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_none(),
+            "{caller}"
+        );
         assert!(
             crate::app::dispatch::file_picker::take_outcome(&mut state).is_none(),
             "{caller}: result is taken once"
@@ -122,7 +119,11 @@ fn cancelling_picker_leaves_an_empty_cancelled_outcome() {
     let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
     let mut engine = engine_session.borrow_mut();
     let request_id = open_as("tools", &mut state, &mut engine);
-    apply_action(&mut state, &engine.read(), FilePickerAction::Cancel);
+    crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+        &mut state,
+        &engine.read(),
+        FilePickerAction::Cancel,
+    );
     let (outcome, requester) =
         crate::app::dispatch::file_picker::take_outcome(&mut state).expect("result");
     assert_eq!(outcome.request_id, request_id);
@@ -170,12 +171,14 @@ fn each_caller_opens_with_its_own_origin() {
             "{caller}: {:?}",
             opens[0].origin
         );
-        let requester = state
-            .dialogs
-            .file_picker
-            .as_ref()
-            .and_then(|d| d.requester.as_ref())
-            .map(|r: &FilePickerRequester| r.plugin_id.clone());
+        let crate::intent::Intent::Ui(UiIntent::OpenPopup(request)) = &opens[0].body else {
+            unreachable!("filtered to open requests");
+        };
+        let requester = request.payload.peek(|payload| {
+            crate::adapters::ui::popup::file_picker::instances::picker_of(payload)
+                .and_then(|d| d.requester.as_ref())
+                .map(|r: &FilePickerRequester| r.plugin_id.clone())
+        });
         assert_eq!(
             requester.is_some(),
             caller == "plugin",

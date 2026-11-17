@@ -92,17 +92,12 @@ fn apply_result(
     {
         return;
     }
-    // 아직 열린 picker가 같은 요청을 기다릴 때만 반영한다.
-    let Some(picker) = host.state.dialogs.file_picker.as_mut() else {
+    // 아직 열린 picker 중 같은 요청을 기다리는 것에만 반영한다.
+    let Some(picker) = crate::adapters::ui::popup::file_picker::instances::waiting_for_listing(
+        host.state, request_id,
+    ) else {
         return;
     };
-    let is_pending = matches!(
-        &picker.load,
-        crate::state::FpLoadState::Loading { request_id: rid, .. } if *rid == request_id
-    );
-    if !is_pending {
-        return;
-    }
     if ok {
         let es = entries.unwrap_or_default();
         if let Some(d) = dir {

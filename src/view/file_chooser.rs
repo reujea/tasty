@@ -324,7 +324,9 @@ impl ChooserSession {
                 self.selected.clear();
                 None
             }
-            FilePickerAction::Cancel => Some(FileChooserOutcome::Cancelled),
+            FilePickerAction::Cancel | FilePickerAction::Escape => {
+                Some(FileChooserOutcome::Cancelled)
+            }
             // 단일 클릭은 선택만 한다. 저장 모드의 이름 칸은 파일을 골랐을 때만 바꾼다.
             FilePickerAction::Select(name) => {
                 if self.is_folder() {

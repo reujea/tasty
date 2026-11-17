@@ -66,7 +66,8 @@ fn local_outcome_opens_the_file_with_the_file_handler() {
     let request = stored(&state);
     assert!(matches!(request.location, FilePickerLocation::Local { .. }));
     assert_eq!(
-        state.dialogs.file_picker.as_ref().map(|d| d.request_id),
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .map(|d| d.request_id),
         Some(request.request_id)
     );
     state.take_pending_intents();
@@ -99,10 +100,7 @@ fn remote_outcome_opens_the_remote_file_from_the_mirror_surface() {
         panic!("expected remote location, got {:?}", request.location);
     };
     assert_eq!(
-        state
-            .dialogs
-            .file_picker
-            .as_ref()
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state)
             .and_then(|d| d.mirror_ws_id),
         Some(mirror_ws_id)
     );
@@ -192,8 +190,9 @@ fn late_outcome_of_a_previous_request_is_ignored() {
     let engine = engine_session.borrow_mut();
     open(&mut state, &engine.read());
     let first = stored(&state).request_id;
-    state.dialogs.file_picker.as_mut().unwrap().result =
-        Some(crate::state::FilePickerResult::Cancelled);
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .unwrap()
+        .result = Some(crate::state::FilePickerResult::Cancelled);
     let (cancelled, _) = crate::app::dispatch::file_picker::take_outcome(&mut state).unwrap();
     apply_outcome(&mut state, &engine, &cancelled);
     open(&mut state, &engine.read());
@@ -224,11 +223,12 @@ fn outcome_for_another_caller_leaves_the_tools_request() {
         .dialogs
         .file_picker_callers
         .new_tab
-        .as_ref()
+        .last()
         .unwrap()
         .request_id;
-    state.dialogs.file_picker.as_mut().unwrap().result =
-        Some(crate::state::FilePickerResult::Cancelled);
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .unwrap()
+        .result = Some(crate::state::FilePickerResult::Cancelled);
     let (cancelled, _) = crate::app::dispatch::file_picker::take_outcome(&mut state).unwrap();
     crate::adapters::ui::new_tab_picker::apply_outcome(&mut state, &engine, &cancelled);
     open(&mut state, &engine.read());

@@ -36,8 +36,9 @@ fn plugin_confirm_yields_only_the_result_event() {
     let (mut state, mut engine_session) = crate::state::tests::test_state();
     let mut engine = engine_session.borrow_mut();
     let wire_id = trigger(&mut state, &mut engine);
-    state.take_pending_intents();
-    state.dialogs.file_picker.as_mut().expect("open").result = Some(FilePickerResult::Confirmed {
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .expect("open")
+        .result = Some(FilePickerResult::Confirmed {
         paths: vec!["/x/a.md".to_string()],
     });
 
@@ -60,8 +61,9 @@ fn plugin_cancel_yields_cancelled_with_no_paths() {
     let (mut state, mut engine_session) = crate::state::tests::test_state();
     let mut engine = engine_session.borrow_mut();
     let wire_id = trigger(&mut state, &mut engine);
-    state.take_pending_intents();
-    state.dialogs.file_picker.as_mut().expect("open").result = Some(FilePickerResult::Cancelled);
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .expect("open")
+        .result = Some(FilePickerResult::Cancelled);
 
     let (outcome, requester) = take_outcome(&mut state).expect("result");
     let requester = requester.expect("plugin requester");
@@ -80,9 +82,11 @@ fn take_outcome_waits_for_a_result_and_takes_it_once() {
     let mut engine = engine_session.borrow_mut();
     trigger(&mut state, &mut engine);
     assert!(take_outcome(&mut state).is_none());
-    assert!(state.dialogs.file_picker.is_some());
-    state.dialogs.file_picker.as_mut().expect("open").result = Some(FilePickerResult::Cancelled);
+    assert!(crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_some());
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .expect("open")
+        .result = Some(FilePickerResult::Cancelled);
     assert!(take_outcome(&mut state).is_some());
     assert!(take_outcome(&mut state).is_none());
-    assert!(state.dialogs.file_picker.is_none());
+    assert!(crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_none());
 }

@@ -40,7 +40,7 @@ fn supported_remote_html_picker_keeps_request_pane_and_remote_cwd() {
         "url",
         HTML_EXTENSIONS,
     );
-    let picker = state.dialogs.file_picker.as_ref().unwrap();
+    let picker = crate::adapters::ui::popup::file_picker::instances::current(&mut state).unwrap();
     assert_eq!(picker.mirror_ws_id, Some(workspace));
     assert_eq!(picker.current_dir, "/server/project");
     let request = stored_request(&state);
@@ -92,7 +92,7 @@ fn replaced_mirror_projection_discards_remote_html_picker_result() {
         &confirmed(request.request_id, &["/server/project/entry.html"]),
     );
     assert!(state.take_pending_intents().is_empty());
-    assert!(state.dialogs.file_picker_callers.new_tab.is_none());
+    assert!(state.dialogs.file_picker_callers.new_tab.is_empty());
 }
 
 /// mirror workspace의 원격 파일 열기는 kind 이름이 아니라 `opens_url`·`mirror_viewer` 선언을 본다.
@@ -129,10 +129,17 @@ fn a_remote_picker_follows_the_viewer_declarations() {
         "url",
         HTML_EXTENSIONS,
     );
-    assert!(state.dialogs.file_picker.is_some(), "declared viewer kind");
+    assert!(
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_some(),
+        "declared viewer kind"
+    );
     assert_eq!(state.toasts.len(), 0);
 
-    state.dialogs.file_picker = None;
+    // intent-exempt: 시험 준비로 첫 피커를 결과 없이 치운다.
+    state
+        .popups
+        .close(crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID);
+    state.popups.take_closed_queue();
     open(
         &mut state,
         &engine.read(),
@@ -142,7 +149,7 @@ fn a_remote_picker_follows_the_viewer_declarations() {
         HTML_EXTENSIONS,
     );
     assert!(
-        state.dialogs.file_picker.is_none(),
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state).is_none(),
         "opens_url not declared"
     );
     assert_eq!(state.toasts.len(), 1);

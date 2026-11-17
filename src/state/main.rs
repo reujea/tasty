@@ -151,9 +151,9 @@ pub struct MainViewState {
     /// 현재 프레임 호스트 팝업의 rect와 z_seq. 뒤에 그리는 플러그인 팝업이 입력 가림을 판정한다.
     #[cfg(feature = "gui")]
     pub(crate) host_popup_hittest: Vec<crate::adapters::ui::popup::occlusion::Occluder>,
-    /// host/plugin 전체에서 최상단이 호스트 팝업일 때 그 ID. 해당 팝업만 Escape를 처리한다.
+    /// host/plugin 전체에서 최상단이 호스트 팝업일 때 그 인스턴스. 해당 인스턴스만 Escape를 처리한다.
     #[cfg(feature = "gui")]
-    pub(crate) popup_escape_owner: Option<crate::adapters::ui::popup::PopupId>,
+    pub(crate) popup_escape_owner: Option<crate::adapters::ui::popup::PopupInstanceId>,
     /// 이전 프레임 플러그인 팝업의 셸 rect와 z_seq. 호스트를 먼저 그리므로 입력 판정에
     /// 한 프레임 전 값을 사용한다. 콘텐츠의 물리 rect인 plugin_mesh_popup_regions와 다르다.
     #[cfg(feature = "gui")]

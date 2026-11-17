@@ -1125,20 +1125,15 @@ fn mk_file_picker_data() -> FilePickerData {
 fn file_picker_escape_close_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.file_picker = Some(mk_file_picker_data());
-    state.popups.open_at_focused(
-        FILE_PICKER_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_file_picker_at_fixed_pos(&mut state);
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(FILE_PICKER_POPUP_ID));
-    assert!(matches!(
-        state.dialogs.file_picker.as_ref().unwrap().result,
-        Some(FilePickerResult::Cancelled)
-    ));
+    assert_eq!(
+        finished_file_picker_results(&state),
+        [FilePickerResult::Cancelled]
+    );
 }
 
 /// 한 egui context 로 프레임을 이어 그린다. 위젯 버튼 클릭과 드래그는 누름·뗌이 같은
@@ -1177,7 +1172,12 @@ fn file_picker_header_rect(
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
 ) -> egui::Rect {
     let ctx = run_frames(vec![empty_input()], state, engine);
-    crate::adapters::ui::popup::reported_header_drag_rect(&ctx, FILE_PICKER_POPUP_ID)
+    let picker = state
+        .popups
+        .get_mut(FILE_PICKER_POPUP_ID)
+        .map(|p| p.instance)
+        .expect("an open picker");
+    crate::adapters::ui::popup::header_drag::reported(&ctx, picker)
         .expect("file picker 뷰가 헤더 줄을 보고해야 한다")
 }
 
@@ -1188,12 +1188,7 @@ fn file_picker_header_rect(
 fn file_picker_header_close_button_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.file_picker = Some(mk_file_picker_data());
-    state.popups.open_at_focused(
-        FILE_PICKER_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_file_picker_at_fixed_pos(&mut state);
     let header = file_picker_header_rect(&mut state, &mut engine);
     let close = egui::pos2(header.right() - header.height() / 2.0, header.center().y);
 
@@ -1209,10 +1204,10 @@ fn file_picker_header_close_button_marks_cancelled() {
     );
 
     assert!(!state.popups.is_open(FILE_PICKER_POPUP_ID));
-    assert!(matches!(
-        state.dialogs.file_picker.as_ref().unwrap().result,
-        Some(FilePickerResult::Cancelled)
-    ));
+    assert_eq!(
+        finished_file_picker_results(&state),
+        [FilePickerResult::Cancelled]
+    );
 }
 
 /// 헤더의 빈 곳(제목 오른쪽)을 끌면 popup 이 이동하고 닫히지 않는다.
@@ -1220,12 +1215,7 @@ fn file_picker_header_close_button_marks_cancelled() {
 fn file_picker_header_drag_moves_the_popup() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.file_picker = Some(mk_file_picker_data());
-    state.popups.open_at_focused(
-        FILE_PICKER_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_file_picker_at_fixed_pos(&mut state);
     let header = file_picker_header_rect(&mut state, &mut engine);
     let before = state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap().pos;
     let grab = header.center();
@@ -1255,12 +1245,7 @@ fn file_picker_header_drag_moves_the_popup() {
 fn file_picker_close_intent_now_marks_cancelled() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.file_picker = Some(mk_file_picker_data());
-    state.popups.open_at_focused(
-        FILE_PICKER_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_file_picker_at_fixed_pos(&mut state);
 
     crate::intent::popup::handle(
         &mut state,
@@ -1271,14 +1256,38 @@ fn file_picker_close_intent_now_marks_cancelled() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(FILE_PICKER_POPUP_ID));
-    assert!(state.dialogs.file_picker.as_ref().unwrap().result.is_none());
+    assert!(finished_file_picker_results(&state).is_empty());
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(matches!(
-        state.dialogs.file_picker.as_ref().unwrap().result,
-        Some(FilePickerResult::Cancelled)
-    ));
+    assert_eq!(
+        finished_file_picker_results(&state),
+        [FilePickerResult::Cancelled]
+    );
+}
+
+fn open_file_picker_at_fixed_pos(state: &mut crate::state::MainViewState) {
+    crate::intent::popup::reopen_for_test(
+        state,
+        &crate::intent::OpenRequest::new(
+            FILE_PICKER_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        )
+        .at(FIXED_POS)
+        .focused()
+        .with_payload(crate::adapters::ui::popup::PopupPayload::FilePicker(
+            Box::new(mk_file_picker_data()),
+        )),
+    );
+}
+
+fn finished_file_picker_results(state: &crate::state::MainViewState) -> Vec<FilePickerResult> {
+    state
+        .dialogs
+        .finished_file_pickers
+        .iter()
+        .map(|f| f.result.clone())
+        .collect()
 }
 
 fn push_approval(

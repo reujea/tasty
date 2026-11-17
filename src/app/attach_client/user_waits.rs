@@ -108,15 +108,18 @@ impl App {
                         .push(Wait::new(WaitKind::Folder, since));
                 }
             }
-            if let Some(picker) = &main.state.dialogs.file_picker
-                && let Some(workspace) = picker.mirror_ws_id
-                && waits.contains_key(&workspace)
-                && let crate::state::FpLoadState::Loading { sent_at, .. } = picker.load
+            for (_, picker) in
+                crate::adapters::ui::popup::file_picker::instances::open_pickers(&main.state)
             {
-                waits
-                    .entry(workspace)
-                    .or_default()
-                    .push(Wait::new(WaitKind::Folder, sent_at));
+                if let Some(workspace) = picker.mirror_ws_id
+                    && waits.contains_key(&workspace)
+                    && let crate::state::FpLoadState::Loading { sent_at, .. } = picker.load
+                {
+                    waits
+                        .entry(workspace)
+                        .or_default()
+                        .push(Wait::new(WaitKind::Folder, sent_at));
+                }
             }
             for (workspace, times) in &mut waits {
                 if let Some(began) = epochs.get(workspace) {

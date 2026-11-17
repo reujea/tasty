@@ -33,7 +33,7 @@ enum BuiltinAction {
     /// 를 벗어나면 숨고 돌아오면 다시 뜬다.
     WorkspacePopup(&'static str),
     /// 파일 피커(docs/features/native-file-picker/index.md) — 단순 `Popup` 과 달리 여는 *전* 활성 workspace 의
-    /// mirror 여부로 로컬/원격을 판별해 `state.dialogs.file_picker` 를 채워야 하므로
+    /// mirror 여부로 로컬/원격을 판별해 파일 피커 인스턴스 데이터를 채워야 하므로
     /// 별도 분기.
     FilePicker,
 }

@@ -21,37 +21,47 @@ fn plugin_save_picker_returns_one_path_without_writing_and_preserves_admission()
         &params,
     );
     let id = response.result.unwrap()["request_id"].as_u64().unwrap();
-    check_opened_state(state.dialogs.file_picker.as_ref().unwrap());
+    check_opened_state(
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state).unwrap(),
+    );
     assert!(
         matches!(
-            apply_action(&mut state, &engine.read(), FilePickerAction::Confirm),
+            crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+                &mut state,
+                &engine.read(),
+                FilePickerAction::Confirm
+            ),
             PopupAction::None
         ),
         "loading cannot confirm"
     );
-    let d = state.dialogs.file_picker.as_mut().unwrap();
+    let d = crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state).unwrap();
     d.entries = crate::core::fs_list::read_dir_entries(dir.path()).unwrap();
     d.load = FpLoadState::Loaded;
     state.take_pending_intents();
     assert!(matches!(
-        apply_action(
+        crate::adapters::ui::popup::file_picker::instances::apply_to_current(
             &mut state,
             &engine.read(),
             FilePickerAction::ConfirmEntry("existing.png".into())
         ),
         PopupAction::None
     ));
-    let d = state.dialogs.file_picker.as_ref().unwrap();
+    let d = crate::adapters::ui::popup::file_picker::instances::current(&mut state).unwrap();
     assert_eq!(d.save_name.as_deref(), Some("existing.png"));
     assert!(save::overwrites("existing.png", &d.entries, &d.filters));
     check_rejected_names(&mut state, &engine.read());
-    apply_action(
+    crate::adapters::ui::popup::file_picker::instances::apply_to_current(
         &mut state,
         &engine.read(),
         FilePickerAction::EditName(" new.png ".into()),
     );
     assert!(matches!(
-        apply_action(&mut state, &engine.read(), FilePickerAction::Confirm),
+        crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+            &mut state,
+            &engine.read(),
+            FilePickerAction::Confirm
+        ),
         PopupAction::Close
     ));
     let busy = crate::adapters::ipc::handler::file_picker::handle_trigger(
@@ -88,10 +98,18 @@ fn check_rejected_names(state: &mut MainViewState, engine: &EngineRead<'_>) {
         "a\\b.png",
         "folder.png",
     ] {
-        apply_action(state, engine, FilePickerAction::EditName(name.into()));
+        crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+            state,
+            engine,
+            FilePickerAction::EditName(name.into()),
+        );
         assert!(
             matches!(
-                apply_action(state, engine, FilePickerAction::Confirm),
+                crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+                    state,
+                    engine,
+                    FilePickerAction::Confirm
+                ),
                 PopupAction::None
             ),
             "{name}"

@@ -293,6 +293,8 @@ pub enum UiIntent {
     /// 호스트가 확인한 사용자 입력으로 열린 passive 팝업에 포커스를 준다. 사용자 출처일 때만 동작한다.
     FocusPassivePopup {
         id: PopupId,
+        /// 이 범위의 인스턴스에만 준다. 없으면 맨 위의 passive 인스턴스다.
+        scope: Option<PopupScope>,
     },
     TogglePopup(OpenRequest),
     /// 사용자가 고른 surface 에 새로고침 요청 신호를 보낸다. 대상과 kind 는 키를 누른 시점에 고정한다.

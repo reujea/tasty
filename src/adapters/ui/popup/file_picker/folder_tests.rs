@@ -19,14 +19,17 @@ fn open_folder_picker(
         &params,
     );
     assert!(response.result.is_some(), "folder mode was refused");
-    let d = state.dialogs.file_picker.as_mut().unwrap();
+    let d = crate::adapters::ui::popup::file_picker::instances::current_mut(state).unwrap();
     assert!(d.folder, "mode folder did not open the folder picker");
     d.entries = crate::core::fs_list::read_dir_entries(dir).unwrap();
     d.load = FpLoadState::Loaded;
 }
 
 fn confirmed(state: &crate::state::RequestContext) -> Option<Vec<String>> {
-    match state.dialogs.file_picker.as_ref()?.result.as_ref()? {
+    match crate::adapters::ui::popup::file_picker::instances::latest(state)?
+        .result
+        .as_ref()?
+    {
         FilePickerResult::Confirmed { paths } => Some(paths.clone()),
         FilePickerResult::Cancelled => None,
     }
@@ -40,13 +43,14 @@ fn confirming_without_a_selection_returns_the_current_folder() {
     std::fs::write(dir.path().join("a.md"), b"").unwrap();
     open_folder_picker(&mut state, &mut engine, dir.path());
     assert!(matches!(
-        apply_action(&mut state, &engine.read(), FilePickerAction::Confirm),
+        crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+            &mut state,
+            &engine.read(),
+            FilePickerAction::Confirm
+        ),
         PopupAction::Close
     ));
-    let current = state
-        .dialogs
-        .file_picker
-        .as_ref()
+    let current = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
         .unwrap()
         .current_dir
         .clone();
@@ -60,20 +64,21 @@ fn confirming_a_selected_subfolder_returns_it_without_entering() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join("proj")).unwrap();
     open_folder_picker(&mut state, &mut engine, dir.path());
-    let current = state
-        .dialogs
-        .file_picker
-        .as_ref()
+    let current = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
         .unwrap()
         .current_dir
         .clone();
-    apply_action(
+    crate::adapters::ui::popup::file_picker::instances::apply_to_current(
         &mut state,
         &engine.read(),
         FilePickerAction::Select("proj".into()),
     );
     assert!(matches!(
-        apply_action(&mut state, &engine.read(), FilePickerAction::Confirm),
+        crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+            &mut state,
+            &engine.read(),
+            FilePickerAction::Confirm
+        ),
         PopupAction::Close
     ));
     assert_eq!(
@@ -89,7 +94,7 @@ fn a_file_entry_never_confirms_in_folder_mode() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("a.md"), b"").unwrap();
     open_folder_picker(&mut state, &mut engine, dir.path());
-    apply_action(
+    crate::adapters::ui::popup::file_picker::instances::apply_to_current(
         &mut state,
         &engine.read(),
         FilePickerAction::ConfirmEntry("a.md".into()),
@@ -107,12 +112,18 @@ fn a_loading_folder_cannot_confirm() {
     let mut engine = session.borrow_mut();
     let dir = tempfile::tempdir().unwrap();
     open_folder_picker(&mut state, &mut engine, dir.path());
-    state.dialogs.file_picker.as_mut().unwrap().load = FpLoadState::Loading {
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .unwrap()
+        .load = FpLoadState::Loading {
         request_id: 0,
         sent_at: std::time::Instant::now(),
     };
     assert!(matches!(
-        apply_action(&mut state, &engine.read(), FilePickerAction::Confirm),
+        crate::adapters::ui::popup::file_picker::instances::apply_to_current(
+            &mut state,
+            &engine.read(),
+            FilePickerAction::Confirm
+        ),
         PopupAction::None
     ));
     assert_eq!(confirmed(&state), None);

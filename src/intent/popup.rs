@@ -65,9 +65,12 @@ pub fn handle(
             UiIntent::CloseInstance { instance, reason } => {
                 state.popups.close_instance(*instance, *reason)
             }
-            UiIntent::FocusPassivePopup { id } => {
+            UiIntent::FocusPassivePopup { id, scope } => {
                 if intent.origin.is_user() {
-                    state.popups.focus_passive(id);
+                    match scope {
+                        Some(scope) => state.popups.focus_passive_in(id, scope),
+                        None => state.popups.focus_passive(id),
+                    };
                 }
             }
             UiIntent::TogglePopup(request) => {
@@ -169,6 +172,12 @@ fn reopen(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
         }
         state.popups.close_for_reopen(request.id);
     }
+    open(state, request, by_user);
+}
+
+/// 시험용: 엔진 없이 열기 요청 하나를 반영한다.
+#[cfg(all(test, feature = "gui"))]
+pub(crate) fn open_for_test(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
     open(state, request, by_user);
 }
 
@@ -492,7 +501,11 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &UiIntent::FocusPassivePopup { id: "test_popup" }.from_user_shortcut("test"),
+            &UiIntent::FocusPassivePopup {
+                id: "test_popup",
+                scope: None,
+            }
+            .from_user_shortcut("test"),
         );
         assert!(state.popups.is_focused("test_popup"));
         assert!(!state.popups.is_passive("test_popup"));
@@ -512,7 +525,11 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &UiIntent::FocusPassivePopup { id: "test_popup" }.from_agent_ipc(),
+            &UiIntent::FocusPassivePopup {
+                id: "test_popup",
+                scope: None,
+            }
+            .from_agent_ipc(),
         );
         assert!(state.popups.is_passive("test_popup"));
         assert!(!state.popups.has_focused());
@@ -522,7 +539,11 @@ mod tests {
     fn a_focus_intent_needs_an_open_passive_popup() {
         let (mut state, mut engine_session) = make_state();
         let mut engine = engine_session.borrow_mut();
-        let focus = UiIntent::FocusPassivePopup { id: "test_popup" }.from_user_shortcut("test");
+        let focus = UiIntent::FocusPassivePopup {
+            id: "test_popup",
+            scope: None,
+        }
+        .from_user_shortcut("test");
         handle(&mut state, &mut engine, &focus);
         assert!(!state.popups.has_focused(), "닫힌 팝업");
         assert!(!state.popups.is_open("test_popup"));

@@ -18,7 +18,7 @@ const PORT_SCANNER_ID: &str = "port_scanner";
 fn state_with_picker(owner: Option<u64>) -> RequestContext {
     let (mut state, mut _engine_session) = test_state();
     let _engine = _engine_session.borrow_mut();
-    state.dialogs.file_picker = Some(FilePickerData {
+    let data = FilePickerData {
         save_name: None,
         folder: false,
         request_id: crate::state::FilePickerRequestId(1),
@@ -37,8 +37,25 @@ fn state_with_picker(owner: Option<u64>) -> RequestContext {
             origin_surface_id: None,
         }),
         filters: Vec::new(),
-    });
+    };
+    crate::adapters::ui::popup::file_picker::instances::install_for_test(
+        &mut state,
+        PopupScope::Window,
+        data,
+    );
     state
+}
+
+/// 닫힌 피커의 결과. 닫기 훅이 하는 일을 시험에서 대신 한다.
+fn settled(state: &mut RequestContext) -> crate::state::FinishedFilePicker {
+    for closed in state.popups.take_closed_queue() {
+        crate::adapters::ui::popup::file_picker::instances::finish(state, &closed);
+    }
+    state
+        .dialogs
+        .finished_file_pickers
+        .pop()
+        .expect("the picker closed")
 }
 
 #[test]
@@ -65,10 +82,7 @@ fn no_picker_open_means_no_child() {
 fn closing_the_owner_cancels_its_child_picker() {
     let mut state = state_with_picker(Some(OWNER_IID));
     cancel_child_file_picker(&mut state, &[(OWNER_IID, PopupCloseReason::OutsideClick)]);
-    assert!(matches!(
-        state.dialogs.file_picker.as_ref().unwrap().result,
-        Some(FilePickerResult::Cancelled)
-    ));
+    assert_eq!(settled(&mut state).result, FilePickerResult::Cancelled);
 }
 
 // 닫기 사유별 직접 호출을 검사한다. 각 진입점이 이 함수를 호출하는지는
@@ -84,9 +98,10 @@ fn cascade_cleanup_is_independent_of_the_close_reason() {
         let mut state = state_with_picker(Some(OWNER_IID));
         cancel_child_file_picker(&mut state, &[(OWNER_IID, reason)]);
         assert!(
-            state.dialogs.file_picker.as_ref().unwrap().result.is_some(),
+            !state.popups.is_open(FILE_PICKER_POPUP_ID),
             "close reason {reason:?} should still clean up the child"
         );
+        assert_eq!(settled(&mut state).result, FilePickerResult::Cancelled);
     }
 }
 
@@ -94,19 +109,26 @@ fn cascade_cleanup_is_independent_of_the_close_reason() {
 fn closing_an_unrelated_plugin_popup_leaves_the_picker_alone() {
     let mut state = state_with_picker(Some(OWNER_IID));
     cancel_child_file_picker(&mut state, &[(OWNER_IID + 1, PopupCloseReason::Escape)]);
-    assert!(state.dialogs.file_picker.as_ref().unwrap().result.is_none());
+    assert!(
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .unwrap()
+            .result
+            .is_none()
+    );
 }
 
 #[test]
 fn cascade_cleanup_does_not_overwrite_a_settled_result() {
     let mut state = state_with_picker(Some(OWNER_IID));
-    state.dialogs.file_picker.as_mut().unwrap().result = Some(FilePickerResult::Confirmed {
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .unwrap()
+        .result = Some(FilePickerResult::Confirmed {
         paths: vec!["/tmp/a.md".to_string()],
     });
     cancel_child_file_picker(&mut state, &[(OWNER_IID, PopupCloseReason::Escape)]);
     assert!(matches!(
-        state.dialogs.file_picker.as_ref().unwrap().result,
-        Some(FilePickerResult::Confirmed { .. })
+        settled(&mut state).result,
+        FilePickerResult::Confirmed { .. }
     ));
 }
 
@@ -115,14 +137,7 @@ fn cascade_cleanup_does_not_overwrite_a_settled_result() {
 fn successful_cascade_cleanup_severs_the_owner_link() {
     let mut state = state_with_picker(Some(OWNER_IID));
     cancel_child_file_picker(&mut state, &[(OWNER_IID, PopupCloseReason::PluginRequest)]);
-    let req = state
-        .dialogs
-        .file_picker
-        .as_ref()
-        .unwrap()
-        .requester
-        .as_ref()
-        .unwrap();
+    let req = settled(&mut state).requester.unwrap();
     assert_eq!(req.owner_popup_instance, None);
     assert_eq!(req.request_id, 1);
     assert_eq!(req.plugin_id, "com.example.any");
@@ -132,20 +147,14 @@ fn successful_cascade_cleanup_severs_the_owner_link() {
 #[test]
 fn a_settled_result_keeps_the_owner_link_for_the_loss_warning() {
     let mut state = state_with_picker(Some(OWNER_IID));
-    state.dialogs.file_picker.as_mut().unwrap().result = Some(FilePickerResult::Confirmed {
+    crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state)
+        .unwrap()
+        .result = Some(FilePickerResult::Confirmed {
         paths: vec!["/tmp/a.md".to_string()],
     });
     cancel_child_file_picker(&mut state, &[(OWNER_IID, PopupCloseReason::PluginRequest)]);
     assert_eq!(
-        state
-            .dialogs
-            .file_picker
-            .as_ref()
-            .unwrap()
-            .requester
-            .as_ref()
-            .unwrap()
-            .owner_popup_instance,
+        settled(&mut state).requester.unwrap().owner_popup_instance,
         Some(OWNER_IID)
     );
 }
@@ -162,7 +171,12 @@ fn severed_link_stops_reporting_an_open_child() {
 fn tools_menu_picker_survives_plugin_popup_closes() {
     let mut state = state_with_picker(None);
     cancel_child_file_picker(&mut state, &[(OWNER_IID, PopupCloseReason::Escape)]);
-    assert!(state.dialogs.file_picker.as_ref().unwrap().result.is_none());
+    assert!(
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .unwrap()
+            .result
+            .is_none()
+    );
 }
 
 fn registered_manager() -> PopupManager {

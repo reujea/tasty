@@ -166,7 +166,7 @@ pub(crate) fn draw_popup_layer(
         .popups
         .topmost_visible_open(Some(draw_ctx))
         .filter(|(_, _, z)| plugin_top_z.is_none_or(|pz| *z > pz))
-        .map(|(id, _, _)| id);
+        .map(|(_, iid, _)| iid);
 
     let mut popups = std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
 

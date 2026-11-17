@@ -14,6 +14,7 @@ pub(crate) mod file_handler_picker;
 pub(crate) mod file_picker;
 mod focus;
 pub(crate) mod frame;
+pub(crate) mod header_drag;
 pub(crate) mod occlusion;
 pub(crate) mod port_scanner;
 pub(crate) mod port_scanner_close;
@@ -157,6 +158,8 @@ pub enum PopupPayload {
     Rename(Box<crate::adapters::ui::rename_popup::RenamePayload>),
     /// 탐색기 Properties가 연 항목과 진행 중인 읽기.
     ExplorerProperties(Box<explorer_properties::ExplorerProperties>),
+    /// 파일 피커의 탐색·선택 상태와 결과를 받을 요청.
+    FilePicker(Box<crate::state::FilePickerData>),
     /// 파일 처리기 선택의 대상·후보·고른 결과와 기다리는 요청.
     HandlerPicker(Box<crate::state::FileHandlerPickerData>),
 }
@@ -177,6 +180,7 @@ impl std::fmt::Debug for PopupPayload {
                 .finish(),
             Self::Rename(r) => f.debug_tuple("Rename").field(&r.target).finish(),
             Self::ExplorerProperties(_) => f.write_str("ExplorerProperties"),
+            Self::FilePicker(p) => f.debug_tuple("FilePicker").field(&p.request_id).finish(),
             Self::HandlerPicker(p) => f
                 .debug_tuple("HandlerPicker")
                 .field(&p.target_display)
@@ -193,6 +197,17 @@ pub struct PayloadSlot(std::sync::Arc<std::sync::Mutex<PopupPayload>>);
 impl PayloadSlot {
     pub fn new(payload: PopupPayload) -> Self {
         Self(std::sync::Arc::new(std::sync::Mutex::new(payload)))
+    }
+
+    /// 꺼내지 않고 데이터를 읽는다.
+    pub fn peek<R>(&self, read: impl FnOnce(&PopupPayload) -> R) -> R {
+        match self.0.lock() {
+            Ok(payload) => read(&payload),
+            Err(poisoned) => {
+                tracing::warn!("popup payload slot was poisoned; reading its value anyway");
+                read(&poisoned.into_inner())
+            }
+        }
     }
 
     /// 데이터를 꺼낸다. 이미 꺼냈으면 `None` 값이다.
@@ -244,6 +259,7 @@ impl ClosedPopup {
             id,
             instance: PopupInstanceId::NONE,
             reason: PopupCloseReason::Command,
+            scope: PopupScope::Window,
             payload: PopupPayload::None,
         }
     }
@@ -255,6 +271,8 @@ pub struct ClosedPopup {
     pub id: PopupId,
     pub instance: PopupInstanceId,
     pub reason: PopupCloseReason,
+    /// 닫히기 직전의 범위.
+    pub scope: PopupScope,
     pub payload: PopupPayload,
 }
 
@@ -758,7 +776,7 @@ impl PopupState {
     /// 뷰가 보고한 실제 헤더 영역을 우선 사용한다. 보고는 콘텐츠를 그린 뒤이므로
     /// 직전 프레임 값을 읽으며, 첫 프레임에는 drag_handle_rect로 계산한다.
     fn effective_drag_handle_rect(&self, ctx: &egui::Context) -> Option<egui::Rect> {
-        reported_header_drag_rect(ctx, self.id).or_else(|| self.drag_handle_rect())
+        header_drag::reported_for(ctx, self.instance, self.id).or_else(|| self.drag_handle_rect())
     }
 
     fn content_rect(&self) -> egui::Rect {
@@ -1053,6 +1071,7 @@ impl PopupManager {
             id: p.id,
             instance: p.instance,
             reason,
+            scope: p.scope.clone(),
             payload: std::mem::take(&mut p.payload),
         };
         p.reset_closed();
@@ -1139,6 +1158,13 @@ impl PopupManager {
     /// 닫힌 인스턴스 목록을 꺼내 비운다. 호출부가 훅을 실행하며 다른 팝업도 닫을 수 있다.
     pub fn take_closed_queue(&mut self) -> Vec<ClosedPopup> {
         std::mem::take(&mut self.closed_queue)
+    }
+
+    /// 닫혔지만 닫기 훅이 아직 처리하지 않은 인스턴스 중 `id`·`scope` 가 같은 것이 있는지.
+    pub fn is_closing_in(&self, id: PopupId, scope: &PopupScope) -> bool {
+        self.closed_queue
+            .iter()
+            .any(|c| c.id == id && c.scope == *scope)
     }
 
     /// 닫힌 인스턴스의 선언 id만 꺼낸다. 사유와 데이터가 필요 없는 호출자가 쓴다.
@@ -1270,11 +1296,20 @@ impl PopupManager {
     /// 호스트가 확인한 사용자 입력으로 passive popup에 포커스를 준다. 팝업 안을 누른 것과 같은 전이다:
     /// 보이는 다른 팝업의 포커스를 풀고 맨 앞으로 올린다. 열린 passive popup이 보일 때만 바뀐다.
     pub fn focus_passive(&mut self, id: PopupId) -> bool {
+        self.focus_passive_where(|p| p.id == id)
+    }
+
+    /// `scope` 에 열린 `id` 의 passive 인스턴스에 포커스를 준다. 다른 범위의 같은 팝업은 건드리지 않는다.
+    pub fn focus_passive_in(&mut self, id: PopupId, scope: &PopupScope) -> bool {
+        self.focus_passive_where(|p| p.id == id && p.scope == *scope)
+    }
+
+    fn focus_passive_where(&mut self, target: impl Fn(&PopupState) -> bool) -> bool {
         let Some(iid) = self
             .popups
             .iter()
             .rev()
-            .find(|p| p.id == id && p.open && p.scope_visible && p.passive)
+            .find(|p| target(p) && p.open && p.scope_visible && p.passive)
             .map(|p| p.instance)
         else {
             return false;
@@ -1284,7 +1319,14 @@ impl PopupManager {
         true
     }
 
+    /// 이 인스턴스가 지금 화면에 보이는 passive popup인지.
+    pub fn instance_is_visible_passive(&self, iid: PopupInstanceId) -> bool {
+        self.instance(iid)
+            .is_some_and(|p| p.scope_visible && p.passive)
+    }
+
     /// 지금 화면에 보이는 passive popup인지. 범위 밖에 숨은 popup은 올릴 수 없다.
+    #[cfg(test)]
     pub fn is_visible_passive(&self, id: PopupId) -> bool {
         self.popups
             .iter()

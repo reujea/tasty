@@ -16,40 +16,66 @@ impl App {
             .iter()
             .filter_map(|(id, w)| {
                 let main = w.as_main()?;
-                let data = main.state.dialogs.file_picker.as_ref()?;
-                data.result.as_ref().map(|_| *id)
+                (!main.state.dialogs.finished_file_pickers.is_empty()).then_some(*id)
             })
             .collect();
         for id in pending {
-            let plugin_manager = self.plugin_manager.as_mut();
             let Some((main, engine)) = engines_mut!(self).window_pair(id) else {
                 continue;
             };
-            let Some((outcome, requester)) = take_outcome(&mut main.state) else {
-                continue;
-            };
-            deliver_outcome(
-                &mut main.state,
-                &engine,
-                plugin_manager,
-                requester.as_ref(),
-                &outcome,
-            );
+            let finished = take_outcomes(&mut main.state);
+            for (outcome, requester) in &finished {
+                deliver_outcome(
+                    &mut main.state,
+                    &engine,
+                    self.plugin_manager.as_mut(),
+                    requester.as_ref(),
+                    outcome,
+                );
+            }
             main.mark_dirty();
         }
     }
 }
 
-/// 닫힌 피커의 결과를 한 번 꺼내고 피커 상태를 지운다. 결과가 없으면 피커를 그대로 둔다.
+/// 닫힌 피커들의 결과를 한 번 꺼내 출력함을 비운다.
+pub(crate) fn take_outcomes(
+    state: &mut MainViewState,
+) -> Vec<(FilePickerOutcome, Option<FilePickerRequester>)> {
+    std::mem::take(&mut state.dialogs.finished_file_pickers)
+        .into_iter()
+        .map(|f| (FilePickerOutcome::new(f.request_id, f.result), f.requester))
+        .collect()
+}
+
+/// 시험용: 결과가 정해진 피커를 닫고(그리기가 Close를 돌려준 것처럼) 닫기 훅을 대신 실행한 뒤 결과 하나를 꺼낸다.
+#[cfg(test)]
 pub(crate) fn take_outcome(
     state: &mut MainViewState,
 ) -> Option<(FilePickerOutcome, Option<FilePickerRequester>)> {
-    let result = state.dialogs.file_picker.as_mut()?.result.take()?;
-    let data = state.dialogs.file_picker.take()?;
-    Some((
-        FilePickerOutcome::new(data.request_id, result),
-        data.requester,
-    ))
+    use crate::adapters::ui::popup::file_picker::instances;
+    let settled: Vec<_> = instances::open_pickers(state)
+        .filter(|(_, data)| data.result.is_some())
+        .map(|(iid, _)| iid)
+        .collect();
+    for iid in settled {
+        // intent-exempt: 시험 전용. 그리기가 Close 를 돌려준 프레임을 대신한다.
+        state
+            .popups
+            .close_instance(iid, crate::adapters::ui::popup::PopupCloseReason::Content);
+    }
+    for closed in state.popups.take_closed_queue() {
+        instances::finish(state, &closed);
+    }
+    let mut outcomes = take_outcomes(state);
+    let first = (!outcomes.is_empty()).then(|| outcomes.remove(0));
+    for (outcome, _) in &outcomes {
+        tracing::warn!(
+            request_id = outcome.request_id.0,
+            "test take_outcome dropped an outcome"
+        );
+    }
+    first
 }
 
 /// 결과를 호출자에게 넘긴다. 본체 호출자는 자기가 보관한 식별자와 같을 때만 적용하고,

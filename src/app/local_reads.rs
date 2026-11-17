@@ -503,9 +503,17 @@ fn poll_file_picker_reads(
     state: &mut MainViewState,
     owner: &mut crate::app::local_reads::ReadRequests,
 ) -> bool {
-    let Some(d) = state.dialogs.file_picker.as_mut() else {
-        return false;
-    };
+    let mut changed = false;
+    for d in crate::adapters::ui::popup::file_picker::instances::pickers_mut(state) {
+        changed |= poll_one_file_picker(d, owner);
+    }
+    changed
+}
+
+fn poll_one_file_picker(
+    d: &mut crate::state::FilePickerData,
+    owner: &mut crate::app::local_reads::ReadRequests,
+) -> bool {
     let Some(result) = d.local_query.as_mut().and_then(|query| query.poll(owner)) else {
         return false;
     };

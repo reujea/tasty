@@ -316,7 +316,7 @@ markdown plugin 이 그 namespace 를 점유해 host 로 되돌리기 때문이�
 
 | 메서드 | 왜 |
 |--------|-----|
-| `file_picker.trigger` | 창 안 popup(`state.dialogs.file_picker`)을 연다. 그릴 창이 없다 |
+| `file_picker.trigger` | 범위 안의 창 안 파일 피커 popup 인스턴스를 연다. 그릴 창이 없다 |
 
 ### census 뒤에 게이트된 arm
 

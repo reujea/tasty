@@ -82,7 +82,10 @@ fn picker_scope(state: &mut RequestContext) -> PopupScope {
 
 fn refused(response: &tasty_ipc::protocol::JsonRpcResponse, state: &RequestContext) {
     assert_eq!(response.error.as_ref().map(|e| e.code), Some(-32602));
-    assert!(state.dialogs.file_picker.is_none(), "picker opened");
+    assert!(
+        crate::adapters::ui::popup::file_picker::instances::latest(state).is_none(),
+        "picker opened"
+    );
     assert!(!state.popups.is_open(FILE_PICKER_POPUP_ID));
 }
 
@@ -269,7 +272,7 @@ fn assert_hidden_gates(state: &mut RequestContext, user_focused: bool) {
 }
 
 fn assert_work_preserved(state: &RequestContext, dir: &str, request: u64) {
-    let data = state.dialogs.file_picker.as_ref().unwrap();
+    let data = crate::adapters::ui::popup::file_picker::instances::latest(state).unwrap();
     assert_eq!(data.selected, ["draft.md"]);
     assert_eq!(data.current_dir, dir);
     assert_eq!(data.requester.as_ref().unwrap().request_id, request);
@@ -299,7 +302,7 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
     // 범위 대상이 사라진 팝업은 그리기 전에 닫히므로 엔진에 있는 surface를 쓴다.
     let sid = state.focused_surface_id(&engine).expect("surface");
     assert_eq!(picker_scope(&mut state), PopupScope::Surface(sid));
-    let data = state.dialogs.file_picker.as_mut().unwrap();
+    let data = crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state).unwrap();
     data.selected = vec!["draft.md".into()];
     data.load = crate::state::FpLoadState::Loading {
         request_id: 123,
@@ -393,7 +396,9 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
     assert_visible_gates(&state, user_focused);
     assert_eq!(state.host_popup_hittest[0].z_seq, z);
     assert_eq!(
-        state.dialogs.file_picker.as_ref().unwrap().selected,
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .unwrap()
+            .selected,
         ["draft.md"]
     );
 }
@@ -406,11 +411,17 @@ fn closing_a_hidden_parent_closes_the_shell_without_waiting_for_draw() {
         &[(7, tasty_plugin_protocol::PopupCloseReason::PluginRequest)],
     );
     assert!(!state.popups.is_open(FILE_PICKER_POPUP_ID));
+    let closed = state.popups.take_closed_queue();
+    assert_eq!(
+        closed.iter().map(|c| c.id).collect::<Vec<_>>(),
+        [FILE_PICKER_POPUP_ID]
+    );
     assert!(matches!(
-        state.dialogs.file_picker.as_ref().unwrap().result,
+        crate::adapters::ui::popup::file_picker::instances::picker_of(&closed[0].payload)
+            .unwrap()
+            .result,
         Some(crate::state::FilePickerResult::Cancelled)
     ));
-    assert_eq!(state.popups.take_closed_ids(), [FILE_PICKER_POPUP_ID]);
     crate::app::dispatch::plugin_popup_events::cancel_child_file_picker(
         &mut state,
         &[(7, tasty_plugin_protocol::PopupCloseReason::PluginRequest)],
@@ -496,7 +507,12 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
         crate::intent::popup::handle(&mut state, &mut engine, &intent);
     }
     assert!(state.popups.is_open(FILE_PICKER_POPUP_ID), "picker closed");
-    assert!(state.dialogs.file_picker.as_ref().unwrap().result.is_none());
+    assert!(
+        crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+            .unwrap()
+            .result
+            .is_none()
+    );
     // winit 쪽 Escape 처리도 피커를 닫을 대상으로 고르지 않는다.
     assert!(state.popups.focused_dismissal_target().is_none());
     let popup = state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap();

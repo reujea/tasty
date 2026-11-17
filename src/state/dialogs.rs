@@ -141,8 +141,9 @@ pub struct DialogState {
     /// 닫힌 파일 처리기 선택. 선택 데이터는 인스턴스에 있고, 닫을 때 결과와 함께 여기로 옮겨
     /// App이 프레임 끝에 실행한다.
     pub(crate) finished_handler_pickers: Vec<FileHandlerPickerData>,
-    /// 파일 피커의 탐색·조회·선택 상태. None이면 요청이 없다.
-    pub(crate) file_picker: Option<FilePickerData>,
+    /// 닫힌 파일 피커의 결과. 피커 데이터는 인스턴스에 있고, 닫을 때 결과를 여기로 옮겨
+    /// App이 프레임 끝에 호출자에게 넘긴다.
+    pub(crate) finished_file_pickers: Vec<FinishedFilePicker>,
     /// 피커를 연 본체 호출자가 보관하는 요청 정보. 결과의 의미는 각 호출자가 정한다.
     pub(crate) file_picker_callers: FilePickerCallers,
     /// DAG 목록 팝업의 검색·필터·보기 상태. 닫을 때 초기화하며 영속화하지 않는다.
@@ -228,7 +229,7 @@ impl DialogState {
             pending_approval_ids: VecDeque::new(),
             approval_comment_buffer: String::new(),
             finished_handler_pickers: Vec::new(),
-            file_picker: None,
+            finished_file_pickers: Vec::new(),
             file_picker_callers: FilePickerCallers::default(),
             dag_list: Default::default(),
             pending_preset_window_selection: None,
@@ -394,13 +395,23 @@ pub(crate) struct FilePickerData {
     pub(crate) entries: Vec<crate::core::fs_list::DirEntryInfo>,
     /// 현재 디렉터리에서 선택한 이름. Select는 단일 선택으로 교체한다.
     pub(crate) selected: Vec<String>,
-    /// Confirm/Cancel 결과. App이 프레임 끝에서 꺼내 호출자에게 넘긴다.
+    /// Confirm/Cancel 결과. 피커가 닫힐 때 출력함으로 옮겨 App이 호출자에게 넘긴다.
     pub(crate) result: Option<FilePickerResult>,
     /// `Some` 이면 `file_picker.trigger` IPC 로 이 popup 을 연 plugin.
     /// 결과 전달 대상이면서 부모 popup 범위·숨김 판정에도 쓴다. 본체 호출자는 `None`.
     pub(crate) requester: Option<FilePickerRequester>,
     /// 점 없는 확장자 필터. 비어 있으면 제한하지 않으며 디렉터리는 항상 표시한다.
     pub(crate) filters: Vec<String>,
+}
+
+/// 닫힌 피커 하나의 결과와 그 결과를 받을 쪽.
+#[derive(Debug, Clone)]
+pub(crate) struct FinishedFilePicker {
+    /// 피커가 열려 있던 범위. 결과를 넘기기 전까지 같은 범위의 새 피커를 막는다.
+    pub(crate) scope: crate::model::popup_kind::PopupScope,
+    pub(crate) request_id: FilePickerRequestId,
+    pub(crate) result: FilePickerResult,
+    pub(crate) requester: Option<FilePickerRequester>,
 }
 
 /// 파일 피커가 남기는 결과. 경로 문자열만 담는다.
@@ -443,8 +454,8 @@ impl FilePickerOutcome {
 pub(crate) struct FilePickerCallers {
     /// Tools 메뉴·단축키의 파일 열기.
     pub(crate) open_file: Option<OpenFilePickerRequest>,
-    /// 탭 스트립 메뉴의 "새 HTML..." 같은 탭 생성.
-    pub(crate) new_tab: Option<NewTabPickerRequest>,
+    /// 탭 스트립 메뉴의 "새 HTML..." 같은 탭 생성. pane마다 피커가 따로 열리므로 요청마다 하나다.
+    pub(crate) new_tab: Vec<NewTabPickerRequest>,
 }
 
 /// Tools 메뉴·단축키가 연 피커. 둘러보게 한 위치로 로컬 열기와 원격 열기를 고른다.

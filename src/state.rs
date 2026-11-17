@@ -79,7 +79,8 @@ pub use dialogs::{
 #[cfg(feature = "gui")]
 pub(crate) use dialogs::{
     FilePickerData, FilePickerLocation, FilePickerOutcome, FilePickerRequestId,
-    FilePickerRequester, FilePickerResult, FpLoadState, NewTabPickerRequest, OpenFilePickerRequest,
+    FilePickerRequester, FilePickerResult, FinishedFilePicker, FpLoadState, NewTabPickerRequest,
+    OpenFilePickerRequest,
 };
 #[cfg(feature = "gui")]
 pub use events::FocusedSurfaceType;
@@ -549,12 +550,9 @@ impl RequestContext {
     /// 파일 피커 요청자의 owner_popup_instance로 열린 자식이 있는지 확인한다.
     #[cfg(feature = "gui")]
     pub(crate) fn plugin_popup_has_open_child(&self, instance_id: u64) -> bool {
-        self.dialogs
-            .file_picker
-            .as_ref()
-            .and_then(|d| d.requester.as_ref())
-            .and_then(|r| r.owner_popup_instance)
-            == Some(instance_id)
+        crate::adapters::ui::popup::file_picker::instances::open_pickers(self).any(|(_, d)| {
+            d.requester.as_ref().and_then(|r| r.owner_popup_instance) == Some(instance_id)
+        })
     }
 
     /// 같은 화면 위의 egui 오버레이 때문에 네이티브 WebView를 가려야 하는지 판단한다.

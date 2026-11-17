@@ -62,6 +62,14 @@ fn rejected_entries_preserve(first: Caller) {
     }
 }
 
+/// 호출자가 피커를 여는 범위. 같은 범위의 두 번째 요청만 거절된다.
+fn scope_of(caller: Caller) -> PopupScope {
+    match caller {
+        Caller::Tools | Caller::Plugin => PopupScope::Window,
+        Caller::NewHtml => PopupScope::Pane(20),
+    }
+}
+
 fn rejected_entry_preserves(first: Caller, second: Caller, settled: Option<FilePickerResult>) {
     let (mut state, mut session) = crate::state::tests::two_pane_fixture();
     let mut engine = session.borrow_mut();
@@ -74,47 +82,37 @@ fn rejected_entry_preserves(first: Caller, second: Caller, settled: Option<FileP
     for intent in state.take_pending_intents() {
         crate::intent::popup::handle(&mut state, &mut engine, &intent);
     }
-    // 부모에서 상속받은 범위와 사용자 입력 초안도 새 호출로 초기화되면 안 된다.
-    let scope = PopupScope::Surface(state.focused_surface_id(&engine).unwrap());
+    // 두 번째 요청이 여는 범위에 첫 피커를 둔다. 범위와 사용자 입력 초안이 새 호출로 초기화되면 안 된다.
+    let scope = scope_of(second);
     state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap().scope = scope.clone();
-    let data = state.dialogs.file_picker.as_mut().unwrap();
+    let data = crate::adapters::ui::popup::file_picker::instances::current_mut(&mut state).unwrap();
     data.current_dir = "/x".into();
     data.selected = vec!["kept.md".into()];
     data.result = settled.clone();
     let id = data.request_id;
     let filters = data.filters.clone();
-    let requester = data
-        .requester
-        .as_ref()
-        .map(|r| (r.plugin_id.clone(), r.request_id, r.owner_popup_instance));
+    let requester = requester_key(data.requester.as_ref());
     let tools = state.dialogs.file_picker_callers.open_file.clone();
     let new_tab = state.dialogs.file_picker_callers.new_tab.clone();
     if settled.is_some() {
+        // 닫혔지만 결과를 아직 넘기지 않은 피커. 닫기 훅이 결과를 출력함에 남긴다.
         state.popups.close(FILE_PICKER_POPUP_ID);
+        for closed in state.popups.take_closed_queue() {
+            crate::adapters::ui::popup::file_picker::instances::finish(&mut state, &closed);
+        }
     }
 
     let reply = enter(second, &mut state, &mut engine);
-    let data = state.dialogs.file_picker.as_ref().unwrap();
-    assert_eq!(
-        data.request_id, id,
-        "{first:?} -> {second:?}: replaced request"
-    );
-    assert_eq!(data.current_dir, "/x");
-    assert_eq!(data.selected, ["kept.md"]);
-    assert_eq!(data.filters, filters);
-    assert_eq!(data.result, settled);
-    assert_eq!(
-        data.requester
-            .as_ref()
-            .map(|r| { (r.plugin_id.clone(), r.request_id, r.owner_popup_instance) }),
-        requester
-    );
+    let kept = Kept {
+        label: format!("{first:?} -> {second:?}"),
+        id,
+        filters,
+        requester,
+        scope,
+    };
+    assert_first_entry_kept(&state, &kept, settled.as_ref());
     assert_eq!(state.dialogs.file_picker_callers.open_file, tools);
     assert_eq!(state.dialogs.file_picker_callers.new_tab, new_tab);
-    assert_eq!(
-        state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap().scope,
-        scope
-    );
     assert!(
         state.take_pending_intents().is_empty(),
         "rejected entry queued an intent"
@@ -122,6 +120,55 @@ fn rejected_entry_preserves(first: Caller, second: Caller, settled: Option<FileP
     assert_busy_feedback(&state, reply);
 
     assert_original_result_is_delivered_once(&mut state, &engine, first, id, settled);
+}
+
+type RequesterKey = Option<(String, u64, Option<u64>)>;
+
+/// 거절된 두 번째 요청 뒤에도 남아 있어야 하는 첫 요청의 값.
+struct Kept {
+    label: String,
+    id: crate::state::FilePickerRequestId,
+    filters: Vec<String>,
+    requester: RequesterKey,
+    scope: PopupScope,
+}
+
+fn requester_key(r: Option<&crate::state::FilePickerRequester>) -> RequesterKey {
+    r.map(|r| (r.plugin_id.clone(), r.request_id, r.owner_popup_instance))
+}
+
+/// 열린 첫 피커는 데이터와 범위를 그대로 두고, 닫혀 결과를 기다리던 첫 피커는 출력함에 혼자 남는다.
+fn assert_first_entry_kept(
+    state: &RequestContext,
+    kept: &Kept,
+    settled: Option<&FilePickerResult>,
+) {
+    let label = &kept.label;
+    match settled {
+        None => {
+            let data = crate::adapters::ui::popup::file_picker::instances::latest(state).unwrap();
+            assert_eq!(data.request_id, kept.id, "{label}: replaced request");
+            assert_eq!(data.current_dir, "/x");
+            assert_eq!(data.selected, ["kept.md"]);
+            assert_eq!(data.filters, kept.filters);
+            assert_eq!(data.result, None);
+            assert_eq!(requester_key(data.requester.as_ref()), kept.requester);
+            assert_eq!(
+                state.popups.open_scope(FILE_PICKER_POPUP_ID),
+                Some(&kept.scope)
+            );
+        }
+        Some(result) => {
+            let [done] = &state.dialogs.finished_file_pickers[..] else {
+                panic!("{label}: the settled result was not kept alone");
+            };
+            assert_eq!(done.request_id, kept.id, "{label}: replaced request");
+            assert_eq!(done.result, *result);
+            assert_eq!(done.scope, kept.scope);
+            assert_eq!(requester_key(done.requester.as_ref()), kept.requester);
+            assert!(!state.popups.is_open(FILE_PICKER_POPUP_ID));
+        }
+    }
 }
 
 fn assert_busy_feedback(
@@ -148,8 +195,12 @@ fn assert_original_result_is_delivered_once(
     id: crate::state::FilePickerRequestId,
     settled: Option<FilePickerResult>,
 ) {
-    let result = settled.unwrap_or(FilePickerResult::Cancelled);
-    state.dialogs.file_picker.as_mut().unwrap().result = Some(result.clone());
+    let result = settled.clone().unwrap_or(FilePickerResult::Cancelled);
+    if settled.is_none() {
+        crate::adapters::ui::popup::file_picker::instances::current_mut(state)
+            .unwrap()
+            .result = Some(result.clone());
+    }
     let (outcome, requester) = take_outcome(state).unwrap();
     assert_eq!(outcome, FilePickerOutcome::new(id, result));
     assert!(take_outcome(state).is_none());

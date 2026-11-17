@@ -9,28 +9,38 @@ pub(crate) fn cancel_child_file_picker(
     state: &mut MainViewState,
     closed: &[(u64, tasty_plugin_protocol::PopupCloseReason)],
 ) {
-    let Some(data) = state.dialogs.file_picker.as_mut() else {
-        return;
-    };
-    let Some(owner) = data.requester.as_ref().and_then(|r| r.owner_popup_instance) else {
-        return;
-    };
-    if !closed.iter().any(|(iid, _)| *iid == owner) {
-        return;
-    }
-    if data.result.is_none() {
-        data.result = Some(FilePickerResult::Cancelled);
-        // 취소 정리로 부모가 사라진 경우는 늦은 결과 경고를 내지 않는다.
-        // 사용자가 이미 확정한 결과의 부모 정보는 남겨 경고로 확인할 수 있게 한다.
-        if let Some(req) = data.requester.as_mut() {
-            req.owner_popup_instance = None;
+    use crate::adapters::ui::popup::file_picker::{FILE_PICKER_POPUP_ID, instances};
+    let mut children = Vec::new();
+    for entry in state.popups.entries_of_mut(FILE_PICKER_POPUP_ID) {
+        let (open, iid) = (entry.open, entry.instance);
+        let Some(data) = instances::picker_of_mut(&mut entry.payload) else {
+            continue;
+        };
+        let Some(owner) = data.requester.as_ref().and_then(|r| r.owner_popup_instance) else {
+            continue;
+        };
+        if !open || !closed.iter().any(|(closed, _)| *closed == owner) {
+            continue;
         }
+        if data.result.is_none() {
+            data.result = Some(FilePickerResult::Cancelled);
+            // 취소 정리로 부모가 사라진 경우는 늦은 결과 경고를 내지 않는다.
+            // 사용자가 이미 확정한 결과의 부모 정보는 남겨 경고로 확인할 수 있게 한다.
+            if let Some(req) = data.requester.as_mut() {
+                req.owner_popup_instance = None;
+            }
+        }
+        children.push(iid);
     }
-    // A hidden child never runs its draw callback. Close the shell here while
-    // leaving its settled result for the existing exactly-once drain.
-    state
-        .popups
-        .close(crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID); // intent-exempt: parent-close lifecycle.
+    // A hidden child never runs its draw callback. Close the shell here; the close
+    // hook hands its settled result to the existing exactly-once drain.
+    for iid in children {
+        // intent-exempt: parent-close lifecycle.
+        state.popups.close_instance(
+            iid,
+            crate::adapters::ui::popup::PopupCloseReason::ParentClosed,
+        );
+    }
 }
 
 impl App {
