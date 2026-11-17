@@ -66,6 +66,30 @@ impl Drop for CompletionToken {
     }
 }
 
+/// 보냈지만 아직 끝나지 않은 job 하나. 큐에 넣기 전에 만들어 수를 늘리고, 워커가 처리를 마치거나
+/// 송신 거절·큐 폐기로 job이 버려질 때 drop되어 수를 줄인다. 송신 뒤에 늘리면 워커가 먼저 끝내
+/// 수가 0을 지나칠 수 있다.
+struct PendingJob(Arc<AtomicUsize>);
+
+impl PendingJob {
+    fn new(count: &Arc<AtomicUsize>) -> Self {
+        count.fetch_add(1, Ordering::SeqCst);
+        Self(count.clone())
+    }
+}
+
+impl Drop for PendingJob {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// 큐에 넣는 단위. `Shutdown`만 진행 중 수에 들어가지 않는다.
+struct Queued {
+    job: LuaJob,
+    pending: Option<PendingJob>,
+}
+
 /// [`LuaEngine::submit_script`]가 돌려주는 실행 식별자. 결과의 [`RunOutcome::ticket`]과 짝을 맞춘다.
 pub type RunTicket = u64;
 
@@ -131,7 +155,7 @@ enum LuaJob {
 
 /// 호스트 측 Lua 워커 핸들. VM 자체는 워커 스레드가 소유하며, 메인은 이 핸들로만 통신한다.
 pub struct LuaEngine {
-    job_tx: SyncSender<LuaJob>,
+    job_tx: SyncSender<Queued>,
     command_rx: Receiver<HostCommand>,
     outcome_rx: Receiver<RunOutcome>,
     outcome_waker: OutcomeWaker,
@@ -139,6 +163,9 @@ pub struct LuaEngine {
     reserved_outcomes: AtomicUsize,
     next_ticket: AtomicU64,
     snapshot: SharedSnapshot,
+    /// 보냈지만 아직 끝나지 않은 job 수. [`PendingJob`]이 센다.
+    pending_jobs: Arc<AtomicUsize>,
+    published: AtomicU64,
     worker: Option<JoinHandle<()>>,
 }
 
@@ -181,6 +208,8 @@ impl LuaEngine {
             reserved_outcomes: AtomicUsize::new(0),
             next_ticket: AtomicU64::new(1),
             snapshot,
+            pending_jobs: Arc::new(AtomicUsize::new(0)),
+            published: AtomicU64::new(0),
             worker: Some(worker),
         })
     }
@@ -193,6 +222,29 @@ impl LuaEngine {
             "the tasty-lua read snapshot",
             &SNAPSHOT_POISON_REPORTED,
         ) = Arc::new(snap);
+        self.published.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// 지금까지 [`LuaEngine::publish_snapshot`]을 부른 횟수. 발행 조건을 시험과 진단에서 확인한다.
+    pub fn published_snapshots(&self) -> u64 {
+        self.published.load(Ordering::Relaxed)
+    }
+
+    /// 보냈지만 워커가 아직 처리를 마치지 않은 job 수. 큐에서 기다리는 job도 센다.
+    /// `eval`·`reset_hooks`의 응답은 이 수가 줄기 전에 도착할 수 있다.
+    pub fn pending_jobs(&self) -> usize {
+        self.pending_jobs.load(Ordering::SeqCst)
+    }
+
+    /// 진행 중 수를 늘린 뒤 job을 큐에 넣는다. 거절되면 돌려받은 job과 함께 수가 되돌아간다.
+    fn try_queue(&self, job: LuaJob) -> Result<(), TrySendError<LuaJob>> {
+        let pending = Some(PendingJob::new(&self.pending_jobs));
+        self.job_tx
+            .try_send(Queued { job, pending })
+            .map_err(|e| match e {
+                TrySendError::Full(q) => TrySendError::Full(q.job),
+                TrySendError::Disconnected(q) => TrySendError::Disconnected(q.job),
+            })
     }
 
     /// 워커가 쌓아둔 커맨드를 모두 꺼낸다. 메인이 안전지점에서 호출해 적용한다.
@@ -251,7 +303,7 @@ impl LuaEngine {
             ticket: Some(ticket),
             token,
         };
-        let rejected = match self.job_tx.try_send(job) {
+        let rejected = match self.try_queue(job) {
             Ok(()) => return Ok(ticket),
             Err(TrySendError::Full(_)) => RunRejected::QueueFull,
             Err(TrySendError::Disconnected(_)) => RunRejected::WorkerGone,
@@ -284,28 +336,26 @@ impl LuaEngine {
 
     fn eval_named(&self, source: &str, name: Option<&str>) -> Result<(), LuaEngineError> {
         let (reply_tx, reply_rx) = sync_channel(1);
-        self.job_tx
-            .try_send(LuaJob::Eval {
-                source: source.to_string(),
-                name: name.map(str::to_string),
-                reply: reply_tx,
-            })
-            .map_err(|_| LuaEngineError::WorkerGone)?;
+        self.try_queue(LuaJob::Eval {
+            source: source.to_string(),
+            name: name.map(str::to_string),
+            reply: reply_tx,
+        })
+        .map_err(|_| LuaEngineError::WorkerGone)?;
         reply_rx.recv().map_err(|_| LuaEngineError::WorkerGone)?
     }
 
     /// 등록 hook 을 모두 비운다 (블로킹). reload 직전에 호출.
     pub fn reset_hooks(&self) -> Result<(), LuaEngineError> {
         let (reply_tx, reply_rx) = sync_channel(1);
-        self.job_tx
-            .try_send(LuaJob::ResetHooks { reply: reply_tx })
+        self.try_queue(LuaJob::ResetHooks { reply: reply_tx })
             .map_err(|_| LuaEngineError::WorkerGone)?;
         reply_rx.recv().map_err(|_| LuaEngineError::WorkerGone)?
     }
 
     /// fire-and-forget job 전송. 큐 포화/워커 종료 시 drop + warn (메인은 블록되지 않는다).
     fn send_ff(&self, job: LuaJob, what: &str) {
-        match self.job_tx.try_send(job) {
+        match self.try_queue(job) {
             Ok(()) => {}
             Err(TrySendError::Full(_)) => {
                 tracing::warn!(target: "tasty_lua", "lua job queue full — dropping {what}")
@@ -322,7 +372,11 @@ impl LuaEngine {
     fn join_worker(&mut self) {
         // 큐가 가득 차 있어도 Shutdown 은 반드시 도달해야 하므로 블로킹 send 사용.
         // 이미 워커가 죽어 disconnect 여도 정상 — 아래 join 이 정리한다.
-        if let Err(e) = self.job_tx.send(LuaJob::Shutdown) {
+        let shutdown = Queued {
+            job: LuaJob::Shutdown,
+            pending: None,
+        };
+        if let Err(e) = self.job_tx.send(shutdown) {
             tracing::trace!(target: "tasty_lua", "shutdown send skipped (worker gone): {e}");
         }
         if let Some(handle) = self.worker.take()
@@ -351,12 +405,14 @@ impl Drop for LuaEngine {
 #[allow(clippy::cognitive_complexity)] // complexity-exempt: LuaJob 평면 match 디스패치 — job 종류별 guarded exec + reply/로그 나열. 워커 스레드가 job 을 직렬 처리하는 단일 루프라 쪼개면 job 별 소함수만 늘고 흐름 추적이 어려워짐, 중첩 얕음.
 fn worker_loop(
     lua: Lua,
-    job_rx: Receiver<LuaJob>,
+    job_rx: Receiver<Queued>,
     budget: Duration,
     (deadline, hit): (SharedDeadline, DeadlineHit),
     outcomes: Outcomes,
 ) {
-    while let Ok(job) = job_rx.recv() {
+    // `pending`은 match 뒤에 drop되어 처리를 마친 job만 진행 중 수에서 빠진다.
+    // 루프가 끝나 채널이 drop되면 큐에 남은 job도 함께 정산된다.
+    while let Ok(Queued { job, pending }) = job_rx.recv() {
         match job {
             LuaJob::Eval {
                 source,
@@ -400,6 +456,7 @@ fn worker_loop(
             }
             LuaJob::Shutdown => break,
         }
+        drop(pending);
     }
 }
 
@@ -590,6 +647,10 @@ fn fire_hooks(lua: &Lua, event: &str, ctx: &serde_json::Value) {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "engine_pending_tests.rs"]
+mod pending_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1029,8 +1090,7 @@ mod tests {
     #[test]
     fn a_gone_worker_rejects_and_releases_the_token_once() {
         let mut engine = LuaEngine::new().expect("init");
-        engine.job_tx.send(LuaJob::Shutdown).unwrap();
-        engine.worker.take().unwrap().join().unwrap();
+        engine.join_worker();
         let counter = Arc::new(AtomicU64::new(0));
         let result = engine.submit_script(
             "local x = 1",
@@ -1114,8 +1174,7 @@ mod tests {
     #[test]
     fn a_rejected_submission_returns_its_result_slot() {
         let mut engine = LuaEngine::new().expect("init");
-        engine.job_tx.send(LuaJob::Shutdown).unwrap();
-        engine.worker.take().unwrap().join().unwrap();
+        engine.join_worker();
         for _ in 0..OUTCOME_QUEUE_CAP + 1 {
             assert_eq!(
                 engine.submit_script("local x = 1", None, None),
