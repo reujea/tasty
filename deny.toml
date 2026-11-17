@@ -41,14 +41,6 @@ ignore = [
   # termwiz를 nix 0.26을 쓰지 않는 판(0.23)으로 올릴 때 해제한다. termwiz를 올렸을 때의 터미널 동작 차이는 미측정이다.
   "RUSTSEC-2026-0441", # pin-utils 0.1.0 unmaintained
 
-  # chrono 0.4.45 유지보수 종료. 알려진 취약점이 아니고 공지에 수정판도 없다.
-  # 두 경로로 들어온다. tasty가 직접 의존하고, trash 5.2.6이 Linux 대상에서 기본 기능 chrono로 의존한다.
-  # trash는 chrono 기능을 끌 수 있지만 그러면 Linux 휴지통의 .trashinfo에 DeletionDate를 쓰지 않는다(5.3.0도 같다).
-  # tasty의 사용처는 현재 시각과 파일 수정 시각 같은 시스템 시각을 로컬 날짜·시각 문자열이나 rfc3339(초 단위, Z) 문자열로 만드는 것뿐이다.
-  # 외부에서 받은 날짜 문자열을 chrono로 파싱하는 곳은 없다. 파싱은 trash가 휴지통 목록을 읽을 때만 하며 tasty는 목록 기능을 쓰지 않는다.
-  # trash가 chrono 없이 DeletionDate를 쓰게 되면 tasty의 사용처도 다른 시각 라이브러리로 옮기고 해제한다.
-  "RUSTSEC-2026-0543", # chrono 0.4.45 unmaintained
-
   # unsound 기본 검사 범위는 workspace의 직접 의존성이다. unmaintained는 간접 의존성도 본다.
   # glib 0.18.5의 RUSTSEC-2024-0429는 lock에 남아 있지만 간접 의존성이라 이 범위에서는 보고되지 않는다.
   # 검사되지 않는 항목을 ignore에 넣으면 advisory-not-detected 경고가 발생한다.
