@@ -639,7 +639,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "untrusted + .pub",
-                "Trust & add — Primary (agent is for AI-agent surfaces only)",
+                "Trust key & add anyway — Danger (agent is for AI-agent surfaces only)",
             ),
         ],
         &[
