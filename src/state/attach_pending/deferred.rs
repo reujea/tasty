@@ -26,12 +26,15 @@ pub(crate) enum DeferredCommand {
         item: ToolItem,
         invoked: Option<InvokedNotice>,
     },
+    /// 새 탭을 만들 `kind`의 변환 입력 팝업. 생성된 surface 를 문맥으로 연다.
+    ConvertInput { kind: String },
 }
 
 impl DeferredCommand {
-    fn key(&self) -> &str {
+    pub(crate) fn key(&self) -> &str {
         match self {
             Self::Tool { item, .. } => &item.key,
+            Self::ConvertInput { kind } => kind,
         }
     }
 }
@@ -93,6 +96,45 @@ impl DeferredCommands {
             .into_iter()
             .map(|(local, _, command)| (local, command))
             .collect()
+    }
+}
+
+impl crate::state::MainViewState {
+    /// 변환 입력 팝업을 생성 대기 초안에 걸어 둔다. 팝업 선언 범위와 관계없이 생성된 surface 의
+    /// 문맥(cwd·mirror)을 받도록 건다. kind 에 변환 입력 팝업이 없으면 걸지 않고 false 다.
+    pub(in crate::state) fn defer_convert_input(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        kind: &str,
+        pending: PendingId,
+    ) -> bool {
+        let declared = engine
+            .surface_registry
+            .get(kind)
+            .and_then(|d| d.convert_input_popup.clone())
+            .is_some_and(|popup_ref| popup_ref.contains('/'));
+        if !declared {
+            tracing::warn!("convert-input popup: kind '{kind}' has no usable convert_input_popup");
+            return false;
+        }
+        self.attach_pending.deferred.push(
+            pending,
+            DeferredCommand::ConvertInput {
+                kind: kind.to_string(),
+            },
+        );
+        true
+    }
+
+    /// 걸어 둔 변환 입력 팝업을 생성된 `local` surface 를 문맥·대상으로 큐에 넣는다. 새 탭을 만드는
+    /// 입력이므로 제자리 변환 표시(`surface_id`)는 넣지 않는다. kind 는 지금 다시 찾는다.
+    pub(crate) fn open_deferred_convert_input(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        kind: &str,
+        local: u32,
+    ) -> bool {
+        self.queue_convert_input(engine, kind, Some(local), None)
     }
 }
 

@@ -412,7 +412,7 @@ pub(crate) fn invoke_tool_on(
     }
 }
 
-/// 생성된 surface가 정해진 걸어 둔 명령을 그 surface에서 접수 순서대로 실행한다.
+/// 생성된 surface가 정해진 걸어 둔 명령(도구·변환 입력)을 그 surface에서 접수 순서대로 실행한다.
 /// 실행 직전에 surface가 사라졌으면 버린다. 실행한 명령의 `command.invoked` 알림을 돌려준다.
 pub(crate) fn run_deferred_tools(
     state: &mut MainViewState,
@@ -420,16 +420,22 @@ pub(crate) fn run_deferred_tools(
 ) -> Vec<InvokedNotice> {
     let mut notices = Vec::new();
     for (local, command) in state.attach_pending.deferred.take_ready() {
-        let DeferredCommand::Tool { item, invoked } = command;
         if !engine.has_surface(local) {
             tracing::info!(
                 "deferred command '{}' dropped: its surface {local} is gone",
-                item.key
+                command.key()
             );
             continue;
         }
-        notices.extend(invoked);
-        invoke_tool_on(state, engine, &item, Some(local));
+        match command {
+            DeferredCommand::Tool { item, invoked } => {
+                notices.extend(invoked);
+                invoke_tool_on(state, engine, &item, Some(local));
+            }
+            DeferredCommand::ConvertInput { kind } => {
+                state.open_deferred_convert_input(engine, &kind, local);
+            }
+        }
     }
     notices
 }

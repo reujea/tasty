@@ -379,6 +379,7 @@ impl RequestContext {
     }
 
     /// 등록된 convert_input_popup을 열도록 요청한다. 변환 대상이 있으면 context에 담는다.
+    /// 변환 대상이 없고 입력 시점 대상이 생성 대기 초안이면 큐 대신 그 초안에 걸어 두고 true를 반환한다.
     /// kind나 팝업 선언을 찾지 못하면 경고를 기록하고 false를 반환한다. surface 범위로 선언한 팝업인데
     /// 변환 대상도 포커스 surface 도 없으면 창 범위로 바꾸지 않고 큐에 넣지 않으며 false를 반환한다.
     #[cfg(feature = "gui")]
@@ -387,6 +388,31 @@ impl RequestContext {
         engine: &EngineRead<'_>,
         kind: &str,
         convert_surface_id: Option<u32>,
+    ) -> bool {
+        use attach_pending::deferred::CommandSurfaceTarget;
+        // 변환 대상이 있으면 포커스와 달라도 그 surface의 cwd를 사용한다. 입력 시점 대상이
+        // 생성 대기 초안이면 걸어 두고, 생성된 surface 를 문맥으로 연다.
+        let origin = match convert_surface_id {
+            Some(sid) => Some(sid),
+            None => match self.command_surface_target(engine) {
+                Some(CommandSurfaceTarget::Pending(pending)) => {
+                    return self.defer_convert_input(engine, kind, pending);
+                }
+                Some(CommandSurfaceTarget::Surface(sid)) => Some(sid),
+                None => None,
+            },
+        };
+        self.queue_convert_input(engine, kind, origin, convert_surface_id)
+    }
+
+    /// `origin` 을 문맥·대상으로 변환 입력 팝업 요청을 큐에 넣는다. `in_place` 는 제자리 변환할 surface 다.
+    #[cfg(feature = "gui")]
+    fn queue_convert_input(
+        &mut self,
+        engine: &EngineRead<'_>,
+        kind: &str,
+        origin: Option<u32>,
+        in_place: Option<u32>,
     ) -> bool {
         let Some(popup_ref) = engine
             .surface_registry
@@ -402,8 +428,6 @@ impl RequestContext {
             tracing::warn!("convert-input popup: malformed convert_input_popup '{popup_ref}'");
             return false;
         };
-        // 변환 대상이 있으면 포커스와 달라도 그 surface의 cwd를 사용한다.
-        let origin = convert_surface_id.or_else(|| self.focused_surface_id(engine));
         if origin.is_none() && self.tool_registry.is_surface_popup(&popup_ref) {
             tracing::warn!(
                 "convert-input popup '{popup_ref}' not opened: it needs a surface target and none is focused"
@@ -411,7 +435,7 @@ impl RequestContext {
             return false;
         }
         let mut context = self.popup_surface_context(engine, origin);
-        if let Some(sid) = convert_surface_id {
+        if let Some(sid) = in_place {
             context["surface_id"] = serde_json::json!(sid);
         }
         self.pending_popup_opens.push(PendingPopupOpen {

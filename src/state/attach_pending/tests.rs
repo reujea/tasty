@@ -518,10 +518,7 @@ mod deferred_settle {
             .deferred
             .take_ready()
             .into_iter()
-            .map(|(local, command)| {
-                let deferred::DeferredCommand::Tool { item, .. } = command;
-                (local, item.key)
-            })
+            .map(|(local, command)| (local, command.key().to_string()))
             .collect()
     }
 
