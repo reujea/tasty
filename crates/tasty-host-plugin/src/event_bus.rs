@@ -1,5 +1,5 @@
 //! 호스트와 plugin의 이벤트를 구독 패턴에 맞춰 전달하고 최근 이벤트를 보관한다.
-//! plugin 구독·발행은 매니페스트 권한을 검사하며 호스트 발행은 권한 검사를 생략한다.
+//! plugin 구독·발행은 매니페스트 선언(`event_subscribe`·`event_publish`)이 덮는지 계약을 검사하며 호스트 발행은 이 검사를 생략한다.
 //! 정확한 키 또는 namespace.* 패턴을 사용한다.
 //!
 //! 응답을 기다리는 dispatch가 있으면 해당 plugin의 발행 hop에 하한을 적용한다.
@@ -37,9 +37,9 @@ struct PluginSubscription {
 struct Inner {
     plugin_subs: Vec<PluginSubscription>,
     /// 매니페스트의 `event_subscribe` 패턴 (plugin_id → 패턴 목록).
-    plugin_subscribe_perms: HashMap<String, Vec<String>>,
+    declared_subscribe: HashMap<String, Vec<String>>,
     /// 매니페스트의 `event_publish` 패턴 (plugin_id → 패턴 목록).
-    plugin_publish_perms: HashMap<String, Vec<String>>,
+    declared_publish: HashMap<String, Vec<String>>,
     /// debug 조회와 release fetch가 함께 읽는 최근 이벤트 기록.
     ring: VecDeque<RingSlot>,
     /// 링에 든 envelope 들의 직렬화 바이트 합. [`RingSlot::bytes`] 의 합과 늘 같다.
@@ -176,8 +176,8 @@ impl EventBus {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 plugin_subs: Vec::new(),
-                plugin_subscribe_perms: HashMap::new(),
-                plugin_publish_perms: HashMap::new(),
+                declared_subscribe: HashMap::new(),
+                declared_publish: HashMap::new(),
                 ring: VecDeque::with_capacity(EVENT_RING_CAPACITY),
                 ring_bytes: 0,
                 ring_bytes_limit: EVENT_RING_BYTES_LIMIT,
@@ -197,8 +197,8 @@ impl EventBus {
         self.epoch
     }
 
-    /// plugin이 호스트에 등록될 때 매니페스트의 권한을 적재한다. 비활성화/언인스톨 시 `clear_plugin`으로 정리.
-    pub fn set_plugin_permissions(
+    /// plugin이 호스트에 등록될 때 매니페스트의 이벤트 선언을 적재한다. 비활성화/언인스톨 시 `clear_plugin`으로 정리.
+    pub fn set_plugin_declarations(
         &self,
         plugin_id: &str,
         subscribe_patterns: Vec<String>,
@@ -206,18 +206,18 @@ impl EventBus {
     ) {
         let mut inner = self.lock_recovering();
         inner
-            .plugin_subscribe_perms
+            .declared_subscribe
             .insert(plugin_id.to_string(), subscribe_patterns);
         inner
-            .plugin_publish_perms
+            .declared_publish
             .insert(plugin_id.to_string(), publish_patterns);
     }
 
-    /// plugin이 종료되거나 비활성화되면 권한 + 구독 모두 제거.
+    /// plugin이 종료되거나 비활성화되면 선언 + 구독 모두 제거.
     pub fn clear_plugin(&self, plugin_id: &str) {
         let mut inner = self.lock_recovering();
-        inner.plugin_subscribe_perms.remove(plugin_id);
-        inner.plugin_publish_perms.remove(plugin_id);
+        inner.declared_subscribe.remove(plugin_id);
+        inner.declared_publish.remove(plugin_id);
         inner.plugin_subs.retain(|s| s.plugin_id != plugin_id);
         // 재시작한 plugin 은 옛 프로세스가 받던 dispatch 에 응답하지 않는다.
         inner.inflight_dispatches.remove(plugin_id);
@@ -265,7 +265,7 @@ impl EventBus {
         }
     }
 
-    /// plugin이 `event.subscribe` IPC로 등록한 구독. 매니페스트 권한과 매칭되지 않으면 `Err`.
+    /// plugin이 `event.subscribe` IPC로 등록한 구독. 매니페스트 `event_subscribe` 선언이 덮지 않으면 `Err`.
     /// 같은 `(plugin_id, sub_id)` 페어로 다시 호출되면 마지막 호출이 이긴다.
     pub fn subscribe_plugin(
         &self,
@@ -274,13 +274,13 @@ impl EventBus {
         pattern: String,
     ) -> Result<(), EventBusError> {
         let mut inner = self.lock_recovering();
-        let allowed = inner
-            .plugin_subscribe_perms
+        let covered = inner
+            .declared_subscribe
             .get(plugin_id)
             .map(|patterns| patterns.iter().any(|p| pattern_covers(p, &pattern)))
             .unwrap_or(false);
-        if !allowed {
-            return Err(EventBusError::SubscribeDenied {
+        if !covered {
+            return Err(EventBusError::UndeclaredSubscribe {
                 plugin_id: plugin_id.to_string(),
                 pattern,
             });
@@ -312,7 +312,7 @@ impl EventBus {
 
     /// owner unicast — envelope를 정확히 한 plugin에만 전달한다. 일반 fan-out과 달리
     /// 호스트/다른 plugin 구독자는 무시. `command.invoked`처럼 의도적으로 owner만 받아야 하는
-    /// 이벤트에 사용한다. 구독 권한도 검사하지 않는다 (호스트가 명시적으로 보내는 메시지).
+    /// 이벤트에 사용한다. 구독 선언도 검사하지 않는다 (호스트가 명시적으로 보내는 메시지).
     /// 반환값은 송신용 [`PluginDispatch`] (sub_id=0 sentinel).
     pub fn unicast_to_plugin(&self, plugin_id: &str, envelope: EventEnvelope) -> PluginDispatch {
         PluginDispatch {
@@ -322,7 +322,7 @@ impl EventBus {
         }
     }
 
-    /// plugin 발행의 권한을 확인하고 hop 하한을 적용한 뒤 MAX_HOP을 검사한다.
+    /// plugin 발행이 `event_publish` 선언 안에 있는지 확인하고 hop 하한을 적용한 뒤 MAX_HOP을 검사한다.
     pub fn publish_from_plugin(
         &self,
         plugin_id: &str,
@@ -346,17 +346,17 @@ impl EventBus {
                 envelope_origin: envelope.meta.origin.clone(),
             });
         }
-        // publish 권한 매칭.
-        let allowed = {
+        // event_publish 선언 대조.
+        let covered = {
             let inner = self.lock_recovering();
             inner
-                .plugin_publish_perms
+                .declared_publish
                 .get(plugin_id)
                 .map(|patterns| patterns.iter().any(|p| pattern_matches(p, &envelope.key)))
                 .unwrap_or(false)
         };
-        if !allowed {
-            return Err(EventBusError::PublishDenied {
+        if !covered {
+            return Err(EventBusError::UndeclaredPublish {
                 plugin_id: plugin_id.to_string(),
                 key: envelope.key,
             });
@@ -583,21 +583,21 @@ pub(crate) fn epoch_from_clock(
     }
 }
 
-/// 권한 패턴이 요청 패턴을 "포함"하는지. 매니페스트 검증된 패턴만 받는다.
+/// 선언 패턴이 요청 패턴을 "덮는지". 매니페스트 검증된 패턴만 받는다.
 ///
-/// - 권한이 `foo.*`: 같은 namespace 안의 모든 정확 키 또는 wildcard 허용
-/// - 권한이 정확 키: 같은 정확 키만 허용
-fn pattern_covers(allowed: &str, requested: &str) -> bool {
-    if allowed == requested {
+/// - 선언이 `foo.*`: 같은 namespace 안의 모든 정확 키 또는 wildcard 를 덮는다
+/// - 선언이 정확 키: 같은 정확 키만 덮는다
+fn pattern_covers(declared: &str, requested: &str) -> bool {
+    if declared == requested {
         return true;
     }
-    if let Some(prefix) = allowed.strip_suffix(".*") {
+    if let Some(prefix) = declared.strip_suffix(".*") {
         // 요청도 같은 namespace 하위라면 OK.
         if let Some(req_prefix) = requested.strip_suffix(".*") {
-            // 같은 namespace와 그 하위 namespace를 모두 허용한다.
+            // 같은 namespace와 그 하위 namespace를 모두 덮는다.
             req_prefix == prefix || req_prefix.starts_with(&format!("{prefix}."))
         } else {
-            // 정확 키가 권한 namespace 안에 있는지.
+            // 정확 키가 선언 namespace 안에 있는지.
             requested
                 .strip_prefix(prefix)
                 .map(|rest| rest.starts_with('.') && rest.len() > 1)
@@ -610,11 +610,11 @@ fn pattern_covers(allowed: &str, requested: &str) -> bool {
 
 #[derive(Debug)]
 pub enum EventBusError {
-    SubscribeDenied {
+    UndeclaredSubscribe {
         plugin_id: String,
         pattern: String,
     },
-    PublishDenied {
+    UndeclaredPublish {
         plugin_id: String,
         key: String,
     },
@@ -631,11 +631,11 @@ pub enum EventBusError {
 impl std::fmt::Display for EventBusError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::SubscribeDenied { plugin_id, pattern } => write!(
+            Self::UndeclaredSubscribe { plugin_id, pattern } => write!(
                 f,
                 "plugin '{plugin_id}' has no manifest event_subscribe permission for '{pattern}'"
             ),
-            Self::PublishDenied { plugin_id, key } => write!(
+            Self::UndeclaredPublish { plugin_id, key } => write!(
                 f,
                 "plugin '{plugin_id}' has no manifest event_publish permission for key '{key}'"
             ),

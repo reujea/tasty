@@ -733,7 +733,7 @@ impl PluginManager {
         if !to_register.is_empty() {
             for plugin_id in to_register {
                 if let Some(pkg) = self.packages.iter().find(|p| &p.manifest.id == plugin_id) {
-                    self.event_bus.set_plugin_permissions(
+                    self.event_bus.set_plugin_declarations(
                         plugin_id,
                         pkg.manifest.event_subscribe.clone(),
                         pkg.manifest.event_publish.clone(),
@@ -1464,7 +1464,7 @@ mod tests {
     /// disable이 설정을 저장하므로 공용 테스트 가드로 홈을 격리한다.
     use crate::test_support::HomeEnvGuard;
 
-    /// disable 후 새 hello는 권한과 훅을 다시 등록할 수 있어야 한다.
+    /// disable 후 새 hello는 이벤트 선언과 훅을 다시 등록할 수 있어야 한다.
     #[test]
     fn disable_clears_registered_plugins_so_restart_hello_reregisters() {
         let home = HomeEnvGuard::tasty_home();

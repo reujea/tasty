@@ -71,7 +71,7 @@ fn a_surface_popup_with_a_surface_event_waits_for_the_owner_check() {
 fn a_plugin_publish_records_the_publisher() {
     let mut mgr = manager(r#"scope = "surface""#);
     mgr.event_bus
-        .set_plugin_permissions(PLUGIN, vec![], vec![format!("{PLUGIN}.*")]);
+        .set_plugin_declarations(PLUGIN, vec![], vec![format!("{PLUGIN}.*")]);
     mgr.publish_and_dispatch(
         PLUGIN,
         EventEnvelope {
@@ -121,7 +121,7 @@ fn publish_from(
     scope: EventScope,
 ) {
     mgr.event_bus
-        .set_plugin_permissions(publisher, vec![], vec![format!("{PLUGIN}.*")]);
+        .set_plugin_declarations(publisher, vec![], vec![format!("{PLUGIN}.*")]);
     mgr.publish_and_dispatch(
         publisher,
         EventEnvelope {

@@ -39,9 +39,9 @@ fn host_publish_with_no_plugin_subscriber_returns_empty() {
 }
 
 #[test]
-fn plugin_publish_requires_publish_permission() {
+fn plugin_publish_requires_a_publish_declaration() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec![], vec!["p1.foo.*".into()]);
+    bus.set_plugin_declarations("p1", vec![], vec!["p1.foo.*".into()]);
     let envelope = env(
         "p1.foo.bar",
         EventOrigin::Plugin {
@@ -53,9 +53,9 @@ fn plugin_publish_requires_publish_permission() {
 }
 
 #[test]
-fn plugin_publish_rejected_without_permission() {
+fn undeclared_plugin_publish_is_rejected() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec![], vec![]);
+    bus.set_plugin_declarations("p1", vec![], vec![]);
     let envelope = env(
         "p1.foo.bar",
         EventOrigin::Plugin {
@@ -63,13 +63,13 @@ fn plugin_publish_rejected_without_permission() {
         },
     );
     let err = bus.publish_from_plugin("p1", envelope).unwrap_err();
-    assert!(matches!(err, EventBusError::PublishDenied { .. }));
+    assert!(matches!(err, EventBusError::UndeclaredPublish { .. }));
 }
 
 #[test]
 fn plugin_publish_rejected_for_wrong_origin() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec![], vec!["p1.foo.*".into()]);
+    bus.set_plugin_declarations("p1", vec![], vec!["p1.foo.*".into()]);
     let envelope = env(
         "p1.foo.bar",
         EventOrigin::Plugin {
@@ -83,7 +83,7 @@ fn plugin_publish_rejected_for_wrong_origin() {
 #[test]
 fn plugin_publish_rejected_at_hop_overflow() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec![], vec!["p1.foo.*".into()]);
+    bus.set_plugin_declarations("p1", vec![], vec!["p1.foo.*".into()]);
     let mut envelope = env(
         "p1.foo.bar",
         EventOrigin::Plugin {
@@ -96,9 +96,9 @@ fn plugin_publish_rejected_at_hop_overflow() {
 }
 
 #[test]
-fn plugin_subscribe_requires_permission() {
+fn plugin_subscribe_requires_a_declaration() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec!["surface.*".into()], vec![]);
+    bus.set_plugin_declarations("p1", vec!["surface.*".into()], vec![]);
     assert!(
         bus.subscribe_plugin("p1", 1, "surface.created".into())
             .is_ok()
@@ -110,8 +110,8 @@ fn plugin_subscribe_requires_permission() {
 #[test]
 fn fan_out_to_plugin_subscribers_excludes_publisher() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec!["evt.*".into()], vec!["evt.*".into()]);
-    bus.set_plugin_permissions("p2", vec!["evt.*".into()], vec![]);
+    bus.set_plugin_declarations("p1", vec!["evt.*".into()], vec!["evt.*".into()]);
+    bus.set_plugin_declarations("p2", vec!["evt.*".into()], vec![]);
     bus.subscribe_plugin("p1", 1, "evt.*".into()).unwrap();
     bus.subscribe_plugin("p2", 1, "evt.*".into()).unwrap();
     let envelope = env(
@@ -127,9 +127,9 @@ fn fan_out_to_plugin_subscribers_excludes_publisher() {
 }
 
 #[test]
-fn clear_plugin_removes_subs_and_perms() {
+fn clear_plugin_removes_subs_and_declarations() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec!["evt.*".into()], vec!["evt.*".into()]);
+    bus.set_plugin_declarations("p1", vec!["evt.*".into()], vec!["evt.*".into()]);
     bus.subscribe_plugin("p1", 1, "evt.*".into()).unwrap();
     bus.clear_plugin("p1");
     let envelope = env(
@@ -139,15 +139,15 @@ fn clear_plugin_removes_subs_and_perms() {
         },
     );
     let res = bus.publish_from_plugin("p1", envelope);
-    assert!(matches!(res, Err(EventBusError::PublishDenied { .. })));
+    assert!(matches!(res, Err(EventBusError::UndeclaredPublish { .. })));
 }
 
 #[cfg(debug_assertions)]
 #[test]
 fn debug_list_subscribers_matches_subscribed_plugins() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec!["surface.*".into()], vec![]);
-    bus.set_plugin_permissions("p2", vec!["surface.closed".into()], vec![]);
+    bus.set_plugin_declarations("p1", vec!["surface.*".into()], vec![]);
+    bus.set_plugin_declarations("p2", vec!["surface.closed".into()], vec![]);
     bus.subscribe_plugin("p1", 1, "surface.*".into()).unwrap();
     bus.subscribe_plugin("p2", 7, "surface.closed".into())
         .unwrap();
@@ -185,7 +185,7 @@ fn debug_trace_returns_recent_envelopes_by_id() {
 fn unicast_to_plugin_bypasses_subscribers_and_uses_zero_sub_id() {
     // unicast는 fan-out과 별개 경로. 다른 plugin이 구독해도 envelope를 받지 않는다.
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p2", vec!["command.*".into()], vec![]);
+    bus.set_plugin_declarations("p2", vec!["command.*".into()], vec![]);
     bus.subscribe_plugin("p2", 1, "command.*".into()).unwrap();
     let envelope = env("command.invoked", EventOrigin::Host);
     let dispatch = bus.unicast_to_plugin("p1", envelope);
@@ -197,7 +197,7 @@ fn unicast_to_plugin_bypasses_subscribers_and_uses_zero_sub_id() {
 #[test]
 fn a_poisoned_bus_keeps_serving_subscriptions_and_fan_out() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("p1", vec!["evt.*".into()], vec![]);
+    bus.set_plugin_declarations("p1", vec!["evt.*".into()], vec![]);
     bus.subscribe_plugin("p1", 1, "evt.*".into())
         .expect("fresh bus accepts the subscription");
 
@@ -208,7 +208,7 @@ fn a_poisoned_bus_keeps_serving_subscriptions_and_fan_out() {
     assert_eq!(dispatches.len(), 1, "poison 이후에도 fan-out 된다");
 
     // 새 등록·해제도 된다.
-    bus.set_plugin_permissions("p2", vec!["evt.*".into()], vec![]);
+    bus.set_plugin_declarations("p2", vec!["evt.*".into()], vec![]);
     bus.subscribe_plugin("p2", 1, "evt.*".into())
         .expect("poison 이후에도 구독 등록이 된다");
     assert_eq!(
@@ -547,7 +547,7 @@ fn the_count_limit_still_applies_to_small_events() {
 
 /// 카탈로그가 적은 구독 조건 — 매니페스트 `event_subscribe` 가 덮는가 하나 — 이 코드의
 /// 판정과 같다는 것을 고정한다. Experimental 키도 `experimental_events` 유무와 무관하게
-/// 받는다. 매니페스트는 실제 파서를 거치고, 권한은 `pump` 가 넘기는 필드 그대로 넘긴다.
+/// 받는다. 매니페스트는 실제 파서를 거치고, 선언은 `pump` 가 넘기는 필드 그대로 넘긴다.
 #[test]
 fn an_experimental_key_reaches_a_subscriber_with_or_without_the_experimental_flag() {
     let manifest = |id: &str, extra: &str| -> tasty_plugin_manifest::Manifest {
@@ -570,11 +570,11 @@ command="x"
     let plain = manifest("com.example.plain", "");
     let bus = EventBus::new();
     for m in [&flagged, &plain] {
-        bus.set_plugin_permissions(&m.id, m.event_subscribe.clone(), m.event_publish.clone());
+        bus.set_plugin_declarations(&m.id, m.event_subscribe.clone(), m.event_publish.clone());
         bus.subscribe_plugin(&m.id, 1, "agent.*".into())
-            .expect("agent.* subscribe allowed");
+            .expect("agent.* subscribe is declared");
         bus.subscribe_plugin(&m.id, 2, "tab.*".into())
-            .expect("tab.* subscribe allowed");
+            .expect("tab.* subscribe is declared");
     }
     for key in ["agent.task_finished", "tab.created"] {
         let mut got: Vec<String> = bus

@@ -49,7 +49,7 @@ impl PluginManager {
             })
             .collect();
         for (plugin_id, popup_id, decl) in matches {
-            // surface 팝업은 그 플러그인이 발행한 이벤트로만 연다. 발행 권한은 플러그인 ID 에
+            // surface 팝업은 그 플러그인이 발행한 이벤트로만 연다. 발행 선언은 플러그인 ID 에
             // 묶이지 않기 때문이다.
             if decl == PopupScopeDecl::Surface
                 && let Some(publisher) = publisher

@@ -546,12 +546,12 @@ pub enum PluginEvent {
         params: serde_json::Value,
     },
     /// plugin → 호스트: Event Bus에 이벤트 publish.
-    /// 호스트가 권한(매니페스트 `event_publish` 패턴)을 검증하고 hop을 증가시킨 뒤
+    /// 호스트가 매니페스트 `event_publish` 선언이 키를 덮는지 검사하고 hop을 증가시킨 뒤
     /// 구독자에게 fan-out한다. fire-and-forget.
     EventPublish { envelope: EventEnvelope },
     /// plugin → 호스트: 이벤트 키 패턴 구독.
     /// `pattern`은 정확한 키 또는 `<namespace>.*` 와일드카드.
-    /// 호스트는 매니페스트 `event_subscribe`로 허용된 패턴 안에 들어가는지 검증한다.
+    /// 호스트는 매니페스트 `event_subscribe` 선언이 이 패턴을 덮는지 검사한다.
     EventSubscribe { sub_id: u64, pattern: String },
     /// plugin → 호스트: 이전 [`PluginEvent::EventSubscribe`]의 구독 해제.
     EventUnsubscribe { sub_id: u64 },

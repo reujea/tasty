@@ -38,7 +38,8 @@ pub struct Manifest {
     /// 선언이 덮지 않는 구독은 계약 위반으로 거절한다. 비어 있으면 어떤 구독도 덮지 않는다.
     #[serde(default)]
     pub event_subscribe: Vec<String>,
-    /// 발행할 수 있는 이벤트 패턴. 호스트 전용 namespace를 선언하면 검증에서 거부한다.
+    /// 발행할 이벤트의 선언. 선언이 덮지 않는 발행은 계약 위반으로 거절한다.
+    /// 호스트 전용 namespace를 선언하면 검증에서 거부한다.
     #[serde(default)]
     pub event_publish: Vec<String>,
     /// event_publish 범위 안에서 실제로 발행할 이벤트의 키·설명 목록.

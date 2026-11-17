@@ -36,8 +36,8 @@ fn from_host(key: &str) -> EventEnvelope {
 /// 두 plugin 이 서로의 namespace 를 구독하고 자기 namespace 로 발화한다.
 fn two_plugins_that_answer_each_other() -> EventBus {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec!["com.b.*".into()], vec!["com.a.*".into()]);
-    bus.set_plugin_permissions("com.b", vec!["com.a.*".into()], vec!["com.b.*".into()]);
+    bus.set_plugin_declarations("com.a", vec!["com.b.*".into()], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.b", vec!["com.a.*".into()], vec!["com.b.*".into()]);
     bus.subscribe_plugin("com.a", 1, "com.b.*".into()).unwrap();
     bus.subscribe_plugin("com.b", 1, "com.a.*".into()).unwrap();
     bus
@@ -97,7 +97,7 @@ fn two_plugins_answering_each_other_with_hop_zero_stop_at_max_hop() {
 #[test]
 fn a_publish_before_answering_a_host_event_gets_hop_one() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec!["agent.*".into()], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec!["agent.*".into()], vec!["com.a.*".into()]);
     bus.subscribe_plugin("com.a", 1, "agent.*".into()).unwrap();
     let ds = bus.publish_from_host(from_host("agent.task_finished"));
     assert_eq!(ds.len(), 1);
@@ -114,7 +114,7 @@ fn a_publish_before_answering_a_host_event_gets_hop_one() {
 #[test]
 fn a_publish_after_the_answer_is_a_fresh_publish() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.a", 7, 5);
     assert!(bus.note_dispatch_answered("com.a", 7));
     bus.publish_from_plugin("com.a", from_plugin("com.a.tick", "com.a", 0, "t"))
@@ -126,7 +126,7 @@ fn a_publish_after_the_answer_is_a_fresh_publish() {
 #[test]
 fn a_hop_above_the_floor_is_kept() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.a", 1, 2);
     bus.publish_from_plugin("com.a", from_plugin("com.a.x", "com.a", 9, "t"))
         .unwrap();
@@ -137,7 +137,7 @@ fn a_hop_above_the_floor_is_kept() {
 #[test]
 fn the_floor_follows_the_highest_hop_still_waiting_for_an_answer() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.a", 1, 3);
     bus.note_dispatch_sent("com.a", 2, 11);
     bus.note_dispatch_sent("com.a", 3, 0);
@@ -154,7 +154,7 @@ fn the_floor_follows_the_highest_hop_still_waiting_for_an_answer() {
 #[test]
 fn a_raised_hop_past_max_hop_is_rejected() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.a", 1, MAX_HOP);
     let err = bus
         .publish_from_plugin("com.a", from_plugin("com.a.x", "com.a", 0, "t"))
@@ -166,7 +166,7 @@ fn a_raised_hop_past_max_hop_is_rejected() {
 #[test]
 fn the_floor_is_per_plugin() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.b", 1, 8);
     bus.publish_from_plugin("com.a", from_plugin("com.a.x", "com.a", 0, "t"))
         .unwrap();
@@ -191,10 +191,10 @@ fn an_answer_the_bus_did_not_record_is_not_claimed() {
 #[test]
 fn clearing_a_plugin_drops_what_it_was_answering() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.a", 1, 6);
     bus.clear_plugin("com.a");
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.publish_from_plugin("com.a", from_plugin("com.a.x", "com.a", 0, "t"))
         .unwrap();
     assert_eq!(last_hop_in_ring(&bus), 0);
@@ -205,7 +205,7 @@ fn clearing_a_plugin_drops_what_it_was_answering() {
 #[test]
 fn records_for_a_plugin_that_never_answers_are_bounded() {
     let bus = EventBus::new();
-    bus.set_plugin_permissions("com.a", vec![], vec!["com.a.*".into()]);
+    bus.set_plugin_declarations("com.a", vec![], vec!["com.a.*".into()]);
     bus.note_dispatch_sent("com.a", 0, 10);
     for id in 1..=crate::event_bus::EVENT_RING_CAPACITY as u64 {
         bus.note_dispatch_sent("com.a", id, 0);

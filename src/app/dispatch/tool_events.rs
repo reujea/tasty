@@ -16,7 +16,7 @@ impl App {
             return;
         };
         for (key, payload) in drained {
-            // 호스트 이벤트는 플러그인 발행 경로의 publish 권한·선언 검사 대상이 아니다.
+            // 호스트 이벤트는 플러그인 발행 경로의 `event_publish` 선언 검사 대상이 아니다.
             mgr.emit_host_event(&key, &payload, tasty_plugin_protocol::EventScope::System);
         }
     }

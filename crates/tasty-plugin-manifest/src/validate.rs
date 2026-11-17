@@ -197,7 +197,7 @@ impl Manifest {
         Ok(())
     }
 
-    /// 이벤트 키의 형식·예약 이름·발행 허용 패턴·중복을 검사한다.
+    /// 이벤트 키의 형식·예약 이름·발행 선언 패턴·중복을 검사한다.
     fn validate_events_emitted(&self) -> anyhow::Result<()> {
         let mut seen: HashSet<&str> = HashSet::new();
         for decl in &self.events_emitted {

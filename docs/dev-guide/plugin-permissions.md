@@ -178,9 +178,9 @@ plugin 은 다른 plugin 의 namespace 를 토큰 없이 부르고, 자기 names
 
 매니페스트 기여(`[[contributes.*]]`·`[extends]`)는 권한 토큰을 요구하지 않는다. 매니페스트 검증은 형식·참조·충돌·중복·예약 namespace 만 확인하고, 활성 plugin 이 선언한 기여는 그대로 동작한다.
 
-`event_subscribe` 는 별도 권한 없음 — 구독 패턴으로 허용 범위를 제한.
+`event_subscribe`·`event_publish` 는 권한이 아니라 계약 선언이다. 선언이 덮지 않는 구독·발행은 계약 위반으로 거절한다([구독·발행 선언 패턴](../reference/event-catalog.md#구독발행-선언-패턴)).
 
-`scope = "surface"` 로 선언한 event trigger popup 은 별도 권한 토큰이 없다. 대신 host 가 대상 소유를 확인한다 — 이벤트가 가리킨 surface 가 그 popup 을 선언한 plugin 의 surface 여야 연다. plugin 이 발행한 이벤트라면 대상 유무와 관계없이 발행자도 그 plugin 이어야 한다(이벤트 발행 권한은 plugin ID 에 묶이지 않는다). 그 밖에는 열지 않는다. 이 발행자 검사는 `scope = "surface"` popup 에만 적용한다 — `window`(기본) 선언 event trigger popup 은 다른 plugin 이 발행한 이벤트로도 열린다. **발행은 성공하고, 거절은 호스트 경고 로그에만 남는다** — 발행한 plugin 은 응답으로 거절을 알 수 없으므로 팝업이 뜨지 않으면 호스트 로그(`popup '<plugin>/<popup>' refused: …`)를 확인한다([내부 팝업 시스템](../design/systems/popup.md), 배치는 [popup 설계](../design/systems/popup.md#plugin-popup-의-스코프)).
+`scope = "surface"` 로 선언한 event trigger popup 은 별도 권한 토큰이 없다. 대신 host 가 대상 소유를 확인한다 — 이벤트가 가리킨 surface 가 그 popup 을 선언한 plugin 의 surface 여야 연다. plugin 이 발행한 이벤트라면 대상 유무와 관계없이 발행자도 그 plugin 이어야 한다(`event_publish` 선언은 plugin ID 에 묶이지 않는다). 그 밖에는 열지 않는다. 이 발행자 검사는 `scope = "surface"` popup 에만 적용한다 — `window`(기본) 선언 event trigger popup 은 다른 plugin 이 발행한 이벤트로도 열린다. **발행은 성공하고, 거절은 호스트 경고 로그에만 남는다** — 발행한 plugin 은 응답으로 거절을 알 수 없으므로 팝업이 뜨지 않으면 호스트 로그(`popup '<plugin>/<popup>' refused: …`)를 확인한다([내부 팝업 시스템](../design/systems/popup.md), 배치는 [popup 설계](../design/systems/popup.md#plugin-popup-의-스코프)).
 
 ## Agent caller — session token + temp grants
 

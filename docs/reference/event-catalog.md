@@ -206,11 +206,11 @@ scope=global command 단축키는 조합키만, scope=surface 는 단일 키도 
 
 > `composition_update`·`process.output_match`·`settings.changed` 는 1.0 제외. 알림 읽음 처리는 표시 상태만 바꾸며 host 이벤트를 발행하지 않는다.
 
-<a id="구독발화-권한-패턴"></a>
+<a id="구독발행-선언-패턴"></a>
 
-## 구독·발행 권한 패턴
+## 구독·발행 선언 패턴
 
-매니페스트 `event_subscribe` / `event_publish` 가 권한 게이트다.
+매니페스트 `event_subscribe` / `event_publish` 는 plugin 이 구독·발행할 이벤트의 계약 선언이다. 선언이 덮지 않는 구독·발행은 거절한다.
 
 | 형식 | 예 | 매칭 |
 |------|-----|------|

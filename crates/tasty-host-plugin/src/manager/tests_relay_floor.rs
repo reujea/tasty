@@ -38,7 +38,7 @@ fn a_publish_between_a_dispatch_and_its_answer_is_raised_and_one_after_is_not() 
     let mut mgr = PluginManager::new(Arc::new(NoopWakerFactory));
     let (proc, rx) = PluginProcess::stub_with_request_rx(PLUGIN);
     mgr.processes.insert(PLUGIN.into(), proc);
-    mgr.event_bus.set_plugin_permissions(
+    mgr.event_bus.set_plugin_declarations(
         PLUGIN,
         vec!["agent.*".into()],
         vec![format!("{PLUGIN}.*")],
@@ -115,7 +115,7 @@ fn a_publish_held_by_a_pre_event_hook_keeps_the_floor_it_arrived_with() {
     mgr.processes.insert(PLUGIN.into(), proc);
     let (ext_proc, ext_rx) = PluginProcess::stub_with_request_rx(EXTENSION);
     mgr.processes.insert(EXTENSION.into(), ext_proc);
-    mgr.event_bus.set_plugin_permissions(
+    mgr.event_bus.set_plugin_declarations(
         PLUGIN,
         vec!["agent.*".into()],
         vec![format!("{PLUGIN}.*")],
