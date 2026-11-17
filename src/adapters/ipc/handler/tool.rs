@@ -127,4 +127,42 @@ mod tests {
         assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
         assert!(state.take_pending_intents().is_empty());
     }
+
+    /// 팔레트로 A 를 고른 뒤 debug.tool.invoke 로 B 를 넣으면 같은 초안에서 A, B 순서로 실행한다.
+    #[test]
+    fn a_palette_command_then_a_debug_tool_run_in_input_order() {
+        use crate::adapters::ui::popup::command_palette::enabled_tests as palette;
+        let (mut state, mut session) = palette::palette_with_popup_command();
+        state.tool_registry.set_plugin_items(vec![ToolItem {
+            source: ToolSource::Plugin {
+                plugin_id: "com.example.viewer".into(),
+                tool_id: "t".into(),
+            },
+            key: "com.example.viewer/t".into(),
+            label_i18n_key: String::new(),
+            icon: None,
+            action: ToolAction::OpenPopup {
+                popup_id: "com.example.viewer/list".into(),
+            },
+            order_hint: 0,
+        }]);
+        let mut engine = session.borrow_mut();
+        let read = engine.read();
+        let anchor = state.focused_surface_id(&read).unwrap();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        palette::press_enter_on_confirm(&mut state, &read);
+        drop(read);
+        let params = serde_json::json!({ "key": "com.example.viewer/t" });
+        let response = handle_invoke(&mut state, &mut engine, serde_json::json!(1), &params);
+        assert!(response.error.is_none(), "{:?}", response.error);
+        let read = engine.read();
+        crate::state::attach_pending::deferred::settle_first_created(&mut state, &read, anchor);
+        crate::adapters::ui::tools_menu::run_deferred_tools(&mut state, &read);
+        let order: Vec<_> = state
+            .pending_popup_opens
+            .iter()
+            .map(|o| o.popup_id.as_str())
+            .collect();
+        assert_eq!(order, vec!["confirm", "list"]);
+    }
 }

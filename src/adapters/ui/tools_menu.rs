@@ -284,7 +284,7 @@ pub(crate) fn run_tool(
     }
     let surface = match target {
         Some(CommandSurfaceTarget::Pending(pending)) => {
-            if matches!(item.action, ToolAction::OpenPopup { .. }) {
+            if defers(&item.action) {
                 state.attach_pending.deferred.push(
                     pending,
                     DeferredCommand::Tool {
@@ -304,6 +304,68 @@ pub(crate) fn run_tool(
     }
     invoke_tool_on(state, engine, item, surface);
     Ok(ToolRun::Ran)
+}
+
+/// 대상이 생성 대기 초안일 때 걸어 둘 동작인지. 팝업은 선언 범위와 관계없이 대상 surface 의
+/// 문맥(cwd·mirror)을 받으므로 걸어 두고, 대상 surface 를 쓰지 않는 동작은 바로 실행한다.
+fn defers(action: &ToolAction) -> bool {
+    matches!(action, ToolAction::OpenPopup { .. })
+}
+
+/// plugin 명령을 도구 항목으로 만든다. 명령 팔레트와 명령 단축키가 같은 모양을 쓴다.
+pub(crate) fn command_item(plugin_id: &str, command_id: &str, action: ToolAction) -> ToolItem {
+    ToolItem {
+        source: crate::plugin::tool_registry::ToolSource::Plugin {
+            plugin_id: plugin_id.to_string(),
+            tool_id: command_id.to_string(),
+        },
+        key: format!("{plugin_id}/{command_id}"),
+        label_i18n_key: String::new(),
+        icon: None,
+        action,
+        order_hint: 0,
+    }
+}
+
+/// 팔레트에서 고른 plugin 명령의 대상이 생성 대기 초안이고 걸어 둘 동작이면 고른 지금 초안에 건다.
+/// 그래야 App 이 큐를 처리하기 전에 초안이 정산돼도 명령을 잃지 않고, 다른 진입점과 입력 순서가 맞는다.
+/// 걸어 두었으면 true, 아니면 false 를 돌려주고 호출자가 App 큐로 넘긴다.
+pub(crate) fn defer_palette_command(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    cmd: &crate::state::command_palette::PaletteCommand,
+    target: Option<CommandSurfaceTarget>,
+) -> bool {
+    let (
+        Some(CommandSurfaceTarget::Pending(_)),
+        crate::state::command_palette::PaletteCommand::Plugin {
+            plugin_id,
+            command_id,
+            ..
+        },
+    ) = (target, cmd)
+    else {
+        return false;
+    };
+    let Some(action) = state
+        .palette_plugin_commands
+        .iter()
+        .find(|e| e.plugin_id == *plugin_id && e.command_id == *command_id)
+        .and_then(|e| e.action.clone())
+        .filter(defers)
+    else {
+        return false;
+    };
+    let item = command_item(plugin_id, command_id, action);
+    let invoked = InvokedNotice {
+        plugin_id: plugin_id.clone(),
+        command_id: command_id.clone(),
+        surface_id: None,
+    };
+    matches!(
+        run_tool(state, engine, &item, target, Some(invoked), |_| {}),
+        Ok(ToolRun::Deferred(_))
+    )
 }
 
 /// 플러그인 도구·명령 동작을 `surface`를 대상으로 실행한다. 대상은 호출자가 입력 시점에 정한 값이다.
@@ -342,7 +404,7 @@ pub(crate) fn invoke_tool_on(
                     });
             } else {
                 tracing::warn!(
-                    "invoke_tool: open_popup '{}' is not in '<plugin_id>/<id>' form",
+                    "invoke_tool_on: open_popup '{}' is not in '<plugin_id>/<id>' form",
                     popup_id
                 );
             }

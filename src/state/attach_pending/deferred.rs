@@ -116,3 +116,24 @@ pub(crate) fn test_popup_command(popup_id: &str) -> DeferredCommand {
         invoked: None,
     }
 }
+
+/// 시험용: 첫 생성 요청이 remote 99 → `local`로 성공해 적용된 것으로 정산한다.
+#[cfg(test)]
+pub(crate) fn settle_first_created(
+    state: &mut crate::state::MainViewState,
+    core: &crate::core::CoreState,
+    local: u32,
+) {
+    let entry = &state.attach_pending.entries[0];
+    entry.receipt.bind(0);
+    let (epoch, view) = (entry.epoch.clone(), entry.view.clone());
+    state.attach_pending.result(&epoch, 0, Some(99), true);
+    state.attach_pending.applied(
+        core,
+        &state.navigation,
+        &epoch,
+        Some(&view),
+        &[(99, local)].into_iter().collect(),
+        &[99],
+    );
+}

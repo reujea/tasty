@@ -463,8 +463,12 @@ pub fn draw_command_palette_popup(
         }
         CommandPaletteAction::Execute { index } => {
             if let Some(cmd) = matched_commands.get(index) {
-                state.command_palette.pending_run =
-                    Some((cmd.clone(), state.command_surface_target(engine)));
+                let target = state.command_surface_target(engine);
+                if !crate::adapters::ui::tools_menu::defer_palette_command(
+                    state, engine, cmd, target,
+                ) {
+                    state.command_palette.pending_run = Some((cmd.clone(), target));
+                }
             }
             state.command_palette.reset();
             PopupAction::Close
@@ -1053,7 +1057,7 @@ mod sizer_wiring_tests {
 }
 
 #[cfg(test)]
-mod enabled_tests {
+pub(crate) mod enabled_tests {
     use super::*;
 
     const SURFACE_POPUP: &str = "com.example.viewer/confirm";
@@ -1097,10 +1101,10 @@ mod enabled_tests {
         assert_eq!(enabled_of(&state), (true, true));
     }
 
-    /// Enter 로 고른 plugin 명령은 고른 시점의 대상(여기서는 생성 대기 초안)을 함께 담는다.
-    #[test]
-    fn executing_a_plugin_command_binds_the_target_chosen_at_input() {
-        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+    /// 시험용: 팝업을 여는 plugin 명령 `confirm` 하나를 팔레트에 등록한 장면.
+    pub(crate) fn palette_with_popup_command()
+    -> (MainViewState, crate::runtime::engine_session::EngineSession) {
+        let (mut state, session) = crate::state::tests::test_mirror_state();
         state
             .palette_plugin_commands
             .push(crate::plugin::command_registry::PluginCommandEntry {
@@ -1114,10 +1118,14 @@ mod enabled_tests {
                     popup_id: SURFACE_POPUP.into(),
                 }),
             });
-        let engine = session.borrow_mut();
-        let read = engine.read();
-        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
-        let pending = state.attach_pending.entries[0].id;
+        (state, session)
+    }
+
+    /// 시험용: 그 명령을 찾아 Enter 로 고르는 한 프레임.
+    pub(crate) fn press_enter_on_confirm(
+        state: &mut MainViewState,
+        read: &crate::runtime::engine_read::EngineRead<'_>,
+    ) {
         state.command_palette.query = "viewer.confirm.only".into();
         let ctx = egui::Context::default();
         let input = egui::RawInput {
@@ -1132,16 +1140,70 @@ mod enabled_tests {
         };
         drop(ctx.run(input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                draw_command_palette_popup(ui, &mut state, &read);
+                draw_command_palette_popup(ui, state, read);
             });
         }));
+    }
+
+    /// 대상 surface 가 있으면 고른 시점의 그 surface 를 명령과 함께 App 큐로 넘긴다.
+    #[test]
+    fn executing_a_plugin_command_on_a_surface_queues_it_with_that_target() {
+        let (mut state, mut session) = palette_with_popup_command();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let anchor = state.focused_surface_id(&read).unwrap();
+        press_enter_on_confirm(&mut state, &read);
         let (cmd, target) = state.command_palette.pending_run.take().expect("executed");
         assert!(
             matches!(cmd, PaletteCommand::Plugin { command_id, .. } if command_id == "confirm")
         );
         assert_eq!(
             target,
-            Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Pending(pending))
+            Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(anchor))
         );
+    }
+
+    /// 초안을 대상으로 고른 명령은 Enter 때 초안에 걸린다. App 큐를 처리하기 전에 생성이 정산돼도
+    /// 생성된 surface 에서 한 번 실행되고 command.invoked 도 한 번 나간다.
+    #[test]
+    fn a_draft_command_settled_before_the_app_queue_runs_once_on_the_created_surface() {
+        let (mut state, mut session) = palette_with_popup_command();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let anchor = state.focused_surface_id(&read).unwrap();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let pending = state.attach_pending.entries[0].id;
+        press_enter_on_confirm(&mut state, &read);
+        assert!(state.command_palette.pending_run.is_none());
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
+        crate::state::attach_pending::deferred::settle_first_created(&mut state, &read, anchor);
+        let notices = crate::adapters::ui::tools_menu::run_deferred_tools(&mut state, &read);
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices[0].command_id, "confirm");
+        let targets: Vec<_> = state
+            .pending_popup_opens
+            .iter()
+            .map(|o| o.target_surface)
+            .collect();
+        assert_eq!(targets, vec![Some(anchor)]);
+    }
+
+    /// 같은 자리에서 요청이 실패하면 걸린 명령은 버려지고 남지 않는다.
+    #[test]
+    fn a_draft_command_is_dropped_when_the_request_fails_before_the_app_queue() {
+        let (mut state, mut session) = palette_with_popup_command();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let pending = state.attach_pending.entries[0].id;
+        press_enter_on_confirm(&mut state, &read);
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
+        let epoch = state.attach_pending.entries[0].epoch.clone();
+        state.attach_pending.entries[0].receipt.bind(0);
+        state.attach_pending.result(&epoch, 0, None, false);
+        state.attach_pending.retain(&read);
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
+        assert!(crate::adapters::ui::tools_menu::run_deferred_tools(&mut state, &read).is_empty());
+        assert!(state.pending_popup_opens.is_empty());
     }
 }
