@@ -63,6 +63,8 @@ impl App {
 
 /// 팔레트 큐의 plugin 명령 하나를 고른 시점의 대상으로 실행한다. 바로 실행할 surface 가 그 사이
 /// 사라졌으면 실행하지도 알리지도 않고 버린다. 실행할 수 없으면 알리지도 실행하지도 않는다.
+/// 생성 대기 초안에 걸 명령은 Enter 처리에서 이미 걸었으므로, 큐에 초안 대상이 남았다면 입력 뒤
+/// 명령 정의가 바뀐 경우다. 그 초안은 이미 정산됐을 수 있어 늦게 걸지 않고 버린다.
 pub(crate) fn run_palette_command(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -76,6 +78,14 @@ pub(crate) fn run_palette_command(
         tracing::info!(
             "plugin command '{}' dropped: its surface {sid} is gone",
             item.key
+        );
+        return;
+    }
+    if let Some(CommandSurfaceTarget::Pending(pending)) = target {
+        tracing::info!(
+            "plugin command '{}' for pending {} dropped: its definition changed after input",
+            item.key,
+            pending.0
         );
         return;
     }
@@ -152,5 +162,30 @@ mod tests {
         );
         assert_eq!(notified, 0);
         assert!(state.pending_popup_opens.is_empty());
+    }
+
+    /// Enter 때 행 사본의 동작이 팝업이 아니어서 초안 대상으로 큐에 간 명령은, 소비 때 정의가 팝업으로
+    /// 바뀌었어도 초안에 늦게 걸지 않고 버린다. 실행·알림도 없다.
+    #[test]
+    fn a_queued_draft_command_whose_definition_changed_is_dropped() {
+        use crate::adapters::ui::popup::command_palette::enabled_tests as palette;
+        let (mut state, mut session) = palette::palette_with_popup_command();
+        state.palette_plugin_commands[0].action =
+            Some(crate::plugin::manifest::ToolAction::Event {
+                event_key: "com.example.viewer.go".into(),
+            });
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let pending = state.attach_pending.entries[0].id;
+        palette::press_enter_on_confirm(&mut state, &read);
+        let (_, target) = state.command_palette.pending_run.take().expect("queued");
+        assert_eq!(target, Some(CommandSurfaceTarget::Pending(pending)));
+        let mut notified = 0;
+        run_palette_command(&mut state, &read, &item(), target, |_| notified += 1);
+        assert_eq!(notified, 0);
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
+        assert!(state.pending_popup_opens.is_empty());
+        assert!(state.pending_tool_events.is_empty());
     }
 }
