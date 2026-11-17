@@ -170,7 +170,7 @@ scope=global command 단축키는 조합키만, scope=surface 는 단일 키도 
 `command.invoked` 는 명령을 실행할 때만 보낸다. attach 생성 대기 초안에 걸어 둔 명령은 생성된 surface 에서 실행할 때 보내고, 생성이 실패해 버리면 보내지 않는다. 대상 surface 도 초안도 없는데 `action` 이 `surface` 범위 popup 을 열거나, 팔레트 요청을 처리할 때 그 창이 사라졌거나, 고른 surface·생성된 surface 가 실행 전에 사라졌거나, 팔레트에서 초안을 대상으로 고른 명령이 입력 뒤 popup 을 여는 명령으로 바뀌었으면 실행하지 않으므로 보내지 않는다([단축키 정책](../design/policies/key-mapping.md)).
 
 ### Memory (scope=system, Stable)
-`memory.changed`: regular entry 의 put/delete/expire/cleanup 이 commit 된 뒤 — `scope, key, kind∈{created,updated,deleted,expired}, version?`. **secret 영역은 발행하지 않음**(owner/key 노출 방지). 1 변경 = 1 envelope. 정리되지 않은 만료 행을 덮어쓴 put 은 `expired`(version 없음) 다음 `created`(version 1)를 같은 commit 순서로 낸다 — 주기 정리가 먼저 지운 경우와 구독자가 보는 순서가 같다. 구독 권한 `memory.read`. GUI 와 headless 모두 메인 루프가 회차마다 발행한다.
+`memory.changed`: regular entry 의 put/delete/expire/cleanup 이 commit 된 뒤 — `scope, key, kind∈{created,updated,deleted,expired}, version?`. **secret 영역은 발행하지 않음**(owner/key 노출 방지). 1 변경 = 1 envelope. 정리되지 않은 만료 행을 덮어쓴 put 은 `expired`(version 없음) 다음 `created`(version 1)를 같은 commit 순서로 낸다 — 주기 정리가 먼저 지운 경우와 구독자가 보는 순서가 같다. 구독에는 `event_subscribe` 선언(`memory.changed` 또는 `memory.*`)만 필요하고 `memory.read` 같은 호출 권한은 보지 않는다. GUI 와 headless 모두 메인 루프가 회차마다 발행한다.
 
 ### Agent (scope=system, Experimental)
 
@@ -210,7 +210,7 @@ scope=global command 단축키는 조합키만, scope=surface 는 단일 키도 
 
 ## 구독·발행 선언 패턴
 
-매니페스트 `event_subscribe` / `event_publish` 는 plugin 이 구독·발행할 이벤트의 계약 선언이다. 선언이 덮지 않는 구독·발행은 거절한다.
+매니페스트 `event_subscribe` / `event_publish` 는 plugin 이 구독·발행할 이벤트의 계약 선언이다. 선언이 덮지 않는 구독·발행은 계약 위반으로 거절하고 호스트 로그에 고칠 방법을 남긴다. 선언은 충돌·계약 위반을 미리 잡기 위한 것이며 보안 수단이 아니다([매니페스트의 목적](../principles/plugins.md#매니페스트의-목적)).
 
 | 형식 | 예 | 매칭 |
 |------|-----|------|

@@ -45,7 +45,7 @@ surface kind 는 콘텐츠를 **누가 렌더하느냐**로 다시 갈린다 (�
 
 ## 매니페스트 선언
 
-플러그인은 매니페스트(`tasty-plugin.toml`)에 자기 정체(id·버전·실행 파일)와 기여(`[[surface_kinds]]`·`[[contributes.*]]`·`[extends]`), 이벤트 구독·발행(`event_subscribe`·`event_publish`)을 선언한다. 호스트는 설치·로드 때 형식·참조·충돌·중복·예약 namespace 를 검사하고, 활성 플러그인이 선언한 기여를 그대로 연결한다. 기여마다 따로 허락받는 단계는 없다.
+플러그인은 매니페스트(`tasty-plugin.toml`)에 자기 정체(id·버전·실행 파일)와 기여(`[[surface_kinds]]`·`[[contributes.*]]`·`[extends]`), 이벤트 구독·발행(`event_subscribe`·`event_publish`)을 선언한다. 호스트는 설치·로드 때 형식·참조·충돌·중복·예약 namespace 를 검사하고, 활성 플러그인이 선언한 기여를 그대로 연결한다. 기여마다 따로 허락받는 단계는 없다. 매니페스트는 호스트와의 계약이고, 선언으로 충돌·중복·계약 위반을 설치·로드 때 미리 잡아 런타임 오류를 막는 것이 목적이다([매니페스트의 목적](../principles/plugins.md#매니페스트의-목적)). 보안 수단이 아니다. 선언하지 않은 이벤트 구독·발행은 계약 위반으로 거절하고 호스트 로그에 고칠 방법을 남긴다.
 
 설치·활성된 플러그인은 호스트 IPC 중 플러그인에 연 메서드(`plugin_callable`)를 모두 부를 수 있다. 설치·제거·활성 전환 같은 Local 전용 메서드와 debug 메서드는 부를 수 없다. 호출자별 판정과 Agent 세션의 권한 토큰은 [dev-guide/plugin-permissions](../dev-guide/plugin-permissions.md), 민감 데이터 취급은 [dev-guide/plugin-development 민감 데이터](../dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택).
 
