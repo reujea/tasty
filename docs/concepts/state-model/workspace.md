@@ -69,7 +69,7 @@ mirror 닫기와 연결 끊기, 저장된 원격 행의 메뉴는 [원격 attach
 
 mirror는 무조건 닫기 거절 대상이 아니다. 로컬 닫기 명령은 mirror를 거절하지만, mirror의 사용자 닫기는 mirror 종류에 따라 갈린다. 경로별 규칙은 [mirror 닫기와 연결 끊기](../../features/remote-attach/index.md#mirror-닫기와-연결-끊기)와 [저장된 원격 행의 메뉴와 닫기](../../features/remote-attach/index.md#저장된-원격-행의-메뉴와-닫기)가 정본이다.
 
-- 저장하지 않는 에이전트 mirror의 사용자 닫기(사이드바 워크스페이스 닫기, `close_workspace` 단축키, 마지막 surface·pane에서 넘어가는 `close_surface`·`close_pane`·`close_active`)는 서버 닫기다. 로컬 분기는 저장된 원격 행에만 있고(`src/state/workspace.rs`의 `is_saved_remote_row`), 나머지 mirror 닫기는 `DomainIntent::CloseWorkspace`로 가서 `StructuralOp::CloseWorkspace`로 서버에 forward된다(`src/app/dispatch_domain.rs`, `src/app/services/impl_mirror.rs`).
+- 저장하지 않는 에이전트 mirror의 사용자 닫기(사이드바 워크스페이스 닫기, `close_workspace` 단축키, 마지막 surface·pane에서 넘어가는 `close_surface`·`close_pane`·`close_active`)는 서버 닫기다. attach 생성 대기 초안이 선택된 동안 `close_pane`·`close_active`는 workspace 닫기로 넘어가지 않는다. 로컬 분기는 저장된 원격 행에만 있고(`src/state/workspace.rs`의 `is_saved_remote_row`), 나머지 mirror 닫기는 `DomainIntent::CloseWorkspace`로 가서 `StructuralOp::CloseWorkspace`로 서버에 forward된다(`src/app/dispatch_domain.rs`, `src/app/services/impl_mirror.rs`).
 - 저장된 원격 행의 일반 닫기(사용자 닫기, `close_workspace` 단축키, Close locally)는 이 Tasty에서만 닫는다(`SavedRowAction::CloseLocally`). 진행 중인 연결 시도를 취소하고 행과 로컬 세션을 없애며 서버 workspace는 남긴다(`src/app/attach_client/workspace_close.rs`). 저장된 원격 행의 서버 닫기는 Close remote workspace와, 행을 비우는 사용자 구조 요청이 확인 대화를 거친 뒤에만 나간다.
 - 에이전트 요청(IPC `workspace.close` 등)은 mirror 종류와 관계없이 묻지 않고 서버 닫기로 보낸다.
 - 위 표의 서버 닫기 행은 이 세 경우의 서버 닫기에 해당한다.

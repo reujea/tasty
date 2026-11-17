@@ -393,6 +393,12 @@ plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSett
 
 Event Bus의 `command.invoked`는 소유 plugin에 보내는 알림이다. 명령을 실제로 실행할 때 보낸다. `action`이 없는 명령은 대상 surface가 없어도 보낸다. 명령의 대상 surface는 키를 누른 시점에 정한다. attach 생성 대기 초안이 선택돼 있으면 popup을 여는 `action`은 초안에 걸어 두고 키를 소비하며, 생성된 surface에서 실행할 때 알린다. 생성이 실패해 버린 명령은 알리지 않는다. 대상 surface도 초안도 없는데 `action`이 `surface` 범위 popup을 열거나, 팔레트 요청을 처리할 때 그 창이 사라졌거나, 고른 surface·생성된 surface가 실행 전에 사라졌거나, 팔레트에서 초안을 대상으로 고른 명령이 입력 뒤 popup을 여는 명령으로 바뀌었으면 실행하지 않고 알리지도 않는다. 단축키는 대상 surface도 초안도 없어 실행할 수 없을 때 키를 다음 처리자에 넘긴다.
 
+내장 단축키도 대상 surface를 키를 누른 시점에 정한다. 생성 대기 초안이 선택돼 있으면 surface 하나를
+대상으로 하는 내장 액션은 초안이 만들 kind가 받을 때 초안에 걸고 키를 소비하며, 생성된 surface에서
+실행한다. 받지 않는 액션은 걸지 않으며 초안 뒤의 기존 surface·탭·workspace를 대상으로 삼지 않는다. 그
+키는 다음 처리자로 넘길 수 있다. 초안 뒤 기존 탭의 kind에 따라 대상 없이 소비하는 경우도 있다. 대상
+목록과 버림 조건은 [attach 동작](../../dev-guide/attach-behavior.md)에 있다.
+
 ## 텍스트 입력과 단축키의 우선순위
 
 explorer 같은 egui surface에 포커스가 있으면 한 번의 키 입력이 두 곳에 도달한다.

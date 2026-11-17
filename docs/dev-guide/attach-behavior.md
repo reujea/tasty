@@ -161,10 +161,43 @@ PendingId로 식별하며 CoreState·journal·surface 저장소에 임시 도메
 명령 대상 조회(`command_surface_target`)는 선택된 생성 draft를 `Pending(PendingId)`로 돌려준다.
 도구·팔레트·plugin 명령 단축키·`debug.tool.invoke`의 popup 동작과, 변환 대상 없이 연 변환 입력
 popup(`open_markdown` 등 새 탭용)은 그 draft에 걸어 둔다(`attach_pending::deferred`). 변환 입력 popup은
-선언 범위와 관계없이 걸고, 열 때 kind를 다시 찾아 없으면 경고 로그를 남기고 버린다. 정산이 생성 draft를 local surface로 끝내면(`applied`,
+선언 범위와 관계없이 걸고, 열 때 kind를 다시 찾아 없으면 경고 로그를 남기고 버린다.
+surface 하나를 대상으로 하는 내장 액션(`find`, `refresh`, `convert_surface`, `convert_to_markdown`,
+`convert_to_explorer`, `enter_copy_mode`, `select_all`, `copy_path`, 탐색기의 `explorer_refresh`·
+`explorer_go_up`·`explorer_back`·`explorer_forward`·`explorer_focus_address`·`explorer_toggle_preview`·
+`explorer_toggle_hidden`·`explorer_properties`·`explorer_new_folder`·`explorer_new_file`·`explorer_rename`·
+`explorer_trash`·`explorer_undo`·`explorer_redo`)도 단축키·더블탭·팔레트로 입력하면 걸어 둔다. 목록 이동과
+선택 키(`explorer_cursor_*`, `explorer_extend_*`, `explorer_open`, `explorer_clear_selection`)와
+복사·잘라내기·붙여넣기는 입력 성격이라 걸지 않는다. 걸 때
+draft가 만들 surface kind가 그 액션을 받는지 본다(`find`는 terminal·explorer, `enter_copy_mode`는
+terminal, `explorer_focus_address`는 explorer와 주소 띠(`address_band`)를 선언한 kind, `select_all`·`copy_path`와 나머지 탐색기 액션은
+explorer, 변환·`refresh`는 모든 kind). 받지 않는 액션은 걸지 않고 info 로그만 남긴다. 실행 때 생성된
+surface의 kind가 접수 때와 다르면 버린다. 선택 항목·이동 이력처럼 실행에 필요한 상태는 생성된 surface의
+그때 상태를 쓰고, 상태가 없어 아무것도 하지 않았으면 info 로그를 남긴다. 클립보드·복사 모드·파일 작업처럼
+창이 가진 것이 필요한 액션(`copy_path`, `enter_copy_mode`, `explorer_rename`, `explorer_trash`)은 그
+창이 다음에 그릴 때 실행한다. 이 액션들은 생성된 surface를 인자로 받는 같은 함수로 실행하고 실행 때
+포커스를 다시 읽지 않는다.
+
+팔레트의 호스트 명령은 Enter 때 정한 대상(surface 또는 draft)으로 실행한다. 대상이 draft면 위처럼 걸거나
+로그만 남기고, 그 사이 draft가 끝났으면 버린다. 대상이 surface이고 그 kind가 액션을 받으면 그
+surface에서 실행한다. 받지 않으면 액션 ID 처리로 넘기지 않는다. 넘기면 실행할 때의 포커스를 다시 읽어
+Enter 뒤 바뀐 포커스에서 실행되기 때문이다. info 로그만 남기고 끝내되, 그 surface에서 뜻이 있는 둘은
+그 surface로 실행한다. html·markdown의 `select_all`은 그 페이지의 전체 선택이고, 터미널이 아닌 surface의
+`enter_copy_mode`는 그 surface에 터미널이 아니라는 안내를 띄운다(단축키 경로와 같은 안내). surface
+하나를 대상으로 하지 않는 명령(닫기·이름 바꾸기·zoom·프리셋 등)은 액션 ID 처리가 실행할 때의 포커스로
+대상을 정한다.
+
+draft가 선택된 동안에는 기존 대상으로 넘어가지 않는다. `close_pane`·`close_active`는 활성 workspace
+닫기로 넘어가지 않고, `rename_tab`은 pane에 남은 기존 탭을 대상으로 잡지 않으며, 탐색기·html 주소창
+단축키는 그 뒤의 기존 탐색기를 바꾸지 않는다. 모두 아무것도 하지 않고 info 로그만 남긴다. 분할·다른
+종류의 새 탭처럼 draft 자리에 대한 구조 요청은 지금처럼 거절한다. 변환은 입력 시점에 정한 surface를
+대상으로 하므로 다른 draft가 선택돼 있어도 거절하지 않는다(걸어 둔 변환을 생성된 surface에서 실행할 때도
+같다). 정산이 생성 draft를 local surface로 끝내면(`applied`,
 `applied_before_result`) 선택·포커스 여부와 무관하게 그 surface로 실행 목록에 옮긴다. `retain`이
 지우는 draft(실패·epoch 종료·anchor 사라짐)와 합쳐진 스냅샷으로 접힌 draft의 명령은 info 로그를
-남기고 버린다. 실행은 App의 팝업 열기 단계가 접수 순서대로 하고, 그 surface가 이미 없으면 버린다.
+남기고 버린다. 실행은 App의 팝업 열기 단계가 접수 순서대로 하고, 그 surface가 이미 없으면 버린다. 창 액션은
+창이 다음에 그릴 때 실행하므로, 같은 draft에 창 액션이 실행을 기다리는 동안 그 뒤에 접수한 명령은 실행 목록에
+남겨 두었다가 창 액션이 실행된 다음 틱에 실행한다.
 
 `StructuralResult.created_surface_id`는 서버가 생성 결과에서 알고 있는 정확한 remote ID다.
 이 필드를 모르는 peer는 무시하고, 옛 서버는 생략한다. 성공 결과와 Delta의 실제 적용을

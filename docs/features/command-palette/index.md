@@ -31,7 +31,7 @@ VS Code 스타일 명령 팔레트. 모든 단축키 명령을 쿼리로 검색�
 
 Enter/클릭 시 `command_palette.pending_run` 에 선택된 `PaletteCommand` 적재 → `MainView::handle_redraw` 가 다음 프레임에 drain:
 
-- `Host`: `dispatch_action_by_id` 호출 — **단축키와 정확히 같은 action body** 를 타므로 효과 동일.
+- `Host`: `dispatch_action_by_id` 호출 — **단축키와 정확히 같은 action body** 를 타므로 효과 동일. 단 surface 하나를 대상으로 하는 액션(`find`·`refresh`·변환·`enter_copy_mode`·`select_all`·`copy_path`·탐색기 액션)은 `Enter`·클릭 때 `pending_run` 에 담은 대상으로 실행한다(`run_palette_surface_command` → `surface_actions::run_palette_action`). 대상 surface 의 kind 가 받지 않는 액션은 `dispatch_action_by_id` 로 넘기지 않는다(넘기면 실행할 때의 포커스를 다시 읽는다). info 로그만 남기고 끝내며, html·markdown 의 `select_all`(그 페이지의 전체 선택)과 터미널이 아닌 surface 의 `enter_copy_mode`(터미널이 아니라는 안내)만 그 surface 로 실행한다. 대상이 attach 생성 대기 초안이면 단축키와 같이 초안에 걸거나 로그만 남기고, 그 사이 초안이 끝났으면 버린다. 고른 surface 가 사라졌으면 info 로그 한 줄로 버린다([attach 동작](../../dev-guide/attach-behavior.md)).
 - `Plugin`: `MainViewState.pending_plugin_command_invokes` 에 `(plugin_id, command_id, 대상)` 을 enqueue(팔레트 draw/redraw 경로는 `PluginManager` 에 접근할 수 없음 — `PopupDef` 고정 시그니처 제약). 대상은 `Enter`·클릭 때 `pending_run` 에 함께 담은 값이다. 대상이 attach 생성 대기 초안이고 popup 을 여는 명령이면 큐에 넣지 않고 `Enter`·클릭 처리 안에서 바로 초안에 걸어 둔다(`tools_menu::defer_palette_command`). 그래서 App 이 큐를 처리하기 전에 생성이 정산돼도 명령을 잃지 않고, 같은 초안에 다른 진입점으로 건 명령과 입력 순서대로 실행된다. `App::dispatch_pending_palette_plugin_commands` 가 다음 IPC 처리 틱에 drain 해 `command_registry` 로 조회: `action` 이 있으면 `run_palette_command` 가 그 대상으로 `tools_menu::run_tool` 을 부른다(`try_plugin_shortcut` 의 action 분기와 동일 패턴). 바로 실행하면 그때 `command.invoked` 를 보내고, 초안에 걸어 둔 명령은 실제로 실행할 때 보낸다. 고른 surface 가 그 사이 사라졌으면 info 로그 한 줄을 남기고 버린다. 큐에서 꺼낸 명령의 대상이 초안이어도 지금 `action` 이 event·`open_surface` 면 걸어 두지 않으므로 바로 실행하고 알린다. 지금 `action` 이 popup 을 여는 것이면 입력 뒤 명령이 popup 을 여는 명령으로 바뀐 경우이므로, 이미 정산됐을 수 있는 초안에 늦게 걸지 않고 info 로그 한 줄(명령 key·초안 id)로 버린다. 실행할 수 없거나 그 창이 사라졌으면 알리지도 실행하지도 않는다. `action` 이 없으면 `key_dispatch::dispatch_plugin_command(.., surface_id: None)` 으로 `command.invoked` 이벤트만 발생(포커스 없이 매칭된 global 단축키와 동일 — 옛 `command.invoke` IPC 는 대상 surface 가 없어 생략).
 
 ### MainViewState 동기화
@@ -66,7 +66,7 @@ debug IPC(`debug.host_popup.open`/`debug.inject_egui_mouse`)로 확인할 수 �
 - popup: `src/adapters/ui/popup/command_palette.rs`.
 - plugin 명령 snapshot 동기화: `src/app/plugin_glue/palette_commands.rs`(`refresh_palette_plugin_commands`), 초기 populate `src/app/window_lifecycle.rs`(`assemble_app_state`).
 - plugin 명령 조회 필터: `crates/tasty-host-plugin/src/manager/queries.rs`(`plugin_palette_commands`).
-- dispatch: `src/view/main/redraw.rs` 가 `pending_run` drain → 호스트는 `dispatch_action_by_id`, plugin 은 고른 시점의 대상과 함께 `MainViewState.pending_plugin_command_invokes` 로 enqueue. `src/app/dispatch/palette_plugin_commands.rs`(`dispatch_pending_palette_plugin_commands`)가 App 메인 루프에서 drain해 action 실행 또는 이벤트 발생.
+- dispatch: `src/view/main/redraw.rs` 가 `pending_run` drain → 호스트는 surface 액션이면 `run_palette_surface_command` 로 Enter 때 정한 대상에서 실행하고, 아니면 `dispatch_action_by_id`, plugin 은 고른 시점의 대상과 함께 `MainViewState.pending_plugin_command_invokes` 로 enqueue. `src/app/dispatch/palette_plugin_commands.rs`(`dispatch_pending_palette_plugin_commands`)가 App 메인 루프에서 drain해 action 실행 또는 이벤트 발생.
 
 ## 화면
 
