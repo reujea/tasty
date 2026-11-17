@@ -2,6 +2,8 @@
 //! 포커스 소유를 확인한다.
 
 use super::*;
+use crate::adapters::ui::LayoutContext;
+use crate::intent::OpenRequest;
 
 const ID: PopupId = "focus_owner_test";
 
@@ -19,16 +21,132 @@ fn manager() -> PopupManager {
 #[test]
 fn escape_targets_the_topmost_focused_instance() {
     let mut mgr = manager();
-    let below = mgr.open(ID, PopupScope::Surface(1)).unwrap();
+    mgr.open(ID, PopupScope::Surface(1)).unwrap();
     let above = mgr.open(ID, PopupScope::Surface(2)).unwrap();
-    for iid in [below, above] {
-        mgr.set_instance_focused(iid, true);
-    }
     for p in &mut mgr.popups {
+        p.focused = true;
         p.scope_visible = true;
     }
     assert_eq!(
         mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
         Some(above)
     );
+}
+
+/// Given 한 범위에 포커스를 가진 인스턴스가 있고, When 다른 범위에 같은 선언을 포커스를 주며 열면,
+/// Then 포커스는 새 인스턴스 하나에만 남는다.
+#[test]
+fn a_focused_open_takes_the_focus_from_its_siblings() {
+    let mut mgr = manager();
+    let first = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(1)).focused(),
+            true,
+        )
+        .unwrap();
+    let second = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(2)).focused(),
+            true,
+        )
+        .unwrap();
+    assert!(!mgr.instance(first).unwrap().focused);
+    assert!(mgr.instance(second).unwrap().focused);
+}
+
+/// 보이는 surface만 담은 배치. 목록에 없는 surface 범위의 팝업은 숨는다.
+fn layout_showing(surfaces: &[u32]) -> LayoutContext {
+    let full = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
+    LayoutContext {
+        active_workspace: 0,
+        active_workspace_id: 0,
+        pane_rects: vec![],
+        surface_rects: surfaces.iter().map(|&s| (s, full)).collect(),
+        active_tabs: vec![],
+        active_tab_ids: vec![],
+        workspace_rect: None,
+        surface_owners: Vec::new(),
+        tab_content_rects: Vec::new(),
+    }
+}
+
+/// `surfaces`만 보이는 배치로 한 프레임을 그린다. `press`가 있으면 그 위치를 누른다.
+fn frame(mgr: &mut PopupManager, surfaces: &[u32], press: Option<egui::Pos2>) {
+    let ctx = egui::Context::default();
+    let mut raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1920.0, 1080.0),
+        )),
+        ..Default::default()
+    };
+    if let Some(pos) = press {
+        raw.events.push(egui::Event::PointerMoved(pos));
+        raw.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    let layout = layout_showing(surfaces);
+    drop(ctx.run(raw, |ctx| {
+        mgr.draw(ctx, &mut |_, _| {}, Some(&layout), &[]);
+    }));
+}
+
+fn focused_instances(mgr: &PopupManager) -> Vec<PopupInstanceId> {
+    mgr.popups
+        .iter()
+        .filter(|p| p.id == ID && p.open && p.focused)
+        .map(|p| p.instance)
+        .collect()
+}
+
+/// Given B를 먼저, A를 나중에 포커스를 주며 열고 A의 범위가 숨었을 때, When B를 누르면, Then A의 범위가
+/// 다시 보여도 포커스는 B 하나다.
+#[test]
+fn a_click_takes_the_focus_from_a_hidden_sibling() {
+    let mut mgr = manager();
+    let b = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(2))
+                .at(egui::pos2(600.0, 300.0))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    let a = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(1))
+                .at(egui::pos2(100.0, 300.0))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    assert_eq!(focused_instances(&mgr), [a]);
+    frame(&mut mgr, &[2], Some(egui::pos2(650.0, 350.0)));
+    frame(&mut mgr, &[1, 2], None);
+    assert_eq!(focused_instances(&mgr), [b]);
+}
+
+/// Given passive로 연 B와 포커스를 가진 A가 있고 A의 범위가 숨었을 때, When B를 passive 승격하면,
+/// Then A의 범위가 다시 보여도 포커스는 B 하나다.
+#[test]
+fn a_passive_promotion_takes_the_focus_from_a_hidden_sibling() {
+    let mut mgr = manager();
+    let b = mgr
+        .open_request(&OpenRequest::new(ID, PopupScope::Surface(2)), false)
+        .unwrap();
+    let a = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(1)).focused(),
+            true,
+        )
+        .unwrap();
+    assert_eq!(focused_instances(&mgr), [a]);
+    frame(&mut mgr, &[2], None);
+    assert!(mgr.focus_passive(ID));
+    frame(&mut mgr, &[1, 2], None);
+    assert_eq!(focused_instances(&mgr), [b]);
 }

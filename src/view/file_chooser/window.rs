@@ -15,6 +15,7 @@ pub(crate) fn register(popups: &mut PopupManager) {
         title_fn: base.title_fn,
         sizer: base.sizer,
         drag_region: base.drag_region,
+        on_open: None,
         draw_fn: base.draw_fn,
         fullscreen_stage: base.fullscreen_stage,
         on_close: base.on_close,

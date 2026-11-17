@@ -467,12 +467,14 @@ impl crate::view::MainView {
                             content_height: None,
                         });
                     self.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup {
-                            id: "script_changed_confirm",
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(
+                        crate::intent::UiIntent::OpenPopup(
+                            crate::intent::OpenRequest::new(
+                                "script_changed_confirm",
                                 crate::model::popup_kind::PopupScope::Window,
-                            ),
-                        }
+                            )
+                            .centered()
+                            .focused(),
+                        )
                         .from_user_menu("script_tofu_gate"),
                     );
                 }

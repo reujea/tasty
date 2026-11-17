@@ -558,12 +558,14 @@ pub fn draw_egui_panels(
         state.dialogs.convert_popup = Some(sid);
         state.dialogs.convert_popup_selected = None;
         state.dispatch_intent(
-            crate::intent::UiIntent::OpenPopup {
-                id: "convert_surface",
-                mode: crate::intent::OpenPopupMode::CenteredFocused(
+            crate::intent::UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(
+                    "convert_surface",
                     crate::adapters::ui::popup::PopupScope::Surface(sid),
-                ),
-            }
+                )
+                .centered()
+                .focused(),
+            )
             .from_user_menu("empty_surface_convert"),
         );
     }

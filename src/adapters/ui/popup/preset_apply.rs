@@ -234,10 +234,11 @@ pub(crate) fn open_for_pane(
     state.dialogs.preset_picker_selection.clear(kind);
     state.dialogs.preset_apply_targets.set(target);
     // 새 요청이 대상을 바꾸므로 다른 범위에 열려 있으면 새 범위로 다시 연다. 범위가 같으면 대상만 바뀐다.
-    state.dispatch_intent(dispatch(crate::intent::UiIntent::ReopenPopup {
-        id: target.popup_id(),
-        mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-    }));
+    state.dispatch_intent(dispatch(crate::intent::UiIntent::ReopenPopup(
+        crate::intent::OpenRequest::new(target.popup_id(), scope)
+            .centered()
+            .focused(),
+    )));
     true
 }
 
@@ -629,10 +630,13 @@ mod tests {
 
     fn opened_popup(intent: &crate::intent::DispatchedIntent) -> (PopupId, PopupScope) {
         match &intent.body {
-            Intent::Ui(crate::intent::UiIntent::ReopenPopup {
+            Intent::Ui(crate::intent::UiIntent::ReopenPopup(crate::intent::OpenRequest {
                 id,
-                mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-            }) => (*id, scope.clone()),
+                scope,
+                placement: crate::intent::PopupPlacement::ScopeCenter,
+                focus: true,
+                ..
+            })) => (*id, scope.clone()),
             other => panic!("expected a centered popup open, got {other:?}"),
         }
     }

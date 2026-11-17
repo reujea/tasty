@@ -87,7 +87,7 @@ fn drain_popup_intents(
     for d in state.take_pending_intents() {
         if matches!(
             d.body,
-            Intent::Ui(UiIntent::OpenPopup { .. } | UiIntent::ClosePopup { .. })
+            Intent::Ui(UiIntent::OpenPopup(_) | UiIntent::ClosePopup { .. })
         ) {
             crate::intent::popup::handle(state, engine, &d);
         } else {

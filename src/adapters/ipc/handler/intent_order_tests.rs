@@ -166,7 +166,7 @@ fn detailed_labels(state: &crate::state::RequestContext) -> Vec<String> {
                 }
             }
             #[cfg(feature = "gui")]
-            Intent::Ui(crate::intent::UiIntent::OpenPopup { .. }) => "OpenPopup".into(),
+            Intent::Ui(crate::intent::UiIntent::OpenPopup(_)) => "OpenPopup".into(),
             _ => label(intent),
         })
         .collect()

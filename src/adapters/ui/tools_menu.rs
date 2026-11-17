@@ -3,7 +3,7 @@
 
 use crate::adapters::ui::popup::{self, PopupAction};
 use crate::i18n::t;
-use crate::intent::{OpenPopupMode, UiIntent};
+use crate::intent::UiIntent;
 use crate::plugin::manifest::ToolAction;
 use crate::plugin::tool_registry::ToolItem;
 use crate::runtime::engine_read::EngineRead;
@@ -111,12 +111,14 @@ pub fn draw_tools_menu(
     }
     if let Some(popup_id) = open_workspace_popup {
         state.dispatch_intent(
-            UiIntent::OpenPopup {
-                id: popup_id,
-                mode: OpenPopupMode::CenteredFocused(popup::PopupScope::Workspace(
-                    state.active_workspace(engine).id,
-                )),
-            }
+            UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(
+                    popup_id,
+                    popup::PopupScope::Workspace(state.active_workspace(engine).id),
+                )
+                .centered()
+                .focused(),
+            )
             .from_user_menu("tools_menu"),
         );
         return PopupAction::Close;
@@ -124,10 +126,14 @@ pub fn draw_tools_menu(
     if let Some(popup_id) = open_popup {
         // 본체 팝업은 가운데 열고 포커스를 준다.
         state.dispatch_intent(
-            UiIntent::OpenPopup {
-                id: popup_id,
-                mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
-            }
+            UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(
+                    popup_id,
+                    crate::model::popup_kind::PopupScope::Window,
+                )
+                .centered()
+                .focused(),
+            )
             .from_user_menu("tools_menu"),
         );
         return PopupAction::Close;

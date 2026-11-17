@@ -421,6 +421,13 @@ fn palette_rows(
     (items, matched_commands)
 }
 
+/// 열기 훅. 팔레트를 연 것을 튜토리얼 연습 진행에 알린다.
+pub fn on_open_command_palette_popup(state: &mut MainViewState) {
+    state
+        .tutorial
+        .observe(crate::adapters::ui::tutorial::PracticeEvent::OpenPalette);
+}
+
 /// 앱 상태를 화면 입력으로 바꾸고 반환된 동작을 처리한다.
 pub fn draw_command_palette_popup(
     ui: &mut egui::Ui,

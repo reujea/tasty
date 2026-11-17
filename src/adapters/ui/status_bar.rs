@@ -87,14 +87,16 @@ pub fn draw_status_bar(
     for action in result.actions {
         match action {
             StatusBarAction::OpenPalette => {
-                use crate::intent::{OpenPopupMode, UiIntent};
+                use crate::intent::UiIntent;
                 state.dispatch_intent(
-                    UiIntent::TogglePopup {
-                        id: crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
-                        mode: OpenPopupMode::CenteredFocused(
+                    UiIntent::TogglePopup(
+                        crate::intent::OpenRequest::new(
+                            crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
                             crate::model::popup_kind::PopupScope::Window,
-                        ),
-                    }
+                        )
+                        .centered()
+                        .focused(),
+                    )
                     .from_user_menu("status_bar.palette"),
                 );
             }

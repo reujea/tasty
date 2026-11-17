@@ -30,7 +30,7 @@
 
 ### 항목 실행 (`run_tool`)
 
-- **빌트인**: 해당 popup 을 연다 (`BuiltinAction::OpenPopup` — 중앙 정렬 + 포커스). 대상 스코프를 여는 시점에야 아는 항목은 `BuiltinAction::OpenWorkspacePopup` 으로 갈라져 `OpenPopupMode::CenteredFocused(PopupScope::Workspace(활성 workspace ID))` 를 주입한다(현재 Task DAGs 하나). 별도 winit 창(`OpenWindow`)·파일 피커(`OpenFilePicker`)도 각각 자기 분기를 쓴다.
+- **빌트인**: 해당 popup 을 연다 (`BuiltinAction::OpenPopup` — 중앙 정렬 + 포커스). 대상 스코프를 여는 시점에야 아는 항목은 `BuiltinAction::OpenWorkspacePopup` 으로 갈라져 `OpenRequest::new(id, PopupScope::Workspace(활성 workspace ID)).centered().focused()` 로 연다(현재 Task DAGs 하나). 별도 winit 창(`OpenWindow`)·파일 피커(`OpenFilePicker`)도 각각 자기 분기를 쓴다.
 - **플러그인**: `ToolAction` 종류별 — 이벤트 발생 또는 `<plugin_id>/<popup_id>` 형식 popup open (활성 surface 의 상속 cwd 를 실어 전달).
 - **실행 대상**: 플러그인 항목의 대상 surface 는 누른 시점에 정한다(`MainViewState::command_surface_target`). 실행할 때 포커스를 다시 읽지 않는다.
 - **생성 대기 중인 항목**: mirror workspace 에서 새 탭·분할 결과를 기다리는 초안이 선택돼 있으면 그 초안이 대상이다. popup 을 여는 항목(`surface`·`window` 선언 모두)은 활성이고, 누르면 초안에 걸어 두었다가 생성된 surface 를 대상으로 연다. 대기 중 사용자가 다른 surface 를 골라도 생성된 surface 에서 연다. 같은 초안에 건 명령은 누른 순서대로 실행한다. 요청이 실패하거나 연결 세대가 끝나거나 기준 surface 가 사라지거나 합쳐진 결과에서 생성 surface 를 하나로 정할 수 없으면 실행하지 않고 info 로그만 남긴다. 실행 직전에 생성된 surface 가 이미 닫혔어도 같다. `event`·`open_surface` 항목은 대상 surface 를 쓰지 않으므로 바로 실행한다. 보관과 정산은 `state::attach_pending::deferred`, 실행은 `tools_menu::run_deferred_tools`(App 의 팝업 열기 단계가 팝업 요청을 꺼내기 전에 부른다)다.

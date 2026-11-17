@@ -1969,12 +1969,11 @@ fn open_pane_preset_popup(
 /// 특정 대상에 매이지 않는 팝업이라 창 범위로 연다.
 fn open_window_popup(state: &mut crate::state::MainViewState, id: &'static str) {
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(
-                crate::model::popup_kind::PopupScope::Window,
-            ),
-        }
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(id, crate::model::popup_kind::PopupScope::Window)
+                .centered()
+                .focused(),
+        )
         .from_user_context_menu(),
     );
 }

@@ -48,12 +48,14 @@ pub const INFO_MODAL_ID: &str = "info_modal";
 pub fn show_info_modal(state: &mut MainViewState, modal: InfoModal) {
     state.dialogs.info_modal_queue.push_back(modal);
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: INFO_MODAL_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                INFO_MODAL_ID,
                 crate::model::popup_kind::PopupScope::Window,
-            ),
-        }
+            )
+            .centered()
+            .focused(),
+        )
         .from_user_menu("info_modal"),
     );
 }
@@ -105,9 +107,15 @@ pub fn on_close_info_modal(
 ) {
     if dismiss_info_modal(state) {
         // intent-exempt: popup 자기-close cleanup — 이 훅에서 큐의 다음 안내를 잇는다
-        state
-            .popups
-            .open_centered_focused(INFO_MODAL_ID, crate::model::popup_kind::PopupScope::Window);
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(
+                INFO_MODAL_ID,
+                crate::model::popup_kind::PopupScope::Window,
+            )
+            .centered()
+            .focused(),
+            true,
+        );
     }
 }
 

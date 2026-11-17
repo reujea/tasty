@@ -849,7 +849,7 @@ spawn 시도 1회와 나머지 호출의 래치 진단을 확인한다. 정상 �
 `check-intent-discipline.sh`는 popup·preset·surface·tab·pane·workspace의 등록된 변경 메서드를
 직접 부르는 곳을 찾는다. 대상 메서드와 허용 표지 규칙은 [action-dispatch](../design/flows/action-dispatch.md#intent-discipline-강제)에 있다.
 호출 탐지는 `scripts/lib/intent_discipline_scan.py`가 `mask-source`로 주석·문자열을 가린 사본에서 한다.
-정규식이 공백과 줄바꿈을 허용해 rustfmt가 `state` / `.popups` / `.open_at_top_of_scope(`로 나눈 체인과
+정규식이 공백과 줄바꿈을 허용해 rustfmt가 `state` / `.popups` / `.open_request(`로 나눈 체인과
 `.delete(` 다음 줄의 `PresetKind`도 잡는다. `intent-exempt` 표지는 원문에서 읽는다.
 여러 줄 호출은 수신자 체인의 첫 줄부터 메서드 줄까지와 그 위·아래 한 줄에서 표지를 인정한다.
 `[결과사용]`·`[부재 …]` 태그 대조는 셸 부분이 맡는다.

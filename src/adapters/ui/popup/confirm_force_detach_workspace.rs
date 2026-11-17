@@ -221,12 +221,15 @@ mod tests {
             matches!(
                 &intents[..],
                 [crate::intent::DispatchedIntent {
-                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup {
-                        id: CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::CenteredFocused(
-                            crate::model::popup_kind::PopupScope::Window
-                        ),
-                    }),
+                    body: crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(
+                        crate::intent::OpenRequest {
+                            id: CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+                            scope: crate::model::popup_kind::PopupScope::Window,
+                            placement: crate::intent::PopupPlacement::ScopeCenter,
+                            focus: true,
+                            ..
+                        }
+                    )),
                     ..
                 }]
             ),

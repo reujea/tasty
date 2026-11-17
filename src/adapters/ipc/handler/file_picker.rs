@@ -265,8 +265,8 @@ fn passive_open_is_queued(state: &RequestContext) -> bool {
         !intent.origin.is_user()
             && matches!(
                 &intent.body,
-                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
-                    if *id == file_picker::FILE_PICKER_POPUP_ID
+                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(request))
+                    if request.id == file_picker::FILE_PICKER_POPUP_ID
             )
     })
 }

@@ -2,7 +2,7 @@
 //! 포커스를 다시 읽지 않는다. 입력 대상이 생성 대기 초안이면 액션을 그 초안에 걸어 두고, 생성된 surface 에서
 //! 같은 함수로 실행한다.
 
-use crate::intent::{OpenPopupMode, UiIntent};
+use crate::intent::UiIntent;
 use crate::runtime::engine_read::EngineRead;
 use crate::runtime::surface_registry::KindCapabilities;
 use crate::state::MainViewState;
@@ -30,12 +30,14 @@ pub(crate) fn open_convert_popup(state: &mut MainViewState, sid: u32, source: &'
     state.dialogs.convert_popup = Some(sid);
     state.dialogs.convert_popup_selected = None;
     state.dispatch_intent(
-        UiIntent::OpenPopup {
-            id: "convert_surface",
-            mode: OpenPopupMode::CenteredFocused(crate::adapters::ui::popup::PopupScope::Surface(
-                sid,
-            )),
-        }
+        UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                "convert_surface",
+                crate::adapters::ui::popup::PopupScope::Surface(sid),
+            )
+            .centered()
+            .focused(),
+        )
         .from_user_shortcut(source),
     );
 }

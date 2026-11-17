@@ -218,7 +218,7 @@ fn assert_asked_to_download(state: &crate::state::RequestContext, path: &str) {
     );
     assert!(state.pending_intents.iter().any(|i| matches!(
         &i.body,
-        crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup { id, .. })
+        crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(crate::intent::OpenRequest { id, .. }))
             if *id == crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_POPUP_ID
     ) && i.origin.is_user()));
 }
@@ -478,7 +478,7 @@ fn an_unopenable_remote_file_opened_by_name_asks_unless_an_agent_opened_it() {
         let popup = state.pending_intents.iter().find(|i| {
             matches!(
                 &i.body,
-                crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup { id, .. })
+                crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(crate::intent::OpenRequest { id, .. }))
                     if *id == crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_POPUP_ID
             )
         });
@@ -807,7 +807,7 @@ fn the_remote_link_menu_lists_only_remote_openable_handlers_without_running_one(
     assert!(pending[0].origin.is_user());
     assert!(matches!(
         &pending[0].body,
-        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. }))
             if *id == crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID
     ));
     assert_eq!(state.toasts.len(), 0);

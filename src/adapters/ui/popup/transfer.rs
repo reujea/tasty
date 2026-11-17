@@ -66,10 +66,14 @@ pub(crate) fn begin_progress_row(state: &mut MainViewState, row: TransferRow) {
         .rows
         .push(row);
     if !state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID) {
-        // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
-        state.popups.open_centered(
-            TRANSFER_PROGRESS_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Surface(surface_id),
+        // intent-exempt: 전송 시작이라는 시스템 사건이 연다. 사용자 출처 Intent가 없고 passive로 열면 WebView 가림 규칙이 달라져 포커스 없는 일반 팝업으로 직접 연다.
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(
+                TRANSFER_PROGRESS_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Surface(surface_id),
+            )
+            .centered(),
+            true,
         );
     }
 }
@@ -110,10 +114,11 @@ pub(crate) fn push_error(state: &mut MainViewState, error: TransferError) {
     state.dialogs.transfer_error.push_back(error);
     // 업로드와 다운로드는 사용자의 붙여넣기·버튼에서 시작된다.
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: TRANSFER_ERROR_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-        }
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, scope)
+                .centered()
+                .focused(),
+        )
         .from_user_menu("transfer_error"),
     );
 }
@@ -297,9 +302,12 @@ pub fn on_close_transfer_error(
     state.dialogs.transfer_error.pop_front();
     if let Some(next) = state.dialogs.transfer_error.front() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
-        state
-            .popups
-            .open_centered_focused(TRANSFER_ERROR_POPUP_ID, next.scope.clone());
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, next.scope.clone())
+                .centered()
+                .focused(),
+            true,
+        );
     }
 }
 
@@ -494,10 +502,11 @@ fn show_next_error(state: &mut MainViewState) -> PopupAction {
     };
     let scope = next.scope.clone();
     state.dispatch_intent(
-        crate::intent::UiIntent::ReopenPopup {
-            id: TRANSFER_ERROR_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-        }
+        crate::intent::UiIntent::ReopenPopup(
+            crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, scope)
+                .centered()
+                .focused(),
+        )
         .from_user_menu("transfer_error"),
     );
     PopupAction::None

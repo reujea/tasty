@@ -10,7 +10,7 @@ pub use runtime::{PracticeContext, PracticeEvent, TutorialRuntime};
 
 use crate::adapters::ui::LayoutContext;
 use crate::i18n::t;
-use crate::intent::{OpenPopupMode, UiIntent};
+use crate::intent::UiIntent;
 use crate::state::MainViewState;
 use tasty_type_appearance::theme::Theme;
 
@@ -47,10 +47,14 @@ pub fn interrupt_and_reopen(state: &mut MainViewState) {
         state.tutorial.save_progress(a.topic);
     }
     state.dispatch_intent(
-        UiIntent::OpenPopup {
-            id: topic_popup::TUTORIAL_TOPICS_POPUP_ID,
-            mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
-        }
+        UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                topic_popup::TUTORIAL_TOPICS_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Window,
+            )
+            .centered()
+            .focused(),
+        )
         .from_user_menu("tutorial.reopen"),
     );
 }

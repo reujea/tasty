@@ -13,13 +13,14 @@ pub(crate) fn open_tools_menu(
     let menu_size = crate::adapters::ui::tools_menu::tools_menu_current_size(state, engine);
     let pos = egui::pos2(btn_rect.min.x, btn_rect.min.y - menu_size.y);
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: "tools_menu",
-            mode: crate::intent::OpenPopupMode::AtFocused(
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                "tools_menu",
                 crate::model::popup_kind::PopupScope::Window,
-                pos,
-            ),
-        }
+            )
+            .at(pos)
+            .focused(),
+        )
         .from_user_menu("tools_button"),
     );
 }

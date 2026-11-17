@@ -13,9 +13,9 @@ tasty 에는 팝업을 만드는 경로가 **둘** 있다. 아래 문서 나머�
 | 정의 위치 | `src/adapters/ui/popup/defs.rs::all_defs()` 정적 목록(`OnceLock`) | plugin 매니페스트 `tasty-plugin.toml` |
 | 콘텐츠 렌더 | host 프로세스 egui (`draw_fn`) | **plugin 프로세스** egui → egui-mesh 로 tessellate, host 가 합성 ([egui-mesh 렌더 채널](egui-mesh-channel.md)) |
 | 셸(scrim·border·이동·리사이즈·outside-click·Esc) | `PopupManager` | **host `PopupManager`** (동일 — 셸은 언제나 host 소유) |
-| 여는 주체 | host — `UiIntent::OpenPopup { id }` | host 가 `PluginManager::open_popup_instance(plugin_id, popup_id, context)` 로 인스턴스화. 트리거는 (a) 매니페스트 `trigger = { kind = "event", event_key }` 를 host 이벤트로 실행, 또는 (b) surface-kind capability(`convert_input_popup`) 로 host 가 직접 open ([파일 핸들러 (File handler)](../features/file-handler/index.md)) |
+| 여는 주체 | host — `UiIntent::OpenPopup(OpenRequest)` | host 가 `PluginManager::open_popup_instance(plugin_id, popup_id, context)` 로 인스턴스화. 트리거는 (a) 매니페스트 `trigger = { kind = "event", event_key }` 를 host 이벤트로 실행, 또는 (b) surface-kind capability(`convert_input_popup`) 로 host 가 직접 open ([파일 핸들러 (File handler)](../features/file-handler/index.md)) |
 | 상태·입력 버퍼 | host `MainViewState.dialogs` | **plugin 프로세스** 내 인스턴스 상태(`instance_id` 키) |
-| 스코프(가시성·경계) | 등록 때 `Window` + 여는 쪽이 `OpenPopupMode`의 범위 인자로 정한다 | 매니페스트 `scope`(`window` 기본 / `surface`) + 여는 host 진입점이 대상 surface 바인딩 — 판정 함수는 host 와 같다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프) |
+| 스코프(가시성·경계) | 등록 때 `Window` + 여는 쪽이 `OpenRequest`의 범위로 정한다 | 매니페스트 `scope`(`window` 기본 / `surface`) + 여는 host 진입점이 대상 surface 바인딩 — 판정 함수는 host 와 같다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프) |
 
 **선택 기준 — 콘텐츠의 소유자가 누구인가:**
 
@@ -79,11 +79,12 @@ PopupDef {
     },
     scrim_input: ScrimInput::VisualOnly,
     title_key: "my_popup.title",     // i18n 키 (t() 로 번역)
-    title_fn: None,                  // 동적 제목이면 Some(fn(&MainViewState, &CoreState) -> String)
-    sizer: None,                     // 동적 크기면 Some(fn(&MainViewState, &CoreState) -> Vec2)
+    title_fn: None,                  // 동적 제목이면 Some(fn(&MainViewState, &EngineRead) -> String)
+    sizer: None,                     // 동적 크기면 Some(fn(&MainViewState, &EngineRead) -> Vec2)
     drag_region: None,               // drag_handle 이 Region 이면 Some(영역 fn)
     fullscreen_stage: None,          // Some(stage_id) = 타이틀바에 전체화면 버튼 노출 (아래 참고)
     draw_fn: super::my_popup::draw_my_popup,
+    on_open: None,                   // 새 인스턴스를 열기 직전에 할 일이 있으면 Some(fn)
     on_close: None,                  // 상태를 가지면 Some(정리 fn) (아래 "닫힘 정리")
 }
 ```
@@ -94,13 +95,18 @@ PopupDef {
 
 `state.popups.open*` 직접 호출 금지 — **Intent를 생성**한다 (origin 정책·디스패치 이유는 [`design/flows/action-dispatch.md`](../design/flows/action-dispatch.md)).
 
+메인 창 안의 host 팝업은 모두 `OpenRequest` 하나로 연다. 사용자·에이전트 요청은 `UiIntent`로 보내고, 닫기 훅과 시스템 이벤트가 큐의 다음 항목이나 진행 팝업을 바로 열 때도 `PopupManager::open_request`에 같은 요청을 넘긴다. 예외는 별도 winit 창이 가진 팝업 관리자다. 설정 창의 키 충돌 확인(`src/view/settings/ui.rs`)과 파일 선택 창(`src/view/file_chooser/window.rs`)은 자기 관리자의 `open_centered_focused`로 연다. 이 경로는 `OpenRequest`·`UiIntent`의 요청 출처 처리를 거치지 않는다. 인스턴스 정책은 메인 창과 같이 `open_slot`이 선언의 `instances`로 판정한다. 별도 창의 관리자를 메인 창 관리자와 합치기 전까지 이 예외가 남는다.
+
 ```rust
 use crate::adapters::ui::popup::PopupScope;
-use crate::intent::{UiIntent, OpenPopupMode};
-state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode::CenteredFocused(PopupScope::Window) }.from_user_menu("my_button"));
+use crate::intent::{OpenRequest, UiIntent};
+state.dispatch_intent(
+    UiIntent::OpenPopup(OpenRequest::new("my_popup", PopupScope::Window).centered().focused())
+        .from_user_menu("my_button"),
+);
 ```
 
-`OpenPopupMode`: `Default(scope)` · `CenteredFocused(scope)` · `AtTopOfScope(scope)` · `AtFocused(scope, pos)`. 모든 갈래가 범위를 받는다. 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상이 표시·조작되는 자리에서 고른다. 요소 자체를 다루는 팝업(이름 바꾸기, 닫기·분리 확인, 프리셋 적용)은 그 요소가 보이는 상위 컨테이너, 요소 내용 안의 팝업은 그 요소 범위다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)의 작용 대상 범위 규칙). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 상위 컨테이너가 창이 아닌 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)에 맞는 mode 를 고른다. 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다. 새 요청이 열린 팝업의 내용과 대상을 바꾸는 열기 지점(다운로드 후 실행 묻기, 원격 닫기·강제 분리 확인, 이름 바꾸기, 탭·pane 프리셋 적용)은 `UiIntent::ReopenPopup`을 보낸다. 열린 팝업의 범위가 요청 범위와 다르면 닫고 새 범위로 다시 연다. 이때 on_close 훅은 부르지 않는다(새 요청이 이미 채운 상태를 지우지 않게). 범위가 같으면 그대로 둔다. 범위를 열린 팝업에 덮어쓰는 경로는 두지 않는다.
+`OpenRequest::new(id, scope)`가 열기 요청 하나를 만든다. 위치(`placement`)는 기본이 `Keep`(직전 위치 또는 기본 배치)이고 `.centered()`(범위 가운데)·`.at_top()`(범위 위쪽)·`.at(pos)`(그 점)로 바꾼다. `.focused()`는 열 때 키보드 포커스를 준다. 범위 없이는 요청을 만들 수 없으므로 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상이 표시·조작되는 자리에서 고른다. 요소 자체를 다루는 팝업(이름 바꾸기, 닫기·분리 확인, 프리셋 적용)은 그 요소가 보이는 상위 컨테이너, 요소 내용 안의 팝업은 그 요소 범위다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)의 작용 대상 범위 규칙). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 상위 컨테이너가 창이 아닌 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)이 사용자가 아니면 `focused()`여도 포커스를 주지 않는다([popup 설계](../design/systems/popup.md)의 passive 팝업). 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다. 새 요청이 열린 팝업의 내용과 대상을 바꾸는 열기 지점(다운로드 후 실행 묻기, 원격 닫기·강제 분리 확인, 이름 바꾸기, 탭·pane 프리셋 적용)은 `UiIntent::ReopenPopup`을 보낸다. 열린 팝업의 범위가 요청 범위와 다르면 닫고 새 범위로 다시 연다. 이때 on_close 훅은 부르지 않는다(새 요청이 이미 채운 상태를 지우지 않게). 범위가 같으면 그대로 둔다. 범위를 열린 팝업에 덮어쓰는 경로는 두지 않는다.
 
 ## `PopupDef` 필드
 
@@ -110,11 +116,12 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | `decl` | `PopupDecl` | 공통 선언. 팝업 사이 동작 차이는 이 값으로만 정한다(아래 "`PopupDecl` 속성") |
 | `scrim_input` | `ScrimInput` | scrim 이 받는 입력. `VisualOnly`(보이기만 함, 누르면 바깥 클릭) / `TakesPointer`(scrim 위 포인터가 팝업 것) / `BlocksDrop`(열린 동안 탐색기 끌어 놓기 차단). `covers_scope` 인 팝업만 의미가 있다 |
 | `title_key` | `&'static str` | i18n 키 → 타이틀바 |
-| `title_fn` | `Option<fn(&MainViewState, &CoreState) -> String>` | 동적 제목. 설정 시 `title_key` 대신 매 프레임 호출. 길이 걱정 없이 원본 문자열 반환 — 폭 초과 시 elide 는 `draw.rs`가 공통 처리(아래 "타이틀 길이 처리" 참고) |
-| `sizer` | `Option<fn(&MainViewState, &CoreState) -> Vec2>` | 동적 크기. **매 프레임 호출된다** — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
+| `title_fn` | `Option<fn(&MainViewState, &EngineRead) -> String>` | 동적 제목. 설정 시 `title_key` 대신 매 프레임 호출. 길이 걱정 없이 원본 문자열 반환 — 폭 초과 시 elide 는 `draw.rs`가 공통 처리(아래 "타이틀 길이 처리" 참고) |
+| `sizer` | `Option<fn(&MainViewState, &EngineRead) -> Vec2>` | 동적 크기. **매 프레임 호출된다** — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
 | `drag_region` | `Option<fn(&PopupState) -> Rect>` | `decl.drag_handle` 이 `Region` 일 때 팝업이 pos/size 로부터 계산하는 전용 핸들 띠. 타이틀바 없는 팝업도 이동할 수 있다 |
 | `fullscreen_stage` | `Option<StageId>` | `Some(id)` 면 타이틀바 X 왼쪽에 전체화면 버튼이 붙고, 누르면 그 [무대](../design/systems/fullscreen-stage.md)가 뜬다. 노출 여부와 대상이 한 필드라 "버튼은 있는데 갈 곳이 없는" 상태가 생기지 않는다. 아래 "전체화면 버튼" 참고 |
 | `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 인스턴스 데이터를 준다 |
+| `on_open` | `Option<fn(&mut MainViewState)>` | 새 인스턴스를 열기 직전에 한 번 부른다. 이미 열린 인스턴스에 온 요청(dedup)에서는 부르지 않는다. 튜토리얼 목록과 명령 팔레트가 쓴다 |
 | `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &EngineRead, &ClosedPopup)>` | 닫힘 뒷정리 훅. 모든 닫기 경로가 거치는 관리자의 인스턴스 닫기를 통해 어떤 경로로 닫히든 인스턴스마다 정확히 한 번 실행한다. `ClosedPopup`은 선언 id, 인스턴스 id, 닫기 사유를 담는다(아래 "닫힘 정리" 참고) |
 
 ### `PopupDecl` 속성
@@ -128,9 +135,9 @@ state.dispatch_intent(UiIntent::OpenPopup { id: "my_popup", mode: OpenPopupMode:
 | `instances` | Single / PerScopeTarget / Multi / Queue | PerScopeTarget | 없음. 지금은 id 마다 인스턴스 하나다 |
 | `covers_scope` | bool | true | scrim 을 깔지(`PopupManager::draw`) |
 | `fit` | Collapse / Shrink | Collapse | 없음. 지금은 모든 host 팝업이 범위에 맞춰 줄어든다. `search_bar` 만 `Shrink` 로 선언했다 |
-| `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor | ScopeCenter | 없음. 위치는 여는 쪽 `OpenPopupMode` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
+| `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor | ScopeCenter | 없음. 위치는 여는 쪽 `OpenRequest` 의 `placement` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
 | `scope_inset` | bool | true | 없음. Surface 범위의 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다 |
-| `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenPopupMode` 와 요청 출처가 정한다. 값은 사용자가 여는 주 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 둘이 false 다. `notifications` 는 true 지만 단축키로 열 때는 지금 포커스를 가져가지 않는다(사이드바 클릭과 열기 경로가 다르다) |
+| `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenRequest` 의 `focus` 와 요청 출처가 정한다. 값은 사용자가 여는 주 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 둘이 false 다. `notifications` 는 true 지만 단축키로 열 때는 지금 포커스를 가져가지 않는다(사이드바 클릭과 열기 경로가 다르다) |
 | `keyboard` | None / Keys / Text | Keys | 없음. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸)와 그 선언을 복사한 설정 창 파일 선택기 |
 | `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 둘이 `Unfocus` 다. 하위 화면이 있는 팝업은 `Close` 지만 하위 화면에서는 첫 Esc 가 하위 화면만 닫는다(`dag_list` 상세 보기는 목록으로, `remote_tool` 양식은 앞 화면으로) |
 | `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |

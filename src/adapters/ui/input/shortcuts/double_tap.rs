@@ -1,6 +1,6 @@
 //! Double-tap modifier (Shift+Shift / Ctrl+Ctrl / Alt+Alt) 단축키 처리.
 
-use crate::intent::{Intent, OpenPopupMode, UiIntent};
+use crate::intent::{Intent, UiIntent};
 use crate::model::{PhysicalRect, SplitDirection};
 use crate::runtime::engine_read::EngineRead;
 use crate::view::main::MainView;
@@ -40,10 +40,10 @@ impl MainView {
         }
         if has_dt(&kb.toggle_notifications) {
             self.state.dispatch_intent(
-                UiIntent::TogglePopup {
-                    id: "notifications",
-                    mode: OpenPopupMode::Default(crate::model::popup_kind::PopupScope::Window),
-                }
+                UiIntent::TogglePopup(crate::intent::OpenRequest::new(
+                    "notifications",
+                    crate::model::popup_kind::PopupScope::Window,
+                ))
                 .from_user_shortcut("toggle_notifications_double_tap"),
             );
             return true;

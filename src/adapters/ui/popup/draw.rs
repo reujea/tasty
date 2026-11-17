@@ -270,12 +270,7 @@ impl PopupManager {
                 fullscreen_requested = Some(stage);
             } else if let Some(iid) = hovered_popup {
                 bring_front = Some(iid);
-                for popup in &mut self.popups {
-                    if popup.scope_visible {
-                        popup.focused = popup.open && popup.instance == iid;
-                        popup.passive &= !popup.focused;
-                    }
-                }
+                self.give_focus(iid, true);
             } else {
                 // 위의 plugin 팝업이 덮은 곳은 바깥 클릭으로 처리하지 않는다.
                 // host를 먼저 그리므로 plugin 영역은 직전 프레임 값이다. 방금 닫힌

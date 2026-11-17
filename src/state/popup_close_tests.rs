@@ -1344,7 +1344,7 @@ fn approval_x_button_close_with_empty_queue_does_not_refire() {
     assert!(
         !pending
             .iter()
-            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup { id, .. }) if *id == APPROVAL_POPUP_ID)),
+            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. })) if *id == APPROVAL_POPUP_ID)),
         "empty queue must not refire OpenPopup"
     );
 }
@@ -1374,7 +1374,7 @@ fn approval_x_button_close_with_pending_queue_refires_open_popup() {
     assert!(
         pending
             .iter()
-            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup { id, .. }) if *id == APPROVAL_POPUP_ID)),
+            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. })) if *id == APPROVAL_POPUP_ID)),
         "non-empty queue must refire OpenPopup for the next head"
     );
 }
@@ -1409,7 +1409,7 @@ fn approval_close_intent_now_refires_open_popup() {
     assert!(
         pending
             .iter()
-            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup { id, .. }) if *id == APPROVAL_POPUP_ID)),
+            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. })) if *id == APPROVAL_POPUP_ID)),
         "non-empty queue must refire OpenPopup for the next head"
     );
 }
@@ -1630,10 +1630,15 @@ fn a_pushed_failure_opens_in_its_own_scope() {
         matches!(
             &intents[..],
             [crate::intent::DispatchedIntent {
-                body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup {
-                    id: TRANSFER_ERROR_POPUP_ID,
-                    mode: crate::intent::OpenPopupMode::CenteredFocused(PopupScope::Workspace(3)),
-                }),
+                body: crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(
+                    crate::intent::OpenRequest {
+                        id: TRANSFER_ERROR_POPUP_ID,
+                        scope: PopupScope::Workspace(3),
+                        placement: crate::intent::PopupPlacement::ScopeCenter,
+                        focus: true,
+                        ..
+                    }
+                )),
                 ..
             }]
         ),

@@ -3,7 +3,7 @@
 use crate::runtime::engine_read::EngineRead;
 use winit::keyboard::{Key, ModifiersState};
 
-use crate::intent::{Intent, OpenPopupMode, UiIntent};
+use crate::intent::{Intent, UiIntent};
 use crate::view::main::MainView;
 
 use super::copy_paste::ExplorerAction;
@@ -142,10 +142,10 @@ impl MainView {
             }
             "toggle_notifications" => {
                 state.dispatch_intent(
-                    UiIntent::TogglePopup {
-                        id: "notifications",
-                        mode: OpenPopupMode::Default(crate::model::popup_kind::PopupScope::Window),
-                    }
+                    UiIntent::TogglePopup(crate::intent::OpenRequest::new(
+                        "notifications",
+                        crate::model::popup_kind::PopupScope::Window,
+                    ))
                     .from_user_shortcut("toggle_notifications"),
                 );
             }

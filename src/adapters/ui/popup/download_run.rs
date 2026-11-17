@@ -99,12 +99,14 @@ pub(crate) fn ask(
         content_height: None,
     });
     // 새 요청이 내용을 바꾸므로 다른 surface에 열려 있으면 그 surface 범위로 다시 연다.
-    let intent = crate::intent::UiIntent::ReopenPopup {
-        id: DOWNLOAD_RUN_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused(
+    let intent = crate::intent::UiIntent::ReopenPopup(
+        crate::intent::OpenRequest::new(
+            DOWNLOAD_RUN_POPUP_ID,
             crate::model::popup_kind::PopupScope::Surface(surface),
-        ),
-    };
+        )
+        .centered()
+        .focused(),
+    );
     // 핸들러 picker와 같은 출처 규칙이다. 다운로드는 대화상자의 버튼을 누를 때만 시작한다.
     state.dispatch_intent(match origin {
         crate::file::dispatch::FileDispatchOrigin::User => intent.from_user_menu("download_run"),
@@ -132,12 +134,14 @@ pub(crate) fn queue_large_confirm(state: &mut MainViewState, id: u64, name: Stri
     });
     if runs.large.len() == 1 {
         state.dispatch_intent(
-            crate::intent::UiIntent::OpenPopup {
-                id: DOWNLOAD_RUN_LARGE_POPUP_ID,
-                mode: crate::intent::OpenPopupMode::CenteredFocused(
+            crate::intent::UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(
+                    DOWNLOAD_RUN_LARGE_POPUP_ID,
                     crate::model::popup_kind::PopupScope::Surface(surface),
-                ),
-            }
+                )
+                .centered()
+                .focused(),
+            )
             .from_user_menu("download_run_large"),
         );
     }
@@ -159,10 +163,14 @@ pub(crate) fn open_progress_for_receiving(state: &mut MainViewState) -> bool {
     if state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID) {
         return false;
     }
-    // intent-exempt: [부재 src/intent.rs ^ *Centered(,|\()] 포커스를 유지하는 centered 모드가 OpenPopupMode에 없어 직접 연다.
-    state.popups.open_centered(
-        DOWNLOAD_RUN_PROGRESS_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Surface(surface),
+    // intent-exempt: 받기 시작이라는 시스템 사건이 연다. 사용자 출처 Intent가 없고 passive로 열면 WebView 가림 규칙이 달라져 포커스 없는 일반 팝업으로 직접 연다.
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(
+            DOWNLOAD_RUN_PROGRESS_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Surface(surface),
+        )
+        .centered(),
+        true,
     );
     true
 }
@@ -305,9 +313,14 @@ pub fn on_close_download_run_large(
     }
     if let Some(next) = state.dialogs.download_run.large.front() {
         // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
-        state.popups.open_centered_focused(
-            DOWNLOAD_RUN_LARGE_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Surface(next.surface),
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(
+                DOWNLOAD_RUN_LARGE_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Surface(next.surface),
+            )
+            .centered()
+            .focused(),
+            true,
         );
     }
 }

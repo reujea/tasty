@@ -277,16 +277,10 @@ pub enum UiIntent {
         id: u32,
     },
     ToggleAllCategoriesCollapsed,
-    OpenPopup {
-        id: PopupId,
-        mode: OpenPopupMode,
-    },
+    OpenPopup(OpenRequest),
     /// 새 요청이 내용과 대상을 바꾼 팝업을 그 요청의 범위로 연다. 이미 다른 범위로 열려 있으면
     /// 닫고 새 범위로 다시 연다. 같은 범위로 열려 있으면 그대로 둔다.
-    ReopenPopup {
-        id: PopupId,
-        mode: OpenPopupMode,
-    },
+    ReopenPopup(OpenRequest),
     ClosePopup {
         id: PopupId,
     },
@@ -300,10 +294,7 @@ pub enum UiIntent {
     FocusPassivePopup {
         id: PopupId,
     },
-    TogglePopup {
-        id: PopupId,
-        mode: OpenPopupMode,
-    },
+    TogglePopup(OpenRequest),
     /// 사용자가 고른 surface 에 새로고침 요청 신호를 보낸다. 대상과 kind 는 키를 누른 시점에 고정한다.
     /// 처리 시점에 같은 세대·kind 가 아니면 버린다(닫기·변환 뒤 다른 대상에 보내지 않는다).
     #[cfg(feature = "gui")]
@@ -439,36 +430,86 @@ pub enum ConvertTarget {
     },
 }
 
-/// 팝업 범위·위치·포커스 정책. 모든 갈래가 범위를 받는다. 열 때마다 범위를 정하므로
-/// 등록 값이나 직전에 열렸을 때의 범위가 남지 않는다(docs/design/systems/popup.md).
+/// 범위 안에서 팝업을 놓는 곳.
+// 이유: 팝업 열기는 GUI 입력에서만 요청한다.
+#[cfg_attr(
+    not(feature = "gui"),
+    expect(dead_code, reason = "only user input in the gui opens a popup")
+)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PopupPlacement {
+    /// 위치를 바꾸지 않는다. 처음 여는 인스턴스는 등록 원본의 위치다.
+    Keep,
+    /// 범위의 중앙.
+    ScopeCenter,
+    /// 범위의 상단 가운데.
+    ScopeTop,
+    /// 지정한 위치(컨텍스트 메뉴·사이드바 버튼 등).
+    #[cfg(feature = "gui")]
+    AtPoint(egui::Pos2),
+}
+
+/// 팝업 열기 요청. 모든 host 팝업 열기는 이 요청 하나로 한다.
+///
+/// 범위는 필수다. 열 때마다 정하므로 등록 값이나 직전에 열렸을 때의 범위가 남지 않는다
+/// (docs/design/systems/popup.md). 출처는 이 요청을 실어 나르는 Intent의 origin이다.
+/// 사용자 출처가 아니면 `focus`와 관계없이 포커스 없는 passive로 연다.
 // 이유: 팝업 열기는 GUI 입력에서만 요청한다.
 #[cfg_attr(
     not(feature = "gui"),
     expect(dead_code, reason = "only user input in the gui opens a popup")
 )]
 #[derive(Debug, Clone)]
-pub enum OpenPopupMode {
-    /// 위치를 지정하지 않고 포커스도 옮기지 않는다.
-    Default(PopupScope),
-    /// 범위의 중앙에 열고 포커스를 옮긴다.
-    CenteredFocused(PopupScope),
-    /// 범위의 상단에 연다.
-    AtTopOfScope(PopupScope),
-    /// 컨텍스트 메뉴에서 지정한 위치에 연다.
+pub struct OpenRequest {
+    pub id: PopupId,
+    pub scope: PopupScope,
+    pub placement: PopupPlacement,
+    /// 사용자가 열 때 키보드 포커스를 준다.
+    pub focus: bool,
+    /// 이 인스턴스를 연 부모 팝업. 부모가 닫히면 함께 닫힌다.
     #[cfg(feature = "gui")]
-    AtFocused(PopupScope, egui::Pos2),
+    pub parent: Option<crate::adapters::ui::popup::PopupInstanceId>,
+    /// 인스턴스 데이터. 새 인스턴스를 열거나 다시 열 때 이 값으로 채운다.
+    #[cfg(feature = "gui")]
+    pub payload: crate::adapters::ui::popup::PopupPayload,
 }
 
 #[cfg(feature = "gui")]
-impl OpenPopupMode {
-    /// 이 요청이 정한 범위.
-    pub fn scope(&self) -> &PopupScope {
-        match self {
-            Self::Default(scope) | Self::CenteredFocused(scope) | Self::AtTopOfScope(scope) => {
-                scope
-            }
-            Self::AtFocused(scope, _) => scope,
+impl OpenRequest {
+    /// 위치와 포커스를 바꾸지 않는 요청.
+    pub fn new(id: PopupId, scope: PopupScope) -> Self {
+        Self {
+            id,
+            scope,
+            placement: PopupPlacement::Keep,
+            focus: false,
+            parent: None,
+            payload: crate::adapters::ui::popup::PopupPayload::None,
         }
+    }
+
+    /// 범위의 중앙에 연다.
+    pub fn centered(mut self) -> Self {
+        self.placement = PopupPlacement::ScopeCenter;
+        self
+    }
+
+    /// 범위의 상단에 연다.
+    pub fn at_top(mut self) -> Self {
+        self.placement = PopupPlacement::ScopeTop;
+        self
+    }
+
+    /// 지정한 위치에 연다.
+    pub fn at(mut self, pos: egui::Pos2) -> Self {
+        self.placement = PopupPlacement::AtPoint(pos);
+        self
+    }
+
+    /// 사용자가 열면 키보드 포커스를 준다.
+    pub fn focused(mut self) -> Self {
+        self.focus = true;
+        self
     }
 }
 

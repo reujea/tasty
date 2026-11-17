@@ -663,12 +663,7 @@ fn a_picker_opened_from_a_user_navigation_on_the_plugin_page_is_a_user_popup() {
         let opens: Vec<bool> = state
             .take_pending_intents()
             .into_iter()
-            .filter(|i| {
-                matches!(
-                    i.body,
-                    Intent::Ui(crate::intent::UiIntent::OpenPopup { .. })
-                )
-            })
+            .filter(|i| matches!(i.body, Intent::Ui(crate::intent::UiIntent::OpenPopup(_))))
             .map(|i| i.origin.is_user())
             .collect();
         assert_eq!(opens.len(), 1);

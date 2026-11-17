@@ -5,7 +5,7 @@
 //! 새 요청은 같은 창 범위에서 열린 팝업의 내용과 대상만 바꾼다. 앞 요청의 대상은 각 팝업이 요청 상태를 통째로 바꿔 남기지 않는다.
 
 use crate::adapters::ui::popup::PopupId;
-use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
+use crate::intent::{DispatchedIntent, UiIntent};
 use crate::model::popup_kind::PopupScope;
 use crate::state::MainViewState;
 
@@ -15,10 +15,11 @@ pub(crate) fn open(
     id: PopupId,
     origin: impl FnOnce(UiIntent) -> DispatchedIntent,
 ) {
-    state.dispatch_intent(origin(UiIntent::ReopenPopup {
-        id,
-        mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
-    }));
+    state.dispatch_intent(origin(UiIntent::ReopenPopup(
+        crate::intent::OpenRequest::new(id, PopupScope::Window)
+            .centered()
+            .focused(),
+    )));
 }
 
 #[cfg(test)]

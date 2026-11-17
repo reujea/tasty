@@ -4,7 +4,7 @@
 use crate::runtime::engine_read::EngineRead;
 use winit::keyboard::{Key, ModifiersState};
 
-use crate::intent::{Intent, OpenPopupMode, UiIntent};
+use crate::intent::{Intent, UiIntent};
 use crate::model::SplitDirection;
 use crate::view::main::MainView;
 
@@ -245,10 +245,10 @@ impl MainView {
         }
         if matches_any_binding(&kb.toggle_notifications, key, mods) {
             state.dispatch_intent(
-                UiIntent::TogglePopup {
-                    id: "notifications",
-                    mode: OpenPopupMode::Default(crate::model::popup_kind::PopupScope::Window),
-                }
+                UiIntent::TogglePopup(crate::intent::OpenRequest::new(
+                    "notifications",
+                    crate::model::popup_kind::PopupScope::Window,
+                ))
                 .from_user_shortcut("toggle_notifications"),
             );
             return true;
@@ -685,12 +685,14 @@ impl MainView {
     ) -> bool {
         if matches_any_binding(&kb.toggle_command_palette, key, mods) {
             state.dispatch_intent(
-                UiIntent::TogglePopup {
-                    id: crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
-                    mode: OpenPopupMode::CenteredFocused(
+                UiIntent::TogglePopup(
+                    crate::intent::OpenRequest::new(
+                        crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
                         crate::model::popup_kind::PopupScope::Window,
-                    ),
-                }
+                    )
+                    .centered()
+                    .focused(),
+                )
                 .from_user_shortcut("toggle_command_palette"),
             );
             return true;
@@ -793,10 +795,14 @@ impl MainView {
         action: &'static str,
     ) {
         state.dispatch_intent(
-            UiIntent::OpenPopup {
-                id: popup_id,
-                mode: OpenPopupMode::CenteredFocused(crate::model::popup_kind::PopupScope::Window),
-            }
+            UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(
+                    popup_id,
+                    crate::model::popup_kind::PopupScope::Window,
+                )
+                .centered()
+                .focused(),
+            )
             .from_user_shortcut(action),
         );
     }
@@ -832,12 +838,14 @@ impl MainView {
     ) {
         let workspace_id = state.active_workspace(engine).id;
         state.dispatch_intent(
-            UiIntent::TogglePopup {
-                id: crate::adapters::ui::popup::dag_list::DAG_LIST_POPUP_ID,
-                mode: OpenPopupMode::CenteredFocused(
+            UiIntent::TogglePopup(
+                crate::intent::OpenRequest::new(
+                    crate::adapters::ui::popup::dag_list::DAG_LIST_POPUP_ID,
                     crate::adapters::ui::popup::PopupScope::Workspace(workspace_id),
-                ),
-            }
+                )
+                .centered()
+                .focused(),
+            )
             .from_user_shortcut("toggle_dag_list"),
         );
     }
@@ -879,12 +887,14 @@ impl MainView {
                     .preset_picker_selection
                     .clear(tasty_presets::PresetKind::Workspace);
                 state.dispatch_intent(
-                    UiIntent::OpenPopup {
-                        id: preset_apply::APPLY_WORKSPACE_POPUP_ID,
-                        mode: OpenPopupMode::CenteredFocused(
+                    UiIntent::OpenPopup(
+                        crate::intent::OpenRequest::new(
+                            preset_apply::APPLY_WORKSPACE_POPUP_ID,
                             crate::model::popup_kind::PopupScope::Window,
-                        ),
-                    }
+                        )
+                        .centered()
+                        .focused(),
+                    )
                     .from_user_shortcut("apply_workspace_preset"),
                 );
                 return;

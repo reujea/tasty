@@ -305,10 +305,14 @@ pub(crate) fn open_picker_from_read(
     if let Some(picker) = state.dialogs.file_handler_picker.as_mut() {
         set_picker_origin(picker, engine, origin.dispatch_origin());
     }
-    let intent = crate::intent::UiIntent::OpenPopup {
-        id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused(origin.scope()),
-    };
+    let intent = crate::intent::UiIntent::OpenPopup(
+        crate::intent::OpenRequest::new(
+            crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
+            origin.scope(),
+        )
+        .centered()
+        .focused(),
+    );
     state.dispatch_intent(match dispatch_origin {
         FileDispatchOrigin::User => intent.from_user_menu("file_dispatch"),
         FileDispatchOrigin::Agent | FileDispatchOrigin::PluginUnverified => intent.from_agent_ipc(),

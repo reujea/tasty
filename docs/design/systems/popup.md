@@ -38,6 +38,8 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 | `Multi` | 열 때마다 새 인스턴스. |
 | `Queue` | 창 안에 하나. |
 
+요청이 쓸 인스턴스가 이미 열려 있을 때의 처리는 요청 종류마다 다르다. `OpenPopup`은 아무것도 바꾸지 않는다(범위 이동·앞으로 가져오기·포커스·데이터 교체가 없다). `TogglePopup`은 그 인스턴스를 닫는다. `ReopenPopup`은 그 인스턴스의 범위가 요청 범위와 다르면 닫기 훅 없이 닫고 요청 범위로 다시 열며, 같으면 위치·포커스·z 순서를 그대로 두고 인스턴스 데이터만 바꾼다. Intent를 거치지 않고 관리자를 직접 부르는 열기(`PopupManager::open_request`, 닫기 훅이 큐의 다음 항목을 열 때 등)는 그 인스턴스를 다시 쓴다. 요청 범위로 옮기고 맨 앞으로 올리며, 위치·데이터를 요청 값으로 바꾸고 요청이 포커스를 주면 포커스를 준다.
+
 지금 host 정의는 모두 `Single`이다. 인스턴스 데이터를 아직 `DialogState`·`MainViewState`의 단일 칸에 두는 팝업은 범위마다 인스턴스를 나누면 한 칸을 함께 쓰게 되기 때문이다.
 
 부모 인스턴스(`PopupState.parent`)가 닫히면 그 자식 인스턴스도 사유 `ParentClosed`로 닫힌다.
@@ -106,7 +108,7 @@ plugin 이 `file_picker.trigger`로 host popup 을 열 때 `owner_popup_instance
 
 ### passive 팝업
 
-origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenPopupMode` 가 정한 위치로 열되 키보드 포커스를 주지 않는다(`intent::popup::open` → `PopupManager::mark_passive`). 빌드와 무관하다. 이 처리는 허용 범위 밖의 요청이 실수로 들어와도 포커스를 빼앗지 않게 하는 안전장치이며, 허용 범위를 넓히지 않는다. 이미 열린 팝업에 온 요청은 무시하므로 사용자가 준 포커스를 빼앗지도 않는다. 예외는 새 요청이 내용과 대상을 바꾸는 `UiIntent::ReopenPopup`이다. 범위가 다르면 기존 팝업을 닫고 새 범위로 다시 연다(`popup-implementation.md`의 `OpenPopupMode` 절). `debug.host_popup.open` 은 사용자 조작 재현이라 사용자 출처로 열어 지금처럼 포커스를 준다.
+origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenRequest` 가 정한 위치로 열되 키보드 포커스를 주지 않는다(`intent::popup::open` → `PopupManager::open_request` 의 `by_user` 가 거짓). 빌드와 무관하다. 이 처리는 허용 범위 밖의 요청이 실수로 들어와도 포커스를 빼앗지 않게 하는 안전장치이며, 허용 범위를 넓히지 않는다. 이미 열린 팝업에 온 요청은 무시하므로 사용자가 준 포커스를 빼앗지도 않는다. 예외는 새 요청이 내용과 대상을 바꾸는 `UiIntent::ReopenPopup`이다. 범위가 다르면 기존 팝업을 닫고 새 범위로 다시 연다(`popup-implementation.md`의 "팝업 열기" 절). `debug.host_popup.open` 은 사용자 조작 재현이라 사용자 출처로 열어 지금처럼 포커스를 준다.
 
 - passive 팝업은 `has_focused()` 에 들지 않으므로 열려 있어도 `keyboard_overlay_open()` 이 거짓이다. 터미널 입력, explorer·dag_graph 처럼 egui 입력을 받는 surface의 입력, native WebView 의 입력이 그대로 이어진다. Esc 의 포커스 해제 대상(`focused_dismissal_target`)도 아니다.
 - native WebView 는 모두 숨기지 않고 키보드 포커스도 회수하지 않는다. 토스트 카드와 같이 팝업 영역과 겹치는 WebView 만, 그 WebView 가 키 입력을 받지 않을 때 숨긴다(`PopupManager::visible_passive_rects`, [webview](webview.md#포커스--회수는-조건부다)). 키를 받는 WebView 와 겹치면 그 WebView 가 팝업을 덮는다. native 위에 egui 를 그리는 층이 없어서이며, 요청은 함께 만든 알림으로도 보인다. 일반 팝업이 떠 있어도 페이지를 보이는 모드는 [WebView §egui 오버레이와 native WebView](webview.md#egui-오버레이와-native-webview)에 있다. 모드는 backend 가 보고한다. Linux(X11)는 XFixes 2.0 과 SHAPE 확장이 있을 때 합성 관리자가 있으면 투명, 없으면 불투명이고, 확장이 없거나 적용이 실패하면 숨김이다. Windows 와 macOS 는 불투명이다. passive 팝업은 그 모드의 대상이 아니다.
@@ -165,7 +167,7 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 차지하므로 둘이 같은 사각형이다. 따라서 이 스코프가 실질적으로 결정하는 것은 **가시성**이다.
 
 **스코프는 `PopupDef` 에 못 박히지 않는다.** 등록 때는 `Window` 로 두고, 여는 쪽이 열 때마다
-범위를 정한다. `OpenPopupMode`의 모든 갈래와 `PopupManager`의 모든 열기 함수가 범위를 받으므로
+범위를 정한다. `OpenRequest`와 `PopupManager`의 모든 열기 함수가 범위를 받으므로
 범위를 주지 않는 열기는 컴파일되지 않는다.
 
 **작용 대상 범위 규칙**: 범위는 팝업이 작용하는 대상(surface·탭·pane·workspace)이 표시되고 조작되는 자리에서 나온다.

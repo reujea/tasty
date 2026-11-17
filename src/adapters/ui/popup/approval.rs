@@ -262,12 +262,14 @@ pub fn on_close_approval_popup(
     state.dialogs.approval_comment_buffer.clear();
     if !state.dialogs.pending_approval_ids.is_empty() {
         state.dispatch_intent(
-            crate::intent::UiIntent::OpenPopup {
-                id: APPROVAL_POPUP_ID,
-                mode: crate::intent::OpenPopupMode::CenteredFocused(
+            crate::intent::UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(
+                    APPROVAL_POPUP_ID,
                     crate::adapters::ui::popup::PopupScope::Window,
-                ),
-            }
+                )
+                .centered()
+                .focused(),
+            )
             .from_agent_ipc(),
         );
     }
@@ -362,12 +364,14 @@ pub fn enqueue_approval(
         .push_back(record.request.id.clone());
     // 에이전트·플러그인 요청이므로 사용자 조작으로 처리하지 않는다. 팝업은 포커스 없이 열린다.
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: APPROVAL_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                APPROVAL_POPUP_ID,
                 crate::adapters::ui::popup::PopupScope::Window,
-            ),
-        }
+            )
+            .centered()
+            .focused(),
+        )
         .from_agent_ipc(),
     );
 

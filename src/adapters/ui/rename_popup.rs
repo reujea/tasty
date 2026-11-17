@@ -2,7 +2,7 @@
 //! 대상을 찾지 못하면 창 범위로 바꾸지 않고 열지 않는다. 새 요청이 범위를 바꾸면 그 범위로 다시 열고,
 //! 앞 요청의 원격 대기 상태는 넘기지 않는다.
 
-use crate::intent::{DispatchedIntent, OpenPopupMode, UiIntent};
+use crate::intent::{DispatchedIntent, UiIntent};
 use crate::state::{MainViewState, RenameTarget};
 
 pub(crate) const RENAME_POPUP_ID: crate::adapters::ui::popup::PopupId = "rename";
@@ -23,10 +23,11 @@ pub(crate) fn open(
     // 다시 열면 닫는 훅이 돌지 않는다. 앞 요청의 원격 대기와 높이가 새 요청에 남지 않게 여기서 비운다.
     state.dialogs.rename_waiting = None;
     state.dialogs.rename_content_height = None;
-    state.dispatch_intent(origin(UiIntent::ReopenPopup {
-        id: RENAME_POPUP_ID,
-        mode: OpenPopupMode::CenteredFocused(scope),
-    }));
+    state.dispatch_intent(origin(UiIntent::ReopenPopup(
+        crate::intent::OpenRequest::new(RENAME_POPUP_ID, scope)
+            .centered()
+            .focused(),
+    )));
     true
 }
 
@@ -42,10 +43,13 @@ mod tests {
             [
                 DispatchedIntent {
                     body:
-                        crate::intent::Intent::Ui(UiIntent::ReopenPopup {
+                        crate::intent::Intent::Ui(UiIntent::ReopenPopup(crate::intent::OpenRequest {
                             id: RENAME_POPUP_ID,
-                            mode: OpenPopupMode::CenteredFocused(scope),
-                        }),
+                            scope,
+                            placement: crate::intent::PopupPlacement::ScopeCenter,
+                            focus: true,
+                            ..
+                        })),
                     ..
                 },
             ] => Some(scope.clone()),

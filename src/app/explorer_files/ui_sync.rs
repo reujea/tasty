@@ -462,10 +462,14 @@ fn sync_queues(state: &mut MainViewState) -> bool {
 /// 충돌 질문을 그 칸에 띄운다.
 pub(crate) fn open_conflict(state: &mut MainViewState, surface: u32, source: &'static str) {
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: EXPLORER_CONFLICT_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(PopupScope::Surface(surface)),
-        }
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                EXPLORER_CONFLICT_POPUP_ID,
+                PopupScope::Surface(surface),
+            )
+            .centered()
+            .focused(),
+        )
         .from_user_menu(source),
     );
 }

@@ -1,11 +1,11 @@
-//! 팝업 Intent 처리. 위치는 호출자가 고른 OpenPopupMode를 따른다. 사용자 조작이 아닌
+//! 팝업 Intent 처리. 범위·위치·포커스는 열기 요청(`OpenRequest`)을 따른다. 사용자 조작이 아닌
 //! 요청으로 연 팝업은 키보드 포커스를 갖지 않는 passive 상태로 연다.
 //! 정책: docs/design/flows/action-dispatch.md, docs/design/systems/popup.md.
 
 #[cfg(feature = "gui")]
 use super::DispatchedIntent;
 #[cfg(feature = "gui")]
-use super::{Intent, OpenPopupMode, UiIntent};
+use super::{Intent, OpenRequest, UiIntent};
 #[cfg(feature = "gui")]
 use crate::state::RequestContext;
 
@@ -57,17 +57,10 @@ pub fn handle(
                 }
             }
 
-            UiIntent::OpenPopup { id, mode } => open(state, id, mode, intent.origin.is_user()),
-            UiIntent::ReopenPopup { id, mode } => {
-                if state
-                    .popups
-                    .open_scope(id)
-                    .is_some_and(|scope| scope != mode.scope())
-                {
-                    state.popups.close_for_reopen(id);
-                }
-                open(state, id, mode, intent.origin.is_user());
+            UiIntent::OpenPopup(request) => {
+                open(state, request, intent.origin.is_user());
             }
+            UiIntent::ReopenPopup(request) => reopen(state, request, intent.origin.is_user()),
             UiIntent::ClosePopup { id } => state.popups.close(id),
             UiIntent::CloseInstance { instance, reason } => {
                 state.popups.close_instance(*instance, *reason)
@@ -77,11 +70,15 @@ pub fn handle(
                     state.popups.focus_passive(id);
                 }
             }
-            UiIntent::TogglePopup { id, mode } => {
-                if state.popups.is_open(id) {
-                    state.popups.close(id);
-                } else {
-                    open(state, id, mode, intent.origin.is_user());
+            UiIntent::TogglePopup(request) => {
+                match state.popups.instance_for(request.id, &request.scope) {
+                    Some(instance) => state.popups.close_instance(
+                        instance,
+                        crate::adapters::ui::popup::PopupCloseReason::Command,
+                    ),
+                    None => {
+                        open(state, request, intent.origin.is_user());
+                    }
                 }
             }
             UiIntent::RequestSurfaceRefresh {
@@ -131,33 +128,48 @@ fn enqueue_refresh(
     });
 }
 
+/// 요청을 연다. 인스턴스 정책이 이 요청에 쓸 인스턴스가 이미 열려 있으면 아무것도 바꾸지 않는다
+/// (사용자가 준 포커스를 빼앗지 않는다). 열었으면 새 인스턴스 id다.
 #[cfg(feature = "gui")]
-fn open(state: &mut RequestContext, id: &'static str, mode: &OpenPopupMode, by_user: bool) {
-    if state.popups.is_open(id) {
-        return;
+fn open(
+    state: &mut RequestContext,
+    request: &OpenRequest,
+    by_user: bool,
+) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
+    if state
+        .popups
+        .instance_for(request.id, &request.scope)
+        .is_some()
+    {
+        return None;
     }
-    if id == crate::adapters::ui::tutorial::topic_popup::TUTORIAL_TOPICS_POPUP_ID {
-        crate::adapters::ui::tutorial::open_catalog(state);
+    if let Some(on_open) =
+        crate::adapters::ui::popup::defs::find(request.id).and_then(|def| def.on_open)
+    {
+        on_open(state);
     }
-    if id == crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID {
-        state
-            .tutorial
-            .observe(crate::adapters::ui::tutorial::PracticeEvent::OpenPalette);
-    }
-    let _opened = match mode {
-        OpenPopupMode::Default(scope) => state.popups.open(id, scope.clone()),
-        OpenPopupMode::CenteredFocused(scope) => {
-            state.popups.open_centered_focused(id, scope.clone())
-        }
-        OpenPopupMode::AtTopOfScope(scope) => state.popups.open_at_top_of_scope(id, scope.clone()),
-        OpenPopupMode::AtFocused(scope, pos) => {
-            state.popups.open_at_focused(id, scope.clone(), *pos)
-        }
-    };
     // 에이전트·플러그인·시스템 요청이 사용자의 키 입력을 가로채지 않게 한다.
-    if !by_user {
-        state.popups.mark_passive(id);
+    state.popups.open_request(request, by_user)
+}
+
+/// 새 요청이 내용과 대상을 바꾼 팝업을 다시 연다. 이 요청에 쓸 인스턴스가 다른 범위에 열려 있으면 닫기 훅 없이
+/// 닫고 새 범위로 연다. 같은 범위에 열려 있으면 위치·포커스는 그대로 두고 인스턴스 데이터만 바꾼다.
+#[cfg(feature = "gui")]
+fn reopen(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
+    if let Some(instance) = state.popups.instance_for(request.id, &request.scope) {
+        let same_scope = state
+            .popups
+            .instance(instance)
+            .is_some_and(|p| p.scope == request.scope);
+        if same_scope {
+            state
+                .popups
+                .replace_payload(instance, request.payload.clone());
+            return;
+        }
+        state.popups.close_for_reopen(request.id);
     }
+    open(state, request, by_user);
 }
 
 /// 시험용: 쌓인 intent 를 팝업 처리기로 차례로 반영한다(팝업 열기·닫기만 바뀐다).
@@ -191,8 +203,27 @@ mod tests {
         (state, engine_session)
     }
 
+    /// 시험이 고르는 열기 위치·포커스 조합.
+    enum OpenPopupMode {
+        Default(PopupScope),
+        CenteredFocused(PopupScope),
+        AtTopOfScope(PopupScope),
+        AtFocused(PopupScope, egui::Pos2),
+    }
+
+    impl OpenPopupMode {
+        fn request(self, id: &'static str) -> OpenRequest {
+            match self {
+                Self::Default(scope) => OpenRequest::new(id, scope),
+                Self::CenteredFocused(scope) => OpenRequest::new(id, scope).centered().focused(),
+                Self::AtTopOfScope(scope) => OpenRequest::new(id, scope).at_top().focused(),
+                Self::AtFocused(scope, pos) => OpenRequest::new(id, scope).at(pos).focused(),
+            }
+        }
+    }
+
     fn dispatched_open(id: &'static str, mode: OpenPopupMode) -> DispatchedIntent {
-        UiIntent::OpenPopup { id, mode }.from_user_shortcut("test")
+        UiIntent::OpenPopup(mode.request(id)).from_user_shortcut("test")
     }
 
     fn dispatched_close(id: &'static str) -> DispatchedIntent {
@@ -238,10 +269,10 @@ mod tests {
     fn toggle_opens_when_closed_closes_when_open() {
         let (mut state, mut engine_session) = make_state();
         let mut engine = engine_session.borrow_mut();
-        let toggle = UiIntent::TogglePopup {
-            id: "test_popup",
-            mode: OpenPopupMode::Default(PopupScope::Window),
-        }
+        let toggle = UiIntent::TogglePopup(crate::intent::OpenRequest::new(
+            "test_popup",
+            PopupScope::Window,
+        ))
         .from_user_shortcut("test");
         handle(&mut state, &mut engine, &toggle);
         assert!(state.popups.is_open("test_popup"));
@@ -264,11 +295,8 @@ mod tests {
     }
 
     fn dispatched_reopen(id: &'static str, scope: PopupScope) -> DispatchedIntent {
-        UiIntent::ReopenPopup {
-            id,
-            mode: OpenPopupMode::CenteredFocused(scope),
-        }
-        .from_user_shortcut("test")
+        UiIntent::ReopenPopup(OpenPopupMode::CenteredFocused(scope).request(id))
+            .from_user_shortcut("test")
     }
 
     /// 다른 범위의 다시 열기 요청은 닫고 새 범위로 연다. 내용은 새 요청이 채웠으므로 on_close 를 부르지 않는다.
@@ -342,10 +370,10 @@ mod tests {
     fn toggle_close_branch_pushes_to_closed_queue() {
         let (mut state, mut engine_session) = make_state();
         let mut engine = engine_session.borrow_mut();
-        let toggle = UiIntent::TogglePopup {
-            id: "test_popup",
-            mode: OpenPopupMode::Default(PopupScope::Window),
-        }
+        let toggle = UiIntent::TogglePopup(crate::intent::OpenRequest::new(
+            "test_popup",
+            PopupScope::Window,
+        ))
         .from_user_shortcut("test");
         handle(&mut state, &mut engine, &toggle);
         assert!(state.popups.take_closed_ids().is_empty());
@@ -360,10 +388,11 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &UiIntent::OpenPopup {
-                id: "test_popup",
-                mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
-            }
+            &UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new("test_popup", PopupScope::Window)
+                    .centered()
+                    .focused(),
+            )
             .from_agent_ipc(),
         );
         assert!(state.popups.is_open("test_popup"));
@@ -406,10 +435,11 @@ mod tests {
         handle(
             &mut state,
             &mut engine,
-            &UiIntent::OpenPopup {
-                id: "test_popup",
-                mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
-            }
+            &UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new("test_popup", PopupScope::Window)
+                    .centered()
+                    .focused(),
+            )
             .from_agent_ipc(),
         );
         assert!(state.popups.is_focused("test_popup"));
@@ -423,10 +453,11 @@ mod tests {
         handle(
             state,
             engine,
-            &UiIntent::OpenPopup {
-                id: "test_popup",
-                mode: OpenPopupMode::CenteredFocused(PopupScope::Window),
-            }
+            &UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new("test_popup", PopupScope::Window)
+                    .centered()
+                    .focused(),
+            )
             .from_agent_ipc(),
         );
         assert!(state.popups.is_passive("test_popup"));

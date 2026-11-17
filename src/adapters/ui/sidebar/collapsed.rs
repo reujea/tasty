@@ -140,13 +140,14 @@ pub fn draw_collapsed_sidebar(
                 state.dialogs.rail_category_popup = Some(cat_id);
                 let pos = egui::pos2(anchor.right() + 6.0, anchor.top() - 6.0);
                 state.dispatch_intent(
-                    crate::intent::UiIntent::OpenPopup {
-                        id: crate::adapters::ui::popup::rail_category::RAIL_CATEGORY_POPUP_ID,
-                        mode: crate::intent::OpenPopupMode::AtFocused(
+                    crate::intent::UiIntent::OpenPopup(
+                        crate::intent::OpenRequest::new(
+                            crate::adapters::ui::popup::rail_category::RAIL_CATEGORY_POPUP_ID,
                             crate::model::popup_kind::PopupScope::Window,
-                            pos,
-                        ),
-                    }
+                        )
+                        .at(pos)
+                        .focused(),
+                    )
                     .from_user_menu("rail_category_button"),
                 );
             }

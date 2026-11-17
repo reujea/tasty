@@ -1044,10 +1044,11 @@ pub(crate) fn open(
 
     navigate(state, engine, |dir, _is_remote| dir.to_string());
 
-    let open_popup = crate::intent::UiIntent::OpenPopup {
-        id: FILE_PICKER_POPUP_ID,
-        mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-    };
+    let open_popup = crate::intent::UiIntent::OpenPopup(
+        crate::intent::OpenRequest::new(FILE_PICKER_POPUP_ID, scope)
+            .centered()
+            .focused(),
+    );
     let dispatched = match opened_by {
         FilePickerOpenedBy::Plugin(req) => open_popup.from_agent_plugin(req.plugin_id),
         FilePickerOpenedBy::PluginForUser(_) => open_popup.from_user_menu("plugin_page"),

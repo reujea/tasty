@@ -100,14 +100,20 @@ fn opened_scope(state: &mut MainViewState, id: &str) -> crate::model::popup_kind
             crate::intent::DispatchedIntent {
                 body:
                     crate::intent::Intent::Ui(
-                        crate::intent::UiIntent::OpenPopup {
+                        crate::intent::UiIntent::OpenPopup(crate::intent::OpenRequest {
                             id: opened,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-                        }
-                        | crate::intent::UiIntent::ReopenPopup {
+                            scope,
+                            placement: crate::intent::PopupPlacement::ScopeCenter,
+                            focus: true,
+                            ..
+                        })
+                        | crate::intent::UiIntent::ReopenPopup(crate::intent::OpenRequest {
                             id: opened,
-                            mode: crate::intent::OpenPopupMode::CenteredFocused(scope),
-                        },
+                            scope,
+                            placement: crate::intent::PopupPlacement::ScopeCenter,
+                            focus: true,
+                            ..
+                        }),
                     ),
                 ..
             },

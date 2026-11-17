@@ -12,10 +12,10 @@ fn open_popup_requests(intents: &[DispatchedIntent]) -> Vec<&DispatchedIntent> {
         .filter(|r| {
             matches!(
                 r.body,
-                Intent::Ui(UiIntent::OpenPopup {
+                Intent::Ui(UiIntent::OpenPopup(crate::intent::OpenRequest {
                     id: FILE_PICKER_POPUP_ID,
                     ..
-                })
+                }))
             )
         })
         .collect()

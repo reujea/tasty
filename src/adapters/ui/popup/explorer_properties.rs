@@ -107,12 +107,14 @@ pub(crate) fn open(
     }
     dispatch(
         state,
-        crate::intent::UiIntent::OpenPopup {
-            id: EXPLORER_PROPERTIES_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused(
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                EXPLORER_PROPERTIES_POPUP_ID,
                 crate::model::popup_kind::PopupScope::Surface(surface_id),
-            ),
-        },
+            )
+            .centered()
+            .focused(),
+        ),
     );
 }
 

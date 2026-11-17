@@ -12,6 +12,7 @@ pub(crate) mod explorer_conflict;
 pub(crate) mod explorer_properties;
 pub(crate) mod file_handler_picker;
 pub(crate) mod file_picker;
+mod focus;
 pub(crate) mod frame;
 pub(crate) mod occlusion;
 pub(crate) mod port_scanner;
@@ -278,6 +279,8 @@ pub struct PopupDef {
     /// 전체화면 버튼으로 열 무대 ID. None이거나 headless면 버튼이 없다.
     /// 무대는 별도 콘텐츠이며 원본 팝업은 열린 채 그 아래 남는다.
     pub fullscreen_stage: Option<crate::adapters::ui::fullscreen::StageId>,
+    /// 사용자·에이전트 요청으로 인스턴스를 열기 직전에 부른다. 열려 있는 인스턴스를 다시 쓰는 요청에서는 부르지 않는다.
+    pub on_open: Option<fn(&mut MainViewState)>,
     /// 열린 팝업이 close()를 통해 닫히면 closed_queue에 기록하고 frame에서 훅을 호출한다.
     /// egui 임시 상태를 지울 수 있도록 Context를 받는다.
     pub on_close: Option<PopupCloseHook>,
@@ -831,13 +834,76 @@ impl PopupManager {
         Some(&mut self.popups[i])
     }
 
+    /// 인스턴스 정책으로 보아 이 요청이 쓸 열린 인스턴스. `Multi`는 늘 새로 열므로 없다.
+    pub fn instance_for(&self, id: PopupId, scope: &PopupScope) -> Option<PopupInstanceId> {
+        let policy = self.popups.iter().find(|p| p.id == id)?.instances;
+        let found = match policy {
+            PopupInstances::Single | PopupInstances::Queue => self.topmost_of(id),
+            PopupInstances::PerScopeTarget => self
+                .popups
+                .iter()
+                .rev()
+                .find(|p| p.id == id && p.open && p.scope == *scope),
+            PopupInstances::Multi => None,
+        };
+        found.map(|p| p.instance)
+    }
+
+    /// 열기 요청 하나를 인스턴스로 연다. 위치·포커스·부모·데이터는 요청을 따른다.
+    /// 사용자 출처가 아니면 포커스 없이 passive로 연다. 선언이 등록되지 않았으면 `None`이다.
+    pub fn open_request(
+        &mut self,
+        request: &crate::intent::OpenRequest,
+        by_user: bool,
+    ) -> Option<PopupInstanceId> {
+        use crate::intent::PopupPlacement;
+        let p = self.open_slot(request.id, request.scope.clone())?;
+        match request.placement {
+            PopupPlacement::Keep => {}
+            PopupPlacement::ScopeCenter => p.request_center = true,
+            PopupPlacement::ScopeTop => {
+                p.request_center = false;
+                p.request_top = true;
+            }
+            PopupPlacement::AtPoint(pos) => {
+                p.pos = pos;
+                p.request_center = false;
+            }
+        }
+        if request.focus {
+            p.focused = true;
+            p.passive = false;
+        }
+        if !by_user {
+            p.focused = false;
+            p.passive = true;
+        }
+        p.parent = request.parent;
+        p.payload = request.payload.clone();
+        let (iid, focused) = (p.instance, p.focused);
+        // 키 입력은 포커스를 가진 인스턴스만 받는다. 같은 선언에서 포커스는 하나만 남긴다.
+        if focused {
+            self.give_focus(iid, false);
+        }
+        Some(iid)
+    }
+
+    /// 열린 인스턴스의 데이터를 바꾼다. 위치·포커스는 그대로다.
+    pub fn replace_payload(&mut self, iid: PopupInstanceId, payload: PopupPayload) {
+        if let Some(p) = self.instance_mut(iid) {
+            p.payload = payload;
+        }
+    }
+
     /// 팝업을 맨 앞으로 열고 범위를 정한다. 위치와 포커스는 바꾸지 않는다.
     /// 모든 열기 함수가 범위를 받는다. 등록 값이나 직전에 열렸을 때의 범위를 쓰지 않는다.
+    #[cfg(test)]
     pub fn open(&mut self, id: PopupId, scope: PopupScope) -> Option<PopupInstanceId> {
         self.open_slot(id, scope).map(|p| p.instance)
     }
 
-    /// 범위의 중앙에 열고 포커스를 준다.
+    /// 범위의 중앙에 열고 포커스를 준다. 요청 출처를 보지 않으므로 메인 창의 팝업은 `open_request`로 열고,
+    /// 이 함수는 별도 창(설정 창·파일 선택 창)이 자기 관리자에서만 쓴다.
     pub fn open_centered_focused(
         &mut self,
         id: PopupId,
@@ -850,31 +916,8 @@ impl PopupManager {
         Some(p.instance)
     }
 
-    /// 범위의 중앙에 포커스 **없이** 연다(에이전트·시스템 요청).
-    /// 사용자의 포커스를 훔치지 않는다. CLI/IPC 경유 open에 사용.
-    pub fn open_centered(&mut self, id: PopupId, scope: PopupScope) -> Option<PopupInstanceId> {
-        let p = self.open_slot(id, scope)?;
-        p.focused = false;
-        p.request_center = true;
-        Some(p.instance)
-    }
-
-    /// Open a popup at the top of a specific scope, with focus.
-    /// scope rect의 상단에 가로 중앙 정렬로 배치한다.
-    pub fn open_at_top_of_scope(
-        &mut self,
-        id: PopupId,
-        scope: PopupScope,
-    ) -> Option<PopupInstanceId> {
-        let p = self.open_slot(id, scope)?;
-        p.focused = true;
-        p.passive = false;
-        p.request_center = false;
-        p.request_top = true;
-        Some(p.instance)
-    }
-
     /// 지정한 위치에 열고 포커스를 준다.
+    #[cfg(test)]
     pub fn open_at_focused(
         &mut self,
         id: PopupId,
@@ -1105,26 +1148,12 @@ impl PopupManager {
         }
     }
 
-    /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 다른 인스턴스는 건드리지 않는다.
+    /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 켤 때는 같은 선언의 다른 인스턴스 포커스를 푼다.
     pub fn set_instance_focused(&mut self, iid: PopupInstanceId, focused: bool) {
-        if let Some(p) = self.instance_mut(iid) {
-            p.focused = focused;
-            p.passive &= !focused;
-        }
-    }
-
-    /// 사용자 조작 근거가 없는 열기다. 맨 위 인스턴스의 키보드 포커스를 빼고 passive로 표시한다.
-    pub fn mark_passive(&mut self, id: PopupId) {
-        if let Some(iid) = self.topmost_of(id).map(|p| p.instance) {
-            self.mark_instance_passive(iid);
-        }
-    }
-
-    /// 인스턴스 하나를 passive로 표시한다.
-    pub fn mark_instance_passive(&mut self, iid: PopupInstanceId) {
-        if let Some(p) = self.instance_mut(iid) {
+        if focused {
+            self.give_focus(iid, false);
+        } else if let Some(p) = self.instance_mut(iid) {
             p.focused = false;
-            p.passive = true;
         }
     }
 
@@ -1140,12 +1169,7 @@ impl PopupManager {
         else {
             return false;
         };
-        for popup in &mut self.popups {
-            if popup.scope_visible {
-                popup.focused = popup.open && popup.instance == iid;
-                popup.passive &= !popup.focused;
-            }
-        }
+        self.give_focus(iid, true);
         self.bring_to_front(iid);
         true
     }

@@ -79,7 +79,7 @@ fn take_picker_open_request(state: &mut crate::state::RequestContext, agent: boo
     assert_eq!(pending.len(), 1);
     assert!(matches!(
         &pending[0].body,
-        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. }))
             if *id == crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID
     ));
     assert_eq!(pending[0].origin.is_agent(), agent);

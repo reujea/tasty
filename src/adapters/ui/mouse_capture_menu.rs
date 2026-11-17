@@ -9,7 +9,7 @@ use crate::adapters::ui::banner::BannerScope;
 use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::PopupAction;
 use crate::i18n::t;
-use crate::intent::{OpenPopupMode, UiIntent};
+use crate::intent::UiIntent;
 use crate::state::MainViewState;
 use crate::theme::{self, Theme};
 use tasty_icons::Icon;
@@ -162,14 +162,15 @@ pub fn open(
     }
 
     state.dispatch_intent(
-        UiIntent::OpenPopup {
-            id: MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
-            // 메뉴는 배너가 있는 surface 하나에 작용한다. 배너와 같은 surface 범위로 연다.
-            mode: OpenPopupMode::AtFocused(
+        // 메뉴는 배너가 있는 surface 하나에 작용한다. 배너와 같은 surface 범위로 연다.
+        UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
                 crate::model::popup_kind::PopupScope::Surface(*surface_id),
-                pos,
-            ),
-        }
+            )
+            .at(pos)
+            .focused(),
+        )
         .from_user_menu("mouse_capture_banner"),
     );
 }

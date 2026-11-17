@@ -155,16 +155,12 @@ pub(super) fn handle_debug_host_popup_open(
             "surface_scope requested but no surface is focused",
         );
     }
-    let mode = match (workspace_scope, bound_surface) {
-        (_, Some(sid)) => crate::intent::OpenPopupMode::CenteredFocused(
-            crate::adapters::ui::popup::PopupScope::Surface(sid),
-        ),
-        (true, None) => crate::intent::OpenPopupMode::CenteredFocused(
-            crate::adapters::ui::popup::PopupScope::Workspace(state.active_workspace(engine).id),
-        ),
-        (false, None) => crate::intent::OpenPopupMode::CenteredFocused(
-            crate::model::popup_kind::PopupScope::Window,
-        ),
+    let scope = match (workspace_scope, bound_surface) {
+        (_, Some(sid)) => crate::adapters::ui::popup::PopupScope::Surface(sid),
+        (true, None) => {
+            crate::adapters::ui::popup::PopupScope::Workspace(state.active_workspace(engine).id)
+        }
+        (false, None) => crate::model::popup_kind::PopupScope::Window,
     };
     // 변환 팝업은 범위 외에도 dialogs에서 대상 surface를 읽는다.
     if def.id == "convert_surface" {
@@ -173,7 +169,12 @@ pub(super) fn handle_debug_host_popup_open(
     }
     // 사용자 조작 재현이므로 사용자 출처로 열어 포커스를 준다.
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup { id: def.id, mode }.from_user_menu("debug.popup.open"),
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(def.id, scope)
+                .centered()
+                .focused(),
+        )
+        .from_user_menu("debug.popup.open"),
     );
     JsonRpcResponse::success(
         id,

@@ -84,11 +84,10 @@ pub(crate) fn sync(
         return;
     };
     // intent-exempt: 연결 상태를 따라 매 프레임 맞추는 수동 팝업이다. 포커스를 받지 않고 사용자 선택을 바꾸지 않는다.
-    state
-        .popups
-        .open_centered_focused(id, PopupScope::Workspace(ws_id));
-    state.popups.set_focused(id, false);
-    state.popups.mark_passive(id);
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(id, PopupScope::Workspace(ws_id)).centered(),
+        false,
+    );
     if id == REMOTE_ROW_SCRIM_POPUP_ID && previous.is_none_or(|(_, row)| row == ws_id) {
         state.dialogs.remote_row_popup.dropped = true;
         // 다른 workspace 에서 연 picker 는 그 행으로 옮겨 와도 닫지 않는다.
@@ -326,6 +325,7 @@ pub(crate) fn def(id: PopupId, over_screen: bool) -> PopupDef {
         title_fn: None,
         sizer: Some(sizer),
         drag_region: None,
+        on_open: None,
         draw_fn: draw,
         on_close: Some(on_close),
     }

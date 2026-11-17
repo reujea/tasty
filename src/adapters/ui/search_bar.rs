@@ -55,7 +55,7 @@ pub(crate) fn open_or_focus_for(
     focused_surface: Option<u32>,
     source: &'static str,
 ) {
-    use crate::intent::{OpenPopupMode, UiIntent};
+    use crate::intent::UiIntent;
     let Some(sid) = focused_surface else {
         return;
     };
@@ -73,13 +73,19 @@ pub(crate) fn open_or_focus_for(
         state
             .popups
             // intent-exempt: 열린 팝업의 OpenPopup은 무시되고 close→reopen은 늦은 on_close가 새 검색을 지운다. intent 로그 없음.
-            .open_at_top_of_scope(SEARCH_BAR_POPUP_ID, scope);
+            .open_request(
+                &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, scope)
+                    .at_top()
+                    .focused(),
+                true,
+            );
     } else {
         state.dispatch_intent(
-            UiIntent::OpenPopup {
-                id: SEARCH_BAR_POPUP_ID,
-                mode: OpenPopupMode::AtTopOfScope(scope),
-            }
+            UiIntent::OpenPopup(
+                crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, scope)
+                    .at_top()
+                    .focused(),
+            )
             .from_user_shortcut(source),
         );
     }

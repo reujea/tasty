@@ -26,7 +26,7 @@ EXECUTION_CALLS = {(
 
 POPUP_METHODS = (
     "open|open_centered|open_centered_focused|open_at_top_of_scope"
-    "|open_at_focused|close|toggle|toggle_focused"
+    "|open_at_focused|open_request|close|close_with|close_instance|toggle|toggle_focused"
 )
 PRESET_METHODS = (
     "save_workspace|save_workspace_overwrite|save_tab|save_tab_overwrite|save_pane"
