@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_model::html_script::{AllowError, HtmlScriptState, RemoteAllowError};
 
-use super::html_script::find_html;
+use super::html_script::{find_html, script_gate};
 use super::html_script_allow::{
     DOCUMENT_CHANGED, HTML_SCRIPT_ALLOW_REFUSED, document_args, document_changed, document_json,
 };
@@ -68,7 +68,7 @@ pub(crate) fn handle_html_remote_allow(
         Ok(args) => args,
         Err(e) => return e,
     };
-    let (surface_id, rs) = match find_html(engine, &id, params) {
+    let (surface_id, rs) = match find_html(engine, &id, params, script_gate) {
         Ok(found) => found,
         Err(e) => return e,
     };

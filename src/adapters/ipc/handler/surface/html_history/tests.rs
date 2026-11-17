@@ -130,3 +130,35 @@ fn rejects_a_mirror_placeholder_without_forwarding() {
         "원격 전달 intent가 생겼다"
     );
 }
+
+/// 문서 주소·탐색 IPC는 `address_band`를, 스크립트 IPC는 `script_gate`를 선언한 kind를 대상으로 한다.
+#[test]
+fn navigation_follows_the_address_band_and_scripts_follow_the_gate() {
+    use crate::adapters::ipc::handler::surface::{handle_html_nav, handle_html_script};
+    use crate::plugin_bridge::remote_surface::RemoteSurface;
+    use crate::runtime::surface_registry::KindCapabilities;
+    let (mut state, mut engine_session, _) = state_with_html_tab();
+    let engine = engine_session.borrow_mut();
+    let surface = RemoteSurface::new(5, "my-web", "com.example.web".into(), "web".into())
+        .with_capabilities(KindCapabilities {
+            address_band: true,
+            ..KindCapabilities::default()
+        });
+    engine.runtime.surfaces.insert(5, Box::new(surface));
+    let params = json!({ "surface_id": 5 });
+    assert!(
+        handle_html_nav(&engine.as_ref(), json!(1), &params)
+            .error
+            .is_none(),
+        "html_nav"
+    );
+    assert!(
+        handle_html_script(&engine.as_ref(), json!(1), &params)
+            .error
+            .is_some(),
+        "html_script"
+    );
+    let (resp, queue) = step_on(&mut state, &engine, 5, WebViewHistoryStep::Back);
+    assert!(resp.error.is_none(), "html_back");
+    assert_eq!(queue, vec![(5, WebViewHistoryStep::Back)]);
+}

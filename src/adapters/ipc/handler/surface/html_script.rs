@@ -15,12 +15,25 @@ use tasty_model::html_script::HtmlScriptState;
 use super::require_surface_id;
 use crate::model::{NavState, Surface};
 use crate::plugin_bridge::remote_surface::RemoteSurface;
+use crate::runtime::surface_registry::KindCapabilities;
 
-/// params의 surface_id로 html surface를 찾는다. 없거나 html이 아니면 invalid params로 답한다.
+/// 문서 주소와 탐색(주소 띠가 하는 일)의 대상. kind가 `address_band`를 선언해야 한다.
+pub(super) fn address_band(capabilities: &KindCapabilities) -> bool {
+    capabilities.address_band
+}
+
+/// 스크립트·원격 콘텐츠의 문서별 허용(스크립트 게이트가 하는 일)의 대상. kind가 `script_gate`를 선언해야 한다.
+pub(super) fn script_gate(capabilities: &KindCapabilities) -> bool {
+    capabilities.script_gate
+}
+
+/// params의 surface_id로 `wanted` 능력을 선언한 kind의 surface를 찾는다. 없거나 선언하지 않았으면
+/// invalid params로 답한다.
 pub(super) fn find_html<'a>(
     engine: &'a crate::runtime::engine_access::EngineRef<'_>,
     id: &Value,
     params: &Value,
+    wanted: fn(&KindCapabilities) -> bool,
 ) -> Result<(u32, &'a RemoteSurface), JsonRpcResponse> {
     let surface_id = require_surface_id(params, id)?;
     let Some(surface) = engine.find_surface_by_id(surface_id) else {
@@ -32,7 +45,7 @@ pub(super) fn find_html<'a>(
     surface
         .as_any()
         .downcast_ref::<RemoteSurface>()
-        .filter(|rs| rs.capabilities.script_gate)
+        .filter(|rs| wanted(&rs.capabilities))
         .map(|rs| (surface_id, rs))
         .ok_or_else(|| {
             JsonRpcResponse::invalid_params(
@@ -47,7 +60,7 @@ pub(crate) fn handle_html_script(
     id: Value,
     params: &Value,
 ) -> JsonRpcResponse {
-    let (surface_id, rs) = match find_html(engine, &id, params) {
+    let (surface_id, rs) = match find_html(engine, &id, params, script_gate) {
         Ok(found) => found,
         Err(e) => return e,
     };
@@ -61,7 +74,7 @@ pub(crate) fn handle_html_nav(
     id: Value,
     params: &Value,
 ) -> JsonRpcResponse {
-    let (surface_id, rs) = match find_html(engine, &id, params) {
+    let (surface_id, rs) = match find_html(engine, &id, params, address_band) {
         Ok(found) => found,
         Err(e) => return e,
     };

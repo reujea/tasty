@@ -8,7 +8,7 @@
 use serde_json::{Value, json};
 use tasty_ipc::protocol::JsonRpcResponse;
 
-use super::html_script::find_html;
+use super::html_script::{address_band, find_html};
 use crate::ipc::window_port::IpcWindow;
 use crate::webview::WebViewHistoryStep;
 
@@ -19,7 +19,7 @@ pub(crate) fn handle_html_history(
     params: &Value,
     step: WebViewHistoryStep,
 ) -> JsonRpcResponse {
-    let (surface_id, _) = match find_html(engine, &id, params) {
+    let (surface_id, _) = match find_html(engine, &id, params, address_band) {
         Ok(found) => found,
         Err(e) => return e,
     };

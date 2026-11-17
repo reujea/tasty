@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_model::html_script::{AllowError, HtmlScriptState};
 
-use super::html_script::find_html;
+use super::html_script::{find_html, script_gate};
 
 /// 허용을 거절한 상태 오류. 사유는 `error.data.reason`으로 구분한다.
 pub(crate) const HTML_SCRIPT_ALLOW_REFUSED: i32 = -32022;
@@ -107,7 +107,7 @@ pub(crate) fn handle_html_script_allow(
         Ok(args) => args,
         Err(e) => return e,
     };
-    let (surface_id, rs) = match find_html(engine, &id, params) {
+    let (surface_id, rs) = match find_html(engine, &id, params, script_gate) {
         Ok(found) => found,
         Err(e) => return e,
     };

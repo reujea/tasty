@@ -75,7 +75,7 @@ HTML / 웹 콘텐츠를 보는 **`html` surface 종류**를 제공한다. `rende
   - 같은 redraw에서는 사용자 탐색 큐를 먼저, 에이전트 히스토리 큐를 다음에 처리한다.
   - 창이 없는 parked 세션의 surface도 대상 확인을 통과해 `queued: true`로 답하고, 요청은 그 세션의 큐에 쌓인다. 창이 복원되면 첫 redraw가 WebView를 새로 만들고 초기 로드를 시작한 뒤 큐를 적용한다. 새 WebView는 히스토리가 없고 아직 commit한 문서도 없어 뒤로·앞으로·새로고침 모두 갈 곳 없는 이동으로 버려진다(코드 순서와 공통 주소 선택 규칙에 따른 서술이며 실제 실행으로 재지 않았다).
   - 핸들러가 관측 사본(`surface.html_nav`가 읽는 값)으로 미리 판정하지 않는 이유: 사본은 redraw 때만 갱신된다. Linux 실제 실행에서 뒤로 간 뒤 3초 동안 다른 요청 없이 기다렸다가 앞으로를 요청하면, 사본의 `can_go_forward`가 아직 `false`라 4회 중 2회 갈 수 있는 이동을 거절했다. 그래서 판정은 적용 시점의 backend 값으로만 한다.
-  - `script_gate`를 선언하지 않은 kind의 surface와 없는 surface는 `surface.html_nav`와 같이 invalid params로 거절한다. 협상된 HTML mirror의 Reload는 새 entry를 받고 수신량·크기 허용을 초기화한다. Back·Forward는 적용하지 않으며 미지원 placeholder는 거절한다. 원격 호스트로 스크립트 허용을 전달하지 않는다. 헤드리스 빌드는 `-32017`로 답한다.
+  - 대상은 kind가 `address_band`를 선언한 surface다. `surface.html_nav`도 같은 대상 확인을 쓴다. 선언하지 않은 kind의 surface와 없는 surface는 invalid params로 거절한다. 스크립트 조회·허용(`surface.html_script`·`surface.html_script_allow`·`surface.html_remote_allow`)은 `script_gate`를 본다. 협상된 HTML mirror의 Reload는 새 entry를 받고 수신량·크기 허용을 초기화한다. Back·Forward는 적용하지 않으며 미지원 placeholder는 거절한다. 원격 호스트로 스크립트 허용을 전달하지 않는다. 헤드리스 빌드는 `-32017`로 답한다.
   - 멱등 계약은 Mutate다. 앞 이동이 적용된 뒤(다른 redraw)에 같은 요청을 다시 보내면 두 단계 이동하거나 두 번 새로고침한다(Linux 측정: 약 0.1초 간격으로 보낸 뒤로 두 번은 다른 redraw에 적용되어 c에서 a까지 갔다, 3회).
   - 같은 redraw에 들어간 요청들은 모두 이동 전 항목을 기준으로 판정하고 실행한다. 앞 이동의 commit 전이기 때문이다. Linux(WebKitGTK)에서 측정한 결과는 다음과 같다. 요청을 한 redraw에 모으려고 debug `gpu-stall`로 이벤트 루프를 멈춘 사이에 보냈고, 적용 로그의 두 줄 간격은 0.02~0.27ms였다.
     - 뒤로 두 번: 두 번째도 갈 곳이 있다고 판정해 실행했지만 한 단계만 이동했다(c → b, 3회).
