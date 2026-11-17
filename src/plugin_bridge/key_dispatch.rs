@@ -14,10 +14,16 @@ pub fn focused_plugin_surface(
     state: &crate::state::RequestContext,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
 ) -> Option<(String, u32)> {
-    let pane = state.focused_pane(engine)?;
-    let tab = pane.tabs.get(state.navigation.tab_index(pane))?;
-    let focused = state.navigation.surface_id(tab).unwrap_or(0);
-    let surface = engine.find_surface_by_id(focused)?;
+    // 생성 대기 초안이 선택돼 있으면 포커스 surface 가 없다. 초안 뒤의 기존 탭을 보지 않는다.
+    plugin_surface(engine, state.focused_surface_id(engine)?)
+}
+
+/// `sid` 가 plugin 소유 surface 면 그 plugin 과 surface.
+pub fn plugin_surface(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    sid: u32,
+) -> Option<(String, u32)> {
+    let surface = engine.find_surface_by_id(sid)?;
     let remote = surface
         .as_any()
         .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()?;

@@ -187,7 +187,7 @@ impl App {
         };
         let mods = main.base.state.modifiers;
         let shortcut_key = shortcuts::shortcut_lookup_key(&ke.logical_key, &ke.physical_key, mods);
-        self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods)
+        self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, None)
     }
 
     /// winit과 native webview 입력이 같은 차단 조건·우선순위를 사용한다.
@@ -196,6 +196,7 @@ impl App {
         id: winit::window::WindowId,
         shortcut_key: &winit::keyboard::Key,
         mods: winit::keyboard::ModifiersState,
+        received_by: Option<u32>,
     ) -> bool {
         if self.view.is_modal_active() {
             return false;
@@ -207,10 +208,20 @@ impl App {
         if main.state.keyboard_overlay_open() || main.state.fullscreen_stage_active() {
             return false;
         }
-        let focused = crate::plugin_bridge::key_dispatch::focused_plugin_surface(
-            &main.state,
-            &engine.as_ref(),
-        );
+        // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이다. winit 키는 지금의 대상이다.
+        let (focused, target) = match received_by {
+            Some(sid) => (
+                crate::plugin_bridge::key_dispatch::plugin_surface(&engine.as_ref(), sid),
+                Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(sid)),
+            ),
+            None => (
+                crate::plugin_bridge::key_dispatch::focused_plugin_surface(
+                    &main.state,
+                    &engine.as_ref(),
+                ),
+                main.state.command_surface_target(&engine.read()),
+            ),
+        };
         // 포커스 WebView의 편집 바인딩은 plugin 명령보다 먼저다. native 자식이 키를 받을 때와 같은 순서다.
         if main
             .webview_edit_for_key(&engine.read(), shortcut_key, mods)
@@ -261,6 +272,7 @@ impl App {
                 self.plugin_manager.as_mut(),
                 (plugin_id, cmd_id, surface_id),
                 action,
+                target,
             );
         } else if let Some(mgr) = self.plugin_manager.as_mut() {
             crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
@@ -271,7 +283,7 @@ impl App {
     }
 }
 
-/// 명령 단축키의 action 갈래. 대상은 키를 누른 지금 정한다. action과 command.invoke를 함께 실행하면
+/// 명령 단축키의 action 갈래. 대상은 키를 입력한 시점의 것을 호출자가 넘긴다. action과 command.invoke를 함께 실행하면
 /// 같은 명령이 두 번 처리되므로 호스트 action만 실행하고 command.invoked 알림은 실행할 때 보낸다.
 /// 실행했거나 생성 대기 초안에 걸어 두었으면 키를 소비해 true, 실행할 수 없으면 키를 다음 처리자에 넘겨 false.
 pub(crate) fn run_shortcut_action(
@@ -280,6 +292,7 @@ pub(crate) fn run_shortcut_action(
     mgr: Option<&mut tasty_host_plugin::PluginManager>,
     (plugin_id, cmd_id, surface_id): (String, String, Option<u32>),
     action: crate::plugin::manifest::ToolAction,
+    target: Option<crate::state::attach_pending::deferred::CommandSurfaceTarget>,
 ) -> bool {
     let item = crate::adapters::ui::tools_menu::command_item(&plugin_id, &cmd_id, action);
     let invoked = crate::state::attach_pending::deferred::InvokedNotice {
@@ -287,7 +300,6 @@ pub(crate) fn run_shortcut_action(
         command_id: cmd_id,
         surface_id,
     };
-    let target = state.command_surface_target(engine);
     if let Err(blocked) = crate::adapters::ui::tools_menu::run_tool(
         state,
         engine,
@@ -344,15 +356,67 @@ mod action_tests {
         let read = engine.read();
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
         let pending = state.attach_pending.entries[0].id;
+        let target = state.command_surface_target(&read);
         assert!(run_shortcut_action(
             &mut state,
             &read,
             None,
             matched(),
-            open()
+            open(),
+            target
         ));
         assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
         assert!(state.pending_popup_opens.is_empty());
+    }
+
+    /// 호출자가 넘긴 입력 시점 대상으로 실행한다. 지금 초안이 선택돼 있어도 넘겨받은 surface 가 대상이다.
+    #[test]
+    fn a_shortcut_runs_on_the_target_its_caller_bound() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let anchor = state.focused_surface_id(&read).expect("focused surface");
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let pending = state.attach_pending.entries[0].id;
+        assert!(run_shortcut_action(
+            &mut state,
+            &read,
+            None,
+            matched(),
+            open(),
+            Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(anchor))
+        ));
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
+        assert_eq!(state.pending_popup_opens.len(), 1);
+        assert_eq!(state.pending_popup_opens[0].target_surface, Some(anchor));
+    }
+
+    /// 초안이 선택돼 있으면 포커스 plugin surface 가 없다. 초안 뒤에 남은 기존 plugin surface 의 surface 범위
+    /// 명령을 고르지 않는다. native WebView 가 넘긴 키는 받은 surface 로 고른다.
+    #[test]
+    fn a_draft_hides_the_previous_plugin_surface_from_shortcut_scope() {
+        use crate::plugin_bridge::key_dispatch::{focused_plugin_surface, plugin_surface};
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        let anchor = state
+            .focused_surface_id(&session.read())
+            .expect("focused surface");
+        let plugin = "com.example.viewer";
+        session.runtime.surfaces.insert(
+            anchor,
+            Box::new(crate::plugin_bridge::remote_surface::RemoteSurface::new(
+                anchor,
+                "terminal",
+                plugin.into(),
+                "remote".into(),
+            )),
+        );
+        let engine = session.borrow_mut();
+        let expected = Some((plugin.to_string(), anchor));
+        assert_eq!(focused_plugin_surface(&state, &engine.as_ref()), expected);
+        let read = engine.read();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        assert_eq!(focused_plugin_surface(&state, &engine.as_ref()), None);
+        assert_eq!(plugin_surface(&engine.as_ref(), anchor), expected);
     }
 
     /// 대상 surface 도 초안도 없으면 surface 팝업 명령은 실행하지 않고 키를 다음 처리자에 넘긴다.
@@ -371,7 +435,8 @@ mod action_tests {
             &read,
             None,
             matched(),
-            open()
+            open(),
+            None
         ));
         assert!(state.pending_popup_opens.is_empty());
     }

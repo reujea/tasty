@@ -122,7 +122,7 @@ impl App {
         if !forwarded_key_may_dispatch(self.view.is_modal_active(), overlay_open, fullscreen) {
             return ForwardedKeyOutcome::Gated;
         }
-        if self.dispatch_plugin_shortcut_key(id, &ev.key, ev.mods) {
+        if self.dispatch_plugin_shortcut_key(id, &ev.key, ev.mods, Some(ev.surface_id)) {
             return ForwardedKeyOutcome::Handled;
         }
         let Some((main, mut engine)) = engines_mut!(self).window_pair(id) else {
