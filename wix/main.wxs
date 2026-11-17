@@ -123,6 +123,13 @@
                                 DiskId='1'
                                 Source='$(var.CargoTargetBinDir)\tasty.exe'
                                 KeyPath='yes'/>
+                            <!-- Symbols for the exe above, so panic backtraces name functions.
+                                 build-windows.ps1 checks that the pair matches. -->
+                            <File
+                                Id='pdb0'
+                                Name='tasty.pdb'
+                                DiskId='1'
+                                Source='$(var.CargoTargetBinDir)\tasty.pdb'/>
                         </Component>
 
                         <!-- Install plugins under bin/plugins/<id> for bundle_root().

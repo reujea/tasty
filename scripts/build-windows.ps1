@@ -11,6 +11,7 @@
 #   dist\tasty-{version}-windows-{arch}.zip   (portable)
 #   dist\tasty-{version}-windows-{arch}.msi   (installer; cargo-wix + WiX 3.x auto-installed if missing)
 #   dist\tasty-headless-{version}-windows-{arch}.zip   (gui feature 없는 헤드리스 빌드, portable)
+#   세 패키지 모두 tasty.exe 옆에 그 exe와 짝인 tasty.pdb를 싣는다(별도 자산으로 올리지 않는다).
 #   dist\SHA256SUMS-windows.txt (x64) / dist\SHA256SUMS-windows-arm64.txt (arm64)
 #
 # Requires: Git for Windows (Git Bash, curl, tar). 번들 플러그인은 official-plugins.lock.toml의
@@ -371,6 +372,143 @@ function Test-NoticeTree([string]$Root, [string]$Label) {
     }
 }
 
+# exe의 CodeView 디버그 항목(RSDS)에서 짝이 될 PDB의 GUID·Age·파일 이름을 읽는다. 없으면 $null이다.
+function Get-PeCodeViewId([string]$Path) {
+    $fs = [System.IO.File]::OpenRead($Path)
+    try {
+        $br = New-Object System.IO.BinaryReader($fs)
+        if ($fs.Length -lt 0x40 -or $br.ReadUInt16() -ne 0x5A4D) { return $null }
+        $fs.Position = 0x3C
+        $peOffset = $br.ReadInt32()
+        $fs.Position = $peOffset
+        if ($br.ReadUInt32() -ne 0x00004550) { return $null }
+        $fs.Position = $peOffset + 6
+        $sectionCount = $br.ReadUInt16()
+        $fs.Position = $peOffset + 20
+        $optionalSize = $br.ReadUInt16()
+        $optional = $peOffset + 24
+        $fs.Position = $optional
+        # PE32+는 데이터 디렉터리가 선택 헤더 112바이트 뒤, PE32는 96바이트 뒤에 있다. 6번이 디버그 디렉터리다.
+        $dataDirs = if ($br.ReadUInt16() -eq 0x20B) { $optional + 112 } else { $optional + 96 }
+        $fs.Position = $dataDirs + 6 * 8
+        $debugRva = $br.ReadUInt32()
+        $debugSize = $br.ReadUInt32()
+        if ($debugRva -eq 0) { return $null }
+        $debugOffset = $null
+        for ($i = 0; $i -lt $sectionCount; $i++) {
+            $fs.Position = $optional + $optionalSize + 40 * $i + 8
+            $virtualSize = $br.ReadUInt32()
+            $virtualAddress = $br.ReadUInt32()
+            $null = $br.ReadUInt32()
+            $rawPointer = $br.ReadUInt32()
+            if ($debugRva -ge $virtualAddress -and $debugRva -lt $virtualAddress + $virtualSize) {
+                $debugOffset = $rawPointer + ($debugRva - $virtualAddress)
+                break
+            }
+        }
+        if ($null -eq $debugOffset) { return $null }
+        for ($entry = 0; $entry -lt [math]::Floor($debugSize / 28); $entry++) {
+            $fs.Position = $debugOffset + 28 * $entry + 12
+            $type = $br.ReadUInt32()
+            $null = $br.ReadUInt32()
+            $null = $br.ReadUInt32()
+            $dataPointer = $br.ReadUInt32()
+            if ($type -ne 2) { continue }
+            $fs.Position = $dataPointer
+            if ($br.ReadUInt32() -ne 0x53445352) { return $null }
+            $guid = New-Object System.Guid (, $br.ReadBytes(16))
+            $age = $br.ReadUInt32()
+            $nameBytes = New-Object System.Collections.Generic.List[byte]
+            while ($nameBytes.Count -lt 1024) {
+                $b = $br.ReadByte()
+                if ($b -eq 0) { break }
+                $nameBytes.Add($b)
+            }
+            return [pscustomobject]@{
+                Guid = $guid
+                Age = $age
+                Name = [System.Text.Encoding]::UTF8.GetString($nameBytes.ToArray())
+            }
+        }
+        return $null
+    } finally {
+        $fs.Dispose()
+    }
+}
+
+# PDB(MSF 7.00)의 PDB 정보 스트림(1번)에서 GUID·Age를 읽는다. 형식이 다르면 $null이다.
+function Get-PdbId([string]$Path) {
+    $fs = [System.IO.File]::OpenRead($Path)
+    try {
+        $br = New-Object System.IO.BinaryReader($fs)
+        $magic = [System.Text.Encoding]::ASCII.GetString($br.ReadBytes(24))
+        if ($magic -ne "Microsoft C/C++ MSF 7.00") { return $null }
+        $fs.Position = 32
+        $blockSize = [int64]$br.ReadUInt32()
+        $null = $br.ReadUInt32()
+        $null = $br.ReadUInt32()
+        $directoryBytes = [int64]$br.ReadUInt32()
+        $null = $br.ReadUInt32()
+        $blockMapAddress = [int64]$br.ReadUInt32()
+        if ($blockSize -lt 512 -or $directoryBytes -lt 8) { return $null }
+        # 스트림 디렉터리는 블록 맵이 가리키는 블록들에 나뉘어 있다.
+        $directoryBlocks = [int][math]::Ceiling($directoryBytes / $blockSize)
+        $fs.Position = $blockMapAddress * $blockSize
+        $blocks = @(for ($i = 0; $i -lt $directoryBlocks; $i++) { [int64]$br.ReadUInt32() })
+        $directory = New-Object byte[] $directoryBytes
+        $copied = 0
+        foreach ($block in $blocks) {
+            $fs.Position = $block * $blockSize
+            $chunk = [int][math]::Min($blockSize, $directoryBytes - $copied)
+            $copied += $fs.Read($directory, $copied, $chunk)
+        }
+        $streamCount = [BitConverter]::ToUInt32($directory, 0)
+        if ($streamCount -lt 2) { return $null }
+        # 0번 스트림의 블록 목록을 건너뛰면 1번 스트림의 첫 블록 번호가 나온다.
+        $stream0Size = [BitConverter]::ToUInt32($directory, 4)
+        $stream0Blocks = if ($stream0Size -eq [uint32]::MaxValue) { 0 } else { [int64][math]::Ceiling($stream0Size / $blockSize) }
+        $firstBlockIndex = 4 + 4 * $streamCount + 4 * $stream0Blocks
+        $infoBlock = [int64][BitConverter]::ToUInt32($directory, [int]$firstBlockIndex)
+        # 정보 스트림: Version(4) Signature(4) Age(4) GUID(16)
+        $fs.Position = $infoBlock * $blockSize + 8
+        $age = $br.ReadUInt32()
+        $guid = New-Object System.Guid (, $br.ReadBytes(16))
+        return [pscustomobject]@{ Guid = $guid; Age = $age }
+    } finally {
+        $fs.Dispose()
+    }
+}
+
+# 폴더의 tasty.exe 옆에 그 exe와 짝인 tasty.pdb가 있는지 확인한다.
+# 짝이 다른 pdb는 디버거와 backtrace가 쓰지 않으므로 GUI·헤드리스 pdb가 바뀌어 들어가도 실패한다.
+function Test-PdbPair([string]$Dir, [string]$Label) {
+    $exe = Join-Path $Dir "tasty.exe"
+    $pdb = Join-Path $Dir "tasty.pdb"
+    if (-not (Test-Path $pdb)) {
+        Write-Error "tasty.pdb missing next to tasty.exe in $Label"
+        exit 1
+    }
+    $want = Get-PeCodeViewId $exe
+    if ($null -eq $want) {
+        Write-Error "tasty.exe in $Label has no CodeView debug entry"
+        exit 1
+    }
+    if ($want.Name -ne "tasty.pdb") {
+        Write-Error "tasty.exe in $Label names its PDB '$($want.Name)', expected 'tasty.pdb'"
+        exit 1
+    }
+    $got = Get-PdbId $pdb
+    if ($null -eq $got) {
+        Write-Error "tasty.pdb in $Label is not an MSF 7.00 PDB"
+        exit 1
+    }
+    if ($got.Guid -ne $want.Guid -or $got.Age -ne $want.Age) {
+        Write-Error "tasty.pdb in $Label is $($got.Guid)/$($got.Age), but tasty.exe expects $($want.Guid)/$($want.Age)"
+        exit 1
+    }
+    Write-Host "  pdb $Label :: $($want.Guid)/$($want.Age)"
+}
+
 Write-Host "==> Assembling archive..."
 if (Test-Path $StageDir) { Remove-Item -Recurse -Force $StageDir }
 New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
@@ -381,6 +519,14 @@ if (-not (Test-Path $ExePath)) {
     exit 1
 }
 Copy-Item $ExePath -Destination $StageDir
+# MSVC 링커는 strip 설정과 관계없이 exe 옆에 PDB를 만든다. backtrace가 함수 이름을 찾도록 같이 싣는다.
+$PdbPath = Join-Path $BuildDir "tasty.pdb"
+if (-not (Test-Path $PdbPath)) {
+    Write-Error "Build output not found: $PdbPath"
+    exit 1
+}
+Copy-Item $PdbPath -Destination $StageDir
+Test-PdbPair $StageDir $ArchiveName
 
 Get-ChildItem -Path $BuildDir -Filter "*.dll" | ForEach-Object {
     Copy-Item $_.FullName -Destination $StageDir
@@ -545,6 +691,14 @@ if ((Get-FileHash $HeadlessExePath -Algorithm SHA256).Hash -eq (Get-FileHash $Ex
     exit 1
 }
 Copy-Item $HeadlessExePath -Destination $HeadlessStageDir
+# 헤드리스 exe와 짝인 PDB는 헤드리스 target에 있다. GUI PDB를 넣으면 짝 검사가 실패한다.
+$HeadlessPdbPath = Join-Path $HeadlessBuildDir "tasty.pdb"
+if (-not (Test-Path $HeadlessPdbPath)) {
+    Write-Error "Headless build output not found: $HeadlessPdbPath"
+    exit 1
+}
+Copy-Item $HeadlessPdbPath -Destination $HeadlessStageDir
+Test-PdbPair $HeadlessStageDir $HeadlessArchiveName
 Get-ChildItem -Path $HeadlessBuildDir -Filter "*.dll" | ForEach-Object {
     Copy-Item $_.FullName -Destination $HeadlessStageDir
 }
@@ -621,6 +775,7 @@ try {
         exit 1
     }
     Test-PeTree $VerifyDir $ArchiveName $BundleExeCount
+    Test-PdbPair $VerifyDir $ArchiveName
     Test-Launch $VerifyExe "$ArchiveName tasty.exe"
     Test-NoticeTree $VerifyDir $ArchiveName
     Test-BundledPluginTree (Join-Path $VerifyDir "plugins") $ArchiveName
@@ -641,6 +796,7 @@ try {
         exit 1
     }
     Test-PeTree $HeadlessVerifyDir $HeadlessArchiveName $BundleExeCount
+    Test-PdbPair $HeadlessVerifyDir $HeadlessArchiveName
     Test-Launch $HeadlessVerifyExe "$HeadlessArchiveName tasty.exe"
     Test-NoticeTree $HeadlessVerifyDir $HeadlessArchiveName
     Test-BundledPluginTree (Join-Path $HeadlessVerifyDir "plugins") $HeadlessArchiveName
@@ -679,6 +835,7 @@ if ($BuildsMsi) {
                 Write-Error "expected one tasty.exe in the MSI, found $($msiExe.Count)"
                 exit 1
             }
+            Test-PdbPair $msiExe[0].DirectoryName $MsiName
             Test-BundledPluginTree (Join-Path $msiExe[0].DirectoryName "plugins") $MsiName
         } else {
             # 다른 아키텍처의 MSI는 이 호스트에서 관리 설치할 수 없으므로 WiX dark로 cabinet의 파일을 꺼낸다.
@@ -717,6 +874,7 @@ if ($BuildsMsi) {
             }
             Test-NoticeTree $MsiTree $MsiName
             Test-PeTree $MsiTree $MsiName $BundleExeCount
+            Test-PdbPair $MsiTree $MsiName
             Test-BundledPluginTree (Join-Path $MsiTree "plugins") $MsiName
         }
     } finally {
