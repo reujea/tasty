@@ -319,7 +319,7 @@ IPC에는 토스트 대신 사유를 담은 오류를 반환한다. `surface.clo
 
 어느 surface가 입력을 받는지는 surface 자체가 보여 준다. 원칙은 [사용자 통제와 데이터](../../principles/control-and-data.md#포커스-표현)에, 토큰 값은 [디자인 토큰 매핑](../systems/design-token-mapping.md)에 있다.
 
-**표현 방법은 kind가 정한다.** `focus_mark(kind, plugin_id)`가 고른다. 모르는 kind는 띠다.
+**표현 방법은 kind가 정한다.** `focus_mark(kind, capabilities)`가 고른다. host 내장 kind와 `bed_focus`를 선언한 plugin kind는 바탕이고, 나머지는 띠다. `bed_focus` 선언은 페이지가 바탕을 host 테마 값으로 칠한다는 약속이다. 아래 markdown·image는 번들 plugin의 kind다.
 
 | 표현 | kind | 보이는 면 |
 |------|------|-----------|

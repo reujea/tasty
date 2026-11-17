@@ -134,7 +134,9 @@ headless 서버도 같다. attach 요청이 오면 서버가 plugin을 시작해
 요청은 원격에 kind가 없는 경우와 같이 아래 실패 회신 규칙을 따른다.
 
 **markdown**은 핸드셰이크에서 원격 경로와 탭 제목을 받고 필요한 때 원문을 요청한다.
-client에 번들 plugin이 아직 등록되지 않았으면 placeholder를 유지하다 등록 후 채운다.
+대상은 kind 이름이 아니라 소유 plugin이 `mirror_content`를 선언한 kind다(지금은 번들 markdown).
+client는 서버가 알린 kind와 같은 이름의 kind가 같은 능력을 선언했을 때 그 kind로 만든다.
+client에 그 kind가 아직 등록되지 않았으면 placeholder를 유지하다 등록 후 채운다.
 전송 형태로 700 KiB를 넘으면 잘린 원문과 잘림 표시를 보낸다. JSON 이스케이프가 필요한
 따옴표·개행도 이 크기에 포함된다. 서버에서 큰 파일 열기 확인을 기다리는 중이어도 이 채널은
 상한 내에서 읽는다. 그 확인은 렌더링 여부에 관한 것이며 파일 읽기 권한 검사는 아니다.
@@ -682,6 +684,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given client 에 번들 markdown plugin 이 등록돼 있음 When mirror 트리에 markdown role leaf 가 있음 Then 그 leaf 는 빈 surface 가 아니라 markdown kind 로컬 surface 로 만들어지고 원격 파일 경로가 plugin 에 전달된다 — 구조 delta 로 트리가 다시 와도 같은 surface 를 재사용한다(`src/app/attach_client/survivors/tests.rs` 단위 테스트).
 - Given `markdown` kind 를 다른 plugin 이 차지함 When 같은 트리 Then 그 leaf 는 빈 surface 로 남는다(`src/app/attach_client/survivors/tests.rs` 단위 테스트).
 - Given client 의 번들 markdown plugin 이 attach 시점에 안 떠 있음(부팅 때 꺼져 있던 plugin) When plugin 을 켠 뒤 그 mirror 워크스페이스를 연다 Then 빈 surface 로 남지 않고 plugin 이 뜬 뒤 원격 문서로 채워진다 — kind 대기 자리가 kind 등록 뒤 mirror 문서로 실제화되는 것(`src/app/attach_client/survivors/tests.rs` 단위 테스트)과 plugin 이 그 복원 data 를 로컬 snapshot 과 구별하는 것(`crates/tasty-plugin-markdown/src/tests.rs`)을 고정한다. 실측(GUI 두 인스턴스 loopback attach): 켜기 전 surface 목록 `Pending` → 켜고 연 뒤 `Remote`, 원문이 그려지고 탭 제목은 원격 파일 이름이다.
+- Given 서버와 client 에 같은 이름의 kind 를 등록한 제3자 plugin 이 그 kind 에 `mirror_content` 를 선언함 When mirror 트리에 그 kind 의 leaf 가 있음 Then client 는 같은 kind 로 로컬 surface 를 만들고 서버는 그 surface 의 원문을 회신한다. 선언하지 않은 kind 의 leaf 는 빈 surface 로 남고 원문을 회신하지 않는다.
 - Given mirror markdown 문서 When plugin 이 그 문서를 연다 Then 원격 경로가 이 머신에 실재해도 파일을 읽지 않고, 상대경로를 풀 디렉토리를 두지 않으며, layout 에 남길 snapshot 도 내지 않는다 — 원문은 요청해 받은 것만 그린다(`crates/tasty-plugin-markdown/src/tests.rs`).
 - Given mirror markdown 문서 When 새로고침 버튼을 누르거나 `markdown.reload` 를 부른다 Then 원격 원문을 다시 요청하고, 늦게 온 옛 회신은 버린다(`crates/tasty-plugin-markdown/src/tests.rs`). 실측(GUI 두 인스턴스): 버튼 클릭과 `markdown.reload` 모두 원문을 다시 받아 stale 표시를 끈 문서로 다시 그린다.
 - Given mirror markdown 문서(원문을 기다리는 중이든 이미 표시 중이든) When 저장된 원격 행 세션의 attach 연결이 끊겨 재연결 대기에 들어감 Then 문서는 로딩 상태로 멈추지도 옛 원문을 최신처럼 남기지도 않고 "원격 연결이 끊어졌다" 는 끊김 화면으로 바뀐다 — 요청 송신 자체가 실패해도 같은 실패 결과가 간다. plugin 이 abandon 을 받으면 원문을 받은 뒤에도 끊김 상태가 되는 것(`crates/tasty-plugin-markdown/src/tests.rs`)과 끊김 상태가 원문보다 앞서 그려지는 것(`crates/tasty-plugin-markdown/src/render.rs` 단위 테스트)을 고정한다. 실측(GUI 두 인스턴스, 서버 종료): 원문을 표시 중이던 문서가 끊김 문구 화면으로 다시 그려졌다. 저장되지 않은 mirror 는 mirror 워크스페이스째 정리되고 끊김 toast 가 뜬다(실측).

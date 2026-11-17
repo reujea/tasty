@@ -141,10 +141,9 @@ markdown 본문은 WebView로 렌더하며 `file_watch`가 변경을 감지하�
    `take_invalidated_banners()` 드레인 / `App::mark_invalidated_banners_dirty` 의
    `MainViewState::plugin_mesh_banner_pending_repaint` 예약 / `banner_render.rs` 의 forward
    게이트가 popup 과 같은 `need_repaint` 항으로 소비. **다른 점은 한 자리뿐이다**:
-   popup 의 `plugin_mesh_popup_pending_repaint` 는 `attach_client.rs` 두 곳에서도
-   채워지는데(git-viewer 의 비동기 원격 조회 결과 뒤 강제 repaint), 그 경로는
-   `com.tasty.git-viewer` 전용이고 그 plugin 은 banner 를 기여하지 않아 banner 쪽에는
-   대응 자리가 없다.
+   popup 의 `plugin_mesh_popup_pending_repaint` 는 attach client 두 곳(`forward.rs`·`output.rs`)에서도
+   채워지는데(git 원격 조회 결과 뒤 강제 repaint), 그 경로는 조회를 요청한 plugin 의
+   popup 만 채우고 banner 는 채우지 않아 banner 쪽에는 대응 자리가 없다.
 
 ## plugin self-repaint (out-of-band 상태 변경)
 

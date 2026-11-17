@@ -549,7 +549,7 @@ Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른
 - 상태 표지는 CSS 사용자 정의 속성 `--tasty-bed-focused` 하나다. 이름은 호스트와 페이지가 함께 쓰는 계약이라 `tasty-plugin-protocol`의 `bed_focus::BED_FOCUSED_PROPERTY`에 한 번만 정의한다. 바탕 포커스 상태인 동안 `:root`에 빈 값으로 정의되고, 아니면 정의되지 않거나 무효 값(`initial`)이다. 호스트가 넣는 것은 그 속성으로 만든 고정 규칙(`crate::webview::bed_focus`)뿐이며 색 값은 넘기지 않는다. Linux는 `:root{--tasty-bed-focused: ;}`를 넣고 뺀다. Windows는 두 상태를 모두 적은 `:root:root{--tasty-bed-focused: ;}`·`:root:root{--tasty-bed-focused:initial;}` 중 하나를 둔다(아래 "Windows 구현"). macOS는 `:root` 인라인 스타일에 그 속성만 빈 값 또는 `initial`로 쓴다(아래 "macOS 구현").
 - 페이지는 두 상태의 값을 자기 CSS에 함께 둔다. `--x-on: var(--tasty-bed-focused) <focus 값>;`은 표지가 없으면 무효가 되고, `--x: var(--x-on, <unfocus 값>);`이 그때 unfocus 값을 쓴다. 표지가 없을 때가 unfocus이므로 호스트가 아무것도 넣지 못한 페이지는 unfocus 값이다.
 - 테마가 바뀌면 지금처럼 문서를 다시 만든다. 표지는 테마와 무관하다.
-- 받는 kind: `focus_mark`가 바탕으로 분류한 WebView kind다. 지금은 `com.tasty.markdown`의 markdown뿐이며 client가 그리는 mirror markdown도 같다. html은 원격·mirror를 포함해 받지 않고, 호스트는 html 페이지에 스타일시트도 스크립트도 넣지 않는다. 제3자 webview 플러그인에 여는지는 플러그인 신호 작업이 정한다.
+- 받는 kind: `focus_mark`가 바탕으로 분류한 WebView kind, 곧 `bed_focus`를 선언한 kind다. 번들 plugin 중에는 markdown뿐이며 client가 그리는 mirror markdown도 같다. html은 원격·mirror를 포함해 받지 않고, 호스트는 html 페이지에 스타일시트도 스크립트도 넣지 않는다. 제3자 webview 플러그인도 `bed_focus`를 선언하면 받는다.
 
 ### 호스트 쪽 순서
 
@@ -916,7 +916,7 @@ webview surface 의 zoom·JS·원격 콘텐츠·색 구성표는 그 kind 를 �
 
 zoom 단축키는 kind 가 `zoomable = true` 이고 webview kind 로 등록돼 있으면 그 설정 소유 plugin 의 `zoom` 을 10 씩 바꾸고, 초기화는 위 순서의 2~4 로 정한 기본값으로 돌린다. html 은 `zoomable` 을 선언하지 않아 단축키 대상이 아니다.
 
-html 은 이 값을 전역 sandbox 로 받고 문서마다 스크립트를 판정하는 게이트(`attach_script_gate`)를 따로 붙인다. 게이트는 html kind 에만 붙으므로 커스텀 webview kind 의 `sandbox_scripts` 는 문서 판정 없이 그대로 JS 켜기·끄기로 적용된다.
+html 은 이 값을 전역 sandbox 로 받고 문서마다 스크립트를 판정하는 게이트(`attach_script_gate`)를 따로 붙인다. 게이트는 `script_gate` 를 선언한 kind(번들 html)에만 붙으므로 선언하지 않은 커스텀 webview kind 의 `sandbox_scripts` 는 문서 판정 없이 그대로 JS 켜기·끄기로 적용된다.
 
 ## 원격 리소스 차단
 
