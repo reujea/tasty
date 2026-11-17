@@ -59,7 +59,30 @@ pub(crate) fn wanted(engine: &EngineRead<'_>, ws: &crate::model::Workspace) -> O
     }
 }
 
-/// 활성 workspace 에 맞춰 팝업을 열고 닫는다. 끊긴 행에서 연 파일 처리기 선택은 닫는다.
+/// `of` 를 열 범위. 활성 workspace 가 그 팝업을 원할 때만 그 workspace 다.
+fn open_scope(state: &MainViewState, engine: &EngineRead<'_>, of: PopupId) -> Option<PopupScope> {
+    let ws = state.active_workspace(engine);
+    (wanted(engine, ws) == Some(of)).then_some(PopupScope::Workspace(ws.id))
+}
+
+/// 빈 workspace 위 팝업의 여닫기 술어. 팝업 관리자가 값이 바뀔 때 포커스 없이 열고 닫는다.
+pub(crate) fn plain_open_when(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+) -> Option<PopupScope> {
+    open_scope(state, engine, REMOTE_ROW_POPUP_ID)
+}
+
+/// 마지막 화면 위 팝업의 여닫기 술어.
+pub(crate) fn scrim_open_when(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+) -> Option<PopupScope> {
+    open_scope(state, engine, REMOTE_ROW_SCRIM_POPUP_ID)
+}
+
+/// 활성 workspace 의 연결 팝업이 바뀌는 순간을 처리한다. 여닫기는 위 술어로 팝업 관리자가 한다.
+/// 끊긴 행에서 연 파일 처리기 선택은 닫는다.
 pub(crate) fn sync(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
@@ -74,20 +97,9 @@ pub(crate) fn sync(
         return;
     }
     let previous = std::mem::replace(&mut row.shown, want);
-    if let Some((id, _)) = previous
-        && want.is_none_or(|(w, _)| w != id)
-    {
-        // intent-exempt: 연결 상태를 따라 매 프레임 맞추는 수동 팝업이다. Intent 큐는 한 프레임 늦어 연결된 행에 팝업이 남는다.
-        state.popups.close(id);
-    }
     let Some((id, ws_id)) = want else {
         return;
     };
-    // intent-exempt: 연결 상태를 따라 매 프레임 맞추는 수동 팝업이다. 포커스를 받지 않고 사용자 선택을 바꾸지 않는다.
-    state.popups.open_request(
-        &crate::intent::OpenRequest::new(id, PopupScope::Workspace(ws_id)).centered(),
-        false,
-    );
     if id == REMOTE_ROW_SCRIM_POPUP_ID && previous.is_none_or(|(_, row)| row == ws_id) {
         state.dialogs.remote_row_popup.dropped = true;
         // 다른 workspace 에서 연 picker 는 그 행으로 옮겨 와도 닫지 않는다.
@@ -346,6 +358,16 @@ mod tests {
     use super::*;
     use crate::remote::state::RowView;
     use RemoteRowPopupKind as K;
+
+    /// 그리기 전 단계와 같이 전이 처리 뒤 여닫기 술어를 맞춘다.
+    fn sync(
+        state: &mut MainViewState,
+        engine: &EngineRead<'_>,
+        draw_ctx: &crate::adapters::ui::LayoutContext,
+    ) {
+        super::sync(state, engine, draw_ctx);
+        super::super::frame::sync_open_when(state, engine);
+    }
 
     /// 끊긴 행은 다른 곳에서 닫힘 › 사용자 끊음 › 이유 › 시간 초과 순서로 종류를 고른다.
     #[test]

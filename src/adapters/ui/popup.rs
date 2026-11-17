@@ -16,6 +16,7 @@ mod focus;
 pub(crate) mod frame;
 pub(crate) mod header_drag;
 pub(crate) mod occlusion;
+mod open_when;
 pub(crate) mod port_scanner;
 pub(crate) mod port_scanner_close;
 pub(crate) mod preset_apply;
@@ -869,6 +870,8 @@ pub struct PopupManager {
     /// 실제로 닫힌(그 직전엔 열려 있던) 인스턴스 대기열.
     /// `on_close` 훅 drain 이 프레임당 1회 `take_closed_queue()` 로 비운다.
     closed_queue: Vec<ClosedPopup>,
+    /// 상태 술어로 연 팝업과 그때의 범위. 술어 값이 바뀔 때만 열고 닫는다.
+    driven: Vec<(PopupId, PopupScope)>,
 }
 
 impl PopupManager {
@@ -876,6 +879,7 @@ impl PopupManager {
         Self {
             popups: Vec::new(),
             closed_queue: Vec::new(),
+            driven: Vec::new(),
         }
     }
 
@@ -1324,6 +1328,10 @@ impl PopupManager {
 mod parent_tests;
 
 #[cfg(test)]
+#[path = "popup/open_when_tests.rs"]
+mod open_when_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1369,6 +1377,7 @@ mod tests {
         PopupManager {
             popups: states,
             closed_queue: Vec::new(),
+            driven: Vec::new(),
         }
     }
 

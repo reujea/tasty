@@ -31,6 +31,36 @@ fn scope_target_exists(
     }
 }
 
+/// 여닫기 술어. 팝업을 열 범위를 돌려주고, 없으면 닫는다.
+type OpenWhen = fn(
+    &MainViewState,
+    &crate::runtime::engine_read::EngineRead<'_>,
+) -> Option<crate::adapters::ui::popup::PopupScope>;
+
+/// 사용자 요청이 아니라 상태 술어가 여닫기를 정하는 팝업. 술어 값이 바뀔 때만 포커스 없이 열고 닫는다.
+const OPEN_WHEN: [(crate::adapters::ui::popup::PopupId, OpenWhen); 2] = [
+    (
+        crate::adapters::ui::popup::remote_row::REMOTE_ROW_POPUP_ID,
+        crate::adapters::ui::popup::remote_row::plain_open_when,
+    ),
+    (
+        crate::adapters::ui::popup::remote_row::REMOTE_ROW_SCRIM_POPUP_ID,
+        crate::adapters::ui::popup::remote_row::scrim_open_when,
+    ),
+];
+
+/// 상태 술어가 여닫는 팝업을 같은 프레임에 맞춘다.
+pub(crate) fn sync_open_when(
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    for (id, open_when) in OPEN_WHEN {
+        let want = open_when(state, engine);
+        // intent-exempt: Intent 큐는 한 프레임 늦어 연결된 행에 팝업이 남는다. 포커스를 받지 않는다.
+        state.popups.follow_open_when(id, want);
+    }
+}
+
 /// 대상 생존 판정. 범위가 살아 있으면 참일 때만 팝업을 남긴다.
 type TargetAlive = fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>) -> bool;
 
@@ -124,6 +154,7 @@ pub(crate) fn draw_popup_layer(
 ) {
     // intent-exempt: 저장된 원격 행의 연결 팝업은 연결 상태를 따라 매 프레임 열고 닫는다. 사용자 포커스는 옮기지 않는다.
     crate::adapters::ui::popup::remote_row::sync(state, engine, draw_ctx);
+    sync_open_when(state, engine);
 
     // intent-exempt: 매 프레임 번역·크기를 렌더링 전에 갱신한다. Intent 큐는 한 프레임 지연을 만든다.
     for def in crate::adapters::ui::popup::defs::all_defs() {
