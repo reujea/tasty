@@ -164,7 +164,7 @@ fn reopen(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
         if same_scope {
             state
                 .popups
-                .replace_payload(instance, request.payload.clone());
+                .replace_payload(instance, request.payload.take());
             return;
         }
         state.popups.close_for_reopen(request.id);

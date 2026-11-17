@@ -346,17 +346,24 @@ fn requests_of(
 /// Properties 권한 편집이 기다리는 요청이 대기열에도 `running` 에도 없으면 시작되지 않고 버려졌다.
 /// 편집 상태로 돌려 다시 Apply 할 수 있게 한다. 끝난 요청은 [`settle_permissions`] 가 먼저 풀어 둔다.
 pub(super) fn resume_unanswered_permissions(state: &mut MainViewState, running: &[u64]) -> bool {
-    let Some(props) = state.dialogs.explorer_properties.as_mut() else {
-        return false;
-    };
-    let Some(id) = props.perm_request() else {
-        return false;
-    };
-    if running.contains(&id) || state.explorer_file_requests.0.iter().any(|r| r.id == id) {
-        return false;
+    let queued: Vec<u64> = state
+        .explorer_file_requests
+        .0
+        .iter()
+        .map(|r| r.id)
+        .collect();
+    let mut resumed = false;
+    for props in crate::adapters::ui::popup::explorer_properties::instances_mut(state) {
+        let Some(id) = props.perm_request() else {
+            continue;
+        };
+        if running.contains(&id) || queued.contains(&id) {
+            continue;
+        }
+        props.settle_perm(id, None);
+        resumed = true;
     }
-    props.settle_perm(id, None);
-    true
+    resumed
 }
 
 /// 권한 변경이 끝났으면 그 요청을 넣은 창의 Properties 편집 상자에 결과를 알린다. 받은 상자가 있으면 true.
@@ -387,10 +394,8 @@ fn settle_in_window<'a, V: 'a>(
     result: Result<(), String>,
 ) -> Option<&'a mut V> {
     let view = views.into_iter().find(|(id, _)| **id == window)?.1;
-    let props = state(view).dialogs.explorer_properties.as_mut()?;
-    if props.perm_request() != Some(request) {
-        return None;
-    }
+    let props = crate::adapters::ui::popup::explorer_properties::instances_mut(state(view))
+        .find(|props| props.perm_request() == Some(request))?;
     props.settle_perm(request, Some(result));
     Some(view)
 }
@@ -519,17 +524,44 @@ mod tests {
             first.explorer_clipboard.clone(),
             first.file_clipboard.clone(),
         );
-        first.dialogs.explorer_properties = Some(ExplorerProperties::applying_for_test(2));
-        second.dialogs.explorer_properties = Some(ExplorerProperties::applying_for_test(2));
+        install(&mut first, ExplorerProperties::applying_for_test(2));
+        install(&mut second, ExplorerProperties::applying_for_test(2));
         let views = HashMap::from([(WindowId::from(1), first), (WindowId::from(2), second)]);
         (views, engine)
     }
 
+    /// Properties 인스턴스를 그 데이터로 연다. 같은 칸에 열려 있으면 데이터만 바꾼다.
+    fn install(state: &mut MainViewState, props: ExplorerProperties) {
+        use crate::adapters::ui::popup::explorer_properties::EXPLORER_PROPERTIES_POPUP_ID;
+        let scope = crate::model::popup_kind::PopupScope::Surface(props.surface_id_for_test());
+        let payload = crate::adapters::ui::popup::PopupPayload::ExplorerProperties(Box::new(props));
+        match state
+            .popups
+            .instance_for(EXPLORER_PROPERTIES_POPUP_ID, &scope)
+        {
+            Some(open) => state.popups.replace_payload(open, payload),
+            None => {
+                state.popups.open_request(
+                    &crate::intent::OpenRequest::new(EXPLORER_PROPERTIES_POPUP_ID, scope)
+                        .with_payload(payload),
+                    true,
+                );
+            }
+        }
+    }
+
     fn props(views: &HashMap<WindowId, MainViewState>, window: u64) -> &ExplorerProperties {
         views[&WindowId::from(window)]
-            .dialogs
-            .explorer_properties
-            .as_ref()
+            .popups
+            .instances_of(
+                crate::adapters::ui::popup::explorer_properties::EXPLORER_PROPERTIES_POPUP_ID,
+            )
+            .find_map(|p| match &p.payload {
+                crate::adapters::ui::popup::PopupPayload::ExplorerProperties(props) => {
+                    Some(props.as_ref())
+                }
+                _ => None,
+            })
             .expect("the popup stays open")
     }
 
@@ -590,17 +622,16 @@ mod tests {
         views
             .get_mut(&WindowId::from(1))
             .unwrap()
-            .dialogs
-            .explorer_properties = None;
+            .popups
+            .close(crate::adapters::ui::popup::explorer_properties::EXPLORER_PROPERTIES_POPUP_ID);
         assert!(!settle(&mut views, 1, 2, Ok(())));
         assert_eq!(props(&views, 2).perm_request(), Some(2));
 
         // 창 2 가 다시 Apply 해 요청 3 을 기다린다. 늦게 온 요청 2 의 결과는 무시한다.
-        views
-            .get_mut(&WindowId::from(2))
-            .unwrap()
-            .dialogs
-            .explorer_properties = Some(ExplorerProperties::applying_for_test(3));
+        install(
+            views.get_mut(&WindowId::from(2)).unwrap(),
+            ExplorerProperties::applying_for_test(3),
+        );
         assert!(!settle(&mut views, 2, 2, Err("late".into())));
         assert_eq!(props(&views, 2).perm_request(), Some(3));
         assert_eq!(props(&views, 2).perm_failure_for_test(), None);

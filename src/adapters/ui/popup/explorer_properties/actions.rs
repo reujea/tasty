@@ -28,6 +28,7 @@ pub(super) enum Footer {
 pub(super) fn apply_perm(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    props: &mut ExplorerProperties,
     surface_id: u32,
     path: PathBuf,
     change: crate::app::file_jobs::permissions::PermChange,
@@ -40,14 +41,7 @@ pub(super) fn apply_perm(
             source: crate::intent::UserSource::Menu("explorer_properties_permissions"),
         },
     );
-    if let (Some(request), Some(edit)) = (
-        request,
-        state
-            .dialogs
-            .explorer_properties
-            .as_mut()
-            .and_then(|p| p.perm.as_mut()),
-    ) {
+    if let (Some(request), Some(edit)) = (request, props.perm.as_mut()) {
         edit.phase = Phase::Applying(request);
     }
 }

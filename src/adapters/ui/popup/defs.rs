@@ -174,6 +174,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // 시안 바탕이 bg-panel 이고 읽기 실패 화면의 Retry 가 Secondary 버튼이다.
                     shell: PopupShell::Panel,
                     escape: PopupEscape::Unfocus,
+                    // 탐색기 칸마다 따로 연다. 항목과 읽기는 인스턴스 데이터다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::explorer_properties::default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -184,7 +186,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::explorer_properties::draw,
-                on_close: Some(super::explorer_properties::on_close),
+                // 항목과 읽기는 인스턴스 데이터라 닫으면 함께 사라지고 세기도 멈춘다.
+                on_close: None,
             },
             PopupDef {
                 id: "search_bar",

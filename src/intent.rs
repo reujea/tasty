@@ -471,7 +471,7 @@ pub struct OpenRequest {
     pub parent: Option<crate::adapters::ui::popup::PopupInstanceId>,
     /// 인스턴스 데이터. 새 인스턴스를 열거나 다시 열 때 이 값으로 채운다.
     #[cfg(feature = "gui")]
-    pub payload: crate::adapters::ui::popup::PopupPayload,
+    pub payload: crate::adapters::ui::popup::PayloadSlot,
 }
 
 #[cfg(feature = "gui")]
@@ -484,7 +484,7 @@ impl OpenRequest {
             placement: PopupPlacement::Keep,
             focus: false,
             parent: None,
-            payload: crate::adapters::ui::popup::PopupPayload::None,
+            payload: crate::adapters::ui::popup::PayloadSlot::default(),
         }
     }
 
@@ -514,7 +514,7 @@ impl OpenRequest {
 
     /// 인스턴스 데이터를 채운다.
     pub fn with_payload(mut self, payload: crate::adapters::ui::popup::PopupPayload) -> Self {
-        self.payload = payload;
+        self.payload = crate::adapters::ui::popup::PayloadSlot::new(payload);
         self
     }
 }

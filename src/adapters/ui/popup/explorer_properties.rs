@@ -53,9 +53,8 @@ pub struct ExplorerProperties {
     perm: Option<PermEdit>,
 }
 
-/// 팝업을 연다. `remote` 는 원격 탐색기의 목록 항목이다. 이미 열려 있으면 새 항목으로 바꾼다.
-/// 다른 surface 에 열려 있으면 그 팝업을 닫고 요청한 surface 범위로 다시 연다. 같은 id 의
-/// OpenPopup 은 범위를 바꾸지 않으므로(공통 dedup) 내용과 범위가 다른 surface 를 가리키게 된다.
+/// 팝업을 연다. `remote` 는 원격 탐색기의 목록 항목이다. 탐색기 칸마다 인스턴스가 따로 열린다.
+/// 그 칸에 이미 열려 있으면 위치·포커스는 두고 항목만 새 것으로 바꾼다.
 pub(crate) fn open(
     state: &mut MainViewState,
     surface_id: u32,
@@ -66,20 +65,21 @@ pub(crate) fn open(
     if paths.is_empty() {
         return;
     }
-    let moved = state
-        .dialogs
-        .explorer_properties
-        .as_ref()
-        .is_some_and(|old| old.surface_id != surface_id);
-    if let Some(old) = state.dialogs.explorer_properties.take() {
-        old.cancel.store(true, Ordering::Relaxed);
+    let scope = crate::model::popup_kind::PopupScope::Surface(surface_id);
+    // 바뀔 항목의 읽기는 요청을 처리하기 전에 바로 멈춘다. 늦게 온 결과가 새 항목 자리에 들어가지 않는다.
+    for p in state.popups.instances_of(EXPLORER_PROPERTIES_POPUP_ID) {
+        if p.scope == scope
+            && let crate::adapters::ui::popup::PopupPayload::ExplorerProperties(old) = &p.payload
+        {
+            old.cancel.store(true, Ordering::Relaxed);
+        }
     }
     let count = Arc::new(FolderCount::default());
     let cancel = Arc::new(AtomicBool::new(false));
     let query = remote
         .is_none()
         .then(|| local_reads::properties(paths.clone(), count.clone(), cancel.clone()));
-    state.dialogs.explorer_properties = Some(ExplorerProperties {
+    let props = ExplorerProperties {
         surface_id,
         paths,
         remote,
@@ -89,33 +89,35 @@ pub(crate) fn open(
         cancel,
         content_h: None,
         perm: None,
-    });
-    let dispatch = |state: &mut MainViewState, intent: crate::intent::UiIntent| {
-        state.dispatch_intent(if from_shortcut {
-            intent.from_user_shortcut("explorer_properties")
-        } else {
-            intent.from_user_context_menu()
-        });
     };
-    if moved {
-        dispatch(
-            state,
-            crate::intent::UiIntent::ClosePopup {
-                id: EXPLORER_PROPERTIES_POPUP_ID,
-            },
-        );
-    }
-    dispatch(
-        state,
-        crate::intent::UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(
-                EXPLORER_PROPERTIES_POPUP_ID,
-                crate::model::popup_kind::PopupScope::Surface(surface_id),
-            )
+    let intent = crate::intent::UiIntent::ReopenPopup(
+        crate::intent::OpenRequest::new(EXPLORER_PROPERTIES_POPUP_ID, scope)
             .centered()
-            .focused(),
-        ),
+            .focused()
+            .with_payload(
+                crate::adapters::ui::popup::PopupPayload::ExplorerProperties(Box::new(props)),
+            ),
     );
+    state.dispatch_intent(if from_shortcut {
+        intent.from_user_shortcut("explorer_properties")
+    } else {
+        intent.from_user_context_menu()
+    });
+}
+
+/// 열린 Properties 인스턴스들의 데이터.
+pub(crate) fn instances_mut(
+    state: &mut MainViewState,
+) -> impl Iterator<Item = &mut ExplorerProperties> + '_ {
+    state
+        .popups
+        .entries_of_mut(EXPLORER_PROPERTIES_POPUP_ID)
+        .filter_map(|p| match &mut p.payload {
+            crate::adapters::ui::popup::PopupPayload::ExplorerProperties(props) => {
+                Some(props.as_mut())
+            }
+            _ => None,
+        })
 }
 
 /// 컨텍스트 메뉴의 Properties. 대상이 없으면(빈 영역) 현재 폴더를 연다. 원격이면 목록 항목을 넘긴다.
@@ -187,9 +189,17 @@ pub(crate) fn poll(
     state: &mut MainViewState,
     owner: &mut crate::app::local_reads::ReadRequests,
 ) -> bool {
-    let Some(props) = state.dialogs.explorer_properties.as_mut() else {
-        return false;
-    };
+    let mut got = false;
+    for props in instances_mut(state) {
+        got |= poll_one(props, owner);
+    }
+    got
+}
+
+fn poll_one(
+    props: &mut ExplorerProperties,
+    owner: &mut crate::app::local_reads::ReadRequests,
+) -> bool {
     let Some(result) = props.query.as_mut().and_then(|q| q.poll(owner)) else {
         return false;
     };
@@ -217,32 +227,23 @@ pub fn default_size() -> egui::Vec2 {
 }
 
 pub fn sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
-    let h = state
-        .dialogs
-        .explorer_properties
-        .as_ref()
-        .and_then(|p| p.content_h)
-        .unwrap_or(default_size().y);
+    let h = match payload {
+        crate::adapters::ui::popup::PopupPayload::ExplorerProperties(p) => p.content_h,
+        _ => None,
+    }
+    .unwrap_or(default_size().y);
     egui::vec2(th.explorer_props_width().value(), h)
 }
 
-pub fn on_close(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    // 다른 surface 로 옮기려고 닫은 뒤 같은 차례에 다시 열었다. 내용은 이미 새 대상이다.
-    if state.popups.is_open(EXPLORER_PROPERTIES_POPUP_ID) {
-        return;
-    }
-    if let Some(props) = state.dialogs.explorer_properties.take() {
-        props.cancel.store(true, Ordering::Relaxed);
+/// 닫히거나 다른 항목으로 바뀌어 데이터가 사라지면 진행 중인 폴더 세기를 멈춘다.
+impl Drop for ExplorerProperties {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
     }
 }
 
@@ -292,10 +293,10 @@ pub fn draw(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
-    let Some(props) = state.dialogs.explorer_properties.as_ref() else {
+    let crate::adapters::ui::popup::PopupPayload::ExplorerProperties(props) = cx.payload else {
         return PopupAction::Close;
     };
     // 탐색기 칸이 닫히면 팝업도 닫는다.
@@ -383,7 +384,7 @@ pub fn draw(
         .as_ref()
         .filter(|_| perm_click == PermClick::Apply)
         .map(|p| (p.path.clone(), p.draft));
-    if let Some(props) = state.dialogs.explorer_properties.as_mut() {
+    {
         // 높이는 다음 프레임에 sizer 가 쓴다. 비동기 결과로 내용이 줄거나 늘면 입력이 없어도 그 프레임을
         // 그려야 팝업이 내용에 맞는다.
         if props.content_h != Some(measured) {
@@ -407,7 +408,7 @@ pub fn draw(
         }
     }
     if let Some((path, change)) = apply {
-        apply_perm(state, engine, surface_id, path, change);
+        apply_perm(state, engine, props, surface_id, path, change);
     }
     if open && let Footer::Open(action) = footer {
         crate::adapters::ui::apply_explorer_action(state, engine, surface_id, action);
@@ -1012,6 +1013,10 @@ impl ExplorerProperties {
     }
 
     /// 상자가 보이는 실패 이유. 상자가 없거나 실패가 아니면 None.
+    pub(crate) fn surface_id_for_test(&self) -> u32 {
+        self.surface_id
+    }
+
     pub(crate) fn perm_failure_for_test(&self) -> Option<&str> {
         match &self.perm.as_ref()?.phase {
             perm_edit::Phase::Failed(reason) => Some(reason),
@@ -1179,8 +1184,25 @@ mod tests {
         }
     }
 
+    /// 맨 위에 열린 Properties 인스턴스의 데이터.
     fn props(state: &MainViewState) -> &ExplorerProperties {
-        state.dialogs.explorer_properties.as_ref().unwrap()
+        props_of(state, None)
+    }
+
+    /// `surface` 칸(없으면 맨 위)에 열린 Properties 인스턴스의 데이터.
+    fn props_of(state: &MainViewState, surface: Option<u32>) -> &ExplorerProperties {
+        state
+            .popups
+            .instances_of(EXPLORER_PROPERTIES_POPUP_ID)
+            .filter_map(|p| match &p.payload {
+                crate::adapters::ui::popup::PopupPayload::ExplorerProperties(props) => {
+                    Some(props.as_ref())
+                }
+                _ => None,
+            })
+            .filter(|props| surface.is_none_or(|sid| props.surface_id == sid))
+            .last()
+            .expect("an open properties popup")
     }
 
     fn read_paths(state: &MainViewState) -> Vec<PathBuf> {
@@ -1205,56 +1227,44 @@ mod tests {
         for intent in state.take_pending_intents() {
             crate::intent::popup::handle(state, &mut engine, &intent);
         }
-        let ctx = egui::Context::default();
-        for id in state.popups.take_closed_ids() {
-            if id == EXPLORER_PROPERTIES_POPUP_ID {
-                on_close(
-                    &ctx,
-                    state,
-                    &engine.read(),
-                    &crate::adapters::ui::popup::ClosedPopup::test("test"),
-                );
-            }
-        }
+        state.popups.take_closed_ids();
     }
 
-    fn surface_scope(state: &MainViewState) -> Option<u32> {
-        match state.popups.open_scope(EXPLORER_PROPERTIES_POPUP_ID)? {
-            crate::model::popup_kind::PopupScope::Surface(id) => Some(*id),
-            _ => None,
-        }
+    fn surface_scopes(state: &MainViewState) -> Vec<u32> {
+        let mut found: Vec<u32> = state
+            .popups
+            .instances_of(EXPLORER_PROPERTIES_POPUP_ID)
+            .filter_map(|p| match p.scope {
+                crate::model::popup_kind::PopupScope::Surface(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        found.sort_unstable();
+        found
     }
 
+    /// 다른 탐색기 칸에서 열면 그 칸에 따로 열린다. 먼저 연 칸의 항목과 읽기는 그대로다.
     #[test]
-    fn a_request_from_another_surface_moves_the_popup_with_its_content() {
+    fn a_request_from_another_surface_opens_its_own_popup() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let dir = tempfile::tempdir().unwrap();
         let x = dir.path().join("x.txt");
         let y = dir.path().join("y.txt");
         std::fs::write(&x, b"x").unwrap();
         std::fs::write(&y, b"yy").unwrap();
-        open(&mut state, 1, vec![x], None, true);
+        open(&mut state, 1, vec![x.clone()], None, true);
         run_frame(&mut state, &mut session);
-        assert_eq!(surface_scope(&state), Some(1));
+        assert_eq!(surface_scopes(&state), [1]);
         let first_cancel = props(&state).cancel.clone();
 
         open(&mut state, 2, vec![y.clone()], None, true);
         run_frame(&mut state, &mut session);
-        assert_eq!(
-            surface_scope(&state),
-            Some(2),
-            "the popup follows the request"
-        );
-        assert_eq!(
-            props(&state).surface_id,
-            2,
-            "content and scope name one surface"
-        );
-        assert_eq!(props(&state).paths, [y]);
-        assert!(first_cancel.load(Ordering::Relaxed));
+        assert_eq!(surface_scopes(&state), [1, 2]);
+        assert_eq!(props_of(&state, Some(1)).paths, [x]);
+        assert_eq!(props_of(&state, Some(2)).paths, [y]);
         assert!(
-            !props(&state).cancel.load(Ordering::Relaxed),
-            "closing the old popup does not stop the new read"
+            !first_cancel.load(Ordering::Relaxed),
+            "the first popup keeps reading"
         );
     }
 
@@ -1283,13 +1293,13 @@ mod tests {
             crate::intent::popup::handle(&mut state, &mut session.borrow_mut(), &intent);
         }
         assert!(state.popups.take_closed_ids().is_empty());
-        assert_eq!(surface_scope(&state), Some(1));
+        assert_eq!(surface_scopes(&state), [1]);
         assert_eq!(props(&state).paths, [y]);
         assert!(first_cancel.load(Ordering::Relaxed), "the old count stops");
     }
 
     #[test]
-    fn closing_the_popup_still_clears_its_state() {
+    fn closing_the_popup_drops_its_items_and_stops_the_count() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let dir = tempfile::tempdir().unwrap();
         let x = dir.path().join("x.txt");
@@ -1299,13 +1309,13 @@ mod tests {
         let cancel = props(&state).cancel.clone();
         state.popups.close(EXPLORER_PROPERTIES_POPUP_ID);
         run_frame(&mut state, &mut session);
-        assert!(state.dialogs.explorer_properties.is_none());
+        assert!(surface_scopes(&state).is_empty());
         assert!(cancel.load(Ordering::Relaxed));
     }
 
     #[test]
     fn reopening_on_another_item_drops_the_late_result_of_the_first() {
-        let (mut state, _engine) = crate::state::tests::test_state();
+        let (mut state, mut session) = crate::state::tests::test_state();
         let dir = tempfile::tempdir().unwrap();
         let first = dir.path().join("first.txt");
         let second = dir.path().join("second.txt");
@@ -1313,6 +1323,7 @@ mod tests {
         std::fs::write(&second, b"22").unwrap();
         let mut owner = LocalReads::default();
         open(&mut state, 1, vec![first], None, false);
+        crate::intent::popup::apply_pending(&mut state, &mut session);
         // 첫 읽기를 넘기고 끝나기를 기다린다. 결과는 받지 않은 채 남는다.
         owner.drive(|requests| {
             poll(&mut state, requests);
@@ -1324,8 +1335,9 @@ mod tests {
         open(&mut state, 1, vec![second.clone()], None, false);
         assert!(
             old_cancel.load(Ordering::Relaxed),
-            "the first read is told to stop"
+            "the first read is told to stop before the request is handled"
         );
+        crate::intent::popup::apply_pending(&mut state, &mut session);
         settle(&mut state, &mut owner);
         assert_eq!(read_paths(&state), [second]);
         shutdown(owner);
@@ -1334,11 +1346,12 @@ mod tests {
     #[test]
     fn a_vanished_item_reads_as_an_error_and_retry_reads_it_once_it_is_back() {
         crate::i18n::init("en");
-        let (mut state, _engine) = crate::state::tests::test_state();
+        let (mut state, mut session) = crate::state::tests::test_state();
         let dir = tempfile::tempdir().unwrap();
         let gone = dir.path().join("gone.txt");
         let mut owner = LocalReads::default();
         open(&mut state, 1, vec![gone.clone()], None, false);
+        crate::intent::popup::apply_pending(&mut state, &mut session);
         settle(&mut state, &mut owner);
         let p = props(&state);
         let Some(Err(reason)) = &p.facts else {
@@ -1358,7 +1371,7 @@ mod tests {
         assert!(fields.is_empty(), "no made-up values beside the error");
 
         std::fs::write(&gone, b"back").unwrap();
-        state.dialogs.explorer_properties.as_mut().unwrap().retry();
+        instances_mut(&mut state).next().unwrap().retry();
         settle(&mut state, &mut owner);
         assert_eq!(read_paths(&state), [gone]);
         shutdown(owner);
@@ -1367,9 +1380,10 @@ mod tests {
     #[test]
     fn the_current_remote_folder_shows_unknown_values_instead_of_zero() {
         crate::i18n::init("en");
-        let (mut state, _engine) = crate::state::tests::test_state();
+        let (mut state, mut session) = crate::state::tests::test_state();
         let cwd = PathBuf::from("/srv/remote/project");
         open_from_menu(&mut state, true, 1, &[], &cwd);
+        crate::intent::popup::apply_pending(&mut state, &mut session);
         let p = props(&state);
         assert!(p.query.is_none(), "a remote item is never read locally");
         let (glyph, title, fields, note) = content(p, "minutes");

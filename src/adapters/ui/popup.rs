@@ -141,7 +141,7 @@ impl PopupInstanceId {
 /// 인스턴스가 가진 팝업 데이터. 닫으면 함께 사라진다.
 ///
 /// 아직 옮기지 않은 팝업의 데이터는 `DialogState`·`MainViewState`에 있다. 그 팝업의 인스턴스 값은 `None`이다.
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub enum PopupPayload {
     #[default]
     None,
@@ -149,6 +149,50 @@ pub enum PopupPayload {
     Convert(convert::ConvertPayload),
     /// 검색창이 검색하는 터미널 surface.
     Search { surface_id: u32 },
+    /// 탐색기 Properties가 연 항목과 진행 중인 읽기.
+    ExplorerProperties(Box<explorer_properties::ExplorerProperties>),
+}
+
+impl std::fmt::Debug for PopupPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => f.write_str("None"),
+            Self::Convert(c) => f.debug_tuple("Convert").field(c).finish(),
+            Self::ExplorerProperties(_) => f.write_str("ExplorerProperties"),
+            Self::Search { surface_id } => f
+                .debug_struct("Search")
+                .field("surface_id", surface_id)
+                .finish(),
+        }
+    }
+}
+
+/// 열기 요청이 실어 오는 인스턴스 데이터. 진행 중인 읽기처럼 복제할 수 없는 데이터도 실을 수 있게
+/// 요청을 복제해도 한 칸을 함께 가리키고, 처음 꺼낸 쪽이 가져간다.
+#[derive(Clone, Default)]
+pub struct PayloadSlot(std::sync::Arc<std::sync::Mutex<PopupPayload>>);
+
+impl PayloadSlot {
+    pub fn new(payload: PopupPayload) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(payload)))
+    }
+
+    /// 데이터를 꺼낸다. 이미 꺼냈으면 `None` 값이다.
+    pub fn take(&self) -> PopupPayload {
+        match self.0.lock() {
+            Ok(mut payload) => std::mem::take(&mut *payload),
+            Err(poisoned) => {
+                tracing::warn!("popup payload slot was poisoned; taking its value anyway");
+                std::mem::take(&mut *poisoned.into_inner())
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for PayloadSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PayloadSlot")
+    }
 }
 
 /// 그리기 함수가 받는 인스턴스 문맥.
@@ -304,7 +348,7 @@ pub type PopupCloseHook = fn(
 );
 
 /// State for a single popup instance.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PopupState {
     /// 선언 id. 같은 선언의 인스턴스끼리 같다.
     pub id: PopupId,
@@ -613,6 +657,42 @@ impl PopupState {
         self
     }
 
+    /// 같은 선언의 새 인스턴스를 만들 바탕. 위치·크기·선언 값은 복사하고 인스턴스 데이터는 비운다.
+    /// 인스턴스 데이터는 진행 중인 읽기처럼 복제할 수 없는 값을 담을 수 있다.
+    fn fresh_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            instance: self.instance,
+            instances: self.instances,
+            parent: self.parent,
+            title: self.title.clone(),
+            open: self.open,
+            scope_visible: self.scope_visible,
+            pos: self.pos,
+            size: self.size,
+            dragging: self.dragging,
+            drag_offset: self.drag_offset,
+            scope: self.scope.clone(),
+            focused: self.focused,
+            passive: self.passive,
+            close_on_outside_click: self.close_on_outside_click,
+            headless: self.headless,
+            sticky_focus: self.sticky_focus,
+            request_center: self.request_center,
+            request_top: self.request_top,
+            drag_handle: self.drag_handle,
+            resizable: self.resizable,
+            min_size: self.min_size,
+            resizing: self.resizing,
+            z_seq: self.z_seq,
+            resize_start_rect: self.resize_start_rect,
+            size_user_overridden: self.size_user_overridden,
+            fullscreen_stage: self.fullscreen_stage,
+            look: self.look,
+            payload: PopupPayload::None,
+        }
+    }
+
     /// 닫힌 상태로 되돌린다. 위치·크기와 선언 값은 남긴다.
     fn reset_closed(&mut self) {
         self.open = false;
@@ -813,7 +893,7 @@ impl PopupManager {
             return found;
         }
         let base = self.popups.iter().rposition(|p| p.id == id)?;
-        let mut fresh = self.popups[base].clone();
+        let mut fresh = self.popups[base].fresh_copy();
         fresh.reset_closed();
         fresh.request_center = false;
         fresh.request_top = false;
@@ -888,7 +968,7 @@ impl PopupManager {
             p.passive = true;
         }
         p.parent = request.parent;
-        p.payload = request.payload.clone();
+        p.payload = request.payload.take();
         let (iid, focused) = (p.instance, p.focused);
         // 키 입력은 포커스를 가진 인스턴스만 받는다. 같은 선언에서 포커스는 하나만 남긴다.
         if focused {

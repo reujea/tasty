@@ -235,7 +235,7 @@ Grid 셀은 모두 `explorer_grid_thumb_size`(40) 슬롯을 잡아 썸네일 유
 
 ### Properties popup
 
-`explorer_properties` popup(`src/adapters/ui/popup/explorer_properties.rs`, 시안 `YProps`)은 그 explorer surface 에 묶인(`PopupScope::Surface`) headless popup 이다. 바탕은 시안 YProps 와 같은 bg-panel 이다(읽기 실패 화면의 Secondary Retry 가 surface-raised 바탕에 묻히지 않는다). 폭은 `explorer_props_width`(360)이고, 칸이 그보다 좁아 팝업 관리자가 팝업을 칸 안으로 줄이면 내용과 footer 구분선도 줄어든 폭을 쓴다(머리 이름은 말줄임, 경로는 어디서나, 시각은 부분 사이에서 줄바꿈). 라벨 열은 `explorer_props_label_width`(96, caption text-muted)이고 값은 body 또는 mono caption 이다. 연 대상을 고정해 보이며, 원 explorer 가 사라지면 닫힌다.
+`explorer_properties` popup(`src/adapters/ui/popup/explorer_properties.rs`, 시안 `YProps`)은 그 explorer surface 에 묶인(`PopupScope::Surface`) headless popup 이다. 바탕은 시안 YProps 와 같은 bg-panel 이다(읽기 실패 화면의 Secondary Retry 가 surface-raised 바탕에 묻히지 않는다). 폭은 `explorer_props_width`(360)이고, 칸이 그보다 좁아 팝업 관리자가 팝업을 칸 안으로 줄이면 내용과 footer 구분선도 줄어든 폭을 쓴다(머리 이름은 말줄임, 경로는 어디서나, 시각은 부분 사이에서 줄바꿈). 라벨 열은 `explorer_props_label_width`(96, caption text-muted)이고 값은 body 또는 mono caption 이다. 연 대상을 고정해 보이며, 원 explorer 가 사라지면 닫힌다. explorer 칸마다 따로 열린다. 다른 칸에서 열어도 먼저 연 칸의 팝업과 읽기는 그대로이고, 같은 칸에서 다시 열면 위치·포커스는 두고 항목만 바꾼다(앞 항목의 읽기는 멈춘다).
 
 - **진입**: 컨텍스트 메뉴 맨 끝 구분선 뒤 "Properties"(id 70, 모든 변형·mirror 에서도 보인다), `explorer_properties` 단축키·Command Palette. 대상 규칙은 [파일 작업 계약](file-operations.md#대상-결정-규칙)이다.
 - **종류 문구**(`explorer/kind.rs` 의 `kind_word`·`file_kind_word`): Detail 의 Type 열, Properties 의 Kind, 미리보기 머리가 같은 낱말을 쓴다. 확장자 분류(`core/file_kind.rs` 의 `FileKind`)는 낱말과 Type 정렬이 함께 쓴다.

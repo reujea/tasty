@@ -278,7 +278,7 @@ fn drawing_reads_the_declarations_as_the_table_says() {
                 global.shadow_modal()
             };
             assert_eq!(shadow, want, "{id} shadow");
-            let mut sized = state.clone();
+            let mut sized = state.fresh_copy();
             sized.size = egui::vec2(300.0, 200.0);
             sized.headless = true;
             let margin = sized.content_rect().min.x - sized.popup_rect().min.x;
