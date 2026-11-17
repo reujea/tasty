@@ -6,13 +6,16 @@ use serde::Deserialize;
 /// 각 키는 쓰지 않으면 `None`이다. host는 선언하지 않은 키를 자기 규칙으로 해석한다.
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 pub struct SurfaceKindCapabilityDecl {
-    /// 탭 위의 주소 띠, 주소창 포커스 단축키, 생성 인자 `url`의 문서 출처 기록.
+    /// 탭 위의 주소 띠(받는 문서의 수신 표시 포함), 주소창 포커스 단축키, 생성 인자 `url`의
+    /// 문서 출처 기록.
     #[serde(default)]
     pub address_band: Option<bool>,
-    /// 주소 띠 아래에 쌓는 크기·원격·스크립트 안내 띠. 그 높이만큼 페이지를 내린다.
+    /// 스크립트 게이트가 맡지 않는 안내 카드(attach로 받는 문서의 크기 안내). 그 높이만큼 페이지를
+    /// 내린다. 주소 띠와 독립이다.
     #[serde(default)]
     pub inset_notices: Option<bool>,
-    /// 문서 단위 스크립트 감지·허용 게이트와 그 IPC.
+    /// 문서 단위 스크립트·원격 콘텐츠 감지·허용 게이트, 그 차단 안내 카드(허용 버튼 포함)와 IPC.
+    /// 안내 카드는 `inset_notices` 선언과 관계없이 그린다.
     #[serde(default)]
     pub script_gate: Option<bool>,
     /// mirror workspace의 새 탭 메뉴에서 원격 파일을 골라 이 kind로 연다.

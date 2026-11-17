@@ -381,7 +381,7 @@ pub fn draw_egui_panels(
                         });
                         let band_h = band.unwrap_or_default();
                         let below = panel.with_min_y(panel.min.y + band_h.value());
-                        let size = received.as_ref().and_then(|snapshot| {
+                        let size = targets.size.and(received.as_ref()).and_then(|snapshot| {
                             crate::adapters::ui::surface::html_receive::size_banner(
                                 ui,
                                 &th,
@@ -390,12 +390,10 @@ pub fn draw_egui_panels(
                                 &mut receive_actions,
                             )
                         });
-                        let banners = targets.notices.map_or_else(
-                            || {
-                                size.map(|h| th.banner_margin() + h + th.banner_inset_gap())
-                                    .unwrap_or_default()
-                            },
-                            |sid| {
+                        // 크기 안내는 inset_notices에서만 생기고 그 kind는 안내 묶음도 그린다.
+                        let banners = targets
+                            .notices
+                            .map(|sid| {
                                 crate::adapters::ui::surface::html_script_banner::draw_stack(
                                     ui,
                                     &th,
@@ -405,8 +403,8 @@ pub fn draw_egui_panels(
                                     below,
                                     size,
                                 )
-                            },
-                        );
+                            })
+                            .unwrap_or_default();
                         let page = below.with_min_y(below.min.y + banners.value());
                         let [left, right, bottom] = info.webview_inset;
                         let content = egui::Rect::from_min_max(
