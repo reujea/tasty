@@ -204,17 +204,17 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 
 | 진입점 | 바인딩되는 대상 |
 |--------|----------------|
-| 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface |
+| 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface |
 | 도구 메뉴·명령 팔레트·명령 단축키 popup | 입력 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface |
 | 이벤트 trigger popup | `surface` 범위 이벤트(`EventScope::Surface`)의 payload `surface_id`. 대상이 그 popup 을 선언한 plugin 의 surface 가 아니거나, 다른 plugin 이 발행한 이벤트면 열지 않는다 |
 | `debug.popup.open` | 요청의 `surface_id` |
 
-`surface` 선언 popup 에 대상이 없으면 `window` 로 바꾸지 않고 열지 않는다. 변환 입력 popup 은 제자리 변환
-대상도 focus surface 도 없을 때(예: attach 대기 초안 선택) 열지 않고 경고 로그를 남긴다. 도구 메뉴·명령
+`surface` 선언 popup 에 대상이 없으면 `window` 로 바꾸지 않고 열지 않는다. 변환 입력 popup·도구 메뉴·명령
 팔레트·명령 단축키는 생성 대기 초안도 대상으로 삼으므로, 대상 surface 도 초안도 없을 때만 열지 않고 경고
 로그를 남긴다. 대상 없는 이벤트도 열지 않고 경고 로그만 남긴다(이벤트는 응답이 없다). `debug.popup.open` 은 `surface_id` 가 없거나 없는 surface 를 가리키면 `-32602` 로 거절한다.
-`window` 선언 popup 은 대상이 없어도 그대로 열린다. 도구 메뉴·명령 팔레트·명령 단축키에서 초안이 대상이면
-`window` 선언 popup 도 생성된 surface 를 문맥으로 생성 뒤에 연다.
+`window` 선언 popup 은 대상이 없어도 그대로 열린다. 변환 입력 popup·도구 메뉴·명령 팔레트·명령 단축키에서
+초안이 대상이면 `window` 선언 popup 도 생성된 surface 를 문맥으로 생성 뒤에 연다. 새 탭용 변환 입력 popup 의
+문맥에는 제자리 변환 표시(`surface_id`)가 없다.
 
 `surface` 범위 popup은 앵커의 가운데 기준도 그 surface 영역이다. 범위가 안 보이는 frame 에는
 셸·콘텐츠 합성·히트테스트 rect·Esc·바깥 클릭·키 게이트 어디에도 들어가지 않는다 — 보이지

@@ -159,8 +159,9 @@ PendingId로 식별하며 CoreState·journal·surface 저장소에 임시 도메
 임시 영역에서 None을 반환한다. IME는 조합 시작의 선택·임시 선택 세대를 확인한다.
 
 명령 대상 조회(`command_surface_target`)는 선택된 생성 draft를 `Pending(PendingId)`로 돌려준다.
-도구·팔레트·plugin 명령 단축키·`debug.tool.invoke`의 popup 동작은 그 draft에 걸어 둔다
-(`attach_pending::deferred`). 정산이 생성 draft를 local surface로 끝내면(`applied`,
+도구·팔레트·plugin 명령 단축키·`debug.tool.invoke`의 popup 동작과, 변환 대상 없이 연 변환 입력
+popup(`open_markdown` 등 새 탭용)은 그 draft에 걸어 둔다(`attach_pending::deferred`). 변환 입력 popup은
+선언 범위와 관계없이 걸고, 열 때 kind를 다시 찾아 없으면 경고 로그를 남기고 버린다. 정산이 생성 draft를 local surface로 끝내면(`applied`,
 `applied_before_result`) 선택·포커스 여부와 무관하게 그 surface로 실행 목록에 옮긴다. `retain`이
 지우는 draft(실패·epoch 종료·anchor 사라짐)와 합쳐진 스냅샷으로 접힌 draft의 명령은 info 로그를
 남기고 버린다. 실행은 App의 팝업 열기 단계가 접수 순서대로 하고, 그 surface가 이미 없으면 버린다.
