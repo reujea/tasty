@@ -63,8 +63,9 @@ impl App {
 
 /// 팔레트 큐의 plugin 명령 하나를 고른 시점의 대상으로 실행한다. 바로 실행할 surface 가 그 사이
 /// 사라졌으면 실행하지도 알리지도 않고 버린다. 실행할 수 없으면 알리지도 실행하지도 않는다.
-/// 생성 대기 초안에 걸 명령은 Enter 처리에서 이미 걸었으므로, 큐에 초안 대상이 남았다면 입력 뒤
-/// 명령 정의가 바뀐 경우다. 그 초안은 이미 정산됐을 수 있어 늦게 걸지 않고 버린다.
+/// 초안 대상인 이벤트·surface 열기 명령은 걸어 두지 않으므로 여기서 바로 실행하고 알린다.
+/// 초안 대상인데 지금 동작이 걸어 둘 동작(팝업)이면 Enter 뒤 정의가 팝업으로 바뀐 것이다.
+/// 그 초안은 이미 정산됐을 수 있어 늦게 걸지 않고 버린다.
 pub(crate) fn run_palette_command(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -81,7 +82,9 @@ pub(crate) fn run_palette_command(
         );
         return;
     }
-    if let Some(CommandSurfaceTarget::Pending(pending)) = target {
+    if let Some(CommandSurfaceTarget::Pending(pending)) = target
+        && crate::adapters::ui::tools_menu::defers(&item.action)
+    {
         tracing::info!(
             "plugin command '{}' for pending {} dropped: its definition changed after input",
             item.key,
@@ -187,5 +190,65 @@ mod tests {
         assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
         assert!(state.pending_popup_opens.is_empty());
         assert!(state.pending_tool_events.is_empty());
+    }
+
+    /// 행과 registry 모두 걸어 두지 않는 동작인 명령을 초안 선택 중 Enter 로 골라 큐에서 소비한다.
+    /// 알림 수와 보관소에 남은 수를 돌려준다.
+    fn run_unchanged_draft_command(
+        state: &mut crate::state::MainViewState,
+        read: &crate::runtime::engine_read::EngineRead<'_>,
+        action: crate::plugin::manifest::ToolAction,
+    ) -> (usize, usize) {
+        use crate::adapters::ui::popup::command_palette::enabled_tests as palette;
+        state.palette_plugin_commands[0].action = Some(action.clone());
+        let _draft = crate::state::tests::select_pending_draft(state, read);
+        let pending = state.attach_pending.entries[0].id;
+        palette::press_enter_on_confirm(state, read);
+        let (_, target) = state.command_palette.pending_run.take().expect("queued");
+        assert_eq!(target, Some(CommandSurfaceTarget::Pending(pending)));
+        let item =
+            crate::adapters::ui::tools_menu::command_item("com.example.viewer", "confirm", action);
+        let mut notified = 0;
+        run_palette_command(state, read, &item, target, |_| notified += 1);
+        (notified, state.attach_pending.deferred.waiting_for(pending))
+    }
+
+    /// 초안 대상인 이벤트 명령은 정의가 그대로면 버리지 않고 바로 한 번 실행하고 알린다.
+    #[test]
+    fn a_queued_draft_event_command_runs_and_notifies_once() {
+        let (mut state, mut session) =
+            crate::adapters::ui::popup::command_palette::enabled_tests::palette_with_popup_command(
+            );
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let outcome = run_unchanged_draft_command(
+            &mut state,
+            &read,
+            crate::plugin::manifest::ToolAction::Event {
+                event_key: "com.example.viewer.go".into(),
+            },
+        );
+        assert_eq!(outcome, (1, 0));
+        assert_eq!(state.pending_tool_events.len(), 1);
+    }
+
+    /// 초안 대상인 surface 열기 명령도 정의가 그대로면 바로 한 번 실행하고 알린다.
+    #[test]
+    fn a_queued_draft_open_surface_command_runs_and_notifies_once() {
+        let (mut state, mut session) =
+            crate::adapters::ui::popup::command_palette::enabled_tests::palette_with_popup_command(
+            );
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let before = state.pending_intents.len();
+        let outcome = run_unchanged_draft_command(
+            &mut state,
+            &read,
+            crate::plugin::manifest::ToolAction::OpenSurface {
+                surface_kind: "markdown".into(),
+            },
+        );
+        assert_eq!(outcome, (1, 0));
+        assert_eq!(state.pending_intents.len(), before + 1);
     }
 }

@@ -308,7 +308,7 @@ pub(crate) fn run_tool(
 
 /// 대상이 생성 대기 초안일 때 걸어 둘 동작인지. 팝업은 선언 범위와 관계없이 대상 surface 의
 /// 문맥(cwd·mirror)을 받으므로 걸어 두고, 대상 surface 를 쓰지 않는 동작은 바로 실행한다.
-fn defers(action: &ToolAction) -> bool {
+pub(crate) fn defers(action: &ToolAction) -> bool {
     matches!(action, ToolAction::OpenPopup { .. })
 }
 
