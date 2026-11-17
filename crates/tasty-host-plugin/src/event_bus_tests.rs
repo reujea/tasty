@@ -608,3 +608,74 @@ fn a_clock_before_the_unix_epoch_still_gives_each_generation_its_own_epoch() {
         42
     );
 }
+
+/// 선언하지 않은 구독의 진단은 플러그인·패턴·필드·파일·현재 선언·고칠 방법을 모두 담는다.
+#[test]
+fn undeclared_subscribe_message_names_the_field_the_declarations_and_the_fix() {
+    let bus = EventBus::new();
+    bus.set_plugin_declarations("p1", vec!["tab.*".into()], vec![]);
+    let msg = bus
+        .subscribe_plugin("p1", 1, "surface.created".into())
+        .unwrap_err()
+        .to_string();
+    for part in [
+        "'p1'",
+        "'surface.created'",
+        "event_subscribe",
+        "tasty-plugin.toml",
+        "'tab.*'",
+        "Add 'surface.created'",
+    ] {
+        assert!(msg.contains(part), "{part:?} missing from {msg:?}");
+    }
+}
+
+/// 선언이 하나도 없으면 목록 자리에 비어 있다고 적는다.
+#[test]
+fn undeclared_publish_message_says_when_nothing_is_declared() {
+    let bus = EventBus::new();
+    bus.set_plugin_declarations("p1", vec![], vec![]);
+    let envelope = env(
+        "p1.foo.bar",
+        EventOrigin::Plugin {
+            plugin_id: "p1".into(),
+        },
+    );
+    let msg = bus
+        .publish_from_plugin("p1", envelope)
+        .unwrap_err()
+        .to_string();
+    for part in [
+        "'p1'",
+        "'p1.foo.bar'",
+        "event_publish",
+        "tasty-plugin.toml",
+        "lists no patterns",
+        "Add 'p1.foo.bar'",
+    ] {
+        assert!(msg.contains(part), "{part:?} missing from {msg:?}");
+    }
+}
+
+/// 호스트 전용 namespace 발행은 선언으로 고칠 수 없다고 알리고 선언을 권하지 않는다.
+#[test]
+fn reserved_namespace_publish_message_says_a_declaration_cannot_fix_it() {
+    let bus = EventBus::new();
+    bus.set_plugin_declarations("p1", vec![], vec!["p1.*".into()]);
+    let envelope = env(
+        "surface.created",
+        EventOrigin::Plugin {
+            plugin_id: "p1".into(),
+        },
+    );
+    let msg = bus
+        .publish_from_plugin("p1", envelope)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        msg.contains("'surface' namespace is reserved for the host"),
+        "{msg:?}"
+    );
+    assert!(msg.contains("does not help"), "{msg:?}");
+    assert!(!msg.contains("Add '"), "{msg:?}");
+}

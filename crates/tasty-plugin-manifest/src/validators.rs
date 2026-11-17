@@ -296,7 +296,7 @@ pub(super) fn is_reserved_hook_event_key(s: &str) -> bool {
 }
 
 /// 플러그인이 발행할 수 없는 호스트 전용 namespace.
-pub(super) fn is_reserved_event_namespace(ns: &str) -> bool {
+pub fn is_reserved_event_namespace(ns: &str) -> bool {
     matches!(
         ns,
         "agent"

@@ -274,15 +274,14 @@ impl EventBus {
         pattern: String,
     ) -> Result<(), EventBusError> {
         let mut inner = self.lock_recovering();
-        let covered = inner
-            .declared_subscribe
-            .get(plugin_id)
-            .map(|patterns| patterns.iter().any(|p| pattern_covers(p, &pattern)))
-            .unwrap_or(false);
+        let declared = inner.declared_subscribe.get(plugin_id);
+        let covered =
+            declared.is_some_and(|patterns| patterns.iter().any(|p| pattern_covers(p, &pattern)));
         if !covered {
             return Err(EventBusError::UndeclaredSubscribe {
                 plugin_id: plugin_id.to_string(),
                 pattern,
+                declared: declared.cloned().unwrap_or_default(),
             });
         }
         // 중복 sub_id면 교체.
@@ -346,19 +345,19 @@ impl EventBus {
                 envelope_origin: envelope.meta.origin.clone(),
             });
         }
-        // event_publish 선언 대조.
-        let covered = {
+        // event_publish 선언 대조. 선언 목록은 거절 진단에만 복제한다.
+        let undeclared = {
             let inner = self.lock_recovering();
-            inner
-                .declared_publish
-                .get(plugin_id)
-                .map(|patterns| patterns.iter().any(|p| pattern_matches(p, &envelope.key)))
-                .unwrap_or(false)
+            let declared = inner.declared_publish.get(plugin_id);
+            let covered = declared
+                .is_some_and(|patterns| patterns.iter().any(|p| pattern_matches(p, &envelope.key)));
+            (!covered).then(|| declared.cloned().unwrap_or_default())
         };
-        if !covered {
+        if let Some(declared) = undeclared {
             return Err(EventBusError::UndeclaredPublish {
                 plugin_id: plugin_id.to_string(),
                 key: envelope.key,
+                declared,
             });
         }
         Ok(self.fan_out(envelope, Some(plugin_id)))
@@ -613,10 +612,14 @@ pub enum EventBusError {
     UndeclaredSubscribe {
         plugin_id: String,
         pattern: String,
+        /// 매니페스트 `event_subscribe` 에 선언된 패턴. 진단 메시지에 그대로 싣는다.
+        declared: Vec<String>,
     },
     UndeclaredPublish {
         plugin_id: String,
         key: String,
+        /// 매니페스트 `event_publish` 에 선언된 패턴. 진단 메시지에 그대로 싣는다.
+        declared: Vec<String>,
     },
     OriginMismatch {
         plugin_id: String,
@@ -631,14 +634,41 @@ pub enum EventBusError {
 impl std::fmt::Display for EventBusError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UndeclaredSubscribe { plugin_id, pattern } => write!(
+            Self::UndeclaredSubscribe {
+                plugin_id,
+                pattern,
+                declared,
+            } => write!(
                 f,
-                "plugin '{plugin_id}' has no manifest event_subscribe permission for '{pattern}'"
+                "plugin '{plugin_id}' subscribed to '{pattern}', which its manifest does not \
+                 declare. event_subscribe in its tasty-plugin.toml lists {}. Add '{pattern}' \
+                 or a covering '<namespace>.*' pattern to event_subscribe.",
+                declared_list(declared)
             ),
-            Self::UndeclaredPublish { plugin_id, key } => write!(
-                f,
-                "plugin '{plugin_id}' has no manifest event_publish permission for key '{key}'"
-            ),
+            Self::UndeclaredPublish {
+                plugin_id,
+                key,
+                declared,
+            } => {
+                let namespace = key.split('.').next().unwrap_or("");
+                if tasty_plugin_manifest::validators::is_reserved_event_namespace(namespace) {
+                    write!(
+                        f,
+                        "plugin '{plugin_id}' published '{key}', but the '{namespace}' namespace \
+                         is reserved for the host. A plugin cannot publish there, and adding it \
+                         to event_publish in tasty-plugin.toml does not help because the \
+                         manifest is refused. Publish under the plugin's own namespace instead."
+                    )
+                } else {
+                    write!(
+                        f,
+                        "plugin '{plugin_id}' published '{key}', which its manifest does not \
+                         declare. event_publish in its tasty-plugin.toml lists {}. Add '{key}' \
+                         or a covering '<namespace>.*' pattern to event_publish.",
+                        declared_list(declared)
+                    )
+                }
+            }
             Self::OriginMismatch {
                 plugin_id,
                 envelope_origin,
@@ -654,6 +684,19 @@ impl std::fmt::Display for EventBusError {
 }
 
 impl std::error::Error for EventBusError {}
+
+/// 진단 메시지에 싣는 선언 목록. 비어 있으면 그렇다고 적는다.
+fn declared_list(declared: &[String]) -> String {
+    if declared.is_empty() {
+        "no patterns".to_string()
+    } else {
+        declared
+            .iter()
+            .map(|p| format!("'{p}'"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
 
 #[cfg(test)]
 #[path = "event_bus_tests.rs"]
