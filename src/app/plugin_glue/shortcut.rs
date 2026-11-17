@@ -255,24 +255,8 @@ impl App {
             .and_then(|e| e.action.clone());
 
         if let Some(action) = action {
-            // 실행할 수 없는 동작이면 실행도 알림도 하지 않고 키를 다음 처리자에 넘긴다.
-            if crate::adapters::ui::tools_menu::tool_action_blocked(
-                &main.state,
-                &engine.read(),
-                &action,
-            ) {
-                tracing::warn!(
-                    "plugin command '{plugin_id}/{cmd_id}' not run: its popup needs a surface target and no surface is focused"
-                );
-                return false;
-            }
             // action과 command.invoke를 함께 실행하면 같은 명령이 두 번 처리된다.
-            // 호스트 action만 실행하되 command.invoked 알림은 보낸다.
-            if let Some(mgr) = self.plugin_manager.as_mut() {
-                crate::plugin_bridge::key_dispatch::emit_command_invoked(
-                    mgr, &plugin_id, &cmd_id, surface_id,
-                );
-            }
+            // 호스트 action만 실행하되 command.invoked 알림은 보낸다. 대상은 키를 누른 지금 정한다.
             let item = plugin::tool_registry::ToolItem {
                 source: plugin::tool_registry::ToolSource::Plugin {
                     plugin_id: plugin_id.clone(),
@@ -284,14 +268,37 @@ impl App {
                 action,
                 order_hint: 0,
             };
-            if let Err(blocked) =
-                crate::adapters::ui::tools_menu::invoke_tool(&mut main.state, &engine.read(), &item)
-            {
+            let invoked = crate::state::attach_pending::deferred::InvokedNotice {
+                plugin_id,
+                command_id: cmd_id,
+                surface_id,
+            };
+            let target = main.state.command_surface_target(&engine.read());
+            let mgr = self.plugin_manager.as_mut();
+            // 실행할 수 없는 동작이면 실행도 알림도 하지 않고 키를 다음 처리자에 넘긴다.
+            if let Err(blocked) = crate::adapters::ui::tools_menu::run_tool(
+                &mut main.state,
+                &engine.read(),
+                &item,
+                target,
+                Some(invoked),
+                |n| {
+                    if let Some(mgr) = mgr {
+                        crate::plugin_bridge::key_dispatch::emit_command_invoked(
+                            mgr,
+                            &n.plugin_id,
+                            &n.command_id,
+                            n.surface_id,
+                        );
+                    }
+                },
+            ) {
                 tracing::warn!(
                     "plugin command '{}' not run: {}",
                     item.key,
                     blocked.message()
                 );
+                return false;
             }
         } else if let Some(mgr) = self.plugin_manager.as_mut() {
             crate::plugin_bridge::key_dispatch::dispatch_plugin_command(

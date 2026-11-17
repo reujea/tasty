@@ -5,6 +5,7 @@
 use crate::runtime::engine_access::EngineMut;
 use serde_json::json;
 
+use crate::adapters::ui::tools_menu::ToolRun;
 use crate::plugin::manifest::ToolAction;
 use crate::plugin::tool_registry::ToolSource;
 use crate::state::RequestContext;
@@ -52,7 +53,7 @@ pub fn handle_list(
 }
 
 /// `debug.tool.invoke` — `params.key`로 항목을 찾아 사용자 클릭과 동일한 동작을 수행.
-/// 항목을 찾지 못하면 invalid_params로 거부.
+/// 항목을 찾지 못하면 invalid_params로 거부. 생성 대기 초안에 걸어 두었으면 그 초안 id를 함께 돌려준다.
 pub fn handle_invoke(
     state: &mut RequestContext,
     engine: &mut EngineMut<'_>,
@@ -65,15 +66,20 @@ pub fn handle_invoke(
     let Some(item) = state.tool_registry.find(key) else {
         return JsonRpcResponse::error(id, -32602, format!("tool item '{key}' not found"));
     };
-    if let Err(blocked) = crate::adapters::ui::tools_menu::invoke_tool(state, &engine.read(), &item)
-    {
-        return JsonRpcResponse::error(
+    let read = engine.read();
+    let target = state.command_surface_target(&read);
+    match crate::adapters::ui::tools_menu::run_tool(state, &read, &item, target, None, |_| {}) {
+        Err(blocked) => JsonRpcResponse::error(
             id,
             -32602,
             format!("tool item '{key}' cannot run: {}", blocked.message()),
-        );
+        ),
+        Ok(ToolRun::Ran) => JsonRpcResponse::success(id, json!({ "invoked": key })),
+        Ok(ToolRun::Deferred(pending)) => JsonRpcResponse::success(
+            id,
+            json!({ "invoked": key, "deferred_pending_id": pending.0 }),
+        ),
     }
-    JsonRpcResponse::success(id, json!({ "invoked": key }))
 }
 
 #[cfg(test)]
@@ -84,9 +90,9 @@ mod tests {
 
     const SURFACE_POPUP: &str = "com.example.viewer/confirm";
 
-    /// surface 범위 팝업을 여는 도구는 포커스 surface 가 없으면 -32602로 거절하고 아무것도 열지 않는다.
+    /// 생성 대기 초안이 대상이면 surface 범위 팝업 도구를 걸어 두고 성공으로 답하며 그 초안 id 를 싣는다.
     #[test]
-    fn a_surface_popup_tool_without_a_target_is_refused() {
+    fn a_surface_popup_tool_on_a_pending_draft_is_deferred() {
         let (mut state, mut session) = crate::state::tests::test_mirror_state();
         state
             .tool_registry
@@ -107,16 +113,18 @@ mod tests {
         let mut engine = session.borrow_mut();
         let _draft = crate::state::tests::select_pending_draft(&mut state, &engine.read());
         let params = serde_json::json!({ "key": "com.example.viewer/t" });
-        let refused = handle_invoke(&mut state, &mut engine, serde_json::json!(1), &params);
-        let e = refused.error.as_ref().expect("refused");
+        let pending = state.attach_pending.entries[0].id;
+        let response = handle_invoke(&mut state, &mut engine, serde_json::json!(1), &params);
+        assert!(response.error.is_none(), "{:?}", response.error);
         assert_eq!(
-            (e.code, e.message.as_str()),
-            (
-                -32602,
-                "tool item 'com.example.viewer/t' cannot run: the popup needs a surface target and no surface is focused"
-            )
+            response.result,
+            Some(serde_json::json!({
+                "invoked": "com.example.viewer/t",
+                "deferred_pending_id": pending.0,
+            }))
         );
         assert!(state.pending_popup_opens.is_empty());
+        assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
         assert!(state.take_pending_intents().is_empty());
     }
 }

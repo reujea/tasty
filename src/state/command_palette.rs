@@ -61,7 +61,11 @@ pub struct CommandPaletteState {
     pub query: String,
     /// 필터링된 결과에서 선택한 인덱스.
     pub selected: usize,
-    pub pending_run: Option<PaletteCommand>,
+    /// 실행할 명령과 선택한 시점의 대상 surface.
+    pub pending_run: Option<(
+        PaletteCommand,
+        Option<super::attach_pending::deferred::CommandSurfaceTarget>,
+    )>,
 }
 
 #[cfg(feature = "gui")]

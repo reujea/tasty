@@ -9,6 +9,7 @@ use tasty_remote::{connection::ConnectionEpoch, pending_request::PendingRequest}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct PendingId(pub u64);
 mod creation_match;
+pub(crate) mod deferred;
 pub(crate) mod waits;
 type ProjectedRects = (Vec<(u32, PhysicalRect)>, Vec<(PendingId, PhysicalRect)>);
 #[derive(Clone, Copy, Debug)]
@@ -43,6 +44,15 @@ impl Entry {
                 core.has_workspace(self.workspace)
             }
     }
+    fn drop_reason(&self) -> &'static str {
+        if self.receipt.finished() {
+            "the request ended without a created surface"
+        } else if !self.epoch.is_active() {
+            "the connection epoch ended"
+        } else {
+            "the anchor surface is gone"
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum QueryConsumer {
@@ -64,6 +74,7 @@ pub(crate) struct AttachPending {
     pub entries: Vec<Entry>,
     pub queries: Vec<Query>,
     selected: Option<(PendingId, Weak<()>)>,
+    pub deferred: deferred::DeferredCommands,
 }
 impl AttachPending {
     pub fn begin(
@@ -151,7 +162,14 @@ impl AttachPending {
         }
     }
     pub fn retain(&mut self, core: &CoreState) {
-        self.entries.retain(|entry| entry.live(core));
+        let deferred = &mut self.deferred;
+        self.entries.retain(|entry| {
+            let live = entry.live(core);
+            if !live {
+                deferred.dropped(entry.id, entry.drop_reason());
+            }
+            live
+        });
     }
     pub fn permits_legacy_focus(
         &self,
@@ -204,6 +222,7 @@ impl AttachPending {
                 && entry.receipt.has_result()
         })?;
         let local = *mapping.get(&entry.receipt.created()?)?;
+        self.deferred.created(entry.id, local);
         let selected = self.selected.as_ref().is_some_and(|(id, generation)| {
             *id == entry.id && navigation.matches_generation(generation)
         });
@@ -241,6 +260,9 @@ impl AttachPending {
                     Some(id) => mapping.get(&id).copied(),
                     None => evidence.target,
                 };
+                if let (Some(_), Some(local)) = (entry.creation, local) {
+                    self.deferred.created(entry.id, local);
+                }
                 if entry.creation.is_none() || local.is_some() {
                     if selected == Some(entry.id)
                         && view.is_some_and(|view| view.ptr_eq(&entry.view))
@@ -250,8 +272,11 @@ impl AttachPending {
                     entry.receipt.finish();
                 }
             }
-            if entry.creation.is_some() && evidence.overlap {
+            if entry.creation.is_some() && evidence.overlap && entry.visible {
                 entry.visible = false;
+                // The draft no longer names one surface, so commands bound to it cannot run.
+                self.deferred
+                    .dropped(entry.id, "the merged result does not name one surface");
             }
         }
         if self

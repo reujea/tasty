@@ -474,3 +474,101 @@ fn noncreation_requests_wait_for_result_and_delta_without_prelayout_or_focus_cha
 }
 
 mod correlation;
+
+mod deferred_settle {
+    use super::*;
+
+    const POPUP: &str = "com.example.viewer/confirm";
+
+    fn deferred_draft(
+        state: &mut crate::state::RequestContext,
+        core: &CoreState,
+    ) -> (
+        Arc<PendingRequest>,
+        PendingId,
+        Arc<tasty_remote::connection::ConnectionSender>,
+        Arc<()>,
+    ) {
+        let anchor = state.focused_surface_id(core).unwrap();
+        let (sender, _queue) = tasty_remote::connection::channel();
+        let view = Arc::new(());
+        let receipt = state
+            .attach_pending
+            .begin(
+                core,
+                &state.navigation,
+                &tab(anchor),
+                sender.epoch(),
+                Arc::downgrade(&view),
+                std::time::Instant::now(),
+            )
+            .unwrap();
+        receipt.bind(0);
+        let id = state.attach_pending.entries[0].id;
+        state
+            .attach_pending
+            .deferred
+            .push(id, deferred::test_popup_command(POPUP));
+        (receipt, id, sender, view)
+    }
+
+    fn ready_keys(state: &mut crate::state::RequestContext) -> Vec<(u32, String)> {
+        state
+            .attach_pending
+            .deferred
+            .take_ready()
+            .into_iter()
+            .map(|(local, command)| {
+                let deferred::DeferredCommand::Tool { item, .. } = command;
+                (local, item.key)
+            })
+            .collect()
+    }
+
+    /// 결과보다 먼저 적용된 생성도 그 local surface로 실행 목록에 옮긴다.
+    #[test]
+    fn a_creation_applied_before_its_result_readies_the_commands_on_its_surface() {
+        let (mut state, engine) = crate::state::tests::test_mirror_state();
+        let core = &engine.core_state;
+        let anchor = state.focused_surface_id(core).unwrap();
+        let (_receipt, id, sender, view) = deferred_draft(&mut state, core);
+        state
+            .attach_pending
+            .result(&sender.epoch(), 0, Some(99), true);
+        state.attach_pending.applied_before_result(
+            &sender.epoch(),
+            0,
+            &state.navigation,
+            Some(&Arc::downgrade(&view)),
+            &[(99, anchor)].into_iter().collect(),
+        );
+        assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+        assert_eq!(ready_keys(&mut state), vec![(anchor, POPUP.to_string())]);
+    }
+
+    /// 실패한 생성 요청의 초안이 정리되면 걸어 둔 명령도 실행하지 않고 버린다.
+    #[test]
+    fn a_failed_creation_drops_its_commands_when_the_draft_is_retired() {
+        let (mut state, engine) = crate::state::tests::test_mirror_state();
+        let core = &engine.core_state;
+        let (_receipt, id, sender, _view) = deferred_draft(&mut state, core);
+        state.attach_pending.result(&sender.epoch(), 0, None, false);
+        state.attach_pending.retain(core);
+        assert!(state.attach_pending.entries.is_empty());
+        assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+        assert!(ready_keys(&mut state).is_empty());
+    }
+
+    /// 연결 세대가 끝난 초안의 명령도 버린다.
+    #[test]
+    fn an_ended_epoch_drops_the_commands_when_the_draft_is_retired() {
+        let (mut state, engine) = crate::state::tests::test_mirror_state();
+        let core = &engine.core_state;
+        let (_receipt, id, sender, _view) = deferred_draft(&mut state, core);
+        sender.retire();
+        state.attach_pending.retain(core);
+        assert!(state.attach_pending.entries.is_empty());
+        assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+        assert!(ready_keys(&mut state).is_empty());
+    }
+}

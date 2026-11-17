@@ -387,3 +387,54 @@ fn a_different_creation_shape_cannot_complete_a_surface_split() {
     assert!(!r.finished());
     assert!(state.attach_pending.entries[0].visible);
 }
+
+/// 접힌 초안은 결속할 surface를 하나로 정할 수 없어 걸어 둔 명령을 버린다. 접히지 않은 초안의 명령은 남는다.
+#[test]
+fn a_folded_draft_drops_its_deferred_commands_and_others_keep_theirs() {
+    let (mut state, before) = fixture(vec![]);
+    let (_, after) = fixture(vec![new_tab(10, 300), new_tab(10, 400)]);
+    let (sender, _) = tasty_remote::connection::channel();
+    let view = Arc::new(());
+    let identity = Arc::downgrade(&view);
+    for (op, request) in [
+        (Some(0), tab(100)),
+        (Some(1), tab(100)),
+        (None, tab(100)),
+        (Some(2), tab(200)),
+    ] {
+        let r = state
+            .attach_pending
+            .begin(
+                &before.core_state,
+                &state.navigation,
+                &request,
+                sender.epoch(),
+                identity.clone(),
+                std::time::Instant::now(),
+            )
+            .unwrap();
+        if let Some(op) = op {
+            r.bind(op);
+        }
+    }
+    let ids: Vec<_> = state.attach_pending.entries.iter().map(|e| e.id).collect();
+    for id in [ids[0], ids[3]] {
+        state.attach_pending.deferred.push(
+            id,
+            deferred::test_popup_command("com.example.viewer/confirm"),
+        );
+    }
+    state.attach_pending.result(&sender.epoch(), 0, None, true);
+    state.attach_pending.applied(
+        &after.core_state,
+        &state.navigation,
+        &sender.epoch(),
+        Some(&identity),
+        &[(900, 300), (901, 400)].into_iter().collect(),
+        &[900, 901],
+    );
+    assert!(!state.attach_pending.entries[0].visible);
+    assert_eq!(state.attach_pending.deferred.waiting_for(ids[0]), 0);
+    assert_eq!(state.attach_pending.deferred.waiting_for(ids[3]), 1);
+    assert!(state.attach_pending.deferred.take_ready().is_empty());
+}

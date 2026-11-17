@@ -114,6 +114,22 @@ impl RequestContext {
         self.navigation.surface_id(tab)
     }
 
+    /// 명령을 입력한 지금의 대상. 생성 대기 초안이 선택돼 있으면 그 초안이다.
+    /// 키 입력 라우팅은 계속 `focused_surface_id`를 보며 초안에는 입력하지 않는다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn command_surface_target(
+        &self,
+        engine: &CoreState,
+    ) -> Option<super::attach_pending::deferred::CommandSurfaceTarget> {
+        use super::attach_pending::deferred::CommandSurfaceTarget;
+        if let Some(entry) = self.attach_pending.selected(engine, &self.navigation) {
+            return (entry.creation.is_some() && entry.visible)
+                .then_some(CommandSurfaceTarget::Pending(entry.id));
+        }
+        self.focused_surface_id(engine)
+            .map(CommandSurfaceTarget::Surface)
+    }
+
     #[cfg(feature = "gui")]
     pub fn focused_terminal<'a>(&self, engine: &EngineRead<'a>) -> Option<&'a Terminal> {
         let id = self.focused_surface_id(engine)?;

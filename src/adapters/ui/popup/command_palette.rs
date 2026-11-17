@@ -463,7 +463,8 @@ pub fn draw_command_palette_popup(
         }
         CommandPaletteAction::Execute { index } => {
             if let Some(cmd) = matched_commands.get(index) {
-                state.command_palette.pending_run = Some(cmd.clone());
+                state.command_palette.pending_run =
+                    Some((cmd.clone(), state.command_surface_target(engine)));
             }
             state.command_palette.reset();
             PopupAction::Close
@@ -1057,10 +1058,9 @@ mod enabled_tests {
 
     const SURFACE_POPUP: &str = "com.example.viewer/confirm";
 
-    /// 대상이 없을 때 surface 팝업을 여는 plugin 명령은 목록에 남고 실행할 수 없는 행이 된다.
-    /// 호스트 명령과 대상이 있을 때의 같은 명령은 실행할 수 있다.
+    /// 생성 대기 초안이 대상일 때도 surface 팝업을 여는 plugin 명령은 실행할 수 있는 행이다.
     #[test]
-    fn a_surface_popup_command_stays_listed_and_is_disabled_without_a_target() {
+    fn a_surface_popup_command_is_enabled_while_a_draft_is_pending() {
         let (mut state, mut session) = crate::state::tests::test_mirror_state();
         state
             .tool_registry
@@ -1094,6 +1094,54 @@ mod enabled_tests {
         };
         assert_eq!(enabled_of(&state), (true, true));
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
-        assert_eq!(enabled_of(&state), (false, true));
+        assert_eq!(enabled_of(&state), (true, true));
+    }
+
+    /// Enter 로 고른 plugin 명령은 고른 시점의 대상(여기서는 생성 대기 초안)을 함께 담는다.
+    #[test]
+    fn executing_a_plugin_command_binds_the_target_chosen_at_input() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        state
+            .palette_plugin_commands
+            .push(crate::plugin::command_registry::PluginCommandEntry {
+                plugin_id: "com.example.viewer".into(),
+                command_id: "confirm".into(),
+                title_i18n_key: "viewer.confirm.only".into(),
+                manifest_default: None,
+                binding_mode: Default::default(),
+                scope: Default::default(),
+                action: Some(crate::plugin::manifest::ToolAction::OpenPopup {
+                    popup_id: SURFACE_POPUP.into(),
+                }),
+            });
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        let pending = state.attach_pending.entries[0].id;
+        state.command_palette.query = "viewer.confirm.only".into();
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        drop(ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                draw_command_palette_popup(ui, &mut state, &read);
+            });
+        }));
+        let (cmd, target) = state.command_palette.pending_run.take().expect("executed");
+        assert!(
+            matches!(cmd, PaletteCommand::Plugin { command_id, .. } if command_id == "confirm")
+        );
+        assert_eq!(
+            target,
+            Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Pending(pending))
+        );
     }
 }

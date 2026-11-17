@@ -8,6 +8,10 @@ use crate::plugin::manifest::ToolAction;
 use crate::plugin::tool_registry::ToolItem;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
+use crate::state::attach_pending::PendingId;
+use crate::state::attach_pending::deferred::{
+    CommandSurfaceTarget, DeferredCommand, InvokedNotice,
+};
 use crate::theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{MenuItemVariant, fit_menu_width, menu_item, menu_separator};
@@ -142,7 +146,8 @@ pub fn draw_tools_menu(
     let (clicked, _) = draw_plugin_rows(ui, &th, state, engine, &items);
 
     if let Some(item) = clicked {
-        if let Err(blocked) = invoke_tool(state, engine, &item) {
+        let target = state.command_surface_target(engine);
+        if let Err(blocked) = run_tool(state, engine, &item, target, None, |_| {}) {
             tracing::warn!("tool '{}' not run: {}", item.key, blocked.message());
         }
         return PopupAction::Close;
@@ -226,7 +231,7 @@ pub fn measure_on_open(ctx: &egui::Context, state: &mut MainViewState) {
 /// 도구·명령 동작을 지금 실행할 수 없는 이유.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ToolBlocked {
-    /// surface 범위로 선언한 팝업인데 포커스 surface 가 없다.
+    /// surface 범위로 선언한 팝업인데 대상 surface 도 생성 대기 초안도 없다.
     NoSurfaceTarget,
 }
 
@@ -238,48 +243,76 @@ impl ToolBlocked {
     }
 }
 
+/// 도구·명령을 입력 시점 대상으로 실행했는지, 생성 대기 초안에 걸어 두었는지.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToolRun {
+    Ran,
+    Deferred(PendingId),
+}
+
 /// 이 동작을 지금 실행할 수 없는지. 도구 메뉴 비활성 표시와 모든 실행 경로가 같은 판정을 쓴다.
 pub(crate) fn tool_action_blocked(
     state: &MainViewState,
     engine: &EngineRead<'_>,
     action: &ToolAction,
 ) -> bool {
-    tool_action_block(state, engine, action).is_some()
+    tool_action_block(state, action, state.command_surface_target(engine)).is_some()
 }
 
 fn tool_action_block(
     state: &MainViewState,
-    engine: &EngineRead<'_>,
     action: &ToolAction,
+    target: Option<CommandSurfaceTarget>,
 ) -> Option<ToolBlocked> {
-    (state.tool_registry.needs_surface(action) && state.focused_surface_id(engine).is_none())
+    (state.tool_registry.needs_surface(action) && target.is_none())
         .then_some(ToolBlocked::NoSurfaceTarget)
 }
 
-/// 팔레트의 플러그인 명령 동작을 실행한다. 실행할 수 있을 때만 `notify_invoked`로 command.invoked 를
-/// 알린 뒤 실행한다. 실행할 수 없으면 알리지도 실행하지도 않고 이유를 돌려준다.
-pub(crate) fn run_command_action(
+/// 입력 시점에 정한 `target`으로 도구·명령 동작을 실행한다. 대상이 생성 대기 초안이면 팝업 동작은
+/// 걸어 두고 생성된 surface에서 실행한다. `command.invoked`(`invoked`)는 실제로 실행할 때만
+/// `notify`로 알린다. 실행할 수 없으면 알리지도 실행하지도 않고 이유를 돌려준다.
+pub(crate) fn run_tool(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     item: &ToolItem,
-    notify_invoked: impl FnOnce(),
-) -> Result<(), ToolBlocked> {
-    if let Some(blocked) = tool_action_block(state, engine, &item.action) {
+    target: Option<CommandSurfaceTarget>,
+    invoked: Option<InvokedNotice>,
+    notify: impl FnOnce(&InvokedNotice),
+) -> Result<ToolRun, ToolBlocked> {
+    if let Some(blocked) = tool_action_block(state, &item.action, target) {
         return Err(blocked);
     }
-    notify_invoked();
-    invoke_tool(state, engine, item)
+    let surface = match target {
+        Some(CommandSurfaceTarget::Pending(pending)) => {
+            if matches!(item.action, ToolAction::OpenPopup { .. }) {
+                state.attach_pending.deferred.push(
+                    pending,
+                    DeferredCommand::Tool {
+                        item: item.clone(),
+                        invoked,
+                    },
+                );
+                return Ok(ToolRun::Deferred(pending));
+            }
+            None
+        }
+        Some(CommandSurfaceTarget::Surface(sid)) => Some(sid),
+        None => None,
+    };
+    if let Some(invoked) = &invoked {
+        notify(invoked);
+    }
+    invoke_tool_on(state, engine, item, surface);
+    Ok(ToolRun::Ran)
 }
 
-/// 플러그인 도구·명령 동작을 실행한다. 실행할 수 없으면 아무것도 하지 않고 이유를 돌려준다.
-pub(crate) fn invoke_tool(
+/// 플러그인 도구·명령 동작을 `surface`를 대상으로 실행한다. 대상은 호출자가 입력 시점에 정한 값이다.
+pub(crate) fn invoke_tool_on(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     item: &ToolItem,
-) -> Result<(), ToolBlocked> {
-    if let Some(blocked) = tool_action_block(state, engine, &item.action) {
-        return Err(blocked);
-    }
+    surface: Option<u32>,
+) {
     match &item.action {
         ToolAction::Event { event_key } => {
             let payload = serde_json::json!({ "tool_id": item.key });
@@ -295,18 +328,17 @@ pub(crate) fn invoke_tool(
             );
         }
         ToolAction::OpenPopup { popup_id } => {
-            // plugin/id를 나누어 팝업 요청을 큐에 넣는다. 사용자 포커스 surface의
-            // cwd·mirror 정보를 함께 전달하며 local_surface_id는 원격 조회 대상에 사용한다.
+            // plugin/id를 나누어 팝업 요청을 큐에 넣는다. 대상 surface의 cwd·mirror 정보를
+            // 함께 전달하며 local_surface_id는 원격 조회 대상에 사용한다.
             if let Some((plugin_id, local_id)) = popup_id.split_once('/') {
-                let origin = state.focused_surface_id(engine);
-                let context = state.popup_surface_context(&engine.as_ref(), origin);
+                let context = state.popup_surface_context(&engine.as_ref(), surface);
                 state
                     .pending_popup_opens
                     .push(crate::state::PendingPopupOpen {
                         plugin_id: plugin_id.to_string(),
                         popup_id: local_id.to_string(),
                         context,
-                        target_surface: origin,
+                        target_surface: surface,
                     });
             } else {
                 tracing::warn!(
@@ -316,7 +348,28 @@ pub(crate) fn invoke_tool(
             }
         }
     }
-    Ok(())
+}
+
+/// 생성된 surface가 정해진 걸어 둔 명령을 그 surface에서 접수 순서대로 실행한다.
+/// 실행 직전에 surface가 사라졌으면 버린다. 실행한 명령의 `command.invoked` 알림을 돌려준다.
+pub(crate) fn run_deferred_tools(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+) -> Vec<InvokedNotice> {
+    let mut notices = Vec::new();
+    for (local, command) in state.attach_pending.deferred.take_ready() {
+        let DeferredCommand::Tool { item, invoked } = command;
+        if !engine.has_surface(local) {
+            tracing::info!(
+                "deferred command '{}' dropped: its surface {local} is gone",
+                item.key
+            );
+            continue;
+        }
+        notices.extend(invoked);
+        invoke_tool_on(state, engine, &item, Some(local));
+    }
+    notices
 }
 
 /// 본체·플러그인 항목과 구분선 여백을 포함한 메뉴 크기. 행은 간격 없이 쌓고
@@ -448,7 +501,7 @@ mod block_tests {
                 plugin_id: "com.example.viewer".into(),
                 tool_id: "t".into(),
             },
-            key: "com.example.viewer/t".into(),
+            key: popup_id.into(),
             label_i18n_key: String::new(),
             icon: None,
             action: open(popup_id),
@@ -456,22 +509,29 @@ mod block_tests {
         }
     }
 
-    /// attach 대기 초안을 선택해 포커스 surface 가 없는 장면에서 판정한다.
-    fn with_pending_draft(check: impl FnOnce(&mut MainViewState, &EngineRead<'_>)) {
-        let (mut state, mut session) = crate::state::tests::test_mirror_state();
-        state
-            .tool_registry
-            .set_surface_popups([SURFACE_POPUP.to_string()].into_iter().collect());
-        let engine = session.borrow_mut();
-        let read = engine.read();
-        let anchor = state.focused_surface_id(&read).unwrap();
-        assert!(!tool_action_blocked(&state, &read, &open(SURFACE_POPUP)));
+    fn notice(command_id: &str) -> InvokedNotice {
+        InvokedNotice {
+            plugin_id: "com.example.viewer".into(),
+            command_id: command_id.into(),
+            surface_id: None,
+        }
+    }
+
+    fn begin_tab_draft(
+        state: &mut MainViewState,
+        read: &EngineRead<'_>,
+    ) -> (
+        Arc<tasty_remote::pending_request::PendingRequest>,
+        Arc<tasty_remote::connection::ConnectionSender>,
+        Arc<()>,
+    ) {
+        let anchor = state.focused_surface_id(read).unwrap();
         let (sender, _queue) = tasty_remote::connection::channel();
         let view = Arc::new(());
-        state
+        let receipt = state
             .attach_pending
             .begin(
-                &read,
+                read,
                 &state.navigation,
                 &crate::ipc::stream::StructuralOp::NewTab {
                     anchor_surface_id: anchor,
@@ -484,29 +544,45 @@ mod block_tests {
                 std::time::Instant::now(),
             )
             .unwrap();
-        assert_eq!(state.focused_surface_id(&read), None);
-        check(&mut state, &read);
+        (receipt, sender, view)
     }
 
+    /// 새 탭 생성 초안이 선택돼 포커스 surface 는 없고 초안이 명령 대상인 장면에서 판정한다.
+    fn with_pending_draft(check: impl FnOnce(&mut MainViewState, &EngineRead<'_>, PendingId)) {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        state
+            .tool_registry
+            .set_surface_popups([SURFACE_POPUP.to_string()].into_iter().collect());
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let _draft = begin_tab_draft(&mut state, &read);
+        assert_eq!(state.focused_surface_id(&read), None);
+        let pending = state.attach_pending.entries[0].id;
+        assert_eq!(
+            state.command_surface_target(&read),
+            Some(CommandSurfaceTarget::Pending(pending))
+        );
+        check(&mut state, &read, pending);
+    }
+
+    /// 생성 대기 초안도 명령 대상이므로 surface 팝업 도구를 막지 않는다. 대상이 아예 없을 때만 막는다.
     #[test]
-    fn a_surface_popup_tool_is_blocked_only_without_a_focused_surface() {
-        with_pending_draft(|state, read| {
-            assert!(tool_action_blocked(state, read, &open(SURFACE_POPUP)));
+    fn a_pending_draft_is_a_target_and_only_no_target_blocks_a_surface_tool() {
+        with_pending_draft(|state, read, _| {
+            assert!(!tool_action_blocked(state, read, &open(SURFACE_POPUP)));
             assert!(!tool_action_blocked(state, read, &open(WINDOW_POPUP)));
-            assert!(!tool_action_blocked(
-                state,
-                read,
-                &ToolAction::Event {
-                    event_key: "com.example.viewer.go".into()
-                }
-            ));
+            assert_eq!(
+                tool_action_block(state, &open(SURFACE_POPUP), None),
+                Some(ToolBlocked::NoSurfaceTarget)
+            );
+            assert_eq!(tool_action_block(state, &open(WINDOW_POPUP), None), None);
         });
     }
 
-    /// 대상이 없을 때 surface 팝업 도구는 그려지되 누를 수 없는 행이고, 창 팝업 도구는 누를 수 있다.
+    /// 초안이 대상이면 surface 팝업 도구 행도 누를 수 있다.
     #[test]
-    fn a_blocked_tool_is_drawn_as_a_disabled_row() {
-        with_pending_draft(|state, read| {
+    fn a_surface_tool_row_is_enabled_while_a_draft_is_pending() {
+        with_pending_draft(|state, read, _| {
             let mut a = item(SURFACE_POPUP);
             a.label_i18n_key = "tool.surface".into();
             let mut b = item(WINDOW_POPUP);
@@ -526,44 +602,148 @@ mod block_tests {
             assert_eq!(
                 senses,
                 vec![
-                    ("tool.surface".to_string(), false),
+                    ("tool.surface".to_string(), true),
                     ("tool.window".to_string(), true)
                 ]
             );
         });
     }
 
+    /// 초안 대상 팝업 도구는 걸어 두기만 하고 알림도 팝업 요청도 만들지 않는다.
+    /// 대상이 필요 없는 이벤트 도구는 바로 실행한다.
     #[test]
-    fn a_blocked_tool_queues_nothing() {
-        with_pending_draft(|state, read| {
-            assert_eq!(
-                invoke_tool(state, read, &item(SURFACE_POPUP)),
-                Err(ToolBlocked::NoSurfaceTarget)
-            );
-            assert!(state.pending_popup_opens.is_empty());
-            assert_eq!(invoke_tool(state, read, &item(WINDOW_POPUP)), Ok(()));
-            assert_eq!(state.pending_popup_opens.len(), 1);
-            assert_eq!(state.pending_popup_opens[0].target_surface, None);
-        });
-    }
-
-    /// 팔레트 실행은 실행할 수 없으면 command.invoked 를 알리지도, 동작을 실행하지도 않는다.
-    #[test]
-    fn a_blocked_palette_command_neither_notifies_nor_runs() {
-        with_pending_draft(|state, read| {
+    fn a_popup_tool_on_a_pending_draft_is_deferred_without_a_notice() {
+        with_pending_draft(|state, read, pending| {
+            let target = state.command_surface_target(read);
             let mut notified = 0;
             assert_eq!(
-                run_command_action(state, read, &item(SURFACE_POPUP), || notified += 1),
-                Err(ToolBlocked::NoSurfaceTarget)
+                run_tool(
+                    state,
+                    read,
+                    &item(SURFACE_POPUP),
+                    target,
+                    Some(notice("confirm")),
+                    |_| notified += 1
+                ),
+                Ok(ToolRun::Deferred(pending))
             );
             assert_eq!(notified, 0);
             assert!(state.pending_popup_opens.is_empty());
+            assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
+            let mut event = item(SURFACE_POPUP);
+            event.action = ToolAction::Event {
+                event_key: "com.example.viewer.go".into(),
+            };
             assert_eq!(
-                run_command_action(state, read, &item(WINDOW_POPUP), || notified += 1),
-                Ok(())
+                run_tool(state, read, &event, target, None, |_| {}),
+                Ok(ToolRun::Ran)
             );
-            assert_eq!(notified, 1);
-            assert_eq!(state.pending_popup_opens.len(), 1);
+            assert_eq!(state.pending_tool_events.len(), 1);
         });
+    }
+
+    /// 걸어 둔 명령은 사용자가 대기 중 다른 surface 를 골라도 생성된 surface 에서 접수 순서대로 실행되고,
+    /// 실행할 때 command.invoked 를 한 번 알린다.
+    #[test]
+    fn deferred_tools_run_on_the_created_surface_in_input_order_after_focus_moves() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let (receipt, sender, view) = begin_tab_draft(&mut state, &read);
+        let target = state.command_surface_target(&read);
+        assert!(matches!(target, Some(CommandSurfaceTarget::Pending(_))));
+        for (popup, invoked) in [
+            (SURFACE_POPUP, Some(notice("confirm"))),
+            (WINDOW_POPUP, None),
+        ] {
+            run_tool(&mut state, &read, &item(popup), target, invoked, |_| {}).unwrap();
+        }
+        assert!(state.focus_surface_by_id(&read, 101));
+        receipt.bind(0);
+        state
+            .attach_pending
+            .result(&sender.epoch(), 0, Some(99), true);
+        state.attach_pending.applied(
+            &read,
+            &state.navigation,
+            &sender.epoch(),
+            Some(&Arc::downgrade(&view)),
+            &[(99, 102)].into_iter().collect(),
+            &[99],
+        );
+        assert_eq!(state.focused_surface_id(&read), Some(101));
+        let notices = run_deferred_tools(&mut state, &read);
+        assert_eq!(notices, vec![notice("confirm")]);
+        let opened: Vec<_> = state
+            .pending_popup_opens
+            .iter()
+            .map(|o| {
+                (
+                    o.popup_id.as_str(),
+                    o.target_surface,
+                    o.context["origin_surface_id"].as_u64(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            opened,
+            vec![
+                ("confirm", Some(102), Some(102)),
+                ("list", Some(102), Some(102))
+            ]
+        );
+        assert!(run_deferred_tools(&mut state, &read).is_empty());
+    }
+
+    /// 실행하기 전에 생성된 surface 가 사라졌으면 실행하지 않고 버린다.
+    #[test]
+    fn a_deferred_tool_whose_surface_is_gone_is_dropped() {
+        with_pending_draft(|state, read, pending| {
+            state.attach_pending.deferred.push(
+                pending,
+                crate::state::attach_pending::deferred::test_popup_command(SURFACE_POPUP),
+            );
+            state.attach_pending.entries[0].receipt.bind(0);
+            let epoch = state.attach_pending.entries[0].epoch.clone();
+            state.attach_pending.result(&epoch, 0, Some(99), true);
+            let view = state.attach_pending.entries[0].view.clone();
+            state.attach_pending.applied(
+                read,
+                &state.navigation,
+                &epoch,
+                Some(&view),
+                &[(99, 9_999)].into_iter().collect(),
+                &[99],
+            );
+            assert!(run_deferred_tools(state, read).is_empty());
+            assert!(state.pending_popup_opens.is_empty());
+        });
+    }
+
+    /// 바로 실행하는 도구는 실행 시점의 포커스가 아니라 입력 시점에 정한 surface 를 대상으로 연다.
+    #[test]
+    fn an_immediate_tool_runs_on_the_input_time_surface_not_the_current_focus() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let target = state.command_surface_target(&read);
+        assert_eq!(target, Some(CommandSurfaceTarget::Surface(201)));
+        assert!(state.focus_surface_by_id(&read, 101));
+        assert_eq!(
+            run_tool(
+                &mut state,
+                &read,
+                &item(SURFACE_POPUP),
+                target,
+                None,
+                |_| {}
+            ),
+            Ok(ToolRun::Ran)
+        );
+        assert_eq!(state.pending_popup_opens[0].target_surface, Some(201));
+        assert_eq!(
+            state.pending_popup_opens[0].context["origin_surface_id"].as_u64(),
+            Some(201)
+        );
     }
 }
