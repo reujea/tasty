@@ -168,6 +168,17 @@ impl PluginManager {
         }
     }
 
+    /// 회수 중인 `plugin_id` 를 회수 뒤 다시 띄우게 한다. 회수 중이 아니면 false.
+    pub(super) fn rearm_respawn_after_retire(&mut self, plugin_id: &str) -> bool {
+        match self.retiring.get_mut(plugin_id) {
+            Some(r) => {
+                r.respawn = true;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// 회수가 끝난 것을 거둔다 — 기다리지 않는다. `(plugin_id, 다시 띄우는가)` 를 끝난
     /// 것만 돌려준다. 남은 것이 없으면 [`PluginTick::Retire`] 를 내린다.
     pub(super) fn reap_finished_retirements(&mut self) -> Vec<(String, bool)> {

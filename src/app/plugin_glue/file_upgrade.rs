@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use tasty_host_plugin::{
     BuiltinUpgradeAction, BuiltinUpgradeItem, BuiltinUpgradeReport,
     builtin::file_upgrade::{self, Entry, Written},
+    manager::{FileSwap, TakenRetry},
 };
 
 type Finish = Box<dyn FnOnce(&mut App, Result<Value, Failure>)>;
@@ -16,11 +17,19 @@ struct Upgrade {
     items: Vec<BuiltinUpgradeItem>,
     restart: bool,
     applied: bool,
+    /// 지금 쓰는 plugin 에서 넘겨받은 자동 재시작 재시도. 기동하지 않고 끝나면 되돌린다.
+    held: Option<(String, TakenRetry)>,
     finish: Finish,
 }
 
 impl Upgrade {
-    fn fail(self, app: &mut App, mut error: Failure) {
+    fn fail(mut self, app: &mut App, mut error: Failure) {
+        // 결과를 아는 실패는 설치본을 바꾸지 않았다. 결과를 모르면 파일이 바뀌었을 수 있다.
+        if let Some((id, retry)) = self.held.take()
+            && !error.outcome_unknown()
+        {
+            app.restore_builtin_retry(&id, retry);
+        }
         error.applied |= self.applied;
         if !error.details.is_object() {
             error.details = serde_json::json!({});
@@ -112,6 +121,7 @@ impl App {
                             items: Vec::new(),
                             restart,
                             applied,
+                            held: None,
                             finish: Box::new(finish),
                         });
                     }
@@ -144,9 +154,13 @@ impl App {
             (upgrade.finish)(self, Err(Failure::before("plugin manager unavailable")));
             return;
         };
-        let (swap, pending_restart) =
-            mgr.begin_file_swap(&write.id, upgrade.restart && write.stops_running());
+        let FileSwap {
+            swapping: swap,
+            restart: pending_restart,
+            retry,
+        } = mgr.begin_file_swap(&write.id, upgrade.restart && write.stops_running());
         upgrade.applied |= swap;
+        upgrade.held = retry.map(|retry| (write.id.clone(), retry));
         let id = write.id.clone();
         self.after_plugin_retired(id, move |app, retired| {
             if let Err(mut error) = retired {
@@ -184,10 +198,12 @@ impl App {
                     }
                     Ok(written) => {
                         upgrade.applied |= written.changed;
+                        let held = upgrade.held.take().map(|(_, retry)| retry);
                         upgrade.items.push(app.apply_builtin_written(
                             written,
                             swap,
                             pending_restart,
+                            held,
                         ));
                         app.next_builtin_upgrade(upgrade);
                     }
@@ -201,17 +217,28 @@ impl App {
         mut written: Written,
         swap: bool,
         pending_restart: bool,
+        retry: Option<TakenRetry>,
     ) -> BuiltinUpgradeItem {
+        let stopping = self.plugin_files.stopping();
         let Some(mgr) = self.plugin_manager.as_mut() else {
             return written.item;
         };
         mgr.config = written.config;
         let validated = written.package.is_some();
+        // 쓰기 전에 실패해 설치본이 그대로면 넘겨받은 재시도를 되돌린다. 쓰기 결과가 불확실하거나
+        // 새 파일이 검증을 통과하지 못했으면 옛 파일로도 띄우지 않는다.
+        let unchanged = !written.changed && !written.uncertain && !validated;
+        if unchanged
+            && !stopping
+            && let Some(retry) = retry
+        {
+            mgr.restore_respawn_retry(&written.item.id, retry);
+        }
         if let Some(package) = written.package {
             mgr.replace_committed_package(&written.item.id, Some(package));
         }
         let (restarted, restart_error) = finish_builtin_restart(
-            self.plugin_files.stopping(),
+            stopping,
             written.uncertain || !validated,
             swap,
             pending_restart,
@@ -251,6 +278,18 @@ impl App {
             }]);
         }
         written.item
+    }
+}
+
+impl App {
+    /// 넘겨받은 재시도를 manager 에 되돌린다. 종료 중이면 띄울 일이 없으므로 버린다.
+    fn restore_builtin_retry(&mut self, id: &str, retry: TakenRetry) {
+        if self.plugin_files.stopping() {
+            return;
+        }
+        if let Some(mgr) = self.plugin_manager.as_mut() {
+            mgr.restore_respawn_retry(id, retry);
+        }
     }
 }
 
@@ -381,3 +420,8 @@ mod tests {
         );
     }
 }
+
+// X11 이벤트 루프로 App 을 세우는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
+#[cfg(all(test, target_os = "linux"))]
+#[path = "file_upgrade_retry_tests.rs"]
+mod retry_tests;

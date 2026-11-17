@@ -72,6 +72,33 @@ impl PluginManager {
         self.set_packages_for_tests(packages);
     }
 
+    /// 자동 재시작의 기동이 `failures`번 실패해 `due`에 재시도를 기다리는 상태를 만든다.
+    pub fn await_respawn_retry_for_test(
+        &mut self,
+        plugin_id: &str,
+        failures: usize,
+        due: std::time::Instant,
+    ) {
+        self.respawn_streaks.insert(
+            plugin_id.to_string(),
+            super::respawn::RespawnStreak {
+                failures,
+                due: Some(due),
+            },
+        );
+        self.sync_respawn_timer();
+    }
+
+    /// 자동 재시작의 연속 실패 수와 다음 재시도 시각. 기록이 없으면 None이다.
+    pub fn respawn_retry_for_test(
+        &self,
+        plugin_id: &str,
+    ) -> Option<(usize, Option<std::time::Instant>)> {
+        self.respawn_streaks
+            .get(plugin_id)
+            .map(|s| (s.failures, s.due))
+    }
+
     /// `prefix` namespace를 소유하는 연결된 stub 플러그인을 붙인다. 설치 목록은 이 하나로 바뀐다.
     pub fn attach_namespace_stub_for_test(
         &mut self,

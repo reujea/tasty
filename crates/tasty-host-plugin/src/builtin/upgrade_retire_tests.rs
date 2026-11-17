@@ -156,3 +156,60 @@ fn an_upgrade_that_writes_nothing_does_not_wait_for_a_retirement() {
         shut_down(&mut mgr);
     }
 }
+
+/// 자동 재시작 재시도를 기다리는 plugin 을 번들 업데이트가 넘겨받는다. 쓰기 뒤 새 파일로 띄우고,
+/// 그 기동의 실패는 자동 재시작의 연속 실패로 세지 않는다.
+#[test]
+fn an_upgrade_takes_over_a_pending_restart_retry() {
+    let cases: [Case; 3] = [
+        ("same version, changed content", 0, 0, false, |a| {
+            matches!(a, BuiltinUpgradeAction::Skipped { .. })
+        }),
+        ("version upgrade", 0, 1, false, |a| {
+            matches!(a, BuiltinUpgradeAction::Upgraded { .. })
+        }),
+        ("force overwrite", 0, 0, true, |a| {
+            matches!(a, BuiltinUpgradeAction::Reinstalled { .. })
+        }),
+    ];
+    for (label, installed, bundle, force, took_branch) in cases {
+        let home = HomeEnvGuard::tasty_home();
+        let src = home.path().join("bundle");
+        let dest = home.path().join("installed");
+        fake::write(&src);
+        fake::write(&dest);
+        std::fs::write(src.join("new-asset"), "x").expect("bundle change");
+        let mut mgr = PluginManager::new(Arc::new(NoopWakerFactory));
+        mgr.set_packages_for_tests(vec![fake::package(&dest)]);
+        mgr.fail_automatic_restarts_for_test(ID, 2);
+        assert!(mgr.awaits_respawn_retry(ID));
+
+        let action = upgrade(&mut mgr, &src, &dest, installed, bundle, force);
+        assert!(
+            took_branch(&action),
+            "{label}: 다른 갈래를 탔다: {action:?}"
+        );
+        assert!(
+            dest.join("new-asset").exists(),
+            "{label}: 바뀐 내용이 안 쓰였다"
+        );
+        assert!(
+            !mgr.awaits_respawn_retry(ID),
+            "{label}: 교체 뒤에도 재시도가 남았다"
+        );
+        assert!(
+            mgr.is_running(ID),
+            "{label}: 재시도를 기다리던 plugin 을 교체 뒤 띄우지 않았다"
+        );
+        mgr.fail_start_for_test(ID);
+        assert!(
+            !mgr.is_auto_disabled(ID),
+            "{label}: 교체 뒤 기동 실패를 자동 재시작의 연속 실패로 셌다"
+        );
+        assert!(
+            !mgr.awaits_respawn_retry(ID),
+            "{label}: 교체 뒤 기동 실패를 재시도했다"
+        );
+        shut_down(&mut mgr);
+    }
+}

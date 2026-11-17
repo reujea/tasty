@@ -39,7 +39,7 @@ impl Failure {
         data["applied"] = serde_json::json!(self.applied);
         data
     }
-    fn outcome_unknown(&self) -> bool {
+    pub(crate) fn outcome_unknown(&self) -> bool {
         self.saved.is_none() || self.details["outcome"].as_str() == Some("unknown")
     }
     pub(crate) fn before(error: impl std::fmt::Display) -> Self {

@@ -87,6 +87,7 @@ impl PluginManager {
                     PluginTick::Rss => "PluginRss",
                     PluginTick::AutoReload => "PluginAutoReload",
                     PluginTick::Retire => "PluginRetire",
+                    PluginTick::Respawn => "PluginRespawn",
                 },
                 interval: s.interval,
                 next_due: s.next_due,
@@ -146,6 +147,7 @@ impl PluginManager {
             last_pump_at: None,
             spawn_failures: HashMap::new(),
             auto_disabled: std::collections::HashSet::new(),
+            respawn_streaks: HashMap::new(),
             start_tracker: Default::default(),
             plugin_binary_mtimes: HashMap::new(),
             plugin_manifest_versions: HashMap::new(),
@@ -275,9 +277,14 @@ impl PluginManager {
     }
 
     /// Retire a running generation for an accepted file swap; the caller polls its completion.
-    pub fn begin_file_swap(&mut self, id: &str, stop_running: bool) -> (bool, bool) {
-        let restart = self.take_file_restart(id);
+    /// The swap also takes over a pending restart: one on a retirement, an automatic restart
+    /// retry, or the streak of an automatic restart this swap stops or whose restart it takes off
+    /// a retirement, so nothing starts the old files during the write. A taken retry comes back in
+    /// [`super::FileSwap::retry`] so a swap that leaves the install unchanged can restore it.
+    pub fn begin_file_swap(&mut self, id: &str, stop_running: bool) -> super::FileSwap {
         let swapping = stop_running && self.is_running(id);
+        let retirement_restart = self.take_file_restart(id);
+        let retry = self.take_respawn_retry(id, swapping || retirement_restart);
         if swapping {
             self.start_tracker.cancelled(id);
             if let Some(process) = self.processes.remove(id) {
@@ -285,7 +292,11 @@ impl PluginManager {
             }
             self.forget_plugin_runtime(id, "plugin swap restart");
         }
-        (swapping, restart)
+        super::FileSwap {
+            swapping,
+            restart: retry.is_some() || retirement_restart,
+            retry,
+        }
     }
 
     /// Report whether this completion actually started a new process, excluding an existing one.
@@ -570,14 +581,14 @@ impl PluginManager {
             };
             self.emit_host_event("plugin.error", &payload, EventScope::System);
         }
-        let auto_disabled = self.record_spawn_failure(plugin_id);
-        self.start_tracker.failed(
-            plugin_id,
-            kind,
-            e.to_string(),
-            auto_disabled,
-            Instant::now(),
-        );
+        let now = Instant::now();
+        let mut auto_disabled = self.record_spawn_failure(plugin_id);
+        // 자동 재시작의 기동이면 한도 전까지 다시 띄우고, 한도에 닿으면 자동 비활성화한다.
+        if let Some(n) = self.note_respawn_failure(plugin_id, auto_disabled.is_some(), now) {
+            auto_disabled = Some(n);
+        }
+        self.start_tracker
+            .failed(plugin_id, kind, e.to_string(), auto_disabled, now);
     }
 
     /// 실패를 세고, 이 실패로 자동 비활성화했으면 누적 실패 수를 돌려준다.
@@ -696,6 +707,7 @@ impl PluginManager {
             anyhow::bail!("plugin generation is still retiring");
         }
         self.auto_disabled.remove(plugin_id);
+        self.end_respawn_streak(plugin_id);
         self.start_tracker.reset_reporting(plugin_id);
         self.recompute_extensions();
         // file_format / file_handler 두 registry 에 plugin 의 contribute 등록.
@@ -749,8 +761,9 @@ impl PluginManager {
         }
         self.recompute_extensions();
         let was_running = self.processes.contains_key(plugin_id);
-        // 결과가 나기 전의 기동은 취소로 끝낸다.
+        // 결과가 나기 전의 기동은 취소로 끝낸다. 자동 재시작의 재시도도 거둔다.
         self.start_tracker.cancelled(plugin_id);
+        self.end_respawn_streak(plugin_id);
         // 회수는 별도 스레드에서 진행하며 기존 재시작 예약은 취소한다.
         if let Some(proc) = self.processes.remove(plugin_id) {
             self.retire_process(plugin_id, proc, false);

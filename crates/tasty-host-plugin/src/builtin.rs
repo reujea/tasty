@@ -996,7 +996,7 @@ fn apply_builtin_upgrade_decision(
         }
         BuiltinUpgradeDecision::UpgradeVersion { from, to } => {
             tracing::info!("upgrading builtin '{}' v{} → v{}", spec.id, from, to);
-            respawn = mgr.wait_retired(spec.id);
+            respawn = take_pending_start(mgr, spec.id, restart_running);
             match swap_overwrite_respawn(mgr, spec, src, dest, restart_running) {
                 Ok(swap) => SpecUpgrade {
                     item: BuiltinUpgradeItem {
@@ -1023,7 +1023,7 @@ fn apply_builtin_upgrade_decision(
                 installed_v.as_ref().map(|v| v.to_string()),
                 bundle_v.as_ref().map(|v| v.to_string()),
             );
-            respawn = mgr.wait_retired(spec.id);
+            respawn = take_pending_start(mgr, spec.id, restart_running);
             match swap_overwrite_respawn(mgr, spec, src, dest, restart_running) {
                 Ok(swap) => SpecUpgrade {
                     item: BuiltinUpgradeItem {
@@ -1043,15 +1043,25 @@ fn apply_builtin_upgrade_decision(
             }
         }
     };
-    // 회수를 기다리며 가져온 재시작 예약을 새 파일로 이어간다.
+    // 쓰기 전에 넘겨받은 재시작 예약(회수·자동 재시작 재시도)을 새 파일로 이어간다.
     if respawn {
         mgr.start_if_still_wanted(spec.id);
     }
     upgrade
 }
 
-/// 같은 버전 갈래 — 내용이 다른 파일만 옮긴다. 두 번째 값은 회수를 기다리며 가져온 재기동
-/// 예약이다([`PluginManager::wait_retired`]).
+/// 파일을 쓰기 전에 회수를 기다리고 자동 재시작 재시도도 넘겨받는다. 교체 중에 옛 파일로 띄우지
+/// 않게 한다. true이면 그 plugin을 다시 띄워야 하므로 쓰기 뒤 start_if_still_wanted로 이어야 한다.
+/// `restart_running`이면 [`swap_overwrite_respawn`]이 실행 중인 프로세스를 멈추고 다시 띄우므로
+/// 연결을 기다리던 자동 재시작도 넘겨받는다. 회수 뒤 기동을 가져온 자동 재시작도 같다.
+fn take_pending_start(mgr: &mut PluginManager, id: &str, restart_running: bool) -> bool {
+    let retired = mgr.wait_retired(id);
+    let swapping = restart_running && mgr.is_running(id);
+    mgr.take_respawn_retry(id, swapping || retired).is_some() || retired
+}
+
+/// 같은 버전 갈래 — 내용이 다른 파일만 옮긴다. 두 번째 값은 쓰기 전에 넘겨받은 재기동
+/// 예약이다([`take_pending_start`]).
 fn resync_same_version(
     mgr: &mut PluginManager,
     spec: &BuiltinSpec,
@@ -1063,8 +1073,10 @@ fn resync_same_version(
     // 회수 중이면 쓰기 전에 기다려야 하는데, 이 갈래는 대개 아무것도 안 쓴다 — 쓸 것이 있을
     // 때만 기다린다.
     let mut respawn = false;
-    if mgr.is_retiring(spec.id) && sync_probe::sync_would_touch(src, dest) {
-        respawn = mgr.wait_retired(spec.id);
+    if (mgr.is_retiring(spec.id) || mgr.awaits_respawn_retry(spec.id))
+        && sync_probe::sync_would_touch(src, dest)
+    {
+        respawn = take_pending_start(mgr, spec.id, false);
     }
     let upgrade = match sync_dir_by_content(src, dest) {
         Err(e) => SpecUpgrade {

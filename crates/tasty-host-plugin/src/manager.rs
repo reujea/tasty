@@ -77,6 +77,9 @@ pub(super) enum PluginTick {
     /// 회수 중인 plugin 이 있을 때만 등록된다 — 끝난 회수를 거두고 미뤄 둔 기동을 한다
     /// (`manager::retire`). 마지막 회수가 끝나면 내려간다.
     Retire,
+    /// 자동 재시작의 기동이 실패해 재시도를 기다리는 plugin 이 있을 때만 등록된다
+    /// (`manager::respawn`). 가장 이른 재시도 시각에 한 번 발화한다.
+    Respawn,
 }
 
 /// IPC 응답을 최종적으로 어디로 회신해야 하는지를 식별. 호스트 외부 caller(CLI/사용자)는
@@ -373,6 +376,8 @@ pub struct PluginManager {
     pub(super) spawn_failures: HashMap<String, Vec<Instant>>,
     /// 자동 disable되어 사용자가 수동 enable하기 전까지 더 이상 spawn 시도 안 함.
     pub(super) auto_disabled: std::collections::HashSet<String>,
+    /// plugin id → 자동 재시작으로 시작한 기동의 연속 실패와 다음 재시도 시각(`manager::respawn`).
+    pub(super) respawn_streaks: HashMap<String, respawn::RespawnStreak>,
     /// 기동 요청별 결과와 마지막 실패, 호스트 알림으로 넘길 실패 보고.
     pub(super) start_tracker: start_status::StartTracker,
     /// H — auto-reload: plugin id → 마지막 관측한 entry binary mtime.
@@ -584,6 +589,8 @@ mod popup;
 mod pump;
 mod queries;
 mod reattach;
+mod respawn;
+pub use respawn::{FileSwap, TakenRetry};
 mod response;
 mod retire;
 mod start_status;
@@ -628,6 +635,9 @@ mod tests_timers;
 // 메인 루프 정지 시간을 ping 무응답으로 세지 않는가(docs/dev-guide/timer-hub.md).
 #[cfg(test)]
 mod tests_healthcheck;
+
+#[cfg(test)]
+mod tests_respawn;
 
 #[cfg(test)]
 mod tests_lifecycle_toggle;

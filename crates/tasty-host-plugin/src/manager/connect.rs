@@ -34,6 +34,7 @@ impl PluginManager {
                         proc.mark_connected(at);
                     }
                     self.spawn_failures.remove(&id);
+                    self.end_respawn_streak(&id);
                     self.start_tracker.connected(&id);
                 }
                 ConnectOutcome::Failed(reason) => self.on_connect_failure(&id, reason),

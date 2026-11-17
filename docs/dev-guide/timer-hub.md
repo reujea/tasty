@@ -232,6 +232,7 @@ headless(`recv_timeout` 앞) 양쪽이 같은 합성을 한다.
 | `PluginTick::Ping` | 15s | Strict | ping 송신 + **비응답 재시작 판정** |
 | `PluginTick::Rss` | 30s | Lax(slack 15s) | 관측용 — 스스로 wakeup 을 만들지 않고 ping 때 함께 실행 |
 | `PluginTick::AutoReload` | 2s | Strict | **flag on 일 때만 등록** — 꺼진 기능은 데드라인에 기여하지 않는다 |
+| `PluginTick::Respawn` | 일회성(`once_at`) | Strict | 자동 재시작의 기동이 실패해 재시도를 기다리는 plugin 이 있을 때만, 가장 이른 재시도 시각에 등록 |
 
 `HEALTHCHECK_TIMEOUT`(60s)은 인터벌이 아니라 "답하지 않은 가장 오래된 ping 을 보낸 뒤의
 경과" **데드라인 비교**다. 별도 tick 을 만들지 않고 `Ping` tick에서 송신 직후 함께 판정한다 —

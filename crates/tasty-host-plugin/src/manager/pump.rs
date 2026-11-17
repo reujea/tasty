@@ -136,6 +136,7 @@ impl PluginManager {
                 PluginTick::Rss => self.sample_plugin_rss(),
                 PluginTick::AutoReload => self.poll_auto_reload(),
                 PluginTick::Retire => self.poll_retiring(),
+                PluginTick::Respawn => self.poll_respawn_retries(now),
             }
         }
 
@@ -839,6 +840,7 @@ impl PluginManager {
         } in unresponsive
         {
             tracing::warn!("{warn}");
+            self.begin_respawn_streak(&id);
             {
                 use tasty_plugin_protocol::EventScope;
                 use tasty_plugin_protocol::events::payloads::PluginError;
