@@ -43,23 +43,46 @@ pub(crate) fn focused_workspace_category(
 }
 
 /// `close_pane` 액션. 활성 pane 을 닫고, 닫지 못했으면 활성 workspace 를 닫는다.
+/// 생성 대기 초안이 선택돼 있으면 닫을 대상이 없으므로 workspace 로 넘어가지 않고 로그만 남긴다.
 pub(crate) fn close_pane_action(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
+    if ignores_close_for_draft(state, engine, "close_pane") {
+        return;
+    }
     if !state.close_active_pane(engine) {
         state.close_active_workspace(engine);
     }
 }
 
 /// `close_active` 액션. 활성 탭, pane, workspace 순서로 닫을 수 있는 첫 대상을 닫는다.
+/// 생성 대기 초안이 선택돼 있으면 `close_pane` 과 같이 아무것도 닫지 않는다.
 pub(crate) fn close_active_action(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
+    if ignores_close_for_draft(state, engine, "close_active") {
+        return;
+    }
     if !state.close_active_tab(engine) && !state.close_active_pane(engine) {
         state.close_active_workspace(engine);
     }
+}
+
+fn ignores_close_for_draft(
+    state: &crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    action: &str,
+) -> bool {
+    let draft = state.attach_pending.selected(engine, &state.navigation);
+    if let Some(entry) = draft {
+        tracing::info!(
+            "{action} ignored: pending attach draft {} is selected",
+            entry.id.0
+        );
+    }
+    draft.is_some()
 }
 
 fn focused_explorer_panel<'a>(

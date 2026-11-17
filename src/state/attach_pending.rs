@@ -424,4 +424,6 @@ impl super::MainViewState {
 }
 
 #[cfg(test)]
+mod draft_action_tests;
+#[cfg(test)]
 mod tests;
