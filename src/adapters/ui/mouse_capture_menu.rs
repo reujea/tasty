@@ -57,6 +57,7 @@ pub fn menu_default_size() -> egui::Vec2 {
 pub fn menu_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     match state.dialogs.mouse_capture_banner_menu_size {
         Some((width, height)) => egui::vec2(width.value(), height.value()),

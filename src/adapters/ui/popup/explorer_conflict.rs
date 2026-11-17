@@ -39,6 +39,7 @@ pub fn default_size() -> egui::Vec2 {
 pub fn sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let measured = asking_surface(state)
         .and_then(|sid| state.explorer_views.get(sid))

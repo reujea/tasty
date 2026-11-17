@@ -39,6 +39,7 @@ const STATUS_SELECT_OVERLAY_KEY: &str = "dag_list_status";
 pub fn dag_list_sizer(
     _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = crate::theme::theme();
     egui::vec2(th.dag_popup_width().value(), th.dag_popup_height().value())

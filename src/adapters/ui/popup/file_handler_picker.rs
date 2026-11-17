@@ -285,6 +285,7 @@ pub fn picker_default_size() -> egui::Vec2 {
 pub fn picker_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
     let (c, r, fallback) = state

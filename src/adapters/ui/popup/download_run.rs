@@ -244,7 +244,11 @@ pub fn download_run_default_size() -> egui::Vec2 {
     measured(None, &th)
 }
 
-pub fn download_run_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
+pub fn download_run_sizer(
+    state: &MainViewState,
+    _e: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let th = theme::theme();
     let h = state
         .dialogs
@@ -255,7 +259,11 @@ pub fn download_run_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::V
     measured(h, &th)
 }
 
-pub fn download_run_large_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
+pub fn download_run_large_sizer(
+    state: &MainViewState,
+    _e: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let th = theme::theme();
     let h = state
         .dialogs
@@ -267,7 +275,11 @@ pub fn download_run_large_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> e
 }
 
 /// 진행 팝업 높이 = header + 받는 다운로드 행 + footer.
-pub fn download_run_progress_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
+pub fn download_run_progress_sizer(
+    state: &MainViewState,
+    _e: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let n = state
         .dialogs
         .download_run

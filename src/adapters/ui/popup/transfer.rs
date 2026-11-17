@@ -168,7 +168,11 @@ pub enum TransferErrorKind {
 }
 
 /// 진행 팝업 높이 = header + body(행 N개) + footer. 행 수에 맞춰 딱 맞게(빈 하단 방지).
-pub fn transfer_progress_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
+pub fn transfer_progress_sizer(
+    state: &MainViewState,
+    _e: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let n = state
         .dialogs
         .transfer_progress
@@ -189,7 +193,11 @@ pub fn transfer_progress_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> eg
 }
 
 /// 실패 팝업 높이 = header + body(prose + reason well) + footer. reason 길이로 well 줄수 추정.
-pub fn transfer_error_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
+pub fn transfer_error_sizer(
+    state: &MainViewState,
+    _e: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let th = theme::theme();
     if let Some(TransferErrorKind::DownloadRun {
         content_height: Some(h),

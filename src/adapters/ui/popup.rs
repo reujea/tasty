@@ -145,6 +145,8 @@ impl PopupInstanceId {
 pub enum PopupPayload {
     #[default]
     None,
+    /// 변환 팝업의 대상 surface와 키보드 선택.
+    Convert(convert::ConvertPayload),
 }
 
 /// 그리기 함수가 받는 인스턴스 문맥.
@@ -154,7 +156,6 @@ pub struct PopupCx<'a> {
     /// 이 인스턴스가 이번 프레임을 시작할 때 키보드 포커스를 가졌는지.
     pub focused: bool,
     /// 인스턴스 데이터.
-    #[expect(dead_code, reason = "no popup keeps its data in the instance yet")]
     pub payload: &'a mut PopupPayload,
 }
 
@@ -262,11 +263,9 @@ pub struct PopupDef {
     pub title_key: &'static str,
     /// 동적 타이틀. 매 프레임 호출. `title_key` 대신 사용된다. (예: rename popup의
     /// 대상별 제목)
-    pub title_fn:
-        Option<fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>) -> String>,
+    pub title_fn: Option<PopupTitleFn>,
     /// 매 프레임 크기를 계산한다. 사용자가 크기를 지정한 팝업에는 적용하지 않는다.
-    pub sizer:
-        Option<fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>) -> egui::Vec2>,
+    pub sizer: Option<PopupSizerFn>,
     /// `decl.drag_handle`이 `Region`일 때 끌어 옮길 영역을 계산한다. 다른 값이면 `None`이다.
     pub drag_region: Option<fn(&PopupState) -> egui::Rect>,
     /// 렌더링 함수. 매 프레임 호출. MainViewState에서 필요한 데이터를 꺼낸다.
@@ -287,6 +286,14 @@ pub struct PopupDef {
 }
 
 /// 닫기 훅. 닫힌 인스턴스의 사유와 데이터를 받는다.
+/// 인스턴스마다 제목을 정한다. 인스턴스 데이터를 함께 받는다.
+pub type PopupTitleFn =
+    fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>, &PopupPayload) -> String;
+
+/// 인스턴스마다 크기를 정한다. 인스턴스 데이터를 함께 받는다.
+pub type PopupSizerFn =
+    fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'_>, &PopupPayload) -> egui::Vec2;
+
 pub type PopupCloseHook = fn(
     &egui::Context,
     &mut MainViewState,
@@ -1246,6 +1253,11 @@ impl PopupManager {
     }
 
     /// 이 선언의 항목 전부(열린 인스턴스와 닫힌 원본). 매 프레임 제목·크기를 갱신할 때 쓴다.
+    /// 이 선언의 모든 항목(열린 인스턴스와 닫힌 원본). `entries_of_mut`와 순서가 같다.
+    pub fn entries_of(&self, id: PopupId) -> impl Iterator<Item = &PopupState> + '_ {
+        self.popups.iter().filter(move |p| p.id == id)
+    }
+
     pub fn entries_of_mut(&mut self, id: PopupId) -> impl Iterator<Item = &mut PopupState> + '_ {
         self.popups.iter_mut().filter(move |p| p.id == id)
     }

@@ -148,44 +148,56 @@ fn primed_popup_geometry(
 
 const FIXED_POS: egui::Pos2 = egui::pos2(500.0, 500.0);
 
+/// 변환 팝업을 고정 위치에 대상 데이터와 함께 연다. 선택이 있는 상태다.
+fn open_convert_with_selection(state: &mut crate::state::RequestContext, surface_id: u32) {
+    let request = crate::intent::OpenRequest::new(
+        CONVERT_SURFACE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+    )
+    .at(FIXED_POS)
+    .focused()
+    .with_payload(crate::adapters::ui::popup::PopupPayload::Convert(
+        crate::adapters::ui::popup::convert::ConvertPayload {
+            surface_id,
+            selected: Some(0),
+        },
+    ));
+    state.popups.open_request(&request, true);
+}
+
+/// 닫힌 뒤 남은 항목(닫힌 원본)에 대상·선택이 남지 않았는지 본다.
+fn convert_data_left(state: &crate::state::RequestContext) -> bool {
+    state
+        .popups
+        .entries_of(CONVERT_SURFACE_POPUP_ID)
+        .any(|p| !matches!(p.payload, crate::adapters::ui::popup::PopupPayload::None))
+}
+
 #[test]
-fn convert_surface_escape_close_clears_dialog_state() {
+fn convert_surface_escape_close_drops_the_instance_data() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let surface_id = engine
         .workspace_at(0)
         .expect("workspace index is valid")
         .all_surface_ids()[0];
-    state.dialogs.convert_popup = Some(surface_id);
-    state.dialogs.convert_popup_selected = Some(0);
-    state.popups.open_at_focused(
-        CONVERT_SURFACE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_convert_with_selection(&mut state, surface_id);
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(CONVERT_SURFACE_POPUP_ID));
-    assert!(state.dialogs.convert_popup.is_none());
-    assert!(state.dialogs.convert_popup_selected.is_none());
+    assert!(!convert_data_left(&state));
 }
 
 #[test]
-fn convert_surface_outside_click_clears_dialog_state() {
+fn convert_surface_outside_click_drops_the_instance_data() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let surface_id = engine
         .workspace_at(0)
         .expect("workspace index is valid")
         .all_surface_ids()[0];
-    state.dialogs.convert_popup = Some(surface_id);
-    state.dialogs.convert_popup_selected = Some(0);
-    state.popups.open_at_focused(
-        CONVERT_SURFACE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_convert_with_selection(&mut state, surface_id);
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -194,26 +206,18 @@ fn convert_surface_outside_click_clears_dialog_state() {
     );
 
     assert!(!state.popups.is_open(CONVERT_SURFACE_POPUP_ID));
-    assert!(state.dialogs.convert_popup.is_none());
-    assert!(state.dialogs.convert_popup_selected.is_none());
+    assert!(!convert_data_left(&state));
 }
 
-// Intent는 닫기를 큐에 넣으므로 다음 렌더 프레임까지 실행해 후속 정리를 검사한다.
 #[test]
-fn convert_surface_close_intent_now_clears_dialog_state() {
+fn convert_surface_close_intent_drops_the_instance_data() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let surface_id = engine
         .workspace_at(0)
         .expect("workspace index is valid")
         .all_surface_ids()[0];
-    state.dialogs.convert_popup = Some(surface_id);
-    state.dialogs.convert_popup_selected = Some(0);
-    state.popups.open_at_focused(
-        CONVERT_SURFACE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_convert_with_selection(&mut state, surface_id);
 
     crate::intent::popup::handle(
         &mut state,
@@ -223,13 +227,9 @@ fn convert_surface_close_intent_now_clears_dialog_state() {
         }
         .from_user_menu("test"),
     );
+
     assert!(!state.popups.is_open(CONVERT_SURFACE_POPUP_ID));
-    assert!(state.dialogs.convert_popup.is_some());
-
-    run_frame(empty_input(), &mut state, &mut engine);
-
-    assert!(state.dialogs.convert_popup.is_none());
-    assert!(state.dialogs.convert_popup_selected.is_none());
+    assert!(!convert_data_left(&state));
 }
 
 #[test]

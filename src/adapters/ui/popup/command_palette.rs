@@ -383,6 +383,7 @@ pub fn on_close_command_palette_popup(
 pub fn command_palette_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let commands = command_palette::all_commands(&state.palette_plugin_commands);
     let labels: Vec<String> = commands.iter().map(label_for).collect();

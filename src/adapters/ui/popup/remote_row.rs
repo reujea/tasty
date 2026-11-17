@@ -189,7 +189,11 @@ fn size(row: &RemoteRowPopupState) -> (LogicalPx, LogicalPx) {
     (w, row.measured_h.unwrap_or_else(estimate_h))
 }
 
-fn sizer(state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
+fn sizer(
+    state: &MainViewState,
+    _engine: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let (w, h) = size(&state.dialogs.remote_row_popup);
     egui::vec2(w.value(), h.value())
 }

@@ -482,6 +482,7 @@ fn tools_menu_size_for(
 pub fn tools_menu_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
     let plugin_count = state.tool_registry.visible_items().len();
@@ -514,7 +515,11 @@ pub fn tools_menu_current_size(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> egui::Vec2 {
-    tools_menu_sizer(state, engine)
+    tools_menu_sizer(
+        state,
+        engine,
+        &crate::adapters::ui::popup::PopupPayload::None,
+    )
 }
 
 #[cfg(test)]

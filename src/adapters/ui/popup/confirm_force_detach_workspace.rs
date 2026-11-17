@@ -48,6 +48,7 @@ fn resolve_target(
 pub fn confirm_force_detach_workspace_title(
     _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
     t("attach.force_detach_confirm_title").to_string()
 }
@@ -76,6 +77,7 @@ pub fn confirm_force_detach_workspace_default_size() -> egui::Vec2 {
 pub fn confirm_force_detach_workspace_sizer(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let body_len = resolve_target(state, engine)
         .map(|tgt| tgt.name.chars().count() + BASE_BODY_LEN)

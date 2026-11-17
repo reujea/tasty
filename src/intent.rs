@@ -511,6 +511,12 @@ impl OpenRequest {
         self.focus = true;
         self
     }
+
+    /// 인스턴스 데이터를 채운다.
+    pub fn with_payload(mut self, payload: crate::adapters::ui::popup::PopupPayload) -> Self {
+        self.payload = payload;
+        self
+    }
 }
 
 impl Intent {

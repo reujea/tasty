@@ -62,6 +62,7 @@ const LIST_DIR_SOFT_TIMEOUT: Duration = Duration::from_secs(8);
 pub fn picker_sizer(
     _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     egui::vec2(POPUP_WIDTH.value(), POPUP_HEIGHT.value())
 }

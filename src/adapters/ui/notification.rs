@@ -221,7 +221,11 @@ pub fn notifications_popup_size() -> egui::Vec2 {
         th.notifications_popup_height().value(),
     )
 }
-pub fn notifications_popup_sizer(_state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
+pub fn notifications_popup_sizer(
+    _state: &MainViewState,
+    _engine: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     notifications_popup_size()
 }
 pub fn draw_notification_popup(

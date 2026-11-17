@@ -63,6 +63,7 @@ pub fn show_info_modal(state: &mut MainViewState, modal: InfoModal) {
 pub fn info_modal_title(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
     state
         .dialogs
@@ -77,6 +78,7 @@ pub fn info_modal_title(
 pub fn info_modal_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
     let body_h = state.dialogs.info_modal_body_height.unwrap_or_else(|| {

@@ -75,6 +75,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     covers_scope: true,
                     shell: PopupShell::Panel,
+                    // surface마다 따로 연다. 대상과 선택은 인스턴스 데이터다.
+                    instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::convert::convert_popup_default_size()))
                 },
                 scrim_input: ScrimInput::VisualOnly,
@@ -85,7 +87,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::convert::draw_convert_popup,
-                on_close: Some(super::convert::on_close_convert_popup),
+                // 대상과 선택은 인스턴스 데이터라 닫으면 함께 사라진다.
+                on_close: None,
             },
             PopupDef {
                 id: super::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID,

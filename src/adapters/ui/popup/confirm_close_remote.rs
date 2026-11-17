@@ -78,6 +78,7 @@ pub(crate) fn target_alive(
 pub fn confirm_close_remote_title(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
     let name = target(state, engine).map(|(name, _, _)| name);
     crate::i18n::t_fmt(
@@ -116,6 +117,7 @@ pub fn confirm_close_remote_default_size() -> egui::Vec2 {
 pub fn confirm_close_remote_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let h = state
         .dialogs

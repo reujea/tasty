@@ -27,18 +27,10 @@ pub(crate) fn find_on(
 
 /// `sid` 를 변환할 kind 를 고르는 popup 을 연다.
 pub(crate) fn open_convert_popup(state: &mut MainViewState, sid: u32, source: &'static str) {
-    state.dialogs.convert_popup = Some(sid);
-    state.dialogs.convert_popup_selected = None;
+    // 같은 surface에 이미 열려 있으면 선택만 처음으로 돌린다.
     state.dispatch_intent(
-        UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(
-                "convert_surface",
-                crate::adapters::ui::popup::PopupScope::Surface(sid),
-            )
-            .centered()
-            .focused(),
-        )
-        .from_user_shortcut(source),
+        UiIntent::ReopenPopup(crate::adapters::ui::popup::convert::open_request(sid))
+            .from_user_shortcut(source),
     );
 }
 

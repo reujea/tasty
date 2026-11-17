@@ -246,6 +246,7 @@ pub fn draw_rail_category_popup(
 pub fn rail_category_sizer(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
     let reserved = resolve_target(state, engine)

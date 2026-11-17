@@ -137,9 +137,6 @@ pub struct DialogState {
     )>,
     /// 도구 메뉴 셸 안쪽 폭. 열 때와 그릴 때 가장 넓은 라벨로 잰다.
     pub(crate) tools_menu_width: Option<tasty_type_geometry::length::LogicalPx>,
-    /// 변환 팝업 대상. None이면 닫힌 상태다.
-    pub(crate) convert_popup: Option<u32>,
-    pub(crate) convert_popup_selected: Option<usize>,
     pub(crate) pending_native_menu: Option<PendingNativeMenu>,
     pub(crate) tab_drag: Option<TabDragState>,
     pub(crate) ws_drag: Option<WsDragState>,
@@ -244,8 +241,6 @@ impl DialogState {
             mouse_capture_banner_menu_unknown: false,
             mouse_capture_banner_menu_size: None,
             tools_menu_width: None,
-            convert_popup: None,
-            convert_popup_selected: None,
             pending_native_menu: None,
             tab_drag: None,
             ws_drag: None,

@@ -118,15 +118,28 @@ pub(crate) fn draw_popup_layer(
 
     // intent-exempt: 매 프레임 번역·크기를 렌더링 전에 갱신한다. Intent 큐는 한 프레임 지연을 만든다.
     for def in crate::adapters::ui::popup::defs::all_defs() {
-        let new_title = if let Some(title_fn) = def.title_fn {
-            (title_fn)(state, engine)
-        } else {
-            crate::i18n::t(def.title_key).to_string()
-        };
-        let new_size = def.sizer.map(|f| f(state, engine));
-        for p in state.popups.entries_of_mut(def.id) {
-            p.title.clone_from(&new_title);
-            if let Some(sz) = new_size
+        let fixed_title = def
+            .title_fn
+            .is_none()
+            .then(|| crate::i18n::t(def.title_key).to_string());
+        // 제목·크기 함수는 `state`를 읽고 인스턴스는 `state.popups` 안에 있어 값을 먼저 모은다.
+        let updates: Vec<(Option<String>, Option<egui::Vec2>)> = state
+            .popups
+            .entries_of(def.id)
+            .map(|p| {
+                (
+                    def.title_fn.map(|f| f(state, engine, &p.payload)),
+                    def.sizer.map(|f| f(state, engine, &p.payload)),
+                )
+            })
+            .collect();
+        for (p, (title, size)) in state.popups.entries_of_mut(def.id).zip(updates) {
+            match (title, &fixed_title) {
+                (Some(t), _) => p.title = t,
+                (None, Some(t)) => p.title.clone_from(t),
+                (None, None) => {}
+            }
+            if let Some(sz) = size
                 && !p.size_user_overridden
             {
                 p.size = sz;

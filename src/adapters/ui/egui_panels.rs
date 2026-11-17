@@ -555,16 +555,10 @@ pub fn draw_egui_panels(
     }
 
     if let Some(crate::empty_ui::EmptyAction::OpenConvertPopup(sid)) = pending_empty_action {
-        state.dialogs.convert_popup = Some(sid);
-        state.dialogs.convert_popup_selected = None;
+        // 같은 surface에 이미 열려 있으면 선택만 처음으로 돌린다.
         state.dispatch_intent(
-            crate::intent::UiIntent::OpenPopup(
-                crate::intent::OpenRequest::new(
-                    "convert_surface",
-                    crate::adapters::ui::popup::PopupScope::Surface(sid),
-                )
-                .centered()
-                .focused(),
+            crate::intent::UiIntent::ReopenPopup(
+                crate::adapters::ui::popup::convert::open_request(sid),
             )
             .from_user_menu("empty_surface_convert"),
         );

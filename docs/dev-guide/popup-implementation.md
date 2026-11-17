@@ -79,8 +79,8 @@ PopupDef {
     },
     scrim_input: ScrimInput::VisualOnly,
     title_key: "my_popup.title",     // i18n 키 (t() 로 번역)
-    title_fn: None,                  // 동적 제목이면 Some(fn(&MainViewState, &EngineRead) -> String)
-    sizer: None,                     // 동적 크기면 Some(fn(&MainViewState, &EngineRead) -> Vec2)
+    title_fn: None,                  // 동적 제목이면 Some(fn(&MainViewState, &EngineRead, &PopupPayload) -> String)
+    sizer: None,                     // 동적 크기면 Some(fn(&MainViewState, &EngineRead, &PopupPayload) -> Vec2)
     drag_region: None,               // drag_handle 이 Region 이면 Some(영역 fn)
     fullscreen_stage: None,          // Some(stage_id) = 타이틀바에 전체화면 버튼 노출 (아래 참고)
     draw_fn: super::my_popup::draw_my_popup,
@@ -106,7 +106,7 @@ state.dispatch_intent(
 );
 ```
 
-`OpenRequest::new(id, scope)`가 열기 요청 하나를 만든다. 위치(`placement`)는 기본이 `Keep`(직전 위치 또는 기본 배치)이고 `.centered()`(범위 가운데)·`.at_top()`(범위 위쪽)·`.at(pos)`(그 점)로 바꾼다. `.focused()`는 열 때 키보드 포커스를 준다. 범위 없이는 요청을 만들 수 없으므로 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상이 표시·조작되는 자리에서 고른다. 요소 자체를 다루는 팝업(이름 바꾸기, 닫기·분리 확인, 프리셋 적용)은 그 요소가 보이는 상위 컨테이너, 요소 내용 안의 팝업은 그 요소 범위다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)의 작용 대상 범위 규칙). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 상위 컨테이너가 창이 아닌 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)이 사용자가 아니면 `focused()`여도 포커스를 주지 않는다([popup 설계](../design/systems/popup.md)의 passive 팝업). 같은 id 가 이미 열려 있으면 두 번째 OpenPopup 은 dedup 으로 무시된다. 새 요청이 열린 팝업의 내용과 대상을 바꾸는 열기 지점(다운로드 후 실행 묻기, 원격 닫기·강제 분리 확인, 이름 바꾸기, 탭·pane 프리셋 적용)은 `UiIntent::ReopenPopup`을 보낸다. 열린 팝업의 범위가 요청 범위와 다르면 닫고 새 범위로 다시 연다. 이때 on_close 훅은 부르지 않는다(새 요청이 이미 채운 상태를 지우지 않게). 범위가 같으면 그대로 둔다. 범위를 열린 팝업에 덮어쓰는 경로는 두지 않는다.
+`OpenRequest::new(id, scope)`가 열기 요청 하나를 만든다. 위치(`placement`)는 기본이 `Keep`(직전 위치 또는 기본 배치)이고 `.centered()`(범위 가운데)·`.at_top()`(범위 위쪽)·`.at(pos)`(그 점)로 바꾼다. `.focused()`는 열 때 키보드 포커스를 준다. 범위 없이는 요청을 만들 수 없으므로 범위를 빠뜨리면 컴파일되지 않고, 닫았다 다시 열 때 직전 범위가 남지 않는다. 범위는 팝업이 작용하는 대상이 표시·조작되는 자리에서 고른다. 요소 자체를 다루는 팝업(이름 바꾸기, 닫기·분리 확인, 프리셋 적용)은 그 요소가 보이는 상위 컨테이너, 요소 내용 안의 팝업은 그 요소 범위다. 대상이 없으면 `PopupScope::Window`를 넣지 말고 열지 않는다([design/systems/popup.md](../design/systems/popup.md)의 작용 대상 범위 규칙). 검사 한계: 컴파일러는 범위 인자가 있는지만 확인한다. 상위 컨테이너가 창이 아닌 팝업에 `Window`를 넣는 실수는 잡지 못하며, 범위가 맞는지는 각 열기 지점의 단위 시험이 확인한다. 요청의 origin(`from_user_*` / `from_agent_*`)이 사용자가 아니면 `focused()`여도 포커스를 주지 않는다([popup 설계](../design/systems/popup.md)의 passive 팝업). 선언의 인스턴스 정책이 이 요청에 쓸 인스턴스가 이미 열려 있으면 OpenPopup 은 dedup 으로 무시된다(`Single`은 같은 id 의 아무 인스턴스, `PerScopeTarget`은 같은 범위의 인스턴스). 인스턴스 데이터는 `.with_payload(...)`로 싣는다. 새 요청이 열린 팝업의 내용과 대상을 바꾸는 열기 지점(다운로드 후 실행 묻기, 원격 닫기·강제 분리 확인, 이름 바꾸기, 탭·pane 프리셋 적용, surface 변환)은 `UiIntent::ReopenPopup`을 보낸다. 쓸 인스턴스의 범위가 요청 범위와 다르면 닫고 새 범위로 다시 연다. 이때 on_close 훅은 부르지 않는다(새 요청이 이미 채운 상태를 지우지 않게). 범위가 같으면 위치·포커스는 그대로 두고 인스턴스 데이터만 요청 값으로 바꾼다. 범위를 열린 팝업에 덮어쓰는 경로는 두지 않는다.
 
 ## `PopupDef` 필드
 
@@ -116,8 +116,8 @@ state.dispatch_intent(
 | `decl` | `PopupDecl` | 공통 선언. 팝업 사이 동작 차이는 이 값으로만 정한다(아래 "`PopupDecl` 속성") |
 | `scrim_input` | `ScrimInput` | scrim 이 받는 입력. `VisualOnly`(보이기만 함, 누르면 바깥 클릭) / `TakesPointer`(scrim 위 포인터가 팝업 것) / `BlocksDrop`(열린 동안 탐색기 끌어 놓기 차단). `covers_scope` 인 팝업만 의미가 있다 |
 | `title_key` | `&'static str` | i18n 키 → 타이틀바 |
-| `title_fn` | `Option<fn(&MainViewState, &EngineRead) -> String>` | 동적 제목. 설정 시 `title_key` 대신 매 프레임 호출. 길이 걱정 없이 원본 문자열 반환 — 폭 초과 시 elide 는 `draw.rs`가 공통 처리(아래 "타이틀 길이 처리" 참고) |
-| `sizer` | `Option<fn(&MainViewState, &EngineRead) -> Vec2>` | 동적 크기. **매 프레임 호출된다** — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
+| `title_fn` | `Option<fn(&MainViewState, &EngineRead, &PopupPayload) -> String>` | 동적 제목. 설정 시 `title_key` 대신 매 프레임 인스턴스마다 호출하며 그 인스턴스의 데이터를 받는다. 길이 걱정 없이 원본 문자열 반환 — 폭 초과 시 elide 는 `draw.rs`가 공통 처리(아래 "타이틀 길이 처리" 참고) |
+| `sizer` | `Option<fn(&MainViewState, &EngineRead, &PopupPayload) -> Vec2>` | 동적 크기. **매 프레임 인스턴스마다 호출된다**(그 인스턴스의 데이터를 받는다) — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
 | `drag_region` | `Option<fn(&PopupState) -> Rect>` | `decl.drag_handle` 이 `Region` 일 때 팝업이 pos/size 로부터 계산하는 전용 핸들 띠. 타이틀바 없는 팝업도 이동할 수 있다 |
 | `fullscreen_stage` | `Option<StageId>` | `Some(id)` 면 타이틀바 X 왼쪽에 전체화면 버튼이 붙고, 누르면 그 [무대](../design/systems/fullscreen-stage.md)가 뜬다. 노출 여부와 대상이 한 필드라 "버튼은 있는데 갈 곳이 없는" 상태가 생기지 않는다. 아래 "전체화면 버튼" 참고 |
 | `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 인스턴스 데이터를 준다 |

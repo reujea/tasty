@@ -31,7 +31,11 @@ pub fn search_bar_default_size() -> egui::Vec2 {
 }
 
 /// Recompute from current Theme tokens on every frame, including UI zoom changes.
-pub fn search_bar_sizer(_state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
+pub fn search_bar_sizer(
+    _state: &MainViewState,
+    _engine: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     search_bar_default_size()
 }
 

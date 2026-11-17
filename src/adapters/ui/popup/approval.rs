@@ -21,6 +21,7 @@ const MAX_HEIGHT: LogicalPx = LogicalPx(480.0);
 pub fn approval_popup_title(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
     let Some(id) = state.dialogs.pending_approval_ids.front() else {
         return t("approval.popup.title").to_string();
@@ -37,6 +38,7 @@ pub fn approval_popup_title(
 pub fn approval_popup_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let Some(id) = state.dialogs.pending_approval_ids.front() else {
         return egui::vec2(DEFAULT_WIDTH.value(), MIN_HEIGHT.value());

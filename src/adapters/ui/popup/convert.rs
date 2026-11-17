@@ -8,6 +8,41 @@ use crate::theme::Theme;
 use serde_json::json;
 use tasty_type_geometry::length::LogicalPx;
 
+/// 변환 팝업 id.
+pub const CONVERT_POPUP_ID: &str = "convert_surface";
+
+/// 변환 팝업 인스턴스의 데이터.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConvertPayload {
+    /// 바꿀 surface. 팝업 범위도 이 surface다.
+    pub surface_id: u32,
+    /// 키보드로 고른 항목. 처음에는 없다.
+    pub selected: Option<usize>,
+}
+
+/// `surface_id`를 바꾸는 변환 팝업 요청. 범위 가운데에 포커스를 주며 연다.
+///
+/// surface마다 인스턴스가 따로 열린다. 같은 surface에 이미 열려 있으면 다시 열기 요청으로 선택만 처음으로 돌린다.
+pub fn open_request(surface_id: u32) -> crate::intent::OpenRequest {
+    crate::intent::OpenRequest::new(
+        CONVERT_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Surface(surface_id),
+    )
+    .centered()
+    .focused()
+    .with_payload(popup::PopupPayload::Convert(ConvertPayload {
+        surface_id,
+        selected: None,
+    }))
+}
+
+fn payload_of(payload: &popup::PopupPayload) -> Option<&ConvertPayload> {
+    match payload {
+        popup::PopupPayload::Convert(p) => Some(p),
+        _ => None,
+    }
+}
+
 /// 빌트인 비표시 kind (변환 메뉴에 등장하면 안 됨).
 const HIDDEN_KINDS: &[&str] = &["empty"];
 /// 메뉴의 우선 표시 순서. 나머지는 이름순으로 배치한다. kind의 실행 동작과는 별개다.
@@ -21,8 +56,10 @@ const DEFAULT_KIND_COUNT: usize = 5;
 pub fn convert_popup_sizer(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    payload: &popup::PopupPayload,
 ) -> egui::Vec2 {
-    convert_popup_size_for(&theme::theme(), listed_kinds(state, engine).len())
+    let target = payload_of(payload).map(|p| p.surface_id);
+    convert_popup_size_for(&theme::theme(), listed_kinds(state, engine, target).len())
 }
 
 /// Default size used when the popup is first registered (registry가 비어 있을 수 있는 시점).
@@ -96,28 +133,20 @@ mod size_tests {
     }
 }
 
-/// PopupDef::on_close entry point — 어떤 경로로 닫히든 대상/선택 상태를 비운다.
-pub fn on_close_convert_popup(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.convert_popup = None;
-    state.dialogs.convert_popup_selected = None;
-}
-
 /// PopupDef::draw_fn entry point for the convert surface popup.
 pub fn draw_convert_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    match draw_convert_content(ui, state, engine) {
-        Some(ConvertResult::Close) => PopupAction::Close,
+    let popup::PopupPayload::Convert(target) = cx.payload else {
+        return PopupAction::None;
+    };
+    match draw_convert_content(ui, state, engine, target, cx.focused) {
+        Some(ConvertResult::Close) => PopupAction::CloseBy(popup::PopupCloseReason::Escape),
         Some(ConvertResult::Action(action)) => {
-            apply_convert_action(state, engine, action);
+            apply_convert_action(state, engine, target.surface_id, action);
             PopupAction::Close
         }
         None => PopupAction::None,
@@ -136,11 +165,9 @@ struct ConvertItem {
 fn listed_kinds(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: Option<u32>,
 ) -> Vec<ConvertItem> {
-    let current = state
-        .dialogs
-        .convert_popup
-        .and_then(|id| current_surface_kind(state, engine, id));
+    let current = target.and_then(|id| current_surface_kind(state, engine, id));
     listed_items(enumerate_convertible_kinds(state, engine), current)
 }
 
@@ -254,7 +281,7 @@ fn capitalize_ascii(s: &str) -> String {
 pub enum ConvertResult {
     /// User selected an action.
     Action(ConvertAction),
-    /// User pressed Escape or otherwise wants to close.
+    /// User pressed Escape.
     Close,
 }
 
@@ -330,44 +357,46 @@ pub fn draw_convert_view(
 }
 
 /// 앱 상태에서 메뉴 입력을 만들고 키보드·선택 결과를 처리한다.
+/// 키 입력은 포커스를 가진 인스턴스(`keys`)만 읽는다. 다른 surface의 변환 팝업이 같은 키에 반응하지 않는다.
 pub fn draw_convert_content(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &mut ConvertPayload,
+    keys: bool,
 ) -> Option<ConvertResult> {
-    state.dialogs.convert_popup?;
-
-    let internal_items = listed_kinds(state, engine);
+    let internal_items = listed_kinds(state, engine, Some(target.surface_id));
     let count = internal_items.len();
 
     let ctx = ui.ctx().clone();
 
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+    if keys && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         return Some(ConvertResult::Close);
     }
 
-    let selected = state.dialogs.convert_popup_selected;
+    let selected = target.selected;
 
-    if ctx.input(|i| i.key_pressed(egui::Key::ArrowDown)) && count > 0 {
+    if keys && ctx.input(|i| i.key_pressed(egui::Key::ArrowDown)) && count > 0 {
         let new_sel = match selected {
             Some(cur) if cur < count => (cur + 1) % count,
             _ => 0,
         };
-        state.dialogs.convert_popup_selected = Some(new_sel);
+        target.selected = Some(new_sel);
     }
 
-    if ctx.input(|i| i.key_pressed(egui::Key::ArrowUp)) && count > 0 {
+    if keys && ctx.input(|i| i.key_pressed(egui::Key::ArrowUp)) && count > 0 {
         let new_sel = match selected {
             Some(cur) if cur < count => (cur + count - 1) % count,
             _ => count - 1,
         };
-        state.dialogs.convert_popup_selected = Some(new_sel);
+        target.selected = Some(new_sel);
     }
 
     let mut action: Option<ConvertAction> = None;
 
-    if ctx.input(|i| i.key_pressed(egui::Key::Enter))
-        && let Some(sel) = state.dialogs.convert_popup_selected
+    if keys
+        && ctx.input(|i| i.key_pressed(egui::Key::Enter))
+        && let Some(sel) = target.selected
         && sel < count
     {
         action = Some(action_for_kind(engine, internal_items[sel].kind));
@@ -376,7 +405,7 @@ pub fn draw_convert_content(
     // 단축키: physical_key 사용 (한글 IME 활성 시에도 영문 매칭 보장).
     // 팝업 open 시 set_ime_allowed(false)로 IME가 비활성화되어 있다.
     ctx.input(|i| {
-        for event in &i.events {
+        for event in i.events.iter().filter(|_| keys) {
             if let egui::Event::Key {
                 physical_key,
                 pressed: true,
@@ -393,7 +422,7 @@ pub fn draw_convert_content(
         }
     });
 
-    let view_props = props_from_items(&internal_items, state.dialogs.convert_popup_selected);
+    let view_props = props_from_items(&internal_items, target.selected);
     let view_action = draw_convert_view(ui, &theme::theme(), &view_props);
     if let ConvertViewAction::Clicked { kind, .. } = view_action {
         action = Some(action_for_kind(engine, &kind));
@@ -423,12 +452,9 @@ fn props_from_items(items: &[ConvertItem], selected_index: Option<usize>) -> Con
 pub fn apply_convert_action(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    surface_id: u32,
     action: ConvertAction,
 ) {
-    let Some(surface_id) = state.dialogs.convert_popup else {
-        return;
-    };
-
     match action {
         ConvertAction::Terminal => {
             state.dispatch_intent(
@@ -637,3 +663,7 @@ mod props_tests {
         assert_eq!(props.selected_index, Some(1));
     }
 }
+
+#[cfg(test)]
+#[path = "convert_instance_tests.rs"]
+mod instance_tests;

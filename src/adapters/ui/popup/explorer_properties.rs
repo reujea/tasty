@@ -216,7 +216,11 @@ pub fn default_size() -> egui::Vec2 {
     )
 }
 
-pub fn sizer(state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
+pub fn sizer(
+    state: &MainViewState,
+    _engine: &EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
+) -> egui::Vec2 {
     let th = theme::theme();
     let h = state
         .dialogs

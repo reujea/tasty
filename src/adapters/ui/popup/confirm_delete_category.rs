@@ -39,6 +39,7 @@ fn resolve_target(
 pub fn confirm_delete_category_title(
     _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
     t("workspace_category.delete_confirm_title").to_string()
 }
@@ -67,6 +68,7 @@ pub fn confirm_delete_category_default_size() -> egui::Vec2 {
 pub fn confirm_delete_category_sizer(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let body_len = resolve_target(state, engine)
         .map(|tgt| tgt.name.chars().count() + BASE_BODY_LEN)

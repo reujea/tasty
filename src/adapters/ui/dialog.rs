@@ -21,6 +21,7 @@ const POPUP_WIDTH: LogicalPx = LogicalPx(360.0);
 pub fn rename_popup_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let layout = state
         .dialogs
@@ -59,6 +60,7 @@ fn rename_popup_size(
 pub fn rename_popup_title(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
     state
         .dialogs
@@ -572,7 +574,11 @@ mod tests {
             state.dialogs.rename_content_height.expect("measured")
         };
         assert_eq!(
-            rename_popup_sizer(&state, &session.read()),
+            rename_popup_sizer(
+                &state,
+                &session.read(),
+                &crate::adapters::ui::popup::PopupPayload::None
+            ),
             rename_popup_default_size(),
             "unmeasured: base content"
         );
@@ -591,7 +597,12 @@ mod tests {
         let error = draw(&mut state, &session);
         assert!(error > plain, "{error:?} > {plain:?}");
         assert_eq!(
-            rename_popup_sizer(&state, &session.read()).y,
+            rename_popup_sizer(
+                &state,
+                &session.read(),
+                &crate::adapters::ui::popup::PopupPayload::None
+            )
+            .y,
             (popup::title_bar_height() + error).value()
         );
         state.dialogs.rename = Some((RenameTarget::NewCategory, "Web".into()));

@@ -162,19 +162,18 @@ pub(super) fn handle_debug_host_popup_open(
         }
         (false, None) => crate::model::popup_kind::PopupScope::Window,
     };
-    // 변환 팝업은 범위 외에도 dialogs에서 대상 surface를 읽는다.
-    if def.id == "convert_surface" {
-        state.dialogs.convert_popup = bound_surface;
-        state.dialogs.convert_popup_selected = None;
-    }
+    // 변환 팝업은 대상 surface를 인스턴스 데이터로 받는다.
+    let request = match (def.id, bound_surface) {
+        (crate::adapters::ui::popup::convert::CONVERT_POPUP_ID, Some(sid)) => {
+            crate::adapters::ui::popup::convert::open_request(sid)
+        }
+        _ => crate::intent::OpenRequest::new(def.id, scope)
+            .centered()
+            .focused(),
+    };
     // 사용자 조작 재현이므로 사용자 출처로 열어 포커스를 준다.
     state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(def.id, scope)
-                .centered()
-                .focused(),
-        )
-        .from_user_menu("debug.popup.open"),
+        crate::intent::UiIntent::OpenPopup(request).from_user_menu("debug.popup.open"),
     );
     JsonRpcResponse::success(
         id,
