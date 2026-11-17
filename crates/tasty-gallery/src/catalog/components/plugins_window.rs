@@ -683,8 +683,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::note(
         ui,
         theme,
-        "세 탭은 서로 다른 일을 한다 — Installed 는 설치된 plugin 의 상태·권한·명령을 보고, \
-         Attention 은 서명·권한 변경으로 등록이 거부됐거나 런타임에서 실패한 plugin 만 모아 \
+        "세 탭은 서로 다른 일을 한다 — Installed 는 설치된 plugin 의 상태·명령을 보고, \
+         Attention 은 서명 문제로 등록이 거부됐거나 런타임에서 실패한 plugin 만 모아 \
          이유와 필요한 조치를 보여주며, Add plugin 은 로컬 폴더 경로로 설치한다. 검색 입력은 \
          목록이 있는 Installed 탭에서만 나타난다. 사용자가 직접 끈 plugin 은 error 가 아니라 \
          정상 종료이므로 danger dot 이 붙지 않는다.",
@@ -694,7 +694,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         "Attention 의 severity 는 사유로 갈린다 — 서명 계열(신뢰 안 됨 · 무효)과 예약 id 는 danger, \
-         권한 변경과 런타임 오류는 warning 이다. 이것은 Installed 목록의 health dot 과 다른 \
+         런타임 오류는 warning 이다. 이것은 Installed 목록의 health dot 과 다른 \
          축이다: health dot 은 '실행 중 실패' 하나만 보고, Attention 은 등록 거부까지 함께 \
          모은다. Add 는 미신뢰 plugin 에 공개키가 있을 때만 Add 버튼이 살아 있다 — 공개키가 \
          없거나 서명 오류면 신뢰를 등록할 방법이 없어 버튼이 꺼진다.",

@@ -387,7 +387,7 @@ pub fn dispatch_readonly(
 // 실행은 app::plugin_lifecycle, 이벤트 발행은 app::plugin_events가 맡는다.
 // 여기에는 메서드 분류, 파라미터 decode, 응답·오류 코드 매핑만 둔다.
 
-/// 생명주기 중 enable/disable만 처리한다. 설치·삭제·권한 변경은 별도 경로다.
+/// 생명주기 중 enable/disable만 처리한다. 설치·삭제는 별도 경로다.
 pub const LIFECYCLE_TOGGLE_METHODS: &[&str] = &["plugin.enable", "plugin.disable"];
 
 pub fn is_lifecycle_toggle_method(method: &str) -> bool {
