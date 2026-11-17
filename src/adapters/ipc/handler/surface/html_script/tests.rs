@@ -291,3 +291,22 @@ fn an_unchanged_nav_info_does_not_report_a_change() {
     assert!(rs.set_webview_nav(info.clone()));
     assert!(!rs.set_webview_nav(info));
 }
+
+/// 스크립트 게이트 IPC는 kind 이름이 아니라 `script_gate` 선언을 본다.
+#[test]
+fn the_script_gate_follows_the_declaration_not_the_kind_name() {
+    use crate::runtime::surface_registry::KindCapabilities;
+    let (_state, mut engine_session, _) = state_with_html_tab();
+    let engine = engine_session.borrow_mut();
+    for (sid, script_gate) in [(3, true), (4, false)] {
+        let surface = RemoteSurface::new(sid, "my-html", "com.example.web".into(), "web".into())
+            .with_capabilities(KindCapabilities {
+                script_gate,
+                ..KindCapabilities::default()
+            });
+        engine.runtime.surfaces.insert(sid, Box::new(surface));
+    }
+    assert!(html_script_of(&engine, 3).error.is_none(), "declared");
+    assert!(html_script_of(&engine, 4).error.is_some(), "not declared");
+    assert!(html_script_of(&engine, 2).error.is_some(), "markdown");
+}

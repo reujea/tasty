@@ -68,3 +68,36 @@ pub fn handle_query(
         });
     JsonRpcResponse::success(id, json!({ "request_id": request_id }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tasty_ipc::caller::CallerContext;
+
+    /// 결과를 받을 plugin과 대기 표시 popup은 호출자에서 정한다. 이름은 보지 않는다.
+    #[test]
+    fn the_caller_plugin_is_the_requester_of_a_git_query() {
+        let waker: tasty_terminal::Waker = std::sync::Arc::new(|| {});
+        let mut session =
+            crate::runtime::engine_session::EngineSession::new(80, 24, waker).unwrap();
+        let mut engine = session.borrow_mut();
+        let params = json!({"kind": "snapshot", "local_surface_id": 7, "consumer": 41});
+        let plugin = CallerContext::Plugin {
+            plugin_id: "com.example.git".into(),
+            permissions: Default::default(),
+        };
+        for (caller, requester, consumer) in [
+            (plugin, Some("com.example.git"), Some(41)),
+            (CallerContext::local(), None, None),
+        ] {
+            assert!(
+                handle_query(&mut engine, json!(1), &params, &caller)
+                    .error
+                    .is_none()
+            );
+            let queued = engine.remote.pending_git_query_forward.pop().unwrap();
+            assert_eq!(queued.requester.as_deref(), requester);
+            assert_eq!(queued.consumer, consumer);
+        }
+    }
+}

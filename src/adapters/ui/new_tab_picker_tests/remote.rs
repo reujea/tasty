@@ -94,3 +94,56 @@ fn replaced_mirror_projection_discards_remote_html_picker_result() {
     assert!(state.take_pending_intents().is_empty());
     assert!(state.dialogs.file_picker_callers.new_tab.is_none());
 }
+
+/// mirror workspace의 원격 파일 열기는 kind 이름이 아니라 `opens_url`·`mirror_viewer` 선언을 본다.
+#[test]
+fn a_remote_picker_follows_the_viewer_declarations() {
+    let (mut state, mut session, _workspace, pane) = prepare();
+    let engine = session.borrow_mut();
+    for (kind, extra) in [
+        (
+            "my-html",
+            serde_json::json!({"opens_url": true, "mirror_viewer": true}),
+        ),
+        ("half-html", serde_json::json!({"mirror_viewer": true})),
+    ] {
+        let mut decl = serde_json::json!({
+            "kind": kind, "rendering": "webview", "display_name_i18n_key": "surface.kind.html"
+        });
+        decl.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        crate::plugin_bridge::remote_kind::register_remote_kind(
+            &engine.runtime.surface_registry,
+            "com.example.web",
+            &serde_json::from_value(decl).unwrap(),
+            sender,
+        );
+    }
+    open(
+        &mut state,
+        &engine.read(),
+        pane,
+        "my-html",
+        "url",
+        HTML_EXTENSIONS,
+    );
+    assert!(state.dialogs.file_picker.is_some(), "declared viewer kind");
+    assert_eq!(state.toasts.len(), 0);
+
+    state.dialogs.file_picker = None;
+    open(
+        &mut state,
+        &engine.read(),
+        pane,
+        "half-html",
+        "url",
+        HTML_EXTENSIONS,
+    );
+    assert!(
+        state.dialogs.file_picker.is_none(),
+        "opens_url not declared"
+    );
+    assert_eq!(state.toasts.len(), 1);
+}

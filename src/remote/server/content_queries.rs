@@ -661,6 +661,51 @@ mod markdown_changed_tests {
 }
 
 #[cfg(test)]
+mod content_request_tests {
+    use super::markdown_content_for_request;
+
+    /// 원문 제공은 소유 plugin이 `mirror_content`를 선언한 kind에만 한다. id 접두사는 보지 않는다.
+    #[test]
+    fn a_declared_third_party_kind_serves_its_file_like_markdown() {
+        let waker: tasty_terminal::Waker = std::sync::Arc::new(|| {});
+        let mut session =
+            crate::runtime::engine_session::EngineSession::new(80, 24, waker).expect("engine");
+        let engine = session.borrow_mut();
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("a.txt");
+        std::fs::write(&file, "body").unwrap();
+        let (tx, _rx) = std::sync::mpsc::channel();
+        for (sid, kind, mirror_content) in [(11, "notes", true), (12, "plainweb", false)] {
+            let decl = serde_json::from_value(serde_json::json!({
+                "kind": kind, "display_name_i18n_key": "surface.kind.markdown",
+                "rendering": "webview", "mirror_content": mirror_content,
+            }))
+            .unwrap();
+            let registry = &engine.runtime.surface_registry;
+            crate::plugin_bridge::remote_kind::register_remote_kind(
+                registry,
+                "com.example.docs",
+                &decl,
+                tx.clone(),
+            );
+            let def = registry.get_live(kind).unwrap();
+            let surface = (def.create)(sid, None, &serde_json::json!({ "file": file }))
+                .unwrap()
+                .publish()
+                .unwrap();
+            engine.runtime.surfaces.insert(sid, surface);
+        }
+        let (served, source, truncated) =
+            markdown_content_for_request(&engine.as_ref(), 11).expect("declared kind");
+        assert_eq!(
+            (served.as_str(), source.as_str(), truncated),
+            (file.to_str().unwrap(), "body", false)
+        );
+        assert!(markdown_content_for_request(&engine.as_ref(), 12).is_err());
+    }
+}
+
+#[cfg(test)]
 mod git_query_tests {
     use super::*;
 

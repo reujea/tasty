@@ -820,3 +820,64 @@ fn explorer_new_connection_epoch_replaces_same_root_tabs_and_old_requests() {
     assert_eq!(view.parked_tab_count(), 0);
     assert!(!view.apply_remote_list_dir_result(pending, panel, Ok(Vec::new())));
 }
+
+/// 원문 mirror 문서의 로컬 kind는 descriptor가 알린 kind와 그 kind의 `mirror_content` 선언으로 정한다.
+/// kind를 알리지 않는 이전 빌드 서버의 descriptor는 그 능력을 선언한 kind 중 이름 순으로 첫 kind로 만든다.
+#[test]
+fn a_content_document_takes_the_declared_kind_of_its_descriptor() {
+    let (_, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    let (tx, rx) = std::sync::mpsc::channel();
+    for (kind, mirror_content) in [("notes", true), ("viewer", false)] {
+        let decl = serde_json::from_value(serde_json::json!({
+            "kind": kind, "display_name_i18n_key": "surface.kind.markdown",
+            "rendering": "webview", "mirror_content": mirror_content,
+        }))
+        .unwrap();
+        crate::plugin_bridge::remote_kind::register_remote_kind(
+            &engine.runtime.surface_registry,
+            "com.example.docs",
+            &decl,
+            tx.clone(),
+        );
+    }
+    let with_kind = |remote_id, kind: Option<&str>| {
+        let mut descriptor = markdown_descriptor(remote_id);
+        let object = descriptor.as_object_mut().unwrap();
+        match kind {
+            Some(kind) => object.insert("kind".into(), kind.into()),
+            None => object.remove("kind"),
+        };
+        descriptor
+    };
+    let ids = test_ids();
+    let (frame_tx, _frames) = tasty_remote::connection::channel();
+    let mapping = merge_survivor_mapping(
+        &HashMap::new(),
+        &[
+            with_kind(30, Some("notes")),
+            with_kind(31, None),
+            with_kind(32, Some("viewer")),
+        ],
+        &ids,
+        &frame_tx,
+        &mut engine,
+    )
+    .expect("fixture construction");
+    let kind_of = |remote: u32| {
+        let local = mapping.remote_to_local[&remote];
+        engine.runtime.surfaces.get(&local).unwrap().kind()
+    };
+    assert_eq!(kind_of(30), "notes");
+    assert_eq!(kind_of(31), MARKDOWN_MIRROR_KIND, "legacy descriptor");
+    assert_eq!(
+        kind_of(32),
+        "empty",
+        "the kind does not declare mirror_content"
+    );
+    let created = created_surfaces(&rx);
+    assert_eq!(created.len(), 1, "only the declared third-party kind");
+    assert_eq!(created[0].0, mapping.remote_to_local[&30]);
+    assert_eq!(created[0].1["remote"]["file"], "/remote/docs/README.md");
+}

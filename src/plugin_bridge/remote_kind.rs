@@ -323,4 +323,50 @@ mod tests {
             assert_eq!(restored.source_cwd(), None, "{file}");
         }
     }
+
+    /// 이름과 상관없이 선언한 능력이 정의와 그 정의로 만든 surface에 실린다.
+    #[test]
+    fn a_declared_kind_carries_its_capabilities_to_definition_and_surfaces() {
+        let registry = SurfaceKindRegistry::new();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        for (kind, extra) in [
+            (
+                "my-html",
+                serde_json::json!({"address_band": true, "script_gate": true}),
+            ),
+            ("plain", serde_json::json!({})),
+        ] {
+            let mut decl = serde_json::json!({
+                "kind": kind, "display_name_i18n_key": "surface.kind.html", "rendering": "webview"
+            });
+            decl.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            let decl = serde_json::from_value(decl).unwrap();
+            register_remote_kind(&registry, "com.example.web", &decl, sender.clone());
+        }
+        let source = |surface: &dyn Surface| {
+            let remote = surface.as_any().downcast_ref::<RemoteSurface>().unwrap();
+            (
+                remote.capabilities,
+                remote.html_source.lock().unwrap().source.is_some(),
+            )
+        };
+        let params = serde_json::json!({"url": "https://example.com/"});
+        let def = registry.get_live("my-html").unwrap();
+        assert!(def.capabilities.address_band && def.capabilities.script_gate);
+        assert!(!def.capabilities.inset_notices && !def.capabilities.mirror_viewer);
+        let created = (def.create)(1, None, &params).unwrap().publish().unwrap();
+        assert_eq!(source(created.as_ref()), (def.capabilities, true));
+        let restored = (def.restore)(2, None, &params).unwrap().publish().unwrap();
+        assert_eq!(source(restored.as_ref()).0, def.capabilities);
+
+        let plain = registry.get_live("plain").unwrap();
+        assert_eq!(plain.capabilities, KindCapabilities::default());
+        let created = (plain.create)(3, None, &params).unwrap().publish().unwrap();
+        assert_eq!(
+            source(created.as_ref()),
+            (KindCapabilities::default(), false)
+        );
+    }
 }
