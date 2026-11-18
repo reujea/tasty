@@ -140,35 +140,23 @@ impl std::fmt::Debug for PopupPayload {
 }
 
 /// 열기 요청이 실어 오는 인스턴스 데이터. 진행 중인 읽기처럼 복제할 수 없는 데이터도 실을 수 있게
-/// 요청을 복제해도 한 칸을 함께 가리키고, 처음 꺼낸 쪽이 가져간다.
+/// 요청을 복제해도 한 칸을 함께 가리키고, 처음 꺼낸 쪽이 가져간다. 요청은 UI 스레드에서만 오가므로 잠금이 없다.
 #[derive(Clone, Default)]
-pub struct PayloadSlot(std::sync::Arc<std::sync::Mutex<PopupPayload>>);
+pub struct PayloadSlot(std::rc::Rc<std::cell::RefCell<PopupPayload>>);
 
 impl PayloadSlot {
     pub fn new(payload: PopupPayload) -> Self {
-        Self(std::sync::Arc::new(std::sync::Mutex::new(payload)))
+        Self(std::rc::Rc::new(std::cell::RefCell::new(payload)))
     }
 
     /// 꺼내지 않고 데이터를 읽는다.
     pub fn peek<R>(&self, read: impl FnOnce(&PopupPayload) -> R) -> R {
-        match self.0.lock() {
-            Ok(payload) => read(&payload),
-            Err(poisoned) => {
-                tracing::warn!("popup payload slot was poisoned; reading its value anyway");
-                read(&poisoned.into_inner())
-            }
-        }
+        read(&self.0.borrow())
     }
 
     /// 데이터를 꺼낸다. 이미 꺼냈으면 `None` 값이다.
     pub fn take(&self) -> PopupPayload {
-        match self.0.lock() {
-            Ok(mut payload) => std::mem::take(&mut *payload),
-            Err(poisoned) => {
-                tracing::warn!("popup payload slot was poisoned; taking its value anyway");
-                std::mem::take(&mut *poisoned.into_inner())
-            }
-        }
+        self.0.take()
     }
 }
 
