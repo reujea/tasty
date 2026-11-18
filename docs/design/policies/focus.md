@@ -53,8 +53,10 @@ workspace·pane·탭·surface(생성 대기 초안이면 그 초안)를 정해 �
 
 구조 요청(intent)도 같다. 분할·새 탭·닫은 항목 되살리기·새 workspace는 입력 때 정한 pane·surface id와 cwd 원본
 surface를 싣고, 요청을 처리할 때 그 id로만 대상을 찾는다. 탭 바 분할 버튼은 버튼이 있는 pane, 도구 메뉴의 surface
-열기는 대상 surface의 pane이 대상이다. cwd 상속은 입력 때 정한 surface의 cwd를 처리할 때 읽는다. 그 surface가
-사라졌으면 상속하지 않고 다른 surface로 바꿔 읽지 않는다.
+열기는 대상 surface의 pane이 대상이다. cwd 상속은 입력 때 정한 surface의 cwd를 처리할 때 읽는다. 입력 때 cwd 값을 담지 않으므로
+입력 뒤 그 surface의 cwd가 바뀌었으면 바뀐 값을 쓴다. 그 surface가 사라졌으면 상속하지 않고 다른 surface로 바꿔
+읽지 않는다. mirror로 넘기는 생성도 같아서, 넘기기 전에 원본이 사라졌으면 상속 안 함을 실어 보낸다. 입력 때
+원본을 정하지 않은 요청(일부 IPC 호환 경로)만 처리할 때의 View 선택을 쓴다.
 
 파일 열기 결과 탭도 입력이 정한 자리에 연다. 파일 열기 피커·끌어 놓기·터미널 로컬 링크는 입력 때의 pane에 열고,
 원격에서 받은 파일은 받는 동안 어디로 옮겼든 새 로컬 workspace에 연다.

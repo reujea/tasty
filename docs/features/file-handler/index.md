@@ -50,7 +50,7 @@ URL 대상의 picker 헤더에는 **URL 전용 형태가 따로 없다** — det
 - 1순위 핸들러가 원격에 열 수 있으면 로컬과 같이 바로 실행한다.
 - 1순위가 원격에 열 수 없고 다른 후보가 있으면 사용자 요청과 PluginUnverified 요청은 기존 핸들러 picker 를 띄운다. 후보와 최근 목록에는 원격에 열 수 있는 핸들러만 남기고, 1순위가 목록에 없으므로 기본 핸들러 표시는 두지 않는다. fallback 표시(전체 핸들러 그룹·1 회성 띠)도 쓰지 않는다. picker 에서 고른 핸들러도 같은 조건을 다시 확인한 뒤 원격 새 탭으로 실행한다.
 - Agent(외부 IPC) 요청은 로컬과 마찬가지로 사용자 화면에 picker 를 띄우지 않는다. 우선순위 순서로 원격에 열 수 있는 첫 핸들러를 실행한다.
-- 원격에서 받은 파일(데이터 홈의 `download-run` 아래)을 사용자 요청으로 여는데 활성 workspace 가 mirror 이고 실행할 핸들러(1순위나 picker 선택)가 `OpenSurface` 이면, 활성 workspace 에 `NewTab` 을 내지 않고 새 로컬 workspace 를 만들어 연다([다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행)). 에이전트 요청은 활성 workspace 를 바꾸지 않으므로 이 분기를 쓰지 않는다.
+- "다운로드 후 실행"으로 받은 파일(데이터 홈의 `download-run` 아래)은 실행할 핸들러(1순위나 picker 선택)가 `OpenSurface` 이면 늘 새 로컬 workspace 를 만들어 연다. 받는 동안 활성 workspace 를 로컬로 옮겼어도 같다([다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행)). 받은 파일을 다른 입력(피커·끌어 놓기·링크)으로 다시 열면 그 입력이 정한 pane 의 workspace 가 mirror 일 때만 새 로컬 workspace 로 열고, 자리를 정하지 않은 요청은 활성 workspace 로 판정한다. 에이전트 요청은 활성 workspace 를 바꾸지 않으므로 이 분기를 쓰지 않는다.
 - 실행한 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 된다. 이 forward 는 실패가 아니며 `file_dispatch CreateTab failed` 경고를 남기지 않는다. 사용자 요청은 client 가 새 탭을 선택하고, 원격(서버)은 자기 선택을 유지한다(공통 forward 경로가 서버 쪽 선택을 바꾸지 않는다). Agent 와 PluginUnverified 요청은 client 선택도 유지하고 원격 실패를 warn 로그로만 남긴다.
 - 원격에 열 수 있는 핸들러가 하나도 없으면(`System`·`Ipc` 뿐, 허용되지 않은 kind, 매칭 없음) picker 를 띄우지 않는다. 사용자 요청과 PluginUnverified 요청은 입구(경로 링크·이름으로 연 경로)와 관계없이 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자로 묻는다. PluginUnverified 요청의 대화상자는 picker 와 같이 에이전트 출처로 열리고, 다운로드는 사용자가 Download and run 을 누를 때만 시작한다. Agent(외부 IPC) 요청은 사용자 화면에 팝업을 만들지 않으므로 warn 로그로 끝난다.
 - 원격 경로는 로컬 최근 목록에 기록하지 않는다.
@@ -184,7 +184,7 @@ picker 취소는 action과 recent 기록을 모두 생략한다. Ipc action payl
 
 origin과 결과 자리(`FileResultPlace`)는 다른 값이다. origin은 파일을 읽을 곳(로컬·원격)이고, 결과 자리는 결과 탭을 열 곳이다.
 사용자 입력은 결과 자리를 입력 때 정한다. 파일 열기 피커(Tools 메뉴·단축키)·끌어 놓기·터미널 로컬 링크와 그 연결 동작은
-입력 때의 pane에 열고, 처리 기다림·picker 선택 동안 포커스가 옮겨져도 그 pane이다. 그 pane이 사라졌으면 열지 않는다.
+입력 때의 pane에 열고, 처리 기다림·picker 선택 동안 포커스가 옮겨져도 그 pane이다. 끌어 놓기가 surface 밖(pane의 탭 바 등)에 놓이면 그 위치의 pane이다. 그 pane이 사라졌으면 열지 않는다.
 원격에서 받은 파일은 늘 새 로컬 workspace에 연다. 결과 자리를 정하지 않은 요청(IPC `file_handler.dispatch` 등)은
 origin이 있으면 origin pane, 없으면 처리할 때의 선택 pane에 연다.
 

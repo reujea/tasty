@@ -198,16 +198,22 @@ kind에 걸고, 생성된 surface의 kind 글꼴에 적용한다. 생성이 실�
 구조 명령(분할·새 탭·닫은 항목 복원)은 명령이 다루는 단위로 대상을 정한다. 그 단위가 이미 있으면 바로 보내고,
 draft가 만들 단위면 걸어 두었다가 생성된 surface(또는 그 pane)를 명시해 실행한다.
 
-| draft가 만드는 것 | pane 명령(pane 분할·새 탭·복원) | surface 분할 |
+| draft가 만드는 것 | pane 명령(pane 분할·새 탭·복원·plugin surface 열기) | surface 분할 |
 |---|---|---|
 | 새 탭 | draft가 기댄 기존 pane에 바로 보낸다 | 걸어 두고 생성된 surface를 나눈다 |
 | surface 분할 | draft가 기댄 기존 pane에 바로 보낸다 | 걸어 두고 생성된 surface를 나눈다 |
 | 새 pane | 걸어 두고 생성된 surface의 pane에 보낸다. cwd 원본은 그 surface다 | 걸어 두고 생성된 surface를 나눈다 |
 
+plugin surface 열기(도구 메뉴·명령 팔레트·명령 단축키의 `open_surface` 동작)도 pane 명령 열을 따른다. 바로 보내면
+그때 `command.invoked`를 알리고, 걸어 두면 생성된 surface에서 실행할 때 알린다. 바로 보내는 경우의 cwd 원본은
+초안 뒤 탭에서 골라져 있던 surface다. 팔레트는 App이 큐를 처리할 때 이 판정을 하므로 그 사이 초안이 끝났으면
+실행하지도 알리지도 않는다.
+
 생성이 실패하거나 draft가 사라지면 걸어 둔 구조 명령도 info 로그를 남기고 버린다. 입력 때 이미 끝난 draft가
 대상이면 걸지도 보내지도 않는다. 파일 열기 결과 탭은 걸지 않고 draft가 기댄 기존 pane에 연다. 원격(mirror)으로
 넘기는 새 탭·pane 분할의 cwd 원본(`inherit_cwd`)은 입력 때 정한 surface다. 입력 뒤 같은 pane의 선택 탭이
-바뀌어도 원본은 바뀌지 않는다. 변환은 입력 시점에 정한 surface를
+바뀌어도 원본은 바뀌지 않는다. 넘기기 전에 그 surface가 닫혔으면 로컬 처리와 같이 상속 안 함(`"none"`)을 싣는다.
+사라진 원본을 실어 원격이 생성 전체를 거절하게 하지 않는다. 변환은 입력 시점에 정한 surface를
 대상으로 하므로 다른 draft가 선택돼 있어도 거절하지 않는다(걸어 둔 변환을 생성된 surface에서 실행할 때도
 같다). 정산이 생성 draft를 local surface로 끝내면(`applied`,
 `applied_before_result`) 선택·포커스 여부와 무관하게 그 surface로 실행 목록에 옮긴다. `retain`이
@@ -860,7 +866,7 @@ mirror 터미널은 attach snapshot(보이는 화면·커서·주요 모드)과 
 - **서버**(`src/remote/file_download.rs`): 요청 사이에 상태를 두지 않는다. 요청 연결이 어느 workspace 든 점유하지 않았으면 `not_attached` 다. `stat` 은 파일을 열지 않고 링크를 따라간 메타데이터만 본다. `read` 는 열기 전 메타데이터를 `identity` 와 대조하고, Unix 에서는 `O_NONBLOCK` 으로 열어 FIFO 로 바뀐 경로에서 멈추지 않으며, 열린 파일의 메타데이터를 다시 대조한다. 한 조각은 최대 256 KiB 이고 base64 로도 프레임 상한(`MAX_FRAME_LEN`, 1 MiB)의 절반 아래다. 덜 읽혔거나 읽는 동안 바뀌면 `changed` 다. GUI(`event_handler.rs`)와 헤드리스(`boot/headless_stream.rs`) 서버가 같은 처리부를 쓴다. 점유 확인 뒤의 메타데이터 조회·열기·읽기는 작업 스레드(동시 최대 8개)에서 하고 결과를 그 연결의 binding 으로 보낸다. 응답 없는 마운트에서 읽기가 멈춰도 메인 루프는 멈추지 않는다. 작업 스레드 자리가 없으면 `io` 로 거절한다.
 - **client 대기**(`src/remote/file_download/client.rs`): 다운로드마다 한 번에 요청 하나만 보낸다. 메인 루프와 attach 출력 처리가 `pump_file_downloads` 로 세션 상태를 알리고 요청을 보낸다. 다운로드는 시작할 때의 연결 세대(`ConnectionEpoch`)에 묶이며 다른 세대로 온 결과는 버린다. 확인을 기다리는 동안이나 조각 사이를 포함해 세션이 Connected 가 아니게 되거나 세대가 바뀌면 그 다운로드는 실패하고 받은 부분을 지운다. 결과 프레임이 버려지면(hub `Dropped` → `Desynced`) 그 세대에서 보낸 요청의 답을 기다리던 다운로드가 실패한다. 확인을 기다리거나 다음 조각을 아직 요청하지 않은 다운로드는 잃을 답이 없어 이 알림으로는 끝나지 않는다. 다만 mirror 의 `Desynced` 처리는 곧바로 재동기화(Detach 뒤 재attach)를 시작해 연결 세대를 바꾸므로, 그 다운로드들도 세대 검사로 실패한다. 창이 없는(parked) mirror 는 Detach 를 창이 돌아올 때까지 미루며 그동안은 이어 간다(`src/app/attach_client/output.rs` 의 `begin_resync`). 늦게 온 옛 답은 기다리던 요청이 아니므로 버린다. 요청 하나에 `REPLY_LIMIT`(10 초) 안에 답이 없으면 시간 초과로 실패한다. 크기가 1 MiB 를 넘으면 확인 전까지 `read` 를 보내지 않는다. 취소는 다음 조각을 요청하지 않는 것으로 끝난다.
 - **무결성 계약**: 내용 해시(SHA 등)는 주고받지 않는다. 서버는 조각마다 `identity`(크기·수정 시각·생성 시각·Unix (device, inode))를 다시 대조하고, client 는 조각의 `offset` 이 받은 길이와 같은지, 끝 표시(`eof`)가 받은 길이가 `stat` 크기에 닿은 때와 일치하는지, 크기를 넘지 않는지, 빈 조각이 끝이 아닌데 오지 않는지 확인하고 어긋나면 프로토콜 실패로 받은 부분을 지운다. 전송 중 바이트 손상은 SSH 전송의 무결성 보호에 맡긴다. 같은 크기·같은 시각으로 내용만 바뀐 파일은 가려내지 못한다.
-- **로컬 실행**: 다 받은 파일은 origin 없는 사용자 `DispatchFile` 로 연다. 탭을 여는 `open_surface` 핸들러가 mirror 활성 상태에서 받은 파일을 열면 `NewTab` 대신 새 로컬 workspace 를 만드는 `CreateWorkspace` 를 보낸다(`src/file/dispatch.rs`). 그렇지 않으면 로컬 임시 경로가 원격으로 forward 된다.
+- **로컬 실행**: 다 받은 파일은 origin 없는 사용자 `DispatchFile` 로 열고 결과 자리를 새 로컬 workspace(`FileResultPlace::NewLocalWorkspace`)로 정한다. 탭을 여는 `open_surface` 핸들러는 받는 동안 활성 workspace 가 무엇으로 바뀌었든 `NewTab` 대신 새 로컬 workspace 를 만드는 `CreateWorkspace` 를 보낸다(`src/file/dispatch.rs`). 탭으로 열면 로컬 임시 경로가 원격으로 forward 되기 때문이다. 받은 파일을 나중에 다른 입력으로 다시 열면 그 입력이 정한 pane 의 workspace 가 mirror 일 때만 새 로컬 workspace 로 연다.
 
 ## IPC 표면 (`attach.*`)
 
