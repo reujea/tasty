@@ -12,6 +12,8 @@ mod numeric;
 mod refresh_tests;
 pub(crate) mod structure;
 #[cfg(test)]
+mod structure_draft_tests;
+#[cfg(test)]
 mod structure_tests;
 pub(crate) mod surface_actions;
 mod surface_view_actions;
