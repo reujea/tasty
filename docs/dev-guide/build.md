@@ -453,7 +453,7 @@ just dist-setup-linux              # 또는 수동 (아래)
 - 허용 대상: 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용에서 `~/Applications/TastyInputHelper.app` 하나만 허용한다.
 - 목록에 도우미를 올리려면 `open -W -n -a ~/Applications/TastyInputHelper.app --args request-access [--result <결과 JSON 경로>]`로 시스템 요청 창을 띄운다. 도우미는 `AXIsProcessTrustedWithOptions`(`kAXTrustedCheckOptionPrompt=true`)와 `CGRequestPostEventAccess()`를 부르고, 두 반환값과 호출 뒤 조회 값을 결과 파일에 적는다. 키는 보내지 않는다. 이미 허용돼 있으면 0, 아니면 3으로 끝난다. 사용자는 창에서 시스템 설정을 열어 스위치를 켠다.
 - 요청 창은 앱마다 한 번만 뜬다. 다시 띄우려면 `tccutil reset Accessibility com.zilhak.tasty.input-helper`로 도우미 항목만 초기화한 뒤 `request-access`를 다시 실행한다. 이 명령은 그 번들 ID의 허용도 지운다.
-- 재빌드 뒤에도 허용이 유지되려면 번들 ID, 서명한 leaf 인증서, 설치 경로가 모두 같아야 한다. 인증서를 지우고 `--create`로 다시 만들면 leaf가 바뀐다. `Tasty Dev`로 서명하면 지정 요구(`codesign -d -r-`)가 `identifier "com.zilhak.tasty.input-helper" and certificate leaf = H"<인증서 해시>"`이다. 같은 소스로 다시 빌드하면 CDHash도 같다. Info.plist 버전 문자열이나 소스를 바꿔 다시 빌드하면 CDHash는 바뀌고, 지정 요구와 `Authority=Tasty Dev`는 같다. 허용한 뒤 소스를 바꿔 다시 설치해도 다시 허용하지 않은 상태에서 권한 조회 값이 true였다(측정함). 재빌드 뒤 실제 키 게시까지 되는지는 미측정이다.
+- 재빌드 뒤에도 허용이 유지되려면 번들 ID, 서명한 leaf 인증서, 설치 경로가 모두 같아야 한다. 인증서를 지우고 `--create`로 다시 만들면 leaf가 바뀐다. `Tasty Dev`로 서명하면 지정 요구(`codesign -d -r-`)가 `identifier "com.zilhak.tasty.input-helper" and certificate leaf = H"<인증서 해시>"`이다. 같은 소스로 다시 빌드하면 CDHash도 같다. Info.plist 버전 문자열이나 소스를 바꿔 다시 빌드하면 CDHash는 바뀌고, 지정 요구와 `Authority=Tasty Dev`는 같다. 허용한 뒤 소스를 바꿔 다시 설치해도 다시 허용하지 않은 상태에서 권한 조회 값이 true였다. 소스를 바꿔 다시 설치한 뒤 다시 허용하지 않은 상태에서 키 게시(문자·수식키·Cmd 단축키)와 왼쪽 버튼 `click`도 격리 인스턴스에서 동작했다(측정함). 그 밖의 마우스 명령은 위 범위에서 미측정이다.
 
 ### 호출
 
@@ -480,7 +480,7 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 | `sleep <ms>` | 기다린다 |
 | `delay <ms>` | 이후 키 이벤트 사이의 지연을 바꾼다(기본 30ms) |
 | `activate <pid>` | 그 PID의 앱을 앞으로 가져온다 |
-| `require_front <pid>` | 앞 앱 PID가 다르면 키를 보내지 않고 끝낸다. 키를 보내기 전에 넣는다 |
+| `require_front <pid>` | 앞 앱 PID가 다르면 이후 모든 단계(키·마우스)를 실행하지 않고 종료 코드 5로 끝낸다. 키·마우스 단계 앞에 넣는다. 마우스 이벤트는 HID 탭에 게시돼 그 좌표의 맨 위 창으로 가므로, 이 검사는 클릭 대상 창을 보장하지 않는다. 클릭 좌표가 격리 인스턴스 창 안이고 다른 창(사용자 Tasty 포함)이 그 자리를 덮지 않는지 따로 확인한다 |
 | `mouse_move <x> <y>` | 포인터를 옮긴다. 버튼이 눌려 있으면 그 버튼의 드래그 이벤트가 된다 |
 | `mouse_down [left\|right]`, `mouse_up [left\|right]` | 현재 포인터 위치에서 버튼을 누르거나 뗀다(기본 `left`) |
 | `click <x> <y> [left\|right] [count]` | 포인터를 옮긴 뒤 `count`번(1~3, 기본 1) 누르고 뗀다. 각 누름의 click state는 1, 2, 3이다 |
@@ -522,7 +522,8 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 - `caffeinate -u`는 사용자 활동 assertion을 잠깐 만들어 잠금 화면 UI를 내리는 데 쓴다. HID 유휴 시간(`ioreg -c IOHIDSystem`의 `HIDIdleTime`)은 초기화하지 않는다. `caffeinate -u -t 5` 전후로 유휴 시간이 계속 늘었다(측정함).
 - 키를 게시하기 전과 장시간 측정 중에는 주기적으로 `caffeinate -u -t 1`을 실행한다. 잠금 화면이 보이면(`ioreg`의 `CGSSessionScreenIsLocked`가 켜져 있거나 앞 앱이 loginwindow) 먼저 `caffeinate -u -t 2`로 풀어 본다. 그래도 풀리지 않으면 측정을 멈추고 사용자를 부른다.
 - 새 `TASTY_HOME`으로 처음 띄우면 호스트 팝업 `info_modal`이 포커스를 잡아 키를 가로챈다. 도우미의 키는 터미널에 닿지 않고, 도우미 결과는 성공으로 나온다. 측정 전에 `tasty debug host-popup close --popup-id info_modal`로 닫고, `tasty debug ui-state`의 `gate_host_popup_focused`와 `keyboard_shortcuts_gated`가 false인지 확인한다.
-- 띄운 직후에는 2벌식으로 바꿔도 IME가 조합하지 않고 영문 키가 그대로 PTY에 들어갔다. `activate`로 다른 앱을 앞으로 가져왔다가 격리 인스턴스로 되돌린 뒤부터 조합했다. 원인은 확인하지 않았다. 측정 절차에 이 포커스 왕복 단계를 두고, IME 통과 판정(2벌식에서 r, k, 스페이스를 보내 PTY에 `가 `가 들어가는지)을 한 뒤 측정한다.
+- 앞에 있는 앱의 입력 소스를 `switch_source`(TIS)로 바꾸면 그 앱에는 다시 활성화된 뒤에 적용될 수 있다. ABC로 띄운 Tasty와 대조용 AppKit 앱(NSTextView)에서 모두, 앞에 둔 채 2벌식으로 바꾸면 영문 키가 그대로 들어갔다. `activate`로 다른 앱에 갔다가 돌아온 뒤부터 조합했다(측정함). 그래서 `switch_source` 뒤에는 포커스 왕복 단계를 둔다.
+- 2벌식이 선택된 채로 Tasty 창이 처음 활성화되면, 첫 조합의 첫 자모가 조합 없이 확정된다(r, k, 스페이스 → `ㄱㅏ `). 포커스 왕복 유무와 첫 조합 전 대기 시간(0.3초, 5초)과 관계없이 났고, 두 번째 조합부터는 정상이었다. 같은 조건의 대조용 NSTextView 앱에서는 나지 않았다(측정함). 이미 한글을 쓴 창에서 입력 소스를 바꾼 뒤 재활성화한 첫 조합에서도 한 번 났다. 그래서 "처음 활성화"만이 조건은 아니며, 발생 조건과 원인은 확정하지 않았다. 측정에서는 띄운 직후와 `switch_source`·포커스 왕복 뒤마다 한 조합을 흘려보낸 뒤 IME 통과 판정(2벌식에서 r, k, 스페이스를 보내 PTY에 `가 `가 들어가는지)을 하고 측정한다.
 - 조합 중이던 글자가 OS IME에 남으면 다음 한글 입력에 이어 붙는다. 회차를 반복할 때는 각 회차를 2벌식 스페이스로 시작해 남은 조합을 비우고, 그때 PTY에 들어간 것도 기록한다.
 
 ### 합성 입력의 한계
@@ -530,7 +531,9 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 - 하드웨어 단계 키는 합성으로 같은 반응이 나오지 않을 수 있다: Caps Lock 한/영 전환, Globe/fn, JIS 영숫자·가나 키. 이 키들은 키보드 펌웨어·HID 단계에서 처리되는 부분이 있어, CGEvent 키코드만으로는 OS가 같은 동작을 하지 않을 수 있다. 그래서 한영 전환은 `switch_source`나, 사용자 설정의 입력 소스 전환 단축키(예: Ctrl+Space) 키코드로 하고, 어느 방식으로 했는지 보고서에 적는다. Caps Lock 전환과 같은 결과인지는 실 키보드 확인 범위로 남긴다.
 - 수식키를 단독으로 누르고 떼는 것(`flagsChanged`)은 일반 keyDown/keyUp과 다른 이벤트다. 수식키 단독 동작을 재려면 수식키 키코드를 따로 보내야 한다. 키 이벤트에 플래그만 싣는 방식으로는 `flagsChanged`가 생기지 않는다.
 - 자동 반복(키를 누르고 있을 때의 반복 입력)은 시스템이 합성 이벤트에 대해 만들어 주지 않을 수 있다. 반복이 필요하면 명시적으로 여러 번 보내고, 그것이 실제 자동 반복(autorepeat 플래그)과 다르다는 것을 적는다.
-- 트랙패드 제스처(관성 스크롤, 핀치, 포스터치)는 합성할 수 없다.
+- 합성 Cmd+Tab(Command 55를 누른 채 Tab 48)은 앱 전환을 일으키지 않았다(측정함). 키 이벤트를 세션 탭에 게시하므로 시스템의 앱 전환기에 닿지 않는 것으로 보인다. 앱 전환 경로는 `activate`로 대신 재거나 실 키보드로 확인한다.
+- 시스템 단축키로 설정한 입력 소스 전환 키(예: "이전 입력 소스 선택"에 지정한 키)는 그 키코드와 수식키로 보내면 동작해 TIS 입력 소스가 바뀌었다(측정함). 다만 Karabiner 같은 HID 단계의 키 변환(예: 오른쪽 Option을 그 키로 바꾸는 설정)은 거치지 않는다. 이것은 측정한 것이 아니라 원리다. 합성 이벤트는 HID 변환 단계 뒤에 게시되기 때문이다. 그래서 실제 키가 그 변환까지 거치는지는 실 키보드 범위다.
+- 마우스는 `click`(왼쪽 버튼 1회)으로 Tasty surface를 눌러 포커스를 옮기는 것을 측정했다. `drag`, `mouse_move`, `mouse_down`·`mouse_up` 단독, 오른쪽 버튼, `click`의 count 2~3은 형식 검사만 했고 실제 동작은 미측정이다. 트랙패드 제스처(관성 스크롤, 핀치, 포스터치)는 합성할 수 없다.
 - Secure Input이 켜진 칸(암호 입력 등)에는 합성 키가 들어가지 않는다.
 
 ### 보고 규칙

@@ -16,7 +16,7 @@ macOS는 셸에서 실행한 프로세스의 보호 리소스 접근을 그 셸�
 - `flags=0x2(adhoc)`
 - `TeamIdentifier=not set`
 
-adhoc 서명의 designated requirement는 cdhash뿐이다. 그래서 앱을 다시 빌드하면 macOS가 다른 앱으로 보고 손쉬운 사용 허용을 적용하지 않는다. 사용자가 그 Mac의 Tasty를 다시 빌드했다면 측정 전에 권한을 다시 확인한다. 직접 빌드한 앱의 권한을 유지하는 `Tasty Dev` 인증서 서명은 [빌드](../dev-guide/build.md)에 있다. `Tasty Dev`로 서명한 도우미 앱은 지정 요구가 `identifier "<번들 ID>" and certificate leaf = H"<인증서 해시>"`이고, Info.plist를 바꿔 다시 빌드해도 지정 요구가 같다(측정함). 도우미 앱은 소스를 바꿔 다시 빌드·설치해 CDHash가 바뀐 뒤에도, 다시 허용하지 않은 상태에서 두 조회 값이 true였다(측정함). 재빌드 뒤 실제 키 게시까지 되는지는 미측정이다.
+adhoc 서명의 designated requirement는 cdhash뿐이다. 그래서 앱을 다시 빌드하면 macOS가 다른 앱으로 보고 손쉬운 사용 허용을 적용하지 않는다. 사용자가 그 Mac의 Tasty를 다시 빌드했다면 측정 전에 권한을 다시 확인한다. 직접 빌드한 앱의 권한을 유지하는 `Tasty Dev` 인증서 서명은 [빌드](../dev-guide/build.md)에 있다. `Tasty Dev`로 서명한 도우미 앱은 지정 요구가 `identifier "<번들 ID>" and certificate leaf = H"<인증서 해시>"`이고, Info.plist를 바꿔 다시 빌드해도 지정 요구가 같다(측정함). 도우미 앱은 소스를 바꿔 다시 빌드·설치해 CDHash가 바뀐 뒤에도, 다시 허용하지 않은 상태에서 두 조회 값이 true였고, 키 게시와 왼쪽 버튼 클릭도 동작했다(측정함).
 
 ## 권한 확인
 
@@ -58,7 +58,7 @@ print("AXIsProcessTrustedWithOptions(prompt)=\(AXIsProcessTrustedWithOptions(opt
 
 - 도우미는 실행할 때마다 `AXIsProcessTrusted`와 `CGPreflightPostEventAccess`를 결과 파일에 적는다. `open`으로 띄운 실행과 명령 파일 없는 직접 조회에서는 게시 권한이 없으면 어떤 단계도 실행하지 않고 종료 코드 3으로 끝난다. 직접 실행에 명령 파일을 주면 권한 판정 전에 종료 코드 2로 거부된다. `open`으로 띄웠고 `key`·마우스 단계가 있었으면 끝내기 전에 위 두 요청 함수를 한 번 부른다. 위 "권한 확인"의 판정을 도우미가 대신한다.
 - 처음 쓰는 Mac에서는 `request-access`로 요청 창을 띄워 도우미를 손쉬운 사용 목록에 올린다. 창은 앱마다 한 번만 뜨고, 다시 띄우려면 `tccutil reset Accessibility com.zilhak.tasty.input-helper` 뒤에 실행한다.
-- 키를 보내기 전에 `require_front <격리 인스턴스 PID>` 단계를 넣는다. 앞 앱이 다르면 종료 코드 5로 끝나고 키를 보내지 않는다.
+- 키·마우스 단계 앞에 `require_front <격리 인스턴스 PID>` 단계를 넣는다. 앞 앱이 다르면 종료 코드 5로 끝나고 이후 모든 단계(키·마우스)를 실행하지 않는다. 마우스 이벤트는 그 좌표의 맨 위 창으로 가므로, 클릭 좌표가 격리 인스턴스 창 안이고 다른 창(사용자 Tasty 포함)이 덮지 않는지 따로 확인한다.
 - 허용 전에는 `open`으로 띄운 경우와 셸에서 실행 파일을 직접 실행한 경우 모두 두 값이 false다. 도우미 하나만 허용한 뒤에는 `open`으로 띄우면 `AXIsProcessTrusted`·`CGPreflightPostEventAccess`가 true이고 종료 코드 0이다. 같은 실행 파일을 Tasty 셸에서 명령 파일 없이 직접 실행(조회)하면 false·false이고 종료 코드 3이다(측정함). `open` 경로에서는 도우미가, 직접 실행에서는 셸을 띄운 Tasty.app이 책임 프로세스다.
 
 Terminal.app을 책임 프로세스로 쓰는 경로는 쓰지 않는다. 스크립트를 띄운 Terminal 창을 AppleScript 없이 닫을 방법이 없고, 그 경로의 단계는 측정한 적이 없다.
