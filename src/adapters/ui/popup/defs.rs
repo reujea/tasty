@@ -508,11 +508,12 @@ pub fn all_defs() -> &'static [PopupDef] {
                     super::remote_attach::on_close_remote_attach_popup(ctx, state, engine)
                 }),
             },
-            // 원격 전송 진행 — scrim 중앙 headless, close_on_outside_click=false
+            // 원격 전송 진행 — surface마다 하나, scrim 중앙 headless, close_on_outside_click=false
             // (전송 중 실수 dismiss 방지), 모든 행 완료 시 draw_fn 이 self-close.
             PopupDef {
                 id: super::transfer::TRANSFER_PROGRESS_POPUP_ID,
                 decl: PopupDecl {
+                    instances: PopupInstances::PerScopeTarget,
                     outside_click: PopupOutsideClick::Unfocus,
                     sticky_focus: false,
                     chrome: PopupChrome::Headless,
@@ -536,7 +537,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 draw_fn: super::transfer::draw_transfer_progress,
                 #[cfg(debug_assertions)]
                 debug_payload: None,
-                on_close: Some(super::transfer::on_close_transfer_progress),
+                on_close: None,
             },
             // 원격 전송 실패 — scrim 중앙 headless, 기본 dismiss(Esc/scrim). Retry 는
             // 전송 중 실패만(draw_fn 이 판정). danger-fill 버튼 금지.

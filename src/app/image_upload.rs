@@ -179,8 +179,10 @@ impl App {
         for m in msgs {
             for w in self.view.views.values_mut() {
                 if let Some(main) = w.as_main_mut()
-                    && let Some(prog) = main.state.dialogs.transfer_progress.as_mut()
-                    && let Some(row) = prog.row_by_id(m.id)
+                    && let Some(row) = crate::adapters::ui::popup::transfer::progress_row_mut(
+                        &mut main.state,
+                        m.id,
+                    )
                 {
                     row.sent = m.sent;
                     row.total = m.total;

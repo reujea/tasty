@@ -47,6 +47,8 @@ pub enum PopupPayload {
     RemoteRow(super::remote_row::RemoteRowPayload),
     /// 차례를 기다리는 안내와 맨 앞 안내의 잰 본문 높이.
     InfoModal(crate::adapters::ui::info_modal::InfoModalQueue),
+    /// 이 surface에서 진행 중인 전송 행.
+    TransferProgress(super::transfer::TransferProgress),
 }
 
 impl PopupPayload {
@@ -135,6 +137,10 @@ impl std::fmt::Debug for PopupPayload {
             Self::CommandPalette(p) => f.debug_tuple("CommandPalette").field(p).finish(),
             Self::RemoteRow(r) => f.debug_tuple("RemoteRow").field(r).finish(),
             Self::InfoModal(q) => f.debug_tuple("InfoModal").field(&q.items.len()).finish(),
+            Self::TransferProgress(p) => f
+                .debug_tuple("TransferProgress")
+                .field(&p.rows.len())
+                .finish(),
         }
     }
 }

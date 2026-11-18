@@ -368,32 +368,31 @@ fn rail_category_outside_click_clears_dialog_state() {
 // 타이틀바와 바깥 클릭 닫기가 없는 진행 팝업은 빈 rows로 내용의 Close를 유도한다.
 
 #[test]
-fn transfer_progress_empty_rows_close_clears_dialog_state() {
+fn transfer_progress_with_no_rows_closes_itself() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.transfer_progress = Some(TransferProgress { rows: vec![] });
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         TRANSFER_PROGRESS_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::TransferProgress(TransferProgress {
+            rows: vec![],
+        }),
     );
 
     run_frame(empty_input(), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID));
-    assert!(state.dialogs.transfer_progress.is_none());
 }
 
+/// 진행 팝업을 닫으면 그 행이 인스턴스와 함께 사라져 진행 이벤트가 찾지 못하고, 다음 업로드는 새 행만
+/// 가진 팝업으로 열린다.
 #[test]
-fn transfer_progress_close_intent_now_clears_dialog_state() {
+fn transfer_progress_close_intent_drops_its_rows() {
+    use crate::adapters::ui::popup::transfer::{begin_progress_row, progress_row_mut};
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.transfer_progress = Some(TransferProgress { rows: vec![] });
-    state.popups.open_at_focused(
-        TRANSFER_PROGRESS_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    begin_progress_row(&mut state, xfer_row(1, 7));
+    assert!(progress_row_mut(&mut state, 1).is_some());
 
     crate::intent::popup::handle(
         &mut state,
@@ -404,11 +403,20 @@ fn transfer_progress_close_intent_now_clears_dialog_state() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID));
-    assert!(state.dialogs.transfer_progress.is_some());
+    assert!(progress_row_mut(&mut state, 1).is_none());
 
-    run_frame(empty_input(), &mut state, &mut engine);
-
-    assert!(state.dialogs.transfer_progress.is_none());
+    begin_progress_row(&mut state, xfer_row(2, 7));
+    let rows: Vec<u64> = state
+        .popups
+        .instances_of(TRANSFER_PROGRESS_POPUP_ID)
+        .flat_map(|p| match &p.payload {
+            crate::adapters::ui::popup::PopupPayload::TransferProgress(t) => {
+                t.rows.iter().map(|r| r.id).collect()
+            }
+            _ => Vec::new(),
+        })
+        .collect();
+    assert_eq!(rows, vec![2]);
 }
 
 fn xfer_err(name: &str) -> TransferError {
@@ -1747,28 +1755,102 @@ fn xfer_row(id: u64, surface_id: u32) -> crate::adapters::ui::popup::transfer::T
     }
 }
 
-/// 업로드 진행 팝업은 처음 연 surface 범위에 고정된다. 행이 끝나거나 새 업로드가 시작돼도
-/// 범위를 다시 쓰지 않는다(App 의 업로드 시작·종료 경로).
+/// surface별 진행 팝업 인스턴스가 가진 행 id.
+fn progress_rows_by_surface(state: &crate::state::RequestContext) -> Vec<(u32, Vec<u64>)> {
+    use crate::adapters::ui::popup::transfer::TRANSFER_PROGRESS_POPUP_ID;
+    use crate::model::popup_kind::PopupScope;
+    let mut out: Vec<(u32, Vec<u64>)> = state
+        .popups
+        .instances_of(TRANSFER_PROGRESS_POPUP_ID)
+        .map(|p| {
+            let PopupScope::Surface(sid) = p.scope else {
+                panic!("progress popups are surface scoped, got {:?}", p.scope);
+            };
+            let rows = match &p.payload {
+                crate::adapters::ui::popup::PopupPayload::TransferProgress(t) => {
+                    t.rows.iter().map(|r| r.id).collect()
+                }
+                other => panic!("expected progress rows, got {other:?}"),
+            };
+            (sid, rows)
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// 업로드 진행 팝업은 surface마다 따로 열린다. 같은 surface의 새 업로드는 그 팝업에 행을 더하고, 다른
+/// surface의 업로드는 그 surface에 자기 팝업을 연다. 행이 끝나면 그 surface의 팝업만 닫힌다.
 #[test]
 fn the_upload_progress_stays_in_the_surface_it_opened_in() {
     use crate::adapters::ui::popup::transfer::{
         TRANSFER_PROGRESS_POPUP_ID, begin_progress_row, finish_progress_row,
+    };
+    let (mut state, _engine_session) = test_state();
+    begin_progress_row(&mut state, xfer_row(1, 7));
+    begin_progress_row(&mut state, xfer_row(2, 8));
+    begin_progress_row(&mut state, xfer_row(3, 7));
+    assert_eq!(
+        progress_rows_by_surface(&state),
+        vec![(7, vec![1, 3]), (8, vec![2])]
+    );
+    finish_progress_row(&mut state, 1);
+    assert_eq!(
+        progress_rows_by_surface(&state),
+        vec![(7, vec![3]), (8, vec![2])]
+    );
+    finish_progress_row(&mut state, 3);
+    assert_eq!(progress_rows_by_surface(&state), vec![(8, vec![2])]);
+    finish_progress_row(&mut state, 2);
+    assert!(!state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID));
+}
+
+/// Given 두 surface에서 동시에 진행 중인 업로드, Then 진행 팝업이 둘 열리고 진행 이벤트는 각자 자기 행만
+/// 바꾼다. When 한 surface의 팝업을 Cancel로 닫으면(콘텐츠가 닫음), Then 그 surface의 행만 사라지고
+/// 다른 surface의 팝업과 행은 그대로다.
+#[test]
+fn uploads_in_two_surfaces_show_two_progress_popups_with_their_own_rows() {
+    use crate::adapters::ui::popup::transfer::{
+        TRANSFER_PROGRESS_POPUP_ID, begin_progress_row, progress_row_mut,
     };
     use crate::model::popup_kind::PopupScope;
     let (mut state, _engine_session) = test_state();
     begin_progress_row(&mut state, xfer_row(1, 7));
     begin_progress_row(&mut state, xfer_row(2, 8));
     assert_eq!(
-        state.popups.open_scope(TRANSFER_PROGRESS_POPUP_ID),
-        Some(&PopupScope::Surface(7))
+        state
+            .popups
+            .instances_of(TRANSFER_PROGRESS_POPUP_ID)
+            .count(),
+        2
     );
-    finish_progress_row(&mut state, 1);
-    assert_eq!(
-        state.popups.open_scope(TRANSFER_PROGRESS_POPUP_ID),
-        Some(&PopupScope::Surface(7))
-    );
-    finish_progress_row(&mut state, 2);
-    assert!(!state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID));
+
+    progress_row_mut(&mut state, 2).expect("row 2").sent = 5;
+    let sent_of = |state: &crate::state::RequestContext, sid: u32| -> Vec<u64> {
+        state
+            .popups
+            .instances_of(TRANSFER_PROGRESS_POPUP_ID)
+            .filter(|p| p.scope == PopupScope::Surface(sid))
+            .flat_map(|p| match &p.payload {
+                crate::adapters::ui::popup::PopupPayload::TransferProgress(t) => {
+                    t.rows.iter().map(|r| r.sent).collect()
+                }
+                _ => Vec::new(),
+            })
+            .collect()
+    };
+    assert_eq!(sent_of(&state, 7), vec![0]);
+    assert_eq!(sent_of(&state, 8), vec![5]);
+
+    let iid7 = state
+        .popups
+        .instance_for(TRANSFER_PROGRESS_POPUP_ID, &PopupScope::Surface(7))
+        .expect("surface 7 progress");
+    state
+        .popups
+        .close_instance(iid7, crate::adapters::ui::popup::PopupCloseReason::Content);
+    assert!(progress_row_mut(&mut state, 1).is_none());
+    assert_eq!(progress_rows_by_surface(&state), vec![(8, vec![2])]);
 }
 
 /// 업로드 실패는 surface 가 있으면 그 surface, 닫혔으면 그 mirror workspace 범위로 알린다.

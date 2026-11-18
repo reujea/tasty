@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use crate::adapters::ui::popup::transfer::{TransferError, TransferProgress};
+use crate::adapters::ui::popup::transfer::TransferError;
 
 use super::selection;
 
@@ -184,8 +184,6 @@ pub struct DialogState {
     pub(crate) remote_row_popup: crate::adapters::ui::popup::remote_row::RemoteRowPopupState,
     /// 실행하기로 확인한 변경된 Lua 스크립트. 확인 팝업이 닫힐 때 옮기고 App이 프레임 시작에 처리한다.
     pub(crate) approved_script: Option<PendingScriptConfirm>,
-    /// 원격 파일 전송 진행 상태. 모든 행이 끝나면 지운다.
-    pub(crate) transfer_progress: Option<TransferProgress>,
     /// 전송 실패 알림 큐. 맨 앞 항목을 표시하고 Dismiss로 제거한다.
     pub(crate) transfer_error: VecDeque<Queued<TransferError>>,
     /// "다운로드 후 실행" 대화상자·큰 파일 확인과 이 창에서 시작한 다운로드.
@@ -243,7 +241,6 @@ impl DialogState {
             preset_apply_targets: Default::default(),
             remote_row_popup: Default::default(),
             approved_script: None,
-            transfer_progress: None,
             transfer_error: VecDeque::new(),
             download_run: Default::default(),
         }

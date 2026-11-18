@@ -6,7 +6,7 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{Button, ButtonVariant, ControlSize};
 
 use crate::adapters::ui::icons;
-use crate::adapters::ui::popup::PopupAction;
+use crate::adapters::ui::popup::{PopupAction, PopupPayload};
 use crate::i18n::t;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
@@ -42,7 +42,8 @@ pub(super) fn progress_row_h(th: &theme::Theme) -> LogicalPx {
         + line_h(th, th.font_size_caption)
 }
 
-/// 진행 팝업 상태 — 진행 중인 파일 행들. 업로드 워커 진행 이벤트가 `row_by_id` 로 갱신한다.
+/// 진행 팝업 인스턴스 데이터 — 그 surface에서 진행 중인 파일 행들. 업로드 워커 진행 이벤트가
+/// `progress_row_mut` 로 갱신한다.
 #[derive(Debug, Default, Clone)]
 pub struct TransferProgress {
     pub rows: Vec<TransferRow>,
@@ -55,38 +56,64 @@ impl TransferProgress {
     }
 }
 
-/// 진행 행을 더한다. 진행 팝업이 닫혀 있으면 그 행의 surface 범위로 포커스 없이 연다.
-/// 이미 열려 있으면 처음 연 범위를 그대로 둔다. 여러 surface 의 전송이 한 팝업을 공유한다.
+/// 진행 행을 그 행의 surface 진행 팝업에 더한다. 그 surface의 팝업이 닫혀 있으면 포커스 없이 연다.
+/// surface마다 따로 열리고 각자 자기 행만 보인다.
 pub(crate) fn begin_progress_row(state: &mut MainViewState, row: TransferRow) {
-    let surface_id = row.surface_id;
-    state
-        .dialogs
-        .transfer_progress
-        .get_or_insert_with(TransferProgress::default)
-        .rows
-        .push(row);
-    if !state.popups.is_open(TRANSFER_PROGRESS_POPUP_ID) {
-        // intent-exempt: 전송 시작이라는 시스템 사건이 연다. 사용자 출처 Intent가 없고 passive로 열면 WebView 가림 규칙이 달라져 포커스 없는 일반 팝업으로 직접 연다.
-        state.popups.open_request(
-            &crate::intent::OpenRequest::new(
-                TRANSFER_PROGRESS_POPUP_ID,
-                crate::model::popup_kind::PopupScope::Surface(surface_id),
-            )
-            .centered(),
-            true,
-        );
+    let scope = crate::model::popup_kind::PopupScope::Surface(row.surface_id);
+    if let Some(iid) = state
+        .popups
+        .instance_for(TRANSFER_PROGRESS_POPUP_ID, &scope)
+        && let Some(popup) = state.popups.instance_mut(iid)
+        && let PopupPayload::TransferProgress(progress) = &mut popup.payload
+    {
+        progress.rows.push(row);
+        return;
     }
+    // intent-exempt: 전송 시작이라는 시스템 사건이 연다. 사용자 출처 Intent가 없고 passive로 열면 WebView 가림 규칙이 달라져 포커스 없는 일반 팝업으로 직접 연다.
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(TRANSFER_PROGRESS_POPUP_ID, scope)
+            .centered()
+            .with_payload(PopupPayload::TransferProgress(TransferProgress {
+                rows: vec![row],
+            })),
+        true,
+    );
 }
 
-/// 진행 행을 지운다. 남은 행이 없으면 팝업을 닫는다. 범위는 바꾸지 않는다.
+/// 진행 이벤트가 가리키는 행. 사용자가 그 surface의 표시를 닫았으면 없다.
+pub(crate) fn progress_row_mut(
+    state: &mut MainViewState,
+    transfer_id: u64,
+) -> Option<&mut TransferRow> {
+    state
+        .popups
+        .entries_of_mut(TRANSFER_PROGRESS_POPUP_ID)
+        .filter(|p| p.open)
+        .find_map(|p| match &mut p.payload {
+            PopupPayload::TransferProgress(progress) => progress.row_by_id(transfer_id),
+            _ => None,
+        })
+}
+
+/// 진행 행을 지운다. 그 surface에 남은 행이 없으면 그 surface의 팝업만 닫는다.
 pub(crate) fn finish_progress_row(state: &mut MainViewState, transfer_id: u64) {
-    let Some(prog) = state.dialogs.transfer_progress.as_mut() else {
-        return;
-    };
-    prog.rows.retain(|r| r.id != transfer_id);
-    if prog.rows.is_empty() {
-        // popup의 on_close가 상태를 정리하므로 여기서 중복 삭제하지 않는다.
-        state.popups.close(TRANSFER_PROGRESS_POPUP_ID); // intent-exempt: popup lifecycle.
+    let emptied = state
+        .popups
+        .entries_of_mut(TRANSFER_PROGRESS_POPUP_ID)
+        .filter(|p| p.open)
+        .find_map(|p| {
+            let PopupPayload::TransferProgress(progress) = &mut p.payload else {
+                return None;
+            };
+            let before = progress.rows.len();
+            progress.rows.retain(|r| r.id != transfer_id);
+            (progress.rows.len() != before).then_some((p.instance, progress.rows.is_empty()))
+        });
+    if let Some((iid, true)) = emptied {
+        // intent-exempt: popup lifecycle.
+        state
+            .popups
+            .close_instance(iid, crate::adapters::ui::popup::PopupCloseReason::Command);
     }
 }
 
@@ -173,17 +200,15 @@ pub enum TransferErrorKind {
 
 /// 진행 팝업 높이 = header + body(행 N개) + footer. 행 수에 맞춰 딱 맞게(빈 하단 방지).
 pub fn transfer_progress_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _e: &EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
-    let n = state
-        .dialogs
-        .transfer_progress
-        .as_ref()
-        .map(|p| p.rows.len())
-        .unwrap_or(1)
-        .max(1);
+    let n = match payload {
+        PopupPayload::TransferProgress(p) => p.rows.len(),
+        _ => 1,
+    }
+    .max(1);
     let th = theme::theme();
     let header_h = th.transfer_header_pad_y().scaled(2.0) + header_content_h(&th);
     let footer_h = th.transfer_footer_pad_y().scaled(2.0) + LogicalPx(ControlSize::Sm.height(&th));
@@ -232,26 +257,16 @@ pub fn transfer_error_sizer(
     )
 }
 
-/// 닫을 때 진행 표시 상태를 비운다. 전송 자체를 중단하는 훅은 아니다.
-pub fn on_close_transfer_progress(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.transfer_progress = None;
-}
-
 /// 진행 팝업 draw_fn. 헤더(download + "Receiving file" + pct) → 파일 행들(파일명 +
 /// determinate bar + done/total·rate) → ghost Cancel. 행이 없으면 self-close.
 pub fn draw_transfer_progress(
     ui: &mut egui::Ui,
-    state: &mut MainViewState,
+    _state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
-    let Some(progress) = state.dialogs.transfer_progress.as_ref() else {
+    let PopupPayload::TransferProgress(progress) = &*cx.payload else {
         return PopupAction::Close;
     };
     if progress.rows.is_empty() {
@@ -292,9 +307,9 @@ pub fn draw_transfer_progress(
     });
 
     if cancel {
-        // 진행 관망 중단(실제 전송은 abort 하지 않음 — 동기 워커라 중단 불가). 진행 상태를
-        // 비워 완료 이벤트가 팝업을 재오픈하지 않게 한다. Ok 완료는 여전히 경로를 삽입한다.
-        state.dialogs.transfer_progress = None;
+        // 이 surface의 진행 관망만 멈춘다(실제 전송은 abort 하지 않음 — 동기 워커라 중단 불가). 행이
+        // 인스턴스와 함께 사라지므로 진행·완료 이벤트가 팝업을 다시 열지 않는다. Ok 완료는 여전히
+        // 경로를 삽입한다. 다른 surface의 진행 팝업은 그대로다.
         return PopupAction::Close;
     }
     PopupAction::None
