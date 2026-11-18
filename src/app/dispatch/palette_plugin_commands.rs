@@ -1,4 +1,5 @@
-//! 명령 팔레트의 플러그인 명령을 처리한다. 대상은 팔레트에서 명령을 고른 시점에 정한 값이다.
+//! 명령 팔레트의 플러그인 명령을 처리한다. 대상(surface·pane·cwd 원본)은 팔레트에서 명령을 고른 시점에 정한
+//! 값이다. 처리할 때는 그 대상이 살아 있는지와 초안이 아직 기다리는지만 판정한다.
 //! action이 있으면 호스트가 실행하고 command.invoked도 알린다. 대상이 생성 대기 초안이면 걸어 둔다.
 //! surface_id가 필수인 command.invoke IPC는 사용하지 않는다.
 
@@ -7,11 +8,12 @@ use winit::window::WindowId;
 use crate::app::App;
 use crate::app::window_access::engines_mut;
 use crate::state::attach_pending::deferred::{CommandSurfaceTarget, InvokedNotice};
+use crate::state::command_target::CommandTarget;
 
 impl App {
     pub(crate) fn dispatch_pending_palette_plugin_commands(&mut self) {
         // 창 상태의 빌림을 끝낸 뒤 플러그인 매니저를 사용한다.
-        type Queued = (WindowId, String, String, Option<CommandSurfaceTarget>);
+        type Queued = (WindowId, String, String, CommandTarget);
         let mut drained: Vec<Queued> = Vec::new();
         for (wid, w) in self.view.views.iter_mut() {
             if let Some(main) = w.as_main_mut() {
@@ -38,7 +40,7 @@ impl App {
                     crate::adapters::ui::tools_menu::command_item(&plugin_id, &command_id, action);
                 let mgr = self.plugin_manager.as_mut();
                 if let Some((main, engine)) = engines_mut!(self).window_pair(wid) {
-                    run_palette_command(&mut main.state, &engine.read(), &item, target, |n| {
+                    run_palette_command(&mut main.state, &engine.read(), &item, &target, |n| {
                         if let Some(mgr) = mgr {
                             crate::plugin_bridge::key_dispatch::emit_command_invoked(
                                 mgr,
@@ -62,7 +64,7 @@ impl App {
 }
 
 /// 팔레트 큐의 plugin 명령 하나를 고른 시점의 대상으로 실행한다. 바로 실행할 surface 가 그 사이
-/// 사라졌으면 실행하지도 알리지도 않고 버린다. 실행할 수 없으면 알리지도 실행하지도 않는다.
+/// 사라졌으면 실행하지도 알리지도 않고 버린다. surface 를 여는 pane 과 cwd 원본도 고른 시점의 값이다. 실행할 수 없으면 알리지도 실행하지도 않는다.
 /// 초안 대상인 이벤트와 초안이 기댄 기존 pane 에 여는 surface 열기는 걸어 두지 않으므로 여기서 바로
 /// 실행하고 알린다. 그 사이 초안이 끝났으면 surface 열기는 실행하지도 알리지도 않는다. 초안 대상인데 지금
 /// 동작이 걸어 둘 동작이면 Enter 뒤 정의가 바뀐 것이다. 그 초안은 이미 정산됐을 수 있어 늦게 걸지 않고 버린다.
@@ -70,10 +72,10 @@ pub(crate) fn run_palette_command(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     item: &crate::plugin::tool_registry::ToolItem,
-    target: Option<CommandSurfaceTarget>,
+    target: &CommandTarget,
     notify: impl FnOnce(&InvokedNotice),
 ) {
-    if let Some(CommandSurfaceTarget::Surface(sid)) = target
+    if let Some(CommandSurfaceTarget::Surface(sid)) = target.surface
         && !engine.has_surface(sid)
     {
         tracing::info!(
@@ -82,8 +84,8 @@ pub(crate) fn run_palette_command(
         );
         return;
     }
-    if let Some(CommandSurfaceTarget::Pending(pending)) = target
-        && crate::adapters::ui::tools_menu::defers(state, engine, &item.action, pending)
+    if let Some(CommandSurfaceTarget::Pending(pending)) = target.surface
+        && crate::adapters::ui::tools_menu::defers(state, engine, &item.action, pending, target)
     {
         tracing::info!(
             "plugin command '{}' for pending {} dropped: its definition changed after input",
@@ -106,11 +108,7 @@ pub(crate) fn run_palette_command(
         Some(invoked),
         notify,
     ) {
-        tracing::warn!(
-            "plugin command '{}' not run: {}",
-            item.key,
-            blocked.message()
-        );
+        blocked.log_not_run("plugin command", &item.key);
     }
 }
 
@@ -135,18 +133,115 @@ mod tests {
         let (mut state, mut session) = crate::state::tests::two_pane_fixture();
         let engine = session.borrow_mut();
         let read = engine.read();
+        let target = state
+            .command_target_for_surface(&read, 201)
+            .expect("surface 201");
         assert!(state.focus_surface_by_id(&read, 101));
         let mut notified = Vec::new();
-        run_palette_command(
-            &mut state,
-            &read,
-            &item(),
-            Some(CommandSurfaceTarget::Surface(201)),
-            |n| notified.push(n.command_id.clone()),
-        );
+        run_palette_command(&mut state, &read, &item(), &target, |n| {
+            notified.push(n.command_id.clone())
+        });
         assert_eq!(notified, vec!["confirm".to_string()]);
         assert_eq!(state.pending_popup_opens.len(), 1);
         assert_eq!(state.pending_popup_opens[0].target_surface, Some(201));
+    }
+
+    /// Enter 뒤 큐 처리 전에 대상 surface 의 탭이 다른 pane 으로 옮겨져도 surface 열기는 Enter 때 정한 pane 에
+    /// 열고 cwd 원본도 그때의 surface 다. 처리 때 pane 을 다시 찾지 않는다.
+    #[test]
+    fn a_queued_open_surface_opens_in_the_pane_chosen_at_enter() {
+        use crate::intent::{Intent, StructureTarget};
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let target = state.command_target(&session.read());
+        assert_eq!((target.pane, target.surface_id()), (Some(20), Some(201)));
+        move_tab_201_to_pane_10(&mut session, false);
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        assert_eq!(read.find_pane_for_surface(201), Some(10));
+        let mut notified = 0;
+        run_palette_command(&mut state, &read, &open_item(), &target, |_| notified += 1);
+        assert_eq!(notified, 1);
+        let intents = state.take_pending_intents();
+        assert!(
+            matches!(
+                intents.as_slice(),
+                [intent] if matches!(
+                    &intent.body,
+                    Intent::NewTab {
+                        target: StructureTarget {
+                            pane: Some(20),
+                            cwd_source: Some(201),
+                        },
+                        ..
+                    }
+                )
+            ),
+            "{intents:?}"
+        );
+    }
+
+    fn open_item() -> crate::plugin::tool_registry::ToolItem {
+        crate::adapters::ui::tools_menu::command_item(
+            "com.example.viewer",
+            "open",
+            crate::plugin::manifest::ToolAction::OpenSurface {
+                surface_kind: "explorer".into(),
+            },
+        )
+    }
+
+    /// two_pane_fixture 의 탭 201 을 pane 10 으로 옮긴다. `close_source` 면 비게 된 pane 20 도 닫는다(마지막
+    /// 탭을 옮기면 빈 pane 을 지우는 것과 같은 결과).
+    fn move_tab_201_to_pane_10(
+        session: &mut crate::runtime::engine_session::EngineSession,
+        close_source: bool,
+    ) {
+        let before = crate::state::tests::test_model(crate::state::tests::two_pane_events());
+        let revision = before.applied.revision.unwrap_or(0);
+        let mut events = vec![tasty_core::DomainEvent::TabMoved {
+            id: 201,
+            pane: 10,
+            index: 2,
+        }];
+        if close_source {
+            events.push(tasty_core::DomainEvent::PaneClosed { id: 20 });
+        }
+        let mut retired = Vec::new();
+        tasty_core::projection::apply(
+            session.borrow_mut().core,
+            &before,
+            &tasty_core::DomainBatch {
+                batch_id: 2,
+                events: events
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, event)| tasty_core::RecordedEvent {
+                        revision: revision + 1 + i as u64,
+                        event,
+                    })
+                    .collect(),
+            },
+            &mut retired,
+        )
+        .expect("apply");
+    }
+
+    /// Enter 뒤 큐 처리 전에 대상 pane 의 마지막 탭이 다른 pane 으로 옮겨져 그 pane 이 사라졌으면, 대상 surface
+    /// 는 살아 있어도 열 pane 이 없으므로 실행하지도 알리지도 않는다. 다른 pane 으로 바꾸지 않는다.
+    #[test]
+    fn a_queued_open_surface_whose_pane_is_gone_is_neither_run_nor_announced() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let target = state.command_target(&session.read());
+        assert_eq!((target.pane, target.surface_id()), (Some(20), Some(201)));
+        move_tab_201_to_pane_10(&mut session, true);
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        assert!(read.has_surface(201));
+        assert!(read.find_pane_by_id(20).is_none());
+        let mut notified = 0;
+        run_palette_command(&mut state, &read, &open_item(), &target, |_| notified += 1);
+        assert_eq!(notified, 0);
+        assert!(state.take_pending_intents().is_empty());
     }
 
     /// 고른 surface 가 실행 전에 사라졌으면 열지도 알리지도 않는다.
@@ -160,7 +255,10 @@ mod tests {
             &mut state,
             &read,
             &item(),
-            Some(CommandSurfaceTarget::Surface(9_999)),
+            &crate::state::command_target::CommandTarget {
+                surface: Some(CommandSurfaceTarget::Surface(9_999)),
+                ..Default::default()
+            },
             |_| notified += 1,
         );
         assert_eq!(notified, 0);
@@ -182,16 +280,10 @@ mod tests {
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
         let pending = state.attach_pending.entries[0].id;
         palette::press_enter_on_confirm(&mut state, &read);
-        let target = state
-            .command_palette
-            .pending_run
-            .take()
-            .expect("queued")
-            .1
-            .surface;
-        assert_eq!(target, Some(CommandSurfaceTarget::Pending(pending)));
+        let target = state.command_palette.pending_run.take().expect("queued").1;
+        assert_eq!(target.surface, Some(CommandSurfaceTarget::Pending(pending)));
         let mut notified = 0;
-        run_palette_command(&mut state, &read, &item(), target, |_| notified += 1);
+        run_palette_command(&mut state, &read, &item(), &target, |_| notified += 1);
         assert_eq!(notified, 0);
         assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
         assert!(state.pending_popup_opens.is_empty());
@@ -210,18 +302,12 @@ mod tests {
         let _draft = crate::state::tests::select_pending_draft(state, read);
         let pending = state.attach_pending.entries[0].id;
         palette::press_enter_on_confirm(state, read);
-        let target = state
-            .command_palette
-            .pending_run
-            .take()
-            .expect("queued")
-            .1
-            .surface;
-        assert_eq!(target, Some(CommandSurfaceTarget::Pending(pending)));
+        let target = state.command_palette.pending_run.take().expect("queued").1;
+        assert_eq!(target.surface, Some(CommandSurfaceTarget::Pending(pending)));
         let item =
             crate::adapters::ui::tools_menu::command_item("com.example.viewer", "confirm", action);
         let mut notified = 0;
-        run_palette_command(state, read, &item, target, |_| notified += 1);
+        run_palette_command(state, read, &item, &target, |_| notified += 1);
         (notified, state.attach_pending.deferred.waiting_for(pending))
     }
 

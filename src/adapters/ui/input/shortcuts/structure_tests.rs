@@ -442,7 +442,13 @@ fn tools_menu_open_surface_opens_in_the_pane_of_its_surface() {
             surface_kind: "explorer".into(),
         },
     );
-    crate::adapters::ui::tools_menu::invoke_tool_on(&mut state, &engine.read(), &item, Some(101));
+    let read = engine.read();
+    let target = state
+        .command_target_for_surface(&read, 101)
+        .expect("surface 101");
+    crate::adapters::ui::tools_menu::run_tool(&mut state, &read, &item, &target, None, |_| {})
+        .expect("runs");
+    drop(read);
     let open = state
         .take_pending_intents()
         .into_iter()

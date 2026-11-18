@@ -212,14 +212,23 @@ impl App {
         let (focused, target) = match received_by {
             Some(sid) => (
                 crate::plugin_bridge::key_dispatch::plugin_surface(&engine.as_ref(), sid),
-                Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(sid)),
+                main.state
+                    .command_target_for_surface(&engine.read(), sid)
+                    .unwrap_or(crate::state::command_target::CommandTarget {
+                        surface: Some(
+                            crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(
+                                sid,
+                            ),
+                        ),
+                        ..Default::default()
+                    }),
             ),
             None => (
                 crate::plugin_bridge::key_dispatch::focused_plugin_surface(
                     &main.state,
                     &engine.as_ref(),
                 ),
-                main.state.command_surface_target(&engine.read()),
+                main.state.command_target(&engine.read()),
             ),
         };
         // 포커스 WebView의 편집 바인딩은 plugin 명령보다 먼저다. native 자식이 키를 받을 때와 같은 순서다.
@@ -272,7 +281,7 @@ impl App {
                 self.plugin_manager.as_mut(),
                 (plugin_id, cmd_id, surface_id),
                 action,
-                target,
+                &target,
             );
         } else if let Some(mgr) = self.plugin_manager.as_mut() {
             crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
@@ -292,7 +301,7 @@ pub(crate) fn run_shortcut_action(
     mgr: Option<&mut tasty_host_plugin::PluginManager>,
     (plugin_id, cmd_id, surface_id): (String, String, Option<u32>),
     action: crate::plugin::manifest::ToolAction,
-    target: Option<crate::state::attach_pending::deferred::CommandSurfaceTarget>,
+    target: &crate::state::command_target::CommandTarget,
 ) -> bool {
     let item = crate::adapters::ui::tools_menu::command_item(&plugin_id, &cmd_id, action);
     let invoked = crate::state::attach_pending::deferred::InvokedNotice {
@@ -317,11 +326,7 @@ pub(crate) fn run_shortcut_action(
             }
         },
     ) {
-        tracing::warn!(
-            "plugin command '{}' not run: {}",
-            item.key,
-            blocked.message()
-        );
+        blocked.log_not_run("plugin command", &item.key);
         return false;
     }
     true
@@ -356,14 +361,14 @@ mod action_tests {
         let read = engine.read();
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
         let pending = state.attach_pending.entries[0].id;
-        let target = state.command_surface_target(&read);
+        let target = state.command_target(&read);
         assert!(run_shortcut_action(
             &mut state,
             &read,
             None,
             matched(),
             open(),
-            target
+            &target
         ));
         assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
         assert!(state.pending_popup_opens.is_empty());
@@ -376,6 +381,7 @@ mod action_tests {
         let engine = session.borrow_mut();
         let read = engine.read();
         let anchor = state.focused_surface_id(&read).expect("focused surface");
+        let target = state.command_target(&read);
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
         let pending = state.attach_pending.entries[0].id;
         assert!(run_shortcut_action(
@@ -384,7 +390,7 @@ mod action_tests {
             None,
             matched(),
             open(),
-            Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(anchor))
+            &target
         ));
         assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
         assert_eq!(state.pending_popup_opens.len(), 1);
@@ -430,13 +436,14 @@ mod action_tests {
         let engine = session.borrow_mut();
         let read = engine.read();
         assert_eq!(state.command_surface_target(&read), None);
+        let target = state.command_target(&read);
         assert!(!run_shortcut_action(
             &mut state,
             &read,
             None,
             matched(),
             open(),
-            None
+            &target
         ));
         assert!(state.pending_popup_opens.is_empty());
     }

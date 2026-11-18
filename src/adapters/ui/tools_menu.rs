@@ -1,5 +1,5 @@
 //! 사이드바 도구 메뉴. 본체 항목과 활성 플러그인의 도구 항목을 표시한다.
-//! 플러그인 이벤트·팝업 요청은 큐에 넣고 surface 열기는 사용자 포커스 pane을 대상으로 한다.
+//! 플러그인 이벤트·팝업 요청은 큐에 넣고 surface 열기는 입력 때 정한 pane을 대상으로 한다.
 
 use crate::adapters::ui::popup::{self, PopupAction};
 use crate::i18n::t;
@@ -12,6 +12,7 @@ use crate::state::attach_pending::PendingId;
 use crate::state::attach_pending::deferred::{
     CommandSurfaceTarget, DeferredCommand, InvokedNotice,
 };
+use crate::state::command_target::CommandTarget;
 use crate::theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{MenuItemVariant, fit_menu_width, menu_item, menu_separator};
@@ -153,9 +154,9 @@ pub fn draw_tools_menu(
     let (clicked, _) = draw_plugin_rows(ui, &th, state, engine, &items);
 
     if let Some(item) = clicked {
-        let target = state.command_surface_target(engine);
-        if let Err(blocked) = run_tool(state, engine, &item, target, None, |_| {}) {
-            tracing::warn!("tool '{}' not run: {}", item.key, blocked.message());
+        let target = state.command_target(engine);
+        if let Err(blocked) = run_tool(state, engine, &item, &target, None, |_| {}) {
+            blocked.log_not_run("tool", &item.key);
         }
         return PopupAction::Close;
     }
@@ -242,6 +243,8 @@ pub(crate) enum ToolBlocked {
     NoSurfaceTarget,
     /// 대상이던 생성 대기 초안이 이미 끝났거나 사라졌다.
     DraftGone,
+    /// surface 를 열 pane 이 입력 때 정해지지 않았거나 그 사이 사라졌다.
+    PaneGone,
 }
 
 impl ToolBlocked {
@@ -249,6 +252,21 @@ impl ToolBlocked {
         match self {
             Self::NoSurfaceTarget => "the popup needs a surface target and no surface is focused",
             Self::DraftGone => "the pending draft it targets is no longer waiting",
+            Self::PaneGone => "the pane it opens a surface in is gone",
+        }
+    }
+
+    /// 입력 뒤 대상이 사라진 정상 경합인지. 초안이 끝났거나 열 pane 이 사라진 경우다.
+    fn is_race(self) -> bool {
+        matches!(self, Self::DraftGone | Self::PaneGone)
+    }
+
+    /// 실행하지 않은 명령 하나를 한 줄로 남긴다. 입력 뒤 대상이 사라진 경합은 info, 그 밖은 warn 이다.
+    pub(crate) fn log_not_run(self, what: &str, key: &str) {
+        if self.is_race() {
+            tracing::info!("{what} '{key}' not run: {}", self.message());
+        } else {
+            tracing::warn!("{what} '{key}' not run: {}", self.message());
         }
     }
 }
@@ -279,22 +297,23 @@ fn tool_action_block(
 }
 
 /// 입력 시점에 정한 `target`으로 도구·명령 동작을 실행한다. 대상이 생성 대기 초안이면 팝업 동작은
-/// 걸어 두고 생성된 surface에서 실행한다. `command.invoked`(`invoked`)는 실제로 실행할 때만
+/// 걸어 두고 생성된 surface에서 실행한다. surface 열기의 pane 과 cwd 원본은 `target` 에 입력 때 정해진
+/// 값이고 여기서 다시 고르지 않는다. `command.invoked`(`invoked`)는 실제로 실행할 때만
 /// `notify`로 알린다. 실행할 수 없으면 알리지도 실행하지도 않고 이유를 돌려준다.
 pub(crate) fn run_tool(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     item: &ToolItem,
-    target: Option<CommandSurfaceTarget>,
+    target: &CommandTarget,
     invoked: Option<InvokedNotice>,
     notify: impl FnOnce(&InvokedNotice),
 ) -> Result<ToolRun, ToolBlocked> {
-    if let Some(blocked) = tool_action_block(state, &item.action, target) {
+    if let Some(blocked) = tool_action_block(state, &item.action, target.surface) {
         return Err(blocked);
     }
-    let surface = match target {
+    let surface = match target.surface {
         Some(CommandSurfaceTarget::Pending(pending)) => {
-            match draft_run(state, engine, &item.action, pending)? {
+            match draft_run(state, engine, &item.action, pending, target)? {
                 DraftRun::Hold => {
                     state.attach_pending.deferred.push(
                         pending,
@@ -306,6 +325,9 @@ pub(crate) fn run_tool(
                     return Ok(ToolRun::Deferred(pending));
                 }
                 DraftRun::OpenAt(at) => {
+                    if let Some(blocked) = open_pane_gone(engine, at) {
+                        return Err(blocked);
+                    }
                     if let Some(invoked) = &invoked {
                         notify(invoked);
                     }
@@ -320,11 +342,29 @@ pub(crate) fn run_tool(
         Some(CommandSurfaceTarget::Surface(sid)) => Some(sid),
         None => None,
     };
+    let at = target.structure_target();
+    if matches!(item.action, ToolAction::OpenSurface { .. })
+        && let Some(blocked) = open_pane_gone(engine, at)
+    {
+        return Err(blocked);
+    }
     if let Some(invoked) = &invoked {
         notify(invoked);
     }
-    invoke_tool_on(state, engine, item, surface);
+    invoke_tool_on(state, engine, item, surface, at);
     Ok(ToolRun::Ran)
+}
+
+/// surface 열기를 입력 때 정한 pane 에 할 수 없는지. pane 이 정해지지 않았거나 그 사이 사라졌으면 다른 pane
+/// 으로 바꾸지 않고, 실행하지도 알리지도 않도록 막는다. 로그는 호출자가 `ToolBlocked::log_not_run` 으로 남긴다.
+fn open_pane_gone(
+    engine: &EngineRead<'_>,
+    at: crate::intent::StructureTarget,
+) -> Option<ToolBlocked> {
+    match at.pane {
+        Some(pane) if engine.find_pane_by_id(pane).is_some() => None,
+        _ => Some(ToolBlocked::PaneGone),
+    }
 }
 
 /// 생성 대기 초안이 대상일 때 동작을 어떻게 할지.
@@ -338,24 +378,22 @@ enum DraftRun {
 }
 
 /// 팝업은 선언 범위와 관계없이 대상 surface 의 문맥(cwd·mirror)을 받으므로 걸어 둔다. surface 열기는 pane
-/// 명령이라 구조 명령과 같이 판정한다. 새 탭·surface 분할 초안이면 기댄 기존 pane 이 대상이라 지금 열고 cwd
-/// 원본은 초안 뒤 탭에서 골라져 있는 surface 다. 새 pane 초안이면 만들 pane 이 대상이라 걸어 둔다. 초안이
-/// 이미 끝났으면 실행하지 않는다. 대상 surface 를 쓰지 않는 이벤트는 지금 실행한다.
+/// 명령이라 구조 명령과 같이 판정한다. 새 탭·surface 분할 초안이면 기댄 기존 pane 이 대상이라 지금 열고 pane
+/// 과 cwd 원본은 입력 때 `target` 에 정한 값(초안 뒤 탭에서 그때 골라져 있던 surface)이다. 새 pane 초안이면
+/// 만들 pane 이 대상이라 걸어 둔다. 지금 판정하는 것은 초안이 아직 기다리는지뿐이고, 끝났으면 실행하지 않는다.
+/// 대상 surface 를 쓰지 않는 이벤트는 지금 실행한다.
 fn draft_run(
     state: &MainViewState,
     engine: &EngineRead<'_>,
     action: &ToolAction,
     pending: PendingId,
+    target: &CommandTarget,
 ) -> Result<DraftRun, ToolBlocked> {
     match action {
         ToolAction::OpenPopup { .. } => Ok(DraftRun::Hold),
         ToolAction::Event { .. } => Ok(DraftRun::NoSurface),
         ToolAction::OpenSurface { .. } => {
             let Some(entry) = state.attach_pending.waiting_entry(engine, pending) else {
-                tracing::info!(
-                    "open surface for pending {} dropped: the draft is no longer waiting",
-                    pending.0
-                );
                 return Err(ToolBlocked::DraftGone);
             };
             if matches!(
@@ -364,10 +402,7 @@ fn draft_run(
             ) {
                 return Ok(DraftRun::Hold);
             }
-            Ok(DraftRun::OpenAt(crate::intent::StructureTarget {
-                pane: Some(entry.pane),
-                cwd_source: state.draft_base_surface(engine, entry),
-            }))
+            Ok(DraftRun::OpenAt(target.structure_target()))
         }
     }
 }
@@ -378,9 +413,10 @@ pub(crate) fn defers(
     engine: &EngineRead<'_>,
     action: &ToolAction,
     pending: PendingId,
+    target: &CommandTarget,
 ) -> bool {
     matches!(
-        draft_run(state, engine, action, pending),
+        draft_run(state, engine, action, pending, target),
         Ok(DraftRun::Hold)
     )
 }
@@ -407,7 +443,7 @@ pub(crate) fn defer_palette_command(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     cmd: &crate::state::command_palette::PaletteCommand,
-    target: Option<CommandSurfaceTarget>,
+    target: &CommandTarget,
 ) -> bool {
     let (
         Some(CommandSurfaceTarget::Pending(pending)),
@@ -416,7 +452,7 @@ pub(crate) fn defer_palette_command(
             command_id,
             ..
         },
-    ) = (target, cmd)
+    ) = (target.surface, cmd)
     else {
         return false;
     };
@@ -425,7 +461,7 @@ pub(crate) fn defer_palette_command(
         .iter()
         .find(|e| e.plugin_id == *plugin_id && e.command_id == *command_id)
         .and_then(|e| e.action.clone())
-        .filter(|action| defers(state, engine, action, pending))
+        .filter(|action| defers(state, engine, action, pending, target))
     else {
         return false;
     };
@@ -457,30 +493,21 @@ fn open_surface_at(
     );
 }
 
-/// 플러그인 도구·명령 동작을 `surface`를 대상으로 실행한다. 대상은 호출자가 입력 시점에 정한 값이다.
+/// 플러그인 도구·명령 동작을 `surface`를 대상으로 실행한다. surface 열기는 `at` 의 pane 에 열고 cwd 원본도
+/// `at` 의 것이다. 대상은 호출자가 입력 시점에 정한 값이다.
 pub(crate) fn invoke_tool_on(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     item: &ToolItem,
     surface: Option<u32>,
+    at: crate::intent::StructureTarget,
 ) {
     match &item.action {
         ToolAction::Event { event_key } => {
             let payload = serde_json::json!({ "tool_id": item.key });
             state.pending_tool_events.push((event_key.clone(), payload));
         }
-        ToolAction::OpenSurface { surface_kind } => {
-            // 입력 때 정한 대상 surface 가 있는 pane 에 연다. cwd 원본도 그 surface 다.
-            let pane = surface.and_then(|sid| engine.find_pane_for_surface(sid));
-            open_surface_at(
-                state,
-                surface_kind,
-                crate::intent::StructureTarget {
-                    pane,
-                    cwd_source: surface,
-                },
-            );
-        }
+        ToolAction::OpenSurface { surface_kind } => open_surface_at(state, surface_kind, at),
         ToolAction::OpenPopup { popup_id } => {
             // plugin/id를 나누어 팝업 요청을 큐에 넣는다. 대상 surface의 cwd·mirror 정보를
             // 함께 전달하며 local_surface_id는 원격 조회 대상에 사용한다.
@@ -527,7 +554,12 @@ pub(crate) fn run_deferred_tools(
         match command {
             DeferredCommand::Tool { item, invoked } => {
                 notices.extend(invoked);
-                invoke_tool_on(state, engine, &item, Some(local));
+                // 걸어 둔 명령의 대상은 생성된 surface 이고 그 pane 은 생성 결과로 정해진다.
+                let at = crate::intent::StructureTarget {
+                    pane: engine.find_pane_for_surface(local),
+                    cwd_source: Some(local),
+                };
+                invoke_tool_on(state, engine, &item, Some(local), at);
             }
             DeferredCommand::ConvertInput { kind } => {
                 state.open_deferred_convert_input(engine, &kind, local);
@@ -795,14 +827,14 @@ mod block_tests {
     #[test]
     fn a_popup_tool_on_a_pending_draft_is_deferred_without_a_notice() {
         with_pending_draft(|state, read, pending| {
-            let target = state.command_surface_target(read);
+            let target = state.command_target(read);
             let mut notified = 0;
             assert_eq!(
                 run_tool(
                     state,
                     read,
                     &item(SURFACE_POPUP),
-                    target,
+                    &target,
                     Some(notice("confirm")),
                     |_| notified += 1
                 ),
@@ -816,7 +848,7 @@ mod block_tests {
                 event_key: "com.example.viewer.go".into(),
             };
             assert_eq!(
-                run_tool(state, read, &event, target, None, |_| {}),
+                run_tool(state, read, &event, &target, None, |_| {}),
                 Ok(ToolRun::Ran)
             );
             assert_eq!(state.pending_tool_events.len(), 1);
@@ -831,13 +863,16 @@ mod block_tests {
         let engine = session.borrow_mut();
         let read = engine.read();
         let (receipt, sender, view) = begin_tab_draft(&mut state, &read);
-        let target = state.command_surface_target(&read);
-        assert!(matches!(target, Some(CommandSurfaceTarget::Pending(_))));
+        let target = state.command_target(&read);
+        assert!(matches!(
+            target.surface,
+            Some(CommandSurfaceTarget::Pending(_))
+        ));
         for (popup, invoked) in [
             (SURFACE_POPUP, Some(notice("confirm"))),
             (WINDOW_POPUP, None),
         ] {
-            run_tool(&mut state, &read, &item(popup), target, invoked, |_| {}).unwrap();
+            run_tool(&mut state, &read, &item(popup), &target, invoked, |_| {}).unwrap();
         }
         assert!(state.focus_surface_by_id(&read, 101));
         receipt.bind(0);
@@ -907,15 +942,15 @@ mod block_tests {
         let (mut state, mut session) = crate::state::tests::two_pane_fixture();
         let engine = session.borrow_mut();
         let read = engine.read();
-        let target = state.command_surface_target(&read);
-        assert_eq!(target, Some(CommandSurfaceTarget::Surface(201)));
+        let target = state.command_target(&read);
+        assert_eq!(target.surface, Some(CommandSurfaceTarget::Surface(201)));
         assert!(state.focus_surface_by_id(&read, 101));
         assert_eq!(
             run_tool(
                 &mut state,
                 &read,
                 &item(SURFACE_POPUP),
-                target,
+                &target,
                 None,
                 |_| {}
             ),

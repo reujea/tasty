@@ -67,8 +67,8 @@ pub fn handle_invoke(
         return JsonRpcResponse::error(id, -32602, format!("tool item '{key}' not found"));
     };
     let read = engine.read();
-    let target = state.command_surface_target(&read);
-    match crate::adapters::ui::tools_menu::run_tool(state, &read, &item, target, None, |_| {}) {
+    let target = state.command_target(&read);
+    match crate::adapters::ui::tools_menu::run_tool(state, &read, &item, &target, None, |_| {}) {
         Err(blocked) => JsonRpcResponse::error(
             id,
             -32602,

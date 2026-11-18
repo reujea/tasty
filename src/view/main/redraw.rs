@@ -421,9 +421,12 @@ impl MainView {
                     command_id,
                     ..
                 } => {
-                    self.state
-                        .pending_plugin_command_invokes
-                        .push((plugin_id, command_id, target));
+                    // pane·cwd 원본까지 Enter 때 정한 대상을 그대로 넘긴다. App 은 대상을 다시 고르지 않는다.
+                    self.state.pending_plugin_command_invokes.push((
+                        plugin_id,
+                        command_id,
+                        command_target,
+                    ));
                 }
             }
         }

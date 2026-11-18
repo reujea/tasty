@@ -246,11 +246,8 @@ pub struct MainViewState {
 
     /// 팔레트에서 선택한 플러그인 명령과 선택한 시점의 대상. App이 매니저에 전달한다.
     #[cfg(feature = "gui")]
-    pub(crate) pending_plugin_command_invokes: Vec<(
-        String,
-        String,
-        Option<super::attach_pending::deferred::CommandSurfaceTarget>,
-    )>,
+    pub(crate) pending_plugin_command_invokes:
+        Vec<(String, String, super::command_target::CommandTarget)>,
 
     /// 도구 메뉴에서 선택한 이벤트 대기열. App이 매니저에 전달한다.
     #[cfg(feature = "gui")]

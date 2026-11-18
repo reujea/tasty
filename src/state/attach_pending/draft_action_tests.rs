@@ -92,8 +92,8 @@ fn a_draft_reselected_from_another_pane_targets_its_own_pane() {
     assert_eq!(target.draft_base_surface, Some(101));
 }
 
-/// 탭 하나에 surface 11·13, 초안을 만든 뒤 13 을 고른 장면.
-fn split_tab_with_a_draft() -> (
+/// 탭 하나에 surface 11·13, 11 을 고른 채 초안을 만들어 입력 대상을 얻은 뒤 13 을 고른 장면.
+pub(crate) fn split_tab_with_a_draft() -> (
     crate::state::MainViewState,
     crate::runtime::engine_session::EngineSession,
     crate::state::command_target::CommandTarget,

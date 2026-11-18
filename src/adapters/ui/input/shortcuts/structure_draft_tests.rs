@@ -350,13 +350,13 @@ fn an_open_surface_command_for_a_draft_on_its_pane_opens_there_now() {
         let (mut state, engine, anchor, id, _draft) = draft_scene(op);
         let read = engine.read();
         let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
-        let target = state.command_surface_target(&read);
+        let target = state.command_target(&read);
         let mut notified = 0;
         let run = run_tool(
             &mut state,
             &read,
             &open_surface_item(),
-            target,
+            &target,
             Some(invoked()),
             |_| notified += 1,
         );
@@ -381,13 +381,13 @@ fn an_open_surface_command_for_a_pane_draft_waits_and_notifies_when_run() {
     let (mut state, engine, anchor, id, _draft) = draft_scene(split_pane_op);
     let read = engine.read();
     let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
-    let target = state.command_surface_target(&read);
+    let target = state.command_target(&read);
     let mut notified = 0;
     let run = run_tool(
         &mut state,
         &read,
         &open_surface_item(),
-        target,
+        &target,
         Some(invoked()),
         |_| notified += 1,
     );
@@ -413,7 +413,7 @@ fn an_open_surface_command_for_a_finished_draft_is_neither_run_nor_announced() {
     use crate::adapters::ui::tools_menu::{ToolBlocked, run_tool};
     let (mut state, engine, _anchor, id, _draft) = draft_scene(new_tab_op);
     let read = engine.read();
-    let target = state.command_surface_target(&read);
+    let target = state.command_target(&read);
     let entry = &state.attach_pending.entries[0];
     entry.receipt.bind(0);
     let epoch = entry.epoch.clone();
@@ -424,7 +424,7 @@ fn an_open_surface_command_for_a_finished_draft_is_neither_run_nor_announced() {
         &mut state,
         &read,
         &open_surface_item(),
-        target,
+        &target,
         Some(invoked()),
         |_| notified += 1,
     );
@@ -433,7 +433,7 @@ fn an_open_surface_command_for_a_finished_draft_is_neither_run_nor_announced() {
         &mut state,
         &read,
         &open_surface_item(),
-        target,
+        &target,
         |_| notified += 1,
     );
     assert_eq!(notified, 0);
@@ -447,13 +447,13 @@ fn a_palette_open_surface_for_a_new_tab_draft_opens_on_its_pane() {
     let (mut state, engine, anchor, _id, _draft) = draft_scene(new_tab_op);
     let read = engine.read();
     let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
-    let target = state.command_surface_target(&read);
+    let target = state.command_target(&read);
     let mut notified = 0;
     crate::app::dispatch::palette_plugin_commands::run_palette_command(
         &mut state,
         &read,
         &open_surface_item(),
-        target,
+        &target,
         |_| notified += 1,
     );
     assert_eq!(notified, 1);
@@ -461,6 +461,33 @@ fn a_palette_open_surface_for_a_new_tab_draft_opens_on_its_pane() {
     assert_eq!(intents.len(), 1);
     assert!(
         opens_explorer_at(&intents[0], pane, anchor),
+        "{:?}",
+        intents[0].body
+    );
+}
+
+/// 팔레트 Enter 뒤 App 이 큐를 처리하기 전에 초안 뒤 탭의 선택 surface 가 바뀌어도, 새 탭 초안에 여는 surface
+/// 의 cwd 원본은 Enter 때 골라져 있던 surface 다. 처리 때 판정하는 것은 초안이 아직 기다리는지뿐이다.
+#[test]
+fn a_palette_open_surface_for_a_draft_keeps_the_cwd_source_chosen_at_enter() {
+    let (mut state, session, target, _draft) =
+        crate::state::attach_pending::draft_action_tests::split_tab_with_a_draft();
+    let read = session.read();
+    let pane = read.find_pane_by_id(1).expect("pane");
+    assert_eq!(state.navigation.surface_id(&pane.tabs[0]), Some(13));
+    let mut notified = 0;
+    crate::app::dispatch::palette_plugin_commands::run_palette_command(
+        &mut state,
+        &read,
+        &open_surface_item(),
+        &target,
+        |_| notified += 1,
+    );
+    assert_eq!(notified, 1);
+    let intents = state.take_pending_intents();
+    assert_eq!(intents.len(), 1);
+    assert!(
+        opens_explorer_at(&intents[0], 1, 11),
         "{:?}",
         intents[0].body
     );

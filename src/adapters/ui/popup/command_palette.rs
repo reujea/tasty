@@ -475,9 +475,11 @@ pub fn draw_command_palette_popup(
             if let Some(cmd) = matched_commands.get(index) {
                 // 대상은 Enter 때 정한다. 실행은 팝업을 닫은 뒤라 그 사이 포커스가 바뀔 수 있다.
                 let command_target = state.command_target(engine);
-                let target = command_target.surface;
                 if !crate::adapters::ui::tools_menu::defer_palette_command(
-                    state, engine, cmd, target,
+                    state,
+                    engine,
+                    cmd,
+                    &command_target,
                 ) {
                     state.command_palette.pending_run = Some((cmd.clone(), command_target));
                 }
