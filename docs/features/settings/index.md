@@ -129,6 +129,20 @@ General 의 닫기 동작(`close_behavior`: ask · minimize · quit), Terminal �
 
 플러그인이 설정 페이지를 contribute 하면 Appearance 의 sub-tab + Plugins 탭에 `(plugin_id, page_id)` 복합키로 나타난다. 등록된 plugin page 가 없으면 Plugins 탭/해당 sub-tab 이 비거나 사라진다.
 
+### 설정 창에 없는 설정
+
+아래 키는 설정 창에 행이 없고 설정 파일(`config.toml`)로만 바꿀 수 있다.
+
+| 키 | 기본값 | 값 | 동작 |
+|---|---|---|---|
+| `performance.output_redraw_fps` | 30 | 15 · 30 · 60 · 120 · 144 · 240 · -1(무제한) | 터미널 출력이 일으키는 다시 그리기의 초당 상한 |
+| `performance.input_redraw_fps` | 60 | 위와 같음 | 사용자 입력(입력 에코 포함)이 일으키는 다시 그리기의 초당 상한 |
+
+- 실행 중인 Tasty 는 `config.toml` 을 다시 읽지 않는다. 파일을 고친 뒤 재시작하면 적용된다.
+- 적용값은 창이 있는 모니터의 주사율을 넘지 않는다. `-1`(무제한)도 모니터 주사율까지만 그린다.
+- 파일의 목록 밖 값은 읽을 때 기본값으로 바뀐다.
+- 동작 규칙: [GPU 렌더링 — 상한값](../../dev-guide/gpu-rendering.md#상한값).
+
 ## 인터페이스
 
 - **사용자**: 사이드바 설정 버튼 → 모달, L1/L2 탐색, 편집 → Save/Cancel.

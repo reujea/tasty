@@ -207,7 +207,11 @@ Timeout과 그 밖의 비치명적 오류는 dirty를 복구하고 창별 `Repai
 없어도 다음 시도가 진행된다. 재시도 전 stale redraw와 새 dirty 요청도 같은 대기
 기한을 지킨다. 프레임 후 WebView 동기화의 dirty 재요청도 같은 기한을 지킨다.
 WebView가 없는 창에서도 이 재요청 경로가 실행되므로 GPU 진입만 막으면 redraw 콜백이
-계속 도는 문제가 남는다. 유발원별 정상 주사율 정책은 성공한 뒤 다시 적용된다.
+계속 도는 문제가 남는다. 재시도 상태는 실제 present 성공이나 취소(`cancel_surface_retry`)까지
+유지되며 예약 시각이 지난 뒤에도 끝나지 않는다. 그동안 게이트는 출력·입력 상한, 섞인 프레임의
+입력 상한 시각, 이미 발행한 redraw의 보류를 적용하지 않는다. 예약 시각 전에는 어떤 요청도
+그 시각을 바꾸지 않고, 예약 시각 뒤에는 요청과 redraw를 바로 그린다. 유발원별 정상 주사율
+정책은 성공한 뒤 다시 적용된다.
 
 Lost/Outdated는 먼저 강제 재구성한 뒤 같은 지연 재시도를 예약한다. OutOfMemory는
 기존 error/crash-report 정책을 유지하고 자동 재시도 예약을 지운다. 종료 코드를 새로
@@ -234,19 +238,36 @@ Debug 빌드의 opt-in 결함 주입은 `src/gfx/gpu/debug_surface.rs`에 격리
 
 | 유발원 | `RepaintSource` | 상한 | 좌표 |
 |---|---|---|---|
-| 키·마우스·IME·리사이즈·포커스·구조 변경 | `Interactive` (기본값) | **정상 시 즉시 발화** | `mark_dirty()` 호출 전반 |
-| PTY 출력 | `TerminalOutput` | 주사율까지 coalesce. DEC 2026 블록 안이면 보류([동기화 출력 보류](#동기화-출력-보류)) | `src/app/event_handler.rs` `handle_terminal_output` |
+| 키·마우스·IME·리사이즈·포커스·구조 변경 | `Interactive` (기본값) | 입력 상한 | `mark_dirty()` 호출 전반 |
+| 입력 직후 같은 surface 의 PTY 출력(에코) | `InputEcho` | 입력 상한. DEC 2026 블록 안이면 보류([동기화 출력 보류](#동기화-출력-보류)) | `src/app/event_handler.rs` `handle_terminal_output`·`output_repaint_source` |
+| PTY 출력 | `TerminalOutput` | 출력 상한. DEC 2026 블록 안이면 보류([동기화 출력 보류](#동기화-출력-보류)) | `src/app/event_handler.rs` `handle_terminal_output` |
 | egui 내부 delay 0 즉시 repaint | `EguiAnimation` | 주사율까지 coalesce | `AppEvent::EguiRepaint` 핸들러 |
 | egui 지연 repaint(`request_repaint_after`) | `EguiAnimation` | 주사율까지 coalesce | `AppEvent::EguiRepaintAfter` → `Tick::EguiRepaint(창)` 발화 |
 | attach mirror 갱신 | `AttachMirror` | 주사율까지 coalesce | `src/app/attach_poll.rs`, `src/app/attach_client.rs` |
 
 egui 지연 repaint 는 repaint 콜백(`src/gfx/gpu.rs`)이 창마다 하나의 예약 시각만 유지해 보낸다. 아직 오지 않은 더 이른 예약이 있으면 같은 프레임에서 반복되는 요청을 보내지 않고, 더 이른 요청만 예약을 앞당긴다(`src/gfx/gpu/delayed_repaint.rs`). App 은 그 시각까지 남은 시간을 창별 일회성 타이머로 등록하고(`src/app/egui_repaint.rs`), 발화하면 즉시 요청과 같은 경로로 창을 다시 그린다. 그래서 툴팁 표시 지연, modifier-hint 표시 지연처럼 입력 없이 시간이 지나야 바뀌는 egui 화면이 제때 그려진다. 지연 요청이 없는 유휴 상태에서는 깨움이 늘지 않는다. UI 입력란 커서는 깜박이지 않는다. 호스트는 `tasty_egui_theme::apply_theme_to_egui` 가, 플러그인 egui-mesh 컨텍스트는 SDK 의 `EguiMeshCore` 가 `text_cursor.blink` 를 끈다. 깜박이면 포커스된 입력란이 있는 동안 0.5초마다 프레임을 그리고, 플러그인은 그때마다 호스트와 프레임을 주고받는다. 캐럿 모양 규칙은 [테마](../design/systems/theme.md#애니메이션과-스크롤)에 있다.
 
-사용자 조작으로 발생한 요청을 즉시 처리하는 이유는 반응성이다 — 여기에 상한을 걸면 타이핑·클릭 지연이 그대로 늘어난다. 나머지는 주사율 안에서 합쳐 불필요한 프레임 요청을 줄인다.
+입력과 출력의 상한을 나누는 이유는 반응성이다. 입력 기인 프레임은 출력 상한에 묶이지 않으므로 출력이 많아도 타이핑·클릭 반응이 늦어지지 않는다. 키 입력의 에코는 PTY 출력으로 돌아오므로 출력 경로에서 다시 가른다. 해당 surface 의 마지막 활동 출력이 busy 판정의 입력 에코 구간(`last_input_at <= last_activity_at <= last_input_at + INPUT_ECHO_WINDOW`, 200ms, [busy 표시](../design/policies/busy-indicator.md) (3))에 있으면 `InputEcho` 다. 판정은 busy 와 같은 술어 `Terminal::last_output_is_input_echo`(`crates/tasty-terminal/src/accessors.rs`)를 쓴다. 상태 락이 사용 중이면 에코로 보지 않는다. targeted PTY polling 을 끈 전역 출력 처리(surface ID 없음)도 같은 술어를 쓴다. 이번 처리에서 새 출력이 있었던 surface 목록(`TerminalStore::process_all` 반환값)을 받아, 창마다 보이는 surface 중 하나라도 에코면 그 창을 `InputEcho` 로, 아니면 `TerminalOutput` 으로 표시한다(`RepaintSource::for_output`). 숨은 대상이 보이게 되는 첫 프레임(탭·workspace 전환)은 그 전환 조작의 `Interactive` 요청이 그린다.
 
 ### 상한값
 
-**모니터가 보고하는 주사율**(`MonitorHandle::refresh_rate_millihertz()`)에서 최소 프레임 간격을 구한다. 5 초 TTL 로 재조회하므로 창을 다른 모니터로 옮기면 따라간다. 보고값이 없으면 60Hz 폴백, 상식 범위를 벗어나면 24~480Hz 로 clamp 한다. 고정 상수를 박지 않는 이유는 그 상수가 고주사율 환경에서 **오히려 상한**이 되기 때문이다.
+상한은 프레임 사이 최소 간격이다. 유발원마다 다음 간격을 쓴다.
+
+| 간격 | 설정 키 | 기본값 | 대상 |
+|---|---|---|---|
+| 입력 상한 | `performance.input_redraw_fps` | 60 | `Interactive`, `InputEcho` |
+| 출력 상한 | `performance.output_redraw_fps` | 30 | `TerminalOutput` |
+| 모니터 간격 | 없음 | 모니터 주사율 | `EguiAnimation`, `AttachMirror` |
+
+- 값은 15 / 30 / 60 / 120 / 144 / 240 / `-1`(무제한) 중 하나다(`tasty_settings::REDRAW_FPS_CHOICES`). 설정 파일을 읽을 때 목록 밖 값은 기본값으로 정규화하고 warn 로그를 남긴다. 실행 중 설정 적용 요청의 목록 밖 값은 `Settings::validate_runtime` 이 거절한다.
+- 적용값은 min(설정값, 창이 있는 모니터 주사율)이다. 모니터 간격보다 짧은 간격으로는 그리지 않는다. 저장 값이 모니터 주사율보다 커도 값은 그대로 두고 적용만 제한한다.
+- 무제한(`-1`)은 출력·입력 모두 모니터 간격이다. 주 surface 는 Mailbox present 를 우선 고르므로 present 가 주사율에서 멈춘다고 기대할 수 없어 게이트가 간격을 지킨다.
+- 마지막 present 로부터 간격이 이미 지났으면 바로 그린다. 그래서 쉬던 창의 첫 입력은 기다리지 않는다.
+- 미룬 요청 중에 입력 기인 요청(`Interactive`·`InputEcho`)이 있으면 그 프레임 전체가 입력 상한 시각에 그려진다. 출력이 먼저 미뤄져 있었어도 입력 상한 시각으로 옮긴다. 출력 요청이 이미 승인돼 `request_redraw` 를 발행한 뒤 그 redraw 를 처리하기 전에 입력이 합류해 미뤄졌다면, `RedrawRequested` 처리(`ViewBase::ready_to_draw` → `RepaintGate::holds_mixed_frame`)가 그리지 않고 dirty 와 미룬 예약을 그대로 둔다. 그 프레임은 입력 상한 시각의 WaitUntil 깨움이 그린다. surface 재시도 상태(실패 뒤 present 성공·취소 전, 예약 시각이 지난 뒤 포함)에서는 이 판정과 상한을 적용하지 않고 재시도 계약을 따른다.
+- 설정은 창 View 가 들고 있지 않으므로 부팅(`src/app/boot_machine.rs`)과 설정 적용(`apply_settings_after_structure`)이 `install_redraw_caps` 로 프로세스 공유값을 갱신하고, 게이트가 요청마다 읽는다. 그래서 실행 중 설정 적용 경로(`SettingsUpdated` → `apply_settings_after_structure`)로 값이 바뀌면 열린 창 전부가 다음 요청부터 새 값을 쓴다.
+- 두 설정은 아직 설정 창에 없고 설정 파일(`~/.tasty/config.toml` 의 `[performance]`)로만 바꿀 수 있다. 실행 중인 Tasty 는 이 파일을 다시 읽지 않으므로 파일을 고친 뒤 재시작해야 적용된다.
+
+모니터 간격은 **모니터가 보고하는 주사율**(`MonitorHandle::refresh_rate_millihertz()`)에서 구한다. 5 초 TTL 로 재조회하므로 창을 다른 모니터로 옮기면 따라간다. 보고값이 없으면 60Hz 폴백, 상식 범위를 벗어나면 24~480Hz 로 clamp 한다. 모니터 간격에 고정 상수를 쓰지 않는 이유는 그 상수가 고주사율 환경에서 **오히려 상한**이 되기 때문이다. 설정 화면에 보일 선택지는 연결된 모니터 중 가장 높은 주사율(반올림 Hz, 보고 없으면 60) 이하의 값과 무제한이다(`tasty_settings::redraw_fps_choices`).
 
 상한 상태는 `ViewBase` 필드라 **창마다 독립**이다.
 
@@ -254,19 +275,19 @@ egui 지연 repaint 는 repaint 콜백(`src/gfx/gpu.rs`)이 창마다 하나의 
 
 게이트는 `request_redraw()` 를 미룰 뿐 `dirty` 를 지우거나 요청을 버리지 않는다. 미뤄진 요청의 만기 시각은 `about_to_wait`(`drive_deferred_repaints`)이 `ControlFlow::WaitUntil` 로 재예약하며, 만기 tick 에서 `request_redraw()` 를 발화한다. 이 재예약이 유일한 복구 경로다 — 빠뜨리면 아무 이벤트도 오지 않는 순간에 그 프레임이 영영 오지 않는다. 예외는 [동기화 출력 보류](#동기화-출력-보류) 중인 surface의 출력만 미룬 요청이다. 그 요청은 블록 종료나 보류 마감이 다시 내므로 만기 때 건너뛴다.
 
-`dirty` 를 **억제하지 않는** 것은 계약이다. `render_if_dirty` 의 doc 주석이 명시하듯 attach 서버의 원격 mirror 중계가 `dirty` 프레임에 종속돼 있어, 프레임을 없애면 원격 사용자 화면이 갱신되지 않는다. 상한은 요청 간격만 주사율에 맞추고 프레임 자체는 계속 흐르게 한다.
+`dirty` 를 **억제하지 않는** 것은 계약이다. `render_if_dirty` 의 doc 주석이 명시하듯 attach 서버의 원격 mirror 중계가 `dirty` 프레임에 종속돼 있어, 프레임을 없애면 원격 사용자 화면이 갱신되지 않는다. 상한은 요청 간격만 늦추고 프레임 자체는 계속 흐르게 한다.
 
 ### 동기화 출력 보류
 
-DEC 2026 동기화 출력(`CSI ? 2026 h` … `CSI ? 2026 l`) 블록 안에서 처리한 보이는 surface 출력은 redraw를 요청하지 않는다(`src/view/sync_hold.rs`, `ViewBase::mark_surface_output`). PTY 읽기가 블록 중간에서 끊겨도 그 출력이 반쯤 갱신된 화면으로 프레임을 열지 않게 하기 위해서다. 판정은 출력 처리를 마친 뒤 그 surface의 `Terminal::synchronized_output_block()`을 읽어 한다. 블록 밖이면 `None`이고, 블록 안이면 블록 세대를 돌려준다. 세대는 모드가 꺼진 상태에서 켜질 때마다 하나씩 오르는 값이다.
+DEC 2026 동기화 출력(`CSI ? 2026 h` … `CSI ? 2026 l`) 블록 안에서 처리한 보이는 surface 출력은 redraw를 요청하지 않는다(`src/view/sync_hold.rs`, `ViewBase::mark_surface_output`). 보류는 그 출력의 유발원과 관계없이 적용된다. 입력 에코로 분류된 출력(`InputEcho`)도 블록 안이면 보류된다. PTY 읽기가 블록 중간에서 끊겨도 그 출력이 반쯤 갱신된 화면으로 프레임을 열지 않게 하기 위해서다. 판정은 출력 처리를 마친 뒤 그 surface의 `Terminal::synchronized_output_block()`을 읽어 한다. 블록 밖이면 `None`이고, 블록 안이면 블록 세대를 돌려준다. 세대는 모드가 꺼진 상태에서 켜질 때마다 하나씩 오르는 값이다.
 
 - **dirty는 세운다.** 보류는 그 surface 출력이 내는 요청만 막는다. 사용자 입력(`Interactive`)·다른 surface 출력·egui·attach mirror가 연 프레임은 그대로 그리고, mirror 중계도 그 프레임에서 계속된다.
-- **블록 종료**: 블록이 끝난 상태의 출력(`2026 l`을 포함한 출력)이 오면 보류를 풀고 평소처럼 `TerminalOutput`으로 요청한다. RIS(`ESC c`)도 블록을 끝낸다.
+- **블록 종료**: 블록이 끝난 상태의 출력(`2026 l`을 포함한 출력)이 오면 보류를 풀고 그 출력의 유발원(입력 에코면 `InputEcho`, 아니면 `TerminalOutput`)으로 요청한다. 그래서 블록을 끝낸 입력 에코는 입력 상한을, 그 밖의 출력은 출력 상한을 따른다. RIS(`ESC c`)도 블록을 끝낸다.
 - **블록 경계**: 출력 묶음 하나가 블록을 끝내고 다음 블록을 시작하면(`2026 l` 뒤 `2026 h`) 처리 뒤 모드는 켜진 채로 읽힌다. 그래서 surface마다 마지막에 본 세대를 기억하고, 세대가 바뀌면 이전 블록의 보류와 만료 기록을 버린다. 새 블록은 처음부터 보류하고 마감도 새로 정한다.
 - **안전 상한**: 블록에 들어간 첫 출력부터 `SYNC_HOLD_LIMIT`(150ms)이 지나면 출력이 더 오지 않아도 그 시점 grid를 그린다. 마감은 `RepaintGate`의 지연 슬롯과 따로 두고 `drive_deferred_repaints`가 WaitUntil에 합친다. 지연 슬롯은 아무 present에서나 비워지므로 같은 슬롯에 두면 다른 프레임 하나로 마감 깨움이 사라진다. 마감으로 그린 surface는 블록이 끝날 때까지 다시 보류하지 않는다. 블록 중에 멈춘 앱의 출력은 평소처럼 그린다.
 - **숨은 surface**: 보류 기록은 그 창에 보이는 surface의 것만 둔다. `drive_deferred_repaints`는 마감을 처리하기 전에, 탭 전환 등으로 보이지 않게 됐거나 없어진 surface의 기록을 지운다(`MainView::forget_hidden_sync_holds`). 그래서 숨은 surface의 마감은 dirty도 redraw도 만들지 않는다. 숨은 surface의 출력은 원래 redraw를 요청하지 않는다. 다시 보이면 전환 프레임이 그 surface를 그리고, 그 뒤 블록 출력은 처음부터 다시 보류한다.
 - **미룬 요청의 소유**: 게이트가 미룬 요청이 모두 지금 보류 중인 surface의 출력이면, 만기돼도 그리지 않는다. 블록 시작 직전 출력이 미룬 요청이 블록 중간에 만기되어 중간 상태를 그리는 것을 막는다. 다른 원인이 하나라도 섞였으면 그린다. 그 surface는 블록 종료나 마감에서 다시 요청한다.
-- **한계**: 렌더러는 grid를 직접 읽으므로, 다른 원인이 연 프레임에서는 동기화 중인 surface의 블록 중간 상태가 보일 수 있다. 블록 동안 직전에 그린 상태를 유지하려면 surface 단위로 그린 결과를 보존해야 한다. 전역 출력 처리(surface를 지정하지 않은 깨움)와 attach mirror 출력(`AttachMirror`)은 보류하지 않는다.
+- **한계**: 렌더러는 grid를 직접 읽으므로, 다른 원인이 연 프레임에서는 동기화 중인 surface의 블록 중간 상태가 보일 수 있다. 블록 동안 직전에 그린 상태를 유지하려면 surface 단위로 그린 결과를 보존해야 한다. 전역 출력 처리(surface를 지정하지 않은 깨움)와 attach mirror 출력(`AttachMirror`)은 보류하지 않는다. 전역 출력 처리는 입력 에코 분류만 하고 바로 요청한다.
 
 ### 왜 present 층이 아니라 요청 층인가
 
@@ -334,4 +355,4 @@ RSS/GPU 메모리 profile, flamegraph, scrollback viewport scroll 부하(release
 - 셀 색이 의심되면 debug 의 `debug.glyph_color`(렌더러가 push 하는 실제 RGBA) — [debug-ipc.md](debug-ipc.md).
 - **이벤트 루프 stall 워치독** (`crates/tasty-platform/src/stall_watchdog.rs`, 전 빌드) — 콜백 안의 5초 지연과, 처리할 IPC 명령이 큐에 남은 채 콜백 바깥에서 진행이 없는 5초 구간을 구별해 보고한다. 정상 idle과 의도적 대기는 제외한다. 콜백 바깥의 기준점은 마지막 콜백 진행과 연속 pending 시작 중 더 늦은 시각이다. 현재 단계와 나이가 있는 과거 GPU 단계를 구분하며 GPU/IME 원인을 확정하거나 복구하지 않는다. 첫 hang 파일에는 워치독 폴링 지연·부하·CPU·메인 스레드 상태·창 상태를 함께 적는다. 메인 스레드만 막혔는지 프로세스 전체가 CPU를 못 받았는지는 이 값들을 대조해 판단하며, 읽는 법은 크래시 진단 문서에 있다. 첫 hang 파일과 30초 재보고 제한을 유지하고 main-loop probe를 추가하지 않는다. 필드·한계는 [크래시 진단](crash-diagnostics.md)을 따른다. debug 재현은 `tasty debug gpu-stall --ms N`이다([debug-ipc.md](debug-ipc.md)).
   - **메인 스레드를 의도적으로 막는 동기 호출은 `stall_watchdog::without_stall_watch(..)` 로 감싼다.** 두 번째 실행 실패를 알리는 OS `MessageDialog`처럼 "돌아오지 않는 것이 정상" 인 구간을 감싸지 않으면, 사용자가 선택에 5 초만 써도 `crash-reports/` 에 오탐 리포트가 남아 그 디렉토리가 신호를 잃는다.
-- 리페인트 유발원별 요청 수 / 지연 수 / 실제 present 수는 1 초 창 dump: `TASTY_LOG=tasty::view::repaint=info`(dev 빌드는 `~/.tasty-debug/debug-dev.log` 에 그냥 남는다). 요청이 많아도 실제 렌더가 합쳐졌는지를 이 한 줄로 구분한다.
+- 리페인트 유발원별 요청 수 / 지연 수 / 실제 present 수는 1 초 창 dump: `TASTY_LOG=tasty::view::repaint=info`. 줄에는 모니터 간격(`cap`), 적용 중인 출력·입력 간격을 fps 로 환산한 값(`out_cap`·`in_cap`, 무제한이면 모니터 주사율), 유발원별 `통과+지연d`(`interactive`·`output`·`echo`·`egui`·`mirror`)가 있다(dev 빌드는 `~/.tasty-debug/debug-dev.log` 에 그냥 남는다). 요청이 많아도 실제 렌더가 합쳐졌는지를 이 한 줄로 구분한다.
