@@ -226,7 +226,7 @@ fn comment_prefixes(rel: &str) -> Option<&'static [&'static str]> {
         .rsplit_once('.')
         .map(|(_, e)| e);
     match ext {
-        Some("rs" | "m" | "mjs" | "jsx" | "ts" | "tsx" | "astro") => Some(&["//"]),
+        Some("rs" | "m" | "mjs" | "jsx" | "ts" | "tsx" | "astro" | "swift") => Some(&["//"]),
         Some("toml" | "sh" | "bash" | "yml" | "yaml" | "py" | "just" | "ps1") => Some(&["#"]),
         Some("lua") => Some(&["--"]),
         // 블록 주석의 첫 줄(`/*`)과 이어지는 줄(` *`)도 읽는다.
@@ -880,6 +880,10 @@ const UNJUDGED_FORMS: &[(&str, &str)] = &[
         "라이선스 전문 — 주석 문법이 없고 본문은 상류 템플릿 그대로다",
     ),
     ("wxs", "XML 주석 판독을 지원하지 않는 WiX 정의다"),
+    (
+        "plist",
+        "XML 주석 판독을 지원하지 않는 macOS 번들 정보 파일이다",
+    ),
     (
         "html",
         "HTML 주석 판독을 지원하지 않는다. 생성물과 자산이다",
