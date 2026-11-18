@@ -37,7 +37,7 @@ command를 가진 형제를 정리한다. target이 살아 있으면 다시 등�
 | 입력 대기 이벤트 | `needs-input`: Notification/PreToolUse 경로 | `needs-input`: PermissionRequest 경로 |
 | 종료 이벤트 | host의 `process-exit` | host의 `process-exit` |
 | 알림 수신 경로 | completion-log append | completion-log append |
-| 추가 관측 | 별도 상시 `claude-error-stalled` hook과 scanner | notify 때 샌드박스 실패 화면 힌트 조회 |
+| 추가 관측 | 별도 상시 `claude-error-stalled` hook과 scanner, idle 체크(`claude.idle_check`, 0.3.6부터) | notify 때 샌드박스 실패 화면 힌트 조회 |
 
 완료 알림은 caller의 PTY에 새 입력을 보내지 않는다. 일반 `tell`이 대상 PTY에
 메시지를 보내는 것과 구분한다. 경로·로그 소비 계약은

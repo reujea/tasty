@@ -182,6 +182,11 @@ Claude 플러그인의 `error_scan`은 출력 정지가 일정 시간 이어지�
 이 이벤트 이름은 기존 구독을 유지하기 위한 것이며 오류가 검출되지 않은 정지도 포함한다.
 알림 문구는 오류 뒤 정지, 오류 없이 정지한 경우, 백그라운드 작업을 기다리는 경우를 구분한다.
 오류 뒤 정지는 `[error]`, 나머지 둘은 `[warning]` 표지로 시작한다.
+훅 `claude-error-stalled`는 `active`·`stale` 모두에서 모든 부모에게 발화한다. 공식 Claude 플러그인 0.3.6부터는
+오류 없는 정지(백그라운드 작업 대기가 아닌 것)이고 상태가 `active`가 아니면(`stale`), 그 자식에 살아 있는 idle 체크를 건 부모와
+그 조용한 구간에 idle 줄을 이미 받은 부모의 로그에는 정지 줄을 쓰지 않는다(`notify-error` 응답 `{"skipped":"idle_check"}`).
+같은 조용함을 두 알림이 따로 알리지 않기 위해서다. 체크가 없는 자식, 체크를 걸지 않은 다른 부모는 예전처럼 정지 줄을 받는다.
+오류 뒤 정지와 백그라운드 작업 대기의 무출력 알림은 idle 체크와 무관하다.
 
 오류 직후 정지는 `STALL_QUIET`(30초), 오류 없는 정지는 플러그인 설정 `no_output_notice_secs`(기본 600초)로 확인한다. 이 설정은 `stale` 분류의 `CHILD_OUTPUT_SILENCE`와 별개다.
 정지 시간·중복 여부·쿨다운을 먼저 확인하므로 매 tick마다 상태 조회를 보내지는 않는다.
@@ -191,7 +196,28 @@ Claude 플러그인의 `error_scan`은 출력 정지가 일정 시간 이어지�
 세부 규칙은 [Claude 통합의 정지 알림](../../plugins/claude/index.md#정지-알림-claude-error-stalled--부모-completion-log)에 있다.
 나중에 실제 `needs_input` 훅이 와도 그 알림은 별도로 전달한다.
 
-추정 `stale`도 알림 대상이다. 긴 추론과 실제 정지는 구별되지 않을 수 있으므로 부모가
+공식 Claude 플러그인 0.3.6부터 부모는 자식에 idle 체크를 걸 수 있다(`tasty claude idle-check --surface <자식> [--caller-surface <부모>]`, IPC `claude.idle_check`).
+체크는 대상에 아무것도 보내지 않는다. `tell`과 `--prompt`를 준 `spawn`·`respawn`은 같은 체크를 자동으로 건다(`child-profile`은 걸지 않는다).
+idle 체크는 위 정지 알림과 다른 시계다. 판정은 `terminal.state`의 `state`만 보고, `active`를 볼 때마다(근거 무관, `pty_not_started`·`observation_unavailable` 포함) 120초를 다시 센다.
+호스트의 `CHILD_OUTPUT_SILENCE`(120초)·`CHILD_HOOK_SILENCE`(300초)와 다른 시계라, 마지막 출력부터 idle 줄까지는 120초보다 길 수 있다.
+등록(또는 마지막 `active` 관측) 뒤 120초 동안 `active`도 확정된 턴 종료도 없고 그 회차의 상태가 `active`·`exited`가 아니면 부모 로그에 한 줄을 쓰고 체크가 끝난다.
+다시 등록하기 전에는 더 쓰지 않으며 쿨다운은 없다. 줄은 다음 형식이고, 번역 문구라 언어마다 다르며 표지 `[warning] `만 고정이다.
+
+```
+[warning] surface <N>: idle check — no active state for <초>s and no finished-turn signal (state now: <상태>). The check has ended; look into the child, and if it should keep working, register a new check with: tasty claude idle-check --surface <N>
+```
+
+- 줄 없이 끝나는 경우: 그 체크가 기다리는 턴의 확정 종료(Stop·StopFailure, 게이트가 pass하거나 판정 시간 초과로 확정된 Stop, `session-end`), 원격 자식의 그 지시 결과(`turn_ended`·`turn_failed`)와 원격 `exited`, 대상 `exited`·surface 없음·`kill`·release, `respawn`.
+- 끝내지 않는 경우: 백그라운드 작업을 기다리는 Stop, 게이트가 block한 Stop, `subagent-stop`.
+- `tell`이 실행 중인 대상에 갔으면 진행 중이던 턴의 끝이 아니라 메시지를 처리한 턴의 끝에서, 입력을 기다리던 대상에 답한 `tell`이면 그 답을 처리한 턴의 끝에서 끝난다.
+- surface 전체 무출력 선언(`claude.quiet`)이 열려 있는 동안과 백그라운드 작업 대기(대기 Stop 기록)가 있는 동안은 `active`처럼 기준 시각을 옮긴다.
+- 완료·입력 대기·종료 줄(`notify-done`)과 별개 줄이며 서로 끄지 않는다.
+- 상태는 대상 surface meta `claude-idle-checks`(플러그인 소유)에 남긴다. 플러그인이 다시 시작되면 되살려 120초를 다시 센다. Tasty를 다시 시작하면 surface ID가 바뀌어 체크가 사라진다.
+- 제품은 자동으로 재시도하거나 복구하지 않는다. 줄을 받은 부모의 대응은 [부모 Claude 운영 규약](../../dev-guide/external-interaction.md#부모-claude-운영-규약--idle-체크-줄과-입력-대기-답)에 있다.
+
+세부 규칙은 플러그인 레포의 [Claude 통합 idle 체크](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#idle-체크-claudeidle_check--부모-completion-log)에 있다.
+
+추정 `stale`도 알림 대상이다(idle 체크를 건 부모에게는 위처럼 idle 줄이 대신한다). 긴 추론과 실제 정지는 구별되지 않을 수 있으므로 부모가
 상태를 확인해야 하며 이 알림만으로 작업을 재시작하지 않는다. `stale` 자체도 훅 유실을
 증명하지 않는다. 재사용 후보를 세는 `spawn_census`는 `confidence: confirmed`인 `stale`만 포함한다.
 이는 캐시된 셸 이름을 근거로 한 목록이며 종료나 훅 유실이 확인됐다는 뜻은 아니다.
