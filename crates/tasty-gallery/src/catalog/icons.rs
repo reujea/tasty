@@ -41,6 +41,11 @@ const NAV: &[Entry] = &[
     (ARROW_RIGHT, "arrowRight", "go / submit (markdown address)"),
     (MOVE, "move", "move / reposition (4-way)"),
     (FIT, "fit", "fullscreen stage (popup title bar)"),
+    (
+        SHRINK,
+        "shrink",
+        "collapse an expanded popup back to its show button (popup title bar)",
+    ),
 ];
 
 const VIEW: &[Entry] = &[
