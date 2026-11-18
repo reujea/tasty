@@ -174,7 +174,8 @@ pub(crate) fn command_target_gone(
         | "zoom_reset"
         | "copy"
         | "cut"
-        | "paste" => {
+        | "paste"
+        | "open_markdown" => {
             draft_gone
                 || matches!(target.surface, Some(CommandSurfaceTarget::Surface(sid)) if engine.find_surface_by_id(sid).is_none())
         }

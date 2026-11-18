@@ -226,7 +226,7 @@ impl MainView {
                 }
             }
             "open_markdown" => {
-                state.enqueue_convert_input_popup(&engine.as_ref(), "markdown", None);
+                state.open_convert_input_for(&engine.as_ref(), "markdown", target.surface);
             }
             "open_explorer" => Self::open_explorer_tab(state, engine, target),
             "convert_surface" => {

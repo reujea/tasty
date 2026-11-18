@@ -89,6 +89,10 @@ fn the_palette_arms_run_on_the_enter_target() {
             "apply_tab_preset",
             "Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab, target)",
         ),
+        (
+            "open_markdown",
+            "state.open_convert_input_for(&engine.as_ref(), \"markdown\", target.surface);",
+        ),
     ] {
         assert!(dispatch_arm(DISPATCH_SRC, id).contains(call), "{id}");
     }
@@ -397,7 +401,8 @@ fn the_palette_runs_host_commands_on_the_target_bound_at_enter() {
     assert!(body.contains("command_target_gone(&self.state, engine, action_id, target)"));
 }
 
-/// 팔레트 복사·잘라내기·붙여넣기는 Enter 때 surface 가 사라졌거나 대상 draft 가 사라졌으면 버린다.
+/// 팔레트 복사·잘라내기·붙여넣기·새 markdown 열기는 Enter 때 surface 가 사라졌거나 대상 draft 가 사라졌으면
+/// 버린다.
 #[test]
 fn palette_copy_cut_paste_are_dropped_when_the_target_is_gone() {
     let (state, session) = two_tabs();
@@ -411,7 +416,7 @@ fn palette_copy_cut_paste_are_dropped_when_the_target_is_gone() {
         draft: Some(crate::state::attach_pending::PendingId(987_654)),
         ..live
     };
-    for id in ["copy", "cut", "paste"] {
+    for id in ["copy", "cut", "paste", "open_markdown"] {
         assert!(!command_target_gone(&state, &read, id, &live), "{id}");
         assert!(
             command_target_gone(&state, &read, id, &gone_surface),

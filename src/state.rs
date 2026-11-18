@@ -390,20 +390,36 @@ impl RequestContext {
         kind: &str,
         convert_surface_id: Option<u32>,
     ) -> bool {
-        use attach_pending::deferred::CommandSurfaceTarget;
         // 변환 대상이 있으면 포커스와 달라도 그 surface의 cwd를 사용한다. 입력 시점 대상이
         // 생성 대기 초안이면 걸어 두고, 생성된 surface 를 문맥으로 연다.
-        let origin = match convert_surface_id {
-            Some(sid) => Some(sid),
-            None => match self.command_surface_target(engine) {
-                Some(CommandSurfaceTarget::Pending(pending)) => {
-                    return self.defer_convert_input(engine, kind, pending);
-                }
-                Some(CommandSurfaceTarget::Surface(sid)) => Some(sid),
-                None => None,
-            },
-        };
-        self.queue_convert_input(engine, kind, origin, convert_surface_id)
+        match convert_surface_id {
+            Some(sid) => self.queue_convert_input(engine, kind, Some(sid), Some(sid)),
+            None => {
+                let target = self.command_surface_target(engine);
+                self.open_convert_input_for(engine, kind, target)
+            }
+        }
+    }
+
+    /// 새 surface 를 만드는 변환 입력 팝업을 입력 때 정한 `target` 을 문맥·대상으로 연다. 대상이 생성 대기
+    /// 초안이면 그 초안에 걸어 둔다. 지금 포커스를 다시 읽지 않는다. 결과는 `enqueue_convert_input_popup` 과 같다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn open_convert_input_for(
+        &mut self,
+        engine: &EngineRead<'_>,
+        kind: &str,
+        target: Option<attach_pending::deferred::CommandSurfaceTarget>,
+    ) -> bool {
+        use attach_pending::deferred::CommandSurfaceTarget;
+        match target {
+            Some(CommandSurfaceTarget::Pending(pending)) => {
+                self.defer_convert_input(engine, kind, pending)
+            }
+            Some(CommandSurfaceTarget::Surface(sid)) => {
+                self.queue_convert_input(engine, kind, Some(sid), None)
+            }
+            None => self.queue_convert_input(engine, kind, None, None),
+        }
     }
 
     /// `origin` 을 문맥·대상으로 변환 입력 팝업 요청을 큐에 넣는다. `in_place` 는 제자리 변환할 surface 다.

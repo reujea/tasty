@@ -11,7 +11,20 @@ fn scene(
     crate::state::MainViewState,
     crate::runtime::engine_session::EngineSession,
 ) {
-    let (mut state, mut session) = crate::state::tests::test_mirror_state();
+    scene_on(crate::state::tests::test_mirror_state(), surface_scoped)
+}
+
+/// 주어진 장면에 `widget` kind 와 그 변환 입력 팝업을 등록한다.
+fn scene_on(
+    (mut state, mut session): (
+        crate::state::MainViewState,
+        crate::runtime::engine_session::EngineSession,
+    ),
+    surface_scoped: bool,
+) -> (
+    crate::state::MainViewState,
+    crate::runtime::engine_session::EngineSession,
+) {
     if surface_scoped {
         state
             .tool_registry
@@ -118,4 +131,40 @@ fn a_kind_without_a_convert_input_popup_is_not_held_for_a_draft() {
     let pending = state.attach_pending.entries[0].id;
     assert!(!state.enqueue_convert_input_popup(&read, "no-such-kind", None));
     assert_eq!(state.attach_pending.deferred.waiting_for(pending), 0);
+}
+
+/// 입력 때 정한 surface 를 문맥·대상으로 연다. 입력 뒤 포커스가 다른 surface 로 옮겨져도 그 surface 다.
+#[test]
+fn a_bound_request_opens_on_the_input_surface_not_the_current_focus() {
+    let (mut state, mut session) = scene_on(crate::state::tests::two_pane_fixture(), true);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let target = state.command_target(&read);
+    assert_eq!(target.surface_id(), Some(201));
+    assert!(state.focus_surface_by_id(&read, 101));
+    assert!(state.open_convert_input_for(&read, "widget", target.surface));
+    assert_eq!(state.pending_popup_opens.len(), 1);
+    let open = &state.pending_popup_opens[0];
+    assert_eq!(open.target_surface, Some(201));
+    assert_eq!(open.context["origin_surface_id"], serde_json::json!(201));
+    assert!(open.context.get("surface_id").is_none());
+}
+
+/// 입력 때 초안이 대상이었으면 실행 때 다른 surface 를 골라도 그 초안에 걸어 둔다.
+#[test]
+fn a_bound_request_for_a_draft_is_held_after_focus_moves() {
+    let (mut state, mut session) = scene_on(crate::state::tests::two_pane_fixture(), true);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+    let pending = state.attach_pending.entries[0].id;
+    let target = state.command_target(&read);
+    assert!(state.focus_surface_by_id(&read, 101));
+    assert_eq!(
+        state.command_surface_target(&read),
+        Some(crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(101))
+    );
+    assert!(state.open_convert_input_for(&read, "widget", target.surface));
+    assert!(state.pending_popup_opens.is_empty());
+    assert_eq!(state.attach_pending.deferred.waiting_for(pending), 1);
 }
