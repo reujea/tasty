@@ -8,6 +8,9 @@ repository = "https://github.com/zilhak/tasty"
 
 [dependencies]
 tasty-plugin-protocol = { path = "../tasty-plugin-protocol" }
+# 길이 타입. 팝업 선언 크기(PopupSize)를 만들 LogicalPx를 plugin에 다시 내보내고, egui 입력의 물리 px를 논리 포인트로 바꾼다.
+# protocol이 이미 받는 leaf 크레이트다.
+tasty-type-geometry = { path = "../tasty-type-geometry" }
 tasty-shm = { path = "../tasty-shm" }
 serde_json = "1"
 toml = "0.8"

@@ -461,6 +461,9 @@ pub(crate) fn deliver_ipc_result(
     }
 }
 
+#[path = "host_popup.rs"]
+mod popup;
+
 #[cfg(test)]
 mod tests {
     use super::*;

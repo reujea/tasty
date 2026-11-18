@@ -43,11 +43,6 @@ const ALLOWED: &[(&str, usize, &str)] = &[
         1,
         "EffectiveFont의 auto 모드는 설정한 폰트 크기에 배율을 적용한다. 좌표 타입의 변환과 별개인 폰트 설정 계산으로 허용한다.",
     ),
-    (
-        "crates/tasty-plugin-sdk/src/egui_surface/input.rs",
-        2,
-        "플러그인 SDK는 tasty-type-geometry에 의존하지 않아 현재 타입 변환 API를 사용할 수 없다.",
-    ),
 ];
 
 /// 아직 타입 API로 옮기지 않은 항목. 먼저 이식할 수 있는지 검토하고 해결되면 제거한다.
@@ -289,15 +284,6 @@ fn verdict(
     complaints
 }
 
-/// 매니페스트의 의존 대입 형태를 찾는다. 주석의 이름 언급은 제외한다.
-fn declares_dependency(manifest: &str, name: &str) -> bool {
-    manifest.lines().any(|l| {
-        let l = l.trim_start();
-        l.strip_prefix(name)
-            .is_some_and(|rest| rest.trim_start().starts_with('='))
-    })
-}
-
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = std::fs::read_dir(dir)
         .unwrap_or_else(|e| panic!("스캔 디렉터리 {}를 열지 못했다: {e}", dir.display()));
@@ -367,7 +353,7 @@ mod tests {
         violations(&mask_non_code(source)).len()
     }
 
-    /// 변환 함수 정의와 SDK 의존성처럼 코드로 확인할 수 있는 예외 근거를 검사한다.
+    /// 변환 함수 정의처럼 코드로 확인할 수 있는 예외 근거를 검사한다.
     /// appearance의 폰트 배율 예외는 용도에 대한 판단이므로 이 검사로 확인하지 않는다.
     #[test]
     fn the_checkable_allowed_reasons_still_hold() {
@@ -392,24 +378,6 @@ mod tests {
                 "webview.rs에 {f} 정의가 없다. 좌표 변환 구현 예외를 확인한다."
             );
         }
-
-        // SDK에 타입 크레이트 의존이 생기면 산술을 옮길 수 있어 기존 예외 근거를 다시 검토한다.
-        let sdk = read("crates/tasty-plugin-sdk/Cargo.toml");
-        assert!(
-            !declares_dependency(&sdk, "tasty-type-geometry"),
-            "플러그인 SDK가 tasty-type-geometry에 의존한다. 타입 API를 사용할 수 있으므로 기존 산술을 옮기고 ALLOWED 예외를 검토한다."
-        );
-        let declared = sdk
-            .lines()
-            .filter(|l| {
-                let l = l.trim_start();
-                l.starts_with("tasty-") && l.contains('=')
-            })
-            .count();
-        assert!(
-            declared > 0,
-            "SDK 의 Cargo.toml 에서 tasty- 의존을 하나도 못 읽었다 — 파서나 경로가 틀렸다"
-        );
     }
 
     /// macOS에서 변환 함수를 남긴 근거인 왕복 테스트의 존재와 양방향 호출을 확인한다.
@@ -443,32 +411,6 @@ mod tests {
             src[..start].contains("target_os"),
             "webview.rs 앞부분에서 OS 조건을 찾지 못했다. 파일 위치와 해당 예외의 필요성을 확인한다."
         );
-    }
-
-    /// 예외 근거 확인에 쓰는 의존 검색이 주석과 실제 선언을 구별하는지 확인한다.
-    #[test]
-    fn a_commented_mention_is_not_a_dependency_declaration() {
-        let name = "tasty-type-geometry";
-        assert!(declares_dependency(
-            "tasty-type-geometry = { path = \"../tasty-type-geometry\" }",
-            name
-        ));
-        assert!(declares_dependency(
-            "  tasty-type-geometry  = \"0.1\"",
-            name
-        ));
-        assert!(!declares_dependency(
-            "# tasty-type-geometry 에 의존하지 않는다",
-            name
-        ));
-        assert!(!declares_dependency(
-            "# tasty-type-geometry = \"0.1\"",
-            name
-        ));
-        assert!(!declares_dependency(
-            "tasty-type-geometry-extra = \"0.1\"",
-            name
-        ));
     }
 
     #[test]

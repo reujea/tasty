@@ -49,7 +49,7 @@ let rect: LogicalRect = physical_rect.to_logical(scale_factor);
 egui::FontId::proportional(th.font_size_body.value());
 ```
 
-내부 계산에서는 길이 타입을 유지한다. `.value()`를 꺼낸 뒤 scale factor를 곱하거나 나누는 대신 변환 API를 먼저 호출한다. 수동 산술이 맞는 변환 함수 본체와 독립 SDK 등은 DPI 가드의 `ALLOWED`에 이유와 건수를 기록한다.
+내부 계산에서는 길이 타입을 유지한다. `.value()`를 꺼낸 뒤 scale factor를 곱하거나 나누는 대신 변환 API를 먼저 호출한다. 수동 산술이 맞는 변환 함수 본체 등은 DPI 가드의 `ALLOWED`에 이유와 건수를 기록한다.
 
 ## 집행은 셋으로 나뉜다
 
@@ -59,7 +59,7 @@ egui::FontId::proportional(th.font_size_body.value());
 | `src/dpi_conversion_guard.rs` | 인식 가능한 scale factor 이름 주변의 수동 산술 | 모든 변환 누락, 여러 줄로 분리된 식, 생성된 코드의 의미 |
 | `src/source_guards/length_constant_frontier.rs` | 길이로 보이는 f32·f64 const 선언 | 모든 변수와 함수 인자의 실제 단위 |
 
-DPI 가드는 `src`·`crates`를 검사한다. `ALLOWED`는 변환 API 본체, WebView bounds 변환, 폰트 배율 계산, 길이 타입에 의존하지 않는 plugin SDK의 산술을 사유·건수로 관리한다. `PENDING_PORT`는 아직 변환 API로 옮기지 못한 코드용이며 현재 비어 있다. 허용 파일 안에서 같은 건수를 유지한 채 식이 바뀌면 건수 검사만으로는 구분할 수 없다. 줄 번호 고정은 무관한 편집에도 실패하므로 쓰지 않으며, 정규화된 식 비교는 아직 도입하지 않았다.
+DPI 가드는 `src`·`crates`를 검사한다. `ALLOWED`는 변환 API 본체, WebView bounds 변환, 폰트 배율 계산을 사유·건수로 관리한다. `PENDING_PORT`는 아직 변환 API로 옮기지 못한 코드용이며 현재 비어 있다. 허용 파일 안에서 같은 건수를 유지한 채 식이 바뀌면 건수 검사만으로는 구분할 수 없다. 줄 번호 고정은 무관한 편집에도 실패하므로 쓰지 않으며, 정규화된 식 비교는 아직 도입하지 않았다.
 
 선언 가드의 검사 범위는 `src/`, `crates/tasty-gallery/`, `crates/tasty-platform/`이다. 갤러리는 잔여 0을 요구한다. 현재 예외로 남은 선언은 `src/app/modal/shake.rs`와 `crates/tasty-platform/src/window_chrome.rs`의 f64 경계 값 각 하나다. winit의 f64 좌표와 직접 계산하는 곳이며, 상세 이유와 건수는 가드의 `FRONTIERS`가 관리한다. 기존 UI 디렉터리 전체를 예외로 허용하는 규칙은 없다.
 

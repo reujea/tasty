@@ -112,7 +112,8 @@ pub struct WebviewNavigationAttemptCtx {
 /// `popup.open` 콜백 컨텍스트.
 #[derive(Debug, Clone)]
 pub struct PopupOpenCtx {
-    /// 매니페스트 `[[contributes.popup]]`의 `id` (plugin 내 로컬 id).
+    /// 팝업 id(plugin 내 로컬 id). 매니페스트 `[[contributes.popup]]`의 `id` 또는
+    /// [`crate::host::HostHandle::declare_popup`]으로 선언한 id다.
     pub popup_id: String,
     /// 같은 popup_id의 여러 인스턴스를 구분하기 위해 호스트가 발급한 id.
     pub instance_id: u64,
@@ -402,8 +403,8 @@ pub trait Plugin: Send + 'static {
     /// (`webview.set_url` 의 반대 방향). fire-and-forget이라 반환값은 없다. 기본 구현은 no-op.
     fn on_webview_navigation_attempt(&mut self, _ctx: WebviewNavigationAttemptCtx) {}
 
-    /// `popup.open` — 매니페스트 `[[contributes.popup]]`로 contribute한 popup의
-    /// 새 인스턴스가 열림. 콘텐츠는 egui-mesh 채널(`paint_popup`)로 그린다.
+    /// `popup.open` — 매니페스트 `[[contributes.popup]]`나 `HostHandle::declare_popup`으로
+    /// 선언한 popup의 새 인스턴스가 열림. 콘텐츠는 egui-mesh 채널(`paint_popup`)로 그린다.
     /// 기본 구현은 빈 결과.
     fn open_popup(&mut self, _ctx: PopupOpenCtx) -> PopupOpenResult {
         PopupOpenResult::default()

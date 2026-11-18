@@ -1,5 +1,7 @@
 //! 호스트 입력을 egui 입력과 휠 이벤트로 변환한다.
 
+use tasty_type_geometry::length::PhysicalPx;
+
 use super::*;
 
 /// [`RawInputWire`] + 크기/ppp 를 egui [`RawInput`] 으로 매핑한다. 좌표는 surface-local
@@ -15,8 +17,8 @@ pub(super) fn build_raw_input(
 
     let ppp = if ppp > 0.0 { ppp } else { 1.0 };
     // 물리 픽셀 → 논리 포인트. egui 레이아웃은 포인트 단위다.
-    let width_pt = width_px as f32 / ppp;
-    let height_pt = height_px as f32 / ppp;
+    let width_pt = PhysicalPx(width_px as f32).to_logical(ppp).value();
+    let height_pt = PhysicalPx(height_px as f32).to_logical(ppp).value();
     raw.screen_rect = Some(Rect::from_min_size(Pos2::ZERO, vec2(width_pt, height_pt)));
 
     // ppp 는 viewport 의 native_pixels_per_point 로 전달 → ctx.pixels_per_point 가 이 값을

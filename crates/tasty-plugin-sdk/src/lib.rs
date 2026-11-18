@@ -44,7 +44,14 @@ pub use plugin::{
 };
 pub use runtime::run;
 pub use shared_buffer::SharedBuffer;
+/// 팝업 선언·열기 타입. [`host::HostHandle::declare_popup`]·[`host::HostHandle::show_popup`]이 받는다.
+pub use tasty_plugin_protocol::popup_decl::{
+    PopupAnchor, PopupDecl, PopupEscape, PopupFit, PopupInstances, PopupKeyboard,
+    PopupOutsideClick, PopupScopeKind, PopupSize,
+};
 pub use tasty_plugin_protocol::{
     EventEnvelope, EventMeta, EventOrigin, EventScope, ExtensionHookKind, ExtensionHookMode,
     ExtensionHookPhase, LifecycleReason, PixelRect, PluginEvent, SharedBufferId,
 };
+pub use tasty_plugin_protocol::{PopupDeclSpec, PopupShowTarget};
+pub use tasty_type_geometry::length::LogicalPx;
