@@ -240,12 +240,15 @@ pub fn measure_on_open(ctx: &egui::Context, state: &mut MainViewState) {
 pub(crate) enum ToolBlocked {
     /// surface 범위로 선언한 팝업인데 대상 surface 도 생성 대기 초안도 없다.
     NoSurfaceTarget,
+    /// 대상이던 생성 대기 초안이 이미 끝났거나 사라졌다.
+    DraftGone,
 }
 
 impl ToolBlocked {
     pub(crate) fn message(self) -> &'static str {
         match self {
             Self::NoSurfaceTarget => "the popup needs a surface target and no surface is focused",
+            Self::DraftGone => "the pending draft it targets is no longer waiting",
         }
     }
 }
@@ -291,17 +294,28 @@ pub(crate) fn run_tool(
     }
     let surface = match target {
         Some(CommandSurfaceTarget::Pending(pending)) => {
-            if defers(&item.action) {
-                state.attach_pending.deferred.push(
-                    pending,
-                    DeferredCommand::Tool {
-                        item: item.clone(),
-                        invoked,
-                    },
-                );
-                return Ok(ToolRun::Deferred(pending));
+            match draft_run(state, engine, &item.action, pending)? {
+                DraftRun::Hold => {
+                    state.attach_pending.deferred.push(
+                        pending,
+                        DeferredCommand::Tool {
+                            item: item.clone(),
+                            invoked,
+                        },
+                    );
+                    return Ok(ToolRun::Deferred(pending));
+                }
+                DraftRun::OpenAt(at) => {
+                    if let Some(invoked) = &invoked {
+                        notify(invoked);
+                    }
+                    if let ToolAction::OpenSurface { surface_kind } = &item.action {
+                        open_surface_at(state, surface_kind, at);
+                    }
+                    return Ok(ToolRun::Ran);
+                }
+                DraftRun::NoSurface => None,
             }
-            None
         }
         Some(CommandSurfaceTarget::Surface(sid)) => Some(sid),
         None => None,
@@ -313,10 +327,62 @@ pub(crate) fn run_tool(
     Ok(ToolRun::Ran)
 }
 
-/// 대상이 생성 대기 초안일 때 걸어 둘 동작인지. 팝업은 선언 범위와 관계없이 대상 surface 의
-/// 문맥(cwd·mirror)을 받으므로 걸어 두고, 대상 surface 를 쓰지 않는 동작은 바로 실행한다.
-pub(crate) fn defers(action: &ToolAction) -> bool {
-    matches!(action, ToolAction::OpenPopup { .. })
+/// 생성 대기 초안이 대상일 때 동작을 어떻게 할지.
+enum DraftRun {
+    /// 걸어 두었다가 생성된 surface 에서 실행한다.
+    Hold,
+    /// 초안이 기댄 기존 pane 에 surface 를 지금 연다.
+    OpenAt(crate::intent::StructureTarget),
+    /// 대상 surface 를 쓰지 않는 동작이라 지금 실행한다.
+    NoSurface,
+}
+
+/// 팝업은 선언 범위와 관계없이 대상 surface 의 문맥(cwd·mirror)을 받으므로 걸어 둔다. surface 열기는 pane
+/// 명령이라 구조 명령과 같이 판정한다. 새 탭·surface 분할 초안이면 기댄 기존 pane 이 대상이라 지금 열고 cwd
+/// 원본은 초안 뒤 탭에서 골라져 있는 surface 다. 새 pane 초안이면 만들 pane 이 대상이라 걸어 둔다. 초안이
+/// 이미 끝났으면 실행하지 않는다. 대상 surface 를 쓰지 않는 이벤트는 지금 실행한다.
+fn draft_run(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    action: &ToolAction,
+    pending: PendingId,
+) -> Result<DraftRun, ToolBlocked> {
+    match action {
+        ToolAction::OpenPopup { .. } => Ok(DraftRun::Hold),
+        ToolAction::Event { .. } => Ok(DraftRun::NoSurface),
+        ToolAction::OpenSurface { .. } => {
+            let Some(entry) = state.attach_pending.waiting_entry(engine, pending) else {
+                tracing::info!(
+                    "open surface for pending {} dropped: the draft is no longer waiting",
+                    pending.0
+                );
+                return Err(ToolBlocked::DraftGone);
+            };
+            if matches!(
+                entry.creation,
+                Some(crate::state::attach_pending::Creation::Pane(_))
+            ) {
+                return Ok(DraftRun::Hold);
+            }
+            Ok(DraftRun::OpenAt(crate::intent::StructureTarget {
+                pane: Some(entry.pane),
+                cwd_source: state.draft_base_surface(engine, entry),
+            }))
+        }
+    }
+}
+
+/// 생성 대기 초안 `pending` 이 대상일 때 걸어 둘 동작인지.
+pub(crate) fn defers(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    action: &ToolAction,
+    pending: PendingId,
+) -> bool {
+    matches!(
+        draft_run(state, engine, action, pending),
+        Ok(DraftRun::Hold)
+    )
 }
 
 /// plugin 명령을 도구 항목으로 만든다. 명령 팔레트와 명령 단축키가 같은 모양을 쓴다.
@@ -344,7 +410,7 @@ pub(crate) fn defer_palette_command(
     target: Option<CommandSurfaceTarget>,
 ) -> bool {
     let (
-        Some(CommandSurfaceTarget::Pending(_)),
+        Some(CommandSurfaceTarget::Pending(pending)),
         crate::state::command_palette::PaletteCommand::Plugin {
             plugin_id,
             command_id,
@@ -359,7 +425,7 @@ pub(crate) fn defer_palette_command(
         .iter()
         .find(|e| e.plugin_id == *plugin_id && e.command_id == *command_id)
         .and_then(|e| e.action.clone())
-        .filter(defers)
+        .filter(|action| defers(state, engine, action, pending))
     else {
         return false;
     };
@@ -373,6 +439,22 @@ pub(crate) fn defer_palette_command(
         run_tool(state, engine, &item, target, Some(invoked), |_| {}),
         Ok(ToolRun::Deferred(_))
     )
+}
+
+/// `surface_kind` 새 탭을 `at` 에 연다.
+fn open_surface_at(
+    state: &mut MainViewState,
+    surface_kind: &str,
+    at: crate::intent::StructureTarget,
+) {
+    state.dispatch_intent(
+        crate::intent::Intent::NewTab {
+            kind: Some(surface_kind.to_string()),
+            params: serde_json::Value::Null,
+            target: at,
+        }
+        .from_user_menu("tools_menu/open_surface"),
+    );
 }
 
 /// 플러그인 도구·명령 동작을 `surface`를 대상으로 실행한다. 대상은 호출자가 입력 시점에 정한 값이다.
@@ -390,16 +472,13 @@ pub(crate) fn invoke_tool_on(
         ToolAction::OpenSurface { surface_kind } => {
             // 입력 때 정한 대상 surface 가 있는 pane 에 연다. cwd 원본도 그 surface 다.
             let pane = surface.and_then(|sid| engine.find_pane_for_surface(sid));
-            state.dispatch_intent(
-                crate::intent::Intent::NewTab {
-                    kind: Some(surface_kind.clone()),
-                    params: serde_json::Value::Null,
-                    target: crate::intent::StructureTarget {
-                        pane,
-                        cwd_source: surface,
-                    },
-                }
-                .from_user_menu("tools_menu/open_surface"),
+            open_surface_at(
+                state,
+                surface_kind,
+                crate::intent::StructureTarget {
+                    pane,
+                    cwd_source: surface,
+                },
             );
         }
         ToolAction::OpenPopup { popup_id } => {

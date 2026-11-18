@@ -84,6 +84,18 @@ impl CommandTarget {
 }
 
 impl RequestContext {
+    /// 초안 뒤 기존 탭에서 지금 골라져 있는 surface. 초안이 대상인 pane 명령의 cwd 원본이다.
+    pub(crate) fn draft_base_surface(
+        &self,
+        engine: &CoreState,
+        entry: &super::attach_pending::Entry,
+    ) -> Option<u32> {
+        engine
+            .find_pane_by_id(entry.pane)
+            .and_then(|pane| pane.tabs.iter().find(|tab| tab.id == entry.tab))
+            .and_then(|tab| self.navigation.surface_id(tab))
+    }
+
     /// 지금 포커스로 만든 명령 대상. 키 입력과 팔레트 Enter 가 입력 시점에 부른다.
     pub(crate) fn command_target(&self, engine: &CoreState) -> CommandTarget {
         if engine.workspaces().is_empty() {
@@ -92,10 +104,7 @@ impl RequestContext {
         // 초안은 다른 pane 의 초안 탭을 눌러 고를 수 있다. 그때 모델 포커스 pane 은 초안 자리와 다르므로
         // 상위 대상은 초안 자신에서 만든다.
         if let Some(entry) = self.attach_pending.selected(engine, &self.navigation) {
-            let base = engine
-                .find_pane_by_id(entry.pane)
-                .and_then(|pane| pane.tabs.iter().find(|tab| tab.id == entry.tab))
-                .and_then(|tab| self.navigation.surface_id(tab));
+            let base = self.draft_base_surface(engine, entry);
             return CommandTarget {
                 workspace: Some(entry.workspace),
                 pane: Some(entry.pane),

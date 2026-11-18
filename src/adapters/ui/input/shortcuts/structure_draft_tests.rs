@@ -308,3 +308,160 @@ fn a_command_on_an_explicit_target_is_not_held_by_a_selected_draft() {
         Intent::SplitPane { target: StructureTarget { pane: Some(p), .. }, .. } if p == pane
     )));
 }
+
+fn open_surface_item() -> crate::plugin::tool_registry::ToolItem {
+    crate::adapters::ui::tools_menu::command_item(
+        "com.example.viewer",
+        "open",
+        crate::plugin::manifest::ToolAction::OpenSurface {
+            surface_kind: "explorer".into(),
+        },
+    )
+}
+
+fn invoked() -> crate::state::attach_pending::deferred::InvokedNotice {
+    crate::state::attach_pending::deferred::InvokedNotice {
+        plugin_id: "com.example.viewer".into(),
+        command_id: "open".into(),
+        surface_id: None,
+    }
+}
+
+fn opens_explorer_at(intent: &crate::intent::DispatchedIntent, pane: u32, source: u32) -> bool {
+    matches!(
+        &intent.body,
+        Intent::NewTab {
+            kind: Some(kind),
+            target: StructureTarget {
+                pane: Some(p),
+                cwd_source: Some(s),
+            },
+            ..
+        } if kind == "explorer" && *p == pane && *s == source
+    )
+}
+
+/// 도구 메뉴·팔레트·명령 단축키의 plugin surface 열기(OpenSurface)는 pane 명령이다. 새 탭·surface 분할
+/// 초안이 대상이면 초안이 기댄 pane 에 지금 열고 cwd 원본은 초안 뒤 surface 다. 실행하므로 알린다.
+#[test]
+fn an_open_surface_command_for_a_draft_on_its_pane_opens_there_now() {
+    use crate::adapters::ui::tools_menu::{ToolRun, run_tool};
+    for op in [new_tab_op, split_surface_op] {
+        let (mut state, engine, anchor, id, _draft) = draft_scene(op);
+        let read = engine.read();
+        let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
+        let target = state.command_surface_target(&read);
+        let mut notified = 0;
+        let run = run_tool(
+            &mut state,
+            &read,
+            &open_surface_item(),
+            target,
+            Some(invoked()),
+            |_| notified += 1,
+        );
+        assert_eq!(run, Ok(ToolRun::Ran));
+        assert_eq!(notified, 1);
+        assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+        let intents = state.take_pending_intents();
+        assert_eq!(intents.len(), 1);
+        assert!(
+            opens_explorer_at(&intents[0], pane, anchor),
+            "{:?}",
+            intents[0].body
+        );
+    }
+}
+
+/// 새 pane 초안이 대상이면 만들 pane 이 대상이라 걸어 두고 알리지 않는다. 생성이 끝나 실행할 때 알리고
+/// 생성된 surface 의 pane 에 연다.
+#[test]
+fn an_open_surface_command_for_a_pane_draft_waits_and_notifies_when_run() {
+    use crate::adapters::ui::tools_menu::{ToolRun, run_tool};
+    let (mut state, engine, anchor, id, _draft) = draft_scene(split_pane_op);
+    let read = engine.read();
+    let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
+    let target = state.command_surface_target(&read);
+    let mut notified = 0;
+    let run = run_tool(
+        &mut state,
+        &read,
+        &open_surface_item(),
+        target,
+        Some(invoked()),
+        |_| notified += 1,
+    );
+    assert_eq!(run, Ok(ToolRun::Deferred(id)));
+    assert_eq!(notified, 0);
+    assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
+    assert!(state.take_pending_intents().is_empty());
+    settle_first_created(&mut state, &engine.core_state, anchor);
+    let notices = run_deferred_tools(&mut state, &read);
+    assert_eq!(notices, vec![invoked()]);
+    let intents = state.take_pending_intents();
+    assert_eq!(intents.len(), 1);
+    assert!(
+        opens_explorer_at(&intents[0], pane, anchor),
+        "{:?}",
+        intents[0].body
+    );
+}
+
+/// 대상 초안이 이미 끝났으면 surface 열기는 실행하지도 알리지도 않는다. 팔레트가 Enter 뒤 늦게 실행해도 같다.
+#[test]
+fn an_open_surface_command_for_a_finished_draft_is_neither_run_nor_announced() {
+    use crate::adapters::ui::tools_menu::{ToolBlocked, run_tool};
+    let (mut state, engine, _anchor, id, _draft) = draft_scene(new_tab_op);
+    let read = engine.read();
+    let target = state.command_surface_target(&read);
+    let entry = &state.attach_pending.entries[0];
+    entry.receipt.bind(0);
+    let epoch = entry.epoch.clone();
+    state.attach_pending.result(&epoch, 0, None, false);
+    state.attach_pending.retain(&engine.core_state);
+    let mut notified = 0;
+    let run = run_tool(
+        &mut state,
+        &read,
+        &open_surface_item(),
+        target,
+        Some(invoked()),
+        |_| notified += 1,
+    );
+    assert_eq!(run, Err(ToolBlocked::DraftGone));
+    crate::app::dispatch::palette_plugin_commands::run_palette_command(
+        &mut state,
+        &read,
+        &open_surface_item(),
+        target,
+        |_| notified += 1,
+    );
+    assert_eq!(notified, 0);
+    assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+    assert!(state.take_pending_intents().is_empty());
+}
+
+/// 팔레트가 Enter 뒤 실행하는 surface 열기도 새 탭 초안이면 기댄 pane 에 열고 알린다.
+#[test]
+fn a_palette_open_surface_for_a_new_tab_draft_opens_on_its_pane() {
+    let (mut state, engine, anchor, _id, _draft) = draft_scene(new_tab_op);
+    let read = engine.read();
+    let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
+    let target = state.command_surface_target(&read);
+    let mut notified = 0;
+    crate::app::dispatch::palette_plugin_commands::run_palette_command(
+        &mut state,
+        &read,
+        &open_surface_item(),
+        target,
+        |_| notified += 1,
+    );
+    assert_eq!(notified, 1);
+    let intents = state.take_pending_intents();
+    assert_eq!(intents.len(), 1);
+    assert!(
+        opens_explorer_at(&intents[0], pane, anchor),
+        "{:?}",
+        intents[0].body
+    );
+}

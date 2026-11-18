@@ -63,9 +63,9 @@ impl App {
 
 /// 팔레트 큐의 plugin 명령 하나를 고른 시점의 대상으로 실행한다. 바로 실행할 surface 가 그 사이
 /// 사라졌으면 실행하지도 알리지도 않고 버린다. 실행할 수 없으면 알리지도 실행하지도 않는다.
-/// 초안 대상인 이벤트·surface 열기 명령은 걸어 두지 않으므로 여기서 바로 실행하고 알린다.
-/// 초안 대상인데 지금 동작이 걸어 둘 동작(팝업)이면 Enter 뒤 정의가 팝업으로 바뀐 것이다.
-/// 그 초안은 이미 정산됐을 수 있어 늦게 걸지 않고 버린다.
+/// 초안 대상인 이벤트와 초안이 기댄 기존 pane 에 여는 surface 열기는 걸어 두지 않으므로 여기서 바로
+/// 실행하고 알린다. 그 사이 초안이 끝났으면 surface 열기는 실행하지도 알리지도 않는다. 초안 대상인데 지금
+/// 동작이 걸어 둘 동작이면 Enter 뒤 정의가 바뀐 것이다. 그 초안은 이미 정산됐을 수 있어 늦게 걸지 않고 버린다.
 pub(crate) fn run_palette_command(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -83,7 +83,7 @@ pub(crate) fn run_palette_command(
         return;
     }
     if let Some(CommandSurfaceTarget::Pending(pending)) = target
-        && crate::adapters::ui::tools_menu::defers(&item.action)
+        && crate::adapters::ui::tools_menu::defers(state, engine, &item.action, pending)
     {
         tracing::info!(
             "plugin command '{}' for pending {} dropped: its definition changed after input",
