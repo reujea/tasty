@@ -102,6 +102,9 @@ impl TerminalState {
                 self.sgr_mouse = false;
                 self.focus_tracking = false;
                 self.insert_mode = false;
+                // RIS ends a synchronized output block. The block count stays, so the next
+                // block entered still reads as a new one.
+                self.synchronized_output = false;
                 self.scroll_region = None;
                 self.last_print = None;
                 self.tab_stops = crate::default_tab_stops(self.cols);

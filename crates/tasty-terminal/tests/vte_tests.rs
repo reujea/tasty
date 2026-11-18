@@ -406,6 +406,21 @@ fn full_reset() {
 }
 
 #[test]
+fn full_reset_ends_synchronized_output() {
+    let mut t = Term::new(80, 24);
+    t.feed(b"\x1b[?2026h");
+    let before = t.synchronized_output_block();
+    t.feed(b"\x1bc"); // RIS (full reset)
+    assert!(!t.synchronized_output());
+    assert_eq!(t.synchronized_output_block(), None);
+
+    // A block entered after the reset reads as a new block.
+    t.feed(b"\x1b[?2026h");
+    assert!(t.synchronized_output_block().is_some());
+    assert_ne!(t.synchronized_output_block(), before);
+}
+
+#[test]
 fn line_wrapping() {
     let mut t = Term::new(10, 24);
     t.feed_str("0123456789wrap");
