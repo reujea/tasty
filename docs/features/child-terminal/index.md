@@ -106,7 +106,7 @@ kill도 hard 점유는 해제하지 않는다. child가 원격 attach로 hard �
 Claude의 PTY 오류 스캐너는 `terminal.parent`로 관계가 남아 있는지 확인한다. release 후에도
 surface는 살아 있으므로 `surface.locate`로 대신 판단하면 감시를 끝낼 수 없다.
 release는 해당 자식의 `claude-error` 알림도 중단한다
-([Claude 플러그인](../../plugins/claude/index.md)의 PTY 오류 스캔 범위 참고).
+([Claude 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)의 PTY 오류 스캔 범위 참고).
 
 ## 훅과 출력 관측을 함께 사용하는 상태 판정
 
@@ -192,7 +192,7 @@ Claude 플러그인의 `error_scan`은 출력 정지가 일정 시간 이어지�
 정지 시간·중복 여부·쿨다운을 먼저 확인하므로 매 tick마다 상태 조회를 보내지는 않는다.
 한 정지 구간에서는 한 번만 알리고 출력이 다시 시작되면 재알림을 허용한다.
 백그라운드 작업을 기다리는 자식(대기 Stop 뒤)은 기다리는 작업의 출력 파일을 찾아 모두 `no_output_notice_secs` 동안 바뀌지 않으면 작업 이름을 적어 알린다. 파일을 찾지 못하면 화면 출력을 10분과 설정값 중 큰 값으로 본다. 어느 쪽이든 대기 한 번에 한 번만 알린다. Monitor 작업은 이벤트가 있을 때만 출력하므로 이 판정에서 뺀다. Monitor만 남기고 턴을 끝낸 자식은 `idle`이 되고 부모에게 완료 줄이 한 번 간다. Monitor 이벤트로 열린 턴 뒤에도 `idle`로 돌아오며, 새 `spawn`·`tell` 없이는 완료 줄이 더 나가지 않는다. Monitor와 다른 백그라운드 작업이 섞이면 `active`(대기)다.
-에이전트는 `tasty claude quiet --surface <N> [--task <id>] --secs <초>`로 예상 무출력 기간을 선언할 수 있다. 양수는 그동안의 무출력 알림을 쌓았다가 선언이 끝날 때 한 줄로 묶어 보내고, `-1`은 작업이 끝나거나 `--clear`할 때까지 버린다. 상태 변경·오류 알림은 선언과 관계없이 바로 나가며 오류 알림은 그 surface의 선언을 모두 끝낸다([무출력 알림 선언](../../plugins/claude/index.md#무출력-알림-선언-claudequiet)).
+에이전트는 `tasty claude quiet --surface <N> [--task <id>] --secs <초>`로 예상 무출력 기간을 선언할 수 있다. 양수는 그동안의 무출력 알림을 쌓았다가 선언이 끝날 때 한 줄로 묶어 보내고, `-1`은 작업이 끝나거나 `--clear`할 때까지 버린다. 상태 변경·오류 알림은 선언과 관계없이 바로 나가며 오류 알림은 그 surface의 선언을 모두 끝낸다([무출력 알림 선언](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#무출력-알림-선언-claudequiet)).
 세부 규칙은 플러그인 레포의 [Claude 통합 정지 알림](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#정지-알림-claude-error-stalled--부모-completion-log)에 있다.
 나중에 실제 `needs_input` 훅이 와도 그 알림은 별도로 전달한다.
 

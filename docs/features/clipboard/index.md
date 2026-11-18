@@ -4,13 +4,13 @@
 - **주체**: 로컬 사용자 (복사/붙여넣기는 사용자 행동)
 - **설계**: [호스트 호출 계약](../../dev-guide/plugin-permissions.md) (뷰어의 plugin 직접-read 모델)
 - **코드**: 시스템 클립보드 `arboard`(네이티브 Wayland는 `src/clipboard/terminal.rs`); 텍스트 복사의 공통 경로 = `src/clipboard/copy.rs`; 복사/붙여넣기/선택 = `src/view/main/`
-- **화면**: 현재 클립보드 뷰어는 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md)
+- **화면**: 현재 클립보드 뷰어는 [clipboard-viewer plugin](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md)
 
 ## 목적
 
 터미널 텍스트의 **복사/붙여넣기/선택**, OSC 52 클립보드 설정. 복사/붙여넣기는 사용자 행동이라 토스트로 피드백하고, 에이전트(IPC) 경로는 사용자 시각 상태를 건드리지 않는다. OSC 52 쓰기는 토스트를 낸다 — 보이지 않는 클립보드 쓰기를 사용자에게 보이게 하는 목적이다(PTY 출력이라 origin 을 가를 수 없어 에이전트가 셸에 찍게 해도 뜬다 — [toast](../../design/systems/toast.md) 트리거 정책의 알려진 예외).
 
-현재 클립보드 내용만 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md)이
+현재 클립보드 내용만 [clipboard-viewer plugin](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md)이
 읽기 전용으로 보여준다. 클립보드를 주기적으로 수집하거나 과거 내용을 저장하지 않는다.
 
 ## 내부 동작
@@ -216,7 +216,7 @@ egui-mesh 플러그인 surface 가 키를 받는 동안의 편집 키도 [편집
 
 ### 현재 클립보드 뷰어
 
-지금 시스템 클립보드에 담긴 내용은 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) 이 popup 으로 보여준다. host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 한다([호스트 호출 계약](../../dev-guide/plugin-permissions.md) — plugin 은 비-샌드박스 OS 프로세스라 host 가 OS 클립보드 접근을 막을 수 없으므로, 단발 read 는 host 를 경유하지 않는다). 히스토리 누적·재복사는 없다.
+지금 시스템 클립보드에 담긴 내용은 [clipboard-viewer plugin](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md) 이 popup 으로 보여준다. host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 한다([호스트 호출 계약](../../dev-guide/plugin-permissions.md) — plugin 은 비-샌드박스 OS 프로세스라 host 가 OS 클립보드 접근을 막을 수 없으므로, 단발 read 는 host 를 경유하지 않는다). 히스토리 누적·재복사는 없다.
 
 ## 인터페이스
 
@@ -226,9 +226,9 @@ egui-mesh 플러그인 surface 가 키를 받는 동안의 편집 키도 [편집
 ## 비-목표
 
 - 클립보드 **히스토리** 누적·재복사.
-- 현재 클립보드 **뷰어 UI** — 빌트인 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) 이 popup 으로 제공.
+- 현재 클립보드 **뷰어 UI** — 빌트인 [clipboard-viewer plugin](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md) 이 popup 으로 제공.
 - IME(한글/CJK) 입력 파이프라인 — 별도 영역.
 
 ## 관련
 
-- [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) · [keybindings](../keybindings/index.md) · [settings](../settings/index.md)
+- [clipboard-viewer plugin](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md) · [keybindings](../keybindings/index.md) · [settings](../settings/index.md)

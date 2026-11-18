@@ -49,7 +49,7 @@
 | 0041 | child-terminal (호스트 내재화 자식 터미널 관리 · `tasty terminal`) | [child-terminal (호스트 내재화 자식 터미널 관리 · `tasty terminal`)](../features/child-terminal/index.md) |
 | 0042 | 다중 에이전트 협업 (Agent collaboration) | [다중 에이전트 협업 (Agent collaboration)](../features/agent-collaboration/index.md) |
 | 0043 | CLI 크레이트 내부 구조 — 세 갈래 대칭 | [CLI 크레이트 내부 구조 — 세 갈래 대칭](cli-structure.md) |
-| 0044 | Agent Stream (`com.tasty.agent-stream`) | [Agent Stream (`com.tasty.agent-stream`)](../plugins/agent-stream/index.md) |
+| 0044 | Agent Stream (`com.tasty.agent-stream`) | [Agent Stream (`com.tasty.agent-stream`)](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/agent-stream/index.md) |
 | 0045 | 유닛 테스트 격리 — 사용자 환경을 읽지 않는다 | [유닛 테스트 격리 — 사용자 환경을 읽지 않는다](unit-test-isolation.md) |
 | 0046 | 수정 후 자체 검증 (Self-verification) | [수정 후 자체 검증 (Self-verification)](self-verification.md) |
 | 0047 | CI · 훅 게이트 매트릭스 — 어떤 검사가 어디서 도는가 | [CI · 훅 게이트 매트릭스 — 어떤 검사가 어디서 도는가](ci-gates.md) |

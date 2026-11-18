@@ -199,7 +199,7 @@ plugin이 시작하지 못하거나 해당 kind를 더 이상 제공하지 않�
 플러그인이 세션 시작 훅에서 surface meta의 `restore.command`를 기록하면 호스트는
 그 문자열을 터미널 복원에 사용한다. 에이전트 종류나 명령 내용은 호스트가 해석하지 않는다.
 Claude 프로필이 붙은 경우 `claude -r <id> --settings "<프로필 경로>"`처럼 기록한다.
-프로필 정보 복구는 [Claude 가이드](../../plugins/claude/index.md)의 해당 절을 따른다.
+프로필 정보 복구는 [Claude 가이드](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)의 해당 절을 따른다.
 
 호스트는 명령 뒤에 `\r`을 붙여 `TerminalConfig.initial_input`으로 전달한다.
 자식 셸을 생성한 뒤 writer 스레드를 시작하기 전에 PTY에 동기로 쓰고 flush한다.

@@ -16,7 +16,7 @@
 | attach | [`../dev-guide/attach-behavior.md`](../dev-guide/attach-behavior.md) | server/client · mirror · lock |
 | 원격 연결 | [`../features/remote-profiles/index.md`](../features/remote-profiles/index.md) | 원격 접속 프로필 · Passkey · kind |
 | 훅 | [`../features/hooks/index.md`](../features/hooks/index.md) | Surface hook · Global hook · hook handler 레지스트리 |
-| Claude plugin | [`../plugins/claude/index.md`](../plugins/claude/index.md) | Claude 세션 프로필 · reboot · spawn/respawn |
+| Claude plugin | [Claude 플러그인 문서(tasty-official-plugins)](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md) | Claude 세션 프로필 · reboot · spawn/respawn |
 
 ## 용어 한 줄 정의
 
@@ -101,7 +101,7 @@
 - **egui-mesh plugin** — `image` (plugin 이 `rendering=egui-mesh` 선언, plugin 프로세스가 tessellate 한 mesh 를 host 가 합성).
 - **webview plugin** — `html` / `markdown`([WebView 호스트 계약](../design/systems/webview.md)) — `rendering=webview`, host 의 네이티브 WebView 오버레이로 그림.
 
-### Claude plugin (→ [plugins/claude](../plugins/claude/index.md))
+### Claude plugin (→ [tasty-official-plugins의 Claude 플러그인 문서](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md))
 
 - **Claude 세션 프로필(Claude session profile)** — `tasty claude spawn/respawn/launch/reboot` 가 `--settings <경로>` 로 Claude Code 에 주입하는 `settings.json` 조각. 두 가지 방식으로 지정한다: `--profile-file <경로>`(파일 직접 지정) 또는 `--profile <이름[,이름2,...]>`(아래 레지스트리에 등록해 둔 이름, 서로 상호 배타적). Claude Code 는 훅을 프로세스 기동 시 한 번만 읽으므로, 이미 떠 있는 세션에 새 훅을 걸 유일한 창구가 이 재기동 시점의 `--settings` 주입이다 — **대체가 아니라 추가**로 병합되어 tasty 내장 훅과 함께 발화한다. `reboot` 는 부착 상태(경로 또는 이름)를 surface meta 에 남겨 다음 무인자 reboot 가 승계하고, `--clear-profile` 로 뗀다.
   - **Claude 세션 프로필 레지스트리** — 이름으로 등록해 둔 프로필을 `--profile` 로 부착하는 계층(`crates/tasty-plugin-claude/src/profile.rs`). `tasty claude profile-register/-unregister/-list/-show/-current`. 이름을 둘 이상 동시 부착하면 `--settings` 반복 지정이 last-wins 인 함정을 피하기 위해 등록 내용을 하나의 파일로 **머지**한다(`profile_merge.rs`) — 훅 배열은 union, 객체는 키 단위 병합, `permissions.allow`/`deny` 는 union 후 **deny 가 allow 를 이김**, 그 외 스칼라는 last-wins(충돌 시 경고), `permissions.defaultMode` 는 충돌 시 거부. 호스트 레지스트리(`src/hook_handler/registry.rs` 등)의 형태(patch semantics · `<owner>/<short>` id)를 미러링하지만 소비자가 이 plugin 하나뿐이라 plugin 내부에 둔다(타입 공유 없음).

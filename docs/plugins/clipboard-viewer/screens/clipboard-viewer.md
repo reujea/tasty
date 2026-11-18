@@ -1,5 +1,7 @@
 # Clipboard Viewer popup 화면
 
+> 이 문서는 정본이 아니다. 옮기기 전에 남긴 사본이며 갱신하지 않는다. 정본은 [tasty-official-plugins 레포](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/screens/clipboard-viewer.md)에 있다.
+
 - **부모 기획**: [../index.md](../index.md)
 - **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/clipboard_viewer.jsx`.
 

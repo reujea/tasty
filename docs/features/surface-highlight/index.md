@@ -92,7 +92,7 @@ clear 전송 실패는 재시도하지 않는다. 오래된 확인을 나중에 
 | 신규 toast 알림, Windows 절전 복귀 알림 | Completion | 별도 생성 |
 | completion IPC/CLI | 요청 kind; 기본 Completion | 만들지 않음 |
 | Claude stop, stop-failure, session-end | Completion | 훅별 알림 정책을 따름 |
-| Claude notification(입력 대기 유형, [유형별 상태](../../plugins/claude/index.md#notification-유형별-상태)), AskUserQuestion pre-tool-use | NeedsInput | 훅별 알림 정책을 따름 |
+| Claude notification(입력 대기 유형, [유형별 상태](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#notification-유형별-상태)), AskUserQuestion pre-tool-use | NeedsInput | 훅별 알림 정책을 따름 |
 | Codex PermissionRequest | NeedsInput | plugin 정책을 따름 |
 | OSC 133 D 명령 종료 | 성공·실패와 관계없이 Completion | 만들지 않음 |
 | 서버 Attention push | 서버 값 그대로 | 만들지 않음 |

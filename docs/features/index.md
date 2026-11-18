@@ -35,7 +35,7 @@ Surface 종류(kind)마다의 명세는 제공 주체와 관계없이 [`surfaces
 | [remote-screenshot-clipboard](remote-screenshot-clipboard/index.md) — 원격 스크린샷 → 클립보드 (mirror 포커스 시 원격 clipboard 반영, 네이티브 Wayland 는 이벤트 루프에서 게시) | 로컬 사용자 | 없음 (토스트만) |
 | [listening-ports](listening-ports/index.md) — 리스닝 포트 뷰어·비동기 즐겨찾기 저장 | 로컬 사용자 | [팝업](listening-ports/index.md#화면) |
 | [keybindings](keybindings/index.md) — 단축키 (KeybindingSettings 도메인, bundle Export 명령/receipt) | 로컬 사용자 | [설정 탭](settings/screens/settings.md) |
-| [clipboard](clipboard/index.md) — 클립보드 (복사/붙여넣기/선택·접근 실패 안내, 네이티브 Wayland 는 Tasty 의 data device 로 외부 앱과 주고받음) | 로컬 사용자 | [뷰어 plugin](../plugins/clipboard-viewer/index.md) |
+| [clipboard](clipboard/index.md) — 클립보드 (복사/붙여넣기/선택·접근 실패 안내, 네이티브 Wayland 는 Tasty 의 data device 로 외부 앱과 주고받음) | 로컬 사용자 | [뷰어 plugin](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md) |
 | [notifications](notifications/index.md) — 알림 (3레벨·전역 IPC 집계/읽음·창별 LNB 요약·패널) | 로컬 사용자 · AI Agent | sidebar · popup/fullscreen |
 | [surface-highlight](surface-highlight/index.md) — Surface 주의 환기 (공유 상태·3채널·completion) | AI Agent · 로컬 사용자 | 없음 (테두리/탭/배지) |
 | [file-handler](file-handler/index.md) — 파일 핸들러 (식별→디스패치, origin 소유권·탭 선택 보존) | 로컬 사용자 · AI Agent · plugin | [설정 탭](settings/screens/settings.md) · picker |

@@ -87,7 +87,7 @@ cargo build --release
 - **Watch terminal output live and trigger follow-up work** — parses PTY output lines and writes the results to memory or files ([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))
 - **Cap agent token spend automatically** — tracks and aggregates usage, auto-blocking once a cost cap is exceeded ([`docs/features/telemetry/index.md`](docs/features/telemetry/index.md))
 - **Theme it your way** — a user-customizable theme system built on a 4px grid and a 14px font-size ceiling ([`docs/features/themes/index.md`](docs/features/themes/index.md))
-- **Run several child Claude instances and get notified as each finishes** — spawn/tell return immediately, and a completion notification arrives automatically whenever a child goes idle, needs input, or exits ([`docs/plugins/claude/index.md`](docs/plugins/claude/index.md))
+- **Run several child Claude instances and get notified as each finishes** — spawn/tell return immediately, and a completion notification arrives automatically whenever a child goes idle, needs input, or exits ([Claude plugin documentation](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md))
 
 ## Documentation
 

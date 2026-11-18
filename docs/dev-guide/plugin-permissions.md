@@ -129,7 +129,7 @@ raw memory KV에서 tasty. 접두사는 호스트 전용이다. plugin·agent는
 
 `network` 가 Agent 에게 여는 호스트 IPC 는 `webhook.register` 하나다. plugin 호출자는 토큰 없이 등록할 수 있지만 인라인 `sequence` 를 쓸 수 없고 자기 소유(`<plugin_id>/…`) hook 핸들러 id 만 바인딩할 수 있다. 임의 시퀀스 정의는 owner(Local) 전용 채널로 남는다.
 
-plugin 프로세스가 자기 소켓을 여는 것은 호스트 IPC 가 아니므로 이 토큰과 무관하다. 번들 plugin agent-stream 의 SSE 엔드포인트가 그 예다 — 자기 프로세스에서 TCP 포트를 열고(`agent_stream.serve`), 노출 정책(loopback 기본 · 광역 bind 시 토큰 필수)은 호스트가 아니라 그 plugin 이 스스로 지키는 규약이다([Agent Stream (`com.tasty.agent-stream`)](../plugins/agent-stream/index.md)).
+plugin 프로세스가 자기 소켓을 여는 것은 호스트 IPC 가 아니므로 이 토큰과 무관하다. 번들 plugin agent-stream 의 SSE 엔드포인트가 그 예다 — 자기 프로세스에서 TCP 포트를 열고(`agent_stream.serve`), 노출 정책(loopback 기본 · 광역 bind 시 토큰 필수)은 호스트가 아니라 그 plugin 이 스스로 지키는 규약이다([Agent Stream (`com.tasty.agent-stream`)](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/agent-stream/index.md)).
 
 ## Scope 의 출처 — 동적 이름공간
 

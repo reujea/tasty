@@ -1,5 +1,7 @@
 # Git Viewer (`com.tasty.git-viewer`)
 
+> 이 문서는 정본이 아니다. 옮기기 전에 남긴 사본이며 갱신하지 않는다. 정본은 [tasty-official-plugins 레포](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/git-viewer/index.md)에 있다.
+
 - **Status**: Implemented (bundled plugin)
 - **주체**: 로컬 사용자 (도구 메뉴 → popup) · AI Agent (IPC trigger)
 - **배포/통합**: bundled · 도구 메뉴 항목 + popup — [plugins 개념](../../concepts/plugins.md)

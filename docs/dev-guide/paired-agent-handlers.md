@@ -54,7 +54,7 @@ spawn은 host의 자식 관계·surface 생성 뒤 각 CLI 명령을 전송한�
 자식의 host 재기동 경로를 거친 뒤 CLI 명령을 다시 보낸다. reboot는 같은 세션을
 resume하되, Claude는 전경 프로세스 이탈/복귀를, Codex는 종료/배너 마커 증가를
 관찰한다. 서로 다른 timeout·CLI 옵션·프로필 처리와 hook 실패 전파 범위는
-[Claude](../plugins/claude/index.md), [Codex](../plugins/codex/index.md),
+[Claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md), [Codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md),
 [host 호출 오류 처리](error-handling.md)에 있는 기존 계약을 따른다.
 
 실행 검증에서는 앱을 띄우기 전부터 가짜 CLI만 찾는 PATH, 별도 HOME·TASTY_HOME·

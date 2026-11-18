@@ -7,7 +7,7 @@
 - **화면**: 둘 다 호스트의 작업 조회 데이터를 사용한다 — [DAG 그래프 surface](../../surfaces/dag-graph/index.md)(`tasty new tab --type dag_graph`)는 탭 하나를 점유하는 상주 관찰용, [DAG 목록 popup](screens/dag-list-popup.md)(도구 메뉴 · `KeybindingSettings.toggle_dag_list`)은 목록에서 하나를 골라 잠깐 확인하고 닫는 용도의 workspace 스코프 창이다. IPC/CLI 관측 수단(`agent.task_list`/`task_graph`/`task_get`/`dag_list`/`dag_get`)은 그대로 유효하다.
 - **메서드 목록**: [reference/api](../../reference/api.md#에이전트-협업-agent)
 
-부모 Claude의 자식 상태 수신은 [완료 알림 mod](../../plugins/claude/notify-mod.md)가 담당하며, mod가 없는 세션에서는 Monitor로 구독한다. 상태 알림은 task 결과 검증과 별개다.
+부모 Claude의 자식 상태 수신은 [완료 알림 mod](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/notify-mod.md)가 담당하며, mod가 없는 세션에서는 Monitor로 구독한다. 상태 알림은 task 결과 검증과 별개다.
 
 `tasty send queue`(`message.send`)로 보낸 메시지가 도착하면 호스트가 받는 surface의 notify 로그에 `[queue]` 줄을 쓴다. 같은 mod가 이 줄도 받는 Claude의 프롬프트로 넣으므로 큐를 기다리는 데 Monitor를 켜지 않아도 된다. 줄에는 메시지 내용이 없고, 안 읽은 메시지가 남아 있으면 60초에 한 번만 다시 알린다([큐 도착 줄](../../dev-guide/external-interaction.md#큐-도착-줄--queue)).
 
@@ -152,7 +152,7 @@ tasty agent task-create --workspace 1 --name spawn-worker \
 
 **`poll` 을 주지 않는 것이 요점이다.** 두 plugin 이 자기 매니페스트에 `[[contributes.completion_strategy]]` 를 선언하면서 `default_for_methods` 로 자기 `spawn`/`tell` 메서드를 지목해 두었으므로, 러너가 dispatch 시점에 그 전략을 자동으로 집어 폴링 모드로 전이한다. 전략이 없으면(= 해당 plugin 이 비활성이면) `custom` 노드는 dispatch 성공 즉시 `Succeeded` 가 되므로, 자식이 도는 동안 기다려주지 않는다.
 
-Claude 자식은 입력 대기 화면으로 시작하면 `idle` 이므로, 프롬프트 없이 띄운 `claude.spawn` 노드는 세션이 준비되면 끝난다. `prompt` 를 주면 그 턴이 끝날 때 끝난다([Claude 플러그인](../../plugins/claude/index.md)의 `SessionStart` 행).
+Claude 자식은 입력 대기 화면으로 시작하면 `idle` 이므로, 프롬프트 없이 띄운 `claude.spawn` 노드는 세션이 준비되면 끝난다. `prompt` 를 주면 그 턴이 끝날 때 끝난다([Claude 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)의 `SessionStart` 행).
 
 호스트가 바빠 5초 안에 답하지 못해도 노드를 바로 실패로 끝내지 않는다. `claude.state` 같은 상태 조회가 늦으면 다음 poll 에서 다시 묻는다(전략에 `timeout_ms` 가 있으면 그 기한까지). spawn 요청이 큐에서 기다리다 만료됐으면 실행되지 않았으므로 다음 tick 에 다시 보낸다. 시작된 spawn 이 늦으면 자식이 둘 생기지 않도록 다시 보내지 않고 늦은 응답을 받아 같은 전략으로 이어 간다. 답 없이 끝나거나 재시작으로 응답 통로가 사라지면 노드는 `failed` 가 아니라 `unknown`(사유 `dispatch outcome unknown: …`)이 되고, 자식이 떴는지 확인한 뒤 `retry`·`cancel` 로 정한다. 규칙은 [작업 러너 §호스트 응답 지연](../../dev-guide/agent-runner.md#호스트-응답-지연).
 
@@ -169,11 +169,11 @@ Claude 자식은 입력 대기 화면으로 시작하면 `idle` 이므로, 프�
 | `terminal_states`(성공) | `idle`, `needs_input` | `idle` |
 | `failure_states`(실패) | `exited` | `exited` |
 
-poll 파라미터 키가 다른 것은 각 plugin 의 state 핸들러가 요구하는 이름이 다르기 때문이고(`surface_id` vs `surface`), codex 의 목록에 `needs_input` 이 없는 것은 관측이 안 돼서가 아니다 — codex `PermissionRequest` hook 이 그 상태를 실제로 세운다([plugins/codex](../../plugins/codex/index.md)). 두 plugin 이 갈리는 것은 **그 상태를 노드 종결로 볼지**다: claude 는 되묻기를 종결로 보고(사람이 답할 때까지 기다리는 것이 그 노드가 할 수 있는 전부), codex 는 도구 실행 승인이라 답이 오면 같은 턴이 이어지므로 종결로 보지 않는다. 지금은 그 판단을 바꾸지 않는다 — 바꾸면 `codex.spawn` 노드의 의미가 달라진다. spawn 과 tell 은 소스 키도 다르다: spawn 응답은 `child_surface_id`(새로 만든 자식), tell 응답은 `surface_id`(이미 존재하는 대상)를 싣는다.
+poll 파라미터 키가 다른 것은 각 plugin 의 state 핸들러가 요구하는 이름이 다르기 때문이고(`surface_id` vs `surface`), codex 의 목록에 `needs_input` 이 없는 것은 관측이 안 돼서가 아니다 — codex `PermissionRequest` hook 이 그 상태를 실제로 세운다([plugins/codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md)). 두 plugin 이 갈리는 것은 **그 상태를 노드 종결로 볼지**다: claude 는 되묻기를 종결로 보고(사람이 답할 때까지 기다리는 것이 그 노드가 할 수 있는 전부), codex 는 도구 실행 승인이라 답이 오면 같은 턴이 이어지므로 종결로 보지 않는다. 지금은 그 판단을 바꾸지 않는다 — 바꾸면 `codex.spawn` 노드의 의미가 달라진다. spawn 과 tell 은 소스 키도 다르다: spawn 응답은 `child_surface_id`(새로 만든 자식), tell 응답은 `surface_id`(이미 존재하는 대상)를 싣는다.
 
 ### 이어서 지시 주기 (`tell`)
 
-`tell` 에도 기본 전략(`tell-wait`)이 있어 **자식이 그 지시를 마칠 때까지** 노드가 `running` 에 머문다. Claude 자식의 서브에이전트 종료나 백그라운드 작업을 남긴 채 끝난 응답은 지시를 마친 것으로 보지 않는다. 단 남은 작업이 Monitor뿐이면 마친 것으로 본다. 그래서 DAG의 `spawn-wait`·`tell-wait` 노드가 끝나고, Monitor가 아직 실행 중인 채 다음 노드가 시작될 수 있다. Monitor가 아닌 백그라운드 작업이 남았으면 그 작업이 끝난 뒤 이어지는 턴의 응답이 끝나야 노드가 끝난다. 끝나지 않는 백그라운드 명령(개발 서버 등)을 남기면 노드도 끝나지 않으므로 제한 시간을 둔다([Claude 통합](../../plugins/claude/index.md)). spawn 노드와 달리 `surface_id` 는 **자식** surface 다:
+`tell` 에도 기본 전략(`tell-wait`)이 있어 **자식이 그 지시를 마칠 때까지** 노드가 `running` 에 머문다. Claude 자식의 서브에이전트 종료나 백그라운드 작업을 남긴 채 끝난 응답은 지시를 마친 것으로 보지 않는다. 단 남은 작업이 Monitor뿐이면 마친 것으로 본다. 그래서 DAG의 `spawn-wait`·`tell-wait` 노드가 끝나고, Monitor가 아직 실행 중인 채 다음 노드가 시작될 수 있다. Monitor가 아닌 백그라운드 작업이 남았으면 그 작업이 끝난 뒤 이어지는 턴의 응답이 끝나야 노드가 끝난다. 끝나지 않는 백그라운드 명령(개발 서버 등)을 남기면 노드도 끝나지 않으므로 제한 시간을 둔다([Claude 통합](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)). spawn 노드와 달리 `surface_id` 는 **자식** surface 다:
 
 ```sh
 tasty agent task-create --workspace 1 --name tell-worker \

@@ -6,17 +6,19 @@
 
 ## 기여 타입 → 예제 플러그인
 
+공식 플러그인의 소스는 tasty-official-plugins 레포에 있다. 아래 git-viewer·clipboard-viewer·claude·codex 링크는 그 레포의 정본 문서로 간다. image·html·markdown은 surface kind라 이 레포의 `surfaces/` 문서가 정본이고, mesh-demo는 이 레포에 있다.
+
 | 만들고 싶은 것 | 보면 되는 번들 플러그인 | 난이도 |
 |---------------|------------------------|--------|
 | **egui-mesh surface** (자가 렌더 mesh 합성) | [image](../surfaces/image/index.md) · [mesh-demo](egui-mesh-channel.md)(최소 PoC) | ★★ |
 | **webview surface** | [html](../surfaces/html/index.md) · [markdown](../surfaces/markdown/index.md)(+파일 핸들러·settings, docs/design/systems/webview.md) | ★★ |
-| **도구 메뉴 항목 + popup** | [git-viewer](../plugins/git-viewer/index.md)(view/logic 분리) · [clipboard-viewer](../plugins/clipboard-viewer/index.md)(master-detail) | ★★ |
-| **CLI + IPC namespace** | [codex](../plugins/codex/index.md) · [claude](../plugins/claude/index.md) | ★★★ |
-| **이벤트 구독 / 훅 / 외부 설치** | [claude](../plugins/claude/index.md)(`surface.closed`·Claude 훅·install) | ★★★ |
-| **agent task provider (턴 결과를 작업 결과로)** | [claude](../plugins/claude/index.md) · [codex](../plugins/codex/index.md) (namespace 소유) | ★★★ |
-| **CLI 호출자(다른 프로그램의 대화) 알아보기** | [codex](../plugins/codex/index.md)(`caller_context`) · [claude](../plugins/claude/index.md)(`requires_caller_context`) (매니페스트만) | ★ |
-| **Tasty bash·zsh 셸에 넣는 셸 함수** | [codex](../plugins/codex/index.md)(`install`이 쓰는 `codex` 함수) | ★ |
-| **Tasty 자식에서 지울 상속 환경변수** | [claude](../plugins/claude/index.md#tasty-자식에서-지우는-세션-변수) · [codex](../plugins/codex/index.md#tasty-자식에서-지우는-세션-변수) (매니페스트만) | ★ |
+| **도구 메뉴 항목 + popup** | [git-viewer](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/git-viewer/index.md)(view/logic 분리) · [clipboard-viewer](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md)(master-detail) | ★★ |
+| **CLI + IPC namespace** | [codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md) · [claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md) | ★★★ |
+| **이벤트 구독 / 훅 / 외부 설치** | [claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)(`surface.closed`·Claude 훅·install) | ★★★ |
+| **agent task provider (턴 결과를 작업 결과로)** | [claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md) · [codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md) (namespace 소유) | ★★★ |
+| **CLI 호출자(다른 프로그램의 대화) 알아보기** | [codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md)(`caller_context`) · [claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)(`requires_caller_context`) (매니페스트만) | ★ |
+| **Tasty bash·zsh 셸에 넣는 셸 함수** | [codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md)(`install`이 쓰는 `codex` 함수) | ★ |
+| **Tasty 자식에서 지울 상속 환경변수** | [claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#tasty-자식에서-지우는-세션-변수) · [codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md#tasty-자식에서-지우는-세션-변수) (매니페스트만) | ★ |
 | **wasm 플러그인** (frozen POC) | `crates/tasty-plugin-sdk-wasm`(workspace-exclude harness) — [호스트 호출 계약](plugin-permissions.md) | ★★ |
 
 전부 `crates/tasty-plugin-<name>/` 에 있다.
@@ -163,11 +165,11 @@ values = [{ name = "AI_AGENT", prefixes = ["vendor_", "vendor/"] }]  # 이름이
 - 사용자가 직접 넣는 설정과 이름공간을 공유하면 `prefixes` 대신 `names`나 `values`로 좁힌다.
 - `TASTY_`로 시작하는 이름·접두사는 매니페스트 검증에서 거부한다. 바깥 Tasty 인스턴스 신원(`OUTER_IDENTITY_ENV`) 제거와 셸의 자기 신원 재주입은 본체가 정한다. `CMUX_*`도 본체가 지운다.
 - 이름은 영문자·숫자·밑줄이며 숫자로 시작하지 않는다(1..=128자). `values`의 값 접두사는 비어 있을 수 없다.
-- 예: [Claude 플러그인](../plugins/claude/index.md#tasty-자식에서-지우는-세션-변수), [Codex 플러그인](../plugins/codex/index.md#tasty-자식에서-지우는-세션-변수).
+- 예: [Claude 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#tasty-자식에서-지우는-세션-변수), [Codex 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md#tasty-자식에서-지우는-세션-변수).
 
 ### agent task provider
 
-플러그인이 IPC namespace `<p>` 를 소유하고 활성이면 agent task 의 `"provider": "<p>"` 를 받을 수 있다. 별도 매니페스트 선언은 없다. 플러그인은 `<p>.spawn`·`<p>.tell`·`<p>.state` 를 구현하고 훅에서 `agent.task_turn_report` 로 턴 시작·끝을 보고한다. 판정은 설치 목록과 설정만 보므로 프로세스가 준비되기 전에도 같다. 계약과 오류 문구는 [작업 러너 §agent task](agent-runner.md#agent-task)에 있다. 예: [Claude 플러그인](../plugins/claude/index.md), [Codex 플러그인](../plugins/codex/index.md).
+플러그인이 IPC namespace `<p>` 를 소유하고 활성이면 agent task 의 `"provider": "<p>"` 를 받을 수 있다. 별도 매니페스트 선언은 없다. 플러그인은 `<p>.spawn`·`<p>.tell`·`<p>.state` 를 구현하고 훅에서 `agent.task_turn_report` 로 턴 시작·끝을 보고한다. 판정은 설치 목록과 설정만 보므로 프로세스가 준비되기 전에도 같다. 계약과 오류 문구는 [작업 러너 §agent task](agent-runner.md#agent-task)에 있다. 예: [Claude 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md), [Codex 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md).
 
 ### CLI 호출자 문맥 (`contributes.caller_context`)
 
@@ -191,7 +193,7 @@ requires_caller_context = ["vendor"]  # 다른 플러그인이 선언한 provide
 - 적용 시점: CLI가 설치된 매니페스트를 직접 읽으므로 플러그인 프로세스가 준비되지 않아도 첫 호출부터 적용된다. 비활성화한 플러그인의 선언도 읽는다. 문맥을 받은 쪽이 provider가 꺼져 있음을 알리고 다른 surface로 대신하지 않게 하기 위해서다.
 - 검증: `provider`는 소문자로 시작하는 소문자·숫자·`_`·`-`(64자 이하)이며 한 매니페스트 안에서 겹치지 않는다. 환경 변수 이름은 영문자·숫자·밑줄이고 `TASTY_`로 시작할 수 없다. 필드 이름은 소문자·숫자·`_`이며 `provider`·`implicit`·`execution`은 쓸 수 없고 서로 겹치지 않는다. `executable`은 경로가 아닌 프로그램 이름이다.
 - 받는 쪽은 값을 다시 검증한다. 환경 변수일 뿐 인증된 신원이 아니다.
-- 예: [Codex 플러그인](../plugins/codex/index.md#codex-부모에게-결과-반환), [Claude 플러그인](../plugins/claude/index.md).
+- 예: [Codex 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md#codex-부모에게-결과-반환), [Claude 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md).
 
 ### 셸 통합 확장 스크립트
 
@@ -205,12 +207,12 @@ Tasty가 주입하는 bash·zsh 프롬프트 함수는 OSC 133 D·A를 보낸 �
 - 사용자 설정을 덮어쓰지 않는다. 같은 이름의 사용자 함수·별칭이 있으면 정의하지 않는다.
 - 설치·제거는 플러그인 명령이 맡는다. 호스트는 비활성화된 플러그인의 스크립트를 걸러내지 않으므로 스크립트가 실행하는 도구가 없을 때 원래 명령으로 넘어가게 작성한다.
 - 매니페스트 선언 대신 파일 규칙을 쓰는 이유: 스크립트 내용이 설치 시점의 실행 파일 경로에 따라 달라지고, 셸 프롬프트가 호스트에 묻지 않고 바로 읽을 수 있어야 하기 때문이다.
-- 예: [Codex 플러그인](../plugins/codex/index.md)의 `tasty codex install`.
+- 예: [Codex 플러그인](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md)의 `tasty codex install`.
 
 ### 도구 메뉴 항목 + popup
 
 - `[[contributes.tool]]` — [도구 메뉴](../features/tools-menu/index.md)에 항목. `action.kind`: `event`(Event Bus 발화) / `open_surface`(탭 추가) / `open_popup`(`popup_id = <plugin_id>/<id>`). `order_hint` 오름차순(빌트인 0..99).
-- `[[contributes.popup]]` — trigger `event`(자동 open) 또는 `ipc`(명시 호출). `scope` 로 소속 범위를 선언한다 — `window`(기본, 필드 생략 시) 또는 `surface`. `surface` 는 host 진입점(변환 입력 popup · 도구 메뉴)이 대상 surface 를 바인딩하거나, event trigger popup 을 연 이벤트가 `EventScope::Surface` + payload `surface_id` 로 **자기 plugin 의 surface** 를 가리킬 때 효과가 있다. 다른 plugin 의 surface·host surface 를 가리키거나 다른 plugin 이 발행한 이벤트면 host 가 popup 을 열지 않는다. 도구 메뉴·명령 팔레트·명령 단축키·새 탭용 변환 입력은 입력 시점의 surface 를 대상으로 하고, attach 생성 대기 초안이 선택돼 있으면 popup 을 걸어 두었다가 생성된 surface 에서 연다. `surface` 선언 popup 에 대상이 없으면(대상 surface 도 초안도 없는 도구 메뉴·변환 입력, 대상 없는 이벤트) `window` 로 바꾸지 않고 열지 않는다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프). SDK 콜백 `open_popup`/`paint_popup`/`on_popup_closed`(egui-mesh). 동일 `popup_id` 라도 `instance_id` 가 다르면 별개 인스턴스. 예: [git-viewer](../plugins/git-viewer/index.md)·[clipboard-viewer](../plugins/clipboard-viewer/index.md).
+- `[[contributes.popup]]` — trigger `event`(자동 open) 또는 `ipc`(명시 호출). `scope` 로 소속 범위를 선언한다 — `window`(기본, 필드 생략 시) 또는 `surface`. `surface` 는 host 진입점(변환 입력 popup · 도구 메뉴)이 대상 surface 를 바인딩하거나, event trigger popup 을 연 이벤트가 `EventScope::Surface` + payload `surface_id` 로 **자기 plugin 의 surface** 를 가리킬 때 효과가 있다. 다른 plugin 의 surface·host surface 를 가리키거나 다른 plugin 이 발행한 이벤트면 host 가 popup 을 열지 않는다. 도구 메뉴·명령 팔레트·명령 단축키·새 탭용 변환 입력은 입력 시점의 surface 를 대상으로 하고, attach 생성 대기 초안이 선택돼 있으면 popup 을 걸어 두었다가 생성된 surface 에서 연다. `surface` 선언 popup 에 대상이 없으면(대상 surface 도 초안도 없는 도구 메뉴·변환 입력, 대상 없는 이벤트) `window` 로 바꾸지 않고 열지 않는다([design/systems/popup.md](../design/systems/popup.md) §plugin popup 의 스코프). SDK 콜백 `open_popup`/`paint_popup`/`on_popup_closed`(egui-mesh). 동일 `popup_id` 라도 `instance_id` 가 다르면 별개 인스턴스. 예: [git-viewer](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/git-viewer/index.md)·[clipboard-viewer](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md).
 
 ### CLI + IPC namespace
 
@@ -307,7 +309,7 @@ self-loop·backoff로 건너뛸 hook은 시작하지 않고 소유자 기동 실
 
 ### 이벤트 구독 / 윈도우 / 확장
 
-- **event_subscribe** — `event_subscribe = ["surface.closed"]` + `on_start` 에서 `bus.subscribe(...)`. `on_event` 로 envelope 수신(`reason`: user/ipc/crash). 예: [claude](../plugins/claude/index.md)/[codex](../plugins/codex/index.md).
+- **event_subscribe** — `event_subscribe = ["surface.closed"]` + `on_start` 에서 `bus.subscribe(...)`. `on_event` 로 envelope 수신(`reason`: user/ipc/crash). 예: [claude](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md)/[codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md).
   - **선언하지 않은 구독·발행은 거절된다.** `event_subscribe` 가 덮지 않는 `bus.subscribe`, `event_publish` 가 덮지 않는 `bus.publish` 는 호스트가 거절한다. plugin 은 에러를 받지 않으므로 이벤트가 오지 않거나 발행이 퍼지지 않으면 호스트 로그를 본다. 거절 줄에는 plugin id, 패턴·키, 매니페스트에 선언된 목록, 추가할 패턴이 적힌다. 호스트 전용 namespace(`surface.*` 등)에 발행한 경우는 선언으로 고칠 수 없다고 적힌다([구독·발행 선언 패턴](../reference/event-catalog.md#구독발행-선언-패턴)).
   - **공통 새로고침 받기**: 사용자의 새로고침 키를 자기 surface 의 갱신에 쓰려면 `event_subscribe` 에 `surface.refresh_requested` 를 넣고 `on_start` 에서 구독한다. 신호는 구독자 모두에게 가므로 `on_event` 에서 payload 의 `surface_id` 가 자기가 연 surface 인지(필요하면 `kind` 도) 확인한 뒤에만 갱신한다. 신호는 사용자 요청이므로 사용자 출처로 처리한다. 예는 markdown plugin 의 `on_refresh_requested` 이고, 계약은 [공통 새로고침](../features/keybindings/index.md#공통-새로고침--refresh)에 있다. 단축키를 따로 `[[contributes.commands]]` 로 등록할 필요는 없다. 같은 키를 plugin 명령으로 등록하면 plugin 명령이 먼저 가져가 신호가 나지 않는다.
   - **`event.dispatch` 에 응답하라.** 호스트는 그 응답을 기다리지 않지만, 응답이 오기 전까지 그 dispatch 의 hop 을 기억해 그 사이 이 plugin 이 publish 하는 사건의 hop 하한으로 쓴다. 응답하지 않으면 그 기억이 재시작 전까지 남아, hop 이 높은 사건을 한 번 받은 뒤의 publish 가 무엇이든 `MAX_HOP` 으로 거절될 수 있다. SDK 는 `on_event` 를 마친 뒤 자동으로 응답한다 — SDK 없이 프로토콜을 직접 구현할 때의 계약이다. 근거는 [Event Bus 1.0 카탈로그](../reference/event-catalog.md).

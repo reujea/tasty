@@ -1,5 +1,7 @@
 # Claude completion notification mod
 
+> 이 문서는 정본이 아니다. 옮기기 전에 남긴 사본이며 갱신하지 않는다. 정본은 [tasty-official-plugins 레포](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/notify-mod.md)에 있다.
+
 `tasty claude install` installs the existing status hooks, the `tasty-notify` Claude Code function-hooks mod and its companion `tasty-notify-gate` plugin. Re-run install after updating Tasty and start a new Claude process. The mod API was checked against the installed Claude Code 2.1.307 bundled declarations and validator, and the gate against 2.1.312; it is early access, not a guarantee for every older or future CLI. Unsupported CLIs can use the Monitor procedure in [external interaction](../../dev-guide/external-interaction.md#부모-claude-운영-규약--monitor-arm).
 
 ## Installation and ownership

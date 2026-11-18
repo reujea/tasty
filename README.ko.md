@@ -87,7 +87,7 @@ cargo build --release
 - **터미널 출력을 실시간으로 감시해 후속 작업을 건다** — PTY 출력 줄을 분석해 메모리나 파일로 전달([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))
 - **에이전트 토큰 사용량을 재고 한도에서 자동으로 막는다** — 측정/집계 + cost cap 초과 시 자동 차단([`docs/features/telemetry/index.md`](docs/features/telemetry/index.md))
 - **테마를 내 취향대로 바꾼다** — 4px 그리드/14px 폰트 상한 기반 사용자 정의 테마 시스템([`docs/features/themes/index.md`](docs/features/themes/index.md))
-- **여러 자식 Claude를 동시에 실행하고 상태가 바뀌면 알림을 받는다** — spawn/tell 은 즉시 반환하고, idle/추가입력필요/종료 시점마다 호출자에게 완료 알림이 자동으로 온다([`docs/plugins/claude/index.md`](docs/plugins/claude/index.md))
+- **여러 자식 Claude를 동시에 실행하고 상태가 바뀌면 알림을 받는다** — spawn/tell 은 즉시 반환하고, idle/추가입력필요/종료 시점마다 호출자에게 완료 알림이 자동으로 온다([Claude 플러그인 문서](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md))
 
 ## 문서
 

@@ -406,7 +406,7 @@ child terminal 의 파생 상태 `stale`([child-terminal (호스트 내재화 �
 `claude spawn`/`tell`과 `codex spawn`/`tell`은 auto_wait 대신 완료 알림 훅을 쓴다.
 Claude는 `claude-idle`/`needs-input`/`process-exit` 훅에서 `claude.notify_done`을 호출한다
 (`crates/tasty-plugin-claude/src/notifications.rs`의 `register_notify_hooks`).
-Codex는 대응 훅에서 `codex notify-caller`를 호출한다([Codex](../plugins/codex/index.md)).
+Codex는 대응 훅에서 `codex notify-caller`를 호출한다([Codex](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md)).
 두 핸들러는 알림 뒤 `surface.locate`로 대상 생존을 확인하고, 살아 있으면 형제 훅을
 다시 등록한다. 따라서 spawn/tell마다 한 번만 알리는 것이 아니라 자식이 종료할 때까지
 상태가 바뀔 때마다 알린다.

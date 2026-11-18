@@ -47,7 +47,7 @@
   - Tutorial → [`features/tutorial/`](../tutorial/index.md)
   - Task DAGs → [`features/agent-collaboration/screens/dag-list-popup.md`](../agent-collaboration/screens/dag-list-popup.md)
   - Open File → [`features/native-file-picker/`](../native-file-picker/index.md)
-  - 플러그인 기여 도구 → **[번들 플러그인 문서](../../plugins/index.md)** (예: [clipboard-viewer](../../plugins/clipboard-viewer/index.md) · [git-viewer](../../plugins/git-viewer/index.md)). 이 메뉴 문서에는 항목을 나열하지 않는다 — 공식 플러그인 메뉴는 해당 플러그인 쪽에서 다룬다.
+  - 플러그인 기여 도구 → **[번들 플러그인 문서](../../plugins/index.md)** (예: [clipboard-viewer](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/clipboard-viewer/index.md) · [git-viewer](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/git-viewer/index.md)). 이 메뉴 문서에는 항목을 나열하지 않는다 — 공식 플러그인 메뉴는 해당 플러그인 쪽에서 다룬다.
 
 ## 비-목표
 

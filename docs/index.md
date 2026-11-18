@@ -23,7 +23,7 @@
 | 개념 (concepts) | [concepts/index.md](concepts/index.md) | 공통 용어와 객체 관계 |
 | 기능 (기획·화면) | [features/index.md](features/index.md) | 제품 기능과 화면 사용법 |
 | Surface 종류 | [surfaces/index.md](surfaces/index.md) | kind별 명세(terminal · empty · explorer · dag_graph · markdown · image · html). 제공 주체와 관계없이 여기서 찾는다 |
-| 번들 플러그인 | [plugins/index.md](plugins/index.md) | 번들 플러그인 카탈로그. surface 를 제공하지 않는 플러그인의 기능 문서 |
+| 번들 플러그인 | [plugins/index.md](plugins/index.md) | 번들 플러그인 카탈로그. surface 를 제공하지 않는 플러그인의 기능 문서는 tasty-official-plugins 레포에 있다 |
 | 설계 (design) | [design/index.md](design/index.md) | 정책·시스템·흐름 |
 | 레퍼런스 (조회) | [reference/index.md](reference/index.md) | API·이벤트·출력 형식 |
 | 개발 가이드 | [dev-guide/index.md](dev-guide/index.md) | 구현·빌드·검증·배포 절차 |

@@ -1,5 +1,7 @@
 # Agent Stream (`com.tasty.agent-stream`)
 
+> 이 문서는 정본이 아니다. 옮기기 전에 남긴 사본이며 갱신하지 않는다. 정본은 [tasty-official-plugins 레포](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/agent-stream/index.md)에 있다.
+
 - **Status**: Implemented — 이벤트 수집·SSE 전송·요청과 턴 매칭을 제공한다. 인바운드 웹훅은 운영자가 등록한다(아래 [요청과 턴의 매칭 및 웹훅 연결](#턴-correlation--웹훅-인바운드-배선))
 - **주체**: AI Agent (CLI/IPC). 로컬 사용자 UI 없음 — headless
 - **배포/통합**: workspace 번들(`BUILTINS` 등록) · CLI + IPC namespace — [plugins 개념](../../concepts/plugins.md)

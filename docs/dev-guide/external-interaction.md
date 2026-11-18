@@ -120,7 +120,7 @@ tasty 가 단일라인 tell 을 본문과 제출 `\r` 을 **한 문자열(`"{msg
 `surface.completion`의 attention 표시와 작업 DAG의 completion strategy도 별개 기능이다.
 
 부모 Claude는 사용 가능한 Monitor로 파일을 구독할 수 있다. Codex 대화에서 spawn한 자식의
-턴 결과는 [Codex 부모에게 결과 반환](../plugins/codex/index.md#codex-부모에게-결과-반환)으로
+턴 결과는 [Codex 부모에게 결과 반환](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md#codex-부모에게-결과-반환)으로
 부모 thread의 대기열에 참조로 들어간다. 이 송신은 completion-log writer와 별개다. 파일에
 기록됐다는 사실만으로 부모가 읽었거나 새 턴을 시작했다고 보고하지 않는다. idle·입력 대기·중단·exit 알림은 작업 성공의 증명이 아니다.
 
@@ -130,7 +130,7 @@ plugin writer와 부모의 PTY는 같은 값을 받는다. release·debug 경로
 전달하는 변수로 바꾸면 debug 프로세스가 release 홈을 사용할 수 있다.
 
 완료 줄은 플러그인의 언어를 따르는 한 줄이다. 고정된 자연어 문구만으로 상태를 파싱하지 않는다.
-완료 줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 턴 종료·결과 저장은 info, 입력 대기(`waiting for input`)와 출력이 없다는 알림·그 묶음, idle 체크(공식 Claude 플러그인 0.3.6부터)는 warning, 오류가 섞이면 무조건 error다. warning에는 무출력 알림 말고도 입력 대기와 idle 체크가 섞이므로 `^\[warning\] `만으로 무출력 알림을 고를 수 없다. 종류는 번역 문구가 아니라 표지와 정본 표로 가른다. 종류별 대응은 [Claude 알림 타입 표지](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](../plugins/codex/index.md)에 있다.
+완료 줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 턴 종료·결과 저장은 info, 입력 대기(`waiting for input`)와 출력이 없다는 알림·그 묶음, idle 체크(공식 Claude 플러그인 0.3.6부터)는 warning, 오류가 섞이면 무조건 error다. warning에는 무출력 알림 말고도 입력 대기와 idle 체크가 섞이므로 `^\[warning\] `만으로 무출력 알림을 고를 수 없다. 종류는 번역 문구가 아니라 표지와 정본 표로 가른다. 종류별 대응은 [Claude 알림 타입 표지](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/codex/index.md)에 있다.
 Claude의 정지 알림도 같은 파일에 쓰며 기준은 [Claude 정지 알림](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#정지-알림-claude-error-stalled--부모-completion-log)을 따른다.
 idle 체크 줄도 같은 파일에 쓴다(공식 Claude 플러그인 0.3.6부터, [Claude idle 체크](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#idle-체크-claudeidle_check--부모-completion-log)).
 완료 줄의 기록 구현은 `tasty-utils::notify::append_notice`(타입을 받는다), 호출자는 Claude의 `handle_notify_done`·`handle_notify_error`·`handle_notify_stop_failure`·`handle_notify_quiet_release`·원격 결과 저장과
@@ -223,7 +223,7 @@ reader는 `next_offset = retention_start + 파일 안 위치`를 저장한다.
 
 #### 부모 Claude 운영 규약 — 자동 mod 수신
 
-`tasty claude install`은 [완료 알림 mod](../plugins/claude/notify-mod.md)를 함께 설치한다. 지원되는 Claude에서 자기 `TASTY_CLAUDE_NOTIFY_MOD` 값이 실제 surface ID와 일치하면 세션 시작부터 완료 로그를 폴링하고 플러그인 출처로 `$.prompt.submit`한다. 같은 세션에 Monitor를 함께 켜면 중복 알림이 된다. 이 경로도 상태 변화만 전달하며 실제 결과를 검증하지 않는다. 세션 재개, 잠금 없는 snapshot, 재로딩 중 대기 중인 제출을 한 번만 받아들이는 별도 gate 플러그인과 그 한계는 mod 문서에 있다.
+`tasty claude install`은 [완료 알림 mod](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/notify-mod.md)를 함께 설치한다. 지원되는 Claude에서 자기 `TASTY_CLAUDE_NOTIFY_MOD` 값이 실제 surface ID와 일치하면 세션 시작부터 완료 로그를 폴링하고 플러그인 출처로 `$.prompt.submit`한다. 같은 세션에 Monitor를 함께 켜면 중복 알림이 된다. 이 경로도 상태 변화만 전달하며 실제 결과를 검증하지 않는다. 세션 재개, 잠금 없는 snapshot, 재로딩 중 대기 중인 제출을 한 번만 받아들이는 별도 gate 플러그인과 그 한계는 mod 문서에 있다.
 
 #### 부모 Claude 운영 규약 — Monitor arm
 
