@@ -3,6 +3,7 @@
 // `open -g -W -a TastyInputHelper.app --args --result <경로> [--command-file <경로>]`로 띄워
 // 이 앱이 손쉬운 사용 권한의 책임 프로세스가 되게 한다. 사용법은 docs/dev-guide/build.md의
 // "macOS 키 입력 도우미" 절에 있다.
+// `--args request-access [--result <경로>]`는 손쉬운 사용·이벤트 게시 권한을 시스템에 요청한다.
 //
 // 명령 파일은 한 줄에 한 단계다. 빈 줄과 #로 시작하는 줄은 건너뛴다.
 //   switch_source <TIS 입력 소스 ID>
@@ -96,6 +97,7 @@ func wait(ms: Int) {
 _ = NSApplication.shared
 
 var commandFile: String?
+var requestAccessMode = false
 var argIndex = 1
 let args = CommandLine.arguments
 while argIndex < args.count {
@@ -105,13 +107,17 @@ while argIndex < args.count {
         guard argIndex + 1 < args.count else { finish(.usage, "\(arg) needs a path") }
         if arg == "--result" { resultPath = args[argIndex + 1] } else { commandFile = args[argIndex + 1] }
         argIndex += 2
+    case "request-access":
+        requestAccessMode = true
+        argIndex += 1
     default:
         // 옛 LaunchServices가 붙이는 -psn_ 인자는 무시한다.
         if arg.hasPrefix("-psn_") { argIndex += 1; continue }
         finish(.usage, "unknown argument: \(arg)")
     }
 }
-guard resultPath != nil else { finish(.usage, "--result <path> is required") }
+if requestAccessMode, commandFile != nil { finish(.usage, "request-access does not take --command-file") }
+guard resultPath != nil || requestAccessMode else { finish(.usage, "--result <path> is required") }
 
 let axTrusted = AXIsProcessTrusted()
 let postAccess = CGPreflightPostEventAccess()
@@ -119,6 +125,25 @@ result["AXIsProcessTrusted"] = axTrusted
 result["CGPreflightPostEventAccess"] = postAccess
 result["source_before"] = currentSourceID() ?? NSNull()
 result["command_file"] = commandFile ?? NSNull()
+result["requested_access"] = false
+
+// 시스템 요청 창을 띄워 손쉬운 사용 목록에 이 앱을 올린다. 창은 앱마다 한 번만 뜬다.
+func requestAccess() {
+    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+    result["AXIsProcessTrustedWithOptions_prompt"] = AXIsProcessTrustedWithOptions(options)
+    result["CGRequestPostEventAccess"] = CGRequestPostEventAccess()
+    result["requested_access"] = true
+    // 요청 창은 비동기로 뜨므로 잠시 실행 루프를 돌린 뒤 다시 조회한다.
+    wait(ms: 500)
+    result["AXIsProcessTrusted_after_request"] = AXIsProcessTrusted()
+    result["CGPreflightPostEventAccess_after_request"] = CGPreflightPostEventAccess()
+}
+
+if requestAccessMode {
+    requestAccess()
+    if result["CGPreflightPostEventAccess_after_request"] as? Bool == true { finish(.ok) }
+    finish(.noPermission, "access is not granted yet; allow the app in System Settings")
+}
 
 var lines: [(Int, [String])] = []
 if let commandFile {
@@ -145,9 +170,12 @@ for (lineNo, words) in lines {
     }
 }
 
-// 권한 요청 함수는 대화상자를 띄우므로 부르지 않는다. 게시 권한이 없으면 이벤트가 오류 없이 버려지므로
-// 어떤 단계도 실행하지 않고 끝낸다.
-guard postAccess else { finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run") }
+// 게시 권한이 없으면 이벤트가 오류 없이 버려지므로 어떤 단계도 실행하지 않고 끝낸다.
+// 실행할 단계가 있을 때만 권한을 요청한다. 단계 없는 조회 실행은 대기 중 반복 조회에 쓰므로 요청 창을 띄우지 않는다.
+guard postAccess else {
+    if !lines.isEmpty { requestAccess() }
+    finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run")
+}
 
 let eventSource = CGEventSource(stateID: .combinedSessionState)
 var heldFlags = CGEventFlags()

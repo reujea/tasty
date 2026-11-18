@@ -35,7 +35,7 @@ print("CGPreflightPostEventAccess=\(CGPreflightPostEventAccess()) AXIsProcessTru
 
 ## 권한 요청 함수
 
-권한이 없을 때 대화상자를 띄우고 손쉬운 사용 목록에 앱을 올리는 함수는 두 가지다. 사용자가 요청한 경우에만 호출한다. `tccutil reset`처럼 설정을 바꾸는 명령은 쓰지 않는다. 대화상자는 사용자가 직접 허용하며, child는 누르거나 닫지 않는다.
+권한이 없을 때 대화상자를 띄우고 손쉬운 사용 목록에 앱을 올리는 함수는 두 가지다. 키 입력 도우미는 `request-access`와 권한 없이 키 명령을 받은 경우에 이 두 함수를 부른다([macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)). 그 밖의 앱에서는 사용자가 요청한 경우에만 호출한다. 대화상자는 사용자가 직접 허용하며, child는 누르거나 닫지 않는다. `tccutil reset`은 도우미 요청 창을 다시 띄울 때 도우미 번들 ID(`com.zilhak.tasty.input-helper`)에만 쓴다. 사용자 Tasty.app 항목은 초기화하지 않는다.
 
 - `CGRequestPostEventAccess()`: 이벤트 게시 권한을 요청한다.
 - `AXIsProcessTrustedWithOptions`에 `kAXTrustedCheckOptionPrompt: true`를 넘긴다. 손쉬운 사용 권한을 요청한다.
@@ -56,7 +56,8 @@ print("AXIsProcessTrustedWithOptions(prompt)=\(AXIsProcessTrustedWithOptions(opt
 
 키 입력은 [macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)로 보낸다. 설치, 허용 대상, 호출 형식, 결과 파일, 종료 코드, 합성 입력의 한계, 보고 규칙은 그 절에 있다.
 
-- 도우미는 실행할 때마다 `AXIsProcessTrusted`와 `CGPreflightPostEventAccess`를 결과 파일에 적는다. 게시 권한이 없으면 어떤 단계도 실행하지 않고 종료 코드 3으로 끝난다. 위 "권한 확인"의 판정을 도우미가 대신한다.
+- 도우미는 실행할 때마다 `AXIsProcessTrusted`와 `CGPreflightPostEventAccess`를 결과 파일에 적는다. 게시 권한이 없으면 어떤 단계도 실행하지 않고 종료 코드 3으로 끝난다. 단계가 있었으면 끝내기 전에 위 두 요청 함수를 한 번 부른다. 위 "권한 확인"의 판정을 도우미가 대신한다.
+- 처음 쓰는 Mac에서는 `request-access`로 요청 창을 띄워 도우미를 손쉬운 사용 목록에 올린다. 창은 앱마다 한 번만 뜨고, 다시 띄우려면 `tccutil reset Accessibility com.zilhak.tasty.input-helper` 뒤에 실행한다.
 - 키를 보내기 전에 `require_front <격리 인스턴스 PID>` 단계를 넣는다. 앞 앱이 다르면 종료 코드 5로 끝나고 키를 보내지 않는다.
 - 허용 전에는 `open`으로 띄운 경우와 셸에서 실행 파일을 직접 실행한 경우 모두 두 값이 false다(측정함). 허용한 뒤 `open` 경로만 true가 되는지는 미측정이다. 이것이 확인되어야 `open` 경로에서 도우미가 책임 프로세스라는 가정이 확인된다.
 

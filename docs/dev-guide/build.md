@@ -451,6 +451,8 @@ just dist-setup-linux              # 또는 수동 (아래)
 - identity가 키체인에 없으면 ad-hoc으로 서명하지 않고 실패한다. 이때는 `./scripts/macos-codesign-identity.sh`로 조회하고, 없으면 `--create`로 발급한다.
 - 서명 뒤 Identifier, linker 서명이나 ad-hoc 서명이 아닌지, `codesign --verify --deep --strict` 통과 여부를 확인한다.
 - 허용 대상: 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용에서 `~/Applications/TastyInputHelper.app` 하나만 허용한다.
+- 목록에 도우미를 올리려면 `open -W -n -a ~/Applications/TastyInputHelper.app --args request-access [--result <결과 JSON 경로>]`로 시스템 요청 창을 띄운다. 도우미는 `AXIsProcessTrustedWithOptions`(`kAXTrustedCheckOptionPrompt=true`)와 `CGRequestPostEventAccess()`를 부르고, 두 반환값과 호출 뒤 조회 값을 결과 파일에 적는다. 키는 보내지 않는다. 이미 허용돼 있으면 0, 아니면 3으로 끝난다. 사용자는 창에서 시스템 설정을 열어 스위치를 켠다.
+- 요청 창은 앱마다 한 번만 뜬다. 다시 띄우려면 `tccutil reset Accessibility com.zilhak.tasty.input-helper`로 도우미 항목만 초기화한 뒤 `request-access`를 다시 실행한다. 이 명령은 그 번들 ID의 허용도 지운다.
 - 재빌드 뒤에도 허용이 유지되려면 번들 ID, 서명한 leaf 인증서, 설치 경로가 모두 같아야 한다. 인증서를 지우고 `--create`로 다시 만들면 leaf가 바뀐다. `Tasty Dev`로 서명하면 지정 요구(`codesign -d -r-`)가 `identifier "com.zilhak.tasty.input-helper" and certificate leaf = H"<인증서 해시>"`이다. 같은 소스로 다시 빌드하면 CDHash도 같다. Info.plist 버전 문자열만 바꿔 다시 빌드하면 CDHash는 바뀌고, 지정 요구와 `Authority=Tasty Dev`는 같다(측정함). 이 상태에서 손쉬운 사용 허용이 실제로 유지되는지는 미측정이다.
 
 ### 호출
@@ -462,7 +464,7 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 
 - `-g`는 도우미를 앞으로 가져오지 않는다. 도우미는 `LSUIElement` 앱이라 Dock과 메뉴 막대에도 나타나지 않는다. `-W`는 도우미가 끝날 때까지 기다린다. `-n`은 이미 떠 있는 도우미가 있어도 새로 실행한다.
 - `open`의 종료 코드는 도우미의 종료 코드가 아니다. 도우미가 3으로 끝나도 `open -W`는 0을 돌려준다(측정함). 성패는 결과 파일의 `exit_code`로 판정한다.
-- `--command-file`을 빼면 권한만 조회한다.
+- `--command-file`을 빼면 권한만 조회한다. 이 조회는 요청 창을 띄우지 않으므로 허용을 기다리며 반복해 실행해도 된다.
 - 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행할 수도 있다. 이때는 셸을 띄운 터미널 앱의 권한으로 판정된다.
 
 명령 파일은 한 줄에 한 단계다. 빈 줄과 `#`로 시작하는 줄은 건너뛴다. 키는 macOS 가상 키코드 숫자로, 방향은 `surface.raw_key`와 같은 어휘로, 입력 소스는 TIS ID 그대로 적는다. 문자열(유니코드) 주입 명령은 없다. 문자열 주입은 IME를 거치지 않기 때문이다.
@@ -486,21 +488,22 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 결과 파일은 JSON이다. 임시 이름으로 쓴 뒤 rename하므로, 파일이 보이면 다 쓴 것이다. 들어 있는 값은 다음과 같다.
 
 - `helper_pid`, `started_at`, `finished_at`(UTC), `bundle_id`, `bundle_version`, `executable`
-- `AXIsProcessTrusted`, `CGPreflightPostEventAccess`
+- `AXIsProcessTrusted`, `CGPreflightPostEventAccess`(실행 시작 때 값)
+- `requested_access`. 요청했으면 `AXIsProcessTrustedWithOptions_prompt`, `CGRequestPostEventAccess`(두 함수의 반환값)와 `AXIsProcessTrusted_after_request`, `CGPreflightPostEventAccess_after_request`(호출 뒤 다시 조회한 값)
 - `source_before`, `source_after`(입력 소스 ID)
 - `modifier_method`, `event_source`, `event_tap`
 - `steps`(단계별 `command`, `ok`, `error`와 단계 정보), `exit_code`, `message`
 
 | 코드 | 뜻 |
 |---|---|
-| 0 | 모든 단계 성공 |
+| 0 | 모든 단계 성공. `request-access`는 이미 허용돼 있음 |
 | 1 | 그 밖의 실패 |
 | 2 | 인자·명령 파일 오류. `--result`가 없으면 결과 파일 없이 끝난다 |
-| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다 |
+| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다 |
 | 4 | 입력 소스가 없거나 전환 실패 |
 | 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
 
-도우미는 권한 요청 함수(`CGRequestPostEventAccess`, 프롬프트 옵션을 준 `AXIsProcessTrustedWithOptions`)를 부르지 않는다. 대화상자를 띄우지 않는다.
+도우미가 권한 요청 함수를 부르는 경우는 `request-access`와, 권한 없이 단계가 든 명령 파일을 받은 경우 둘뿐이다. 명령 파일 없는 조회와 형식 오류(종료 코드 2)에서는 부르지 않는다.
 
 ### 합성 입력의 한계
 
