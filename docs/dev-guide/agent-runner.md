@@ -127,7 +127,7 @@ v1 task 는 회차 id 가 없어 상태만 본다. 시작 뒤 handle 저장이 �
 > ```
 > `params.surface_id` 는 **부모** surface(자식을 매달 대상)이고, spawn 응답의 `child_surface_id` 가 `map_from_response` 로 poll 호출의 파라미터가 된다. `codex.spawn` 도 같은 모양이며, 두 plugin 의 전략 값 차이(poll 파라미터 키 이름 · 상태 목록)는 [features/agent-collaboration §자식 에이전트를 DAG 노드로](../features/agent-collaboration/index.md#자식-에이전트를-dag-노드로) 참조. 해당 plugin 이 비활성이면 전략이 레지스트리에 없으므로 `poll` 생략은 `CustomImmediate`(= dispatch 성공 즉시 Succeeded)로 떨어진다.
 >
-> 이어서 지시를 주는 노드도 같은 모양이다 — `tell` 에도 기본 전략(`tell-wait`)이 있어 자식이 그 지시를 마칠 때까지 러너가 기다린다. Claude 자식이 백그라운드 작업을 남기고 응답을 끝낸 경우는 마친 것으로 보지 않는다([features/agent-collaboration](../features/agent-collaboration/index.md#이어서-지시-주기-tell)). 여기서는 대상이 **자식** surface 다(spawn 노드의 `surface_id` 는 부모였다):
+> 이어서 지시를 주는 노드도 같은 모양이다 — `tell` 에도 기본 전략(`tell-wait`)이 있어 자식이 그 지시를 마칠 때까지 러너가 기다린다. Claude 자식이 백그라운드 작업을 남기고 응답을 끝낸 경우는 마친 것으로 보지 않는다. 단 남은 작업이 Monitor뿐이면 마친 것으로 보므로 Monitor가 남은 채 다음 노드가 시작될 수 있다([features/agent-collaboration](../features/agent-collaboration/index.md#이어서-지시-주기-tell)). 여기서는 대상이 **자식** surface 다(spawn 노드의 `surface_id` 는 부모였다):
 > ```json
 > {"kind":"custom","ipc_method":"claude.tell",
 >  "params":{"surface_id":561,"message":"방금 고친 테스트를 다시 돌려라"}}

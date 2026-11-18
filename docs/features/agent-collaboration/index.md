@@ -173,7 +173,7 @@ poll 파라미터 키가 다른 것은 각 plugin 의 state 핸들러가 요구�
 
 ### 이어서 지시 주기 (`tell`)
 
-`tell` 에도 기본 전략(`tell-wait`)이 있어 **자식이 그 지시를 마칠 때까지** 노드가 `running` 에 머문다. Claude 자식의 서브에이전트 종료나 백그라운드 작업을 남긴 채 끝난 응답은 지시를 마친 것으로 보지 않는다. 백그라운드 작업이 끝난 뒤 이어지는 턴의 응답이 끝나야 노드가 끝난다. 끝나지 않는 백그라운드 명령(개발 서버 등)을 남기면 노드도 끝나지 않으므로 제한 시간을 둔다([Claude 통합](../../plugins/claude/index.md)). spawn 노드와 달리 `surface_id` 는 **자식** surface 다:
+`tell` 에도 기본 전략(`tell-wait`)이 있어 **자식이 그 지시를 마칠 때까지** 노드가 `running` 에 머문다. Claude 자식의 서브에이전트 종료나 백그라운드 작업을 남긴 채 끝난 응답은 지시를 마친 것으로 보지 않는다. 단 남은 작업이 Monitor뿐이면 마친 것으로 본다. 그래서 DAG의 `spawn-wait`·`tell-wait` 노드가 끝나고, Monitor가 아직 실행 중인 채 다음 노드가 시작될 수 있다. Monitor가 아닌 백그라운드 작업이 남았으면 그 작업이 끝난 뒤 이어지는 턴의 응답이 끝나야 노드가 끝난다. 끝나지 않는 백그라운드 명령(개발 서버 등)을 남기면 노드도 끝나지 않으므로 제한 시간을 둔다([Claude 통합](../../plugins/claude/index.md)). spawn 노드와 달리 `surface_id` 는 **자식** surface 다:
 
 ```sh
 tasty agent task-create --workspace 1 --name tell-worker \
