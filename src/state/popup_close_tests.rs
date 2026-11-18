@@ -604,12 +604,15 @@ fn script_changed_confirm_close_intent_preserves_decided_result_for_dispatch() {
 fn command_palette_outside_click_close_resets_query_and_selection() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.command_palette.query = "workspace".to_string();
-    state.command_palette.selected = 2;
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         COMMAND_PALETTE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::CommandPalette(
+            crate::state::command_palette::PaletteInput {
+                query: "workspace".to_string(),
+                selected: 2,
+            },
+        ),
     );
 
     run_frame(
@@ -619,8 +622,12 @@ fn command_palette_outside_click_close_resets_query_and_selection() {
     );
 
     assert!(!state.popups.is_open(COMMAND_PALETTE_POPUP_ID));
-    assert!(state.command_palette.query.is_empty());
-    assert_eq!(state.command_palette.selected, 0);
+    assert!(!holds_payload(&state, COMMAND_PALETTE_POPUP_ID));
+    state.popups.open(
+        COMMAND_PALETTE_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+    );
+    assert!(!holds_payload(&state, COMMAND_PALETTE_POPUP_ID));
 }
 
 // 바깥 클릭은 결과를 유지하며, 팝업의 Close 버튼 경로만 Idle로 초기화한다.

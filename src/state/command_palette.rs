@@ -55,22 +55,21 @@ pub fn all_commands(
     out
 }
 
+/// 팔레트 팝업이 닫힌 뒤 App이 꺼내 실행할 명령. 검색어·선택은 팝업 인스턴스 데이터에 있다.
 #[cfg(feature = "gui")]
 #[derive(Debug, Default)]
 pub struct CommandPaletteState {
-    pub query: String,
-    /// 필터링된 결과에서 선택한 인덱스.
-    pub selected: usize,
     /// 실행할 명령과 선택한(Enter) 시점의 명령 대상.
     pub pending_run: Option<(PaletteCommand, super::command_target::CommandTarget)>,
 }
 
+/// 팔레트 인스턴스의 검색어와 선택. 닫으면 함께 사라져 다음에 열면 빈 검색어로 시작한다.
 #[cfg(feature = "gui")]
-impl CommandPaletteState {
-    pub fn reset(&mut self) {
-        self.query.clear();
-        self.selected = 0;
-    }
+#[derive(Debug, Default)]
+pub struct PaletteInput {
+    pub query: String,
+    /// 필터링된 결과에서 선택한 인덱스.
+    pub selected: usize,
 }
 
 /// 대소문자를 구분하지 않고 부분 문자열·부분 수열을 검색해 점수순으로 반환한다.

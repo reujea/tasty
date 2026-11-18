@@ -179,6 +179,8 @@ pub enum PopupPayload {
     ScriptConfirm(Box<crate::state::PendingScriptConfirm>),
     /// DAG 목록의 검색·필터·보기 상태.
     DagList(Box<dag_list::DagListState>),
+    /// 명령 팔레트의 검색어와 선택.
+    CommandPalette(crate::state::command_palette::PaletteInput),
 }
 
 impl std::fmt::Debug for PopupPayload {
@@ -214,6 +216,7 @@ impl std::fmt::Debug for PopupPayload {
             Self::RailCategory(id) => f.debug_tuple("RailCategory").field(id).finish(),
             Self::ScriptConfirm(p) => f.debug_tuple("ScriptConfirm").field(&p.script_id).finish(),
             Self::DagList(_) => f.write_str("DagList"),
+            Self::CommandPalette(p) => f.debug_tuple("CommandPalette").field(p).finish(),
         }
     }
 }

@@ -383,7 +383,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: Some(super::command_palette::on_open_command_palette_popup),
                 draw_fn: super::command_palette::draw_command_palette_popup,
-                on_close: Some(super::command_palette::on_close_command_palette_popup),
+                on_close: None,
             },
             // 소속 워크스페이스는 여는 시점의 WithScope에서 지정한다.
             PopupDef {

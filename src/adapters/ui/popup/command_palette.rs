@@ -368,14 +368,12 @@ fn items_from_state(
     (items, ids)
 }
 
-/// 바깥 클릭 등 그리기를 거치지 않는 닫기에서도 검색어·선택을 초기화한다.
-pub fn on_close_command_palette_popup(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.command_palette.reset();
+/// 인스턴스의 검색어. 아직 처음 그리기 전이면 빈 검색어다.
+fn query_of(payload: &crate::adapters::ui::popup::PopupPayload) -> &str {
+    match payload {
+        crate::adapters::ui::popup::PopupPayload::CommandPalette(input) => &input.query,
+        _ => "",
+    }
 }
 
 /// 현재 검색 결과 수에 맞춰 카드 높이를 계산한다. 사용자 리사이즈 전까지 매 프레임 적용된다.
@@ -383,11 +381,11 @@ pub fn on_close_command_palette_popup(
 pub fn command_palette_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let commands = command_palette::all_commands(&state.palette_plugin_commands);
     let labels: Vec<String> = commands.iter().map(label_for).collect();
-    let matched = command_palette::search(&state.command_palette.query, &commands, &labels).len();
+    let matched = command_palette::search(query_of(payload), &commands, &labels).len();
     let th = theme::theme();
     egui::vec2(th.palette_width().value(), palette_height(&th, matched))
 }
@@ -396,24 +394,24 @@ pub fn command_palette_sizer(
 fn palette_rows(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    query: &str,
 ) -> (Vec<CommandItemView>, Vec<PaletteCommand>) {
     let commands = command_palette::all_commands(&state.palette_plugin_commands);
     let labels: Vec<String> = commands.iter().map(label_for).collect();
-    let (items, matched_commands) =
-        items_from_state(&commands, &labels, &state.command_palette.query, |cmd| {
-            // 여기서는 PluginManager의 사용자 단축키 설정을 읽을 수 없어 플러그인 키캡을 생략한다.
-            let PaletteCommand::Host { id, .. } = cmd else {
-                return Vec::new();
-            };
-            // + 키가 구분자와 섞이지 않도록 표시 문자열을 split하지 않고 토큰으로 받는다.
-            engine
-                .settings
-                .keybindings
-                .get_bindings(id)
-                .and_then(|b| b.first())
-                .map(|s| KeybindingSettings::format_display_parts(s, &engine.settings.general))
-                .unwrap_or_default()
-        });
+    let (items, matched_commands) = items_from_state(&commands, &labels, query, |cmd| {
+        // 여기서는 PluginManager의 사용자 단축키 설정을 읽을 수 없어 플러그인 키캡을 생략한다.
+        let PaletteCommand::Host { id, .. } = cmd else {
+            return Vec::new();
+        };
+        // + 키가 구분자와 섞이지 않도록 표시 문자열을 split하지 않고 토큰으로 받는다.
+        engine
+            .settings
+            .keybindings
+            .get_bindings(id)
+            .and_then(|b| b.first())
+            .map(|s| KeybindingSettings::format_display_parts(s, &engine.settings.general))
+            .unwrap_or_default()
+    });
 
     let mut items = items;
     for (item, cmd) in items.iter_mut().zip(&matched_commands) {
@@ -434,22 +432,29 @@ pub fn draw_command_palette_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let (items, matched_commands) = palette_rows(state, engine);
+    use crate::adapters::ui::popup::PopupPayload;
+    if !matches!(cx.payload, PopupPayload::CommandPalette(_)) {
+        *cx.payload = PopupPayload::CommandPalette(Default::default());
+    }
+    let PopupPayload::CommandPalette(input) = cx.payload else {
+        return PopupAction::Close;
+    };
+    let (items, matched_commands) = palette_rows(state, engine, &input.query);
 
     if items.is_empty() {
-        state.command_palette.selected = 0;
-    } else if state.command_palette.selected >= items.len() {
-        state.command_palette.selected = items.len() - 1;
+        input.selected = 0;
+    } else if input.selected >= items.len() {
+        input.selected = items.len() - 1;
     }
 
     let mut props = CommandPaletteProps {
         placeholder: t("command_palette.placeholder").to_string(),
         no_results_text: t("command_palette.no_results").to_string(),
         items,
-        selected_index: state.command_palette.selected,
-        query_buffer: &mut state.command_palette.query,
+        selected_index: input.selected,
+        query_buffer: &mut input.query,
         hint_navigate: t("command_palette.hint_navigate").to_string(),
         hint_run: t("command_palette.hint_run").to_string(),
         hint_close: t("command_palette.hint_close").to_string(),
@@ -459,16 +464,13 @@ pub fn draw_command_palette_popup(
 
     match view_action {
         CommandPaletteAction::None => PopupAction::None,
-        CommandPaletteAction::Close => {
-            state.command_palette.reset();
-            PopupAction::Close
-        }
+        CommandPaletteAction::Close => PopupAction::Close,
         CommandPaletteAction::QueryChanged => {
-            state.command_palette.selected = 0;
+            input.selected = 0;
             PopupAction::None
         }
         CommandPaletteAction::SelectionChanged(idx) => {
-            state.command_palette.selected = idx;
+            input.selected = idx;
             PopupAction::None
         }
         CommandPaletteAction::Execute { index } => {
@@ -484,7 +486,6 @@ pub fn draw_command_palette_popup(
                     state.command_palette.pending_run = Some((cmd.clone(), command_target));
                 }
             }
-            state.command_palette.reset();
             PopupAction::Close
         }
     }
@@ -1038,12 +1039,21 @@ mod sizer_wiring_tests {
     fn card_height_after_a_frame(query: &str) -> f32 {
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
-        state.popups.open_at_focused(
-            COMMAND_PALETTE_POPUP_ID,
-            crate::model::popup_kind::PopupScope::Window,
-            egui::pos2(100.0, 100.0),
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(
+                COMMAND_PALETTE_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Window,
+            )
+            .at(egui::pos2(100.0, 100.0))
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::CommandPalette(
+                crate::state::command_palette::PaletteInput {
+                    query: query.to_string(),
+                    selected: 0,
+                },
+            )),
+            true,
         );
-        state.command_palette.query = query.to_string();
         run_one_frame(&mut state, &engine.read());
         state
             .popups
@@ -1051,6 +1061,55 @@ mod sizer_wiring_tests {
             .expect("palette registered")
             .size
             .y
+    }
+
+    /// Given 열린 팔레트에서 명령을 Enter 로 고르면, Then 팔레트는 닫히고 검색어는 사라지며 고른 명령만
+    /// 닫힌 뒤 App 이 꺼낼 출력함에 남는다.
+    #[test]
+    fn a_command_chosen_before_close_runs_after_the_palette_closes() {
+        let (mut state, mut engine_session) = test_state();
+        let engine = engine_session.borrow_mut();
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(
+                COMMAND_PALETTE_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Window,
+            )
+            .at(egui::pos2(100.0, 100.0))
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::CommandPalette(
+                Default::default(),
+            )),
+            true,
+        );
+        let ctx = egui::Context::default();
+        let term = PhysicalRect {
+            x: PhysicalPx(0.0),
+            y: PhysicalPx(0.0),
+            width: PhysicalPx(1920.0),
+            height: PhysicalPx(1080.0),
+        };
+        let enter = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        drop(ctx.run(enter, |ctx| {
+            draw_popups(ctx, &mut state, &engine.read(), &[], term, 1.0);
+        }));
+        assert!(!state.popups.is_open(COMMAND_PALETTE_POPUP_ID));
+        assert!(
+            state
+                .popups
+                .instances_of(COMMAND_PALETTE_POPUP_ID)
+                .next()
+                .is_none()
+        );
+        assert!(state.command_palette.pending_run.is_some());
     }
 
     /// 실제 프레임 처리 후 sizer 결과가 팝업 크기에 적용됐는지 확인한다.
@@ -1099,7 +1158,7 @@ pub(crate) mod enabled_tests {
         let engine = session.borrow_mut();
         let read = engine.read();
         let enabled_of = |state: &MainViewState| {
-            let (items, commands) = palette_rows(state, &read);
+            let (items, commands) = palette_rows(state, &read, "");
             let plugin = commands
                 .iter()
                 .position(|c| matches!(c, PaletteCommand::Plugin { command_id, .. } if command_id == "confirm"))
@@ -1149,7 +1208,12 @@ pub(crate) mod enabled_tests {
         read: &crate::runtime::engine_read::EngineRead<'_>,
         query: &str,
     ) {
-        state.command_palette.query = query.into();
+        let mut payload = crate::adapters::ui::popup::PopupPayload::CommandPalette(
+            crate::state::command_palette::PaletteInput {
+                query: query.into(),
+                selected: 0,
+            },
+        );
         let ctx = egui::Context::default();
         let input = egui::RawInput {
             events: vec![egui::Event::Key {
@@ -1167,7 +1231,12 @@ pub(crate) mod enabled_tests {
                     ui,
                     state,
                     read,
-                    &mut crate::adapters::ui::popup::PopupCx::test("test"),
+                    &mut crate::adapters::ui::popup::PopupCx {
+                        id: COMMAND_PALETTE_POPUP_ID,
+                        instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                        focused: true,
+                        payload: &mut payload,
+                    },
                 );
             });
         }));
