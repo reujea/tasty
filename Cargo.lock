@@ -6481,6 +6481,7 @@ dependencies = [
  "serde_json",
  "tasty-plugin-protocol",
  "tasty-type-appearance",
+ "tasty-type-geometry",
  "tasty-utils",
  "tempfile",
  "thiserror 1.0.69",

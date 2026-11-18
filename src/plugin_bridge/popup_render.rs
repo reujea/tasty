@@ -23,7 +23,11 @@ use crate::plugin::manifest::PopupAnchor;
 use crate::plugin_bridge::wire_scroll;
 use crate::state::RequestContext;
 
-const DEFAULT_POPUP_SIZE: Vec2 = Vec2::new(360.0, 200.0);
+/// `size_hint`를 생략한 팝업의 크기. 실행 중 선언과 같은 값을 쓰도록 매니페스트 크레이트의 상수를 읽는다.
+fn default_popup_size() -> Vec2 {
+    let s = tasty_plugin_manifest::DEFAULT_POPUP_SIZE;
+    Vec2::new(s.width.value(), s.height.value())
+}
 
 /// 호스트 팝업과 같은 범위·가시성 규칙으로 배치하고 닫기 요청을 모은다.
 /// 보이지 않는 범위는 렌더·입력 대상에서 제외하지만 인스턴스와 전송 상태는 유지한다.
@@ -359,7 +363,7 @@ fn mesh_snapshots<'a>(
             .contribute
             .size_hint
             .map(|s| Vec2::new(s.width as f32, s.height as f32))
-            .unwrap_or(DEFAULT_POPUP_SIZE);
+            .unwrap_or_else(default_popup_size);
         // 대상 없는 surface 선언 인스턴스는 그릴 범위가 없다. 여는 경로가 이런 인스턴스를 만들지 않는다.
         let Some(scope) = popup_scope(inst.contribute.scope, inst.scope_surface) else {
             tracing::debug!(

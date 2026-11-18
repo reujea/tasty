@@ -667,12 +667,18 @@ impl Manifest {
     fn validate_popup_defs(&self) -> anyhow::Result<()> {
         let mut seen_popup_ids = HashSet::new();
         for popup in &self.contributes.popup {
-            if !is_valid_tool_id(&popup.id) {
+            // 매니페스트 작성자가 고칠 필드 이름을 알 수 있게 size_hint를 먼저 본다.
+            if let Some(sz) = &popup.size_hint
+                && (sz.width == 0 || sz.height == 0)
+            {
                 anyhow::bail!(
-                    "invalid contributes.popup id '{}': must be lowercase ascii + digits + '-', \
-                         start with a letter, length ≤ 64",
+                    "contributes.popup '{}': size_hint width/height must be > 0",
                     popup.id
                 );
+            }
+            // 실행 중 선언(popup.declare)과 같은 규칙으로 id·크기·기준을 검사한다.
+            if let Err(e) = crate::popup::validate_popup_decl(&popup.id, &popup.to_decl()) {
+                anyhow::bail!("contributes.popup: {e}");
             }
             if !seen_popup_ids.insert(popup.id.clone()) {
                 anyhow::bail!(
@@ -687,14 +693,6 @@ impl Manifest {
                     "contributes.popup '{}': trigger.event_key '{}' must be a concrete event key",
                     popup.id,
                     event_key
-                );
-            }
-            if let Some(sz) = &popup.size_hint
-                && (sz.width == 0 || sz.height == 0)
-            {
-                anyhow::bail!(
-                    "contributes.popup '{}': size_hint width/height must be > 0",
-                    popup.id
                 );
             }
         }

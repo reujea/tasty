@@ -17,6 +17,8 @@ tasty-utils = { path = "../tasty-utils" }
 semver = "1"
 tasty-plugin-protocol = { path = "../tasty-plugin-protocol" }
 tasty-type-appearance = { path = "../tasty-type-appearance" }
+# 팝업 선언 변환(PopupContribute → PopupDecl)의 크기 값. protocol이 이미 받는 leaf 크레이트다.
+tasty-type-geometry = { path = "../tasty-type-geometry" }
 
 [dev-dependencies]
 tempfile = "3"

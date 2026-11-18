@@ -203,7 +203,9 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
     ),
     (
         "crates/",
-        Some(13),
+        // plugin 팝업이 size_hint를 생략했을 때의 크기 360×200은 매니페스트 크레이트의 DEFAULT_POPUP_SIZE 한 곳에 둔다.
+        // 렌더러와 실행 중 선언이 이 값을 함께 읽는다. popup 기본 크기에 대응하는 역할 토큰은 없다.
+        Some(14),
         "나머지 크레이트(dag-layout·model·plugin 뷰어·settings·geometry)",
     ),
 ];
