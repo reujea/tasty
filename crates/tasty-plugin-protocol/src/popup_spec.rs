@@ -125,14 +125,20 @@ pub struct PopupDeclareParams {
     pub decl: PopupDeclSpec,
 }
 
-/// `popup.show`가 팝업을 놓을 범위 대상. 종류는 선언의 `scope_kind`와 같아야 한다.
+/// `popup.show`가 팝업을 놓을 범위 대상. 대상은 필수이고 host가 대신 고르는 기본값은 없다.
+///
+/// 종류는 선언의 `scope_kind`와 같아야 한다(`focused_window`는 `window` 선언). 대상이 없거나
+/// 사라졌으면 host는 열지 않고 오류로 답한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PopupShowTarget {
-    /// 창 범위. 창은 `via_surface`가 있는 창이다.
+    /// 창 범위. `id`는 host 창 id다.
     Window {
-        via_surface: u32,
+        id: u64,
     },
+    /// 요청을 받은 시점에 포커스된 창의 창 범위. 그때 한 번 정하고 다시 읽지 않는다.
+    /// 포커스된 창이 없으면 열지 않는다.
+    FocusedWindow,
     Workspace {
         id: u32,
     },
@@ -150,7 +156,7 @@ pub enum PopupShowTarget {
 impl PopupShowTarget {
     pub const fn scope_kind(&self) -> PopupScopeKind {
         match self {
-            Self::Window { .. } => PopupScopeKind::Window,
+            Self::Window { .. } | Self::FocusedWindow => PopupScopeKind::Window,
             Self::Workspace { .. } => PopupScopeKind::Workspace,
             Self::Pane { .. } => PopupScopeKind::Pane,
             Self::Tab { .. } => PopupScopeKind::Tab,
@@ -163,6 +169,7 @@ impl PopupShowTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PopupShowParams {
     pub popup_id: String,
+    /// 필수. 생략하면 요청을 거절한다.
     pub target: PopupShowTarget,
     /// host가 `popup.open`의 `context`로 그대로 넘긴다. 없으면 Null.
     #[serde(default)]

@@ -107,8 +107,12 @@ fn the_declare_params_keep_their_json_shape() {
 fn the_show_params_and_result_keep_their_json_shape() {
     let cases = [
         (
-            json!({ "kind": "window", "via_surface": 3 }),
-            PopupShowTarget::Window { via_surface: 3 },
+            json!({ "kind": "window", "id": 3 }),
+            PopupShowTarget::Window { id: 3 },
+        ),
+        (
+            json!({ "kind": "focused_window" }),
+            PopupShowTarget::FocusedWindow,
         ),
         (
             json!({ "kind": "workspace", "id": 4 }),
@@ -138,6 +142,18 @@ fn the_show_params_and_result_keep_their_json_shape() {
     }))
     .expect("context is optional");
     assert!(no_context.context.is_null());
+    // 대상은 필수다. 생략하거나 모르는 종류면 읽지 않는다.
+    for bad in [
+        json!({ "popup_id": "p" }),
+        json!({ "popup_id": "p", "target": null }),
+        json!({ "popup_id": "p", "target": { "kind": "surface" } }),
+        json!({ "popup_id": "p", "target": { "kind": "somewhere" } }),
+    ] {
+        assert!(
+            serde_json::from_value::<PopupShowParams>(bad.clone()).is_err(),
+            "{bad}"
+        );
+    }
     assert_eq!(
         serde_json::to_value(PopupShowResult { instance_id: 9 }).expect("serialize"),
         json!({ "instance_id": 9 })
@@ -149,7 +165,11 @@ fn the_show_params_and_result_keep_their_json_shape() {
 #[test]
 fn a_target_names_its_scope_kind() {
     assert_eq!(
-        PopupShowTarget::Window { via_surface: 1 }.scope_kind(),
+        PopupShowTarget::Window { id: 1 }.scope_kind(),
+        PopupScopeKind::Window
+    );
+    assert_eq!(
+        PopupShowTarget::FocusedWindow.scope_kind(),
         PopupScopeKind::Window
     );
     assert_eq!(
