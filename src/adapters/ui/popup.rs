@@ -346,8 +346,11 @@ pub struct PopupState {
     scope_visible: bool,
     /// Position in logical pixels (top-left corner).
     pub pos: egui::Pos2,
-    /// Size in logical pixels.
+    /// 그린 크기(logical px). 매 프레임 `needed_size`에서 범위 경계로 줄여 다시 정한다.
     pub size: egui::Vec2,
+    /// 필요 크기(logical px). sizer 결과, 사용자가 바꾼 크기, 없으면 선언 크기 × ui_zoom.
+    /// 범위가 좁아 줄여 그려도 이 값은 그대로라 범위가 넓어지면 원래 크기로 돌아온다.
+    needed_size: egui::Vec2,
     /// Whether the popup is currently being dragged.
     dragging: bool,
     /// Drag offset from popup top-left to mouse position.
@@ -538,6 +541,7 @@ impl PopupState {
             scope_visible: true,
             pos: egui::pos2(100.0, 100.0),
             size: default_size,
+            needed_size: default_size,
             dragging: false,
             drag_offset: egui::Vec2::ZERO,
             scope,
@@ -662,6 +666,7 @@ impl PopupState {
             scope_visible: self.scope_visible,
             pos: self.pos,
             size: self.size,
+            needed_size: self.needed_size,
             dragging: self.dragging,
             drag_offset: self.drag_offset,
             scope: self.scope.clone(),
@@ -801,10 +806,21 @@ impl PopupState {
         )
     }
 
-    /// Clamp position so popup stays within the given screen rect.
+    /// 필요 크기를 정한다. 그린 크기도 같은 값에서 다시 시작한다.
+    pub fn set_needed_size(&mut self, size: egui::Vec2) {
+        self.needed_size = size;
+        self.size = size;
+    }
+
+    /// 필요 크기. 범위에 맞춰 줄인 그린 크기(`size`)와 다르다.
+    #[cfg(test)]
+    pub(crate) fn needed_size(&self) -> egui::Vec2 {
+        self.needed_size
+    }
+
+    /// 그린 크기를 필요 크기에서 `screen` 안으로 줄이고 위치를 그 안에 둔다. 필요 크기는 바꾸지 않는다.
     fn clamp_to_screen(&mut self, screen: egui::Rect) {
-        self.size.x = self.size.x.min(screen.width());
-        self.size.y = self.size.y.min(screen.height());
+        self.size = self.needed_size.min(screen.size());
         self.pos.x = self
             .pos
             .x
@@ -860,7 +876,7 @@ impl PopupManager {
         )
         .with_fullscreen_stage(def.fullscreen_stage);
         if def.sizer.is_none() {
-            popup.size *= ui_zoom;
+            popup.set_needed_size(popup.needed_size * ui_zoom);
             popup.min_size *= ui_zoom;
         }
         self.popups.push(popup);

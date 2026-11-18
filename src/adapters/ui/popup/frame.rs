@@ -204,7 +204,7 @@ pub(crate) fn draw_popup_layer(
             if let Some(sz) = size
                 && !p.size_user_overridden
             {
-                p.size = sz;
+                p.set_needed_size(sz);
             }
         }
     }

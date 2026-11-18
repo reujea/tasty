@@ -81,11 +81,11 @@ impl WindowFileChooser {
             .begin_at(consumer, mode, Vec::new(), start_directory(value));
         if let Some(p) = self.popups.get_mut(FILE_PICKER_POPUP_ID) {
             p.title = self.chooser.title().to_owned();
-            p.size = if self.chooser.is_folder() {
+            p.set_needed_size(if self.chooser.is_folder() {
                 folder_size()
             } else {
                 super::chooser_size()
-            };
+            });
         }
         // intent-exempt: user Browse in an independent View opens its own registered PopupDef.
         self.popups.open_centered_focused(

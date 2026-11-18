@@ -516,11 +516,11 @@ impl SettingsUiState {
         }
         let title = self.file_chooser.title();
         if let Some(p) = self.popups.get_mut(FILE_PICKER_POPUP_ID) {
-            p.size = if self.file_chooser.is_folder() {
+            p.set_needed_size(if self.file_chooser.is_folder() {
                 file_chooser::folder_size()
             } else {
                 file_chooser::chooser_size()
-            };
+            });
             p.title = title.to_string();
         }
         // intent-exempt: 설정 창 내부 PopupManager 의 sub-popup open(충돌 팝업과 같은 경로).
@@ -791,7 +791,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                                 if let Some(p) =
                                     ui_state.popups.get_mut(KEYBINDING_CONFLICT_POPUP_ID)
                                 {
-                                    p.size = size;
+                                    p.set_needed_size(size);
                                 }
                                 ui_state.popups.open_centered_focused(
                                     KEYBINDING_CONFLICT_POPUP_ID,

@@ -391,7 +391,7 @@ impl PopupManager {
                     Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
                 let new_rect = egui::Rect::from_min_max(min, max).intersect(bounds);
                 popup.pos = new_rect.min;
-                popup.size = new_rect.size();
+                popup.set_needed_size(new_rect.size());
                 popup.size_user_overridden = true;
             }
         }

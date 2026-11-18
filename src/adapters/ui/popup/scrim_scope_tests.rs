@@ -339,3 +339,72 @@ fn a_scope_lower_than_the_title_bar_leaves_an_empty_content_area() {
         Some(before.size())
     );
 }
+
+/// Given sizer 가 없는 팝업(port_scanner)이 창보다 커서 줄어 그려진 뒤,
+/// When 창이 다시 넓어지면,
+/// Then 선언 크기로 다시 그린다. 줄인 크기가 필요 크기를 덮지 않는다.
+#[test]
+fn a_popup_without_a_sizer_grows_back_when_its_scope_widens() {
+    let (mut state, mut engine_session, ids) = prepared();
+    let engine = engine_session.borrow_mut();
+    assert!(
+        defs::find("port_scanner").is_some_and(|d| d.sizer.is_none()),
+        "this scene needs a popup without a sizer"
+    );
+    state
+        .popups
+        .open_centered_focused("port_scanner", PopupScope::Window);
+    let ctx = egui::Context::default();
+    let layout = layout(ids);
+    frame_with(
+        &ctx,
+        screen_input(screen().size()),
+        &mut state,
+        &engine.read(),
+        &layout,
+    );
+    let declared = state
+        .popups
+        .visible_rect("port_scanner")
+        .expect("open")
+        .size();
+
+    let small = declared * 0.5;
+    frame_with(
+        &ctx,
+        screen_input(small),
+        &mut state,
+        &engine.read(),
+        &layout,
+    );
+    let shrunk = state
+        .popups
+        .visible_rect("port_scanner")
+        .expect("open")
+        .size();
+    assert!(
+        shrunk.x <= small.x && shrunk.y <= small.y,
+        "the drawn size must fit the small window: {shrunk:?} > {small:?}"
+    );
+    let needed = state
+        .popups
+        .get_mut("port_scanner")
+        .expect("registered")
+        .needed_size();
+    assert_eq!(
+        needed, declared,
+        "shrinking to the window must not lower the needed size"
+    );
+
+    frame_with(
+        &ctx,
+        screen_input(screen().size()),
+        &mut state,
+        &engine.read(),
+        &layout,
+    );
+    assert_eq!(
+        state.popups.visible_rect("port_scanner").map(|r| r.size()),
+        Some(declared)
+    );
+}
