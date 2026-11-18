@@ -680,6 +680,46 @@ fn the_pane_menu_new_tab_carries_the_cwd_source_it_read() {
     );
 }
 
+/// pane 메뉴의 이미지 탭과 빈 탭 후속(markdown 프롬프트) 새 탭도 메뉴를 고른 때 선택된 surface 를 cwd
+/// 원본으로 싣는다. 처리 때 View 선택으로 대신하지 않는다.
+#[test]
+fn every_pane_menu_new_tab_carries_the_cwd_source_chosen_with_the_menu() {
+    let src = include_str!("../../../../view/main/redraw.rs");
+    let start = src
+        .find("fn apply_pane_menu_selection(")
+        .expect("apply_pane_menu_selection");
+    let body = &src[start..start + src[start..].find("Some(6) =>").expect("preset arm")];
+    assert_eq!(body.matches("cwd_source: selected,").count(), 3);
+    assert!(!body.contains("cwd_source: None"));
+    let followup = &body[body.find("Some(2) =>").expect("followup arm")..];
+    assert!(followup.contains("Intent::NewTabWithFollowup {"));
+    let image = &body[body.find("Some(5) =>").expect("image arm")..];
+    assert!(image.contains("crate::intent::Intent::NewTab {"));
+}
+
+/// 빈 탭 후속 새 탭은 입력 때 실은 cwd 원본을 그대로 넘긴다.
+#[test]
+fn a_new_tab_with_followup_keeps_its_cwd_source() {
+    let (state, engine, _, _) = two_explorer_panes();
+    let intent = Intent::NewTabWithFollowup {
+        pane_id: 10,
+        cwd_source: Some(101),
+        followup: crate::intent::CreateFollowup::Prompt {
+            kind: "markdown".into(),
+        },
+    }
+    .from_user_context_menu();
+    assert!(matches!(
+        resolved(&state, &engine, &intent).domain(),
+        Some(DomainIntent::CreateTab {
+            pane_id: 10,
+            cwd: None,
+            cwd_source: Some(101),
+            ..
+        })
+    ));
+}
+
 /// 터미널로 변환할 때 cwd 는 포커스 surface 가 아니라 변환하는 surface 의 것이다.
 #[test]
 fn converting_to_a_terminal_inherits_the_cwd_of_the_converted_surface() {

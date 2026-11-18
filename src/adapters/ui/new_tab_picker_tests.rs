@@ -181,6 +181,7 @@ fn pane_closed_during_picker_creates_nothing() {
         mirror: None,
         request_id,
         pane_id: 999,
+        cwd_source: None,
         kind: "html".into(),
         param_key: "url".into(),
     }];
@@ -306,4 +307,36 @@ fn the_new_tab_picker_opens_in_the_pane_of_its_menu() {
             .open_scope(crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID),
         Some(&crate::model::popup_kind::PopupScope::Pane(20))
     );
+}
+
+/// 만들 탭의 cwd 원본은 메뉴를 고른 때 그 pane 에서 선택된 surface 다. 피커가 열린 동안 포커스가 다른 pane
+/// 으로 옮겨져도 바뀌지 않는다.
+#[test]
+fn the_tab_keeps_the_cwd_source_chosen_with_the_menu() {
+    let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
+    let engine = engine_session.borrow_mut();
+    open(
+        &mut state,
+        &engine.read(),
+        20,
+        "html",
+        "url",
+        HTML_EXTENSIONS,
+    );
+    let id = stored_request(&state).request_id;
+    assert!(state.focus_surface_by_id(&engine.read(), 101));
+    apply_outcome(&mut state, &engine, &confirmed(id, &["/tmp/x/a.html"]));
+    let created: Vec<_> = state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|r| match r.body {
+            Intent::Domain(DomainIntent::CreateTab {
+                pane_id,
+                cwd_source,
+                ..
+            }) => Some((pane_id, cwd_source)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(created, vec![(20, Some(201))]);
 }

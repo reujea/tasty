@@ -212,6 +212,8 @@ pub enum Intent {
     #[cfg(feature = "gui")]
     NewTabWithFollowup {
         pane_id: u32,
+        /// 메뉴를 고른 때 그 pane 에서 선택된 surface. mirror 로 넘길 때의 cwd 상속 원본이다.
+        cwd_source: Option<u32>,
         followup: CreateFollowup,
     },
 

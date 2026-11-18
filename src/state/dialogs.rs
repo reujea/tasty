@@ -509,6 +509,8 @@ pub(crate) struct NewTabPickerRequest {
     pub(crate) mirror: Option<(u32, std::sync::Weak<()>)>,
     pub(crate) request_id: FilePickerRequestId,
     pub(crate) pane_id: u32,
+    /// 메뉴를 고른 때 그 pane 에서 선택된 surface. 만들 탭의 cwd 상속 원본이다.
+    pub(crate) cwd_source: Option<u32>,
     pub(crate) kind: String,
     pub(crate) param_key: String,
 }
@@ -517,6 +519,7 @@ impl PartialEq for NewTabPickerRequest {
     fn eq(&self, other: &Self) -> bool {
         self.request_id == other.request_id
             && self.pane_id == other.pane_id
+            && self.cwd_source == other.cwd_source
             && self.kind == other.kind
             && self.param_key == other.param_key
             && match (&self.mirror, &other.mirror) {

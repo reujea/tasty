@@ -98,6 +98,7 @@ pub(crate) fn open(
             mirror,
             request_id,
             pane_id,
+            cwd_source: source,
             kind: kind.to_string(),
             param_key: param_key.to_string(),
         });
@@ -133,7 +134,7 @@ pub(crate) fn apply_outcome(
             DomainIntent::CreateTab {
                 pane_id: request.pane_id,
                 cwd: None,
-                cwd_source: None,
+                cwd_source: request.cwd_source,
                 kind: request.kind.clone(),
                 name: None,
                 surface_params: serde_json::json!({ request.param_key.as_str(): path }),

@@ -120,10 +120,14 @@ pub(crate) fn resolve(
             }
         }
         #[cfg(feature = "gui")]
-        Intent::NewTabWithFollowup { pane_id, .. } => DomainIntent::CreateTab {
+        Intent::NewTabWithFollowup {
+            pane_id,
+            cwd_source,
+            ..
+        } => DomainIntent::CreateTab {
             pane_id: *pane_id,
             cwd: None,
-            cwd_source: None,
+            cwd_source: *cwd_source,
             kind: "empty".into(),
             name: None,
             surface_params: serde_json::json!({}),

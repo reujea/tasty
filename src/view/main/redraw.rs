@@ -802,13 +802,13 @@ impl MainView {
         pane_id: u32,
         result: Option<u32>,
     ) {
+        // 새 탭의 cwd 원본은 메뉴를 고른 때 그 pane 에서 선택된 surface 이고 cwd 는 처리할 때 읽는다.
+        let selected = engine
+            .find_pane_by_id(pane_id)
+            .and_then(|pane| pane.tabs.get(self.state.navigation.tab_index(pane)))
+            .and_then(|tab| self.state.navigation.surface_id(tab));
         match result {
             Some(1) => {
-                let selected = engine
-                    .find_pane_by_id(pane_id)
-                    .and_then(|pane| pane.tabs.get(self.state.navigation.tab_index(pane)))
-                    .and_then(|tab| self.state.navigation.surface_id(tab));
-                // cwd 원본은 메뉴를 고른 때 그 pane 에서 선택된 surface 이고 cwd 는 처리할 때 읽는다.
                 self.state.dispatch_intent(
                     crate::intent::Intent::NewTab {
                         kind: None,
@@ -825,6 +825,7 @@ impl MainView {
                 self.state.dispatch_intent(
                     crate::intent::Intent::NewTabWithFollowup {
                         pane_id,
+                        cwd_source: selected,
                         followup: crate::intent::CreateFollowup::Prompt {
                             kind: "markdown".into(),
                         },
@@ -842,14 +843,13 @@ impl MainView {
             ),
             Some(5) => {
                 self.state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd: None,
-                        cwd_source: None,
-                        kind: "image".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
+                    crate::intent::Intent::NewTab {
+                        kind: Some("image".into()),
+                        params: serde_json::Value::Null,
+                        target: crate::intent::StructureTarget {
+                            pane: Some(pane_id),
+                            cwd_source: selected,
+                        },
                     }
                     .from_user_context_menu(),
                 );
