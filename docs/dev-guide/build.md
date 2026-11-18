@@ -465,7 +465,7 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 - `-g`는 도우미를 앞으로 가져오지 않는다. 도우미는 `LSUIElement` 앱이라 Dock과 메뉴 막대에도 나타나지 않는다. `-W`는 도우미가 끝날 때까지 기다린다. `-n`은 이미 떠 있는 도우미가 있어도 새로 실행한다.
 - `open`의 종료 코드는 도우미의 종료 코드가 아니다. 도우미가 3으로 끝나도 `open -W`는 0을 돌려준다(측정함). 성패는 결과 파일의 `exit_code`로 판정한다. 도우미는 시작할 때 `--result` 경로의 옛 파일을 지우므로, 실행 뒤 결과 파일이 없으면 결과를 쓰지 못한 실패로 본다.
 - `--command-file`을 빼면 권한만 조회한다. 이 조회와 `key` 단계가 없는 명령 파일은 요청 창을 띄우지 않으므로, 허용을 기다리며 반복해 실행해도 된다.
-- 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행할 수도 있다. 이때는 셸을 띄운 터미널 앱의 권한으로 판정된다.
+- 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행하면 권한 조회 전용이다. 이때 책임 프로세스는 셸을 띄운 터미널 앱이라, 요청 창과 손쉬운 사용 등록이 그 앱에 붙는다. 그래서 직접 실행에서는 권한을 요청하지 않는다. `request-access`는 종료 코드 2로 거부하고, 권한 없이 `key` 단계가 든 명령 파일은 요청 없이 3으로 끝낸다. 요청과 키 게시는 `open`으로 띄운 경우에만 한다. 도우미는 부모 프로세스가 launchd(PID 1)이면 `open`(LaunchServices)으로 띄운 것으로 본다. 그 값을 결과 파일의 `parent_pid`와 `launched_via_launch_services`에 적는다.
 
 명령 파일은 한 줄에 한 단계다. 빈 줄과 `#`로 시작하는 줄은 건너뛴다. 키는 macOS 가상 키코드 숫자로, 방향은 `surface.raw_key`와 같은 어휘로, 입력 소스는 TIS ID 그대로 적는다. 문자열(유니코드) 주입 명령은 없다. 문자열 주입은 IME를 거치지 않기 때문이다.
 
@@ -480,14 +480,14 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 
 - 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59)를 `press`/`release`로 보낸다. 실제 키보드와 같은 순서다. 수식키 이벤트는 `flagsChanged` 종류로 게시한다. 도우미는 누른 채로 있는 키코드를 기억하고, 그중 수식키의 플래그를 그 뒤 모든 키 이벤트에 싣는다. 왼쪽·오른쪽 Command(55, 54)처럼 같은 플래그를 내는 키는 둘 다 떼어야 플래그가 꺼진다. 예: Cmd+D는 `key 55 press`, `key 2 click`, `key 55 release`다.
 - 이벤트 소스와 탭은 `surface.raw_key`와 같다(`combinedSessionState`, `cgAnnotatedSessionEventTap`).
-- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키를 뗀다(수식키는 마지막). 뗀 키코드는 그 단계의 `released_on_failure`에 적는다.
+- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키를 뗀다(수식키는 마지막). 뗀 키코드는 그 단계의 `released_on_failure`에 적는다. 모든 단계가 성공했는데 명령 파일이 키를 누른 채로 끝나도, 끝내기 전에 같은 방법으로 떼고 `released_at_end`에 적는다.
 - 명령 파일 형식은 권한 판정·요청보다 먼저 전부 검사한다. 키코드는 0~65535, `activate`·`require_front`의 PID는 1~2147483647, `sleep`·`delay`의 ms는 0 이상의 정수다. 범위 밖이면 종료 코드 2다.
 
 ### 결과 파일과 종료 코드
 
 결과 파일은 JSON이다. 임시 이름으로 쓴 뒤 rename하므로, 파일이 보이면 다 쓴 것이다. 들어 있는 값은 다음과 같다.
 
-- `helper_pid`, `started_at`, `finished_at`(UTC), `bundle_id`, `bundle_version`, `executable`
+- `helper_pid`, `parent_pid`, `launched_via_launch_services`, `started_at`, `finished_at`(UTC), `bundle_id`, `bundle_version`, `executable`
 - `AXIsProcessTrusted`, `CGPreflightPostEventAccess`(실행 시작 때 값)
 - `requested_access`. 요청했으면 `AXIsProcessTrustedWithOptions_prompt`, `CGRequestPostEventAccess`(두 함수의 반환값)와 `AXIsProcessTrusted_after_request`, `CGPreflightPostEventAccess_after_request`(호출 뒤 다시 조회한 값)
 - `source_before`, `source_after`(입력 소스 ID)
@@ -497,13 +497,13 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 | 코드 | 뜻 |
 |---|---|
 | 0 | 모든 단계 성공. `request-access`는 이미 허용돼 있음 |
-| 1 | 그 밖의 실패. 결과 파일을 쓰거나 rename하지 못했거나 옛 결과 파일을 지우지 못하면 이유를 stderr에 쓰고 1로 끝난다. 이때 결과 파일은 없다 |
-| 2 | 인자·명령 파일 오류. `--result`가 없으면 결과 파일 없이 끝난다 |
-| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 `key` 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다 |
+| 1 | 그 밖의 실패. 결과 파일을 쓰거나 rename하지 못했거나 옛 결과 파일을 지우지 못하면 이유를 stderr에 쓰고 1로 끝난다. 이때 이번 결과 파일은 없고, 옛 결과 파일을 지우지 못한 경우에는 옛 파일이 남아 있을 수 있다 |
+| 2 | 인자·명령 파일 오류. 직접 실행에서 `request-access`를 받은 경우도 여기에 든다. `--result`가 없으면 결과 파일 없이 끝난다 |
+| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. `open`으로 띄웠고 명령 파일에 `key` 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다. 직접 실행에서는 요청하지 않는다 |
 | 4 | 입력 소스가 없거나 전환 실패 |
 | 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
 
-도우미가 권한 요청 함수를 부르는 경우는 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
+도우미가 권한 요청 함수를 부르는 경우는 `open`으로 띄웠을 때 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 직접 실행에서는 부르지 않는다. 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
 
 ### 격리 인스턴스에서 측정할 때
 

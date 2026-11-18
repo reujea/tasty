@@ -4,6 +4,7 @@
 // 이 앱이 손쉬운 사용 권한의 책임 프로세스가 되게 한다. 사용법은 docs/dev-guide/build.md의
 // "macOS 키 입력 도우미" 절에 있다.
 // `--args request-access [--result <경로>]`는 손쉬운 사용·이벤트 게시 권한을 시스템에 요청한다.
+// 실행 파일을 셸에서 직접 실행하면 권한 조회만 한다. 요청과 키 게시는 open으로 띄운 경우에만 한다.
 //
 // 명령 파일은 한 줄에 한 단계다. 빈 줄과 #로 시작하는 줄은 건너뛴다.
 //   switch_source <TIS 입력 소스 ID>
@@ -169,6 +170,14 @@ result["source_before"] = currentSourceID() ?? NSNull()
 result["command_file"] = commandFile ?? NSNull()
 result["requested_access"] = false
 
+// open(LaunchServices)으로 띄우면 부모가 launchd(1)다. 셸에서 직접 실행하면 책임 프로세스가 셸을 띄운 앱이라
+// 요청 창과 손쉬운 사용 등록이 그 앱에 붙으므로, 권한 요청은 LaunchServices 실행에서만 한다.
+let parentPID = getppid()
+let launchedViaLaunchServices = parentPID == 1
+result["parent_pid"] = Int(parentPID)
+result["launched_via_launch_services"] = launchedViaLaunchServices
+let openHint = "launch the helper with open -g -W -n -a so that the request goes to the helper app"
+
 // 시스템 요청 창을 띄워 손쉬운 사용 목록에 이 앱을 올린다. 창은 앱마다 한 번만 뜬다.
 func requestAccess() {
     let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -182,6 +191,7 @@ func requestAccess() {
 }
 
 if requestAccessMode {
+    guard launchedViaLaunchServices else { finish(.usage, "request-access refused in a direct run; \(openHint)") }
     requestAccess()
     if result["CGPreflightPostEventAccess_after_request"] as? Bool == true { finish(.ok) }
     finish(.noPermission, "access is not granted yet; allow the app in System Settings")
@@ -233,7 +243,12 @@ if let commandFile {
 // 게시 권한이 없으면 이벤트가 오류 없이 버려지므로 어떤 단계도 실행하지 않고 끝낸다.
 // key 단계가 있을 때만 권한을 요청한다. 키를 보내지 않는 실행은 허용을 기다리며 반복 조회에 쓰므로 요청 창을 띄우지 않는다.
 guard postAccess else {
-    if lines.contains(where: { $0.step.postsKeys }) { requestAccess() }
+    if lines.contains(where: { $0.step.postsKeys }) {
+        guard launchedViaLaunchServices else {
+            finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run; access was not requested in a direct run; \(openHint)")
+        }
+        requestAccess()
+    }
     finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run")
 }
 
@@ -258,6 +273,13 @@ func postKey(_ keycode: CGKeyCode, down: Bool) throws {
     event.flags = heldFlags()
     event.post(tap: .cgAnnotatedSessionEventTap)
     wait(ms: delayMs)
+}
+
+// 누른 채로 남은 키를 뗀다. 다음 입력이 그 키를 물고 들어가지 않게 하기 위해서다. 수식키는 마지막에 뗀다.
+func releaseHeldKeys() -> [Int] {
+    let held = heldKeys.sorted { (modifierFlags[$0] == nil ? 0 : 1, $0) < (modifierFlags[$1] == nil ? 0 : 1, $1) }
+    for keycode in held { try? postKey(keycode, down: false) }
+    return held.map { Int($0) }
 }
 
 func run(_ step: Step) throws -> [String: Any] {
@@ -312,13 +334,11 @@ for entry in lines {
         let failure = error as? StepError ?? StepError(code: .failure, message: "\(error)")
         step["ok"] = false
         step["error"] = failure.message
+        step["released_on_failure"] = releaseHeldKeys()
         steps.append(step)
-        // 누른 채로 남은 키를 떼어 다음 입력이 그 키를 물고 들어가지 않게 한다. 수식키는 마지막에 뗀다.
-        let held = heldKeys.sorted { (modifierFlags[$0] == nil ? 0 : 1, $0) < (modifierFlags[$1] == nil ? 0 : 1, $1) }
-        step["released_on_failure"] = held.map { Int($0) }
-        steps[steps.count - 1] = step
-        for keycode in held { try? postKey(keycode, down: false) }
         finish(failure.code, "line \(entry.line): \(failure.message)")
     }
 }
+// 명령 파일이 키를 누른 채로 끝나도 눌린 키를 남기지 않는다.
+result["released_at_end"] = releaseHeldKeys()
 finish(.ok)
