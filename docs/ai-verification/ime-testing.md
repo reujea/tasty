@@ -44,7 +44,7 @@ call("surface.ime_disable")
 
 ## 제한
 
-- OS IME를 거치는 실제 입력 경로는 이 IPC로 확인할 수 없다. macOS에서는 [macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)로 키코드를 보내 확인한다. 2벌식으로 바꾸고 r, k, 스페이스를 보내 PTY에 `가 `가 들어가면 IME를 거친 것이다.
+- OS IME를 거치는 실제 입력 경로는 이 IPC로 확인할 수 없다. macOS에서는 [macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)로 키코드를 보내 확인한다. 2벌식으로 바꾸고 r, k, 스페이스를 보내 PTY에 `가 `가 들어가면 IME를 거친 것이다. 격리 인스턴스를 띄운 직후의 준비 단계(첫 실행 팝업 닫기, 포커스 왕복)는 그 문서의 [격리 인스턴스에서 측정할 때](../dev-guide/build.md#격리-인스턴스에서-측정할-때)에 있다.
 - `Ime::Enabled/Preedit/Commit/Disabled`의 본체 처리 함수를 호출한다. OS 실제 IME 엔진은 관여하지 않는다. Enabled는 모드 활성화이며, 조합 대상은 첫 비어 있지 않은 Preedit 때 고정한다. 빈 Preedit로 끝난 조합의 대상은 뒤따르는 Commit 검사에만 남기며, 다음 비어 있지 않은 Preedit는 새 대상으로 고정한다.
 - `surface_id` 지정 미지원 — 항상 포커스된 surface.
 - 마우스 클릭에 의한 preedit 커밋은 시뮬레이션 불가(별도 경로).

@@ -453,7 +453,7 @@ just dist-setup-linux              # 또는 수동 (아래)
 - 허용 대상: 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용에서 `~/Applications/TastyInputHelper.app` 하나만 허용한다.
 - 목록에 도우미를 올리려면 `open -W -n -a ~/Applications/TastyInputHelper.app --args request-access [--result <결과 JSON 경로>]`로 시스템 요청 창을 띄운다. 도우미는 `AXIsProcessTrustedWithOptions`(`kAXTrustedCheckOptionPrompt=true`)와 `CGRequestPostEventAccess()`를 부르고, 두 반환값과 호출 뒤 조회 값을 결과 파일에 적는다. 키는 보내지 않는다. 이미 허용돼 있으면 0, 아니면 3으로 끝난다. 사용자는 창에서 시스템 설정을 열어 스위치를 켠다.
 - 요청 창은 앱마다 한 번만 뜬다. 다시 띄우려면 `tccutil reset Accessibility com.zilhak.tasty.input-helper`로 도우미 항목만 초기화한 뒤 `request-access`를 다시 실행한다. 이 명령은 그 번들 ID의 허용도 지운다.
-- 재빌드 뒤에도 허용이 유지되려면 번들 ID, 서명한 leaf 인증서, 설치 경로가 모두 같아야 한다. 인증서를 지우고 `--create`로 다시 만들면 leaf가 바뀐다. `Tasty Dev`로 서명하면 지정 요구(`codesign -d -r-`)가 `identifier "com.zilhak.tasty.input-helper" and certificate leaf = H"<인증서 해시>"`이다. 같은 소스로 다시 빌드하면 CDHash도 같다. Info.plist 버전 문자열만 바꿔 다시 빌드하면 CDHash는 바뀌고, 지정 요구와 `Authority=Tasty Dev`는 같다(측정함). 이 상태에서 손쉬운 사용 허용이 실제로 유지되는지는 미측정이다.
+- 재빌드 뒤에도 허용이 유지되려면 번들 ID, 서명한 leaf 인증서, 설치 경로가 모두 같아야 한다. 인증서를 지우고 `--create`로 다시 만들면 leaf가 바뀐다. `Tasty Dev`로 서명하면 지정 요구(`codesign -d -r-`)가 `identifier "com.zilhak.tasty.input-helper" and certificate leaf = H"<인증서 해시>"`이다. 같은 소스로 다시 빌드하면 CDHash도 같다. Info.plist 버전 문자열이나 소스를 바꿔 다시 빌드하면 CDHash는 바뀌고, 지정 요구와 `Authority=Tasty Dev`는 같다. 허용한 뒤 소스를 바꿔 다시 설치해도 다시 허용하지 않은 상태에서 권한 조회 값이 true였다(측정함). 재빌드 뒤 실제 키 게시까지 되는지는 미측정이다.
 
 ### 호출
 
@@ -504,6 +504,12 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 | 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
 
 도우미가 권한 요청 함수를 부르는 경우는 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
+
+### 격리 인스턴스에서 측정할 때
+
+- 새 `TASTY_HOME`으로 처음 띄우면 호스트 팝업 `info_modal`이 포커스를 잡아 키를 가로챈다. 도우미의 키는 터미널에 닿지 않고, 도우미 결과는 성공으로 나온다. 측정 전에 `tasty debug host-popup close --popup-id info_modal`로 닫고, `tasty debug ui-state`의 `gate_host_popup_focused`와 `keyboard_shortcuts_gated`가 false인지 확인한다.
+- 띄운 직후에는 2벌식으로 바꿔도 IME가 조합하지 않고 영문 키가 그대로 PTY에 들어갔다. `activate`로 다른 앱을 앞으로 가져왔다가 격리 인스턴스로 되돌린 뒤부터 조합했다. 원인은 확인하지 않았다. 측정 절차에 이 포커스 왕복 단계를 두고, IME 통과 판정(2벌식에서 r, k, 스페이스를 보내 PTY에 `가 `가 들어가는지)을 한 뒤 측정한다.
+- 조합 중이던 글자가 OS IME에 남으면 다음 한글 입력에 이어 붙는다. 회차를 반복할 때는 각 회차를 2벌식 스페이스로 시작해 남은 조합을 비우고, 그때 PTY에 들어간 것도 기록한다.
 
 ### 합성 입력의 한계
 
