@@ -630,10 +630,8 @@ fn closing_a_hidden_parent_closes_the_shell_without_waiting_for_draw() {
 }
 
 /// R 이 owner 없이 요청한 피커는 `Surface(R)`이고 R 안에 놓인다. 포커스가 L 인 동안 누른 Escape 는
-/// 피커를 닫지 않아야 한다. Escape 주인은 범위와 무관하게 z 최상단 팝업이라 이 시험은 실패한다.
-/// Escape 주인 판정이 포커스가 있는 범위를 보게 되면 풀린다.
+/// 피커를 닫지 않아야 한다.
 #[test]
-#[ignore = "the escape owner is the topmost popup whatever its scope; this passes once the escape owner check reads the focused scope"]
 fn escape_on_the_left_surface_leaves_a_right_ownerless_picker_open() {
     escape_on_left_with_right_picker(true);
 }
