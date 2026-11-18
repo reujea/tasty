@@ -155,25 +155,199 @@ fn new_tab_uses_the_pane_and_cwd_chosen_at_input() {
 }
 
 /// 터미널 새 탭(키·팔레트·더블탭)은 입력 때의 pane 에 열고 그 pane 의 surface 를 cwd 원본으로 싣는다.
+/// cwd 는 입력 때 담지 않고 처리할 때 그 원본에서 읽는다.
 #[test]
 fn a_terminal_new_tab_uses_the_pane_and_cwd_chosen_at_input() {
     let (mut state, engine, _a, b) = two_explorer_panes();
     let intent = issue(&mut state, &engine, |s, e, t| {
         structure::new_terminal_tab(s, e, t, "new_tab")
     });
+    assert!(
+        matches!(intent.body, Intent::NewTab { kind: None, .. }),
+        "the cwd is not read at input: {:?}",
+        intent.body
+    );
     move_focus_away(&mut state, &engine);
-    match intent.body {
-        Intent::Domain(DomainIntent::CreateTab {
+    match resolved(&state, &engine, &intent).domain() {
+        Some(DomainIntent::CreateTab {
             pane_id,
             cwd,
             cwd_source,
+            kind,
+            activate,
             ..
         }) => {
             assert_eq!(pane_id, 20);
             assert_eq!(cwd, Some(b));
             assert_eq!(cwd_source, Some(201));
+            assert_eq!(kind, "terminal");
+            assert!(activate);
         }
         other => panic!("expected a new tab, got {other:?}"),
+    }
+}
+
+/// pane 10 에 탐색기 탭 둘(101 루트 A, 102 루트 B), pane 20 에 탐색기 201. 포커스는 pane 10 의 101 이다.
+fn explorer_tabs_events() -> Vec<tasty_core::DomainEvent> {
+    use tasty_core::DomainEvent as E;
+    let mut events = vec![
+        E::CategoryCreated {
+            id: 0,
+            name: "normal".into(),
+            index: 0,
+        },
+        E::WorkspaceCreated {
+            id: 1,
+            name: "w".into(),
+            category: 0,
+            index: 0,
+            pane: 10,
+        },
+        E::PaneSplit {
+            target: 10,
+            pane: 20,
+            split: tasty_core::SplitSpec {
+                direction: SplitDirection::Vertical,
+                ratio: tasty_core::Ratio::from_f32(0.5),
+                placement: tasty_core::Placement::After,
+            },
+        },
+    ];
+    for (id, pane, index) in [(101, 10, 0), (102, 10, 1), (201, 20, 0)] {
+        events.push(E::TabCreated {
+            id,
+            pane,
+            index,
+            name: "e".into(),
+            surface: tasty_core::SurfaceSpec {
+                id,
+                kind: "explorer".into(),
+                data: None,
+            },
+        });
+    }
+    events
+}
+
+fn explorer_tabs() -> (MainViewState, EngineSession) {
+    let (mut state, mut session) = crate::state::tests::test_state_from_model(
+        crate::state::tests::test_model(explorer_tabs_events()),
+    );
+    for (id, root) in [(101, "tabs/a"), (102, "tabs/b"), (201, "tabs/c")] {
+        session.runtime.surfaces.insert(
+            id,
+            Box::new(crate::model::ExplorerPanel::new(
+                id,
+                crate::test_support::abs_path(root),
+            )),
+        );
+    }
+    session.runtime.settings.general.inherit_cwd = true;
+    state.select_pane(&session.core_state, 10);
+    (state, session)
+}
+
+/// 입력 뒤 원본 surface 의 cwd 를 새 루트로 바꾼다.
+fn change_source_cwd(session: &mut EngineSession, source: u32) {
+    session.runtime.surfaces.insert(
+        source,
+        Box::new(crate::model::ExplorerPanel::new(
+            source,
+            crate::test_support::abs_path("tabs/moved"),
+        )),
+    );
+}
+
+fn close_tab(session: &mut EngineSession, tab: u32) {
+    let before = crate::state::tests::test_model(explorer_tabs_events());
+    let revision = before.applied.revision.unwrap_or(0) + 1;
+    let mut retired = Vec::new();
+    tasty_core::projection::apply(
+        session.borrow_mut().core,
+        &before,
+        &tasty_core::DomainBatch {
+            batch_id: 2,
+            events: vec![tasty_core::RecordedEvent {
+                revision,
+                event: tasty_core::DomainEvent::TabClosed { id: tab },
+            }],
+        },
+        &mut retired,
+    )
+    .expect("apply");
+    // 실제 닫기는 탭을 모델에서 빼고 그 surface 의 런타임 객체를 거둔다.
+    session.runtime.surfaces.remove(&tab);
+    assert!(!session.read().has_surface(tab));
+}
+
+fn new_tab_cwd(
+    state: &MainViewState,
+    engine: &EngineSession,
+    intent: &DispatchedIntent,
+) -> Option<std::path::PathBuf> {
+    match resolved(state, engine, intent).domain() {
+        Some(DomainIntent::CreateTab { pane_id, cwd, .. }) => {
+            assert_eq!(pane_id, 10);
+            cwd
+        }
+        other => panic!("expected a new tab in pane 10, got {other:?}"),
+    }
+}
+
+/// 장면에 입력 하나를 넣는다.
+type Input = fn(&mut MainViewState, &EngineSession);
+
+/// 새 터미널 탭을 직접 만드는 입력(단축키·탭 바 + 버튼·소유 surface 메뉴)은 입력 때 cwd 원본 surface 만 정한다.
+/// 처리 전에 그 surface 의 cwd 가 바뀌면 새 값을 쓰고, 그 탭이 닫혔으면 pane 은 그대로 두고 상속하지 않는다.
+#[test]
+fn a_new_terminal_tab_reads_the_cwd_of_its_source_when_processed() {
+    use crate::adapters::ui::tab_bar::{TabBarAction, apply_tab_bar_actions};
+    let inputs: [(&str, Input); 3] = [
+        ("shortcut", |s, e| {
+            let read = e.read();
+            let target = s.command_target(&read);
+            structure::new_terminal_tab(s, &read, &target, "new_tab");
+        }),
+        ("tab bar", |s, e| {
+            apply_tab_bar_actions(
+                s,
+                &e.read(),
+                vec![TabBarAction::AddTab { pane_id: 10 }],
+                &[],
+                160.0,
+                1.0,
+            );
+        }),
+        ("owner menu", |s, e| {
+            s.add_kind_tab_by_owner(&e.read(), 101, "terminal", &serde_json::json!({}))
+                .expect("owner exists");
+        }),
+    ];
+    for (name, input) in inputs {
+        let (mut state, mut engine) = explorer_tabs();
+        input(&mut state, &engine);
+        let intent = state
+            .take_pending_intents()
+            .into_iter()
+            .find(|i| matches!(i.body, Intent::NewTab { .. }))
+            .unwrap_or_else(|| panic!("{name}: a new tab intent"));
+        assert_eq!(
+            new_tab_cwd(&state, &engine, &intent),
+            Some(crate::test_support::abs_path("tabs/a")),
+            "{name}"
+        );
+        change_source_cwd(&mut engine, 101);
+        assert_eq!(
+            new_tab_cwd(&state, &engine, &intent),
+            Some(crate::test_support::abs_path("tabs/moved")),
+            "{name}: the cwd is read when processed"
+        );
+        close_tab(&mut engine, 101);
+        assert_eq!(
+            new_tab_cwd(&state, &engine, &intent),
+            None,
+            "{name}: a closed source inherits nothing"
+        );
     }
 }
 
@@ -410,6 +584,52 @@ fn a_pane_command_for_a_new_tab_draft_goes_to_its_pane_now() {
     )));
 }
 
+/// 새 탭·surface 분할 초안이 대상이면 터미널 새 탭(키·팔레트·더블탭)은 기댄 pane 에 바로 보내고, cwd 원본은
+/// 입력 때 초안 뒤 탭에서 골라져 있던 surface 다. mirror 로 넘길 때도 그 surface 를 원본으로 싣는다.
+#[test]
+fn a_terminal_new_tab_for_a_draft_on_its_pane_keeps_the_base_surface_as_cwd_source() {
+    use crate::app::services::impl_mirror::{ClientCwd, build_mirror_forward_op};
+    use tasty_ipc::stream::InheritCwd;
+    for op in [new_tab_op, split_surface_op] {
+        let (mut state, engine, anchor, id, _draft) = draft_scene(op);
+        let read = engine.read();
+        let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
+        let target = state.command_target(&read);
+        assert_eq!(target.draft_base_surface, Some(anchor));
+        structure::new_terminal_tab(&mut state, &read, &target, "new_tab");
+        assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+        let intents = state.take_pending_intents();
+        assert_eq!(intents.len(), 1);
+        assert!(
+            matches!(
+                intents[0].body,
+                Intent::NewTab {
+                    target: StructureTarget {
+                        pane: Some(p),
+                        cwd_source: Some(s),
+                    },
+                    ..
+                } if p == pane && s == anchor
+            ),
+            "{:?}",
+            intents[0].body
+        );
+        let domain = resolved(&state, &engine, &intents[0])
+            .domain()
+            .expect("resolved");
+        let client = ClientCwd {
+            presentation: Some(&state.navigation),
+            inherit: true,
+        };
+        assert_eq!(
+            build_mirror_forward_op(&engine.core_state, &domain, &client)
+                .expect("creation op")
+                .inherit_cwd(),
+            Some(&InheritCwd::Surface(anchor))
+        );
+    }
+}
+
 /// surface 분할 초안이 대상이면 surface 분할은 만들 surface 가 대상이라 걸어 두고, 생성된 surface 를
 /// 나눈다. pane 명령은 그 초안이 기댄 기존 pane 이 대상이라 바로 보낸다.
 #[test]
@@ -618,11 +838,11 @@ fn a_forwarded_pane_creation_carries_the_cwd_source_chosen_at_input() {
     let key_tab = state
         .take_pending_intents()
         .into_iter()
-        .find_map(|i| match i.body {
-            Intent::Domain(d @ DomainIntent::CreateTab { .. }) => Some(d),
-            _ => None,
-        })
+        .find(|i| matches!(i.body, Intent::NewTab { .. }))
         .expect("the key makes a new tab");
+    let key_tab = resolved(&state, &engine, &key_tab)
+        .domain()
+        .expect("resolved");
     let pane = engine.core_state.find_pane_by_id(10).expect("pane 10");
     state.navigation.goto_tab(pane, 1);
     let client = ClientCwd {
@@ -663,11 +883,9 @@ fn a_tab_bar_new_tab_carries_the_cwd_source_of_its_pane() {
     let tab = state
         .take_pending_intents()
         .into_iter()
-        .find_map(|i| match i.body {
-            Intent::Domain(d @ DomainIntent::CreateTab { .. }) => Some(d),
-            _ => None,
-        })
+        .find(|i| matches!(i.body, Intent::NewTab { .. }))
         .expect("the tab is requested");
+    let tab = resolved(&state, &engine, &tab).domain().expect("resolved");
     let pane = engine.core_state.find_pane_by_id(10).expect("pane 10");
     state.navigation.goto_tab(pane, 1);
     let client = ClientCwd {
@@ -718,11 +936,9 @@ fn an_owner_menu_new_tab_carries_its_owner_as_the_cwd_source() {
     let tab = state
         .take_pending_intents()
         .into_iter()
-        .find_map(|i| match i.body {
-            Intent::Domain(d @ DomainIntent::CreateTab { .. }) => Some(d),
-            _ => None,
-        })
+        .find(|i| matches!(i.body, Intent::NewTab { .. }))
         .expect("the tab is requested");
+    let tab = resolved(&state, &engine, &tab).domain().expect("resolved");
     let client = ClientCwd {
         presentation: Some(&state.navigation),
         inherit: true,
@@ -735,7 +951,7 @@ fn an_owner_menu_new_tab_carries_its_owner_as_the_cwd_source() {
     );
 }
 
-/// pane 컨텍스트 메뉴의 새 터미널 탭은 cwd 를 읽은 그 pane 의 선택 surface 를 cwd 원본으로 싣는다.
+/// pane 컨텍스트 메뉴의 새 터미널 탭은 그 pane 의 선택 surface 를 cwd 원본으로만 싣고 cwd 는 처리할 때 읽는다.
 /// 메뉴 결과 적용은 창(MainView)에서만 돌아 소스로 확인한다.
 #[test]
 fn the_pane_menu_new_tab_carries_the_cwd_source_it_read() {
@@ -744,8 +960,14 @@ fn the_pane_menu_new_tab_carries_the_cwd_source_it_read() {
         .find("fn apply_pane_menu_selection(")
         .expect("apply_pane_menu_selection");
     let body = &src[start..start + src[start..].find("Some(2) =>").expect("next arm")];
-    assert!(body.contains("self.state.resolve_inherit_cwd_from_surface(engine, surface)"));
-    assert!(body.contains("cwd_source: selected,"));
+    assert!(body.contains("crate::intent::Intent::NewTab {"));
+    assert!(
+        body.contains("pane: Some(pane_id),\n                            cwd_source: selected,")
+    );
+    assert!(
+        !body.contains("resolve_inherit_cwd_from_surface"),
+        "the cwd is read when processed"
+    );
 }
 
 /// 터미널로 변환할 때 cwd 는 포커스 surface 가 아니라 변환하는 surface 의 것이다.

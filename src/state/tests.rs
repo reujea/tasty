@@ -701,18 +701,28 @@ fn owner_kind_tab_takes_the_owner_cwd_not_the_focused_one() {
     assert_eq!(state.focused_surface_id(&engine.read()), Some(focused));
 
     state
-        .add_kind_tab_by_owner(&engine.read(), owner, "explorer", &serde_json::json!({}))
+        .add_kind_tab_by_owner(&engine.read(), owner, "terminal", &serde_json::json!({}))
         .expect("owner 가 있으면 탭 추가 intent 를 낸다");
     let intents = state.take_pending_intents();
     assert_eq!(intents.len(), 1);
-    match &intents[0].body {
-        crate::intent::Intent::Domain(crate::app::command::DomainIntent::CreateTab {
+    match crate::app::creation_intent::resolve(
+        &state,
+        &engine.as_ref(),
+        &intents[0].body,
+        &intents[0].origin,
+    )
+    .expect("resolve")
+    .domain()
+    {
+        Some(crate::app::command::DomainIntent::CreateTab {
             pane_id,
             cwd,
+            cwd_source,
             ..
         }) => {
-            assert_eq!(*pane_id, focused);
+            assert_eq!(pane_id, focused);
             assert_eq!(cwd.as_deref(), Some(owner_root.as_path()));
+            assert_eq!(cwd_source, Some(owner));
         }
         other => panic!("CreateTab 이 아니다: {other:?}"),
     }

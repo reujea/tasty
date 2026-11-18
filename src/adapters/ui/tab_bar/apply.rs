@@ -59,17 +59,15 @@ pub fn apply_tab_bar_actions(
                     .find_pane_by_id(pane_id)
                     .and_then(|pane| pane.tabs.get(state.navigation.tab_index(pane)))
                     .and_then(|tab| state.navigation.surface_id(tab));
-                let cwd = selected
-                    .and_then(|surface| state.resolve_inherit_cwd_from_surface(engine, surface));
+                // 누른 pane 에 연다. cwd 원본은 그때 그 pane 에서 선택된 surface 이고 cwd 는 처리할 때 읽는다.
                 state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd,
-                        cwd_source: selected,
-                        kind: "terminal".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
+                    crate::intent::Intent::NewTab {
+                        kind: None,
+                        params: serde_json::Value::Null,
+                        target: crate::intent::StructureTarget {
+                            pane: Some(pane_id),
+                            cwd_source: selected,
+                        },
                     }
                     .from_user_menu("tab.create"),
                 );

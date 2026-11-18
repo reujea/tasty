@@ -11,8 +11,8 @@ use super::RequestContext;
 use crate::core::CoreState;
 
 impl RequestContext {
-    /// Resolve the menu owner once; App admits and executes the explicit creation command.
-    /// cwd comes from the owner surface, not the focused one, so the result does not depend on focus.
+    /// 메뉴 소유 surface 의 pane 에 `kind` 탭을 연다. 대상 pane 과 cwd 원본(소유 surface)은 지금 정하고,
+    /// 터미널의 cwd 는 처리할 때 그 surface 에서 읽는다. 포커스와 무관하다.
     #[cfg(feature = "gui")]
     pub fn add_kind_tab_by_owner(
         &mut self,
@@ -24,16 +24,14 @@ impl RequestContext {
         let (_, pane_id) = engine
             .find_workspace_index_for_surface(owner_surface_id)
             .ok_or_else(|| anyhow::anyhow!("owner surface {owner_surface_id} not found"))?;
-        let cwd = self.resolve_inherit_cwd_from_surface(engine, owner_surface_id);
         self.dispatch_intent(
-            crate::app::command::DomainIntent::CreateTab {
-                pane_id,
-                cwd,
-                cwd_source: Some(owner_surface_id),
-                kind: kind.into(),
-                name: None,
-                surface_params: params.clone(),
-                activate: true,
+            crate::intent::Intent::NewTab {
+                kind: Some(kind.into()),
+                params: params.clone(),
+                target: crate::intent::StructureTarget {
+                    pane: Some(pane_id),
+                    cwd_source: Some(owner_surface_id),
+                },
             }
             .from_user_context_menu(),
         );

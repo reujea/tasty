@@ -131,38 +131,14 @@ pub(crate) fn new_tab(
     }
 }
 
-/// 대상 pane 에 터미널 새 탭. cwd 는 대상 surface 에서 지금 읽는다.
+/// 대상 pane 에 터미널 새 탭. 입력 때는 cwd 원본 surface id 만 정하고 cwd 는 처리할 때 그 surface 에서 읽는다.
 pub(crate) fn new_terminal_tab(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     target: &CommandTarget,
     source: &'static str,
 ) {
-    let held = HeldStructure::NewTab {
-        kind: None,
-        params: serde_json::Value::Null,
-    };
-    if !bound_now(state, engine, target, Unit::Pane, held, source) {
-        return;
-    }
-    let Some(pane_id) = target.pane else {
-        return;
-    };
-    let cwd = target
-        .surface_id()
-        .and_then(|sid| state.resolve_inherit_cwd_from_surface(engine, sid));
-    state.dispatch_intent(
-        crate::app::command::DomainIntent::CreateTab {
-            pane_id,
-            cwd,
-            cwd_source: target.surface_id(),
-            kind: "terminal".into(),
-            name: None,
-            surface_params: serde_json::json!({}),
-            activate: true,
-        }
-        .from_user_shortcut(source),
-    );
+    new_tab(state, engine, target, None, serde_json::Value::Null, source);
 }
 
 /// 대상 pane 에 닫은 항목 복원.

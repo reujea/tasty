@@ -805,18 +805,15 @@ impl MainView {
                     .find_pane_by_id(pane_id)
                     .and_then(|pane| pane.tabs.get(self.state.navigation.tab_index(pane)))
                     .and_then(|tab| self.state.navigation.surface_id(tab));
-                let cwd = selected.and_then(|surface| {
-                    self.state.resolve_inherit_cwd_from_surface(engine, surface)
-                });
+                // cwd 원본은 메뉴를 고른 때 그 pane 에서 선택된 surface 이고 cwd 는 처리할 때 읽는다.
                 self.state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd,
-                        cwd_source: selected,
-                        kind: "terminal".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
+                    crate::intent::Intent::NewTab {
+                        kind: None,
+                        params: serde_json::Value::Null,
+                        target: crate::intent::StructureTarget {
+                            pane: Some(pane_id),
+                            cwd_source: selected,
+                        },
                     }
                     .from_user_context_menu(),
                 );
