@@ -40,6 +40,7 @@ const AGENT_FACING: &[&str] = &[
     "src/app/dispatch_domain.rs",
     "src/app/dispatch_domain/",
     "src/file/identify_worker.rs",
+    "src/file/dispatch.rs",
     "src/adapters/ipc/request_scope.rs",
     "src/app/journal/commands.rs",
     "src/app/journal/commands/",
@@ -116,6 +117,18 @@ const ROSTER: &[(&str, Kind, usize, &str)] = &[
         CompatibilityDefault,
         1,
         "target pane 없는 preset 적용 intent만 현재 명령 문맥의 pane으로 채운다. 분할·새 탭·복원·새 workspace는 입력 때 대상을 싣고, 외부 구조 IPC는 별도 journal resolver를 거친다",
+    ),
+    (
+        "src/file/dispatch.rs",
+        CompatibilityDefault,
+        2,
+        "결과 자리(result_place)를 정하지 않은 파일 요청만 처리할 때 선택 pane과 surface에 열고, 받은 파일이면 활성 workspace가 mirror인지 본다. 입력이 pane이나 새 로컬 workspace를 정했으면 그 자리를 쓴다",
+    ),
+    (
+        "src/file/dispatch.rs",
+        Attribution,
+        1,
+        "핸들러 선택창을 귀속할 workspace의 기본값이다. 요청 출처 surface가 있으면 그 surface의 workspace로 바꾸며 결과를 열 자리는 고르지 않는다",
     ),
     (
         "src/adapters/ipc/handler.rs",
