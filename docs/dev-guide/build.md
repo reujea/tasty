@@ -447,7 +447,7 @@ just dist-setup-linux              # 또는 수동 (아래)
 ./scripts/macos-input-helper/build-install.sh
 ```
 
-- `swiftc`로 빌드하고 `TASTY_CODESIGN_IDENTITY`(기본 `Tasty Dev`)로 서명한 뒤 `~/Applications/TastyInputHelper.app`에 설치한다. 설치 경로는 `TASTY_INPUT_HELPER_APP`으로 바꿀 수 있다.
+- `swiftc`로 빌드하고 `TASTY_CODESIGN_IDENTITY`(기본 `Tasty Dev`)로 서명한 뒤 `~/Applications/TastyInputHelper.app`에 설치한다. 설치 경로는 `TASTY_INPUT_HELPER_APP`으로 바꿀 수 있다. 설치는 기존 경로를 지우고 다시 만든다. 그래서 경로가 `.app`으로 끝나지 않거나, 심볼릭 링크이거나, 이미 있는 것이 번들 ID `com.zilhak.tasty.input-helper`의 앱이 아니면 지우지 않고 빌드 전에 실패한다.
 - identity가 키체인에 없으면 ad-hoc으로 서명하지 않고 실패한다. 이때는 `./scripts/macos-codesign-identity.sh`로 조회하고, 없으면 `--create`로 발급한다.
 - 서명 뒤 Identifier, linker 서명이나 ad-hoc 서명이 아닌지, `codesign --verify --deep --strict` 통과 여부를 확인한다.
 - 허용 대상: 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용에서 `~/Applications/TastyInputHelper.app` 하나만 허용한다.
@@ -463,8 +463,8 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 ```
 
 - `-g`는 도우미를 앞으로 가져오지 않는다. 도우미는 `LSUIElement` 앱이라 Dock과 메뉴 막대에도 나타나지 않는다. `-W`는 도우미가 끝날 때까지 기다린다. `-n`은 이미 떠 있는 도우미가 있어도 새로 실행한다.
-- `open`의 종료 코드는 도우미의 종료 코드가 아니다. 도우미가 3으로 끝나도 `open -W`는 0을 돌려준다(측정함). 성패는 결과 파일의 `exit_code`로 판정한다.
-- `--command-file`을 빼면 권한만 조회한다. 이 조회는 요청 창을 띄우지 않으므로 허용을 기다리며 반복해 실행해도 된다.
+- `open`의 종료 코드는 도우미의 종료 코드가 아니다. 도우미가 3으로 끝나도 `open -W`는 0을 돌려준다(측정함). 성패는 결과 파일의 `exit_code`로 판정한다. 도우미는 시작할 때 `--result` 경로의 옛 파일을 지우므로, 실행 뒤 결과 파일이 없으면 결과를 쓰지 못한 실패로 본다.
+- `--command-file`을 빼면 권한만 조회한다. 이 조회와 `key` 단계가 없는 명령 파일은 요청 창을 띄우지 않으므로, 허용을 기다리며 반복해 실행해도 된다.
 - 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행할 수도 있다. 이때는 셸을 띄운 터미널 앱의 권한으로 판정된다.
 
 명령 파일은 한 줄에 한 단계다. 빈 줄과 `#`로 시작하는 줄은 건너뛴다. 키는 macOS 가상 키코드 숫자로, 방향은 `surface.raw_key`와 같은 어휘로, 입력 소스는 TIS ID 그대로 적는다. 문자열(유니코드) 주입 명령은 없다. 문자열 주입은 IME를 거치지 않기 때문이다.
@@ -478,10 +478,10 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 | `activate <pid>` | 그 PID의 앱을 앞으로 가져온다 |
 | `require_front <pid>` | 앞 앱 PID가 다르면 키를 보내지 않고 끝낸다. 키를 보내기 전에 넣는다 |
 
-- 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59)를 `press`/`release`로 보낸다. 실제 키보드와 같은 순서다. 수식키 이벤트는 `flagsChanged` 종류로 게시한다. 도우미는 눌린 수식키를 기억해 그 뒤 모든 키 이벤트에 같은 플래그를 싣는다. 예: Cmd+D는 `key 55 press`, `key 2 click`, `key 55 release`다.
+- 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59)를 `press`/`release`로 보낸다. 실제 키보드와 같은 순서다. 수식키 이벤트는 `flagsChanged` 종류로 게시한다. 도우미는 누른 채로 있는 키코드를 기억하고, 그중 수식키의 플래그를 그 뒤 모든 키 이벤트에 싣는다. 왼쪽·오른쪽 Command(55, 54)처럼 같은 플래그를 내는 키는 둘 다 떼어야 플래그가 꺼진다. 예: Cmd+D는 `key 55 press`, `key 2 click`, `key 55 release`다.
 - 이벤트 소스와 탭은 `surface.raw_key`와 같다(`combinedSessionState`, `cgAnnotatedSessionEventTap`).
-- 실패한 단계에서 멈추며, 그때까지 눌린 수식키는 뗀다.
-- 명령 파일 형식은 권한 판정보다 먼저 전부 검사한다.
+- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키를 뗀다(수식키는 마지막). 뗀 키코드는 그 단계의 `released_on_failure`에 적는다.
+- 명령 파일 형식은 권한 판정·요청보다 먼저 전부 검사한다. 키코드는 0~65535, `activate`·`require_front`의 PID는 1~2147483647, `sleep`·`delay`의 ms는 0 이상의 정수다. 범위 밖이면 종료 코드 2다.
 
 ### 결과 파일과 종료 코드
 
@@ -497,13 +497,13 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 | 코드 | 뜻 |
 |---|---|
 | 0 | 모든 단계 성공. `request-access`는 이미 허용돼 있음 |
-| 1 | 그 밖의 실패 |
+| 1 | 그 밖의 실패. 결과 파일을 쓰거나 rename하지 못했거나 옛 결과 파일을 지우지 못하면 이유를 stderr에 쓰고 1로 끝난다. 이때 결과 파일은 없다 |
 | 2 | 인자·명령 파일 오류. `--result`가 없으면 결과 파일 없이 끝난다 |
-| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다 |
+| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 `key` 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다 |
 | 4 | 입력 소스가 없거나 전환 실패 |
 | 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
 
-도우미가 권한 요청 함수를 부르는 경우는 `request-access`와, 권한 없이 단계가 든 명령 파일을 받은 경우 둘뿐이다. 명령 파일 없는 조회와 형식 오류(종료 코드 2)에서는 부르지 않는다.
+도우미가 권한 요청 함수를 부르는 경우는 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
 
 ### 합성 입력의 한계
 

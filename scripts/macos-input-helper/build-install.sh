@@ -21,6 +21,26 @@ BUNDLE_ID="com.zilhak.tasty.input-helper"
 IDENTITY="${TASTY_CODESIGN_IDENTITY:-Tasty Dev}"
 INSTALL_APP="${TASTY_INPUT_HELPER_APP:-$HOME/Applications/$APP_NAME.app}"
 
+# 설치는 기존 경로를 지우고 다시 만든다. 다른 앱이나 디렉터리를 지우지 않도록 경로를 먼저 확인한다.
+if [[ "$INSTALL_APP" != *.app ]]; then
+    echo "Error: 설치 경로가 .app 으로 끝나지 않는다: $INSTALL_APP" >&2
+    exit 1
+fi
+if [[ -L "$INSTALL_APP" ]]; then
+    echo "Error: 설치 경로가 심볼릭 링크다. 지우지 않는다: $INSTALL_APP" >&2
+    exit 1
+fi
+if [[ -e "$INSTALL_APP" ]]; then
+    existing_id=""
+    if [[ -f "$INSTALL_APP/Contents/Info.plist" ]]; then
+        existing_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INSTALL_APP/Contents/Info.plist" 2>/dev/null || true)
+    fi
+    if [[ "$existing_id" != "$BUNDLE_ID" ]]; then
+        echo "Error: 설치 경로에 다른 것이 있다(번들 ID '${existing_id:-없음}'). 지우지 않는다: $INSTALL_APP" >&2
+        exit 1
+    fi
+fi
+
 if [[ "$IDENTITY" == "-" ]]; then
     echo "Error: ad-hoc 서명은 재빌드마다 손쉬운 사용 허용이 풀리므로 쓰지 않는다." >&2
     exit 1
