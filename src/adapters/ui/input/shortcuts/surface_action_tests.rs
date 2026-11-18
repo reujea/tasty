@@ -9,6 +9,12 @@ use crate::intent::RefreshTrigger::Shortcut;
 use crate::state::attach_pending::deferred::{CommandSurfaceTarget, settle_first_created};
 use crate::state::tests::{select_pending_draft, test_mirror_state};
 
+// 설정의 alt 토큰은 키 위치로 읽는다. macOS 에서는 Command(winit SUPER), 다른 OS 에서는 Alt 다.
+#[cfg(target_os = "macos")]
+const BINDING_ALT: winit::keyboard::ModifiersState = winit::keyboard::ModifiersState::SUPER;
+#[cfg(not(target_os = "macos"))]
+const BINDING_ALT: winit::keyboard::ModifiersState = winit::keyboard::ModifiersState::ALT;
+
 fn pending(target: Option<CommandSurfaceTarget>) -> crate::state::attach_pending::PendingId {
     match target {
         Some(CommandSurfaceTarget::Pending(id)) => id,
@@ -901,7 +907,7 @@ fn a_webview_address_key_follows_the_declared_address_band() {
 /// 탐색기를 대상으로 잡지 않고, 소비하지도 않고 다음 처리자에 넘긴다.
 #[test]
 fn an_explorer_key_passes_while_a_terminal_draft_is_selected() {
-    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    use winit::keyboard::{Key, NamedKey};
     let (mut state, engine, _sid, _dir) = crate::state::tests::explorer_fixture(true);
     let read = engine.read();
     assert_eq!(
@@ -922,7 +928,7 @@ fn an_explorer_key_passes_while_a_terminal_draft_is_selected() {
         &target,
         &kb,
         &up,
-        ModifiersState::ALT
+        BINDING_ALT
     ));
     assert!(state.take_pending_intents().is_empty());
 }
@@ -930,7 +936,7 @@ fn an_explorer_key_passes_while_a_terminal_draft_is_selected() {
 /// 탐색기 새 탭 초안이면 탐색기 키는 지금처럼 초안에 걸고 소비한다.
 #[test]
 fn an_explorer_key_is_held_for_an_explorer_draft() {
-    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    use winit::keyboard::{Key, NamedKey};
     let (mut state, engine, _sid, _dir) = crate::state::tests::explorer_fixture(true);
     let read = engine.read();
     let _draft = crate::state::tests::select_pending_draft_of_kind(&mut state, &read, "explorer");
@@ -944,7 +950,7 @@ fn an_explorer_key_is_held_for_an_explorer_draft() {
         &target,
         &kb,
         &up,
-        ModifiersState::ALT
+        BINDING_ALT
     ));
     assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
 }
