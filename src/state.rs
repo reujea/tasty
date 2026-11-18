@@ -677,8 +677,8 @@ impl RequestContext {
 
     /// cwd 상속 설정이 켜져 있으면 포커스된 surface의 로컬 경로를 반환한다.
     /// 원격 mirror의 경로는 로컬 PTY 작업 디렉터리로 사용할 수 없어 제외한다.
-    /// 키 처리 때 포커스를 대상으로 쓰는 창 입력(더블탭 새 탭)만 부른다.
-    #[cfg(any(feature = "gui", test))]
+    /// 창 입력은 대상 surface 를 정해 `resolve_inherit_cwd_from_surface` 를 쓰므로 시험만 부른다.
+    #[cfg(test)]
     pub(crate) fn resolve_inherit_cwd(
         &self,
         engine: &EngineRead<'_>,

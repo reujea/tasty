@@ -42,6 +42,24 @@ pub(crate) fn select_pending_draft_of_kind(
     read: &crate::runtime::engine_read::EngineRead<'_>,
     kind: &str,
 ) -> impl Sized + use<> {
+    let kind = kind.to_string();
+    select_pending_draft_for(state, read, move |anchor| {
+        crate::ipc::stream::StructuralOp::NewTab {
+            anchor_surface_id: anchor,
+            surface_kind: kind,
+            params: serde_json::json!({}),
+            inherit_cwd: None,
+        }
+    })
+}
+
+/// 지금 포커스 surface 를 기준으로 `op` 생성 초안을 만들고 선택한다.
+#[cfg(feature = "gui")]
+pub(crate) fn select_pending_draft_for<F: FnOnce(u32) -> crate::ipc::stream::StructuralOp>(
+    state: &mut RequestContext,
+    read: &crate::runtime::engine_read::EngineRead<'_>,
+    op: F,
+) -> impl Sized + use<F> {
     let anchor = state
         .focused_surface_id(read)
         .expect("a focused surface to anchor the draft");
@@ -52,12 +70,7 @@ pub(crate) fn select_pending_draft_of_kind(
         .begin(
             read,
             &state.navigation,
-            &crate::ipc::stream::StructuralOp::NewTab {
-                anchor_surface_id: anchor,
-                surface_kind: kind.into(),
-                params: serde_json::json!({}),
-                inherit_cwd: None,
-            },
+            &op(anchor),
             sender.epoch(),
             std::sync::Arc::downgrade(&view),
             std::time::Instant::now(),

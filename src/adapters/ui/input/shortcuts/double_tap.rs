@@ -105,21 +105,8 @@ impl MainView {
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "new_tab" => {
-                let pane_id = self.state.focused_pane_id(engine);
-                let cwd = self.state.resolve_inherit_cwd(engine);
-                let cwd_source = self.state.focused_surface_id(engine);
-                self.state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd,
-                        cwd_source,
-                        kind: "terminal".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
-                    }
-                    .from_user_shortcut("new_tab"),
-                );
+                let target = self.state.command_target(engine);
+                super::structure::new_terminal_tab(&mut self.state, engine, &target, "new_tab");
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
@@ -130,45 +117,49 @@ impl MainView {
             }
             "split_pane_vertical" => {
                 let target = self.state.command_target(engine);
-                if let Some(intent) =
-                    super::structure::split_pane(&target, SplitDirection::Vertical)
-                {
-                    self.state
-                        .dispatch_intent(intent.from_user_shortcut("split_pane_vertical"));
-                }
+                super::structure::split_pane(
+                    &mut self.state,
+                    engine,
+                    &target,
+                    SplitDirection::Vertical,
+                    "split_pane_vertical",
+                );
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_pane_horizontal" => {
                 let target = self.state.command_target(engine);
-                if let Some(intent) =
-                    super::structure::split_pane(&target, SplitDirection::Horizontal)
-                {
-                    self.state
-                        .dispatch_intent(intent.from_user_shortcut("split_pane_horizontal"));
-                }
+                super::structure::split_pane(
+                    &mut self.state,
+                    engine,
+                    &target,
+                    SplitDirection::Horizontal,
+                    "split_pane_horizontal",
+                );
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_vertical" => {
                 let target = self.state.command_target(engine);
-                if let Some(intent) =
-                    super::structure::split_surface(&target, SplitDirection::Vertical)
-                {
-                    self.state
-                        .dispatch_intent(intent.from_user_shortcut("split_surface_vertical"));
-                }
+                super::structure::split_surface(
+                    &mut self.state,
+                    engine,
+                    &target,
+                    SplitDirection::Vertical,
+                    "split_surface_vertical",
+                );
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_horizontal" => {
                 let target = self.state.command_target(engine);
-                if let Some(intent) =
-                    super::structure::split_surface(&target, SplitDirection::Horizontal)
-                {
-                    self.state
-                        .dispatch_intent(intent.from_user_shortcut("split_surface_horizontal"));
-                }
+                super::structure::split_surface(
+                    &mut self.state,
+                    engine,
+                    &target,
+                    SplitDirection::Horizontal,
+                    "split_surface_horizontal",
+                );
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
@@ -186,8 +177,11 @@ impl MainView {
             }
             "restore_closed" => {
                 let target = self.state.command_target(engine);
-                self.state.dispatch_intent(
-                    super::structure::restore_closed(&target).from_user_shortcut("restore_closed"),
+                super::structure::restore_closed(
+                    &mut self.state,
+                    engine,
+                    &target,
+                    "restore_closed",
                 );
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
@@ -235,7 +229,7 @@ impl MainView {
             }
             "open_explorer" => {
                 let target = self.state.command_target(engine);
-                Self::open_explorer_tab(&mut self.state, &target);
+                Self::open_explorer_tab(&mut self.state, engine, &target);
             }
             "convert_surface" => {
                 if super::surface_actions::held_for_draft(

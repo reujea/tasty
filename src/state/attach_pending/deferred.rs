@@ -20,6 +20,18 @@ pub(crate) struct InvokedNotice {
     pub surface_id: Option<u32>,
 }
 
+/// 초안이 만들 단위를 대상으로 걸어 둔 구조 명령. 생성된 surface(또는 그 pane)가 대상이 된다.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum HeldStructure {
+    SplitPane(crate::model::SplitDirection),
+    SplitSurface(crate::model::SplitDirection),
+    NewTab {
+        kind: Option<String>,
+        params: serde_json::Value,
+    },
+    Restore,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum DeferredCommand {
     Tool {
@@ -39,6 +51,11 @@ pub(crate) enum DeferredCommand {
         change: crate::app::engine_action::ZoomChange,
         kind: String,
     },
+    /// 분할·새 탭·닫은 항목 복원. `source` 는 입력한 명령 이름이다.
+    Structure {
+        command: HeldStructure,
+        source: &'static str,
+    },
 }
 
 impl DeferredCommand {
@@ -48,6 +65,7 @@ impl DeferredCommand {
             Self::ConvertInput { kind } => kind,
             Self::Action { id, .. } => id,
             Self::Zoom { .. } => "zoom",
+            Self::Structure { source, .. } => source,
         }
     }
 }

@@ -88,55 +88,47 @@ impl MainView {
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "new_tab" => {
-                let Some(pane_id) = target.pane else {
-                    return true;
-                };
-                let cwd = target
-                    .surface_id()
-                    .and_then(|sid| state.resolve_inherit_cwd_from_surface(engine, sid));
-                state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd,
-                        cwd_source: target.surface_id(),
-                        kind: "terminal".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
-                    }
-                    .from_user_shortcut("new_tab"),
-                );
+                super::structure::new_terminal_tab(state, engine, target, "new_tab");
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_pane_vertical" => {
-                if let Some(intent) = super::structure::split_pane(target, SplitDirection::Vertical)
-                {
-                    state.dispatch_intent(intent.from_user_shortcut("split_pane_vertical"));
-                }
+                super::structure::split_pane(
+                    state,
+                    engine,
+                    target,
+                    SplitDirection::Vertical,
+                    "split_pane_vertical",
+                );
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_pane_horizontal" => {
-                if let Some(intent) =
-                    super::structure::split_pane(target, SplitDirection::Horizontal)
-                {
-                    state.dispatch_intent(intent.from_user_shortcut("split_pane_horizontal"));
-                }
+                super::structure::split_pane(
+                    state,
+                    engine,
+                    target,
+                    SplitDirection::Horizontal,
+                    "split_pane_horizontal",
+                );
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_vertical" => {
-                if let Some(intent) =
-                    super::structure::split_surface(target, SplitDirection::Vertical)
-                {
-                    state.dispatch_intent(intent.from_user_shortcut("split_surface_vertical"));
-                }
+                super::structure::split_surface(
+                    state,
+                    engine,
+                    target,
+                    SplitDirection::Vertical,
+                    "split_surface_vertical",
+                );
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_horizontal" => {
-                if let Some(intent) =
-                    super::structure::split_surface(target, SplitDirection::Horizontal)
-                {
-                    state.dispatch_intent(intent.from_user_shortcut("split_surface_horizontal"));
-                }
+                super::structure::split_surface(
+                    state,
+                    engine,
+                    target,
+                    SplitDirection::Horizontal,
+                    "split_surface_horizontal",
+                );
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "toggle_settings" => {
@@ -216,9 +208,7 @@ impl MainView {
             "next_tab" => state.step_visible_tab_in(engine, target, true),
             "prev_tab" => state.step_visible_tab_in(engine, target, false),
             "restore_closed" => {
-                state.dispatch_intent(
-                    super::structure::restore_closed(target).from_user_shortcut("restore_closed"),
-                );
+                super::structure::restore_closed(state, engine, target, "restore_closed");
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "quit" => send_app_event(proxy, crate::AppEvent::QuitRequested),
@@ -238,7 +228,7 @@ impl MainView {
             "open_markdown" => {
                 state.enqueue_convert_input_popup(&engine.as_ref(), "markdown", None);
             }
-            "open_explorer" => Self::open_explorer_tab(state, target),
+            "open_explorer" => Self::open_explorer_tab(state, engine, target),
             "convert_surface" => {
                 if let Some(sid) = target.surface_id() {
                     surface_actions::open_convert_popup(state, sid, "convert_surface");
