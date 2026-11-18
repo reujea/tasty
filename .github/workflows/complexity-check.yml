@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   check-file-size:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux]
     # 실측 최대 0.3분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 10
     steps:

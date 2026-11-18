@@ -135,7 +135,7 @@ jobs:
 
   # GUI 기능을 끈 빌드와 테스트를 검사한다. 같은 러너에서 GUI 단위 테스트도 실행한다.
   check-headless:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux]
     # 실측 최대 15.7분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 50
     steps:
@@ -258,6 +258,7 @@ jobs:
   # Linux GUI release 설정을 컴파일한다. debug_assertions가 꺼진 코드를 확인한다.
   # cargo check이므로 테스트 실행, 코드 생성·LTO, 배포 패키지 검사는 포함하지 않는다.
   check-release:
+    # X64 고정: 매 run이 x86_64 gui release 컴파일을 검사하게 한다. 공유 라벨이면 ARM64 러너가 받은 run은 aarch64만 본다.
     runs-on: [self-hosted, Linux, X64]
     # 실측 최대 1.7분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 10
@@ -276,7 +277,7 @@ jobs:
   # 두 크레이트의 Android 컴파일 실패를 검출한다. 현재 의존 그래프는 NDK 없이 검사된다.
   # 링크·실행과 다른 크레이트의 Android 컴파일은 검사하지 않는다.
   check-android:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux]
     # check-release 대리 실측 최대 1.7분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 10
     steps:

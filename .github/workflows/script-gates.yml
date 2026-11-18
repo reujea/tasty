@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   script-gates:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux]
     # 실측 최대 1.0분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 10
     steps:
