@@ -190,12 +190,14 @@ Windows 빌드 스크립트는 태그 없는 `workflow_dispatch`에서도 cleanu
 
 | 항목 | x86_64 | aarch64 |
 |------|--------|---------|
-| 호스트 | `8945hs` (192.168.0.5) | `gx10` (192.168.0.4) |
+| 호스트 | `8945hs` (192.168.0.11) | `gx10` (192.168.0.4) |
 | Runner 이름 | `tasty-server-x64` | `tasty-gx10-arm64` |
 | 라벨 | `self-hosted, Linux, X64` | `self-hosted, Linux, ARM64` |
 | 설치 경로 | `/home/zilhak/actions-runner/` | 〃 |
 | systemd 서비스 | `actions.runner.zilhak-tasty.tasty-server-x64.service` | `…tasty-gx10-arm64.service` |
 | 자동 시작 | enabled | enabled |
+
+아키텍처 산출물을 만드는 잡(`build-linux-x64`, `build-linux-arm64`)과 `check-release`·`test-linux-x64`는 아키텍처 라벨로 한 러너에 고정한다. 나머지 Linux 잡은 `[self-hosted, Linux]`라 두 러너 가운데 비어 있는 쪽이 받는다. 잡별 배치와 이유는 [Linux 러너 배치](ci-gates.md#linux-러너-배치)에 있다. 각 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다.
 
 macOS/Windows 러너도 동일 패턴(라벨만 `[self-hosted, macOS]` / `[self-hosted, Windows]`).
 
@@ -212,7 +214,7 @@ Windows 호스트(x64)에는 러너가 둘 있다.
 
 예약 작업은 호스트에 로그온한 동안만 러너를 띄운다. 로그온하지 않았거나 예약 작업이 멈추면 이 러너는 offline 이고, arm64 잡 세 개는 다른 러너로 넘어가지 않고 러너가 돌아올 때까지 Queued 상태로 머문다. `timeout-minutes` 는 이 대기 시간을 세지 않고, 24시간 넘게 러너를 기다린 잡은 GitHub 가 취소한다. release 실행에서 `build-windows-arm64` 가 취소되면 `publish-release` 는 `needs` 에 이 잡을 두고 `if` 에 `always()` 가 없어 건너뛰므로, 릴리스는 일부 자산만 올라간 draft 로 남고 공개되지 않는다. 복구는 [트러블슈팅](#트러블슈팅)에 있다.
 
-같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `develop`·`release`·`main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · 세 브랜치 대상 PR · 수동 dispatch. 작업 브랜치는 PR 없이 `develop` 에 직접 반영하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 외부 기여 PR 과 hotfix·릴리스 PR 을 검사한다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 다섯(`check-windows` · `check-windows-arm64` · `check-headless` · `check-release` · `check-android`)이고, macOS 잡 `check-macos` 는 같은 트리거의 `.github/workflows/crossplatform-check-macos.yml` 에 따로 있다. 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. `check-windows` 와 `check-macos` 는 러너의 네이티브 host 타깃(`x86_64-pc-windows-msvc` / `aarch64-apple-darwin`)으로 돌아 `--target` 을 지정하지 않는다. `check-windows-arm64` 는 같은 x64 Windows 호스트의 전용 러너 `tasty-win-arm64` 에서 `--target aarch64-pc-windows-msvc` 로 교차 컴파일만 한다([Windows ARM64](#windows-arm64)). `check-android` 는 Linux x64 러너에서 `--target aarch64-linux-android` 로 터미널 코어(`tasty-terminal` · `tasty-terminal-link`)를 교차 check 만 한다. 러너가 다른 잡들은 병렬로 돌 수 있어 `check-windows`(일반 Windows 러너)와 `check-windows-arm64`(전용 러너)도 서로 다른 러너에서 병렬로 돌 수 있다. 실제로 겹친 실행은 미측정이다. 같은 ref 의 앞선 실행을 취소하는 조건은 두 워크플로가 다르다([연속 push와 실행 취소](ci-gates.md#연속-push와-실행-취소)). (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
+같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `develop`·`release`·`main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · 세 브랜치 대상 PR · 수동 dispatch. 작업 브랜치는 PR 없이 `develop` 에 직접 반영하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 외부 기여 PR 과 hotfix·릴리스 PR 을 검사한다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 다섯(`check-windows` · `check-windows-arm64` · `check-headless` · `check-release` · `check-android`)이고, macOS 잡 `check-macos` 는 같은 트리거의 `.github/workflows/crossplatform-check-macos.yml` 에 따로 있다. 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. `check-windows` 와 `check-macos` 는 러너의 네이티브 host 타깃(`x86_64-pc-windows-msvc` / `aarch64-apple-darwin`)으로 돌아 `--target` 을 지정하지 않는다. `check-windows-arm64` 는 같은 x64 Windows 호스트의 전용 러너 `tasty-win-arm64` 에서 `--target aarch64-pc-windows-msvc` 로 교차 컴파일만 한다([Windows ARM64](#windows-arm64)). `check-android` 는 두 Linux 러너(x64·ARM64) 가운데 비어 있는 쪽에서 `--target aarch64-linux-android` 로 터미널 코어(`tasty-terminal` · `tasty-terminal-link`)를 교차 check 만 한다. 러너가 다른 잡들은 병렬로 돌 수 있어 `check-windows`(일반 Windows 러너)와 `check-windows-arm64`(전용 러너)도 서로 다른 러너에서 병렬로 돌 수 있다. 실제로 겹친 실행은 미측정이다. 같은 ref 의 앞선 실행을 취소하는 조건은 두 워크플로가 다르다([연속 push와 실행 취소](ci-gates.md#연속-push와-실행-취소)). (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
 
 ### 1회 도구 설치 (러너 추가 / 새 도구 의존성 시)
 

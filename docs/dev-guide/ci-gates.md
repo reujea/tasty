@@ -17,22 +17,22 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | 검사 | 명령 | 채널 | 트리거 | 등급 |
 |---|---|---|---|---|
 | 포맷 | `cargo fmt --check` (+ `crates/tasty-plugin-sdk-wasm/` 매니페스트) | `format-check.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 | [실측] |
-| SemVer 가드 | `cargo test --locked --no-default-features --no-fail-fast --test api_baseline_0_7 --test changelog_unreleased --test cli_naming_count_drift` | `test.yml` 의 `semver-guards` (self-hosted Linux X64) | develop·release·main push · 수동 | [실측] |
+| SemVer 가드 | `cargo test --locked --no-default-features --no-fail-fast --test api_baseline_0_7 --test changelog_unreleased --test cli_naming_count_drift` | `test.yml` 의 `semver-guards` (self-hosted Linux, x64·ARM64 공유 — [Linux 러너 배치](#linux-러너-배치)) | develop·release·main push · 수동 | [실측] |
 | macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 호스트의 전용 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (같은 Windows 호스트의 전용 러너 `win-arm64`) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
-| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (x64 러너에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
+| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64 고정 — 매 run이 x86_64 gui release 컴파일을 검사하게 한다) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (Linux 러너(x64 또는 ARM64)에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
 | 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
-| 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| 동결 총합 래칫 | `bash scripts/check-frozen-sum-ratchet.sh` | `complexity-check.yml` (self-hosted Linux X64, 같은 잡) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| Intent 규율 (범위와 한계는 [Intent 규율 검사](#intent-규율-검사)) | `bash scripts/check-intent-discipline.sh` — **`mask-source` 판정기를 먼저 짓는다** | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| 사유 없는 `#[allow]` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-allow-reason.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| 공용 순회를 안 거치는 직접 `read_dir` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-shared-walk-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| 구조 mutation 지표와 지정 실행 entry (**기준 파일 래칫**, 판정기 `strip-cfg-test`·`mask-source` 선행) | `bash scripts/check-core-writer-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동. 범위와 한계는 [구조 writer 래칫](#구조-writer-래칫) | 등급 미정 |
-| 셸 자산 정적 검사 | `bash scripts/check-shell-assets.sh` | `script-gates.yml` (self-hosted Linux X64) | develop·release·main push(문서 제외) · PR · 수동. install-shellcheck.sh로 도구를 준비한다. 추적 셸 자산을 검사하며 staged 훅은 새 파일도 확인한다. warning 이상은 실패, 도구 부재는 rc 2다. | 등급 미정 |
-| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | develop·release·main push · PR · 수동. 문서는 제외하되 `src/`·`lang/`·`assets/` 아래 `.md`를 포함한다. path 의존성 변경도 검사하며 패턴 순서가 중요하다. 잡이 strip-cfg-test를 먼저 빌드하고 `cargo fetch --locked`로 모든 target의 의존을 받는다. staged 검사와 push 범위 검사는 구분한다([릴리스](release.md#플러그인-버전-비교)). `include_*!` 매크로와 크레이트 루트 `build.rs`의 `rerun-if-changed`로 읽는 입력이 비교 위치 밖에 있으면 문서 검사의 `plugin_build_inputs_are_judged`가 실패한다. 그 밖의 읽기와 링크 예외의 한계는 [릴리스](release.md#플러그인-버전-비교)에 있다. | [실측] |
+| 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 동결 총합 래칫 | `bash scripts/check-frozen-sum-ratchet.sh` | `complexity-check.yml` (self-hosted Linux, x64·ARM64 공유, 같은 잡) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Intent 규율 (범위와 한계는 [Intent 규율 검사](#intent-규율-검사)) | `bash scripts/check-intent-discipline.sh` — **`mask-source` 판정기를 먼저 짓는다** | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 사유 없는 `#[allow]` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-allow-reason.sh` | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 공용 순회를 안 거치는 직접 `read_dir` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-shared-walk-ratchet.sh` | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| 구조 mutation 지표와 지정 실행 entry (**기준 파일 래칫**, 판정기 `strip-cfg-test`·`mask-source` 선행) | `bash scripts/check-core-writer-ratchet.sh` | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동. 범위와 한계는 [구조 writer 래칫](#구조-writer-래칫) | 등급 미정 |
+| 셸 자산 정적 검사 | `bash scripts/check-shell-assets.sh` | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동. install-shellcheck.sh로 도구를 준비한다. 추적 셸 자산을 검사하며 staged 훅은 새 파일도 확인한다. warning 이상은 실패, 도구 부재는 rc 2다. | 등급 미정 |
+| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push · PR · 수동. 문서는 제외하되 `src/`·`lang/`·`assets/` 아래 `.md`를 포함한다. path 의존성 변경도 검사하며 패턴 순서가 중요하다. 잡이 strip-cfg-test를 먼저 빌드하고 `cargo fetch --locked`로 모든 target의 의존을 받는다. staged 검사와 push 범위 검사는 구분한다([릴리스](release.md#플러그인-버전-비교)). `include_*!` 매크로와 크레이트 루트 `build.rs`의 `rerun-if-changed`로 읽는 입력이 비교 위치 밖에 있으면 문서 검사의 `plugin_build_inputs_are_judged`가 실패한다. 그 밖의 읽기와 링크 예외의 한계는 [릴리스](release.md#플러그인-버전-비교)에 있다. | [실측] |
 | 공급망 | `cargo deny --workspace check`, `cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check` | `supply-chain-check.yml` | `--workspace`가 없으면 루트 패키지의 의존성만 보고 플러그인 전용 의존성을 놓친다. workspace에서 제외된 `tasty-plugin-sdk-wasm`은 자체 `Cargo.lock`을 쓰므로 `--workspace`에 잡히지 않아 `--manifest-path`로 따로 검사한다. 같은 잡의 두 번째 단계이며 앞 단계가 실패해도 실행한다. 루트 `deny.toml`을 함께 쓰므로 루트 그래프에만 있는 ignore 항목은 이 단계에서 `advisory-not-detected` 경고로 나오며 실패로 보지 않는다. develop·release·main push는 `Cargo.lock`·`deny.toml`, `crates/tasty-plugin-sdk-wasm/`의 `Cargo.toml`·`Cargo.lock`, 이 워크플로 파일 변경 시, 세 브랜치 대상 PR은 경로 필터 없이 실행한다. 매주 월 09:00 UTC와 수동 실행도 지원하며, 두 실행은 GitHub 기본 브랜치인 `develop`에서 돈다. 의존성 변경은 push에서, 새 외부 권고는 주기 실행에서 확인한다. 올릴 수 없는 공지의 예외는 `deny.toml` 주석에 공지별 근거와 재검토 조건을 적고, 라이선스는 전역 `allow` 대신 크레이트별 `exceptions`를 먼저 쓴다. | [실측] |
 
 ### 로컬에서 이 게이트들을 돌리기 전에 — **판정기부터**
@@ -242,6 +242,22 @@ gh api "/repos/<owner>/<repo>/actions/runs/<run-id>/attempts/<n>/jobs" \
 8개를 넘거나 결과가 바뀐 run이 3개를 넘으면 수동 확인 비용을 다시 검토한다.
 서로 다른 커밋에서 간헐적으로 실패하는 시험은 이 집계로 확인할 수 없다.
 
+#### Linux 러너 배치
+
+Linux self-hosted 러너는 x86_64 러너(`tasty-server-x64`, 라벨 `self-hosted, Linux, X64`)와 aarch64 러너(`tasty-gx10-arm64`, 라벨 `self-hosted, Linux, ARM64`) 둘이다([release 러너](release.md#러너)). GitHub Actions는 `runs-on`의 라벨을 모두 가진 러너에 잡을 준다. 그래서 `[self-hosted, Linux]` 잡은 비어 있는 쪽 러너가 받고, 한 run의 잡이 어느 러너로 갈지는 정해져 있지 않다.
+
+| 라벨 | 잡 | 이유 |
+|---|---|---|
+| `[self-hosted, Linux]` | test `semver-guards`, script-gates `script-gates`, complexity-check `check-file-size`, supply-chain-check `cargo-deny`, plugin-version-check `version-bump`, crossplatform-check `check-headless`·`check-android`, release `create-release`·`publish-release` | 호스트 아키텍처에 따라 산출물이나 판정 범위가 달라지지 않는다. `cargo-deny`와 `version-bump`는 모든 대상의 의존 그래프를 읽고, `check-android`는 교차 대상이 고정이다 |
+| `[self-hosted, Linux, X64]` | crossplatform-check `check-release` | 호스트 타깃을 검사하므로 공유 라벨이면 ARM64 러너가 받은 run은 aarch64만 본다. 매 run이 x86_64 gui release 컴파일을 검사하도록 고정한다 |
+| `[self-hosted, Linux, X64]` | test `test-linux-x64` | 잡 이름과 의도가 x86_64 Linux 전체 시험이다 |
+| `[self-hosted, Linux, X64]` | build-check·release `build-linux-x64` | x86_64 패키지를 만든다 |
+| `[self-hosted, Linux, ARM64]` | build-check·release `build-linux-arm64` | aarch64 패키지를 만든다 |
+
+- 공유 라벨 잡의 결과가 러너에 따라 달라질 수 있는 지점은 아키텍처보다 러너 환경이다. 두 러너의 WebKitGTK 판이 달라 `check-headless`의 관측용 webview 레이아웃 단계 결과가 갈릴 수 있다. gui 단위 단계가 Xvfb 아래에서 고르는 그래픽 경로도 두 머신에서 같은지 확인하지 않았다.
+- 두 러너는 파일시스템을 공유하지 않고 워크플로는 `actions/cache`를 쓰지 않으므로, 아키텍처가 다른 산출물이 섞이지 않는다.
+- 한 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다. 공유 라벨 잡이 ARM64 러너를 쓰는 동안에는 태그 시점의 `build-linux-arm64`가 그 잡이 끝날 때까지 기다린다.
+
 #### 러너 비용
 
 self-hosted 잡들은 러너를 공유하므로 실행 대기와 빌드 시간을 함께 본다.
@@ -270,9 +286,13 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
   (`win-arm64`)에서 실행하는 release build-windows-arm64의 실측을 쓴다. release build-windows-arm64의
   실측은 전용 러너로 옮기기 전 x64 러너에서 x64 잡이 끝난 뒤 따로 실행한 값이다. 같은 호스트에서
   두 Windows 빌드가 동시에 돌 때의 시간은 미측정이다. check-windows-arm64도
-  실행 기록이 없어 같은 호스트의 다른 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 같은 러너에서 workspace
-  시험을 실행하는 check-headless의 실측을 쓴다. check-android도 실행 기록이 없어 같은 러너에서 `cargo check`를
-  실행하는 check-release의 실측을 쓴다.
+  실행 기록이 없어 같은 호스트의 다른 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 x64 러너에서 workspace
+  시험을 실행한 check-headless의 실측을 쓴다. check-android도 실행 기록이 없어 같은 러너에서 `cargo check`를
+  실행하는 check-release의 실측을 쓴다. check-release는 X64에 고정돼 있지만 check-android는 두 Linux 러너가
+  나눠 받으므로, 이 대리값은 x64 러너의 시간이다.
+- 공유 라벨 잡([Linux 러너 배치](#linux-러너-배치))의 실측은 모두 x64 러너에서 잰 값이다. 이 잡들이 ARM64 러너에서
+  돈 시간은 아직 재지 않았다. ARM64 러너 실행이 쌓이면 두 러너 가운데 긴 쪽을 실측 최대로 쓰고, 표가 잡마다 한
+  행이므로 그 칸에 러너를 함께 적는다(예: `15.7 (x64) / 12.0 (arm64)`).
 
 - macOS dist 빌드 잡(`build-macos`)은 다른 작업과 공유하지 않는 macOS 전용 러너에서 돈다. 전용 러너에서는 아직 이 잡의 GH 실행이 0회라 실측과 배수를 정하지 않았고, 이전 공유 러너에서 정한 180분을 그대로 둔다. 전용 러너에서 첫 GH 실행 뒤 같은 규칙(실측 최대 × 배수)으로 다시 정한다. 참고값으로 같은 러너의 화면 세션에서 `build-macos-dmg.sh`를 직접 실행하면 17분 23초, check-macos 잡(cold)은 14.9분이 걸렸다. 두 값은 규칙의 실측·대리로 쓰지 않는다.
 
@@ -324,7 +344,7 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 - 대기(GitHub Actions 문서 기준): 그룹마다 실행 중 run 하나와 대기 run 하나를 둔다. 새 push가 오면
   대기 run이 새 run으로 바뀌므로 대기열은 쌓이지 않는다. 그래서 끝난 run의 다음 실행은 그때의
   최신 커밋을 잰다. 결과는 최신 push보다 한두 커밋 늦을 수 있고, 그 사이 커밋은 따로 재지 않는다.
-- 비용: develop push가 이어지는 동안 Windows·X64 러너가 계속 이 그룹의 run을 실행한다.
+- 비용: develop push가 이어지는 동안 Windows·Linux 러너가 계속 이 그룹의 run을 실행한다.
   그룹은 ref마다 나뉘므로 같은 커밋을 `release`·`main`으로 fast-forward하면 그 커밋의 run이
   브랜치마다 한 번씩 더 돈다([브랜치 전략](branching.md#ci)).
 - macOS 잡은 이 그룹에 없다. `crossplatform-check-macos.yml`이 같은 트리거로 따로 실행하고
@@ -759,7 +779,7 @@ grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
   render::<모듈>::<그 이름>` 으로 고르는지를 함께 본다. e2e 단계의
   `the_gui_layer_a_display_revives_is_exactly_the_one_named_test` 와 같은 형태다.
 - **관측용이다.** e2e 단계와 같이 `continue-on-error: true` 라 실패해도 잡을 차단하지 않으므로, 결과는
-  단계 conclusion 으로 확인한다. 차단으로 승격하는 기준(연속 통과 횟수)은 e2e 와 함께 아직 정하지 않았다. X64 러너에서 이 단계의 실행 결과는
+  단계 conclusion 으로 확인한다. 차단으로 승격하는 기준(연속 통과 횟수)은 e2e 와 함께 아직 정하지 않았다. Linux 러너에서 이 단계의 실행 결과는
   아직 관측 기록이 없다. 러너에 xvfb-run 이 있고 같은 잡의 e2e 단계가 Xvfb 안에서 gui 바이너리를 띄운다는 것만 확인했다.
 - 로컬 실행:
 
