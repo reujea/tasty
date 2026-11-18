@@ -437,6 +437,84 @@ just dist-setup-linux              # 또는 수동 (아래)
 
 - 위 [빌드 프로필 (3종)](#빌드-프로필-3종) — 프로필 정의 · [release](release.md) — 릴리스 워크플로 · [release 러너](release.md#러너) — self-hosted runner
 
+## macOS 키 입력 도우미
+
+`scripts/macos-input-helper/`는 OS IME를 거치는 키 입력을 자동으로 보내는 개발용 앱(`TastyInputHelper.app`, 번들 ID `com.zilhak.tasty.input-helper`)이다. 셸에서 실행한 CGEvent 도구의 권한은 그 셸을 띄운 터미널 앱으로 판정된다([macOS 키 주입 권한](../ai-verification/macos-key-injection.md)). 이 앱을 `open`으로 띄우면 도우미가 책임 프로세스가 되므로, 터미널 앱이 아니라 도우미 하나에만 손쉬운 사용을 허용하면 된다. 배포 패키지와 CI에는 들어가지 않는다.
+
+### 설치와 허용
+
+```bash
+./scripts/macos-input-helper/build-install.sh
+```
+
+- `swiftc`로 빌드하고 `TASTY_CODESIGN_IDENTITY`(기본 `Tasty Dev`)로 서명한 뒤 `~/Applications/TastyInputHelper.app`에 설치한다. 설치 경로는 `TASTY_INPUT_HELPER_APP`으로 바꿀 수 있다.
+- identity가 키체인에 없으면 ad-hoc으로 서명하지 않고 실패한다. 이때는 `./scripts/macos-codesign-identity.sh`로 조회하고, 없으면 `--create`로 발급한다.
+- 서명 뒤 Identifier, linker 서명이나 ad-hoc 서명이 아닌지, `codesign --verify --deep --strict` 통과 여부를 확인한다.
+- 허용 대상: 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용에서 `~/Applications/TastyInputHelper.app` 하나만 허용한다.
+- 재빌드 뒤에도 허용이 유지되려면 번들 ID, 서명한 leaf 인증서, 설치 경로가 모두 같아야 한다. 인증서를 지우고 `--create`로 다시 만들면 leaf가 바뀐다. `Tasty Dev`로 서명하면 지정 요구(`codesign -d -r-`)가 `identifier "com.zilhak.tasty.input-helper" and certificate leaf = H"<인증서 해시>"`이다. 같은 소스로 다시 빌드하면 CDHash도 같다. Info.plist 버전 문자열만 바꿔 다시 빌드하면 CDHash는 바뀌고, 지정 요구와 `Authority=Tasty Dev`는 같다(측정함). 이 상태에서 손쉬운 사용 허용이 실제로 유지되는지는 미측정이다.
+
+### 호출
+
+```bash
+open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
+    --result <결과 JSON 경로> [--command-file <명령 파일 경로>]
+```
+
+- `-g`는 도우미를 앞으로 가져오지 않는다. 도우미는 `LSUIElement` 앱이라 Dock과 메뉴 막대에도 나타나지 않는다. `-W`는 도우미가 끝날 때까지 기다린다. `-n`은 이미 떠 있는 도우미가 있어도 새로 실행한다.
+- `open`의 종료 코드는 도우미의 종료 코드가 아니다. 도우미가 3으로 끝나도 `open -W`는 0을 돌려준다(측정함). 성패는 결과 파일의 `exit_code`로 판정한다.
+- `--command-file`을 빼면 권한만 조회한다.
+- 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행할 수도 있다. 이때는 셸을 띄운 터미널 앱의 권한으로 판정된다.
+
+명령 파일은 한 줄에 한 단계다. 빈 줄과 `#`로 시작하는 줄은 건너뛴다. 키는 macOS 가상 키코드 숫자로, 방향은 `surface.raw_key`와 같은 어휘로, 입력 소스는 TIS ID 그대로 적는다. 문자열(유니코드) 주입 명령은 없다. 문자열 주입은 IME를 거치지 않기 때문이다.
+
+| 명령 | 동작 |
+|---|---|
+| `switch_source <ID>` | `TISSelectInputSource`로 입력 소스를 바꾸고, 다시 조회한 ID가 같은지 확인한다(예: `com.apple.inputmethod.Korean.2SetKorean`, `com.apple.keylayout.ABC`) |
+| `key <키코드> <press\|release\|click>` | 키 이벤트를 게시한다 |
+| `sleep <ms>` | 기다린다 |
+| `delay <ms>` | 이후 키 이벤트 사이의 지연을 바꾼다(기본 30ms) |
+| `activate <pid>` | 그 PID의 앱을 앞으로 가져온다 |
+| `require_front <pid>` | 앞 앱 PID가 다르면 키를 보내지 않고 끝낸다. 키를 보내기 전에 넣는다 |
+
+- 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59)를 `press`/`release`로 보낸다. 실제 키보드와 같은 순서다. 수식키 이벤트는 `flagsChanged` 종류로 게시한다. 도우미는 눌린 수식키를 기억해 그 뒤 모든 키 이벤트에 같은 플래그를 싣는다. 예: Cmd+D는 `key 55 press`, `key 2 click`, `key 55 release`다.
+- 이벤트 소스와 탭은 `surface.raw_key`와 같다(`combinedSessionState`, `cgAnnotatedSessionEventTap`).
+- 실패한 단계에서 멈추며, 그때까지 눌린 수식키는 뗀다.
+- 명령 파일 형식은 권한 판정보다 먼저 전부 검사한다.
+
+### 결과 파일과 종료 코드
+
+결과 파일은 JSON이다. 임시 이름으로 쓴 뒤 rename하므로, 파일이 보이면 다 쓴 것이다. 들어 있는 값은 다음과 같다.
+
+- `helper_pid`, `started_at`, `finished_at`(UTC), `bundle_id`, `bundle_version`, `executable`
+- `AXIsProcessTrusted`, `CGPreflightPostEventAccess`
+- `source_before`, `source_after`(입력 소스 ID)
+- `modifier_method`, `event_source`, `event_tap`
+- `steps`(단계별 `command`, `ok`, `error`와 단계 정보), `exit_code`, `message`
+
+| 코드 | 뜻 |
+|---|---|
+| 0 | 모든 단계 성공 |
+| 1 | 그 밖의 실패 |
+| 2 | 인자·명령 파일 오류. `--result`가 없으면 결과 파일 없이 끝난다 |
+| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다 |
+| 4 | 입력 소스가 없거나 전환 실패 |
+| 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
+
+도우미는 권한 요청 함수(`CGRequestPostEventAccess`, 프롬프트 옵션을 준 `AXIsProcessTrustedWithOptions`)를 부르지 않는다. 대화상자를 띄우지 않는다.
+
+### 합성 입력의 한계
+
+- 하드웨어 단계 키는 합성으로 같은 반응이 나오지 않을 수 있다: Caps Lock 한/영 전환, Globe/fn, JIS 영숫자·가나 키. 이 키들은 키보드 펌웨어·HID 단계에서 처리되는 부분이 있어, CGEvent 키코드만으로는 OS가 같은 동작을 하지 않을 수 있다. 그래서 한영 전환은 `switch_source`나, 사용자 설정의 입력 소스 전환 단축키(예: Ctrl+Space) 키코드로 하고, 어느 방식으로 했는지 보고서에 적는다. Caps Lock 전환과 같은 결과인지는 실 키보드 확인 범위로 남긴다.
+- 수식키를 단독으로 누르고 떼는 것(`flagsChanged`)은 일반 keyDown/keyUp과 다른 이벤트다. 수식키 단독 동작을 재려면 수식키 키코드를 따로 보내야 한다. 키 이벤트에 플래그만 싣는 방식으로는 `flagsChanged`가 생기지 않는다.
+- 자동 반복(키를 누르고 있을 때의 반복 입력)은 시스템이 합성 이벤트에 대해 만들어 주지 않을 수 있다. 반복이 필요하면 명시적으로 여러 번 보내고, 그것이 실제 자동 반복(autorepeat 플래그)과 다르다는 것을 적는다.
+- 트랙패드 제스처(관성 스크롤, 핀치, 포스터치)는 합성할 수 없다.
+- Secure Input이 켜진 칸(암호 입력 등)에는 합성 키가 들어가지 않는다.
+
+### 보고 규칙
+
+- 이 도우미로 측정한 보고서에는 "합성 입력으로 확인한 범위"와 "사용자 실 키보드 확인이 남은 범위"를 나눠 적는다.
+- 위 한계에 걸리는 항목(Caps Lock·Globe·JIS 키, 자동 반복, 제스처, Secure Input)은 합성 결과와 관계없이 실 키보드 확인 범위에 둔다.
+
 ## 빌드 시간 진단
 
 ```bash

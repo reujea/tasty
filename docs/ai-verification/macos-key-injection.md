@@ -6,6 +6,8 @@ macOS에서 OS가 만든 키 입력으로 측정하려면 손쉬운 사용 권�
 
 macOS는 셸에서 실행한 프로세스의 보호 리소스 접근을 그 셸을 띄운 GUI 앱(responsible process)의 권한으로 판단한다([macOS 권한](../features/macos-permissions/index.md)). 원격 attach mirror로 띄운 child는 대상 Mac에서 실행 중인 Tasty 안의 셸에서 동작한다. 따라서 child가 실행한 키 입력 스크립트는 그 Tasty.app의 손쉬운 사용 권한으로 판정된다. 격리 debug 인스턴스의 권한이나 스크립트 파일 자체의 권한으로 판정하지 않는다.
 
+그래서 측정은 [macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)로 한다. 도우미를 `open`으로 띄우면 도우미 앱이 책임 프로세스가 되므로, Tasty.app이 아니라 도우미 하나에만 손쉬운 사용을 허용한다.
+
 ## adhoc 서명 앱은 빌드마다 권한이 풀린다
 
 배포 DMG와 `scripts/build-macos-dmg.sh`로 만든 앱은 adhoc 서명이다([빌드](../dev-guide/build.md)). 서명 방식은 `codesign -dv <앱 경로>`로 확인한다. adhoc 서명 앱은 출력에 다음 값이 나온다.
@@ -14,7 +16,7 @@ macOS는 셸에서 실행한 프로세스의 보호 리소스 접근을 그 셸�
 - `flags=0x2(adhoc)`
 - `TeamIdentifier=not set`
 
-adhoc 서명의 designated requirement는 cdhash뿐이다. 그래서 앱을 다시 빌드하면 macOS가 다른 앱으로 보고 손쉬운 사용 허용을 적용하지 않는다. 사용자가 그 Mac의 Tasty를 다시 빌드했다면 측정 전에 권한을 다시 확인한다. 직접 빌드한 앱의 권한을 유지하는 `Tasty Dev` 인증서 서명은 [빌드](../dev-guide/build.md)에 있다. 이 인증서로 서명한 앱에서 측정 권한이 유지되는지는 미측정이다.
+adhoc 서명의 designated requirement는 cdhash뿐이다. 그래서 앱을 다시 빌드하면 macOS가 다른 앱으로 보고 손쉬운 사용 허용을 적용하지 않는다. 사용자가 그 Mac의 Tasty를 다시 빌드했다면 측정 전에 권한을 다시 확인한다. 직접 빌드한 앱의 권한을 유지하는 `Tasty Dev` 인증서 서명은 [빌드](../dev-guide/build.md)에 있다. `Tasty Dev`로 서명한 도우미 앱은 지정 요구가 `identifier "<번들 ID>" and certificate leaf = H"<인증서 해시>"`이고, Info.plist를 바꿔 다시 빌드해도 지정 요구가 같다(측정함). 이 인증서로 서명한 앱에서 손쉬운 사용 허용이 재빌드 뒤에도 유지되는지는 미측정이다.
 
 ## 권한 확인
 
@@ -50,15 +52,12 @@ print("AXIsProcessTrustedWithOptions(prompt)=\(AXIsProcessTrustedWithOptions(opt
 
 사용자가 허용하면 이미 실행 중인 셸에서 다시 조회한 값이 true가 된다. 셸과 Tasty.app을 다시 시작하지 않아도 된다(측정함).
 
-## 대안: Terminal.app이 권한을 받게 한다
+## 측정 경로: 키 입력 도우미
 
-Tasty.app을 다시 빌드할 때마다 권한을 다시 받지 않으려면 키 입력 스크립트를 Terminal.app에서 실행한다. 그러면 Terminal.app이 responsible process가 된다. Terminal.app은 Apple이 서명했고(`codesign -dv`의 `Identifier=com.apple.Terminal`, adhoc 아님) 이 저장소에서 다시 빌드하지 않는다. 사용자는 Terminal.app의 손쉬운 사용을 한 번만 켜면 된다.
+키 입력은 [macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)로 보낸다. 설치, 허용 대상, 호출 형식, 결과 파일, 종료 코드, 합성 입력의 한계, 보고 규칙은 그 절에 있다.
 
-아래 단계는 모두 미측정이다.
+- 도우미는 실행할 때마다 `AXIsProcessTrusted`와 `CGPreflightPostEventAccess`를 결과 파일에 적는다. 게시 권한이 없으면 어떤 단계도 실행하지 않고 종료 코드 3으로 끝난다. 위 "권한 확인"의 판정을 도우미가 대신한다.
+- 키를 보내기 전에 `require_front <격리 인스턴스 PID>` 단계를 넣는다. 앞 앱이 다르면 종료 코드 5로 끝나고 키를 보내지 않는다.
+- 허용 전에는 `open`으로 띄운 경우와 셸에서 실행 파일을 직접 실행한 경우 모두 두 값이 false다(측정함). 허용한 뒤 `open` 경로만 true가 되는지는 미측정이다. 이것이 확인되어야 `open` 경로에서 도우미가 책임 프로세스라는 가정이 확인된다.
 
-1. 측정 스크립트를 작업 폴더에 둔다. 스크립트는 결과를 작업 폴더의 파일에 쓰고, 마지막에 완료 표지 파일을 만든다.
-2. child 셸에서 `open -a Terminal <스크립트>`로 Terminal.app 창에서 실행한다.
-3. child는 완료 표지 파일이 생길 때까지 기다렸다가 결과 파일을 읽는다. Terminal 창의 화면은 읽지 않는다.
-4. 끝나면 이 측정이 연 Terminal 창만 닫는다. 사용자가 쓰던 Terminal 창은 건드리지 않는다. 창을 닫는 방법은 미측정이다. AppleScript로 Terminal을 제어하면 Automation 권한을 따로 요청하게 된다.
-
-이 경로에서도 권한 확인은 스크립트 안에서 먼저 한다. 키를 보내기 전 포커스 확인도 그대로 한다.
+Terminal.app을 책임 프로세스로 쓰는 경로는 쓰지 않는다. 스크립트를 띄운 Terminal 창을 AppleScript 없이 닫을 방법이 없고, 그 경로의 단계는 측정한 적이 없다.

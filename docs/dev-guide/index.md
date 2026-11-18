@@ -34,7 +34,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 
 | 문서 | 내용 |
 |------|------|
-| [build](build.md) | 워크스페이스·빌드 프로필·문서 가드 최적화 · debug 전용 번들 자동 동기화 · 공용 모듈의 GUI 정의 경계 · Windows 파일 identity 경계 · 로컬 dist 산출물 명령 |
+| [build](build.md) | 워크스페이스·빌드 프로필·문서 가드 최적화 · debug 전용 번들 자동 동기화 · 공용 모듈의 GUI 정의 경계 · Windows 파일 identity 경계 · 로컬 dist 산출물 명령 · macOS 키 입력 도우미(개발용 OS 수준 키 입력) |
 | [release](release.md) | 버전·lockfile·README 배지 정합 · 릴리스 워크플로(태그 → CI) · self-hosted 러너 인벤토리·운영 |
 | [dep-issues](dep-issues.md) | 의존성 future-incompat 모니터링과 포크 핀 |
 | [x11-ime-recovery](x11-ime-recovery.md) | 원격 XIM 응답 기한, 서버 종료·교체 복구와 입력 수명 |
