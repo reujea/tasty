@@ -1,7 +1,8 @@
 //! 팝업 공통 선언 `PopupDecl`.
 //!
 //! 팝업 사이의 동작 차이는 이 선언 값으로만 정한다. 팝업 id를 비교해 규칙을 정하지 않는다.
-//! host 팝업 정의(`PopupDef`)가 이 타입을 담는다. plugin 팝업은 아직 manifest의 별도 선언을 쓴다.
+//! host 팝업 정의(`PopupDef`)가 이 타입을 담는다. plugin이 실행 중에 보내는 선언은
+//! [`crate::popup_spec::PopupDeclSpec`]이고, host가 [`PopupDecl::plugin`] 위에 덮어 이 타입을 만든다.
 //!
 //! 속성 가운데 일부는 선언만 있고 아직 읽는 곳이 없다. 각 필드 문서에 읽는 곳이 있는지 적는다.
 //! 읽는 곳이 없는 필드는 값과 실제 동작이 다를 수 있다. 그때 동작은 여는 쪽 코드가 정한다.
@@ -258,6 +259,32 @@ impl PopupDecl {
         }
     }
 
+    /// plugin 팝업의 기본 선언. 동작 기본값은 [`PopupDecl::new`]와 같고, 셸 모양은 host가 정한다.
+    ///
+    /// plugin 콘텐츠는 egui-mesh로 영역 전체를 그리므로 제목줄과 끌기 손잡이가 없다.
+    /// 지금 plugin 팝업 셸은 이 선언의 `shell`·`shadow`·`content_margin`을 읽지 않고
+    /// plugin 팝업 렌더러가 정한 모양을 그린다.
+    pub const fn plugin(scope_kind: PopupScopeKind, size: PopupSize) -> Self {
+        let mut decl = Self::new(scope_kind, size);
+        decl.chrome = PopupChrome::Headless;
+        decl.drag_handle = PopupDragHandle::None;
+        decl
+    }
+
+    /// 크기 값이 쓸 수 있는지 확인한다. 크기는 양수이고 최소 크기는 처음 크기를 넘지 않는다.
+    pub fn check_sizes(&self) -> Result<(), String> {
+        check_positive("size", self.size)?;
+        if let Some(min) = self.min_size {
+            check_positive("min_size", min)?;
+            if min.width.value() > self.size.width.value()
+                || min.height.value() > self.size.height.value()
+            {
+                return Err("min_size must not exceed size".to_string());
+            }
+        }
+        Ok(())
+    }
+
     /// 제목줄이 없는 셸인지.
     pub const fn is_headless(&self) -> bool {
         matches!(self.chrome, PopupChrome::Headless)
@@ -266,6 +293,15 @@ impl PopupDecl {
     /// 바깥 클릭으로 닫히는지.
     pub const fn closes_on_outside_click(&self) -> bool {
         matches!(self.outside_click, PopupOutsideClick::Close)
+    }
+}
+
+fn check_positive(name: &str, size: PopupSize) -> Result<(), String> {
+    let ok = |v: f32| v.is_finite() && v > 0.0;
+    if ok(size.width.value()) && ok(size.height.value()) {
+        Ok(())
+    } else {
+        Err(format!("{name} width and height must be positive numbers"))
     }
 }
 
@@ -288,6 +324,41 @@ mod tests {
         assert_eq!(d.fit, PopupFit::Collapse);
         assert_eq!(d.scope_kind, PopupScopeKind::Surface);
         assert_eq!(d.size, SIZE);
+    }
+
+    #[test]
+    fn a_plugin_declaration_has_no_title_bar() {
+        let d = PopupDecl::plugin(PopupScopeKind::Window, SIZE);
+        assert!(d.is_headless());
+        assert_eq!(d.drag_handle, PopupDragHandle::None);
+        let mut expected = PopupDecl::new(PopupScopeKind::Window, SIZE);
+        expected.chrome = PopupChrome::Headless;
+        expected.drag_handle = PopupDragHandle::None;
+        assert_eq!(d, expected);
+    }
+
+    #[test]
+    fn sizes_must_be_positive_and_min_must_fit() {
+        let mut d = PopupDecl::new(PopupScopeKind::Window, SIZE);
+        assert!(d.check_sizes().is_ok());
+        d.size.width = LogicalPx(0.0);
+        assert!(d.check_sizes().is_err());
+        d.size.width = LogicalPx(f32::NAN);
+        assert!(d.check_sizes().is_err());
+        d.size = SIZE;
+        d.min_size = Some(PopupSize {
+            width: LogicalPx(300.0),
+            height: LogicalPx(50.0),
+        });
+        assert_eq!(
+            d.check_sizes().expect_err("min wider than size"),
+            "min_size must not exceed size"
+        );
+        d.min_size = Some(PopupSize {
+            width: LogicalPx(200.0),
+            height: LogicalPx(100.0),
+        });
+        assert!(d.check_sizes().is_ok());
     }
 
     #[test]

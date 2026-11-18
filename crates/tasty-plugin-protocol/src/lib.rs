@@ -13,6 +13,7 @@ pub mod line;
 #[cfg(feature = "egui-mesh")]
 pub mod mesh_wire;
 pub mod popup_decl;
+pub mod popup_spec;
 pub mod protocol;
 pub mod task_turn;
 
@@ -20,6 +21,10 @@ pub use edit::{CAPABILITY_EDIT_OUTCOME, EditRequestWire, EditResultWire};
 pub use events::{EventEnvelope, EventMeta, EventOrigin, EventScope, LifecycleReason, MAX_HOP};
 pub use ipc_method::{IpcInvokeParams, METHOD_IPC_INVOKE};
 pub use line::write_line;
+pub use popup_spec::{
+    METHOD_POPUP_DECLARE, METHOD_POPUP_SHOW, PopupDeclSpec, PopupDeclareParams, PopupShowParams,
+    PopupShowResult, PopupShowTarget,
+};
 pub use protocol::{
     AuthAck, AuthAckEnvelope, AuthMessage, BannerBodyCutWire, BannerCloseReason,
     BannerClosedParams, BannerOpenParams, BannerOpenResult, BannerSetContextParams,
