@@ -90,17 +90,31 @@ impl RequestContext {
         terminal_rect: crate::model::PhysicalRect,
         scale_factor: f32,
     ) -> bool {
+        let Some(pane_id) = self.pane_at_position(engine, x, y, terminal_rect, scale_factor) else {
+            return false;
+        };
+        let ws = self.active_workspace(engine);
+        self.navigation.select_pane(ws, pane_id)
+    }
+
+    /// 활성 workspace 에서 좌표 아래 pane(탭 바 포함). 포커스는 바꾸지 않는다.
+    pub fn pane_at_position(
+        &self,
+        engine: &CoreState,
+        x: f32,
+        y: f32,
+        terminal_rect: crate::model::PhysicalRect,
+        scale_factor: f32,
+    ) -> Option<u32> {
         let ws = self.active_workspace(engine);
         #[cfg(feature = "gui")]
         let pane_rects = self.pane_rects(engine, ws, terminal_rect, scale_factor);
         #[cfg(not(feature = "gui"))]
         let pane_rects = ws.pane_layout().compute_rects(terminal_rect, scale_factor);
-        for (pane_id, rect) in pane_rects {
-            if rect.contains(PhysicalPx(x), PhysicalPx(y)) {
-                return self.navigation.select_pane(ws, pane_id);
-            }
-        }
-        false
+        pane_rects
+            .into_iter()
+            .find(|(_, rect)| rect.contains(PhysicalPx(x), PhysicalPx(y)))
+            .map(|(pane_id, _)| pane_id)
     }
 
     pub fn focus_surface_at_position(

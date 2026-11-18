@@ -87,3 +87,41 @@ fn a_drop_position_decides_even_without_a_cursor() {
     assert_eq!(drop_point(None, None), None);
     assert_eq!(route(None, None), Route::NoCursor);
 }
+
+/// 탭 바처럼 surface 가 없는 자리에 놓아도 그 좌표의 pane 을 결과 자리로 정한다. 처리 때 포커스로 미루지 않는다.
+#[test]
+fn a_drop_off_any_surface_binds_the_pane_under_the_cursor() {
+    use crate::file::dispatch::FileResultPlace;
+    use crate::model::PhysicalPx;
+    let (mut state, engine) = crate::state::tests::two_pane_fixture();
+    state.tab_bar_height = PhysicalPx(24.0);
+    let terminal_rect = crate::model::PhysicalRect {
+        x: PhysicalPx(0.0),
+        y: PhysicalPx(0.0),
+        width: PhysicalPx(800.0),
+        height: PhysicalPx(400.0),
+    };
+    let read = engine.read();
+    let ws = state.active_workspace(&read);
+    let (_, rect) = state
+        .pane_rects(&read, ws, terminal_rect, 1.0)
+        .into_iter()
+        .find(|(id, _)| *id == 20)
+        .expect("pane 20 rect");
+    // pane 20 탭 바 위 한 점.
+    let (x, y) = (rect.x.value() + 4.0, rect.y.value() + 4.0);
+    state.select_pane(&engine.core_state, 20);
+    assert_eq!(
+        state.surface_at_position(&read, x, y, terminal_rect, 1.0),
+        None
+    );
+    let pane_at = state.pane_at_position(&read, x, y, terminal_rect, 1.0);
+    assert_eq!(pane_at, Some(20));
+    state.select_pane(&engine.core_state, 10);
+    assert_eq!(drop_result_place(None, pane_at), FileResultPlace::Pane(20));
+    assert_eq!(
+        drop_result_place(Some(10), pane_at),
+        FileResultPlace::Pane(10)
+    );
+    assert_eq!(drop_result_place(None, None), FileResultPlace::Unbound);
+}

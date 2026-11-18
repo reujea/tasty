@@ -167,7 +167,10 @@ fn a_local_terminal_link_names_its_pane_as_the_result_place() {
 #[test]
 fn window_input_paths_name_the_result_place() {
     let drop = include_str!("../../view/main/file_drop.rs");
-    assert!(drop.contains(".and_then(|sid| engine.find_pane_for_surface(sid))"));
+    assert!(drop.contains(
+        "drop_result_place(\n            hit.and_then(|sid| engine.find_pane_for_surface(sid)),\n            pane_at,\n        );"
+    ));
+    assert!(drop.contains(".pane_at_position(engine, x, y, terminal_rect, scale_factor);"));
     assert!(drop.contains("                    origin_surface_id: None,\n"));
     assert!(drop.contains("                    result_place,\n"));
     let mouse = include_str!("../../view/main/mouse.rs");

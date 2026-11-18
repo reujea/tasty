@@ -195,8 +195,11 @@ impl MainView {
             }
             Route::AtCursor(x, y) => (x, y),
         };
-        let hit = {
+        let (hit, pane_at) = {
             let scale_factor = self.base.gpu.scale_factor();
+            let pane_at = self
+                .state
+                .pane_at_position(engine, x, y, terminal_rect, scale_factor);
             // best-effort focus 이동. drop 좌표에 pane/surface 가 없으면 현재 focus 유지.
             let _pane_focus =
                 self.state
@@ -220,16 +223,14 @@ impl MainView {
                 self.drop_into_explorer(engine, sid, dest, decided, drops);
                 return;
             }
-            hit
+            (hit, pane_at)
         };
-        // 결과 탭은 놓은 자리의 pane 에 연다. 놓은 surface 를 origin 으로 싣지 않는다. origin 은 파일 위치도
-        // 정해서, 로컬 파일을 mirror surface 에 놓으면 원격 파일로 판정되기 때문이다.
-        let result_place = hit
-            .and_then(|sid| engine.find_pane_for_surface(sid))
-            .map_or(
-                crate::file::dispatch::FileResultPlace::Unbound,
-                crate::file::dispatch::FileResultPlace::Pane,
-            );
+        // 놓은 surface 를 origin 으로 싣지 않는다. origin 은 파일 위치도 정해서, 로컬 파일을 mirror surface 에
+        // 놓으면 원격 파일로 판정되기 때문이다.
+        let result_place = drop_result_place(
+            hit.and_then(|sid| engine.find_pane_for_surface(sid)),
+            pane_at,
+        );
         for path in drops {
             self.state.dispatch_intent(
                 crate::app::command::DomainIntent::DispatchFile {
@@ -245,6 +246,18 @@ impl MainView {
             );
         }
     }
+}
+
+/// 파일 드롭 결과 탭을 열 자리. 놓은 surface 의 pane 이고, surface 를 맞히지 못했으면(탭 바 등) 놓은 좌표의
+/// pane 이다. 둘 다 없을 때만 자리를 정하지 않는다. 처리 때 포커스로 자리를 다시 고르지 않게 하려는 것이다.
+fn drop_result_place(
+    hit_pane: Option<u32>,
+    pane_at: Option<u32>,
+) -> crate::file::dispatch::FileResultPlace {
+    hit_pane.or(pane_at).map_or(
+        crate::file::dispatch::FileResultPlace::Unbound,
+        crate::file::dispatch::FileResultPlace::Pane,
+    )
 }
 
 #[cfg(test)]
