@@ -164,15 +164,16 @@ pub(super) fn handle_debug_host_popup_open(
         }
         (false, None) => crate::model::popup_kind::PopupScope::Window,
     };
-    // 변환 팝업은 대상 surface를 인스턴스 데이터로 받는다.
-    let request = match (def.id, bound_surface) {
-        (crate::adapters::ui::popup::convert::CONVERT_POPUP_ID, Some(sid)) => {
-            crate::adapters::ui::popup::convert::open_request(sid)
-        }
-        _ => crate::intent::OpenRequest::new(def.id, scope)
-            .centered()
-            .focused(),
-    };
+    // 인스턴스 데이터가 필요한 팝업은 정의가 debug 열기의 데이터를 정한다.
+    let payload = def
+        .debug_payload
+        .map_or(crate::adapters::ui::popup::PopupPayload::None, |make| {
+            make(state, engine, bound_surface)
+        });
+    let request = crate::intent::OpenRequest::new(def.id, scope)
+        .centered()
+        .focused()
+        .with_payload(payload);
     // 사용자 조작 재현이므로 사용자 출처로 열어 포커스를 준다.
     state.dispatch_intent(
         crate::intent::UiIntent::OpenPopup(request).from_user_menu("debug.popup.open"),
@@ -488,5 +489,40 @@ mod host_popup_open_tests {
             (-32602, "surface_scope requested but no surface is focused")
         );
         assert!(state.take_pending_intents().is_empty());
+    }
+    /// Given 포커스된 surface, When 변환 팝업을 surface 범위로 debug 열기 하면, Then 정의가 정한 데이터
+    /// (그 surface를 바꿀 대상으로)를 싣고 그 surface 범위로 연다.
+    #[test]
+    fn debug_open_of_convert_uses_the_declared_payload() {
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let sid = state.focused_surface_id(&read).expect("focused surface");
+        let params = serde_json::json!({ "popup_id": "convert_surface", "surface_scope": true });
+        let opened = handle_debug_host_popup_open(&mut state, &read, serde_json::json!(1), &params);
+        assert!(opened.error.is_none(), "{opened:?}");
+        let pending = state.take_pending_intents();
+        let request = pending
+            .iter()
+            .find_map(|d| match &d.body {
+                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(r)) => Some(r),
+                _ => None,
+            })
+            .expect("open request");
+        assert_eq!(
+            request.scope,
+            crate::model::popup_kind::PopupScope::Surface(sid)
+        );
+        let carried = request.payload.peek(|p| match p {
+            crate::adapters::ui::popup::PopupPayload::Convert(c) => Some(c.clone()),
+            _ => None,
+        });
+        assert_eq!(
+            carried,
+            Some(crate::adapters::ui::popup::convert::ConvertPayload {
+                surface_id: sid,
+                selected: None,
+            })
+        );
     }
 }

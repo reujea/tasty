@@ -30,10 +30,24 @@ pub fn open_request(surface_id: u32) -> crate::intent::OpenRequest {
     )
     .centered()
     .focused()
-    .with_payload(popup::PopupPayload::Convert(ConvertPayload {
+    .with_payload(payload(surface_id))
+}
+
+fn payload(surface_id: u32) -> popup::PopupPayload {
+    popup::PopupPayload::Convert(ConvertPayload {
         surface_id,
         selected: None,
-    }))
+    })
+}
+
+/// debug IPC로 열 때의 데이터. surface 범위가 아니면 바꿀 surface가 없어 데이터 없이 연다.
+#[cfg(debug_assertions)]
+pub(crate) fn debug_payload(
+    _state: &MainViewState,
+    _engine: &crate::core::CoreState,
+    surface: Option<u32>,
+) -> popup::PopupPayload {
+    surface.map_or(popup::PopupPayload::None, payload)
 }
 
 fn payload_of(payload: &popup::PopupPayload) -> Option<&ConvertPayload> {

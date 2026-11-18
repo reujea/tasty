@@ -62,6 +62,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: crate::adapters::ui::notification::draw_notification_popup,
                 // Preserve the expanded row and popup scroll position across reopen.
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -88,6 +90,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: super::convert::draw_convert_popup,
                 // 대상과 선택은 인스턴스 데이터라 닫으면 함께 사라진다.
+                #[cfg(debug_assertions)]
+                debug_payload: Some(super::convert::debug_payload),
                 on_close: None,
             },
             PopupDef {
@@ -114,6 +118,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::explorer_conflict::draw,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::explorer_conflict::on_close),
             },
             PopupDef {
@@ -136,6 +142,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::script_confirm::draw_script_confirm_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::script_confirm::on_close_script_confirm_popup),
             },
             PopupDef {
@@ -164,6 +172,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: crate::adapters::ui::dialog::draw_rename_popup,
                 // 대상·입력·원격 대기는 인스턴스 데이터라 닫으면 함께 사라진다.
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             // 탐색기 Properties — 그 탐색기 칸 범위, 머리를 직접 그린다(글리프 · 이름 · 닫기).
@@ -192,6 +202,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: super::explorer_properties::draw,
                 // 항목과 읽기는 인스턴스 데이터라 닫으면 함께 사라지고 세기도 멈춘다.
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -220,6 +232,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: crate::adapters::ui::search_bar::draw_search_bar,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(crate::adapters::ui::search_bar::on_close_search_bar),
             },
             PopupDef {
@@ -246,6 +260,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: crate::adapters::ui::info_modal::draw_info_modal,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(crate::adapters::ui::info_modal::on_close_info_modal),
             },
             PopupDef {
@@ -273,6 +289,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::approval::draw_approval_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::approval::on_close_approval_popup),
             },
             PopupDef {
@@ -300,6 +318,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: Some(panel_header_drag_strip),
                 on_open: None,
                 draw_fn: super::file_handler_picker::draw_file_handler_picker,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::file_handler_picker::on_close_file_handler_picker),
             },
             PopupDef {
@@ -329,6 +349,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: Some(panel_header_drag_strip),
                 on_open: None,
                 draw_fn: super::file_picker::draw_file_picker,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::file_picker::on_close_file_picker),
             },
             PopupDef {
@@ -356,6 +378,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: |ui, state, engine, _| super::port_scanner::draw_port_scanner_popup(ui, state, engine),
                 // 닫힌 경로(사유)에 따라 스캔 상태를 남길지 정한다.
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::port_scanner_close::on_close_port_scanner_popup),
             },
             PopupDef {
@@ -383,6 +407,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: Some(super::command_palette::on_open_command_palette_popup),
                 draw_fn: super::command_palette::draw_command_palette_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             // 소속 워크스페이스는 여는 시점의 WithScope에서 지정한다.
@@ -412,6 +438,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::dag_list::draw_dag_list_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -438,6 +466,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: Some(panel_header_drag_strip),
                 on_open: None,
                 draw_fn: |ui, state, engine, _| super::remote_tool::draw_remote_tool_popup(ui, state, engine),
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(|ctx, state, engine, _| {
                     super::remote_tool::on_close_remote_tool_popup(ctx, state, engine)
                 }),
@@ -464,6 +494,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: |ui, state, engine, _| super::remote_attach::draw_remote_attach_popup(ui, state, engine),
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(|ctx, state, engine, _| {
                     super::remote_attach::on_close_remote_attach_popup(ctx, state, engine)
                 }),
@@ -494,6 +526,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::transfer::draw_transfer_progress,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::transfer::on_close_transfer_progress),
             },
             // 원격 전송 실패 — scrim 중앙 headless, 기본 dismiss(Esc/scrim). Retry 는
@@ -522,6 +556,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::transfer::draw_transfer_error,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::transfer::on_close_transfer_error),
             },
             // 다운로드 후 실행 대화상자 — Esc·바깥 클릭은 Cancel 과 같다.
@@ -544,6 +580,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::download_run::draw_download_run,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::download_run::on_close_download_run),
             },
             // 1 MiB 초과 확인 — 답하지 않고 닫으면(Cancel·Esc·바깥 클릭) 그 다운로드를 취소한다.
@@ -566,6 +604,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::download_run::draw_download_run_large,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::download_run::on_close_download_run_large),
             },
             // 다운로드 진행 — Esc·바깥 클릭으로 닫히지 않는다. 멈추는 것은 Stop download 하나다.
@@ -591,6 +631,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::download_run::draw_download_run_progress,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -612,6 +654,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::preset_apply::draw_apply_workspace_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::preset_apply::on_close_apply_workspace_popup),
             },
             PopupDef {
@@ -633,6 +677,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::preset_apply::draw_apply_tab_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::preset_apply::on_close_apply_tab_popup),
             },
             PopupDef {
@@ -654,6 +700,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::preset_apply::draw_apply_pane_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(super::preset_apply::on_close_apply_pane_popup),
             },
             PopupDef {
@@ -680,6 +728,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: crate::adapters::ui::tools_menu::draw_tools_menu,
                 // pending_open_preset_window는 App이 처리하는 요청이며 팝업이 닫힐 때 지우지 않는다.
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -708,6 +758,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_open: None,
                 draw_fn: crate::adapters::ui::mouse_capture_menu::draw_menu,
                 // 대상·크기는 인스턴스 데이터라 닫으면 함께 사라진다.
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -729,6 +781,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::confirm_delete_category::draw_confirm_delete_category,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             PopupDef {
@@ -754,6 +808,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::confirm_force_detach_workspace::draw_confirm_force_detach_workspace,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             // 저장된 원격 행을 원격에서 닫기 전 확인 — Window 범위, scrim 가운데, 머리를 직접 그린다.
@@ -778,6 +834,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::confirm_close_remote::draw_confirm_close_remote,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
             super::remote_row::def(),
@@ -801,6 +859,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: Some(crate::adapters::ui::tutorial::open_catalog),
                 draw_fn: crate::adapters::ui::tutorial::topic_popup::draw_tutorial_topics_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: Some(crate::adapters::ui::tutorial::topic_popup::on_close),
             },
             PopupDef {
@@ -826,6 +886,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::rail_category::draw_rail_category_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
                 on_close: None,
             },
         ]

@@ -18,6 +18,8 @@ pub(crate) fn register(popups: &mut PopupManager) {
         on_open: None,
         draw_fn: base.draw_fn,
         fullscreen_stage: base.fullscreen_stage,
+        #[cfg(debug_assertions)]
+        debug_payload: None,
         on_close: base.on_close,
     };
     popups.register_def(&def, 1.0);

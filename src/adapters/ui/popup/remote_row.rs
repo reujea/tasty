@@ -360,6 +360,8 @@ pub(crate) fn def() -> PopupDef {
         drag_region: None,
         on_open: None,
         draw_fn: draw,
+        #[cfg(debug_assertions)]
+        debug_payload: None,
         on_close: None,
     }
 }

@@ -302,7 +302,16 @@ pub struct PopupDef {
     /// 열린 팝업이 close()를 통해 닫히면 closed_queue에 기록하고 frame에서 훅을 호출한다.
     /// egui 임시 상태를 지울 수 있도록 Context를 받는다.
     pub on_close: Option<PopupCloseHook>,
+    /// debug IPC가 사용자 클릭 없이 열 때 실을 인스턴스 데이터. 포커스된 surface를 받는다.
+    /// `None`이거나 `PopupPayload::None`을 돌려주면 데이터 없이 연다.
+    #[cfg(debug_assertions)]
+    pub debug_payload: Option<PopupDebugPayloadFn>,
 }
+
+/// debug IPC 열기의 인스턴스 데이터. 세 번째 인자는 surface 범위로 열 때의 대상 surface다.
+#[cfg(debug_assertions)]
+pub type PopupDebugPayloadFn =
+    fn(&MainViewState, &crate::core::CoreState, Option<u32>) -> PopupPayload;
 
 /// 닫기 훅. 닫힌 인스턴스의 사유와 데이터를 받는다.
 /// 인스턴스마다 제목을 정한다. 인스턴스 데이터를 함께 받는다.
