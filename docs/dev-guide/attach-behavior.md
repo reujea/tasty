@@ -344,7 +344,7 @@ IME·vi 커서·링크·검색 하이라이트는 표시하지 않는다. soft �
 
 mirror grid 는 **client 가 구동(client-driven)** 한다(docs/features/remote-attach/index.md) — mirror 를 띄운 **로컬 pane 의 크기**가 grid 를 정하고, 원격 PTY 를 그 크기로 reflow 시킨다. "remote authoritative" 는 **메커니즘으로만 유지**: 원격 PTY 가 실제 크기를 확정하는 주체(reflow 담당)이고 그 settled 크기를 echo 로 되돌린다. 즉 **의도(intent)는 client, 확정(confirm)은 remote** 의 요청→확정 협상이다.
 
-숨은 mirror의 크기 요청 시점과 서버 적용의 예외는 [그릴 때 적용 정책](../design/policies/render-on-draw.md)을 따른다.
+숨은 mirror의 크기 요청을 그릴 때로 미루는 원칙은 아직 구현되지 않았고, 규칙과 서버 적용의 예외는 [그릴 때 적용 정책](../design/policies/render-on-draw.md)에 있다.
 
 - **client 구동 (forward)**: mirror 는 detached 터미널(PTY 없음)이라, 매 프레임 도는 로컬 레이아웃 리사이즈 스윕(View의 resize 요청 / `AppServices::resize_terminals`)이 detached 터미널을 로컬에 적용하는 대신, 목표 grid `(cols, rows)` 를 `RemoteState.pending_resize_forward`(로컬 surface id → grid)에 넣는다(목표가 이미 현재 mirror grid 면 생략). 이 한 곳에서 걸러 모든 리사이즈 진입점(창 resize·divider drag·단축키·redraw)을 커버한다. `App::dispatch_pending_resize_forwards`(`about_to_wait`, gui)가 drain 해 로컬 id 를 세션 매핑으로 원격 id 로 치환하고 `StreamControl::ClientResize{surface_id, cols, rows}` 를 `Control` 프레임으로 forward 한다. 세션의 last-forwarded dedup(`tasty_remote::resize_sync::ResizeSync`)이 응답 왕복(약 1 RTT) 동안의 매 프레임 재전송을 억제한다(coalesce). 응답 보장과 재시도는 아래 "크기 요청의 응답과 재시도"를 따른다.
 - **서버 적용 (server)**: `StreamHub::pump_inbound` 이 `ClientResize` 를 `PumpOutcome.resize_requests` 로 분류 → 메인루프(gui `event_handler`/headless `boot`)가 anchor 워크스페이스의 **holder 를 검증**(hard 점유 = geometry 구동 권한, docs/dev-guide/attach-behavior.md)한 뒤 `EngineMut::apply_attached_workspace_resize` 로 원격 **실제 PTY** 를 `Terminal::resize` 한다(reflow).
