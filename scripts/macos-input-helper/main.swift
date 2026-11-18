@@ -4,7 +4,7 @@
 // 이 앱이 손쉬운 사용 권한의 책임 프로세스가 되게 한다. 사용법은 docs/dev-guide/build.md의
 // "macOS 키 입력 도우미" 절에 있다.
 // `--args request-access [--result <경로>]`는 손쉬운 사용·이벤트 게시 권한을 시스템에 요청한다.
-// 실행 파일을 셸에서 직접 실행하면 권한 조회만 한다. 요청과 키 게시는 open으로 띄운 경우에만 한다.
+// 실행 파일을 셸에서 직접 실행하면 권한 조회만 한다. 명령 파일과 request-access는 권한과 관계없이 종료 코드 2로 거부한다.
 //
 // 명령 파일은 한 줄에 한 단계다. 빈 줄과 #로 시작하는 줄은 건너뛴다.
 //   switch_source <TIS 입력 소스 ID>
@@ -178,6 +178,12 @@ result["parent_pid"] = Int(parentPID)
 result["launched_via_launch_services"] = launchedViaLaunchServices
 let openHint = "launch the helper with open -g -W -n -a so that the request goes to the helper app"
 
+// 직접 실행은 조회 전용이다. 단계 실행이나 요청을 거부할 때 이유를 결과에 남긴다.
+func refuseDirectRun(_ what: String) -> Never {
+    result["refused_reason"] = "not_launched_via_open"
+    finish(.usage, "\(what); no step was run and access was not requested; \(openHint)")
+}
+
 // 시스템 요청 창을 띄워 손쉬운 사용 목록에 이 앱을 올린다. 창은 앱마다 한 번만 뜬다.
 func requestAccess() {
     let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -191,7 +197,7 @@ func requestAccess() {
 }
 
 if requestAccessMode {
-    guard launchedViaLaunchServices else { finish(.usage, "request-access refused in a direct run; \(openHint)") }
+    guard launchedViaLaunchServices else { refuseDirectRun("request-access refused in a direct run") }
     requestAccess()
     if result["CGPreflightPostEventAccess_after_request"] as? Bool == true { finish(.ok) }
     finish(.noPermission, "access is not granted yet; allow the app in System Settings")
@@ -240,15 +246,13 @@ if let commandFile {
     }
 }
 
+// 직접 실행에서는 권한이 있어도 단계를 실행하지 않는다. 셸을 띄운 앱의 권한으로 키를 게시하게 되기 때문이다.
+if !launchedViaLaunchServices, !lines.isEmpty { refuseDirectRun("command file refused in a direct run") }
+
 // 게시 권한이 없으면 이벤트가 오류 없이 버려지므로 어떤 단계도 실행하지 않고 끝낸다.
 // key 단계가 있을 때만 권한을 요청한다. 키를 보내지 않는 실행은 허용을 기다리며 반복 조회에 쓰므로 요청 창을 띄우지 않는다.
 guard postAccess else {
-    if lines.contains(where: { $0.step.postsKeys }) {
-        guard launchedViaLaunchServices else {
-            finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run; access was not requested in a direct run; \(openHint)")
-        }
-        requestAccess()
-    }
+    if lines.contains(where: { $0.step.postsKeys }) { requestAccess() }
     finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run")
 }
 
@@ -276,10 +280,21 @@ func postKey(_ keycode: CGKeyCode, down: Bool) throws {
 }
 
 // 누른 채로 남은 키를 뗀다. 다음 입력이 그 키를 물고 들어가지 않게 하기 위해서다. 수식키는 마지막에 뗀다.
-func releaseHeldKeys() -> [Int] {
+// 키마다 시도하고, 뗀 키코드와 떼지 못한 키코드(오류 포함)를 나눠 돌려준다.
+func releaseHeldKeys() -> (released: [Int], failed: [[String: Any]]) {
     let held = heldKeys.sorted { (modifierFlags[$0] == nil ? 0 : 1, $0) < (modifierFlags[$1] == nil ? 0 : 1, $1) }
-    for keycode in held { try? postKey(keycode, down: false) }
-    return held.map { Int($0) }
+    var released: [Int] = []
+    var failed: [[String: Any]] = []
+    for keycode in held {
+        do {
+            try postKey(keycode, down: false)
+            released.append(Int(keycode))
+        } catch {
+            let message = (error as? StepError)?.message ?? "\(error)"
+            failed.append(["keycode": Int(keycode), "error": message])
+        }
+    }
+    return (released, failed)
 }
 
 func run(_ step: Step) throws -> [String: Any] {
@@ -334,11 +349,16 @@ for entry in lines {
         let failure = error as? StepError ?? StepError(code: .failure, message: "\(error)")
         step["ok"] = false
         step["error"] = failure.message
-        step["released_on_failure"] = releaseHeldKeys()
+        let release = releaseHeldKeys()
+        step["released_on_failure"] = release.released
+        if !release.failed.isEmpty { step["release_failed"] = release.failed }
         steps.append(step)
         finish(failure.code, "line \(entry.line): \(failure.message)")
     }
 }
-// 명령 파일이 키를 누른 채로 끝나도 눌린 키를 남기지 않는다.
-result["released_at_end"] = releaseHeldKeys()
+// 명령 파일이 키를 누른 채로 끝나도 눌린 키를 남기지 않는다. 떼지 못한 키가 있으면 실패로 끝낸다.
+let release = releaseHeldKeys()
+result["released_at_end"] = release.released
+result["release_failed"] = release.failed
+if !release.failed.isEmpty { finish(.failure, "could not release held keys: \(release.failed.map { $0["keycode"] ?? "" })") }
 finish(.ok)

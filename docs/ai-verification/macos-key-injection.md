@@ -35,7 +35,7 @@ print("CGPreflightPostEventAccess=\(CGPreflightPostEventAccess()) AXIsProcessTru
 
 ## 권한 요청 함수
 
-권한이 없을 때 대화상자를 띄우고 손쉬운 사용 목록에 앱을 올리는 함수는 두 가지다. 키 입력 도우미는 `open`으로 띄웠을 때만 `request-access`와 권한 없이 `key` 단계가 든 명령 파일에서 이 두 함수를 부른다([macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)). 셸에서 실행 파일을 직접 실행하면 요청이 셸을 띄운 앱에 붙으므로, 직접 실행은 조회 전용이고 요청하지 않는다. 그 밖의 앱에서는 사용자가 요청한 경우에만 호출한다. 대화상자는 사용자가 직접 허용하며, child는 누르거나 닫지 않는다. `tccutil reset`은 도우미 요청 창을 다시 띄울 때 도우미 번들 ID(`com.zilhak.tasty.input-helper`)에만 쓴다. 사용자 Tasty.app 항목은 초기화하지 않는다.
+권한이 없을 때 대화상자를 띄우고 손쉬운 사용 목록에 앱을 올리는 함수는 두 가지다. 키 입력 도우미는 `open`으로 띄웠을 때만 `request-access`와 권한 없이 `key` 단계가 든 명령 파일에서 이 두 함수를 부른다([macOS 키 입력 도우미](../dev-guide/build.md#macos-키-입력-도우미)). 셸에서 실행 파일을 직접 실행하면 요청이 셸을 띄운 앱에 붙으므로, 직접 실행은 조회 전용이다. 직접 실행에서는 `request-access`와 단계가 든 명령 파일을 권한과 관계없이 종료 코드 2로 거부하고 요청하지 않는다. 그 밖의 앱에서는 사용자가 요청한 경우에만 호출한다. 대화상자는 사용자가 직접 허용하며, child는 누르거나 닫지 않는다. `tccutil reset`은 도우미 요청 창을 다시 띄울 때 도우미 번들 ID(`com.zilhak.tasty.input-helper`)에만 쓴다. 사용자 Tasty.app 항목은 초기화하지 않는다.
 
 - `CGRequestPostEventAccess()`: 이벤트 게시 권한을 요청한다.
 - `AXIsProcessTrustedWithOptions`에 `kAXTrustedCheckOptionPrompt: true`를 넘긴다. 손쉬운 사용 권한을 요청한다.
