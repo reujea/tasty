@@ -22,16 +22,19 @@ pub(crate) fn lacks_required_target(decl: Option<PopupScopeDecl>, target: Option
     target.is_none() && decl == Some(PopupScopeDecl::Surface)
 }
 
-/// 활성 플러그인이 선언한 팝업의 범위 종류. 선언이 없으면 None이다.
+/// 플러그인이 선언한 팝업의 범위 종류. 실행 중 선언이 매니페스트 선언보다 먼저다.
+/// 선언이 없거나 지금 plugin 팝업이 쓸 수 없는 범위 종류면 None이다(그런 선언은 열리지 않는다).
 pub(crate) fn declared_popup_scope(
     mgr: &tasty_host_plugin::PluginManager,
     plugin_id: &str,
     popup_id: &str,
 ) -> Option<PopupScopeDecl> {
-    mgr.plugin_popup_contributes()
-        .into_iter()
-        .find(|e| e.plugin_id == plugin_id && e.contribute.id == popup_id)
-        .map(|e| e.contribute.scope)
+    use tasty_plugin_protocol::popup_decl::PopupScopeKind;
+    match mgr.popup_decl(plugin_id, popup_id)?.scope_kind {
+        PopupScopeKind::Window => Some(PopupScopeDecl::Window),
+        PopupScopeKind::Surface => Some(PopupScopeDecl::Surface),
+        PopupScopeKind::Workspace | PopupScopeKind::Pane | PopupScopeKind::Tab => None,
+    }
 }
 
 /// 열린 플러그인 팝업 인스턴스마다 소유 플러그인과 결속 범위. 매 프레임 그리기 전과 파일 피커 요청 직전에 다시 만든다.

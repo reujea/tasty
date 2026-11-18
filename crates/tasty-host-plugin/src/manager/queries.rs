@@ -246,11 +246,16 @@ impl PluginManager {
     }
 
     /// surface 범위로 선언한 팝업의 `<plugin_id>/<popup_id>`. 도구·명령이 대상 없이 열지 않도록 쓴다.
+    /// 실행 중 선언과 매니페스트 선언을 함께 본다.
     pub fn plugin_surface_popup_ids(&self) -> std::collections::HashSet<String> {
-        self.plugin_popup_contributes()
+        self.declared_popup_keys()
             .into_iter()
-            .filter(|e| e.contribute.scope == tasty_plugin_manifest::PopupScopeDecl::Surface)
-            .map(|e| format!("{}/{}", e.plugin_id, e.contribute.id))
+            .filter(|(plugin, popup)| {
+                self.popup_decl(plugin, popup).is_some_and(|d| {
+                    d.scope_kind == tasty_plugin_protocol::popup_decl::PopupScopeKind::Surface
+                })
+            })
+            .map(|(plugin, popup)| format!("{plugin}/{popup}"))
             .collect()
     }
 

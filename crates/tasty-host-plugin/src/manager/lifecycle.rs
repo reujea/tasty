@@ -183,6 +183,7 @@ impl PluginManager {
             event_trace_seq: AtomicU64::new(1),
             popup_instances: HashMap::new(),
             next_popup_instance_id: 1,
+            popup_decls: HashMap::new(),
             pending_surface_popups: Vec::new(),
             banner_instances: HashMap::new(),
             next_banner_instance_id: 1,
@@ -811,6 +812,8 @@ impl PluginManager {
         self.forget_copied_texts(plugin_id);
         self.forget_edit_requests(plugin_id);
         self.settings_pages.unregister_plugin(plugin_id);
+        // 새 프로세스는 시작할 때 팝업을 다시 선언한다.
+        self.forget_popup_decls(plugin_id);
         // 다음 hello에서 권한과 설정 페이지 등을 다시 등록할 수 있게 한다.
         self.registered_plugins.remove(plugin_id);
     }

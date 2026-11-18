@@ -455,6 +455,9 @@ pub struct PluginManager {
     pub(super) popup_instances: HashMap<u64, PopupInstance>,
     /// 다음 popup `instance_id`. 1부터 시작해 단조 증가.
     pub(super) next_popup_instance_id: u64,
+    /// plugin이 실행 중에 `popup.declare`로 등록한 팝업 선언. 키는 (plugin id, popup id).
+    /// 같은 id의 매니페스트 선언보다 먼저 쓴다. 프로세스가 끝나면 지운다.
+    pub(super) popup_decls: HashMap<(String, String), tasty_plugin_protocol::popup_decl::PopupDecl>,
     /// surface 범위 이벤트 팝업 중 대상 surface 의 소유 확인을 기다리는 요청.
     /// 매니저는 surface 트리를 모르므로 호스트가 꺼내 확인한 뒤 연다.
     pub(super) pending_surface_popups: Vec<PendingSurfacePopup>,
@@ -586,6 +589,7 @@ mod events;
 mod ipc_dispatch;
 mod lifecycle;
 mod popup;
+mod popup_decls;
 mod pump;
 mod queries;
 mod reattach;
@@ -615,6 +619,10 @@ mod tests_auto_reload;
 // surface 범위 이벤트 팝업의 대기열 진입 검사.
 #[cfg(test)]
 mod tests_surface_popup;
+
+// 실행 중 팝업 선언의 등록·조회·정리 검사.
+#[cfg(test)]
+mod tests_popup_decls;
 
 // 원 프로세스 회수 뒤 surface 닫기의 소멸 증거 검사.
 #[cfg(test)]

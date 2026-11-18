@@ -121,34 +121,6 @@ impl PluginManager {
         Some(*existing)
     }
 
-    /// 팝업 선언을 찾는다. egui-mesh는 host와 plugin의 api_version도 같아야 한다.
-    fn resolve_open_popup_contribute(
-        &self,
-        plugin_id: &str,
-        popup_id: &str,
-    ) -> Option<tasty_plugin_manifest::PopupContribute> {
-        let pkg = self.packages.iter().find(|p| p.manifest.id == plugin_id)?;
-        let contribute = pkg
-            .manifest
-            .contributes
-            .popup
-            .iter()
-            .find(|p| p.id == popup_id)
-            .cloned()?;
-        if contribute.rendering == tasty_plugin_manifest::PopupRendering::EguiMesh
-            && pkg.manifest.api_version != tasty_plugin_manifest::HOST_API_VERSION
-        {
-            tracing::warn!(
-                "popup.open: egui-mesh popup '{plugin_id}/{popup_id}' has api_version '{}' \
-                 incompatible with host '{}'; ignoring",
-                pkg.manifest.api_version,
-                tasty_plugin_manifest::HOST_API_VERSION
-            );
-            return None;
-        }
-        Some(contribute)
-    }
-
     /// popup 인스턴스를 닫는다. plugin에 `popup.closed` fire-and-forget IPC를 보내고
     /// 호스트 측 인스턴스도 제거. 닫는 이유는 [`PopupCloseReason`] 그대로 전달.
     pub fn close_popup_instance(

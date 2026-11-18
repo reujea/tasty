@@ -662,6 +662,7 @@ impl PluginManager {
         for dead in disconnected {
             self.forget_copied_texts(dead);
             self.forget_edit_requests(dead);
+            self.forget_popup_decls(dead);
             self.egui_mesh_frames.retain(|_, f| &f.plugin_id != dead);
             self.popup_mesh_frames.retain(|_, f| &f.plugin_id != dead);
             self.banner_mesh_frames.retain(|_, f| &f.plugin_id != dead);
