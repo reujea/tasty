@@ -112,7 +112,7 @@ forward/tap 도 동반 — file picker 뿐 아니라 mirror 연결 자체가 끊
 
 | 호출자 | 결과 처리 | 위치 |
 |---|---|---|
-| Tools 메뉴·단축키 | 로컬 경로마다 `DomainIntent::DispatchFile { depth: Deep, origin_surface_id: None, dispatch_origin: User }` 를 `from_user_menu("file_picker_confirm")` 로 보내 파일 핸들러로 연다. 원격 경로는 위치 확정 때 정한 mirror surface 를 `origin_surface_id` 로 실은 같은 `DispatchFile` 로 원격 파일을 연다(원격 탐색기 더블클릭과 같은 경로). 원격에 열 수 있는 핸들러가 없으면 기존 안내가 뜬다. 클립보드는 바꾸지 않는다. | `src/adapters/ui/file_open_tool.rs::apply_outcome` |
+| Tools 메뉴·단축키 | 로컬 경로마다 `DomainIntent::DispatchFile { depth: Deep, origin_surface_id: None, dispatch_origin: User, result_place: Pane(<피커를 연 pane>) }` 를 `from_user_menu("file_picker_confirm")` 로 보내 파일 핸들러로 연다. 결과 탭은 피커를 열 때의 pane 에 열린다. 피커가 열린 동안 포커스가 옮겨져도 그 pane 이고, 그 pane 이 닫혔으면 열지 않는다. 원격 경로는 위치 확정 때 정한 mirror surface 를 `origin_surface_id` 로 실은 같은 `DispatchFile` 로 원격 파일을 연다(원격 탐색기 더블클릭과 같은 경로). 원격에 열 수 있는 핸들러가 없으면 기존 안내가 뜬다. 클립보드는 바꾸지 않는다. | `src/adapters/ui/file_open_tool.rs::apply_outcome` |
 | 탭 스트립 "새 HTML..." | 경로마다 `DomainIntent::CreateTab { pane_id, kind: "html", surface_params: {"url": 경로}, activate: true }` 를 사용자 컨텍스트 메뉴 출처로 보낸다. pane 은 ID 로 고정하므로 피커가 열린 동안 활성 pane·탭·workspace 가 바뀌어도 메뉴를 연 pane 에 만든다. 그 pane 이 닫혔으면 아무것도 만들지 않는다. | `src/adapters/ui/new_tab_picker.rs::apply_outcome` |
 | plugin `file_picker.trigger` | 요청한 plugin 에 `"file_picker.result"` 만 보낸다. 호스트는 경로로 아무것도 열지 않는다. | `src/adapters/ipc/handler/file_picker.rs::deliver_result` |
 | 설정 창 파일 선택 | 연 화면(`consumer`)이 경로를 받아 입력칸 채우기·내보내기·가져오기에 쓴다. | `src/view/settings/ui.rs::apply_file_chooser_outcomes` |

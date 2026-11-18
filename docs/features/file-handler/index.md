@@ -182,6 +182,12 @@ origin_surface_id는 결과를 만들 대상이다. 최초 요청, 식별 worker
 다른 focused pane으로 바꾸지 않는다. accepted:true는 큐 접수이며 완료 RPC를 한 번 더 보내지 않는다. 최종 결과는 `run.result`로 조회한다.
 picker 취소는 action과 recent 기록을 모두 생략한다. Ipc action payload는 path-only다.
 
+origin과 결과 자리(`FileResultPlace`)는 다른 값이다. origin은 파일을 읽을 곳(로컬·원격)이고, 결과 자리는 결과 탭을 열 곳이다.
+사용자 입력은 결과 자리를 입력 때 정한다. 파일 열기 피커(Tools 메뉴·단축키)·끌어 놓기·터미널 로컬 링크와 그 연결 동작은
+입력 때의 pane에 열고, 처리 기다림·picker 선택 동안 포커스가 옮겨져도 그 pane이다. 그 pane이 사라졌으면 열지 않는다.
+원격에서 받은 파일은 늘 새 로컬 workspace에 연다. 결과 자리를 정하지 않은 요청(IPC `file_handler.dispatch` 등)은
+origin이 있으면 origin pane, 없으면 처리할 때의 선택 pane에 연다.
+
 탭 선택 여부는 별도 FileDispatchOrigin으로 결정한다.
 사용자 Explorer 더블클릭·terminal link·drop·picker 확인·연결 동작 메뉴는 User라 결과를 선택한다.
 Agent 요청과 사용자 입력을 증명하지 못한 plugin 중계 요청(PluginUnverified)은 기존 탭과 surface 선택을 유지한다.

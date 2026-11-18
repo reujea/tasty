@@ -193,8 +193,21 @@ draft가 선택된 동안에는 기존 대상으로 넘어가지 않는다. `clo
 대상으로 잡지 않으며, 탐색기·html 주소창 단축키는 그 뒤의 기존 탐색기를 바꾸지 않는다. 모두 아무것도
 하지 않고 info 로그만 남긴다. 이 동안 surface 종류(`focused_surface_type`)는 없음이라, 초안 뒤의 기존
 surface 종류로 고르는 키(탐색기 목록 키 등)도 그 surface를 대상으로 잡지 않는다. zoom은 초안이 만들
-kind에 걸고, 생성된 surface의 kind 글꼴에 적용한다. 생성이 실패하면 버리고 info 로그를 남긴다. 분할·다른
-종류의 새 탭처럼 draft 자리에 대한 구조 요청은 지금처럼 거절한다. 변환은 입력 시점에 정한 surface를
+kind에 걸고, 생성된 surface의 kind 글꼴에 적용한다. 생성이 실패하면 버리고 info 로그를 남긴다.
+
+구조 명령(분할·새 탭·닫은 항목 복원)은 명령이 다루는 단위로 대상을 정한다. 그 단위가 이미 있으면 바로 보내고,
+draft가 만들 단위면 걸어 두었다가 생성된 surface(또는 그 pane)를 명시해 실행한다.
+
+| draft가 만드는 것 | pane 명령(pane 분할·새 탭·복원) | surface 분할 |
+|---|---|---|
+| 새 탭 | draft가 기댄 기존 pane에 바로 보낸다 | 걸어 두고 생성된 surface를 나눈다 |
+| surface 분할 | draft가 기댄 기존 pane에 바로 보낸다 | 걸어 두고 생성된 surface를 나눈다 |
+| 새 pane | 걸어 두고 생성된 surface의 pane에 보낸다. cwd 원본은 그 surface다 | 걸어 두고 생성된 surface를 나눈다 |
+
+생성이 실패하거나 draft가 사라지면 걸어 둔 구조 명령도 info 로그를 남기고 버린다. 입력 때 이미 끝난 draft가
+대상이면 걸지도 보내지도 않는다. 파일 열기 결과 탭은 걸지 않고 draft가 기댄 기존 pane에 연다. 원격(mirror)으로
+넘기는 새 탭·pane 분할의 cwd 원본(`inherit_cwd`)은 입력 때 정한 surface다. 입력 뒤 같은 pane의 선택 탭이
+바뀌어도 원본은 바뀌지 않는다. 변환은 입력 시점에 정한 surface를
 대상으로 하므로 다른 draft가 선택돼 있어도 거절하지 않는다(걸어 둔 변환을 생성된 surface에서 실행할 때도
 같다). 정산이 생성 draft를 local surface로 끝내면(`applied`,
 `applied_before_result`) 선택·포커스 여부와 무관하게 그 surface로 실행 목록에 옮긴다. `retain`이

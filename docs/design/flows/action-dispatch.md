@@ -49,6 +49,8 @@ Intent::PresetApplyCancelled → handler: …pending_preset_apply = None;
 
 `Intent`는 `Ui(UiIntent)`, `Domain(DomainIntent)`와 프리셋·탭 등 개별 작업 변종을 가진다. 정의는 `src/intent.rs`, 도메인 핸들러는 `src/intent/<domain>.rs`에 있다. 큐에 넣을 때 요청 출처를 함께 전달한다.
 
+분할·새 탭·닫은 항목 복원·새 workspace 같은 구조 intent는 입력 때 정한 대상(pane·surface id와 cwd 원본 surface)을 싣는다. 해석(`src/app/creation_intent.rs`의 `resolve`)은 그 id만 쓰고 포커스를 읽지 않으며, 대상이 사라졌으면 버린다([포커스 정책](../policies/focus.md#사용자-입력-명령의-대상-결속)).
+
 이름 변경 팝업은 workspace 이름·부제목과 탭 이름을 `Intent::DirectRename`으로 넣는다. App의 journal 명령 경로가 commit·projection 뒤 `user_direct`를 담은 완료 통지를 만든다. Domain 큐의 후속 처리는 이 표시를 싣지 않는다.
 
 ```rust

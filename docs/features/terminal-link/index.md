@@ -45,7 +45,7 @@ hover 가 판정해 둔 링크(`hovered_link`) 위에서 우클릭하면 기존 
 | 복사 | 스냅샷 텍스트를 클립보드로(+토스트). OSC 8 이면 대상 URI 가 아니라 표시 라벨. 토스트 hint 는 `copy_link` binding 이다(비어 있으면 hint 없음, `copy` 는 빌리지 않는다) |
 | 연결 동작 | 자동 1순위 실행을 건너뛰고 [핸들러 picker](../file-handler/index.md) 를 연다 — 식별 없이 전체 핸들러가 fallback 후보. 경로 링크와 `http(s)` 링크에서 노출, 그 밖의 scheme(mailto 등)은 항목 없음. 원격(mirror) surface 의 경로 링크는 원격에 열 수 있는 핸들러만 후보·recent 에 싣고, 그런 핸들러가 없으면 picker 대신 "다운로드 후 실행" 대화상자 |
 
-picker 에서 고른 핸들러는 focused pane 에 연다(좌클릭 링크와 같다).
+로컬 링크의 picker 에서 고른 핸들러는 링크를 누른 surface 의 pane 에 연다(좌클릭 링크와 같다). 그 사이 포커스가 옮겨져도 그 pane 이고, 그 pane 이 닫혔으면 열지 않는다.
 
 ### 소프트 wrap(멀티라인) 링크
 

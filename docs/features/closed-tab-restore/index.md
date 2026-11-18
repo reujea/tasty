@@ -4,7 +4,7 @@
 - **주체**: 로컬 사용자 전용 (`restore_closed`, 기본 `Ctrl+Shift+T`)
 - **설계**: 없음. 사용자와 에이전트의 구분은 [포커스 정책](../../design/policies/focus.md)을 따른다.
 - **코드**: 닫기 입력과 원 대상 해석 `src/app/journal/commands/close.rs`, 불변 capture `src/runtime/journal_product/worker/capture.rs`, undo 구조 `crates/tasty-core/src/undo.rs`, 복원 준비 `src/app/journal/commands/assembly.rs`, 완료 후 사용자 선택 `src/app/journal/commands/view_completion.rs`.
-- **화면**: 없음 (복원은 focused pane 에 즉시 반영)
+- **화면**: 없음 (복원은 입력 때의 pane 에 즉시 반영)
 
 ## 목적
 
@@ -13,7 +13,7 @@
 ## 내부 동작
 
 - 트리거: `restore_closed` 단축키([keybindings](../keybindings/index.md), 4 프리셋 공통 `Ctrl+Shift+T`).
-- 스택 top 의 항목 복원. Surface/Tab 은 호출 시점 focused pane 에. Pane 은 닫기 시점 split geometry(방향/비율/형제 pane)를 최대한 재현해 현재 워크스페이스 트리에 재삽입하고, 그 형제 pane 이 그새 사라졌으면 호출 시점 focused pane 기준으로 대체 분할한다. workspace 가 0개일 때 Surface/Tab/Pane 복원은 default workspace 를 먼저 만든 뒤.
+- 스택 top 의 항목 복원. Surface/Tab 은 입력 때 정한 pane 에(그 pane 이 사라졌으면 복원하지 않는다). Pane 은 닫기 시점 split geometry(방향/비율/형제 pane)를 최대한 재현해 현재 워크스페이스 트리에 재삽입하고, 그 형제 pane 이 그새 사라졌으면 입력 때 정한 pane 기준으로 대체 분할한다. workspace 가 0개일 때 Surface/Tab/Pane 복원은 default workspace 를 먼저 만든 뒤.
 - 닫기 capture는 live 터미널의 scrollback을 `general.restore_surface_content`가 켜져 있을 때만 불변 payload에 담는다. 아직 활성화하지 않은 지연 탭은 기존 payload 참조를 그대로 옮긴다. 저장 실패를 별도 scrollback 파일이나 메모리 사본으로 성공 처리하지 않는다.
 - 닫기 capture의 terminal 내용은 worker 큐 상한(`tasty_ipc::admission::QUEUED_BYTES_LIMIT`, 64 MiB)에서 다른 대기 요청과 이 닫기의 내용 없는 크기를 뺀 예산 안에서만 담는다. terminal마다 디스크를 읽지 않는 scrollback 직렬화 하한으로 먼저 판정하고, 하한이 작은 terminal부터 담아 내용을 지키는 terminal 수를 늘린다. 하한이 남은 예산보다 크면 그 history를 읽지 않는다. 읽은 뒤 실제 증가분이 남은 예산을 넘어도 그 terminal은 내용 없이 둔다.
 - 예산을 넘는 terminal은 scrollback 없이(cwd와 `restore.command`만) 기록하고 닫기를 진행한다. 내용을 잘라 일부만 담지 않는다. 같은 대상의 다른 surface는 예산 안이면 내용과 함께 기록한다. 다른 대기 요청이 예산을 점유해 생긴 부족도 기다리지 않고 같은 방식으로 처리한다. 닫기는 사용자가 기다리는 즉시 조작이고, 기다리는 사이 구조가 바뀔 수 있기 때문이다.
