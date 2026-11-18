@@ -24,6 +24,7 @@ mod focus_owner_tests;
 pub(crate) mod frame;
 pub(crate) mod frame_keys;
 pub(crate) mod header_drag;
+pub(crate) mod keys;
 pub(crate) mod occlusion;
 pub(crate) mod open_when;
 mod payload;
