@@ -123,6 +123,7 @@ state.dispatch_intent(
 | `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 인스턴스 데이터를 준다 |
 | `on_open` | `Option<fn(&mut MainViewState)>` | 새 인스턴스를 열기 직전에 한 번 부른다. 이미 열린 인스턴스에 온 요청(dedup)에서는 부르지 않는다. 튜토리얼 목록과 명령 팔레트가 쓴다 |
 | `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &EngineRead, &ClosedPopup)>` | 닫힘 뒷정리 훅. 모든 닫기 경로가 거치는 관리자의 인스턴스 닫기를 통해 어떤 경로로 닫히든 인스턴스마다 정확히 한 번 실행한다. `ClosedPopup`은 선언 id, 인스턴스 id, 닫기 사유, 닫히기 직전 범위, 인스턴스 데이터를 담는다(아래 "닫힘 정리" 참고). 큐의 다음 항목을 직접 여는 훅은 그 항목을 넣은 요청의 출처(`Queued.origin`)로 연다 |
+| `debug_payload` | `Option<fn(&MainViewState, &CoreState, Option<u32>) -> PopupPayload>`(debug 빌드 전용) | `debug.host_popup.open` 이 사용자 클릭 없이 열 때 실을 인스턴스 데이터. 세 번째 인자는 `surface_scope` 로 열 때의 대상 surface 다. 변환 팝업만 채운다(그 surface 를 바꿀 대상으로). 핸들러는 팝업 id 로 갈라지지 않는다 |
 
 ### `PopupDecl` 속성
 
