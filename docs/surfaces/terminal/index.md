@@ -366,13 +366,13 @@ plugin에 보내는 Scroll도 논리 포인트이므로 재현 로그에서 50�
 `surface.is_typing`은 최근 5초의 입력 여부와 마지막 입력 후 `idle_seconds`를 반환하며,
 기록이 없으면 `idle_seconds`는 -1이다. 에이전트 send/tell은 기록하지 않는다.
 
-붙여넣기는 `MainView::run_paste` 시작에서 기록한다. 단축키·명령 팔레트·이미지·plugin 붙여넣기가
+붙여넣기는 `MainView::run_paste_on` 시작에서 기록한다. 단축키·명령 팔레트·이미지·plugin 붙여넣기가
 같은 함수를 사용한다. 빈 클립보드나 붙여넣기 미지원 surface에서도 시도는 기록한다.
 원격 이미지 업로드 완료 시점에 다시 기록하지 않으므로 긴 업로드 뒤의 typing은 이미 만료될 수 있다.
 마우스 보고·휠·클릭 커서 이동과 새 탭을 여는 파일 드롭은 이 기록의 대상이 아니다.
 
 `--wait-idle` 전송과 자동 재개는 이 기록으로 사용자의 입력을 보호한다.
-새 붙여넣기 경로는 `run_paste`를 사용하며, 명령 팔레트 회귀 검증은
+새 붙여넣기 경로는 `run_paste_on`을 사용하며, 명령 팔레트 회귀 검증은
 `tests/gui_tests.rs`의 `test_palette_paste_records_user_typing`으로 수행한다.
 
 publication 동안 surface별 출력 깨움을 하나의 전체 drain으로 합칠 때, GUI·headless는 전체 drain 직전에 default와 모든 surface dedup 표지를 함께 푼다. 원 PTY reader가 보관한 콜백은 이후 출력과 EOF를 다시 알릴 수 있다. 전체 drain은 대상 자원이나 실행 세대를 바꾸지 않는다.

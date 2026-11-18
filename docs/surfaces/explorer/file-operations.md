@@ -3,7 +3,7 @@
 - **Status**: Partial — 새 폴더·새 파일·이름 변경·복사·잘라내기·붙여넣기·휴지통 이동·드래그 놓기·충돌 선택·진행 취소·실행 취소·다시 실행은 구현돼 있다. `DISPLAY`가 없는 네이티브 Wayland의 메뉴와 조합 종료 키 전달에는 아래 Linux 한계가 남아 있다. 속성 조회·미리보기 패널·Grid 썸네일·찾기(거르기와 하위 폴더 검색)는 파일을 바꾸지 않는 읽기로 동작한다. 복사·잘라내기·붙여넣기는 OS 파일 클립보드와 이어진다(Linux 는 X11 선택, Wayland 세션은 XWayland 경유. GNOME Files 와 양방향 확인. Windows·macOS 는 실 기기 미측정). 원격(mirror) explorer 에서도 그 서버가 원격 쓰기를 알리면 새 폴더·새 파일·이름 변경·휴지통 이동·같은 연결 안의 붙여넣기·드래그 놓기·충돌 선택·진행 취소·결과 카드의 Retry·Undo 가 동작한다. 원격 작업의 실행 취소 이력과 이 컴퓨터와 원격 사이의 전송은 없다. 로컬 Explorer는 Windows OLE·macOS AppKit·Linux X11/Wayland에서 외부 앱으로 Copy 드래그를 시작한다. Windows·macOS는 크로스 타깃 컴파일 확인, 실 기기 동작 미측정이다.
 - **주체**: 로컬 사용자 ([주체](../../concepts/actors.md)). 에이전트(IPC/CLI)는 이 문서의 파일 작업을 호출하지 않는다.
 - **설계**: [원격 attach (Remote attach)](../../features/remote-attach/index.md) (mirror explorer 의 파일 작업은 원격 server 가 실행한다), 이 문서 (OS 파일 클립보드 공유와 나중 복사 우선)
-- **코드**: 메뉴 구성 `build_explorer_context_menu`·메뉴 핸들러 `explorer_menu_*` (`src/view/main/redraw.rs`), 단축키·Command Palette 진입 `handle_explorer_shortcut`·`run_explorer_action` (`src/adapters/ui/input/shortcuts/copy_paste.rs`), 실행 worker `src/app/explorer_files.rs`·`src/app/file_jobs/ops.rs`·작업 엔진 `src/app/file_jobs/job.rs`·화면 동기화 `src/app/explorer_files/ui_sync.rs`·원격 요청 `src/app/explorer_files/remote.rs`·원격 server 실행 `src/app/file_jobs/remote.rs`, 새 항목 입력 `src/adapters/ui/surface/explorer/create.rs`·툴바 More 메뉴 `src/view/main/explorer_create.rs`, 찾기 `src/adapters/ui/surface/explorer/find.rs`, 칸 표시 `src/adapters/ui/surface/explorer/view/ops.rs`·드래그 `src/adapters/ui/surface/explorer/view/drag.rs`·충돌 popup `src/adapters/ui/popup/explorer_conflict.rs`, OS 파일 드롭 `src/view/main/file_drop.rs`, OS 파일 클립보드 `src/clipboard/files.rs`·창 목록과의 조정 `src/state/explorer_os_clipboard.rs`
+- **코드**: 메뉴 구성 `build_explorer_context_menu`·메뉴 핸들러 `explorer_menu_*` (`src/view/main/redraw.rs`), 단축키·Command Palette 진입 `handle_explorer_shortcut`·`run_explorer_action_on` (`src/adapters/ui/input/shortcuts/copy_paste.rs`), 실행 worker `src/app/explorer_files.rs`·`src/app/file_jobs/ops.rs`·작업 엔진 `src/app/file_jobs/job.rs`·화면 동기화 `src/app/explorer_files/ui_sync.rs`·원격 요청 `src/app/explorer_files/remote.rs`·원격 server 실행 `src/app/file_jobs/remote.rs`, 새 항목 입력 `src/adapters/ui/surface/explorer/create.rs`·툴바 More 메뉴 `src/view/main/explorer_create.rs`, 찾기 `src/adapters/ui/surface/explorer/find.rs`, 칸 표시 `src/adapters/ui/surface/explorer/view/ops.rs`·드래그 `src/adapters/ui/surface/explorer/view/drag.rs`·충돌 popup `src/adapters/ui/popup/explorer_conflict.rs`, OS 파일 드롭 `src/view/main/file_drop.rs`, OS 파일 클립보드 `src/clipboard/files.rs`·창 목록과의 조정 `src/state/explorer_os_clipboard.rs`
 - **화면**: [Explorer](index.md) 의 컨텍스트 메뉴·rename 팝업·토스트, 상태줄 진행 표시·대기열 팝오버·충돌 popup·결과 카드·드래그 칩 (갤러리 `explorer-ops-*` 예제)
 
 ## 확인된 Linux 범위와 한계
@@ -60,7 +60,7 @@ Windows에서 파일 식별 유틸리티·IPC publication과 Explorer 선택·HT
 | 드래그 — 놓는 곳 | 폴더 행·셀, 사이드바 트리 노드, 즐겨찾기 행이면 그 폴더. 파일 행이나 빈 곳이면 그 칸이 보고 있는 폴더 |
 | OS 파일 드롭 | 놓은 explorer 칸이 보고 있는 폴더(위치를 아는 동안은 위 드래그와 같은 대상) |
 
-단축키와 Command Palette 는 같은 함수(`run_explorer_action`)를 거치고, 복사·잘라내기·붙여넣기는 메뉴와 같은 핸들러(`explorer_menu_set_clipboard`·`explorer_menu_paste`)를 부른다. 같은 대상이면 진입점이 달라도 결과가 같다. 대상 surface 는 포커스된 explorer surface 이고, 메뉴는 우클릭한 surface 의 id 를 지닌다.
+단축키와 Command Palette 는 같은 함수(`run_explorer_action_on`)를 거치고, 복사·잘라내기·붙여넣기는 메뉴와 같은 핸들러(`explorer_menu_set_clipboard`·`explorer_menu_paste`)를 부른다. 같은 대상이면 진입점이 달라도 결과가 같다. 대상 surface 는 단축키면 키를 누른 때 포커스된 explorer surface, Command Palette 면 Enter 때 고른 surface 이고, 메뉴는 우클릭한 surface 의 id 를 지닌다.
 
 ### 경로 출처와 작업 대상 (공통 계약)
 

@@ -659,6 +659,14 @@ impl RequestContext {
         FocusedSurfaceType::None
     }
 
+    /// `sid` 의 surface 종류. 명령 대상 surface 의 종류를 고를 때 쓴다. 모델에 없으면 `None` 이다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn surface_type_of(&self, engine: &CoreState, sid: u32) -> FocusedSurfaceType {
+        engine
+            .find_surface_by_id(sid)
+            .map_or(FocusedSurfaceType::None, Self::surface_to_type)
+    }
+
     #[cfg(feature = "gui")]
     fn surface_to_type(surface: &crate::model::SurfaceDescriptor) -> FocusedSurfaceType {
         match surface.kind() {

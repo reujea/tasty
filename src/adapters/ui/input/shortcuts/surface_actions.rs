@@ -481,4 +481,4 @@ fn binds_host_command(
 
 #[cfg(test)]
 #[path = "surface_action_tests.rs"]
-mod tests;
+pub(super) mod tests;

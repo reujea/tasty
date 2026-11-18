@@ -34,35 +34,39 @@ impl MainView {
         self.run_copy(engine)
     }
 
-    /// 처리하지 못하면 false로 반환해 탐색기 파일 복사 등 다음 경로로 넘긴다.
+    /// 처리하지 못하면 false로 반환해 탐색기 파일 복사 등 다음 경로로 넘긴다. 대상은 키를 누른 때의 포커스다.
     pub(crate) fn run_copy(&mut self, engine: &EngineRead<'_>) -> bool {
+        let sid = self.state.focused_surface_id(engine);
+        self.run_copy_on(engine, sid)
+    }
+
+    /// `sid` 를 대상으로 복사한다. 처리하지 못하면 false 다. 포커스를 다시 읽지 않는다.
+    pub(crate) fn run_copy_on(&mut self, engine: &EngineRead<'_>, sid: Option<u32>) -> bool {
         // 붙여넣기 직후 짧은 시간 동안은 오타 방지를 위해 복사·SIGINT 없이 안내만 한다.
         if let Some(t) = self.last_terminal_paste_at
             && t.elapsed() < crate::view::main::PASTE_CTRL_C_COOLDOWN
         {
-            let scope = crate::adapters::ui::ToastScope::Surface(
-                self.state.focused_surface_id(engine).unwrap_or(0),
-            );
+            let scope = crate::adapters::ui::ToastScope::Surface(sid.unwrap_or(0));
             self.state
                 .toasts
                 .push_info(crate::i18n::t("toast.ctrl_c_ignored_after_paste"), scope);
             self.mark_dirty();
             return true;
         }
-        // 키보드 복사는 현재 포커스와 선택 영역의 surface가 같을 때만 한다.
+        // 키보드 복사는 대상 surface와 선택 영역의 surface가 같을 때만 한다.
         // 다른 surface의 이전 선택을 복사해 현재 탐색기의 입력을 가로채지 않게 한다.
         let sel_surface_id = self.text_selection.as_ref().map(|s| s.surface_id);
-        let focused = self.state.focused_surface_id(engine);
-        let selection_targets_focus = should_copy_via_focused_selection(sel_surface_id, focused);
+        let selection_targets_focus = should_copy_via_focused_selection(sel_surface_id, sid);
         if selection_targets_focus && self.copy_selection_to_clipboard(engine) {
             self.mark_dirty();
             return true;
         }
-        let st = self.state.focused_surface_type(engine);
+        let Some(sid) = sid else {
+            return false;
+        };
+        let st = self.state.surface_type_of(engine, sid);
         // 선택 위젯은 플러그인 egui Context에 있으므로 Copy 이벤트를 해당 surface에 보낸다.
-        if st.kind_capability(engine, |d| d.egui_copy)
-            && let Some(sid) = self.focused_egui_mesh_surface_id(engine)
-        {
+        if st.kind_capability(engine, |d| d.egui_copy) && egui_mesh_surface(engine, sid) {
             self.egui_mesh_push_copy(sid);
             self.mark_dirty();
             return true;
@@ -125,26 +129,37 @@ impl MainView {
         } else {
             return self.handle_explorer_list_key(engine, key, mods);
         };
-        self.run_explorer_action(engine, action)
+        let sid = self.state.focused_surface_id(engine);
+        self.run_explorer_action_on(engine, action, sid)
     }
 
-    /// 팔레트는 키보드 앞단 검사를 거치지 않으므로 여기서도 capability를 확인한다.
-    pub(crate) fn run_explorer_action(
+    /// `sid` 의 탐색기에 파일 액션을 실행한다. 팔레트는 키보드 앞단 검사를 거치지 않으므로 여기서도
+    /// capability를 확인한다. 포커스를 다시 읽지 않는다.
+    pub(crate) fn run_explorer_action_on(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         action: ExplorerAction,
+        sid: Option<u32>,
     ) -> bool {
+        let Some(sid) = sid else {
+            return false;
+        };
         if !self
             .state
-            .focused_surface_type(engine)
+            .surface_type_of(engine, sid)
             .kind_capability(engine, |d| d.copy_path)
         {
             return false;
         }
         let is_cut_files = action == ExplorerAction::CutFiles;
-        let Some(sid) = super::focused_explorer_surface_id(&self.state, engine) else {
+        let Some(panel) = engine
+            .find_surface_by_id(sid)
+            .and_then(|surface| surface.explorer())
+        else {
             return true;
         };
+        let cwd = panel.current_root().to_path_buf();
+        let sid = panel.id;
         if matches!(action, ExplorerAction::Rename | ExplorerAction::Trash) {
             self.run_explorer_item_key(engine, sid, action);
         } else if action == ExplorerAction::SelectAll {
@@ -176,9 +191,7 @@ impl MainView {
             if !paths.is_empty() {
                 self.explorer_menu_set_clipboard(engine, sid, &paths, is_cut_files);
             }
-        } else if action == ExplorerAction::PasteFiles
-            && let Some(cwd) = super::focused_explorer_cwd(&self.state, engine)
-        {
+        } else if action == ExplorerAction::PasteFiles {
             self.explorer_menu_paste(
                 engine,
                 sid,
@@ -204,12 +217,14 @@ impl MainView {
         if !matches_any_binding(&bindings, key, mods) {
             return false;
         }
-        self.run_paste(engine)
+        let sid = self.state.focused_surface_id(engine);
+        self.run_paste_on(engine, sid)
     }
 
-    pub(crate) fn run_paste(&mut self, engine: &EngineRead<'_>) -> bool {
+    /// `sid` 에 붙여 넣는다. 포커스를 다시 읽지 않는다.
+    pub(crate) fn run_paste_on(&mut self, engine: &EngineRead<'_>, sid: Option<u32>) -> bool {
         // 키보드와 팔레트 붙여넣기 모두 사용자 입력으로 기록한다.
-        if let Some(sid) = self.state.focused_surface_id(engine)
+        if let Some(sid) = sid
             && let Some(target) =
                 crate::runtime::surface_binding::SurfaceBinding::capture(engine, sid)
         {
@@ -223,18 +238,27 @@ impl MainView {
                 .from_user_shortcut("paste"),
             );
         }
-        let st = self.state.focused_surface_type(engine);
-        // egui_paste는 플러그인이 처리하므로 터미널 입력으로 넘기지 않고, 포커스된 egui-mesh
+        let st = sid.map_or(crate::state::FocusedSurfaceType::None, |sid| {
+            self.state.surface_type_of(engine, sid)
+        });
+        // egui_paste는 플러그인이 처리하므로 터미널 입력으로 넘기지 않고, 대상 egui-mesh
         // surface에 Paste 이벤트를 보낸다. 클립보드에서 필요한 형식은 플러그인이 직접 읽는다.
         if st.kind_capability(engine, |d| d.egui_paste) {
-            if let Some(sid) = self.focused_egui_mesh_surface_id(engine) {
+            if let Some(sid) = sid.filter(|sid| egui_mesh_surface(engine, *sid)) {
                 self.egui_mesh_push_paste(sid);
                 self.mark_dirty();
             }
             return true;
         }
-        self.paste_to_terminal(engine);
+        self.paste_to_terminal_on(engine, sid);
         self.mark_dirty();
         true
     }
+}
+
+/// `sid` 가 egui-mesh surface 다. 다른 종류에는 편집 이벤트를 보내지 않는다.
+fn egui_mesh_surface(engine: &EngineRead<'_>, sid: u32) -> bool {
+    engine
+        .find_surface_by_id(sid)
+        .is_some_and(|surface| surface.mesh().is_some())
 }

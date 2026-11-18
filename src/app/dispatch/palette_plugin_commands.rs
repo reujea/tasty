@@ -182,7 +182,13 @@ mod tests {
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
         let pending = state.attach_pending.entries[0].id;
         palette::press_enter_on_confirm(&mut state, &read);
-        let (_, target) = state.command_palette.pending_run.take().expect("queued");
+        let target = state
+            .command_palette
+            .pending_run
+            .take()
+            .expect("queued")
+            .1
+            .surface;
         assert_eq!(target, Some(CommandSurfaceTarget::Pending(pending)));
         let mut notified = 0;
         run_palette_command(&mut state, &read, &item(), target, |_| notified += 1);
@@ -204,7 +210,13 @@ mod tests {
         let _draft = crate::state::tests::select_pending_draft(state, read);
         let pending = state.attach_pending.entries[0].id;
         palette::press_enter_on_confirm(state, read);
-        let (_, target) = state.command_palette.pending_run.take().expect("queued");
+        let target = state
+            .command_palette
+            .pending_run
+            .take()
+            .expect("queued")
+            .1
+            .surface;
         assert_eq!(target, Some(CommandSurfaceTarget::Pending(pending)));
         let item =
             crate::adapters::ui::tools_menu::command_item("com.example.viewer", "confirm", action);

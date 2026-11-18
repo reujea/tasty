@@ -178,7 +178,7 @@ plugin 쪽(`tasty-plugin-sdk`)은 이 wire 이벤트를 `egui::Event::Copy` 로 
 
 ### egui-mesh plugin 의 붙여넣기 (`egui_paste` capability)
 
-회신을 약속하지 않은 plugin 이 매니페스트에서 `egui_paste = true` 를 선언한 kind 에 포커스가 있으면, paste 단축키(위 `KeybindingSettings` 바인딩)와 팔레트의 붙여넣기는 터미널로 가지 않고 그 surface 에 `Paste` wire 이벤트로 전달된다(`src/adapters/ui/input/shortcuts/copy_paste.rs` `run_paste` → `src/view/main/egui_mesh.rs`). 이벤트에는 클립보드 내용이 없다. plugin 이 이 이벤트를 보고 필요한 형식을 **자기 프로세스에서 직접** 읽는다(위 복사와 같은 docs/dev-guide/plugin-permissions.md 근거). 현재 이를 선언하는 번들 plugin 은 image 다.
+회신을 약속하지 않은 plugin 이 매니페스트에서 `egui_paste = true` 를 선언한 kind 에 포커스가 있으면, paste 단축키(위 `KeybindingSettings` 바인딩)와 팔레트의 붙여넣기는 터미널로 가지 않고 그 surface 에 `Paste` wire 이벤트로 전달된다(`src/adapters/ui/input/shortcuts/copy_paste.rs` `run_paste_on` → `src/view/main/egui_mesh.rs`). 이벤트에는 클립보드 내용이 없다. plugin 이 이 이벤트를 보고 필요한 형식을 **자기 프로세스에서 직접** 읽는다(위 복사와 같은 docs/dev-guide/plugin-permissions.md 근거). 현재 이를 선언하는 번들 plugin 은 image 다.
 
 ### egui-mesh plugin 의 편집 결과 회신
 

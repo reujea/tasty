@@ -50,9 +50,12 @@ impl MainView {
     ) -> bool {
         use crate::model::SplitDirection;
 
-        // WebView가 포커스면 편집 액션은 그 페이지의 포커스 대상에만 실행한다.
+        // 대상 surface가 WebView면 편집 액션은 그 페이지의 포커스 대상에만 실행한다.
         if let Some(action) = crate::webview::WebViewEditAction::from_field_id(action_id) {
-            if self.run_webview_edit(engine, action) {
+            if target
+                .surface_id()
+                .is_some_and(|sid| self.run_webview_edit_on(sid, action))
+            {
                 return true;
             }
             // 페이지 실행 취소·다시 실행은 WebView 밖에 대상이 없다. 알 수 없는 ID 경고로 남기지 않는다.
@@ -60,6 +63,11 @@ impl MainView {
             if matches!(action, Undo | Redo) {
                 return false;
             }
+        }
+
+        // 입력 때 정한 대상이 그 사이 사라졌으면 다른 대상으로 넘기지 않는다.
+        if super::command_target_gone(&self.state, engine, action_id, target) {
+            return true;
         }
 
         let terminal_rect = self.compute_terminal_rect();
@@ -76,15 +84,7 @@ impl MainView {
 
         match action_id {
             "new_workspace" => {
-                let category = target.find_workspace(engine).map(|ws| ws.category);
-                state.dispatch_intent(
-                    Intent::NewWorkspace {
-                        kind: None,
-                        params: serde_json::Value::Null,
-                        category,
-                    }
-                    .from_user_shortcut("new_workspace"),
-                );
+                super::new_workspace_action(state, engine, target);
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "new_tab" => {
@@ -258,17 +258,7 @@ impl MainView {
                     surface_actions::convert_to_explorer(state, sid, "convert_to_explorer");
                 }
             }
-            "rename_tab" => {
-                if let Some((rename, current_name)) = state.tab_rename_in(engine, target) {
-                    crate::adapters::ui::rename_popup::open(
-                        state,
-                        engine,
-                        rename,
-                        current_name,
-                        |intent| intent.from_user_shortcut("rename_tab"),
-                    );
-                }
-            }
+            "rename_tab" => super::open_tab_rename(state, engine, target),
             "rename_workspace" => {
                 if let Some(ws) = target.find_workspace(engine) {
                     let rename = crate::state::RenameTarget::WorkspaceName {
@@ -430,30 +420,32 @@ impl MainView {
                 return false;
             }
         }
+        // 편집 대상은 입력 때 정한 surface 다. 실행할 때 포커스를 다시 읽지 않는다.
+        let sid = target.surface_id();
         // 회신을 약속한 플러그인 surface 의 편집은 그 플러그인에 요청으로 보내고 아래 경로를 타지 않는다.
         let deferred = deferred.filter(|action| {
             !action
                 .edit()
-                .is_some_and(|edit| self.ask_plugin_surface_palette_edit(engine, edit))
+                .is_some_and(|edit| self.ask_plugin_surface_palette_edit(engine, edit, sid))
         });
         // 키 경로와 같은 순서: 복사는 선택 텍스트→탐색기 파일, 붙여넣기는 탐색기→터미널이다.
         match deferred {
             Some(DeferredPaletteAction::Copy) => {
-                if !self.run_copy(engine) {
-                    self.run_explorer_action(engine, ExplorerAction::CopyFiles);
+                if !self.run_copy_on(engine, sid) {
+                    self.run_explorer_action_on(engine, ExplorerAction::CopyFiles, sid);
                 }
             }
             Some(DeferredPaletteAction::Cut) => {
-                self.run_explorer_action(engine, ExplorerAction::CutFiles);
+                self.run_explorer_action_on(engine, ExplorerAction::CutFiles, sid);
             }
             Some(DeferredPaletteAction::Paste) => {
-                let pasted = self.run_explorer_action(engine, ExplorerAction::PasteFiles);
+                let pasted = self.run_explorer_action_on(engine, ExplorerAction::PasteFiles, sid);
                 if !pasted {
-                    self.run_paste(engine);
+                    self.run_paste_on(engine, sid);
                 }
             }
             Some(DeferredPaletteAction::Explorer(action)) => {
-                self.run_explorer_action(engine, action);
+                self.run_explorer_action_on(engine, action, sid);
             }
             None => {}
         }

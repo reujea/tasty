@@ -296,7 +296,7 @@ host 가 받은 **실제 사용자 입력**만 surface-local 좌표로 변환해
 | 텍스트 입력 | `Text { text }` | `egui_mesh_push_text` (게이트 `should_forward_text`) |
 | IME 조합(라이브 preedit + commit) | `Ime { event: ImeWire::… }` | `egui_mesh_push_ime` ← `ime.rs` `forward_ime_to_egui_mesh` |
 | 복사 단축키(회신을 약속하지 않은 plugin 의 `egui_copy` capability 를 가진 kind 한정) | `Copy` | `egui_mesh_push_copy` ← `copy_paste.rs` `handle_copy_shortcut` |
-| 붙여넣기 단축키·팔레트 붙여넣기(회신을 약속하지 않은 plugin 의 `egui_paste` capability 를 가진 kind 한정) | `Paste`(클립보드 내용 없음) | `egui_mesh_push_paste` ← `copy_paste.rs` `run_paste` |
+| 붙여넣기 단축키·팔레트 붙여넣기(회신을 약속하지 않은 plugin 의 `egui_paste` capability 를 가진 kind 한정) | `Paste`(클립보드 내용 없음) | `egui_mesh_push_paste` ← `copy_paste.rs` `run_paste_on` |
 | 복사·잘라내기·붙여넣기 바인딩과 팔레트 명령(회신을 약속한 plugin 의 로컬 surface) | `EditRequest { edit_id, edit }` | `queue_plugin_edit_request` ← `src/app/plugin_popup_edit.rs` `begin_plugin_field_edit` |
 
 **스크롤은 한 pass 에 전량 전달된다.** SDK 의 와이어→egui 매핑(`egui_surface.rs` 의

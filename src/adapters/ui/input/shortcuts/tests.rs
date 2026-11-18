@@ -1027,14 +1027,14 @@ fn dispatchable_action_ids() -> Vec<String> {
     out
 }
 
-/// match 앞에서 WebView 편집 액션으로 실행되는 ID. 그 분기가 실제로 `run_webview_edit`를 부르고
+/// match 앞에서 WebView 편집 액션으로 실행되는 ID. 그 분기가 실제로 `run_webview_edit_on`을 부르고
 /// 그 함수가 WebView에 명령을 실행할 때만 센다. 둘 중 하나라도 없으면 빈 목록이다.
 fn webview_edit_routed_ids(dispatch_src: &str) -> Vec<String> {
     use tasty_doc_guards::match_arms::{Source, matching_close};
     const EDIT_SRC: &str = include_str!("webview_edit.rs");
     let edit = Source::new(EDIT_SRC);
     let executes = edit
-        .fn_bodies("run_webview_edit")
+        .fn_bodies("run_webview_edit_on")
         .iter()
         .any(|b| edit.code[b.clone()].contains(".execute_edit(action)"));
 
@@ -1046,7 +1046,7 @@ fn webview_edit_routed_ids(dispatch_src: &str) -> Vec<String> {
         body[..dispatch_match].find(head).is_some_and(|k| {
             let open = b.start + k + head.len() - 1;
             matching_close(&s.code, open).is_some_and(|close| {
-                s.code[open..close].contains("self.run_webview_edit(engine, action)")
+                s.code[open..close].contains("self.run_webview_edit_on(sid, action)")
             })
         })
     });
@@ -1065,8 +1065,8 @@ fn webview_edit_route_requires_the_executing_call() {
     const SRC: &str = include_str!("dispatch.rs");
     assert!(webview_edit_routed_ids(SRC).contains(&"page_undo".to_string()));
     let without_call = SRC.replacen(
-        "self.run_webview_edit(engine, action)",
-        "self.has_webview_edit(engine, action)",
+        "self.run_webview_edit_on(sid, action)",
+        "self.has_webview_edit_on(sid, action)",
         1,
     );
     assert_ne!(without_call, SRC, "변이 대상 호출을 찾지 못했다");

@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod command_target_tests;
 mod copy_paste;
 mod dispatch;
 mod double_tap;
@@ -61,6 +63,25 @@ pub(crate) fn close_pane_action(
     }
 }
 
+/// `new_workspace` 액션. 명령 대상 workspace 의 카테고리에 새 workspace 를 만든다. 대상 workspace 가 없던
+/// 입력(workspace 가 하나도 없을 때)은 카테고리 없이 만든다. 입력 때 정한 workspace 가 사라졌으면
+/// [`command_target_gone`] 이 먼저 버린다.
+pub(crate) fn new_workspace_action(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
+) {
+    let category = target.find_workspace(engine).map(|ws| ws.category);
+    state.dispatch_intent(
+        crate::intent::Intent::NewWorkspace {
+            kind: None,
+            params: serde_json::Value::Null,
+            category,
+        }
+        .from_user_shortcut("new_workspace"),
+    );
+}
+
 /// `close_active` 액션. 대상 탭, pane, workspace 순서로 닫을 수 있는 첫 대상을 닫는다.
 /// 입력 때 생성 대기 초안이 선택돼 있었으면 `close_pane` 과 같이 아무것도 닫지 않는다.
 pub(crate) fn close_active_action(
@@ -73,6 +94,19 @@ pub(crate) fn close_active_action(
     }
     if !state.close_tab_in(engine, target) && !state.close_pane_in(engine, target) {
         close_target_workspace(state, engine, target);
+    }
+}
+
+/// `rename_tab` 액션. 명령 대상 탭의 이름 바꾸기 팝업을 연다. 키와 팔레트가 함께 쓴다.
+pub(crate) fn open_tab_rename(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
+) {
+    if let Some((rename, current_name)) = state.tab_rename_in(engine, target) {
+        crate::adapters::ui::rename_popup::open(state, engine, rename, current_name, |intent| {
+            intent.from_user_shortcut("rename_tab")
+        });
     }
 }
 
@@ -96,6 +130,54 @@ pub(crate) fn close_target_workspace(
     target.workspace_index(engine).is_some_and(|index| {
         state.close_workspace_at(engine, index, crate::state::WorkspaceCloseOrigin::User)
     })
+}
+
+/// `action_id` 가 쓰는 입력 시점 대상이 지금 없다. 대상이 없던 명령(`None`)이나 대상 단위가 없는 창 명령은
+/// 해당하지 않는다. 탭·surface 단위 명령의 대상이 초안이었으면 그 초안이 남아 있어야 한다. 사라졌으면 info
+/// 로그를 남긴다.
+pub(crate) fn command_target_gone(
+    state: &crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    action_id: &str,
+    target: &CommandTarget,
+) -> bool {
+    use crate::state::attach_pending::deferred::CommandSurfaceTarget;
+    let draft_gone = target
+        .draft
+        .is_some_and(|draft| !state.attach_pending.draft_live(engine, draft));
+    let gone = match action_id {
+        "new_workspace"
+        | "close_workspace"
+        | "rename_workspace"
+        | "rename_workspace_subtitle"
+        | "toggle_dag_list"
+        | "open_file_picker" => {
+            target.workspace.is_some() && target.find_workspace(engine).is_none()
+        }
+        "new_tab" | "close_pane" | "focus_pane_next" | "focus_pane_prev" | "apply_pane_preset" => {
+            target.pane.is_some() && target.find_pane(engine).is_none()
+        }
+        "close_active" | "rename_tab" | "next_tab" | "prev_tab" | "focus_surface_next"
+        | "focus_surface_prev" | "apply_tab_preset" => {
+            draft_gone || (target.tab.is_some() && target.find_tab(engine).is_none())
+        }
+        "close_surface"
+        | "screenshot_to_clipboard"
+        | "zoom_in"
+        | "zoom_out"
+        | "zoom_reset"
+        | "copy"
+        | "cut"
+        | "paste" => {
+            draft_gone
+                || matches!(target.surface, Some(CommandSurfaceTarget::Surface(sid)) if engine.find_surface_by_id(sid).is_none())
+        }
+        _ => false,
+    };
+    if gone {
+        tracing::info!("action '{action_id}' dropped: its target {target:?} is gone");
+    }
+    gone
 }
 
 fn ignores_close_for_draft(target: &CommandTarget, action: &str) -> bool {
@@ -281,12 +363,4 @@ pub(crate) fn request_surface_refresh(
         .from_user_shortcut("refresh"),
     );
     true
-}
-
-/// 키보드 붙여넣기는 포커스된 탐색기의 현재 폴더를 대상으로 한다.
-fn focused_explorer_cwd(
-    state: &crate::state::MainViewState,
-    engine: &crate::runtime::engine_read::EngineRead<'_>,
-) -> Option<std::path::PathBuf> {
-    focused_explorer_panel(state, engine).map(|p| p.current_root().to_path_buf())
 }

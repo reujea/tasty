@@ -121,7 +121,7 @@ fn a_held_action_is_not_run_on_a_surface_of_another_kind() {
 }
 
 /// 한 workspace 에 터미널 탭 둘(surface 11, 12).
-fn two_tabs() -> (
+pub(crate) fn two_tabs() -> (
     crate::state::MainViewState,
     crate::runtime::engine_session::EngineSession,
 ) {

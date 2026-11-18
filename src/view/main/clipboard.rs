@@ -74,20 +74,19 @@ pub(crate) struct PendingPaste {
 }
 
 impl MainView {
-    pub fn paste_to_terminal(&mut self, engine: &EngineRead<'_>) {
-        let scope = self
-            .state
-            .focused_surface_id(engine)
+    /// 클립보드를 `sid` 터미널에 붙여 넣는다. 포커스를 다시 읽지 않는다.
+    pub fn paste_to_terminal_on(&mut self, engine: &EngineRead<'_>, sid: Option<u32>) {
+        let scope = sid
             .map(crate::adapters::ui::ToastScope::Surface)
             .unwrap_or(crate::adapters::ui::ToastScope::Window);
         self.pending_terminal_paste = None;
         match self.clipboard.start_paste() {
             crate::clipboard::terminal::PasteStart::Now(result) => {
-                self.deliver_paste(engine, result, scope);
+                self.deliver_paste(engine, result, scope, sid);
             }
             #[cfg(target_os = "linux")]
             crate::clipboard::terminal::PasteStart::Pending => {
-                let target = self.state.focused_surface_id(engine).and_then(|sid| {
+                let target = sid.and_then(|sid| {
                     crate::runtime::surface_binding::SurfaceBinding::capture(engine, sid)
                 });
                 self.pending_terminal_paste = Some(PendingPaste { target, scope });
@@ -119,7 +118,8 @@ impl MainView {
             tracing::debug!("terminal paste dropped: its window or surface is no longer focused");
             return;
         }
-        self.deliver_paste(engine, result, pending.scope);
+        let sid = pending.target.as_ref().map(|t| t.surface_id());
+        self.deliver_paste(engine, result, pending.scope, sid);
     }
 
     /// A terminal paste is being read; the event loop keeps polling.
@@ -135,6 +135,7 @@ impl MainView {
             crate::clipboard::error::ClipboardError,
         >,
         scope: crate::adapters::ui::ToastScope,
+        sid: Option<u32>,
     ) {
         let content = match result {
             Ok(content) => content,
@@ -143,16 +144,13 @@ impl MainView {
                 return;
             }
         };
-        let mirror = self
-            .state
-            .focused_surface_id(engine)
-            .and_then(|surface| engine.mirror_workspace_of(surface));
+        let mirror = sid.and_then(|surface| engine.mirror_workspace_of(surface));
         if let Some(path) = mirror.and_then(|workspace| {
             let paste = engine.mirror_capture_paste(workspace)?;
             let now = crate::clipboard::context::paste_fingerprint(content.as_ref());
             paste.path_for(now).map(str::to_string)
         }) {
-            self.paste_text_to_focused(engine, path);
+            self.paste_text_to(engine, sid, path);
             return;
         }
         let Some(content) = content else {
@@ -165,19 +163,15 @@ impl MainView {
         };
         let image = match content {
             crate::clipboard::context::PasteContent::Text(text) => {
-                self.paste_text_to_focused(engine, text);
+                self.paste_text_to(engine, sid, text);
                 return;
             }
             crate::clipboard::context::PasteContent::Image(image) => image,
         };
-        let Some(sid) = self.state.focused_surface_id(engine) else {
+        let Some(sid) = sid else {
             return;
         };
-        let Some(bracketed) = self
-            .state
-            .focused_terminal(&engine.as_ref())
-            .map(|t| t.bracketed_paste())
-        else {
+        let Some(bracketed) = engine.terminals.get(sid).map(|t| t.bracketed_paste()) else {
             return;
         };
 
@@ -210,13 +204,11 @@ impl MainView {
 }
 
 impl MainView {
-    fn paste_text_to_focused(&mut self, engine: &EngineRead<'_>, text: String) {
-        let surface_id = self.state.focused_surface_id(engine);
-        let bracketed = self
-            .state
-            .focused_terminal(&engine.as_ref())
+    fn paste_text_to(&mut self, engine: &EngineRead<'_>, sid: Option<u32>, text: String) {
+        let bracketed = sid
+            .and_then(|sid| engine.terminals.get(sid))
             .map(|t| t.bracketed_paste());
-        if let (Some(sid), Some(bracketed)) = (surface_id, bracketed) {
+        if let (Some(sid), Some(bracketed)) = (sid, bracketed) {
             dispatch_paste(self, sid, bracketed, text);
             self.last_terminal_paste_at = Some(std::time::Instant::now());
         }

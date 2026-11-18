@@ -407,12 +407,12 @@ impl MainView {
     /// 팝업이 닫힌 뒤 팔레트 명령을 실행한다.
     /// 호스트 명령은 여기서 실행하고 plugin 명령은 App의 처리 큐에 넣는다.
     fn dispatch_pending_command_palette(&mut self, engine: &EngineRead<'_>) {
-        if let Some((cmd, target)) = self.state.command_palette.pending_run.take() {
+        if let Some((cmd, command_target)) = self.state.command_palette.pending_run.take() {
+            let target = command_target.surface;
             match cmd {
                 crate::state::command_palette::PaletteCommand::Host { id, .. } => {
                     // 알 수 없는 action_id는 dispatch_action_by_id가 경고를 기록한다.
                     if self.run_palette_surface_command(engine, id, target) {
-                        let command_target = self.state.command_target(engine);
                         self.dispatch_action_by_id(engine, id, &command_target);
                     }
                 }

@@ -541,15 +541,7 @@ impl MainView {
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.rename_tab, key, mods) {
-            if let Some((target, current_name)) = state.tab_rename_in(engine, t) {
-                crate::adapters::ui::rename_popup::open(
-                    state,
-                    engine,
-                    target,
-                    current_name,
-                    |intent| intent.from_user_shortcut("rename_tab"),
-                );
-            }
+            super::open_tab_rename(state, engine, t);
             return true;
         }
         if matches_any_binding(&kb.rename_workspace, key, mods) {
@@ -876,6 +868,14 @@ impl MainView {
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         t: &CommandTarget,
     ) {
+        // 초안에는 아직 surface 가 없다. 생성 뒤 찍으면 사용자가 보지 않은 화면이 된다.
+        if let Some(draft) = t.draft {
+            tracing::info!(
+                "screenshot_to_clipboard ignored: pending attach draft {} is selected",
+                draft.0
+            );
+            return;
+        }
         let mirror_ws_id = t.surface_id().and_then(|sid| {
             let (idx, _pane_id) = engine.find_workspace_index_for_surface(sid)?;
             let ws = engine.workspace_at(idx)?;
@@ -925,6 +925,14 @@ impl MainView {
             PresetApplyScope::Tab => (PresetKind::Tab, "apply_tab_preset"),
             PresetApplyScope::Pane => (PresetKind::Pane, "apply_pane_preset"),
         };
+        if let (PresetKind::Tab, Some(draft)) = (kind, t.draft) {
+            // 초안 뒤의 기존 탭은 사용자가 보고 있는 탭이 아니다.
+            tracing::info!(
+                "apply_tab_preset ignored: pending attach draft {} is selected",
+                draft.0
+            );
+            return;
+        }
         let target = match kind {
             PresetKind::Tab => t.tab.map(preset_apply::PresetApplyTarget::Tab),
             _ => t.pane.map(preset_apply::PresetApplyTarget::Pane),

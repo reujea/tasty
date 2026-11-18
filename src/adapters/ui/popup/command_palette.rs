@@ -473,11 +473,13 @@ pub fn draw_command_palette_popup(
         }
         CommandPaletteAction::Execute { index } => {
             if let Some(cmd) = matched_commands.get(index) {
-                let target = state.command_surface_target(engine);
+                // 대상은 Enter 때 정한다. 실행은 팝업을 닫은 뒤라 그 사이 포커스가 바뀔 수 있다.
+                let command_target = state.command_target(engine);
+                let target = command_target.surface;
                 if !crate::adapters::ui::tools_menu::defer_palette_command(
                     state, engine, cmd, target,
                 ) {
-                    state.command_palette.pending_run = Some((cmd.clone(), target));
+                    state.command_palette.pending_run = Some((cmd.clone(), command_target));
                 }
             }
             state.command_palette.reset();
@@ -1136,7 +1138,16 @@ pub(crate) mod enabled_tests {
         state: &mut MainViewState,
         read: &crate::runtime::engine_read::EngineRead<'_>,
     ) {
-        state.command_palette.query = "viewer.confirm.only".into();
+        press_enter_with_query(state, read, "viewer.confirm.only");
+    }
+
+    /// 시험용: `query` 로 거른 첫 행을 Enter 로 고르는 한 프레임.
+    pub(crate) fn press_enter_with_query(
+        state: &mut MainViewState,
+        read: &crate::runtime::engine_read::EngineRead<'_>,
+        query: &str,
+    ) {
+        state.command_palette.query = query.into();
         let ctx = egui::Context::default();
         let input = egui::RawInput {
             events: vec![egui::Event::Key {
@@ -1168,7 +1179,8 @@ pub(crate) mod enabled_tests {
         let read = engine.read();
         let anchor = state.focused_surface_id(&read).unwrap();
         press_enter_on_confirm(&mut state, &read);
-        let (cmd, target) = state.command_palette.pending_run.take().expect("executed");
+        let (cmd, command_target) = state.command_palette.pending_run.take().expect("executed");
+        let target = command_target.surface;
         assert!(
             matches!(cmd, PaletteCommand::Plugin { command_id, .. } if command_id == "confirm")
         );

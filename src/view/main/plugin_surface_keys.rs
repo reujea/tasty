@@ -1,6 +1,6 @@
 //! 플러그인 egui-mesh surface 가 키를 받는 동안의 편집 키(복사·잘라내기·붙여넣기) 판정. 팝업과 같이
 //! egui-winit 과 단축키 디스패치보다 먼저 한 번 한다. 회신을 약속한 플러그인의 surface 만 판정하고, 그 밖의
-//! surface 는 기존 단축키 경로(`run_copy`·`run_paste`)가 받는다. 원격 mirror surface 의 편집 키는 원격 결과를
+//! surface 는 기존 단축키 경로(`run_copy`·`handle_paste_shortcut`)가 받는다. 원격 mirror surface 의 편집 키는 원격 결과를
 //! 받을 길이 없어 넘긴다. 계약: `docs/design/policies/key-mapping.md`의 "플러그인 입력칸" 절.
 
 use winit::event::{ElementState, WindowEvent};
@@ -107,7 +107,7 @@ pub(super) fn surface_key(
 /// 팔레트 편집 명령이 포커스 surface 에 하는 일.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum PaletteSurfaceEdit {
-    /// 이 판정의 대상이 아니다. 기존 팔레트 경로(`run_copy`·탐색기·`run_paste`)가 받는다.
+    /// 이 판정의 대상이 아니다. 기존 팔레트 경로(`run_copy_on`·탐색기·`run_paste_on`)가 받는다.
     NotMine,
     /// 대상이지만 보낼 것이 없다(`egui_paste`가 아닌 surface 에 빈 클립보드의 붙여넣기). 터미널 붙여넣기로
     /// 넘기지 않는다. 글자를 읽는 중이면 `Ask`이고 App 이 읽기를 기다린다.
@@ -145,8 +145,9 @@ impl MainView {
         &mut self,
         engine: &EngineRead<'_>,
         edit: EditKey,
+        sid: Option<u32>,
     ) -> bool {
-        let target = self.surface_edit_target_now(engine);
+        let target = self.surface_edit_target_on(engine, sid);
         let (clip, format_paste) = match (&target, edit) {
             (Some(SurfaceEditTarget::Local { format_paste, .. }), EditKey::Paste) => {
                 (self.base.gpu.plugin_paste(true), *format_paste)
@@ -185,16 +186,29 @@ impl MainView {
     }
 
     fn surface_edit_target_now(&self, engine: &EngineRead<'_>) -> Option<SurfaceEditTarget> {
+        self.surface_edit_target_on(engine, self.state.focused_surface_id(engine))
+    }
+
+    /// `sid` 가 이 판정의 대상(회신을 약속한 플러그인의 로컬 surface 또는 mirror)이면 그 대상이다.
+    fn surface_edit_target_on(
+        &self,
+        engine: &EngineRead<'_>,
+        sid: Option<u32>,
+    ) -> Option<SurfaceEditTarget> {
         let overlay = self.host_egui_has_keys();
-        let local = self.focused_egui_mesh_surface_id(engine).and_then(|sid| {
-            let plugin_id = engine.find_surface_by_id(sid)?.mesh()?.plugin_id.clone();
+        let surface = sid.and_then(|sid| engine.find_surface_by_id(sid).map(|s| (sid, s)));
+        let local = surface.as_ref().and_then(|(sid, surface)| {
+            let sid = *sid;
+            let plugin_id = surface.mesh()?.plugin_id.clone();
             let reports = self
                 .egui_mesh
                 .get(&sid)
                 .is_some_and(|st| st.reports_edit_outcomes);
             Some((sid, plugin_id, reports, self.egui_paste_kind(engine, sid)))
         });
-        let mirror = self.focused_attach_mesh_surface_id(engine).is_some();
+        let mirror = surface
+            .as_ref()
+            .is_some_and(|(_, surface)| surface.attach_mesh().is_some());
         let local = local
             .as_ref()
             .map(|(sid, plugin_id, reports, format_paste)| {
@@ -554,7 +568,7 @@ mod tests {
         ));
         let ask = dispatch
             .find(&squash(
-                "let deferred = deferred.filter(|action| { !action .edit() .is_some_and(|edit| self.ask_plugin_surface_palette_edit(engine, edit)) });",
+                "let deferred = deferred.filter(|action| { !action .edit() .is_some_and(|edit| self.ask_plugin_surface_palette_edit(engine, edit, sid)) });",
             ))
             .expect("팔레트가 surface 판정을 묻지 않는다");
         let routes = dispatch
