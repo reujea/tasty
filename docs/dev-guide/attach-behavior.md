@@ -180,16 +180,20 @@ surface의 kind가 접수 때와 다르면 버린다. 선택 항목·이동 이�
 
 팔레트의 호스트 명령은 Enter 때 정한 대상(surface 또는 draft)으로 실행한다. 대상이 draft면 위처럼 걸거나
 로그만 남기고, 그 사이 draft가 끝났으면 버린다. 대상이 surface이고 그 kind가 액션을 받으면 그
-surface에서 실행한다. 받지 않으면 액션 ID 처리로 넘기지 않는다. 넘기면 실행할 때의 포커스를 다시 읽어
-Enter 뒤 바뀐 포커스에서 실행되기 때문이다. info 로그만 남기고 끝내되, 그 surface에서 뜻이 있는 둘은
+surface에서 실행한다. 받지 않으면 액션 ID 처리(`dispatch_action_by_id`)로 넘기지 않는다. 그 처리는 전달받은
+Enter 대상으로 실행하므로, 넘기면 그 kind가 받지 않는 액션을 그 surface에 실행하게 되기 때문이다. info 로그만 남기고 끝내되, 그 surface에서 뜻이 있는 둘은
 그 surface로 실행한다. html·markdown의 `select_all`은 그 페이지의 전체 선택이고, 터미널이 아닌 surface의
 `enter_copy_mode`는 그 surface에 터미널이 아니라는 안내를 띄운다(단축키 경로와 같은 안내). surface
-하나를 대상으로 하지 않는 명령(닫기·이름 바꾸기·zoom·프리셋 등)은 액션 ID 처리가 실행할 때의 포커스로
-대상을 정한다.
+하나를 대상으로 하지 않는 명령(닫기·이름 바꾸기·탭 이동·프리셋·dag 목록·파일 열기 등)도 Enter 때 정한
+workspace·pane·탭으로 실행하고, 실행할 때 포커스를 다시 읽지 않는다. 그 사이 대상 workspace·pane·탭·surface가
+사라졌으면 다른 대상으로 넘기지 않고 info 로그만 남긴다.
 
 draft가 선택된 동안에는 기존 대상으로 넘어가지 않는다. `close_pane`·`close_active`는 활성 workspace
-닫기로 넘어가지 않고, `rename_tab`은 pane에 남은 기존 탭을 대상으로 잡지 않으며, 탐색기·html 주소창
-단축키는 그 뒤의 기존 탐색기를 바꾸지 않는다. 모두 아무것도 하지 않고 info 로그만 남긴다. 분할·다른
+닫기로 넘어가지 않고, `rename_tab`·`apply_tab_preset`·`screenshot_to_clipboard`는 pane에 남은 기존 탭을
+대상으로 잡지 않으며, 탐색기·html 주소창 단축키는 그 뒤의 기존 탐색기를 바꾸지 않는다. 모두 아무것도
+하지 않고 info 로그만 남긴다. 이 동안 surface 종류(`focused_surface_type`)는 없음이라, 초안 뒤의 기존
+surface 종류로 고르는 키(탐색기 목록 키 등)도 그 surface를 대상으로 잡지 않는다. zoom은 초안이 만들
+kind에 걸고, 생성된 surface의 kind 글꼴에 적용한다. 생성이 실패하면 버리고 info 로그를 남긴다. 분할·다른
 종류의 새 탭처럼 draft 자리에 대한 구조 요청은 지금처럼 거절한다. 변환은 입력 시점에 정한 surface를
 대상으로 하므로 다른 draft가 선택돼 있어도 거절하지 않는다(걸어 둔 변환을 생성된 surface에서 실행할 때도
 같다). 정산이 생성 draft를 local surface로 끝내면(`applied`,

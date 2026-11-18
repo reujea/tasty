@@ -19,7 +19,7 @@ Shift의 1200ms는 코드 접근자의 값이며 같은 이름의 duration primi
 현재 조합으로 지연을 다시 계산하므로 Shift 단독 대기 중 다른 보조키를 누르면 일반 지연을 적용한다.
 
 아직 표시되지 않은 동안 등록된 단축키를 실제 키 입력에서 소비하면 타이머를 다시 시작한다.
-`handle_shortcut` 성공과 modifier 더블탭 성공이 대상이다. 이미 보이는 패널, X로 닫은 상태,
+단축키 처리(`handle_shortcut_after_edit_judgment`, WebView 키의 `handle_received_shortcut`) 성공과 modifier 더블탭 성공이 대상이다. 이미 보이는 패널, X로 닫은 상태,
 드래그 상태는 바꾸지 않는다. 명령 팔레트 실행, 일반 PTY 키, vi copy mode 내부 키, Escape는 이 타이머를 재설정하지 않는다.
 
 ## 입력 — 포커스와 마우스

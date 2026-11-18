@@ -372,8 +372,9 @@ pub(crate) fn run_palette_action(
         return PaletteRun::Done;
     };
     if !takes.accepts(kind, surface_capabilities(engine, sid)) {
-        // 액션 ID 처리로 넘기면 실행할 때의 포커스를 다시 읽는다. 그 surface 에서 뜻이 있는 둘만 창이
-        // 처리한다: 페이지의 전체 선택과, 터미널이 아니라고 알리는 복사 모드.
+        // dispatch_action_by_id 는 전달받은 Enter 대상으로 실행하므로, 넘기면 그 kind 가 받지 않는 액션을 그
+        // surface 에 실행하게 된다. 그 surface 에서 뜻이 있는 둘만 창이 처리한다: 페이지의 전체 선택과, 터미널이
+        // 아니라고 알리는 복사 모드.
         if matches!(id, "select_all" | "enter_copy_mode") {
             return PaletteRun::View(id, sid);
         }
@@ -401,8 +402,8 @@ pub(crate) enum Received {
     /// 보내지 않고 처리하지 못한 키로 넘긴다.
     Pass,
     /// surface 액션 바인딩이지만 키를 받은 surface 가 받지 않고, 같은 키가 surface 하나를 대상으로 하지 않는
-    /// 전역 단축키이기도 하다. 호출자는 전역 단축키만 처리한다. 모델 포커스 surface 의 목록 범위 키(탐색기
-    /// 이름 바꾸기 등)는 고르지 않는다.
+    /// 전역 단축키이기도 하다. 호출자는 키를 받은 surface 의 대상으로 전역 단축키만 처리한다. 모델 포커스
+    /// surface 의 목록 범위 키(탐색기 이름 바꾸기 등)는 고르지 않는다.
     Global,
     Done,
     /// 창이 키를 받은 surface 에서 실행해야 하는 액션이다.

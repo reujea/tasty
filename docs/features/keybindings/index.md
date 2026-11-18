@@ -248,7 +248,9 @@ Option 시퀀스·튜플 원소와 중첩 Option의 Some(None)은 표현을 다�
   터미널 경로도 repeat 를 걸러내지 않아 tasty 내 다른 경로와 일관된다.
 - **모델 포커스는 클릭에만 따라간다** — 백엔드가 native 클릭/포커스 획득을 통지하면 host 가
   `focused_pane`/`focused_surface` 를 맞춘다. 키 도착은 근거로 쓰지 않는다(X11 은 포인터가
-  자식 창 위이기만 해도 키를 넣으므로, 키를 근거로 삼으면 focus-follows-mouse 가 된다).
+  자식 창 위이기만 해도 키를 넣으므로, 키를 근거로 삼으면 focus-follows-mouse 가 된다). 그래도 WebView 가
+  넘긴 키의 host 단축키(닫기·이름 바꾸기·탭 전환·zoom 등)는 모델 포커스가 아니라 키를 받은 surface 의
+  workspace·pane·탭을 대상으로 한다([키 매핑](../../design/policies/key-mapping.md)).
 - **가림과 포커스 회수**: egui overlay 가 열릴 때(webview 를 숨기는 모드와 보인 채 두는 모드 모두), 그리고 탭·workspace 전환으로
   webview 가 활성 탭에서 빠질 때 키보드 포커스를 host 창으로 돌린다(숨김과 포커스 해제는
   세 OS 모두 별개). 다시 보일 때 자동 복원은 하지 않는다.

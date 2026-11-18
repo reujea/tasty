@@ -239,7 +239,7 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 | 진입점 | 바인딩되는 대상 |
 |--------|----------------|
 | 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface |
-| 도구 메뉴·명령 팔레트·명령 단축키 popup | 입력 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface |
+| 도구 메뉴·명령 팔레트·명령 단축키 popup | 입력 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface. 팔레트·단축키로 여는 내장 이름 바꾸기·프리셋 적용·dag 목록 popup 도 입력 시점의 탭·pane·workspace 에 결속한다 |
 | 이벤트 trigger popup | `surface` 범위 이벤트(`EventScope::Surface`)의 payload `surface_id`. 대상이 그 popup 을 선언한 plugin 의 surface 가 아니거나, 다른 plugin 이 발행한 이벤트면 열지 않는다 |
 | `debug.popup.open` | 요청의 `surface_id` |
 

@@ -42,6 +42,22 @@ pane·surface 분할선 hit 띠를 좌클릭하면 포커스를 옮기지 않고
 
 구현은 `src/adapters/ui/tab_bar.rs`의 `TabBarAction::focus_target_pane`과 `src/adapters/ui/tab_bar/apply.rs`의 `apply_tab_bar_actions`에 있다.
 
+## 사용자 입력 명령의 대상 결속
+
+사용자 입력 명령은 입력 시점의 대상으로 실행한다. 키 입력·명령 팔레트 Enter·native WebView가 넘긴 키에서
+workspace·pane·탭·surface(생성 대기 초안이면 그 초안)를 정해 명령 대상 값(`CommandTarget`)으로 넘기고, 실행하는
+쪽은 그 id로 대상을 찾으며 navigation의 포커스를 다시 읽지 않는다. 팔레트는 팝업이 닫힌 뒤 실행하므로 Enter와
+실행 사이에 포커스가 바뀔 수 있고, WebView 키는 모델 포커스가 클릭에만 따라가므로 받은 surface와 모델 포커스가
+다를 수 있다. 실행 전에 대상이 사라졌으면 다른 대상으로 넘기지 않고 info 로그만 남긴다. 초안이 대상일 때의
+처리는 [attach 동작](../../dev-guide/attach-behavior.md), WebView 키의 단계는 [키 매핑](key-mapping.md)에 있다.
+
+현재 예외는 대상 id 없이 구조 요청(intent)만 보내는 명령이다. 아래 명령은 요청을 처리할 때의 포커스로 대상을
+정하므로, 팔레트에서 Enter 뒤 포커스가 바뀌면 바뀐 자리에 적용된다.
+
+- pane·surface 분할(`split_pane_vertical`·`split_pane_horizontal`·`split_surface_vertical`·`split_surface_horizontal`)
+- 닫은 항목 되살리기(`restore_closed`)
+- 새 탭으로 여는 명령(`open_explorer`, 대상 surface 없이 여는 `open_markdown`)
+
 ## CLI/IPC 포커스 독립 원칙
 
 release IPC/CLI에는 사용자 포커스를 바꾸는 API가 없다.
