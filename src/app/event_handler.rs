@@ -2234,8 +2234,9 @@ impl App {
                 continue;
             };
             active.extend(main.state.dag_graph_views.pending_poll_deadlines(now));
-            if main.state.popups.is_open(DAG_LIST_POPUP_ID) {
-                let at = main.state.dialogs.dag_list.next_poll_at(now);
+            for popup in main.state.popups.instances_of(DAG_LIST_POPUP_ID) {
+                let at = crate::adapters::ui::popup::dag_list::DagListState::of(&popup.payload)
+                    .map_or(now, |dag| dag.next_poll_at(now));
                 popup_next = Some(popup_next.map_or(at, |p: std::time::Instant| p.min(at)));
             }
         }

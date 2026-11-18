@@ -117,7 +117,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 on_close: Some(super::explorer_conflict::on_close),
             },
             PopupDef {
-                id: "script_changed_confirm",
+                id: super::script_confirm::SCRIPT_CONFIRM_POPUP_ID,
                 decl: PopupDecl {
                     outside_click: PopupOutsideClick::Unfocus,
                     sticky_focus: false,
@@ -412,7 +412,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::dag_list::draw_dag_list_popup,
-                on_close: Some(super::dag_list::on_close_dag_list_popup),
+                on_close: None,
             },
             PopupDef {
                 id: super::remote_tool::REMOTE_TOOL_POPUP_ID,
@@ -827,7 +827,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::rail_category::draw_rail_category_popup,
-                on_close: Some(super::rail_category::on_close_rail_category_popup),
+                on_close: None,
             },
         ]
     })

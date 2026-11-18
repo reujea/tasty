@@ -434,7 +434,7 @@ impl crate::view::MainView {
         changed |= self.state.poll_branch_read(owner);
         changed |= poll_file_picker_reads(&mut self.state, owner);
         changed |= crate::adapters::ui::popup::explorer_properties::poll(&mut self.state, owner);
-        if self.state.dialogs.pending_script_confirm.is_none()
+        if !crate::adapters::ui::popup::script_confirm::busy(&self.state)
             && let Some(result) = self
                 .state
                 .script_reads
@@ -457,25 +457,16 @@ impl crate::view::MainView {
                     }
                 }
                 Ok(read) => {
-                    self.state.dialogs.pending_script_confirm =
-                        Some(crate::state::PendingScriptConfirm {
+                    crate::adapters::ui::popup::script_confirm::open(
+                        &mut self.state,
+                        crate::state::PendingScriptConfirm {
                             script_id: request.script_id,
                             name: request.name,
                             source: read.source,
                             new_hash: read.hash,
                             result: None,
                             content_height: None,
-                        });
-                    self.state.dispatch_intent(
-                        crate::intent::UiIntent::OpenPopup(
-                            crate::intent::OpenRequest::new(
-                                "script_changed_confirm",
-                                crate::model::popup_kind::PopupScope::Window,
-                            )
-                            .centered()
-                            .focused(),
-                        )
-                        .from_user_menu("script_tofu_gate"),
+                        },
                     );
                 }
                 Err(error) => {

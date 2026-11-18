@@ -151,8 +151,6 @@ impl<T> std::ops::DerefMut for Queued<T> {
 
 /// 대화상자·팝업의 임시 상태. 새 항목은 RequestContext 최상위 대신 여기에 둔다.
 pub struct DialogState {
-    /// 도구 메뉴 셸 안쪽 폭. 열 때와 그릴 때 가장 넓은 라벨로 잰다.
-    pub(crate) tools_menu_width: Option<tasty_type_geometry::length::LogicalPx>,
     pub(crate) pending_native_menu: Option<PendingNativeMenu>,
     pub(crate) tab_drag: Option<TabDragState>,
     pub(crate) ws_drag: Option<WsDragState>,
@@ -179,8 +177,6 @@ pub struct DialogState {
     pub(crate) finished_file_pickers: Vec<FinishedFilePicker>,
     /// 피커를 연 본체 호출자가 보관하는 요청 정보. 결과의 의미는 각 호출자가 정한다.
     pub(crate) file_picker_callers: FilePickerCallers,
-    /// DAG 목록 팝업의 검색·필터·보기 상태. 닫을 때 초기화하며 영속화하지 않는다.
-    pub(crate) dag_list: crate::adapters::ui::popup::dag_list::DagListState,
     /// 프리셋 창 열기 요청. App이 처리한 뒤 지운다.
     pub(crate) pending_open_preset_window: bool,
     /// 프리셋 창을 열 때 선택할 항목.
@@ -190,8 +186,6 @@ pub struct DialogState {
         crate::adapters::ui::popup::preset_apply::PresetPickerSelection,
     /// 복사 모드 진입 요청. 후속 단축키 처리에서 포커스를 확인한다.
     pub(crate) pending_enter_copy_mode: bool,
-    /// 축소 사이드바 카테고리 팝업의 대상 ID.
-    pub(crate) rail_category_popup: Option<crate::model::WorkspaceCategoryId>,
     /// 워크스페이스 프리셋 적용 대상 카테고리. 적용할 때 소비하고 닫을 때 지운다.
     pub(crate) preset_apply_target_category: Option<crate::model::WorkspaceCategoryId>,
     /// 탭·pane 프리셋 적용 대상. 팝업마다 열 때 정하고 그 팝업이 닫힐 때 지운다.
@@ -199,8 +193,8 @@ pub struct DialogState {
     pub(crate) preset_apply_targets: crate::adapters::ui::popup::preset_apply::PresetApplyTargets,
     /// 이 창에 보이는 저장된 원격 행 연결 팝업. 매 프레임 활성 workspace 에 맞춰 연다.
     pub(crate) remote_row_popup: crate::adapters::ui::popup::remote_row::RemoteRowPopupState,
-    /// 등록 해시와 다른 Lua 스크립트를 실행할지 확인하는 보류 상태.
-    pub(crate) pending_script_confirm: Option<PendingScriptConfirm>,
+    /// 실행하기로 확인한 변경된 Lua 스크립트. 확인 팝업이 닫힐 때 옮기고 App이 프레임 시작에 처리한다.
+    pub(crate) approved_script: Option<PendingScriptConfirm>,
     /// 원격 파일 전송 진행 상태. 모든 행이 끝나면 지운다.
     pub(crate) transfer_progress: Option<TransferProgress>,
     /// 전송 실패 알림 큐. 맨 앞 항목을 표시하고 Dismiss로 제거한다.
@@ -244,7 +238,6 @@ pub struct WsDragState {
 impl DialogState {
     pub fn new() -> Self {
         Self {
-            tools_menu_width: None,
             pending_native_menu: None,
             tab_drag: None,
             ws_drag: None,
@@ -258,17 +251,15 @@ impl DialogState {
             finished_handler_pickers: Vec::new(),
             finished_file_pickers: Vec::new(),
             file_picker_callers: FilePickerCallers::default(),
-            dag_list: Default::default(),
             pending_preset_window_selection: None,
             pending_open_preset_window: false,
             preset_picker_selection: Default::default(),
             pending_enter_copy_mode: false,
-            rail_category_popup: None,
             preset_apply_target_category: None,
             #[cfg(feature = "gui")]
             preset_apply_targets: Default::default(),
             remote_row_popup: Default::default(),
-            pending_script_confirm: None,
+            approved_script: None,
             transfer_progress: None,
             transfer_error: VecDeque::new(),
             download_run: Default::default(),

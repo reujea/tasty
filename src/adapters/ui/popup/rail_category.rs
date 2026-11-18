@@ -30,12 +30,22 @@ struct Target {
     is_reserved: bool,
 }
 
-/// `state.dialogs.rail_category_popup` 의 대상 카테고리를 engine 에서 해석.
+/// 인스턴스의 대상 카테고리.
+fn target_id(
+    payload: &crate::adapters::ui::popup::PopupPayload,
+) -> Option<crate::model::WorkspaceCategoryId> {
+    match payload {
+        crate::adapters::ui::popup::PopupPayload::RailCategory(id) => Some(*id),
+        _ => None,
+    }
+}
+
+/// 인스턴스의 대상 카테고리를 engine 에서 해석.
 fn resolve_target(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    cat_id: crate::model::WorkspaceCategoryId,
 ) -> Option<Target> {
-    let cat_id = state.dialogs.rail_category_popup?;
     let cat = engine.categories().iter().find(|c| c.id == cat_id)?;
     let label = if cat.is_normal() {
         t("sidebar.workspaces_heading").to_string()
@@ -102,29 +112,21 @@ fn first_baseline(g: &egui::Galley) -> f32 {
         .map_or(g.rect.height(), |gl| gl.pos.y)
 }
 
-/// PopupDef::on_close entry point — 어떤 경로로 닫히든 대상 카테고리 참조를 비운다.
-pub fn on_close_rail_category_popup(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.rail_category_popup = None;
-}
-
 pub fn draw_rail_category_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         return PopupAction::Close;
     }
-    let Some(target) = resolve_target(state, engine) else {
+    let Some(cat_id) = target_id(cx.payload) else {
         return PopupAction::Close;
     };
-    let cat_id = state.dialogs.rail_category_popup.expect("resolved above");
+    let Some(target) = resolve_target(state, engine, cat_id) else {
+        return PopupAction::Close;
+    };
     let th = theme::theme();
     // 시안 RailCategoryPopup 의 행은 간격 없이 붙는다. 간격은 아래에서 add_space 로만 둔다.
     ui.spacing_mut().item_spacing.y = 0.0;
@@ -247,10 +249,11 @@ pub fn draw_rail_category_popup(
 pub fn rail_category_sizer(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
-    let reserved = resolve_target(state, engine)
+    let reserved = target_id(payload)
+        .and_then(|cat_id| resolve_target(state, engine, cat_id))
         .map(|t| t.is_reserved)
         .unwrap_or(true);
     let rows = if reserved { 2u32 } else { 4u32 };

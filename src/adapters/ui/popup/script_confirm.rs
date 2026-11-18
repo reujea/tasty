@@ -1,7 +1,7 @@
 //! 등록된 Lua 스크립트와 현재 해시가 다르면 실행 전 확인한다(docs/features/hooks/index.md).
 //! 사용자가 실행을 확정해야 dispatch_pending_script_confirm이 해시를 저장하고 워커를 시작한다.
 
-use crate::adapters::ui::popup::{self, PopupAction};
+use crate::adapters::ui::popup::{self, PopupAction, PopupPayload};
 use crate::i18n::t;
 use crate::state::MainViewState;
 use crate::theme;
@@ -60,17 +60,52 @@ pub fn draw_script_confirm_view(
     }
 }
 
-/// 결정 없이 닫혔으면 보류 요청을 정리한다. 실행 결정은 다음 프레임에서 읽으므로 지우지 않는다.
+pub const SCRIPT_CONFIRM_POPUP_ID: &str = "script_changed_confirm";
+
+/// 확인할 스크립트를 인스턴스 데이터로 실어 창 가운데에 연다.
+pub(crate) fn open(state: &mut MainViewState, pending: crate::state::PendingScriptConfirm) {
+    state.dispatch_intent(
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                SCRIPT_CONFIRM_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Window,
+            )
+            .centered()
+            .focused()
+            .with_payload(PopupPayload::ScriptConfirm(Box::new(pending))),
+        )
+        .from_user_menu("script_tofu_gate"),
+    );
+}
+
+/// 확인이 열려 있거나 열릴 차례이거나, 실행 결정이 아직 처리되지 않았으면 다음 확인을 열지 않는다.
+#[cfg(feature = "gui")]
+pub(crate) fn busy(state: &MainViewState) -> bool {
+    state.dialogs.approved_script.is_some()
+        || state.popups.is_open(SCRIPT_CONFIRM_POPUP_ID)
+        || state.popup_open_queued(SCRIPT_CONFIRM_POPUP_ID)
+}
+
+/// 인스턴스가 확인하는 스크립트.
+fn pending_of(payload: &PopupPayload) -> Option<&crate::state::PendingScriptConfirm> {
+    match payload {
+        PopupPayload::ScriptConfirm(p) => Some(p),
+        _ => None,
+    }
+}
+
+/// 실행으로 결정하고 닫혔으면 그 요청을 출력함에 옮긴다. 다음 프레임 시작에 App이 해시를 저장하고 실행한다.
+/// 결정 없이 닫혔으면 요청은 인스턴스와 함께 버려진다.
 pub fn on_close_script_confirm_popup(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    if let Some(pending) = state.dialogs.pending_script_confirm.as_ref()
-        && pending.result.is_none()
+    if let Some(pending) = pending_of(&closed.payload)
+        && pending.result == Some(true)
     {
-        state.dialogs.pending_script_confirm = None;
+        state.dialogs.approved_script = Some(pending.clone());
     }
 }
 
@@ -86,17 +121,13 @@ pub fn script_confirm_default_size() -> egui::Vec2 {
 /// 타이틀바를 더한 값이다(최소값 없음). 콘텐츠 여백은 공용 위젯이 넣어 잰 높이에 들어 있으므로
 /// 공통 내부 여백은 이 popup 에 적용하지 않는다(`content_rect`). 아직 재지 않은 첫 프레임만 기본 높이를 쓴다.
 pub fn script_confirm_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
     let width = crate::adapters::ui::zoomed_px(&th, DEFAULT_SIZE.0);
-    let measured = state
-        .dialogs
-        .pending_script_confirm
-        .as_ref()
-        .and_then(|p| p.content_height);
+    let measured = pending_of(payload).and_then(|p| p.content_height);
     let height = match measured {
         Some(content) => popup::title_bar_height() + content,
         None => crate::adapters::ui::zoomed_px(&th, DEFAULT_SIZE.1),
@@ -107,11 +138,11 @@ pub fn script_confirm_sizer(
 /// PopupDef::draw_fn entry.
 pub fn draw_script_confirm_popup(
     ui: &mut egui::Ui,
-    state: &mut MainViewState,
+    _state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some(pending) = state.dialogs.pending_script_confirm.as_ref() else {
+    let PopupPayload::ScriptConfirm(pending) = cx.payload else {
         return PopupAction::Close;
     };
     let name = pending.name.clone();
@@ -123,23 +154,16 @@ pub fn draw_script_confirm_popup(
             name: &name,
         };
         let drawn = ui.scope(|ui| draw_script_confirm_view(ui, &props));
-        if let Some(p) = state.dialogs.pending_script_confirm.as_mut() {
-            p.content_height = Some(LogicalPx(drawn.response.rect.height()));
-        }
+        pending.content_height = Some(LogicalPx(drawn.response.rect.height()));
         drawn.inner
     };
 
     match action {
         ScriptConfirmAction::None => PopupAction::None,
-        ScriptConfirmAction::Close | ScriptConfirmAction::Cancel => {
-            state.dialogs.pending_script_confirm = None;
-            PopupAction::Close
-        }
+        ScriptConfirmAction::Close | ScriptConfirmAction::Cancel => PopupAction::Close,
         ScriptConfirmAction::Run => {
-            // 결정 기록 — frame begin 의 `dispatch_pending_script_confirm` 이 갱신·실행.
-            if let Some(p) = state.dialogs.pending_script_confirm.as_mut() {
-                p.result = Some(true);
-            }
+            // 결정 기록 — 닫기 훅이 출력함에 옮기고 frame begin 의 `dispatch_pending_script_confirm` 이 갱신·실행.
+            pending.result = Some(true);
             PopupAction::Close
         }
     }
@@ -223,7 +247,7 @@ mod sizer_wiring_tests {
     use crate::model::{PhysicalPx, PhysicalRect};
     use crate::state::tests::test_state;
 
-    const ID: &str = "script_changed_confirm";
+    const ID: &str = SCRIPT_CONFIRM_POPUP_ID;
 
     fn run_one_frame(
         state: &mut MainViewState,
@@ -239,6 +263,17 @@ mod sizer_wiring_tests {
         drop(ctx.run(egui::RawInput::default(), |ctx| {
             draw_popups(ctx, state, engine, &[], term, 1.0);
         }));
+    }
+
+    /// 확인을 고정 위치에 그 데이터와 함께 연다.
+    fn open_at(state: &mut MainViewState, pending: crate::state::PendingScriptConfirm) {
+        state.popups.open_request(
+            &crate::intent::OpenRequest::new(ID, crate::model::popup_kind::PopupScope::Window)
+                .at(egui::pos2(100.0, 100.0))
+                .focused()
+                .with_payload(PopupPayload::ScriptConfirm(Box::new(pending))),
+            true,
+        );
     }
 
     fn pending(content_height: Option<LogicalPx>) -> crate::state::PendingScriptConfirm {
@@ -264,12 +299,7 @@ mod sizer_wiring_tests {
             let (mut state, mut engine_session) = test_state();
             let engine = engine_session.borrow_mut();
             // 그리는 프레임이 잰 값으로 덮어쓰므로, sizer 가 먼저 읽는 값만 본다.
-            state.dialogs.pending_script_confirm = Some(pending(Some(content)));
-            state.popups.open_at_focused(
-                ID,
-                crate::model::popup_kind::PopupScope::Window,
-                egui::pos2(100.0, 100.0),
-            );
+            open_at(&mut state, pending(Some(content)));
             run_one_frame(&mut state, &engine.read());
             let size = state.popups.get_mut(ID).expect("registered").size;
             assert_eq!(size.y, expected, "content {content:?}");
@@ -285,19 +315,30 @@ mod sizer_wiring_tests {
     fn drawing_records_the_content_height() {
         let (mut state, mut engine_session) = test_state();
         let engine = engine_session.borrow_mut();
-        state.dialogs.pending_script_confirm = Some(pending(None));
-        state.popups.open_at_focused(
-            ID,
-            crate::model::popup_kind::PopupScope::Window,
-            egui::pos2(100.0, 100.0),
-        );
+        open_at(&mut state, pending(None));
         run_one_frame(&mut state, &engine.read());
         let measured = state
-            .dialogs
-            .pending_script_confirm
-            .as_ref()
+            .popups
+            .topmost_payload(ID)
+            .and_then(pending_of)
             .and_then(|p| p.content_height)
             .expect("measured");
         assert!(measured.value() > 0.0);
+    }
+
+    /// Given 확인 요청이 처리 전 대기열에 있을 때, Then 다음 스크립트 확인을 열지 않는다. 열린 동안과 실행 결정이
+    /// 처리되기 전에도 같다. 닫히고 결정이 처리되면 다시 열 수 있다.
+    #[test]
+    fn a_second_changed_script_waits_for_the_first_confirm() {
+        let (mut state, mut session) = test_state();
+        assert!(!busy(&state));
+        open(&mut state, pending(None));
+        assert!(busy(&state), "queued request");
+        crate::intent::popup::apply_pending(&mut state, &mut session);
+        assert!(busy(&state), "open instance");
+        state.popups.close(ID);
+        assert!(!busy(&state));
+        state.dialogs.approved_script = Some(pending(None));
+        assert!(busy(&state), "undispatched decision");
     }
 }

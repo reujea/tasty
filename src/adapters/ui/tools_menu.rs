@@ -1,7 +1,7 @@
 //! 사이드바 도구 메뉴. 본체 항목과 활성 플러그인의 도구 항목을 표시한다.
 //! 플러그인 이벤트·팝업 요청은 큐에 넣고 surface 열기는 입력 때 정한 pane을 대상으로 한다.
 
-use crate::adapters::ui::popup::{self, PopupAction};
+use crate::adapters::ui::popup::{self, PopupAction, PopupPayload};
 use crate::i18n::t;
 use crate::intent::UiIntent;
 use crate::plugin::manifest::ToolAction;
@@ -81,14 +81,16 @@ pub fn draw_tools_menu(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         return PopupAction::Close;
     }
 
     let th = theme::theme();
-    state.dialogs.tools_menu_width = Some(measure_inner_width(ui.ctx(), state));
+    *cx.payload = PopupPayload::ToolsMenu {
+        inner_width: measure_inner_width(ui.ctx(), state),
+    };
     // 디자인처럼 행 사이 간격 없이 쌓는다.
     ui.spacing_mut().item_spacing.y = 0.0;
 
@@ -231,9 +233,11 @@ fn min_inner_width() -> LogicalPx {
     LogicalPx(th.tools_menu_min_width().value() - th.border_width.value() * 2.0)
 }
 
-/// 열기 전에 현재 라벨로 폭을 잰다. 첫 프레임부터 내용 폭으로 연다.
-pub fn measure_on_open(ctx: &egui::Context, state: &mut MainViewState) {
-    state.dialogs.tools_menu_width = Some(measure_inner_width(ctx, state));
+/// 열기 전에 현재 라벨로 폭을 잰 인스턴스 데이터. 첫 프레임부터 내용 폭으로 연다.
+pub fn measure_on_open(ctx: &egui::Context, state: &MainViewState) -> PopupPayload {
+    PopupPayload::ToolsMenu {
+        inner_width: measure_inner_width(ctx, state),
+    }
 }
 
 /// 도구·명령 동작을 지금 실행할 수 없는 이유.
@@ -605,15 +609,16 @@ fn tools_menu_size_for(
 pub fn tools_menu_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
     let plugin_count = state.tool_registry.visible_items().len();
+    let inner_width = match payload {
+        PopupPayload::ToolsMenu { inner_width } => *inner_width,
+        _ => min_inner_width(),
+    };
     tools_menu_size_for(
-        state
-            .dialogs
-            .tools_menu_width
-            .unwrap_or_else(min_inner_width),
+        inner_width,
         BUILTIN_TOOLS.len(),
         plugin_count,
         th.menu_item_height(),
@@ -637,12 +642,9 @@ pub fn tools_menu_default_size() -> egui::Vec2 {
 pub fn tools_menu_current_size(
     state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
-    tools_menu_sizer(
-        state,
-        engine,
-        &crate::adapters::ui::popup::PopupPayload::None,
-    )
+    tools_menu_sizer(state, engine, payload)
 }
 
 #[cfg(test)]

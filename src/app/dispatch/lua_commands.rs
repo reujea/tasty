@@ -90,7 +90,7 @@ impl App {
             .iter()
             .filter_map(|(id, w)| {
                 let main = w.as_main()?;
-                let data = main.state.dialogs.pending_script_confirm.as_ref()?;
+                let data = main.state.dialogs.approved_script.as_ref()?;
                 data.result.map(|_| *id)
             })
             .collect();
@@ -100,7 +100,7 @@ impl App {
                 .views
                 .get_mut(&id)
                 .and_then(|w| w.as_main_mut())
-                .and_then(|m| m.state.dialogs.pending_script_confirm.take())
+                .and_then(|m| m.state.dialogs.approved_script.take())
             else {
                 continue;
             };

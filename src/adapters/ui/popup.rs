@@ -171,6 +171,14 @@ pub enum PopupPayload {
     ConfirmForceDetach(crate::model::WorkspaceId),
     /// 원격에서 닫기 전 확인을 기다리는 닫기 요청.
     ConfirmCloseRemote(Box<confirm_close_remote::PendingCloseRemote>),
+    /// 도구 메뉴 셸 안쪽 폭. 열 때와 그릴 때 가장 넓은 라벨로 잰다.
+    ToolsMenu { inner_width: LogicalPx },
+    /// 축소 사이드바 카테고리 팝업의 대상.
+    RailCategory(crate::model::WorkspaceCategoryId),
+    /// 변경된 Lua 스크립트 실행 확인.
+    ScriptConfirm(Box<crate::state::PendingScriptConfirm>),
+    /// DAG 목록의 검색·필터·보기 상태.
+    DagList(Box<dag_list::DagListState>),
 }
 
 impl std::fmt::Debug for PopupPayload {
@@ -199,6 +207,13 @@ impl std::fmt::Debug for PopupPayload {
             }
             Self::ConfirmForceDetach(id) => f.debug_tuple("ConfirmForceDetach").field(id).finish(),
             Self::ConfirmCloseRemote(p) => f.debug_tuple("ConfirmCloseRemote").field(p).finish(),
+            Self::ToolsMenu { inner_width } => f
+                .debug_struct("ToolsMenu")
+                .field("inner_width", inner_width)
+                .finish(),
+            Self::RailCategory(id) => f.debug_tuple("RailCategory").field(id).finish(),
+            Self::ScriptConfirm(p) => f.debug_tuple("ScriptConfirm").field(&p.script_id).finish(),
+            Self::DagList(_) => f.write_str("DagList"),
         }
     }
 }

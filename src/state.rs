@@ -379,6 +379,21 @@ impl RequestContext {
         std::mem::take(&mut self.pending_intents)
     }
 
+    /// 이 선언을 여는 요청이 아직 처리되지 않고 대기열에 있는지. 열기 요청은 다음 처리 단계에서 반영되므로
+    /// 그 사이에 같은 팝업을 다시 열지 판단할 때 함께 본다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn popup_open_queued(&self, id: crate::adapters::ui::popup::PopupId) -> bool {
+        use crate::intent::{Intent, UiIntent};
+        self.pending_intents.iter().any(|intent| {
+            matches!(
+                &intent.body,
+                Intent::Ui(
+                    UiIntent::OpenPopup(r) | UiIntent::ReopenPopup(r) | UiIntent::TogglePopup(r)
+                ) if r.id == id
+            )
+        })
+    }
+
     /// 등록된 convert_input_popup을 열도록 요청한다. 변환 대상이 있으면 context에 담는다.
     /// 변환 대상이 없고 입력 시점 대상이 생성 대기 초안이면 큐 대신 그 초안에 걸어 두고 true를 반환한다.
     /// kind나 팝업 선언을 찾지 못하면 경고를 기록하고 false를 반환한다. surface 범위로 선언한 팝업인데

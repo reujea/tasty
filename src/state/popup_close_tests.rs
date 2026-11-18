@@ -305,17 +305,16 @@ fn rail_category_escape_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
-    state.dialogs.rail_category_popup = Some(cat_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         RAIL_CATEGORY_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::RailCategory(cat_id),
     );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(RAIL_CATEGORY_POPUP_ID));
-    assert!(state.dialogs.rail_category_popup.is_none());
+    assert!(!holds_payload(&state, RAIL_CATEGORY_POPUP_ID));
 }
 
 #[test]
@@ -323,11 +322,10 @@ fn rail_category_close_intent_now_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
-    state.dialogs.rail_category_popup = Some(cat_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         RAIL_CATEGORY_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::RailCategory(cat_id),
     );
 
     crate::intent::popup::handle(
@@ -339,11 +337,11 @@ fn rail_category_close_intent_now_clears_dialog_state() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(RAIL_CATEGORY_POPUP_ID));
-    assert!(state.dialogs.rail_category_popup.is_some());
+    assert!(!holds_payload(&state, RAIL_CATEGORY_POPUP_ID));
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(state.dialogs.rail_category_popup.is_none());
+    assert!(!state.popups.is_open(RAIL_CATEGORY_POPUP_ID));
 }
 
 #[test]
@@ -351,11 +349,10 @@ fn rail_category_outside_click_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let cat_id = engine.categories()[0].id;
-    state.dialogs.rail_category_popup = Some(cat_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         RAIL_CATEGORY_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::RailCategory(cat_id),
     );
 
     run_frame(
@@ -365,7 +362,7 @@ fn rail_category_outside_click_clears_dialog_state() {
     );
 
     assert!(!state.popups.is_open(RAIL_CATEGORY_POPUP_ID));
-    assert!(state.dialogs.rail_category_popup.is_none());
+    assert!(!holds_payload(&state, RAIL_CATEGORY_POPUP_ID));
 }
 
 // 타이틀바와 바깥 클릭 닫기가 없는 진행 팝업은 빈 rows로 내용의 Close를 유도한다.
@@ -548,11 +545,12 @@ fn pending_script_confirm(result: Option<bool>) -> PendingScriptConfirm {
 fn script_changed_confirm_close_intent_now_clears_undecided_pending() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.pending_script_confirm = Some(pending_script_confirm(None));
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         SCRIPT_CHANGED_CONFIRM_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ScriptConfirm(Box::new(pending_script_confirm(
+            None,
+        ))),
     );
 
     crate::intent::popup::handle(
@@ -564,11 +562,11 @@ fn script_changed_confirm_close_intent_now_clears_undecided_pending() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(SCRIPT_CHANGED_CONFIRM_POPUP_ID));
-    assert!(state.dialogs.pending_script_confirm.is_some());
+    assert!(!holds_payload(&state, SCRIPT_CHANGED_CONFIRM_POPUP_ID));
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(state.dialogs.pending_script_confirm.is_none());
+    assert!(state.dialogs.approved_script.is_none());
 }
 
 // Run 결과는 다음 App 처리에서 실행하므로 닫기 훅이 지우면 안 된다.
@@ -576,11 +574,12 @@ fn script_changed_confirm_close_intent_now_clears_undecided_pending() {
 fn script_changed_confirm_close_intent_preserves_decided_result_for_dispatch() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.pending_script_confirm = Some(pending_script_confirm(Some(true)));
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         SCRIPT_CHANGED_CONFIRM_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ScriptConfirm(Box::new(pending_script_confirm(
+            Some(true),
+        ))),
     );
 
     crate::intent::popup::handle(
@@ -595,7 +594,7 @@ fn script_changed_confirm_close_intent_preserves_decided_result_for_dispatch() {
 
     let pending = state
         .dialogs
-        .pending_script_confirm
+        .approved_script
         .as_ref()
         .expect("Run 결과는 실행 요청 처리까지 남아 있어야 한다");
     assert_eq!(pending.result, Some(true));

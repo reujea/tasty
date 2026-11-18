@@ -137,16 +137,18 @@ pub fn draw_collapsed_sidebar(
                     Some(crate::state::PendingNativeMenu::NewWorkspaceButton { x, y });
             }
             SidebarCollapsedAction::RailCategoryClicked { cat_id, anchor } => {
-                state.dialogs.rail_category_popup = Some(cat_id);
                 let pos = egui::pos2(anchor.right() + 6.0, anchor.top() - 6.0);
                 state.dispatch_intent(
-                    crate::intent::UiIntent::OpenPopup(
+                    crate::intent::UiIntent::ReopenPopup(
                         crate::intent::OpenRequest::new(
                             crate::adapters::ui::popup::rail_category::RAIL_CATEGORY_POPUP_ID,
                             crate::model::popup_kind::PopupScope::Window,
                         )
                         .at(pos)
-                        .focused(),
+                        .focused()
+                        .with_payload(
+                            crate::adapters::ui::popup::PopupPayload::RailCategory(cat_id),
+                        ),
                     )
                     .from_user_menu("rail_category_button"),
                 );

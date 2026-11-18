@@ -77,7 +77,7 @@ fn sort_recent_first(rows: &mut [DagRow]) {
     });
 }
 
-/// popup 의 전 상태. `on_close` 가 통째로 되돌린다(`DialogState` 관례).
+/// popup 의 전 상태. 인스턴스 데이터라 닫으면 함께 사라지고 다음 open 은 목록 뷰에서 시작한다.
 #[derive(Default)]
 pub struct DagListState {
     view: DrillDownView,
@@ -98,6 +98,14 @@ pub struct DagListState {
 }
 
 impl DagListState {
+    /// 열린 인스턴스의 데이터. 아직 처음 그리기 전이면 `None`이다.
+    pub(crate) fn of(payload: &crate::adapters::ui::popup::PopupPayload) -> Option<&Self> {
+        match payload {
+            crate::adapters::ui::popup::PopupPayload::DagList(dag) => Some(dag),
+            _ => None,
+        }
+    }
+
     /// Tick::DagListPopup의 다음 조회 시각. 상세 화면이 닫혀 있으면 그래프 시각은 제외한다.
     /// 조회하지 않는 그래프의 None을 포함하면 매 프레임 즉시 조회를 예약하게 된다.
     pub(crate) fn next_poll_at(&self, now: Instant) -> Instant {
@@ -243,12 +251,19 @@ pub fn draw_dag_list_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
+    use crate::adapters::ui::popup::PopupPayload;
     let active_workspace_id = engine
         .workspace_at(state.active_workspace_index(engine))
         .map(|w| w.id);
-    let dag = &mut state.dialogs.dag_list;
+    if !matches!(cx.payload, PopupPayload::DagList(_)) {
+        *cx.payload = PopupPayload::DagList(Box::default());
+    }
+    let PopupPayload::DagList(dag) = cx.payload else {
+        return PopupAction::Close;
+    };
+    let dag: &mut DagListState = dag;
 
     // 드롭다운이 열려 있으면 부모 닫기만 건너뛴다. 본문은 그려야 드롭다운이 Escape를 처리한다.
     let esc = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
@@ -629,16 +644,6 @@ fn draw_detail_graph(
     };
     // 크롬은 back bar 가 든다 — 헤더도 캔버스 줌 클러스터도 여기서는 안 그린다.
     draw_dag_graph(ui, target, &mut dag.graph, DagChrome::Popup(pending))
-}
-
-/// 닫힘 정리 — 어떤 경로로 닫히든 다음 open 은 **목록 뷰**에서 시작한다.
-pub fn on_close_dag_list_popup(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.dag_list = DagListState::default();
 }
 
 #[cfg(test)]
