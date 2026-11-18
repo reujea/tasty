@@ -584,15 +584,6 @@ impl MainView {
         true
     }
 
-    pub(crate) fn handle_shortcut(
-        &mut self,
-        engine: &EngineRead<'_>,
-        key: &Key,
-        mods: ModifiersState,
-    ) -> bool {
-        self.handle_shortcut_after_edit_judgment(engine, key, mods, false)
-    }
-
     /// `edit_judged`이면 이 키의 편집(복사·잘라내기·붙여넣기) 판정이 이미 끝나 넘긴 키다. 편집 바인딩은
     /// 다시 고르지 않고 그 밖의 바인딩만 판정한다.
     pub(crate) fn handle_shortcut_after_edit_judgment(
@@ -602,11 +593,6 @@ impl MainView {
         mods: ModifiersState,
         edit_judged: bool,
     ) -> bool {
-        let ctrl = mods.control_key();
-        let shift = mods.shift_key();
-        // alt는 macOS의 Command, 다른 OS의 Alt다. option은 macOS의 Option, 다른 OS의 Win·Super다.
-        let (alt, option) = tasty_key_match::token_axes(mods);
-
         if !edit_judged && self.handle_webview_edit_shortcut(engine, key, mods) {
             return true;
         }
@@ -626,14 +612,50 @@ impl MainView {
             return true;
         }
 
-        let kb = engine.settings.keybindings.clone();
         let target = self.state.command_target(engine);
+        self.run_target_shortcuts(engine, key, mods, &target, !edit_judged)
+    }
 
-        if self.handle_window_control_shortcuts(engine, key, mods, &kb, &target) {
+    /// native WebView 가 받은 키를 그 surface 의 `target` 으로 처리한다. 편집 바인딩은 받은 WebView 에
+    /// 실행하고, 모델 포커스 surface 의 내용을 읽는 단계(복사·링크 복사·탐색기 목록 키·붙여넣기)는 거치지 않는다.
+    pub(crate) fn handle_received_shortcut(
+        &mut self,
+        engine: &EngineRead<'_>,
+        key: &Key,
+        mods: ModifiersState,
+        target: &CommandTarget,
+    ) -> bool {
+        if let Some(sid) = target.surface_id()
+            && let Some(action) =
+                super::webview_edit::edit_binding_for_key(&engine.settings.keybindings, key, mods)
+            && self.run_webview_edit_on(sid, action)
+        {
+            return true;
+        }
+        self.run_target_shortcuts(engine, key, mods, target, false)
+    }
+
+    /// `target` 을 대상으로 하는 단축키 단계: 창 제어, 내장 단축키, 스크립트, 숫자 전환, zoom. `paste` 면
+    /// 숫자 전환 뒤에 포커스 surface 의 붙여넣기도 판정한다.
+    pub(crate) fn run_target_shortcuts(
+        &mut self,
+        engine: &EngineRead<'_>,
+        key: &Key,
+        mods: ModifiersState,
+        target: &CommandTarget,
+        paste: bool,
+    ) -> bool {
+        let ctrl = mods.control_key();
+        let shift = mods.shift_key();
+        // alt는 macOS의 Command, 다른 OS의 Alt다. option은 macOS의 Option, 다른 OS의 Win·Super다.
+        let (alt, option) = tasty_key_match::token_axes(mods);
+        let kb = engine.settings.keybindings.clone();
+
+        if self.handle_window_control_shortcuts(engine, key, mods, &kb, target) {
             return true;
         }
 
-        if self.run_keybinding_shortcuts(engine, &kb, key, mods, &target) {
+        if self.run_keybinding_shortcuts(engine, &kb, key, mods, target) {
             return true;
         }
 
@@ -652,7 +674,7 @@ impl MainView {
             shift,
             alt,
             option,
-            &target,
+            target,
         ) {
             if engine.workspaces().is_empty() {
                 self.request_close();
@@ -661,11 +683,11 @@ impl MainView {
             return true;
         }
 
-        if !edit_judged && self.handle_paste_shortcut(engine, key, mods) {
+        if paste && self.handle_paste_shortcut(engine, key, mods) {
             return true;
         }
 
-        if Self::handle_zoom_shortcut(&mut self.state, engine, key, mods, &target) {
+        if Self::handle_zoom_shortcut(&mut self.state, engine, key, mods, target) {
             self.base.state.dirty = true;
             return true;
         }

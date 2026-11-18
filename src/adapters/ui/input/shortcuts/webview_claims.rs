@@ -37,7 +37,7 @@ const EXPLORER_ONLY_FIELDS: &[&str] = &[
     "explorer_properties",
     "copy_path",
 ];
-/// webview 가 넘긴 키 처리(`handle_shortcut`)에 없는 액션. 전체화면 무대 해제는 무대 입력에서만 실행되고,
+/// webview 가 넘긴 키 처리(`handle_received_shortcut`)에 없는 액션. 전체화면 무대 해제는 무대 입력에서만 실행되고,
 /// 무대가 열린 동안 넘어온 키는 입력 게이트가 막는다.
 const NOT_FORWARDED_FIELDS: &[&str] = &["fullscreen_stage_exit"];
 /// 카테고리를 끈 동안 실행되지 않는 액션. 카테고리 전환 축(`category_switch_*`)도 같다.

@@ -103,4 +103,23 @@ impl RequestContext {
             draft_base_surface: None,
         }
     }
+
+    /// `sid` 를 담은 workspace·pane·탭으로 만든 명령 대상. native WebView 가 받은 키처럼 모델 포커스와
+    /// 다른 surface 가 입력을 받았을 때 쓴다. surface 가 없으면 없다.
+    pub(crate) fn command_target_for_surface(
+        &self,
+        engine: &CoreState,
+        sid: u32,
+    ) -> Option<CommandTarget> {
+        let (index, pane) = engine.find_workspace_index_for_surface(sid)?;
+        Some(CommandTarget {
+            workspace: Some(engine.workspace_at(index)?.id),
+            pane: Some(pane),
+            tab: Some(engine.find_tab_for_surface(sid)?),
+            surface: Some(CommandSurfaceTarget::Surface(sid)),
+            draft: None,
+            draft_creation: None,
+            draft_base_surface: None,
+        })
+    }
 }

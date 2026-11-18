@@ -57,18 +57,20 @@ impl MainView {
         }
         if kb.workspace_switch_modifier == KeybindingSettings::INDIVIDUAL_SWITCH_MODIFIER {
             if matches_binding(kb.workspace_next_key(), key, mods) {
-                state.next_workspace_in_active_category(engine);
+                step_target_workspace(state, engine, target, 1);
                 return true;
             }
             if matches_binding(kb.workspace_prev_key(), key, mods) {
-                state.prev_workspace_in_active_category(engine);
+                step_target_workspace(state, engine, target, -1);
                 return true;
             }
             if let Some(local) =
                 find_matching_individual_slot(&kb.workspace_switch_slot_keys, key, mods)
             {
                 if engine.settings.general.workspace_categories_enabled {
-                    state.switch_workspace_in_active_category(engine, local);
+                    if let Some(from) = target.workspace_index(engine) {
+                        state.switch_workspace_in_category_of(engine, from, local);
+                    }
                 } else {
                     state.switch_workspace(engine, local);
                 }
@@ -79,11 +81,11 @@ impl MainView {
             && engine.settings.general.workspace_categories_enabled
         {
             if matches_binding(kb.category_next_key(), key, mods) {
-                state.next_category(engine);
+                step_target_category(state, engine, target, 1);
                 return true;
             }
             if matches_binding(kb.category_prev_key(), key, mods) {
-                state.prev_category(engine);
+                step_target_category(state, engine, target, -1);
                 return true;
             }
             if let Some(section) =
@@ -118,17 +120,19 @@ impl MainView {
             }
             Some(SwitchTarget::Workspace) => {
                 if ch == kb.workspace_next_key() {
-                    state.next_workspace_in_active_category(engine);
+                    step_target_workspace(state, engine, target, 1);
                     return true;
                 }
                 if ch == kb.workspace_prev_key() {
-                    state.prev_workspace_in_active_category(engine);
+                    step_target_workspace(state, engine, target, -1);
                     return true;
                 }
                 if let Some(local) = kb.workspace_switch_slot_keys.iter().position(|k| k == ch) {
                     // 카테고리를 사용하면 카테고리 내 인덱스, 아니면 전역 인덱스다.
                     if engine.settings.general.workspace_categories_enabled {
-                        state.switch_workspace_in_active_category(engine, local);
+                        if let Some(from) = target.workspace_index(engine) {
+                            state.switch_workspace_in_category_of(engine, from, local);
+                        }
                     } else {
                         state.switch_workspace(engine, local);
                     }
@@ -140,11 +144,11 @@ impl MainView {
                     return false;
                 }
                 if ch == kb.category_next_key() {
-                    state.next_category(engine);
+                    step_target_category(state, engine, target, 1);
                     return true;
                 }
                 if ch == kb.category_prev_key() {
-                    state.prev_category(engine);
+                    step_target_category(state, engine, target, -1);
                     return true;
                 }
                 if let Some(section) = kb.category_switch_slot_keys.iter().position(|k| k == ch) {
@@ -156,5 +160,30 @@ impl MainView {
         }
 
         false
+    }
+}
+
+/// 명령 대상 workspace 에서 다음·이전 workspace 로 옮긴다. 대상 workspace 가 없으면 하지 않는다.
+fn step_target_workspace(
+    state: &mut crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+    target: &crate::state::command_target::CommandTarget,
+    delta: isize,
+) {
+    if let Some(from) = target.workspace_index(engine) {
+        state.step_workspace_from(engine, from, delta);
+    }
+}
+
+/// 명령 대상 workspace 의 카테고리에서 다음·이전 카테고리로 옮긴다. 대상 workspace 가 없으면 하지 않는다.
+/// 카테고리 슬롯 키는 섹션 번호로 대상을 정하고 활성 workspace 를 읽지 않으므로 대상이 필요 없다.
+fn step_target_category(
+    state: &mut crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+    target: &crate::state::command_target::CommandTarget,
+    delta: isize,
+) {
+    if let Some(from) = target.workspace_index(engine) {
+        state.step_category_from(engine, from, delta);
     }
 }

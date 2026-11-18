@@ -17,7 +17,7 @@ const PRODUCERS: &[&str] = &[
 
 /// 위 생산자에 닿는 MainView 진입점 — App 이 창 이벤트 밖에서 부를 수 있는 것.
 const ENTRIES: &[&str] = &[
-    ".handle_shortcut(",
+    ".handle_received_shortcut(",
     ".dispatch_action_by_id(",
     ".handle_double_tap_shortcut(",
     ".poll_pending_native_menu(",

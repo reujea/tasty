@@ -155,21 +155,18 @@ impl RequestContext {
         }
     }
 
-    /// 활성 카테고리의 local_idx를 전역 인덱스로 바꿔 전환한다.
-    /// 카테고리 기능이 꺼졌거나 해당 위치가 없으면 처리하지 않는다.
+    /// 전역 인덱스 `from` workspace 의 카테고리에서 local_idx 번째로 전환한다. 명령 대상 workspace 를 기준으로
+    /// 한다. `from` 이 범위 밖이거나 해당 위치가 없으면 처리하지 않는다.
     #[cfg(feature = "gui")]
-    pub fn switch_workspace_in_active_category(
+    pub(crate) fn switch_workspace_in_category_of(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        from: usize,
         local_idx: usize,
     ) {
-        if self.active_workspace_index(engine) >= engine.workspaces().len() {
+        let Some(cat) = engine.workspace_at(from).map(|ws| ws.category) else {
             return;
-        }
-        let cat = engine
-            .workspace_at(self.active_workspace_index(engine))
-            .expect("workspace index is valid")
-            .category;
+        };
         let global = engine
             .workspaces_in_category(cat)
             .get(local_idx)
@@ -181,53 +178,60 @@ impl RequestContext {
 
     /// 활성 카테고리의 다음 워크스페이스로 이동한다. 사용자 키 입력 경로다.
     /// 마지막 항목에서는 workspace_switch_crosses_category에 따라 같은 카테고리의
-    /// 처음으로 돌아가거나 다음 카테고리로 넘어간다.
-    #[cfg(any(feature = "gui", test))]
+    /// 처음으로 돌아가거나 다음 카테고리로 넘어간다. 사용자 입력은 명령 대상 workspace 로
+    /// `step_workspace_from` 을 부르고, 이 함수는 시험만 쓴다.
+    #[cfg(test)]
     pub fn next_workspace_in_active_category(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
     ) {
-        if let Some(target) = self.relative_workspace_in_active_category(engine, 1) {
+        let from = self.active_workspace_index(engine);
+        self.step_workspace_from(engine, from, 1);
+    }
+
+    /// 전역 인덱스 `from` workspace 에서 delta(±1)만큼 이동한다. 경계 처리는
+    /// next_workspace_in_active_category 와 같다. 명령 대상 workspace 를 기준으로 할 때 쓴다.
+    #[cfg(any(feature = "gui", test))]
+    pub(crate) fn step_workspace_from(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        from: usize,
+        delta: isize,
+    ) {
+        if let Some(target) = self.relative_workspace_from(engine, from, delta) {
             self.switch_workspace(engine, target);
         }
     }
 
     /// 이전 항목으로 이동한다. 경계 처리는 next_workspace_in_active_category와 반대다.
-    #[cfg(any(feature = "gui", test))]
+    #[cfg(test)]
     pub fn prev_workspace_in_active_category(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
     ) {
-        if let Some(target) = self.relative_workspace_in_active_category(engine, -1) {
-            self.switch_workspace(engine, target);
-        }
+        let from = self.active_workspace_index(engine);
+        self.step_workspace_from(engine, from, -1);
     }
 
-    /// 활성 카테고리에서 delta(±1)만큼 이동할 대상의 전역 인덱스를 구한다.
+    /// 전역 인덱스 `from` workspace 의 카테고리에서 delta(±1)만큼 이동할 대상의 전역 인덱스를 구한다.
     /// 설정에 따라 카테고리 경계를 넘고, 넘을 수 없으면 같은 카테고리에서 순환한다.
     #[cfg(any(feature = "gui", test))]
-    fn relative_workspace_in_active_category(
+    fn relative_workspace_from(
         &self,
         engine: &EngineRead<'_>,
+        from: usize,
         delta: isize,
     ) -> Option<usize> {
-        if self.active_workspace_index(engine) >= engine.workspaces().len() {
-            return None;
-        }
-        let cat = engine
-            .workspace_at(self.active_workspace_index(engine))
-            .expect("workspace index is valid")
-            .category;
+        let cat = engine.workspace_at(from)?.category;
         let locals = engine.workspaces_in_category(cat);
         let len = locals.len();
-        let pos = locals
-            .iter()
-            .position(|(gi, _)| *gi == self.active_workspace_index(engine))?;
+        let pos = locals.iter().position(|(gi, _)| *gi == from)?;
 
         if engine.settings.general.workspace_switch_crosses_category {
             let raw = pos as isize + delta;
             if raw < 0 || raw >= len as isize {
-                if let Some(target) = self.relative_category_boundary_workspace(engine, delta) {
+                if let Some(target) = self.relative_category_boundary_workspace(engine, from, delta)
+                {
                     return Some(target);
                 }
             } else {
@@ -248,9 +252,10 @@ impl RequestContext {
     fn relative_category_boundary_workspace(
         &self,
         engine: &CoreState,
+        from: usize,
         delta: isize,
     ) -> Option<usize> {
-        let section_idx = self.relative_category_section(engine, delta)?;
+        let section_idx = self.relative_category_section_from(engine, from, delta)?;
         let target_cat = engine.categories().get(section_idx)?.id;
         let locals = engine.workspaces_in_category(target_cat);
         if delta > 0 {
@@ -260,32 +265,41 @@ impl RequestContext {
         }
     }
 
-    /// 다음 카테고리로 순환하며, 해당 카테고리에서 마지막으로 본 항목을 선택한다.
-    /// 카테고리가 하나뿐이면 처리하지 않는다. 사용자 키 입력 경로다.
-    #[cfg(any(feature = "gui", test))]
+    /// 활성 workspace 의 카테고리에서 다음 카테고리로 순환한다. 사용자 키 입력은 명령 대상 workspace 로
+    /// `step_category_from` 을 부르고, 이 함수는 시험만 쓴다.
+    #[cfg(test)]
     pub fn next_category(&mut self, engine: &crate::runtime::engine_read::EngineRead<'_>) {
-        if let Some(section_idx) = self.relative_category_section(engine, 1) {
-            self.switch_to_category(engine, section_idx);
-        }
+        self.step_category_from(engine, self.active_workspace_index(engine), 1);
     }
 
-    #[cfg(any(feature = "gui", test))]
+    #[cfg(test)]
     pub fn prev_category(&mut self, engine: &crate::runtime::engine_read::EngineRead<'_>) {
-        if let Some(section_idx) = self.relative_category_section(engine, -1) {
+        self.step_category_from(engine, self.active_workspace_index(engine), -1);
+    }
+
+    /// 전역 인덱스 `from` workspace 의 카테고리에서 delta(±1) 방향 카테고리로 순환하며, 그 카테고리에서
+    /// 마지막으로 본 항목을 선택한다. 카테고리가 하나뿐이거나 `from` 이 범위 밖이면 처리하지 않는다.
+    #[cfg(any(feature = "gui", test))]
+    pub(crate) fn step_category_from(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        from: usize,
+        delta: isize,
+    ) {
+        if let Some(section_idx) = self.relative_category_section_from(engine, from, delta) {
             self.switch_to_category(engine, section_idx);
         }
     }
 
-    /// delta(±1) 방향으로 순환할 카테고리의 섹션 인덱스를 구한다.
+    /// 전역 인덱스 `from` workspace 의 카테고리에서 delta(±1) 방향 카테고리의 섹션 인덱스.
     #[cfg(any(feature = "gui", test))]
-    fn relative_category_section(&self, engine: &CoreState, delta: isize) -> Option<usize> {
-        if self.active_workspace_index(engine) >= engine.workspaces().len() {
-            return None;
-        }
-        let cat = engine
-            .workspace_at(self.active_workspace_index(engine))
-            .expect("workspace index is valid")
-            .category;
+    fn relative_category_section_from(
+        &self,
+        engine: &CoreState,
+        from: usize,
+        delta: isize,
+    ) -> Option<usize> {
+        let cat = engine.workspace_at(from)?.category;
         let categories = engine.categories();
         let len = categories.len();
         if len <= 1 {

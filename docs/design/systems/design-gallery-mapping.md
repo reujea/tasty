@@ -127,7 +127,7 @@ tab="attach"` / `RemoteFormFrame` variant `attach-ref`·`attach-inline`)를 전�
 카테고리 헤더 **우측**에 키캡(chevron은 접기 상태를 표시하므로 유지, status dot 없음), rail 은 `---` 경계
 **중앙**에 키캡. 번호는 reserved normal("Workspaces")=1, 1–9 then 0(10th), 11th+ 없음. 전환 시 접힘이면 자동
 확장(슬롯 파일 영속) + 그 카테고리 last-active 이동(`state/workspace.rs` `switch_to_category`, 다음/이전
-카테고리 자체 전환은 `next_category`/`prev_category` 가 이 함수를 재사용). folders 토글 게이트.
+카테고리 자체 전환은 `step_category_from` 이 이 함수를 재사용). folders 토글 게이트.
 discoverability 는 modifier-hint 패널의 `HintRole::CategorySwitch`(폴더 글리프, folders on).
 
 **"개별 지정" 모드와 오버레이**: 세 축 중 하나라도 modifier 를 "개별 지정"

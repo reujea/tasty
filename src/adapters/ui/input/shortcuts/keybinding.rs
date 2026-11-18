@@ -532,7 +532,7 @@ impl MainView {
         false
     }
 
-    fn match_rename_bindings(
+    pub(super) fn match_rename_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         t: &CommandTarget,

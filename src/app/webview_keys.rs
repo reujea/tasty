@@ -135,12 +135,23 @@ impl App {
         if let Some(outcome) = dispatch_native_refresh_key(main, &mut engine, &ev) {
             return outcome;
         }
-        // 내장 surface 액션은 모델 포커스가 아니라 키를 받은 surface 에서 실행한다.
-        let handled =
-            match main.run_received_surface_key(&engine.read(), &ev.key, ev.mods, ev.surface_id) {
-                Some(handled) => handled,
-                None => main.handle_shortcut(&engine.read(), &ev.key, ev.mods),
-            };
+        // 호스트 단축키는 모델 포커스가 아니라 키를 받은 surface 의 workspace·pane·탭을 대상으로 한다.
+        let Some(target) = main
+            .state
+            .command_target_for_surface(&engine.read(), ev.surface_id)
+        else {
+            return ForwardedKeyOutcome::Gated;
+        };
+        let handled = match main.run_received_surface_key(
+            &engine.read(),
+            &ev.key,
+            ev.mods,
+            ev.surface_id,
+            &target,
+        ) {
+            Some(handled) => handled,
+            None => main.handle_received_shortcut(&engine.read(), &ev.key, ev.mods, &target),
+        };
         if handled {
             main.after_shortcut_consumed(&engine.read());
         }

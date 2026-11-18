@@ -96,20 +96,21 @@ impl MainView {
 
     /// native WebView 가 넘긴 키가 surface 액션이면 키를 받은 `sid` 에서 실행한다. 처리했으면 `Some(true)`,
     /// 그 surface 가 받지 않아 페이지로 넘길 키면 `Some(false)`, surface 액션 키가 아니면 `None` 이다. 그
-    /// surface 가 받지 않지만 같은 키가 전역 단축키이기도 하면 전역 단축키만 처리한 결과다.
+    /// surface 가 받지 않지만 같은 키가 전역 단축키이기도 하면 전역 단축키만 `target`(키를 받은 surface 의
+    /// 대상)으로 처리한 결과다.
     pub(crate) fn run_received_surface_key(
         &mut self,
         engine: &EngineRead<'_>,
         key: &winit::keyboard::Key,
         mods: winit::keyboard::ModifiersState,
         sid: u32,
+        target: &crate::state::command_target::CommandTarget,
     ) -> Option<bool> {
         let kb = &engine.settings.keybindings;
-        let focus = self.state.command_target(engine);
         match surface_actions::run_received_key(&mut self.state, engine, kb, key, mods, sid) {
             Received::Unbound => None,
             Received::Pass => Some(false),
-            Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods, &focus)),
+            Received::Global => Some(self.run_target_shortcuts(engine, key, mods, target, false)),
             Received::Done => Some(true),
             Received::View(id) => Some(self.run_view_surface_action(engine, id, sid)),
         }

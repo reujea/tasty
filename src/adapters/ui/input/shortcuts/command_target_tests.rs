@@ -506,3 +506,321 @@ fn a_new_workspace_is_dropped_only_when_its_bound_workspace_is_gone() {
     super::new_workspace_action(&mut state, &read, &live);
     assert_eq!(new_workspace_requests(&mut state), vec![Some(category)]);
 }
+
+/// workspace 1 에 터미널 탭 11·12(pane 1), workspace 2 에 탭 21(pane 2). 모델 포커스는 workspace 2 다.
+fn two_workspaces() -> (
+    crate::state::MainViewState,
+    crate::runtime::engine_session::EngineSession,
+) {
+    use tasty_core::{DomainEvent as E, SurfaceSpec};
+    let mut events = vec![E::CategoryCreated {
+        id: 0,
+        name: "normal".into(),
+        index: 0,
+    }];
+    for (ws, pane, tabs) in [(1, 1, vec![11, 12]), (2, 2, vec![21])] {
+        events.push(E::WorkspaceCreated {
+            id: ws,
+            name: format!("w{ws}"),
+            category: 0,
+            index: (ws - 1) as usize,
+            pane,
+        });
+        for (index, id) in tabs.into_iter().enumerate() {
+            events.push(E::TabCreated {
+                id,
+                pane,
+                index,
+                name: "t".into(),
+                surface: SurfaceSpec {
+                    id,
+                    kind: "terminal".into(),
+                    data: None,
+                },
+            });
+        }
+    }
+    let (mut state, session) =
+        crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
+    state.set_active_workspace_index(&session.core_state, 1);
+    (state, session)
+}
+
+/// WebView 가 받은 키의 대상은 그 surface 를 담은 workspace·pane·탭이다. 모델 포커스와 다른 surface 면
+/// 모델 포커스로 만든 대상과 다르다.
+#[test]
+fn a_received_surface_target_is_the_tab_holding_that_surface() {
+    let (state, session) = two_workspaces();
+    let read = session.read();
+    assert_eq!(state.focused_surface_id(&read), Some(21));
+    let target = state
+        .command_target_for_surface(&read, 12)
+        .expect("surface 12");
+    assert_eq!(
+        target,
+        CommandTarget {
+            workspace: Some(1),
+            pane: Some(1),
+            tab: Some(12),
+            surface: Some(CommandSurfaceTarget::Surface(12)),
+            ..CommandTarget::default()
+        }
+    );
+    assert_eq!(state.command_target_for_surface(&read, 987_654), None);
+}
+
+/// 받은 surface 의 탭이 F2(`rename_tab`)와 `close_active` 의 대상이다. 모델 포커스 탭은 건드리지 않는다.
+#[test]
+fn a_received_rename_and_close_target_the_receiving_tab() {
+    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    let (mut state, session) = two_workspaces();
+    let read = session.read();
+    let target = state
+        .command_target_for_surface(&read, 11)
+        .expect("surface 11");
+    let kb = crate::settings::KeybindingSettings::default();
+    assert!(MainView::match_rename_bindings(
+        &mut state,
+        &read,
+        &target,
+        &kb,
+        &Key::Named(NamedKey::F2),
+        ModifiersState::empty(),
+    ));
+    let renames: Vec<_> = state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|intent| match intent.body {
+            crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(req))
+            | crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(req)) => {
+                req.payload.peek(|p| match p {
+                    crate::adapters::ui::popup::PopupPayload::Rename(r) => Some(r.target.clone()),
+                    _ => None,
+                })
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        renames,
+        vec![crate::state::RenameTarget::TabName { tab_id: 11 }]
+    );
+
+    crate::shortcuts::close_active_action(&mut state, &read, &target);
+    let closes: Vec<_> = state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|intent| match intent.body {
+            crate::intent::Intent::Domain(crate::app::command::DomainIntent::CloseTab {
+                tab_id,
+            }) => Some(tab_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(closes, vec![11]);
+}
+
+/// 다른 workspace 의 WebView 가 받은 숫자 탭 전환 키는 그 surface 가 있는 pane 의 탭을 바꾼다.
+#[test]
+fn a_received_tab_switch_changes_the_receiving_pane() {
+    let (mut state, session) = two_workspaces();
+    let read = session.read();
+    let target = state
+        .command_target_for_surface(&read, 11)
+        .expect("surface 11");
+    let kb = crate::settings::KeybindingSettings::default();
+    let pane1 = read.find_pane_by_id(1).expect("pane 1");
+    assert_eq!(state.navigation.tab_index(pane1), 0);
+    assert!(MainView::handle_numeric_switch_shortcuts(
+        &mut state,
+        &read,
+        &kb,
+        &winit::keyboard::Key::Character(kb.tab_next_key().into()),
+        winit::keyboard::ModifiersState::CONTROL,
+        true,
+        false,
+        false,
+        false,
+        &target,
+    ));
+    let pane1 = read.find_pane_by_id(1).expect("pane 1");
+    assert_eq!(state.navigation.tab_index(pane1), 1);
+    assert_eq!(state.focused_surface_id(&read), Some(21));
+}
+
+/// WebView 키 진입은 받은 surface 로 대상을 만들어 두 갈래에 넘기고, 전체 단축키 경로(모델 포커스)를 부르지
+/// 않는다.
+#[test]
+fn the_webview_key_entry_binds_the_receiving_surface() {
+    use tasty_doc_guards::match_arms::Source;
+    const WEBVIEW_KEYS: &str = include_str!("../../../../app/webview_keys.rs");
+    let src = Source::new(WEBVIEW_KEYS);
+    let body = src
+        .fn_bodies("dispatch_forwarded_webview_key")
+        .first()
+        .map(|b| src.code[b.clone()].to_string())
+        .expect("dispatch_forwarded_webview_key");
+    assert!(body.contains(".command_target_for_surface(&engine.read(), ev.surface_id)"));
+    assert!(body.contains("ev.surface_id,\n            &target,\n        )"));
+    assert!(
+        body.contains("main.handle_received_shortcut(&engine.read(), &ev.key, ev.mods, &target)")
+    );
+    assert!(!body.contains(".command_target(&"));
+    assert!(!body.contains("handle_shortcut_after_edit_judgment"));
+
+    const VIEW: &str = include_str!("surface_view_actions.rs");
+    let view = Source::new(VIEW);
+    let received = view
+        .fn_bodies("run_received_surface_key")
+        .first()
+        .map(|b| view.code[b.clone()].to_string())
+        .expect("run_received_surface_key");
+    assert!(!received.contains(".command_target("));
+
+    const DISPATCH: &str = include_str!("dispatch.rs");
+    let dispatch = Source::new(DISPATCH);
+    let handled = dispatch
+        .fn_bodies("handle_received_shortcut")
+        .first()
+        .map(|b| dispatch.code[b.clone()].to_string())
+        .expect("handle_received_shortcut");
+    assert!(handled.contains("self.run_webview_edit_on(sid, action)"));
+    assert!(handled.contains("self.run_target_shortcuts(engine, key, mods, target, false)"));
+    for focus_read in [
+        ".command_target(",
+        "focused_",
+        "handle_copy_shortcut",
+        "handle_explorer_shortcut",
+    ] {
+        assert!(!handled.contains(focus_read), "{focus_read}");
+    }
+}
+
+/// 카테고리 0 에 workspace 1·2, 카테고리 1 에 workspace 3·4, 카테고리 2 에 workspace 5 가 있고 workspace 3(인덱스 2)이
+/// 활성이다.
+fn two_categories() -> (
+    crate::state::MainViewState,
+    crate::runtime::engine_session::EngineSession,
+) {
+    use tasty_core::{DomainEvent as E, SurfaceSpec};
+    let mut events = Vec::new();
+    for id in 0..3 {
+        events.push(E::CategoryCreated {
+            id,
+            name: format!("c{id}"),
+            index: id as usize,
+        });
+    }
+    for ws in 1..=5u32 {
+        events.push(E::WorkspaceCreated {
+            id: ws,
+            name: format!("w{ws}"),
+            category: ((ws - 1) / 2).min(2),
+            index: (ws - 1) as usize,
+            pane: ws,
+        });
+        events.push(E::TabCreated {
+            id: ws * 10,
+            pane: ws,
+            index: 0,
+            name: "t".into(),
+            surface: SurfaceSpec {
+                id: ws * 10,
+                kind: "terminal".into(),
+                data: None,
+            },
+        });
+    }
+    let (mut state, mut session) =
+        crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
+    let engine = session.borrow_mut();
+    engine.runtime.settings.general.workspace_categories_enabled = true;
+    state.switch_workspace(&engine.read(), 2);
+    (state, session)
+}
+
+/// 설정에서 `want` 전환으로 판정되는 modifier 조합(ctrl, shift, alt, option).
+fn switch_held(
+    kb: &crate::settings::KeybindingSettings,
+    want: crate::adapters::ui::switch_overlay::SwitchTarget,
+) -> [bool; 4] {
+    use crate::adapters::ui::switch_overlay::switch_target_for;
+    (0..16u8)
+        .map(|bits| [0, 1, 2, 3].map(|i| bits & (1 << i) != 0))
+        .find(|[c, s, a, o]| switch_target_for(kb, *c, *s, *a, *o) == Some(want))
+        .expect("switch combo")
+}
+
+/// workspace 1(카테고리 0)의 surface 10 이 받은 전환 키를 처리한 뒤의 활성 workspace 인덱스.
+fn received_switch(
+    kb: &crate::settings::KeybindingSettings,
+    want: crate::adapters::ui::switch_overlay::SwitchTarget,
+    key: &str,
+) -> usize {
+    let [ctrl, shift, alt, option] = switch_held(kb, want);
+    let (mut state, session) = two_categories();
+    let read = session.read();
+    assert_eq!(state.active_workspace_index(&read), 2);
+    let target = state
+        .command_target_for_surface(&read, 10)
+        .expect("surface 10");
+    assert!(
+        MainView::handle_numeric_switch_shortcuts(
+            &mut state,
+            &read,
+            kb,
+            &winit::keyboard::Key::Character(key.into()),
+            winit::keyboard::ModifiersState::empty(),
+            ctrl,
+            shift,
+            alt,
+            option,
+            &target,
+        ),
+        "{key}"
+    );
+    state.active_workspace_index(&read)
+}
+
+/// WebView 가 받은 workspace 다음 키·슬롯 키는 받은 surface 의 workspace 와 그 카테고리를 기준으로 한다.
+/// 활성 workspace(카테고리 1)를 기준으로 하면 인덱스 3 으로 간다.
+#[test]
+fn a_received_workspace_switch_uses_the_receiving_workspace() {
+    use crate::adapters::ui::switch_overlay::SwitchTarget;
+    let kb = crate::settings::KeybindingSettings::default();
+    for key in [
+        kb.workspace_next_key(),
+        kb.workspace_switch_slot_keys[1].as_str(),
+    ] {
+        assert_eq!(
+            received_switch(&kb, SwitchTarget::Workspace, key),
+            1,
+            "{key}"
+        );
+    }
+}
+
+/// WebView 가 받은 카테고리 다음·이전 키는 받은 surface 의 workspace 카테고리(0)에서 옮긴다. 활성 workspace 의
+/// 카테고리(1)를 기준으로 하면 다음은 카테고리 2(인덱스 4), 이전은 카테고리 0(인덱스 0)으로 간다. 슬롯 키는
+/// 섹션 번호로 정하므로 어느 workspace 가 받았어도 같은 카테고리로 간다.
+#[test]
+fn a_received_category_switch_uses_the_receiving_workspace() {
+    use crate::adapters::ui::switch_overlay::SwitchTarget;
+    let kb = crate::settings::KeybindingSettings::default();
+    assert_eq!(
+        received_switch(&kb, SwitchTarget::Category, kb.category_next_key()),
+        2
+    );
+    assert_eq!(
+        received_switch(&kb, SwitchTarget::Category, kb.category_prev_key()),
+        4
+    );
+    assert_eq!(
+        received_switch(
+            &kb,
+            SwitchTarget::Category,
+            &kb.category_switch_slot_keys[2]
+        ),
+        4
+    );
+}

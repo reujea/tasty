@@ -118,8 +118,8 @@ modifier 드롭다운에서 **"개별 지정"**(sentinel `KeybindingSettings::IN
 매칭 결과:
 
 - 탭: next/prev → `next_tab_in_pane`/`prev_tab_in_pane`, 슬롯 index → `goto_tab_in_pane(index)`.
-- 워크스페이스: next/prev → `next_workspace_in_active_category`/`prev_workspace_in_active_category`, 슬롯 local → 카테고리 토글 on 이면 `switch_workspace_in_active_category(local)`, off 면 `switch_workspace(local)`.
-- 카테고리: next/prev → `next_category`/`prev_category`(`state/workspace.rs` — 카테고리 리스트 안에서 wrap-around ±1 이동한 뒤 `switch_to_category` 재사용, auto-expand + last-active 이동 포함), 슬롯 section → `switch_to_category(section)`. 세 매칭 모두 folders 토글 off 면 no-op·비소비. → [워크스페이스 카테고리](../workspace-category/index.md).
+- 워크스페이스: next/prev → 명령 대상 workspace 에서 `step_workspace_from(±1)`, 슬롯 local → 카테고리 토글 on 이면 명령 대상 workspace 의 카테고리에서 `switch_workspace_in_category_of(local)`, off 면 `switch_workspace(local)`. 명령 대상 workspace 는 winit 키면 활성 workspace, WebView 키면 키를 받은 surface 의 workspace 다.
+- 카테고리: next/prev → 명령 대상 workspace 의 카테고리에서 `step_category_from(±1)`(`state/workspace.rs` — 카테고리 리스트 안에서 wrap-around ±1 이동한 뒤 `switch_to_category` 재사용, auto-expand + last-active 이동 포함), 슬롯 section → `switch_to_category(section)`(섹션 번호로 정하므로 활성 workspace 를 읽지 않는다). 세 매칭 모두 folders 토글 off 면 no-op·비소비. → [워크스페이스 카테고리](../workspace-category/index.md).
 
 어느 것도 매칭 안 되면 조용히 `false` 를 돌려 다른 단축키 매칭으로 넘긴다. 이 메서드들은 focused pane 의 active_tab · active_workspace(= **사용자 포커스 상태**)를 바꾸므로 **사용자 키 입력 경로에서만** 호출되며 release IPC/CLI 로 노출되지 않는다([포커스 정책](../../design/policies/focus.md)). Command Palette·더블탭 파리티는 범위 밖.
 

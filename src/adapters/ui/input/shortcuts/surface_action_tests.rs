@@ -840,19 +840,36 @@ fn a_webview_key_with_a_host_command_runs_only_the_global_shortcut() {
         run_received_key(&mut state, &read, &kb, &f2, ModifiersState::empty(), 1),
         Received::Pass
     );
-    // 전역 갈래는 탐색기 목록 키(handle_explorer_shortcut)를 거치는 handle_shortcut 이 아니라 전역 단축키
-    // 처리만 부른다.
+    // 전역 갈래는 모델 포커스 surface 의 내용을 읽는 단계(복사·링크 복사·탐색기 목록 키·붙여넣기)를 거치지
+    // 않고, 키를 받은 surface 의 대상으로 창 제어·내장 단축키·스크립트·숫자 전환·zoom 만 처리한다.
     const VIEW: &str = include_str!("surface_view_actions.rs");
     assert!(VIEW.contains(
-        "Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods, &focus)),"
+        "Received::Global => Some(self.run_target_shortcuts(engine, key, mods, target, false)),"
     ));
     const DISPATCH: &str = include_str!("dispatch.rs");
     let body = &DISPATCH[DISPATCH
-        .find("fn run_keybinding_shortcuts(")
+        .find("fn run_target_shortcuts(")
         .expect("global path")..];
     let body = &body[..body.find("\n    }\n").expect("fn end")];
-    assert!(body.contains("Self::handle_keybinding_shortcuts("));
-    assert!(!body.contains("handle_shortcut") && !body.contains("handle_explorer_shortcut"));
+    for step in [
+        "self.handle_window_control_shortcuts(",
+        "self.run_keybinding_shortcuts(",
+        "self.try_dispatch_script_shortcut(",
+        "Self::handle_numeric_switch_shortcuts(",
+        "Self::handle_zoom_shortcut(",
+        "paste && self.handle_paste_shortcut(",
+    ] {
+        assert!(body.contains(step), "{step}");
+    }
+    for focus_read in [
+        "handle_explorer_shortcut",
+        "handle_copy_shortcut",
+        "run_copy_link",
+        "handle_webview_edit_shortcut",
+        ".command_target(",
+    ] {
+        assert!(!body.contains(focus_read), "{focus_read}");
+    }
 }
 
 /// WebView 가 넘긴 주소창 포커스 키도 받은 surface 의 주소 띠 능력으로 판정한다. 띠를 선언한 plugin kind 면
