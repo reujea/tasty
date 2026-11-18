@@ -165,6 +165,12 @@ pub enum PopupPayload {
     FilePicker(Box<crate::state::FilePickerData>),
     /// 파일 처리기 선택의 대상·후보·고른 결과와 기다리는 요청.
     HandlerPicker(Box<crate::state::FileHandlerPickerData>),
+    /// 삭제를 확인할 카테고리.
+    ConfirmDeleteCategory(crate::model::WorkspaceCategoryId),
+    /// 점유를 강제로 풀지 확인할 workspace.
+    ConfirmForceDetach(crate::model::WorkspaceId),
+    /// 원격에서 닫기 전 확인을 기다리는 닫기 요청.
+    ConfirmCloseRemote(Box<confirm_close_remote::PendingCloseRemote>),
 }
 
 impl std::fmt::Debug for PopupPayload {
@@ -188,6 +194,11 @@ impl std::fmt::Debug for PopupPayload {
                 .debug_tuple("HandlerPicker")
                 .field(&p.target_display)
                 .finish(),
+            Self::ConfirmDeleteCategory(id) => {
+                f.debug_tuple("ConfirmDeleteCategory").field(id).finish()
+            }
+            Self::ConfirmForceDetach(id) => f.debug_tuple("ConfirmForceDetach").field(id).finish(),
+            Self::ConfirmCloseRemote(p) => f.debug_tuple("ConfirmCloseRemote").field(p).finish(),
         }
     }
 }
@@ -1214,6 +1225,12 @@ impl PopupManager {
     /// 이 선언의 열린 인스턴스. 아래에서 위 순서다.
     pub fn instances_of(&self, id: PopupId) -> impl Iterator<Item = &PopupState> + '_ {
         self.popups.iter().filter(move |p| p.id == id && p.open)
+    }
+
+    /// 이 선언의 맨 위 열린 인스턴스의 데이터.
+    #[cfg(test)]
+    pub fn topmost_payload(&self, id: PopupId) -> Option<&PopupPayload> {
+        self.topmost_of(id).map(|p| &p.payload)
     }
 
     /// 이 선언의 맨 위 열린 인스턴스.

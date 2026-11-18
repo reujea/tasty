@@ -27,16 +27,17 @@ pub(crate) fn open_rename_category_dialog(
     });
 }
 
+/// 삭제 확인을 연다. 이미 열려 있으면 대상만 새 카테고리로 바꾼다.
 pub(crate) fn open_delete_category_confirm(state: &mut MainViewState, cat_id: WorkspaceCategoryId) {
-    state.dialogs.pending_category_delete = Some(cat_id);
     state.dispatch_intent(
-        UiIntent::OpenPopup(
+        UiIntent::ReopenPopup(
             crate::intent::OpenRequest::new(
                 CONFIRM_DELETE_CATEGORY_POPUP_ID,
                 crate::model::popup_kind::PopupScope::Window,
             )
             .centered()
-            .focused(),
+            .focused()
+            .with_payload(crate::adapters::ui::popup::PopupPayload::ConfirmDeleteCategory(cat_id)),
         )
         .from_user_menu("category/delete"),
     );

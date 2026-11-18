@@ -4,7 +4,7 @@
 //! 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::close_remote_confirm`이 그린다.
 
 use crate::adapters::ui::icons;
-use crate::adapters::ui::popup::PopupAction;
+use crate::adapters::ui::popup::{PopupAction, PopupPayload};
 use crate::app::attach_client::workspace_close::SavedRowClose;
 use crate::app::command::DomainIntent;
 use crate::i18n::t;
@@ -27,20 +27,34 @@ pub struct PendingCloseRemote {
     pub(crate) focused: bool,
 }
 
-/// 확인을 연다. 이미 열려 있으면 보류 요청을 새 요청으로 통째로 바꾼다.
+/// 확인을 연다. 이미 열려 있으면 인스턴스의 보류 요청을 새 요청으로 통째로 바꾼다.
 /// 닫을 원격 행의 workspace 자체를 다루므로 범위는 그 행이 보이는 창이다.
 pub(crate) fn open(state: &mut MainViewState, close: SavedRowClose, intent: DomainIntent) {
-    state.dialogs.pending_close_remote = Some(PendingCloseRemote {
-        close,
-        intent,
-        measured_h: None,
-        focused: false,
-    });
     crate::adapters::ui::workspace_action_popup::open(
         state,
         CONFIRM_CLOSE_REMOTE_POPUP_ID,
+        PopupPayload::ConfirmCloseRemote(Box::new(PendingCloseRemote::new(close, intent))),
         |intent| intent.from_user_menu("workspace/close-remote"),
     );
+}
+
+impl PendingCloseRemote {
+    pub(crate) fn new(close: SavedRowClose, intent: DomainIntent) -> Self {
+        Self {
+            close,
+            intent,
+            measured_h: None,
+            focused: false,
+        }
+    }
+}
+
+/// 인스턴스가 기다리는 닫기.
+pub(crate) fn pending_of(payload: &PopupPayload) -> Option<&PendingCloseRemote> {
+    match payload {
+        PopupPayload::ConfirmCloseRemote(p) => Some(p),
+        _ => None,
+    }
 }
 
 /// 이 확인에서 다시 보낸 요청인지. dispatch가 같은 요청을 다시 묻지 않게 한다.
@@ -55,10 +69,10 @@ pub(crate) fn is_confirmed(origin: &crate::intent::IntentOrigin) -> bool {
 
 /// 표시할 이름과 프로필. 행이 없어졌거나 저장된 원격 행이 아니면 None이다.
 fn target(
-    state: &MainViewState,
+    payload: &PopupPayload,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> Option<(String, String, bool)> {
-    let pending = state.dialogs.pending_close_remote.as_ref()?;
+    let pending = pending_of(payload)?;
     let ws = engine
         .workspaces()
         .into_iter()
@@ -67,20 +81,20 @@ fn target(
     Some((ws.name.clone(), binding.profile.clone(), pending.close.last))
 }
 
-/// 닫을 원격 행이 아직 저장된 원격 행으로 있는지. 범위가 창이라 팝업 정리 단계가 매 프레임 부른다.
+/// 닫을 원격 행이 아직 저장된 원격 행으로 있는지. 범위가 창이라 팝업 정리 단계가 인스턴스마다 매 프레임 부른다.
 pub(crate) fn target_alive(
-    state: &MainViewState,
+    payload: &PopupPayload,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> bool {
-    target(state, engine).is_some()
+    target(payload, engine).is_some()
 }
 
 pub fn confirm_close_remote_title(
-    state: &MainViewState,
+    _state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> String {
-    let name = target(state, engine).map(|(name, _, _)| name);
+    let name = target(payload, engine).map(|(name, _, _)| name);
     crate::i18n::t_fmt(
         "remote.row.close_remote.title",
         name.as_deref().unwrap_or(""),
@@ -115,41 +129,26 @@ pub fn confirm_close_remote_default_size() -> egui::Vec2 {
 }
 
 pub fn confirm_close_remote_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
-    let h = state
-        .dialogs
-        .pending_close_remote
-        .as_ref()
+    let h = pending_of(payload)
         .map(|p| p.measured_h.unwrap_or_else(|| estimate_h(p.close.last)))
         .unwrap_or_else(|| estimate_h(false));
     egui::vec2(theme::theme().info_modal_width().value(), h.value())
-}
-
-/// 어떤 경로로 닫히든(취소·Escape) 대기를 비운다. 담아 둔 요청은 보내지 않는다. 바깥 클릭으로는 닫히지 않는다.
-pub fn on_close_confirm_close_remote(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.pending_close_remote = None;
 }
 
 pub fn draw_confirm_close_remote(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        state.dialogs.pending_close_remote = None;
         return PopupAction::Close;
     }
-    let Some((name, profile, last)) = target(state, engine) else {
-        state.dialogs.pending_close_remote = None;
+    let Some((name, profile, last)) = target(cx.payload, engine) else {
         return PopupAction::Close;
     };
     let th = theme::theme();
@@ -160,11 +159,7 @@ pub fn draw_confirm_close_remote(
             .image(rect.height(), c)
             .paint_at(ui, rect);
     };
-    let focus_cancel = state
-        .dialogs
-        .pending_close_remote
-        .as_ref()
-        .is_some_and(|p| !p.focused);
+    let focus_cancel = pending_of(cx.payload).is_some_and(|p| !p.focused);
     let top = ui.cursor().top();
     let out = tasty_ui_widgets::close_remote_confirm(
         ui,
@@ -180,26 +175,30 @@ pub fn draw_confirm_close_remote(
         },
     );
     let measured = LogicalPx(ui.cursor().top() - top);
-    if let Some(pending) = state.dialogs.pending_close_remote.as_mut() {
+    if let PopupPayload::ConfirmCloseRemote(pending) = cx.payload {
         pending.focused = true;
         pending.measured_h = Some(measured);
     }
     if out.cancel {
-        state.dialogs.pending_close_remote = None;
         return PopupAction::Close;
     }
     if out.confirm {
-        confirm(state);
+        if let Some(pending) = pending_of(cx.payload) {
+            confirm(state, pending);
+        }
         return PopupAction::Close;
     }
     PopupAction::None
 }
 
 /// 담아 둔 요청을 확인을 마친 출처로 다시 보낸다. 버튼 없이도 시험에서 부를 수 있다.
-pub(crate) fn confirm(state: &mut MainViewState) {
-    if let Some(pending) = state.dialogs.pending_close_remote.take() {
-        state.dispatch_intent(pending.intent.from_user_menu(CONFIRM_CLOSE_REMOTE_POPUP_ID));
-    }
+pub(crate) fn confirm(state: &mut MainViewState, pending: &PendingCloseRemote) {
+    state.dispatch_intent(
+        pending
+            .intent
+            .clone()
+            .from_user_menu(CONFIRM_CLOSE_REMOTE_POPUP_ID),
+    );
 }
 
 #[cfg(test)]
@@ -274,18 +273,12 @@ mod tests {
             state.popups.open_scope(CONFIRM_CLOSE_REMOTE_POPUP_ID),
             Some(&crate::model::popup_kind::PopupScope::Window)
         );
-        assert!(
-            matches!(
-                state
-                    .dialogs
-                    .pending_close_remote
-                    .as_ref()
-                    .map(|p| &p.close),
-                Some(SavedRowClose { row: 9, .. })
-            ),
-            "{:?}",
-            state.dialogs.pending_close_remote
-        );
+        let rows: Vec<_> = state
+            .popups
+            .instances_of(CONFIRM_CLOSE_REMOTE_POPUP_ID)
+            .filter_map(|p| pending_of(&p.payload).map(|p| p.close.row))
+            .collect();
+        assert_eq!(rows, [9]);
         assert!(state.popups.take_closed_ids().is_empty());
     }
 }

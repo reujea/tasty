@@ -19,12 +19,20 @@ struct Target {
     count: usize,
 }
 
-/// `pending_category_delete` 의 대상 카테고리를 해석. 없거나 normal 이면 None(닫힘).
+/// 인스턴스가 확인하는 카테고리.
+fn target_id(payload: &popup::PopupPayload) -> Option<crate::model::WorkspaceCategoryId> {
+    match payload {
+        popup::PopupPayload::ConfirmDeleteCategory(id) => Some(*id),
+        _ => None,
+    }
+}
+
+/// 인스턴스의 대상 카테고리를 해석. 없거나 normal 이면 None(닫힘).
 fn resolve_target(
-    state: &MainViewState,
+    payload: &popup::PopupPayload,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> Option<Target> {
-    let cat_id = state.dialogs.pending_category_delete?;
+    let cat_id = target_id(payload)?;
     let cat = engine.categories().iter().find(|c| c.id == cat_id)?;
     if cat.is_normal() {
         return None;
@@ -66,45 +74,30 @@ pub fn confirm_delete_category_default_size() -> egui::Vec2 {
 
 /// PopupDef.sizer — 본문 길이에 따라 height 조정(소형 모달).
 pub fn confirm_delete_category_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
-    let body_len = resolve_target(state, engine)
+    let body_len = resolve_target(payload, engine)
         .map(|tgt| tgt.name.chars().count() + BASE_BODY_LEN)
         .unwrap_or(BASE_BODY_LEN);
     size_for(body_len)
-}
-
-/// PopupDef::on_close entry point — 어떤 경로로 닫히든(취소/외부/Escape) 삭제 대상을 비운다.
-pub fn on_close_confirm_delete_category(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.pending_category_delete = None;
 }
 
 pub fn draw_confirm_delete_category(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let ctx = ui.ctx().clone();
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        state.dialogs.pending_category_delete = None;
         return PopupAction::Close;
     }
-    let Some(target) = resolve_target(state, engine) else {
-        state.dialogs.pending_category_delete = None;
+    let (Some(cat_id), Some(target)) = (target_id(cx.payload), resolve_target(cx.payload, engine))
+    else {
         return PopupAction::Close;
     };
-    let cat_id = state
-        .dialogs
-        .pending_category_delete
-        .expect("resolved above");
     let th = theme::theme();
 
     let margin = th.spacing_sm.value();
@@ -163,7 +156,6 @@ pub fn draw_confirm_delete_category(
     });
 
     if cancel {
-        state.dialogs.pending_category_delete = None;
         return PopupAction::Close;
     }
     if confirm {
@@ -171,7 +163,6 @@ pub fn draw_confirm_delete_category(
             crate::app::command::DomainIntent::DeleteCategory { id: cat_id }
                 .from_user_menu("confirm_delete_category"),
         );
-        state.dialogs.pending_category_delete = None;
         return PopupAction::Close;
     }
     PopupAction::None

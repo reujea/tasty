@@ -729,7 +729,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::confirm_delete_category::draw_confirm_delete_category,
-                on_close: Some(super::confirm_delete_category::on_close_confirm_delete_category),
+                on_close: None,
             },
             PopupDef {
                 id: super::confirm_force_detach_workspace::CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
@@ -754,9 +754,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::confirm_force_detach_workspace::draw_confirm_force_detach_workspace,
-                on_close: Some(
-                    super::confirm_force_detach_workspace::on_close_confirm_force_detach_workspace,
-                ),
+                on_close: None,
             },
             // 저장된 원격 행을 원격에서 닫기 전 확인 — Window 범위, scrim 가운데, 머리를 직접 그린다.
             PopupDef {
@@ -780,7 +778,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::confirm_close_remote::draw_confirm_close_remote,
-                on_close: Some(super::confirm_close_remote::on_close_confirm_close_remote),
+                on_close: None,
             },
             super::remote_row::def(super::remote_row::REMOTE_ROW_POPUP_ID, false),
             super::remote_row::def(super::remote_row::REMOTE_ROW_SCRIM_POPUP_ID, true),

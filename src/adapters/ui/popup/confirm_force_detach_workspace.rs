@@ -15,28 +15,36 @@ pub const CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID: &str = "confirm_force_detach_
 /// 다이얼로그 폭 (destructive confirm 공통 380px).
 const WIDTH: LogicalPx = LogicalPx(380.0);
 
-/// 대상 워크스페이스를 보류 상태에 두고 창 범위로 확인을 연다. 열려 있던 확인은 새 대상으로 바뀐다.
+/// 대상 워크스페이스를 인스턴스 데이터로 실어 창 범위로 확인을 연다. 열려 있던 확인은 새 대상으로 바뀐다.
 /// 확인을 기다리는 동안 인덱스가 바뀔 수 있으므로 ID를 보관한다.
 pub(crate) fn open(state: &mut MainViewState, workspace_id: u32) {
-    state.dialogs.pending_force_detach_workspace = Some(workspace_id);
     crate::adapters::ui::workspace_action_popup::open(
         state,
         CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+        popup::PopupPayload::ConfirmForceDetach(workspace_id),
         |intent| intent.from_user_menu("workspace/force-detach"),
     );
 }
 
-/// 화면에 표시할 대상 이름. 실제 해제 대상 ID는 실행할 때 보류 상태에서 다시 읽는다.
+/// 인스턴스가 확인하는 workspace.
+pub(crate) fn target_id(payload: &popup::PopupPayload) -> Option<crate::model::WorkspaceId> {
+    match payload {
+        popup::PopupPayload::ConfirmForceDetach(id) => Some(*id),
+        _ => None,
+    }
+}
+
+/// 화면에 표시할 대상 이름. 실제 해제 대상 ID는 실행할 때 인스턴스 데이터에서 다시 읽는다.
 struct Target {
     name: String,
 }
 
 /// 대상이 없거나 점유가 이미 풀렸으면 None을 반환한다.
 fn resolve_target(
-    state: &MainViewState,
+    payload: &popup::PopupPayload,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> Option<Target> {
-    let ws_id = state.dialogs.pending_force_detach_workspace?;
+    let ws_id = target_id(payload)?;
     let ws = engine.workspaces().into_iter().find(|w| w.id == ws_id)?;
     engine.live.occupancy.workspace_holder(ws_id)?;
     Some(Target {
@@ -75,47 +83,36 @@ pub fn confirm_force_detach_workspace_default_size() -> egui::Vec2 {
 
 /// PopupDef.sizer — 본문 길이에 따라 height 조정(소형 모달).
 pub fn confirm_force_detach_workspace_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
-    let body_len = resolve_target(state, engine)
+    let body_len = resolve_target(payload, engine)
         .map(|tgt| tgt.name.chars().count() + BASE_BODY_LEN)
         .unwrap_or(BASE_BODY_LEN);
     size_for(body_len)
 }
 
-/// 확인할 workspace 가 아직 있고 점유돼 있는지. 범위가 창이라 팝업 정리 단계가 매 프레임 부른다.
+/// 확인할 workspace 가 아직 있고 점유돼 있는지. 범위가 창이라 팝업 정리 단계가 인스턴스마다 매 프레임 부른다.
 pub(crate) fn target_alive(
-    state: &MainViewState,
+    payload: &popup::PopupPayload,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> bool {
-    resolve_target(state, engine).is_some()
-}
-
-/// PopupDef::on_close entry point — 어떤 경로로 닫히든(취소/외부/Escape) 대상을 비운다.
-pub fn on_close_confirm_force_detach_workspace(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.pending_force_detach_workspace = None;
+    resolve_target(payload, engine).is_some()
 }
 
 pub fn draw_confirm_force_detach_workspace(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let ctx = ui.ctx().clone();
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        state.dialogs.pending_force_detach_workspace = None;
         return PopupAction::Close;
     }
-    let Some(target) = resolve_target(state, engine) else {
-        state.dialogs.pending_force_detach_workspace = None;
+    let (Some(ws_id), Some(target)) = (target_id(cx.payload), resolve_target(cx.payload, engine))
+    else {
         return PopupAction::Close;
     };
     let th = theme::theme();
@@ -171,29 +168,28 @@ pub fn draw_confirm_force_detach_workspace(
     });
 
     if cancel {
-        state.dialogs.pending_force_detach_workspace = None;
         return PopupAction::Close;
     }
     if confirm {
-        apply_force_detach(state, engine);
+        apply_force_detach(state, engine, ws_id);
         return PopupAction::Close;
     }
     PopupAction::None
 }
 
-/// 보류 대상의 점유를 해제하고 대상을 비운다. 실제 해제된 holder를 반환하며
-/// 이미 풀렸으면 None이다. 버튼 클릭 재현 없이도 해제 동작을 검사할 수 있다.
+/// 대상의 점유를 해제하는 요청을 보낸다. 이미 풀렸으면 아무것도 보내지 않는다.
+/// 버튼 클릭 재현 없이도 해제 동작을 검사할 수 있다.
 pub(crate) fn apply_force_detach(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    workspace: crate::model::WorkspaceId,
 ) {
-    if let Some(workspace) = state.dialogs.pending_force_detach_workspace.take()
-        && let Some((_, lock)) = engine
-            .live
-            .occupancy
-            .workspaces_snapshot()
-            .into_iter()
-            .find(|(id, _)| *id == workspace)
+    if let Some((_, lock)) = engine
+        .live
+        .occupancy
+        .workspaces_snapshot()
+        .into_iter()
+        .find(|(id, _)| *id == workspace)
     {
         state.dispatch_intent(
             crate::intent::Intent::Engine(
@@ -217,7 +213,6 @@ mod tests {
     fn the_confirm_opens_in_the_window() {
         let (mut state, _session) = crate::state::tests::two_pane_fixture();
         open(&mut state, 7);
-        assert_eq!(state.dialogs.pending_force_detach_workspace, Some(7));
         let intents = state.take_pending_intents();
         assert!(
             matches!(
@@ -237,6 +232,12 @@ mod tests {
             ),
             "{intents:?}"
         );
+        let crate::intent::Intent::Ui(crate::intent::UiIntent::ReopenPopup(request)) =
+            &intents[0].body
+        else {
+            unreachable!("matched above");
+        };
+        assert_eq!(request.payload.peek(target_id), Some(7));
     }
 
     /// W1 에서 연 확인창에 W2 요청이 오면 범위는 창 그대로이고 대상만 W2 로 바뀐다.
@@ -253,7 +254,12 @@ mod tests {
                 .open_scope(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID),
             Some(&crate::model::popup_kind::PopupScope::Window)
         );
-        assert_eq!(state.dialogs.pending_force_detach_workspace, Some(8));
+        let targets: Vec<_> = state
+            .popups
+            .instances_of(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
+            .map(|p| target_id(&p.payload))
+            .collect();
+        assert_eq!(targets, [Some(8)]);
         assert!(state.popups.take_closed_ids().is_empty());
     }
 }

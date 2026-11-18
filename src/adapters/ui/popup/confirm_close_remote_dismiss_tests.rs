@@ -64,21 +64,33 @@ fn opened() -> (
         remote_workspace: 4,
     });
     session.borrow_mut().core.push_mirror_workspace(row);
-    state.dialogs.pending_close_remote = Some(PendingCloseRemote {
-        close: SavedRowClose {
-            row: ROW,
-            last: false,
-        },
-        intent: DomainIntent::CloseWorkspace { workspace_id: ROW },
-        measured_h: None,
-        focused: false,
-    });
-    state.popups.open_at_focused(
-        CONFIRM_CLOSE_REMOTE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        AT,
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(
+            CONFIRM_CLOSE_REMOTE_POPUP_ID,
+            crate::model::popup_kind::PopupScope::Window,
+        )
+        .at(AT)
+        .focused()
+        .with_payload(PopupPayload::ConfirmCloseRemote(Box::new(
+            PendingCloseRemote::new(
+                SavedRowClose {
+                    row: ROW,
+                    last: false,
+                },
+                DomainIntent::CloseWorkspace { workspace_id: ROW },
+            ),
+        ))),
+        true,
     );
     (state, session)
+}
+
+/// 열린 확인 인스턴스가 기다리는 닫기.
+fn pending(state: &crate::state::RequestContext) -> Option<&PendingCloseRemote> {
+    state
+        .popups
+        .topmost_payload(CONFIRM_CLOSE_REMOTE_POPUP_ID)
+        .and_then(pending_of)
 }
 
 fn nothing_sent(state: &mut crate::state::RequestContext) -> bool {
@@ -106,7 +118,7 @@ fn an_outside_click_does_not_close_the_close_remote_confirmation() {
         &session,
     );
     assert!(state.popups.is_open(CONFIRM_CLOSE_REMOTE_POPUP_ID));
-    assert!(state.dialogs.pending_close_remote.is_some());
+    assert!(pending(&state).is_some());
     assert!(nothing_sent(&mut state));
 }
 
@@ -118,7 +130,7 @@ fn escape_closes_the_close_remote_confirmation_and_sends_nothing() {
     frame(&ctx, screen(), &mut state, &session);
     frame(&ctx, key(egui::Key::Escape), &mut state, &session);
     assert!(!state.popups.is_open(CONFIRM_CLOSE_REMOTE_POPUP_ID));
-    assert!(state.dialogs.pending_close_remote.is_none());
+    assert!(pending(&state).is_none());
     assert!(nothing_sent(&mut state));
 }
 
@@ -130,9 +142,9 @@ fn cancel_closes_the_close_remote_confirmation_and_sends_nothing() {
     let ctx = egui::Context::default();
     frame(&ctx, screen(), &mut state, &session);
     frame(&ctx, screen(), &mut state, &session);
-    assert!(state.dialogs.pending_close_remote.as_ref().unwrap().focused);
+    assert!(pending(&state).unwrap().focused);
     frame(&ctx, key(egui::Key::Enter), &mut state, &session);
     assert!(!state.popups.is_open(CONFIRM_CLOSE_REMOTE_POPUP_ID));
-    assert!(state.dialogs.pending_close_remote.is_none());
+    assert!(pending(&state).is_none());
     assert!(nothing_sent(&mut state));
 }

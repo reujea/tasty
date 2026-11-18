@@ -2,23 +2,25 @@
 //! workspace 이름·부제 바꾸기는 같은 규칙으로 `RenameTarget::popup_scope`가 창 범위를 정한다.
 //! workspace 자체를 다루는 팝업이라 그 workspace가 보이는 자리인 창 범위로 연다.
 //! 대상이 활성 workspace가 아니어도 지금 창에 바로 보이고, workspace를 전환하지 않는다.
-//! 새 요청은 같은 창 범위에서 열린 팝업의 내용과 대상만 바꾼다. 앞 요청의 대상은 각 팝업이 요청 상태를 통째로 바꿔 남기지 않는다.
+//! 새 요청은 같은 창 범위에서 열린 팝업의 인스턴스 데이터(대상)만 바꾼다. 앞 요청의 대상은 남지 않는다.
 
-use crate::adapters::ui::popup::PopupId;
+use crate::adapters::ui::popup::{PopupId, PopupPayload};
 use crate::intent::{DispatchedIntent, UiIntent};
 use crate::model::popup_kind::PopupScope;
 use crate::state::MainViewState;
 
-/// 창 범위로 팝업 `id`를 연다. 대상 workspace는 호출자가 요청 상태에 먼저 넣는다. `origin`은 요청 출처를 붙인다.
+/// 창 범위로 팝업 `id`를 대상 `payload`와 함께 연다. `origin`은 요청 출처를 붙인다.
 pub(crate) fn open(
     state: &mut MainViewState,
     id: PopupId,
+    payload: PopupPayload,
     origin: impl FnOnce(UiIntent) -> DispatchedIntent,
 ) {
     state.dispatch_intent(origin(UiIntent::ReopenPopup(
         crate::intent::OpenRequest::new(id, PopupScope::Window)
             .centered()
-            .focused(),
+            .focused()
+            .with_payload(payload),
     )));
 }
 
@@ -122,7 +124,13 @@ mod tests {
             visible_in_workspace_1(&state),
             Some(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
         );
-        assert_eq!(state.dialogs.pending_force_detach_workspace, Some(occupied));
+        assert_eq!(
+            state
+                .popups
+                .topmost_payload(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
+                .and_then(crate::adapters::ui::popup::confirm_force_detach_workspace::target_id),
+            Some(occupied)
+        );
         assert_eq!(state.active_workspace(&session.read()).id, 1);
 
         let (mut state, mut session, _) = fixture();
@@ -135,9 +143,9 @@ mod tests {
         );
         assert!(
             state
-                .dialogs
-                .pending_close_remote
-                .as_ref()
+                .popups
+                .topmost_payload(CONFIRM_CLOSE_REMOTE_POPUP_ID)
+                .and_then(crate::adapters::ui::popup::confirm_close_remote::pending_of)
                 .is_some_and(|p| p.close.row == ROW)
         );
         assert_eq!(state.active_workspace(&session.read()).id, 1);
@@ -159,7 +167,7 @@ mod tests {
         assert_eq!(state.active_workspace(&session.read()).id, 1);
     }
 
-    /// 대상 workspace 가 없는 확인은 다음 프레임에 닫히고 대기 상태도 비운다.
+    /// 대상 workspace 가 없는 확인은 다음 프레임에 닫히고 대상도 남지 않는다.
     #[test]
     fn a_confirm_for_a_missing_workspace_closes_on_the_next_frame() {
         let (mut state, mut session, _) = fixture();
@@ -179,7 +187,17 @@ mod tests {
                 .is_open(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
         );
         assert!(!state.popups.is_open(CONFIRM_CLOSE_REMOTE_POPUP_ID));
-        assert!(state.dialogs.pending_force_detach_workspace.is_none());
-        assert!(state.dialogs.pending_close_remote.is_none());
+        assert!(
+            state
+                .popups
+                .topmost_payload(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
+                .is_none()
+        );
+        assert!(
+            state
+                .popups
+                .topmost_payload(CONFIRM_CLOSE_REMOTE_POPUP_ID)
+                .is_none()
+        );
     }
 }

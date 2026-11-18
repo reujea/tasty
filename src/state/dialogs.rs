@@ -197,12 +197,6 @@ pub struct DialogState {
     /// 탭·pane 프리셋 적용 대상. 팝업마다 열 때 정하고 그 팝업이 닫힐 때 지운다.
     #[cfg(feature = "gui")]
     pub(crate) preset_apply_targets: crate::adapters::ui::popup::preset_apply::PresetApplyTargets,
-    pub(crate) pending_category_delete: Option<crate::model::WorkspaceCategoryId>,
-    /// 강제 연결 해제 대상 워크스페이스 ID. 팝업이 열린 동안 재정렬될 수 있어 인덱스를 쓰지 않는다.
-    pub(crate) pending_force_detach_workspace: Option<crate::model::WorkspaceId>,
-    /// 저장된 원격 행을 원격에서 닫기 전 확인 대기. 확인하면 담아 둔 요청을 다시 보낸다.
-    pub(crate) pending_close_remote:
-        Option<crate::adapters::ui::popup::confirm_close_remote::PendingCloseRemote>,
     /// 이 창에 보이는 저장된 원격 행 연결 팝업. 매 프레임 활성 workspace 에 맞춰 연다.
     pub(crate) remote_row_popup: crate::adapters::ui::popup::remote_row::RemoteRowPopupState,
     /// 등록 해시와 다른 Lua 스크립트를 실행할지 확인하는 보류 상태.
@@ -273,9 +267,6 @@ impl DialogState {
             preset_apply_target_category: None,
             #[cfg(feature = "gui")]
             preset_apply_targets: Default::default(),
-            pending_category_delete: None,
-            pending_force_detach_workspace: None,
-            pending_close_remote: None,
             remote_row_popup: Default::default(),
             pending_script_confirm: None,
             transfer_progress: None,

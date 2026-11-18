@@ -148,6 +148,29 @@ fn primed_popup_geometry(
 
 const FIXED_POS: egui::Pos2 = egui::pos2(500.0, 500.0);
 
+/// 창 범위 팝업을 고정 위치에 인스턴스 데이터와 함께 포커스를 주어 연다.
+fn open_with_payload(
+    state: &mut crate::state::RequestContext,
+    id: PopupId,
+    payload: crate::adapters::ui::popup::PopupPayload,
+) {
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(id, crate::model::popup_kind::PopupScope::Window)
+            .at(FIXED_POS)
+            .focused()
+            .with_payload(payload),
+        true,
+    );
+}
+
+/// 이 선언의 열린 인스턴스 중 데이터를 가진 것이 있는지.
+fn holds_payload(state: &crate::state::RequestContext, id: PopupId) -> bool {
+    state
+        .popups
+        .instances_of(id)
+        .any(|p| !matches!(p.payload, crate::adapters::ui::popup::PopupPayload::None))
+}
+
 /// 변환 팝업을 고정 위치에 대상 데이터와 함께 연다. 선택이 있는 상태다.
 fn open_convert_with_selection(state: &mut crate::state::RequestContext, surface_id: u32) {
     let request = crate::intent::OpenRequest::new(
@@ -709,17 +732,16 @@ fn confirm_delete_category_escape_close_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let cat_id = 1;
-    state.dialogs.pending_category_delete = Some(cat_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         CONFIRM_DELETE_CATEGORY_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ConfirmDeleteCategory(cat_id),
     );
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(CONFIRM_DELETE_CATEGORY_POPUP_ID));
-    assert!(state.dialogs.pending_category_delete.is_none());
+    assert!(!holds_payload(&state, CONFIRM_DELETE_CATEGORY_POPUP_ID));
 }
 
 #[test]
@@ -727,11 +749,10 @@ fn confirm_delete_category_outside_click_clears_dialog_state() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let cat_id = 1;
-    state.dialogs.pending_category_delete = Some(cat_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         CONFIRM_DELETE_CATEGORY_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ConfirmDeleteCategory(cat_id),
     );
 
     run_frame(
@@ -741,19 +762,18 @@ fn confirm_delete_category_outside_click_clears_dialog_state() {
     );
 
     assert!(!state.popups.is_open(CONFIRM_DELETE_CATEGORY_POPUP_ID));
-    assert!(state.dialogs.pending_category_delete.is_none());
+    assert!(!holds_payload(&state, CONFIRM_DELETE_CATEGORY_POPUP_ID));
 }
 
 #[test]
-fn confirm_delete_category_close_intent_now_clears_dialog_state() {
+fn confirm_delete_category_close_intent_drops_its_target_at_once() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let cat_id = 1;
-    state.dialogs.pending_category_delete = Some(cat_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         CONFIRM_DELETE_CATEGORY_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ConfirmDeleteCategory(cat_id),
     );
 
     crate::intent::popup::handle(
@@ -765,11 +785,11 @@ fn confirm_delete_category_close_intent_now_clears_dialog_state() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(CONFIRM_DELETE_CATEGORY_POPUP_ID));
-    assert!(state.dialogs.pending_category_delete.is_some());
+    assert!(!holds_payload(&state, CONFIRM_DELETE_CATEGORY_POPUP_ID));
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(state.dialogs.pending_category_delete.is_none());
+    assert!(!state.popups.is_open(CONFIRM_DELETE_CATEGORY_POPUP_ID));
 }
 
 /// client 7이 워크스페이스를 hard 점유하고 확인 팝업이 열린 상태를 만든다.
@@ -787,11 +807,10 @@ fn occupied_workspace_with_popup(
         .occupancy
         .acquire_workspace(ws_id, &members, &members, 7)
         .expect("workspace is free in the fixture");
-    state.dialogs.pending_force_detach_workspace = Some(ws_id);
-    state.popups.open_at_focused(
+    open_with_payload(
+        state,
         CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ConfirmForceDetach(ws_id),
     );
     (ws_id, members)
 }
@@ -809,7 +828,10 @@ fn confirm_force_detach_escape_clears_state_and_keeps_the_occupancy() {
             .popups
             .is_open(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
     );
-    assert!(state.dialogs.pending_force_detach_workspace.is_none());
+    assert!(!holds_payload(
+        &state,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID
+    ));
     assert_eq!(engine.live.occupancy.workspace_holder(ws_id), Some(7));
     for sid in &members {
         assert!(
@@ -836,12 +858,15 @@ fn confirm_force_detach_outside_click_clears_state_and_keeps_the_occupancy() {
             .popups
             .is_open(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
     );
-    assert!(state.dialogs.pending_force_detach_workspace.is_none());
+    assert!(!holds_payload(
+        &state,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID
+    ));
     assert_eq!(engine.live.occupancy.workspace_holder(ws_id), Some(7));
 }
 
 #[test]
-fn confirm_force_detach_close_intent_clears_state_after_next_frame() {
+fn confirm_force_detach_close_intent_drops_its_target_at_once() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
     let (ws_id, _) = occupied_workspace_with_popup(&mut state, &mut engine);
@@ -859,11 +884,17 @@ fn confirm_force_detach_close_intent_clears_state_after_next_frame() {
             .popups
             .is_open(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
     );
-    assert!(state.dialogs.pending_force_detach_workspace.is_some());
+    assert!(!holds_payload(
+        &state,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID
+    ));
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(state.dialogs.pending_force_detach_workspace.is_none());
+    assert!(!holds_payload(
+        &state,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID
+    ));
     assert_eq!(engine.live.occupancy.workspace_holder(ws_id), Some(7));
 }
 
@@ -887,18 +918,20 @@ fn confirm_force_detach_closes_when_the_occupancy_is_already_gone() {
             .popups
             .is_open(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
     );
-    assert!(state.dialogs.pending_force_detach_workspace.is_none());
+    assert!(!holds_payload(
+        &state,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID
+    ));
 }
 
 #[test]
 fn confirm_force_detach_closes_when_the_workspace_is_gone() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.pending_force_detach_workspace = Some(u32::MAX);
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::PopupPayload::ConfirmForceDetach(u32::MAX),
     );
 
     run_frame(empty_input(), &mut state, &mut engine);
@@ -908,7 +941,10 @@ fn confirm_force_detach_closes_when_the_workspace_is_gone() {
             .popups
             .is_open(CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID)
     );
-    assert!(state.dialogs.pending_force_detach_workspace.is_none());
+    assert!(!holds_payload(
+        &state,
+        CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID
+    ));
 }
 
 // 이 하네스는 프레임마다 Context를 새로 만들어 버튼 클릭 대신 실행 함수를 직접 검사한다.
@@ -930,6 +966,7 @@ fn confirm_force_detach_confirm_queues_the_original_grant_without_releasing_it()
     crate::adapters::ui::popup::confirm_force_detach_workspace::apply_force_detach(
         &mut state,
         &engine.read(),
+        ws_id,
     );
     let intents = state.take_pending_intents();
     assert_eq!(intents.len(), 1);
@@ -938,7 +975,6 @@ fn confirm_force_detach_confirm_queues_the_original_grant_without_releasing_it()
         matches!(&intents[0].body, Intent::Engine(crate::app::engine_action::EngineAction::DetachWorkspace { workspace, holder: 7, grant: original }) if *workspace == ws_id && *original == grant)
     );
     assert_eq!(engine.live.occupancy.workspace_holder(ws_id), Some(7));
-    assert!(state.dialogs.pending_force_detach_workspace.is_none());
 }
 
 // release에는 강제 끊기 IPC가 없으므로 로컬 GUI 확인이 점유를 푸는 유일한 공개 경로다.
@@ -961,11 +997,11 @@ fn confirm_force_detach_applied_intent_releases_and_notifies_the_holder() {
         .occupancy
         .acquire_workspace(ws_id, &members, &members, holder)
         .expect("workspace is free in the fixture");
-    state.dialogs.pending_force_detach_workspace = Some(ws_id);
 
     crate::adapters::ui::popup::confirm_force_detach_workspace::apply_force_detach(
         &mut state,
         &engine.read(),
+        ws_id,
     );
     let intents = state.take_pending_intents();
     let [intent] = intents.as_slice() else {
@@ -1019,17 +1055,66 @@ fn force_detach_button_intent_releases_and_notifies_the_holder() {
 }
 
 #[test]
-fn confirm_force_detach_with_no_pending_target_detaches_nothing() {
+fn confirm_force_detach_for_an_unheld_workspace_detaches_nothing() {
     let (mut state, mut owner) = test_state();
     let mut engine = owner.borrow_mut();
     let (ws_id, _) = occupied_workspace_with_popup(&mut state, &mut engine);
-    state.dialogs.pending_force_detach_workspace = None;
     crate::adapters::ui::popup::confirm_force_detach_workspace::apply_force_detach(
         &mut state,
         &engine.read(),
+        u32::MAX,
     );
     assert!(state.take_pending_intents().is_empty());
     assert_eq!(engine.live.occupancy.workspace_holder(ws_id), Some(7));
+}
+
+/// Given 세 확인 팝업이 각자 대상을 가진 채 열려 있을 때, When 모두 닫으면, Then 어느 인스턴스에도
+/// 대상이 남지 않고 같은 선언을 다시 열어도 앞 대상이 보이지 않는다.
+#[test]
+fn a_closed_confirm_leaves_no_target_behind() {
+    use crate::adapters::ui::popup::PopupPayload;
+    use crate::adapters::ui::popup::confirm_close_remote::{
+        CONFIRM_CLOSE_REMOTE_POPUP_ID, PendingCloseRemote,
+    };
+    let (mut state, mut owner) = test_state();
+    let mut engine = owner.borrow_mut();
+    let close = crate::app::attach_client::workspace_close::SavedRowClose {
+        row: 9,
+        last: false,
+    };
+    let opened = [
+        (
+            CONFIRM_DELETE_CATEGORY_POPUP_ID,
+            PopupPayload::ConfirmDeleteCategory(1),
+        ),
+        (
+            CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
+            PopupPayload::ConfirmForceDetach(1),
+        ),
+        (
+            CONFIRM_CLOSE_REMOTE_POPUP_ID,
+            PopupPayload::ConfirmCloseRemote(Box::new(PendingCloseRemote::new(
+                close,
+                crate::app::command::DomainIntent::CloseWorkspace { workspace_id: 9 },
+            ))),
+        ),
+    ];
+    let ids: Vec<PopupId> = opened.iter().map(|(id, _)| *id).collect();
+    for (id, payload) in opened {
+        open_with_payload(&mut state, id, payload);
+        assert!(holds_payload(&state, id), "{id}");
+    }
+    for id in &ids {
+        state.popups.close(id);
+    }
+    run_frame(empty_input(), &mut state, &mut engine);
+    for id in ids {
+        assert!(!state.popups.is_open(id), "{id}");
+        state
+            .popups
+            .open(id, crate::model::popup_kind::PopupScope::Window);
+        assert!(!holds_payload(&state, id), "{id}");
+    }
 }
 
 // 파일 핸들러 피커는 타이틀바와 바깥 클릭 닫기가 없어 해당 포인터 경로 시험은 없다.

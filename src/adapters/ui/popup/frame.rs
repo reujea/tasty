@@ -67,7 +67,7 @@ type TargetAlive = fn(&MainViewState, &crate::runtime::engine_read::EngineRead<'
 /// 범위와 작용 대상이 다른 팝업(대상이 보이는 상위 자리로 여는 팝업)과 그 대상 생존 판정.
 /// 범위가 살아 있어도 대상이 사라지면 닫는다. 범위가 보이지 않으면 그리기 단계의 대상 검사가 돌지 않으므로
 /// 이 판정은 그리기와 무관하게 정리 단계에서 한다.
-const TARGET_CHECKS: [(crate::adapters::ui::popup::PopupId, TargetAlive); 4] = [
+const TARGET_CHECKS: [(crate::adapters::ui::popup::PopupId, TargetAlive); 2] = [
     (
         crate::adapters::ui::popup::preset_apply::APPLY_TAB_POPUP_ID,
         crate::adapters::ui::popup::preset_apply::tab_popup_target_alive,
@@ -75,6 +75,20 @@ const TARGET_CHECKS: [(crate::adapters::ui::popup::PopupId, TargetAlive); 4] = [
     (
         crate::adapters::ui::popup::preset_apply::APPLY_PANE_POPUP_ID,
         crate::adapters::ui::popup::preset_apply::pane_popup_target_alive,
+    ),
+];
+
+/// 인스턴스 데이터로 작용 대상 생존을 판정한다.
+type InstanceTargetAlive = fn(
+    &crate::adapters::ui::popup::PopupPayload,
+    &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool;
+
+/// 인스턴스마다 작용 대상이 다른 팝업과 그 대상 생존 판정. 대상은 인스턴스 데이터에 있다.
+const INSTANCE_TARGET_CHECKS: [(crate::adapters::ui::popup::PopupId, InstanceTargetAlive); 3] = [
+    (
+        crate::adapters::ui::rename_popup::RENAME_POPUP_ID,
+        crate::adapters::ui::dialog::rename_popup_target_alive,
     ),
     (
         crate::adapters::ui::popup::confirm_force_detach_workspace::CONFIRM_FORCE_DETACH_WORKSPACE_POPUP_ID,
@@ -101,14 +115,17 @@ fn close_orphans(state: &mut MainViewState, engine: &crate::runtime::engine_read
         // intent-exempt: 작용 대상이 사라진 팝업의 수명 정리. 범위 고아 정리와 같은 단계이며 포커스·선택은 바꾸지 않는다.
         state.popups.close_with(id, PopupCloseReason::TargetGone);
     }
-    // 이름 바꾸기는 인스턴스마다 대상이 달라 인스턴스 데이터로 판정한다.
-    let gone_renames: Vec<crate::adapters::ui::popup::PopupInstanceId> = state
-        .popups
-        .instances_of(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
-        .filter(|p| !crate::adapters::ui::dialog::rename_popup_target_alive(&p.payload, engine))
-        .map(|p| p.instance)
+    let gone_instances: Vec<crate::adapters::ui::popup::PopupInstanceId> = INSTANCE_TARGET_CHECKS
+        .iter()
+        .flat_map(|(id, alive)| {
+            state
+                .popups
+                .instances_of(id)
+                .filter(|p| !alive(&p.payload, engine))
+                .map(|p| p.instance)
+        })
         .collect();
-    for iid in gone_renames {
+    for iid in gone_instances {
         // intent-exempt: 작용 대상이 사라진 팝업의 수명 정리. 범위 고아 정리와 같은 단계이며 포커스·선택은 바꾸지 않는다.
         state
             .popups
