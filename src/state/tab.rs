@@ -29,6 +29,7 @@ impl RequestContext {
             crate::app::command::DomainIntent::CreateTab {
                 pane_id,
                 cwd,
+                cwd_source: Some(owner_surface_id),
                 kind: kind.into(),
                 name: None,
                 surface_params: params.clone(),

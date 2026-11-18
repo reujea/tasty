@@ -153,6 +153,7 @@ impl MainView {
                 crate::app::command::DomainIntent::CreateTab {
                     pane_id,
                     cwd,
+                    cwd_source: t.surface_id(),
                     kind: "terminal".into(),
                     name: None,
                     surface_params: serde_json::json!({}),

@@ -133,6 +133,7 @@ pub(crate) fn apply_outcome(
             DomainIntent::CreateTab {
                 pane_id: request.pane_id,
                 cwd: None,
+                cwd_source: None,
                 kind: request.kind.clone(),
                 name: None,
                 surface_params: serde_json::json!({ request.param_key.as_str(): path }),

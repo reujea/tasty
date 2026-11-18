@@ -65,6 +65,7 @@ pub fn apply_tab_bar_actions(
                     crate::app::command::DomainIntent::CreateTab {
                         pane_id,
                         cwd,
+                        cwd_source: selected,
                         kind: "terminal".into(),
                         name: None,
                         surface_params: serde_json::json!({}),

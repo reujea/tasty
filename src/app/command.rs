@@ -173,6 +173,16 @@ pub(crate) enum DomainIntent {
     CreateTab {
         pane_id: u32,
         cwd: Option<PathBuf>,
+        /// cwd 상속 원본 surface. 사용자 입력이면 입력 때 정한 값이다. mirror 전달은 이 surface를 원본으로 싣고,
+        /// None이면 넘길 때 그 pane에서 View가 고른 surface를 쓴다(입력 대상이 없는 에이전트 요청 등).
+        #[cfg_attr(
+            not(feature = "gui"),
+            expect(
+                dead_code,
+                reason = "only the GUI mirror forward reads the cwd source; headless has no mirror"
+            )
+        )]
+        cwd_source: Option<u32>,
         kind: String,
         /// 명시 이름은 자동 제목보다 우선한다.
         name: Option<String>,
@@ -223,6 +233,16 @@ pub(crate) enum DomainIntent {
         target_pane_id: u32,
         direction: crate::model::SplitDirection,
         cwd: Option<PathBuf>,
+        /// cwd 상속 원본 surface. 사용자 입력이면 입력 때 정한 값이다. mirror 전달은 이 surface를 원본으로 싣고,
+        /// None이면 넘길 때 그 pane에서 View가 고른 surface를 쓴다(입력 대상이 없는 에이전트 요청 등).
+        #[cfg_attr(
+            not(feature = "gui"),
+            expect(
+                dead_code,
+                reason = "only the GUI mirror forward reads the cwd source; headless has no mirror"
+            )
+        )]
+        cwd_source: Option<u32>,
         kind: String,
         surface_params: Value,
     },

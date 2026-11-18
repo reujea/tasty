@@ -151,6 +151,7 @@ impl Spec {
                 name,
                 surface_params,
                 activate,
+                ..
             } => (
                 Destination::Tab {
                     pane: *pane_id,
@@ -167,6 +168,7 @@ impl Spec {
                 cwd,
                 kind,
                 surface_params,
+                ..
             } => (
                 Destination::Pane {
                     target: *target_pane_id,

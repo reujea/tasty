@@ -42,6 +42,20 @@ impl ClientCwd<'_> {
         tasty_ipc::stream::InheritCwd::of_client(self.inherit, self.selected(core, pane))
     }
 
+    /// pane 대상 생성의 원본. 입력 때 정한 원본 surface가 있으면 그것이고, 없으면 넘길 때 그 pane의 View
+    /// 선택이다(입력 대상이 없는 요청).
+    fn of_source(
+        &self,
+        core: &crate::core::CoreState,
+        pane: u32,
+        source: Option<u32>,
+    ) -> Option<tasty_ipc::stream::InheritCwd> {
+        match source {
+            Some(surface) => self.of_surface(surface),
+            None => self.of_pane(core, pane),
+        }
+    }
+
     /// surface 분할·변환은 대상 surface 자신이 원본이다.
     fn of_surface(&self, surface: u32) -> Option<tasty_ipc::stream::InheritCwd> {
         tasty_ipc::stream::InheritCwd::of_client(self.inherit, Some(surface))
@@ -133,24 +147,26 @@ pub(crate) fn build_mirror_forward_op(
             direction,
             kind,
             surface_params,
+            cwd_source,
             ..
         } => Some(StructuralOp::SplitPane {
             anchor_surface_id: pane_anchor(*target_pane_id)?,
             direction: axis(direction),
             surface_kind: kind.clone(),
             params: surface_params.clone(),
-            inherit_cwd: client.of_pane(engine, *target_pane_id),
+            inherit_cwd: client.of_source(engine, *target_pane_id, *cwd_source),
         }),
         D::CreateTab {
             pane_id,
             kind,
             surface_params,
+            cwd_source,
             ..
         } => Some(StructuralOp::NewTab {
             anchor_surface_id: pane_anchor(*pane_id)?,
             surface_kind: kind.clone(),
             params: surface_params.clone(),
-            inherit_cwd: client.of_pane(engine, *pane_id),
+            inherit_cwd: client.of_source(engine, *pane_id, *cwd_source),
         }),
         // 서버는 anchor가 속한 workspace가 이 연결이 점유한 workspace인지 확인한 뒤 전체를 닫는다.
         D::CloseWorkspace { workspace_id } => Some(StructuralOp::CloseWorkspace {
@@ -279,6 +295,7 @@ mod tests {
             DomainIntent::CreateTab {
                 pane_id: 10,
                 cwd: None,
+                cwd_source: None,
                 kind: kind.clone(),
                 name: None,
                 surface_params: surface_params.clone(),
@@ -288,6 +305,7 @@ mod tests {
                 target_pane_id: 10,
                 direction: crate::model::SplitDirection::Vertical,
                 cwd: None,
+                cwd_source: None,
                 kind: kind.clone(),
                 surface_params: surface_params.clone(),
             },
@@ -339,6 +357,35 @@ mod tests {
             vec![second_tab.clone(), second_tab, target.clone(), target]
         );
         assert_eq!(sources(false), vec![Some(InheritCwd::NoInherit); 4]);
+    }
+
+    /// 입력 때 정한 cwd 원본이 있으면 넘길 때 그 pane의 View 선택이 바뀌었어도 그 surface를 싣는다.
+    #[test]
+    fn a_pane_creation_carries_the_source_chosen_at_input() {
+        use tasty_ipc::stream::InheritCwd;
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        let core = &session.core_state;
+        state
+            .navigation
+            .goto_tab(core.find_pane_by_id(10).expect("pane 10"), 1);
+        let client = ClientCwd {
+            presentation: Some(&state.navigation),
+            inherit: true,
+        };
+        for mut intent in creations().into_iter().take(2) {
+            match &mut intent {
+                DomainIntent::CreateTab { cwd_source, .. }
+                | DomainIntent::SplitPane { cwd_source, .. } => *cwd_source = Some(101),
+                other => panic!("unexpected {other:?}"),
+            }
+            assert_eq!(
+                build_mirror_forward_op(core, &intent, &client)
+                    .expect("creation op")
+                    .inherit_cwd(),
+                Some(&InheritCwd::Surface(101)),
+                "{intent:?}"
+            );
+        }
     }
 
     /// View가 없는 임시 engine은 고를 수 없으므로 원본을 싣지 않는다(서버 fallback). 설정이 꺼져 있으면 그래도 "상속 안 함"이다.

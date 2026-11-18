@@ -634,6 +634,7 @@ pub(crate) fn open_surface_tab(
             let intent = crate::app::command::DomainIntent::CreateTab {
                 pane_id,
                 cwd: None,
+                cwd_source: None,
                 kind: surface_kind.to_string(),
                 name: None,
                 surface_params: params.clone(),

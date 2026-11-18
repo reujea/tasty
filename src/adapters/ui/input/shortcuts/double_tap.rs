@@ -107,10 +107,12 @@ impl MainView {
             "new_tab" => {
                 let pane_id = self.state.focused_pane_id(engine);
                 let cwd = self.state.resolve_inherit_cwd(engine);
+                let cwd_source = self.state.focused_surface_id(engine);
                 self.state.dispatch_intent(
                     crate::app::command::DomainIntent::CreateTab {
                         pane_id,
                         cwd,
+                        cwd_source,
                         kind: "terminal".into(),
                         name: None,
                         surface_params: serde_json::json!({}),

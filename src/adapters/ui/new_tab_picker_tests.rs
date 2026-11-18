@@ -96,6 +96,7 @@ fn confirmed_outcome_creates_html_tab_in_that_pane() {
         activate,
         cwd,
         name,
+        ..
     }) = &intents[0].body
     else {
         panic!("expected CreateTab, got {:?}", intents[0].body);

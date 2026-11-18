@@ -298,3 +298,169 @@ fn a_split_whose_target_is_a_draft_is_refused_at_input() {
     assert!(structure::split_pane(&target, SplitDirection::Vertical).is_none());
     assert!(structure::split_surface(&target, SplitDirection::Vertical).is_none());
 }
+
+/// 원격(mirror)으로 넘기는 새 탭·pane 분할의 cwd 원본은 입력 때 그 pane 에서 선택된 surface 다.
+/// 입력 뒤 같은 pane 의 선택 탭을 바꿔도 넘어가는 원본은 바뀌지 않는다.
+#[test]
+fn a_forwarded_pane_creation_carries_the_cwd_source_chosen_at_input() {
+    use crate::app::services::impl_mirror::{ClientCwd, build_mirror_forward_op};
+    use tasty_ipc::stream::InheritCwd;
+    use winit::keyboard::{Key, ModifiersState, SmolStr};
+    let (mut state, mut engine) = crate::state::tests::two_pane_fixture();
+    state.select_pane(&engine.core_state, 10);
+    engine.runtime.settings.general.inherit_cwd = true;
+    let target = state.command_target(&engine.read());
+    assert_eq!(target.surface_id(), Some(101));
+    let split = structure::split_pane(&target, SplitDirection::Vertical)
+        .expect("no draft")
+        .from_user_shortcut("split_pane_vertical");
+    let new_tab = structure::new_tab(&target, None, serde_json::Value::Null)
+        .expect("no draft")
+        .from_user_shortcut("new_tab");
+    let kb = crate::settings::KeybindingSettings {
+        new_workspace: vec![],
+        new_tab: vec!["ctrl+t".into()],
+        ..Default::default()
+    };
+    assert!(crate::view::main::MainView::match_create_bindings(
+        &mut state,
+        &engine.read(),
+        &target,
+        &kb,
+        &Key::Character(SmolStr::new("t")),
+        ModifiersState::CONTROL,
+    ));
+    let key_tab = state
+        .take_pending_intents()
+        .into_iter()
+        .find_map(|i| match i.body {
+            Intent::Domain(d @ DomainIntent::CreateTab { .. }) => Some(d),
+            _ => None,
+        })
+        .expect("the key makes a new tab");
+    let pane = engine.core_state.find_pane_by_id(10).expect("pane 10");
+    state.navigation.goto_tab(pane, 1);
+    let client = ClientCwd {
+        presentation: Some(&state.navigation),
+        inherit: true,
+    };
+    let mut domains: Vec<DomainIntent> = [split, new_tab]
+        .iter()
+        .map(|i| resolved(&state, &engine, i).domain().expect("resolved"))
+        .collect();
+    domains.push(key_tab);
+    for intent in domains {
+        assert_eq!(
+            build_mirror_forward_op(&engine.core_state, &intent, &client)
+                .expect("creation op")
+                .inherit_cwd(),
+            Some(&InheritCwd::Surface(101)),
+            "{intent:?}"
+        );
+    }
+}
+
+/// 탭 바의 새 탭 버튼도 누른 pane 에서 그때 선택된 surface 를 원격 cwd 원본으로 싣는다.
+#[test]
+fn a_tab_bar_new_tab_carries_the_cwd_source_of_its_pane() {
+    use crate::adapters::ui::tab_bar::{TabBarAction, apply_tab_bar_actions};
+    use crate::app::services::impl_mirror::{ClientCwd, build_mirror_forward_op};
+    use tasty_ipc::stream::InheritCwd;
+    let (mut state, engine) = crate::state::tests::two_pane_fixture();
+    apply_tab_bar_actions(
+        &mut state,
+        &engine.read(),
+        vec![TabBarAction::AddTab { pane_id: 10 }],
+        &[],
+        160.0,
+        1.0,
+    );
+    let tab = state
+        .take_pending_intents()
+        .into_iter()
+        .find_map(|i| match i.body {
+            Intent::Domain(d @ DomainIntent::CreateTab { .. }) => Some(d),
+            _ => None,
+        })
+        .expect("the tab is requested");
+    let pane = engine.core_state.find_pane_by_id(10).expect("pane 10");
+    state.navigation.goto_tab(pane, 1);
+    let client = ClientCwd {
+        presentation: Some(&state.navigation),
+        inherit: true,
+    };
+    assert_eq!(
+        build_mirror_forward_op(&engine.core_state, &tab, &client)
+            .expect("creation op")
+            .inherit_cwd(),
+        Some(&InheritCwd::Surface(101))
+    );
+}
+
+/// 팔레트와 더블탭의 새 탭은 cwd 를 읽은 surface 를 cwd 원본으로 싣는다.
+/// 두 실행기는 창(MainView)이 있어야 돌아 실행 시험을 만들 수 없어 소스로 확인한다.
+#[test]
+fn palette_and_double_tap_new_tab_carry_the_cwd_source_they_read() {
+    fn arm<'a>(src: &'a str, from: &str, to: &str) -> &'a str {
+        let start = src.find(from).expect("new_tab arm");
+        let end = start + src[start..].find(to).expect("next arm");
+        &src[start..end]
+    }
+    let palette = arm(
+        include_str!("dispatch.rs"),
+        "\"new_tab\" =>",
+        "\"split_pane_vertical\" =>",
+    );
+    assert!(palette.contains("let cwd = target\n                    .surface_id()"));
+    assert!(palette.contains("cwd_source: target.surface_id(),"));
+    let double_tap = arm(
+        include_str!("double_tap.rs"),
+        "\"new_tab\" =>",
+        "\"close_pane\" =>",
+    );
+    assert!(double_tap.contains("let cwd = self.state.resolve_inherit_cwd(engine);"));
+    assert!(double_tap.contains("let cwd_source = self.state.focused_surface_id(engine);"));
+    assert!(double_tap.contains("cwd_source,"));
+}
+
+/// 메뉴 소유 surface 에서 연 새 탭은 그 소유 surface 를 원격 cwd 원본으로 싣는다.
+#[test]
+fn an_owner_menu_new_tab_carries_its_owner_as_the_cwd_source() {
+    use crate::app::services::impl_mirror::{ClientCwd, build_mirror_forward_op};
+    use tasty_ipc::stream::InheritCwd;
+    let (mut state, engine) = crate::state::tests::two_pane_fixture();
+    state
+        .add_kind_tab_by_owner(&engine.read(), 102, "terminal", &serde_json::json!({}))
+        .expect("owner exists");
+    let tab = state
+        .take_pending_intents()
+        .into_iter()
+        .find_map(|i| match i.body {
+            Intent::Domain(d @ DomainIntent::CreateTab { .. }) => Some(d),
+            _ => None,
+        })
+        .expect("the tab is requested");
+    let client = ClientCwd {
+        presentation: Some(&state.navigation),
+        inherit: true,
+    };
+    assert_eq!(
+        build_mirror_forward_op(&engine.core_state, &tab, &client)
+            .expect("creation op")
+            .inherit_cwd(),
+        Some(&InheritCwd::Surface(102))
+    );
+}
+
+/// pane 컨텍스트 메뉴의 새 터미널 탭은 cwd 를 읽은 그 pane 의 선택 surface 를 cwd 원본으로 싣는다.
+/// 메뉴 결과 적용은 창(MainView)에서만 돌아 소스로 확인한다.
+#[test]
+fn the_pane_menu_new_tab_carries_the_cwd_source_it_read() {
+    let src = include_str!("../../../../view/main/redraw.rs");
+    let start = src
+        .find("fn apply_pane_menu_selection(")
+        .expect("apply_pane_menu_selection");
+    let body = &src[start..start + src[start..].find("Some(2) =>").expect("next arm")];
+    assert!(body.contains("self.state.resolve_inherit_cwd_from_surface(engine, surface)"));
+    assert!(body.contains("cwd_source: selected,"));
+}

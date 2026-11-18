@@ -123,6 +123,7 @@ pub(crate) fn resolve(
         Intent::NewTabWithFollowup { pane_id, .. } => DomainIntent::CreateTab {
             pane_id: *pane_id,
             cwd: None,
+            cwd_source: None,
             kind: "empty".into(),
             name: None,
             surface_params: serde_json::json!({}),
@@ -144,6 +145,7 @@ pub(crate) fn resolve(
                 } else {
                     None
                 },
+                cwd_source: target.cwd_source,
                 kind: kind.into(),
                 name: None,
                 surface_params: params_or_empty(params),
@@ -158,6 +160,7 @@ pub(crate) fn resolve(
                 target_pane_id,
                 direction: *direction,
                 cwd: cwd_of(target.cwd_source),
+                cwd_source: target.cwd_source,
                 kind: "terminal".into(),
                 surface_params: serde_json::json!({}),
             }
