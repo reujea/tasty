@@ -468,7 +468,7 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
   2. 실행 시작 시각을 기록하고 도우미를 실행한다.
   3. 결과 파일이 없으면 결과를 쓰지 못한 실패로 본다.
   4. 결과 파일이 있으면 `started_at`이 2의 시작 시각 뒤인지 확인한 뒤 `exit_code`를 읽는다. 앞이면 이번 실행의 결과가 아니다.
-- `--command-file`을 빼면 권한만 조회한다. 이 조회와 `key` 단계가 없는 명령 파일은 요청 창을 띄우지 않으므로, 허용을 기다리며 반복해 실행해도 된다.
+- `--command-file`을 빼면 권한만 조회한다. 이 조회와 `key`·마우스 단계가 없는 명령 파일은 요청 창을 띄우지 않으므로, 허용을 기다리며 반복해 실행해도 된다.
 - 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행하면 권한 조회 전용이다. 이때 책임 프로세스는 셸을 띄운 터미널 앱이라, 요청 창과 손쉬운 사용 등록이 그 앱에 붙는다. 그래서 직접 실행에서는 `request-access`와, 모든 명령 파일(`key`뿐 아니라 `switch_source`·`activate`만 든 파일, 단계가 없는 빈 파일이나 주석만 있는 파일도)을 권한 여부와 관계없이 거부한다. 어떤 단계도 실행하지 않고 요청도 하지 않은 채 결과 파일에 `refused_reason: "not_launched_via_open"`을 적고 종료 코드 2로 끝낸다. 명령 파일 없는 조회만 된다. 요청과 단계 실행은 `open`으로 띄운 경우에만 한다. 도우미는 부모 프로세스가 launchd(PID 1)이면 `open`(LaunchServices)으로 띄운 것으로 본다. 그 값을 결과 파일의 `parent_pid`와 `launched_via_launch_services`에 적는다. 이 판정에는 한계가 있다. 부모 셸이 먼저 끝나 launchd(PID 1)로 옮겨진 직접 실행(`nohup … &` 뒤 셸 종료, 이중 fork, `setsid`·`disown`)도 `open` 실행으로 판정된다. 그러면 요청이 셸을 띄운 앱에 붙을 수 있고, 결과의 `parent_pid`로도 사후에 구분되지 않는다. 그래서 직접 실행은 포그라운드로 한다.
 
 명령 파일은 한 줄에 한 단계다. 빈 줄과 `#`로 시작하는 줄은 건너뛴다. 키는 macOS 가상 키코드 숫자로, 방향은 `surface.raw_key`와 같은 어휘로, 입력 소스는 TIS ID 그대로 적는다. 문자열(유니코드) 주입 명령은 없다. 문자열 주입은 IME를 거치지 않기 때문이다.
@@ -481,11 +481,16 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 | `delay <ms>` | 이후 키 이벤트 사이의 지연을 바꾼다(기본 30ms) |
 | `activate <pid>` | 그 PID의 앱을 앞으로 가져온다 |
 | `require_front <pid>` | 앞 앱 PID가 다르면 키를 보내지 않고 끝낸다. 키를 보내기 전에 넣는다 |
+| `mouse_move <x> <y>` | 포인터를 옮긴다. 버튼이 눌려 있으면 그 버튼의 드래그 이벤트가 된다 |
+| `mouse_down [left\|right]`, `mouse_up [left\|right]` | 현재 포인터 위치에서 버튼을 누르거나 뗀다(기본 `left`) |
+| `click <x> <y> [left\|right] [count]` | 포인터를 옮긴 뒤 `count`번(1~3, 기본 1) 누르고 뗀다. 각 누름의 click state는 1, 2, 3이다 |
+| `drag <x1> <y1> <x2> <y2>` | 왼쪽 버튼으로 (x1, y1)에서 누르고 열 단계로 끌어 (x2, y2)에서 뗀다 |
 
 - 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59)를 `press`/`release`로 보낸다. 실제 키보드와 같은 순서다. 수식키 이벤트는 `flagsChanged` 종류로 게시한다. 도우미는 누른 채로 있는 키코드를 기억하고, 그중 수식키의 플래그를 그 뒤 모든 키 이벤트에 싣는다. 왼쪽·오른쪽 Command(55, 54)처럼 같은 플래그를 내는 키는 둘 다 떼어야 플래그가 꺼진다. 예: Cmd+D는 `key 55 press`, `key 2 click`, `key 55 release`다.
-- 이벤트 소스와 탭은 `surface.raw_key`와 같다(`combinedSessionState`, `cgAnnotatedSessionEventTap`).
-- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키를 뗀다(수식키는 마지막). 뗀 키코드는 그 단계의 `released_on_failure`에 적는다. 모든 단계가 성공했는데 명령 파일이 키를 누른 채로 끝나도, 끝내기 전에 같은 방법으로 떼고 `released_at_end`에 적는다. 키마다 떼기를 시도하며, 떼지 못한 키는 키코드와 오류를 `release_failed`에 따로 적는다(실패 단계에서는 그 단계의 `release_failed`). 정상 끝에서 떼지 못한 키가 하나라도 있으면 종료 코드 1이다. 측정 범위: 키를 누른 채 끝나는 명령 파일(Shift 56 press, a 0 press)은 종료 코드 0, `released_at_end: [0, 56]`이었다. 대상 터미널에는 `A`가 들어갔고, 다음 a는 소문자로 들어가 Shift가 남지 않았다(측정함). 실패 단계에서는 Shift 56 press 뒤 `require_front`가 다른 앱 PID를 받아 실패하자, 종료 코드 5와 그 단계의 `released_on_failure: [56]`이 나왔다. 실패 뒤 단계는 실행되지 않았고, 다음 a는 소문자로 들어갔다(측정함). 떼기 이벤트 생성 자체가 실패하는 `release_failed` 경로는 인위적으로 만들 수 없어 미측정이다.
-- 명령 파일 형식은 권한 판정·요청보다 먼저 전부 검사한다. 키코드는 0~65535, `activate`·`require_front`의 PID는 1~2147483647, `sleep`·`delay`의 ms는 0 이상의 정수다. 범위 밖이면 종료 코드 2다.
+- 키 이벤트의 소스와 탭은 `surface.raw_key`와 같다(`combinedSessionState`, `cgAnnotatedSessionEventTap`). 마우스 이벤트는 창 서버가 포인터를 옮기고 그 위치의 창으로 보내도록 `cghidEventTap`에 게시한다. 마우스 이벤트에도 눌린 수식키의 플래그를 싣는다.
+- 마우스 좌표는 전역 화면 좌표(포인트, 주 화면 왼쪽 위가 원점)이고 -100000~100000의 실수다. Tasty surface를 누르려면 `tasty debug surface-rect --surface <id>`(창 안 물리 픽셀)를 배율로 나눠 포인트로 바꾸고, 창의 화면 위치(`CGWindowListCopyWindowInfo`의 창 bounds)를 더한다. 포인터의 처음 위치는 도우미 시작 때의 커서 위치다.
+- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키와 마우스 버튼을 뗀다(일반 키, 버튼, 수식키 순). 뗀 것은 그 단계의 `released_on_failure`에 키코드나 `mouse_left`·`mouse_right`로 적는다. 모든 단계가 성공했는데 명령 파일이 키를 누른 채로 끝나도, 끝내기 전에 같은 방법으로 떼고 `released_at_end`에 적는다. 하나씩 떼기를 시도하며, 떼지 못한 것은 키코드(`keycode`)나 버튼(`button`)과 오류를 `release_failed`에 따로 적는다(실패 단계에서는 그 단계의 `release_failed`). 정상 끝에서 떼지 못한 키나 버튼이 하나라도 있으면 종료 코드 1이다. 측정 범위: 키를 누른 채 끝나는 명령 파일(Shift 56 press, a 0 press)은 종료 코드 0, `released_at_end: [0, 56]`이었다. 대상 터미널에는 `A`가 들어갔고, 다음 a는 소문자로 들어가 Shift가 남지 않았다(측정함). 실패 단계에서는 Shift 56 press 뒤 `require_front`가 다른 앱 PID를 받아 실패하자, 종료 코드 5와 그 단계의 `released_on_failure: [56]`이 나왔다. 실패 뒤 단계는 실행되지 않았고, 다음 a는 소문자로 들어갔다(측정함). 떼기 이벤트 생성 자체가 실패하는 `release_failed` 경로는 인위적으로 만들 수 없어 미측정이다.
+- 명령 파일 형식은 권한 판정·요청보다 먼저 전부 검사한다. 키코드는 0~65535, `activate`·`require_front`의 PID는 1~2147483647, `sleep`·`delay`의 ms는 0 이상의 정수, 마우스 좌표는 -100000~100000의 유한 실수, `click`의 횟수는 1~3이다. 범위 밖이면 종료 코드 2다.
 
 ### 결과 파일과 종료 코드
 
@@ -494,22 +499,22 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 - `helper_pid`, `parent_pid`, `launched_via_launch_services`, `started_at`, `finished_at`(UTC), `bundle_id`, `bundle_version`, `executable`
 - `AXIsProcessTrusted`, `CGPreflightPostEventAccess`(실행 시작 때 값)
 - `command_file`(받은 명령 파일 경로, 없으면 null), `refused_reason`(직접 실행을 거부했을 때 `not_launched_via_open`)
-- `released_at_end`(정상 끝에서 뗀 키코드), `release_failed`(정상 끝에서 떼지 못한 키코드와 오류)
+- `released_at_end`(정상 끝에서 뗀 키코드와 `mouse_left`·`mouse_right`), `release_failed`(정상 끝에서 떼지 못한 키나 버튼과 오류)
 - `requested_access`. 요청했으면 `AXIsProcessTrustedWithOptions_prompt`, `CGRequestPostEventAccess`(두 함수의 반환값)와 `AXIsProcessTrusted_after_request`, `CGPreflightPostEventAccess_after_request`(호출 뒤 다시 조회한 값)
 - `source_before`, `source_after`(입력 소스 ID)
-- `modifier_method`, `event_source`, `event_tap`
+- `modifier_method`, `event_source`, `event_tap`, `mouse_event_tap`
 - `steps`(단계별 `command`, `ok`, `error`와 단계 정보), `exit_code`, `message`
 
 | 코드 | 뜻 |
 |---|---|
 | 0 | 모든 단계 성공. `request-access`는 이미 허용돼 있음 |
-| 1 | 그 밖의 실패. 모든 단계가 성공했어도 끝에서 눌린 키를 떼지 못하면(`release_failed`가 비어 있지 않음) 1이다. 결과 파일을 쓰거나 rename하지 못했거나 옛 결과 파일을 지우지 못하면 이유를 stderr에 쓰고 1로 끝난다. 이때 이번 결과 파일은 없고, 옛 결과 파일을 지우지 못한 경우에는 옛 파일이 남아 있을 수 있다 |
+| 1 | 그 밖의 실패. 모든 단계가 성공했어도 끝에서 눌린 키나 마우스 버튼을 떼지 못하면(`release_failed`가 비어 있지 않음) 1이다. 결과 파일을 쓰거나 rename하지 못했거나 옛 결과 파일을 지우지 못하면 이유를 stderr에 쓰고 1로 끝난다. 이때 이번 결과 파일은 없고, 옛 결과 파일을 지우지 못한 경우에는 옛 파일이 남아 있을 수 있다 |
 | 2 | 인자·명령 파일 오류. 직접 실행에서 `request-access`나 명령 파일(빈 파일 포함)을 받은 경우도 여기에 든다(`refused_reason: "not_launched_via_open"`, 권한과 무관). `--result`가 없으면 결과 파일 없이 끝난다 |
-| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 `key` 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다. 직접 실행은 이 판정 전에 2로 끝나므로 3은 `open` 실행이나 명령 파일 없는 조회에서만 나온다 |
+| 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 `key`·마우스 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다. 직접 실행은 이 판정 전에 2로 끝나므로 3은 `open` 실행이나 명령 파일 없는 조회에서만 나온다 |
 | 4 | 입력 소스가 없거나 전환 실패 |
 | 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
 
-도우미가 권한 요청 함수를 부르는 경우는 `open`으로 띄웠을 때 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 직접 실행에서는 부르지 않는다(명령 파일과 `request-access`는 2로 거부된다). 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
+도우미가 권한 요청 함수를 부르는 경우는 `open`으로 띄웠을 때 `request-access`와, 권한 없이 `key`·마우스 단계가 든 명령 파일을 받은 경우 둘뿐이다. 직접 실행에서는 부르지 않는다(명령 파일과 `request-access`는 2로 거부된다). 명령 파일 없는 조회, `key`·마우스 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
 
 ### 격리 인스턴스에서 측정할 때
 

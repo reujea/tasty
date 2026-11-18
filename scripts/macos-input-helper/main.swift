@@ -12,10 +12,16 @@
 //   sleep <ms>
 //   delay <ms>              이후 키 이벤트 사이 지연(기본 30ms)
 //   activate <pid>
-//   require_front <pid>     앞 앱 PID가 다르면 키를 보내지 않고 종료 코드 5로 끝낸다
+//   require_front <pid>     앞 앱 PID가 다르면 이후 단계(키·마우스)를 실행하지 않고 종료 코드 5로 끝낸다
+//   mouse_move <x> <y>      포인터를 옮긴다. 버튼이 눌려 있으면 드래그 이벤트가 된다
+//   mouse_down [left|right] / mouse_up [left|right]   현재 포인터 위치에서 버튼을 누르거나 뗀다
+//   click <x> <y> [left|right] [count]                옮긴 뒤 count번(1...3) 누르고 뗀다
+//   drag <x1> <y1> <x2> <y2>                          왼쪽 버튼으로 끈다
+// 좌표는 전역 화면 좌표(포인트, 주 화면 왼쪽 위가 원점)이고 -100000...100000의 실수다.
 // 키코드는 0...65535, pid는 1...2147483647이다. 형식 오류는 권한 판정보다 먼저 종료 코드 2로 끝낸다.
 // 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59 등)를 press/release로 보낸다.
-// 도우미는 눌린 키코드를 기억해 그 뒤 모든 키 이벤트에 눌린 수식키의 플래그를 싣고, 실패하면 눌린 키를 뗀다.
+// 도우미는 눌린 키코드를 기억해 그 뒤 모든 키 이벤트에 눌린 수식키의 플래그를 싣는다.
+// 단계가 실패할 때와 명령 파일이 정상으로 끝날 때 모두, 누른 채로 남은 키와 마우스 버튼을 뗀다.
 
 import AppKit
 import ApplicationServices
@@ -40,6 +46,15 @@ enum Direction: String {
     case press, release, click
 }
 
+enum MouseButton: String {
+    case left, right
+
+    var cg: CGMouseButton { self == .left ? .left : .right }
+    var downType: CGEventType { self == .left ? .leftMouseDown : .rightMouseDown }
+    var upType: CGEventType { self == .left ? .leftMouseUp : .rightMouseUp }
+    var dragType: CGEventType { self == .left ? .leftMouseDragged : .rightMouseDragged }
+}
+
 // 사전 검사를 통과한 단계. 실행 중에는 형식 오류가 생기지 않는다.
 enum Step {
     case switchSource(String)
@@ -48,10 +63,18 @@ enum Step {
     case delay(Int)
     case activate(pid_t)
     case requireFront(pid_t)
+    case mouseMove(CGPoint)
+    case mouseDown(MouseButton)
+    case mouseUp(MouseButton)
+    case click(CGPoint, MouseButton, Int)
+    case drag(CGPoint, CGPoint)
 
-    var postsKeys: Bool {
-        if case .key = self { return true }
-        return false
+    // 키나 마우스 이벤트를 게시하는 단계. 권한이 없을 때 요청할지를 이것으로 정한다.
+    var postsEvents: Bool {
+        switch self {
+        case .key, .mouseMove, .mouseDown, .mouseUp, .click, .drag: return true
+        case .switchSource, .sleep, .delay, .activate, .requireFront: return false
+        }
     }
 }
 
@@ -76,6 +99,7 @@ var result: [String: Any] = [
     "modifier_method": "modifier keycode press/release; flags of held modifier keycodes are set on every posted event",
     "event_source": "CGEventSourceStateID.combinedSessionState",
     "event_tap": "CGEventTapLocation.cgAnnotatedSessionEventTap",
+    "mouse_event_tap": "CGEventTapLocation.cghidEventTap",
 ]
 var steps: [[String: Any]] = []
 var resultPath: String?
@@ -209,8 +233,33 @@ func parseInt(_ s: String, max: Int) -> Int? {
     return v
 }
 
+// 유한한 -100000...100000의 실수 좌표만 받는다.
+func parseCoordinate(_ s: String) -> CGFloat? {
+    guard let v = Double(s), v.isFinite, (-100_000...100_000).contains(v) else { return nil }
+    return CGFloat(v)
+}
+
+func parsePoint(_ x: String, _ y: String) -> CGPoint? {
+    guard let px = parseCoordinate(x), let py = parseCoordinate(y) else { return nil }
+    return CGPoint(x: px, y: py)
+}
+
 func parseStep(_ words: [String]) -> Step? {
     switch (words[0], words.count) {
+    case ("mouse_move", 3):
+        return parsePoint(words[1], words[2]).map(Step.mouseMove)
+    case ("mouse_down", 1...2), ("mouse_up", 1...2):
+        guard let button = MouseButton(rawValue: words.count == 2 ? words[1] : "left") else { return nil }
+        return words[0] == "mouse_down" ? .mouseDown(button) : .mouseUp(button)
+    case ("click", 3...5):
+        guard let point = parsePoint(words[1], words[2]),
+              let button = MouseButton(rawValue: words.count >= 4 ? words[3] : "left") else { return nil }
+        let count = words.count == 5 ? parseInt(words[4], max: 3) : 1
+        guard let count, count >= 1 else { return nil }
+        return .click(point, button, count)
+    case ("drag", 5):
+        guard let from = parsePoint(words[1], words[2]), let to = parsePoint(words[3], words[4]) else { return nil }
+        return .drag(from, to)
     case ("switch_source", 2):
         return .switchSource(words[1])
     case ("key", 3):
@@ -250,9 +299,9 @@ if let commandFile {
 if !launchedViaLaunchServices, commandFile != nil { refuseDirectRun("command file refused in a direct run") }
 
 // 게시 권한이 없으면 이벤트가 오류 없이 버려지므로 어떤 단계도 실행하지 않고 끝낸다.
-// key 단계가 있을 때만 권한을 요청한다. 키를 보내지 않는 실행은 허용을 기다리며 반복 조회에 쓰므로 요청 창을 띄우지 않는다.
+// key·마우스 단계가 있을 때만 권한을 요청한다. 키를 보내지 않는 실행은 허용을 기다리며 반복 조회에 쓰므로 요청 창을 띄우지 않는다.
 guard postAccess else {
-    if lines.contains(where: { $0.step.postsKeys }) { requestAccess() }
+    if lines.contains(where: { $0.step.postsEvents }) { requestAccess() }
     finish(.noPermission, "CGPreflightPostEventAccess is false; no step was run")
 }
 
@@ -279,21 +328,64 @@ func postKey(_ keycode: CGKeyCode, down: Bool) throws {
     wait(ms: delayMs)
 }
 
-// 누른 채로 남은 키를 뗀다. 다음 입력이 그 키를 물고 들어가지 않게 하기 위해서다. 수식키는 마지막에 뗀다.
-// 키마다 시도하고, 뗀 키코드와 떼지 못한 키코드(오류 포함)를 나눠 돌려준다.
-func releaseHeldKeys() -> (released: [Int], failed: [[String: Any]]) {
-    let held = heldKeys.sorted { (modifierFlags[$0] == nil ? 0 : 1, $0) < (modifierFlags[$1] == nil ? 0 : 1, $1) }
-    var released: [Int] = []
+// 누른 채로 있는 마우스 버튼과 마지막 포인터 위치. 포인터의 처음 위치는 실행 시작 때의 커서다.
+var heldButtons = Set<String>()
+var pointer = CGEvent(source: nil)?.location ?? .zero
+
+// 마우스 이벤트는 HID 탭에 게시한다. 창 서버가 포인터를 옮기고 그 위치의 창으로 이벤트를 보내게 하기 위해서다.
+func postMouse(_ type: CGEventType, at point: CGPoint, button: MouseButton, clickState: Int64 = 1) throws {
+    guard let event = CGEvent(mouseEventSource: eventSource, mouseType: type, mouseCursorPosition: point, mouseButton: button.cg) else {
+        throw StepError(code: .failure, message: "CGEvent creation failed for mouse event \(type.rawValue)")
+    }
+    if type == button.downType { heldButtons.insert(button.rawValue) }
+    if type == button.upType { heldButtons.remove(button.rawValue) }
+    event.setIntegerValueField(.mouseEventClickState, value: clickState)
+    event.flags = heldFlags()
+    event.post(tap: .cghidEventTap)
+    pointer = point
+    wait(ms: delayMs)
+}
+
+// 버튼이 눌려 있으면 이동은 그 버튼의 드래그 이벤트다.
+func moveTo(_ point: CGPoint) throws {
+    if heldButtons.contains("left") {
+        try postMouse(.leftMouseDragged, at: point, button: .left)
+    } else if heldButtons.contains("right") {
+        try postMouse(.rightMouseDragged, at: point, button: .right)
+    } else {
+        try postMouse(.mouseMoved, at: point, button: .left)
+    }
+}
+
+// 누른 채로 남은 키와 버튼을 뗀다. 다음 입력이 그 키를 물고 들어가지 않게 하기 위해서다.
+// 일반 키, 마우스 버튼, 수식키 순서로 떼어 수식키가 클릭에 실리게 한다.
+// 하나씩 시도하고, 뗀 것(키코드 또는 "mouse_left"·"mouse_right")과 떼지 못한 것(오류 포함)을 나눠 돌려준다.
+func releaseHeldKeys() -> (released: [Any], failed: [[String: Any]]) {
+    var released: [Any] = []
     var failed: [[String: Any]] = []
-    for keycode in held {
-        do {
-            try postKey(keycode, down: false)
-            released.append(Int(keycode))
-        } catch {
-            let message = (error as? StepError)?.message ?? "\(error)"
-            failed.append(["keycode": Int(keycode), "error": message])
+    func releaseKeys(_ keys: [CGKeyCode]) {
+        for keycode in keys {
+            do {
+                try postKey(keycode, down: false)
+                released.append(Int(keycode))
+            } catch {
+                let message = (error as? StepError)?.message ?? "\(error)"
+                failed.append(["keycode": Int(keycode), "error": message])
+            }
         }
     }
+    releaseKeys(heldKeys.filter { modifierFlags[$0] == nil }.sorted())
+    for name in heldButtons.sorted() {
+        guard let button = MouseButton(rawValue: name) else { continue }
+        do {
+            try postMouse(button.upType, at: pointer, button: button)
+            released.append("mouse_\(name)")
+        } catch {
+            let message = (error as? StepError)?.message ?? "\(error)"
+            failed.append(["button": name, "error": message])
+        }
+    }
+    releaseKeys(heldKeys.filter { modifierFlags[$0] != nil }.sorted())
     return (released, failed)
 }
 
@@ -329,6 +421,27 @@ func run(_ step: Step) throws -> [String: Any] {
         }
         info["activated"] = app.activate(options: [.activateAllWindows])
         wait(ms: 300)
+    case .mouseMove(let point):
+        try moveTo(point)
+    case .mouseDown(let button):
+        try postMouse(button.downType, at: pointer, button: button)
+    case .mouseUp(let button):
+        try postMouse(button.upType, at: pointer, button: button)
+    case .click(let point, let button, let count):
+        try moveTo(point)
+        for state in 1...count {
+            try postMouse(button.downType, at: point, button: button, clickState: Int64(state))
+            try postMouse(button.upType, at: point, button: button, clickState: Int64(state))
+        }
+    case .drag(let from, let to):
+        try moveTo(from)
+        try postMouse(.leftMouseDown, at: from, button: .left)
+        let steps = 10
+        for i in 1...steps {
+            let t = CGFloat(i) / CGFloat(steps)
+            try postMouse(.leftMouseDragged, at: CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t), button: .left)
+        }
+        try postMouse(.leftMouseUp, at: to, button: .left)
     case .requireFront(let pid):
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
         info["front_pid"] = front.map { Int($0) } ?? NSNull()
@@ -356,9 +469,13 @@ for entry in lines {
         finish(failure.code, "line \(entry.line): \(failure.message)")
     }
 }
-// 명령 파일이 키를 누른 채로 끝나도 눌린 키를 남기지 않는다. 떼지 못한 키가 있으면 실패로 끝낸다.
+// 명령 파일이 키나 마우스 버튼을 누른 채로 끝나도 남기지 않는다. 떼지 못한 키나 버튼이 있으면 실패로 끝낸다.
 let release = releaseHeldKeys()
 result["released_at_end"] = release.released
 result["release_failed"] = release.failed
-if !release.failed.isEmpty { finish(.failure, "could not release held keys: \(release.failed.map { $0["keycode"] ?? "" })") }
+if !release.failed.isEmpty {
+    // 떼지 못한 것은 키코드나 버튼 이름으로 적는다.
+    let names = release.failed.map { ($0["keycode"] ?? $0["button"]).map { "\($0)" } ?? "?" }
+    finish(.failure, "could not release held keys or mouse buttons: \(names.joined(separator: ", "))")
+}
 finish(.ok)
