@@ -665,6 +665,7 @@ impl App {
         Self::report_boot_notices(&mut state.toasts, &mut self.font_rejections, &settings);
         // 서버가 받는 첫 연결부터 설정값을 쓰도록 IPC를 열기 전에 반영한다.
         crate::app::attach_heartbeat::apply(&self.services, &settings);
+        crate::view::install_redraw_caps(&settings.performance);
         self.start_boot_ipc_and_webhooks();
         Self::report_persistence_incidents(settings_origin, &mut state);
 

@@ -12,6 +12,11 @@ impl SurfaceRetry {
         self.not_before.is_none_or(|at| now >= at)
     }
 
+    /// 실패한 뒤 아직 성공·취소하지 않았다. 만기 뒤에도 성공할 때까지 유지된다.
+    pub(super) fn active(&self) -> bool {
+        self.not_before.is_some()
+    }
+
     pub(super) fn failed(&mut self, now: Instant) -> (Instant, bool) {
         self.failures = self.failures.saturating_add(1);
         let delay = Duration::from_millis((16u64 << (self.failures - 1).min(6)).min(1000));
@@ -40,6 +45,7 @@ mod tests {
         assert!(!retry.ready(now));
         assert!(!retry.ready(due - Duration::from_nanos(1)));
         assert!(retry.ready(due));
+        assert!(retry.active());
     }
 
     #[test]
@@ -68,6 +74,7 @@ mod tests {
         retry.failed(now);
         retry.recovered();
         assert!(retry.ready(now));
+        assert!(!retry.active());
         assert_eq!(retry.failed(now), (now + Duration::from_millis(16), true));
     }
 }

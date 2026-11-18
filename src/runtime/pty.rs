@@ -107,7 +107,8 @@ impl EngineMut<'_> {
         }
     }
 
-    pub fn process_all(&mut self) -> bool {
+    /// 모든 터미널을 처리하고 읽은 출력이 있던 surface ID를 돌려준다.
+    pub fn process_all(&mut self) -> Vec<u32> {
         self.sync_output_event_gates();
         self.runtime.terminals.process_all()
     }

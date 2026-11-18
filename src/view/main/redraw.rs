@@ -142,7 +142,7 @@ impl MainView {
 
         self.poll_outbound_drag(engine);
 
-        if self.base.state.dirty && self.base.surface_ready() {
+        if self.base.state.dirty && self.base.ready_to_draw() {
             self.base.winit.request_redraw();
         }
     }
@@ -287,7 +287,7 @@ impl MainView {
         engine: &EngineRead<'_>,
         plugin_manager: Option<PluginDisplay<'_>>,
     ) {
-        if !self.base.state.dirty || !self.base.surface_ready() {
+        if !self.base.state.dirty || !self.base.ready_to_draw() {
             return;
         }
         // Preparation and drawing share the same dirty frame. Consume it only after

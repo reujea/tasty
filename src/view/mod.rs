@@ -22,7 +22,7 @@ pub(crate) use modal::ModalView;
 pub(crate) use plugins::PluginsView;
 pub(crate) use preset::PresetView;
 pub(crate) use quit::QuitView;
-pub(crate) use repaint::RepaintSource;
+pub(crate) use repaint::{RepaintSource, install_redraw_caps};
 pub(crate) use settings::SettingsView;
 
 use std::collections::HashMap;

@@ -15,6 +15,13 @@ pub struct PerformanceSettings {
     /// memory. The oldest lines past it are dropped. `-1` keeps every line; other negative
     /// values are invalid and normalized to the default. Applies to new terminals.
     pub scrollback_disk_lines: i64,
+    /// Redraw cap (frames per second) for frames caused by terminal output. One of
+    /// [`crate::REDRAW_FPS_CHOICES`] or `-1` (no cap: the monitor refresh rate). The
+    /// applied cap never exceeds the refresh rate of the monitor the window is on.
+    pub output_redraw_fps: i64,
+    /// Redraw cap (frames per second) for frames caused by user input. Same values as
+    /// [`Self::output_redraw_fps`]. A frame that has both input and output follows this cap.
+    pub input_redraw_fps: i64,
 }
 
 /// Default of [`PerformanceSettings::scrollback_disk_lines`].
@@ -40,6 +47,50 @@ impl PerformanceSettings {
             self.scrollback_disk_lines = DEFAULT_SCROLLBACK_DISK_LINES;
             *changed = true;
         }
+        for (label, field, default) in [
+            (
+                "output_redraw_fps",
+                &mut self.output_redraw_fps,
+                crate::DEFAULT_OUTPUT_REDRAW_FPS,
+            ),
+            (
+                "input_redraw_fps",
+                &mut self.input_redraw_fps,
+                crate::DEFAULT_INPUT_REDRAW_FPS,
+            ),
+        ] {
+            if !crate::is_valid_redraw_fps(*field) {
+                tracing::warn!("invalid performance.{label} {}; using {default}", *field);
+                *field = default;
+                *changed = true;
+            }
+        }
+    }
+
+    /// Runtime admission check for the redraw caps. File loads use `normalize` instead.
+    pub fn validate(&self) -> Result<(), String> {
+        for (label, value) in [
+            ("output_redraw_fps", self.output_redraw_fps),
+            ("input_redraw_fps", self.input_redraw_fps),
+        ] {
+            if !crate::is_valid_redraw_fps(value) {
+                return Err(format!(
+                    "performance.{label} must be one of {:?} or -1, got {value}",
+                    crate::REDRAW_FPS_CHOICES
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Applied output redraw cap: `None` is no cap (monitor refresh rate).
+    pub fn output_redraw_cap(&self) -> Option<u32> {
+        crate::redraw_fps_cap(self.output_redraw_fps, crate::DEFAULT_OUTPUT_REDRAW_FPS)
+    }
+
+    /// Applied input redraw cap: `None` is no cap (monitor refresh rate).
+    pub fn input_redraw_cap(&self) -> Option<u32> {
+        crate::redraw_fps_cap(self.input_redraw_fps, crate::DEFAULT_INPUT_REDRAW_FPS)
     }
 }
 
@@ -58,6 +109,8 @@ impl Default for PerformanceSettings {
             targeted_pty_polling: true,
             scrollback_disk_swap: false,
             scrollback_disk_lines: DEFAULT_SCROLLBACK_DISK_LINES,
+            output_redraw_fps: crate::DEFAULT_OUTPUT_REDRAW_FPS,
+            input_redraw_fps: crate::DEFAULT_INPUT_REDRAW_FPS,
         }
     }
 }

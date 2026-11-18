@@ -596,6 +596,13 @@ pub(crate) enum PluginRegistryChange {
 #[derive(Debug, Default)]
 pub(crate) struct ProcessPtyOutcome {
     pub events: Vec<CoreEvent>,
+    /// 이번 처리에서 읽은 출력이 있던 surface. 전역 처리만 채운다.
+    // 이유: 창의 repaint 유발원 분류만 이 값을 읽고, 헤드리스에는 창이 없다.
+    #[cfg_attr(
+        not(feature = "gui"),
+        expect(dead_code, reason = "only gui windows classify the repaint source")
+    )]
+    pub output_surfaces: Vec<u32>,
 }
 
 impl CoreEvent {

@@ -86,7 +86,7 @@ pub(crate) fn synchronize(
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     view.http_preparing.retain(|_, pending| pending.current());
     sync_webviews(view, &engine.as_ref(), plugins, proofs);
-    if view.base.state.dirty && view.base.surface_ready() {
+    if view.base.state.dirty && view.base.ready_to_draw() {
         view.base.winit.request_redraw();
     }
 }

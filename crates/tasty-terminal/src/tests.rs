@@ -3081,3 +3081,26 @@ fn first_output_at_is_recorded_with_output_events_disabled() {
     t.feed_bytes(b"more");
     assert_eq!(t.first_output_at(), Some(first));
 }
+
+/// 화면 갱신 빈도 상한의 에코 분류는 busy 판정과 같은 에코 구간을 쓴다.
+#[test]
+fn output_is_input_echo_only_inside_the_busy_echo_window() {
+    let t = Terminal::new_detached(80, 24);
+    // 입력 100ms 뒤의 출력: 에코.
+    set_times(&t, ms(200), ms(300));
+    assert!(t.last_output_is_input_echo());
+    // 입력 300ms 뒤의 출력: 에코 구간 밖.
+    set_times(&t, ms(100), ms(400));
+    assert!(!t.last_output_is_input_echo());
+    // 입력보다 앞선 출력은 에코가 아니다.
+    set_times(&t, ms(300), ms(100));
+    assert!(!t.last_output_is_input_echo());
+}
+
+#[test]
+fn typed_key_output_is_classified_as_input_echo() {
+    let mut terminal = Terminal::new_detached(80, 24);
+    terminal.send_key("x");
+    terminal.process_bytes(b"x");
+    assert!(terminal.last_output_is_input_echo());
+}

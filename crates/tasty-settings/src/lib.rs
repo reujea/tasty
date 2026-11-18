@@ -6,6 +6,7 @@ pub mod merge;
 mod persistence;
 mod port;
 mod port_impl;
+mod redraw_cap;
 mod remote_attach;
 mod scripts;
 pub mod shell_path;
@@ -21,6 +22,7 @@ use serde::{Deserialize, Serialize};
 
 pub use anomaly_detection::*;
 pub use persistence::FileObservation;
+pub use redraw_cap::*;
 pub use remote_attach::*;
 
 pub use appearance::{
@@ -111,6 +113,7 @@ impl Settings {
     /// Admission과 live 갱신에서 쓰는 backend 설정 검증. 파일 로드는 normalize로 복구한다.
     pub fn validate_runtime(&self) -> Result<(), String> {
         self.task_pipeline.validate()?;
+        self.performance.validate()?;
         self.anomaly_detection.validate()?;
         self.remote_attach.validate()
     }
@@ -602,6 +605,27 @@ ui_scale = "large"
         assert!(invalid.normalize().changed);
         assert_eq!(invalid.performance.scrollback_disk_lines, 10_000);
         assert_eq!(disk_scrollback_cap(-5), Some(10_000));
+    }
+
+    #[test]
+    fn redraw_fps_defaults_keep_valid_values_and_reset_invalid_ones() {
+        let parse =
+            |line: &str| -> Settings { toml::from_str(&format!("[performance]\n{line}")).unwrap() };
+        let defaults = Settings::default().performance;
+        assert_eq!(defaults.output_redraw_fps, 30);
+        assert_eq!(defaults.input_redraw_fps, 60);
+        assert_eq!(defaults.output_redraw_cap(), Some(30));
+        assert_eq!(defaults.input_redraw_cap(), Some(60));
+        let mut unlimited = parse("output_redraw_fps = -1\ninput_redraw_fps = 240");
+        assert!(!unlimited.normalize().changed);
+        assert_eq!(unlimited.performance.output_redraw_cap(), None);
+        assert_eq!(unlimited.performance.input_redraw_cap(), Some(240));
+        let mut invalid = parse("output_redraw_fps = 90\ninput_redraw_fps = 0");
+        assert!(invalid.validate_runtime().is_err());
+        assert!(invalid.normalize().changed);
+        assert_eq!(invalid.performance.output_redraw_fps, 30);
+        assert_eq!(invalid.performance.input_redraw_fps, 60);
+        assert!(invalid.validate_runtime().is_ok());
     }
 
     #[test]

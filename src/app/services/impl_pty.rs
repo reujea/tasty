@@ -12,16 +12,22 @@ impl AppServices {
     ) -> ProcessPtyOutcome {
         engine.process_surface(surface_id);
         let events = self.drain_terminal_events(engine);
-        ProcessPtyOutcome { events }
+        ProcessPtyOutcome {
+            events,
+            output_surfaces: Vec::new(),
+        }
     }
 
     pub(crate) fn process_all_pty_output(
         &mut self,
         engine: &mut EngineMut<'_>,
     ) -> ProcessPtyOutcome {
-        engine.process_all();
+        let output_surfaces = engine.process_all();
         let events = self.drain_terminal_events(engine);
-        ProcessPtyOutcome { events }
+        ProcessPtyOutcome {
+            events,
+            output_surfaces,
+        }
     }
 
     /// observer·명령 이력·클립보드는 여기서 처리하고 App 후속 처리가 필요한 이벤트를 반환한다.

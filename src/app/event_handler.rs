@@ -906,9 +906,11 @@ impl App {
                     }
                     // 보이지 않는 surface는 전환할 때 새로 그린다. DEC 2026 블록 안이면 요청을 보류한다.
                     if main.is_surface_visible(&engine.read(), sid) {
+                        // 입력 직후의 에코는 입력 기인 프레임이다(busy 판정과 같은 에코 구간).
+                        let source = output_repaint_source(main, &engine, &[sid]);
                         let terminal = engine.find_terminal_by_id(sid);
                         let block = terminal.and_then(|t| t.synchronized_output_block());
-                        main.base.mark_block_output(sid, block);
+                        main.base.mark_block_output(sid, block, source);
                     }
                     found = true;
                     break;
@@ -926,14 +928,23 @@ impl App {
                 }
             }
         } else {
-            for (id, _, mut engine) in engines_mut!(self).window_entries() {
+            let mut classified = std::collections::HashSet::new();
+            for (id, main, mut engine) in engines_mut!(self).window_entries() {
                 let outcome = core.process_all_pty_output(&mut engine);
+                main.mark_dirty_from(output_repaint_source(
+                    main,
+                    &engine,
+                    &outcome.output_surfaces,
+                ));
+                classified.insert(main.base().winit.id());
                 if !outcome.events.is_empty() {
                     pending.push((DispatchSource::Engine(id), outcome.events));
                 }
             }
-            for w in self.view.views.values_mut() {
-                w.mark_dirty_from(RepaintSource::TerminalOutput);
+            for (wid, w) in self.view.views.iter_mut() {
+                if !classified.contains(wid) {
+                    w.mark_dirty_from(RepaintSource::TerminalOutput);
+                }
             }
             for (id, _, mut engine) in engines_mut!(self).parked_sessions_with_ids() {
                 let outcome = core.process_all_pty_output(&mut engine);
@@ -2090,6 +2101,26 @@ fn merge_wakeup(
         ControlFlow::WaitUntil(cur) if cur <= at => current,
         _ => ControlFlow::WaitUntil(at),
     }
+}
+
+/// 창 하나의 출력 기인 redraw 유발원. 출력이 생긴 surface 중 그 창에 보이는 것만 보고,
+/// 하나라도 입력 에코(busy 판정과 같은 에코 구간)면 입력 에코다.
+fn output_repaint_source(
+    main: &crate::view::main::MainView,
+    engine: &crate::runtime::engine_access::EngineMut<'_>,
+    surfaces: &[u32],
+) -> RepaintSource {
+    let read = engine.read();
+    RepaintSource::for_output(
+        surfaces
+            .iter()
+            .filter(|&&sid| main.is_surface_visible(&read, sid))
+            .map(|&sid| {
+                engine
+                    .find_terminal_by_id(sid)
+                    .is_some_and(|t| t.last_output_is_input_echo())
+            }),
+    )
 }
 
 impl App {

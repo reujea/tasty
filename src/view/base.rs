@@ -30,17 +30,28 @@ impl ViewBase {
         self.admit_redraw(source, None, std::time::Instant::now());
     }
 
-    /// 보이는 surface의 출력을 반영한 뒤 부른다. `block`은 출력 처리 뒤의 DEC 2026 블록 세대다.
-    pub(crate) fn mark_block_output(&mut self, surface_id: u32, block: Option<u64>) {
+    /// 보이는 surface의 출력을 반영한 뒤 부른다. `block`은 출력 처리 뒤의 DEC 2026 블록 세대이고,
+    /// `source`는 그 출력의 유발원(`TerminalOutput` 또는 입력 에코면 `InputEcho`)이다.
+    pub(crate) fn mark_block_output(
+        &mut self,
+        surface_id: u32,
+        block: Option<u64>,
+        source: crate::view::RepaintSource,
+    ) {
         if let Some(block) = block {
             self.state.sync_hold.enter_block(surface_id, block);
         }
-        self.mark_surface_output(surface_id, block.is_some());
+        self.mark_surface_output(surface_id, block.is_some(), source);
     }
 
-    /// 보이는 surface의 출력을 반영한 뒤 부른다. DEC 2026 블록 안이면 dirty만 세우고
-    /// redraw는 블록 종료나 보류 마감에서 요청한다.
-    pub(crate) fn mark_surface_output(&mut self, surface_id: u32, synchronized: bool) {
+    /// 보이는 surface의 출력을 반영한 뒤 부른다. DEC 2026 블록 안이면 `source`와 관계없이
+    /// dirty만 세우고 redraw는 블록 종료나 보류 마감에서 요청한다.
+    pub(crate) fn mark_surface_output(
+        &mut self,
+        surface_id: u32,
+        synchronized: bool,
+        source: crate::view::RepaintSource,
+    ) {
         self.state.dirty = true;
         let now = std::time::Instant::now();
         if !self
@@ -48,11 +59,7 @@ impl ViewBase {
             .sync_hold
             .hold_output(surface_id, synchronized, now)
         {
-            self.admit_redraw(
-                crate::view::RepaintSource::TerminalOutput,
-                Some(surface_id),
-                now,
-            );
+            self.admit_redraw(source, Some(surface_id), now);
         }
     }
 
@@ -108,8 +115,11 @@ impl ViewBase {
         }
     }
 
-    pub(crate) fn surface_ready(&self) -> bool {
-        self.state.repaint.surface_ready(std::time::Instant::now())
+    /// 지금 프레임을 그려도 되는가. surface 재시도 대기 중이거나, 입력이 섞인 미룬 프레임의
+    /// 시각이 오지 않았으면(이미 발행된 redraw라도) 그리지 않는다. dirty는 그대로 남는다.
+    pub(crate) fn ready_to_draw(&self) -> bool {
+        let now = std::time::Instant::now();
+        self.state.repaint.surface_ready(now) && !self.state.repaint.holds_mixed_frame(now)
     }
 
     /// 프레임을 그릴 때 dirty 해제와 다시 그리기 시간 기준 갱신을 함께 처리한다.

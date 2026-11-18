@@ -118,18 +118,28 @@ impl Terminal {
             return false;
         }
         let latch = u64::from(info.pid);
-        if self.busy_latch.load(Ordering::Relaxed) != latch {
-            // Echo must come *after* the input it echoes: output that predates the
-            // last keystroke is never suppressed.
-            let is_echo = st.last_input_at <= st.last_activity_at
-                && st.last_activity_at <= st.last_input_at + INPUT_ECHO_WINDOW;
-            if is_echo {
-                self.clear_busy_latch();
-                return false;
-            }
+        if self.busy_latch.load(Ordering::Relaxed) != latch && is_input_echo(&st) {
+            self.clear_busy_latch();
+            return false;
         }
         self.busy_latch.store(latch, Ordering::Relaxed);
         true
+    }
+
+    /// 마지막 활동 출력이 마지막 입력의 에코 구간에 있는가. busy 판정의 에코 규칙과 같은 술어다.
+    /// 화면 갱신 빈도 상한이 입력 에코를 입력 기인 프레임으로 분류할 때 쓴다.
+    /// 락이 사용 중이면 판정하지 않고 `false`(에코 아님)를 반환한다.
+    pub fn last_output_is_input_echo(&self) -> bool {
+        let st = match self.state.try_lock() {
+            Ok(st) => st,
+            Err(std::sync::TryLockError::WouldBlock) => return false,
+            Err(std::sync::TryLockError::Poisoned(p)) => tasty_utils::poison::recover_poisoned(
+                p,
+                crate::STATE_WHAT,
+                &crate::STATE_POISON_REPORTED,
+            ),
+        };
+        is_input_echo(&st)
     }
 
     fn clear_busy_latch(&self) {
@@ -286,4 +296,11 @@ impl TerminalState {
         self.last_screen_control_at
             .is_some_and(|at| at.elapsed() < CURSOR_OUTPUT_SUPPRESS_WINDOW)
     }
+}
+
+/// 입력 에코 구간(`last_input_at <= last_activity_at <= last_input_at + INPUT_ECHO_WINDOW`).
+/// 에코는 입력 뒤에 와야 하므로 마지막 입력보다 앞선 출력은 에코가 아니다.
+fn is_input_echo(st: &TerminalState) -> bool {
+    st.last_input_at <= st.last_activity_at
+        && st.last_activity_at <= st.last_input_at + INPUT_ECHO_WINDOW
 }

@@ -228,12 +228,14 @@ impl TerminalStore {
         self.scrollback_persist_ids.insert(id, persist_id);
     }
 
-    pub(crate) fn process_all(&mut self) -> bool {
+    /// 모든 터미널을 처리하고 읽은 출력이 있던 surface ID를 돌려준다.
+    pub(crate) fn process_all(&mut self) -> Vec<SurfaceId> {
         self.terminals
-            .values_mut()
-            .fold(false, |changed, (terminal, pty)| {
-                Self::process_pair(terminal, pty.as_mut()) || changed
+            .iter_mut()
+            .filter_map(|(&id, (terminal, pty))| {
+                Self::process_pair(terminal, pty.as_mut()).then_some(id)
             })
+            .collect()
     }
     pub(crate) fn process_surface(&mut self, id: SurfaceId) -> bool {
         self.terminals
@@ -282,3 +284,20 @@ pub(crate) fn closed_capture_of(
 
 mod standalone;
 pub(crate) use standalone::{EXITED_RETENTION, PTY_ID_BASE, PtyReclaimReason, is_surface_id_space};
+
+#[cfg(test)]
+mod process_tests {
+    use super::*;
+    use std::sync::{Arc, atomic::AtomicU32};
+
+    /// 전역 처리는 읽은 출력이 있던 surface만 돌려준다. redraw 유발원 분류가 이 목록을 쓴다.
+    #[test]
+    fn process_all_reports_only_surfaces_with_new_output() {
+        let mut store = TerminalStore::new(Arc::new(AtomicU32::new(PTY_ID_BASE)));
+        store.insert(1, Terminal::new_detached(20, 4), None);
+        store.insert(2, Terminal::new_detached(20, 4), None);
+        assert!(store.get_mut(2).expect("inserted").feed_bytes(b"x"));
+        assert_eq!(store.process_all(), vec![2]);
+        assert!(store.process_all().is_empty());
+    }
+}
