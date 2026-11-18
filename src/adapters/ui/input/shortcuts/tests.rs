@@ -352,11 +352,13 @@ fn zoom_shortcuts_queue_relative_changes_without_mutating_settings() {
         let (mut state, mut owner) = fresh_state();
         let engine = owner.borrow_mut();
         engine.runtime.settings.appearance.terminal_font.font_size = Some(20.0);
+        let target = state.command_target(&engine.read());
         assert!(MainView::handle_zoom_shortcut(
             &mut state,
             &engine.read(),
             &k_char(key),
-            ModifiersState::CONTROL
+            ModifiersState::CONTROL,
+            &target
         ));
         assert_eq!(
             engine.runtime.settings.appearance.terminal_font.font_size,
@@ -386,11 +388,13 @@ fn repeated_zoom_input_keeps_each_relative_request() {
     let (mut state, mut owner) = fresh_state();
     let engine = owner.borrow_mut();
     for _ in 0..3 {
+        let target = state.command_target(&engine.read());
         assert!(MainView::handle_zoom_shortcut(
             &mut state,
             &engine.read(),
             &k_char("="),
-            ModifiersState::CONTROL
+            ModifiersState::CONTROL,
+            &target
         ));
     }
     let intents = state.take_pending_intents();
@@ -411,6 +415,7 @@ fn custom_tab_slot_key_switches_correct_tab() {
     state.goto_tab_in_pane(&engine.read(), 0);
     let mut kb = crate::settings::KeybindingSettings::default();
     kb.set_tab_slot_key(2, "q");
+    let target = state.command_target(&engine.read());
     let consumed = MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -421,6 +426,7 @@ fn custom_tab_slot_key_switches_correct_tab() {
         false, // shift
         false, // alt
         false, // option
+        &target,
     );
     assert!(consumed);
     assert_eq!(
@@ -437,6 +443,7 @@ fn tab_next_prev_keys_cycle_focused_pane_tabs() {
     let engine = engine_session.borrow_mut();
     state.goto_tab_in_pane(&engine.read(), 0);
     let kb = crate::settings::KeybindingSettings::default(); // next="l", prev="h", modifier ctrl
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -447,6 +454,7 @@ fn tab_next_prev_keys_cycle_focused_pane_tabs() {
         false,
         false,
         false,
+        &target
     ));
     assert_eq!(
         state
@@ -454,6 +462,7 @@ fn tab_next_prev_keys_cycle_focused_pane_tabs() {
             .tab_index(state.focused_pane(&engine).unwrap()),
         1
     );
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -464,6 +473,7 @@ fn tab_next_prev_keys_cycle_focused_pane_tabs() {
         false,
         false,
         false,
+        &target
     ));
     assert_eq!(
         state
@@ -479,6 +489,7 @@ fn workspace_next_prev_keys_trigger_category_switch() {
     let engine = engine_session.borrow_mut();
     state.switch_workspace(&engine.read(), 0);
     let kb = crate::settings::KeybindingSettings::default(); // next="j", prev="k", modifier alt
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -489,8 +500,10 @@ fn workspace_next_prev_keys_trigger_category_switch() {
         false,
         true,  // alt
         false, // option
+        &target,
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -501,6 +514,7 @@ fn workspace_next_prev_keys_trigger_category_switch() {
         false,
         true,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 0);
 }
@@ -511,6 +525,7 @@ fn workspace_slot_key_switches_workspace() {
     let engine = engine_session.borrow_mut();
     state.switch_workspace(&engine.read(), 0);
     let kb = crate::settings::KeybindingSettings::default(); // slot "2" = index 1
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -521,6 +536,7 @@ fn workspace_slot_key_switches_workspace() {
         false,
         true,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
 }
@@ -534,6 +550,7 @@ fn wrong_modifier_and_unbound_key_return_false() {
     let before = state
         .navigation
         .tab_index(state.focused_pane(&engine).unwrap());
+    let target = state.command_target(&engine.read());
     assert!(!MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -544,7 +561,9 @@ fn wrong_modifier_and_unbound_key_return_false() {
         false,
         false,
         false,
+        &target
     ));
+    let target = state.command_target(&engine.read());
     assert!(!MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -555,6 +574,7 @@ fn wrong_modifier_and_unbound_key_return_false() {
         false,
         false,
         false,
+        &target
     ));
     assert_eq!(
         state
@@ -571,6 +591,7 @@ fn category_combo_routes_to_category_switch() {
     engine.runtime.settings.general.workspace_categories_enabled = true;
     state.switch_workspace(&engine.read(), 0); // active = ws0 (normal)
     let kb = crate::settings::KeybindingSettings::default(); // cat=ctrl+shift, slot "2"=섹션 index 1
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -581,6 +602,7 @@ fn category_combo_routes_to_category_switch() {
         true,  // shift
         false, // alt
         false, // option
+        &target,
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
 }
@@ -593,6 +615,7 @@ fn category_next_prev_keys_cycle_categories() {
     state.switch_workspace(&engine.read(), 0); // active = ws0 (normal)
     let kb = crate::settings::KeybindingSettings::default();
 
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -603,8 +626,10 @@ fn category_next_prev_keys_cycle_categories() {
         true,
         false,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -615,8 +640,10 @@ fn category_next_prev_keys_cycle_categories() {
         true,
         false,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 2);
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -627,6 +654,7 @@ fn category_next_prev_keys_cycle_categories() {
         true,
         false,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
 }
@@ -638,6 +666,7 @@ fn category_next_prev_keys_noop_when_folders_disabled() {
     engine.runtime.settings.general.workspace_categories_enabled = false;
     state.switch_workspace(&engine.read(), 0);
     let kb = crate::settings::KeybindingSettings::default();
+    let target = state.command_target(&engine.read());
     assert!(!MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -648,6 +677,7 @@ fn category_next_prev_keys_noop_when_folders_disabled() {
         true,
         false,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 0);
 }
@@ -666,6 +696,7 @@ fn individual_tab_axis_slot_and_next_prev_dispatch() {
     kb.set_tab_next_key("alt+shift+l");
     kb.set_tab_prev_key("alt+shift+h");
 
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -676,6 +707,7 @@ fn individual_tab_axis_slot_and_next_prev_dispatch() {
         false,
         false,
         false,
+        &target
     ));
     assert_eq!(
         state
@@ -683,6 +715,7 @@ fn individual_tab_axis_slot_and_next_prev_dispatch() {
             .tab_index(state.focused_pane(&engine).unwrap()),
         2
     );
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -693,6 +726,7 @@ fn individual_tab_axis_slot_and_next_prev_dispatch() {
         true,
         true,
         false,
+        &target
     ));
     assert_eq!(
         state
@@ -701,6 +735,7 @@ fn individual_tab_axis_slot_and_next_prev_dispatch() {
         1
     );
     // 개별 지정은 규칙 기반 대상 조회에서 제외한다.
+    let target = state.command_target(&engine.read());
     assert!(!MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -711,6 +746,7 @@ fn individual_tab_axis_slot_and_next_prev_dispatch() {
         false,
         false,
         false,
+        &target
     ));
     assert_eq!(
         state
@@ -732,6 +768,7 @@ fn individual_workspace_axis_slot_dispatch() {
     };
     kb.set_workspace_slot_key(1, "ctrl+alt+w"); // 2번째 워크스페이스(index 1) = 완전 콤보.
 
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -742,6 +779,7 @@ fn individual_workspace_axis_slot_dispatch() {
         false,
         true,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
 }
@@ -760,6 +798,7 @@ fn individual_category_axis_respects_folders_gate() {
     kb.category_switch_slot_keys[1] = "ctrl+alt+shift+s".to_string(); // 섹션 index 1.
 
     let mods = ModifiersState::CONTROL | BINDING_ALT | ModifiersState::SHIFT;
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -770,11 +809,13 @@ fn individual_category_axis_respects_folders_gate() {
         true,
         true,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 1);
 
     state.switch_workspace(&engine.read(), 0);
     engine.runtime.settings.general.workspace_categories_enabled = false;
+    let target = state.command_target(&engine.read());
     assert!(!MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -785,6 +826,7 @@ fn individual_category_axis_respects_folders_gate() {
         true,
         true,
         false,
+        &target
     ));
     assert_eq!(state.active_workspace_index(&engine), 0);
 }
@@ -798,6 +840,7 @@ fn axis_combos_do_not_cross_route() {
     let before = state
         .navigation
         .tab_index(state.focused_pane(&engine).unwrap());
+    let target = state.command_target(&engine.read());
     assert!(!MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -808,6 +851,7 @@ fn axis_combos_do_not_cross_route() {
         true,  // shift
         false, // alt
         false, // option
+        &target,
     ));
     assert_eq!(
         state
@@ -815,6 +859,7 @@ fn axis_combos_do_not_cross_route() {
             .tab_index(state.focused_pane(&engine).unwrap()),
         before
     );
+    let target = state.command_target(&engine.read());
     assert!(MainView::handle_numeric_switch_shortcuts(
         &mut state,
         &engine.read(),
@@ -825,6 +870,7 @@ fn axis_combos_do_not_cross_route() {
         false, // shift
         false, // alt
         false, // option
+        &target,
     ));
     assert_eq!(
         state
@@ -899,9 +945,11 @@ fn shortcut_new_workspace_inherits_active_category() {
     let kb = crate::settings::KeybindingSettings::default();
     let (key, mods) = default_new_workspace_key_mods();
 
+    let target = state.command_target(&engine.read());
     assert!(MainView::match_create_bindings(
         &mut state,
         &engine.read(),
+        &target,
         &kb,
         &key,
         mods
@@ -925,9 +973,11 @@ fn shortcut_new_workspace_stays_normal_when_categories_off() {
     let kb = crate::settings::KeybindingSettings::default();
     let (key, mods) = default_new_workspace_key_mods();
 
+    let target = state.command_target(&engine.read());
     assert!(MainView::match_create_bindings(
         &mut state,
         &engine.read(),
+        &target,
         &kb,
         &key,
         mods

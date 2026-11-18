@@ -5,6 +5,7 @@ use winit::keyboard::{Key, ModifiersState};
 use crate::app::engine_action::{SettingsPatch, ZoomChange};
 use crate::state::FocusedSurfaceType;
 use crate::state::attach_pending::deferred::{CommandSurfaceTarget, DeferredCommand};
+use crate::state::command_target::CommandTarget;
 use crate::view::main::MainView;
 use tasty_key_match::matches_any_binding;
 
@@ -22,6 +23,7 @@ impl MainView {
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         key: &Key,
         mods: ModifiersState,
+        target: &CommandTarget,
     ) -> bool {
         let kb = &engine.settings.keybindings;
         let action = if matches_any_binding(&kb.zoom_in, key, mods) {
@@ -33,26 +35,35 @@ impl MainView {
         } else {
             return false;
         };
-        Self::apply_zoom(state, engine, action)
+        Self::apply_zoom(state, engine, action, target)
     }
 
-    /// 줌 실행. 포커스된 surface 가 줌 대상이 아니면 `false`. 생성 대기 초안이 선택돼 있으면 초안이 만들
+    /// 줌 실행. 명령 대상 surface 의 kind 가 줌 대상이 아니면 `false`. 대상이 생성 대기 초안이면 초안이 만들
     /// kind 로 판정해 걸어 두고, 생성된 surface 의 kind 글꼴에 적용한다.
     pub(crate) fn apply_zoom(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         action: ZoomAction,
+        target: &CommandTarget,
     ) -> bool {
         let change = match action {
             ZoomAction::In => crate::app::engine_action::ZoomChange::In,
             ZoomAction::Out => crate::app::engine_action::ZoomChange::Out,
             ZoomAction::Reset => crate::app::engine_action::ZoomChange::Reset,
         };
-        if let Some(CommandSurfaceTarget::Pending(pending)) = state.command_surface_target(engine) {
-            return hold_zoom_for_draft(state, engine, pending, change);
+        match target.surface {
+            Some(CommandSurfaceTarget::Pending(pending)) => {
+                hold_zoom_for_draft(state, engine, pending, change)
+            }
+            Some(CommandSurfaceTarget::Surface(sid)) => {
+                let Some(kind) = engine.find_surface_by_id(sid).map(|s| s.kind().to_string())
+                else {
+                    return false;
+                };
+                zoom_surface_type(state, engine, &surface_type_of_kind(&kind), change)
+            }
+            None => false,
         }
-        let focus = state.focused_surface_type(engine);
-        zoom_surface_type(state, engine, &focus, change)
     }
 }
 

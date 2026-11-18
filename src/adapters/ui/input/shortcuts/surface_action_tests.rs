@@ -658,20 +658,24 @@ fn every_input_path_asks_the_draft_first() {
         "explorer_focus_address",
     ] {
         assert!(
-            keys.contains(&flat(&format!("held_for_draft(state, engine, \"{id}\")"))),
+            keys.contains(&flat(&format!(
+                "held_for_draft(state, engine, t, \"{id}\")"
+            ))),
             "keybinding.rs {id}"
         );
     }
-    assert!(keys.contains(&flat("held_for_draft(state, engine, action)")));
-    assert!(keys.contains(&flat("held_for_draft(state, engine, \"enter_copy_mode\")")));
+    assert!(keys.contains(&flat("held_for_draft(state, engine, t, action)")));
+    assert!(keys.contains(&flat(
+        "held_for_draft(state, engine, t, \"enter_copy_mode\")"
+    )));
     assert!(keys.contains(&flat(
         "(&kb.explorer_redo, \"explorer_redo\"), ] { if matches_any_binding(binding, key, mods) \
-         && super::surface_actions::held_for_draft(state, engine, action)"
+         && super::surface_actions::held_for_draft(state, engine, t, action)"
     )));
     const COPY_PASTE: &str = include_str!("copy_paste.rs");
     assert!(flat(COPY_PASTE).contains(&flat(
         "(&kb.explorer_trash, \"explorer_trash\"), ] { if matches_any_binding(combos, key, mods) \
-         && super::surface_actions::held_for_draft(&mut self.state, engine, id)"
+         && super::surface_actions::held_for_draft(&mut self.state, engine, &target, id)"
     )));
     for id in [
         "convert_surface",
@@ -679,7 +683,9 @@ fn every_input_path_asks_the_draft_first() {
         "convert_to_explorer",
     ] {
         assert!(
-            double_tap.contains(&format!("held_for_draft(&mutself.state,engine,\"{id}\",)")),
+            double_tap.contains(&format!(
+                "held_for_draft(&mutself.state,engine,&target,\"{id}\",)"
+            )),
             "double_tap.rs {id}"
         );
     }
@@ -838,7 +844,7 @@ fn a_webview_key_with_a_host_command_runs_only_the_global_shortcut() {
     // 처리만 부른다.
     const VIEW: &str = include_str!("surface_view_actions.rs");
     assert!(VIEW.contains(
-        "Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods)),"
+        "Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods, &focus)),"
     ));
     const DISPATCH: &str = include_str!("dispatch.rs");
     let body = &DISPATCH[DISPATCH
@@ -881,7 +887,10 @@ fn an_explorer_key_passes_while_a_terminal_draft_is_selected() {
     use winit::keyboard::{Key, ModifiersState, NamedKey};
     let (mut state, engine, _sid, _dir) = crate::state::tests::explorer_fixture(true);
     let read = engine.read();
-    assert!(state.focused_surface_type(&read).is_kind("explorer"));
+    assert_eq!(
+        state.focused_surface_type(&read),
+        crate::state::FocusedSurfaceType::Kind("explorer".into())
+    );
     let _draft = select_pending_draft(&mut state, &read);
     assert_eq!(
         state.focused_surface_type(&read),
@@ -889,9 +898,11 @@ fn an_explorer_key_passes_while_a_terminal_draft_is_selected() {
     );
     let kb = crate::settings::KeybindingSettings::default();
     let up = Key::Named(NamedKey::ArrowUp);
+    let target = state.command_target(&read);
     assert!(!crate::view::main::MainView::match_explorer_bindings(
         &mut state,
         &read,
+        &target,
         &kb,
         &up,
         ModifiersState::ALT
@@ -909,9 +920,11 @@ fn an_explorer_key_is_held_for_an_explorer_draft() {
     let id = pending(state.command_surface_target(&read));
     let kb = crate::settings::KeybindingSettings::default();
     let up = Key::Named(NamedKey::ArrowUp);
+    let target = state.command_target(&read);
     assert!(crate::view::main::MainView::match_explorer_bindings(
         &mut state,
         &read,
+        &target,
         &kb,
         &up,
         ModifiersState::ALT
@@ -939,10 +952,12 @@ fn zoom_for_a_draft_applies_to_the_created_surface_kind() {
     let anchor = state.focused_surface_id(&read).expect("focused surface");
     let _draft = select_pending_draft(&mut state, &read);
     let id = pending(state.command_surface_target(&read));
+    let target = state.command_target(&read);
     assert!(crate::view::main::MainView::apply_zoom(
         &mut state,
         &read,
-        ZoomAction::In
+        ZoomAction::In,
+        &target
     ));
     assert!(state.take_pending_intents().is_empty());
     assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
@@ -960,10 +975,12 @@ fn zoom_for_a_terminal_draft_does_not_touch_the_explorer_behind_it() {
     let read = engine.read();
     let _draft = select_pending_draft(&mut state, &read);
     let id = pending(state.command_surface_target(&read));
+    let target = state.command_target(&read);
     assert!(crate::view::main::MainView::apply_zoom(
         &mut state,
         &read,
-        ZoomAction::In
+        ZoomAction::In,
+        &target
     ));
     assert!(state.take_pending_intents().is_empty());
     assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
@@ -980,10 +997,12 @@ fn zoom_for_a_failed_draft_is_dropped() {
     let read = engine.read();
     let _draft = select_pending_draft(&mut state, &read);
     let id = pending(state.command_surface_target(&read));
+    let target = state.command_target(&read);
     assert!(crate::view::main::MainView::apply_zoom(
         &mut state,
         &read,
-        ZoomAction::Out
+        ZoomAction::Out,
+        &target
     ));
     let entry = &state.attach_pending.entries[0];
     entry.receipt.bind(0);

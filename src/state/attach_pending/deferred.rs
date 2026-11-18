@@ -138,6 +138,14 @@ impl DeferredCommands {
 }
 
 impl super::AttachPending {
+    /// 입력 때 대상이던 초안이 아직 있다(생성 대기 중이며 보인다). 끝났거나 사라졌으면 그 초안을 대상으로
+    /// 한 명령은 다른 대상으로 넘기지 않고 버린다.
+    pub(crate) fn draft_live(&self, core: &crate::core::CoreState, pending: PendingId) -> bool {
+        self.entries
+            .iter()
+            .any(|entry| entry.id == pending && entry.visible && entry.live(core))
+    }
+
     /// 아직 생성을 기다리며 명령을 받을 수 있는 초안. 결과가 적용됐거나 실패·접힘으로 끝났으면 없다.
     pub(crate) fn waiting_entry(
         &self,

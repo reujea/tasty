@@ -21,6 +21,7 @@ pub(crate) use webview_claims::webview_shortcut_policy;
 pub(crate) use webview_edit::{edit_binding_after_clipboard, edit_binding_for_key};
 pub(crate) use zoom::run_held_zoom;
 
+use crate::state::command_target::CommandTarget;
 pub(crate) use tasty_key_match::{
     any_binding_pressed_egui, consume_binding_egui, matches_any_binding, physical_key_to_logical,
     shortcut_lookup_key, super_held,
@@ -45,47 +46,75 @@ pub(crate) fn focused_workspace_category(
     Some(state.active_workspace(engine).category)
 }
 
-/// `close_pane` 액션. 활성 pane 을 닫고, 닫지 못했으면 활성 workspace 를 닫는다.
-/// 생성 대기 초안이 선택돼 있으면 닫을 대상이 없으므로 workspace 로 넘어가지 않고 로그만 남긴다.
+/// `close_pane` 액션. 대상 pane 을 닫고, 닫지 못했으면 대상 workspace 를 닫는다.
+/// 입력 때 생성 대기 초안이 선택돼 있었으면 닫을 대상이 없으므로 workspace 로 넘어가지 않고 로그만 남긴다.
 pub(crate) fn close_pane_action(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
 ) {
-    if ignores_close_for_draft(state, engine, "close_pane") {
+    if ignores_close_for_draft(target, "close_pane") {
         return;
     }
-    if !state.close_active_pane(engine) {
-        state.close_active_workspace(engine);
+    if !state.close_pane_in(engine, target) {
+        close_target_workspace(state, engine, target);
     }
 }
 
-/// `close_active` 액션. 활성 탭, pane, workspace 순서로 닫을 수 있는 첫 대상을 닫는다.
-/// 생성 대기 초안이 선택돼 있으면 `close_pane` 과 같이 아무것도 닫지 않는다.
+/// `close_active` 액션. 대상 탭, pane, workspace 순서로 닫을 수 있는 첫 대상을 닫는다.
+/// 입력 때 생성 대기 초안이 선택돼 있었으면 `close_pane` 과 같이 아무것도 닫지 않는다.
 pub(crate) fn close_active_action(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
 ) {
-    if ignores_close_for_draft(state, engine, "close_active") {
+    if ignores_close_for_draft(target, "close_active") {
         return;
     }
-    if !state.close_active_tab(engine) && !state.close_active_pane(engine) {
-        state.close_active_workspace(engine);
+    if !state.close_tab_in(engine, target) && !state.close_pane_in(engine, target) {
+        close_target_workspace(state, engine, target);
     }
 }
 
-fn ignores_close_for_draft(
-    state: &crate::state::MainViewState,
+/// `close_surface` 액션. 대상 surface, pane, workspace 순서로 닫을 수 있는 첫 대상을 닫는다.
+pub(crate) fn close_surface_action(
+    state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    action: &str,
+    target: &CommandTarget,
+) {
+    if !state.close_surface_in(engine, target) && !state.close_pane_in(engine, target) {
+        close_target_workspace(state, engine, target);
+    }
+}
+
+/// 대상 workspace 를 사용자 닫기로 닫는다.
+pub(crate) fn close_target_workspace(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
 ) -> bool {
-    let draft = state.attach_pending.selected(engine, &state.navigation);
-    if let Some(entry) = draft {
+    target.workspace_index(engine).is_some_and(|index| {
+        state.close_workspace_at(engine, index, crate::state::WorkspaceCloseOrigin::User)
+    })
+}
+
+fn ignores_close_for_draft(target: &CommandTarget, action: &str) -> bool {
+    if let Some(draft) = target.draft {
         tracing::info!(
             "{action} ignored: pending attach draft {} is selected",
-            entry.id.0
+            draft.0
         );
     }
-    draft.is_some()
+    target.draft.is_some()
+}
+
+/// 대상 surface 가 탐색기면 그 id.
+fn target_explorer_surface_id(
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
+) -> Option<u32> {
+    let sid = target.surface_id()?;
+    engine.find_surface_by_id(sid)?.explorer().map(|p| p.id)
 }
 
 /// 포커스 surface 의 탐색기. 생성 대기 초안이 선택돼 있으면 포커스 surface 가 없으므로 없다.
@@ -121,25 +150,27 @@ pub(crate) fn explorer_composition_list_key(
         .any(|bindings| matches_any_binding(bindings, key, mods))
 }
 
-/// 미리보기 토글·Properties 단축키. 포커스된 탐색기만 바꾼다.
+/// 미리보기 토글·Properties 단축키. 대상 탐색기만 바꾼다.
 fn explorer_view_shortcut(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
     action: &str,
 ) {
-    if let Some(sid) = focused_explorer_surface_id(state, engine) {
+    if let Some(sid) = target_explorer_surface_id(engine, target) {
         surface_actions::explorer_view_on(state, engine, sid, action);
     }
 }
 
-/// 뒤로·앞으로·주소창 포커스 단축키. 포커스된 탐색기만 바꾼다. 주소창 포커스는 다음에 주소창을
+/// 뒤로·앞으로·주소창 포커스 단축키. 대상 탐색기만 바꾼다. 주소창 포커스는 다음에 주소창을
 /// 그릴 때 준다.
 fn explorer_nav_shortcut(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
     action: &str,
 ) {
-    let Some(sid) = focused_explorer_surface_id(state, engine) else {
+    let Some(sid) = target_explorer_surface_id(engine, target) else {
         return;
     };
     let nav = match action {
@@ -155,24 +186,26 @@ fn explorer_nav_shortcut(
     crate::adapters::ui::egui_panels::apply_explorer_action(state, engine, sid, nav);
 }
 
-/// 주소창 포커스 단축키를 포커스된 html surface의 주소 띠에 준다. 처리했으면 참이다.
+/// 주소창 포커스 단축키를 대상 html surface의 주소 띠에 준다. 처리했으면 참이다.
 fn html_focus_address_shortcut(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
 ) -> bool {
-    state
-        .focused_surface_id(engine)
+    target
+        .surface_id()
         .is_some_and(|sid| surface_actions::html_focus_address_on(state, engine, sid))
 }
 
-/// 되돌리기·다시 실행 단축키. 포커스된 탐색기의 이력만 쓴다. mirror explorer 는 파일 작업을
+/// 되돌리기·다시 실행 단축키. 대상 탐색기의 이력만 쓴다. mirror explorer 는 파일 작업을
 /// 하지 않아 이력이 비어 있다.
 fn explorer_history_shortcut(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
     action: &str,
 ) {
-    let Some(sid) = focused_explorer_panel(state, engine).map(|p| p.id) else {
+    let Some(sid) = target_explorer_surface_id(engine, target) else {
         return;
     };
     let (redo, id) = if action == "explorer_redo" {
@@ -196,17 +229,18 @@ pub(crate) fn focused_explorer_typing(
         .is_some_and(|v| v.text_input_active())
 }
 
-/// 포커스된 surface 에 공통 새로고침 요청을 보낸다. 탐색기 이름·주소 입력 중이면 입력이 우선이라
+/// 대상 surface 에 공통 새로고침 요청을 보낸다. 탐색기 이름·주소 입력 중이면 입력이 우선이라
 /// 처리하지 않는다. 대상 surface 가 없으면 false 를 돌려 키를 다른 경로에 남긴다.
-pub(super) fn request_focused_surface_refresh(
+pub(super) fn request_target_surface_refresh(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: &CommandTarget,
     trigger: crate::intent::RefreshTrigger,
 ) -> bool {
     if focused_explorer_typing(state, engine) {
         return false;
     }
-    let Some(sid) = state.focused_surface_id(engine) else {
+    let Some(sid) = target.surface_id() else {
         return false;
     };
     request_surface_refresh(state, engine, sid, trigger)

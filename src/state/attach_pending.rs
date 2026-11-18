@@ -12,7 +12,7 @@ mod creation_match;
 pub(crate) mod deferred;
 pub(crate) mod waits;
 type ProjectedRects = (Vec<(u32, PhysicalRect)>, Vec<(PendingId, PhysicalRect)>);
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Creation {
     Tab,
     Surface(SplitDirection),

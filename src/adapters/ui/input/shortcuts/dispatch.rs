@@ -35,7 +35,8 @@ impl DeferredPaletteAction {
 
 use super::keybinding::CellGeometry;
 use super::matches_any_binding;
-use super::{focused_explorer_surface_id, focused_workspace_category, send_app_event};
+use super::{send_app_event, target_explorer_surface_id};
+use crate::state::command_target::CommandTarget;
 
 impl MainView {
     /// KeybindingSettings의 field_id로 액션을 실행한다. 알 수 없는 ID는 false다.
@@ -45,6 +46,7 @@ impl MainView {
         &mut self,
         engine: &EngineRead<'_>,
         action_id: &str,
+        target: &CommandTarget,
     ) -> bool {
         use crate::model::SplitDirection;
 
@@ -74,7 +76,7 @@ impl MainView {
 
         match action_id {
             "new_workspace" => {
-                let category = focused_workspace_category(state, engine);
+                let category = target.find_workspace(engine).map(|ws| ws.category);
                 state.dispatch_intent(
                     Intent::NewWorkspace {
                         kind: None,
@@ -86,8 +88,12 @@ impl MainView {
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "new_tab" => {
-                let pane_id = state.focused_pane_id(engine);
-                let cwd = state.resolve_inherit_cwd(engine);
+                let Some(pane_id) = target.pane else {
+                    return true;
+                };
+                let cwd = target
+                    .surface_id()
+                    .and_then(|sid| state.resolve_inherit_cwd_from_surface(engine, sid));
                 state.dispatch_intent(
                     crate::app::command::DomainIntent::CreateTab {
                         pane_id,
@@ -168,7 +174,7 @@ impl MainView {
                 }
             }
             "close_workspace" => {
-                state.close_active_workspace(engine);
+                super::close_target_workspace(state, engine, target);
                 if engine.workspaces().is_empty() {
                     self.request_close();
                 } else {
@@ -178,7 +184,7 @@ impl MainView {
                 return true;
             }
             "close_pane" => {
-                super::close_pane_action(state, engine);
+                super::close_pane_action(state, engine, target);
                 if engine.workspaces().is_empty() {
                     self.request_close();
                 } else {
@@ -188,10 +194,7 @@ impl MainView {
                 return true;
             }
             "close_surface" => {
-                let closed = state.close_active_surface(engine);
-                if !closed && !state.close_active_pane(engine) {
-                    state.close_active_workspace(engine);
-                }
+                super::close_surface_action(state, engine, target);
                 if engine.workspaces().is_empty() {
                     self.request_close();
                 } else {
@@ -201,7 +204,7 @@ impl MainView {
                 return true;
             }
             "close_active" => {
-                super::close_active_action(state, engine);
+                super::close_active_action(state, engine, target);
                 if engine.workspaces().is_empty() {
                     self.request_close();
                 } else {
@@ -210,12 +213,12 @@ impl MainView {
                 }
                 return true;
             }
-            "focus_pane_next" => state.move_pane_focus_forward(engine),
-            "focus_pane_prev" => state.move_pane_focus_backward(engine),
-            "focus_surface_next" => state.move_surface_focus_forward(engine),
-            "focus_surface_prev" => state.move_surface_focus_backward(engine),
-            "next_tab" => state.next_tab_in_pane(engine),
-            "prev_tab" => state.prev_tab_in_pane(engine),
+            "focus_pane_next" => state.move_pane_focus_in(engine, target, true),
+            "focus_pane_prev" => state.move_pane_focus_in(engine, target, false),
+            "focus_surface_next" => state.move_surface_focus_in(engine, target, false),
+            "focus_surface_prev" => state.move_surface_focus_in(engine, target, true),
+            "next_tab" => state.step_visible_tab_in(engine, target, true),
+            "prev_tab" => state.step_visible_tab_in(engine, target, false),
             "restore_closed" => {
                 state.dispatch_intent(
                     crate::intent::Intent::RestoreClosedItem.from_user_shortcut("restore_closed"),
@@ -232,7 +235,7 @@ impl MainView {
             "find" => {
                 // 터미널 검색만 처리한다. 다른 종류의 자체 검색을 빈 터미널 검색창으로 가리지 않는다.
                 // 탐색기는 자기 Find 바를 연다.
-                if let Some(sid) = state.focused_surface_id(engine) {
+                if let Some(sid) = target.surface_id() {
                     surface_actions::find_on(state, engine, sid, "find");
                 }
             }
@@ -241,64 +244,61 @@ impl MainView {
             }
             "open_explorer" => Self::open_explorer_tab(state),
             "convert_surface" => {
-                if let Some(sid) = state.focused_surface_id(engine) {
+                if let Some(sid) = target.surface_id() {
                     surface_actions::open_convert_popup(state, sid, "convert_surface");
                 }
             }
             "convert_to_markdown" => {
-                if let Some(sid) = state.focused_surface_id(engine) {
+                if let Some(sid) = target.surface_id() {
                     state.enqueue_convert_input_popup(&engine.as_ref(), "markdown", Some(sid));
                 }
             }
             "convert_to_explorer" => {
-                if let Some(sid) = state.focused_surface_id(engine) {
+                if let Some(sid) = target.surface_id() {
                     surface_actions::convert_to_explorer(state, sid, "convert_to_explorer");
                 }
             }
             "rename_tab" => {
-                if let Some((target, current_name)) = state.active_tab_rename(engine) {
+                if let Some((rename, current_name)) = state.tab_rename_in(engine, target) {
                     crate::adapters::ui::rename_popup::open(
                         state,
                         engine,
-                        target,
+                        rename,
                         current_name,
                         |intent| intent.from_user_shortcut("rename_tab"),
                     );
                 }
             }
             "rename_workspace" => {
-                let ws_idx = state.active_workspace_index(engine);
-                if let Some(ws) = engine.workspace_at(ws_idx) {
-                    let target = crate::state::RenameTarget::WorkspaceName {
+                if let Some(ws) = target.find_workspace(engine) {
+                    let rename = crate::state::RenameTarget::WorkspaceName {
                         workspace_id: ws.id,
                     };
                     crate::adapters::ui::rename_popup::open(
                         state,
                         engine,
-                        target,
+                        rename,
                         ws.name.clone(),
                         |intent| intent.from_user_shortcut("rename_workspace"),
                     );
                 }
             }
             "rename_workspace_subtitle" => {
-                let ws_idx = state.active_workspace_index(engine);
-                if let Some(ws) = engine.workspace_at(ws_idx) {
-                    let target = crate::state::RenameTarget::WorkspaceSubtitle {
+                if let Some(ws) = target.find_workspace(engine) {
+                    let rename = crate::state::RenameTarget::WorkspaceSubtitle {
                         workspace_id: ws.id,
                     };
                     crate::adapters::ui::rename_popup::open(
                         state,
                         engine,
-                        target,
+                        rename,
                         ws.subtitle.clone(),
                         |intent| intent.from_user_shortcut("rename_workspace_subtitle"),
                     );
                 }
             }
             "select_all" => {
-                if state.focused_surface_type(engine).is_kind("explorer")
-                    && let Some(sid) = focused_explorer_surface_id(state, engine)
+                if let Some(sid) = target_explorer_surface_id(engine, target)
                     && let Some(view) = state.explorer_views.get_mut(sid)
                 {
                     view.select_all();
@@ -308,9 +308,7 @@ impl MainView {
                 state.dialogs.pending_enter_copy_mode = true;
             }
             "copy_path" => {
-                if state.focused_surface_type(engine).is_kind("explorer")
-                    && let Some(sid) = focused_explorer_surface_id(state, engine)
-                {
+                if let Some(sid) = target_explorer_surface_id(engine, target) {
                     pending_copy_text = state
                         .explorer_views
                         .get(sid)
@@ -321,16 +319,15 @@ impl MainView {
                 }
             }
             "refresh" => {
-                super::request_focused_surface_refresh(
+                super::request_target_surface_refresh(
                     state,
                     engine,
+                    target,
                     crate::intent::RefreshTrigger::Palette,
                 );
             }
             "explorer_refresh" => {
-                if state.focused_surface_type(engine).is_kind("explorer")
-                    && let Some(sid) = focused_explorer_surface_id(state, engine)
-                {
+                if let Some(sid) = target_explorer_surface_id(engine, target) {
                     crate::adapters::ui::egui_panels::apply_explorer_action(
                         state,
                         engine,
@@ -340,9 +337,7 @@ impl MainView {
                 }
             }
             "explorer_go_up" => {
-                if state.focused_surface_type(engine).is_kind("explorer")
-                    && let Some(sid) = focused_explorer_surface_id(state, engine)
-                {
+                if let Some(sid) = target_explorer_surface_id(engine, target) {
                     crate::adapters::ui::egui_panels::apply_explorer_action(
                         state,
                         engine,
@@ -353,15 +348,13 @@ impl MainView {
             }
             "explorer_back" | "explorer_forward" | "explorer_focus_address" => {
                 let html = action_id == "explorer_focus_address"
-                    && super::html_focus_address_shortcut(state, engine);
-                if !html && state.focused_surface_type(engine).is_kind("explorer") {
-                    super::explorer_nav_shortcut(state, engine, action_id);
+                    && super::html_focus_address_shortcut(state, engine, target);
+                if !html {
+                    super::explorer_nav_shortcut(state, engine, target, action_id);
                 }
             }
             "explorer_toggle_preview" | "explorer_toggle_hidden" | "explorer_properties" => {
-                if state.focused_surface_type(engine).is_kind("explorer") {
-                    super::explorer_view_shortcut(state, engine, action_id);
-                }
+                super::explorer_view_shortcut(state, engine, target, action_id);
             }
             "explorer_rename" => {
                 deferred = Some(DeferredPaletteAction::Explorer(ExplorerAction::Rename))
@@ -370,9 +363,7 @@ impl MainView {
                 deferred = Some(DeferredPaletteAction::Explorer(ExplorerAction::Trash))
             }
             "explorer_new_folder" | "explorer_new_file" => {
-                if state.focused_surface_type(engine).is_kind("explorer")
-                    && let Some(sid) = focused_explorer_surface_id(state, engine)
-                {
+                if let Some(sid) = target_explorer_surface_id(engine, target) {
                     state.start_explorer_create(
                         engine,
                         sid,
@@ -382,11 +373,9 @@ impl MainView {
                 }
             }
             "explorer_undo" | "explorer_redo" => {
-                if state.focused_surface_type(engine).is_kind("explorer") {
-                    super::explorer_history_shortcut(state, engine, action_id);
-                }
+                super::explorer_history_shortcut(state, engine, target, action_id);
             }
-            "toggle_dag_list" => Self::toggle_dag_list_popup(state, engine),
+            "toggle_dag_list" => Self::toggle_dag_list_popup(state, target),
             "open_port_scanner" => Self::open_tool_popup(
                 state,
                 crate::adapters::ui::popup::port_scanner::PORT_SCANNER_POPUP_ID,
@@ -403,25 +392,25 @@ impl MainView {
                 "open_tutorial",
             ),
             "open_preset_window" => Self::open_preset_window(state),
-            "open_file_picker" => Self::open_file_picker_tool(state, engine),
-            "screenshot_to_clipboard" => Self::queue_screenshot_to_clipboard(state, engine),
+            "open_file_picker" => Self::open_file_picker_tool(state, engine, target),
+            "screenshot_to_clipboard" => Self::queue_screenshot_to_clipboard(state, engine, target),
             "apply_workspace_preset" => {
-                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Workspace);
+                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Workspace, target);
             }
             "apply_tab_preset" => {
-                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab)
+                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab, target)
             }
             "apply_pane_preset" => {
-                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Pane)
+                Self::open_preset_apply_popup(state, engine, PresetApplyScope::Pane, target)
             }
             "zoom_in" => {
-                Self::apply_zoom(state, engine, ZoomAction::In);
+                Self::apply_zoom(state, engine, ZoomAction::In, target);
             }
             "zoom_out" => {
-                Self::apply_zoom(state, engine, ZoomAction::Out);
+                Self::apply_zoom(state, engine, ZoomAction::Out, target);
             }
             "zoom_reset" => {
-                Self::apply_zoom(state, engine, ZoomAction::Reset);
+                Self::apply_zoom(state, engine, ZoomAction::Reset, target);
             }
             "copy" => deferred = Some(DeferredPaletteAction::Copy),
             "cut" => deferred = Some(DeferredPaletteAction::Cut),
@@ -487,6 +476,7 @@ impl MainView {
         key: &Key,
         mods: ModifiersState,
         kb: &crate::settings::KeybindingSettings,
+        target: &CommandTarget,
     ) -> bool {
         super::window_control::window_control_action(
             kb,
@@ -494,7 +484,7 @@ impl MainView {
             mods,
             super::window_control::OS_MENU_OWNS_FIRST,
         )
-        .is_some_and(|action_id| self.dispatch_action_by_id(engine, action_id))
+        .is_some_and(|action_id| self.dispatch_action_by_id(engine, action_id, target))
     }
 
     /// 사용자 스크립트를 읽어 App의 Lua 워커에 실행을 요청한다.
@@ -566,14 +556,15 @@ impl MainView {
         self.base.state.dirty = true;
     }
 
-    /// 전역 단축키(`handle_keybinding_shortcuts`)만 처리한다. 대상은 모델 포커스다. 마지막 workspace 를
-    /// 닫았으면 창 닫기를 요청한다.
+    /// 전역 단축키(`handle_keybinding_shortcuts`)만 `target` 에 처리한다. 마지막 workspace 를 닫았으면 창
+    /// 닫기를 요청한다.
     pub(crate) fn run_keybinding_shortcuts(
         &mut self,
         engine: &EngineRead<'_>,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
+        target: &CommandTarget,
     ) -> bool {
         let cells = CellGeometry {
             w: crate::model::PhysicalPx(self.base.gpu.cell_width()),
@@ -587,6 +578,7 @@ impl MainView {
             kb,
             key,
             mods,
+            target,
             terminal_rect,
             cells,
             &self.proxy,
@@ -643,12 +635,13 @@ impl MainView {
         }
 
         let kb = engine.settings.keybindings.clone();
+        let target = self.state.command_target(engine);
 
-        if self.handle_window_control_shortcuts(engine, key, mods, &kb) {
+        if self.handle_window_control_shortcuts(engine, key, mods, &kb, &target) {
             return true;
         }
 
-        if self.run_keybinding_shortcuts(engine, &kb, key, mods) {
+        if self.run_keybinding_shortcuts(engine, &kb, key, mods, &target) {
             return true;
         }
 
@@ -667,6 +660,7 @@ impl MainView {
             shift,
             alt,
             option,
+            &target,
         ) {
             if engine.workspaces().is_empty() {
                 self.request_close();
@@ -679,7 +673,7 @@ impl MainView {
             return true;
         }
 
-        if Self::handle_zoom_shortcut(&mut self.state, engine, key, mods) {
+        if Self::handle_zoom_shortcut(&mut self.state, engine, key, mods, &target) {
             self.base.state.dirty = true;
             return true;
         }

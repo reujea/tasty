@@ -8,9 +8,8 @@ use crate::intent::{Intent, UiIntent};
 use crate::model::SplitDirection;
 use crate::view::main::MainView;
 
-use super::{
-    focused_explorer_surface_id, focused_workspace_category, matches_any_binding, send_app_event,
-};
+use super::{matches_any_binding, send_app_event, target_explorer_surface_id};
+use crate::state::command_target::CommandTarget;
 
 /// 같은 창·프레임에서 얻은 셀 크기와 배율을 함께 전달한다.
 #[derive(Clone, Copy)]
@@ -37,23 +36,25 @@ impl MainView {
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
+        target: &CommandTarget,
         terminal_rect: crate::model::PhysicalRect,
         cells: CellGeometry,
         proxy: &winit::event_loop::EventLoopProxy<crate::AppEvent>,
     ) -> bool {
-        if Self::match_create_bindings(state, engine, kb, key, mods) {
+        let t = target;
+        if Self::match_create_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
         if Self::match_split_bindings(state, engine, kb, key, mods, terminal_rect, cells) {
             return true;
         }
-        if Self::match_panel_bindings(state, engine, kb, key, mods, proxy) {
+        if Self::match_panel_bindings(state, engine, t, kb, key, mods, proxy) {
             return true;
         }
-        if Self::match_close_bindings(state, engine, kb, key, mods, terminal_rect, cells) {
+        if Self::match_close_bindings(state, engine, t, kb, key, mods, terminal_rect, cells) {
             return true;
         }
-        if Self::match_focus_bindings(state, engine, kb, key, mods) {
+        if Self::match_focus_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
         if Self::match_sidebar_bindings(state, engine, kb, key, mods) {
@@ -71,15 +72,16 @@ impl MainView {
         ) {
             return true;
         }
-        if Self::match_convert_bindings(state, engine, kb, key, mods) {
+        if Self::match_convert_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
-        if Self::match_capture_bindings(state, engine, kb, key, mods) {
+        if Self::match_capture_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
         if Self::match_window_tab_bindings(
             state,
             engine,
+            t,
             kb,
             key,
             mods,
@@ -89,29 +91,30 @@ impl MainView {
         ) {
             return true;
         }
-        if Self::match_rename_bindings(state, engine, kb, key, mods) {
+        if Self::match_rename_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
         if matches_any_binding(&kb.refresh, key, mods)
-            && (super::surface_actions::held_for_draft(state, engine, "refresh")
-                || super::request_focused_surface_refresh(
+            && (super::surface_actions::held_for_draft(state, engine, t, "refresh")
+                || super::request_target_surface_refresh(
                     state,
                     engine,
+                    t,
                     crate::intent::RefreshTrigger::Shortcut,
                 ))
         {
             return true;
         }
-        if Self::match_explorer_bindings(state, engine, kb, key, mods) {
+        if Self::match_explorer_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
-        if Self::match_preset_bindings(state, engine, kb, key, mods) {
+        if Self::match_preset_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
-        if Self::match_tools_menu_bindings(state, engine, kb, key, mods) {
+        if Self::match_tools_menu_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
-        if Self::match_copy_rename_bindings(state, engine, kb, key, mods) {
+        if Self::match_copy_rename_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
         false
@@ -120,12 +123,13 @@ impl MainView {
     pub(super) fn match_create_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.new_workspace, key, mods) {
-            let category = focused_workspace_category(state, engine);
+            let category = t.find_workspace(engine).map(|ws| ws.category);
             state.dispatch_intent(
                 Intent::NewWorkspace {
                     kind: None,
@@ -137,8 +141,12 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.new_tab, key, mods) {
-            let pane_id = state.focused_pane_id(engine);
-            let cwd = state.resolve_inherit_cwd(engine);
+            let Some(pane_id) = t.pane else {
+                return true;
+            };
+            let cwd = t
+                .surface_id()
+                .and_then(|sid| state.resolve_inherit_cwd_from_surface(engine, sid));
             state.dispatch_intent(
                 crate::app::command::DomainIntent::CreateTab {
                     pane_id,
@@ -234,6 +242,7 @@ impl MainView {
     fn match_panel_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -254,26 +263,28 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.toggle_dag_list, key, mods) {
-            Self::toggle_dag_list_popup(state, engine);
+            Self::toggle_dag_list_popup(state, t);
             return true;
         }
         if matches_any_binding(&kb.find, key, mods) {
-            if super::surface_actions::held_for_draft(state, engine, "find") {
+            if super::surface_actions::held_for_draft(state, engine, t, "find") {
                 return true;
             }
             // 터미널에서만 검색 팝업을 연다. 검색창이 이미 포커스를 받았으면 egui가 처리한다.
             // webview의 자체 find는 호스트로 전달하지 않으며 다른 비터미널도 여기서는 소비하지 않는다.
             // 탐색기는 자기 Find 바를 연다.
-            return state.focused_surface_id(engine).is_some_and(|sid| {
+            return t.surface_id().is_some_and(|sid| {
                 super::surface_actions::find_on(state, engine, sid, "find_open")
             });
         }
         false
     }
 
+    #[allow(clippy::too_many_arguments)] // reason: keybinding dispatch context
     fn match_close_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -281,7 +292,7 @@ impl MainView {
         cells: CellGeometry,
     ) -> bool {
         if matches_any_binding(&kb.close_workspace, key, mods) {
-            state.close_active_workspace(engine);
+            super::close_target_workspace(state, engine, t);
             if !engine.workspaces().is_empty() {
                 state.resize_all(
                     engine,
@@ -294,7 +305,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.close_pane, key, mods) {
-            super::close_pane_action(state, engine);
+            super::close_pane_action(state, engine, t);
             if !engine.workspaces().is_empty() {
                 state.resize_all(
                     engine,
@@ -307,10 +318,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.close_surface, key, mods) {
-            let closed = state.close_active_surface(engine);
-            if !closed && !state.close_active_pane(engine) {
-                state.close_active_workspace(engine);
-            }
+            super::close_surface_action(state, engine, t);
             if !engine.workspaces().is_empty() {
                 state.resize_all(
                     engine,
@@ -328,24 +336,25 @@ impl MainView {
     fn match_focus_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.focus_pane_next, key, mods) {
-            state.move_pane_focus_forward(engine);
+            state.move_pane_focus_in(engine, t, true);
             return true;
         }
         if matches_any_binding(&kb.focus_pane_prev, key, mods) {
-            state.move_pane_focus_backward(engine);
+            state.move_pane_focus_in(engine, t, false);
             return true;
         }
         if matches_any_binding(&kb.focus_surface_next, key, mods) {
-            state.move_surface_focus_forward(engine);
+            state.move_surface_focus_in(engine, t, false);
             return true;
         }
         if matches_any_binding(&kb.focus_surface_prev, key, mods) {
-            state.move_surface_focus_backward(engine);
+            state.move_surface_focus_in(engine, t, true);
             return true;
         }
         false
@@ -420,6 +429,7 @@ impl MainView {
     fn match_convert_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -433,28 +443,28 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.convert_surface, key, mods) {
-            if super::surface_actions::held_for_draft(state, engine, "convert_surface") {
+            if super::surface_actions::held_for_draft(state, engine, t, "convert_surface") {
                 return true;
             }
-            if let Some(sid) = state.focused_surface_id(engine) {
+            if let Some(sid) = t.surface_id() {
                 super::surface_actions::open_convert_popup(state, sid, "convert_surface");
             }
             return true;
         }
         if matches_any_binding(&kb.convert_to_markdown, key, mods) {
-            if super::surface_actions::held_for_draft(state, engine, "convert_to_markdown") {
+            if super::surface_actions::held_for_draft(state, engine, t, "convert_to_markdown") {
                 return true;
             }
-            if let Some(sid) = state.focused_surface_id(engine) {
+            if let Some(sid) = t.surface_id() {
                 state.enqueue_convert_input_popup(&engine.as_ref(), "markdown", Some(sid));
             }
             return true;
         }
         if matches_any_binding(&kb.convert_to_explorer, key, mods) {
-            if super::surface_actions::held_for_draft(state, engine, "convert_to_explorer") {
+            if super::surface_actions::held_for_draft(state, engine, t, "convert_to_explorer") {
                 return true;
             }
-            if let Some(sid) = state.focused_surface_id(engine) {
+            if let Some(sid) = t.surface_id() {
                 super::surface_actions::convert_to_explorer(state, sid, "convert_to_explorer");
             }
             return true;
@@ -467,12 +477,13 @@ impl MainView {
     fn match_capture_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.screenshot_to_clipboard, key, mods) {
-            Self::queue_screenshot_to_clipboard(state, engine);
+            Self::queue_screenshot_to_clipboard(state, engine, t);
             return true;
         }
         false
@@ -482,6 +493,7 @@ impl MainView {
     fn match_window_tab_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -497,7 +509,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.close_active, key, mods) {
-            super::close_active_action(state, engine);
+            super::close_active_action(state, engine, t);
             if !engine.workspaces().is_empty() {
                 state.resize_all(
                     engine,
@@ -510,11 +522,11 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.next_tab, key, mods) {
-            state.next_tab_in_pane(engine);
+            state.step_visible_tab_in(engine, t, true);
             return true;
         }
         if matches_any_binding(&kb.prev_tab, key, mods) {
-            state.prev_tab_in_pane(engine);
+            state.step_visible_tab_in(engine, t, false);
             return true;
         }
         false
@@ -523,12 +535,13 @@ impl MainView {
     fn match_rename_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.rename_tab, key, mods) {
-            if let Some((target, current_name)) = state.active_tab_rename(engine) {
+            if let Some((target, current_name)) = state.tab_rename_in(engine, t) {
                 crate::adapters::ui::rename_popup::open(
                     state,
                     engine,
@@ -540,8 +553,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.rename_workspace, key, mods) {
-            let ws_idx = state.active_workspace_index(engine);
-            if let Some(ws) = engine.workspace_at(ws_idx) {
+            if let Some(ws) = t.find_workspace(engine) {
                 let target = crate::state::RenameTarget::WorkspaceName {
                     workspace_id: ws.id,
                 };
@@ -561,6 +573,7 @@ impl MainView {
     pub(super) fn match_explorer_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -569,14 +582,14 @@ impl MainView {
             return false;
         }
         if matches_any_binding(&kb.explorer_refresh, key, mods)
-            && super::surface_actions::held_for_draft(state, engine, "explorer_refresh")
+            && super::surface_actions::held_for_draft(state, engine, t, "explorer_refresh")
         {
             return true;
         }
         if matches_any_binding(&kb.explorer_refresh, key, mods)
-            && state.focused_surface_type(engine).is_kind("explorer")
+            && target_explorer_surface_id(engine, t).is_some()
         {
-            if let Some(sid) = focused_explorer_surface_id(state, engine) {
+            if let Some(sid) = target_explorer_surface_id(engine, t) {
                 crate::adapters::ui::egui_panels::apply_explorer_action(
                     state,
                     engine,
@@ -592,22 +605,22 @@ impl MainView {
             (&kb.explorer_properties, "explorer_properties"),
         ] {
             if matches_any_binding(binding, key, mods)
-                && (super::surface_actions::held_for_draft(state, engine, action)
-                    || state.focused_surface_type(engine).is_kind("explorer"))
+                && (super::surface_actions::held_for_draft(state, engine, t, action)
+                    || target_explorer_surface_id(engine, t).is_some())
             {
-                super::explorer_view_shortcut(state, engine, action);
+                super::explorer_view_shortcut(state, engine, t, action);
                 return true;
             }
         }
         if matches_any_binding(&kb.explorer_go_up, key, mods)
-            && super::surface_actions::held_for_draft(state, engine, "explorer_go_up")
+            && super::surface_actions::held_for_draft(state, engine, t, "explorer_go_up")
         {
             return true;
         }
         if matches_any_binding(&kb.explorer_go_up, key, mods)
-            && state.focused_surface_type(engine).is_kind("explorer")
+            && target_explorer_surface_id(engine, t).is_some()
         {
-            if let Some(sid) = focused_explorer_surface_id(state, engine) {
+            if let Some(sid) = target_explorer_surface_id(engine, t) {
                 crate::adapters::ui::egui_panels::apply_explorer_action(
                     state,
                     engine,
@@ -618,8 +631,8 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.explorer_focus_address, key, mods)
-            && (super::surface_actions::held_for_draft(state, engine, "explorer_focus_address")
-                || super::html_focus_address_shortcut(state, engine))
+            && (super::surface_actions::held_for_draft(state, engine, t, "explorer_focus_address")
+                || super::html_focus_address_shortcut(state, engine, t))
         {
             return true;
         }
@@ -632,7 +645,7 @@ impl MainView {
             (&kb.explorer_redo, "explorer_redo"),
         ] {
             if matches_any_binding(binding, key, mods)
-                && super::surface_actions::held_for_draft(state, engine, action)
+                && super::surface_actions::held_for_draft(state, engine, t, action)
             {
                 return true;
             }
@@ -643,9 +656,9 @@ impl MainView {
             (&kb.explorer_focus_address, "explorer_focus_address"),
         ] {
             if matches_any_binding(binding, key, mods)
-                && state.focused_surface_type(engine).is_kind("explorer")
+                && target_explorer_surface_id(engine, t).is_some()
             {
-                super::explorer_nav_shortcut(state, engine, action);
+                super::explorer_nav_shortcut(state, engine, t, action);
                 return true;
             }
         }
@@ -654,9 +667,9 @@ impl MainView {
             (&kb.explorer_new_file, false),
         ] {
             if matches_any_binding(binding, key, mods)
-                && state.focused_surface_type(engine).is_kind("explorer")
+                && target_explorer_surface_id(engine, t).is_some()
             {
-                if let Some(sid) = focused_explorer_surface_id(state, engine) {
+                if let Some(sid) = target_explorer_surface_id(engine, t) {
                     state.start_explorer_create(engine, sid, None, folder);
                 }
                 return true;
@@ -667,9 +680,9 @@ impl MainView {
             (&kb.explorer_redo, "explorer_redo"),
         ] {
             if matches_any_binding(binding, key, mods)
-                && state.focused_surface_type(engine).is_kind("explorer")
+                && target_explorer_surface_id(engine, t).is_some()
             {
-                super::explorer_history_shortcut(state, engine, action);
+                super::explorer_history_shortcut(state, engine, t, action);
                 return true;
             }
         }
@@ -679,6 +692,7 @@ impl MainView {
     fn match_preset_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -698,15 +712,15 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.apply_workspace_preset, key, mods) {
-            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Workspace);
+            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Workspace, t);
             return true;
         }
         if matches_any_binding(&kb.apply_tab_preset, key, mods) {
-            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab);
+            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Tab, t);
             return true;
         }
         if matches_any_binding(&kb.apply_pane_preset, key, mods) {
-            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Pane);
+            Self::open_preset_apply_popup(state, engine, PresetApplyScope::Pane, t);
             return true;
         }
         false
@@ -715,20 +729,20 @@ impl MainView {
     fn match_copy_rename_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
     ) -> bool {
         if matches_any_binding(&kb.enter_copy_mode, key, mods) {
-            if super::surface_actions::held_for_draft(state, engine, "enter_copy_mode") {
+            if super::surface_actions::held_for_draft(state, engine, t, "enter_copy_mode") {
                 return true;
             }
             state.dialogs.pending_enter_copy_mode = true;
             return true;
         }
         if matches_any_binding(&kb.rename_workspace_subtitle, key, mods) {
-            let ws_idx = state.active_workspace_index(engine);
-            if let Some(ws) = engine.workspace_at(ws_idx) {
+            if let Some(ws) = t.find_workspace(engine) {
                 let target = crate::state::RenameTarget::WorkspaceSubtitle {
                     workspace_id: ws.id,
                 };
@@ -748,6 +762,7 @@ impl MainView {
     fn match_tools_menu_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -782,7 +797,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.open_file_picker, key, mods) {
-            Self::open_file_picker_tool(state, engine);
+            Self::open_file_picker_tool(state, engine, t);
             return true;
         }
         false
@@ -815,8 +830,12 @@ impl MainView {
     pub(crate) fn open_file_picker_tool(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
     ) {
-        crate::adapters::ui::file_open_tool::open(state, engine);
+        let Some(workspace) = t.workspace_index(engine) else {
+            return;
+        };
+        crate::adapters::ui::file_open_tool::open_at(state, engine, t.surface_id(), workspace);
     }
 
     /// 탐색기는 파일 선택 팝업 없이 새 탭을 연다. 경로가 없으면 홈을 사용한다.
@@ -831,12 +850,14 @@ impl MainView {
         );
     }
 
-    /// 열 때의 활성 workspace에 연결한다. 다른 workspace로 가면 숨고 돌아오면 다시 보인다.
+    /// 명령 대상 workspace에 연결한다. 다른 workspace로 가면 숨고 돌아오면 다시 보인다.
     pub(crate) fn toggle_dag_list_popup(
         state: &mut crate::state::MainViewState,
-        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
     ) {
-        let workspace_id = state.active_workspace(engine).id;
+        let Some(workspace_id) = t.workspace else {
+            return;
+        };
         state.dispatch_intent(
             UiIntent::TogglePopup(
                 crate::intent::OpenRequest::new(
@@ -853,13 +874,14 @@ impl MainView {
     pub(crate) fn queue_screenshot_to_clipboard(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
+        t: &CommandTarget,
     ) {
-        let mirror_ws_id = state.focused_surface_id(engine).and_then(|sid| {
+        let mirror_ws_id = t.surface_id().and_then(|sid| {
             let (idx, _pane_id) = engine.find_workspace_index_for_surface(sid)?;
             let ws = engine.workspace_at(idx)?;
             ws.mirror.then_some(ws.id)
         });
-        let target = state.focused_surface_id(engine).and_then(|surface| {
+        let target = t.surface_id().and_then(|surface| {
             crate::runtime::surface_binding::SurfaceBinding::capture(engine, surface)
         });
         state.dispatch_intent(
@@ -872,11 +894,12 @@ impl MainView {
         );
     }
 
-    /// 프리셋 적용 팝업을 연다. 워크스페이스 프리셋은 창 범위, 탭·pane 프리셋은 포커스 pane 의 대상 범위다.
+    /// 프리셋 적용 팝업을 연다. 워크스페이스 프리셋은 창 범위, 탭·pane 프리셋은 명령 대상 탭·pane 의 범위다.
     pub(crate) fn open_preset_apply_popup(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
         scope: PresetApplyScope,
+        t: &CommandTarget,
     ) {
         use crate::adapters::ui::popup::preset_apply;
         use tasty_presets::PresetKind;
@@ -902,8 +925,15 @@ impl MainView {
             PresetApplyScope::Tab => (PresetKind::Tab, "apply_tab_preset"),
             PresetApplyScope::Pane => (PresetKind::Pane, "apply_pane_preset"),
         };
-        let pane_id = state.focused_pane_id(engine);
-        preset_apply::open_for_pane(state, engine, kind, pane_id, |intent| {
+        let target = match kind {
+            PresetKind::Tab => t.tab.map(preset_apply::PresetApplyTarget::Tab),
+            _ => t.pane.map(preset_apply::PresetApplyTarget::Pane),
+        };
+        let Some(target) = target else {
+            tracing::warn!("{kind:?} preset popup not opened: the command has no target");
+            return;
+        };
+        preset_apply::open_for_target(state, engine, target, |intent| {
             intent.from_user_shortcut(action)
         });
     }

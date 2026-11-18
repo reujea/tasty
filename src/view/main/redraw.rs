@@ -412,7 +412,8 @@ impl MainView {
                 crate::state::command_palette::PaletteCommand::Host { id, .. } => {
                     // 알 수 없는 action_id는 dispatch_action_by_id가 경고를 기록한다.
                     if self.run_palette_surface_command(engine, id, target) {
-                        self.dispatch_action_by_id(engine, id);
+                        let command_target = self.state.command_target(engine);
+                        self.dispatch_action_by_id(engine, id, &command_target);
                     }
                 }
                 crate::state::command_palette::PaletteCommand::Plugin {

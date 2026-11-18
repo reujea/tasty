@@ -65,17 +65,25 @@ impl RequestContext {
 
     #[cfg(feature = "gui")]
     pub fn next_tab_in_pane(&mut self, engine: &CoreState) {
-        self.step_visible_tab(engine, true);
+        let target = self.command_target(engine);
+        self.step_visible_tab_in(engine, &target, true);
     }
 
     #[cfg(feature = "gui")]
     pub fn prev_tab_in_pane(&mut self, engine: &CoreState) {
-        self.step_visible_tab(engine, false);
+        let target = self.command_target(engine);
+        self.step_visible_tab_in(engine, &target, false);
     }
 
+    /// 명령 대상 pane 에서 대상 탭(입력 때 초안이 선택돼 있었으면 그 초안)의 다음·이전 탭으로 바꾼다.
     #[cfg(feature = "gui")]
-    fn step_visible_tab(&mut self, engine: &CoreState, forward: bool) {
-        let Some(pane) = self.focused_pane(engine) else {
+    pub(crate) fn step_visible_tab_in(
+        &mut self,
+        engine: &CoreState,
+        target: &super::command_target::CommandTarget,
+        forward: bool,
+    ) {
+        let Some(pane) = target.find_pane(engine) else {
             return;
         };
         let drafts = self.visible_draft_tabs(engine, pane.id);
@@ -84,17 +92,30 @@ impl RequestContext {
         if count == 0 {
             return;
         }
-        let selected = self
-            .attach_pending
-            .selected(engine, &self.navigation)
-            .and_then(|entry| drafts.iter().position(|id| *id == entry.id))
-            .map_or(self.navigation.tab_index(pane), |index| real + index);
+        // 입력 때 초안이 대상이었으면 그 초안 자리에서만 움직인다. 초안이 사라졌으면 뒤의 기존 탭으로 바꿔
+        // 읽지 않는다.
+        let selected = match target.draft {
+            Some(draft) => {
+                let Some(index) = drafts.iter().position(|id| *id == draft) else {
+                    tracing::info!("tab step ignored: the target draft {} is gone", draft.0);
+                    return;
+                };
+                real + index
+            }
+            None => {
+                let Some((_, index, _)) = target.find_tab(engine) else {
+                    tracing::info!("tab step ignored: the target tab is gone");
+                    return;
+                };
+                index
+            }
+        };
         let next = if forward {
             (selected + 1) % count
         } else {
             (selected + count - 1) % count
         };
-        self.goto_tab_in_pane(engine, next);
+        self.goto_tab_in(engine, Some(pane.id), next);
     }
 
     #[cfg(feature = "gui")]
@@ -113,11 +134,25 @@ impl RequestContext {
             .collect()
     }
 
-    /// 포커스된 pane에서 0-based 인덱스로 탭을 바꾼다. pane 부재와 범위 오류를 구분한다.
-    #[cfg(any(feature = "gui", debug_assertions))]
+    /// 포커스된 pane에서 0-based 인덱스로 탭을 바꾼다. pane 부재와 범위 오류를 구분한다. 사용자 입력은 명령
+    /// 대상의 pane 으로 `goto_tab_in` 을 부르고, 이 함수는 debug IPC 와 시험만 쓴다.
+    #[cfg(any(all(test, feature = "gui"), debug_assertions))]
     pub fn goto_tab_in_pane(&mut self, engine: &CoreState, index: usize) -> TabSwitch {
+        let pane = self.focused_pane(engine).map(|p| p.id);
+        self.goto_tab_in(engine, pane, index)
+    }
+
+    /// `pane` 에서 0-based 인덱스로 탭을 바꾼다. 실제 탭 뒤의 번호는 그 pane 의 새 탭 초안이다.
+    #[cfg(any(feature = "gui", debug_assertions))]
+    pub(crate) fn goto_tab_in(
+        &mut self,
+        engine: &CoreState,
+        pane: Option<u32>,
+        index: usize,
+    ) -> TabSwitch {
+        let pane = pane.and_then(|id| engine.find_pane_by_id(id));
         #[cfg(feature = "gui")]
-        if let Some(pane) = self.focused_pane(engine) {
+        if let Some(pane) = pane {
             let drafts = self.visible_draft_tabs(engine, pane.id);
             if index >= pane.tabs.len() {
                 if let Some(id) = drafts.get(index - pane.tabs.len()) {
@@ -141,7 +176,7 @@ impl RequestContext {
         self.attach_pending.deselect();
         #[cfg(feature = "gui")]
         let before = self.tutorial_tab_snapshot(engine);
-        let result = if let Some(pane) = self.focused_pane(engine) {
+        let result = if let Some(pane) = pane {
             self.navigation.goto_tab(pane, index)
         } else {
             TabSwitch::NoPane
@@ -211,72 +246,50 @@ impl RequestContext {
         true
     }
 
-    /// 활성 탭 닫기를 처리한다. mirror 요청을 전달한 경우에도 true다.
+    /// 명령 대상의 탭을 닫는다. mirror 요청을 전달한 경우에도 true다. 대상 탭이 없으면 false 다.
     #[cfg(feature = "gui")]
-    pub fn close_active_tab(&mut self, engine: &EngineRead<'_>) -> bool {
-        if self
-            .attach_pending
-            .selected(engine, &self.navigation)
-            .is_some()
-        {
-            return false;
-        }
-        let mirror_op =
-            self.focused_surface_id(engine)
-                .map(|sid| crate::ipc::stream::StructuralOp::CloseTab {
-                    anchor_surface_id: sid,
-                });
-        let candidates = self
-            .focused_pane(engine)
-            .map(|pane| {
-                self.pane_sibling_tab_focus_candidates(pane, self.navigation.tab_index(pane))
-            })
-            .unwrap_or_default();
-        if self.forward_mirror_structural(engine, mirror_op, candidates) {
-            return true;
-        }
-        let in_tab: Vec<u32> = {
-            let mut t = Vec::new();
-            if let Some(pane) = self.focused_pane(engine)
-                && let Some(tab) = pane.tabs.get(self.navigation.tab_index(pane))
-            {
-                t.extend(tab.all_surface_ids());
-            }
-            t
-        };
-        if self.refuse_if_hard_occupied(engine, in_tab) {
-            return false;
-        }
-        let Some(tab_id) = self
-            .focused_pane(engine)
-            .and_then(|pane| pane.tabs.get(self.navigation.tab_index(pane)))
-            .map(|tab| tab.id)
+    pub(crate) fn close_tab_in(
+        &mut self,
+        engine: &EngineRead<'_>,
+        target: &super::command_target::CommandTarget,
+    ) -> bool {
+        let (Some(ws), Some((pane, index, tab))) =
+            (target.find_workspace(engine), target.find_tab(engine))
         else {
             return false;
         };
-        self.close_tab_through_core(engine, tab_id)
+        let mirror_op =
+            self.navigation
+                .surface_id(tab)
+                .map(|sid| crate::ipc::stream::StructuralOp::CloseTab {
+                    anchor_surface_id: sid,
+                });
+        let candidates = self.pane_sibling_tab_focus_candidates(pane, index);
+        if self.forward_mirror_structural_in(ws.mirror, mirror_op, candidates) {
+            return true;
+        }
+        if self.refuse_if_hard_occupied(engine, tab.all_surface_ids()) {
+            return false;
+        }
+        self.close_tab_through_core(engine, tab.id)
     }
 
-    /// `rename_tab` 액션의 대상. 포커스 pane 의 선택 탭과 지금 보이는 이름이다.
-    /// 생성 대기 초안이 선택돼 있으면 navigation 의 선택 탭은 초안이 아니라 기존 탭이므로 대상이 없다.
+    /// 명령 대상 탭의 `rename_tab` 대상과 지금 보이는 이름. 입력 때 초안이 선택돼 있었으면 대상 탭은 초안 뒤의
+    /// 기존 탭이므로 대상이 없다.
     #[cfg(feature = "gui")]
-    pub(crate) fn active_tab_rename(
+    pub(crate) fn tab_rename_in(
         &self,
         engine: &EngineRead<'_>,
+        target: &super::command_target::CommandTarget,
     ) -> Option<(super::RenameTarget, String)> {
-        if let Some(entry) = self.attach_pending.selected(engine, &self.navigation) {
+        if let Some(draft) = target.draft {
             tracing::info!(
                 "rename_tab ignored: pending attach draft {} is selected",
-                entry.id.0
+                draft.0
             );
             return None;
         }
-        let pane_id = self.focused_pane_id(engine);
-        let pane = self
-            .active_workspace(engine)
-            .pane_layout()
-            .find_pane(pane_id)?;
-        let tab = pane.tabs.get(self.navigation.tab_index(pane))?;
+        let (_, _, tab) = target.find_tab(engine)?;
         let current_name = engine.tab_display_name(tab, self.navigation.surface_id(tab));
         Some((
             super::RenameTarget::TabName { tab_id: tab.id },

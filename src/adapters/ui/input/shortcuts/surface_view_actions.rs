@@ -105,10 +105,11 @@ impl MainView {
         sid: u32,
     ) -> Option<bool> {
         let kb = &engine.settings.keybindings;
+        let focus = self.state.command_target(engine);
         match surface_actions::run_received_key(&mut self.state, engine, kb, key, mods, sid) {
             Received::Unbound => None,
             Received::Pass => Some(false),
-            Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods)),
+            Received::Global => Some(self.run_keybinding_shortcuts(engine, kb, key, mods, &focus)),
             Received::Done => Some(true),
             Received::View(id) => Some(self.run_view_surface_action(engine, id, sid)),
         }

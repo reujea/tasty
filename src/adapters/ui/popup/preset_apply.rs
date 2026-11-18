@@ -227,8 +227,24 @@ pub(crate) fn open_for_pane(
             .map(|tab| PresetApplyTarget::Tab(tab.id)),
         PresetKind::Workspace => None,
     };
-    let Some((target, scope)) = target.and_then(|t| t.scope(engine).map(|scope| (t, scope))) else {
+    let Some(target) = target else {
         tracing::warn!("{kind:?} preset popup not opened: pane {pane_id} has no target");
+        return false;
+    };
+    open_for_target(state, engine, target, dispatch)
+}
+
+/// 탭 또는 pane 프리셋 적용 팝업을 정해진 대상으로 연다. 범위는 대상이 보이는 상위 범위다. 대상이 사라졌으면
+/// 열지 않고 warn 을 남긴다.
+pub(crate) fn open_for_target(
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    target: PresetApplyTarget,
+    dispatch: impl FnOnce(crate::intent::UiIntent) -> crate::intent::DispatchedIntent,
+) -> bool {
+    let kind = target.kind();
+    let Some(scope) = target.scope(engine) else {
+        tracing::warn!("{kind:?} preset popup not opened: its target {target:?} is gone");
         return false;
     };
     state.dialogs.preset_picker_selection.clear(kind);

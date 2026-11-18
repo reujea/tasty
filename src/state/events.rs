@@ -9,10 +9,6 @@ pub enum FocusedSurfaceType {
 }
 
 impl FocusedSurfaceType {
-    pub fn is_kind(&self, kind: &str) -> bool {
-        matches!(self, Self::Kind(k) if k == kind)
-    }
-
     /// 등록된 kind의 capability를 조회한다. Terminal·None과 미등록 kind는 false다.
     pub fn kind_capability(
         &self,

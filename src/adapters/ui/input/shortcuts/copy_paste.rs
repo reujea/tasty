@@ -80,6 +80,7 @@ impl MainView {
         edit_judged: bool,
     ) -> bool {
         let kb = &engine.settings.keybindings;
+        let target = self.state.command_target(engine);
         for (combos, id) in [
             (&kb.select_all, "select_all"),
             (&kb.copy_path, "copy_path"),
@@ -87,7 +88,7 @@ impl MainView {
             (&kb.explorer_trash, "explorer_trash"),
         ] {
             if matches_any_binding(combos, key, mods)
-                && super::surface_actions::held_for_draft(&mut self.state, engine, id)
+                && super::surface_actions::held_for_draft(&mut self.state, engine, &target, id)
             {
                 return true;
             }

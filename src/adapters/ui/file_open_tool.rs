@@ -12,13 +12,19 @@ use crate::state::{
 
 /// 포커스 surface의 소속, 없으면 활성 workspace를 둘러보는 피커를 연다. 위치는 결과를 해석하려고 보관한다.
 pub(crate) fn open(state: &mut MainViewState, engine: &EngineRead<'_>) {
-    let location = file_picker::locate(
-        state,
-        engine,
-        state.focused_surface_id(engine),
-        state.active_workspace_index(engine),
-        None,
-    );
+    let surface = state.focused_surface_id(engine);
+    let workspace = state.active_workspace_index(engine);
+    open_at(state, engine, surface, workspace);
+}
+
+/// 명령 대상 `surface` 의 소속, 없으면 `workspace` 번째 workspace 를 둘러보는 피커를 연다.
+pub(crate) fn open_at(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    surface: Option<u32>,
+    workspace: usize,
+) {
+    let location = file_picker::locate(state, engine, surface, workspace, None);
     let request_id = FilePickerRequestId::next();
     if file_picker::open(
         state,

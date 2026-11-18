@@ -120,7 +120,8 @@ impl MainView {
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "close_pane" => {
-                super::close_pane_action(&mut self.state, engine);
+                let target = self.state.command_target(engine);
+                super::close_pane_action(&mut self.state, engine, &target);
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "split_pane_vertical" => {
@@ -171,7 +172,8 @@ impl MainView {
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "close_active" => {
-                super::close_active_action(&mut self.state, engine);
+                let target = self.state.command_target(engine);
+                super::close_active_action(&mut self.state, engine, &target);
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "restore_closed" => {
@@ -216,6 +218,7 @@ impl MainView {
     }
 
     fn run_double_tap_open_action(&mut self, engine: &EngineRead<'_>, action: &str) -> bool {
+        let target = self.state.command_target(engine);
         match action {
             "open_markdown" => {
                 self.state
@@ -228,6 +231,7 @@ impl MainView {
                 if super::surface_actions::held_for_draft(
                     &mut self.state,
                     engine,
+                    &target,
                     "convert_surface",
                 ) {
                     return true;
@@ -244,6 +248,7 @@ impl MainView {
                 if super::surface_actions::held_for_draft(
                     &mut self.state,
                     engine,
+                    &target,
                     "convert_to_markdown",
                 ) {
                     return true;
@@ -257,6 +262,7 @@ impl MainView {
                 if super::surface_actions::held_for_draft(
                     &mut self.state,
                     engine,
+                    &target,
                     "convert_to_explorer",
                 ) {
                     return true;

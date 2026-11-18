@@ -55,7 +55,8 @@ fn active_pane_and_tab_closes_preserve_the_original_ids_and_user_origin() {
     let pane = state.focused_pane_id(&engine);
     let tab = state.focused_pane(&engine).unwrap().tabs[0].id;
     assert!(state.close_active_pane(&engine.read()));
-    assert!(state.close_active_tab(&engine.read()));
+    let target = state.command_target(&engine);
+    assert!(state.close_tab_in(&engine.read(), &target));
     let intents = state.take_pending_intents();
     assert_eq!(intents.len(), 2);
     assert!(intents.iter().all(|intent| intent.origin.is_user()));

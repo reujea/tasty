@@ -43,7 +43,19 @@ impl RequestContext {
         op: Option<crate::ipc::stream::StructuralOp>,
         close_focus_candidates: Vec<u32>,
     ) -> bool {
-        if !self.active_workspace(engine).mirror {
+        let mirror = self.active_workspace(engine).mirror;
+        self.forward_mirror_structural_in(mirror, op, close_focus_candidates)
+    }
+
+    /// `forward_mirror_structural` 과 같되, 활성 workspace 가 아니라 명령 대상 workspace 의 mirror 여부로 판정한다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn forward_mirror_structural_in(
+        &mut self,
+        mirror: bool,
+        op: Option<crate::ipc::stream::StructuralOp>,
+        close_focus_candidates: Vec<u32>,
+    ) -> bool {
+        if !mirror {
             return false;
         }
         match op {
@@ -107,19 +119,12 @@ impl RequestContext {
     /// 같은 분할 탭의 다른 surface를 순서대로 후보에 넣는다.
     /// 단일 surface 탭이면 pane_sibling_tab_focus_candidates에 위임한다.
     #[cfg(feature = "gui")]
-    fn active_surface_close_focus_candidates(
+    fn surface_close_focus_candidates(
         &self,
-        engine: &CoreState,
+        pane: &crate::model::Pane,
+        tab_index: usize,
         surface_id: u32,
     ) -> Vec<u32> {
-        let ws = self.active_workspace(engine);
-        let Some(pane) = ws
-            .pane_layout()
-            .find_pane(self.navigation.pane_id(ws).unwrap_or(0))
-        else {
-            return Vec::new();
-        };
-        let tab_index = self.navigation.tab_index(pane);
         let Some(tab) = pane.tabs.get(tab_index) else {
             return Vec::new();
         };
@@ -146,28 +151,43 @@ impl RequestContext {
         {
             return false;
         }
-        let mirror_op = self.focused_surface_id(engine).map(|sid| {
-            crate::ipc::stream::StructuralOp::ClosePane {
-                anchor_surface_id: sid,
-            }
-        });
+        let target = self.command_target(engine);
+        self.close_pane_in(engine, &target)
+    }
+
+    /// 명령 대상의 pane 을 닫는다. mirror 요청을 전달한 경우에도 true다. 대상 workspace 가 없으면 false 다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn close_pane_in(
+        &mut self,
+        engine: &EngineRead<'_>,
+        target: &super::command_target::CommandTarget,
+    ) -> bool {
+        let Some(ws) = target.find_workspace(engine) else {
+            return false;
+        };
+        let Some(target_id) = target.pane else {
+            return false;
+        };
+        let mirror_op =
+            target
+                .surface_id()
+                .map(|sid| crate::ipc::stream::StructuralOp::ClosePane {
+                    anchor_surface_id: sid,
+                });
         // pane 닫기는 같은 pane 안의 인접 포커스 후보를 사용하지 않는다.
-        if self.forward_mirror_structural(engine, mirror_op, Vec::new()) {
+        if self.forward_mirror_structural_in(ws.mirror, mirror_op, Vec::new()) {
             return true;
         }
-        let target_id = self.focused_pane_id(engine);
-        let in_pane: Vec<u32> = {
-            let ws = self.active_workspace(engine);
-            ws.pane_layout()
-                .find_pane(target_id)
-                .map(|pane| {
-                    pane.tabs
-                        .iter()
-                        .flat_map(|tab| tab.all_surface_ids())
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        let in_pane: Vec<u32> = ws
+            .pane_layout()
+            .find_pane(target_id)
+            .map(|pane| {
+                pane.tabs
+                    .iter()
+                    .flat_map(|tab| tab.all_surface_ids())
+                    .collect()
+            })
+            .unwrap_or_default();
         if self.refuse_if_hard_occupied(engine, in_pane) {
             return false;
         }
@@ -182,23 +202,37 @@ impl RequestContext {
     /// 포커스된 surface를 닫고 필요하면 빈 탭·pane·워크스페이스도 정리한다.
     #[cfg(feature = "gui")]
     pub fn close_active_surface(&mut self, engine: &EngineRead<'_>) -> bool {
-        let focused_sid = self.focused_surface_id(engine);
-        let mirror_op = focused_sid
-            .map(|sid| crate::ipc::stream::StructuralOp::CloseSurface { surface_id: sid });
-        let candidates = focused_sid
-            .map(|sid| self.active_surface_close_focus_candidates(engine, sid))
-            .unwrap_or_default();
-        if self.forward_mirror_structural(engine, mirror_op, candidates) {
+        let target = self.command_target(engine);
+        self.close_surface_in(engine, &target)
+    }
+
+    /// 명령 대상의 surface 를 닫는다. 대상이 초안이라 surface id 가 없으면 mirror 에서는 차단을 알리고
+    /// true, 아니면 false 다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn close_surface_in(
+        &mut self,
+        engine: &EngineRead<'_>,
+        target: &super::command_target::CommandTarget,
+    ) -> bool {
+        let Some(ws) = target.find_workspace(engine) else {
+            return false;
+        };
+        let surface = target.surface_id();
+        let mirror_op =
+            surface.map(|sid| crate::ipc::stream::StructuralOp::CloseSurface { surface_id: sid });
+        let candidates = match (surface, target.find_tab(engine)) {
+            (Some(sid), Some((pane, index, _))) => {
+                self.surface_close_focus_candidates(pane, index, sid)
+            }
+            _ => Vec::new(),
+        };
+        if self.forward_mirror_structural_in(ws.mirror, mirror_op, candidates) {
             return true;
         }
-        if self.refuse_if_hard_occupied(engine, focused_sid) {
+        if self.refuse_if_hard_occupied(engine, surface) {
             return false;
         }
-        let Some(surface_id) = self
-            .focused_pane(engine)
-            .and_then(|pane| pane.tabs.get(self.navigation.tab_index(pane)))
-            .map(|tab| self.navigation.surface_id(tab).unwrap_or(0))
-        else {
+        let Some(surface_id) = surface else {
             return false;
         };
         self.close_surface_by_id(engine, surface_id, true)

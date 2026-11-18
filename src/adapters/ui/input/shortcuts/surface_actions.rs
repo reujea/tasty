@@ -211,13 +211,14 @@ pub(crate) fn hold_for_draft(
     Some(true)
 }
 
-/// 키 입력 경로: 지금 입력 대상이 초안이고 그 초안에 액션을 걸었으면 true 다.
+/// 키 입력 경로: 명령 대상이 초안이고 그 초안에 액션을 걸었으면 true 다.
 pub(crate) fn held_for_draft(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    target: &crate::state::command_target::CommandTarget,
     action_id: &str,
 ) -> bool {
-    let target = state.command_surface_target(engine);
+    let target = target.surface;
     hold_for_draft(
         state,
         engine,

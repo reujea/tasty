@@ -3,6 +3,8 @@ mod accessors;
 pub(crate) mod attach_pending;
 #[cfg(feature = "gui")]
 pub(crate) mod branch;
+#[cfg(feature = "gui")]
+pub(crate) mod command_target;
 #[cfg(all(test, feature = "gui"))]
 mod convert_input_popup_tests;
 #[cfg(feature = "gui")]

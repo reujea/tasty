@@ -241,9 +241,11 @@ fn the_focused_path_targets_the_focused_surface_at_key_time() {
     let focused = state
         .focused_surface_id(&engine.read())
         .expect("a focused surface");
-    assert!(super::request_focused_surface_refresh(
+    let target = state.command_target(&engine.read());
+    assert!(super::request_target_surface_refresh(
         &mut state,
         &engine.read(),
+        &target,
         RefreshTrigger::Shortcut
     ));
     let intent = refresh_intents(&mut state).remove(0);

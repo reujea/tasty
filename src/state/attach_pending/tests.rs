@@ -56,7 +56,9 @@ fn prelayout_has_no_domain_or_input_target_and_failure_removes_only_its_draft() 
     assert_eq!(state.attach_pending.entries.len(), 1);
     assert_eq!(state.attach_pending.entries[0].receipt.op(), Some(2));
     assert_eq!(core.live_surface_ids(), original);
-    assert!(!state.close_active_tab(&engine.read()));
+    let target = state.command_target(core);
+    crate::shortcuts::close_active_action(&mut state, &engine.read(), &target);
+    assert!(state.take_pending_intents().is_empty());
     assert!(!state.close_active_pane(&engine.read()));
     state.attach_pending.deselect();
     assert_eq!(state.focused_surface_id(core), Some(anchor));

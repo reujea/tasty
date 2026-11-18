@@ -5,44 +5,77 @@ use super::RequestContext;
 
 impl RequestContext {
     pub fn move_pane_focus_forward(&mut self, engine: &CoreState) {
-        self.attach_pending.deselect();
-        let ws = self.active_workspace(engine);
-        if let Some(id) = self.navigation.pane_id(ws) {
-            self.navigation
-                .select_pane(ws, ws.pane_layout().next_pane_id(id));
-        }
+        let target = self.command_target(engine);
+        self.move_pane_focus_in(engine, &target, true);
     }
 
     pub fn move_pane_focus_backward(&mut self, engine: &CoreState) {
+        let target = self.command_target(engine);
+        self.move_pane_focus_in(engine, &target, false);
+    }
+
+    /// 명령 대상 workspace 에서 대상 pane 의 다음·이전 pane 으로 포커스를 옮긴다.
+    pub(crate) fn move_pane_focus_in(
+        &mut self,
+        engine: &CoreState,
+        target: &super::command_target::CommandTarget,
+        forward: bool,
+    ) {
         self.attach_pending.deselect();
-        let ws = self.active_workspace(engine);
-        if let Some(id) = self.navigation.pane_id(ws) {
-            self.navigation
-                .select_pane(ws, ws.pane_layout().prev_pane_id(id));
-        }
+        let (Some(ws), Some(id)) = (target.find_workspace(engine), target.pane) else {
+            return;
+        };
+        let layout = ws.pane_layout();
+        let next = if forward {
+            layout.next_pane_id(id)
+        } else {
+            layout.prev_pane_id(id)
+        };
+        self.navigation.select_pane(ws, next);
     }
 
     pub fn move_surface_focus_forward(&mut self, engine: &CoreState) {
-        self.move_surface_focus(engine, false);
+        let target = self.command_target(engine);
+        self.move_surface_focus_in(engine, &target, false);
     }
 
     pub fn move_surface_focus_backward(&mut self, engine: &CoreState) {
-        self.move_surface_focus(engine, true);
+        let target = self.command_target(engine);
+        self.move_surface_focus_in(engine, &target, true);
     }
 
-    fn move_surface_focus(&mut self, engine: &CoreState, backward: bool) {
-        self.attach_pending.deselect();
-        let Some(pane) = self.focused_pane(engine) else {
+    /// 명령 대상 탭 안에서 대상 surface 의 다음·이전 surface 를 고른다. 입력 때 초안이 선택돼 있었으면 그 탭에서
+    /// 입력 때 골라져 있던 surface 를 기준으로 하고, 그 사이 초안이 사라졌으면 하지 않는다.
+    pub(crate) fn move_surface_focus_in(
+        &mut self,
+        engine: &CoreState,
+        target: &super::command_target::CommandTarget,
+        backward: bool,
+    ) {
+        #[cfg(feature = "gui")]
+        if let Some(draft) = target.draft
+            && !self.attach_pending.draft_live(engine, draft)
+        {
+            tracing::info!(
+                "surface focus step ignored: the target draft {} is gone",
+                draft.0
+            );
             return;
-        };
-        let Some(tab) = pane.tabs.get(self.navigation.tab_index(pane)) else {
+        }
+        self.attach_pending.deselect();
+        let Some((_, _, tab)) = target.find_tab(engine) else {
             return;
         };
         let ids = tab.all_surface_ids();
         if ids.is_empty() {
             return;
         }
-        let current = self.navigation.surface_id(tab);
+        let current = match target.draft {
+            Some(_) => target.draft_base_surface,
+            None => target
+                .surface_id()
+                .or_else(|| self.navigation.surface_id(tab)),
+        };
         let position = ids.iter().position(|id| Some(*id) == current).unwrap_or(0);
         let step = if backward { ids.len() - 1 } else { 1 };
         self.navigation

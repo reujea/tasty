@@ -36,21 +36,22 @@ impl MainView {
         shift: bool,
         alt: bool,
         option: bool,
+        target: &crate::state::command_target::CommandTarget,
     ) -> bool {
         // 개별 지정은 F5·화살표도 허용하므로 Character 검사보다 먼저 처리한다.
         // 설정 저장 시 대상 간 키 충돌을 검사한다.
         if kb.tab_switch_modifier == KeybindingSettings::INDIVIDUAL_SWITCH_MODIFIER {
             if matches_binding(kb.tab_next_key(), key, mods) {
-                state.next_tab_in_pane(engine);
+                state.step_visible_tab_in(engine, target, true);
                 return true;
             }
             if matches_binding(kb.tab_prev_key(), key, mods) {
-                state.prev_tab_in_pane(engine);
+                state.step_visible_tab_in(engine, target, false);
                 return true;
             }
             if let Some(index) = find_matching_individual_slot(&kb.tab_switch_slot_keys, key, mods)
             {
-                state.goto_tab_in_pane(engine, index);
+                state.goto_tab_in(engine, target.pane, index);
                 return true;
             }
         }
@@ -103,15 +104,15 @@ impl MainView {
         match switch_target_for(kb, ctrl, shift, alt, option) {
             Some(SwitchTarget::Tab) => {
                 if ch == kb.tab_next_key() {
-                    state.next_tab_in_pane(engine);
+                    state.step_visible_tab_in(engine, target, true);
                     return true;
                 }
                 if ch == kb.tab_prev_key() {
-                    state.prev_tab_in_pane(engine);
+                    state.step_visible_tab_in(engine, target, false);
                     return true;
                 }
                 if let Some(index) = kb.tab_switch_slot_keys.iter().position(|k| k == ch) {
-                    state.goto_tab_in_pane(engine, index);
+                    state.goto_tab_in(engine, target.pane, index);
                     return true;
                 }
             }
