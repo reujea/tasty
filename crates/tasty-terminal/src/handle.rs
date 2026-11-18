@@ -74,6 +74,10 @@ impl Terminal {
         self.lock_state().synchronized_output()
     }
 
+    pub fn synchronized_output_block(&self) -> Option<u64> {
+        self.lock_state().synchronized_output_block()
+    }
+
     pub fn find_fake_cursor_cell(&self) -> Option<(usize, usize)> {
         self.lock_state().find_fake_cursor_cell()
     }

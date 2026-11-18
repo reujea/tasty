@@ -66,6 +66,10 @@ impl Term {
     fn synchronized_output(&self) -> bool {
         self.term.synchronized_output()
     }
+
+    fn synchronized_output_block(&self) -> Option<u64> {
+        self.term.synchronized_output_block()
+    }
 }
 
 #[test]
@@ -280,6 +284,28 @@ fn synchronized_output_applies_immediately() {
     t.feed(b"\x1b[?2026l");
     assert_eq!(t.row(0), "XYc");
     assert!(!t.synchronized_output());
+}
+
+#[test]
+fn synchronized_output_block_changes_when_one_batch_ends_and_begins_a_block() {
+    let mut t = Term::new(80, 24);
+    assert_eq!(t.synchronized_output_block(), None);
+
+    t.feed(b"\x1b[?2026ha");
+    let first = t.synchronized_output_block();
+    assert!(first.is_some());
+    // Setting the mode again inside a block does not start a new block.
+    t.feed(b"\x1b[?2026hb");
+    assert_eq!(t.synchronized_output_block(), first);
+
+    // One batch ends the block and begins the next: the mode reads on before and after.
+    t.feed(b"\x1b[?2026l\x1b[?2026hc");
+    let second = t.synchronized_output_block();
+    assert!(second.is_some());
+    assert_ne!(second, first);
+
+    t.feed(b"\x1b[?2026l");
+    assert_eq!(t.synchronized_output_block(), None);
 }
 
 #[test]

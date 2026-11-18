@@ -235,7 +235,7 @@ Debug 빌드의 opt-in 결함 주입은 `src/gfx/gpu/debug_surface.rs`에 격리
 | 유발원 | `RepaintSource` | 상한 | 좌표 |
 |---|---|---|---|
 | 키·마우스·IME·리사이즈·포커스·구조 변경 | `Interactive` (기본값) | **정상 시 즉시 발화** | `mark_dirty()` 호출 전반 |
-| PTY 출력 | `TerminalOutput` | 주사율까지 coalesce | `src/app/event_handler.rs` `handle_terminal_output` |
+| PTY 출력 | `TerminalOutput` | 주사율까지 coalesce. DEC 2026 블록 안이면 보류([동기화 출력 보류](#동기화-출력-보류)) | `src/app/event_handler.rs` `handle_terminal_output` |
 | egui 내부 delay 0 즉시 repaint | `EguiAnimation` | 주사율까지 coalesce | `AppEvent::EguiRepaint` 핸들러 |
 | egui 지연 repaint(`request_repaint_after`) | `EguiAnimation` | 주사율까지 coalesce | `AppEvent::EguiRepaintAfter` → `Tick::EguiRepaint(창)` 발화 |
 | attach mirror 갱신 | `AttachMirror` | 주사율까지 coalesce | `src/app/attach_poll.rs`, `src/app/attach_client.rs` |
@@ -252,9 +252,19 @@ egui 지연 repaint 는 repaint 콜백(`src/gfx/gpu.rs`)이 창마다 하나의 
 
 ### 미뤄진 요청은 반드시 되살아난다
 
-게이트는 `request_redraw()` 를 미룰 뿐 `dirty` 를 지우거나 요청을 버리지 않는다. 미뤄진 요청의 만기 시각은 `about_to_wait`(`drive_deferred_repaints`)이 `ControlFlow::WaitUntil` 로 재예약하며, 만기 tick 에서 `request_redraw()` 를 발화한다. 이 재예약이 유일한 복구 경로다 — 빠뜨리면 아무 이벤트도 오지 않는 순간에 그 프레임이 영영 오지 않는다.
+게이트는 `request_redraw()` 를 미룰 뿐 `dirty` 를 지우거나 요청을 버리지 않는다. 미뤄진 요청의 만기 시각은 `about_to_wait`(`drive_deferred_repaints`)이 `ControlFlow::WaitUntil` 로 재예약하며, 만기 tick 에서 `request_redraw()` 를 발화한다. 이 재예약이 유일한 복구 경로다 — 빠뜨리면 아무 이벤트도 오지 않는 순간에 그 프레임이 영영 오지 않는다. 예외는 [동기화 출력 보류](#동기화-출력-보류) 중인 surface의 출력만 미룬 요청이다. 그 요청은 블록 종료나 보류 마감이 다시 내므로 만기 때 건너뛴다.
 
 `dirty` 를 **억제하지 않는** 것은 계약이다. `render_if_dirty` 의 doc 주석이 명시하듯 attach 서버의 원격 mirror 중계가 `dirty` 프레임에 종속돼 있어, 프레임을 없애면 원격 사용자 화면이 갱신되지 않는다. 상한은 요청 간격만 주사율에 맞추고 프레임 자체는 계속 흐르게 한다.
+
+### 동기화 출력 보류
+
+DEC 2026 동기화 출력(`CSI ? 2026 h` … `CSI ? 2026 l`) 블록 안에서 처리한 보이는 surface 출력은 redraw를 요청하지 않는다(`src/view/sync_hold.rs`, `ViewBase::mark_surface_output`). PTY 읽기가 블록 중간에서 끊겨도 그 출력이 반쯤 갱신된 화면으로 프레임을 열지 않게 하기 위해서다. 판정은 출력 처리를 마친 뒤 그 surface의 `Terminal::synchronized_output()`을 읽어 한다.
+
+- **dirty는 세운다.** 보류는 그 surface 출력이 내는 요청만 막는다. 사용자 입력(`Interactive`)·다른 surface 출력·egui·attach mirror가 연 프레임은 그대로 그리고, mirror 중계도 그 프레임에서 계속된다.
+- **블록 종료**: 블록이 끝난 상태의 출력(`2026 l`을 포함한 출력)이 오면 보류를 풀고 평소처럼 `TerminalOutput`으로 요청한다.
+- **안전 상한**: 블록에 들어간 첫 출력부터 `SYNC_HOLD_LIMIT`(150ms)이 지나면 출력이 더 오지 않아도 그 시점 grid를 그린다. 마감은 `RepaintGate`의 지연 슬롯과 따로 두고 `drive_deferred_repaints`가 WaitUntil에 합친다. 지연 슬롯은 아무 present에서나 비워지므로 같은 슬롯에 두면 다른 프레임 하나로 마감 깨움이 사라진다. 마감으로 그린 surface는 블록이 끝날 때까지 다시 보류하지 않는다. 블록 중에 멈춘 앱의 출력은 평소처럼 그린다.
+- **미룬 요청의 소유**: 게이트가 미룬 요청이 모두 지금 보류 중인 surface의 출력이면, 만기돼도 그리지 않는다. 블록 시작 직전 출력이 미룬 요청이 블록 중간에 만기되어 중간 상태를 그리는 것을 막는다. 다른 원인이 하나라도 섞였으면 그린다. 그 surface는 블록 종료나 마감에서 다시 요청한다.
+- **한계**: 렌더러는 grid를 직접 읽으므로, 다른 원인이 연 프레임에서는 동기화 중인 surface의 블록 중간 상태가 보일 수 있다. 블록 동안 직전에 그린 상태를 유지하려면 surface 단위로 그린 결과를 보존해야 한다. 전역 출력 처리(surface를 지정하지 않은 깨움)와 attach mirror 출력(`AttachMirror`)은 보류하지 않는다.
 
 ### 왜 present 층이 아니라 요청 층인가
 

@@ -187,6 +187,9 @@ impl TerminalState {
                 self.focus_tracking = enable;
             }
             DecPrivateModeCode::SynchronizedOutput => {
+                if enable && !self.synchronized_output {
+                    self.synchronized_output_block += 1;
+                }
                 self.synchronized_output = enable;
             }
             DecPrivateModeCode::ReverseVideo => {
@@ -282,6 +285,13 @@ impl TerminalState {
     /// Whether synchronized output mode (DEC 2026) is active.
     pub fn synchronized_output(&self) -> bool {
         self.synchronized_output
+    }
+
+    /// The current synchronized output block, or `None` outside a block. Each block entered
+    /// gets a new value, so two reads in different blocks never match.
+    pub fn synchronized_output_block(&self) -> Option<u64> {
+        self.synchronized_output
+            .then_some(self.synchronized_output_block)
     }
 
     /// Whether reverse-screen mode (DECSCNM, DEC private mode 5) is active. The

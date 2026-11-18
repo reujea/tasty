@@ -183,6 +183,11 @@ pub(crate) struct TerminalState {
     /// Note: changes are always applied immediately regardless of this flag.
     /// See apply_or_stage_change() for rationale.
     pub(crate) synchronized_output: bool,
+    /// Count of synchronized output blocks entered (off to on transitions of mode 2026).
+    /// A consumer that only sees the mode after a batch of output compares this value to
+    /// tell a new block from the one it saw before, even when one batch ended a block and
+    /// began the next.
+    pub(crate) synchronized_output_block: u64,
     /// Scrollback buffer (memory + optional disk).
     scrollback: scrollback::Scrollback,
     /// CWD cached from OSC 7 (CurrentWorkingDirectory) sequences emitted by the shell.
@@ -423,6 +428,7 @@ impl TerminalState {
             insert_mode: false,
             scroll_region: None,
             synchronized_output: false,
+            synchronized_output_block: 0,
             scrollback: scrollback::Scrollback::new(),
             cached_cwd: None,
             saved_line_tails: Vec::new(),

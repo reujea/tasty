@@ -904,9 +904,11 @@ impl App {
                     if !outcome.events.is_empty() {
                         pending.push((DispatchSource::Engine(id), outcome.events));
                     }
-                    // 출력 처리는 끝냈다. 보이지 않는 surface는 전환할 때 새로 그리므로 지금 redraw하지 않는다.
+                    // 보이지 않는 surface는 전환할 때 새로 그린다. DEC 2026 블록 안이면 요청을 보류한다.
                     if main.is_surface_visible(&engine.read(), sid) {
-                        main.mark_dirty_from(RepaintSource::TerminalOutput);
+                        let terminal = engine.find_terminal_by_id(sid);
+                        let block = terminal.and_then(|t| t.synchronized_output_block());
+                        main.base.mark_block_output(sid, block);
                     }
                     found = true;
                     break;
@@ -2095,16 +2097,11 @@ impl App {
     /// 다른 이벤트가 오지 않아도 요청한 화면을 다시 그릴 수 있게 한다.
     fn drive_deferred_repaints(&mut self, event_loop: &ActiveEventLoop) {
         let now = std::time::Instant::now();
-        let mut earliest: Option<std::time::Instant> = None;
-        for w in self.view.views.values_mut() {
-            let base = w.base_mut();
-            if base.state.repaint.take_due(now) {
-                base.winit.request_redraw();
-            } else if let Some(at) = base.state.repaint.deferred_deadline() {
-                earliest = Some(earliest.map_or(at, |cur: std::time::Instant| cur.min(at)));
-            }
+        for (_, main, engine) in engines_mut!(self).window_entries() {
+            main.forget_hidden_sync_holds(&engine.read());
         }
-        if let Some(at) = earliest {
+        let views = self.view.views.values_mut();
+        if let Some(at) = views.filter_map(|w| w.base_mut().drive_deferred(now)).min() {
             event_loop.set_control_flow(merge_wakeup(event_loop.control_flow(), at));
         }
     }

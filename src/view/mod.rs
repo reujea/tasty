@@ -12,6 +12,7 @@ pub(crate) mod quit;
 pub(crate) mod repaint;
 pub(crate) mod settings;
 pub(crate) mod state;
+pub(crate) mod sync_hold;
 pub(crate) mod ui;
 
 pub(crate) use base::ViewBase;
