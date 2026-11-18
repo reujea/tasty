@@ -281,6 +281,7 @@ pub fn draw_full_sidebar(
                         kind: None,
                         params: serde_json::Value::Null,
                         category: None,
+                        cwd_source: state.focused_surface_id(engine),
                     }
                     .from_user_menu("sidebar_add_workspace"),
                 );

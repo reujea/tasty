@@ -568,7 +568,8 @@ fn a_held_convert_runs_while_another_draft_is_selected() {
         &convert.body,
         &convert.origin,
     )
-    .expect("a convert of the created surface is not refused");
+    .expect("a convert of the created surface is not refused")
+    .domain();
     assert!(matches!(
         resolved,
         Some(crate::app::command::DomainIntent::ConvertSurface { surface_id, .. }) if surface_id == anchor

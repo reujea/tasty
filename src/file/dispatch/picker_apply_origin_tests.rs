@@ -231,7 +231,7 @@ fn no_origin_queues_the_user_new_tab_request() {
     assert_eq!(pending.len(), 1);
     assert!(pending[0].origin.is_user());
     assert!(
-        matches!(&pending[0].body, crate::intent::Intent::NewTab { kind: Some(kind), params }
+        matches!(&pending[0].body, crate::intent::Intent::NewTab { kind: Some(kind), params, .. }
         if kind == "empty" && *params == serde_json::json!({}))
     );
 }

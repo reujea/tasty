@@ -30,7 +30,7 @@ fn label(intent: &DispatchedIntent) -> String {
             format!("PushNotification:{source}")
         }
         Intent::Domain(DomainIntent::SetTerminalMark { .. }) => "SetTerminalMark".into(),
-        Intent::RestoreClosedItem => "RestoreClosedItem".into(),
+        Intent::RestoreClosedItem { .. } => "RestoreClosedItem".into(),
         other => format!("{:?}", std::mem::discriminant(other)),
     }
 }
@@ -46,7 +46,7 @@ fn handler_intents_append_after_the_queue_in_request_order() {
     let (mut state, mut engine_session) = crate::state::tests::test_state();
     let mut engine = engine_session.borrow_mut();
     let sid = state.focused_surface_id(&engine).expect("focused surface");
-    state.dispatch_intent(Intent::RestoreClosedItem.from_user_shortcut("sentinel"));
+    state.dispatch_intent(Intent::RestoreClosedItem { pane: None }.from_user_shortcut("sentinel"));
 
     for req in [
         request(
@@ -137,7 +137,7 @@ fn a_rejected_request_leaves_the_queue_untouched() {
     let mut core = super::cli_entry_tests::test_core();
     let (mut state, mut engine_session) = crate::state::tests::test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dispatch_intent(Intent::RestoreClosedItem.from_user_shortcut("sentinel"));
+    state.dispatch_intent(Intent::RestoreClosedItem { pane: None }.from_user_shortcut("sentinel"));
 
     let resp = super::handle_with_caller(
         &mut core,

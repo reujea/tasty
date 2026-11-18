@@ -651,9 +651,17 @@ pub(crate) fn open_surface_tab(
         }
         None => {
             // 위임한 핸들러도 사용자·에이전트를 구분하므로 origin을 보존한다.
+            // 결과 탭을 열 pane 이 정해지지 않은 요청은 지금 포커스 pane 에 연다.
+            let read = engine.read();
+            let target = crate::intent::StructureTarget {
+                pane: state.focused_pane(&read).map(|pane| pane.id),
+                cwd_source: state.focused_surface_id(&read),
+            };
+            drop(read);
             let intent = crate::intent::Intent::NewTab {
                 kind: Some(surface_kind.to_string()),
                 params,
+                target,
             };
             state.dispatch_intent(
                 match dispatch_origin {

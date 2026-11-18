@@ -73,13 +73,18 @@ pub fn apply_tab_bar_actions(
                     .from_user_menu("tab.create"),
                 );
             }
-            TabBarAction::RequestSplit { pane_id: _ } => {
-                use crate::intent::Intent;
-                use crate::model::SplitDirection;
+            TabBarAction::RequestSplit { pane_id } => {
+                // 누른 버튼의 pane 을 나눈다. cwd 원본은 그때 그 pane 에서 선택된 surface 다.
+                let selected = engine
+                    .find_pane_by_id(pane_id)
+                    .and_then(|pane| pane.tabs.get(state.navigation.tab_index(pane)))
+                    .and_then(|tab| state.navigation.surface_id(tab));
                 state.dispatch_intent(
-                    Intent::SplitPane {
-                        direction: SplitDirection::Vertical,
-                    }
+                    crate::shortcuts::structure::split_pane_at(
+                        pane_id,
+                        selected,
+                        crate::model::SplitDirection::Vertical,
+                    )
                     .from_user_shortcut("split_pane_vertical"),
                 );
             }

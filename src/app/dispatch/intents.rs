@@ -147,7 +147,7 @@ impl App {
                 | Intent::CommitDivider(_)
                 | Intent::ApplyPreset { .. }
                 | Intent::CapturePreset { .. }
-                | Intent::RestoreClosedItem
+                | Intent::RestoreClosedItem { .. }
                 | Intent::NewWorkspace { .. }
                 | Intent::PrepareTutorial { .. }
                 | Intent::NewTab { .. }
@@ -302,7 +302,7 @@ impl App {
             | Intent::PrepareTutorial { .. } => {
                 Self::report_intent_dispatch_error("structural intent bypassed journal admission")
             }
-            Intent::RestoreClosedItem => {
+            Intent::RestoreClosedItem { .. } => {
                 Self::report_intent_dispatch_error("undo intent bypassed journal admission");
             }
             Intent::CapturePreset { .. }

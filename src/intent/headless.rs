@@ -50,8 +50,11 @@ pub(crate) fn drain_pending_intents_in_app(
                 &dispatched.body,
                 &dispatched.origin,
             ) {
-                Ok(Some(intent)) => dispatched.body = Intent::Domain(intent),
-                Ok(None) => {}
+                Ok(crate::app::creation_intent::Resolved::Domain(intent)) => {
+                    dispatched.body = Intent::Domain(*intent)
+                }
+                Ok(crate::app::creation_intent::Resolved::Dropped) => continue,
+                Ok(crate::app::creation_intent::Resolved::Unchanged) => {}
                 Err(error) => {
                     super::report_apply_error(
                         None,
@@ -203,7 +206,7 @@ fn route_non_domain(
         | Intent::NewWorkspace { .. } => {
             reject_non_domain("structural intent bypassed journal admission")
         }
-        Intent::RestoreClosedItem => {
+        Intent::RestoreClosedItem { .. } => {
             reject_non_domain("undo intent bypassed journal admission");
         }
         Intent::DirectRename(_) => {

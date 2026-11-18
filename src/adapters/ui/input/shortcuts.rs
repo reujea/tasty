@@ -10,6 +10,9 @@ pub(crate) mod modifier_hint;
 mod numeric;
 #[cfg(test)]
 mod refresh_tests;
+pub(crate) mod structure;
+#[cfg(test)]
+mod structure_tests;
 pub(crate) mod surface_actions;
 mod surface_view_actions;
 #[cfg(test)]
@@ -77,6 +80,7 @@ pub(crate) fn new_workspace_action(
             kind: None,
             params: serde_json::Value::Null,
             category,
+            cwd_source: target.cwd_source(),
         }
         .from_user_shortcut("new_workspace"),
     );

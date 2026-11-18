@@ -45,7 +45,7 @@ impl MainView {
         if Self::match_create_bindings(state, engine, t, kb, key, mods) {
             return true;
         }
-        if Self::match_split_bindings(state, engine, kb, key, mods, terminal_rect, cells) {
+        if Self::match_split_bindings(state, engine, t, kb, key, mods, terminal_rect, cells) {
             return true;
         }
         if Self::match_panel_bindings(state, engine, t, kb, key, mods, proxy) {
@@ -63,6 +63,7 @@ impl MainView {
         if Self::match_restore_quit_bindings(
             state,
             engine,
+            t,
             kb,
             key,
             mods,
@@ -135,6 +136,7 @@ impl MainView {
                     kind: None,
                     params: serde_json::Value::Null,
                     category,
+                    cwd_source: t.cwd_source(),
                 }
                 .from_user_shortcut("new_workspace"),
             );
@@ -163,9 +165,11 @@ impl MainView {
         false
     }
 
+    #[allow(clippy::too_many_arguments)] // reason: keybinding dispatch context
     fn match_split_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -173,12 +177,9 @@ impl MainView {
         cells: CellGeometry,
     ) -> bool {
         if matches_any_binding(&kb.split_pane_vertical, key, mods) {
-            state.dispatch_intent(
-                Intent::SplitPane {
-                    direction: SplitDirection::Vertical,
-                }
-                .from_user_shortcut("split_pane_vertical"),
-            );
+            if let Some(intent) = super::structure::split_pane(t, SplitDirection::Vertical) {
+                state.dispatch_intent(intent.from_user_shortcut("split_pane_vertical"));
+            }
             state.resize_all(
                 engine,
                 terminal_rect,
@@ -189,12 +190,9 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.split_pane_horizontal, key, mods) {
-            state.dispatch_intent(
-                Intent::SplitPane {
-                    direction: SplitDirection::Horizontal,
-                }
-                .from_user_shortcut("split_pane_horizontal"),
-            );
+            if let Some(intent) = super::structure::split_pane(t, SplitDirection::Horizontal) {
+                state.dispatch_intent(intent.from_user_shortcut("split_pane_horizontal"));
+            }
             state.resize_all(
                 engine,
                 terminal_rect,
@@ -205,12 +203,9 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.split_surface_vertical, key, mods) {
-            state.dispatch_intent(
-                Intent::SplitSurface {
-                    direction: SplitDirection::Vertical,
-                }
-                .from_user_shortcut("split_surface_vertical"),
-            );
+            if let Some(intent) = super::structure::split_surface(t, SplitDirection::Vertical) {
+                state.dispatch_intent(intent.from_user_shortcut("split_surface_vertical"));
+            }
             state.resize_all(
                 engine,
                 terminal_rect,
@@ -221,12 +216,9 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.split_surface_horizontal, key, mods) {
-            state.dispatch_intent(
-                Intent::SplitSurface {
-                    direction: SplitDirection::Horizontal,
-                }
-                .from_user_shortcut("split_surface_horizontal"),
-            );
+            if let Some(intent) = super::structure::split_surface(t, SplitDirection::Horizontal) {
+                state.dispatch_intent(intent.from_user_shortcut("split_surface_horizontal"));
+            }
             state.resize_all(
                 engine,
                 terminal_rect,
@@ -391,6 +383,7 @@ impl MainView {
     fn match_restore_quit_bindings(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
+        t: &CommandTarget,
         kb: &crate::settings::KeybindingSettings,
         key: &Key,
         mods: ModifiersState,
@@ -400,7 +393,7 @@ impl MainView {
     ) -> bool {
         if matches_any_binding(&kb.restore_closed, key, mods) {
             state.dispatch_intent(
-                crate::intent::Intent::RestoreClosedItem.from_user_shortcut("restore_closed"),
+                super::structure::restore_closed(t).from_user_shortcut("restore_closed"),
             );
             state.resize_all(
                 engine,
@@ -439,7 +432,7 @@ impl MainView {
             return true;
         }
         if matches_any_binding(&kb.open_explorer, key, mods) {
-            Self::open_explorer_tab(state);
+            Self::open_explorer_tab(state, t);
             return true;
         }
         if matches_any_binding(&kb.convert_surface, key, mods) {
@@ -832,14 +825,12 @@ impl MainView {
 
     /// 탐색기는 파일 선택 팝업 없이 새 탭을 연다. 경로가 없으면 홈을 사용한다.
     /// 사용자 단축키는 새 탭을 선택하며 에이전트의 탭 생성과 구별한다(docs/design/policies/focus.md).
-    pub(crate) fn open_explorer_tab(state: &mut crate::state::MainViewState) {
-        state.dispatch_intent(
-            crate::intent::Intent::NewTab {
-                kind: Some("explorer".to_string()),
-                params: serde_json::json!({}),
-            }
-            .from_user_shortcut("open_explorer"),
-        );
+    pub(crate) fn open_explorer_tab(state: &mut crate::state::MainViewState, t: &CommandTarget) {
+        if let Some(intent) =
+            super::structure::new_tab(t, Some("explorer".to_string()), serde_json::json!({}))
+        {
+            state.dispatch_intent(intent.from_user_shortcut("open_explorer"));
+        }
     }
 
     /// 명령 대상 workspace에 연결한다. 다른 workspace로 가면 숨고 돌아오면 다시 보인다.

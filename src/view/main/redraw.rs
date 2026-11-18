@@ -1141,6 +1141,7 @@ impl MainView {
                             kind: None,
                             params: serde_json::Value::Null,
                             category: Some(cat_id),
+                            cwd_source: this.state.focused_surface_id(engine),
                         }
                         .from_user_menu("category_header/add_workspace"),
                     );

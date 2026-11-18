@@ -35,6 +35,23 @@ impl CommandTarget {
         }
     }
 
+    /// pane 단위 구조 명령의 cwd 상속 원본. 입력 때 대상 pane 에서 골라져 있던 실제 surface 이고, 초안이
+    /// 대상이면 초안 뒤 탭에서 골라져 있던 surface 다.
+    pub(crate) fn cwd_source(&self) -> Option<u32> {
+        match self.draft {
+            Some(_) => self.draft_base_surface,
+            None => self.surface_id(),
+        }
+    }
+
+    /// pane 단위 구조 명령(분할·새 탭)의 입력 시점 대상.
+    pub(crate) fn structure_target(&self) -> crate::intent::StructureTarget {
+        crate::intent::StructureTarget {
+            pane: self.pane,
+            cwd_source: self.cwd_source(),
+        }
+    }
+
     pub(crate) fn workspace_index(&self, engine: &CoreState) -> Option<usize> {
         let id = self.workspace?;
         engine.workspaces().into_iter().position(|ws| ws.id == id)

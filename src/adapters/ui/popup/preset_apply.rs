@@ -729,7 +729,8 @@ mod tests {
                 &dispatched.body,
                 &dispatched.origin,
             )
-            .unwrap();
+            .unwrap()
+            .domain();
             match resolved {
                 Some(crate::app::command::DomainIntent::ApplyPreset { target_pane_id, .. }) => {
                     assert_eq!(target_pane_id, Some(10), "{kind:?}")

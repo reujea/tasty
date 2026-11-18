@@ -194,8 +194,9 @@ pub fn draw_tutorial_overlay(
     match click.action {
         callout::CalloutClick::Next if prepare => {
             let ticket = state.tutorial.begin_preparation();
+            let cwd_source = state.focused_surface_id(engine);
             state.dispatch_intent(
-                crate::intent::Intent::PrepareTutorial { ticket }
+                crate::intent::Intent::PrepareTutorial { ticket, cwd_source }
                     .from_user_menu("tutorial.prepare"),
             );
         }

@@ -113,15 +113,9 @@ const ROSTER: &[(&str, Kind, usize, &str)] = &[
     ),
     (
         "src/app/creation_intent.rs",
-        UserOrigin,
-        1,
-        "origin.is_user() 안에서 선택된 attach 임시 영역의 불가능한 조작만 거절한다. 에이전트 대상을 현재 선택으로 바꾸지 않는다",
-    ),
-    (
-        "src/app/creation_intent.rs",
         CompatibilityDefault,
-        5,
-        "기존 target 없는 View intent의 preset 또는 생성 입력을 현재 명령 문맥의 ID로 고정한다. 외부 구조 IPC는 별도 journal resolver를 거친다",
+        1,
+        "target pane 없는 preset 적용 intent만 현재 명령 문맥의 pane으로 채운다. 분할·새 탭·복원·새 workspace는 입력 때 대상을 싣고, 외부 구조 IPC는 별도 journal resolver를 거친다",
     ),
     (
         "src/adapters/ipc/handler.rs",

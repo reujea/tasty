@@ -87,7 +87,7 @@ impl App {
                 .map_err(anyhow::Error::msg);
         }
         let tutorial_preparation = match &dispatched.body {
-            Intent::PrepareTutorial { ticket } => Some(ticket.clone()),
+            Intent::PrepareTutorial { ticket, .. } => Some(ticket.clone()),
             _ => None,
         };
         if let Some(ticket) = tutorial_preparation.as_ref()
@@ -102,15 +102,19 @@ impl App {
             Intent::NewTabWithFollowup { followup, .. } => Some(followup.clone()),
             _ => None,
         };
-        if let Some(context) = self.engines_mut().resolve(source.engine())
-            && let Some(intent) = crate::app::creation_intent::resolve(
+        if let Some(context) = self.engines_mut().resolve(source.engine()) {
+            match crate::app::creation_intent::resolve(
                 context.state,
                 &context.engine.as_ref(),
                 &dispatched.body,
                 &dispatched.origin,
-            )?
-        {
-            dispatched.body = Intent::Domain(intent);
+            )? {
+                crate::app::creation_intent::Resolved::Domain(intent) => {
+                    dispatched.body = Intent::Domain(*intent);
+                }
+                crate::app::creation_intent::Resolved::Dropped => return Ok(()),
+                crate::app::creation_intent::Resolved::Unchanged => {}
+            }
         }
         if let Intent::CommitDivider(commit) = &dispatched.body {
             let id = source.engine();

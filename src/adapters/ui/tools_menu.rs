@@ -388,10 +388,16 @@ pub(crate) fn invoke_tool_on(
             state.pending_tool_events.push((event_key.clone(), payload));
         }
         ToolAction::OpenSurface { surface_kind } => {
+            // 입력 때 정한 대상 surface 가 있는 pane 에 연다. cwd 원본도 그 surface 다.
+            let pane = surface.and_then(|sid| engine.find_pane_for_surface(sid));
             state.dispatch_intent(
                 crate::intent::Intent::NewTab {
                     kind: Some(surface_kind.clone()),
                     params: serde_json::Value::Null,
+                    target: crate::intent::StructureTarget {
+                        pane,
+                        cwd_source: surface,
+                    },
                 }
                 .from_user_menu("tools_menu/open_surface"),
             );

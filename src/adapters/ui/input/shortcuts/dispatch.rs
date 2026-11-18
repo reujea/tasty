@@ -3,7 +3,7 @@
 use crate::runtime::engine_read::EngineRead;
 use winit::keyboard::{Key, ModifiersState};
 
-use crate::intent::{Intent, UiIntent};
+use crate::intent::UiIntent;
 use crate::view::main::MainView;
 
 use super::copy_paste::ExplorerAction;
@@ -108,39 +108,34 @@ impl MainView {
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_pane_vertical" => {
-                state.dispatch_intent(
-                    Intent::SplitPane {
-                        direction: SplitDirection::Vertical,
-                    }
-                    .from_user_shortcut("split_pane_vertical"),
-                );
+                if let Some(intent) = super::structure::split_pane(target, SplitDirection::Vertical)
+                {
+                    state.dispatch_intent(intent.from_user_shortcut("split_pane_vertical"));
+                }
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_pane_horizontal" => {
-                state.dispatch_intent(
-                    Intent::SplitPane {
-                        direction: SplitDirection::Horizontal,
-                    }
-                    .from_user_shortcut("split_pane_horizontal"),
-                );
+                if let Some(intent) =
+                    super::structure::split_pane(target, SplitDirection::Horizontal)
+                {
+                    state.dispatch_intent(intent.from_user_shortcut("split_pane_horizontal"));
+                }
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_vertical" => {
-                state.dispatch_intent(
-                    Intent::SplitSurface {
-                        direction: SplitDirection::Vertical,
-                    }
-                    .from_user_shortcut("split_surface_vertical"),
-                );
+                if let Some(intent) =
+                    super::structure::split_surface(target, SplitDirection::Vertical)
+                {
+                    state.dispatch_intent(intent.from_user_shortcut("split_surface_vertical"));
+                }
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_horizontal" => {
-                state.dispatch_intent(
-                    Intent::SplitSurface {
-                        direction: SplitDirection::Horizontal,
-                    }
-                    .from_user_shortcut("split_surface_horizontal"),
-                );
+                if let Some(intent) =
+                    super::structure::split_surface(target, SplitDirection::Horizontal)
+                {
+                    state.dispatch_intent(intent.from_user_shortcut("split_surface_horizontal"));
+                }
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "toggle_settings" => {
@@ -221,7 +216,7 @@ impl MainView {
             "prev_tab" => state.step_visible_tab_in(engine, target, false),
             "restore_closed" => {
                 state.dispatch_intent(
-                    crate::intent::Intent::RestoreClosedItem.from_user_shortcut("restore_closed"),
+                    super::structure::restore_closed(target).from_user_shortcut("restore_closed"),
                 );
                 state.resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
@@ -242,7 +237,7 @@ impl MainView {
             "open_markdown" => {
                 state.enqueue_convert_input_popup(&engine.as_ref(), "markdown", None);
             }
-            "open_explorer" => Self::open_explorer_tab(state),
+            "open_explorer" => Self::open_explorer_tab(state, target),
             "convert_surface" => {
                 if let Some(sid) = target.surface_id() {
                     surface_actions::open_convert_popup(state, sid, "convert_surface");

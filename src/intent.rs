@@ -167,7 +167,7 @@ pub enum Intent {
         presentation: crate::model::StructurePresentationSnapshot,
     },
 
-    /// 포커스된 surface를 분할한다. 사용자 단축키용이며 IPC는 ID를 지정한다.
+    /// 사용자 입력이 정한 surface를 분할한다. 대상은 입력 시점에 정하고, 해석할 때 포커스를 다시 읽지 않는다.
     #[cfg_attr(
         not(feature = "gui"),
         expect(
@@ -175,7 +175,11 @@ pub enum Intent {
             reason = "View input constructs this intent; the shared adapter resolves it while headless IPC uses journal requests"
         )
     )]
-    SplitSurface { direction: SplitDirection },
+    SplitSurface {
+        direction: SplitDirection,
+        /// 분할할 surface. 없으면 대상이 없던 입력이라 실행하지 않는다. cwd 상속 원본도 이 surface다.
+        surface: Option<u32>,
+    },
     /// Terminal은 호스트 내장 종류이며 나머지는 등록된 kind를 사용한다.
     #[cfg_attr(
         not(feature = "gui"),
@@ -189,7 +193,7 @@ pub enum Intent {
         target: ConvertTarget,
     },
 
-    /// 포커스된 pane에 탭을 추가한다. kind가 None이면 terminal을 사용한다.
+    /// 사용자 입력이 정한 pane에 탭을 추가한다. kind가 None이면 terminal을 사용한다.
     #[cfg_attr(
         not(feature = "gui"),
         expect(
@@ -200,6 +204,8 @@ pub enum Intent {
     NewTab {
         kind: Option<String>,
         params: serde_json::Value,
+        /// 탭을 추가할 pane과 cwd 상속 원본.
+        target: StructureTarget,
     },
 
     /// Explicit pane selected by a native menu; completion belongs to the originating View.
@@ -209,7 +215,7 @@ pub enum Intent {
         followup: CreateFollowup,
     },
 
-    /// 포커스된 pane을 분할하는 사용자 단축키 명령.
+    /// 사용자 입력이 정한 pane을 분할한다.
     #[cfg_attr(
         not(feature = "gui"),
         expect(
@@ -217,11 +223,19 @@ pub enum Intent {
             reason = "View input constructs this intent; the shared adapter resolves it while headless IPC uses journal requests"
         )
     )]
-    SplitPane { direction: SplitDirection },
+    SplitPane {
+        direction: SplitDirection,
+        /// 분할할 pane과 cwd 상속 원본.
+        target: StructureTarget,
+    },
 
     /// Practice setup completion belongs to this original tutorial attempt.
     #[cfg(feature = "gui")]
-    PrepareTutorial { ticket: std::sync::Weak<()> },
+    PrepareTutorial {
+        ticket: std::sync::Weak<()>,
+        /// 연습 workspace의 cwd 상속 원본. 입력 때 선택된 surface다.
+        cwd_source: Option<u32>,
+    },
 
     /// kind가 None이면 terminal을 사용한다. 사용자 요청일 때만 새 워크스페이스를 활성화한다.
     #[cfg_attr(
@@ -236,9 +250,11 @@ pub enum Intent {
         params: serde_json::Value,
         /// 새 워크스페이스의 소속 카테고리. None이면 normal이다.
         category: Option<crate::model::WorkspaceCategoryId>,
+        /// terminal workspace의 cwd 상속 원본. 입력 때 선택된 surface다.
+        cwd_source: Option<u32>,
     },
 
-    /// 최근 닫은 항목을 포커스된 pane에 복원한다. 필요한 워크스페이스는 먼저 만든다.
+    /// 최근 닫은 항목을 사용자 입력이 정한 pane에 복원한다. 필요한 워크스페이스는 먼저 만든다.
     #[cfg_attr(
         all(not(feature = "gui"), not(test)),
         expect(
@@ -246,7 +262,10 @@ pub enum Intent {
             reason = "View input constructs this intent; the shared adapter resolves it while headless IPC uses journal requests"
         )
     )]
-    RestoreClosedItem,
+    RestoreClosedItem {
+        /// 복원 위치 pane. 없으면 대상 pane이 없던 입력이다(workspace가 하나도 없을 때).
+        pane: Option<u32>,
+    },
 
     /// 사용자가 이름 변경 팝업에 직접 입력한 이름. 적용 뒤 user_direct host 이벤트를 낸다.
     #[cfg_attr(
@@ -410,6 +429,16 @@ impl crate::app::command::DomainIntent {
     pub(crate) fn cascaded_from(self, parent: &DispatchedIntent) -> DispatchedIntent {
         Intent::Domain(self).cascaded_from(parent)
     }
+}
+
+/// 사용자 입력이 pane 단위 구조 명령(분할·새 탭)에 정한 대상. 입력 시점에 정하고 해석할 때 포커스를
+/// 다시 읽지 않는다. 대상 pane이 해석 전에 사라졌으면 다른 pane으로 넘기지 않고 실행하지 않는다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StructureTarget {
+    /// 명령을 적용할 pane. 없으면 대상이 없던 입력이다.
+    pub pane: Option<u32>,
+    /// cwd 상속 원본. 입력 때 그 pane에서 선택돼 있던 surface이고, cwd는 해석할 때 이 surface에서 읽는다.
+    pub cwd_source: Option<u32>,
 }
 
 /// Surface 변환 대상. Terminal 외에는 surface_registry에 등록된 kind를 사용한다.
@@ -643,15 +672,15 @@ mod tests {
     #[test]
     fn dispatch_intent_pushes_to_queue() {
         let mut state = make_state();
-        state.dispatch_intent(Intent::RestoreClosedItem.from_user_shortcut("test"));
+        state.dispatch_intent(Intent::RestoreClosedItem { pane: None }.from_user_shortcut("test"));
         assert_eq!(state.pending_intents.len(), 1);
     }
 
     #[test]
     fn take_pending_intents_clears_queue() {
         let mut state = make_state();
-        state.dispatch_intent(Intent::RestoreClosedItem.from_user_shortcut("a"));
-        state.dispatch_intent(Intent::RestoreClosedItem.from_user_shortcut("b"));
+        state.dispatch_intent(Intent::RestoreClosedItem { pane: None }.from_user_shortcut("a"));
+        state.dispatch_intent(Intent::RestoreClosedItem { pane: None }.from_user_shortcut("b"));
         let drained = state.take_pending_intents();
         assert_eq!(drained.len(), 2);
         assert!(state.pending_intents.is_empty());
@@ -659,8 +688,8 @@ mod tests {
 
     #[test]
     fn origin_is_user_is_agent() {
-        let user = Intent::RestoreClosedItem.from_user_shortcut("x");
-        let agent = Intent::RestoreClosedItem.from_agent_ipc();
+        let user = Intent::RestoreClosedItem { pane: None }.from_user_shortcut("x");
+        let agent = Intent::RestoreClosedItem { pane: None }.from_agent_ipc();
         assert!(user.origin.is_user());
         assert!(!user.origin.is_agent());
         assert!(agent.origin.is_agent());
@@ -669,10 +698,10 @@ mod tests {
 
     #[test]
     fn cascade_preserves_origin_and_trace_id() {
-        let parent = Intent::RestoreClosedItem
+        let parent = Intent::RestoreClosedItem { pane: None }
             .from_user_shortcut("approve")
             .with_trace_id("t1");
-        let child = Intent::RestoreClosedItem.cascaded_from(&parent);
+        let child = Intent::RestoreClosedItem { pane: None }.cascaded_from(&parent);
         assert!(matches!(
             child.origin,
             IntentOrigin::User {

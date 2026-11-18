@@ -184,6 +184,7 @@ pub fn draw_rail_category_popup(
                 kind: None,
                 params: serde_json::Value::Null,
                 category: Some(cat_id),
+                cwd_source: state.focused_surface_id(engine),
             }
             .from_user_menu("rail_category/add_workspace"),
         );

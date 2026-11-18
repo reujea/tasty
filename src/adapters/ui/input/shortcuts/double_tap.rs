@@ -87,11 +87,13 @@ impl MainView {
         match action {
             "new_workspace" => {
                 let category = focused_workspace_category(&self.state, engine);
+                let cwd_source = self.state.command_target(engine).cwd_source();
                 self.state.dispatch_intent(
                     Intent::NewWorkspace {
                         kind: None,
                         params: serde_json::Value::Null,
                         category,
+                        cwd_source,
                     }
                     .from_user_shortcut("new_workspace"),
                 );
@@ -125,42 +127,46 @@ impl MainView {
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "split_pane_vertical" => {
-                self.state.dispatch_intent(
-                    Intent::SplitPane {
-                        direction: SplitDirection::Vertical,
-                    }
-                    .from_user_shortcut("split_pane_vertical"),
-                );
+                let target = self.state.command_target(engine);
+                if let Some(intent) =
+                    super::structure::split_pane(&target, SplitDirection::Vertical)
+                {
+                    self.state
+                        .dispatch_intent(intent.from_user_shortcut("split_pane_vertical"));
+                }
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_pane_horizontal" => {
-                self.state.dispatch_intent(
-                    Intent::SplitPane {
-                        direction: SplitDirection::Horizontal,
-                    }
-                    .from_user_shortcut("split_pane_horizontal"),
-                );
+                let target = self.state.command_target(engine);
+                if let Some(intent) =
+                    super::structure::split_pane(&target, SplitDirection::Horizontal)
+                {
+                    self.state
+                        .dispatch_intent(intent.from_user_shortcut("split_pane_horizontal"));
+                }
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_vertical" => {
-                self.state.dispatch_intent(
-                    Intent::SplitSurface {
-                        direction: SplitDirection::Vertical,
-                    }
-                    .from_user_shortcut("split_surface_vertical"),
-                );
+                let target = self.state.command_target(engine);
+                if let Some(intent) =
+                    super::structure::split_surface(&target, SplitDirection::Vertical)
+                {
+                    self.state
+                        .dispatch_intent(intent.from_user_shortcut("split_surface_vertical"));
+                }
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
             "split_surface_horizontal" => {
-                self.state.dispatch_intent(
-                    Intent::SplitSurface {
-                        direction: SplitDirection::Horizontal,
-                    }
-                    .from_user_shortcut("split_surface_horizontal"),
-                );
+                let target = self.state.command_target(engine);
+                if let Some(intent) =
+                    super::structure::split_surface(&target, SplitDirection::Horizontal)
+                {
+                    self.state
+                        .dispatch_intent(intent.from_user_shortcut("split_surface_horizontal"));
+                }
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
             }
@@ -177,8 +183,9 @@ impl MainView {
                 self.finish_after_possible_close(engine, terminal_rect, cell_w, cell_h);
             }
             "restore_closed" => {
+                let target = self.state.command_target(engine);
                 self.state.dispatch_intent(
-                    crate::intent::Intent::RestoreClosedItem.from_user_shortcut("restore_closed"),
+                    super::structure::restore_closed(&target).from_user_shortcut("restore_closed"),
                 );
                 self.state
                     .resize_all(engine, terminal_rect, cell_w, cell_h, scale_factor);
@@ -225,7 +232,8 @@ impl MainView {
                     .enqueue_convert_input_popup(&engine.as_ref(), "markdown", None);
             }
             "open_explorer" => {
-                Self::open_explorer_tab(&mut self.state);
+                let target = self.state.command_target(engine);
+                Self::open_explorer_tab(&mut self.state, &target);
             }
             "convert_surface" => {
                 if super::surface_actions::held_for_draft(
