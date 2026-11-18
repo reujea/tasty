@@ -9,7 +9,7 @@ use tasty_type_geometry::length::LogicalPx;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 /// 셸 목업의 바깥 치수. 폭은 measure-md, 높이는 크롬 셋에 body 를 얹은 값이다.
-fn shell_size(theme: &Theme) -> egui::Vec2 {
+pub(super) fn shell_size(theme: &Theme) -> egui::Vec2 {
     egui::vec2(
         theme.measure_md.value(),
         theme.titlebar_height.value()
@@ -41,7 +41,7 @@ fn clamped_card_width(theme: &Theme) -> f32 {
 }
 
 /// 오늘의 셸에서 surface 자신의 radius. scope rect 의 radius 가 이것을 따른다.
-const SURFACE_RADIUS: LogicalPx = LogicalPx(0.0);
+pub(super) const SURFACE_RADIUS: LogicalPx = LogicalPx(0.0);
 /// `narrow` 일 때 소속 surface 가 차지하는 body 비율.
 const NARROW_FRACTION: f32 = 0.32;
 /// surface 안에 그리는 가짜 터미널 줄. dim 이 눈에 남게 하는 데만 쓴다.
@@ -121,7 +121,7 @@ fn split_body(body: egui::Rect, props: ShellProps, divider: f32) -> (egui::Rect,
 
 /// 배경을 어둡게 한 차이를 볼 수 있도록 터미널 내용을 그린다.
 /// 두 서피스는 같은 색으로 칠해 포커스 색상 차이가 비교에 섞이지 않게 한다.
-fn paint_surface(p: &egui::Painter, theme: &Theme, rect: egui::Rect) {
+pub(super) fn paint_surface(p: &egui::Painter, theme: &Theme, rect: egui::Rect) {
     let term = theme.surface("terminal");
     let (fill, fg) = (term.focused_bg, term.focused_fg);
     p.rect_filled(rect, SURFACE_RADIUS.value(), egui::Color32::from(fill));
@@ -171,7 +171,7 @@ fn paint_chrome(
 }
 
 /// 창 중앙 팝업 형태의 카드이므로 modal 그림자를 사용한다.
-fn paint_card(
+pub(super) fn paint_card(
     p: &egui::Painter,
     theme: &Theme,
     rect: egui::Rect,
@@ -197,12 +197,10 @@ fn paint_card(
     );
 }
 
-/// 셸 목업 — 크롬 · surface 둘 · scope scrim · popup. scrim 은 **한 번만** 깔린다.
-fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
-    let (rect, _) = ui.allocate_exact_size(shell_size(theme), egui::Sense::hover());
-    let p = ui.painter_at(rect);
+/// 셸 크롬 — 창 바탕·테두리·타이틀바·레일·탭바·상태바를 그리고 surface 가 놓일 body 를 돌려준다.
+/// 접힌 팝업 예제(`collapsed_popup`)가 같은 셸을 그리려고 함께 쓴다.
+pub(super) fn paint_shell(p: &egui::Painter, theme: &Theme, rect: egui::Rect) -> egui::Rect {
     let radius = theme.corner_radius.value();
-    let divider = theme.border_width.value();
 
     p.rect_filled(rect, radius, theme.bg_app().to_egui());
     p.rect_stroke(
@@ -217,7 +215,7 @@ fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
         egui::vec2(rect.width(), theme.titlebar_height.value()),
     );
     paint_chrome(
-        &p,
+        p,
         theme,
         titlebar,
         radius,
@@ -229,7 +227,7 @@ fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
         rect.max,
     );
     paint_chrome(
-        &p,
+        p,
         theme,
         status,
         radius,
@@ -251,19 +249,21 @@ fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
             titlebar.bottom() + theme.tab_bar_height.value(),
         ),
     );
-    paint_chrome(
-        &p,
-        theme,
-        tabs,
-        0.0,
-        theme.bg_panel().to_egui(),
-        "pane tabs",
-    );
+    paint_chrome(p, theme, tabs, 0.0, theme.bg_panel().to_egui(), "pane tabs");
 
-    let body = egui::Rect::from_min_max(
+    egui::Rect::from_min_max(
         egui::pos2(rail.right(), tabs.bottom()),
-        egui::pos2(rect.right(), status.top()),
-    );
+        egui::pos2(rect.right(), status.top().max(tabs.bottom())),
+    )
+}
+
+/// 셸 목업 — 크롬 · surface 둘 · scope scrim · popup. scrim 은 **한 번만** 깔린다.
+fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
+    let (rect, _) = ui.allocate_exact_size(shell_size(theme), egui::Sense::hover());
+    let p = ui.painter_at(rect);
+    let radius = theme.corner_radius.value();
+    let divider = theme.border_width.value();
+    let body = paint_shell(&p, theme, rect);
     let (owner, adjacent) = split_body(body, props, divider);
     paint_surface(&p, theme, owner);
     paint_surface(&p, theme, adjacent);

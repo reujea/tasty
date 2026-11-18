@@ -2562,6 +2562,11 @@ title = "알림"
 [popup.fullscreen_button]
 tooltip = "전체화면으로 보기"
 
+# 범위에 들어가지 않아 접힌 팝업이 그 자리에 남기는 보기 버튼.
+[popup.collapsed_button]
+label = "팝업 보기"
+tooltip = "이 서피스는 팝업을 표시하기에 너무 작습니다. 이 버튼을 누르면 앱 윈도우 위에 팝업을 표시합니다."
+
 # 권한 상태는 추정값이다. 사용자가 시스템 설정에서 직접 권한을 추가한다.
 [settings.macos_permissions]
 full_disk_access_label = "전체 디스크 접근 권한"

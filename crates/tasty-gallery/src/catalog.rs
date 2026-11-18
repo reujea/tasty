@@ -974,6 +974,14 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::scrim_scope::draw_child,
                         ),
+                        spec(
+                            "collapse-a-surface-popup-that-does-not-fit-leaves-a-show-button",
+                            "Collapse — a surface popup that does not fit leaves a show button",
+                            Some(
+                                "Not shrunk — the popup's own frame keeps one show button in its scope",
+                            ),
+                            components::collapsed_popup::draw,
+                        ),
                     ],
                 ),
                 section(
