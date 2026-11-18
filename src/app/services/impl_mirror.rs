@@ -43,7 +43,8 @@ impl ClientCwd<'_> {
     }
 
     /// pane 대상 생성의 원본. 입력 때 정한 원본 surface가 있으면 그것이고, 없으면 넘길 때 그 pane의 View
-    /// 선택이다(입력 대상이 없는 요청).
+    /// 선택이다(입력 대상이 없는 요청). 입력 때 정한 원본이 그 사이 사라졌으면 로컬처럼 상속하지 않는다.
+    /// 사라진 원본을 실으면 원격이 요청 전체를 거절한다.
     fn of_source(
         &self,
         core: &crate::core::CoreState,
@@ -51,7 +52,13 @@ impl ClientCwd<'_> {
         source: Option<u32>,
     ) -> Option<tasty_ipc::stream::InheritCwd> {
         match source {
-            Some(surface) => self.of_surface(surface),
+            Some(surface) if core.has_surface(surface) => self.of_surface(surface),
+            Some(surface) => {
+                tracing::info!(
+                    "cwd source surface {surface} is gone; the remote creation inherits no cwd"
+                );
+                Some(tasty_ipc::stream::InheritCwd::NoInherit)
+            }
             None => self.of_pane(core, pane),
         }
     }
@@ -383,6 +390,37 @@ mod tests {
                     .expect("creation op")
                     .inherit_cwd(),
                 Some(&InheritCwd::Surface(101)),
+                "{intent:?}"
+            );
+        }
+    }
+
+    /// 입력 때 정한 cwd 원본이 넘기기 전에 사라졌으면 다른 surface로 넘기지 않고 "상속 안 함"을 싣는다.
+    /// 로컬 처리와 같고, 사라진 원본을 실어 원격이 생성 전체를 거절하는 일이 없다.
+    #[test]
+    fn a_pane_creation_whose_source_is_gone_inherits_nothing() {
+        use tasty_ipc::stream::InheritCwd;
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        let core = &session.core_state;
+        assert!(!core.has_surface(999));
+        state
+            .navigation
+            .goto_tab(core.find_pane_by_id(10).expect("pane 10"), 1);
+        let client = ClientCwd {
+            presentation: Some(&state.navigation),
+            inherit: true,
+        };
+        for mut intent in creations().into_iter().take(2) {
+            match &mut intent {
+                DomainIntent::CreateTab { cwd_source, .. }
+                | DomainIntent::SplitPane { cwd_source, .. } => *cwd_source = Some(999),
+                other => panic!("unexpected {other:?}"),
+            }
+            assert_eq!(
+                build_mirror_forward_op(core, &intent, &client)
+                    .expect("creation op")
+                    .inherit_cwd(),
+                Some(&InheritCwd::NoInherit),
                 "{intent:?}"
             );
         }
