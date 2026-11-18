@@ -2,7 +2,6 @@
 
 use std::collections::VecDeque;
 
-use crate::adapters::ui::info_modal::InfoModal;
 use crate::adapters::ui::popup::transfer::{TransferError, TransferProgress};
 
 use super::selection;
@@ -118,6 +117,7 @@ pub(crate) struct RenameWaiting {
 
 /// 큐 팝업의 항목 하나와 그 항목을 넣은 요청의 출처. 앞 항목이 닫히면 다음 항목은 자기 출처로 열린다.
 /// 사용자 출처가 아니면 포커스 없이 passive로 열린다.
+#[derive(Debug, Clone)]
 pub(crate) struct Queued<T> {
     pub(crate) item: T,
     pub(crate) origin: crate::core::origin::IntentOrigin,
@@ -154,11 +154,6 @@ pub struct DialogState {
     pub(crate) pending_native_menu: Option<PendingNativeMenu>,
     pub(crate) tab_drag: Option<TabDragState>,
     pub(crate) ws_drag: Option<WsDragState>,
-    /// 부팅 안내 대기열. 확인 버튼으로 맨 앞 항목을 처리한다.
-    pub(crate) info_modal_queue: VecDeque<Queued<InfoModal>>,
-    /// 맨 앞 안내의 본문 높이를 직전 프레임에 잰 값. sizer가 셸 높이를 정할 때 읽고,
-    /// 맨 앞 항목이 바뀌면 비운다.
-    pub(crate) info_modal_body_height: Option<tasty_type_geometry::length::LogicalPx>,
     /// 안내 모달의 [권한 설정 열기]가 눌렸는지 나타낸다. 팝업을 그리는 코드는 winit
     /// 이벤트 루프에 접근할 수 없어 여기에 표시만 하고, App 계층이 프레임 시작에 읽어
     /// 처리한다.
@@ -241,8 +236,6 @@ impl DialogState {
             pending_native_menu: None,
             tab_drag: None,
             ws_drag: None,
-            info_modal_queue: VecDeque::new(),
-            info_modal_body_height: None,
             permission_settings_requested: false,
             approval_records: Default::default(),
             approval_submitting: None,

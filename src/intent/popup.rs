@@ -132,8 +132,9 @@ fn enqueue_refresh(
     });
 }
 
-/// 요청을 연다. 인스턴스 정책이 이 요청에 쓸 인스턴스가 이미 열려 있으면 아무것도 바꾸지 않는다
-/// (사용자가 준 포커스를 빼앗지 않는다). 열었으면 새 인스턴스 id다.
+/// 요청을 연다. 인스턴스 정책이 이 요청에 쓸 인스턴스가 이미 열려 있으면 위치·포커스를 바꾸지 않는다
+/// (사용자가 준 포커스를 빼앗지 않는다). 큐 팝업이면 요청의 항목을 그 인스턴스의 차례 뒤에 잇는다.
+/// 열었으면 새 인스턴스 id다.
 #[cfg(feature = "gui")]
 fn open(
     state: &mut RequestContext,
@@ -141,7 +142,8 @@ fn open(
     by_user: bool,
 ) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
     let scope = state.popups.request_scope(request);
-    if state.popups.instance_for(request.id, &scope).is_some() {
+    if let Some(instance) = state.popups.instance_for(request.id, &scope) {
+        state.popups.append_queued(instance, request);
         return None;
     }
     if let Some(on_open) =

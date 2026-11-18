@@ -675,23 +675,35 @@ fn info_modal_entry(body: &str) -> InfoModal {
     }
 }
 
+/// 사용자 출처 안내들을 차례로 담은 안내 인스턴스 데이터.
+fn info_modal_payload(bodies: &[&str]) -> crate::adapters::ui::popup::PopupPayload {
+    crate::adapters::ui::popup::PopupPayload::InfoModal(
+        crate::adapters::ui::info_modal::InfoModalQueue {
+            items: bodies.iter().map(|b| info_modal_entry(b).into()).collect(),
+            body_height: None,
+        },
+    )
+}
+
+/// 열린 안내 인스턴스가 차례로 가진 본문.
+fn info_modal_bodies(state: &crate::state::RequestContext) -> Vec<String> {
+    state
+        .popups
+        .instances_of(INFO_MODAL_ID)
+        .flat_map(|p| match &p.payload {
+            crate::adapters::ui::popup::PopupPayload::InfoModal(q) => {
+                q.items.iter().map(|m| m.body.clone()).collect()
+            }
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
 #[test]
 fn info_modal_close_intent_now_pops_head_and_reopens() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state
-        .dialogs
-        .info_modal_queue
-        .push_back(info_modal_entry("a").into());
-    state
-        .dialogs
-        .info_modal_queue
-        .push_back(info_modal_entry("b").into());
-    state.popups.open_at_focused(
-        INFO_MODAL_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_with_payload(&mut state, INFO_MODAL_ID, info_modal_payload(&["a", "b"]));
 
     crate::intent::popup::handle(
         &mut state,
@@ -699,12 +711,10 @@ fn info_modal_close_intent_now_pops_head_and_reopens() {
         &UiIntent::ClosePopup { id: INFO_MODAL_ID }.from_user_menu("test"),
     );
     assert!(!state.popups.is_open(INFO_MODAL_ID));
-    assert_eq!(state.dialogs.info_modal_queue.len(), 2);
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert_eq!(state.dialogs.info_modal_queue.len(), 1);
-    assert_eq!(state.dialogs.info_modal_queue.front().unwrap().body, "b");
+    assert_eq!(info_modal_bodies(&state), ["b"]);
     assert!(state.popups.is_open(INFO_MODAL_ID));
 }
 
@@ -712,15 +722,7 @@ fn info_modal_close_intent_now_pops_head_and_reopens() {
 fn info_modal_close_intent_with_single_entry_pops_and_does_not_reopen() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state
-        .dialogs
-        .info_modal_queue
-        .push_back(info_modal_entry("only").into());
-    state.popups.open_at_focused(
-        INFO_MODAL_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_with_payload(&mut state, INFO_MODAL_ID, info_modal_payload(&["only"]));
 
     crate::intent::popup::handle(
         &mut state,
@@ -729,7 +731,7 @@ fn info_modal_close_intent_with_single_entry_pops_and_does_not_reopen() {
     );
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert!(state.dialogs.info_modal_queue.is_empty());
+    assert!(info_modal_bodies(&state).is_empty());
     assert!(!state.popups.is_open(INFO_MODAL_ID));
 }
 

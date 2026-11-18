@@ -44,36 +44,56 @@ pub struct InfoModal {
 
 pub const INFO_MODAL_ID: &str = "info_modal";
 
-/// 안내를 큐에 추가한다. 부팅 안내는 에이전트 요청이 아니므로 사용자 입력을 받는 팝업으로 연다.
-pub fn show_info_modal(state: &mut MainViewState, modal: InfoModal) {
-    let open = crate::intent::UiIntent::OpenPopup(
-        crate::intent::OpenRequest::new(
-            INFO_MODAL_ID,
-            crate::model::popup_kind::PopupScope::Window,
-        )
+/// 안내 인스턴스의 데이터. 맨 앞 안내를 보이고 나머지는 차례를 기다린다.
+#[derive(Debug, Default)]
+pub struct InfoModalQueue {
+    pub(crate) items: std::collections::VecDeque<crate::state::Queued<InfoModal>>,
+    /// 맨 앞 안내의 본문 높이를 직전 프레임에 잰 값. sizer가 셸 높이를 정할 때 읽는다.
+    pub(crate) body_height: Option<LogicalPx>,
+}
+
+impl InfoModalQueue {
+    fn of(payload: &popup::PopupPayload) -> Option<&Self> {
+        match payload {
+            popup::PopupPayload::InfoModal(queue) => Some(queue),
+            _ => None,
+        }
+    }
+}
+
+/// 차례를 기다리는 `items`를 데이터로 싣고 창 가운데에 여는 요청.
+fn open_request(
+    items: std::collections::VecDeque<crate::state::Queued<InfoModal>>,
+) -> crate::intent::OpenRequest {
+    crate::intent::OpenRequest::new(INFO_MODAL_ID, crate::model::popup_kind::PopupScope::Window)
         .centered()
-        .focused(),
-    )
-    .from_user_menu("info_modal");
-    state
-        .dialogs
-        .info_modal_queue
-        .push_back(crate::state::Queued {
-            item: modal,
-            origin: open.origin.clone(),
-        });
-    state.dispatch_intent(open);
+        .focused()
+        .with_payload(popup::PopupPayload::InfoModal(InfoModalQueue {
+            items,
+            body_height: None,
+        }))
+}
+
+/// 안내를 연다. 이미 열려 있으면 그 인스턴스의 차례 뒤에 잇는다. 부팅 안내는 에이전트 요청이 아니므로
+/// 사용자 입력을 받는 팝업으로 연다.
+pub fn show_info_modal(state: &mut MainViewState, modal: InfoModal) {
+    let origin = crate::core::origin::IntentOrigin::User {
+        source: crate::core::origin::UserSource::Menu("info_modal"),
+    };
+    let open = open_request(std::collections::VecDeque::from([crate::state::Queued {
+        item: modal,
+        origin,
+    }]));
+    state.dispatch_intent(crate::intent::UiIntent::OpenPopup(open).from_user_menu("info_modal"));
 }
 
 pub fn info_modal_title(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> String {
-    state
-        .dialogs
-        .info_modal_queue
-        .front()
+    InfoModalQueue::of(payload)
+        .and_then(|q| q.items.front())
         .map(|m| m.title.clone())
         .unwrap_or_default()
 }
@@ -81,16 +101,15 @@ pub fn info_modal_title(
 /// 셸 높이는 직전 프레임에 잰 본문 높이로 정한다. 처음 여는 프레임은 아직 잰 값이 없어
 /// 글자 수로 줄 수를 어림한다. 어림이 틀려도 다음 프레임에 맞춰진다.
 pub fn info_modal_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &crate::adapters::ui::popup::PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
-    let body_h = state.dialogs.info_modal_body_height.unwrap_or_else(|| {
-        let (chars, paragraphs) = state
-            .dialogs
-            .info_modal_queue
-            .front()
+    let queue = InfoModalQueue::of(payload);
+    let body_h = queue.and_then(|q| q.body_height).unwrap_or_else(|| {
+        let (chars, paragraphs) = queue
+            .and_then(|q| q.items.front())
             .map(|m| (m.body.chars().count(), m.body.split("\n\n").count()))
             .unwrap_or((0, 1));
         // 셸 폭 440에서 본문 13px 한 줄에 들어가는 글자 수의 어림값.
@@ -105,32 +124,34 @@ pub fn info_modal_sizer(
     egui::vec2(th.info_modal_width().value(), h.value())
 }
 
-/// 확인 버튼을 포함한 모든 닫기 경로가 여기서 맨 앞 안내를 꺼낸다. 다음 안내는 그 안내를 넣은 요청의
-/// 출처로 연다. 사용자 출처가 아니면 포커스 없이 열린다.
+/// 확인 버튼을 포함한 모든 닫기 경로가 여기서 맨 앞 안내를 꺼낸다. 남은 안내는 새 인스턴스의 데이터로
+/// 옮겨, 맨 앞 안내를 넣은 요청의 출처로 연다. 사용자 출처가 아니면 포커스 없이 열린다. 그 사이 새 안내가
+/// 열려 있으면 남은 안내를 그 차례 앞에 넣는다([`popup::PopupManager::reopen_queue_rest`]).
 pub fn on_close_info_modal(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    if !dismiss_info_modal(state) {
+    let Some(rest) = remaining_after_front(&closed.payload) else {
         return;
-    }
-    let by_user = state
-        .dialogs
-        .info_modal_queue
-        .front()
-        .is_some_and(|next| next.origin.is_user());
+    };
+    let by_user = rest.front().is_some_and(|next| next.origin.is_user());
     // intent-exempt: popup 자기-close cleanup — 이 훅에서 큐의 다음 안내를 잇는다
-    state.popups.open_request(
-        &crate::intent::OpenRequest::new(
-            INFO_MODAL_ID,
-            crate::model::popup_kind::PopupScope::Window,
-        )
-        .centered()
-        .focused(),
-        by_user,
-    );
+    state.popups.reopen_queue_rest(&open_request(rest), by_user);
+}
+
+/// 닫힌 인스턴스의 맨 앞 안내를 뺀 나머지. 남은 안내가 없으면 `None`이다.
+fn remaining_after_front(
+    payload: &popup::PopupPayload,
+) -> Option<std::collections::VecDeque<crate::state::Queued<InfoModal>>> {
+    let rest: std::collections::VecDeque<_> = InfoModalQueue::of(payload)?
+        .items
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect();
+    (!rest.is_empty()).then_some(rest)
 }
 
 pub fn draw_info_modal(
@@ -142,10 +163,8 @@ pub fn draw_info_modal(
     let th = theme::theme();
     let ctx = ui.ctx().clone();
 
-    let Some(current) = state
-        .dialogs
-        .info_modal_queue
-        .front()
+    let Some(current) = InfoModalQueue::of(cx.payload)
+        .and_then(|q| q.items.front())
         .map(|q| q.item.clone())
     else {
         return PopupAction::Close;
@@ -175,7 +194,9 @@ pub fn draw_info_modal(
             scroll_to: None,
         },
     );
-    state.dialogs.info_modal_body_height = Some(out.body_content_height);
+    if let popup::PopupPayload::InfoModal(queue) = cx.payload {
+        queue.body_height = Some(out.body_content_height);
+    }
 
     let dismiss_idx = buttons.len() - 1;
     // passive로 열린 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
@@ -203,15 +224,6 @@ pub fn draw_info_modal(
         (true, true) => PopupAction::CloseBy(popup::PopupCloseReason::Escape),
         (true, false) => PopupAction::Close,
     }
-}
-
-/// 맨 앞 안내를 꺼낸다. 남은 안내가 있으면 true다.
-fn dismiss_info_modal(state: &mut MainViewState) -> bool {
-    if state.dialogs.info_modal_queue.pop_front().is_none() {
-        return false;
-    }
-    state.dialogs.info_modal_body_height = None;
-    !state.dialogs.info_modal_queue.is_empty()
 }
 
 #[cfg(test)]
