@@ -258,11 +258,13 @@ egui 지연 repaint 는 repaint 콜백(`src/gfx/gpu.rs`)이 창마다 하나의 
 
 ### 동기화 출력 보류
 
-DEC 2026 동기화 출력(`CSI ? 2026 h` … `CSI ? 2026 l`) 블록 안에서 처리한 보이는 surface 출력은 redraw를 요청하지 않는다(`src/view/sync_hold.rs`, `ViewBase::mark_surface_output`). PTY 읽기가 블록 중간에서 끊겨도 그 출력이 반쯤 갱신된 화면으로 프레임을 열지 않게 하기 위해서다. 판정은 출력 처리를 마친 뒤 그 surface의 `Terminal::synchronized_output()`을 읽어 한다.
+DEC 2026 동기화 출력(`CSI ? 2026 h` … `CSI ? 2026 l`) 블록 안에서 처리한 보이는 surface 출력은 redraw를 요청하지 않는다(`src/view/sync_hold.rs`, `ViewBase::mark_surface_output`). PTY 읽기가 블록 중간에서 끊겨도 그 출력이 반쯤 갱신된 화면으로 프레임을 열지 않게 하기 위해서다. 판정은 출력 처리를 마친 뒤 그 surface의 `Terminal::synchronized_output_block()`을 읽어 한다. 블록 밖이면 `None`이고, 블록 안이면 블록 세대를 돌려준다. 세대는 모드가 꺼진 상태에서 켜질 때마다 하나씩 오르는 값이다.
 
 - **dirty는 세운다.** 보류는 그 surface 출력이 내는 요청만 막는다. 사용자 입력(`Interactive`)·다른 surface 출력·egui·attach mirror가 연 프레임은 그대로 그리고, mirror 중계도 그 프레임에서 계속된다.
-- **블록 종료**: 블록이 끝난 상태의 출력(`2026 l`을 포함한 출력)이 오면 보류를 풀고 평소처럼 `TerminalOutput`으로 요청한다.
+- **블록 종료**: 블록이 끝난 상태의 출력(`2026 l`을 포함한 출력)이 오면 보류를 풀고 평소처럼 `TerminalOutput`으로 요청한다. RIS(`ESC c`)도 블록을 끝낸다.
+- **블록 경계**: 출력 묶음 하나가 블록을 끝내고 다음 블록을 시작하면(`2026 l` 뒤 `2026 h`) 처리 뒤 모드는 켜진 채로 읽힌다. 그래서 surface마다 마지막에 본 세대를 기억하고, 세대가 바뀌면 이전 블록의 보류와 만료 기록을 버린다. 새 블록은 처음부터 보류하고 마감도 새로 정한다.
 - **안전 상한**: 블록에 들어간 첫 출력부터 `SYNC_HOLD_LIMIT`(150ms)이 지나면 출력이 더 오지 않아도 그 시점 grid를 그린다. 마감은 `RepaintGate`의 지연 슬롯과 따로 두고 `drive_deferred_repaints`가 WaitUntil에 합친다. 지연 슬롯은 아무 present에서나 비워지므로 같은 슬롯에 두면 다른 프레임 하나로 마감 깨움이 사라진다. 마감으로 그린 surface는 블록이 끝날 때까지 다시 보류하지 않는다. 블록 중에 멈춘 앱의 출력은 평소처럼 그린다.
+- **숨은 surface**: 보류 기록은 그 창에 보이는 surface의 것만 둔다. `drive_deferred_repaints`는 마감을 처리하기 전에, 탭 전환 등으로 보이지 않게 됐거나 없어진 surface의 기록을 지운다(`MainView::forget_hidden_sync_holds`). 그래서 숨은 surface의 마감은 dirty도 redraw도 만들지 않는다. 숨은 surface의 출력은 원래 redraw를 요청하지 않는다. 다시 보이면 전환 프레임이 그 surface를 그리고, 그 뒤 블록 출력은 처음부터 다시 보류한다.
 - **미룬 요청의 소유**: 게이트가 미룬 요청이 모두 지금 보류 중인 surface의 출력이면, 만기돼도 그리지 않는다. 블록 시작 직전 출력이 미룬 요청이 블록 중간에 만기되어 중간 상태를 그리는 것을 막는다. 다른 원인이 하나라도 섞였으면 그린다. 그 surface는 블록 종료나 마감에서 다시 요청한다.
 - **한계**: 렌더러는 grid를 직접 읽으므로, 다른 원인이 연 프레임에서는 동기화 중인 surface의 블록 중간 상태가 보일 수 있다. 블록 동안 직전에 그린 상태를 유지하려면 surface 단위로 그린 결과를 보존해야 한다. 전역 출력 처리(surface를 지정하지 않은 깨움)와 attach mirror 출력(`AttachMirror`)은 보류하지 않는다.
 
