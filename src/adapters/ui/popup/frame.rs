@@ -31,33 +31,37 @@ fn scope_target_exists(
     }
 }
 
-/// 여닫기 술어. 팝업을 열 범위를 돌려주고, 없으면 닫는다.
+/// 여닫기 술어. 팝업을 열 범위와 덮음 값을 돌려주고, 없으면 닫는다.
 type OpenWhen = fn(
     &MainViewState,
     &crate::runtime::engine_read::EngineRead<'_>,
-) -> Option<crate::adapters::ui::popup::PopupScope>;
+) -> Option<crate::adapters::ui::popup::open_when::DrivenOpen>;
+
+/// 술어로 열 때의 인스턴스 데이터.
+type OpenWhenPayload = fn(
+    &crate::adapters::ui::popup::open_when::DrivenOpen,
+) -> crate::adapters::ui::popup::PopupPayload;
 
 /// 사용자 요청이 아니라 상태 술어가 여닫기를 정하는 팝업. 술어 값이 바뀔 때만 포커스 없이 열고 닫는다.
-const OPEN_WHEN: [(crate::adapters::ui::popup::PopupId, OpenWhen); 2] = [
-    (
-        crate::adapters::ui::popup::remote_row::REMOTE_ROW_POPUP_ID,
-        crate::adapters::ui::popup::remote_row::plain_open_when,
-    ),
-    (
-        crate::adapters::ui::popup::remote_row::REMOTE_ROW_SCRIM_POPUP_ID,
-        crate::adapters::ui::popup::remote_row::scrim_open_when,
-    ),
-];
+const OPEN_WHEN: [(
+    crate::adapters::ui::popup::PopupId,
+    OpenWhen,
+    OpenWhenPayload,
+); 1] = [(
+    crate::adapters::ui::popup::remote_row::REMOTE_ROW_POPUP_ID,
+    crate::adapters::ui::popup::remote_row::open_when,
+    crate::adapters::ui::popup::remote_row::payload_for,
+)];
 
 /// 상태 술어가 여닫는 팝업을 같은 프레임에 맞춘다.
 pub(crate) fn sync_open_when(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) {
-    for (id, open_when) in OPEN_WHEN {
+    for (id, open_when, payload) in OPEN_WHEN {
         let want = open_when(state, engine);
         // intent-exempt: Intent 큐는 한 프레임 늦어 연결된 행에 팝업이 남는다. 포커스를 받지 않는다.
-        state.popups.follow_open_when(id, want);
+        state.popups.follow_open_when(id, want, payload);
     }
 }
 

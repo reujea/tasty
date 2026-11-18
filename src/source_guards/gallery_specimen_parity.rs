@@ -48,7 +48,6 @@ const POPUP_SPECIMENS: &[(&str, &str)] = &[
     ),
     ("confirm_close_remote", "components/remote_row_menu.rs"),
     ("remote_row", "layouts_remote_row.rs"),
-    ("remote_row_over_screen", "layouts_remote_row.rs"),
 ];
 
 /// specimen이 없는 popup과 미완성 사유. 검사를 통과하기 위한 일반 예외 목록이 아니다.

@@ -18,7 +18,7 @@ mod focus;
 pub(crate) mod frame;
 pub(crate) mod header_drag;
 pub(crate) mod occlusion;
-mod open_when;
+pub(crate) mod open_when;
 pub(crate) mod port_scanner;
 pub(crate) mod port_scanner_close;
 pub(crate) mod preset_apply;
@@ -116,6 +116,25 @@ pub(crate) struct PopupLook {
 }
 
 impl PopupLook {
+    /// 열 때 정한 덮음 값. 덮으면 modal 그림자와 포인터를 받는 scrim, 덮지 않으면 popover 그림자와
+    /// 보이기만 하는 scrim이다. 셋은 늘 함께 바뀐다.
+    fn covering(self, covers_scope: bool) -> Self {
+        Self {
+            covers_scope,
+            shadow: if covers_scope {
+                PopupShadow::Modal
+            } else {
+                PopupShadow::Popover
+            },
+            scrim_input: if covers_scope {
+                ScrimInput::TakesPointer
+            } else {
+                ScrimInput::VisualOnly
+            },
+            ..self
+        }
+    }
+
     fn of(decl: &PopupDecl, scrim_input: ScrimInput) -> Self {
         Self {
             covers_scope: decl.covers_scope,
@@ -181,6 +200,8 @@ pub enum PopupPayload {
     DagList(Box<dag_list::DagListState>),
     /// 명령 팔레트의 검색어와 선택.
     CommandPalette(crate::state::command_palette::PaletteInput),
+    /// 저장된 원격 행 연결 팝업의 행과 모양.
+    RemoteRow(remote_row::RemoteRowPayload),
 }
 
 impl std::fmt::Debug for PopupPayload {
@@ -217,6 +238,7 @@ impl std::fmt::Debug for PopupPayload {
             Self::ScriptConfirm(p) => f.debug_tuple("ScriptConfirm").field(&p.script_id).finish(),
             Self::DagList(_) => f.write_str("DagList"),
             Self::CommandPalette(p) => f.debug_tuple("CommandPalette").field(p).finish(),
+            Self::RemoteRow(r) => f.debug_tuple("RemoteRow").field(r).finish(),
         }
     }
 }
@@ -483,8 +505,10 @@ pub struct PopupState {
     /// 타이틀바 전체화면 버튼이 올릴 무대 id. `register_def` 가 `PopupDef` 에서
     /// 전파한다. `None` 이면 버튼 없음.
     fullscreen_stage: Option<crate::adapters::ui::fullscreen::StageId>,
-    /// 셸을 그릴 때 읽는 선언 값.
+    /// 셸을 그릴 때 읽는 값. 열기 요청이 덮음을 정하면 그 인스턴스만 선언 값과 다르다.
     look: PopupLook,
+    /// 선언에서 온 셸 값. 닫으면 `look`을 이 값으로 되돌린다.
+    declared_look: PopupLook,
 }
 
 /// UI 배율을 적용한 Theme.item_height_interactive를 반올림한 타이틀바 높이.
@@ -640,6 +664,7 @@ impl PopupState {
             size_user_overridden: false,
             fullscreen_stage: None,
             look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
+            declared_look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
         }
     }
 
@@ -671,6 +696,7 @@ impl PopupState {
             .with_resizable(decl.resizable)
             .with_min_size(decl.min_size.map_or(size, vec2_of));
         popup.look = PopupLook::of(decl, scrim_input);
+        popup.declared_look = popup.look;
         popup.instances = decl.instances;
         popup
     }
@@ -759,6 +785,7 @@ impl PopupState {
             size_user_overridden: self.size_user_overridden,
             fullscreen_stage: self.fullscreen_stage,
             look: self.look,
+            declared_look: self.declared_look,
             payload: PopupPayload::None,
         }
     }
@@ -775,6 +802,7 @@ impl PopupState {
         self.instance = PopupInstanceId::NONE;
         self.parent = None;
         self.payload = PopupPayload::None;
+        self.look = self.declared_look;
     }
 
     fn popup_rect(&self) -> egui::Rect {
@@ -902,7 +930,7 @@ pub struct PopupManager {
     /// `on_close` 훅 drain 이 프레임당 1회 `take_closed_queue()` 로 비운다.
     closed_queue: Vec<ClosedPopup>,
     /// 상태 술어로 연 팝업과 그때의 범위. 술어 값이 바뀔 때만 열고 닫는다.
-    driven: Vec<(PopupId, PopupScope)>,
+    driven: Vec<(PopupId, open_when::DrivenOpen)>,
 }
 
 impl PopupManager {
@@ -1051,6 +1079,9 @@ impl PopupManager {
         }
         p.parent = request.parent;
         p.payload = request.payload.take();
+        if let Some(covers) = request.covers_scope {
+            p.look = p.declared_look.covering(covers);
+        }
         let (iid, focused) = (p.instance, p.focused);
         // 키 입력은 포커스를 가진 인스턴스만 받는다. 같은 선언에서 포커스는 하나만 남긴다.
         if focused {

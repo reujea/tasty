@@ -4,9 +4,10 @@
 //! 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::remote_row_popup`이 그린다.
 
 use crate::adapters::ui::icons;
+use crate::adapters::ui::popup::open_when::DrivenOpen;
 use crate::adapters::ui::popup::{
     PopupAction, PopupChrome, PopupDecl, PopupDef, PopupDragHandle, PopupEscape, PopupId,
-    PopupOutsideClick, PopupScope, PopupShadow, ScrimInput, popup_size,
+    PopupOutsideClick, PopupPayload, PopupScope, PopupShadow, ScrimInput, popup_size,
 };
 use crate::i18n::t;
 use crate::runtime::engine_read::EngineRead;
@@ -18,26 +19,34 @@ use tasty_ui_widgets::{
     RemoteRowPopupView, RemoteRowState,
 };
 
-/// 빈 workspace 위 팝업(scrim 없음, popover 그림자).
+/// 연결 팝업. 빈 workspace 위에서는 scrim 없이 popover 그림자로, 마지막 화면 위에서는 콘텐츠 영역을
+/// 덮어 scrim 과 modal 그림자로 연다. 어느 모양인지는 열 때 정한다(`OpenRequest::covers_scope`).
 pub const REMOTE_ROW_POPUP_ID: &str = "remote_row";
-/// 마지막 화면 위 팝업(콘텐츠 영역 scrim, modal 그림자).
-pub const REMOTE_ROW_SCRIM_POPUP_ID: &str = "remote_row_over_screen";
 
 pub(crate) fn is_remote_row(id: PopupId) -> bool {
-    id == REMOTE_ROW_POPUP_ID || id == REMOTE_ROW_SCRIM_POPUP_ID
+    id == REMOTE_ROW_POPUP_ID
 }
 
-/// 이 창의 연결 팝업 상태.
+/// 이 창의 연결 팝업 사건 상태. 팝업 데이터는 인스턴스에 있다.
 #[derive(Debug, Clone, Default)]
 pub struct RemoteRowPopupState {
-    /// 지금 연 팝업과 그 행.
-    shown: Option<(PopupId, u32)>,
-    /// 직전 프레임에 잰 콘텐츠 높이.
-    measured_h: Option<LogicalPx>,
+    /// 직전 동기화에서 원한 모양(마지막 화면 위인지)과 그 행. 끊기는 순간을 알아보는 데 쓴다.
+    shown: Option<(bool, u32)>,
     /// 콘텐츠 영역 폭. 팝업 폭이 영역에서 양쪽 space-md 를 뺀 값을 넘지 않게 한다.
     bounds_w: Option<LogicalPx>,
     /// 연결돼 있던 행이 이번 프레임에 끊겨 scrim 을 열었다. 링크 툴팁을 닫는 쪽이 꺼내 간다.
     dropped: bool,
+}
+
+/// 연결 팝업 인스턴스의 데이터.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RemoteRowPayload {
+    /// 이 팝업을 띄운 저장된 원격 행.
+    pub(crate) row: u32,
+    /// 마지막 화면 위 모양(범위를 덮음)인지.
+    pub(crate) over_screen: bool,
+    /// 직전 프레임에 잰 콘텐츠 높이.
+    pub(crate) measured_h: Option<LogicalPx>,
 }
 
 impl RemoteRowPopupState {
@@ -47,38 +56,44 @@ impl RemoteRowPopupState {
     }
 }
 
-/// 저장된 원격 행이 지금 보일 팝업. 연결된 행과 다른 workspace 는 없다.
-pub(crate) fn wanted(engine: &EngineRead<'_>, ws: &crate::model::Workspace) -> Option<PopupId> {
+/// 저장된 원격 행에 지금 팝업이 보이면 그 모양(마지막 화면 위인지). 연결된 행과 다른 workspace 는 없다.
+pub(crate) fn wanted(engine: &EngineRead<'_>, ws: &crate::model::Workspace) -> Option<bool> {
     if !ws.is_saved_remote_row() {
         return None;
     }
     match engine.remote_row_state(ws.id) {
         RemoteRowState::Connected => None,
-        state if state.had_shape() => Some(REMOTE_ROW_SCRIM_POPUP_ID),
-        _ => Some(REMOTE_ROW_POPUP_ID),
+        state => Some(state.had_shape()),
     }
 }
 
-/// `of` 를 열 범위. 활성 workspace 가 그 팝업을 원할 때만 그 workspace 다.
-fn open_scope(state: &MainViewState, engine: &EngineRead<'_>, of: PopupId) -> Option<PopupScope> {
+/// 연결 팝업의 여닫기 술어. 활성 workspace 가 팝업을 원할 때만 그 workspace 범위로, 마지막 화면 위면
+/// 범위를 덮는 모양으로 연다. 팝업 관리자가 값이 바뀔 때 포커스 없이 열고 닫는다.
+pub(crate) fn open_when(state: &MainViewState, engine: &EngineRead<'_>) -> Option<DrivenOpen> {
     let ws = state.active_workspace(engine);
-    (wanted(engine, ws) == Some(of)).then_some(PopupScope::Workspace(ws.id))
+    wanted(engine, ws).map(|over_screen| DrivenOpen {
+        scope: PopupScope::Workspace(ws.id),
+        covers_scope: Some(over_screen),
+    })
 }
 
-/// 빈 workspace 위 팝업의 여닫기 술어. 팝업 관리자가 값이 바뀔 때 포커스 없이 열고 닫는다.
-pub(crate) fn plain_open_when(
-    state: &MainViewState,
-    engine: &EngineRead<'_>,
-) -> Option<PopupScope> {
-    open_scope(state, engine, REMOTE_ROW_POPUP_ID)
+/// 술어로 열 때의 인스턴스 데이터. 행은 범위의 workspace 다.
+pub(crate) fn payload_for(open: &DrivenOpen) -> PopupPayload {
+    let PopupScope::Workspace(row) = open.scope else {
+        return PopupPayload::None;
+    };
+    PopupPayload::RemoteRow(RemoteRowPayload {
+        row,
+        over_screen: open.covers_scope == Some(true),
+        measured_h: None,
+    })
 }
 
-/// 마지막 화면 위 팝업의 여닫기 술어.
-pub(crate) fn scrim_open_when(
-    state: &MainViewState,
-    engine: &EngineRead<'_>,
-) -> Option<PopupScope> {
-    open_scope(state, engine, REMOTE_ROW_SCRIM_POPUP_ID)
+fn payload_of(payload: &PopupPayload) -> Option<&RemoteRowPayload> {
+    match payload {
+        PopupPayload::RemoteRow(row) => Some(row),
+        _ => None,
+    }
 }
 
 /// 활성 workspace 의 연결 팝업이 바뀌는 순간을 처리한다. 여닫기는 위 술어로 팝업 관리자가 한다.
@@ -90,17 +105,17 @@ pub(crate) fn sync(
 ) {
     close_picker_of_dropped_row(state, engine);
     let ws = state.active_workspace(engine);
-    let want = wanted(engine, ws).map(|id| (id, ws.id));
+    let want = wanted(engine, ws).map(|over_screen| (over_screen, ws.id));
     let row = &mut state.dialogs.remote_row_popup;
     row.bounds_w = draw_ctx.workspace_rect.map(|r| LogicalPx(r.width()));
     if row.shown == want {
         return;
     }
     let previous = std::mem::replace(&mut row.shown, want);
-    let Some((id, ws_id)) = want else {
+    let Some((over_screen, ws_id)) = want else {
         return;
     };
-    if id == REMOTE_ROW_SCRIM_POPUP_ID && previous.is_none_or(|(_, row)| row == ws_id) {
+    if over_screen && previous.is_none_or(|(_, row)| row == ws_id) {
         state.dialogs.remote_row_popup.dropped = true;
         // 다른 workspace 에서 연 picker 는 그 행으로 옮겨 와도 닫지 않는다.
         let opened_here: Vec<_> = super::file_handler_picker::open_pickers(state)
@@ -199,39 +214,32 @@ fn estimate_h() -> LogicalPx {
 }
 
 /// 팝업 크기. 영역 폭에서 양쪽 space-md 를 뺀 값을 넘지 않는다.
-fn size(row: &RemoteRowPopupState) -> (LogicalPx, LogicalPx) {
+fn size(bounds_w: Option<LogicalPx>, measured_h: Option<LogicalPx>) -> (LogicalPx, LogicalPx) {
     let md = theme::theme().spacing_md;
-    let w = row.bounds_w.map_or(width(), |bounds| {
+    let w = bounds_w.map_or(width(), |bounds| {
         width().min((bounds - md * 2.0).max(LogicalPx(0.0)))
     });
-    (w, row.measured_h.unwrap_or_else(estimate_h))
+    (w, measured_h.unwrap_or_else(estimate_h))
 }
 
-fn sizer(
-    state: &MainViewState,
-    _engine: &EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
-) -> egui::Vec2 {
-    let (w, h) = size(&state.dialogs.remote_row_popup);
+fn sizer(state: &MainViewState, _engine: &EngineRead<'_>, payload: &PopupPayload) -> egui::Vec2 {
+    let (w, h) = size(
+        state.dialogs.remote_row_popup.bounds_w,
+        payload_of(payload).and_then(|p| p.measured_h),
+    );
     egui::vec2(w.value(), h.value())
-}
-
-fn on_close(
-    _ctx: &egui::Context,
-    state: &mut MainViewState,
-    _engine: &EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
-) {
-    state.dialogs.remote_row_popup.measured_h = None;
 }
 
 fn draw(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some((id, row)) = state.dialogs.remote_row_popup.shown else {
+    let Some(&RemoteRowPayload {
+        row, over_screen, ..
+    }) = payload_of(cx.payload)
+    else {
         return PopupAction::None;
     };
     let Some(ws) = engine.workspaces().into_iter().find(|ws| ws.id == row) else {
@@ -248,8 +256,8 @@ fn draw(
         .get(row)
         .map(|notice| crate::adapters::ui::sidebar::remote_row::reason_of(notice.kind));
     let kind = popup_kind(row_state, view, reason.is_some());
-    let shape = id == REMOTE_ROW_SCRIM_POPUP_ID;
-    let copy = tasty_ui_widgets::remote_row_popup_copy(kind, shape, REMOTE_ROW_USER_BODY_STAY);
+    let copy =
+        tasty_ui_widgets::remote_row_popup_copy(kind, over_screen, REMOTE_ROW_USER_BODY_STAY);
     let reason = if kind == RemoteRowPopupKind::Closed {
         Some(tasty_ui_widgets::RemoteRowReason::WorkspaceMissing)
     } else {
@@ -296,7 +304,9 @@ fn draw(
             warn_glyph: &warn_glyph,
         },
     );
-    state.dialogs.remote_row_popup.measured_h = Some(LogicalPx(ui.cursor().top() - top));
+    if let PopupPayload::RemoteRow(p) = cx.payload {
+        p.measured_h = Some(LogicalPx(ui.cursor().top() - top));
+    }
     if clicked {
         state.dispatch_intent(
             crate::intent::Intent::SavedRow {
@@ -309,12 +319,13 @@ fn draw(
     PopupAction::None
 }
 
-/// 두 팝업의 정의. 제목줄·닫기·이동이 없고 바깥을 눌러도 닫히지 않는다.
-/// `over_screen`이면 마지막 화면 위 팝업이다. 콘텐츠 영역을 scrim 으로 덮고 그 scrim 이 포인터를 받는다.
-/// 마지막 화면은 선택·복사·스크롤·링크가 막힌다.
-pub(crate) fn def(id: PopupId, over_screen: bool) -> PopupDef {
+/// 연결 팝업의 정의. 제목줄·닫기·이동이 없고 바깥을 눌러도 닫히지 않는다. 선언은 빈 workspace 위 모양
+/// (덮지 않음, popover 그림자)이다. 마지막 화면 위에서는 열 때 범위를 덮게 해 콘텐츠 영역을 scrim 으로 덮고
+/// 그 scrim 이 포인터를 받는다. 마지막 화면은 선택·복사·스크롤·링크가 막힌다.
+pub(crate) fn def() -> PopupDef {
+    let over_screen = false;
     PopupDef {
-        id,
+        id: REMOTE_ROW_POPUP_ID,
         decl: PopupDecl {
             outside_click: PopupOutsideClick::Unfocus,
             sticky_focus: false,
@@ -349,7 +360,7 @@ pub(crate) fn def(id: PopupId, over_screen: bool) -> PopupDef {
         drag_region: None,
         on_open: None,
         draw_fn: draw,
-        on_close: Some(on_close),
+        on_close: None,
     }
 }
 
@@ -358,6 +369,15 @@ mod tests {
     use super::*;
     use crate::remote::state::RowView;
     use RemoteRowPopupKind as K;
+
+    /// 열린 연결 팝업의 모양. 마지막 화면 위면 true 다.
+    fn shown(state: &MainViewState) -> Option<bool> {
+        state
+            .popups
+            .instances_of(REMOTE_ROW_POPUP_ID)
+            .next()
+            .map(|p| payload_of(&p.payload).expect("row payload").over_screen)
+    }
 
     /// 그리기 전 단계와 같이 전이 처리 뒤 여닫기 술어를 맞춘다.
     fn sync(
@@ -437,16 +457,16 @@ mod tests {
 
         publish(&mut session, "connected");
         sync(&mut state, &session.read(), &layout(row));
-        assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert_eq!(shown(&state), None);
 
         // Resync 구간: App 은 단계가 Connected 여도 소켓이 끊겼으면 reconnecting 을 싣는다.
         publish(&mut session, "reconnecting");
         let engine = session.read();
         assert_eq!(engine.remote_row_state(row), RemoteRowState::Reconnecting);
         sync(&mut state, &engine, &layout(row));
-        assert!(state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert_eq!(shown(&state), Some(true));
         assert!(
-            !state.popups.is_focused(REMOTE_ROW_SCRIM_POPUP_ID),
+            !state.popups.is_focused(REMOTE_ROW_POPUP_ID),
             "no focus taken"
         );
         assert!(state.dialogs.remote_row_popup.take_dropped());
@@ -454,7 +474,7 @@ mod tests {
 
         publish(&mut session, "connected");
         sync(&mut state, &session.read(), &layout(row));
-        assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert_eq!(shown(&state), None);
     }
 
     /// `opened_in` workspace 에서 연 파일 처리기 선택을 둔다. 실제로 열 때처럼 출처 행의 연결 사실을 싣는다.
@@ -526,7 +546,7 @@ mod tests {
         let last = session.read().workspaces().len() - 1;
         state.set_active_workspace_index(&session.read(), last);
         sync(&mut state, &session.read(), &layout(row));
-        assert!(state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert_eq!(shown(&state), Some(true));
         assert!(state.popups.is_open(picker));
     }
 
@@ -564,7 +584,7 @@ mod tests {
         session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
         sync(&mut state, &session.read(), &layout(local));
         assert!(!state.popups.is_open(picker));
-        assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert_eq!(shown(&state), None);
     }
 
     /// Given 사용자는 로컬 L 에 있고 IPC 가 연결된 저장 행 R 의 surface 를 출처로 파일 처리기 선택을 열었다,
@@ -638,15 +658,9 @@ mod tests {
             + line(th.font_size_body.value()) * 3.0
             + line(th.font_size_caption.value()) * 2.0
             + th.item_height_tab.value();
-        let wide = RemoteRowPopupState::default();
-        let (w, h) = size(&wide);
+        let (w, h) = size(None, None);
         assert_eq!((w.value(), h.value()), (raw_w, raw_h));
-        let narrow = RemoteRowPopupState {
-            bounds_w: Some(LogicalPx(100.0)),
-            measured_h: Some(LogicalPx(77.0)),
-            ..Default::default()
-        };
-        let (w, h) = size(&narrow);
+        let (w, h) = size(Some(LogicalPx(100.0)), Some(LogicalPx(77.0)));
         let md = th.spacing_md.value();
         assert_eq!(
             (w.value(), h.value()),
@@ -661,10 +675,70 @@ mod tests {
         let row = saved_row(&mut state, &mut session);
         session.remote.row_states = std::collections::HashMap::from([(row, "not_connected")]);
         sync(&mut state, &session.read(), &layout(row));
-        assert!(state.popups.is_open(REMOTE_ROW_POPUP_ID));
-        assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert_eq!(shown(&state), Some(false));
         assert!(!state.dialogs.remote_row_popup.take_dropped());
         assert!(!state.popups.covers_scope(REMOTE_ROW_POPUP_ID));
-        assert!(state.popups.covers_scope(REMOTE_ROW_SCRIM_POPUP_ID));
+    }
+
+    /// Given 빈 workspace 위에 연 연결 팝업, When 그 행이 형상을 얻은 뒤 끊기면, Then 앞 인스턴스는 닫히고
+    /// 마지막 화면 위 모양의 새 인스턴스가 열린다. 다시 연결되면 닫힌다.
+    #[test]
+    fn a_row_that_drops_while_shown_switches_to_the_covering_look() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let row = saved_row(&mut state, &mut session);
+        session.remote.row_states = std::collections::HashMap::from([(row, "not_connected")]);
+        sync(&mut state, &session.read(), &layout(row));
+        assert_eq!(shown(&state), Some(false));
+        let bare = state
+            .popups
+            .instances_of(REMOTE_ROW_POPUP_ID)
+            .next()
+            .unwrap()
+            .instance;
+        drop(state.popups.take_closed_queue());
+
+        session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
+        sync(&mut state, &session.read(), &layout(row));
+        assert_eq!(shown(&state), Some(true));
+        let closed: Vec<_> = state
+            .popups
+            .take_closed_queue()
+            .into_iter()
+            .map(|c| c.instance)
+            .collect();
+        assert_eq!(closed, [bare]);
+        assert_eq!(state.popups.instances_of(REMOTE_ROW_POPUP_ID).count(), 1);
+
+        session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
+        sync(&mut state, &session.read(), &layout(row));
+        assert_eq!(shown(&state), None);
+    }
+
+    /// 마지막 화면 위 모양은 범위를 덮고 scrim 이 포인터를 받으며 modal 그림자다. 빈 workspace 위 모양은
+    /// 덮지 않고 scrim 은 보이기만 하며 popover 그림자다(선언 값).
+    #[test]
+    fn the_covering_look_takes_the_pointer_and_the_bare_one_does_not() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let row = saved_row(&mut state, &mut session);
+        let look = |state: &MainViewState| {
+            let p = state
+                .popups
+                .instances_of(REMOTE_ROW_POPUP_ID)
+                .next()
+                .unwrap();
+            (p.look.covers_scope, p.look.scrim_input, p.look.shadow)
+        };
+        session.remote.row_states = std::collections::HashMap::from([(row, "not_connected")]);
+        sync(&mut state, &session.read(), &layout(row));
+        assert_eq!(
+            look(&state),
+            (false, ScrimInput::VisualOnly, PopupShadow::Popover)
+        );
+        session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
+        sync(&mut state, &session.read(), &layout(row));
+        assert_eq!(
+            look(&state),
+            (true, ScrimInput::TakesPointer, PopupShadow::Modal)
+        );
     }
 }

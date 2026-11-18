@@ -505,6 +505,9 @@ pub struct OpenRequest {
     /// 인스턴스 데이터. 새 인스턴스를 열거나 다시 열 때 이 값으로 채운다.
     #[cfg(feature = "gui")]
     pub payload: crate::adapters::ui::popup::PayloadSlot,
+    /// 값이 있으면 이 인스턴스만 선언과 달리 범위를 덮거나 덮지 않는다. 그림자와 scrim 입력도 함께 정한다.
+    #[cfg(feature = "gui")]
+    pub covers_scope: Option<bool>,
 }
 
 #[cfg(feature = "gui")]
@@ -518,6 +521,7 @@ impl OpenRequest {
             focus: false,
             parent: None,
             payload: crate::adapters::ui::popup::PayloadSlot::default(),
+            covers_scope: None,
         }
     }
 

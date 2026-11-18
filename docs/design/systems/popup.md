@@ -44,7 +44,9 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 어느 host 인스턴스든 자식을 가질 수 있다. 열기 요청에 부모(`OpenRequest.parent`)를 실으면 자식은 요청 범위 대신 열린 부모의 범위로 열린다. 부모가 이미 닫혔으면 요청 범위를 쓴다. 열린 자식이 있는 부모는 바깥 클릭으로 닫히지 않는다. 바깥 클릭에서는 자식만 자기 규칙대로 닫히고, 자식이 없어진 다음 바깥 클릭에서 부모가 닫힌다. 부모 인스턴스(`PopupState.parent`)가 닫히면 그 자식 인스턴스도 사유 `ParentClosed`로 닫힌다. plugin 팝업이 부모인 host 파일 피커는 아직 아래 "plugin popup ↔ host popup 부모-자식"의 요청자 기록으로 연결한다.
 
-사용자 요청이 아니라 상태가 여닫기를 정하는 팝업은 여닫기 술어를 둔다(`popup::frame`의 `OPEN_WHEN`). 술어는 열 범위를 돌려주거나 없음을 돌려준다. 관리자(`PopupManager::follow_open_when`)는 그리기 전마다 술어 값을 직전 값과 비교해, 범위가 생기거나 바뀌면 포커스 없이 passive로 열고(같은 인스턴스는 정책대로 옮긴다) 없어지면 닫는다. 값이 같으면 아무것도 하지 않아 다른 경로로 닫힌 팝업을 값이 바뀌기 전까지 다시 열지 않는다. 저장된 원격 행의 연결 팝업 둘(`remote_row`·`remote_row_over_screen`)이 술어를 쓴다. 활성 workspace가 그 팝업을 원하면 그 workspace 범위다.
+사용자 요청이 아니라 상태가 여닫기를 정하는 팝업은 여닫기 술어를 둔다(`popup::frame`의 `OPEN_WHEN`). 술어는 열 범위와 덮음 값(`DrivenOpen`)을 돌려주거나 없음을 돌려준다. 관리자(`PopupManager::follow_open_when`)는 그리기 전마다 술어 값을 직전 값과 비교해, 범위가 생기거나 바뀌면 포커스 없이 passive로 열고(같은 인스턴스는 정책대로 옮긴다) 없어지면 닫는다. 덮음 값이 바뀌면 모양이 다른 팝업이므로 열린 인스턴스를 닫고 새로 연다. 값이 같으면 아무것도 하지 않아 다른 경로로 닫힌 팝업을 값이 바뀌기 전까지 다시 열지 않는다. 저장된 원격 행의 연결 팝업(`remote_row`)이 술어를 쓴다. 활성 workspace가 그 팝업을 원하면 그 workspace 범위이고, 마지막 화면 위에 띄울 때는 범위를 덮는다.
+
+열기 요청(`OpenRequest::covers_scope`)은 선언과 다른 덮음 값을 그 인스턴스에만 줄 수 있다. 덮으면 modal 그림자와 포인터를 받는 scrim(`TakesPointer`), 덮지 않으면 popover 그림자와 보이기만 하는 scrim(`VisualOnly`)이다. 셋은 함께 바뀐다. 인스턴스가 닫히면 셸 값은 선언 값으로 돌아간다.
 
 ## Host ↔ Plugin popup z-order
 
@@ -212,9 +214,9 @@ scrim은 팝업이 속한 범위를 덮는다(이 문서). Surface 범위는 해
 범위를 쓰지만 anchored + scrim-less 갈래이므로 scrim 이 없다([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md)).
 현재 scrim 을 까는 host 팝업: `remote_tool` · `remote_attach` · `command_palette` ·
 `port_scanner` · `convert_surface` · 전송 진행/오류 · `explorer_conflict` · `confirm_close_remote` ·
-`remote_row_over_screen`. plugin 팝업은 예외 없이 깐다.
+마지막 화면 위에 연 `remote_row`(열 때 덮음을 정한다). plugin 팝업은 예외 없이 깐다.
 
-scrim 이 받는 입력은 정의의 `scrim_input` 이 정한다. `remote_row_over_screen` 의 scrim 은 포인터를 받는다(`TakesPointer`).
+scrim 이 받는 입력은 정의의 `scrim_input` 이 정한다. 마지막 화면 위에 연 `remote_row` 의 scrim 은 포인터를 받는다(`TakesPointer`).
 `explorer_conflict` 가 열려 있는 동안에는 탐색기로 끌어 놓기를 막는다(`BlocksDrop`). 나머지 scrim 은 보이기만 하고, scrim 을 누르는 것은 바깥 클릭이다(`VisualOnly`).
 
 어둡게 하는 것과 입력을 막는 것은 다른 일이다 — scrim 은 dim 만 하고, Esc 와 바깥 클릭의

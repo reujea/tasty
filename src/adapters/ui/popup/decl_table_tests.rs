@@ -150,10 +150,6 @@ const EXPECTED: &[Row] = &[
     ),
     row("confirm_close_remote", true, false, false, RAISED),
     row("remote_row", false, true, false, RAISED),
-    Row {
-        scrim_pointer: true,
-        ..row("remote_row_over_screen", true, false, false, RAISED)
-    },
     row("tutorial_topics", false, false, false, PANEL),
     row(
         "rail_category",
@@ -231,7 +227,7 @@ fn expected(id: &str) -> Row {
 #[test]
 fn the_table_covers_every_declared_popup_once() {
     let ids: Vec<&str> = declared().iter().map(|(id, _)| *id).collect();
-    assert_eq!(ids.len(), 35, "정의 33개와 설정 창 팝업 2개");
+    assert_eq!(ids.len(), 34, "정의 32개와 설정 창 팝업 2개");
     let mut sorted = ids.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -350,13 +346,6 @@ const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bo
         ),
         ("confirm_close_remote", Keys, EscClose, OutUnfocus, true),
         ("remote_row", Keys, EscUnfocus, OutUnfocus, false),
-        (
-            "remote_row_over_screen",
-            Keys,
-            EscUnfocus,
-            OutUnfocus,
-            false,
-        ),
         ("tutorial_topics", Keys, EscClose, OutClose, true),
         ("rail_category", Keys, EscClose, OutClose, true),
         ("keybinding_conflict", Keys, EscClose, OutUnfocus, true),
