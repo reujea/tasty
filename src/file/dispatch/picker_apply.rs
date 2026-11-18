@@ -149,6 +149,10 @@ mod origin_tests;
 mod run_tests;
 
 #[cfg(test)]
+#[path = "picker_apply_place_tests.rs"]
+mod place_tests;
+
+#[cfg(test)]
 pub(super) mod tests {
     use std::sync::{Arc, Mutex};
 
@@ -223,6 +227,7 @@ pub(super) mod tests {
                 dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
 
@@ -271,6 +276,7 @@ pub(super) mod tests {
                 dispatch_origin: crate::file::dispatch::FileDispatchOrigin::Agent,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
 

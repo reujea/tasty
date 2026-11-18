@@ -459,6 +459,7 @@ mod tests {
             crate::request_runs::begin("file_handler.dispatch", None, serde_json::Value::Null);
         let data = crate::state::FileHandlerPickerData {
             origin_surface_id: None,
+            result_place: Default::default(),
             dispatch_origin: crate::file::dispatch::FileDispatchOrigin::Agent,
             target: crate::file::format::FileTarget::new("/tmp/park-picker.txt").into(),
             target_display: "/tmp/park-picker.txt".to_string(),

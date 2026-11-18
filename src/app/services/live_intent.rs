@@ -128,6 +128,7 @@ impl AppServices {
                 dispatch_origin,
                 ignore_size_limit,
                 run,
+                result_place,
             } => {
                 if let Some(sid) = origin_surface_id
                     && let Err(message) = crate::core::origin::require_origin_pane(engine, sid)
@@ -147,9 +148,12 @@ impl AppServices {
                             target,
                             depth,
                             origin_surface_id,
-                            dispatch_origin,
-                            ignore_size_limit,
-                            run,
+                            crate::file::dispatch::FileDispatchPolicy {
+                                dispatch_origin,
+                                ignore_size_limit,
+                                run,
+                                result_place,
+                            },
                         );
                     }
                     None => {

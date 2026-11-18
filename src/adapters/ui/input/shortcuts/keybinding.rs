@@ -821,7 +821,13 @@ impl MainView {
         let Some(workspace) = t.workspace_index(engine) else {
             return;
         };
-        crate::adapters::ui::file_open_tool::open_at(state, engine, t.surface_id(), workspace);
+        crate::adapters::ui::file_open_tool::open_at(
+            state,
+            engine,
+            t.surface_id(),
+            t.pane,
+            workspace,
+        );
     }
 
     /// 탐색기는 파일 선택 팝업 없이 새 탭을 연다. 경로가 없으면 홈을 사용한다.

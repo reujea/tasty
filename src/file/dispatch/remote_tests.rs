@@ -113,6 +113,7 @@ fn apply_on_mirror(
             dispatch_origin: origin,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     (state, engine_session, surfaces)
@@ -189,6 +190,7 @@ fn a_mirror_open_with_only_an_ipc_handler_runs_nothing_and_asks_to_download() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(queued_creates(&state).is_empty());
@@ -243,6 +245,7 @@ fn a_mirror_open_without_a_detector_opens_no_picker() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(queued_creates(&state).is_empty());
@@ -359,6 +362,7 @@ fn a_user_open_with_an_unopenable_first_handler_shows_only_remote_candidates() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(queued_creates(&state).is_empty());
@@ -395,6 +399,7 @@ fn an_agent_open_with_an_unopenable_first_handler_runs_the_first_remote_one() {
             dispatch_origin: FileDispatchOrigin::Agent,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(
@@ -423,6 +428,7 @@ fn an_unverified_plugin_open_with_an_unopenable_first_handler_shows_the_remote_p
             dispatch_origin: FileDispatchOrigin::PluginUnverified,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(queued_creates(&state).is_empty());
@@ -462,6 +468,7 @@ fn an_unopenable_remote_file_opened_by_name_asks_unless_an_agent_opened_it() {
                 dispatch_origin: origin,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
         assert!(
@@ -508,6 +515,7 @@ fn a_remote_picker_selection_queues_user_creation_and_rejects_local_handlers() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(state.pending_handler_ipc.is_empty());
@@ -524,6 +532,7 @@ fn a_remote_picker_selection_queues_user_creation_and_rejects_local_handlers() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert_eq!(queued_creates(&state).len(), 1);
@@ -551,9 +560,7 @@ impl IdentifySpawner for RecordingSpawner {
         _target: FileTarget,
         depth: DetectDepth,
         origin_surface_id: Option<u32>,
-        _dispatch_origin: FileDispatchOrigin,
-        _ignore_size_limit: bool,
-        _run: Option<u64>,
+        _policy: crate::file::dispatch::FileDispatchPolicy,
     ) {
         self.0.lock().unwrap().push((depth, origin_surface_id));
     }
@@ -580,6 +587,7 @@ fn a_mirror_origin_identifies_by_name_only() {
                 dispatch_origin: FileDispatchOrigin::User,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         )
         .unwrap();
@@ -620,7 +628,7 @@ fn click_terminal_link(
     is_mirror: bool,
     detector: Option<DetectorId>,
 ) -> Vec<(DetectDepth, Option<u32>)> {
-    let request = super::terminal_link_file_intent(FileTarget::new(path), sid, is_mirror);
+    let request = super::terminal_link_file_intent(FileTarget::new(path), sid, None, is_mirror);
     assert!(request.origin.is_user(), "Ctrl+클릭은 사용자 요청이다");
     let crate::intent::Intent::Domain(intent) = request.body else {
         panic!("expected a domain intent");
@@ -649,6 +657,7 @@ fn click_terminal_link(
             dispatch_origin,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     spawner.0.lock().unwrap().clone()
@@ -755,7 +764,7 @@ fn a_mirror_terminal_link_click_without_a_remote_handler_runs_nothing_locally() 
 
 #[test]
 fn a_local_terminal_link_click_keeps_the_local_dispatch() {
-    let request = super::terminal_link_file_intent(FileTarget::new("/tmp/a.md"), 7, false);
+    let request = super::terminal_link_file_intent(FileTarget::new("/tmp/a.md"), 7, None, false);
     assert!(request.origin.is_user());
     assert!(matches!(
         request.body,
@@ -871,6 +880,16 @@ fn open_locally(
     path: impl FnOnce() -> std::path::PathBuf,
     origin: FileDispatchOrigin,
 ) -> Vec<crate::intent::DispatchedIntent> {
+    open_locally_at(mirror, path, origin, |_| Default::default())
+}
+
+/// [`open_locally`] 와 같고, 결과 자리를 고정 픽스처의 engine 에서 정한다.
+fn open_locally_at(
+    mirror: bool,
+    path: impl FnOnce() -> std::path::PathBuf,
+    origin: FileDispatchOrigin,
+    place: impl FnOnce(&crate::core::CoreState) -> crate::file::dispatch::FileResultPlace,
+) -> Vec<crate::intent::DispatchedIntent> {
     let (mut core, _) = build_test_core();
     let (mut state, mut engine_session) = if mirror {
         crate::state::tests::test_mirror_state()
@@ -884,6 +903,7 @@ fn open_locally(
         "com.tasty.markdown",
         serde_json::json!({"kind": "open_surface", "surface_kind": "markdown", "param_key": "file"}),
     );
+    let result_place = place(&engine);
     apply_identify_result(
         &mut core,
         &mut state,
@@ -895,6 +915,7 @@ fn open_locally(
             dispatch_origin: origin,
             ignore_size_limit: false,
             run: None,
+            result_place,
         },
     );
     state.take_pending_intents()
@@ -980,4 +1001,36 @@ fn a_downloaded_file_opened_on_an_active_mirror_goes_to_a_new_local_workspace() 
     // 에이전트 요청은 활성 workspace 를 바꾸지 않는다.
     let pending = open_locally(true, downloaded, FileDispatchOrigin::Agent);
     assert!(!creates_workspace(&pending), "{pending:?}");
+}
+
+/// 받은 파일은 받기를 요청한 mirror 가 정한 자리라 완료 때 활성 workspace 가 로컬이어도 새 로컬
+/// workspace 에 연다. 입력이 정한 pane 이면 그 pane 의 workspace 가 mirror 인지 본다.
+#[test]
+fn a_downloaded_file_follows_the_place_its_request_chose() {
+    use crate::file::dispatch::FileResultPlace;
+    let downloaded = || {
+        crate::remote::file_download::client::run_root()
+            .join("run-1")
+            .join("notes.md")
+    };
+    let pending = open_locally_at(false, downloaded, FileDispatchOrigin::User, |_| {
+        FileResultPlace::NewLocalWorkspace
+    });
+    assert!(
+        creates_workspace(&pending) && !opens_tab(&pending),
+        "{pending:?}"
+    );
+    let first_pane = |engine: &crate::core::CoreState| {
+        let workspace = engine.workspace_at(0).expect("workspace");
+        FileResultPlace::Pane(workspace.pane_layout().all_pane_ids()[0])
+    };
+    // mirror workspace 의 pane 에 열 받은 파일은 새 로컬 workspace 로 간다.
+    let pending = open_locally_at(true, downloaded, FileDispatchOrigin::User, first_pane);
+    assert!(creates_workspace(&pending), "{pending:?}");
+    // 로컬 workspace 의 pane 이면 그 pane 에 탭을 연다.
+    let pending = open_locally_at(false, downloaded, FileDispatchOrigin::User, first_pane);
+    assert!(
+        opens_tab(&pending) && !creates_workspace(&pending),
+        "{pending:?}"
+    );
 }

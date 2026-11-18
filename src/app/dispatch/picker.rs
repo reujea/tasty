@@ -44,6 +44,7 @@ impl App {
         let origin_surface_id = data.origin_surface_id;
         let dispatch_origin = data.dispatch_origin;
         let ignore_size_limit = data.ignore_size_limit;
+        let result_place = data.result_place;
         let run = data.run.take().map(|guard| guard.take());
         // 설정 창 열기는 ActiveEventLoop가 필요해 App에서 처리한다.
         if matches!(result, crate::state::FileHandlerPickerResult::OpenSettings) {
@@ -67,6 +68,7 @@ impl App {
                     dispatch_origin,
                     ignore_size_limit,
                     run,
+                    result_place,
                 },
             );
         }

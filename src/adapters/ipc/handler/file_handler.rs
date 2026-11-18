@@ -194,6 +194,8 @@ pub fn handle_dispatch(
         dispatch_origin,
         ignore_size_limit: req.ignore_size_limit,
         run: Some(run),
+        // IPC 요청은 결과 자리를 정하지 않는다. 출처 surface 가 있으면 그 pane 이다.
+        result_place: crate::file::dispatch::FileResultPlace::Unbound,
     };
     // 새 탭 선택과 실패 알림도 같은 요청 출처를 사용한다.
     out.push(match dispatch_origin {

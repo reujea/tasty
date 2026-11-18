@@ -165,6 +165,8 @@ pub(crate) enum AppEvent {
         ignore_size_limit: bool,
         /// 최종 결과를 받을 요청의 run.
         run: Option<u64>,
+        /// 결과 탭을 열 자리.
+        result_place: crate::file::dispatch::FileResultPlace,
     },
 }
 

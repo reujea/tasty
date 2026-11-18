@@ -1,6 +1,6 @@
 //! 도메인이 GUI worker 타입에 의존하지 않고 비동기 파일 식별을 요청하기 위한 인터페이스.
 
-use crate::core::origin::FileDispatchOrigin;
+use crate::core::origin::FileDispatchPolicy;
 use crate::file::format::{DetectDepth, FileTarget};
 
 pub(crate) trait IdentifySpawner: Send + Sync {
@@ -10,8 +10,6 @@ pub(crate) trait IdentifySpawner: Send + Sync {
         target: FileTarget,
         depth: DetectDepth,
         origin_surface_id: Option<u32>,
-        dispatch_origin: FileDispatchOrigin,
-        ignore_size_limit: bool,
-        run: Option<u64>,
+        policy: FileDispatchPolicy,
     );
 }

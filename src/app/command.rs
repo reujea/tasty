@@ -391,6 +391,8 @@ pub(crate) enum DomainIntent {
         ignore_size_limit: bool,
         /// 최종 결과를 받을 요청의 run([`crate::request_runs`]). IPC 요청만 가진다.
         run: Option<u64>,
+        /// 결과 탭을 열 자리. `origin_surface_id`가 있으면 그 pane이 우선한다.
+        result_place: crate::core::origin::FileResultPlace,
     },
 }
 

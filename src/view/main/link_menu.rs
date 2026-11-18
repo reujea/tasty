@@ -192,12 +192,17 @@ fn open_link_handler_picker(
                 None,
                 all,
                 true,
-                // 선택창은 링크를 누른 터미널에 뜬다. 고른 처리기는 지금처럼 출처 없이 실행한다.
+                // 선택창은 링크를 누른 터미널에 뜬다. 고른 처리기는 출처 없이(로컬 파일로) 실행하고,
+                // 결과 탭은 링크를 누른 터미널의 pane 에 연다.
                 crate::file::dispatch::PickerOrigin::ShownIn(link.surface_id),
                 crate::file::dispatch::FileDispatchPolicy {
                     dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                     ignore_size_limit: false,
                     run: None,
+                    result_place: engine.find_pane_for_surface(link.surface_id).map_or(
+                        crate::file::dispatch::FileResultPlace::Unbound,
+                        crate::file::dispatch::FileResultPlace::Pane,
+                    ),
                 },
             );
         }
@@ -384,6 +389,27 @@ mod tests {
         assert!(!link_open_target("file:///home/u/a.md", false).1);
     }
 
+    /// 로컬 링크의 "연결 동작"에서 고른 처리기의 결과 탭은 링크를 누른 터미널의 pane 에 열린다.
+    /// 처리기는 출처 없이(로컬 파일로) 실행한다.
+    #[test]
+    fn open_with_on_a_local_link_names_the_pane_of_the_link() {
+        let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+        let engine = session.borrow_mut();
+        assert_eq!(state.focused_pane_id(&engine.read()), 20);
+        let mut link = link_on(101, "https://example.com/a");
+        link.open_with = Some(DispatchTarget::File(crate::file::format::FileTarget::new(
+            "/tmp/a.md",
+        )));
+        super::open_link_handler_picker(&mut state, &engine.read(), &link);
+        let picker = crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
+            .expect("picker opens");
+        assert_eq!(picker.origin_surface_id, None);
+        assert_eq!(
+            picker.result_place,
+            crate::file::dispatch::FileResultPlace::Pane(10)
+        );
+    }
+
     fn link_on(surface_id: u32, url: &str) -> TerminalLinkMenu {
         TerminalLinkMenu {
             surface_id,
@@ -463,6 +489,7 @@ mod tests {
                         dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                         ignore_size_limit: false,
                         run: None,
+                        result_place: Default::default(),
                     },
                 )
             }

@@ -124,6 +124,7 @@ fn delayed_picker_selection_uses_origin_pane_after_active_workspace_changes() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     let picker = take_picker_open_request(&mut state, false);
@@ -147,6 +148,7 @@ fn delayed_picker_selection_uses_origin_pane_after_active_workspace_changes() {
             dispatch_origin: picker.dispatch_origin,
             ignore_size_limit: picker.ignore_size_limit,
             run: None,
+            result_place: Default::default(),
         },
     );
     take_creation(&mut state, pane, true);
@@ -188,6 +190,7 @@ fn a_dead_origin_cannot_execute_any_action_or_enqueue_a_new_tab() {
                 dispatch_origin: FileDispatchOrigin::Agent,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             }
         ));
         assert!(state.pending_intents.is_empty());
@@ -204,6 +207,7 @@ fn a_dead_origin_cannot_execute_any_action_or_enqueue_a_new_tab() {
             dispatch_origin: FileDispatchOrigin::Agent,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         }
     ));
     assert!(state.pending_intents.is_empty());
@@ -225,6 +229,7 @@ fn no_origin_queues_the_user_new_tab_request() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         }
     ));
     let pending = state.take_pending_intents();
@@ -257,6 +262,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_missing_target_do_not_dispatch(
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: true,
             run: None,
+            result_place: Default::default(),
         },
     );
     let picker = take_picker_open_request(&mut state, false);
@@ -274,6 +280,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_missing_target_do_not_dispatch(
             dispatch_origin: picker.dispatch_origin,
             ignore_size_limit: picker.ignore_size_limit,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(state.pending_intents.is_empty());
@@ -293,6 +300,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_missing_target_do_not_dispatch(
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state).is_none());
@@ -314,6 +322,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_missing_target_do_not_dispatch(
             dispatch_origin: FileDispatchOrigin::Agent,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     assert!(state.pending_intents.is_empty());
@@ -350,6 +359,7 @@ fn agent_origin_preserves_the_selected_tab_even_when_origin_is_inactive() {
                 dispatch_origin: FileDispatchOrigin::Agent,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
         assert!(succeeded);
@@ -392,6 +402,7 @@ fn a_user_origin_requests_activation_in_the_original_pane() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         }
     ));
 
@@ -424,6 +435,7 @@ fn user_dispatch_opens_the_picker_as_a_user_request() {
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     take_picker_open_request(&mut state, false);
@@ -453,6 +465,7 @@ fn agent_dispatch_without_a_matching_handler_opens_no_picker() {
                     dispatch_origin: FileDispatchOrigin::Agent,
                     ignore_size_limit: false,
                     run: None,
+                    result_place: Default::default(),
                 },
             );
             assert!(
@@ -498,6 +511,7 @@ fn an_unverified_plugin_dispatch_without_a_matching_handler_opens_the_fallback_p
                 dispatch_origin: FileDispatchOrigin::PluginUnverified,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
         let picker = take_picker_open_request(&mut state, true);
@@ -531,6 +545,7 @@ fn an_unverified_plugin_dispatch_without_a_matching_handler_opens_the_fallback_p
             dispatch_origin: FileDispatchOrigin::PluginUnverified,
             ignore_size_limit: false,
             run: None,
+            result_place: Default::default(),
         },
     );
     take_creation(&mut state, pane_id, false);

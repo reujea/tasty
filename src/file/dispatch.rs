@@ -23,19 +23,9 @@ use crate::state::{FileHandlerPickerData, PickerHandlerSummary};
 pub(crate) use picker_apply::{apply_file_picker_result, apply_identify_result};
 
 #[cfg(feature = "gui")]
-pub use crate::core::origin::FileDispatchOrigin;
-#[cfg(feature = "gui")]
 pub(crate) use crate::core::origin::require_origin_pane;
-
-/// picker 표시와 핸들러 실행이 함께 옮기는 요청 출처와 크기 제한 정책.
 #[cfg(feature = "gui")]
-#[derive(Debug, Clone, Copy)]
-pub struct FileDispatchPolicy {
-    pub dispatch_origin: FileDispatchOrigin,
-    pub ignore_size_limit: bool,
-    /// 최종 결과를 받을 요청의 run([`crate::request_runs`]). 결과를 돌려받지 않는 요청은 None이다.
-    pub run: Option<u64>,
-}
+pub use crate::core::origin::{FileDispatchOrigin, FileDispatchPolicy, FileResultPlace};
 
 /// 파일은 형식 식별을 거치고 http(s) URL은 바로 핸들러 선택·실행으로 전달한다.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -271,6 +261,7 @@ pub(crate) fn open_picker_adjusted(
         dispatch_origin,
         ignore_size_limit,
         run,
+        result_place,
     } = policy;
     let scope = origin.scope();
     // 같은 범위의 선택창을 기다리던 요청은 결과 없이 끝난다. 새 요청이 그 선택창의 데이터를 바꾼다.
@@ -325,6 +316,7 @@ pub(crate) fn open_picker_adjusted(
         selected: None,
         result: None,
         ignore_size_limit,
+        result_place,
         run: run.map(|run| {
             crate::request_runs::RunGuard::new(
                 run,
@@ -452,6 +444,7 @@ pub fn execute_handler_action(
         dispatch_origin,
         ignore_size_limit,
         run,
+        result_place,
     } = policy;
     if let Err(reason) = handler_may_run(&engine.as_ref(), handler, target, origin_surface_id) {
         fail_run(run, reason);
@@ -480,7 +473,7 @@ pub fn execute_handler_action(
             let params = open_surface_params(param_key, target);
             if origin_surface_id.is_none()
                 && dispatch_origin == FileDispatchOrigin::User
-                && opens_in_new_local_workspace(state, engine, target)
+                && opens_in_new_local_workspace(state, engine, target, result_place)
             {
                 return open_in_new_local_workspace(state, surface_kind, params, run);
             }
@@ -601,7 +594,8 @@ fn open_surface_params(param_key: &str, target: &DispatchTarget) -> serde_json::
     serde_json::json!({ param_key: target.surface_param_value() })
 }
 
-/// origin이 있으면 그 pane에, 없으면 현재 pane에 탭 생성을 요청한다.
+/// origin이 있으면 그 pane에, 없으면 요청이 정한 결과 자리에 탭 생성을 요청한다. 자리를 정하지 않은
+/// 요청(에이전트 IPC 등)만 처리 때의 선택 pane에 연다.
 #[cfg(feature = "gui")]
 pub(crate) fn open_surface_tab(
     _core: &mut crate::app::services::AppServices,
@@ -615,6 +609,7 @@ pub(crate) fn open_surface_tab(
     let FileDispatchPolicy {
         dispatch_origin,
         run,
+        result_place,
         ..
     } = policy;
     let origin_pane = match origin_surface_id
@@ -652,13 +647,21 @@ pub(crate) fn open_surface_tab(
         }
         None => {
             // 위임한 핸들러도 사용자·에이전트를 구분하므로 origin을 보존한다.
-            // 결과 탭을 열 pane 이 정해지지 않은 요청은 지금 포커스 pane 에 연다.
-            let read = engine.read();
-            let target = crate::intent::StructureTarget {
-                pane: state.focused_pane(&read).map(|pane| pane.id),
-                cwd_source: state.focused_surface_id(&read),
+            // 입력이 정한 pane 이 있으면 그 pane 에 연다(사라졌으면 해석이 버린다). 자리를 정하지 않은
+            // 요청은 지금 선택 pane 에 연다.
+            let target = match result_place {
+                FileResultPlace::Pane(pane) => crate::intent::StructureTarget {
+                    pane: Some(pane),
+                    cwd_source: None,
+                },
+                FileResultPlace::Unbound | FileResultPlace::NewLocalWorkspace => {
+                    let read = engine.read();
+                    crate::intent::StructureTarget {
+                        pane: state.focused_pane(&read).map(|pane| pane.id),
+                        cwd_source: state.focused_surface_id(&read),
+                    }
+                }
             };
-            drop(read);
             let intent = crate::intent::Intent::NewTab {
                 kind: Some(surface_kind.to_string()),
                 params,
@@ -678,21 +681,34 @@ pub(crate) fn open_surface_tab(
     true
 }
 
-/// 원격에서 받은 파일을 탭으로 여는데 활성 workspace 가 mirror 이면, 탭이 원격으로 forward 되어
-/// 로컬 임시 경로가 원격에서 열리지 않도록 새 로컬 workspace 를 만든다
+/// 원격에서 받은 파일을 mirror workspace 의 탭으로 열면 탭이 원격으로 forward 되어 로컬 임시 경로가
+/// 원격에서 열리지 않는다. 그래서 새 로컬 workspace 를 만든다
 /// ([원격 attach (Remote attach)](../../docs/features/remote-attach/index.md)의 "다운로드 후 실행").
+/// 받기를 요청한 mirror 가 정한 자리면 늘 새 workspace 다. 입력이 정한 pane 이면 그 pane 의 workspace 를,
+/// 자리를 정하지 않은 요청이면 활성 workspace 를 본다.
 #[cfg(feature = "gui")]
 fn opens_in_new_local_workspace(
     state: &RequestContext,
     engine: &EngineMut<'_>,
     target: &DispatchTarget,
+    result_place: FileResultPlace,
 ) -> bool {
     let DispatchTarget::File(file) = target else {
         return false;
     };
-    !engine.workspaces().is_empty()
-        && state.active_workspace(engine).mirror
-        && crate::remote::file_download::client::is_downloaded_file(file.as_path())
+    if !crate::remote::file_download::client::is_downloaded_file(file.as_path()) {
+        return false;
+    }
+    match result_place {
+        FileResultPlace::NewLocalWorkspace => true,
+        FileResultPlace::Pane(pane) => engine
+            .find_workspace_index_for_pane(pane)
+            .and_then(|index| engine.workspace_at(index))
+            .is_some_and(|workspace| workspace.mirror),
+        FileResultPlace::Unbound => {
+            !engine.workspaces().is_empty() && state.active_workspace(engine).mirror
+        }
+    }
 }
 
 /// 이름 없이(자동 이름) 일반 로컬 workspace 를 만들고 첫 surface 로 연다. 만든 workspace 가 활성화되므로

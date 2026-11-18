@@ -647,6 +647,8 @@ pub(crate) fn apply_explorer_action(
                     dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                     ignore_size_limit: false,
                     run: None,
+                    // 출처 탐색기의 pane 에 연다.
+                    result_place: crate::file::dispatch::FileResultPlace::Unbound,
                 }
                 .from_user_menu("explorer_open_file"),
             );

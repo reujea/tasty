@@ -195,7 +195,7 @@ impl MainView {
             }
             Route::AtCursor(x, y) => (x, y),
         };
-        {
+        let hit = {
             let scale_factor = self.base.gpu.scale_factor();
             // best-effort focus 이동. drop 좌표에 pane/surface 가 없으면 현재 focus 유지.
             let _pane_focus =
@@ -220,7 +220,16 @@ impl MainView {
                 self.drop_into_explorer(engine, sid, dest, decided, drops);
                 return;
             }
-        }
+            hit
+        };
+        // 결과 탭은 놓은 자리의 pane 에 연다. 놓은 surface 를 origin 으로 싣지 않는다. origin 은 파일 위치도
+        // 정해서, 로컬 파일을 mirror surface 에 놓으면 원격 파일로 판정되기 때문이다.
+        let result_place = hit
+            .and_then(|sid| engine.find_pane_for_surface(sid))
+            .map_or(
+                crate::file::dispatch::FileResultPlace::Unbound,
+                crate::file::dispatch::FileResultPlace::Pane,
+            );
         for path in drops {
             self.state.dispatch_intent(
                 crate::app::command::DomainIntent::DispatchFile {
@@ -230,6 +239,7 @@ impl MainView {
                     dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                     ignore_size_limit: false,
                     run: None,
+                    result_place,
                 }
                 .from_user_menu("file_drop"),
             );

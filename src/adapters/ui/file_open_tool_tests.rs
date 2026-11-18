@@ -135,6 +135,7 @@ fn closed_origin_surface_falls_back_to_another_surface_of_the_mirror() {
             surface_id: Some(987_654),
             dir: None,
         },
+        pane: None,
     });
     apply_outcome(&mut state, &engine, &confirmed(request_id, &["/srv/a.md"]));
     let files = dispatched_files(&state.take_pending_intents());
@@ -157,6 +158,7 @@ fn closed_mirror_workspace_opens_nothing() {
             surface_id: Some(987_654),
             dir: None,
         },
+        pane: None,
     });
     apply_outcome(&mut state, &engine, &confirmed(request_id, &["/srv/a.md"]));
     assert!(state.take_pending_intents().is_empty());

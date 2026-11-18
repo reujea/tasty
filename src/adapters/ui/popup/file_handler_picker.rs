@@ -1619,6 +1619,7 @@ mod tests {
                 dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
 
@@ -1686,6 +1687,7 @@ mod tests {
                 dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                 ignore_size_limit: false,
                 run: None,
+                result_place: Default::default(),
             },
         );
         let picker = opened_picker(&mut state).expect("a picker");

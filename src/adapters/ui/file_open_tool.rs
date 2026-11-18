@@ -11,17 +11,21 @@ use crate::state::{
 };
 
 /// 포커스 surface의 소속, 없으면 활성 workspace를 둘러보는 피커를 연다. 위치는 결과를 해석하려고 보관한다.
+/// 메뉴를 고른 지금의 포커스가 입력 대상이다.
 pub(crate) fn open(state: &mut MainViewState, engine: &EngineRead<'_>) {
     let surface = state.focused_surface_id(engine);
     let workspace = state.active_workspace_index(engine);
-    open_at(state, engine, surface, workspace);
+    let pane = state.focused_pane(engine).map(|pane| pane.id);
+    open_at(state, engine, surface, pane, workspace);
 }
 
 /// 명령 대상 `surface` 의 소속, 없으면 `workspace` 번째 workspace 를 둘러보는 피커를 연다.
+/// 고른 로컬 파일은 `pane` 에 연다.
 pub(crate) fn open_at(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
     surface: Option<u32>,
+    pane: Option<u32>,
     workspace: usize,
 ) {
     let location = file_picker::locate(state, engine, surface, workspace, None);
@@ -44,6 +48,7 @@ pub(crate) fn open_at(
     state.dialogs.file_picker_callers.open_file = Some(OpenFilePickerRequest {
         request_id,
         location,
+        pane,
     });
 }
 
@@ -71,6 +76,11 @@ pub(crate) fn apply_outcome(
     if outcome.cancelled {
         return;
     }
+    // 로컬 결과는 피커를 연 때의 pane 에 연다. 그 pane 이 사라졌으면 해석이 버린다.
+    let result_place = request.pane.map_or(
+        crate::file::dispatch::FileResultPlace::Unbound,
+        crate::file::dispatch::FileResultPlace::Pane,
+    );
     let origin_surface_id = match request.location {
         FilePickerLocation::Local { .. } => None,
         FilePickerLocation::Remote {
@@ -97,6 +107,7 @@ pub(crate) fn apply_outcome(
                 dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
                 ignore_size_limit: false,
                 run: None,
+                result_place,
             }
             .from_user_menu("file_picker_confirm"),
         );

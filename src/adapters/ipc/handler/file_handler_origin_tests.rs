@@ -169,6 +169,7 @@ fn dispatch_through_with(
             dispatch_origin,
             ignore_size_limit,
             run: None,
+            result_place: Default::default(),
         },
     );
     // App receives creation requests; the View does not synchronously create/select a tab.
@@ -480,6 +481,7 @@ fn only_an_unverified_plugin_request_opens_the_fallback_picker() {
                 dispatch_origin,
                 ignore_size_limit,
                 run: None,
+                result_place: Default::default(),
             },
         );
         assert_eq!(

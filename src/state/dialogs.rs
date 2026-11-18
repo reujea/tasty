@@ -327,6 +327,8 @@ pub struct FileHandlerPickerData {
     pub(crate) result: Option<FileHandlerPickerResult>,
     /// 원래 요청의 크기 제한 우회 설정. 선택 후 실행까지 유지한다.
     pub(crate) ignore_size_limit: bool,
+    /// 원래 요청이 정한 결과 탭 자리. 선택 후 실행까지 유지한다.
+    pub(crate) result_place: crate::file::dispatch::FileResultPlace,
     /// 최종 결과를 기다리는 요청의 run. 선택 없이 사라지면 `cancelled`로 끝난다.
     pub(crate) run: Option<crate::request_runs::RunGuard>,
     /// 대상이 mirror 원격 호스트의 경로이면 그 호스트 글자(비면 `Remote` 낱말). 로컬 대상은 None.
@@ -496,6 +498,8 @@ pub(crate) struct FilePickerCallers {
 pub(crate) struct OpenFilePickerRequest {
     pub(crate) request_id: FilePickerRequestId,
     pub(crate) location: FilePickerLocation,
+    /// 피커를 연 때의 대상 pane. 고른 로컬 파일의 결과 탭을 여기에 연다.
+    pub(crate) pane: Option<u32>,
 }
 
 /// 고른 파일로 `pane_id` pane에 `kind` 탭을 만들고 경로를 `param_key` 파라미터로 넘긴다.

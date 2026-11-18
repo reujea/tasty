@@ -39,10 +39,14 @@ impl IdentifyWorker {
         target: FileTarget,
         depth: DetectDepth,
         origin_surface_id: Option<u32>,
-        dispatch_origin: crate::file::dispatch::FileDispatchOrigin,
-        ignore_size_limit: bool,
-        run: Option<u64>,
+        policy: crate::file::dispatch::FileDispatchPolicy,
     ) -> IdentifyRequestId {
+        let crate::file::dispatch::FileDispatchPolicy {
+            dispatch_origin,
+            ignore_size_limit,
+            run,
+            result_place,
+        } = policy;
         let id = IdentifyRequestId(self.next_id.fetch_add(1, Ordering::Relaxed));
         let registry = self.registry.clone();
         let proxy = self.proxy.clone();
@@ -57,6 +61,7 @@ impl IdentifyWorker {
                 dispatch_origin,
                 ignore_size_limit,
                 run,
+                result_place,
             };
             #[expect(
                 clippy::let_underscore_must_use,
@@ -74,18 +79,9 @@ impl crate::core::identify_port::IdentifySpawner for IdentifyWorker {
         target: FileTarget,
         depth: DetectDepth,
         origin_surface_id: Option<u32>,
-        dispatch_origin: crate::file::dispatch::FileDispatchOrigin,
-        ignore_size_limit: bool,
-        run: Option<u64>,
+        policy: crate::file::dispatch::FileDispatchPolicy,
     ) {
-        let _id = self.spawn(
-            target,
-            depth,
-            origin_surface_id,
-            dispatch_origin,
-            ignore_size_limit,
-            run,
-        );
+        let _id = self.spawn(target, depth, origin_surface_id, policy);
     }
 }
 

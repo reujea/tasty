@@ -15,6 +15,7 @@ fn policy(origin: FileDispatchOrigin, run: u64) -> FileDispatchPolicy {
         dispatch_origin: origin,
         ignore_size_limit: false,
         run: Some(run),
+        result_place: Default::default(),
     }
 }
 

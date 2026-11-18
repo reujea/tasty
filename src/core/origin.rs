@@ -88,6 +88,44 @@ impl FileDispatchOrigin {
     }
 }
 
+/// 사용자 입력이 정한 파일 열기 결과 탭의 자리. 파일 위치와 실행 출처를 정하는 `origin_surface_id`와
+/// 따로 싣는다. 로컬 파일을 mirror surface에 놓아도 원격 파일로 판정하지 않게 하려는 것이다.
+#[cfg_attr(
+    not(feature = "gui"),
+    expect(
+        dead_code,
+        reason = "every producer of a file dispatch origin is gui-only"
+    )
+)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FileResultPlace {
+    /// 입력이 자리를 정하지 않은 요청(에이전트 IPC 등). 결과 탭은 처리 때의 선택 pane에 연다.
+    #[default]
+    Unbound,
+    /// 입력 때 정한 pane. 그 사이 사라졌으면 다른 pane에 열지 않고 버린다.
+    Pane(u32),
+    /// 새 로컬 workspace. mirror workspace에서 요청해 받은 파일이다.
+    NewLocalWorkspace,
+}
+
+/// picker 표시와 핸들러 실행이 함께 옮기는 요청 출처와 크기 제한 정책.
+#[cfg_attr(
+    not(feature = "gui"),
+    expect(
+        dead_code,
+        reason = "every producer of a file dispatch origin is gui-only"
+    )
+)]
+#[derive(Debug, Clone, Copy)]
+pub struct FileDispatchPolicy {
+    pub dispatch_origin: FileDispatchOrigin,
+    pub ignore_size_limit: bool,
+    /// 최종 결과를 받을 요청의 run([`crate::request_runs`]). 결과를 돌려받지 않는 요청은 None이다.
+    pub run: Option<u64>,
+    /// 결과 탭을 열 자리. 사용자 입력이 정한 값이다.
+    pub result_place: FileResultPlace,
+}
+
 /// 명시된 surface의 pane을 찾는다. 대상이 사라졌으면 현재 선택 pane으로 대체하지 않고 거절한다.
 #[cfg(feature = "gui")]
 pub(crate) fn require_origin_pane(

@@ -780,6 +780,7 @@ impl MainView {
                         crate::file::dispatch::remote::terminal_link_file_intent(
                             crate::file::format::FileTarget::new(path),
                             hovered.surface_id,
+                            engine.find_pane_for_surface(hovered.surface_id),
                             is_mirror,
                         ),
                     );

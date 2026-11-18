@@ -141,6 +141,7 @@ impl App {
     }
 
     /// 받은 로컬 파일을 사용자 요청으로 연다. 이후는 로컬 핸들러 설정을 그대로 따른다.
+    /// 받기는 mirror workspace 에서 요청하므로 완료 때 활성 workspace 와 관계없이 새 로컬 workspace 에 연다.
     /// mirror 를 가진 창에 보내며, 창이 사라졌으면 첫 창에 보낸다.
     fn open_downloaded_file(&mut self, workspace: u32, path: std::path::PathBuf) {
         let intent = crate::app::command::DomainIntent::DispatchFile {
@@ -150,6 +151,7 @@ impl App {
             dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            result_place: crate::file::dispatch::FileResultPlace::NewLocalWorkspace,
         }
         .from_user_menu("remote_file_download");
         let mut pairs: Vec<_> = self.engines_mut().window_pairs().collect();

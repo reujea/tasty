@@ -175,10 +175,12 @@ fn open_remote_picker(
 }
 
 /// 터미널 링크 Ctrl+클릭이 만드는 파일 열기 요청. mirror surface의 경로는 원격 경로라 그 surface를 origin으로 실어
-/// 원격 판정([`apply_remote_identify_result`])으로 보낸다. 로컬 surface는 origin 없이 기존 로컬 열기를 따른다.
+/// 원격 판정([`apply_remote_identify_result`])으로 보낸다. 로컬 surface는 origin 없이 로컬 파일로 열고,
+/// 결과 탭은 링크를 누른 surface의 pane(`pane`)에 연다.
 pub(crate) fn terminal_link_file_intent(
     target: FileTarget,
     surface_id: u32,
+    pane: Option<u32>,
     is_mirror: bool,
 ) -> crate::intent::DispatchedIntent {
     crate::app::command::DomainIntent::DispatchFile {
@@ -188,6 +190,10 @@ pub(crate) fn terminal_link_file_intent(
         dispatch_origin: FileDispatchOrigin::User,
         ignore_size_limit: false,
         run: None,
+        result_place: pane.map_or(
+            crate::file::dispatch::FileResultPlace::Unbound,
+            crate::file::dispatch::FileResultPlace::Pane,
+        ),
     }
     .from_user_menu("terminal_link_click")
 }
@@ -230,6 +236,8 @@ pub(crate) fn open_remote_link_picker(
             dispatch_origin: FileDispatchOrigin::User,
             ignore_size_limit: false,
             run: None,
+            // 원격 파일은 출처 mirror surface 의 pane 에 연다.
+            result_place: crate::file::dispatch::FileResultPlace::Unbound,
         },
     );
 }

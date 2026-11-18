@@ -215,6 +215,7 @@ impl ApplicationHandler<AppEvent> for App {
                 dispatch_origin,
                 ignore_size_limit,
                 run,
+                result_place,
             } => self.handle_identify_done(
                 request_id,
                 target,
@@ -224,6 +225,7 @@ impl ApplicationHandler<AppEvent> for App {
                     dispatch_origin,
                     ignore_size_limit,
                     run,
+                    result_place,
                 },
             ),
         }

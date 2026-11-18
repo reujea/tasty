@@ -466,6 +466,7 @@ mod tests {
         let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
         let data = crate::state::FileHandlerPickerData {
             origin_surface_id: None,
+            result_place: Default::default(),
             dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
             target: crate::file::format::FileTarget::new("/tmp/row-picker.txt").into(),
             target_display: "/tmp/row-picker.txt".to_string(),
