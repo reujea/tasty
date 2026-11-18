@@ -23,7 +23,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 - **`PopupState`** — 인스턴스 하나의 상태(선언 id, 인스턴스 id `PopupInstanceId`, 부모 인스턴스, 인스턴스 데이터 `payload`, title, pos, size, open, focused, scope, dragging/resizing, size_user_overridden).
 - **범용 render 루프** — `src/adapters/ui/popup/frame.rs::draw_popup_layer`(등록된 모든 `PopupDef` 순회 + close 경로별 `on_close` 훅 drain). toast/banner/tutorial 오버레이 체인은 개념이 다르므로(docs/design/systems/popup.md) `src/adapters/ui/overlay.rs` 로 분리돼 있다. 진입점 `src/adapters/ui.rs::draw_popups` 가 둘을 z-order 순서로 호출한다.
 
-등록된 팝업은 `all_defs()` 가 단일 출처다(예: `notifications`, `convert_surface`, `rename`, `search_bar`, `tools_menu` …). 새 팝업 = 테이블 항목 1개 + draw 함수 하나. 단, plugin 이 소유하는 팝업(예: markdown 파일열기·large-file 확인)은 host `PopupDef` 가 아니라 plugin 매니페스트 `[[contributes.popup]]`(egui-mesh) 로 등록된다.
+등록된 팝업은 `all_defs()` 가 단일 출처다(예: `notifications`, `convert_surface`, `rename`, `search_bar`, `tools_menu` …). 새 팝업 = 테이블 항목 1개 + draw 함수 하나. 단, plugin 이 소유하는 팝업(예: markdown 파일열기·large-file 확인)은 host `PopupDef` 가 아니라 plugin 매니페스트 `[[contributes.popup]]` 또는 실행 중 `popup.declare`(egui-mesh) 로 등록된다.
 
 ## 인스턴스
 
@@ -224,6 +224,38 @@ scrim 이 받는 입력은 정의의 `scrim_input` 이 정한다. 마지막 화�
 어둡게 하는 것과 입력을 막는 것은 다른 일이다 — scrim 은 dim 만 하고, Esc 와 바깥 클릭의
 순서는 위 §수명 계약이 정한다.
 
+### plugin popup 의 실행 중 선언과 열기
+
+plugin 은 매니페스트 없이 실행 중에 팝업을 선언하고 연다.
+
+- `popup.declare { popup_id, decl }` 는 선언을 등록하거나 바꾼다. `decl` 은 부분 선언(`PopupDeclSpec`)이다. `scope_kind`·`size` 만 필수이고, 준 필드만 host 의 plugin 기본 선언(`PopupDecl::plugin`: 제목줄·끌기 손잡이 없음, 나머지는 `PopupDecl::new` 기본값) 위에 덮는다. 셸 모양(`shell`·`shadow`·`content_margin`·`chrome`·`drag_handle`)과 `scope_target` 은 plugin 이 정하지 않으며 모르는 필드는 무시한다. id·크기·기준 검사는 매니페스트 선언과 같은 함수(`validate_popup_decl`)로 하고, `at_point` 기준은 거절한다. 매니페스트 `api_version` 이 host 와 다르면 거절한다.
+- 같은 id 의 실행 중 선언이 매니페스트 선언보다 먼저다. 이미 열린 인스턴스는 연 때의 선언을 유지한다. 선언은 plugin 프로세스가 끝나면 지워지고, 새 프로세스가 시작할 때 다시 선언한다.
+- `popup.show { popup_id, target, context? }` 는 인스턴스를 열고 `{ instance_id }` 로 답한다. `target` 은 필수다. host 가 대신 고르는 기본 대상은 없다. 종류는 선언의 `scope_kind` 와 같아야 하고 창 범위로 낮추지 않는다.
+
+| `target` | 대상 |
+|---|---|
+| `{ "kind": "surface", "id": N }` | 그 surface. 요청 plugin 소유 surface 여야 한다 |
+| `{ "kind": "window", "id": N }` | 그 창 |
+| `{ "kind": "focused_window" }` | 요청을 받은 시점에 포커스된 창이 있어야 한다. 지금은 있는지만 확인하고, 창 범위 plugin 팝업은 모든 창에 그려진다 |
+| `workspace`·`pane`·`tab` `{ "id": N }` | 아직 열지 않는다(`-32602`) |
+
+- 오류: 형식이 틀렸거나 `target` 이 없음, 선언 없음, 종류 불일치, 다른 plugin 의 surface, 열린 인스턴스와 범위가 다름은 `-32602`. 없는 창·surface, 포커스된 창 없음은 `-32004`. 거절하면 인스턴스를 만들거나 바꾸지 않는다.
+- plugin 팝업 인스턴스는 (plugin, popup) 마다 하나다. 이미 열려 있으면 그 id 로 답하고 `popup.open` 을 다시 보내지 않는다. 열린 인스턴스의 범위(창·surface)가 이번 `target` 의 범위와 다르면 거절한다(`-32602`, 먼저 닫아야 한다). 창 범위 plugin 팝업은 모든 창에 그려진다.
+
+실행 중 선언으로 연 인스턴스에 지금 반영되는 값은 다음 넷이다. plugin 팝업 렌더러는 이 값만 받는다.
+
+| 선언 필드 | 인스턴스에 반영되는 값 |
+|---|---|
+| `scope_kind` | `window`·`surface` 만 연다. `workspace`·`pane`·`tab` 선언은 열지 않는다 |
+| `size` | 처음 크기. 정수 논리 픽셀로 반올림한다 |
+| `anchor` | `cursor` 는 포인터 자리. `scope_center`·`scope_top`·`at_point`·`column` 은 범위 가운데 |
+| `outside_click` | `close` 만 바깥 클릭으로 닫는다. `unfocus`·`ignore` 는 닫지 않는다. 실행 중 선언의 기본값이 `unfocus` 라서 기본 선언 팝업은 바깥 클릭으로 닫히지 않는다 |
+
+- 받기는 하지만 인스턴스에 전달하지 않는 선언 필드: `instances`(인스턴스는 위처럼 (plugin, popup) 마다 하나), `covers_scope`, `fit`, `scope_inset`, `focus_on_open`, `keyboard`, `escape`, `sticky_focus`, `resizable`, `min_size`. 선언과 `popup_decl` 조회에는 남는다.
+- host 가 정하는 필드(`scope_target`·`chrome`·`drag_handle`·`resize_handle`·`shell`·`shadow`·`content_margin`)도 인스턴스에 전달하지 않는다. plugin 팝업 렌더러는 자기 틀(egui-mesh)로 그린다.
+- host 는 인스턴스를 만든 뒤 `popup.open` 을 보내고 응답한다. plugin 이 요청 처리 스레드에서 `popup.show` 를 불렀다면 `popup.open` 은 응답을 받은 뒤 처리된다.
+- 실행 중 선언으로 연 팝업의 출처는 plugin 이다.
+
 ### plugin popup 의 스코프
 
 plugin popup(`[[contributes.popup]]`)은 매니페스트 `scope` 로 범위의 **종류**만 선언한다 —
@@ -245,6 +277,7 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 | 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface |
 | 도구 메뉴·명령 팔레트·명령 단축키 popup | 입력 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface. 팔레트·단축키로 여는 내장 이름 바꾸기·프리셋 적용·dag 목록 popup 도 입력 시점의 탭·pane·workspace 에 결속한다 |
 | 이벤트 trigger popup | `surface` 범위 이벤트(`EventScope::Surface`)의 payload `surface_id`. 대상이 그 popup 을 선언한 plugin 의 surface 가 아니거나, 다른 plugin 이 발행한 이벤트면 열지 않는다 |
+| `popup.show` | 요청의 `target`(위 "plugin popup 의 실행 중 선언과 열기") |
 | `debug.popup.open` | 요청의 `surface_id` |
 
 `surface` 선언 popup 에 대상이 없으면 `window` 로 바꾸지 않고 열지 않는다. 변환 입력 popup·도구 메뉴·명령

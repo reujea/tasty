@@ -36,7 +36,7 @@ impl App {
 
     /// 창에 있는 플러그인 surface 의 소유 플러그인. webview(RemoteSurface)와 egui-mesh 를 모두 본다.
     /// parked engine 은 화면이 없어 팝업을 그릴 곳이 없으므로 보지 않는다.
-    fn plugin_surface_owner_of_any_kind(&self, surface_id: u32) -> Option<String> {
+    pub(super) fn plugin_surface_owner_of_any_kind(&self, surface_id: u32) -> Option<String> {
         self.engines().windows().find_map(|(_, e)| {
             let surface = e.find_surface_by_id(surface_id)?;
             let any = surface.as_any();

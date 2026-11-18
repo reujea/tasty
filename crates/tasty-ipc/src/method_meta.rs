@@ -724,6 +724,10 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // ── popup (plugin → host) ─────────────────────────────────────
         // 자신의 팝업 인스턴스만 닫을 수 있다. 소유권은 호스트가 검사한다.
         ("popup.close", plugin_only(Idempotent, &[UiPopup])),
+        // 자기 팝업을 실행 중에 선언한다. 같은 id면 바꾼다.
+        ("popup.declare", plugin_only(Mutate, &[UiPopup])),
+        // 선언한 팝업을 연다. surface 대상은 그 plugin 소유여야 하며 호스트가 검사한다.
+        ("popup.show", plugin_only(Mutate, &[UiPopup])),
         // 플러그인 배너
         // 자기 배너를 소유 surface에 표시한다. App에서 소유권을 확인한다.
         ("banner.open", plugin_only(Idempotent, &[UiBanner])),

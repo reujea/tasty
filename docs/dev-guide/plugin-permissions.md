@@ -79,7 +79,7 @@ alias는 canonical 이름으로 판정·집계한다.
 | `agent` | `agent.*` 협업 primitive(턴 보고 하나만 아래 `agent.turn_report` 행) · `session.issue` · `session.revoke` | — |
 | `agent.turn_report` | `agent.task_turn_report` **하나뿐** | 핸들러가 호출자가 보고하는 provider namespace 를 소유한 플러그인인지 확인하므로 Agent 호출은 이 토큰이 있어도 `-32001` 로 끝난다. provider 자격은 토큰이 아니라 namespace 소유와 활성 상태로 정한다([작업 러너 §agent task](agent-runner.md#agent-task)) |
 | `ui.tool_item` | 없음 | 없음 |
-| `ui.popup` | `popup.close` | — |
+| `ui.popup` | `popup.declare` · `popup.show` · `popup.close` | — |
 | `ui.banner` | `banner.open` · `banner.close` | — |
 | `ui.settings_page` | `settings.get_plugin_setting` · `settings.initialize_input_rule` | 입력 기본값은 호출자/앱별 최초 등록만 허용하며 기존 규칙·사용자 삭제를 덮어쓰지 않음 |
 | `window.spawn` | 없음 | 없음 |

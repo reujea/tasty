@@ -17,7 +17,18 @@ const DISPATCH_SOURCES: &[&str] = &[
     "src/boot/headless_plugins.rs",
 ];
 
-const PROTOCOL_CONSTS: &str = "crates/tasty-plugin-protocol/src/protocol.rs";
+/// 처리 분기가 비교하는 메서드 이름 상수를 정의한 파일들이다.
+const PROTOCOL_CONSTS: &[&str] = &[
+    "crates/tasty-plugin-protocol/src/protocol.rs",
+    "crates/tasty-plugin-protocol/src/popup_spec.rs",
+];
+
+fn protocol_consts() -> Vec<(String, String)> {
+    PROTOCOL_CONSTS
+        .iter()
+        .flat_map(|f| string_consts(&read(f)))
+        .collect()
+}
 
 /// 2026-09-05 호스트 메서드 276개를 측정한 뒤 빈 표를 찾도록 둔 하한이다.
 const MIN_HOST_METHODS: usize = 200;
@@ -86,7 +97,7 @@ fn intercepted(src: &str, consts: &[(String, String)]) -> BTreeSet<String> {
 }
 
 fn dispatched_names() -> BTreeSet<String> {
-    let consts = string_consts(&read(PROTOCOL_CONSTS));
+    let consts = protocol_consts();
     let mut out = BTreeSet::new();
     for f in DISPATCH_SOURCES {
         out.extend(intercepted(&read(f), &consts));
@@ -136,10 +147,11 @@ fn the_plugin_only_mark_and_the_intercepts_are_the_same_set() {
 
 #[test]
 fn the_constant_resolution_is_alive() {
-    let consts = string_consts(&read(PROTOCOL_CONSTS));
+    let consts = protocol_consts();
     assert!(
-        consts.iter().any(|(_, v)| v == "host.shared_buffer.create"),
-        "프로토콜 상수에서 `host.shared_buffer.create` 를 못 찾았다 — 상수 정의 자리가 \
+        consts.iter().any(|(_, v)| v == "host.shared_buffer.create")
+            && consts.iter().any(|(_, v)| v == "popup.show"),
+        "프로토콜 상수에서 `host.shared_buffer.create` 나 `popup.show` 를 못 찾았다 — 상수 정의 자리가 \
          옮겨졌으면 `PROTOCOL_CONSTS` 를 고쳐라"
     );
     let src = "if call.method == tasty_plugin_protocol::METHOD_HOST_SHARED_BUFFER_CREATE {";

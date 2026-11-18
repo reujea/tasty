@@ -161,7 +161,7 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 
 | 이유 | 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
-| plugin → host 서비스 †plugin-only | `banner.open` · `banner.close` · `popup.close` | plugin 이 **자기** contribute UI 인스턴스를 여닫는다. 대상 식별이 caller plugin 자신이라 CLI 호출자가 존재하지 않는다 |
+| plugin → host 서비스 †plugin-only | `banner.open` · `banner.close` · `popup.declare` · `popup.show` · `popup.close` | plugin 이 **자기** contribute UI 를 선언하고 그 인스턴스를 여닫는다. 대상 식별이 caller plugin 자신이라 CLI 호출자가 존재하지 않는다 |
 | plugin → host 서비스 | `agent.task_turn_report` | provider 플러그인(namespace 를 소유한 활성 플러그인. 번들은 claude·codex)이 자기 훅에서 agent task 의 턴 시작·끝을 알린다. 핸들러가 호출자가 그 provider namespace 를 소유한 플러그인인지 확인하므로 CLI 호출자는 쓸 수 없다. 에이전트가 결과를 내는 경로는 `tasty agent task-submit` 이다 |
 | plugin → host 서비스 | `file_picker.trigger` | plugin 프로세스가 못 여는 host 소유 popup 을 대신 연다. 결과는 응답이 아니라 `event.dispatch` 로 그 plugin 에 push 된다. 외부 arm 은 있지만 CLI·agent 호출은 popup 을 안 열고 `-32016` 을 받는다(아래 †plugin-only 절 끝, [파일 핸들러 (File handler)](../features/file-handler/index.md)) |
 | plugin → host 서비스 | `git_viewer.query` · `markdown.navigate` | 특정 plugin(git-viewer · markdown 주소창·파일열기 팝업)이 자기 surface 를 위해 부른다. `git_viewer.query` 는 `request_id` 만 회신하고 결과를 그 plugin 에 unicast push 하므로 셸이 결과를 받을 수 없고, `markdown.navigate` 는 그 namespace 를 번들 plugin 이 점유해 외부 호출이 plugin 으로 forward 된다([플러그인 제작 가이드](plugin-development.md)) |
@@ -182,14 +182,14 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 
 #### † plugin-only — 외부 호출자는 무엇을 받는가
 
-위 표에서 †plugin-only 로 표시한 다섯(`banner.open` · `banner.close` · `popup.close` ·
-`webview.open_external` · `host.shared_buffer.create`)은 **CLI 명령뿐 아니라 외부 dispatch arm도
+위 표에서 †plugin-only 로 표시한 일곱(`banner.open` · `banner.close` · `popup.declare` ·
+`popup.show` · `popup.close` · `webview.open_external` · `host.shared_buffer.create`)은 **CLI 명령뿐 아니라 외부 dispatch arm도
 없다.** plugin host-call 진입부가 직접 인터셉트하기 때문이다. 나머지 행들은 사정이 다르다 —
 `git_viewer.query` · `markdown.navigate` · `settings.get_plugin_setting` 같은 것은 외부에서
 호출하면 실제로 라우팅되어 인자 오류나 plugin 의 답이 돌아온다. 두 부류가 같은 표에 있는 것은 이
 표가 **CLI 진입점 유무**를 분류하기 때문이다.
 
-이 다섯은 `METHOD_TABLE` 에 `plugin_only(&[…])` 로 등재되고, 외부 호출자는 `-32601`("그런
+이 일곱은 `METHOD_TABLE` 에 `plugin_only(&[…])` 로 등재되고, 외부 호출자는 `-32601`("그런
 메서드 없다")이 아니라 다음을 받는다:
 
     -32016  method '<name>' is plugin-only: only the plugin host-call path dispatches it,
@@ -233,7 +233,7 @@ arm(gui 창 라우터)이 있어 `plugin_only` 표식을 달지 않는다. 그�
 |---|---|---|
 | `-32003` | plugin.* | 대상 plugin이 설치돼 있지 않다 |
 | `-32003` | plugin namespace 로 넘기는 호출 | plugin에 요청을 보내지 못했다 |
-| `-32004` | agent.*, memory.* 등 | 대상이 없다(not found) |
+| `-32004` | agent.*, memory.*, popup.show 등 | 대상이 없다(not found). `popup.show` 는 없는 창·surface, 포커스된 창 없음 |
 | `-32005` | memory.* | 버전 비교 쓰기 충돌(cas_conflict) |
 | `-32006` | memory.* | 다른 소유자의 값이다(owned_by_other) |
 | `-32007` | memory.* | 용량·크기 상한 초과(quota_exceeded·value_too_large) |

@@ -122,6 +122,14 @@ impl App {
             self.handle_ipc_popup_close(&call);
             return;
         }
+        if call.method == tasty_plugin_protocol::METHOD_POPUP_DECLARE {
+            self.handle_ipc_popup_declare(&call);
+            return;
+        }
+        if call.method == tasty_plugin_protocol::METHOD_POPUP_SHOW {
+            self.handle_ipc_popup_show(&call);
+            return;
+        }
         if call.method == "banner.open" {
             self.handle_ipc_banner_open(&call);
             return;

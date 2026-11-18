@@ -68,6 +68,8 @@ enum Kind {
     IdResolved,
     /// 기존 target 생략 호환 규칙에만 쓰는 명령 기본 문맥이다.
     CompatibilityDefault,
+    /// 호출자가 대상 종류로 포커스 창을 명시했다. 요청 시점에 한 번 결정하고, 포커스 창이 없으면 오류다.
+    ExplicitFocusTarget,
     /// 권한·상한 정책을 적용할 워크스페이스다. 요청 대상을 고르는 값은 아니다.
     PolicyScope,
     /// 기록·알림·승인의 기본 워크스페이스. 호출자가 생략하면 활성 워크스페이스를 쓴다.
@@ -165,6 +167,12 @@ const ROSTER: &[(&str, Kind, usize, &str)] = &[
         Report,
         2,
         "모든 engine의 현재 navigation과 active workspace를 Lua 읽기 snapshot tree에 보고한다",
+    ),
+    (
+        "src/app/dispatch/plugin_popup_ipc.rs",
+        ExplicitFocusTarget,
+        1,
+        "popup.show 의 target 이 focused_window 일 때만 포커스 창이 있는지 본다. 생략 기본값은 없다",
     ),
     (
         "src/app/dispatch/plugin_ipc.rs",
