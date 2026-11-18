@@ -34,6 +34,11 @@ pub(crate) enum DeferredCommand {
         kind: String,
         trigger: crate::intent::RefreshTrigger,
     },
+    /// 줌. `kind` 는 접수 때 초안이 만들 surface 의 kind 이고, 생성된 surface 의 kind 글꼴에 적용한다.
+    Zoom {
+        change: crate::app::engine_action::ZoomChange,
+        kind: String,
+    },
 }
 
 impl DeferredCommand {
@@ -42,6 +47,7 @@ impl DeferredCommand {
             Self::Tool { item, .. } => &item.key,
             Self::ConvertInput { kind } => kind,
             Self::Action { id, .. } => id,
+            Self::Zoom { .. } => "zoom",
         }
     }
 }

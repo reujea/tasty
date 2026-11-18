@@ -873,3 +873,124 @@ fn a_webview_address_key_follows_the_declared_address_band() {
     );
     assert_eq!(state.html_address.focus_requested(), Some(1));
 }
+
+/// 탐색기 탭 위에 터미널 새 탭 초안이 선택돼 있으면 포커스 surface 종류는 없다. 탐색기 키는 초안 뒤의 기존
+/// 탐색기를 대상으로 잡지 않고, 소비하지도 않고 다음 처리자에 넘긴다.
+#[test]
+fn an_explorer_key_passes_while_a_terminal_draft_is_selected() {
+    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    let (mut state, engine, _sid, _dir) = crate::state::tests::explorer_fixture(true);
+    let read = engine.read();
+    assert!(state.focused_surface_type(&read).is_kind("explorer"));
+    let _draft = select_pending_draft(&mut state, &read);
+    assert_eq!(
+        state.focused_surface_type(&read),
+        crate::state::FocusedSurfaceType::None
+    );
+    let kb = crate::settings::KeybindingSettings::default();
+    let up = Key::Named(NamedKey::ArrowUp);
+    assert!(!crate::view::main::MainView::match_explorer_bindings(
+        &mut state,
+        &read,
+        &kb,
+        &up,
+        ModifiersState::ALT
+    ));
+    assert!(state.take_pending_intents().is_empty());
+}
+
+/// 탐색기 새 탭 초안이면 탐색기 키는 지금처럼 초안에 걸고 소비한다.
+#[test]
+fn an_explorer_key_is_held_for_an_explorer_draft() {
+    use winit::keyboard::{Key, ModifiersState, NamedKey};
+    let (mut state, engine, _sid, _dir) = crate::state::tests::explorer_fixture(true);
+    let read = engine.read();
+    let _draft = crate::state::tests::select_pending_draft_of_kind(&mut state, &read, "explorer");
+    let id = pending(state.command_surface_target(&read));
+    let kb = crate::settings::KeybindingSettings::default();
+    let up = Key::Named(NamedKey::ArrowUp);
+    assert!(crate::view::main::MainView::match_explorer_bindings(
+        &mut state,
+        &read,
+        &kb,
+        &up,
+        ModifiersState::ALT
+    ));
+    assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
+}
+
+fn font_zooms(intents: &[crate::intent::DispatchedIntent]) -> Vec<Option<String>> {
+    use crate::app::engine_action::SettingsPatch;
+    intents
+        .iter()
+        .filter_map(|i| match &i.body {
+            Intent::PatchSettings(SettingsPatch::FontSize { kind, .. }) => Some(kind.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// 터미널 새 탭 초안 선택 중 zoom 은 바로 적용하지 않고 걸어 두었다가, 생성된 터미널의 글꼴에 적용한다.
+#[test]
+fn zoom_for_a_draft_applies_to_the_created_surface_kind() {
+    use super::super::zoom::ZoomAction;
+    let (mut state, engine) = test_mirror_state();
+    let read = engine.read();
+    let anchor = state.focused_surface_id(&read).expect("focused surface");
+    let _draft = select_pending_draft(&mut state, &read);
+    let id = pending(state.command_surface_target(&read));
+    assert!(crate::view::main::MainView::apply_zoom(
+        &mut state,
+        &read,
+        ZoomAction::In
+    ));
+    assert!(state.take_pending_intents().is_empty());
+    assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
+    settle_first_created(&mut state, &engine.core_state, anchor);
+    run_deferred_tools(&mut state, &read);
+    assert_eq!(font_zooms(&state.take_pending_intents()), vec![None]);
+}
+
+/// 탐색기 탭 위의 터미널 초안에 건 zoom 은 뒤의 탐색기 kind 를 바꾸지 않는다. 생성된 surface 의 kind 가
+/// 접수 때와 다르면 버린다.
+#[test]
+fn zoom_for_a_terminal_draft_does_not_touch_the_explorer_behind_it() {
+    use super::super::zoom::ZoomAction;
+    let (mut state, engine, sid, _dir) = crate::state::tests::explorer_fixture(true);
+    let read = engine.read();
+    let _draft = select_pending_draft(&mut state, &read);
+    let id = pending(state.command_surface_target(&read));
+    assert!(crate::view::main::MainView::apply_zoom(
+        &mut state,
+        &read,
+        ZoomAction::In
+    ));
+    assert!(state.take_pending_intents().is_empty());
+    assert_eq!(state.attach_pending.deferred.waiting_for(id), 1);
+    settle_first_created(&mut state, &engine.core_state, sid);
+    run_deferred_tools(&mut state, &read);
+    assert!(font_zooms(&state.take_pending_intents()).is_empty());
+}
+
+/// 생성에 실패한 초안에 건 zoom 은 버린다.
+#[test]
+fn zoom_for_a_failed_draft_is_dropped() {
+    use super::super::zoom::ZoomAction;
+    let (mut state, engine) = test_mirror_state();
+    let read = engine.read();
+    let _draft = select_pending_draft(&mut state, &read);
+    let id = pending(state.command_surface_target(&read));
+    assert!(crate::view::main::MainView::apply_zoom(
+        &mut state,
+        &read,
+        ZoomAction::Out
+    ));
+    let entry = &state.attach_pending.entries[0];
+    entry.receipt.bind(0);
+    let epoch = entry.epoch.clone();
+    state.attach_pending.result(&epoch, 0, None, false);
+    state.attach_pending.retain(&engine.core_state);
+    assert_eq!(state.attach_pending.deferred.waiting_for(id), 0);
+    run_deferred_tools(&mut state, &read);
+    assert!(state.take_pending_intents().is_empty());
+}

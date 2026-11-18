@@ -32,6 +32,16 @@ pub(crate) fn select_pending_draft(
     state: &mut RequestContext,
     read: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> impl Sized + use<> {
+    select_pending_draft_of_kind(state, read, "terminal")
+}
+
+/// 지금 포커스 surface 옆에 `kind` 새 탭 초안을 만들고 선택한다.
+#[cfg(feature = "gui")]
+pub(crate) fn select_pending_draft_of_kind(
+    state: &mut RequestContext,
+    read: &crate::runtime::engine_read::EngineRead<'_>,
+    kind: &str,
+) -> impl Sized + use<> {
     let anchor = state
         .focused_surface_id(read)
         .expect("a focused surface to anchor the draft");
@@ -44,7 +54,7 @@ pub(crate) fn select_pending_draft(
             &state.navigation,
             &crate::ipc::stream::StructuralOp::NewTab {
                 anchor_surface_id: anchor,
-                surface_kind: "terminal".into(),
+                surface_kind: kind.into(),
                 params: serde_json::json!({}),
                 inherit_cwd: None,
             },

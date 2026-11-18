@@ -558,7 +558,7 @@ impl MainView {
         false
     }
 
-    fn match_explorer_bindings(
+    pub(super) fn match_explorer_bindings(
         state: &mut crate::state::MainViewState,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         kb: &crate::settings::KeybindingSettings,

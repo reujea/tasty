@@ -627,8 +627,17 @@ impl RequestContext {
         self.shell_integration_hint_shown.remove(&surface_id);
     }
 
+    /// 생성 대기 초안이 선택돼 있으면 `None` 이다. navigation 의 선택 탭은 초안 뒤의 기존 탭이라 그 kind 를
+    /// 돌려주면 초안을 보는 동안 기존 탭의 kind 단축키가 실행된다. `focused_surface_id` 와 같은 판정이다.
     #[cfg(feature = "gui")]
     pub fn focused_surface_type(&self, engine: &CoreState) -> FocusedSurfaceType {
+        if self
+            .attach_pending
+            .selected(engine, &self.navigation)
+            .is_some()
+        {
+            return FocusedSurfaceType::None;
+        }
         let pane = match self.focused_pane(engine) {
             Some(p) => p,
             None => return FocusedSurfaceType::None,

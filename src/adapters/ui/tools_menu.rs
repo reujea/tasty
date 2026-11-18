@@ -452,6 +452,9 @@ pub(crate) fn run_deferred_tools(
                     state, engine, id, &kind, trigger, local,
                 );
             }
+            DeferredCommand::Zoom { change, kind } => {
+                crate::shortcuts::run_held_zoom(state, engine, change, &kind, local);
+            }
         }
     }
     notices
