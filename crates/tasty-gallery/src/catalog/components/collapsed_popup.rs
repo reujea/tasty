@@ -347,8 +347,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     ];
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         for (i, (label, frame)) in frames.into_iter().enumerate() {
-            ui.push_id(("collapsed-frame", i), |ui| {
-                spec::cluster(ui, theme, label, |ui| shell_frame(ui, theme, frame));
+            // 줄바꿈 줄은 cluster 묶음 단위로 자리를 넘긴다. id 구분은 묶음 안쪽에서 한다.
+            spec::cluster(ui, theme, label, |ui| {
+                ui.push_id(("collapsed-frame", i), |ui| shell_frame(ui, theme, frame));
             });
         }
     });
@@ -359,11 +360,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             .enumerate()
         {
             let label = t_lang(code, LABEL_KEY);
-            ui.push_id(("collapsed-label", i), |ui| {
-                spec::cluster(ui, theme, code, |ui| {
-                    let (label_frame, icon_frame) = frame_sizes(ui, theme, label);
-                    for (form, size) in [(Form::Label, label_frame), (Form::Icon, icon_frame)] {
-                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+            spec::cluster(ui, theme, code, |ui| {
+                let (label_frame, icon_frame) = frame_sizes(ui, theme, label);
+                for (j, (form, size)) in [(Form::Label, label_frame), (Form::Icon, icon_frame)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                    ui.push_id(("collapsed-label", i, j), |ui| {
                         paint_collapsed(
                             ui,
                             theme,
@@ -373,8 +377,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                             false,
                             false,
                         );
-                    }
-                });
+                    });
+                }
             });
         }
     });
