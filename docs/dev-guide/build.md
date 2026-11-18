@@ -469,7 +469,7 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
   3. 결과 파일이 없으면 결과를 쓰지 못한 실패로 본다.
   4. 결과 파일이 있으면 `started_at`이 2의 시작 시각 뒤인지 확인한 뒤 `exit_code`를 읽는다. 앞이면 이번 실행의 결과가 아니다.
 - `--command-file`을 빼면 권한만 조회한다. 이 조회와 `key` 단계가 없는 명령 파일은 요청 창을 띄우지 않으므로, 허용을 기다리며 반복해 실행해도 된다.
-- 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행하면 권한 조회 전용이다. 이때 책임 프로세스는 셸을 띄운 터미널 앱이라, 요청 창과 손쉬운 사용 등록이 그 앱에 붙는다. 그래서 직접 실행에서는 `request-access`와, 단계가 하나라도 든 명령 파일(`key`뿐 아니라 `switch_source`·`activate` 등도)을 권한 여부와 관계없이 거부한다. 어떤 단계도 실행하지 않고 요청도 하지 않은 채 결과 파일에 `refused_reason: "not_launched_via_open"`을 적고 종료 코드 2로 끝낸다. 명령 파일 없는 조회만 된다. 요청과 단계 실행은 `open`으로 띄운 경우에만 한다. 도우미는 부모 프로세스가 launchd(PID 1)이면 `open`(LaunchServices)으로 띄운 것으로 본다. 그 값을 결과 파일의 `parent_pid`와 `launched_via_launch_services`에 적는다. 이 판정에는 한계가 있다. 부모 셸이 먼저 끝나 launchd(PID 1)로 옮겨진 직접 실행(`nohup … &` 뒤 셸 종료, 이중 fork, `setsid`·`disown`)도 `open` 실행으로 판정된다. 그러면 요청이 셸을 띄운 앱에 붙을 수 있고, 결과의 `parent_pid`로도 사후에 구분되지 않는다. 그래서 직접 실행은 포그라운드로 한다.
+- 같은 실행 파일(`Contents/MacOS/TastyInputHelper`)을 셸에서 직접 실행하면 권한 조회 전용이다. 이때 책임 프로세스는 셸을 띄운 터미널 앱이라, 요청 창과 손쉬운 사용 등록이 그 앱에 붙는다. 그래서 직접 실행에서는 `request-access`와, 모든 명령 파일(`key`뿐 아니라 `switch_source`·`activate`만 든 파일, 단계가 없는 빈 파일이나 주석만 있는 파일도)을 권한 여부와 관계없이 거부한다. 어떤 단계도 실행하지 않고 요청도 하지 않은 채 결과 파일에 `refused_reason: "not_launched_via_open"`을 적고 종료 코드 2로 끝낸다. 명령 파일 없는 조회만 된다. 요청과 단계 실행은 `open`으로 띄운 경우에만 한다. 도우미는 부모 프로세스가 launchd(PID 1)이면 `open`(LaunchServices)으로 띄운 것으로 본다. 그 값을 결과 파일의 `parent_pid`와 `launched_via_launch_services`에 적는다. 이 판정에는 한계가 있다. 부모 셸이 먼저 끝나 launchd(PID 1)로 옮겨진 직접 실행(`nohup … &` 뒤 셸 종료, 이중 fork, `setsid`·`disown`)도 `open` 실행으로 판정된다. 그러면 요청이 셸을 띄운 앱에 붙을 수 있고, 결과의 `parent_pid`로도 사후에 구분되지 않는다. 그래서 직접 실행은 포그라운드로 한다.
 
 명령 파일은 한 줄에 한 단계다. 빈 줄과 `#`로 시작하는 줄은 건너뛴다. 키는 macOS 가상 키코드 숫자로, 방향은 `surface.raw_key`와 같은 어휘로, 입력 소스는 TIS ID 그대로 적는다. 문자열(유니코드) 주입 명령은 없다. 문자열 주입은 IME를 거치지 않기 때문이다.
 
@@ -504,12 +504,12 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 |---|---|
 | 0 | 모든 단계 성공. `request-access`는 이미 허용돼 있음 |
 | 1 | 그 밖의 실패. 모든 단계가 성공했어도 끝에서 눌린 키를 떼지 못하면(`release_failed`가 비어 있지 않음) 1이다. 결과 파일을 쓰거나 rename하지 못했거나 옛 결과 파일을 지우지 못하면 이유를 stderr에 쓰고 1로 끝난다. 이때 이번 결과 파일은 없고, 옛 결과 파일을 지우지 못한 경우에는 옛 파일이 남아 있을 수 있다 |
-| 2 | 인자·명령 파일 오류. 직접 실행에서 `request-access`나 단계가 든 명령 파일을 받은 경우도 여기에 든다(`refused_reason: "not_launched_via_open"`, 권한과 무관). `--result`가 없으면 결과 파일 없이 끝난다 |
+| 2 | 인자·명령 파일 오류. 직접 실행에서 `request-access`나 명령 파일(빈 파일 포함)을 받은 경우도 여기에 든다(`refused_reason: "not_launched_via_open"`, 권한과 무관). `--result`가 없으면 결과 파일 없이 끝난다 |
 | 3 | 이벤트 게시 권한 없음(`CGPreflightPostEventAccess=false`). 어떤 단계도 실행하지 않는다. 명령 파일에 `key` 단계가 있었으면 끝내기 전에 권한을 한 번 요청하고 `requested_access=true`를 적는다. 직접 실행은 이 판정 전에 2로 끝나므로 3은 `open` 실행이나 명령 파일 없는 조회에서만 나온다 |
 | 4 | 입력 소스가 없거나 전환 실패 |
 | 5 | 앞 앱 PID 불일치. 키를 보내지 않는다 |
 
-도우미가 권한 요청 함수를 부르는 경우는 `open`으로 띄웠을 때 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 직접 실행에서는 부르지 않는다(단계가 든 명령 파일과 `request-access`는 2로 거부된다). 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
+도우미가 권한 요청 함수를 부르는 경우는 `open`으로 띄웠을 때 `request-access`와, 권한 없이 `key` 단계가 든 명령 파일을 받은 경우 둘뿐이다. 직접 실행에서는 부르지 않는다(명령 파일과 `request-access`는 2로 거부된다). 명령 파일 없는 조회, `key` 단계가 없는 명령 파일(`sleep`·`switch_source`·`activate`·`require_front`만 있는 파일), 형식 오류(종료 코드 2)에서는 부르지 않는다.
 
 ### 격리 인스턴스에서 측정할 때
 

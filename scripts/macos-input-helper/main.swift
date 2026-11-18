@@ -4,7 +4,7 @@
 // 이 앱이 손쉬운 사용 권한의 책임 프로세스가 되게 한다. 사용법은 docs/dev-guide/build.md의
 // "macOS 키 입력 도우미" 절에 있다.
 // `--args request-access [--result <경로>]`는 손쉬운 사용·이벤트 게시 권한을 시스템에 요청한다.
-// 실행 파일을 셸에서 직접 실행하면 권한 조회만 한다. 명령 파일과 request-access는 권한과 관계없이 종료 코드 2로 거부한다.
+// 실행 파일을 셸에서 직접 실행하면 권한 조회만 한다. 명령 파일(빈 파일 포함)과 request-access는 권한과 관계없이 종료 코드 2로 거부한다.
 //
 // 명령 파일은 한 줄에 한 단계다. 빈 줄과 #로 시작하는 줄은 건너뛴다.
 //   switch_source <TIS 입력 소스 ID>
@@ -246,8 +246,8 @@ if let commandFile {
     }
 }
 
-// 직접 실행에서는 권한이 있어도 단계를 실행하지 않는다. 셸을 띄운 앱의 권한으로 키를 게시하게 되기 때문이다.
-if !launchedViaLaunchServices, !lines.isEmpty { refuseDirectRun("command file refused in a direct run") }
+// 직접 실행에서는 권한이 있어도 명령 파일을 받지 않는다(단계가 없는 파일도). 셸을 띄운 앱의 권한으로 키를 게시하게 되기 때문이다.
+if !launchedViaLaunchServices, commandFile != nil { refuseDirectRun("command file refused in a direct run") }
 
 // 게시 권한이 없으면 이벤트가 오류 없이 버려지므로 어떤 단계도 실행하지 않고 끝낸다.
 // key 단계가 있을 때만 권한을 요청한다. 키를 보내지 않는 실행은 허용을 기다리며 반복 조회에 쓰므로 요청 창을 띄우지 않는다.
