@@ -206,9 +206,9 @@ IPC 요청은 `-32602` 다. 대상 없이 창 전체에 작용하는 팝업(도�
 
 ### scrim 의 범위
 
-scrim은 팝업이 속한 범위를 덮는다(이 문서). Surface 범위는 해당 surface의 보더까지 포함하고 인접 surface·사이드바·탭바·상태바는 제외한다. Pane·Tab 범위는 `PopupManager::scope_rect`가 `LayoutContext::pane_rects`에서 찾은 사각형이다.
+scrim은 팝업이 속한 범위를 덮는다(이 문서). 범위 사각형은 `PopupManager::scope_rect` 하나가 정하고 배치·clamp·clip·scrim이 같은 값을 쓴다. Surface 범위는 해당 surface의 보더까지 포함하고 인접 surface·사이드바·탭바·상태바는 제외한다. Pane 범위는 탭 바를 포함한 pane 사각형(`LayoutContext::pane_rects`)이고, Tab 범위는 탭 바 아래 활성 탭의 콘텐츠 영역(`LayoutContext::tab_content_rects`)이다. Workspace 범위는 활성 workspace의 콘텐츠 영역(탭 바와 pane, `LayoutContext::workspace_rect`)이며 사이드바·상태바는 범위 밖이다. 저장된 원격 행의 연결 팝업도 이 규칙으로 같은 사각형을 쓴다.
 
-모서리 형태는 범위 대상에 맞춘다. 현재 surface의 반경은 0이며 코드는 범위와 관계없이 반경 0과 같은 `scrim()` 색을 사용한다. 창·workspace 범위와 그 프레임에서 범위를 찾지 못한 경우는 창 전체를 덮는다.
+모서리 형태는 범위 대상에 맞춘다. 현재 surface의 반경은 0이며 코드는 범위와 관계없이 반경 0과 같은 `scrim()` 색을 사용한다. 창 범위와 그 프레임에서 범위를 찾지 못한 경우(workspace 영역이 없는 창 포함)는 창 전체를 덮는다.
 
 같은 범위의 팝업이 여럿이어도 scrim은 한 번 그린다. 창 scrim이 있으면 내부 surface scrim은 생략한다. 같은 알파를 중복 적용해 특정 영역만 더 어두워지는 것을 막는다.
 

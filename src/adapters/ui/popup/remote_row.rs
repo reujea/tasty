@@ -6,8 +6,8 @@
 use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::open_when::DrivenOpen;
 use crate::adapters::ui::popup::{
-    PopupAction, PopupChrome, PopupDecl, PopupDef, PopupDragHandle, PopupEscape, PopupId,
-    PopupOutsideClick, PopupPayload, PopupScope, PopupShadow, ScrimInput, popup_size,
+    PopupAction, PopupChrome, PopupDecl, PopupDef, PopupDragHandle, PopupEscape, PopupOutsideClick,
+    PopupPayload, PopupScope, PopupShadow, ScrimInput, popup_size,
 };
 use crate::i18n::t;
 use crate::runtime::engine_read::EngineRead;
@@ -22,10 +22,6 @@ use tasty_ui_widgets::{
 /// 연결 팝업. 빈 workspace 위에서는 scrim 없이 popover 그림자로, 마지막 화면 위에서는 콘텐츠 영역을
 /// 덮어 scrim 과 modal 그림자로 연다. 어느 모양인지는 열 때 정한다(`OpenRequest::covers_scope`).
 pub const REMOTE_ROW_POPUP_ID: &str = "remote_row";
-
-pub(crate) fn is_remote_row(id: PopupId) -> bool {
-    id == REMOTE_ROW_POPUP_ID
-}
 
 /// 이 창의 연결 팝업 사건 상태. 팝업 데이터는 인스턴스에 있다.
 #[derive(Debug, Clone, Default)]
@@ -107,7 +103,12 @@ pub(crate) fn sync(
     let ws = state.active_workspace(engine);
     let want = wanted(engine, ws).map(|over_screen| (over_screen, ws.id));
     let row = &mut state.dialogs.remote_row_popup;
-    row.bounds_w = draw_ctx.workspace_rect.map(|r| LogicalPx(r.width()));
+    // 연결 팝업은 workspace 범위다. 폭은 배치·clamp 와 같은 범위 사각형에서 읽는다.
+    row.bounds_w = crate::adapters::ui::PopupManager::scope_rect(
+        &PopupScope::Workspace(ws.id),
+        Some(draw_ctx),
+    )
+    .map(|r| LogicalPx(r.width()));
     if row.shown == want {
         return;
     }

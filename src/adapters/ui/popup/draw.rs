@@ -267,8 +267,7 @@ impl PopupManager {
             hovered_popup = open_indices.iter().rev().find_map(|&i| {
                 let popup = &self.popups[i];
                 (popup.look.scrim_input == ScrimInput::TakesPointer
-                    && Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx)
-                        .is_some_and(|r| r.contains(pos)))
+                    && Self::scope_rect(&popup.scope, draw_ctx).is_some_and(|r| r.contains(pos)))
                 .then_some(popup.instance)
             });
         }
@@ -331,8 +330,7 @@ impl PopupManager {
                 popup.dragging = false;
                 released.push((popup.instance, popup.popup_rect()));
             } else if primary_down && let Some(pos) = pointer_pos {
-                let bounds =
-                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let bounds = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
                 let new_pos = pos - popup.drag_offset;
                 popup.pos = egui::pos2(
                     new_pos.x.clamp(
@@ -387,8 +385,7 @@ impl PopupManager {
                 if edges.bottom {
                     max.y = max.y.max(min.y + mh);
                 }
-                let bounds =
-                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let bounds = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
                 let new_rect = egui::Rect::from_min_max(min, max).intersect(bounds);
                 popup.pos = new_rect.min;
                 popup.set_needed_size(new_rect.size());
@@ -398,8 +395,7 @@ impl PopupManager {
 
         for popup in &mut self.popups {
             if popup.request_center && popup.open {
-                let center_rect =
-                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let center_rect = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
                 popup.pos = egui::pos2(
                     center_rect.center().x - popup.size.x / 2.0,
                     center_rect.center().y - popup.size.y / 2.0,
@@ -410,8 +406,7 @@ impl PopupManager {
 
         for popup in &mut self.popups {
             if popup.request_top && popup.open {
-                let anchor_rect =
-                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let anchor_rect = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
                 popup.pos = egui::pos2(
                     anchor_rect.center().x - popup.size.x / 2.0,
                     anchor_rect.min.y + th.spacing_sm.value(),
@@ -450,8 +445,7 @@ impl PopupManager {
             .map(|&i| {
                 (
                     i,
-                    Self::popup_scope_rect(self.popups[i].id, &self.popups[i].scope, draw_ctx)
-                        .unwrap_or(screen_rect),
+                    Self::scope_rect(&self.popups[i].scope, draw_ctx).unwrap_or(screen_rect),
                 )
             })
             .collect();
@@ -470,13 +464,9 @@ impl PopupManager {
                 continue;
             }
 
-            let scope_clip =
-                Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
-            let clamp_rect = if super::remote_row::is_remote_row(popup.id) {
-                scope_clip
-            } else {
-                Self::scope_bounds(&popup.scope, draw_ctx, screen_rect, th.spacing_sm.value())
-            };
+            let scope_clip = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+            let clamp_rect =
+                Self::scope_bounds(&popup.scope, draw_ctx, screen_rect, th.spacing_sm.value());
             popup.clamp_to_screen(clamp_rect);
 
             let popup_id = popup.id;
@@ -788,16 +778,21 @@ impl PopupManager {
     ) -> Option<egui::Rect> {
         let ctx = ctx?;
         match scope {
-            PopupScope::Window => None,       // use screen_rect (caller default)
-            PopupScope::Workspace(_) => None, // workspace fills window
+            // 창 범위는 호출자가 화면 사각형을 쓴다.
+            PopupScope::Window => None,
+            // 활성 workspace 의 콘텐츠 영역(탭 바와 pane). 사이드바·상태바는 범위 밖이다.
+            PopupScope::Workspace(ws_id) => ctx
+                .workspace_rect
+                .filter(|_| *ws_id == ctx.active_workspace_id),
             PopupScope::Pane(pane_id) => ctx
                 .pane_rects
                 .iter()
                 .find(|(id, _)| *id == *pane_id)
                 .map(|(_, r)| *r),
+            // 탭 범위는 탭 바 아래 콘텐츠 영역이다. 탭 바는 pane 범위에 들어간다.
             PopupScope::Tab(tab_id) => {
                 let (pane_id, _) = ctx.active_tab_ids.iter().find(|(_, tid)| *tid == *tab_id)?;
-                ctx.pane_rects
+                ctx.tab_content_rects
                     .iter()
                     .find(|(id, _)| *id == *pane_id)
                     .map(|(_, r)| *r)
@@ -808,22 +803,6 @@ impl PopupManager {
                 .find(|(id, _)| *id == *surface_id)
                 .map(|(_, r)| *r),
         }
-    }
-
-    /// 팝업의 소속 영역. 저장된 원격 행의 연결 팝업만 workspace 범위를 콘텐츠 영역(탭 바와 pane)으로
-    /// 좁힌다. 다른 workspace 범위 팝업은 창 전체다.
-    pub(crate) fn popup_scope_rect(
-        id: PopupId,
-        scope: &PopupScope,
-        ctx: Option<&LayoutContext>,
-    ) -> Option<egui::Rect> {
-        if super::remote_row::is_remote_row(id)
-            && matches!(scope, PopupScope::Workspace(_))
-            && let Some(rect) = ctx.and_then(|c| c.workspace_rect)
-        {
-            return Some(rect);
-        }
-        Self::scope_rect(scope, ctx)
     }
 
     /// surface 팝업만 보더에서 inset만큼 안쪽에 둔다. 좁은 영역은 여백을 줄여 경계 역전을 막는다.

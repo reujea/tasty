@@ -408,3 +408,141 @@ fn a_popup_without_a_sizer_grows_back_when_its_scope_widens() {
         Some(declared)
     );
 }
+
+/// 사이드바(x < 40)·타이틀바(y < 30)·상태바(y > 676)를 뺀 workspace 콘텐츠 영역(탭 바와 pane).
+fn workspace_area() -> egui::Rect {
+    egui::Rect::from_min_max(egui::pos2(40.0, 30.0), egui::pos2(900.0, 676.0))
+}
+
+/// 탭 바(30 ≤ y < 60) 아래 활성 탭의 콘텐츠 영역.
+fn tab_content() -> egui::Rect {
+    egui::Rect::from_min_max(egui::pos2(40.0, 60.0), egui::pos2(900.0, 676.0))
+}
+
+/// pane 하나(id 1, 탭 바 포함)가 workspace 1 을 채운 레이아웃. `prepared()` 의 엔진과 ID가 같다.
+fn workspace_layout(ids: Ids) -> LayoutContext {
+    LayoutContext {
+        active_workspace: 0,
+        active_workspace_id: 1,
+        pane_rects: vec![(1, workspace_area())],
+        surface_rects: vec![(ids.surface, tab_content())],
+        active_tabs: vec![(1, 0)],
+        active_tab_ids: vec![(1, 1)],
+        workspace_rect: Some(workspace_area()),
+        surface_owners: Vec::new(),
+        tab_content_rects: vec![(1, tab_content())],
+    }
+}
+
+/// 한 프레임을 그려 scrim 사각형과 그 팝업의 사각형을 돌려준다.
+fn scrim_and_rect(
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    layout: &LayoutContext,
+    id: &'static str,
+) -> (Vec<egui::Rect>, egui::Rect) {
+    let scrim = egui::Color32::from(crate::theme::theme().scrim());
+    let ctx = egui::Context::default();
+    let shapes = ctx
+        .run(screen_input(screen().size()), |ctx| {
+            draw_popup_layer(ctx, state, engine, layout)
+        })
+        .shapes;
+    let rects = shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Rect(r) if r.fill == scrim => Some(r.rect),
+            _ => None,
+        })
+        .collect();
+    (rects, state.popups.visible_rect(id).expect("drawn"))
+}
+
+/// Given Workspace 범위의 덮는 팝업일 때,
+/// Then scrim·배치·clamp 사각형은 workspace 콘텐츠 영역이고 사이드바·상태바와 겹치지 않는다.
+#[test]
+fn a_workspace_scoped_popup_stays_inside_the_workspace_area() {
+    let (mut state, mut engine_session, ids) = prepared();
+    let engine = engine_session.borrow_mut();
+    state
+        .popups
+        .open_centered_focused("port_scanner", PopupScope::Workspace(1));
+    let (scrims, rect) = scrim_and_rect(
+        &mut state,
+        &engine.read(),
+        &workspace_layout(ids),
+        "port_scanner",
+    );
+    assert_eq!(scrims, vec![workspace_area()]);
+    assert!(workspace_area().contains_rect(rect), "{rect:?}");
+    assert_eq!(rect.center(), workspace_area().center());
+}
+
+/// Given Tab 범위의 덮는 팝업일 때,
+/// Then scrim·배치·clamp 사각형은 탭 바 아래 콘텐츠 영역이다.
+#[test]
+fn a_tab_scoped_popup_stays_below_the_tab_bar() {
+    let (mut state, mut engine_session, ids) = prepared();
+    let engine = engine_session.borrow_mut();
+    state
+        .popups
+        .open_centered_focused("port_scanner", PopupScope::Tab(1));
+    let (scrims, rect) = scrim_and_rect(
+        &mut state,
+        &engine.read(),
+        &workspace_layout(ids),
+        "port_scanner",
+    );
+    assert_eq!(scrims, vec![tab_content()]);
+    assert!(tab_content().contains_rect(rect), "{rect:?}");
+    assert_eq!(rect.center(), tab_content().center());
+}
+
+/// Given 탭 바 위의 점일 때, Then Pane 범위 사각형에는 들고 Tab 범위 사각형에는 들지 않는다.
+#[test]
+fn a_pane_scope_holds_the_tab_bar_and_a_tab_scope_does_not() {
+    let (_, _, ids) = prepared();
+    let layout = workspace_layout(ids);
+    let on_tab_bar = egui::pos2(450.0, 45.0);
+    let pane = super::PopupManager::scope_rect(&PopupScope::Pane(1), Some(&layout));
+    let tab = super::PopupManager::scope_rect(&PopupScope::Tab(1), Some(&layout));
+    assert!(pane.is_some_and(|r| r.contains(on_tab_bar)));
+    assert!(tab.is_some_and(|r| !r.contains(on_tab_bar)));
+}
+
+/// Given 저장된 원격 행의 연결 팝업(Workspace 범위, inset 없음)일 때,
+/// Then clamp 경계는 바꾸기 전 특례가 돌려주던 `workspace_rect` 그대로다.
+#[test]
+fn the_remote_row_bounds_are_the_workspace_rect_as_before() {
+    let (_, _, ids) = prepared();
+    let layout = workspace_layout(ids);
+    let inset = crate::theme::theme().spacing_sm.value();
+    let scope = PopupScope::Workspace(1);
+    assert_eq!(
+        super::PopupManager::scope_rect(&scope, Some(&layout)),
+        layout.workspace_rect
+    );
+    assert_eq!(
+        super::PopupManager::scope_bounds(&scope, Some(&layout), screen(), inset),
+        workspace_area()
+    );
+}
+
+/// Given 다른 workspace 의 범위일 때, Then 이 창의 workspace 영역을 빌려 쓰지 않는다.
+#[test]
+fn an_inactive_workspace_scope_has_no_rect() {
+    let (_, _, ids) = prepared();
+    let layout = workspace_layout(ids);
+    assert_eq!(
+        super::PopupManager::scope_rect(&PopupScope::Workspace(2), Some(&layout)),
+        None
+    );
+}
+
+/// Given 그리기 루프일 때, Then 범위 사각형·clamp 계산에 원격 행 특례가 없다.
+#[test]
+fn the_draw_loop_has_no_remote_row_special_case() {
+    let source = include_str!("draw.rs");
+    assert!(!source.contains("is_remote_row"));
+    assert!(!source.contains("popup_scope_rect"));
+}
