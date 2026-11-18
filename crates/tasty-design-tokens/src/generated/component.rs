@@ -5,6 +5,55 @@
 //! 위젯의 치수는 Theme 필드나 접근자로 읽어 UI 배율 정책을 따른다.
 //! 색 접근자는 tasty-type-appearance에 생성한다.
 
+pub mod android {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.android-popup-font-size` → `{semantic.font-size-max}` = 14px
+    pub const POPUP_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_MAX;
+
+    /// `component.android-popup-lane-glyph` → `{semantic.icon-size-md}` = 16px
+    pub const POPUP_LANE_GLYPH: LogicalPx = crate::generated::semantic::ICON_SIZE_MD;
+
+    /// `component.android-popup-lane-width` → `{primitive.size-24}` = 24px
+    pub const POPUP_LANE_WIDTH: LogicalPx = crate::generated::primitive::SIZE_24;
+
+    /// `component.android-popup-margin` → `{semantic.space-lg}` = 16px
+    pub const POPUP_MARGIN: LogicalPx = crate::generated::semantic::SPACE_LG;
+
+    /// `component.android-popup-max-width` → `{primitive.size-320}` = 320px
+    pub const POPUP_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_320;
+
+    /// `component.android-popup-padding-x` → `{semantic.space-lg}` = 16px
+    pub const POPUP_PADDING_X: LogicalPx = crate::generated::semantic::SPACE_LG;
+
+    /// `component.android-popup-row-height` → `{primitive.size-48}` = 48px
+    pub const POPUP_ROW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_48;
+
+    /// `component.android-popup-thumb-width` → `{semantic.space-xs}` = 4px
+    pub const POPUP_THUMB_WIDTH: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.android-popup-title-height` → `{primitive.size-48}` = 48px
+    pub const POPUP_TITLE_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_48;
+
+    /// `component.android-tab-button-reach` → `{semantic.space-sm}` = 8px
+    pub const TAB_BUTTON_REACH: LogicalPx = crate::generated::semantic::SPACE_SM;
+
+    /// `component.android-tab-button-width` → `{primitive.size-40}` = 40px
+    pub const TAB_BUTTON_WIDTH: LogicalPx = crate::generated::primitive::SIZE_40;
+
+    /// `component.android-tab-height` → `{primitive.size-32}` = 32px
+    pub const TAB_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_32;
+
+    /// `component.android-tab-logo-size` → `{primitive.size-20}` = 20px
+    pub const TAB_LOGO_SIZE: LogicalPx = crate::generated::primitive::SIZE_20;
+
+    /// `component.android-tab-max-width` → `{primitive.size-240}` = 240px
+    pub const TAB_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
+
+    /// `component.android-tab-min-width` → `{primitive.size-96}` = 96px
+    pub const TAB_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_96;
+}
+
 pub mod attach {
     use tasty_type_geometry::length::LogicalPx;
 
@@ -171,6 +220,22 @@ pub mod button {
 
     /// `component.button-radius` → `{semantic.radius}` = 4px
     pub const RADIUS: LogicalPx = crate::generated::semantic::RADIUS;
+}
+
+pub mod capture {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.capture-band-height` → `{semantic.toolbar-height}` = 32px
+    pub const BAND_HEIGHT: LogicalPx = crate::generated::semantic::TOOLBAR_HEIGHT;
+
+    /// `component.capture-edge-width` → `{semantic.border-width}` = 1px
+    pub const EDGE_WIDTH: LogicalPx = crate::generated::semantic::BORDER_WIDTH;
+
+    /// `component.capture-min-drag` → `{semantic.space-xs}` = 4px
+    pub const MIN_DRAG: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.capture-stage-inset` → `{semantic.space-sm}` = 8px
+    pub const STAGE_INSET: LogicalPx = crate::generated::semantic::SPACE_SM;
 }
 
 pub mod center {
@@ -1351,6 +1416,9 @@ pub mod popup {
 
     /// `component.popup-content-margin` → `{semantic.space-xs}` = 4px
     pub const CONTENT_MARGIN: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.popup-focus-edge-width` → `{semantic.selection-edge-width}` = 2px
+    pub const FOCUS_EDGE_WIDTH: LogicalPx = crate::generated::semantic::SELECTION_EDGE_WIDTH;
 
     /// `component.popup-title-btn-gap` → `{semantic.space-xs}` = 4px
     pub const TITLE_BTN_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;

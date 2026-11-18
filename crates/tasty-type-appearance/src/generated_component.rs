@@ -10,6 +10,96 @@ use crate::motion::Millis;
 use tasty_type_geometry::length::LogicalPx;
 
 impl crate::theme::Theme {
+    /// `component.android-popup-font-size` → `{semantic.font-size-max}` = 14px
+    #[inline]
+    pub fn android_popup_font_size(&self) -> LogicalPx {
+        self.font_size_max
+    }
+
+    /// `component.android-popup-lane-glyph` → `{semantic.icon-size-md}` = 16px
+    #[inline]
+    pub fn android_popup_lane_glyph(&self) -> LogicalPx {
+        self.icon_glyph_size_md
+    }
+
+    /// `component.android-popup-lane-width` → `{primitive.size-24}` = 24px
+    #[inline]
+    pub fn android_popup_lane_width(&self) -> LogicalPx {
+        LogicalPx((24.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-popup-margin` → `{semantic.space-lg}` = 16px
+    #[inline]
+    pub fn android_popup_margin(&self) -> LogicalPx {
+        self.spacing_lg
+    }
+
+    /// `component.android-popup-max-width` → `{primitive.size-320}` = 320px
+    #[inline]
+    pub fn android_popup_max_width(&self) -> LogicalPx {
+        LogicalPx((320.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-popup-padding-x` → `{semantic.space-lg}` = 16px
+    #[inline]
+    pub fn android_popup_padding_x(&self) -> LogicalPx {
+        self.spacing_lg
+    }
+
+    /// `component.android-popup-row-height` → `{primitive.size-48}` = 48px
+    #[inline]
+    pub fn android_popup_row_height(&self) -> LogicalPx {
+        LogicalPx((48.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-popup-thumb-width` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn android_popup_thumb_width(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.android-popup-title-height` → `{primitive.size-48}` = 48px
+    #[inline]
+    pub fn android_popup_title_height(&self) -> LogicalPx {
+        LogicalPx((48.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-tab-button-reach` → `{semantic.space-sm}` = 8px
+    #[inline]
+    pub fn android_tab_button_reach(&self) -> LogicalPx {
+        self.spacing_sm
+    }
+
+    /// `component.android-tab-button-width` → `{primitive.size-40}` = 40px
+    #[inline]
+    pub fn android_tab_button_width(&self) -> LogicalPx {
+        LogicalPx((40.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-tab-height` → `{primitive.size-32}` = 32px
+    #[inline]
+    pub fn android_tab_height(&self) -> LogicalPx {
+        LogicalPx((32.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-tab-logo-size` → `{primitive.size-20}` = 20px
+    #[inline]
+    pub fn android_tab_logo_size(&self) -> LogicalPx {
+        LogicalPx((20.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-tab-max-width` → `{primitive.size-240}` = 240px
+    #[inline]
+    pub fn android_tab_max_width(&self) -> LogicalPx {
+        LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
+    /// `component.android-tab-min-width` → `{primitive.size-96}` = 96px
+    #[inline]
+    pub fn android_tab_min_width(&self) -> LogicalPx {
+        LogicalPx((96.0 * self.ui_zoom).round())
+    }
+
     /// `component.approval-danger-border` → `{semantic.accent-danger}`
     #[inline]
     pub fn approval_danger_border(&self) -> HexColor {
@@ -626,6 +716,30 @@ impl crate::theme::Theme {
     #[inline]
     pub fn button_secondary_border_hover(&self) -> HexColor {
         self.border_strong()
+    }
+
+    /// `component.capture-band-height` → `{semantic.toolbar-height}` = 32px
+    #[inline]
+    pub fn capture_band_height(&self) -> LogicalPx {
+        self.toolbar_height
+    }
+
+    /// `component.capture-edge-width` → `{semantic.border-width}` = 1px
+    #[inline]
+    pub fn capture_edge_width(&self) -> LogicalPx {
+        self.border_width
+    }
+
+    /// `component.capture-min-drag` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn capture_min_drag(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.capture-stage-inset` → `{semantic.space-sm}` = 8px
+    #[inline]
+    pub fn capture_stage_inset(&self) -> LogicalPx {
+        self.spacing_sm
     }
 
     /// `component.center-state-action-gap` → `{semantic.space-md}` = 12px
@@ -4282,6 +4396,18 @@ impl crate::theme::Theme {
     #[inline]
     pub fn popup_content_margin(&self) -> LogicalPx {
         self.spacing_xs
+    }
+
+    /// `component.popup-focus-edge-focused` → `{semantic.text-secondary}`
+    #[inline]
+    pub fn popup_focus_edge_focused(&self) -> HexColor {
+        self.text_secondary()
+    }
+
+    /// `component.popup-focus-edge-width` → `{semantic.selection-edge-width}` = 2px
+    #[inline]
+    pub fn popup_focus_edge_width(&self) -> LogicalPx {
+        self.selection_edge_width
     }
 
     /// `component.popup-title-btn-gap` → `{semantic.space-xs}` = 4px

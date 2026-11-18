@@ -42,6 +42,7 @@ const PAIRS: &[(&str, &str)] = &[
     ("arrowRight", "arrow_right"),
     ("move", "move"),
     ("fit", "fit"),
+    ("shrink", "shrink"),
     ("terminal", "terminal"),
     ("agent", "agent"),
     ("markdown", "markdown"),

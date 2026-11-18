@@ -161,6 +161,12 @@ stroke_icon!(
     "fit",
     r#"<path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/>"#
 );
+// 펼친 popup 접기 글리프(design `shrink`). 안쪽을 향한 네 모서리 괄호. popup 타이틀바의 접기 버튼이 쓴다.
+stroke_icon!(
+    SHRINK,
+    "shrink",
+    r#"<path d="M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4"/>"#
+);
 // 4방향 이동/재배치(design `move`).
 stroke_icon!(
     MOVE,

@@ -1184,6 +1184,18 @@
       "$type": "dimension",
       "$value": "{primitive.size-88}"
     },
+    "capture-dim-bg": {
+      "$type": "color",
+      "$value": "{primitive.alpha-black-50}"
+    },
+    "capture-edge-light": {
+      "$type": "color",
+      "$value": "{primitive.color-white}"
+    },
+    "capture-edge-dark": {
+      "$type": "color",
+      "$value": "{primitive.color-black}"
+    },
     "space-xs": {
       "$type": "dimension",
       "$value": "{primitive.size-4}"
@@ -4004,6 +4016,14 @@
       "$type": "dimension",
       "$value": "{semantic.selection-edge-width}"
     },
+    "popup-focus-edge-focused": {
+      "$type": "color",
+      "$value": "{semantic.text-secondary}"
+    },
+    "popup-focus-edge-width": {
+      "$type": "dimension",
+      "$value": "{semantic.selection-edge-width}"
+    },
     "table-cell-height": {
       "$type": "dimension",
       "$value": "{semantic.control-height}"
@@ -6746,6 +6766,82 @@
     "site-inline-code-bg": {
       "$type": "color",
       "$value": "{semantic.code-inline-bg}"
+    },
+    "capture-band-height": {
+      "$type": "dimension",
+      "$value": "{semantic.toolbar-height}"
+    },
+    "capture-stage-inset": {
+      "$type": "dimension",
+      "$value": "{semantic.space-sm}"
+    },
+    "capture-edge-width": {
+      "$type": "dimension",
+      "$value": "{semantic.border-width}"
+    },
+    "capture-min-drag": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
+    },
+    "android-tab-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-32}"
+    },
+    "android-tab-min-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-96}"
+    },
+    "android-tab-max-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-240}"
+    },
+    "android-tab-button-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-40}"
+    },
+    "android-tab-button-reach": {
+      "$type": "dimension",
+      "$value": "{semantic.space-sm}"
+    },
+    "android-tab-logo-size": {
+      "$type": "dimension",
+      "$value": "{primitive.size-20}"
+    },
+    "android-popup-max-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-320}"
+    },
+    "android-popup-margin": {
+      "$type": "dimension",
+      "$value": "{semantic.space-lg}"
+    },
+    "android-popup-title-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-48}"
+    },
+    "android-popup-row-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-48}"
+    },
+    "android-popup-padding-x": {
+      "$type": "dimension",
+      "$value": "{semantic.space-lg}"
+    },
+    "android-popup-font-size": {
+      "$type": "dimension",
+      "$value": "{semantic.font-size-max}"
+    },
+    "android-popup-lane-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-24}"
+    },
+    "android-popup-lane-glyph": {
+      "$type": "dimension",
+      "$value": "{semantic.icon-size-md}"
+    },
+    "android-popup-thumb-width": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
     }
   }
 }
