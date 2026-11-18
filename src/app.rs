@@ -201,6 +201,10 @@ pub(crate) struct App {
     /// 연결되지 않은 저장된 원격 행을 쓰려는 요청. 연결되거나 상한이 지나면 진행한다.
     #[cfg(feature = "gui")]
     pub(crate) row_waits: auto_attach::row_use::RowWaits,
+    /// 요청 게이트나 원격 행 연결을 기다리다 IPC 회차에서 재개한 플러그인 호출이 있었다.
+    /// 같은 회차의 플러그인 처리 뒤 redraw 판단이 가져간다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_calls_resumed: bool,
     pub(crate) services: AppServices,
     pub(crate) state: state::AppState,
     pub(crate) hub: Hub,
@@ -417,6 +421,8 @@ impl App {
             gate_queue: Default::default(),
             #[cfg(feature = "gui")]
             row_waits: Default::default(),
+            #[cfg(feature = "gui")]
+            plugin_calls_resumed: false,
             services: crate::boot::wiring::build_production_core(memory, {
                 let proxy = proxy.clone();
                 Arc::new(move || {
@@ -524,6 +530,8 @@ impl App {
             gate_queue: Default::default(),
             #[cfg(feature = "gui")]
             row_waits: Default::default(),
+            #[cfg(feature = "gui")]
+            plugin_calls_resumed: false,
             services: crate::boot::wiring::build_production_core_headless(memory, journal_wake)?
                 .with_journal_metrics(journal_metrics),
             state: state::AppState::default(),

@@ -560,7 +560,15 @@ impl ApplicationHandler<AppEvent> for App {
         self.mark_plugin_surfaces_dirty();
         self.mark_invalidated_popups_dirty();
         self.mark_invalidated_banners_dirty();
-        self.process_plugin_ipc_calls();
+        // host call의 기본 분기는 자체 dirty가 없어 처리 뒤 다시 그린다. 게이트·원격 행을 기다리다 재개한 호출도 센다.
+        // 플러그인 호출에는 창이 없으므로 안내와 같은 대체 규칙(focused Main, 없으면 첫 Main)으로 고른다.
+        let plugin_calls = self.process_plugin_ipc_calls();
+        if (plugin_calls | std::mem::take(&mut self.plugin_calls_resumed))
+            && let Some(w) = self.notice_window_mut()
+        {
+            // CLI 요청 처리 뒤와 같이 입력 상한으로 다시 그린다.
+            w.mark_dirty_from(RepaintSource::Interactive);
+        }
         self.dispatch_pending_surface_lifecycle();
         self.dispatch_pending_host_events();
         self.dispatch_pending_memory_changes();

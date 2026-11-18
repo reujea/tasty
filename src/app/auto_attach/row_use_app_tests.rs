@@ -455,3 +455,45 @@ fn a_discarded_install_leaves_the_mark_of_a_newer_attempt() {
     assert!(app.remote.active.contains(&ROW));
     assert!(!app.remote.pending_reactivation.contains(&ROW));
 }
+
+/// Given 연결을 시도 중인 저장 행에 보류한 플러그인 호출, When 행이 아직 연결되지 않았으면, Then 재개가 없다.
+/// When 행이 연결된 뒤 IPC 회차가 진행하면, Then 재개 사실이 플러그인 redraw 판단에 한 번 남는다.
+#[test]
+fn a_resumed_plugin_call_reaches_the_plugin_redraw_decision() {
+    alone!("a_resumed_plugin_call_reaches_the_plugin_redraw_decision");
+    const CALLER: &str = "com.test.row-resume-caller";
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Reconnecting));
+    app.remote.active.insert(ROW);
+    let mut manager = crate::plugin::PluginManager::with_registries(
+        std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+        std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+        std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+    );
+    let _caller = manager.attach_caller_stub_for_test(CALLER);
+    manager.queue_plugin_call_for_test(CALLER, 1, "banner.close", serde_json::json!({}));
+    let call = manager.take_pending_plugin_calls().remove(0);
+    app.plugin_manager = Some(manager);
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "banner.close", "params": {},
+    }))
+    .unwrap();
+    let held = Gated::Plugin {
+        call,
+        request,
+        progress: Default::default(),
+    };
+    app.hold_for_remote_row(held, RowUse::Wait(ROW));
+
+    assert!(!app.advance_row_waits(), "행이 연결되기 전에 재개했다");
+
+    app.remote.active.remove(&ROW);
+    app.remote.sessions[0].state.phase = SessionState::Connected;
+    // IPC 회차가 행 대기를 진행하고 재개 사실을 남긴다.
+    app.process_ipc();
+    assert!(
+        std::mem::take(&mut app.plugin_calls_resumed),
+        "연결된 행의 플러그인 호출을 재개하고도 redraw 판단에 넘기지 않았다"
+    );
+    assert!(!app.advance_row_waits(), "재개한 호출을 다시 재개했다");
+}

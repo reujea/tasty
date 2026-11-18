@@ -579,9 +579,10 @@ impl App {
     }
 
     /// 연결이 끝난 행의 요청을 이어서 실행하고, 실패하거나 상한을 넘은 요청에 답한다.
-    pub(crate) fn advance_row_waits(&mut self) {
+    /// 플러그인 호출을 하나라도 재개했으면 true를 반환한다.
+    pub(crate) fn advance_row_waits(&mut self) -> bool {
         if self.row_waits.is_empty() {
-            return;
+            return false;
         }
         let now = Instant::now();
         let waiting = std::mem::take(&mut self.row_waits.waiting);
@@ -600,10 +601,12 @@ impl App {
                 }
             }
         }
+        let mut resumed_plugin = false;
         for gated in ready {
-            self.resume_row_request(gated);
+            resumed_plugin |= self.resume_row_request(gated);
         }
         self.settle_joined_runs();
+        resumed_plugin
     }
 
     /// 합류한 run을 행이 연결되면 성공으로, 연결을 끝내면 그 이유로 실패로 끝낸다.
@@ -635,13 +638,15 @@ impl App {
         }
     }
 
-    fn resume_row_request(&mut self, gated: Gated) {
+    /// 재개한 요청이 플러그인 호출이면 true다.
+    fn resume_row_request(&mut self, gated: Gated) -> bool {
         match gated {
             Gated::Ipc { cmd, progress } => {
                 self.sync_closing_surfaces();
                 // 보관 전에 게이트를 모두 지났다. debug 종료 요청은 이 목록에 들지 않는다.
                 self.ipc_dispatch_command(cmd, progress, true);
                 self.services.expect_no_parked_reply();
+                false
             }
             Gated::Plugin {
                 call,
@@ -650,6 +655,7 @@ impl App {
             } => {
                 let caller = Self::plugin_caller(&call);
                 self.dispatch_plugin_call(call, caller, request, progress, true);
+                true
             }
         }
     }

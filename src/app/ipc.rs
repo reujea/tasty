@@ -123,7 +123,10 @@ impl App {
             return true;
         }
         #[cfg(feature = "gui")]
-        self.advance_row_waits();
+        {
+            let resumed = self.advance_row_waits();
+            self.plugin_calls_resumed |= resumed;
+        }
         while let Some(cmd) = round.next(self.hub.ipc_server.as_deref()) {
             if !self.gate_queue.is_empty() {
                 self.gate_queue.park(
@@ -182,6 +185,10 @@ impl App {
                     progress,
                 } => {
                     tally.processed = true;
+                    #[cfg(feature = "gui")]
+                    {
+                        self.plugin_calls_resumed = true;
+                    }
                     let caller = Self::plugin_caller(&call);
                     self.dispatch_plugin_call(call, caller, request, progress, true);
                 }

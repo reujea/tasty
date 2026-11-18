@@ -10,11 +10,13 @@ impl App {
     /// 원 process가 살아 있는 호출은 모든 실행 분기 전에 공통 게이트를 통과한다.
     /// 권한용 ensure_allowed만 따로 호출하지 않는다.
     /// 다른 플러그인의 namespace 호출은 비동기로 전달하며 그 응답을 기다린다.
-    pub(crate) fn process_plugin_ipc_calls(&mut self) {
+    /// 대기 중인 호출을 하나라도 꺼냈으면 true를 반환한다.
+    pub(crate) fn process_plugin_ipc_calls(&mut self) -> bool {
         let calls = match self.plugin_manager.as_mut() {
             Some(mgr) => mgr.take_pending_plugin_calls(),
-            None => return,
+            None => return false,
         };
+        let took_any = !calls.is_empty();
         for call in calls {
             if !self
                 .plugin_manager
@@ -39,6 +41,7 @@ impl App {
             }
             self.dispatch_plugin_call(call, caller, request, Default::default(), false);
         }
+        took_any
     }
 
     /// 게이트를 통과한 호출을 실행 분기로 보낸다. 게이트가 writer 결과를 기다리면 호출을 보관하고,
@@ -569,3 +572,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+#[path = "plugin_ipc_redraw_tests.rs"]
+mod redraw_tests;
