@@ -46,6 +46,7 @@ surface hook 은 셸 명령 문자열 대신 **공유 훅 핸들러 레지스트
 
 - 최대 1 초 지연: PTY 출력 정지 시점과 훅 발생 시점 사이에 최대 1 초의 오차가 있다(Global hook 의 `file:` 조건과 동일한 해상도).
 - **epoch 기반 anti-spam**: 한 번 발생하면 그 시점의 `last_output_at` 값(epoch)을 기록해, 같은 epoch 동안은 재발생하지 않는다(persistent 훅이 매 tick 마다 스팸처럼 재발생하는 것을 막음). 새 출력이 들어와 `last_output_at` 이 갱신되면 다시 알릴 수 있다.
+- 숨은 터미널이 보이게 될 때 Tasty가 미뤄 둔 크기 변경을 적용하면서 생긴 앱의 다시 그리기 출력은 '출력 없음'을 깨지 않도록 정했다. 진행 중이던 침묵 시간은 그 출력과 관계없이 이어서 센다. 아직 구현되지 않아 지금은 그 출력도 침묵 시간을 다시 시작시킨다. 규칙은 [그릴 때 적용](../../design/policies/render-on-draw.md#적용이-일으킨-출력)에 있다.
 - `once` 훅은 발생 후 즉시 제거된다(Global hook 의 `once:SECS` 와 동일한 동작).
 
 #### CommandCompleted — OSC 133 명령 완료(exit code)
