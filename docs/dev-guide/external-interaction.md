@@ -130,8 +130,8 @@ plugin writer와 부모의 PTY는 같은 값을 받는다. release·debug 경로
 전달하는 변수로 바꾸면 debug 프로세스가 release 홈을 사용할 수 있다.
 
 완료 줄은 플러그인의 언어를 따르는 한 줄이다. 고정된 자연어 문구만으로 상태를 파싱하지 않는다.
-완료 줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 턴 종료·결과 저장은 info, 입력 대기(`waiting for input`)와 출력이 없다는 알림·그 묶음, idle 체크(공식 Claude 플러그인 0.3.6부터)는 warning, 오류가 섞이면 무조건 error다. warning에는 무출력 알림 말고도 입력 대기와 idle 체크가 섞이므로 `^\[warning\] `만으로 무출력 알림을 고를 수 없다. 종류는 번역 문구가 아니라 표지와 정본 표로 가른다. 종류별 대응은 [Claude 알림 타입 표지](../plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](../plugins/codex/index.md)에 있다.
-Claude의 정지 알림도 같은 파일에 쓰며 기준은 [Claude 정지 알림](../plugins/claude/index.md)을 따른다.
+완료 줄은 번역하지 않는 타입 표지 `[info] `·`[warning] `·`[error] ` 중 하나로 시작한다. 턴 종료·결과 저장은 info, 입력 대기(`waiting for input`)와 출력이 없다는 알림·그 묶음, idle 체크(공식 Claude 플러그인 0.3.6부터)는 warning, 오류가 섞이면 무조건 error다. warning에는 무출력 알림 말고도 입력 대기와 idle 체크가 섞이므로 `^\[warning\] `만으로 무출력 알림을 고를 수 없다. 종류는 번역 문구가 아니라 표지와 정본 표로 가른다. 종류별 대응은 [Claude 알림 타입 표지](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#알림-타입-표지)와 [Codex 완료 알림](../plugins/codex/index.md)에 있다.
+Claude의 정지 알림도 같은 파일에 쓰며 기준은 [Claude 정지 알림](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#정지-알림-claude-error-stalled--부모-completion-log)을 따른다.
 idle 체크 줄도 같은 파일에 쓴다(공식 Claude 플러그인 0.3.6부터, [Claude idle 체크](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#idle-체크-claudeidle_check--부모-completion-log)).
 완료 줄의 기록 구현은 `tasty-utils::notify::append_notice`(타입을 받는다), 호출자는 Claude의 `handle_notify_done`·`handle_notify_error`·`handle_notify_stop_failure`·`handle_notify_quiet_release`·원격 결과 저장과
 Codex의 `handle_notify_caller`·원격 결과 저장이다.
@@ -247,7 +247,7 @@ Monitor({ command: "tail -n0 -F \"$TASTY_PARENT_HOME/notify/$TASTY_SURFACE_ID.lo
 idle 체크 줄(`[warning] surface <N>: idle check — …`, 공식 Claude 플러그인 0.3.6부터)은 실패 확정이나 자동 복구 신호가 아니다. 그 자식이 120초 동안 `active`로 보이지 않았고 체크가 기다리던 턴의 종료 신호도 없었다는 뜻이다.
 
 - 줄을 받은 부모는 `tasty claude state`·`tasty read screen` 등으로 자식을 살펴본다. 필요하면 `tell`로 지시하거나 `kill`·`respawn`한다.
-- 계속 지켜볼 자식이면 `tasty claude idle-check --surface <자식>`으로 체크를 다시 건다. `tell`과 `--prompt`를 준 `respawn`은 체크를 자동으로 다시 건다.
+- 계속 지켜볼 자식이면 `tasty claude idle-check --surface <자식>`으로 체크를 다시 건다. `tell`과 `--prompt`를 준 `respawn`은 받을 물리 surface 부모가 있으면 체크를 자동으로 다시 건다(걸지 않는 경우는 정본 idle 체크 절의 자동 등록).
 - 체크는 줄을 한 번 쓰면 끝난다. 다시 걸기 전에는 같은 자식에 idle 줄이 다시 오지 않는다.
 - 같은 부모·대상을 다시 등록하면 앞 체크를 바꾸고(응답 `replaced`) 그 시각부터 120초를 새로 센다.
 - Tasty와 플러그인은 자동으로 재시도하거나 복구하지 않는다.

@@ -193,11 +193,11 @@ Claude 플러그인의 `error_scan`은 출력 정지가 일정 시간 이어지�
 한 정지 구간에서는 한 번만 알리고 출력이 다시 시작되면 재알림을 허용한다.
 백그라운드 작업을 기다리는 자식(대기 Stop 뒤)은 기다리는 작업의 출력 파일을 찾아 모두 `no_output_notice_secs` 동안 바뀌지 않으면 작업 이름을 적어 알린다. 파일을 찾지 못하면 화면 출력을 10분과 설정값 중 큰 값으로 본다. 어느 쪽이든 대기 한 번에 한 번만 알린다. Monitor 작업은 이벤트가 있을 때만 출력하므로 이 판정에서 뺀다. 기다리는 작업이 모두 Monitor면 알리지 않고, 그런 자식은 Monitor가 끝날 때까지 `active`로 남는다.
 에이전트는 `tasty claude quiet --surface <N> [--task <id>] --secs <초>`로 예상 무출력 기간을 선언할 수 있다. 양수는 그동안의 무출력 알림을 쌓았다가 선언이 끝날 때 한 줄로 묶어 보내고, `-1`은 작업이 끝나거나 `--clear`할 때까지 버린다. 상태 변경·오류 알림은 선언과 관계없이 바로 나가며 오류 알림은 그 surface의 선언을 모두 끝낸다([무출력 알림 선언](../../plugins/claude/index.md#무출력-알림-선언-claudequiet)).
-세부 규칙은 [Claude 통합의 정지 알림](../../plugins/claude/index.md#정지-알림-claude-error-stalled--부모-completion-log)에 있다.
+세부 규칙은 플러그인 레포의 [Claude 통합 정지 알림](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/index.md#정지-알림-claude-error-stalled--부모-completion-log)에 있다.
 나중에 실제 `needs_input` 훅이 와도 그 알림은 별도로 전달한다.
 
 공식 Claude 플러그인 0.3.6부터 부모는 자식에 idle 체크를 걸 수 있다(`tasty claude idle-check --surface <자식> [--caller-surface <부모>]`, IPC `claude.idle_check`).
-체크는 대상에 아무것도 보내지 않는다. `tell`과 `--prompt`를 준 `spawn`·`respawn`은 같은 체크를 자동으로 건다(`child-profile`은 걸지 않는다).
+체크는 대상에 아무것도 보내지 않는다. `tell`과 `--prompt`를 준 `spawn`·`respawn`도 체크를 자동으로 걸지만 범위가 좁다. `--prompt`를 준 `spawn`·`respawn`은 물리 surface 부모에게만 걸고, Codex 부모·부모 없는 자식·`child-profile`·`reboot`·늦게 묶인 원격 spawn에는 걸지 않는다. `tell`은 보내기에 성공하고 받을 부모가 있으며 자기 자신에게 보낸 것이 아닐 때 건다(세부는 아래 정본 링크).
 idle 체크는 위 정지 알림과 다른 시계다. 판정은 `terminal.state`의 `state`만 보고, `active`를 볼 때마다(근거 무관, `pty_not_started`·`observation_unavailable` 포함) 120초를 다시 센다.
 호스트의 `CHILD_OUTPUT_SILENCE`(120초)·`CHILD_HOOK_SILENCE`(300초)와 다른 시계라, 마지막 출력부터 idle 줄까지는 120초보다 길 수 있다.
 등록(또는 마지막 `active` 관측) 뒤 120초 동안 `active`도 확정된 턴 종료도 없고 그 회차의 상태가 `active`·`exited`가 아니면 부모 로그에 한 줄을 쓰고 체크가 끝난다.
