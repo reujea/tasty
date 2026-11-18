@@ -81,6 +81,143 @@ impl BasicKey {
     }
 }
 
+/// 키 누름 하나가 선언 `keyboard`의 소비 집합에 드는지. 집합 밖 키는 팝업이 쓰지 않으므로 조상으로 올라간다.
+/// Ctrl·Cmd·Alt·Option(비-macOS의 Win·Super는 `super_held`)이 붙은 조합은 어느 집합에도 들지 않는다.
+/// `Keys`는 수정키 없는 키와 Shift+Tab, `Text`는 거기에 Shift+키를 더한다.
+pub(crate) fn consumes_key(
+    keyboard: super::PopupKeyboard,
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+    super_held: bool,
+) -> bool {
+    use super::PopupKeyboard;
+    let command = modifiers.ctrl || modifiers.alt || modifiers.mac_cmd || super_held;
+    if command {
+        return false;
+    }
+    match keyboard {
+        PopupKeyboard::None => false,
+        PopupKeyboard::Keys => !modifiers.shift || key == egui::Key::Tab,
+        PopupKeyboard::Text => true,
+    }
+}
+
+/// 글자·IME 조합·붙여넣기·복사·잘라내기를 소비하는지. `Text`만 소비한다.
+pub(crate) fn consumes_text(keyboard: super::PopupKeyboard) -> bool {
+    keyboard == super::PopupKeyboard::Text
+}
+
+/// 팝업이 소비한 키 하나.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConsumedKey {
+    Basic(BasicKey),
+    Key {
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+    },
+}
+
+/// 팝업 그리기가 키를 읽는 통로. 키를 받지 않는 인스턴스(`receives`가 거짓이거나 선언이 `None`)는
+/// 모든 조회에서 빈 값을 받는다. 소비 집합 밖 키도 빈 값이다. 소비한 키는 기록해 관리자가 남은 키를
+/// 선언대로 처리하거나 조상으로 올릴 때 쓴다.
+pub(crate) struct PopupKeys {
+    ctx: egui::Context,
+    receives: bool,
+    keyboard: super::PopupKeyboard,
+    super_held: bool,
+    consumed: Vec<ConsumedKey>,
+}
+
+impl PopupKeys {
+    /// `receives`는 이 인스턴스가 이번 프레임에 키를 받는지다. 누가 받는지는 호출자가 정한다.
+    pub(crate) fn new(ctx: &egui::Context, receives: bool, keyboard: super::PopupKeyboard) -> Self {
+        Self {
+            ctx: ctx.clone(),
+            receives: receives && keyboard != super::PopupKeyboard::None,
+            keyboard,
+            super_held: tasty_key_match::super_held(ctx),
+            consumed: Vec::new(),
+        }
+    }
+
+    /// 아무 키도 주지 않는 통로.
+    pub(crate) fn none(ctx: &egui::Context) -> Self {
+        Self::new(ctx, false, super::PopupKeyboard::None)
+    }
+
+    /// 이 통로가 키를 주는지.
+    pub(crate) fn receives(&self) -> bool {
+        self.receives
+    }
+
+    /// 기본 조작이 이번 프레임에 눌렸는지. 소비하지 않는다.
+    pub(crate) fn pressed(&self, basic: BasicKey) -> bool {
+        self.receives && self.ctx.input(|i| basic.pressed(i, self.super_held))
+    }
+
+    /// 기본 조작 누름을 소비한다. 소비했으면 기록하고 참이다.
+    pub(crate) fn consume(&mut self, basic: BasicKey) -> bool {
+        if !self.receives {
+            return false;
+        }
+        let super_held = self.super_held;
+        let hit = self.ctx.input_mut(|i| basic.consume(i, super_held));
+        if hit {
+            self.consumed.push(ConsumedKey::Basic(basic));
+        }
+        hit
+    }
+
+    /// 콘텐츠 고유 키(숫자·글자 단축키)를 소비한다. 소비 집합 밖 조합은 소비하지 않는다.
+    pub(crate) fn consume_key(&mut self, modifiers: egui::Modifiers, key: egui::Key) -> bool {
+        if !self.receives || !consumes_key(self.keyboard, key, modifiers, self.super_held) {
+            return false;
+        }
+        // egui `consume_key`는 Alt·Shift가 더 붙은 누름도 잡는다. 그 조합은 집합 밖이라 올라가야 하므로
+        // 수식키가 정확히 같은 누름만 지운다.
+        let hit = self.ctx.input_mut(|i| {
+            let before = i.events.len();
+            i.events.retain(|e| {
+                !matches!(
+                    e,
+                    egui::Event::Key { key: k, modifiers: m, pressed: true, .. }
+                        if *k == key && *m == modifiers
+                )
+            });
+            i.events.len() != before
+        });
+        if hit {
+            self.consumed.push(ConsumedKey::Key { key, modifiers });
+        }
+        hit
+    }
+
+    /// 이번 프레임에 들어온 글자. 글자를 소비하는 선언(`Text`)이 아니면 비어 있다.
+    pub(crate) fn text(&self) -> String {
+        if !self.receives || !consumes_text(self.keyboard) {
+            return String::new();
+        }
+        self.ctx.input(|i| {
+            i.events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::Text(t) => Some(t.as_str()),
+                    _ => None,
+                })
+                .collect()
+        })
+    }
+
+    /// 이번 프레임에 소비한 키. 소비한 순서다.
+    pub(crate) fn consumed(&self) -> &[ConsumedKey] {
+        &self.consumed
+    }
+}
+
 #[cfg(test)]
 #[path = "keys_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "keys_passage_tests.rs"]
+mod passage_tests;
