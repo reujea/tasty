@@ -484,7 +484,7 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 
 - 수식키는 수식키 키코드(Command 55, Shift 56, Option 58, Control 59)를 `press`/`release`로 보낸다. 실제 키보드와 같은 순서다. 수식키 이벤트는 `flagsChanged` 종류로 게시한다. 도우미는 누른 채로 있는 키코드를 기억하고, 그중 수식키의 플래그를 그 뒤 모든 키 이벤트에 싣는다. 왼쪽·오른쪽 Command(55, 54)처럼 같은 플래그를 내는 키는 둘 다 떼어야 플래그가 꺼진다. 예: Cmd+D는 `key 55 press`, `key 2 click`, `key 55 release`다.
 - 이벤트 소스와 탭은 `surface.raw_key`와 같다(`combinedSessionState`, `cgAnnotatedSessionEventTap`).
-- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키를 뗀다(수식키는 마지막). 뗀 키코드는 그 단계의 `released_on_failure`에 적는다. 모든 단계가 성공했는데 명령 파일이 키를 누른 채로 끝나도, 끝내기 전에 같은 방법으로 떼고 `released_at_end`에 적는다. 키마다 떼기를 시도하며, 떼지 못한 키는 키코드와 오류를 `release_failed`에 따로 적는다(실패 단계에서는 그 단계의 `release_failed`). 정상 끝에서 떼지 못한 키가 하나라도 있으면 종료 코드 1이다. 측정 범위: 키를 누른 채 끝나는 명령 파일(Shift 56 press, a 0 press)은 종료 코드 0, `released_at_end: [0, 56]`이었다. 대상 터미널에는 `A`가 들어갔고, 다음 a는 소문자로 들어가 Shift가 남지 않았다(측정함). 실패 단계에서 키를 누른 채였던 경우의 `released_on_failure`와, 떼기 자체가 실패하는 `release_failed` 경로는 인위적으로 만들 수 없어 미측정이다.
+- 실패한 단계에서 멈추며, 그때까지 누른 채로 있는 키를 뗀다(수식키는 마지막). 뗀 키코드는 그 단계의 `released_on_failure`에 적는다. 모든 단계가 성공했는데 명령 파일이 키를 누른 채로 끝나도, 끝내기 전에 같은 방법으로 떼고 `released_at_end`에 적는다. 키마다 떼기를 시도하며, 떼지 못한 키는 키코드와 오류를 `release_failed`에 따로 적는다(실패 단계에서는 그 단계의 `release_failed`). 정상 끝에서 떼지 못한 키가 하나라도 있으면 종료 코드 1이다. 측정 범위: 키를 누른 채 끝나는 명령 파일(Shift 56 press, a 0 press)은 종료 코드 0, `released_at_end: [0, 56]`이었다. 대상 터미널에는 `A`가 들어갔고, 다음 a는 소문자로 들어가 Shift가 남지 않았다(측정함). 실패 단계에서는 Shift 56 press 뒤 `require_front`가 다른 앱 PID를 받아 실패하자, 종료 코드 5와 그 단계의 `released_on_failure: [56]`이 나왔다. 실패 뒤 단계는 실행되지 않았고, 다음 a는 소문자로 들어갔다(측정함). 떼기 이벤트 생성 자체가 실패하는 `release_failed` 경로는 인위적으로 만들 수 없어 미측정이다.
 - 명령 파일 형식은 권한 판정·요청보다 먼저 전부 검사한다. 키코드는 0~65535, `activate`·`require_front`의 PID는 1~2147483647, `sleep`·`delay`의 ms는 0 이상의 정수다. 범위 밖이면 종료 코드 2다.
 
 ### 결과 파일과 종료 코드
@@ -513,7 +513,9 @@ open -g -W -n -a ~/Applications/TastyInputHelper.app --args \
 
 ### 격리 인스턴스에서 측정할 때
 
-- 합성 CGEvent는 시스템 유휴 시간을 초기화하지 않으므로, 도우미로 키를 보내는 중에도 화면보호기와 잠금 화면이 뜰 수 있다. 키를 게시하기 전과 장시간 측정 중에는 주기적으로 `caffeinate -u -t 1`을 실행해 사용자 활동을 선언한다. 잠금 화면이 보이면(`ioreg`의 `CGSSessionScreenIsLocked`가 켜져 있거나 앞 앱이 loginwindow) 사용자를 부르기 전에 `caffeinate -u -t 2`로 먼저 풀어 본다. 화면보호기가 띄운 잠금 화면 UI는 이것으로 풀린다. 암호를 묻는 잠금은 풀리지 않는다.
+- 도우미로 키를 보내는 중에도 화면보호기가 띄운 잠금 화면 UI가 뜬 적이 있다. 잠금 화면이 뜨면 앞 앱이 loginwindow로 바뀌어 `require_front`가 실패하고 키는 게시되지 않는다.
+- `caffeinate -u`는 사용자 활동 assertion을 잠깐 만들어 잠금 화면 UI를 내리는 데 쓴다. HID 유휴 시간(`ioreg -c IOHIDSystem`의 `HIDIdleTime`)은 초기화하지 않는다. `caffeinate -u -t 5` 전후로 유휴 시간이 계속 늘었다(측정함).
+- 키를 게시하기 전과 장시간 측정 중에는 주기적으로 `caffeinate -u -t 1`을 실행한다. 잠금 화면이 보이면(`ioreg`의 `CGSSessionScreenIsLocked`가 켜져 있거나 앞 앱이 loginwindow) 먼저 `caffeinate -u -t 2`로 풀어 본다. 그래도 풀리지 않으면 측정을 멈추고 사용자를 부른다.
 - 새 `TASTY_HOME`으로 처음 띄우면 호스트 팝업 `info_modal`이 포커스를 잡아 키를 가로챈다. 도우미의 키는 터미널에 닿지 않고, 도우미 결과는 성공으로 나온다. 측정 전에 `tasty debug host-popup close --popup-id info_modal`로 닫고, `tasty debug ui-state`의 `gate_host_popup_focused`와 `keyboard_shortcuts_gated`가 false인지 확인한다.
 - 띄운 직후에는 2벌식으로 바꿔도 IME가 조합하지 않고 영문 키가 그대로 PTY에 들어갔다. `activate`로 다른 앱을 앞으로 가져왔다가 격리 인스턴스로 되돌린 뒤부터 조합했다. 원인은 확인하지 않았다. 측정 절차에 이 포커스 왕복 단계를 두고, IME 통과 판정(2벌식에서 r, k, 스페이스를 보내 PTY에 `가 `가 들어가는지)을 한 뒤 측정한다.
 - 조합 중이던 글자가 OS IME에 남으면 다음 한글 입력에 이어 붙는다. 회차를 반복할 때는 각 회차를 2벌식 스페이스로 시작해 남은 조합을 비우고, 그때 PTY에 들어간 것도 기록한다.
