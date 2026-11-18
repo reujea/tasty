@@ -26,9 +26,6 @@ use crate::adapters::ui::popup::file_picker::{
 use crate::core::fs_list::DirEntryInfo;
 use crate::i18n::{t, t_count_template};
 
-/// 설정 창 `PopupManager` 에 등록되는 id.
-pub(crate) const FILE_CHOOSER_POPUP_ID: &str = "local_file_chooser";
-
 /// 무엇을 고르는가.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum FileChooserMode {
@@ -530,7 +527,7 @@ fn draw_view(
     let out = draw_file_picker_view(ui, &props);
     crate::adapters::ui::popup::report_header_drag_rect(
         ui.ctx(),
-        FILE_CHOOSER_POPUP_ID,
+        crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID,
         out.header_rect,
     );
     out.action

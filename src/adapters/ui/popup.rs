@@ -42,6 +42,8 @@ pub(crate) mod route;
 mod scrim_scope_tests;
 pub(crate) mod script_confirm;
 pub(crate) mod transfer;
+mod view_local;
+pub use view_local::drawn_by_view;
 
 use crate::state::MainViewState;
 use tasty_type_geometry::length::LogicalPx;
@@ -516,6 +518,12 @@ fn child_overlay_hit(ctx: &egui::Context, popup_id: PopupId, pos: egui::Pos2) ->
 }
 
 impl PopupState {
+    /// 셸을 그릴 때 읽는 선언 값.
+    #[cfg(test)]
+    pub(crate) fn look(&self) -> PopupLook {
+        self.look
+    }
+
     /// 범위는 만들 때 받는다. 기본값을 두지 않는다. 열 때마다 열기 함수가 다시 정한다.
     pub fn new(
         id: PopupId,
@@ -855,7 +863,8 @@ impl PopupManager {
         self.popups.push(popup);
     }
 
-    /// Register a popup. Call once during init. Does nothing if already registered.
+    /// 정의 없이 팝업을 등록한다. 시험용 정의만 쓴다. 이미 등록돼 있으면 아무 일도 하지 않는다.
+    #[cfg(test)]
     pub fn register(&mut self, popup: PopupState) {
         if !self.popups.iter().any(|p| p.id == popup.id) {
             self.popups.push(popup);

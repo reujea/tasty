@@ -334,8 +334,8 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 - **상태**: 설정 창의 `SettingsUiState.file_chooser`(`LocalFileChooser`) 가 갖는다. 메인 창의
   `FilePickerData` 와 별개이며 메인 창 상태 모듈(`src/state/dialogs.rs`)을 거치지 않는다. 한 번에 하나만 열리며, 열린 요청이나 미소비 결과가 있으면
   새 요청을 거절해 기존 결과를 보존한다.
-- **popup**: 설정 창 자체 `PopupManager` 에 `local_file_chooser` PopupDef로 등록된다(단축키 충돌 확인
-  popup 과 같은 매니저). Open/Save는 메인 피커와 같은640×480, Folder는480×360이다.
+- **popup**: 설정 창 자체 `PopupManager` 에 메인 피커와 같은 `file_picker` PopupDef를 등록하고 그 인스턴스로
+  연다(단축키 충돌 확인 popup 과 같은 매니저). 선언은 같고 콘텐츠만 설정 창이 그린다. Open/Save는 메인 피커와 같은640×480, Folder는480×360이다.
 - **로컬 전용**: 원격(mirror) 조회 경로(`pending_list_dir_forward` → attach client)는 메인 창 App
   루프가 소유하므로 설정 창에는 없다. 설정은 이 인스턴스 자신의 구성이라 로컬 파일시스템만 본다.
   목록은 위 "로컬 브라우징" 과 같은 `local_reads::directory` worker 요청으로 채운다. `reload` 가
@@ -372,7 +372,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   가져간다. 단일 선택이라 확정 배열은 경로 하나다. 헤더 ✕ · Cancel · Esc 로
   닫히면 취소로 남는다.
 - **Esc**: 설정 창 popup 중 열려 있는 것의 z 순서가 가장 높은 하나만 받는다
-  (`settings_escape_owner`). 파일 선택이 충돌 확인 popup 위에 떠 있으면 충돌 popup 의 키 처리
+  (`PopupManager::draw_view_local` 이 그리기 함수에 Esc 주인인지 알린다). 파일 선택이 충돌 확인 popup 위에 떠 있으면 충돌 popup 의 키 처리
   (Enter/Y/Esc/N)는 돌지 않는다. Esc 는 설정 창 자체를 닫지 않는다.
 - **호출처**: 설정 › 기타 › 스크립트의 Add card **Browse…**(`Open`, `lua` 필터) · Keybindings ›
   Import / Export 의 **Export…**(`Save`, `toml` 필터) · **Import…**(`Open`, `toml` 필터).
@@ -583,7 +583,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 - Popup 상태: `src/state/dialogs.rs`(`FilePickerData`, `FpLoadState`, `FilePickerResult` — 경로 배열 또는 취소).
 - 설정 창 재사용: `src/view/file_chooser.rs`(`LocalFileChooser`/`FileChooserMode`/
   `FileChooserOutcome`, 저장 모드 이름 칸·덮어쓰기 판정), `src/view/settings/ui.rs`(`PopupManager` 등록 ·
-  `open_file_chooser` · `settings_escape_owner` · `apply_file_chooser_outcomes`),
+  `open_file_chooser` · `apply_file_chooser_outcomes`), `src/adapters/ui/popup/view_local.rs`(`draw_view_local`),
   `src/view/settings/ui/tabs/misc.rs`(`ScriptsUiState::BROWSE_CONSUMER`/`apply_browsed_file`).
 - i18n: `lang/{en,ko,ja,zh-Hans}.toml` `[filepicker]`/`[filepicker.error_perm]`/`[filepicker.error_conn]`/`[filepicker.save]`/`[picker.folder]`.
 - 갤러리 specimen: `crates/tasty-gallery/src/catalog/components/file_picker.rs`(`draw` · `draw_states` · `draw_save_mode` · `draw_folder_mode`) + `file_picker/{path_bar,footer,folder}.rs`.
@@ -616,7 +616,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 ### 독립 View의 폴더 선택
 
 `src/view/file_chooser.rs`의 LocalFileChooser는 Settings, Plugins, Preset이 공유하는 로컬 상태이며
-`file_chooser/window.rs`는 기존 file_picker PopupDef의 표시 계약을 재사용한 local_file_chooser 정의를 각 View의 PopupManager에 등록한다.
+`file_chooser/window.rs`는 메인 창의 file_picker PopupDef를 각 View의 PopupManager에 등록하고 그 인스턴스로 연다. 콘텐츠는 View가 `draw_view_local`로 그린다.
 메인 엔진의 file_picker 상태와 섞이지 않는다. 원격 전송 Browse는 설정 draft의 dir, Plugins의
 Find folder는 add_path_input을 채운 뒤 기존 매니페스트 검증, Preset의 dir/file_path는 각각 Folder/Open
 모드로 해당 필드 draft만 바꾼다. 실제 설정 저장·설치·프리셋 저장은 각 화면의 기존 확정 동작이다.

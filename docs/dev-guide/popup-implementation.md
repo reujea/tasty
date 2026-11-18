@@ -126,7 +126,9 @@ state.dispatch_intent(
 
 ### `PopupDecl` 속성
 
-`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `covers_scope = false`, `instances = Single` 만 다르다. 정의 없이 쓰는 팝업(설정 창의 `keybinding_conflict`)도 `PopupState::declared` 로 같은 선언을 쓴다. `PopupState::new`·`declared`는 범위를 인자로 받으며 기본 범위가 없다. 등록(`register_def`)과 설정 창의 `keybinding_conflict`는 `Window`를 넘긴다. 열 때는 열기 함수가 범위를 다시 정한다. 설정 창 파일 선택기는 `file_picker` 정의의 선언을 그대로 복사한다.
+`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `covers_scope = false`, `instances = Single` 만 다르다. `PopupState::new`·`declared`는 범위를 인자로 받으며 기본 범위가 없다. 등록(`register_def`)은 `Window`를 넘기고, 열 때는 열기 함수가 범위를 다시 정한다.
+
+`MainViewState`가 없는 창(설정 창, 플러그인·프리셋 창의 파일 선택)도 자기 `PopupManager`에 `PopupDef`를 등록한다. 설정 창의 단축키 충돌 확인은 `keybinding_conflict_def()`이고, 창의 파일 선택은 메인 창의 `file_picker` 정의를 그대로 등록해 그 인스턴스로 연다. 이런 정의의 `draw_fn`은 아무것도 그리지 않는 `drawn_by_view`이고, 창은 `PopupManager::draw_view_local`로 콘텐츠를 그린다. 이 함수는 그리기 함수에 그 인스턴스가 Esc 주인(열린 것 중 맨 위)인지 알리고, 콘텐츠가 끝났다고 하면 그 인스턴스를 닫으며, 이 프레임에 닫힌 팝업 id를 돌려준다. 정의의 `on_close` 훅은 `MainViewState`를 받으므로 이 경로에서는 부르지 않는다.
 
 | 속성 | 값 | `PopupDecl::new` 기본값 | 지금 읽는 곳 |
 |------|----|------|------|

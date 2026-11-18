@@ -287,7 +287,7 @@ fn the_path_bar_band_is_filled_edge_to_edge_with_bg_sidebar() {
 /// 같은 뷰를 쓰는 설정 창 파일 선택기도 셸 공통 여백 없이 띠가 창 끝까지 닿는다.
 #[test]
 fn the_settings_chooser_path_bar_band_is_filled_edge_to_edge() {
-    let id = crate::view::settings::ui::file_chooser::FILE_CHOOSER_POPUP_ID;
+    let id = crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
     let mut popups = crate::adapters::ui::popup::PopupManager::new();
     crate::view::settings::ui::file_chooser::register(&mut popups);
     let popup = popups

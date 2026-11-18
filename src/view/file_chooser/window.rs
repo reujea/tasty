@@ -1,28 +1,14 @@
-//! A View-owned instance of the host picker PopupDef, with local receipt storage.
-use super::{FILE_CHOOSER_POPUP_ID, FileChooserMode, FileChooserOutcome, LocalFileChooser};
-use crate::adapters::ui::popup::{PopupDef, PopupManager, defs};
+//! 창이 자기 `PopupManager`에 연 파일 피커 정의의 인스턴스와 그 결과 보관.
+use super::{FileChooserMode, FileChooserOutcome, LocalFileChooser};
+use crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
+use crate::adapters::ui::popup::{PopupManager, defs};
 use std::path::PathBuf;
 use tasty_type_geometry::length::LogicalPx;
 
+/// 본창 파일 피커 정의를 창의 관리자에 등록한다. 콘텐츠는 창이 그린다.
 pub(crate) fn register(popups: &mut PopupManager) {
-    let base = defs::find(crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID)
-        .expect("file picker PopupDef");
-    let def = PopupDef {
-        id: FILE_CHOOSER_POPUP_ID,
-        decl: base.decl,
-        scrim_input: base.scrim_input,
-        title_key: base.title_key,
-        title_fn: base.title_fn,
-        sizer: base.sizer,
-        drag_region: base.drag_region,
-        on_open: None,
-        draw_fn: base.draw_fn,
-        fullscreen_stage: base.fullscreen_stage,
-        #[cfg(debug_assertions)]
-        debug_payload: None,
-        on_close: base.on_close,
-    };
-    popups.register_def(&def, 1.0);
+    let def = defs::find(FILE_PICKER_POPUP_ID).expect("file picker PopupDef");
+    popups.register_def(def, 1.0);
 }
 
 pub(crate) fn folder_size() -> egui::Vec2 {
@@ -80,7 +66,7 @@ impl std::fmt::Debug for WindowFileChooser {
 }
 impl WindowFileChooser {
     pub(crate) fn is_open(&self) -> bool {
-        self.popups.is_open(FILE_CHOOSER_POPUP_ID)
+        self.popups.is_open(FILE_PICKER_POPUP_ID)
     }
     pub(crate) fn open(
         &mut self,
@@ -93,7 +79,7 @@ impl WindowFileChooser {
         }
         self.chooser
             .begin_at(consumer, mode, Vec::new(), start_directory(value));
-        if let Some(p) = self.popups.get_mut(FILE_CHOOSER_POPUP_ID) {
+        if let Some(p) = self.popups.get_mut(FILE_PICKER_POPUP_ID) {
             p.title = self.chooser.title().to_owned();
             p.size = if self.chooser.is_folder() {
                 folder_size()
@@ -103,7 +89,7 @@ impl WindowFileChooser {
         }
         // intent-exempt: user Browse in an independent View opens its own registered PopupDef.
         self.popups.open_centered_focused(
-            FILE_CHOOSER_POPUP_ID,
+            FILE_PICKER_POPUP_ID,
             crate::model::popup_kind::PopupScope::Window,
         );
         true
@@ -111,34 +97,21 @@ impl WindowFileChooser {
     pub(crate) fn cancel(&mut self) {
         self.chooser.cancel();
         // intent-exempt: the owning editor invalidated this View-local request.
-        self.popups.close(FILE_CHOOSER_POPUP_ID);
+        self.popups.close(FILE_PICKER_POPUP_ID);
     }
     pub(crate) fn poll(&mut self, owner: &mut crate::app::local_reads::ReadRequests) -> bool {
         self.chooser.poll_local_reads(owner)
     }
     pub(crate) fn draw(&mut self, ctx: &egui::Context) {
-        let owns_escape = self.is_open();
-        let mut finished = false;
         let chooser = &mut self.chooser;
-        let result = self.popups.draw(
-            ctx,
-            &mut |cx, ui| {
-                if cx.id == FILE_CHOOSER_POPUP_ID {
-                    finished |= chooser.draw(ui, &crate::theme::theme(), owns_escape);
-                }
-            },
-            None,
-            &[],
-        );
-        if finished {
-            // intent-exempt: local chooser's completed response closes its own View popup.
-            self.popups.close(FILE_CHOOSER_POPUP_ID);
-        }
-        // Raw View-local drawing returns close receipts instead of dispatching MainViewState hooks.
-        let queued = self.popups.take_closed_queue();
-        if result.closed.contains(&FILE_CHOOSER_POPUP_ID)
-            || queued.iter().any(|c| c.id == FILE_CHOOSER_POPUP_ID)
-        {
+        let closed = self
+            .popups
+            .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
+                cx.id == FILE_PICKER_POPUP_ID
+                    && chooser.draw(ui, &crate::theme::theme(), owns_escape)
+            });
+        // 응답을 끝낸 뒤 닫혔으면 결과가 남고, 그 밖의 경로로 닫혔으면 취소다.
+        if closed.contains(&FILE_PICKER_POPUP_ID) {
             self.chooser.cancel();
         }
     }
@@ -157,4 +130,31 @@ impl WindowFileChooser {
 pub(crate) fn owns_input(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<bool>(egui::Id::new("view_local_file_chooser_open")))
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given 창의 파일 선택, When 열면, Then 본창 파일 피커 정의의 인스턴스이고 그 선언의 모양을 쓴다.
+    #[test]
+    fn the_view_chooser_is_an_instance_of_the_file_picker_declaration() {
+        let mut window = WindowFileChooser::default();
+        assert!(window.open("view_chooser_test", FileChooserMode::Open, "~"));
+        let shown = window
+            .popups
+            .instances_of(FILE_PICKER_POPUP_ID)
+            .next()
+            .expect("an open file picker instance");
+        let mut main = PopupManager::new();
+        main.register_def(
+            defs::find(FILE_PICKER_POPUP_ID).expect("file picker PopupDef"),
+            1.0,
+        );
+        let declared = main
+            .get_mut(FILE_PICKER_POPUP_ID)
+            .expect("registered file picker")
+            .look();
+        assert_eq!(shown.look(), declared);
+    }
 }

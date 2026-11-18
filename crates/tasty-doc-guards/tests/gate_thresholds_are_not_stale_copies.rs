@@ -194,11 +194,6 @@ const EXCLUDED: &[(&str, Kind, &str)] = &[
         "테스트 픽스처의 행 수",
     ),
     (
-        "tests/refusals_are_told_apart_by_their_own_words.rs",
-        Kind::OtherMeaning,
-        "scripts 아래 셸 스크립트 수를 잰 측정값 27 이며 doc 주석 편향이 아니다",
-    ),
-    (
         "crates/tasty-plugin-agent-stream/src/handlers.rs",
         Kind::OtherMeaning,
         "POLL_MAX_LIMIT = 1000",

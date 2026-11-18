@@ -24,15 +24,36 @@ pub(crate) use debug_tabs::DebugTabsApplied;
 pub(crate) use keybindings_tab::PluginBundleContext;
 pub use keybindings_tab::{KeyCapture, capture_bare_key, capture_winit_key_combo};
 
+use crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
 use crate::adapters::ui::popup::{
-    PopupDecl, PopupManager, PopupOutsideClick, PopupState, ScrimInput, popup_size,
+    PopupDecl, PopupDef, PopupId, PopupManager, PopupOutsideClick, ScrimInput, popup_size,
 };
 
-/// 단축키 충돌 확인 팝업의 선언. 크기는 열 때 `conflict_popup_size`가 다시 정하므로 첫 프레임 값이다.
-pub(crate) const KEYBINDING_CONFLICT_DECL: PopupDecl = PopupDecl {
-    outside_click: PopupOutsideClick::Unfocus,
-    ..crate::adapters::ui::popup::defs::host_decl(popup_size(egui::vec2(340.0, 120.0)))
-};
+/// 단축키 충돌 확인 팝업 id.
+pub(crate) const KEYBINDING_CONFLICT_POPUP_ID: PopupId = "keybinding_conflict";
+
+/// 단축키 충돌 확인 팝업 정의. 설정 창의 관리자에 등록하고 콘텐츠는 설정 창이 그린다.
+/// 크기는 열 때 `conflict_popup_size`가 다시 정하므로 선언의 크기는 첫 프레임 값이다.
+pub(crate) fn keybinding_conflict_def() -> PopupDef {
+    PopupDef {
+        id: KEYBINDING_CONFLICT_POPUP_ID,
+        decl: PopupDecl {
+            outside_click: PopupOutsideClick::Unfocus,
+            ..crate::adapters::ui::popup::defs::host_decl(popup_size(egui::vec2(340.0, 120.0)))
+        },
+        scrim_input: ScrimInput::VisualOnly,
+        title_key: "settings.keybindings.conflict_title",
+        title_fn: None,
+        sizer: None,
+        drag_region: None,
+        draw_fn: crate::adapters::ui::popup::drawn_by_view,
+        fullscreen_stage: None,
+        on_open: None,
+        on_close: None,
+        #[cfg(debug_assertions)]
+        debug_payload: None,
+    }
+}
 use crate::file::format::DetectorId;
 use crate::i18n::t;
 use crate::plugin::manifest::BindingMode;
@@ -418,15 +439,7 @@ impl SettingsUiState {
 
     pub fn new() -> Self {
         let mut popups = PopupManager::new();
-        popups.register(PopupState::declared(
-            "keybinding_conflict",
-            t("settings.keybindings.conflict_title"),
-            &KEYBINDING_CONFLICT_DECL,
-            ScrimInput::VisualOnly,
-            None,
-            // 설정 창 전체에 작용한다.
-            crate::model::popup_kind::PopupScope::Window,
-        ));
+        popups.register_def(&keybinding_conflict_def(), 1.0);
         file_chooser::register(&mut popups);
         Self {
             active_tab: SettingsTab::General,
@@ -499,7 +512,7 @@ impl SettingsUiState {
             self.file_chooser.set_title(title);
         }
         let title = self.file_chooser.title();
-        if let Some(p) = self.popups.get_mut(file_chooser::FILE_CHOOSER_POPUP_ID) {
+        if let Some(p) = self.popups.get_mut(FILE_PICKER_POPUP_ID) {
             p.size = if self.file_chooser.is_folder() {
                 file_chooser::folder_size()
             } else {
@@ -509,7 +522,7 @@ impl SettingsUiState {
         }
         // intent-exempt: 설정 창 내부 PopupManager 의 sub-popup open(충돌 팝업과 같은 경로).
         self.popups.open_centered_focused(
-            file_chooser::FILE_CHOOSER_POPUP_ID,
+            FILE_PICKER_POPUP_ID,
             crate::model::popup_kind::PopupScope::Window,
         );
     }
@@ -757,25 +770,28 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                             // 별도 PopupManager. host Intent 큐(MainViewState.popups) 와 별개 —
                             // sub-modal 내부 lifecycle 이므로 직접 호출 유지.
                             // 현재 편집 중인 배율로 크기를 먼저 구한 뒤 popups를 변경한다.
-                            let conflict_size = if !ui_state.popups.is_open("keybinding_conflict") {
-                                ui_state.pending_binding.as_ref().map(|pending| {
-                                    let zoom = draft.appearance.ui_scale_factor();
-                                    conflict_popup_size(
-                                        ui,
-                                        &th,
-                                        conflict_message_text(pending, &settings.general),
-                                        zoom,
-                                    )
-                                })
-                            } else {
-                                None
-                            };
+                            let conflict_size =
+                                if !ui_state.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID) {
+                                    ui_state.pending_binding.as_ref().map(|pending| {
+                                        let zoom = draft.appearance.ui_scale_factor();
+                                        conflict_popup_size(
+                                            ui,
+                                            &th,
+                                            conflict_message_text(pending, &settings.general),
+                                            zoom,
+                                        )
+                                    })
+                                } else {
+                                    None
+                                };
                             if let Some(size) = conflict_size {
-                                if let Some(p) = ui_state.popups.get_mut("keybinding_conflict") {
+                                if let Some(p) =
+                                    ui_state.popups.get_mut(KEYBINDING_CONFLICT_POPUP_ID)
+                                {
                                     p.size = size;
                                 }
                                 ui_state.popups.open_centered_focused(
-                                    "keybinding_conflict",
+                                    KEYBINDING_CONFLICT_POPUP_ID,
                                     crate::model::popup_kind::PopupScope::Window,
                                 );
                             }
@@ -811,13 +827,13 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                                     }
                                 }
                                 // intent-exempt: settings 윈도우 내부 sub-modal close.
-                                ui_state.popups.close("keybinding_conflict");
+                                ui_state.popups.close(KEYBINDING_CONFLICT_POPUP_ID);
                             }
                             if ui_state.conflict_cancelled {
                                 ui_state.conflict_cancelled = false;
                                 ui_state.pending_binding = None;
                                 // intent-exempt: settings 윈도우 내부 sub-modal close.
-                                ui_state.popups.close("keybinding_conflict");
+                                ui_state.popups.close(KEYBINDING_CONFLICT_POPUP_ID);
                             }
 
                             ui_state.draft = Some(draft);
@@ -825,27 +841,23 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                 });
         });
 
-    // Escape는 가장 위에 열린 팝업 하나만 처리한다.
-    let escape_owner = settings_escape_owner(&ui_state.popups);
-
-    // Draw popups (충돌 확인 · 파일 선택)
-    let mut chooser_done = false;
-    let popup_result = {
+    // Esc와 충돌 팝업의 키는 열린 것 중 맨 위 팝업 하나만 받는다.
+    let mut conflict_owns_keys = false;
+    let closed = {
         let pending = ui_state.pending_binding.clone();
         let accepted = &mut ui_state.conflict_accepted;
         let cancelled = &mut ui_state.conflict_cancelled;
         let chooser = &mut ui_state.file_chooser;
-        let chooser_owns_escape = escape_owner == Some(file_chooser::FILE_CHOOSER_POPUP_ID);
-        ui_state.popups.draw(
-            ctx,
-            &mut |&mut crate::adapters::ui::popup::PopupCx { id, .. }, ui| {
-                if id == file_chooser::FILE_CHOOSER_POPUP_ID {
-                    chooser_done |= chooser.draw(ui, &th, chooser_owns_escape);
-                    return;
+        ui_state
+            .popups
+            .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
+                if cx.id == FILE_PICKER_POPUP_ID {
+                    return chooser.draw(ui, &th, owns_escape);
                 }
-                if id == "keybinding_conflict"
+                if cx.id == KEYBINDING_CONFLICT_POPUP_ID
                     && let Some(pending) = &pending
                 {
+                    conflict_owns_keys = owns_escape;
                     // 안내 문자열은 open 직전 크기 산정과 동일 출처를 쓴다
                     // (quick-switch 슬롯 충돌 라벨 처리 포함 — conflict_message_text).
                     ui.label(conflict_message_text(pending, &settings.general));
@@ -862,25 +874,22 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                         }
                     });
                 }
-            },
-            None,
-            // settings 모달의 자체 popup 매니저 — plugin popup 과 겹치지 않는다
-            // (모달이 뜬 동안 plugin popup 은 입력을 받지 않는다).
-            &[],
-        )
+                false
+            })
     };
 
-    // X 버튼으로 충돌 팝업이 닫힌 경우 pending_binding 정리
-    if popup_result.closed.contains(&"keybinding_conflict") {
+    // X 버튼 등으로 충돌 팝업이 닫힌 경우 pending_binding 정리
+    if closed.contains(&KEYBINDING_CONFLICT_POPUP_ID) {
         ui_state.pending_binding = None;
     }
-
-    settle_file_chooser(ui_state, chooser_done, &popup_result.closed);
+    // 파일 선택이 응답을 끝낸 뒤 닫혔으면 결과가 남고, 그 밖의 경로로 닫혔으면 취소다.
+    if closed.contains(&FILE_PICKER_POPUP_ID) {
+        ui_state.file_chooser.cancel();
+    }
     apply_file_chooser_outcomes(ui_state);
 
     // 키보드로 충돌 팝업 수락/거부 — 파일 선택이 그 위에 떠 있으면 키는 그쪽 것이다.
-    if ui_state.popups.is_open("keybinding_conflict") && escape_owner == Some("keybinding_conflict")
-    {
+    if conflict_owns_keys {
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Y) {
                 ui_state.conflict_accepted = true;
@@ -892,34 +901,6 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     }
 
     result
-}
-
-/// 파일 선택 한 프레임의 마무리. 뷰가 끝냈으면 popup 을 닫고, 뷰 밖 경로로 닫혔으면
-/// 취소로 남긴다.
-fn settle_file_chooser(
-    ui_state: &mut SettingsUiState,
-    chooser_done: bool,
-    closed: &[&'static str],
-) {
-    if chooser_done {
-        // intent-exempt: 설정 창 내부 sub-popup close.
-        ui_state.popups.close(file_chooser::FILE_CHOOSER_POPUP_ID);
-    }
-    let queued = ui_state.popups.take_closed_ids();
-    if closed.contains(&file_chooser::FILE_CHOOSER_POPUP_ID)
-        || queued.contains(&file_chooser::FILE_CHOOSER_POPUP_ID)
-    {
-        ui_state.file_chooser.cancel();
-    }
-}
-
-/// 설정 창 popup 중 Esc 를 받을 하나 — 열린 것 중 z 순서가 가장 위인 것.
-fn settings_escape_owner(popups: &PopupManager) -> Option<&'static str> {
-    ["keybinding_conflict", file_chooser::FILE_CHOOSER_POPUP_ID]
-        .into_iter()
-        .filter_map(|id| popups.open_geometry(id).map(|(z, _)| (z, id)))
-        .max_by_key(|(z, _)| *z)
-        .map(|(_, id)| id)
 }
 
 /// 닫힌 파일 선택의 결과를 그것을 연 화면 상태로 돌려준다. 경로의 쓰임은 화면마다 다르다.

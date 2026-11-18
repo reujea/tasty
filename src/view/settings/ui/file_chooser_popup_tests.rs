@@ -36,7 +36,7 @@ fn opened() -> SettingsUiState {
         Vec::new(),
         None,
     );
-    assert!(st.popups.is_open(file_chooser::FILE_CHOOSER_POPUP_ID));
+    assert!(st.popups.is_open(FILE_PICKER_POPUP_ID));
     st
 }
 
@@ -45,26 +45,20 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
     let th = crate::theme::theme();
     for raw in inputs {
         drop(ctx.run(raw, |ctx| {
-            let mut done = false;
             let chooser = &mut st.file_chooser;
-            let result = st.popups.draw(
-                ctx,
-                &mut |id, ui| {
-                    if id.id == file_chooser::FILE_CHOOSER_POPUP_ID {
-                        done |= chooser.draw(ui, &th, true);
-                    }
-                },
-                None,
-                &[],
-            );
-            settle_file_chooser(st, done, &result.closed);
+            let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, owns_escape| {
+                cx.id == FILE_PICKER_POPUP_ID && chooser.draw(ui, &th, owns_escape)
+            });
+            if closed.contains(&FILE_PICKER_POPUP_ID) {
+                st.file_chooser.cancel();
+            }
         }));
     }
 }
 
 fn header_rect(ctx: &egui::Context, st: &mut SettingsUiState) -> egui::Rect {
     run_frames(ctx, st, vec![screen_input()]);
-    crate::adapters::ui::popup::reported_header_drag_rect(ctx, file_chooser::FILE_CHOOSER_POPUP_ID)
+    crate::adapters::ui::popup::reported_header_drag_rect(ctx, FILE_PICKER_POPUP_ID)
         .expect("설정 창 파일 선택기 뷰가 헤더 줄을 보고해야 한다")
 }
 
@@ -78,7 +72,7 @@ fn the_settings_chooser_has_no_shell_title_bar() {
     let header = header_rect(&ctx, &mut st);
     let p = st
         .popups
-        .get_mut(file_chooser::FILE_CHOOSER_POPUP_ID)
+        .get_mut(FILE_PICKER_POPUP_ID)
         .expect("등록돼 있다");
     let popup = egui::Rect::from_min_size(p.pos, p.size);
     assert_eq!(header.top(), popup.top(), "헤더가 popup 윗변에서 시작한다");
@@ -89,7 +83,7 @@ fn the_settings_chooser_has_no_shell_title_bar() {
         st.popups.draw(
             ctx,
             &mut |id, ui| {
-                if id.id == file_chooser::FILE_CHOOSER_POPUP_ID {
+                if id.id == FILE_PICKER_POPUP_ID {
                     chooser.draw(ui, &th, true);
                 }
             },
@@ -131,7 +125,7 @@ fn the_settings_chooser_header_close_button_cancels() {
             pointer_input(close, Some(false)),
         ],
     );
-    assert!(!st.popups.is_open(file_chooser::FILE_CHOOSER_POPUP_ID));
+    assert!(!st.popups.is_open(FILE_PICKER_POPUP_ID));
     assert_eq!(
         st.file_chooser.take_outcome(CONSUMER),
         Some(file_chooser::FileChooserOutcome::Cancelled)
@@ -146,7 +140,7 @@ fn the_settings_chooser_header_drag_moves_the_popup() {
     let header = header_rect(&ctx, &mut st);
     let before = st
         .popups
-        .get_mut(file_chooser::FILE_CHOOSER_POPUP_ID)
+        .get_mut(FILE_PICKER_POPUP_ID)
         .expect("등록돼 있다")
         .pos;
     let grab = header.center();
@@ -162,10 +156,10 @@ fn the_settings_chooser_header_drag_moves_the_popup() {
             pointer_input(grab + delta, Some(false)),
         ],
     );
-    assert!(st.popups.is_open(file_chooser::FILE_CHOOSER_POPUP_ID));
+    assert!(st.popups.is_open(FILE_PICKER_POPUP_ID));
     let after = st
         .popups
-        .get_mut(file_chooser::FILE_CHOOSER_POPUP_ID)
+        .get_mut(FILE_PICKER_POPUP_ID)
         .expect("등록돼 있다")
         .pos;
     assert!(
@@ -188,13 +182,44 @@ fn remote_transfer_folder_size_and_cancel_preserve_the_draft() {
         Some(std::path::PathBuf::from("/")),
     );
     assert_eq!(
-        st.popups
-            .get_mut(file_chooser::FILE_CHOOSER_POPUP_ID)
-            .unwrap()
-            .size,
+        st.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap().size,
         file_chooser::folder_size()
     );
     st.file_chooser.cancel();
     apply_file_chooser_outcomes(&mut st);
     assert_eq!(st.draft.as_ref().unwrap().remote_transfer.dir, "/original");
+}
+
+/// Given 충돌 확인 위에 파일 선택이 열린 설정 창, When 그리면, Then Esc 주인은 맨 위의 파일 선택이다.
+/// When 파일 선택이 닫히면 Then 다음 프레임의 Esc 주인은 충돌 확인이다.
+#[test]
+fn the_settings_escape_goes_to_the_topmost_of_conflict_and_chooser() {
+    let mut st = SettingsUiState::new();
+    // intent-exempt: 설정 창 자체 관리자의 시험.
+    st.popups.open_centered_focused(
+        KEYBINDING_CONFLICT_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+    );
+    st.open_file_chooser(
+        CONSUMER,
+        file_chooser::FileChooserMode::Open,
+        Vec::new(),
+        None,
+    );
+    let ctx = egui::Context::default();
+    let owners = |st: &mut SettingsUiState| {
+        let mut owners = Vec::new();
+        drop(ctx.run(screen_input(), |ctx| {
+            st.popups.draw_view_local(ctx, &mut |cx, _ui, owns_escape| {
+                if owns_escape {
+                    owners.push(cx.id);
+                }
+                false
+            });
+        }));
+        owners
+    };
+    assert_eq!(owners(&mut st), [FILE_PICKER_POPUP_ID]);
+    st.popups.close(FILE_PICKER_POPUP_ID);
+    assert_eq!(owners(&mut st), [KEYBINDING_CONFLICT_POPUP_ID]);
 }

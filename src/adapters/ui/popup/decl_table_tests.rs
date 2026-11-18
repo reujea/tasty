@@ -159,24 +159,15 @@ const EXPECTED: &[Row] = &[
         (Tok::SurfaceRaised, Tok::MenuBorder, Tok::BorderFrame),
     ),
     row("keybinding_conflict", false, false, false, RAISED),
-    row("local_file_chooser", false, false, true, PANEL),
 ];
 
-/// 표의 모든 행이 가리키는 팝업을 등록한 그대로 모은다. 정의 목록, 설정 창의 두 팝업 순서다.
+/// 표의 모든 행이 가리키는 팝업을 등록한 그대로 모은다. 정의 목록, 설정 창의 충돌 확인 순서다.
 fn registered() -> Vec<PopupState> {
     let mut mgr = PopupManager::new();
     for def in super::all_defs() {
         mgr.register_def(def, 1.0);
     }
-    mgr.register(PopupState::declared(
-        "keybinding_conflict",
-        "t",
-        &crate::view::settings::ui::KEYBINDING_CONFLICT_DECL,
-        ScrimInput::VisualOnly,
-        None,
-        crate::model::popup_kind::PopupScope::Window,
-    ));
-    crate::view::file_chooser::register(&mut mgr);
+    mgr.register_def(&crate::view::settings::ui::keybinding_conflict_def(), 1.0);
     mgr.popups
 }
 
@@ -227,7 +218,7 @@ fn expected(id: &str) -> Row {
 #[test]
 fn the_table_covers_every_declared_popup_once() {
     let ids: Vec<&str> = declared().iter().map(|(id, _)| *id).collect();
-    assert_eq!(ids.len(), 34, "정의 32개와 설정 창 팝업 2개");
+    assert_eq!(ids.len(), 33, "정의 32개와 설정 창의 단축키 충돌 확인");
     let mut sorted = ids.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -349,22 +340,14 @@ const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bo
         ("tutorial_topics", Keys, EscClose, OutClose, true),
         ("rail_category", Keys, EscClose, OutClose, true),
         ("keybinding_conflict", Keys, EscClose, OutUnfocus, true),
-        ("local_file_chooser", Text, EscClose, OutUnfocus, true),
     ]
 };
 
-/// 표의 모든 팝업의 선언. 설정 창 파일 선택기는 `file_chooser::register`처럼 file_picker 선언을 쓴다.
+/// 표의 모든 팝업의 선언. 창의 파일 선택은 file_picker 정의의 인스턴스라 따로 세지 않는다.
 fn all_decls() -> Vec<(&'static str, PopupDecl)> {
     let mut out: Vec<_> = super::all_defs().iter().map(|d| (d.id, d.decl)).collect();
-    out.push((
-        "keybinding_conflict",
-        crate::view::settings::ui::KEYBINDING_CONFLICT_DECL,
-    ));
-    let picker = super::find(super::super::file_picker::FILE_PICKER_POPUP_ID).expect("file picker");
-    out.push((
-        crate::view::file_chooser::FILE_CHOOSER_POPUP_ID,
-        picker.decl,
-    ));
+    let conflict = crate::view::settings::ui::keybinding_conflict_def();
+    out.push((conflict.id, conflict.decl));
     out
 }
 
