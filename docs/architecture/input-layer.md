@@ -17,7 +17,7 @@ z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안�
 | **0** | **전체화면 무대** | `state.fullscreen_stage_active()` | 활성이면 **1~7 전부를 좌표 판정 없이 무조건 차단**(아래) |
 | 1 | 모달/오버레이 | `overlay_open` | 열려 있으면 터미널 입력 차단 |
 | 2 | Popup | `state.popup_hovered` | 팝업 위면 소비(터미널 무시) |
-| 2b | Modifier-hint 오버레이 | `state.modifier_hint_hovered` | 오버레이 위면 소비 **+ 비활성 surface 전환도 차단**(popup 과 동급) — 드래그/리사이즈/X 클릭이 하위 surface 포커스로 안 샘 |
+| 2b | Modifier-hint | `state.popup_hovered` | 포커스를 받지 않는 창 팝업 인스턴스라 Popup 과 같은 판정이다. 위면 소비하고 비활성 surface 전환도 막는다 — 드래그/그립 크기 조절/X 클릭이 하위 surface 포커스로 새지 않는다 |
 | 2c | **Divider press** (좌클릭 press) | `!egui_consumed && !banner_hovered` 이고 `find_*_divider_at` | 포커스를 바꾸지 않고 드래그 시작 — 비활성 surface 쪽 hit 띠도 첫 press 부터(아래 참고) |
 | 3 | **비활성 surface 전환** (좌클릭 press) | `surface_id_at_position != focused` | 첫 클릭은 surface 전환이 소비 — 그 위 배너/egui 위젯과 무관(아래 참고) |
 | 4 | egui 위젯 (사이드바·탭바·오버레이) | `egui_consumed` | egui 가 소비하면 종료 |
@@ -25,7 +25,7 @@ z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안�
 | 6 | Divider | `find_*_divider_at`(threshold) | 분할 경계 안이면 소비(드래그 시작) |
 | 7 | Terminal/Surface | — | 최하위, 콘텐츠가 처리 |
 
-`handle_cursor_moved` / `handle_mouse_input` / `handle_mouse_wheel` 이 모두 같은 가드(`egui_consumed || overlay_open || state.popup_hovered || state.banner_hovered || state.modifier_hint_hovered`)로 상위 레이어를 먼저 거른 뒤 divider → terminal 로 내려간다. 배너는 **자기 영역의 마우스를 소비**(뒤로 전파 X)하는 focus-less 오버레이라 popup 과 같은 precedence 에서 차단한다(Toast 는 입력을 통과시키므로 이 가드에 없다 — [banner 시스템](../design/systems/banner.md)).
+`handle_cursor_moved` / `handle_mouse_input` / `handle_mouse_wheel` 이 모두 같은 가드(`egui_consumed || overlay_open || state.popup_hovered || state.banner_hovered`)로 상위 레이어를 먼저 거른 뒤 divider → terminal 로 내려간다. 배너는 **자기 영역의 마우스를 소비**(뒤로 전파 X)하는 focus-less 오버레이라 popup 과 같은 precedence 에서 차단한다(Toast 는 입력을 통과시키므로 이 가드에 없다 — [banner 시스템](../design/systems/banner.md)).
 
 **순서 6 은 버튼 없는 hover motion 보고에도 적용된다.** DECSET 1003(AnyEventMouse)을 켠 앱에 커서 이동을 보고하기 전에 press 경로와 **같은 threshold**(`state::mouse::DIVIDER_HIT_THRESHOLD`)로 divider 밴드를 먼저 판정하고, 밴드 안이면 보고하지 않는다 — 밴드는 gap(1~2px)보다 넓어 양쪽 surface rect 안쪽까지 겹치므로, 이 가드가 없으면 "커서는 ↔ 인데 그 아래 TUI 는 hover 를 계속 받는" 불일치가 생긴다. OS 창 리사이즈 가장자리 밴드와 divider 드래그 진행 중에도 같은 이유로 보고하지 않는다. 대상은 focused surface 한정이다([터미널 (Terminal)](../surfaces/terminal/index.md)) — 순서 3(비활성 surface 전환)이 클릭에 대해 세운 "배경 캡쳐 TUI 로 마우스가 새지 않게" 원칙을 hover 에도 적용한 것이며, 다만 hover 는 포커스를 옮기지 않는다. **버튼을 누른 채 시작한 드래그 motion 은 이 가드들의 적용 대상이 아니다** — 대상 surface 가 press 시점에 고정되므로 밴드/이웃 surface 로 나가도 원래 surface 기준으로 계속 보고된다.
 
@@ -33,7 +33,7 @@ z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안�
 hit 띠는 분할선 양쪽 surface 안쪽까지 겹친다. 전환을 먼저 보면 비활성 surface 쪽 띠의 첫 press 가
 전환에 쓰여 분할선을 잡으려면 두 번 눌러야 한다. native WebView 위 띠도 같은 규칙이다.
 이 press 는 포커스·선택·마우스 리포트를 바꾸지 않는다. egui·배너가 받은 press(`egui_consumed`,
-`banner_hovered`)와 modal·popup·modifier-hint 위 press 는 이 단계를 건너뛴다. 그래서 분할선 띠와
+`banner_hovered`)와 modal·popup(modifier-hint 포함) 위 press 는 이 단계를 건너뛴다. 그래서 분할선 띠와
 겹치는 이웃 pane 탭 바는 egui 가 그 press 를 받으면 탭 바가 우선한다.
 
 **진행 중인 divider 드래그는 egui 의 이동 소비보다 우선한다.** `handle_cursor_moved` 는 드래그 중이면
@@ -49,7 +49,7 @@ egui-mesh surface는 포인터 이동과 버튼 이벤트를 `egui_mesh_target_a
 divider 갱신이 멈추고, release도 plugin이 소비해 드래그가 끝나지 않는다.
 터미널과 explorer surface는 이 mesh 전달 경로를 사용하지 않는다.
 
-**Modifier-hint 오버레이**(modifier 홀드 시 뜨는 focus-less 패널)도 마우스를 소비하지만 배너보다 한 단계 강하다: 위 통합 가드(소비·휠·커서)에 더해 **click-to-activate 전환 가드**(`!popup_hovered && !modifier_hint_hovered`)에도 들어가, 오버레이 위 좌클릭이 하위 surface 로 **포커스를 옮기지 못하게** 막는다(popup 과 동급, banner 와 차이). 오버레이 드래그 이동·테두리/코너 리사이즈·X 클릭이 터미널 포커스·selection·마우스 리포트로 새지 않는다 — 키보드 포커스는 애초에 취득하지 않는다([포커스 정책](../design/policies/focus.md), [banner 와 동일한 focus-less 성질]). 적용 지점은 네 곳이다: `handle_mouse_input` 의 click-to-activate press 가드 + 통합 소비 가드, `handle_mouse_wheel`, `handle_cursor_moved`.
+**Modifier-hint**(modifier 홀드 시 뜨는 패널)는 키보드 포커스를 받지 않는 창(Window) 범위 팝업 인스턴스다(선언 `keyboard = None`). 그 위 마우스는 다른 팝업처럼 `popup_hovered` 에 들어가 통합 가드(소비·휠·커서)와 **click-to-activate 전환 가드**(`!popup_hovered`)를 함께 거친다. 패널 위 좌클릭은 하위 surface 로 포커스를 옮기지 못하고(banner 와 차이), 드래그 이동·그립 크기 조절·X 클릭이 터미널 포커스·selection·마우스 리포트로 새지 않는다. 패널을 눌러도 키보드 포커스와 다른 팝업의 포커스는 바뀌지 않는다([포커스 정책](../design/policies/focus.md)).
 
 ### 순서 0 — 전체화면 무대는 좌표를 묻지 않는다
 
@@ -81,9 +81,9 @@ egui 패스(`src/adapters/ui/draw.rs`)가 프레임 N에서 이 열기 요청을
 - 분할선 hit 띠 안의 press 는 이 단계 전에 드래그로 소비된다(순서 2c). 띠 밖만 전환 대상이다.
 - gating 은 `surface_id_at_position(x,y) != focused_surface_id` — 이미 활성인 surface 안 클릭은 전환 단계를 건너뛰어 정상(selection/리포트/divider)으로 흐른다. egui 크롬(사이드바·탭바)은 surface rect 밖이라 `surface_id_at_position == None` → 전환 대상 아님 → `egui_consumed` 로 소비.
 
-### `popup_hovered` / `banner_hovered` / `modifier_hint_hovered` 프레임 간 전달
+### `popup_hovered` / `banner_hovered` 프레임 간 전달
 
-`PopupManager::draw()`(`src/adapters/ui/popup/draw.rs`) / `BannerManager::draw()`(`src/adapters/ui/banner.rs`) / `draw_modifier_hint()`(`src/adapters/ui/modifier_hint_overlay.rs`)는 렌더 시점에 호출되고 마우스 이벤트는 이벤트 시점에 처리돼 타이밍이 다르다. 그래서 draw 결과(`PopupDrawResult.hovered` / `BannerDrawResult.hovered` / `HintDrawResult.hovered`)를 `state.popup_hovered` / `state.banner_hovered` / `state.modifier_hint_hovered`(`src/state.rs`)에 프레임 간 상태로 저장해 두고(popup 은 `src/adapters/ui/popup/frame.rs`, 배너·modifier-hint 는 `src/adapters/ui/overlay.rs` 의 draw 패스에서 기록), 마우스 핸들러가 그 값을 참조한다. (상세 모델은 [popup 시스템](../design/systems/popup.md) · [banner 시스템](../design/systems/banner.md).)
+`PopupManager::draw()`(`src/adapters/ui/popup/draw.rs`, modifier-hint 포함) / `BannerManager::draw()`(`src/adapters/ui/banner.rs`)는 렌더 시점에 호출되고 마우스 이벤트는 이벤트 시점에 처리돼 타이밍이 다르다. 그래서 draw 결과(`PopupDrawResult.hovered` / `BannerDrawResult.hovered`)를 `state.popup_hovered` / `state.banner_hovered`(`src/state.rs`)에 프레임 간 상태로 저장해 두고(popup 은 `src/adapters/ui/popup/frame.rs`, 배너는 `src/adapters/ui/overlay.rs` 의 draw 패스에서 기록), 마우스 핸들러가 그 값을 참조한다. (상세 모델은 [popup 시스템](../design/systems/popup.md) · [banner 시스템](../design/systems/banner.md).)
 
 ## 커서 결정
 
@@ -123,15 +123,16 @@ egui 는 `egui::Order` enum(`Background` / `Middle` / `Foreground` / `Tooltip` /
 
 ### (d) tasty 의 중앙 집중식 강제 — `enforce_foreground_z_order`
 
-`src/gfx/gpu/egui_bridge.rs::enforce_foreground_z_order`(`run_egui_frame` 안 `ui::draw_popups` 직후, 매 프레임 1회 호출)가 Foreground tier 안 Banner/egui위젯(상태바·탭바)/Modifier-hint/Popup 4 레이어의 상대 순서를 강제한다. (b)의 한계 — `move_to_top` 반복 호출로는 4단 계층을 못 만든다 — 때문에, 실제로는 `Context::set_sublayer(parent, child)`(`end_pass` 가 안정 정렬 *이후* child 를 parent 위치 바로 뒤로 splice — 등록 시점과 무관한 강제 인접 배치, egui 내부적으로 `Window` 안 하위 `Area` 배치에 쓰는 것과 같은 API)를 조합한다:
+`src/gfx/gpu/egui_bridge.rs::enforce_foreground_z_order`(`run_egui_frame` 안 `ui::draw_popups` 직후, 매 프레임 1회 호출)가 Foreground tier 안 Banner/egui위젯(상태바·탭바)의 상대 순서를 강제한다. (b)의 한계 — `move_to_top` 반복 호출로는 계층을 못 만든다 — 때문에, 실제로는 `Context::set_sublayer(parent, child)`(`end_pass` 가 안정 정렬 *이후* child 를 parent 위치 바로 뒤로 splice — 등록 시점과 무관한 강제 인접 배치, egui 내부적으로 `Window` 안 하위 `Area` 배치에 쓰는 것과 같은 API)를 조합한다:
 
 - `banner_layer` 를 부모로, `status_bar`/각 pane 의 `tab_bar` 를 자식으로 묶어 **Banner < {상태바, 탭바}** 를 등록 시점과 무관하게 고정한다.
-- `modifier_hint` 가 떠 있으면 그것을 부모로, 열려 있는 모든 popup 레이어를 자식으로 묶어 **Modifier-hint < Popup** 을 고정한다.
-- 두 그룹의 부모끼리(`banner_layer` ↔ `modifier_hint`)는 서로를 엮지 않는다 — `set_sublayer` 는 **1단 들여쓰기만** 지원해 parent 가 다른 sublayer 의 child 이면 동작이 egui 문서상 unspecified(실측: `Areas::end_pass` 가 `sublayers` HashMap 을 순회하는 순서에 좌우돼 비결정적으로 깨질 수 있음)이기 때문이다. 대신 자연 등록 순서에 안전하게 의존한다 — `banner_layer` 는 배너가 0개여도 매 프레임 무조건 그려져 앱 시작 첫 프레임에 반드시 등록되는 반면, `modifier_hint` 는 사용자가 modifier 를 처음 누르는 프레임에야 등록된다. 항상 banner 보다 늦게 등록되므로, 안정 정렬에서 영구히 더 위(늦은 위치)에 남는다.
+- `set_sublayer` 는 **1단 들여쓰기만** 지원한다. parent 가 다른 sublayer 의 child 이면 동작이 egui 문서상 unspecified 다(실측: `Areas::end_pass` 가 `sublayers` HashMap 을 순회하는 순서에 좌우돼 비결정적으로 깨질 수 있음). 그래서 다른 그룹을 이 체인에 엮지 않는다.
+
+**Modifier-hint < Popup** 은 팝업 관리자(`PopupManager::draw`)가 정한다. 포커스를 받지 않는 팝업(modifier-hint)을 그리기 순서 맨 앞에 두고 `restack_layers` 로 egui 순서를 맞춘다. egui 는 누른 영역을 맨 위로 올리므로, 포커스를 받지 않는 팝업을 누른 프레임에는 모든 팝업 레이어를 함께 올려 순서를 지킨다. modifier-hint 는 사용자가 modifier 를 처음 누르는 프레임에야 등록되므로 배너보다 늘 늦게 등록되고, 안정 정렬에서 배너 위에 남는다.
 
 결과적으로 Banner(5) < {상태바·탭바}(4) < Modifier-hint(2b) < Popup(2) 이 재현된다. Modal(1)은 별도 OS 창이라 범위 밖, Divider/Terminal(6/7)은 다른 `Order` tier 라 범위 밖이다.
 
-기존 화면 검증에서는 Popup과 Modifier-hint를 겹쳐 Popup이 위에 보이는 것을 확인했다.
+Popup 과 Modifier-hint 를 겹쳐 Popup 이 위에 보이는 것은 `the_hint_stays_below_other_popups` 가 egui 레이어 판정(`layer_id_at`)으로 확인한다.
 Banner와 탭바를 겹친 비교에서도 `enforce_foreground_z_order`가 있을 때 탭 칩이 위에 보였다.
 각 요소를 단독으로 표시하는 경우도 확인했다.
 
@@ -146,7 +147,7 @@ zone 상단에 고정되고 `set_clip_rect(zone)`에 잘리므로 상태바와 �
 | 1 | 모달/오버레이(`overlay_open`) | 해당 없음 | 별도 OS 창. rename 다이얼로그는 popup 경로(#2) |
 | 2 | Popup | Foreground | `egui::Area` 등록 |
 | 2 (예외) | `plugin_bridge/popup_render.rs` mesh popup | Foreground | 기본 미등록. host popup과 z-order를 비교할 때 조건부 등록(아래 절) |
-| 2b | Modifier-hint | Foreground | `egui::Area` 등록 |
+| 2b | Modifier-hint | Foreground | 팝업 관리자가 `egui::Area` 등록(포커스를 받지 않는 팝업) |
 | 4 | 사이드바·탭바·상태바 | 혼재 | SidePanel은 Background 미등록. 탭바·상태바는 Foreground 등록 |
 | 5 | Banner | Foreground | 등록됨. `enforce_foreground_z_order`가 탭바·상태바 아래로 배치 |
 | 6 | Divider | Middle | raw painter. 표의 입력 순위는 좌표 판정으로 처리 |
@@ -236,7 +237,7 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 ### 새 Foreground 레이어를 추가할 때 체크리스트
 
 1. `egui::Area::new(...).order(Order::Foreground)...show(ctx, |ui| { ... })` 로 그린다 — bare `Ui::new(...).layer_id(...)` 금지((c) 참고).
-2. 이 레이어가 위 정책 표의 어느 순서에 들어가는지 정하고, `enforce_foreground_z_order` 의 `set_sublayer` 체인에 끼워 넣는다. 기존 두 그룹(Banner↔{상태바,탭바}, Modifier-hint↔Popup) 중 하나에 합류시키거나, 새 그룹을 만들 때는 **1단 들여쓰기 제약**((d) 참고)을 넘지 않게 그룹을 겹치지 않게 나눈다.
+2. 이 레이어가 위 정책 표의 어느 순서에 들어가는지 정하고, `enforce_foreground_z_order` 의 `set_sublayer` 체인에 끼워 넣는다. 기존 그룹(Banner↔{상태바,탭바})에 합류시키거나, 새 그룹을 만들 때는 **1단 들여쓰기 제약**((d) 참고)을 넘지 않게 그룹을 겹치지 않게 나눈다.
 3. 정말 모달처럼 항상 최상단이어야 하는 예외라면(예: 위 plugin popup) Area 미등록을 의도적으로 유지하고 그 이유를 주석/문서로 남긴다.
 4. 겹치는 배치를 만들어 `tasty screenshot` 으로 실측 확인한다(디자인 시나리오만으로 단정하지 않는다, `docs/dev-guide/self-verification.md`).
 

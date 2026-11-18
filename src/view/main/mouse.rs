@@ -163,7 +163,6 @@ impl MainView {
             overlay_open,
             self.state.popup_hovered,
             self.state.banner_hovered,
-            self.state.modifier_hint_hovered,
         ) {
             // 콘텐츠/오버레이 위에서는 리사이즈 커서를 띄우지 않는다(콘텐츠 우선).
             // early-return 경로에서도 반드시 리셋해야 가장자리→콘텐츠 이동 시 ↔ 커서가
@@ -404,7 +403,6 @@ impl MainView {
             || overlay_open
             || self.state.popup_hovered
             || self.state.banner_hovered
-            || self.state.modifier_hint_hovered
         {
             // 비-좌클릭/Release/egui-크롬(사이드바·탭바) 클릭의 소비. 활성 surface 안
             // pane 포커스 갱신은 위 click-to-activate 단계가 흡수하므로 여기서는
@@ -497,7 +495,6 @@ impl MainView {
             && button_state == ElementState::Pressed
             && !overlay_open
             && !self.state.popup_hovered
-            && !self.state.modifier_hint_hovered
             && let Some(pos) = self.cursor_position
         {
             let terminal_rect = self.compute_terminal_rect();
@@ -866,7 +863,6 @@ impl MainView {
             || overlay_open
             || self.state.popup_hovered
             || self.state.banner_hovered
-            || self.state.modifier_hint_hovered
         {
             return false;
         }
@@ -1193,7 +1189,6 @@ impl MainView {
             && !overlay_open
             && !self.state.popup_hovered
             && !self.state.banner_hovered
-            && !self.state.modifier_hint_hovered
         {
             // egui-mesh surface 휠 forward (A1-S7): 포인터가 egui-mesh surface 위면
             // 스크롤 델타를 논리 포인트로 변환해 누적하고 소비한다.
@@ -1515,14 +1510,8 @@ fn cursor_moved_should_short_circuit(
     overlay_open: bool,
     popup_hovered: bool,
     banner_hovered: bool,
-    modifier_hint_hovered: bool,
 ) -> bool {
-    !dragging_divider
-        && (egui_consumed
-            || overlay_open
-            || popup_hovered
-            || banner_hovered
-            || modifier_hint_hovered)
+    !dragging_divider && (egui_consumed || overlay_open || popup_hovered || banner_hovered)
 }
 
 /// 메뉴를 닫는 클릭의 press와 release를 모두 소비한다.
@@ -1997,7 +1986,7 @@ mod cursor_moved_early_return_tests {
         // Case A: mesh surface 에서 host UI chrome(사이드바 등)으로 넘어가는 전환
         // 이벤트 자체가 egui_consumed=true 다.
         assert!(cursor_moved_should_short_circuit(
-            false, true, false, false, false, false
+            false, true, false, false, false
         ));
     }
 
@@ -2005,34 +1994,32 @@ mod cursor_moved_early_return_tests {
     fn case_b_overlay_open_short_circuits() {
         // Case B: 설정창 등 오버레이가 열려 있는 동안은 좌표와 무관하게 항상 참.
         assert!(cursor_moved_should_short_circuit(
-            false, false, true, false, false, false
+            false, false, true, false, false
         ));
     }
 
+    /// 단축키 도움말은 팝업 인스턴스라 popup_hovered에 들어 있다.
     #[test]
-    fn popup_banner_modifier_hint_each_short_circuit() {
+    fn popup_and_banner_each_short_circuit() {
         assert!(cursor_moved_should_short_circuit(
-            false, false, false, true, false, false
+            false, false, false, true, false
         ));
         assert!(cursor_moved_should_short_circuit(
-            false, false, false, false, true, false
-        ));
-        assert!(cursor_moved_should_short_circuit(
-            false, false, false, false, false, true
+            false, false, false, false, true
         ));
     }
 
     #[test]
     fn a_divider_drag_keeps_moves_even_when_egui_claims_them() {
         assert!(!cursor_moved_should_short_circuit(
-            true, true, false, false, false, false
+            true, true, false, false, false
         ));
     }
 
     #[test]
     fn no_flag_set_does_not_short_circuit() {
         assert!(!cursor_moved_should_short_circuit(
-            false, false, false, false, false, false
+            false, false, false, false, false
         ));
     }
 
@@ -2040,7 +2027,7 @@ mod cursor_moved_early_return_tests {
     fn short_circuit_frame_transitions_hovered_mesh_target_to_none_with_pointer_gone() {
         // early-return 전에 hover를 해제하면 이전 대상에 PointerGone을 한 번 보낸다.
         assert!(cursor_moved_should_short_circuit(
-            false, true, false, false, false, false
+            false, true, false, false, false
         ));
         let (next, gone) = mesh_hover_transition(
             Some(MeshHoverTarget::Local(7)),

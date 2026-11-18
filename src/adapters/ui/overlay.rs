@@ -1,4 +1,4 @@
-//! 토스트·배너·단축키 도움말·튜토리얼을 그린다.
+//! 토스트·배너·튜토리얼을 그린다. 단축키 도움말은 팝업 인스턴스다(`modifier_hint_overlay`).
 //! 팝업과 같은 LayoutContext를 공유하되 입력 처리는 각 오버레이의 규칙을 따른다.
 
 use crate::state::MainViewState;
@@ -81,17 +81,6 @@ pub(crate) fn draw_overlays(
         );
     }
 
-    // 단축키 도움말은 키보드 포커스를 받지 않으며, 홀드 조합에 따라 표시 지연이 다르다.
-    let hint_result = crate::adapters::ui::modifier_hint_overlay::draw_modifier_hint(
-        ctx,
-        &mut state.modifier_hint,
-        engine.settings,
-        &th,
-        reduced_motion,
-    );
-    state.modifier_hint_hovered = hint_result.hovered;
-    state.modifier_hint_layer = hint_result.layer;
-
     // 튜토리얼은 말풍선만 마우스를 소비하며 마커 위치는 매 프레임 다시 계산한다.
     let content_area = crate::adapters::ui::to_egui_rect(terminal_rect, scale_factor);
     crate::adapters::ui::tutorial::draw_tutorial_overlay(
@@ -102,15 +91,4 @@ pub(crate) fn draw_overlays(
         content_area,
         &th,
     );
-
-    if let Some((pos, size)) = hint_result.persist {
-        // 드래그를 놓았을 때 위치·크기를 저장한다. 다른 창과 공유하며 마지막 저장값이 남는다.
-        let mut new_settings = engine.settings.clone();
-        new_settings.modifier_hint.pos = Some(pos);
-        new_settings.modifier_hint.size = Some(size);
-        state.dispatch_intent(
-            crate::app::command::DomainIntent::UpdateSettings(new_settings)
-                .from_user_menu("modifier_hint.geometry"),
-        );
-    }
 }

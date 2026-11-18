@@ -264,7 +264,8 @@ pub struct PopupDrawResult {
     pub closed: Vec<PopupId>,
     /// Whether the mouse is currently over any open popup.
     pub hovered: bool,
-    /// 그린 팝업 레이어. egui_bridge에서 modifier-hint 바로 위에 배치한다.
+    /// 그린 팝업 가운데 포커스를 받는 팝업의 레이어. egui_bridge가 plugin 팝업과의 순서를 정할 때 쓴다.
+    /// 포커스를 받지 않는 팝업은 관리자가 이 레이어들 아래에 둔다.
     pub layers: Vec<egui::LayerId>,
     /// 전체화면 버튼으로 요청한 무대 ID. 실제 진입은 MainViewState를 가진 호출부에서 처리한다.
     pub fullscreen_requested: Option<crate::adapters::ui::fullscreen::StageId>,
@@ -283,13 +284,6 @@ pub struct PopupDrawResult {
     )]
     pub column_rect: Option<egui::Rect>,
     /// 사용자가 옮기거나 크기를 바꾼 뒤 이 프레임에 놓은 인스턴스와 그 사각형. 놓을 때 한 번만 들어 있다.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "no host popup declares a notice column, a top band reader or a geometry consumer yet"
-        )
-    )]
     pub released: Vec<(PopupInstanceId, egui::Rect)>,
 }
 
@@ -938,7 +932,12 @@ impl PopupManager {
             p.instance = PopupInstanceId::next();
         }
         p.scope = scope;
-        p.z_seq = tasty_host_plugin::next_popup_z_seq();
+        // 포커스를 받지 않는 팝업은 host·plugin 어느 팝업보다도 아래다. 순번을 쓰는 판정(가림·키 주인)도 같다.
+        p.z_seq = if p.arrange.takes_focus {
+            tasty_host_plugin::next_popup_z_seq()
+        } else {
+            0
+        };
         let popup = self.popups.remove(i);
         self.popups.push(popup);
         self.popups.len() - 1
@@ -1271,11 +1270,12 @@ impl PopupManager {
     }
 
     /// 열려 있고 직전 그리기에서 범위가 보인 팝업의 순번. 새로 연 팝업은 그리기 전에도 보이는 것으로
-    /// 친다. 키를 받을 팝업을 고르는 판정(`occlusion::key_owner`)의 host 후보다.
+    /// 친다. 키를 받을 팝업을 고르는 판정(`occlusion::key_owner`)의 host 후보다. 포커스를 받지 않는
+    /// 팝업은 키를 받지 않으므로 뺀다.
     pub(crate) fn visible_open_z_seqs(&self) -> impl Iterator<Item = u64> + '_ {
         self.popups
             .iter()
-            .filter(|p| p.open && p.scope_visible)
+            .filter(|p| p.open && p.scope_visible && p.arrange.takes_focus)
             .map(|p| p.z_seq)
     }
 
@@ -1293,19 +1293,20 @@ impl PopupManager {
             .any(|p| p.id == id && p.open && p.passive)
     }
 
-    /// 최신 draw에서 보이는 열린 popup 중 native WebView를 모두 숨겨야 하는 것이 있는지.
-    /// passive popup은 [`Self::visible_passive_rects`]로 겹치는 WebView만 숨긴다.
+    /// 최신 draw에서 보이는 열린 popup 중 native WebView를 모두 숨기고 키보드 포커스를 회수해야 하는 것이
+    /// 있는지. passive popup은 [`Self::visible_passive_rects`]로 겹치는 WebView만 숨긴다. 포커스를 받지 않는
+    /// 팝업은 어느 쪽에도 세지 않아 WebView를 숨기지 않는다.
     pub fn has_visible_open(&self) -> bool {
         self.popups
             .iter()
-            .any(|p| p.open && p.scope_visible && !p.passive)
+            .any(|p| p.open && p.scope_visible && !p.passive && p.arrange.takes_focus)
     }
 
-    /// 최신 draw에서 보이는 passive popup의 화면 영역(logical px).
+    /// 최신 draw에서 보이는 passive popup의 화면 영역(logical px). 포커스를 받지 않는 팝업은 뺀다.
     pub fn visible_passive_rects(&self) -> Vec<egui::Rect> {
         self.popups
             .iter()
-            .filter(|p| p.open && p.scope_visible && p.passive)
+            .filter(|p| p.open && p.scope_visible && p.passive && p.arrange.takes_focus)
             .map(|p| p.popup_rect())
             .collect()
     }
@@ -1324,8 +1325,13 @@ impl PopupManager {
     }
 
     /// 열린 host 팝업의 가장 큰 z_seq. plugin 팝업과 표시 순서를 비교할 때 쓴다.
+    /// 포커스를 받지 않는 팝업은 다른 팝업 아래에 그리므로 뺀다.
     pub fn max_open_z_seq(&self) -> Option<u64> {
-        self.popups.iter().filter(|p| p.open).map(|p| p.z_seq).max()
+        self.popups
+            .iter()
+            .filter(|p| p.open && p.arrange.takes_focus)
+            .map(|p| p.z_seq)
+            .max()
     }
 
     /// 열린 팝업의 순번과 화면 영역. 없거나 닫혔으면 None이다. 인스턴스가 여럿이면 맨 위 것이다.

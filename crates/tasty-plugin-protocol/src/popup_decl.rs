@@ -141,6 +141,8 @@ pub enum PopupShell {
     BannerMenu,
     /// 배경 `surface-raised`, 테두리 `search-bar-border`.
     SearchBar,
+    /// 공통 셸(배경·테두리·그림자)을 그리지 않는다. 팝업 콘텐츠가 셸을 직접 그린다.
+    Content,
 }
 
 /// 크기를 바꾸려고 잡는 곳. `resizable`이 참일 때만 뜻이 있다.

@@ -138,10 +138,7 @@ pub struct MainViewState {
     /// mirror 파일 경로 링크 위의 원격 위치 툴팁. 렌더 직전에 hover 링크에서 맞춘다.
     #[cfg(feature = "gui")]
     pub(crate) link_remote_tip: Option<crate::adapters::ui::link_remote_tip::LinkRemoteTipState>,
-    /// 단축키 안내 위의 마우스 입력을 아래 surface로 전달하지 않도록 한다.
-    #[cfg(feature = "gui")]
-    pub(crate) modifier_hint_hovered: bool,
-    /// 현재 프레임의 호스트 팝업 레이어. 다른 오버레이와 그리기 순서를 정할 때 쓴다.
+    /// 현재 프레임의 포커스를 받는 호스트 팝업 레이어. plugin 팝업과 그리기 순서를 정할 때 쓴다.
     #[cfg(feature = "gui")]
     pub(crate) popup_layers: Vec<egui::LayerId>,
     /// 현재 프레임의 플러그인 팝업 셸 레이어. raw layer는 Area 순서에 등록되지 않아
@@ -184,9 +181,6 @@ pub struct MainViewState {
     /// 현재 프레임 배너 Area의 레이어. 오버레이 그리기 순서를 정할 때 쓴다.
     #[cfg(feature = "gui")]
     pub(crate) banner_layer: Option<egui::LayerId>,
-    /// 단축키 안내를 그렸을 때의 레이어. 표시하지 않으면 None이다.
-    #[cfg(feature = "gui")]
-    pub(crate) modifier_hint_layer: Option<egui::LayerId>,
     /// 실제 클릭 가능한 창 버튼·상태 바 요소 위인지 나타낸다.
     /// 넓은 패널의 빈 여백과 구분해 가장자리 리사이즈가 우선권을 양보할지 판단한다.
     #[cfg(feature = "gui")]

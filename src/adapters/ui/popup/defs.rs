@@ -4,8 +4,8 @@ use std::sync::OnceLock;
 
 use super::{
     PopupAnchor, PopupChrome, PopupContentMargin, PopupDecl, PopupDef, PopupDragHandle,
-    PopupEscape, PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupScopeKind,
-    PopupShadow, PopupShell, PopupSize, PopupState, ScrimInput, popup_size,
+    PopupEscape, PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupResizeHandle,
+    PopupScopeKind, PopupShadow, PopupShell, PopupSize, PopupState, ScrimInput, popup_size,
 };
 
 /// host 팝업이 지금 공통으로 갖는 선언 값. `PopupDecl::new`의 기본값과 다른 것은 두 가지다.
@@ -34,7 +34,15 @@ pub fn all_defs() -> &'static [PopupDef] {
     static DEFS: OnceLock<Vec<PopupDef>> = OnceLock::new();
     DEFS.get_or_init(|| {
         // Theme 읽기 잠금을 아래 vec! 식 전체 동안 잡고 있지 않도록 값만 먼저 꺼낸다.
-        let palette_width = crate::theme::theme().palette_width().value();
+        let th = crate::theme::theme();
+        let palette_width = th.palette_width().value();
+        let modhint_size = popup_size(egui::vec2(th.modhint_width().value(), th.modhint_height().value()));
+        let modhint_min = popup_size(egui::vec2(
+            th.modhint_min_width().value(),
+            th.modhint_min_height().value(),
+        ));
+        let modhint_grip = th.modhint_grip_size();
+        drop(th);
         vec![
             PopupDef {
                 id: "notifications",
@@ -886,6 +894,42 @@ pub fn all_defs() -> &'static [PopupDef] {
                 drag_region: None,
                 on_open: None,
                 draw_fn: super::rail_category::draw_rail_category_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
+                on_close: None,
+            },
+            PopupDef {
+                id: crate::adapters::ui::modifier_hint_overlay::MODIFIER_HINT_POPUP_ID,
+                decl: PopupDecl {
+                    // 키를 받지 않는다. 열거나 눌러도 포커스·순서가 바뀌지 않고 다른 팝업 아래에 그린다.
+                    keyboard: PopupKeyboard::None,
+                    escape: PopupEscape::Ignore,
+                    outside_click: PopupOutsideClick::Ignore,
+                    focus_on_open: false,
+                    sticky_focus: false,
+                    chrome: PopupChrome::Headless,
+                    // 위쪽 띠(닫기 버튼 폭 제외)로 옮기고 오른쪽 아래 그립으로만 크기를 바꾼다.
+                    drag_handle: PopupDragHandle::Region,
+                    resizable: true,
+                    resize_handle: PopupResizeHandle::Grip {
+                        size: modhint_grip,
+                    },
+                    min_size: Some(modhint_min),
+                    // 셸·그림자·페이드는 콘텐츠가 modhint 토큰으로 그린다.
+                    shell: PopupShell::Content,
+                    shadow: PopupShadow::Popover,
+                    content_margin: PopupContentMargin::None,
+                    anchor: PopupAnchor::AtPoint,
+                    ..host_decl(modhint_size)
+                },
+                scrim_input: ScrimInput::VisualOnly,
+                title_key: "settings.accessibility.modifier_hint",
+                fullscreen_stage: None,
+                title_fn: None,
+                sizer: Some(crate::adapters::ui::modifier_hint_overlay::default_size),
+                drag_region: Some(crate::adapters::ui::modifier_hint_overlay::drag_strip),
+                on_open: None,
+                draw_fn: crate::adapters::ui::modifier_hint_overlay::draw_hint_popup,
                 #[cfg(debug_assertions)]
                 debug_payload: None,
                 on_close: None,

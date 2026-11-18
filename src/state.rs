@@ -230,8 +230,6 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             link_remote_tip: None,
             #[cfg(feature = "gui")]
-            modifier_hint_hovered: false,
-            #[cfg(feature = "gui")]
             popup_layers: Vec::new(),
             #[cfg(feature = "gui")]
             plugin_popup_layers: Vec::new(),
@@ -255,8 +253,6 @@ impl RequestContext {
             plugin_popup_edit_sent: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             banner_layer: None,
-            #[cfg(feature = "gui")]
-            modifier_hint_layer: None,
             #[cfg(feature = "gui")]
             resize_edge_widget_hovered: false,
             #[cfg(feature = "gui")]

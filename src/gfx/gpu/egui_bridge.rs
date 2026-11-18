@@ -64,15 +64,13 @@ pub(crate) fn keep_screen_while_minimized(raw_input: &mut egui::RawInput, minimi
     }
 }
 
-/// 같은 Foreground 안에서 배너 < 상태바·탭바, modifier-hint < 팝업 순서를 정한다.
+/// 같은 Foreground 안에서 배너 < 상태바·탭바 순서를 정한다.
 /// move_to_top만 반복하면 등록 순서가 남으므로 set_sublayer로 바로 위에 배치한다.
-/// 중첩은 한 단계만 지원해 두 그룹을 서로 연결하지 않는다. 배너와 modifier-hint 사이는
-/// 항상 먼저 등록되는 배너의 순서를 사용한다. 별도 OS 모달과 다른 Order 영역은 대상이 아니다.
+/// 별도 OS 모달과 다른 Order 영역은 대상이 아니다. 단축키 도움말처럼 포커스를 받지 않는 팝업을
+/// 다른 팝업 아래에 두는 일은 팝업 관리자가 한다.
 fn enforce_foreground_z_order(
     ctx: &egui::Context,
     banner_layer: Option<egui::LayerId>,
-    modifier_hint_layer: Option<egui::LayerId>,
-    popup_layers: &[egui::LayerId],
     pane_rects: &[(u32, PhysicalRect)],
 ) {
     if let Some(banner_layer) = banner_layer {
@@ -81,17 +79,11 @@ fn enforce_foreground_z_order(
             ctx.set_sublayer(banner_layer, ui::tab_bar::pane_tab_bar_layer(*pane_id));
         }
     }
-
-    if let Some(modifier_hint_layer) = modifier_hint_layer {
-        for popup_layer in popup_layers {
-            ctx.set_sublayer(modifier_hint_layer, *popup_layer);
-        }
-    }
 }
 
 /// host·plugin 팝업의 그룹 순서를 set_sublayer로 지정한다. 단순 그리기 호출 순서에 의존하지 않는다.
 /// 두 종류가 번갈아 겹치는 개별 순서는 지원하지 않고 그룹 전체를 위·아래로 배치한다.
-/// modifier-hint와 함께 있으면 같은 host 레이어가 두 부모에 속할 수 있어 최종 순서가 일정하지 않을 수 있다.
+/// host 그룹은 포커스를 받는 팝업만이다.
 fn enforce_host_plugin_popup_z_order(
     ctx: &egui::Context,
     host_popup_layers: &[egui::LayerId],
@@ -200,13 +192,7 @@ impl GpuState {
                 plugin_manager,
                 Some(&popup_layout),
             );
-            enforce_foreground_z_order(
-                ctx,
-                state.banner_layer,
-                state.modifier_hint_layer,
-                &state.popup_layers,
-                pane_rects,
-            );
+            enforce_foreground_z_order(ctx, state.banner_layer, pane_rects);
             // 입력 영역 갱신 순서와 별개로 최종 레이어 순서를 명시한다.
             enforce_host_plugin_popup_z_order(
                 ctx,
@@ -460,13 +446,7 @@ mod tests {
             register_area(ctx, "pane_tabs_1", tab_rect);
             register_area(ctx, "banner_layer", banner_rect);
 
-            enforce_foreground_z_order(
-                ctx,
-                Some(layer_of("banner_layer")),
-                None,
-                &[],
-                &[dummy_pane_rect(1)],
-            );
+            enforce_foreground_z_order(ctx, Some(layer_of("banner_layer")), &[dummy_pane_rect(1)]);
         });
 
         assert_eq!(
@@ -497,52 +477,6 @@ mod tests {
             ctx.layer_id_at(point),
             Some(layer_of("banner_layer")),
             "강제 없이는 나중에 등록된 banner 가 위에 그려진다(수정 전 버그 재현)"
-        );
-    }
-
-    /// 먼저 연 팝업도 나중에 등록한 modifier-hint보다 위에 있어야 한다.
-    #[test]
-    fn modifier_hint_is_pinned_below_popup_even_when_popup_registers_first() {
-        let ctx = egui::Context::default();
-        let point = egui::pos2(5.0, 5.0);
-        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(10.0, 10.0));
-
-        let _ = ctx.run(Default::default(), |ctx| {
-            register_area(ctx, "popup_instance", rect);
-            register_area(ctx, "modhint_layer", rect);
-
-            enforce_foreground_z_order(
-                ctx,
-                None,
-                Some(layer_of("modhint_layer")),
-                &[layer_of("popup_instance")],
-                &[],
-            );
-        });
-
-        assert_eq!(
-            ctx.layer_id_at(point),
-            Some(layer_of("popup_instance")),
-            "popup 이 modifier-hint 위에 그려져야 한다(등록 순서가 반대여도)"
-        );
-    }
-
-    /// 정렬 보정이 없으면 뒤에 등록한 modifier-hint가 위에 남는 대조군.
-    #[test]
-    fn without_enforcement_later_popup_registration_order_flips_modifier_hint_on_top() {
-        let ctx = egui::Context::default();
-        let point = egui::pos2(5.0, 5.0);
-        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(10.0, 10.0));
-
-        let _ = ctx.run(Default::default(), |ctx| {
-            register_area(ctx, "popup_instance", rect);
-            register_area(ctx, "modhint_layer", rect);
-        });
-
-        assert_eq!(
-            ctx.layer_id_at(point),
-            Some(layer_of("modhint_layer")),
-            "강제 없이는 나중에 등록된 modifier-hint 가 popup 위로 올라간다"
         );
     }
 

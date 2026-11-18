@@ -578,7 +578,7 @@ impl MainView {
                 {
                     dirty = true;
                 }
-                // 홀드 조합을 갱신한다. 조합별 표시 지연과 페이드는 draw_modifier_hint가 처리한다.
+                // 홀드 조합을 갱신한다. 조합별 표시 지연과 페이드는 modifier_hint_overlay의 sync·draw_hint_popup이 처리한다.
                 if self
                     .state
                     .modifier_hint

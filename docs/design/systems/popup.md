@@ -8,7 +8,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 2. **타이틀바**: 제목은 `font-size-max` 크기로 가운데에, 닫기 버튼은 오른쪽에 둔다. 버튼은 IconButton sm(`close` 아이콘)과 같은 모양·호버·누름 표시를 쓴다. `PopupDef.fullscreen_stage`를 선언한 팝업만 닫기 버튼 왼쪽에 같은 형태의 `fit` 전체화면 버튼과 툴팁을 표시한다. 제목은 버튼 수에 맞는 예약 폭을 양쪽에 대칭으로 비운 스트립 가운데에 오고 그 폭에서 말줄임한다([구현 가이드](../../dev-guide/popup-implementation.md#타이틀-길이-처리-elide)). [무대](fullscreen-stage.md)를 열어도 원본 팝업은 열린 채 유지한다. 무대는 같은 형태의 별도 콘텐츠다.
 3. **드래그 이동**: `drag_handle` 영역에서 이동한다. 기본은 타이틀바이며, 타이틀바 없는 `port_scanner`·`remote_tool`·`file_picker`는 실제로 그린 헤더 사각형을 매니저에 전달한다. 첫 프레임은 `DragHandle::Region`을 사용한다. 헤더 글자는 선택하지 않게 하고, 버튼·입력이 포인터를 사용 중이면 드래그를 시작하지 않는다(`is_using_pointer`).
 4. **커서**: 드래그 핸들은 grab, 크기 조절 테두리는 해당 방향의 리사이즈 커서를 표시한다.
-5. **배경**: 기본은 `surface_raised`, 패널형 팝업은 `bg_panel`이며 타이틀바는 `mantle`을 쓴다. 팝업마다 정의의 `decl.shell`(셸 묶음: Raised·Panel·InfoPanel·Dialog·Menu·BannerMenu·SearchBar)이 배경·테두리·제목줄 아래 선 토큰을 함께 정하고, `popup::draw::shell_colors`가 색을 고른다. 터미널과 같은 배경색일 수 있으므로 색 하나만으로 팝업 경계를 판단하지 않는다.
+5. **배경**: 기본은 `surface_raised`, 패널형 팝업은 `bg_panel`이며 타이틀바는 `mantle`을 쓴다. 팝업마다 정의의 `decl.shell`(셸 묶음: Raised·Panel·InfoPanel·Dialog·Menu·BannerMenu·SearchBar)이 배경·테두리·제목줄 아래 선 토큰을 함께 정하고, `popup::draw::shell_colors`가 색을 고른다. `Content`는 관리자가 셸을 그리지 않고 콘텐츠가 자기 토큰으로 그린다(단축키 도움말의 페이드 셸). 터미널과 같은 배경색일 수 있으므로 색 하나만으로 팝업 경계를 판단하지 않는다.
 6. **경계**: 팝업은 소속 범위 밖으로 나가지 않으며 크기 조절 때 자동 재배치한다.
 7. **다중 팝업**: 나중에 열거나 클릭한 팝업을 앞에 둔다. 키를 받지 않는다고 선언한 팝업(`keyboard: None`)은 예외다. 열거나 눌러도 포커스를 받지 않고 앞으로 오지 않으며 다른 팝업 아래에 그린다. 겹친 영역의 마우스 입력은 최상단 팝업만 받는다([호스트·plugin 순서](#host--plugin-popup-z-order)).
 8. **크기 조절과 입력**: `resizable` 팝업은 8방향 테두리(선언이 그립만이라고 하면 오른쪽 아래 그립)에서 크기를 바꾸고 `min_size`와 범위 경계를 지킨다. 우선순위는 egui 위젯 → 닫기·전체화면 버튼 → 크기 조절 테두리 → 드래그 핸들 → 콘텐츠다. 콘텐츠를 그린 뒤 `is_using_pointer()`로 위젯의 입력 사용 여부를 확인한다. 사용자가 직접 크기를 바꾸면 닫기 전까지 sizer가 덮어쓰지 않는다.
@@ -21,7 +21,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 - **선언 값으로만 갈린다** — scrim·그림자·콘텐츠 여백·셸 색처럼 팝업마다 다른 그리기 값은 `decl`에서 읽는다. 팝업 id를 비교해 정하지 않는다. `popup_attributes_are_declared`가 팝업 공용 코드의 id 명부를 검사한다.
 - **`PopupManager`** — 공통 동작(z-order, 드래그, 리사이즈, 타이틀바, clamp, 포커스) 중앙 관리. `register_def` / `open*` / `close` / `close_instance` / `draw`.
 - **`PopupState`** — 인스턴스 하나의 상태(선언 id, 인스턴스 id `PopupInstanceId`, 부모 인스턴스, 인스턴스 데이터 `payload`, title, pos, size, open, focused, scope, dragging/resizing, size_user_overridden).
-- **범용 render 루프** — `src/adapters/ui/popup/frame.rs::draw_popup_layer`(등록된 모든 `PopupDef` 순회 + close 경로별 `on_close` 훅 drain). toast/banner/modifier-hint/tutorial 오버레이 체인은 개념이 다르므로(docs/design/systems/popup.md) `src/adapters/ui/overlay.rs` 로 분리돼 있다. 진입점 `src/adapters/ui.rs::draw_popups` 가 둘을 z-order 순서로 호출한다.
+- **범용 render 루프** — `src/adapters/ui/popup/frame.rs::draw_popup_layer`(등록된 모든 `PopupDef` 순회 + close 경로별 `on_close` 훅 drain). toast/banner/tutorial 오버레이 체인은 개념이 다르므로(docs/design/systems/popup.md) `src/adapters/ui/overlay.rs` 로 분리돼 있다. 진입점 `src/adapters/ui.rs::draw_popups` 가 둘을 z-order 순서로 호출한다.
 
 등록된 팝업은 `all_defs()` 가 단일 출처다(예: `notifications`, `convert_surface`, `rename`, `search_bar`, `tools_menu` …). 새 팝업 = 테이블 항목 1개 + draw 함수 하나. 단, plugin 이 소유하는 팝업(예: markdown 파일열기·large-file 확인)은 host `PopupDef` 가 아니라 plugin 매니페스트 `[[contributes.popup]]`(egui-mesh) 로 등록된다.
 
@@ -61,7 +61,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 입력 판정의 `Mine`만 클릭 승격을 허용하고 `OutsideAll`만 바깥 클릭 닫힘을 허용한다. 위 팝업 안을 눌렀을 때 아래 팝업이 닫히거나 앞으로 나오지 않아야 한다. 플러그인이 보는 host rect는 같은 프레임 값이며, host가 보는 plugin rect는 이전 프레임 값이라 방금 닫힌 팝업이 클릭 하나를 더 차단할 수 있다.
 
-렌더링 보정은 host 묶음과 plugin 묶음의 비교다. 여러 plugin 콘텐츠는 z_seq 순서지만 셸끼리의 순서는 set_sublayer의 중첩 제한 때문에 완전히 보장하지 않는다. modifier hint 등 다른 레이어 관계와 중첩되는 경우도 별도 확인이 필요하다. 입력 소유 판정은 팝업별 비교이므로 이 두 묶음 렌더링 제한과 구분한다.
+렌더링 보정은 host 묶음과 plugin 묶음의 비교다. 여러 plugin 콘텐츠는 z_seq 순서지만 셸끼리의 순서는 set_sublayer의 중첩 제한 때문에 완전히 보장하지 않는다. 포커스를 받지 않는 host 팝업(modifier-hint)은 이 host 묶음에 넣지 않으며, plugin 팝업과의 그리기 순서는 정하지 않는다. 입력과 키 소유 판정에서는 순번 0이라 plugin 팝업보다 아래다. 입력 소유 판정은 팝업별 비교이므로 이 두 묶음 렌더링 제한과 구분한다.
 
 ## 수명 계약 (open → close → 뒷정리)
 
@@ -112,11 +112,11 @@ plugin 이 `file_picker.trigger`로 host popup 을 열 때 `owner_popup_instance
 
 ### passive 팝업
 
-origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenRequest` 가 정한 위치로 열되 키보드 포커스를 주지 않는다(`intent::popup::open` → `PopupManager::open_request` 의 `by_user` 가 거짓). 빌드와 무관하다. 이 처리는 허용 범위 밖의 요청이 실수로 들어와도 포커스를 빼앗지 않게 하는 안전장치이며, 허용 범위를 넓히지 않는다. 이미 열린 팝업에 온 요청은 무시하므로 사용자가 준 포커스를 빼앗지도 않는다. 예외는 새 요청이 내용과 대상을 바꾸는 `UiIntent::ReopenPopup`이다. 범위가 다르면 기존 팝업을 닫고 새 범위로 다시 연다(`popup-implementation.md`의 "팝업 열기" 절). `debug.host_popup.open` 은 사용자 조작 재현이라 사용자 출처로 열어 지금처럼 포커스를 준다.
+origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenRequest` 가 정한 위치로 열되 키보드 포커스를 주지 않는다(`intent::popup::open` → `PopupManager::open_request` 의 `by_user` 가 거짓). 빌드와 무관하다. 이 처리는 허용 범위 밖의 요청이 실수로 들어와도 포커스를 빼앗지 않게 하는 안전장치이며, 허용 범위를 넓히지 않는다. 이미 열린 팝업에 온 요청은 무시하므로 사용자가 준 포커스를 빼앗지도 않는다. 예외는 새 요청이 내용과 대상을 바꾸는 `UiIntent::ReopenPopup`이다. 범위가 다르면 기존 팝업을 닫고 새 범위로 다시 연다(`popup-implementation.md`의 "팝업 열기" 절). `debug.host_popup.open` 은 사용자 조작 재현이라 사용자 출처로 열어 지금처럼 포커스를 준다. 포커스를 받지 않는다고 선언한 팝업(`keyboard = None`: 단축키 도움말)은 예외다. 눌러도, debug로 열어도 팝업 포커스를 받지 않고 passive 도 풀리지 않는다.
 
 - passive 팝업은 `has_focused()` 에 들지 않으므로 열려 있어도 `keyboard_overlay_open()` 이 거짓이다. 터미널 입력, explorer·dag_graph 처럼 egui 입력을 받는 surface의 입력, native WebView 의 입력이 그대로 이어진다. Esc 의 포커스 해제 대상(`focused_dismissal_target`)도 아니다.
 - native WebView 는 모두 숨기지 않고 키보드 포커스도 회수하지 않는다. 토스트 카드와 같이 팝업 영역과 겹치는 WebView 만, 그 WebView 가 키 입력을 받지 않을 때 숨긴다(`PopupManager::visible_passive_rects`, [webview](webview.md#포커스--회수는-조건부다)). 키를 받는 WebView 와 겹치면 그 WebView 가 팝업을 덮는다. native 위에 egui 를 그리는 층이 없어서이며, 요청은 함께 만든 알림으로도 보인다. 일반 팝업이 떠 있어도 페이지를 보이는 모드는 [WebView §egui 오버레이와 native WebView](webview.md#egui-오버레이와-native-webview)에 있다. 모드는 backend 가 보고한다. Linux(X11)는 XFixes 2.0 과 SHAPE 확장이 있을 때 합성 관리자가 있으면 투명, 없으면 불투명이고, 확장이 없거나 적용이 실패하면 숨김이다. Windows 와 macOS 는 불투명이다. passive 팝업은 그 모드의 대상이 아니다.
-- 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다. 호스트가 확인한 사용자 입력도 같은 전이를 낸다: 파일 피커를 연 plugin 이 같은 surface 에서 증명이 있는 `file_picker.trigger` 를 다시 보내면 사용자 출처 `UiIntent::FocusPassivePopup` 이 보이는 다른 팝업의 포커스를 풀고 그 피커를 맨 앞으로 올린다(`PopupManager::focus_passive`). 증명 없는 요청, 다른 plugin 의 요청, 피커 요청자 기록과 출발 surface 가 다른 요청은 같은 범위에서 busy 로 남는다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
+- 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다(`keyboard = None` 팝업은 제외). 호스트가 확인한 사용자 입력도 같은 전이를 낸다: 파일 피커를 연 plugin 이 같은 surface 에서 증명이 있는 `file_picker.trigger` 를 다시 보내면 사용자 출처 `UiIntent::FocusPassivePopup` 이 보이는 다른 팝업의 포커스를 풀고 그 피커를 맨 앞으로 올린다(`PopupManager::focus_passive`). 증명 없는 요청, 다른 plugin 의 요청, 피커 요청자 기록과 출발 surface 가 다른 요청은 같은 범위에서 busy 로 남는다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
 - 비포커스 상태의 별도 시각 표현은 없다. 포커스가 없는 다른 팝업(알림 패널 등)과 같은 모양이다.
 - 팝업 내용이 자기 포커스를 확인할 때는 `PopupCx.focused` 를 읽는다. draw 동안에는 매니저를 빌릴 수 없어 그리기를 시작할 때 복사한다.
 

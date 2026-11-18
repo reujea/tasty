@@ -62,6 +62,12 @@ pub(super) fn shell_colors(
             th.search_bar_border().into(),
             th.border_frame().into(),
         ),
+        // 콘텐츠가 셸을 그린다. 관리자는 아무 색도 칠하지 않는다.
+        PopupShell::Content => (
+            egui::Color32::TRANSPARENT,
+            egui::Color32::TRANSPARENT,
+            egui::Color32::TRANSPARENT,
+        ),
     };
     ShellColors {
         bg,
@@ -157,12 +163,14 @@ impl PopupManager {
         let mut bring_front: Option<PopupInstanceId> = None;
         let mut fullscreen_requested: Option<crate::adapters::ui::fullscreen::StageId> = None;
         let mut layers: Vec<egui::LayerId> = Vec::new();
+        // 포커스를 받는 팝업의 레이어. 호출자가 plugin 팝업과의 순서를 정할 때 쓴다.
+        let mut focus_layers: Vec<egui::LayerId> = Vec::new();
         let mut overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget> = Vec::new();
 
         let pointer_pos = ctx.input(|i| i.pointer.interact_pos());
         let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
         let primary_down = ctx.input(|i| i.pointer.primary_down());
-        let primary_released = ctx.input(|i| i.pointer.any_released());
+        let primary_released = ctx.input(|i| i.pointer.primary_released());
 
         // 그리기 함수가 보는 포커스는 이번 프레임의 클릭을 반영하기 전 값이다.
         let focused_at_start: Vec<PopupInstanceId> = self
@@ -213,6 +221,7 @@ impl PopupManager {
             crate::adapters::ui::fullscreen::StageId,
         )> = None;
         let mut hovered_resize: Option<(PopupInstanceId, ResizeEdges)> = None;
+        let mut grip_pressed: Option<PopupInstanceId> = None;
         if let Some(pos) = pointer_pos {
             for &idx in open_indices.iter().rev() {
                 let popup = &self.popups[idx];
@@ -475,11 +484,25 @@ impl PopupManager {
             let is_headless = popup.headless;
             let popup_rect = popup.popup_rect();
             let content_rect = popup.content_rect();
+            // 그립 자리는 콘텐츠 위에 덧대는 위젯으로 잡는다. 스크롤바처럼 그 밑에 있는 위젯이 누름을
+            // 가져가면 크기 조절이 시작되지 않는다.
+            let grip_rect = match popup.arrange.resize_handle {
+                super::PopupResizeHandle::Grip { size } if popup.resizable => {
+                    Some(egui::Rect::from_min_max(
+                        popup_rect.max - egui::Vec2::splat(size.value()),
+                        popup_rect.max,
+                    ))
+                }
+                _ => None,
+            };
 
             // 레이어·Area ID는 인스턴스로 정한다. 순서가 바뀌어도 스크롤·커서 같은 egui 상태가 따라간다.
             let layer_id =
                 egui::LayerId::new(egui::Order::Foreground, area_id_of(popup_id, popup_iid));
             layers.push(layer_id);
+            if popup.arrange.takes_focus {
+                focus_layers.push(layer_id);
+            }
 
             // 그림자가 이웃 영역까지 어둡게 하지 않도록 팝업 소속 범위로 자른다.
             let painter = ctx.layer_painter(layer_id).with_clip_rect(scope_clip);
@@ -506,10 +529,14 @@ impl PopupManager {
 
             let shell = shell_colors(popup.look.shell, &th);
             let bg_fill = shell.bg;
+            let shell_by_content = popup.look.shell == PopupShell::Content;
             // 그림자는 scrim 위, 셸 아래에 그린다.
             let shadow = edge.shadow(&th, shadow_token(popup.look.shadow, &th));
-            painter.add(shadow.to_egui().as_shape(popup_rect, radius));
-            if !popup.passive {
+            if !shell_by_content {
+                painter.add(shadow.to_egui().as_shape(popup_rect, radius));
+            }
+            // 포커스를 받지 않는 팝업은 WebView를 숨기지 않으므로 합성 대상이 아니다.
+            if !popup.passive && popup.arrange.takes_focus {
                 overlay_targets.push(crate::state::webview_overlay::OverlayTarget {
                     kind: crate::state::webview_overlay::TargetKind::HostPopup,
                     layer: layer_id,
@@ -524,13 +551,15 @@ impl PopupManager {
                     scrim,
                 });
             }
-            painter.rect_filled(popup_rect, radius, bg_fill);
-            painter.rect_stroke(
-                popup_rect,
-                radius,
-                egui::Stroke::new(th.border_width.value(), shell.border),
-                egui::StrokeKind::Outside,
-            );
+            if !shell_by_content {
+                painter.rect_filled(popup_rect, radius, bg_fill);
+                painter.rect_stroke(
+                    popup_rect,
+                    radius,
+                    egui::Stroke::new(th.border_width.value(), shell.border),
+                    egui::StrokeKind::Outside,
+                );
+            }
 
             if !is_headless {
                 let title_rect = popup.title_rect();
@@ -658,13 +687,25 @@ impl PopupManager {
                                 content_fn(&mut cx, ui)
                             },
                         );
+                        if let Some(grip) = grip_rect {
+                            let grip_id = egui::Id::new("popup.resize_grip").with(popup_iid);
+                            if ui
+                                .interact(grip, grip_id, egui::Sense::drag())
+                                .is_pointer_button_down_on()
+                            {
+                                grip_pressed = Some(popup_iid);
+                            }
+                        }
                     });
             }
         }
 
-        // 콘텐츠 위젯이 포인터를 사용하지 않았을 때만 리사이즈·이동을 시작한다.
+        // 콘텐츠 위젯이 포인터를 사용하지 않았을 때만 리사이즈·이동을 시작한다. 그립은 이 매니저의
+        // 위젯이 누름을 가져가므로 예외다.
         // 수동 드래그는 egui 위젯이 아니므로 is_using_pointer를 스스로 설정하지 않는다.
-        if primary_pressed && !ctx.is_using_pointer() {
+        let grip_owns_press =
+            grip_pressed.is_some_and(|g| hovered_resize.is_some_and(|(iid, _)| iid == g));
+        if primary_pressed && (!ctx.is_using_pointer() || grip_owns_press) {
             if let Some((iid, edges)) = hovered_resize {
                 if let Some(popup) = self.instance_mut(iid) {
                     popup.resizing = Some(edges);
@@ -681,6 +722,13 @@ impl PopupManager {
         }
 
         restack_layers(ctx, &layers);
+        // egui는 누른 영역을 맨 위로 올린다. 포커스를 받지 않는 팝업을 눌렀으면 모든 팝업 레이어를 함께
+        // 올려 지금 순서(그 팝업이 아래)를 지킨다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
+        if primary_pressed && hovered_popup.is_some_and(|iid| self.never_focused(iid)) {
+            for layer in &layers {
+                ctx.move_to_top(*layer);
+            }
+        }
 
         let mut closed_ids = Vec::with_capacity(closed.len());
         for (iid, reason) in closed {
@@ -697,7 +745,7 @@ impl PopupManager {
         PopupDrawResult {
             closed: closed_ids,
             hovered: hovered_popup.is_some(),
-            layers,
+            layers: focus_layers,
             fullscreen_requested,
             hit_rects,
             overlay_targets,
@@ -1173,8 +1221,8 @@ mod tests {
             .collect();
         assert_eq!(
             anchored.len(),
-            4,
-            "tools_menu·search_bar·rail_category·배너 더보기 메뉴"
+            5,
+            "tools_menu·search_bar·rail_category·배너 더보기 메뉴·단축키 도움말"
         );
         for def in anchored {
             assert!(

@@ -23,6 +23,8 @@ enum Tok {
     BannerMoreMenuBorder,
     SearchBarBorder,
     InfoModalTitleEdge,
+    /// 관리자가 셸을 칠하지 않는다(콘텐츠가 그린다).
+    Transparent,
 }
 
 fn color(tok: Tok, th: &Theme) -> Color32 {
@@ -35,6 +37,7 @@ fn color(tok: Tok, th: &Theme) -> Color32 {
         Tok::BannerMoreMenuBorder => th.banner_more_menu_border().into(),
         Tok::SearchBarBorder => th.search_bar_border().into(),
         Tok::InfoModalTitleEdge => th.info_modal_title_edge().into(),
+        Tok::Transparent => Color32::TRANSPARENT,
     }
 }
 
@@ -74,8 +77,9 @@ const fn row(
 
 const RAISED: (Tok, Tok, Tok) = (Tok::SurfaceRaised, Tok::BorderFrame, Tok::BorderFrame);
 const PANEL: (Tok, Tok, Tok) = (Tok::BgPanel, Tok::BorderFrame, Tok::BorderFrame);
+const BY_CONTENT: (Tok, Tok, Tok) = (Tok::Transparent, Tok::Transparent, Tok::Transparent);
 
-/// 정의 33개와 설정 창의 단축키 충돌 팝업, 설정 창 파일 선택기.
+/// 정의 33개와 설정 창의 단축키 충돌 팝업.
 const EXPECTED: &[Row] = &[
     row("notifications", false, false, true, PANEL),
     row("convert_surface", true, false, false, PANEL),
@@ -158,6 +162,8 @@ const EXPECTED: &[Row] = &[
         false,
         (Tok::SurfaceRaised, Tok::MenuBorder, Tok::BorderFrame),
     ),
+    // 단축키 도움말은 옛 명부에 없던 정의다. 셸은 콘텐츠가 modhint 토큰으로 그린다.
+    row("modifier_hint", false, true, true, BY_CONTENT),
     row("keybinding_conflict", false, false, false, RAISED),
 ];
 
@@ -189,6 +195,7 @@ fn shell_tokens(shell: PopupShell) -> (Tok, Tok, Tok) {
             Tok::BorderFrame,
         ),
         PopupShell::SearchBar => (Tok::SurfaceRaised, Tok::SearchBarBorder, Tok::BorderFrame),
+        PopupShell::Content => BY_CONTENT,
     }
 }
 
@@ -218,7 +225,7 @@ fn expected(id: &str) -> Row {
 #[test]
 fn the_table_covers_every_declared_popup_once() {
     let ids: Vec<&str> = declared().iter().map(|(id, _)| *id).collect();
-    assert_eq!(ids.len(), 33, "정의 32개와 설정 창의 단축키 충돌 확인");
+    assert_eq!(ids.len(), 34, "정의 33개와 설정 창의 단축키 충돌 확인");
     let mut sorted = ids.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -339,6 +346,14 @@ const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bo
         ("remote_row", Keys, EscUnfocus, OutUnfocus, false),
         ("tutorial_topics", Keys, EscClose, OutClose, true),
         ("rail_category", Keys, EscClose, OutClose, true),
+        // 키를 받지 않고 포커스도 받지 않는다. 닫기는 키를 떼거나 X다.
+        (
+            "modifier_hint",
+            PopupKeyboard::None,
+            PopupEscape::Ignore,
+            PopupOutsideClick::Ignore,
+            false,
+        ),
         ("keybinding_conflict", Keys, EscClose, OutUnfocus, true),
     ]
 };

@@ -1,11 +1,11 @@
 //! modifier-hint의 불투명 콘텐츠가 테두리를 덮지 않도록 콘텐츠 뒤에 테두리를 그려야 한다.
-//! draw_modifier_hint에서 두 호출의 텍스트 순서를 비교한다. 조건 분기의 실제 실행 순서는 판단하지 않는다.
+//! draw_hint_popup에서 두 호출의 텍스트 순서를 비교한다. 조건 분기의 실제 실행 순서는 판단하지 않는다.
 //! draw_shell은 본문 확인용으로만 찾으며 그 호출 순서는 이 검사에서 요구하지 않는다.
 
 use super::{fn_body, repo_root, strip_comments};
 
 const HOME: &str = "src/adapters/ui/modifier_hint_overlay.rs";
-const DRAW_FN: &str = "fn draw_modifier_hint";
+const DRAW_FN: &str = "fn draw_hint_popup";
 const CONTENT: &str = "draw_content(";
 const BORDER: &str = "draw_shell_border(";
 
@@ -44,7 +44,7 @@ fn the_shell_border_is_redrawn_after_the_content() {
 fn the_guard_reads_the_overlay_draw_fn_and_not_some_other_function() {
     // 함수 추출을 확인할 이웃 호출이다. draw_shell의 순서는 검사하지 않는다.
     let body = draw_body();
-    for neighbour in ["draw_shell(", "egui::Area::new(", "clamp_rect("] {
+    for neighbour in ["draw_shell(", "modhint_resize_grip(", "IconButton::new("] {
         assert!(
             body.contains(neighbour),
             "잘라 온 본문이 `{DRAW_FN}` 이 아니다 — `{neighbour}` 가 안 보인다"

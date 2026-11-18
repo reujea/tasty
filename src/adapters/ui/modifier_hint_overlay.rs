@@ -1,10 +1,10 @@
-//! modifier를 누르고 있을 때 표시하는 단축키 도움말. 키보드 포커스는 받지 않으며
-//! 마우스로 이동·크기 조절·닫기를 할 수 있다. Shift 단독은 1200ms, 나머지는 500ms 뒤
+//! modifier를 누르고 있을 때 표시하는 단축키 도움말. 창(Window) 범위의 팝업 인스턴스이며
+//! 키보드 포커스를 받지 않고 다른 팝업 아래에 그린다. Shift 단독은 1200ms, 나머지는 500ms 뒤
 //! 표시하고 200ms 동안 alpha 0.2→1.0으로 바꾼다. 키를 모두 떼면 닫는다.
 //!
 //! 홀드 상태는 실제 ModifiersChanged 입력으로 갱신한다. 강제 조작 IPC는 debug 전용이다.
-//! modifier_hint_hovered는 아래 surface의 마우스 입력과 커서 덮어쓰기를 막는다.
-//! 위치·크기는 드래그를 놓을 때 저장한다.
+//! 여닫기는 [`sync`]가 홀드 상태로 정하고, 이동(위쪽 띠)·그립 크기 조절은 팝업 관리자가 한다.
+//! 셸·그립·닫기 버튼과 페이드는 콘텐츠([`draw_hint_popup`])가 그린다. 위치·크기는 놓을 때 저장한다.
 
 use std::time::Instant;
 
@@ -15,16 +15,7 @@ use super::input::shortcuts::modifier_hint::{
     Combo, HintRole, HintRowSource, HintSection, binding_leaf, build_hint_sections,
 };
 
-/// 진행 중 드래그/리사이즈 모드.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DragMode {
-    /// 드래그 스트립 → 패널 이동.
-    Move,
-    /// 우하단 코너 그립 → 리사이즈(min 클램프).
-    Resize,
-}
-
-/// 홀드 상태와 드래그 중의 임시 영역. 저장된 위치·크기는 Settings::modifier_hint에 있다.
+/// 홀드 상태. 저장된 위치·크기는 Settings::modifier_hint에 있다.
 #[derive(Debug, Clone, Default)]
 pub struct ModifierHintRuntime {
     /// 홀드 시작 시각. `None` = 홀드 아님. **최초 press 에만 시작**하고 조합이 바뀌어도 유지.
@@ -33,8 +24,6 @@ pub struct ModifierHintRuntime {
     held: Option<Combo>,
     /// 이번 홀드 세션 X dismiss 여부. **전 modifier 를 떼면** `false` 로 리셋된다.
     dismissed: bool,
-    /// 드래그/리사이즈 진행 중 실시간 rect(logical, 미클램프 원본) + 모드. `None` = 유휴.
-    working: Option<(egui::Rect, DragMode)>,
 }
 
 impl ModifierHintRuntime {
@@ -47,7 +36,6 @@ impl ModifierHintRuntime {
             self.hold_since = None;
             self.held = None;
             self.dismissed = false;
-            self.working = None;
             return changed;
         }
         let new = Combo {
@@ -69,7 +57,6 @@ impl ModifierHintRuntime {
         self.hold_since = None;
         self.held = None;
         self.dismissed = false;
-        self.working = None;
     }
 
     /// 단축키를 실행했을 때 아직 표시 전이면 대기 시간을 다시 잰다.
@@ -209,27 +196,6 @@ pub fn default_rect(screen: egui::Rect, theme: &Theme) -> egui::Rect {
     egui::Rect::from_min_size(egui::pos2(left, bottom - h), egui::vec2(w, h))
 }
 
-/// rect 를 화면 안으로 클램프한다 — **저장값은 불변, 렌더만 클램프**(윈도우 축소 대응).
-/// 크기가 화면보다 크면 크기도 줄인다. 위치는 화면 안쪽으로 평행이동.
-pub fn clamp_rect(rect: egui::Rect, screen: egui::Rect) -> egui::Rect {
-    let w = rect.width().min(screen.width());
-    let h = rect.height().min(screen.height());
-    let x = rect
-        .left()
-        .clamp(screen.left(), (screen.right() - w).max(screen.left()));
-    let y = rect
-        .top()
-        .clamp(screen.top(), (screen.bottom() - h).max(screen.top()));
-    egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h))
-}
-
-/// 코너 리사이즈 — 좌상단(min)을 고정하고 우하단을 `delta` 만큼 이동, min 크기로 클램프.
-pub fn resize_to(rect: egui::Rect, delta: egui::Vec2, min_w: f32, min_h: f32) -> egui::Rect {
-    let w = (rect.width() + delta.x).max(min_w);
-    let h = (rect.height() + delta.y).max(min_h);
-    egui::Rect::from_min_size(rect.min, egui::vec2(w, h))
-}
-
 use std::time::Duration;
 
 use crate::i18n::t;
@@ -238,194 +204,212 @@ use tasty_ui_widgets::{
     ControlSize, IconButton, IconButtonVariant, kbd, kbd_parts, modhint_resize_grip,
 };
 
+use crate::adapters::ui::PopupAction;
 use crate::adapters::ui::icons;
+use crate::adapters::ui::popup::open_when::DrivenOpen;
+use crate::adapters::ui::popup::{
+    PopupCx, PopupId, PopupInstanceId, PopupPayload, PopupScope, PopupState,
+};
+use crate::state::MainViewState;
 
-/// 마우스 입력 차단, 위치·크기 저장, 레이어 정렬에 필요한 렌더링 결과.
-#[derive(Default, Clone, Copy)]
-pub struct HintDrawResult {
-    /// 마우스가 패널 위 → 하위 surface 전파 차단(`MainViewState::modifier_hint_hovered`).
-    pub hovered: bool,
-    /// 드래그/리사이즈를 놓은 시점의 (pos, size). `Some` 이면 호출자가 `UpdateSettings` 로
-    /// 영속한다(사용자 행동 → `from_user_menu`). `None` = 이번 프레임 변경 없음.
-    pub persist: Option<((LogicalPx, LogicalPx), (LogicalPx, LogicalPx))>,
-    /// 실제 그린 Area의 LayerId. enforce_foreground_z_order에서 팝업과의 순서를 정한다.
-    pub layer: Option<egui::LayerId>,
-}
+/// 단축키 도움말 팝업 선언 id. 창(Window) 범위에 하나만 연다.
+pub const MODIFIER_HINT_POPUP_ID: PopupId = "modifier_hint";
 
-/// 설정이 켜져 있고 홀드 지연이 지났으며 닫지 않은 경우 도움말을 그린다.
-/// 지연이 끝날 때 다시 그리기를 예약하고, 페이드 중에는 매 프레임 갱신한다.
-pub fn draw_modifier_hint(
-    ctx: &egui::Context,
-    rt: &mut ModifierHintRuntime,
+/// 지금 홀드에서 도움말을 그릴 alpha. 보이지 않으면 `Err`이고, 표시 지연 중이면 남은 시간을 담는다.
+fn shown_alpha(
+    rt: &ModifierHintRuntime,
     settings: &Settings,
     theme: &Theme,
     reduced_motion: bool,
-) -> HintDrawResult {
-    let mut result = HintDrawResult::default();
-
-    if !settings.modifier_hint.enabled {
-        rt.working = None;
-        return result;
+) -> Result<f32, Option<Duration>> {
+    // X로 닫은 홀드 세션은 모든 modifier를 뗄 때까지 다시 보이지 않는다.
+    if !settings.modifier_hint.enabled || rt.dismissed {
+        return Err(None);
     }
     let (Some(held), Some(since)) = (rt.held, rt.hold_since) else {
-        return result;
+        return Err(None);
     };
-    if rt.dismissed {
-        return result; // 이번 홀드 세션은 X 로 닫힘 — 재홀드(전 modifier release) 전까지 미표시.
-    }
-
     let held_ms = since.elapsed().as_secs_f32() * 1000.0;
     let delay = reveal_delay_ms(held, theme);
     let fade = theme.modhint_fade().to_millis_f32();
-    let Some(alpha) = hold_reveal_alpha(held_ms, delay, fade, reduced_motion) else {
-        // 해당 조합의 표시 지연이 끝날 때 다시 그린다.
-        let remain = (delay - held_ms).max(1.0);
-        ctx.request_repaint_after(Duration::from_millis(remain as u64));
-        return result;
-    };
+    hold_reveal_alpha(held_ms, delay, fade, reduced_motion)
+        .ok_or_else(|| Some(Duration::from_millis((delay - held_ms).max(1.0) as u64)))
+}
 
-    let sections = build_hint_sections(
+/// 눌린 조합의 섹션. 바인딩이 없는 조합도 섹션은 남는다.
+fn hint_sections(held: Combo, settings: &Settings) -> Vec<HintSection> {
+    build_hint_sections(
         held,
         &settings.keybindings,
         &settings.general.link_click_modifier,
         settings.general.workspace_categories_enabled,
         &[], // plugin_bindings: PluginManager 는 App 소유라 draw 경로 미도달 → 후속 배선(open).
-    );
-    // 바인딩이 없는 조합도 섹션은 남는다. 목록 자체가 없으면 그리지 않는다.
-    if sections.is_empty() {
-        return result;
+    )
+}
+
+/// 홀드 상태를 따라 도움말 팝업을 여닫는다. 표시 지연이 끝날 때 다시 그리기를 예약한다.
+/// 새로 열면 저장된 위치·크기(없으면 화면 왼쪽 아래 기본 자리)에 둔다. 화면 밖 부분은 관리자가 줄인다.
+pub(crate) fn sync(
+    ctx: &egui::Context,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    let theme = crate::theme::theme();
+    let settings = engine.settings;
+    let rt = &state.modifier_hint;
+    let shown = match shown_alpha(rt, settings, &theme, settings.accessibility.reduced_motion) {
+        Ok(_) => rt
+            .held
+            .is_some_and(|held| !hint_sections(held, settings).is_empty()),
+        Err(wait) => {
+            if let Some(wait) = wait {
+                ctx.request_repaint_after(wait);
+            }
+            false
+        }
+    };
+    let was_open = state.popups.is_open(MODIFIER_HINT_POPUP_ID);
+    let want = shown.then_some(DrivenOpen {
+        scope: PopupScope::Window,
+        covers_scope: None,
+    });
+    // intent-exempt: 홀드 상태를 같은 프레임에 따른다. Intent 큐는 한 프레임 늦다. 포커스를 받지 않는다.
+    state
+        .popups
+        .follow_open_when(MODIFIER_HINT_POPUP_ID, want, |_| PopupPayload::None);
+    if was_open {
+        return;
     }
+    let Some(iid) = state
+        .popups
+        .instance_for(MODIFIER_HINT_POPUP_ID, &PopupScope::Window)
+    else {
+        return;
+    };
+    let rect = rect_from_settings(settings, ctx.screen_rect(), &theme);
+    // intent-exempt: 방금 연 인스턴스의 처음 자리를 저장값으로 정한다.
+    if let Some(popup) = state.popups.instance_mut(iid) {
+        popup.pos = rect.min;
+        popup.size = rect.size();
+        popup.request_center = false;
+        popup.size_user_overridden = true;
+    }
+}
 
-    let screen = ctx.screen_rect();
-    let base = rt
-        .working
-        .map(|(r, _)| r)
-        .unwrap_or_else(|| rect_from_settings(settings, screen, theme));
-    let render_rect = clamp_rect(base, screen);
+/// 사용자가 도움말을 옮기거나 크기를 바꾼 뒤 놓으면 그 자리를 저장한다(사용자 행동 → `from_user_menu`).
+/// 다른 창과 공유하며 마지막 저장값이 남는다.
+pub(crate) fn persist_released(
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    released: &[(PopupInstanceId, egui::Rect)],
+) {
+    let Some(rect) = released
+        .iter()
+        .rev()
+        .find(|(iid, _)| {
+            state
+                .popups
+                .instances_of(MODIFIER_HINT_POPUP_ID)
+                .any(|p| p.instance == *iid)
+        })
+        .map(|(_, rect)| *rect)
+    else {
+        return;
+    };
+    let mut new_settings = engine.settings.clone();
+    new_settings.modifier_hint.pos = Some((LogicalPx(rect.left()), LogicalPx(rect.top())));
+    new_settings.modifier_hint.size = Some((LogicalPx(rect.width()), LogicalPx(rect.height())));
+    state.dispatch_intent(
+        crate::app::command::DomainIntent::UpdateSettings(new_settings)
+            .from_user_menu("modifier_hint.geometry"),
+    );
+}
 
-    // Area에 등록해야 egui 레이어 정렬에 참여한다.
-    // enforce_foreground_z_order에서 열린 팝업을 이 레이어 바로 위에 둔다.
-    // 입력 순서: ../../../docs/architecture/input-layer.md.
-    let layer_id = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("modhint_layer"));
-    result.layer = Some(layer_id);
-    egui::Area::new(layer_id.id)
-        .order(egui::Order::Foreground)
-        .fixed_pos(egui::Pos2::ZERO)
-        .movable(false)
-        .interactable(true)
-        .sense(egui::Sense::hover())
-        .constrain(false)
-        .show(ctx, |area_ui| {
-            let mut ui = ui_at(area_ui, render_rect);
+/// 이동 띠: 위쪽 띠에서 오른쪽 닫기 버튼 폭을 뺀 곳.
+pub(crate) fn drag_strip(popup: &PopupState) -> egui::Rect {
+    let strip_h = crate::theme::theme().modhint_strip_height().value();
+    egui::Rect::from_min_max(
+        popup.pos,
+        egui::pos2(popup.pos.x + popup.size.x - strip_h, popup.pos.y + strip_h),
+    )
+}
 
-            // 내용의 불투명 배경이 테두리를 덮지 않도록 테두리를 마지막에 그린다.
-            // source_guards::modifier_hint_paint_order가 호출 순서를 검사한다.
-            draw_shell(&ui, theme, render_rect, alpha);
-            draw_content(
-                &mut ui,
-                theme,
-                render_rect,
-                held,
-                &sections,
-                alpha,
-                &settings.general,
-            );
-            draw_shell_border(&ui, theme, render_rect, alpha);
-            // 오른쪽 아래 리사이즈 그립. 아래 상호작용 영역(`modhint_resize`)과 같은 모서리다.
-            let mut grip_painter = ui.painter().clone();
-            grip_painter.multiply_opacity(alpha);
-            modhint_resize_grip(&grip_painter, theme, render_rect);
+/// 처음 크기. 여는 순간 저장값이나 기본 자리로 바꾸므로 그리기에는 쓰지 않는다.
+/// 크기 함수가 있으면 관리자가 UI 배율을 곱하지 않아 최소 크기가 Theme 값 그대로다.
+pub(crate) fn default_size(
+    _: &MainViewState,
+    _: &crate::runtime::engine_read::EngineRead<'_>,
+    _: &PopupPayload,
+) -> egui::Vec2 {
+    let th = crate::theme::theme();
+    egui::vec2(th.modhint_width().value(), th.modhint_height().value())
+}
 
-            let strip_h = theme.modhint_strip_height().value();
-            let x_zone = strip_h; // 우측 X 버튼 폭 만큼 드래그에서 제외.
-            let strip_drag = egui::Rect::from_min_max(
-                render_rect.min,
-                egui::pos2(render_rect.right() - x_zone, render_rect.top() + strip_h),
-            );
-            let move_resp = ui
-                .interact(
-                    strip_drag,
-                    egui::Id::new("modhint_move"),
-                    egui::Sense::drag(),
-                )
-                .on_hover_cursor(egui::CursorIcon::Move);
-            if move_resp.drag_started() {
-                rt.working = Some((render_rect, DragMode::Move));
-            }
-            if move_resp.dragged()
-                && let Some((r, DragMode::Move)) = rt.working.as_mut()
-            {
-                *r = clamp_rect(r.translate(move_resp.drag_delta()), screen);
-            }
+/// 팝업 콘텐츠: 셸·키 목록·테두리·그립·닫기 버튼을 홀드 alpha로 그린다. 페이드 중에는 매 프레임 갱신한다.
+/// X를 누르면 이번 홀드 세션 동안 닫는다.
+pub(crate) fn draw_hint_popup(
+    ui: &mut egui::Ui,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    _cx: &mut PopupCx<'_>,
+) -> PopupAction {
+    let theme = crate::theme::theme();
+    let settings = engine.settings;
+    let reduced_motion = settings.accessibility.reduced_motion;
+    let rt = &state.modifier_hint;
+    let (Ok(alpha), Some(held)) = (shown_alpha(rt, settings, &theme, reduced_motion), rt.held)
+    else {
+        // 다음 프레임의 sync가 닫는다.
+        return PopupAction::None;
+    };
+    let sections = hint_sections(held, settings);
+    let rect = ui.max_rect();
+    let mut ui = ui_at(ui, rect);
 
-            let grip = theme.modhint_grip_size().value();
-            let grip_rect = egui::Rect::from_min_max(
-                egui::pos2(render_rect.right() - grip, render_rect.bottom() - grip),
-                render_rect.max,
-            );
-            let resize_resp = ui
-                .interact(
-                    grip_rect,
-                    egui::Id::new("modhint_resize"),
-                    egui::Sense::drag(),
-                )
-                .on_hover_cursor(egui::CursorIcon::ResizeNwSe);
-            if resize_resp.drag_started() {
-                rt.working = Some((render_rect, DragMode::Resize));
-            }
-            if resize_resp.dragged()
-                && let Some((r, DragMode::Resize)) = rt.working.as_mut()
-            {
-                let resized = resize_to(
-                    *r,
-                    resize_resp.drag_delta(),
-                    theme.modhint_min_width().value(),
-                    theme.modhint_min_height().value(),
-                );
-                *r = clamp_rect(resized, screen);
-            }
+    // 내용의 불투명 배경이 테두리를 덮지 않도록 테두리를 마지막에 그린다.
+    // source_guards::modifier_hint_paint_order가 호출 순서를 검사한다.
+    draw_shell(&ui, &theme, rect, alpha);
+    draw_content(
+        &mut ui,
+        &theme,
+        rect,
+        held,
+        &sections,
+        alpha,
+        &settings.general,
+    );
+    draw_shell_border(&ui, &theme, rect, alpha);
+    // 오른쪽 아래 크기 조절 그립. 잡는 자리는 선언의 그립 크기로 관리자가 정한다.
+    let mut grip_painter = ui.painter().clone();
+    grip_painter.multiply_opacity(alpha);
+    modhint_resize_grip(&grip_painter, &theme, rect);
 
-            if (move_resp.drag_stopped() || resize_resp.drag_stopped())
-                && let Some((r, _)) = rt.working.take()
-            {
-                let c = clamp_rect(r, screen);
-                result.persist = Some((
-                    (LogicalPx(c.left()), LogicalPx(c.top())),
-                    (LogicalPx(c.width()), LogicalPx(c.height())),
-                ));
-            }
-
-            let x_rect = egui::Rect::from_min_size(
-                egui::pos2(render_rect.right() - x_zone, render_rect.top()),
-                egui::vec2(x_zone, strip_h),
-            );
-            let mut x_ui = ui.new_child(egui::UiBuilder::new().max_rect(x_rect).layout(
-                egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-            ));
-            let x_clicked = IconButton::new()
-                .variant(IconButtonVariant::Ghost)
-                .size(ControlSize::Sm)
-                .show(&mut x_ui, theme, &|ui, r, c| {
-                    icons::CLOSE.image(r.height(), c).paint_at(ui, r);
-                })
-                .on_hover_text(t("modifier_hint.hide_tooltip"))
-                .clicked();
-            if x_clicked {
-                rt.dismissed = true;
-                rt.working = None;
-            }
-        });
-
-    result.hovered = ctx
-        .pointer_hover_pos()
-        .is_some_and(|p| render_rect.contains(p));
+    let strip_h = theme.modhint_strip_height().value();
+    let x_rect = egui::Rect::from_min_size(
+        egui::pos2(rect.right() - strip_h, rect.top()),
+        egui::vec2(strip_h, strip_h),
+    );
+    let mut x_ui = ui.new_child(egui::UiBuilder::new().max_rect(x_rect).layout(
+        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+    ));
+    let x_clicked = IconButton::new()
+        .variant(IconButtonVariant::Ghost)
+        .size(ControlSize::Sm)
+        .show(&mut x_ui, &theme, &|ui, r, c| {
+            icons::CLOSE.image(r.height(), c).paint_at(ui, r);
+        })
+        .on_hover_text(t("modifier_hint.hide_tooltip"))
+        .clicked();
 
     // 페이드가 끝나면 입력에 따른 다시 그리기만 사용한다.
     if alpha < 1.0 {
-        ctx.request_repaint();
+        ui.ctx().request_repaint();
     }
-
-    result
+    if x_clicked {
+        state.modifier_hint.dismissed = true;
+        return PopupAction::Close;
+    }
+    PopupAction::None
 }
 
 /// 저장된 pos/size(있으면) 또는 기본 anchor 로 base rect 를 만든다.
@@ -509,6 +493,8 @@ fn draw_content(
     );
     let mut strip_ui = ui.new_child(egui::UiBuilder::new().max_rect(strip_inner));
     strip_ui.set_opacity(alpha);
+    // 띠는 팝업 관리자가 옮기는 손잡이다. 글자가 선택용으로 누름을 가져가면 옮겨지지 않는다.
+    strip_ui.style_mut().interaction.selectable_labels = false;
     strip_ui.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
         kbd_parts(
@@ -1054,34 +1040,6 @@ mod tests {
     }
 
     #[test]
-    fn clamp_keeps_rect_inside_screen() {
-        let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 600.0));
-        let r = egui::Rect::from_min_size(egui::pos2(700.0, 500.0), egui::vec2(220.0, 400.0));
-        let c = clamp_rect(r, screen);
-        assert!(c.max.x <= screen.right() + 0.01);
-        assert!(c.max.y <= screen.bottom() + 0.01);
-        assert_eq!(c.size(), egui::vec2(220.0, 400.0));
-    }
-
-    #[test]
-    fn clamp_shrinks_rect_bigger_than_screen() {
-        let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(150.0, 150.0));
-        let r = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(220.0, 400.0));
-        let c = clamp_rect(r, screen);
-        assert_eq!(c.size(), egui::vec2(150.0, 150.0));
-    }
-
-    #[test]
-    fn resize_clamps_to_min() {
-        let r = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(220.0, 400.0));
-        let shrunk = resize_to(r, egui::vec2(-500.0, -500.0), 200.0, 240.0);
-        assert_eq!(shrunk.size(), egui::vec2(200.0, 240.0));
-        assert_eq!(shrunk.min, r.min, "좌상단 고정");
-        let grown = resize_to(r, egui::vec2(30.0, 20.0), 200.0, 240.0);
-        assert_eq!(grown.size(), egui::vec2(250.0, 420.0));
-    }
-
-    #[test]
     fn consumes_build_hint_sections() {
         use tasty_settings::KeybindingSettings;
         let kb = KeybindingSettings::preset_tasty();
@@ -1135,3 +1093,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "modifier_hint_popup_tests.rs"]
+mod popup_tests;
