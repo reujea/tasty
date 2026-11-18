@@ -138,23 +138,24 @@ state.dispatch_intent(
 | `instances` | Single / PerScopeTarget / Multi / Queue | PerScopeTarget | host `PopupManager::instance_for`가 열기·다시 열기 요청이 쓸 인스턴스를 고를 때 읽는다 |
 | `covers_scope` | bool | true | scrim 을 깔지(`PopupManager::draw`) |
 | `fit` | Collapse / Shrink | Collapse | 없음. 지금은 모든 host 팝업이 범위에 맞춰 줄어든다. `search_bar` 만 `Shrink` 로 선언했다 |
-| `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor | ScopeCenter | 없음. 위치는 여는 쪽 `OpenRequest` 의 `placement` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
+| `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor / Column | ScopeCenter | `Column` 과 `ScopeTop` 만 읽는다. `Column` 인스턴스는 호출자가 `set_notice_column` 으로 정한 안내 열에 연 순서로 위에서부터 쌓이고(폭은 열의 폭, 높이는 직전 프레임의 크기), 그리기 결과의 `column_rect` 가 차지한 사각형의 합이다. `ScopeTop` 인 보이는 팝업의 사각형은 `reserved_top_bands` 가 다른 배치가 피할 띠로 돌려준다. 나머지 값의 위치는 여는 쪽 `OpenRequest` 의 `placement` 가 정한다. 범위 가운데가 아닌 곳에 붙는 4개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴)만 다른 값을 적었다 |
 | `scope_inset` | bool | true | 없음. Surface 범위의 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다. 원격 행 팝업은 선언 하나(`remote_row`)이고, 열 때 정하는 덮음 값(`OpenRequest::covers_scope`)으로 범위를 덮는 모양(마지막 화면 위)과 덮지 않는 모양을 고른다 |
 | `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenRequest` 의 `focus` 와 요청 출처가 정한다. 값은 사용자가 여는 주 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 `remote_row` 가 false 다. `notifications` 는 true 지만 단축키로 열 때는 지금 포커스를 가져가지 않는다(사이드바 클릭과 열기 경로가 다르다) |
-| `keyboard` | None / Keys / Text | Keys | 없음. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸)와 그 선언을 복사한 설정 창 파일 선택기 |
+| `keyboard` | None / Keys / Text | Keys | `None` 인지만 읽는다. `None` 인 팝업은 열거나 눌러도 키보드 포커스를 받지 않고 다른 팝업의 포커스도 바꾸지 않으며, 맨 앞으로 올라오지 않고 다른 팝업 아래에 그린다. Esc 주인(`topmost_visible_open`)도 되지 않는다. `Keys`·`Text` 의 차이는 읽지 않는다. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸, 창의 파일 선택도 이 정의의 인스턴스) |
 | `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 `remote_row` 가 `Unfocus` 다. 하위 화면이 있는 팝업은 `Close` 지만 하위 화면에서는 첫 Esc 가 하위 화면만 닫는다(`dag_list` 상세 보기는 목록으로, `remote_tool` 양식은 앞 화면으로) |
 | `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |
 | `sticky_focus` | bool | false | 바깥 클릭에도 키보드 포커스 유지 |
 | `chrome` | TitleBar / Headless | TitleBar | 공통 타이틀바·닫기 버튼을 그릴지 |
 | `drag_handle` | None / TitleBar / Region | TitleBar | 이동 영역. `Region` 이면 정의의 `drag_region` 함수를 쓴다 |
-| `resizable` | bool | false | 테두리 8방향 드래그로 크기 조절(min_size·scope 경계 클램프, 엣지별 리사이즈 커서) |
+| `resizable` | bool | false | 끌어서 크기 조절(min_size·scope 경계 클램프, 엣지별 리사이즈 커서). 잡은 변은 포인터를 따라간다 |
+| `resize_handle` | Edges / Grip { size } | Edges | 크기를 바꾸려고 잡는 곳. `Edges` 는 테두리 8방향, `Grip` 은 오른쪽 아래 `size` 정사각형만이고 그립은 콘텐츠가 그린다 |
 | `min_size` | `Option<PopupSize>` | None | 리사이즈 최소 크기. 없으면 `size` |
 | `size` | `PopupSize`(논리 px) | 인자 | 처음 크기(unzoomed baseline). `sizer` 가 없으면 등록 때 UI 배율을 곱한다 |
 | `shell` | Raised / Panel / InfoPanel / Dialog / Menu / BannerMenu / SearchBar | Raised | 배경·테두리·제목줄 아래 선 토큰 묶음(`draw::shell_colors`) |
 | `shadow` | Modal / Popover | Modal | 셸 그림자 토큰(`draw::shadow_token`) |
 | `content_margin` | Default / None | Default | 콘텐츠 둘레 공통 여백(`space-xs`). 구역별 여백을 직접 두는 팝업은 `None` |
 
-"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 35개(정의 33개와 설정 창 팝업 2개)의 scrim·scrim 입력·그림자·여백·셸 색과 `keyboard`·`escape`·`outside_click`·`focus_on_open` 값을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
+"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 33개(정의 32개와 설정 창의 단축키 충돌 확인)의 scrim·scrim 입력·그림자·여백·셸 색과 `keyboard`·`escape`·`outside_click`·`focus_on_open` 값을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
 
 ### sizer 는 매 프레임 돈다 (열 때 한 번이 아니다)
 
@@ -221,7 +222,7 @@ scrim 이 덮는 rect 는 그 팝업의 `PopupScope` rect 다 — `Surface` 범�
 - **이동**: `drag_handle` 으로 선언한 영역을 클릭+드래그 → 스코프 경계 안에서 위치 이동. 타이틀바 팝업은 `DragHandle::TitleBar`(기본). 타이틀바 없는 팝업은 `DragHandle::Region(fn)` 으로 pos/size 로부터 핸들 띠를 직접 계산해 선언한다.
   - **실측 헤더 rect 보고(헤더 전체 드래그)**: 헤더 높이가 host zoom·팝업별로 달라 정적 리터럴로 못 잡는 headless 패널(`port_scanner`·`remote_tool`)은, 뷰가 렌더 시점의 실제 헤더 rect(전체폭 × 실측 높이)를 `popup::report_header_drag_rect(ctx, popup_id, rect)` 로 매니저에 보고한다. hit-test(`effective_drag_handle_rect`)는 보고된 rect 를 `Region` 정적 띠보다 **우선** 사용해 헤더 전체를 이동 영역으로 만든다. 보고는 hit-test 보다 뒤(콘텐츠 렌더 시점)라 **직전 프레임** 값을 쓰며(1프레임 지연), open 첫 프레임엔 보고가 없어 정적 띠로 폴백한다. 또한 헤더 텍스트 라벨은 각 헤더 함수 최상단에서 `selectable_labels = false` 로 비선택 처리해 글자 위 드래그가 텍스트 선택으로 가로채지지 않게 한다.
   - **위젯 우선 중재(`is_using_pointer`)**: 이동/리사이즈의 *START 판정* 은 콘텐츠 렌더 **뒤** 에서 `ctx.is_using_pointer()` 게이트로 한다. 이번 프레임에 egui 위젯(버튼·입력)이 프레스를 가져갔으면 이동/리사이즈는 발동하지 않는다 → 핸들 띠가 위젯과 겹쳐도 **위젯이 항상 우선**(입력 우선순위: 위젯 > 리사이즈 > 이동). 따라서 `Region` 은 헤더 띠 전체처럼 넓은 영역을 가리켜도 안전하다(예: `port_scanner` 가 좁은 폭에서 좌측 띠와 검색 입력이 겹쳐도 입력 클릭이 우선). 단 **close 버튼은 매니저가 직접 페인팅** 한 영역이라 egui 위젯이 아니므로 `is_using_pointer` 에 안 잡힌다 → close 는 콘텐츠 렌더 *전* 에 따로 hit-test 해 우선 처리한다.
-- **리사이즈**: `resizable: true` 팝업은 테두리 밴드(약 6px)를 잡아 8방향으로 크기 조절. 우선순위는 **close 버튼 > 리사이즈 엣지 > 드래그 핸들 > 콘텐츠**.
+- **리사이즈**: `resizable: true` 팝업은 테두리 밴드(약 6px)를 잡아 8방향으로 크기 조절(`resize_handle: Grip` 이면 오른쪽 아래 그립만). 사용자가 옮기거나 크기를 바꾼 뒤 놓으면 그 프레임의 그리기 결과 `released` 에 인스턴스와 사각형이 한 번 들어 있다. 우선순위는 **close 버튼 > 리사이즈 엣지 > 드래그 핸들 > 콘텐츠**.
 
 ### Outside-click / hover 히트테스트와 자식 오버레이(드롭다운)
 

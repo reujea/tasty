@@ -61,15 +61,20 @@ pub enum PopupFit {
 #[serde(rename_all = "snake_case")]
 pub enum PopupAnchor {
     ScopeCenter,
+    /// 범위 위쪽에 붙는다. host는 이런 팝업이 차지한 띠를 다른 배치가 피할 자리로 알려 준다.
     ScopeTop,
     AtPoint,
     Cursor,
+    /// 범위 오른쪽 위의 안내 열에 연 순서로 위에서부터 쌓는다. 열의 자리는 host가 프레임마다 정한다.
+    Column,
 }
 
 /// 팝업이 받는 키.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PopupKeyboard {
+    /// 키를 받지 않는다. 열거나 눌러도 키보드 포커스를 가져가지 않고 맨 앞으로 올라오지 않으며,
+    /// 다른 팝업 아래에 그린다. 안쪽 컨트롤의 포커스는 팝업 콘텐츠가 따로 알린다.
     None,
     /// 팝업의 조작 키만 받는다.
     Keys,
@@ -138,6 +143,17 @@ pub enum PopupShell {
     SearchBar,
 }
 
+/// 크기를 바꾸려고 잡는 곳. `resizable`이 참일 때만 뜻이 있다.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PopupResizeHandle {
+    /// 네 변과 네 모서리.
+    #[default]
+    Edges,
+    /// 오른쪽 아래 정사각형 그립만. 그립은 팝업 콘텐츠가 그린다.
+    Grip { size: LogicalPx },
+}
+
 /// 셸 그림자 토큰.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -167,12 +183,12 @@ pub struct PopupSize {
 
 /// 팝업 공통 선언. 함수가 아닌 속성만 담는다.
 ///
-/// 지금 host가 읽는 필드: `covers_scope`(scrim), `outside_click`, `sticky_focus`, `chrome`,
-/// `drag_handle`, `resizable`, `min_size`, `size`, `shell`, `shadow`, `content_margin`.
+/// 지금 host가 읽는 필드: `covers_scope`(scrim), `instances`, `outside_click`, `sticky_focus`, `chrome`,
+/// `drag_handle`, `resizable`, `resize_handle`, `min_size`, `size`, `shell`, `shadow`, `content_margin`,
+/// `keyboard`(`None`인지만), `anchor`(`Column`과 `ScopeTop`만).
 /// 선언만 있고 읽는 곳이 없는 필드: `scope_kind`(등록 범위는 Window이고 실제 범위는 여는 쪽이 준다),
-/// `scope_target`, `instances`(지금은 id당 하나), `fit`(지금 host는 범위에 맞춰 줄이기만 한다),
-/// `anchor`(위치는 여는 쪽이 정한다), `scope_inset`, `focus_on_open`, `keyboard`, `escape`
-/// (Esc는 팝업 그리기 함수와 키 처리 경로가 처리한다).
+/// `scope_target`, `fit`(지금 host는 범위에 맞춰 줄이기만 한다), 나머지 `anchor` 값(위치는 여는 쪽이
+/// 정한다), `scope_inset`, `focus_on_open`, `escape`(Esc는 팝업 그리기 함수와 키 처리 경로가 처리한다).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PopupDecl {
     pub scope_kind: PopupScopeKind,
@@ -198,6 +214,8 @@ pub struct PopupDecl {
     pub drag_handle: PopupDragHandle,
     /// 테두리를 끌어 크기를 바꿀 수 있다.
     pub resizable: bool,
+    #[serde(default)]
+    pub resize_handle: PopupResizeHandle,
     /// 크기 조절의 최소 크기. 없으면 `size`.
     pub min_size: Option<PopupSize>,
     /// 처음 크기. 크기를 매 프레임 계산하는 팝업은 첫 프레임 값이다.
@@ -229,6 +247,7 @@ impl PopupDecl {
             chrome: PopupChrome::TitleBar,
             drag_handle: PopupDragHandle::TitleBar,
             resizable: false,
+            resize_handle: PopupResizeHandle::Edges,
             min_size: None,
             size,
             shell: PopupShell::Raised,
@@ -292,5 +311,29 @@ mod tests {
         );
         let back: PopupDecl = serde_json::from_value(json).expect("deserialize");
         assert_eq!(back, d);
+    }
+
+    /// 그립 크기 조절은 크기와 함께 직렬화되고, 값이 없는 선언은 네 변 조절로 읽는다.
+    #[test]
+    fn the_resize_handle_round_trips_and_defaults_to_edges() {
+        let mut d = PopupDecl::new(PopupScopeKind::Window, SIZE);
+        d.resize_handle = PopupResizeHandle::Grip {
+            size: LogicalPx(16.0),
+        };
+        d.anchor = PopupAnchor::Column;
+        d.keyboard = PopupKeyboard::None;
+        let mut json = serde_json::to_value(d).expect("serialize");
+        assert_eq!(
+            json["resize_handle"],
+            serde_json::json!({ "grip": { "size": 16.0 } })
+        );
+        assert_eq!(json["anchor"], "column");
+        let back: PopupDecl = serde_json::from_value(json.clone()).expect("deserialize");
+        assert_eq!(back, d);
+        json.as_object_mut()
+            .expect("object")
+            .remove("resize_handle");
+        let old: PopupDecl = serde_json::from_value(json).expect("deserialize without the field");
+        assert_eq!(old.resize_handle, PopupResizeHandle::Edges);
     }
 }

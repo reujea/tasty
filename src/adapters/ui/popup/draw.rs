@@ -108,7 +108,7 @@ fn title_icon_button(
 }
 
 /// 포인터가 있는 테두리를 반환한다. 계산은 egui 좌표를 사용한다.
-fn resize_edges_at(rect: egui::Rect, pos: egui::Pos2, band: f32) -> Option<ResizeEdges> {
+pub(super) fn resize_edges_at(rect: egui::Rect, pos: egui::Pos2, band: f32) -> Option<ResizeEdges> {
     let left = pos.x <= rect.min.x + band;
     let right = pos.x >= rect.max.x - band;
     let top = pos.y <= rect.min.y + band;
@@ -182,13 +182,17 @@ impl PopupManager {
             }
         }
 
-        let open_indices: Vec<usize> = self
+        let mut open_indices: Vec<usize> = self
             .popups
             .iter()
             .enumerate()
             .filter(|(_, p)| p.open && Self::is_scope_visible(&p.scope, draw_ctx))
             .map(|(i, _)| i)
             .collect();
+        // 포커스를 받지 않는 팝업은 다른 팝업 아래에 그린다. 그 안의 순서는 z 순서 그대로다.
+        open_indices.sort_by_key(|&i| self.popups[i].arrange.takes_focus);
+        let column_rect = self.place_column(&open_indices);
+        let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
         // 이번 프레임의 영역을 뒤에 그릴 plugin 팝업에 전달한다.
         // 호출 순서는 egui_bridge::run_egui_frame과 source_guards::frame_draw_order에서 확인한다.
@@ -230,7 +234,7 @@ impl PopupManager {
                     {
                         hovered_fullscreen = Some((popup.instance, stage));
                     } else if popup.resizable
-                        && let Some(edges) = resize_edges_at(rect, pos, RESIZE_BAND.value())
+                        && let Some(edges) = popup.resize_edges_at(pos, RESIZE_BAND)
                     {
                         hovered_resize = Some((popup.instance, edges));
                     } else if let Some(handle) = popup.effective_drag_handle_rect(ctx)
@@ -269,6 +273,7 @@ impl PopupManager {
                 // 무대는 별도 콘텐츠이므로 원본 팝업은 닫지 않는다.
                 fullscreen_requested = Some(stage);
             } else if let Some(iid) = hovered_popup {
+                // 포커스를 받지 않는 팝업은 누름으로 포커스와 순서를 바꾸지 않는다(give_focus·bring_to_front가 거른다).
                 bring_front = Some(iid);
                 self.give_focus(iid, true);
             } else {
@@ -315,6 +320,7 @@ impl PopupManager {
             }
             if primary_released {
                 popup.dragging = false;
+                released.push((popup.instance, popup.popup_rect()));
             } else if primary_down && let Some(pos) = pointer_pos {
                 let bounds =
                     Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
@@ -339,6 +345,7 @@ impl PopupManager {
             };
             if primary_released {
                 popup.resizing = None;
+                released.push((popup.instance, popup.popup_rect()));
                 continue;
             }
             if primary_down && let Some(pos) = pointer_pos {
@@ -694,6 +701,8 @@ impl PopupManager {
             fullscreen_requested,
             hit_rects,
             overlay_targets,
+            column_rect,
+            released,
         }
     }
 
@@ -704,7 +713,9 @@ impl PopupManager {
     ) -> Option<(PopupId, PopupInstanceId, u64)> {
         self.popups
             .iter()
-            .filter(|p| p.open && Self::is_scope_visible(&p.scope, draw_ctx))
+            .filter(|p| {
+                p.open && p.arrange.takes_focus && Self::is_scope_visible(&p.scope, draw_ctx)
+            })
             .max_by_key(|p| p.z_seq)
             .map(|p| (p.id, p.instance, p.z_seq))
     }

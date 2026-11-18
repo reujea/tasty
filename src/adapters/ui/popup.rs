@@ -1,4 +1,5 @@
 pub(crate) mod approval;
+mod arrange;
 pub(crate) mod command_palette;
 pub(crate) mod confirm_close_remote;
 pub(crate) mod confirm_delete_category;
@@ -43,6 +44,7 @@ mod scrim_scope_tests;
 pub(crate) mod script_confirm;
 pub(crate) mod transfer;
 mod view_local;
+pub use arrange::NoticeColumn;
 pub use view_local::drawn_by_view;
 
 use crate::state::MainViewState;
@@ -55,8 +57,8 @@ pub use payload::{PayloadSlot, PopupPayload};
 pub use tasty_plugin_protocol::PopupCloseReason;
 pub use tasty_plugin_protocol::popup_decl::{
     PopupAnchor, PopupChrome, PopupContentMargin, PopupDecl, PopupDragHandle, PopupEscape,
-    PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupScopeKind, PopupShadow,
-    PopupShell, PopupSize,
+    PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupResizeHandle, PopupScopeKind,
+    PopupShadow, PopupShell, PopupSize,
 };
 
 /// host 범위 값의 종류. 대상 id는 버린다.
@@ -271,6 +273,24 @@ pub struct PopupDrawResult {
     pub hit_rects: Vec<occlusion::Occluder>,
     /// native WebView 위에 합성할 대상(non-passive 팝업). passive 팝업은 들어 있지 않다.
     pub overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget>,
+    /// 안내 열에 놓은 인스턴스가 차지한 사각형의 합. 열이 비었거나 자리가 없으면 `None`이다.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no host popup declares a notice column, a top band reader or a geometry consumer yet"
+        )
+    )]
+    pub column_rect: Option<egui::Rect>,
+    /// 사용자가 옮기거나 크기를 바꾼 뒤 이 프레임에 놓은 인스턴스와 그 사각형. 놓을 때 한 번만 들어 있다.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no host popup declares a notice column, a top band reader or a geometry consumer yet"
+        )
+    )]
+    pub released: Vec<(PopupInstanceId, egui::Rect)>,
 }
 
 /// 팝업 정의. 공통 선언 `decl`과 host만 쓰는 함수 값을 담는다.
@@ -401,6 +421,8 @@ pub struct PopupState {
     look: PopupLook,
     /// 선언에서 온 셸 값. 닫으면 `look`을 이 값으로 되돌린다.
     declared_look: PopupLook,
+    /// 선언에서 온 배치·포커스 값.
+    arrange: arrange::Arrange,
 }
 
 /// UI 배율을 적용한 Theme.item_height_interactive를 반올림한 타이틀바 높이.
@@ -563,6 +585,7 @@ impl PopupState {
             fullscreen_stage: None,
             look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
             declared_look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
+            arrange: arrange::Arrange::PLAIN,
         }
     }
 
@@ -595,6 +618,7 @@ impl PopupState {
             .with_min_size(decl.min_size.map_or(size, vec2_of));
         popup.look = PopupLook::of(decl, scrim_input);
         popup.declared_look = popup.look;
+        popup.arrange = arrange::Arrange::of(decl);
         popup.instances = decl.instances;
         popup
     }
@@ -684,6 +708,7 @@ impl PopupState {
             fullscreen_stage: self.fullscreen_stage,
             look: self.look,
             declared_look: self.declared_look,
+            arrange: self.arrange,
             payload: PopupPayload::None,
         }
     }
@@ -829,6 +854,8 @@ pub struct PopupManager {
     closed_queue: Vec<ClosedPopup>,
     /// 상태 술어로 연 팝업과 그때의 범위. 술어 값이 바뀔 때만 열고 닫는다.
     driven: Vec<(PopupId, open_when::DrivenOpen)>,
+    /// 안내 열의 자리. 호출자가 프레임마다 정한다.
+    notice_column: Option<NoticeColumn>,
 }
 
 impl PopupManager {
@@ -837,6 +864,7 @@ impl PopupManager {
             popups: Vec::new(),
             closed_queue: Vec::new(),
             driven: Vec::new(),
+            notice_column: None,
         }
     }
 
@@ -968,7 +996,7 @@ impl PopupManager {
                 p.request_center = false;
             }
         }
-        if request.focus {
+        if request.focus && p.arrange.takes_focus {
             p.focused = true;
             p.passive = false;
         }
@@ -1283,7 +1311,11 @@ impl PopupManager {
     }
 
     /// 맨 앞으로 올리고 host·plugin 공용 순번도 갱신한다.
+    /// 포커스를 받지 않는 인스턴스는 올리지 않는다. 그런 팝업은 다른 팝업 아래에 그린다.
     fn bring_to_front(&mut self, iid: PopupInstanceId) {
+        if self.never_focused(iid) {
+            return;
+        }
         if let Some(i) = self.index_of(iid) {
             let mut popup = self.popups.remove(i);
             popup.z_seq = tasty_host_plugin::next_popup_z_seq();
@@ -1329,6 +1361,10 @@ mod parent_tests;
 #[cfg(test)]
 #[path = "popup/open_when_tests.rs"]
 mod open_when_tests;
+
+#[cfg(test)]
+#[path = "popup/arrange_tests.rs"]
+mod arrange_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1377,6 +1413,7 @@ mod tests {
             popups: states,
             closed_queue: Vec::new(),
             driven: Vec::new(),
+            notice_column: None,
         }
     }
 
