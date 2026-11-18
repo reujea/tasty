@@ -464,3 +464,22 @@ fn the_pane_menu_new_tab_carries_the_cwd_source_it_read() {
     assert!(body.contains("self.state.resolve_inherit_cwd_from_surface(engine, surface)"));
     assert!(body.contains("cwd_source: selected,"));
 }
+
+/// 터미널로 변환할 때 cwd 는 포커스 surface 가 아니라 변환하는 surface 의 것이다.
+#[test]
+fn converting_to_a_terminal_inherits_the_cwd_of_the_converted_surface() {
+    let (state, engine, a, _b) = two_explorer_panes();
+    assert_eq!(state.focused_surface_id(&engine.read()), Some(201));
+    let convert = Intent::ConvertSurface {
+        surface_id: 101,
+        target: crate::intent::ConvertTarget::Terminal,
+    }
+    .from_user_menu("convert");
+    assert!(matches!(
+        resolved(&state, &engine, &convert).domain(),
+        Some(DomainIntent::ConvertSurface {
+            surface_id: 101,
+            target: crate::app::command::ConvertSurfaceTarget::Terminal { cwd },
+        }) if cwd == Some(a.clone())
+    ));
+}

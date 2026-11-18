@@ -187,8 +187,9 @@ pub(crate) fn resolve(
         }
         Intent::ConvertSurface { surface_id, target } => {
             let target = match target {
+                // 터미널로 바꿀 때도 cwd는 바꾸는 surface 자신에서 읽는다(Kind 갈래와 같다).
                 ConvertTarget::Terminal => ConvertSurfaceTarget::Terminal {
-                    cwd: state.resolve_inherit_cwd(&read),
+                    cwd: state.resolve_inherit_cwd_from_surface(&read, *surface_id),
                 },
                 ConvertTarget::Kind { kind, cwd, params } => {
                     let mut params = params.clone();
