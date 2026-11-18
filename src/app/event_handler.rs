@@ -928,22 +928,24 @@ impl App {
                 }
             }
         } else {
-            let mut classified = std::collections::HashSet::new();
             for (id, main, mut engine) in engines_mut!(self).window_entries() {
                 let outcome = core.process_all_pty_output(&mut engine);
-                main.mark_dirty_from(output_repaint_source(
-                    main,
-                    &engine,
-                    &outcome.output_surfaces,
-                ));
-                classified.insert(main.base().winit.id());
+                // 지정 wake와 같이 보이는 surface가 바뀐 창만 출력 분류로 다시 그린다.
+                // webview 대기 작업은 redraw 안의 동기화가 꺼내므로 대기가 있는 창도 다시 그린다.
+                if main
+                    .state
+                    .shows_any_surface(&engine.read(), &outcome.output_surfaces)
+                {
+                    main.mark_dirty_from(output_repaint_source(
+                        main,
+                        &engine,
+                        &outcome.output_surfaces,
+                    ));
+                } else if crate::app::webview_sync::awaits_webview_work(main) {
+                    main.mark_dirty_from(RepaintSource::TerminalOutput);
+                }
                 if !outcome.events.is_empty() {
                     pending.push((DispatchSource::Engine(id), outcome.events));
-                }
-            }
-            for (wid, w) in self.view.views.iter_mut() {
-                if !classified.contains(wid) {
-                    w.mark_dirty_from(RepaintSource::TerminalOutput);
                 }
             }
             for (id, _, mut engine) in engines_mut!(self).parked_sessions_with_ids() {

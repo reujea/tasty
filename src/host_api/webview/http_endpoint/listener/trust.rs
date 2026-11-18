@@ -45,6 +45,11 @@ impl NativeTrust {
             drop(request);
         }
     }
+    /// native loop가 아직 꺼내지 않은 trust 요청이 있는지 본다. 요청은 꺼내지 않는다.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn has_queued(&self) -> bool {
+        self.0.current() && self.0.lock().is_ok_and(|inner| !inner.queue.is_empty())
+    }
 }
 impl Drop for NativeTrust {
     fn drop(&mut self) {

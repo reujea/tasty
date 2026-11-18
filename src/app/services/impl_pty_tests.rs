@@ -304,3 +304,51 @@ fn a_deferred_osc52_read_is_kept_until_its_text_arrives() {
             .matches_generation(sid, *generation)
     );
 }
+
+/// 전체 처리는 화면 내용이 바뀐 surface만 돌려주고, 창은 그중 보이는 것이 있을 때만 다시 그린다.
+#[cfg(feature = "gui")]
+#[test]
+fn a_global_drain_reports_changed_surfaces_for_the_visibility_check() {
+    let mut core = crate::adapters::ipc::handler::cli_entry_tests::test_core_builder()
+        .build()
+        .expect("core");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    let local = *engine
+        .workspace_at(0)
+        .expect("workspace")
+        .all_surface_ids()
+        .first()
+        .expect("surface");
+    let other = crate::state::tests::add_mirror_test_workspace(&mut state, &mut engine);
+    state.set_active_workspace_index(&engine.read(), 0);
+    let mut drain = |engine: &mut crate::runtime::engine_access::EngineMut<'_>, sid: u32| {
+        // 앞선 출력의 dirty 표지를 먼저 비운다.
+        core.process_all_pty_output(engine);
+        engine
+            .find_terminal_by_id_mut(sid)
+            .expect("terminal surface")
+            .feed_bytes(b"hidden or shown\r\n");
+        core.process_all_pty_output(engine).output_surfaces
+    };
+
+    let changed = drain(&mut engine, other);
+    assert_eq!(changed, vec![other]);
+    assert!(
+        !state.shows_any_surface(&engine.read(), &changed),
+        "다른 워크스페이스의 출력만으로는 창을 다시 그리지 않는다"
+    );
+
+    let changed = drain(&mut engine, local);
+    assert_eq!(changed, vec![local]);
+    assert!(state.shows_any_surface(&engine.read(), &changed));
+
+    core.process_all_pty_output(&mut engine);
+    assert!(
+        core.process_all_pty_output(&mut engine)
+            .output_surfaces
+            .is_empty(),
+        "바뀐 내용이 없으면 다시 그릴 대상도 없다"
+    );
+    assert!(!state.shows_any_surface(&engine.read(), &[]));
+}

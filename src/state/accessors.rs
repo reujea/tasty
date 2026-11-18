@@ -73,6 +73,25 @@ impl RequestContext {
             .retain(|id, _| engine.find_pane_by_id(*id).is_some());
     }
 
+    /// 활성 워크스페이스의 각 패널에서 활성 탭에 속한 surface가 목록에 있는지 확인한다.
+    /// 분할된 탭은 모든 leaf가 보인다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn shows_any_surface(&self, engine: &CoreState, surface_ids: &[u32]) -> bool {
+        if surface_ids.is_empty() {
+            return false;
+        }
+        let Some(ws) = engine.workspace_at(self.active_workspace_index(engine)) else {
+            return false;
+        };
+        let layout = ws.pane_layout();
+        layout.all_pane_ids().into_iter().any(|pane_id| {
+            layout
+                .find_pane(pane_id)
+                .and_then(|pane| pane.tabs.get(self.navigation.tab_index(pane)))
+                .is_some_and(|tab| surface_ids.iter().any(|&sid| tab.contains_surface(sid)))
+        })
+    }
+
     /// Invariant: caller must ensure `engine.workspaces()` is non-empty.
     /// Parked states (after the last window closes) can have zero workspaces —
     /// such callers must use `engine.workspaces().is_empty()` checks instead.

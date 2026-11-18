@@ -430,24 +430,13 @@ impl MainView {
     }
 
     /// 활성 워크스페이스의 각 패널에서 활성 탭에 속한 surface인지 확인한다.
-    /// 분할된 탭은 모든 leaf가 보인다. 숨겨진 surface의 출력도 읽되 redraw만 생략한다.
+    /// 숨겨진 surface의 출력도 읽되 redraw만 생략한다.
     pub(crate) fn is_surface_visible(
         &self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         surface_id: u32,
     ) -> bool {
-        let Some(ws) = engine.workspace_at(self.state.active_workspace_index(engine)) else {
-            return false;
-        };
-        for pane_id in ws.pane_layout().all_pane_ids() {
-            if let Some(pane) = ws.pane_layout().find_pane(pane_id)
-                && let Some(tab) = pane.tabs.get(self.state.navigation.tab_index(pane))
-                && tab.contains_surface(surface_id)
-            {
-                return true;
-            }
-        }
-        false
+        self.state.shows_any_surface(engine, &[surface_id])
     }
 
     /// native 메뉴를 열고 결과를 cont에 전달한다.

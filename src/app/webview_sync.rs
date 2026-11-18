@@ -3,8 +3,10 @@
 pub(crate) mod bed_focus;
 mod construction;
 mod navigation;
+mod pending_work;
 use construction::create_missing_webviews;
 use navigation::{apply_agent_history_step, apply_user_nav};
+pub(crate) use pending_work::awaits_webview_work;
 
 use crate::plugin::PluginManager;
 use crate::plugin_bridge::remote_surface::RemoteSurface;

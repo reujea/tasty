@@ -847,6 +847,12 @@ impl PlatformWebView {
         *self.script_gate.borrow_mut() = Some(gate);
     }
 
+    /// HTTP 문서에 다음 프레임이 결과를 꺼내야 하는 작업이 있으면 true다.
+    pub(crate) fn awaits_http_work(&self) -> bool {
+        self.http
+            .as_ref()
+            .is_some_and(|document| document.awaits_work())
+    }
     pub(crate) fn retaining_http(&self) -> bool {
         self.http
             .as_ref()

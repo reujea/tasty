@@ -158,6 +158,13 @@ impl NativeDocument {
     pub(crate) fn poll_trust(&self, wake: Arc<dyn Fn() + Send + Sync>) -> Result<(), String> {
         trust::poll(self.session(), &self.view, wake)
     }
+    /// 다음 `poll_http_reload`가 결과를 꺼내야 하는 작업이 있으면 true다.
+    /// reload 교체 대기, 이 세션의 trust 요청 대기, 프로세스 공용 trust 진행 중 하나다.
+    pub(crate) fn awaits_work(&self) -> bool {
+        self.replacement.borrow().is_some()
+            || self.session().with_native_trust(|trust| trust.has_queued()) == Some(true)
+            || trust::in_progress()
+    }
 }
 impl Drop for NativeDocument {
     fn drop(&mut self) {

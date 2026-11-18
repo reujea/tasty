@@ -143,6 +143,14 @@ pub(super) fn poll(
         Ok(())
     })
 }
+/// private probe나 probe profile 준비가 진행 중이면 true다. 프로세스 공용 상태라 창을 가리지 않는다.
+pub(super) fn in_progress() -> bool {
+    PROCESS.with(|shared| {
+        shared
+            .try_borrow()
+            .is_ok_and(|state| state.active.is_some() || state.preparation.is_some())
+    })
+}
 fn advance(state: &mut State) {
     let Some(active) = &mut state.active else {
         return;
