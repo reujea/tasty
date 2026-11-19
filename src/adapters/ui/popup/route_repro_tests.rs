@@ -74,6 +74,8 @@ fn plugin_frame(
         events,
         ..Default::default()
     };
+    // egui_bridge 처럼 그리기 전에 결속 범위를 다시 만든다.
+    crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, mgr.popup_instances());
     drop(ctx.run(input, |ctx| {
         draw_plugin_popups(
             ctx,
@@ -136,33 +138,144 @@ fn a_press_on_the_left_surface_does_not_close_a_popup_scoped_to_the_right() {
     );
 }
 
-/// Given R 범위 plugin 팝업(바깥 클릭에 닫힘)이 열려 있고 포커스가 L일 때, When R 범위 안·팝업 밖을 처음
-/// 누르면, Then 닫힘 요청 없이 앞으로 가져온다. Given 포커스가 R일 때 같은 자리를 누르면, Then 닫힘 요청이다.
+/// Given R 범위 plugin 팝업(바깥 클릭에 닫힘) 위에 L 범위 host 팝업이 키를 가질 때, When R 범위 안·팝업 밖을
+/// 처음 누르면, Then 닫힘 요청 없이 앞으로 가져온다. When 메인 루프가 그 요청을 처리한 실제 상태에서 같은 자리를
+/// 다시 누르면(스냅샷을 새로 찍는다), Then plugin 팝업이 포커스 노드라 닫힘 요청이다.
 #[test]
 fn the_first_press_into_the_right_scope_does_not_close_its_plugin_popup() {
-    for (focus, closes) in [(super::PANE_L, false), (super::PANE_R, true)] {
-        let (mut state, mut session) = scene(focus);
-        let engine = session.borrow_mut();
-        let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
-        let ctx = Context::default();
-        plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
-        let placed = state.plugin_popup_hittest[0].rect;
-        let r = super::surface_rect_r();
-        let outside = egui::pos2(r.center().x, r.max.y - 4.0);
-        assert!(r.contains(outside) && !placed.contains(outside));
-        plugin_frame(
-            &ctx,
-            &mut state,
-            &engine.read(),
-            &mgr,
-            vec![Event::PointerMoved(outside), press(outside)],
-        );
-        let closed = !closes_of_popup(&state).is_empty();
-        assert_eq!(closed, closes, "focus pane {focus}");
-        if !closes {
-            assert!(state.plugin_popup_focus_bumps.contains(&POPUP));
-        }
+    let (mut state, mut session) = scene(super::PANE_L);
+    let engine = session.borrow_mut();
+    let mut mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
+    open_host_popup(&mut state, SURFACE_L, true);
+    let ctx = Context::default();
+    plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
+    let placed = state.plugin_popup_hittest[0].rect;
+    let r = super::surface_rect_r();
+    let outside = egui::pos2(r.center().x, r.max.y - 4.0);
+    assert!(r.contains(outside) && !placed.contains(outside));
+    assert_eq!(
+        state.popup_key_owner(),
+        Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Host)
+    );
+    plugin_frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        vec![Event::PointerMoved(outside), press(outside)],
+    );
+    assert_eq!(closes_of_popup(&state), []);
+    assert!(state.plugin_popup_focus_bumps.contains(&POPUP));
+    // 메인 루프: 앞으로 가져오기를 처리하고 프레임 끝에 스냅샷을 지운다.
+    for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
+        mgr.touch_popup_instance_z(id);
     }
+    state.press_snapshot = None;
+    plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
+    plugin_frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        vec![Event::PointerMoved(outside), press(outside)],
+    );
+    assert_eq!(
+        closes_of_popup(&state),
+        [tasty_plugin_protocol::PopupCloseReason::OutsideClick]
+    );
+}
+
+const HOST_POPUP: crate::adapters::ui::popup::PopupId = "route_repro_cover";
+
+/// 덮고 바깥 클릭에 닫히는 host 팝업을 `surface` 범위에 연다.
+fn open_host_popup(
+    state: &mut RequestContext,
+    surface: u32,
+    focused: bool,
+) -> crate::adapters::ui::popup::PopupInstanceId {
+    if state.popups.entries_of(HOST_POPUP).next().is_none() {
+        let mut p = crate::adapters::ui::popup::PopupState::new(
+            HOST_POPUP,
+            "cover".to_string(),
+            egui::vec2(120.0, 60.0),
+            PopupScope::Window,
+        )
+        .with_instances(crate::adapters::ui::popup::PopupInstances::PerScopeTarget);
+        p.look = p.look.covering(true);
+        p.declared_look = p.look;
+        p.close_on_outside_click = true;
+        state.popups.register(p);
+    }
+    let at = if surface == SURFACE_L {
+        surface_rect_l().min + egui::vec2(10.0, 10.0)
+    } else {
+        super::surface_rect_r().min + egui::vec2(10.0, 10.0)
+    };
+    let mut req = crate::intent::OpenRequest::new(HOST_POPUP, PopupScope::Surface(surface)).at(at);
+    if focused {
+        req = req.focused();
+    }
+    state.popups.open_request(&req, focused).unwrap()
+}
+
+/// host 팝업만 그리는 한 프레임. 메인 창처럼 누름은 `frame_press`로 찍고 프레임 끝에 스냅샷을 지운다.
+fn host_frame(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    events: Vec<Event>,
+) -> crate::adapters::ui::popup::PopupDrawResult {
+    let input = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    let mut result = None;
+    drop(ctx.run(input, |ctx| {
+        let press =
+            crate::adapters::ui::popup::frame::frame_press(ctx, state, engine, Some(&layout()));
+        let mut popups =
+            std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+        result =
+            Some(popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout()), &[], press.as_ref()));
+        state.popups = popups;
+    }));
+    state.press_snapshot = None;
+    result.unwrap()
+}
+
+/// 결함 C1: 엔진 포커스가 L에 남은 채 R의 덮는 팝업(바깥 클릭에 닫힘)이 포커스 없이 열려 있을 때, When R 범위
+/// 안·상자 밖을 처음 누르면, Then 닫히지 않고 팝업이 포커스를 받는다. When 같은 자리를 다시 누르면(실제 상태로
+/// 스냅샷을 새로 찍는다), Then 그 팝업이 포커스 노드라 닫힌다. 엔진 포커스는 그동안 L이다.
+#[test]
+fn a_second_press_in_the_covered_scope_closes_the_popup_that_took_focus() {
+    let (mut state, mut session) = scene(super::PANE_L);
+    let engine = session.borrow_mut();
+    let iid = open_host_popup(&mut state, SURFACE_R, false);
+    let ctx = Context::default();
+    let r = super::surface_rect_r();
+    let outside = egui::pos2(r.center().x, r.max.y - 4.0);
+    host_frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        vec![Event::PointerMoved(outside)],
+    );
+    let first = host_frame(&ctx, &mut state, &engine.read(), vec![press(outside)]);
+    assert!(first.closed.is_empty());
+    assert!(
+        state
+            .popups
+            .instance(iid)
+            .is_some_and(|p| p.open && p.focused)
+    );
+    let second = host_frame(&ctx, &mut state, &engine.read(), vec![press(outside)]);
+    assert_eq!(second.closed, [HOST_POPUP]);
+    assert!(
+        crate::adapters::ui::popup::route::path_of_focus(&state, &engine.read())
+            .contains(&PopupScope::Surface(SURFACE_L)),
+        "엔진 포커스는 L에 남는다"
+    );
 }
 
 /// 결함 2: R 팝업의 자식 파일 피커가 떠 있으면 포커스가 L 이어도 키가 L 로 가지 않는다.

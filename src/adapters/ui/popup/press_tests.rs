@@ -144,19 +144,6 @@ fn a_press_outside_the_scope_leaves_the_popup_alone() {
     assert_eq!(state(&mgr, iid), before);
 }
 
-/// Given R의 닫는 덮는 팝업이 열려 있고 포커스가 L일 때, When R 범위 안·상자 밖을 처음 누르면, Then 닫히지
-/// 않고 그 팝업이 포커스를 받는다. When 포커스가 R인 채로 다시 누르면, Then 닫힌다.
-#[test]
-fn the_first_press_coming_from_another_scope_is_not_an_outside_click() {
-    let mut mgr = manager(true, true);
-    let iid = open_r(&mut mgr, false);
-    primary(&mut mgr, r_outside(), L);
-    assert_eq!(state(&mgr, iid).map(|s| s.0), Some(true));
-    let result = primary(&mut mgr, r_outside(), R);
-    assert_eq!(result.closed, [R_POPUP]);
-    assert!(state(&mgr, iid).is_none());
-}
-
 /// Given R의 덮지 않는 팝업(바깥 클릭은 포커스 해제)이 포커스일 때, When L을 누르면, Then 바뀌지 않는다.
 /// When R 본문을 누르면, Then 열린 채 포커스만 잃는다.
 #[test]

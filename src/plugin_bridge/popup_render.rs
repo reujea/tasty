@@ -95,8 +95,11 @@ pub fn draw_plugin_popups(
         .retain(|k, _| live_mesh.contains(k));
 
     let screen_rect = ctx.screen_rect();
-    let pointer_pos = ctx.input(|i| i.pointer.hover_pos());
     let press = crate::adapters::ui::popup::frame::frame_press(ctx, state, _engine, layout);
+    // 누른 프레임에는 상자 안 판정도 누름 스냅샷의 좌표를 쓴다. host 팝업과 같은 점이다.
+    let pointer_pos = press
+        .map(|p| p.pos)
+        .or_else(|| ctx.input(|i| i.pointer.hover_pos()));
     let escape_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
 
     // 다른 팝업에 가린 좌표를 판정하려면 모든 팝업의 배치가 먼저 필요하다.

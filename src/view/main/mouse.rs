@@ -356,12 +356,6 @@ impl MainView {
         egui_consumed: bool,
         menu_dismiss_swallow: bool,
     ) {
-        // 팝업의 바깥 누름 판정은 누르기 직전 포커스를 쓴다. 아래 click-to-activate가 포커스를 옮기기 전에 남긴다.
-        if button_state == ElementState::Pressed {
-            self.state.press_snapshot = Some(
-                crate::adapters::ui::popup::route::PressSnapshot::take(&self.state, engine),
-            );
-        }
         // native 메뉴 바깥 클릭의 소비 여부는 egui 전달 전에 이미 결정됐다.
         // 물리 버튼을 놓으면 어느 경로로 반환하든 보고 스택에서 먼저 제거한다.
         // 그렇지 않으면 이후 이동을 계속 드래그로 해석한다.
@@ -378,6 +372,12 @@ impl MainView {
             // release 는 삼키기만 하면 된다 — 짝이 되는 press 를 라우팅하지 않았으니
             // 정리할 드래그/선택 상태도 없다.
             return;
+        }
+
+        // 팝업은 이 누름 하나의 버튼·좌표·직전 포커스를 함께 쓴다. 아래 click-to-activate가 포커스를 옮기기 전에
+        // 남긴다. 한 프레임의 첫 누름만 남긴다.
+        if button_state == ElementState::Pressed && self.state.press_snapshot.is_none() {
+            self.state.press_snapshot = self.press_snapshot_now(engine, button);
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -448,6 +448,32 @@ impl MainView {
     /// 직전 프레임에 그린 사각형 판정을 함께 본다. winit 입력은 그 좌표로 egui 프레임을 돌리기 전에 오기 때문이다.
     pub(super) fn pointer_on_popup(&self) -> bool {
         self.state.popup_hovered || self.pointer_on_popup_node()
+    }
+
+    /// 지금 포인터 좌표와 상태로 찍은 누름 스냅샷. egui 가 받지 않는 버튼이나 좌표를 모르면 `None`이다.
+    fn press_snapshot_now(
+        &self,
+        engine: &EngineRead<'_>,
+        button: MouseButton,
+    ) -> Option<crate::adapters::ui::popup::route::PressSnapshot> {
+        let button = match button {
+            MouseButton::Left => egui::PointerButton::Primary,
+            MouseButton::Right => egui::PointerButton::Secondary,
+            MouseButton::Middle => egui::PointerButton::Middle,
+            _ => return None,
+        };
+        let ppp = self.base.gpu.egui_pixels_per_point();
+        let pos = self.cursor_position?;
+        let pos = egui::pos2(
+            PhysicalPx(pos.x as f32).to_logical(ppp).value(),
+            PhysicalPx(pos.y as f32).to_logical(ppp).value(),
+        );
+        Some(crate::adapters::ui::popup::route::PressSnapshot::take(
+            &self.state,
+            engine,
+            pos,
+            button,
+        ))
     }
 
     /// 현재 포인터의 대상이 직전 프레임에 그린 팝업 노드(상자, 덮는 범위)인지.

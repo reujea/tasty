@@ -171,17 +171,37 @@ pub(crate) fn path_of_scope(core: &CoreState, scope: &PopupScope) -> ScopePath {
     }
 }
 
-/// 누르기 직전의 키 포커스 경로. winit 이 누름을 처리하는 시점에 남긴다. 그 처리(click-to-activate,
-/// 선택 시작)가 egui 프레임보다 먼저 포커스를 옮기므로 프레임 안에서 읽으면 이미 옮겨진 값이다.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// 포커스 노드의 경로. 포커스된 팝업(키 주인, host·plugin)이 있으면 그 논리 범위의 경로이고, 없으면 엔진
+/// 포커스 surface 의 경로다.
+pub(crate) fn path_of_focus_node(state: &MainViewState, core: &CoreState) -> ScopePath {
+    state.key_owner_scope().map_or_else(
+        || path_of_focus(state, core),
+        |scope| path_of_scope(core, &scope),
+    )
+}
+
+/// 누름 하나의 버튼·좌표·누르기 직전 포커스 노드 경로. winit 이 누름을 처리하는 시점에 한 이벤트에서 함께
+/// 남긴다. 그 처리(click-to-activate, 선택 시작)가 egui 프레임보다 먼저 포커스를 옮기므로 프레임 안에서 읽으면
+/// 이미 옮겨진 값이다. 한 프레임에 누름이 여럿이면 첫 누름이다.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct PressSnapshot {
+    pos: egui::Pos2,
+    button: egui::PointerButton,
     focus_before: ScopePath,
 }
 
 impl PressSnapshot {
-    pub(crate) fn take(state: &MainViewState, core: &CoreState) -> Self {
+    /// 지금 상태에서 `pos`(logical px)를 `button`으로 누른 스냅샷.
+    pub(crate) fn take(
+        state: &MainViewState,
+        core: &CoreState,
+        pos: egui::Pos2,
+        button: egui::PointerButton,
+    ) -> Self {
         Self {
-            focus_before: path_of_focus(state, core),
+            pos,
+            button,
+            focus_before: path_of_focus_node(state, core),
         }
     }
 }
@@ -193,22 +213,16 @@ pub(crate) struct RoutedPress {
     pub(crate) pos: egui::Pos2,
     /// 누른 좌표의 범위 경로.
     pub(crate) path: ScopePath,
-    /// 누르기 직전의 키 포커스 경로. 그 경로가 팝업의 범위를 담지 않았으면 다른 범위에서 들어오는 첫
+    /// 누르기 직전의 포커스 노드 경로. 그 경로가 팝업의 범위를 담지 않았으면 다른 범위에서 들어오는 첫
     /// 클릭이라 바깥 클릭이 아니다.
     pub(crate) focus_before: ScopePath,
     pub(crate) button: egui::PointerButton,
 }
 
 impl RoutedPress {
-    /// 이번 프레임에 눌린 버튼(왼쪽·오른쪽·가운데)이 있으면 그 누름. 누르기 직전 포커스는 winit 시점에 남긴
-    /// `snapshot`을 쓰고, winit 을 거치지 않은 누름(egui 입력에 직접 넣은 debug 주입)은 `focus_now`를 쓴다.
-    pub(crate) fn from_frame(
-        ctx: &egui::Context,
-        layout: Option<&LayoutContext>,
-        snapshot: Option<PressSnapshot>,
-        focus_now: impl FnOnce() -> ScopePath,
-    ) -> Option<Self> {
-        let (pos, button) = ctx.input(|i| {
+    /// 이번 프레임 egui 입력에 눌린 버튼(왼쪽·오른쪽·가운데)과 그 좌표.
+    pub(crate) fn egui_press(ctx: &egui::Context) -> Option<(egui::Pos2, egui::PointerButton)> {
+        ctx.input(|i| {
             let button = [
                 egui::PointerButton::Primary,
                 egui::PointerButton::Secondary,
@@ -217,15 +231,17 @@ impl RoutedPress {
             .into_iter()
             .find(|b| i.pointer.button_pressed(*b))?;
             Some((i.pointer.interact_pos()?, button))
-        })?;
-        let path = layout.map_or(ScopePath::WINDOW, |l| path_at(l, pos));
-        let focus_before = snapshot.map_or_else(focus_now, |s| s.focus_before);
-        Some(Self {
-            pos,
-            path,
-            focus_before,
-            button,
         })
+    }
+
+    /// 스냅샷 하나에서 만든 누름. 좌표·버튼·직전 포커스가 모두 그 스냅샷 것이다.
+    pub(crate) fn from_snapshot(snapshot: PressSnapshot, layout: Option<&LayoutContext>) -> Self {
+        Self {
+            pos: snapshot.pos,
+            path: layout.map_or(ScopePath::WINDOW, |l| path_at(l, snapshot.pos)),
+            focus_before: snapshot.focus_before,
+            button: snapshot.button,
+        }
     }
 
     /// 포커스 경로를 모르는 그리기(별도 창, 시험)의 누름. 누른 경로를 직전 포커스로 본다. 별도 창은
@@ -234,9 +250,14 @@ impl RoutedPress {
         ctx: &egui::Context,
         layout: Option<&LayoutContext>,
     ) -> Option<Self> {
-        let mut press = Self::from_frame(ctx, layout, None, || ScopePath::WINDOW)?;
-        press.focus_before = press.path;
-        Some(press)
+        let (pos, button) = Self::egui_press(ctx)?;
+        let path = layout.map_or(ScopePath::WINDOW, |l| path_at(l, pos));
+        Some(Self {
+            pos,
+            path,
+            focus_before: path,
+            button,
+        })
     }
 
     pub(crate) fn is_primary(&self) -> bool {

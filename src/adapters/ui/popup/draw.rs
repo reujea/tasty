@@ -182,7 +182,10 @@ impl PopupManager {
         let mut focus_layers: Vec<egui::LayerId> = Vec::new();
         let mut overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget> = Vec::new();
 
-        let pointer_pos = ctx.input(|i| i.pointer.interact_pos());
+        // 누른 프레임에는 상자 안 판정도 누름 스냅샷의 좌표를 쓴다. 바깥 누름과 같은 점이다.
+        let pointer_pos = press
+            .map(|p| p.pos)
+            .or_else(|| ctx.input(|i| i.pointer.interact_pos()));
         let primary_pressed = press.is_some_and(RoutedPress::is_primary);
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_released = ctx.input(|i| i.pointer.primary_released());

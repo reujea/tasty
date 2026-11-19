@@ -24,6 +24,24 @@ impl super::MainViewState {
         plugin_target(self.key_owner_with(drawn))
     }
 
+    /// 키 주인 팝업의 논리 범위. host 는 포커스를 가진 맨 위 인스턴스, plugin 은 선언·결속으로 정한 범위다.
+    /// 키 주인이 없거나 host 팝업이 모두 포커스를 놓았으면 `None`이다.
+    pub(crate) fn key_owner_scope(&self) -> Option<crate::adapters::ui::popup::PopupScope> {
+        match self.popup_key_owner()? {
+            PopupKeyOwner::Host => {
+                let (_, iid, _) = self.popups.focused_dismissal_target()?;
+                self.popups.instance(iid).map(|p| p.scope.clone())
+            }
+            #[cfg(feature = "gui")]
+            PopupKeyOwner::Plugin(id) => self
+                .plugin_popup_bound_scopes
+                .get(&id)
+                .and_then(|(_, scope)| scope.clone()),
+            #[cfg(not(feature = "gui"))]
+            PopupKeyOwner::Plugin(_) => None,
+        }
+    }
+
     fn key_owner_with(&self, drawn_host: impl Iterator<Item = u64>) -> Option<PopupKeyOwner> {
         let host = self
             .popups

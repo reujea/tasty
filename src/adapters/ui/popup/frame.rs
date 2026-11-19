@@ -166,20 +166,26 @@ fn drain_on_close_hooks_with_lookup(
     }
 }
 
-/// 이번 프레임의 누름. 누르기 직전 포커스는 winit 이 남긴 값을, 없으면(egui 입력에 직접 넣은 누름) 지금
-/// 포커스 경로를 쓴다. host·plugin 팝업이 같은 값을 읽는다.
+/// 이번 프레임의 누름. winit 이 남긴 스냅샷(버튼·좌표·직전 포커스 노드)을 쓰고, 없으면(egui 입력에 직접 넣은
+/// 누름) 처음 부른 때의 상태로 스냅샷을 찍어 남긴다. host·plugin 팝업이 같은 스냅샷 하나를 읽는다. 스냅샷은
+/// 프레임 끝에 지운다(`egui_bridge`).
 pub(crate) fn frame_press(
     ctx: &egui::Context,
-    state: &MainViewState,
+    state: &mut MainViewState,
     engine: &crate::core::CoreState,
     layout: Option<&crate::adapters::ui::LayoutContext>,
 ) -> Option<crate::adapters::ui::popup::route::RoutedPress> {
-    crate::adapters::ui::popup::route::RoutedPress::from_frame(
-        ctx,
-        layout,
-        state.press_snapshot,
-        || crate::adapters::ui::popup::route::path_of_focus(state, engine),
-    )
+    use crate::adapters::ui::popup::route::{PressSnapshot, RoutedPress};
+    let (pos, button) = RoutedPress::egui_press(ctx)?;
+    let snapshot = match state.press_snapshot {
+        Some(snapshot) => snapshot,
+        None => {
+            let snapshot = PressSnapshot::take(state, engine, pos, button);
+            state.press_snapshot = Some(snapshot);
+            snapshot
+        }
+    };
+    Some(RoutedPress::from_snapshot(snapshot, layout))
 }
 
 /// 팝업 정의에 따라 그리고 닫기 훅을 처리한다. 오버레이와 같은 LayoutContext를 쓴다.
