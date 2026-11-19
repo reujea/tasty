@@ -193,8 +193,8 @@ fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again
     let first: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
     assert_eq!(first.len(), 1);
 
-    // 창 A를 버린다. 남은 창 B의 닫기 큐는 비우지 않는다.
-    close_retired_window(&mut a, Some(&mut mgr));
+    // 창 A를 버린다. 남은 창 B의 닫기 큐를 따로 비우지 않는다.
+    close_retired_window(&mut a, std::iter::once(&mut b), Some(&mut mgr));
     assert_eq!(
         mgr.popup_instances().count(),
         0,
@@ -243,32 +243,101 @@ fn closing_a_window_sends_a_cancelled_result_for_the_child_picker_of_its_popup()
     crate::adapters::ui::popup::file_picker::instances::install_for_test(
         &mut a,
         PopupScope::Window,
-        crate::state::FilePickerData {
-            save_name: None,
-            folder: false,
-            request_id: crate::state::FilePickerRequestId(1),
-            mirror_ws_id: None,
-            remote_host: None,
-            current_dir: "/tmp".to_string(),
-            load: crate::state::FpLoadState::Empty,
-            local_query: None,
-            entries: Vec::new(),
-            selected: Vec::new(),
-            result: None,
-            requester: Some(crate::state::FilePickerRequester {
-                plugin_id: PLUGIN.to_string(),
-                request_id: 42,
-                owner_popup_instance: Some(owner),
-                origin_surface_id: None,
-            }),
-            filters: Vec::new(),
-        },
+        child_picker(owner),
     );
     drop(stub.drain_requests());
 
-    close_retired_window(&mut a, Some(&mut mgr));
+    close_retired_window(&mut a, std::iter::empty(), Some(&mut mgr));
 
     let sent = stub.drain_requests();
+    let result = sent
+        .iter()
+        .find(|(_, params)| params.to_string().contains("file_picker.result"))
+        .unwrap_or_else(|| panic!("file_picker.result sent: {sent:?}"));
+    let text = result.1.to_string();
+    assert!(text.contains("\"cancelled\":true"), "{text}");
+    assert!(text.contains("\"request_id\":42"), "{text}");
+}
+
+/// 플러그인 팝업 `owner`가 요청한 자식 파일 피커.
+fn child_picker(owner: u64) -> crate::state::FilePickerData {
+    crate::state::FilePickerData {
+        save_name: None,
+        folder: false,
+        request_id: crate::state::FilePickerRequestId(1),
+        mirror_ws_id: None,
+        remote_host: None,
+        current_dir: "/tmp".to_string(),
+        load: crate::state::FpLoadState::Empty,
+        local_query: None,
+        entries: Vec::new(),
+        selected: Vec::new(),
+        result: None,
+        requester: Some(crate::state::FilePickerRequester {
+            plugin_id: PLUGIN.to_string(),
+            request_id: 42,
+            owner_popup_instance: Some(owner),
+            origin_surface_id: None,
+        }),
+        filters: Vec::new(),
+    }
+}
+
+/// 버리는 창의 팝업이 다른 창에 연 자식 파일 피커도 취소되고, 그 창의 다음 프레임 경로로 plugin에 취소 결과가 간다.
+#[test]
+fn closing_a_window_cancels_the_child_picker_its_popup_opened_in_another_window() {
+    use crate::adapters::ui::popup::PopupScope;
+    use crate::app::dispatch::plugin_popup_events::{
+        close_retired_window, drain_plugin_popup_events,
+    };
+    let (mut mgr, stub) = manager();
+    let (mut a, mut a_session) = crate::state::tests::test_state();
+    let (mut b, mut b_session) = crate::state::tests::test_state();
+    open_tool_in(&mut a, &mut a_session);
+    open_pending_popups(
+        Some(&mut mgr),
+        std::iter::once((&mut a, a_session.borrow_mut())),
+    );
+    let owner = mgr
+        .popup_instances()
+        .map(|(id, _)| id)
+        .next()
+        .expect("opened");
+    crate::adapters::ui::popup::file_picker::instances::install_for_test(
+        &mut b,
+        PopupScope::Window,
+        child_picker(owner),
+    );
+    drop(stub.drain_requests());
+
+    close_retired_window(&mut a, std::iter::once(&mut b), Some(&mut mgr));
+    // 다음 프레임: 남은 창의 닫기 큐를 비우고, 닫기 훅이 결과를 채우고, App이 결과를 배달한다.
+    drain_plugin_popup_events(std::iter::once(&mut b), Some(&mut mgr));
+    for closed in b.popups.take_closed_queue() {
+        crate::adapters::ui::popup::file_picker::instances::finish(&mut b, &closed);
+    }
+    let finished = crate::app::dispatch::file_picker::take_outcomes(&mut b);
+    assert_eq!(finished.len(), 1, "the picker in the other window closed");
+    assert!(finished[0].0.cancelled);
+    {
+        let engine = b_session.borrow_mut();
+        for (outcome, requester) in &finished {
+            crate::app::dispatch::file_picker::deliver_outcome(
+                &mut b,
+                &engine,
+                Some(&mut mgr),
+                requester.as_ref(),
+                outcome,
+            );
+        }
+    }
+
+    let sent = stub.drain_requests();
+    let closed = sent
+        .iter()
+        .filter(|(method, _)| method == tasty_plugin_protocol::METHOD_POPUP_CLOSED)
+        .count();
+    assert_eq!(closed, 1, "the manager closes the popup once: {sent:?}");
     let result = sent
         .iter()
         .find(|(_, params)| params.to_string().contains("file_picker.result"))
