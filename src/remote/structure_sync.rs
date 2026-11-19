@@ -101,7 +101,7 @@ impl EngineMut<'_> {
             }
             let Some(idx) = self.find_workspace_index_for_id(ws_id) else {
                 self.remote.forget_structure_sent(ws_id);
-                self.force_detach_workspace(ws_id);
+                self.detach_missing_workspace(ws_id);
                 continue;
             };
             let Some(hub) = self.remote.notifier() else {

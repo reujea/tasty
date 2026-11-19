@@ -70,6 +70,19 @@ pub fn descriptor_wants_win32_console_input(descriptor: &serde_json::Value) -> b
 /// Frame header length: 1-byte tag + 4-byte big-endian payload length.
 pub const FRAME_HEADER_LEN: usize = 5;
 
+/// `force_detached` Control의 `reason` 가운데 서버가 점유한 workspace를 잃어 점유를 정리한 경우.
+/// 사용자·에이전트의 강제 끊기가 아니므로 client는 연결 끊김처럼 다시 붙어 보고 그 workspace가
+/// 없다는 것을 확인한다.
+pub const FORCE_DETACH_WORKSPACE_GONE: &str = "workspace_gone";
+
+/// `force_detached` Control이 강제 끊기 결정이라 client가 재연결하지 않아야 하는지.
+/// 사유가 [`FORCE_DETACH_WORKSPACE_GONE`]인 정리만 결정이 아니다. 읽지 못한 Control은 결정으로 본다.
+pub fn force_detach_is_final(payload: &[u8]) -> bool {
+    serde_json::from_slice::<serde_json::Value>(payload).map_or(true, |v| {
+        v.get("reason").and_then(serde_json::Value::as_str) != Some(FORCE_DETACH_WORKSPACE_GONE)
+    })
+}
+
 /// 프레임 payload 상한(1 MiB). 초과하면 할당 전에 거절하고 연결을 끝낸다.
 pub const MAX_FRAME_LEN: u32 = 1 << 20;
 
@@ -1145,6 +1158,17 @@ mod tests {
         assert!(matches!(
             serde_json::from_str::<StreamControl>(&server).unwrap(),
             StreamControl::Resize { .. }
+        ));
+    }
+
+    #[test]
+    fn only_a_lost_workspace_is_not_a_final_force_detach() {
+        assert!(force_detach_is_final(
+            br#"{"event":"force_detached","reason":"force_detach_workspace"}"#
+        ));
+        assert!(force_detach_is_final(br#"{"event":"force_detached"}"#));
+        assert!(!force_detach_is_final(
+            br#"{"event":"force_detached","reason":"workspace_gone"}"#
         ));
     }
 

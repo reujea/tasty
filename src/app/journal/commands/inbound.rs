@@ -510,7 +510,7 @@ pub(crate) fn deliver_result(
         return;
     }
     let Some(index) = engine.find_workspace_index_for_id(remote.workspace) else {
-        engine.force_detach_workspace(remote.workspace);
+        engine.detach_missing_workspace(remote.workspace);
         return;
     };
     if engine.live.occupancy.workspace_holder(remote.workspace) != Some(remote.client) {

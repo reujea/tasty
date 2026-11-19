@@ -224,8 +224,8 @@ pub struct AttachReaderEnd {
     pub heartbeat_timeout: std::time::Duration,
     /// 이쪽이 Detach를 보내기 시작했다(재동기화·연결 끊기). 쓰기 스레드와 같은 값이다.
     pub detach_sent: Arc<AtomicBool>,
-    /// 서버가 `force_detached`로 점유를 끊었다. `disconnected`보다 먼저 세워 App이 연결 끊김과
-    /// 구분하게 한다. 서버는 이 Control을 Detach와 연결 종료보다 먼저 보낸다.
+    /// 서버가 `force_detached`로 점유를 끊었다(점유한 workspace를 잃은 정리는 제외). `disconnected`보다
+    /// 먼저 세워 App이 연결 끊김과 구분하게 한다. 서버는 이 Control을 Detach와 연결 종료보다 먼저 보낸다.
     pub force_detached: Arc<AtomicBool>,
 }
 
@@ -296,7 +296,9 @@ pub fn spawn_attach_reader_thread(
                     }
                     StreamTag::Control => {
                         if String::from_utf8_lossy(&frame.payload).contains("force_detached") {
-                            end.force_detached.store(true, Ordering::SeqCst);
+                            if stream::force_detach_is_final(&frame.payload) {
+                                end.force_detached.store(true, Ordering::SeqCst);
+                            }
                             disconnected.store(true, Ordering::SeqCst);
                             (wake)();
                             break;

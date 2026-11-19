@@ -185,10 +185,24 @@ impl EngineMut<'_> {
         &mut self,
         id: u32,
     ) -> Option<crate::core::attach::AttachClientId> {
+        self.detach_workspace_with_reason(id, "force_detach_workspace")
+    }
+    /// 점유한 workspace가 사라져 점유를 정리한다. 강제 끊기 결정이 아니라는 사유를 보내 client가
+    /// 연결 끊김처럼 다시 붙어 보고 그 workspace가 없다는 것을 확인하게 한다.
+    pub(crate) fn detach_missing_workspace(
+        &mut self,
+        id: u32,
+    ) -> Option<crate::core::attach::AttachClientId> {
+        self.detach_workspace_with_reason(id, tasty_ipc::stream::FORCE_DETACH_WORKSPACE_GONE)
+    }
+    fn detach_workspace_with_reason(
+        &mut self,
+        id: u32,
+        reason: &str,
+    ) -> Option<crate::core::attach::AttachClientId> {
         self.remote.forget_structure_sent(id);
         let holder = self.live.occupancy.force_detach_workspace(id)?;
-        self.remote
-            .notify_detached(holder, "force_detach_workspace");
+        self.remote.notify_detached(holder, reason);
         Some(holder)
     }
     pub(crate) fn forget_closed_surface(&mut self, id: u32) -> bool {
