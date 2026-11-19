@@ -168,6 +168,7 @@ fn actual_tcp_writer_drops_retired_http_begin_and_keeps_live_legacy_frames() {
             Arc::new(AtomicBool::new(false)),
             Arc::new(AtomicBool::new(false)),
             Arc::new(AtomicBool::new(true)),
+            std::time::Duration::from_secs(60),
             Arc::new(|| {}),
             " owned HTTP retirement fixture",
         );

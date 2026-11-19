@@ -154,13 +154,16 @@ pub fn parse_attach_descriptor(ctrl: &Value) -> anyhow::Result<(String, Vec<Valu
 /// 남기지 않도록 [`AttachReaderEnd`]와 같은 값을 넘긴다.
 ///
 /// `reader_finished`는 같은 연결의 reader가 끝났다는 표지([`AttachReaderEnd::finished`])다.
-/// reader가 없는 연결은 처음부터 참인 값을 넘긴다.
+/// reader가 없는 연결은 처음부터 참인 값을 넘긴다. `reader_wait_cap`은 송신 실패 뒤 reader를
+/// 기다리는 안전 상한이다(`wait_for_reader`). 제품 경로는 reader 소켓의 읽기 기한과 같은 값을 넘긴다.
+#[allow(clippy::too_many_arguments)] // reason: 연결 하나의 표지들을 그대로 받는다. 묶을 구조가 이 함수 하나에만 쓰인다.
 pub fn spawn_attach_write_thread(
     write_half: TcpStream,
     frame_rx: std::sync::mpsc::Receiver<super::connection::QueuedFrame>,
     disconnected: Arc<AtomicBool>,
     detach_sent: Arc<AtomicBool>,
     reader_finished: Arc<AtomicBool>,
+    reader_wait_cap: std::time::Duration,
     wake: Arc<dyn Fn() + Send + Sync>,
     log_suffix: &'static str,
 ) -> std::thread::JoinHandle<()> {
@@ -192,7 +195,7 @@ pub fn spawn_attach_write_thread(
                 &mut write_half,
                 &item,
                 &disconnected,
-                &reader_finished,
+                (&reader_finished, reader_wait_cap),
                 &wake,
                 log_suffix,
             ) {
@@ -207,7 +210,7 @@ fn write_attach_frame(
     write_half: &mut TcpStream,
     item: &OutFrame,
     disconnected: &AtomicBool,
-    reader_finished: &AtomicBool,
+    (reader_finished, reader_wait_cap): (&AtomicBool, std::time::Duration),
     wake: &Arc<dyn Fn() + Send + Sync>,
     log_suffix: &str,
 ) -> bool {
@@ -215,7 +218,7 @@ fn write_attach_frame(
         tracing::warn!(
             "attach write thread{log_suffix}: 프레임을 쓰지 못해 연결 종료로 처리한다: {e}"
         );
-        wait_for_reader(write_half, reader_finished);
+        wait_for_reader(write_half, reader_finished, reader_wait_cap, log_suffix);
         disconnected.store(true, Ordering::SeqCst);
         (wake)();
         return false;
@@ -233,17 +236,54 @@ fn write_attach_frame(
 ///
 /// 먼저 이쪽 쓰기 쪽을 닫는다. 서버는 그 EOF로 연결을 정리하고 소켓을 닫으므로, reader는 수신
 /// 버퍼에 남은 프레임(서버가 닫기 전에 보낸 `force_detached` 통지 포함)을 다 읽은 뒤 EOF로 끝난다.
-/// 그래서 App이 끊김을 볼 때는 통지를 처리했는지가 이미 정해져 있다. 기다림에 기한을 두지 않는다.
-/// 서버가 응답하지 않는 연결은 reader 소켓의 읽기 기한(heartbeat timeout)에서 reader가 끝난다.
-fn wait_for_reader(write_half: &TcpStream, reader_finished: &AtomicBool) {
+/// 그래서 App이 끊김을 볼 때는 통지를 처리했는지가 이미 정해져 있다.
+///
+/// `cap`은 순서를 정하는 기한이 아니라 안전 상한이다. 서버가 응답하지 않으면 reader는 소켓 읽기
+/// 기한에서 끝나지만, 상대가 EOF를 처리하지 않은 채 Ping·데이터를 계속 보내는 반쯤 끊긴 연결에서는
+/// reader가 끝나지 않는다. 그때는 이 상한 뒤 통지 여부와 상관없이 끊김을 알린다. reader가 panic해도
+/// [`ReaderExit`]가 끝 표지를 세우므로 상한까지 기다리지 않는다.
+fn wait_for_reader(
+    write_half: &TcpStream,
+    reader_finished: &AtomicBool,
+    cap: std::time::Duration,
+    log_suffix: &str,
+) {
     if reader_finished.load(Ordering::Acquire) {
         return;
     }
     if let Err(error) = write_half.shutdown(std::net::Shutdown::Write) {
         tracing::debug!("remote socket already closed before the reader drained: {error}");
     }
+    let deadline = std::time::Instant::now() + cap;
     while !reader_finished.load(Ordering::Acquire) {
+        if std::time::Instant::now() >= deadline {
+            tracing::warn!(
+                "attach write thread{log_suffix}: reader가 {cap:?} 안에 끝나지 않아 끊김을 먼저 알린다"
+            );
+            return;
+        }
         std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// reader 스레드가 어떻게 끝나든(panic 포함) 끝 표지를 세운다. panic이면 끊김 표지도 세우고
+/// 깨운다. 정상 종료는 모든 분기가 끊김 표지를 이미 세웠다.
+struct ReaderExit {
+    finished: Arc<AtomicBool>,
+    disconnected: Arc<AtomicBool>,
+    wake: Arc<dyn Fn() + Send + Sync>,
+}
+
+impl Drop for ReaderExit {
+    fn drop(&mut self) {
+        let panicked = std::thread::panicking();
+        if panicked {
+            self.disconnected.store(true, Ordering::SeqCst);
+        }
+        self.finished.store(true, Ordering::Release);
+        if panicked {
+            (self.wake)();
+        }
     }
 }
 
@@ -259,7 +299,7 @@ pub struct AttachReaderEnd {
     /// 먼저 세워 App이 연결 끊김과 구분하게 한다. 서버는 이 Control을 Detach와 연결 종료보다 먼저 보낸다.
     pub force_detached: Arc<AtomicBool>,
     /// reader 스레드가 끝났다. 끊김·강제 끊김 표지를 모두 세운 뒤에 선다. 쓰기 스레드가 송신 실패를
-    /// 알리기 전에 이 값을 기다린다(`wait_for_reader`).
+    /// 알리기 전에 이 값을 기다린다(`wait_for_reader`). panic으로 끝나도 [`ReaderExit`]가 세운다.
     pub finished: Arc<AtomicBool>,
 }
 
@@ -313,6 +353,11 @@ pub fn spawn_attach_reader_thread(
     end: AttachReaderEnd,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
+        let _exit = ReaderExit {
+            finished: end.finished.clone(),
+            disconnected: disconnected.clone(),
+            wake: wake.clone(),
+        };
         let mut mesh_assembler = tasty_ipc::mesh_stream::MeshFrameAssembler::new();
         loop {
             match conn.recv() {
@@ -374,8 +419,7 @@ pub fn spawn_attach_reader_thread(
                 }
             }
         }
-        end.finished.store(true, Ordering::Release);
-        // 송신 실패로 기다리던 쓰기 스레드가 끊김을 알린다. 그 뒤의 깨우기는 쓰기 스레드가 한다.
+        // 끝 표지는 `_exit`가 세운다. 송신 실패로 기다리던 쓰기 스레드가 그 뒤 끊김을 알리고 깨운다.
     })
 }
 
@@ -467,8 +511,12 @@ impl Drop for ConnectionWorkers {
             if let Err(error) = control.shutdown(std::net::Shutdown::Both) {
                 tracing::debug!("retired remote socket already closed: {error}");
             }
+            // 끝난 worker부터 join해, 뒤에 남은 worker를 기다리는 동안에도 앞선 panic을 놓치지 않는다.
+            let (done, rest): (Vec<_>, Vec<_>) = handles
+                .into_iter()
+                .partition(std::thread::JoinHandle::is_finished);
             let mut failed = false;
-            for handle in handles {
+            for handle in done.into_iter().chain(rest) {
                 if handle.join().is_err() {
                     failed = true;
                     tracing::error!("remote I/O worker panicked during retirement");
@@ -566,6 +614,7 @@ impl PreparedConnection {
             disconnected.clone(),
             detach_sent.clone(),
             reader_finished.clone(),
+            heartbeat_timeout,
             wake.clone(),
             "",
         );
