@@ -316,8 +316,11 @@ fn every_direct_key_read_is_classified() {
     .filter(|(rel, _)| {
         let rel = rel.to_string_lossy();
         let name = rel.rsplit('/').next().unwrap_or_default();
-        !(name.ends_with("_tests.rs") || name == "tests.rs" || rel.contains("/tests/"))
-            && !rel.contains("virtual_tests/")
+        let test_file = name.ends_with("_tests.rs")
+            || name == "tests.rs"
+            || rel.contains("/tests/")
+            || rel.contains("virtual_tests/");
+        !test_file
     })
     .filter(|(_, text)| {
         // 문자열·주석 안의 괄호와 낱말은 가린다.
