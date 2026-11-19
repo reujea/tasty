@@ -1,7 +1,8 @@
 //! 창 전체와 서피스 범위의 배경 어둡게 하기(scrim)를 비교하는 정적 예제.
 //! 서피스 테두리는 포함하고 인접 서피스와 창 UI는 제외한다. 모서리는 범위의 형태를 따른다.
 //! 부모와 자식 팝업이 범위를 공유하면 같은 알파로 한 번만 그린다. 팝업은 범위 안쪽에 배치한다.
-//! 입력 차단·닫기 순서·초안 수명은 이 예제에서 검증하지 않는다.
+//! 각 서피스에는 버튼이 하나 있다. 덮인 범위 안의 버튼은 hover·누름을 받지 않고, 범위 밖 버튼은 그대로 동작한다.
+//! 닫기 순서·초안 수명은 이 예제에서 검증하지 않는다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -47,7 +48,7 @@ const NARROW_FRACTION: f32 = 0.32;
 /// surface 안에 그리는 가짜 터미널 줄. dim 이 눈에 남게 하는 데만 쓴다.
 const FAKE_LINES: [&str; 4] = ["$ cargo test", "  running 12 tests", "  ok", "$ _"];
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Scope {
     /// 창 전체 — 커맨드 팔레트 · 설정 · target 바인딩 없는 호환 경로.
     Window,
@@ -257,8 +258,38 @@ pub(super) fn paint_shell(p: &egui::Painter, theme: &Theme, rect: egui::Rect) ->
     )
 }
 
+/// 서피스 안의 버튼 하나. 덮인 범위 밖이면 hover·누름이 보인다.
+fn surface_button(ui: &mut egui::Ui, theme: &Theme, surface: egui::Rect) -> egui::Response {
+    let pad = theme.spacing_sm.value();
+    let height = tasty_ui_widgets::ControlSize::Sm.height(theme);
+    let slot = egui::Rect::from_min_max(
+        egui::pos2(surface.left() + pad, surface.bottom() - pad - height),
+        egui::pos2(surface.right() - pad, surface.bottom() - pad),
+    );
+    ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
+        ui.set_clip_rect(surface.intersect(ui.clip_rect()));
+        tasty_ui_widgets::Button::new("Run")
+            .variant(tasty_ui_widgets::ButtonVariant::Secondary)
+            .size(tasty_ui_widgets::ControlSize::Sm)
+            .show(ui, theme)
+    })
+    .inner
+}
+
+/// 셸 목업의 두 서피스 버튼 응답(소속 서피스, 옆 서피스).
+struct ShellInput {
+    owner: egui::Response,
+    adjacent: egui::Response,
+}
+
+/// 카드에 그리는 셸 목업.
+fn shell(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
+    shell_mock(ui, theme, props);
+}
+
 /// 셸 목업 — 크롬 · surface 둘 · scope scrim · popup. scrim 은 **한 번만** 깔린다.
-fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
+/// 덮인 범위는 그 아래 위젯의 포인터 입력을 가져간다(본체 덮는 팝업과 같은 규칙).
+fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) -> ShellInput {
     let (rect, _) = ui.allocate_exact_size(shell_size(theme), egui::Sense::hover());
     let p = ui.painter_at(rect);
     let radius = theme.corner_radius.value();
@@ -267,13 +298,25 @@ fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
     let (owner, adjacent) = split_body(body, props, divider);
     paint_surface(&p, theme, owner);
     paint_surface(&p, theme, adjacent);
+    let input = ShellInput {
+        owner: surface_button(ui, theme, owner),
+        adjacent: surface_button(ui, theme, adjacent),
+    };
 
     // 같은 범위의 부모·자식 팝업에는 scrim을 한 번만 그린다.
     let (scrim_rect, scrim_radius) = match props.scope {
         Scope::Window => (rect, radius),
         Scope::Surface => (owner, SURFACE_RADIUS.value()),
     };
+    let p = ui.painter_at(rect);
     p.rect_filled(scrim_rect, scrim_radius, theme.scrim().to_egui());
+    // 덮인 범위 위에 놓인 막이 아래 버튼의 hover·누름을 가져간다. 범위 밖 버튼은 막지 않는다.
+    ui.interact(
+        scrim_rect,
+        ui.id()
+            .with(("scrim_block", rect.min.x.to_bits(), rect.min.y.to_bits())),
+        egui::Sense::click_and_drag(),
+    );
 
     // popup 레이어는 scope rect 로 클립되고, 배치는 8px inset 안쪽에 눌린다.
     let clipped = ui.painter_at(scrim_rect);
@@ -310,28 +353,29 @@ fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
             "Choose file",
         );
     }
+    input
 }
 
 pub fn draw_scope(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         spec::cluster(ui, theme, "window scope · full-window scrim", |ui| {
-            shell_mock(ui, theme, ShellProps::new(Scope::Window))
+            shell(ui, theme, ShellProps::new(Scope::Window))
         });
         spec::cluster(ui, theme, "surface scope · owning surface only", |ui| {
-            shell_mock(ui, theme, ShellProps::new(Scope::Surface))
+            shell(ui, theme, ShellProps::new(Scope::Surface))
         });
     });
 
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         spec::cluster(ui, theme, "surface scope · top/bottom split", |ui| {
-            shell_mock(
+            shell(
                 ui,
                 theme,
                 ShellProps::new(Scope::Surface).split(Split::Vertical),
             )
         });
         spec::cluster(ui, theme, "narrow surface · clamped to 8px inset", |ui| {
-            shell_mock(ui, theme, ShellProps::new(Scope::Surface).narrow_clamp())
+            shell(ui, theme, ShellProps::new(Scope::Surface).narrow_clamp())
         });
     });
 
@@ -355,6 +399,10 @@ pub fn draw_scope(ui: &mut egui::Ui, theme: &Theme) {
             ("inset", "spacing-sm (8px) between scope rect and popup"),
             ("clip", "popup layer is clipped to the scope rect"),
             ("alpha", "one scrim value for both scopes"),
+            (
+                "input",
+                "covered scope takes hover and press · outside widgets work",
+            ),
         ],
         &[
             TokenChip::new(
@@ -401,26 +449,26 @@ pub fn draw_scope(ui: &mut egui::Ui, theme: &Theme) {
     spec::note(
         ui,
         theme,
-        "Window 예제는 창 전체를, Surface 예제는 해당 서피스와 테두리를 어둡게 한다. 인접 서피스와 사이드바·탭바·상태바는 Surface 범위에서 제외한다. 서피스 모서리는 직각이며 팝업은 spacing-sm만큼 안쪽에 배치하고 범위를 넘는 부분은 자른다. 입력 차단과 닫기 순서는 별도 동작이다.",
+        "Window 예제는 창 전체를, Surface 예제는 해당 서피스와 테두리를 어둡게 한다. 인접 서피스와 사이드바·탭바·상태바는 Surface 범위에서 제외한다. 서피스 모서리는 직각이며 팝업은 spacing-sm만큼 안쪽에 배치하고 범위를 넘는 부분은 자른다. 각 서피스의 Run 버튼에 포인터를 올려 입력 차단을 확인한다. 덮인 범위 안의 버튼은 hover·누름을 받지 않고 범위 밖의 버튼은 그대로 동작한다. 닫기 순서는 별도 동작이다.",
     );
 }
 
 pub fn draw_child(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         spec::cluster(ui, theme, "parent only", |ui| {
-            shell_mock(ui, theme, ShellProps::new(Scope::Surface))
+            shell(ui, theme, ShellProps::new(Scope::Surface))
         });
         spec::cluster(ui, theme, "parent + child picker · one scrim", |ui| {
-            shell_mock(ui, theme, ShellProps::new(Scope::Surface).child())
+            shell(ui, theme, ShellProps::new(Scope::Surface).child())
         });
     });
 
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         spec::cluster(ui, theme, "window scope · parent + child", |ui| {
-            shell_mock(ui, theme, ShellProps::new(Scope::Window).child())
+            shell(ui, theme, ShellProps::new(Scope::Window).child())
         });
         spec::cluster(ui, theme, "top/bottom split · parent + child", |ui| {
-            shell_mock(
+            shell(
                 ui,
                 theme,
                 ShellProps::new(Scope::Surface)
@@ -452,6 +500,10 @@ pub fn draw_child(ui: &mut egui::Ui, theme: &Theme) {
                 "popup shell AND scrim hide with it; both return on re-show",
             ),
             ("host popups", "same rule when they declare a surface scope"),
+            (
+                "input",
+                "one block for the scope · widgets below get no hover or press",
+            ),
         ],
         &[
             TokenChip::new(
@@ -489,4 +541,54 @@ pub fn draw_child(ui: &mut egui::Ui, theme: &Theme) {
          popups with no target binding stay on the window scrim. Child-lifetime and draft \
          policy are the host's, unchanged by this visual rule.",
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 서피스 범위 카드: 포인터를 덮인 소속 서피스의 버튼에 두면 hover 가 없고, 옆 서피스 버튼은 hover 를
+    /// 받는다. 창 범위 카드는 두 버튼 모두 막는다.
+    #[test]
+    fn a_covered_scope_takes_the_pointer_from_widgets_below_and_leaves_the_rest() {
+        let theme = tasty_themes::mocha_fallback();
+        for (scope, owner_hover, adjacent_hover) in
+            [(Scope::Surface, false, true), (Scope::Window, false, false)]
+        {
+            let ctx = egui::Context::default();
+            let mut centers = None;
+            let mut hovered = (false, false);
+            for pointer in [None, Some(0), Some(0), Some(1), Some(1)] {
+                let events = match (pointer, centers) {
+                    (Some(i), Some((a, b))) => {
+                        vec![egui::Event::PointerMoved(if i == 0 { a } else { b })]
+                    }
+                    _ => Vec::new(),
+                };
+                drop(ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(1600.0, 1200.0),
+                        )),
+                        events,
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let input = shell_mock(ui, &theme, ShellProps::new(scope));
+                            centers =
+                                Some((input.owner.rect.center(), input.adjacent.rect.center()));
+                            match pointer {
+                                Some(0) => hovered.0 = input.owner.hovered(),
+                                Some(1) => hovered.1 = input.adjacent.hovered(),
+                                _ => {}
+                            }
+                        });
+                    },
+                ));
+            }
+            assert_eq!(hovered, (owner_hover, adjacent_hover), "{scope:?}");
+        }
+    }
 }
