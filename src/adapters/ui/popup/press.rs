@@ -118,28 +118,8 @@ impl PopupManager {
         boxes
     }
 
-    /// 팝업 `iid` 안 누름이 지나는 노드 경로. 누른 자리가 그 팝업의 배치 범위 안이면 누른 경로이고, 범위 밖으로
-    /// 나온 자식 드롭다운을 눌렀으면 그 팝업 노드의 경로(상자 가운데의 경로)다. 다른 범위의 팝업을 건드리지 않는다.
-    pub(super) fn node_path_of_press(
-        &self,
-        iid: PopupInstanceId,
-        press: &RoutedPress,
-        draw_ctx: Option<&LayoutContext>,
-    ) -> super::route::ScopePath {
-        let Some(popup) = self.instance(iid) else {
-            return press.path;
-        };
-        if press.path.contains(&popup.placement_scope()) {
-            return press.path;
-        }
-        match (draw_ctx, popup.box_rect()) {
-            (Some(layout), Some(rect)) => super::route::path_at(layout, rect.center()),
-            _ => press.path,
-        }
-    }
-
     /// 어느 팝업 상자에도 들지 않은 누름을 [`outside_press`]대로 나눈다. 닫을 인스턴스는 `closed`에 넣고,
-    /// 포커스를 받을 덮는 팝업이 있으면 돌려준다. 포커스를 푸는 판정은 `sticky_focus`가 아닐 때만 따른다.
+    /// 포커스를 받을 덮는 팝업이 있으면 돌려준다.
     /// 가림은 host 상자·드롭다운·덮는 범위와 `others`(plugin 상자·덮는 범위)를 합친 z 순서로 본다.
     pub(super) fn route_outside_press(
         &mut self,
@@ -183,11 +163,9 @@ impl PopupManager {
                         focus_to = Some((popup.instance, popup.z_seq));
                     }
                 }
-                OutsidePress::Unfocus => {
-                    if !popup.sticky_focus {
-                        popup.focused = false;
-                    }
-                }
+                // 포커스 위치는 누름의 포인터 대상이 정한다(`PopupManager::focus_on_press`). 이 팝업 밖이고 덮는
+                // 범위도 아니면 대상이 이 팝업이 아니므로 이미 포커스를 잃었다.
+                OutsidePress::Unfocus => {}
             }
         }
         focus_to.map(|(iid, _)| iid)

@@ -452,7 +452,11 @@ fn assert_visible_gates(state: &RequestContext, user_focused: bool) {
 fn assert_hidden_gates(state: &mut RequestContext, user_focused: bool) {
     assert!(state.popups.is_open(FILE_PICKER_POPUP_ID));
     assert_eq!(
-        state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap().focused,
+        state
+            .popups
+            .get_mut(FILE_PICKER_POPUP_ID)
+            .map(|p| p.instance)
+            .is_some_and(|iid| state.popups.is_instance_focused(iid)),
         user_focused
     );
     assert!(!state.popups.has_focused());

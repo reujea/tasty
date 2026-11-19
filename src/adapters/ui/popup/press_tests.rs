@@ -101,6 +101,7 @@ fn press(
         path: path_at(&layout, pos),
         focus_before: path_at(&layout, focus_point),
         button,
+        focus_decided: false,
     };
     let ctx = egui::Context::default();
     let raw = egui::RawInput {
@@ -130,7 +131,7 @@ fn primary(mgr: &mut PopupManager, pos: egui::Pos2, focus: u32) -> PopupDrawResu
 fn state(mgr: &PopupManager, iid: PopupInstanceId) -> Option<(bool, egui::Pos2, u64)> {
     mgr.instance(iid)
         .filter(|p| p.open)
-        .map(|p| (p.focused, p.pos, p.z_seq))
+        .map(|p| (mgr.is_instance_focused(iid), p.pos, p.z_seq))
 }
 
 /// Given R의 덮는·바깥 클릭 닫기 팝업이 포커스를 가졌을 때, When L을 누르면, Then 열림·포커스·위치·순번이
@@ -190,7 +191,7 @@ fn a_press_in_the_scope_of_a_passive_covering_popup_focuses_it() {
     assert!(mgr.instance(iid).unwrap().passive);
     primary(&mut mgr, r_outside(), L);
     let p = mgr.instance(iid).unwrap();
-    assert!(p.focused && !p.passive);
+    assert!(mgr.is_instance_focused(iid) && !p.passive);
 }
 
 /// Given L과 R에 같은 선언의 팝업 A·B가 열려 B가 포커스일 때, When A 안을 누르면, Then B의 포커스·위치는
@@ -384,6 +385,7 @@ fn one_outside_press_rule_decides_for_any_popup() {
         path: path_at(&layout, pos),
         focus_before: path_at(&layout, focus),
         button: egui::PointerButton::Primary,
+        focus_decided: false,
     };
     let target = |cover: bool, child: bool| OutsideTarget {
         placement_scope: &r_scope,
@@ -491,6 +493,7 @@ fn a_press_on_a_dropdown_outside_its_parent_scope_uses_the_parent_node_path() {
         path: path_at(&layout, at),
         focus_before: path_at(&layout, r_outside()),
         button: egui::PointerButton::Primary,
+        focus_decided: false,
     };
     let ctx = egui::Context::default();
     crate::adapters::ui::popup::report_child_overlay_rect(

@@ -22,7 +22,7 @@ impl PopupManager {
                     "scope_target": target,
                     "z_seq": p.z_seq,
                     "rect": { "x": r.min.x, "y": r.min.y, "w": r.width(), "h": r.height() },
-                    "focused": p.focused,
+                    "focused": self.is_instance_focused(p.instance),
                     "passive": p.passive,
                     "parent": p.parent.map(|parent| parent.0),
                 })

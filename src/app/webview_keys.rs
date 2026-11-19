@@ -112,7 +112,8 @@ impl App {
     ) -> ForwardedKeyOutcome {
         // winit 경로의 modal_blocks_input·입력 게이트와 같이, modal 창이나 overlay·전체화면 무대가
         // 열린 동안에는 plugin·새로고침·host 단축키 어느 것도 처리하지 않는다.
-        let gates = engines_mut!(self).window_pair(id).map(|(main, _)| {
+        let gates = engines_mut!(self).window_pair(id).map(|(main, engine)| {
+            main.state.normalize_focus(&engine);
             (
                 main.state.window_keys_to_overlay(),
                 main.state.fullscreen_stage_active(),

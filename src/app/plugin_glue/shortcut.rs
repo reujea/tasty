@@ -204,7 +204,9 @@ impl App {
         let Some((main, engine)) = engines_mut!(self).window_pair(id) else {
             return false;
         };
-        // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다.
+        // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 키는 창의
+        // 포커스 노드에서 시작하므로 그 값을 먼저 정규화한다.
+        main.state.normalize_focus(&engine);
         if main.state.window_keys_to_overlay() {
             return false;
         }

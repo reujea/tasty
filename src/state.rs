@@ -29,6 +29,8 @@ pub(crate) mod explorer_os_clipboard;
 mod explorer_path;
 #[cfg(feature = "gui")]
 mod focus;
+#[cfg(feature = "gui")]
+pub(crate) mod focus_node;
 #[cfg(all(test, feature = "gui"))]
 mod fullscreen_stage_tests;
 #[cfg(feature = "gui")]
@@ -255,6 +257,10 @@ impl RequestContext {
             plugin_popup_bound_scopes: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             plugin_popup_key_candidates: Vec::new(),
+            #[cfg(feature = "gui")]
+            plugin_popup_hidden: Default::default(),
+            #[cfg(feature = "gui")]
+            focus_seen_surface: None,
             #[cfg(feature = "gui")]
             plugin_popup_replies: std::collections::HashSet::new(),
             #[cfg(feature = "gui")]

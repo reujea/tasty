@@ -175,12 +175,12 @@ pub(crate) fn frame_press(
     engine: &crate::core::CoreState,
     layout: Option<&crate::adapters::ui::LayoutContext>,
 ) -> Option<crate::adapters::ui::popup::route::RoutedPress> {
-    use crate::adapters::ui::popup::route::{PressSnapshot, RoutedPress};
+    use crate::adapters::ui::popup::route::RoutedPress;
     let (pos, button) = RoutedPress::egui_press(ctx)?;
     let snapshot = match state.press_snapshot {
         Some(snapshot) => snapshot,
         None => {
-            let snapshot = PressSnapshot::take(state, engine, pos, button);
+            let snapshot = state.take_press_snapshot(engine, pos, button);
             state.press_snapshot = Some(snapshot);
             snapshot
         }
@@ -234,9 +234,14 @@ pub(crate) fn draw_popup_layer(
     // intent-exempt: 범위 대상이나 작용 대상이 사라진 팝업의 수명 정리. 포커스·선택은 바꾸지 않는다.
     close_orphans(state, engine);
 
-    // 키(Escape 포함)는 host·plugin 을 합친 키 주인 하나만 받는다. 이번 프레임 범위·표시 판정 뒤 여기서 한 번
-    // 정하고 host 본문과 plugin 렌더가 같은 값을 쓴다.
+    // 이 프레임의 누름은 키 주인을 정하기 전에 읽는다. winit 이 남기지 않은 누름도 여기서 포커스 노드를 옮긴다.
+    let press = frame_press(ctx, state, engine, Some(draw_ctx));
+
+    // 키(Escape 포함)는 포커스 노드인 팝업 하나만 받는다. 이번 프레임 범위·표시 판정과 포커스 정규화 뒤 여기서
+    // 한 번 정하고 host 본문과 plugin 렌더가 같은 값을 쓴다.
     state.popups.prepare_frame_for_draw(ctx, Some(draw_ctx));
+    state.refresh_plugin_key_candidates(Some(draw_ctx));
+    state.normalize_focus(engine);
     state.decide_frame_key_owner(Some(draw_ctx));
 
     let mut popups = std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
@@ -248,7 +253,6 @@ pub(crate) fn draw_popup_layer(
         .chain(&state.plugin_popup_covers)
         .copied()
         .collect();
-    let press = frame_press(ctx, state, engine, Some(draw_ctx));
 
     let mut dispatch_closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
     let mut dispatch_unfocused: Vec<PopupInstanceId> = Vec::new();

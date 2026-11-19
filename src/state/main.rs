@@ -177,6 +177,13 @@ pub struct MainViewState {
     /// 렌더가 배치 결과로 다시 채운다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_key_candidates: Vec<(u64, u64)>,
+    /// 열려 있지만 이번 프레임 범위가 숨은 플러그인 팝업 instance id. 숨은 팝업은 포커스 위치가 될 수 없다
+    /// (`MainViewState::normalize_focus`). 그리기 전 키 주인을 정할 때 다시 만든다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_hidden: std::collections::HashSet<u64>,
+    /// 포커스 정규화가 마지막으로 본 엔진 포커스 surface. 바뀌었을 때만 새 경로 밖 팝업의 포커스를 푼다.
+    #[cfg(feature = "gui")]
+    pub(crate) focus_seen_surface: Option<Option<u32>>,
     /// 이전 프레임에 배치한 플러그인 팝업 중 그 플러그인이 편집 결과 회신을 약속한 instance. 붙여넣을 글자를 읽는
     /// 동안 기다릴지 키 시점에 정한다(`judge_plugin_popup_edit_key`).
     #[cfg(feature = "gui")]

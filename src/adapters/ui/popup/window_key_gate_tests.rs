@@ -163,7 +163,10 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     let ctx = egui::Context::default();
     assert!(frame(&ctx, &mut state, Vec::new()).is_empty());
     let gp = state.popups.instance(g).unwrap();
-    assert!(gp.collapsed() && gp.focused, "G 는 접힌 채 포커스를 가진다");
+    assert!(
+        gp.collapsed() && state.popups.is_instance_focused(g),
+        "G 는 접힌 채 포커스를 가진다"
+    );
     assert_eq!(
         state.popups.focused_dismissal_target().map(|t| t.1),
         Some(x),
@@ -197,7 +200,7 @@ fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
         key(egui::Key::Escape)
     ));
     assert!(
-        !state.popups.instance(x).unwrap().focused,
+        !state.popups.is_instance_focused(x),
         "창이 X 의 포커스를 푼다"
     );
     assert!(
@@ -248,7 +251,7 @@ fn a_key_in_the_frame_of_a_press_reaches_only_the_owner_before_the_press() {
         ],
     );
     assert!(
-        state.popups.instance(a).unwrap().focused,
+        state.popups.is_instance_focused(a),
         "누름이 A 에 포커스를 준다"
     );
     assert_eq!(seen, [x], "Enter 는 X 본문만 읽는다");
@@ -330,14 +333,17 @@ fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
         &mut pending,
         key(egui::Key::Escape)
     ));
-    assert!(!state.popups.instance(x).unwrap().focused);
+    assert!(!state.popups.is_instance_focused(x));
     assert!(
         !window_key(&ctx, &mut state, &mut pending, key(egui::Key::Escape)),
         "두 번째 Esc 도 X 것이다"
     );
     assert!(state.take_pending_intents().is_empty(), "G 를 닫지 않는다");
     let gp = state.popups.instance(g).unwrap();
-    assert!(gp.open && gp.focused, "G 는 포커스·열림 그대로다");
+    assert!(
+        gp.open && state.popups.is_instance_focused(g),
+        "G 는 포커스·열림 그대로다"
+    );
     assert!(!window_key(&ctx, &mut state, &mut pending, enter()));
     assert_eq!(pending, [enter()], "두 Esc 는 egui 입력에서 빠진다");
     let seen = frame(&ctx, &mut state, pending);
@@ -452,7 +458,7 @@ fn enter_on_a_focused_collapse_button_of_another_scope_does_not_refold_it() {
     } = open_scene(|_| {});
     state.popups.expand(g);
     // 펼치면 G 가 포커스·맨 앞을 얻는다. 키 주인을 X 로 되돌린다.
-    state.popups.instance_mut(g).unwrap().focused = false;
+    state.popups.set_instance_focused(x, true);
     frame(&ctx, &mut state, Vec::new());
     assert_eq!(
         state.popups.focused_dismissal_target().map(|t| t.1),
@@ -660,7 +666,7 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
         &mut pending,
         key(egui::Key::Escape)
     ));
-    assert!(!state.popups.instance(x).unwrap().focused);
+    assert!(!state.popups.is_instance_focused(x));
     assert!(!window_key(
         &ctx,
         &mut state,
@@ -680,7 +686,7 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
         [(x, true, false), (x, false, false)],
         "X 본문만 첫 누름 → 뗌 순서로 본다"
     );
-    assert!(state.popups.instance(g).unwrap().focused, "G 는 그대로다");
+    assert!(state.popups.is_instance_focused(g), "G 는 그대로다");
     assert!(!ctx.input(|i| i.key_down(egui::Key::Escape)));
     assert!(frame_escapes(&ctx, &mut state, Vec::new()).is_empty());
     assert!(

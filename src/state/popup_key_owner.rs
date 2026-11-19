@@ -1,15 +1,19 @@
-//! 키를 받는 팝업 판정. 그리기와 창의 키 처리가 같은 후보와 같은 규칙(`key_owner_with`)을 쓴다.
-//! 창의 키 처리는 그리기보다 먼저 돌며, 그때 지금 열린 host 팝업과 마지막으로 정한 plugin 후보로 키 주인을 정해
+//! 키를 받는 팝업 판정. 키 주인은 창의 포커스 노드가 팝업일 때 그 팝업이다(`MainViewState::focus_node`).
+//! 그리기와 창의 키 처리가 같은 값을 쓴다. 창의 키 처리는 그리기보다 먼저 돌며, 그때 포커스 노드를 키 주인으로
 //! 묶는다(`bind_window_key_owner`). 그 키를 실은 그리기는 묶인 값을, 묶인 값이 없으면 이번 프레임 범위·표시 판정
 //! 뒤 후보로 정한 값을 그 프레임 키 주인 하나로 정하고(`decide_frame_key_owner`), host 본문·버튼과 plugin 렌더가
 //! 그 값을 쓴다.
 use crate::adapters::ui::popup::focus::PopupNode;
-use crate::adapters::ui::popup::occlusion::{KeyCandidate, PopupKeyOwner, key_owner};
+use crate::adapters::ui::popup::occlusion::PopupKeyOwner;
 
 impl super::MainViewState {
-    /// 지금 키를 받는 팝업. 보이는 팝업이 없으면 `None`이다.
+    /// 지금 키를 받는 팝업: 포커스 노드인 팝업이다. 포커스 노드가 팝업이 아니면 `None`이다. 덮인 팝업으로 포커스
+    /// 노드를 옮기는 일은 정규화(`normalize_focus`)가 맡는다.
     pub(crate) fn popup_key_owner(&self) -> Option<PopupKeyOwner> {
-        self.key_owner_with()
+        self.live_key_owner().map(|node| match node {
+            PopupNode::Host(_) => PopupKeyOwner::Host,
+            PopupNode::Plugin(id) => PopupKeyOwner::Plugin(id),
+        })
     }
 
     /// 키를 받는 팝업이 plugin 팝업이면 그 instance id. 창이 이번 키의 주인을 묶었으면 그 값을 따른다.
@@ -25,20 +29,34 @@ impl super::MainViewState {
         &mut self,
         layout: Option<&crate::adapters::ui::LayoutContext>,
     ) -> Option<PopupKeyOwner> {
-        if let Some(entries) = self.plugin_popup_frame_entries.take() {
-            self.plugin_popup_key_candidates = entries
-                .into_iter()
-                .filter_map(|(id, z_seq, scope)| {
-                    let scope = scope?;
-                    crate::adapters::ui::PopupManager::is_scope_visible(&scope, layout)
-                        .then_some((id, z_seq))
-                })
-                .collect();
-        }
+        self.refresh_plugin_key_candidates(layout);
         let live = self.popup_key_owner();
         let owner = self.popups.decide_frame_keys(live).owner;
         self.frame_key_owner = Some(owner);
         owner
+    }
+
+    /// 이번 프레임 plugin 인스턴스(그리기 전에 만든 것)로 보이는 plugin 팝업과 범위에 숨은 plugin 팝업을 정한다.
+    /// 이번 프레임 인스턴스가 없으면(이미 정했거나 렌더 전) 그대로 둔다.
+    pub(crate) fn refresh_plugin_key_candidates(
+        &mut self,
+        layout: Option<&crate::adapters::ui::LayoutContext>,
+    ) {
+        if let Some(entries) = self.plugin_popup_frame_entries.take() {
+            self.plugin_popup_hidden.clear();
+            let mut candidates = Vec::with_capacity(entries.len());
+            for (id, z_seq, scope) in entries {
+                let visible = scope.is_some_and(|scope| {
+                    crate::adapters::ui::PopupManager::is_scope_visible(&scope, layout)
+                });
+                if visible {
+                    candidates.push((id, z_seq));
+                } else {
+                    self.plugin_popup_hidden.insert(id);
+                }
+            }
+            self.plugin_popup_key_candidates = candidates;
+        }
     }
 
     /// 창이 키를 받은 입력 시점의 키 주인을 묶는다. 그 키를 실은 다음 그리기에서 이 값이 그 프레임 키 주인이다
@@ -75,15 +93,17 @@ impl super::MainViewState {
         self.popups.bound_input_key_owner().is_none()
     }
 
-    /// 지금 후보로 정한 키 주인을 묶을 값으로. host 키 주인은 그 인스턴스다.
+    /// 지금 키를 받을 수 있는 포커스 노드 팝업. host 는 인스턴스다.
     pub(crate) fn live_key_owner(&self) -> Option<PopupNode> {
-        match self.popup_key_owner() {
-            Some(PopupKeyOwner::Host) => self
-                .popups
+        #[cfg(feature = "gui")]
+        {
+            self.popup_focus()
+        }
+        #[cfg(not(feature = "gui"))]
+        {
+            self.popups
                 .host_key_owner()
-                .map(|p| PopupNode::Host(p.instance)),
-            Some(PopupKeyOwner::Plugin(id)) => Some(PopupNode::Plugin(id)),
-            None => None,
+                .map(|p| PopupNode::Host(p.instance))
         }
     }
 
@@ -131,25 +151,6 @@ impl super::MainViewState {
             Some(PopupKeyOwner::Plugin(id)) => self.popups.plugin_expanded().contains(&id),
             _ => false,
         }
-    }
-
-    fn key_owner_with(&self) -> Option<PopupKeyOwner> {
-        let host = self
-            .popups
-            .host_key_owner_z()
-            .into_iter()
-            .map(|z_seq| KeyCandidate {
-                z_seq,
-                owner: PopupKeyOwner::Host,
-            });
-        let plugin = self
-            .plugin_popup_key_candidates
-            .iter()
-            .map(|&(id, z_seq)| KeyCandidate {
-                z_seq,
-                owner: PopupKeyOwner::Plugin(id),
-            });
-        key_owner(host.chain(plugin))
     }
 }
 
@@ -241,7 +242,10 @@ mod tests {
         state.popups.expand_plugin(42);
         assert!(state.refold_key_owner());
         let p = state.popups.instance(host).unwrap();
-        assert!(p.open && p.focused, "아래 host 팝업은 그대로다");
+        assert!(
+            p.open && state.popups.is_instance_focused(host),
+            "아래 host 팝업은 그대로다"
+        );
         assert!(
             state.popups.plugin_expanded().contains(&42),
             "plugin 팝업은 그 프레임 렌더가 접는다"
@@ -279,7 +283,7 @@ mod tests {
                 false,
             )
             .unwrap();
-        assert!(!state.popups.instance(picker).unwrap().focused);
+        assert!(!state.popups.is_instance_focused(picker));
         assert_eq!(
             state.popup_key_owner(),
             Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(7))
@@ -295,7 +299,7 @@ mod tests {
         );
         let p = state.popups.instance(below).unwrap();
         assert!(
-            p.open && p.focused,
+            p.open && state.popups.is_instance_focused(below),
             "아래 L 팝업은 닫히지 않고 포커스도 그대로다"
         );
     }

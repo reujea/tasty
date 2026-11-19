@@ -105,7 +105,12 @@ fn the_hint_is_a_window_instance_that_never_takes_focus() {
 
     assert_eq!(state.popups.open_scope(ID), Some(&PopupScope::Window));
     assert_eq!(state.popups.instances_of(ID).count(), 1);
-    assert!(state.popups.instances_of(ID).all(|p| !p.focused));
+    assert!(
+        state
+            .popups
+            .instances_of(ID)
+            .all(|p| !state.popups.is_instance_focused(p.instance))
+    );
     assert!(state.popups.topmost_visible_open(None).is_none());
     assert_eq!(state.popups.max_open_z_seq(), None);
     let want = {

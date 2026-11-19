@@ -81,6 +81,65 @@ pub(crate) fn bind_window_popup(
     }
 }
 
+/// plugin 팝업을 연 입력의 출처. 그 팝업이 창의 포커스 노드가 될지(`opened_by_user`) 정한다. 여는 경로 이름이
+/// 아니라 입력 시점에 사용자가 그 자리에 있었는지로 나눈다. plugin 이름·kind 로 나누지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PopupOpener<'a> {
+    /// 사용자가 이 창에서 고른 명령(도구 메뉴·명령 팔레트·단축키·변환 입력).
+    UserCommand,
+    /// plugin 이 스스로 연 팝업(surface 이벤트·`popup.show`). `focused_surface_owner`는 여는 시점에 그 창의 엔진
+    /// 포커스 surface 를 가진 plugin 이다.
+    Plugin {
+        plugin_id: &'a str,
+        focused_surface_owner: Option<&'a str>,
+    },
+    /// 외부 에이전트·debug 의 IPC 열기.
+    Agent,
+}
+
+/// 사용자가 연 팝업인지. 사용자가 고른 명령이면 사용자다. plugin 이 스스로 연 팝업은 그 plugin 의 surface 가 여는
+/// 시점에 엔진 포커스 surface 일 때만 사용자 출처로 본다. 에이전트가 연 팝업은 passive 다(포커스 노드를 바꾸지
+/// 않는다. 덮는 팝업이면 정규화가 포커스 노드로 한다).
+pub(crate) fn opened_by_user(opener: PopupOpener<'_>) -> bool {
+    match opener {
+        PopupOpener::UserCommand => true,
+        PopupOpener::Plugin {
+            plugin_id,
+            focused_surface_owner,
+        } => focused_surface_owner == Some(plugin_id),
+        PopupOpener::Agent => false,
+    }
+}
+
+/// 방금 연 plugin 팝업 인스턴스를, 사용자가 연 것이면 그 팝업을 그리는 창의 포커스 노드로 한다. 다음 그리기 전에
+/// 키가 와도 살아 있는 노드로 보도록 결속 범위를 지금 기록한다. 대상 surface 결속 뒤에 부른다.
+pub(crate) fn focus_opened_popup(
+    window: &mut crate::state::MainViewState,
+    mgr: &tasty_host_plugin::PluginManager,
+    instance_id: u64,
+    opener: PopupOpener<'_>,
+) {
+    if !opened_by_user(opener) {
+        return;
+    }
+    let Some((_, inst)) = mgr.popup_instances().find(|(id, _)| *id == instance_id) else {
+        return;
+    };
+    window.plugin_popup_bound_scopes.insert(
+        instance_id,
+        (
+            inst.plugin_id.clone(),
+            popup_scope(inst.contribute.scope, inst.scope_surface),
+        ),
+    );
+    window.plugin_popup_hidden.remove(&instance_id);
+    window
+        .popups
+        .set_focus(Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(
+            instance_id,
+        )));
+}
+
 /// 열린 플러그인 팝업 인스턴스마다 소유 플러그인과 결속 범위. 매 프레임 그리기 전과 파일 피커 요청 직전에 다시 만든다.
 /// 배치 결과(좁은 surface 라 창에 그린 범위)가 아니라 선언과 결속 대상으로 정한 값이다.
 pub(crate) type BoundPopupScopes = std::collections::HashMap<u64, (String, Option<PopupScope>)>;

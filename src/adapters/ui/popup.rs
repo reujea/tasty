@@ -345,9 +345,6 @@ pub struct PopupState {
     drag_offset: egui::Vec2,
     /// Scope determines visibility and boundary clamping.
     pub scope: PopupScope,
-    /// Whether this popup currently has keyboard focus.
-    /// When focused, keyboard input should NOT be forwarded to the terminal.
-    pub focused: bool,
     /// 사용자 조작 없이 포커스 없이 열려 아직 사용자가 누르지 않은 상태.
     /// native WebView를 모두 숨기거나 그 키보드 포커스를 회수하지 않고, 겹치는 WebView만
     /// 키보드 입력이 없을 때 숨긴다. 포커스를 받거나 닫히면 해제한다.
@@ -373,7 +370,7 @@ pub struct PopupState {
     resizing: Option<ResizeEdges>,
     /// host와 plugin 팝업이 공유하는 전역 순번. 열거나 맨 앞으로 올릴 때 갱신한다.
     /// host 팝업끼리는 Vec 순서로 비교하고, 서로 다른 매니저 사이는 이 값으로 비교한다.
-    z_seq: u64,
+    pub(crate) z_seq: u64,
     /// 리사이즈 시작 시점의 팝업 rect (드래그 누적 계산 기준).
     resize_start_rect: egui::Rect,
     /// 사용자가 한 번이라도 리사이즈했으면 true. true 동안 sizer 의 size 덮어쓰기를
@@ -558,7 +555,6 @@ impl PopupState {
             dragging: false,
             drag_offset: egui::Vec2::ZERO,
             scope,
-            focused: false,
             passive: false,
             close_on_outside_click: false,
             headless: false,
@@ -684,7 +680,6 @@ impl PopupState {
             dragging: self.dragging,
             drag_offset: self.drag_offset,
             scope: self.scope.clone(),
-            focused: self.focused,
             passive: self.passive,
             close_on_outside_click: self.close_on_outside_click,
             headless: self.headless,
@@ -711,7 +706,6 @@ impl PopupState {
     fn reset_closed(&mut self) {
         self.open = false;
         self.dragging = false;
-        self.focused = false;
         self.passive = false;
         // 리사이즈 상태 리셋 → 다음 open 시 sizer 가 크기를 다시 결정하도록 복원.
         self.resizing = None;
@@ -874,6 +868,9 @@ pub struct PopupManager {
     prepared: Option<Vec<usize>>,
     /// 창이 입력 시점에 묶은 키 주인과 이번 프레임 키 주인(`frame_keys.rs`).
     keys: frame_keys::KeySlots,
+    /// 이 창의 포커스 위치가 팝업이면 그 노드(`focus.rs`). 창마다 하나다. 없으면 포커스 위치는 팝업이 아니다
+    /// (엔진 포커스 surface, html 주소 띠, tutorial 말풍선).
+    focus: Option<focus::PopupNode>,
 }
 
 impl PopupManager {
@@ -886,6 +883,7 @@ impl PopupManager {
             plugin_parents: Default::default(),
             prepared: None,
             keys: Default::default(),
+            focus: None,
         }
     }
 
@@ -1023,12 +1021,8 @@ impl PopupManager {
                 p.request_center = false;
             }
         }
-        if request.focus && p.arrange.takes_focus {
-            p.focused = true;
-            p.passive = false;
-        }
+        let focused = by_user && request.focus && p.arrange.takes_focus;
         if !by_user {
-            p.focused = false;
             p.passive = true;
         }
         p.parent = request.parent;
@@ -1037,11 +1031,10 @@ impl PopupManager {
         if let Some(covers) = request.covers_scope {
             p.look = p.declared_look.covering(covers);
         }
-        let (iid, focused) = (p.instance, p.focused);
-        // 키 입력은 포커스를 가진 맨 위 인스턴스(키 주인)가 받는다. 다른 범위의 같은 선언 인스턴스는 포커스를 그대로
-        // 둔다(`give_focus`).
+        let iid = p.instance;
+        // 사용자가 연 팝업은 창의 포커스 위치가 된다. passive 로 연 팝업은 포커스 위치를 바꾸지 않는다.
         if focused {
-            self.give_focus(iid, None);
+            self.give_focus(iid);
         }
         Some(iid)
     }
@@ -1100,10 +1093,11 @@ impl PopupManager {
         scope: PopupScope,
     ) -> Option<PopupInstanceId> {
         let p = self.open_slot(id, scope)?;
-        p.focused = true;
         p.passive = false;
         p.request_center = true;
-        Some(p.instance)
+        let iid = p.instance;
+        self.give_focus(iid);
+        Some(iid)
     }
 
     /// 지정한 위치에 열고 포커스를 준다.
@@ -1115,11 +1109,12 @@ impl PopupManager {
         pos: egui::Pos2,
     ) -> Option<PopupInstanceId> {
         let p = self.open_slot(id, scope)?;
-        p.focused = true;
         p.passive = false;
         p.pos = pos;
         p.request_center = false;
-        Some(p.instance)
+        let iid = p.instance;
+        self.give_focus(iid);
+        Some(iid)
     }
 
     /// 열린 인스턴스를 닫는다. `record`이면 closed_queue에 사유와 데이터를 남긴다.
@@ -1137,6 +1132,7 @@ impl PopupManager {
             scope: p.scope.clone(),
             payload: std::mem::take(&mut p.payload),
         };
+        let parents = (p.parent, p.plugin_parent);
         p.reset_closed();
         let id = closed.id;
         let iid = closed.instance;
@@ -1160,6 +1156,7 @@ impl PopupManager {
         for child in children {
             self.close_instance_with(child, PopupCloseReason::ParentClosed, record);
         }
+        self.focus_after_close(iid, parents);
     }
 
     fn close_instance_with(
@@ -1428,41 +1425,52 @@ mod tests {
     }
 
     /// 키보드 탈출구가 고르는 대상 — 포커스된 **하나**뿐이다.
-    fn managed(states: Vec<PopupState>) -> PopupManager {
+    fn managed(entries: Vec<(PopupState, bool)>) -> PopupManager {
+        let focus = entries
+            .iter()
+            .rev()
+            .find(|(_, focused)| *focused)
+            .map(|(p, _)| focus::PopupNode::Host(p.instance));
         PopupManager {
-            popups: states,
+            popups: entries.into_iter().map(|(p, _)| p).collect(),
             closed_queue: Vec::new(),
             driven: Vec::new(),
             notice_column: None,
             plugin_parents: Default::default(),
             prepared: None,
             keys: Default::default(),
+            focus,
         }
     }
 
-    fn entry(id: PopupId, open: bool, focused: bool, closes: bool) -> PopupState {
+    /// 시험용 인스턴스. `focused`면 `managed`가 이 인스턴스를 포커스 위치로 둔다.
+    fn entry(id: PopupId, open: bool, focused: bool, closes: bool) -> (PopupState, bool) {
         let mut p = dummy(closes);
         p.id = id;
         p.open = open;
-        p.focused = focused;
-        p
+        p.instance = PopupInstanceId::next();
+        (p, focused)
     }
 
-    /// 숨은 범위의 열린 팝업, 닫힌 팝업, 포커스 없는(passive 포함) 팝업은 키 후보가 아니다. 순번이 더 커도
-    /// 아래의 보이는 포커스 팝업이 키를 받는다.
+    /// 포커스 위치가 숨은 범위의 팝업이나 닫힌 팝업이면 host 키 주인이 없다. 순번이 더 큰 포커스 없는(passive
+    /// 포함) 팝업이 있어도 보이는 포커스 위치가 키를 받는다.
     #[test]
-    fn hidden_closed_or_unfocused_popups_are_not_key_candidates() {
-        let mut shown = entry("shown", true, true, false);
+    fn a_hidden_or_closed_focus_node_is_no_key_owner() {
+        let (mut shown, _) = entry("shown", true, true, false);
         shown.z_seq = 1;
-        let mut hidden = entry("hidden", true, true, false);
-        hidden.z_seq = 5;
-        hidden.scope_visible = false;
-        let mut closed = entry("closed", false, true, false);
-        closed.z_seq = 9;
-        let mut passive = entry("passive", true, false, false);
+        let (mut passive, _) = entry("passive", true, false, false);
         passive.z_seq = 11;
-        let m = managed(vec![shown, hidden, closed, passive]);
+        let m = managed(vec![(shown, true), (passive, false)]);
         assert_eq!(m.host_key_owner().map(|p| p.id), Some("shown"));
+
+        let (mut hidden, _) = entry("hidden", true, true, false);
+        hidden.scope_visible = false;
+        assert!(managed(vec![(hidden, true)]).host_key_owner().is_none());
+        assert!(
+            managed(vec![entry("closed", false, true, false)])
+                .host_key_owner()
+                .is_none()
+        );
     }
 
     #[test]
@@ -1487,10 +1495,10 @@ mod tests {
         assert_eq!(m.focused_dismissal_target(), None);
     }
 
-    /// 닫힌 popup 에 포커스 플래그가 남아 있어도 대상이 아니다 — `has_focused` 와 같은
-    /// 술어(`open && focused`)를 써야 둘이 어긋나지 않는다.
+    /// 닫힌 popup 이 포커스 위치로 남아 있어도 대상이 아니다. `has_focused` 와 같은 술어를 써야 둘이 어긋나지
+    /// 않는다.
     #[test]
-    fn a_closed_popup_is_not_a_dismissal_target_even_if_it_kept_the_focus_flag() {
+    fn a_closed_popup_is_not_a_dismissal_target_even_if_it_kept_the_focus_node() {
         let m = managed(vec![entry("a", false, true, true)]);
         assert_eq!(m.focused_dismissal_target(), None);
         assert!(!m.has_focused());

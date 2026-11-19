@@ -375,9 +375,13 @@ impl MainView {
         }
 
         // 팝업은 이 누름 하나의 버튼·좌표·직전 포커스를 함께 쓴다. 아래 click-to-activate가 포커스를 옮기기 전에
-        // 남긴다. 한 프레임의 첫 누름만 남긴다.
-        if button_state == ElementState::Pressed && self.state.press_snapshot.is_none() {
-            self.state.press_snapshot = self.press_snapshot_now(engine, button);
+        // 남긴다. 스냅샷은 한 프레임의 첫 누름만 남기고, 포커스 노드는 누름마다 옮긴다(같은 이벤트 묶음에서 누름
+        // 뒤에 오는 키가 그 누름의 포커스 노드를 따른다).
+        if button_state == ElementState::Pressed
+            && let Some(snapshot) = self.press_snapshot_now(engine, button)
+            && self.state.press_snapshot.is_none()
+        {
+            self.state.press_snapshot = Some(snapshot);
         }
 
         let overlay_open = self.mouse_overlay_open();
@@ -459,9 +463,10 @@ impl MainView {
         })
     }
 
-    /// 지금 포인터 좌표와 상태로 찍은 누름 스냅샷. egui 가 받지 않는 버튼이나 좌표를 모르면 `None`이다.
+    /// 지금 포인터 좌표와 상태로 찍은 누름 스냅샷. 이 누름이 정하는 포커스 노드로 옮긴다
+    /// (`MainViewState::take_press_snapshot`). egui 가 받지 않는 버튼이나 좌표를 모르면 `None`이다.
     fn press_snapshot_now(
-        &self,
+        &mut self,
         engine: &EngineRead<'_>,
         button: MouseButton,
     ) -> Option<crate::adapters::ui::popup::route::PressSnapshot> {
@@ -472,12 +477,7 @@ impl MainView {
             _ => return None,
         };
         let pos = self.pointer_logical()?;
-        Some(crate::adapters::ui::popup::route::PressSnapshot::take(
-            &self.state,
-            engine,
-            pos,
-            button,
-        ))
+        Some(self.state.take_press_snapshot(engine, pos, button))
     }
 
     /// 창 테두리 누름이면 OS 리사이즈를 시작하고 `true`. 그 누름의 짝인 뗌도 `true`다. 테두리는 팝업 범위 트리

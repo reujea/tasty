@@ -27,12 +27,6 @@ impl ScopePath {
         surface: None,
     };
 
-    /// 시험에서 Window 만 담은 경로.
-    #[cfg(test)]
-    pub(crate) fn window_for_test() -> Self {
-        Self::WINDOW
-    }
-
     /// `scope` 가 이 경로 위에 있는지. `Window` 는 모든 경로의 뿌리라 항상 참이다.
     pub(crate) fn contains(&self, scope: &PopupScope) -> bool {
         match scope {
@@ -217,6 +211,9 @@ pub(crate) struct RoutedPress {
     /// 클릭이라 바깥 클릭이 아니다.
     pub(crate) focus_before: ScopePath,
     pub(crate) button: egui::PointerButton,
+    /// 누름 스냅샷(`MainViewState::take_press_snapshot`)이 이 누름의 포커스 위치를 이미 정했는지. 스냅샷 없이
+    /// 프레임에서 만든 누름(별도 창)은 그리기가 같은 함수(`PopupManager::focus_on_press`)로 정한다.
+    pub(crate) focus_decided: bool,
 }
 
 impl RoutedPress {
@@ -241,6 +238,7 @@ impl RoutedPress {
             path: layout.map_or(ScopePath::WINDOW, |l| path_at(l, snapshot.pos)),
             focus_before: snapshot.focus_before,
             button: snapshot.button,
+            focus_decided: true,
         }
     }
 
@@ -257,6 +255,7 @@ impl RoutedPress {
             path,
             focus_before: path,
             button,
+            focus_decided: false,
         })
     }
 

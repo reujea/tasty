@@ -338,11 +338,12 @@ impl PopupManager {
                 // 무대는 별도 콘텐츠이므로 원본 팝업은 닫지 않는다.
                 fullscreen_requested = Some(stage);
             } else if let Some(iid) = hovered_box {
-                // 팝업 안 누름(어느 버튼이든 포커스 행위). 포커스를 받지 않는 팝업은 누름으로 포커스와
-                // 순서를 바꾸지 않는다(give_focus·bring_to_front가 거른다).
+                // 팝업 안 누름. 포커스를 받지 않는 팝업은 누름으로 순서를 바꾸지 않는다(bring_to_front가 거른다).
+                // 포커스 위치는 누름 스냅샷이 정했다. 스냅샷 없는 누름(별도 창)만 여기서 같은 함수로 정한다.
                 bring_front = Some(iid);
-                let path = self.node_path_of_press(iid, press, draw_ctx);
-                self.give_focus(iid, Some(&path));
+                if !press.focus_decided {
+                    self.focus_on_press(Some(super::focus::PopupNode::Host(iid)));
+                }
             } else if let Some(iid) = self.route_outside_press(
                 ctx,
                 press,
@@ -352,7 +353,11 @@ impl PopupManager {
                 &mut closed,
             ) {
                 bring_front = Some(iid);
-                self.give_focus(iid, Some(&press.path));
+                if !press.focus_decided {
+                    self.focus_on_press(Some(super::focus::PopupNode::Host(iid)));
+                }
+            } else if !press.focus_decided {
+                self.focus_on_press(None);
             }
         }
 

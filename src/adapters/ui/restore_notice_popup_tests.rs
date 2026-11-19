@@ -105,7 +105,7 @@ fn restore_notices_are_window_multi_passive_noncovering_instances() {
     assert_eq!(count(&state), 2);
     for p in state.popups.instances_of(RESTORE_NOTICE_POPUP_ID) {
         assert_eq!(p.scope, PopupScope::Window);
-        assert!(!p.focused);
+        assert!(!state.popups.is_instance_focused(p.instance));
     }
     assert!(state.popups.is_passive(RESTORE_NOTICE_POPUP_ID));
     assert!(!state.popups.covers_scope(RESTORE_NOTICE_POPUP_ID));

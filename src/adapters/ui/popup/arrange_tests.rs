@@ -127,9 +127,7 @@ fn a_no_focus_popup_does_not_take_focus_on_click_or_raise() {
         "the quiet popup is drawn below"
     );
     assert_eq!(mgr.topmost_visible_open(None).map(|t| t.1), Some(normal));
-    assert!(!mgr.focus_passive(QUIET, &|_| {
-        crate::adapters::ui::popup::route::ScopePath::window_for_test()
-    }));
+    assert!(!mgr.focus_passive(QUIET));
 }
 
 /// Given 오른쪽 아래 그립으로만 크기를 바꾸는 팝업, When 왼쪽 변을 끌면, Then 크기가 그대로다.

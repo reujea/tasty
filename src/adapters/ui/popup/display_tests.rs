@@ -149,7 +149,7 @@ fn the_show_button_expands_the_popup_over_the_window() {
     frame(&mut mgr, &ctx, 200.0, vec![]);
     press_show_button(&mut mgr, &ctx, iid, 200.0);
     let p = mgr.instance(iid).unwrap();
-    assert!(p.expanded() && p.focused);
+    assert!(p.expanded() && mgr.is_instance_focused(iid));
     assert_eq!(p.placement_scope(), PopupScope::Window);
     assert_eq!(p.scope, PopupScope::Surface(R));
     let (drawn, result) = frame(&mut mgr, &ctx, 500.0, vec![]);
@@ -179,7 +179,7 @@ fn escape_folds_an_expanded_popup_back_without_closing_it() {
         assert!(result.closed.is_empty());
         assert!(mgr.take_closed_queue().is_empty());
         let p = mgr.instance(iid).unwrap();
-        assert!(p.open && p.focused);
+        assert!(p.open && mgr.is_instance_focused(iid));
         assert_eq!(p.collapsed(), collapsed, "{width}");
         assert!(
             !mgr.refold_focused(),
@@ -314,8 +314,8 @@ fn a_child_of_an_expanded_parent_expands_and_folds_with_it() {
     assert!(mgr.instance(parent).unwrap().collapsed());
     assert!(mgr.instance(child).unwrap().collapsed());
     // 그리지 않는 자식은 키를 갖지 않는다. 키 주인은 보이는 부모 보기 버튼이다.
-    assert!(!mgr.instance(child).unwrap().focused);
-    assert!(mgr.instance(parent).unwrap().focused);
+    assert!(!mgr.is_instance_focused(child));
+    assert!(mgr.is_instance_focused(parent));
     assert_eq!(
         mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
         Some(parent)

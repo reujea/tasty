@@ -102,7 +102,7 @@ fn rename_input_owner(
     let rename = state
         .popups
         .instances_of(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
-        .find(|p| p.focused)
+        .find(|p| state.popups.is_instance_focused(p.instance))
         .and_then(|p| crate::adapters::ui::rename_popup::payload_of(&p.payload))?;
     if rename.waiting.is_some() {
         return None;

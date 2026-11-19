@@ -439,7 +439,9 @@ impl PopupManager {
     fn hand_hidden_focus_to_button(&mut self, open_indices: &[usize]) {
         for &i in open_indices {
             let popup = &self.popups[i];
-            if !popup.focused || popup.display != PopupDisplay::Collapsed(None) {
+            if !self.is_instance_focused(popup.instance)
+                || popup.display != PopupDisplay::Collapsed(None)
+            {
                 continue;
             }
             let mut at = popup.parent;
@@ -454,11 +456,10 @@ impl PopupManager {
             let Some(button) = button else {
                 continue;
             };
-            self.popups[i].focused = false;
             if let Some(b) = self.instance_mut(button) {
-                b.focused = true;
                 b.passive = false;
             }
+            self.set_focus(Some(super::focus::PopupNode::Host(button)));
         }
     }
 
@@ -490,7 +491,7 @@ impl PopupManager {
         };
         popup.display = PopupDisplay::Expanded { restore: popup.pos };
         popup.request_center = true;
-        self.give_focus(iid, None);
+        self.give_focus(iid);
         self.bring_to_front(iid);
     }
 

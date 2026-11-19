@@ -1,6 +1,5 @@
-//! 인스턴스의 키보드 포커스와 passive 전이.
+//! 창의 포커스 위치(팝업 노드 하나)와 passive 전이. 포커스 위치는 창마다 하나다(`PopupManager::focus`).
 
-use super::route::ScopePath;
 use super::{PopupId, PopupInstanceId, PopupManager, PopupScope, PopupState};
 
 /// 팝업 노드 하나. 창의 포커스 위치와 창이 입력 시점에 묶은 키 주인이 이 값이다. host 팝업은 인스턴스,
@@ -13,127 +12,172 @@ pub(crate) enum PopupNode {
 }
 
 impl PopupManager {
-    /// Check if any popup currently has keyboard focus.
-    pub fn has_focused(&self) -> bool {
-        self.popups
-            .iter()
-            .any(|p| p.open && p.scope_visible && p.focused)
+    /// 이 창의 포커스 위치가 팝업이면 그 노드. 유효한지(열림·보임·경로)는 보지 않는다. 창의 키 경로는 입력마다
+    /// 정규화한 값(`MainViewState::normalize_focus`)을 쓴다.
+    pub(crate) fn focus(&self) -> Option<PopupNode> {
+        self.focus
     }
 
-    /// 이 선언의 인스턴스 하나라도 키보드 포커스를 가졌는지.
+    /// 포커스 위치를 바꾼다. 포커스 위치를 바꾸는 모든 경로가 이 함수나 아래 함수들을 거친다.
+    pub(crate) fn set_focus(&mut self, node: Option<PopupNode>) {
+        self.focus = node;
+    }
+
+    /// 포커스 위치가 이 노드면 비운다(포커스 위치는 팝업이 아니게 된다).
+    pub(crate) fn unfocus_node(&mut self, node: PopupNode) {
+        if self.focus == Some(node) {
+            self.focus = None;
+        }
+    }
+
+    /// 이 인스턴스가 창의 포커스 위치인지. 열림·보임은 보지 않는다(포커스 표시용).
+    pub(crate) fn is_instance_focused(&self, iid: PopupInstanceId) -> bool {
+        self.focus == Some(PopupNode::Host(iid))
+    }
+
+    /// 포커스 위치가 열려 있고 범위가 보이는 host 팝업인지.
+    pub fn has_focused(&self) -> bool {
+        self.focused_host()
+            .is_some_and(|p| p.open && p.scope_visible)
+    }
+
+    /// 이 선언의 인스턴스가 포커스 위치인지.
     #[cfg(test)]
     pub fn is_focused(&self, id: PopupId) -> bool {
-        self.popups
-            .iter()
-            .any(|p| p.id == id && p.open && p.scope_visible && p.focused)
+        self.focused_host()
+            .is_some_and(|p| p.id == id && p.open && p.scope_visible)
     }
 
-    /// Escape 대상인 포커스된 인스턴스 하나와 바깥 클릭 시 닫기 여부를 반환한다. 포커스된 인스턴스가
-    /// 여럿이면 맨 위 것이다. Escape에는 좌표가 없으므로 바깥 클릭처럼 여러 팝업을 한꺼번에 닫지 않는다.
+    fn focused_host(&self) -> Option<&PopupState> {
+        match self.focus? {
+            PopupNode::Host(iid) => self.instance(iid),
+            PopupNode::Plugin(_) => None,
+        }
+    }
+
+    /// Escape 대상인 host 키 주인과 바깥 클릭 시 닫기 여부를 반환한다.
     pub fn focused_dismissal_target(&self) -> Option<(PopupId, PopupInstanceId, bool)> {
         self.host_key_owner()
             .map(|p| (p.id, p.instance, p.close_on_outside_click))
     }
 
-    /// 키를 받을 수 있는 맨 위 host 인스턴스: 열려 있고 범위가 보이며 포커스를 가졌다. 포커스 없는(passive 포함)
-    /// 인스턴스와 부모 버튼이 대표하는(그리지 않는) 자식은 키를 받지 않으므로 빠진다. 창의 키 주인
-    /// (`MainViewState::popup_key_owner`)의 host 후보, 다시 접기 대상, 일반 Esc 대상, 본문에 키를 주는 인스턴스가
-    /// 모두 이 값이다. 새로 연 팝업은 그리기 전에도 보이는 것으로 친다.
+    /// 키를 받을 수 있는 host 인스턴스: 포커스 위치이고 열려 있으며 범위가 보인다. 부모 버튼이 대표하는(그리지
+    /// 않는) 자식은 키를 받지 않으므로 빠진다. 창의 키 주인(`MainViewState::popup_key_owner`)의 host 쪽, 다시 접기
+    /// 대상, 일반 Esc 대상, 본문에 키를 주는 인스턴스가 모두 이 값이다. 새로 연 팝업은 그리기 전에도 보이는 것으로
+    /// 친다.
     pub(crate) fn host_key_owner(&self) -> Option<&super::PopupState> {
-        self.popups
-            .iter()
-            .filter(|p| p.open && p.scope_visible && p.focused)
+        self.focused_host()
+            .filter(|p| p.open && p.scope_visible)
             .filter(|p| p.display != super::display::PopupDisplay::Collapsed(None))
-            .max_by_key(|p| p.z_seq)
     }
 
-    /// [`Self::host_key_owner`]의 순번.
-    pub(crate) fn host_key_owner_z(&self) -> Option<u64> {
-        self.host_key_owner().map(|p| p.z_seq)
-    }
-
-    /// 이 선언의 키보드 포커스 플래그를 바꾼다. 켤 때는 맨 위 인스턴스에만, 끌 때는 모든 인스턴스에서 끈다.
-    /// 다른 선언의 포커스는 건드리지 않는다 (검색창↔터미널 포커스 토글용).
+    /// 이 선언의 포커스를 바꾼다. 켤 때는 맨 위 인스턴스가 포커스 위치가 되고, 끌 때는 포커스 위치가 이 선언의
+    /// 인스턴스면 비운다(검색창↔터미널 포커스 토글용).
     pub fn set_focused(&mut self, id: PopupId, focused: bool) {
         if focused {
             if let Some(iid) = self.topmost_of(id).map(|p| p.instance) {
-                self.set_instance_focused(iid, true);
+                self.give_focus(iid);
             }
             return;
         }
-        for p in self.popups.iter_mut().filter(|p| p.id == id) {
-            p.focused = false;
+        if self.focused_host().is_some_and(|p| p.id == id) {
+            self.focus = None;
         }
     }
 
-    /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 켤 때는 다른 팝업의 포커스를 바꾸지 않는다.
+    /// 인스턴스 하나를 포커스 위치로 하거나, 포커스 위치가 그 인스턴스면 비운다.
     pub fn set_instance_focused(&mut self, iid: PopupInstanceId, focused: bool) {
         if focused {
-            self.give_focus(iid, None);
-        } else if let Some(p) = self.instance_mut(iid) {
-            p.focused = false;
+            self.give_focus(iid);
+        } else {
+            self.unfocus_node(PopupNode::Host(iid));
         }
     }
 
-    /// 열린 인스턴스 하나에 키보드 포커스를 준다. 포커스를 주는 모든 경로(열기·팝업 안 클릭·passive 승격)가
-    /// 이 함수를 거친다. `path`를 주면 그 경로 위에 놓인 보이는 다른 팝업의 포커스를 푼다(팝업 안을 누른 것과
-    /// 같은 전이). 경로 밖 범위의 팝업은 같은 선언의 인스턴스여도 건드리지 않는다. 키는 포커스를 가진 맨 위
-    /// 인스턴스 하나(키 주인)가 받는다. 포커스를 받지 않는 인스턴스에는 주지 않고 다른 팝업의 포커스도 바꾸지
-    /// 않는다.
-    pub(super) fn give_focus(&mut self, iid: PopupInstanceId, path: Option<&ScopePath>) {
-        if !self.instance(iid).is_some_and(|p| p.arrange.takes_focus) {
+    /// 열린 인스턴스 하나를 포커스 위치로 한다(열기·펼침·passive 승격). 포커스 위치는 창에 하나라 다른 팝업은
+    /// 저절로 포커스를 잃는다. 포커스를 받지 않는 인스턴스면 포커스 위치를 바꾸지 않는다.
+    pub(super) fn give_focus(&mut self, iid: PopupInstanceId) {
+        let Some(p) = self
+            .popups
+            .iter_mut()
+            .find(|p| p.open && p.instance == iid)
+            .filter(|p| p.arrange.takes_focus)
+        else {
+            return;
+        };
+        p.passive = false;
+        self.focus = Some(PopupNode::Host(iid));
+    }
+
+    /// 누름이 정한 포커스 위치. `target`은 누른 좌표의 포인터 대상인 팝업 노드(상자 또는 덮는 범위)이고, 팝업이
+    /// 아니면 `None`이다. 팝업이면 그 팝업이 포커스 위치가 되고, 아니면 포커스 위치는 팝업이 아니게 된다(누른
+    /// surface·창 크롬). 포커스를 받지 않는 host 팝업(`keyboard = None`)을 누르면 바꾸지 않는다.
+    pub(crate) fn focus_on_press(&mut self, target: Option<PopupNode>) {
+        match target {
+            Some(PopupNode::Host(iid)) => self.give_focus(iid),
+            Some(node @ PopupNode::Plugin(_)) => self.focus = Some(node),
+            None => self.focus = None,
+        }
+    }
+
+    /// 닫힌 인스턴스가 포커스 위치였으면 열린 부모(host 부모, 아니면 plugin 부모)로, 부모가 없으면 비운다.
+    pub(super) fn focus_after_close(
+        &mut self,
+        closed: PopupInstanceId,
+        (parent, plugin_parent): (Option<PopupInstanceId>, Option<u64>),
+    ) {
+        if self.focus != Some(PopupNode::Host(closed)) {
             return;
         }
-        for p in &mut self.popups {
-            if p.open && p.instance == iid {
-                p.focused = true;
-                p.passive = false;
-            } else if path
-                .is_some_and(|path| p.scope_visible && path.contains(&p.placement_scope()))
-            {
-                p.focused = false;
-            }
-        }
+        self.focus = match parent.filter(|p| self.instance(*p).is_some_and(|p| p.open)) {
+            Some(parent) => Some(PopupNode::Host(parent)),
+            None => plugin_parent.map(PopupNode::Plugin),
+        };
     }
 
-    /// 호스트가 확인한 사용자 입력으로 passive popup에 포커스를 준다. 팝업 안을 누른 것과 같은 전이다:
-    /// 그 팝업 범위 경로(`path_of`가 계산) 위의 보이는 다른 팝업 포커스를 풀고 맨 앞으로 올린다. 열린 passive
-    /// popup이 보일 때만 바뀐다.
-    pub fn focus_passive(
-        &mut self,
-        id: PopupId,
-        path_of: &dyn Fn(&PopupScope) -> ScopePath,
-    ) -> bool {
-        self.focus_passive_where(|p| p.id == id, path_of)
+    /// 호스트가 확인한 사용자 입력으로 passive popup을 포커스 위치로 하고 맨 앞으로 올린다. 열린 passive popup이
+    /// 보일 때만 바뀐다.
+    pub fn focus_passive(&mut self, id: PopupId) -> bool {
+        self.focus_passive_where(|p| p.id == id)
     }
 
-    /// `scope` 에 열린 `id` 의 passive 인스턴스에 포커스를 준다. 다른 범위의 같은 팝업은 건드리지 않는다.
-    pub fn focus_passive_in(
-        &mut self,
-        id: PopupId,
-        scope: &PopupScope,
-        path_of: &dyn Fn(&PopupScope) -> ScopePath,
-    ) -> bool {
-        self.focus_passive_where(|p| p.id == id && p.scope == *scope, path_of)
+    /// `scope` 에 열린 `id` 의 passive 인스턴스를 포커스 위치로 한다. 다른 범위의 같은 팝업은 건드리지 않는다.
+    pub fn focus_passive_in(&mut self, id: PopupId, scope: &PopupScope) -> bool {
+        self.focus_passive_where(|p| p.id == id && p.scope == *scope)
     }
 
-    fn focus_passive_where(
-        &mut self,
-        target: impl Fn(&PopupState) -> bool,
-        path_of: &dyn Fn(&PopupScope) -> ScopePath,
-    ) -> bool {
-        let Some((iid, path)) = self
+    fn focus_passive_where(&mut self, target: impl Fn(&PopupState) -> bool) -> bool {
+        let Some(iid) = self
             .popups
             .iter()
             .rev()
             .find(|p| target(p) && p.open && p.scope_visible && p.passive)
-            .map(|p| (p.instance, path_of(&p.scope)))
+            .map(|p| p.instance)
         else {
             return false;
         };
-        self.give_focus(iid, Some(&path));
+        self.give_focus(iid);
         self.bring_to_front(iid);
         true
+    }
+
+    /// 이 순번의 열린 host 인스턴스.
+    pub(crate) fn open_with_z(&self, z: u64) -> Option<PopupInstanceId> {
+        self.popups
+            .iter()
+            .find(|p| p.open && p.z_seq == z)
+            .map(|p| p.instance)
+    }
+
+    /// 범위를 덮는 보이는 host 인스턴스와 그 배치 범위·순번. 포커스를 받지 않는 인스턴스는 포커스 노드가 될 수
+    /// 없으므로 빠진다.
+    pub(crate) fn covering_nodes(
+        &self,
+    ) -> impl Iterator<Item = (PopupInstanceId, PopupScope, u64)> + '_ {
+        self.popups
+            .iter()
+            .filter(|p| p.open && p.scope_visible && p.covers() && p.arrange.takes_focus)
+            .map(|p| (p.instance, p.placement_scope(), p.z_seq))
     }
 
     /// 이 인스턴스가 지금 화면에 보이는 passive popup인지.
@@ -150,13 +194,13 @@ impl PopupManager {
             .any(|p| p.id == id && p.open && p.scope_visible && p.passive)
     }
 
-    /// 키보드 포커스를 가진 열린 popup ID. Linux 탐색기 IME가 rename 입력의 소유를 판정할 때 쓴다.
+    /// 포커스 위치인 열린 popup ID. Linux 탐색기 IME가 rename 입력의 소유를 판정할 때 쓴다.
     #[cfg(target_os = "linux")]
     pub fn keyboard_focused_ids(&self) -> Vec<PopupId> {
-        self.popups
-            .iter()
-            .filter(|p| p.open && p.scope_visible && p.focused)
+        self.focused_host()
+            .filter(|p| p.open && p.scope_visible)
             .map(|p| p.id)
+            .into_iter()
             .collect()
     }
 }

@@ -46,6 +46,12 @@ pub(super) fn handle_ui_state(
     #[cfg(not(feature = "gui"))]
     let restore_notice_focused = false;
 
+    // 창의 포커스 노드. 키 주인과 Esc 대상이 이 값에서 나온다.
+    #[cfg(feature = "gui")]
+    let focus_node = state.focus_node(engine).describe();
+    #[cfg(not(feature = "gui"))]
+    let focus_node = serde_json::Value::Null;
+
     #[cfg(feature = "gui")]
     let tutorial = json!({
         "active": state.tutorial.active.map(|a| json!({"topic": a.topic, "step": a.step})),
@@ -78,6 +84,7 @@ pub(super) fn handle_ui_state(
             // 열기 요청과 실제 모달 표시는 다르다. 표시 여부는 modal_open으로 확인한다.
             "settings_open_requested": state.has_settings_open_request(),
             "keyboard_shortcuts_gated": keyboard_shortcuts_gated,
+            "focus_node": focus_node,
             "gate_fullscreen_stage_active": state.fullscreen_stage_active(),
             "gate_settings_open_requested": state.has_settings_open_request(),
             "gate_input_dialog_open": state.has_input_dialog_open(),

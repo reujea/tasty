@@ -94,12 +94,20 @@ pub fn handle_open(
             ),
         );
     }
+    // 에이전트가 연 팝업은 passive 다(`popup_scope::opened_by_user`의 `Agent`). 창의 포커스 노드를 바꾸지 않고,
+    // 덮는 팝업이면 창의 포커스 정규화가 포커스 노드로 한다.
     match mgr.open_popup_instance(plugin_id, popup_id, context) {
         Some(instance_id) => {
             if let Some(sid) = surface_id {
                 mgr.bind_popup_instance_surface(instance_id, sid);
             }
-            JsonRpcResponse::success(id, json!({ "instance_id": instance_id }))
+            let user_opened = crate::plugin_bridge::popup_scope::opened_by_user(
+                crate::plugin_bridge::popup_scope::PopupOpener::Agent,
+            );
+            JsonRpcResponse::success(
+                id,
+                json!({ "instance_id": instance_id, "user_opened": user_opened }),
+            )
         }
         None => JsonRpcResponse::error(
             id,

@@ -149,6 +149,20 @@ impl MainView {
         };
         // 이번 입력이 메뉴를 만들지 않았을 때 이전 결과가 남지 않게 한다.
         self.debug_captured_menu = None;
+        // 창의 누름(`press_snapshot_now`)과 같은 함수로 이 누름의 포커스 노드를 지금 정한다. 뒤이어 주입한 키가
+        // 다음 egui 프레임을 기다리지 않고 그 포커스 노드를 따른다.
+        if let InjectPointer::Button {
+            button,
+            pressed: true,
+        } = &action
+        {
+            let snapshot = self
+                .state
+                .take_press_snapshot(engine, pos, map_egui_button(*button));
+            if self.state.press_snapshot.is_none() {
+                self.state.press_snapshot = Some(snapshot);
+            }
+        }
         push_egui_pointer_at(&mut self.base.gpu, pos, action, modifiers);
         true
     }

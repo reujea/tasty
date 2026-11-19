@@ -267,7 +267,7 @@ fn a_second_press_in_the_covered_scope_closes_the_popup_that_took_focus() {
         state
             .popups
             .instance(iid)
-            .is_some_and(|p| p.open && p.focused)
+            .is_some_and(|p| p.open && state.popups.is_instance_focused(iid))
     );
     let second = host_frame(&ctx, &mut state, &engine.read(), vec![press(outside)]);
     assert_eq!(second.closed, [HOST_POPUP]);

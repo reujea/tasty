@@ -45,44 +45,9 @@ pub(crate) enum PopupKeyOwner {
     Plugin(u64),
 }
 
-/// 보이는 팝업 하나와 그 순번.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct KeyCandidate {
-    pub(crate) z_seq: u64,
-    pub(crate) owner: PopupKeyOwner,
-}
-
-/// 보이는 host·plugin 팝업 중 순번이 가장 큰 하나가 키를 받는다. 플러그인 팝업 렌더가 키를
-/// 전달할 팝업을 고를 때와 창의 키 처리가 편집 키를 바꿀지 정할 때 같은 판정을 쓴다.
-/// 숨은 범위의 팝업은 후보에 넣지 않는다.
-pub(crate) fn key_owner(
-    candidates: impl IntoIterator<Item = KeyCandidate>,
-) -> Option<PopupKeyOwner> {
-    candidates
-        .into_iter()
-        .max_by_key(|c| c.z_seq)
-        .map(|c| c.owner)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn cand(z_seq: u64, owner: PopupKeyOwner) -> KeyCandidate {
-        KeyCandidate { z_seq, owner }
-    }
-
-    /// 순번이 가장 큰 후보가 host든 plugin이든 키를 받고, 후보가 없으면 아무도 받지 않는다.
-    #[test]
-    fn the_highest_visible_popup_owns_the_keys() {
-        use PopupKeyOwner::{Host, Plugin};
-        assert_eq!(
-            key_owner([cand(3, Host), cand(7, Plugin(1)), cand(5, Plugin(2))]),
-            Some(Plugin(1))
-        );
-        assert_eq!(key_owner([cand(9, Host), cand(7, Plugin(1))]), Some(Host));
-        assert_eq!(key_owner(std::iter::empty()), None);
-    }
 
     fn r(x: f32, y: f32, w: f32, h: f32) -> Rect {
         Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h))

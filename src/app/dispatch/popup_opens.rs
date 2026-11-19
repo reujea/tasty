@@ -73,6 +73,13 @@ fn open_one(
     if let Some(sid) = open.target_surface {
         mgr.bind_popup_instance_surface(instance_id, sid);
     }
+    // 이 큐는 사용자가 이 창에서 고른 명령(도구 메뉴·명령 팔레트·단축키·변환 입력)이 채운다.
+    crate::plugin_bridge::popup_scope::focus_opened_popup(
+        state,
+        mgr,
+        instance_id,
+        crate::plugin_bridge::popup_scope::PopupOpener::UserCommand,
+    );
 }
 
 #[cfg(test)]

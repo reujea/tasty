@@ -163,7 +163,6 @@ fn open_scene_with(escape: tasty_plugin_protocol::popup_decl::PopupEscape) -> Sc
         // 피커의 필요 크기는 반쪽 surface 보다 커서 접힌다. 본문을 그리도록 범위 안에 드는 크기로 고정한다.
         for iid in [h, g] {
             let p = state.popups.instance_mut(iid).unwrap();
-            p.focused = true;
             p.size_user_overridden = true;
             p.set_needed_size(egui::vec2(240.0, 200.0));
         }
@@ -229,13 +228,10 @@ fn a_scope_hidden_before_the_redraw_keeps_the_escape_on_the_window_target() {
         escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout_without_l()),
         "창이 H 의 포커스를 푼다"
     );
-    assert!(
-        !state.popups.instance(h).unwrap().focused,
-        "창의 대상은 H 다"
-    );
+    assert!(!state.popups.is_instance_focused(h), "창의 대상은 H 다");
     assert!(!plugin_escaped(&state), "P 는 받지 않는다");
     assert!(
-        is_open(&state, g) && state.popups.instance(g).unwrap().focused,
+        is_open(&state, g) && state.popups.is_instance_focused(g),
         "G 는 받지 않는다"
     );
 }
@@ -278,11 +274,11 @@ fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target()
     );
     assert!(plugin_escaped(&state), "창이 고른 P 가 받는다");
     assert!(
-        is_open(&state, h) && state.popups.instance(h).unwrap().focused,
+        is_open(&state, h) && state.popups.is_instance_focused(h),
         "다시 보인 H 는 받지 않는다"
     );
     assert!(
-        is_open(&state, g) && state.popups.instance(g).unwrap().focused,
+        is_open(&state, g) && state.popups.is_instance_focused(g),
         "G 는 받지 않는다"
     );
 }

@@ -510,6 +510,14 @@ impl MainView {
             return ViewAction::None;
         }
 
+        // 키는 창의 포커스 노드에서 시작한다. 판정마다 같은 값을 읽도록 키 사건을 처음 받을 때 정규화한다.
+        if matches!(
+            &event,
+            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
+        ) {
+            self.state.normalize_focus(engine);
+        }
+
         // 편집 바인딩 판정은 egui-winit과 단축키 디스패치보다 먼저 한 번 한다.
         let Some(edit_judged) = self.edit_key_gate(engine, &event) else {
             return ViewAction::None;

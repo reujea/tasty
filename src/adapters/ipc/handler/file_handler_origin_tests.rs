@@ -1025,9 +1025,7 @@ fn a_press_on_a_passive_picker_hidden_by_its_scope_keeps_the_proof_and_the_other
     );
 
     // Intent 가 직접 와도 숨은 피커는 올라가지 않고 보이는 팝업의 포커스를 풀지 않는다.
-    assert!(!p.state.popups.focus_passive(PICKER, &|_| {
-        crate::adapters::ui::popup::route::ScopePath::window_for_test()
-    }));
+    assert!(!p.state.popups.focus_passive(PICKER));
     assert!(p.state.popups.is_focused(OTHER));
     assert!(p.state.popups.is_passive(PICKER));
 }

@@ -1,5 +1,5 @@
-//! 키 입력은 포커스를 가진 맨 위 인스턴스가 받는다. 같은 선언의 인스턴스가 여러 범위에 보일 때 Escape 대상과
-//! 포커스 소유를 확인한다. 다른 범위의 인스턴스는 포커스를 서로 빼앗지 않는다.
+//! 키 입력은 창의 포커스 위치인 인스턴스 하나가 받는다. 같은 선언의 인스턴스가 여러 범위에 보일 때 Escape 대상과
+//! 포커스 위치를 확인한다. 포커스 위치는 창에 하나라 다른 범위의 인스턴스는 열린 채 포커스만 잃는다.
 
 use super::*;
 use crate::adapters::ui::LayoutContext;
@@ -16,27 +16,27 @@ fn manager() -> PopupManager {
     mgr
 }
 
-/// Given 같은 선언의 두 인스턴스가 모두 포커스를 가졌고, When Escape 대상을 고르면,
-/// Then 맨 위(나중에 연) 인스턴스다.
+/// Given 같은 선언의 두 인스턴스가 열렸고 아래(먼저 연) 인스턴스가 창의 포커스 위치일 때, When Escape 대상을 고르면,
+/// Then 맨 위 인스턴스가 아니라 포커스 위치인 아래 인스턴스다.
 #[test]
-fn escape_targets_the_topmost_focused_instance() {
+fn escape_targets_the_focus_node_not_the_topmost_instance() {
     let mut mgr = manager();
-    mgr.open(ID, PopupScope::Surface(1)).unwrap();
-    let above = mgr.open(ID, PopupScope::Surface(2)).unwrap();
+    let below = mgr.open(ID, PopupScope::Surface(1)).unwrap();
+    mgr.open(ID, PopupScope::Surface(2)).unwrap();
     for p in &mut mgr.popups {
-        p.focused = true;
         p.scope_visible = true;
     }
+    mgr.set_instance_focused(below, true);
     assert_eq!(
         mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
-        Some(above)
+        Some(below)
     );
 }
 
 /// Given 한 범위에 포커스를 가진 인스턴스가 있고, When 다른 범위에 같은 선언을 포커스를 주며 열면,
-/// Then 다른 범위의 인스턴스는 포커스를 잃지 않고, 키는 새(맨 위) 인스턴스가 받는다.
+/// Then 창의 포커스 위치는 새 인스턴스 하나다. 먼저 연 인스턴스는 열린 채 포커스만 잃는다.
 #[test]
-fn a_focused_open_leaves_the_focus_of_a_sibling_in_another_scope() {
+fn a_focused_open_in_another_scope_takes_the_one_focus_node() {
     let mut mgr = manager();
     let first = mgr
         .open_request(
@@ -50,8 +50,9 @@ fn a_focused_open_leaves_the_focus_of_a_sibling_in_another_scope() {
             true,
         )
         .unwrap();
-    assert!(mgr.instance(first).unwrap().focused);
-    assert!(mgr.instance(second).unwrap().focused);
+    assert!(mgr.instance(first).unwrap().open);
+    assert!(!mgr.is_instance_focused(first));
+    assert!(mgr.is_instance_focused(second));
     assert_eq!(
         mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
         Some(second)
@@ -102,15 +103,15 @@ fn frame(mgr: &mut PopupManager, surfaces: &[u32], press: Option<egui::Pos2>) {
 fn focused_instances(mgr: &PopupManager) -> Vec<PopupInstanceId> {
     mgr.popups
         .iter()
-        .filter(|p| p.id == ID && p.open && p.focused)
+        .filter(|p| p.id == ID && p.open && mgr.is_instance_focused(p.instance))
         .map(|p| p.instance)
         .collect()
 }
 
-/// Given B를 먼저, A를 나중에 포커스를 주며 열어 둘 다 포커스를 갖고 A가 키 주인이며 A의 범위가 숨었을 때, When B를 누르면, Then A의 범위가
-/// 다시 보여도 다른 범위의 A는 포커스를 그대로 갖고, B가 맨 앞이라 키 주인이다.
+/// Given B를 먼저, A를 나중에 포커스를 주며 열어 A가 포커스 위치이고 A의 범위가 숨었을 때, When B를 누르면, Then A의
+/// 범위가 다시 보여도 포커스 위치는 B 하나다. A는 열린 채 포커스만 잃는다.
 #[test]
-fn a_click_leaves_a_hidden_sibling_focused_and_makes_the_clicked_one_the_key_owner() {
+fn a_click_moves_the_focus_node_and_a_hidden_sibling_stays_open_without_focus() {
     let mut mgr = manager();
     let b = mgr
         .open_request(
@@ -128,15 +129,11 @@ fn a_click_leaves_a_hidden_sibling_focused_and_makes_the_clicked_one_the_key_own
             true,
         )
         .unwrap();
-    assert_eq!(focused_instances(&mgr), [b, a]);
-    assert_eq!(
-        mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
-        Some(a)
-    );
+    assert_eq!(focused_instances(&mgr), [a]);
     frame(&mut mgr, &[2], Some(egui::pos2(650.0, 350.0)));
     frame(&mut mgr, &[1, 2], None);
-    assert!(focused_instances(&mgr).contains(&b));
-    assert!(focused_instances(&mgr).contains(&a));
+    assert_eq!(focused_instances(&mgr), [b]);
+    assert!(mgr.instance(a).unwrap().open);
     assert_eq!(
         mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
         Some(b)
@@ -144,9 +141,9 @@ fn a_click_leaves_a_hidden_sibling_focused_and_makes_the_clicked_one_the_key_own
 }
 
 /// Given passive로 연 B와 포커스를 가진 A가 있고 A의 범위가 숨었을 때, When B를 passive 승격하면,
-/// Then A의 범위가 다시 보여도 다른 범위의 A는 포커스를 그대로 갖고, B가 맨 앞이라 키 주인이다.
+/// Then A의 범위가 다시 보여도 포커스 위치는 B 하나다. A는 열린 채 포커스만 잃는다.
 #[test]
-fn a_passive_promotion_leaves_a_hidden_sibling_focused_and_makes_the_promoted_one_the_key_owner() {
+fn a_passive_promotion_moves_the_focus_node_and_a_hidden_sibling_stays_open_without_focus() {
     let mut mgr = manager();
     let b = mgr
         .open_request(&OpenRequest::new(ID, PopupScope::Surface(2)), false)
@@ -159,12 +156,10 @@ fn a_passive_promotion_leaves_a_hidden_sibling_focused_and_makes_the_promoted_on
         .unwrap();
     assert_eq!(focused_instances(&mgr), [a]);
     frame(&mut mgr, &[2], None);
-    assert!(mgr.focus_passive(ID, &|_| {
-        crate::adapters::ui::popup::route::ScopePath::window_for_test()
-    }));
+    assert!(mgr.focus_passive(ID));
     frame(&mut mgr, &[1, 2], None);
-    assert!(focused_instances(&mgr).contains(&b));
-    assert!(focused_instances(&mgr).contains(&a));
+    assert_eq!(focused_instances(&mgr), [b]);
+    assert!(mgr.instance(a).unwrap().open);
     assert_eq!(
         mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
         Some(b)
@@ -208,10 +203,10 @@ fn instances_reading_keys(mgr: &mut PopupManager) -> Vec<PopupInstanceId> {
     readers
 }
 
-/// Given 두 범위에 포커스를 유지한 host 팝업이 하나씩 있을 때, When 키를 넣으면, Then 본문은 키 주인(맨 위) 하나만
-/// 그 키를 처리한다. When plugin 팝업이 키 주인이면, Then 어느 host 본문도 키를 받지 않는다.
+/// Given 두 범위에 host 팝업이 하나씩 열렸을 때, When 키를 넣으면, Then 본문은 포커스 위치(나중에 연 것) 하나만 그
+/// 키를 처리한다. When plugin 팝업이 키 주인이면, Then 어느 host 본문도 키를 받지 않는다.
 #[test]
-fn only_the_key_owner_body_reads_keys_while_other_scopes_keep_focus() {
+fn only_the_focus_node_body_reads_keys() {
     let mut mgr = manager();
     let first = mgr
         .open_request(
@@ -225,15 +220,17 @@ fn only_the_key_owner_body_reads_keys_while_other_scopes_keep_focus() {
             true,
         )
         .unwrap();
-    assert_eq!(focused_instances(&mgr), [first, second]);
+    assert!(mgr.instance(first).unwrap().open);
+    assert_eq!(focused_instances(&mgr), [second]);
     assert_eq!(instances_reading_keys(&mut mgr), [second]);
     mgr.decide_frame_keys(Some(super::occlusion::PopupKeyOwner::Plugin(1)));
     assert!(instances_reading_keys(&mut mgr).is_empty());
 }
 
-/// Given 두 범위에 포커스를 유지한 host 팝업이 하나씩 있을 때, When 창이 키 주인(위)의 포커스를 풀고 그 키를 입력
-/// 시점의 키 주인에 묶으면, Then 같은 키를 실은 프레임에서는 묶인 팝업 본문만 그 키를 읽고(하위 화면 되돌아가기)
-/// 새로 키 주인이 된 아래 팝업은 읽지 않는다. When 묶인 팝업이 그사이 닫혔으면, Then 아무 본문도 읽지 않는다.
+/// Given 두 범위에 host 팝업이 하나씩 있을 때, When 창이 키 주인(포커스 위치)의 포커스를 풀고 그 키를 입력 시점의
+/// 키 주인에 묶으면, Then 같은 키를 실은 프레임에서는 묶인 팝업 본문만 그 키를 읽고(하위 화면 되돌아가기) 다음
+/// 키는 아무 팝업도 받지 않는다(포커스 위치는 범위마다 기억하지 않는다). When 묶인 팝업이 그사이 닫혔으면, Then
+/// 아무 본문도 읽지 않는다.
 #[test]
 fn a_key_the_window_handled_reaches_only_the_owner_at_input_time() {
     let mut mgr = manager();
@@ -254,11 +251,11 @@ fn a_key_the_window_handled_reaches_only_the_owner_at_input_time() {
     mgr.set_instance_focused(owner, false);
     mgr.bind_input_key_owner(super::focus::PopupNode::Host(owner));
     assert_eq!(instances_reading_keys(&mut mgr), [second]);
-    assert_eq!(
-        instances_reading_keys(&mut mgr),
-        [first],
-        "다음 키부터는 새 키 주인이 받는다"
+    assert!(
+        instances_reading_keys(&mut mgr).is_empty(),
+        "포커스를 푼 뒤 아래 팝업이 포커스를 되찾지 않는다"
     );
+    assert!(mgr.instance(first).unwrap().open);
 
     mgr.set_instance_focused(second, true);
     let (_, owner, _) = mgr.focused_dismissal_target().unwrap();
@@ -267,7 +264,7 @@ fn a_key_the_window_handled_reaches_only_the_owner_at_input_time() {
     mgr.close_instance(owner, super::PopupCloseReason::Escape);
     assert!(
         instances_reading_keys(&mut mgr).is_empty(),
-        "포커스가 남은 아래 팝업도 닫힌 팝업의 키를 읽지 않는다"
+        "아래 팝업도 닫힌 팝업의 키를 읽지 않는다"
     );
-    assert_eq!(instances_reading_keys(&mut mgr), [first]);
+    assert!(instances_reading_keys(&mut mgr).is_empty());
 }
