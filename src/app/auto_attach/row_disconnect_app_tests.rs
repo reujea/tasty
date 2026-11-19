@@ -281,37 +281,54 @@ fn a_force_detached_saved_row_stays_disconnected_until_an_explicit_connect() {
     assert_ne!(app.row_state_name(ROW), "disconnected");
 }
 
-/// 모든 창의 토스트 문구.
-fn window_toasts(app: &mut App) -> Vec<String> {
-    app.engines_mut()
-        .window_pairs()
-        .flat_map(|(_, main, _)| {
-            main.state
-                .toasts
-                .messages()
-                .into_iter()
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        })
-        .collect()
+fn mirror_alive(app: &App, workspace: u32) -> bool {
+    app.engines
+        .all_sessions()
+        .any(|session| session.core_state.has_workspace(workspace))
 }
 
-/// Given 연결된 저장 행, When 서버가 강제로 끊는다, Then 토스트를 띄우지 않는다. 저장 행은 행 표지와
-/// 연결 팝업이 끊긴 사유를 보인다. 저장되지 않은 mirror 의 끊김 토스트는 그대로다.
+/// 강제로 끊긴 연결의 끊김 토스트(`attach.toast.mirror_disconnected`)는 세션을 지우는 정리
+/// (`cleanup_mirror_workspace` 의 `from_disconnect`)에서만 나온다. 이 장치에는 MainView 가 없어
+/// 토스트 저장소를 직접 볼 수 없으므로 어느 끝 경로를 탔는지로 잰다.
+/// Given 연결된 저장 행, When 서버가 강제로 끊는다, Then 정리 경로를 타지 않고 세션과 행의 형상이
+/// 남은 채 끊긴 행이 된다(토스트 없음, 행 표지·연결 팝업이 사유를 보인다).
+/// Given 저장되지 않은 mirror, When 서버가 강제로 끊는다, Then 지금처럼 정리 경로로 세션이 사라진다.
 #[test]
-fn a_force_detached_saved_row_shows_no_toast() {
-    alone!("a_force_detached_saved_row_shows_no_toast");
+fn a_force_detached_saved_row_skips_the_toast_cleanup_path() {
+    alone!("a_force_detached_saved_row_skips_the_toast_cleanup_path");
     let event_loop = event_loop();
     let mut app = saved_row_app(&event_loop, Some(SessionState::Connected));
-    assert!(
-        app.engines_mut().window_pairs().count() > 0,
-        "the rig has a window that would show a toast"
-    );
-    let before = window_toasts(&mut app);
+    let mut agent = crate::app::attach_client::tests::test_session(AGENT_MIRROR, HashMap::new());
+    agent.state.remote_workspace = 42;
+    agent.state.phase = SessionState::Connected;
+    agent
+        .transport
+        .force_detached
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    agent
+        .transport
+        .disconnected
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    app.remote.sessions.push(agent);
+    assert!(mirror_alive(&app, ROW));
 
     end_row_connection(&mut app, true);
     assert_eq!(app.row_state_name(ROW), "disconnected");
-    assert_eq!(window_toasts(&mut app), before);
+    assert!(
+        app.remote
+            .sessions
+            .iter()
+            .any(|session| session.state.saved_row == Some(ROW)),
+        "the saved row keeps its session"
+    );
+    assert!(mirror_alive(&app, ROW), "the saved row keeps its shape");
+    assert!(
+        !app.remote
+            .sessions
+            .iter()
+            .any(|session| session.state.local_workspace == AGENT_MIRROR),
+        "an unsaved mirror still ends through the cleanup that shows the toast"
+    );
 }
 
 fn force_detach_marked(app: &App) -> bool {
