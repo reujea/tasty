@@ -32,7 +32,7 @@ fi
 
 echo "[perf-cjk-atlas] platform=$PLATFORM profile=$PROFILE duration=${DURATION}s log=$LOG"
 
-RUST_LOG="tasty::gfx::perf=info,tasty::font=warn,tasty=warn" \
+TASTY_LOG="warn,tasty::gfx::perf=info" \
     cargo run "${CARGO_FLAGS[@]}" > "$LOG" 2>&1 &
 TASTY_PID=$!
 cleanup() {

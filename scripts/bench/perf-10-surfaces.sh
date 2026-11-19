@@ -28,7 +28,7 @@ fi
 
 echo "[perf-10-surfaces] platform=$PLATFORM profile=$PROFILE duration=${DURATION}s log=$LOG"
 
-RUST_LOG="tasty::gfx::perf=info,tasty=warn" \
+TASTY_LOG="warn,tasty::gfx::perf=info" \
     cargo run "${CARGO_FLAGS[@]}" > "$LOG" 2>&1 &
 TASTY_PID=$!
 cleanup() {
