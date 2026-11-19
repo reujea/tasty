@@ -901,7 +901,10 @@ fn confirm_force_detach_closes_when_the_occupancy_is_already_gone() {
     let mut engine = engine_session.borrow_mut();
     let (ws_id, _) = occupied_workspace_with_popup(&mut state, &mut engine);
 
-    assert_eq!(engine.force_detach_workspace(ws_id), Some(7));
+    assert_eq!(
+        engine.force_detach_workspace(ws_id).map(|d| d.holder),
+        Some(7)
+    );
     assert!(
         state
             .popups
@@ -974,7 +977,7 @@ fn confirm_force_detach_confirm_queues_the_original_grant_without_releasing_it()
     assert_eq!(engine.live.occupancy.workspace_holder(ws_id), Some(7));
 }
 
-// release에는 강제 끊기 IPC가 없으므로 로컬 GUI 확인이 점유를 푸는 유일한 공개 경로다.
+// 로컬 GUI 확인은 IPC `attach.force_detach_workspace`와 같은 엔진 경로로 점유를 푼다. 여기서는 GUI 확인 쪽을 본다.
 #[test]
 fn confirm_force_detach_applied_intent_releases_and_notifies_the_holder() {
     use tasty_ipc::stream::StreamTag;

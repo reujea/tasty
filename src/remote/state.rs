@@ -294,15 +294,32 @@ impl RemoteState {
         self.structure_changed.extend(held);
         ready
     }
-    /// Control 사유와 Detach를 차례로 push한다. 허브가 없거나 송신에 실패해도 점유 해제는 되돌리지 않는다.
-    pub(crate) fn notify_detached(&self, holder: AttachClientId, reason: &str) {
+    /// Control 사유와 Detach를 차례로 push하고 통지를 큐에 넣었는지 반환한다.
+    /// 어느 하나라도 넣지 못하면 sink를 지워 연결을 닫는다. Control까지 들어갔으면 writer가 그것을 쓴 뒤
+    /// 닫으므로 holder는 통지를 받고 끊긴다. Control을 못 넣었으면 holder는 통지 없이 끊김만 본다.
+    /// 어느 경우든 점유 해제는 되돌리지 않는다.
+    pub(crate) fn notify_detached(&self, holder: AttachClientId, reason: &str) -> bool {
         let Some(hub) = &self.notifier else {
-            return;
+            return false;
         };
-        let msg = serde_json::json!({ "event": "force_detached", "reason": reason });
+        let msg = serde_json::json!({ "event": tasty_ipc::stream::FORCE_DETACHED_EVENT, "reason": reason });
         let payload = serde_json::to_vec(&msg).unwrap_or_default();
-        let _ = hub.push(holder, StreamFrame::new(StreamTag::Control, payload)); // 손실·연결 종료는 허브에 맡기며 여기서 재시도하지 않는다.
-        let _ = hub.push(holder, StreamFrame::new(StreamTag::Detach, Vec::new())); // 송신 실패에도 점유 해제는 유지한다.
+        let control = hub.push(holder, StreamFrame::new(StreamTag::Control, payload));
+        if control != tasty_ipc::stream_hub::PushResult::Sent {
+            tracing::warn!(
+                "attach: holder {holder} 에 force_detached 통지를 넣지 못해({control:?}) 연결을 닫는다"
+            );
+            hub.unregister(holder);
+            return false;
+        }
+        let detach = hub.push(holder, StreamFrame::new(StreamTag::Detach, Vec::new()));
+        if detach != tasty_ipc::stream_hub::PushResult::Sent {
+            tracing::warn!(
+                "attach: holder {holder} 에 Detach를 넣지 못해({detach:?}) 통지 뒤 연결을 닫는다"
+            );
+            hub.unregister(holder);
+        }
+        true
     }
 }
 

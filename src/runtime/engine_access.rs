@@ -173,37 +173,50 @@ impl EngineMut<'_> {
     }
 }
 
+/// 강제 끊기 결과. `notified`는 holder 큐에 `force_detached` 통지를 넣었는지다.
+/// 넣지 못했으면 연결을 닫아 holder가 점유를 잃었다는 것만 알게 된다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ForcedDetach {
+    pub(crate) holder: crate::core::attach::AttachClientId,
+    /// surface를 지정했어도 workspace 점유의 멤버였으면 그 workspace 점유 전체를 풀었다.
+    pub(crate) workspace_id: Option<u32>,
+    pub(crate) notified: bool,
+}
+
 impl EngineMut<'_> {
-    /// GUI(점유 테두리 버튼·사이드바 확인 팝업)와 IPC `attach.force_detach*`가 같이 쓰는 강제 해제.
+    /// GUI 점유 테두리 버튼과 IPC `attach.force_detach`가 같이 쓰는 hard 점유 강제 해제.
+    /// 대상이 workspace 점유의 멤버면 workspace 점유와 멤버 제한을 함께 푼다. soft 점유는 건드리지 않는다.
     /// holder에게는 `force_detached` Control 뒤에 Detach를 보낸다.
-    pub(crate) fn force_detach(&mut self, id: u32) -> Option<crate::core::attach::AttachClientId> {
+    pub(crate) fn force_detach(&mut self, id: u32) -> Option<ForcedDetach> {
+        if let Some(ws) = self.live.occupancy.workspace_of_surface(id) {
+            return self.force_detach_workspace(ws);
+        }
         let holder = self.live.occupancy.force_detach(id)?;
-        self.remote.notify_detached(holder, "force_detach");
-        Some(holder)
+        let notified = self.remote.notify_detached(holder, "force_detach");
+        Some(ForcedDetach {
+            holder,
+            workspace_id: None,
+            notified,
+        })
     }
-    pub(crate) fn force_detach_workspace(
-        &mut self,
-        id: u32,
-    ) -> Option<crate::core::attach::AttachClientId> {
+    /// 사이드바 확인 팝업과 IPC `attach.force_detach_workspace`가 같이 쓰는 workspace 점유 강제 해제.
+    pub(crate) fn force_detach_workspace(&mut self, id: u32) -> Option<ForcedDetach> {
         self.detach_workspace_with_reason(id, "force_detach_workspace")
     }
     /// 점유한 workspace가 사라져 점유를 정리한다. 강제 끊기 결정이 아니라는 사유를 보내 client가
     /// 연결 끊김처럼 다시 붙어 보고 그 workspace가 없다는 것을 확인하게 한다.
-    pub(crate) fn detach_missing_workspace(
-        &mut self,
-        id: u32,
-    ) -> Option<crate::core::attach::AttachClientId> {
+    pub(crate) fn detach_missing_workspace(&mut self, id: u32) -> Option<ForcedDetach> {
         self.detach_workspace_with_reason(id, tasty_ipc::stream::FORCE_DETACH_WORKSPACE_GONE)
     }
-    fn detach_workspace_with_reason(
-        &mut self,
-        id: u32,
-        reason: &str,
-    ) -> Option<crate::core::attach::AttachClientId> {
+    fn detach_workspace_with_reason(&mut self, id: u32, reason: &str) -> Option<ForcedDetach> {
         self.remote.forget_structure_sent(id);
         let holder = self.live.occupancy.force_detach_workspace(id)?;
-        self.remote.notify_detached(holder, reason);
-        Some(holder)
+        let notified = self.remote.notify_detached(holder, reason);
+        Some(ForcedDetach {
+            holder,
+            workspace_id: Some(id),
+            notified,
+        })
     }
     pub(crate) fn forget_closed_surface(&mut self, id: u32) -> bool {
         let workspace = self.live.occupancy.workspace_of_surface(id);

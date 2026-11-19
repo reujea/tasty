@@ -26,14 +26,11 @@ impl crate::runtime::engine_access::EngineMut<'_> {
         self.live.occupancy.release_soft(surface_id, &parent.into())
     }
 
-    /// 로컬 사용자 강제 해제. workspace의 hard 점유이면 멤버를 함께 해제한다.
-    /// soft 점유는 stream client가 아니므로 통지 없이 지운다.
+    /// 로컬 사용자 강제 해제. hard 점유는 IPC `attach.force_detach`와 같은 `force_detach`로 푼다
+    /// (workspace 멤버면 workspace 점유 전체). soft 점유는 stream client가 아니므로 통지 없이 지운다.
     /// 사용자 조작 전용이며 에이전트 경로(terminal.kill 등)는 hard 점유를 풀지 않는다.
     #[cfg(any(feature = "gui", test))]
     pub fn release_occupancy(&mut self, surface_id: u32) -> bool {
-        if let Some(ws) = self.live.occupancy.workspace_of_surface(surface_id) {
-            return self.force_detach_workspace(ws).is_some();
-        }
         if self.force_detach(surface_id).is_some() {
             return true;
         }

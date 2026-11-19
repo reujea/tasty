@@ -80,8 +80,10 @@ pub(crate) fn handle_release(
     }
 }
 
-/// `attach.force_detach` { surface_id } → 점유 테두리의 강제 끊기 버튼과 같은 엔진 경로로 점유를
-/// 풀고 holder에게 `force_detached`를 보낸다. 점유가 없으면 `force_detached: false`다.
+/// `attach.force_detach` { surface_id } → 점유 테두리의 강제 끊기 버튼과 같은 `force_detach`로 hard
+/// 점유를 풀고 holder에게 `force_detached`를 보낸다. 대상이 workspace 점유의 멤버면 그 workspace 점유
+/// 전체를 풀고 응답에 `workspace_id`를 싣는다. soft 점유는 건드리지 않는다. 점유가 없으면
+/// `force_detached: false`다.
 pub(crate) fn handle_force_detach(
     engine: &mut EngineMut<'_>,
     id: serde_json::Value,
@@ -91,15 +93,13 @@ pub(crate) fn handle_force_detach(
         Ok(v) => v,
         Err(e) => return e,
     };
-    let holder = engine.force_detach(surface_id);
-    JsonRpcResponse::success(
-        id,
-        json!({
-            "force_detached": holder.is_some(),
-            "surface_id": surface_id,
-            "holder": holder,
-        }),
-    )
+    let detached = engine.force_detach(surface_id);
+    let mut result = forced_detach_result(detached);
+    result["surface_id"] = json!(surface_id);
+    if let Some(workspace_id) = detached.and_then(|d| d.workspace_id) {
+        result["workspace_id"] = json!(workspace_id);
+    }
+    JsonRpcResponse::success(id, result)
 }
 
 /// `attach.force_detach_workspace` { workspace_id } → 사이드바 확인 팝업과 같은 엔진 경로로
@@ -113,15 +113,22 @@ pub(crate) fn handle_force_detach_workspace(
         Ok(v) => v,
         Err(e) => return e,
     };
-    let holder = engine.force_detach_workspace(workspace_id);
-    JsonRpcResponse::success(
-        id,
-        json!({
-            "force_detached": holder.is_some(),
-            "workspace_id": workspace_id,
-            "holder": holder,
-        }),
-    )
+    let mut result = forced_detach_result(engine.force_detach_workspace(workspace_id));
+    result["workspace_id"] = json!(workspace_id);
+    JsonRpcResponse::success(id, result)
+}
+
+/// 두 메서드의 공통 응답. `notified`는 holder 큐에 `force_detached` 통지를 넣었는지다.
+/// 점유 해제는 되돌리지 않으므로 오류가 아니라 이 필드로 알린다. false면 서버가 연결을 닫아
+/// holder는 통지 없이 끊김만 보며, 연결 끊김으로 보고 다시 붙을 수 있다.
+fn forced_detach_result(
+    detached: Option<crate::runtime::engine_access::ForcedDetach>,
+) -> serde_json::Value {
+    json!({
+        "force_detached": detached.is_some(),
+        "holder": detached.map(|d| d.holder),
+        "notified": detached.is_some_and(|d| d.notified),
+    })
 }
 
 /// attach 대상 포트가 이 인스턴스의 IPC 포트면 처리를 시작하기 전에 거절 응답을 만든다.

@@ -205,9 +205,8 @@ impl OccupancyRegistry {
         }
     }
 
-    /// holder 확인 없이 점유를 해제하고 통지 대상 holder를 반환한다.
-    /// 호출자인 `EngineMut::force_detach`와 같은 조건으로만 컴파일한다.
-    #[cfg(any(feature = "gui", debug_assertions, test))]
+    /// holder 확인 없이 surface 점유를 해제하고 통지 대상 holder를 반환한다.
+    /// workspace 멤버 여부는 호출자(`EngineMut::force_detach`)가 먼저 가린다.
     pub fn force_detach(&mut self, surface_id: SurfaceId) -> Option<AttachClientId> {
         let lock = self.surface_locks.remove(&surface_id)?;
         Some(lock.holder)
@@ -753,12 +752,86 @@ mod tests {
         let mut engine = session.borrow_mut();
         engine.remote.set_notifier(hub);
         engine.live.occupancy.acquire(10, holder).unwrap();
-        assert_eq!(engine.force_detach(10), Some(holder));
+        assert_eq!(engine.force_detach(10).map(|d| d.holder), Some(holder));
         let f1 = rx.recv().unwrap();
         assert_eq!(f1.tag, StreamTag::Control);
         assert!(String::from_utf8_lossy(&f1.payload).contains("force_detached"));
         let f2 = rx.recv().unwrap();
         assert_eq!(f2.tag, StreamTag::Detach);
+    }
+
+    /// GUI 점유 테두리 버튼과 IPC가 같이 쓰는 `force_detach`는 workspace 멤버면 workspace 점유 전체를 푼다.
+    #[test]
+    fn force_detach_on_a_workspace_member_releases_the_whole_workspace() {
+        let hub = tasty_ipc::stream_hub::StreamHub::new();
+        let holder = hub.alloc_id();
+        let rx = hub.register(holder);
+        let mut session = crate::state::tests::test_state().1;
+        let mut engine = session.borrow_mut();
+        engine.remote.set_notifier(hub);
+        engine
+            .live
+            .occupancy
+            .acquire_workspace(100, &[10, 11], &[10, 11, 12], holder)
+            .unwrap();
+        let detached = engine.force_detach(11).expect("member is held");
+        assert_eq!(detached.holder, holder);
+        assert_eq!(detached.workspace_id, Some(100));
+        assert!(detached.notified);
+        assert_eq!(engine.live.occupancy.workspace_holder(100), None);
+        for s in [10, 11, 12] {
+            assert_eq!(engine.live.occupancy.workspace_of_surface(s), None);
+            assert!(!engine.live.occupancy.is_hard_occupied(s));
+        }
+        let notice = rx.recv().unwrap();
+        assert!(String::from_utf8_lossy(&notice.payload).contains("force_detach_workspace"));
+    }
+
+    /// soft 점유는 stream client가 아니라 IPC 강제 끊기의 대상이 아니다.
+    #[test]
+    fn force_detach_leaves_a_soft_occupancy_alone() {
+        let mut session = crate::state::tests::test_state().1;
+        let mut engine = session.borrow_mut();
+        engine.occupy_soft(5000, 99, Some("agent".into())).unwrap();
+        assert_eq!(engine.force_detach(5000), None);
+        assert!(engine.live.occupancy.occupancy_of(5000).is_some());
+    }
+
+    /// 큐가 차서 통지를 넣지 못하면 연결을 닫고 `notified: false`로 알린다.
+    /// 통지는 넣었지만 Detach가 밀렸으면 통지 뒤 연결을 닫는다.
+    #[test]
+    fn a_full_queue_closes_the_connection_and_reports_whether_the_notice_went_in() {
+        use tasty_ipc::stream::{StreamFrame, StreamTag};
+        use tasty_ipc::stream_hub::PushResult;
+        for (fill_to_leave, notified) in [(0usize, false), (1, true)] {
+            let hub = tasty_ipc::stream_hub::StreamHub::new();
+            let holder = hub.alloc_id();
+            let rx = hub.register(holder);
+            let mut filled = 0usize;
+            while hub.push(holder, StreamFrame::new(StreamTag::Data, vec![0])) == PushResult::Sent {
+                filled += 1;
+            }
+            // 가득 찬 큐에서 하나를 꺼내 자리를 하나 남기는 경우를 만든다.
+            for _ in 0..fill_to_leave {
+                rx.recv().unwrap();
+                filled -= 1;
+            }
+            let mut session = crate::state::tests::test_state().1;
+            let mut engine = session.borrow_mut();
+            engine.remote.set_notifier(hub);
+            engine.live.occupancy.acquire(10, holder).unwrap();
+            let detached = engine.force_detach(10).expect("held");
+            assert_eq!(detached.notified, notified);
+            let mut tags = Vec::new();
+            while let Ok(frame) = rx.recv() {
+                tags.push(frame.tag);
+            }
+            // sink를 지웠으므로 남은 프레임을 다 꺼내면 채널이 끊긴다.
+            let controls = tags.iter().filter(|t| **t == StreamTag::Control).count();
+            assert_eq!(tags.len(), filled + controls);
+            assert_eq!(controls == 1, notified);
+            assert!(!tags.contains(&StreamTag::Detach));
+        }
     }
     // 소켓 없이 같은 배치의 끊김 표시 → 재attach → 정리 순서를 재현한다.
 
