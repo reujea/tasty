@@ -1204,8 +1204,8 @@ mod tests {
         assert!(decl_of("convert_surface").covers_scope);
         assert!(decl_of("command_palette").covers_scope);
         assert!(
-            !decl_of(super::super::file_picker::FILE_PICKER_POPUP_ID).covers_scope,
-            "자식 picker 는 부모의 scrim 위에 얹힌다 — 자기 것을 덧그리지 않는다"
+            decl_of(super::super::file_picker::FILE_PICKER_POPUP_ID).covers_scope,
+            "picker 는 자기 범위를 덮는다. 부모와 같은 범위면 scrim 은 한 번만 칠한다"
         );
     }
 

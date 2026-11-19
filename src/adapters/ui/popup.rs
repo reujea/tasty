@@ -88,11 +88,14 @@ fn vec2_of(size: PopupSize) -> egui::Vec2 {
     egui::vec2(size.width.value(), size.height.value())
 }
 
-/// 정의 없이 만든 팝업의 선언 값. 크기는 생성자가 따로 받는다.
-const PLAIN_DECL: PopupDecl = defs::host_decl(PopupSize {
-    width: LogicalPx(0.0),
-    height: LogicalPx(0.0),
-});
+/// 정의 없이 만든 팝업의 선언 값. 덮지 않는 보통 팝업이다. 크기는 생성자가 따로 받는다.
+const PLAIN_DECL: PopupDecl = PopupDecl {
+    covers_scope: false,
+    ..defs::host_decl(PopupSize {
+        width: LogicalPx(0.0),
+        height: LogicalPx(0.0),
+    })
+};
 
 /// 셸을 그릴 때 읽는 선언 값.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

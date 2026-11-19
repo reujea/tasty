@@ -8,12 +8,11 @@ use super::{
     PopupScopeKind, PopupShadow, PopupShell, PopupSize, PopupState, popup_size,
 };
 
-/// host 팝업이 지금 공통으로 갖는 선언 값. `PopupDecl::new`의 기본값과 다른 것은 두 가지다.
-/// 덮지 않음(`covers_scope = false`)과 인스턴스 하나(`Single`)다.
+/// host 팝업이 공통으로 갖는 선언 값. `PopupDecl::new`의 기본값과 다른 것은 인스턴스 하나(`Single`)뿐이다.
+/// 범위를 덮는 것(`covers_scope`)이 기본이고, 덮지 않는 팝업(범위에 붙은 메뉴·안내)만 정의에 끔을 적는다.
 /// 바깥 클릭·제목줄·이동·크기 조절처럼 팝업마다 다른 값은 정의마다 다시 적는다.
 pub(crate) const fn host_decl(size: PopupSize) -> PopupDecl {
     PopupDecl {
-        covers_scope: false,
         instances: PopupInstances::Single,
         ..PopupDecl::new(PopupScopeKind::Window, size)
     }
@@ -48,6 +47,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: "notifications",
                 decl: PopupDecl {
+                    covers_scope: false,
                     outside_click: PopupOutsideClick::Unfocus,
                     sticky_focus: false,
                     chrome: PopupChrome::TitleBar,
@@ -83,7 +83,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::TitleBar,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     shell: PopupShell::Panel,
                     // surface마다 따로 연다. 대상과 선택은 인스턴스 데이터다.
                     instances: PopupInstances::PerScopeTarget,
@@ -110,7 +109,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     content_margin: PopupContentMargin::None,
                     escape: PopupEscape::Unfocus,
                     // 질문을 띄운 칸마다 따로 연다. 칸은 인스턴스 데이터다.
@@ -212,6 +210,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: "search_bar",
                 decl: PopupDecl {
+                    covers_scope: false,
                     outside_click: PopupOutsideClick::Unfocus,
                     sticky_focus: false,
                     chrome: PopupChrome::Headless,
@@ -268,6 +267,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: super::approval::APPROVAL_POPUP_ID,
                 decl: PopupDecl {
+                    covers_scope: false,
                     outside_click: PopupOutsideClick::Unfocus,
                     sticky_focus: false,
                     chrome: PopupChrome::TitleBar,
@@ -360,7 +360,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::Region,
                     resizable: true,
                     min_size: Some(popup_size(egui::vec2(480.0, 320.0))),
-                    covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
                     // 검색 입력칸이 글자를 편집한다.
@@ -388,7 +387,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     content_margin: PopupContentMargin::None,
                     // 검색어 입력칸이 글자를 편집한다.
                     keyboard: PopupKeyboard::Text,
@@ -446,7 +444,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::Region,
                     resizable: true,
                     min_size: Some(popup_size(egui::vec2(420.0, 320.0))),
-                    covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
                     // 프로필 양식의 입력칸이 글자를 편집한다.
@@ -475,7 +472,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
                     ..host_decl(popup_size(egui::vec2(680.0, 460.0)))
@@ -505,7 +501,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
                     escape: PopupEscape::Unfocus,
@@ -534,7 +529,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
                     // 실패 여럿을 차례로 보인다. 다음 실패는 닫힌 팝업의 출처로 연다.
@@ -693,6 +687,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: "tools_menu",
                 decl: PopupDecl {
+                    covers_scope: false,
                     outside_click: PopupOutsideClick::Close,
                     sticky_focus: false,
                     chrome: PopupChrome::Headless,
@@ -720,6 +715,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: crate::adapters::ui::mouse_capture_menu::MOUSE_CAPTURE_BANNER_MENU_POPUP_ID,
                 decl: PopupDecl {
+                    covers_scope: false,
                     outside_click: PopupOutsideClick::Close,
                     sticky_focus: false,
                     chrome: PopupChrome::Headless,
@@ -805,7 +801,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    covers_scope: true,
                     ..host_decl(popup_size(super::confirm_close_remote::confirm_close_remote_default_size()))
                 },
                 title_key: "remote.row.close_remote.confirm",
@@ -846,6 +841,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: super::rail_category::RAIL_CATEGORY_POPUP_ID,
                 decl: PopupDecl {
+                    covers_scope: false,
                     outside_click: PopupOutsideClick::Close,
                     sticky_focus: false,
                     chrome: PopupChrome::Headless,
@@ -872,6 +868,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             PopupDef {
                 id: crate::adapters::ui::modifier_hint_overlay::MODIFIER_HINT_POPUP_ID,
                 decl: PopupDecl {
+                    covers_scope: false,
                     // 키를 받지 않는다. 열거나 눌러도 포커스·순서가 바뀌지 않고 다른 팝업 아래에 그린다.
                     keyboard: PopupKeyboard::None,
                     escape: PopupEscape::Ignore,

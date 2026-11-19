@@ -2,7 +2,8 @@
 //!
 //! `EXPECTED`는 선언 값을 도입하기 전 id 명부(scrim·scrim 포인터·탐색기 끌어 놓기 차단·그림자·
 //! 콘텐츠 여백·배경·테두리·제목줄 아래 선)가 정의마다 낸 결과를 옮겨 적은 것이다. 명부를 지우기 전
-//! 커밋에서 명부 함수의 결과와 이 표가 같은 것을 확인했다.
+//! 커밋에서 명부 함수의 결과와 이 표가 같은 것을 확인했다. scrim 열만 그 뒤 바뀌었다. 범위를 덮는 것이
+//! 선언 기본값이 되어(D-a) 범위에 붙은 메뉴·안내를 뺀 팝업이 모두 덮는다.
 //! 정의를 더하면 이 표에도 행을 더한다. 표에 없는 정의가 있으면 실패한다.
 
 use super::super::{
@@ -80,15 +81,15 @@ const EXPECTED: &[Row] = &[
     row("notifications", false, false, true, PANEL),
     row("convert_surface", true, false, false, PANEL),
     row("explorer_conflict", true, false, true, RAISED),
-    row("script_changed_confirm", false, false, true, RAISED),
+    row("script_changed_confirm", true, false, true, RAISED),
     row(
         "rename",
-        false,
+        true,
         false,
         true,
         (Tok::DialogBg, Tok::BorderFrame, Tok::BorderFrame),
     ),
-    row("explorer_properties", false, false, false, PANEL),
+    row("explorer_properties", true, false, false, PANEL),
     row(
         "search_bar",
         false,
@@ -98,27 +99,27 @@ const EXPECTED: &[Row] = &[
     ),
     row(
         "info_modal",
-        false,
+        true,
         false,
         true,
         (Tok::BgPanel, Tok::BorderFrame, Tok::InfoModalTitleEdge),
     ),
     row("approval", false, false, false, RAISED),
-    row("file_handler_picker", false, false, false, PANEL),
-    row("file_picker", false, false, true, PANEL),
+    row("file_handler_picker", true, false, false, PANEL),
+    row("file_picker", true, false, true, PANEL),
     row("port_scanner", true, false, true, PANEL),
     row("command_palette", true, false, true, RAISED),
-    row("dag_list", false, false, false, PANEL),
+    row("dag_list", true, false, false, PANEL),
     row("remote_tool", true, false, true, PANEL),
     row("remote_attach", true, false, true, PANEL),
     row("transfer_progress", true, false, true, PANEL),
     row("transfer_error", true, false, true, PANEL),
-    row("download_run", false, false, false, RAISED),
-    row("download_run_large", false, false, false, RAISED),
-    row("download_run_progress", false, false, false, RAISED),
-    row("apply_workspace_preset", false, false, false, RAISED),
-    row("apply_tab_preset", false, false, false, RAISED),
-    row("apply_pane_preset", false, false, false, RAISED),
+    row("download_run", true, false, false, RAISED),
+    row("download_run_large", true, false, false, RAISED),
+    row("download_run_progress", true, false, false, RAISED),
+    row("apply_workspace_preset", true, false, false, RAISED),
+    row("apply_tab_preset", true, false, false, RAISED),
+    row("apply_pane_preset", true, false, false, RAISED),
     row(
         "tools_menu",
         false,
@@ -137,17 +138,11 @@ const EXPECTED: &[Row] = &[
             Tok::BorderFrame,
         ),
     ),
-    row("confirm_delete_category", false, false, false, RAISED),
-    row(
-        "confirm_force_detach_workspace",
-        false,
-        false,
-        false,
-        RAISED,
-    ),
+    row("confirm_delete_category", true, false, false, RAISED),
+    row("confirm_force_detach_workspace", true, false, false, RAISED),
     row("confirm_close_remote", true, false, false, RAISED),
     row("remote_row", false, true, false, RAISED),
-    row("tutorial_topics", false, false, false, PANEL),
+    row("tutorial_topics", true, false, false, PANEL),
     row(
         "rail_category",
         false,
@@ -159,7 +154,7 @@ const EXPECTED: &[Row] = &[
     row("modifier_hint", false, true, true, BY_CONTENT),
     // 복원 안내도 옛 명부에 없던 정의다. 카드는 콘텐츠가 그린다.
     row("restore_notice", false, true, true, BY_CONTENT),
-    row("keybinding_conflict", false, false, false, RAISED),
+    row("keybinding_conflict", true, false, false, RAISED),
 ];
 
 /// 표의 모든 행이 가리키는 팝업을 등록한 그대로 모은다. 정의 목록, 설정 창의 충돌 확인 순서다.
@@ -382,4 +377,30 @@ fn input_attributes_match_current_behavior() {
         assert_eq!(decl.outside_click, outside, "{id} outside_click");
         assert_eq!(decl.focus_on_open, focus, "{id} focus_on_open");
     }
+}
+
+/// 덮지 않는 팝업은 범위에 붙은 메뉴·안내뿐이다. 나머지는 선언 기본값대로 범위를 덮는다(D-a).
+/// remote_row는 열 때 덮을지 정하고 선언은 덮지 않음이다.
+#[test]
+fn only_attached_menus_and_notices_leave_their_scope_uncovered() {
+    let mut bare: Vec<&str> = declared()
+        .iter()
+        .filter(|(_, look)| !look.covers_scope)
+        .map(|(id, _)| *id)
+        .collect();
+    bare.sort_unstable();
+    assert_eq!(
+        bare,
+        [
+            "approval",
+            "modifier_hint",
+            "mouse_capture_banner_menu",
+            "notifications",
+            "rail_category",
+            "remote_row",
+            "restore_notice",
+            "search_bar",
+            "tools_menu",
+        ]
+    );
 }
