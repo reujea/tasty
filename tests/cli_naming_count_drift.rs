@@ -8,7 +8,7 @@ use tasty_ipc::method_meta::METHOD_TABLE;
 const EXPECTED: &[(&str, usize)] = &[
     ("agent", 39),
     ("approval", 9),
-    ("attach", 9),
+    ("attach", 11),
     ("banner", 2),
     ("clipboard", 1),
     ("completion_strategy", 1),

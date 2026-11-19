@@ -80,6 +80,50 @@ pub(crate) fn handle_release(
     }
 }
 
+/// `attach.force_detach` { surface_id } → 점유 테두리의 강제 끊기 버튼과 같은 엔진 경로로 점유를
+/// 풀고 holder에게 `force_detached`를 보낸다. 점유가 없으면 `force_detached: false`다.
+pub(crate) fn handle_force_detach(
+    engine: &mut EngineMut<'_>,
+    id: serde_json::Value,
+    params: &serde_json::Value,
+) -> JsonRpcResponse {
+    let surface_id = match require_surface_id(params, &id) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let holder = engine.force_detach(surface_id);
+    JsonRpcResponse::success(
+        id,
+        json!({
+            "force_detached": holder.is_some(),
+            "surface_id": surface_id,
+            "holder": holder,
+        }),
+    )
+}
+
+/// `attach.force_detach_workspace` { workspace_id } → 사이드바 확인 팝업과 같은 엔진 경로로
+/// workspace 점유와 멤버 제한을 풀고 holder에게 `force_detached`를 보낸다.
+pub(crate) fn handle_force_detach_workspace(
+    engine: &mut EngineMut<'_>,
+    id: serde_json::Value,
+    params: &serde_json::Value,
+) -> JsonRpcResponse {
+    let workspace_id = match super::params::require_u32(params, "workspace_id", &id) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let holder = engine.force_detach_workspace(workspace_id);
+    JsonRpcResponse::success(
+        id,
+        json!({
+            "force_detached": holder.is_some(),
+            "workspace_id": workspace_id,
+            "holder": holder,
+        }),
+    )
+}
+
 /// attach 대상 포트가 이 인스턴스의 IPC 포트면 처리를 시작하기 전에 거절 응답을 만든다.
 /// 자기 자신을 mirror하면 그 mirror가 원본 workspace를 점유해 로컬 입력이 막힌다.
 /// 연결 직전의 `connect_unless_self` 검사는 비동기로 해석한 엔드포인트에 계속 적용한다.

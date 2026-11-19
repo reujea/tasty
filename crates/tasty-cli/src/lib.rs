@@ -565,7 +565,7 @@ mod attach_surface_tests {
         assert!(Cli::try_parse_from(["tasty", "attach", "5"]).is_err());
     }
 
-    // 원격 사용자를 끊는 release CLI는 없다. 로컬 사용자는 GUI로 끊는다.
+    // 강제 끊기는 `remote detach`가 맡는다. attach에는 끊기 플래그가 없다.
     #[test]
     fn remote_attach_has_no_force_detach() {
         for args in [
@@ -591,26 +591,18 @@ mod attach_surface_tests {
         }
     }
 
-    #[cfg(debug_assertions)]
     #[test]
-    fn debug_attach_force_detach_uses_debug_methods() {
+    fn remote_detach_maps_to_release_force_detach_methods() {
         for (args, method, key, value) in [
             (
-                &["tasty", "debug", "attach", "5", "--force-detach"][..],
-                "debug.attach.force_detach",
+                &["tasty", "remote", "detach", "--surface", "5"][..],
+                "attach.force_detach",
                 "surface_id",
                 5,
             ),
             (
-                &[
-                    "tasty",
-                    "debug",
-                    "attach",
-                    "--workspace",
-                    "3",
-                    "--force-detach",
-                ][..],
-                "debug.attach.force_detach_workspace",
+                &["tasty", "remote", "detach", "--workspace", "3"][..],
+                "attach.force_detach_workspace",
                 "workspace_id",
                 3,
             ),
@@ -625,6 +617,44 @@ mod attach_surface_tests {
             assert_eq!(req.method, method);
             assert_eq!(req.params[key], value);
         }
+    }
+
+    #[test]
+    fn remote_detach_all_is_client_driven() {
+        let cli = Cli::try_parse_from(["tasty", "remote", "detach", "--all"]).unwrap();
+        assert!(matches!(
+            cli.command.unwrap().dispatch().unwrap(),
+            crate::dispatch::Dispatch::ClientDriven(_)
+        ));
+    }
+
+    #[test]
+    fn remote_detach_needs_exactly_one_target() {
+        for args in [
+            &["tasty", "remote", "detach"][..],
+            &["tasty", "remote", "detach", "--all", "--workspace", "3"][..],
+            &[
+                "tasty",
+                "remote",
+                "detach",
+                "--surface",
+                "1",
+                "--workspace",
+                "3",
+            ][..],
+        ] {
+            assert!(Cli::try_parse_from(args).is_err(), "{args:?}");
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn debug_attach_has_no_force_detach() {
+        let err = match Cli::try_parse_from(["tasty", "debug", "attach", "5", "--force-detach"]) {
+            Ok(_) => panic!("debug attach --force-detach parsed"),
+            Err(e) => e,
+        };
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
     }
 
     #[test]

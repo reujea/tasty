@@ -597,10 +597,12 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // attach 점유 제어
         // 스트림 점유는 handshake에서 처리한다. JSON-RPC attach 제어는 여기 등록한다.
         // SSH와 loopback 연결을 신뢰 경계로 사용하며 추가 권한 토큰은 요구하지 않는다.
-        // 남의 점유를 강제로 푸는 메서드는 두지 않는다. 원격 사용자를 끊는 것은 로컬
-        // GUI 조작이며(docs/principles/control-and-data.md), 그 재현은 DEBUG_METHODS에 있다.
+        // force_detach*는 GUI의 강제 끊기와 같은 엔진 경로다. GUI로 되는 일은 IPC로도 된다
+        // (docs/principles/control-and-data.md).
         ("attach.acquire", plugin(Idempotent, &[])),
         ("attach.release", plugin(Idempotent, &[])),
+        ("attach.force_detach", plugin(Idempotent, &[])),
+        ("attach.force_detach_workspace", plugin(Idempotent, &[])),
         ("attach.into_gui", plugin(Mutate, &[]).kept_by_app_layer()),
         ("attach.list", plugin(Read, &[])),
         // 원격 자식 에이전트. client 쪽 plugin 이 자기 namespace 로 holder 연결을 거쳐 서버 plugin 을 부르고,
@@ -835,16 +837,6 @@ pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[
         local_only(MethodEffect::Idempotent),
     ),
     ("debug.switch_tab", local_only(MethodEffect::Idempotent)),
-    // 로컬 사용자의 강제 끊기(점유 테두리 버튼·사이드바 확인 팝업) 재현. release에는
-    // 원격 점유를 강제로 푸는 공개 메서드가 없다.
-    (
-        "debug.attach.force_detach",
-        local_only(MethodEffect::Idempotent),
-    ),
-    (
-        "debug.attach.force_detach_workspace",
-        local_only(MethodEffect::Idempotent),
-    ),
     // 마우스 라우팅 회귀 안전망용 read-only dump — 관찰 전용(사용자 상태 불변). release 미노출.
     ("debug.selection", local_only(MethodEffect::Read)),
     ("debug.pending_menu", local_only(MethodEffect::Read)),

@@ -88,6 +88,27 @@ fn remote_command_to_method_params(command: &RemoteCommands) -> (&'static str, s
             "remote.connect",
             serde_json::json!({ "workspace_id": workspace }),
         ),
+        RemoteCommands::Detach {
+            workspace: Some(workspace),
+            ..
+        } => (
+            "attach.force_detach_workspace",
+            serde_json::json!({ "workspace_id": workspace }),
+        ),
+        RemoteCommands::Detach {
+            surface: Some(surface),
+            ..
+        } => (
+            "attach.force_detach",
+            serde_json::json!({ "surface_id": surface }),
+        ),
+        RemoteCommands::Detach { .. } => {
+            debug_assert!(
+                false,
+                "remote detach --all is dispatched before request mapping"
+            );
+            ("attach.force_detach.noop", serde_json::json!({}))
+        }
         RemoteCommands::NewWorkspace { .. } => {
             debug_assert!(
                 false,
@@ -440,7 +461,11 @@ pub fn command_to_request(command: &Commands) -> JsonRpcRequest {
             }),
         ),
     };
+    rpc_request(method, params)
+}
 
+/// 이 CLI가 보내는 단발 요청. 자식 agent가 띄운 CLI는 env의 호출자 신원을 함께 싣는다.
+pub(crate) fn rpc_request(method: &str, params: serde_json::Value) -> JsonRpcRequest {
     JsonRpcRequest {
         caller_agent_id: tasty_ipc::protocol::caller_agent_id_from_env(),
         response_timeout_ms: None,

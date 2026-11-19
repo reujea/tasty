@@ -3156,6 +3156,19 @@ long = """
 [cli.help._root.remote.connect.arg.workspace]
 help = "已保存的远程工作区行的本地 ID（其在 `tasty list workspaces` 中的条目），而非远程 ID"
 
+[cli.help._root.remote.detach]
+about = "强制分离占用此实例的远程客户端"
+long = "强制分离占用此实例的远程客户端。\n\n此操作与点击占用边框上的“强制分离”按钮或在侧边栏确认强制分离的效果相同。解除占用并通知占用目标的客户端其连接已被强制分离，该客户端上的镜像随即结束，不会重新连接。该客户端上已保存的远程工作区行会保持断开连接，直到有人主动连接。`--workspace` 调用 `attach.force_detach_workspace`，`--surface` 调用 `attach.force_detach`。两者均输出相应调用的响应；如果没有客户端占用目标，响应为 `force_detached: false`。`--all` 读取 `attach.list`，先分离所有被占用的工作区，再分离仍被占用的所有 Surface，并输出 `{\"workspaces\": [...], \"surfaces\": [...]}`，其中包含每次调用的响应。目标远程客户端是 `tasty remote workspaces` 显示为已附加到此实例的客户端。要断开此端的镜像连接，请使用 `tasty remote disconnect`。"
+
+[cli.help._root.remote.detach.arg.workspace]
+help = "此实例中被占用的工作区 ID"
+
+[cli.help._root.remote.detach.arg.surface]
+help = "此实例中被占用的 Surface ID"
+
+[cli.help._root.remote.detach.arg.all]
+help = "解除 `attach.list` 列出的所有占用"
+
 [cli.help._root.send]
 about = "发送文本、按键或队列消息"
 
@@ -3845,9 +3858,6 @@ help = "工作区模式下接收 `--send` 输入的远程 Surface ID"
 
 [cli.help._root.debug.attach.arg.raw]
 help = "原始桥接模式：透传 stdin/stdout（使用 Ctrl+\\ 分离）"
-
-[cli.help._root.debug.attach.arg.force_detach]
-help = "强制分离被占用的 Surface/工作区（在服务端执行；不执行附加）"
 
 [cli.help._root.debug.info]
 about = "显示运行中的 tasty 实例的调试信息"

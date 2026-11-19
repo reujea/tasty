@@ -236,6 +236,37 @@ pub enum RemoteCommands {
         #[arg(long)]
         workspace: u32,
     },
+    /// Force-detach remote clients that occupy this instance.
+    ///
+    /// Does what the occupancy border's "Force detach" button and the
+    /// sidebar's force-detach confirmation do: the occupancy is released and
+    /// the holder is told it was force-detached, so its mirror ends without
+    /// reconnecting. A saved remote workspace row on that client stays
+    /// disconnected until someone connects it explicitly. `--workspace` calls
+    /// `attach.force_detach_workspace` and `--surface` calls
+    /// `attach.force_detach`; each prints that reply, with
+    /// `force_detached: false` when nothing held the target. `--all` reads
+    /// `attach.list`, detaches every occupied workspace, then every surface
+    /// still occupied, and prints `{"workspaces": [...], "surfaces": [...]}`
+    /// with one reply per call. The remote clients are the ones `tasty remote
+    /// workspaces` shows as attached on this instance; to leave a mirror on
+    /// this side, use `tasty remote disconnect`.
+    #[command(group(
+        clap::ArgGroup::new("detach_target")
+            .required(true)
+            .args(["workspace", "surface", "all"])
+    ))]
+    Detach {
+        /// Id of the occupied workspace on this instance.
+        #[arg(long)]
+        workspace: Option<u32>,
+        /// Id of the occupied surface on this instance.
+        #[arg(long)]
+        surface: Option<u32>,
+        /// Detach every occupancy listed by `attach.list`.
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 impl RemoteCommands {

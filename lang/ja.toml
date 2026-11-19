@@ -3072,6 +3072,19 @@ long = "ユーザーが切断した行も含め、保存済みのリモートワ
 [cli.help._root.remote.connect.arg.workspace]
 help = "保存済みのリモートワークスペース行のローカル ID（`tasty list workspaces` の該当項目）。リモート ID ではありません"
 
+[cli.help._root.remote.detach]
+about = "このインスタンスを使用中のリモートクライアントを強制切断"
+long = "このインスタンスを使用中のリモートクライアントを強制切断します。\n\n使用中であることを示す枠の「強制切断」ボタンを押すか、サイドバーで強制切断を確定したときと同じ動作をします。対象の使用状態を解除し、使用していたクライアントに強制切断を通知します。そのクライアントのミラーは再接続せずに終了します。そのクライアントに保存済みのリモートワークスペース行は、明示的に接続するまで切断されたままです。`--workspace` は `attach.force_detach_workspace` を呼び出し、`--surface` は `attach.force_detach` を呼び出します。どちらも呼び出しの応答を出力し、対象を使用中のクライアントがいなければ `force_detached: false` が返ります。`--all` は `attach.list` を読み取り、使用中のワークスペースをすべて切断した後、引き続き使用中のサーフェスをすべて切断します。呼び出しごとの応答をまとめて `{\"workspaces\": [...], \"surfaces\": [...]}` を出力します。対象となるのは、`tasty remote workspaces` でこのインスタンスに接続中と表示されるリモートクライアントです。こちら側のミラーの接続を切るには `tasty remote disconnect` を使用してください。"
+
+[cli.help._root.remote.detach.arg.workspace]
+help = "このインスタンスで使用中のワークスペースの ID"
+
+[cli.help._root.remote.detach.arg.surface]
+help = "このインスタンスで使用中のサーフェスの ID"
+
+[cli.help._root.remote.detach.arg.all]
+help = "`attach.list` に表示される使用中の対象をすべて切断"
+
 [cli.help._root.send]
 about = "テキスト、キー、キューメッセージを送信する"
 
@@ -3689,9 +3702,6 @@ help = "ワークスペースモードで `--send` の入力を受け取るリ�
 
 [cli.help._root.debug.attach.arg.raw]
 help = "生のブリッジモード：stdin/stdoutをそのまま転送（Ctrl+\\\\でdetach）"
-
-[cli.help._root.debug.attach.arg.force_detach]
-help = "占有されたサーフェス/ワークスペースを強制detach（サーバー側、attachはしません）"
 
 [cli.help._root.debug.info]
 about = "実行中のtastyインスタンスのdebug情報を表示"

@@ -586,21 +586,24 @@ mod tests {
         assert!(matches!(err, CallerError::UnknownMethod(_)));
     }
 
-    /// 원격 사용자를 끊는 공개 메서드는 없으므로 attach 제어를 부를 수 있는 plugin 도 부를 수 없다.
-    /// debug 재현 메서드는 local 전용이라 debug 빌드에서도 plugin 에 닫혀 있다.
+    /// 강제 끊기는 attach.release 와 같은 연결 경계를 신뢰한다. GUI 의 강제 끊기와 같은 일을
+    /// 에이전트 세션·plugin 도 할 수 있고, 옛 debug 재현 메서드는 남아 있지 않다.
     #[test]
-    fn plugin_cannot_call_force_detach() {
+    fn plugin_can_call_force_detach() {
         let c = plugin();
-        assert!(c.ensure_allowed("attach.release").is_ok());
-        for m in ["attach.force_detach", "attach.force_detach_workspace"] {
-            let err = c.ensure_allowed(m).unwrap_err();
-            assert!(matches!(err, CallerError::UnknownMethod(_)), "{m}: {err}");
+        for m in [
+            "attach.release",
+            "attach.force_detach",
+            "attach.force_detach_workspace",
+        ] {
+            assert!(c.ensure_allowed(m).is_ok(), "{m}");
         }
         for m in [
             "debug.attach.force_detach",
             "debug.attach.force_detach_workspace",
         ] {
-            assert!(c.ensure_allowed(m).is_err(), "{m}");
+            let err = c.ensure_allowed(m).unwrap_err();
+            assert!(matches!(err, CallerError::UnknownMethod(_)), "{m}: {err}");
         }
     }
 

@@ -878,41 +878,27 @@ fn window_list_debug_method_absent_in_release() {
     );
 }
 
-/// 원격 사용자를 강제로 끊는 공개 메서드는 release 표에 없다. 로컬 사용자는 GUI로 끊는다.
+/// GUI의 강제 끊기와 같은 일을 release IPC로도 한다(docs/principles/control-and-data.md).
+/// 겹치던 debug 재현 메서드는 어느 빌드에도 없다.
 #[test]
-fn release_table_has_no_force_detach_method() {
-    let offenders: Vec<&str> = METHOD_TABLE
-        .iter()
-        .map(|(name, _)| *name)
-        .filter(|name| name.contains("force_detach"))
-        .collect();
-    assert!(offenders.is_empty(), "release force-detach: {offenders:?}");
-    #[cfg(not(debug_assertions))]
-    for name in [
-        "attach.force_detach",
-        "attach.force_detach_workspace",
-        "debug.attach.force_detach",
-        "debug.attach.force_detach_workspace",
-    ] {
+fn force_detach_methods_are_in_the_release_table() {
+    for name in ["attach.force_detach", "attach.force_detach_workspace"] {
         assert!(
-            method_meta(name).is_none(),
-            "{name} must not exist in release"
+            METHOD_TABLE.iter().any(|(n, _)| *n == name),
+            "{name} must be in the release table"
+        );
+        let m = method_meta(name).expect("registered");
+        assert!(m.plugin_callable, "{name} follows attach.release");
+        assert_eq!(
+            m.effect,
+            crate::method_meta::MethodEffect::Idempotent,
+            "{name}"
         );
     }
-}
-
-/// debug 빌드는 로컬 사용자의 강제 끊기를 local 전용 메서드로 재현한다.
-#[test]
-#[cfg(debug_assertions)]
-fn force_detach_reproduction_is_debug_local_only() {
     for name in [
         "debug.attach.force_detach",
         "debug.attach.force_detach_workspace",
     ] {
-        let m = method_meta(name).expect("registered (debug build)");
-        assert!(!m.plugin_callable, "{name} must be local_only");
-    }
-    for name in ["attach.force_detach", "attach.force_detach_workspace"] {
-        assert!(method_meta(name).is_none(), "{name} must stay unregistered");
+        assert!(method_meta(name).is_none(), "{name} must not exist");
     }
 }

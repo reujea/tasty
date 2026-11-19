@@ -133,6 +133,10 @@ fn classify(command: &Commands) -> Result<Option<Box<dyn ClientCommand + '_>>> {
         {
             Box::new(crate::local::remote_gui_attach::RemoteGuiAttach { command })
         }
+        // 전부 끊기는 attach.list를 읽은 뒤 대상마다 호출한다(local::remote_detach).
+        Commands::Remote {
+            command: RemoteCommands::Detach { all: true, .. },
+        } => Box::new(crate::local::remote_detach::RemoteDetachAll),
         Commands::Remote {
             command:
                 RemoteCommands::Check {
@@ -246,7 +250,6 @@ fn classify(command: &Commands) -> Result<Option<Box<dyn ClientCommand + '_>>> {
         Commands::Debug {
             command: crate::commands::DebugCommands::Sim { cmd },
         } => Box::new(crate::local::DebugSim { cmd }),
-        // debug의 force-detach는 단발 RPC(debug.attach.*)로 처리한다.
         #[cfg(debug_assertions)]
         Commands::Debug {
             command:
@@ -257,7 +260,6 @@ fn classify(command: &Commands) -> Result<Option<Box<dyn ClientCommand + '_>>> {
                     send,
                     send_to,
                     raw,
-                    force_detach: false,
                 },
         } => Box::new(crate::local::DebugAttach {
             surface: *surface,

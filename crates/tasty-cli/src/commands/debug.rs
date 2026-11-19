@@ -33,10 +33,6 @@ pub enum DebugCommands {
         /// Raw bridge mode: stdin/stdout passthrough (detach with Ctrl+\).
         #[arg(long)]
         raw: bool,
-        /// Forcibly detach an occupied surface/workspace (server-side; does not
-        /// attach).
-        #[arg(long)]
-        force_detach: bool,
     },
     /// Show debug info from the running tasty instance
     Info,
