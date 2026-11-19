@@ -164,6 +164,8 @@ pub struct GpuState {
     pub(crate) perf: PerfAggregator,
     /// 이번 프레임에 WebView 오버레이 창의 acquire를 기다린 시간(ms). perf 표본에 넣고 비운다.
     overlay_acquire_ms: f64,
+    /// 마지막으로 present한 메인 창 프레임의 (bg, glyph) 인스턴스 수. 터미널을 그리지 않은 프레임은 0이다.
+    presented_instances: (u32, u32),
     /// 느린 프레임 경고를 구간 요약으로 묶는다.
     slow_render: frame_timing::SlowRenderLog,
     /// Set when a frame hid the focused terminal cursor during an output burst.
@@ -338,6 +340,7 @@ impl GpuState {
             pending_surface_screenshot: None,
             perf: PerfAggregator::new(),
             overlay_acquire_ms: 0.0,
+            presented_instances: (0, 0),
             slow_render: frame_timing::SlowRenderLog::default(),
             terminal_cursor_restore_pending: false,
             proxy,
@@ -624,6 +627,7 @@ impl GpuState {
 
         let (_, _, draw_total) = self.renderer.draw_call_count();
         let (bg_instances, glyph_instances) = self.renderer.instance_counts();
+        self.presented_instances = (bg_instances, glyph_instances);
         self.perf.push(FrameSample {
             gpu_total_ms: timing.total_ms,
             terminals_ms: timing.terminals_ms,
@@ -755,6 +759,8 @@ impl GpuState {
         output.present();
         tracing::debug!(target: "tasty::gpu::surface", phase = "present",
             elapsed_us = present_start.elapsed().as_micros() as u64);
+        // 무대 프레임은 터미널 인스턴스를 쌓지 않는다. 렌더러에 남은 직전 프레임 값을 보고하지 않는다.
+        self.presented_instances = (0, 0);
         Ok(())
     }
 
@@ -802,6 +808,10 @@ impl GpuState {
             },
             "draw_calls": { "bg": bg_draws, "glyph": glyph_draws, "total": total_draws },
             "active_surfaces": self.renderer.active_surface_count(),
+            "instances": {
+                "bg": self.presented_instances.0,
+                "glyph": self.presented_instances.1,
+            },
         })
     }
 

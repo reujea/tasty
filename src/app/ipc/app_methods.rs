@@ -140,6 +140,7 @@ impl App {
                     "window_id": u64::from(*id),
                     "main": w.as_main().is_some(),
                     "stats": w.base().gpu.resource_stats(),
+                    "repaint": w.base().state.repaint.totals().to_json(),
                     // explorer store는 MainView에만 있어 다른 창은 null이다.
                     "explorer_views": w.as_main().map(|m| m.state.explorer_views.view_count()),
                 })

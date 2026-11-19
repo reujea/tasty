@@ -71,7 +71,7 @@ env 제어:
 ### 기록 지표
 
 - **외부** (하네스가 sysinfo 로 측정, 앱 밖에서 수집): 프로세스 **트리 합산** RSS, root RSS, 이름별 자식 수·**이름별 자식 RSS 합산**(`children_rss_by_name` — 누수 프로세스 1차 특정), 핸들(Windows)/fd(Linux/macOS) 수.
-- **내부** (`system.gpu_stats` IPC · CLI `tasty list gpu-stats`): wgpu 전역 리포트(buffers/textures/texture_views/bind_groups 등 live 카운트), 창별 `egui_mesh_targets`/`_popup_targets`/`_banner_targets` len, atlas(eviction/pages/entries), draw calls, 창별 호스트 explorer view 수(`explorer_views` — main 이 아닌 창은 `null`).
+- **내부** (`system.gpu_stats` IPC · CLI `tasty list gpu-stats`): wgpu 전역 리포트(buffers/textures/texture_views/bind_groups 등 live 카운트), 창별 `egui_mesh_targets`/`_popup_targets`/`_banner_targets` len, atlas(eviction/pages/entries), draw calls, 마지막으로 present한 프레임의 터미널 인스턴스 수(전체화면 무대 프레임은 0), 창별 호스트 explorer view 수(`explorer_views` — main 이 아닌 창은 `null`), 창별 repaint 누계(`repaint`).
 - **부수 신호**: `input_incidents` — split close 직후 `surface.send` 첫 바이트 유실 레이스의 발생 횟수(하네스가 감지·재시도하며 계수).
 
 ## 2단계 — 판정

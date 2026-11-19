@@ -303,7 +303,8 @@ impl GpuState {
     }
 
     /// Finish an egui frame: tessellate, render, present.
-    pub fn finish_egui_frame(&mut self, window: &Window, full_output: egui::FullOutput) {
+    /// surface를 얻지 못해 present하지 않았으면 `false`다.
+    pub fn finish_egui_frame(&mut self, window: &Window, full_output: egui::FullOutput) -> bool {
         // egui의 비입력 프레임이 창 IME를 끄지 않게 한다.
         self.egui_state.set_allow_ime(false);
         self.apply_egui_output(window, full_output.platform_output);
@@ -320,7 +321,7 @@ impl GpuState {
             Ok(o) => o,
             Err(e) => {
                 tracing::warn!("modal surface error: {e}");
-                return;
+                return false;
             }
         };
         let view = output
@@ -404,6 +405,7 @@ impl GpuState {
         }
 
         self.present_surface(output);
+        true
     }
 }
 

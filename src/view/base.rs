@@ -54,11 +54,14 @@ impl ViewBase {
     ) {
         self.state.dirty = true;
         let now = std::time::Instant::now();
-        if !self
+        if self
             .state
             .sync_hold
             .hold_output(surface_id, synchronized, now)
         {
+            // 보류한 출력도 다음 present에 귀속한다. 그 프레임이 보류 중인 grid를 그린다.
+            self.state.repaint.note_held(source);
+        } else {
             self.admit_redraw(source, Some(surface_id), now);
         }
     }
@@ -123,9 +126,19 @@ impl ViewBase {
     }
 
     /// 프레임을 그릴 때 dirty 해제와 다시 그리기 시간 기준 갱신을 함께 처리한다.
+    /// 프레임 귀속은 [`Self::finish_egui_frame`]이 present에 성공한 뒤에 한다.
     pub fn begin_frame(&mut self) {
         self.state.dirty = false;
-        self.state.repaint.note_present(std::time::Instant::now());
+        self.state
+            .repaint
+            .note_frame_start(std::time::Instant::now());
         self.state.sync_hold.note_present();
+    }
+
+    /// 보조 창의 egui 프레임을 present하고, 성공했을 때만 그 프레임을 유발원에 귀속한다.
+    pub(crate) fn finish_egui_frame(&mut self, full_output: egui::FullOutput) {
+        if self.gpu.finish_egui_frame(&self.winit, full_output) {
+            self.state.repaint.note_presented(std::time::Instant::now());
+        }
     }
 }

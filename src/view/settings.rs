@@ -245,9 +245,7 @@ impl View for SettingsView {
             self.mark_dirty();
         }
 
-        self.base
-            .gpu
-            .finish_egui_frame(&self.base.winit, full_output);
+        self.base.finish_egui_frame(full_output);
         if crate::clipboard::copy::copy_egui_text(
             &mut self.base.gpu,
             &mut self.clipboard,

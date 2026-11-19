@@ -7,9 +7,12 @@
 //! 요청의 통과·지연과 실제 present 횟수를 1초 단위로 기록한다.
 //! 로그: TASTY_LOG=tasty::view::repaint=info.
 
+mod attribution;
 mod caps;
 mod surface_retry;
 
+pub(crate) use attribution::RepaintTotals;
+use attribution::SOURCES;
 use caps::RedrawCaps;
 pub(crate) use caps::install as install_redraw_caps;
 
@@ -98,6 +101,7 @@ pub struct RepaintGate {
     /// 미룬 요청을 다시 처리할 예정 시각.
     deferred_until: Option<Instant>,
     stats: RepaintStats,
+    attribution: attribution::FrameAttribution,
     retry: surface_retry::SurfaceRetry,
 }
 
@@ -120,6 +124,7 @@ impl RepaintGate {
             last_present: None,
             deferred_until: None,
             stats: RepaintStats::default(),
+            attribution: Default::default(),
             retry: Default::default(),
         }
     }
@@ -165,6 +170,7 @@ impl RepaintGate {
                 _ => at,
             });
         }
+        self.attribution.note_request(source);
         self.stats
             .note_request(source, admitted, now, self.caps, self.min_interval);
         admitted
@@ -182,6 +188,7 @@ impl RepaintGate {
                 "a failed frame reserves its retry"
             );
         }
+        self.attribution.note_request(source);
         self.stats
             .note_request(source, admitted, now, self.caps, self.min_interval);
         admitted
@@ -220,12 +227,36 @@ impl RepaintGate {
 
     /// 실제로 프레임을 그리기로 확정한 지점. 다음 상한 창의 기준점을 갱신한다.
     pub fn note_present(&mut self, now: Instant) {
+        self.note_frame_start(now);
+        self.note_presented(now);
+    }
+
+    /// 프레임을 그리기 시작할 때의 다시 그리기 시간 기준 갱신. 집계는 바꾸지 않는다.
+    /// 보조 창은 그리기 전에 이것을, present에 성공한 뒤 [`Self::note_presented`]를 부른다.
+    pub(crate) fn note_frame_start(&mut self, now: Instant) {
         self.retry.recovered();
         self.last_present = Some(now);
         // 이 프레임이 미뤄뒀던 요청을 소진한다.
         self.deferred_until = None;
         self.input_pending = false;
-        self.stats.note_present(now, self.caps, self.min_interval);
+    }
+
+    /// present에 성공한 프레임을 유발원에 귀속하고 누계에 더한다.
+    /// present하지 못한 시도는 부르지 않으므로 대기 중인 유발원이 다음 present로 넘어간다.
+    pub(crate) fn note_presented(&mut self, now: Instant) {
+        let opened = self.attribution.note_present();
+        self.stats
+            .note_present(now, self.caps, self.min_interval, opened);
+    }
+
+    /// DEC 2026 동기화 보류로 상한 판정 없이 멈춘 출력 요청. 다음 present에 귀속한다.
+    pub(crate) fn note_held(&mut self, source: RepaintSource) {
+        self.attribution.note_request(source);
+    }
+
+    /// 창이 생긴 뒤의 유발원별 요청·프레임 누계. `system.gpu_stats`가 읽는다.
+    pub(crate) fn totals(&self) -> RepaintTotals {
+        self.attribution.totals()
     }
 
     /// Preserve dirty after a returned surface error and reserve a delayed wakeup.
@@ -294,6 +325,9 @@ struct RepaintStats {
     egui: SourceCount,
     attach_mirror: SourceCount,
     presents: u32,
+    /// 이 창에서 그린 프레임을 연 유발원별 수와 요청 없이 그린 프레임 수.
+    drawn: [u32; SOURCES],
+    unattributed: u32,
     window_start: Option<Instant>,
 }
 
@@ -321,8 +355,21 @@ impl RepaintStats {
         self.maybe_dump(now, caps, min_interval);
     }
 
-    fn note_present(&mut self, now: Instant, caps: RedrawCaps, min_interval: Duration) {
+    fn note_present(
+        &mut self,
+        now: Instant,
+        caps: RedrawCaps,
+        min_interval: Duration,
+        opened: [bool; SOURCES],
+    ) {
         self.presents += 1;
+        if opened.iter().any(|o| *o) {
+            for (count, o) in self.drawn.iter_mut().zip(opened) {
+                *count += u32::from(o);
+            }
+        } else {
+            self.unattributed += 1;
+        }
         self.maybe_dump(now, caps, min_interval);
     }
 
@@ -335,7 +382,8 @@ impl RepaintStats {
         tracing::info!(
             target: "tasty::view::repaint",
             "repaint {:.1}s cap={:.1}fps out_cap={:.1}fps in_cap={:.1}fps present={} \
-             interactive={}+{}d output={}+{}d echo={}+{}d egui={}+{}d mirror={}+{}d",
+             interactive={}+{}d output={}+{}d echo={}+{}d egui={}+{}d mirror={}+{}d \
+             drawn interactive={} output={} echo={} egui={} mirror={} none={}",
             elapsed.as_secs_f64(),
             1.0 / min_interval.as_secs_f64(),
             1.0 / caps.output_interval(min_interval).as_secs_f64(),
@@ -351,6 +399,12 @@ impl RepaintStats {
             self.egui.deferred,
             self.attach_mirror.admitted,
             self.attach_mirror.deferred,
+            self.drawn[0],
+            self.drawn[1],
+            self.drawn[2],
+            self.drawn[3],
+            self.drawn[4],
+            self.unattributed,
         );
         *self = Self {
             window_start: Some(now),
@@ -480,6 +534,44 @@ mod tests {
         assert!(!gate.admit_at(RepaintSource::EguiAnimation, t0 + Duration::from_millis(1)));
         gate.note_present(t0 + Duration::from_millis(2));
         assert_eq!(gate.deferred_deadline(), None);
+    }
+
+    /// 보조 창처럼 그리기 시작과 present를 나눠 부르면 present하지 못한 시도는 누계에 들어가지 않고
+    /// 대기 중인 유발원은 다음 present에 귀속된다.
+    #[test]
+    fn frame_start_without_present_keeps_totals_and_pending_sources() {
+        let mut gate = RepaintGate::with_min_interval(Duration::from_millis(20));
+        let t0 = Instant::now();
+        assert!(gate.admit_at(RepaintSource::Interactive, t0));
+        gate.note_frame_start(t0);
+        let failed = gate.totals();
+        assert_eq!(failed.presents, 0);
+        assert_eq!(failed.unattributed, 0);
+        assert_eq!(failed.frames, [0; SOURCES]);
+        assert_eq!(failed.requests[0], 1);
+
+        gate.note_frame_start(t0 + Duration::from_millis(30));
+        gate.note_presented(t0 + Duration::from_millis(31));
+        let presented = gate.totals();
+        assert_eq!(presented.presents, 1);
+        assert_eq!(presented.unattributed, 0);
+        assert_eq!(presented.frames, [1, 0, 0, 0, 0]);
+    }
+
+    /// 상한으로 미룬 요청과 동기화 보류로 멈춘 출력은 그 뒤 실제 present에 귀속된다.
+    #[test]
+    fn deferred_and_held_requests_are_attributed_at_present() {
+        let mut gate = RepaintGate::with_min_interval(Duration::from_millis(20));
+        let t0 = Instant::now();
+        gate.note_present(t0);
+        assert!(!gate.admit_at(RepaintSource::EguiAnimation, t0 + Duration::from_millis(1)));
+        gate.note_held(RepaintSource::InputEcho);
+        assert_eq!(gate.totals().frames, [0; SOURCES]);
+        gate.note_present(t0 + Duration::from_millis(25));
+        let t = gate.totals();
+        assert_eq!(t.presents, 2);
+        assert_eq!(t.unattributed, 1);
+        assert_eq!(t.frames, [0, 0, 1, 1, 0]);
     }
 
     /// 아직 한 번도 그리지 않은 창은 첫 프레임을 막지 않는다.
