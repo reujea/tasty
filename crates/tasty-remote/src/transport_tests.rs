@@ -378,12 +378,17 @@ fn a_rejection_reason_reads_back_from_the_connection_error() {
 ///
 /// 순서는 시간이 아니라 신호로 맞춘다. 너무 큰 프레임으로 송신을 실패시키고, writer가 실패 분기에서
 /// 쓰기 쪽을 닫은 것(상대가 보는 EOF)을 확인한 뒤에야 상대가 통지를 보내고 reader를 시작한다.
-/// 이 사이 writer가 기한으로 끊김을 알리면 깨우기 기록에 통지 없는 끊김이 남는다.
+/// 이 사이 writer가 기한으로 끊김을 알리면 대개 `!disconnected` 단언이나 깨우기 기록에서 드러난다.
 ///
 /// 한계: EOF는 writer가 실패 분기에서 쓰기 쪽을 닫았다는 것까지만 고정한다. 쓰기 쪽 종료는 두고
 /// reader 대기만 없앤 writer는 EOF 직후 끊김 표지를 세우므로 바로 뒤의 `!disconnected` 단언이
-/// 실패한다(빌드 머신에서 30회 중 30회 검출). 다만 그 writer가 EOF와 표지 사이에서 reader가 끝날
-/// 때까지 멈추는 스케줄에서는 놓칠 수 있다. 시험 전용 동기화 지점은 두지 않았다.
+/// 실패한다(빌드 머신에서 30회 중 30회 검출). 다만 두 스케줄에서는 놓칠 수 있다.
+/// - 그 writer가 EOF와 표지 사이에서 reader가 끝날 때까지 멈추는 경우.
+/// - 그 writer가 `!disconnected` 확인 직후 표지를 세우고 깨우기 전에 멈춘 사이 reader가 통지를
+///   처리하는 경우. 그러면 두 깨우기 모두 끊김과 강제 끊김이 함께 선 상태만 기록해 깨우기 기록
+///   단언도 통과한다.
+///
+/// 시험 전용 동기화 지점은 두지 않았다.
 #[test]
 fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
     use std::io::{BufRead, BufReader, Read};
