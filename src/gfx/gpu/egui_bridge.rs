@@ -150,30 +150,35 @@ impl GpuState {
 
         self.egui_ctx.run(raw_input, |ctx| {
             crate::state::webview_overlay::begin_frame(ctx, &mut state.webview_overlay);
-            // 타이틀바를 먼저 등록해 사이드바가 그 아래에서 시작하게 한다.
-            ui::titlebar::draw_titlebar(ctx, state, window, proxy);
-            let plugin_alert = plugin_manager.map_or(0, |m| m.attention_count());
-            // 닫힌 대상의 이동 대기 표시와 "이곳으로 이동" 메뉴가 남지 않게 한다.
-            ui::move_source::clear_if_target_closed(engine, &mut state.pending_move);
-            ui::draw_ui(ctx, state, engine, scale_factor, plugin_alert);
-            ui::draw_pane_dividers(ctx, dividers, scale_factor);
-            ui::draw_surface_highlights(ctx, state, engine, terminal_rect, scale_factor);
-            ui::draw_pane_tab_bars(ctx, state, engine, pane_rects, terminal_rect, scale_factor);
-            ui::draw_egui_panels(ctx, state, engine, pane_rects, scale_factor);
-            // 탭 바와 점유 테두리 뒤에 그려 대상 rect에서 가장 마지막에 둔다.
-            let move_mark = ui::move_source::resolve(
-                state.pending_move,
-                &state.navigation,
-                engine,
-                state.active_workspace_index(engine),
-                pane_rects,
-                state.tab_bar_height,
-                Some(&state.layout_previews),
-                scale_factor,
-            );
-            ui::move_source::draw_move_source_ring(ctx, move_mark, scale_factor);
-            ui::draw_status_bar(ctx, state, engine, terminal_rect, scale_factor);
-            ui::link_remote_tip::draw(ctx, state, scale_factor);
+            // 팝업 층보다 먼저 그리는 화면. 창이 이번 프레임 키를 팝업 키 주인에 묶었으면 이 화면들은 그 키를 보지
+            // 않는다(팝업이 처리한 Esc 가 탐색기 찾기 입력란 등으로 새지 않는다).
+            let surfaces_take_keys = state.surfaces_take_keys();
+            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, surfaces_take_keys, || {
+                // 타이틀바를 먼저 등록해 사이드바가 그 아래에서 시작하게 한다.
+                ui::titlebar::draw_titlebar(ctx, state, window, proxy);
+                let plugin_alert = plugin_manager.map_or(0, |m| m.attention_count());
+                // 닫힌 대상의 이동 대기 표시와 "이곳으로 이동" 메뉴가 남지 않게 한다.
+                ui::move_source::clear_if_target_closed(engine, &mut state.pending_move);
+                ui::draw_ui(ctx, state, engine, scale_factor, plugin_alert);
+                ui::draw_pane_dividers(ctx, dividers, scale_factor);
+                ui::draw_surface_highlights(ctx, state, engine, terminal_rect, scale_factor);
+                ui::draw_pane_tab_bars(ctx, state, engine, pane_rects, terminal_rect, scale_factor);
+                ui::draw_egui_panels(ctx, state, engine, pane_rects, scale_factor);
+                // 탭 바와 점유 테두리 뒤에 그려 대상 rect에서 가장 마지막에 둔다.
+                let move_mark = ui::move_source::resolve(
+                    state.pending_move,
+                    &state.navigation,
+                    engine,
+                    state.active_workspace_index(engine),
+                    pane_rects,
+                    state.tab_bar_height,
+                    Some(&state.layout_previews),
+                    scale_factor,
+                );
+                ui::move_source::draw_move_source_ring(ctx, move_mark, scale_factor);
+                ui::draw_status_bar(ctx, state, engine, terminal_rect, scale_factor);
+                ui::link_remote_tip::draw(ctx, state, scale_factor);
+            });
             // host 팝업을 먼저 그려 같은 프레임의 영역을 plugin hit-test에 전달한다.
             // 반대로 host가 보는 plugin 영역은 직전 프레임 값이다.
             // source_guards::frame_draw_order가 호출 순서를 검사한다.

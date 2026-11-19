@@ -227,7 +227,7 @@ fn a_scope_hidden_before_the_redraw_keeps_the_escape_on_the_window_target() {
     assert_eq!(
         gate,
         crate::state::EscapeGate::Consumed {
-            drop_from_egui: false
+            drop_from_egui: true
         },
         "창이 H 의 포커스를 푼다"
     );

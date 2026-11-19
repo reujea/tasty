@@ -579,7 +579,10 @@ impl RequestContext {
     #[cfg(any(feature = "gui", debug_assertions))]
     pub(crate) fn keyboard_overlay_open_besides_html_address(&self) -> bool {
         #[cfg(feature = "gui")]
+        // 창이 이번 프레임 키를 팝업 키 주인에 묶었으면 그 주인의 포커스를 풀었거나 닫았어도 그 프레임의 키는
+        // 팝업 것이다(터미널·단축키로 가지 않는다).
         let host_popup_focused = self.popups.has_focused()
+            || self.popups.bound_input_key_owner().is_some()
             || (self.tutorial.active.is_some() && self.tutorial.keyboard_focus)
             || crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups);
         #[cfg(not(feature = "gui"))]

@@ -44,18 +44,29 @@ impl super::MainViewState {
     /// 창이 키를 받은 입력 시점의 키 주인을 묶는다. 그 키를 실은 다음 그리기에서 이 값이 그 프레임 키 주인이다
     /// (창의 키 처리는 그리기보다 먼저 돈다). host 키 주인은 그 인스턴스로 묶는다. 키 주인이 있으면 참이다.
     pub(crate) fn bind_window_key_owner(&mut self) -> bool {
-        let bound = match self.popup_key_owner() {
+        let live = self.live_key_owner();
+        if let Some(live) = live {
+            self.popups.bind_input_key_owner(live);
+        }
+        live.is_some()
+    }
+
+    /// 팝업 층 아래 egui 화면(surface UI·사이드바 등)이 이번 프레임 키 입력을 볼지. 창이 이번 프레임 키를 팝업
+    /// 키 주인에 묶었으면 그 키는 팝업 것이라 아래 화면은 보지 않는다(팝업 층보다 먼저 그리므로 이 값으로 막는다).
+    pub(crate) fn surfaces_take_keys(&self) -> bool {
+        self.popups.bound_input_key_owner().is_none()
+    }
+
+    /// 지금 후보로 정한 키 주인을 묶을 값으로. host 키 주인은 그 인스턴스다.
+    pub(crate) fn live_key_owner(&self) -> Option<BoundKeyOwner> {
+        match self.popup_key_owner() {
             Some(PopupKeyOwner::Host) => self
                 .popups
                 .host_key_owner()
                 .map(|p| BoundKeyOwner::Host(p.instance)),
             Some(PopupKeyOwner::Plugin(id)) => Some(BoundKeyOwner::Plugin(id)),
             None => None,
-        };
-        if let Some(bound) = bound {
-            self.popups.bind_input_key_owner(bound);
         }
-        bound.is_some()
     }
 
     /// plugin 팝업 렌더가 쓰는 이번 프레임 키 주인 plugin 팝업. `decided`는 렌더를 시작할 때 꺼낸

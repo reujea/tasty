@@ -242,7 +242,7 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
     assert_eq!(
         state.escape_gate(),
         crate::state::EscapeGate::Consumed {
-            drop_from_egui: false
+            drop_from_egui: true
         }
     );
     assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));
@@ -250,7 +250,8 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
         state.popups.is_open(SEARCH_BAR_POPUP_ID),
         "the winit stage does not close"
     );
-    escape_frame(&ctx, &mut state, &engine, vec![escape_event()]);
+    // The gate took the Escape out of the egui input; the popup layer hands it to the bound bar.
+    escape_frame(&ctx, &mut state, &engine, vec![]);
     assert!(
         !state.popups.is_open(SEARCH_BAR_POPUP_ID),
         "Escape that ended the input's focus closes the bar"

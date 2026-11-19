@@ -50,6 +50,27 @@ pub(crate) fn with_body_keys<R>(
     out
 }
 
+/// 창이 처리해 egui 입력에서 뺀 Esc 를 팝업 층에서 다시 넣는다. 창이 Esc 를 묶은 키 주인 본문만 읽는다(다른 본문은
+/// 문이 가린다). 팝업 층보다 먼저 그린 화면과 egui 의 패스 시작 처리(키 포커스 해제)는 이 Esc 를 보지 않는다.
+pub(crate) fn hand_escape(ctx: &egui::Context) {
+    ctx.input_mut(|i| i.events.push(escape()));
+}
+
+/// [`hand_escape`]로 넣은 Esc 가 본문들을 그린 뒤 남았으면 뺀다. 팝업 층 뒤에 그리는 것은 보지 않는다.
+pub(crate) fn withdraw_escape(ctx: &egui::Context) {
+    ctx.input_mut(|i| i.events.retain(|e| *e != escape()));
+}
+
+fn escape() -> egui::Event {
+    egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::with_body_keys;

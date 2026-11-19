@@ -157,14 +157,15 @@ fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
     assert_eq!(
         state.escape_gate(),
         EscapeGate::Consumed {
-            drop_from_egui: false
+            drop_from_egui: true
         }
     );
     assert!(
         !state.popups.instance(x).unwrap().focused,
         "창이 X 의 포커스를 푼다"
     );
-    let seen = frame(&ctx, &mut state, vec![key(egui::Key::Escape), enter()]);
+    // 창은 그 Esc 를 egui 입력에서 뺐다. 같은 프레임의 Enter 만 egui 로 간다.
+    let seen = frame(&ctx, &mut state, vec![enter()]);
     assert_eq!(seen, [x], "Enter 는 X 본문만 읽는다");
     assert!(
         state.popups.instance(g).unwrap().collapsed(),
@@ -240,10 +241,11 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
     assert_eq!(
         state.escape_gate(),
         EscapeGate::Consumed {
-            drop_from_egui: false
-        }
+            drop_from_egui: true
+        },
+        "닫은 주인의 Esc 는 egui 입력에서 뺀다"
     );
-    // 창의 닫기 요청은 그리기 전에 적용된다.
+    // 창의 닫기 요청은 그리기 전에 적용된다. 아래에서는 Esc 가 egui 에 남았다고 쳐도 N 이 읽지 않는지 본다.
     {
         let mut engine = session.borrow_mut();
         for intent in state.take_pending_intents() {
@@ -264,4 +266,265 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
         seen.is_empty(),
         "아래 N({n:?})은 그 Esc 를 읽지 않는다: {seen:?}"
     );
+}
+
+/// Given 키 주인 X 와 다른 범위에 포커스를 가진 G(바깥 클릭에 닫힘)가 있을 때, When 그리기 전에 Esc 가 두 번 오면,
+/// Then 창은 첫 Esc 로 X 만 처리하고 두 번째 Esc 는 이번 프레임 키 주인 X 것으로 끝낸다. G 는 포커스와 열림을
+/// 그대로 둔다.
+#[test]
+fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
+    let Scene {
+        mut state,
+        session: _session,
+        ctx,
+        g,
+        x,
+    } = open_scene(|_| {});
+    state.popups.instance_mut(g).unwrap().close_on_outside_click = true;
+    let unfocus_x = EscapeGate::Consumed {
+        drop_from_egui: true,
+    };
+    assert_eq!(state.escape_gate(), unfocus_x);
+    assert!(!state.popups.instance(x).unwrap().focused);
+    assert_eq!(state.escape_gate(), unfocus_x, "두 번째 Esc 도 X 것이다");
+    assert!(state.take_pending_intents().is_empty(), "G 를 닫지 않는다");
+    let gp = state.popups.instance(g).unwrap();
+    assert!(gp.open && gp.focused, "G 는 포커스·열림 그대로다");
+    let seen = frame(&ctx, &mut state, vec![enter()]);
+    assert_eq!(seen, [x], "그 프레임 키는 X 본문만 읽는다");
+}
+
+/// Given 팝업이 X 하나뿐일 때, When 창이 Esc 로 X 의 포커스를 푼 뒤 같은 프레임에 Enter 가 오면, Then 창의 터미널
+/// 게이트(`keyboard_overlay_open`)는 그 프레임 동안 닫혀 있어 Enter 가 터미널로 가지 않는다. 그 프레임을 그린 뒤에는
+/// 열린다.
+#[test]
+fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() {
+    crate::i18n::init("en");
+    let (mut state, _session) = crate::state::tests::test_state();
+    state.popups.register(
+        PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
+            .with_instances(PopupInstances::PerScopeTarget),
+    );
+    let x = open(&mut state, 1, true);
+    {
+        let p = state.popups.instance_mut(x).unwrap();
+        p.close_on_outside_click = false;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(240.0, 200.0));
+    }
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut state, Vec::new());
+    assert!(state.keyboard_overlay_open());
+    assert_eq!(
+        state.escape_gate(),
+        EscapeGate::Consumed {
+            drop_from_egui: true
+        }
+    );
+    assert!(!state.popups.has_focused(), "X 의 포커스가 풀렸다");
+    assert!(
+        state.keyboard_overlay_open(),
+        "같은 프레임의 Enter 는 터미널로 가지 않는다"
+    );
+    let seen = frame(&ctx, &mut state, vec![enter()]);
+    assert_eq!(seen, [x], "그 Enter 는 X 본문이 읽는다");
+    assert!(!state.keyboard_overlay_open(), "다음 키부터 터미널로 간다");
+}
+
+/// 이번 프레임 키 주인의 egui 사건을 버튼이 가져가는지 본다. `focus` 위젯에 egui 키 포커스를 주고 Enter 를 넣는다.
+fn enter_on_focused(ctx: &egui::Context, state: &mut RequestContext, focus: egui::Id) {
+    ctx.memory_mut(|m| m.request_focus(focus));
+    frame(ctx, state, Vec::new());
+    assert_eq!(
+        ctx.memory(|m| m.focused()),
+        Some(focus),
+        "위젯이 키 포커스를 가진다"
+    );
+    assert!(state.bind_window_key_owner());
+    frame(ctx, state, vec![enter()]);
+}
+
+/// Given 다른 범위 팝업 X 가 키 주인이고 접힌 G 의 보기 버튼에 egui 키 포커스가 남았을 때, When Enter 가 오면, Then
+/// G 는 펼쳐지지 않는다(키로 생긴 클릭은 키 주인 버튼만 받는다).
+#[test]
+fn enter_on_a_focused_collapsed_button_of_another_scope_does_not_expand_it() {
+    let Scene {
+        mut state,
+        session: _session,
+        ctx,
+        g,
+        x: _,
+    } = open_scene(|_| {});
+    // G 의 보기 버튼에 이를 때까지 Tab 으로 egui 키 포커스를 옮긴다.
+    let button = state
+        .popups
+        .instance(g)
+        .unwrap()
+        .collapsed_frame()
+        .expect("G 는 접힌 프레임이 있다")
+        .rect;
+    let mut focused = None;
+    for _ in 0..8 {
+        frame(&ctx, &mut state, vec![key(egui::Key::Tab)]);
+        focused = ctx.memory(|m| m.focused()).filter(|id| {
+            ctx.read_response(*id)
+                .is_some_and(|r| button.contains_rect(r.rect))
+        });
+        if focused.is_some() {
+            break;
+        }
+    }
+    let focused = focused.expect("Tab 으로 G 의 보기 버튼이 키 포커스를 얻는다");
+    enter_on_focused(&ctx, &mut state, focused);
+    assert!(
+        state.popups.instance(g).unwrap().collapsed(),
+        "G 는 접힌 채다"
+    );
+}
+
+/// Given 다른 범위 팝업 X 가 키 주인이고 펼친 G 의 제목줄 접기 버튼에 egui 키 포커스가 남았을 때, When Enter 가
+/// 오면, Then G 는 다시 접히지 않는다.
+#[test]
+fn enter_on_a_focused_collapse_button_of_another_scope_does_not_refold_it() {
+    let Scene {
+        mut state,
+        session: _session,
+        ctx,
+        g,
+        x,
+    } = open_scene(|_| {});
+    state.popups.expand(g);
+    // 펼치면 G 가 포커스·맨 앞을 얻는다. 키 주인을 X 로 되돌린다.
+    state.popups.instance_mut(g).unwrap().focused = false;
+    frame(&ctx, &mut state, Vec::new());
+    assert_eq!(
+        state.popups.focused_dismissal_target().map(|t| t.1),
+        Some(x)
+    );
+    assert!(state.popups.instance(g).unwrap().expanded());
+    enter_on_focused(
+        &ctx,
+        &mut state,
+        egui::Id::new("popup.collapse_button").with(g.0),
+    );
+    assert!(
+        state.popups.instance(g).unwrap().expanded(),
+        "G 는 펼친 채다"
+    );
+}
+
+/// 팝업 층보다 먼저 그리는 화면(탐색기 찾기 입력란)과 팝업 층을 창의 한 프레임 순서대로 그린다
+/// (`egui_bridge::run_egui_frame`: 화면은 `surfaces_take_keys` 문 안에서 그린다).
+fn surface_frame(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    query: &mut String,
+    events: Vec<egui::Event>,
+    focus: bool,
+) -> (tasty_ui_widgets::ExplorerFindEvents, bool) {
+    let layout = layout();
+    let raw = egui::RawInput {
+        screen_rect: Some(rect(0.0, 0.0, 1200.0, 700.0)),
+        events,
+        ..Default::default()
+    };
+    let th = crate::theme::theme();
+    let mut out = tasty_ui_widgets::ExplorerFindEvents::default();
+    let mut escape_after = false;
+    drop(ctx.run(raw, |ctx| {
+        let take = state.surfaces_take_keys();
+        super::body_keys::with_body_keys(ctx, take, || {
+            egui::Area::new(egui::Id::new("explorer_find_test"))
+                .fixed_pos(egui::pos2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    ui.set_width(400.0);
+                    out = tasty_ui_widgets::explorer_find_bar(
+                        ui,
+                        &th,
+                        tasty_ui_widgets::ExplorerFindBar {
+                            query,
+                            subfolders: None,
+                            status: tasty_ui_widgets::ExplorerFindStatus::Text(""),
+                            labels: tasty_ui_widgets::ExplorerFindLabels {
+                                placeholder: "",
+                                subfolders: "",
+                                close: "",
+                            },
+                            focus,
+                        },
+                    );
+                });
+        });
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        state.decide_frame_key_owner(Some(&layout));
+        state.popups.draw(ctx, &mut |_, _| {}, Some(&layout), &[]);
+        // 팝업 층 뒤에 그리는 것(plugin 팝업 렌더 등)이 볼 Esc 가 남았는지.
+        escape_after = ctx.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key {
+                        key: egui::Key::Escape,
+                        ..
+                    }
+                )
+            })
+        });
+    }));
+    (out, escape_after)
+}
+
+/// Given 탐색기 찾기 입력란에 egui 키 포커스와 검색어가 있을 때, When 창이 Esc 로 팝업 키 주인의 포커스를 풀거나
+/// 닫으면, Then 찾기 입력란은 그 Esc 를 보지 않아 검색어·포커스가 그대로다.
+#[test]
+fn an_escape_the_popup_handled_does_not_reach_a_surface_field() {
+    for closes in [false, true] {
+        crate::i18n::init("en");
+        let (mut state, mut session) = crate::state::tests::test_state();
+        state.popups.register(
+            PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
+                .with_instances(PopupInstances::PerScopeTarget),
+        );
+        let ctx = egui::Context::default();
+        let mut query = String::from("abc");
+        // 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를 준다.
+        surface_frame(&ctx, &mut state, &mut query, Vec::new(), true);
+        let (focused, _) = surface_frame(&ctx, &mut state, &mut query, Vec::new(), false);
+        assert!(focused.field_focused, "입력란이 키 포커스를 얻는다");
+        let x = open(&mut state, 3, true);
+        {
+            let p = state.popups.instance_mut(x).unwrap();
+            p.close_on_outside_click = closes;
+            p.size_user_overridden = true;
+            p.set_needed_size(egui::vec2(240.0, 200.0));
+        }
+        let (before, _) = surface_frame(&ctx, &mut state, &mut query, Vec::new(), false);
+        assert!(before.field_focused, "찾기 입력란이 키 포커스를 가진다");
+        let gate = state.escape_gate();
+        {
+            let mut engine = session.borrow_mut();
+            for intent in state.take_pending_intents() {
+                crate::intent::popup::handle(&mut state, &mut engine, &intent);
+            }
+        }
+        let mut events = match gate {
+            EscapeGate::Consumed {
+                drop_from_egui: true,
+            } => Vec::new(),
+            _ => vec![key(egui::Key::Escape)],
+        };
+        // 같은 프레임에 이어 온 글자도 창이 묶은 키 주인 것이다. 찾기 입력란에 들어가지 않는다.
+        events.push(egui::Event::Text("z".into()));
+        let (after, escape_after) = surface_frame(&ctx, &mut state, &mut query, events, false);
+        assert!(
+            !escape_after,
+            "팝업 층 뒤에 그리는 것은 그 Esc 를 보지 않는다(closes={closes})"
+        );
+        assert!(
+            !after.escape,
+            "찾기 입력란은 Esc 를 보지 않는다(closes={closes})"
+        );
+        assert!(after.field_focused, "포커스가 그대로다(closes={closes})");
+        assert_eq!(query, "abc", "검색어가 그대로다(closes={closes})");
+    }
 }
