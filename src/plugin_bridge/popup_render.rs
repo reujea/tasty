@@ -41,6 +41,9 @@ pub fn draw_plugin_popups(
     plugin_manager: Option<PluginDisplay<'_>>,
     layout: Option<&LayoutContext>,
 ) {
+    // 누름 스냅샷은 직전 렌더의 키 후보로 찍는다. 아래에서 후보를 비우기 전이어야 키 주인 plugin 팝업이 포커스
+    // 노드로 남는다(host 팝업 그리기가 먼저 찍었으면 그 값을 쓴다).
+    let press = crate::adapters::ui::popup::frame::frame_press(ctx, state, _engine, layout);
     // 조기 반환 때도 이전 프레임의 합성·입력·IME 상태가 남지 않도록 먼저 비운다.
     state.plugin_mesh_popup_regions.clear();
     state.plugin_popup_layers.clear();
@@ -95,7 +98,6 @@ pub fn draw_plugin_popups(
         .retain(|k, _| live_mesh.contains(k));
 
     let screen_rect = ctx.screen_rect();
-    let press = crate::adapters::ui::popup::frame::frame_press(ctx, state, _engine, layout);
     // 누른 프레임에는 상자 안 판정도 누름 스냅샷의 좌표를 쓴다. host 팝업과 같은 점이다.
     let pointer_pos = press
         .map(|p| p.pos)
