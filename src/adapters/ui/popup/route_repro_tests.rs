@@ -359,7 +359,7 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
 }
 
 /// 창의 한 프레임: 탐색기 찾기 입력란(팝업 층보다 먼저 그리는 L 화면) → host 팝업 층 → plugin 팝업. 입력란이 받은
-/// 사건을 돌려준다.
+/// 사건과, 입력란이 포커스를 가졌으면 그 위젯 id 를 돌려준다.
 fn window_frame_with_find(
     ctx: &Context,
     state: &mut RequestContext,
@@ -368,7 +368,7 @@ fn window_frame_with_find(
     events: Vec<Event>,
     query: &mut String,
     focus: bool,
-) -> tasty_ui_widgets::ExplorerFindEvents {
+) -> (tasty_ui_widgets::ExplorerFindEvents, Option<egui::Id>) {
     let input = egui::RawInput {
         screen_rect: Some(screen()),
         events,
@@ -376,6 +376,7 @@ fn window_frame_with_find(
     };
     let th = crate::theme::theme();
     let mut out = tasty_ui_widgets::ExplorerFindEvents::default();
+    let mut field = None;
     crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, mgr.popup_instances());
     drop(ctx.run(input, |ctx| {
         let take = state.surfaces_take_keys();
@@ -399,6 +400,9 @@ fn window_frame_with_find(
                             focus,
                         },
                     );
+                    if out.field_focused {
+                        field = ui.ctx().memory(|m| m.focused());
+                    }
                 });
         });
         draw_popup_layer(ctx, state, engine, &layout());
@@ -411,7 +415,7 @@ fn window_frame_with_find(
         );
     }));
     state.press_snapshot = None;
-    out
+    (out, field)
 }
 
 /// 완료 조건 장면. Given R 에 markdown file-open 같은 plugin 팝업과 포커스를 가진 검색창(host)이 있을 때, When 한
@@ -441,7 +445,7 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
     let ctx = Context::default();
     let mut query = String::new();
     // 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를 준다.
-    window_frame_with_find(
+    let (_, field) = window_frame_with_find(
         &ctx,
         &mut state,
         &engine.read(),
@@ -450,6 +454,10 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
         &mut query,
         true,
     );
+    let field = field
+        .and_then(|id| ctx.read_response(id))
+        .map(|r| r.rect)
+        .expect("찾기 입력란이 그려진다");
     window_frame_with_find(
         &ctx,
         &mut state,
@@ -467,7 +475,8 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
 
     // 이벤트 묶음 [L 누름, 글자]. 창은 누름 스냅샷을 찍으며 포커스 노드를 옮기고(`mouse::press_snapshot_now`),
     // click-to-activate 로 엔진 포커스를 L 로 옮긴 뒤, 같은 묶음의 글자를 창의 키 게이트로 처리한다.
-    let at = surface_rect_l().min + egui::vec2(20.0, 10.0);
+    let at = field.center();
+    assert!(surface_rect_l().contains(at));
     let snapshot = state.take_press_snapshot(&engine.read(), at, egui::PointerButton::Primary);
     state.press_snapshot = Some(snapshot);
     {
@@ -487,7 +496,7 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
         "글자는 L 입력란(egui 화면)으로 가고 팝업 키 주인은 없다"
     );
     assert!(!state.window_holds_terminal_keys());
-    let after = window_frame_with_find(
+    let (after, _) = window_frame_with_find(
         &ctx,
         &mut state,
         &engine.read(),
