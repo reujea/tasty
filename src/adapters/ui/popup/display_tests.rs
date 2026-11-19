@@ -347,3 +347,18 @@ fn reopening_starts_from_the_fit_check() {
     frame(&mut mgr, &ctx, 200.0, vec![]);
     assert!(mgr.instance(again).unwrap().collapsed());
 }
+
+/// Given 창보다 큰 팝업, When 펼치면, Then 크기를 유지하고 왼쪽·위에 맞춘다.
+#[test]
+fn an_expanded_popup_larger_than_the_window_keeps_its_size_at_the_top_left() {
+    let mut mgr = PopupManager::new();
+    mgr.register(popup(POP, egui::vec2(1000.0, 700.0), true, false));
+    let iid = open_in_r(&mut mgr);
+    let ctx = egui::Context::default();
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    press_show_button(&mut mgr, &ctx, iid, 200.0);
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    let rect = mgr.instance(iid).unwrap().popup_rect();
+    assert_eq!(rect.min, screen().min);
+    assert_eq!(rect.size(), egui::vec2(1000.0, 700.0));
+}

@@ -513,6 +513,16 @@ impl PopupManager {
                         on_scrim: popup.look.covers_scope,
                         focused: holds_keys,
                     };
+                    if !popup.passive && popup.arrange.takes_focus {
+                        overlay_targets.push(super::display::collapsed_overlay_target(
+                            crate::state::webview_overlay::TargetKind::HostPopup,
+                            layer_id,
+                            frame.rect,
+                            scope_clip,
+                            &look,
+                            ctx.pixels_per_point(),
+                        ));
+                    }
                     if super::display::draw_collapsed(ctx, &th, layer_id, frame, scope_clip, look) {
                         expand_requested = Some(popup.instance);
                     }

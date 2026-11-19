@@ -22,18 +22,43 @@ pub(crate) enum PopupDisplay {
 }
 
 /// 접힌 팝업 한 장을 그리는 조건.
-pub(super) struct CollapsedDraw {
+pub(crate) struct CollapsedDraw {
     /// 이 팝업이 칠하는 scrim 사각형. 접혀도 덮음 선언대로 칠한다.
-    pub(super) scrim: Option<egui::Rect>,
+    pub(crate) scrim: Option<egui::Rect>,
     /// 범위를 덮는 팝업이면 modal 그림자.
-    pub(super) on_scrim: bool,
+    pub(crate) on_scrim: bool,
     /// 키 주인이면 버튼 링·포커스 가장자리를 켜고 Enter·Space를 받는다.
-    pub(super) focused: bool,
+    pub(crate) focused: bool,
+}
+
+/// 접힌 팝업의 WebView 오버레이 대상. 펼친 상자 대신 버튼 프레임을 페이지 위에 합성한다.
+pub(crate) fn collapsed_overlay_target(
+    kind: crate::state::webview_overlay::TargetKind,
+    layer: egui::LayerId,
+    frame: egui::Rect,
+    clip: egui::Rect,
+    look: &CollapsedDraw,
+    ppp: f32,
+) -> crate::state::webview_overlay::OverlayTarget {
+    let th = crate::theme::theme();
+    let shadow = if look.on_scrim {
+        th.shadow_modal()
+    } else {
+        th.shadow_popover()
+    };
+    crate::state::webview_overlay::OverlayTarget {
+        kind,
+        layer,
+        rect: frame,
+        opaque_rect: crate::state::webview_overlay::outlined_box(frame, th.border_width, clip, ppp),
+        paint_rect: (frame + shadow.to_egui().margin()).intersect(clip),
+        scrim: look.scrim,
+    }
 }
 
 /// 접힌 팝업의 프레임과 보기 버튼을 그 팝업 레이어에 그린다. 버튼을 누르거나 키 주인일 때 Enter·Space를
 /// 누르면 참이다(펼치기). `clip`은 논리 범위 사각형이다.
-pub(super) fn draw_collapsed(
+pub(crate) fn draw_collapsed(
     ctx: &egui::Context,
     th: &tasty_type_appearance::theme::Theme,
     layer_id: egui::LayerId,
