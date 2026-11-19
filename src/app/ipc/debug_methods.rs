@@ -374,8 +374,6 @@ impl App {
         )
     }
 
-    /// MainView ID를 해석한다. 캡처와 달리 모달·preset은 대상이 아니다.
-    /// ID가 없을 때 포커스를 쓰지 않고 MainView가 하나인 경우만 선택한다.
     /// 창 범위 팝업은 `window_id`(창이 하나면 생략 가능)의 창에 결속한다. 고를 창이 없으면 열지 않는다.
     #[cfg(feature = "gui")]
     fn debug_popup_open(
@@ -433,6 +431,8 @@ impl App {
         response
     }
 
+    /// MainView ID를 해석한다. 캡처와 달리 모달·preset은 대상이 아니다.
+    /// ID가 없을 때 포커스를 쓰지 않고 MainView가 하나인 경우만 선택한다.
     fn pick_debug_window(
         &self,
         params: &serde_json::Value,
