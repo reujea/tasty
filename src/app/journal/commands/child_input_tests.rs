@@ -1,5 +1,12 @@
 //! A child's structure is published before its one-shot CR. Only the original reply waits for
 //! the input; a target that changes after publication never receives the late CR.
+//!
+//! The child runs `/bin/sh` as a login shell, so the output count assumes a controlled runner:
+//! the system's default `/etc/profile` and a user profile without `set -x` or a multi-line prompt.
+//! Outside that, three limits apply. An execution trace prints the expanded marker too, so one
+//! run counts as two and the test fails. A multi-line prompt can push the start of the output into
+//! scrollback, so it counts as zero. Rows are joined by the last-column rule, so a row that fills
+//! the last column and ends with a newline is joined to the next, which can add a false match.
 use super::*;
 
 type Receiver = std::sync::mpsc::Receiver<JsonRpcResponse>;
