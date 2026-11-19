@@ -1,4 +1,4 @@
-//! Escape 처리에서 설정 열기 요청·펼친 팝업 다시 접기·알림·포커스된 팝업의 순서를 확인한다.
+//! Escape 처리에서 설정 열기 요청·펼친 팝업 다시 접기·알림·plugin 키 주인·포커스된 팝업의 순서를 확인한다.
 //! 창 위로 펼친 키 주인 팝업의 Esc는 닫거나 포커스를 풀지 않고 다시 접는다. 아래 알림 목록이나 host 팝업을
 //! 먼저 닫지 않도록 알림·일반 팝업 처리보다 먼저 있어야 한다.
 //! 앞의 두 분기는 포커스와 무관하게 처리하므로 일반 팝업 처리보다 먼저 있어야 한다.
@@ -57,6 +57,15 @@ fn the_three_escape_consumers_keep_their_order() {
         body,
         "if self.state.refold_key_owner() {",
         "Escape 의 펼친 popup 다시 접기 분기",
+    );
+    let plugin_owner = only_at(
+        body,
+        "Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))",
+        "Escape 의 plugin 키 주인 분기",
+    );
+    assert!(
+        plugin_owner < general,
+        "plugin 키 주인 분기가 일반 팝업 처리보다 뒤에 있다. plugin 팝업이 받을 Esc 로 아래 host 팝업이 닫힌다."
     );
     assert!(
         refold < notifications,

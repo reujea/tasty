@@ -234,6 +234,13 @@ impl MainView {
                 self.mark_dirty();
                 return true;
             }
+            // plugin 팝업이 키 주인이면 그 렌더가 Esc 를 받는다. 아래의 포커스된 host 팝업은 건드리지 않는다.
+            if matches!(
+                self.state.popup_key_owner(),
+                Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))
+            ) {
+                return false;
+            }
             // 설정 요청과 알림을 먼저 처리한 뒤, 포커스된 팝업 하나의 포커스를 해제한다.
             // 바깥 클릭과 같이 close_on_outside_click인 팝업만 닫는다.
             // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
