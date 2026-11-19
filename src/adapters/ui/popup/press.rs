@@ -13,13 +13,17 @@ use super::{PopupCloseReason, PopupInstanceId, PopupManager, PopupState};
 /// 덮는 사각형 위 egui 입력을 받는 빈 레이어를 그린다. 그 아래 위젯(사이드바·탭 바·탐색기·상태바·배너)은
 /// 누름·hover·휠을 받지 않는다. 호출자는 이 레이어를 팝업 레이어 바로 아래에 둔다. egui는 직전 프레임의 레이어로
 /// 판정하므로 열린 다음 프레임부터 막는다.
+///
+/// hover만 감지한다. egui의 hit test는 포인터 둘레를 다 덮는 위젯이 있는 레이어 아래를 보지 않으므로 그것으로
+/// 막힌다. 끌기를 감지하면 팝업 상자 중 콘텐츠 Area 밖(제목줄·테두리)의 누름을 이 레이어가 가져가
+/// `is_using_pointer`가 참이 되고 팝업 이동·크기 조절이 시작되지 않는다.
 pub(crate) fn block_pointer(ctx: &egui::Context, id: egui::Id, rect: egui::Rect) -> egui::LayerId {
     egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(rect.min)
         .movable(false)
         .interactable(true)
-        .sense(egui::Sense::click_and_drag())
+        .sense(egui::Sense::hover())
         .constrain(false)
         .show(ctx, |ui| {
             ui.set_min_size(rect.size());

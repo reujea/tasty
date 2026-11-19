@@ -305,7 +305,7 @@ fn frame_with_button(
         egui::CentralPanel::default().show(ctx, |ui| {
             clicked = ui.put(button_rect, egui::Button::new("under")).clicked();
         });
-        mgr.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], None);
+        mgr.draw(ctx, &mut |_, _| {}, Some(&layout), &[]);
     }));
     clicked
 }
@@ -346,4 +346,41 @@ fn a_widget_under_a_cover_gets_no_click() {
     ));
     frame_with_button(&mut mgr, &ctx, vec![], under_l);
     assert!(frame_with_button(&mut mgr, &ctx, click(l_point()), under_l));
+}
+
+/// Given R을 덮는 팝업, When 제목줄을 눌러 끌고 놓으면, Then 팝업이 옮겨진다(덮는 범위를 막는 레이어가
+/// 콘텐츠 밖 상자 자리의 끌기를 가져가지 않는다).
+#[test]
+fn a_covering_popup_still_moves_by_its_title_bar() {
+    let mut mgr = manager(true, false);
+    let iid = open_r(&mut mgr, true);
+    let ctx = egui::Context::default();
+    let spare = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(20.0, 20.0));
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    frame_with_button(&mut mgr, &ctx, vec![], spare);
+    let start = mgr.instance(iid).unwrap().pos;
+    let grab = start + egui::vec2(60.0, 5.0);
+    let to = grab + egui::vec2(-30.0, 40.0);
+    frame_with_button(
+        &mut mgr,
+        &ctx,
+        vec![egui::Event::PointerMoved(grab), button(grab, true)],
+        spare,
+    );
+    frame_with_button(&mut mgr, &ctx, vec![egui::Event::PointerMoved(to)], spare);
+    frame_with_button(
+        &mut mgr,
+        &ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false)],
+        spare,
+    );
+    assert_eq!(
+        mgr.instance(iid).unwrap().pos,
+        start + egui::vec2(-30.0, 40.0)
+    );
 }
