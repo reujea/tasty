@@ -163,6 +163,7 @@ fn plugin_target(owner: Option<PopupKeyOwner>) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use crate::adapters::ui::popup::focus::PopupNode;
     use crate::adapters::ui::popup::{PopupScope, PopupState};
 
     fn state_with_host_popup() -> crate::state::MainViewState {
@@ -183,12 +184,25 @@ mod tests {
         assert_eq!(state.plugin_popup_key_target(), None);
     }
 
-    /// 렌더 뒤 그 위에 host 팝업을 열면 다음 키부터 host가 받고, 닫으면 바로 plugin 팝업이 다시 받는다.
+    /// 열린 plugin 팝업 하나를 창에 둔다(결속 범위·키 후보). `focus`면 창의 포커스 노드로 한다.
+    fn place_plugin_popup(state: &mut crate::state::MainViewState, id: u64, focus: bool) {
+        let z = tasty_host_plugin::next_popup_z_seq();
+        state.plugin_popup_key_candidates.push((id, z));
+        state
+            .plugin_popup_bound_scopes
+            .insert(id, ("p".to_string(), Some(PopupScope::Window)));
+        if focus {
+            state.popups.set_focus(Some(PopupNode::Plugin(id)));
+        }
+    }
+
+    /// Given 포커스 노드인 plugin 팝업, When 그 위에 host 팝업을 포커스를 주며 열면, Then 다음 키부터 host 가
+    /// 받는다. When host 팝업을 닫으면, Then 포커스 노드는 열린 부모로 가고 부모가 없으면 팝업이 아니다(범위마다
+    /// 포커스를 기억하지 않는다).
     #[test]
-    fn a_host_popup_opened_or_closed_after_render_changes_the_owner_at_once() {
+    fn a_host_popup_opened_over_a_plugin_owner_takes_the_keys_until_it_closes() {
         let mut state = state_with_host_popup();
-        let plugin_z = tasty_host_plugin::next_popup_z_seq();
-        state.plugin_popup_key_candidates = vec![(42, plugin_z)];
+        place_plugin_popup(&mut state, 42, true);
         assert_eq!(state.plugin_popup_key_target(), Some(42));
 
         state
@@ -201,20 +215,21 @@ mod tests {
         assert_eq!(state.plugin_popup_key_target(), None);
 
         state.popups.close("host_popup");
-        assert_eq!(state.plugin_popup_key_target(), Some(42));
+        assert_eq!(state.popup_key_owner(), None);
     }
 
     /// 이번 프레임에 그린 host 팝업이 그리는 중 닫혀도(Escape 로 닫은 팔레트) 렌더에서는 그 프레임 동안 그 팝업이
-    /// 키를 가진다. 아래 plugin 팝업이 같은 Escape 로 함께 닫히지 않는다. 창의 다음 키부터는 plugin 팝업이 받는다.
+    /// 키를 가진다. 아래 plugin 팝업이 같은 Escape 로 함께 닫히지 않는다. 닫힌 host 팝업이 plugin 팝업이 연
+    /// 자식이면 창의 다음 키부터는 그 plugin 팝업이 받는다.
     #[test]
     fn a_host_popup_closed_while_drawn_keeps_the_keys_for_that_render() {
         let mut state = state_with_host_popup();
-        let plugin_z = tasty_host_plugin::next_popup_z_seq();
-        state.plugin_popup_key_candidates = vec![(42, plugin_z)];
+        place_plugin_popup(&mut state, 42, false);
         let host = state
             .popups
             .open_centered_focused("host_popup", PopupScope::Window)
             .unwrap();
+        state.popups.instance_mut(host).unwrap().plugin_parent = Some(42);
         let decided = state.decide_frame_key_owner(None);
         state.popups.close("host_popup");
         assert!(!state.popups.instance(host).is_some_and(|p| p.open));
@@ -223,8 +238,8 @@ mod tests {
         assert_eq!(state.frame_plugin_key_target(None), Some(42));
     }
 
-    /// 키 주인이 펼친 plugin 팝업이면 Esc 다시 접기가 소비한다. 아래 포커스된 host 팝업은 닫히거나 포커스를
-    /// 잃지 않는다. 펼치지 않은 plugin 팝업이나 펼치지 않은 host 팝업이 키 주인이면 다음 처리로 간다.
+    /// 키 주인이 펼친 plugin 팝업이면 Esc 다시 접기가 소비한다. 아래 host 팝업은 닫히지 않는다. 펼치지 않은 plugin
+    /// 팝업이나 펼치지 않은 host 팝업이 키 주인이면 다음 처리로 간다.
     #[cfg(feature = "gui")]
     #[test]
     fn escape_refolds_only_an_expanded_key_owner_and_leaves_the_popup_below() {
@@ -235,27 +250,22 @@ mod tests {
             .unwrap();
         assert!(!state.refold_key_owner(), "펼치지 않은 host 키 주인");
 
-        let plugin_z = tasty_host_plugin::next_popup_z_seq();
-        state.plugin_popup_key_candidates = vec![(42, plugin_z)];
+        place_plugin_popup(&mut state, 42, true);
         assert!(!state.refold_key_owner(), "펼치지 않은 plugin 키 주인");
 
         state.popups.expand_plugin(42);
         assert!(state.refold_key_owner());
         let p = state.popups.instance(host).unwrap();
-        assert!(
-            p.open && state.popups.is_instance_focused(host),
-            "아래 host 팝업은 그대로다"
-        );
+        assert!(p.open, "아래 host 팝업은 열린 채다");
         assert!(
             state.popups.plugin_expanded().contains(&42),
             "plugin 팝업은 그 프레임 렌더가 접는다"
         );
     }
 
-    /// Claude 2회차 판단필요 2 장면. Given L 범위에 포커스된 host 팝업, 그 위에 펼친 plugin 팝업(file-open),
-    /// 맨 위에 그 plugin 팝업이 연 passive 피커가 있을 때, Then passive 피커는 키를 받지 않으므로 키 주인은 펼친
-    /// plugin 팝업이다. When Esc 의 다시 접기를 하면, Then 소비되고 L 팝업은 열린 채 포커스도 그대로다. 일반 Esc
-    /// 대상과 다시 접기 대상도 같은 host 후보(L 팝업)라 passive 피커를 고르지 않는다.
+    /// Given L 범위의 host 팝업, 그 위에 포커스 노드인 펼친 plugin 팝업(file-open), 맨 위에 그 plugin 팝업이 연
+    /// passive 피커가 있을 때, Then passive 피커는 포커스 노드를 바꾸지 않으므로 키 주인은 펼친 plugin 팝업이다.
+    /// When Esc 의 다시 접기를 하면, Then 소비되고 L 팝업은 열린 채다. host 대상은 없다.
     #[cfg(feature = "gui")]
     #[test]
     fn a_passive_picker_on_top_takes_no_keys_and_escape_never_reaches_the_popup_below() {
@@ -273,8 +283,7 @@ mod tests {
                 true,
             )
             .unwrap();
-        let plugin_z = tasty_host_plugin::next_popup_z_seq();
-        state.plugin_popup_key_candidates = vec![(7, plugin_z)];
+        place_plugin_popup(&mut state, 7, true);
         state.popups.expand_plugin(7);
         let picker = state
             .popups
@@ -288,19 +297,15 @@ mod tests {
             state.popup_key_owner(),
             Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(7))
         );
-        assert_eq!(
-            state.popups.host_key_owner().map(|p| p.instance),
-            Some(below),
-            "다시 접기·일반 Esc 의 host 대상도 passive 피커가 아니다"
+        assert!(
+            state.popups.host_key_owner().is_none(),
+            "다시 접기·일반 Esc 의 host 대상은 없다(passive 피커도 아래 L 팝업도 아니다)"
         );
         assert!(
             state.refold_key_owner(),
             "펼친 plugin 키 주인이 Esc 를 소비한다"
         );
         let p = state.popups.instance(below).unwrap();
-        assert!(
-            p.open && state.popups.is_instance_focused(below),
-            "아래 L 팝업은 닫히지 않고 포커스도 그대로다"
-        );
+        assert!(p.open, "아래 L 팝업은 닫히지 않는다");
     }
 }

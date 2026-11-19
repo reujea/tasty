@@ -441,23 +441,24 @@ fn only_the_requesting_owner_moves_the_picker() {
     assert_eq!(picker_scope(&mut state), PopupScope::Surface(sid));
 }
 
+/// 포커스된 surface 를 덮는 피커는 passive 여도 포커스 노드다(덮인 노드는 포커스 노드가 될 수 없다). passive
+/// 표시는 사용자가 누르기 전까지 남는다.
 fn assert_visible_gates(state: &RequestContext, user_focused: bool) {
-    assert_eq!(state.popups.has_focused(), user_focused);
-    assert_eq!(RequestContext::keyboard_overlay_open(state), user_focused);
-    assert_eq!(state.has_egui_overlay_open(), user_focused);
+    assert!(state.popups.has_focused());
+    assert!(RequestContext::keyboard_overlay_open(state));
+    assert!(state.has_egui_overlay_open());
     assert_eq!(state.popups.is_passive(FILE_PICKER_POPUP_ID), !user_focused);
 }
 
-/// 숨겨져도 포커스 의도는 남지만 입력 차단은 해제되어야 한다.
-fn assert_hidden_gates(state: &mut RequestContext, user_focused: bool) {
+/// 숨은 피커는 열린 채 작업을 보존하지만 포커스 노드가 아니고 입력 차단도 풀린다.
+fn assert_hidden_gates(state: &mut RequestContext) {
     assert!(state.popups.is_open(FILE_PICKER_POPUP_ID));
-    assert_eq!(
-        state
+    assert!(
+        !state
             .popups
             .get_mut(FILE_PICKER_POPUP_ID)
             .map(|p| p.instance)
-            .is_some_and(|iid| state.popups.is_instance_focused(iid)),
-        user_focused
+            .is_some_and(|iid| state.popups.is_instance_focused(iid))
     );
     assert!(!state.popups.has_focused());
     assert!(!state.popups.is_focused(FILE_PICKER_POPUP_ID));
@@ -499,7 +500,7 @@ fn hidden_child_keeps_selection_and_request_without_paint_hit_or_keyboard_gate()
 }
 
 #[test]
-fn passive_hidden_child_stays_nonfocusing_when_restored() {
+fn passive_hidden_child_stays_passive_when_restored() {
     assert_hidden_child_round_trip(false);
 }
 
@@ -545,7 +546,7 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
         }));
     };
     draw(&mut state, &layout, vec![]);
-    // Plugin 출처는 자동 포커스를 갖지 않는다. 포커스 보존 시나리오는 실제 클릭부터 시작한다.
+    // Plugin 출처는 passive 다. 덮는 피커라 포커스 노드는 피커다. 사용자 누름은 passive 를 푼다.
     assert_visible_gates(&state, false);
     if user_focused {
         for pressed in [true, false] {
@@ -592,7 +593,7 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
             },
         ],
     );
-    assert_hidden_gates(&mut state, user_focused);
+    assert_hidden_gates(&mut state);
     assert_work_preserved(&state, &dir, request);
     layout.surface_rects.push((sid, rect));
     layout.active_workspace = 0;

@@ -1,6 +1,6 @@
 //! 한 프레임의 키 주인은 하나다. 창의 Esc 판정은 그리기보다 먼저 돌며 정한 대상을 그 프레임 키 주인으로 묶고,
-//! host 본문과 plugin 팝업 렌더가 그 값을 쓴다. 장면: L 범위 피커 H(맨 위, 포커스), R 범위 plugin 팝업 P(가운데),
-//! R 범위 피커 G(맨 아래, 포커스). 창의 한 프레임처럼 결속 범위 동기화 → host 팝업 층 → plugin 팝업 순서로 그린다.
+//! host 본문과 plugin 팝업 렌더가 그 값을 쓴다. 장면: L 범위 피커 H(맨 위), R 범위 plugin 팝업 P(가운데), R 범위
+//! 피커 G(맨 아래). 창의 한 프레임처럼 결속 범위 동기화 → host 팝업 층 → plugin 팝업 순서로 그린다.
 
 use std::sync::Arc;
 
@@ -134,8 +134,8 @@ struct Scene {
     g: PopupInstanceId,
 }
 
-/// G(R 피커) → P(R plugin 팝업) → H(L 피커) 순서로 열어 순번이 H > P > G 다. H 와 G 는 각자 범위에서 포커스를
-/// 가진다.
+/// G(R 피커) → P(R plugin 팝업) → H(L 피커) 순서로 열어 순번이 H > P > G 다. 엔진 포커스는 L 이라 L 을 덮는 H 가
+/// 포커스 노드다(피커는 plugin 이 열어 passive 지만 덮는 노드다).
 fn open_scene() -> Scene {
     open_scene_with(tasty_plugin_protocol::popup_decl::PopupEscape::Close)
 }
@@ -175,6 +175,15 @@ fn open_scene_with(escape: tasty_plugin_protocol::popup_decl::PopupEscape) -> Sc
         h,
         g,
     }
+}
+
+/// 사용자가 P 를 누른 것처럼 P 를 창의 포커스 노드로 한다.
+fn focus_p(state: &mut RequestContext) {
+    state
+        .popups
+        .set_focus(Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(
+            POPUP,
+        )));
 }
 
 fn is_open(state: &RequestContext, iid: PopupInstanceId) -> bool {
@@ -231,12 +240,12 @@ fn a_scope_hidden_before_the_redraw_keeps_the_escape_on_the_window_target() {
     assert!(!state.popups.is_instance_focused(h), "창의 대상은 H 다");
     assert!(!plugin_escaped(&state), "P 는 받지 않는다");
     assert!(
-        is_open(&state, g) && state.popups.is_instance_focused(g),
+        is_open(&state, g) && !state.popups.is_instance_focused(g),
         "G 는 받지 않는다"
     );
 }
 
-/// Given 직전 렌더에 H 가 숨어 키 주인이 P 일 때, When H 의 범위가 다시 보이는 프레임에 Esc 가 오면, Then 창이 고른
+/// Given 직전 렌더에 H 가 숨고 사용자가 누른 P 가 포커스 노드일 때, When H 의 범위가 다시 보이는 프레임에 Esc 가 오면, Then 창이 고른
 /// P 가 그 프레임 키 주인이라 P 하나만 받는다. 다시 보인 H 와 G 는 받지 않는다.
 #[test]
 fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target() {
@@ -266,6 +275,7 @@ fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target()
         &layout_without_l(),
         Vec::new(),
     );
+    focus_p(&mut state);
     assert!(is_open(&state, h) && is_open(&state, g) && !plugin_escaped(&state));
 
     assert!(
@@ -274,11 +284,11 @@ fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target()
     );
     assert!(plugin_escaped(&state), "창이 고른 P 가 받는다");
     assert!(
-        is_open(&state, h) && state.popups.is_instance_focused(h),
+        is_open(&state, h) && !state.popups.is_instance_focused(h),
         "다시 보인 H 는 받지 않는다"
     );
     assert!(
-        is_open(&state, g) && state.popups.is_instance_focused(g),
+        is_open(&state, g) && !state.popups.is_instance_focused(g),
         "G 는 받지 않는다"
     );
 }
@@ -411,7 +421,8 @@ fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
     let engine = session.borrow_mut();
     let ctx = Context::default();
     let mut query = String::from("abc");
-    // L 이 보이지 않아 H 가 숨고 P 가 키 주인이다. 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를 준다.
+    // L 이 보이지 않아 H 가 숨고 사용자가 누른 P 가 키 주인이다. 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를
+    // 준다.
     let draw = |state: &mut RequestContext, query: &mut String, events, focus| {
         frame_with_find(
             &ctx,
@@ -425,6 +436,7 @@ fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
         )
     };
     draw(&mut state, &mut query, Vec::new(), true);
+    focus_p(&mut state);
     let before = draw(&mut state, &mut query, Vec::new(), false);
     assert!(before.field_focused, "찾기 입력란이 키 포커스를 가진다");
     assert!(!plugin_escaped(&state));
@@ -514,6 +526,7 @@ fn a_quick_escape_reaches_the_plugin_owner_as_press_then_release() {
         )
     };
     draw(&mut state, Vec::new());
+    focus_p(&mut state);
     state.take_pending_intents();
     let events = quick_escape(&ctx, &mut state);
     draw(&mut state, events);
@@ -575,6 +588,7 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
         )
     };
     draw(&mut state, &mgr, Vec::new());
+    focus_p(&mut state);
     assert!(dispatch_like_app(&mut state, &mut mgr).is_empty());
     state.take_pending_intents();
 

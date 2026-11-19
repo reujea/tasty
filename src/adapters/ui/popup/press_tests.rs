@@ -134,27 +134,27 @@ fn state(mgr: &PopupManager, iid: PopupInstanceId) -> Option<(bool, egui::Pos2, 
         .map(|p| (mgr.is_instance_focused(iid), p.pos, p.z_seq))
 }
 
-/// Given R의 덮는·바깥 클릭 닫기 팝업이 포커스를 가졌을 때, When L을 누르면, Then 열림·포커스·위치·순번이
-/// 그대로다(범위 밖 누름은 무반응).
+/// Given R의 덮는·바깥 클릭 닫기 팝업이 포커스를 가졌을 때, When L을 누르면, Then 열림·위치·순번은 그대로이고
+/// 포커스만 잃는다(범위 밖 누름은 그 팝업을 닫지 않고, 포커스 위치는 누른 L 이다).
 #[test]
-fn a_press_outside_the_scope_leaves_the_popup_alone() {
+fn a_press_outside_the_scope_keeps_the_popup_open_and_takes_its_focus() {
     let mut mgr = manager(true, true);
     let iid = open_r(&mut mgr, true);
     let before = state(&mgr, iid);
     primary(&mut mgr, l_point(), L);
-    assert_eq!(state(&mgr, iid), before);
+    assert_eq!(state(&mgr, iid), before.map(|(_, pos, z)| (false, pos, z)));
 }
 
-/// Given R의 덮지 않는 팝업(바깥 클릭은 포커스 해제)이 포커스일 때, When L을 누르면, Then 바뀌지 않는다.
-/// When R 본문을 누르면, Then 열린 채 포커스만 잃는다.
+/// Given R의 덮지 않는 팝업(바깥 클릭은 포커스 해제)이 포커스일 때, When L이나 R 본문을 누르면, Then 열린 채
+/// 포커스만 잃는다.
 #[test]
-fn a_non_covering_popup_loses_focus_only_to_a_press_in_its_scope() {
-    let mut mgr = manager(false, false);
-    let iid = open_r(&mut mgr, true);
-    primary(&mut mgr, l_point(), L);
-    assert_eq!(state(&mgr, iid).map(|s| s.0), Some(true));
-    primary(&mut mgr, r_outside(), R);
-    assert_eq!(state(&mgr, iid).map(|s| s.0), Some(false));
+fn a_non_covering_popup_loses_focus_to_a_press_outside_it() {
+    for point in [l_point(), r_outside()] {
+        let mut mgr = manager(false, false);
+        let iid = open_r(&mut mgr, true);
+        primary(&mut mgr, point, R);
+        assert_eq!(state(&mgr, iid).map(|s| s.0), Some(false), "{point:?}");
+    }
 }
 
 /// Given 창을 덮는 닫기 팝업(명령 팔레트 꼴)이 열려 있을 때, When L이나 R을 누르면, Then 닫힌다.
@@ -194,10 +194,10 @@ fn a_press_in_the_scope_of_a_passive_covering_popup_focuses_it() {
     assert!(mgr.is_instance_focused(iid) && !p.passive);
 }
 
-/// Given L과 R에 같은 선언의 팝업 A·B가 열려 B가 포커스일 때, When A 안을 누르면, Then B의 포커스·위치는
-/// 그대로다(다른 범위 경로의 팝업은 건드리지 않는다).
+/// Given L과 R에 팝업 A·B가 열려 B가 포커스일 때, When A 안을 누르면, Then A가 포커스 위치이고 B는 열린 채 위치도
+/// 그대로이며 포커스만 잃는다.
 #[test]
-fn a_press_inside_one_popup_leaves_a_popup_in_another_scope_focused() {
+fn a_press_inside_one_popup_moves_the_focus_from_a_popup_in_another_scope() {
     let mut mgr = manager(false, false);
     let a = mgr
         .open_request(
@@ -229,7 +229,7 @@ fn a_press_inside_one_popup_leaves_a_popup_in_another_scope_focused() {
     assert_eq!(state(&mgr, a).map(|s| s.0), Some(true));
     assert_eq!(
         state(&mgr, b).map(|s| (s.0, s.1)),
-        before.map(|s| (s.0, s.1))
+        before.map(|s| (false, s.1))
     );
 }
 
@@ -442,10 +442,10 @@ fn one_outside_press_rule_decides_for_any_popup() {
     );
 }
 
-/// Given 같은 선언의 팝업이 L과 R에 하나씩 열려 둘 다 포커스일 때, When R 팝업 상자 안을 누르면, Then L 팝업은
-/// 포커스를 잃지 않는다(다른 범위의 같은 선언 인스턴스를 풀지 않는다).
+/// Given 같은 선언의 팝업이 L과 R에 하나씩 열려 있을 때, When R 팝업 상자 안을 누르면, Then R 팝업이 포커스
+/// 위치이고 L 팝업은 열린 채 포커스만 잃는다(포커스 위치는 창에 하나다).
 #[test]
-fn a_press_inside_one_instance_leaves_its_sibling_in_another_scope_focused() {
+fn a_press_inside_one_instance_takes_the_focus_from_its_sibling_in_another_scope() {
     let mut mgr = manager(false, false);
     let l = mgr
         .open_request(
@@ -456,16 +456,16 @@ fn a_press_inside_one_instance_leaves_its_sibling_in_another_scope_focused() {
         )
         .unwrap();
     let r = open_r(&mut mgr, true);
-    assert_eq!(state(&mgr, l).map(|s| s.0), Some(true));
+    mgr.set_instance_focused(l, true);
     primary(&mut mgr, r_box_at() + egui::vec2(10.0, 10.0), R);
-    assert_eq!(state(&mgr, l).map(|s| s.0), Some(true));
+    assert_eq!(state(&mgr, l).map(|s| s.0), Some(false));
     assert_eq!(state(&mgr, r).map(|s| s.0), Some(true));
 }
 
 /// Given R 팝업의 자식 드롭다운이 L로 나와 있고 L에 포커스된 팝업이 있을 때, When 드롭다운의 L 쪽 부분을 누르면,
-/// Then 누름은 R 팝업 노드의 경로로 처리돼 L 팝업은 포커스를 잃지 않는다.
+/// Then 누름은 R 팝업 노드의 것이라 R 팝업이 포커스 위치다. L 팝업은 열린 채 포커스만 잃는다.
 #[test]
-fn a_press_on_a_dropdown_outside_its_parent_scope_uses_the_parent_node_path() {
+fn a_press_on_a_dropdown_outside_its_parent_scope_focuses_the_parent_node() {
     let mut mgr = manager(false, false);
     let mut other = PopupState::new(
         "press_test_l",
@@ -485,6 +485,7 @@ fn a_press_on_a_dropdown_outside_its_parent_scope_uses_the_parent_node_path() {
         )
         .unwrap();
     let r = open_r(&mut mgr, true);
+    mgr.set_instance_focused(l, true);
     let dropdown = egui::Rect::from_min_size(egui::pos2(300.0, 100.0), egui::vec2(200.0, 80.0));
     let at = egui::pos2(320.0, 120.0);
     let layout = layout();
@@ -518,6 +519,6 @@ fn a_press_on_a_dropdown_outside_its_parent_scope_uses_the_parent_node_path() {
     drop(ctx.run(raw, |ctx| {
         mgr.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], Some(&routed));
     }));
-    assert_eq!(state(&mgr, l).map(|s| s.0), Some(true));
+    assert_eq!(state(&mgr, l).map(|s| s.0), Some(false));
     assert_eq!(state(&mgr, r).map(|s| s.0), Some(true));
 }

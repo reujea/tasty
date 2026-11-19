@@ -125,7 +125,7 @@ struct Scene {
     state: RequestContext,
     session: crate::runtime::engine_session::EngineSession,
     ctx: egui::Context,
-    /// surface 2 범위의 접힌 팝업. 포커스를 가진다.
+    /// surface 2 범위의 접힌 팝업. 포커스를 주며 열었지만 X 를 연 뒤로 포커스 위치가 아니다.
     g: PopupInstanceId,
     /// surface 1 범위의 키 주인(맨 위, 포커스). 바깥 클릭에 닫히지 않는다.
     x: PopupInstanceId,
@@ -137,7 +137,8 @@ fn open(state: &mut RequestContext, scope: u32, focused: bool) -> PopupInstanceI
     state.popups.open_request(&req, focused).unwrap()
 }
 
-/// G(surface 2, 접힘, 포커스) → X(surface 1, 포커스) → `extra` 순서로 연다. X 가 키 주인이다.
+/// G(surface 2, 접힘, 포커스) → X(surface 1, 포커스) → `extra` 순서로 연다. 포커스 위치는 창에 하나라 X 가 키
+/// 주인이고 G 는 열린 채 포커스가 없다.
 fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     crate::i18n::init("en");
     let (mut state, session) = crate::state::tests::test_state();
@@ -164,8 +165,8 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     assert!(frame(&ctx, &mut state, Vec::new()).is_empty());
     let gp = state.popups.instance(g).unwrap();
     assert!(
-        gp.collapsed() && state.popups.is_instance_focused(g),
-        "G 는 접힌 채 포커스를 가진다"
+        gp.open && gp.collapsed() && !state.popups.is_instance_focused(g),
+        "G 는 접힌 채 열려 있고 포커스가 없다"
     );
     assert_eq!(
         state.popups.focused_dismissal_target().map(|t| t.1),
@@ -181,7 +182,7 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     }
 }
 
-/// Given 키 주인 X 와 다른 범위에 포커스를 가진 접힌 G 가 있을 때, When 창이 Esc 로 X 의 포커스를 풀고 같은 프레임에
+/// Given 키 주인 X 와 다른 범위에 열린 접힌 G 가 있을 때, When 창이 Esc 로 X 의 포커스를 풀고 같은 프레임에
 /// Enter 가 함께 오면, Then X 본문 하나만 Enter 를 읽고 G 의 접힌 보기 버튼은 Enter 로 펼쳐지지 않는다.
 #[test]
 fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
@@ -313,9 +314,9 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
     );
 }
 
-/// Given 키 주인 X 와 다른 범위에 포커스를 가진 G(바깥 클릭에 닫힘)가 있을 때, When 그리기 전에 Esc 가 두 번 오면,
-/// Then 창은 첫 Esc 로 X 만 처리하고 두 번째 Esc 는 이번 프레임 키 주인 X 것으로 끝낸다. G 는 포커스와 열림을
-/// 그대로 둔다.
+/// Given 키 주인 X 와 다른 범위에 열린 G(바깥 클릭에 닫힘)가 있을 때, When 그리기 전에 Esc 가 두 번 오면, Then
+/// 창은 첫 Esc 로 X 만 처리하고 두 번째 Esc 는 이번 프레임 키 주인 X 것으로 끝낸다. G 는 열린 채고 포커스를 얻지
+/// 않는다.
 #[test]
 fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
     let Scene {
@@ -341,8 +342,8 @@ fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
     assert!(state.take_pending_intents().is_empty(), "G 를 닫지 않는다");
     let gp = state.popups.instance(g).unwrap();
     assert!(
-        gp.open && state.popups.is_instance_focused(g),
-        "G 는 포커스·열림 그대로다"
+        gp.open && !state.popups.is_instance_focused(g),
+        "G 는 열린 채고 포커스를 얻지 않는다"
     );
     assert!(!window_key(&ctx, &mut state, &mut pending, enter()));
     assert_eq!(pending, [enter()], "두 Esc 는 egui 입력에서 빠진다");
@@ -647,7 +648,7 @@ fn frame_escapes(
     seen
 }
 
-/// Given 키 주인 X 와 다른 범위에 포커스를 가진 G 가 있을 때, When 한 프레임에 Esc 누름 → 뗌 → 누름이 오면, Then 창은
+/// Given 키 주인 X 와 다른 범위에 열린 G 가 있을 때, When 한 프레임에 Esc 누름 → 뗌 → 누름이 오면, Then 창은
 /// 첫 누름으로 X 의 포커스를 풀어 X 에 넘기고 뗌은 egui 입력에 남긴다. 두 번째 누름은 이번 프레임 키 주인 X 것으로
 /// 끝나 누구에게도 가지 않는다. X 본문은 첫 누름과 뗌을 그 순서로 보고, 다음 프레임에 Escape 가 눌린 채 남지 않는다.
 #[test]
@@ -686,7 +687,10 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
         [(x, true, false), (x, false, false)],
         "X 본문만 첫 누름 → 뗌 순서로 본다"
     );
-    assert!(state.popups.is_instance_focused(g), "G 는 그대로다");
+    assert!(
+        state.popups.instance(g).unwrap().open && !state.popups.is_instance_focused(g),
+        "G 는 열린 채고 포커스를 얻지 않는다"
+    );
     assert!(!ctx.input(|i| i.key_down(egui::Key::Escape)));
     assert!(frame_escapes(&ctx, &mut state, Vec::new()).is_empty());
     assert!(
