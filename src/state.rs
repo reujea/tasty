@@ -567,7 +567,7 @@ impl RequestContext {
         #[cfg(feature = "gui")]
         let host_popup_focused = self.popups.has_focused()
             || (self.tutorial.active.is_some() && self.tutorial.keyboard_focus)
-            || self.restore_notices.has_keyboard_focus();
+            || crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups);
         #[cfg(not(feature = "gui"))]
         let host_popup_focused = false;
         keyboard_overlay_open(

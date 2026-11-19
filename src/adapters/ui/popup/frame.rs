@@ -262,6 +262,7 @@ pub(crate) fn draw_popup_layer(
         .extend(draw_result.overlay_targets);
 
     state.popups = popups;
+    state.restore_notices.column = draw_result.column_rect;
     crate::adapters::ui::modifier_hint_overlay::persist_released(
         state,
         engine,

@@ -507,8 +507,8 @@ impl PopupManager {
             // 그림자가 이웃 영역까지 어둡게 하지 않도록 팝업 소속 범위로 자른다.
             let painter = ctx.layer_painter(layer_id).with_clip_rect(scope_clip);
 
-            // 페이지와 겹친 상자는 전체가 각진 모서리·그림자 없음이다. passive 팝업은 페이지를 숨기는
-            // 기존 규칙을 따르므로 겹칠 페이지가 없다.
+            // 페이지와 겹친 상자는 전체가 각진 모서리·그림자 없음이다. passive 팝업은 겹친 페이지를 숨기거나
+            // (포커스를 받지 않는 팝업이면) 페이지에 구멍을 내므로 페이지 위에 그리지 않는다.
             let edge = if popup.passive {
                 tasty_egui_theme::overlay_edge::BoxEdge::NORMAL
             } else {
@@ -535,7 +535,7 @@ impl PopupManager {
             if !shell_by_content {
                 painter.add(shadow.to_egui().as_shape(popup_rect, radius));
             }
-            // 포커스를 받지 않는 팝업은 WebView를 숨기지 않으므로 합성 대상이 아니다.
+            // 포커스를 받지 않는 팝업은 WebView에 구멍을 내서 보이므로 합성 대상이 아니다.
             if !popup.passive && popup.arrange.takes_focus {
                 overlay_targets.push(crate::state::webview_overlay::OverlayTarget {
                     kind: crate::state::webview_overlay::TargetKind::HostPopup,
@@ -1221,8 +1221,8 @@ mod tests {
             .collect();
         assert_eq!(
             anchored.len(),
-            5,
-            "tools_menu·search_bar·rail_category·배너 더보기 메뉴·단축키 도움말"
+            6,
+            "tools_menu·search_bar·rail_category·배너 더보기 메뉴·단축키 도움말·복원 안내"
         );
         for def in anchored {
             assert!(

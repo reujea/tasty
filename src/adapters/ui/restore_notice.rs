@@ -1,10 +1,15 @@
-//! 창 오른쪽 위 안내 열에 띄우는 복원 실패·저장 멈춤 비포커스 안내의 창별 상태와 그리기.
+//! 창 오른쪽 위 안내 열에 띄우는 복원 실패·저장 멈춤 안내. 안내 한 장이 창 범위 팝업 인스턴스 하나다.
 //!
-//! 안내 내용은 App이 넘긴다. 안내는 나타날 때 포커스를 가져가지 않고 scrim도 없다. 바깥의
-//! 키·선택·스크롤은 터미널로 그대로 간다. ×·Continue·안쪽 컨트롤 포커스의 Esc는 같은 응답이며,
-//! 안내를 지우고 그 id를 App이 확인 응답으로 가져가게 남긴다.
+//! 안내 내용은 App이 넘긴다. 안내는 포커스를 받지 않고 범위를 덮지 않으며 바깥 클릭에 사라지지 않는다.
+//! 다른 팝업 아래에 그린다. 바깥의 키·선택·스크롤은 터미널로 그대로 간다. ×·Continue·안쪽 컨트롤
+//! 포커스의 Esc는 같은 응답이며, 그 안내를 닫고 그 id를 App이 확인 응답으로 가져가게 남긴다.
 
-use crate::model::{LogicalPx, LogicalRect, PhysicalPx, PhysicalRect};
+use crate::adapters::ui::popup::{PopupAction, PopupCx, PopupId, PopupPayload, PopupScope};
+use crate::model::{LogicalPx, LogicalRect, PhysicalRect};
+use crate::state::MainViewState;
+
+/// 복원 안내 팝업 선언 id. 안내마다 창 범위 인스턴스 하나다.
+pub const RESTORE_NOTICE_POPUP_ID: PopupId = "restore_notice";
 
 /// 안내 한 장의 표시 문구. 모두 번역된 문자열이다.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,85 +29,160 @@ impl RestoreNoticeEntry {
     }
 }
 
+/// 안내 인스턴스의 데이터.
+#[derive(Debug)]
+pub(crate) struct NoticePayload {
+    pub(crate) entry: RestoreNoticeEntry,
+    /// 직전 프레임에 그린 안내 높이. 처음 그리기 전에는 없다.
+    height: Option<LogicalPx>,
+    /// 한 번이라도 그렸는지. 프레임을 그리지 않는 halt 중에 창을 다시 그리게 한다.
+    drawn: bool,
+    /// 직전 프레임에 안쪽 컨트롤이 키보드 포커스를 가졌는지. 이때만 키를 egui로 보낸다.
+    focused_inside: bool,
+}
+
+/// 창이 가진 안내 열의 결과.
 #[derive(Default)]
 pub(crate) struct RestoreNotices {
-    entries: Vec<RestoreNoticeEntry>,
     /// 사용자가 닫은 안내 id. App이 가져간다.
     acknowledged: Vec<u64>,
-    /// 직전 프레임에 그린 안내 카드별 사각형(논리 좌표). 카드 사이 간격은 들어가지 않는다.
-    /// native WebView가 이 영역만 그림과 포인터에서 빼서 안내가 보이게 한다.
-    cards: Vec<crate::model::LogicalRect>,
-    /// 직전 프레임에 안내 안쪽 컨트롤이 키보드 포커스를 가졌는지. 이때만 키를 egui로 보낸다.
-    keyboard_inside: bool,
-    /// 더한 뒤 아직 그리지 않은 안내가 있는지. 프레임을 그리지 않는 halt 중에 창을 다시 그리게 한다.
-    undrawn: bool,
+    /// 이번 프레임에 안내 열이 차지한 사각형. 안내가 없으면 `None`이다. 같은 열 아래에 이어 그리는 attach
+    /// 대기 칩은 이 값의 아래쪽 + `notice-column-gap`에서 시작한다.
+    pub(crate) column: Option<egui::Rect>,
 }
 
 impl RestoreNotices {
-    /// 안내를 더한다. 같은 안내가 이미 떠 있으면 더하지 않고 false다.
-    pub(crate) fn push(&mut self, entry: RestoreNoticeEntry) -> bool {
-        if self.entries.iter().any(|shown| shown.same_as(&entry)) {
-            return false;
-        }
-        self.entries.push(entry);
-        self.undrawn = true;
-        true
-    }
-
-    /// 아직 그리지 않은 안내가 있는지.
-    pub(crate) fn has_undrawn(&self) -> bool {
-        self.undrawn
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    /// 직전 프레임에 그린 안내가 이 위치(논리 좌표)를 덮는지.
-    pub(crate) fn covers(&self, pos: egui::Pos2) -> bool {
-        let x = crate::model::LogicalPx(pos.x);
-        let y = crate::model::LogicalPx(pos.y);
-        self.cards.iter().any(|rect| {
-            x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
-        })
-    }
-
-    /// winit 포인터의 물리 좌표가 직전 프레임에 그린 안내 카드 위인지. egui가 아직 그 포인터로
-    /// 프레임을 돌리지 않은 첫 클릭에도 맞도록 egui의 hover 판정이 아니라 카드 사각형으로 가린다.
-    pub(crate) fn covers_physical(
-        &self,
-        x: PhysicalPx,
-        y: PhysicalPx,
-        pixels_per_point: f32,
-    ) -> bool {
-        self.covers(egui::pos2(
-            x.to_logical(pixels_per_point).value(),
-            y.to_logical(pixels_per_point).value(),
-        ))
-    }
-
     pub(crate) fn take_acknowledged(&mut self) -> Vec<u64> {
         std::mem::take(&mut self.acknowledged)
     }
+}
 
-    /// 직전 프레임에 그린 안내 카드들. 안내가 없으면 비어 있다.
-    pub(crate) fn card_rects(&self) -> &[crate::model::LogicalRect] {
-        &self.cards
+/// 열린 안내 인스턴스와 그 데이터.
+fn notices(
+    popups: &crate::adapters::ui::PopupManager,
+) -> impl Iterator<Item = (&crate::adapters::ui::popup::PopupState, &NoticePayload)> {
+    popups
+        .instances_of(RESTORE_NOTICE_POPUP_ID)
+        .filter_map(|p| match &p.payload {
+            PopupPayload::RestoreNotice(notice) => Some((p, &**notice)),
+            _ => None,
+        })
+}
+
+/// 안내를 연다. 같은 안내가 이미 떠 있으면 열지 않고 false다.
+pub(crate) fn push(state: &mut MainViewState, entry: RestoreNoticeEntry) -> bool {
+    if notices(&state.popups).any(|(_, shown)| shown.entry.same_as(&entry)) {
+        return false;
     }
+    // intent-exempt: 복원 실패·저장 멈춤이라는 시스템 사건이 연다. halt 중에는 Intent를 적용하지 않으므로 직접 연다.
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(RESTORE_NOTICE_POPUP_ID, PopupScope::Window).with_payload(
+            PopupPayload::RestoreNotice(Box::new(NoticePayload {
+                entry,
+                height: None,
+                drawn: false,
+                focused_inside: false,
+            })),
+        ),
+        false,
+    );
+    true
+}
 
-    /// 안내 안쪽 컨트롤이 키보드 포커스를 가졌는지. 안내가 나타나는 것만으로는 true가 되지 않는다.
-    pub(crate) fn has_keyboard_focus(&self) -> bool {
-        self.keyboard_inside
-    }
+/// 아직 그리지 않은 안내가 있는지.
+pub(crate) fn has_undrawn(state: &MainViewState) -> bool {
+    notices(&state.popups).any(|(_, notice)| !notice.drawn)
+}
 
-    fn dismiss(&mut self, id: u64) {
-        self.entries.retain(|entry| entry.id != id);
-        self.acknowledged.push(id);
+/// 떠 있는 안내 수.
+pub(crate) fn count(state: &MainViewState) -> usize {
+    notices(&state.popups).count()
+}
+
+/// 안내 안쪽 컨트롤이 키보드 포커스를 가졌는지. 안내가 나타나는 것만으로는 true가 되지 않는다.
+pub(crate) fn has_keyboard_focus(popups: &crate::adapters::ui::PopupManager) -> bool {
+    notices(popups).any(|(_, notice)| notice.focused_inside)
+}
+
+/// 처음 그리기 전 안내 높이. 그린 프레임에 잰 높이로 바뀐다.
+pub(crate) const UNMEASURED_HEIGHT: LogicalPx = LogicalPx(1.0);
+
+/// 안내 크기. 폭은 관리자가 열 폭으로 맞추고, 높이는 직전 프레임에 잰 값이다.
+pub(crate) fn notice_size(
+    _: &MainViewState,
+    _: &crate::runtime::engine_read::EngineRead<'_>,
+    payload: &PopupPayload,
+) -> egui::Vec2 {
+    let width = crate::theme::theme().notice_column_width().value();
+    let height = match payload {
+        PopupPayload::RestoreNotice(notice) => notice.height.unwrap_or(UNMEASURED_HEIGHT),
+        _ => UNMEASURED_HEIGHT,
+    };
+    egui::vec2(width, height.value())
+}
+
+/// 닫힌 안내의 id를 App이 확인 응답으로 가져가게 남긴다.
+pub(crate) fn on_close_notice(
+    _ctx: &egui::Context,
+    state: &mut MainViewState,
+    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
+) {
+    if let PopupPayload::RestoreNotice(notice) = &closed.payload {
+        state.restore_notices.acknowledged.push(notice.entry.id);
     }
 }
 
+/// 안내 한 장을 그린다. ×·Continue·안쪽 포커스의 Esc면 닫는다.
+pub(crate) fn draw_notice_popup(
+    ui: &mut egui::Ui,
+    _state: &mut MainViewState,
+    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    cx: &mut PopupCx<'_>,
+) -> PopupAction {
+    let PopupPayload::RestoreNotice(notice) = &mut *cx.payload else {
+        return PopupAction::Close;
+    };
+    let theme = crate::theme::theme();
+    let entry = &notice.entry;
+    let view = tasty_ui_widgets::RestoreNoticeView {
+        id_salt: egui::Id::new("restore_notice").with(entry.id),
+        title: &entry.title,
+        close_label: crate::i18n::t("notice.close"),
+        cause: &entry.cause,
+        label: &entry.label,
+        path: &entry.path,
+        copy_label: crate::i18n::t("notice.copy_path"),
+        body: &entry.body,
+        continue_label: crate::i18n::t("notice.continue"),
+        title_bar_height: super::popup::title_bar_height(),
+    };
+    // 카드의 그림자와 바깥쪽 테두리는 카드 사각형 밖에 그린다. 관리자가 정한 콘텐츠 자르기를 창 전체로 넓힌다.
+    ui.set_clip_rect(ui.ctx().screen_rect());
+    let width = ui.max_rect().width();
+    let output = tasty_ui_widgets::restore_notice(ui, &theme, &view, width);
+    if let Some(error) = &output.glyph_error {
+        tracing::warn!("restore notice glyph failed to load: {error}");
+    }
+    if output.copy_path {
+        ui.ctx().copy_text(entry.path.clone());
+    }
+    let height = LogicalPx(output.rect.height());
+    if notice.height != Some(height) {
+        // 잰 높이로 다음 프레임에 열을 다시 쌓는다.
+        notice.height = Some(height);
+        ui.ctx().request_repaint();
+    }
+    notice.drawn = true;
+    notice.focused_inside = output.focused_inside && !output.dismissed;
+    if output.dismissed {
+        return PopupAction::Close;
+    }
+    PopupAction::None
+}
+
 /// 열이 시작할 y. 탭 바 아래(`base`)에서 시작하되, 열과 가로로 겹치고 열 시작점보다 위에서
-/// 시작하는 장애물(창 범위 배너, 오른쪽 위 pane의 열린 검색 막대)이 있으면 그 아래로 내린다.
+/// 시작하는 장애물(창 범위 배너, 범위 위쪽에 붙은 팝업)이 있으면 그 아래로 내린다.
 /// 장애물은 옮기지 않는다. 반환값에는 `notice_column_rect`가 inset을 더한다.
 fn column_top(
     base: LogicalPx,
@@ -135,19 +215,14 @@ fn logical_rect(rect: egui::Rect) -> LogicalRect {
     }
 }
 
-/// 작업 영역(`terminal_rect`) 오른쪽 위, 탭 바 아래의 안내 열에 안내를 위에서부터 쌓아 그린다.
-/// `obstacles`는 같은 프레임에 먼저 그린 창 범위 배너와 열린 검색 막대의 사각형이다. 열은 그 아래에서
-/// 시작한다.
-/// 이번 프레임에 그린 안내 전체 사각형(논리 좌표)을 돌려준다. 같은 열 아래에 이어 그리는 attach
-/// 대기 칩은 이 값의 아래쪽 + `notice-column-gap`에서 시작한다. 안내가 없으면 `None`이다.
-pub(crate) fn draw_notice_column(
-    ctx: &egui::Context,
-    notices: &mut RestoreNotices,
+/// 작업 영역(`terminal_rect`) 오른쪽 위, 탭 바 아래의 안내 열 자리. `obstacles`는 창 범위 배너와 범위
+/// 위쪽에 붙은 팝업(열린 검색 막대 등)의 사각형이다. 열은 그 아래에서 시작한다.
+pub(crate) fn notice_column(
     terminal_rect: PhysicalRect,
     tab_bar_height: crate::model::PhysicalPx,
     scale: f32,
     obstacles: &[egui::Rect],
-) -> Option<egui::Rect> {
+) -> crate::adapters::ui::popup::NoticeColumn {
     let theme = crate::theme::theme();
     let work = super::to_egui_rect(terminal_rect, scale);
     let base = LogicalPx(work.top()) + tab_bar_height.to_logical(scale);
@@ -159,81 +234,15 @@ pub(crate) fn draw_notice_column(
         |top| logical_rect(columns(top)),
         &obstacles,
     );
-    let column = columns(top);
-    let gap = theme.notice_column_gap().value();
-    let mut next_top = column.top();
-    let mut occupied: Option<egui::Rect> = None;
-    let mut cards = Vec::new();
-    let mut dismissed = Vec::new();
-    let mut keyboard_inside = false;
-    for entry in &notices.entries {
-        let view = tasty_ui_widgets::RestoreNoticeView {
-            id_salt: egui::Id::new("restore_notice").with(entry.id),
-            title: &entry.title,
-            close_label: crate::i18n::t("notice.close"),
-            cause: &entry.cause,
-            label: &entry.label,
-            path: &entry.path,
-            copy_label: crate::i18n::t("notice.copy_path"),
-            body: &entry.body,
-            continue_label: crate::i18n::t("notice.continue"),
-            title_bar_height: super::popup::title_bar_height(),
-        };
-        // 포커스를 가져가지 않는 Area다. 안내 상자만 포인터를 받는다.
-        let output = egui::Area::new(egui::Id::new("restore_notice_area").with(entry.id))
-            .order(egui::Order::Foreground)
-            .fixed_pos(egui::pos2(column.left(), next_top))
-            .constrain(false)
-            .show(ctx, |ui| {
-                tasty_ui_widgets::restore_notice(ui, &theme, &view, column.width())
-            })
-            .inner;
-        if let Some(error) = &output.glyph_error {
-            tracing::warn!("restore notice glyph failed to load: {error}");
-        }
-        if output.copy_path {
-            ctx.copy_text(entry.path.clone());
-        }
-        if output.dismissed {
-            dismissed.push(entry.id);
-        } else {
-            keyboard_inside |= output.focused_inside;
-            cards.push(crate::model::LogicalRect {
-                x: crate::model::LogicalPx(output.rect.min.x),
-                y: crate::model::LogicalPx(output.rect.min.y),
-                width: crate::model::LogicalPx(output.rect.width()),
-                height: crate::model::LogicalPx(output.rect.height()),
-            });
-        }
-        occupied = Some(occupied.map_or(output.rect, |rect| rect.union(output.rect)));
-        next_top = output.rect.bottom() + gap;
+    crate::adapters::ui::popup::NoticeColumn {
+        rect: columns(top),
+        gap: theme.notice_column_gap(),
     }
-    for id in dismissed {
-        notices.dismiss(id);
-    }
-    if notices.entries.is_empty() {
-        occupied = None;
-    }
-    notices.cards = cards;
-    notices.keyboard_inside = keyboard_inside;
-    notices.undrawn = false;
-    occupied
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn entry(id: u64, path: &str) -> RestoreNoticeEntry {
-        RestoreNoticeEntry {
-            id,
-            title: "title".into(),
-            cause: "cause".into(),
-            label: "label".into(),
-            path: path.into(),
-            body: "body".into(),
-        }
-    }
 
     fn rect(x: f32, y: f32, width: f32, height: f32) -> LogicalRect {
         LogicalRect {
@@ -264,44 +273,14 @@ mod tests {
     }
 
     #[test]
-    fn a_physical_pointer_is_compared_with_cards_in_logical_points() {
-        let mut notices = RestoreNotices {
-            cards: vec![rect(632.0, 44.0, 360.0, 100.0)],
-            ..Default::default()
-        };
-        let hit = |notices: &RestoreNotices, x: f32, y: f32, ppp: f32| {
-            notices.covers_physical(PhysicalPx(x), PhysicalPx(y), ppp)
-        };
-        assert!(hit(&notices, 640.0, 50.0, 1.0));
-        assert!(
-            hit(&notices, 1280.0, 100.0, 2.0),
-            "logical (640, 50) at scale 2"
-        );
-        assert!(
-            !hit(&notices, 640.0, 50.0, 2.0),
-            "logical (320, 25) is outside the card"
-        );
-        assert!(!hit(&notices, 2000.0, 100.0, 2.0));
-        notices.cards.clear();
-        assert!(!hit(&notices, 1280.0, 100.0, 2.0), "no card drawn, no hit");
-    }
-
-    #[test]
     fn obstacles_beside_or_below_the_column_do_not_move_it() {
         let left = rect(0.0, 36.0, 600.0, 32.0);
         let lower = rect(700.0, 400.0, 292.0, 32.0);
         let base = LogicalPx(36.0);
         assert_eq!(column_top(base, INSET, columns, &[left, lower]), base);
     }
-
-    #[test]
-    fn the_same_notice_is_not_stacked_twice() {
-        let mut notices = RestoreNotices::default();
-        assert!(notices.push(entry(1, "/a")));
-        assert!(!notices.push(entry(2, "/a")));
-        assert!(notices.push(entry(3, "/b")));
-        notices.dismiss(1);
-        assert_eq!(notices.take_acknowledged(), vec![1]);
-        assert!(notices.take_acknowledged().is_empty());
-    }
 }
+
+#[cfg(test)]
+#[path = "restore_notice_popup_tests.rs"]
+mod popup_tests;

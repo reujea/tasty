@@ -68,7 +68,7 @@ impl App {
             .sessions()
             .find(|(_, engine)| engine.has_workspace(workspace))
         {
-            state.restore_notices.push(entry);
+            crate::adapters::ui::restore_notice::push(state, entry);
         }
     }
 

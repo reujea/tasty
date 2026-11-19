@@ -41,7 +41,8 @@ pub(super) fn handle_ui_state(
     #[cfg(not(feature = "gui"))]
     let host_popup_focused = false;
     #[cfg(feature = "gui")]
-    let restore_notice_focused = state.restore_notices.has_keyboard_focus();
+    let restore_notice_focused =
+        crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
     #[cfg(not(feature = "gui"))]
     let restore_notice_focused = false;
 

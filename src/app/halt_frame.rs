@@ -17,7 +17,7 @@ impl App {
         self.collect_restore_notice_acknowledgements();
         for view in self.view.views.values_mut() {
             if let Some(main) = view.as_main_mut()
-                && main.state.restore_notices.has_undrawn()
+                && crate::adapters::ui::restore_notice::has_undrawn(&main.state)
             {
                 crate::view::ui::View::mark_dirty(main);
                 main.base.winit.request_redraw();
@@ -107,7 +107,7 @@ impl App {
                 let Some(engine) = self.engines.window_read(id) else {
                     return;
                 };
-                let shown = main.state.restore_notices.len();
+                let shown = crate::adapters::ui::restore_notice::count(&main.state);
                 main.base.state.dirty = true;
                 main.render_if_dirty(&engine, None);
                 // 이번 프레임의 안내 카드에 맞춰 native 페이지의 그림·입력 구멍만 다시 맞춘다.
@@ -122,7 +122,7 @@ impl App {
                     );
                 }
                 // 이번 프레임에서 닫힌 안내는 다음 프레임에서 지워진다.
-                main.state.restore_notices.len() != shown
+                crate::adapters::ui::restore_notice::count(&main.state) != shown
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let ppp = main.base.gpu.egui_pixels_per_point();
@@ -135,7 +135,7 @@ impl App {
                         .value(),
                 );
                 let was = main.state.halt_pointer_inside;
-                let inside = main.state.restore_notices.covers(pos)
+                let inside = main.state.popups.quiet_popup_covers(pos)
                     || main
                         .state
                         .titlebar_close_rect

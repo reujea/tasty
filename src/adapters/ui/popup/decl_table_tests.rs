@@ -79,7 +79,7 @@ const RAISED: (Tok, Tok, Tok) = (Tok::SurfaceRaised, Tok::BorderFrame, Tok::Bord
 const PANEL: (Tok, Tok, Tok) = (Tok::BgPanel, Tok::BorderFrame, Tok::BorderFrame);
 const BY_CONTENT: (Tok, Tok, Tok) = (Tok::Transparent, Tok::Transparent, Tok::Transparent);
 
-/// 정의 33개와 설정 창의 단축키 충돌 팝업.
+/// 정의 34개와 설정 창의 단축키 충돌 팝업.
 const EXPECTED: &[Row] = &[
     row("notifications", false, false, true, PANEL),
     row("convert_surface", true, false, false, PANEL),
@@ -164,6 +164,8 @@ const EXPECTED: &[Row] = &[
     ),
     // 단축키 도움말은 옛 명부에 없던 정의다. 셸은 콘텐츠가 modhint 토큰으로 그린다.
     row("modifier_hint", false, true, true, BY_CONTENT),
+    // 복원 안내도 옛 명부에 없던 정의다. 카드는 콘텐츠가 그린다.
+    row("restore_notice", false, true, true, BY_CONTENT),
     row("keybinding_conflict", false, false, false, RAISED),
 ];
 
@@ -225,7 +227,7 @@ fn expected(id: &str) -> Row {
 #[test]
 fn the_table_covers_every_declared_popup_once() {
     let ids: Vec<&str> = declared().iter().map(|(id, _)| *id).collect();
-    assert_eq!(ids.len(), 34, "정의 33개와 설정 창의 단축키 충돌 확인");
+    assert_eq!(ids.len(), 35, "정의 34개와 설정 창의 단축키 충돌 확인");
     let mut sorted = ids.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -349,6 +351,14 @@ const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bo
         // 키를 받지 않고 포커스도 받지 않는다. 닫기는 키를 떼거나 X다.
         (
             "modifier_hint",
+            PopupKeyboard::None,
+            PopupEscape::Ignore,
+            PopupOutsideClick::Ignore,
+            false,
+        ),
+        // 팝업 포커스를 받지 않는다. 안쪽 컨트롤의 포커스와 Esc는 콘텐츠가 다룬다.
+        (
+            "restore_notice",
             PopupKeyboard::None,
             PopupEscape::Ignore,
             PopupOutsideClick::Ignore,

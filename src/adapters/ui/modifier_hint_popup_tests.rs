@@ -89,7 +89,7 @@ fn hint_rect(state: &MainViewState) -> egui::Rect {
 
 /// Given 홀드하지 않은 상태, When 표시 지연보다 오래 누르면, Then 도움말이 창 범위 인스턴스로 저장 자리
 /// (저장값이 없으면 화면 왼쪽 아래)에 열린다. 포커스와 Esc 주인이 되지 않고 plugin 팝업과 견줄 순번도 없다.
-/// 겹친 native WebView를 숨기거나 키보드 포커스를 회수하지 않는다.
+/// 겹친 native WebView를 숨기거나 키보드 포커스를 회수하지 않고 도움말 자리에만 구멍을 낸다.
 /// When 키를 모두 떼면 Then 닫힌다.
 #[test]
 fn the_hint_is_a_window_instance_that_never_takes_focus() {
@@ -118,6 +118,7 @@ fn the_hint_is_a_window_instance_that_never_takes_focus() {
         state.popups.visible_passive_rects().is_empty(),
         "the hint must not hide the WebView under it"
     );
+    assert_eq!(state.popups.quiet_popup_rects(), vec![want]);
 
     state.modifier_hint.update_hold(false, false, false, false);
     frame(&ctx, &mut state, &read, Pointer::Idle);

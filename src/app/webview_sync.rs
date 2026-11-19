@@ -197,13 +197,22 @@ fn collect_html_surfaces(
         std::collections::HashMap::new();
     let mut active_clips: std::collections::HashMap<u32, Vec<crate::model::PhysicalRect>> =
         std::collections::HashMap::new();
-    // 오른쪽 위 복원 안내 카드. native 창은 이 부분을 그리지 않고 포커스·bounds는 그대로 둔다.
+    // 포커스를 받지 않는 팝업(복원 안내·단축키 도움말). native 창은 이 부분을 그리지 않고
+    // 표시·포커스·bounds는 그대로 둔다.
     let notice_cards: Vec<crate::model::PhysicalRect> = view
         .state
-        .restore_notices
-        .card_rects()
-        .iter()
-        .map(|r| r.to_physical(scale_factor as f32))
+        .popups
+        .quiet_popup_rects()
+        .into_iter()
+        .map(|r| {
+            crate::model::LogicalRect {
+                x: crate::model::LogicalPx(r.min.x),
+                y: crate::model::LogicalPx(r.min.y),
+                width: crate::model::LogicalPx(r.width()),
+                height: crate::model::LogicalPx(r.height()),
+            }
+            .to_physical(scale_factor as f32)
+        })
         .collect();
     let mut all_html_ids: Vec<u32> = Vec::new();
     let window = view.base.gpu.size();

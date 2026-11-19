@@ -42,6 +42,7 @@ pub fn all_defs() -> &'static [PopupDef] {
             th.modhint_min_height().value(),
         ));
         let modhint_grip = th.modhint_grip_size();
+    let notice_width = th.notice_column_width().value();
         drop(th);
         vec![
             PopupDef {
@@ -934,6 +935,45 @@ pub fn all_defs() -> &'static [PopupDef] {
                 #[cfg(debug_assertions)]
                 debug_payload: None,
                 on_close: None,
+            },
+            // 복원 실패·저장 멈춤 안내. 안내마다 인스턴스 하나를 안내 열에 연 순서로 쌓는다.
+            PopupDef {
+                id: crate::adapters::ui::restore_notice::RESTORE_NOTICE_POPUP_ID,
+                decl: PopupDecl {
+                    // 나타날 때나 눌러도 팝업 포커스를 받지 않고 다른 팝업 아래에 그린다. 안쪽 컨트롤의
+                    // 키보드 포커스와 Esc는 콘텐츠가 다룬다.
+                    keyboard: PopupKeyboard::None,
+                    escape: PopupEscape::Ignore,
+                    outside_click: PopupOutsideClick::Ignore,
+                    focus_on_open: false,
+                    sticky_focus: false,
+                    chrome: PopupChrome::Headless,
+                    drag_handle: PopupDragHandle::None,
+                    resizable: false,
+                    min_size: None,
+                    covers_scope: false,
+                    // 카드·그림자·테두리는 콘텐츠가 그린다.
+                    shell: PopupShell::Content,
+                    shadow: PopupShadow::Popover,
+                    content_margin: PopupContentMargin::None,
+                    anchor: PopupAnchor::Column,
+                    instances: PopupInstances::Multi,
+                    ..host_decl(popup_size(egui::vec2(
+                        notice_width,
+                        crate::adapters::ui::restore_notice::UNMEASURED_HEIGHT.value(),
+                    )))
+                },
+                scrim_input: ScrimInput::VisualOnly,
+                title_key: "notice.restore_failed_title",
+                fullscreen_stage: None,
+                title_fn: None,
+                sizer: Some(crate::adapters::ui::restore_notice::notice_size),
+                drag_region: None,
+                on_open: None,
+                draw_fn: crate::adapters::ui::restore_notice::draw_notice_popup,
+                #[cfg(debug_assertions)]
+                debug_payload: None,
+                on_close: Some(crate::adapters::ui::restore_notice::on_close_notice),
             },
         ]
     })

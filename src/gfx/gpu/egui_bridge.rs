@@ -207,21 +207,8 @@ impl GpuState {
                 plugin_manager,
             );
             ui::drop_overlay::draw_drop_overlay(ctx, state, engine, terminal_rect, scale_factor);
-            // 안내 열은 같은 프레임의 배너·검색 막대 아래에 놓고, attach 대기는 그 아래에 잇는다.
-            let mut obstacles = state.banners.window_scope_rects();
-            obstacles.extend(
-                state
-                    .popups
-                    .visible_rect(ui::search_bar::SEARCH_BAR_POPUP_ID),
-            );
-            let notice_column_occupied = ui::restore_notice::draw_notice_column(
-                ctx,
-                &mut state.restore_notices,
-                terminal_rect,
-                state.tab_bar_height,
-                scale_factor,
-                &obstacles,
-            );
+            // attach 대기는 팝업 관리자가 이번 프레임에 쌓은 안내 열 아래에 잇는다.
+            let notice_column_occupied = state.restore_notices.column;
             ui::attach_loading::draw(
                 ctx,
                 state,

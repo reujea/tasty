@@ -98,7 +98,7 @@ macOS 27 이상 GUI client는 원격 HTTP(S) 문서마다 비영속 `WKWebsiteDa
 Linux foreign GdkWindow 구성에서는 GTK resize·size request만으로 allocation이 갱신되지 않았다.
 foreign bind와 직접 size_allocate는 함께 유지하거나 함께 제거한다.
 
-native 창은 egui보다 위에서 마우스를 직접 받는다. Linux는 WebView를 leaf rect에 꽉 채우고, 분할선 hit 띠와 창 리사이즈 밴드가 겹치는 부분만 `set_native_holes`로 X 창의 input shape에서 뺀다. 구멍은 `state::webview_edges::{host_input_zones, webview_input_holes}`가 host 판정과 같은 정수 픽셀 구간으로 계산한다. 분할선은 `find_divider_at`의 열린 구간 `|p - d| < reach`, 창 가장자리는 `resize_direction_at`의 `x <= band`·`x >= 너비 - band`다. WebView 기준 좌표는 `set_bounds`와 같이 반올림한 X 창 사각형에서 잰다. Linux 백엔드는 이 구멍을 XFixes `SetWindowShapeRegion`으로 X 창에 물리 px 그대로 설정한다. GDK input shape는 GDK 논리 px 단위라 배율 2에서 홀수 경계를 나타내지 못한다. macOS·Windows는 이 처리가 없어 `webview_edge_inset`의 pane 외곽 여백을 쓰는 코드 경로가 남아 있고, 이 머신에서는 그 OS에서 측정하지 않았다. 같은 호출(`set_native_holes`)은 복원 안내 카드 영역(`notice_clip_holes`)도 받아 그림과 포인터에서 함께 뺀다. Linux는 그 영역을 `ShapeBounding`에서 빼고 `ShapeInput`에서는 host 입력 영역과 합쳐 뺀다. Windows·macOS는 안내 영역만 창 region·layer mask와 hit-test에서 뺀다([레이아웃 저장](../../features/layout-persistence/index.md)의 복원 안내 절).
+native 창은 egui보다 위에서 마우스를 직접 받는다. Linux는 WebView를 leaf rect에 꽉 채우고, 분할선 hit 띠와 창 리사이즈 밴드가 겹치는 부분만 `set_native_holes`로 X 창의 input shape에서 뺀다. 구멍은 `state::webview_edges::{host_input_zones, webview_input_holes}`가 host 판정과 같은 정수 픽셀 구간으로 계산한다. 분할선은 `find_divider_at`의 열린 구간 `|p - d| < reach`, 창 가장자리는 `resize_direction_at`의 `x <= band`·`x >= 너비 - band`다. WebView 기준 좌표는 `set_bounds`와 같이 반올림한 X 창 사각형에서 잰다. Linux 백엔드는 이 구멍을 XFixes `SetWindowShapeRegion`으로 X 창에 물리 px 그대로 설정한다. GDK input shape는 GDK 논리 px 단위라 배율 2에서 홀수 경계를 나타내지 못한다. macOS·Windows는 이 처리가 없어 `webview_edge_inset`의 pane 외곽 여백을 쓰는 코드 경로가 남아 있고, 이 머신에서는 그 OS에서 측정하지 않았다. 같은 호출(`set_native_holes`)은 포커스를 받지 않는 팝업(복원 안내·단축키 도움말)의 사각형(`quiet_popup_rects`)도 `notice_clip_holes`로 받아 그림과 포인터에서 함께 뺀다. Linux는 그 영역을 `ShapeBounding`에서 빼고 `ShapeInput`에서는 host 입력 영역과 합쳐 뺀다. Windows·macOS는 그 영역만 창 region·layer mask와 hit-test에서 뺀다([레이아웃 저장](../../features/layout-persistence/index.md)의 복원 안내 절). 단축키 도움말 구멍의 macOS·Windows 동작은 측정하지 않았다.
 X 창에는 물리 px를 주고, GTK resize·size_allocate에는 GDK 창 배율로 나눈 논리 px(올림)를 준다. GTK 크기 단위는 논리 px라 물리 px를 그대로 주면 GDK 배율이 2일 때 페이지 viewport가 X 창의 두 배가 된다. winit 배율과 GDK 배율은 출처가 달라(`Xft.dpi`·`WINIT_X11_SCALE_FACTOR` / `GDK_SCALE`·XSETTINGS) 서로 대신하지 않는다. 이 규칙은 `GDK_SCALE=2`에서 측정했고, XSETTINGS로 배율이 정해지는 GNOME 세션에서는 측정하지 않았다.
 활성·비활성 탭 생성, 전환, 확대·축소, 분할에서 부모와 렌더 자식 크기를 비교한다.
 원인을 ConfigureNotify 누락 하나로 확정하지 않는다.
@@ -507,7 +507,7 @@ host가 webview를 가릴 때 host 창이 활성이고 실제 focus가 해당 �
 
 overlay 판정(`has_egui_overlay_open`)은 [passive 팝업](popup.md#passive-팝업)을 세지 않는다.
 passive 팝업은 토스트 카드와 같이 겹치는 webview만 숨긴다.
-포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 webview를 숨기지 않고 webview 아래에 그린다([passive 팝업](popup.md#passive-팝업)).
+포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 webview를 숨기지 않고 그 사각형을 webview에서 구멍으로 뺀다([passive 팝업](popup.md#passive-팝업)).
 
 탐색이 끝나지 않아 활성 탭의 webview를 숨기는 경우, 토스트 카드나 passive 팝업(포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다, [passive 팝업](popup.md#passive-팝업))과 겹쳐 그 webview만 숨기는 경우([토스트](toast.md#native-webview-위의-토스트), 키를 받는 webview는 숨기지 않는다), surface를 닫는 경우는 회수하지 않는다.
 다시 보이거나 overlay가 닫혀도 native 자식 focus를 자동 복원하지 않는다.
@@ -648,7 +648,7 @@ macOS·Windows는 투명 모드를 보고하지 않고 주 표면의 불투명 �
 
 숨김이 필요한 이유는 z-order다. WebView는 OS 자식 창(Linux X 창, Windows child HWND, macOS subview)이라 wgpu 주 표면보다 항상 위에 있고, egui는 주 표면 하나에만 그린다. 숨기지 않으려면 WebView에서 팝업 영역을 잘라 내거나(clip) 팝업을 별도 OS 층에 다시 그려야 한다.
 
-복원 안내 카드에는 잘라 내는 경로가 이미 있다. `set_native_holes`가 받은 영역을 WebView의 그림과 포인터에서 함께 뺀다. Linux는 XFixes `ShapeBounding`·`ShapeInput`, Windows는 child HWND 창 region, macOS는 `KeyWebView` layer mask와 `hitTest:` 제외다. Linux 불투명 모드는 같은 X 창 shape에, Windows 불투명 모드는 같은 child HWND 창 region에, macOS 불투명 모드는 같은 layer mask에 팝업 상자를 합쳐 뺀다(아래 플랫폼별 구현). Linux와 Windows는 격리 debug 인스턴스에서 안내 clip 단독의 동작을 확인했다. macOS는 같은 mask 계산을 입력 없는 소유 probe로 확인했으며, Tasty 안내 clip 단독의 실제 GUI 동작은 측정하지 않았다.
+포커스를 받지 않는 팝업(복원 안내·단축키 도움말)의 사각형(`quiet_popup_rects`)에는 잘라 내는 경로가 이미 있다. `set_native_holes`가 받은 영역을 WebView의 그림과 포인터에서 함께 뺀다. Linux는 XFixes `ShapeBounding`·`ShapeInput`, Windows는 child HWND 창 region, macOS는 `KeyWebView` layer mask와 `hitTest:` 제외다. Linux 불투명 모드는 같은 X 창 shape에, Windows 불투명 모드는 같은 child HWND 창 region에, macOS 불투명 모드는 같은 layer mask에 팝업 상자를 합쳐 뺀다(아래 플랫폼별 구현). Linux와 Windows는 격리 debug 인스턴스에서 안내 clip 단독의 동작을 확인했다. macOS는 같은 mask 계산을 입력 없는 소유 probe로 확인했으며, Tasty 안내 clip 단독의 실제 GUI 동작은 측정하지 않았다. 단축키 도움말 구멍은 Linux 격리 debug 인스턴스에서 WebView가 숨지 않고 키보드 포커스를 유지하는 것을 확인했고, macOS·Windows 동작은 측정하지 않았다.
 
 ### 모드 결정
 
@@ -678,7 +678,7 @@ macOS·Windows는 투명 모드를 보고하지 않고 주 표면의 불투명 �
 |---|---|
 | 위 세 종류와 plugin mesh 팝업 콘텐츠 | 적용 |
 | 전체화면 무대, 튜토리얼 | 적용하지 않고 숨김 |
-| 토스트 카드, passive 팝업 | 범위 밖이다. 겹친 WebView만 숨기는 규칙을 그대로 쓴다. 이 둘은 포커스를 받지 않는 층이라 페이지 입력을 가로채지 않는다. 포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 WebView를 숨기지 않고 WebView 아래에 그린다([passive 팝업](popup.md#passive-팝업)) |
+| 토스트 카드, passive 팝업 | 범위 밖이다. 겹친 WebView만 숨기는 규칙을 그대로 쓴다. 이 둘은 포커스를 받지 않는 층이라 페이지 입력을 가로채지 않는다. 포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 WebView를 숨기지 않고 그 사각형을 WebView에서 구멍으로 뺀다([passive 팝업](popup.md#passive-팝업)) |
 
 ### 불투명 모드 표현
 

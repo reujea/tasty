@@ -2,7 +2,7 @@
 
 코드·문서·IPC·CLI에서 사용하는 용어를 정리한다. 여기서는 짧은 정의와 상세 문서 링크를 제공한다. 정확한 동작과 제약은 각 개념 문서에서 확인한다.
 
-> 용어를 잘못 쓰면 코드·문서·API 일관성이 깨진다. 특히 **Window/View**, **Workspace/Pane/Tab/Surface** 계층, **상위/하위 레이아웃**, **Modal/Popup/Toast/Banner/Modifier-hint 오버레이** 구분을 혼동하지 않는다.
+> 용어를 잘못 쓰면 코드·문서·API 일관성이 깨진다. 특히 **Window/View**, **Workspace/Pane/Tab/Surface** 계층, **상위/하위 레이아웃**, **Modal/Popup/Toast/Banner/Modifier-hint** 구분을 혼동하지 않는다.
 
 ## 정본 문서
 
@@ -78,8 +78,8 @@
 - **Popup** — View 내부 가상 창(타이틀바+콘텐츠, 드래그·z-order). 스코프 가짐. 상세 [`design/systems/popup.md`](../design/systems/popup.md).
 - **Toast** — View 안에 잠깐 표시하는 알림. 포인터가 카드 위에 있는 동안은 사라지지 않는다. 포커스를 받거나 입력을 소비하지 않는다. 사용자 행동에서만 표시하며, 예외로 attach mirror의 끊김·손실·구조 전달 실패를 알릴 수 있다. 에이전트 IPC로 직접 표시하지 않는다([토스트](../design/systems/toast.md)).
 - **Banner** — parent 영역 상단의 안내와 조치 버튼. 포커스는 받지 않지만 마우스 입력을 처리한다. TTL·z-order를 사용하며 scope마다 하나를 표시하고 최대 5개를 대기시킨다. 사용자 행동에서만 표시하고 에이전트 IPC로 표시하지 않는다([배너](../design/systems/banner.md)).
-- **Modifier-hint 오버레이** — modifier를 누르고 있으면 기본 500ms 뒤, Shift 단독은 1200ms 뒤에 200ms 페이드로 단축키 목록을 보여 준다. 현재 누른 조합을 포함하는 단축키만 표시하며 키를 떼면 바로 사라진다.
-  키보드 포커스는 그대로 두고 마우스로 이동·크기 조정·닫기를 할 수 있다. `ModifiersChanged`로 실제 사용자 입력만 받으며 IPC·CLI로 강제 표시하지 않는다. `enabled`가 꺼져 있으면 표시하지 않고 위치·크기는 `Settings::modifier_hint`에 저장한다.
+- **Modifier-hint** — 창(Window) 범위 팝업 인스턴스(`modifier_hint`)다. modifier를 누르고 있으면 기본 500ms 뒤, Shift 단독은 1200ms 뒤에 200ms 페이드로 단축키 목록을 보여 준다. 현재 누른 조합을 포함하는 단축키만 표시하며 키를 떼면 바로 사라진다.
+  키를 받지 않는다고 선언한 팝업(`keyboard: None`)이라 키보드 포커스는 그대로 두고 다른 팝업 아래에 그리며, 마우스로 이동·크기 조정·닫기를 할 수 있다. `ModifiersChanged`로 실제 사용자 입력만 받으며 IPC·CLI로 강제 표시하지 않는다. `enabled`가 꺼져 있으면 표시하지 않고 위치·크기는 `Settings::modifier_hint`에 저장한다.
   [디자인 매핑](../design/systems/design-token-mapping.md)의 modifier-hint 절을 참고한다. 모델은 `src/adapters/ui/input/shortcuts/modifier_hint.rs`, 화면은 `src/adapters/ui/modifier_hint_overlay.rs`에 있다.
 - **마커 오버레이(Marker overlay)** — 대상 rect 위 최상위에 링·glow를 그리는 장치. 메시지나 심각도는 다루지 않는다. 마커와 scrim은 입력을 통과시키며(`pointer-events:none`) 옆 안내 말풍선만 상호작용을 처리한다.
   좌표는 매 프레임 `LayoutContext`·`terminal_rect`·`tab_bar_height`로 다시 계산한다. 현재는 튜토리얼에서만 사용하고 메뉴 선택·Next 클릭 등 사용자 행동으로 진행한다. 에이전트 IPC·CLI에는 표시 API가 없다([튜토리얼](../features/tutorial/index.md), `src/adapters/ui/tutorial/`).

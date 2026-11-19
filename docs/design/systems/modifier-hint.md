@@ -29,8 +29,9 @@ Shift의 1200ms는 코드 접근자의 값이며 같은 이름의 duration primi
 열거나 눌러도 포커스와 순서가 바뀌지 않고 다른 팝업 아래에 그린다. 위쪽 띠(X 폭 제외)로 옮기고
 오른쪽 아래 그립으로만 크기를 바꾸며, 둘 다 팝업 관리자가 처리한다. 그립을 끌면 오른쪽·아래 변이 포인터 위치를 따라간다.
 셸·그립·X와 페이드는 콘텐츠가 그린다(셸 `Content`).
-native WebView(HTML·Markdown surface)와 겹쳐도 WebView를 숨기거나 키보드 포커스를 회수하지 않는다. 패널은
-WebView 아래에 그려지므로 겹친 부분은 WebView에 가려진다.
+native WebView(HTML·Markdown surface)와 겹쳐도 WebView를 숨기거나 키보드 포커스를 회수하지 않는다. WebView는
+bounds·표시·포커스를 그대로 두고 패널 사각형만 그림과 포인터에서 빼서 패널이 페이지 위에 보인다
+([팝업 §passive 팝업](popup.md#passive-팝업)의 `keyboard: None` 규칙).
 설정 `enabled`를 끄면 표시하지 않는다. 실제 키 상태는 winit의 ModifiersChanged에서 갱신한다.
 
 ## 목록 — 무엇을 보이나

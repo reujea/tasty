@@ -51,6 +51,8 @@ pub enum PopupPayload {
     TransferProgress(super::transfer::TransferProgress),
     /// 이 범위에서 차례를 기다리는 전송 실패.
     TransferError(super::transfer::TransferErrorQueue),
+    /// 복원 안내 한 장과 직전 프레임에 잰 높이.
+    RestoreNotice(Box<crate::adapters::ui::restore_notice::NoticePayload>),
 }
 
 impl PopupPayload {
@@ -155,6 +157,7 @@ impl std::fmt::Debug for PopupPayload {
                 .debug_tuple("TransferError")
                 .field(&q.items.len())
                 .finish(),
+            Self::RestoreNotice(n) => f.debug_tuple("RestoreNotice").field(&n.entry.id).finish(),
         }
     }
 }

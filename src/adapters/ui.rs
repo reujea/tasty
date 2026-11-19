@@ -105,6 +105,17 @@ pub fn draw_popups(
     // 닫힌 다음 프레임에는 무대 그리기가 실행되지 않아 일반 경로에서도 닫기 훅을 처리한다.
     fullscreen::drain_on_close_hooks(ctx, state, engine);
 
+    // 안내 열은 같은 프레임의 창 범위 배너와 범위 위쪽에 붙은 팝업(직전 프레임 자리) 아래에서 시작한다.
+    let mut obstacles = state.banners.window_scope_rects();
+    obstacles.extend(state.popups.reserved_top_bands());
+    let column = restore_notice::notice_column(
+        terminal_rect,
+        state.tab_bar_height,
+        scale_factor,
+        &obstacles,
+    );
+    state.popups.set_notice_column(Some(column));
+
     popup::frame::draw_popup_layer(ctx, state, engine, &draw_ctx);
     overlay::draw_overlays(ctx, state, engine, &draw_ctx, terminal_rect, scale_factor);
     draw_ctx

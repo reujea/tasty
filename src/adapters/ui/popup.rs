@@ -262,13 +262,6 @@ pub struct PopupDrawResult {
     /// native WebView 위에 합성할 대상(non-passive 팝업). passive 팝업은 들어 있지 않다.
     pub overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget>,
     /// 안내 열에 놓은 인스턴스가 차지한 사각형의 합. 열이 비었거나 자리가 없으면 `None`이다.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "no host popup declares a notice column, a top band reader or a geometry consumer yet"
-        )
-    )]
     pub column_rect: Option<egui::Rect>,
     /// 사용자가 옮기거나 크기를 바꾼 뒤 이 프레임에 놓은 인스턴스와 그 사각형. 놓을 때 한 번만 들어 있다.
     pub released: Vec<(PopupInstanceId, egui::Rect)>,
@@ -709,7 +702,8 @@ impl PopupState {
         self.look = self.declared_look;
     }
 
-    fn popup_rect(&self) -> egui::Rect {
+    /// 팝업 사각형(논리 좌표). 직전 프레임에 그린 자리다.
+    pub(crate) fn popup_rect(&self) -> egui::Rect {
         egui::Rect::from_min_size(self.pos, self.size)
     }
 
@@ -1250,6 +1244,7 @@ impl PopupManager {
     }
 
     /// 열려 있고 직전 그리기에서 범위가 보인 팝업의 사각형. 인스턴스가 여럿이면 맨 위 것이다.
+    #[cfg(test)]
     pub fn visible_rect(&self, id: PopupId) -> Option<egui::Rect> {
         self.popups
             .iter()
@@ -1284,7 +1279,7 @@ impl PopupManager {
 
     /// 최신 draw에서 보이는 열린 popup 중 native WebView를 모두 숨기고 키보드 포커스를 회수해야 하는 것이
     /// 있는지. passive popup은 [`Self::visible_passive_rects`]로 겹치는 WebView만 숨긴다. 포커스를 받지 않는
-    /// 팝업은 어느 쪽에도 세지 않아 WebView를 숨기지 않는다.
+    /// 팝업은 어느 쪽에도 세지 않고 [`Self::quiet_popup_rects`]로 WebView에 구멍만 낸다.
     pub fn has_visible_open(&self) -> bool {
         self.popups
             .iter()

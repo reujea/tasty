@@ -380,9 +380,9 @@ impl MainView {
         }
 
         let overlay_open = self.mouse_overlay_open();
-        // 복원 안내 카드 위의 press는 안내가 받는다. 아래 surface를 활성화하거나 선택·분할선
-        // 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
-        let notice_hit = button_state == ElementState::Pressed && self.restore_notice_hit();
+        // 포커스를 받지 않는 팝업(복원 안내·단축키 도움말) 위의 press는 그 팝업이 받는다. 아래 surface를
+        // 활성화하거나 선택·분할선 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
+        let notice_hit = button_state == ElementState::Pressed && self.quiet_popup_hit();
         // 분할선 hit 띠의 press 는 포커스를 바꾸지 않고 곧바로 드래그를 시작한다. 비활성 surface 쪽
         // 띠도 첫 press 부터 분할선을 잡아야 하므로 click-to-activate 보다 먼저 본다.
         if self.try_press_divider_first(
@@ -437,10 +437,10 @@ impl MainView {
         }
     }
 
-    /// 현재 포인터가 직전 프레임에 그린 복원 안내 카드 위인지.
-    fn restore_notice_hit(&self) -> bool {
+    /// 현재 포인터가 직전 프레임에 그린, 포커스를 받지 않는 팝업 위인지.
+    fn quiet_popup_hit(&self) -> bool {
         self.cursor_position.is_some_and(|pos| {
-            self.state.restore_notices.covers_physical(
+            self.state.popups.quiet_popup_covers_physical(
                 PhysicalPx(pos.x as f32),
                 PhysicalPx(pos.y as f32),
                 self.base.gpu.egui_pixels_per_point(),
