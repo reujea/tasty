@@ -167,12 +167,21 @@ impl Terminal {
         viewport: &TerminalViewport,
         read: impl FnOnce(crate::TerminalReadView<'_>) -> R,
     ) -> R {
+        let lock_requested = crate::lock_timing::requested();
         let state = self.lock_state();
+        let lock_acquired = crate::lock_timing::acquired(lock_requested);
         let view = viewport.resolve(state.content_cut());
-        read(crate::TerminalReadView {
+        let result = read(crate::TerminalReadView {
             state: &state,
             viewport: view,
-        })
+        });
+        drop(state);
+        crate::lock_timing::released(
+            crate::lock_timing::LockSite::View,
+            lock_requested,
+            lock_acquired,
+        );
+        result
     }
 
     /// Read the live grid/history without constructing or owning a local View.

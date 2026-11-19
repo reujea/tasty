@@ -23,6 +23,7 @@ mod vte_handler;
 pub mod cwd;
 pub mod disk_scrollback;
 pub mod foreground_process;
+pub mod lock_timing;
 pub mod search;
 pub mod waker_factory;
 
@@ -334,13 +335,16 @@ impl pty::PtyOutput for TerminalIngest {
         let Some(state) = self.state.upgrade() else {
             return false;
         };
+        let lock_requested = lock_timing::requested();
         let mut state =
             tasty_utils::poison::recover_mutex(state.lock(), STATE_WHAT, &STATE_POISON_REPORTED);
+        let lock_acquired = lock_timing::acquired(lock_requested);
         if state.connection.generation() != self.generation || !state.connection.is_active() {
             return false;
         }
         state.ingest(data);
         drop(state);
+        lock_timing::released(lock_timing::LockSite::Ingest, lock_requested, lock_acquired);
         self.dirty.store(true, Ordering::Release);
         self.wake_now();
         true

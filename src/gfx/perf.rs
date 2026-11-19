@@ -5,6 +5,7 @@
 
 use crate::gfx::renderer::FrameChanges;
 use crate::perf_stats::{Percentiles, SampleWindow};
+use tasty_terminal::lock_timing::LockSiteStats;
 
 pub(crate) fn wheel_received() {
     tracing::trace!(target: "tasty::explorer::perf", "wheel_received");
@@ -127,6 +128,11 @@ impl PerfAggregator {
             if let Some(line) = self.shell_line() {
                 tracing::info!(target: "tasty::gfx::perf", "{line}");
             }
+            tracing::info!(
+                target: "tasty::gfx::perf",
+                "{}",
+                lock_line(&tasty_terminal::lock_timing::take())
+            );
             self.frames_since_dump = 0;
             return true;
         }
@@ -227,6 +233,35 @@ impl Default for PerfAggregator {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 직전 dump 뒤 TerminalState 잠금 누계. 모든 터미널과 모든 창을 합친 값이라 창마다 줄이 나오면
+/// 먼저 dump한 창이 누계를 가져간다.
+fn lock_line(sites: &[(tasty_terminal::lock_timing::LockSite, LockSiteStats)]) -> String {
+    let mut line = String::from("perf_lock");
+    for (site, stats) in sites {
+        let name = match site {
+            tasty_terminal::lock_timing::LockSite::Ingest => "ingest",
+            tasty_terminal::lock_timing::LockSite::View => "view",
+        };
+        if stats.count == 0 {
+            // 표본이 없으면 평균·최댓값을 0으로 쓰지 않는다. 0은 실제로 잰 값과 구별되지 않는다.
+            line.push_str(&format!(
+                " {name} n=0 wait_us mean=none max=none hold_us mean=none max=none"
+            ));
+            continue;
+        }
+        let mean_us = |sum: u64| sum as f64 / stats.count as f64 / 1000.0;
+        line.push_str(&format!(
+            " {name} n={} wait_us mean={:.1} max={:.1} hold_us mean={:.1} max={:.1}",
+            stats.count,
+            mean_us(stats.wait_ns_sum),
+            stats.wait_ns_max as f64 / 1000.0,
+            mean_us(stats.hold_ns_sum),
+            stats.hold_ns_max as f64 / 1000.0,
+        ));
+    }
+    line
 }
 
 fn ms3(p: Percentiles) -> String {
@@ -350,6 +385,27 @@ mod tests {
         let line = agg.frame_line().expect("line");
         assert!(line.contains("changes=untracked"), "{line}");
         assert!(!line.contains("changed_cells"), "{line}");
+    }
+
+    #[test]
+    fn lock_line_reports_mean_and_max_per_site_and_none_without_samples() {
+        use tasty_terminal::lock_timing::LockSite;
+        let stats = LockSiteStats {
+            count: 4,
+            wait_ns_sum: 8_000,
+            wait_ns_max: 5_000,
+            hold_ns_sum: 40_000,
+            hold_ns_max: 20_000,
+        };
+        let line = lock_line(&[
+            (LockSite::Ingest, stats),
+            (LockSite::View, LockSiteStats::default()),
+        ]);
+        assert_eq!(
+            line,
+            "perf_lock ingest n=4 wait_us mean=2.0 max=5.0 hold_us mean=10.0 max=20.0 \
+             view n=0 wait_us mean=none max=none hold_us mean=none max=none"
+        );
     }
 
     #[test]
