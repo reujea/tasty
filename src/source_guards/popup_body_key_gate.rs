@@ -1,7 +1,8 @@
 //! host 팝업 본문이 키 입력 문(`body_keys::with_body_keys`) 안에서만 그려지는지 확인한다. 문은 이번 프레임 키
 //! 주인이 아닌 본문을 그리는 동안 키·글자·붙여넣기·복사·잘라내기·IME 사건과 눌린 키 상태(`keys_down`)를 egui
-//! 입력에서 뺀다. 그래서 본문이 egui 입력을 직접 읽든(`key_pressed`·`key_down`·`consume_key`·`events`) 위젯 키
-//! 포커스로 읽든 키 주인 플래그를 따른다. 수식키 상태(`modifiers`)는 가리지 않는다.
+//! 입력에서 뺀다. `events` 와 원래 사건 목록 `raw.events` 둘 다에서 뺀다. 그래서 본문이 egui 입력을 직접
+//! 읽든(`key_pressed`·`key_down`·`consume_key`·`events`·`raw.events`) 위젯 키 포커스로 읽든 키 주인 플래그를
+//! 따른다. 수식키 상태(`modifiers`)는 가리지 않는다.
 //!
 //! 규칙의 구조를 세 가지로 본다.
 //! 1. 본문 호출 자리는 하나다. draw.rs 에서 본문 콜백 `content_fn` 이 나오는 곳은 매개변수 선언, `draw` 에서
