@@ -15,6 +15,7 @@ use tasty_plugin_protocol::{
 };
 
 use crate::adapters::ui::LayoutContext;
+use crate::adapters::ui::popup::display::{self, CollapsedDraw};
 use crate::adapters::ui::popup::occlusion::{Occluder, PointOwnership, point_ownership};
 use crate::adapters::ui::popup::{self, PopupManager, PopupScope};
 use crate::app::plugin_display::PluginDisplay;
@@ -22,6 +23,7 @@ use crate::model::LogicalPx;
 use crate::plugin::manifest::PopupAnchor;
 use crate::plugin_bridge::wire_scroll;
 use crate::state::RequestContext;
+use tasty_ui_widgets::{CollapsedPlacement, fits_bounds, place_collapsed};
 
 /// `size_hint`를 생략한 팝업의 크기. 실행 중 선언과 같은 값을 쓰도록 매니페스트 크레이트의 상수를 읽는다.
 fn default_popup_size() -> Vec2 {
@@ -80,6 +82,10 @@ pub fn draw_plugin_popups(
     state
         .plugin_popup_user_activated
         .retain(|k, _| live_mesh.contains(k));
+    // 닫힌 팝업은 다시 열면 범위 판정부터 한다.
+    state
+        .plugin_popup_expanded
+        .retain(|k| live_mesh.contains(k));
     // 닫힌 팝업에 줄 선 편집 요청은 받을 곳이 없다. 그 보류는 App이 대상 닫힘으로 끝낸다.
     state
         .plugin_popup_edit_requests
@@ -94,7 +100,14 @@ pub fn draw_plugin_popups(
     let escape_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
 
     // 다른 팝업에 가린 좌표를 판정하려면 모든 팝업의 배치가 먼저 필요하다.
-    let placed = place_visible(mesh_snaps, layout, screen_rect, pointer_pos);
+    let placed = place_visible(
+        mesh_snaps,
+        layout,
+        screen_rect,
+        pointer_pos,
+        &state.plugin_popup_expanded,
+        display::collapsed_frames(ctx),
+    );
     state.plugin_popup_key_candidates.extend(
         placed
             .iter()
@@ -187,10 +200,6 @@ pub fn draw_plugin_popups(
             any_hovered = true;
         }
 
-        let content_rect = rect.shrink(popup::content_margin().value());
-
-        // mesh가 호스트 egui보다 먼저 합성될 때도 배경에 가려지지 않도록
-        // content_rect는 칠하지 않는다.
         let layer_id = egui::LayerId::new(
             Order::Foreground,
             Id::new("plugin_mesh_popup").with(snap.instance_id),
@@ -204,6 +213,59 @@ pub fn draw_plugin_popups(
                 scope_rect,
             ));
         state.plugin_popup_layers.push(layer_id);
+        let has_key_focus = key_target == Some(snap.instance_id);
+
+        if let SnapDisplay::Collapsed(frame) = snap.display {
+            // 접힌 팝업은 보기 버튼 프레임만 그리고 플러그인에 크기·입력을 보내지 않는다.
+            let look = CollapsedDraw {
+                scrim: (scrim_paints[idx]
+                    && !tasty_egui_theme::overlay_edge::scrim_skipped(scope_rect, &pages))
+                .then_some(scope_rect),
+                on_scrim: true,
+                focused: has_key_focus,
+            };
+            state
+                .webview_overlay
+                .targets
+                .push(display::collapsed_overlay_target(
+                    crate::state::webview_overlay::TargetKind::PluginPopup,
+                    layer_id,
+                    frame.rect,
+                    scope_rect,
+                    &look,
+                    ppp,
+                ));
+            let th = crate::theme::theme();
+            if display::draw_collapsed(ctx, &th, layer_id, frame, scope_rect, look) {
+                state.plugin_popup_expanded.insert(snap.instance_id);
+                state.plugin_popup_focus_bumps.push(snap.instance_id);
+            }
+            drop(th);
+            route_press(
+                state,
+                snap,
+                rect,
+                scope_rect,
+                &occluders,
+                press.as_ref(),
+                ownership,
+            );
+            if escape_pressed && has_key_focus {
+                state
+                    .plugin_popup_closes
+                    .push((snap.instance_id, PopupCloseReason::Escape));
+            }
+            continue;
+        }
+
+        let expanded = snap.display == SnapDisplay::Expanded;
+        // 펼친 팝업은 위쪽 host 제목줄 아래가 콘텐츠다.
+        let shell_rect = if expanded {
+            Rect::from_min_max(display::host_bar_rect(rect).left_bottom(), rect.max)
+        } else {
+            rect
+        };
+        let content_rect = shell_rect.shrink(popup::content_margin().value());
         // surface 범위를 벗어난 팝업 배경·테두리가 이웃 영역에 보이지 않도록 자른다.
         let painter = ctx.layer_painter(layer_id).with_clip_rect(scope_rect);
         let th = crate::theme::theme();
@@ -256,8 +318,33 @@ pub fn draw_plugin_popups(
             egui::StrokeKind::Outside,
         );
 
+        if expanded {
+            let btn = display::title_end_btn_rect(display::host_bar_rect(rect));
+            let hovered = ownership == Some(PointOwnership::Mine)
+                && pointer_pos.is_some_and(|p| btn.contains(p));
+            display::paint_host_bar(
+                ctx,
+                &painter,
+                &th,
+                layer_id,
+                display::HostBar {
+                    box_rect: rect,
+                    radius,
+                    title_edge: th.border_frame().to_egui(),
+                    hovered,
+                    pressed: hovered && ctx.input(|i| i.pointer.primary_down()),
+                    tip_id: Id::new("plugin_popup.collapse_tooltip").with(snap.instance_id),
+                },
+            );
+            if hovered && press.as_ref().is_some_and(|p| p.is_primary()) {
+                state.plugin_popup_expanded.remove(&snap.instance_id);
+            }
+        } else if has_key_focus && snap.scope != PopupScope::Window {
+            // 키 주인인 좁은 범위 팝업은 셸 위쪽에 포커스 가장자리를 켠다.
+            tasty_ui_widgets::paint_popup_focus_edge(&painter, &th, rect);
+        }
+
         // 아래 팝업에 키가 전달되면 Escape 하나로 여러 팝업이 닫힐 수 있다.
-        let has_key_focus = key_target == Some(snap.instance_id);
         let mut raw_input = collect_mesh_popup_input(
             ctx,
             content_rect,
@@ -353,29 +440,22 @@ pub fn draw_plugin_popups(
             ));
         }
 
-        // 렌더 중에는 매니저를 변경하지 않고 메인 루프에 앞으로 가져오도록 요청한다.
-        if press.is_some() && ownership == Some(PointOwnership::Mine) {
-            state.plugin_popup_focus_bumps.push(snap.instance_id);
-        }
-
-        // 자식 팝업이 열려 있을 때도 부모의 바깥 클릭 닫기는 미룬다.
-        let has_open_child = state.plugin_popup_has_open_child(snap.instance_id);
-        if let Some(press) = press.as_ref() {
-            match outside_press(snap, rect, scope_rect, &occluders, press) {
-                OutsidePress::Close if !has_open_child => state
-                    .plugin_popup_closes
-                    .push((snap.instance_id, PopupCloseReason::OutsideClick)),
-                OutsidePress::None => {}
-                // 덮는 범위 안 누름은 팝업 것이다. 닫지 않으면 앞으로 가져온다.
-                OutsidePress::Close | OutsidePress::Take => {
-                    state.plugin_popup_focus_bumps.push(snap.instance_id)
-                }
-            }
-        }
+        route_press(
+            state,
+            snap,
+            rect,
+            scope_rect,
+            &occluders,
+            press.as_ref(),
+            ownership,
+        );
         if escape_pressed && has_key_focus {
-            state
-                .plugin_popup_closes
-                .push((snap.instance_id, PopupCloseReason::Escape));
+            // 펼친 팝업은 Esc로 다시 접는다. 닫기 사건은 없다.
+            if !state.plugin_popup_expanded.remove(&snap.instance_id) {
+                state
+                    .plugin_popup_closes
+                    .push((snap.instance_id, PopupCloseReason::Escape));
+            }
         }
     }
 
@@ -387,6 +467,37 @@ pub fn draw_plugin_popups(
     if press.is_some() {
         for layer in &state.plugin_popup_layers {
             ctx.move_to_top(*layer);
+        }
+    }
+}
+
+/// 누름을 팝업에 나눈다. 상자 안이면 앞으로 가져오고, 상자 밖이면 범위 규칙(`outside_press`)대로 닫거나
+/// 앞으로 가져온다. 렌더 중에는 매니저를 변경하지 않고 메인 루프에 요청한다.
+fn route_press(
+    state: &mut RequestContext,
+    snap: &MeshSnap,
+    box_rect: Rect,
+    cover_rect: Rect,
+    occluders: &[Occluder],
+    press: Option<&crate::adapters::ui::popup::route::RoutedPress>,
+    ownership: Option<PointOwnership>,
+) {
+    let Some(press) = press else {
+        return;
+    };
+    if ownership == Some(PointOwnership::Mine) {
+        state.plugin_popup_focus_bumps.push(snap.instance_id);
+    }
+    // 자식 팝업이 열려 있을 때도 부모의 바깥 클릭 닫기는 미룬다.
+    let has_open_child = state.plugin_popup_has_open_child(snap.instance_id);
+    match outside_press(snap, box_rect, cover_rect, occluders, press) {
+        OutsidePress::Close if !has_open_child => state
+            .plugin_popup_closes
+            .push((snap.instance_id, PopupCloseReason::OutsideClick)),
+        OutsidePress::None => {}
+        // 덮는 범위 안 누름은 팝업 것이다. 닫지 않으면 앞으로 가져온다.
+        OutsidePress::Close | OutsidePress::Take => {
+            state.plugin_popup_focus_bumps.push(snap.instance_id)
         }
     }
 }
@@ -437,6 +548,18 @@ struct MeshSnap {
     size: Vec2,
     dismiss_on_outside_click: bool,
     z_seq: u64,
+    display: SnapDisplay,
+}
+
+/// 플러그인 팝업의 이번 프레임 표시 상태. host 팝업의 `PopupDisplay`와 같은 전이를 따른다.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SnapDisplay {
+    /// 범위 안에 그대로 그린다.
+    Fits,
+    /// 범위 안의 보기 버튼 프레임만 그린다.
+    Collapsed(CollapsedPlacement),
+    /// 창 위로 펼쳐 host 제목줄을 붙여 그린다.
+    Expanded,
 }
 
 // 숨겨진 범위의 인스턴스도 유지해야 다시 보일 때 전송 상태를 복원할 수 있다.
@@ -469,6 +592,7 @@ fn mesh_snapshots<'a>(
                 size,
                 dismiss_on_outside_click: inst.contribute.dismiss_on_outside_click,
                 z_seq: inst.z_seq,
+                display: SnapDisplay::Fits,
             }),
         }
     }
@@ -479,16 +603,37 @@ fn mesh_snapshots<'a>(
     mesh_snaps
 }
 
+/// 표시 상태를 정하고 배치한다. 논리 범위가 숨으면 펼친 팝업도 그리지 않는다. 펼친 팝업은 배치 범위가
+/// 창이고 크기를 유지한 채 창 가운데(넘치면 왼쪽·위)에 둔다. 범위가 선언 크기보다 작으면 범위 안 보기 버튼
+/// 프레임으로 접는다. `frames`는 라벨·아이콘 버튼 프레임 크기다.
 fn place_visible(
     snaps: Vec<MeshSnap>,
     layout: Option<&LayoutContext>,
     screen_rect: Rect,
     pointer_pos: Option<Pos2>,
+    expanded: &HashSet<u64>,
+    frames: (Vec2, Vec2),
 ) -> Vec<(MeshSnap, Rect)> {
     snaps
         .into_iter()
         .filter_map(|mut snap| {
-            snap.scope = fitting_scope(snap.scope, snap.size, layout, screen_rect);
+            if !PopupManager::is_scope_visible(&snap.logical_scope, layout) {
+                return None;
+            }
+            if expanded.contains(&snap.instance_id) {
+                snap.scope = PopupScope::Window;
+                snap.display = SnapDisplay::Expanded;
+                let size = snap.size + Vec2::new(0.0, popup::title_bar_height().value());
+                let centered = Rect::from_center_size(screen_rect.center(), size).min;
+                let pos = clamp_to_bounds(centered, size, screen_rect);
+                return Some((snap, Rect::from_min_size(pos, size)));
+            }
+            if let Some(frame) =
+                collapsed_placement(&snap.scope, snap.size, layout, screen_rect, frames)
+            {
+                snap.display = SnapDisplay::Collapsed(frame);
+                return Some((snap, frame.rect));
+            }
             let rect = place_popup(
                 snap.anchor,
                 &snap.scope,
@@ -753,29 +898,25 @@ fn place_popup(
     Some(Rect::from_min_size(pos, size))
 }
 
-/// 보이는 surface 범위가 선언 크기보다 작으면 창 범위로 연다. 범위에 맞춰 줄이면 버튼이
-/// 잘려 확정할 수 없다. 숨은 범위와 다른 범위는 그대로 둔다. 배치·scrim·히트테스트가 모두
-/// 이 결과를 쓴다.
-fn fitting_scope(
-    scope: PopupScope,
+/// 창이 아닌 범위가 선언 크기보다 작으면 범위 안 보기 버튼 프레임. 판정 경계는 배치와 같은
+/// `scope_bounds`다(surface만 안쪽 여백을 둔다).
+fn collapsed_placement(
+    scope: &PopupScope,
     size: Vec2,
     layout: Option<&LayoutContext>,
     screen_rect: Rect,
-) -> PopupScope {
-    if !matches!(scope, PopupScope::Surface(_)) || !PopupManager::is_scope_visible(&scope, layout) {
-        return scope;
+    (label_frame, icon_frame): (Vec2, Vec2),
+) -> Option<CollapsedPlacement> {
+    if *scope == PopupScope::Window {
+        return None;
     }
     let bounds = PopupManager::scope_bounds(
-        &scope,
+        scope,
         layout,
         screen_rect,
         crate::theme::theme().spacing_sm.value(),
     );
-    if bounds.width() < size.x || bounds.height() < size.y {
-        PopupScope::Window
-    } else {
-        scope
-    }
+    (!fits_bounds(size, bounds)).then(|| place_collapsed(bounds, size, label_frame, icon_frame))
 }
 
 fn clamp_to_bounds(pos: Pos2, size: Vec2, bounds: Rect) -> Pos2 {
@@ -848,6 +989,19 @@ mod tests {
         max: Pos2::new(1600.0, 1000.0),
     };
 
+    /// 라벨 버튼 프레임 134×38, 아이콘 버튼 프레임 38×38(정본 실측값).
+    const FRAMES: (Vec2, Vec2) = (Vec2::new(134.0, 38.0), Vec2::new(38.0, 38.0));
+
+    fn place(
+        snaps: Vec<MeshSnap>,
+        layout: &LayoutContext,
+        pointer: Option<Pos2>,
+        expanded: &[u64],
+    ) -> Vec<(MeshSnap, Rect)> {
+        let expanded: HashSet<u64> = expanded.iter().copied().collect();
+        place_visible(snaps, Some(layout), SCREEN, pointer, &expanded, FRAMES)
+    }
+
     fn layout_with_surface_7(visible: bool) -> LayoutContext {
         LayoutContext {
             active_workspace: 0,
@@ -897,7 +1051,7 @@ mod tests {
         pointer: Option<Pos2>,
     ) -> Option<Rect> {
         let snaps = mesh_snapshots(std::iter::once((1, inst)));
-        place_visible(snaps, Some(layout), SCREEN, pointer)
+        place(snaps, layout, pointer, &[])
             .into_iter()
             .next()
             .map(|(_, r)| r)
@@ -924,11 +1078,11 @@ mod tests {
     fn the_scrim_of_a_surface_scoped_plugin_popup_covers_its_surface_once() {
         let layout = layout_with_surface_7(true);
         let bound = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
-        let placed = place_visible(
+        let placed = place(
             mesh_snapshots([(1, &bound), (2, &bound)].into_iter()),
-            Some(&layout),
-            SCREEN,
+            &layout,
             None,
+            &[],
         );
         assert_eq!(
             placed.len(),
@@ -948,11 +1102,11 @@ mod tests {
     fn the_scrim_of_a_window_scoped_plugin_popup_stays_the_whole_screen() {
         let hidden = layout_with_surface_7(false);
         let inst = instance(PopupScopeDecl::Window, Some(7), PopupAnchor::ScreenCenter);
-        let placed = place_visible(
+        let placed = place(
             mesh_snapshots(std::iter::once((1, &inst))),
-            Some(&hidden),
-            SCREEN,
+            &hidden,
             None,
+            &[],
         );
         let (rects, paints) = scrim_plan(&placed, Some(&hidden), SCREEN);
         assert_eq!(rects, vec![SCREEN]);
@@ -988,43 +1142,114 @@ mod tests {
         }
     }
 
+    /// Given surface 폭이 선언 크기(400×200)보다 좁을 때, Then 범위 안 보기 버튼 프레임으로 접히고 scrim 은
+    /// 그 surface 를 덮는다.
     #[test]
-    fn a_surface_narrower_than_the_declared_size_opens_the_popup_on_the_window() {
-        // 선언 크기 400×200. surface 폭이 inset 을 빼고 400 보다 작다.
-        let narrow = Rect::from_min_size(Pos2::new(1500.0, 0.0), Vec2::new(100.0, 1000.0));
+    fn a_surface_narrower_than_the_declared_size_collapses_the_popup_in_it() {
+        let narrow = Rect::from_min_size(Pos2::new(1400.0, 0.0), Vec2::new(200.0, 1000.0));
         let inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
         let layout = layout_with_surface(7, narrow);
-        let placed = place_visible(
+        let placed = place(
             mesh_snapshots(std::iter::once((1, &inst))),
-            Some(&layout),
-            SCREEN,
+            &layout,
             None,
+            &[],
         );
         assert_eq!(placed.len(), 1);
-        assert_eq!(placed[0].0.scope, PopupScope::Window);
-        assert_eq!(placed[0].1.size(), Vec2::new(400.0, 200.0), "줄이지 않는다");
-        assert_eq!(placed[0].1.center(), SCREEN.center());
+        let SnapDisplay::Collapsed(frame) = placed[0].0.display else {
+            panic!("collapsed expected: {:?}", placed[0].0.display);
+        };
+        assert_eq!(frame.form, tasty_ui_widgets::CollapsedForm::Label);
+        assert_eq!(placed[0].1, frame.rect);
+        assert!(narrow.contains_rect(frame.rect));
+        assert_eq!(frame.rect.center(), narrow.center());
+        assert_eq!(placed[0].0.scope, PopupScope::Surface(7));
         let (rects, _) = scrim_plan(&placed, Some(&layout), SCREEN);
-        assert_eq!(rects, vec![SCREEN], "scrim 도 창 범위를 덮는다");
+        assert_eq!(rects, vec![narrow], "scrim 은 논리 범위를 덮는다");
     }
 
+    /// Given surface 높이만 모자랄 때, Then 접힌다(한 축이면 충분하다).
     #[test]
-    fn a_surface_lower_than_the_declared_size_opens_the_popup_on_the_window() {
+    fn a_surface_lower_than_the_declared_size_collapses_the_popup() {
         let low = Rect::from_min_size(Pos2::new(0.0, 900.0), Vec2::new(1600.0, 100.0));
         let inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
-        let rect =
-            placed_rect(&inst, &layout_with_surface(7, low), None).expect("창 범위로 그린다");
-        assert_eq!(rect.center(), SCREEN.center());
+        let placed = place(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            &layout_with_surface(7, low),
+            None,
+            &[],
+        );
+        assert!(matches!(placed[0].0.display, SnapDisplay::Collapsed(_)));
     }
 
+    /// Given 테두리 inset 을 뺀 안쪽이 선언 크기보다 작을 때, Then 범위 밖으로 넘치지 않고 접힌다.
     #[test]
-    fn a_surface_that_fits_only_with_no_inset_still_opens_on_the_window() {
-        // 테두리 inset 을 뺀 안쪽이 선언 크기보다 작으면 범위 밖으로 넘친다.
+    fn a_surface_that_fits_only_with_no_inset_still_collapses() {
         let inset = crate::theme::theme().spacing_sm.value();
         let exact = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(400.0 + inset, 600.0));
         let inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
-        let rect = placed_rect(&inst, &layout_with_surface(7, exact), None).expect("그린다");
-        assert_eq!(rect.center(), SCREEN.center());
+        let placed = place(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            &layout_with_surface(7, exact),
+            None,
+            &[],
+        );
+        assert!(matches!(placed[0].0.display, SnapDisplay::Collapsed(_)));
+    }
+
+    /// Given 펼친 팝업, Then 배치 범위가 창이고 host 제목줄만큼 커진 상자를 창 가운데에 두며 scrim 은 창을
+    /// 덮는다. 논리 범위는 surface 그대로다. 범위가 넓어져도 펼친 채다.
+    #[test]
+    fn an_expanded_popup_opens_over_the_window_with_a_host_bar() {
+        let narrow = Rect::from_min_size(Pos2::new(1400.0, 0.0), Vec2::new(200.0, 1000.0));
+        let inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
+        let bar = popup::title_bar_height().value();
+        for layout in [layout_with_surface(7, narrow), layout_with_surface_7(true)] {
+            let placed = place(
+                mesh_snapshots(std::iter::once((1, &inst))),
+                &layout,
+                None,
+                &[1],
+            );
+            assert_eq!(placed[0].0.display, SnapDisplay::Expanded);
+            assert_eq!(placed[0].0.scope, PopupScope::Window);
+            assert_eq!(placed[0].0.logical_scope, PopupScope::Surface(7));
+            assert_eq!(placed[0].1.size(), Vec2::new(400.0, 200.0 + bar));
+            assert_eq!(placed[0].1.center(), SCREEN.center());
+            let (rects, _) = scrim_plan(&placed, Some(&layout), SCREEN);
+            assert_eq!(rects, vec![SCREEN]);
+        }
+    }
+
+    /// Given 창보다 큰 펼친 팝업, Then 크기를 유지하고 왼쪽·위에 맞춘다.
+    #[test]
+    fn an_expanded_popup_larger_than_the_window_keeps_its_size_at_the_top_left() {
+        let mut inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
+        inst.contribute.size_hint = Some(tasty_plugin_manifest::PopupSizeHint {
+            width: 2000,
+            height: 1200,
+        });
+        let placed = place(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            &layout_with_surface_7(true),
+            None,
+            &[1],
+        );
+        assert_eq!(placed[0].1.min, SCREEN.min);
+        assert_eq!(placed[0].1.width(), 2000.0);
+    }
+
+    /// Given 펼친 팝업의 논리 범위가 숨으면, Then 펼친 팝업도 그리지 않는다.
+    #[test]
+    fn an_expanded_popup_hides_with_its_logical_scope() {
+        let inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
+        let placed = place(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            &layout_with_surface_7(false),
+            None,
+            &[1],
+        );
+        assert!(placed.is_empty());
     }
 
     #[test]

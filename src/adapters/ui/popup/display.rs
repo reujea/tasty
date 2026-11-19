@@ -102,6 +102,91 @@ pub(crate) fn draw_collapsed(
     clicked || keyed
 }
 
+/// 라벨 버튼 프레임과 아이콘 버튼 프레임의 바깥 크기. 접힘 배치(`place_collapsed`)가 쓴다.
+pub(crate) fn collapsed_frames(ctx: &egui::Context) -> (egui::Vec2, egui::Vec2) {
+    let th = crate::theme::theme();
+    let measure = egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("popup.collapsed_measure"),
+        egui::UiBuilder::new().max_rect(ctx.screen_rect()),
+    );
+    collapsed_frame_sizes(
+        &measure,
+        &th,
+        crate::i18n::t("popup.collapsed_button.label"),
+    )
+}
+
+/// 제목줄 오른쪽 끝 버튼 자리(닫기 자리).
+pub(crate) fn title_end_btn_rect(title: egui::Rect) -> egui::Rect {
+    let th = crate::theme::theme();
+    let size = th.popup_title_btn_size().value();
+    let edge_pad = th.popup_title_edge_inset().value();
+    let center = egui::pos2(title.max.x - size * 0.5 - edge_pad, title.center().y);
+    egui::Rect::from_center_size(center, egui::vec2(size, size))
+}
+
+/// 자기 제목줄이 없는 팝업이 펼쳐 받는 host 제목줄. 상자 위쪽 제목줄 높이의 띠다.
+pub(crate) fn host_bar_rect(box_rect: egui::Rect) -> egui::Rect {
+    egui::Rect::from_min_size(
+        box_rect.min,
+        egui::vec2(box_rect.width(), super::title_bar_height().value()),
+    )
+}
+
+/// host 제목줄 그리기 조건.
+pub(crate) struct HostBar {
+    /// 팝업 상자.
+    pub(crate) box_rect: egui::Rect,
+    pub(crate) radius: f32,
+    /// 제목줄 아래 선 색(셸 묶음의 값).
+    pub(crate) title_edge: egui::Color32,
+    pub(crate) hovered: bool,
+    pub(crate) pressed: bool,
+    pub(crate) tip_id: egui::Id,
+}
+
+/// 펼친 headless 팝업의 host 제목줄과 접기 버튼을 그린다. 제목 문구는 없고 버튼은 닫기 자리에 있다.
+pub(crate) fn paint_host_bar(
+    ctx: &egui::Context,
+    painter: &egui::Painter,
+    th: &tasty_type_appearance::theme::Theme,
+    layer_id: egui::LayerId,
+    bar: HostBar,
+) {
+    let title = host_bar_rect(bar.box_rect);
+    let cr = bar.radius as u8;
+    painter.rect_filled(
+        title,
+        egui::CornerRadius {
+            nw: cr,
+            ne: cr,
+            sw: 0,
+            se: 0,
+        },
+        th.bg_sidebar(),
+    );
+    painter.line_segment(
+        [title.left_bottom(), title.right_bottom()],
+        egui::Stroke::new(th.border_width.value(), bar.title_edge),
+    );
+    let btn = title_end_btn_rect(title);
+    super::draw::title_icon_button(
+        ctx,
+        painter,
+        th,
+        btn,
+        crate::adapters::ui::icons::SHRINK,
+        bar.hovered,
+        bar.pressed,
+    );
+    if bar.hovered {
+        egui::show_tooltip_at(ctx, layer_id, bar.tip_id, btn.left_bottom(), |ui| {
+            ui.label(crate::i18n::t("popup.collapse_button.tooltip"))
+        });
+    }
+}
+
 impl PopupState {
     /// 덮는 노드인지. 덮음 선언이거나 창 위로 펼친 팝업이다(펼침은 배치 범위 Window를 덮는다).
     pub(crate) fn covers(&self) -> bool {
@@ -171,16 +256,8 @@ impl PopupManager {
         open_indices: &[usize],
         draw_ctx: Option<&LayoutContext>,
     ) {
-        let th = crate::theme::theme();
-        let inset_cap = th.spacing_sm.value();
-        let label = crate::i18n::t("popup.collapsed_button.label");
-        let measure = egui::Ui::new(
-            ctx.clone(),
-            egui::Id::new("popup.collapsed_measure"),
-            egui::UiBuilder::new().max_rect(ctx.screen_rect()),
-        );
-        let (label_frame, icon_frame) = collapsed_frame_sizes(&measure, &th, label);
-        drop(th);
+        let inset_cap = crate::theme::theme().spacing_sm.value();
+        let (label_frame, icon_frame) = collapsed_frames(ctx);
         let mut order: Vec<usize> = open_indices.to_vec();
         order.sort_by_key(|&i| self.popups[i].instance);
         for i in order {

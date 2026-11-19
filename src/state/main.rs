@@ -314,6 +314,11 @@ pub struct MainViewState {
     pub(crate) plugin_mesh_popup_forward:
         std::collections::HashMap<u64, crate::plugin_bridge::MeshForwardCommon>,
 
+    /// 창 위로 펼친 플러그인 팝업. 접기 버튼이나 Esc로 빠지고, 닫히면 지운다. 나머지는 매 프레임 범위에
+    /// 들어가는지로 그대로 그리거나 접는다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_expanded: std::collections::HashSet<u64>,
+
     /// 버튼·키 누름을 전달한 플러그인 팝업과 소유자. 팝업을 닫을 때 지운다.
     /// file_handler.dispatch가 사용자 요청으로 분류할 때 사용하는 기록이다.
     #[cfg(feature = "gui")]

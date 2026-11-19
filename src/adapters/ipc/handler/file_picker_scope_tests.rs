@@ -142,10 +142,10 @@ fn a_request_without_a_live_target_is_refused() {
     }
 }
 
-/// owner 가 좁은 surface 에 있어 창 범위로 옮겨 그려져도 피커는 owner 의 결속 범위를 쓴다.
+/// owner 가 좁은 surface 에서 창 위로 펼쳐 그려져도 피커는 owner 의 결속 범위를 쓴다.
 /// 매 프레임 배치 결과는 범위를 정하지 않는다.
 #[test]
-fn a_narrow_owner_drawn_in_the_window_still_gives_its_surface_scope() {
+fn a_narrow_owner_expanded_over_the_window_still_gives_its_surface_scope() {
     let (mut state, mut session) = test_state();
     let sid = state
         .focused_surface_id(&session.borrow_mut().read())
@@ -177,35 +177,45 @@ fn a_narrow_owner_drawn_in_the_window_still_gives_its_surface_scope() {
         tab_content_rects: Vec::new(),
     };
     let ctx = egui::Context::default();
-    let raw = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(1200.0, 900.0),
-        )),
-        ..Default::default()
-    };
-    {
+    let mut draw = |state: &mut RequestContext| {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            ..Default::default()
+        };
         let engine = session.borrow_mut();
         drop(ctx.run(raw, |ctx| {
-            sync_plugin_popup_scopes(&mut state, mgr.popup_instances());
+            sync_plugin_popup_scopes(state, mgr.popup_instances());
             crate::plugin_bridge::popup_render::draw_plugin_popups(
                 ctx,
-                &mut state,
+                state,
                 &engine.read(),
                 Some(crate::app::plugin_display::PluginDisplay::new(&mgr)),
                 Some(&layout),
             );
         }));
-    }
-    let placed = state
-        .plugin_popup_hittest
-        .first()
-        .expect("owner drawn")
-        .rect;
+        state
+            .plugin_popup_hittest
+            .first()
+            .expect("owner drawn")
+            .rect
+    };
+    // 접힌 owner는 좁은 surface 안의 보기 버튼만 그리고 콘텐츠 영역을 합성하지 않는다.
+    let collapsed = draw(&mut state);
+    assert!(
+        narrow.contains_rect(collapsed),
+        "the collapsed owner stays in its surface: {collapsed:?}"
+    );
+    assert!(state.plugin_mesh_popup_regions.is_empty());
+    state.plugin_popup_expanded.insert(7);
+    let placed = draw(&mut state);
     assert!(
         !narrow.contains_rect(placed),
         "the owner must be drawn outside its narrow surface: {placed:?}"
     );
+    assert_eq!(state.plugin_mesh_popup_regions.len(), 1);
     let mut engine = session.borrow_mut();
     let caller = CallerContext::Plugin {
         plugin_id: PLUGIN.into(),

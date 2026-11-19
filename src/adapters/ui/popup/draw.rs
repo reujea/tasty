@@ -90,7 +90,7 @@ pub(super) fn shadow_token(
 
 /// 타이틀바 버튼 하나를 IconButton sm 규칙(호버·누름 배경, 글리프 색)으로 그린다.
 /// hit-test는 매니저가 하므로 판정 결과만 받는다.
-fn title_icon_button(
+pub(super) fn title_icon_button(
     ctx: &egui::Context,
     painter: &egui::Painter,
     th: &tasty_type_appearance::theme::Theme,

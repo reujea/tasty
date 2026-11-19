@@ -757,12 +757,7 @@ impl PopupState {
     }
 
     pub(crate) fn close_btn_rect(&self) -> egui::Rect {
-        let title = self.title_rect();
-        let th = crate::theme::theme();
-        let size = th.popup_title_btn_size().value();
-        let edge_pad = th.popup_title_edge_inset().value();
-        let center = egui::pos2(title.max.x - size * 0.5 - edge_pad, title.center().y);
-        egui::Rect::from_center_size(center, egui::vec2(size, size))
+        display::title_end_btn_rect(self.title_rect())
     }
 
     /// 타이틀바가 있고 무대를 지정했을 때 전체화면 버튼 영역을 반환한다.
