@@ -1,6 +1,6 @@
 //! 범위 경로 계산을 검사한다. 장면은 좌우 두 pane(L·R)에 surface 가 하나씩 있는 실제 엔진이다.
 
-use super::{KeyTarget, ScopePath, keyboard_target, path_at, path_of_focus};
+use super::{ScopePath, path_at, path_of_focus};
 use crate::adapters::ui::LayoutContext;
 use crate::adapters::ui::layout_context::SurfaceOwner;
 use crate::adapters::ui::popup::PopupScope;
@@ -386,30 +386,48 @@ fn the_layout_built_from_the_engine_records_who_owns_each_surface() {
     }
 }
 
+/// 창의 포커스 노드는 엔진 포커스 surface 다. 열려 있기만 한 plugin 팝업은 바꾸지 않고, 포커스 노드가 된 plugin
+/// 팝업(사용자가 열거나 누름)이면 그 팝업이다. 그 팝업이 닫히면 정규화가 surface 로 되돌린다.
 #[test]
-fn the_key_target_wraps_the_current_gate() {
+fn the_focus_node_is_the_focused_surface_until_a_popup_takes_it() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::state::focus_node::FocusNode;
     let (mut state, mut session) = scene(PANE_L);
     let engine = session.borrow_mut();
     assert_eq!(
-        keyboard_target(&state, &engine.read()),
-        Some(KeyTarget::Surface(SURFACE_L))
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L))
     );
     state.plugin_popup_open = true;
+    state
+        .plugin_popup_bound_scopes
+        .insert(9, ("p".to_string(), Some(PopupScope::Surface(SURFACE_R))));
     assert_eq!(
-        keyboard_target(&state, &engine.read()),
-        Some(KeyTarget::Overlay)
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L)),
+        "열려 있기만 한 plugin 팝업은 포커스 노드가 아니다"
+    );
+    state.popups.set_focus(Some(PopupNode::Plugin(9)));
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Plugin(9))
+    );
+    state.plugin_popup_bound_scopes.clear();
+    state.normalize_focus(&engine.read());
+    assert_eq!(state.popups.focus(), None);
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L))
     );
 }
 
 #[test]
 fn the_fullscreen_stage_takes_the_keys() {
+    use crate::state::focus_node::FocusNode;
     let (mut state, mut session) = scene(PANE_L);
     let engine = session.borrow_mut();
     assert!(state.open_fullscreen_stage("blank"));
-    assert_eq!(
-        keyboard_target(&state, &engine.read()),
-        Some(KeyTarget::Overlay)
-    );
+    assert_eq!(state.focus_node(&engine.read()), FocusNode::Stage);
 }
 
 #[path = "route_repro_tests.rs"]

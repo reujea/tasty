@@ -446,7 +446,8 @@ fn only_the_requesting_owner_moves_the_picker() {
 fn assert_visible_gates(state: &RequestContext, user_focused: bool) {
     assert!(state.popups.has_focused());
     assert!(RequestContext::keyboard_overlay_open(state));
-    assert!(state.has_egui_overlay_open());
+    // WebView 를 가리는지는 포커스가 아니라 passive 로 정한다(passive 팝업은 그 영역만 잘라 낸다).
+    assert_eq!(state.has_egui_overlay_open(), user_focused);
     assert_eq!(state.popups.is_passive(FILE_PICKER_POPUP_ID), !user_focused);
 }
 

@@ -90,7 +90,7 @@ pub(super) fn handle_ui_state(
             "gate_input_dialog_open": state.has_input_dialog_open(),
             "gate_host_popup_focused": host_popup_focused,
             "gate_restore_notice_focused": restore_notice_focused,
-            "gate_plugin_popup_open": state.has_plugin_popup(),
+            "gate_plugin_popup_owns_keys": state.plugin_popup_owns_keys(),
             // 모달은 GUI App의 ViewRegistry가 소유한다. 여기서는 모달이 없는 값을 내고,
             // GUI App이 응답을 보내기 전에 활성 모달로 덮어쓴다(App::project_active_modal).
             "modal_open": false,

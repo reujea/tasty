@@ -264,32 +264,6 @@ impl RoutedPress {
     }
 }
 
-/// 키 입력이 갈 곳.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum KeyTarget {
-    /// 이 surface 가 키를 받는다.
-    Surface(u32),
-    /// 팝업·대화상자 같은 오버레이가 키를 받는다.
-    Overlay,
-}
-
-/// 지금 입력 경로가 쓰는 키 게이트를 그대로 감싼다. 게이트가 열려 있거나 전체화면 무대가 떠 있으면
-/// `Overlay`, 아니면 포커스된 surface 다. 무대는 창의 키 처리가 게이트보다 먼저 소비하므로 같은 답을
-/// 낸다. 포커스된 surface 가 없으면 `None` 이다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "key routing adopts the focus path in a later step"
-    )
-)]
-pub(crate) fn keyboard_target(state: &MainViewState, core: &CoreState) -> Option<KeyTarget> {
-    if state.window_keys_to_overlay() {
-        return Some(KeyTarget::Overlay);
-    }
-    state.focused_surface_id(core).map(KeyTarget::Surface)
-}
-
 #[cfg(test)]
 #[path = "route_tests.rs"]
 mod tests;

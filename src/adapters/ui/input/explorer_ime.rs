@@ -94,7 +94,7 @@ fn rename_input_owner(
 ) -> Option<InputOwner> {
     if state.fullscreen_stage_active()
         || state.has_settings_open_request()
-        || state.has_plugin_popup()
+        || state.plugin_popup_owns_keys()
         || state.popups.keyboard_focused_ids() != ["rename"]
     {
         return None;

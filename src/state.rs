@@ -541,11 +541,13 @@ impl RequestContext {
         }
     }
 
+    /// plugin 팝업이 창의 키 주인인지(포커스 노드이거나 창이 이번 키를 그 팝업에 묶었다). 열려 있기만 한 plugin
+    /// 팝업(다른 범위·passive)은 키를 가져가지 않는다.
     #[cfg(any(feature = "gui", debug_assertions))]
-    pub(crate) fn has_plugin_popup(&self) -> bool {
+    pub(crate) fn plugin_popup_owns_keys(&self) -> bool {
         #[cfg(feature = "gui")]
         {
-            self.plugin_popup_open
+            self.plugin_popup_key_target().is_some()
         }
         #[cfg(not(feature = "gui"))]
         {
@@ -602,7 +604,7 @@ impl RequestContext {
             self.has_settings_open_request(),
             self.has_input_dialog_open(),
             host_popup_focused,
-            self.has_plugin_popup(),
+            self.plugin_popup_owns_keys(),
         )
     }
 
@@ -760,15 +762,15 @@ impl RequestContext {
     }
 }
 
-/// 플러그인 팝업도 egui 입력이 필요하지만 호스트 PopupManager에는 없으므로 별도로 검사한다.
+/// 플러그인 팝업도 egui 입력이 필요하지만 호스트 PopupManager에는 없으므로 키 주인인지 따로 검사한다.
 #[cfg(any(feature = "gui", debug_assertions, test))]
 pub(crate) fn keyboard_overlay_open(
     settings_open_requested: bool,
     input_dialog_open: bool,
     host_popup_focused: bool,
-    plugin_popup_open: bool,
+    plugin_popup_owns_keys: bool,
 ) -> bool {
-    settings_open_requested || input_dialog_open || host_popup_focused || plugin_popup_open
+    settings_open_requested || input_dialog_open || host_popup_focused || plugin_popup_owns_keys
 }
 
 #[cfg(test)]
@@ -776,7 +778,7 @@ mod keyboard_overlay_tests {
     use super::keyboard_overlay_open;
 
     #[test]
-    fn plugin_popup_alone_opens_the_gate() {
+    fn a_plugin_key_owner_alone_opens_the_gate() {
         assert!(keyboard_overlay_open(false, false, false, true));
     }
 

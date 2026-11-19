@@ -9,7 +9,6 @@ use tasty_plugin_manifest::{PopupContribute, PopupRendering, PopupScopeDecl, Pop
 use super::{SURFACE_L, SURFACE_R, layout, rect, scene, surface_rect_l, to_egui};
 use crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
 use crate::adapters::ui::popup::frame::draw_popup_layer;
-use crate::adapters::ui::popup::route::{KeyTarget, keyboard_target};
 use crate::adapters::ui::popup::{PopupScope, defs};
 use crate::model::LogicalPx;
 use crate::plugin::PluginManager;
@@ -218,7 +217,8 @@ fn open_host_popup(
     state.popups.open_request(&req, focused).unwrap()
 }
 
-/// host 팝업만 그리는 한 프레임. 메인 창처럼 누름은 `frame_press`로 찍고 프레임 끝에 스냅샷을 지운다.
+/// host 팝업만 그리는 한 프레임. 메인 창처럼 누름은 `frame_press`로 찍고 프레임 끝에 스냅샷을 지우며, 배치한
+/// 팝업 노드를 다음 누름의 포인터 대상으로 남긴다.
 fn host_frame(
     ctx: &Context,
     state: &mut RequestContext,
@@ -241,7 +241,10 @@ fn host_frame(
         state.popups = popups;
     }));
     state.press_snapshot = None;
-    result.unwrap()
+    let result: crate::adapters::ui::popup::PopupDrawResult = result.unwrap();
+    // 메인 창처럼 다음 누름의 포인터 대상은 이 프레임에 배치한 팝업 노드다(`frame::draw_popup_layer`).
+    state.host_popup_hittest = result.hit_rects.clone();
+    result
 }
 
 /// 결함 C1: 엔진 포커스가 L에 남은 채 R의 덮는 팝업(바깥 클릭에 닫힘)이 포커스 없이 열려 있을 때, When R 범위
@@ -278,9 +281,8 @@ fn a_second_press_in_the_covered_scope_closes_the_popup_that_took_focus() {
     );
 }
 
-/// 결함 2: R 팝업의 자식 파일 피커가 떠 있으면 포커스가 L 이어도 키가 L 로 가지 않는다.
+/// 결함 2: R 팝업의 자식 파일 피커가 떠 있어도 포커스가 L 이면 키는 L 로 간다. 창의 키 게이트도 열리지 않는다.
 #[test]
-#[ignore = "defect 2 reproduction: fixed by the focus target and key owner step of the popup scope refactor"]
 fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
     let (mut state, mut session) = scene(super::PANE_L);
     let mut engine = session.borrow_mut();
@@ -336,9 +338,13 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
     assert_eq!(state.focused_surface_id(&engine.read()), Some(SURFACE_L));
 
     assert_eq!(
-        keyboard_target(&state, &engine.read()),
-        Some(KeyTarget::Surface(SURFACE_L)),
+        state.focus_node(&engine.read()),
+        crate::state::focus_node::FocusNode::Surface(Some(SURFACE_L)),
         "포커스는 L 인데 키가 오버레이로 간다"
+    );
+    assert!(
+        !state.window_keys_to_overlay(),
+        "창의 키 게이트가 L 의 키를 오버레이로 돌린다"
     );
     let picker = state
         .popups

@@ -380,7 +380,9 @@ impl GuiTestInstance {
                     .unwrap_or(false),
                 input_dialog_open: result["gate_input_dialog_open"].as_bool().unwrap_or(false),
                 host_popup_focused: result["gate_host_popup_focused"].as_bool().unwrap_or(false),
-                plugin_popup_open: result["gate_plugin_popup_open"].as_bool().unwrap_or(false),
+                plugin_popup_owns_keys: result["gate_plugin_popup_owns_keys"]
+                    .as_bool()
+                    .unwrap_or(false),
             },
             notification_panel_open: result["notification_panel_open"].as_bool().unwrap_or(false),
             workspace_count: result["workspace_count"].as_u64().unwrap_or(0) as usize,
@@ -776,7 +778,7 @@ pub struct GateTerms {
     pub settings_open_requested: bool,
     pub input_dialog_open: bool,
     pub host_popup_focused: bool,
-    pub plugin_popup_open: bool,
+    pub plugin_popup_owns_keys: bool,
 }
 
 #[derive(Debug, Clone)]
