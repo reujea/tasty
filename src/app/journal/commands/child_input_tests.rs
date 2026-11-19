@@ -62,14 +62,37 @@ fn waiting_input(journal: &JournalApplication) -> bool {
 }
 
 fn outputs(session: &EngineSession, surface: u32) -> usize {
-    count_outputs(
-        &session
-            .runtime
-            .terminals
-            .get(surface)
-            .map(|terminal| terminal.with_content(|view| view.screen_text(false)))
-            .unwrap_or_default(),
-    )
+    session
+        .runtime
+        .terminals
+        .get(surface)
+        .map(|terminal| {
+            terminal.with_content(|view| {
+                count_outputs(&unwrapped_text(&view.screen_lines(), view.cols()))
+            })
+        })
+        .unwrap_or_default()
+}
+
+/// Screen rows joined back into the lines the shell wrote. The terminal keeps no wrap flag for
+/// screen rows, so a row whose last column holds a non-blank cell counts as soft-wrapped, the same
+/// rule the terminal uses when it moves rows into scrollback. A row that ends exactly at the last
+/// column with a newline is joined too; that can only add a match across the join, and the output
+/// has no blank, so an output split by a wrap always leaves its row's last column non-blank.
+fn unwrapped_text(rows: &[termwiz::surface::line::Line], cols: usize) -> String {
+    let mut text = String::new();
+    for row in rows {
+        let mut wrapped = false;
+        for cell in row.visible_cells() {
+            text.push_str(cell.str());
+            wrapped =
+                cell.cell_index() + cell.width().max(1) == cols && !cell.str().trim().is_empty();
+        }
+        if !wrapped {
+            text.push('\n');
+        }
+    }
+    text
 }
 
 /// Counts the command's output regardless of the line or prompt it shares.
@@ -77,13 +100,39 @@ fn count_outputs(screen: &str) -> usize {
     screen.matches(OUTPUT).count()
 }
 
+/// The screen a terminal of `cols` columns shows after `output` is written to it.
+fn screen_of(cols: usize, output: &str) -> String {
+    let mut surface = termwiz::surface::Surface::new(cols, 6);
+    surface.add_change(output);
+    unwrapped_text(&surface.screen_lines(), cols)
+}
+
 #[test]
 fn the_output_is_counted_after_a_prompt_or_on_its_own_line_but_not_in_the_echo() {
-    let joined = format!("{COMMAND}\n$ {OUTPUT}\n$ ");
-    let own_line = format!("{COMMAND}$ \n{OUTPUT}\n$ ");
-    assert_eq!(count_outputs(&joined), 1);
-    assert_eq!(count_outputs(&own_line), 1);
-    assert_eq!(count_outputs(&format!("{COMMAND}\n$ ")), 0);
+    let joined = screen_of(80, &format!("{COMMAND}\r\n$ {OUTPUT}\r\n$ "));
+    let own_line = screen_of(80, &format!("{COMMAND}$ \r\n{OUTPUT}\r\n$ "));
+    assert_eq!(count_outputs(&joined), 1, "{joined:?}");
+    assert_eq!(count_outputs(&own_line), 1, "{own_line:?}");
+    assert_eq!(
+        count_outputs(&screen_of(80, &format!("{COMMAND}\r\n$ "))),
+        0
+    );
+}
+
+#[test]
+fn an_output_that_a_long_prompt_wraps_across_two_rows_is_counted_once() {
+    let prompt = format!("{}$ ", "p".repeat(67));
+    assert_eq!(prompt.len(), 69);
+    let typed = format!("{COMMAND}\r\n{prompt}{OUTPUT}\r\n$ ");
+    let mut surface = termwiz::surface::Surface::new(80, 6);
+    surface.add_change(typed.as_str());
+    let rows = surface.screen_chars_to_string();
+    assert!(
+        !rows.contains(OUTPUT),
+        "the output crosses a row boundary: {rows:?}"
+    );
+    let screen = screen_of(80, &typed);
+    assert_eq!(count_outputs(&screen), 1, "{screen:?}");
 }
 
 /// Pumps until the child is published while its CR is still pending.
