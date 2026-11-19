@@ -482,17 +482,14 @@ impl MainView {
     }
 
     /// 이 버튼 사건이 OS 창 테두리 리사이즈의 누름이나 그 짝인 뗌인지(`begin_os_resize_press`). 메뉴를 닫는
-    /// 클릭으로 삼킨 사건이면 리사이즈를 시작하지 않는다.
+    /// 클릭으로 삼킨 사건이면 리사이즈를 시작하지 않고 거짓이지만, 같은 버튼의 리사이즈 기록은 정리한다.
     fn os_resize_owns_event(&mut self, event: &WindowEvent, menu_dismiss_swallow: bool) -> bool {
-        if menu_dismiss_swallow {
-            return false;
-        }
         match event {
             WindowEvent::MouseInput {
                 state: button_state,
                 button,
                 ..
-            } => self.begin_os_resize_press(*button_state, *button),
+            } => self.begin_os_resize_press(*button_state, *button, menu_dismiss_swallow),
             _ => false,
         }
     }

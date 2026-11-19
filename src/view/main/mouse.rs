@@ -482,15 +482,17 @@ impl MainView {
 
     /// 창 테두리 누름이면 OS 리사이즈를 시작하고 `true`. 그 누름의 짝인 뗌도 `true`다. 테두리는 팝업 범위 트리
     /// 밖이라 이 누름과 뗌은 egui·팝업·surface 어디에도 가지 않는다(누름 스냅샷도 남기지 않는다). 그래서 egui
-    /// 전달 전에 판정한다. 마우스 보고를 켠 터미널은 짝 없는 뗌을 받지 않는다.
+    /// 전달 전에 판정한다. 마우스 보고를 켠 터미널은 짝 없는 뗌을 받지 않는다. 메뉴를 닫는 클릭으로 삼킨
+    /// 사건(`swallowed`)은 리사이즈를 시작하지 않지만 같은 버튼의 기록은 정리한다(창·debug 주입 경로 공통).
     #[cfg(not(target_os = "macos"))]
     pub(super) fn begin_os_resize_press(
         &mut self,
         button_state: ElementState,
         button: MouseButton,
+        swallowed: bool,
     ) -> bool {
         let mut owned = std::mem::take(&mut self.os_resize_buttons);
-        let taken = os_resize_owns(&mut owned, button_state, button, || {
+        let taken = os_resize_owns(&mut owned, button_state, button, swallowed, || {
             self.try_begin_os_resize(button, button_state)
         });
         self.os_resize_buttons = owned;
@@ -499,7 +501,12 @@ impl MainView {
 
     /// macOS 는 native 장식이 테두리를 처리한다.
     #[cfg(target_os = "macos")]
-    pub(super) fn begin_os_resize_press(&mut self, _: ElementState, _: MouseButton) -> bool {
+    pub(super) fn begin_os_resize_press(
+        &mut self,
+        _: ElementState,
+        _: MouseButton,
+        _: bool,
+    ) -> bool {
         false
     }
 
@@ -1420,24 +1427,26 @@ fn push_report_button(stack: &mut Vec<(u8, u32)>, button: u8, surface_id: u32) {
 
 /// OS 테두리 리사이즈가 가져간 버튼 사건이면 참이다. 누름은 `begin`(테두리 리사이즈를 시작했는지)으로 정하고 그
 /// 버튼을 적는다. 뗌은 적힌 버튼이면 꺼내고 참이다. OS 가 리사이즈 중 뗌을 삼켜 오지 않았으면 같은 버튼의 다음
-/// 누름이 그 기록을 지워, 그 누름의 뗌을 잘못 삼키지 않는다.
+/// 누름이 그 기록을 지워, 그 누름의 뗌을 잘못 삼키지 않는다. 메뉴를 닫는 클릭으로 삼킨 사건(`swallowed`)은
+/// 리사이즈를 시작하지 않고 거짓이지만, 같은 버튼의 기록은 똑같이 지운다.
 #[cfg(not(target_os = "macos"))]
 fn os_resize_owns(
     owned: &mut Vec<MouseButton>,
     button_state: ElementState,
     button: MouseButton,
+    swallowed: bool,
     begin: impl FnOnce() -> bool,
 ) -> bool {
     match button_state {
         ElementState::Pressed => {
             take_blocked_button(owned, button);
-            let began = begin();
+            let began = !swallowed && begin();
             if began {
                 owned.push(button);
             }
             began
         }
-        ElementState::Released => take_blocked_button(owned, button),
+        ElementState::Released => take_blocked_button(owned, button) && !swallowed,
     }
 }
 
@@ -1667,24 +1676,65 @@ mod os_resize_button_tests {
             &mut owned,
             ElementState::Pressed,
             left,
+            false,
             || true
         ));
         assert!(os_resize_owns(
             &mut owned,
             ElementState::Released,
             left,
+            false,
             || { unreachable!("뗌은 리사이즈를 시작하지 않는다") }
         ));
         assert!(!os_resize_owns(
             &mut owned,
             ElementState::Pressed,
             left,
+            false,
             || false
         ));
         assert!(!os_resize_owns(
             &mut owned,
             ElementState::Released,
             left,
+            false,
+            || false
+        ));
+    }
+
+    /// Given OS 가 리사이즈 중 뗌을 삼켜 기록이 남았을 때, When 같은 버튼의 누름·뗌을 메뉴 닫기 클릭으로 삼킨 뒤 앱이
+    /// 누름을 보지 못한 그 버튼의 뗌이 오면, Then 그 뗌은 옛 리사이즈 것이 아니다. 삼킨 사건 자체도 리사이즈 것이
+    /// 아니다(창 경로와 debug 주입 경로가 같은 함수를 쓴다).
+    #[test]
+    fn a_menu_dismiss_click_clears_a_lost_resize_release() {
+        let mut owned = Vec::new();
+        let left = MouseButton::Left;
+        assert!(os_resize_owns(
+            &mut owned,
+            ElementState::Pressed,
+            left,
+            false,
+            || true
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Pressed,
+            left,
+            true,
+            || unreachable!("삼킨 누름은 리사이즈를 시작하지 않는다")
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Released,
+            left,
+            true,
+            || false
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Released,
+            left,
+            false,
             || false
         ));
     }
@@ -1699,18 +1749,21 @@ mod os_resize_button_tests {
             &mut owned,
             ElementState::Pressed,
             left,
+            false,
             || true
         ));
         assert!(!os_resize_owns(
             &mut owned,
             ElementState::Pressed,
             left,
+            false,
             || false
         ));
         assert!(!os_resize_owns(
             &mut owned,
             ElementState::Released,
             left,
+            false,
             || false
         ));
     }
