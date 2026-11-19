@@ -4,9 +4,11 @@ use super::*;
 
 type Receiver = std::sync::mpsc::Receiver<JsonRpcResponse>;
 
-/// The command prints a value that its typed echo does not contain.
-const COMMAND: &str = "echo $((6*7))";
-const OUTPUT: &str = "42";
+/// The command prints a value that its typed echo does not contain. It is long and unique so that
+/// it is counted wherever it lands: a login shell that starts after the body and CR were typed
+/// ahead prints its prompt after their echo, and dash then writes the output right after `$ `.
+const COMMAND: &str = "echo child-$((6*7))-done";
+const OUTPUT: &str = "child-42-done";
 
 fn turn(journal: &mut JournalApplication, session: &mut EngineSession) {
     journal.poll_bootstrap(&mut [&mut *session], None).unwrap();
@@ -60,15 +62,28 @@ fn waiting_input(journal: &JournalApplication) -> bool {
 }
 
 fn outputs(session: &EngineSession, surface: u32) -> usize {
-    session
-        .runtime
-        .terminals
-        .get(surface)
-        .map(|terminal| terminal.with_content(|view| view.screen_text(false)))
-        .unwrap_or_default()
-        .lines()
-        .filter(|line| line.trim() == OUTPUT)
-        .count()
+    count_outputs(
+        &session
+            .runtime
+            .terminals
+            .get(surface)
+            .map(|terminal| terminal.with_content(|view| view.screen_text(false)))
+            .unwrap_or_default(),
+    )
+}
+
+/// Counts the command's output regardless of the line or prompt it shares.
+fn count_outputs(screen: &str) -> usize {
+    screen.matches(OUTPUT).count()
+}
+
+#[test]
+fn the_output_is_counted_after_a_prompt_or_on_its_own_line_but_not_in_the_echo() {
+    let joined = format!("{COMMAND}\n$ {OUTPUT}\n$ ");
+    let own_line = format!("{COMMAND}$ \n{OUTPUT}\n$ ");
+    assert_eq!(count_outputs(&joined), 1);
+    assert_eq!(count_outputs(&own_line), 1);
+    assert_eq!(count_outputs(&format!("{COMMAND}\n$ ")), 0);
 }
 
 /// Pumps until the child is published while its CR is still pending.
