@@ -260,9 +260,9 @@ pub enum RemoteCommands {
     /// `attach.list`, detaches every occupied workspace, then every surface
     /// still occupied, and prints `{"workspaces": [...], "surfaces": [...]}`
     /// with one reply per call. A target that fails keeps its id and an `error`
-    /// in its item, the others are still detached, and the command exits with
-    /// 1. If the list cannot be read again after the workspaces, the error goes
-    /// in `list_error`, the results so far are printed, and the command exits
+    /// in its item, the others are still detached, and the command exits
+    /// with 1. If the list cannot be read again after the workspaces, the error
+    /// goes in `list_error`, the results so far are printed, and the command exits
     /// with 1. The IPC method `attach.list` lists this instance's occupancies,
     /// including surfaces held on their own; to leave a mirror on this side,
     /// use `tasty remote disconnect`.
