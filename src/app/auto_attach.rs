@@ -238,16 +238,19 @@ impl App {
         }
         match self.row_session_phase(row) {
             Some(SessionState::Connected | SessionState::Reconnecting) => {}
+            // 행이 보이거나 그 행으로 옮겨 시작한 연결은 자동 연결이라 `explicit`은 false다. 바로
+            // 시도할지는 단계가 정한다: 끊긴 행은 새 재연결 구간을 바로 시작하고, 세션 없는 행은
+            // 첫 연결을 바로 한다. `explicit`은 사용자가 직접 요청했다는 출처만 뜻한다.
             Some(SessionState::Disconnected) => {
                 // 다른 곳에서 닫힌 행은 다시 붙을 곳이 없어 옮겨 와도 시도하지 않는다.
                 if edge_now && !self.row_closed_elsewhere(row) {
-                    self.connect_saved_row(row, true);
+                    self.connect_saved_row(row, false);
                 }
             }
             None => {
                 let failed = self.remote.pending_reactivation.contains(&row);
                 if first_connect_due(failed, edge_now, self.row_closed_elsewhere(row)) {
-                    self.connect_saved_row(row, edge_now);
+                    self.connect_saved_row(row, false);
                 }
             }
         }
@@ -255,10 +258,11 @@ impl App {
 
     /// 저장된 원격 행의 연결을 시작한다. 연결된 행이나 시도 중인 행은 그대로 둔다.
     /// 형상이 남은 끊긴 행은 새 재연결 구간을 시작하고, 아직 붙지 않은 행은 첫 연결을 한다.
-    /// `explicit` 은 명시적 연결(팝업·메뉴의 연결, 에이전트의 `remote.connect`, 사용자가
-    /// 그 행으로 옮김)이다. 그때는 사용자가 끊은 표지를 먼저 지우고, 재연결 중인 행은 새
-    /// 재연결 구간을 시작한다. 옮김은 사용자가 끊은 행에는 부르지 않으므로
-    /// (`maybe_connect_visible_row`) 옮김만으로 그 표지가 풀리지는 않는다.
+    /// `explicit` 은 사용자가 직접 요청한 연결(연결 버튼·행 메뉴의 연결, `SavedRowAction::Connect`,
+    /// 에이전트의 `remote.connect`, 원격 팝업)이라는 출처다. 그때는 사용자가 끊은 표지를 먼저
+    /// 지우고, 재연결 중인 행은 새 재연결 구간을 시작하며, 시도에 명시적 출처를 싣는다. 행을 다시
+    /// 열기·행 재활성화·부팅 복원·포커스로 보이게 된 행(`maybe_connect_visible_row`)은 바로
+    /// 시도하더라도 자동 연결이라 false다.
     pub(crate) fn connect_saved_row(&mut self, row: u32, explicit: bool) {
         self.connect_saved_row_with_run(row, explicit, None);
     }

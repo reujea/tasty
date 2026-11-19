@@ -162,55 +162,72 @@ fn an_explicit_connection_is_not_dropped_after_the_target_was_force_detached() {
     );
 }
 
-/// 행 `ROW` 의 첫 연결 대상. 시험에는 View 가 없어 첫 연결 대상은 `mirror_install_target_is_current`
-/// 를 통과하지 못한다. 그래서 첫 연결은 결과 소비·설치 경로가 부르는 판정을 직접 잰다.
-fn first_connect_target(app: &App, explicit: bool) -> PendingMirrorInstall {
-    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
-    let row_token = app
-        .engines
-        .get(engine)
-        .and_then(|session| session.remote.row_tokens.get(&ROW))
-        .map(std::sync::Arc::downgrade);
-    PendingMirrorInstall {
-        engine,
-        window: None,
-        view: None,
-        selection: None,
-        activate: false,
-        row: Some(ROW),
-        binding: Some(binding()),
-        row_token,
-        reconnect: None,
-        resync: false,
-        run: None,
-        user: false,
-        explicit,
-        manual: None,
-        profile: Some("rv".to_string()),
-        remote_workspace: Some(3),
-    }
+/// 행 `ROW` 에 등록된 endpoint 시도의 대상.
+fn registered_attempt(app: &App) -> PendingMirrorInstall {
+    app.state
+        .mirror_attempts
+        .endpoint_snapshot()
+        .into_iter()
+        .find(|(_, target)| target.row == Some(ROW))
+        .map(|(_, target)| target)
+        .expect("an attempt for the row is registered")
 }
 
-/// Given 세션 없이 첫 연결 중인 행 A, When 같은 대상의 행 B 가 강제로 끊긴 뒤 A 의 결과를 판정하면,
-/// Then 비명시적 시도는 버리고 진행 중 표지를 지운다. 명시적 연결로 시작한 시도는 그대로 둔다.
+/// 시험 장치에는 View 가 없어 첫 연결 대상은 `mirror_install_target_is_current` 를 통과하지 못한다.
+/// 그래서 실제 진입점이 등록한 대상에 대해 결과 소비·설치 경로가 부르는 판정을 잰다.
+fn drop_after_marking_the_other_row(app: &mut App) -> bool {
+    let target = registered_attempt(app);
+    force_detach_the_other_row(app);
+    app.drop_attempt_for_force_detached_target(&target)
+}
+
+/// Given 세션 없는 저장 행, When 그 행이 보이게 돼(`maybe_connect_visible_row` 의 edge) 첫 연결을
+/// 시작한 뒤 같은 대상의 행 B 가 강제로 끊기면, Then 시도는 비명시적이고 그 결과는 버려진다.
 #[test]
-fn a_first_connect_result_is_dropped_unless_the_connect_was_explicit() {
-    alone!("a_first_connect_result_is_dropped_unless_the_connect_was_explicit");
+fn a_first_connect_started_by_showing_the_row_is_automatic_and_dropped() {
+    alone!("a_first_connect_started_by_showing_the_row_is_automatic_and_dropped");
     let event_loop = event_loop();
     let mut app = app_with_saved_row(&event_loop, None);
-    app.ensure_row_token(ROW);
-    app.remote.active.insert(ROW);
-    force_detach_the_other_row(&mut app);
+    app.maybe_connect_visible_row(Some(ROW), None);
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the first connect started"
+    );
+    assert!(!registered_attempt(&app).explicit);
+    assert!(drop_after_marking_the_other_row(&mut app));
+    assert!(!app.remote.active.contains(&ROW));
+    assert_ne!(app.row_state_name(ROW), "connecting");
+}
 
-    let explicit = first_connect_target(&app, true);
-    assert!(!app.drop_attempt_for_force_detached_target(&explicit));
+/// Given 끊긴 저장 행, When 그 행으로 다시 옮겨 재연결을 시작한 뒤 같은 대상의 행 B 가 강제로
+/// 끊기면, Then 시도는 비명시적이고 그 결과는 버려진다.
+#[test]
+fn a_reconnect_started_by_reopening_the_row_is_automatic_and_dropped() {
+    alone!("a_reconnect_started_by_reopening_the_row_is_automatic_and_dropped");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Disconnected));
+    for session in &mut app.remote.sessions {
+        session.state.remote_workspace = binding().remote_workspace;
+    }
+    app.maybe_connect_visible_row(Some(ROW), Some(ROW_B));
+    assert!(app.remote.active.contains(&ROW), "the reconnect started");
+    assert!(!registered_attempt(&app).explicit);
+    assert!(drop_after_marking_the_other_row(&mut app));
+    assert_stopped(&app);
+}
+
+/// Given 세션 없는 저장 행, When 연결 버튼처럼 명시적 연결(`connect_saved_row(.., true)`)로 첫 연결을
+/// 시작한 뒤 같은 대상의 행 B 가 강제로 끊기면, Then 시도는 명시적이고 결과를 버리지 않는다.
+#[test]
+fn a_first_connect_started_by_an_explicit_connect_is_kept() {
+    alone!("a_first_connect_started_by_an_explicit_connect_is_kept");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    app.connect_saved_row(ROW, true);
+    assert!(registered_attempt(&app).explicit);
+    assert!(!drop_after_marking_the_other_row(&mut app));
     assert!(
         app.remote.active.contains(&ROW),
         "the explicit attempt goes on"
     );
-
-    let automatic = first_connect_target(&app, false);
-    assert!(app.drop_attempt_for_force_detached_target(&automatic));
-    assert!(!app.remote.active.contains(&ROW));
-    assert_ne!(app.row_state_name(ROW), "connecting");
 }
