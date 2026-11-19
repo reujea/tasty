@@ -274,6 +274,7 @@ fn wait_for_reader(
 /// unwinding 중의 깨움은 `catch_unwind`로 감싼다. 깨움 콜백은 호출자가 넘긴 함수라 reader를
 /// panic시킨 것이 그 콜백일 수 있다. 다시 panic한 콜백이 drop 밖으로 나가면 프로세스가 abort한다.
 /// 깨우지 않으면 App이 다음 깨움까지 끊김을 보지 못하므로, 부르되 그 panic은 여기서 멈춘다.
+/// 잡은 payload는 소멸자가 다시 panic할 수 있어 drop하지 않고 잊는다.
 struct ReaderExit {
     finished: Arc<AtomicBool>,
     disconnected: Arc<AtomicBool>,
@@ -287,9 +288,15 @@ impl Drop for ReaderExit {
             self.disconnected.store(true, Ordering::SeqCst);
         }
         self.finished.store(true, Ordering::Release);
-        if panicked
-            && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.wake)())).is_err()
+        if !panicked {
+            return;
+        }
+        if let Err(payload) =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.wake)()))
         {
+            // payload를 drop하지 않는다. 이 스레드는 이미 unwinding 중이라 payload의 소멸자가 panic하면
+            // 프로세스가 abort한다. reader가 panic으로 끝날 때 한 번 생기는 작은 누수는 받아들인다.
+            std::mem::forget(payload);
             tracing::error!("attach reader: the wake callback panicked again while unwinding");
         }
     }

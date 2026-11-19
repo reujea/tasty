@@ -619,6 +619,52 @@ fn a_wake_callback_that_panics_again_while_the_reader_unwinds_does_not_abort() {
     assert!(disconnected.load(Ordering::SeqCst));
 }
 
+/// 소멸자가 panic하는 payload. unwinding 중에 drop되면 프로세스가 abort한다.
+struct PanicsOnDrop;
+
+impl Drop for PanicsOnDrop {
+    fn drop(&mut self) {
+        panic!("the payload destructor panics on purpose");
+    }
+}
+
+/// unwinding 중에 다시 panic한 깨움 콜백의 payload가 소멸자에서 panic해도 reader 끝 처리가
+/// 프로세스를 abort시키지 않는다. payload를 drop하면 이 시험 실행 파일 전체가 abort한다.
+#[test]
+fn a_wake_payload_whose_destructor_panics_does_not_abort_the_reader_exit() {
+    let (_write_half, conn, mut peer) = opened_attach_pair();
+    let disconnected = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    let (sender, _rx) = super::super::connection::channel();
+    let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = wakes.clone();
+    stream::write_frame(&mut peer, StreamTag::Data, b"").unwrap();
+    let reader = spawn_attach_reader_thread(
+        conn,
+        MirrorOutbox::new(sender.epoch()),
+        sender.clone(),
+        disconnected.clone(),
+        Arc::new(move || {
+            if counted.fetch_add(1, Ordering::SeqCst) == 0 {
+                panic!("the first wake panics on purpose");
+            }
+            std::panic::panic_any(PanicsOnDrop);
+        }),
+        |_| None,
+        AttachReaderEnd {
+            remote_workspace: 1,
+            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
+            detach_sent: Arc::new(AtomicBool::new(false)),
+            force_detached: Arc::new(AtomicBool::new(false)),
+            finished: finished.clone(),
+        },
+    );
+    assert!(reader.join().is_err(), "the first wake panicked");
+    assert_eq!(wakes.load(Ordering::SeqCst), 2, "the guard woke again");
+    assert!(finished.load(Ordering::SeqCst));
+    assert!(disconnected.load(Ordering::SeqCst));
+}
+
 /// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다. 상한보다 먼저
 /// 알리지 않고(최소 경과 시간), 상한이 사라져도 시험이 멈추지 않도록 시험 쪽 기한으로 기다린다.
 #[test]
