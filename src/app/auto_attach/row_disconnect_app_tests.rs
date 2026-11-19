@@ -440,6 +440,15 @@ fn a_saved_mark_refuses_a_remote_attach_to_the_same_target_after_a_restart() {
     assert!(force_detach_marked(&app));
 }
 
+/// 행의 창을 park 한다. 시험 장치의 창에는 화면(MainView)이 없어 창 쪽 정리는 workspace 를 찾지 못한다.
+/// parked engine 은 같은 정리 함수가 화면 없이 workspace 를 지운다.
+fn park_row_window(app: &mut App) {
+    let (state, _) = crate::state::tests::test_state();
+    app.engines
+        .park(winit::window::WindowId::from(u64::MAX - 2), state)
+        .expect("the row's window is parked");
+}
+
 /// 강제로 끊겨 표지가 저장된 행을 이쪽에서 닫으면 행과 함께 저장된 표지도 지운다.
 fn close_locally_and_check_the_mark(phase: Option<SessionState>) {
     let event_loop = event_loop();
@@ -450,6 +459,7 @@ fn close_locally_and_check_the_mark(phase: Option<SessionState>) {
         app.mark_force_detached_row(ROW);
     }
     assert!(force_detach_marked(&app));
+    park_row_window(&mut app);
 
     app.apply_saved_row_action(ROW, crate::intent::SavedRowAction::CloseLocally);
     assert!(app.saved_row_binding(ROW).is_none(), "the row is gone");
