@@ -443,6 +443,51 @@ impl MainView {
         }
     }
 
+    /// 키보드 사건을 egui 에 보낸다. 팝업·무대 같은 키 오버레이가 열렸거나 egui 로 입력을 받는 host 위젯
+    /// surface 에 포커스가 있을 때만 보내고, 아니면 egui 는 받지 않는다. 결과는 (소비, 다시 그리기)다.
+    fn feed_egui_keyboard(
+        &mut self,
+        engine: &EngineRead<'_>,
+        event: &WindowEvent,
+        edit_judged: bool,
+    ) -> (bool, bool) {
+        // 무대 입력은 egui에 전달하며 배경으로 보내지 않는 검사는 keyboard.rs에서 한다.
+        let overlay_open =
+            self.state.keyboard_overlay_open() || self.state.fullscreen_stage_active();
+        // registry의 consumes_egui_input인 host 위젯만 egui에 직접 보낸다.
+        // plugin mesh 입력은 별도 전달 경로를 사용해 host가 먼저 소비하지 않게 한다.
+        let egui_surface = self
+            .state
+            .focused_surface_type(engine)
+            .kind_capability(engine, |d| d.consumes_egui_input);
+        if !(overlay_open || egui_surface) {
+            return (false, false);
+        }
+        self.base
+            .gpu
+            .set_plugin_paste_target(self.state.plugin_popup_key_target());
+        let from = self.base.gpu.egui_input_events_mut().len();
+        let result = self.base.gpu.handle_egui_event(&self.base.winit, event);
+        self.remap_html_address_keys(engine, event, from, edit_judged);
+        result
+    }
+
+    /// 이 버튼 사건이 OS 창 테두리 리사이즈의 누름이나 그 짝인 뗌인지(`begin_os_resize_press`). 메뉴를 닫는
+    /// 클릭으로 삼킨 사건이면 리사이즈를 시작하지 않는다.
+    fn os_resize_owns_event(&mut self, event: &WindowEvent, menu_dismiss_swallow: bool) -> bool {
+        if menu_dismiss_swallow {
+            return false;
+        }
+        match event {
+            WindowEvent::MouseInput {
+                state: button_state,
+                button,
+                ..
+            } => self.begin_os_resize_press(*button_state, *button),
+            _ => false,
+        }
+    }
+
     /// 창의 engine과 함께 창 이벤트를 처리한다. engine은 App registry가 창 ID로 찾아 넘긴다.
     fn handle_engine_event(
         &mut self,
@@ -479,47 +524,18 @@ impl MainView {
         );
         let is_modifiers_event = matches!(&event, WindowEvent::ModifiersChanged(_));
 
-        // 무대 입력은 egui에 전달하며 배경으로 보내지 않는 검사는 keyboard.rs에서 한다.
-        let overlay_open =
-            self.state.keyboard_overlay_open() || self.state.fullscreen_stage_active();
-
-        // registry의 consumes_egui_input인 host 위젯만 egui에 직접 보낸다.
-        // plugin mesh 입력은 별도 전달 경로를 사용해 host가 먼저 소비하지 않게 한다.
-        let egui_surface = self
-            .state
-            .focused_surface_type(engine)
-            .kind_capability(engine, |d| d.consumes_egui_input);
-
         let is_redraw_event = matches!(&event, WindowEvent::RedrawRequested);
 
         // 메뉴를 닫는 클릭은 누름부터 뗌까지 egui와 Tasty 모두에 전달하지 않는다.
         // 두 경로가 같은 판단을 쓰도록 egui 전달 전에 한 번 판정한다.
         let menu_dismiss_swallow = self.begin_menu_dismiss_swallow(&event);
-        let os_resize_press = !menu_dismiss_swallow
-            && match &event {
-                WindowEvent::MouseInput {
-                    state: button_state,
-                    button,
-                    ..
-                } => self.begin_os_resize_press(*button_state, *button),
-                _ => false,
-            };
+        let os_resize_press = self.os_resize_owns_event(&event, menu_dismiss_swallow);
 
         let (egui_consumed, egui_repaint) = if is_redraw_event {
             // RedrawRequested를 egui에 넣으면 다시 그리기를 반복 요청하므로 제외한다.
             (false, false)
         } else if is_keyboard_event {
-            if overlay_open || egui_surface {
-                self.base
-                    .gpu
-                    .set_plugin_paste_target(self.state.plugin_popup_key_target());
-                let from = self.base.gpu.egui_input_events_mut().len();
-                let result = self.base.gpu.handle_egui_event(&self.base.winit, &event);
-                self.remap_html_address_keys(engine, &event, from, edit_judged.is_some());
-                result
-            } else {
-                (false, false)
-            }
+            self.feed_egui_keyboard(engine, &event, edit_judged.is_some())
         } else if is_modifiers_event {
             let (_, repaint) = self.base.gpu.handle_egui_event(&self.base.winit, &event);
             (false, repaint)
@@ -619,19 +635,21 @@ impl MainView {
             WindowEvent::CursorLeft { .. } => {
                 self.handle_cursor_left();
             }
-            WindowEvent::MouseInput { .. } if os_resize_press => {}
             WindowEvent::MouseInput {
                 state: button_state,
                 button,
                 ..
             } => {
-                self.handle_mouse_input(
-                    engine,
-                    button_state,
-                    button,
-                    egui_consumed,
-                    menu_dismiss_swallow,
-                );
+                // OS 테두리 리사이즈의 누름과 그 뗌은 어디에도 보내지 않는다.
+                if !os_resize_press {
+                    self.handle_mouse_input(
+                        engine,
+                        button_state,
+                        button,
+                        egui_consumed,
+                        menu_dismiss_swallow,
+                    );
+                }
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 self.handle_mouse_wheel(engine, delta, egui_consumed);
