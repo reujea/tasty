@@ -528,8 +528,17 @@ fn a_reconnecting_row_stops_when_its_target_is_force_detached_through_another_ro
     app.mark_force_detached_row(ROW_B);
     assert!(force_detach_marked(&app));
     assert_eq!(app.row_state_name(ROW), "reconnecting");
+    // 재연결 구간의 행은 백오프 슬롯을 갖는다. 멈춘 행의 슬롯은 다음 시도를 예약하지 않아야 한다.
+    app.remote
+        .reconnect
+        .insert(ROW, tasty_remote::outbound::ReconnectSlot::new());
 
     app.maybe_trigger_reconnect(Some(ROW), None);
+    assert_eq!(
+        app.remote.reconnect.get(&ROW).map(|slot| slot.given_up),
+        Some(true),
+        "the backoff slot ends as given up"
+    );
     assert!(
         !app.remote.active.contains(&ROW),
         "no reconnect attempt for a force-detached target"
