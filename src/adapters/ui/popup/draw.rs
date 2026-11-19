@@ -214,6 +214,7 @@ impl PopupManager {
             .collect();
         // 포커스를 받지 않는 팝업은 다른 팝업 아래에 그린다. 그 안의 순서는 z 순서 그대로다.
         open_indices.sort_by_key(|&i| self.popups[i].arrange.takes_focus);
+        self.judge_display(ctx, &open_indices, draw_ctx);
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
@@ -221,9 +222,11 @@ impl PopupManager {
         // 호출 순서는 egui_bridge::run_egui_frame과 source_guards::frame_draw_order에서 확인한다.
         let hit_rects: Vec<Occluder> = open_indices
             .iter()
-            .map(|&i| Occluder {
-                rect: self.popups[i].popup_rect(),
-                z_seq: self.popups[i].z_seq,
+            .filter_map(|&i| {
+                self.popups[i].box_rect().map(|rect| Occluder {
+                    rect,
+                    z_seq: self.popups[i].z_seq,
+                })
             })
             .collect();
 
@@ -231,6 +234,7 @@ impl PopupManager {
         let mut hovered_popup: Option<PopupInstanceId> = None;
         let mut hovered_handle: Option<PopupInstanceId> = None;
         let mut hovered_close: Option<PopupInstanceId> = None;
+        let mut hovered_collapse: Option<PopupInstanceId> = None;
         let mut hovered_fullscreen: Option<(
             PopupInstanceId,
             crate::adapters::ui::fullscreen::StageId,
@@ -240,7 +244,9 @@ impl PopupManager {
         if let Some(pos) = pointer_pos {
             for &idx in open_indices.iter().rev() {
                 let popup = &self.popups[idx];
-                let rect = popup.popup_rect();
+                let Some(rect) = popup.box_rect() else {
+                    continue;
+                };
                 // 위의 plugin 팝업이 덮으면 건너뛴다. 아래 host 팝업의 다른 영역도 검사해야 하므로 continue한다.
                 if matches!(
                     point_ownership(rect, popup.z_seq, plugin_occluders, pos),
@@ -250,8 +256,12 @@ impl PopupManager {
                 }
                 if rect.contains(pos) {
                     hovered_popup = Some(popup.instance);
-                    if !popup.headless && popup.close_btn_rect().contains(pos) {
+                    if popup.collapsed() {
+                        // 접힌 프레임은 보기 버튼 하나뿐이다. 버튼은 그 Area의 egui 위젯이 받는다.
+                    } else if !popup.headless && popup.close_btn_rect().contains(pos) {
                         hovered_close = Some(popup.instance);
+                    } else if popup.collapse_btn_rect().is_some_and(|r| r.contains(pos)) {
+                        hovered_collapse = Some(popup.instance);
                     } else if let Some((fs_rect, stage)) =
                         popup.fullscreen_btn_rect().zip(popup.fullscreen_stage)
                         && fs_rect.contains(pos)
@@ -298,6 +308,8 @@ impl PopupManager {
         if let Some(press) = press {
             if let Some(iid) = hovered_close.filter(|_| press.is_primary()) {
                 closed.push((iid, PopupCloseReason::CloseButton));
+            } else if let Some(iid) = hovered_collapse.filter(|_| press.is_primary()) {
+                self.refold(iid);
             } else if let Some((_, stage)) = hovered_fullscreen.filter(|_| press.is_primary()) {
                 // 무대는 별도 콘텐츠이므로 원본 팝업은 닫지 않는다.
                 fullscreen_requested = Some(stage);
@@ -327,7 +339,8 @@ impl PopupManager {
                 popup.dragging = false;
                 released.push((popup.instance, popup.popup_rect()));
             } else if primary_down && let Some(pos) = pointer_pos {
-                let bounds = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let bounds =
+                    Self::scope_rect(&popup.placement_scope(), draw_ctx).unwrap_or(screen_rect);
                 let new_pos = pos - popup.drag_offset;
                 popup.pos = egui::pos2(
                     new_pos.x.clamp(
@@ -382,7 +395,8 @@ impl PopupManager {
                 if edges.bottom {
                     max.y = max.y.max(min.y + mh);
                 }
-                let bounds = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let bounds =
+                    Self::scope_rect(&popup.placement_scope(), draw_ctx).unwrap_or(screen_rect);
                 let new_rect = egui::Rect::from_min_max(min, max).intersect(bounds);
                 popup.pos = new_rect.min;
                 popup.set_needed_size(new_rect.size());
@@ -392,7 +406,8 @@ impl PopupManager {
 
         for popup in &mut self.popups {
             if popup.request_center && popup.open {
-                let center_rect = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let center_rect =
+                    Self::scope_rect(&popup.placement_scope(), draw_ctx).unwrap_or(screen_rect);
                 popup.pos = egui::pos2(
                     center_rect.center().x - popup.size.x / 2.0,
                     center_rect.center().y - popup.size.y / 2.0,
@@ -403,7 +418,8 @@ impl PopupManager {
 
         for popup in &mut self.popups {
             if popup.request_top && popup.open {
-                let anchor_rect = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let anchor_rect =
+                    Self::scope_rect(&popup.placement_scope(), draw_ctx).unwrap_or(screen_rect);
                 popup.pos = egui::pos2(
                     anchor_rect.center().x - popup.size.x / 2.0,
                     anchor_rect.min.y + th.spacing_sm.value(),
@@ -427,7 +443,10 @@ impl PopupManager {
             ctx.set_cursor_icon(resize_cursor(edges));
         } else if hovered_handle.is_some() {
             ctx.set_cursor_icon(egui::CursorIcon::Grab);
-        } else if hovered_close.is_some() || hovered_fullscreen.is_some() {
+        } else if hovered_close.is_some()
+            || hovered_collapse.is_some()
+            || hovered_fullscreen.is_some()
+        {
             ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
         } else if hovered_popup.is_some() {
             // Content area: set default cursor (arrow) to override terminal cursor
@@ -438,11 +457,12 @@ impl PopupManager {
         let scrim_candidates: Vec<(usize, egui::Rect)> = open_indices
             .iter()
             .filter(|&&i| !closed.iter().any(|(c, _)| *c == self.popups[i].instance))
-            .filter(|&&i| self.popups[i].look.covers_scope)
+            .filter(|&&i| self.popups[i].covers())
             .map(|&i| {
                 (
                     i,
-                    Self::scope_rect(&self.popups[i].scope, draw_ctx).unwrap_or(screen_rect),
+                    Self::scope_rect(&self.popups[i].placement_scope(), draw_ctx)
+                        .unwrap_or(screen_rect),
                 )
             })
             .collect();
@@ -455,15 +475,52 @@ impl PopupManager {
 
         // 불투명 모드 WebView 페이지(직전 동기화 값). 비어 있으면 모든 팝업이 원래 모양이다.
         let pages = tasty_egui_theme::overlay_edge::opaque_pages(ctx);
+        // 키 주인(맨 위 포커스 인스턴스). 포커스 가장자리와 접힌 버튼의 Enter·Space가 이 하나에만 간다.
+        let key_owner = self.focused_dismissal_target().map(|(_, iid, _)| iid);
+        let mut expand_requested: Option<PopupInstanceId> = None;
         for &popup_idx in &open_indices {
             let popup = &mut self.popups[popup_idx];
             if closed.iter().any(|(c, _)| *c == popup.instance) {
                 continue;
             }
 
-            let scope_clip = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+            let placement = popup.placement_scope();
+            let scope_clip = Self::scope_rect(&placement, draw_ctx).unwrap_or(screen_rect);
+            if popup.collapsed() {
+                // 접힌 팝업은 버튼 프레임만 그린다. 위치·크기는 다시 펼칠 때를 위해 그대로 둔다.
+                if let Some(frame) = popup.collapsed_frame() {
+                    let layer_id = egui::LayerId::new(
+                        egui::Order::Foreground,
+                        area_id_of(popup.id, popup.instance),
+                    );
+                    if let Some(cover) = popup.cover_rect(draw_ctx, screen_rect) {
+                        let block = super::press::block_pointer(
+                            ctx,
+                            layer_id.id.with("cover_block"),
+                            cover,
+                        );
+                        layers.push(block);
+                        focus_layers.push(block);
+                    }
+                    layers.push(layer_id);
+                    focus_layers.push(layer_id);
+                    let holds_keys = key_owner == Some(popup.instance);
+                    let look = super::display::CollapsedDraw {
+                        scrim: scrims
+                            .iter()
+                            .find(|(i, _)| *i == popup_idx)
+                            .map(|(_, r)| *r),
+                        on_scrim: popup.look.covers_scope,
+                        focused: holds_keys,
+                    };
+                    if super::display::draw_collapsed(ctx, &th, layer_id, frame, scope_clip, look) {
+                        expand_requested = Some(popup.instance);
+                    }
+                }
+                continue;
+            }
             let clamp_rect =
-                Self::scope_bounds(&popup.scope, draw_ctx, screen_rect, th.spacing_sm.value());
+                Self::scope_bounds(&placement, draw_ctx, screen_rect, th.spacing_sm.value());
             popup.clamp_to_screen(clamp_rect);
 
             let popup_id = popup.id;
@@ -557,7 +614,7 @@ impl PopupManager {
                 );
             }
 
-            if !is_headless {
+            if popup.has_title_bar() {
                 let title_rect = popup.title_rect();
                 let close_btn_rect = popup.close_btn_rect();
                 let fullscreen_btn_rect = popup.fullscreen_btn_rect();
@@ -585,9 +642,15 @@ impl PopupManager {
                 // 버튼 수와 관계없이 양쪽에 같은 폭을 비워 제목을 스트립 가운데에 둔다.
                 let title_font = tasty_ui_widgets::popup_title_font(&th);
                 let title_avail_rect = popup.title_text_rect();
+                // headless 팝업이 펼쳐 받은 host 제목줄에는 제목이 없다.
+                let shown_title = if is_headless {
+                    ""
+                } else {
+                    popup.title.as_str()
+                };
                 let elided_title = elide_for_width(
                     ctx,
-                    &popup.title,
+                    shown_title,
                     title_font.clone(),
                     title_avail_rect.width(),
                 );
@@ -599,7 +662,7 @@ impl PopupManager {
                     th.text_primary().into(),
                 );
                 // 잘린 제목만 호버 시 전체 제목을 보여 준다. 끌어 옮기는 중에는 띄우지 않는다.
-                if elided_title != popup.title {
+                if elided_title != shown_title {
                     let tip_id = egui::Id::new("popup.title_tooltip").with(popup_id);
                     let band_hovered = hovered_popup == Some(popup_iid)
                         && !primary_down
@@ -639,15 +702,43 @@ impl PopupManager {
                     }
                 }
 
-                title_icon_button(
-                    ctx,
-                    &painter,
-                    &th,
-                    close_btn_rect,
-                    crate::adapters::ui::icons::CLOSE,
-                    hovered_close == Some(popup_iid),
-                    primary_down,
-                );
+                if let Some(rect) = popup.collapse_btn_rect() {
+                    let hovered = hovered_collapse == Some(popup_iid);
+                    title_icon_button(
+                        ctx,
+                        &painter,
+                        &th,
+                        rect,
+                        crate::adapters::ui::icons::SHRINK,
+                        hovered,
+                        primary_down,
+                    );
+                    if hovered {
+                        egui::show_tooltip_at(
+                            ctx,
+                            layer_id,
+                            egui::Id::new("popup.collapse_tooltip").with(popup_iid.0),
+                            rect.left_bottom(),
+                            |ui| ui.label(crate::i18n::t("popup.collapse_button.tooltip")),
+                        );
+                    }
+                }
+                if !is_headless {
+                    title_icon_button(
+                        ctx,
+                        &painter,
+                        &th,
+                        close_btn_rect,
+                        crate::adapters::ui::icons::CLOSE,
+                        hovered_close == Some(popup_iid),
+                        primary_down,
+                    );
+                }
+            }
+            // 키 주인인 좁은 범위 팝업은 셸 위쪽에 포커스 가장자리를 켠다. 창 범위(펼친 팝업 포함)는 켜지 않는다.
+            if !shell_by_content && key_owner == Some(popup_iid) && placement != PopupScope::Window
+            {
+                tasty_ui_widgets::paint_popup_focus_edge(&painter, &th, popup_rect);
             }
 
             // egui가 스크롤·호버 영역으로 인식하도록 같은 layer ID의 Area에 콘텐츠를 그린다.
@@ -747,6 +838,9 @@ impl PopupManager {
 
         if let Some(iid) = bring_front {
             self.bring_to_front(iid);
+        }
+        if let Some(iid) = expand_requested {
+            self.expand(iid);
         }
 
         PopupDrawResult {

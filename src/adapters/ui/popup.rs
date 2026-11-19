@@ -9,6 +9,7 @@ pub(crate) mod dag_list;
 #[cfg(all(debug_assertions, feature = "gui"))]
 mod debug_view;
 pub(crate) mod defs;
+pub(crate) mod display;
 pub(crate) mod download_run;
 mod draw;
 pub(crate) mod explorer_conflict;
@@ -378,6 +379,8 @@ pub struct PopupState {
     declared_look: PopupLook,
     /// 선언에서 온 배치·포커스 값.
     arrange: arrange::Arrange,
+    /// 좁은 범위의 표시 상태(그대로·접힘·창 위). 매 프레임 `judge_display`가 정한다.
+    display: display::PopupDisplay,
 }
 
 /// UI 배율을 적용한 Theme.item_height_interactive를 반올림한 타이틀바 높이.
@@ -498,7 +501,11 @@ impl PopupState {
     /// 배치 범위. 배치 사각형·scrim·포인터 차단·바깥 누름 판정이 이 범위를 쓴다. 키 경로·자식 상속·보임
     /// 여부는 논리 범위 `scope`를 쓴다.
     pub(crate) fn placement_scope(&self) -> PopupScope {
-        self.scope.clone()
+        if self.expanded() {
+            PopupScope::Window
+        } else {
+            self.scope.clone()
+        }
     }
 
     /// 셸을 그릴 때 읽는 선언 값.
@@ -548,6 +555,7 @@ impl PopupState {
             look: PopupLook::of(&PLAIN_DECL),
             declared_look: PopupLook::of(&PLAIN_DECL),
             arrange: arrange::Arrange::PLAIN,
+            display: display::PopupDisplay::Fits,
         }
     }
 
@@ -671,6 +679,7 @@ impl PopupState {
             look: self.look,
             declared_look: self.declared_look,
             arrange: self.arrange,
+            display: self.display,
             payload: PopupPayload::None,
         }
     }
@@ -688,6 +697,7 @@ impl PopupState {
         self.parent = None;
         self.payload = PopupPayload::None;
         self.look = self.declared_look;
+        self.display = display::PopupDisplay::Fits;
     }
 
     /// 팝업 사각형(논리 좌표). 직전 프레임에 그린 자리다.
@@ -732,10 +742,10 @@ impl PopupState {
             PopupContentMargin::None => LogicalPx(0.0),
             PopupContentMargin::Default => content_margin(),
         };
-        let top_offset = if self.headless {
-            margin
-        } else {
+        let top_offset = if self.has_title_bar() {
             title_bar_height() + margin
+        } else {
+            margin
         };
         let min = egui::pos2(
             popup.min.x + margin.value(),
@@ -746,7 +756,7 @@ impl PopupState {
         egui::Rect::from_min_max(min, max)
     }
 
-    fn close_btn_rect(&self) -> egui::Rect {
+    pub(crate) fn close_btn_rect(&self) -> egui::Rect {
         let title = self.title_rect();
         let th = crate::theme::theme();
         let size = th.popup_title_btn_size().value();
@@ -757,7 +767,7 @@ impl PopupState {
 
     /// 타이틀바가 있고 무대를 지정했을 때 전체화면 버튼 영역을 반환한다.
     /// 닫기 버튼 왼쪽에 배치하며 닫기 버튼 위치는 바꾸지 않는다.
-    fn fullscreen_btn_rect(&self) -> Option<egui::Rect> {
+    pub(crate) fn fullscreen_btn_rect(&self) -> Option<egui::Rect> {
         if self.headless || self.fullscreen_stage.is_none() {
             return None;
         }
@@ -773,7 +783,8 @@ impl PopupState {
 
     /// 제목을 줄일 기준인 오른쪽 버튼 영역의 왼쪽 경계.
     fn title_buttons_left_x(&self) -> f32 {
-        self.fullscreen_btn_rect()
+        self.collapse_btn_rect()
+            .or_else(|| self.fullscreen_btn_rect())
             .unwrap_or_else(|| self.close_btn_rect())
             .min
             .x
@@ -803,7 +814,7 @@ impl PopupState {
 
     /// 그린 크기를 필요 크기에서 `screen` 안으로 줄이고 위치를 그 안에 둔다. 필요 크기는 바꾸지 않는다.
     fn clamp_to_screen(&mut self, screen: egui::Rect) {
-        self.size = self.needed_size.min(screen.size());
+        self.size = (self.needed_size + self.chrome_extra()).min(screen.size());
         self.pos.x = self
             .pos
             .x

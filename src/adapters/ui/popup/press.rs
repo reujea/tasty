@@ -39,7 +39,7 @@ impl PopupState {
         draw_ctx: Option<&LayoutContext>,
         screen_rect: egui::Rect,
     ) -> Option<egui::Rect> {
-        self.look.covers_scope.then(|| {
+        self.covers().then(|| {
             PopupManager::scope_rect(&self.placement_scope(), draw_ctx).unwrap_or(screen_rect)
         })
     }
@@ -120,7 +120,7 @@ impl PopupManager {
             if covered {
                 continue;
             }
-            let covering = popup.look.covers_scope;
+            let covering = popup.covers();
             let first_click = !press.focus_before.contains(&popup.scope);
             if !first_click && popup.close_on_outside_click && !parents.contains(&popup.instance) {
                 closed.push((popup.instance, PopupCloseReason::OutsideClick));

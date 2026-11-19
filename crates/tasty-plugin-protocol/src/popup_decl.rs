@@ -188,10 +188,11 @@ pub struct PopupSize {
 ///
 /// 지금 host가 읽는 필드: `covers_scope`(scrim), `instances`, `outside_click`, `sticky_focus`, `chrome`,
 /// `drag_handle`, `resizable`, `resize_handle`, `min_size`, `size`, `shell`, `shadow`, `content_margin`,
-/// `keyboard`(`None`인지만), `anchor`(`Column`과 `ScopeTop`만).
+/// `keyboard`(`None`인지만), `anchor`(`Column`과 `ScopeTop`만), `fit`(`Collapse`면 범위에 들어가지 않을 때
+/// 접는다), `scope_inset`(접힘 판정 경계에만 쓴다).
 /// 선언만 있고 읽는 곳이 없는 필드: `scope_kind`(등록 범위는 Window이고 실제 범위는 여는 쪽이 준다),
-/// `scope_target`, `fit`(지금 host는 범위에 맞춰 줄이기만 한다), 나머지 `anchor` 값(위치는 여는 쪽이
-/// 정한다), `scope_inset`, `focus_on_open`, `escape`(Esc는 팝업 그리기 함수와 키 처리 경로가 처리한다).
+/// `scope_target`, 나머지 `anchor` 값(위치는 여는 쪽이 정한다), `focus_on_open`, `escape`(Esc는 팝업
+/// 그리기 함수와 키 처리 경로가 처리한다).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PopupDecl {
     pub scope_kind: PopupScopeKind,

@@ -1,4 +1,5 @@
-//! Escape 처리에서 설정 열기 요청·알림·포커스된 팝업의 순서를 확인한다.
+//! Escape 처리에서 설정 열기 요청·알림·펼친 팝업 다시 접기·포커스된 팝업의 순서를 확인한다.
+//! 창 위로 펼친 팝업의 Esc는 닫거나 포커스를 풀지 않고 다시 접으므로 일반 팝업 처리보다 먼저 있어야 한다.
 //! 앞의 두 분기는 포커스와 무관하게 처리하므로 일반 팝업 처리보다 먼저 있어야 한다.
 //! settings_open_requested는 열기 요청 상태다. 이미 열린 설정 모달을 Escape로 닫는 경로를 뜻하지 않는다.
 //! 팝업이 키 입력을 막기 전에 Escape를 처리하도록 오버레이 검사보다 앞에 있어야 한다.
@@ -50,6 +51,15 @@ fn the_three_escape_consumers_keep_their_order() {
         body,
         "if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {",
         "Escape 의 포커스된 popup 분기",
+    );
+    let refold = only_at(
+        body,
+        "if self.state.popups.refold_focused() {",
+        "Escape 의 펼친 popup 다시 접기 분기",
+    );
+    assert!(
+        refold < general,
+        "다시 접기가 일반 팝업 처리보다 뒤에 있다. 펼친 팝업의 Esc가 닫기·포커스 해제로 가면 안 된다."
     );
 
     assert!(

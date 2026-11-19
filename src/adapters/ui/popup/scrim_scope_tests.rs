@@ -283,10 +283,10 @@ fn a_minimized_frame_keeps_the_open_popup_where_it_was() {
     assert_eq!(state.popups.visible_rect("convert_surface"), before);
 }
 
-/// 범위가 제목줄과 여백보다 낮으면 팝업은 범위 안으로 줄고 콘텐츠 자리는 빈 사각형이다.
+/// 범위가 필요 크기보다 낮으면 팝업은 범위 안의 보기 버튼 프레임으로 접힌다.
 /// 팝업은 열린 채 범위를 유지하며, 범위가 다시 넓어지면 원래 크기로 그린다.
 #[test]
-fn a_scope_lower_than_the_title_bar_leaves_an_empty_content_area() {
+fn a_scope_lower_than_the_popup_collapses_it_inside_the_scope() {
     let (mut state, mut engine_session, ids) = prepared();
     let engine = engine_session.borrow_mut();
     state
@@ -320,9 +320,11 @@ fn a_scope_lower_than_the_title_bar_leaves_an_empty_content_area() {
         .expect("registered");
     assert!(popup.open);
     assert_eq!(popup.scope, PopupScope::Surface(ids.surface));
-    assert!(low.contains_rect(popup.popup_rect()));
-    let content = popup.content_rect();
-    assert!(content.width() >= 0.0 && content.height() == 0.0);
+    // 아이콘 프레임도 높이가 들어가지 않아 경계 시작에 붙고, 끝은 범위 사각형에서 잘린다.
+    let frame = popup.collapsed_frame().expect("own show button");
+    assert_eq!(frame.form, tasty_ui_widgets::CollapsedForm::Icon);
+    assert!(low.contains(frame.rect.min));
+    assert!(frame.rect.bottom() > low.bottom());
 
     frame_with(
         &ctx,

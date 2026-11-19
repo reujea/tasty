@@ -228,6 +228,11 @@ impl MainView {
                 self.mark_dirty();
                 return true;
             }
+            // 키 주인이 창 위로 펼친 팝업이면 다시 접는다. 닫지 않고 포커스와 상태를 그대로 둔다.
+            if self.state.popups.refold_focused() {
+                self.mark_dirty();
+                return true;
+            }
             // 설정 요청과 알림을 먼저 처리한 뒤, 포커스된 팝업 하나의 포커스를 해제한다.
             // 바깥 클릭과 같이 close_on_outside_click인 팝업만 닫는다.
             // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.

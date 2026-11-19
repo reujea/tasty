@@ -2,8 +2,8 @@
 //! 위에 붙은 팝업이 차지한 띠.
 
 use super::{
-    PopupAnchor, PopupDecl, PopupInstanceId, PopupKeyboard, PopupManager, PopupResizeHandle,
-    PopupState, ResizeEdges,
+    PopupAnchor, PopupDecl, PopupFit, PopupInstanceId, PopupKeyboard, PopupManager,
+    PopupResizeHandle, PopupState, ResizeEdges,
 };
 use tasty_type_geometry::length::LogicalPx;
 
@@ -14,6 +14,10 @@ pub(super) struct Arrange {
     pub(super) takes_focus: bool,
     pub(super) resize_handle: PopupResizeHandle,
     pub(super) anchor: PopupAnchor,
+    /// 범위가 좁을 때 접을지(Collapse), 줄일지(Shrink).
+    pub(super) fit: PopupFit,
+    /// 접힘 판정 경계를 범위 안쪽으로 띄우는지.
+    pub(super) scope_inset: bool,
 }
 
 impl Arrange {
@@ -22,6 +26,9 @@ impl Arrange {
         takes_focus: true,
         resize_handle: PopupResizeHandle::Edges,
         anchor: PopupAnchor::ScopeCenter,
+        // 정의 없이 만든 시험용 팝업은 접지 않고 범위에 맞춰 줄인다.
+        fit: PopupFit::Shrink,
+        scope_inset: true,
     };
 
     pub(super) fn of(decl: &PopupDecl) -> Self {
@@ -29,6 +36,8 @@ impl Arrange {
             takes_focus: decl.keyboard != PopupKeyboard::None,
             resize_handle: decl.resize_handle,
             anchor: decl.anchor,
+            fit: decl.fit,
+            scope_inset: decl.scope_inset,
         }
     }
 }
