@@ -308,7 +308,8 @@ impl PopupManager {
                 // 팝업 안 누름(어느 버튼이든 포커스 행위). 포커스를 받지 않는 팝업은 누름으로 포커스와
                 // 순서를 바꾸지 않는다(give_focus·bring_to_front가 거른다).
                 bring_front = Some(iid);
-                self.give_focus(iid, Some(&press.path));
+                let path = self.node_path_of_press(iid, press, draw_ctx);
+                self.give_focus(iid, Some(&path));
             } else if let Some(iid) = self.route_outside_press(
                 ctx,
                 press,

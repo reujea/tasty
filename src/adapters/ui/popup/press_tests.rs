@@ -439,3 +439,82 @@ fn one_outside_press_rule_decides_for_any_popup() {
         OutsidePress::None
     );
 }
+
+/// Given 같은 선언의 팝업이 L과 R에 하나씩 열려 둘 다 포커스일 때, When R 팝업 상자 안을 누르면, Then L 팝업은
+/// 포커스를 잃지 않는다(다른 범위의 같은 선언 인스턴스를 풀지 않는다).
+#[test]
+fn a_press_inside_one_instance_leaves_its_sibling_in_another_scope_focused() {
+    let mut mgr = manager(false, false);
+    let l = mgr
+        .open_request(
+            &OpenRequest::new(R_POPUP, PopupScope::Surface(L))
+                .at(egui::pos2(40.0, 40.0))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    let r = open_r(&mut mgr, true);
+    assert_eq!(state(&mgr, l).map(|s| s.0), Some(true));
+    primary(&mut mgr, r_box_at() + egui::vec2(10.0, 10.0), R);
+    assert_eq!(state(&mgr, l).map(|s| s.0), Some(true));
+    assert_eq!(state(&mgr, r).map(|s| s.0), Some(true));
+}
+
+/// Given R 팝업의 자식 드롭다운이 L로 나와 있고 L에 포커스된 팝업이 있을 때, When 드롭다운의 L 쪽 부분을 누르면,
+/// Then 누름은 R 팝업 노드의 경로로 처리돼 L 팝업은 포커스를 잃지 않는다.
+#[test]
+fn a_press_on_a_dropdown_outside_its_parent_scope_uses_the_parent_node_path() {
+    let mut mgr = manager(false, false);
+    let mut other = PopupState::new(
+        "press_test_l",
+        "l",
+        egui::vec2(100.0, 60.0),
+        PopupScope::Window,
+    )
+    .with_instances(PopupInstances::PerScopeTarget);
+    other.look = other.look.covering(false);
+    mgr.register(other);
+    let l = mgr
+        .open_request(
+            &OpenRequest::new("press_test_l", PopupScope::Surface(L))
+                .at(egui::pos2(20.0, 400.0))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    let r = open_r(&mut mgr, true);
+    let dropdown = egui::Rect::from_min_size(egui::pos2(300.0, 100.0), egui::vec2(200.0, 80.0));
+    let at = egui::pos2(320.0, 120.0);
+    let layout = layout();
+    let routed = RoutedPress {
+        pos: at,
+        path: path_at(&layout, at),
+        focus_before: path_at(&layout, r_outside()),
+        button: egui::PointerButton::Primary,
+    };
+    let ctx = egui::Context::default();
+    crate::adapters::ui::popup::report_child_overlay_rect(
+        &ctx,
+        R_POPUP,
+        "dropdown",
+        Some(dropdown),
+    );
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        events: vec![
+            egui::Event::PointerMoved(at),
+            egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ],
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        mgr.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], Some(&routed));
+    }));
+    assert_eq!(state(&mgr, l).map(|s| s.0), Some(true));
+    assert_eq!(state(&mgr, r).map(|s| s.0), Some(true));
+}

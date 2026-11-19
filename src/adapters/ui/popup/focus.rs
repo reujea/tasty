@@ -43,7 +43,7 @@ impl PopupManager {
         }
     }
 
-    /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 켤 때는 같은 선언의 다른 인스턴스 포커스를 푼다.
+    /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 켤 때는 다른 팝업의 포커스를 바꾸지 않는다.
     pub fn set_instance_focused(&mut self, iid: PopupInstanceId, focused: bool) {
         if focused {
             self.give_focus(iid, None);
@@ -53,24 +53,20 @@ impl PopupManager {
     }
 
     /// 열린 인스턴스 하나에 키보드 포커스를 준다. 포커스를 주는 모든 경로(열기·팝업 안 클릭·passive 승격)가
-    /// 이 함수를 거친다. 같은 선언의 다른 인스턴스는 숨은 범위에 있어도 포커스를 푼다. 숨은 형제가 포커스를
-    /// 가진 채 범위가 다시 보이면 두 인스턴스가 함께 키를 읽기 때문이다. `path`를 주면 그 경로 위에 놓인 보이는
-    /// 다른 팝업의 포커스도 푼다(팝업 안을 누른 것과 같은 전이). 경로 밖 범위의 팝업은 건드리지 않는다.
-    /// 포커스를 받지 않는 인스턴스에는 주지 않고 다른 팝업의 포커스도 바꾸지 않는다.
+    /// 이 함수를 거친다. `path`를 주면 그 경로 위에 놓인 보이는 다른 팝업의 포커스를 푼다(팝업 안을 누른 것과
+    /// 같은 전이). 경로 밖 범위의 팝업은 같은 선언의 인스턴스여도 건드리지 않는다. 키는 포커스를 가진 맨 위
+    /// 인스턴스 하나(키 주인)가 받는다. 포커스를 받지 않는 인스턴스에는 주지 않고 다른 팝업의 포커스도 바꾸지
+    /// 않는다.
     pub(super) fn give_focus(&mut self, iid: PopupInstanceId, path: Option<&ScopePath>) {
-        let Some(id) = self
-            .instance(iid)
-            .filter(|p| p.arrange.takes_focus)
-            .map(|p| p.id)
-        else {
+        if !self.instance(iid).is_some_and(|p| p.arrange.takes_focus) {
             return;
-        };
+        }
         for p in &mut self.popups {
             if p.open && p.instance == iid {
                 p.focused = true;
                 p.passive = false;
-            } else if p.id == id
-                || path.is_some_and(|path| p.scope_visible && path.contains(&p.placement_scope()))
+            } else if path
+                .is_some_and(|path| p.scope_visible && path.contains(&p.placement_scope()))
             {
                 p.focused = false;
             }
