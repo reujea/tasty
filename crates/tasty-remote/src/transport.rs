@@ -236,7 +236,9 @@ fn write_attach_frame(
 ///
 /// 먼저 이쪽 쓰기 쪽을 닫는다. 서버는 그 EOF로 연결을 정리하고 소켓을 닫으므로, reader는 수신
 /// 버퍼에 남은 프레임(서버가 닫기 전에 보낸 `force_detached` 통지 포함)을 다 읽은 뒤 EOF로 끝난다.
-/// 그래서 App이 끊김을 볼 때는 통지를 처리했는지가 이미 정해져 있다.
+/// reader가 상한 전에 끝나면 App이 끊김을 볼 때는 통지를 처리했는지가 이미 정해져 있다. 상한은
+/// 상대가 계속 보내는지를 보지 않으므로, 수신 처리나 reader 실행이 늦어 상한이 먼저 지나면 통지보다
+/// 끊김이 먼저 보일 수 있다.
 ///
 /// `cap`은 순서를 정하는 기한이 아니라 안전 상한이다. 서버가 응답하지 않으면 reader는 소켓 읽기
 /// 기한에서 끝나지만, 상대가 EOF를 처리하지 않은 채 Ping·데이터를 계속 보내는 반쯤 끊긴 연결에서는
@@ -517,7 +519,8 @@ impl Drop for ConnectionWorkers {
             if let Err(error) = control.shutdown(std::net::Shutdown::Both) {
                 tracing::debug!("retired remote socket already closed: {error}");
             }
-            // 끝난 worker부터 join해, 뒤에 남은 worker를 기다리는 동안에도 앞선 panic을 놓치지 않는다.
+            // 끝난 worker부터 join해 그 panic 로그를 먼저 남긴다. panic한 reader가 `failed`로 남는 것은
+            // 순서가 아니라 [`ReaderExit`] 덕이다. 끝 표지가 서야 송신 실패 writer가 끝나 모든 join이 돌아온다.
             let (done, rest): (Vec<_>, Vec<_>) = handles
                 .into_iter()
                 .partition(std::thread::JoinHandle::is_finished);
