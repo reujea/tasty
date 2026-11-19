@@ -490,6 +490,15 @@ impl MainView {
         // 메뉴를 닫는 클릭은 누름부터 뗌까지 egui와 Tasty 모두에 전달하지 않는다.
         // 두 경로가 같은 판단을 쓰도록 egui 전달 전에 한 번 판정한다.
         let menu_dismiss_swallow = self.begin_menu_dismiss_swallow(&event);
+        let os_resize_press = !menu_dismiss_swallow
+            && match &event {
+                WindowEvent::MouseInput {
+                    state: button_state,
+                    button,
+                    ..
+                } => self.begin_os_resize_press(*button_state, *button),
+                _ => false,
+            };
 
         let (egui_consumed, egui_repaint) = if is_redraw_event {
             // RedrawRequested를 egui에 넣으면 다시 그리기를 반복 요청하므로 제외한다.
@@ -509,7 +518,7 @@ impl MainView {
         } else if is_modifiers_event {
             let (_, repaint) = self.base.gpu.handle_egui_event(&self.base.winit, &event);
             (false, repaint)
-        } else if menu_dismiss_swallow {
+        } else if menu_dismiss_swallow || os_resize_press {
             (false, true)
         } else {
             self.base.gpu.handle_egui_event(&self.base.winit, &event)
@@ -605,6 +614,7 @@ impl MainView {
             WindowEvent::CursorLeft { .. } => {
                 self.handle_cursor_left();
             }
+            WindowEvent::MouseInput { .. } if os_resize_press => {}
             WindowEvent::MouseInput {
                 state: button_state,
                 button,

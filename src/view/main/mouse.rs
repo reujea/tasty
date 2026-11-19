@@ -380,11 +380,6 @@ impl MainView {
             self.state.press_snapshot = self.press_snapshot_now(engine, button);
         }
 
-        #[cfg(not(target_os = "macos"))]
-        if self.try_begin_os_resize(button, button_state) {
-            return;
-        }
-
         let overlay_open = self.mouse_overlay_open();
         // 분할선 hit 띠의 press 는 포커스를 바꾸지 않고 곧바로 드래그를 시작한다. 비활성 surface 쪽
         // 띠도 첫 press 부터 분할선을 잡아야 하므로 click-to-activate 보다 먼저 본다.
@@ -483,6 +478,23 @@ impl MainView {
             pos,
             button,
         ))
+    }
+
+    /// 창 테두리 누름이면 OS 리사이즈를 시작하고 `true`. 테두리는 팝업 범위 트리 밖이라 이 누름은 egui·팝업·
+    /// surface 어디에도 가지 않는다(누름 스냅샷도 남기지 않는다). 그래서 egui 전달 전에 판정한다.
+    #[cfg(not(target_os = "macos"))]
+    pub(super) fn begin_os_resize_press(
+        &mut self,
+        button_state: ElementState,
+        button: MouseButton,
+    ) -> bool {
+        self.try_begin_os_resize(button, button_state)
+    }
+
+    /// macOS 는 native 장식이 테두리를 처리한다.
+    #[cfg(target_os = "macos")]
+    pub(super) fn begin_os_resize_press(&mut self, _: ElementState, _: MouseButton) -> bool {
+        false
     }
 
     /// 창 가장자리에서 좌버튼을 누르면 OS 리사이즈를 시작한다. macOS는 제외한다.
@@ -1526,7 +1538,7 @@ fn left_click_local_select(
 /// 패널 전체 영역을 제외하면 타이틀바·상태바의 빈 가장자리도 사용할 수 없게 된다.
 /// 팝업은 양보 대상이 아니다. OS 창 테두리는 팝업 범위 트리 밖이라 창을 덮거나 펼친 팝업이 있어도 테두리
 /// 리사이즈가 된다. macOS는 native 장식을 사용하므로 호출하지 않는다.
-// 이유: macOS 는 네이티브 데코라 호출부 `try_begin_os_resize` 가 그 빌드에서 빠진다(위).
+// 이유: macOS 는 네이티브 데코라 호출부 `try_begin_os_resize` 가 그 빌드에서 빠진다(`begin_os_resize_press`).
 #[cfg_attr(target_os = "macos", allow(dead_code))]
 fn resize_should_yield_to_content(
     resize_edge_widget_hovered: bool,

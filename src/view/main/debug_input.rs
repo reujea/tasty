@@ -104,7 +104,9 @@ impl MainView {
                 };
                 // handle_event를 거치지 않아 메뉴 닫기 입력 판정을 직접 호출한다.
                 let swallow = self.take_menu_dismiss_swallow(state, button);
-                self.handle_mouse_input(engine, state, button, false, swallow);
+                if swallow || !self.begin_os_resize_press(state, button) {
+                    self.handle_mouse_input(engine, state, button, false, swallow);
+                }
                 self.debug_route_injected_menu();
             }
             InjectPointer::Scroll { dx, dy, unit } => {
