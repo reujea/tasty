@@ -366,6 +366,25 @@ redraw 콜백 안이지만 `render()` 밖인 구간은 `src/app/view_frame.rs`�
 - IPC 회차: 메인 스레드가 IPC 명령 처리에 쓴 시간은 `TASTY_LOG=tasty::ipc::perf=info`의 `ipc_rounds` 줄이다([IPC 서버](../architecture/ipc-server.md#dispatch-회차-예산)). 모집단은 명령을 처리한 최근 300회차다.
 - 프레임마다 TRACE `frame_sample`(`TASTY_LOG=tasty::gfx::perf=trace`)이 위 프레임 값을 필드로 낸다. 바뀐 양을 재지 않은 프레임은 `changes_tracked=false`다.
 
+### 두 집계 줄의 모집단
+
+perf 줄과 repaint 줄은 모집단이 다르므로 한 줄의 수치를 다른 줄의 수치로 나누지 않는다.
+
+- `perf` 줄(`tasty::gfx::perf`)은 perf가 켜진 동안 메인 창 일반 렌더가 present에 성공한 최근 300개 표본이고, 그런 표본 300개마다 한 번 나온다. 전체화면 무대 프레임, 보조 창(설정·종료·플러그인·프리셋), acquire에 실패한 시도는 표본에 들어가지 않으므로 `perf`의 `n`·출력 주기는 `repaint` 줄의 `present`나 `gpu_stats`의 `presents`와 다를 수 있다. 표본(메인 창 일반 렌더의 성공한 present)이 초당 10개 쌓이면 30초마다, 60개 쌓이면 5초마다 나오고 각 줄이 덮는 시간이 다르다. 전체화면 무대만 그리는 동안에는 표본이 늘지 않으므로 이 주기로 나오지 않는다. 유휴 창에서는 다음 줄이 오래 나오지 않는다.
+- `repaint` 줄(`tasty::view::repaint`)은 창마다 직전 줄 뒤 실제로 지난 구간의 요청·present·유발원별 프레임 수다. 요청이나 present가 들어올 때만 경과를 확인해 1초 이상 지났으면 줄을 내므로 구간이 1초보다 길 수 있고, 줄 머리의 `repaint <경과 초>s`가 그 길이다. 초당 프레임 수는 `present`를 그 경과 초로 나눈 값이다.
+- `perf_redraw` 줄은 최근 300번의 메인 창 redraw 콜백이고(렌더를 건너뛴 콜백 포함), `perf_lock` 줄은 직전 dump 뒤 프로세스 전체 누계이며, `ipc_rounds` 줄은 명령을 처리한 최근 300회차다.
+
+### 렌더 때문에 밀린 창 이벤트 추정 (loop 표본)
+
+새 IPC 없이 debug 빌드의 콜백 표본(`TASTY_DEBUG_LOOP_SAMPLES`, 형식은 [종료 순서](../architecture/shutdown-sequence.md)의 "Writer 종료 시간과 콜백 원시 표본" 절)으로 계산한다. 표본에는 이벤트가 OS에 도착한 시각이 없으므로 대기 시간의 상한만 구한다.
+
+1. 측정할 동안 `TASTY_DEBUG_LOOP_SAMPLES=<출력 파일>`로 격리 debug 인스턴스를 띄우고 정상 종료해 파일을 받는다. `dropped`가 0이 아니면 앞부분이 빠진 표본이라 함께 적는다.
+2. `samples`를 `start_ns` 순서로 정렬한다. site 3은 redraw, site 2는 window event 콜백이다.
+3. site 3 표본 R 바로 다음에 시작한 콜백이 site 2 표본 W이고 `0 <= W.start_ns - R.end_ns`이고 그 값이 작으면(예: 200µs 미만) W는 R이 끝나기를 기다렸을 수 있는 이벤트다. 이 쌍마다 `R.end_ns - R.start_ns`가 W가 렌더 때문에 기다린 시간의 상한이다. 하한은 0이다(이벤트가 R이 끝나기 직전에 왔을 수 있다). 값이 음수인 W는 R 안에서 시작한 중첩 콜백이므로 쌍에서 뺀다.
+4. 쌍의 수를 전체 site 2 표본 수와 함께 적고, 상한 분포의 p50/p99/max를 낸다. site 2는 입력 외의 창 이벤트도 포함하므로 입력만 따로 볼 수는 없다. 중첩 콜백은 구간이 겹치므로 합산하지 않는다.
+
+예(`jq`로 3단계까지): `jq '[.samples | sort_by(.start_ns) | . as $s | range(1; length) | select($s[.-1].site == 3 and $s[.].site == 2 and (($s[.].start_ns - $s[.-1].end_ns) | . >= 0 and . < 200000)) | ($s[.-1].end_ns - $s[.-1].start_ns) / 1e6]' <출력 파일>` 은 쌍마다 상한(ms) 목록을 낸다.
+
 ### 재현 시나리오 (`scripts/bench/`)
 
 | 스크립트 | surface | 부하 | 핵심 관찰 |
