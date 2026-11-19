@@ -507,7 +507,7 @@ host가 webview를 가릴 때 host 창이 활성이고 실제 focus가 해당 �
 
 overlay 판정(`has_egui_overlay_open`)은 [passive 팝업](popup.md#passive-팝업)을 세지 않는다.
 passive 팝업은 토스트 카드와 같이 겹치는 webview만 숨긴다.
-포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 webview를 숨기지 않고 그 사각형을 webview에서 구멍으로 뺀다([passive 팝업](popup.md#passive-팝업)).
+포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 webview를 숨기지 않고 그 사각형을 webview에서 구멍으로 뺀다([passive 팝업](popup.md#passive-팝업)). 이 규칙은 host 팝업에 한한다. plugin 팝업은 `keyboard: none`을 선언해도 아직 기존 WebView 오버레이 규칙을 따른다.
 
 탐색이 끝나지 않아 활성 탭의 webview를 숨기는 경우, 토스트 카드나 passive 팝업(포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다, [passive 팝업](popup.md#passive-팝업))과 겹쳐 그 webview만 숨기는 경우([토스트](toast.md#native-webview-위의-토스트), 키를 받는 webview는 숨기지 않는다), surface를 닫는 경우는 회수하지 않는다.
 다시 보이거나 overlay가 닫혀도 native 자식 focus를 자동 복원하지 않는다.
@@ -678,7 +678,7 @@ macOS·Windows는 투명 모드를 보고하지 않고 주 표면의 불투명 �
 |---|---|
 | 위 세 종류와 plugin mesh 팝업 콘텐츠 | 적용 |
 | 전체화면 무대, 튜토리얼 | 적용하지 않고 숨김 |
-| 토스트 카드, passive 팝업 | 범위 밖이다. 겹친 WebView만 숨기는 규칙을 그대로 쓴다. 이 둘은 포커스를 받지 않는 층이라 페이지 입력을 가로채지 않는다. 포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 WebView를 숨기지 않고 그 사각형을 WebView에서 구멍으로 뺀다([passive 팝업](popup.md#passive-팝업)) |
+| 토스트 카드, passive 팝업 | 범위 밖이다. 겹친 WebView만 숨기는 규칙을 그대로 쓴다. 이 둘은 포커스를 받지 않는 층이라 페이지 입력을 가로채지 않는다. 포커스를 받지 않는다고 선언한 팝업(`keyboard: None`)은 제외한다. 이 팝업은 WebView를 숨기지 않고 그 사각형을 WebView에서 구멍으로 뺀다([passive 팝업](popup.md#passive-팝업)). 이 제외는 host 팝업에 한한다. plugin 팝업은 `keyboard: none`을 선언해도 아직 기존 WebView 오버레이 규칙을 따른다 |
 
 ### 불투명 모드 표현
 
