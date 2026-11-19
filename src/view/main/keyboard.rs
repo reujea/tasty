@@ -215,12 +215,21 @@ impl MainView {
             if self.state.settings_open_requested {
                 // 아직 처리하지 않은 설정 창 열기 요청을 취소한다.
                 self.state.settings_open_requested = false;
+                self.drop_escape_from_egui();
                 self.mark_dirty();
                 return true;
             }
             // 키 주인(host·plugin)이 창 위로 펼친 팝업이면 다시 접는다. 닫지 않고 포커스와 상태를 그대로 둔다.
-            // 아래 알림 목록이나 host 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다.
+            // 아래 알림 목록이나 host 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다. plugin 키 주인은 그 렌더가
+            // 이 Esc 로 접으므로 egui 입력에 남긴다.
+            let host_owns_keys = matches!(
+                self.state.popup_key_owner(),
+                Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Host)
+            );
             if self.state.refold_key_owner() {
+                if host_owns_keys {
+                    self.drop_escape_from_egui();
+                }
                 self.mark_dirty();
                 return true;
             }
@@ -231,6 +240,7 @@ impl MainView {
                     }
                     .from_user_shortcut("escape_close_notifications"),
                 );
+                self.drop_escape_from_egui();
                 self.mark_dirty();
                 return true;
             }
@@ -255,11 +265,26 @@ impl MainView {
                         .from_user_shortcut("escape_dismiss_focused_popup"),
                     );
                 }
+                self.drop_escape_from_egui();
                 self.mark_dirty();
                 return true;
             }
         }
         false
+    }
+
+    /// 창이 처리한 Esc 를 이번 egui 입력에서 뺀다. 키는 처리한 노드에서 멈추므로, 창이 키 주인을 닫거나 포커스를
+    /// 푼 뒤 그 프레임에 새로 키 주인이 된 다른 팝업 본문이 같은 Esc 를 다시 읽지 않는다.
+    fn drop_escape_from_egui(&mut self) {
+        self.base.gpu.egui_input_events_mut().retain(|e| {
+            !matches!(
+                e,
+                egui::Event::Key {
+                    key: egui::Key::Escape,
+                    ..
+                }
+            )
+        });
     }
 
     /// 오버레이가 없을 때 단축키를 처리하고 IME 조합 문자를 정리한다.
