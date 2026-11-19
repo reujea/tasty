@@ -278,10 +278,10 @@ egui 지연 repaint 는 repaint 콜백(`src/gfx/gpu.rs`)이 창마다 하나의 
 - 무제한(`-1`)은 출력·입력 모두 모니터 간격이다. 주 surface 는 Mailbox present 를 우선 고르므로 present 가 주사율에서 멈춘다고 기대할 수 없어 게이트가 간격을 지킨다.
 - 마지막 present 로부터 간격이 이미 지났으면 바로 그린다. 그래서 쉬던 창의 첫 입력은 기다리지 않는다.
 - 미룬 요청 중에 입력 기인 요청(`Interactive`·`InputEcho`)이 있으면 그 프레임 전체가 입력 상한 시각에 그려진다. 출력이 먼저 미뤄져 있었어도 입력 상한 시각으로 옮긴다. 출력 요청이 이미 승인돼 `request_redraw` 를 발행한 뒤 그 redraw 를 처리하기 전에 입력이 합류해 미뤄졌다면, `RedrawRequested` 처리(`ViewBase::ready_to_draw` → `RepaintGate::holds_mixed_frame`)가 그리지 않고 dirty 와 미룬 예약을 그대로 둔다. 그 프레임은 입력 상한 시각의 WaitUntil 깨움이 그린다. surface 재시도 상태(실패 뒤 present 성공·취소 전, 예약 시각이 지난 뒤 포함)에서는 이 판정과 상한을 적용하지 않고 재시도 계약을 따른다.
-- 설정은 창 View 가 들고 있지 않으므로 부팅(`src/app/boot_machine.rs`)과 설정 적용(`apply_settings_after_structure`)이 `install_redraw_caps` 로 프로세스 공유값을 갱신하고, 게이트가 요청마다 읽는다. 그래서 실행 중 설정 적용 경로(`SettingsUpdated` → `apply_settings_after_structure`)로 값이 바뀌면 열린 창 전부가 다음 요청부터 새 값을 쓴다.
-- 두 설정은 아직 설정 창에 없고 설정 파일(`~/.tasty/config.toml` 의 `[performance]`)로만 바꿀 수 있다. 실행 중인 Tasty 는 이 파일을 다시 읽지 않으므로 파일을 고친 뒤 재시작해야 적용된다.
+- 설정은 창 View 가 들고 있지 않으므로 부팅(`src/app/boot_machine.rs`)과 설정 적용(`apply_settings_after_structure`)이 `install_redraw_caps` 로 프로세스 공유값을 갱신하고, 게이트가 요청마다 읽는다. 그래서 실행 중 설정 적용 경로로 값이 바뀌면 열린 창 전부가 다음 요청부터 새 값을 쓴다. agent·debug 설정 적용은 `SettingsUpdated` → `cascade_settings_updated`로, 설정 창 Save 는 모달을 닫을 때(`src/app/modal.rs`) `cascade_settings_updated`를 직접 불러 들어오고, 둘 다 `apply_settings_after_structure`에 합류한다.
+- 두 설정은 설정 창 Terminal › Frame rate 에서 바꾸며 Save 하면 바로 적용된다. 설정 파일(`~/.tasty/config.toml` 의 `[performance]`)을 직접 고치면 실행 중인 Tasty 는 이 파일을 다시 읽지 않으므로 재시작해야 적용된다.
 
-모니터 간격은 **모니터가 보고하는 주사율**(`MonitorHandle::refresh_rate_millihertz()`)에서 구한다. 5 초 TTL 로 재조회하므로 창을 다른 모니터로 옮기면 따라간다. 보고값이 없으면 60Hz 폴백, 상식 범위를 벗어나면 24~480Hz 로 clamp 한다. 모니터 간격에 고정 상수를 쓰지 않는 이유는 그 상수가 고주사율 환경에서 **오히려 상한**이 되기 때문이다. 설정 화면에 보일 선택지는 연결된 모니터 중 가장 높은 주사율(반올림 Hz, 보고 없으면 60) 이하의 값과 무제한이다(`tasty_settings::redraw_fps_choices`).
+모니터 간격은 **모니터가 보고하는 주사율**(`MonitorHandle::refresh_rate_millihertz()`)에서 구한다. 5 초 TTL 로 재조회하므로 창을 다른 모니터로 옮기면 따라간다. 보고값이 없으면 60Hz 폴백, 상식 범위를 벗어나면 24~480Hz 로 clamp 한다. 모니터 간격에 고정 상수를 쓰지 않는 이유는 그 상수가 고주사율 환경에서 **오히려 상한**이 되기 때문이다. 설정 화면에 보일 선택지는 연결된 모니터 중 가장 높은 주사율(반올림 Hz, 보고 없으면 60) 이하의 값과 무제한이다(`tasty_settings::redraw_fps_choices`). Frame rate 섹션(`src/view/settings/ui/tabs/frame_rate.rs`)은 그 섹션을 그리는 프레임마다 설정 창의 `Window::available_monitors()`로 이 목록을 다시 만든다. 저장 값이 가장 빠른 모니터보다 높으면 값을 바꾸지 않고 무제한 앞 숫자 순서 자리에 "above monitor" 라벨로 끼워 선택해 둔다(`tasty_settings::redraw_fps_options`, 표기까지 만드는 쪽은 `redraw_fps_rows`). 섹션 본문은 갤러리 견본과 같은 `tasty_ui_widgets::frame_rate_section`이 그린다.
 
 상한 상태는 `ViewBase` 필드라 **창마다 독립**이다.
 

@@ -360,6 +360,7 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 | `ui_kits/terminal/overlays/html_script_banner.jsx` `HtmlScriptBanner`·`HtmlScriptMarker` | `tasty_ui_widgets::html_script_banner`·`html_script_marker` (`crates/tasty-ui-widgets/src/html_script_banner.rs`) | `src/adapters/ui/surface/html_script_banner.rs::draw`(webview chrome 위 inset, WebView 영역 축소) · `src/adapters/ui/tab_bar/tab.rs`(탭 오른쪽 묶음의 표지 칸·lock 클릭) | `html-script-*` (Overlays, `widgets/html_script_banner.rs`) |
 | `gallery/overlays-banners/index.jsx` `RefusalRowG`·`RefusalRailG` (저장 행 거절 표지) | `tasty_ui_widgets::attach_refusal_mark`·`paint_attach_refusal_chip`·`attach_refusal_avatar_tooltip` (`crates/tasty-ui-widgets/src/attach_refusal.rs`) | `src/adapters/ui/sidebar/view.rs::draw_workspace_card`(행 표지, 배지 묶음 왼쪽) · `draw_collapsed_avatar`(레일 왼쪽 위 칩). 툴팁 문장은 `src/adapters/ui/sidebar/remote_row.rs`가 만든다 | `attachrefusal` (Overlays, `widgets/attach_refusal.rs`) |
 | `gallery/overlays-banners/index.jsx` `AttachSizeSyncBannerG` (attach mirror 터미널 크기 동기화 실패) | `tasty_ui_widgets::attach_size_sync_banner`·`attach_size_sync_banner_content` (`crates/tasty-ui-widgets/src/attach_size_sync.rs`). 본문은 두 줄이다. 이름 줄은 한 줄로 두고 이름 칸만 `attach_sync_name_max_width`(160)에서 하한 `attach_sync_name_min_width`(40)까지 본래 폭 비율로 줄인 뒤 말줄임하며, 수·구분자·` ×k`·`+n` 은 줄지 않고 넘치는 끝은 잘라 그린다. 하한은 줄어들 때만 적용한다. 칸 = min(본래 폭, max(40, 줄인 폭))이라 40보다 짧은 이름은 제 폭을 지키고 뒤 조각이 바로 붙는다. 같은 이름은 한 항목으로 묶어 이름 뒤에 ` ×k`(`banner_body_fg`)를 붙인다. `N surfaces` 는 surface 수, `+n` 은 남은 항목 수다. 제목과 고정 문구는 줄 수를 제한하지 않는다. 고정 문구 줄(`remote.size_sync.hint`)은 감싸고 자르지 않는다. 다시 시도 중의 앞 Spinner 는 `Button::leading_icon_size` 로 14 칸에 `Spinner::paint_in` 을 그린다. 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachSizeSync`, Workspace 범위) · `src/adapters/ui/attach_size_sync.rs`(창별 실패 상태·탭 이름) · `src/adapters/ui/overlay.rs`(버튼 → `Intent::AttachSizeSync`) | `attachsizesync` (Overlays, `widgets/attach_size_sync.rs`). 시안의 두 Spec 을 그대로 둔다: 기본·다시 시도 중·세 surface·같은 이름 두 번·같은 이름과 다른 이름 묶음, 그리고 Narrow Spec(360 스코프에 거절 · 한 surface · Retry all · 다시 시도 중을 Mocha·Latte 로). 시안 Meta "body lines"·"plugin body rows"·"plugin tooltip" 의 plugin 쪽은 Stage 가 없어 같은 카드 끝 Banner body lines 에 `plugin_banner_body` 360 표본 둘(세 줄 · 두 줄 높이로 고정한 콘텐츠)로 둔다. 표본은 본체 호스트와 같이 `plugin_banner_body_host_tooltip` 안에서 그리고 `show_plugin_banner_body_tooltip` 으로 카드 아래 툴팁을 그린다 |
+| `gallery/overlays-windows/settings-frame-rate.jsx` `FrPage` (Settings › Terminal › Frame rate 본문) | `tasty_ui_widgets::frame_rate_section` (`crates/tasty-ui-widgets/src/settings_frame_rate.rs`, `FrameRateCopy`·`FpsField`) | `src/view/settings/ui/tabs/frame_rate.rs::draw_frame_rate_tab`(번역 문구, 모니터 조회, draft 읽기·쓰기) | `terminal-frame-rate-*` (`components/settings_frame_rate.rs::page_frame`) — [Frame rate 매핑](#settings--terminal--frame-rate) |
 | `gallery/overlays-banners/index.jsx` `BodyInkGrid` (`#bodyink`, 배너 본문 글자색 Mocha·Latte 대조) | 새 위젯 없음. 배너 본문은 `banner_body_fg()`, 크기 동기화 줄의 이름은 `text_secondary_raised()`를 읽는다 | 없음 | 별도 카드를 만들지 않는다. 같은 글자색은 각 배너 카드의 Mocha·Latte 표본과 `TASTY_GALLERY_THEME=latte` 캡처로 확인한다 |
 
 crate 쪽 view 가 **소유하지 않는 것**(=본체 wrapper 잔류): `egui::Area` 와 `LayerId`
@@ -1188,6 +1189,20 @@ Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 
 - 정수 칸은 `i128` 로 읽고 쓴다. `f64` 를 거치면 2^53 을 넘는 값(예: 9223372036854775807)이 다른 수로 보이기 때문이다. 읽은 값은 범위 밖이어도 보정하지 않고 그대로 보이며, 사용자가 확정할 때만 범위로 맞춘다.
 - 편집 중 폭은 그 프레임이 시작할 때의 글자 수로 정한다. 커서 한 칸 여유가 있어 한 글자를 친 프레임도 값 전체가 칸에 들어가고, 다음 프레임에 칸이 자란다. 칸이 남은 폭 상한에 닿을 때만 egui 기본 한 줄 스크롤이 생긴다.
 - 시안의 "before"(110 + 칸 안 단위) 견본은 갤러리에 옮기지 않았다. 지난 모양이며 본체에 없다.
+
+## Settings › Terminal › Frame rate
+
+출력·입력 다시 그리기 상한 두 행과 캡션이다. 디자인 시안은 `gallery/overlays-windows/settings-frame-rate.jsx`(`#framerate`)와 `ui_kits/terminal/overlays/settings_window.jsx` 의 Frame rate 본문이다. 갤러리 spec id 는 시안 Spec id 와 같고(`terminal-frame-rate-two-redraw-caps`, `terminal-frame-rate-choice-list-by-monitor`, `terminal-frame-rate-saved-above-monitor`, `terminal-frame-rate-languages-and-narrow`) `settings-performance-number` 뒤에 온다.
+
+| 구성 | 본체 함수 | 갤러리 항목 |
+|---|---|---|
+| 섹션 본문: 두 행(출력 · 입력, `SettingsRow::hint`, Select `field-width-lg`)과 그 아래 캡션(caption `text-muted`, `measure-md`) | `src/view/settings/ui/tabs/frame_rate.rs::draw_frame_rate_tab` — 번역 문구·모니터 조회·draft 값만 넘기고 `tasty_ui_widgets::frame_rate_section` 을 부른다 | `components/settings_frame_rate.rs::page_frame` — 같은 `frame_rate_section`·같은 번역 키. 견본 틀(`bg-panel`, `border-frame`)은 갤러리 것 |
+| 선택지와 표기(가장 빠른 모니터 이하 + Match monitor, 범위 밖 저장 값은 Match monitor 앞 숫자 순서 자리에 `settings.frame_rate.fps_above_monitor`) | `tasty_settings::redraw_fps_rows`(`redraw_fps_options` + `RedrawFpsLabel::text`) | 같은 함수 |
+| 열린 목록(팝오버 틀, 최소 트리거 폭, 가장 긴 행에 맞춰 넓어짐) | `tasty_ui_widgets::select` 팝업 → `select_list` | `open_list` — `select_list` + `select_list_width`, 틀은 popup 과 같은 `menu-bg` · `menu-border` · `menu-radius` · `shadow-popover` · `popup-content-margin` |
+| 열린 HelpHint(8개 언어·행 조합) | `SettingsRow::hint` 의 `HelpHint` | `hint_open` — `HelpHint::open(true)`, 틀 폭 size-480, 라벨은 `tooltip-max-width` 의 반만큼 안쪽 |
+
+- 적용 안내는 두지 않는다. 설정 창 저장은 열린 창 전부에 바로 적용된다.
+- 견본 페이지는 가장 빠른 모니터를 60Hz 로 가정한다. 열린 목록 견본은 60Hz(보고 없음과 같음) · 144Hz · 240Hz · 50Hz 다.
 
 ## 파일 피커 (Overlays)
 
