@@ -261,6 +261,21 @@ fn a_collapsed_popup_skips_its_scrim_over_an_opaque_page_like_a_drawn_one() {
     assert_eq!(result.overlay_targets[0].scrim, None);
 }
 
+/// Given 아이콘 프레임보다 좁은 R에 접힌 팝업, When 그리면, Then 포인터 판정에 넘기는 상자는 R로 자른 버튼
+/// 프레임이다. 그리지 않는 R 밖 부분은 L의 포인터를 막지 않는다.
+#[test]
+fn the_pointer_box_of_a_collapsed_popup_is_clipped_to_its_scope() {
+    let mut mgr = manager(false, false);
+    open_in_r(&mut mgr);
+    let ctx = egui::Context::default();
+    let r = layout(20.0).surface_rects[1].1;
+    let (_, result) = frame(&mut mgr, &ctx, 20.0, vec![]);
+    assert_eq!(result.hit_rects.len(), 1);
+    let hit = result.hit_rects[0].rect;
+    assert!(r.contains_rect(hit), "{hit:?} in {r:?}");
+    assert!(hit.width() < 38.0);
+}
+
 /// Given 자기 제목줄이 없는 팝업, When 펼치면, Then 접기 버튼만 담은 host 제목줄을 받아 그만큼 커진다.
 #[test]
 fn a_headless_popup_gets_a_host_bar_when_expanded() {

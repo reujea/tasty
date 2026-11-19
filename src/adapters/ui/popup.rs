@@ -228,7 +228,9 @@ pub struct ResizeEdges {
 pub struct PopupDrawResult {
     /// Popup IDs that were closed this frame.
     pub closed: Vec<PopupId>,
-    /// Whether the mouse is currently over any open popup.
+    /// 포인터가 그린 팝업 노드(상자, 덮는 범위) 위인지. 창의 포인터 판정은 이 값이 아니라 배치한 사각형을 쓴다
+    /// (`MainViewState::popup_pointer_target`). 시험이 이 프레임의 판정을 확인할 때 읽는다.
+    #[cfg(test)]
     pub hovered: bool,
     /// 그린 팝업 가운데 포커스를 받는 팝업의 레이어. egui_bridge가 plugin 팝업과의 순서를 정할 때 쓴다.
     /// 포커스를 받지 않는 팝업은 관리자가 이 레이어들 아래에 둔다.
@@ -484,6 +486,18 @@ pub fn child_overlay_open(
         let map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
         map.get(overlay_key)
             .is_some_and(|(pid, _)| *pid == popup_id)
+    })
+}
+
+/// `popup_id` 소유의 열린 자식 오버레이 사각형.
+fn child_overlay_rects(ctx: &egui::Context, popup_id: PopupId) -> Vec<egui::Rect> {
+    let id = child_overlay_registry_id();
+    ctx.memory(|m| {
+        let map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
+        map.values()
+            .filter(|(pid, _)| *pid == popup_id)
+            .map(|(_, rect)| *rect)
+            .collect()
     })
 }
 

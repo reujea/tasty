@@ -81,10 +81,49 @@ impl PopupManager {
             .collect()
     }
 
+    /// 포인터를 받는 상자와 그 자식 드롭다운의 사각형과 순번. 그린 뒤 위치로 모은다. 접힌 버튼 프레임은 배치
+    /// 범위로 자른 부분, 드롭다운은 부모 범위 밖으로 나온 부분까지다. 그리지 않는 접힌 자식은 없다.
+    pub(super) fn pointer_boxes(
+        &self,
+        ctx: &egui::Context,
+        open_indices: &[usize],
+        draw_ctx: Option<&LayoutContext>,
+        screen_rect: egui::Rect,
+    ) -> Vec<Occluder> {
+        let mut boxes = Vec::new();
+        for &i in open_indices {
+            let p = &self.popups[i];
+            let Some(mut rect) = p.box_rect() else {
+                continue;
+            };
+            if p.collapsed() {
+                let clip = Self::scope_rect(&p.placement_scope(), draw_ctx).unwrap_or(screen_rect);
+                rect = rect.intersect(clip);
+            }
+            if rect.is_positive() {
+                boxes.push(Occluder {
+                    rect,
+                    z_seq: p.z_seq,
+                });
+            }
+            boxes.extend(
+                super::child_overlay_rects(ctx, p.id)
+                    .into_iter()
+                    .map(|rect| Occluder {
+                        rect,
+                        z_seq: p.z_seq,
+                    }),
+            );
+        }
+        boxes
+    }
+
     /// 어느 팝업 상자에도 들지 않은 누름을 [`outside_press`]대로 나눈다. 닫을 인스턴스는 `closed`에 넣고,
     /// 포커스를 받을 덮는 팝업이 있으면 돌려준다. 포커스를 푸는 판정은 `sticky_focus`가 아닐 때만 따른다.
+    /// 가림은 host 상자·드롭다운·덮는 범위와 `others`(plugin 상자·덮는 범위)를 합친 z 순서로 본다.
     pub(super) fn route_outside_press(
         &mut self,
+        ctx: &egui::Context,
         press: &RoutedPress,
         open_indices: &[usize],
         draw_ctx: Option<&LayoutContext>,
@@ -99,6 +138,7 @@ impl PopupManager {
             .filter_map(|p| p.parent)
             .collect();
         let mut occluders = self.cover_occluders(open_indices, draw_ctx, screen_rect);
+        occluders.extend(self.pointer_boxes(ctx, open_indices, draw_ctx, screen_rect));
         occluders.extend_from_slice(others);
         let mut focus_to: Option<(PopupInstanceId, u64)> = None;
         for &i in open_indices {

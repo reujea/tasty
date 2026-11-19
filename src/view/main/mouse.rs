@@ -444,10 +444,23 @@ impl MainView {
     }
 
     /// 포인터 대상이 팝업 노드인지. 이 창의 포인터 처리(누름·뗌·휠·이동·hover·링크·커서)가 모두 이 판정 하나를
-    /// 앞에 둔다. 참이면 아래 surface·분할선·배너로 내려가지 않는다. 이번 egui 프레임의 판정(드롭다운 포함)과
-    /// 직전 프레임에 그린 사각형 판정을 함께 본다. winit 입력은 그 좌표로 egui 프레임을 돌리기 전에 오기 때문이다.
+    /// 앞에 둔다. 참이면 아래 surface·분할선·배너로 내려가지 않는다. 직전 프레임에 배치를 마친 팝업 노드(상자,
+    /// 자식 드롭다운, 범위로 자른 접힌 버튼, 덮는 범위)를 host·plugin 합친 z 순서로 본다
+    /// (`MainViewState::popup_pointer_target`). winit 입력은 그 좌표로 egui 프레임을 돌리기 전에 오기 때문이다.
     pub(super) fn pointer_on_popup(&self) -> bool {
-        self.state.popup_hovered || self.pointer_on_popup_node()
+        self.pointer_logical()
+            .is_some_and(|pos| self.state.popup_owns_point(pos))
+    }
+
+    /// 지금 포인터의 논리 좌표.
+    fn pointer_logical(&self) -> Option<egui::Pos2> {
+        let ppp = self.base.gpu.egui_pixels_per_point();
+        self.cursor_position.map(|pos| {
+            egui::pos2(
+                PhysicalPx(pos.x as f32).to_logical(ppp).value(),
+                PhysicalPx(pos.y as f32).to_logical(ppp).value(),
+            )
+        })
     }
 
     /// 지금 포인터 좌표와 상태로 찍은 누름 스냅샷. egui 가 받지 않는 버튼이나 좌표를 모르면 `None`이다.
@@ -462,29 +475,13 @@ impl MainView {
             MouseButton::Middle => egui::PointerButton::Middle,
             _ => return None,
         };
-        let ppp = self.base.gpu.egui_pixels_per_point();
-        let pos = self.cursor_position?;
-        let pos = egui::pos2(
-            PhysicalPx(pos.x as f32).to_logical(ppp).value(),
-            PhysicalPx(pos.y as f32).to_logical(ppp).value(),
-        );
+        let pos = self.pointer_logical()?;
         Some(crate::adapters::ui::popup::route::PressSnapshot::take(
             &self.state,
             engine,
             pos,
             button,
         ))
-    }
-
-    /// 현재 포인터의 대상이 직전 프레임에 그린 팝업 노드(상자, 덮는 범위)인지.
-    pub(super) fn pointer_on_popup_node(&self) -> bool {
-        let ppp = self.base.gpu.egui_pixels_per_point();
-        self.cursor_position.is_some_and(|pos| {
-            self.state.popup_owns_point(egui::pos2(
-                PhysicalPx(pos.x as f32).to_logical(ppp).value(),
-                PhysicalPx(pos.y as f32).to_logical(ppp).value(),
-            ))
-        })
     }
 
     /// 창 가장자리에서 좌버튼을 누르면 OS 리사이즈를 시작한다. macOS는 제외한다.

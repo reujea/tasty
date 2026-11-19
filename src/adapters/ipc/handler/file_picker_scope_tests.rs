@@ -274,7 +274,6 @@ fn assert_hidden_gates(state: &mut RequestContext, user_focused: bool) {
         !state.has_egui_overlay_open(),
         "hidden child must not hide native WebViews"
     );
-    assert!(!state.popup_hovered);
     assert!(state.host_popup_hittest.is_empty());
     assert!(state.popup_layers.is_empty());
     assert!(state.popup_escape_owner.is_none());

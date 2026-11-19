@@ -704,9 +704,9 @@ impl GpuState {
         let mut icon = None;
         if state.pending_resize_cursor.is_none()
             && !self.egui_ctx.is_pointer_over_area()
-            && !state.popup_hovered
             && !state.banner_hovered
             && let Some(pos) = self.egui_ctx.input(|i| i.pointer.hover_pos())
+            && !state.popup_owns_point(pos)
         {
             // egui 가 준 hover 좌표는 논리, `winit_cursor_icon_at` 은 물리를 받는다.
             let px = LogicalPx(pos.x).to_physical(self.scale_factor).value();

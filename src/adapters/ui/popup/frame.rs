@@ -279,7 +279,6 @@ pub(crate) fn draw_popup_layer(
         press.as_ref(),
     );
 
-    state.popup_hovered = draw_result.hovered;
     state.host_popup_covers = draw_result.covers;
     // egui_bridge가 최종 레이어 순서를 정할 때 사용한다.
     state.popup_layers = draw_result.layers;

@@ -221,18 +221,6 @@ impl PopupManager {
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
-        // 이번 프레임의 영역을 뒤에 그릴 plugin 팝업에 전달한다.
-        // 호출 순서는 egui_bridge::run_egui_frame과 source_guards::frame_draw_order에서 확인한다.
-        let hit_rects: Vec<Occluder> = open_indices
-            .iter()
-            .filter_map(|&i| {
-                self.popups[i].box_rect().map(|rect| Occluder {
-                    rect,
-                    z_seq: self.popups[i].z_seq,
-                })
-            })
-            .collect();
-
         // 입력 우선순위: 닫기·전체화면 버튼 > 리사이즈 테두리 > 이동 손잡이 > 콘텐츠.
         let mut hovered_popup: Option<PopupInstanceId> = None;
         let mut hovered_handle: Option<PopupInstanceId> = None;
@@ -322,6 +310,7 @@ impl PopupManager {
                 bring_front = Some(iid);
                 self.give_focus(iid, Some(&press.path));
             } else if let Some(iid) = self.route_outside_press(
+                ctx,
                 press,
                 &open_indices,
                 draw_ctx,
@@ -830,6 +819,9 @@ impl PopupManager {
             .filter(|&i| !closed.iter().any(|(c, _)| *c == self.popups[i].instance))
             .collect();
         let covers = self.cover_occluders(&still_open, draw_ctx, screen_rect);
+        // 이번 프레임에 배치·clamp를 마친 상자를 뒤에 그릴 plugin 팝업과 창의 포인터 판정에 전달한다.
+        // 호출 순서는 egui_bridge::run_egui_frame과 source_guards::frame_draw_order에서 확인한다.
+        let hit_rects = self.pointer_boxes(ctx, &still_open, draw_ctx, screen_rect);
         restack_layers(ctx, &layers);
         // egui는 누른 영역을 맨 위로 올린다. 포커스를 받지 않는 팝업을 눌렀으면 모든 팝업 레이어를 함께
         // 올려 지금 순서(그 팝업이 아래)를 지킨다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
@@ -861,6 +853,7 @@ impl PopupManager {
         PopupDrawResult {
             closed: closed_ids,
             covers,
+            #[cfg(test)]
             hovered: hovered_popup.is_some(),
             layers: focus_layers,
             fullscreen_requested,

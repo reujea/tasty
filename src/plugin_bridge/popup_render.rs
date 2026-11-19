@@ -163,8 +163,6 @@ pub fn draw_plugin_popups(
     // host/plugin 전체에서 최상단 팝업만 키·Escape를 받는다. 창의 키 처리도 같은 판정을 쓴다.
     let key_target = state.plugin_popup_key_target_in_render();
 
-    let mut any_hovered = false;
-
     let (scrim_rects, scrim_paints) = scrim_plan(&placed, layout, screen_rect);
     // 덮는 팝업의 덮는 사각형(배치 범위)도 가림으로 본다.
     let covers: Vec<Occluder> = placed
@@ -192,18 +190,6 @@ pub fn draw_plugin_popups(
         let rect = *rect;
         let scope_rect = scrim_rects[idx];
         let ownership = pointer_pos.map(|p| point_ownership(rect, snap.z_seq, &occluders, p));
-
-        // 상자 안이거나 덮는 범위 안(scrim)이면 포인터는 이 팝업 것이다.
-        let in_cover = snap.covers()
-            && pointer_pos.is_some_and(|p| {
-                scope_rect.contains(p)
-                    && !occluders
-                        .iter()
-                        .any(|o| o.z_seq > snap.z_seq && o.rect.contains(p))
-            });
-        if ownership == Some(PointOwnership::Mine) || in_cover {
-            any_hovered = true;
-        }
 
         let layer_id = egui::LayerId::new(
             Order::Foreground,
@@ -466,9 +452,6 @@ pub fn draw_plugin_popups(
         }
     }
 
-    if any_hovered {
-        state.popup_hovered = true;
-    }
     // egui는 누른 영역(덮는 범위를 막는 레이어)을 맨 위로 올린다. 모든 레이어를 함께 올려 막는 레이어가 팝업
     // 아래에 남게 한다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
     if press.is_some() {

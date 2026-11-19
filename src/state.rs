@@ -224,8 +224,6 @@ impl RequestContext {
             last_focused_tab: None,
             #[cfg(feature = "gui")]
             #[cfg(feature = "gui")]
-            popup_hovered: false,
-            #[cfg(feature = "gui")]
             plugin_popup_open: false,
             #[cfg(feature = "gui")]
             banner_hovered: false,
