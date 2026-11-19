@@ -141,6 +141,20 @@ impl App {
         self.remote.user_disconnected.extend(rows);
     }
 
+    /// 사용자가 끊은 행인지. 실행 중 표지와 함께 저장된 강제 끊김 표지도 직접 본다. 저장된 표지를
+    /// 실행 중 표지로 옮기는 `hold_force_detached_rows`는 `poll_auto_attach`에서 돌아, 재시작 뒤 첫
+    /// 회차의 IPC(`process_ipc`)는 그보다 먼저 처리된다. 연결을 정하는 곳은 이 함수로 판정해 순서와
+    /// 상관없이 같은 답을 낸다.
+    pub(crate) fn row_user_disconnected(&self, row: u32) -> bool {
+        self.remote.user_disconnected.contains(&row)
+            || self.saved_row_binding(row).is_some_and(|binding| {
+                self.services
+                    .registries
+                    .remote_force_detached
+                    .read(|marks| marks.contains(&binding))
+            })
+    }
+
     /// 서버가 강제로 끊은 행의 연결 대상을 저장해 재시작 뒤에도 자동으로 붙지 않게 한다.
     pub(crate) fn mark_force_detached_row(&mut self, row: u32) {
         if let Some(binding) = self.saved_row_binding(row) {
@@ -151,7 +165,7 @@ impl App {
         }
     }
 
-    /// 명시적 연결이나 연결 성공 뒤 강제로 끊긴 표지를 지운다. 이후 끊김은 평소 자동 재연결 규칙을 따른다.
+    /// 명시적 연결(원격 팝업이 행을 넘겨받는 연결 포함)이 강제로 끊긴 표지를 지운다. 이후 끊김은 평소 자동 재연결 규칙을 따른다.
     pub(crate) fn forget_force_detached_row(&mut self, row: u32) {
         let Some(binding) = self.saved_row_binding(row) else {
             return;
@@ -204,7 +218,7 @@ impl App {
         let edge_now = is_reactivation_edge(current_ws_id, prev_active);
         // 사용자가 끊은 행은 다시 열어도 붙지 않는다. 연결 버튼·메뉴 같은 명시적
         // 연결이 표지를 지운다.
-        if self.remote.user_disconnected.contains(&row) {
+        if self.row_user_disconnected(row) {
             return;
         }
         match self.row_session_phase(row) {

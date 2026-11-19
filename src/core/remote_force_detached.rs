@@ -1,6 +1,6 @@
 //! 서버가 강제로 끊은 저장된 원격 행의 연결 대상을 remote-force-detached.toml에 남긴다.
 //! 이 목록에 있는 행은 클라이언트를 다시 시작해도 자동으로 붙지 않는다. 명시적 연결(연결 버튼·메뉴·
-//! `tasty remote connect`)을 시작하거나 그 행의 연결이 성공하면 지운다. 저장 행 ID는 실행마다 바뀔 수 있어
+//! `tasty remote connect`)을 시작할 때 지운다. 자동 연결은 이 목록의 행을 시작하지 않으므로 지우지 않는다. 저장 행 ID는 실행마다 바뀔 수 있어
 //! 연결 대상(attach 프로필 이름과 원격 workspace id)으로 찾는다.
 //! 저장은 [`crate::core::shared_list::SharedList`]가 맡는다.
 

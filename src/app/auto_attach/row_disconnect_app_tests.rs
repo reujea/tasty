@@ -378,3 +378,64 @@ fn a_saved_row_that_only_lost_its_connection_reconnects() {
     assert_eq!(app.row_state_name(ROW), "reconnecting");
     assert!(!app.remote.user_disconnected.contains(&ROW));
 }
+
+/// 재시작을 흉내 내려고 App 을 만들기 전에 저장된 표지 파일을 쓴다.
+fn write_saved_mark() {
+    let path = crate::core::remote_force_detached::ForceDetachedRows::config_path()
+        .expect("an isolated tasty home");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "[[row]]\nprofile = \"rv\"\nremote_workspace = 3\n").unwrap();
+}
+
+/// Given 강제 끊김 표지가 파일에 저장된 채 다시 시작한 App, When 첫 회차에 표지를 옮기기 전
+/// (`poll_auto_attach` 보다 먼저 도는 `process_ipc`)에 그 행을 쓰는 요청이 오면, Then 연결을 시작하지 않고
+/// user_disconnected 로 거절하며 저장된 표지도 남는다.
+#[test]
+fn a_saved_mark_refuses_a_row_request_before_the_first_poll_after_a_restart() {
+    alone!("a_saved_mark_refuses_a_row_request_before_the_first_poll_after_a_restart");
+    write_saved_mark();
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, None);
+    assert!(force_detach_marked(&app), "the mark is read from the file");
+    assert!(!app.remote.user_disconnected.contains(&ROW));
+
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "terminal.spawn", "params": {"workspace": ROW},
+    }))
+    .unwrap();
+    let decision = app.remote_row_use(&request);
+    assert!(
+        matches!(decision, RowUse::Refuse(ref refusal) if refusal.reason == "user_disconnected"),
+        "{decision:?}"
+    );
+    assert!(!app.remote.active.contains(&ROW), "no connection starts");
+    assert!(force_detach_marked(&app));
+}
+
+/// Given 강제 끊김 표지가 파일에 저장된 채 다시 시작한 App, When 첫 회차에 같은 프로필·원격 workspace 로
+/// `remote.attach` 가 오면, Then 그 행에 합류하지 않고 user_disconnected 로 거절하며 표지도 남는다.
+#[test]
+fn a_saved_mark_refuses_a_remote_attach_to_the_same_target_after_a_restart() {
+    alone!("a_saved_mark_refuses_a_remote_attach_to_the_same_target_after_a_restart");
+    write_saved_mark();
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, None);
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "remote.attach",
+        "params": {"profile": "rv", "remote_workspace": 3},
+    }))
+    .unwrap();
+    let cmd = crate::ipc::server::IpcCommand::new(request, tx);
+    let row = app
+        .saved_row_for_binding(&binding())
+        .expect("remote.attach matches the saved row");
+    app.attach_to_saved_row(&cmd, &crate::ipc::caller::CallerContext::local(), row, 3);
+    let response = serde_json::to_value(rx.try_recv().expect("an immediate response")).unwrap();
+    assert_eq!(
+        response["error"]["data"]["reason"], "user_disconnected",
+        "{response}"
+    );
+    assert!(!app.remote.active.contains(&ROW), "no connection starts");
+    assert!(force_detach_marked(&app));
+}
