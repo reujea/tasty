@@ -46,7 +46,15 @@ impl super::MainViewState {
     /// plugin 팝업은 이번 프레임 렌더가 접고 그 Esc 를 mesh 내용에 보내지 않는다(`plugin_bridge::popup_render`).
     pub(crate) fn refold_key_owner(&mut self) -> bool {
         match self.popup_key_owner() {
-            Some(PopupKeyOwner::Host) => self.popups.refold_focused(),
+            Some(PopupKeyOwner::Host) => {
+                let folded = self.popups.refold_focused();
+                // 펼친 plugin 부모가 연 피커를 접으면 그 부모도 함께 접는다.
+                #[cfg(feature = "gui")]
+                for id in self.popups.take_plugin_refolds() {
+                    self.plugin_popup_expanded.remove(&id);
+                }
+                folded
+            }
             #[cfg(feature = "gui")]
             Some(PopupKeyOwner::Plugin(id)) => self.plugin_popup_expanded.contains(&id),
             _ => false,

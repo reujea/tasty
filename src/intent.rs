@@ -502,6 +502,9 @@ pub struct OpenRequest {
     /// 이 인스턴스를 연 부모 팝업. 부모가 닫히면 함께 닫힌다.
     #[cfg(feature = "gui")]
     pub parent: Option<crate::adapters::ui::popup::PopupInstanceId>,
+    /// 이 인스턴스를 연 plugin 팝업. 그 표시 상태(펼침·접힘)를 따른다.
+    #[cfg(feature = "gui")]
+    pub plugin_parent: Option<u64>,
     /// 인스턴스 데이터. 새 인스턴스를 열거나 다시 열 때 이 값으로 채운다.
     #[cfg(feature = "gui")]
     pub payload: crate::adapters::ui::popup::PayloadSlot,
@@ -520,6 +523,7 @@ impl OpenRequest {
             placement: PopupPlacement::Keep,
             focus: false,
             parent: None,
+            plugin_parent: None,
             payload: crate::adapters::ui::popup::PayloadSlot::default(),
             covers_scope: None,
         }
@@ -546,6 +550,12 @@ impl OpenRequest {
     /// 사용자가 열면 키보드 포커스를 준다.
     pub fn focused(mut self) -> Self {
         self.focus = true;
+        self
+    }
+
+    /// 연 plugin 팝업을 적는다. 피커가 그 팝업과 함께 펼쳐지고 접힌다.
+    pub fn with_plugin_parent(mut self, parent: Option<u64>) -> Self {
+        self.plugin_parent = parent;
         self
     }
 

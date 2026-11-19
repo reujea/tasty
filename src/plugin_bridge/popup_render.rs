@@ -111,6 +111,12 @@ pub fn draw_plugin_popups(
         &state.plugin_popup_expanded,
         display::collapsed_frames(ctx),
     );
+    // plugin 팝업이 연 host 피커는 다음 host 판정에서 이 표시 상태를 따른다.
+    state.popups.set_plugin_displays(
+        placed
+            .iter()
+            .map(|(s, _)| (s.instance_id, s.display.parent_display())),
+    );
     state.plugin_popup_key_candidates.extend(
         placed
             .iter()
@@ -331,6 +337,7 @@ pub fn draw_plugin_popups(
             );
             if hovered && press.as_ref().is_some_and(|p| p.is_primary()) {
                 state.plugin_popup_expanded.remove(&snap.instance_id);
+                state.popups.refold_plugin_children(snap.instance_id);
             }
         } else if has_key_focus && snap.scope != PopupScope::Window {
             // 키 주인인 좁은 범위 팝업은 셸 위쪽에 포커스 가장자리를 켠다.
@@ -462,6 +469,7 @@ pub fn draw_plugin_popups(
             // 다시 접기는 닫기 사건이 없다.
             EscapeAction::Refold => {
                 state.plugin_popup_expanded.remove(&snap.instance_id);
+                state.popups.refold_plugin_children(snap.instance_id);
             }
             EscapeAction::Close => state
                 .plugin_popup_closes
@@ -567,6 +575,19 @@ enum SnapDisplay {
     Collapsed(CollapsedPlacement),
     /// 창 위로 펼쳐 host 제목줄을 붙여 그린다.
     Expanded,
+}
+
+impl SnapDisplay {
+    /// 이 팝업이 연 host 피커가 따르는 표시 상태. 접힌 팝업의 버튼 자리는 피커에 필요 없다.
+    fn parent_display(self) -> display::PopupDisplay {
+        match self {
+            SnapDisplay::Fits => display::PopupDisplay::Fits,
+            SnapDisplay::Collapsed(_) => display::PopupDisplay::Collapsed(None),
+            SnapDisplay::Expanded => display::PopupDisplay::Expanded {
+                restore: egui::Pos2::ZERO,
+            },
+        }
+    }
 }
 
 // 숨겨진 범위의 인스턴스도 유지해야 다시 보일 때 전송 상태를 복원할 수 있다.

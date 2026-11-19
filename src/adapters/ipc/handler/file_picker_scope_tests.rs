@@ -235,6 +235,127 @@ fn a_narrow_owner_expanded_over_the_window_still_gives_its_surface_scope() {
     assert_eq!(picker_scope(&mut state), PopupScope::Surface(sid));
 }
 
+/// Given 좁은 surface 에서 창 위로 펼친 plugin 부모 팝업, When 찾아보기로 피커를 열면, Then 피커도 펼친 상태다.
+/// When 피커에서 Esc 를 하면, Then 부모와 함께 접힌다. When 다시 펼친 부모를 접기 버튼으로 접으면, Then 피커도
+/// 접히고(부모 버튼이 대표한다) 키 후보에서 빠진다.
+#[test]
+fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
+    let (mut state, mut session) = test_state();
+    let sid = state
+        .focused_surface_id(&session.borrow_mut().read())
+        .expect("surface");
+    let mut inst = parent("surface", Some(sid));
+    inst.contribute.size_hint = Some(tasty_plugin_manifest::PopupSizeHint {
+        width: 800,
+        height: 600,
+    });
+    let mut mgr = crate::plugin::PluginManager::with_registries(
+        std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+        std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+        std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+    );
+    mgr.insert_popup_instance_for_test(7, inst);
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let narrow = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 120.0));
+    let layout = LayoutContext {
+        active_workspace: 0,
+        active_workspace_id: 0,
+        pane_rects: vec![],
+        surface_rects: vec![(sid, narrow)],
+        active_tabs: vec![],
+        active_tab_ids: vec![],
+        workspace_rect: None,
+        surface_owners: Vec::new(),
+        tab_content_rects: Vec::new(),
+    };
+    let ctx = egui::Context::default();
+    // plugin 렌더 뒤 host 팝업을 그린다. host 판정은 직전 plugin 렌더가 적은 부모 표시를 읽는다.
+    let frame = |state: &mut RequestContext,
+                 session: &mut crate::runtime::engine_session::EngineSession| {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        let engine = session.borrow_mut();
+        drop(ctx.run(raw, |ctx| {
+            sync_plugin_popup_scopes(state, mgr.popup_instances());
+            crate::plugin_bridge::popup_render::draw_plugin_popups(
+                ctx,
+                state,
+                &engine.read(),
+                Some(crate::app::plugin_display::PluginDisplay::new(&mgr)),
+                Some(&layout),
+            );
+            let mut popups =
+                std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+            popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], None);
+            state.popups = popups;
+        }));
+        state.press_snapshot = None;
+    };
+    state.plugin_popup_expanded.insert(7);
+    frame(&mut state, &mut session);
+    {
+        let mut engine = session.borrow_mut();
+        let caller = CallerContext::Plugin {
+            plugin_id: PLUGIN.into(),
+        };
+        let response = handle_trigger(
+            &mut state,
+            &mut engine,
+            &caller,
+            json!(1),
+            &json!({"owner_popup_instance": 7}),
+        );
+        assert!(response.result.is_some(), "{response:?}");
+        for intent in state.take_pending_intents() {
+            crate::intent::popup::handle(&mut state, &mut engine, &intent);
+        }
+    }
+    frame(&mut state, &mut session);
+    let picker = |state: &mut RequestContext| {
+        let p = state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap();
+        (p.expanded(), p.collapsed())
+    };
+    assert!(
+        picker(&mut state).0,
+        "the picker opens expanded with its parent"
+    );
+
+    // 피커가 키 주인이다. Esc 는 피커와 함께 펼친 부모도 접는다.
+    assert!(state.refold_key_owner());
+    assert!(!state.plugin_popup_expanded.contains(&7));
+    frame(&mut state, &mut session);
+    frame(&mut state, &mut session);
+    let (expanded, collapsed) = picker(&mut state);
+    assert!(!expanded && collapsed, "the picker folds with its parent");
+    assert_eq!(
+        state.popup_key_owner(),
+        Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(7)),
+        "a picker its parent's button stands for takes no keys"
+    );
+
+    // 부모를 다시 펼치면 피커도 펼친다. 부모의 접기 버튼(같은 처리)으로 접으면 피커도 접힌다.
+    state.plugin_popup_expanded.insert(7);
+    frame(&mut state, &mut session);
+    frame(&mut state, &mut session);
+    assert!(
+        picker(&mut state).0,
+        "the picker follows its parent out again"
+    );
+    state.plugin_popup_expanded.remove(&7);
+    state.popups.refold_plugin_children(7);
+    frame(&mut state, &mut session);
+    frame(&mut state, &mut session);
+    let (expanded, collapsed) = picker(&mut state);
+    assert!(!expanded && collapsed);
+}
+
 /// 다른 owner 의 결속 범위나 이전 자식이 남긴 범위를 따라가지 않는다.
 #[test]
 fn only_the_requesting_owner_moves_the_picker() {

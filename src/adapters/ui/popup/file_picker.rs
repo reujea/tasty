@@ -1030,10 +1030,12 @@ pub(crate) fn open(
 
     navigate(&mut data, state, engine, |dir, _is_remote| dir.to_string());
 
+    let plugin_parent = data.requester.as_ref().and_then(|r| r.owner_popup_instance);
     let open_popup = crate::intent::UiIntent::OpenPopup(
         crate::intent::OpenRequest::new(FILE_PICKER_POPUP_ID, scope)
             .centered()
             .focused()
+            .with_plugin_parent(plugin_parent)
             .with_payload(crate::adapters::ui::popup::PopupPayload::FilePicker(
                 Box::new(data),
             )),

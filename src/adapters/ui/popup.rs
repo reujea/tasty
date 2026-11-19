@@ -317,6 +317,8 @@ pub struct PopupState {
     instances: PopupInstances,
     /// 이 인스턴스를 연 부모 팝업. 부모가 닫히면 함께 닫힌다.
     pub parent: Option<PopupInstanceId>,
+    /// 이 인스턴스를 연 plugin 팝업(instance id). host 부모처럼 그 표시 상태(펼침·접힘)를 따른다.
+    pub plugin_parent: Option<u64>,
     /// 인스턴스 데이터. 닫으면 비운다.
     pub payload: PopupPayload,
     /// Title text displayed in the title bar.
@@ -540,6 +542,7 @@ impl PopupState {
             instance: PopupInstanceId::NONE,
             instances: PopupInstances::Single,
             parent: None,
+            plugin_parent: None,
             payload: PopupPayload::None,
             title: title.into(),
             open: false,
@@ -666,6 +669,7 @@ impl PopupState {
             instance: self.instance,
             instances: self.instances,
             parent: self.parent,
+            plugin_parent: self.plugin_parent,
             title: self.title.clone(),
             open: self.open,
             scope_visible: self.scope_visible,
@@ -709,6 +713,7 @@ impl PopupState {
         self.size_user_overridden = false;
         self.instance = PopupInstanceId::NONE;
         self.parent = None;
+        self.plugin_parent = None;
         self.payload = PopupPayload::None;
         self.look = self.declared_look;
         self.display = display::PopupDisplay::Fits;
@@ -856,6 +861,8 @@ pub struct PopupManager {
     driven: Vec<(PopupId, open_when::DrivenOpen)>,
     /// 안내 열의 자리. 호출자가 프레임마다 정한다.
     notice_column: Option<NoticeColumn>,
+    /// plugin 팝업의 표시 상태와 다시 접기 요청(`display.rs`).
+    plugin_parents: display::PluginParents,
 }
 
 impl PopupManager {
@@ -865,6 +872,7 @@ impl PopupManager {
             closed_queue: Vec::new(),
             driven: Vec::new(),
             notice_column: None,
+            plugin_parents: Default::default(),
         }
     }
 
@@ -1011,6 +1019,7 @@ impl PopupManager {
             p.passive = true;
         }
         p.parent = request.parent;
+        p.plugin_parent = request.plugin_parent;
         p.payload = request.payload.take();
         if let Some(covers) = request.covers_scope {
             p.look = p.declared_look.covering(covers);
@@ -1277,6 +1286,8 @@ impl PopupManager {
         self.popups
             .iter()
             .filter(|p| p.open && p.scope_visible && p.arrange.takes_focus)
+            // 부모 버튼이 대표하는(그리지 않는) 자식은 키를 받지 않는다. 보이는 버튼이 받는다.
+            .filter(|p| p.display != display::PopupDisplay::Collapsed(None))
             .map(|p| p.z_seq)
     }
 
@@ -1421,6 +1432,7 @@ mod tests {
             closed_queue: Vec::new(),
             driven: Vec::new(),
             notice_column: None,
+            plugin_parents: Default::default(),
         }
     }
 
