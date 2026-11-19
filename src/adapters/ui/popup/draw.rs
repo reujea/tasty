@@ -190,14 +190,6 @@ impl PopupManager {
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_released = ctx.input(|i| i.pointer.primary_released());
 
-        // 본문이 키를 받는 인스턴스는 키 주인 하나다. 이번 프레임의 클릭을 반영하기 전 값이고, plugin 팝업이 키
-        // 주인이면 없다. 포커스 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
-        let key_owner_z = self.host_key_owner().map(|p| p.z_seq);
-        let keys_at_start: Option<PopupInstanceId> = self
-            .host_key_owner()
-            .filter(|_| !self.plugin_holds_keys)
-            .map(|p| p.instance);
-
         // Hidden scopes retain focus intent, but cannot hold the keyboard gate or
         // continue a pointer gesture started before the scope disappeared.
         for popup in &mut self.popups {
@@ -218,6 +210,13 @@ impl PopupManager {
         // 포커스를 받지 않는 팝업은 다른 팝업 아래에 그린다. 그 안의 순서는 z 순서 그대로다.
         open_indices.sort_by_key(|&i| self.popups[i].arrange.takes_focus);
         self.judge_display(ctx, &open_indices, draw_ctx);
+        // 본문이 키를 받는 인스턴스는 키 주인 하나다. 이번 프레임의 범위·표시 판정 뒤, 클릭을 반영하기 전 값이고,
+        // plugin 팝업이 키 주인이면 없다. 포커스 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
+        let key_owner_z = self.host_key_owner().map(|p| p.z_seq);
+        let keys_at_start: Option<PopupInstanceId> = self
+            .host_key_owner()
+            .filter(|_| !self.plugin_holds_keys)
+            .map(|p| p.instance);
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
