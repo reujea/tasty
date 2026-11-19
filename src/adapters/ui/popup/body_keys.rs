@@ -180,15 +180,24 @@ pub(crate) fn withdraw_escape(ctx: &egui::Context, put: &PutEscape) {
     });
 }
 
-/// 창이 egui 입력에서 빼는 Esc 사건인지.
-pub(crate) fn is_escape(event: &egui::Event) -> bool {
+/// 창이 처리하면 egui 입력에서 빼는 Esc 누름인지.
+pub(crate) fn is_escape_press(event: &egui::Event) -> bool {
     matches!(
         event,
         egui::Event::Key {
             key: egui::Key::Escape,
+            pressed: true,
             ..
         }
     )
+}
+
+/// egui 로 보내지 않은 Esc 뗌을 egui 의 눌린 키 상태에 반영한다. 넘긴 Esc 누름은 egui 의 Escape 눌림으로 남으므로,
+/// 그 뗌이 터미널 등 egui 밖으로 가도 다음 패스의 반복 판정(`Gpu::egui_escape_held`)이 낡은 눌림을 읽지 않는다.
+pub(crate) fn release_escape(ctx: &egui::Context) {
+    ctx.input_mut(|i| {
+        i.keys_down.remove(&egui::Key::Escape);
+    });
 }
 
 #[cfg(test)]

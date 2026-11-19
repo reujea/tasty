@@ -1,7 +1,7 @@
 //! 창의 Esc 처리. 창은 그리기보다 먼저 이 판정을 돌린다. 판정 전에 입력 시점의 키 주인을 묶으므로
 //! (`bind_window_key_owner`) 이 Esc 를 실은 그리기의 키 주인은 여기서 정한 대상과 같다.
 //!
-//! 창이 처리한 Esc 는 언제나 egui 입력에서 뺀다. egui 는 패스 시작에서 입력에 남은 Esc 로 위젯 키 포커스를 풀므로,
+//! 창이 처리한 Esc 누름은 언제나 egui 입력에서 뺀다(뗌은 남겨 egui 의 눌린 키 상태를 푼다). egui 는 패스 시작에서 입력에 남은 Esc 로 위젯 키 포커스를 풀므로,
 //! 남기면 팝업 층 아래 화면(탐색기 찾기 입력란 등)이 포커스를 잃는다. 키 주인이 그 Esc 를 읽어야 하면(host 본문의
 //! 하위 화면 되돌아가기, plugin 렌더의 닫기·다시 접기) 뺀 원래 사건을 그 키 주인을 그리는 동안만 되넣는다
 //! (`body_keys::with_handed_escape`).
@@ -19,8 +19,9 @@ enum EscapeGate {
 }
 
 impl super::MainViewState {
-    /// 창이 받은 Esc 를 판정한다. 처리했으면 `pending`(이번 egui 입력)에서 Esc 사건을 빼고, 키 주인이 읽을 몫이면 그
-    /// 원래 사건을 원래 자리와 함께 넘겨 둔다. `escape_held` 는 직전 egui 패스 끝의 Escape 눌림 상태다(키 주인에게
+    /// 창이 받은 Esc 누름을 판정한다. 처리했으면 `pending`(이번 egui 입력)에서 그 누름(마지막 Esc 누름) 하나를 빼고,
+    /// 키 주인이 읽을 몫이면 그 원래 사건을 원래 자리와 함께 넘겨 둔다. Esc 뗌은 빼지 않는다. egui 입력에 남아 눌린 키
+    /// 상태를 푼다(넘긴 누름을 되넣을 때도 그 뗌이 뒤에 온다). `escape_held` 는 직전 egui 패스 끝의 Escape 눌림 상태다(키 주인에게
     /// 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이다.
     pub(crate) fn window_escape(
         &mut self,
@@ -30,19 +31,15 @@ impl super::MainViewState {
         let EscapeGate::Consumed { hand_to_owner } = self.escape_gate() else {
             return false;
         };
-        let mut taken = Vec::new();
-        let mut kept = 0;
-        pending.retain(|e| {
-            let escape = crate::adapters::ui::popup::body_keys::is_escape(e);
-            if escape {
-                taken.push((kept, e.clone()));
-            } else {
-                kept += 1;
+        let press = pending
+            .iter()
+            .rposition(crate::adapters::ui::popup::body_keys::is_escape_press);
+        if let Some(at) = press {
+            let event = pending.remove(at);
+            if hand_to_owner {
+                self.popups
+                    .hand_escape_to_bound_owner(escape_held, vec![(at, event)]);
             }
-            !escape
-        });
-        if hand_to_owner {
-            self.popups.hand_escape_to_bound_owner(escape_held, taken);
         }
         true
     }

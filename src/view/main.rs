@@ -465,6 +465,8 @@ impl MainView {
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
         let Some(bound) = self.state.window_feeds_egui(egui_surface, binds) else {
+            // egui 로 보내지 않는 Esc 뗌도 egui 의 Escape 눌림 기록은 푼다(넘긴 Esc 누름이 남긴 눌림).
+            self.base.gpu.egui_unfed_key(event);
             return (false, false);
         };
         if bound {
