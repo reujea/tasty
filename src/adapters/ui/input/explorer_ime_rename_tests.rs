@@ -174,8 +174,23 @@ fn rename_owner_requires_current_focused_explorer_entry_popup_and_respects_other
     state.popups.set_focused("rename", false);
     assert_eq!(rename_input_owner(&state, &read), None);
     state.popups.set_focused("rename", true);
+    // 열려 있기만 한 plugin 팝업은 rename 입력을 가져가지 않는다. 키 주인인 plugin 팝업은 가져간다.
     state.plugin_popup_open = true;
+    assert_eq!(
+        rename_input_owner(&state, &read).map(|o| o.surface()),
+        Some(sid)
+    );
+    state
+        .plugin_popup_bound_scopes
+        .insert(9, ("p".to_string(), None));
+    state
+        .popups
+        .set_focus(Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(
+            9,
+        )));
     assert_eq!(rename_input_owner(&state, &read), None);
+    state.plugin_popup_bound_scopes.clear();
+    state.popups.set_focused("rename", true);
     state.plugin_popup_open = false;
     state.popups.register(PopupState::new(
         "other",

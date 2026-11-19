@@ -575,6 +575,8 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
     let z = state.host_popup_hittest[0].z_seq;
     layout.surface_rects.clear();
     layout.active_workspace = 1;
+    // 숨긴 화면을 한 번 그린 뒤 누른다. 누름의 포인터 대상은 사용자가 본 직전 프레임의 배치다.
+    draw(&mut state, &layout, vec![]);
     draw(
         &mut state,
         &layout,

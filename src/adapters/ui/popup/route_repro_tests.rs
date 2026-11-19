@@ -244,6 +244,7 @@ fn host_frame(
     let result: crate::adapters::ui::popup::PopupDrawResult = result.unwrap();
     // 메인 창처럼 다음 누름의 포인터 대상은 이 프레임에 배치한 팝업 노드다(`frame::draw_popup_layer`).
     state.host_popup_hittest = result.hit_rects.clone();
+    state.host_popup_covers = result.covers.clone();
     result
 }
 
@@ -354,5 +355,231 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
         state.popups.host_key_owner().map(|p| p.instance),
         picker,
         "포커스 경로에 없는 R 피커가 Escape 를 받는다"
+    );
+}
+
+/// 창의 한 프레임: 탐색기 찾기 입력란(팝업 층보다 먼저 그리는 L 화면) → host 팝업 층 → plugin 팝업. 입력란이 받은
+/// 사건을 돌려준다.
+fn window_frame_with_find(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: &PluginManager,
+    events: Vec<Event>,
+    query: &mut String,
+    focus: bool,
+) -> tasty_ui_widgets::ExplorerFindEvents {
+    let input = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    let th = crate::theme::theme();
+    let mut out = tasty_ui_widgets::ExplorerFindEvents::default();
+    crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, mgr.popup_instances());
+    drop(ctx.run(input, |ctx| {
+        let take = state.surfaces_take_keys();
+        crate::adapters::ui::popup::body_keys::with_body_keys(ctx, take, || {
+            egui::Area::new(egui::Id::new("explorer_find_focus_node_test"))
+                .fixed_pos(surface_rect_l().min)
+                .show(ctx, |ui| {
+                    ui.set_width(300.0);
+                    out = tasty_ui_widgets::explorer_find_bar(
+                        ui,
+                        &th,
+                        tasty_ui_widgets::ExplorerFindBar {
+                            query,
+                            subfolders: None,
+                            status: tasty_ui_widgets::ExplorerFindStatus::Text(""),
+                            labels: tasty_ui_widgets::ExplorerFindLabels {
+                                placeholder: "",
+                                subfolders: "",
+                                close: "",
+                            },
+                            focus,
+                        },
+                    );
+                });
+        });
+        draw_popup_layer(ctx, state, engine, &layout());
+        draw_plugin_popups(
+            ctx,
+            state,
+            engine,
+            Some(crate::app::plugin_display::PluginDisplay::new(mgr)),
+            Some(&layout()),
+        );
+    }));
+    state.press_snapshot = None;
+    out
+}
+
+/// 완료 조건 장면. Given R 에 markdown file-open 같은 plugin 팝업과 포커스를 가진 검색창(host)이 있을 때, When 한
+/// 이벤트 묶음에서 L 의 탐색기 찾기 입력란을 누르고 글자를 치면, Then 창의 누름 처리(winit 이 누름 스냅샷을 찍는
+/// 자리)가 포커스 노드를 L 로 옮겨 그 글자는 창의 키 게이트를 지나 L 입력란에 들어간다. R 의 두 팝업은 닫히지 않고
+/// 포커스만 잃는다.
+#[test]
+fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session) = scene(super::PANE_R);
+    let engine = session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let search = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, PopupScope::Surface(SURFACE_R))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
+    let ctx = Context::default();
+    let mut query = String::new();
+    // 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를 준다.
+    window_frame_with_find(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        Vec::new(),
+        &mut query,
+        true,
+    );
+    window_frame_with_find(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        Vec::new(),
+        &mut query,
+        false,
+    );
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(search)),
+        "누르기 전 포커스 노드는 R 의 검색창이다"
+    );
+
+    // 이벤트 묶음 [L 누름, 글자]. 창은 누름 스냅샷을 찍으며 포커스 노드를 옮기고(`mouse::press_snapshot_now`),
+    // click-to-activate 로 엔진 포커스를 L 로 옮긴 뒤, 같은 묶음의 글자를 창의 키 게이트로 처리한다.
+    let at = surface_rect_l().min + egui::vec2(20.0, 10.0);
+    let snapshot = state.take_press_snapshot(&engine.read(), at, egui::PointerButton::Primary);
+    state.press_snapshot = Some(snapshot);
+    {
+        let read = engine.read();
+        state
+            .navigation
+            .select_pane(read.workspace_at(0).unwrap(), super::PANE_L);
+    }
+    state.normalize_focus(&engine.read());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L))
+    );
+    assert_eq!(
+        state.window_feeds_egui(true, true),
+        Some(false),
+        "글자는 L 입력란(egui 화면)으로 가고 팝업 키 주인은 없다"
+    );
+    assert!(!state.window_holds_terminal_keys());
+    let after = window_frame_with_find(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        vec![Event::PointerMoved(at), press(at), Event::Text("a".into())],
+        &mut query,
+        false,
+    );
+    assert!(after.field_focused, "L 입력란이 포커스를 가진다");
+    assert_eq!(query, "a", "글자가 L 입력란에 들어간다");
+    assert!(
+        state.popups.instance(search).is_some_and(|p| p.open),
+        "R 검색창은 닫히지 않는다"
+    );
+    assert!(!state.popups.is_instance_focused(search));
+    assert_eq!(closes_of_popup(&state), [], "R plugin 팝업은 닫히지 않는다");
+    assert_eq!(state.plugin_popup_key_target(), None);
+}
+
+/// Given 엔진 포커스가 L 이고 R 에 plugin 팝업(바깥 클릭에 닫힘)만 있을 때, When R 범위 안·팝업 밖을 처음 누르면,
+/// Then 닫히지 않고 그 plugin 팝업이 포커스 노드가 된다. When 같은 자리를 다시 누르면, Then 닫힘 요청이다.
+#[test]
+fn the_first_press_into_a_scope_with_only_a_plugin_popup_focuses_it() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session) = scene(super::PANE_L);
+    let engine = session.borrow_mut();
+    let mut mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
+    let ctx = Context::default();
+    plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
+    let placed = state.plugin_popup_hittest[0].rect;
+    let r = super::surface_rect_r();
+    let outside = egui::pos2(r.center().x, r.max.y - 4.0);
+    assert!(r.contains(outside) && !placed.contains(outside));
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L))
+    );
+    plugin_frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        vec![Event::PointerMoved(outside), press(outside)],
+    );
+    assert_eq!(closes_of_popup(&state), []);
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Plugin(POPUP))
+    );
+    for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
+        mgr.touch_popup_instance_z(id);
+    }
+    state.press_snapshot = None;
+    plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
+    plugin_frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        vec![Event::PointerMoved(outside), press(outside)],
+    );
+    assert_eq!(
+        closes_of_popup(&state),
+        [tasty_plugin_protocol::PopupCloseReason::OutsideClick]
+    );
+}
+
+/// N-B. Given 엔진 포커스가 L 이고 L 을 덮는 host 팝업이 passive 로(에이전트가) 열렸을 때, When 창이 포커스를
+/// 정규화하면, Then 덮인 L 은 포커스 노드가 될 수 없어 그 passive 팝업이 포커스 노드이고 키를 받는다. passive 표시는
+/// 남는다.
+#[test]
+fn a_covering_passive_popup_is_the_focus_node() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session) = scene(super::PANE_L);
+    let engine = session.borrow_mut();
+    let iid = open_host_popup(&mut state, SURFACE_L, false);
+    let ctx = Context::default();
+    host_frame(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        state.popups.focus(),
+        None,
+        "passive 로 열면 포커스 위치를 쓰지 않는다"
+    );
+    state.normalize_focus(&engine.read());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(iid))
+    );
+    assert!(state.popups.instance_is_visible_passive(iid));
+    assert!(
+        state.window_holds_terminal_keys(),
+        "키는 터미널로 가지 않는다"
     );
 }
