@@ -290,7 +290,7 @@ pub(crate) fn sync(
     // intent-exempt: 방금 연 인스턴스의 처음 자리를 저장값으로 정한다.
     if let Some(popup) = state.popups.instance_mut(iid) {
         popup.pos = rect.min;
-        popup.size = rect.size();
+        popup.set_needed_size(rect.size());
         popup.request_center = false;
         popup.size_user_overridden = true;
     }

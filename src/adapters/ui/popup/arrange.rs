@@ -82,6 +82,8 @@ impl PopupManager {
         for i in stacked {
             let popup = &mut self.popups[i];
             popup.pos = egui::pos2(column.rect.left(), top);
+            // 폭은 열이 정한다. 그린 크기는 매 프레임 필요 크기에서 다시 구하므로 필요 크기의 폭을 바꾼다.
+            popup.needed_size.x = column.rect.width();
             popup.size.x = column.rect.width();
             popup.request_center = false;
             popup.request_top = false;

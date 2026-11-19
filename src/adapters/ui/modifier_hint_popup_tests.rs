@@ -276,7 +276,7 @@ fn dragging_the_grip_resizes_the_hint_over_its_scrollbar() {
     };
     let iid = state.popups.instances_of(ID).next().expect("open").instance;
     if let Some(p) = state.popups.instance_mut(iid) {
-        p.size = min;
+        p.set_needed_size(min);
     }
     frame(&ctx, &mut state, &read, Pointer::Idle);
     frame(&ctx, &mut state, &read, Pointer::Idle);
@@ -311,4 +311,25 @@ fn dragging_the_grip_resizes_the_hint_over_its_scrollbar() {
         saved.modifier_hint.size,
         Some((LogicalPx(resized.width()), LogicalPx(resized.height())))
     );
+}
+
+/// Given 저장한 자리와 크기, When 도움말을 열고 몇 프레임 그리면, Then 그 크기를 유지한다(필요 크기가
+/// 저장값이다. 그린 크기만 바꾸면 다음 프레임에 처음 크기로 돌아간다).
+#[test]
+fn the_saved_size_stays_after_the_first_frame() {
+    let (mut state, mut session) = test_state();
+    let engine = session.borrow_mut();
+    let saved = egui::Rect::from_min_size(egui::pos2(300.0, 200.0), egui::vec2(410.0, 260.0));
+    engine.runtime.settings.modifier_hint.pos =
+        Some((LogicalPx(saved.min.x), LogicalPx(saved.min.y)));
+    engine.runtime.settings.modifier_hint.size =
+        Some((LogicalPx(saved.width()), LogicalPx(saved.height())));
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut state, &read, Pointer::Idle);
+    hold_ctrl_long(&mut state);
+    for _ in 0..3 {
+        frame(&ctx, &mut state, &read, Pointer::Idle);
+    }
+    assert_eq!(hint_rect(&state), saved);
 }
