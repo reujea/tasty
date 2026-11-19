@@ -189,7 +189,7 @@ fn select_impl(
             popup_id,
             &resp,
             egui::PopupCloseBehavior::CloseOnClick,
-            |ui| picked = select_list(ui, theme, options, selected, width),
+            |ui| picked = select_list(ui, theme, options, selected, LogicalPx(width)),
         )
     });
     (picked, rect)
@@ -203,9 +203,9 @@ pub fn select_list(
     theme: &Theme,
     options: &[&str],
     selected: Option<usize>,
-    width: f32,
+    width: LogicalPx,
 ) -> Option<usize> {
-    ui.set_min_width(width);
+    ui.set_min_width(width.value());
     // 옵션은 공용 MenuItem 옵션 행이다. 현재 값만 selected(글자 + 체크, 채움 없음)이고
     // 행은 다른 메뉴처럼 붙인다.
     ui.spacing_mut().item_spacing.y = 0.0;
@@ -221,11 +221,20 @@ pub fn select_list(
 
 /// [`select_list`]가 차지하는 폭. 최소 `width`이고 가장 긴 옵션 행을 줄이지 않는 폭까지 넓어진다.
 /// 열린 목록을 팝업이 아닌 고정 틀에 그리는 갤러리가 틀의 폭을 팝업과 같게 맞출 때 쓴다.
-pub fn select_list_width(ctx: &egui::Context, theme: &Theme, options: &[&str], width: f32) -> f32 {
+pub fn select_list_width(
+    ctx: &egui::Context,
+    theme: &Theme,
+    options: &[&str],
+    width: LogicalPx,
+) -> LogicalPx {
     options
         .iter()
-        .map(|opt| crate::menu_item::menu_option_natural_width(ctx, theme, false, opt))
-        .fold(width, f32::max)
+        .map(|opt| {
+            LogicalPx(crate::menu_item::menu_option_natural_width(
+                ctx, theme, false, opt,
+            ))
+        })
+        .fold(width, LogicalPx::max)
 }
 
 /// 트리거의 상호작용 모양. disabled이면 무시한다.

@@ -140,7 +140,7 @@ fn themes(theme: &Theme) -> [(&'static str, Theme); 2] {
 fn theme_panel(ui: &mut egui::Ui, th: &Theme, name: &str, add: impl FnOnce(&mut egui::Ui)) {
     // 시안 FrPair 는 stage 한 줄을 넘지 않고 안에서 견본을 줄바꿈한다. 줄 폭(max_rect)에서 바탕
     // 안쪽 여백을 빼 견본 줄의 폭으로 둔다. 남은 폭만 쓰면 첫 프레임에 견본이 한 줄로 넘친다.
-    let inner_max = ui.max_rect().width() - th.spacing_md.value() * 2.0;
+    let inner_max = LogicalPx(ui.max_rect().width()) - th.spacing_md * 2.0;
     wrap_item(ui, |ui| {
         egui::Frame::new()
             .fill(th.bg_app().to_egui())
@@ -154,7 +154,7 @@ fn theme_panel(ui: &mut egui::Ui, th: &Theme, name: &str, add: impl FnOnce(&mut 
                             .size(th.font_size_caption.value())
                             .color(th.text_muted().to_egui()),
                     );
-                    ui.set_max_width(inner_max);
+                    ui.set_max_width(inner_max.value());
                     wrap_row(ui, th, add);
                 });
             });
@@ -214,7 +214,7 @@ fn open_list(ui: &mut egui::Ui, th: &Theme, lang: &str, max_mhz: Option<u32>, sa
     let rows = options(lang, max_mhz, saved);
     let idx = rows.iter().position(|(v, _)| *v == saved);
     let labels: Vec<&str> = rows.iter().map(|(_, l)| l.as_str()).collect();
-    let width = select_list_width(ui.ctx(), th, &labels, th.field_width_lg.value());
+    let width = select_list_width(ui.ctx(), th, &labels, th.field_width_lg);
     let bw = th.border_width.value();
     egui::Frame::new()
         .fill(th.menu_bg().to_egui())
@@ -223,7 +223,7 @@ fn open_list(ui: &mut egui::Ui, th: &Theme, lang: &str, max_mhz: Option<u32>, sa
         .shadow(th.shadow_popover().to_egui())
         .inner_margin(egui::Margin::same(th.popup_content_margin().value() as i8))
         .show(ui, |ui| {
-            ui.set_width(width);
+            ui.set_width(width.value());
             // 고정 견본이라 고른 행을 저장하지 않는다.
             select_list(ui, th, &labels, idx, width);
         });
@@ -240,7 +240,7 @@ fn hint_open(ui: &mut egui::Ui, th: &Theme, lang: &'static str, output: bool) {
     };
     page_card(ui, th, HINT_FRAME_W, |ui| {
         let m = egui::Margin {
-            left: (th.tooltip_max_width().value() / 2.0) as i8,
+            left: (th.tooltip_max_width() / 2.0).value() as i8,
             right: th.spacing_md.value() as i8,
             top: th.spacing_md.value() as i8,
             bottom: 0,
