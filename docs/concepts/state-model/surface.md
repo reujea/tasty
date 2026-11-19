@@ -76,7 +76,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 | hard 획득 `acquire` | 같은 client이거나 lock이 없거나 기존 holder가 끊김 표시됨 | surface lock 기록 | 살아 있는 다른 holder가 있으면 `AlreadyAttached` |
 | hard 해제 `release` | 실제 holder | lock 제거 | `NotAttached`, `NotHolder` |
 | 연결 종료 `release_all_for_client` | 그 client의 lock | 그 client의 surface·workspace lock과 멤버 매핑 제거 | — |
-| 강제 해제 `release_occupancy` | 로컬 사용자 GUI 조작 | workspace 멤버면 workspace 점유 전체, 아니면 hard, 그것도 없으면 soft 제거 | IPC `attach.force_detach`는 hard 점유만 푼다 |
+| 강제 해제 `release_occupancy` | 로컬 사용자 GUI 조작 | workspace 멤버면 workspace 점유 전체, 아니면 hard, 그것도 없으면 soft 제거 | IPC `attach.force_detach`도 같은 `force_detach`로 hard 점유를 푼다(workspace 멤버면 workspace 점유 전체). soft 점유는 풀지 않는다 |
 | surface 닫기 `forget_closed_surface` | 닫힌 surface | 그 surface의 lock·멤버 매핑·soft 제거. 같은 workspace의 다른 멤버는 유지 | — |
 | 사용자 포커스 `reconcile_soft_occupancy_on_focus` | 대표 점유가 soft이고 parent surface가 트리에 없음 | soft 제거 | External parent는 이 경로로 정리하지 않는다 |
 

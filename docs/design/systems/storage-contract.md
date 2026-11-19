@@ -308,7 +308,7 @@ writer를 거치는 IPC 요청은 결과가 나온 뒤 응답한다. 핸들러�
 | `config.toml` | `SettingsStorage::save` → `Settings::save` | file writer(부팅 정규화·셸 확인·테마 조정 포함) | 예(공용 교체, fsync 없음). 해석하지 못한 원본은 저장 직전 백업 | 같은 대상 잠금과 원본 변경 관측 |
 | 사용자 선택 keybinding bundle(`tasty-keybindings-*.toml`) | Settings Export의 소유된 ordered command | 기존 file writer | 예(공용 교체, 기본 fsync 없음) | 대상 참여 잠금. 설정 snapshot과 병합하지 않음 |
 | `presets/**.toml` | `PresetStore`의 관측값 검사·공용 교체 | 실행 중 명령은 file worker, 초기 읽기·ID 보정은 load 호출 스레드 | 예(fsync 없음) | 저장 이름 선택의 참여자 잠금 + 대상 잠금·관측 충돌 검사 |
-| `port-favorites.toml`·`explorer-favorites.toml` | `SharedList::update`가 잠금 안에서 snapshot 접수, file writer가 교체 | file writer | 예(공용 교체, fsync 없음) | 참여자 잠금·원본 fingerprint/링크 대상 비교 |
+| `port-favorites.toml`·`explorer-favorites.toml`·`remote-force-detached.toml` | `SharedList::update`가 잠금 안에서 snapshot 접수, file writer가 교체 | file writer | 예(공용 교체, fsync 없음) | 참여자 잠금·원본 fingerprint/링크 대상 비교 |
 | `child-terminals.json` | engine의 변경 필드·예약·등록·슬롯 정리를 공용 ordered command로 접수 | file writer. 최초 읽기·정리는 부팅 worker/headless bootstrap barrier | 예(공용 교체, fsync 없음) | 참여자 잠금 안에서 최신 읽기·engine 소유 변경 필드 병합·교체 |
 | `tasty.port` | `publish_port_file_to` 완료 결과를 listener가 소유 | IPC 시작 완료 barrier | 예(공용 안전 교체, fsync 없음) | notify 정리 → 관측 원본/링크 비교·참여 잠금 → 완료 공개. 서버 Drop은 같은 잠금을 비차단 획득한 동안 열린 파일 identity·내용이 같은 공개 세대만 정리. 경합/identity 불명은 보존 |
 | 단일 실행 instance 파일 | 본체 `instance_file`이 소유한 기록을 `tasty_ipc::instance_file::write`로 교체 | 메인 루프 | 예(sync 포함) | GUI만 쓴다 |

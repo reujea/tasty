@@ -229,7 +229,14 @@ GUI 조건에 따른다. 창이 없다는 이유로 권한 요청 자체를 막�
 | `remote.disconnect` | 떼어 낼 mirror 를 만드는 `remote.attach` 와 attach 세션이 GUI 에만 있다 |
 | `system.gpu_stats` | 창마다의 GpuState 와 wgpu 전역 리포트를 센다. GPU 컨텍스트가 없다 |
 
-같은 `attach.*` 라도 점유를 강제로 푸는 `attach.force_detach` · `attach.force_detach_workspace` 는 창이 필요 없어 공용 engine 처리기에 있다. 두 빌드가 같은 엔진 함수로 점유를 풀고 holder 에 `force_detached` 를 보내며 같은 응답(`{force_detached, surface_id|workspace_id, holder}`)을 돌려준다. GUI 가 없는 헤드리스 서버에서는 이것과 `tasty remote detach` 가 점유를 끊는 수단이다.
+### 두 빌드가 같은 처리기로 답하는 `attach.*` (2)
+
+같은 `attach.*` 라도 점유를 강제로 푸는 두 메서드는 창이 필요 없어 공용 engine 처리기(`src/adapters/ipc/handler/attach.rs`)에 있다. 두 빌드가 같은 엔진 함수(`EngineMut::force_detach`·`force_detach_workspace`)로 점유를 풀고 holder 에 `force_detached` 를 보내며 같은 응답을 돌려준다. release 헤드리스(`--release --no-default-features`)도 같은 함수를 컴파일한다. GUI 가 없는 헤드리스 서버에서는 이 둘과 `tasty remote detach` 가 점유를 끊는 수단이다.
+
+| 메서드 | 하는 일 / 응답 |
+|--------|----------------|
+| `attach.force_detach` | surface 의 hard 점유를 푼다. workspace 점유의 멤버면 그 workspace 점유 전체를 푼다. `{force_detached, surface_id, workspace_id?, holder, notified}` |
+| `attach.force_detach_workspace` | workspace 점유와 멤버 제한을 푼다. `{force_detached, workspace_id, holder, notified}` |
 
 `attach.into_gui` 는 위 표의 메서드와 달리 창이 아니라 mirror 큐의 소비자가 GUI 에만 있다. GUI 는 app 층이 가로채 다른 포트를 거쳐 자기 자신에 닿는지 워커에서 확인한 뒤 응답한다. 헤드리스에는 큐를 비워 mirror 를 만드는 쪽이 없으므로 engine 처리기에 arm 을 두지 않는다. 접수하면 처리하지 않을 요청을 성공처럼 답하게 되므로 자기 포트를 포함한 모든 요청을 `-32017`(메서드 이름 포함)로 거절한다. plugin host-call 도 같은 engine 처리기에 닿아 같은 거절을 받는다. 소스 검사의 `NOT_IN_HEADLESS` 에는 이 사유로 등록돼 있다. 아래 "census 뒤에 게이트된 arm" 표에도 같은 거절 모양으로 적는다.
 
