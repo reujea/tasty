@@ -16,9 +16,13 @@ use crate::popup_decl::{
 };
 
 /// plugin → host: 팝업 선언을 등록하거나 바꾼다. params는 [`PopupDeclareParams`], 응답은 빈 객체.
+///
+/// tasty-plugin-protocol 0.2.16 다음 버전부터다. 0.2.16으로 릴리스된 host는 이 메서드를 모른다(develop은 버전이 0.2.16인 채 이미 지원한다).
 pub const METHOD_POPUP_DECLARE: &str = "popup.declare";
 /// plugin → host: 선언한 팝업의 인스턴스를 연다. params는 [`PopupShowParams`],
 /// 응답은 [`PopupShowResult`].
+///
+/// tasty-plugin-protocol 0.2.16 다음 버전부터다. 0.2.16으로 릴리스된 host는 이 메서드를 모른다(develop은 버전이 0.2.16인 채 이미 지원한다).
 pub const METHOD_POPUP_SHOW: &str = "popup.show";
 
 /// plugin이 보내는 부분 선언. `scope_kind`와 `size`만 필수다.
@@ -132,12 +136,12 @@ pub struct PopupDeclareParams {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PopupShowTarget {
-    /// 창 범위. `id`는 host 창 id다.
+    /// 창 범위. `id`는 host 창 id다. 인스턴스는 그 창에만 그려진다.
     Window {
         id: u64,
     },
-    /// 요청을 받은 시점에 포커스된 창의 창 범위. 그때 한 번 정하고 다시 읽지 않는다.
-    /// 포커스된 창이 없으면 열지 않는다.
+    /// 요청을 받은 시점에 포커스된 창의 창 범위. 그때 한 번 정하고 다시 읽지 않으며,
+    /// 인스턴스는 그 창에만 그려진다. 포커스된 창이 없으면 열지 않는다.
     FocusedWindow,
     Workspace {
         id: u32,
