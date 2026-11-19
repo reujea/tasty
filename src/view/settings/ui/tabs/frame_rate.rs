@@ -40,7 +40,8 @@ pub fn install_monitor_probe(ctx: &egui::Context, window: &Arc<winit::window::Wi
     ctx.data_mut(|d| d.insert_temp(probe_id(), probe));
 }
 
-/// 가장 빠른 연결 모니터의 주사율(millihertz). 조회가 없거나 보고가 없으면 `None`(60Hz 로 본다).
+/// 가장 빠른 연결 모니터의 주사율(millihertz). 보고 없는 모니터는 60Hz 로 센다. 조회가 없거나
+/// 모니터가 없으면 `None`(60Hz 로 본다).
 fn fastest_monitor(ctx: &egui::Context) -> Option<u32> {
     let probe: Option<MonitorProbe> = ctx.data(|d| d.get_temp(probe_id()));
     probe.and_then(|p| (p.0)())

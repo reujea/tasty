@@ -124,9 +124,17 @@ pub fn redraw_fps_rows(
     redraw_fps_options(max_refresh_millihertz, saved, |l| l.text(copy, fill)).0
 }
 
-/// 연결된 모니터들의 보고값에서 가장 높은 주사율을 고른다. 보고값이 하나도 없으면 `None`.
+/// 연결된 모니터들 중 가장 높은 주사율(millihertz). 주사율을 보고하지 않는(또는 0을 보고하는)
+/// 모니터는 [`FALLBACK_REFRESH_HZ`]로 센다. 그래서 50Hz 모니터와 보고 없는 모니터가 함께 있으면
+/// 60Hz 다. 모니터가 하나도 없으면 `None`이다.
 pub fn max_refresh_millihertz(reports: impl IntoIterator<Item = Option<u32>>) -> Option<u32> {
-    reports.into_iter().flatten().filter(|m| *m > 0).max()
+    reports
+        .into_iter()
+        .map(|r| {
+            r.filter(|m| *m > 0)
+                .unwrap_or(FALLBACK_REFRESH_HZ.saturating_mul(1000))
+        })
+        .max()
 }
 
 #[cfg(test)]
@@ -233,8 +241,23 @@ mod tests {
             max_refresh_millihertz([Some(60_000), None, Some(144_000)]),
             Some(144_000)
         );
-        assert_eq!(max_refresh_millihertz([None, Some(0)]), None);
+        assert_eq!(max_refresh_millihertz([None, Some(0)]), Some(60_000));
         assert_eq!(max_refresh_millihertz([]), None);
+    }
+
+    /// 보고 없는 모니터는 60Hz 로 센다. 50Hz 모니터와 함께면 60 fps 가 일반 선택지다.
+    #[test]
+    fn a_monitor_without_a_report_counts_as_60hz() {
+        let max = max_refresh_millihertz([Some(50_000), None]);
+        assert_eq!(max, Some(60_000));
+        let (rows, idx) = options(max, 60);
+        assert_eq!(values(&rows), vec![15, 30, 60, -1]);
+        assert_eq!(idx, 2);
+        assert_eq!(rows[2].1, "60 fps");
+        assert_eq!(
+            redraw_fps_choices(max_refresh_millihertz([Some(50_000)])),
+            vec![15, 30, -1]
+        );
     }
 
     #[test]
