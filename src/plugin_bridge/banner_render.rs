@@ -74,9 +74,18 @@ pub fn draw_plugin_banners(
     for slot in &slots {
         let content_rect = slot.content_rect;
         // 팝업 상자나 덮는 팝업이 덮은 자리는 배너 것이 아니다(포인터 대상이 팝업이다).
-        let raw_input = collect_mesh_banner_input(ctx, content_rect, pointer_pos, &|p| {
-            state.popup_owns_point(p)
-        });
+        let mut route = state
+            .plugin_mesh_banner_forward
+            .get(&slot.instance_id)
+            .map(|f| f.pointer.clone())
+            .unwrap_or_default();
+        let raw_input = collect_mesh_banner_input(
+            ctx,
+            content_rect,
+            pointer_pos,
+            &|p| state.popup_owns_point(p),
+            &mut route,
+        );
 
         let physical = crate::plugin_bridge::mesh_region_of(content_rect, ppp);
         let w_px = physical.width.value().round().max(1.0) as u32;
@@ -93,6 +102,7 @@ pub fn draw_plugin_banners(
             .plugin_mesh_banner_forward
             .entry(slot.instance_id)
             .or_default();
+        fwd.pointer = route;
         let need_bootstrap = fwd.need_bootstrap(has_frame);
         fwd.watch_blank(
             has_frame,
@@ -137,7 +147,9 @@ pub fn draw_plugin_banners(
         let cut = mgr
             .banner_mesh_frame(slot.instance_id)
             .and_then(|f| f.banner_body_cut.as_ref());
-        show_body_cut_tooltip(ctx, slot, cut, pointer_pos);
+        // 툴팁도 포인터 대상이 배너일 때만 띄운다.
+        let tip_pointer = pointer_pos.filter(|p| !state.popup_owns_point(*p));
+        show_body_cut_tooltip(ctx, slot, cut, tip_pointer);
     }
 }
 
@@ -183,12 +195,14 @@ fn show_body_cut_tooltip(
 
 /// 콘텐츠 기준 논리 좌표로 포인터·스크롤을 전달한다. 키·텍스트는 전달하지 않는다.
 /// PointerGone은 콘텐츠 영역 포함 여부와 관계없이 전달해 이전 hover 상태를 지운다.
-/// `on_popup`이 참인 좌표는 팝업이 받으므로 배너에 보내지 않는다.
+/// `on_popup`이 참인 좌표는 팝업이 받으므로 배너에 보내지 않는다. 뗌은 이 배너에서 누른 버튼만 보낸다
+/// (`route`). 포인터가 배너를 떠나거나 덮이면 PointerGone을 보낸다.
 fn collect_mesh_banner_input(
     ctx: &Context,
     content_rect: Rect,
     pointer_pos: Option<Pos2>,
     on_popup: &dyn Fn(Pos2) -> bool,
+    route: &mut crate::plugin_bridge::MeshPointerRoute,
 ) -> RawInputWire {
     let origin = content_rect.min;
     let mine = |p: Pos2| content_rect.contains(p) && !on_popup(p);
@@ -211,7 +225,12 @@ fn collect_mesh_banner_input(
                     button,
                     pressed,
                     modifiers: m,
-                } if mine(*pos) => {
+                } if if *pressed {
+                    route.press(*button, mine(*pos))
+                } else {
+                    route.release(*button)
+                } =>
+                {
                     if let Some(button) = map_button(*button) {
                         events.push(RawInputEventWire::PointerButton {
                             x: pos.x - origin.x,
@@ -238,6 +257,13 @@ fn collect_mesh_banner_input(
                 Event::PointerGone => events.push(RawInputEventWire::PointerGone),
                 _ => {}
             }
+        }
+        if route.hover(pointer_inside)
+            && !events
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerGone))
+        {
+            events.push(RawInputEventWire::PointerGone);
         }
         RawInputWire {
             time: None,
@@ -356,6 +382,7 @@ mod tests {
                 content_rect,
                 Some(pointer),
                 &|_| false,
+                &mut Default::default(),
             ));
         });
         wire?.events.iter().find_map(|e| match e {
@@ -435,11 +462,110 @@ mod tests {
                     content_rect,
                     Some(pointer),
                     &|_| covered,
+                    &mut Default::default(),
                 ));
             }));
             wire.map_or(0, |w| w.events.len())
         };
         assert_eq!(collect(true), 0);
         assert!(collect(false) >= 3);
+    }
+
+    /// 이벤트 하나를 모은 배너 입력. `route`는 프레임을 넘어 이어진다.
+    fn banner_events(
+        route: &mut crate::plugin_bridge::MeshPointerRoute,
+        pointer: Pos2,
+        covered: bool,
+        events: Vec<Event>,
+    ) -> Vec<RawInputEventWire> {
+        let content_rect =
+            Rect::from_min_size(Pos2::new(40.0, 40.0), egui::Vec2::new(400.0, 120.0));
+        let ctx = Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                Pos2::ZERO,
+                egui::Vec2::new(1280.0, 800.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut wire = None;
+        drop(ctx.run(input, |ctx| {
+            wire = Some(collect_mesh_banner_input(
+                ctx,
+                content_rect,
+                Some(pointer),
+                &|_| covered,
+                route,
+            ));
+        }));
+        wire.map(|w| w.events).unwrap_or_default()
+    }
+
+    fn button(pos: Pos2, pressed: bool) -> Event {
+        Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        }
+    }
+
+    /// Given 덮인 자리에서 누른 뒤, When 드러난 배너 위에서 떼면, Then 배너는 그 뗌을 받지 않는다. Given 배너에서
+    /// 누른 뒤, When 덮인 자리에서 떼면, Then 배너가 그 뗌을 받는다(뗌은 누름이 간 곳으로 간다).
+    #[test]
+    fn a_banner_gets_the_release_only_of_its_own_press() {
+        let on_banner = Pos2::new(100.0, 80.0);
+        let mut route = crate::plugin_bridge::MeshPointerRoute::default();
+        assert!(
+            banner_events(&mut route, on_banner, true, vec![button(on_banner, true)]).is_empty()
+        );
+        let release = banner_events(&mut route, on_banner, false, vec![button(on_banner, false)]);
+        assert!(
+            !release
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerButton { .. })),
+            "{release:?}"
+        );
+
+        let mut route = crate::plugin_bridge::MeshPointerRoute::default();
+        let press = banner_events(&mut route, on_banner, false, vec![button(on_banner, true)]);
+        assert!(
+            press
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerButton { pressed: true, .. }))
+        );
+        let release = banner_events(&mut route, on_banner, true, vec![button(on_banner, false)]);
+        assert!(
+            release
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerButton { pressed: false, .. }))
+        );
+    }
+
+    /// Given 포인터가 배너 위에 있을 때, When 팝업이 그 자리를 덮으면, Then 배너에 PointerGone을 보내 hover를 푼다.
+    /// 한 번만 보낸다.
+    #[test]
+    fn a_banner_covered_under_the_pointer_gets_pointer_gone() {
+        let on_banner = Pos2::new(100.0, 80.0);
+        let mut route = crate::plugin_bridge::MeshPointerRoute::default();
+        let moved = banner_events(
+            &mut route,
+            on_banner,
+            false,
+            vec![Event::PointerMoved(on_banner)],
+        );
+        assert!(
+            !moved
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerGone))
+        );
+        let covered = banner_events(&mut route, on_banner, true, vec![]);
+        assert!(
+            covered
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerGone))
+        );
+        assert!(banner_events(&mut route, on_banner, true, vec![]).is_empty());
     }
 }

@@ -395,18 +395,19 @@ impl MainView {
             return;
         }
 
-        // 아래에서 가져간 press 의 release 는 같은 곳이 받는다. 그 사이 팝업이 닫혀도 짝 없는 release 가
-        // surface 로 새지 않는다.
+        // 뗌은 누름이 간 곳으로 간다. 위(팝업·egui·배너)가 가져간 press 의 release 는 같은 곳이 받는다. 그 사이
+        // 팝업이 닫혀도 짝 없는 release 가 surface 로 새지 않는다. 아래(surface·분할선)가 받은 press 의 release
+        // 는 지금 포인터가 팝업·배너·egui 위여도 아래가 받는다.
         let captured_release = button_state == ElementState::Released
             && take_blocked_button(&mut self.blocked_press_buttons, button);
         // 포인터 대상이 팝업 노드(상자, 덮는 범위)면 그 press는 팝업이 받는다. 아래 surface를 활성화하거나
-        // 선택·분할선 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
-        if egui_consumed
-            || captured_release
-            || overlay_open
-            || self.pointer_on_popup()
-            || self.state.banner_hovered
-        {
+        // 선택·분할선 드래그를 시작하지 않는다.
+        if button_stays_above(
+            button_state,
+            captured_release,
+            overlay_open,
+            egui_consumed || self.pointer_on_popup() || self.state.banner_hovered,
+        ) {
             if button_state == ElementState::Pressed {
                 self.blocked_press_buttons.push(button);
             }
@@ -1536,6 +1537,21 @@ fn resize_should_yield_to_content(
     resize_edge_widget_hovered || overlay_open || banner_hovered || window_size_locked
 }
 
+/// 버튼 이벤트를 아래(surface·분할선)로 보내지 않는지. 뗌은 누름이 간 곳으로 간다: 위가 가져간 누름의
+/// 뗌(`captured_release`)은 위에 남고, 아래가 받은 누름의 뗌은 포인터가 위(`over_above`: egui·팝업·배너)여도
+/// 아래로 간다. 누름은 포인터가 위면 위에 남는다. 모달 오버레이는 둘 다 막는다.
+fn button_stays_above(
+    button_state: ElementState,
+    captured_release: bool,
+    overlay_open: bool,
+    over_above: bool,
+) -> bool {
+    match button_state {
+        ElementState::Pressed => overlay_open || over_above,
+        ElementState::Released => captured_release || overlay_open,
+    }
+}
+
 /// 커서 이동을 오버레이나 egui가 처리했으면 mesh 조회를 생략한다.
 /// 호출자는 반환 전에 update_mesh_hover(None)으로 이전 hover를 해제한다.
 /// host 분할선 드래그 중이면 생략하지 않는다. 분할선 띠의 press 를 egui 위젯도 클릭 후보로
@@ -2098,6 +2114,34 @@ mod cursor_moved_early_return_tests {
         let (next, gone) = mesh_hover_transition(None, None);
         assert_eq!(next, None);
         assert_eq!(gone, None);
+    }
+}
+
+/// 뗌은 누름이 간 곳으로 간다.
+#[cfg(test)]
+mod release_route_tests {
+    use super::button_stays_above;
+    use winit::event::ElementState::{Pressed, Released};
+
+    /// Given 아래 터미널에서 누른 뒤, When 덮인 자리(팝업 위)에서 떼면, Then 뗌은 아래로 간다.
+    #[test]
+    fn a_release_of_a_press_below_goes_below_over_a_popup() {
+        assert!(!button_stays_above(Released, false, false, true));
+    }
+
+    /// Given 팝업이 가져간 누름, When 드러난 자리에서 떼면, Then 뗌은 위에 남는다.
+    #[test]
+    fn a_release_of_a_press_taken_above_stays_above() {
+        assert!(button_stays_above(Released, true, false, false));
+    }
+
+    /// 누름은 포인터 대상을 따른다. 모달 오버레이는 누름과 뗌을 모두 막는다.
+    #[test]
+    fn a_press_follows_the_pointer_target() {
+        assert!(button_stays_above(Pressed, false, false, true));
+        assert!(!button_stays_above(Pressed, false, false, false));
+        assert!(button_stays_above(Pressed, false, true, false));
+        assert!(button_stays_above(Released, false, true, false));
     }
 }
 

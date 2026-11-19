@@ -338,12 +338,18 @@ pub fn draw_plugin_popups(
         }
 
         // 아래 팝업에 키가 전달되면 Escape 하나로 여러 팝업이 닫힐 수 있다.
+        let mut route = state
+            .plugin_mesh_popup_forward
+            .get(&snap.instance_id)
+            .map(|f| f.pointer.clone())
+            .unwrap_or_default();
         let mut raw_input = collect_mesh_popup_input(
             ctx,
             content_rect,
             pointer_pos,
             ownership == Some(PointOwnership::OccludedByHigher),
             has_key_focus,
+            &mut route,
         );
         // 보류한 편집 키의 요청은 이 프레임 입력 뒤에 붙인다. 그 뒤의 입력은 보류 뒤에 줄을 서 있다.
         raw_input.events.extend(take_edit_requests(
@@ -373,6 +379,7 @@ pub fn draw_plugin_popups(
             .plugin_mesh_popup_forward
             .entry(snap.instance_id)
             .or_default();
+        fwd.pointer = route;
         let need_bootstrap = fwd.need_bootstrap(has_frame);
         fwd.watch_blank(
             has_frame,
@@ -690,8 +697,9 @@ fn is_user_activation(raw: &RawInputWire) -> bool {
     })
 }
 
-/// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다.
-/// PointerGone은 영역과 관계없이 전달한다. 키·텍스트·IME·편집(붙여넣기·복사·잘라내기)은 최상단
+/// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다. 뗌은 이 팝업에서
+/// 누른 버튼만 보낸다(`route`). PointerGone은 영역과 관계없이 전달하고, 포인터가 콘텐츠를 떠나거나 가려지면
+/// 보낸다. 키·텍스트·IME·편집(붙여넣기·복사·잘라내기)은 최상단
 /// 팝업에만 보낸다. 빈 붙여넣기는 보내지 않는다.
 fn collect_mesh_popup_input(
     ctx: &Context,
@@ -699,6 +707,7 @@ fn collect_mesh_popup_input(
     pointer_pos: Option<Pos2>,
     pointer_occluded: bool,
     has_key_focus: bool,
+    route: &mut crate::plugin_bridge::MeshPointerRoute,
 ) -> RawInputWire {
     let origin = content_rect.min;
     let pointer_inside = !pointer_occluded && pointer_pos.is_some_and(|p| content_rect.contains(p));
@@ -721,7 +730,12 @@ fn collect_mesh_popup_input(
                     button,
                     pressed,
                     modifiers: m,
-                } if accepts_pointer(*pos) => {
+                } if if *pressed {
+                    route.press(*button, accepts_pointer(*pos))
+                } else {
+                    route.release(*button)
+                } =>
+                {
                     if let Some(button) = map_button(*button) {
                         events.push(RawInputEventWire::PointerButton {
                             x: pos.x - origin.x,
@@ -782,6 +796,13 @@ fn collect_mesh_popup_input(
                 Event::PointerGone => events.push(RawInputEventWire::PointerGone),
                 _ => {}
             }
+        }
+        if route.hover(pointer_inside)
+            && !events
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::PointerGone))
+        {
+            events.push(RawInputEventWire::PointerGone);
         }
         RawInputWire {
             time: None,
@@ -1359,6 +1380,7 @@ mod tests {
                 Some(pointer),
                 false,
                 true,
+                &mut Default::default(),
             ));
         });
         wire?.events.iter().find_map(|e| match e {
@@ -1424,6 +1446,7 @@ mod tests {
                 None,
                 false,
                 has_key_focus,
+                &mut Default::default(),
             ));
         });
         wire.expect("수집 함수가 와이어를 만들어야 한다").events

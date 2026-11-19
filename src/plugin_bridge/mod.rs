@@ -83,6 +83,44 @@ pub(crate) struct MeshForwardCommon {
     bootstrap_at: Option<std::time::Instant>,
     /// 같은 대상의 빈 화면 경고를 반복하지 않도록 한다. 프레임을 받으면 해제한다.
     blank_warned: bool,
+    /// 포인터 hover·누름 기록. popup·banner 채널이 입력을 모을 때 쓴다.
+    pub(crate) pointer: MeshPointerRoute,
+}
+
+/// mesh 콘텐츠 하나의 포인터 경로 기록. 이동·누름은 포인터 대상이 이 콘텐츠일 때만 보내고, 뗌은 누름이 간
+/// 곳으로 보낸다(이 콘텐츠에서 누른 버튼만, 뗀 좌표와 무관하게). 포인터가 콘텐츠를 떠나거나 팝업에 덮이면
+/// PointerGone 으로 hover 를 푼다.
+#[cfg(feature = "gui")]
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MeshPointerRoute {
+    inside: bool,
+    pressed: Vec<egui::PointerButton>,
+}
+
+#[cfg(feature = "gui")]
+impl MeshPointerRoute {
+    /// 누름이 이 콘텐츠에 가는지. 포인터 대상이 이 콘텐츠면(`mine`) 버튼을 기록하고 참이다.
+    pub(crate) fn press(&mut self, button: egui::PointerButton, mine: bool) -> bool {
+        if mine && !self.pressed.contains(&button) {
+            self.pressed.push(button);
+        }
+        mine
+    }
+
+    /// 뗌이 이 콘텐츠에 가는지. 이 콘텐츠에서 누른 버튼이면 기록을 지우고 참이다.
+    pub(crate) fn release(&mut self, button: egui::PointerButton) -> bool {
+        let before = self.pressed.len();
+        self.pressed.retain(|b| *b != button);
+        self.pressed.len() != before
+    }
+
+    /// 이번 프레임 포인터가 이 콘텐츠의 대상인지 기록한다. 직전에 대상이었는데 아니게 됐으면 참이다(PointerGone
+    /// 을 보낸다).
+    pub(crate) fn hover(&mut self, inside: bool) -> bool {
+        let gone = self.inside && !inside;
+        self.inside = inside;
+        gone
+    }
 }
 
 /// 초기 context 요청 후 프레임 없이 기다리는 경고 유예 시간.
