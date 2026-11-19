@@ -64,19 +64,31 @@ fn a_failure_whose_surface_is_gone_draws_retry_disabled() {
     assert_eq!(drawn_retry_clickable(&rejected, &read), None);
 }
 
+/// 실패 `errors`를 차례로 가진 인스턴스 데이터.
+fn queue_of(errors: impl IntoIterator<Item = TransferError>) -> PopupPayload {
+    PopupPayload::TransferError(TransferErrorQueue {
+        items: errors.into_iter().map(crate::state::Queued::from).collect(),
+    })
+}
+
+fn queue_items(
+    payload: &PopupPayload,
+) -> &std::collections::VecDeque<crate::state::Queued<TransferError>> {
+    &TransferErrorQueue::of(payload)
+        .expect("failure queue")
+        .items
+}
+
 /// 결속할 surface가 없는 Retry는 항목과 재시도 데이터를 그대로 두고 아무것도 실행하지 않는다.
 #[test]
 fn retry_for_a_gone_surface_keeps_the_failure() {
     let (mut state, mut session, _sid) = fixture();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(failure(PopupScope::Workspace(8), Some(GONE_SURFACE)).into());
+    let mut payload = queue_of([failure(PopupScope::Workspace(8), Some(GONE_SURFACE))]);
     let engine = session.borrow_mut();
-    let action = retry_head_error(&mut state, &engine.read());
+    let action = retry_head_error(&mut state, &engine.read(), &mut payload);
     assert!(matches!(action, PopupAction::None));
-    assert_eq!(state.dialogs.transfer_error.len(), 1);
-    assert!(state.dialogs.transfer_error[0].retry.is_some());
+    assert_eq!(queue_items(&payload).len(), 1);
+    assert!(queue_items(&payload)[0].retry.is_some());
     assert!(state.take_pending_intents().is_empty());
 }
 
@@ -84,14 +96,11 @@ fn retry_for_a_gone_surface_keeps_the_failure() {
 #[test]
 fn retry_for_a_live_surface_queues_the_upload() {
     let (mut state, mut session, sid) = fixture();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(failure(PopupScope::Surface(sid), Some(sid)).into());
+    let mut payload = queue_of([failure(PopupScope::Surface(sid), Some(sid))]);
     let engine = session.borrow_mut();
-    let action = retry_head_error(&mut state, &engine.read());
+    let action = retry_head_error(&mut state, &engine.read(), &mut payload);
     assert!(matches!(action, PopupAction::Close));
-    assert!(state.dialogs.transfer_error[0].retry.is_none());
+    assert!(queue_items(&payload)[0].retry.is_none());
     let intents = state.take_pending_intents();
     assert!(
         matches!(
@@ -123,39 +132,65 @@ fn close_with_hook(
     }
 }
 
-/// S1 실패를 닫거나 다시 시도하면 팝업이 닫히고, 대기 중인 다음 실패가 자기 범위로 열린다.
-fn the_next_failure_moves_to_its_scope(
-    next_scope: PopupScope,
-    press: impl FnOnce(&mut crate::state::RequestContext, &EngineRead<'_>) -> PopupAction,
-) {
+type Press =
+    fn(&mut crate::state::RequestContext, &EngineRead<'_>, &mut PopupPayload) -> PopupAction;
+
+/// S1 실패 둘이 쌓인 팝업에서 앞 실패를 닫거나 다시 시도하면 팝업이 닫히고, 다음 실패가 같은 범위로 다시
+/// 열린다. 다른 범위의 실패 팝업은 그대로다.
+fn the_next_failure_stays_in_the_scope(press: Press) {
     let (mut state, mut session, sid) = fixture();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(failure(PopupScope::Surface(sid), Some(sid)).into());
-    state
-        .dialogs
-        .transfer_error
-        .push_back(failure(next_scope.clone(), None).into());
+    let scope = PopupScope::Surface(sid);
+    let other = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, PopupScope::Workspace(8))
+                .centered()
+                .with_payload(queue_of([failure(PopupScope::Workspace(8), None)])),
+            true,
+        )
+        .expect("other scope opens");
     let iid = state
         .popups
-        .open_centered_focused(TRANSFER_ERROR_POPUP_ID, PopupScope::Surface(sid))
-        .unwrap();
+        .open_request(
+            &crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, scope.clone())
+                .centered()
+                .focused()
+                .with_payload(queue_of([
+                    failure(scope.clone(), Some(sid)),
+                    failure(scope.clone(), None),
+                ])),
+            true,
+        )
+        .expect("opens");
+    assert_ne!(iid, other);
+    let mut payload = std::mem::take(&mut state.popups.instance_mut(iid).expect("open").payload);
     let action = {
         let engine = session.borrow_mut();
-        press(&mut state, &engine.read())
+        press(&mut state, &engine.read(), &mut payload)
     };
     assert!(matches!(action, PopupAction::Close));
+    state.popups.instance_mut(iid).expect("open").payload = payload;
     close_with_hook(&mut state, &mut session, iid);
-    assert_eq!(state.dialogs.transfer_error.len(), 1);
-    assert_eq!(
-        state.popups.open_scope(TRANSFER_ERROR_POPUP_ID),
-        Some(&next_scope)
+
+    let next = state
+        .popups
+        .instance_for(TRANSFER_ERROR_POPUP_ID, &scope)
+        .expect("the next failure reopens in the same scope");
+    let next = state.popups.instance(next).expect("open");
+    assert_eq!(queue_items(&next.payload).len(), 1);
+    assert!(queue_items(&next.payload)[0].retry.is_none());
+    assert!(
+        state.popups.instance(other).is_some(),
+        "the other scope is untouched"
     );
 }
 
 /// 본문의 Enter(Dismiss)를 그린 프레임에 누른다.
-fn dismiss(state: &mut crate::state::RequestContext, engine: &EngineRead<'_>) -> PopupAction {
+fn dismiss(
+    state: &mut crate::state::RequestContext,
+    engine: &EngineRead<'_>,
+    payload: &mut PopupPayload,
+) -> PopupAction {
     let mut action = PopupAction::None;
     let ctx = egui::Context::default();
     let mut raw = egui::RawInput::default();
@@ -168,8 +203,12 @@ fn dismiss(state: &mut crate::state::RequestContext, engine: &EngineRead<'_>) ->
     });
     let _output = ctx.run(raw, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut cx = crate::adapters::ui::popup::PopupCx::test(TRANSFER_ERROR_POPUP_ID);
-            cx.focused = true;
+            let mut cx = crate::adapters::ui::popup::PopupCx {
+                id: TRANSFER_ERROR_POPUP_ID,
+                instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                focused: true,
+                payload: &mut *payload,
+            };
             action = draw_transfer_error(ui, state, engine, &mut cx);
         });
     });
@@ -177,11 +216,11 @@ fn dismiss(state: &mut crate::state::RequestContext, engine: &EngineRead<'_>) ->
 }
 
 #[test]
-fn dismiss_shows_the_next_failure_in_its_own_scope() {
-    the_next_failure_moves_to_its_scope(PopupScope::Workspace(8), dismiss);
+fn dismiss_shows_the_next_failure_in_the_same_scope() {
+    the_next_failure_stays_in_the_scope(dismiss);
 }
 
 #[test]
-fn retry_shows_the_next_failure_in_its_own_scope() {
-    the_next_failure_moves_to_its_scope(PopupScope::Workspace(8), retry_head_error);
+fn retry_shows_the_next_failure_in_the_same_scope() {
+    the_next_failure_stays_in_the_scope(retry_head_error);
 }

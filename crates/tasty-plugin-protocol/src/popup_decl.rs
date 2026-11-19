@@ -42,7 +42,7 @@ pub enum PopupInstances {
     PerScopeTarget,
     /// 같은 범위 안에 여럿.
     Multi,
-    /// 하나씩 차례로 보인다.
+    /// 범위 대상마다 하나이고, 그 안에서 항목을 하나씩 차례로 보인다.
     Queue,
 }
 

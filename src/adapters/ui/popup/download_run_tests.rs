@@ -153,14 +153,6 @@ fn a_failure_opens_in_the_surface_that_started_the_download() {
         opened_scope(&mut state, super::super::transfer::TRANSFER_ERROR_POPUP_ID),
         crate::model::popup_kind::PopupScope::Surface(101)
     );
-    assert_eq!(
-        state
-            .dialogs
-            .transfer_error
-            .front()
-            .map(|e| e.scope.clone()),
-        Some(crate::model::popup_kind::PopupScope::Surface(101))
-    );
 }
 
 /// 크기 확인을 닫으면 다음 확인을 그 다운로드의 surface 범위로 연다.

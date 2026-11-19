@@ -146,21 +146,28 @@ fn transfer_error_next_uses_its_own_origin(first_by_user: bool, next_by_user: bo
     for def in crate::adapters::ui::popup::defs::all_defs() {
         state.popups.register_def(def, 1.0);
     }
-    for (name, by_user) in [("a.txt", first_by_user), ("b.txt", next_by_user)] {
-        state.dialogs.transfer_error.push_back(Queued {
+    let items = [("a.txt", first_by_user), ("b.txt", next_by_user)]
+        .into_iter()
+        .map(|(name, by_user)| Queued {
             item: failure(name),
             origin: origin(by_user),
-        });
-    }
+        })
+        .collect();
     open_then_close(
         &mut state,
         &mut engine,
         TRANSFER_ERROR_POPUP_ID,
         first_by_user,
-        PopupPayload::None,
+        PopupPayload::TransferError(crate::adapters::ui::popup::transfer::TransferErrorQueue {
+            items,
+        }),
         on_close_transfer_error,
     );
-    assert_eq!(state.dialogs.transfer_error.front().unwrap().name, "b.txt");
+    let names: Vec<&str> = crate::adapters::ui::popup::transfer::queued_errors(&state)
+        .iter()
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["b.txt"]);
     assert!(state.popups.is_open(TRANSFER_ERROR_POPUP_ID));
     assert_eq!(
         state.popups.is_passive(TRANSFER_ERROR_POPUP_ID),
@@ -256,6 +263,25 @@ fn a_late_info_modal_close_hook_keeps_the_newly_opened_modal() {
     assert_eq!(bodies, vec!["b", "c"]);
 }
 
+fn transfer_errors(names: &[&str]) -> PopupPayload {
+    PopupPayload::TransferError(crate::adapters::ui::popup::transfer::TransferErrorQueue {
+        items: names
+            .iter()
+            .map(|n| Queued {
+                item: failure(n),
+                origin: origin(true),
+            })
+            .collect(),
+    })
+}
+
+fn queued_error_names(state: &RequestContext) -> Vec<String> {
+    crate::adapters::ui::popup::transfer::queued_errors(state)
+        .iter()
+        .map(|e| e.name.clone())
+        .collect()
+}
+
 fn queued_bodies(state: &RequestContext) -> Vec<String> {
     state
         .popups
@@ -332,6 +358,86 @@ fn a_late_info_modal_close_hook_fills_a_data_less_instance() {
     assert_eq!(queued_bodies(&state), vec!["b"]);
 }
 
+/// Given 실패 [a, b]를 닫았고 닫기 훅 전에 같은 범위에 새 실패 c가 열림, When 옛 닫기 훅이 돌면, Then 열린 c
+/// 인스턴스의 차례가 b, c다.
+#[test]
+fn a_late_transfer_error_close_hook_keeps_the_newly_opened_failure() {
+    let state = close_open_then_hook(
+        TRANSFER_ERROR_POPUP_ID,
+        transfer_errors(&["a.txt", "b.txt"]),
+        transfer_errors(&["c.txt"]),
+        on_close_transfer_error,
+    );
+    assert_eq!(queued_error_names(&state), vec!["b.txt", "c.txt"]);
+}
+
+/// Given 데이터 없이 연 실패 인스턴스(debug 열기), When 실제 실패를 열면, Then 그 실패가 인스턴스 큐에
+/// 들어가고 인스턴스 id·위치·포커스는 그대로다.
+#[test]
+fn a_real_transfer_error_fills_an_instance_opened_without_data() {
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    for def in crate::adapters::ui::popup::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    open_by_user(
+        &mut state,
+        &mut engine,
+        TRANSFER_ERROR_POPUP_ID,
+        PopupPayload::None,
+    );
+    let opened = state
+        .popups
+        .instance_for(TRANSFER_ERROR_POPUP_ID, &PopupScope::Window)
+        .expect("the data-less request opens an instance");
+    let pos = state
+        .popups
+        .instances_of(TRANSFER_ERROR_POPUP_ID)
+        .map(|p| p.pos)
+        .next();
+
+    open_by_user(
+        &mut state,
+        &mut engine,
+        TRANSFER_ERROR_POPUP_ID,
+        transfer_errors(&["a.txt"]),
+    );
+
+    assert_eq!(
+        state
+            .popups
+            .instance_for(TRANSFER_ERROR_POPUP_ID, &PopupScope::Window),
+        Some(opened)
+    );
+    assert_eq!(
+        state.popups.instances_of(TRANSFER_ERROR_POPUP_ID).count(),
+        1
+    );
+    assert_eq!(
+        state
+            .popups
+            .instances_of(TRANSFER_ERROR_POPUP_ID)
+            .map(|p| p.pos)
+            .next(),
+        pos
+    );
+    assert!(state.popups.is_focused(TRANSFER_ERROR_POPUP_ID));
+    assert_eq!(queued_error_names(&state), vec!["a.txt"]);
+}
+
+/// Given 실패 [a, b]를 닫았고 닫기 훅 전에 같은 범위에 데이터 없는 실패 인스턴스가 열림, When 옛 닫기 훅이
+/// 돌면, Then 남은 b가 그 인스턴스의 큐가 되고 인스턴스는 그대로다.
+#[test]
+fn a_late_transfer_error_close_hook_fills_a_data_less_instance() {
+    let state = close_open_then_hook(
+        TRANSFER_ERROR_POPUP_ID,
+        transfer_errors(&["a.txt", "b.txt"]),
+        PopupPayload::None,
+        on_close_transfer_error,
+    );
+    assert_eq!(queued_error_names(&state), vec!["b.txt"]);
+}
+
 /// Given 데이터 없이 연 안내 인스턴스, When 안내 큐가 아닌 데이터(팔레트 입력)를 실은 같은 팝업의 열기가 오면,
 /// Then 데이터는 없는 그대로이고 인스턴스도 그대로다.
 #[test]
@@ -367,7 +473,7 @@ fn an_instance_opened_without_data_rejects_another_kind_of_data() {
     ));
 }
 
-/// 세 큐 팝업은 `Queue` 를 선언한다. 범위가 달라도 창에 인스턴스 하나로 차례를 보인다.
+/// 세 큐 팝업은 `Queue` 를 선언한다. 범위 대상마다 인스턴스 하나로 차례를 보인다.
 #[test]
 fn the_three_queue_popups_declare_the_queue_policy() {
     use crate::adapters::ui::popup::approval::APPROVAL_POPUP_ID;
@@ -434,10 +540,6 @@ fn closes_on_key(
 fn a_passive_queue_popup_ignores_enter_and_escape() {
     crate::i18n::init("en");
     let (mut state, session) = crate::state::tests::test_state();
-    state.dialogs.transfer_error.push_back(Queued {
-        item: failure("f"),
-        origin: origin(false),
-    });
     let engine = session.read();
     let popups: [(&'static str, DrawFn, PopupPayload); 2] = [
         (
@@ -454,7 +556,13 @@ fn a_passive_queue_popup_ignores_enter_and_escape() {
         (
             TRANSFER_ERROR_POPUP_ID,
             crate::adapters::ui::popup::transfer::draw_transfer_error,
-            PopupPayload::None,
+            PopupPayload::TransferError(crate::adapters::ui::popup::transfer::TransferErrorQueue {
+                items: [Queued {
+                    item: failure("f"),
+                    origin: origin(false),
+                }]
+                .into(),
+            }),
         ),
     ];
     for (id, draw, mut payload) in popups {
@@ -468,8 +576,11 @@ fn a_passive_queue_popup_ignores_enter_and_escape() {
                 "{id} {key:?} focused"
             );
         }
+        // 그리기는 닫기만 돌려주고 항목은 닫기 훅이 꺼낸다.
+        if let PopupPayload::TransferError(queue) = &payload {
+            assert_eq!(queue.items.len(), 1);
+        }
     }
-    assert_eq!(state.dialogs.transfer_error.len(), 1);
 }
 
 /// Given 안내가 열려 있을 때, When 같은 프레임에 안내 둘이 더 요청되면, Then 새 인스턴스를 만들지 않고 열린

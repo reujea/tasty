@@ -53,6 +53,7 @@ use crate::adapters::ui::popup::preset_apply::APPLY_WORKSPACE_POPUP_ID;
 use crate::adapters::ui::popup::rail_category::RAIL_CATEGORY_POPUP_ID;
 use crate::adapters::ui::popup::transfer::{
     TRANSFER_ERROR_POPUP_ID, TRANSFER_PROGRESS_POPUP_ID, TransferError, TransferProgress,
+    queued_errors,
 };
 use crate::adapters::ui::popup::{PopupId, title_bar_height};
 use crate::intent::{Intent, UiIntent};
@@ -429,39 +430,38 @@ fn xfer_err(name: &str) -> TransferError {
     }
 }
 
+/// 창 범위 실패 팝업을 고정 위치에 `names` 실패를 차례로 실어 포커스를 주어 연다.
+fn open_errors(state: &mut crate::state::RequestContext, names: &[&str]) {
+    let items = names
+        .iter()
+        .map(|name| crate::state::Queued::from(xfer_err(name)))
+        .collect();
+    open_with_payload(
+        state,
+        TRANSFER_ERROR_POPUP_ID,
+        crate::adapters::ui::popup::PopupPayload::TransferError(
+            crate::adapters::ui::popup::transfer::TransferErrorQueue { items },
+        ),
+    );
+}
+
 #[test]
 fn transfer_error_escape_close_pops_single_entry() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(xfer_err("a.txt").into());
-    state.popups.open_at_focused(
-        TRANSFER_ERROR_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_errors(&mut state, &["a.txt"]);
 
     run_frame(key_input(egui::Key::Escape), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(TRANSFER_ERROR_POPUP_ID));
-    assert!(state.dialogs.transfer_error.is_empty());
+    assert!(queued_errors(&state).is_empty());
 }
 
 #[test]
 fn transfer_error_outside_click_with_single_entry_closes_without_reopen() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(xfer_err("a.txt").into());
-    state.popups.open_at_focused(
-        TRANSFER_ERROR_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_errors(&mut state, &["a.txt"]);
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -470,26 +470,14 @@ fn transfer_error_outside_click_with_single_entry_closes_without_reopen() {
     );
 
     assert!(!state.popups.is_open(TRANSFER_ERROR_POPUP_ID));
-    assert!(state.dialogs.transfer_error.is_empty());
+    assert!(queued_errors(&state).is_empty());
 }
 
 #[test]
 fn transfer_error_outside_click_with_two_entries_pops_head_and_reopens() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(xfer_err("a.txt").into());
-    state
-        .dialogs
-        .transfer_error
-        .push_back(xfer_err("b.txt").into());
-    state.popups.open_at_focused(
-        TRANSFER_ERROR_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_errors(&mut state, &["a.txt", "b.txt"]);
 
     run_frame(
         press_input(outside_point(FIXED_POS)),
@@ -497,8 +485,11 @@ fn transfer_error_outside_click_with_two_entries_pops_head_and_reopens() {
         &mut engine,
     );
 
-    assert_eq!(state.dialogs.transfer_error.len(), 1);
-    assert_eq!(state.dialogs.transfer_error.front().unwrap().name, "b.txt");
+    let names: Vec<&str> = queued_errors(&state)
+        .iter()
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["b.txt"]);
     assert!(state.popups.is_open(TRANSFER_ERROR_POPUP_ID));
 }
 
@@ -506,19 +497,7 @@ fn transfer_error_outside_click_with_two_entries_pops_head_and_reopens() {
 fn transfer_error_close_intent_now_pops_head_and_reopens() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state
-        .dialogs
-        .transfer_error
-        .push_back(xfer_err("a.txt").into());
-    state
-        .dialogs
-        .transfer_error
-        .push_back(xfer_err("b.txt").into());
-    state.popups.open_at_focused(
-        TRANSFER_ERROR_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
-    );
+    open_errors(&mut state, &["a.txt", "b.txt"]);
 
     crate::intent::popup::handle(
         &mut state,
@@ -529,12 +508,14 @@ fn transfer_error_close_intent_now_pops_head_and_reopens() {
         .from_user_menu("test"),
     );
     assert!(!state.popups.is_open(TRANSFER_ERROR_POPUP_ID));
-    assert_eq!(state.dialogs.transfer_error.len(), 2);
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert_eq!(state.dialogs.transfer_error.len(), 1);
-    assert_eq!(state.dialogs.transfer_error.front().unwrap().name, "b.txt");
+    let names: Vec<&str> = queued_errors(&state)
+        .iter()
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["b.txt"]);
     assert!(state.popups.is_open(TRANSFER_ERROR_POPUP_ID));
 }
 
@@ -1716,31 +1697,103 @@ fn preset_apply_cancel_action_close_clears_selection_and_target_category() {
     );
 }
 
-/// 다음 실패는 그 실패의 범위로 다시 연다.
+/// 닫힌 실패 팝업의 다음 실패는 닫힌 팝업의 범위로 다시 연다.
 #[test]
 fn the_next_transfer_error_opens_in_its_own_surface() {
+    use crate::model::popup_kind::PopupScope;
     let (mut state, mut engine_session) = test_state();
     let engine = engine_session.borrow_mut();
-    let mut first = xfer_err("a.txt");
-    first.scope = crate::model::popup_kind::PopupScope::Surface(7);
-    let mut second = xfer_err("b.txt");
-    second.scope = crate::model::popup_kind::PopupScope::Workspace(8);
-    state.dialogs.transfer_error.push_back(first.into());
-    state.dialogs.transfer_error.push_back(second.into());
+    let items = ["a.txt", "b.txt"]
+        .into_iter()
+        .map(|name| {
+            let mut err = xfer_err(name);
+            err.scope = PopupScope::Surface(7);
+            crate::state::Queued::from(err)
+        })
+        .collect();
+    let mut closed = crate::adapters::ui::popup::ClosedPopup::test(TRANSFER_ERROR_POPUP_ID);
+    closed.scope = PopupScope::Surface(7);
+    closed.payload = crate::adapters::ui::popup::PopupPayload::TransferError(
+        crate::adapters::ui::popup::transfer::TransferErrorQueue { items },
+    );
     crate::adapters::ui::popup::transfer::on_close_transfer_error(
         &egui::Context::default(),
         &mut state,
         &engine.read(),
-        &crate::adapters::ui::popup::ClosedPopup::test("test"),
+        &closed,
     );
-    let popup = state
-        .popups
-        .get_mut(TRANSFER_ERROR_POPUP_ID)
-        .expect("transfer error is registered");
-    assert!(popup.open);
     assert_eq!(
-        popup.scope,
-        crate::model::popup_kind::PopupScope::Workspace(8)
+        state.popups.open_scope(TRANSFER_ERROR_POPUP_ID),
+        Some(&PopupScope::Surface(7))
+    );
+    let names: Vec<&str> = queued_errors(&state)
+        .iter()
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["b.txt"]);
+}
+
+/// Given 두 surface의 실패, Then 실패 팝업이 surface마다 따로 열리고 같은 surface의 실패는 그 팝업의 큐에서
+/// 차례를 기다린다. When 한 surface의 실패를 닫으면, Then 다른 surface의 팝업은 그대로다.
+#[test]
+fn failures_in_two_surfaces_wait_in_their_own_popups() {
+    use crate::adapters::ui::popup::transfer::push_error;
+    use crate::model::popup_kind::PopupScope;
+    let (mut state, mut engine_session) = crate::state::tests::two_pane_fixture();
+    let mut engine = engine_session.borrow_mut();
+    for (name, sid) in [("a.txt", 101), ("b.txt", 201), ("c.txt", 101)] {
+        let mut err = xfer_err(name);
+        err.scope = PopupScope::Surface(sid);
+        push_error(&mut state, err);
+    }
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(&mut state, &mut engine, &intent);
+    }
+    let by_scope = |state: &crate::state::RequestContext| -> Vec<(PopupScope, Vec<String>)> {
+        state
+            .popups
+            .instances_of(TRANSFER_ERROR_POPUP_ID)
+            .map(|p| {
+                let names = match &p.payload {
+                    crate::adapters::ui::popup::PopupPayload::TransferError(q) => {
+                        q.items.iter().map(|e| e.name.clone()).collect()
+                    }
+                    other => panic!("expected failures, got {other:?}"),
+                };
+                (p.scope.clone(), names)
+            })
+            .collect()
+    };
+    let mut shown = by_scope(&state);
+    shown.sort_by_key(|(scope, _)| format!("{scope:?}"));
+    assert_eq!(
+        shown,
+        vec![
+            (
+                PopupScope::Surface(101),
+                vec!["a.txt".into(), "c.txt".into()]
+            ),
+            (PopupScope::Surface(201), vec!["b.txt".into()]),
+        ]
+    );
+
+    let iid101 = state
+        .popups
+        .instance_for(TRANSFER_ERROR_POPUP_ID, &PopupScope::Surface(101))
+        .expect("surface 101 failure");
+    state.popups.close_instance(
+        iid101,
+        crate::adapters::ui::popup::PopupCloseReason::Content,
+    );
+    run_frame(empty_input(), &mut state, &mut engine);
+    let mut shown = by_scope(&state);
+    shown.sort_by_key(|(scope, _)| format!("{scope:?}"));
+    assert_eq!(
+        shown,
+        vec![
+            (PopupScope::Surface(101), vec!["c.txt".into()]),
+            (PopupScope::Surface(201), vec!["b.txt".into()]),
+        ]
     );
 }
 
@@ -1897,5 +1950,20 @@ fn a_pushed_failure_opens_in_its_own_scope() {
         ),
         "{intents:?}"
     );
-    assert_eq!(state.dialogs.transfer_error.len(), 1);
+    let crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(request)) = &intents[0].body
+    else {
+        unreachable!("matched above");
+    };
+    let queued = request.payload.peek(|p| match p {
+        crate::adapters::ui::popup::PopupPayload::TransferError(q) => q
+            .items
+            .iter()
+            .map(|e| (e.name.clone(), e.scope.clone()))
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    });
+    assert_eq!(
+        queued,
+        vec![("a.png".to_string(), PopupScope::Workspace(3))]
+    );
 }

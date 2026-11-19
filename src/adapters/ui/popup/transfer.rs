@@ -135,23 +135,66 @@ pub(crate) fn upload_error_scope(
     }
 }
 
-/// 실패를 큐에 넣고 그 항목의 범위로 실패 팝업을 연다. 이미 열려 있으면 큐에서 차례를 기다린다.
+/// 실패 팝업 인스턴스의 데이터. 맨 앞 실패를 보이고 나머지는 같은 범위에서 차례를 기다린다.
+#[derive(Debug, Default)]
+pub struct TransferErrorQueue {
+    pub(crate) items: std::collections::VecDeque<crate::state::Queued<TransferError>>,
+}
+
+impl TransferErrorQueue {
+    fn of(payload: &PopupPayload) -> Option<&Self> {
+        match payload {
+            PopupPayload::TransferError(queue) => Some(queue),
+            _ => None,
+        }
+    }
+
+    fn of_mut(payload: &mut PopupPayload) -> Option<&mut Self> {
+        match payload {
+            PopupPayload::TransferError(queue) => Some(queue),
+            _ => None,
+        }
+    }
+}
+
+/// `items`를 데이터로 싣고 `scope` 가운데에 여는 요청.
+fn error_open_request(
+    scope: crate::model::popup_kind::PopupScope,
+    items: std::collections::VecDeque<crate::state::Queued<TransferError>>,
+) -> crate::intent::OpenRequest {
+    crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, scope)
+        .centered()
+        .focused()
+        .with_payload(PopupPayload::TransferError(TransferErrorQueue { items }))
+}
+
+/// 실패를 그 항목의 범위로 알린다. 그 범위의 실패 팝업이 열려 있으면 그 큐에서 차례를 기다린다.
+/// 범위가 다른 실패는 따로 열린다.
 pub(crate) fn push_error(state: &mut MainViewState, error: TransferError) {
     // 업로드와 다운로드는 사용자의 붙여넣기·버튼에서 시작된다.
-    let open = crate::intent::UiIntent::OpenPopup(
-        crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, error.scope.clone())
-            .centered()
-            .focused(),
-    )
-    .from_user_menu("transfer_error");
-    state
-        .dialogs
-        .transfer_error
-        .push_back(crate::state::Queued {
+    let origin = crate::core::origin::IntentOrigin::User {
+        source: crate::core::origin::UserSource::Menu("transfer_error"),
+    };
+    let open = error_open_request(
+        error.scope.clone(),
+        std::collections::VecDeque::from([crate::state::Queued {
             item: error,
-            origin: open.origin.clone(),
-        });
-    state.dispatch_intent(open);
+            origin,
+        }]),
+    );
+    state
+        .dispatch_intent(crate::intent::UiIntent::OpenPopup(open).from_user_menu("transfer_error"));
+}
+
+/// 열린 실패 팝업들이 가진 실패. 열린 순서대로 각 큐의 차례를 잇는다.
+#[cfg(test)]
+pub(crate) fn queued_errors(state: &MainViewState) -> Vec<&crate::state::Queued<TransferError>> {
+    state
+        .popups
+        .instances_of(TRANSFER_ERROR_POPUP_ID)
+        .filter_map(|p| TransferErrorQueue::of(&p.payload))
+        .flat_map(|q| q.items.iter())
+        .collect()
 }
 
 /// 한 파일의 진행 상태.
@@ -172,6 +215,7 @@ pub struct TransferRow {
 }
 
 /// 실패 팝업 큐 항목.
+#[derive(Debug, Clone)]
 pub struct TransferError {
     /// 실패 팝업의 범위. 전송을 시작한 surface, 그 surface 가 닫힌 업로드는 그 mirror workspace 다.
     pub scope: crate::model::popup_kind::PopupScope,
@@ -223,23 +267,21 @@ pub fn transfer_progress_sizer(
 
 /// 실패 팝업 높이 = header + body(prose + reason well) + footer. reason 길이로 well 줄수 추정.
 pub fn transfer_error_sizer(
-    state: &MainViewState,
+    _state: &MainViewState,
     _e: &EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
     let th = theme::theme();
+    let head = TransferErrorQueue::of(payload).and_then(|q| q.items.front());
     if let Some(TransferErrorKind::DownloadRun {
         content_height: Some(h),
-    }) = state.dialogs.transfer_error.front().map(|e| e.kind)
+    }) = head.map(|e| e.kind)
     {
         return egui::vec2(th.transfer_popup_width().value(), h.value());
     }
     let header_h = th.transfer_header_pad_y().scaled(2.0) + header_content_h(&th);
     let footer_h = th.transfer_footer_pad_y().scaled(2.0) + LogicalPx(ControlSize::Sm.height(&th));
-    let (name_len, reason_len) = state
-        .dialogs
-        .transfer_error
-        .front()
+    let (name_len, reason_len) = head
         .map(|e| (e.name.chars().count(), e.reason.chars().count()))
         .unwrap_or((0, 0));
     // 본문 폭 372(배율 1의 transfer-popup-width 400 − 2×14). 대략 문자당 ~7px → prose ~53자/줄, well ~50자/줄.
@@ -315,24 +357,27 @@ pub fn draw_transfer_progress(
     PopupAction::None
 }
 
-/// Dismiss·Retry·Esc를 포함한 모든 닫기 경로가 여기서 맨 앞 실패를 꺼낸다. 남은 실패가 있으면 그 범위와
-/// 그 실패를 넣은 요청의 출처로 다시 연다. 사용자 출처가 아니면 포커스 없이 열린다.
+/// Dismiss·Retry·Esc를 포함한 모든 닫기 경로가 여기서 맨 앞 실패를 꺼낸다. 같은 범위에 남은 실패가 있으면
+/// 그 범위와 그 실패를 넣은 요청의 출처로 다시 연다. 사용자 출처가 아니면 포커스 없이 열린다. 그 사이 같은
+/// 범위에 새 실패 팝업이 열려 있으면 남은 실패를 그 차례 앞에 넣는다([`crate::adapters::ui::popup::PopupManager::reopen_queue_rest`]).
 pub fn on_close_transfer_error(
     _ctx: &egui::Context,
     state: &mut MainViewState,
     _engine: &EngineRead<'_>,
-    _closed: &crate::adapters::ui::popup::ClosedPopup,
+    closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    state.dialogs.transfer_error.pop_front();
-    if let Some(next) = state.dialogs.transfer_error.front() {
-        // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
-        state.popups.open_request(
-            &crate::intent::OpenRequest::new(TRANSFER_ERROR_POPUP_ID, next.scope.clone())
-                .centered()
-                .focused(),
-            next.origin.is_user(),
-        );
-    }
+    let Some(queue) = TransferErrorQueue::of(&closed.payload) else {
+        return;
+    };
+    let rest: std::collections::VecDeque<_> = queue.items.iter().skip(1).cloned().collect();
+    let Some(next) = rest.front() else {
+        return;
+    };
+    let by_user = next.origin.is_user();
+    // intent-exempt: popup 자기-close cleanup — on_close 훅에서 큐의 다음 항목을 잇는다
+    state
+        .popups
+        .reopen_queue_rest(&error_open_request(closed.scope.clone(), rest), by_user);
 }
 
 /// 실패 팝업 draw_fn. 헤더(warn + "Transfer failed") → prose + reason well → Dismiss
@@ -344,7 +389,7 @@ pub fn draw_transfer_error(
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
-    let Some(head) = state.dialogs.transfer_error.front() else {
+    let Some(head) = TransferErrorQueue::of(cx.payload).and_then(|q| q.items.front()) else {
         return PopupAction::Close;
     };
     let name = head.name.clone();
@@ -396,17 +441,16 @@ pub fn draw_transfer_error(
         retry = clicks.retry;
         dismiss |= clicks.dismiss;
     });
-    if let Some(TransferErrorKind::DownloadRun { content_height }) = state
-        .dialogs
-        .transfer_error
-        .front_mut()
-        .map(|e| &mut e.kind)
+    if let Some(TransferErrorKind::DownloadRun { content_height }) =
+        TransferErrorQueue::of_mut(cx.payload)
+            .and_then(|q| q.items.front_mut())
+            .map(|e| &mut e.kind)
     {
         *content_height = Some(LogicalPx(drawn.response.rect.height()));
     }
 
     if retry {
-        return retry_head_error(state, engine);
+        return retry_head_error(state, engine, cx.payload);
     }
     // 닫기 훅이 맨 앞 실패를 꺼내고 다음 실패를 그 출처로 다시 연다.
     match (dismiss, esc) {
@@ -478,11 +522,13 @@ fn draw_error_footer(
 
 /// 맨 앞 실패를 저장한 페이로드로 다시 업로드한다. 업로드한 surface에 결속할 수 없으면
 /// 항목을 그대로 두고 경고만 남긴다.
-fn retry_head_error(state: &mut MainViewState, engine: &EngineRead<'_>) -> PopupAction {
-    let Some(surface_id) = state
-        .dialogs
-        .transfer_error
-        .front()
+fn retry_head_error(
+    state: &mut MainViewState,
+    engine: &EngineRead<'_>,
+    payload: &mut PopupPayload,
+) -> PopupAction {
+    let Some(surface_id) = TransferErrorQueue::of(payload)
+        .and_then(|q| q.items.front())
         .and_then(|err| err.retry.as_ref())
         .map(|payload| payload.surface_id)
     else {
@@ -496,10 +542,8 @@ fn retry_head_error(state: &mut MainViewState, engine: &EngineRead<'_>) -> Popup
         );
         return PopupAction::None;
     };
-    if let Some(payload) = state
-        .dialogs
-        .transfer_error
-        .front_mut()
+    if let Some(payload) = TransferErrorQueue::of_mut(payload)
+        .and_then(|q| q.items.front_mut())
         .and_then(|err| err.retry.take())
     {
         state.dispatch_intent(

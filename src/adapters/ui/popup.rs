@@ -178,19 +178,6 @@ pub struct PopupCx<'a> {
 }
 
 #[cfg(test)]
-impl PopupCx<'static> {
-    /// 시험용: 정의 밖에서 그리기 함수를 직접 부를 때의 문맥. 포커스는 없다.
-    pub fn test(id: PopupId) -> Self {
-        Self {
-            id,
-            instance: PopupInstanceId::NONE,
-            focused: false,
-            payload: Box::leak(Box::new(PopupPayload::None)),
-        }
-    }
-}
-
-#[cfg(test)]
 impl ClosedPopup {
     /// 시험용: 닫기 훅을 직접 부를 때의 값. 사유는 팝업 밖 요청이다.
     pub fn test(id: PopupId) -> Self {
@@ -903,12 +890,14 @@ impl PopupManager {
         };
         let closed = || self.popups.iter().position(|p| p.id == id && !p.open);
         let found = match policy {
-            PopupInstances::Single | PopupInstances::Queue => self
+            PopupInstances::Single => self
                 .popups
                 .iter()
                 .position(|p| p.id == id && p.open)
                 .or_else(closed),
-            PopupInstances::PerScopeTarget => open_same_scope().or_else(closed),
+            PopupInstances::PerScopeTarget | PopupInstances::Queue => {
+                open_same_scope().or_else(closed)
+            }
             PopupInstances::Multi => closed(),
         };
         if found.is_some() {
@@ -954,8 +943,8 @@ impl PopupManager {
     pub fn instance_for(&self, id: PopupId, scope: &PopupScope) -> Option<PopupInstanceId> {
         let policy = self.popups.iter().find(|p| p.id == id)?.instances;
         let found = match policy {
-            PopupInstances::Single | PopupInstances::Queue => self.topmost_of(id),
-            PopupInstances::PerScopeTarget => self
+            PopupInstances::Single => self.topmost_of(id),
+            PopupInstances::PerScopeTarget | PopupInstances::Queue => self
                 .popups
                 .iter()
                 .rev()

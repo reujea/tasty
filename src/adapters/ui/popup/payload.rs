@@ -49,6 +49,8 @@ pub enum PopupPayload {
     InfoModal(crate::adapters::ui::info_modal::InfoModalQueue),
     /// 이 surface에서 진행 중인 전송 행.
     TransferProgress(super::transfer::TransferProgress),
+    /// 이 범위에서 차례를 기다리는 전송 실패.
+    TransferError(super::transfer::TransferErrorQueue),
 }
 
 impl PopupPayload {
@@ -57,6 +59,7 @@ impl PopupPayload {
         match self {
             Self::InfoModal(_) => popup_id == crate::adapters::ui::info_modal::INFO_MODAL_ID,
             Self::Approval(_) => popup_id == super::approval::APPROVAL_POPUP_ID,
+            Self::TransferError(_) => popup_id == super::transfer::TRANSFER_ERROR_POPUP_ID,
             _ => false,
         }
     }
@@ -70,6 +73,9 @@ impl PopupPayload {
         }
         match (self, incoming) {
             (Self::InfoModal(queue), Self::InfoModal(mut more)) => {
+                queue.items.append(&mut more.items)
+            }
+            (Self::TransferError(queue), Self::TransferError(mut more)) => {
                 queue.items.append(&mut more.items)
             }
             // 대기 중인 승인은 이미 창의 inbox에 있다. 다시 연 요청은 보이는 승인과 코멘트를 그대로 둔다.
@@ -94,6 +100,10 @@ impl PopupPayload {
                 first.items.append(&mut queue.items);
                 queue.items = first.items;
                 queue.body_height = None;
+            }
+            (Self::TransferError(queue), Self::TransferError(mut first)) => {
+                first.items.append(&mut queue.items);
+                queue.items = first.items;
             }
             _ => tracing::warn!("earlier queued popup data does not match the open instance"),
         }
@@ -140,6 +150,10 @@ impl std::fmt::Debug for PopupPayload {
             Self::TransferProgress(p) => f
                 .debug_tuple("TransferProgress")
                 .field(&p.rows.len())
+                .finish(),
+            Self::TransferError(q) => f
+                .debug_tuple("TransferError")
+                .field(&q.items.len())
                 .finish(),
         }
     }
