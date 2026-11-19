@@ -5,7 +5,9 @@
 //! 포인터 차단·scrim·바깥 누름 판정이 Window 범위로 나온다. 논리 범위(`scope`)는 바뀌지 않는다.
 //! 접힘 판정은 매 프레임 한다. 펼친 팝업은 판정하지 않고 접기 버튼이나 Esc로 다시 접힐 때까지 남는다.
 
-use tasty_ui_widgets::{CollapsedPlacement, collapsed_frame_sizes, fits_bounds, place_collapsed};
+use tasty_ui_widgets::{
+    CollapsedPlacement, collapsed_frame_sizes, fits_bounds, place_collapsed_at,
+};
 
 use super::{PopupFit, PopupInstanceId, PopupManager, PopupScope, PopupState};
 use crate::adapters::ui::LayoutContext;
@@ -19,6 +21,40 @@ pub(crate) enum PopupDisplay {
     Collapsed(Option<CollapsedPlacement>),
     /// 창 위에 그린다. `restore`는 펼치기 전 위치로, 다시 접을 때 되돌린다.
     Expanded { restore: egui::Pos2 },
+}
+
+/// 접을지 판정하는 입력. host·plugin 인스턴스가 같은 값으로 부르며 인스턴스 종류를 모른다.
+pub(crate) struct FitInput {
+    /// 배치 범위의 사각형. 창 범위이거나 사각형을 모르면 `None`이고 접지 않는다.
+    pub(crate) scope_rect: Option<egui::Rect>,
+    pub(crate) fit: PopupFit,
+    /// 판정 경계에서 안쪽 여백을 빼는지.
+    pub(crate) scope_inset: bool,
+    /// 팝업의 필요 크기.
+    pub(crate) needed: egui::Vec2,
+    /// 접힌 프레임의 앵커(plugin Cursor 앵커는 포인터). `None`이면 판정 경계 가운데다.
+    pub(crate) anchor: Option<egui::Pos2>,
+}
+
+/// 범위에 들어가지 않으면 범위 안 보기 버튼 프레임, 들어가면 `None`(그대로 그린다). 줄이는 팝업은 접지 않는다.
+/// `inset_cap`은 안쪽 여백 상한(spacing_sm), `frames`는 라벨·아이콘 버튼 프레임 크기다.
+pub(crate) fn collapse_placement(
+    input: FitInput,
+    inset_cap: f32,
+    (label_frame, icon_frame): (egui::Vec2, egui::Vec2),
+) -> Option<CollapsedPlacement> {
+    if input.fit == PopupFit::Shrink {
+        return None;
+    }
+    let scope = input.scope_rect?;
+    let inset = if input.scope_inset {
+        tasty_ui_widgets::scope_inset(scope, inset_cap)
+    } else {
+        0.0
+    };
+    let bounds = scope.shrink(inset);
+    (!fits_bounds(input.needed, bounds))
+        .then(|| place_collapsed_at(bounds, input.needed, label_frame, icon_frame, input.anchor))
 }
 
 /// 접힌 팝업 한 장을 그리는 조건.
@@ -257,7 +293,7 @@ impl PopupManager {
         draw_ctx: Option<&LayoutContext>,
     ) {
         let inset_cap = crate::theme::theme().spacing_sm.value();
-        let (label_frame, icon_frame) = collapsed_frames(ctx);
+        let frames = collapsed_frames(ctx);
         let mut order: Vec<usize> = open_indices.to_vec();
         order.sort_by_key(|&i| self.popups[i].instance);
         for i in order {
@@ -277,40 +313,30 @@ impl PopupManager {
                 }
                 (Some(PopupDisplay::Collapsed(_)), _) => PopupDisplay::Collapsed(None),
                 (_, PopupDisplay::Expanded { restore }) => PopupDisplay::Expanded { restore },
-                _ => Self::fit_display(popup, draw_ctx, inset_cap, label_frame, icon_frame),
+                _ => Self::fit_display(popup, draw_ctx, inset_cap, frames),
             };
         }
     }
 
-    /// 범위에 들어가는지로 Fits·Collapsed를 정한다. 줄이는 팝업과 창 범위 팝업은 접지 않는다.
+    /// 범위에 들어가는지로 Fits·Collapsed를 정한다([`collapse_placement`]). 창 범위 팝업은 접지 않는다.
     fn fit_display(
         popup: &PopupState,
         draw_ctx: Option<&LayoutContext>,
         inset_cap: f32,
-        label_frame: egui::Vec2,
-        icon_frame: egui::Vec2,
+        frames: (egui::Vec2, egui::Vec2),
     ) -> PopupDisplay {
-        if popup.arrange.fit == PopupFit::Shrink || popup.scope == PopupScope::Window {
-            return PopupDisplay::Fits;
-        }
-        let Some(scope) = Self::scope_rect(&popup.scope, draw_ctx) else {
-            return PopupDisplay::Fits;
+        let input = FitInput {
+            scope_rect: (popup.scope != PopupScope::Window)
+                .then(|| Self::scope_rect(&popup.scope, draw_ctx))
+                .flatten(),
+            fit: popup.arrange.fit,
+            scope_inset: popup.arrange.scope_inset,
+            needed: popup.needed_size,
+            anchor: None,
         };
-        let inset = if popup.arrange.scope_inset {
-            tasty_ui_widgets::scope_inset(scope, inset_cap)
-        } else {
-            0.0
-        };
-        let bounds = scope.shrink(inset);
-        if fits_bounds(popup.needed_size, bounds) {
-            return PopupDisplay::Fits;
-        }
-        PopupDisplay::Collapsed(Some(place_collapsed(
-            bounds,
-            popup.needed_size,
-            label_frame,
-            icon_frame,
-        )))
+        collapse_placement(input, inset_cap, frames).map_or(PopupDisplay::Fits, |frame| {
+            PopupDisplay::Collapsed(Some(frame))
+        })
     }
 
     /// 접힌 인스턴스를 창 위로 펼친다. 포커스를 주고 맨 앞으로 올리며 창 가운데에 둔다.

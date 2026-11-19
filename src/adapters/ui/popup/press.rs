@@ -8,7 +8,7 @@ use crate::adapters::ui::LayoutContext;
 
 use super::occlusion::Occluder;
 use super::route::RoutedPress;
-use super::{PopupCloseReason, PopupInstanceId, PopupManager, PopupState};
+use super::{PopupCloseReason, PopupInstanceId, PopupManager, PopupScope, PopupState};
 
 /// 덮는 사각형 위 egui 입력을 받는 빈 레이어를 그린다. 그 아래 위젯(사이드바·탭 바·탐색기·상태바·배너)은
 /// 누름·hover·휠을 받지 않는다. 호출자는 이 레이어를 팝업 레이어 바로 아래에 둔다. egui는 직전 프레임의 레이어로
@@ -81,15 +81,8 @@ impl PopupManager {
             .collect()
     }
 
-    /// 어느 팝업 상자에도 들지 않은 누름을 범위 규칙대로 나눈다. 닫을 인스턴스는 `closed`에 넣고, 포커스를
-    /// 받을 덮는 팝업이 있으면 돌려준다.
-    ///
-    /// - 배치 범위 밖 누름은 그 팝업에 아무 일도 하지 않는다.
-    /// - 위의 팝업(host 덮음, plugin 상자·덮음)이 덮은 팝업은 알림을 받지 않는다.
-    /// - 누르기 직전 포커스가 논리 범위 밖이었으면 들어오는 첫 클릭이라 닫거나 포커스를 풀지 않는다.
-    ///   덮는 팝업이면 그 범위 안 누름이 팝업 것이라 포커스를 준다.
-    /// - 그 밖에는 바깥 클릭 선언대로 닫는다. 닫지 않는 덮는 팝업은 포커스를 받고, 덮지 않는 팝업은
-    ///   `sticky_focus`가 아니면 포커스를 푼다.
+    /// 어느 팝업 상자에도 들지 않은 누름을 [`outside_press`]대로 나눈다. 닫을 인스턴스는 `closed`에 넣고,
+    /// 포커스를 받을 덮는 팝업이 있으면 돌려준다. 포커스를 푸는 판정은 `sticky_focus`가 아닐 때만 따른다.
     pub(super) fn route_outside_press(
         &mut self,
         press: &RoutedPress,
@@ -99,40 +92,104 @@ impl PopupManager {
         others: &[Occluder],
         closed: &mut Vec<(PopupInstanceId, PopupCloseReason)>,
     ) -> Option<PopupInstanceId> {
-        // 열린 자식이 있는 부모는 바깥 클릭으로 닫지 않는다. 자식만 자기 규칙대로 닫힌다.
         let parents: Vec<PopupInstanceId> = self
             .popups
             .iter()
             .filter(|p| p.open)
             .filter_map(|p| p.parent)
             .collect();
-        let covers = self.cover_occluders(open_indices, draw_ctx, screen_rect);
+        let mut occluders = self.cover_occluders(open_indices, draw_ctx, screen_rect);
+        occluders.extend_from_slice(others);
         let mut focus_to: Option<(PopupInstanceId, u64)> = None;
         for &i in open_indices {
             let popup = &mut self.popups[i];
-            if !press.path.contains(&popup.placement_scope()) {
-                continue;
-            }
-            let covered = covers
-                .iter()
-                .chain(others)
-                .any(|o| o.z_seq > popup.z_seq && o.rect.contains(press.pos));
-            if covered {
-                continue;
-            }
-            let covering = popup.covers();
-            let first_click = !press.focus_before.contains(&popup.scope);
-            if !first_click && popup.close_on_outside_click && !parents.contains(&popup.instance) {
-                closed.push((popup.instance, PopupCloseReason::OutsideClick));
-            } else if covering {
-                if focus_to.is_none_or(|(_, z)| popup.z_seq > z) {
-                    focus_to = Some((popup.instance, popup.z_seq));
+            let placement = popup.placement_scope();
+            let target = OutsideTarget {
+                placement_scope: &placement,
+                logical_scope: &popup.scope,
+                z_seq: popup.z_seq,
+                box_rect: popup.box_rect(),
+                cover_rect: popup.cover_rect(draw_ctx, screen_rect),
+                closes_on_outside_click: popup.close_on_outside_click,
+                has_open_child: parents.contains(&popup.instance),
+            };
+            match outside_press(&target, press, &occluders) {
+                OutsidePress::None => {}
+                OutsidePress::Close => {
+                    closed.push((popup.instance, PopupCloseReason::OutsideClick));
                 }
-            } else if !first_click && !popup.sticky_focus {
-                popup.focused = false;
+                OutsidePress::Focus => {
+                    if focus_to.is_none_or(|(_, z)| popup.z_seq > z) {
+                        focus_to = Some((popup.instance, popup.z_seq));
+                    }
+                }
+                OutsidePress::Unfocus => {
+                    if !popup.sticky_focus {
+                        popup.focused = false;
+                    }
+                }
             }
         }
         focus_to.map(|(iid, _)| iid)
+    }
+}
+
+/// 상자 밖 누름이 팝업 하나에 하는 일.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OutsidePress {
+    /// 아무 일도 없다(상자 안, 배치 범위 밖, 위 팝업에 덮임, 다른 범위에서 들어오는 첫 클릭).
+    None,
+    /// 바깥 클릭 선언대로 닫는다.
+    Close,
+    /// 덮는 범위 안 누름이라 팝업이 포커스를 받는다.
+    Focus,
+    /// 덮지 않는 팝업의 범위 안 누름이라 포커스를 푼다.
+    Unfocus,
+}
+
+/// [`outside_press`]가 보는 팝업 하나. host·plugin 인스턴스가 같은 값으로 채운다.
+pub(crate) struct OutsideTarget<'a> {
+    pub(crate) placement_scope: &'a PopupScope,
+    pub(crate) logical_scope: &'a PopupScope,
+    pub(crate) z_seq: u64,
+    /// 그린 상자(접혔으면 버튼 프레임). 그리지 않는 접힌 자식은 `None`이다.
+    pub(crate) box_rect: Option<egui::Rect>,
+    /// 덮는 팝업이면 덮는 사각형.
+    pub(crate) cover_rect: Option<egui::Rect>,
+    pub(crate) closes_on_outside_click: bool,
+    /// 열린 자식이 있으면 바깥 클릭으로 닫지 않는다. 자식만 자기 규칙대로 닫힌다.
+    pub(crate) has_open_child: bool,
+}
+
+/// 누름 하나를 팝업 하나의 범위 규칙으로 나눈다. host·plugin이 같이 쓴다.
+///
+/// - 상자 안 누름과 배치 범위 밖 누름은 그 팝업에 아무 일도 하지 않는다.
+/// - 위의 팝업(`occluders` 중 z가 더 큰 것)이 덮은 자리의 누름은 알림이 없다.
+/// - 누르기 직전 포커스가 논리 범위 밖이었으면 들어오는 첫 클릭이라 닫거나 포커스를 풀지 않는다.
+///   덮는 팝업이면 그 범위 안 누름이 팝업 것이라 포커스를 준다.
+/// - 그 밖에는 바깥 클릭 선언대로 닫는다. 닫지 않는 덮는 팝업은 포커스를 받고, 덮지 않는 팝업은 포커스를 푼다.
+pub(crate) fn outside_press(
+    target: &OutsideTarget<'_>,
+    press: &RoutedPress,
+    occluders: &[Occluder],
+) -> OutsidePress {
+    if target.box_rect.is_some_and(|r| r.contains(press.pos))
+        || !press.path.contains(target.placement_scope)
+        || occluders
+            .iter()
+            .any(|o| o.z_seq > target.z_seq && o.rect.contains(press.pos))
+    {
+        return OutsidePress::None;
+    }
+    let first_click = !press.focus_before.contains(target.logical_scope);
+    if !first_click && target.closes_on_outside_click && !target.has_open_child {
+        OutsidePress::Close
+    } else if target.cover_rect.is_some_and(|r| r.contains(press.pos)) {
+        OutsidePress::Focus
+    } else if !first_click {
+        OutsidePress::Unfocus
+    } else {
+        OutsidePress::None
     }
 }
 

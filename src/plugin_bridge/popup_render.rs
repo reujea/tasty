@@ -17,13 +17,13 @@ use tasty_plugin_protocol::{
 use crate::adapters::ui::LayoutContext;
 use crate::adapters::ui::popup::display::{self, CollapsedDraw};
 use crate::adapters::ui::popup::occlusion::{Occluder, PointOwnership, point_ownership};
-use crate::adapters::ui::popup::{self, PopupManager, PopupScope};
+use crate::adapters::ui::popup::{self, PopupManager, PopupScope, press};
 use crate::app::plugin_display::PluginDisplay;
 use crate::model::LogicalPx;
 use crate::plugin::manifest::PopupAnchor;
 use crate::plugin_bridge::wire_scroll;
 use crate::state::RequestContext;
-use tasty_ui_widgets::{CollapsedPlacement, fits_bounds, place_collapsed};
+use tasty_ui_widgets::CollapsedPlacement;
 
 /// `size_hint`를 생략한 팝업의 크기. 실행 중 선언과 같은 값을 쓰도록 매니페스트 크레이트의 상수를 읽는다.
 fn default_popup_size() -> Vec2 {
@@ -475,8 +475,9 @@ pub fn draw_plugin_popups(
     }
 }
 
-/// 누름을 팝업에 나눈다. 상자 안이면 앞으로 가져오고, 상자 밖이면 범위 규칙(`outside_press`)대로 닫거나
-/// 앞으로 가져온다. 렌더 중에는 매니저를 변경하지 않고 메인 루프에 요청한다.
+/// 누름을 팝업에 나눈다. 상자 안이면 앞으로 가져오고, 상자 밖이면 host와 같은 범위 규칙(`press::outside_press`)대로
+/// 닫거나 앞으로 가져온다. plugin 팝업은 포커스 해제 상태가 없어 `Unfocus`는 아무 일도 하지 않는다. 렌더 중에는
+/// 매니저를 변경하지 않고 메인 루프에 요청한다.
 fn route_press(
     state: &mut RequestContext,
     snap: &MeshSnap,
@@ -492,52 +493,36 @@ fn route_press(
     if ownership == Some(PointOwnership::Mine) {
         state.plugin_popup_focus_bumps.push(snap.instance_id);
     }
-    // 자식 팝업이 열려 있을 때도 부모의 바깥 클릭 닫기는 미룬다.
-    let has_open_child = state.plugin_popup_has_open_child(snap.instance_id);
-    match outside_press(snap, box_rect, cover_rect, occluders, press) {
-        OutsidePress::Close if !has_open_child => state
+    let target = outside_target(
+        snap,
+        box_rect,
+        cover_rect,
+        state.plugin_popup_has_open_child(snap.instance_id),
+    );
+    match press::outside_press(&target, press, occluders) {
+        press::OutsidePress::Close => state
             .plugin_popup_closes
             .push((snap.instance_id, PopupCloseReason::OutsideClick)),
-        OutsidePress::None => {}
-        // 덮는 범위 안 누름은 팝업 것이다. 닫지 않으면 앞으로 가져온다.
-        OutsidePress::Close | OutsidePress::Take => {
-            state.plugin_popup_focus_bumps.push(snap.instance_id)
-        }
+        press::OutsidePress::Focus => state.plugin_popup_focus_bumps.push(snap.instance_id),
+        press::OutsidePress::None | press::OutsidePress::Unfocus => {}
     }
 }
 
-/// 상자 밖 누름이 플러그인 팝업에 하는 일.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OutsidePress {
-    /// 아무 일도 없다(상자 안, 배치 범위 밖, 위 팝업에 덮임).
-    None,
-    /// 바깥 클릭 선언대로 닫는다.
-    Close,
-    /// 덮는 범위 안 누름이라 팝업이 받는다.
-    Take,
-}
-
-/// host 팝업과 같은 범위 규칙(`popup::press`)으로 상자 밖 누름을 나눈다.
-fn outside_press(
+/// plugin 팝업 하나를 바깥 누름 판정 입력으로 옮긴다.
+fn outside_target(
     snap: &MeshSnap,
     box_rect: Rect,
     cover_rect: Rect,
-    occluders: &[Occluder],
-    press: &crate::adapters::ui::popup::route::RoutedPress,
-) -> OutsidePress {
-    let covered_by_higher = occluders
-        .iter()
-        .any(|o| o.z_seq > snap.z_seq && o.rect.contains(press.pos));
-    if covered_by_higher || box_rect.contains(press.pos) || !press.path.contains(&snap.scope) {
-        return OutsidePress::None;
-    }
-    let first_click = !press.focus_before.contains(&snap.logical_scope);
-    if !first_click && snap.dismiss_on_outside_click {
-        OutsidePress::Close
-    } else if snap.covers() && cover_rect.contains(press.pos) {
-        OutsidePress::Take
-    } else {
-        OutsidePress::None
+    has_open_child: bool,
+) -> press::OutsideTarget<'_> {
+    press::OutsideTarget {
+        placement_scope: &snap.scope,
+        logical_scope: &snap.logical_scope,
+        z_seq: snap.z_seq,
+        box_rect: Some(box_rect),
+        cover_rect: snap.covers().then_some(cover_rect),
+        closes_on_outside_click: snap.dismiss_on_outside_click,
+        has_open_child,
     }
 }
 
@@ -647,9 +632,19 @@ fn place_visible(
                 let pos = clamp_to_bounds(centered, size, screen_rect);
                 return Some((snap, Rect::from_min_size(pos, size)));
             }
-            if let Some(frame) =
-                collapsed_placement(&snap.scope, snap.size, layout, screen_rect, frames)
-            {
+            let input = display::FitInput {
+                scope_rect: (snap.scope != PopupScope::Window)
+                    .then(|| PopupManager::scope_rect(&snap.scope, layout))
+                    .flatten(),
+                fit: snap.layout.fit,
+                scope_inset: snap.layout.scope_inset,
+                needed: snap.size,
+                anchor: (snap.anchor == PopupAnchor::Cursor)
+                    .then_some(pointer_pos)
+                    .flatten(),
+            };
+            let inset_cap = crate::theme::theme().spacing_sm.value();
+            if let Some(frame) = display::collapse_placement(input, inset_cap, frames) {
                 snap.display = SnapDisplay::Collapsed(frame);
                 return Some((snap, frame.rect));
             }
@@ -924,27 +919,6 @@ fn place_popup(
     let size = Vec2::new(size.x.min(bounds.width()), size.y.min(bounds.height()));
     let pos = clamp_to_bounds(anchor_pos(anchor, size, bounds, pointer_pos), size, bounds);
     Some(Rect::from_min_size(pos, size))
-}
-
-/// 창이 아닌 범위가 선언 크기보다 작으면 범위 안 보기 버튼 프레임. 판정 경계는 배치와 같은
-/// `scope_bounds`다(surface만 안쪽 여백을 둔다).
-fn collapsed_placement(
-    scope: &PopupScope,
-    size: Vec2,
-    layout: Option<&LayoutContext>,
-    screen_rect: Rect,
-    (label_frame, icon_frame): (Vec2, Vec2),
-) -> Option<CollapsedPlacement> {
-    if *scope == PopupScope::Window {
-        return None;
-    }
-    let bounds = PopupManager::scope_bounds(
-        scope,
-        layout,
-        screen_rect,
-        crate::theme::theme().spacing_sm.value(),
-    );
-    (!fits_bounds(size, bounds)).then(|| place_collapsed(bounds, size, label_frame, icon_frame))
 }
 
 fn clamp_to_bounds(pos: Pos2, size: Vec2, bounds: Rect) -> Pos2 {
@@ -1236,6 +1210,40 @@ mod tests {
         assert_eq!(placed[0].0.scope, PopupScope::Surface(7));
         let (rects, _) = scrim_plan(&placed, Some(&layout), SCREEN);
         assert_eq!(rects, vec![narrow], "scrim 은 논리 범위를 덮는다");
+    }
+
+    /// Given 줄이는(shrink) 선언, Then 좁은 surface에서도 접지 않는다(host와 같은 판정 함수).
+    #[test]
+    fn a_plugin_popup_declared_to_shrink_does_not_collapse() {
+        let narrow = Rect::from_min_size(Pos2::new(1400.0, 0.0), Vec2::new(200.0, 1000.0));
+        let mut inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
+        inst.contribute.layout.fit = tasty_plugin_protocol::popup_decl::PopupFit::Shrink;
+        let placed = place(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            &layout_with_surface(7, narrow),
+            None,
+            &[],
+        );
+        assert_eq!(placed[0].0.display, SnapDisplay::Fits);
+    }
+
+    /// Given 포인터 기준(Cursor) 팝업이 접힐 때, Then 보기 버튼 프레임은 포인터 자리에 둔다(정본 collapsed
+    /// popup place).
+    #[test]
+    fn a_collapsed_cursor_popup_puts_its_frame_at_the_pointer() {
+        let narrow = Rect::from_min_size(Pos2::new(1400.0, 0.0), Vec2::new(200.0, 1000.0));
+        let inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::Cursor);
+        let pointer = Pos2::new(1500.0, 200.0);
+        let placed = place(
+            mesh_snapshots(std::iter::once((1, &inst))),
+            &layout_with_surface(7, narrow),
+            Some(pointer),
+            &[],
+        );
+        let SnapDisplay::Collapsed(frame) = placed[0].0.display else {
+            panic!("collapsed expected: {:?}", placed[0].0.display);
+        };
+        assert_eq!(frame.rect.center(), pointer);
     }
 
     /// Given surface 높이만 모자랄 때, Then 접힌다(한 축이면 충분하다).

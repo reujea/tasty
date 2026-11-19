@@ -37,53 +37,61 @@ pub fn fits_bounds(needed: egui::Vec2, bounds: egui::Rect) -> bool {
     needed.x <= bounds.width() && needed.y <= bounds.height()
 }
 
-/// 팝업의 표시 형태와 사각형을 정한다. 앵커는 `bounds` 가운데다.
-/// - 필요 크기가 두 축 모두 `bounds`에 들어가면 펼친다. 줄이는 구간은 없다.
-/// - 아니면 라벨 프레임이 두 축 모두 들어갈 때 라벨, 아니면 아이콘 프레임.
-/// - 아이콘 프레임이 들어가지 않는 축은 `bounds` 시작에 붙인다. 끝은 호출자가 범위로 자른다.
+/// 팝업의 표시 형태와 사각형을 정한다. 앵커는 `bounds` 가운데다([`place_collapsed_at`]).
 pub fn place_collapsed(
     bounds: egui::Rect,
     needed: egui::Vec2,
     label_frame: egui::Vec2,
     icon_frame: egui::Vec2,
 ) -> CollapsedPlacement {
-    let centered = |size: egui::Vec2| egui::Rect::from_center_size(bounds.center(), size);
-    if fits_bounds(needed, bounds) {
-        return CollapsedPlacement {
-            form: CollapsedForm::Expanded,
-            rect: centered(needed),
-        };
-    }
-    if fits_bounds(label_frame, bounds) {
-        return CollapsedPlacement {
-            form: CollapsedForm::Label,
-            rect: centered(label_frame),
-        };
-    }
-    let axis = |start: f32, len: f32, center: f32, size: f32| {
-        if size <= len {
-            center - size / 2.0
+    place_collapsed_at(bounds, needed, label_frame, icon_frame, None)
+}
+
+/// 팝업의 표시 형태와 사각형을 정한다.
+/// - 필요 크기가 두 축 모두 `bounds`에 들어가면 펼친다. 줄이는 구간은 없다.
+/// - 아니면 라벨 프레임이 두 축 모두 들어갈 때 라벨, 아니면 아이콘 프레임.
+/// - 프레임은 앵커(`None`이면 `bounds` 가운데)를 `bounds` 안으로 당긴 점을 가운데로 두고, 그 축에 들어가면
+///   `bounds` 안으로 민다. 아이콘 프레임이 들어가지 않는 축은 `bounds` 시작에 붙인다. 끝은 호출자가 범위로
+///   자른다.
+pub fn place_collapsed_at(
+    bounds: egui::Rect,
+    needed: egui::Vec2,
+    label_frame: egui::Vec2,
+    icon_frame: egui::Vec2,
+    anchor: Option<egui::Pos2>,
+) -> CollapsedPlacement {
+    let center = anchor.map_or(bounds.center(), |a| {
+        egui::pos2(
+            a.x.clamp(bounds.left(), bounds.right()),
+            a.y.clamp(bounds.top(), bounds.bottom()),
+        )
+    });
+    let axis = |start: f32, end: f32, center: f32, size: f32| {
+        if size <= end - start {
+            (center - size / 2.0).clamp(start, end - size)
         } else {
             start
         }
     };
-    let min = egui::pos2(
-        axis(
-            bounds.left(),
-            bounds.width(),
-            bounds.center().x,
-            icon_frame.x,
-        ),
-        axis(
-            bounds.top(),
-            bounds.height(),
-            bounds.center().y,
-            icon_frame.y,
-        ),
-    );
+    let place = |size: egui::Vec2| {
+        egui::Rect::from_min_size(
+            egui::pos2(
+                axis(bounds.left(), bounds.right(), center.x, size.x),
+                axis(bounds.top(), bounds.bottom(), center.y, size.y),
+            ),
+            size,
+        )
+    };
+    let (form, size) = if fits_bounds(needed, bounds) {
+        (CollapsedForm::Expanded, needed)
+    } else if fits_bounds(label_frame, bounds) {
+        (CollapsedForm::Label, label_frame)
+    } else {
+        (CollapsedForm::Icon, icon_frame)
+    };
     CollapsedPlacement {
-        form: CollapsedForm::Icon,
-        rect: egui::Rect::from_min_size(min, icon_frame),
+        form,
+        rect: place(size),
     }
 }
 
@@ -284,6 +292,29 @@ mod tests {
         assert_eq!(placed.form, CollapsedForm::Icon);
         assert_eq!(placed.rect.left(), scope.left() + 8.0);
         assert_eq!(placed.rect.center().y, scope.center().y);
+    }
+
+    /// Given 포인터 앵커, Then 프레임은 포인터를 가운데로 두고 bounds 안으로 밀린다(plugin Cursor 앵커).
+    #[test]
+    fn a_pointer_anchor_centres_the_frame_on_the_pointer_inside_the_bounds() {
+        let (label, icon) = frames();
+        let scope = surface(400.0, 100.0);
+        let b = bounds(scope);
+        let needed = egui::vec2(500.0, 90.0);
+        let at = |p: egui::Pos2| place_collapsed_at(b, needed, label, icon, Some(p));
+        let inside = egui::pos2(b.left() + 200.0, b.center().y);
+        assert_eq!(at(inside).form, CollapsedForm::Label);
+        assert_eq!(at(inside).rect.center(), inside);
+        // 오른쪽 끝을 넘은 포인터는 bounds 안으로 당긴다.
+        let outside = egui::pos2(b.right() + 50.0, b.top() - 20.0);
+        let rect = at(outside).rect;
+        assert_eq!(rect.right(), b.right());
+        assert_eq!(rect.top(), b.top());
+        // 앵커가 없으면 가운데다.
+        assert_eq!(
+            place_collapsed_at(b, needed, label, icon, None),
+            place_collapsed(b, needed, label, icon)
+        );
     }
 
     /// Given 작은 surface, Then inset 은 폭·높이의 절반까지 줄어든다.

@@ -164,7 +164,8 @@ pub use close_remote_confirm::{
 pub use code_area::{CodeArea, CodeAreaKeys, CodeAreaOutput};
 pub use collapsed_popup::{
     CollapsedForm, CollapsedLook, CollapsedPlacement, collapsed_frame_sizes, fits_bounds,
-    paint_collapsed_popup, paint_popup_focus_edge, place_collapsed, scope_inset,
+    paint_collapsed_popup, paint_popup_focus_edge, place_collapsed, place_collapsed_at,
+    scope_inset,
 };
 pub use compact_state::{CompactStateGlyph, CompactStateRow, compact_state_row};
 pub use control::{ControlSize, Ground};

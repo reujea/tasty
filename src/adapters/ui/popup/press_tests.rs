@@ -384,3 +384,71 @@ fn a_covering_popup_still_moves_by_its_title_bar() {
         start + egui::vec2(-30.0, 40.0)
     );
 }
+
+/// host·plugin 공용 판정: 같은 입력이면 인스턴스 종류와 무관하게 같은 결과다. 열린 자식이 있으면 닫는 대신
+/// 덮는 팝업은 포커스를 받고 덮지 않는 팝업은 포커스를 푼다.
+#[test]
+fn one_outside_press_rule_decides_for_any_popup() {
+    use super::{OutsidePress, OutsideTarget, outside_press};
+    let layout = layout();
+    let r_scope = PopupScope::Surface(R);
+    let routed = |pos: egui::Pos2, focus: egui::Pos2| RoutedPress {
+        pos,
+        path: path_at(&layout, pos),
+        focus_before: path_at(&layout, focus),
+        button: egui::PointerButton::Primary,
+    };
+    let target = |cover: bool, child: bool| OutsideTarget {
+        placement_scope: &r_scope,
+        logical_scope: &r_scope,
+        z_seq: 5,
+        box_rect: Some(egui::Rect::from_min_size(
+            r_box_at(),
+            egui::vec2(200.0, 100.0),
+        )),
+        cover_rect: cover.then_some(r_rect()),
+        closes_on_outside_click: true,
+        has_open_child: child,
+    };
+    let second = routed(r_outside(), r_outside());
+    let first = routed(r_outside(), l_point());
+    assert_eq!(
+        outside_press(&target(true, false), &second, &[]),
+        OutsidePress::Close
+    );
+    assert_eq!(
+        outside_press(&target(true, false), &first, &[]),
+        OutsidePress::Focus
+    );
+    assert_eq!(
+        outside_press(&target(false, false), &first, &[]),
+        OutsidePress::None
+    );
+    assert_eq!(
+        outside_press(&target(true, true), &second, &[]),
+        OutsidePress::Focus
+    );
+    assert_eq!(
+        outside_press(&target(false, true), &second, &[]),
+        OutsidePress::Unfocus
+    );
+    // 상자 안, 범위 밖, 위 팝업에 덮인 자리는 아무 일도 없다.
+    let in_box = routed(r_box_at() + egui::vec2(1.0, 1.0), r_outside());
+    assert_eq!(
+        outside_press(&target(true, false), &in_box, &[]),
+        OutsidePress::None
+    );
+    let in_l = routed(l_point(), r_outside());
+    assert_eq!(
+        outside_press(&target(true, false), &in_l, &[]),
+        OutsidePress::None
+    );
+    let higher = [super::Occluder {
+        rect: r_rect(),
+        z_seq: 6,
+    }];
+    assert_eq!(
+        outside_press(&target(true, false), &second, &higher),
+        OutsidePress::None
+    );
+}
