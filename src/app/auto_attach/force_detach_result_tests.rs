@@ -142,13 +142,24 @@ fn a_prepared_connection_is_not_installed_after_the_target_was_force_detached() 
 }
 
 /// Given 명시적 연결로 시작한 행 A 의 연결이 설치만 남았다, When 같은 대상의 행 B 가 강제로 끊긴 뒤
-/// 설치를 poll 하면, Then 사용자가 고른 연결이라 그대로 설치한다.
+/// 설치를 poll 하면, Then 사용자가 고른 연결이라 버리지 않고 설치 단계로 넘긴다. 시험 장치는 View 가
+/// 없어 설치를 끝까지 마치는지는 재지 않는다. 버리지 않았다는 것(행이 멈추지 않고 시도가 남음)만 본다.
 #[test]
-fn an_explicit_connection_is_installed_even_after_the_target_was_force_detached() {
-    alone!("an_explicit_connection_is_installed_even_after_the_target_was_force_detached");
+fn an_explicit_connection_is_not_dropped_after_the_target_was_force_detached() {
+    alone!("an_explicit_connection_is_not_dropped_after_the_target_was_force_detached");
     let app = poll_an_install_prepared_before_the_mark(true);
-    assert!(app.state.mirror_attempts.connection_snapshot().is_empty());
-    assert_eq!(app.remote.sessions[0].state.phase, SessionState::Connected);
+    assert_ne!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert_eq!(
+        app.remote.reconnect.get(&ROW).map(|slot| slot.given_up),
+        Some(false)
+    );
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the explicit attempt goes on"
+    );
 }
 
 /// 행 `ROW` 의 첫 연결 대상. 시험에는 View 가 없어 첫 연결 대상은 `mirror_install_target_is_current`
