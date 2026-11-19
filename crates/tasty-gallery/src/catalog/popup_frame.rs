@@ -22,6 +22,8 @@ pub const CONTENT_MARGIN: LogicalPx = tasty_design_tokens::generated::semantic::
 /// (`PopupDef.fullscreen_stage`).
 #[derive(Clone, Copy, Default)]
 pub struct TitleButtons {
+    /// 버튼 묶음 맨 앞의 접기 버튼(디자인 `shrink` 글리프). 창 위로 펼친 팝업에만 붙는다.
+    pub collapse: bool,
     /// close 왼쪽의 전체화면 버튼(디자인 `fit` 글리프).
     pub fullscreen: bool,
     /// 타이틀바 우측 끝의 X.
@@ -31,16 +33,19 @@ pub struct TitleButtons {
 impl TitleButtons {
     /// 버튼 없음 — 이 헬퍼를 쓰는 기존 popup frame 데모의 기본값.
     pub const NONE: Self = Self {
+        collapse: false,
         fullscreen: false,
         close: false,
     };
     /// X 만.
     pub const CLOSE: Self = Self {
+        collapse: false,
         fullscreen: false,
         close: true,
     };
     /// 전체화면 + X — 무대를 선언한 popup(현재 `notifications`).
     pub const FULLSCREEN_AND_CLOSE: Self = Self {
+        collapse: false,
         fullscreen: true,
         close: true,
     };
@@ -125,22 +130,21 @@ pub fn draw_title_buttons(
             tracing::warn!("gallery popup {name} glyph failed to load: {err}");
         }
     };
+    // 오른쪽 끝(close 자리)부터 왼쪽으로 close · 전체화면 · 접기 순서로 놓는다. 앞 버튼이 없으면 그 자리를 쓴다.
+    let step = (size + theme.popup_title_btn_gap()).value();
+    let mut slot = close_rect;
     let mut left = title_rect.max.x;
-    if buttons.close {
-        button(close_rect, icons::CLOSE, "close");
-        left = close_rect.min.x;
-    }
-    if buttons.fullscreen {
-        // close 왼쪽, popup-title-btn-gap 간격.
-        let rect = egui::Rect::from_center_size(
-            egui::pos2(
-                close_rect.center().x - (size + theme.popup_title_btn_gap()).value(),
-                close_rect.center().y,
-            ),
-            close_rect.size(),
-        );
-        button(rect, icons::FIT, "fit");
-        left = rect.min.x;
+    for (on, icon, name) in [
+        (buttons.close, icons::CLOSE, "close"),
+        (buttons.fullscreen, icons::FIT, "fit"),
+        (buttons.collapse, icons::SHRINK, "shrink"),
+    ] {
+        if !on {
+            continue;
+        }
+        button(slot, icon, name);
+        left = slot.min.x;
+        slot = slot.translate(egui::vec2(-step, 0.0));
     }
     left
 }

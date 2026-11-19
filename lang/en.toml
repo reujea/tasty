@@ -2641,6 +2641,10 @@ tooltip = "Show fullscreen"
 label = "Show popup"
 tooltip = "The popup does not fit in this surface. Press this button to show it over the application window."
 
+[popup.collapse_button]
+label = "Collapse popup"
+tooltip = "Collapse the popup to its show button to use the rest of the window. The popup stays open and keeps your input."
+
 # 권한 상태는 추정값이다. 사용자가 시스템 설정에서 직접 권한을 추가한다.
 [settings.macos_permissions]
 full_disk_access_label = "Full Disk Access"

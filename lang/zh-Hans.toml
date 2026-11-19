@@ -2583,6 +2583,10 @@ tooltip = "全屏显示"
 label = "查看弹窗"
 tooltip = "此 Surface 太小，无法容纳弹窗。按下此按钮可在应用窗口上方显示弹窗。"
 
+[popup.collapse_button]
+label = "折叠弹窗"
+tooltip = "将弹窗折叠为查看按钮，以使用窗口的其他区域。弹窗保持打开，并保留输入内容。"
+
 # 권한 상태는 추정값이다. 사용자가 시스템 설정에서 직접 권한을 추가한다.
 [settings.macos_permissions]
 full_disk_access_label = "完全磁盘访问权限"

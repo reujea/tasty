@@ -25,6 +25,7 @@ mod chrome_slot;
 mod clipboard_viewer;
 mod close_remote_confirm;
 mod code_area;
+mod collapsed_popup;
 mod compact_state;
 mod control;
 pub mod crumb_alloc;
@@ -161,6 +162,10 @@ pub use close_remote_confirm::{
     CloseRemoteConfirmOutput, CloseRemoteConfirmView, close_remote_confirm,
 };
 pub use code_area::{CodeArea, CodeAreaKeys, CodeAreaOutput};
+pub use collapsed_popup::{
+    CollapsedForm, CollapsedLook, CollapsedPlacement, collapsed_frame_sizes, fits_bounds,
+    paint_collapsed_popup, paint_popup_focus_edge, place_collapsed, scope_inset,
+};
 pub use compact_state::{CompactStateGlyph, CompactStateRow, compact_state_row};
 pub use control::{ControlSize, Ground};
 pub use dag_empty::{DAG_EMPTY_ICON_SIZE, DagEmptyView, paint_dag_empty};
