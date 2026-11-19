@@ -374,6 +374,13 @@ impl App {
             .filter_map(|s| s.saved_row())
             .collect();
         for row in rows {
+            // 같은 연결 대상의 다른 행이 강제로 끊겼으면 저장된 표지가 이 행도 가리킨다. 재연결 구간에
+            // 있던 행도 서버 점유를 다시 잡지 않도록 시도를 거두고 끊긴 행으로 멈춘다.
+            if self.row_user_disconnected(row) {
+                self.abandon_row_attempts(row, "the row's target was force-detached");
+                self.enter_disconnected(row);
+                continue;
+            }
             if self.remote.active.contains(&row) {
                 continue;
             }

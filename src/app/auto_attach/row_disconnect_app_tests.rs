@@ -502,3 +502,41 @@ fn closing_an_unattached_force_detached_row_forgets_its_saved_mark() {
     alone!("closing_an_unattached_force_detached_row_forgets_its_saved_mark");
     close_locally_and_check_the_mark(None);
 }
+
+/// Given 같은 연결 대상의 저장 행 둘 — 행 A 는 일반 단절로 재연결 구간, 행 B 는 강제로 끊겨 표지가 저장됨,
+/// When 자동 재연결이 돈다, Then A 도 서버 점유를 다시 잡지 않고 시도 없이 끊긴 행으로 멈춘다.
+#[test]
+fn a_reconnecting_row_stops_when_its_target_is_force_detached_through_another_row() {
+    alone!("a_reconnecting_row_stops_when_its_target_is_force_detached_through_another_row");
+    const ROW_B: u32 = 9_200;
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, Some(SessionState::Reconnecting));
+    let mut row_b = crate::model::Workspace::new_with_terminal_marker(
+        ROW_B,
+        "remote b".to_string(),
+        9_201,
+        9_202,
+        9_203,
+    );
+    row_b.mirror = true;
+    row_b.remote_row = Some(binding());
+    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
+    app.engines
+        .get_mut(engine)
+        .expect("the row engine")
+        .push_mirror_workspace(row_b);
+    app.mark_force_detached_row(ROW_B);
+    assert!(force_detach_marked(&app));
+    assert_eq!(app.row_state_name(ROW), "reconnecting");
+
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(
+        !app.remote.active.contains(&ROW),
+        "no reconnect attempt for a force-detached target"
+    );
+    assert_eq!(app.row_state_name(ROW), "disconnected");
+    assert!(
+        force_detach_marked(&app),
+        "the mark stays until an explicit connect"
+    );
+}
