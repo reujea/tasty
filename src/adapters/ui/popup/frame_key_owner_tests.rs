@@ -21,8 +21,10 @@ const PLUGIN: &str = "com.example.keys";
 const POPUP: u64 = 9;
 
 fn plugin_popup(z_seq: u64) -> tasty_host_plugin::PopupInstance {
-    let mut layout: tasty_plugin_manifest::PopupLayout = Default::default();
-    layout.escape = tasty_plugin_protocol::popup_decl::PopupEscape::Close;
+    let layout = tasty_plugin_manifest::PopupLayout {
+        escape: tasty_plugin_protocol::popup_decl::PopupEscape::Close,
+        ..Default::default()
+    };
     tasty_host_plugin::PopupInstance {
         plugin_id: PLUGIN.into(),
         popup_id: "keys".into(),
@@ -134,26 +136,31 @@ struct Scene {
 fn open_scene() -> Scene {
     crate::i18n::init("en");
     let (mut state, mut session) = scene(super::PANE_L);
-    let mut engine = session.borrow_mut();
-    for def in defs::all_defs() {
-        state.popups.register_def(def, 1.0);
-    }
-    let g = open_picker(&mut state, &mut engine, SURFACE_R);
-    let mut mgr = PluginManager::with_registries(
-        Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
-        Arc::new(crate::file::format::FileFormatRegistry::new()),
-        Arc::new(crate::file::handler::FileHandlerRegistry::new()),
-    );
-    mgr.insert_popup_instance_for_test(POPUP, plugin_popup(tasty_host_plugin::next_popup_z_seq()));
-    let h = open_picker(&mut state, &mut engine, SURFACE_L);
-    // 피커의 필요 크기는 반쪽 surface 보다 커서 접힌다. 본문을 그리도록 범위 안에 드는 크기로 고정한다.
-    for iid in [h, g] {
-        let p = state.popups.instance_mut(iid).unwrap();
-        p.focused = true;
-        p.size_user_overridden = true;
-        p.set_needed_size(egui::vec2(240.0, 200.0));
-    }
-    drop(engine);
+    let (mgr, h, g) = {
+        let mut engine = session.borrow_mut();
+        for def in defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        let g = open_picker(&mut state, &mut engine, SURFACE_R);
+        let mut mgr = PluginManager::with_registries(
+            Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+            Arc::new(crate::file::format::FileFormatRegistry::new()),
+            Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+        );
+        mgr.insert_popup_instance_for_test(
+            POPUP,
+            plugin_popup(tasty_host_plugin::next_popup_z_seq()),
+        );
+        let h = open_picker(&mut state, &mut engine, SURFACE_L);
+        // 피커의 필요 크기는 반쪽 surface 보다 커서 접힌다. 본문을 그리도록 범위 안에 드는 크기로 고정한다.
+        for iid in [h, g] {
+            let p = state.popups.instance_mut(iid).unwrap();
+            p.focused = true;
+            p.size_user_overridden = true;
+            p.set_needed_size(egui::vec2(240.0, 200.0));
+        }
+        (mgr, h, g)
+    };
     Scene {
         state,
         session,
