@@ -374,10 +374,13 @@ fn a_rejection_reason_reads_back_from_the_connection_error() {
 
 /// 서버가 `force_detached`를 보내고 닫은 연결에서 이쪽 쓰기가 먼저 실패해도, reader가 그 통지를
 /// 처리하기 전에는 끊김을 알리지 않는다. 그래서 App은 끊김을 볼 때 강제 끊김 표지도 함께 본다.
-/// reader를 늦게 시작해 쓰기 실패가 반드시 먼저 일어나게 만든다.
+///
+/// 순서는 시간이 아니라 신호로 맞춘다. 너무 큰 프레임으로 송신을 실패시키고, writer가 실패 분기에서
+/// 쓰기 쪽을 닫은 것(상대가 보는 EOF)을 확인한 뒤에야 상대가 통지를 보내고 reader를 시작한다.
+/// 이 사이 writer가 기한으로 끊김을 알리면 깨우기 기록에 통지 없는 끊김이 남는다.
 #[test]
 fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Read};
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let ours = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
     let handshake = std::thread::spawn(move || {
@@ -397,36 +400,28 @@ fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
     let write_half = ours.try_clone().unwrap();
     let (conn, _) = StreamConnection::open(ours, 1).unwrap();
     let mut peer = handshake.join().unwrap();
-    stream::write_frame(
-        &mut peer,
-        StreamTag::Control,
-        br#"{"event":"force_detached","reason":"force_detach_workspace"}"#,
-    )
-    .unwrap();
-    stream::write_frame(&mut peer, StreamTag::Detach, &[]).unwrap();
 
     let disconnected = Arc::new(AtomicBool::new(false));
     let force_detached = Arc::new(AtomicBool::new(false));
     let finished = Arc::new(AtomicBool::new(false));
-    // 끊김이 처음 보이는 순간의 강제 끊김 표지를 기록한다. App이 읽는 순서와 같다.
-    let watch = {
-        let disconnected = disconnected.clone();
-        let force_detached = force_detached.clone();
-        std::thread::spawn(move || {
-            let deadline = std::time::Instant::now() + Duration::from_secs(5);
-            while !disconnected.load(Ordering::SeqCst) {
-                assert!(std::time::Instant::now() < deadline, "no disconnect");
-                std::hint::spin_loop();
-            }
-            force_detached.load(Ordering::SeqCst)
+    // 깨울 때마다 끊김과 강제 끊김 표지를 함께 기록한다. App이 깨어나 읽는 순서와 같다.
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let wake: Arc<dyn Fn() + Send + Sync> = {
+        let (disconnected, force_detached, seen) =
+            (disconnected.clone(), force_detached.clone(), seen.clone());
+        Arc::new(move || {
+            let pair = (
+                disconnected.load(Ordering::SeqCst),
+                force_detached.load(Ordering::SeqCst),
+            );
+            seen.lock().unwrap().push(pair);
         })
     };
-    write_half.shutdown(std::net::Shutdown::Write).unwrap();
     let (sender, rx) = super::super::connection::channel();
     sender
         .send(OutFrame {
             tag: StreamTag::Control,
-            payload: b"{}".to_vec(),
+            payload: vec![0; stream::MAX_FRAME_LEN as usize + 1],
         })
         .unwrap();
     let writer = spawn_attach_write_thread(
@@ -435,17 +430,34 @@ fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
         disconnected.clone(),
         Arc::new(AtomicBool::new(false)),
         finished.clone(),
-        Arc::new(|| {}),
+        wake.clone(),
         " force detach race test",
     );
-    std::thread::sleep(Duration::from_millis(100));
+    // writer가 실패 분기에 들어와 쓰기 쪽을 닫았다는 신호. 읽기 기한은 실패 판정에만 쓴다.
+    peer.set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let mut rest = Vec::new();
+    peer.read_to_end(&mut rest)
+        .expect("the writer must close its send side when a write fails");
+    assert!(rest.is_empty(), "the oversized frame must not be written");
+    assert!(
+        !disconnected.load(Ordering::SeqCst),
+        "the writer reported the disconnect before the reader finished"
+    );
+    stream::write_frame(
+        &mut peer,
+        StreamTag::Control,
+        br#"{"event":"force_detached","reason":"force_detach_workspace"}"#,
+    )
+    .unwrap();
+    peer.shutdown(std::net::Shutdown::Write).unwrap();
     let output = MirrorOutbox::new(sender.epoch());
     let reader = spawn_attach_reader_thread(
         conn,
         output,
         sender.clone(),
         disconnected.clone(),
-        Arc::new(|| {}),
+        wake,
         |_| None,
         AttachReaderEnd {
             remote_workspace: 1,
@@ -455,11 +467,14 @@ fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
             finished,
         },
     );
-    assert!(
-        watch.join().unwrap(),
-        "the disconnect became visible before the force-detach mark"
-    );
     reader.join().unwrap();
-    drop(sender);
     writer.join().unwrap();
+    drop(sender);
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen.iter()
+            .all(|(disconnected, forced)| !disconnected || *forced),
+        "a disconnect became visible without the force-detach mark: {seen:?}"
+    );
+    assert_eq!(seen.last(), Some(&(true, true)), "{seen:?}");
 }

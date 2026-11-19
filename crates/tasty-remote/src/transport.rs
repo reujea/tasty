@@ -215,7 +215,7 @@ fn write_attach_frame(
         tracing::warn!(
             "attach write thread{log_suffix}: 프레임을 쓰지 못해 연결 종료로 처리한다: {e}"
         );
-        wait_for_reader(reader_finished);
+        wait_for_reader(write_half, reader_finished);
         disconnected.store(true, Ordering::SeqCst);
         (wake)();
         return false;
@@ -229,15 +229,20 @@ fn write_attach_frame(
     true
 }
 
-/// 송신 실패를 알리기 전에 reader가 이미 받은 프레임을 처리하도록 기다리는 상한.
-/// 서버가 `force_detached`를 보내고 닫은 연결이면 reader가 그 통지를 먼저 읽고 끝나므로
-/// App이 강제 끊김을 연결 끊김으로 잘못 보고 다시 붙지 않는다. 연결이 멈춰 reader가 끝나지
-/// 않으면 이 시간 뒤 그대로 끊김을 알린다.
-pub const READER_DRAIN_GRACE: std::time::Duration = std::time::Duration::from_millis(500);
-
-fn wait_for_reader(reader_finished: &AtomicBool) {
-    let deadline = std::time::Instant::now() + READER_DRAIN_GRACE;
-    while !reader_finished.load(Ordering::Acquire) && std::time::Instant::now() < deadline {
+/// 송신이 실패하면 끊김을 알리기 전에 같은 연결의 reader가 끝나기를 기다린다.
+///
+/// 먼저 이쪽 쓰기 쪽을 닫는다. 서버는 그 EOF로 연결을 정리하고 소켓을 닫으므로, reader는 수신
+/// 버퍼에 남은 프레임(서버가 닫기 전에 보낸 `force_detached` 통지 포함)을 다 읽은 뒤 EOF로 끝난다.
+/// 그래서 App이 끊김을 볼 때는 통지를 처리했는지가 이미 정해져 있다. 기다림에 기한을 두지 않는다.
+/// 서버가 응답하지 않는 연결은 reader 소켓의 읽기 기한(heartbeat timeout)에서 reader가 끝난다.
+fn wait_for_reader(write_half: &TcpStream, reader_finished: &AtomicBool) {
+    if reader_finished.load(Ordering::Acquire) {
+        return;
+    }
+    if let Err(error) = write_half.shutdown(std::net::Shutdown::Write) {
+        tracing::debug!("remote socket already closed before the reader drained: {error}");
+    }
+    while !reader_finished.load(Ordering::Acquire) {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
 }
@@ -254,7 +259,7 @@ pub struct AttachReaderEnd {
     /// 먼저 세워 App이 연결 끊김과 구분하게 한다. 서버는 이 Control을 Detach와 연결 종료보다 먼저 보낸다.
     pub force_detached: Arc<AtomicBool>,
     /// reader 스레드가 끝났다. 끊김·강제 끊김 표지를 모두 세운 뒤에 선다. 쓰기 스레드가 송신 실패를
-    /// 알리기 전에 이 값을 기다린다([`READER_DRAIN_GRACE`]).
+    /// 알리기 전에 이 값을 기다린다(`wait_for_reader`).
     pub finished: Arc<AtomicBool>,
 }
 
@@ -370,6 +375,7 @@ pub fn spawn_attach_reader_thread(
             }
         }
         end.finished.store(true, Ordering::Release);
+        // 송신 실패로 기다리던 쓰기 스레드가 끊김을 알린다. 그 뒤의 깨우기는 쓰기 스레드가 한다.
     })
 }
 
