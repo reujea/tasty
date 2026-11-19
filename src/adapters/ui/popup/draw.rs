@@ -505,11 +505,13 @@ impl PopupManager {
                     layers.push(layer_id);
                     focus_layers.push(layer_id);
                     let holds_keys = key_owner == Some(popup.instance);
+                    // 펼친 갈래·plugin 팝업과 같이 범위에 불투명 모드 페이지가 보이면 scrim을 칠하지 않는다.
                     let look = super::display::CollapsedDraw {
                         scrim: scrims
                             .iter()
                             .find(|(i, _)| *i == popup_idx)
-                            .map(|(_, r)| *r),
+                            .map(|(_, r)| *r)
+                            .filter(|r| !tasty_egui_theme::overlay_edge::scrim_skipped(*r, &pages)),
                         on_scrim: popup.look.covers_scope,
                         focused: holds_keys,
                     };

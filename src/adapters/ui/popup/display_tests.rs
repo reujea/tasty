@@ -244,6 +244,23 @@ fn a_collapsed_covering_popup_still_covers_its_scope() {
     assert!(mgr.instance(iid).unwrap().collapsed());
 }
 
+/// Given 덮는 팝업이 R에서 접혀 있을 때, When R에 불투명 모드 페이지가 보이면, Then 펼친 갈래처럼 scrim을
+/// 칠하지 않는다. 페이지가 없으면 칠한다.
+#[test]
+fn a_collapsed_popup_skips_its_scrim_over_an_opaque_page_like_a_drawn_one() {
+    let mut mgr = manager(true, false);
+    open_in_r(&mut mgr);
+    let ctx = egui::Context::default();
+    let r = layout(200.0).surface_rects[1].1;
+    let (_, result) = frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert_eq!(result.overlay_targets.len(), 1);
+    assert_eq!(result.overlay_targets[0].scrim, Some(r));
+    tasty_egui_theme::overlay_edge::set_opaque_pages(&ctx, vec![r.shrink(10.0)]);
+    let (_, result) = frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert_eq!(result.overlay_targets.len(), 1);
+    assert_eq!(result.overlay_targets[0].scrim, None);
+}
+
 /// Given 자기 제목줄이 없는 팝업, When 펼치면, Then 접기 버튼만 담은 host 제목줄을 받아 그만큼 커진다.
 #[test]
 fn a_headless_popup_gets_a_host_bar_when_expanded() {
