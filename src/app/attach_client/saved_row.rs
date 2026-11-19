@@ -39,13 +39,14 @@ impl App {
     }
 
     /// 서버가 강제로 끊은 저장된 원격 행. 재연결 구간을 열지 않고 끊긴 행으로 두며, 사용자가 끊은
-    /// 행처럼 표지를 남겨 그 행을 다시 열어도 붙지 않는다. 연결 버튼·메뉴·`remote.connect` 같은
-    /// 명시적 연결만 표지를 지우고 다시 붙인다.
+    /// 행처럼 표지를 남겨 그 행을 다시 열어도 붙지 않는다. 표지는 연결 대상으로 저장해 클라이언트를
+    /// 다시 시작해도 남는다. 연결 버튼·메뉴·`remote.connect` 같은 명시적 연결만 표지를 지우고 다시 붙인다.
     pub(super) fn stop_after_force_detach(&mut self, idx: usize) {
         let Some(row) = self.remote.sessions[idx].state.saved_row else {
             return;
         };
         self.remote.user_disconnected.insert(row);
+        self.mark_force_detached_row(row);
         self.enter_disconnected(row);
         tracing::info!(
             "gui attach: 서버가 saved remote row {row} 의 점유를 강제로 끊어 재연결하지 않는다"

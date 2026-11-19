@@ -16,6 +16,11 @@ pub(crate) struct RuntimeRegistries {
     #[cfg(feature = "gui")]
     pub(crate) port_favorites:
         Arc<crate::core::shared_list::SharedList<crate::core::port_favorites::PortFavorites>>,
+    /// 서버가 강제로 끊어 자동으로 다시 붙지 않는 저장된 원격 행의 연결 대상.
+    #[cfg(feature = "gui")]
+    pub(crate) remote_force_detached: Arc<
+        crate::core::shared_list::SharedList<crate::core::remote_force_detached::ForceDetachedRows>,
+    >,
 }
 impl RuntimeRegistries {
     pub(crate) fn new(user_config: Option<&Path>) -> Self {
@@ -48,6 +53,8 @@ impl RuntimeRegistries {
             explorer_favorites: Arc::new(crate::core::shared_list::SharedList::load()),
             #[cfg(feature = "gui")]
             port_favorites: Arc::new(crate::core::shared_list::SharedList::load()),
+            #[cfg(feature = "gui")]
+            remote_force_detached: Arc::new(crate::core::shared_list::SharedList::load()),
         }
     }
 }

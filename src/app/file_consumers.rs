@@ -37,7 +37,8 @@ pub(crate) fn attach(registries: &RuntimeRegistries, queue: Handle<FileExecutor>
     #[cfg(feature = "gui")]
     {
         registries.explorer_favorites.install_sink(sink.clone());
-        registries.port_favorites.install_sink(sink);
+        registries.port_favorites.install_sink(sink.clone());
+        registries.remote_force_detached.install_sink(sink);
     }
 }
 
@@ -57,6 +58,10 @@ pub(crate) fn poll(registries: &RuntimeRegistries) {
             registries.explorer_favorites.poll(),
         );
         report("port-favorites.toml", registries.port_favorites.poll());
+        report(
+            "remote-force-detached.toml",
+            registries.remote_force_detached.poll(),
+        );
     }
 }
 
@@ -85,6 +90,9 @@ pub(crate) fn before_shutdown(registries: &RuntimeRegistries) {
     {
         registries.explorer_favorites.retry_latest_before_shutdown();
         registries.port_favorites.retry_latest_before_shutdown();
+        registries
+            .remote_force_detached
+            .retry_latest_before_shutdown();
     }
 }
 
@@ -111,6 +119,10 @@ pub(crate) fn after_shutdown(registries: &RuntimeRegistries) {
         report_shutdown(
             "port-favorites.toml",
             registries.port_favorites.finish_shutdown(),
+        );
+        report_shutdown(
+            "remote-force-detached.toml",
+            registries.remote_force_detached.finish_shutdown(),
         );
     }
 }

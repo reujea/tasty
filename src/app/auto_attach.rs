@@ -75,6 +75,7 @@ impl App {
             .map(|ws| ws.id);
         self.remote.last_active_ws = current_ws_id;
 
+        self.hold_force_detached_rows();
         self.maybe_connect_visible_row(current_ws_id, prev_active);
         self.maybe_trigger_reconnect(current_ws_id, prev_active);
         self.drain_auto_attach_results();
@@ -114,6 +115,51 @@ impl App {
                 }
             })
             .collect()
+    }
+
+    /// 강제로 끊긴 표지가 저장된 행을 사용자가 끊은 행으로 잡아 둔다. 재시작 뒤 복원된 행도 같아서,
+    /// 명시적 연결 전에는 그 행을 열어도 자동으로 붙지 않는다.
+    fn hold_force_detached_rows(&mut self) {
+        let list = &self.services.registries.remote_force_detached;
+        if list.read(|marks| marks.items.is_empty()) {
+            return;
+        }
+        let rows: Vec<u32> = list.read(|marks| {
+            self.engines
+                .all_sessions()
+                .flat_map(|session| {
+                    session
+                        .core_state
+                        .mirror_workspaces()
+                        .iter()
+                        .filter(|ws| ws.remote_row.as_ref().is_some_and(|b| marks.contains(b)))
+                        .map(|ws| ws.id)
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        });
+        self.remote.user_disconnected.extend(rows);
+    }
+
+    /// 서버가 강제로 끊은 행의 연결 대상을 저장해 재시작 뒤에도 자동으로 붙지 않게 한다.
+    pub(crate) fn mark_force_detached_row(&mut self, row: u32) {
+        if let Some(binding) = self.saved_row_binding(row) {
+            self.services
+                .registries
+                .remote_force_detached
+                .update(|marks| marks.insert(binding));
+        }
+    }
+
+    /// 명시적 연결이나 연결 성공 뒤 강제로 끊긴 표지를 지운다. 이후 끊김은 평소 자동 재연결 규칙을 따른다.
+    pub(crate) fn forget_force_detached_row(&mut self, row: u32) {
+        let Some(binding) = self.saved_row_binding(row) else {
+            return;
+        };
+        let list = &self.services.registries.remote_force_detached;
+        if list.read(|marks| marks.contains(&binding)) {
+            list.update(|marks| marks.remove(&binding));
+        }
     }
 
     /// 저장된 원격 행의 연결 대상. 창과 parked engine을 모두 본다.
@@ -198,6 +244,7 @@ impl App {
         if explicit {
             // 명시적으로 다시 연결하면 앞서 끊은 뜻은 끝난다. 다음 단절은 자동 재연결과 시간 만료를 따른다.
             self.remote.user_disconnected.remove(&row);
+            self.forget_force_detached_row(row);
         }
         if self.remote.active.contains(&row) {
             run.into_iter().for_each(crate::request_runs::forget);

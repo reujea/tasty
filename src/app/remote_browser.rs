@@ -166,6 +166,7 @@ impl App {
         self.abandon_row_attempts(row, "replaced by a connection from the remote popup");
         self.ensure_row_token(row);
         self.remote.user_disconnected.remove(&row);
+        self.forget_force_detached_row(row);
         self.remote.pending_reactivation.remove(&row);
         self.remote.active.insert(row);
     }

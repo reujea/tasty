@@ -350,6 +350,7 @@ impl App {
                     }
                     if let Some(row) = target.row {
                         crate::app::auto_attach::forget_row_backoff(&mut self.remote, row);
+                        self.forget_force_detached_row(row);
                         self.remote.refusals.clear_notice(row);
                     }
                 }

@@ -19,6 +19,8 @@ pub(crate) mod param_bag;
 #[cfg(feature = "gui")]
 pub(crate) mod port_favorites;
 #[cfg(feature = "gui")]
+pub(crate) mod remote_force_detached;
+#[cfg(feature = "gui")]
 pub(crate) mod shared_list;
 pub(crate) mod state;
 

@@ -171,6 +171,11 @@ impl<T: PersistedList> SharedList<T> {
         self.lock().revision
     }
 
+    /// 사본을 만들지 않고 원본 목록을 읽는다.
+    pub(crate) fn read<R>(&self, read: impl FnOnce(&T) -> R) -> R {
+        read(&self.lock().list)
+    }
+
     /// 현재 리비전과 목록 사본.
     pub(crate) fn copy(&self) -> (u64, T) {
         let state = self.lock();

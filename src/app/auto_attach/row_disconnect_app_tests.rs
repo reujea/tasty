@@ -273,9 +273,48 @@ fn a_force_detached_saved_row_stays_disconnected_until_an_explicit_connect() {
     );
     assert_eq!(app.row_state_name(ROW), "disconnected");
 
+    assert!(force_detach_marked(&app), "the stop is saved for a restart");
+
     app.connect_saved_row(ROW, true);
     assert!(!app.remote.user_disconnected.contains(&ROW));
+    assert!(!force_detach_marked(&app));
     assert_ne!(app.row_state_name(ROW), "disconnected");
+}
+
+fn force_detach_marked(app: &App) -> bool {
+    app.services
+        .registries
+        .remote_force_detached
+        .read(|marks| marks.contains(&binding()))
+}
+
+/// Given 강제로 끊겨 저장된 표지가 남은 행, When 클라이언트를 다시 시작해 실행 중 표지를 잃고 그 행이 보여도,
+/// Then 자동으로 붙지 않는다. 명시적 연결은 저장된 표지를 지우고, 그 뒤 연결만 끊기면 평소처럼 재연결한다.
+/// 재시작은 실행 중 표지가 없는 새 App 과 저장된 목록으로 재현한다(프로세스 재시작은 아니다).
+#[test]
+fn a_force_detached_row_stays_stopped_after_a_restart_until_an_explicit_connect() {
+    alone!("a_force_detached_row_stays_stopped_after_a_restart_until_an_explicit_connect");
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, None);
+    app.services
+        .registries
+        .remote_force_detached
+        .update(|marks| marks.insert(binding()));
+    assert!(!app.remote.user_disconnected.contains(&ROW));
+
+    app.hold_force_detached_rows();
+    app.maybe_connect_visible_row(Some(ROW), None);
+    assert!(app.remote.user_disconnected.contains(&ROW));
+    assert!(
+        !app.remote.active.contains(&ROW),
+        "a restored force-detached row does not connect by itself"
+    );
+
+    app.connect_saved_row(ROW, true);
+    assert!(!force_detach_marked(&app));
+    assert!(!app.remote.user_disconnected.contains(&ROW));
+    app.hold_force_detached_rows();
+    assert!(!app.remote.user_disconnected.contains(&ROW));
 }
 
 /// Given 연결된 저장 행, When 통지 없이 연결만 끊기면(EOF·heartbeat), Then 지금처럼 재연결 중이 된다.
