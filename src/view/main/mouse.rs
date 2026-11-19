@@ -480,15 +480,21 @@ impl MainView {
         ))
     }
 
-    /// 창 테두리 누름이면 OS 리사이즈를 시작하고 `true`. 테두리는 팝업 범위 트리 밖이라 이 누름은 egui·팝업·
-    /// surface 어디에도 가지 않는다(누름 스냅샷도 남기지 않는다). 그래서 egui 전달 전에 판정한다.
+    /// 창 테두리 누름이면 OS 리사이즈를 시작하고 `true`. 그 누름의 짝인 뗌도 `true`다. 테두리는 팝업 범위 트리
+    /// 밖이라 이 누름과 뗌은 egui·팝업·surface 어디에도 가지 않는다(누름 스냅샷도 남기지 않는다). 그래서 egui
+    /// 전달 전에 판정한다. 마우스 보고를 켠 터미널은 짝 없는 뗌을 받지 않는다.
     #[cfg(not(target_os = "macos"))]
     pub(super) fn begin_os_resize_press(
         &mut self,
         button_state: ElementState,
         button: MouseButton,
     ) -> bool {
-        self.try_begin_os_resize(button, button_state)
+        let mut owned = std::mem::take(&mut self.os_resize_buttons);
+        let taken = os_resize_owns(&mut owned, button_state, button, || {
+            self.try_begin_os_resize(button, button_state)
+        });
+        self.os_resize_buttons = owned;
+        taken
     }
 
     /// macOS 는 native 장식이 테두리를 처리한다.
@@ -1412,6 +1418,29 @@ fn push_report_button(stack: &mut Vec<(u8, u32)>, button: u8, surface_id: u32) {
     stack.push((button, surface_id));
 }
 
+/// OS 테두리 리사이즈가 가져간 버튼 사건이면 참이다. 누름은 `begin`(테두리 리사이즈를 시작했는지)으로 정하고 그
+/// 버튼을 적는다. 뗌은 적힌 버튼이면 꺼내고 참이다. OS 가 리사이즈 중 뗌을 삼켜 오지 않았으면 같은 버튼의 다음
+/// 누름이 그 기록을 지워, 그 누름의 뗌을 잘못 삼키지 않는다.
+#[cfg(not(target_os = "macos"))]
+fn os_resize_owns(
+    owned: &mut Vec<MouseButton>,
+    button_state: ElementState,
+    button: MouseButton,
+    begin: impl FnOnce() -> bool,
+) -> bool {
+    match button_state {
+        ElementState::Pressed => {
+            take_blocked_button(owned, button);
+            let began = begin();
+            if began {
+                owned.push(button);
+            }
+            began
+        }
+        ElementState::Released => take_blocked_button(owned, button),
+    }
+}
+
 /// 위에서 가져간 press 의 버튼이면 목록에서 빼고 참이다. 그 release 도 같은 곳이 받는다.
 fn take_blocked_button(blocked: &mut Vec<MouseButton>, button: MouseButton) -> bool {
     let Some(i) = blocked.iter().position(|b| *b == button) else {
@@ -1619,6 +1648,71 @@ fn mesh_hover_transition(
         (current, None)
     } else {
         (new, current)
+    }
+}
+
+/// OS 테두리 리사이즈가 가져간 누름의 뗌을 함께 가져가는지 확인한다.
+#[cfg(all(test, not(target_os = "macos")))]
+mod os_resize_button_tests {
+    use super::os_resize_owns;
+    use winit::event::{ElementState, MouseButton};
+
+    /// Given 테두리에서 왼쪽을 눌러 리사이즈를 시작했을 때, When 왼쪽을 떼면, Then 그 뗌도 리사이즈 것이라
+    /// 아래(egui·팝업·surface)로 가지 않는다. When 테두리가 아닌 곳의 누름·뗌이면, Then 아래로 간다.
+    #[test]
+    fn the_release_of_a_border_press_stays_with_the_resize() {
+        let mut owned = Vec::new();
+        let left = MouseButton::Left;
+        assert!(os_resize_owns(
+            &mut owned,
+            ElementState::Pressed,
+            left,
+            || true
+        ));
+        assert!(os_resize_owns(
+            &mut owned,
+            ElementState::Released,
+            left,
+            || { unreachable!("뗌은 리사이즈를 시작하지 않는다") }
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Pressed,
+            left,
+            || false
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Released,
+            left,
+            || false
+        ));
+    }
+
+    /// Given OS 가 리사이즈 중 뗌을 삼켜 기록이 남았을 때, When 같은 버튼을 테두리 밖에서 다시 누르면, Then 기록이
+    /// 지워져 그 누름의 뗌은 아래로 간다.
+    #[test]
+    fn a_lost_release_does_not_swallow_the_next_one() {
+        let mut owned = Vec::new();
+        let left = MouseButton::Left;
+        assert!(os_resize_owns(
+            &mut owned,
+            ElementState::Pressed,
+            left,
+            || true
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Pressed,
+            left,
+            || false
+        ));
+        assert!(!os_resize_owns(
+            &mut owned,
+            ElementState::Released,
+            left,
+            || false
+        ));
     }
 }
 
