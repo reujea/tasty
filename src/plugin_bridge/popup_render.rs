@@ -37,6 +37,21 @@ fn default_popup_size() -> Vec2 {
 pub fn draw_plugin_popups(
     ctx: &Context,
     state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    plugin_manager: Option<PluginDisplay<'_>>,
+    layout: Option<&LayoutContext>,
+) {
+    // 창이 plugin 키 주인 몫으로 egui 입력에서 뺀 원래 Esc 사건. 렌더가 키 주인 팝업에만 키를 보내므로 렌더하는
+    // 동안 넣는다. host 키 주인 몫은 host 그리기가 이미 꺼냈다.
+    let handed = state.popups.take_handed_escape();
+    crate::adapters::ui::popup::body_keys::with_handed_escape(ctx, &handed, || {
+        draw_plugin_popups_with_keys(ctx, state, engine, plugin_manager, layout)
+    });
+}
+
+fn draw_plugin_popups_with_keys(
+    ctx: &Context,
+    state: &mut RequestContext,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     plugin_manager: Option<PluginDisplay<'_>>,
     layout: Option<&LayoutContext>,

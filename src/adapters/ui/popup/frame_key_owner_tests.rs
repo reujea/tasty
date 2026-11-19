@@ -178,24 +178,19 @@ fn plugin_escaped(state: &RequestContext) -> bool {
     state.plugin_popup_closes.iter().any(|(id, _)| *id == POPUP)
 }
 
-/// 창의 Esc 판정(`MainViewState::escape_gate`)을 거쳐 그 Esc 를 실은 프레임을 그린다. 창은 그리기보다 먼저 돌므로
-/// 직전 렌더의 범위·후보로 대상을 정하고, 그 프레임 키 주인은 창이 정한 대상이다.
+/// 창의 Esc 처리(`MainViewState::window_escape`)를 거쳐 그 Esc 를 실은 프레임을 그린다. 창은 그리기보다 먼저 돌므로
+/// 직전 렌더의 범위·후보로 대상을 정하고, 그 프레임 키 주인은 창이 정한 대상이다. 창이 처리했으면 참이다.
 fn escape_through_the_window(
     ctx: &Context,
     state: &mut RequestContext,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     mgr: &PluginManager,
     layout: &LayoutContext,
-) -> crate::state::EscapeGate {
-    let gate = state.escape_gate();
-    let events = match gate {
-        crate::state::EscapeGate::Consumed {
-            drop_from_egui: true,
-        } => Vec::new(),
-        _ => escape(),
-    };
+) -> bool {
+    let mut events = escape();
+    let consumed = state.window_escape(&mut events);
     frame(ctx, state, engine, mgr, layout, events);
-    gate
+    consumed
 }
 
 /// Given H > P > G 이고 직전 렌더에 H 가 보였을 때, When H 의 범위(L)가 레이아웃에서 빠진 뒤 다시 그리기 전에 Esc 가
@@ -222,13 +217,8 @@ fn a_scope_hidden_before_the_redraw_keeps_the_escape_on_the_window_target() {
     );
     assert!(is_open(&state, h) && is_open(&state, g) && !plugin_escaped(&state));
 
-    let gate =
-        escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout_without_l());
-    assert_eq!(
-        gate,
-        crate::state::EscapeGate::Consumed {
-            drop_from_egui: true
-        },
+    assert!(
+        escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout_without_l()),
         "창이 H 의 포커스를 푼다"
     );
     assert!(
@@ -274,8 +264,10 @@ fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target()
     );
     assert!(is_open(&state, h) && is_open(&state, g) && !plugin_escaped(&state));
 
-    let gate = escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout());
-    assert_eq!(gate, crate::state::EscapeGate::Pass, "plugin 키 주인 갈래");
+    assert!(
+        escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout()),
+        "plugin 키 주인 갈래: 창이 처리하고 그 Esc 를 P 의 렌더에 넘긴다"
+    );
     assert!(plugin_escaped(&state), "창이 고른 P 가 받는다");
     assert!(
         is_open(&state, h) && state.popups.instance(h).unwrap().focused,
@@ -285,4 +277,158 @@ fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target()
         is_open(&state, g) && state.popups.instance(g).unwrap().focused,
         "G 는 받지 않는다"
     );
+}
+
+fn escape_with(modifiers: egui::Modifiers) -> Event {
+    Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers,
+    }
+}
+
+/// Given 키 주인이 피커 H 일 때, When 창이 Esc 로 H 의 포커스를 풀고 그 Esc 를 H 본문에 넘기면, Then 넘긴 사건은
+/// 원래 수식키를 지닌다. Ctrl+Esc 는 피커 취소(수식키 없는 Esc)와 맞지 않아 H 가 열린 채이고, 일반 Esc 는 H 를
+/// 닫는다.
+#[test]
+fn the_escape_handed_to_the_owner_keeps_its_modifiers() {
+    for (modifiers, cancels) in [
+        (egui::Modifiers::CTRL, false),
+        (egui::Modifiers::NONE, true),
+    ] {
+        let Scene {
+            mut state,
+            mut session,
+            mgr,
+            h,
+            g: _,
+        } = open_scene();
+        let engine = session.borrow_mut();
+        let ctx = Context::default();
+        frame(
+            &ctx,
+            &mut state,
+            &engine.read(),
+            &mgr,
+            &layout(),
+            Vec::new(),
+        );
+        assert!(is_open(&state, h));
+        let mut events = vec![escape_with(modifiers)];
+        assert!(state.window_escape(&mut events), "창이 H 의 포커스를 푼다");
+        assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
+        frame(&ctx, &mut state, &engine.read(), &mgr, &layout(), events);
+        assert_eq!(
+            !is_open(&state, h),
+            cancels,
+            "H 본문이 받은 Esc 의 수식키: {modifiers:?}"
+        );
+    }
+}
+
+/// 탐색기 찾기 입력란을 팝업 층보다 먼저 그리는 창의 한 프레임(`egui_bridge::run_egui_frame` 순서: 화면은
+/// `surfaces_take_keys` 문 안 → host 팝업 층 → plugin 팝업 렌더).
+#[allow(clippy::too_many_arguments)]
+fn frame_with_find(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: &PluginManager,
+    layout: &LayoutContext,
+    events: Vec<Event>,
+    query: &mut String,
+    focus: bool,
+) -> tasty_ui_widgets::ExplorerFindEvents {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 700.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    let th = crate::theme::theme();
+    let mut out = tasty_ui_widgets::ExplorerFindEvents::default();
+    drop(ctx.run(input, |ctx| {
+        let take = state.surfaces_take_keys();
+        crate::adapters::ui::popup::body_keys::with_body_keys(ctx, take, || {
+            egui::Area::new(egui::Id::new("explorer_find_test"))
+                .fixed_pos(egui::pos2(0.0, 650.0))
+                .show(ctx, |ui| {
+                    ui.set_width(300.0);
+                    out = tasty_ui_widgets::explorer_find_bar(
+                        ui,
+                        &th,
+                        tasty_ui_widgets::ExplorerFindBar {
+                            query,
+                            subfolders: None,
+                            status: tasty_ui_widgets::ExplorerFindStatus::Text(""),
+                            labels: tasty_ui_widgets::ExplorerFindLabels {
+                                placeholder: "",
+                                subfolders: "",
+                                close: "",
+                            },
+                            focus,
+                        },
+                    );
+                });
+        });
+        crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, mgr.popup_instances());
+        draw_popup_layer(ctx, state, engine, layout);
+        draw_plugin_popups(
+            ctx,
+            state,
+            engine,
+            Some(crate::app::plugin_display::PluginDisplay::new(mgr)),
+            Some(layout),
+        );
+    }));
+    state.press_snapshot = None;
+    out
+}
+
+/// Given 탐색기 찾기 입력란에 egui 키 포커스와 검색어가 있고 plugin 팝업 P 가 키 주인일 때, When 창이 Esc 를 받아 P
+/// 의 렌더가 그 Esc 로 P 를 닫으면, Then 찾기 입력란은 포커스·검색어·열림이 그대로다. 창은 그 Esc 를 egui 입력에서
+/// 빼고 P 의 렌더 동안만 되넣으므로 egui 의 패스 시작 처리(키 포커스 해제)가 그 Esc 를 보지 않는다.
+#[test]
+fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h: _,
+        g: _,
+    } = open_scene();
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let mut query = String::from("abc");
+    // L 이 보이지 않아 H 가 숨고 P 가 키 주인이다. 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를 준다.
+    let draw = |state: &mut RequestContext, query: &mut String, events, focus| {
+        frame_with_find(
+            &ctx,
+            state,
+            &engine.read(),
+            &mgr,
+            &layout_without_l(),
+            events,
+            query,
+            focus,
+        )
+    };
+    draw(&mut state, &mut query, Vec::new(), true);
+    let before = draw(&mut state, &mut query, Vec::new(), false);
+    assert!(before.field_focused, "찾기 입력란이 키 포커스를 가진다");
+    assert!(!plugin_escaped(&state));
+
+    let mut events = escape();
+    assert!(state.window_escape(&mut events), "plugin 키 주인 갈래");
+    assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
+    let after = draw(&mut state, &mut query, events, false);
+    assert!(plugin_escaped(&state), "P 의 렌더가 그 Esc 로 P 를 닫는다");
+    assert!(!after.escape, "찾기 입력란은 Esc 를 보지 않는다");
+    assert!(after.field_focused, "찾기 입력란의 포커스가 그대로다");
+    assert!(!after.close, "찾기 바를 닫지 않는다");
+    assert_eq!(query, "abc", "검색어가 그대로다");
 }

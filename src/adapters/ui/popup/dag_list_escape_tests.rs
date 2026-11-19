@@ -66,15 +66,18 @@ fn one_escape_on_the_detail_view_returns_to_the_list() {
     assert_eq!(view(&state), Some(DrillDownView::Detail));
 
     // 창의 Esc 판정(포커스 해제 갈래). 바깥 클릭 Unfocus 선언이라 닫지 않는다.
-    assert_eq!(
-        state.escape_gate(),
-        crate::state::EscapeGate::Consumed {
-            drop_from_egui: true
-        }
-    );
+    let mut events = vec![egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+    assert!(state.window_escape(&mut events));
     assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
     // 창은 그 Esc 를 egui 입력에서 뺐다. 팝업 층이 묶인 키 주인 본문에 넘긴다.
-    frame(&ctx, &mut state, &read, Vec::new());
+    assert!(events.is_empty());
+    frame(&ctx, &mut state, &read, events);
     assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
     assert_eq!(view(&state), Some(DrillDownView::List));
 }

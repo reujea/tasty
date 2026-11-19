@@ -50,25 +50,51 @@ pub(crate) fn with_body_keys<R>(
     out
 }
 
-/// 창이 처리해 egui 입력에서 뺀 Esc 를 팝업 층에서 다시 넣는다. 창이 Esc 를 묶은 키 주인 본문만 읽는다(다른 본문은
-/// 문이 가린다). 팝업 층보다 먼저 그린 화면과 egui 의 패스 시작 처리(키 포커스 해제)는 이 Esc 를 보지 않는다.
-pub(crate) fn hand_escape(ctx: &egui::Context) {
-    ctx.input_mut(|i| i.events.push(escape()));
+/// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(`handed`, 수식키 포함)을 키 주인을 그리는 동안만 넣는다. host 팝업
+/// 층에서는 묶인 키 주인 본문만 읽는다(다른 본문은 문이 가린다). plugin 렌더는 키 주인 팝업에만 키를 보낸다. 팝업 층
+/// 보다 먼저 그린 화면과 egui 의 패스 시작 처리(키 포커스 해제)는 이 Esc 를 보지 않는다. 키 주인이 읽지 않고 남긴
+/// 사건은 끝나면 뺀다. 뒤에 그리는 것은 보지 않는다.
+pub(crate) fn with_handed_escape<R>(
+    ctx: &egui::Context,
+    handed: &[egui::Event],
+    draw: impl FnOnce() -> R,
+) -> R {
+    hand_escape(ctx, handed);
+    let out = draw();
+    withdraw_escape(ctx, handed);
+    out
 }
 
-/// [`hand_escape`]로 넣은 Esc 가 본문들을 그린 뒤 남았으면 뺀다. 팝업 층 뒤에 그리는 것은 보지 않는다.
-pub(crate) fn withdraw_escape(ctx: &egui::Context) {
-    ctx.input_mut(|i| i.events.retain(|e| *e != escape()));
-}
-
-fn escape() -> egui::Event {
-    egui::Event::Key {
-        key: egui::Key::Escape,
-        physical_key: Some(egui::Key::Escape),
-        pressed: true,
-        repeat: false,
-        modifiers: egui::Modifiers::NONE,
+/// [`with_handed_escape`]의 앞쪽. 그리기가 한 함수 호출이 아닌 host 팝업 층이 쓴다.
+pub(crate) fn hand_escape(ctx: &egui::Context, handed: &[egui::Event]) {
+    if !handed.is_empty() {
+        ctx.input_mut(|i| i.events.extend(handed.iter().cloned()));
     }
+}
+
+/// [`with_handed_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 뺀다.
+pub(crate) fn withdraw_escape(ctx: &egui::Context, handed: &[egui::Event]) {
+    if handed.is_empty() {
+        return;
+    }
+    ctx.input_mut(|i| {
+        for event in handed {
+            if let Some(at) = i.events.iter().position(|e| e == event) {
+                i.events.remove(at);
+            }
+        }
+    });
+}
+
+/// 창이 egui 입력에서 빼는 Esc 사건인지.
+pub(crate) fn is_escape(event: &egui::Event) -> bool {
+    matches!(
+        event,
+        egui::Event::Key {
+            key: egui::Key::Escape,
+            ..
+        }
+    )
 }
 
 #[cfg(test)]

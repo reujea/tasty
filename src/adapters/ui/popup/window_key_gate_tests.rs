@@ -1,10 +1,10 @@
-//! 창의 키 처리(Esc 판정 `escape_gate`, 키 입력의 입력 시점 결속 `bind_window_key_owner`)를 거친 키를 실은 프레임은
+//! 창의 키 처리(Esc 처리 `window_escape`, 키 입력의 입력 시점 결속 `bind_window_key_owner`)를 거친 키를 실은 프레임은
 //! 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다.
 
 use super::*;
 use crate::adapters::ui::LayoutContext;
 use crate::intent::OpenRequest;
-use crate::state::{EscapeGate, RequestContext};
+use crate::state::RequestContext;
 
 const ID: PopupId = "window_key_gate_test";
 
@@ -29,6 +29,23 @@ fn layout() -> LayoutContext {
         surface_owners: Vec::new(),
         tab_content_rects: Vec::new(),
     }
+}
+
+/// 창이 키 사건 하나를 받는 경로(egui 전달 → Esc 처리 → 터미널 게이트)를 밟는다. egui 로 보낼 키만 `pending`(그 키를
+/// 실은 프레임의 egui 입력)에 싣는다. 터미널(PTY)로 가면 참이다.
+fn window_key(
+    state: &mut RequestContext,
+    pending: &mut Vec<egui::Event>,
+    event: egui::Event,
+) -> bool {
+    if state.keyboard_overlay_open() {
+        state.bind_window_key_owner();
+        pending.push(event.clone());
+    }
+    if super::body_keys::is_escape(&event) && state.window_escape(pending) {
+        return false;
+    }
+    !state.keyboard_overlay_open()
 }
 
 fn enter() -> egui::Event {
@@ -154,18 +171,23 @@ fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
         g,
         x,
     } = open_scene(|_| {});
-    assert_eq!(
-        state.escape_gate(),
-        EscapeGate::Consumed {
-            drop_from_egui: true
-        }
-    );
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &mut state,
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
     assert!(
         !state.popups.instance(x).unwrap().focused,
         "창이 X 의 포커스를 푼다"
     );
+    assert!(
+        !window_key(&mut state, &mut pending, enter()),
+        "같은 프레임의 Enter 는 터미널로 가지 않는다"
+    );
     // 창은 그 Esc 를 egui 입력에서 뺐다. 같은 프레임의 Enter 만 egui 로 간다.
-    let seen = frame(&ctx, &mut state, vec![enter()]);
+    assert_eq!(pending, [enter()]);
+    let seen = frame(&ctx, &mut state, pending);
     assert_eq!(seen, [x], "Enter 는 X 본문만 읽는다");
     assert!(
         state.popups.instance(g).unwrap().collapsed(),
@@ -238,13 +260,13 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
     let n = n.unwrap();
     state.popups.instance_mut(x).unwrap().close_on_outside_click = true;
     assert!(frame_reading(&ctx, &mut state, Vec::new(), egui::Key::Escape).is_empty());
-    assert_eq!(
-        state.escape_gate(),
-        EscapeGate::Consumed {
-            drop_from_egui: true
-        },
-        "닫은 주인의 Esc 는 egui 입력에서 뺀다"
-    );
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &mut state,
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
+    assert!(pending.is_empty(), "닫은 주인의 Esc 는 egui 입력에서 뺀다");
     // 창의 닫기 요청은 그리기 전에 적용된다. 아래에서는 Esc 가 egui 에 남았다고 쳐도 N 이 읽지 않는지 본다.
     {
         let mut engine = session.borrow_mut();
@@ -281,16 +303,23 @@ fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
         x,
     } = open_scene(|_| {});
     state.popups.instance_mut(g).unwrap().close_on_outside_click = true;
-    let unfocus_x = EscapeGate::Consumed {
-        drop_from_egui: true,
-    };
-    assert_eq!(state.escape_gate(), unfocus_x);
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &mut state,
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
     assert!(!state.popups.instance(x).unwrap().focused);
-    assert_eq!(state.escape_gate(), unfocus_x, "두 번째 Esc 도 X 것이다");
+    assert!(
+        !window_key(&mut state, &mut pending, key(egui::Key::Escape)),
+        "두 번째 Esc 도 X 것이다"
+    );
     assert!(state.take_pending_intents().is_empty(), "G 를 닫지 않는다");
     let gp = state.popups.instance(g).unwrap();
     assert!(gp.open && gp.focused, "G 는 포커스·열림 그대로다");
-    let seen = frame(&ctx, &mut state, vec![enter()]);
+    assert!(!window_key(&mut state, &mut pending, enter()));
+    assert_eq!(pending, [enter()], "두 Esc 는 egui 입력에서 빠진다");
+    let seen = frame(&ctx, &mut state, pending);
     assert_eq!(seen, [x], "그 프레임 키는 X 본문만 읽는다");
 }
 
@@ -314,21 +343,26 @@ fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() 
     }
     let ctx = egui::Context::default();
     frame(&ctx, &mut state, Vec::new());
-    assert!(state.keyboard_overlay_open());
-    assert_eq!(
-        state.escape_gate(),
-        EscapeGate::Consumed {
-            drop_from_egui: true
-        }
-    );
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &mut state,
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
     assert!(!state.popups.has_focused(), "X 의 포커스가 풀렸다");
     assert!(
-        state.keyboard_overlay_open(),
+        !window_key(&mut state, &mut pending, enter()),
         "같은 프레임의 Enter 는 터미널로 가지 않는다"
     );
-    let seen = frame(&ctx, &mut state, vec![enter()]);
+    assert_eq!(pending, [enter()], "그 Enter 는 egui 로 간다");
+    let seen = frame(&ctx, &mut state, pending);
     assert_eq!(seen, [x], "그 Enter 는 X 본문이 읽는다");
-    assert!(!state.keyboard_overlay_open(), "다음 키부터 터미널로 간다");
+    let mut pending = Vec::new();
+    assert!(
+        window_key(&mut state, &mut pending, enter()),
+        "다음 키부터 터미널로 간다"
+    );
+    assert!(pending.is_empty(), "다음 키는 egui 로 가지 않는다");
 }
 
 /// 이번 프레임 키 주인의 egui 사건을 버튼이 가져가는지 본다. `focus` 위젯에 egui 키 포커스를 주고 Enter 를 넣는다.
@@ -500,21 +534,20 @@ fn an_escape_the_popup_handled_does_not_reach_a_surface_field() {
         }
         let (before, _) = surface_frame(&ctx, &mut state, &mut query, Vec::new(), false);
         assert!(before.field_focused, "찾기 입력란이 키 포커스를 가진다");
-        let gate = state.escape_gate();
+        let mut events = Vec::new();
+        assert!(!window_key(&mut state, &mut events, key(egui::Key::Escape)));
         {
             let mut engine = session.borrow_mut();
             for intent in state.take_pending_intents() {
                 crate::intent::popup::handle(&mut state, &mut engine, &intent);
             }
         }
-        let mut events = match gate {
-            EscapeGate::Consumed {
-                drop_from_egui: true,
-            } => Vec::new(),
-            _ => vec![key(egui::Key::Escape)],
-        };
         // 같은 프레임에 이어 온 글자도 창이 묶은 키 주인 것이다. 찾기 입력란에 들어가지 않는다.
-        events.push(egui::Event::Text("z".into()));
+        assert!(!window_key(
+            &mut state,
+            &mut events,
+            egui::Event::Text("z".into())
+        ));
         let (after, escape_after) = surface_frame(&ctx, &mut state, &mut query, events, false);
         assert!(
             !escape_after,

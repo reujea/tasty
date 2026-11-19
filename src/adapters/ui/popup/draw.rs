@@ -243,10 +243,14 @@ impl PopupManager {
         // 키 주인이 없는 프레임에는 포커스를 받지 않는 팝업(복원 안내 등)의 본문이 자기 위젯 키 포커스로 키를 읽는다.
         // 창이 묶은 주인이 그사이 닫혔으면 그 키는 처리한 노드에서 멈춘 것이므로 키 주인이 있는 프레임이다.
         let frame_has_key_owner = frame_keys.held();
-        // 창이 처리한 Esc 는 egui 입력에 없다. 묶인 키 주인 본문이 읽도록 본문들을 그리는 동안만 넣는다.
-        if frame_keys.escape {
-            super::body_keys::hand_escape(ctx);
-        }
+        // 창이 처리한 Esc 는 egui 입력에 없다. 묶인 host 키 주인 본문이 읽도록 본문들을 그리는 동안만 원래 사건을
+        // 넣는다. plugin 키 주인 몫은 plugin 렌더가 꺼낸다.
+        let handed_escape = if frame_keys.host.is_some() {
+            self.take_handed_escape()
+        } else {
+            Vec::new()
+        };
+        super::body_keys::hand_escape(ctx, &handed_escape);
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
@@ -893,9 +897,7 @@ impl PopupManager {
         if let Some(iid) = bring_front {
             self.bring_to_front(iid);
         }
-        if frame_keys.escape {
-            super::body_keys::withdraw_escape(ctx);
-        }
+        super::body_keys::withdraw_escape(ctx, &handed_escape);
         if let Some(iid) = expand_requested {
             self.expand(iid);
         }

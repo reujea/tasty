@@ -239,22 +239,28 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
         Some((SEARCH_BAR_POPUP_ID, false)),
         "the search bar is the only focused popup"
     );
-    assert_eq!(
-        state.escape_gate(),
-        crate::state::EscapeGate::Consumed {
-            drop_from_egui: true
-        }
+    let mut events = vec![egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+    assert!(state.window_escape(&mut events), "the window handles it");
+    assert!(
+        events.is_empty(),
+        "the window takes the Escape out of egui input"
     );
     assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));
     assert!(
         state.popups.is_open(SEARCH_BAR_POPUP_ID),
         "the winit stage does not close"
     );
-    // The gate took the Escape out of the egui input; the popup layer hands it to the bound bar.
-    escape_frame(&ctx, &mut state, &engine, vec![]);
+    // The popup layer hands that Escape back to the bound bar while its input still has focus.
+    escape_frame(&ctx, &mut state, &engine, events);
     assert!(
         !state.popups.is_open(SEARCH_BAR_POPUP_ID),
-        "Escape that ended the input's focus closes the bar"
+        "Escape handed to the focused input closes the bar"
     );
     assert!(state.search.query.is_empty(), "highlights are cleared");
 }

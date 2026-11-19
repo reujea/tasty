@@ -89,7 +89,6 @@ pub(crate) use dialogs::{
     OpenFilePickerRequest, Queued,
 };
 #[cfg(feature = "gui")]
-pub(crate) use escape_gate::EscapeGate;
 #[cfg(feature = "gui")]
 pub use events::FocusedSurfaceType;
 #[cfg(any(feature = "gui", debug_assertions))]

@@ -28,7 +28,7 @@ fn between<'a>(hay: &'a str, start: &str, end: &str) -> &'a str {
 }
 
 const KEYBOARD: &str = "src/view/main/keyboard.rs";
-/// 창의 Esc 판정(`MainViewState::escape_gate`). keyboard.rs 의 Escape 처리가 이 판정만 부른다.
+/// 창의 Esc 판정(`MainViewState::window_escape` → `escape_gate`). keyboard.rs 의 Escape 처리가 이 판정만 부른다.
 const ESCAPE_GATE: &str = "src/state/escape_gate.rs";
 
 #[test]
@@ -41,10 +41,12 @@ fn the_three_escape_consumers_keep_their_order() {
     );
     only_at(
         escape_key,
-        "self.state.escape_gate()",
+        ".window_escape(",
         "Escape 처리의 창 Esc 판정 호출",
     );
     let src = read(ESCAPE_GATE);
+    let window = between(&src, "fn window_escape(", "fn escape_gate(");
+    only_at(window, "self.escape_gate()", "창 Esc 처리의 판정 호출");
     // 판정 함수 하나만 있는 파일이다. 함수 시작부터 순서를 비교한다.
     let start = only_at(&src, "fn escape_gate(", "창 Esc 판정 함수");
     let body = &src[start..];

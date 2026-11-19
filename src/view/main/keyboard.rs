@@ -208,36 +208,19 @@ impl MainView {
             .reset_reveal_timer_if_not_shown(&theme);
     }
 
-    /// Escape는 창의 Esc 판정(`MainViewState::escape_gate`)이 처리한다. 처리한 Esc 를 egui 입력에서 뺄지는 그
-    /// 판정이 정한다.
+    /// Escape는 창의 Esc 판정(`MainViewState::window_escape`)이 처리한다. 처리한 Esc 는 egui 입력에서 빼고, 키
+    /// 주인이 읽을 몫은 그 원래 사건을 넘겨 둔다.
     fn try_consume_escape_key(&mut self, event: &winit::event::KeyEvent) -> bool {
         if event.logical_key != Key::Named(NamedKey::Escape) {
             return false;
         }
-        match self.state.escape_gate() {
-            crate::state::EscapeGate::Pass => false,
-            crate::state::EscapeGate::Consumed { drop_from_egui } => {
-                if drop_from_egui {
-                    self.drop_escape_from_egui();
-                }
-                self.mark_dirty();
-                true
-            }
+        let consumed = self
+            .state
+            .window_escape(self.base.gpu.egui_input_events_mut());
+        if consumed {
+            self.mark_dirty();
         }
-    }
-
-    /// 창이 처리를 끝낸 Esc(설정 요청 취소, host 키 주인의 다시 접기, 알림 목록 닫기)를 이번 egui 입력에서 뺀다.
-    /// 키는 처리한 노드에서 멈추므로 그 프레임의 어느 본문도 같은 Esc 를 다시 읽지 않는다.
-    fn drop_escape_from_egui(&mut self) {
-        self.base.gpu.egui_input_events_mut().retain(|e| {
-            !matches!(
-                e,
-                egui::Event::Key {
-                    key: egui::Key::Escape,
-                    ..
-                }
-            )
-        });
+        consumed
     }
 
     /// 오버레이가 없을 때 단축키를 처리하고 IME 조합 문자를 정리한다.
