@@ -4,11 +4,32 @@ use super::*;
 
 type Receiver = std::sync::mpsc::Receiver<JsonRpcResponse>;
 
-/// The command prints a value that its typed echo does not contain. It is long and unique so that
-/// it is counted wherever it lands: a login shell that starts after the body and CR were typed
-/// ahead prints its prompt after their echo, and dash then writes the output right after `$ `.
-const COMMAND: &str = "echo child-$((6*7))-done";
-const OUTPUT: &str = "child-42-done";
+/// A command and the output it prints. The output is not in the command's typed echo, because
+/// only the shell's arithmetic expansion turns `$((6*7))` into 42. It is counted wherever it lands:
+/// a login shell that starts after the body and CR were typed ahead prints its prompt after their
+/// echo, and dash then writes the output right after `$ `. A nonce for each run keeps a prompt,
+/// path or profile output from holding the same text.
+struct Marker {
+    command: String,
+    output: String,
+}
+
+fn marker() -> Marker {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.subsec_nanos())
+        .unwrap_or_default();
+    let nonce = format!(
+        "{}n{}n{nanos}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    );
+    Marker {
+        command: format!("echo child-{nonce}-$((6*7))-done"),
+        output: format!("child-{nonce}-42-done"),
+    }
+}
 
 fn turn(journal: &mut JournalApplication, session: &mut EngineSession) {
     journal.poll_bootstrap(&mut [&mut *session], None).unwrap();
@@ -28,7 +49,12 @@ fn boot_with_shell() -> (EngineSession, JournalApplication) {
     (session, journal)
 }
 
-fn spawn(journal: &mut JournalApplication, session: &EngineSession, id: u64) -> Receiver {
+fn spawn(
+    journal: &mut JournalApplication,
+    session: &EngineSession,
+    id: u64,
+    marker: &Marker,
+) -> Receiver {
     let workspace = &session.core_state.local_workspaces()[0];
     send(
         journal,
@@ -37,7 +63,7 @@ fn spawn(journal: &mut JournalApplication, session: &EngineSession, id: u64) -> 
             serde_json::json!({
                 "parent": workspace.all_surface_ids()[0],
                 "workspace": workspace.id.to_string(),
-                "command": COMMAND,
+                "command": marker.command,
             }),
             Some("child-input-key"),
             id,
@@ -61,14 +87,14 @@ fn waiting_input(journal: &JournalApplication) -> bool {
         .any(|creation| creation.waits_child_input())
 }
 
-fn outputs(session: &EngineSession, surface: u32) -> usize {
+fn outputs(session: &EngineSession, surface: u32, marker: &Marker) -> usize {
     session
         .runtime
         .terminals
         .get(surface)
         .map(|terminal| {
             terminal.with_content(|view| {
-                count_outputs(&unwrapped_text(&view.screen_lines(), view.cols()))
+                count_outputs(&unwrapped_text(&view.screen_lines(), view.cols()), marker)
             })
         })
         .unwrap_or_default()
@@ -96,8 +122,8 @@ fn unwrapped_text(rows: &[termwiz::surface::line::Line], cols: usize) -> String 
 }
 
 /// Counts the command's output regardless of the line or prompt it shares.
-fn count_outputs(screen: &str) -> usize {
-    screen.matches(OUTPUT).count()
+fn count_outputs(screen: &str, marker: &Marker) -> usize {
+    screen.matches(marker.output.as_str()).count()
 }
 
 /// The screen a terminal of `cols` columns shows after `output` is written to it.
@@ -109,30 +135,34 @@ fn screen_of(cols: usize, output: &str) -> String {
 
 #[test]
 fn the_output_is_counted_after_a_prompt_or_on_its_own_line_but_not_in_the_echo() {
-    let joined = screen_of(80, &format!("{COMMAND}\r\n$ {OUTPUT}\r\n$ "));
-    let own_line = screen_of(80, &format!("{COMMAND}$ \r\n{OUTPUT}\r\n$ "));
-    assert_eq!(count_outputs(&joined), 1, "{joined:?}");
-    assert_eq!(count_outputs(&own_line), 1, "{own_line:?}");
+    let marker = marker();
+    let Marker { command, output } = &marker;
+    let joined = screen_of(80, &format!("{command}\r\n$ {output}\r\n$ "));
+    let own_line = screen_of(80, &format!("{command}$ \r\n{output}\r\n$ "));
+    assert_eq!(count_outputs(&joined, &marker), 1, "{joined:?}");
+    assert_eq!(count_outputs(&own_line, &marker), 1, "{own_line:?}");
     assert_eq!(
-        count_outputs(&screen_of(80, &format!("{COMMAND}\r\n$ "))),
+        count_outputs(&screen_of(80, &format!("{command}\r\n$ ")), &marker),
         0
     );
 }
 
 #[test]
 fn an_output_that_a_long_prompt_wraps_across_two_rows_is_counted_once() {
+    let marker = marker();
+    let Marker { command, output } = &marker;
     let prompt = format!("{}$ ", "p".repeat(67));
     assert_eq!(prompt.len(), 69);
-    let typed = format!("{COMMAND}\r\n{prompt}{OUTPUT}\r\n$ ");
+    let typed = format!("{command}\r\n{prompt}{output}\r\n$ ");
     let mut surface = termwiz::surface::Surface::new(80, 6);
     surface.add_change(typed.as_str());
     let rows = surface.screen_chars_to_string();
     assert!(
-        !rows.contains(OUTPUT),
+        !rows.contains(output.as_str()),
         "the output crosses a row boundary: {rows:?}"
     );
     let screen = screen_of(80, &typed);
-    assert_eq!(count_outputs(&screen), 1, "{screen:?}");
+    assert_eq!(count_outputs(&screen, &marker), 1, "{screen:?}");
 }
 
 /// Pumps until the child is published while its CR is still pending.
@@ -180,6 +210,7 @@ fn reply(
 
 #[test]
 fn a_child_is_published_before_its_command_runs_and_the_reply_waits_for_the_submit() {
+    let marker = marker();
     let (mut session, mut journal) = boot_with_shell();
     let parent = session.core_state.local_workspaces()[0].all_surface_ids()[0];
     // Consume an actual reservation so the child's real name cannot be mistaken for index zero.
@@ -190,7 +221,7 @@ fn a_child_is_published_before_its_command_runs_and_the_reply_waits_for_the_subm
             .reserve_index(&parent.into()),
         Ok(0)
     );
-    let rx = spawn(&mut journal, &session, 900);
+    let rx = spawn(&mut journal, &session, 900, &marker);
     let child = published_before_submit(&mut journal, &mut session);
     let pane = session.core_state.find_pane_for_surface(child).unwrap();
     let tab = session.core_state.find_tab_for_surface(child).unwrap();
@@ -218,7 +249,7 @@ fn a_child_is_published_before_its_command_runs_and_the_reply_waits_for_the_subm
         .pty(child)
         .and_then(|pty| pty.process_id());
     let mut stall = StallBudget::for_process(terminal);
-    while outputs(&session, child) == 0 {
+    while outputs(&session, child, &marker) == 0 {
         stall.nap_with(|| {
             format!(
                 "child command output: {:?}",
@@ -231,20 +262,25 @@ fn a_child_is_published_before_its_command_runs_and_the_reply_waits_for_the_subm
         });
     }
     // The same key replays the stored result without writing the body again.
-    let again = spawn(&mut journal, &session, 901);
+    let again = spawn(&mut journal, &session, 901, &marker);
     let replay = reply(&mut journal, &mut session, &again);
     assert_eq!(replay.result, response.result);
     for _ in 0..50 {
         turn(&mut journal, &mut session);
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
-    assert_eq!(outputs(&session, child), 1, "body and CR were sent once");
+    assert_eq!(
+        outputs(&session, child, &marker),
+        1,
+        "body and CR were sent once"
+    );
 }
 
 #[test]
 fn a_child_held_after_publication_never_receives_the_late_submit() {
+    let marker = marker();
     let (mut session, mut journal) = boot_with_shell();
-    let rx = spawn(&mut journal, &session, 910);
+    let rx = spawn(&mut journal, &session, 910, &marker);
     let child = published_before_submit(&mut journal, &mut session);
     session
         .borrow_mut()
@@ -270,7 +306,11 @@ fn a_child_held_after_publication_never_receives_the_late_submit() {
         turn(&mut journal, &mut session);
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
-    assert_eq!(outputs(&session, child), 0, "the late CR was not sent");
+    assert_eq!(
+        outputs(&session, child, &marker),
+        0,
+        "the late CR was not sent"
+    );
     assert!(!journal.has_creation(session.id));
 }
 
@@ -282,8 +322,9 @@ const TURN_LIMIT: Duration = StallBudget::IDLE_LIMIT;
 
 #[test]
 fn a_held_relationship_receipt_keeps_command_and_original_reply_pending_after_publication() {
+    let marker = marker();
     let (mut session, mut journal) = boot_with_shell();
-    let rx = spawn(&mut journal, &session, 902);
+    let rx = spawn(&mut journal, &session, 902, &marker);
     let mut stall = StallBudget::new(&journal);
     loop {
         turn(&mut journal, &mut session);
@@ -394,7 +435,7 @@ fn a_held_relationship_receipt_keeps_command_and_original_reply_pending_after_pu
             .any(|creation| creation.holds_child_body()),
         "the one-shot body left before its relationship receipt finished"
     );
-    assert_eq!(outputs(&session, child), 0);
+    assert_eq!(outputs(&session, child, &marker), 0);
     assert!(matches!(
         rx.try_recv(),
         Err(std::sync::mpsc::TryRecvError::Empty)
