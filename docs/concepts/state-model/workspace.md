@@ -11,7 +11,7 @@ Workspace는 구조 트리의 최상위 객체다. 구조 외에 로컬·mirror 
 | 선택 | View마다 workspace 하나 | View의 `NavigationState`의 workspace 선택 | 메모리 | View 선택 | 로컬 사용자 |
 | 연결 세션 단계 | `Connected`, `Reconnecting`, `Disconnected` | `tasty_remote::client_session::SessionState`(`crates/tasty-remote/src/client_session.rs`) | 메모리 | 연결 관측 | 연결·재연결·끊기 처리 |
 | 원격 행 상태 | 아래 표의 6개 문자열 | 계산(`row_state_name`, `src/app/auto_attach/row_use.rs`) | 메모리(engine마다 `row_states`) | 파생 | 세션 단계, 진행 중 시도, 실패 표지, 소켓 생존 |
-| 점유 | 없음, hard(workspace lock) | `LiveDomainState.occupancy`의 workspace lock(`src/core/attach.rs`) | 메모리 | 관계 기록 | 원격 attach, 연결 종료, 로컬 사용자 강제 해제 |
+| 점유 | 없음, hard(workspace lock) | `LiveDomainState.occupancy`의 workspace lock(`src/core/attach.rs`) | 메모리 | 관계 기록 | 원격 attach, 연결 종료, 강제 해제(로컬 사용자 GUI, IPC·CLI) |
 | busy | 개수 | 계산(`busy_count`) | 저장하지 않음 | 하위 surface busy 개수 | surface busy 변화 |
 | attention | kind별 개수 | 계산(사이드바 행) | 저장하지 않음 | 하위 surface attention 개수 | surface attention 변화 |
 
@@ -62,7 +62,7 @@ workspace hard 점유(`acquire_workspace`)는 workspace lock을 기록하고, �
 | 저장된 원격 행, 연결됨 | 네트워크 단절 | `reconnecting`. 형상 유지 | 시간 창이 지나거나 다른 client가 점유하면 `disconnected` | — |
 | 에이전트 mirror, 연결됨 | 단절 | mirror 정리 | — | 마지막 workspace였으면 기본 터미널 workspace를 만든다 |
 | 로컬 workspace | 원격 client의 hard 점유 | workspace lock, 터미널 surface lock | 살아 있는 다른 holder가 있으면 거절 | 서버 로컬의 구조 변경 IPC 거절 |
-| hard 점유 | 연결 종료, 강제 해제 | 점유 없음 | release에는 강제 해제 IPC가 없다 | 멤버 lock 해제 |
+| hard 점유 | 연결 종료, 강제 해제 | 점유 없음 | GUI 확인 팝업과 IPC `attach.force_detach_workspace`가 같은 엔진 경로를 쓴다 | 멤버 lock 해제 |
 | — | 앱 재시작 | 로컬 workspace는 journal에서, 저장된 원격 행은 형상 없는 행으로 돌아온다 | — | 에이전트 mirror는 돌아오지 않는다 |
 
 mirror 닫기와 연결 끊기, 저장된 원격 행의 메뉴는 [원격 attach](../../features/remote-attach/index.md#mirror-닫기와-연결-끊기)가 정본이다. 로컬 닫기의 거절 문구와 마지막 workspace 경계는 [작업 영역](../../features/work-area/index.md#인터페이스)에 있다. 마지막 workspace 거절은 IPC `workspace.close`에만 있다. GUI 사용자 닫기는 같은 검사에 마지막 workspace 허용을 넘긴다(`src/app/journal/commands/close.rs`의 `allow_last`).
@@ -94,7 +94,7 @@ mirror는 무조건 닫기 거절 대상이 아니다. 로컬 닫기 명령은 m
 - **두 MainView의 workspace 목록**: 창 1은 W1, 창 2는 W2를 선택했다. 합산 목록에서는 W1과 W2의 `active`가 모두 true다. OS 포커스가 창 1에 있어도 W2의 `active`는 그대로다.
 - **비활성 workspace의 집계**: 창 1이 W1을 보는 동안 W2에 busy surface 둘과 `NeedsInput` attention 하나가 있다. 집계 시점까지 attention 해제와 busy 갱신이 없으면 사이드바의 W2 행은 busy 2와 `NeedsInput` 배지 1을 보인다. `workspace.list`의 W2는 `busy_count: 2`, `active: false`다. attention 개수는 이 응답에 없다.
 - **연결 단절**: 저장된 원격 행 R과 에이전트 mirror M이 같은 서버에 붙어 있다가 네트워크가 끊긴다. R은 형상을 남긴 채 `reconnecting`이 되고, 재연결 시간 창이 지나면 `disconnected`로 남는다. M은 정리돼 사라진다. 서버의 두 workspace와 프로세스는 둘 다 남는다.
-- **hard 점유 로컬 workspace 닫기**: 원격 client가 로컬 workspace L의 터미널을 hard 점유한 동안 로컬 사용자나 에이전트가 L을 닫으면 거절된다. 로컬 사용자는 강제 끊기로 점유를 회수한 뒤 닫을 수 있다.
+- **hard 점유 로컬 workspace 닫기**: 원격 client가 로컬 workspace L의 터미널을 hard 점유한 동안 로컬 사용자나 에이전트가 L을 닫으면 거절된다. 로컬 사용자나 에이전트는 강제 끊기(GUI, `tasty remote detach`)로 점유를 회수한 뒤 닫을 수 있다.
 - **mirror 서버 닫기**: 연결이 살아 있고 서버가 닫기를 지원하면 요청을 보내고 성공 회신 뒤 정리한다. 재연결 중이면 보내지 않고 안내한다. 서버가 지원하지 않으면 보내지 않는다. 같은 mirror의 닫기가 회신을 기다리면 두 번째는 보내지 않는다. 회신 전에 연결이 끊기면 결과 불명 안내를 띄우고 닫혔다고 단정하지 않는다.
 
 ## 관련

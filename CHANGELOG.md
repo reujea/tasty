@@ -19,6 +19,7 @@
 
 ### Added
 
+- **`tasty remote detach --workspace <id> | --surface <id> | --all`(IPC `attach.force_detach`·`attach.force_detach_workspace`)로 이 인스턴스를 점유한 원격 client를 끊는다.** GUI의 강제 끊기와 같은 경로로 점유를 풀고 holder에게 강제 끊기를 알린다. 응답은 `{force_detached, surface_id|workspace_id, holder}`이고 `--all`은 `attach.list`의 점유를 모두 끊어 호출마다의 응답을 `{"workspaces": [...], "surfaces": [...]}`로 출력한다. 헤드리스에서도 같다. debug 전용이던 `debug.attach.force_detach*`와 `tasty debug attach --force-detach`는 없어졌다.
 - **plugin SDK의 `IpcMethodCtx::defer()`로 `handle_ipc_method`가 답을 미룰 수 있다.** 돌려받은 `DeferredReply`를 다른 스레드로 넘기면 처리 스레드는 다음 요청을 받고, 답은 그 스레드가 `DeferredReply::send`로 같은 요청에 보낸다. 호스트가 보낸 호출에서 처리기 안에서만 한 번 가져갈 수 있고(자기 호출이나 끝난 호출의 ctx 복사본이면 `None`), 보내지 않고 버리면 `-32000` 오류로 답한다. 답은 namespace 요청 기한(150초) 안에 보내야 한다.
 - **원격 연결 팝업에서 붙인 workspace가 저장된 원격 행으로 남는다.** 이름·설명·카테고리·위치와 연결 대상(attach 프로필, 원격 workspace id)을 저장하고 재시작 뒤 같은 자리에 돌아와 선택되면 연결한다. 연결이 끊기면 형상을 남긴 채 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 `Keep reconnecting for`, 기본 300초, 0~3600) 동안 다시 연결하고, 그 뒤에는 연결 끊김 행으로 남아 다시 열 때 연결한다. 에이전트가 IPC로 붙인 mirror는 저장하지 않는다.
 - **연결되지 않은 저장된 원격 행은 workspace 가운데의 연결 팝업과 사이드바·rail·상태바 표지로 상태와 이유를 보인다.** 형상이 있던 행은 마지막 화면 위에 scrim 을 깔고, 팝업과 행 메뉴에서 Connect·Reconnect 를 고를 수 있다. 원격 workspace 가 다른 곳에서 닫힌 행은 Reconnect 가 꺼진다. 재연결 시작·성공·포기 toast 는 더 띄우지 않는다.
@@ -57,6 +58,7 @@
 
 ### Fixed
 
+- **강제로 끊긴 원격 mirror가 다시 붙지 않는다.** 서버가 점유를 강제로 끊으면 저장된 원격 행은 재연결하지 않고 연결 끊김으로 남으며, 그 행을 다시 열어도 붙지 않는다. 연결 버튼·메뉴·`tasty remote connect`로 연결할 때만 다시 붙는다. 터널·연결이 끊긴 경우의 자동 재연결과, 원격 workspace가 서버에서 닫혀 끊긴 경우는 지금과 같다.
 - **IPC `tree`와 Lua `tasty.tree()`의 busy 값이 surface 상태를 따른다.** tab의 `busy`는 그 tab의 surface 중 하나라도 busy인지, pane의 `busy_count`는 그 pane 안 모든 tab(선택되지 않은 tab 포함)의 surface 중 busy 수다. 나뉘지 않은 tab의 `surface` 객체와 `layout`의 `Leaf` 노드에 `busy`, tab에 `busy_count`가 새로 실린다. 전에는 tab id를 surface id로 보고 조회해 tab `busy`와 pane `busy_count`가 틀렸고 surface에는 `busy`가 없었다. workspace의 `busy_count`와 사람이 읽는 `tasty list tree` 출력은 그대로다.
 - **ready Custom task가 쌓인 workspace에서 runner를 멈춰도 창이 멈추지 않는다.** 전에는 stop이 메인 스레드에서 runner를 기다리고 runner는 ready task마다 메인 스레드의 응답을 5초까지 기다려, task 수 × 5초 동안 입력·화면·IPC가 멈췄다. 이제 정지 요청 뒤에는 남은 ready task를 보내지 않는다.
 - **같은 알림이 짧은 간격으로 다시 와도 떠 있던 토스트가 깜빡이지 않는다.** 전에는 합쳐질 때 한 프레임 사라졌다가 다시 페이드인했다.

@@ -63,8 +63,6 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 | `debug.surface_rect` | `surface_id` | 활성 탭에 있는 surface 의 화면 사각형 read-only 덤프(`rect` = 물리 px `x`·`y`·`width`·`height`, 화면에 없으면 null, `scale_factor`). 터미널이 아닌 surface 도 같은 leaf rect 다. native WebView 창이 surface 를 채우는지 재는 기준값 |
 | `debug.switch_workspace` | `index` (0-based) | 활성 워크스페이스 전환 — 사용자 포커스 조작 재현. **`index` 는 포커스된 창 안의 순번이라 포커스 독립성을 만족하지 않는다** — 사용자가 보고 있는 창에서 전환하는 것이 이 메서드의 뜻이므로 그것이 정답이다(`surface.ime_*` 와 같은 부류) |
 | `debug.close_workspace` | `index` (0-based) | 워크스페이스 컨텍스트 메뉴 "Close workspace" 재현 — 워크스페이스 안 **모든** surface + closed_item 스냅샷까지 한 번에 닫는다. release `surface.close` 는 cascade 특성상 마지막 한 surface 만 정리하므로 "탭 많은 워크스페이스 통째 close" 비용([close-sequence](../architecture/close-sequence.md) `path="gui"`)은 이 메서드로만 재현된다. 마지막 workspace 는 거절(0개가 되면 다음 redraw 가 패닉). **`index` 는 포커스된 창 안의 순번이라 포커스 독립성을 만족하지 않는다.** 셋 중 유일하게 상태를 **파괴**하므로, 창 둘에 각각 워크스페이스를 두고 한쪽만 닫는 시나리오가 필요해지면 `debug.fullscreen.*` 처럼 App 레벨로 올려 `window_id` 를 받아야 한다 — 지금은 그 시나리오가 없어 `route_debug_handler`(창 하나만 본다)에 남아 있다 |
-| `debug.attach.force_detach` | `surface_id` | 점유 테두리의 **강제 끊기** 버튼 재현 — surface 의 hard 점유를 풀고 holder 에 `force_detached` + `Detach` 를 보낸다. 응답은 `force_detached`(점유가 있었는가)·`surface_id`·`holder`. release 에는 남의 점유를 푸는 IPC 가 없고 로컬 사용자는 GUI 로 끊는다([사용자 통제와 데이터](../principles/control-and-data.md)) |
-| `debug.attach.force_detach_workspace` | `workspace_id` | 사이드바 우클릭 **강제 끊기** 확인 재현 — workspace 점유와 멤버 제한을 풀고 holder 에 알린다. 응답은 `force_detached`·`workspace_id`·`holder` |
 | `debug.switch_tab` | `index` (0-based) | 포커스 pane 의 활성 탭 전환 — 사용자 탭 클릭 재현 (egui-mesh 탭 가시성 시나리오 검증 등). **대상이 포커스된 창의 포커스된 pane 이라 포커스 독립성을 만족하지 않는다** — 재현하려는 클릭 자체가 그 pane 에서 일어나므로 그것이 정답이다. 응답은 세 갈래다 — 옮겼으면 `switched:true`, **이미 그 탭을 보고 있었으면 성공에 `switched:false`**(정상이고 바뀔 것이 없었을 뿐이다), 그런 탭이 없으면 실패에 실제 탭 수를 실어 보낸다. 앞의 둘을 하나로 누르면 범위 안 인덱스가 "out of range" 로 나가고, 그 문구를 믿은 호출자가 대상을 의심하는 대신 없는 탭을 찾는다 |
 | `debug.tool.list` | `{}` | 도구 메뉴 항목 전체를 표시 순서대로 |
 | `debug.tool.invoke` | `key` (`<plugin_id>/<tool_id>`) | 도구 항목을 사용자 클릭과 동일하게 dispatch. 응답 `{"invoked": key}`. attach 생성 대기 초안에 걸어 두었으면 `deferred_pending_id`(초안 id)를 함께 싣는다 |
@@ -350,8 +348,8 @@ release에서도 `tasty remote attach`로 실행한다. 같은 머신의 다른 
 결정 근거는 [원격 접속 프로필 + Passkey (remote_tool)](../features/remote-profiles/index.md),
 동작은 [attach-behavior.md](attach-behavior.md)를 참고한다.
 
-- 명령: `tasty debug attach [SURFACE] [--workspace <id>] [--dump-after <ms>] [--send <str>] [--send-to <sid>] [--raw] [--force-detach]`. `--ssh`/`--profile`/`--into-gui` 같은 원격 옵션은 없다(loopback 전용).
-- stream 핸드셰이크 + framed 교환이라 JSON-RPC "메서드 목록" 표/`DEBUG_METHODS` 에 없다. `--force-detach` 는 attach 하지 않고 debug JSON-RPC `debug.attach.force_detach`(`--workspace` 면 `debug.attach.force_detach_workspace`)를 보낸다 — 로컬 사용자의 GUI 강제 끊기 재현이며 release 에는 대응 IPC·CLI 가 없다.
+- 명령: `tasty debug attach [SURFACE] [--workspace <id>] [--dump-after <ms>] [--send <str>] [--send-to <sid>] [--raw]`. `--ssh`/`--profile`/`--into-gui` 같은 원격 옵션은 없다(loopback 전용).
+- stream 핸드셰이크 + framed 교환이라 JSON-RPC "메서드 목록" 표/`DEBUG_METHODS` 에 없다. 점유를 강제로 끊는 일은 release CLI `tasty remote detach`(IPC `attach.force_detach*`)가 한다([attach-behavior.md](attach-behavior.md#force-detach)).
 
 ### `tasty debug stream-echo` (JSON-RPC 메서드 아님)
 

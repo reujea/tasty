@@ -32,7 +32,7 @@ tasty 는 자체 원격 프로토콜이 없고 SSH 에 위임한다 — attach �
 
 ### 공통 규칙
 
-- **해제 권한**: 어느 계층이든 점유는 **점유 주체 본인(self-release) 또는 로컬 사용자의 GUI 강제 끊기(force-detach)** 로 끊는다. 연결이 끊기면 그 연결의 점유도 풀린다. 끊으면 그 계층의 점유가 없어진다. 다른 계층의 점유(soft)가 함께 걸려 있었다면 그 점유는 남는다(아래 "한 대상의 점유자" 불릿). release 에는 다른 주체의 점유를 끊는 IPC·CLI 가 없고, debug 빌드만 사용자 조작 재현용 `debug.attach.*` 를 둔다([Attach 메커니즘](../dev-guide/attach-behavior.md#force-detach)).
+- **해제 권한**: 어느 계층이든 점유는 **점유 주체 본인(self-release) 또는 강제 끊기(force-detach)** 로 끊는다. 강제 끊기는 로컬 사용자의 GUI 조작과, 같은 엔진 경로를 쓰는 IPC·CLI(`attach.force_detach*`, `tasty remote detach`)가 한다. 연결이 끊기면 그 연결의 점유도 풀린다. 끊으면 그 계층의 점유가 없어진다. 다른 계층의 점유(soft)가 함께 걸려 있었다면 그 점유는 남는다(아래 "한 대상의 점유자" 불릿). IPC·CLI 강제 끊기는 attach hard 점유만 푼다([Attach 메커니즘](../dev-guide/attach-behavior.md#force-detach)).
 - **한 대상의 점유자(현재 코드 동작)**: soft와 hard는 `OccupancyRegistry`(`src/core/attach.rs`)의 서로 다른 표에 기록된다.
   - 같은 계층 안에서는 한 대상의 점유자가 하나다. soft는 다른 parent의 soft가 있으면 `acquire_soft`가 거절하고, surface hard는 살아 있는 다른 holder가 있으면 `acquire`가 거절한다. workspace hard는 `acquire_workspace`가 같은 방식으로 거절한다.
   - 계층 사이의 검사는 진입점마다 다르다. soft를 거는 `terminal.adopt`는 대상이 hard 점유면 거절한다(`src/adapters/ipc/handler/terminal.rs`의 `handle_adopt`). 원격 attach는 soft를 보지 않고 hard를 건다(`src/adapters/ipc/handler/attach.rs`). 그래서 soft가 걸린 surface에 hard가 올라가 둘이 함께 있을 수 있다.
@@ -50,7 +50,7 @@ tasty 는 자체 원격 프로토콜이 없고 SSH 에 위임한다 — attach �
 | 분류 성격 | 사용자 행동 | 에이전트 행동 | **에이전트와 같은 권한** |
 | 점유 | 불필요 | **선택** (soft/hard) | CLI·IPC 는 에이전트와 같음(선택). attach 스트림 조작은 **필수** (강한 점유 안에서만) |
 | 포커스 | 주인 | 안 건드림 | 로컬 포커스 비주인 |
-| 타 점유 강제해제(force-detach) | **있음** (GUI 강제 끊기) | 없음 — release 에 공개 IPC·CLI 없음 (자기 점유 self-release 만) | 없음 — 에이전트와 같음 (자기 점유 self-release 만) |
+| 타 점유 강제해제(force-detach) | **있음** (GUI 강제 끊기) | **있음** — attach hard 점유를 IPC·CLI 로 (`tasty remote detach`) | 에이전트와 같음 (SSH 셸·터널의 CLI·IPC) |
 | 동시 수 | 보통 1 | 0..N | 0..N |
 
 API를 설계할 때는 로컬 직접 입력과 에이전트·원격 요청을 구분한다. [사용자와 에이전트 행동의 분리](../principles/control-and-data.md#사용자에이전트원격-사용자)를 따른다.

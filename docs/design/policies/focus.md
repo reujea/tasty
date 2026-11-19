@@ -327,7 +327,7 @@ Tasty에는 포커스를 주는 IPC 메서드가 없다.
 
 ## hard 점유 대상의 닫기 보호
 
-hard 점유 대상은 원격 사용자가 사용 중이므로 로컬 사용자와 에이전트의 닫기 요청을 모두 거절한다. 닫은 항목 복원은 같은 명령으로 새 세션을 만들 뿐 기존 PTY 작업을 되살리지 못한다. 로컬 사용자는 점유 표시의 강제 끊기로 점유를 회수한 뒤 닫을 수 있다([Attach 메커니즘](../../dev-guide/attach-behavior.md)).
+hard 점유 대상은 원격 사용자가 사용 중이므로 로컬 사용자와 에이전트의 닫기 요청을 모두 거절한다. 닫은 항목 복원은 같은 명령으로 새 세션을 만들 뿐 기존 PTY 작업을 되살리지 못한다. 로컬 사용자는 점유 표시의 강제 끊기로, 에이전트는 `tasty remote detach`(IPC `attach.force_detach*`)로 점유를 회수한 뒤 닫을 수 있다([Attach 메커니즘](../../dev-guide/attach-behavior.md)).
 
 닫기 진입점은 `MainViewState::refuse_if_hard_occupied`에 닫을 surface 집합을 넘긴다. workspace·tab·pane은 그 안의 모든 surface, surface 닫기는 해당 하나를 검사한다.
 

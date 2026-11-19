@@ -12,7 +12,7 @@ busy·attention과 surface 점유처럼 상위 계층에도 표시되는 실행 
 | PTY 연결 | 연결 있음(`ResourceGeneration`)·없음 | terminal | `EngineRuntime.terminals` | 메모리 | 실행 자원 | PTY 생성·교체·종료 |
 | busy | 집합에 있음·없음 | 로컬 terminal, mirror surface | `LiveDomainState.busy_surfaces`, mirror는 원격 상태의 별도 집합 | 메모리 | PTY 관측, 원격 push | 시스템 폴링 |
 | attention | 없음, `Completion`, `NeedsInput` | 모든 kind | `LiveDomainState.attention` | 메모리 | 사건 기록 | 발생원(완료 보고·훅·OSC 133 등), 로컬 확인, IPC 해제 |
-| 점유 | 없음, soft, hard. 두 tier는 따로 저장된다 | 모든 kind. hard surface lock은 terminal | `LiveDomainState.occupancy` | 메모리 | 관계 기록 | child-terminal 처리(soft), attach 연결(hard), 로컬 사용자 강제 해제 |
+| 점유 | 없음, soft, hard. 두 tier는 따로 저장된다 | 모든 kind. hard surface lock은 terminal | `LiveDomainState.occupancy` | 메모리 | 관계 기록 | child-terminal 처리(soft), attach 연결(hard), 강제 해제(로컬 사용자 GUI, IPC·CLI) |
 | 자식 상태 | `ChildState`의 5개 값과 근거·확신도 | child-terminal로 등록된 surface | 조회 시 계산 | 저장하지 않음. 훅 보고는 자식 목록 파일에 저장 | 파생 | 훅 보고, 출력·전경 관측 |
 | 선택·표시 | 탭에서 선택됨, 화면에 보임 | 모든 kind | View의 `NavigationState` | 메모리 | View 선택 | 로컬 사용자 |
 
@@ -76,7 +76,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 | hard 획득 `acquire` | 같은 client이거나 lock이 없거나 기존 holder가 끊김 표시됨 | surface lock 기록 | 살아 있는 다른 holder가 있으면 `AlreadyAttached` |
 | hard 해제 `release` | 실제 holder | lock 제거 | `NotAttached`, `NotHolder` |
 | 연결 종료 `release_all_for_client` | 그 client의 lock | 그 client의 surface·workspace lock과 멤버 매핑 제거 | — |
-| 강제 해제 `release_occupancy` | 로컬 사용자 GUI 조작 | workspace 멤버면 workspace 점유 전체, 아니면 hard, 그것도 없으면 soft 제거 | release에는 IPC가 없다 |
+| 강제 해제 `release_occupancy` | 로컬 사용자 GUI 조작 | workspace 멤버면 workspace 점유 전체, 아니면 hard, 그것도 없으면 soft 제거 | IPC `attach.force_detach`는 hard 점유만 푼다 |
 | surface 닫기 `forget_closed_surface` | 닫힌 surface | 그 surface의 lock·멤버 매핑·soft 제거. 같은 workspace의 다른 멤버는 유지 | — |
 | 사용자 포커스 `reconcile_soft_occupancy_on_focus` | 대표 점유가 soft이고 parent surface가 트리에 없음 | soft 제거 | External parent는 이 경로로 정리하지 않는다 |
 
