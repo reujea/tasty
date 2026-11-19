@@ -178,18 +178,19 @@ pub(crate) struct HostBar {
     /// 제목줄 아래 선 색(셸 묶음의 값).
     pub(crate) title_edge: egui::Color32,
     pub(crate) hovered: bool,
-    pub(crate) pressed: bool,
-    pub(crate) tip_id: egui::Id,
+    /// 접기 버튼의 키 포커스·툴팁 식별자.
+    pub(crate) id: egui::Id,
 }
 
 /// 펼친 headless 팝업의 host 제목줄과 접기 버튼을 그린다. 제목 문구는 없고 버튼은 닫기 자리에 있다.
+/// 접기 버튼이 키로 눌렸으면 참이다.
 pub(crate) fn paint_host_bar(
     ctx: &egui::Context,
     painter: &egui::Painter,
     th: &tasty_type_appearance::theme::Theme,
     layer_id: egui::LayerId,
     bar: HostBar,
-) {
+) -> bool {
     let title = host_bar_rect(bar.box_rect);
     let cr = bar.radius as u8;
     painter.rect_filled(
@@ -207,20 +208,38 @@ pub(crate) fn paint_host_bar(
         egui::Stroke::new(th.border_width.value(), bar.title_edge),
     );
     let btn = title_end_btn_rect(title);
-    super::draw::title_icon_button(
+    collapse_button(ctx, painter, th, layer_id, bar.id, btn, bar.hovered)
+}
+
+/// 펼친 팝업의 접기 버튼(host·plugin 공용 위젯). 키 포커스에서 Enter·Space를 누르면 참이다. 포인터 누름은
+/// 호출자의 누름 경로가 판정한다.
+pub(crate) fn collapse_button(
+    ctx: &egui::Context,
+    painter: &egui::Painter,
+    th: &tasty_type_appearance::theme::Theme,
+    layer_id: egui::LayerId,
+    id: egui::Id,
+    rect: egui::Rect,
+    hovered: bool,
+) -> bool {
+    let out = tasty_ui_widgets::popup_collapse_button(
         ctx,
         painter,
         th,
-        btn,
-        crate::adapters::ui::icons::SHRINK,
-        bar.hovered,
-        bar.pressed,
+        tasty_ui_widgets::CollapseButton {
+            id,
+            layer_id,
+            rect,
+            label: crate::i18n::t("popup.collapse_button.label"),
+            tooltip: crate::i18n::t("popup.collapse_button.tooltip"),
+            hovered,
+            pressed: hovered && ctx.input(|i| i.pointer.primary_down()),
+        },
     );
-    if bar.hovered {
-        egui::show_tooltip_at(ctx, layer_id, bar.tip_id, btn.left_bottom(), |ui| {
-            ui.label(crate::i18n::t("popup.collapse_button.tooltip"))
-        });
+    if let Some(err) = out.glyph_error {
+        tracing::warn!("popup collapse button glyph failed to load: {err}");
     }
+    out.activated
 }
 
 /// plugin 팝업이 연 host 팝업(파일 피커)이 따르는 그 plugin 팝업의 표시 상태. plugin 렌더가 프레임마다 적고,

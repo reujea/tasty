@@ -321,7 +321,7 @@ pub fn draw_plugin_popups(
             let btn = display::title_end_btn_rect(display::host_bar_rect(rect));
             let hovered = ownership == Some(PointOwnership::Mine)
                 && pointer_pos.is_some_and(|p| btn.contains(p));
-            display::paint_host_bar(
+            let keyed = display::paint_host_bar(
                 ctx,
                 &painter,
                 &th,
@@ -331,11 +331,10 @@ pub fn draw_plugin_popups(
                     radius,
                     title_edge: th.border_frame().to_egui(),
                     hovered,
-                    pressed: hovered && ctx.input(|i| i.pointer.primary_down()),
-                    tip_id: Id::new("plugin_popup.collapse_tooltip").with(snap.instance_id),
+                    id: Id::new("plugin_popup.collapse_button").with(snap.instance_id),
                 },
             );
-            if hovered && press.as_ref().is_some_and(|p| p.is_primary()) {
+            if keyed || hovered && press.as_ref().is_some_and(|p| p.is_primary()) {
                 state.plugin_popup_expanded.remove(&snap.instance_id);
                 state.popups.refold_plugin_children(snap.instance_id);
             }

@@ -142,7 +142,29 @@ pub fn draw_title_buttons(
         if !on {
             continue;
         }
-        button(slot, icon, name);
+        if name == "shrink" {
+            // 접기 버튼은 본체와 같은 공용 위젯이다(접근 이름·키 포커스·툴팁 포함).
+            let hovered = hover_pos.is_some_and(|p| slot.contains(p));
+            let out = tasty_ui_widgets::popup_collapse_button(
+                ctx,
+                painter,
+                theme,
+                tasty_ui_widgets::CollapseButton {
+                    id: egui::Id::new("gallery.popup_collapse").with(slot.min.x.to_bits()),
+                    layer_id: painter.layer_id(),
+                    rect: slot,
+                    label: crate::i18n::t("popup.collapse_button.label"),
+                    tooltip: crate::i18n::t("popup.collapse_button.tooltip"),
+                    hovered,
+                    pressed: hovered && down,
+                },
+            );
+            if let Some(err) = out.glyph_error {
+                tracing::warn!("gallery popup {name} glyph failed to load: {err}");
+            }
+        } else {
+            button(slot, icon, name);
+        }
         left = slot.min.x;
         slot = slot.translate(egui::vec2(-step, 0.0));
     }

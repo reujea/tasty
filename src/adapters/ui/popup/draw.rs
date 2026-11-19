@@ -471,6 +471,7 @@ impl PopupManager {
         // 키 주인(맨 위 포커스 인스턴스). 포커스 가장자리와 접힌 버튼의 Enter·Space가 이 하나에만 간다.
         let key_owner = self.focused_dismissal_target().map(|(_, iid, _)| iid);
         let mut expand_requested: Option<PopupInstanceId> = None;
+        let mut refold_requested: Option<PopupInstanceId> = None;
         for &popup_idx in &open_indices {
             let popup = &mut self.popups[popup_idx];
             if closed.iter().any(|(c, _)| *c == popup.instance) {
@@ -709,23 +710,11 @@ impl PopupManager {
 
                 if let Some(rect) = popup.collapse_btn_rect() {
                     let hovered = hovered_collapse == Some(popup_iid);
-                    title_icon_button(
-                        ctx,
-                        &painter,
-                        &th,
-                        rect,
-                        crate::adapters::ui::icons::SHRINK,
-                        hovered,
-                        primary_down,
-                    );
-                    if hovered {
-                        egui::show_tooltip_at(
-                            ctx,
-                            layer_id,
-                            egui::Id::new("popup.collapse_tooltip").with(popup_iid.0),
-                            rect.left_bottom(),
-                            |ui| ui.label(crate::i18n::t("popup.collapse_button.tooltip")),
-                        );
+                    let id = egui::Id::new("popup.collapse_button").with(popup_iid.0);
+                    if super::display::collapse_button(
+                        ctx, &painter, &th, layer_id, id, rect, hovered,
+                    ) {
+                        refold_requested = Some(popup_iid);
                     }
                 }
                 if !is_headless {
@@ -849,6 +838,9 @@ impl PopupManager {
         }
         if let Some(iid) = expand_requested {
             self.expand(iid);
+        }
+        if let Some(iid) = refold_requested {
+            self.refold(iid);
         }
 
         PopupDrawResult {

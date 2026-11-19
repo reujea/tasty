@@ -5,7 +5,10 @@
 
 use tasty_type_appearance::theme::Theme;
 
-use crate::{Button, ButtonVariant, ControlSize, IconButton, IconButtonVariant};
+use crate::{
+    Button, ButtonVariant, ControlSize, IconButton, IconButtonState, IconButtonVariant,
+    paint_icon_button_state, paint_popup_title_glyph,
+};
 
 /// 범위 안에서 팝업이 보이는 형태.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -193,17 +196,99 @@ pub fn paint_collapsed_popup(
             }
         })
         .inner;
+    // 아이콘 프레임은 글자가 없어 라벨을 접근 이름으로 준다.
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, look.label));
     if look.ring {
-        // `:focus-visible` 짝: 버튼 바깥 border_width 만큼 띄운 focus_ring_width 링.
-        let offset = theme.border_width.value();
-        painter.rect_stroke(
-            resp.rect.expand(offset),
-            theme.corner_radius.value() + offset,
-            egui::Stroke::new(theme.focus_ring_width.value(), theme.border_focus()),
-            egui::StrokeKind::Outside,
-        );
+        paint_focus_ring(&painter, theme, resp.rect);
+        // 키 포커스로 고른 버튼은 포인터가 없어도 툴팁을 보인다.
+        resp.show_tooltip_text(look.tooltip);
+        return resp;
     }
     resp.on_hover_text(look.tooltip)
+}
+
+/// `:focus-visible` 짝: 버튼 바깥 border_width 만큼 띄운 focus_ring_width 링.
+fn paint_focus_ring(painter: &egui::Painter, theme: &Theme, button: egui::Rect) {
+    let offset = theme.border_width.value();
+    painter.rect_stroke(
+        button.expand(offset),
+        theme.corner_radius.value() + offset,
+        egui::Stroke::new(theme.focus_ring_width.value(), theme.border_focus()),
+        egui::StrokeKind::Outside,
+    );
+}
+
+/// 펼친 팝업 제목줄의 접기 버튼 한 개. 포인터 hover·누름 상태는 호출자가 정한다(팝업 누름 경로가 판정한다).
+#[derive(Clone, Copy, Debug)]
+pub struct CollapseButton<'a> {
+    /// 키 포커스·툴팁 식별자. 팝업 인스턴스마다 다르다.
+    pub id: egui::Id,
+    /// 버튼을 그리는 팝업 레이어.
+    pub layer_id: egui::LayerId,
+    pub rect: egui::Rect,
+    /// 접근 이름.
+    pub label: &'a str,
+    pub tooltip: &'a str,
+    pub hovered: bool,
+    pub pressed: bool,
+}
+
+/// [`popup_collapse_button`]의 결과.
+#[derive(Debug, Default)]
+pub struct CollapseButtonOutput {
+    /// 버튼이 키 포커스를 가진 채 Enter·Space를 눌렀다. 포인터 누름은 포함하지 않는다.
+    pub activated: bool,
+    /// 글리프를 읽지 못했다. 호출자가 기록한다.
+    pub glyph_error: Option<egui::load::LoadError>,
+}
+
+/// 접기 버튼을 IconButton sm 규칙으로 그리고 키 포커스(Tab)·접근 이름·툴팁을 붙인다. hover나 키 포커스면
+/// 툴팁을 보인다. 포인터 누름은 판정하지 않는다(팝업 누름 경로가 판정한다).
+pub fn popup_collapse_button(
+    ctx: &egui::Context,
+    painter: &egui::Painter,
+    theme: &Theme,
+    b: CollapseButton<'_>,
+) -> CollapseButtonOutput {
+    let tint = paint_icon_button_state(
+        painter,
+        theme,
+        b.rect,
+        IconButtonState::ghost(b.hovered, b.pressed),
+    );
+    let glyph = ControlSize::Sm.icon_glyph(theme);
+    let glyph_rect = egui::Rect::from_center_size(b.rect.center(), egui::Vec2::splat(glyph));
+    let glyph_error =
+        paint_popup_title_glyph(ctx, painter, tasty_icons::SHRINK, glyph_rect, tint).err();
+    let ui = egui::Ui::new(
+        ctx.clone(),
+        b.id.with("ui"),
+        egui::UiBuilder::new().layer_id(b.layer_id).max_rect(b.rect),
+    );
+    let resp = ui.interact(b.rect, b.id, egui::Sense::focusable_noninteractive());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, b.label));
+    let focused = resp.has_focus();
+    if focused {
+        paint_focus_ring(painter, theme, b.rect);
+    }
+    if b.hovered || focused {
+        egui::show_tooltip_at(
+            ctx,
+            b.layer_id,
+            b.id.with("tip"),
+            b.rect.left_bottom(),
+            |ui| ui.label(b.tooltip),
+        );
+    }
+    let activated = focused
+        && ctx.input_mut(|i| {
+            i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                || i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
+        });
+    CollapseButtonOutput {
+        activated,
+        glyph_error,
+    }
 }
 
 /// 키 포커스를 가진 팝업 프레임 위쪽의 2px 막대. 1px 테두리 안쪽에 전체 폭으로 그리고 모서리 반경으로
@@ -232,6 +317,71 @@ pub fn paint_popup_focus_edge(painter: &egui::Painter, theme: &Theme, frame: egu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 접기 버튼은 Tab 키 포커스를 받고, 포커스가 있을 때만 Enter·Space로 접기를 요청한다. 접근 이름은 라벨이다.
+    #[test]
+    fn the_collapse_button_takes_key_focus_and_answers_enter_and_space() {
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        let id = egui::Id::new("collapse");
+        let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(24.0, 24.0));
+        let run = |key: Option<egui::Key>, focus: bool| {
+            let events = key
+                .map(|key| {
+                    vec![egui::Event::Key {
+                        key,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    }]
+                })
+                .unwrap_or_default();
+            let mut activated = false;
+            let out = ctx.run(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    if focus {
+                        ctx.memory_mut(|m| m.request_focus(id));
+                    }
+                    let painter = ctx.layer_painter(egui::LayerId::background());
+                    activated = popup_collapse_button(
+                        ctx,
+                        &painter,
+                        &theme,
+                        CollapseButton {
+                            id,
+                            layer_id: egui::LayerId::background(),
+                            rect,
+                            label: "Collapse popup",
+                            tooltip: "tip",
+                            hovered: false,
+                            pressed: false,
+                        },
+                    )
+                    .activated;
+                },
+            );
+            (activated, out)
+        };
+        assert!(!run(Some(egui::Key::Enter), false).0, "포커스 없는 Enter");
+        // 포커스를 얻는 프레임에 접근 이름이 실린 사건이 나간다.
+        let (_, out) = run(None, true);
+        assert!(
+            out.platform_output.events.iter().any(|e| matches!(
+                e,
+                egui::output::OutputEvent::FocusGained(info)
+                    if info.label.as_deref() == Some("Collapse popup")
+            )),
+            "접근 이름: {:?}",
+            out.platform_output.events
+        );
+        assert!(run(Some(egui::Key::Enter), true).0);
+        assert!(run(Some(egui::Key::Space), true).0);
+    }
 
     fn frames() -> (egui::Vec2, egui::Vec2) {
         // 라벨 프레임 en 134 × 38, 아이콘 프레임 38 × 38(정본 실측값).
