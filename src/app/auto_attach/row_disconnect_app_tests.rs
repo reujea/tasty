@@ -281,6 +281,39 @@ fn a_force_detached_saved_row_stays_disconnected_until_an_explicit_connect() {
     assert_ne!(app.row_state_name(ROW), "disconnected");
 }
 
+/// 모든 창의 토스트 문구.
+fn window_toasts(app: &mut App) -> Vec<String> {
+    app.engines_mut()
+        .window_pairs()
+        .flat_map(|(_, main, _)| {
+            main.state
+                .toasts
+                .messages()
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// Given 연결된 저장 행, When 서버가 강제로 끊는다, Then 토스트를 띄우지 않는다. 저장 행은 행 표지와
+/// 연결 팝업이 끊긴 사유를 보인다. 저장되지 않은 mirror 의 끊김 토스트는 그대로다.
+#[test]
+fn a_force_detached_saved_row_shows_no_toast() {
+    alone!("a_force_detached_saved_row_shows_no_toast");
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, Some(SessionState::Connected));
+    assert!(
+        app.engines_mut().window_pairs().count() > 0,
+        "the rig has a window that would show a toast"
+    );
+    let before = window_toasts(&mut app);
+
+    end_row_connection(&mut app, true);
+    assert_eq!(app.row_state_name(ROW), "disconnected");
+    assert_eq!(window_toasts(&mut app), before);
+}
+
 fn force_detach_marked(app: &App) -> bool {
     app.services
         .registries
