@@ -158,9 +158,9 @@ plugin의 egui-mesh 팝업도 키보드 입력을 차단한다. 호스트 PopupM
 | 스코프 | 가시성 | 경계 clamp | scrim 이 덮는 rect |
 |--------|--------|-----------|--------------------|
 | Window | 항상(워크스페이스 전환 무관) | 윈도우 | 윈도우 |
-| Workspace | 해당 워크스페이스 활성 시 | 워크스페이스 영역 | 윈도우 |
+| Workspace | 해당 워크스페이스 활성 시 | workspace 영역(탭 바와 pane, 사이드바·상태바 제외) | workspace 영역(탭 바와 pane, 사이드바·상태바 제외) |
 | Pane | 해당 pane 보일 때 | pane | pane |
-| Tab | 해당 탭이 활성 탭일 때 | 탭 소속 pane | 탭 소속 pane |
+| Tab | 해당 탭이 활성 탭일 때 | 탭 바 아래 콘텐츠 영역 | 탭 바 아래 콘텐츠 영역 |
 | Surface | 해당 surface 보일 때 | surface **안쪽 8pt** | surface |
 
 `PopupManager::draw()` 가 `LayoutContext` 를 받아 스코프별 가시성 필터 + clamp rect 를 결정한다.
