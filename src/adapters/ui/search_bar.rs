@@ -144,8 +144,9 @@ pub fn draw_search_bar(
             response.request_focus();
         } else if !want_focus && input_focused && !response.gained_focus() {
             // 반대 방향 동기화. 바깥 클릭 프레임에는 want_focus가 그리기 전 스냅샷이라 위에서
-            // 포커스를 되찾는다. 다음 프레임에 놓지 않으면 터미널 포커스 상태의 Esc로도 닫힌다.
-            // 이번 프레임에 클릭으로 얻은 포커스는 남긴다(팝업 포커스가 다음 프레임에 따라온다).
+            // 포커스를 되찾는다. 팝업 포커스가 없는데 입력칸만 egui 키 포커스를 가지면 캐럿과 포커스 표시가
+            // 남으므로 다음 프레임에 놓는다. 이번 프레임에 클릭으로 얻은 포커스는 남긴다(팝업 포커스가 다음 프레임에
+            // 따라온다).
             response.surrender_focus();
         }
 
