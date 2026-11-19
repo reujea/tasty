@@ -52,6 +52,16 @@ fn frame(
     state: &mut RequestContext,
     events: Vec<egui::Event>,
 ) -> Vec<PopupInstanceId> {
+    frame_reading(ctx, state, events, egui::Key::Enter)
+}
+
+/// [`frame`]과 같고, 본문에서 `read` 키를 읽은 인스턴스를 돌려준다.
+fn frame_reading(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    events: Vec<egui::Event>,
+    read: egui::Key,
+) -> Vec<PopupInstanceId> {
     let layout = layout();
     let mut seen = Vec::new();
     let raw = egui::RawInput {
@@ -65,7 +75,7 @@ fn frame(
         state.popups.draw(
             ctx,
             &mut |cx, ui| {
-                if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !seen.contains(&cx.instance) {
+                if ui.input(|i| i.key_pressed(read)) && !seen.contains(&cx.instance) {
                     seen.push(cx.instance);
                 }
             },
@@ -78,7 +88,7 @@ fn frame(
 
 struct Scene {
     state: RequestContext,
-    _session: crate::runtime::engine_session::EngineSession,
+    session: crate::runtime::engine_session::EngineSession,
     ctx: egui::Context,
     /// surface 2 범위의 접힌 팝업. 포커스를 가진다.
     g: PopupInstanceId,
@@ -126,7 +136,7 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     );
     Scene {
         state,
-        _session: session,
+        session,
         ctx,
         g,
         x,
@@ -139,7 +149,7 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
 fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
     let Scene {
         mut state,
-        _session,
+        session: _session,
         ctx,
         g,
         x,
@@ -170,7 +180,7 @@ fn a_key_in_the_frame_of_a_press_reaches_only_the_owner_before_the_press() {
     let mut a = None;
     let Scene {
         mut state,
-        _session,
+        session: _session,
         ctx,
         g,
         x,
@@ -205,4 +215,53 @@ fn a_key_in_the_frame_of_a_press_reaches_only_the_owner_before_the_press() {
     assert!(state.bind_window_key_owner());
     let seen = frame(&ctx, &mut state, vec![enter()]);
     assert_eq!(seen, [a], "다음 키부터 A 가 받는다");
+}
+
+/// Given 키 주인 X 가 바깥 클릭에 닫히는 팝업이고 포커스를 받지 않는 팝업 N(복원 안내 같은)이 함께 보일 때, When
+/// 창이 Esc 로 X 를 닫고 그 닫기가 그리기 전에 적용되면, Then 그 Esc 는 처리한 X 에서 멈춘다. 키 주인이 사라졌어도
+/// 그 프레임은 키 주인이 있는 프레임이라 N 의 본문은 그 Esc 를 읽지 않는다.
+#[test]
+fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
+    let mut n = None;
+    let Scene {
+        mut state,
+        mut session,
+        ctx,
+        g: _,
+        x,
+    } = open_scene(|state| {
+        let iid = open(state, 3, false);
+        state.popups.instance_mut(iid).unwrap().arrange.takes_focus = false;
+        n = Some(iid);
+    });
+    let n = n.unwrap();
+    state.popups.instance_mut(x).unwrap().close_on_outside_click = true;
+    assert!(frame_reading(&ctx, &mut state, Vec::new(), egui::Key::Escape).is_empty());
+    assert_eq!(
+        state.escape_gate(),
+        EscapeGate::Consumed {
+            drop_from_egui: false
+        }
+    );
+    // 창의 닫기 요청은 그리기 전에 적용된다.
+    {
+        let mut engine = session.borrow_mut();
+        for intent in state.take_pending_intents() {
+            crate::intent::popup::handle(&mut state, &mut engine, &intent);
+        }
+    }
+    assert!(
+        !state.popups.instance(x).is_some_and(|p| p.open),
+        "창이 X 를 닫는다"
+    );
+    let seen = frame_reading(
+        &ctx,
+        &mut state,
+        vec![key(egui::Key::Escape)],
+        egui::Key::Escape,
+    );
+    assert!(
+        seen.is_empty(),
+        "아래 N({n:?})은 그 Esc 를 읽지 않는다: {seen:?}"
+    );
 }
