@@ -171,7 +171,7 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 
 ### 좁은 범위: 접기와 펼침
 
-창이 아닌 범위의 팝업이 범위보다 크면 접는다(`decl.fit = Collapse`, 검색 바 밖의 모든 host 팝업과 모든 plugin 팝업). 표시 상태는 인스턴스의 `PopupDisplay`(`src/adapters/ui/popup/display.rs`)이고, plugin 팝업은 창의 `plugin_popup_expanded` 에 펼침만 기록한다. 디자인 정본은 tasty-page 갤러리 Overlays › Dialogs 의 collapsed popup · popup focus Spec 이고 본체와 갤러리가 `tasty_ui_widgets::collapsed_popup` 을 함께 쓴다.
+창이 아닌 범위의 팝업이 범위보다 크면 접는다(`decl.fit = Collapse`, 검색 바 밖의 모든 host 팝업과 모든 plugin 팝업). 표시 상태는 인스턴스의 `PopupDisplay`(`src/adapters/ui/popup/display.rs`)이고, plugin 팝업은 팝업 관리자(`PopupManager::plugin_expanded`)에 펼침만 기록한다. 다시 접기는 진입점(Esc·접기 버튼 포인터·Enter·Space, host·plugin 어느 쪽)과 무관하게 `refold`·`refold_plugin` 한 번에 묶음의 host 팝업과 펼친 plugin 부모를 함께 접는다. 디자인 정본은 tasty-page 갤러리 Overlays › Dialogs 의 collapsed popup · popup focus Spec 이고 본체와 갤러리가 `tasty_ui_widgets::collapsed_popup` 을 함께 쓴다.
 
 | 상태 | 언제 | 그리는 것 | 배치 범위 |
 |---|---|---|---|

@@ -242,12 +242,14 @@ pub(crate) fn collapse_button(
     out.activated
 }
 
-/// plugin 팝업이 연 host 팝업(파일 피커)이 따르는 그 plugin 팝업의 표시 상태. plugin 렌더가 프레임마다 적고,
-/// host 판정은 직전 plugin 렌더의 값을 읽는다. host 묶음을 다시 접으면 펼친 plugin 부모도 접도록 요청을 남긴다.
+/// plugin 팝업의 펼침과 그 팝업이 연 host 팝업(파일 피커)이 따르는 표시 상태. 펼침은 사용자가 보기 버튼으로
+/// 펼친 plugin 팝업이고, 다시 접기는 진입점(Esc·접기 버튼 포인터·Enter·Space, host·plugin 어느 쪽)과 무관하게
+/// `PopupManager::refold`·`refold_plugin`이 여기서 함께 지운다. 표시 상태는 plugin 렌더가 프레임마다 적고 host
+/// 판정은 직전 plugin 렌더의 값을 읽는다.
 #[derive(Debug, Default)]
 pub(crate) struct PluginParents {
     displays: std::collections::HashMap<u64, PopupDisplay>,
-    refolds: Vec<u64>,
+    expanded: std::collections::HashSet<u64>,
 }
 
 impl PopupManager {
@@ -259,8 +261,24 @@ impl PopupManager {
         self.plugin_parents.displays = displays.collect();
     }
 
-    /// plugin 팝업을 다시 접었다(접기 버튼·Esc). 그 팝업이 연 펼친 host 팝업도 함께 접는다.
-    pub(crate) fn refold_plugin_children(&mut self, plugin_parent: u64) {
+    /// 창 위로 펼친 plugin 팝업.
+    pub(crate) fn plugin_expanded(&self) -> &std::collections::HashSet<u64> {
+        &self.plugin_parents.expanded
+    }
+
+    /// plugin 팝업을 창 위로 펼친다(보기 버튼).
+    pub(crate) fn expand_plugin(&mut self, plugin_popup: u64) {
+        self.plugin_parents.expanded.insert(plugin_popup);
+    }
+
+    /// 닫힌 plugin 팝업의 펼침을 지운다. 다시 열면 범위 판정부터 한다.
+    pub(crate) fn retain_plugin_expanded(&mut self, live: impl Fn(u64) -> bool) {
+        self.plugin_parents.expanded.retain(|&id| live(id));
+    }
+
+    /// plugin 팝업을 다시 접는다(접기 버튼·Esc). 그 팝업이 연 펼친 host 팝업도 함께 접는다.
+    pub(crate) fn refold_plugin(&mut self, plugin_parent: u64) {
+        self.plugin_parents.expanded.remove(&plugin_parent);
         if let Some(d) = self.plugin_parents.displays.get_mut(&plugin_parent) {
             *d = PopupDisplay::Fits;
         }
@@ -273,11 +291,6 @@ impl PopupManager {
         for iid in children {
             self.refold(iid);
         }
-    }
-
-    /// host 묶음과 함께 다시 접을 펼친 plugin 팝업. 읽으면 비운다.
-    pub(crate) fn take_plugin_refolds(&mut self) -> Vec<u64> {
-        std::mem::take(&mut self.plugin_parents.refolds)
     }
 }
 
@@ -460,13 +473,13 @@ impl PopupManager {
         if !self.instance(root).is_some_and(PopupState::expanded) {
             return false;
         }
-        // 펼친 plugin 부모가 연 묶음이면 그 부모도 접는다. 다음 host 판정이 다시 펼치지 않게 표시도 바꿔 둔다.
+        // 펼친 plugin 부모가 연 묶음이면 그 부모도 여기서 접는다. 같은 프레임의 plugin 렌더와 다음 host 판정이
+        // 다시 펼치지 않는다.
         if let Some(pid) = self.instance(root).and_then(|p| p.plugin_parent)
+            && self.plugin_parents.expanded.remove(&pid)
             && let Some(d) = self.plugin_parents.displays.get_mut(&pid)
-            && matches!(d, PopupDisplay::Expanded { .. })
         {
             *d = PopupDisplay::Fits;
-            self.plugin_parents.refolds.push(pid);
         }
         // 뿌리와 그 아래 펼친 자식을 모두 접는다. 자식은 다음 판정에서 부모 상태를 다시 따른다.
         let in_bundle: Vec<bool> = self

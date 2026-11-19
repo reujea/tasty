@@ -87,8 +87,8 @@ pub fn draw_plugin_popups(
         .retain(|k, _| live_mesh.contains(k));
     // 닫힌 팝업은 다시 열면 범위 판정부터 한다.
     state
-        .plugin_popup_expanded
-        .retain(|k| live_mesh.contains(k));
+        .popups
+        .retain_plugin_expanded(|k| live_mesh.contains(&k));
     // 닫힌 팝업에 줄 선 편집 요청은 받을 곳이 없다. 그 보류는 App이 대상 닫힘으로 끝낸다.
     state
         .plugin_popup_edit_requests
@@ -110,7 +110,7 @@ pub fn draw_plugin_popups(
         layout,
         screen_rect,
         pointer_pos,
-        &state.plugin_popup_expanded,
+        state.popups.plugin_expanded(),
         display::collapsed_frames(ctx),
     );
     // plugin 팝업이 연 host 피커는 다음 host 판정에서 이 표시 상태를 따른다.
@@ -238,7 +238,7 @@ pub fn draw_plugin_popups(
                 ));
             let th = crate::theme::theme();
             if display::draw_collapsed(ctx, &th, layer_id, frame, scope_rect, look) {
-                state.plugin_popup_expanded.insert(snap.instance_id);
+                state.popups.expand_plugin(snap.instance_id);
                 state.plugin_popup_focus_bumps.push(snap.instance_id);
             }
             drop(th);
@@ -347,8 +347,7 @@ pub fn draw_plugin_popups(
                 },
             );
             if keyed || hovered && press.as_ref().is_some_and(|p| p.is_primary()) {
-                state.plugin_popup_expanded.remove(&snap.instance_id);
-                state.popups.refold_plugin_children(snap.instance_id);
+                state.popups.refold_plugin(snap.instance_id);
             }
         } else if has_key_focus && snap.scope != PopupScope::Window {
             // 키 주인인 좁은 범위 팝업은 셸 위쪽에 포커스 가장자리를 켠다.
@@ -479,8 +478,7 @@ pub fn draw_plugin_popups(
         match escape {
             // 다시 접기는 닫기 사건이 없다.
             EscapeAction::Refold => {
-                state.plugin_popup_expanded.remove(&snap.instance_id);
-                state.popups.refold_plugin_children(snap.instance_id);
+                state.popups.refold_plugin(snap.instance_id);
             }
             EscapeAction::Close => state
                 .plugin_popup_closes

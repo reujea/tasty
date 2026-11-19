@@ -209,7 +209,7 @@ fn a_narrow_owner_expanded_over_the_window_still_gives_its_surface_scope() {
         "the collapsed owner stays in its surface: {collapsed:?}"
     );
     assert!(state.plugin_mesh_popup_regions.is_empty());
-    state.plugin_popup_expanded.insert(7);
+    state.popups.expand_plugin(7);
     let placed = draw(&mut state);
     assert!(
         !narrow.contains_rect(placed),
@@ -298,7 +298,7 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
         }));
         state.press_snapshot = None;
     };
-    state.plugin_popup_expanded.insert(7);
+    state.popups.expand_plugin(7);
     frame(&mut state, &mut session);
     {
         let mut engine = session.borrow_mut();
@@ -331,7 +331,7 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
     // 펼친 부모도 접는다.
     state.popups.set_focused(FILE_PICKER_POPUP_ID, true);
     assert!(state.refold_key_owner());
-    assert!(!state.plugin_popup_expanded.contains(&7));
+    assert!(!state.popups.plugin_expanded().contains(&7));
     frame(&mut state, &mut session);
     frame(&mut state, &mut session);
     let (expanded, collapsed) = picker(&mut state);
@@ -343,19 +343,85 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
     );
 
     // 부모를 다시 펼치면 피커도 펼친다. 부모의 접기 버튼(같은 처리)으로 접으면 피커도 접힌다.
-    state.plugin_popup_expanded.insert(7);
+    state.popups.expand_plugin(7);
     frame(&mut state, &mut session);
     frame(&mut state, &mut session);
     assert!(
         picker(&mut state).0,
         "the picker follows its parent out again"
     );
-    state.plugin_popup_expanded.remove(&7);
-    state.popups.refold_plugin_children(7);
+    state.popups.refold_plugin(7);
     frame(&mut state, &mut session);
     frame(&mut state, &mut session);
     let (expanded, collapsed) = picker(&mut state);
     assert!(!expanded && collapsed);
+
+    // 다시 펼치고 피커 제목줄의 접기 버튼(host 접기 버튼 경로)을 누르면 plugin 부모와 피커가 함께 접히고, 다음
+    // 프레임에도 접힌 채다. 접기는 그 한 번에 끝나 나중 Esc 가 꺼낼 남은 요청이 없다.
+    state.popups.expand_plugin(7);
+    frame(&mut state, &mut session);
+    frame(&mut state, &mut session);
+    assert!(picker(&mut state).0);
+    let button = state
+        .popups
+        .get_mut(FILE_PICKER_POPUP_ID)
+        .unwrap()
+        .collapse_btn_rect()
+        .expect("an expanded picker has a collapse button");
+    let press_frame = |state: &mut RequestContext,
+                       session: &mut crate::runtime::engine_session::EngineSession,
+                       pos: egui::Pos2| {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            events: vec![
+                egui::Event::PointerMoved(pos),
+                egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..Default::default()
+        };
+        let engine = session.borrow_mut();
+        drop(ctx.run(raw, |ctx| {
+            sync_plugin_popup_scopes(state, mgr.popup_instances());
+            crate::plugin_bridge::popup_render::draw_plugin_popups(
+                ctx,
+                state,
+                &engine.read(),
+                Some(crate::app::plugin_display::PluginDisplay::new(&mgr)),
+                Some(&layout),
+            );
+            let press = crate::adapters::ui::popup::frame::frame_press(
+                ctx,
+                state,
+                &engine.read(),
+                Some(&layout),
+            );
+            let mut popups =
+                std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+            popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], press.as_ref());
+            state.popups = popups;
+        }));
+        state.press_snapshot = None;
+    };
+    press_frame(&mut state, &mut session, button.center());
+    assert!(
+        !state.popups.plugin_expanded().contains(&7),
+        "the collapse button of the picker folds its plugin parent too"
+    );
+    frame(&mut state, &mut session);
+    frame(&mut state, &mut session);
+    let (expanded, collapsed) = picker(&mut state);
+    assert!(
+        !expanded && collapsed,
+        "the picker stays folded on the next frames"
+    );
 }
 
 /// 다른 owner 의 결속 범위나 이전 자식이 남긴 범위를 따라가지 않는다.

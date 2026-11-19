@@ -352,7 +352,6 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             plugin_mesh_popup_forward: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
-            plugin_popup_expanded: std::collections::HashSet::new(),
             #[cfg(feature = "gui")]
             plugin_popup_user_activated: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
