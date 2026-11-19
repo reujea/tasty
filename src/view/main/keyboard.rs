@@ -208,71 +208,22 @@ impl MainView {
             .reset_reveal_timer_if_not_shown(&theme);
     }
 
-    /// Escape로 설정 요청·알림을 처리하고 팝업 포커스를 해제한다.
-    /// 바깥 클릭으로 닫을 수 있는 팝업만 닫는다.
+    /// Escape는 창의 Esc 판정(`MainViewState::escape_gate`)이 처리한다. 처리한 Esc 를 egui 입력에서 뺄지는 그
+    /// 판정이 정한다.
     fn try_consume_escape_key(&mut self, event: &winit::event::KeyEvent) -> bool {
-        if event.logical_key == Key::Named(NamedKey::Escape) {
-            if self.state.settings_open_requested {
-                // 아직 처리하지 않은 설정 창 열기 요청을 취소한다.
-                self.state.settings_open_requested = false;
-                self.drop_escape_from_egui();
-                self.mark_dirty();
-                return true;
-            }
-            // 키 주인(host·plugin)이 창 위로 펼친 팝업이면 다시 접는다. 닫지 않고 포커스와 상태를 그대로 둔다.
-            // 아래 알림 목록이나 host 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다. plugin 키 주인은 그 렌더가
-            // 이 Esc 로 접으므로 egui 입력에 남긴다.
-            let host_owns_keys = matches!(
-                self.state.popup_key_owner(),
-                Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Host)
-            );
-            if self.state.refold_key_owner() {
-                if host_owns_keys {
+        if event.logical_key != Key::Named(NamedKey::Escape) {
+            return false;
+        }
+        match self.state.escape_gate() {
+            crate::state::EscapeGate::Pass => false,
+            crate::state::EscapeGate::Consumed { drop_from_egui } => {
+                if drop_from_egui {
                     self.drop_escape_from_egui();
                 }
                 self.mark_dirty();
-                return true;
-            }
-            if self.state.popups.is_open("notifications") {
-                self.state.dispatch_intent(
-                    crate::intent::UiIntent::ClosePopup {
-                        id: "notifications",
-                    }
-                    .from_user_shortcut("escape_close_notifications"),
-                );
-                self.drop_escape_from_egui();
-                self.mark_dirty();
-                return true;
-            }
-            // plugin 팝업이 키 주인이면 그 렌더가 Esc 를 받는다. 아래의 포커스된 host 팝업은 건드리지 않는다.
-            if matches!(
-                self.state.popup_key_owner(),
-                Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))
-            ) {
-                return false;
-            }
-            // 설정 요청과 알림을 먼저 처리한 뒤, 포커스된 팝업 하나의 포커스를 해제한다.
-            // 바깥 클릭과 같이 close_on_outside_click인 팝업만 닫는다.
-            // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
-            if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {
-                self.state.popups.set_instance_focused(instance, false);
-                if closes {
-                    self.state.dispatch_intent(
-                        crate::intent::UiIntent::CloseInstance {
-                            instance,
-                            reason: crate::adapters::ui::popup::PopupCloseReason::Escape,
-                        }
-                        .from_user_shortcut("escape_dismiss_focused_popup"),
-                    );
-                }
-                // 이 Esc 는 입력 시점의 키 주인 본문에 남긴다(하위 화면이면 목록으로 돌아간다). 그 본문이 닫혔거나
-                // 포커스를 잃어도 새로 키 주인이 된 다른 범위 팝업은 같은 Esc 를 읽지 않는다.
-                self.state.popups.bind_input_key_owner(instance);
-                self.mark_dirty();
-                return true;
+                true
             }
         }
-        false
     }
 
     /// 창이 처리를 끝낸 Esc(설정 요청 취소, host 키 주인의 다시 접기, 알림 목록 닫기)를 이번 egui 입력에서 뺀다.

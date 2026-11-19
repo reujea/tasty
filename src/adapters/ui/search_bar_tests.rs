@@ -230,8 +230,7 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
     let engine = session.read();
     let ctx = egui::Context::default();
     open_with_query(&ctx, &mut state, &engine);
-    // The winit Escape stage runs before the frame that carries the same Escape. These are the
-    // two calls of try_consume_escape_key in src/view/main/keyboard.rs; change them together.
+    // The window's Escape gate runs before the frame that carries the same Escape.
     assert_eq!(
         state
             .popups
@@ -240,11 +239,12 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
         Some((SEARCH_BAR_POPUP_ID, false)),
         "the search bar is the only focused popup"
     );
-    if let Some((_, instance, closes)) = state.popups.focused_dismissal_target() {
-        state.popups.set_instance_focused(instance, false);
-        assert!(!closes);
-        state.popups.bind_input_key_owner(instance);
-    }
+    assert_eq!(
+        state.escape_gate(),
+        crate::state::EscapeGate::Consumed {
+            drop_from_egui: false
+        }
+    );
     assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));
     assert!(
         state.popups.is_open(SEARCH_BAR_POPUP_ID),

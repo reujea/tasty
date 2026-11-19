@@ -28,34 +28,44 @@ fn between<'a>(hay: &'a str, start: &str, end: &str) -> &'a str {
 }
 
 const KEYBOARD: &str = "src/view/main/keyboard.rs";
+/// 창의 Esc 판정(`MainViewState::escape_gate`). keyboard.rs 의 Escape 처리가 이 판정만 부른다.
+const ESCAPE_GATE: &str = "src/state/escape_gate.rs";
 
 #[test]
 fn the_three_escape_consumers_keep_their_order() {
-    let src = read(KEYBOARD);
-    // 다른 함수의 같은 조건문을 섞지 않도록 Escape 처리 함수 범위에서 순서를 비교한다.
-    let body = between(
-        &src,
+    let keyboard = read(KEYBOARD);
+    let escape_key = between(
+        &keyboard,
         "fn try_consume_escape_key(",
         "fn try_consume_shortcut_key(",
     );
+    only_at(
+        escape_key,
+        "self.state.escape_gate()",
+        "Escape 처리의 창 Esc 판정 호출",
+    );
+    let src = read(ESCAPE_GATE);
+    // 판정 함수 하나만 있는 파일이다. 함수 시작부터 순서를 비교한다.
+    let start = only_at(&src, "fn escape_gate(", "창 Esc 판정 함수");
+    let body = &src[start..];
     let settings = only_at(
         body,
-        "if self.state.settings_open_requested {",
+        "if self.settings_open_requested {",
         "Escape 의 settings 분기",
     );
     let notifications = only_at(
         body,
-        "if self.state.popups.is_open(\"notifications\") {",
+        "if self.popups.is_open(\"notifications\") {",
         "Escape 의 notifications 분기",
     );
     let general = only_at(
         body,
-        "if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {",
+        "if let Some((_, instance, closes)) = self.popups.focused_dismissal_target() {",
         "Escape 의 포커스된 popup 분기",
     );
     let refold = only_at(
         body,
-        "if self.state.refold_key_owner() {",
+        "if self.refold_key_owner() {",
         "Escape 의 펼친 popup 다시 접기 분기",
     );
     let plugin_owner = only_at(
@@ -109,10 +119,10 @@ fn the_escape_path_runs_before_the_overlay_gate() {
 /// 팝업의 닫기 여부를 바깥 클릭 정책과 맞춘다. 닫지 않는 팝업도 포커스는 해제해야 한다.
 #[test]
 fn escape_closes_only_what_an_outside_click_would_close() {
-    let src = read(KEYBOARD);
+    let src = read(ESCAPE_GATE);
     let start = only_at(
         &src,
-        "if let Some((_, instance, closes)) = self.state.popups.focused_dismissal_target() {",
+        "if let Some((_, instance, closes)) = self.popups.focused_dismissal_target() {",
         "Escape 의 포커스된 popup 분기",
     );
     let body = &src[start..start + 400];

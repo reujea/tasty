@@ -226,6 +226,7 @@ pub fn draw_plugin_popups(
                 .then_some(scope_rect),
                 on_scrim: snap.layout.covers_scope,
                 focused: has_key_focus,
+                takes_keys: has_key_focus,
             };
             state
                 .webview_overlay

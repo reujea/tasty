@@ -63,8 +63,10 @@ pub(crate) struct CollapsedDraw {
     pub(crate) scrim: Option<egui::Rect>,
     /// 범위를 덮는 팝업이면 modal 그림자.
     pub(crate) on_scrim: bool,
-    /// 키 주인이면 버튼 링·포커스 가장자리를 켜고 Enter·Space를 받는다.
+    /// 포커스 표시. 버튼 링·포커스 가장자리를 켠다. 키는 받지 않는다.
     pub(crate) focused: bool,
+    /// 이번 프레임 키 주인이면 Enter·Space로 펼친다.
+    pub(crate) takes_keys: bool,
 }
 
 /// 접힌 팝업의 WebView 오버레이 대상. 펼친 상자 대신 버튼 프레임을 페이지 위에 합성한다.
@@ -107,7 +109,7 @@ pub(crate) fn draw_collapsed(
             .with_clip_rect(clip)
             .rect_filled(scrim, 0.0, th.scrim().to_egui());
     }
-    let keyed = look.focused
+    let keyed = look.takes_keys
         && ctx.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
                 || i.consume_key(egui::Modifiers::NONE, egui::Key::Space)

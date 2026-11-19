@@ -12,6 +12,8 @@ mod detect;
 #[cfg(feature = "gui")]
 mod dialogs;
 #[cfg(feature = "gui")]
+mod escape_gate;
+#[cfg(feature = "gui")]
 mod events;
 #[cfg(feature = "gui")]
 pub(crate) mod explorer_clipboard_slot;
@@ -86,6 +88,8 @@ pub(crate) use dialogs::{
     FilePickerRequester, FilePickerResult, FinishedFilePicker, FpLoadState, NewTabPickerRequest,
     OpenFilePickerRequest, Queued,
 };
+#[cfg(feature = "gui")]
+pub(crate) use escape_gate::EscapeGate;
 #[cfg(feature = "gui")]
 pub use events::FocusedSurfaceType;
 #[cfg(any(feature = "gui", debug_assertions))]

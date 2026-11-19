@@ -1,6 +1,6 @@
-//! 한 프레임의 키 주인은 하나다. host 팝업 그리기가 이번 프레임 범위 판정 뒤 정한 값을 host 본문과 plugin 팝업
-//! 렌더가 함께 쓴다. 장면: L 범위 피커 H(맨 위, 포커스), R 범위 plugin 팝업 P(가운데), R 범위 피커 G(맨 아래,
-//! 포커스). 창의 한 프레임처럼 결속 범위 동기화 → host 팝업 층 → plugin 팝업 순서로 그린다.
+//! 한 프레임의 키 주인은 하나다. 창의 Esc 판정은 그리기보다 먼저 돌며 정한 대상을 그 프레임 키 주인으로 묶고,
+//! host 본문과 plugin 팝업 렌더가 그 값을 쓴다. 장면: L 범위 피커 H(맨 위, 포커스), R 범위 plugin 팝업 P(가운데),
+//! R 범위 피커 G(맨 아래, 포커스). 창의 한 프레임처럼 결속 범위 동기화 → host 팝업 층 → plugin 팝업 순서로 그린다.
 
 use std::sync::Arc;
 
@@ -178,10 +178,31 @@ fn plugin_escaped(state: &RequestContext) -> bool {
     state.plugin_popup_closes.iter().any(|(id, _)| *id == POPUP)
 }
 
-/// When H 의 범위(L)가 이번 프레임에 숨으면, Then 그 프레임의 Esc 는 보이는 맨 위 P 하나만 받는다. 직전 프레임
-/// 보임으로 정하면 host 쪽은 G 가, plugin 쪽은 P 가 함께 받았다.
+/// 창의 Esc 판정(`MainViewState::escape_gate`)을 거쳐 그 Esc 를 실은 프레임을 그린다. 창은 그리기보다 먼저 돌므로
+/// 직전 렌더의 범위·후보로 대상을 정하고, 그 프레임 키 주인은 창이 정한 대상이다.
+fn escape_through_the_window(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: &PluginManager,
+    layout: &LayoutContext,
+) -> crate::state::EscapeGate {
+    let gate = state.escape_gate();
+    let events = match gate {
+        crate::state::EscapeGate::Consumed {
+            drop_from_egui: true,
+        } => Vec::new(),
+        _ => escape(),
+    };
+    frame(ctx, state, engine, mgr, layout, events);
+    gate
+}
+
+/// Given H > P > G 이고 직전 렌더에 H 가 보였을 때, When H 의 범위(L)가 레이아웃에서 빠진 뒤 다시 그리기 전에 Esc 가
+/// 오면, Then 창은 키 주인 H 의 포커스를 풀고 그 Esc 를 H 에 묶는다. 그 프레임 키 주인도 H 라 숨은 H 외에 P·G 는
+/// 그 Esc 를 받지 않는다.
 #[test]
-fn a_scope_hidden_this_frame_gives_the_keys_to_one_popup_only() {
+fn a_scope_hidden_before_the_redraw_keeps_the_escape_on_the_window_target() {
     let Scene {
         mut state,
         mut session,
@@ -201,23 +222,30 @@ fn a_scope_hidden_this_frame_gives_the_keys_to_one_popup_only() {
     );
     assert!(is_open(&state, h) && is_open(&state, g) && !plugin_escaped(&state));
 
-    frame(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        &layout_without_l(),
-        escape(),
+    let gate =
+        escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout_without_l());
+    assert_eq!(
+        gate,
+        crate::state::EscapeGate::Consumed {
+            drop_from_egui: false
+        },
+        "창이 H 의 포커스를 푼다"
     );
-    assert!(plugin_escaped(&state), "P 가 키 주인이다");
-    assert!(is_open(&state, g), "G 는 키를 받지 않는다");
-    assert!(is_open(&state, h), "숨은 H 는 키를 받지 않는다");
+    assert!(
+        !state.popups.instance(h).unwrap().focused,
+        "창의 대상은 H 다"
+    );
+    assert!(!plugin_escaped(&state), "P 는 받지 않는다");
+    assert!(
+        is_open(&state, g) && state.popups.instance(g).unwrap().focused,
+        "G 는 받지 않는다"
+    );
 }
 
-/// When 숨었던 H 의 범위가 이번 프레임에 다시 보이면, Then 그 프레임의 Esc 는 H 가 받는다. 직전 프레임 보임으로
-/// 정하면 host 쪽은 plugin 이 주인이라 놓고, plugin 쪽은 그린 H 가 주인이라 놓아 아무도 받지 않았다.
+/// Given 직전 렌더에 H 가 숨어 키 주인이 P 일 때, When H 의 범위가 다시 보이는 프레임에 Esc 가 오면, Then 창이 고른
+/// P 가 그 프레임 키 주인이라 P 하나만 받는다. 다시 보인 H 와 G 는 받지 않는다.
 #[test]
-fn a_scope_shown_again_this_frame_does_not_drop_the_keys() {
+fn a_scope_shown_again_before_the_redraw_keeps_the_escape_on_the_window_target() {
     let Scene {
         mut state,
         mut session,
@@ -246,10 +274,15 @@ fn a_scope_shown_again_this_frame_does_not_drop_the_keys() {
     );
     assert!(is_open(&state, h) && is_open(&state, g) && !plugin_escaped(&state));
 
-    frame(&ctx, &mut state, &engine.read(), &mgr, &layout(), escape());
-    assert!(!is_open(&state, h), "H 가 키 주인이다");
+    let gate = escape_through_the_window(&ctx, &mut state, &engine.read(), &mgr, &layout());
+    assert_eq!(gate, crate::state::EscapeGate::Pass, "plugin 키 주인 갈래");
+    assert!(plugin_escaped(&state), "창이 고른 P 가 받는다");
     assert!(
-        is_open(&state, g) && !plugin_escaped(&state),
-        "다른 팝업은 받지 않는다"
+        is_open(&state, h) && state.popups.instance(h).unwrap().focused,
+        "다시 보인 H 는 받지 않는다"
+    );
+    assert!(
+        is_open(&state, g) && state.popups.instance(g).unwrap().focused,
+        "G 는 받지 않는다"
     );
 }

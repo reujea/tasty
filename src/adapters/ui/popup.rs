@@ -22,6 +22,7 @@ mod focus;
 #[path = "popup/focus_owner_tests.rs"]
 mod focus_owner_tests;
 pub(crate) mod frame;
+pub(crate) mod frame_keys;
 pub(crate) mod header_drag;
 pub(crate) mod occlusion;
 pub(crate) mod open_when;
@@ -42,6 +43,9 @@ mod scrim_scope_tests;
 pub(crate) mod script_confirm;
 pub(crate) mod transfer;
 mod view_local;
+#[cfg(all(test, feature = "gui"))]
+#[path = "popup/window_key_gate_tests.rs"]
+mod window_key_gate_tests;
 pub use arrange::NoticeColumn;
 pub use view_local::drawn_by_view;
 
@@ -866,14 +870,10 @@ pub struct PopupManager {
     notice_column: Option<NoticeColumn>,
     /// plugin 팝업의 펼침과 표시 상태(`display.rs`).
     plugin_parents: display::PluginParents,
-    /// 이번 프레임 키 주인이 plugin 팝업인지. 호출자가 그리기 전에 정한다. 참이면 host 팝업 본문은 키를 받지
-    /// 않는다.
-    plugin_holds_keys: bool,
     /// 호출자가 그리기 전에 정한 이번 프레임의 그리기 순서(`prepare_frame_for_draw`). 그리기가 꺼내 쓴다.
     prepared: Option<Vec<usize>>,
-    /// 창이 키를 처리하며 그 키를 받은 키 주인 host 인스턴스(`bind_input_key_owner`). 그 키를 실은 다음 그리기가
-    /// 꺼내 쓴다. 창이 그 인스턴스의 포커스를 풀거나 닫아도 그 프레임의 키는 그 인스턴스 본문만 받는다.
-    input_key_owner: Option<PopupInstanceId>,
+    /// 창이 입력 시점에 묶은 키 주인과 이번 프레임 키 주인(`frame_keys.rs`).
+    keys: frame_keys::KeySlots,
 }
 
 impl PopupManager {
@@ -884,9 +884,8 @@ impl PopupManager {
             driven: Vec::new(),
             notice_column: None,
             plugin_parents: Default::default(),
-            plugin_holds_keys: false,
             prepared: None,
-            input_key_owner: None,
+            keys: Default::default(),
         }
     }
 
@@ -1294,28 +1293,6 @@ impl PopupManager {
             .map(|p| p.popup_rect())
     }
 
-    /// 이번 프레임 키 주인이 plugin 팝업인지 적는다. 그리기 전에 호출자가 `MainViewState::popup_key_owner`로
-    /// 정한다.
-    pub(crate) fn set_plugin_holds_keys(&mut self, plugin_holds_keys: bool) {
-        self.plugin_holds_keys = plugin_holds_keys;
-    }
-
-    /// 창이 처리한 키를 그 키를 받은 키 주인 인스턴스에 묶는다. 키 대상은 입력 시점에 정한다. 창이 포커스를
-    /// 푼 뒤에도 같은 키를 실은 다음 그리기에서 그 본문만 그 키를 읽는다(하위 화면에서 목록으로 돌아가기 등).
-    /// 그사이 닫혔으면 아무 본문도 받지 않는다.
-    pub(crate) fn bind_input_key_owner(&mut self, iid: PopupInstanceId) {
-        self.input_key_owner = Some(iid);
-    }
-
-    /// 입력 시점에 묶인 키 주인이 있으면 `Some`이고, 그 인스턴스가 아직 열려 있고 범위가 보이면 안쪽 값이다.
-    pub(crate) fn input_key_owner(&self) -> Option<Option<PopupInstanceId>> {
-        self.input_key_owner.map(|iid| {
-            self.instance(iid)
-                .filter(|p| p.open && p.scope_visible)
-                .map(|p| p.instance)
-        })
-    }
-
     /// 열린 팝업의 범위. 닫혀 있으면 `None`이다. 인스턴스가 여럿이면 맨 위 것이다.
     /// 범위가 지금 보이는지는 따지지 않는다.
     pub fn open_scope(&self, id: PopupId) -> Option<&PopupScope> {
@@ -1458,9 +1435,8 @@ mod tests {
             driven: Vec::new(),
             notice_column: None,
             plugin_parents: Default::default(),
-            plugin_holds_keys: false,
             prepared: None,
-            input_key_owner: None,
+            keys: Default::default(),
         }
     }
 

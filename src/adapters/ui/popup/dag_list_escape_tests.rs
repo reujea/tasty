@@ -65,11 +65,14 @@ fn one_escape_on_the_detail_view_returns_to_the_list() {
     }
     assert_eq!(view(&state), Some(DrillDownView::Detail));
 
-    // 창의 Esc 처리(`try_consume_escape_key`의 포커스 해제 갈래)와 같은 전이.
-    let (_, instance, closes) = state.popups.focused_dismissal_target().unwrap();
-    assert!(!closes, "바깥 클릭 Unfocus 선언이라 닫지 않는다");
-    state.popups.set_instance_focused(instance, false);
-    state.popups.bind_input_key_owner(instance);
+    // 창의 Esc 판정(포커스 해제 갈래). 바깥 클릭 Unfocus 선언이라 닫지 않는다.
+    assert_eq!(
+        state.escape_gate(),
+        crate::state::EscapeGate::Consumed {
+            drop_from_egui: false
+        }
+    );
+    assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
     frame(
         &ctx,
         &mut state,

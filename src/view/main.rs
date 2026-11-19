@@ -463,6 +463,15 @@ impl MainView {
         if !(overlay_open || egui_surface) {
             return (false, false);
         }
+        // 이 키를 실은 그리기의 키 주인을 입력 시점에 묶는다. 붙여넣기 대상도 같은 값이다. 묶은 값은 다음
+        // 그리기가 꺼내므로 그 그리기를 요청한다.
+        if matches!(
+            event,
+            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
+        ) && self.state.bind_window_key_owner()
+        {
+            self.mark_dirty();
+        }
         self.base
             .gpu
             .set_plugin_paste_target(self.state.plugin_popup_key_target());

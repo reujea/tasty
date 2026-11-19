@@ -1,8 +1,9 @@
 //! 키를 받는 팝업 판정. 그리기와 창의 키 처리가 같은 후보와 같은 규칙(`key_owner_with`)을 쓴다.
-//! 그리기에서는 host 팝업 그리기가 이번 프레임 범위·표시 판정 뒤 한 번 정하고(`decide_frame_key_owner`), host
-//! 본문과 plugin 팝업 렌더가 그 값을 쓴다. 창의 키 처리는 지금 열린 host 팝업과 마지막으로 정한 plugin 후보로
-//! 판정하므로, 렌더 뒤 host 팝업을 열거나 닫으면 다음 키부터 반영된다.
-
+//! 창의 키 처리는 그리기보다 먼저 돌며, 그때 지금 열린 host 팝업과 마지막으로 정한 plugin 후보로 키 주인을 정해
+//! 묶는다(`bind_window_key_owner`). 그 키를 실은 그리기는 묶인 값을, 묶인 값이 없으면 이번 프레임 범위·표시 판정
+//! 뒤 후보로 정한 값을 그 프레임 키 주인 하나로 정하고(`decide_frame_key_owner`), host 본문·버튼과 plugin 렌더가
+//! 그 값을 쓴다.
+use crate::adapters::ui::popup::frame_keys::BoundKeyOwner;
 use crate::adapters::ui::popup::occlusion::{KeyCandidate, PopupKeyOwner, key_owner};
 
 impl super::MainViewState {
@@ -11,15 +12,15 @@ impl super::MainViewState {
         self.key_owner_with()
     }
 
-    /// 키를 받는 팝업이 plugin 팝업이면 그 instance id.
+    /// 키를 받는 팝업이 plugin 팝업이면 그 instance id. 창이 이번 키의 주인을 묶었으면 그 값을 따른다.
     pub(crate) fn plugin_popup_key_target(&self) -> Option<u64> {
-        plugin_target(self.popup_key_owner())
+        self.frame_plugin_key_target(None)
     }
 
     /// 이번 프레임의 키 주인을 정한다. host 팝업 그리기가 이번 프레임 범위·표시 판정(`prepare_frame_for_draw`)
     /// 뒤, 그리기 전에 한 번 부른다. plugin 후보는 그리기 전에 만든 이번 프레임 인스턴스 중 범위가 보이는 것이다.
-    /// host 그리기(`PopupManager::set_plugin_holds_keys`)와 plugin 렌더(`take_frame_plugin_key_target`)가 이
-    /// 값을 쓴다.
+    /// 창이 입력 시점에 묶은 키 주인이 있으면 그것이 이 프레임 키 주인이다(`PopupManager::decide_frame_keys`).
+    /// host 그리기와 plugin 렌더(`frame_plugin_key_target`)가 이 값을 쓴다.
     pub(crate) fn decide_frame_key_owner(
         &mut self,
         layout: Option<&crate::adapters::ui::LayoutContext>,
@@ -34,26 +35,44 @@ impl super::MainViewState {
                 })
                 .collect();
         }
-        // 창이 처리한 키는 입력 시점의 host 키 주인에 묶여 있다. 그사이 닫혔으면 그 키는 아무도 받지 않는다.
-        let owner = match self.popups.input_key_owner() {
-            Some(bound) => bound.map(|_| PopupKeyOwner::Host),
-            None => self.popup_key_owner(),
-        };
+        let live = self.popup_key_owner();
+        let owner = self.popups.decide_frame_keys(live).owner;
         self.frame_key_owner = Some(owner);
-        self.popups
-            .set_plugin_holds_keys(matches!(owner, Some(PopupKeyOwner::Plugin(_))));
         owner
+    }
+
+    /// 창이 키를 받은 입력 시점의 키 주인을 묶는다. 그 키를 실은 다음 그리기에서 이 값이 그 프레임 키 주인이다
+    /// (창의 키 처리는 그리기보다 먼저 돈다). host 키 주인은 그 인스턴스로 묶는다. 키 주인이 있으면 참이다.
+    pub(crate) fn bind_window_key_owner(&mut self) -> bool {
+        let bound = match self.popup_key_owner() {
+            Some(PopupKeyOwner::Host) => self
+                .popups
+                .host_key_owner()
+                .map(|p| BoundKeyOwner::Host(p.instance)),
+            Some(PopupKeyOwner::Plugin(id)) => Some(BoundKeyOwner::Plugin(id)),
+            None => None,
+        };
+        if let Some(bound) = bound {
+            self.popups.bind_input_key_owner(bound);
+        }
+        bound.is_some()
     }
 
     /// plugin 팝업 렌더가 쓰는 이번 프레임 키 주인 plugin 팝업. `decided`는 렌더를 시작할 때 꺼낸
     /// `frame_key_owner`다. 그리는 중 키로 닫힌 host 팝업(Escape 로 닫은 팔레트)이 받은 키를 같은 프레임에 아래
-    /// plugin 팝업이 다시 받지 않는다. 이번 프레임에 정하지 않았으면(host 그리기 없이 렌더만 부른 경우) 같은
-    /// 판정을 지금 한다.
+    /// plugin 팝업이 다시 받지 않는다. 이번 프레임에 정하지 않았으면(host 그리기 없이 렌더만 부른 경우) 창이 묶은
+    /// 값, 없으면 지금 후보로 정한다.
     pub(crate) fn frame_plugin_key_target(
         &self,
         decided: Option<Option<PopupKeyOwner>>,
     ) -> Option<u64> {
-        plugin_target(decided.unwrap_or_else(|| self.popup_key_owner()))
+        plugin_target(
+            decided.unwrap_or_else(|| match self.popups.bound_input_key_owner() {
+                Some(BoundKeyOwner::Plugin(id)) => Some(PopupKeyOwner::Plugin(id)),
+                Some(BoundKeyOwner::Host(_)) => Some(PopupKeyOwner::Host),
+                None => self.popup_key_owner(),
+            }),
+        )
     }
 
     /// 키 주인 팝업의 논리 범위. host 는 포커스를 가진 맨 위 인스턴스, plugin 은 선언·결속으로 정한 범위다.

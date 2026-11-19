@@ -235,19 +235,14 @@ impl PopupManager {
             Some(prepared) => prepared,
             None => self.prepare_frame(ctx, draw_ctx),
         };
-        // 본문이 키를 받는 인스턴스는 키 주인 하나다. 이번 프레임의 범위·표시 판정 뒤, 클릭을 반영하기 전 값이고,
-        // 이 프레임 키 주인이 plugin 팝업이면 없다(`MainViewState::decide_frame_key_owner`가 정한다). 포커스
-        // 플래그가 남은 다른 범위 팝업은 키를 받지 않는다. 창이 처리한 키는 입력 시점의 키 주인에 묶여 있다.
-        let keys_at_start: Option<PopupInstanceId> = match self.input_key_owner() {
-            Some(bound) => bound,
-            None => self
-                .host_key_owner()
-                .filter(|_| !self.plugin_holds_keys)
-                .map(|p| p.instance),
-        };
-        self.input_key_owner = None;
+        // 키를 받는 인스턴스는 이번 프레임 키 주인 하나다(`frame_keys.rs`). 창이 입력 시점에 묶은 주인, 아니면
+        // 이번 프레임 범위·표시 판정 뒤 클릭을 반영하기 전에 정한 값이다. 본문·접힌 보기 버튼·접기 버튼이 모두 이
+        // 값을 쓰고, 포커스 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
+        let frame_keys = self.take_frame_keys();
+        let keys_at_start: Option<PopupInstanceId> = frame_keys.host;
         // 키 주인이 없는 프레임에는 포커스를 받지 않는 팝업(복원 안내 등)의 본문이 자기 위젯 키 포커스로 키를 읽는다.
-        let frame_has_key_owner = keys_at_start.is_some() || self.plugin_holds_keys;
+        // 창이 묶은 주인이 그사이 닫혔으면 그 키는 처리한 노드에서 멈춘 것이므로 키 주인이 있는 프레임이다.
+        let frame_has_key_owner = frame_keys.held();
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
@@ -497,11 +492,16 @@ impl PopupManager {
 
         // 불투명 모드 WebView 페이지(직전 동기화 값). 비어 있으면 모든 팝업이 원래 모양이다.
         let pages = tasty_egui_theme::overlay_edge::opaque_pages(ctx);
-        // 키 주인(host_key_owner, plugin 팝업이 키 주인이면 없음). 포커스 가장자리와 접힌 버튼의 Enter·Space가 이
-        // 하나에만 간다.
-        let key_owner = self
+        // 포커스 표시(가장자리·접힌 버튼 링)는 이번 프레임 누름을 반영한 포커스 팝업에 그린다. 표시만 정하고 키는
+        // 받지 않는다. 키를 받는 것은 `keys_at_start`다. plugin 팝업이 키 주인이면 host 쪽 표시도 없다.
+        let shown_focus: Option<PopupInstanceId> = self
             .host_key_owner()
-            .filter(|_| !self.plugin_holds_keys)
+            .filter(|_| {
+                !matches!(
+                    frame_keys.owner,
+                    Some(super::occlusion::PopupKeyOwner::Plugin(_))
+                )
+            })
             .map(|p| p.instance);
         let mut expand_requested: Option<PopupInstanceId> = None;
         let mut refold_requested: Option<PopupInstanceId> = None;
@@ -531,7 +531,7 @@ impl PopupManager {
                     }
                     layers.push(layer_id);
                     focus_layers.push(layer_id);
-                    let holds_keys = key_owner == Some(popup.instance);
+
                     // 펼친 갈래·plugin 팝업과 같이 범위에 불투명 모드 페이지가 보이면 scrim을 칠하지 않는다.
                     let look = super::display::CollapsedDraw {
                         scrim: scrims
@@ -540,7 +540,8 @@ impl PopupManager {
                             .map(|(_, r)| *r)
                             .filter(|r| !tasty_egui_theme::overlay_edge::scrim_skipped(*r, &pages)),
                         on_scrim: popup.look.covers_scope,
-                        focused: holds_keys,
+                        focused: shown_focus == Some(popup.instance),
+                        takes_keys: keys_at_start == Some(popup.instance),
                     };
                     if !popup.passive && popup.arrange.takes_focus {
                         overlay_targets.push(super::display::collapsed_overlay_target(
@@ -754,7 +755,7 @@ impl PopupManager {
                             id,
                             rect,
                             hovered,
-                            takes_keys: key_owner == Some(popup_iid),
+                            takes_keys: keys_at_start == Some(popup_iid),
                         },
                     ) {
                         refold_requested = Some(popup_iid);
@@ -773,7 +774,9 @@ impl PopupManager {
                 }
             }
             // 키 주인인 좁은 범위 팝업은 셸 위쪽에 포커스 가장자리를 켠다. 창 범위(펼친 팝업 포함)는 켜지 않는다.
-            if !shell_by_content && key_owner == Some(popup_iid) && placement != PopupScope::Window
+            if !shell_by_content
+                && shown_focus == Some(popup_iid)
+                && placement != PopupScope::Window
             {
                 tasty_ui_widgets::paint_popup_focus_edge(&painter, &th, popup_rect);
             }
