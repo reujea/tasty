@@ -614,23 +614,39 @@ fn a_wake_callback_that_panics_again_while_the_reader_unwinds_does_not_abort() {
     assert!(disconnected.load(Ordering::SeqCst));
 }
 
-/// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다.
+/// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다. 상한보다 먼저
+/// 알리지 않고(최소 경과 시간), 상한이 사라져도 시험이 멈추지 않도록 시험 쪽 기한으로 기다린다.
 #[test]
 fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
+    const CAP: Duration = Duration::from_millis(200);
     let (write_half, _conn, _peer) = opened_attach_pair();
     let disconnected = Arc::new(AtomicBool::new(false));
     let (sender, rx) = failing_send();
+    let started = std::time::Instant::now();
     let writer = spawn_attach_write_thread(
         write_half,
         rx,
         disconnected.clone(),
         Arc::new(AtomicBool::new(false)),
         Arc::new(AtomicBool::new(false)),
-        Duration::from_millis(200),
+        CAP,
         Arc::new(|| {}),
         " reader wait cap test",
     );
+    let deadline = started + Duration::from_secs(10);
+    while !writer.is_finished() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the writer must give up waiting for the reader at the cap"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let elapsed = started.elapsed();
     writer.join().unwrap();
+    assert!(
+        elapsed >= CAP,
+        "the disconnect came before the cap: {elapsed:?}"
+    );
     assert!(disconnected.load(Ordering::SeqCst));
     drop(sender);
 }
