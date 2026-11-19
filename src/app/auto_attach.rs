@@ -224,36 +224,41 @@ impl App {
     /// 포커스된 창의 활성 workspace가 붙지 않은 저장된 원격 행이면 연결을 시작한다.
     /// 재연결 시간을 넘겨 끊긴 행은 사용자가 그 행으로 다시 옮겼을 때만 다시 붙는다.
     fn maybe_connect_visible_row(&mut self, current_ws_id: Option<u32>, prev_active: Option<u32>) {
-        let Some(row) = current_ws_id else {
-            return;
-        };
+        if let Some((row, explicit)) = self.visible_row_connect(current_ws_id, prev_active) {
+            self.connect_saved_row(row, explicit);
+        }
+    }
+
+    /// 보이는 행에 시작할 연결과 그 출처(`explicit`). 행이 보이거나 그 행으로 옮겨 시작한 연결은
+    /// 자동 연결이라 출처는 늘 false다. 바로 시도할지는 단계가 정한다: 끊긴 행은 새 재연결 구간을
+    /// 바로 시작하고, 세션 없는 행은 첫 연결을 바로 한다. `explicit`은 사용자가 직접 요청했다는
+    /// 출처만 뜻한다(`connect_saved_row`).
+    fn visible_row_connect(
+        &self,
+        current_ws_id: Option<u32>,
+        prev_active: Option<u32>,
+    ) -> Option<(u32, bool)> {
+        let row = current_ws_id?;
         if self.saved_row_binding(row).is_none() || self.remote.active.contains(&row) {
-            return;
+            return None;
         }
         let edge_now = is_reactivation_edge(current_ws_id, prev_active);
         // 사용자가 끊은 행은 다시 열어도 붙지 않는다. 연결 버튼·메뉴 같은 명시적
         // 연결이 표지를 지운다.
         if self.row_user_disconnected(row) {
-            return;
+            return None;
         }
-        match self.row_session_phase(row) {
-            Some(SessionState::Connected | SessionState::Reconnecting) => {}
-            // 행이 보이거나 그 행으로 옮겨 시작한 연결은 자동 연결이라 `explicit`은 false다. 바로
-            // 시도할지는 단계가 정한다: 끊긴 행은 새 재연결 구간을 바로 시작하고, 세션 없는 행은
-            // 첫 연결을 바로 한다. `explicit`은 사용자가 직접 요청했다는 출처만 뜻한다.
-            Some(SessionState::Disconnected) => {
-                // 다른 곳에서 닫힌 행은 다시 붙을 곳이 없어 옮겨 와도 시도하지 않는다.
-                if edge_now && !self.row_closed_elsewhere(row) {
-                    self.connect_saved_row(row, false);
-                }
-            }
-            None => {
-                let failed = self.remote.pending_reactivation.contains(&row);
-                if first_connect_due(failed, edge_now, self.row_closed_elsewhere(row)) {
-                    self.connect_saved_row(row, false);
-                }
-            }
-        }
+        let due = match self.row_session_phase(row) {
+            Some(SessionState::Connected | SessionState::Reconnecting) => false,
+            // 다른 곳에서 닫힌 행은 다시 붙을 곳이 없어 옮겨 와도 시도하지 않는다.
+            Some(SessionState::Disconnected) => edge_now && !self.row_closed_elsewhere(row),
+            None => first_connect_due(
+                self.remote.pending_reactivation.contains(&row),
+                edge_now,
+                self.row_closed_elsewhere(row),
+            ),
+        };
+        due.then_some((row, false))
     }
 
     /// 저장된 원격 행의 연결을 시작한다. 연결된 행이나 시도 중인 행은 그대로 둔다.
