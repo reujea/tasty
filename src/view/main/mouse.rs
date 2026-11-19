@@ -493,7 +493,6 @@ impl MainView {
             && !resize_should_yield_to_content(
                 self.state.resize_edge_widget_hovered,
                 self.mouse_overlay_open(),
-                self.pointer_on_popup(),
                 self.state.banner_hovered,
                 super::fullscreen_window::window_size_is_locked(&self.base.winit),
             )
@@ -1524,21 +1523,17 @@ fn left_click_local_select(
 
 /// 실제 위젯이나 오버레이가 입력을 받는 위치에서는 창 리사이즈를 시작하지 않는다.
 /// 패널 전체 영역을 제외하면 타이틀바·상태바의 빈 가장자리도 사용할 수 없게 된다.
-/// macOS는 native 장식을 사용하므로 호출하지 않는다.
+/// 팝업은 양보 대상이 아니다. OS 창 테두리는 팝업 범위 트리 밖이라 창을 덮거나 펼친 팝업이 있어도 테두리
+/// 리사이즈가 된다. macOS는 native 장식을 사용하므로 호출하지 않는다.
 // 이유: macOS 는 네이티브 데코라 호출부 `try_begin_os_resize` 가 그 빌드에서 빠진다(위).
 #[cfg_attr(target_os = "macos", allow(dead_code))]
 fn resize_should_yield_to_content(
     resize_edge_widget_hovered: bool,
     overlay_open: bool,
-    popup_hovered: bool,
     banner_hovered: bool,
     window_size_locked: bool,
 ) -> bool {
-    resize_edge_widget_hovered
-        || overlay_open
-        || popup_hovered
-        || banner_hovered
-        || window_size_locked
+    resize_edge_widget_hovered || overlay_open || banner_hovered || window_size_locked
 }
 
 /// 커서 이동을 오버레이나 egui가 처리했으면 mesh 조회를 생략한다.
@@ -2115,43 +2110,22 @@ mod resize_gate_tests {
     fn empty_chrome_yields_nothing_so_resize_wins() {
         // 타이틀바/상태바의 버튼 없는 빈 여백 — 모든 플래그가 false 여야
         // 리사이즈가 항상 이긴다 — 이 조합이 깨지면 빈 여백에서 창 가장자리를
-        // 잡을 수 없다.
-        assert!(!resize_should_yield_to_content(
-            false, false, false, false, false
-        ));
+        // 잡을 수 없다. 팝업은 플래그가 없다: 창을 덮는 팝업이 있어도 테두리 리사이즈가 된다.
+        assert!(!resize_should_yield_to_content(false, false, false, false));
     }
 
     #[test]
     fn chrome_widget_hovered_yields_to_content() {
         // 타이틀바 창 버튼/Windows 캡션/상태바 클릭 요소 위 — egui_consumed 가 아니라
-        // 이 위젯 단위 플래그로만 리사이즈를 양보해야 한다.
-        assert!(resize_should_yield_to_content(
-            true, false, false, false, false
-        ));
+        // 이 위젯 단위 플래그로만 리사이즈를 양보해야 한다. 사이드바도 같은 플래그다.
+        assert!(resize_should_yield_to_content(true, false, false, false));
     }
 
     #[test]
-    fn sidebar_widget_hovered_also_yields_to_content() {
-        // 사이드바도 같은 위젯 hover 플래그를 사용하므로 리사이즈보다 우선한다.
-        assert!(resize_should_yield_to_content(
-            true, false, false, false, false
-        ));
-    }
-
-    #[test]
-    fn overlay_popup_banner_size_locked_each_yield() {
-        assert!(resize_should_yield_to_content(
-            false, true, false, false, false
-        ));
-        assert!(resize_should_yield_to_content(
-            false, false, true, false, false
-        ));
-        assert!(resize_should_yield_to_content(
-            false, false, false, true, false
-        ));
-        assert!(resize_should_yield_to_content(
-            false, false, false, false, true
-        ));
+    fn overlay_banner_size_locked_each_yield() {
+        assert!(resize_should_yield_to_content(false, true, false, false));
+        assert!(resize_should_yield_to_content(false, false, true, false));
+        assert!(resize_should_yield_to_content(false, false, false, true));
     }
 }
 
