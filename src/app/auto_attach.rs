@@ -285,6 +285,11 @@ impl App {
             self.forget_force_detached_row(row);
         }
         if self.remote.active.contains(&row) {
+            if explicit {
+                // 사용자가 고른 연결이 진행 중인 자동 시도에 합류하면 그 시도를 명시적 출처로 올린다.
+                // 시도 중에 같은 대상의 다른 행이 강제로 끊겨도 그 결과를 버리지 않는다.
+                self.state.mirror_attempts.mark_row_explicit(row);
+            }
             run.into_iter().for_each(crate::request_runs::forget);
             return;
         }
@@ -297,6 +302,9 @@ impl App {
         match self.row_session_phase(row) {
             // 재동기화(Resync) 중인 행은 이미 다시 붙는 중이라 run 을 그 결과에 합류시킨다.
             Some(SessionState::Connected) if !self.row_link_live(row) => {
+                if explicit {
+                    self.state.mirror_attempts.mark_row_explicit(row);
+                }
                 self.row_waits.join_run(row, run);
             }
             Some(SessionState::Connected) => {
@@ -395,6 +403,11 @@ impl App {
             // 같은 연결 대상의 다른 행이 강제로 끊겼으면 저장된 표지가 이 행도 가리킨다. 재연결 구간에
             // 있던 행도 서버 점유를 다시 잡지 않도록 시도를 거두고 끊긴 행으로 멈춘다.
             if self.row_user_disconnected(row) {
+                // 사용자가 직접 요청한 시도가 진행 중이면 거두지 않는다. 그 결과는 결과 소비·설치
+                // 검사도 남긴다(`drop_attempt_for_force_detached_target`).
+                if self.state.mirror_attempts.row_has_user_attempt(row) {
+                    continue;
+                }
                 self.abandon_row_attempts(row, "the row's target was force-detached");
                 self.enter_disconnected(row);
                 continue;

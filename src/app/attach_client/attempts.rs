@@ -97,6 +97,28 @@ impl MirrorAttempts {
             .map(|(ticket, target)| (*ticket, target.clone()))
             .collect()
     }
+    /// 행의 진행 중 시도(endpoint 해석·연결 대기)를 명시적 출처로 올린다. 사용자가 직접 요청한
+    /// 연결이 진행 중인 자동 시도에 합류할 때 쓴다.
+    pub(crate) fn mark_row_explicit(&mut self, row: u32) {
+        for target in self
+            .endpoints
+            .values_mut()
+            .chain(self.connections.values_mut())
+        {
+            if target.row == Some(row) {
+                target.explicit = true;
+            }
+        }
+    }
+    /// 행의 진행 중 시도 가운데 사용자가 직접 요청한 연결(명시적 연결·원격 팝업)이 있는지.
+    pub(crate) fn row_has_user_attempt(&self, row: u32) -> bool {
+        self.endpoints
+            .iter()
+            .filter(|(token, _)| token.is_active())
+            .map(|(_, target)| target)
+            .chain(self.connections.values())
+            .any(|target| target.row == Some(row) && (target.explicit || target.user))
+    }
     pub(crate) fn installing_epoch(&self, workspace: u32, epoch: &ConnectionEpoch) -> bool {
         self.connections.values().any(|pending| {
             pending

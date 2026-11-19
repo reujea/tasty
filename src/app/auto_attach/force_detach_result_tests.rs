@@ -236,3 +236,76 @@ fn a_reconnect_started_by_an_explicit_connect_is_kept() {
         "the explicit attempt goes on"
     );
 }
+
+/// Given 명시적 연결로 재연결 중인 행 A, When 같은 대상의 행 B 가 강제로 끊긴 뒤 재연결 스케줄러가
+/// 돌고 A 의 연결이 준비돼 설치를 poll 하면, Then 스케줄러는 A 의 시도를 거두지 않고 설치 검사도
+/// 버리지 않는다. 시험 장치에 View 가 없어 설치를 끝까지 마치는지는 재지 않는다.
+#[test]
+fn the_scheduler_keeps_an_explicit_reconnect_after_the_target_was_force_detached() {
+    alone!("the_scheduler_keeps_an_explicit_reconnect_after_the_target_was_force_detached");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Disconnected));
+    for session in &mut app.remote.sessions {
+        session.state.remote_workspace = binding().remote_workspace;
+    }
+    app.connect_saved_row(ROW, true);
+    let target = registered_attempt(&app);
+    assert!(target.explicit);
+    force_detach_the_other_row(&mut app);
+
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the attempt is not abandoned"
+    );
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Reconnecting
+    );
+    assert!(registered_attempt(&app).explicit);
+
+    let (port, peer) = ready_peer();
+    app.queue_mirror_connection(target, port, 3, None).unwrap();
+    let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
+    let until = Instant::now() + Duration::from_secs(10);
+    while app.remote.prepared_connection(ticket).is_none() {
+        assert!(Instant::now() < until, "the connection never got ready");
+        std::thread::sleep(Duration::from_millis(10));
+        app.remote.collect_connections();
+    }
+    let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
+    app.poll_pending_mirror_installs();
+    assert_ne!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert!(app.remote.active.contains(&ROW));
+}
+
+/// Given 스케줄러가 시작한 자동 재연결이 진행 중인 행 A, When 명시적 연결이 그 시도에 합류한 뒤 같은
+/// 대상의 행 B 가 강제로 끊기면, Then 합류한 시도는 명시적이 되어 스케줄러와 결과 검사가 남긴다.
+#[test]
+fn an_explicit_connect_joining_an_automatic_reconnect_keeps_it() {
+    alone!("an_explicit_connect_joining_an_automatic_reconnect_keeps_it");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the scheduler started an attempt"
+    );
+    assert!(!registered_attempt(&app).explicit);
+
+    app.connect_saved_row(ROW, true);
+    assert!(
+        registered_attempt(&app).explicit,
+        "the joined attempt is explicit"
+    );
+    force_detach_the_other_row(&mut app);
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the attempt is not abandoned"
+    );
+    assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
+}
