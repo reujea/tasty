@@ -1,37 +1,284 @@
-//! host 팝업 본문 호출이 키 입력 문(`body_keys::with_body_keys`) 안에 있는지 확인한다. 문 안에 있으면 본문이
-//! egui 입력을 직접 읽든(`key_pressed`·`consume_key`·`events`) 위젯 키 포커스로 읽든 키 주인이 아닌 본문은 키를
-//! 보지 못한다. 본문마다 키 주인 표시를 확인하는 대신 이 한 곳을 지킨다. 텍스트 위치를 보며 조건 분기의 실제
-//! 실행 여부는 판단하지 않는다.
+//! host 팝업 본문이 키 입력 문(`body_keys::with_body_keys`) 안에서만 그려지는지 확인한다. 문은 이번 프레임 키
+//! 주인이 아닌 본문을 그리는 동안 키·글자·붙여넣기·복사·잘라내기·IME 사건을 egui 입력에서 뺀다. 그래서 본문이 egui
+//! 입력을 직접 읽든(`key_pressed`·`consume_key`·`events`) 위젯 키 포커스로 읽든 키 주인 플래그를 따른다.
+//!
+//! 규칙의 구조를 세 가지로 본다.
+//! 1. 본문 호출 자리는 하나다. draw.rs 에서 본문 콜백 `content_fn` 이 나오는 곳은 매개변수 선언, `draw` 에서
+//!    `draw_routed` 로 넘기는 곳, 문 클로저 안의 호출 하나뿐이다. 문 클로저는 본문 호출 하나만 담는다. 문의 키 플래그는
+//!    이번 프레임 키 주인 값에서 나온다.
+//! 2. 팝업 정의의 본문(`PopupDef::draw_fn`)은 팝업 층이 `draw_routed` 에 넘기는 본문 콜백 안에서만 부른다.
+//! 3. egui 키 입력을 직접 읽는 파일은 아래 목록 중 하나다. 팝업 본문(문 안에서만 그려진다), 문·키 주인 버튼, 팝업
+//!    밖(이유와 함께), 공용 위젯(부른 쪽의 문을 따른다)으로 나눈다. 새 파일이 키를 읽으면 분류를 정해야 통과한다.
+//!
+//! 잡지 못하는 것: 본문 모듈의 함수를 팝업 밖에서 부르는 경로(3의 목록은 파일 단위다), 위젯이 팝업 밖에서 키를
+//! 읽는 것, egui 입력이 아닌 경로(창 상태에 쌓아 둔 키 등)로 키를 읽는 것.
 
-use super::{repo_root, strip_comments};
+use std::collections::BTreeSet;
+
+use super::{matching_delim, repo_root, strip_comments};
 
 const HOME: &str = "src/adapters/ui/popup/draw.rs";
-const GATE: &str = "with_body_keys(";
-const BODY_CALL: &str = "content_fn(&mut";
+const FRAME: &str = "src/adapters/ui/popup/frame.rs";
+
+fn read(rel: &str) -> String {
+    let path = repo_root().join(rel);
+    strip_comments(
+        &std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{rel} 을 읽지 못했다: {e}"))
+            .replace("\r\n", "\n"),
+    )
+}
+
+fn squeeze(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+fn is_ident(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// `word` 가 단어로 나오는 위치마다 그 뒤 꼬리(공백 제거).
+fn word_tails(src: &str, word: &str) -> Vec<String> {
+    src.match_indices(word)
+        .filter(|(at, _)| {
+            let before = src[..*at].chars().next_back();
+            let after = src[at + word.len()..].chars().next();
+            !before.is_some_and(is_ident) && !after.is_some_and(is_ident)
+        })
+        .map(|(at, _)| squeeze(&src[at..(at + 160).min(src.len())]))
+        .collect()
+}
+
+/// 문 클로저 안의 본문 호출. 문 표현식 전체를 공백 없이 비교한다.
+const GATED_CALLS: [&str; 2] = [
+    "with_body_keys(ctx,takes_keys,||{content_fn(&mutcx,ui)})",
+    "with_body_keys(ctx,takes_keys,||content_fn(&mutcx,ui))",
+];
 
 #[test]
-fn every_popup_body_call_goes_through_the_key_gate() {
-    let path = repo_root().join(HOME);
-    let src = strip_comments(
-        &std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("{HOME} 을 읽지 못했다: {e}"))
-            .replace("\r\n", "\n"),
-    );
-    let calls: Vec<usize> = src.match_indices(BODY_CALL).map(|(at, _)| at).collect();
-    assert!(
-        !calls.is_empty(),
-        "{HOME} 에 `{BODY_CALL}` 호출이 없다 — 본문 호출 이름이 바뀌었으면 이 검사를 함께 고친다"
-    );
-    for at in calls {
-        let before = &src[..at];
-        let gate = before.rfind(GATE).unwrap_or_else(|| {
-            panic!("{HOME} 의 본문 호출이 `{GATE}` 밖에 있다. 키 주인이 아닌 본문도 키를 읽는다.")
-        });
-        // 문을 연 표현식과 본문 호출 사이에 문장 끝(`;`)이 있으면 문 밖이다.
+fn the_popup_body_is_called_once_inside_the_key_gate() {
+    let src = read(HOME);
+    let flat = squeeze(&src);
+    let mut gated = 0;
+    for tail in word_tails(&src, "content_fn") {
+        if tail.starts_with("content_fn:&mutdynFnMut(") || tail.starts_with("content_fn,draw_ctx,")
+        {
+            continue;
+        }
         assert!(
-            !before[gate..].contains(';'),
-            "{HOME} 의 본문 호출이 `{GATE}` 표현식 안에 있지 않다: {}",
-            &before[gate..]
+            tail.starts_with("content_fn(&mutcx,ui)"),
+            "{HOME} 에서 본문 콜백을 문 밖에서 쓴다(별칭·전달·다른 호출): {tail}"
+        );
+        gated += 1;
+    }
+    assert_eq!(
+        gated, 1,
+        "{HOME} 의 본문 호출은 하나여야 한다. 둘 이상이면 문을 거치지 않는 갈래가 생긴다"
+    );
+    assert!(
+        GATED_CALLS.iter().any(|c| flat.matches(c).count() == 1),
+        "{HOME} 의 본문 호출이 문 클로저 하나 안에 있지 않다(문 클로저는 본문 호출만 담는다)"
+    );
+    assert_eq!(
+        flat.matches("with_body_keys(").count(),
+        1,
+        "{HOME} 의 키 입력 문은 본문 호출 자리 하나다"
+    );
+    // 문의 키 플래그는 이번 프레임 키 주인 하나에서 나온다.
+    for fact in [
+        "letframe_keys=self.take_frame_keys();",
+        "letkeys_at_start:Option<PopupInstanceId>=frame_keys.host;",
+        "letframe_has_key_owner=frame_keys.held();",
+        "focused:keys_at_start==Some(popup.instance),",
+        "lettakes_keys=cx.focused||(!frame_has_key_owner&&!popup.arrange.takes_focus);",
+    ] {
+        assert_eq!(
+            flat.matches(fact).count(),
+            1,
+            "{HOME} 의 키 플래그가 이번 프레임 키 주인 값에서 나오지 않는다: `{fact}`"
         );
     }
+}
+
+#[test]
+fn popup_definition_bodies_run_only_inside_the_body_callback() {
+    let frame = read(FRAME);
+    let call = "(def.draw_fn)(ui, state, engine, cx)";
+    assert_eq!(
+        frame.matches(call).count(),
+        1,
+        "{FRAME} 의 팝업 본문 호출 `{call}` 이 하나가 아니다"
+    );
+    let at = frame.find(call).expect("본문 호출");
+    let routed = frame
+        .find("popups.draw_routed(")
+        .expect("팝업 층의 draw_routed 호출");
+    let open = routed + "popups.draw_routed".len();
+    let close = matching_delim(&frame, open).expect("draw_routed 호출 끝");
+    assert!(
+        routed < at && at < close,
+        "{FRAME} 의 팝업 본문 호출이 draw_routed 에 넘기는 본문 콜백 밖에 있다"
+    );
+
+    // 팝업 정의 본문은 다른 곳에서 부르지 않는다. 전체화면 무대는 별도 정의(`FullscreenStageDef::draw_fn`)다.
+    let others: Vec<String> = tasty_doc_guards::source_text::rust_sources(&repo_root(), &["src"])
+        .into_iter()
+        .filter(|(rel, _)| {
+            let rel = rel.to_string_lossy();
+            rel != FRAME
+                && rel != "src/adapters/ui/fullscreen.rs"
+                && !rel.starts_with("src/source_guards/")
+        })
+        .filter(|(_, text)| strip_comments(text).contains(".draw_fn)("))
+        .map(|(rel, _)| rel.to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        others.is_empty(),
+        "팝업 층 밖에서 정의 본문을 부른다: {others:?}"
+    );
+}
+
+/// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
+const POPUP_BODIES: &[&str] = &[
+    "src/adapters/ui/info_modal.rs",
+    "src/adapters/ui/mouse_capture_menu.rs",
+    "src/adapters/ui/popup/approval.rs",
+    "src/adapters/ui/popup/command_palette.rs",
+    "src/adapters/ui/popup/confirm_close_remote.rs",
+    "src/adapters/ui/popup/confirm_delete_category.rs",
+    "src/adapters/ui/popup/confirm_force_detach_workspace.rs",
+    "src/adapters/ui/popup/convert.rs",
+    "src/adapters/ui/popup/dag_list.rs",
+    "src/adapters/ui/popup/file_handler_picker.rs",
+    "src/adapters/ui/popup/file_picker.rs",
+    "src/adapters/ui/popup/file_picker/folder.rs",
+    "src/adapters/ui/popup/port_scanner.rs",
+    "src/adapters/ui/popup/preset_apply.rs",
+    "src/adapters/ui/popup/rail_category.rs",
+    "src/adapters/ui/popup/remote_attach.rs",
+    "src/adapters/ui/popup/remote_attach/nav.rs",
+    "src/adapters/ui/popup/remote_tool.rs",
+    "src/adapters/ui/popup/script_confirm.rs",
+    "src/adapters/ui/popup/transfer.rs",
+    "src/adapters/ui/search_bar.rs",
+    "src/adapters/ui/tools_menu.rs",
+    "src/adapters/ui/tutorial/topic_popup.rs",
+];
+
+/// 문 자체와 이번 프레임 키 주인 값(`takes_keys`)을 받는 접힌 보기 버튼.
+const GATE_AND_OWNER_BUTTONS: &[&str] = &[
+    "src/adapters/ui/popup/body_keys.rs",
+    "src/adapters/ui/popup/display.rs",
+];
+
+/// 팝업 본문이 아닌 곳. 그 화면의 입력 규칙을 따른다.
+const OUTSIDE_POPUPS: &[(&str, &str)] = &[
+    (
+        "src/adapters/ui/surface/explorer.rs",
+        "explorer surface 의 바로 찾기",
+    ),
+    ("src/adapters/ui/preset/toolbar.rs", "프리셋 편집 창"),
+    (
+        "src/adapters/ui/preset/surface_settings.rs",
+        "프리셋 편집 창",
+    ),
+];
+
+/// 공용 위젯. 팝업 본문 안에서 그리면 그 본문의 문을 따르고, surface·창에서 그리면 그쪽 입력 규칙을 따른다.
+const SHARED_WIDGETS: &str = "crates/tasty-ui-widgets/src/";
+
+const KEY_READS: [&str; 8] = [
+    "key_pressed(",
+    "key_released(",
+    "key_down(",
+    "consume_key(",
+    "Event::Key",
+    "Event::Text(",
+    "Event::Paste(",
+    "Event::Ime(",
+];
+
+/// `read` 가 낱말로 나오는지. `Event::Key` 가 `WindowEvent::KeyboardInput` 에 걸리지 않게 앞뒤를 본다.
+fn reads(code: &str, read: &str) -> bool {
+    code.match_indices(read).any(|(at, _)| {
+        let before = code[..at].chars().next_back();
+        let after = code[at + read.len()..].chars().next();
+        !before.is_some_and(is_ident) && (read.ends_with('(') || !after.is_some_and(is_ident))
+    })
+}
+
+/// 인라인 시험 모듈(`#[cfg(test)] mod 이름 { … }`)을 뺀 본문.
+fn without_inline_tests(src: &str) -> String {
+    let mut out = String::new();
+    let mut rest = src;
+    while let Some(at) = rest.find("#[cfg(test)]") {
+        let after = &rest[at + "#[cfg(test)]".len()..];
+        let head = after.trim_start();
+        let Some(name_end) = head
+            .strip_prefix("mod ")
+            .and_then(|h| h.find(|c: char| !is_ident(c)).map(|n| n + 4))
+        else {
+            out.push_str(&rest[..at + "#[cfg(test)]".len()]);
+            rest = after;
+            continue;
+        };
+        let skipped = after.len() - head.len();
+        let body = &head[name_end..];
+        let open_rel = body.len() - body.trim_start().len();
+        if !body.trim_start().starts_with('{') {
+            out.push_str(&rest[..at + "#[cfg(test)]".len()]);
+            rest = after;
+            continue;
+        }
+        let open = at + "#[cfg(test)]".len() + skipped + name_end + open_rel;
+        let close = matching_delim(rest, open).expect("시험 모듈 끝");
+        out.push_str(&rest[..at]);
+        rest = &rest[close + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+#[test]
+fn every_direct_key_read_is_classified() {
+    let found: BTreeSet<String> = tasty_doc_guards::source_text::rust_sources(
+        &repo_root(),
+        &["src/adapters/ui", "crates/tasty-ui-widgets/src"],
+    )
+    .into_iter()
+    .filter(|(rel, _)| {
+        let rel = rel.to_string_lossy();
+        let name = rel.rsplit('/').next().unwrap_or_default();
+        !(name.ends_with("_tests.rs") || name == "tests.rs" || rel.contains("/tests/"))
+            && !rel.contains("virtual_tests/")
+    })
+    .filter(|(_, text)| {
+        // 문자열·주석 안의 괄호와 낱말은 가린다.
+        let code =
+            without_inline_tests(&tasty_doc_guards::source_text::mask_non_code_aligned(text));
+        KEY_READS.iter().any(|r| reads(&code, r))
+    })
+    .map(|(rel, _)| rel.to_string_lossy().into_owned())
+    .collect();
+
+    let listed: BTreeSet<String> = POPUP_BODIES
+        .iter()
+        .chain(GATE_AND_OWNER_BUTTONS)
+        .copied()
+        .chain(OUTSIDE_POPUPS.iter().map(|(f, _)| *f))
+        .map(str::to_string)
+        .collect();
+    let unclassified: Vec<&String> = found
+        .iter()
+        .filter(|f| !listed.contains(*f) && !f.starts_with(SHARED_WIDGETS))
+        .collect();
+    assert!(
+        unclassified.is_empty(),
+        "egui 키 입력을 직접 읽는 새 파일이다. 팝업 본문이면 문 안에서만 그려지는지 확인하고 POPUP_BODIES 에, 아니면 이유와 함께 OUTSIDE_POPUPS 에 넣는다: {unclassified:?}"
+    );
+    let stale: Vec<&String> = listed.iter().filter(|f| !found.contains(*f)).collect();
+    assert!(
+        stale.is_empty(),
+        "목록의 파일이 더는 키를 직접 읽지 않는다. 목록에서 뺀다: {stale:?}"
+    );
 }
