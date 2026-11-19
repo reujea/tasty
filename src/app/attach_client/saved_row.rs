@@ -86,6 +86,7 @@ impl App {
     /// 세션 없이 남은 저장된 원격 행(아직 붙지 않았거나 첫 연결에 실패한 행)을 지운다.
     pub(super) fn remove_unattached_row(&mut self, row: u32) {
         let engine = self.saved_remote_row_engine(row);
+        let row_binding = self.saved_row_binding(row);
         let none = HashMap::new();
         let mut removed = false;
         for (_, main, mut engine) in self.engines_mut().window_pairs() {
@@ -102,6 +103,9 @@ impl App {
             self.journal.admit_remote_row(engine, row, true);
         }
         crate::app::auto_attach::forget_row(&mut self.remote, row);
+        if let Some(binding) = row_binding {
+            self.forget_removed_row_mark(&binding);
+        }
     }
 
     /// 이 workspace를 저장된 원격 행으로 가진 engine.

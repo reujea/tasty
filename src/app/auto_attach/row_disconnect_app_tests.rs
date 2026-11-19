@@ -439,3 +439,36 @@ fn a_saved_mark_refuses_a_remote_attach_to_the_same_target_after_a_restart() {
     assert!(!app.remote.active.contains(&ROW), "no connection starts");
     assert!(force_detach_marked(&app));
 }
+
+/// 강제로 끊겨 표지가 저장된 행을 이쪽에서 닫으면 행과 함께 저장된 표지도 지운다.
+fn close_locally_and_check_the_mark(phase: Option<SessionState>) {
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, phase);
+    if phase.is_some() {
+        end_row_connection(&mut app, true);
+    } else {
+        app.mark_force_detached_row(ROW);
+    }
+    assert!(force_detach_marked(&app));
+
+    app.apply_saved_row_action(ROW, crate::intent::SavedRowAction::CloseLocally);
+    assert!(app.saved_row_binding(ROW).is_none(), "the row is gone");
+    assert!(
+        !force_detach_marked(&app),
+        "the saved mark goes with the row"
+    );
+}
+
+/// Given 강제로 끊겨 세션이 남은 저장 행, When 이쪽에서 닫는다(정리 경로), Then 저장된 표지도 지운다.
+#[test]
+fn closing_a_force_detached_row_with_a_session_forgets_its_saved_mark() {
+    alone!("closing_a_force_detached_row_with_a_session_forgets_its_saved_mark");
+    close_locally_and_check_the_mark(Some(SessionState::Connected));
+}
+
+/// Given 세션 없이 표지만 저장된 행, When 이쪽에서 닫는다(`remove_unattached_row`), Then 저장된 표지도 지운다.
+#[test]
+fn closing_an_unattached_force_detached_row_forgets_its_saved_mark() {
+    alone!("closing_an_unattached_force_detached_row_forgets_its_saved_mark");
+    close_locally_and_check_the_mark(None);
+}

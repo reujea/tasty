@@ -535,6 +535,11 @@ impl App {
     ) {
         log_mirror_cleanup(sess, from_disconnect);
         let saved_row = self.saved_remote_row_engine(sess.state.local_workspace);
+        // 행을 없애면 연결 대상을 더 읽을 수 없으므로 표지를 지울 대상을 먼저 잡는다.
+        let row_binding = sess
+            .state
+            .saved_row
+            .and_then(|row| self.saved_row_binding(row));
         // 창과 parked engine 모두 정리해야 창 복원 때 끊긴 mirror가 되살아나지 않는다.
         // 창을 순회하는 부분의 범위 일치는 자동 검증하지 않는다.
         // window_access::mirror_workspace_engine_alive의 검사 범위 설명을 참고한다.
@@ -588,6 +593,9 @@ impl App {
         }
         if let Some(row) = sess.state.saved_row {
             crate::app::auto_attach::forget_row(&mut self.remote, row);
+        }
+        if let Some(binding) = row_binding {
+            self.forget_removed_row_mark(&binding);
         }
     }
 

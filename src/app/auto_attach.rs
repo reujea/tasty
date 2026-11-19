@@ -176,6 +176,18 @@ impl App {
         }
     }
 
+    /// 이쪽에서 없앤 저장 행의 강제 끊김 표지를 지운다. 행을 없앤 뒤에 부르며, 같은 연결 대상의 다른
+    /// 저장 행이 남아 있으면 그 행의 표지이므로 남긴다.
+    pub(crate) fn forget_removed_row_mark(&mut self, binding: &RemoteBinding) {
+        if self.saved_row_for_binding(binding).is_some() {
+            return;
+        }
+        let list = &self.services.registries.remote_force_detached;
+        if list.read(|marks| marks.contains(binding)) {
+            list.update(|marks| marks.remove(binding));
+        }
+    }
+
     /// 저장된 원격 행의 연결 대상. 창과 parked engine을 모두 본다.
     pub(crate) fn saved_row_binding(&self, row: u32) -> Option<RemoteBinding> {
         self.engines.all_sessions().find_map(|session| {
