@@ -181,22 +181,24 @@ fn drop_after_marking_the_other_row(app: &mut App) -> bool {
     app.drop_attempt_for_force_detached_target(&target)
 }
 
-/// Given 세션 없는 저장 행, When 그 행이 보이게 돼(`maybe_connect_visible_row` 의 edge) 첫 연결을
-/// 시작한 뒤 같은 대상의 행 B 가 강제로 끊기면, Then 시도는 비명시적이고 그 결과는 버려진다.
+/// Given 세션 없는 저장 행, When 그 행이 보이게 된 프레임(edge, 재시작 뒤 첫 프레임 포함)과 그 뒤
+/// 프레임에 `maybe_connect_visible_row` 가 첫 연결을 정하면, Then 출처는 자동(explicit=false)이다.
+/// 시험 장치에는 View 가 없어 첫 연결은 시도 등록까지 가지 못하므로(`mirror_install_target`) 진입점이
+/// `connect_saved_row` 에 넘기는 값을 잰다. 등록된 시도의 값은 아래 재연결 시험이 잰다.
 #[test]
-fn a_first_connect_started_by_showing_the_row_is_automatic_and_dropped() {
-    alone!("a_first_connect_started_by_showing_the_row_is_automatic_and_dropped");
+fn a_first_connect_for_a_shown_row_is_requested_as_automatic() {
+    alone!("a_first_connect_for_a_shown_row_is_requested_as_automatic");
     let event_loop = event_loop();
-    let mut app = app_with_saved_row(&event_loop, None);
-    app.maybe_connect_visible_row(Some(ROW), None);
-    assert!(
-        app.remote.active.contains(&ROW),
-        "the first connect started"
+    let app = app_with_saved_row(&event_loop, None);
+    assert_eq!(app.visible_row_connect(Some(ROW), None), Some((ROW, false)));
+    assert_eq!(
+        app.visible_row_connect(Some(ROW), Some(ROW_B)),
+        Some((ROW, false))
     );
-    assert!(!registered_attempt(&app).explicit);
-    assert!(drop_after_marking_the_other_row(&mut app));
-    assert!(!app.remote.active.contains(&ROW));
-    assert_ne!(app.row_state_name(ROW), "connecting");
+    assert_eq!(
+        app.visible_row_connect(Some(ROW), Some(ROW)),
+        Some((ROW, false))
+    );
 }
 
 /// Given 끊긴 저장 행, When 그 행으로 다시 옮겨 재연결을 시작한 뒤 같은 대상의 행 B 가 강제로
@@ -216,13 +218,16 @@ fn a_reconnect_started_by_reopening_the_row_is_automatic_and_dropped() {
     assert_stopped(&app);
 }
 
-/// Given 세션 없는 저장 행, When 연결 버튼처럼 명시적 연결(`connect_saved_row(.., true)`)로 첫 연결을
-/// 시작한 뒤 같은 대상의 행 B 가 강제로 끊기면, Then 시도는 명시적이고 결과를 버리지 않는다.
+/// Given 끊긴 저장 행, When 연결 버튼처럼 명시적 연결(`connect_saved_row(.., true)`)로 재연결을 시작한
+/// 뒤 같은 대상의 행 B 가 강제로 끊기면, Then 등록된 시도는 명시적이고 결과를 버리지 않는다.
 #[test]
-fn a_first_connect_started_by_an_explicit_connect_is_kept() {
-    alone!("a_first_connect_started_by_an_explicit_connect_is_kept");
+fn a_reconnect_started_by_an_explicit_connect_is_kept() {
+    alone!("a_reconnect_started_by_an_explicit_connect_is_kept");
     let event_loop = event_loop();
-    let mut app = app_with_saved_row(&event_loop, None);
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Disconnected));
+    for session in &mut app.remote.sessions {
+        session.state.remote_workspace = binding().remote_workspace;
+    }
     app.connect_saved_row(ROW, true);
     assert!(registered_attempt(&app).explicit);
     assert!(!drop_after_marking_the_other_row(&mut app));
