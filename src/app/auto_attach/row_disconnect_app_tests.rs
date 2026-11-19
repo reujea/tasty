@@ -224,3 +224,68 @@ fn agent_mirrors_disconnect_once_and_other_workspaces_are_refused_with_a_reason(
             .contains("is not a mirror with an attach session")
     );
 }
+
+/// 연결된 저장 행의 연결을 끝낸다. `forced` 면 서버의 강제 끊기 통지를 받은 것처럼 표지를 먼저 세운다.
+fn end_row_connection(app: &mut App, forced: bool) {
+    let session = app
+        .remote
+        .sessions
+        .iter()
+        .find(|session| session.state.saved_row == Some(ROW))
+        .expect("the row session");
+    if forced {
+        session
+            .transport
+            .force_detached
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+    session
+        .transport
+        .disconnected
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    app.apply_attach_client_output();
+}
+
+/// Given 연결된 저장 행, When 서버가 강제로 끊어 연결이 끝나면, Then 재연결 구간 없이 사용자가 끊은
+/// `disconnected` 행이 되고, 그 행으로 다시 옮기거나 재연결 예약을 돌려도 연결을 시작하지 않는다.
+/// 명시적 연결은 표지를 지우고 연결을 시작한다.
+#[test]
+fn a_force_detached_saved_row_stays_disconnected_until_an_explicit_connect() {
+    alone!("a_force_detached_saved_row_stays_disconnected_until_an_explicit_connect");
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, Some(SessionState::Connected));
+
+    end_row_connection(&mut app, true);
+    assert_eq!(app.row_state_name(ROW), "disconnected");
+    assert!(app.remote.user_disconnected.contains(&ROW));
+    assert!(
+        app.remote
+            .reconnect
+            .get(&ROW)
+            .is_some_and(|slot| slot.given_up)
+    );
+
+    app.maybe_connect_visible_row(Some(ROW), None);
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(
+        !app.remote.active.contains(&ROW),
+        "no attempt after a force detach"
+    );
+    assert_eq!(app.row_state_name(ROW), "disconnected");
+
+    app.connect_saved_row(ROW, true);
+    assert!(!app.remote.user_disconnected.contains(&ROW));
+    assert_ne!(app.row_state_name(ROW), "disconnected");
+}
+
+/// Given 연결된 저장 행, When 통지 없이 연결만 끊기면(EOF·heartbeat), Then 지금처럼 재연결 중이 된다.
+#[test]
+fn a_saved_row_that_only_lost_its_connection_reconnects() {
+    alone!("a_saved_row_that_only_lost_its_connection_reconnects");
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, Some(SessionState::Connected));
+
+    end_row_connection(&mut app, false);
+    assert_eq!(app.row_state_name(ROW), "reconnecting");
+    assert!(!app.remote.user_disconnected.contains(&ROW));
+}
