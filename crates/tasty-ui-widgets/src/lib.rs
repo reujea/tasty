@@ -367,7 +367,8 @@ pub use searchable_select::{
 };
 pub use segmented::segmented;
 pub use select::{
-    SelectLook, select, select_on, select_or_placeholder, select_or_placeholder_on, select_pinned,
+    SelectLook, select, select_list, select_on, select_or_placeholder, select_or_placeholder_on,
+    select_pinned,
 };
 pub use selectable_text::{TextWrap, selectable_label, selectable_text};
 pub use sequence_editor::{

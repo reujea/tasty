@@ -189,22 +189,34 @@ fn select_impl(
             popup_id,
             &resp,
             egui::PopupCloseBehavior::CloseOnClick,
-            |ui| {
-                ui.set_min_width(width);
-                // 옵션은 공용 MenuItem 옵션 행이다. 현재 값만 selected(글자 + 체크, 채움 없음)이고
-                // 행은 다른 메뉴처럼 붙인다.
-                ui.spacing_mut().item_spacing.y = 0.0;
-                for (i, opt) in options.iter().enumerate() {
-                    if crate::menu_option(ui, theme, opt, selected == Some(i)).clicked()
-                        && selected != Some(i)
-                    {
-                        picked = Some(i);
-                    }
-                }
-            },
+            |ui| picked = select_list(ui, theme, options, selected, width),
         )
     });
     (picked, rect)
+}
+
+/// 열린 드롭다운 목록의 몸통. 최소 `width`(트리거 폭)이고 가장 긴 행에 맞춰 넓어진다.
+/// 새로 고른 행(현재 선택과 다를 때)의 인덱스를 돌려준다. [`select`]의 팝업이 이 함수로 목록을
+/// 그리며, 갤러리는 같은 몸통을 팝오버 틀 안에 고정해 열린 상태를 보인다.
+pub fn select_list(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    options: &[&str],
+    selected: Option<usize>,
+    width: f32,
+) -> Option<usize> {
+    ui.set_min_width(width);
+    // 옵션은 공용 MenuItem 옵션 행이다. 현재 값만 selected(글자 + 체크, 채움 없음)이고
+    // 행은 다른 메뉴처럼 붙인다.
+    ui.spacing_mut().item_spacing.y = 0.0;
+    let mut picked = None;
+    for (i, opt) in options.iter().enumerate() {
+        if crate::menu_option(ui, theme, opt, selected == Some(i)).clicked() && selected != Some(i)
+        {
+            picked = Some(i);
+        }
+    }
+    picked
 }
 
 /// 트리거의 상호작용 모양. disabled이면 무시한다.
