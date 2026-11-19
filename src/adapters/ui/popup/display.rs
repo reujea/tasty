@@ -134,9 +134,15 @@ pub(crate) fn draw_collapsed(
                     edge: look.focused,
                 },
             )
-            .clicked()
         })
         .inner;
+    // egui 는 키 포커스가 남은 버튼의 Enter·Space 도 클릭으로 돌려준다. 이번 프레임 키 주인이 아니면 포인터
+    // 클릭만 받는다.
+    let clicked = if look.takes_keys {
+        clicked.clicked()
+    } else {
+        clicked.clicked_by(egui::PointerButton::Primary)
+    };
     clicked || keyed
 }
 
