@@ -56,22 +56,25 @@ pub enum PopupPayload {
 }
 
 impl PopupPayload {
-    /// 이 데이터가 `popup_id` 정의의 큐 데이터인지. 데이터 없이 연 큐 인스턴스에 설치할 데이터를 거른다.
-    pub(super) fn is_queue_data_for(&self, popup_id: &str) -> bool {
-        match self {
-            Self::InfoModal(_) => popup_id == crate::adapters::ui::info_modal::INFO_MODAL_ID,
-            Self::Approval(_) => popup_id == super::approval::APPROVAL_POPUP_ID,
-            Self::TransferError(_) => popup_id == super::transfer::TRANSFER_ERROR_POPUP_ID,
-            _ => false,
-        }
+    /// 큐 팝업(안내·승인·전송 실패)의 데이터인지. 데이터 없이 연 큐 인스턴스에 설치할 데이터를 거른다.
+    pub(super) fn is_queue_data(&self) -> bool {
+        matches!(
+            self,
+            Self::InfoModal(_) | Self::Approval(_) | Self::TransferError(_)
+        )
     }
 
-    /// `popup_id` 큐 팝업의 데이터면 `incoming`의 항목을 차례 뒤에 잇는다. 데이터 없이 연 인스턴스(debug
-    /// 열기)는 `incoming`이 그 정의의 큐 데이터일 때만 그대로 자기 데이터로 삼는다. 다른 데이터는 그대로 둔다.
-    pub(super) fn append_queue(&mut self, popup_id: &str, incoming: PopupPayload) {
-        if matches!(self, Self::None) && incoming.is_queue_data_for(popup_id) {
-            *self = incoming;
-            return;
+    /// 큐 팝업의 데이터면 `incoming`의 항목을 차례 뒤에 잇는다. 데이터 없이 연 인스턴스(debug 열기)는
+    /// `incoming`이 큐 데이터일 때만 그대로 자기 데이터로 삼고, 데이터 없는 중복 열기는 무시한다.
+    pub(super) fn append_queue(&mut self, incoming: PopupPayload) {
+        if matches!(self, Self::None) {
+            if matches!(incoming, Self::None) {
+                return;
+            }
+            if incoming.is_queue_data() {
+                *self = incoming;
+                return;
+            }
         }
         match (self, incoming) {
             (Self::InfoModal(queue), Self::InfoModal(mut more)) => {
@@ -86,16 +89,21 @@ impl PopupPayload {
         }
     }
 
-    /// `popup_id` 큐 팝업의 데이터면 `earlier`의 항목을 차례 앞에 넣는다. 맨 앞 항목이 바뀌므로 잰 본문
-    /// 높이는 버린다. 데이터 없는 인스턴스는 `earlier`가 그 정의의 큐 데이터일 때만 그대로 자기 데이터로
-    /// 삼는다. 다른 데이터는 그대로 둔다.
-    pub(super) fn prepend_queue(&mut self, popup_id: &str, earlier: PopupPayload) {
-        if matches!(self, Self::None) && earlier.is_queue_data_for(popup_id) {
-            *self = earlier;
-            if let Self::InfoModal(queue) = self {
-                queue.body_height = None;
+    /// 큐 팝업의 데이터면 `earlier`의 항목을 차례 앞에 넣는다. 맨 앞 항목이 바뀌므로 잰 본문 높이는
+    /// 버린다. 데이터 없는 인스턴스는 `earlier`가 큐 데이터일 때만 그대로 자기 데이터로 삼고, 데이터 없는
+    /// 값은 무시한다.
+    pub(super) fn prepend_queue(&mut self, earlier: PopupPayload) {
+        if matches!(self, Self::None) {
+            if matches!(earlier, Self::None) {
+                return;
             }
-            return;
+            if earlier.is_queue_data() {
+                *self = earlier;
+                if let Self::InfoModal(queue) = self {
+                    queue.body_height = None;
+                }
+                return;
+            }
         }
         match (self, earlier) {
             (Self::InfoModal(queue), Self::InfoModal(mut first)) => {

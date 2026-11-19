@@ -473,6 +473,35 @@ fn an_instance_opened_without_data_rejects_another_kind_of_data() {
     ));
 }
 
+/// 데이터 없이 연 인스턴스에 데이터 없는 중복 열기가 와도 데이터는 비어 있고 인스턴스는 하나다.
+#[test]
+fn a_data_less_duplicate_open_leaves_a_data_less_instance_unchanged() {
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    for def in crate::adapters::ui::popup::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    open_by_user(&mut state, &mut engine, INFO_MODAL_ID, PopupPayload::None);
+    let opened = state
+        .popups
+        .instance_for(INFO_MODAL_ID, &PopupScope::Window)
+        .expect("the data-less request opens an instance");
+
+    open_by_user(&mut state, &mut engine, INFO_MODAL_ID, PopupPayload::None);
+
+    assert_eq!(
+        state
+            .popups
+            .instance_for(INFO_MODAL_ID, &PopupScope::Window),
+        Some(opened)
+    );
+    assert_eq!(state.popups.instances_of(INFO_MODAL_ID).count(), 1);
+    assert!(matches!(
+        state.popups.topmost_payload(INFO_MODAL_ID),
+        Some(PopupPayload::None)
+    ));
+}
+
 /// 세 큐 팝업은 `Queue` 를 선언한다. 범위 대상마다 인스턴스 하나로 차례를 보인다.
 #[test]
 fn the_three_queue_popups_declare_the_queue_policy() {

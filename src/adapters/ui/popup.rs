@@ -1012,7 +1012,7 @@ impl PopupManager {
         if p.instances != PopupInstances::Queue {
             return false;
         }
-        p.payload.append_queue(p.id, request.payload.take());
+        p.payload.append_queue(request.payload.take());
         true
     }
 
@@ -1025,7 +1025,7 @@ impl PopupManager {
             && let Some(p) = self.instance_mut(iid)
             && p.instances == PopupInstances::Queue
         {
-            p.payload.prepend_queue(p.id, request.payload.take());
+            p.payload.prepend_queue(request.payload.take());
             return;
         }
         self.open_request(request, by_user);
