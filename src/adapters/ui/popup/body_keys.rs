@@ -16,7 +16,8 @@ fn is_key_input(event: &egui::Event) -> bool {
     )
 }
 
-/// `takes_keys`가 거짓이면 키 입력 사건을 뺀 채 `body`를 부르고, 끝나면 뺀 사건을 원래 순서 자리에 돌려놓는다.
+/// `takes_keys`가 거짓이면 키 입력 사건과 눌린 키 상태(`keys_down`, `key_down` 이 읽는다)를 뺀 채 `body`를 부르고,
+/// 끝나면 뺀 사건을 원래 순서 자리에, 눌린 키 상태를 그대로 돌려놓는다.
 pub(crate) fn with_body_keys<R>(
     ctx: &egui::Context,
     takes_keys: bool,
@@ -25,8 +26,8 @@ pub(crate) fn with_body_keys<R>(
     if takes_keys {
         return body();
     }
-    let hidden: Vec<(usize, egui::Event)> = ctx.input_mut(|i| {
-        let mut hidden = Vec::new();
+    let (hidden, keys_down) = ctx.input_mut(|i| {
+        let mut hidden: Vec<(usize, egui::Event)> = Vec::new();
         let mut kept = Vec::with_capacity(i.events.len());
         for (at, event) in std::mem::take(&mut i.events).into_iter().enumerate() {
             if is_key_input(&event) {
@@ -36,17 +37,16 @@ pub(crate) fn with_body_keys<R>(
             }
         }
         i.events = kept;
-        hidden
+        (hidden, std::mem::take(&mut i.keys_down))
     });
     let out = body();
-    if !hidden.is_empty() {
-        ctx.input_mut(|i| {
-            for (at, event) in hidden {
-                let at = at.min(i.events.len());
-                i.events.insert(at, event);
-            }
-        });
-    }
+    ctx.input_mut(|i| {
+        for (at, event) in hidden {
+            let at = at.min(i.events.len());
+            i.events.insert(at, event);
+        }
+        i.keys_down = keys_down;
+    });
     out
 }
 
@@ -111,8 +111,8 @@ mod tests {
         }
     }
 
-    /// Given 키·글자·포인터 사건이 섞인 프레임, When 키 주인이 아닌 본문을 그리면, Then 그 본문은 키와 글자를
-    /// 보지 못하고 포인터 사건은 본다. 그린 뒤에는 같은 순서의 사건이 다시 있어 키 주인 본문이 읽는다.
+    /// Given 키·글자·포인터 사건이 섞인 프레임, When 키 주인이 아닌 본문을 그리면, Then 그 본문은 키·글자와 눌린 키
+    /// 상태를 보지 못하고 포인터 사건은 본다. 그린 뒤에는 같은 순서의 사건이 다시 있어 키 주인 본문이 읽는다.
     #[test]
     fn only_the_key_owner_body_sees_key_input_and_the_rest_is_kept_in_order() {
         let ctx = egui::Context::default();
@@ -129,16 +129,25 @@ mod tests {
                 ..Default::default()
             },
             |ctx| {
+                assert!(
+                    ctx.input(|i| i.key_down(egui::Key::Enter)),
+                    "Enter 가 눌려 있다"
+                );
                 let seen = with_body_keys(ctx, false, || {
                     ctx.input(|i| {
                         (
                             i.key_pressed(egui::Key::Escape),
                             i.key_pressed(egui::Key::Enter),
+                            i.key_down(egui::Key::Enter),
                             i.events.clone(),
                         )
                     })
                 });
-                assert_eq!(seen, (false, false, vec![moved.clone()]));
+                assert_eq!(seen, (false, false, false, vec![moved.clone()]));
+                assert!(
+                    ctx.input(|i| i.key_down(egui::Key::Enter)),
+                    "눌린 키 상태를 돌려놓는다"
+                );
                 let owner = with_body_keys(ctx, true, || {
                     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
                 });
