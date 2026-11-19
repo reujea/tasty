@@ -799,6 +799,8 @@ mod tests {
 
     /// 큐가 차서 통지를 넣지 못하면 연결을 닫고 `notified: false`로 알린다.
     /// 통지는 넣었지만 Detach가 밀렸으면 통지 뒤 연결을 닫는다.
+    /// 이 시험은 허브의 큐와 채널 종료만 본다. 실제 writer 의 binding 검사와 소켓 종료는
+    /// `tcp_ipc_server/stream_bytes_tests.rs` 의 강제 끊김 시험이 잰다.
     #[test]
     fn a_full_queue_closes_the_connection_and_reports_whether_the_notice_went_in() {
         use tasty_ipc::stream::{StreamFrame, StreamTag};

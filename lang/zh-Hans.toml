@@ -3158,7 +3158,7 @@ help = "已保存的远程工作区行的本地 ID（其在 `tasty list workspac
 
 [cli.help._root.remote.detach]
 about = "强制分离占用此实例的远程客户端"
-long = "强制分离占用此实例的远程客户端。\n\n此操作与点击占用边框上的“强制分离”按钮或在侧边栏确认强制分离的效果相同。解除占用并通知占用目标的客户端其连接已被强制分离，该客户端上的镜像随即结束，不会重新连接。该客户端上已保存的远程工作区行会保持断开连接，即使客户端重启也是如此，直到有人主动连接。`--workspace` 调用 `attach.force_detach_workspace`，`--surface` 调用 `attach.force_detach`。两者均输出相应调用的响应；如果没有客户端占用目标，响应为 `force_detached: false`。如果指定的 Surface 属于被占用的工作区，则解除整个工作区的占用，并在响应的 `workspace_id` 中返回该工作区的 ID。`notified: false` 表示通知未能加入发送队列，因此服务器关闭了连接，占用目标的客户端可能会像连接丢失后一样重新连接。`--all` 读取 `attach.list`，先分离所有被占用的工作区，再分离仍被占用的所有 Surface，并输出 `{\"workspaces\": [...], \"surfaces\": [...]}`，其中包含每次调用的响应。分离失败的目标会在对应条目中保留其 ID 和 `error`，其余目标仍会被分离，命令以退出码 1 退出。IPC 方法 `attach.list` 列出此实例中被占用的目标，包括被单独占用的 Surface。要断开此端的镜像连接，请使用 `tasty remote disconnect`。"
+long = "强制分离占用此实例的远程客户端。\n\n此操作与点击占用边框上的“强制分离”按钮或在侧边栏确认强制分离的效果相同。解除占用并通知占用目标的客户端其连接已被强制分离，该客户端上的镜像随即结束，不会重新连接。该客户端上已保存的远程工作区行会保持断开连接，即使客户端重启也是如此，直到有人主动连接。`--workspace` 调用 `attach.force_detach_workspace`，`--surface` 调用 `attach.force_detach`。两者均输出相应调用的响应；如果没有客户端占用目标，响应为 `force_detached: false`。如果指定的 Surface 属于被占用的工作区，则解除整个工作区的占用，并在响应的 `workspace_id` 中返回该工作区的 ID。`notified: true` 表示连接存在且通知已加入发送队列；服务器会在关闭该连接前发送通知。`notified: false` 表示没有客户端占用目标，或通知未能加入发送队列；此时服务器会立即关闭连接而不发送通知，占用目标的客户端可能会像连接丢失后一样重新连接。`--all` 读取 `attach.list`，先分离所有被占用的工作区，再分离仍被占用的所有 Surface，并输出 `{\"workspaces\": [...], \"surfaces\": [...]}`，其中包含每次调用的响应。分离失败的目标会在对应条目中保留其 ID 和 `error`，其余目标仍会被分离，命令以退出码 1 退出。如果分离工作区后无法再次读取列表，则将错误写入 `list_error`，输出截至此时的结果，命令以退出码 1 退出。IPC 方法 `attach.list` 列出此实例中被占用的目标，包括被单独占用的 Surface。要断开此端的镜像连接，请使用 `tasty remote disconnect`。"
 
 [cli.help._root.remote.detach.arg.workspace]
 help = "此实例中被占用的工作区 ID"

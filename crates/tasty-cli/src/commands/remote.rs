@@ -247,14 +247,19 @@ pub enum RemoteCommands {
     /// `--surface` calls `attach.force_detach`; each prints that reply, with
     /// `force_detached: false` when nothing held the target. A surface that
     /// belongs to an occupied workspace releases that whole workspace, and the
-    /// reply names it in `workspace_id`. `notified: false` means the notice
-    /// could not be queued, so the server closed the connection and the
-    /// holder may reconnect as after a lost connection. `--all` reads
-    /// `attach.list`, detaches every occupied workspace, then every surface
-    /// still occupied, and prints `{"workspaces": [...], "surfaces": [...]}`
-    /// with one reply per call. A target that fails keeps its id and an
-    /// `error` in its item, the others are still detached, and the command
-    /// exits with 1. The IPC method `attach.list` lists this instance's
+    /// reply names it in `workspace_id`. `notified: true` means a connection
+    /// was there and the notice was queued; the server writes it before it
+    /// closes that connection. `notified: false` means nothing held the
+    /// target, or the notice could not be queued; then the server closes the
+    /// connection at once without the notice, and the holder may reconnect as
+    /// after any lost connection. `--all` reads `attach.list`, detaches every
+    /// occupied workspace, then every surface still occupied, and prints
+    /// `{"workspaces": [...], "surfaces": [...]}` with one reply per call. A
+    /// target that fails keeps its id and an `error` in its item, the others
+    /// are still detached, and the command exits with 1. If the list cannot be
+    /// read again after the workspaces, the error goes in `list_error`, the
+    /// results so far are printed, and the command exits with 1. The IPC
+    /// method `attach.list` lists this instance's
     /// occupancies, including surfaces held on their own; to leave a mirror
     /// on this side, use `tasty remote disconnect`.
     #[command(group(
