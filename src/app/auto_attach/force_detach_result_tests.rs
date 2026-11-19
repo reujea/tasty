@@ -309,3 +309,65 @@ fn an_explicit_connect_joining_an_automatic_reconnect_keeps_it() {
     );
     assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
 }
+
+/// Given 같은 출력 회차에 행 A 의 재연결 연결이 설치만 남았고 같은 대상의 행 B 세션의 reader 가 강제
+/// 끊김 통지를 처리해 전송 표지만 섰다(표지는 아직 저장 전), When 그 회차를 처리하면
+/// (`apply_attach_client_output`, 설치가 B 의 끝 분류보다 먼저), Then A 는 설치되지 않고 끊긴 행이 되며
+/// B 의 끝 분류가 표지를 저장한다.
+#[test]
+fn an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped() {
+    alone!("an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let (port, peer) = ready_peer();
+    let target = app
+        .mirror_install_target(None, Some(ROW), Some(0), false)
+        .unwrap();
+    app.queue_mirror_connection(target, port, 3, None).unwrap();
+    app.remote.active.insert(ROW);
+    let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
+    let until = Instant::now() + Duration::from_secs(10);
+    while app.remote.prepared_connection(ticket).is_none() {
+        assert!(Instant::now() < until, "the connection never got ready");
+        std::thread::sleep(Duration::from_millis(10));
+        app.remote.collect_connections();
+    }
+    let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
+    let mut row_b = crate::model::Workspace::new_with_terminal_marker(
+        ROW_B,
+        "remote b".to_string(),
+        9_201,
+        9_202,
+        9_203,
+    );
+    row_b.mirror = true;
+    row_b.remote_row = Some(binding());
+    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
+    app.engines
+        .get_mut(engine)
+        .expect("the row engine")
+        .push_mirror_workspace(row_b);
+    let mut session_b =
+        crate::app::attach_client::tests::test_session(ROW_B, std::collections::HashMap::new());
+    session_b.state.saved_row = Some(ROW_B);
+    session_b.state.remote_workspace = binding().remote_workspace;
+    session_b.state.phase = SessionState::Connected;
+    session_b
+        .transport
+        .force_detached
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    session_b
+        .transport
+        .disconnected
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    app.remote.sessions.push(session_b);
+    assert!(!app.row_user_disconnected(ROW), "no mark is saved yet");
+
+    app.apply_attach_client_output();
+
+    assert_stopped(&app);
+    assert!(
+        app.row_user_disconnected(ROW),
+        "the end of B saved the mark"
+    );
+}

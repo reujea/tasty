@@ -6,6 +6,7 @@ use crate::app::App;
 use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 use tasty_remote::client_session::SessionState;
 
 impl App {
@@ -87,7 +88,10 @@ impl App {
         let Some(row) = target.row else {
             return false;
         };
-        if target.explicit || target.user || !self.row_user_disconnected(row) {
+        if target.explicit || target.user {
+            return false;
+        }
+        if !self.row_user_disconnected(row) && !self.target_force_detached_this_round(row) {
             return false;
         }
         tracing::info!("gui attach: 연결 대상이 강제로 끊긴 행 {row}의 진행 중 시도 결과를 버린다");
@@ -95,6 +99,25 @@ impl App {
         self.remote.active.remove(&row);
         self.enter_disconnected(row);
         true
+    }
+
+    /// 같은 연결 대상의 다른 저장 행이 이번 출력 회차에 강제로 끊겼지만 아직 표지가 저장되지 않았는지.
+    /// reader가 통지를 처리해 전송 표지를 세웠어도 `apply_attach_client_output`은 대기 연결 설치를
+    /// 세션 끝 분류(`stop_after_force_detach`가 표지를 저장)보다 먼저 한다. 회차 순서를 바꾸면
+    /// 같은 회차의 설치 여부를 보는 끝 분류(`installing_epoch`)도 달라지므로, 순서는 두고 설치 검사가
+    /// 전송 표지도 보게 한다.
+    fn target_force_detached_this_round(&self, row: u32) -> bool {
+        let Some(binding) = self.saved_row_binding(row) else {
+            return false;
+        };
+        self.remote.sessions.iter().any(|session| {
+            session.transport.force_detached.load(Ordering::SeqCst)
+                && session.transport.disconnected.load(Ordering::SeqCst)
+                && session
+                    .state
+                    .saved_row
+                    .is_some_and(|other| self.saved_row_binding(other).as_ref() == Some(&binding))
+        })
     }
 
     fn mark_row_window_dirty(&mut self, row: u32) {
