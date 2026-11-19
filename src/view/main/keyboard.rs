@@ -214,9 +214,10 @@ impl MainView {
         if event.logical_key != Key::Named(NamedKey::Escape) {
             return false;
         }
+        let escape_held = self.base.gpu.egui_escape_held();
         let consumed = self
             .state
-            .window_escape(self.base.gpu.egui_input_events_mut());
+            .window_escape(self.base.gpu.egui_input_events_mut(), escape_held);
         if consumed {
             self.mark_dirty();
         }

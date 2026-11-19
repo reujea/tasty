@@ -188,7 +188,7 @@ fn escape_through_the_window(
     layout: &LayoutContext,
 ) -> bool {
     let mut events = escape();
-    let consumed = state.window_escape(&mut events);
+    let consumed = state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape)));
     frame(ctx, state, engine, mgr, layout, events);
     consumed
 }
@@ -317,7 +317,10 @@ fn the_escape_handed_to_the_owner_keeps_its_modifiers() {
         );
         assert!(is_open(&state, h));
         let mut events = vec![escape_with(modifiers)];
-        assert!(state.window_escape(&mut events), "창이 H 의 포커스를 푼다");
+        assert!(
+            state.window_escape(&mut events, false),
+            "창이 H 의 포커스를 푼다"
+        );
         assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
         frame(&ctx, &mut state, &engine.read(), &mgr, &layout(), events);
         assert_eq!(
@@ -423,7 +426,10 @@ fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
     assert!(!plugin_escaped(&state));
 
     let mut events = escape();
-    assert!(state.window_escape(&mut events), "plugin 키 주인 갈래");
+    assert!(
+        state.window_escape(&mut events, false),
+        "plugin 키 주인 갈래"
+    );
     assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
     let after = draw(&mut state, &mut query, events, false);
     assert!(plugin_escaped(&state), "P 의 렌더가 그 Esc 로 P 를 닫는다");
@@ -431,4 +437,156 @@ fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
     assert!(after.field_focused, "찾기 입력란의 포커스가 그대로다");
     assert!(!after.close, "찾기 바를 닫지 않는다");
     assert_eq!(query, "abc", "검색어가 그대로다");
+}
+
+fn escape_release() -> Event {
+    Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: false,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// 이번 프레임 plugin 렌더가 팝업에 보낸 Escape 사건(눌림, 반복).
+fn sent_escape_keys(state: &mut RequestContext) -> Vec<(bool, bool)> {
+    use crate::app::frame_effect::{DrawEffect, FrameEffect};
+    use crate::app::plugin_display::PluginDisplayRequest;
+    state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|d| match d.body {
+            crate::intent::Intent::Frame(FrameEffect::Draw(DrawEffect::PluginDisplay(
+                PluginDisplayRequest::Popup { params, .. },
+            ))) => Some(params.raw_input.events),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|e| match e {
+            tasty_plugin_protocol::protocol::RawInputEventWire::Key {
+                key,
+                pressed,
+                repeat,
+                ..
+            } if key == "Escape" => Some((pressed, repeat)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// 창이 Esc 누름을 처리한 뒤 같은 프레임에 그 뗌이 온다(뗌은 창이 처리하지 않아 egui 입력에 남는다).
+fn quick_escape(ctx: &Context, state: &mut RequestContext) -> Vec<Event> {
+    let mut events = escape();
+    assert!(
+        state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape))),
+        "plugin 키 주인 갈래"
+    );
+    events.push(escape_release());
+    events
+}
+
+/// Given 키 주인이 plugin 팝업 P 일 때, When 한 프레임에 Esc 누름과 뗌이 함께 오면(창은 누름을 처리해 P 에 넘긴다),
+/// Then P 에는 egui 가 처리했을 때처럼 누름 → 뗌 순서로 가고 다음 프레임 눌린 키 상태에 Escape 가 없다.
+#[test]
+fn a_quick_escape_reaches_the_plugin_owner_as_press_then_release() {
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h: _,
+        g: _,
+    } = open_scene();
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let draw = |state: &mut RequestContext, events| {
+        frame(
+            &ctx,
+            state,
+            &engine.read(),
+            &mgr,
+            &layout_without_l(),
+            events,
+        )
+    };
+    draw(&mut state, Vec::new());
+    state.take_pending_intents();
+    let events = quick_escape(&ctx, &mut state);
+    draw(&mut state, events);
+    assert_eq!(
+        sent_escape_keys(&mut state),
+        vec![(true, false), (false, false)],
+        "P 는 누름 → 뗌 순서로 받는다"
+    );
+    assert!(!ctx.input(|i| i.key_down(egui::Key::Escape)));
+    draw(&mut state, Vec::new());
+    assert!(
+        !ctx.input(|i| i.key_down(egui::Key::Escape)),
+        "다음 프레임에 Escape 가 눌린 채로 남지 않는다"
+    );
+}
+
+/// Given 키 주인이 plugin 팝업 P 일 때, When Esc 를 누른 채 두 프레임에 걸쳐 누름이 오면(창이 두 번 처리해 넘긴다),
+/// Then P 가 받는 둘째 누름은 반복이다. 창을 거치지 않고 egui 가 그대로 처리한 결과와 같다.
+#[test]
+fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h: _,
+        g: _,
+    } = open_scene();
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let draw = |state: &mut RequestContext, events| {
+        frame(
+            &ctx,
+            state,
+            &engine.read(),
+            &mgr,
+            &layout_without_l(),
+            events,
+        )
+    };
+    draw(&mut state, Vec::new());
+    state.take_pending_intents();
+    let mut sent = Vec::new();
+    for _ in 0..2 {
+        let mut events = escape();
+        assert!(
+            state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape))),
+            "plugin 키 주인 갈래"
+        );
+        draw(&mut state, events);
+        sent.extend(sent_escape_keys(&mut state));
+    }
+
+    let plain = Context::default();
+    let mut expected = Vec::new();
+    for _ in 0..2 {
+        drop(plain.run(
+            egui::RawInput {
+                events: escape(),
+                ..Default::default()
+            },
+            |ctx| {
+                ctx.input(|i| {
+                    for e in &i.events {
+                        if let Event::Key {
+                            pressed, repeat, ..
+                        } = e
+                        {
+                            expected.push((*pressed, *repeat));
+                        }
+                    }
+                })
+            },
+        ));
+    }
+    assert_eq!(expected, vec![(true, false), (true, true)]);
+    assert_eq!(
+        sent, expected,
+        "P 는 egui 가 처리했을 때와 같은 반복 여부를 받는다"
+    );
 }

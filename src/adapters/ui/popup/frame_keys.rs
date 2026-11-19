@@ -5,6 +5,7 @@
 //! 창의 키 처리는 그리기보다 먼저 돈다. 그래서 창이 고른 키 주인이 있으면 그 값이 그 프레임의 키 주인이다. 그사이
 //! 그 팝업이 닫히거나 범위가 숨어도 다른 팝업으로 옮기지 않는다. 그 키는 처리한 노드에서 멈춘 것으로 본다.
 
+use super::body_keys::HandedEscape;
 use super::occlusion::PopupKeyOwner;
 use super::{PopupInstanceId, PopupManager};
 
@@ -36,11 +37,12 @@ impl FrameKeys {
 #[derive(Debug, Default)]
 pub(crate) struct KeySlots {
     bound: Option<BoundKeyOwner>,
-    /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(수식키 포함). 묶인 키 주인(host 본문·plugin 렌더)에 넘긴다.
-    escape: Vec<egui::Event>,
+    /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(수식키 포함)과 그 자리. 묶인 키 주인(host 본문·plugin 렌더)에
+    /// 넘긴다.
+    escape: HandedEscape,
     frame: Option<FrameKeys>,
     /// 이번 프레임 키 주인에게 넘길 Esc 사건. 키 주인을 정할 때 옮긴다.
-    frame_escape: Vec<egui::Event>,
+    frame_escape: HandedEscape,
 }
 
 impl PopupManager {
@@ -51,14 +53,19 @@ impl PopupManager {
     }
 
     /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건을 묶인 키 주인이 읽게 한다(host 본문의 하위 화면 되돌아가기,
-    /// plugin 렌더의 닫기·다시 접기). 수식키를 그대로 둔다.
-    pub(crate) fn hand_escape_to_bound_owner(&mut self, events: Vec<egui::Event>) {
-        self.keys.escape.extend(events);
+    /// plugin 렌더의 닫기·다시 접기). 수식키를 그대로 두고, 빼기 전 자리(`taken` 의 앞선 빼지 않은 사건 수)와 직전 패스
+    /// 끝의 Escape 눌림 상태(`held_before`)를 함께 둔다.
+    pub(crate) fn hand_escape_to_bound_owner(
+        &mut self,
+        held_before: bool,
+        taken: Vec<(usize, egui::Event)>,
+    ) {
+        self.keys.escape.push(held_before, taken);
     }
 
     /// 이번 프레임 키 주인에게 넘길 Esc 사건을 꺼낸다. host 그리기가 host 키 주인일 때, 남은 것은 plugin 렌더가
     /// 꺼낸다.
-    pub(crate) fn take_handed_escape(&mut self) -> Vec<egui::Event> {
+    pub(crate) fn take_handed_escape(&mut self) -> HandedEscape {
         std::mem::take(&mut self.keys.frame_escape)
     }
 
@@ -88,7 +95,7 @@ impl PopupManager {
                 }
             }
             None => {
-                self.keys.frame_escape.clear();
+                self.keys.frame_escape = HandedEscape::default();
                 FrameKeys {
                     owner: live,
                     host: match live {

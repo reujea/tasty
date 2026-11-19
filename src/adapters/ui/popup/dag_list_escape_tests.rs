@@ -73,7 +73,7 @@ fn one_escape_on_the_detail_view_returns_to_the_list() {
         repeat: false,
         modifiers: egui::Modifiers::NONE,
     }];
-    assert!(state.window_escape(&mut events));
+    assert!(state.window_escape(&mut events, false));
     assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
     // 창은 그 Esc 를 egui 입력에서 뺐다. 팝업 층이 묶인 키 주인 본문에 넘긴다.
     assert!(events.is_empty());

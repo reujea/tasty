@@ -246,7 +246,10 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
         repeat: false,
         modifiers: egui::Modifiers::NONE,
     }];
-    assert!(state.window_escape(&mut events), "the window handles it");
+    assert!(
+        state.window_escape(&mut events, false),
+        "the window handles it"
+    );
     assert!(
         events.is_empty(),
         "the window takes the Escape out of egui input"

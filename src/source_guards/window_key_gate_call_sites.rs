@@ -86,7 +86,12 @@ fn the_terminal_goes_through_the_window_hold_gate() {
         squeeze(&fn_body(&src, "fn try_consume_escape_key(").expect("try_consume_escape_key"));
     at(
         &consume,
-        ".window_escape(self.base.gpu.egui_input_events_mut())",
+        "letescape_held=self.base.gpu.egui_escape_held();",
+        "창의 Esc 처리가 직전 egui 패스의 Escape 눌림 상태를 넘긴다",
+    );
+    at(
+        &consume,
+        ".window_escape(self.base.gpu.egui_input_events_mut(),escape_held)",
         "창의 Esc 처리가 이번 egui 입력에서 Esc 를 뺀다",
     );
 }

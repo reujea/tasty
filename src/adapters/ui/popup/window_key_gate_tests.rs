@@ -44,7 +44,7 @@ fn window_key(
     if state.window_feeds_egui(false, true).is_some() {
         pending.push(event.clone());
     }
-    if super::body_keys::is_escape(&event) && state.window_escape(pending) {
+    if super::body_keys::is_escape(&event) && state.window_escape(pending, false) {
         return false;
     }
     !state.window_holds_terminal_keys()

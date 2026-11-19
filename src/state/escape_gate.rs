@@ -20,21 +20,29 @@ enum EscapeGate {
 
 impl super::MainViewState {
     /// 창이 받은 Esc 를 판정한다. 처리했으면 `pending`(이번 egui 입력)에서 Esc 사건을 빼고, 키 주인이 읽을 몫이면 그
-    /// 원래 사건을 넘겨 둔다. 처리했으면 참이다.
-    pub(crate) fn window_escape(&mut self, pending: &mut Vec<egui::Event>) -> bool {
+    /// 원래 사건을 원래 자리와 함께 넘겨 둔다. `escape_held` 는 직전 egui 패스 끝의 Escape 눌림 상태다(키 주인에게
+    /// 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이다.
+    pub(crate) fn window_escape(
+        &mut self,
+        pending: &mut Vec<egui::Event>,
+        escape_held: bool,
+    ) -> bool {
         let EscapeGate::Consumed { hand_to_owner } = self.escape_gate() else {
             return false;
         };
         let mut taken = Vec::new();
+        let mut kept = 0;
         pending.retain(|e| {
             let escape = crate::adapters::ui::popup::body_keys::is_escape(e);
             if escape {
-                taken.push(e.clone());
+                taken.push((kept, e.clone()));
+            } else {
+                kept += 1;
             }
             !escape
         });
         if hand_to_owner {
-            self.popups.hand_escape_to_bound_owner(taken);
+            self.popups.hand_escape_to_bound_owner(escape_held, taken);
         }
         true
     }

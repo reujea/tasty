@@ -248,9 +248,9 @@ impl PopupManager {
         let handed_escape = if frame_keys.host.is_some() {
             self.take_handed_escape()
         } else {
-            Vec::new()
+            super::body_keys::HandedEscape::default()
         };
-        super::body_keys::hand_escape(ctx, &handed_escape);
+        let handed_escape = super::body_keys::hand_escape(ctx, &handed_escape);
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 

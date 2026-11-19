@@ -376,6 +376,11 @@ impl GpuState {
         &mut self.egui_state.egui_input_mut().events
     }
 
+    /// 직전 egui 패스 끝에 Escape 가 눌려 있는지. 다음 패스는 이 상태에서 반복 여부를 판정한다.
+    pub fn egui_escape_held(&self) -> bool {
+        self.egui_ctx.input(|i| i.key_down(egui::Key::Escape))
+    }
+
     /// 메뉴를 닫는 클릭처럼 egui에 전달하지 않은 입력 뒤에 PointerGone을 넣어
     /// 이전 hover와 누름 상태를 정리한다.
     pub fn push_egui_pointer_gone(&mut self) {

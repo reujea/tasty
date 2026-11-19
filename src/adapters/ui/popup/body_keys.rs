@@ -50,37 +50,116 @@ pub(crate) fn with_body_keys<R>(
     out
 }
 
+/// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건과 그 자리. egui 가 그 Esc 를 패스 시작에서 처리했을 때와 같은 모습으로
+/// 키 주인에게 되넣는 데 쓴다.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct HandedEscape {
+    /// 이번 프레임 사건보다 앞선 Escape 눌림 상태(직전 패스 끝의 `keys_down`). egui 의 반복 판정 출발점이다.
+    held_before: bool,
+    /// 뺀 사건과 그 앞에 있던 빼지 않은 사건 수(원래 자리). 수식키·눌림 여부는 원래 사건 그대로다.
+    events: Vec<(usize, egui::Event)>,
+}
+
+impl HandedEscape {
+    /// 창이 이번 egui 입력에서 Esc 를 뺄 때 부른다. 프레임의 첫 몫이면 `held_before` 를 기록한다.
+    pub(crate) fn push(&mut self, held_before: bool, taken: Vec<(usize, egui::Event)>) {
+        if self.events.is_empty() {
+            self.held_before = held_before;
+        }
+        self.events.extend(taken);
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.events.is_empty()
+    }
+}
+
 /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(`handed`, 수식키 포함)을 키 주인을 그리는 동안만 넣는다. host 팝업
 /// 층에서는 묶인 키 주인 본문만 읽는다(다른 본문은 문이 가린다). plugin 렌더는 키 주인 팝업에만 키를 보낸다. 팝업 층
 /// 보다 먼저 그린 화면과 egui 의 패스 시작 처리(키 포커스 해제)는 이 Esc 를 보지 않는다. 키 주인이 읽지 않고 남긴
-/// 사건은 끝나면 뺀다. 뒤에 그리는 것은 보지 않는다.
+/// 사건은 끝나면 뺀다. 뒤에 그리는 것은 보지 않는다. 눌린 키 상태는 egui 가 처리했을 때 값으로 남긴다.
 pub(crate) fn with_handed_escape<R>(
     ctx: &egui::Context,
-    handed: &[egui::Event],
+    handed: &HandedEscape,
     draw: impl FnOnce() -> R,
 ) -> R {
-    hand_escape(ctx, handed);
+    let put = hand_escape(ctx, handed);
     let out = draw();
-    withdraw_escape(ctx, handed);
+    withdraw_escape(ctx, &put);
     out
 }
 
 /// [`with_handed_escape`]의 앞쪽. 그리기가 한 함수 호출이 아닌 host 팝업 층이 쓴다.
-pub(crate) fn hand_escape(ctx: &egui::Context, handed: &[egui::Event]) {
-    if !handed.is_empty() {
-        ctx.input_mut(|i| i.events.extend(handed.iter().cloned()));
+///
+/// 사건을 원래 자리(같은 프레임의 뗌보다 앞)에 `events`·`raw.events` 둘 다 넣고, egui 패스 시작과 같은 규칙으로
+/// Escape 의 반복 여부와 `keys_down` 을 정한다(눌림은 이미 눌려 있었으면 반복, 뗌은 놓음). 넣은 사건(반복 여부를
+/// 정한 값)을 돌려준다. [`withdraw_escape`]에 넘긴다.
+pub(crate) fn hand_escape(ctx: &egui::Context, handed: &HandedEscape) -> PutEscape {
+    if handed.is_empty() {
+        return PutEscape::default();
     }
+    ctx.input_mut(|i| {
+        let (events, down) = place_escape(&mut i.events, handed);
+        let (raw, _) = place_escape(&mut i.raw.events, handed);
+        if down {
+            i.keys_down.insert(egui::Key::Escape);
+        } else {
+            i.keys_down.remove(&egui::Key::Escape);
+        }
+        PutEscape { events, raw }
+    })
 }
 
-/// [`with_handed_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 뺀다.
-pub(crate) fn withdraw_escape(ctx: &egui::Context, handed: &[egui::Event]) {
-    if handed.is_empty() {
+/// [`hand_escape`]가 넣은 사건. [`withdraw_escape`]가 남은 것을 뺀다.
+#[derive(Debug, Default)]
+pub(crate) struct PutEscape {
+    events: Vec<egui::Event>,
+    raw: Vec<egui::Event>,
+}
+
+/// `list` 의 원래 자리에 넘긴 사건을 넣고 egui 패스 시작 규칙으로 Escape 반복 여부를 정한다. 넣은 사건과 끝의 Escape
+/// 눌림 상태를 돌려준다.
+fn place_escape(list: &mut Vec<egui::Event>, handed: &HandedEscape) -> (Vec<egui::Event>, bool) {
+    let mut handed_at = Vec::with_capacity(handed.events.len());
+    for (n, (slot, event)) in handed.events.iter().enumerate() {
+        let at = (slot + n).min(list.len());
+        list.insert(at, event.clone());
+        handed_at.push(at);
+    }
+    let mut down = handed.held_before;
+    for (at, event) in list.iter_mut().enumerate() {
+        if let egui::Event::Key {
+            key: egui::Key::Escape,
+            pressed,
+            repeat,
+            ..
+        } = event
+        {
+            if *pressed {
+                if handed_at.contains(&at) {
+                    *repeat = down;
+                }
+                down = true;
+            } else {
+                down = false;
+            }
+        }
+    }
+    (handed_at.iter().map(|&at| list[at].clone()).collect(), down)
+}
+
+/// [`with_handed_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 `events`·`raw.events` 에서 뺀다. 눌린 키 상태는
+/// 그대로 둔다(egui 가 이 Esc 를 처리했을 때처럼 다음 프레임 판정의 출발점이 된다).
+pub(crate) fn withdraw_escape(ctx: &egui::Context, put: &PutEscape) {
+    if put.events.is_empty() && put.raw.is_empty() {
         return;
     }
     ctx.input_mut(|i| {
-        for event in handed {
-            if let Some(at) = i.events.iter().position(|e| e == event) {
-                i.events.remove(at);
+        for (list, put) in [(&mut i.events, &put.events), (&mut i.raw.events, &put.raw)] {
+            for event in put {
+                if let Some(at) = list.iter().position(|e| e == event) {
+                    list.remove(at);
+                }
             }
         }
     });
@@ -99,7 +178,7 @@ pub(crate) fn is_escape(event: &egui::Event) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::with_body_keys;
+    use super::{HandedEscape, with_body_keys, with_handed_escape};
 
     fn key(key: egui::Key) -> egui::Event {
         egui::Event::Key {
@@ -163,5 +242,78 @@ mod tests {
                 );
             },
         ));
+    }
+
+    /// Given 창이 뺀 Esc 누름(그 앞에 포인터 사건 하나, 뒤에 같은 프레임의 뗌), When 키 주인을 그리는 동안 되넣으면,
+    /// Then 누름은 원래 자리(뗌 앞)에 `events`·`raw.events` 둘 다 들어가고, 키 주인 본문은 그 프레임에 Escape 를 눌린
+    /// 키로 본다. 키 주인이 아닌 본문은 보지 못한다. 끝나면 남은 사건을 빼고 눌린 키 상태는 egui 가 처리했을 때 값
+    /// (뗌 뒤라 놓임)으로 둔다.
+    #[test]
+    fn a_handed_escape_goes_back_to_its_place_and_is_held_for_the_owner_body() {
+        let ctx = egui::Context::default();
+        let moved = egui::Event::PointerMoved(egui::pos2(3.0, 4.0));
+        let release = egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: false,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        for (later, held_after) in [(vec![], true), (vec![release.clone()], false)] {
+            let mut handed = HandedEscape::default();
+            handed.push(false, vec![(1, key(egui::Key::Escape))]);
+            let mut events = vec![moved.clone()];
+            events.extend(later.clone());
+            drop(ctx.run(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    let (owner, other, seen, raw) = with_handed_escape(ctx, &handed, || {
+                        let owner = with_body_keys(ctx, true, || {
+                            ctx.input(|i| {
+                                (
+                                    i.key_pressed(egui::Key::Escape),
+                                    i.key_down(egui::Key::Escape),
+                                )
+                            })
+                        });
+                        let other = with_body_keys(ctx, false, || {
+                            ctx.input(|i| {
+                                (
+                                    i.key_pressed(egui::Key::Escape),
+                                    i.key_down(egui::Key::Escape),
+                                )
+                            })
+                        });
+                        let (seen, raw) = ctx.input(|i| (i.events.clone(), i.raw.events.clone()));
+                        (owner, other, seen, raw)
+                    });
+                    let mut expected = vec![moved.clone(), key(egui::Key::Escape)];
+                    expected.extend(later.clone());
+                    assert_eq!(seen, expected, "원래 자리");
+                    assert_eq!(raw, expected, "raw 도 원래 자리");
+                    assert_eq!(owner, (true, held_after), "키 주인 본문");
+                    assert_eq!(other, (false, false), "키 주인이 아닌 본문");
+                    let mut left = vec![moved.clone()];
+                    left.extend(later.clone());
+                    assert_eq!(ctx.input(|i| i.events.clone()), left, "끝나면 뺀다");
+                    assert_eq!(
+                        ctx.input(|i| i.key_down(egui::Key::Escape)),
+                        held_after,
+                        "눌린 키 상태는 egui 가 처리했을 때 값"
+                    );
+                },
+            ));
+            // 다음 시도는 놓인 상태에서 시작한다.
+            drop(ctx.run(
+                egui::RawInput {
+                    events: vec![release.clone()],
+                    ..Default::default()
+                },
+                |_| {},
+            ));
+        }
     }
 }
