@@ -15,6 +15,8 @@ use super::MainView;
 /// 놓은 OS 파일을 보낼 곳.
 #[derive(Debug, PartialEq)]
 enum Route {
+    /// 놓은 좌표의 포인터 대상이 팝업 노드다. 팝업은 놓기를 받지 않으므로 무시한다.
+    OnPopup,
     /// hover 중에 explorer 칸이 정해 둔 폴더.
     Hovered(u32, PathBuf, Verdict),
     /// 놓은 좌표를 모른다. 무시한다.
@@ -33,8 +35,16 @@ fn drop_point(
     dropped_at.or_else(|| cursor.map(|pos| (PhysicalPx(pos.x as f32), PhysicalPx(pos.y as f32))))
 }
 
-/// hover 가 정한 explorer 칸이 먼저다. 없으면 놓은 좌표와 그 좌표가 터미널 영역 안인지로 정한다.
-fn route(hovered: Option<(u32, PathBuf, Verdict)>, cursor: Option<((f32, f32), bool)>) -> Route {
+/// 놓기 대상은 놓은 좌표의 포인터 대상이다. 팝업 노드면(`on_popup`) 아무도 받지 않는다. 그다음 hover 가 정한
+/// explorer 칸이 먼저고, 없으면 놓은 좌표와 그 좌표가 터미널 영역 안인지로 정한다.
+fn route(
+    hovered: Option<(u32, PathBuf, Verdict)>,
+    cursor: Option<((f32, f32), bool)>,
+    on_popup: bool,
+) -> Route {
+    if on_popup {
+        return Route::OnPopup;
+    }
     match (hovered, cursor) {
         (Some((sid, dest, decided)), _) => Route::Hovered(sid, dest, decided),
         (None, None) => Route::NoCursor,
@@ -173,9 +183,20 @@ impl MainView {
         }
         let hovered = crate::explorer_ui::view::drag::take_os_drop(&mut self.state.explorer_views);
         let terminal_rect = self.compute_terminal_rect();
-        let cursor = drop_point(dropped_at, self.cursor_position)
-            .map(|(x, y)| ((x.value(), y.value()), terminal_rect.contains(x, y)));
-        let (x, y) = match route(hovered, cursor) {
+        let point = drop_point(dropped_at, self.cursor_position);
+        let ppp = self.base.gpu.egui_pixels_per_point();
+        let on_popup = point.is_some_and(|(x, y)| {
+            self.state.popup_owns_point(egui::pos2(
+                x.to_logical(ppp).value(),
+                y.to_logical(ppp).value(),
+            ))
+        });
+        let cursor = point.map(|(x, y)| ((x.value(), y.value()), terminal_rect.contains(x, y)));
+        let (x, y) = match route(hovered, cursor, on_popup) {
+            Route::OnPopup => {
+                tracing::debug!(count = drops.len(), "file drop on a popup — ignored");
+                return;
+            }
             Route::Hovered(sid, dest, decided) => {
                 self.drop_into_explorer(engine, sid, dest, decided, drops);
                 return;
@@ -195,19 +216,6 @@ impl MainView {
             }
             Route::AtCursor(x, y) => (x, y),
         };
-        // 놓는 대상은 포인터 대상이다. 팝업 노드(상자, 덮는 범위)는 놓기를 받지 않는다.
-        let ppp = self.base.gpu.egui_pixels_per_point();
-        if self.state.popup_owns_point(egui::pos2(
-            tasty_type_geometry::length::PhysicalPx(x)
-                .to_logical(ppp)
-                .value(),
-            tasty_type_geometry::length::PhysicalPx(y)
-                .to_logical(ppp)
-                .value(),
-        )) {
-            tracing::debug!(count = drops.len(), "file drop on a popup — ignored");
-            return;
-        }
         let (hit, pane_at) = {
             let scale_factor = self.base.gpu.scale_factor();
             let pane_at = self

@@ -12,24 +12,44 @@ fn p(s: &str) -> PathBuf {
 fn the_folder_chosen_while_hovering_wins_over_the_cursor() {
     for cursor in [None, Some(((5.0, 5.0), false)), Some(((5.0, 5.0), true))] {
         assert_eq!(
-            route(Some((7, p("/dest"), Verdict::Go(OpKind::Copy))), cursor),
+            route(
+                Some((7, p("/dest"), Verdict::Go(OpKind::Copy))),
+                cursor,
+                false
+            ),
             Route::Hovered(7, p("/dest"), Verdict::Go(OpKind::Copy))
         );
     }
     let refused = Verdict::No("explorer.drag.no_write");
     assert_eq!(
-        route(Some((7, p("/dest"), refused)), None),
+        route(Some((7, p("/dest"), refused)), None, false),
         Route::Hovered(7, p("/dest"), refused)
     );
 }
 
 #[test]
 fn without_a_hovered_folder_the_cursor_decides() {
-    assert_eq!(route(None, None), Route::NoCursor);
-    assert_eq!(route(None, Some(((5.0, 6.0), false))), Route::Outside);
+    assert_eq!(route(None, None, false), Route::NoCursor);
     assert_eq!(
-        route(None, Some(((5.0, 6.0), true))),
+        route(None, Some(((5.0, 6.0), false)), false),
+        Route::Outside
+    );
+    assert_eq!(
+        route(None, Some(((5.0, 6.0), true)), false),
         Route::AtCursor(5.0, 6.0)
+    );
+}
+
+/// 놓은 좌표가 팝업 노드면 hover 가 정한 explorer 칸이 남아 있어도 아무도 받지 않는다.
+#[test]
+fn a_drop_on_a_popup_goes_nowhere_even_with_a_hovered_folder() {
+    assert_eq!(
+        route(
+            Some((7, p("/dest"), Verdict::Go(OpKind::Copy))),
+            Some(((5.0, 6.0), true)),
+            true
+        ),
+        Route::OnPopup
     );
 }
 
@@ -75,7 +95,7 @@ fn a_drop_position_decides_even_without_a_cursor() {
     let at = drop_point(Some(dropped), None);
     assert_eq!(at, Some(dropped));
     assert_eq!(
-        route(None, at.map(|(x, y)| ((x.value(), y.value()), true))),
+        route(None, at.map(|(x, y)| ((x.value(), y.value()), true)), false),
         Route::AtCursor(5.0, 6.0)
     );
     let cursor = winit::dpi::PhysicalPosition::new(1.0, 2.0);
@@ -85,7 +105,7 @@ fn a_drop_position_decides_even_without_a_cursor() {
         Some((PhysicalPx(1.0), PhysicalPx(2.0)))
     );
     assert_eq!(drop_point(None, None), None);
-    assert_eq!(route(None, None), Route::NoCursor);
+    assert_eq!(route(None, None, false), Route::NoCursor);
 }
 
 /// 탭 바처럼 surface 가 없는 자리에 놓아도 그 좌표의 pane 을 결과 자리로 정한다. 처리 때 포커스로 미루지 않는다.

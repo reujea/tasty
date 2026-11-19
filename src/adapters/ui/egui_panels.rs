@@ -161,13 +161,17 @@ pub fn draw_egui_panels(
             }
         })
     });
-    // 놓는 대상은 포인터 대상이다. 그 자리가 팝업 노드(상자, 덮는 범위)면 팝업은 놓기를 받지 않으므로 놓지
-    // 않는다. 덮이지 않은 다른 범위의 탐색기에는 놓을 수 있다.
+    // 놓는 대상은 포인터 대상이다. 그 자리가 팝업 노드(상자, 드롭다운, 덮는 범위)면 팝업은 놓기를 받지 않으므로
+    // 놓지 않는다. 팝업 포커스 같은 창 전체 게이트로는 막지 않는다. 덮이지 않은 다른 범위의 탐색기에는 놓을 수
+    // 있다. 팝업 트리 밖의 모달(설정·입력 대화상자·전체화면 무대)은 창 전체를 막는다.
     let drop_pos = os_hover
         .as_ref()
         .map(|h| h.pos)
         .or_else(|| ctx.input(|i| i.pointer.hover_pos()));
-    let drag_blocked = overlay_open || drop_pos.is_some_and(|p| state.popup_owns_point(p));
+    let modal_open = state.has_settings_open_request()
+        || state.has_input_dialog_open()
+        || state.fullscreen_stage_active();
+    let drag_blocked = modal_open || drop_pos.is_some_and(|p| state.popup_owns_point(p));
     // 키 바인딩 전체를 파싱하는 작업이라, explorer 패널이 하나도 없는 프레임에서는
     // 만들지 않는다(`explorer_cwd`는 `ExplorerPanel`일 때만 채워진다).
     let explorer_shortcut_chars = if infos.iter().any(|i| i.explorer_cwd.is_some()) {
