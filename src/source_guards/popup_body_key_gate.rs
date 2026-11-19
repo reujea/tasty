@@ -16,7 +16,8 @@
 //! 키 읽기와 `draw_fn` 은 줄바꿈·공백으로 나눠 쓴 형태(`key_pressed\n(`, `Event::\nKey`, `def\n.draw_fn`)도 같은
 //! 형태로 맞춘 뒤 본다(`joined`). 키 읽기 메서드를 값으로 담는 경로(`egui::InputState::num_presses`)도 읽기로 본다.
 //! 정의 본문은 부르는 자리뿐 아니라 꺼내 쓰는 자리(`let f = def.draw_fn;`, 전달, 구조 분해. 이름을 바꾼
-//! `PopupDef { draw_fn: body, .. }` 패턴 포함)도 팝업 층 하나에만 있어야 한다.
+//! `PopupDef { draw_fn: body, .. }` 패턴 포함. 중첩 구조체·튜플·튜플 구조체 패턴, 뒤에 매개변수가 더 있는 클로저
+//! 매개변수, match 갈래 가드 앞 패턴도 바깥 패턴까지 거슬러 올라가 잡는다)도 팝업 층 하나에만 있어야 한다.
 //!
 //! 잡지 못하는 것:
 //! - 본문 모듈의 함수를 팝업 밖에서 이름으로 직접 부르는 경로(3의 목록은 파일 단위다).
@@ -25,7 +26,8 @@
 //! - 매크로가 만든 키 읽기.
 //! - `use` 별칭으로 이름을 바꾼 사건 이름(`use egui::Event::Key as K` 등).
 //! - 키 읽기를 다른 이름의 함수로 감싸 부르는 것(감싼 함수가 든 파일은 3에서 잡힌다).
-//! - 튜플·배열 패턴 안에서 뒤에 다른 요소가 이어지는 구조 분해(`let (PopupDef { draw_fn: b, .. }, x) = …`).
+//! - 구조체 리터럴 뒤에 같은 깊이의 `|` 가 이어지는 식(`f(PopupDef { draw_fn: g }, |x| x)`)은 클로저 매개변수
+//!   패턴으로 잘못 보아 걸린다(놓치지 않고 과하게 잡는 쪽이다).
 //! - 본문 콜백 클로저 안에서 정의 본문을 부르기 전에 다른 일을 하는 것(호출 자리만 본다).
 
 use std::collections::BTreeSet;
@@ -230,10 +232,14 @@ fn draw_fn_uses(code: &str) -> Vec<String> {
         .collect()
 }
 
-/// `at` 을 담은 가장 안쪽 `{ … }` 가 패턴(구조 분해)인지. 닫는 `}` 뒤(닫는 `)`·`]` 는 건너뛴다)가 `=`(let·if let·
-/// match 갈래 `=>`), `:`(매개변수 타입), `|`(클로저 매개변수)면 패턴이다. 구조체 리터럴·필드 선언 뒤에는 이런 글자가
-/// 오지 않는다. 튜플·배열 패턴에서 뒤에 다른 요소가 이어지는 구조 분해(`let (PopupDef { draw_fn: b, .. }, x) = …`)는
-/// 가리지 못한다.
+/// `at` 을 담은 가장 안쪽 `{ … }` 가 패턴(구조 분해)의 일부인지. 그 묶음부터 바깥 괄호 묶음으로 거슬러 올라가며 닫는
+/// 괄호 뒤를 본다.
+/// - `=`(let·if let·match 갈래 `=>`), `:`(매개변수 타입), `|`(클로저 매개변수 끝·갈래 대안), `if`(match 갈래 가드)면
+///   패턴이다.
+/// - 닫는 `)`·`]`·`}` 면 바깥 묶음으로 올라간다(중첩 구조체·튜플·튜플 구조체·배열 패턴).
+/// - `,` 면 같은 깊이에서 뒤를 훑어 `|` 가 바깥 묶음 끝·`;` 보다 먼저 나오면 클로저 매개변수로 본다. 아니면 바깥
+///   묶음으로 올라간다(뒤에 다른 요소·필드가 이어지는 패턴).
+/// - 그 밖(`;`·`.`·`?`·낱말·끝)이면 식이다. 구조체 리터럴·필드 선언 뒤에는 이 갈래가 온다.
 fn in_pattern(code: &str, at: usize) -> bool {
     let mut depth = 0usize;
     let mut open = None;
@@ -248,14 +254,64 @@ fn in_pattern(code: &str, at: usize) -> bool {
             _ => {}
         }
     }
-    let Some(close) = open.and_then(|o| matching_delim(code, o)) else {
+    let Some(mut open) = open else {
         return false;
     };
-    let after =
-        code[close + 1..].trim_start_matches(|c: char| c.is_whitespace() || c == ')' || c == ']');
-    (after.starts_with('=') && !after.starts_with("=="))
-        || (after.starts_with(':') && !after.starts_with("::"))
-        || (after.starts_with('|') && !after.starts_with("||"))
+    loop {
+        let Some(close) = matching_delim(code, open) else {
+            return false;
+        };
+        let rest = code[close + 1..].trim_start();
+        if (rest.starts_with('=') && !rest.starts_with("=="))
+            || (rest.starts_with(':') && !rest.starts_with("::"))
+            || (rest.starts_with('|') && !rest.starts_with("||"))
+            || (rest.starts_with("if") && !rest[2..].chars().next().is_some_and(is_ident))
+        {
+            return true;
+        }
+        if rest.starts_with(',') {
+            if closure_params_end_follows(code, code.len() - rest.len() + 1) {
+                return true;
+            }
+        } else if !rest.starts_with([')', ']', '}']) {
+            return false;
+        }
+        let Some(outer) = enclosing_open(code, open) else {
+            return false;
+        };
+        open = outer;
+    }
+}
+
+/// `from` 부터 같은 괄호 깊이를 훑어 `|`(클로저 매개변수 끝)가 바깥 묶음의 닫는 괄호나 `;` 보다 먼저 나오는지.
+fn closure_params_end_follows(code: &str, from: usize) -> bool {
+    let mut i = from;
+    while let Some(c) = code[i..].chars().next() {
+        match c {
+            '(' | '[' | '{' => match matching_delim(code, i) {
+                Some(end) => i = end + 1,
+                None => return false,
+            },
+            ')' | ']' | '}' | ';' => return false,
+            '|' => return !code[i + 1..].starts_with('|'),
+            _ => i += c.len_utf8(),
+        }
+    }
+    false
+}
+
+/// `pos` 를 담은 가장 안쪽 괄호 묶음(`(`·`[`·`{`)의 여는 자리.
+fn enclosing_open(code: &str, pos: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in code[..pos].char_indices().rev() {
+        match c {
+            ')' | ']' | '}' => depth += 1,
+            '(' | '[' | '{' if depth == 0 => return Some(i),
+            '(' | '[' | '{' => depth -= 1,
+            _ => {}
+        }
+    }
+    None
 }
 
 /// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
@@ -467,6 +523,23 @@ fn the_key_read_scan_catches_each_form() {
         0
     );
     assert_eq!(draw_fn_uses("pub draw_fn: DrawFn,").len(), 0);
+    assert_eq!(
+        draw_fn_uses(
+            "match def { E::A(PopupDef { draw_fn: b, .. }, _) | E::B(PopupDef { draw_fn: b, .. }) => b }"
+        )
+        .len(),
+        2,
+        "갈래 대안의 두 패턴"
+    );
+    for code in [
+        "let w = Wrapper { def: PopupDef { draw_fn: f }, x };",
+        "let w = Pair(PopupDef { draw_fn: f }, y);",
+        "if on { PopupDef { draw_fn: f } } else { other }",
+        "defs.iter().map(|d| PopupDef { draw_fn: d.f }).collect()",
+        "match k { K::A => PopupDef { draw_fn: f }, K::B => g }",
+    ] {
+        assert_eq!(draw_fn_uses(code).len(), 0, "리터럴인데 걸렸다: {code}");
+    }
     for code in [
         "let f = def.draw_fn;",
         "let f = def\n    .draw_fn;",
@@ -475,6 +548,14 @@ fn the_key_read_scan_catches_each_form() {
         "if let Some(PopupDef { draw_fn: body, .. }) = def {",
         "match def { PopupDef { draw_fn: body, .. } => body }",
         "|PopupDef { draw_fn: body, .. }| body",
+        "let (PopupDef { draw_fn: b, .. }, x) = pair;",
+        "let [PopupDef { draw_fn: b, .. }, _] = defs;",
+        "let Some((PopupDef { draw_fn: b, .. }, _)) = found else { return };",
+        "let Pair(PopupDef { draw_fn: b, .. }, y) = pair;",
+        "let Wrapper { def: PopupDef { draw_fn: b, .. } } = w;",
+        "let Wrapper { def: PopupDef { draw_fn: b, .. }, x } = w;",
+        "|PopupDef { draw_fn: b, .. }, x| b",
+        "match def { PopupDef { draw_fn: body, .. } if enabled => body, _ => fallback }",
         "(def.draw_fn)(ui)",
         "run(def.draw_fn)",
     ] {
