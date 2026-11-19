@@ -313,6 +313,13 @@ fn a_child_of_an_expanded_parent_expands_and_folds_with_it() {
     frame(&mut mgr, &ctx, 200.0, vec![]);
     assert!(mgr.instance(parent).unwrap().collapsed());
     assert!(mgr.instance(child).unwrap().collapsed());
+    // 그리지 않는 자식은 키를 갖지 않는다. 키 주인은 보이는 부모 보기 버튼이다.
+    assert!(!mgr.instance(child).unwrap().focused);
+    assert!(mgr.instance(parent).unwrap().focused);
+    assert_eq!(
+        mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
+        Some(parent)
+    );
 }
 
 /// Given 범위에 들어가는 부모가 연 큰 자식, Then 자식만 접힌다. When 자식을 펼쳤다 Esc를 하면, Then 자식만

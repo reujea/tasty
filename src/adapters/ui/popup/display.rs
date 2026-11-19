@@ -316,6 +316,35 @@ impl PopupManager {
                 _ => Self::fit_display(popup, draw_ctx, inset_cap, frames),
             };
         }
+        self.hand_hidden_focus_to_button(open_indices);
+    }
+
+    /// 부모 버튼이 대표하는(그리지 않는) 자식이 포커스를 가졌으면 그 포커스를 보이는 보기 버튼(묶음의 접힌
+    /// 조상)으로 옮긴다. 보이지 않는 자식이 키 주인으로 남아 버튼의 Enter·Space·포커스 링을 가로채지 않는다.
+    fn hand_hidden_focus_to_button(&mut self, open_indices: &[usize]) {
+        for &i in open_indices {
+            let popup = &self.popups[i];
+            if !popup.focused || popup.display != PopupDisplay::Collapsed(None) {
+                continue;
+            }
+            let mut at = popup.parent;
+            let mut button = None;
+            while let Some(cur) = at.and_then(|p| self.instance(p)).filter(|p| p.open) {
+                if cur.collapsed_frame().is_some() {
+                    button = Some(cur.instance);
+                    break;
+                }
+                at = cur.parent;
+            }
+            let Some(button) = button else {
+                continue;
+            };
+            self.popups[i].focused = false;
+            if let Some(b) = self.instance_mut(button) {
+                b.focused = true;
+                b.passive = false;
+            }
+        }
     }
 
     /// 범위에 들어가는지로 Fits·Collapsed를 정한다([`collapse_placement`]). 창 범위 팝업은 접지 않는다.
@@ -351,7 +380,8 @@ impl PopupManager {
     }
 
     /// 펼친 인스턴스를 다시 접는다. 부모와 함께 펼쳐졌으면 묶음의 뿌리를 접는다. 닫지 않으며 포커스와
-    /// 상태를 그대로 둔다. 다음 프레임 판정이 범위에 들어가는지로 Fits·Collapsed를 정한다.
+    /// 상태를 그대로 둔다. 다음 프레임 판정이 범위에 들어가는지로 Fits·Collapsed를 정하고, 묶음이 접히면
+    /// 그리지 않는 자식의 포커스를 보이는 보기 버튼으로 옮긴다.
     pub(super) fn refold(&mut self, iid: PopupInstanceId) -> bool {
         let mut root = iid;
         while let Some(parent) = self
