@@ -522,6 +522,7 @@ src/catalog/components/remote_row_menu.rs	disconnected	status_bar.remote_disconn
 src/catalog/components/remote_row_menu.rs	reconnecting	status_bar.remote_reconnecting
 src/catalog/components/remote_row_menu.rs	{}	remote.size_sync.names
 src/catalog/components/scrim_scope.rs	Convert surface	attach.pending.convert
+src/catalog/components/scrim_scope.rs	Run	dag.kind.run
 src/catalog/components/script_manager.rs	Add script	settings.scripts.add
 src/catalog/components/script_manager.rs	Add trigger…	settings.scripts.trigger_add
 src/catalog/components/script_manager.rs	Auto-run:	settings.scripts.autorun_label
