@@ -1400,8 +1400,6 @@ fn push_report_button(stack: &mut Vec<(u8, u32)>, button: u8, surface_id: u32) {
     stack.push((button, surface_id));
 }
 
-/// 보고 스택에서 버튼을 내린다. 남은 버튼이 있으면 그다음 최근 press 가 motion
-/// 버튼이 된다(여러 버튼을 겹쳐 눌렀다 하나만 뗀 경우).
 /// 위에서 가져간 press 의 버튼이면 목록에서 빼고 참이다. 그 release 도 같은 곳이 받는다.
 fn take_blocked_button(blocked: &mut Vec<MouseButton>, button: MouseButton) -> bool {
     let Some(i) = blocked.iter().position(|b| *b == button) else {
@@ -1411,6 +1409,8 @@ fn take_blocked_button(blocked: &mut Vec<MouseButton>, button: MouseButton) -> b
     true
 }
 
+/// 보고 스택에서 버튼을 내린다. 남은 버튼이 있으면 그다음 최근 press 가 motion
+/// 버튼이 된다(여러 버튼을 겹쳐 눌렀다 하나만 뗀 경우).
 fn pop_report_button(stack: &mut Vec<(u8, u32)>, button: u8) {
     stack.retain(|(b, _)| *b != button);
 }
@@ -1610,9 +1610,7 @@ fn mesh_hover_transition(
     }
 }
 
-/// 메뉴를 닫는 클릭의 상태 전이와 egui 위젯 반응을 확인한다.
-/// GPU가 필요한 MainView 대신 egui::Context에 동일한 입력을 전달한다.
-/// 입력을 그대로 보낸 경우와 소비한 경우를 비교한다.
+/// 위에서 가져간 press 의 버튼 목록이 그 release 를 한 번만 가져가는지 확인한다.
 #[cfg(test)]
 mod blocked_button_tests {
     use super::take_blocked_button;
@@ -1631,6 +1629,9 @@ mod blocked_button_tests {
     }
 }
 
+/// 메뉴를 닫는 클릭의 상태 전이와 egui 위젯 반응을 확인한다.
+/// GPU가 필요한 MainView 대신 egui::Context에 동일한 입력을 전달한다.
+/// 입력을 그대로 보낸 경우와 소비한 경우를 비교한다.
 #[cfg(test)]
 mod menu_dismiss_tests {
     use super::menu_dismiss_swallow_step;
