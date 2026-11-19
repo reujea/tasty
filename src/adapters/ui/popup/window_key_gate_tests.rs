@@ -1,5 +1,7 @@
-//! 창의 키 처리(Esc 처리 `window_escape`, 키 입력의 입력 시점 결속 `bind_window_key_owner`)를 거친 키를 실은 프레임은
-//! 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다.
+//! 창의 키 처리(egui 전달 게이트 `window_feeds_egui`, Esc 처리 `window_escape`, 터미널 게이트
+//! `window_holds_terminal_keys`)를 거친 키를 실은 프레임은 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌
+//! 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다. 창 호출부가 이 함수들을 그대로 쓰는지는
+//! `source_guards::window_key_gate_call_sites` 가 본다.
 
 use super::*;
 use crate::adapters::ui::LayoutContext;
@@ -31,21 +33,21 @@ fn layout() -> LayoutContext {
     }
 }
 
-/// 창이 키 사건 하나를 받는 경로(egui 전달 → Esc 처리 → 터미널 게이트)를 밟는다. egui 로 보낼 키만 `pending`(그 키를
-/// 실은 프레임의 egui 입력)에 싣는다. 터미널(PTY)로 가면 참이다.
+/// 창이 키 사건 하나를 받는 경로(`view::main::feed_egui_keyboard` → `keyboard::handle_keyboard_input`)를 창과 같은
+/// 판정 함수로 밟는다. egui 로 보낼 키만 `pending`(그 키를 실은 프레임의 egui 입력)에 싣고, Esc 는 창의 Esc 처리를
+/// 거친다. 터미널(PTY)로 가면 참이다.
 fn window_key(
     state: &mut RequestContext,
     pending: &mut Vec<egui::Event>,
     event: egui::Event,
 ) -> bool {
-    if state.keyboard_overlay_open() {
-        state.bind_window_key_owner();
+    if state.window_feeds_egui(false, true).is_some() {
         pending.push(event.clone());
     }
     if super::body_keys::is_escape(&event) && state.window_escape(pending) {
         return false;
     }
-    !state.keyboard_overlay_open()
+    !state.window_holds_terminal_keys()
 }
 
 fn enter() -> egui::Event {

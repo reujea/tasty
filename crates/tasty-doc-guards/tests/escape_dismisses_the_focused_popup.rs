@@ -109,7 +109,7 @@ fn the_escape_path_runs_before_the_overlay_gate() {
     );
     let gate = only_at(
         &src,
-        "let overlay_open = self.state.keyboard_overlay_open();",
+        "let overlay_open = self.state.window_holds_terminal_keys();",
         "오버레이 게이트",
     );
     assert!(

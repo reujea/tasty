@@ -452,24 +452,22 @@ impl MainView {
         edit_judged: bool,
     ) -> (bool, bool) {
         // 무대 입력은 egui에 전달하며 배경으로 보내지 않는 검사는 keyboard.rs에서 한다.
-        let overlay_open =
-            self.state.keyboard_overlay_open() || self.state.fullscreen_stage_active();
         // registry의 consumes_egui_input인 host 위젯만 egui에 직접 보낸다.
         // plugin mesh 입력은 별도 전달 경로를 사용해 host가 먼저 소비하지 않게 한다.
         let egui_surface = self
             .state
             .focused_surface_type(engine)
             .kind_capability(engine, |d| d.consumes_egui_input);
-        if !(overlay_open || egui_surface) {
-            return (false, false);
-        }
         // 이 키를 실은 그리기의 키 주인을 입력 시점에 묶는다. 붙여넣기 대상도 같은 값이다. 묶은 값은 다음
         // 그리기가 꺼내므로 그 그리기를 요청한다.
-        if matches!(
+        let binds = matches!(
             event,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
-        ) && self.state.bind_window_key_owner()
-        {
+        );
+        let Some(bound) = self.state.window_feeds_egui(egui_surface, binds) else {
+            return (false, false);
+        };
+        if bound {
             self.mark_dirty();
         }
         self.base

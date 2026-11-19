@@ -288,11 +288,13 @@ fn plugin_shortcut_gate_knows_the_stage() {
 }
 
 /// keyboard_overlay_open 호출을 찾아 무대 조건이 함께 있는지 확인한다.
-/// keyboard.rs는 앞선 전용 무대 처리로 대신하므로 그 처리의 존재를 확인한다.
+/// 창의 터미널 게이트(`window_holds_terminal_keys`)는 그 호출부 keyboard.rs 의 앞선 전용 무대 처리로 대신하므로 그
+/// 처리의 존재와 호출부가 그 게이트를 쓰는지를 확인한다.
 /// mouse_overlay_open과 has_egui_overlay_open은 정의에 무대 조건이 있어야 한다.
 #[test]
 fn every_overlay_open_composite_is_stage_aware() {
-    const ALLOWED_WITHOUT_STAGE_TERM: &str = "src/view/main/keyboard.rs";
+    const ALLOWED_WITHOUT_STAGE_TERM: &str = "src/state/popup_key_owner.rs";
+    const TERMINAL_GATE: &str = "fn window_holds_terminal_keys(";
     let mut files = Vec::new();
     collect_rs(&tasty_doc_guards::repo_root().join("src"), &mut files);
 
@@ -302,11 +304,18 @@ fn every_overlay_open_composite_is_stage_aware() {
         for (i, _) in src.match_indices(".keyboard_overlay_open()") {
             let expr = enclosing_expr(&src, i);
             seen.push(rel.clone());
-            if rel == ALLOWED_WITHOUT_STAGE_TERM {
+            // 이 호출을 담은 함수.
+            let in_terminal_gate = src[..i]
+                .rfind("fn ")
+                .is_some_and(|f| src[f..i].starts_with(TERMINAL_GATE));
+            if rel == ALLOWED_WITHOUT_STAGE_TERM && in_terminal_gate {
+                let keyboard = read("src/view/main/keyboard.rs");
                 assert!(
-                    src.contains("fn try_consume_fullscreen_stage_key")
-                        || src.contains("self.try_consume_fullscreen_stage_key(engine, event)"),
-                    "{rel}: 무대 항 없이 예외로 허용되던 근거(0단계 무대 게이트)가 사라졌다."
+                    keyboard.contains("self.try_consume_fullscreen_stage_key(engine, event)")
+                        && keyboard.contains(
+                            "let overlay_open = self.state.window_holds_terminal_keys();"
+                        ),
+                    "{rel}: 무대 항 없이 예외로 허용되던 근거(keyboard.rs 의 0단계 무대 게이트와 그 뒤 터미널 게이트)가 사라졌다."
                 );
                 continue;
             }
@@ -328,11 +337,10 @@ fn every_overlay_open_composite_is_stage_aware() {
             "src/app/plugin_glue/shortcut.rs".to_string(),
             "src/app/webview_keys.rs".to_string(),
             "src/app/webview_sync.rs".to_string(),
-            "src/view/main.rs".to_string(),
+            "src/state/popup_key_owner.rs".to_string(),
             "src/view/main/edit_keys.rs".to_string(),
             "src/view/main/file_drag.rs".to_string(),
             "src/view/main/ime.rs".to_string(),
-            "src/view/main/keyboard.rs".to_string(),
             "src/view/main/plugin_surface_keys.rs".to_string(),
         ],
         "`keyboard_overlay_open()` 호출부 집합이 바뀌었다. 새 지점이 생겼다면 \

@@ -212,8 +212,8 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 
 | # | 지점 | 무대 항 | 근거 |
 |---|------|--------|------|
-| 1 | `src/view/main.rs` egui feed 게이트 | `\|\| fullscreen_stage_active()` | **방향이 반대**다. 무대 콘텐츠는 egui 위젯이라 키/IME 가 egui 입력 시스템에 들어가야 클릭·텍스트 입력을 처리할 수 있다. 여기는 "무대**로** 준다" |
-| 2 | `src/view/main/keyboard.rs` 터미널 포워딩 게이트 | **없음** | 같은 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
+| 1 | `src/state/popup_key_owner.rs` `window_feeds_egui`(egui feed 게이트, 호출부 `src/view/main.rs`) | `\|\| fullscreen_stage_active()` | **방향이 반대**다. 무대 콘텐츠는 egui 위젯이라 키/IME 가 egui 입력 시스템에 들어가야 클릭·텍스트 입력을 처리할 수 있다. 여기는 "무대**로** 준다" |
+| 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(터미널 포워딩 게이트, 호출부 `src/view/main/keyboard.rs`) | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
 | 3 | `src/view/main/ime.rs` | `\|\| fullscreen_stage_active()` | 필수. 무대만 떠 있으면 `keyboard_overlay_open()` 의 네 항이 전부 false 라 아무도 안 막고, 조합 중이던 IME 의 Commit 이 뒤 터미널 PTY로 전달된다 |
 | 4 | `src/app/plugin_glue/shortcut.rs` plugin 단축키 | `\|\| fullscreen_stage_active()` | 필수. 이 경로는 `dispatch_window_event_to_view` **이전에** 호출되므로(`src/app/event_handler.rs`) 2 의 0단계 게이트가 아예 도달하지 못한다 |
 | 5 | `src/app/webview_keys.rs` native webview 포워딩 키 | `\|\| fullscreen_stage_active()` | 필수. webview 자식 창에서 올라온 키는 winit `KeyboardInput` 경로를 타지 않아 2 의 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)) |

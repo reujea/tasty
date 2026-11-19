@@ -51,6 +51,24 @@ impl super::MainViewState {
         live.is_some()
     }
 
+    /// 창이 받은 키 사건을 egui 로 보낼지(`view::main::feed_egui_keyboard` 의 게이트). 팝업·무대 같은 키 오버레이가
+    /// 열렸거나 egui 로 입력을 받는 host 위젯 surface(`egui_surface`)에 포커스가 있을 때만 보낸다. 보낼 키 입력
+    /// (`binds`: 키·IME)이면 그 키를 실은 그리기의 키 주인을 입력 시점에 묶는다. 보내지 않으면 `None`, 보내면 키
+    /// 주인을 묶었는지다(묶었으면 그 그리기를 요청한다).
+    pub(crate) fn window_feeds_egui(&mut self, egui_surface: bool, binds: bool) -> Option<bool> {
+        let overlay_open = self.keyboard_overlay_open() || self.fullscreen_stage_active();
+        if !(overlay_open || egui_surface) {
+            return None;
+        }
+        Some(binds && self.bind_window_key_owner())
+    }
+
+    /// 창이 키를 터미널(PTY)·단축키로 보내지 않는지(`view::main::keyboard` 의 게이트). 팝업 키 주인이 있거나 창이
+    /// 이번 프레임 키를 팝업에 묶었으면 참이다.
+    pub(crate) fn window_holds_terminal_keys(&self) -> bool {
+        self.keyboard_overlay_open()
+    }
+
     /// 팝업 층 아래 egui 화면(surface UI·사이드바 등)이 이번 프레임 키 입력을 볼지. 창이 이번 프레임 키를 팝업
     /// 키 주인에 묶었으면 그 키는 팝업 것이라 아래 화면은 보지 않는다(팝업 층보다 먼저 그리므로 이 값으로 막는다).
     pub(crate) fn surfaces_take_keys(&self) -> bool {

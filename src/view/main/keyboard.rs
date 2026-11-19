@@ -97,9 +97,9 @@ impl MainView {
         }
 
         // Modals, dialogs, focused host popups, plugin egui-mesh popups block
-        // keyboard input to the terminal. 판정은 egui feed 게이트(`view::main`)와
+        // keyboard input to the terminal. 판정은 egui feed 게이트(`MainViewState::window_feeds_egui`)와
         // 같은 `MainViewState::keyboard_overlay_open` 을 쓴다.
-        let overlay_open = self.state.keyboard_overlay_open();
+        let overlay_open = self.state.window_holds_terminal_keys();
 
         // 편집 판정을 마친 키(넘긴 키)는 뒤 단계가 편집 바인딩으로 다시 고르지 않는다.
         if !overlay_open && self.try_consume_shortcut_key(engine, event, edit_judged.is_some()) {
