@@ -220,10 +220,10 @@ mod tests {
     fn the_key_path_keeps_egui_winit_edit_events() {
         let src = include_str!("../main.rs");
         let (_, after) = src
-            .split_once("let result = self.base.gpu.handle_egui_event(&self.base.winit, &event);")
+            .split_once("let result = self.base.gpu.handle_egui_event(&self.base.winit, event);")
             .expect("키 경로의 egui-winit 호출을 찾지 못했다");
         let (block, _) = after
-            .split_once("\n                result\n")
+            .split_once("\n        result\n")
             .expect("키 경로 블록의 끝을 찾지 못했다");
         let statements: Vec<&str> = block
             .lines()
@@ -232,7 +232,7 @@ mod tests {
             .collect();
         assert_eq!(
             statements,
-            ["self.remap_html_address_keys(engine, &event, from, edit_judged.is_some());"],
+            ["self.remap_html_address_keys(engine, event, from, edit_judged);"],
             "egui-winit 뒤 이벤트를 고치는 코드가 늘었다"
         );
     }

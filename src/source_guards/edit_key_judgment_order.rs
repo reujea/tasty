@@ -118,7 +118,11 @@ fn the_address_band_hears_that_the_edit_key_passed() {
         ),
         (
             "src/view/main.rs",
-            "self.remap_html_address_keys(engine, &event, from, edit_judged.is_some())",
+            "self.feed_egui_keyboard(engine, &event, edit_judged.is_some())",
+        ),
+        (
+            "src/view/main.rs",
+            "self.remap_html_address_keys(engine, event, from, edit_judged)",
         ),
     ] {
         assert!(
