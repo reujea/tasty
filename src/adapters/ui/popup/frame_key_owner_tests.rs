@@ -20,9 +20,12 @@ use crate::state::RequestContext;
 const PLUGIN: &str = "com.example.keys";
 const POPUP: u64 = 9;
 
-fn plugin_popup(z_seq: u64) -> tasty_host_plugin::PopupInstance {
+fn plugin_popup(
+    z_seq: u64,
+    escape: tasty_plugin_protocol::popup_decl::PopupEscape,
+) -> tasty_host_plugin::PopupInstance {
     let layout = tasty_plugin_manifest::PopupLayout {
-        escape: tasty_plugin_protocol::popup_decl::PopupEscape::Close,
+        escape,
         ..Default::default()
     };
     tasty_host_plugin::PopupInstance {
@@ -134,6 +137,11 @@ struct Scene {
 /// G(R 피커) → P(R plugin 팝업) → H(L 피커) 순서로 열어 순번이 H > P > G 다. H 와 G 는 각자 범위에서 포커스를
 /// 가진다.
 fn open_scene() -> Scene {
+    open_scene_with(tasty_plugin_protocol::popup_decl::PopupEscape::Close)
+}
+
+/// [`open_scene`]과 같고, P 의 Esc 선언이 `escape` 다.
+fn open_scene_with(escape: tasty_plugin_protocol::popup_decl::PopupEscape) -> Scene {
     crate::i18n::init("en");
     let (mut state, mut session) = scene(super::PANE_L);
     let (mgr, h, g) = {
@@ -149,7 +157,7 @@ fn open_scene() -> Scene {
         );
         mgr.insert_popup_instance_for_test(
             POPUP,
-            plugin_popup(tasty_host_plugin::next_popup_z_seq()),
+            plugin_popup(tasty_host_plugin::next_popup_z_seq(), escape),
         );
         let h = open_picker(&mut state, &mut engine, SURFACE_L);
         // 피커의 필요 크기는 반쪽 surface 보다 커서 접힌다. 본문을 그리도록 범위 안에 드는 크기로 고정한다.
@@ -526,8 +534,9 @@ fn a_quick_escape_reaches_the_plugin_owner_as_press_then_release() {
     );
 }
 
-/// Given 키 주인이 plugin 팝업 P 일 때, When Esc 를 누른 채 두 프레임에 걸쳐 누름이 오면(창이 두 번 처리해 넘긴다),
-/// Then P 가 받는 둘째 누름은 반복이다. 창을 거치지 않고 egui 가 그대로 처리한 결과와 같다.
+/// Given 키 주인이 Esc 선언 `Unfocus`(Esc 로 닫히지 않음)인 plugin 팝업 P 일 때, When Esc 를 누른 채 두 프레임에 걸쳐
+/// 누름이 오면(창이 두 번 처리해 넘긴다), Then 렌더는 P 를 닫는 요청을 내지 않아 앱 경로에서 P 가 열린 채 다음
+/// 프레임을 받고, P 가 받는 둘째 누름은 반복이다. 창을 거치지 않고 egui 가 그대로 처리한 결과와 같다.
 #[test]
 fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
     let Scene {
@@ -536,7 +545,7 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
         mgr,
         h: _,
         g: _,
-    } = open_scene();
+    } = open_scene_with(tasty_plugin_protocol::popup_decl::PopupEscape::Unfocus);
     let engine = session.borrow_mut();
     let ctx = Context::default();
     let draw = |state: &mut RequestContext, events| {
@@ -560,6 +569,17 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
         );
         draw(&mut state, events);
         sent.extend(sent_escape_keys(&mut state));
+        // 앱은 프레임 뒤 렌더의 닫기 요청을 꺼내 매니저에 적용한다
+        // (`App::dispatch_plugin_popup_events`). P 를 닫는 요청이 없으므로 P 는 열린 채 다음 Esc 를 받는다.
+        let closes = std::mem::take(&mut state.plugin_popup_closes);
+        assert!(
+            closes.iter().all(|(id, _)| *id != POPUP),
+            "Unfocus 선언 P 는 Esc 로 닫히지 않는다: {closes:?}"
+        );
+        assert!(
+            mgr.popup_instances().any(|(id, _)| id == POPUP),
+            "P 가 열려 있다"
+        );
     }
 
     let plain = Context::default();
