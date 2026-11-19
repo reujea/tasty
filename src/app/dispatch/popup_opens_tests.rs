@@ -13,7 +13,7 @@ use crate::state::MainViewState;
 
 const PLUGIN: &str = "com.example.window-popup";
 
-fn manager() -> (PluginManager, impl Sized) {
+fn manager() -> (PluginManager, tasty_host_plugin::manager::CallerStub) {
     let mut mgr = PluginManager::with_registries(
         Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
         Arc::new(crate::file::format::FileFormatRegistry::new()),
@@ -173,12 +173,11 @@ fn open_tool_in(
     );
 }
 
-/// 창을 닫으면 그 창에 결속한 창 범위 팝업도 닫힌다. 남은 창에서 같은 도구로 다시 열면 그 창에 결속돼 그려진다.
+/// 창을 닫으면 그 창에 결속한 창 범위 팝업이 그 자리에서 닫힌다. 같은 회차에(닫기 큐를 비우기 전에) 남은 창에서
+/// 같은 도구로 다시 열면 새 인스턴스가 그 창에 결속돼 그려진다.
 #[test]
 fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again() {
-    use crate::app::dispatch::plugin_popup_events::{
-        drain_plugin_popup_events, enqueue_popup_closes, retired_window_popup_closes,
-    };
+    use crate::app::dispatch::plugin_popup_events::close_retired_window;
     let (mut mgr, _stub) = manager();
     let (mut a, mut a_session) = crate::state::tests::test_state();
     let (mut b, mut b_session) = crate::state::tests::test_state();
@@ -194,14 +193,12 @@ fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again
     let first: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
     assert_eq!(first.len(), 1);
 
-    // 창 A를 버린다. 남은 창은 B뿐이다.
-    let closes = retired_window_popup_closes(&mut a);
-    enqueue_popup_closes(std::iter::once(&mut b), Some(&mut mgr), &closes);
-    drain_plugin_popup_events(std::iter::once(&mut b), Some(&mut mgr));
+    // 창 A를 버린다. 남은 창 B의 닫기 큐는 비우지 않는다.
+    close_retired_window(&mut a, Some(&mut mgr));
     assert_eq!(
         mgr.popup_instances().count(),
         0,
-        "the popup of the closed window is closed"
+        "the popup of the closed window is closed at once"
     );
 
     open_tool_in(&mut b, &mut b_session);
@@ -211,6 +208,63 @@ fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again
     );
     let reopened: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
     assert_eq!(reopened.len(), 1);
+    assert_ne!(reopened, first, "a new instance, not the closing one");
+    assert!(b.plugin_window_popups.contains(&reopened[0]));
     let in_b = drawn(&mut b, &b_session.borrow_mut().read(), &mgr);
     assert_eq!(in_b, reopened, "drawn in the remaining window");
+}
+
+/// 창을 닫으면 그 창 팝업의 자식 파일 피커가 취소되고 plugin에 취소 결과가 간다.
+#[test]
+fn closing_a_window_sends_a_cancelled_result_for_the_child_picker_of_its_popup() {
+    use crate::adapters::ui::popup::PopupScope;
+    use crate::app::dispatch::plugin_popup_events::close_retired_window;
+    let (mut mgr, stub) = manager();
+    let (mut a, mut a_session) = crate::state::tests::test_state();
+    open_tool_in(&mut a, &mut a_session);
+    open_pending_popups(
+        Some(&mut mgr),
+        std::iter::once((&mut a, a_session.borrow_mut())),
+    );
+    let owner = mgr
+        .popup_instances()
+        .map(|(id, _)| id)
+        .next()
+        .expect("opened");
+    crate::adapters::ui::popup::file_picker::instances::install_for_test(
+        &mut a,
+        PopupScope::Window,
+        crate::state::FilePickerData {
+            save_name: None,
+            folder: false,
+            request_id: crate::state::FilePickerRequestId(1),
+            mirror_ws_id: None,
+            remote_host: None,
+            current_dir: "/tmp".to_string(),
+            load: crate::state::FpLoadState::Empty,
+            local_query: None,
+            entries: Vec::new(),
+            selected: Vec::new(),
+            result: None,
+            requester: Some(crate::state::FilePickerRequester {
+                plugin_id: PLUGIN.to_string(),
+                request_id: 42,
+                owner_popup_instance: Some(owner),
+                origin_surface_id: None,
+            }),
+            filters: Vec::new(),
+        },
+    );
+    drop(stub.drain_requests());
+
+    close_retired_window(&mut a, Some(&mut mgr));
+
+    let sent = stub.drain_requests();
+    let result = sent
+        .iter()
+        .find(|(_, params)| params.to_string().contains("file_picker.result"))
+        .unwrap_or_else(|| panic!("file_picker.result sent: {sent:?}"));
+    let text = result.1.to_string();
+    assert!(text.contains("\"cancelled\":true"), "{text}");
+    assert!(text.contains("\"request_id\":42"), "{text}");
 }
