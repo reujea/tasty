@@ -130,7 +130,12 @@ fn count_outputs(screen: &str, marker: &Marker) -> usize {
 fn screen_of(cols: usize, output: &str) -> String {
     let mut surface = termwiz::surface::Surface::new(cols, 6);
     surface.add_change(output);
-    unwrapped_text(&surface.screen_lines(), cols)
+    let rows: Vec<_> = surface
+        .screen_lines()
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect();
+    unwrapped_text(&rows, cols)
 }
 
 #[test]
