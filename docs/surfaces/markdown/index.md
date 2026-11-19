@@ -39,7 +39,7 @@
 
   `file-open`은 `scope = "surface"`다. host가 연결한 대상 surface가 보일 때 그 영역 가운데에 뜬다. 제자리 변환은 그 surface를, 새 탭 열기는 당시 포커스된 surface를 대상으로 삼는다. 다른 workspace나 탭으로 이동하면 숨고 돌아오면 복원된다. event trigger로 열 때는 이벤트가 이 플러그인의 surface를 가리키면 그 surface, 대상이 없으면 창 범위를 사용한다([팝업 범위](../../design/systems/popup.md#plugin-popup-의-스코프)).
 
-  `large-file-confirm`도 `scope = "surface"`다. 대용량 파일을 연 markdown surface 가 `surface_id`를 실은 surface 이벤트를 발행하므로, 확인 팝업은 그 surface 영역 가운데에 뜨고 scrim도 그 surface 만 덮는다. surface 가 팝업 선언 크기(360×150)보다 좁거나 낮으면 창 가운데에 연다. host 는 대상이 이 플러그인의 surface 일 때만 연다.
+  `large-file-confirm`도 `scope = "surface"`다. 대용량 파일을 연 markdown surface 가 `surface_id`를 실은 surface 이벤트를 발행하므로, 확인 팝업은 그 surface 영역 가운데에 뜨고 scrim도 그 surface 만 덮는다. surface 가 팝업 선언 크기(360×150)보다 좁거나 낮으면 surface 안의 보기 버튼으로 접히고, 누르면 창 위로 펼친다([좁은 범위](../../design/systems/popup.md#좁은-범위-접기와-펼침)). host 는 대상이 이 플러그인의 surface 일 때만 연다.
 
   크기 기준은 `LARGE_FILE_LIMIT_BYTES`(1 MiB)를 넘는 파일이다. 생성·복원뿐 아니라 `markdown.reload`와 파일 감시도 같은 확인을 거친다(`reload_step`).
 

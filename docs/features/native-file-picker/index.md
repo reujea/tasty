@@ -297,7 +297,7 @@ mono caption 이며, 칩은 내용 폭이다. `fp-filter-max-width` 를 넘으�
 host는 trigger 때 아래 순서로 범위를 정한다.
 
 1. `owner_popup_instance`가 요청자 plugin의 열린 popup을 가리키면 그 popup의 선언 종류와 결속
-   target으로 정한 범위다. 부모가 좁은 surface 라 창 범위로 옮겨 그려져도 그 배치는 쓰지 않는다.
+   target으로 정한 범위다. 부모가 좁은 surface 에서 접히거나 창 위로 펼쳐져도 그 배치는 쓰지 않는다.
 2. owner가 없고 `origin_surface_id`가 있는 surface를 가리키면 그 surface 범위다.
 3. 그 밖에는 열지 않고 `-32602`로 거절한다. owner가 다른 plugin의 popup이거나 닫혔을 때,
    부모가 대상 없는 surface 선언일 때, `origin_surface_id`가 없는 surface를 가리킬 때도 같다.

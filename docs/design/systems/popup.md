@@ -5,7 +5,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 ## 8대 규칙
 
 1. **타이틀과 콘텐츠**: 높이 토큰을 따르는 상단 제목 영역과 하단 콘텐츠로 나눈다.
-2. **타이틀바**: 제목은 `font-size-max` 크기로 가운데에, 닫기 버튼은 오른쪽에 둔다. 버튼은 IconButton sm(`close` 아이콘)과 같은 모양·호버·누름 표시를 쓴다. `PopupDef.fullscreen_stage`를 선언한 팝업만 닫기 버튼 왼쪽에 같은 형태의 `fit` 전체화면 버튼과 툴팁을 표시한다. 제목은 버튼 수에 맞는 예약 폭을 양쪽에 대칭으로 비운 스트립 가운데에 오고 그 폭에서 말줄임한다([구현 가이드](../../dev-guide/popup-implementation.md#타이틀-길이-처리-elide)). [무대](fullscreen-stage.md)를 열어도 원본 팝업은 열린 채 유지한다. 무대는 같은 형태의 별도 콘텐츠다.
+2. **타이틀바**: 제목은 `font-size-max` 크기로 가운데에, 닫기 버튼은 오른쪽에 둔다. 버튼은 IconButton sm(`close` 아이콘)과 같은 모양·호버·누름 표시를 쓴다. `PopupDef.fullscreen_stage`를 선언한 팝업만 닫기 버튼 왼쪽에 같은 형태의 `fit` 전체화면 버튼과 툴팁을 표시한다. 창 위로 펼친 팝업은 버튼 묶음 맨 앞에 `shrink` 접기 버튼을 더한다([좁은 범위](#좁은-범위-접기와-펼침)). 제목은 버튼 수에 맞는 예약 폭을 양쪽에 대칭으로 비운 스트립 가운데에 오고 그 폭에서 말줄임한다([구현 가이드](../../dev-guide/popup-implementation.md#타이틀-길이-처리-elide)). [무대](fullscreen-stage.md)를 열어도 원본 팝업은 열린 채 유지한다. 무대는 같은 형태의 별도 콘텐츠다.
 3. **드래그 이동**: `drag_handle` 영역에서 이동한다. 기본은 타이틀바이며, 타이틀바 없는 `port_scanner`·`remote_tool`·`file_picker`는 실제로 그린 헤더 사각형을 매니저에 전달한다. 첫 프레임은 `DragHandle::Region`을 사용한다. 헤더 글자는 선택하지 않게 하고, 버튼·입력이 포인터를 사용 중이면 드래그를 시작하지 않는다(`is_using_pointer`).
 4. **커서**: 드래그 핸들은 grab, 크기 조절 테두리는 해당 방향의 리사이즈 커서를 표시한다.
 5. **배경**: 기본은 `surface_raised`, 패널형 팝업은 `bg_panel`이며 타이틀바는 `mantle`을 쓴다. 팝업마다 정의의 `decl.shell`(셸 묶음: Raised·Panel·InfoPanel·Dialog·Menu·BannerMenu·SearchBar)이 배경·테두리·제목줄 아래 선 토큰을 함께 정하고, `popup::draw::shell_colors`가 색을 고른다. `Content`는 관리자가 셸을 그리지 않고 콘텐츠가 자기 토큰으로 그린다(단축키 도움말의 페이드 셸). 터미널과 같은 배경색일 수 있으므로 색 하나만으로 팝업 경계를 판단하지 않는다.
@@ -46,7 +46,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 
 사용자 요청이 아니라 상태가 여닫기를 정하는 팝업은 여닫기 술어를 둔다(`popup::frame`의 `OPEN_WHEN`). 술어는 열 범위와 덮음 값(`DrivenOpen`)을 돌려주거나 없음을 돌려준다. 관리자(`PopupManager::follow_open_when`)는 그리기 전마다 술어 값을 직전 값과 비교해, 범위가 생기거나 바뀌면 포커스 없이 passive로 열고(같은 인스턴스는 정책대로 옮긴다) 없어지면 닫는다. 덮음 값이 바뀌면 모양이 다른 팝업이므로 열린 인스턴스를 닫고 새로 연다. 값이 같으면 아무것도 하지 않아 다른 경로로 닫힌 팝업을 값이 바뀌기 전까지 다시 열지 않는다. 저장된 원격 행의 연결 팝업(`remote_row`)이 술어를 쓴다. 활성 workspace가 그 팝업을 원하면 그 workspace 범위이고, 마지막 화면 위에 띄울 때는 범위를 덮는다.
 
-열기 요청(`OpenRequest::covers_scope`)은 선언과 다른 덮음 값을 그 인스턴스에만 줄 수 있다. 덮으면 modal 그림자와 포인터를 받는 scrim(`TakesPointer`), 덮지 않으면 popover 그림자와 보이기만 하는 scrim(`VisualOnly`)이다. 셋은 함께 바뀐다. 인스턴스가 닫히면 셸 값은 선언 값으로 돌아간다.
+열기 요청(`OpenRequest::covers_scope`)은 선언과 다른 덮음 값을 그 인스턴스에만 줄 수 있다. 덮으면 scrim·modal 그림자와 범위의 포인터 입력([덮는 팝업과 포인터](#덮는-팝업과-포인터))을 함께 가지고, 덮지 않으면 scrim 없이 popover 그림자다. 인스턴스가 닫히면 셸 값은 선언 값으로 돌아간다.
 
 ## Host ↔ Plugin popup z-order
 
@@ -92,9 +92,9 @@ plugin 이 `file_picker.trigger`로 host popup 을 열 때 `owner_popup_instance
 
 관계가 성립하면:
 
-- **범위 상속·숨김 보존** — host는 요청자와 부모 instance를 대조해 부모의 선언 종류와 결속 target으로 정한 범위를 자식 파일 피커에 적용한다(이 문서). 부모가 좁은 surface 라 그 frame 에 창 범위로 옮겨 그려져도 그 배치 결과는 쓰지 않는다. 부모가 숨으면 자식도 paint/hit/Esc/키 게이트에서 빠지고, 돌아오면 draft·선택·pending 요청을 그대로 이어간다. 숨김은 닫기로 처리하지 않는다. Window 부모의 피커는 창 범위다. owner 없는 피커의 범위는 아래 "파일 피커의 범위"를 따른다.
+- **범위 상속·숨김 보존** — host는 요청자와 부모 instance를 대조해 부모의 선언 종류와 결속 target으로 정한 범위를 자식 파일 피커에 적용한다(이 문서). 부모가 좁은 surface 에서 접히거나 창 위로 펼쳐져도 그 배치 결과는 쓰지 않는다. 부모가 숨으면 자식도 paint/hit/Esc/키 게이트에서 빠지고, 돌아오면 draft·선택·pending 요청을 그대로 이어간다. 숨김은 닫기로 처리하지 않는다. Window 부모의 피커는 창 범위다. owner 없는 피커의 범위는 아래 "파일 피커의 범위"를 따른다.
 - **스택 유지** — 자식이 열려 있는 동안 부모는 outside-click dismiss 대상에서 빠진다. 부모를 모달로 잠그는 것이 아니라 dismiss 목록에서만 제외한다(popup은 포커스를 독점하지 않으므로).
-- **Esc 소유권** — host/plugin 통틀어 그 프레임 최상단 popup **하나만** Esc 를 소비한다. Esc 를 한 번 누르면 최상단 팝업 하나가 닫힌다. host 쪽 판정은 `MainViewState.popup_escape_owner`(`popup::frame` 이 매 프레임 결정), plugin 쪽은 `popup_render` 가 같은 z 축으로 비교한다. **host popup 끼리의 Esc 중재는 범위 밖** — 각 view 가 자기 Esc 를 직접 소비하며, 현재 스택에 참여하는 `file_picker` 에만 게이트가 붙어 있다.
+- **Esc 소유권** — host/plugin 통틀어 그 프레임 최상단 popup **하나만** Esc 를 소비한다. Esc 를 한 번 누르면 최상단 팝업 하나가 닫힌다. 그 팝업이 창 위로 펼친 팝업이면 닫지 않고 다시 접는다([좁은 범위: 접기와 펼침](#좁은-범위-접기와-펼침)). host 쪽 판정은 `MainViewState.popup_escape_owner`(`popup::frame` 이 매 프레임 결정), plugin 쪽은 `popup_render` 가 같은 z 축으로 비교한다. **host popup 끼리의 Esc 중재는 범위 밖** — 각 view 가 자기 Esc 를 직접 소비하며, 현재 스택에 참여하는 `file_picker` 에만 게이트가 붙어 있다.
 - **연쇄 정리** — 부모가 어떤 경로로 닫히든 자식 피커에 취소 결과가 채워져, 평소 result 경로 그대로 plugin 에 `cancelled: true` 가 전달되고 피커도 닫힌다. 부모가 결속한 창이 닫힐 때는 창 상태를 버리기 전에 모든 창 상태(버리는 창, 남은 창, 보관된 창)에서 피커를 취소한다. 자식 피커는 부모와 다른 창에 열릴 수 있기 때문이다. 남은 창의 피커는 평소 result 경로로, 버리는 창의 피커는 그 창의 다음 프레임이 없으므로 그 자리에서 결과를 plugin 에 보낸다. 부모 없는 피커나 결과 유실을 남기지 않는다. 사용자가 이미 확정한 결과는 덮지 않는다.
 
 소유 관계는 자식(요청자 기록) 한 곳에만 있다 — 부모 쪽 사본이 없어 둘이 어긋날 수 없다. host는 특정 plugin 이름/kind로 분기하지 않는다. 범위 상속에서는 요청자 plugin과 부모 소유자가 같은지만 확인한다.
@@ -165,9 +165,28 @@ plugin의 egui-mesh 팝업도 키보드 입력을 차단한다. 호스트 PopupM
 
 `PopupManager::draw()` 가 `LayoutContext` 를 받아 스코프별 가시성 필터 + clamp rect 를 결정한다.
 
-clamp 는 팝업 크기를 경계 크기 이하로 줄이고 위치를 경계 안으로 옮긴다. 경계가 제목줄과 콘텐츠 여백보다 낮으면 콘텐츠 자리는 넓이 0 의 빈 사각형이 된다. 콘텐츠는 그 사각형으로 잘려 보이지 않지만 팝업은 열린 채 범위를 유지하고, 경계가 다시 넓어지면 sizer 가 있는 팝업은 원래 크기로 돌아간다.
+clamp 는 위치를 경계 안으로 옮긴다. 범위보다 큰 팝업을 어떻게 보일지는 선언 `decl.fit` 이 정한다([좁은 범위: 접기와 펼침](#좁은-범위-접기와-펼침)). `Shrink`(검색 바)만 크기를 경계 이하로 줄인다. 팝업은 필요 크기(`needed_size`)와 그린 크기를 따로 가지므로, 줄어든 뒤 경계가 다시 넓어지면 필요 크기로 돌아간다.
 
 Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 아이콘 크기(측정 160x28)를 client 크기로 보고한다. 이 값은 창 경계가 아니므로 egui 화면으로 쓰지 않고 직전 화면을 유지한다(`keep_screen_while_minimized`). 최소화한 동안 팝업은 clamp 로 줄거나 옮겨지지 않고, 복원하면 같은 자리·크기로 보인다.
+
+### 좁은 범위: 접기와 펼침
+
+창이 아닌 범위의 팝업이 범위보다 크면 접는다(`decl.fit = Collapse`, 검색 바 밖의 모든 host 팝업과 모든 plugin 팝업). 표시 상태는 인스턴스의 `PopupDisplay`(`src/adapters/ui/popup/display.rs`)이고, plugin 팝업은 창의 `plugin_popup_expanded` 에 펼침만 기록한다. 디자인 정본은 tasty-page 갤러리 Overlays › Dialogs 의 collapsed popup · popup focus Spec 이고 본체와 갤러리가 `tasty_ui_widgets::collapsed_popup` 을 함께 쓴다.
+
+| 상태 | 언제 | 그리는 것 | 배치 범위 |
+|---|---|---|---|
+| Fits | 매 프레임 필요 크기가 판정 경계에 두 축 모두 들어갈 때 | 팝업 그대로 | 논리 범위 |
+| Collapsed | 매 프레임 한 축이라도 들어가지 않을 때 | 그 팝업의 프레임에 "팝업 보기" 버튼 하나. 콘텐츠를 그리지 않고 plugin 에는 크기·입력을 보내지 않는다 | 논리 범위 |
+| Expanded | 보기 버튼을 누르거나, 키 주인일 때 Enter·Space | 창 위의 팝업. 자기 제목줄이 없는 팝업도 host 제목줄을 받는다 | 창(`placement_scope() = Window`) |
+
+- 판정 경계는 범위 사각형에서 선언 `scope_inset` 이면 `min(space-sm, 폭/2, 높이/2)` 를 네 변에서 뺀 것이다(plugin 은 surface 범위만 같은 inset). 필요 크기는 sizer 가 마지막으로 잰 값이다.
+- 접힌 버튼은 경계 가운데에 둔다. 라벨 버튼 프레임이 들어가지 않으면 아이콘 버튼 프레임이고, 그것도 들어가지 않는 축은 경계 시작에 붙이고 범위에서 자른다. 버튼만 히트 사각형이다. 덮는 팝업이면 접혀도 범위를 덮는다.
+- 펼친 팝업은 범위가 넓어져도 판정하지 않고 남는다. 창 가운데에 두고, 창보다 크면 크기를 유지한 채 왼쪽·위에 맞춘다. 덮음 선언과 무관하게 창을 덮는다(scrim·포인터·바깥 누름 판정이 창 범위로 나온다). 논리 범위(`scope`)는 바뀌지 않으므로 논리 범위가 숨으면 펼친 팝업도 숨는다.
+- 펼친 팝업의 제목줄 버튼 묶음 맨 앞(전체화면·닫기 왼쪽, 다른 버튼이 없으면 닫기 자리)에 접기(`shrink`) 버튼이 있다. 접기 버튼이나 Esc(키 주인일 때)는 다시 판정 상태로 돌린다. 닫기 사건(`on_close`, plugin `popup.closed`)은 없고 포커스·입력 값·인스턴스가 그대로다. host Esc 는 기존 Esc 처리 앞의 `PopupManager::refold_focused` 가 받는다.
+- 자식은 부모가 펼쳤으면 함께 펼치고, 부모가 접혔으면 부모 버튼 하나가 묶음을 대표한다(자식은 그리지 않는다). 부모가 들어가면 자식은 자기 크기로 판정한다. 펼친 묶음에서 Esc 나 접기 버튼은 묶음 뿌리부터 접는다. 부모가 plugin 팝업인 host 파일 피커는 부모 상태를 따르지 않고 자기 크기로 판정한다.
+- 닫았다 다시 열면 판정부터 한다.
+
+키 포커스를 가진(키 주인) 좁은 범위 팝업과 접힌 버튼 프레임은 셸 위쪽에 포커스 가장자리(`popup-focus-edge`)를 그린다. 창 범위와 펼친 팝업은 그리지 않는다.
 
 `Workspace` 스코프의 clamp 는 실제로는 윈도우 전체다 — 워크스페이스가 윈도우를 통째로
 차지하므로 둘이 같은 사각형이다. 따라서 이 스코프가 실질적으로 결정하는 것은 **가시성**이다.
@@ -212,17 +231,20 @@ scrim은 팝업이 속한 범위를 덮는다(이 문서). 범위 사각형은 `
 
 같은 범위의 팝업이 여럿이어도 scrim은 한 번 그린다. 창 scrim이 있으면 내부 surface scrim은 생략한다. 같은 알파를 중복 적용해 특정 영역만 더 어두워지는 것을 막는다.
 
-**어느 팝업이 scrim 을 까는가는 범위가 아니라 선언 `decl.covers_scope` 로 정한다.** `search_bar` 는 `Surface`
-범위를 쓰지만 anchored + scrim-less 갈래이므로 scrim 이 없다([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md)).
-현재 scrim 을 까는 host 팝업: `remote_tool` · `remote_attach` · `command_palette` ·
-`port_scanner` · `convert_surface` · 전송 진행/오류 · `explorer_conflict` · `confirm_close_remote` ·
-마지막 화면 위에 연 `remote_row`(열 때 덮음을 정한다). plugin 팝업은 예외 없이 깐다.
+**어느 팝업이 scrim 을 까는가는 범위가 아니라 덮음(`PopupState::covers()`)으로 정한다.** 선언 `decl.covers_scope` 의 기본은 덮음이고, 창 위로 펼친 팝업은 선언과 무관하게 창을 덮는다. 범위에 붙은 메뉴와 안내만 덮지 않는다: `approval` · `modifier_hint` · `mouse_capture_banner_menu` · `notifications` · `rail_category` · `restore_notice` · `search_bar` · `tools_menu`, 그리고 열 때 덮음을 정하는 `remote_row`(마지막 화면 위에 열면 덮는다). `search_bar` 는 `Surface` 범위를 쓰지만 anchored + scrim-less 갈래다([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md)). plugin 팝업은 예외 없이 덮는다. 목록은 `src/adapters/ui/popup/decl_table_tests.rs` 가 고정한다.
 
-scrim 이 받는 입력은 정의의 `scrim_input` 이 정한다. 마지막 화면 위에 연 `remote_row` 의 scrim 은 포인터를 받는다(`TakesPointer`).
-`explorer_conflict` 가 열려 있는 동안에는 탐색기로 끌어 놓기를 막는다(`BlocksDrop`). 나머지 scrim 은 보이기만 하고, scrim 을 누르는 것은 바깥 클릭이다(`VisualOnly`).
+### 덮는 팝업과 포인터
 
-어둡게 하는 것과 입력을 막는 것은 다른 일이다 — scrim 은 dim 만 하고, Esc 와 바깥 클릭의
-순서는 위 §수명 계약이 정한다.
+포인터 대상은 위에서부터 찾고, 덮는 팝업을 만나면 그 배치 범위 아래로 내려가지 않는다. 덮는 범위 안에서는 상자 밖이어도 대상이 그 팝업이다. 덮인 범위의 위젯·터미널·배너는 누름·뗌·휠·hover·이동 보고를 받지 않고, 파일을 놓을 수도 없다. 판정 자리는 [입력 계층](../../architecture/input-layer.md#순서-2--덮는-팝업은-그-범위의-포인터-입력을-모두-가진다)에 있다.
+
+상자 밖 누름이 그 팝업에 하는 일(`popup::press::route_outside_press`, plugin 은 같은 규칙의 `outside_press`):
+
+- 누른 좌표가 팝업의 배치 범위 밖이면 아무 일도 없다.
+- 그 좌표를 더 위의 팝업(host 상자·덮는 범위, plugin 상자·덮는 범위)이 덮었으면 알림을 받지 않는다.
+- 누르기 직전 포커스가 논리 범위 밖이었으면 들어오는 첫 클릭이라 닫거나 포커스를 풀지 않는다. 덮는 팝업이면 그 범위 안 누름이 팝업 것이라 포커스를 받는다.
+- 그 밖에는 바깥 클릭 선언대로 닫는다. 닫지 않는 덮는 팝업은 포커스를 받고, 덮지 않는 팝업은 `sticky_focus` 가 아니면 포커스를 푼다.
+
+scrim 은 어둡게 칠하는 그림이다. 입력은 위 덮음 판정이 정하고, Esc 와 바깥 클릭의 순서는 위 §수명 계약이 정한다.
 
 ### plugin popup 의 실행 중 선언과 열기
 
@@ -301,12 +323,10 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 셸·콘텐츠 합성·히트테스트 rect·Esc·바깥 클릭·키 게이트 어디에도 들어가지 않는다 — 보이지
 않는 rect 가 클릭을 삼키지 않는다. 인스턴스는 살아 있어 범위가 다시 보이면 그대로 복원된다.
 scrim 도 그 범위를 덮는다(위 §scrim 의 범위). 보이는 범위의 안쪽(테두리 inset 을 뺀 영역)이
-선언 크기(`size_hint`)보다 좁거나 낮으면 그 frame 에는 `window` 범위로 연다 — 범위에 맞춰
-줄이면 버튼이 잘려 확정할 수 없기 때문이다. 배치·scrim·히트테스트가 모두 이 실효 범위를 쓰고,
-surface 가 다시 넓어지면 surface 범위로 돌아온다. 숨은 범위는 대체하지 않고 계속 숨긴다.
-창보다 큰 셸은 창 크기로 줄어든다 — plugin 콘텐츠는 GPU 합성으로 올라가 egui 레이어 클립이
-그것까지 잘라 주지 않기 때문이다. 이 대체는 표시만 바꾼다. 자식 파일 피커는 부모의 선언 종류와
-결속 대상으로 정한 범위를 쓰므로, 부모가 창 범위로 대체돼도 피커는 부모 surface 범위로 뜬다.
+선언 크기(`size_hint`)보다 좁거나 낮으면 host 팝업과 같이 범위 안의 보기 버튼으로 접고, 누르면 창 위로
+펼친다(위 §좁은 범위: 접기와 펼침). 펼친 plugin 팝업은 선언 크기에 host 제목줄을 더한 상자이고,
+plugin 콘텐츠는 그 아래 영역에 합성한다. 접기·펼침은 표시만 바꾼다. 자식 파일 피커는 부모의 선언 종류와
+결속 대상으로 정한 범위를 쓰므로, 부모가 펼쳐져도 피커는 부모 surface 범위로 뜬다.
 
 현재 `scope = "surface"` 선언: markdown `file-open` · `large-file-confirm`.
 

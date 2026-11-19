@@ -73,11 +73,10 @@ PopupDef {
         drag_handle: PopupDragHandle::TitleBar,
         resizable: false,
         min_size: None,
-        covers_scope: false,                       // true = 소속 범위를 scrim 으로 덮음
+        covers_scope: false,                       // 기본 true(범위를 덮음). 범위에 붙은 메뉴·안내만 false
         shell: PopupShell::Raised,                 // 배경·테두리·제목선 토큰 묶음
         ..host_decl(popup_size(egui::vec2(280.0, 120.0)))
     },
-    scrim_input: ScrimInput::VisualOnly,
     title_key: "my_popup.title",     // i18n 키 (t() 로 번역)
     title_fn: None,                  // 동적 제목이면 Some(fn(&MainViewState, &EngineRead, &PopupPayload) -> String)
     sizer: None,                     // 동적 크기면 Some(fn(&MainViewState, &EngineRead, &PopupPayload) -> Vec2)
@@ -114,7 +113,6 @@ state.dispatch_intent(
 |------|------|------|
 | `id` | `PopupId`(`&'static str`) | 고유 식별자 |
 | `decl` | `PopupDecl` | 공통 선언. 팝업 사이 동작 차이는 이 값으로만 정한다(아래 "`PopupDecl` 속성") |
-| `scrim_input` | `ScrimInput` | scrim 이 받는 입력. `VisualOnly`(보이기만 함, 누르면 바깥 클릭) / `TakesPointer`(scrim 위 포인터가 팝업 것) / `BlocksDrop`(열린 동안 탐색기 끌어 놓기 차단). `covers_scope` 인 팝업만 의미가 있다 |
 | `title_key` | `&'static str` | i18n 키 → 타이틀바 |
 | `title_fn` | `Option<fn(&MainViewState, &EngineRead, &PopupPayload) -> String>` | 동적 제목. 설정 시 `title_key` 대신 매 프레임 인스턴스마다 호출하며 그 인스턴스의 데이터를 받는다. 길이 걱정 없이 원본 문자열 반환 — 폭 초과 시 elide 는 `draw.rs`가 공통 처리(아래 "타이틀 길이 처리" 참고) |
 | `sizer` | `Option<fn(&MainViewState, &EngineRead, &PopupPayload) -> Vec2>` | 동적 크기. **매 프레임 인스턴스마다 호출된다**(그 인스턴스의 데이터를 받는다) — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
@@ -127,7 +125,7 @@ state.dispatch_intent(
 
 ### `PopupDecl` 속성
 
-`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `covers_scope = false`, `instances = Single` 만 다르다. `PopupState::new`·`declared`는 범위를 인자로 받으며 기본 범위가 없다. 등록(`register_def`)은 `Window`를 넘기고, 열 때는 열기 함수가 범위를 다시 정한다.
+`PopupDecl` 은 `tasty-plugin-protocol` 의 `popup_decl` 모듈에 있는 직렬화 가능한 타입이다. host 정의는 `defs::host_decl(size)` 에서 시작해 팝업마다 다른 값을 적는다. `host_decl` 은 `PopupDecl::new` 의 기본값에서 `instances = Single` 만 다르다. 그래서 host 팝업은 기본으로 범위를 덮고, 범위에 붙은 메뉴·안내만 `covers_scope: false` 를 적는다. `PopupState::new`·`declared`는 범위를 인자로 받으며 기본 범위가 없다. 등록(`register_def`)은 `Window`를 넘기고, 열 때는 열기 함수가 범위를 다시 정한다.
 
 `MainViewState`가 없는 창(설정 창, 플러그인·프리셋 창의 파일 선택)도 자기 `PopupManager`에 `PopupDef`를 등록한다. 설정 창의 단축키 충돌 확인은 `keybinding_conflict_def()`이고, 창의 파일 선택은 메인 창의 `file_picker` 정의를 그대로 등록해 그 인스턴스로 연다. 이런 정의의 `draw_fn`은 아무것도 그리지 않는 `drawn_by_view`이고, 창은 `PopupManager::draw_view_local`로 콘텐츠를 그린다. 이 함수는 그리기 함수에 그 인스턴스가 Esc 주인(열린 것 중 맨 위)인지 알리고, 콘텐츠가 끝났다고 하면 그 인스턴스를 닫으며, 이 프레임에 닫힌 팝업 id를 돌려준다. 정의의 `on_close` 훅은 `MainViewState`를 받으므로 이 경로에서는 부르지 않는다.
 
@@ -136,10 +134,10 @@ state.dispatch_intent(
 | `scope_kind` | Window / Workspace / Pane / Tab / Surface | 인자 | 없음. 등록 범위는 `Window` 이고 실제 범위는 여는 쪽이 준다 |
 | `scope_target` | Origin / Parent / Explicit | Origin | 없음 |
 | `instances` | Single / PerScopeTarget / Multi / Queue | PerScopeTarget | host `PopupManager::instance_for`가 열기·다시 열기 요청이 쓸 인스턴스를 고를 때 읽는다 |
-| `covers_scope` | bool | true | scrim 을 깔지(`PopupManager::draw`) |
-| `fit` | Collapse / Shrink | Collapse | 없음. 지금은 모든 host 팝업이 범위에 맞춰 줄어든다. `search_bar` 만 `Shrink` 로 선언했다 |
+| `covers_scope` | bool | true | 덮는 노드인지(`PopupState::covers`, 창 위로 펼친 팝업도 덮는다). 덮으면 scrim 을 깔고(`PopupManager::draw`) 배치 범위의 포인터 입력을 모두 가진다(`popup::press`, [덮는 팝업과 포인터](../design/systems/popup.md#덮는-팝업과-포인터)) |
+| `fit` | Collapse / Shrink | Collapse | 범위보다 클 때. `Collapse` 는 보기 버튼으로 접고 누르면 창 위로 펼친다(`popup::display`, [좁은 범위](../design/systems/popup.md#좁은-범위-접기와-펼침)). `Shrink` 는 범위에 맞춰 줄인다. `search_bar` 만 `Shrink` 다. 창 범위 팝업은 접지 않는다 |
 | `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor / Column | ScopeCenter | `Column` 과 `ScopeTop` 만 읽는다. `Column` 인스턴스는 호출자가 `set_notice_column` 으로 정한 안내 열에 연 순서로 위에서부터 쌓이고(폭은 열의 폭, 높이는 직전 프레임의 크기), 그리기 결과의 `column_rect` 가 차지한 사각형의 합이다. `ScopeTop` 인 보이는 팝업의 사각형은 `reserved_top_bands` 가 다른 배치가 피할 띠로 돌려준다. 나머지 값의 위치는 여는 쪽 `OpenRequest` 의 `placement` 가 정한다. 범위 가운데가 아닌 곳에 붙는 6개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴·`modifier_hint`·`restore_notice`)만 다른 값을 적었다. 메인 창은 프레임마다 팝업을 그리기 전에 창 범위 배너와 `reserved_top_bands` 아래로 안내 열을 정하고, `column_rect` 를 attach 대기 칩이 이어 붙을 자리로 쓴다 |
-| `scope_inset` | bool | true | 없음. Surface 범위의 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다. 원격 행 팝업은 선언 하나(`remote_row`)이고, 열 때 정하는 덮음 값(`OpenRequest::covers_scope`)으로 범위를 덮는 모양(마지막 화면 위)과 덮지 않는 모양을 고른다 |
+| `scope_inset` | bool | true | 접힘 판정 경계에만 쓴다(`popup::display`). 배치 경계의 Surface 범위 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다. 원격 행 팝업은 선언 하나(`remote_row`)이고, 열 때 정하는 덮음 값(`OpenRequest::covers_scope`)으로 범위를 덮는 모양(마지막 화면 위)과 덮지 않는 모양을 고른다 |
 | `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenRequest` 의 `focus` 와 요청 출처가 정한다. 값은 사용자가 여는 주 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 `remote_row` 가 false 다. `notifications` 는 true 지만 단축키로 열 때는 지금 포커스를 가져가지 않는다(사이드바 클릭과 열기 경로가 다르다) |
 | `keyboard` | None / Keys / Text | Keys | `None` 인지만 읽는다. `None` 인 팝업은 열거나 눌러도 키보드 포커스를 받지 않고 다른 팝업의 포커스도 바꾸지 않으며, 맨 앞으로 올라오지 않고 다른 팝업 아래에 그린다. Esc 주인(`topmost_visible_open`)도 되지 않는다. `Keys`·`Text` 의 차이는 읽지 않는다. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸, 창의 파일 선택도 이 정의의 인스턴스) |
 | `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 `remote_row` 가 `Unfocus` 다. 하위 화면이 있는 팝업은 `Close` 지만 하위 화면에서는 첫 Esc 가 하위 화면만 닫는다(`dag_list` 상세 보기는 목록으로, `remote_tool` 양식은 앞 화면으로) |
@@ -155,7 +153,7 @@ state.dispatch_intent(
 | `shadow` | Modal / Popover | Modal | 셸 그림자 토큰(`draw::shadow_token`) |
 | `content_margin` | Default / None | Default | 콘텐츠 둘레 공통 여백(`space-xs`). 구역별 여백을 직접 두는 팝업은 `None` |
 
-"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 35개(정의 34개와 설정 창의 단축키 충돌 확인)의 scrim·scrim 입력·그림자·여백·셸 색과 `keyboard`·`escape`·`outside_click`·`focus_on_open` 값을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
+"없음" 인 속성은 선언 값과 실제 동작이 다를 수 있다. 그때 동작은 오른쪽 칸이 적은 코드가 정한다. `decl_table_tests.rs` 가 등록된 팝업 35개(정의 34개와 설정 창의 단축키 충돌 확인)의 scrim·그림자·여백·셸 색과 `keyboard`·`escape`·`outside_click`·`focus_on_open` 값을 표로 고정한다. 팝업 공용 코드(`popup.rs`, `popup/` 바로 아래의 공용 파일)에서 팝업 id 를 비교해 그리기 값을 정하면 `popup_attributes_are_declared` 가 실패한다.
 
 ### sizer 는 매 프레임 돈다 (열 때 한 번이 아니다)
 

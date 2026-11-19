@@ -16,8 +16,8 @@ z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안�
 |------|--------|------|------|
 | **0** | **전체화면 무대** | `state.fullscreen_stage_active()` | 활성이면 **1~7 전부를 좌표 판정 없이 무조건 차단**(아래) |
 | 1 | 모달/오버레이 | `overlay_open` | 열려 있으면 터미널 입력 차단 |
-| 2 | Popup | `state.popup_hovered` | 팝업 위면 소비(터미널 무시) |
-| 2b | 포커스를 받지 않는 팝업(Modifier-hint·복원 안내) | 누름: `PopupManager::quiet_popup_covers_physical`, 그 밖: `state.popup_hovered` | 창 팝업 인스턴스라 Popup 과 같은 판정이다. 누름은 직전 프레임에 그린 사각형과 winit 포인터로 순서 2c·3 보다 먼저 가려 분할선 드래그와 비활성 surface 전환을 막는다 — 드래그/그립 크기 조절/X·안내 버튼 클릭이 하위 surface 포커스로 새지 않는다 |
+| 2 | Popup | `MainView::pointer_on_popup()` = `state.popup_hovered` 또는 직전 프레임에 그린 팝업 노드(`MainViewState::popup_owns_point`: host·plugin 팝업 상자와 덮는 팝업의 덮는 사각형) | 팝업 노드 위면 소비(터미널 무시). 누름도 이 판정으로 순서 2c·3 보다 먼저 가린다 |
+| 2b | 포커스를 받지 않는 팝업(Modifier-hint·복원 안내) | 순서 2 와 같다 | 창 팝업 인스턴스라 Popup 과 같은 판정이다. 드래그/그립 크기 조절/X·안내 버튼 클릭이 하위 surface 포커스로 새지 않는다 |
 | 2c | **Divider press** (좌클릭 press) | `!egui_consumed && !banner_hovered` 이고 `find_*_divider_at` | 포커스를 바꾸지 않고 드래그 시작 — 비활성 surface 쪽 hit 띠도 첫 press 부터(아래 참고) |
 | 3 | **비활성 surface 전환** (좌클릭 press) | `surface_id_at_position != focused` | 첫 클릭은 surface 전환이 소비 — 그 위 배너/egui 위젯과 무관(아래 참고) |
 | 4 | egui 위젯 (사이드바·탭바·오버레이) | `egui_consumed` | egui 가 소비하면 종료 |
@@ -25,7 +25,7 @@ z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안�
 | 6 | Divider | `find_*_divider_at`(threshold) | 분할 경계 안이면 소비(드래그 시작) |
 | 7 | Terminal/Surface | — | 최하위, 콘텐츠가 처리 |
 
-`handle_cursor_moved` / `handle_mouse_input` / `handle_mouse_wheel` 이 모두 같은 가드(`egui_consumed || overlay_open || state.popup_hovered || state.banner_hovered`)로 상위 레이어를 먼저 거른 뒤 divider → terminal 로 내려간다. 배너는 **자기 영역의 마우스를 소비**(뒤로 전파 X)하는 focus-less 오버레이라 popup 과 같은 precedence 에서 차단한다(Toast 는 입력을 통과시키므로 이 가드에 없다 — [banner 시스템](../design/systems/banner.md)).
+`handle_cursor_moved` / `handle_mouse_input` / `handle_mouse_wheel` 이 모두 같은 가드(`egui_consumed || overlay_open || pointer_on_popup() || state.banner_hovered`)로 상위 레이어를 먼저 거른 뒤 divider → terminal 로 내려간다. 배너는 **자기 영역의 마우스를 소비**(뒤로 전파 X)하는 focus-less 오버레이라 popup 과 같은 precedence 에서 차단한다(Toast 는 입력을 통과시키므로 이 가드에 없다 — [banner 시스템](../design/systems/banner.md)).
 
 **순서 6 은 버튼 없는 hover motion 보고에도 적용된다.** DECSET 1003(AnyEventMouse)을 켠 앱에 커서 이동을 보고하기 전에 press 경로와 **같은 threshold**(`state::mouse::DIVIDER_HIT_THRESHOLD`)로 divider 밴드를 먼저 판정하고, 밴드 안이면 보고하지 않는다 — 밴드는 gap(1~2px)보다 넓어 양쪽 surface rect 안쪽까지 겹치므로, 이 가드가 없으면 "커서는 ↔ 인데 그 아래 TUI 는 hover 를 계속 받는" 불일치가 생긴다. OS 창 리사이즈 가장자리 밴드와 divider 드래그 진행 중에도 같은 이유로 보고하지 않는다. 대상은 focused surface 한정이다([터미널 (Terminal)](../surfaces/terminal/index.md)) — 순서 3(비활성 surface 전환)이 클릭에 대해 세운 "배경 캡쳐 TUI 로 마우스가 새지 않게" 원칙을 hover 에도 적용한 것이며, 다만 hover 는 포커스를 옮기지 않는다. **버튼을 누른 채 시작한 드래그 motion 은 이 가드들의 적용 대상이 아니다** — 대상 surface 가 press 시점에 고정되므로 밴드/이웃 surface 로 나가도 원래 surface 기준으로 계속 보고된다.
 
@@ -49,7 +49,13 @@ egui-mesh surface는 포인터 이동과 버튼 이벤트를 `egui_mesh_target_a
 divider 갱신이 멈추고, release도 plugin이 소비해 드래그가 끝나지 않는다.
 터미널과 explorer surface는 이 mesh 전달 경로를 사용하지 않는다.
 
-**Modifier-hint**(modifier 홀드 시 뜨는 패널)는 키보드 포커스를 받지 않는 창(Window) 범위 팝업 인스턴스다(선언 `keyboard = None`). 그 위 마우스는 다른 팝업처럼 `popup_hovered` 에 들어가 통합 가드(소비·휠·커서)를 거친다. 누름은 복원 안내와 같이 `quiet_popup_covers_physical` 로 click-to-activate·분할선 press 보다 먼저 가린다. 패널 위 좌클릭은 하위 surface 로 포커스를 옮기지 못하고(banner 와 차이), 드래그 이동·그립 크기 조절·X 클릭이 터미널 포커스·selection·마우스 리포트로 새지 않는다. 패널을 눌러도 키보드 포커스와 다른 팝업의 포커스는 바뀌지 않는다([포커스 정책](../design/policies/focus.md)).
+**Modifier-hint**(modifier 홀드 시 뜨는 패널)는 키보드 포커스를 받지 않는 창(Window) 범위 팝업 인스턴스다(선언 `keyboard = None`). 그 위 마우스는 다른 팝업처럼 `popup_hovered` 에 들어가 통합 가드(소비·휠·커서)를 거친다. 누름은 복원 안내와 같이 순서 2 의 팝업 노드 판정으로 click-to-activate·분할선 press 보다 먼저 가린다. 패널 위 좌클릭은 하위 surface 로 포커스를 옮기지 못하고(banner 와 차이), 드래그 이동·그립 크기 조절·X 클릭이 터미널 포커스·selection·마우스 리포트로 새지 않는다. 패널을 눌러도 키보드 포커스와 다른 팝업의 포커스는 바뀌지 않는다([포커스 정책](../design/policies/focus.md)).
+
+### 순서 2 — 덮는 팝업은 그 범위의 포인터 입력을 모두 가진다
+
+포인터 대상은 위에서부터 찾고, 덮는 팝업(선언 `covers_scope` 이거나 창 위로 펼친 팝업, [popup 시스템](../design/systems/popup.md#덮는-팝업과-포인터))을 만나면 그 배치 범위 아래로 내려가지 않는다. 그 범위 안에서는 팝업 상자 밖이어도 대상이 그 팝업이다. 그래서 덮인 범위 위의 누름·뗌·휠·hover·마우스 리포팅 이동 보고·커서 모양·링크 hover·링크 복사 키·분할선 잡기·click-to-activate·배너(host·plugin)는 모두 입력을 받지 않는다. 뗌은 누름이 간 곳을 따른다 — 팝업이 가져간 누름의 뗌은 그 뒤 팝업이 닫혀도 아래로 가지 않는다(`blocked_press_buttons`). 파일 놓기도 같은 판정이라 덮인 범위에만 놓을 수 없다.
+
+winit 쪽은 직전 프레임에 그린 사각형으로 판정한다(`popup_owns_point`). egui 쪽은 덮는 팝업마다 덮는 사각형을 채우는 hover 감지 레이어(`popup::press::block_pointer`)를 그 팝업 레이어 바로 아래에 둔다. egui 의 hit test 는 포인터 둘레를 다 덮는 위젯이 있는 레이어 아래를 보지 않으므로 사이드바·탭 바·탐색기·상태바 위젯이 누름·hover·휠을 받지 않는다. 이 레이어는 끌기를 감지하지 않는다. 감지하면 팝업 상자 중 콘텐츠 밖(제목줄·테두리) 누름을 이 레이어가 가져가 덮는 팝업을 옮기거나 크기를 바꿀 수 없다. 두 쪽 모두 열린 다음 프레임부터 막는다.
 
 ### 순서 0 — 전체화면 무대는 좌표를 묻지 않는다
 
