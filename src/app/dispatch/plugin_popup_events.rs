@@ -43,61 +43,115 @@ pub(crate) fn cancel_child_file_picker(
     }
 }
 
+/// 닫기 요청을 모든 상태의 닫기 큐에 넣는다. 어느 창이 자식 피커를 갖는지 몰라 모든 상태에 넣고
+/// 비울 때 instance_id로 중복을 제거한다. 상태가 하나도 없으면 비울 곳이 없어 매니저를 직접 닫는다.
+pub(crate) fn enqueue_popup_closes<'a>(
+    sessions: impl Iterator<Item = &'a mut MainViewState>,
+    mgr: Option<&mut crate::plugin::PluginManager>,
+    closes: &[(u64, tasty_plugin_protocol::PopupCloseReason)],
+) {
+    let mut queued = false;
+    for s in sessions {
+        s.plugin_popup_closes.extend_from_slice(closes);
+        queued = true;
+    }
+    if !queued && let Some(mgr) = mgr {
+        for (instance_id, reason) in closes {
+            mgr.close_popup_instance(*instance_id, *reason);
+        }
+    }
+}
+
+/// 버리는 창에 결속한 창 범위 plugin 팝업을 닫을 요청. 팝업은 범위 노드인 창의 자식이라 창과 함께 닫는다.
+pub(crate) fn retired_window_popup_closes(
+    retired: &mut MainViewState,
+) -> Vec<(u64, tasty_plugin_protocol::PopupCloseReason)> {
+    std::mem::take(&mut retired.plugin_window_popups)
+        .into_iter()
+        .map(|id| (id, tasty_plugin_protocol::PopupCloseReason::TargetGone))
+        .collect()
+}
+
+/// 상태마다 쌓인 popup·banner 닫기와 포커스 변경을 매니저에 전달한다.
+pub(crate) fn drain_plugin_popup_events<'a>(
+    sessions: impl Iterator<Item = &'a mut MainViewState>,
+    mgr: Option<&mut crate::plugin::PluginManager>,
+) {
+    let mut drained_closes: Vec<(u64, tasty_plugin_protocol::PopupCloseReason)> = Vec::new();
+    let mut drained_banner_closes: Vec<(u64, tasty_plugin_protocol::BannerCloseReason)> =
+        Vec::new();
+    let mut drained_focus_bumps: Vec<u64> = Vec::new();
+    for s in sessions {
+        let closes = std::mem::take(&mut s.plugin_popup_closes);
+        cancel_child_file_picker(s, &closes);
+        drained_closes.extend(closes);
+        drained_banner_closes.append(&mut s.plugin_banner_closes);
+        drained_focus_bumps.append(&mut s.plugin_popup_focus_bumps);
+    }
+    if drained_closes.is_empty()
+        && drained_banner_closes.is_empty()
+        && drained_focus_bumps.is_empty()
+    {
+        return;
+    }
+    let Some(mgr) = mgr else {
+        return;
+    };
+    // 같은 인스턴스는 첫 닫기 사유만 처리한다.
+    let mut seen = std::collections::HashSet::new();
+    for (instance_id, reason) in drained_closes {
+        if seen.insert(instance_id) {
+            mgr.close_popup_instance(instance_id, reason);
+        }
+    }
+    let mut seen_banner = std::collections::HashSet::new();
+    for (instance_id, reason) in drained_banner_closes {
+        if seen_banner.insert(instance_id) {
+            mgr.close_banner_instance(instance_id, reason);
+        }
+    }
+    for instance_id in drained_focus_bumps {
+        mgr.touch_popup_instance_z(instance_id);
+    }
+}
+
 impl App {
     /// 렌더·IPC·debug 닫기를 같은 큐로 보내 자식 피커도 정리한다.
-    /// 어느 창이 자식을 갖는지 몰라 모든 상태에 넣고 instance_id로 중복을 제거한다.
     pub(crate) fn enqueue_plugin_popup_close(
         &mut self,
         instance_id: u64,
         reason: tasty_plugin_protocol::PopupCloseReason,
     ) {
-        let mut queued = false;
-        for (s, _engine) in self.engines_mut().sessions() {
-            s.plugin_popup_closes.push((instance_id, reason));
-            queued = true;
+        enqueue_popup_closes(
+            crate::app::window_access::engines_mut!(self)
+                .sessions()
+                .map(|(s, _)| s),
+            self.plugin_manager.as_mut(),
+            &[(instance_id, reason)],
+        );
+    }
+
+    /// 버리는 창에 결속한 창 범위 plugin 팝업을 공통 닫기 큐로 닫는다. 창은 이미 창 목록에서 빠져 있다.
+    pub(crate) fn close_retired_window_popups(&mut self, retired: &mut MainViewState) {
+        let closes = retired_window_popup_closes(retired);
+        if closes.is_empty() {
+            return;
         }
-        // 상태가 하나도 없으면 큐를 비울 곳도 없어 매니저를 직접 닫는다.
-        if !queued && let Some(mgr) = self.plugin_manager.as_mut() {
-            mgr.close_popup_instance(instance_id, reason);
-        }
+        enqueue_popup_closes(
+            crate::app::window_access::engines_mut!(self)
+                .sessions()
+                .map(|(s, _)| s),
+            self.plugin_manager.as_mut(),
+            &closes,
+        );
     }
 
     pub(crate) fn dispatch_plugin_popup_events(&mut self) {
-        let mut drained_closes: Vec<(u64, tasty_plugin_protocol::PopupCloseReason)> = Vec::new();
-        let mut drained_banner_closes: Vec<(u64, tasty_plugin_protocol::BannerCloseReason)> =
-            Vec::new();
-        let mut drained_focus_bumps: Vec<u64> = Vec::new();
-        for (s, _engine) in self.engines_mut().sessions() {
-            let closes = std::mem::take(&mut s.plugin_popup_closes);
-            cancel_child_file_picker(s, &closes);
-            drained_closes.extend(closes);
-            drained_banner_closes.append(&mut s.plugin_banner_closes);
-            drained_focus_bumps.append(&mut s.plugin_popup_focus_bumps);
-        }
-        if drained_closes.is_empty()
-            && drained_banner_closes.is_empty()
-            && drained_focus_bumps.is_empty()
-        {
-            return;
-        }
-        let Some(mgr) = self.plugin_manager.as_mut() else {
-            return;
-        };
-        // 같은 인스턴스는 첫 닫기 사유만 처리한다.
-        let mut seen = std::collections::HashSet::new();
-        for (instance_id, reason) in drained_closes {
-            if seen.insert(instance_id) {
-                mgr.close_popup_instance(instance_id, reason);
-            }
-        }
-        let mut seen_banner = std::collections::HashSet::new();
-        for (instance_id, reason) in drained_banner_closes {
-            if seen_banner.insert(instance_id) {
-                mgr.close_banner_instance(instance_id, reason);
-            }
-        }
-        for instance_id in drained_focus_bumps {
-            mgr.touch_popup_instance_z(instance_id);
-        }
+        drain_plugin_popup_events(
+            crate::app::window_access::engines_mut!(self)
+                .sessions()
+                .map(|(s, _)| s),
+            self.plugin_manager.as_mut(),
+        );
     }
 }

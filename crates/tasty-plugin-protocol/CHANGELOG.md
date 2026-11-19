@@ -14,6 +14,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `PopupCloseReason::TargetGone`을 plugin 팝업에도 보낸다. 창 범위 plugin 팝업은 결속한 창이 닫히면 이 사유로 닫힌다. 기존 변형이라 wire 형식은 그대로이고 `api_version`은 유지한다.
+
 ### Added
 
 - 실행 중 팝업 선언과 열기를 추가했다. 이 크레이트 0.2.16 다음 버전부터다(버전은 tasty 릴리스 때 올린다). plugin → host 메서드 `popup.declare`(`METHOD_POPUP_DECLARE`, params `PopupDeclareParams { popup_id, decl: PopupDeclSpec }`, 응답 빈 객체)와 `popup.show`(`METHOD_POPUP_SHOW`, params `PopupShowParams { popup_id, target: PopupShowTarget, context }`, 응답 `PopupShowResult { instance_id }`)다. `PopupDeclSpec`은 `scope_kind`·`size`만 필수인 부분 선언이고 host가 기본 선언 위에 준 필드만 덮는다. `target`은 필수이며 종류가 선언의 `scope_kind`와 같아야 한다. 지금 여는 대상은 `window { id }`·`focused_window`·`surface { id }`이고 창 범위 인스턴스는 그 창에만 그려진다. 0.2.16으로 릴리스된 host는 두 메서드를 모르므로(develop은 버전이 0.2.16인 채 이미 지원한다) plugin은 호출 실패를 처리해야 한다. 새 메서드 추가이므로 `api_version`은 유지한다. [design/systems/popup.md §plugin popup 의 실행 중 선언과 열기](../../docs/design/systems/popup.md#plugin-popup-의-실행-중-선언과-열기).

@@ -429,8 +429,11 @@ impl App {
     pub(crate) fn retire_main_window(
         &mut self,
         wid: winit::window::WindowId,
-        main: Box<crate::view::main::MainView>,
+        mut main: Box<crate::view::main::MainView>,
     ) {
+        // 아래 세 갈래 모두 이 MainViewState를 버린다. 그 창에 결속한 plugin 팝업도 함께 닫는다.
+        // 마지막 창은 park_main_window가 state를 보관하므로 여기로 오지 않고 결속도 남는다.
+        self.close_retired_window_popups(&mut main.state);
         if let Some(id) = self.engines.of_window(wid)
             && let Some(session) = self.engines.session_mut(id)
         {

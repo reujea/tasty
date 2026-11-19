@@ -155,3 +155,62 @@ fn reopening_from_another_window_keeps_the_first_window() {
         b.plugin_window_popups
     );
 }
+
+fn open_tool_in(
+    state: &mut MainViewState,
+    session: &mut crate::runtime::engine_session::EngineSession,
+) {
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let target = state.command_target(&read);
+    let surface = state.focused_surface_id(&read);
+    crate::adapters::ui::tools_menu::invoke_tool_on(
+        state,
+        &read,
+        &tool(),
+        surface,
+        target.structure_target(),
+    );
+}
+
+/// 창을 닫으면 그 창에 결속한 창 범위 팝업도 닫힌다. 남은 창에서 같은 도구로 다시 열면 그 창에 결속돼 그려진다.
+#[test]
+fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again() {
+    use crate::app::dispatch::plugin_popup_events::{
+        drain_plugin_popup_events, enqueue_popup_closes, retired_window_popup_closes,
+    };
+    let (mut mgr, _stub) = manager();
+    let (mut a, mut a_session) = crate::state::tests::test_state();
+    let (mut b, mut b_session) = crate::state::tests::test_state();
+    open_tool_in(&mut a, &mut a_session);
+    open_pending_popups(
+        Some(&mut mgr),
+        [
+            (&mut a, a_session.borrow_mut()),
+            (&mut b, b_session.borrow_mut()),
+        ]
+        .into_iter(),
+    );
+    let first: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
+    assert_eq!(first.len(), 1);
+
+    // 창 A를 버린다. 남은 창은 B뿐이다.
+    let closes = retired_window_popup_closes(&mut a);
+    enqueue_popup_closes(std::iter::once(&mut b), Some(&mut mgr), &closes);
+    drain_plugin_popup_events(std::iter::once(&mut b), Some(&mut mgr));
+    assert_eq!(
+        mgr.popup_instances().count(),
+        0,
+        "the popup of the closed window is closed"
+    );
+
+    open_tool_in(&mut b, &mut b_session);
+    open_pending_popups(
+        Some(&mut mgr),
+        std::iter::once((&mut b, b_session.borrow_mut())),
+    );
+    let reopened: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
+    assert_eq!(reopened.len(), 1);
+    let in_b = drawn(&mut b, &b_session.borrow_mut().read(), &mgr);
+    assert_eq!(in_b, reopened, "drawn in the remaining window");
+}

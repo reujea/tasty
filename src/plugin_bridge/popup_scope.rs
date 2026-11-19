@@ -61,7 +61,8 @@ pub(crate) fn is_open(
 }
 
 /// 방금 연 인스턴스가 창 범위면 `window` 창에 결속한다. 이미 열려 있던 인스턴스(`was_open`)는
-/// 처음 결속한 창을 유지한다. surface 결속(`bind_popup_instance_surface`)과 같은 규칙이다.
+/// 처음 결속한 창을 유지한다. 결속한 창을 버리면 그 인스턴스도 닫히므로(`App::retire_main_window`)
+/// 열려 있는 창 범위 인스턴스는 늘 살아 있는 창이나 보관된(parked) 창 상태에 결속돼 있다.
 #[cfg(feature = "gui")]
 pub(crate) fn bind_window_popup(
     window: &mut crate::state::MainViewState,
