@@ -534,57 +534,81 @@ fn a_quick_escape_reaches_the_plugin_owner_as_press_then_release() {
     );
 }
 
+/// 프레임 뒤 앱이 렌더 요청을 처리하는 단계(`App::dispatch_plugin_popup_events`)를 같은 순서로 밟는다. popup 닫기
+/// 요청은 자식 피커 정리(`cancel_child_file_picker`)를 거쳐 돌려준다. 매니저에 popup 닫기를 적용하는 호출은 앱 처리
+/// 파일 밖에서 부르지 않으므로(doc guard `plugin_popup_close_chokepoint`) 부른 쪽이 그 목록을 단정한다. banner 닫기와
+/// popup 순서 올림은 매니저에 적용한다.
+fn dispatch_like_app(
+    state: &mut RequestContext,
+    mgr: &mut PluginManager,
+) -> Vec<(u64, tasty_plugin_protocol::PopupCloseReason)> {
+    let closes = std::mem::take(&mut state.plugin_popup_closes);
+    crate::app::dispatch::plugin_popup_events::cancel_child_file_picker(state, &closes);
+    for (id, reason) in std::mem::take(&mut state.plugin_banner_closes) {
+        mgr.close_banner_instance(id, reason);
+    }
+    for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
+        mgr.touch_popup_instance_z(id);
+    }
+    closes
+}
+
 /// Given 키 주인이 Esc 선언 `Unfocus`(Esc 로 닫히지 않음)인 plugin 팝업 P 일 때, When Esc 를 누른 채 두 프레임에 걸쳐
-/// 누름이 오면(창이 두 번 처리해 넘긴다), Then 렌더는 P 를 닫는 요청을 내지 않아 앱 경로에서 P 가 열린 채 다음
-/// 프레임을 받고, P 가 받는 둘째 누름은 반복이다. 창을 거치지 않고 egui 가 그대로 처리한 결과와 같다.
+/// 누름이 오면(창이 두 번 처리해 넘긴다), Then 프레임마다 앱 처리 단계를 거친 뒤에도 P 는 닫는 요청 없이 열린 채
+/// 다음 프레임을 받는다. P 는 첫 프레임에 새 누름, 둘째 프레임에 반복 누름을 받는다. 창을 거치지 않고 egui 가
+/// 그대로 처리한 프레임별 결과와 같다.
 #[test]
 fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
     let Scene {
         mut state,
         mut session,
-        mgr,
+        mut mgr,
         h: _,
         g: _,
     } = open_scene_with(tasty_plugin_protocol::popup_decl::PopupEscape::Unfocus);
     let engine = session.borrow_mut();
     let ctx = Context::default();
-    let draw = |state: &mut RequestContext, events| {
+    let draw = |state: &mut RequestContext, mgr: &PluginManager, events| {
         frame(
             &ctx,
             state,
             &engine.read(),
-            &mgr,
+            mgr,
             &layout_without_l(),
             events,
         )
     };
-    draw(&mut state, Vec::new());
+    draw(&mut state, &mgr, Vec::new());
+    assert!(dispatch_like_app(&mut state, &mut mgr).is_empty());
     state.take_pending_intents();
-    let mut sent = Vec::new();
-    for _ in 0..2 {
+
+    let plain = Context::default();
+    for (n, expected) in [vec![(true, false)], vec![(true, true)]]
+        .into_iter()
+        .enumerate()
+    {
         let mut events = escape();
         assert!(
             state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape))),
             "plugin 키 주인 갈래"
         );
-        draw(&mut state, events);
-        sent.extend(sent_escape_keys(&mut state));
-        // 앱은 프레임 뒤 렌더의 닫기 요청을 꺼내 매니저에 적용한다
-        // (`App::dispatch_plugin_popup_events`). P 를 닫는 요청이 없으므로 P 는 열린 채 다음 Esc 를 받는다.
-        let closes = std::mem::take(&mut state.plugin_popup_closes);
+        draw(&mut state, &mgr, events);
+        assert_eq!(
+            sent_escape_keys(&mut state),
+            expected,
+            "{n}번째 프레임에 P 가 받은 Esc(눌림, 반복)"
+        );
+        let closes = dispatch_like_app(&mut state, &mut mgr);
         assert!(
             closes.iter().all(|(id, _)| *id != POPUP),
             "Unfocus 선언 P 는 Esc 로 닫히지 않는다: {closes:?}"
         );
         assert!(
             mgr.popup_instances().any(|(id, _)| id == POPUP),
-            "P 가 열려 있다"
+            "P 가 열린 채 다음 프레임을 받는다"
         );
-    }
 
-    let plain = Context::default();
-    let mut expected = Vec::new();
-    for _ in 0..2 {
+        let mut plain_seen = Vec::new();
         drop(plain.run(
             egui::RawInput {
                 events: escape(),
@@ -597,16 +621,15 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
                             pressed, repeat, ..
                         } = e
                         {
-                            expected.push((*pressed, *repeat));
+                            plain_seen.push((*pressed, *repeat));
                         }
                     }
                 })
             },
         ));
+        assert_eq!(
+            plain_seen, expected,
+            "{n}번째 프레임: 창을 거치지 않은 egui 결과와 같다"
+        );
     }
-    assert_eq!(expected, vec![(true, false), (true, true)]);
-    assert_eq!(
-        sent, expected,
-        "P 는 egui 가 처리했을 때와 같은 반복 여부를 받는다"
-    );
 }
