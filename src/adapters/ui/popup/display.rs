@@ -435,7 +435,8 @@ impl PopupManager {
     }
 
     /// 부모 버튼이 대표하는(그리지 않는) 자식이 포커스를 가졌으면 그 포커스를 보이는 보기 버튼(묶음의 접힌
-    /// 조상)으로 옮긴다. 보이지 않는 자식이 키 주인으로 남아 버튼의 Enter·Space·포커스 링을 가로채지 않는다.
+    /// 조상)으로 옮긴다. 묶음의 버튼이 plugin 팝업이면(plugin 팝업이 연 피커) 그 plugin 팝업으로 옮긴다. 보이지 않는
+    /// 자식이 키 주인으로 남아 버튼의 Enter·Space·포커스 링을 가로채지 않는다.
     fn hand_hidden_focus_to_button(&mut self, open_indices: &[usize]) {
         for &i in open_indices {
             let popup = &self.popups[i];
@@ -445,21 +446,26 @@ impl PopupManager {
                 continue;
             }
             let mut at = popup.parent;
+            let mut plugin_parent = popup.plugin_parent;
             let mut button = None;
             while let Some(cur) = at.and_then(|p| self.instance(p)).filter(|p| p.open) {
                 if cur.collapsed_frame().is_some() {
                     button = Some(cur.instance);
                     break;
                 }
+                plugin_parent = plugin_parent.or(cur.plugin_parent);
                 at = cur.parent;
             }
-            let Some(button) = button else {
-                continue;
-            };
-            if let Some(b) = self.instance_mut(button) {
-                b.passive = false;
+            match (button, plugin_parent) {
+                (Some(button), _) => {
+                    if let Some(b) = self.instance_mut(button) {
+                        b.passive = false;
+                    }
+                    self.set_focus(Some(super::focus::PopupNode::Host(button)));
+                }
+                (None, Some(id)) => self.set_focus(Some(super::focus::PopupNode::Plugin(id))),
+                (None, None) => {}
             }
-            self.set_focus(Some(super::focus::PopupNode::Host(button)));
         }
     }
 

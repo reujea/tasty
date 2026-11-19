@@ -87,16 +87,16 @@ impl super::MainViewState {
             self.popups.set_focus(None);
         }
         // 엔진 포커스 surface 가 바뀌었으면(포커스 이동 단축키·IPC·workspace 전환) 새 경로 위에 없는 팝업의 포커스를
-        // 푼다. Window 범위 팝업은 늘 경로 위다. 바뀌지 않았으면 다른 범위 팝업을 누른 포커스를 그대로 둔다.
+        // 푼다. Window 범위 팝업은 늘 경로 위다. 바뀌지 않았거나 처음 보는 값이면 다른 범위 팝업을 누른 포커스를
+        // 그대로 둔다.
         let engine_surface = self.focused_surface_id(core);
-        if self.focus_seen_surface != Some(engine_surface) {
-            self.focus_seen_surface = Some(engine_surface);
-            if let Some(node) = self.popups.focus()
-                && let Some(scope) = self.node_logical_scope(node)
-                && !path_of_focus(self, core).contains(&scope)
-            {
-                self.popups.set_focus(None);
-            }
+        let seen = self.focus_seen_surface.replace(engine_surface);
+        if seen.is_some_and(|seen| seen != engine_surface)
+            && let Some(node) = self.popups.focus()
+            && let Some(scope) = self.node_logical_scope(node)
+            && !path_of_focus(self, core).contains(&scope)
+        {
+            self.popups.set_focus(None);
         }
         // 덮인 노드는 포커스 노드가 될 수 없다. 포커스 위치를 덮는 노드가 있으면 그 노드가 포커스 위치다
         // (passive 여도 같다).
