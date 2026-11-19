@@ -70,6 +70,7 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
             heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
             detach_sent: Arc::new(AtomicBool::new(false)),
             force_detached: Arc::new(AtomicBool::new(false)),
+            finished: Arc::new(AtomicBool::new(false)),
         },
     );
     stream::write_frame(&mut peer, StreamTag::Control, b"{}").unwrap();
@@ -282,6 +283,7 @@ fn reader_end() -> AttachReaderEnd {
         heartbeat_timeout: Duration::from_secs(45),
         detach_sent: Arc::new(AtomicBool::new(false)),
         force_detached: Arc::new(AtomicBool::new(false)),
+        finished: Arc::new(AtomicBool::new(false)),
     }
 }
 
@@ -344,6 +346,7 @@ fn the_writer_marks_our_detach_before_writing_it() {
         rx,
         Arc::new(AtomicBool::new(false)),
         detach_sent.clone(),
+        Arc::new(AtomicBool::new(true)),
         Arc::new(|| {}),
         " detach order test",
     );
@@ -367,4 +370,96 @@ fn a_rejection_reason_reads_back_from_the_connection_error() {
         Some(REJECTED_MIRROR_WORKSPACE)
     );
     assert_eq!(attach_rejection_reason("connection refused"), None);
+}
+
+/// 서버가 `force_detached`를 보내고 닫은 연결에서 이쪽 쓰기가 먼저 실패해도, reader가 그 통지를
+/// 처리하기 전에는 끊김을 알리지 않는다. 그래서 App은 끊김을 볼 때 강제 끊김 표지도 함께 본다.
+/// reader를 늦게 시작해 쓰기 실패가 반드시 먼저 일어나게 만든다.
+#[test]
+fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
+    use std::io::{BufRead, BufReader};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let ours = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let handshake = std::thread::spawn(move || {
+        let (mut peer, _) = listener.accept().unwrap();
+        let mut request = String::new();
+        BufReader::new(peer.try_clone().unwrap())
+            .read_line(&mut request)
+            .unwrap();
+        stream::write_frame(
+            &mut peer,
+            StreamTag::Control,
+            &serde_json::to_vec(&serde_json::json!({"ok":true,"proto":1,"client_id":7})).unwrap(),
+        )
+        .unwrap();
+        peer
+    });
+    let write_half = ours.try_clone().unwrap();
+    let (conn, _) = StreamConnection::open(ours, 1).unwrap();
+    let mut peer = handshake.join().unwrap();
+    stream::write_frame(
+        &mut peer,
+        StreamTag::Control,
+        br#"{"event":"force_detached","reason":"force_detach_workspace"}"#,
+    )
+    .unwrap();
+    stream::write_frame(&mut peer, StreamTag::Detach, &[]).unwrap();
+
+    let disconnected = Arc::new(AtomicBool::new(false));
+    let force_detached = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    // 끊김이 처음 보이는 순간의 강제 끊김 표지를 기록한다. App이 읽는 순서와 같다.
+    let watch = {
+        let disconnected = disconnected.clone();
+        let force_detached = force_detached.clone();
+        std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while !disconnected.load(Ordering::SeqCst) {
+                assert!(std::time::Instant::now() < deadline, "no disconnect");
+                std::hint::spin_loop();
+            }
+            force_detached.load(Ordering::SeqCst)
+        })
+    };
+    write_half.shutdown(std::net::Shutdown::Write).unwrap();
+    let (sender, rx) = super::super::connection::channel();
+    sender
+        .send(OutFrame {
+            tag: StreamTag::Control,
+            payload: b"{}".to_vec(),
+        })
+        .unwrap();
+    let writer = spawn_attach_write_thread(
+        write_half,
+        rx,
+        disconnected.clone(),
+        Arc::new(AtomicBool::new(false)),
+        finished.clone(),
+        Arc::new(|| {}),
+        " force detach race test",
+    );
+    std::thread::sleep(Duration::from_millis(100));
+    let output = MirrorOutbox::new(sender.epoch());
+    let reader = spawn_attach_reader_thread(
+        conn,
+        output,
+        sender.clone(),
+        disconnected.clone(),
+        Arc::new(|| {}),
+        |_| None,
+        AttachReaderEnd {
+            remote_workspace: 1,
+            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
+            detach_sent: Arc::new(AtomicBool::new(false)),
+            force_detached: force_detached.clone(),
+            finished,
+        },
+    );
+    assert!(
+        watch.join().unwrap(),
+        "the disconnect became visible before the force-detach mark"
+    );
+    reader.join().unwrap();
+    drop(sender);
+    writer.join().unwrap();
 }

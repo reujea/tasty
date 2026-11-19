@@ -152,11 +152,15 @@ pub fn parse_attach_descriptor(ctrl: &Value) -> anyhow::Result<(String, Vec<Valu
 
 /// `detach_sent`는 이쪽이 Detach를 보내기 시작했다는 표지다. reader가 뒤따르는 EOF를 원격 원인으로
 /// 남기지 않도록 [`AttachReaderEnd`]와 같은 값을 넘긴다.
+///
+/// `reader_finished`는 같은 연결의 reader가 끝났다는 표지([`AttachReaderEnd::finished`])다.
+/// reader가 없는 연결은 처음부터 참인 값을 넘긴다.
 pub fn spawn_attach_write_thread(
     write_half: TcpStream,
     frame_rx: std::sync::mpsc::Receiver<super::connection::QueuedFrame>,
     disconnected: Arc<AtomicBool>,
     detach_sent: Arc<AtomicBool>,
+    reader_finished: Arc<AtomicBool>,
     wake: Arc<dyn Fn() + Send + Sync>,
     log_suffix: &'static str,
 ) -> std::thread::JoinHandle<()> {
@@ -184,7 +188,14 @@ pub fn spawn_attach_write_thread(
                 // 쓰기 뒤에는 이 스레드가 소켓을 닫고 서버도 바로 닫을 수 있어 reader가 먼저 EOF를 본다.
                 detach_sent.store(true, Ordering::SeqCst);
             }
-            if !write_attach_frame(&mut write_half, &item, &disconnected, &wake, log_suffix) {
+            if !write_attach_frame(
+                &mut write_half,
+                &item,
+                &disconnected,
+                &reader_finished,
+                &wake,
+                log_suffix,
+            ) {
                 break;
             }
         }
@@ -196,6 +207,7 @@ fn write_attach_frame(
     write_half: &mut TcpStream,
     item: &OutFrame,
     disconnected: &AtomicBool,
+    reader_finished: &AtomicBool,
     wake: &Arc<dyn Fn() + Send + Sync>,
     log_suffix: &str,
 ) -> bool {
@@ -203,6 +215,7 @@ fn write_attach_frame(
         tracing::warn!(
             "attach write thread{log_suffix}: 프레임을 쓰지 못해 연결 종료로 처리한다: {e}"
         );
+        wait_for_reader(reader_finished);
         disconnected.store(true, Ordering::SeqCst);
         (wake)();
         return false;
@@ -216,6 +229,19 @@ fn write_attach_frame(
     true
 }
 
+/// 송신 실패를 알리기 전에 reader가 이미 받은 프레임을 처리하도록 기다리는 상한.
+/// 서버가 `force_detached`를 보내고 닫은 연결이면 reader가 그 통지를 먼저 읽고 끝나므로
+/// App이 강제 끊김을 연결 끊김으로 잘못 보고 다시 붙지 않는다. 연결이 멈춰 reader가 끝나지
+/// 않으면 이 시간 뒤 그대로 끊김을 알린다.
+pub const READER_DRAIN_GRACE: std::time::Duration = std::time::Duration::from_millis(500);
+
+fn wait_for_reader(reader_finished: &AtomicBool) {
+    let deadline = std::time::Instant::now() + READER_DRAIN_GRACE;
+    while !reader_finished.load(Ordering::Acquire) && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 /// reader가 수신 오류로 끝날 때 원인을 남기는 데 필요한 연결 정보.
 pub struct AttachReaderEnd {
     /// 이 연결이 점유한 원격 workspace id. 이쪽 mirror workspace id가 아니다.
@@ -227,6 +253,9 @@ pub struct AttachReaderEnd {
     /// 서버가 `force_detached`로 점유를 끊었다(점유한 workspace를 잃은 정리는 제외). `disconnected`보다
     /// 먼저 세워 App이 연결 끊김과 구분하게 한다. 서버는 이 Control을 Detach와 연결 종료보다 먼저 보낸다.
     pub force_detached: Arc<AtomicBool>,
+    /// reader 스레드가 끝났다. 끊김·강제 끊김 표지를 모두 세운 뒤에 선다. 쓰기 스레드가 송신 실패를
+    /// 알리기 전에 이 값을 기다린다([`READER_DRAIN_GRACE`]).
+    pub finished: Arc<AtomicBool>,
 }
 
 impl AttachReaderEnd {
@@ -340,6 +369,7 @@ pub fn spawn_attach_reader_thread(
                 }
             }
         }
+        end.finished.store(true, Ordering::Release);
     })
 }
 
@@ -523,11 +553,13 @@ impl PreparedConnection {
         let output = MirrorOutbox::new(frame_tx.epoch());
         let detach_sent = Arc::new(AtomicBool::new(false));
         let force_detached = Arc::new(AtomicBool::new(false));
+        let reader_finished = Arc::new(AtomicBool::new(false));
         let writer = spawn_attach_write_thread(
             write_half,
             frame_rx,
             disconnected.clone(),
             detach_sent.clone(),
+            reader_finished.clone(),
             wake.clone(),
             "",
         );
@@ -543,6 +575,7 @@ impl PreparedConnection {
                 heartbeat_timeout,
                 detach_sent,
                 force_detached: force_detached.clone(),
+                finished: reader_finished,
             },
         );
         let heartbeat = spawn_attach_heartbeat_thread(frame_tx.clone(), disconnected.clone());
