@@ -322,6 +322,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             pending_popup_opens: Vec::new(),
             #[cfg(feature = "gui")]
+            plugin_window_popups: Default::default(),
+            #[cfg(feature = "gui")]
             pending_handler_ipc: Vec::new(),
             #[cfg(feature = "gui")]
             file_handler_recent: handler_recent::load(),

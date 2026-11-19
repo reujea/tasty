@@ -162,7 +162,7 @@ recent.query는 state.db의 공유 캐시에서 종류별 최근 항목 최대 1
 | 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다(사용자 입력은 [대상 결속](#사용자-입력-명령의-대상-결속)대로 입력 때 정한 surface 의 cwd 를 쓴다) — 새 탭·split 의 cwd 상속(원격 attach 요청이 `inherit_cwd` 를 실으면 읽지 않는다), `surface_id`·`inherit_cwd` 를 안 실은 `workspace.create` 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace(단 `surface_id` 를 줬으면 그 surface 의 워크스페이스라 포커스를 안 읽는다) | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
 | 계측 태그 | 공통 요청 게이트(`handler/gate.rs`)가 audit 귀속에 engine의 활성 workspace를 읽는다. telemetry는 같은 engine의 첫 workspace를 태그로 쓴다 | **판정에는 안 쓰인다** — 게이트가 빌린 engine의 관측 문맥이며, 요청이 작용한 대상이나 사용자의 포커스를 증명하지 않는다 |
 | 알림 배치 | cap 임계·이상 탐지·승인 요청 알림이 활성 워크스페이스에 뜬다 | 사용자에게 보이라고 두는 자리라 에이전트 대상 결정이 아니다 |
-| 명시한 포커스 대상 | plugin `popup.show` 의 `target` 이 `focused_window` 다. 요청 시점의 포커스 창으로 한 번 정한다 | 호출자가 대상 종류로 포커스를 골랐을 때만 읽는다. 포커스 창이 없으면 열지 않고 오류다. 대상을 생략한 기본값은 없다. 지금은 포커스 창이 있는지만 확인하고, 창 범위 plugin 팝업은 그 창이 아니라 모든 창에 그려진다 |
+| 명시한 포커스 대상 | plugin `popup.show` 의 `target` 이 `focused_window` 다. 요청 시점의 포커스 창으로 한 번 정한다 | 호출자가 대상 종류로 포커스를 골랐을 때만 읽는다. 포커스 창이 없으면 열지 않고 오류다. 대상을 생략한 기본값은 없다. 인스턴스는 그 창에만 그려진다 |
 | 효과 scope | `debug.host_popup.open` 의 `workspace_scope` | debug 전용. 사용자 조작 재현이라 창 종속이 뜻 자체다 |
 
 기본값에 활성 상태를 사용하는 요청은 인자를 생략하면 같은 호출도 결과가 달라질 수 있다. 재현 가능한 결과가 필요하면 인자를 명시한다. 요청이 대상을 지정했다면 기록도 그 대상에 귀속한다. 구체적인 예외와 이유는 이 문서을 따른다.

@@ -37,6 +37,49 @@ pub(crate) fn declared_popup_scope(
     }
 }
 
+/// 이 창에 그릴 인스턴스인지. 창 범위 인스턴스는 이 창에 결속한 것만 그린다.
+/// surface 범위 인스턴스는 그 surface 가 이 창 배치에 보이는지로 렌더 경로가 정한다.
+#[cfg(feature = "gui")]
+pub(crate) fn drawn_in_window(
+    window_popups: &std::collections::BTreeSet<u64>,
+    instance_id: u64,
+    decl: PopupScopeDecl,
+) -> bool {
+    decl != PopupScopeDecl::Window || window_popups.contains(&instance_id)
+}
+
+/// 같은 plugin·팝업의 인스턴스가 이미 열려 있는지. 다시 열면 그 인스턴스를 돌려받으므로
+/// 여는 진입점은 열기 전에 이 값을 읽어, 이미 열린 인스턴스의 창 결속을 바꾸지 않는다.
+#[cfg(feature = "gui")]
+pub(crate) fn is_open(
+    mgr: &tasty_host_plugin::PluginManager,
+    plugin_id: &str,
+    popup_id: &str,
+) -> bool {
+    mgr.popup_instances()
+        .any(|(_, inst)| inst.plugin_id == plugin_id && inst.popup_id == popup_id)
+}
+
+/// 방금 연 인스턴스가 창 범위면 `window` 창에 결속한다. 이미 열려 있던 인스턴스(`was_open`)는
+/// 처음 결속한 창을 유지한다. surface 결속(`bind_popup_instance_surface`)과 같은 규칙이다.
+#[cfg(feature = "gui")]
+pub(crate) fn bind_window_popup(
+    window: &mut crate::state::MainViewState,
+    mgr: &tasty_host_plugin::PluginManager,
+    instance_id: u64,
+    was_open: bool,
+) {
+    if was_open {
+        return;
+    }
+    let window_scoped = mgr
+        .popup_instances()
+        .any(|(id, inst)| id == instance_id && inst.contribute.scope == PopupScopeDecl::Window);
+    if window_scoped {
+        window.plugin_window_popups.insert(instance_id);
+    }
+}
+
 /// 열린 플러그인 팝업 인스턴스마다 소유 플러그인과 결속 범위. 매 프레임 그리기 전과 파일 피커 요청 직전에 다시 만든다.
 /// 배치 결과(좁은 surface 라 창에 그린 범위)가 아니라 선언과 결속 대상으로 정한 값이다.
 pub(crate) type BoundPopupScopes = std::collections::HashMap<u64, (String, Option<PopupScope>)>;

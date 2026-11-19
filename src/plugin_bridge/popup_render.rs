@@ -56,7 +56,19 @@ pub fn draw_plugin_popups(
         return;
     };
 
-    let mesh_snaps = mesh_snapshots(mgr.popup_instances());
+    // 이 창에 결속하지 않은 창 범위 인스턴스는 다른 창의 것이다. 닫힌 인스턴스의 결속은 지운다.
+    let open_ids: HashSet<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
+    state
+        .plugin_window_popups
+        .retain(|id| open_ids.contains(id));
+    let window_popups = &state.plugin_window_popups;
+    let mesh_snaps = mesh_snapshots(mgr.popup_instances().filter(|(id, inst)| {
+        crate::plugin_bridge::popup_scope::drawn_in_window(
+            window_popups,
+            *id,
+            inst.contribute.scope,
+        )
+    }));
 
     let live_mesh: HashSet<u64> = mesh_snaps.iter().map(|s| s.instance_id).collect();
     state

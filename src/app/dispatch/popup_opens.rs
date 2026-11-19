@@ -36,12 +36,17 @@ pub(crate) fn open_pending_popups<'a>(
             );
         }
         for open in drained {
-            open_one(mgr, open);
+            open_one(state, mgr, open);
         }
     }
 }
 
-fn open_one(mgr: &mut PluginManager, open: crate::state::PendingPopupOpen) {
+/// 요청을 연다. 창 범위 팝업은 요청이 쌓인 창, 곧 명령을 입력한 창에 결속한다.
+fn open_one(
+    state: &mut MainViewState,
+    mgr: &mut PluginManager,
+    open: crate::state::PendingPopupOpen,
+) {
     // 큐에 넣는 쪽이 먼저 거르지만, 큐에 넣은 뒤 선언이 바뀐 경우를 위해 여기서도 거른다.
     if crate::plugin_bridge::popup_scope::lacks_required_target(
         crate::plugin_bridge::popup_scope::declared_popup_scope(
@@ -58,12 +63,18 @@ fn open_one(mgr: &mut PluginManager, open: crate::state::PendingPopupOpen) {
         );
         return;
     }
+    let was_open = crate::plugin_bridge::popup_scope::is_open(mgr, &open.plugin_id, &open.popup_id);
     let Some(instance_id) = mgr.open_popup_instance(&open.plugin_id, &open.popup_id, open.context)
     else {
         return;
     };
+    crate::plugin_bridge::popup_scope::bind_window_popup(state, mgr, instance_id, was_open);
     // 대상 surface 를 결속한다. 범위는 선언과 결속 대상으로 렌더 경로가 정한다.
     if let Some(sid) = open.target_surface {
         mgr.bind_popup_instance_surface(instance_id, sid);
     }
 }
+
+#[cfg(test)]
+#[path = "popup_opens_tests.rs"]
+mod tests;

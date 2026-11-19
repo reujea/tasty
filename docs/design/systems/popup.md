@@ -235,12 +235,12 @@ plugin 은 매니페스트 없이 실행 중에 팝업을 선언하고 연다.
 | `target` | 대상 |
 |---|---|
 | `{ "kind": "surface", "id": N }` | 그 surface. 요청 plugin 소유 surface 여야 한다 |
-| `{ "kind": "window", "id": N }` | 그 창 |
-| `{ "kind": "focused_window" }` | 요청을 받은 시점에 포커스된 창이 있어야 한다. 지금은 있는지만 확인하고, 창 범위 plugin 팝업은 모든 창에 그려진다 |
+| `{ "kind": "window", "id": N }` | 그 창. 인스턴스는 그 창에만 그려진다 |
+| `{ "kind": "focused_window" }` | 요청을 받은 시점에 포커스된 창. 그때 한 번 정하고 인스턴스는 그 창에만 그려진다. 포커스된 창이 없으면 열지 않는다 |
 | `workspace`·`pane`·`tab` `{ "id": N }` | 아직 열지 않는다(`-32602`) |
 
 - 오류: 형식이 틀렸거나 `target` 이 없음, 선언 없음, 종류 불일치, 다른 plugin 의 surface, 열린 인스턴스와 범위가 다름은 `-32602`. 없는 창·surface, 포커스된 창 없음은 `-32004`. 거절하면 인스턴스를 만들거나 바꾸지 않는다.
-- plugin 팝업 인스턴스는 (plugin, popup) 마다 하나다. 이미 열려 있으면 그 id 로 답하고 `popup.open` 을 다시 보내지 않는다. 열린 인스턴스의 범위(창·surface)가 이번 `target` 의 범위와 다르면 거절한다(`-32602`, 먼저 닫아야 한다). 창 범위 plugin 팝업은 모든 창에 그려진다.
+- plugin 팝업 인스턴스는 (plugin, popup) 마다 하나다. 이미 열려 있으면 그 id 로 답하고 `popup.open` 을 다시 보내지 않는다. 열린 인스턴스의 범위(창·surface)가 이번 `target` 의 범위와 다르면 거절한다(`-32602`, 먼저 닫아야 한다). 다른 창을 가리켜도 열린 인스턴스는 처음 결속한 창에 남는다.
 
 실행 중 선언으로 연 인스턴스에 지금 반영되는 값은 다음 넷이다. plugin 팝업 렌더러는 이 값만 받는다.
 
@@ -259,8 +259,12 @@ plugin 은 매니페스트 없이 실행 중에 팝업을 선언하고 연다.
 ### plugin popup 의 스코프
 
 plugin popup(`[[contributes.popup]]`)은 매니페스트 `scope` 로 범위의 **종류**만 선언한다 —
-`window`(기본) 또는 `surface`. 대상 surface 는 popup 을 여는 host 진입점이 인스턴스에
-바인딩한다(이 문서).
+`window`(기본) 또는 `surface`. 대상은 popup 을 여는 host 진입점이 정한다(이 문서). 대상 surface 는
+인스턴스에 바인딩하고, 대상 창은 그 창의 `MainViewState.plugin_window_popups` 에 인스턴스를 넣어
+결속한다. plugin 팝업 인스턴스는 PluginManager 하나에 있으므로 창 범위 인스턴스는 결속한 창에만
+그린다. 결속하지 않은 창 범위 인스턴스는 어느 창에도 그리지 않으며, 진입점은 그런 인스턴스를
+만들지 않는다. 이미 열린 인스턴스를 다시 열면 같은 인스턴스를 돌려받고 처음 결속한 대상(surface·창)을
+유지한다.
 가시성·경계는 위 표와 같은 판정 함수로 같은 frame 의 `LayoutContext` 에서 정한다.
 
 이벤트 trigger popup 의 대상은 host 가 확인한다. 매니저는 surface 트리를 모르므로 `surface`
@@ -274,17 +278,19 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 
 | 진입점 | 바인딩되는 대상 |
 |--------|----------------|
-| 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface |
-| 도구 메뉴·명령 팔레트·명령 단축키 popup | 입력 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface. 팔레트·단축키로 여는 내장 이름 바꾸기·프리셋 적용·dag 목록 popup 도 입력 시점의 탭·pane·workspace 에 결속한다 |
-| 이벤트 trigger popup | `surface` 범위 이벤트(`EventScope::Surface`)의 payload `surface_id`. 대상이 그 popup 을 선언한 plugin 의 surface 가 아니거나, 다른 plugin 이 발행한 이벤트면 열지 않는다 |
+| 변환 입력 popup(`convert_input_popup`) | 제자리 변환이면 그 surface, 새 탭이면 여는 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface. 창 범위는 입력이 일어난 창 |
+| 도구 메뉴·명령 팔레트·명령 단축키 popup | 입력 시점의 focus surface. attach 생성 대기 초안이 선택돼 있으면 그 초안이 생성한 surface. 창 범위는 입력이 일어난 창(초안에 걸어 둔 명령도 그 초안의 창). 팔레트·단축키로 여는 내장 이름 바꾸기·프리셋 적용·dag 목록 popup 도 입력 시점의 탭·pane·workspace 에 결속한다 |
+| 이벤트 trigger popup | `surface` 범위 이벤트(`EventScope::Surface`)의 payload `surface_id`. surface 선언은 대상이 그 popup 을 선언한 plugin 의 surface 가 아니거나, 다른 plugin 이 발행한 이벤트면 열지 않는다. window 선언은 그 surface 가 있는 창이다 |
 | `popup.show` | 요청의 `target`(위 "plugin popup 의 실행 중 선언과 열기") |
-| `debug.popup.open` | 요청의 `surface_id` |
+| `debug.popup.open` | surface 선언은 요청의 `surface_id`. window 선언은 요청의 `window_id`(창이 하나면 생략 가능) |
 
 `surface` 선언 popup 에 대상이 없으면 `window` 로 바꾸지 않고 열지 않는다. 변환 입력 popup·도구 메뉴·명령
 팔레트·명령 단축키는 생성 대기 초안도 대상으로 삼으므로, 대상 surface 도 초안도 없을 때만 열지 않고 경고
 로그를 남긴다. 대상 없는 이벤트도 열지 않고 경고 로그만 남긴다(이벤트는 응답이 없다). `debug.popup.open` 은 `surface_id` 가 없거나 없는 surface 를 가리키면 `-32602` 로 거절한다.
-`window` 선언 popup 은 대상이 없어도 그대로 열린다. 변환 입력 popup·도구 메뉴·명령 팔레트·명령 단축키에서
-초안이 대상이면 `window` 선언 popup 도 생성된 surface 를 문맥으로 생성 뒤에 연다. 새 탭용 변환 입력 popup 의
+`window` 선언 popup 은 대상 surface 가 없어도 입력이 일어난 창에 열린다. 창을 정할 수 없는 진입점은
+모든 창에 띄우지 않고 열지 않는다. 대상 surface 가 없는 이벤트는 경고 로그만 남기고, 창이 여럿인데
+`window_id` 가 없는 `debug.popup.open` 은 `-32000` 으로 거절한다. 변환 입력 popup·도구 메뉴·명령
+팔레트·명령 단축키에서 초안이 대상이면 `window` 선언 popup 도 생성된 surface 를 문맥으로 생성 뒤에 연다. 새 탭용 변환 입력 popup 의
 문맥에는 제자리 변환 표시(`surface_id`)가 없다.
 
 `surface` 범위 popup은 앵커의 가운데 기준도 그 surface 영역이다. 범위가 안 보이는 frame 에는

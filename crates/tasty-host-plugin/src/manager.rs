@@ -533,13 +533,16 @@ pub struct PopupInstance {
     pub scope_surface: Option<u32>,
 }
 
-/// surface 범위로 선언한 이벤트 팝업을 대상 surface 와 함께 연다는 요청.
-/// 호스트는 대상이 `plugin_id` 소유의 플러그인 surface 이고, 플러그인이 발행한 이벤트라면
-/// 발행자가 `plugin_id` 일 때만 연다. 그 밖에는 거절한다(docs/design/systems/popup.md).
+/// surface 이벤트로 연다는 이벤트 팝업 요청. `scope` 가 surface 면 그 surface 에, window 면
+/// 그 surface 가 있는 창에 연다. surface 범위는 대상이 `plugin_id` 소유의 플러그인 surface 이고,
+/// 플러그인이 발행한 이벤트라면 발행자가 `plugin_id` 일 때만 연다. 그 밖에는 거절한다
+/// (docs/design/systems/popup.md).
 #[derive(Debug, Clone)]
 pub struct PendingSurfacePopup {
     pub plugin_id: String,
     pub popup_id: String,
+    /// 매니페스트가 선언한 범위 종류.
+    pub scope: tasty_plugin_manifest::PopupScopeDecl,
     pub context: serde_json::Value,
     /// 이벤트를 발행한 플러그인. 호스트가 발행했으면 `None`.
     pub publisher: Option<String>,

@@ -73,22 +73,29 @@ impl App {
             .ok_or_else(|| invalid("popup.show: plugin manager unavailable"))?
             .popup_decl(&call.plugin_id, &p.popup_id);
         let target = match_target(&call.plugin_id, &p.popup_id, decl, p.target)?;
-        let surface = match target {
+        // 창 범위 대상은 요청을 받은 지금 고른 창이다. 인스턴스는 그 창에만 결속한다.
+        let (surface, window) = match target {
             ShowTarget::Surface(sid) => {
                 self.check_surface_target(&call.plugin_id, &p.popup_id, sid)?;
-                Some(sid)
+                (Some(sid), None)
             }
             ShowTarget::Window(wid) => {
-                if !self.view.views.keys().any(|w| u64::from(*w) == wid) {
+                let Some(window) = self
+                    .view
+                    .views
+                    .iter()
+                    .find(|(w, v)| u64::from(**w) == wid && v.as_main().is_some())
+                    .map(|(w, _)| *w)
+                else {
                     return Err(not_found(format!("popup.show: window {wid} not found")));
-                }
-                None
+                };
+                (None, Some(window))
             }
             ShowTarget::FocusedWindow => {
-                if self.focused_window().is_none() {
+                let Some(window) = self.focused_window().and(self.view.focused_view_id) else {
                     return Err(not_found("popup.show: no window is focused"));
-                }
-                None
+                };
+                (None, Some(window))
             }
         };
         let mgr = self
@@ -101,6 +108,8 @@ impl App {
             PopupScopeDecl::Window
         };
         check_open_scope(mgr, &call.plugin_id, &p.popup_id, scope)?;
+        let was_open =
+            crate::plugin_bridge::popup_scope::is_open(mgr, &call.plugin_id, &p.popup_id);
         let instance_id = mgr
             .open_popup_instance(&call.plugin_id, &p.popup_id, p.context)
             .ok_or_else(|| {
@@ -111,6 +120,18 @@ impl App {
             })?;
         if let Some(sid) = surface {
             mgr.bind_popup_instance_surface(instance_id, sid);
+        }
+        if let Some(main) = window
+            .and_then(|w| self.view.views.get_mut(&w))
+            .and_then(|v| v.as_main_mut())
+            && let Some(mgr) = self.plugin_manager.as_ref()
+        {
+            crate::plugin_bridge::popup_scope::bind_window_popup(
+                &mut main.state,
+                mgr,
+                instance_id,
+                was_open,
+            );
         }
         Ok(instance_id)
     }
@@ -131,6 +152,7 @@ impl App {
         let req = PendingSurfacePopup {
             plugin_id: plugin_id.to_string(),
             popup_id: popup_id.to_string(),
+            scope: PopupScopeDecl::Surface,
             context: serde_json::Value::Null,
             publisher: None,
             surface_id,
@@ -157,7 +179,7 @@ impl App {
 /// 선언과 대상을 맞춰 본다. 대상 종류는 선언의 범위 종류와 같아야 하고 창 범위로 낮추지 않는다.
 ///
 /// 지금 여는 대상은 창·포커스 창·surface다. workspace·pane·tab 대상은 plugin 팝업이 소유 화면의
-/// 팝업 목록으로 옮겨진 뒤 연다. 창 범위 팝업은 지금 모든 창에 그려진다.
+/// 팝업 목록으로 옮겨진 뒤 연다. 창 범위 팝업은 대상 창에만 그려진다.
 fn match_target(
     plugin_id: &str,
     popup_id: &str,

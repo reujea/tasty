@@ -83,6 +83,8 @@ fn press(pos: Pos2) -> Event {
 #[test]
 fn a_press_inside_the_popup_records_it_and_a_hover_does_not() {
     let (mut state, mut engine_session) = crate::state::tests::test_state();
+    // 창 범위 팝업은 이 창에 결속해야 그려진다.
+    state.plugin_window_popups.insert(POPUP);
     let engine = engine_session.borrow_mut();
     let mgr = manager_with_popup();
     let ctx = Context::default();
@@ -123,6 +125,8 @@ fn a_press_inside_the_popup_records_it_and_a_hover_does_not() {
 #[test]
 fn a_closed_popup_loses_its_record() {
     let (mut state, mut engine_session) = crate::state::tests::test_state();
+    // 창 범위 팝업은 이 창에 결속해야 그려진다.
+    state.plugin_window_popups.insert(POPUP);
     let engine = engine_session.borrow_mut();
     let mgr = manager_with_popup();
     let ctx = Context::default();

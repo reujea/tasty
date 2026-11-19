@@ -1,5 +1,5 @@
 //! surface 범위 이벤트 팝업은 대상 소유 확인을 기다리고, 대상이 없으면 열리지 않는다.
-//! 창 범위 이벤트 팝업은 바로 열린다.
+//! 창 범위 이벤트 팝업은 대상 surface 가 있는 창을 호스트가 찾도록 넘기고, 대상이 없으면 열리지 않는다.
 
 use std::sync::Arc;
 
@@ -93,11 +93,35 @@ fn a_plugin_publish_records_the_publisher() {
 }
 
 #[test]
-fn a_window_popup_opens_at_once() {
+fn a_window_popup_waits_for_the_host_to_pick_the_window_of_its_surface() {
     let mut mgr = manager("");
     mgr.emit_host_event(KEY, &surface_payload(), EventScope::Surface);
-    assert!(mgr.take_pending_surface_popups().is_empty());
-    assert_eq!(mgr.popup_instances().count(), 1);
+    assert_eq!(
+        mgr.popup_instances().count(),
+        0,
+        "창을 고르기 전에는 열지 않는다"
+    );
+    let pending = mgr.take_pending_surface_popups();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(
+        pending[0].scope,
+        tasty_plugin_manifest::PopupScopeDecl::Window
+    );
+    assert_eq!(pending[0].surface_id, 7);
+}
+
+/// 대상 surface 가 없는 이벤트는 창을 가리키지 않으므로 창 범위 팝업도 열지 않는다.
+#[test]
+fn a_window_popup_without_a_surface_target_does_not_open() {
+    for (payload, scope) in [
+        (surface_payload(), EventScope::System),
+        (serde_json::json!({ "path": "/a.md" }), EventScope::Surface),
+    ] {
+        let mut mgr = manager("");
+        mgr.emit_host_event(KEY, &payload, scope);
+        assert!(mgr.take_pending_surface_popups().is_empty(), "{scope:?}");
+        assert_eq!(mgr.popup_instances().count(), 0, "{scope:?}");
+    }
 }
 
 /// surface 선언 팝업은 대상이 없는 이벤트로 열리지 않는다. 창 범위로 바꾸지 않는다.
@@ -176,5 +200,10 @@ fn a_window_popup_keeps_opening_from_another_plugins_event() {
         surface_payload(),
         EventScope::Surface,
     );
-    assert_eq!(mgr.popup_instances().count(), 1);
+    let pending = mgr.take_pending_surface_popups();
+    assert_eq!(pending.len(), 1, "발행자 대조는 surface 범위에만 한다");
+    assert_eq!(
+        pending[0].scope,
+        tasty_plugin_manifest::PopupScopeDecl::Window
+    );
 }

@@ -95,19 +95,7 @@ impl App {
                 "debug.popup.list" => {
                     host_ipc::handler::popup::handle_list(self.plugin_manager.as_ref(), id)
                 }
-                "debug.popup.open" => {
-                    let asked = params::read_int::<u32>(&cmd.request.params, "surface_id")
-                        .ok()
-                        .flatten();
-                    let asked_exists =
-                        asked.is_some_and(|sid| self.find_main_with_surface(sid).is_some());
-                    host_ipc::handler::popup::handle_open(
-                        self.plugin_manager.as_mut(),
-                        id,
-                        &cmd.request.params,
-                        |sid| asked == Some(sid) && asked_exists,
-                    )
-                }
+                "debug.popup.open" => self.debug_popup_open(&cmd.request.params, id),
                 // 공통 닫기 큐를 거쳐 자식 파일 피커도 정리한다.
                 "debug.popup.close" => {
                     match params::read_int::<u64>(&cmd.request.params, "instance_id") {
@@ -388,6 +376,63 @@ impl App {
 
     /// MainView ID를 해석한다. 캡처와 달리 모달·preset은 대상이 아니다.
     /// ID가 없을 때 포커스를 쓰지 않고 MainView가 하나인 경우만 선택한다.
+    /// 창 범위 팝업은 `window_id`(창이 하나면 생략 가능)의 창에 결속한다. 고를 창이 없으면 열지 않는다.
+    #[cfg(feature = "gui")]
+    fn debug_popup_open(
+        &mut self,
+        params: &serde_json::Value,
+        id: serde_json::Value,
+    ) -> host_ipc::protocol::JsonRpcResponse {
+        use crate::plugin_bridge::popup_scope;
+        let asked = params::read_int::<u32>(params, "surface_id").ok().flatten();
+        let asked_exists = asked.is_some_and(|sid| self.find_main_with_surface(sid).is_some());
+        let plugin_id = params
+            .get("plugin_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let popup_id = params
+            .get("popup_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let window_decl = self
+            .plugin_manager
+            .as_ref()
+            .and_then(|m| popup_scope::declared_popup_scope(m, plugin_id, popup_id))
+            == Some(crate::plugin::manifest::PopupScopeDecl::Window);
+        let window = if window_decl {
+            match self.pick_debug_window(params) {
+                Ok(w) => Some(w),
+                Err((code, msg)) => {
+                    return host_ipc::protocol::JsonRpcResponse::error(id, code, msg);
+                }
+            }
+        } else {
+            None
+        };
+        let was_open = self
+            .plugin_manager
+            .as_ref()
+            .is_some_and(|m| popup_scope::is_open(m, plugin_id, popup_id));
+        let response = host_ipc::handler::popup::handle_open(
+            self.plugin_manager.as_mut(),
+            id,
+            params,
+            |sid| asked == Some(sid) && asked_exists,
+        );
+        let opened = response
+            .result
+            .as_ref()
+            .and_then(|r| r.get("instance_id"))
+            .and_then(|v| v.as_u64());
+        if let (Some(w), Some(instance_id), Some(mgr)) =
+            (window, opened, self.plugin_manager.as_ref())
+            && let Some(main) = self.view.views.get_mut(&w).and_then(|v| v.as_main_mut())
+        {
+            popup_scope::bind_window_popup(&mut main.state, mgr, instance_id, was_open);
+        }
+        response
+    }
+
     fn pick_debug_window(
         &self,
         params: &serde_json::Value,

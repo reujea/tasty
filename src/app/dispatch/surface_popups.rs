@@ -1,5 +1,6 @@
-//! surface 범위로 선언한 플러그인 이벤트 팝업을 대상 surface 의 소유를 확인한 뒤 연다.
-//! 플러그인이 자기 surface 가 아닌 곳에 팝업을 띄우지 못하게 하는 경계다(docs/design/systems/popup.md).
+//! surface 이벤트로 여는 플러그인 이벤트 팝업을 연다. surface 범위는 대상 surface 의 소유를 확인한 뒤
+//! 그 surface 에 연다. 플러그인이 자기 surface 가 아닌 곳에 팝업을 띄우지 못하게 하는 경계다
+//! (docs/design/systems/popup.md). 창 범위는 그 surface 가 있는 창에만 연다.
 
 use crate::app::App;
 use tasty_host_plugin::manager::PendingSurfacePopup;
@@ -14,6 +15,10 @@ impl App {
             return;
         };
         for req in pending {
+            if req.scope == tasty_plugin_manifest::PopupScopeDecl::Window {
+                self.open_event_window_popup(req);
+                continue;
+            }
             let owner = self.plugin_surface_owner_of_any_kind(req.surface_id);
             if let Err(reason) = authorize(&req, owner.as_deref()) {
                 tracing::warn!(
@@ -31,6 +36,37 @@ impl App {
             {
                 mgr.bind_popup_instance_surface(instance_id, req.surface_id);
             }
+        }
+    }
+
+    /// 창 범위 이벤트 팝업을 대상 surface 가 있는 창에 연다. 그 surface 가 창에 없으면 열지 않는다.
+    /// 창 범위는 surface 를 지목하지 않으므로 소유·발행자를 대조하지 않는다.
+    fn open_event_window_popup(&mut self, req: PendingSurfacePopup) {
+        let Some(wid) = self.find_main_with_surface(req.surface_id) else {
+            tracing::warn!(
+                "popup '{}/{}' not opened: surface {} is not in a window",
+                req.plugin_id,
+                req.popup_id,
+                req.surface_id
+            );
+            return;
+        };
+        let Some(mgr) = self.plugin_manager.as_mut() else {
+            return;
+        };
+        let was_open =
+            crate::plugin_bridge::popup_scope::is_open(mgr, &req.plugin_id, &req.popup_id);
+        let Some(instance_id) = mgr.open_popup_instance(&req.plugin_id, &req.popup_id, req.context)
+        else {
+            return;
+        };
+        if let Some(main) = self.view.views.get_mut(&wid).and_then(|v| v.as_main_mut()) {
+            crate::plugin_bridge::popup_scope::bind_window_popup(
+                &mut main.state,
+                mgr,
+                instance_id,
+                was_open,
+            );
         }
     }
 
@@ -83,6 +119,7 @@ mod tests {
         PendingSurfacePopup {
             plugin_id: "com.tasty.markdown".to_string(),
             popup_id: "large-file-confirm".to_string(),
+            scope: tasty_plugin_manifest::PopupScopeDecl::Surface,
             context: serde_json::Value::Null,
             publisher: publisher.map(str::to_string),
             surface_id: 7,

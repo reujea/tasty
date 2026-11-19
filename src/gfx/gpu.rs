@@ -469,8 +469,19 @@ impl GpuState {
 
         // host·plugin 팝업의 셸 정렬과 GPU 콘텐츠 합성이 같은 결정을 사용하도록 한 번 계산한다.
         let host_top_z_seq = state.popups.max_open_z_seq();
-        let plugin_top_z_seq =
-            plugin_manager.and_then(|m| m.popup_instances().map(|(_, inst)| inst.z_seq).max());
+        // 다른 창에 결속한 창 범위 plugin 팝업은 이 창의 순서 판정에 넣지 않는다.
+        let plugin_top_z_seq = plugin_manager.and_then(|m| {
+            m.popup_instances()
+                .filter(|(id, inst)| {
+                    crate::plugin_bridge::popup_scope::drawn_in_window(
+                        &state.plugin_window_popups,
+                        *id,
+                        inst.contribute.scope,
+                    )
+                })
+                .map(|(_, inst)| inst.z_seq)
+                .max()
+        });
         let host_popup_on_top =
             egui_bridge::host_popup_should_render_on_top(host_top_z_seq, plugin_top_z_seq);
 

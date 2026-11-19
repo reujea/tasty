@@ -22,8 +22,9 @@ impl PluginManager {
     }
 
     /// 실행 중인 plugin이 이벤트 trigger로 선언한 popup을 열고 payload를 context로 전달한다.
-    /// surface 범위로 선언한 popup에 surface 이벤트 대상이 있으면 바로 열지 않고
-    /// 호스트의 소유 확인을 기다린다. `publisher`는 발행한 플러그인, 호스트 발행이면 None이다.
+    /// surface 이벤트 대상이 있으면 바로 열지 않고 호스트에 넘긴다. 호스트는 surface 범위면
+    /// 소유를 확인해 그 surface에, 창 범위면 그 surface가 있는 창에 연다. 대상이 없으면 열지 않는다.
+    /// `publisher`는 발행한 플러그인, 호스트 발행이면 None이다.
     pub(super) fn fire_popup_triggers(
         &mut self,
         event_key: &str,
@@ -62,10 +63,12 @@ impl PluginManager {
                 continue;
             }
             match (decl, target) {
-                (PopupScopeDecl::Surface, Some(surface_id)) => {
+                // 창 범위 팝업도 대상 surface 가 있는 창을 호스트가 찾아 그 창에만 연다.
+                (scope, Some(surface_id)) => {
                     self.pending_surface_popups.push(PendingSurfacePopup {
                         plugin_id,
                         popup_id,
+                        scope,
                         context: payload.clone(),
                         publisher: publisher.map(str::to_string),
                         surface_id,
@@ -77,8 +80,11 @@ impl PluginManager {
                         "popup '{plugin_id}/{popup_id}' not opened: event '{event_key}' has no surface target"
                     );
                 }
-                (PopupScopeDecl::Window, _) => {
-                    self.open_popup_instance(&plugin_id, &popup_id, payload.clone());
+                // 대상 surface 가 없는 이벤트는 창을 가리키지 않는다. 모든 창에 띄우지 않고 열지 않는다.
+                (PopupScopeDecl::Window, None) => {
+                    tracing::warn!(
+                        "popup '{plugin_id}/{popup_id}' not opened: event '{event_key}' has no surface target to pick a window"
+                    );
                 }
             }
         }

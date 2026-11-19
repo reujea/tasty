@@ -254,6 +254,11 @@ pub struct MainViewState {
     #[cfg(feature = "gui")]
     pub(crate) pending_popup_opens: Vec<PendingPopupOpen>,
 
+    /// 이 창에 결속한 창 범위 plugin 팝업 인스턴스. 인스턴스는 PluginManager 하나에 있으므로
+    /// 창 범위 팝업은 여기에 든 창에만 그린다. 여는 진입점이 대상 창의 이 목록에 넣는다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_window_popups: std::collections::BTreeSet<u64>,
+
     /// 파일 핸들러의 플러그인 IPC 요청(메서드, 대상, 결과를 받을 run). App이 전달한다.
     #[cfg(feature = "gui")]
     pub(crate) pending_handler_ipc: Vec<(String, crate::file::format::FileTarget, Option<u64>)>,
