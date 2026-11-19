@@ -1000,3 +1000,15 @@ fn html_retired_ids_stay_separate_from_markdown_content_routes() {
     assert_eq!(markdown_mirror_local(&session, 30), Some(300));
     assert_eq!(markdown_mirror_local(&session, 31), None);
 }
+
+/// 서버의 강제 끊기는 재연결·재동기화하지 않는다. 연결 끊김과 에이전트 mirror 정리는 그대로다.
+#[test]
+fn force_detach_turns_reconnect_and_resync_into_a_final_stop() {
+    use DisconnectDisposition::*;
+    assert_eq!(after_force_detach(Reconnect, true), ForceDetached);
+    assert_eq!(after_force_detach(Resync, true), ForceDetached);
+    assert_eq!(after_force_detach(Reconnect, false), Reconnect);
+    assert_eq!(after_force_detach(Resync, false), Resync);
+    assert_eq!(after_force_detach(Cleanup, true), Cleanup);
+    assert_eq!(after_force_detach(None, true), None);
+}

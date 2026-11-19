@@ -224,6 +224,9 @@ pub struct AttachReaderEnd {
     pub heartbeat_timeout: std::time::Duration,
     /// 이쪽이 Detach를 보내기 시작했다(재동기화·연결 끊기). 쓰기 스레드와 같은 값이다.
     pub detach_sent: Arc<AtomicBool>,
+    /// 서버가 `force_detached`로 점유를 끊었다. `disconnected`보다 먼저 세워 App이 연결 끊김과
+    /// 구분하게 한다. 서버는 이 Control을 Detach와 연결 종료보다 먼저 보낸다.
+    pub force_detached: Arc<AtomicBool>,
 }
 
 impl AttachReaderEnd {
@@ -293,6 +296,7 @@ pub fn spawn_attach_reader_thread(
                     }
                     StreamTag::Control => {
                         if String::from_utf8_lossy(&frame.payload).contains("force_detached") {
+                            end.force_detached.store(true, Ordering::SeqCst);
                             disconnected.store(true, Ordering::SeqCst);
                             (wake)();
                             break;
@@ -516,6 +520,7 @@ impl PreparedConnection {
         frame_tx.bind_failure(disconnected.clone(), wake.clone());
         let output = MirrorOutbox::new(frame_tx.epoch());
         let detach_sent = Arc::new(AtomicBool::new(false));
+        let force_detached = Arc::new(AtomicBool::new(false));
         let writer = spawn_attach_write_thread(
             write_half,
             frame_rx,
@@ -535,6 +540,7 @@ impl PreparedConnection {
                 remote_workspace: workspace,
                 heartbeat_timeout,
                 detach_sent,
+                force_detached: force_detached.clone(),
             },
         );
         let heartbeat = spawn_attach_heartbeat_thread(frame_tx.clone(), disconnected.clone());
@@ -551,6 +557,7 @@ impl PreparedConnection {
                 workers,
                 output,
                 disconnected,
+                force_detached,
                 frame_tx,
                 tunnel,
                 explorer_write,

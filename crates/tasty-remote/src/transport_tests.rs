@@ -69,6 +69,7 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
             remote_workspace: 1,
             heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
             detach_sent: Arc::new(AtomicBool::new(false)),
+            force_detached: Arc::new(AtomicBool::new(false)),
         },
     );
     stream::write_frame(&mut peer, StreamTag::Control, b"{}").unwrap();
@@ -280,6 +281,7 @@ fn reader_end() -> AttachReaderEnd {
         remote_workspace: 513,
         heartbeat_timeout: Duration::from_secs(45),
         detach_sent: Arc::new(AtomicBool::new(false)),
+        force_detached: Arc::new(AtomicBool::new(false)),
     }
 }
 

@@ -55,6 +55,7 @@ impl App {
         let mut unknown_close: Vec<u32> = Vec::new();
         let mut reconnecting: Vec<usize> = Vec::new();
         let mut resyncing: Vec<usize> = Vec::new();
+        let mut force_detached: Vec<usize> = Vec::new();
         for idx in 0..self.remote.sessions.len() {
             let (local_ws, disconnected, state, saved_row) = {
                 let sess = &self.remote.sessions[idx];
@@ -116,6 +117,10 @@ impl App {
             match disposition {
                 DisconnectDisposition::Resync => resyncing.push(idx),
                 DisconnectDisposition::Reconnect => reconnecting.push(idx),
+                DisconnectDisposition::ForceDetached if saved_row.is_some() => {
+                    force_detached.push(idx)
+                }
+                DisconnectDisposition::ForceDetached => dead.push(idx),
                 DisconnectDisposition::Cleanup => dead.push(idx),
                 DisconnectDisposition::ServerClosed => closed.push(idx),
                 DisconnectDisposition::None => {}
@@ -138,6 +143,9 @@ impl App {
         for &idx in &reconnecting {
             self.enter_reconnecting(idx);
         }
+        for &idx in &force_detached {
+            self.stop_after_force_detach(idx);
+        }
         self.end_sessions(&dead, &closed);
     }
 }
@@ -153,12 +161,16 @@ fn decide_session_end(
     let disposition = session_end(
         sess.state.workspace_close,
         installing,
-        disconnect_disposition(disconnected, phase, sess.resync_released(), saved),
+        after_force_detach(
+            disconnect_disposition(disconnected, phase, sess.resync_released(), saved),
+            sess.transport.force_detached.load(Ordering::SeqCst),
+        ),
     );
     let unknown = matches!(
         disposition,
         DisconnectDisposition::Resync
             | DisconnectDisposition::Reconnect
+            | DisconnectDisposition::ForceDetached
             | DisconnectDisposition::Cleanup
     ) && super::workspace_close::close_result_unknown(sess);
     (disposition, unknown)
@@ -197,6 +209,8 @@ enum DisconnectDisposition {
     None,
     Resync,
     Reconnect,
+    /// 서버가 강제로 끊었다. 저장된 원격 행은 재연결하지 않고 끊긴 행으로 남는다.
+    ForceDetached,
     Cleanup,
     /// 서버가 workspace를 닫았다고 회신했다. 재연결 없이 로컬에서 정리한다.
     ServerClosed,
@@ -237,6 +251,20 @@ fn disconnect_disposition(
         DisconnectDisposition::Reconnect
     } else {
         DisconnectDisposition::Cleanup
+    }
+}
+
+/// 서버의 강제 끊기는 정식 종료라 재연결·재동기화하지 않는다. 연결 끊김(EOF·TTL)은 그대로 둔다.
+/// 에이전트 mirror는 원래 재연결하지 않으므로 정리(Cleanup)를 유지한다.
+fn after_force_detach(
+    disposition: DisconnectDisposition,
+    force_detached: bool,
+) -> DisconnectDisposition {
+    match disposition {
+        DisconnectDisposition::Resync | DisconnectDisposition::Reconnect if force_detached => {
+            DisconnectDisposition::ForceDetached
+        }
+        other => other,
     }
 }
 

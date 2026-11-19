@@ -95,6 +95,7 @@ pub(crate) fn test_session_with_frames(
             workers: tasty_remote::transport::ConnectionWorkers::new(control, Vec::new()),
             output: MirrorOutbox::new(tx.epoch()),
             disconnected: Arc::new(AtomicBool::new(false)),
+            force_detached: Arc::new(AtomicBool::new(false)),
             frame_tx: tx,
             tunnel: None,
             explorer_write: true,

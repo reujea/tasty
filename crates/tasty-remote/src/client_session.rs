@@ -322,6 +322,8 @@ pub struct ClientTransport {
     pub workers: crate::transport::ConnectionWorkers,
     pub output: MirrorOutbox,
     pub disconnected: Arc<AtomicBool>,
+    /// 서버가 강제 끊기(`force_detached`)로 이 연결을 끝냈다. 저장된 원격 행도 재연결하지 않는다.
+    pub force_detached: Arc<AtomicBool>,
     pub frame_tx: SharedFrameSender,
     pub tunnel: Option<tasty_ssh::SshTunnel>,
     /// 서버가 원격 explorer 파일 작업을 받는다. 구 서버 descriptor 에는 이 기능이 없다.
