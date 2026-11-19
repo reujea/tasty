@@ -417,11 +417,18 @@ impl App {
             params,
             |sid| asked == Some(sid) && asked_exists,
         );
+        // 열었으면 (plugin, popup) 마다 하나인 인스턴스를 매니저에서 찾는다. 응답 본문은 다시 읽지 않는다.
         let opened = response
-            .result
-            .as_ref()
-            .and_then(|r| r.get("instance_id"))
-            .and_then(|v| v.as_u64());
+            .error
+            .is_none()
+            .then(|| {
+                self.plugin_manager.as_ref().and_then(|m| {
+                    m.popup_instances()
+                        .find(|(_, i)| i.plugin_id == plugin_id && i.popup_id == popup_id)
+                        .map(|(id, _)| id)
+                })
+            })
+            .flatten();
         if let (Some(w), Some(instance_id), Some(mgr)) =
             (window, opened, self.plugin_manager.as_ref())
             && let Some(main) = self.view.views.get_mut(&w).and_then(|v| v.as_main_mut())
