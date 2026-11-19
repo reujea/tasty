@@ -45,6 +45,56 @@ pub fn redraw_fps_choices(max_refresh_millihertz: Option<u32>) -> Vec<i64> {
         .collect()
 }
 
+/// 설정 화면 선택지 한 행의 표기 종류. 문구는 호출하는 쪽이 번역 키로 만든다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RedrawFpsLabel {
+    /// 목록 안의 값("{} fps").
+    Fps(i64),
+    /// 가장 빠른 모니터보다 높게 저장된 값("{} fps (above monitor)").
+    AboveMonitor(i64),
+    /// 무제한(-1). 모니터 주사율까지 그린다("Match monitor").
+    MatchMonitor,
+}
+
+/// 설정 화면 한 행의 선택지 목록과 선택 인덱스.
+///
+/// 목록은 [`redraw_fps_choices`]다. 저장 값이 그 목록에 없으면(가장 빠른 모니터보다 높은 값)
+/// 숫자 순서 자리, 곧 무제한 앞에 [`RedrawFpsLabel::AboveMonitor`]로 끼워 선택해 둔다. 공용
+/// "(unknown)" 행을 쓰지 않는 이유는 값을 알고 있고 유효하기 때문이다. 끼운 행의 값은 저장 값
+/// 자체이므로 그 행을 다시 골라도 저장 값은 바뀌지 않는다.
+pub fn redraw_fps_options(
+    max_refresh_millihertz: Option<u32>,
+    saved: i64,
+    label: impl Fn(RedrawFpsLabel) -> String,
+) -> (Vec<(i64, String)>, usize) {
+    let mut values = redraw_fps_choices(max_refresh_millihertz);
+    let mut above = None;
+    if !values.contains(&saved) {
+        // 무제한은 늘 목록에 있으므로 saved 는 양수 선택지다. 무제한 앞 숫자 순서 자리에 둔다.
+        let at = values
+            .iter()
+            .position(|v| *v == UNLIMITED_REDRAW_FPS || *v > saved)
+            .unwrap_or(values.len());
+        values.insert(at, saved);
+        above = Some(saved);
+    }
+    let selected = values.iter().position(|v| *v == saved).unwrap_or(0);
+    let rows = values
+        .into_iter()
+        .map(|v| {
+            let kind = if v == UNLIMITED_REDRAW_FPS {
+                RedrawFpsLabel::MatchMonitor
+            } else if above == Some(v) {
+                RedrawFpsLabel::AboveMonitor(v)
+            } else {
+                RedrawFpsLabel::Fps(v)
+            };
+            (v, label(kind))
+        })
+        .collect();
+    (rows, selected)
+}
+
 /// 연결된 모니터들의 보고값에서 가장 높은 주사율을 고른다. 보고값이 하나도 없으면 `None`.
 pub fn max_refresh_millihertz(reports: impl IntoIterator<Item = Option<u32>>) -> Option<u32> {
     reports.into_iter().flatten().filter(|m| *m > 0).max()
@@ -81,6 +131,49 @@ mod tests {
             vec![15, 30, 60, 120, 144, -1]
         );
         assert_eq!(redraw_fps_choices(Some(50_000)), vec![15, 30, -1]);
+    }
+
+    fn options(max: Option<u32>, saved: i64) -> (Vec<(i64, String)>, usize) {
+        redraw_fps_options(max, saved, |l| match l {
+            RedrawFpsLabel::Fps(v) => format!("{v} fps"),
+            RedrawFpsLabel::AboveMonitor(v) => format!("{v} fps (above monitor)"),
+            RedrawFpsLabel::MatchMonitor => "Match monitor".to_string(),
+        })
+    }
+
+    fn values(rows: &[(i64, String)]) -> Vec<i64> {
+        rows.iter().map(|(v, _)| *v).collect()
+    }
+
+    #[test]
+    fn a_listed_value_selects_its_row_without_extra_rows() {
+        let (rows, idx) = options(None, 30);
+        assert_eq!(values(&rows), vec![15, 30, 60, -1]);
+        assert_eq!(idx, 1);
+        assert_eq!(rows[3].1, "Match monitor");
+
+        let (rows, idx) = options(Some(60_000), UNLIMITED_REDRAW_FPS);
+        assert_eq!(values(&rows), vec![15, 30, 60, -1]);
+        assert_eq!(idx, 3);
+
+        let (rows, idx) = options(Some(240_000), 240);
+        assert_eq!(values(&rows), vec![15, 30, 60, 120, 144, 240, -1]);
+        assert_eq!(idx, 5);
+        assert_eq!(rows[5].1, "240 fps");
+    }
+
+    #[test]
+    fn a_saved_value_above_the_fastest_monitor_sits_before_match_monitor() {
+        let (rows, idx) = options(Some(60_000), 144);
+        assert_eq!(values(&rows), vec![15, 30, 60, 144, -1]);
+        assert_eq!(idx, 3);
+        assert_eq!(rows[3].1, "144 fps (above monitor)");
+        assert_eq!(rows[2].1, "60 fps");
+
+        let (rows, idx) = options(Some(50_000), 60);
+        assert_eq!(values(&rows), vec![15, 30, 60, -1]);
+        assert_eq!(idx, 2);
+        assert_eq!(rows[2].1, "60 fps (above monitor)");
     }
 
     #[test]
