@@ -365,3 +365,53 @@ fn the_stream_write_timeout_is_armed_on_the_socket() {
         Some(Duration::from_secs(45))
     );
 }
+
+/// 서버 읽기 스레드의 소켓 사본이 깨어나 읽기가 돌아오는지 본다. 3초 안에 EOF나 오류로 돌아와야 한다.
+/// 시간 초과(`WouldBlock`·`TimedOut`)는 깨어나지 않았다는 뜻이다.
+fn assert_reader_copy_wakes(mut reader_copy: std::net::TcpStream) {
+    use std::io::Read;
+    reader_copy
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    let mut byte = [0u8; 1];
+    match reader_copy.read(&mut byte) {
+        Ok(0) => {}
+        Ok(n) => panic!("unexpected {n} bytes from the client"),
+        Err(e) => assert!(
+            !matches!(
+                e.kind(),
+                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+            ),
+            "the reader copy was not woken: {e}"
+        ),
+    }
+}
+
+/// 끝내는 Control의 쓰기 자체가 실패하면 통지는 쓰이지 않았으므로 쓰기 쪽만 닫지 않고 양쪽을 닫는다.
+/// 쓰기 쪽을 미리 닫아 쓰기를 실패시키고, 읽기 스레드 사본이 깨어나는지로 `Shutdown::Both` 를 잰다.
+#[test]
+fn a_failed_ending_frame_write_closes_both_sides() {
+    let (_client, server) = sockets();
+    let reader_copy = server.try_clone().unwrap();
+    server.shutdown(std::net::Shutdown::Write).unwrap();
+    let hub = StreamHub::new();
+    let rx = hub.register(5);
+    assert_eq!(
+        hub.push(
+            5,
+            StreamFrame::new(
+                StreamTag::Control,
+                br#"{"event":"force_detached","reason":"force_detach"}"#.to_vec(),
+            )
+        ),
+        PushResult::Sent
+    );
+    let server_ending = Arc::new(AtomicBool::new(false));
+    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx, 1, server_ending.clone());
+    writer.join().unwrap();
+    assert!(
+        server_ending.load(Ordering::Acquire),
+        "marked before the write"
+    );
+    assert_reader_copy_wakes(reader_copy);
+}
