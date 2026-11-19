@@ -286,3 +286,82 @@ fn the_read_loop_ends_on_the_first_frame_after_the_server_ended_the_connection()
     assert!(started.elapsed() < Duration::from_secs(5));
     assert!(inbound_rx.try_recv().is_err());
 }
+
+/// 강제 끊김을 실제 writer와 소켓으로 끝까지 잰다. 읽기 스레드가 소켓 사본을 들고 있고,
+/// 연결 정리(`finish_stream_connection`의 `unregister`)가 writer보다 먼저 와도
+/// 통지를 넣었다고 답한 연결은 그 통지를 소켓에 쓰고, 못 넣은 연결은 곧바로 닫혀야 한다.
+fn force_detach_over_a_socket(free_slots: usize) -> (bool, Vec<StreamTag>, std::io::Error) {
+    let (mut client, server) = sockets();
+    let reader_copy = server.try_clone().unwrap();
+    let hub = StreamHub::new();
+    let holder = hub.alloc_id();
+    let rx = hub.register(holder);
+    while hub.push(holder, StreamFrame::new(StreamTag::Data, vec![0])) == PushResult::Sent {}
+    for _ in 0..free_slots {
+        rx.recv().unwrap();
+    }
+    let (_state, mut session) = crate::state::tests::test_state();
+    let notified = {
+        let mut engine = session.borrow_mut();
+        engine.remote.set_notifier(hub.clone());
+        engine.live.occupancy.acquire(10, holder).unwrap();
+        engine.force_detach(10).expect("held").notified
+    };
+    // 읽기 루프가 먼저 끝나 정리가 sink를 지운 순서를 만든다.
+    hub.unregister(holder);
+    let writer =
+        TcpIpcServer::spawn_stream_write_thread(server, rx, 1, Arc::new(AtomicBool::new(false)));
+    let mut tags = Vec::new();
+    let end = loop {
+        match stream::read_frame(&mut client) {
+            Ok(frame) => tags.push(frame.tag),
+            Err(error) => break error,
+        }
+    };
+    writer.join().unwrap();
+    drop(reader_copy);
+    (notified, tags, end)
+}
+
+/// 큐가 가득 차 통지를 못 넣으면 남은 큐를 버리고 곧바로 닫는다. client는 heartbeat 기한이 아니라
+/// 바로 EOF를 본다(`sockets()`의 2초 읽기 기한 안).
+#[test]
+fn a_force_detach_that_could_not_queue_the_notice_closes_the_socket_at_once() {
+    let (notified, tags, end) = force_detach_over_a_socket(0);
+    assert!(!notified);
+    assert!(tags.is_empty(), "{tags:?}");
+    assert_eq!(end.kind(), std::io::ErrorKind::UnexpectedEof, "{end}");
+}
+
+/// 자리가 하나만 남아 Control만 들어가도 `notified: true`면 그 통지는 소켓에 쓰이고 연결은 닫힌다.
+#[test]
+fn a_queued_force_detach_notice_reaches_the_socket_even_after_the_sink_is_released() {
+    let (notified, tags, end) = force_detach_over_a_socket(1);
+    assert!(notified);
+    assert_eq!(tags.last(), Some(&StreamTag::Control), "{:?}", tags.len());
+    assert!(tags[..tags.len() - 1].iter().all(|t| *t == StreamTag::Data));
+    assert_eq!(end.kind(), std::io::ErrorKind::UnexpectedEof, "{end}");
+}
+
+/// 자리가 넉넉하면 통지와 Detach가 모두 쓰인다. 정리가 먼저 와도 Detach가 버려지지 않는다.
+#[test]
+fn a_force_detach_with_room_writes_the_notice_and_the_detach_before_eof() {
+    let (notified, tags, end) = force_detach_over_a_socket(8);
+    assert!(notified);
+    assert_eq!(
+        tags[tags.len() - 2..],
+        [StreamTag::Control, StreamTag::Detach]
+    );
+    assert_eq!(end.kind(), std::io::ErrorKind::UnexpectedEof, "{end}");
+}
+
+/// 읽지 않는 client에 막힌 writer도 쓰기 기한에서 끝나야 연결 정리가 기다리다 멈추지 않는다.
+#[test]
+fn the_stream_write_timeout_is_armed_on_the_socket() {
+    let (_client, server) = sockets();
+    TcpIpcServer::arm_stream_write_timeout(&server, Duration::from_secs(45));
+    assert_eq!(
+        server.write_timeout().unwrap(),
+        Some(Duration::from_secs(45))
+    );
+}

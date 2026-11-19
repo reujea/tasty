@@ -593,6 +593,7 @@ impl TcpIpcServer {
             return;
         }
         let server_ending = Arc::new(AtomicBool::new(false));
+        Self::arm_stream_write_timeout(&writer, read_timeout);
         let write_handle =
             Self::spawn_stream_write_thread(writer, sink_rx, client_id, server_ending.clone());
         Self::push_stream_ack(&ctx, client_id);
@@ -611,6 +612,15 @@ impl TcpIpcServer {
     fn arm_stream_read_timeout(reader: &BufReader<std::net::TcpStream>, timeout: Duration) {
         if let Err(e) = reader.get_ref().set_read_timeout(Some(timeout)) {
             tracing::warn!("stream client: failed to set read timeout: {e}");
+        }
+    }
+
+    /// 읽지 않는 client에 막힌 쓰기도 읽기 timeout과 같은 기한에 끝낸다. 기한 동안 한 바이트도
+    /// 받지 않는 client는 읽기 쪽의 생존 판정으로도 끊긴 연결이다. 이 기한이 없으면 sink를 지워도
+    /// 막힌 writer가 깨지 않아 연결 정리(`finish_stream_connection`의 join)가 끝나지 않는다.
+    fn arm_stream_write_timeout(writer: &std::net::TcpStream, timeout: Duration) {
+        if let Err(e) = writer.set_write_timeout(Some(timeout)) {
+            tracing::warn!("stream client: failed to set write timeout: {e}");
         }
     }
 
@@ -793,16 +803,28 @@ impl TcpIpcServer {
                     Err(mpsc::RecvTimeoutError::Disconnected) => break, // unregister 됨
                 }
             }
-            // 서버가 끝낸 연결은 통지 뒤 쓰기 쪽을 닫아 client가 곧바로 EOF를 본다.
-            // 읽기 쪽은 `run_stream_read_loop`가 그 뒤 첫 프레임이나 read timeout에서 끝낸다.
-            if server_ending.load(Ordering::Acquire)
-                && let Err(e) = w.shutdown(std::net::Shutdown::Write)
-            {
-                tracing::debug!(
-                    "stream client {client_id}: 서버가 끝낸 연결의 쓰기 종료 실패: {e}"
-                );
-            }
+            Self::close_after_writer(&w, client_id, &server_ending);
         })
+    }
+
+    /// writer가 끝나면 이 연결은 더 쓸 수 없으므로 소켓을 닫는다.
+    /// 끝내는 프레임을 쓴 연결은 쓰기 쪽만 닫는다. client가 통지를 다 읽은 뒤 EOF를 보고, 읽기 쪽은
+    /// `run_stream_read_loop`가 그 뒤 첫 프레임이나 client의 EOF에서 끝낸다.
+    /// 통지 없이 끝난 연결(sink 해제, 송신 실패)은 양쪽을 닫는다. 읽기 스레드가 들고 있는 사본도
+    /// 깨워야 client가 곧바로 EOF를 보고 읽기 루프도 끝난다.
+    fn close_after_writer(
+        w: &std::net::TcpStream,
+        client_id: StreamClientId,
+        server_ending: &AtomicBool,
+    ) {
+        let how = if server_ending.load(Ordering::Acquire) {
+            std::net::Shutdown::Write
+        } else {
+            std::net::Shutdown::Both
+        };
+        if let Err(e) = w.shutdown(how) {
+            tracing::debug!("stream client {client_id}: 연결 종료({how:?}) 실패: {e}");
+        }
     }
 
     /// 점유·스냅샷·출력 tap은 엔진을 소유한 메인 루프에 맡긴다. 결과는 별도 Control로 보낸다.

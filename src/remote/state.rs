@@ -294,32 +294,37 @@ impl RemoteState {
         self.structure_changed.extend(held);
         ready
     }
-    /// Control 사유와 Detach를 차례로 push하고 통지를 큐에 넣었는지 반환한다.
-    /// 어느 하나라도 넣지 못하면 sink를 지워 연결을 닫는다. Control까지 들어갔으면 writer가 그것을 쓴 뒤
-    /// 닫으므로 holder는 통지를 받고 끊긴다. Control을 못 넣었으면 holder는 통지 없이 끊김만 본다.
-    /// 어느 경우든 점유 해제는 되돌리지 않는다.
+    /// Control 사유와 Detach를 넣고 등록을 끝낸 뒤, 통지를 큐에 넣었는지 반환한다.
+    /// 들어간 프레임은 writer가 소켓에 쓸 때까지 버려지지 않고, writer는 큐를 다 쓰면 소켓을 닫는다
+    /// ([`StreamHub::end_with`](tasty_ipc::stream_hub::StreamHub::end_with)). Control을 못 넣었으면
+    /// 남은 큐를 버리고 곧바로 닫으므로 holder는 통지 없이 끊김만 본다. 어느 경우든 점유 해제는
+    /// 되돌리지 않는다. 연결이 이미 없으면 false다.
     pub(crate) fn notify_detached(&self, holder: AttachClientId, reason: &str) -> bool {
         let Some(hub) = &self.notifier else {
             return false;
         };
         let msg = serde_json::json!({ "event": tasty_ipc::stream::FORCE_DETACHED_EVENT, "reason": reason });
         let payload = serde_json::to_vec(&msg).unwrap_or_default();
-        let control = hub.push(holder, StreamFrame::new(StreamTag::Control, payload));
-        if control != tasty_ipc::stream_hub::PushResult::Sent {
-            tracing::warn!(
-                "attach: holder {holder} 에 force_detached 통지를 넣지 못해({control:?}) 연결을 닫는다"
-            );
-            hub.unregister(holder);
-            return false;
+        let frames = vec![
+            StreamFrame::new(StreamTag::Control, payload),
+            StreamFrame::new(StreamTag::Detach, Vec::new()),
+        ];
+        match hub.end_with(holder, frames) {
+            Some(2) => true,
+            Some(1) => {
+                tracing::warn!(
+                    "attach: holder {holder} 에 Detach를 넣지 못했다. 통지를 쓴 뒤 연결을 닫는다"
+                );
+                true
+            }
+            Some(_) => {
+                tracing::warn!(
+                    "attach: holder {holder} 에 force_detached 통지를 넣지 못해 통지 없이 연결을 닫는다"
+                );
+                false
+            }
+            None => false,
         }
-        let detach = hub.push(holder, StreamFrame::new(StreamTag::Detach, Vec::new()));
-        if detach != tasty_ipc::stream_hub::PushResult::Sent {
-            tracing::warn!(
-                "attach: holder {holder} 에 Detach를 넣지 못해({detach:?}) 통지 뒤 연결을 닫는다"
-            );
-            hub.unregister(holder);
-        }
-        true
     }
 }
 

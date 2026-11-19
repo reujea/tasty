@@ -491,6 +491,33 @@ impl StreamHub {
             .remove(&id);
     }
 
+    /// 끝내는 프레임을 차례로 넣고 등록을 맵에서 뺀다. 큐에 들어간 수를 돌려준다.
+    ///
+    /// 들어간 프레임은 등록의 binding을 붙든다. 그래서 그 프레임이 큐에 있는 동안에는 이 연결의
+    /// 다른 정리(`unregister`)가 와도 writer가 앞선 프레임과 끝내는 프레임을 버리지 않는다.
+    /// sender는 여기서 사라지므로 writer는 큐를 다 쓴 뒤 끊김을 보고 소켓을 닫는다.
+    /// 하나도 넣지 못했으면 binding도 함께 사라져 남은 큐를 버리고 곧바로 닫는다.
+    /// 앞 프레임이 실패하면 뒤 프레임은 넣지 않는다. 순서를 건너뛴 통지를 보내지 않기 위해서다.
+    pub fn end_with(&self, id: StreamClientId, frames: Vec<StreamFrame>) -> Option<usize> {
+        let sink =
+            tasty_utils::poison::recover_mutex(self.sinks.lock(), SINKS_WHAT, &SINKS_POISONED)
+                .remove(&id)?;
+        tasty_utils::poison::recover_mutex(self.bulk_bindings.lock(), BULK_WHAT, &BULK_POISONED)
+            .remove(&id);
+        let mut queued = 0;
+        for frame in frames {
+            let Ok(held) = HeldFrame::charge(frame, &sink) else {
+                break;
+            };
+            if Self::enqueue_held(&sink, held.retaining(sink.binding.clone())).is_err() {
+                self.loss.frames.fetch_add(1, Ordering::Relaxed);
+                break;
+            }
+            queued += 1;
+        }
+        Some(queued)
+    }
+
     /// Remove only the original registration, including its bulk binding.
     pub fn unregister_bound(&self, id: StreamClientId, binding: &Weak<()>) -> bool {
         let mut sinks =

@@ -82,6 +82,7 @@ impl FrameReservation {
             binding: self.binding,
             owner: self.owner,
             guard: self.guard,
+            retained: None,
             _lease: self.lease,
         };
         if valid { Ok(held) } else { Err(held) }
@@ -95,6 +96,9 @@ pub struct HeldFrame {
     binding: Weak<()>,
     owner: Option<Weak<()>>,
     guard: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
+    /// 연결을 끝내며 맵에서 뺀 등록의 binding. 이 프레임이 큐에 있는 동안 앞선 프레임과
+    /// 이 프레임이 `is_current`를 통과하게 한다([`StreamHub::end_with`]).
+    retained: Option<Arc<()>>,
     _lease: ByteLease,
 }
 impl Deref for HeldFrame {
@@ -127,6 +131,7 @@ impl HeldFrame {
                 binding,
                 owner: None,
                 guard: None,
+                retained: None,
                 _lease: lease,
             }),
             None => Err(Self {
@@ -134,12 +139,17 @@ impl HeldFrame {
                 binding,
                 owner: None,
                 guard: None,
+                retained: None,
                 _lease: ByteLease {
                     counter: counter.clone(),
                     bytes: 0,
                 },
             }),
         }
+    }
+    pub(super) fn retaining(mut self, binding: Arc<()>) -> Self {
+        self.retained = Some(binding);
+        self
     }
     pub(super) fn into_frame(self) -> StreamFrame {
         self.frame
