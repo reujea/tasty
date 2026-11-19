@@ -44,6 +44,8 @@ pub fn draw_plugin_popups(
     // 누름 스냅샷은 직전 렌더의 키 후보로 찍는다. 아래에서 후보를 비우기 전이어야 키 주인 plugin 팝업이 포커스
     // 노드로 남는다(host 팝업 그리기가 먼저 찍었으면 그 값을 쓴다).
     let press = crate::adapters::ui::popup::frame::frame_press(ctx, state, _engine, layout);
+    // host 그리기가 이번 프레임에 정한 키 주인. 조기 반환해도 다음 프레임에 남지 않게 먼저 꺼낸다.
+    let decided_key_owner = state.frame_key_owner.take();
     // 조기 반환 때도 이전 프레임의 합성·입력·IME 상태가 남지 않도록 먼저 비운다.
     state.plugin_mesh_popup_regions.clear();
     state.plugin_popup_layers.clear();
@@ -169,7 +171,7 @@ pub fn draw_plugin_popups(
     state.plugin_popup_open = true;
 
     // host/plugin 전체에서 최상단 팝업만 키·Escape를 받는다. 창의 키 처리도 같은 판정을 쓴다.
-    let key_target = state.plugin_popup_key_target_in_render();
+    let key_target = state.frame_plugin_key_target(decided_key_owner);
 
     let (scrim_rects, scrim_paints) = scrim_plan(&placed, layout, screen_rect);
     // 덮는 팝업의 덮는 사각형(배치 범위)도 가림으로 본다.

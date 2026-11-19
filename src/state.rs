@@ -244,7 +244,9 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             press_snapshot: None,
             #[cfg(feature = "gui")]
-            host_popup_drawn_key_z: None,
+            frame_key_owner: None,
+            #[cfg(feature = "gui")]
+            plugin_popup_frame_entries: None,
             #[cfg(feature = "gui")]
             plugin_popup_hittest: Vec::new(),
             #[cfg(feature = "gui")]

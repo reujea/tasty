@@ -240,8 +240,6 @@ pub struct PopupDrawResult {
     /// 실제 그린 팝업의 영역과 z_seq. plugin 팝업이 위에 덮인 host 팝업을 판별할 때 쓴다.
     /// 숨겨진 팝업은 마우스 입력을 가로채지 않도록 제외한다.
     pub hit_rects: Vec<occlusion::Occluder>,
-    /// 그리기를 시작할 때 키를 받을 수 있던 host 인스턴스의 순번(`PopupManager::host_key_owner`).
-    pub key_owner_z: Option<u64>,
     /// 보이는 덮는 팝업의 덮는 사각형과 z_seq. 포인터 대상 찾기가 그 아래로 내려가지 않는다.
     pub covers: Vec<occlusion::Occluder>,
     /// native WebView 위에 합성할 대상(non-passive 팝업). passive 팝업은 들어 있지 않다.
@@ -870,6 +868,8 @@ pub struct PopupManager {
     /// 이번 프레임 키 주인이 plugin 팝업인지. 호출자가 그리기 전에 정한다. 참이면 host 팝업 본문은 키를 받지
     /// 않는다.
     plugin_holds_keys: bool,
+    /// 호출자가 그리기 전에 정한 이번 프레임의 그리기 순서(`prepare_frame_for_draw`). 그리기가 꺼내 쓴다.
+    prepared: Option<Vec<usize>>,
 }
 
 impl PopupManager {
@@ -881,6 +881,7 @@ impl PopupManager {
             notice_column: None,
             plugin_parents: Default::default(),
             plugin_holds_keys: false,
+            prepared: None,
         }
     }
 
@@ -1437,6 +1438,7 @@ mod tests {
             notice_column: None,
             plugin_parents: Default::default(),
             plugin_holds_keys: false,
+            prepared: None,
         }
     }
 

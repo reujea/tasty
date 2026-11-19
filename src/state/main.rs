@@ -157,16 +157,24 @@ pub struct MainViewState {
     /// winit 이 누름을 처리할 때 남긴 누르기 직전 포커스. 그 누름을 처리한 egui 프레임이 끝나면 비운다.
     #[cfg(feature = "gui")]
     pub(crate) press_snapshot: Option<crate::adapters::ui::popup::route::PressSnapshot>,
-    /// 이번 프레임 host 팝업을 그리기 시작할 때 키를 받을 수 있던 host 인스턴스(`PopupManager::host_key_owner`)의
-    /// 순번. 그리는 중 닫혀도 뒤에 그리는 plugin 팝업 렌더가 그 프레임의 키 주인을 같은 값으로 판정한다.
+    /// 이번 프레임의 키 주인. host 팝업 그리기가 이번 프레임 범위·표시 판정 뒤 한 번 정하고(`decide_frame_key_owner`),
+    /// host 본문과 뒤에 그리는 plugin 팝업 렌더가 같은 값을 쓴다. 그리는 중 host 팝업이 닫혀도 바뀌지 않는다.
+    /// plugin 렌더가 꺼내 비운다. `None`이면 이번 프레임에 정하지 않았다.
     #[cfg(feature = "gui")]
-    pub(crate) host_popup_drawn_key_z: Option<u64>,
+    pub(crate) frame_key_owner:
+        Option<Option<crate::adapters::ui::popup::occlusion::PopupKeyOwner>>,
+    /// 그리기 전에 만든 이번 프레임 plugin 팝업 instance id·순번·결속 범위(`sync_plugin_popup_scopes`). 키 주인을
+    /// 정할 때 이번 프레임 범위가 보이는 것만 plugin 후보로 삼는다. 키 주인을 정하며 꺼내 비운다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_frame_entries:
+        Option<Vec<(u64, u64, Option<crate::adapters::ui::popup::PopupScope>)>>,
     /// 이전 프레임 플러그인 팝업의 셸 rect와 z_seq. 호스트를 먼저 그리므로 입력 판정에
     /// 한 프레임 전 값을 사용한다. 콘텐츠의 물리 rect인 plugin_mesh_popup_regions와 다르다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_hittest: Vec<crate::adapters::ui::popup::occlusion::Occluder>,
-    /// 이전 프레임에 배치한 플러그인 팝업의 instance id와 순번. 숨은 범위의 팝업은 들어 있지 않다.
-    /// 키를 받을 팝업 판정(`popup_key_owner`)의 plugin 후보다.
+    /// 플러그인 팝업의 instance id와 순번. 숨은 범위의 팝업은 들어 있지 않다. 키를 받을 팝업 판정
+    /// (`popup_key_owner`)의 plugin 후보다. 그리기 전 키 주인을 정할 때 이번 프레임 범위로 다시 만들고, plugin
+    /// 렌더가 배치 결과로 다시 채운다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_key_candidates: Vec<(u64, u64)>,
     /// 이전 프레임에 배치한 플러그인 팝업 중 그 플러그인이 편집 결과 회신을 약속한 instance. 붙여넣을 글자를 읽는

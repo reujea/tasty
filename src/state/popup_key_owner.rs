@@ -1,14 +1,14 @@
-//! 키를 받는 팝업 판정. 플러그인 팝업 렌더와 창의 키 처리가 같은 후보와 같은 규칙을 쓴다.
-//! host 후보는 지금 열려 있고 직전 그리기에서 범위가 보인 host 팝업이고(렌더에서는 이번 프레임에 그린 host
-//! 팝업도 더한다), plugin 후보는 직전 프레임에 배치한 plugin 팝업이다. 렌더 뒤 host 팝업을 열거나 닫으면
-//! 다음 키부터 반영된다.
+//! 키를 받는 팝업 판정. 그리기와 창의 키 처리가 같은 후보와 같은 규칙(`key_owner_with`)을 쓴다.
+//! 그리기에서는 host 팝업 그리기가 이번 프레임 범위·표시 판정 뒤 한 번 정하고(`decide_frame_key_owner`), host
+//! 본문과 plugin 팝업 렌더가 그 값을 쓴다. 창의 키 처리는 지금 열린 host 팝업과 마지막으로 정한 plugin 후보로
+//! 판정하므로, 렌더 뒤 host 팝업을 열거나 닫으면 다음 키부터 반영된다.
 
 use crate::adapters::ui::popup::occlusion::{KeyCandidate, PopupKeyOwner, key_owner};
 
 impl super::MainViewState {
     /// 지금 키를 받는 팝업. 보이는 팝업이 없으면 `None`이다.
     pub(crate) fn popup_key_owner(&self) -> Option<PopupKeyOwner> {
-        self.key_owner_with(std::iter::empty())
+        self.key_owner_with()
     }
 
     /// 키를 받는 팝업이 plugin 팝업이면 그 instance id.
@@ -16,11 +16,40 @@ impl super::MainViewState {
         plugin_target(self.popup_key_owner())
     }
 
-    /// 플러그인 팝업 렌더가 쓰는 [`Self::plugin_popup_key_target`]. 이번 프레임에 그린 host 팝업도 후보다.
-    /// 그리는 중 키로 닫힌 host 팝업(Escape 로 닫은 팔레트)이 받은 키를 같은 프레임에 아래 plugin 팝업이 다시
-    /// 받지 않게 한다.
-    pub(crate) fn plugin_popup_key_target_in_render(&self) -> Option<u64> {
-        plugin_target(self.key_owner_with(self.host_popup_drawn_key_z.into_iter()))
+    /// 이번 프레임의 키 주인을 정한다. host 팝업 그리기가 이번 프레임 범위·표시 판정(`prepare_frame_for_draw`)
+    /// 뒤, 그리기 전에 한 번 부른다. plugin 후보는 그리기 전에 만든 이번 프레임 인스턴스 중 범위가 보이는 것이다.
+    /// host 그리기(`PopupManager::set_plugin_holds_keys`)와 plugin 렌더(`take_frame_plugin_key_target`)가 이
+    /// 값을 쓴다.
+    pub(crate) fn decide_frame_key_owner(
+        &mut self,
+        layout: Option<&crate::adapters::ui::LayoutContext>,
+    ) -> Option<PopupKeyOwner> {
+        if let Some(entries) = self.plugin_popup_frame_entries.take() {
+            self.plugin_popup_key_candidates = entries
+                .into_iter()
+                .filter_map(|(id, z_seq, scope)| {
+                    let scope = scope?;
+                    crate::adapters::ui::PopupManager::is_scope_visible(&scope, layout)
+                        .then_some((id, z_seq))
+                })
+                .collect();
+        }
+        let owner = self.popup_key_owner();
+        self.frame_key_owner = Some(owner);
+        self.popups
+            .set_plugin_holds_keys(matches!(owner, Some(PopupKeyOwner::Plugin(_))));
+        owner
+    }
+
+    /// plugin 팝업 렌더가 쓰는 이번 프레임 키 주인 plugin 팝업. `decided`는 렌더를 시작할 때 꺼낸
+    /// `frame_key_owner`다. 그리는 중 키로 닫힌 host 팝업(Escape 로 닫은 팔레트)이 받은 키를 같은 프레임에 아래
+    /// plugin 팝업이 다시 받지 않는다. 이번 프레임에 정하지 않았으면(host 그리기 없이 렌더만 부른 경우) 같은
+    /// 판정을 지금 한다.
+    pub(crate) fn frame_plugin_key_target(
+        &self,
+        decided: Option<Option<PopupKeyOwner>>,
+    ) -> Option<u64> {
+        plugin_target(decided.unwrap_or_else(|| self.popup_key_owner()))
     }
 
     /// 키 주인 팝업의 논리 범위. host 는 포커스를 가진 맨 위 인스턴스, plugin 은 선언·결속으로 정한 범위다.
@@ -52,12 +81,11 @@ impl super::MainViewState {
         }
     }
 
-    fn key_owner_with(&self, drawn_host: impl Iterator<Item = u64>) -> Option<PopupKeyOwner> {
+    fn key_owner_with(&self) -> Option<PopupKeyOwner> {
         let host = self
             .popups
             .host_key_owner_z()
             .into_iter()
-            .chain(drawn_host)
             .map(|z_seq| KeyCandidate {
                 z_seq,
                 owner: PopupKeyOwner::Host,
@@ -130,11 +158,16 @@ mod tests {
         let mut state = state_with_host_popup();
         let plugin_z = tasty_host_plugin::next_popup_z_seq();
         state.plugin_popup_key_candidates = vec![(42, plugin_z)];
-        state.host_popup_drawn_key_z = Some(tasty_host_plugin::next_popup_z_seq());
-        assert_eq!(state.plugin_popup_key_target_in_render(), None);
+        let host = state
+            .popups
+            .open_centered_focused("host_popup", PopupScope::Window)
+            .unwrap();
+        let decided = state.decide_frame_key_owner(None);
+        state.popups.close("host_popup");
+        assert!(!state.popups.instance(host).is_some_and(|p| p.open));
         assert_eq!(state.plugin_popup_key_target(), Some(42));
-        state.host_popup_drawn_key_z = None;
-        assert_eq!(state.plugin_popup_key_target_in_render(), Some(42));
+        assert_eq!(state.frame_plugin_key_target(Some(decided)), None);
+        assert_eq!(state.frame_plugin_key_target(None), Some(42));
     }
 
     /// 키 주인이 펼친 plugin 팝업이면 Esc 다시 접기가 소비한다. 아래 포커스된 host 팝업은 닫히거나 포커스를

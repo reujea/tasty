@@ -147,6 +147,47 @@ fn resize_cursor(e: ResizeEdges) -> egui::CursorIcon {
 }
 
 impl PopupManager {
+    /// 이번 프레임의 범위 보임과 표시 상태(접힘·펼침)를 정하고, 그릴 인스턴스를 그리는 순서로 돌려준다. 그리기와
+    /// 그 프레임의 키 주인 판정이 같은 값을 읽도록 호출자가 그리기 전에 부를 수 있다. 부르면 결과를 남겨 두고
+    /// 이번 그리기가 그대로 쓴다.
+    pub(crate) fn prepare_frame(
+        &mut self,
+        ctx: &egui::Context,
+        draw_ctx: Option<&LayoutContext>,
+    ) -> Vec<usize> {
+        // Hidden scopes retain focus intent, but cannot hold the keyboard gate or
+        // continue a pointer gesture started before the scope disappeared.
+        for popup in &mut self.popups {
+            popup.scope_visible = Self::is_scope_visible(&popup.scope, draw_ctx);
+            if !popup.scope_visible {
+                popup.dragging = false;
+                popup.resizing = None;
+            }
+        }
+
+        let mut open_indices: Vec<usize> = self
+            .popups
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.open && Self::is_scope_visible(&p.scope, draw_ctx))
+            .map(|(i, _)| i)
+            .collect();
+        // 포커스를 받지 않는 팝업은 다른 팝업 아래에 그린다. 그 안의 순서는 z 순서 그대로다.
+        open_indices.sort_by_key(|&i| self.popups[i].arrange.takes_focus);
+        self.judge_display(ctx, &open_indices, draw_ctx);
+        open_indices
+    }
+
+    /// [`Self::prepare_frame`]을 부르고 결과를 이번 그리기에 남긴다.
+    pub(crate) fn prepare_frame_for_draw(
+        &mut self,
+        ctx: &egui::Context,
+        draw_ctx: Option<&LayoutContext>,
+    ) {
+        let prepared = self.prepare_frame(ctx, draw_ctx);
+        self.prepared = Some(prepared);
+    }
+
     /// Draw all open popups. The `content_fn` callback is invoked for each popup with its id.
     /// `draw_ctx` provides scope context for visibility and boundary clamping.
     /// Returns draw result including closed popup IDs and hover state for input layer.
@@ -190,29 +231,13 @@ impl PopupManager {
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_released = ctx.input(|i| i.pointer.primary_released());
 
-        // Hidden scopes retain focus intent, but cannot hold the keyboard gate or
-        // continue a pointer gesture started before the scope disappeared.
-        for popup in &mut self.popups {
-            popup.scope_visible = Self::is_scope_visible(&popup.scope, draw_ctx);
-            if !popup.scope_visible {
-                popup.dragging = false;
-                popup.resizing = None;
-            }
-        }
-
-        let mut open_indices: Vec<usize> = self
-            .popups
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.open && Self::is_scope_visible(&p.scope, draw_ctx))
-            .map(|(i, _)| i)
-            .collect();
-        // 포커스를 받지 않는 팝업은 다른 팝업 아래에 그린다. 그 안의 순서는 z 순서 그대로다.
-        open_indices.sort_by_key(|&i| self.popups[i].arrange.takes_focus);
-        self.judge_display(ctx, &open_indices, draw_ctx);
+        let open_indices = match self.prepared.take() {
+            Some(prepared) => prepared,
+            None => self.prepare_frame(ctx, draw_ctx),
+        };
         // 본문이 키를 받는 인스턴스는 키 주인 하나다. 이번 프레임의 범위·표시 판정 뒤, 클릭을 반영하기 전 값이고,
-        // plugin 팝업이 키 주인이면 없다. 포커스 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
-        let key_owner_z = self.host_key_owner().map(|p| p.z_seq);
+        // 이 프레임 키 주인이 plugin 팝업이면 없다(`MainViewState::decide_frame_key_owner`가 정한다). 포커스
+        // 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
         let keys_at_start: Option<PopupInstanceId> = self
             .host_key_owner()
             .filter(|_| !self.plugin_holds_keys)
@@ -857,7 +882,6 @@ impl PopupManager {
             layers: focus_layers,
             fullscreen_requested,
             hit_rects,
-            key_owner_z,
             overlay_targets,
             column_rect,
             released,

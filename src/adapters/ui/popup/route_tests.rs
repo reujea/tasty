@@ -417,3 +417,7 @@ mod repro;
 
 #[path = "route_pending_tests.rs"]
 mod pending;
+
+#[cfg(feature = "gui")]
+#[path = "frame_key_owner_tests.rs"]
+mod frame_keys;

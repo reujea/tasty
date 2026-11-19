@@ -465,7 +465,12 @@ fn assert_hidden_gates(state: &mut RequestContext, user_focused: bool) {
     );
     assert!(state.host_popup_hittest.is_empty());
     assert!(state.popup_layers.is_empty());
-    assert!(state.host_popup_drawn_key_z.is_none());
+    assert!(!matches!(
+        state.frame_key_owner,
+        Some(Some(
+            crate::adapters::ui::popup::occlusion::PopupKeyOwner::Host
+        ))
+    ));
     assert!(state.popups.take_closed_ids().is_empty());
 }
 

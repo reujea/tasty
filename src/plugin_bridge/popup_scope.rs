@@ -164,7 +164,20 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
     state: &mut RequestContext,
     instances: impl Iterator<Item = (u64, &'a PopupInstance)>,
 ) {
-    state.plugin_popup_bound_scopes = bound_popup_scopes(instances);
+    let instances: Vec<(u64, &PopupInstance)> = instances.collect();
+    state.plugin_popup_frame_entries = Some(
+        instances
+            .iter()
+            .map(|(id, inst)| {
+                (
+                    *id,
+                    inst.z_seq,
+                    popup_scope(inst.contribute.scope, inst.scope_surface),
+                )
+            })
+            .collect(),
+    );
+    state.plugin_popup_bound_scopes = bound_popup_scopes(instances.into_iter());
     let bound = &state.plugin_popup_bound_scopes;
     for popup in state.popups.entries_of_mut(FILE_PICKER_POPUP_ID) {
         let Some(requester) =
