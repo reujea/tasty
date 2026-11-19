@@ -239,33 +239,31 @@ pub enum RemoteCommands {
     /// Force-detach remote clients that occupy this instance.
     ///
     /// Does what the occupancy border's "Force detach" button and the sidebar's
-    /// force-detach confirmation do: the occupancy is released and a
-    /// force-detached notice is queued for the holder. A holder that handles
-    /// the notice ends its mirror without reconnecting, and a saved remote
+    /// force-detach confirmation do: the occupancy is released and the server tries
+    /// to queue a force-detached notice on the holder's connection. A holder that
+    /// handles the notice ends its mirror without reconnecting, and a saved remote
     /// workspace row on that client stays disconnected, even after that client
     /// restarts, until someone connects it explicitly. `--workspace` calls
-    /// `attach.force_detach_workspace` and `--surface` calls
-    /// `attach.force_detach`; each prints that reply, with `force_detached:
-    /// false` when nothing held the target. A surface that belongs to an
-    /// occupied workspace releases that whole workspace, and the reply names it
-    /// in `workspace_id`. `notified: true` means the notice was put in the
-    /// holder connection's send queue; it is not a delivery guarantee, because
-    /// a failed or timed out earlier write ends the connection before the
-    /// notice is written. `notified: false` has three cases: nothing held the
-    /// target, so there is no connection to close; the occupancy was released
-    /// but its connection was already gone; or the send queue was full, so the
-    /// server closes that connection without the notice once any write in
-    /// progress ends or reaches its write timeout. A holder that did not get
-    /// the notice may reconnect as after any lost connection. `--all` reads
-    /// `attach.list`, detaches every occupied workspace, then every surface
-    /// still occupied, and prints `{"workspaces": [...], "surfaces": [...]}`
-    /// with one reply per call. A target that fails keeps its id and an `error`
-    /// in its item, the others are still detached, and the command exits
-    /// with 1. If the list cannot be read again after the workspaces, the error
-    /// goes in `list_error`, the results so far are printed, and the command exits
-    /// with 1. The IPC method `attach.list` lists this instance's occupancies,
-    /// including surfaces held on their own; to leave a mirror on this side,
-    /// use `tasty remote disconnect`.
+    /// `attach.force_detach_workspace` and `--surface` calls `attach.force_detach`;
+    /// each prints that reply, with `force_detached: false` when nothing held the
+    /// target. A surface that belongs to an occupied workspace releases that whole
+    /// workspace, and the reply names it in `workspace_id`. `notified: true` means
+    /// the notice was put in the holder connection's send queue; it is not a
+    /// delivery guarantee, because a failed or timed out earlier write ends the
+    /// connection before the notice is written. `notified: false` has three cases:
+    /// nothing held the target, so there is no connection to close; the occupancy
+    /// was released but its connection was already gone; or the send queue was
+    /// full, so the server closes that connection without the notice once any write
+    /// in progress ends or reaches its write timeout. A holder that did not get the
+    /// notice may reconnect as after any lost connection. `--all` reads
+    /// `attach.list`, detaches every occupied workspace, then every surface still
+    /// occupied, and prints `{"workspaces": [...], "surfaces": [...]}` with one
+    /// reply per call. A target that fails keeps its id and an `error` in its item,
+    /// the others are still detached, and the command exits with 1. If the list
+    /// cannot be read again after the workspaces, the error goes in `list_error`,
+    /// the results so far are printed, and the command exits with 1. The IPC method
+    /// `attach.list` lists this instance's occupancies, including surfaces held on
+    /// their own; to leave a mirror on this side, use `tasty remote disconnect`.
     #[command(group(
         clap::ArgGroup::new("detach_target")
             .required(true)
