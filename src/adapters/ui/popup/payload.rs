@@ -39,6 +39,8 @@ pub enum PopupPayload {
     ScriptConfirm(Box<crate::state::PendingScriptConfirm>),
     /// DAG 목록의 검색·필터·보기 상태.
     DagList(Box<super::dag_list::DagListState>),
+    /// 승인 팝업이 보이는 요청과 그 코멘트.
+    Approval(super::approval::ShownApproval),
     /// 명령 팔레트의 검색어와 선택.
     CommandPalette(crate::state::command_palette::PaletteInput),
     /// 저장된 원격 행 연결 팝업의 행과 모양.
@@ -52,6 +54,7 @@ impl PopupPayload {
     pub(super) fn is_queue_data_for(&self, popup_id: &str) -> bool {
         match self {
             Self::InfoModal(_) => popup_id == crate::adapters::ui::info_modal::INFO_MODAL_ID,
+            Self::Approval(_) => popup_id == super::approval::APPROVAL_POPUP_ID,
             _ => false,
         }
     }
@@ -67,6 +70,8 @@ impl PopupPayload {
             (Self::InfoModal(queue), Self::InfoModal(mut more)) => {
                 queue.items.append(&mut more.items)
             }
+            // 대기 중인 승인은 이미 창의 inbox에 있다. 다시 연 요청은 보이는 승인과 코멘트를 그대로 둔다.
+            (Self::Approval(_), Self::Approval(_)) => {}
             _ => tracing::warn!("queued popup data does not match the open instance"),
         }
     }
@@ -126,6 +131,7 @@ impl std::fmt::Debug for PopupPayload {
             Self::RailCategory(id) => f.debug_tuple("RailCategory").field(id).finish(),
             Self::ScriptConfirm(p) => f.debug_tuple("ScriptConfirm").field(&p.script_id).finish(),
             Self::DagList(_) => f.write_str("DagList"),
+            Self::Approval(a) => f.debug_tuple("Approval").field(a).finish(),
             Self::CommandPalette(p) => f.debug_tuple("CommandPalette").field(p).finish(),
             Self::RemoteRow(r) => f.debug_tuple("RemoteRow").field(r).finish(),
             Self::InfoModal(q) => f.debug_tuple("InfoModal").field(&q.items.len()).finish(),

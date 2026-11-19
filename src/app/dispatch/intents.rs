@@ -40,26 +40,7 @@ impl App {
             let Some(main) = view.as_main_mut() else {
                 continue;
             };
-            let dialogs = &mut main.state.dialogs;
-            let mut changed = false;
-            for id in &dialogs.pending_approval_ids {
-                match store.get(id) {
-                    Some(record) => {
-                        changed |= dialogs
-                            .approval_records
-                            .get(id)
-                            .is_none_or(|old| old.state != record.state);
-                        dialogs.approval_records.insert(id.clone(), record);
-                    }
-                    None => {
-                        changed |= dialogs.approval_records.remove(id).is_some();
-                    }
-                }
-            }
-            dialogs
-                .approval_records
-                .retain(|id, _| dialogs.pending_approval_ids.contains(id));
-            if changed {
+            if main.state.approval_inbox.sync(|id| store.get(id)) {
                 main.mark_dirty();
             }
         }
@@ -258,14 +239,11 @@ impl App {
             Ok(transition) => {
                 // 기록은 App이 이미 제출했다. 결과는 메인 루프가 거두므로 popup 수명과 무관하다.
                 transition.record.detach(core.memory_access());
-                state
-                    .dialogs
-                    .approval_records
-                    .insert(request_id.clone(), transition.change.record);
+                state.approval_inbox.update(transition.change.record);
             }
             Err(error) => tracing::warn!("approval response failed: {error}"),
         }
-        state.dialogs.approval_submitting = None;
+        crate::adapters::ui::popup::approval::submission_handled(state);
     }
     fn report_intent_dispatch_error(message: &'static str) {
         tracing::error!("{message}");

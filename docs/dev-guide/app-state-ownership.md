@@ -42,9 +42,13 @@ terminal tell·broadcast·respawn 실행 함수는 `EngineMut` 대신 `TerminalI
 
 | 필드 | 에이전트 쪽 입구 | 실제 도메인 데이터의 저장 위치 |
 |---|---|---|
-| `pending_approval_ids` | `approval.request` · capability elevation 이 `enqueue_approval` 로 push | approval 레코드는 `AppServices.approval_store`가 갖는다. 이 큐는 그중 **popup 이 보여줄 순서**다 |
 | `file_picker` | `file_picker.trigger`(그 핸들러 모듈이 gui 전용) | 결과는 plugin 에 이벤트로 나간다(docs/design/systems/popup.md) |
 | `pending_open_preset_window` · `pending_preset_window_selection` | 사용자 origin 의 preset 저장만 세운다 | 저장된 preset 은 `PresetStore` 에 있다 |
+
+승인 대기 목록 `approval_inbox` 는 `dialogs` 밖의 `MainViewState` 필드지만 같은 분류다. gui 전용이고,
+`approval.request` · capability elevation 이 `enqueue_approval` 로 넣으며 App 이 승인 저장소가 바뀔 때마다
+모든 창의 목록을 저장소와 맞춘다. 레코드는 `AppServices.approval_store` 가 갖고, 이 목록은 그중
+**popup 이 보여줄 순서**다.
 
 그래서 headless 가 이 상태를 제외해도 승인 등 도메인 데이터는 유지된다. approval 을 묻는 IPC
 (`approval.list` 류)는 저장소를 읽는다.

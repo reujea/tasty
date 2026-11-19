@@ -155,7 +155,7 @@ fn digit_on_an_unfocused_popup_does_not_answer() {
     );
 
     assert_eq!(responded(&state.take_pending_intents()), None);
-    assert_eq!(state.dialogs.pending_approval_ids.len(), 1);
+    assert_eq!(state.approval_inbox.len(), 1);
 }
 
 #[test]
@@ -204,17 +204,50 @@ fn next_request_reopens_without_inheriting_the_users_focus() {
     state.popups.set_focused(APPROVAL_POPUP_ID, true);
     let mut answered = record("req-1");
     answered.state = ApprovalState::Cancelled { at: 2 };
-    state
-        .dialogs
-        .approval_records
-        .insert(answered.request.id.clone(), answered);
+    state.approval_inbox.update(answered);
 
     let ctx = egui::Context::default();
     frame(&ctx, raw(vec![]), &mut state, &mut engine);
     drain_popup_intents(&mut state, &mut engine);
 
-    assert_eq!(state.dialogs.pending_approval_ids.len(), 1);
+    assert_eq!(state.approval_inbox.len(), 1);
     assert!(state.popups.is_open(APPROVAL_POPUP_ID));
     assert!(!state.popups.is_focused(APPROVAL_POPUP_ID));
     assert!(!state.popups.has_focused());
+}
+
+/// Given 코멘트를 쓰던 승인 req-1이 보임, When 두 번째 승인 req-2가 들어와 팝업을 다시 열면, Then 열린
+/// 인스턴스는 req-1과 그 코멘트를 그대로 보이고 req-2는 inbox에서 차례를 기다린다.
+#[test]
+fn a_second_approval_keeps_the_shown_one_and_its_comment() {
+    let (mut state, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    let core = crate::core::CoreState::new_base();
+    enqueue_approval(&mut state, &core, &record("req-1"));
+    drain_popup_intents(&mut state, &mut engine);
+    let iid = state
+        .popups
+        .instance_for(
+            APPROVAL_POPUP_ID,
+            &crate::adapters::ui::popup::PopupScope::Window,
+        )
+        .expect("approval popup is open");
+    if let Some(p) = state.popups.instance_mut(iid)
+        && let PopupPayload::Approval(shown) = &mut p.payload
+    {
+        shown.comment = "draft".to_string();
+    }
+
+    enqueue_approval(&mut state, &core, &record("req-2"));
+    drain_popup_intents(&mut state, &mut engine);
+
+    assert_eq!(state.popups.instances_of(APPROVAL_POPUP_ID).count(), 1);
+    let shown = state
+        .popups
+        .topmost_payload(APPROVAL_POPUP_ID)
+        .and_then(ShownApproval::of)
+        .expect("the instance keeps its approval");
+    assert_eq!(shown.id, ApprovalId("req-1".into()));
+    assert_eq!(shown.comment, "draft");
+    assert_eq!(state.approval_inbox.len(), 2);
 }

@@ -29,7 +29,7 @@
 | `warn` | popup + notification |
 | `info` | notification only |
 
-popup 은 `pending_approval_ids` 큐의 head 를 그리고, 응답 시 pop 한 뒤 팝업을 닫았다가 다음 요청으로 다시 연다. **Esc 는 의도적으로 차단**(우회 응답 방지) — Esc 는 응답하거나 팝업을 닫지 않고 팝업의 키보드 포커스만 놓는다.
+popup 은 창의 대기 목록(`MainViewState.approval_inbox`)의 맨 앞 요청을 그린다. 목록은 App 이 승인 저장소가 바뀔 때마다 맞추고, 끝난 요청은 바로 뺀다. 보이던 요청이 끝나면 팝업을 닫았다가 다음 요청으로 다시 열며, 코멘트는 인스턴스 데이터라 다음 요청으로 넘어가지 않는다. 닫힌 동안 끝난 요청으로는 다시 열지 않는다. **Esc 는 의도적으로 차단**(우회 응답 방지) — Esc 는 응답하거나 팝업을 닫지 않고 팝업의 키보드 포커스만 놓는다.
 
 `destructive` 로 표시한 선택지는 위험 선택지로 그린다. 채움은 accent-danger 12% 를 bg-panel 에 섞은 불투명 색(`approval-danger-bg`)이고, 1px accent-danger 테두리(`approval-danger-border`)와 text-primary 글자(`approval-danger-fg`)를 쓴다. 뒤 배경과 관계없이 글자 대비는 Mocha 9.18 · Latte 5.80 이다. hover·누름은 일반 버튼 overlay 를 그 채움 위에 얹는다. 본체와 갤러리는 같은 `tasty_ui_widgets::approval_choice` 로 선택지를 그린다.
 

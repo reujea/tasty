@@ -1426,38 +1426,44 @@ fn push_approval(
         state: tasty_approval::ApprovalState::Pending,
         history: vec![],
     };
-    state
-        .dialogs
-        .pending_approval_ids
-        .push_back(record.request.id.clone());
-    state
-        .dialogs
-        .approval_records
-        .insert(record.request.id.clone(), record);
+    state.approval_inbox.push(record);
 }
 
+fn reopens_approval(pending: &[crate::intent::DispatchedIntent]) -> bool {
+    pending.iter().any(|d| {
+        matches!(&d.body, Intent::Ui(UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. })) if *id == APPROVAL_POPUP_ID)
+    })
+}
+
+/// Given 대기 목록이 빈 창에 코멘트를 쓰던 승인 팝업, When 한 프레임 그리면, Then 닫히고 다시 열지 않는다.
+/// 코멘트는 인스턴스 데이터라 함께 사라진다.
 #[test]
-fn approval_empty_queue_close_clears_comment_buffer() {
+fn approval_with_an_empty_inbox_closes_with_its_comment() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.approval_comment_buffer = "draft comment".to_string();
-    state.popups.open_at_focused(
+    open_with_payload(
+        &mut state,
         APPROVAL_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-        FIXED_POS,
+        crate::adapters::ui::popup::approval::ShownApproval::drafted("req-1", "draft comment"),
     );
 
     run_frame(empty_input(), &mut state, &mut engine);
 
     assert!(!state.popups.is_open(APPROVAL_POPUP_ID));
-    assert!(state.dialogs.approval_comment_buffer.is_empty());
+    assert!(
+        state
+            .popups
+            .instances_of(APPROVAL_POPUP_ID)
+            .next()
+            .is_none()
+    );
+    assert!(!reopens_approval(&state.take_pending_intents()));
 }
 
 #[test]
 fn approval_x_button_close_with_empty_queue_does_not_refire() {
     let (mut state, mut engine_session) = test_state();
     let mut engine = engine_session.borrow_mut();
-    state.dialogs.approval_comment_buffer = "draft comment".to_string();
     state.popups.open_at_focused(
         APPROVAL_POPUP_ID,
         crate::model::popup_kind::PopupScope::Window,
@@ -1465,7 +1471,7 @@ fn approval_x_button_close_with_empty_queue_does_not_refire() {
     );
     push_approval(&mut engine, &mut state, "req-1");
     let (pos, size) = primed_popup_geometry(APPROVAL_POPUP_ID, &mut state, &mut engine);
-    state.dialogs.pending_approval_ids.clear();
+    state.approval_inbox = Default::default();
 
     run_frame(
         press_input(close_button_point(pos, size)),
@@ -1474,14 +1480,41 @@ fn approval_x_button_close_with_empty_queue_does_not_refire() {
     );
 
     assert!(!state.popups.is_open(APPROVAL_POPUP_ID));
-    assert!(state.dialogs.approval_comment_buffer.is_empty());
-    let pending = state.take_pending_intents();
     assert!(
-        !pending
-            .iter()
-            .any(|d| matches!(&d.body, Intent::Ui(UiIntent::OpenPopup(crate::intent::OpenRequest { id, .. })) if *id == APPROVAL_POPUP_ID)),
+        !reopens_approval(&state.take_pending_intents()),
         "empty queue must not refire OpenPopup"
     );
+}
+
+/// Given 기다리는 요청 하나를 보이던 승인 팝업을 사용자가 닫음, When 닫힌 동안 그 요청이 끝나고
+/// 프레임이 지나면, Then 목록에서 빠지고 팝업을 다시 열지 않는다.
+#[test]
+fn an_approval_resolved_while_closed_is_not_reopened() {
+    let (mut state, mut engine_session) = test_state();
+    let mut engine = engine_session.borrow_mut();
+    push_approval(&mut engine, &mut state, "req-1");
+    state.popups.open_at_focused(
+        APPROVAL_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        FIXED_POS,
+    );
+    crate::intent::popup::handle(
+        &mut state,
+        &mut engine,
+        &UiIntent::ClosePopup {
+            id: APPROVAL_POPUP_ID,
+        }
+        .from_user_menu("test"),
+    );
+    let mut resolved = state.approval_inbox.front().cloned().expect("req-1 waits");
+    resolved.state = tasty_approval::ApprovalState::Cancelled { at: 2 };
+    assert!(state.approval_inbox.update(resolved));
+
+    run_frame(empty_input(), &mut state, &mut engine);
+
+    assert!(state.approval_inbox.is_empty());
+    assert!(!state.popups.is_open(APPROVAL_POPUP_ID));
+    assert!(!reopens_approval(&state.take_pending_intents()));
 }
 
 #[test]
@@ -1504,7 +1537,7 @@ fn approval_x_button_close_with_pending_queue_refires_open_popup() {
     );
 
     // X 버튼은 내용을 거치지 않으므로 응답 대기 큐는 유지한다.
-    assert_eq!(state.dialogs.pending_approval_ids.len(), 2);
+    assert_eq!(state.approval_inbox.len(), 2);
     let pending = state.take_pending_intents();
     assert!(
         pending
@@ -1539,7 +1572,7 @@ fn approval_close_intent_now_refires_open_popup() {
 
     run_frame(empty_input(), &mut state, &mut engine);
 
-    assert_eq!(state.dialogs.pending_approval_ids.len(), 2);
+    assert_eq!(state.approval_inbox.len(), 2);
     let pending = state.take_pending_intents();
     assert!(
         pending

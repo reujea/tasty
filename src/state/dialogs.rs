@@ -158,12 +158,6 @@ pub struct DialogState {
     /// 이벤트 루프에 접근할 수 없어 여기에 표시만 하고, App 계층이 프레임 시작에 읽어
     /// 처리한다.
     pub(crate) permission_settings_requested: bool,
-    /// 응답 대기 중인 approval 큐. 맨 앞 요청을 표시한다.
-    pub(crate) approval_records:
-        std::collections::HashMap<tasty_approval::ApprovalId, tasty_approval::ApprovalRecord>,
-    pub(crate) approval_submitting: Option<tasty_approval::ApprovalId>,
-    pub(crate) pending_approval_ids: VecDeque<tasty_approval::ApprovalId>,
-    pub(crate) approval_comment_buffer: String,
     /// 닫힌 파일 처리기 선택. 선택 데이터는 인스턴스에 있고, 닫을 때 결과와 함께 여기로 옮겨
     /// App이 프레임 끝에 실행한다.
     pub(crate) finished_handler_pickers: Vec<FileHandlerPickerData>,
@@ -237,10 +231,6 @@ impl DialogState {
             tab_drag: None,
             ws_drag: None,
             permission_settings_requested: false,
-            approval_records: Default::default(),
-            approval_submitting: None,
-            pending_approval_ids: VecDeque::new(),
-            approval_comment_buffer: String::new(),
             finished_handler_pickers: Vec::new(),
             finished_file_pickers: Vec::new(),
             file_picker_callers: FilePickerCallers::default(),

@@ -1,10 +1,13 @@
 //! 승인 레코드의 읽기 사본을 표시하고 응답 의도를 App으로 보낸다.
-//! 큐가 비면 닫으며, 표시 함수는 갤러리에서도 상태 저장소 없이 사용할 수 있다.
+//! 대기 목록은 창의 [`ApprovalInbox`]에 있고, 지금 보이는 요청과 코멘트는 인스턴스 데이터다.
+//! 목록이 비면 닫으며, 표시 함수는 갤러리에서도 상태 저장소 없이 사용할 수 있다.
 
-use tasty_approval::{ApprovalRecord, Severity};
+use std::collections::{HashMap, VecDeque};
+
+use tasty_approval::{ApprovalId, ApprovalRecord, Severity};
 use tasty_type_geometry::length::LogicalPx;
 
-use crate::adapters::ui::popup::{self, PopupAction};
+use crate::adapters::ui::popup::{self, PopupAction, PopupPayload};
 use crate::i18n::t;
 use crate::state::MainViewState;
 use crate::theme;
@@ -17,19 +20,133 @@ const DEFAULT_WIDTH: LogicalPx = LogicalPx(480.0);
 const MIN_HEIGHT: LogicalPx = LogicalPx(180.0);
 const MAX_HEIGHT: LogicalPx = LogicalPx(480.0);
 
-/// PopupDef.title_fn — 큐 head 의 title 을 popup 타이틀로 사용.
+/// 창이 응답을 기다리는 승인 요청과 보여 줄 순서. 레코드는 `AppServices.approval_store`의 사본이다.
+/// App이 저장소가 바뀔 때마다 모든 창의 목록을 맞추므로 팝업이 닫혀 있어도 갱신을 받는다.
+/// 끝난 요청과 저장소에서 사라진 요청은 바로 뺀다.
+#[derive(Debug, Default)]
+pub(crate) struct ApprovalInbox {
+    order: VecDeque<ApprovalId>,
+    records: HashMap<ApprovalId, ApprovalRecord>,
+}
+
+impl ApprovalInbox {
+    /// 기다릴 요청을 넣는다. 이미 있으면 레코드만 바꾸고, 끝난 요청이면 뺀다. 새로 넣었으면 참이다.
+    pub(crate) fn push(&mut self, record: ApprovalRecord) -> bool {
+        let id = record.request.id.clone();
+        if record.state.is_terminal() {
+            self.remove(&id);
+            return false;
+        }
+        let new = self.records.insert(id.clone(), record).is_none();
+        if new {
+            self.order.push_back(id);
+        }
+        new
+    }
+
+    /// 기다리는 요청의 바뀐 레코드를 반영한다. 기다리지 않던 요청은 넣지 않는다. 상태가 바뀌었으면 참이다.
+    pub(crate) fn update(&mut self, record: ApprovalRecord) -> bool {
+        let id = record.request.id.clone();
+        let Some(old) = self.records.get(&id) else {
+            return false;
+        };
+        let changed = old.state != record.state;
+        if record.state.is_terminal() {
+            self.remove(&id);
+        } else {
+            self.records.insert(id, record);
+        }
+        changed
+    }
+
+    /// 기다리는 요청마다 저장소의 레코드를 읽어 맞춘다. 무엇이 바뀌었으면 참이다.
+    pub(crate) fn sync(
+        &mut self,
+        mut lookup: impl FnMut(&ApprovalId) -> Option<ApprovalRecord>,
+    ) -> bool {
+        let ids: Vec<ApprovalId> = self.order.iter().cloned().collect();
+        let mut changed = false;
+        for id in ids {
+            match lookup(&id) {
+                Some(record) => changed |= self.update(record),
+                None => {
+                    self.remove(&id);
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
+    fn remove(&mut self, id: &ApprovalId) {
+        self.order.retain(|x| x != id);
+        self.records.remove(id);
+    }
+
+    /// 맨 앞 요청.
+    pub(crate) fn front(&self) -> Option<&ApprovalRecord> {
+        self.order.front().and_then(|id| self.records.get(id))
+    }
+
+    pub(crate) fn get(&self, id: &ApprovalId) -> Option<&ApprovalRecord> {
+        self.records.get(id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.order.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.order.is_empty()
+    }
+}
+
+/// 인스턴스가 보이는 요청과 그 요청에 쓰는 코멘트. 닫으면 함께 사라지므로 다음 요청은 빈 코멘트로 시작한다.
+#[derive(Debug, Clone)]
+pub(crate) struct ShownApproval {
+    id: ApprovalId,
+    comment: String,
+    /// 응답을 보냈고 App이 아직 처리하지 않았다. 같은 요청에 두 번 보내지 않는다.
+    submitting: bool,
+}
+
+impl ShownApproval {
+    #[cfg(test)]
+    pub(crate) fn drafted(id: &str, comment: &str) -> PopupPayload {
+        PopupPayload::Approval(Self {
+            id: ApprovalId(id.to_string()),
+            comment: comment.to_string(),
+            submitting: false,
+        })
+    }
+
+    fn of(payload: &PopupPayload) -> Option<&Self> {
+        match payload {
+            PopupPayload::Approval(shown) => Some(shown),
+            _ => None,
+        }
+    }
+}
+
+/// 인스턴스가 보이는 요청. 아직 그리지 않은 인스턴스는 목록의 맨 앞 요청을 보인다.
+fn shown_record<'a>(
+    state: &'a MainViewState,
+    payload: &PopupPayload,
+) -> Option<&'a ApprovalRecord> {
+    match ShownApproval::of(payload) {
+        Some(shown) => state.approval_inbox.get(&shown.id),
+        None => state.approval_inbox.front(),
+    }
+}
+
+/// PopupDef.title_fn — 보이는 요청의 title 을 popup 타이틀로 사용.
 pub fn approval_popup_title(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> String {
-    let Some(id) = state.dialogs.pending_approval_ids.front() else {
-        return t("approval.popup.title").to_string();
-    };
-    state
-        .dialogs
-        .approval_records
-        .get(id)
+    shown_record(state, payload)
         .map(|r| r.request.title.clone())
         .unwrap_or_else(|| t("approval.popup.title").to_string())
 }
@@ -38,12 +155,12 @@ pub fn approval_popup_title(
 pub fn approval_popup_sizer(
     state: &MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _payload: &crate::adapters::ui::popup::PopupPayload,
+    payload: &PopupPayload,
 ) -> egui::Vec2 {
-    let Some(id) = state.dialogs.pending_approval_ids.front() else {
+    let Some(record) = shown_record(state, payload) else {
         return egui::vec2(DEFAULT_WIDTH.value(), MIN_HEIGHT.value());
     };
-    let record = state.dialogs.approval_records.get(id);
+    let record = Some(record);
     let body_len = record
         .as_ref()
         .and_then(|r| r.request.body.as_deref())
@@ -252,7 +369,7 @@ fn props_from_record<'a>(
     }
 }
 
-/// 팝업이 닫히면 코멘트 버퍼를 비운다. 승인 큐는 유지하며, 요청이 남아 있으면
+/// 팝업이 닫히면 보이던 요청과 코멘트는 인스턴스와 함께 사라진다. 기다리는 요청이 남아 있으면
 /// OpenPopup을 보낸다. 실제로 다시 여는 시점은 다음 intent 처리 때다. 에이전트 출처로
 /// 다시 열므로 키보드 포커스를 가져가지 않는다.
 pub fn on_close_approval_popup(
@@ -261,48 +378,75 @@ pub fn on_close_approval_popup(
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     _closed: &crate::adapters::ui::popup::ClosedPopup,
 ) {
-    state.dialogs.approval_comment_buffer.clear();
-    if !state.dialogs.pending_approval_ids.is_empty() {
-        state.dispatch_intent(
-            crate::intent::UiIntent::OpenPopup(
-                crate::intent::OpenRequest::new(
-                    APPROVAL_POPUP_ID,
-                    crate::adapters::ui::popup::PopupScope::Window,
-                )
-                .centered()
-                .focused(),
-            )
-            .from_agent_ipc(),
-        );
+    if !state.approval_inbox.is_empty() {
+        dispatch_open(state);
     }
 }
 
-/// 큐의 첫 요청을 그리고 사용자 응답을 저장한다.
+/// 에이전트·플러그인 요청이므로 사용자 조작으로 처리하지 않는다. 팝업은 포커스 없이 열린다.
+/// 보일 요청은 열 때 정한다. 열기 전에 그 요청이 끝나면 처음 그릴 때 닫고 다음 요청으로 다시 연다.
+fn dispatch_open(state: &mut MainViewState) {
+    let Some(id) = state.approval_inbox.front().map(|r| r.request.id.clone()) else {
+        return;
+    };
+    state.dispatch_intent(
+        crate::intent::UiIntent::OpenPopup(
+            crate::intent::OpenRequest::new(
+                APPROVAL_POPUP_ID,
+                crate::adapters::ui::popup::PopupScope::Window,
+            )
+            .centered()
+            .focused()
+            .with_payload(PopupPayload::Approval(ShownApproval {
+                id,
+                comment: String::new(),
+                submitting: false,
+            })),
+        )
+        .from_agent_ipc(),
+    );
+}
+
+/// App이 응답 의도를 처리했다. 응답이 실패해 요청이 남았으면 다시 고를 수 있다.
+pub(crate) fn submission_handled(state: &mut MainViewState) {
+    let iids: Vec<_> = state
+        .popups
+        .instances_of(APPROVAL_POPUP_ID)
+        .map(|p| p.instance)
+        .collect();
+    for iid in iids {
+        if let Some(p) = state.popups.instance_mut(iid)
+            && let PopupPayload::Approval(shown) = &mut p.payload
+        {
+            shown.submitting = false;
+        }
+    }
+}
+
+/// 목록의 맨 앞 요청을 그리고 사용자 응답을 보낸다.
 pub fn draw_approval_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some(current_id) = state.dialogs.pending_approval_ids.front().cloned() else {
+    let Some(record) = state.approval_inbox.front().cloned() else {
+        return PopupAction::Close;
+    };
+    if ShownApproval::of(cx.payload).is_none() {
+        *cx.payload = PopupPayload::Approval(ShownApproval {
+            id: record.request.id.clone(),
+            comment: String::new(),
+            submitting: false,
+        });
+    }
+    let PopupPayload::Approval(shown) = &mut *cx.payload else {
         return PopupAction::Close;
     };
 
-    let Some(record) = state.dialogs.approval_records.get(&current_id).cloned() else {
-        state.dialogs.pending_approval_ids.pop_front();
-        state.dialogs.approval_records.remove(&current_id);
-        state.dialogs.approval_submitting = None;
-        state.dialogs.approval_comment_buffer.clear();
-        return PopupAction::Close;
-    };
-
-    // 다음 요청은 닫은 뒤 다시 연다. 앞 요청에 답하느라 준 포커스를 에이전트의 다음 요청이
-    // 이어받지 않는다. 다시 여는 일은 on_close 훅이 맡는다.
-    if record.state.is_terminal() {
-        state.dialogs.pending_approval_ids.pop_front();
-        state.dialogs.approval_records.remove(&current_id);
-        state.dialogs.approval_submitting = None;
-        state.dialogs.approval_comment_buffer.clear();
+    // 보이던 요청이 끝났으면 닫고 다음 요청은 다시 연다. 앞 요청에 답하느라 준 포커스와 코멘트를
+    // 에이전트의 다음 요청이 이어받지 않는다. 다시 여는 일은 on_close 훅이 맡는다.
+    if shown.id != record.request.id {
         return PopupAction::Close;
     }
 
@@ -312,31 +456,24 @@ pub fn draw_approval_popup(
     let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(inner_rect));
     let ui = &mut child_ui;
 
-    let keyboard_focused = cx.focused;
-    let mut props = props_from_record(
-        &record,
-        &mut state.dialogs.approval_comment_buffer,
-        keyboard_focused,
-    );
+    let mut props = props_from_record(&record, &mut shown.comment, cx.focused);
     let view_action = draw_approval_view(ui, &theme::theme(), &mut props);
 
-    if let ApprovalViewAction::Chosen { key: choice_key } = view_action {
-        let comment = if state.dialogs.approval_comment_buffer.trim().is_empty() {
-            None
-        } else {
-            Some(state.dialogs.approval_comment_buffer.trim().to_string())
-        };
-        if state.dialogs.approval_submitting.is_none() {
-            state.dialogs.approval_submitting = Some(current_id.clone());
-            state.dispatch_intent(
-                crate::intent::Intent::RespondApproval {
-                    request_id: current_id,
-                    choice: choice_key,
-                    comment,
-                }
-                .from_user_menu("approval.respond"),
-            );
-        }
+    if let ApprovalViewAction::Chosen { key: choice_key } = view_action
+        && !shown.submitting
+    {
+        let comment = Some(shown.comment.trim())
+            .filter(|c| !c.is_empty())
+            .map(str::to_string);
+        shown.submitting = true;
+        state.dispatch_intent(
+            crate::intent::Intent::RespondApproval {
+                request_id: record.request.id.clone(),
+                choice: choice_key,
+                comment,
+            }
+            .from_user_menu("approval.respond"),
+        );
     }
 
     PopupAction::None
@@ -348,34 +485,10 @@ pub fn enqueue_approval(
     engine: &crate::core::CoreState,
     record: &ApprovalRecord,
 ) {
-    state
-        .dialogs
-        .approval_records
-        .insert(record.request.id.clone(), record.clone());
-    if state
-        .dialogs
-        .pending_approval_ids
-        .iter()
-        .any(|id| id == &record.request.id)
-    {
+    if !state.approval_inbox.push(record.clone()) {
         return;
     }
-    state
-        .dialogs
-        .pending_approval_ids
-        .push_back(record.request.id.clone());
-    // 에이전트·플러그인 요청이므로 사용자 조작으로 처리하지 않는다. 팝업은 포커스 없이 열린다.
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup(
-            crate::intent::OpenRequest::new(
-                APPROVAL_POPUP_ID,
-                crate::adapters::ui::popup::PopupScope::Window,
-            )
-            .centered()
-            .focused(),
-        )
-        .from_agent_ipc(),
-    );
+    dispatch_open(state);
 
     let severity_prefix = match record.request.severity {
         Severity::Info => "",

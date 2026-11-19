@@ -94,6 +94,9 @@ pub struct MainViewState {
     /// Reset to `Idle` when the popup closes.
     #[cfg(feature = "gui")]
     pub(crate) port_favorites_scan: crate::adapters::ui::popup::port_scanner::PortScanState,
+    /// 응답을 기다리는 승인 요청. 승인 팝업이 맨 앞 요청을 보인다.
+    #[cfg(feature = "gui")]
+    pub(crate) approval_inbox: crate::adapters::ui::popup::approval::ApprovalInbox,
     /// Command palette UI state — query buffer, selection cursor, and a pending
     /// dispatch slot that MainView drains each frame.
     #[cfg(feature = "gui")]

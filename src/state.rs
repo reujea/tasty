@@ -286,6 +286,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             port_favorites_scan: crate::adapters::ui::popup::port_scanner::PortScanState::Idle,
             #[cfg(feature = "gui")]
+            approval_inbox: Default::default(),
+            #[cfg(feature = "gui")]
             command_palette: crate::state::command_palette::CommandPaletteState::default(),
             #[cfg(feature = "gui")]
             toasts: crate::adapters::ui::ToastManager::new(),
