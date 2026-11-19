@@ -311,7 +311,8 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
     let request = data.requester.as_ref().unwrap().request_id;
     let dir = data.current_dir.clone();
     let ctx = egui::Context::default();
-    let rect = egui::Rect::from_min_size(egui::pos2(100.0, 60.0), egui::vec2(400.0, 360.0));
+    // 피커(640×480)가 surface 안쪽 경계에 들어가는 크기다.
+    let rect = egui::Rect::from_min_size(egui::pos2(100.0, 60.0), egui::vec2(680.0, 560.0));
     let mut layout = LayoutContext {
         active_workspace: 0,
         active_workspace_id: 0,
@@ -360,12 +361,8 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
     let popup = state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap();
     // surface 범위 팝업은 테두리에서 spacing_sm만큼 안쪽을 경계로 쓴다.
     let inset = crate::theme::theme().spacing_sm.value();
-    assert_eq!(
-        popup.size,
-        rect.shrink(inset).size(),
-        "existing clamp follows inherited surface bounds"
-    );
-    assert!(rect.contains_rect(egui::Rect::from_min_size(popup.pos, popup.size)));
+    assert!(!popup.collapsed(), "the picker fits the inherited surface");
+    assert!(rect.shrink(inset).contains_rect(popup.popup_rect()));
     let z = state.host_popup_hittest[0].z_seq;
     layout.surface_rects.clear();
     layout.active_workspace = 1;
@@ -515,8 +512,10 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
     );
     // winit 쪽 Escape 처리도 피커를 닫을 대상으로 고르지 않는다.
     assert!(state.popups.focused_dismissal_target().is_none());
+    // R이 피커보다 좁아 보기 버튼으로 접힌다. 그린 상자가 R 안이다.
     let popup = state.popups.get_mut(FILE_PICKER_POPUP_ID).unwrap();
-    let placed = egui::Rect::from_min_size(popup.pos, popup.size);
+    assert!(popup.collapsed());
+    let placed = popup.box_rect().expect("own show button");
     assert!(right.contains_rect(placed), "picker left R: {placed:?}");
 }
 
