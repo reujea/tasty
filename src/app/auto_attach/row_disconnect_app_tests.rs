@@ -287,17 +287,32 @@ fn mirror_alive(app: &App, workspace: u32) -> bool {
         .any(|session| session.core_state.has_workspace(workspace))
 }
 
-/// 강제로 끊긴 연결의 끊김 토스트(`attach.toast.mirror_disconnected`)는 세션을 지우는 정리
-/// (`cleanup_mirror_workspace` 의 `from_disconnect`)에서만 나온다. 이 장치에는 MainView 가 없어
-/// 토스트 저장소를 직접 볼 수 없으므로 어느 끝 경로를 탔는지로 잰다.
+/// 강제로 끊긴 연결의 끊김 토스트(`attach.toast.mirror_disconnected`)는 세션과 workspace 를 지우는 정리
+/// (`cleanup_mirror_workspace` 의 `from_disconnect`)에서만 나온다. 이 장치의 창에는 화면(MainView)이 없어
+/// 토스트를 쌓는 창 쪽 분기를 탈 수 없으므로, 행의 engine 을 park 하고 어느 끝 경로를 탔는지로 잰다.
 /// Given 연결된 저장 행, When 서버가 강제로 끊는다, Then 정리 경로를 타지 않고 세션과 행의 형상이
-/// 남은 채 끊긴 행이 된다(토스트 없음, 행 표지·연결 팝업이 사유를 보인다).
-/// Given 저장되지 않은 mirror, When 서버가 강제로 끊는다, Then 지금처럼 정리 경로로 세션이 사라진다.
+/// 남은 채 끊긴 행이 된다(끊김 토스트 없음, 행 표지·연결 팝업이 사유를 보인다).
+/// Given 같은 engine 의 저장되지 않은 mirror, When 서버가 강제로 끊는다, Then 정리 경로가 세션과 그 workspace 를
+/// 지운다. 토스트를 쌓는 것 자체는 창 화면이 필요해 이 시험이 재지 않는다.
 #[test]
 fn a_force_detached_saved_row_skips_the_toast_cleanup_path() {
     alone!("a_force_detached_saved_row_skips_the_toast_cleanup_path");
     let event_loop = event_loop();
     let mut app = saved_row_app(&event_loop, Some(SessionState::Connected));
+    let mut mirror = crate::model::Workspace::new_with_terminal_marker(
+        AGENT_MIRROR,
+        "agent".to_string(),
+        9_101,
+        9_102,
+        9_103,
+    );
+    mirror.mirror = true;
+    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
+    app.engines
+        .get_mut(engine)
+        .expect("the row engine")
+        .push_mirror_workspace(mirror);
+    park_row_window(&mut app);
     let mut agent = crate::app::attach_client::tests::test_session(AGENT_MIRROR, HashMap::new());
     agent.state.remote_workspace = 42;
     agent.state.phase = SessionState::Connected;
@@ -311,6 +326,7 @@ fn a_force_detached_saved_row_skips_the_toast_cleanup_path() {
         .store(true, std::sync::atomic::Ordering::SeqCst);
     app.remote.sessions.push(agent);
     assert!(mirror_alive(&app, ROW));
+    assert!(mirror_alive(&app, AGENT_MIRROR));
 
     end_row_connection(&mut app, true);
     assert_eq!(app.row_state_name(ROW), "disconnected");
@@ -327,7 +343,11 @@ fn a_force_detached_saved_row_skips_the_toast_cleanup_path() {
             .sessions
             .iter()
             .any(|session| session.state.local_workspace == AGENT_MIRROR),
-        "an unsaved mirror still ends through the cleanup that shows the toast"
+        "an unsaved mirror still ends its session"
+    );
+    assert!(
+        !mirror_alive(&app, AGENT_MIRROR),
+        "the cleanup that carries the toast removed the unsaved mirror"
     );
 }
 
