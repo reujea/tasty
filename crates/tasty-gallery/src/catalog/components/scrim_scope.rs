@@ -276,12 +276,6 @@ fn surface_button(ui: &mut egui::Ui, theme: &Theme, surface: egui::Rect) -> egui
     .inner
 }
 
-/// 셸 목업의 두 서피스 버튼 응답(소속 서피스, 옆 서피스).
-struct ShellInput {
-    owner: egui::Response,
-    adjacent: egui::Response,
-}
-
 /// 카드에 그리는 셸 목업.
 fn shell(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
     shell_mock(ui, theme, props);
@@ -289,7 +283,12 @@ fn shell(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) {
 
 /// 셸 목업 — 크롬 · surface 둘 · scope scrim · popup. scrim 은 **한 번만** 깔린다.
 /// 덮인 범위는 그 아래 위젯의 포인터 입력을 가져간다(본체 덮는 팝업과 같은 규칙).
-fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) -> ShellInput {
+/// 돌려주는 값은 두 서피스 버튼의 응답(소속 서피스, 옆 서피스)이다.
+fn shell_mock(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    props: ShellProps,
+) -> (egui::Response, egui::Response) {
     let (rect, _) = ui.allocate_exact_size(shell_size(theme), egui::Sense::hover());
     let p = ui.painter_at(rect);
     let radius = theme.corner_radius.value();
@@ -298,10 +297,10 @@ fn shell_mock(ui: &mut egui::Ui, theme: &Theme, props: ShellProps) -> ShellInput
     let (owner, adjacent) = split_body(body, props, divider);
     paint_surface(&p, theme, owner);
     paint_surface(&p, theme, adjacent);
-    let input = ShellInput {
-        owner: surface_button(ui, theme, owner),
-        adjacent: surface_button(ui, theme, adjacent),
-    };
+    let input = (
+        surface_button(ui, theme, owner),
+        surface_button(ui, theme, adjacent),
+    );
 
     // 같은 범위의 부모·자식 팝업에는 scrim을 한 번만 그린다.
     let (scrim_rect, scrim_radius) = match props.scope {
@@ -576,12 +575,11 @@ mod tests {
                     },
                     |ctx| {
                         egui::CentralPanel::default().show(ctx, |ui| {
-                            let input = shell_mock(ui, &theme, ShellProps::new(scope));
-                            centers =
-                                Some((input.owner.rect.center(), input.adjacent.rect.center()));
+                            let (owner, adjacent) = shell_mock(ui, &theme, ShellProps::new(scope));
+                            centers = Some((owner.rect.center(), adjacent.rect.center()));
                             match pointer {
-                                Some(0) => hovered.0 = input.owner.hovered(),
-                                Some(1) => hovered.1 = input.adjacent.hovered(),
+                                Some(0) => hovered.0 = owner.hovered(),
+                                Some(1) => hovered.1 = adjacent.hovered(),
                                 _ => {}
                             }
                         });
