@@ -89,7 +89,6 @@ pub(crate) use dialogs::{
     OpenFilePickerRequest, Queued,
 };
 #[cfg(feature = "gui")]
-#[cfg(feature = "gui")]
 pub use events::FocusedSurfaceType;
 #[cfg(any(feature = "gui", debug_assertions))]
 pub use workspace::WorkspaceCloseOrigin;
