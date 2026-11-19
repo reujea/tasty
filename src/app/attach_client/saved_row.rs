@@ -74,6 +74,29 @@ impl App {
         tracing::info!("gui attach: saved remote row {row} 끊긴 상태로 전환");
     }
 
+    /// 같은 연결 대상의 다른 행이 강제로 끊겨 표지가 저장된 뒤 도착한 시도 결과를 버린다. 예약된
+    /// 재연결은 `maybe_trigger_reconnect`가 거두지만, 이미 시작한 시도(첫 연결 포함)의 결과는 그 검사를
+    /// 지나지 않고 결과 소비(`apply_auto_attach_outcome`)와 설치(`poll_pending_mirror_installs`)로 온다.
+    /// 명시적 연결과 원격 팝업으로 시작한 시도는 사용자가 고른 연결이라 그대로 둔다. 버렸으면 true다.
+    /// 행은 끊긴 상태로 남는다. 세션이 있으면 `enter_disconnected`로 멈추고, 첫 연결이면 진행 중
+    /// 표지만 지운다. 표지가 있는 동안 그 행을 다시 열어도 붙지 않는다.
+    pub(crate) fn drop_attempt_for_force_detached_target(
+        &mut self,
+        target: &super::pending::PendingMirrorInstall,
+    ) -> bool {
+        let Some(row) = target.row else {
+            return false;
+        };
+        if target.explicit || target.user || !self.row_user_disconnected(row) {
+            return false;
+        }
+        tracing::info!("gui attach: 연결 대상이 강제로 끊긴 행 {row}의 진행 중 시도 결과를 버린다");
+        target.cancel_run("the saved row's target was force-detached");
+        self.remote.active.remove(&row);
+        self.enter_disconnected(row);
+        true
+    }
+
     fn mark_row_window_dirty(&mut self, row: u32) {
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine.workspaces().into_iter().any(|ws| ws.id == row) {

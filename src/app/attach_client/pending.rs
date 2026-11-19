@@ -27,6 +27,9 @@ pub(crate) struct PendingMirrorInstall {
     pub run: Option<crate::request_runs::RunGuard>,
     /// 사용자가 원격 연결 팝업에서 시작했다. 실패하면 시작한 창에 토스트를 띄운다.
     pub user: bool,
+    /// 저장된 행의 명시적 연결(연결 버튼·메뉴·`remote.connect`)로 시작했다. 같은 대상의 강제 끊김
+    /// 표지가 시도 중에 저장돼도 이 시도의 결과는 버리지 않는다(`drop_attempt_for_force_detached_target`).
+    pub explicit: bool,
     /// 행 없는 수동 요청(`remote.attach`·`attach.into_gui`)의 대상. 같은 대상의 새 요청은
     /// 진행 중인 이전 요청을 대체한다.
     pub manual: Option<String>,
@@ -55,6 +58,12 @@ impl PendingMirrorInstall {
             reason,
             serde_json::Value::Null,
         );
+    }
+
+    /// 저장된 행의 명시적 연결로 시작한 시도로 표시한다.
+    pub(crate) fn explicit_connect(mut self, explicit: bool) -> Self {
+        self.explicit = explicit;
+        self
     }
 
     pub(crate) fn cancel_run(&self, reason: &str) {
@@ -163,6 +172,7 @@ impl App {
             reconnect: old,
             run: None,
             user: false,
+            explicit: false,
             manual: None,
         })
     }
@@ -272,6 +282,12 @@ impl App {
                     .mirror_attempts
                     .cancel_connection(ticket, &mut self.remote);
                 self.end_discarded_row_attempt(&target);
+                continue;
+            }
+            if self.drop_attempt_for_force_detached_target(&target) {
+                self.state
+                    .mirror_attempts
+                    .cancel_connection(ticket, &mut self.remote);
                 continue;
             }
             if let Some(error) = self.remote.connection_error(ticket) {

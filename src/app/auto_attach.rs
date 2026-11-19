@@ -4,6 +4,9 @@
 //! 재연결 시간 동안 예약 시각마다 다시 시도한 뒤 형상을 남긴 끊긴 행이 된다.
 //! docs/dev-guide/attach-behavior.md#gui-자동-재연결-스코프 참조.
 
+// X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
+#[cfg(all(test, target_os = "linux"))]
+mod force_detach_result_tests;
 mod notice;
 // X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
 #[cfg(all(test, target_os = "linux"))]
@@ -294,7 +297,7 @@ impl App {
             // 시간 창과 백오프를 그대로 둔다.
             Some(SessionState::Reconnecting) if explicit => {
                 self.remote.reconnect.insert(row, ReconnectSlot::new());
-                self.trigger_reconnect_row(row, None, None, run);
+                self.trigger_reconnect_row(row, None, None, run, true);
             }
             Some(SessionState::Reconnecting) => {
                 self.row_waits.join_run(row, run);
@@ -309,9 +312,9 @@ impl App {
                     session.state.phase = SessionState::Reconnecting;
                 }
                 self.remote.reconnect.insert(row, ReconnectSlot::new());
-                self.trigger_reconnect_row(row, None, None, run);
+                self.trigger_reconnect_row(row, None, None, run, explicit);
             }
-            None => self.start_first_connect(row, binding, run),
+            None => self.start_first_connect(row, binding, run, explicit),
         }
     }
 
@@ -328,7 +331,13 @@ impl App {
         }
     }
 
-    fn start_first_connect(&mut self, row: u32, binding: RemoteBinding, run: Option<u64>) {
+    fn start_first_connect(
+        &mut self,
+        row: u32,
+        binding: RemoteBinding,
+        run: Option<u64>,
+        explicit: bool,
+    ) {
         let attempt = match self.remote.begin_attempt(Some(row), Some(binding.clone())) {
             Ok(attempt) => attempt,
             Err(error) => {
@@ -338,7 +347,7 @@ impl App {
             }
         };
         let endpoint_target = match self.mirror_install_target(None, Some(row), None, false) {
-            Ok(target) => target.with_run(run),
+            Ok(target) => target.with_run(run).explicit_connect(explicit),
             Err(error) => {
                 run.into_iter().for_each(crate::request_runs::forget);
                 self.remote.finish_attempt(&attempt);
@@ -384,7 +393,7 @@ impl App {
             if self.remote.active.contains(&row) {
                 continue;
             }
-            self.trigger_reconnect_row(row, current_ws_id, prev_active, None);
+            self.trigger_reconnect_row(row, current_ws_id, prev_active, None, false);
         }
     }
 
@@ -421,6 +430,7 @@ impl App {
         current_ws_id: Option<u32>,
         prev_active: Option<u32>,
         run: Option<u64>,
+        explicit: bool,
     ) {
         // 아래에서 시도를 시작하지 않고 끝나면 run을 결과 없이 둔다.
         let forget = |run: Option<u64>| run.into_iter().for_each(crate::request_runs::forget);
@@ -455,7 +465,7 @@ impl App {
             .iter()
             .position(|session| session.state.saved_row == Some(row));
         let endpoint_target = match self.mirror_install_target(None, Some(row), index, false) {
-            Ok(target) => target.with_run(run),
+            Ok(target) => target.with_run(run).explicit_connect(explicit),
             Err(error) => {
                 forget(run);
                 self.remote.finish_attempt(&attempt);
@@ -610,6 +620,12 @@ impl App {
             self.remote.discard_endpoint_outcome(outcome);
             return;
         };
+        if self.drop_attempt_for_force_detached_target(&target) {
+            if let Ok((tunnel, _)) = outcome.result {
+                self.remote.retire_tunnel(tunnel);
+            }
+            return;
+        }
         let AutoAttachOutcome {
             attempt: _,
             row,

@@ -42,6 +42,7 @@ fn target() -> PendingMirrorInstall {
         resync: false,
         run: None,
         user: false,
+        explicit: false,
         manual: None,
         profile: Some("rv".to_string()),
         remote_workspace: Some(3),

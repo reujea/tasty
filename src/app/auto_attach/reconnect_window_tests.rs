@@ -84,6 +84,7 @@ fn first_connect_target(
         resync: false,
         run: None,
         user: false,
+        explicit: false,
         manual: None,
         profile: Some("rv".to_string()),
         remote_workspace: Some(3),
@@ -133,7 +134,7 @@ fn a_popup_connection_takes_over_the_auto_attempt_of_the_same_row() {
 }
 
 /// handshake 응답까지 보내고 소켓을 쥐고 있는 loopback attach 서버. 연결이 준비된 상태가 된다.
-fn ready_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
+pub(super) fn ready_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
     use std::io::{BufRead, BufReader};
     use tasty_ipc::stream::{self, StreamTag};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

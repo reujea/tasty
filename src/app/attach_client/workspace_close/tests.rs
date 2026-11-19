@@ -22,6 +22,7 @@ fn mirror(
         resync: false,
         run: None,
         user: false,
+        explicit: false,
         manual: None,
         profile: None,
         remote_workspace: None,
