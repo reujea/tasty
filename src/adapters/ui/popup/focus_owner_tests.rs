@@ -107,7 +107,7 @@ fn focused_instances(mgr: &PopupManager) -> Vec<PopupInstanceId> {
         .collect()
 }
 
-/// Given B를 먼저, A를 나중에 포커스를 주며 열고 A의 범위가 숨었을 때, When B를 누르면, Then A의 범위가
+/// Given B를 먼저, A를 나중에 포커스를 주며 열어 둘 다 포커스를 갖고 A가 키 주인이며 A의 범위가 숨었을 때, When B를 누르면, Then A의 범위가
 /// 다시 보여도 다른 범위의 A는 포커스를 그대로 갖고, B가 맨 앞이라 키 주인이다.
 #[test]
 fn a_click_leaves_a_hidden_sibling_focused_and_makes_the_clicked_one_the_key_owner() {
@@ -128,7 +128,11 @@ fn a_click_leaves_a_hidden_sibling_focused_and_makes_the_clicked_one_the_key_own
             true,
         )
         .unwrap();
-    assert_eq!(focused_instances(&mgr), [a]);
+    assert_eq!(focused_instances(&mgr), [b, a]);
+    assert_eq!(
+        mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
+        Some(a)
+    );
     frame(&mut mgr, &[2], Some(egui::pos2(650.0, 350.0)));
     frame(&mut mgr, &[1, 2], None);
     assert!(focused_instances(&mgr).contains(&b));
