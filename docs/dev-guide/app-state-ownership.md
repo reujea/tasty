@@ -75,7 +75,7 @@ terminal tell·broadcast·respawn 실행 함수는 `EngineMut` 대신 `TerminalI
 | `port_scan` · `port_favorites_scan` | 사용자 view 상태 | 열림 | port scanner popup → popup | 없음 |
 | `command_palette` | 사용자 view 상태 | 열림 | 팔레트 → 팔레트 | 없음 |
 | `recent_files` | 도메인 사실 | 영속 | 디스크 로드·파일 열기 → — | 읽힘 |
-| `popup_hovered` · `banner_hovered` · `resize_edge_widget_hovered` | 사용자 view 상태 | 프레임 | egui 패스 → 입력 라우팅 | 없음 |
+| `host_popup_covers` · `plugin_popup_covers` · `banner_hovered` · `resize_edge_widget_hovered` | 사용자 view 상태 | 프레임 | egui 패스 → 입력 라우팅 | 없음 |
 | `plugin_popup_open` | 사용자 view 상태 | 프레임 | plugin popup 그리기 → 입력 라우팅 | 없음 |
 | `popup_layers` · `plugin_popup_layers` · `host_popup_hittest` · `popup_escape_owner` · `plugin_popup_hittest` · `banner_layer` | 사용자 view 상태 | 프레임 | egui 패스 → 입력 라우팅 | 없음 |
 | `preset_store` | 읽기 facade (`PresetCatalog`) | View 수명 | AppServices 저장소의 목록 query → popup 표시 | 없음 |

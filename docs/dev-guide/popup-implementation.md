@@ -31,7 +31,7 @@ plugin 팝업 제작 절차는 [plugin-development](plugin-development.md) · [e
 
 ## 왜 `egui::Window` 직접 사용 금지
 
-- `PopupManager` 의 입력 계층(`popup_hovered`)을 우회 → 팝업 위를 클릭해도 뒤 surface 가 클릭을 받는다.
+- `PopupManager` 의 입력 계층(팝업 사각형으로 찾는 포인터 대상 `popup_owns_point`)을 우회 → 팝업 위를 클릭해도 뒤 surface 가 클릭을 받는다.
 - z-order·드래그·스코프 경계 클램핑 같은 공통 동작이 빠진다.
 
 (예외: `src/gfx/gpu/shell_setup.rs` 의 부팅 전 셸 셋업, `src/gfx/gpu/boot_error.rs` 의 부팅 실패 화면처럼 popup 시스템이 살아있기 전 단계만. 앱 내부 다이얼로그는 전부 PopupDef.)
@@ -227,7 +227,7 @@ scrim 이 덮는 rect 는 그 팝업의 `PopupScope` rect 다 — `Surface` 범�
 `PopupManager::draw`의 outside-click/hover 판정(`hovered_popup`)은 기본적으로 각 popup 의 `popup_rect()`만 히트테스트한다. 하지만 `draw_fn` 내부에서 `egui::popup_below_widget`/`popup_above_or_below_widget` 같은 **egui 네이티브 API로 별도 생성되는 드롭다운 Area**는 `PopupManager`가 전혀 모르는 독립 레이어라, 팝업이 좁거나 화면 가장자리에 있어 드롭다운이 `popup_rect` 밖으로 삐져나가면 그 위 클릭이 "바깥 클릭"으로 오판되어 `close_on_outside_click` 팝업 전체가 드롭다운째 닫혀버린다.
 
 - **해결**: 드롭다운을 그리는 뷰가 `popup::report_child_overlay_rect(ctx, popup_id, overlay_key, rect)`로 실측 rect를 매 프레임 보고한다(닫혀 있으면 반드시 `None` — stale rect 방지). egui popup 드롭다운은 열림 확인과 영역 조회를 함께 하는 `popup::report_dropdown_overlay(ui, popup_id, overlay_key, dropdown_id)`를 쓴다. `overlay_key`는 오버레이별 고유 문자열(보통 그 드롭다운의 egui popup id 문자열)로, 한 popup 에 오버레이가 여러 개(`port_scanner`의 state_filter + column_chooser)여도 report 호출 순서와 무관하게 서로 덮어쓰지 않는다.
-- **hit-test 반영**: `PopupManager::draw`의 pre-content 판정은 `popup_rect().contains(pos)`가 실패하면 그 popup 소유의 등록된 오버레이 rect 들도 추가로 확인한다(`child_overlay_hit`). 여기 걸리면 `hovered_popup`이 그 popup으로 설정되어 outside-click 으로도, hover 기반 입력 게이팅(`PopupDrawResult.hovered` → `state.popup_hovered`)에도 "바깥"으로 취급되지 않는다 — 드롭다운이 시각적으로 떠 있는 동안은 그 위 터미널 입력도 계속 차단되는 게 맞는 동작이다. close 버튼/리사이즈 엣지/드래그 핸들 판정은 `popup_rect` 자체에만 유효하므로 오버레이 hit 은 여기 관여하지 않는다.
+- **hit-test 반영**: `PopupManager::draw`의 pre-content 판정은 `popup_rect().contains(pos)`가 실패하면 그 popup 소유의 등록된 오버레이 rect 들도 추가로 확인한다(`child_overlay_hit`). 여기 걸리면 `hovered_popup`이 그 popup으로 설정되어 outside-click 으로도 "바깥"으로 취급되지 않는다. 오버레이 rect 는 그리기 뒤 포인터 사각형(`PopupManager::pointer_boxes` → `PopupDrawResult.hit_rects` → `state.host_popup_hittest`)에도 들어가 창의 포인터 대상 판정(`popup_owns_point`)도 그 popup 으로 본다 — 드롭다운이 시각적으로 떠 있는 동안은 그 위 터미널 입력도 계속 차단되는 게 맞는 동작이다. close 버튼/리사이즈 엣지/드래그 핸들 판정은 `popup_rect` 자체에만 유효하므로 오버레이 hit 은 여기 관여하지 않는다.
 - **1프레임 지연**: 보고는 hit-test보다 뒤(콘텐츠 렌더 시점)라 직전 프레임 값을 쓴다 — `report_header_drag_rect`와 동일한 트레이드오프.
 - **적용 예**: `port_scanner.rs`의 `draw_state_filter`/`draw_column_chooser`, `remote_tool.rs`의 `draw_protocol_filter`. `remote_tool`은 부모 popup 이 `close_on_outside_click: false`라 증상 자체는 안 드러나지만 구조는 동일하게 맞춰져 있다.
 
@@ -276,7 +276,7 @@ if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { /* apply
 팝업 콘텐츠(`draw_fn`)는 `PopupManager::draw`(`popup/draw.rs`)에서 **`egui::Area` 로 등록**되어 렌더된다. Area id = bg/title painter 와 동일한 layer_id(`Id("popup")+popup_id+z_idx`) → 한 레이어로 통합(z-order 자동 정합).
 
 - **왜 Area 여야 하나**: egui 의 `Memory::layer_id_at` 은 **등록된 Area 만** 인식한다. 콘텐츠를 bare `Ui::new(layer_id)` 로 그리면 layer_id_at 이 팝업 레이어를 못 찾아 `ScrollArea::ui_contains_pointer()`=false → **휠/드래그 스크롤 입력이 무시**된다(위젯 클릭은 별도 widget hit-test 경로라 정상 → "클릭은 되는데 스크롤만 안 되는" 증상). 그래서 스크롤 가능한 콘텐츠(`ScrollArea`, `egui_extras::Table`)를 담는 팝업은 Area 등록이 필수다.
-- **`movable(false)` + `sense(hover)`**: 드래그/클램핑/outside-click 은 `PopupManager` 가 **수동 좌표 hit-test**(`popup_hovered`)로 처리하므로 Area 가 클릭/드래그를 소비하지 않게 한다. egui Area 등록은 egui 내부 스크롤/호버 라우팅 전용이고, 터미널 입력 차단(`popup_hovered`, geometry 기반)과는 독립이다.
+- **`movable(false)` + `sense(hover)`**: 드래그/클램핑/outside-click 은 `PopupManager` 가 **수동 좌표 hit-test**로 처리하므로 Area 가 클릭/드래그를 소비하지 않게 한다. egui Area 등록은 egui 내부 스크롤/호버 라우팅 전용이고, 터미널 입력 차단(`popup_owns_point`, geometry 기반)과는 독립이다.
 - **`set_min_size`/`set_max_size`(content_rect) + `set_clip_rect`(content_rect) 필수**: Area 는 콘텐츠에 맞춰 auto-shrink 하므로, footer 처럼 `allocate_new_ui` 로 별도 배치되는 요소가 빠지면 Area hit-rect 가 줄어 layer_id_at 이 팝업 하단을 못 잡는다 → `set_min_size` 로 hit-rect 를 content_rect 전체로 강제. 또 `egui::Ui::new(max_rect(r))` 는 clip_rect=r 였지만 Area 는 기본 clip 이 더 넓어 콘텐츠 넘침(긴 라벨·선택 하이라이트·스크롤바)이 팝업 밖으로 샌다 → `set_clip_rect(content_rect)` 로 경계 클립 복원.
 
 > 즉 popup `draw_fn` 안에서는 일반 egui 위젯/`ScrollArea`/`Table` 을 그냥 쓰면 된다 — 스크롤·클립·레이어 등록은 `PopupManager::draw` 가 콘텐츠를 감싼 Area 가 처리한다.

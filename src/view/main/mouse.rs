@@ -2070,7 +2070,7 @@ mod cursor_moved_early_return_tests {
         ));
     }
 
-    /// 단축키 도움말은 팝업 인스턴스라 popup_hovered에 들어 있다.
+    /// 단축키 도움말은 팝업 인스턴스라 포인터 대상 판정(`popup_owns_point`)에 들어 있다.
     #[test]
     fn popup_and_banner_each_short_circuit() {
         assert!(cursor_moved_should_short_circuit(

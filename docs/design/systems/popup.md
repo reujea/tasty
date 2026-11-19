@@ -92,9 +92,9 @@ plugin 이 `file_picker.trigger`로 host popup 을 열 때 `owner_popup_instance
 
 관계가 성립하면:
 
-- **범위 상속·숨김 보존** — host는 요청자와 부모 instance를 대조해 부모의 선언 종류와 결속 target으로 정한 범위를 자식 파일 피커에 적용한다(이 문서). 부모가 좁은 surface 에서 접히거나 창 위로 펼쳐져도 그 배치 결과는 쓰지 않는다. 부모가 숨으면 자식도 paint/hit/Esc/키 게이트에서 빠지고, 돌아오면 draft·선택·pending 요청을 그대로 이어간다. 숨김은 닫기로 처리하지 않는다. Window 부모의 피커는 창 범위다. owner 없는 피커의 범위는 아래 "파일 피커의 범위"를 따른다.
+- **범위 상속·숨김 보존** — host는 요청자와 부모 instance를 대조해 부모의 선언 종류와 결속 target으로 정한 범위를 자식 파일 피커에 적용한다(이 문서). 부모가 좁은 surface 에서 접히거나 창 위로 펼쳐져도 범위에는 그 배치 결과를 쓰지 않는다. 표시 상태(펼침·접힘)는 부모를 따른다([좁은 범위: 접기와 펼침](#좁은-범위-접기와-펼침)). 부모가 숨으면 자식도 paint/hit/Esc/키 게이트에서 빠지고, 돌아오면 draft·선택·pending 요청을 그대로 이어간다. 숨김은 닫기로 처리하지 않는다. Window 부모의 피커는 창 범위다. owner 없는 피커의 범위는 아래 "파일 피커의 범위"를 따른다.
 - **스택 유지** — 자식이 열려 있는 동안 부모는 outside-click dismiss 대상에서 빠진다. 부모를 모달로 잠그는 것이 아니라 dismiss 목록에서만 제외한다(popup은 포커스를 독점하지 않으므로).
-- **Esc 소유권** — host/plugin 통틀어 그 프레임 최상단 popup **하나만** Esc 를 소비한다. Esc 를 한 번 누르면 최상단 팝업 하나가 닫힌다. 그 팝업이 창 위로 펼친 팝업이면 닫지 않고 다시 접는다([좁은 범위: 접기와 펼침](#좁은-범위-접기와-펼침)). host 쪽 판정은 `MainViewState.popup_escape_owner`(`popup::frame` 이 매 프레임 결정), plugin 쪽은 `popup_render` 가 같은 z 축으로 비교한다. **host popup 끼리의 Esc 중재는 범위 밖** — 각 view 가 자기 Esc 를 직접 소비하며, 현재 스택에 참여하는 `file_picker` 에만 게이트가 붙어 있다.
+- **Esc 소유권** — Esc 는 키 주인(`MainViewState::popup_key_owner`: host·plugin 을 합친 z 순서에서 보이는 맨 위 팝업) 하나가 받는다. 창의 키 처리(`try_consume_escape_key`)는 설정 열기 요청, 펼친 키 주인의 다시 접기, 알림 목록 닫기 순서로 본다. 그다음 키 주인이 plugin 팝업이면 창은 Esc 를 처리하지 않고 그 팝업의 렌더가 받는다(선언 `escape` 가 `Close` 면 닫는다). 그렇지 않으면 포커스된 맨 위 host 팝업의 포커스를 풀고 바깥 클릭에 닫히는 팝업이면 닫는다. 창 위로 펼친 팝업은 닫지 않고 다시 접는다([좁은 범위: 접기와 펼침](#좁은-범위-접기와-펼침)). 렌더 안에서 Esc 를 직접 읽는 host 팝업 사이의 중재는 `popup_escape_owner` 가 정하며 현재 `file_picker` 만 이 값을 본다.
 - **연쇄 정리** — 부모가 어떤 경로로 닫히든 자식 피커에 취소 결과가 채워져, 평소 result 경로 그대로 plugin 에 `cancelled: true` 가 전달되고 피커도 닫힌다. 부모가 결속한 창이 닫힐 때는 창 상태를 버리기 전에 모든 창 상태(버리는 창, 남은 창, 보관된 창)에서 피커를 취소한다. 자식 피커는 부모와 다른 창에 열릴 수 있기 때문이다. 남은 창의 피커는 평소 result 경로로, 버리는 창의 피커는 그 창의 다음 프레임이 없으므로 그 자리에서 결과를 plugin 에 보낸다. 부모 없는 피커나 결과 유실을 남기지 않는다. 사용자가 이미 확정한 결과는 덮지 않는다.
 
 소유 관계는 자식(요청자 기록) 한 곳에만 있다 — 부모 쪽 사본이 없어 둘이 어긋날 수 없다. host는 특정 plugin 이름/kind로 분기하지 않는다. 범위 상속에서는 요청자 plugin과 부모 소유자가 같은지만 확인한다.
@@ -117,7 +117,7 @@ origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenReq
 
 - passive 팝업은 `has_focused()` 에 들지 않으므로 열려 있어도 `keyboard_overlay_open()` 이 거짓이다. 터미널 입력, explorer·dag_graph 처럼 egui 입력을 받는 surface의 입력, native WebView 의 입력이 그대로 이어진다. Esc 의 포커스 해제 대상(`focused_dismissal_target`)도 아니다.
 - native WebView 는 모두 숨기지 않고 키보드 포커스도 회수하지 않는다. 토스트 카드와 같이 팝업 영역과 겹치는 WebView 만, 그 WebView 가 키 입력을 받지 않을 때 숨긴다(`PopupManager::visible_passive_rects`, [webview](webview.md#포커스--회수는-조건부다)). 키를 받는 WebView 와 겹치면 그 WebView 가 팝업을 덮는다. native 위에 egui 를 그리는 층이 없어서이며, 요청은 함께 만든 알림으로도 보인다. 일반 팝업이 떠 있어도 페이지를 보이는 모드는 [WebView §egui 오버레이와 native WebView](webview.md#egui-오버레이와-native-webview)에 있다. 모드는 backend 가 보고한다. Linux(X11)는 XFixes 2.0 과 SHAPE 확장이 있을 때 합성 관리자가 있으면 투명, 없으면 불투명이고, 확장이 없거나 적용이 실패하면 숨김이다. Windows 와 macOS 는 불투명이다. passive 팝업은 그 모드의 대상이 아니다.
-- 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다(`keyboard = None` 팝업은 제외). 호스트가 확인한 사용자 입력도 같은 전이를 낸다: 파일 피커를 연 plugin 이 같은 surface 에서 증명이 있는 `file_picker.trigger` 를 다시 보내면 사용자 출처 `UiIntent::FocusPassivePopup` 이 보이는 다른 팝업의 포커스를 풀고 그 피커를 맨 앞으로 올린다(`PopupManager::focus_passive`). 증명 없는 요청, 다른 plugin 의 요청, 피커 요청자 기록과 출발 surface 가 다른 요청은 같은 범위에서 busy 로 남는다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
+- 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다(`keyboard = None` 팝업은 제외). 호스트가 확인한 사용자 입력도 같은 전이를 낸다: 파일 피커를 연 plugin 이 같은 surface 에서 증명이 있는 `file_picker.trigger` 를 다시 보내면 사용자 출처 `UiIntent::FocusPassivePopup` 이 그 피커 범위 경로 위의 보이는 다른 팝업 포커스를 풀고 그 피커를 맨 앞으로 올린다(`PopupManager::focus_passive`). 다른 범위의 팝업 포커스는 그대로다. 증명 없는 요청, 다른 plugin 의 요청, 피커 요청자 기록과 출발 surface 가 다른 요청은 같은 범위에서 busy 로 남는다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
 - 포커스를 받지 않는다고 선언한 팝업(`keyboard: None`, 복원 안내·단축키 도움말)은 출처나 passive 여부와 관계없이 WebView 를 한 규칙으로 다룬다. 겹친 WebView 를 숨기지 않고, 키보드 포커스를 회수하지 않으며, 오버레이 모드의 대상도 아니다. WebView 는 bounds·표시·포커스를 그대로 두고 팝업 사각형만 그림과 포인터에서 뺀다(`PopupManager::quiet_popup_rects`). 그래서 `has_visible_open`·`visible_passive_rects` 는 이 팝업을 세지 않는다. 판정은 팝업 id 가 아니라 선언 값으로 한다. 이 규칙은 host 팝업에 한한다. plugin 팝업은 `keyboard: none` 을 선언해도 아직 기존 WebView 오버레이 규칙을 따른다(`keyboard` 는 plugin 팝업 인스턴스에 전달하지 않는다, §plugin popup 의 실행 중 선언과 열기).
 - 비포커스 상태의 별도 시각 표현은 없다. 포커스가 없는 다른 팝업(알림 패널 등)과 같은 모양이다.
 - 팝업 내용이 자기 포커스를 확인할 때는 `PopupCx.focused` 를 읽는다. draw 동안에는 매니저를 빌릴 수 없어 그리기를 시작할 때 복사한다.
@@ -131,7 +131,7 @@ passive 상태와 실제 포인터 클릭으로 포커스를 받은 상태를 �
 
 ## 포커스
 
-팝업은 **포커스 상태**를 가진다. 보이는 범위에 포커스된 팝업이 있으면 키보드 입력이 터미널로 안 간다. 여러 팝업이 겹쳐 있을 때 Esc 를 누가 받는지는 위 [§수명 계약](#plugin-popup--host-popup-부모-자식)의 "Esc 소유권" 을 따른다. 클릭 → 포커스(다른 팝업 언포커스), 바깥 클릭 → 전체 언포커스(터미널 복귀), 닫기 → 자동 언포커스. `PopupManager::has_focused()`로 확인한다. 이 조회는 최신 draw의 범위 가시성을 포함한다. 숨은 popup의 포커스 의도는 보존하며 다른 화면의 클릭은 그 의도를 바꾸거나 popup을 dismiss하지 않는다. 숨김 때 드래그·리사이즈 캡처는 해제한다. native WebView를 가리는 overlay 판정도 열린 popup 중 보이는 것만 센다. 오버레이 모드가 숨김이 아니면 페이지 위 클릭도 이 바깥 클릭 규칙을 따르고 페이지로 가지 않는다([WebView §영역과 backend 계약](webview.md#영역과-backend-계약)).
+팝업은 **포커스 상태**를 가진다. 보이는 범위에 포커스된 팝업이 있으면 키보드 입력이 터미널로 안 간다. 여러 팝업이 겹쳐 있을 때 Esc 를 누가 받는지는 위 [§수명 계약](#plugin-popup--host-popup-부모-자식)의 "Esc 소유권" 을 따른다. 클릭 → 포커스(누른 좌표의 범위 경로 위에 있는 다른 팝업만 언포커스. 다른 범위의 팝업은 같은 선언의 인스턴스여도 포커스를 유지하고, 키는 포커스를 가진 맨 위 인스턴스가 받는다. 범위 밖으로 나온 드롭다운 부분을 누르면 그 부모 팝업의 노드 경로로 본다), 바깥 클릭 → 전체 언포커스(터미널 복귀), 닫기 → 자동 언포커스. `PopupManager::has_focused()`로 확인한다. 이 조회는 최신 draw의 범위 가시성을 포함한다. 숨은 popup의 포커스 의도는 보존하며 다른 화면의 클릭은 그 의도를 바꾸거나 popup을 dismiss하지 않는다. 숨김 때 드래그·리사이즈 캡처는 해제한다. native WebView를 가리는 overlay 판정도 열린 popup 중 보이는 것만 센다. 오버레이 모드가 숨김이 아니면 페이지 위 클릭도 이 바깥 클릭 규칙을 따르고 페이지로 가지 않는다([WebView §영역과 backend 계약](webview.md#영역과-backend-계약)).
 
 Modal 의 전역 입력 독점과 다르다 — 팝업 포커스는 **키보드만** 차단하고, 마우스는 [입력 계층](../../architecture/input-layer.md)에 따라 팝업이 소비한다.
 
@@ -179,17 +179,17 @@ Windows 에서 장식 없는 Tasty 창은 최소화 중에도 작업 표시줄 �
 | Collapsed | 매 프레임 한 축이라도 들어가지 않을 때 | 그 팝업의 프레임에 "팝업 보기" 버튼 하나. 콘텐츠를 그리지 않고 plugin 에는 크기·입력을 보내지 않는다 | 논리 범위 |
 | Expanded | 보기 버튼을 누르거나, 키 주인일 때 Enter·Space | 창 위의 팝업. 자기 제목줄이 없는 팝업도 host 제목줄을 받는다 | 창(`placement_scope() = Window`) |
 
-- 판정 경계는 범위 사각형에서 선언 `scope_inset` 이면 `min(space-sm, 폭/2, 높이/2)` 를 네 변에서 뺀 것이다(plugin 은 surface 범위만 같은 inset). 필요 크기는 sizer 가 마지막으로 잰 값이다.
-- 접힌 버튼은 경계 가운데에 둔다. 라벨 버튼 프레임이 들어가지 않으면 아이콘 버튼 프레임이고, 그것도 들어가지 않는 축은 경계 시작에 붙이고 범위에서 자른다. 버튼만 히트 사각형이다. 덮는 팝업이면 접혀도 범위를 덮는다.
-- 펼친 팝업은 범위가 넓어져도 판정하지 않고 남는다. 창 가운데에 두고, 창보다 크면 크기를 유지한 채 왼쪽·위에 맞춘다. 덮음 선언과 무관하게 창을 덮는다(scrim·포인터·바깥 누름 판정이 창 범위로 나온다). 논리 범위(`scope`)는 바뀌지 않으므로 논리 범위가 숨으면 펼친 팝업도 숨는다.
+- 판정 경계는 범위 사각형에서 선언 `scope_inset` 이면 `min(space-sm, 폭/2, 높이/2)` 를 네 변에서 뺀 것이다. 필요 크기는 sizer 가 마지막으로 잰 값(plugin 은 선언 크기)이다. host·plugin 이 같은 함수(`display::collapse_placement`)로 판정하고, plugin 선언의 `fit`·`scope_inset`·`covers_scope`·`escape` 도 host 와 같은 뜻이다(`fit = Shrink` 면 접지 않는다).
+- 접힌 버튼은 경계 가운데에 둔다. plugin `Cursor` 앵커 팝업은 포인터 자리에 두고 경계 안으로 민다. 라벨 버튼 프레임이 들어가지 않으면 아이콘 버튼 프레임이고, 그것도 들어가지 않는 축은 경계 시작에 붙이고 범위에서 자른다. 버튼만 히트 사각형이다. 덮는 팝업이면 접혀도 범위를 덮는다.
+- 펼친 팝업은 범위가 넓어져도 판정하지 않고 남는다. 창 가운데에 둔다. 창보다 크면 프레임을 창에 맞춰 왼쪽·위에 두므로 제목줄과 접기·닫기 버튼은 늘 창 안에 온전히 보이고, 내용은 필요 크기를 유지해 넘친 오른쪽·아래만 잘린다(`tasty_ui_widgets::place_expanded`, host·plugin·갤러리 공용). 덮음 선언과 무관하게 창을 덮는다(scrim·포인터·바깥 누름 판정이 창 범위로 나온다). 논리 범위(`scope`)는 바뀌지 않으므로 논리 범위가 숨으면 펼친 팝업도 숨는다.
 - 펼친 팝업의 제목줄 버튼 묶음 맨 앞(전체화면·닫기 왼쪽, 다른 버튼이 없으면 닫기 자리)에 접기(`shrink`) 버튼이 있다. 접기 버튼이나 Esc(키 주인일 때)는 다시 판정 상태로 돌린다. 닫기 사건(`on_close`, plugin `popup.closed`)은 없고 포커스·입력 값·인스턴스가 그대로다. Esc 는 창의 키 처리에서 설정 열기 요청 다음, 알림 목록·포커스된 팝업 처리보다 먼저 키 주인(`MainViewState::refold_key_owner`)을 본다. 키 주인이 펼친 host 팝업이면 바로 접고, 펼친 plugin 팝업이면 그 프레임 렌더가 접으며 그 Esc 를 plugin 내용에 보내지 않는다. 아래 알림 목록이나 host 팝업은 그 Esc 로 닫히거나 접히지 않는다.
-- 자식은 부모가 펼쳤으면 함께 펼치고, 부모가 접혔으면 부모 버튼 하나가 묶음을 대표한다(자식은 그리지 않는다). 부모가 들어가면 자식은 자기 크기로 판정한다. 펼친 묶음에서 Esc 나 접기 버튼은 묶음 뿌리부터 접는다. 부모가 plugin 팝업인 host 파일 피커는 부모 상태를 따르지 않고 자기 크기로 판정한다.
+- 자식은 부모가 펼쳤으면 함께 펼치고, 부모가 접혔으면 부모 버튼 하나가 묶음을 대표한다(자식은 그리지 않는다). 부모가 들어가면 자식은 자기 크기로 판정한다. 펼친 묶음에서 Esc 나 접기 버튼은 묶음 뿌리부터 접는다. 부모가 plugin 팝업인 host 파일 피커(`OpenRequest::plugin_parent`)도 같다. plugin 렌더가 적은 부모 표시 상태를 다음 host 판정이 따르고, 어느 쪽을 다시 접어도 함께 접힌다. 묶음이 접히면 그리지 않는 자식의 포커스는 보이는 보기 버튼으로 옮기고, 그 자식은 키 후보에서 빠진다.
 - 닫았다 다시 열면 판정부터 한다.
+- 접기 버튼은 host·plugin·갤러리가 함께 쓰는 위젯(`tasty_ui_widgets::popup_collapse_button`)이다. 접근 이름은 `popup.collapse_button.label` 이고 Tab 키 포커스를 받으며, 포커스가 있을 때 Enter·Space 로 접는다. 아이콘형 보기 버튼은 라벨을 접근 이름으로 갖는다. 두 버튼 모두 hover 나 키 포커스일 때 툴팁을 보인다.
 
 키 포커스를 가진(키 주인) 좁은 범위 팝업과 접힌 버튼 프레임은 셸 위쪽에 포커스 가장자리(`popup-focus-edge`)를 그린다. 창 범위와 펼친 팝업은 그리지 않는다.
 
-`Workspace` 스코프의 clamp 는 실제로는 윈도우 전체다 — 워크스페이스가 윈도우를 통째로
-차지하므로 둘이 같은 사각형이다. 따라서 이 스코프가 실질적으로 결정하는 것은 **가시성**이다.
+`Workspace` 스코프의 clamp·clip·scrim 은 활성 workspace 의 콘텐츠 영역(탭 바와 pane, `LayoutContext::workspace_rect`)이다. 사이드바·상태바는 범위 밖이다(아래 "scrim 의 범위"). workspace 를 옮기면 그리지 않으므로 이 스코프는 가시성도 정한다.
 
 **스코프는 `PopupDef` 에 못 박히지 않는다.** 등록 때는 `Window` 로 두고, 여는 쪽이 열 때마다
 범위를 정한다. `OpenRequest`와 `PopupManager`의 모든 열기 함수가 범위를 받으므로
@@ -231,17 +231,23 @@ scrim은 팝업이 속한 범위를 덮는다(이 문서). 범위 사각형은 `
 
 같은 범위의 팝업이 여럿이어도 scrim은 한 번 그린다. 창 scrim이 있으면 내부 surface scrim은 생략한다. 같은 알파를 중복 적용해 특정 영역만 더 어두워지는 것을 막는다.
 
-**어느 팝업이 scrim 을 까는가는 범위가 아니라 덮음(`PopupState::covers()`)으로 정한다.** 선언 `decl.covers_scope` 의 기본은 덮음이고, 창 위로 펼친 팝업은 선언과 무관하게 창을 덮는다. 범위에 붙은 메뉴와 안내만 덮지 않는다: `approval` · `modifier_hint` · `mouse_capture_banner_menu` · `notifications` · `rail_category` · `restore_notice` · `search_bar` · `tools_menu`, 그리고 열 때 덮음을 정하는 `remote_row`(마지막 화면 위에 열면 덮는다). `search_bar` 는 `Surface` 범위를 쓰지만 anchored + scrim-less 갈래다([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md)). plugin 팝업은 예외 없이 덮는다. 목록은 `src/adapters/ui/popup/decl_table_tests.rs` 가 고정한다.
+**어느 팝업이 scrim 을 까는가는 범위가 아니라 덮음(`PopupState::covers()`)으로 정한다.** 선언 `decl.covers_scope` 의 기본은 덮음이고, 창 위로 펼친 팝업은 선언과 무관하게 창을 덮는다. 범위에 붙은 메뉴와 안내만 덮지 않는다: `approval` · `modifier_hint` · `mouse_capture_banner_menu` · `notifications` · `rail_category` · `restore_notice` · `search_bar` · `tools_menu`, 그리고 열 때 덮음을 정하는 `remote_row`(마지막 화면 위에 열면 덮는다). `search_bar` 는 `Surface` 범위를 쓰지만 anchored + scrim-less 갈래다([`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md)). plugin 팝업은 선언 `covers_scope`(기본 덮음)를 따른다. 목록은 `src/adapters/ui/popup/decl_table_tests.rs` 가 고정한다.
 
 ### 덮는 팝업과 포인터
 
 포인터 대상은 위에서부터 찾고, 덮는 팝업을 만나면 그 배치 범위 아래로 내려가지 않는다. 덮는 범위 안에서는 상자 밖이어도 대상이 그 팝업이다. 덮인 범위의 위젯·터미널·배너는 누름·뗌·휠·hover·이동 보고를 받지 않고, 파일을 놓을 수도 없다. 판정 자리는 [입력 계층](../../architecture/input-layer.md#순서-2--덮는-팝업은-그-범위의-포인터-입력을-모두-가진다)에 있다.
 
-상자 밖 누름이 그 팝업에 하는 일(`popup::press::route_outside_press`, plugin 은 같은 규칙의 `outside_press`):
+- 포인터 대상은 하나다(`MainViewState::popup_pointer_target`). 직전 프레임에 배치·clamp 를 마친 host 상자·범위로 자른 접힌 버튼·자식 드롭다운 오버레이, plugin 상자, 덮는 팝업의 덮는 사각형을 host·plugin 합친 z 순서로 보고 맨 위를 고른다. 창의 마우스 처리, 커서, 놓기, 배너가 이 판정을 쓴다. 직전 위치의 hover 값을 쓰지 않는다.
+- 뗌은 누름이 간 곳으로 간다. 아래(터미널·PTY)에서 누른 버튼의 뗌은 덮인 자리에서 떼도 아래로 가고, 위(팝업·egui)가 가져간 누름의 뗌은 위가 받는다. plugin 팝업과 배너의 mesh 도 자기가 받은 누름의 뗌만 받는다(`MeshPointerRoute`). 한계: egui-mesh surface(markdown 등)로 보내는 뗌은 아직 좌표로 정한다.
+- 배너는 포인터 대상이 그 배너일 때만 hover 툴팁을 보인다. 포인터가 있던 배너가 덮이면 `PointerGone` 을 받아 hover 를 푼다.
+- 놓기는 포인터 대상이 팝업이면 아래에 닿지 않는다. 창 전체 게이트(`keyboard_overlay_open`)로 막지 않으므로 다른 범위의 탐색기 놓기는 그대로 된다. 남아 있던 탐색기 hover 대상도 이 판정을 먼저 거친다.
+- 앱이 처리하는 OS 창 테두리 리사이즈는 덮음 밖이라 덮는 팝업이 열려 있어도 시작된다.
+
+상자 밖 누름이 그 팝업에 하는 일(`popup::press::outside_press` 하나를 host `route_outside_press` 와 plugin 렌더가 함께 쓴다):
 
 - 누른 좌표가 팝업의 배치 범위 밖이면 아무 일도 없다.
-- 그 좌표를 더 위의 팝업(host 상자·덮는 범위, plugin 상자·덮는 범위)이 덮었으면 알림을 받지 않는다.
-- 누르기 직전 포커스가 논리 범위 밖이었으면 들어오는 첫 클릭이라 닫거나 포커스를 풀지 않는다. 덮는 팝업이면 그 범위 안 누름이 팝업 것이라 포커스를 받는다.
+- 그 좌표를 더 위의 팝업(host 상자·접힌 버튼·자식 드롭다운 오버레이·덮는 범위, plugin 상자·덮는 범위)이 덮었으면 알림을 받지 않는다.
+- 누르기 직전 포커스 노드(키 주인 팝업이 있으면 그 논리 범위, 없으면 엔진 포커스 surface, 누름 스냅샷 하나에 남긴다)가 논리 범위 밖이었으면 들어오는 첫 클릭이라 닫거나 포커스를 풀지 않는다. 덮는 팝업이면 그 범위 안 누름이 팝업 것이라 포커스를 받는다.
 - 그 밖에는 바깥 클릭 선언대로 닫는다. 닫지 않는 덮는 팝업은 포커스를 받고, 덮지 않는 팝업은 `sticky_focus` 가 아니면 포커스를 푼다.
 
 scrim 은 어둡게 칠하는 그림이다. 입력은 위 덮음 판정이 정하고, Esc 와 바깥 클릭의 순서는 위 §수명 계약이 정한다.
@@ -324,9 +330,10 @@ popup 은 다른 plugin 이 발행한 이벤트로도 지금처럼 열린다 —
 않는 rect 가 클릭을 삼키지 않는다. 인스턴스는 살아 있어 범위가 다시 보이면 그대로 복원된다.
 scrim 도 그 범위를 덮는다(위 §scrim 의 범위). 보이는 범위의 안쪽(테두리 inset 을 뺀 영역)이
 선언 크기(`size_hint`)보다 좁거나 낮으면 host 팝업과 같이 범위 안의 보기 버튼으로 접고, 누르면 창 위로
-펼친다(위 §좁은 범위: 접기와 펼침). 펼친 plugin 팝업은 선언 크기에 host 제목줄을 더한 상자이고,
-plugin 콘텐츠는 그 아래 영역에 합성한다. 접기·펼침은 표시만 바꾼다. 자식 파일 피커는 부모의 선언 종류와
-결속 대상으로 정한 범위를 쓰므로, 부모가 펼쳐져도 피커는 부모 surface 범위로 뜬다.
+펼친다(위 §좁은 범위: 접기와 펼침). 펼친 plugin 팝업은 선언 크기에 host 제목줄을 더한 상자이고(창보다 크면
+프레임은 창에 맞추고 콘텐츠는 선언 크기로 합성해 넘친 오른쪽·아래가 잘린다), plugin 콘텐츠는 제목줄 아래
+영역에 합성한다. 접기·펼침은 표시만 바꾼다. 자식 파일 피커는 부모의 선언 종류와 결속 대상으로 정한 범위를
+쓰고, 표시 상태는 부모를 따른다. 부모를 펼쳐 둔 채 연 피커는 펼친 상태로 열린다.
 
 현재 `scope = "surface"` 선언: markdown `file-open` · `large-file-confirm`.
 
