@@ -45,6 +45,7 @@ fn instance(z_seq: u64) -> tasty_host_plugin::PopupInstance {
             scope: PopupScopeDecl::Surface,
             dismiss_on_outside_click: true,
             rendering: PopupRendering::EguiMesh,
+            layout: Default::default(),
         },
         z_seq,
         scope_surface: Some(SURFACE_R),

@@ -83,6 +83,39 @@ fn a_plugin_without_manifest_popups_declares_and_opens_one() {
     assert!(!inst.contribute.dismiss_on_outside_click);
 }
 
+/// 덮음·좁은 범위·Esc 선언은 여는 인스턴스까지 그대로 간다. 매니페스트 선언은 기본값이다.
+#[test]
+fn the_layout_of_a_run_time_declaration_reaches_the_instance() {
+    use tasty_plugin_protocol::popup_decl::{PopupEscape, PopupFit};
+    let mut mgr = manager();
+    let layout_decl = decl(json!({
+        "scope_kind": "surface", "size": { "width": 360, "height": 150 },
+        "covers_scope": false, "fit": "shrink", "scope_inset": false, "escape": "ignore"
+    }));
+    mgr.declare_popup(PLUGIN, "confirm", layout_decl.clone())
+        .expect("declare");
+    let iid = mgr
+        .open_popup_instance(PLUGIN, "confirm", json!({ "surface_id": 7 }))
+        .expect("opens");
+    let (_, inst) = mgr
+        .popup_instances()
+        .find(|(id, _)| *id == iid)
+        .expect("instance");
+    let layout = inst.contribute.layout;
+    assert!(!layout.covers_scope);
+    assert_eq!(layout.fit, PopupFit::Shrink);
+    assert!(!layout.scope_inset);
+    assert_eq!(layout.escape, PopupEscape::Ignore);
+    assert_eq!(layout, tasty_plugin_manifest::PopupLayout::of(&layout_decl));
+    assert_eq!(
+        tasty_plugin_manifest::PopupLayout::default(),
+        tasty_plugin_manifest::PopupLayout::of(&PopupDecl::new(
+            PopupScopeKind::Window,
+            tasty_plugin_manifest::DEFAULT_POPUP_SIZE
+        ))
+    );
+}
+
 #[test]
 fn a_run_time_declaration_wins_over_the_manifest_one() {
     let mut mgr = manager_with(

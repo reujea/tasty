@@ -163,17 +163,18 @@ pub fn draw_plugin_popups(
     let mut any_hovered = false;
 
     let (scrim_rects, scrim_paints) = scrim_plan(&placed, layout, screen_rect);
-    // 플러그인 팝업은 모두 배치 범위를 덮는다. 덮는 사각형도 가림으로 본다.
-    occluders.extend(placed.iter().zip(&scrim_rects).map(|((s, _), r)| Occluder {
-        rect: *r,
-        z_seq: s.z_seq,
-    }));
-    state
-        .plugin_popup_covers
-        .extend(placed.iter().zip(&scrim_rects).map(|((s, _), r)| Occluder {
+    // 덮는 팝업의 덮는 사각형(배치 범위)도 가림으로 본다.
+    let covers: Vec<Occluder> = placed
+        .iter()
+        .zip(&scrim_rects)
+        .filter(|((s, _), _)| s.covers())
+        .map(|((s, _), r)| Occluder {
             rect: *r,
             z_seq: s.z_seq,
-        }));
+        })
+        .collect();
+    occluders.extend(covers.iter().copied());
+    state.plugin_popup_covers.extend(covers);
 
     let ppp = ctx.pixels_per_point().max(f32::EPSILON);
     let current_theme = {
@@ -190,12 +191,13 @@ pub fn draw_plugin_popups(
         let ownership = pointer_pos.map(|p| point_ownership(rect, snap.z_seq, &occluders, p));
 
         // 상자 안이거나 덮는 범위 안(scrim)이면 포인터는 이 팝업 것이다.
-        let in_cover = pointer_pos.is_some_and(|p| {
-            scope_rect.contains(p)
-                && !occluders
-                    .iter()
-                    .any(|o| o.z_seq > snap.z_seq && o.rect.contains(p))
-        });
+        let in_cover = snap.covers()
+            && pointer_pos.is_some_and(|p| {
+                scope_rect.contains(p)
+                    && !occluders
+                        .iter()
+                        .any(|o| o.z_seq > snap.z_seq && o.rect.contains(p))
+            });
         if ownership == Some(PointOwnership::Mine) || in_cover {
             any_hovered = true;
         }
@@ -205,13 +207,15 @@ pub fn draw_plugin_popups(
             Id::new("plugin_mesh_popup").with(snap.instance_id),
         );
         // 덮는 범위의 아래 위젯 입력은 팝업 바로 아래 막는 레이어가 받는다.
-        state
-            .plugin_popup_layers
-            .push(crate::adapters::ui::popup::press::block_pointer(
-                ctx,
-                layer_id.id.with("cover_block"),
-                scope_rect,
-            ));
+        if snap.covers() {
+            state
+                .plugin_popup_layers
+                .push(crate::adapters::ui::popup::press::block_pointer(
+                    ctx,
+                    layer_id.id.with("cover_block"),
+                    scope_rect,
+                ));
+        }
         state.plugin_popup_layers.push(layer_id);
         let has_key_focus = key_target == Some(snap.instance_id);
 
@@ -221,7 +225,7 @@ pub fn draw_plugin_popups(
                 scrim: (scrim_paints[idx]
                     && !tasty_egui_theme::overlay_edge::scrim_skipped(scope_rect, &pages))
                 .then_some(scope_rect),
-                on_scrim: true,
+                on_scrim: snap.layout.covers_scope,
                 focused: has_key_focus,
             };
             state
@@ -250,7 +254,7 @@ pub fn draw_plugin_popups(
                 press.as_ref(),
                 ownership,
             );
-            if escape_pressed && has_key_focus {
+            if escape_pressed && has_key_focus && snap.closes_on_escape() {
                 state
                     .plugin_popup_closes
                     .push((snap.instance_id, PopupCloseReason::Escape));
@@ -451,7 +455,7 @@ pub fn draw_plugin_popups(
         );
         if escape_pressed && has_key_focus {
             // 펼친 팝업은 Esc로 다시 접는다. 닫기 사건은 없다.
-            if !state.plugin_popup_expanded.remove(&snap.instance_id) {
+            if !state.plugin_popup_expanded.remove(&snap.instance_id) && snap.closes_on_escape() {
                 state
                     .plugin_popup_closes
                     .push((snap.instance_id, PopupCloseReason::Escape));
@@ -513,7 +517,7 @@ enum OutsidePress {
     Take,
 }
 
-/// host 팝업과 같은 범위 규칙(`popup::press`)으로 상자 밖 누름을 나눈다. 플러그인 팝업은 모두 덮는다.
+/// host 팝업과 같은 범위 규칙(`popup::press`)으로 상자 밖 누름을 나눈다.
 fn outside_press(
     snap: &MeshSnap,
     box_rect: Rect,
@@ -530,7 +534,7 @@ fn outside_press(
     let first_click = !press.focus_before.contains(&snap.logical_scope);
     if !first_click && snap.dismiss_on_outside_click {
         OutsidePress::Close
-    } else if cover_rect.contains(press.pos) {
+    } else if snap.covers() && cover_rect.contains(press.pos) {
         OutsidePress::Take
     } else {
         OutsidePress::None
@@ -547,8 +551,22 @@ struct MeshSnap {
     logical_scope: PopupScope,
     size: Vec2,
     dismiss_on_outside_click: bool,
+    /// 덮음·좁은 범위·Esc 선언.
+    layout: tasty_plugin_manifest::PopupLayout,
     z_seq: u64,
     display: SnapDisplay,
+}
+
+impl MeshSnap {
+    /// 배치 범위를 덮는지. 펼친 팝업은 선언과 무관하게 창을 덮는다(host `PopupState::covers`와 같다).
+    fn covers(&self) -> bool {
+        self.layout.covers_scope || self.display == SnapDisplay::Expanded
+    }
+
+    /// Esc가 이 팝업을 닫는지. plugin 팝업에는 포커스 해제 상태가 없어 `unfocus`도 닫지 않는다.
+    fn closes_on_escape(&self) -> bool {
+        self.layout.escape == tasty_plugin_protocol::popup_decl::PopupEscape::Close
+    }
 }
 
 /// 플러그인 팝업의 이번 프레임 표시 상태. host 팝업의 `PopupDisplay`와 같은 전이를 따른다.
@@ -591,6 +609,7 @@ fn mesh_snapshots<'a>(
                 logical_scope: scope,
                 size,
                 dismiss_on_outside_click: inst.contribute.dismiss_on_outside_click,
+                layout: inst.contribute.layout,
                 z_seq: inst.z_seq,
                 display: SnapDisplay::Fits,
             }),
@@ -869,7 +888,16 @@ fn scrim_plan(
         .iter()
         .map(|(snap, _)| PopupManager::scope_rect(&snap.scope, layout).unwrap_or(screen_rect))
         .collect();
-    let paints = PopupManager::pick_scrim_layers(&rects);
+    // scrim 겹침은 덮는 팝업끼리만 고른다. 덮지 않는 팝업은 scrim이 없다.
+    let covering: Vec<usize> = (0..placed.len())
+        .filter(|&i| placed[i].0.covers())
+        .collect();
+    let picked =
+        PopupManager::pick_scrim_layers(&covering.iter().map(|&i| rects[i]).collect::<Vec<_>>());
+    let mut paints = vec![false; placed.len()];
+    for (i, p) in covering.into_iter().zip(picked) {
+        paints[i] = p;
+    }
     (rects, paints)
 }
 
@@ -1039,6 +1067,7 @@ mod tests {
                 scope,
                 dismiss_on_outside_click: true,
                 rendering: PopupRendering::EguiMesh,
+                layout: Default::default(),
             },
             z_seq: 1,
             scope_surface,
@@ -1096,6 +1125,47 @@ mod tests {
             vec![true, false],
             "같은 범위의 배경을 중복해서 그리지 않는다"
         );
+    }
+
+    /// 덮지 않는다고 선언한 plugin 팝업은 scrim이 없다. 같은 범위의 덮는 팝업은 그대로 칠한다.
+    #[test]
+    fn a_plugin_popup_declared_not_to_cover_paints_no_scrim() {
+        let layout = layout_with_surface_7(true);
+        let covering = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
+        let mut plain = covering.clone();
+        plain.contribute.layout.covers_scope = false;
+        let placed = place(
+            mesh_snapshots([(1, &plain), (2, &covering)].into_iter()),
+            &layout,
+            None,
+            &[],
+        );
+        assert!(!placed[0].0.covers());
+        assert!(placed[1].0.covers());
+        let (_, paints) = scrim_plan(&placed, Some(&layout), SCREEN);
+        assert_eq!(paints, vec![false, true]);
+    }
+
+    /// Esc는 선언이 닫기일 때만 plugin 팝업을 닫는다.
+    #[test]
+    fn escape_closes_a_plugin_popup_only_when_declared_to_close() {
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        let layout = layout_with_surface_7(true);
+        for (escape, closes) in [
+            (PopupEscape::Close, true),
+            (PopupEscape::Unfocus, false),
+            (PopupEscape::Ignore, false),
+        ] {
+            let mut inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
+            inst.contribute.layout.escape = escape;
+            let placed = place(
+                mesh_snapshots(std::iter::once((1, &inst))),
+                &layout,
+                None,
+                &[],
+            );
+            assert_eq!(placed[0].0.closes_on_escape(), closes, "{escape:?}");
+        }
     }
 
     #[test]

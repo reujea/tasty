@@ -20,7 +20,7 @@ pub use caller_context::{CallerContextDecl, CallerIdFormat, CallerPathEnvDecl};
 pub use host_actions::{INHERITABLE_HOST_ACTIONS, is_inheritable};
 pub use kind_capabilities::SurfaceKindCapabilityDecl;
 pub use package::PluginPackage;
-pub use popup::{DEFAULT_POPUP_SIZE, is_valid_popup_id, validate_popup_decl};
+pub use popup::{DEFAULT_POPUP_SIZE, PopupLayout, is_valid_popup_id, validate_popup_decl};
 pub use remote_attach::RemoteAttachDecl;
 pub use types::{
     AutoWaitDecl, BannerContribute, BannerRendering, BannerScopeDecl, BannerSizeHint,

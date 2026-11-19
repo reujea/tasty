@@ -39,6 +39,7 @@ fn manager_with_popup() -> PluginManager {
                 scope: PopupScopeDecl::Window,
                 dismiss_on_outside_click: true,
                 rendering: PopupRendering::EguiMesh,
+                layout: Default::default(),
             },
             z_seq: 1,
             scope_surface: None,

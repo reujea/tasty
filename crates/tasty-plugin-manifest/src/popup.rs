@@ -4,8 +4,8 @@
 //! [`PopupDecl::plugin`]의 기본값이다.
 
 use tasty_plugin_protocol::popup_decl::{
-    PopupAnchor as DeclAnchor, PopupDecl, PopupInstances, PopupKeyboard, PopupOutsideClick,
-    PopupScopeKind, PopupSize,
+    PopupAnchor as DeclAnchor, PopupDecl, PopupEscape, PopupFit, PopupInstances, PopupKeyboard,
+    PopupOutsideClick, PopupScopeKind, PopupSize,
 };
 use tasty_type_geometry::length::LogicalPx;
 
@@ -16,6 +16,37 @@ pub const DEFAULT_POPUP_SIZE: PopupSize = PopupSize {
     width: LogicalPx(360.0),
     height: LogicalPx(200.0),
 };
+
+/// 렌더러가 읽는 덮음·좁은 범위·Esc 선언. 매니페스트에는 이 항목이 없어 [`PopupDecl::plugin`]의 기본값이고,
+/// 실행 중 선언은 그 값을 그대로 옮긴다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PopupLayout {
+    pub covers_scope: bool,
+    pub fit: PopupFit,
+    pub scope_inset: bool,
+    pub escape: PopupEscape,
+}
+
+impl PopupLayout {
+    /// 선언에서 이 값들을 옮긴다.
+    pub const fn of(decl: &PopupDecl) -> Self {
+        Self {
+            covers_scope: decl.covers_scope,
+            fit: decl.fit,
+            scope_inset: decl.scope_inset,
+            escape: decl.escape,
+        }
+    }
+}
+
+impl Default for PopupLayout {
+    fn default() -> Self {
+        Self::of(&PopupDecl::plugin(
+            PopupScopeKind::Window,
+            DEFAULT_POPUP_SIZE,
+        ))
+    }
+}
 
 impl PopupContribute {
     /// 공통 선언으로 바꾼다.
@@ -44,6 +75,10 @@ impl PopupContribute {
         };
         d.instances = PopupInstances::Single;
         d.keyboard = PopupKeyboard::Text;
+        d.covers_scope = self.layout.covers_scope;
+        d.fit = self.layout.fit;
+        d.scope_inset = self.layout.scope_inset;
+        d.escape = self.layout.escape;
         d
     }
 }

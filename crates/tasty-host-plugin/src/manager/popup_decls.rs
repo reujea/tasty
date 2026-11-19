@@ -126,6 +126,7 @@ impl PluginManager {
 ///
 /// 렌더러는 창·surface 범위와 가운데·포인터 기준만 그린다. 나머지 범위 종류는 열지 않는다.
 /// `scope_top`·`at_point`·`column`은 범위 가운데에 놓는다. 크기는 정수 논리 픽셀로 반올림한다.
+/// 덮음·좁은 범위·Esc 선언은 그대로 옮긴다(`layout`).
 // TODO(popup): 인스턴스가 PopupHost로 옮겨지면 선언을 그대로 담고 이 변환을 없앤다.
 fn instance_contribute(
     plugin_id: &str,
@@ -162,5 +163,6 @@ fn instance_contribute(
         scope,
         dismiss_on_outside_click: decl.outside_click == PopupOutsideClick::Close,
         rendering: PopupRendering::EguiMesh,
+        layout: tasty_plugin_manifest::PopupLayout::of(decl),
     })
 }

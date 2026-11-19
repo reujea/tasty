@@ -822,6 +822,9 @@ pub struct PopupContribute {
     /// 플러그인은 egui-mesh로 내용만 그린다. 배경·테두리·닫기는 호스트가 맡는다.
     #[serde(default)]
     pub rendering: PopupRendering,
+    /// 덮음·좁은 범위·Esc. 매니페스트 키가 아니며 실행 중 선언으로만 바뀐다.
+    #[serde(skip)]
+    pub layout: crate::popup::PopupLayout,
 }
 
 /// 팝업은 egui-mesh로만 그린다.
