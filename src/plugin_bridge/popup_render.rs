@@ -351,6 +351,15 @@ pub fn draw_plugin_popups(
             has_key_focus,
             &mut route,
         );
+        // 펼친 팝업의 Esc는 다시 접기로 소비한다. 내용(markdown 파일 열기 등)이 받으면 취소로 닫힌다.
+        let escape = escape_action(
+            escape_pressed && has_key_focus,
+            expanded,
+            snap.closes_on_escape(),
+        );
+        if escape == EscapeAction::Refold {
+            drop_escape_keys(&mut raw_input);
+        }
         // 보류한 편집 키의 요청은 이 프레임 입력 뒤에 붙인다. 그 뒤의 입력은 보류 뒤에 줄을 서 있다.
         raw_input.events.extend(take_edit_requests(
             &mut state.plugin_popup_edit_requests,
@@ -449,13 +458,15 @@ pub fn draw_plugin_popups(
             press.as_ref(),
             ownership,
         );
-        if escape_pressed && has_key_focus {
-            // 펼친 팝업은 Esc로 다시 접는다. 닫기 사건은 없다.
-            if !state.plugin_popup_expanded.remove(&snap.instance_id) && snap.closes_on_escape() {
-                state
-                    .plugin_popup_closes
-                    .push((snap.instance_id, PopupCloseReason::Escape));
+        match escape {
+            // 다시 접기는 닫기 사건이 없다.
+            EscapeAction::Refold => {
+                state.plugin_popup_expanded.remove(&snap.instance_id);
             }
+            EscapeAction::Close => state
+                .plugin_popup_closes
+                .push((snap.instance_id, PopupCloseReason::Escape)),
+            EscapeAction::None => {}
         }
     }
 
@@ -695,6 +706,30 @@ fn is_user_activation(raw: &RawInputWire) -> bool {
                 | RawInputEventWire::Key { pressed: true, .. }
         )
     })
+}
+
+/// 키 주인 plugin 팝업이 받은 Esc 의 처리. 펼친 팝업은 선언과 관계없이 다시 접고 내용에 Esc 를 보내지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EscapeAction {
+    None,
+    Refold,
+    Close,
+}
+
+fn escape_action(owner_escape: bool, expanded: bool, closes_on_escape: bool) -> EscapeAction {
+    match (owner_escape, expanded, closes_on_escape) {
+        (false, ..) => EscapeAction::None,
+        (true, true, _) => EscapeAction::Refold,
+        (true, false, true) => EscapeAction::Close,
+        (true, false, false) => EscapeAction::None,
+    }
+}
+
+/// 다시 접기로 소비한 Esc 키를 mesh 입력에서 뺀다. 다른 키·텍스트는 그대로 둔다.
+fn drop_escape_keys(raw: &mut RawInputWire) {
+    raw.events.retain(
+        |e| !matches!(e, RawInputEventWire::Key { key, .. } if key == egui::Key::Escape.name()),
+    );
 }
 
 /// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다. 뗌은 이 팝업에서
@@ -1538,6 +1573,48 @@ mod tests {
             ]
         );
         assert!(collected_events(edits(), false).is_empty());
+    }
+
+    /// 펼친 키 주인 팝업의 Esc 는 선언이 닫기여도 다시 접기이고, 그 Esc 는 mesh 내용에 가지 않는다.
+    /// markdown 파일 열기처럼 내용이 Esc 를 취소로 받는 팝업이 닫히지 않는다.
+    #[test]
+    fn escape_on_an_expanded_popup_refolds_and_never_reaches_its_content() {
+        assert_eq!(escape_action(true, true, true), EscapeAction::Refold);
+        assert_eq!(escape_action(true, true, false), EscapeAction::Refold);
+        assert_eq!(escape_action(true, false, true), EscapeAction::Close);
+        assert_eq!(escape_action(true, false, false), EscapeAction::None);
+        assert_eq!(escape_action(false, true, true), EscapeAction::None);
+
+        let esc = |pressed| Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let mut raw = wire(collected_events(
+            vec![esc(true), Event::Text("a".into()), esc(false)],
+            true,
+        ));
+        assert!(
+            raw.events
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::Key { .. })),
+            "키 주인 팝업은 빼기 전 Esc 를 수집한다"
+        );
+        drop_escape_keys(&mut raw);
+        assert!(
+            raw.events
+                .iter()
+                .all(|e| !matches!(e, RawInputEventWire::Key { .. })),
+            "{:?}",
+            raw.events
+        );
+        assert!(
+            raw.events
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::Text { text } if text == "a"))
+        );
     }
 
     #[test]

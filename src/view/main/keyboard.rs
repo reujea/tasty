@@ -218,6 +218,12 @@ impl MainView {
                 self.mark_dirty();
                 return true;
             }
+            // 키 주인(host·plugin)이 창 위로 펼친 팝업이면 다시 접는다. 닫지 않고 포커스와 상태를 그대로 둔다.
+            // 아래 알림 목록이나 host 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다.
+            if self.state.refold_key_owner() {
+                self.mark_dirty();
+                return true;
+            }
             if self.state.popups.is_open("notifications") {
                 self.state.dispatch_intent(
                     crate::intent::UiIntent::ClosePopup {
@@ -225,11 +231,6 @@ impl MainView {
                     }
                     .from_user_shortcut("escape_close_notifications"),
                 );
-                self.mark_dirty();
-                return true;
-            }
-            // 키 주인이 창 위로 펼친 팝업이면 다시 접는다. 닫지 않고 포커스와 상태를 그대로 둔다.
-            if self.state.popups.refold_focused() {
                 self.mark_dirty();
                 return true;
             }

@@ -42,6 +42,17 @@ impl super::MainViewState {
         }
     }
 
+    /// Esc 의 다시 접기. 키 주인이 펼친 host 팝업이면 지금 접고, 펼친 plugin 팝업이면 참만 돌려준다.
+    /// plugin 팝업은 이번 프레임 렌더가 접고 그 Esc 를 mesh 내용에 보내지 않는다(`plugin_bridge::popup_render`).
+    pub(crate) fn refold_key_owner(&mut self) -> bool {
+        match self.popup_key_owner() {
+            Some(PopupKeyOwner::Host) => self.popups.refold_focused(),
+            #[cfg(feature = "gui")]
+            Some(PopupKeyOwner::Plugin(id)) => self.plugin_popup_expanded.contains(&id),
+            _ => false,
+        }
+    }
+
     fn key_owner_with(&self, drawn_host: impl Iterator<Item = u64>) -> Option<PopupKeyOwner> {
         let host = self
             .popups
@@ -127,5 +138,31 @@ mod tests {
         assert_eq!(state.plugin_popup_key_target(), Some(42));
         state.host_popup_hittest.clear();
         assert_eq!(state.plugin_popup_key_target_in_render(), Some(42));
+    }
+
+    /// 키 주인이 펼친 plugin 팝업이면 Esc 다시 접기가 소비한다. 아래 포커스된 host 팝업은 닫히거나 포커스를
+    /// 잃지 않는다. 펼치지 않은 plugin 팝업이나 펼치지 않은 host 팝업이 키 주인이면 다음 처리로 간다.
+    #[cfg(feature = "gui")]
+    #[test]
+    fn escape_refolds_only_an_expanded_key_owner_and_leaves_the_popup_below() {
+        let mut state = state_with_host_popup();
+        let host = state
+            .popups
+            .open_centered_focused("host_popup", PopupScope::Window)
+            .unwrap();
+        assert!(!state.refold_key_owner(), "펼치지 않은 host 키 주인");
+
+        let plugin_z = tasty_host_plugin::next_popup_z_seq();
+        state.plugin_popup_key_candidates = vec![(42, plugin_z)];
+        assert!(!state.refold_key_owner(), "펼치지 않은 plugin 키 주인");
+
+        state.plugin_popup_expanded.insert(42);
+        assert!(state.refold_key_owner());
+        let p = state.popups.instance(host).unwrap();
+        assert!(p.open && p.focused, "아래 host 팝업은 그대로다");
+        assert!(
+            state.plugin_popup_expanded.contains(&42),
+            "plugin 팝업은 그 프레임 렌더가 접는다"
+        );
     }
 }
