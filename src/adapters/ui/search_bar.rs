@@ -149,18 +149,9 @@ pub fn draw_search_bar(
             response.surrender_focus();
         }
 
-        // winit Esc 단계가 팝업 포커스를 먼저 놓고, egui는 그 Esc 프레임 시작에 입력칸
-        // 포커스를 푼다. 직전 프레임에 입력칸이 포커스였다면 이 Esc는 검색 바를 향한 것이다.
-        // Esc를 포커스 위치에서 위로 넘기는 키 버블링이 들어오면 이 판정을 대체한다.
-        let escape_ended_input_focus = !response.has_focus()
-            && ui.memory(|m| m.had_focus_last_frame(query_id))
-            && ui.input(|i| i.key_pressed(egui::Key::Escape));
-        if escape_ended_input_focus {
-            state.search.clear();
-            action = PopupAction::Close;
-        }
-
-        // 실제 필드 포커스가 있을 때만 검색 키를 처리한다.
+        // 실제 필드 포커스가 있을 때만 검색 키를 처리한다. 창의 Esc 단계가 팝업 포커스를 먼저 놓아도 그 Esc 는
+        // egui 입력에서 빠졌다가 이 본문을 그리는 동안만 되넣어지므로(`body_keys::with_handed_escape`) 입력칸은 이번
+        // 프레임에 아직 포커스를 가진 채 그 Esc 를 읽는다.
         if response.has_focus() {
             // find 단축키 → 검색창은 그대로 두고 포커스만 터미널로 되돌린다.
             if find_pressed {
