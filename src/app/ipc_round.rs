@@ -104,7 +104,104 @@ impl IpcRound {
         }
         pressure.record_drain(self.taken);
         dispatch.record_round(self.end);
+        round_perf::record(self.taken, self.started.elapsed());
         self.end
+    }
+}
+
+/// 명령을 처리한 회차의 길이를 모아 일정 회차마다 p50/p99/max 한 줄을 낸다.
+/// 회차 길이는 명령 핸들러 시간의 합과 큐에서 꺼내는 비용이다. 100ms 이상만 남기는 느린 요청
+/// 기록과 달리 짧은 회차도 모두 센다. 로그: TASTY_LOG=tasty::ipc::perf=info.
+mod round_perf {
+    use std::cell::RefCell;
+    use std::time::Duration;
+
+    use crate::perf_stats::SampleWindow;
+
+    const WINDOW: usize = 300;
+
+    #[derive(Clone, Copy)]
+    pub(super) struct RoundSample {
+        pub commands: usize,
+        pub round_ms: f64,
+    }
+
+    pub(super) struct RoundPerf {
+        rounds: SampleWindow<RoundSample>,
+        since_dump: usize,
+    }
+
+    impl RoundPerf {
+        fn new() -> Self {
+            Self {
+                rounds: SampleWindow::new(WINDOW),
+                since_dump: 0,
+            }
+        }
+
+        /// 표본을 넣고, dump할 때가 됐으면 줄을 돌려준다.
+        pub(super) fn push(&mut self, sample: RoundSample) -> Option<String> {
+            self.rounds.push(sample);
+            self.since_dump += 1;
+            if self.since_dump < WINDOW {
+                return None;
+            }
+            self.since_dump = 0;
+            let commands = self.rounds.percentiles(|s| s.commands as f64);
+            let round = self.rounds.percentiles(|s| s.round_ms);
+            Some(format!(
+                "ipc_rounds n={} commands p50={:.0} p99={:.0} max={:.0} \
+                 round_ms p50={:.2} p99={:.2} max={:.2}",
+                self.rounds.len(),
+                commands.p50,
+                commands.p99,
+                commands.max,
+                round.p50,
+                round.p99,
+                round.max,
+            ))
+        }
+    }
+
+    thread_local! {
+        static ROUNDS: RefCell<RoundPerf> = RefCell::new(RoundPerf::new());
+    }
+
+    pub(super) fn record(commands: usize, elapsed: Duration) {
+        if !tracing::enabled!(target: "tasty::ipc::perf", tracing::Level::INFO) {
+            return;
+        }
+        let sample = RoundSample {
+            commands,
+            round_ms: elapsed.as_secs_f64() * 1000.0,
+        };
+        if let Some(line) = ROUNDS.with_borrow_mut(|perf| perf.push(sample)) {
+            tracing::info!(target: "tasty::ipc::perf", "{line}");
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn dumps_once_per_window() {
+            let mut perf = RoundPerf::new();
+            let mut lines = Vec::new();
+            for i in 0..(WINDOW * 2) {
+                if let Some(line) = perf.push(RoundSample {
+                    commands: 1 + i % 3,
+                    round_ms: 0.5,
+                }) {
+                    lines.push(line);
+                }
+            }
+            assert_eq!(lines.len(), 2);
+            assert_eq!(
+                lines[0],
+                "ipc_rounds n=300 commands p50=2 p99=3 max=3 round_ms p50=0.50 p99=0.50 max=0.50"
+            );
+        }
     }
 }
 

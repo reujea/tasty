@@ -28,14 +28,26 @@ impl<T> SampleWindow<T> {
         self.samples.len()
     }
 
+    #[cfg_attr(
+        not(feature = "gui"),
+        expect(dead_code, reason = "only the GUI frame aggregator reads it")
+    )]
     pub(crate) fn is_empty(&self) -> bool {
         self.samples.is_empty()
     }
 
+    #[cfg_attr(
+        not(feature = "gui"),
+        expect(dead_code, reason = "only the GUI frame aggregator reads it")
+    )]
     pub(crate) fn last(&self) -> Option<&T> {
         self.samples.back()
     }
 
+    #[cfg_attr(
+        all(not(feature = "gui"), not(test)),
+        expect(dead_code, reason = "only the GUI frame aggregator reads it")
+    )]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
         self.samples.iter()
     }
