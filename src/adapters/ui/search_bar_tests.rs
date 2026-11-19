@@ -301,19 +301,14 @@ fn escape_after_a_terminal_click_keeps_the_bar_open() {
         vec![egui::Event::PointerMoved(outside), button(true)],
     );
     assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));
-    // The draw callback still reads the pre-draw focus snapshot on the click frame and takes the
-    // input's egui focus back; the following frame must hand it over.
-    assert!(
-        ctx.memory(|m| m.focused().is_some()),
-        "the click frame leaves the input focused"
-    );
-    escape_frame(&ctx, &mut state, &engine, vec![button(false)]);
+    // The press moves the focus node before the popup layer decides the key owner, so the click
+    // frame already hands the input's egui focus over.
     assert!(
         ctx.memory(|m| m.focused().is_none()),
-        "the next frame surrenders the input's focus"
+        "the click frame surrenders the input's focus"
     );
-    // Known limit: an Escape on the frame right after the click frame would still close the bar,
-    // because no frame has surrendered the focus yet. Key bubbling from the focus position removes it.
+    escape_frame(&ctx, &mut state, &engine, vec![button(false)]);
+    assert!(ctx.memory(|m| m.focused().is_none()));
     escape_frame(&ctx, &mut state, &engine, vec![escape_event()]);
     assert!(state.popups.is_open(SEARCH_BAR_POPUP_ID));
     assert_eq!(state.search.query, "needle");

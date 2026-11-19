@@ -428,6 +428,8 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
     for def in defs::all_defs() {
         state.popups.register_def(def, 1.0);
     }
+    // file-open 을 먼저 열고 그 위에 검색창을 연다(검색창이 위라 포커스 노드다).
+    let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
     let search = state
         .popups
         .open_request(
@@ -436,7 +438,6 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
             true,
         )
         .unwrap();
-    let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
     let ctx = Context::default();
     let mut query = String::new();
     // 처음 여는 찾기 바처럼 입력란에 egui 키 포커스를 준다.
