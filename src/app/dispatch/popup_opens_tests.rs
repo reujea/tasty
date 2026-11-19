@@ -178,7 +178,7 @@ fn open_tool_in(
 #[test]
 fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again() {
     use crate::app::dispatch::plugin_popup_events::close_retired_window;
-    let (mut mgr, _stub) = manager();
+    let (mut mgr, stub) = manager();
     let (mut a, mut a_session) = crate::state::tests::test_state();
     let (mut b, mut b_session) = crate::state::tests::test_state();
     open_tool_in(&mut a, &mut a_session);
@@ -200,6 +200,15 @@ fn closing_a_window_closes_its_window_popup_and_another_window_can_open_it_again
         0,
         "the popup of the closed window is closed at once"
     );
+    // 릴리스된 plugin이 아는 사유여야 popup.closed를 받아 인스턴스를 정리한다.
+    let closed: Vec<_> = stub
+        .drain_requests()
+        .into_iter()
+        .filter(|(method, _)| method == tasty_plugin_protocol::METHOD_POPUP_CLOSED)
+        .collect();
+    assert_eq!(closed.len(), 1, "{closed:?}");
+    assert_eq!(closed[0].1["instance_id"], first[0]);
+    assert_eq!(closed[0].1["reason"], "host_shutdown");
 
     open_tool_in(&mut b, &mut b_session);
     open_pending_popups(

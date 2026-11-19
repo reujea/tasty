@@ -16,7 +16,7 @@
 
 ### Changed
 
-- `PopupCloseReason::TargetGone`을 plugin 팝업에도 보낸다. 창 범위 plugin 팝업은 결속한 창이 닫히면 이 사유로 닫힌다. 기존 변형이라 wire 형식은 그대로이고 `api_version`은 유지한다.
+- 창 범위 plugin 팝업은 결속한 창이 닫히면 `PopupCloseReason::HostShutdown`으로 닫힌다. 릴리스된 plugin이 아는 기존 값이라 wire 형식은 그대로이고 `api_version`은 유지한다.
 
 ### Added
 

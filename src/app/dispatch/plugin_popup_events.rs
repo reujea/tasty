@@ -63,7 +63,7 @@ pub(crate) fn enqueue_popup_closes<'a>(
 }
 
 /// 버리는 창 state 하나를 그 자리에서 정리한다. 팝업은 범위 노드인 창의 자식이라 창과 함께 닫힌다.
-/// 결속한 창 범위 plugin 팝업을 사유 `TargetGone`으로 닫기 큐에 넣고, 큐 처리를 이 state 하나에 바로 적용한다
+/// 결속한 창 범위 plugin 팝업을 사유 `HostShutdown`으로 닫기 큐에 넣고, 큐 처리를 이 state 하나에 바로 적용한다
 /// (자식 피커 취소와 매니저 닫기). 남은 창의 큐로 미루면 같은 회차의 다시 열기가 곧 닫힐 인스턴스를 받는다.
 /// 이 state는 다시 그려지지 않으므로 닫힌 피커의 결과를 닫기 훅 대신 여기서 꺼내 요청한 plugin에 보낸다.
 /// 본체 호출자의 결과는 이 state와 함께 버려지므로 보내지 않는다.
@@ -73,7 +73,9 @@ pub(crate) fn close_retired_window(
 ) {
     let closes = std::mem::take(&mut retired.plugin_window_popups)
         .into_iter()
-        .map(|id| (id, tasty_plugin_protocol::PopupCloseReason::TargetGone));
+        // plugin에 보내는 사유는 릴리스된 plugin이 아는 네 값(OutsideClick·Escape·PluginRequest·
+        // HostShutdown) 안에서 고른다. 모르는 값을 받은 plugin은 popup.closed를 거절해 인스턴스 정리를 놓친다.
+        .map(|id| (id, tasty_plugin_protocol::PopupCloseReason::HostShutdown));
     retired.plugin_popup_closes.extend(closes);
     drain_plugin_popup_events(std::iter::once(&mut *retired), mgr.as_deref_mut());
     for closed in retired.popups.take_closed_queue() {

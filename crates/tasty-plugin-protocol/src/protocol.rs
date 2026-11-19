@@ -758,7 +758,7 @@ pub enum PopupCloseReason {
     Escape,
     /// plugin이 host IPC `popup.close`로 닫기 요청.
     PluginRequest,
-    /// 호스트 측에서 강제 닫힘 (plugin disable / unload 등).
+    /// 호스트 측에서 강제 닫힘 (plugin disable / unload, 결속한 창이 닫힘 등).
     HostShutdown,
     /// 사용자가 제목줄의 닫기 버튼을 눌렀음. host 팝업에서만 나온다.
     CloseButton,
@@ -766,7 +766,7 @@ pub enum PopupCloseReason {
     Content,
     /// 단축키·명령·IPC 같은 팝업 밖 요청으로 닫혔음. host 팝업에서만 나온다.
     Command,
-    /// 범위 대상이나 작용 대상이 사라졌음. plugin 팝업은 결속한 창이 닫힐 때 받는다.
+    /// 범위 대상이나 작용 대상이 사라졌음. host 팝업에서만 나온다.
     TargetGone,
     /// 부모 팝업이 닫혀 함께 닫혔음. host 팝업에서만 나온다.
     ParentClosed,
