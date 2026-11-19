@@ -25,6 +25,11 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "단위 기호",
     ),
     (
+        "settings.frame_rate.fps",
+        &["ko", "ja", "zh-Hans"],
+        "숫자 자리와 단위 기호 (fps)",
+    ),
+    (
         "settings.anomaly.rss_surge_min_mib.unit",
         &["ko", "ja", "zh-Hans"],
         "MiB is the same binary size unit in all locales",

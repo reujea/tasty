@@ -789,6 +789,16 @@ scrollback_disk_lines_desc = "How many lines disk swap keeps, separate from the 
 no_limit = "no limit"
 disk_lines_range = "Use -1 or a number from 0 to 100000000."
 
+[settings.frame_rate]
+output = "Output frame rate"
+output_desc = "The most frames per second Tasty draws when terminal output changes the screen."
+input = "Input frame rate"
+input_desc = "The most frames per second Tasty draws in response to your input, such as typing. When the screen has not drawn for a frame interval, the next input draws at once, and output the same terminal returns right after your input counts as input."
+caption = "Both are maximums. Tasty never draws faster than the monitor each window is on. The list holds values up to your fastest monitor's refresh rate, plus any saved value above it."
+fps = "{} fps"
+match_monitor = "Match monitor"
+fps_above_monitor = "{} fps (above monitor)"
+
 [quit_modal]
 title = "Close Tasty"
 message = "Would you like to quit or minimize to background?"

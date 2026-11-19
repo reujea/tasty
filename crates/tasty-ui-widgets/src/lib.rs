@@ -96,6 +96,7 @@ mod select;
 mod selectable_text;
 mod sequence_editor;
 mod settings_anomaly;
+mod settings_frame_rate;
 mod settings_row;
 mod settings_row_stack;
 mod shell_setup;
@@ -374,6 +375,7 @@ pub use selectable_text::{TextWrap, selectable_label, selectable_text};
 pub use sequence_editor::{
     SequenceEditorAction, SequenceEditorError, SequenceEditorView, sequence_editor,
 };
+pub use settings_frame_rate::{FpsField, FrameRateCopy, frame_rate_section};
 pub use settings_row::{
     SettingsRow, settings_apply_note, settings_label_cell, settings_label_column,
     settings_label_gap, settings_row_caption,

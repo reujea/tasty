@@ -790,6 +790,16 @@ scrollback_disk_lines_desc = "磁盘交换保留的行数，与内存行数分�
 no_limit = "无限制"
 disk_lines_range = "使用 -1 或 0 到 100000000 之间的数字。"
 
+[settings.frame_rate]
+output = "输出帧率"
+output_desc = "终端输出使屏幕变化时，Tasty 每秒绘制的最大帧数。"
+input = "输入帧率"
+input_desc = "Tasty 响应键入等输入时，每秒绘制的最大帧数。若屏幕自上次绘制以来已至少经过一个帧间隔，下一次输入会立即触发绘制；输入后紧接着由同一终端返回的输出也按输入处理。"
+caption = "两项均为上限。Tasty 的绘制帧率不会超过各窗口所在显示器的刷新率。列表包含不超过已连接显示器最高刷新率的值，以及已保存的高于该刷新率的值。"
+fps = "{} fps"
+match_monitor = "匹配显示器"
+fps_above_monitor = "{} fps（超出刷新率）"
+
 [quit_modal]
 title = "关闭 Tasty"
 message = "要退出还是最小化到后台？"
