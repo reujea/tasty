@@ -60,6 +60,7 @@ impl SettingsView {
         file_format: FileFormatRegistry,
         file_handler: FileHandlerRegistry,
     ) -> Self {
+        settings_ui::install_monitor_probe(&gpu.egui_ctx, &winit);
         Self {
             base: ViewBase::new(gpu, winit),
             clipboard,

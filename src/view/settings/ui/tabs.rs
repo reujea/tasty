@@ -6,6 +6,7 @@ mod anomaly_detection;
 mod appearance;
 mod choice;
 mod font_rows;
+mod frame_rate;
 mod general;
 #[cfg(target_os = "macos")]
 mod general_display;
@@ -27,6 +28,7 @@ pub use accessibility::draw_accessibility_tab;
 pub use anomaly_detection::draw_anomaly_detection_tab;
 pub use appearance::draw_appearance_tab;
 pub use font_rows::PreviewFonts;
+pub use frame_rate::{draw_frame_rate_tab, install_monitor_probe};
 pub use general::draw_general_tab;
 #[cfg(target_os = "macos")]
 pub use general_display::draw_general_display_tab;

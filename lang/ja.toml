@@ -1320,6 +1320,7 @@ anomaly_detection = "異常検出"
 task_pipeline = "タスクパイプライン"
 accessibility = "アクセシビリティ"
 performance = "パフォーマンス"
+frame_rate = "フレームレート"
 
 [settings.scripts]
 description = "Lua スクリプトを登録し、キーバインド設定で実行用のキーを指定してください。登録時に保存した SHA ハッシュと比較して変更の有無を確認します。"
@@ -4013,7 +4014,7 @@ about = "設定モーダルを強制的に開く。タブ/サブタブを指定�
 help = "初期第1階層タブ：general | terminal | appearance | keybindings | file_handler | misc | plugins（既定値：general）"
 
 [cli.help._root.debug.settings.open.arg.subtab]
-help = "選択したタブの初期サブセクションです（--tabによって異なります）。例：appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline。不明なキーの場合はタブの既定値を維持します"
+help = "選択したタブの初期サブセクションです（--tabによって異なります）。例：appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance|frame_rate; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline。不明なキーの場合はタブの既定値を維持します"
 
 [cli.help._root.debug.settings.close]
 about = "保存せずに設定モーダルを閉じる（キャンセルと同じ）。他のモーダルは閉じません"

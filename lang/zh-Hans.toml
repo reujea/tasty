@@ -1327,6 +1327,7 @@ anomaly_detection = "异常检测"
 task_pipeline = "任务流水线"
 accessibility = "辅助功能"
 performance = "性能"
+frame_rate = "帧率"
 
 [settings.scripts]
 description = "注册和管理 Lua 脚本，然后在“按键绑定”中分配快捷键。Tasty 会使用注册时保存的 SHA 哈希检查每个脚本。"
@@ -4175,7 +4176,7 @@ about = "强制打开设置模态框，可指定标签页/子标签页。若已�
 help = "初始 L1 标签页：general | terminal | appearance | keybindings | file_handler | misc | plugins（默认值：general）"
 
 [cli.help._root.debug.settings.open.arg.subtab]
-help = "所选标签页中的初始 L2 分区（取决于 --tab）。例如 appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline。未知键保留标签页默认值"
+help = "所选标签页中的初始 L2 分区（取决于 --tab）。例如 appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance|frame_rate; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline。未知键保留标签页默认值"
 
 [cli.help._root.debug.settings.close]
 about = "关闭设置模态框而不保存（同取消）。其他模态框保持打开"

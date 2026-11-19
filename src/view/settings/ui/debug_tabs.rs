@@ -89,4 +89,14 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn both_frame_rate_aliases_select_the_terminal_subtab() {
+        for alias in ["frame_rate", "frame-rate"] {
+            let mut state = SettingsUiState::new();
+            let applied = state.apply_debug_tabs(Some("terminal"), Some(alias));
+            assert_eq!(applied.subtab, Some(true));
+            assert_eq!(state.terminal_sub_tab, TerminalSubTab::FrameRate);
+        }
+    }
 }

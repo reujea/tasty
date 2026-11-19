@@ -1367,6 +1367,7 @@ anomaly_detection = "Anomaly detection"
 task_pipeline = "Task pipeline"
 accessibility = "Accessibility"
 performance = "Performance"
+frame_rate = "Frame rate"
 
 [settings.scripts]
 description = "Register and manage Lua scripts, then assign their shortcuts in Keybindings. Tasty checks each script against the SHA hash saved when you registered it."
@@ -4087,7 +4088,7 @@ about = "Force-open the settings modal, optionally on a specific tab/subtab. If 
 help = "Initial L1 tab: general | terminal | appearance | keybindings | file_handler | misc | plugins (default: general)"
 
 [cli.help._root.debug.settings.open.arg.subtab]
-help = "Initial L2 section within the chosen tab (depends on --tab). e.g. appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline. Unknown keys keep the tab default"
+help = "Initial L2 section within the chosen tab (depends on --tab). e.g. appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance|frame_rate; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline. Unknown keys keep the tab default"
 
 [cli.help._root.debug.settings.close]
 about = "Close the settings modal without saving (like Cancel). Other modals stay open"

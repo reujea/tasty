@@ -8,6 +8,7 @@ mod select_probe;
 mod tabs;
 
 pub(crate) use crate::view::file_chooser;
+pub(crate) use tabs::install_monitor_probe;
 
 use crate::runtime::file_catalog::FormatCatalog as FileFormatRegistry;
 
@@ -169,6 +170,7 @@ pub(crate) enum TerminalSubTab {
     MouseCapture,
     Tui,
     Performance,
+    FrameRate,
 }
 
 /// Misc 탭의 하위 섹션.
@@ -373,6 +375,7 @@ impl SettingsUiState {
                     "mouse_capture" => TerminalSubTab::MouseCapture,
                     "tui" => TerminalSubTab::Tui,
                     "performance" => TerminalSubTab::Performance,
+                    "frame_rate" | "frame-rate" => TerminalSubTab::FrameRate,
                     _ => return false,
                 };
                 true
@@ -1043,6 +1046,10 @@ fn build_l2_sections(ui_state: &mut SettingsUiState) -> Vec<L2Section> {
                 (
                     TerminalSubTab::Performance,
                     t("settings.misc.subtab.performance"),
+                ),
+                (
+                    TerminalSubTab::FrameRate,
+                    t("settings.misc.subtab.frame_rate"),
                 ),
             ]
             .into_iter()
@@ -1720,6 +1727,7 @@ fn draw_active_content(
             TerminalSubTab::MouseCapture => draw_terminal_mouse_capture_tab(ui, draft),
             TerminalSubTab::Tui => draw_terminal_tui_tab(ui, draft),
             TerminalSubTab::Performance => draw_performance_tab(ui, draft),
+            TerminalSubTab::FrameRate => draw_frame_rate_tab(ui, draft),
         },
         SettingsTab::Appearance => draw_appearance_tab(
             ui,
