@@ -265,6 +265,16 @@ pub fn draw_plugin_popups(
             rect
         };
         let content_rect = shell_rect.shrink(popup::content_margin().value());
+        // 창에 맞춘 펼친 프레임보다 큰 내용은 필요 크기로 그리고 창 끝에서 잘린다.
+        let mesh_rect = if expanded {
+            let full = snap.size + Vec2::new(0.0, popup::title_bar_height().value());
+            Rect::from_min_size(
+                content_rect.min,
+                content_rect.size() + (full - rect.size()).max(Vec2::ZERO),
+            )
+        } else {
+            content_rect
+        };
         // surface 범위를 벗어난 팝업 배경·테두리가 이웃 영역에 보이지 않도록 자른다.
         let painter = ctx.layer_painter(layer_id).with_clip_rect(scope_rect);
         let th = crate::theme::theme();
@@ -374,7 +384,7 @@ pub fn draw_plugin_popups(
 
         // 첫 프레임을 받기 전 context를 반복 요청하면 폰트 atlas가 포함된
         // 프레임이 후속 프레임에 대체될 수 있어 초기 요청은 한 번만 보낸다.
-        let physical = crate::plugin_bridge::mesh_region_of(content_rect, ppp);
+        let physical = crate::plugin_bridge::mesh_region_of(mesh_rect, ppp);
         let w_px = physical.width.value().round().max(1.0) as u32;
         let h_px = physical.height.value().round().max(1.0) as u32;
         let geom = (w_px, h_px, ppp.to_bits());
@@ -651,10 +661,11 @@ fn place_visible(
             if expanded.contains(&snap.instance_id) {
                 snap.scope = PopupScope::Window;
                 snap.display = SnapDisplay::Expanded;
+                // 프레임은 창에 맞추고 내용은 필요 크기를 유지한다(host 펼침과 같은 공용 함수).
                 let size = snap.size + Vec2::new(0.0, popup::title_bar_height().value());
                 let centered = Rect::from_center_size(screen_rect.center(), size).min;
-                let pos = clamp_to_bounds(centered, size, screen_rect);
-                return Some((snap, Rect::from_min_size(pos, size)));
+                let placed = tasty_ui_widgets::place_expanded(screen_rect, centered, size);
+                return Some((snap, placed.frame));
             }
             let input = display::FitInput {
                 scope_rect: (snap.scope != PopupScope::Window)
@@ -1361,9 +1372,10 @@ mod tests {
         }
     }
 
-    /// Given 창보다 큰 펼친 팝업, Then 크기를 유지하고 왼쪽·위에 맞춘다.
+    /// Given 창보다 큰 펼친 팝업, Then 프레임을 창에 맞춰 왼쪽·위에 두고(제목줄과 접기 버튼이 창 안) 내용은 필요
+    /// 크기를 유지한다(사용자 결정 2026-11-19).
     #[test]
-    fn an_expanded_popup_larger_than_the_window_keeps_its_size_at_the_top_left() {
+    fn an_expanded_popup_larger_than_the_window_fits_its_frame_to_the_window() {
         let mut inst = instance(PopupScopeDecl::Surface, Some(7), PopupAnchor::ScreenCenter);
         inst.contribute.size_hint = Some(tasty_plugin_manifest::PopupSizeHint {
             width: 2000,
@@ -1375,8 +1387,14 @@ mod tests {
             None,
             &[1],
         );
-        assert_eq!(placed[0].1.min, SCREEN.min);
-        assert_eq!(placed[0].1.width(), 2000.0);
+        let frame = placed[0].1;
+        assert_eq!(frame, SCREEN);
+        assert!(SCREEN.contains_rect(display::title_end_btn_rect(display::host_bar_rect(frame))));
+        assert_eq!(
+            placed[0].0.size,
+            Vec2::new(2000.0, 1200.0),
+            "필요 크기는 그대로다"
+        );
     }
 
     /// Given 펼친 팝업의 논리 범위가 숨으면, Then 펼친 팝업도 그리지 않는다.

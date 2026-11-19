@@ -534,6 +534,7 @@ impl PopupManager {
             let is_headless = popup.headless;
             let popup_rect = popup.popup_rect();
             let content_rect = popup.content_rect();
+            let expanded_overflow = popup.expanded_overflow();
             // 그립 자리는 콘텐츠 위에 덧대는 위젯으로 잡는다. 스크롤바처럼 그 밑에 있는 위젯이 누름을
             // 가져가면 크기 조절이 시작되지 않는다.
             let grip_rect = match popup.arrange.resize_handle {
@@ -749,9 +750,11 @@ impl PopupManager {
                         if bg_fill == egui::Color32::from(th.surface_raised()) {
                             tasty_egui_theme::apply_raised_scrollbar(&th, ui.visuals_mut());
                         }
-                        // 푸터와 빈 공간도 포인터 영역에 포함한다.
-                        ui.set_min_size(content_rect.size());
-                        ui.set_max_size(content_rect.size());
+                        // 푸터와 빈 공간도 포인터 영역에 포함한다. 창에 맞춘 펼친 팝업은 내용을 필요 크기로
+                        // 배치하고 프레임에서 오른쪽·아래를 자른다.
+                        let layout_size = content_rect.size() + expanded_overflow;
+                        ui.set_min_size(layout_size);
+                        ui.set_max_size(layout_size);
                         // 콘텐츠가 팝업 밖으로 넘치지 않게 자른다.
                         ui.set_clip_rect(content_rect);
                         // 이 팝업 안에서 연 드롭다운은 셸이 불투명이면 함께 불투명이다.

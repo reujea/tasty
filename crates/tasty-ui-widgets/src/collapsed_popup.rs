@@ -140,6 +140,36 @@ pub fn collapsed_frame_sizes(
     )
 }
 
+/// 창 위로 펼친 팝업의 배치. 프레임은 창 안에 들어가게 줄여 제목줄과 접기·닫기 버튼이 늘 온전하고, 내용은 필요
+/// 크기를 유지해 프레임 밖으로 넘친 오른쪽·아래만 잘린다(사용자 결정 2026-11-19, 정본 collapsed-popup.jsx).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExpandedPlacement {
+    /// 그리는 프레임(창 안).
+    pub frame: egui::Rect,
+    /// 필요 크기가 프레임보다 큰 만큼. 내용은 이만큼 더 크게 배치하고 프레임에서 자른다.
+    pub overflow: egui::Vec2,
+}
+
+/// 펼친 팝업을 `window` 안에 둔다. `pos`는 원하는 왼쪽 위(가운데 정렬 값 등)이고, 줄인 프레임이 창 안에
+/// 들어가도록 옮긴다. 창보다 큰 축은 창 시작에 붙는다.
+pub fn place_expanded(window: egui::Rect, pos: egui::Pos2, size: egui::Vec2) -> ExpandedPlacement {
+    let frame_size = size.min(window.size()).max(egui::Vec2::ZERO);
+    let min = egui::pos2(
+        pos.x.clamp(
+            window.min.x,
+            (window.max.x - frame_size.x).max(window.min.x),
+        ),
+        pos.y.clamp(
+            window.min.y,
+            (window.max.y - frame_size.y).max(window.min.y),
+        ),
+    );
+    ExpandedPlacement {
+        frame: egui::Rect::from_min_size(min, frame_size),
+        overflow: (size - frame_size).max(egui::Vec2::ZERO),
+    }
+}
+
 /// 접힌 팝업 한 장을 그리는 조건.
 #[derive(Clone, Copy, Debug)]
 pub struct CollapsedLook<'a> {
@@ -317,6 +347,23 @@ pub fn paint_popup_focus_edge(painter: &egui::Painter, theme: &Theme, frame: egu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 창보다 큰 펼친 팝업은 프레임이 창 안에 들어가고, 넘친 만큼이 overflow 다. 작은 팝업은 그대로다.
+    #[test]
+    fn an_expanded_popup_larger_than_the_window_fits_its_frame_and_keeps_the_overflow() {
+        let window = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
+        let big = place_expanded(window, egui::pos2(-100.0, -50.0), egui::vec2(600.0, 500.0));
+        assert_eq!(big.frame, window);
+        assert_eq!(big.overflow, egui::vec2(200.0, 200.0));
+        let small = place_expanded(window, egui::pos2(100.0, 50.0), egui::vec2(200.0, 100.0));
+        assert_eq!(small.frame.min, egui::pos2(100.0, 50.0));
+        assert_eq!(small.overflow, egui::Vec2::ZERO);
+        let wide = place_expanded(window, egui::pos2(-100.0, 100.0), egui::vec2(600.0, 100.0));
+        assert_eq!(
+            wide.frame,
+            egui::Rect::from_min_size(egui::pos2(0.0, 100.0), egui::vec2(400.0, 100.0))
+        );
+    }
 
     /// 접기 버튼은 Tab 키 포커스를 받고, 포커스가 있을 때만 Enter·Space로 접기를 요청한다. 접근 이름은 라벨이다.
     #[test]

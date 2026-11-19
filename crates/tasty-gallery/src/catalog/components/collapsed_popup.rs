@@ -213,17 +213,14 @@ fn shell_frame(ui: &mut egui::Ui, theme: &Theme, frame: Frame) {
                 paint_collapsed(ui, theme, placed, owner, label, true, focus);
             }
         }
-        Frame::Pressed { size } => {
+        Frame::Pressed { .. } => {
             p.rect_filled(rect, theme.corner_radius.value(), theme.scrim().to_egui());
             let needed = needed_size(theme);
-            // 창 범위로 펼친 팝업은 포커스 가장자리를 그리지 않는다. 창이 팝업보다 작으면 왼쪽·위를 창 안쪽
-            // 가장자리에 두고 프레임을 창에 맞춘다(제목줄과 버튼은 온전히, 아래가 잘린다).
+            // 창 범위로 펼친 팝업은 포커스 가장자리를 그리지 않는다. 프레임은 본체와 같은 공용 배치로 창에
+            // 맞추고(제목줄과 버튼은 온전히) 넘친 내용의 오른쪽·아래만 잘린다.
             let inner = rect.shrink(theme.border_width.value());
-            let card = if size.is_some() {
-                egui::Rect::from_min_size(inner.min, needed.min(inner.size()))
-            } else {
-                egui::Rect::from_center_size(rect.center(), needed)
-            };
+            let centered = egui::Rect::from_center_size(inner.center(), needed).min;
+            let card = tasty_ui_widgets::place_expanded(inner, centered, needed).frame;
             paint_expanded_card(ui, theme, card, inner, Some(t(TITLE_KEY)));
         }
     }

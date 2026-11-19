@@ -387,17 +387,24 @@ fn reopening_starts_from_the_fit_check() {
     assert!(mgr.instance(again).unwrap().collapsed());
 }
 
-/// Given 창보다 큰 팝업, When 펼치면, Then 크기를 유지하고 왼쪽·위에 맞춘다.
+/// Given 창보다 큰 팝업, When 펼치면, Then 프레임은 창 안에 들어가 접기·닫기 버튼이 창 안이고, 내용은 필요 크기를
+/// 유지해 넘친 만큼만 잘린다(사용자 결정 2026-11-19).
 #[test]
-fn an_expanded_popup_larger_than_the_window_keeps_its_size_at_the_top_left() {
+fn an_expanded_popup_larger_than_the_window_fits_its_frame_and_keeps_its_content_size() {
     let mut mgr = PopupManager::new();
-    mgr.register(popup(POP, egui::vec2(1000.0, 700.0), true, false));
+    let needed = egui::vec2(1000.0, 700.0);
+    mgr.register(popup(POP, needed, true, false));
     let iid = open_in_r(&mut mgr);
     let ctx = egui::Context::default();
     frame(&mut mgr, &ctx, 200.0, vec![]);
     press_show_button(&mut mgr, &ctx, iid, 200.0);
     frame(&mut mgr, &ctx, 200.0, vec![]);
-    let rect = mgr.instance(iid).unwrap().popup_rect();
-    assert_eq!(rect.min, screen().min);
-    assert_eq!(rect.size(), egui::vec2(1000.0, 700.0));
+    let p = mgr.instance(iid).unwrap();
+    let rect = p.popup_rect();
+    assert!(screen().contains_rect(rect), "{rect:?}");
+    assert!(screen().contains_rect(p.close_btn_rect()));
+    assert!(screen().contains_rect(p.collapse_btn_rect().unwrap()));
+    assert_eq!(p.needed_size(), needed);
+    assert_eq!(rect.size() + p.expanded_overflow(), needed);
+    assert!(p.expanded_overflow().x > 0.0 || p.expanded_overflow().y > 0.0);
 }

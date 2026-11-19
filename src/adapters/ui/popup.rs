@@ -829,12 +829,14 @@ impl PopupState {
     /// 그린 크기를 필요 크기에서 `screen` 안으로 줄이고 위치를 그 안에 둔다. 필요 크기는 바꾸지 않는다.
     fn clamp_to_screen(&mut self, screen: egui::Rect) {
         let size = self.needed_size + self.chrome_extra();
-        // 펼친 팝업은 크기를 유지하고 왼쪽·위에 맞춘다. 창보다 큰 끝은 화면 clip이 자른다.
-        self.size = if self.expanded() {
-            size
-        } else {
-            size.min(screen.size())
-        };
+        // 펼친 팝업은 프레임을 창에 맞추고 내용은 필요 크기를 유지한다(`expanded_overflow`).
+        if self.expanded() {
+            let placed = tasty_ui_widgets::place_expanded(screen, self.pos, size);
+            self.pos = placed.frame.min;
+            self.size = placed.frame.size();
+            return;
+        }
+        self.size = size.min(screen.size());
         self.pos.x = self
             .pos
             .x

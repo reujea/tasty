@@ -327,6 +327,14 @@ impl PopupState {
         }
     }
 
+    /// 펼친 팝업이 창에 맞춘 프레임보다 큰 만큼. 내용은 이만큼 더 크게 배치하고 프레임에서 잘린다.
+    pub(crate) fn expanded_overflow(&self) -> egui::Vec2 {
+        if !self.expanded() {
+            return egui::Vec2::ZERO;
+        }
+        (self.needed_size + self.chrome_extra() - self.size).max(egui::Vec2::ZERO)
+    }
+
     /// 펼친 팝업 제목줄의 접기 버튼. 버튼 묶음 맨 앞(전체화면·닫기 왼쪽)이고, 다른 버튼이 없으면 닫기 자리다.
     pub(crate) fn collapse_btn_rect(&self) -> Option<egui::Rect> {
         if !self.expanded() {
