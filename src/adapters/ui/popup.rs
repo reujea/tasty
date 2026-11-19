@@ -16,6 +16,9 @@ pub(crate) mod explorer_properties;
 pub(crate) mod file_handler_picker;
 pub(crate) mod file_picker;
 mod focus;
+#[cfg(test)]
+#[path = "popup/focus_owner_tests.rs"]
+mod focus_owner_tests;
 pub(crate) mod frame;
 pub(crate) mod header_drag;
 pub(crate) mod occlusion;
@@ -24,18 +27,11 @@ mod payload;
 pub(crate) mod port_scanner;
 pub(crate) mod port_scanner_close;
 pub(crate) mod preset_apply;
+mod press;
 pub(crate) mod rail_category;
 pub(crate) mod remote_attach;
 pub(crate) mod remote_row;
 pub(crate) mod remote_tool;
-// 이유: 범위 경로는 입력 경로를 옮기는 다음 단계부터 쓰인다. 지금은 시험만 부른다.
-#[cfg(test)]
-#[path = "popup/focus_owner_tests.rs"]
-mod focus_owner_tests;
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "input routing adopts scope paths in a later step")
-)]
 pub(crate) mod route;
 /// 프레임을 그려 scrim의 실제 영역을 검사한다.
 #[cfg(test)]
@@ -259,6 +255,8 @@ pub struct PopupDrawResult {
     /// 실제 그린 팝업의 영역과 z_seq. plugin 팝업이 위에 덮인 host 팝업을 판별할 때 쓴다.
     /// 숨겨진 팝업은 마우스 입력을 가로채지 않도록 제외한다.
     pub hit_rects: Vec<occlusion::Occluder>,
+    /// 보이는 덮는 팝업의 덮는 사각형과 z_seq. 포인터 대상 찾기가 그 아래로 내려가지 않는다.
+    pub covers: Vec<occlusion::Occluder>,
     /// native WebView 위에 합성할 대상(non-passive 팝업). passive 팝업은 들어 있지 않다.
     pub overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget>,
     /// 안내 열에 놓은 인스턴스가 차지한 사각형의 합. 열이 비었거나 자리가 없으면 `None`이다.
@@ -517,6 +515,12 @@ fn child_overlay_hit(ctx: &egui::Context, popup_id: PopupId, pos: egui::Pos2) ->
 }
 
 impl PopupState {
+    /// 배치 범위. 배치 사각형·scrim·포인터 차단·바깥 누름 판정이 이 범위를 쓴다. 키 경로·자식 상속·보임
+    /// 여부는 논리 범위 `scope`를 쓴다.
+    pub(crate) fn placement_scope(&self) -> PopupScope {
+        self.scope.clone()
+    }
+
     /// 셸을 그릴 때 읽는 선언 값.
     #[cfg(test)]
     pub(crate) fn look(&self) -> PopupLook {
@@ -1010,7 +1014,7 @@ impl PopupManager {
         let (iid, focused) = (p.instance, p.focused);
         // 키 입력은 포커스를 가진 인스턴스만 받는다. 같은 선언에서 포커스는 하나만 남긴다.
         if focused {
-            self.give_focus(iid, false);
+            self.give_focus(iid, None);
         }
         Some(iid)
     }

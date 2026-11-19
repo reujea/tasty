@@ -27,6 +27,12 @@ impl ScopePath {
         surface: None,
     };
 
+    /// 시험에서 Window 만 담은 경로.
+    #[cfg(test)]
+    pub(crate) fn window_for_test() -> Self {
+        Self::WINDOW
+    }
+
     /// `scope` 가 이 경로 위에 있는지. `Window` 는 모든 경로의 뿌리라 항상 참이다.
     pub(crate) fn contains(&self, scope: &PopupScope) -> bool {
         match scope {
@@ -126,6 +132,118 @@ pub(crate) fn path_of_focus(state: &MainViewState, core: &CoreState) -> ScopePat
     }
 }
 
+/// 범위 노드 `scope`와 그 조상의 경로. 범위 대상이 엔진에 없으면 아는 단계까지만 담는다.
+pub(crate) fn path_of_scope(core: &CoreState, scope: &PopupScope) -> ScopePath {
+    let ws_of_pane = |pane: u32| {
+        core.find_workspace_index_for_pane(pane)
+            .and_then(|i| core.workspace_at(i))
+            .map(|ws| ws.id)
+    };
+    match *scope {
+        PopupScope::Window => ScopePath::WINDOW,
+        PopupScope::Workspace(id) => ScopePath {
+            workspace: Some(id),
+            ..ScopePath::WINDOW
+        },
+        PopupScope::Pane(pane) => ScopePath {
+            workspace: ws_of_pane(pane),
+            pane: Some(pane),
+            ..ScopePath::WINDOW
+        },
+        PopupScope::Tab(tab) => {
+            let pane = core.find_pane_for_tab(tab);
+            ScopePath {
+                workspace: pane.and_then(ws_of_pane),
+                pane,
+                tab: Some(tab),
+                surface: None,
+            }
+        }
+        PopupScope::Surface(surface) => {
+            let pane = core.find_pane_for_surface(surface);
+            ScopePath {
+                workspace: pane.and_then(ws_of_pane),
+                pane,
+                tab: core.find_tab_for_surface(surface),
+                surface: Some(surface),
+            }
+        }
+    }
+}
+
+/// 누르기 직전의 키 포커스 경로. winit 이 누름을 처리하는 시점에 남긴다. 그 처리(click-to-activate,
+/// 선택 시작)가 egui 프레임보다 먼저 포커스를 옮기므로 프레임 안에서 읽으면 이미 옮겨진 값이다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PressSnapshot {
+    focus_before: ScopePath,
+}
+
+impl PressSnapshot {
+    pub(crate) fn take(state: &MainViewState, core: &CoreState) -> Self {
+        Self {
+            focus_before: path_of_focus(state, core),
+        }
+    }
+}
+
+/// 한 프레임의 누름 하나. 팝업이 누름에 반응할지는 이 값 하나로 정한다(host·plugin 공통).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct RoutedPress {
+    /// 누른 좌표(logical px).
+    pub(crate) pos: egui::Pos2,
+    /// 누른 좌표의 범위 경로.
+    pub(crate) path: ScopePath,
+    /// 누르기 직전의 키 포커스 경로. 그 경로가 팝업의 범위를 담지 않았으면 다른 범위에서 들어오는 첫
+    /// 클릭이라 바깥 클릭이 아니다.
+    pub(crate) focus_before: ScopePath,
+    pub(crate) button: egui::PointerButton,
+}
+
+impl RoutedPress {
+    /// 이번 프레임에 눌린 버튼(왼쪽·오른쪽·가운데)이 있으면 그 누름. 누르기 직전 포커스는 winit 시점에 남긴
+    /// `snapshot`을 쓰고, winit 을 거치지 않은 누름(egui 입력에 직접 넣은 debug 주입)은 `focus_now`를 쓴다.
+    pub(crate) fn from_frame(
+        ctx: &egui::Context,
+        layout: Option<&LayoutContext>,
+        snapshot: Option<PressSnapshot>,
+        focus_now: impl FnOnce() -> ScopePath,
+    ) -> Option<Self> {
+        let (pos, button) = ctx.input(|i| {
+            let button = [
+                egui::PointerButton::Primary,
+                egui::PointerButton::Secondary,
+                egui::PointerButton::Middle,
+            ]
+            .into_iter()
+            .find(|b| i.pointer.button_pressed(*b))?;
+            Some((i.pointer.interact_pos()?, button))
+        })?;
+        let path = layout.map_or(ScopePath::WINDOW, |l| path_at(l, pos));
+        let focus_before = snapshot.map_or_else(focus_now, |s| s.focus_before);
+        Some(Self {
+            pos,
+            path,
+            focus_before,
+            button,
+        })
+    }
+
+    /// 포커스 경로를 모르는 그리기(별도 창, 시험)의 누름. 누른 경로를 직전 포커스로 본다. 별도 창은
+    /// Window 범위 팝업만 있어 결과가 같다.
+    pub(crate) fn from_frame_at_press(
+        ctx: &egui::Context,
+        layout: Option<&LayoutContext>,
+    ) -> Option<Self> {
+        let mut press = Self::from_frame(ctx, layout, None, || ScopePath::WINDOW)?;
+        press.focus_before = press.path;
+        Some(press)
+    }
+
+    pub(crate) fn is_primary(&self) -> bool {
+        self.button == egui::PointerButton::Primary
+    }
+}
+
 /// 키 입력이 갈 곳.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum KeyTarget {
@@ -138,6 +256,13 @@ pub(crate) enum KeyTarget {
 /// 지금 입력 경로가 쓰는 키 게이트를 그대로 감싼다. 게이트가 열려 있거나 전체화면 무대가 떠 있으면
 /// `Overlay`, 아니면 포커스된 surface 다. 무대는 창의 키 처리가 게이트보다 먼저 소비하므로 같은 답을
 /// 낸다. 포커스된 surface 가 없으면 `None` 이다.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "key routing adopts the focus path in a later step"
+    )
+)]
 pub(crate) fn keyboard_target(state: &MainViewState, core: &CoreState) -> Option<KeyTarget> {
     if state.keyboard_overlay_open() || state.fullscreen_stage_active() {
         return Some(KeyTarget::Overlay);

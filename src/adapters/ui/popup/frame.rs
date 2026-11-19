@@ -166,6 +166,22 @@ fn drain_on_close_hooks_with_lookup(
     }
 }
 
+/// 이번 프레임의 누름. 누르기 직전 포커스는 winit 이 남긴 값을, 없으면(egui 입력에 직접 넣은 누름) 지금
+/// 포커스 경로를 쓴다. host·plugin 팝업이 같은 값을 읽는다.
+pub(crate) fn frame_press(
+    ctx: &egui::Context,
+    state: &MainViewState,
+    engine: &crate::core::CoreState,
+    layout: Option<&crate::adapters::ui::LayoutContext>,
+) -> Option<crate::adapters::ui::popup::route::RoutedPress> {
+    crate::adapters::ui::popup::route::RoutedPress::from_frame(
+        ctx,
+        layout,
+        state.press_snapshot,
+        || crate::adapters::ui::popup::route::path_of_focus(state, engine),
+    )
+}
+
 /// 팝업 정의에 따라 그리고 닫기 훅을 처리한다. 오버레이와 같은 LayoutContext를 쓴다.
 pub(crate) fn draw_popup_layer(
     ctx: &egui::Context,
@@ -223,13 +239,18 @@ pub(crate) fn draw_popup_layer(
 
     let mut popups = std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
 
-    // content_fn이 state를 가변 대여하므로 plugin 팝업 영역을 미리 복사한다.
-    let plugin_occluders: Vec<crate::adapters::ui::popup::occlusion::Occluder> =
-        state.plugin_popup_hittest.clone();
+    // content_fn이 state를 가변 대여하므로 plugin 팝업 영역(상자와 덮는 범위)을 미리 복사한다.
+    let plugin_occluders: Vec<crate::adapters::ui::popup::occlusion::Occluder> = state
+        .plugin_popup_hittest
+        .iter()
+        .chain(&state.plugin_popup_covers)
+        .copied()
+        .collect();
+    let press = frame_press(ctx, state, engine, Some(draw_ctx));
 
     let mut dispatch_closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
     let mut dispatch_unfocused: Vec<PopupInstanceId> = Vec::new();
-    let draw_result = popups.draw(
+    let draw_result = popups.draw_routed(
         ctx,
         &mut |cx, ui| {
             if let Some(def) = crate::adapters::ui::popup::defs::find(cx.id) {
@@ -249,9 +270,11 @@ pub(crate) fn draw_popup_layer(
         },
         Some(draw_ctx),
         &plugin_occluders,
+        press.as_ref(),
     );
 
     state.popup_hovered = draw_result.hovered;
+    state.host_popup_covers = draw_result.covers;
     // egui_bridge가 최종 레이어 순서를 정할 때 사용한다.
     state.popup_layers = draw_result.layers;
     state.host_popup_hittest = draw_result.hit_rects;

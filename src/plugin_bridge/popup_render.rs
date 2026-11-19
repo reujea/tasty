@@ -44,6 +44,7 @@ pub fn draw_plugin_popups(
     state.plugin_popup_layers.clear();
     state.plugin_popup_open = false;
     state.plugin_popup_hittest.clear();
+    state.plugin_popup_covers.clear();
     state.plugin_popup_key_candidates.clear();
     state.plugin_popup_replies.clear();
     state.plugin_popup_ime_cursor_area = None;
@@ -89,7 +90,7 @@ pub fn draw_plugin_popups(
 
     let screen_rect = ctx.screen_rect();
     let pointer_pos = ctx.input(|i| i.pointer.hover_pos());
-    let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
+    let press = crate::adapters::ui::popup::frame::frame_press(ctx, state, _engine, layout);
     let escape_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
 
     // 다른 팝업에 가린 좌표를 판정하려면 모든 팝업의 배치가 먼저 필요하다.
@@ -124,6 +125,7 @@ pub fn draw_plugin_popups(
             z_seq: h.z_seq,
         })
         .collect();
+    occluders.extend(state.host_popup_covers.iter().copied());
     occluders.extend(placed.iter().map(|(s, r)| Occluder {
         rect: *r,
         z_seq: s.z_seq,
@@ -148,6 +150,17 @@ pub fn draw_plugin_popups(
     let mut any_hovered = false;
 
     let (scrim_rects, scrim_paints) = scrim_plan(&placed, layout, screen_rect);
+    // 플러그인 팝업은 모두 배치 범위를 덮는다. 덮는 사각형도 가림으로 본다.
+    occluders.extend(placed.iter().zip(&scrim_rects).map(|((s, _), r)| Occluder {
+        rect: *r,
+        z_seq: s.z_seq,
+    }));
+    state
+        .plugin_popup_covers
+        .extend(placed.iter().zip(&scrim_rects).map(|((s, _), r)| Occluder {
+            rect: *r,
+            z_seq: s.z_seq,
+        }));
 
     let ppp = ctx.pixels_per_point().max(f32::EPSILON);
     let current_theme = {
@@ -163,7 +176,14 @@ pub fn draw_plugin_popups(
         let scope_rect = scrim_rects[idx];
         let ownership = pointer_pos.map(|p| point_ownership(rect, snap.z_seq, &occluders, p));
 
-        if ownership == Some(PointOwnership::Mine) {
+        // 상자 안이거나 덮는 범위 안(scrim)이면 포인터는 이 팝업 것이다.
+        let in_cover = pointer_pos.is_some_and(|p| {
+            scope_rect.contains(p)
+                && !occluders
+                    .iter()
+                    .any(|o| o.z_seq > snap.z_seq && o.rect.contains(p))
+        });
+        if ownership == Some(PointOwnership::Mine) || in_cover {
             any_hovered = true;
         }
 
@@ -326,22 +346,23 @@ pub fn draw_plugin_popups(
         }
 
         // 렌더 중에는 매니저를 변경하지 않고 메인 루프에 앞으로 가져오도록 요청한다.
-        if primary_pressed && ownership == Some(PointOwnership::Mine) {
+        if press.is_some() && ownership == Some(PointOwnership::Mine) {
             state.plugin_popup_focus_bumps.push(snap.instance_id);
         }
 
-        // 상위 팝업 안의 클릭은 바깥 클릭이 아니다.
         // 자식 팝업이 열려 있을 때도 부모의 바깥 클릭 닫기는 미룬다.
         let has_open_child = state.plugin_popup_has_open_child(snap.instance_id);
-
-        if snap.dismiss_on_outside_click
-            && !has_open_child
-            && primary_pressed
-            && ownership == Some(PointOwnership::OutsideAll)
-        {
-            state
-                .plugin_popup_closes
-                .push((snap.instance_id, PopupCloseReason::OutsideClick));
+        if let Some(press) = press.as_ref() {
+            match outside_press(snap, rect, scope_rect, &occluders, press) {
+                OutsidePress::Close if !has_open_child => state
+                    .plugin_popup_closes
+                    .push((snap.instance_id, PopupCloseReason::OutsideClick)),
+                OutsidePress::None => {}
+                // 덮는 범위 안 누름은 팝업 것이다. 닫지 않으면 앞으로 가져온다.
+                OutsidePress::Close | OutsidePress::Take => {
+                    state.plugin_popup_focus_bumps.push(snap.instance_id)
+                }
+            }
         }
         if escape_pressed && has_key_focus {
             state
@@ -355,11 +376,49 @@ pub fn draw_plugin_popups(
     }
 }
 
+/// 상자 밖 누름이 플러그인 팝업에 하는 일.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutsidePress {
+    /// 아무 일도 없다(상자 안, 배치 범위 밖, 위 팝업에 덮임).
+    None,
+    /// 바깥 클릭 선언대로 닫는다.
+    Close,
+    /// 덮는 범위 안 누름이라 팝업이 받는다.
+    Take,
+}
+
+/// host 팝업과 같은 범위 규칙(`popup::press`)으로 상자 밖 누름을 나눈다. 플러그인 팝업은 모두 덮는다.
+fn outside_press(
+    snap: &MeshSnap,
+    box_rect: Rect,
+    cover_rect: Rect,
+    occluders: &[Occluder],
+    press: &crate::adapters::ui::popup::route::RoutedPress,
+) -> OutsidePress {
+    let covered_by_higher = occluders
+        .iter()
+        .any(|o| o.z_seq > snap.z_seq && o.rect.contains(press.pos));
+    if covered_by_higher || box_rect.contains(press.pos) || !press.path.contains(&snap.scope) {
+        return OutsidePress::None;
+    }
+    let first_click = !press.focus_before.contains(&snap.logical_scope);
+    if !first_click && snap.dismiss_on_outside_click {
+        OutsidePress::Close
+    } else if cover_rect.contains(press.pos) {
+        OutsidePress::Take
+    } else {
+        OutsidePress::None
+    }
+}
+
 struct MeshSnap {
     instance_id: u64,
     plugin_id: String,
     anchor: PopupAnchor,
+    /// 배치 범위. 좁은 범위면 창으로 바뀐다.
     scope: PopupScope,
+    /// 선언·결속으로 정한 논리 범위. 바뀌지 않는다.
+    logical_scope: PopupScope,
     size: Vec2,
     dismiss_on_outside_click: bool,
     z_seq: u64,
@@ -390,7 +449,8 @@ fn mesh_snapshots<'a>(
                 instance_id: id,
                 plugin_id: inst.plugin_id.clone(),
                 anchor: inst.contribute.anchor,
-                scope,
+                scope: scope.clone(),
+                logical_scope: scope,
                 size,
                 dismiss_on_outside_click: inst.contribute.dismiss_on_outside_click,
                 z_seq: inst.z_seq,

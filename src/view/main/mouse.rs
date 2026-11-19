@@ -356,6 +356,12 @@ impl MainView {
         egui_consumed: bool,
         menu_dismiss_swallow: bool,
     ) {
+        // 팝업의 바깥 누름 판정은 누르기 직전 포커스를 쓴다. 아래 click-to-activate가 포커스를 옮기기 전에 남긴다.
+        if button_state == ElementState::Pressed {
+            self.state.press_snapshot = Some(
+                crate::adapters::ui::popup::route::PressSnapshot::take(&self.state, engine),
+            );
+        }
         // native 메뉴 바깥 클릭의 소비 여부는 egui 전달 전에 이미 결정됐다.
         // 물리 버튼을 놓으면 어느 경로로 반환하든 보고 스택에서 먼저 제거한다.
         // 그렇지 않으면 이후 이동을 계속 드래그로 해석한다.
@@ -380,9 +386,9 @@ impl MainView {
         }
 
         let overlay_open = self.mouse_overlay_open();
-        // 포커스를 받지 않는 팝업(복원 안내·단축키 도움말) 위의 press는 그 팝업이 받는다. 아래 surface를
-        // 활성화하거나 선택·분할선 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
-        let notice_hit = button_state == ElementState::Pressed && self.quiet_popup_hit();
+        // 포인터 대상이 팝업 노드(상자, 덮는 범위)면 그 press는 팝업이 받는다. 아래 surface를 활성화하거나
+        // 선택·분할선 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
+        let notice_hit = button_state == ElementState::Pressed && self.pointer_on_popup_node();
         // 분할선 hit 띠의 press 는 포커스를 바꾸지 않고 곧바로 드래그를 시작한다. 비활성 surface 쪽
         // 띠도 첫 press 부터 분할선을 잡아야 하므로 click-to-activate 보다 먼저 본다.
         if self.try_press_divider_first(
@@ -437,14 +443,14 @@ impl MainView {
         }
     }
 
-    /// 현재 포인터가 직전 프레임에 그린, 포커스를 받지 않는 팝업 위인지.
-    fn quiet_popup_hit(&self) -> bool {
+    /// 현재 포인터의 대상이 직전 프레임에 그린 팝업 노드(상자, 덮는 범위)인지.
+    pub(super) fn pointer_on_popup_node(&self) -> bool {
+        let ppp = self.base.gpu.egui_pixels_per_point();
         self.cursor_position.is_some_and(|pos| {
-            self.state.popups.quiet_popup_covers_physical(
-                PhysicalPx(pos.x as f32),
-                PhysicalPx(pos.y as f32),
-                self.base.gpu.egui_pixels_per_point(),
-            )
+            self.state.popup_owns_point(egui::pos2(
+                PhysicalPx(pos.x as f32).to_logical(ppp).value(),
+                PhysicalPx(pos.y as f32).to_logical(ppp).value(),
+            ))
         })
     }
 

@@ -175,7 +175,7 @@ fn a_quiet_popup_opened_by_the_user_still_leaves_the_webview_alone() {
     assert_eq!(state.popups.quiet_popup_rects(), notice_rects(&state));
 }
 
-/// Given 그려진 안내, Then 그 카드 위의 포인터는 물리 좌표로도 안내가 받는 자리로 판정된다(아래 pane을 활성화하지
+/// Given 그려진 안내, Then 그 카드 위의 포인터는 포인터 대상 찾기에서 팝업 노드다(아래 pane을 활성화하지
 /// 않는다). When 안내를 눌러도 Then 팝업 포커스가 생기지 않는다. When 안내 바깥을 눌러도 Then 안내가 남는다.
 #[test]
 fn a_click_on_a_notice_does_not_activate_the_pane_below() {
@@ -190,20 +190,9 @@ fn a_click_on_a_notice_does_not_activate_the_pane_below() {
     let card = notice_rects(&state)[0];
     let inside = card.center();
     assert!(state.popups.quiet_popup_covers(inside));
-    // 배율 2의 물리 좌표로 같은 논리 위치를 묻는다. 물리 값을 논리 값으로 잘못 읽으면 카드 왼쪽 바깥이다.
-    let ppp = 2.0;
-    let (x, y) = (LogicalPx(inside.x), LogicalPx(inside.y));
-    assert!(
-        state
-            .popups
-            .quiet_popup_covers_physical(x.to_physical(ppp), y.to_physical(ppp), ppp,)
-    );
-    assert!(!state.popups.quiet_popup_covers_physical(
-        crate::model::PhysicalPx(x.value()),
-        crate::model::PhysicalPx(y.value()),
-        ppp,
-    ));
-
+    // 창의 포인터 처리는 직전 프레임에 그린 팝업 노드로 대상을 찾는다. 카드 위는 팝업 것이고 카드 왼쪽 바깥은 아니다.
+    assert!(state.popup_owns_point(inside));
+    assert!(!state.popup_owns_point(egui::pos2(card.min.x - 1.0, inside.y)));
     frame(&ctx, &mut state, &read, Input::Press(inside));
     frame(&ctx, &mut state, &read, Input::Release(inside));
     assert!(!state.popups.has_focused());

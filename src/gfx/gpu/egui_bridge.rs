@@ -218,6 +218,8 @@ impl GpuState {
                 notice_column_occupied,
             );
 
+            // 이 프레임이 winit 누름을 처리했다. 다음 누름은 새로 남긴다.
+            state.press_snapshot = None;
             crate::state::webview_overlay::end_frame(ctx, &mut state.webview_overlay);
             crate::state::webview_overlay::prepare_paint_job(
                 &mut state.webview_overlay,

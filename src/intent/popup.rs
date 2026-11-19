@@ -67,9 +67,12 @@ pub fn handle(
             }
             UiIntent::FocusPassivePopup { id, scope } => {
                 if intent.origin.is_user() {
+                    let path_of = |s: &crate::adapters::ui::popup::PopupScope| {
+                        crate::adapters::ui::popup::route::path_of_scope(engine, s)
+                    };
                     match scope {
-                        Some(scope) => state.popups.focus_passive_in(id, scope),
-                        None => state.popups.focus_passive(id),
+                        Some(scope) => state.popups.focus_passive_in(id, scope, &path_of),
+                        None => state.popups.focus_passive(id, &path_of),
                     };
                 }
             }

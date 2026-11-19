@@ -146,7 +146,9 @@ fn a_passive_promotion_takes_the_focus_from_a_hidden_sibling() {
         .unwrap();
     assert_eq!(focused_instances(&mgr), [a]);
     frame(&mut mgr, &[2], None);
-    assert!(mgr.focus_passive(ID));
+    assert!(mgr.focus_passive(ID, &|_| {
+        crate::adapters::ui::popup::route::ScopePath::window_for_test()
+    }));
     frame(&mut mgr, &[1, 2], None);
     assert_eq!(focused_instances(&mgr), [b]);
 }

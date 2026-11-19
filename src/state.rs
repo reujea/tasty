@@ -45,6 +45,8 @@ mod popup_key_owner;
 #[cfg(all(test, feature = "gui"))]
 mod popup_ownership_tests;
 #[cfg(feature = "gui")]
+mod popup_pointer;
+#[cfg(feature = "gui")]
 pub(crate) mod preset_catalog;
 #[cfg(feature = "gui")]
 mod shell_integration_hint;
@@ -237,6 +239,12 @@ impl RequestContext {
             webview_overlay: Default::default(),
             #[cfg(feature = "gui")]
             host_popup_hittest: Vec::new(),
+            #[cfg(feature = "gui")]
+            host_popup_covers: Vec::new(),
+            #[cfg(feature = "gui")]
+            plugin_popup_covers: Vec::new(),
+            #[cfg(feature = "gui")]
+            press_snapshot: None,
             #[cfg(feature = "gui")]
             popup_escape_owner: None,
             #[cfg(feature = "gui")]

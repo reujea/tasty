@@ -1,4 +1,4 @@
-//! 사용자가 보고한 팝업 범위 결함 두 개의 재현. 고치기 전에는 실패하므로 해제할 단계를 적어 무시해 둔다.
+//! 사용자가 보고한 팝업 범위 결함 두 개의 재현. 아직 고치지 않은 결함은 해제할 단계를 적어 무시해 둔다.
 //! 장면: 좌우 surface L·R, R 범위의 plugin 팝업(markdown 경로 팝업과 같은 선언).
 
 use std::sync::Arc;
@@ -104,7 +104,6 @@ fn closes_of_popup(state: &RequestContext) -> Vec<tasty_plugin_protocol::PopupCl
 
 /// 결함 1: R 범위 팝업이 L 을 누른 것에 닫힌다. L 은 그 팝업 범위 밖이라 바깥 클릭이 아니다.
 #[test]
-#[ignore = "defect 1 reproduction: fixed by the plugin pointer step of the popup scope refactor"]
 fn a_press_on_the_left_surface_does_not_close_a_popup_scoped_to_the_right() {
     let (mut state, mut session) = scene(super::PANE_L);
     let engine = session.borrow_mut();
@@ -134,6 +133,35 @@ fn a_press_on_the_left_surface_does_not_close_a_popup_scoped_to_the_right() {
         [],
         "L 을 누른 것이 R 범위 팝업의 닫힘 요청이 됐다"
     );
+}
+
+/// Given R 범위 plugin 팝업(바깥 클릭에 닫힘)이 열려 있고 포커스가 L일 때, When R 범위 안·팝업 밖을 처음
+/// 누르면, Then 닫힘 요청 없이 앞으로 가져온다. Given 포커스가 R일 때 같은 자리를 누르면, Then 닫힘 요청이다.
+#[test]
+fn the_first_press_into_the_right_scope_does_not_close_its_plugin_popup() {
+    for (focus, closes) in [(super::PANE_L, false), (super::PANE_R, true)] {
+        let (mut state, mut session) = scene(focus);
+        let engine = session.borrow_mut();
+        let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
+        let ctx = Context::default();
+        plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
+        let placed = state.plugin_popup_hittest[0].rect;
+        let r = super::surface_rect_r();
+        let outside = egui::pos2(r.center().x, r.max.y - 4.0);
+        assert!(r.contains(outside) && !placed.contains(outside));
+        plugin_frame(
+            &ctx,
+            &mut state,
+            &engine.read(),
+            &mgr,
+            vec![Event::PointerMoved(outside), press(outside)],
+        );
+        let closed = !closes_of_popup(&state).is_empty();
+        assert_eq!(closed, closes, "focus pane {focus}");
+        if !closes {
+            assert!(state.plugin_popup_focus_bumps.contains(&POPUP));
+        }
+    }
 }
 
 /// 결함 2: R 팝업의 자식 파일 피커가 떠 있으면 포커스가 L 이어도 키가 L 로 가지 않는다.

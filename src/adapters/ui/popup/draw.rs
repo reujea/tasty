@@ -6,9 +6,10 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::elide_popup_title as elide_for_width;
 
 use super::occlusion::{Occluder, PointOwnership, point_ownership};
+use super::route::RoutedPress;
 use super::{
     PopupCloseReason, PopupCx, PopupDrawResult, PopupId, PopupInstanceId, PopupManager, PopupScope,
-    PopupShadow, PopupShell, ResizeEdges, ScrimInput,
+    PopupShadow, PopupShell, ResizeEdges,
 };
 
 /// 리사이즈 테두리 밴드 폭(px). popup_rect 가장자리 안쪽 이 폭 안에서 누르면 리사이즈.
@@ -157,6 +158,20 @@ impl PopupManager {
         draw_ctx: Option<&LayoutContext>,
         plugin_occluders: &[Occluder],
     ) -> PopupDrawResult {
+        let press = RoutedPress::from_frame_at_press(ctx, draw_ctx);
+        self.draw_routed(ctx, content_fn, draw_ctx, plugin_occluders, press.as_ref())
+    }
+
+    /// [`Self::draw`]와 같고, 이번 프레임의 누름을 호출자가 정한다(메인 창은 winit 시점의 포커스를 담는다).
+    #[allow(clippy::cognitive_complexity)] // complexity-exempt: egui 즉시모드 draw — 열린 popup별 content_fn 콜백 + 경계 clamp, 클로저 중첩이 구조적
+    pub(crate) fn draw_routed(
+        &mut self,
+        ctx: &egui::Context,
+        content_fn: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui),
+        draw_ctx: Option<&LayoutContext>,
+        plugin_occluders: &[Occluder],
+        press: Option<&RoutedPress>,
+    ) -> PopupDrawResult {
         let th = theme::theme();
         let screen_rect = ctx.screen_rect();
         let mut closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
@@ -168,7 +183,7 @@ impl PopupManager {
         let mut overlay_targets: Vec<crate::state::webview_overlay::OverlayTarget> = Vec::new();
 
         let pointer_pos = ctx.input(|i| i.pointer.interact_pos());
-        let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
+        let primary_pressed = press.is_some_and(RoutedPress::is_primary);
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_released = ctx.input(|i| i.pointer.primary_released());
 
@@ -253,72 +268,54 @@ impl PopupManager {
                     }
                     break; // topmost popup wins
                 } else if super::child_overlay_hit(ctx, popup.id, pos) {
-                    // 부모 밖으로 나온 자식 드롭다운도 안쪽 클릭으로 취급한다.
+                    // 드롭다운은 egui 별도 Area라 팝업 clip을 상속하지 않고 범위 밖에도 그려진다. 좌표 경로와
+                    // 무관하게 그 팝업 내용의 하위 노드이므로 팝업 안 누름으로 취급한다.
                     hovered_popup = Some(popup.instance);
+                    break;
+                } else if popup
+                    .cover_rect(draw_ctx, screen_rect)
+                    .is_some_and(|r| r.contains(pos))
+                {
+                    // 덮는 팝업 아래로는 내려가지 않는다. 그 자리는 아래 팝업 것이 아니다.
                     break;
                 }
             }
         }
 
-        // 저장된 원격 행의 scrim 은 포인터를 받는다(마지막 화면은 inert). 그 위 포인터는 그 팝업 것이다.
+        // 상자(와 그 드롭다운) 위 포인터. 아래 덮는 범위 판정과 구분해 누름 처리에 쓴다.
+        let hovered_box = hovered_popup;
+        // 덮는 팝업의 배치 범위 위 포인터는 그 팝업 것이다(상자 밖이면 scrim). 아래 노드로 내려가지 않는다.
         if hovered_popup.is_none()
             && let Some(pos) = pointer_pos
         {
-            hovered_popup = open_indices.iter().rev().find_map(|&i| {
-                let popup = &self.popups[i];
-                (popup.look.scrim_input == ScrimInput::TakesPointer
-                    && Self::scope_rect(&popup.scope, draw_ctx).is_some_and(|r| r.contains(pos)))
-                .then_some(popup.instance)
-            });
+            hovered_popup = self
+                .cover_at(pos, &open_indices, draw_ctx, screen_rect)
+                .map(|(iid, _)| iid);
         }
 
         // 닫기·포커스·맨 앞으로 올리기를 먼저 처리한다. 이동·리사이즈 시작은
         // 콘텐츠를 그린 뒤 위젯이 포인터를 사용했는지 확인하고 결정한다.
-        if primary_pressed {
-            if let Some(iid) = hovered_close {
+        if let Some(press) = press {
+            if let Some(iid) = hovered_close.filter(|_| press.is_primary()) {
                 closed.push((iid, PopupCloseReason::CloseButton));
-            } else if let Some((_, stage)) = hovered_fullscreen {
+            } else if let Some((_, stage)) = hovered_fullscreen.filter(|_| press.is_primary()) {
                 // 무대는 별도 콘텐츠이므로 원본 팝업은 닫지 않는다.
                 fullscreen_requested = Some(stage);
-            } else if let Some(iid) = hovered_popup {
-                // 포커스를 받지 않는 팝업은 누름으로 포커스와 순서를 바꾸지 않는다(give_focus·bring_to_front가 거른다).
+            } else if let Some(iid) = hovered_box {
+                // 팝업 안 누름(어느 버튼이든 포커스 행위). 포커스를 받지 않는 팝업은 누름으로 포커스와
+                // 순서를 바꾸지 않는다(give_focus·bring_to_front가 거른다).
                 bring_front = Some(iid);
-                self.give_focus(iid, true);
-            } else {
-                // 위의 plugin 팝업이 덮은 곳은 바깥 클릭으로 처리하지 않는다.
-                // host를 먼저 그리므로 plugin 영역은 직전 프레임 값이다. 방금 닫힌
-                // plugin 팝업이 클릭을 한 번 막을 수 있지만 가려진 팝업을 잘못 닫는 것을 피한다.
-                // 열린 자식이 있는 부모는 바깥 클릭으로 닫지 않는다. 자식만 자기 규칙대로 닫힌다.
-                let parents: Vec<super::PopupInstanceId> = self
-                    .popups
-                    .iter()
-                    .filter(|p| p.open)
-                    .filter_map(|p| p.parent)
-                    .collect();
-                for popup in &mut self.popups {
-                    if !popup.scope_visible {
-                        continue;
-                    }
-                    let occluded = pointer_pos.is_some_and(|p| {
-                        matches!(
-                            point_ownership(popup.popup_rect(), popup.z_seq, plugin_occluders, p),
-                            PointOwnership::OccludedByHigher
-                        )
-                    });
-                    if occluded {
-                        continue;
-                    }
-                    if popup.open
-                        && popup.close_on_outside_click
-                        && !parents.contains(&popup.instance)
-                    {
-                        closed.push((popup.instance, PopupCloseReason::OutsideClick));
-                    }
-                    // sticky_focus popups keep keyboard focus when clicking outside.
-                    if !popup.sticky_focus {
-                        popup.focused = false;
-                    }
-                }
+                self.give_focus(iid, Some(&press.path));
+            } else if let Some(iid) = self.route_outside_press(
+                press,
+                &open_indices,
+                draw_ctx,
+                screen_rect,
+                plugin_occluders,
+                &mut closed,
+            ) {
+                bring_front = Some(iid);
+                self.give_focus(iid, Some(&press.path));
             }
         }
 
@@ -711,6 +708,13 @@ impl PopupManager {
             }
         }
 
+        // 닫는 인스턴스를 지우면 색인이 바뀌므로 닫기 전에 모은다.
+        let still_open: Vec<usize> = open_indices
+            .iter()
+            .copied()
+            .filter(|&i| !closed.iter().any(|(c, _)| *c == self.popups[i].instance))
+            .collect();
+        let covers = self.cover_occluders(&still_open, draw_ctx, screen_rect);
         restack_layers(ctx, &layers);
         // egui는 누른 영역을 맨 위로 올린다. 포커스를 받지 않는 팝업을 눌렀으면 모든 팝업 레이어를 함께
         // 올려 지금 순서(그 팝업이 아래)를 지킨다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
@@ -734,6 +738,7 @@ impl PopupManager {
 
         PopupDrawResult {
             closed: closed_ids,
+            covers,
             hovered: hovered_popup.is_some(),
             layers: focus_layers,
             fullscreen_requested,

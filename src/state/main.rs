@@ -151,6 +151,15 @@ pub struct MainViewState {
     /// 현재 프레임 호스트 팝업의 rect와 z_seq. 뒤에 그리는 플러그인 팝업이 입력 가림을 판정한다.
     #[cfg(feature = "gui")]
     pub(crate) host_popup_hittest: Vec<crate::adapters::ui::popup::occlusion::Occluder>,
+    /// 현재 프레임 덮는 호스트 팝업의 덮는 사각형과 z_seq. 뒤에 그리는 플러그인 팝업과 포인터 대상 찾기가 쓴다.
+    #[cfg(feature = "gui")]
+    pub(crate) host_popup_covers: Vec<crate::adapters::ui::popup::occlusion::Occluder>,
+    /// 이전 프레임 플러그인 팝업의 덮는 사각형과 z_seq. 플러그인 팝업은 모두 덮는다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_covers: Vec<crate::adapters::ui::popup::occlusion::Occluder>,
+    /// winit 이 누름을 처리할 때 남긴 누르기 직전 포커스. 그 누름을 처리한 egui 프레임이 끝나면 비운다.
+    #[cfg(feature = "gui")]
+    pub(crate) press_snapshot: Option<crate::adapters::ui::popup::route::PressSnapshot>,
     /// host/plugin 전체에서 최상단이 호스트 팝업일 때 그 인스턴스. 해당 인스턴스만 Escape를 처리한다.
     #[cfg(feature = "gui")]
     pub(crate) popup_escape_owner: Option<crate::adapters::ui::popup::PopupInstanceId>,

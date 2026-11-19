@@ -1,5 +1,6 @@
 //! 인스턴스의 키보드 포커스와 passive 전이.
 
+use super::route::ScopePath;
 use super::{PopupId, PopupInstanceId, PopupManager, PopupScope, PopupState};
 
 impl PopupManager {
@@ -45,7 +46,7 @@ impl PopupManager {
     /// 인스턴스 하나의 키보드 포커스 플래그를 바꾼다. 켤 때는 같은 선언의 다른 인스턴스 포커스를 푼다.
     pub fn set_instance_focused(&mut self, iid: PopupInstanceId, focused: bool) {
         if focused {
-            self.give_focus(iid, false);
+            self.give_focus(iid, None);
         } else if let Some(p) = self.instance_mut(iid) {
             p.focused = false;
         }
@@ -53,10 +54,10 @@ impl PopupManager {
 
     /// 열린 인스턴스 하나에 키보드 포커스를 준다. 포커스를 주는 모든 경로(열기·팝업 안 클릭·passive 승격)가
     /// 이 함수를 거친다. 같은 선언의 다른 인스턴스는 숨은 범위에 있어도 포커스를 푼다. 숨은 형제가 포커스를
-    /// 가진 채 범위가 다시 보이면 두 인스턴스가 함께 키를 읽기 때문이다. `exclusive`이면 보이는 다른 선언의
-    /// 포커스도 푼다(팝업 안을 누른 것과 같은 전이).
+    /// 가진 채 범위가 다시 보이면 두 인스턴스가 함께 키를 읽기 때문이다. `path`를 주면 그 경로 위에 놓인 보이는
+    /// 다른 팝업의 포커스도 푼다(팝업 안을 누른 것과 같은 전이). 경로 밖 범위의 팝업은 건드리지 않는다.
     /// 포커스를 받지 않는 인스턴스에는 주지 않고 다른 팝업의 포커스도 바꾸지 않는다.
-    pub(super) fn give_focus(&mut self, iid: PopupInstanceId, exclusive: bool) {
+    pub(super) fn give_focus(&mut self, iid: PopupInstanceId, path: Option<&ScopePath>) {
         let Some(id) = self
             .instance(iid)
             .filter(|p| p.arrange.takes_focus)
@@ -68,34 +69,50 @@ impl PopupManager {
             if p.open && p.instance == iid {
                 p.focused = true;
                 p.passive = false;
-            } else if p.id == id || (exclusive && p.scope_visible) {
+            } else if p.id == id
+                || path.is_some_and(|path| p.scope_visible && path.contains(&p.placement_scope()))
+            {
                 p.focused = false;
             }
         }
     }
 
     /// 호스트가 확인한 사용자 입력으로 passive popup에 포커스를 준다. 팝업 안을 누른 것과 같은 전이다:
-    /// 보이는 다른 팝업의 포커스를 풀고 맨 앞으로 올린다. 열린 passive popup이 보일 때만 바뀐다.
-    pub fn focus_passive(&mut self, id: PopupId) -> bool {
-        self.focus_passive_where(|p| p.id == id)
+    /// 그 팝업 범위 경로(`path_of`가 계산) 위의 보이는 다른 팝업 포커스를 풀고 맨 앞으로 올린다. 열린 passive
+    /// popup이 보일 때만 바뀐다.
+    pub fn focus_passive(
+        &mut self,
+        id: PopupId,
+        path_of: &dyn Fn(&PopupScope) -> ScopePath,
+    ) -> bool {
+        self.focus_passive_where(|p| p.id == id, path_of)
     }
 
     /// `scope` 에 열린 `id` 의 passive 인스턴스에 포커스를 준다. 다른 범위의 같은 팝업은 건드리지 않는다.
-    pub fn focus_passive_in(&mut self, id: PopupId, scope: &PopupScope) -> bool {
-        self.focus_passive_where(|p| p.id == id && p.scope == *scope)
+    pub fn focus_passive_in(
+        &mut self,
+        id: PopupId,
+        scope: &PopupScope,
+        path_of: &dyn Fn(&PopupScope) -> ScopePath,
+    ) -> bool {
+        self.focus_passive_where(|p| p.id == id && p.scope == *scope, path_of)
     }
 
-    fn focus_passive_where(&mut self, target: impl Fn(&PopupState) -> bool) -> bool {
-        let Some(iid) = self
+    fn focus_passive_where(
+        &mut self,
+        target: impl Fn(&PopupState) -> bool,
+        path_of: &dyn Fn(&PopupScope) -> ScopePath,
+    ) -> bool {
+        let Some((iid, path)) = self
             .popups
             .iter()
             .rev()
             .find(|p| target(p) && p.open && p.scope_visible && p.passive)
-            .map(|p| p.instance)
+            .map(|p| (p.instance, path_of(&p.scope)))
         else {
             return false;
         };
-        self.give_focus(iid, true);
+        self.give_focus(iid, Some(&path));
         self.bring_to_front(iid);
         true
     }
