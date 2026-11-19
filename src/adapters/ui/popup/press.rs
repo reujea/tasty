@@ -147,10 +147,10 @@ impl PopupManager {
         press: &RoutedPress,
         open_indices: &[usize],
         draw_ctx: Option<&LayoutContext>,
-        screen_rect: egui::Rect,
         others: &[Occluder],
         closed: &mut Vec<(PopupInstanceId, PopupCloseReason)>,
     ) -> Option<PopupInstanceId> {
+        let screen_rect = ctx.screen_rect();
         let parents: Vec<PopupInstanceId> = self
             .popups
             .iter()

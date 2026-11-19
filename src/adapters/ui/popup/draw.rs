@@ -345,7 +345,6 @@ impl PopupManager {
                 press,
                 &open_indices,
                 draw_ctx,
-                screen_rect,
                 plugin_occluders,
                 &mut closed,
             ) {
