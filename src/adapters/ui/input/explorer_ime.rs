@@ -155,7 +155,7 @@ impl crate::view::main::MainView {
         &self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
     ) -> Option<u32> {
-        if self.state.keyboard_overlay_open() || self.state.fullscreen_stage_active() {
+        if self.state.window_keys_to_overlay() {
             return None;
         }
         crate::adapters::ui::input::shortcuts::focused_explorer_surface_id(&self.state, engine)

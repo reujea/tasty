@@ -83,8 +83,7 @@ impl MainView {
         if let Some(context) = self.file_drag.context.as_mut() {
             context.poll();
         }
-        if self.state.fullscreen_stage_active()
-            || self.state.keyboard_overlay_open()
+        if self.state.window_keys_to_overlay()
             || self.base.state.close_requested
             || self
                 .file_drag

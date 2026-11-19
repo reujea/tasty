@@ -69,7 +69,7 @@ impl MainView {
     /// 키를 host egui 입력칸이 받는지. 오버레이(팝업·모달·주소 띠·무대)가 열렸거나, egui로 그리는
     /// 탐색기 surface의 입력칸이 포커스를 가졌을 때다. 탐색기 파일 목록의 편집 키는 기존 디스패치가 맡는다.
     fn edit_key_target(&self, engine: &EngineRead<'_>) -> bool {
-        if self.state.keyboard_overlay_open() || self.state.fullscreen_stage_active() {
+        if self.state.window_keys_to_overlay() {
             return true;
         }
         self.state

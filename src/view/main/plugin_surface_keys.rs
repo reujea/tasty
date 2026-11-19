@@ -182,7 +182,7 @@ impl MainView {
 
     /// 호스트 egui(팝업·모달·무대)가 키를 받는지. 무대는 키보드 오버레이 술어에 없어 함께 본다.
     fn host_egui_has_keys(&self) -> bool {
-        self.state.keyboard_overlay_open() || self.state.fullscreen_stage_active()
+        self.state.window_keys_to_overlay()
     }
 
     fn surface_edit_target_now(&self, engine: &EngineRead<'_>) -> Option<SurfaceEditTarget> {

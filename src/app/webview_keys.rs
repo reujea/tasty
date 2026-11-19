@@ -114,7 +114,7 @@ impl App {
         // 열린 동안에는 plugin·새로고침·host 단축키 어느 것도 처리하지 않는다.
         let gates = engines_mut!(self).window_pair(id).map(|(main, _)| {
             (
-                main.state.keyboard_overlay_open(),
+                main.state.window_keys_to_overlay(),
                 main.state.fullscreen_stage_active(),
             )
         });

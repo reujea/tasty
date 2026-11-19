@@ -130,7 +130,7 @@ pub(crate) fn handle_event(
 
     // 팝업·무대가 있으면 조합 문자를 배경 터미널에 보내지 않는다.
     // Enabled/Disabled는 상태 추적에 사용한다. plugin 팝업 입력은 egui 수집기가 이미 전달하므로 여기서 반복하지 않는다.
-    let overlay_open = w.state.keyboard_overlay_open() || w.state.fullscreen_stage_active();
+    let overlay_open = w.state.window_keys_to_overlay();
     if overlay_open {
         match event {
             Ime::Enabled => {

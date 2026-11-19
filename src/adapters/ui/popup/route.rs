@@ -285,7 +285,7 @@ pub(crate) enum KeyTarget {
     )
 )]
 pub(crate) fn keyboard_target(state: &MainViewState, core: &CoreState) -> Option<KeyTarget> {
-    if state.keyboard_overlay_open() || state.fullscreen_stage_active() {
+    if state.window_keys_to_overlay() {
         return Some(KeyTarget::Overlay);
     }
     state.focused_surface_id(core).map(KeyTarget::Surface)

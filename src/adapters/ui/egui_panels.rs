@@ -146,7 +146,7 @@ pub fn draw_egui_panels(
     let focused_surface_id = state.focused_surface_id(engine);
     // 전체화면 무대도 함께 확인한다. 무대가 떠 있는 동안 그 뒤의 패널로 입력이 새면
     // 안 되기 때문이다.
-    let overlay_open = state.keyboard_overlay_open() || state.fullscreen_stage_active();
+    let overlay_open = state.window_keys_to_overlay();
     // OS 에서 끌어 오는 파일. 좌표는 물리 픽셀이라 egui 논리 포인트로 바꾼다.
     let ppp = ctx.pixels_per_point();
     let os_hover = state.drop_hover.as_ref().and_then(|h| {

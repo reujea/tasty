@@ -703,9 +703,8 @@ fn sync_webviews(
     // Native views are always above the wgpu render surface in OS z-order.
     let overlay_open = view.state.has_egui_overlay_open();
     // native 편집 키는 host 큐보다 먼저 실행되므로 키보드를 가져가는 overlay·전체화면 무대 상태를 bridge에 알린다.
-    view.webview_key_bridge.set_overlay_open(
-        view.state.keyboard_overlay_open() || view.state.fullscreen_stage_active(),
-    );
+    view.webview_key_bridge
+        .set_overlay_open(view.state.window_keys_to_overlay());
 
     // 호스트 키 설정 또는 plugin 명령·override의 revision이 바뀔 때만
     // native 콜백이 사용할 단축키 스냅샷을 다시 만든다.

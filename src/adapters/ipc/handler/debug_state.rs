@@ -30,7 +30,7 @@ pub(super) fn handle_ui_state(
     #[cfg(not(feature = "gui"))]
     let notification_panel_open = false;
     // 실제 단축키 처리와 같은 판정을 사용한다. 전체화면 무대는 오버레이보다 먼저 입력을 소비한다.
-    let keyboard_shortcuts_gated = state.fullscreen_stage_active() || state.keyboard_overlay_open();
+    let keyboard_shortcuts_gated = state.window_keys_to_overlay();
 
     // 차단 사유를 구별하도록 각 조건의 true/false도 반환한다.
     // 실제 입력 판정이 읽은 값을 그대로 보고해야 잘못된 상태도 진단할 수 있다.

@@ -169,7 +169,7 @@ fn os_level_ui_is_suppressed_during_a_stage() {
         .and_then(|rest| rest.split("\n    }\n").next())
         .expect("poll_outbound_drag 본문을 찾지 못했다");
     assert!(
-        poll.contains("if self.state.fullscreen_stage_active()")
+        poll.contains("if self.state.window_keys_to_overlay()")
             && poll.contains("self.cancel_outbound_drag();\n            return;"),
         "무대 중 네이티브 파일 드래그 억제가 사라졌다."
     );
@@ -263,11 +263,11 @@ fn fn_body<'a>(src: &'a str, signature: &str) -> &'a str {
     &src[open + 1..close]
 }
 
-/// 일반 키보드 오버레이 조건에는 무대가 포함되지 않아 IME 경로에서 별도로 확인해야 한다.
+/// IME 경로는 무대를 아는 정면 함수(`window_keys_to_overlay`)를 거쳐야 한다.
 #[test]
 fn ime_overlay_gate_knows_the_stage() {
     let src = read("src/view/main/ime.rs");
-    let expected = "    let overlay_open = w.state.keyboard_overlay_open() || w.state.fullscreen_stage_active();";
+    let expected = "    let overlay_open = w.state.window_keys_to_overlay();";
     assert!(
         src.contains(expected),
         "IME 의 `overlay_open` 이 무대를 보지 않는다 — 무대 중 IME Preedit/Commit 이 \
@@ -275,40 +275,44 @@ fn ime_overlay_gate_knows_the_stage() {
     );
 }
 
-/// 플러그인 단축키는 일반 키보드 처리 전에 실행되므로 무대 차단을 따로 적용한다.
+/// 플러그인 단축키는 일반 키보드 처리 전에 실행되므로 무대를 아는 정면 함수로 따로 막는다.
 #[test]
 fn plugin_shortcut_gate_knows_the_stage() {
     let src = read("src/app/plugin_glue/shortcut.rs");
-    let expected =
-        "        if main.state.keyboard_overlay_open() || main.state.fullscreen_stage_active() {";
+    let expected = "        if main.state.window_keys_to_overlay() {";
     assert!(
         src.contains(expected),
         "플러그인 단축키 경로에 무대 차단 조건이 없다. 일반 키보드 처리보다 먼저 실행되므로 여기서 별도로 막아야 한다."
     );
 }
 
-/// keyboard_overlay_open 호출을 찾아 무대 조건이 함께 있는지 확인한다.
-/// 창의 터미널 게이트(`window_holds_terminal_keys`)는 그 호출부 keyboard.rs 의 앞선 전용 무대 처리로 대신하므로 그
-/// 처리의 존재와 호출부가 그 게이트를 쓰는지를 확인한다.
-/// mouse_overlay_open과 has_egui_overlay_open은 정의에 무대 조건이 있어야 한다.
+/// 창 키 경로는 정면 함수 `window_keys_to_overlay`(본문이 무대를 함께 본다) 하나를 거친다. `keyboard_overlay_open`
+/// 을 직접 부르는 곳은 그 정면 함수와, 앞선 0단계 무대 게이트가 있는 창의 터미널 게이트(`window_holds_terminal_keys`)
+/// 둘뿐이어야 한다. mouse_overlay_open과 has_egui_overlay_open은 정의에 무대 조건이 있어야 한다.
 #[test]
 fn every_overlay_open_composite_is_stage_aware() {
-    const ALLOWED_WITHOUT_STAGE_TERM: &str = "src/state/popup_key_owner.rs";
+    const FRONT: &str = "fn window_keys_to_overlay(";
     const TERMINAL_GATE: &str = "fn window_holds_terminal_keys(";
     let mut files = Vec::new();
     collect_rs(&tasty_doc_guards::repo_root().join("src"), &mut files);
 
-    let mut seen = Vec::new();
+    let state = read("src/state.rs");
+    let front = fn_body(&state, FRONT);
+    assert!(
+        front.contains("self.keyboard_overlay_open() || self.fullscreen_stage_active()"),
+        "정면 함수가 무대를 함께 보지 않는다:\n{front}"
+    );
+
+    let mut direct = Vec::new();
+    let mut callers = Vec::new();
     for rel in &files {
         let src = read(rel);
         for (i, _) in src.match_indices(".keyboard_overlay_open()") {
-            let expr = enclosing_expr(&src, i);
-            seen.push(rel.clone());
             // 이 호출을 담은 함수.
-            let in_terminal_gate = src[..i]
-                .rfind("fn ")
-                .is_some_and(|f| src[f..i].starts_with(TERMINAL_GATE));
-            if rel == ALLOWED_WITHOUT_STAGE_TERM && in_terminal_gate {
+            let within = src[..i].rfind("fn ").map_or("", |f| &src[f..i]);
+            if within.starts_with(FRONT) {
+                direct.push(format!("{rel} front"));
+            } else if within.starts_with(TERMINAL_GATE) {
                 let keyboard = read("src/view/main/keyboard.rs");
                 assert!(
                     keyboard.contains("self.try_consume_fullscreen_stage_key(engine, event)")
@@ -317,18 +321,27 @@ fn every_overlay_open_composite_is_stage_aware() {
                         ),
                     "{rel}: 무대 항 없이 예외로 허용되던 근거(keyboard.rs 의 0단계 무대 게이트와 그 뒤 터미널 게이트)가 사라졌다."
                 );
-                continue;
+                direct.push(format!("{rel} terminal"));
+            } else {
+                direct.push(format!("{rel} other"));
             }
-            assert!(
-                expr.contains("fullscreen_stage_active()"),
-                "{rel}: keyboard_overlay_open 호출과 함께 무대 조건을 찾지 못했다. 무대 활성 조건을 추가하거나 앞선 별도 처리가 있다면 예외 근거를 기록한다.\n식:\n{expr}"
-            );
+        }
+        if src.contains(".window_keys_to_overlay()") {
+            callers.push(rel.clone());
         }
     }
-    seen.sort();
-    seen.dedup();
+    direct.sort();
     assert_eq!(
-        seen,
+        direct,
+        vec![
+            "src/state.rs front".to_string(),
+            "src/state/popup_key_owner.rs terminal".to_string(),
+        ],
+        "`keyboard_overlay_open()` 을 정면 함수 밖에서 부른다. 무대를 아는 `window_keys_to_overlay()` 를 쓴다."
+    );
+    callers.sort();
+    assert_eq!(
+        callers,
         vec![
             "src/adapters/ipc/handler/debug_state.rs".to_string(),
             "src/adapters/ui/egui_panels.rs".to_string(),
@@ -343,7 +356,7 @@ fn every_overlay_open_composite_is_stage_aware() {
             "src/view/main/ime.rs".to_string(),
             "src/view/main/plugin_surface_keys.rs".to_string(),
         ],
-        "`keyboard_overlay_open()` 호출부 집합이 바뀌었다. 새 지점이 생겼다면 \
+        "`window_keys_to_overlay()` 호출부 집합이 바뀌었다. 새 지점이 생겼다면 \
          docs/architecture/input-layer.md 의 열거도 함께 갱신하라."
     );
 
@@ -353,7 +366,6 @@ fn every_overlay_open_composite_is_stage_aware() {
             .contains("self.state.settings_open_requested || self.state.fullscreen_stage_active()"),
         "`mouse_overlay_open()` 정의에서 무대가 빠졌다 — 마우스 전 경로가 무대를 모르게 된다."
     );
-    let state = read("src/state.rs");
     let webview = fn_body(&state, "pub fn has_egui_overlay_open(&self) -> bool {");
     assert!(
         webview.contains("self.fullscreen_stage.is_some()"),
@@ -375,13 +387,6 @@ fn collect_rs(dir: &std::path::Path, out: &mut Vec<String>) {
             out.push(rel.to_string_lossy().replace('\\', "/"));
         }
     }
-}
-
-/// 대략적인 식 범위. 앞쪽은 ;·{·}, 뒤쪽은 ;·{에서 끊는다. 문자열·중괄호의 문법적 역할은 구별하지 않는다.
-fn enclosing_expr(src: &str, at: usize) -> &str {
-    let start = src[..at].rfind([';', '{', '}']).map_or(0, |i| i + 1);
-    let end = src[at..].find([';', '{']).map_or(src.len(), |i| at + i + 1);
-    &src[start..end]
 }
 
 /// 오버레이 조건의 매개변수마다 ui.state의 원인 필드가 있는지 대조한다. 무대 조건은 함수 밖에서 적용하므로 따로 확인한다.

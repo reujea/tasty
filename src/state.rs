@@ -572,6 +572,13 @@ impl RequestContext {
         address || self.keyboard_overlay_open_besides_html_address()
     }
 
+    /// 창의 키·IME 가 surface 가 아니라 오버레이(팝업·대화상자·주소 띠·전체화면 무대)로 가는지. 창 키 경로의 정면
+    /// 함수다. 창 키 처리(`view::main::keyboard`)만 앞선 0단계 무대 게이트 뒤라 `window_holds_terminal_keys` 를 쓴다.
+    #[cfg(any(feature = "gui", debug_assertions))]
+    pub(crate) fn window_keys_to_overlay(&self) -> bool {
+        self.keyboard_overlay_open() || self.fullscreen_stage_active()
+    }
+
     /// html 주소 띠를 뺀 나머지 입력 게이트(설정·입력 대화상자·popup·plugin popup 등)가 열렸는지.
     /// 주소 띠만 포커스를 가졌을 때 공통 새로고침을 그 surface 로 보낼지 정할 때 쓴다.
     #[cfg(any(feature = "gui", debug_assertions))]

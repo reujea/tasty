@@ -56,7 +56,7 @@ impl super::MainViewState {
     /// (`binds`: 키·IME)이면 그 키를 실은 그리기의 키 주인을 입력 시점에 묶는다. 보내지 않으면 `None`, 보내면 키
     /// 주인을 묶었는지다(묶었으면 그 그리기를 요청한다).
     pub(crate) fn window_feeds_egui(&mut self, egui_surface: bool, binds: bool) -> Option<bool> {
-        let overlay_open = self.keyboard_overlay_open() || self.fullscreen_stage_active();
+        let overlay_open = self.window_keys_to_overlay();
         if !(overlay_open || egui_surface) {
             return None;
         }

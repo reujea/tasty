@@ -183,7 +183,7 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 등록한다. host popup이 없거나 그 `z_seq`가 더 작으면 기본 미등록 경로를 쓴다.
 자세한 규칙은 [popup.md의 Host ↔ Plugin popup z-order](../design/systems/popup.md#host--plugin-popup-z-order)를 따른다.
 
-### `overlay_open` — 정의 3 개, 소비 지점 6 개
+### `overlay_open` — 정의 3 개
 
 "오버레이가 열려 있는가" 는 **하나의 판정이 아니다.** 이름과 모양이 비슷한 정의가 셋 있고,
 용도가 달라 조건도 다르다. **새 상태를 추가할 때는 세 정의를 각각 확인한다.
@@ -203,40 +203,26 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 
 **plugin egui-mesh popup 의 키보드 계층**: 이 popup 은 host `PopupManager` 소속이 아니라 `popups.has_focused()` 로 잡히지 않지만, 키보드 계층에서는 **focused host popup 과 동급**이다 — 열려 있으면 키/IME 가 egui 로 들어가고 터미널로는 안 간다. 그 **키와 IME 조합**은 `collect_mesh_popup_input` 이 `ctx.input` 에서 수집해 plugin 프로세스로 forward 하므로, 게이트가 닫혀 있으면 forward 소스가 비어 입력이 통째로 터미널로 전달된다. IME 는 조합 세션 네 단계를 모두 전달한다 — Commit 만 실으면 egui `TextEdit` 이 조합 결과를 조용히 버린다([egui-mesh-channel § 입력 게이트](../dev-guide/egui-mesh-channel.md)). 게이트 지점(winit 이벤트 핸들러)은 `PluginManager` 에 접근할 수 없어 `MainViewState.plugin_popup_open` 캐시를 읽는다 — 마우스 쪽 팝업 사각형과 같은 프레임 간 전달 패턴이다(위 "프레임 간 전달" 절). 같은 술어를 IME 라우팅(`view::main::ime`)과 plugin surface 단축키 게이트(`app::plugin_glue::shortcut`)도 공유한다. 예외는 `set_ime_allowed` 판정(`gfx/gpu.rs`) 하나 — plugin popup 은 host egui 위젯이 없어 IME 를 끄면 popup 안에서 조합 입력을 못 하게 되므로 제외한다. 겹친 popup 중 **누가** 키를 갖는지는 [popup.md § Host ↔ Plugin popup z-order](../design/systems/popup.md#host--plugin-popup-z-order) 의 Esc 소유권 규칙을 따른다.
 
-#### 무대는 어느 정의에도 자동으로 얹히지 않는다
+#### 무대는 창 키 경로의 정면 함수가 함께 본다
 
 `has_egui_overlay_open` 에 무대가 들어가 있어도 나머지 둘은 각자의 조건을 확인한다 — 그 함수의
-프로덕션 소비처는 WebView 표시 하나뿐이다. 게다가 `keyboard_overlay_open()` 은 **정의가
-하나인데 소비 지점이 열셋**이고, 그 열셋이 무대에 대해 같은 답을 필요로 하지 않는다. 그래서
-무대는 각 지점에서 명시적으로 판정한다. 아래 열다섯 곳이 전부다.
+프로덕션 소비처는 WebView 표시 하나뿐이다. `keyboard_overlay_open()` 에는 무대 항이 없다. 창 키 경로는
+그 술어를 직접 부르지 않고 정면 함수 `MainViewState::window_keys_to_overlay()`(`src/state.rs`, 본문
+`keyboard_overlay_open() || fullscreen_stage_active()`)를 부른다. 술어를 직접 부르는 곳은 아래 1·2 둘뿐이다.
 
-| # | 지점 | 무대 항 | 근거 |
+| # | 지점 | 무대 | 근거 |
 |---|------|--------|------|
-| 1 | `src/state/popup_key_owner.rs` `window_feeds_egui`(egui feed 게이트, 호출부 `src/view/main.rs`) | `\|\| fullscreen_stage_active()` | **방향이 반대**다. 무대 콘텐츠는 egui 위젯이라 키/IME 가 egui 입력 시스템에 들어가야 클릭·텍스트 입력을 처리할 수 있다. 여기는 "무대**로** 준다" |
+| 1 | `window_keys_to_overlay` 정의(`src/state.rs`) | 정의에 포함 | 아래 3의 지점이 모두 이 함수를 부른다 |
 | 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(터미널 포워딩 게이트, 호출부 `src/view/main/keyboard.rs`) | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
-| 3 | `src/view/main/ime.rs` | `\|\| fullscreen_stage_active()` | 필수. 무대만 떠 있으면 `keyboard_overlay_open()` 의 네 항이 전부 false 라 아무도 안 막고, 조합 중이던 IME 의 Commit 이 뒤 터미널 PTY로 전달된다 |
-| 4 | `src/app/plugin_glue/shortcut.rs` plugin 단축키 | `\|\| fullscreen_stage_active()` | 필수. 이 경로는 `dispatch_window_event_to_view` **이전에** 호출되므로(`src/app/event_handler.rs`) 2 의 0단계 게이트가 아예 도달하지 못한다 |
-| 5 | `src/app/webview_keys.rs` native webview 포워딩 키 | `\|\| fullscreen_stage_active()` | 필수. webview 자식 창에서 올라온 키는 winit `KeyboardInput` 경로를 타지 않아 2 의 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)) |
-| 6 | `mouse_overlay_open()` 정의 | 정의에 포함 | 마우스 다섯 호출부 전부가 이 하나를 본다 |
-| 7 | `has_egui_overlay_open()` 정의 | 정의에 포함 | WebView 가 무대 위로 뚫고 나오지 못하게 |
-| 8 | `src/adapters/ui/egui_panels.rs` explorer 타입어헤드 게이트 | `\|\| fullscreen_stage_active()` | 필수. 무대 콘텐츠는 1이 egui로 들여보낸 키를 쓰는데, 그 키가 같은 egui `Context`의 이벤트 큐에 들어가 뒤에 있는 explorer 패널에도 전달된다. 무대 항을 빼면 무대에서 입력한 글자가 뒤쪽 explorer의 선택을 움직인다 |
-| 9 | `src/adapters/ipc/handler/debug_state.rs` `ui.state` 의 `keyboard_shortcuts_gated` | `fullscreen_stage_active() \|\|` | 게이트가 아니라 게이트 상태를 보고하는 값이지만 무대 항이 필요하다. 이 필드는 단축키가 매처까지 도달했는지를 알려주는데, 무대가 떠 있으면 2의 0단계에서 먼저 소비한다. 무대 항을 빼면 무대 중에도 "막히지 않았다"고 보고해, 단축키가 왜 동작하지 않았는지 확인할 수 없게 된다 |
-| 10 | `src/view/main/file_drag.rs` `poll_outbound_drag` | `fullscreen_stage_active() \|\|` | 필수. 외부 앱으로 끌어내는 OS 드래그는 렌더한 오버레이로 덮을 수 없다. 무대나 키보드 오버레이가 떠 있으면 진행 중인 드래그를 취소하고 새 드래그를 시작하지 않는다 |
-| 11 | `src/adapters/ui/input/explorer_ime.rs` X11 조합 종료 키 소유권 | `\|\| fullscreen_stage_active()` | 무대·popup이 키를 받는 동안 배경 탐색기 목록이 raw 누름의 조합 소유권을 기록하거나 재전달 키를 소비하지 않는다. 주소 입력은 제외하며 Find에서는 조합 종료 Escape만 별도 소유권으로 소비한다. 탐색기 항목의 Rename popup은 현재 popup 순번·surface binding에 속한 비어 있지 않은 조합을 별도로 기록해, 그 조합 중 시작한 실제 Enter만 egui 전달 전에 소비한다. 새 실제 누름은 이전 소유권을 교체하므로, XIM이 종료 키를 재전달하지 않아도 다음 Enter를 차단하지 않는다. 다른 popup·이름 변경 대상·편집 키에는 적용하지 않는다 |
-| 12 | `src/app/webview_sync.rs` native 편집 키 차단 상태 | `\|\| fullscreen_stage_active()` | 필수. native WebView 콜백은 편집 바인딩을 host 큐보다 먼저 실행하므로 5 의 게이트를 거치지 않는다. 프레임 동기화가 이 값을 key bridge 에 알려 무대·popup 중에는 편집 키를 실행하지 않는다([WebView 편집 액션](../design/systems/webview.md#편집-액션)) |
-| 13 | `src/view/main/edit_keys.rs` 편집 키 판정 대상 | `\|\| fullscreen_stage_active()` | 필수. 무대 콘텐츠도 1이 egui로 들여보내는 host 입력칸이라, 편집 바인딩을 egui-winit보다 먼저 판정해야 한 키가 두 번 동작하지 않는다([편집 키 판정](../design/policies/key-mapping.md#편집-키-판정)) |
-| 14 | `src/view/main/plugin_surface_keys.rs` 플러그인 surface 편집 키 판정 대상 | `\|\| fullscreen_stage_active()` | 필수. 무대가 키를 받는 동안 뒤의 플러그인 surface 가 편집 바인딩을 판정하면 무대 입력칸의 편집 키를 플러그인 요청으로 가져간다. 같은 술어가 보류 대상의 키 소유 판정(`plugin_surface_key_target`)도 정한다([플러그인 입력칸](../design/policies/key-mapping.md#플러그인-입력칸)) |
-| 15 | `src/adapters/ui/popup/route.rs` `keyboard_target` | `\|\| fullscreen_stage_active()` | 키가 갈 곳을 한 값으로 돌려준다. 무대가 떠 있으면 2 의 0단계 게이트가 키를 먼저 소비하므로 같은 답(`Overlay`)을 내야 한다. 무대 항을 빼면 무대 중에도 포커스된 surface 를 답한다 |
+| 3 | 정면 함수를 부르는 곳: `window_feeds_egui`(egui feed 게이트, `src/state/popup_key_owner.rs`), IME(`src/view/main/ime.rs`), plugin 단축키(`src/app/plugin_glue/shortcut.rs`), native webview 포워딩 키(`src/app/webview_keys.rs`), explorer 타입어헤드(`src/adapters/ui/egui_panels.rs`), `ui.state` 의 `keyboard_shortcuts_gated`(`src/adapters/ipc/handler/debug_state.rs`), 외부 끌어내기(`src/view/main/file_drag.rs` `poll_outbound_drag`), X11 조합 종료 키 소유권(`src/adapters/ui/input/explorer_ime.rs`), native 편집 키 차단 상태(`src/app/webview_sync.rs`), 편집 키 판정(`src/view/main/edit_keys.rs`), 플러그인 surface 편집 키(`src/view/main/plugin_surface_keys.rs`), `keyboard_target`(`src/adapters/ui/popup/route.rs`) | 정면 함수 | egui feed 는 방향이 반대다(무대 콘텐츠는 egui 위젯이라 키가 egui 로 가야 한다). IME 는 무대만 떠 있으면 조합 Commit 이 터미널로 샌다. plugin 단축키·webview 키·native 편집 키는 `dispatch_window_event_to_view` 이전이나 밖에서 돌아 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)). 타입어헤드·편집 키·플러그인 surface 편집 키는 무대에 들어간 키가 뒤쪽 화면에서 다시 쓰이지 않게 한다. 끌어내기는 OS 드래그라 렌더한 오버레이로 덮을 수 없어 취소한다. 보고 값은 무대 중에 "막히지 않았다"고 보고하지 않게 한다 |
+| 4 | `mouse_overlay_open()` 정의 | 정의에 포함 | 마우스 다섯 호출부 전부가 이 하나를 본다 |
+| 5 | `has_egui_overlay_open()` 정의 | 정의에 포함 | WebView 가 무대 위로 뚫고 나오지 못하게 |
 
-1·3·4·5·8·11·12·13·14·15 가 같은 항을 각자 OR 하는 모양이라 "`keyboard_overlay_open()` 정의 안으로 넣으면
-되지 않나" 가 자연스러운 질문이다. 넣지 않은 이유는 2 다 — 그 지점은 무대에 대해 다른
-답(0단계 게이트가 이미 처리)을 쓰고 있고, 정의를 바꾸면 이 술어의 의미가 "키보드 오버레이"
-에서 "키보드 오버레이 또는 무대" 로 넓어져 앞으로의 호출자에게도 그 결정이 따라붙는다.
-대신 **빠진 호출자는 테스트로 찾는다** — `crates/tasty-doc-guards/tests/fullscreen_stage_input_gate.rs` 의
-`every_overlay_open_composite_is_stage_aware` 가 `keyboard_overlay_open()` 호출부를 소스에서
-기계적으로 전부 찾아 (a) 각각이 무대를 아는지, (b) 지점 집합이 위 표와 같은지를 확인한다.
-새 호출부가 생기면 그 테스트가 실패하고, 그때 이 표도 함께 갱신한다. 2 의 예외도 그
-테스트가 "0단계 게이트가 유지되는가" 로 함께 검증한다.
+무대를 `keyboard_overlay_open()` 안에 넣지 않은 이유는 2 다 — 그 지점은 무대에 대해 다른
+답(0단계 게이트가 이미 처리)을 쓴다. `crates/tasty-doc-guards/tests/fullscreen_stage_input_gate.rs` 의
+`every_overlay_open_composite_is_stage_aware` 가 (a) 정면 함수 본문이 무대를 보는지, (b) 술어를 직접 부르는
+곳이 1·2뿐인지, (c) 정면 함수 호출부 집합이 3과 같은지를 소스에서 확인한다. 새 호출부가 생기면 그 테스트가
+실패하고, 그때 이 표도 함께 갱신한다. 2 의 예외도 그 테스트가 "0단계 게이트가 유지되는가" 로 함께 검증한다.
 
 알려진 미해소 사안: popup 바깥 클릭이 popup 을 닫으면서, 그 클릭이 겨냥한 하위 액션도 같은 클릭에서 함께 발생한다. 닫힘만 소비하고 액션을 막을지는 UX 판단이 필요해 별개 사안으로 분리돼 있다.
 

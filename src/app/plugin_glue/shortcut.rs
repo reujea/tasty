@@ -205,7 +205,7 @@ impl App {
             return false;
         };
         // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다.
-        if main.state.keyboard_overlay_open() || main.state.fullscreen_stage_active() {
+        if main.state.window_keys_to_overlay() {
             return false;
         }
         // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이다. winit 키는 지금의 대상이다.
