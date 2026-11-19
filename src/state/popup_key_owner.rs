@@ -20,8 +20,7 @@ impl super::MainViewState {
     /// 그리는 중 키로 닫힌 host 팝업(Escape 로 닫은 팔레트)이 받은 키를 같은 프레임에 아래 plugin 팝업이 다시
     /// 받지 않게 한다.
     pub(crate) fn plugin_popup_key_target_in_render(&self) -> Option<u64> {
-        let drawn = self.host_popup_hittest.iter().map(|h| h.z_seq);
-        plugin_target(self.key_owner_with(drawn))
+        plugin_target(self.key_owner_with(self.host_popup_drawn_key_z.into_iter()))
     }
 
     /// 키 주인 팝업의 논리 범위. host 는 포커스를 가진 맨 위 인스턴스, plugin 은 선언·결속으로 정한 범위다.
@@ -56,7 +55,8 @@ impl super::MainViewState {
     fn key_owner_with(&self, drawn_host: impl Iterator<Item = u64>) -> Option<PopupKeyOwner> {
         let host = self
             .popups
-            .visible_open_z_seqs()
+            .host_key_owner_z()
+            .into_iter()
             .chain(drawn_host)
             .map(|z_seq| KeyCandidate {
                 z_seq,
@@ -130,13 +130,10 @@ mod tests {
         let mut state = state_with_host_popup();
         let plugin_z = tasty_host_plugin::next_popup_z_seq();
         state.plugin_popup_key_candidates = vec![(42, plugin_z)];
-        state.host_popup_hittest = vec![crate::adapters::ui::popup::occlusion::Occluder {
-            rect: egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(10.0, 10.0)),
-            z_seq: tasty_host_plugin::next_popup_z_seq(),
-        }];
+        state.host_popup_drawn_key_z = Some(tasty_host_plugin::next_popup_z_seq());
         assert_eq!(state.plugin_popup_key_target_in_render(), None);
         assert_eq!(state.plugin_popup_key_target(), Some(42));
-        state.host_popup_hittest.clear();
+        state.host_popup_drawn_key_z = None;
         assert_eq!(state.plugin_popup_key_target_in_render(), Some(42));
     }
 
@@ -163,6 +160,58 @@ mod tests {
         assert!(
             state.popups.plugin_expanded().contains(&42),
             "plugin 팝업은 그 프레임 렌더가 접는다"
+        );
+    }
+
+    /// Claude 2회차 판단필요 2 장면. Given L 범위에 포커스된 host 팝업, 그 위에 펼친 plugin 팝업(file-open),
+    /// 맨 위에 그 plugin 팝업이 연 passive 피커가 있을 때, Then passive 피커는 키를 받지 않으므로 키 주인은 펼친
+    /// plugin 팝업이다. When Esc 의 다시 접기를 하면, Then 소비되고 L 팝업은 열린 채 포커스도 그대로다. 일반 Esc
+    /// 대상과 다시 접기 대상도 같은 host 후보(L 팝업)라 passive 피커를 고르지 않는다.
+    #[cfg(feature = "gui")]
+    #[test]
+    fn a_passive_picker_on_top_takes_no_keys_and_escape_never_reaches_the_popup_below() {
+        let mut state = state_with_host_popup();
+        state.popups.register(PopupState::new(
+            "picker",
+            "Picker".to_string(),
+            egui::vec2(200.0, 100.0),
+            crate::model::popup_kind::PopupScope::Window,
+        ));
+        let below = state
+            .popups
+            .open_request(
+                &crate::intent::OpenRequest::new("host_popup", PopupScope::Surface(1)).focused(),
+                true,
+            )
+            .unwrap();
+        let plugin_z = tasty_host_plugin::next_popup_z_seq();
+        state.plugin_popup_key_candidates = vec![(7, plugin_z)];
+        state.popups.expand_plugin(7);
+        let picker = state
+            .popups
+            .open_request(
+                &crate::intent::OpenRequest::new("picker", PopupScope::Surface(2)),
+                false,
+            )
+            .unwrap();
+        assert!(!state.popups.instance(picker).unwrap().focused);
+        assert_eq!(
+            state.popup_key_owner(),
+            Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(7))
+        );
+        assert_eq!(
+            state.popups.host_key_owner().map(|p| p.instance),
+            Some(below),
+            "다시 접기·일반 Esc 의 host 대상도 passive 피커가 아니다"
+        );
+        assert!(
+            state.refold_key_owner(),
+            "펼친 plugin 키 주인이 Esc 를 소비한다"
+        );
+        let p = state.popups.instance(below).unwrap();
+        assert!(
+            p.open && p.focused,
+            "아래 L 팝업은 닫히지 않고 포커스도 그대로다"
         );
     }
 }

@@ -160,12 +160,8 @@ fn a_listing_reply_reaches_only_the_picker_that_asked() {
 }
 
 /// 왼쪽·오른쪽 surface에 (폴더 모드) 피커를 열고 한 프레임에 둘 다 그리며 키 하나를 넣는다.
-/// Escape 소유자는 `owner` 번째 피커다. 피커마다 그리기 결과를 돌려준다.
-fn draw_two_pickers_with_key(
-    key: egui::Key,
-    focused: [bool; 2],
-    owner: usize,
-) -> [&'static str; 2] {
+/// `keys`는 피커마다 본문이 키 주인(`PopupCx::focused`)인지다. 피커마다 그리기 결과를 돌려준다.
+fn draw_two_pickers_with_key(key: egui::Key, keys: [bool; 2]) -> [&'static str; 2] {
     use crate::adapters::ui::popup::{PopupCx, PopupPayload};
     crate::i18n::init("en");
     let (mut state, mut session) = crate::state::tests::two_pane_fixture();
@@ -192,7 +188,6 @@ fn draw_two_pickers_with_key(
         .collect();
     iids.sort();
     assert_eq!(iids.len(), 2);
-    state.popup_escape_owner = Some(iids[owner]);
     let mut payloads: Vec<PopupPayload> = iids
         .iter()
         .map(|iid| {
@@ -231,7 +226,7 @@ fn draw_two_pickers_with_key(
                     let mut cx = PopupCx {
                         id: crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID,
                         instance: iids[i],
-                        focused: focused[i],
+                        focused: keys[i],
                         payload,
                     };
                     let action = crate::adapters::ui::popup::file_picker::draw_file_picker(
@@ -251,19 +246,19 @@ fn draw_two_pickers_with_key(
     results
 }
 
-/// Given 두 범위에 피커가 보이고 위의 피커가 포커스를 가졌을 때, When Escape나 폴더 모드 Enter를 누르면,
-/// Then 그 피커만 반응한다. 포커스가 없는 소유자나 소유자가 아닌 포커스 피커는 반응하지 않는다.
+/// Given 두 범위에 피커가 보이고 위의 피커가 키 주인일 때, When Escape나 폴더 모드 Enter를 누르면,
+/// Then 그 피커만 반응한다. 키 주인이 없으면 어느 피커도 반응하지 않는다.
 #[test]
-fn only_the_focused_topmost_picker_reads_keys() {
+fn only_the_key_owner_picker_reads_keys() {
     for key in [egui::Key::Escape, egui::Key::Enter] {
-        let [below, above] = draw_two_pickers_with_key(key, [false, true], 1);
+        let [below, above] = draw_two_pickers_with_key(key, [false, true]);
         assert_eq!(below, "none", "{key:?}");
         assert_ne!(above, "none", "{key:?}");
         if key == egui::Key::Escape {
             assert_eq!(above, "escape", "the close reason is escape");
         }
         assert_eq!(
-            draw_two_pickers_with_key(key, [true, false], 1),
+            draw_two_pickers_with_key(key, [false, false]),
             ["none", "none"],
             "{key:?}"
         );

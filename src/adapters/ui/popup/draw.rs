@@ -190,13 +190,13 @@ impl PopupManager {
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_released = ctx.input(|i| i.pointer.primary_released());
 
-        // 그리기 함수가 보는 포커스는 이번 프레임의 클릭을 반영하기 전 값이다.
-        let focused_at_start: Vec<PopupInstanceId> = self
-            .popups
-            .iter()
-            .filter(|p| p.open && p.scope_visible && p.focused)
-            .map(|p| p.instance)
-            .collect();
+        // 본문이 키를 받는 인스턴스는 키 주인 하나다. 이번 프레임의 클릭을 반영하기 전 값이고, plugin 팝업이 키
+        // 주인이면 없다. 포커스 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
+        let key_owner_z = self.host_key_owner().map(|p| p.z_seq);
+        let keys_at_start: Option<PopupInstanceId> = self
+            .host_key_owner()
+            .filter(|_| !self.plugin_holds_keys)
+            .map(|p| p.instance);
 
         // Hidden scopes retain focus intent, but cannot hold the keyboard gate or
         // continue a pointer gesture started before the scope disappeared.
@@ -468,8 +468,12 @@ impl PopupManager {
 
         // 불투명 모드 WebView 페이지(직전 동기화 값). 비어 있으면 모든 팝업이 원래 모양이다.
         let pages = tasty_egui_theme::overlay_edge::opaque_pages(ctx);
-        // 키 주인(맨 위 포커스 인스턴스). 포커스 가장자리와 접힌 버튼의 Enter·Space가 이 하나에만 간다.
-        let key_owner = self.focused_dismissal_target().map(|(_, iid, _)| iid);
+        // 키 주인(host_key_owner, plugin 팝업이 키 주인이면 없음). 포커스 가장자리와 접힌 버튼의 Enter·Space가 이
+        // 하나에만 간다.
+        let key_owner = self
+            .host_key_owner()
+            .filter(|_| !self.plugin_holds_keys)
+            .map(|p| p.instance);
         let mut expand_requested: Option<PopupInstanceId> = None;
         let mut refold_requested: Option<PopupInstanceId> = None;
         for &popup_idx in &open_indices {
@@ -765,7 +769,7 @@ impl PopupManager {
                                 let mut cx = PopupCx {
                                     id: popup.id,
                                     instance: popup.instance,
-                                    focused: focused_at_start.contains(&popup.instance),
+                                    focused: keys_at_start == Some(popup.instance),
                                     payload: &mut popup.payload,
                                 };
                                 content_fn(&mut cx, ui)
@@ -854,6 +858,7 @@ impl PopupManager {
             layers: focus_layers,
             fullscreen_requested,
             hit_rects,
+            key_owner_z,
             overlay_targets,
             column_rect,
             released,

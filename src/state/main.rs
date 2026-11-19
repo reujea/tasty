@@ -157,9 +157,10 @@ pub struct MainViewState {
     /// winit 이 누름을 처리할 때 남긴 누르기 직전 포커스. 그 누름을 처리한 egui 프레임이 끝나면 비운다.
     #[cfg(feature = "gui")]
     pub(crate) press_snapshot: Option<crate::adapters::ui::popup::route::PressSnapshot>,
-    /// host/plugin 전체에서 최상단이 호스트 팝업일 때 그 인스턴스. 해당 인스턴스만 Escape를 처리한다.
+    /// 이번 프레임 host 팝업을 그리기 시작할 때 키를 받을 수 있던 host 인스턴스(`PopupManager::host_key_owner`)의
+    /// 순번. 그리는 중 닫혀도 뒤에 그리는 plugin 팝업 렌더가 그 프레임의 키 주인을 같은 값으로 판정한다.
     #[cfg(feature = "gui")]
-    pub(crate) popup_escape_owner: Option<crate::adapters::ui::popup::PopupInstanceId>,
+    pub(crate) host_popup_drawn_key_z: Option<u64>,
     /// 이전 프레임 플러그인 팝업의 셸 rect와 z_seq. 호스트를 먼저 그리므로 입력 판정에
     /// 한 프레임 전 값을 사용한다. 콘텐츠의 물리 rect인 plugin_mesh_popup_regions와 다르다.
     #[cfg(feature = "gui")]

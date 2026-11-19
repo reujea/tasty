@@ -170,3 +170,61 @@ fn a_passive_promotion_leaves_a_hidden_sibling_focused_and_makes_the_promoted_on
         Some(b)
     );
 }
+
+/// 두 범위가 모두 보이는 배치로 키 하나를 넣은 프레임을 그리고, 본문이 키를 받은(`PopupCx::focused`) 인스턴스를
+/// 돌려준다.
+fn instances_reading_keys(mgr: &mut PopupManager) -> Vec<PopupInstanceId> {
+    let ctx = egui::Context::default();
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1920.0, 1080.0),
+        )),
+        events: vec![egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: Some(egui::Key::Enter),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+        ..Default::default()
+    };
+    let layout = layout_showing(&[1, 2]);
+    let mut readers = Vec::new();
+    drop(ctx.run(raw, |ctx| {
+        mgr.draw(
+            ctx,
+            &mut |cx, ui| {
+                if cx.focused && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    readers.push(cx.instance);
+                }
+            },
+            Some(&layout),
+            &[],
+        );
+    }));
+    readers
+}
+
+/// Given 두 범위에 포커스를 유지한 host 팝업이 하나씩 있을 때, When 키를 넣으면, Then 본문은 키 주인(맨 위) 하나만
+/// 그 키를 처리한다. When plugin 팝업이 키 주인이면, Then 어느 host 본문도 키를 받지 않는다.
+#[test]
+fn only_the_key_owner_body_reads_keys_while_other_scopes_keep_focus() {
+    let mut mgr = manager();
+    let first = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(1)).focused(),
+            true,
+        )
+        .unwrap();
+    let second = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(2)).focused(),
+            true,
+        )
+        .unwrap();
+    assert_eq!(focused_instances(&mgr), [first, second]);
+    assert_eq!(instances_reading_keys(&mut mgr), [second]);
+    mgr.set_plugin_holds_keys(true);
+    assert!(instances_reading_keys(&mut mgr).is_empty());
+}

@@ -234,14 +234,13 @@ pub(crate) fn draw_popup_layer(
     // intent-exempt: 범위 대상이나 작용 대상이 사라진 팝업의 수명 정리. 포커스·선택은 바꾸지 않는다.
     close_orphans(state, engine);
 
-    // host·plugin 중 최상단 팝업 하나가 Escape를 처리한다. plugin 순번은 직전 프레임
-    // 값이므로 plugin 팝업을 처음 연 프레임에는 host가 대상으로 남을 수 있다.
-    let plugin_top_z = state.plugin_popup_hittest.iter().map(|o| o.z_seq).max();
-    state.popup_escape_owner = state
-        .popups
-        .topmost_visible_open(Some(draw_ctx))
-        .filter(|(_, _, z)| plugin_top_z.is_none_or(|pz| *z > pz))
-        .map(|(_, iid, _)| iid);
+    // 키(Escape 포함)는 host·plugin 을 합친 키 주인 하나만 받는다. plugin 팝업이 키 주인이면 host 팝업 본문은
+    // 키를 받지 않는다. plugin 후보는 직전 프레임 값이다.
+    let plugin_holds_keys = matches!(
+        state.popup_key_owner(),
+        Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))
+    );
+    state.popups.set_plugin_holds_keys(plugin_holds_keys);
 
     let mut popups = std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
 
@@ -283,6 +282,7 @@ pub(crate) fn draw_popup_layer(
     // egui_bridge가 최종 레이어 순서를 정할 때 사용한다.
     state.popup_layers = draw_result.layers;
     state.host_popup_hittest = draw_result.hit_rects;
+    state.host_popup_drawn_key_z = draw_result.key_owner_z;
     // 대상 목록은 host 팝업이 먼저 채우고 plugin 팝업·드롭다운이 뒤에 더한다.
     state
         .webview_overlay

@@ -22,11 +22,25 @@ impl PopupManager {
     /// Escape 대상인 포커스된 인스턴스 하나와 바깥 클릭 시 닫기 여부를 반환한다. 포커스된 인스턴스가
     /// 여럿이면 맨 위 것이다. Escape에는 좌표가 없으므로 바깥 클릭처럼 여러 팝업을 한꺼번에 닫지 않는다.
     pub fn focused_dismissal_target(&self) -> Option<(PopupId, PopupInstanceId, bool)> {
+        self.host_key_owner()
+            .map(|p| (p.id, p.instance, p.close_on_outside_click))
+    }
+
+    /// 키를 받을 수 있는 맨 위 host 인스턴스: 열려 있고 범위가 보이며 포커스를 가졌다. 포커스 없는(passive 포함)
+    /// 인스턴스와 부모 버튼이 대표하는(그리지 않는) 자식은 키를 받지 않으므로 빠진다. 창의 키 주인
+    /// (`MainViewState::popup_key_owner`)의 host 후보, 다시 접기 대상, 일반 Esc 대상, 본문에 키를 주는 인스턴스가
+    /// 모두 이 값이다. 새로 연 팝업은 그리기 전에도 보이는 것으로 친다.
+    pub(crate) fn host_key_owner(&self) -> Option<&super::PopupState> {
         self.popups
             .iter()
             .filter(|p| p.open && p.scope_visible && p.focused)
+            .filter(|p| p.display != super::display::PopupDisplay::Collapsed(None))
             .max_by_key(|p| p.z_seq)
-            .map(|p| (p.id, p.instance, p.close_on_outside_click))
+    }
+
+    /// [`Self::host_key_owner`]의 순번.
+    pub(crate) fn host_key_owner_z(&self) -> Option<u64> {
+        self.host_key_owner().map(|p| p.z_seq)
     }
 
     /// 이 선언의 키보드 포커스 플래그를 바꾼다. 켤 때는 맨 위 인스턴스에만, 끌 때는 모든 인스턴스에서 끈다.

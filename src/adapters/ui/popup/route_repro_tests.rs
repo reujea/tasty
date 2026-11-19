@@ -345,7 +345,8 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
         .get_mut(FILE_PICKER_POPUP_ID)
         .map(|p| p.instance);
     assert_ne!(
-        state.popup_escape_owner, picker,
+        state.popups.host_key_owner().map(|p| p.instance),
+        picker,
         "포커스 경로에 없는 R 피커가 Escape 를 받는다"
     );
 }

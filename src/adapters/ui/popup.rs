@@ -240,6 +240,8 @@ pub struct PopupDrawResult {
     /// 실제 그린 팝업의 영역과 z_seq. plugin 팝업이 위에 덮인 host 팝업을 판별할 때 쓴다.
     /// 숨겨진 팝업은 마우스 입력을 가로채지 않도록 제외한다.
     pub hit_rects: Vec<occlusion::Occluder>,
+    /// 그리기를 시작할 때 키를 받을 수 있던 host 인스턴스의 순번(`PopupManager::host_key_owner`).
+    pub key_owner_z: Option<u64>,
     /// 보이는 덮는 팝업의 덮는 사각형과 z_seq. 포인터 대상 찾기가 그 아래로 내려가지 않는다.
     pub covers: Vec<occlusion::Occluder>,
     /// native WebView 위에 합성할 대상(non-passive 팝업). passive 팝업은 들어 있지 않다.
@@ -863,8 +865,11 @@ pub struct PopupManager {
     driven: Vec<(PopupId, open_when::DrivenOpen)>,
     /// 안내 열의 자리. 호출자가 프레임마다 정한다.
     notice_column: Option<NoticeColumn>,
-    /// plugin 팝업의 표시 상태와 다시 접기 요청(`display.rs`).
+    /// plugin 팝업의 펼침과 표시 상태(`display.rs`).
     plugin_parents: display::PluginParents,
+    /// 이번 프레임 키 주인이 plugin 팝업인지. 호출자가 그리기 전에 정한다. 참이면 host 팝업 본문은 키를 받지
+    /// 않는다.
+    plugin_holds_keys: bool,
 }
 
 impl PopupManager {
@@ -875,6 +880,7 @@ impl PopupManager {
             driven: Vec::new(),
             notice_column: None,
             plugin_parents: Default::default(),
+            plugin_holds_keys: false,
         }
     }
 
@@ -1282,16 +1288,10 @@ impl PopupManager {
             .map(|p| p.popup_rect())
     }
 
-    /// 열려 있고 직전 그리기에서 범위가 보인 팝업의 순번. 새로 연 팝업은 그리기 전에도 보이는 것으로
-    /// 친다. 키를 받을 팝업을 고르는 판정(`occlusion::key_owner`)의 host 후보다. 포커스를 받지 않는
-    /// 팝업은 키를 받지 않으므로 뺀다.
-    pub(crate) fn visible_open_z_seqs(&self) -> impl Iterator<Item = u64> + '_ {
-        self.popups
-            .iter()
-            .filter(|p| p.open && p.scope_visible && p.arrange.takes_focus)
-            // 부모 버튼이 대표하는(그리지 않는) 자식은 키를 받지 않는다. 보이는 버튼이 받는다.
-            .filter(|p| p.display != display::PopupDisplay::Collapsed(None))
-            .map(|p| p.z_seq)
+    /// 이번 프레임 키 주인이 plugin 팝업인지 적는다. 그리기 전에 호출자가 `MainViewState::popup_key_owner`로
+    /// 정한다.
+    pub(crate) fn set_plugin_holds_keys(&mut self, plugin_holds_keys: bool) {
+        self.plugin_holds_keys = plugin_holds_keys;
     }
 
     /// 열린 팝업의 범위. 닫혀 있으면 `None`이다. 인스턴스가 여럿이면 맨 위 것이다.
@@ -1436,6 +1436,7 @@ mod tests {
             driven: Vec::new(),
             notice_column: None,
             plugin_parents: Default::default(),
+            plugin_holds_keys: false,
         }
     }
 
@@ -1447,19 +1448,21 @@ mod tests {
         p
     }
 
-    /// 숨은 범위의 열린 팝업과 닫힌 팝업은 키 후보가 아니다. 순번이 더 커도 아래의 보이는 팝업이
-    /// 키를 받는다.
+    /// 숨은 범위의 열린 팝업, 닫힌 팝업, 포커스 없는(passive 포함) 팝업은 키 후보가 아니다. 순번이 더 커도
+    /// 아래의 보이는 포커스 팝업이 키를 받는다.
     #[test]
-    fn hidden_or_closed_popups_are_not_key_candidates() {
-        let mut shown = entry("shown", true, false, false);
+    fn hidden_closed_or_unfocused_popups_are_not_key_candidates() {
+        let mut shown = entry("shown", true, true, false);
         shown.z_seq = 1;
-        let mut hidden = entry("hidden", true, false, false);
+        let mut hidden = entry("hidden", true, true, false);
         hidden.z_seq = 5;
         hidden.scope_visible = false;
-        let mut closed = entry("closed", false, false, false);
+        let mut closed = entry("closed", false, true, false);
         closed.z_seq = 9;
-        let m = managed(vec![shown, hidden, closed]);
-        assert_eq!(m.visible_open_z_seqs().collect::<Vec<_>>(), vec![1]);
+        let mut passive = entry("passive", true, false, false);
+        passive.z_seq = 11;
+        let m = managed(vec![shown, hidden, closed, passive]);
+        assert_eq!(m.host_key_owner().map(|p| p.id), Some("shown"));
     }
 
     #[test]
