@@ -1,7 +1,10 @@
 //! 창의 키 처리(egui 전달 게이트 `window_feeds_egui`, Esc 처리 `window_escape`, 터미널 게이트
 //! `window_holds_terminal_keys`)를 거친 키를 실은 프레임은 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌
-//! 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다. 창 호출부가 이 함수들을 그대로 쓰는지는
-//! `source_guards::window_key_gate_call_sites` 가 본다.
+//! 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다.
+//!
+//! 이 시험들은 창(winit·GPU)을 띄우지 않고 창과 같은 판정 함수로 키를 보낸다. 판정 함수 안의 변이는 이 장면 시험이
+//! 잡는다. 창 호출부(`view::main::feed_egui_keyboard`, `keyboard::handle_keyboard_input`)가 그 함수를 거치지 않고
+//! 키를 보내는 우회는 이 시험이 잡지 못하고 소스 가드 `source_guards::window_key_gate_call_sites` 가 잡는다.
 
 use super::*;
 use crate::adapters::ui::LayoutContext;
@@ -35,7 +38,7 @@ fn layout() -> LayoutContext {
 
 /// 창이 키 사건 하나를 받는 경로(`view::main::feed_egui_keyboard` → `keyboard::handle_keyboard_input`)를 창과 같은
 /// 판정 함수로 밟는다. egui 로 보낼 키만 `pending`(그 키를 실은 프레임의 egui 입력)에 싣고, Esc 는 창의 Esc 처리를
-/// 거친다. 터미널(PTY)로 가면 참이다.
+/// 거친다. 터미널(PTY)로 가면 참이다. 창 호출부를 부르지 않으므로 호출부 우회는 소스 가드 몫이다.
 fn window_key(
     state: &mut RequestContext,
     pending: &mut Vec<egui::Event>,
@@ -326,8 +329,9 @@ fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
 }
 
 /// Given 팝업이 X 하나뿐일 때, When 창이 Esc 로 X 의 포커스를 푼 뒤 같은 프레임에 Enter 가 오면, Then 창의 터미널
-/// 게이트(`keyboard_overlay_open`)는 그 프레임 동안 닫혀 있어 Enter 가 터미널로 가지 않는다. 그 프레임을 그린 뒤에는
-/// 열린다.
+/// 게이트(`window_holds_terminal_keys`)는 그 프레임 동안 닫혀 있어 Enter 가 터미널로 가지 않는다. 그 프레임을 그린
+/// 뒤에는 열린다. 판정 함수(`window_feeds_egui`·`window_holds_terminal_keys`)의 변이는 이 시험이 잡고, 창 호출부가
+/// 그 함수를 우회하는 변이는 `source_guards::window_key_gate_call_sites` 가 잡는다.
 #[test]
 fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() {
     crate::i18n::init("en");
