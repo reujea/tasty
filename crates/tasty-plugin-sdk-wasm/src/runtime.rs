@@ -3,8 +3,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use wasmtime::Result;
 use wasmtime::component::{Component, Linker};
+use wasmtime::error::Context;
 use wasmtime::{Config, Engine, Store};
 
 use crate::bridge::HostBridge;
@@ -23,7 +24,6 @@ impl WasmPluginRuntime {
     ) -> Result<Self> {
         let mut config = Config::new();
         config.wasm_component_model(true);
-        config.async_support(false);
         let engine = Engine::new(&config).context("wasmtime engine create")?;
 
         let component = Component::from_file(&engine, component_path.as_ref())
@@ -59,7 +59,6 @@ impl WasmPluginRuntime {
         typed
             .call(&mut self.store, (plugin_id.into(), locale.into()))
             .context("call init")?;
-        typed.post_return(&mut self.store).ok();
         Ok(())
     }
 
@@ -81,7 +80,6 @@ impl WasmPluginRuntime {
         let (out,) = typed
             .call(&mut self.store, (arg.into(),))
             .with_context(|| format!("call {name}"))?;
-        typed.post_return(&mut self.store).ok();
         Ok(out)
     }
 
