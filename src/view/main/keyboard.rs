@@ -265,7 +265,9 @@ impl MainView {
                         .from_user_shortcut("escape_dismiss_focused_popup"),
                     );
                 }
-                self.drop_escape_from_egui();
+                // 이 Esc 는 입력 시점의 키 주인 본문에 남긴다(하위 화면이면 목록으로 돌아간다). 그 본문이 닫혔거나
+                // 포커스를 잃어도 새로 키 주인이 된 다른 범위 팝업은 같은 Esc 를 읽지 않는다.
+                self.state.popups.bind_input_key_owner(instance);
                 self.mark_dirty();
                 return true;
             }
@@ -273,8 +275,8 @@ impl MainView {
         false
     }
 
-    /// 창이 처리한 Esc 를 이번 egui 입력에서 뺀다. 키는 처리한 노드에서 멈추므로, 창이 키 주인을 닫거나 포커스를
-    /// 푼 뒤 그 프레임에 새로 키 주인이 된 다른 팝업 본문이 같은 Esc 를 다시 읽지 않는다.
+    /// 창이 처리를 끝낸 Esc(설정 요청 취소, host 키 주인의 다시 접기, 알림 목록 닫기)를 이번 egui 입력에서 뺀다.
+    /// 키는 처리한 노드에서 멈추므로 그 프레임의 어느 본문도 같은 Esc 를 다시 읽지 않는다.
     fn drop_escape_from_egui(&mut self) {
         self.base.gpu.egui_input_events_mut().retain(|e| {
             !matches!(

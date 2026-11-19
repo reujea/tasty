@@ -180,6 +180,8 @@ pub(crate) struct HostBar {
     pub(crate) hovered: bool,
     /// 접기 버튼의 키 포커스·툴팁 식별자.
     pub(crate) id: egui::Id,
+    /// 이 팝업이 이번 프레임 키 주인이다.
+    pub(crate) takes_keys: bool,
 }
 
 /// 펼친 headless 팝업의 host 제목줄과 접기 버튼을 그린다. 제목 문구는 없고 버튼은 닫기 자리에 있다.
@@ -208,7 +210,28 @@ pub(crate) fn paint_host_bar(
         egui::Stroke::new(th.border_width.value(), bar.title_edge),
     );
     let btn = title_end_btn_rect(title);
-    collapse_button(ctx, painter, th, layer_id, bar.id, btn, bar.hovered)
+    collapse_button(
+        ctx,
+        painter,
+        th,
+        layer_id,
+        CollapseSlot {
+            id: bar.id,
+            rect: btn,
+            hovered: bar.hovered,
+            takes_keys: bar.takes_keys,
+        },
+    )
+}
+
+/// 접기 버튼 하나의 자리와 상태.
+pub(crate) struct CollapseSlot {
+    /// 키 포커스·툴팁 식별자.
+    pub(crate) id: egui::Id,
+    pub(crate) rect: egui::Rect,
+    pub(crate) hovered: bool,
+    /// 이 팝업이 이번 프레임 키 주인이다. 아니면 키 포커스가 남아도 Enter·Space를 읽지 않는다.
+    pub(crate) takes_keys: bool,
 }
 
 /// 펼친 팝업의 접기 버튼(host·plugin 공용 위젯). 키 포커스에서 Enter·Space를 누르면 참이다. 포인터 누름은
@@ -218,10 +241,14 @@ pub(crate) fn collapse_button(
     painter: &egui::Painter,
     th: &tasty_type_appearance::theme::Theme,
     layer_id: egui::LayerId,
-    id: egui::Id,
-    rect: egui::Rect,
-    hovered: bool,
+    slot: CollapseSlot,
 ) -> bool {
+    let CollapseSlot {
+        id,
+        rect,
+        hovered,
+        takes_keys,
+    } = slot;
     let out = tasty_ui_widgets::popup_collapse_button(
         ctx,
         painter,
@@ -234,6 +261,7 @@ pub(crate) fn collapse_button(
             tooltip: crate::i18n::t("popup.collapse_button.tooltip"),
             hovered,
             pressed: hovered && ctx.input(|i| i.pointer.primary_down()),
+            takes_keys,
         },
     );
     if let Some(err) = out.glyph_error {

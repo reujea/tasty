@@ -753,6 +753,8 @@ mod workflow_fail_fast_tests;
 #[cfg(test)]
 mod floor_arguments_are_not_discarded;
 mod frame_draw_order;
+#[cfg(test)]
+mod popup_body_key_gate;
 
 #[cfg(test)]
 mod webview_overlay_targets;

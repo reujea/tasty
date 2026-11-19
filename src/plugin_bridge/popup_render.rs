@@ -346,6 +346,7 @@ pub fn draw_plugin_popups(
                     title_edge: th.border_frame().to_egui(),
                     hovered,
                     id: Id::new("plugin_popup.collapse_button").with(snap.instance_id),
+                    takes_keys: has_key_focus,
                 },
             );
             if keyed || hovered && press.as_ref().is_some_and(|p| p.is_primary()) {

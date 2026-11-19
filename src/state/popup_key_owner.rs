@@ -34,7 +34,11 @@ impl super::MainViewState {
                 })
                 .collect();
         }
-        let owner = self.popup_key_owner();
+        // 창이 처리한 키는 입력 시점의 host 키 주인에 묶여 있다. 그사이 닫혔으면 그 키는 아무도 받지 않는다.
+        let owner = match self.popups.input_key_owner() {
+            Some(bound) => bound.map(|_| PopupKeyOwner::Host),
+            None => self.popup_key_owner(),
+        };
         self.frame_key_owner = Some(owner);
         self.popups
             .set_plugin_holds_keys(matches!(owner, Some(PopupKeyOwner::Plugin(_))));

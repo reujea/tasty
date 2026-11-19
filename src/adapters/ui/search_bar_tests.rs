@@ -243,6 +243,7 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
     if let Some((_, instance, closes)) = state.popups.focused_dismissal_target() {
         state.popups.set_instance_focused(instance, false);
         assert!(!closes);
+        state.popups.bind_input_key_owner(instance);
     }
     assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));
     assert!(

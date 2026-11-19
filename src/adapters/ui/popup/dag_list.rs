@@ -647,6 +647,10 @@ fn draw_detail_graph(
 }
 
 #[cfg(test)]
+#[path = "dag_list_escape_tests.rs"]
+mod escape_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

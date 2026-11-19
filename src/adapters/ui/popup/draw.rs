@@ -237,11 +237,17 @@ impl PopupManager {
         };
         // 본문이 키를 받는 인스턴스는 키 주인 하나다. 이번 프레임의 범위·표시 판정 뒤, 클릭을 반영하기 전 값이고,
         // 이 프레임 키 주인이 plugin 팝업이면 없다(`MainViewState::decide_frame_key_owner`가 정한다). 포커스
-        // 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
-        let keys_at_start: Option<PopupInstanceId> = self
-            .host_key_owner()
-            .filter(|_| !self.plugin_holds_keys)
-            .map(|p| p.instance);
+        // 플래그가 남은 다른 범위 팝업은 키를 받지 않는다. 창이 처리한 키는 입력 시점의 키 주인에 묶여 있다.
+        let keys_at_start: Option<PopupInstanceId> = match self.input_key_owner() {
+            Some(bound) => bound,
+            None => self
+                .host_key_owner()
+                .filter(|_| !self.plugin_holds_keys)
+                .map(|p| p.instance),
+        };
+        self.input_key_owner = None;
+        // 키 주인이 없는 프레임에는 포커스를 받지 않는 팝업(복원 안내 등)의 본문이 자기 위젯 키 포커스로 키를 읽는다.
+        let frame_has_key_owner = keys_at_start.is_some() || self.plugin_holds_keys;
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
@@ -741,7 +747,16 @@ impl PopupManager {
                     let hovered = hovered_collapse == Some(popup_iid);
                     let id = egui::Id::new("popup.collapse_button").with(popup_iid.0);
                     if super::display::collapse_button(
-                        ctx, &painter, &th, layer_id, id, rect, hovered,
+                        ctx,
+                        &painter,
+                        &th,
+                        layer_id,
+                        super::display::CollapseSlot {
+                            id,
+                            rect,
+                            hovered,
+                            takes_keys: key_owner == Some(popup_iid),
+                        },
                     ) {
                         refold_requested = Some(popup_iid);
                     }
@@ -796,7 +811,12 @@ impl PopupManager {
                                     focused: keys_at_start == Some(popup.instance),
                                     payload: &mut popup.payload,
                                 };
-                                content_fn(&mut cx, ui)
+                                // 키 주인이 아닌 본문은 키 입력을 보지 못한다(직접 읽기와 위젯 키 포커스 모두).
+                                let takes_keys = cx.focused
+                                    || (!frame_has_key_owner && !popup.arrange.takes_focus);
+                                super::body_keys::with_body_keys(ctx, takes_keys, || {
+                                    content_fn(&mut cx, ui)
+                                })
                             },
                         );
                         if let Some(grip) = grip_rect {

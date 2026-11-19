@@ -261,6 +261,8 @@ pub struct CollapseButton<'a> {
     pub tooltip: &'a str,
     pub hovered: bool,
     pub pressed: bool,
+    /// 이 버튼의 팝업이 이번 프레임 키 주인이다. 아니면 egui 키 포커스가 남아 있어도 Enter·Space를 읽지 않는다.
+    pub takes_keys: bool,
 }
 
 /// [`popup_collapse_button`]의 결과.
@@ -311,6 +313,7 @@ pub fn popup_collapse_button(
         );
     }
     let activated = focused
+        && b.takes_keys
         && ctx.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
                 || i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
@@ -372,7 +375,7 @@ mod tests {
         let ctx = egui::Context::default();
         let id = egui::Id::new("collapse");
         let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(24.0, 24.0));
-        let run = |key: Option<egui::Key>, focus: bool| {
+        let run_with = |key: Option<egui::Key>, focus: bool, takes_keys: bool| {
             let events = key
                 .map(|key| {
                     vec![egui::Event::Key {
@@ -407,6 +410,7 @@ mod tests {
                             tooltip: "tip",
                             hovered: false,
                             pressed: false,
+                            takes_keys,
                         },
                     )
                     .activated;
@@ -414,6 +418,7 @@ mod tests {
             );
             (activated, out)
         };
+        let run = |key, focus| run_with(key, focus, true);
         assert!(!run(Some(egui::Key::Enter), false).0, "포커스 없는 Enter");
         // 포커스를 얻는 프레임에 접근 이름이 실린 사건이 나간다.
         let (_, out) = run(None, true);
@@ -428,6 +433,11 @@ mod tests {
         );
         assert!(run(Some(egui::Key::Enter), true).0);
         assert!(run(Some(egui::Key::Space), true).0);
+        // 키 포커스가 남아도 팝업이 키 주인이 아니면 읽지 않고 남긴다.
+        assert!(
+            !run_with(Some(egui::Key::Enter), true, false).0,
+            "키 주인이 아닌 Enter"
+        );
     }
 
     fn frames() -> (egui::Vec2, egui::Vec2) {
