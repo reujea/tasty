@@ -225,3 +225,64 @@ fn actual_socket_writer_rechecks_authority_before_publishing_queued_frame() {
     assert!(stream::read_frame(&mut client).is_err());
     assert!(hub.reserve_frame(5, &binding, FULL).is_some());
 }
+
+/// 실제 연결은 읽기 스레드가 소켓 사본을 들고 있어 writer가 끝나도 소켓이 남는다.
+/// 서버가 끝낸 연결이면 writer가 쓰기 쪽을 닫아 client가 통지 뒤 EOF를 본다.
+#[test]
+fn a_server_ended_connection_reaches_the_client_as_eof_while_the_reader_holds_the_socket() {
+    let (mut client, server) = sockets();
+    let reader_copy = server.try_clone().unwrap();
+    let hub = StreamHub::new();
+    let rx = hub.register(5);
+    for frame in [
+        StreamFrame::new(
+            StreamTag::Control,
+            br#"{"event":"force_detached","reason":"force_detach"}"#.to_vec(),
+        ),
+        StreamFrame::new(StreamTag::Detach, vec![]),
+    ] {
+        assert_eq!(hub.push(5, frame), PushResult::Sent);
+    }
+    let writer =
+        TcpIpcServer::spawn_stream_write_thread(server, rx, 1, Arc::new(AtomicBool::new(false)));
+    assert_eq!(
+        stream::read_frame(&mut client).unwrap().tag,
+        StreamTag::Control
+    );
+    assert_eq!(
+        stream::read_frame(&mut client).unwrap().tag,
+        StreamTag::Detach
+    );
+    writer.join().unwrap();
+    let after = stream::read_frame(&mut client).unwrap_err();
+    assert_eq!(after.kind(), std::io::ErrorKind::UnexpectedEof, "{after}");
+    drop(reader_copy);
+}
+
+/// 통지를 보낸 뒤 client가 닫지 않고 계속 보내도 읽기 루프가 끝나고 프레임을 넘기지 않는다.
+#[test]
+fn the_read_loop_ends_on_the_first_frame_after_the_server_ended_the_connection() {
+    let (mut client, server) = sockets();
+    let (inbound_tx, inbound_rx) = mpsc::channel();
+    let ctx = StreamContext {
+        hub: StreamHub::new(),
+        inbound_tx,
+        waker: Arc::new(|| {}),
+        heartbeat_timeout: Default::default(),
+    };
+    let end = StreamReadEnd {
+        client_id: 5,
+        peer: None,
+        read_timeout: Duration::from_secs(30),
+        server_ending: Arc::new(AtomicBool::new(true)),
+    };
+    stream::write_frame(&mut client, StreamTag::Data, b"after").unwrap();
+    let done = std::thread::spawn(move || {
+        let mut reader = BufReader::new(server);
+        TcpIpcServer::run_stream_read_loop(&ctx, &end, &mut reader);
+    });
+    let started = std::time::Instant::now();
+    done.join().unwrap();
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(inbound_rx.try_recv().is_err());
+}

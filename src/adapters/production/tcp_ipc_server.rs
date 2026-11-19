@@ -793,6 +793,15 @@ impl TcpIpcServer {
                     Err(mpsc::RecvTimeoutError::Disconnected) => break, // unregister 됨
                 }
             }
+            // 서버가 끝낸 연결은 통지 뒤 쓰기 쪽을 닫아 client가 곧바로 EOF를 본다.
+            // 읽기 쪽은 `run_stream_read_loop`가 그 뒤 첫 프레임이나 read timeout에서 끝낸다.
+            if server_ending.load(Ordering::Acquire)
+                && let Err(e) = w.shutdown(std::net::Shutdown::Write)
+            {
+                tracing::debug!(
+                    "stream client {client_id}: 서버가 끝낸 연결의 쓰기 종료 실패: {e}"
+                );
+            }
         })
     }
 
@@ -839,6 +848,13 @@ impl TcpIpcServer {
             match stream::read_frame(reader) {
                 Ok(frame) if frame.tag == StreamTag::Detach => {
                     tracing::debug!("stream client {client_id}: client가 Detach로 연결을 끝냈다");
+                    break;
+                }
+                Ok(_) if end.server_ending.load(Ordering::Acquire) => {
+                    // 통지를 보낸 연결은 client가 닫지 않고 계속 보내도 서버가 끝낸다.
+                    tracing::debug!(
+                        "stream client {client_id}: 서버가 끝낸 연결의 수신 프레임을 버리고 닫는다"
+                    );
                     break;
                 }
                 Ok(frame) => {
