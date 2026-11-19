@@ -295,8 +295,8 @@ pub fn spawn_attach_reader_thread(
                         break;
                     }
                     StreamTag::Control => {
-                        if String::from_utf8_lossy(&frame.payload).contains("force_detached") {
-                            if stream::force_detach_is_final(&frame.payload) {
+                        if let Some(notice) = stream::force_detach_notice(&frame.payload) {
+                            if notice == stream::ForceDetachNotice::Final {
                                 end.force_detached.store(true, Ordering::SeqCst);
                             }
                             disconnected.store(true, Ordering::SeqCst);

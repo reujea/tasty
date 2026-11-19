@@ -728,8 +728,7 @@ impl TcpIpcServer {
     fn frame_ends_connection(tag: StreamTag, payload: &[u8]) -> bool {
         match tag {
             StreamTag::Detach => true,
-            StreamTag::Control => serde_json::from_slice::<serde_json::Value>(payload)
-                .is_ok_and(|v| v.get("event").and_then(|e| e.as_str()) == Some("force_detached")),
+            StreamTag::Control => stream::force_detach_notice(payload).is_some(),
             _ => false,
         }
     }

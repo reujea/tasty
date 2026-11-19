@@ -153,7 +153,7 @@ fn classify_control(payload: &[u8]) -> ControlSignal {
     if let Ok(StreamControl::Loss { frames }) = serde_json::from_slice(payload) {
         return ControlSignal::Loss(frames);
     }
-    if String::from_utf8_lossy(payload).contains("force_detached") {
+    if tasty_ipc::stream::force_detach_notice(payload).is_some() {
         return ControlSignal::ForceDetached;
     }
     ControlSignal::Other
@@ -1413,6 +1413,13 @@ mod raw_bridge_tests {
         ));
         assert!(matches!(
             super::classify_control(br#"{"event":"resize","surface_id":1,"cols":2,"rows":3}"#),
+            super::ControlSignal::Other
+        ));
+        // 값에 같은 문자열이 든 정상 Control은 강제 끊기가 아니다.
+        assert!(matches!(
+            super::classify_control(
+                br#"{"event":"list_dir_result","entries":[{"name":"force_detached.txt"}]}"#
+            ),
             super::ControlSignal::Other
         ));
     }
