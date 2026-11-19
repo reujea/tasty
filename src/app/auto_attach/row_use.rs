@@ -465,6 +465,11 @@ impl App {
                 serde_json::json!({ "workspace_id": row }),
             );
         } else if joining {
+            if explicit {
+                // `remote.connect` 는 사용자가 고른 연결이다. 진행 중인 자동 시도에 합류해도 연결 버튼처럼
+                // 표지를 지우고 그 시도를 명시적 출처로 올린다(`connect_saved_row_with_run` 의 합류 분기).
+                self.connect_saved_row_with_run(row, true, None);
+            }
             // 진행 중인 시도의 최종 결과를 이 run에도 남긴다.
             self.row_waits.join_run(row, Some(run));
         } else {

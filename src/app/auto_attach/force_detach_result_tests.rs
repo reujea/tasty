@@ -310,6 +310,44 @@ fn an_explicit_connect_joining_an_automatic_reconnect_keeps_it() {
     assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
 }
 
+/// `remote.connect` 요청을 실제 IPC 진입점으로 보내고 접수 응답을 받는다.
+fn request_remote_connect(app: &mut App, row: u32) -> serde_json::Value {
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let request: crate::ipc::protocol::JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "remote.connect", "params": { "workspace_id": row },
+    }))
+    .unwrap();
+    let cmd = crate::ipc::server::IpcCommand::new(request, tx);
+    let caller = crate::ipc::caller::CallerContext::local();
+    app.connect_saved_row_by_request(&cmd, &caller, row);
+    serde_json::to_value(rx.try_recv().expect("an immediate response")).unwrap()
+}
+
+/// Given 재연결 구간의 자동 재시도가 진행 중, When `remote.connect` 가 그 시도에 합류한 뒤 같은 대상의
+/// 다른 행이 강제로 끊기면, Then 합류한 시도는 명시적 출처라 재시도 판정이 거두지 않고 결과도 버리지 않는다.
+#[test]
+fn a_remote_connect_joining_an_automatic_reconnect_keeps_it() {
+    alone!("a_remote_connect_joining_an_automatic_reconnect_keeps_it");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(!registered_attempt(&app).explicit);
+
+    let response = request_remote_connect(&mut app, ROW);
+    assert!(response["error"].is_null(), "{response}");
+    assert!(
+        registered_attempt(&app).explicit,
+        "the joined attempt is explicit"
+    );
+    force_detach_the_other_row(&mut app);
+    app.maybe_trigger_reconnect(Some(ROW), None);
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the attempt is not abandoned"
+    );
+    assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
+}
+
 /// Given 같은 출력 회차에 행 A 의 재연결 연결이 설치만 남았고 같은 대상의 행 B 세션의 reader 가 강제
 /// 끊김 통지를 처리해 전송 표지만 섰다(표지는 아직 저장 전), When 그 회차를 처리하면
 /// (`apply_attach_client_output`, 설치가 B 의 끝 분류보다 먼저), Then A 는 설치되지 않고 끊긴 행이 되며
