@@ -103,11 +103,7 @@ fn remote_command_to_method_params(command: &RemoteCommands) -> (&'static str, s
             serde_json::json!({ "surface_id": surface }),
         ),
         RemoteCommands::Detach { .. } => {
-            debug_assert!(
-                false,
-                "remote detach --all is dispatched before request mapping"
-            );
-            ("attach.force_detach.noop", serde_json::json!({}))
+            unreachable!("remote detach --all is dispatched before request mapping")
         }
         RemoteCommands::NewWorkspace { .. } => {
             debug_assert!(

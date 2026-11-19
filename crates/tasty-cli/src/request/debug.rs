@@ -11,8 +11,7 @@ pub(super) fn debug_command_to_method_params(
 ) -> (&'static str, serde_json::Value) {
     match command {
         DebugCommands::Attach { .. } => {
-            debug_assert!(false, "debug attach is dispatched before request mapping");
-            ("debug.attach.noop", serde_json::json!({}))
+            unreachable!("debug attach is dispatched before request mapping")
         }
         DebugCommands::Info => ("debug.info", serde_json::json!({})),
         DebugCommands::GpuStall { ms } => ("debug.gpu.stall", serde_json::json!({ "ms": ms })),
