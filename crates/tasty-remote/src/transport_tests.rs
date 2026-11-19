@@ -665,15 +665,29 @@ fn a_wake_payload_whose_destructor_panics_does_not_abort_the_reader_exit() {
     assert!(disconnected.load(Ordering::SeqCst));
 }
 
-/// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다. 상한보다 먼저
-/// 알리지 않고(최소 경과 시간), 상한이 사라져도 시험이 멈추지 않도록 시험 쪽 기한으로 기다린다.
+/// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다.
+///
+/// 기다림의 시작은 상대가 쓰기 쪽 닫힘의 EOF를 본 시각이고, 끝은 깨움 콜백이 불린 시각이다
+/// (끊김 표지는 그 직전에 선다). 두 시각 모두 그 일을 겪은 스레드가 바로 찍으므로 시험 스레드의
+/// 관측 지연이 들어가지 않는다. 상대 스레드가 EOF를 늦게 깨면 잰 값이 줄어들 수 있어 하한은
+/// 상한의 절반으로 둔다. 기다리지 않고 바로 알리는 writer는 0에 가까워 이 하한에 걸린다.
 #[test]
 fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
-    const CAP: Duration = Duration::from_millis(200);
-    let (write_half, _conn, _peer) = opened_attach_pair();
+    use std::io::Read;
+    use std::sync::Mutex;
+    use std::time::Instant;
+    const CAP: Duration = Duration::from_millis(300);
+    let (write_half, _conn, mut peer) = opened_attach_pair();
+    peer.set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let eof_seen = std::thread::spawn(move || {
+        let mut rest = Vec::new();
+        peer.read_to_end(&mut rest).map(|_| Instant::now())
+    });
+    let woke_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+    let stamp = woke_at.clone();
     let disconnected = Arc::new(AtomicBool::new(false));
     let (sender, rx) = failing_send();
-    let started = std::time::Instant::now();
     let writer = spawn_attach_write_thread(
         write_half,
         rx,
@@ -681,22 +695,29 @@ fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
         Arc::new(AtomicBool::new(false)),
         Arc::new(AtomicBool::new(false)),
         CAP,
-        Arc::new(|| {}),
+        Arc::new(move || {
+            stamp.lock().unwrap().get_or_insert_with(Instant::now);
+        }),
         " reader wait cap test",
     );
-    let deadline = started + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(10);
     while !writer.is_finished() {
         assert!(
-            std::time::Instant::now() < deadline,
+            Instant::now() < deadline,
             "the writer must give up waiting for the reader at the cap"
         );
         std::thread::sleep(Duration::from_millis(5));
     }
-    let elapsed = started.elapsed();
     writer.join().unwrap();
+    let eof_at = eof_seen
+        .join()
+        .unwrap()
+        .expect("the peer sees the half-close as EOF");
+    let woke_at = woke_at.lock().unwrap().expect("the writer woke the app");
+    let waited = woke_at.saturating_duration_since(eof_at);
     assert!(
-        elapsed >= CAP,
-        "the disconnect came before the cap: {elapsed:?}"
+        waited >= CAP / 2,
+        "the disconnect came before the cap: {waited:?}"
     );
     assert!(disconnected.load(Ordering::SeqCst));
     drop(sender);
