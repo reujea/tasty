@@ -3,6 +3,15 @@
 use super::route::ScopePath;
 use super::{PopupId, PopupInstanceId, PopupManager, PopupScope, PopupState};
 
+/// 팝업 노드 하나. 창의 포커스 위치와 창이 입력 시점에 묶은 키 주인이 이 값이다. host 팝업은 인스턴스,
+/// plugin 팝업은 plugin 매니저의 instance id 다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PopupNode {
+    Host(PopupInstanceId),
+    /// plugin 팝업 instance id.
+    Plugin(u64),
+}
+
 impl PopupManager {
     /// Check if any popup currently has keyboard focus.
     pub fn has_focused(&self) -> bool {

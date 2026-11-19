@@ -3,7 +3,7 @@
 //! 묶는다(`bind_window_key_owner`). 그 키를 실은 그리기는 묶인 값을, 묶인 값이 없으면 이번 프레임 범위·표시 판정
 //! 뒤 후보로 정한 값을 그 프레임 키 주인 하나로 정하고(`decide_frame_key_owner`), host 본문·버튼과 plugin 렌더가
 //! 그 값을 쓴다.
-use crate::adapters::ui::popup::frame_keys::BoundKeyOwner;
+use crate::adapters::ui::popup::focus::PopupNode;
 use crate::adapters::ui::popup::occlusion::{KeyCandidate, PopupKeyOwner, key_owner};
 
 impl super::MainViewState {
@@ -76,13 +76,13 @@ impl super::MainViewState {
     }
 
     /// 지금 후보로 정한 키 주인을 묶을 값으로. host 키 주인은 그 인스턴스다.
-    pub(crate) fn live_key_owner(&self) -> Option<BoundKeyOwner> {
+    pub(crate) fn live_key_owner(&self) -> Option<PopupNode> {
         match self.popup_key_owner() {
             Some(PopupKeyOwner::Host) => self
                 .popups
                 .host_key_owner()
-                .map(|p| BoundKeyOwner::Host(p.instance)),
-            Some(PopupKeyOwner::Plugin(id)) => Some(BoundKeyOwner::Plugin(id)),
+                .map(|p| PopupNode::Host(p.instance)),
+            Some(PopupKeyOwner::Plugin(id)) => Some(PopupNode::Plugin(id)),
             None => None,
         }
     }
@@ -97,8 +97,8 @@ impl super::MainViewState {
     ) -> Option<u64> {
         plugin_target(
             decided.unwrap_or_else(|| match self.popups.bound_input_key_owner() {
-                Some(BoundKeyOwner::Plugin(id)) => Some(PopupKeyOwner::Plugin(id)),
-                Some(BoundKeyOwner::Host(_)) => Some(PopupKeyOwner::Host),
+                Some(PopupNode::Plugin(id)) => Some(PopupKeyOwner::Plugin(id)),
+                Some(PopupNode::Host(_)) => Some(PopupKeyOwner::Host),
                 None => self.popup_key_owner(),
             }),
         )

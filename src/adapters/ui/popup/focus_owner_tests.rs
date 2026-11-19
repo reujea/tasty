@@ -252,7 +252,7 @@ fn a_key_the_window_handled_reaches_only_the_owner_at_input_time() {
     let (_, owner, _) = mgr.focused_dismissal_target().unwrap();
     assert_eq!(owner, second);
     mgr.set_instance_focused(owner, false);
-    mgr.bind_input_key_owner(super::frame_keys::BoundKeyOwner::Host(owner));
+    mgr.bind_input_key_owner(super::focus::PopupNode::Host(owner));
     assert_eq!(instances_reading_keys(&mut mgr), [second]);
     assert_eq!(
         instances_reading_keys(&mut mgr),
@@ -263,7 +263,7 @@ fn a_key_the_window_handled_reaches_only_the_owner_at_input_time() {
     mgr.set_instance_focused(second, true);
     let (_, owner, _) = mgr.focused_dismissal_target().unwrap();
     assert_eq!(owner, second);
-    mgr.bind_input_key_owner(super::frame_keys::BoundKeyOwner::Host(owner));
+    mgr.bind_input_key_owner(super::focus::PopupNode::Host(owner));
     mgr.close_instance(owner, super::PopupCloseReason::Escape);
     assert!(
         instances_reading_keys(&mut mgr).is_empty(),

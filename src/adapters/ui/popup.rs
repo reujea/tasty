@@ -17,7 +17,7 @@ pub(crate) mod explorer_conflict;
 pub(crate) mod explorer_properties;
 pub(crate) mod file_handler_picker;
 pub(crate) mod file_picker;
-mod focus;
+pub(crate) mod focus;
 #[cfg(test)]
 #[path = "popup/focus_owner_tests.rs"]
 mod focus_owner_tests;
