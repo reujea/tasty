@@ -118,10 +118,11 @@ pub(crate) fn handle_force_detach_workspace(
     JsonRpcResponse::success(id, result)
 }
 
-/// 두 메서드의 공통 응답. `notified`는 알릴 holder 연결이 있었고 그 큐에 `force_detached` 통지를
-/// 넣었는지다. 넣었으면 서버가 그 통지를 쓴 뒤 연결을 닫는다. 점유 해제는 되돌리지 않으므로 오류가
-/// 아니라 이 필드로 알린다. 점유나 연결이 없으면 false다. 통지를 넣지 못했으면 서버가 곧바로 연결을
-/// 닫아 holder는 통지 없이 끊김만 보며, 연결 끊김으로 보고 다시 붙을 수 있다.
+/// 두 메서드의 공통 응답. `notified`는 `force_detached` 통지를 holder 연결의 송신 큐에 넣었는지다.
+/// 전달 보장은 아니다. 앞선 쓰기가 실패하거나 기한에 걸리면 통지는 쓰이지 않는다. 점유 해제는
+/// 되돌리지 않으므로 오류가 아니라 이 필드로 알린다. 점유가 없거나(닫을 연결도 없다) 연결이 이미
+/// 없거나 큐가 차면 false다. 큐가 찬 연결은 서버가 닫고, holder는 통지 없이 끊김만 보므로 연결
+/// 끊김으로 보고 다시 붙을 수 있다.
 fn forced_detach_result(
     detached: Option<crate::runtime::engine_access::ForcedDetach>,
 ) -> serde_json::Value {

@@ -295,9 +295,10 @@ impl RemoteState {
         ready
     }
     /// Control 사유와 Detach를 넣고 등록을 끝낸 뒤, 통지를 큐에 넣었는지 반환한다.
-    /// 들어간 프레임은 writer가 소켓에 쓸 때까지 버려지지 않고, writer는 큐를 다 쓰면 소켓을 닫는다
-    /// ([`StreamHub::end_with`](tasty_ipc::stream_hub::StreamHub::end_with)). Control을 못 넣었으면
-    /// 남은 큐를 버리고 곧바로 닫으므로 holder는 통지 없이 끊김만 본다. 어느 경우든 점유 해제는
+    /// 들어간 프레임은 뒤이은 연결 정리가 버리지 않고, writer는 큐를 다 쓰면 소켓을 닫는다
+    /// ([`StreamHub::end_with`](tasty_ipc::stream_hub::StreamHub::end_with)). 큐에 넣었다는 뜻이며
+    /// 전달 보장은 아니다. 앞선 쓰기가 실패하거나 기한에 걸리면 통지는 쓰이지 않는다. Control을 못
+    /// 넣었으면 남은 큐를 버리고 닫으므로 holder는 통지 없이 끊김만 본다. 어느 경우든 점유 해제는
     /// 되돌리지 않는다. 연결이 이미 없으면 false다.
     pub(crate) fn notify_detached(&self, holder: AttachClientId, reason: &str) -> bool {
         let Some(hub) = &self.notifier else {
