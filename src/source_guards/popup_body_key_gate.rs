@@ -10,8 +10,13 @@
 //! 3. egui 키 입력을 직접 읽는 파일은 아래 목록 중 하나다. 팝업 본문(문 안에서만 그려진다), 문·키 주인 버튼, 팝업
 //!    밖(이유와 함께), 공용 위젯(부른 쪽의 문을 따른다)으로 나눈다. 새 파일이 키를 읽으면 분류를 정해야 통과한다.
 //!
-//! 잡지 못하는 것: 본문 모듈의 함수를 팝업 밖에서 부르는 경로(3의 목록은 파일 단위다), 위젯이 팝업 밖에서 키를
-//! 읽는 것, egui 입력이 아닌 경로(창 상태에 쌓아 둔 키 등)로 키를 읽는 것.
+//! 키 읽기와 `draw_fn` 은 줄바꿈·공백으로 나눠 쓴 형태(`key_pressed\n(`, `Event::\nKey`, `def\n.draw_fn`)도 같은
+//! 형태로 맞춘 뒤 본다(`joined`). 정의 본문은 부르는 자리뿐 아니라 꺼내 쓰는 자리(`let f = def.draw_fn;`, 구조
+//! 분해)도 팝업 층 하나에만 있어야 한다.
+//!
+//! 잡지 못하는 것: 본문 모듈의 함수를 팝업 밖에서 이름으로 직접 부르는 경로(3의 목록은 파일 단위다), 위젯이 팝업
+//! 밖에서 키를 읽는 것, egui 입력이 아닌 경로(창 상태에 쌓아 둔 키 등)로 키를 읽는 것, 매크로가 만든 키 읽기,
+//! `use` 별칭으로 이름을 바꾼 키 읽기 함수와 사건 이름(`use egui::Event::Key as K` 등).
 
 use std::collections::BTreeSet;
 
@@ -31,6 +36,30 @@ fn read(rel: &str) -> String {
 
 fn squeeze(s: &str) -> String {
     s.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// `(`·`::`·`.` 앞뒤 공백(줄바꿈 포함)을 지운다. 낱말 사이 공백은 남겨 낱말 경계 판정이 그대로다.
+fn joined(code: &str) -> String {
+    let chars: Vec<char> = code.chars().collect();
+    let mut out = String::with_capacity(code.len());
+    let mut at = 0;
+    while at < chars.len() {
+        if !chars[at].is_whitespace() {
+            out.push(chars[at]);
+            at += 1;
+            continue;
+        }
+        let end = (at..chars.len())
+            .find(|&i| !chars[i].is_whitespace())
+            .unwrap_or(chars.len());
+        let prev = out.chars().next_back();
+        let next = chars.get(end).copied();
+        if !(matches!(prev, Some(':' | '.')) || matches!(next, Some('(' | ':' | '.'))) {
+            out.extend(&chars[at..end]);
+        }
+        at = end;
+    }
+    out
 }
 
 fn is_ident(c: char) -> bool {
@@ -120,22 +149,48 @@ fn popup_definition_bodies_run_only_inside_the_body_callback() {
         "{FRAME} 의 팝업 본문 호출이 draw_routed 에 넘기는 본문 콜백 밖에 있다"
     );
 
-    // 팝업 정의 본문은 다른 곳에서 부르지 않는다. 전체화면 무대는 별도 정의(`FullscreenStageDef::draw_fn`)다.
-    let others: Vec<String> = tasty_doc_guards::source_text::rust_sources(&repo_root(), &["src"])
-        .into_iter()
-        .filter(|(rel, _)| {
-            let rel = rel.to_string_lossy();
-            rel != FRAME
-                && rel != "src/adapters/ui/fullscreen.rs"
-                && !rel.starts_with("src/source_guards/")
-        })
-        .filter(|(_, text)| strip_comments(text).contains(".draw_fn)("))
-        .map(|(rel, _)| rel.to_string_lossy().into_owned())
-        .collect();
+    // 팝업 정의 본문은 다른 곳에서 부르거나 꺼내 쓰지 않는다. `draw_fn` 낱말은 필드 선언·초기화(`draw_fn:`)로만
+    // 나온다. 팝업 층에서는 위 호출 하나만 읽는다. 전체화면 무대는 별도 정의(`FullscreenStageDef::draw_fn`)다.
+    let mut reads_elsewhere = Vec::new();
+    for (rel, text) in tasty_doc_guards::source_text::rust_sources(&repo_root(), &["src"]) {
+        let rel = rel.to_string_lossy().into_owned();
+        if rel == "src/adapters/ui/fullscreen.rs" || rel.starts_with("src/source_guards/") {
+            continue;
+        }
+        let code = joined(&tasty_doc_guards::source_text::mask_non_code_aligned(
+            text.as_str(),
+        ));
+        let uses = draw_fn_uses(&code);
+        let allowed = usize::from(rel == FRAME);
+        if uses.len() != allowed {
+            reads_elsewhere.push(format!("{rel}: {uses:?}"));
+        }
+    }
     assert!(
-        others.is_empty(),
-        "팝업 층 밖에서 정의 본문을 부른다: {others:?}"
+        reads_elsewhere.is_empty(),
+        "팝업 층의 본문 호출 하나 밖에서 정의 본문(`draw_fn`)을 읽는다(호출·별칭·전달·구조 분해): {reads_elsewhere:?}"
     );
+}
+
+/// `draw_fn` 낱말이 필드 선언·초기화(`draw_fn:`)가 아닌 자리. 각 자리의 앞뒤 몇 글자.
+fn draw_fn_uses(code: &str) -> Vec<String> {
+    code.match_indices("draw_fn")
+        .filter(|(at, _)| {
+            let before = code[..*at].chars().next_back();
+            let after = &code[at + "draw_fn".len()..];
+            !before.is_some_and(is_ident)
+                && !after.chars().next().is_some_and(is_ident)
+                && !(after.trim_start().starts_with(':') && !after.trim_start().starts_with("::"))
+        })
+        .map(|(at, _)| {
+            let start = code[..at].char_indices().rev().nth(8).map_or(0, |(i, _)| i);
+            let end = code[at..]
+                .char_indices()
+                .nth(16)
+                .map_or(code.len(), |(i, _)| at + i);
+            code[start..end].to_string()
+        })
+        .collect()
 }
 
 /// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
@@ -187,18 +242,30 @@ const OUTSIDE_POPUPS: &[(&str, &str)] = &[
 /// 공용 위젯. 팝업 본문 안에서 그리면 그 본문의 문을 따르고, surface·창에서 그리면 그쪽 입력 규칙을 따른다.
 const SHARED_WIDGETS: &str = "crates/tasty-ui-widgets/src/";
 
-const KEY_READS: [&str; 8] = [
+const KEY_READS: [&str; 13] = [
     "key_pressed(",
     "key_released(",
     "key_down(",
     "consume_key(",
+    "count_and_consume_key(",
+    "consume_shortcut(",
+    "num_presses(",
     "Event::Key",
     "Event::Text(",
     "Event::Paste(",
+    "Event::Copy",
+    "Event::Cut",
     "Event::Ime(",
 ];
 
-/// `read` 가 낱말로 나오는지. `Event::Key` 가 `WindowEvent::KeyboardInput` 에 걸리지 않게 앞뒤를 본다.
+/// 코드(문자열·주석을 가린 뒤)가 egui 키 입력을 직접 읽는지.
+fn reads_keys(code: &str) -> bool {
+    let code = joined(&without_inline_tests(code));
+    KEY_READS.iter().any(|r| reads(&code, r))
+}
+
+/// `read` 가 낱말로 나오는지. `Event::Key` 가 `WindowEvent::KeyboardInput` 에 걸리지 않게 앞뒤를 본다. 앞 글자가
+/// 낱말 글자면 다른 이름의 꼬리라 보지 않는다(`count_and_consume_key(` 는 따로 둔다).
 fn reads(code: &str, read: &str) -> bool {
     code.match_indices(read).any(|(at, _)| {
         let before = code[..at].chars().next_back();
@@ -254,9 +321,7 @@ fn every_direct_key_read_is_classified() {
     })
     .filter(|(_, text)| {
         // 문자열·주석 안의 괄호와 낱말은 가린다.
-        let code =
-            without_inline_tests(&tasty_doc_guards::source_text::mask_non_code_aligned(text));
-        KEY_READS.iter().any(|r| reads(&code, r))
+        reads_keys(&tasty_doc_guards::source_text::mask_non_code_aligned(text))
     })
     .map(|(rel, _)| rel.to_string_lossy().into_owned())
     .collect();
@@ -281,4 +346,41 @@ fn every_direct_key_read_is_classified() {
         stale.is_empty(),
         "목록의 파일이 더는 키를 직접 읽지 않는다. 목록에서 뺀다: {stale:?}"
     );
+}
+
+/// 키 읽기 판정이 각 형태와 나눠 쓴 형태를 잡고, 다른 이름의 꼬리와 낱말 사이 공백에는 걸리지 않는다.
+#[test]
+fn the_key_read_scan_catches_each_form() {
+    for code in [
+        "i.consume_shortcut(&s)",
+        "i.count_and_consume_key(m, k)",
+        "i.num_presses(k)",
+        "matches!(e, egui::Event::Copy)",
+        "matches!(e, egui::Event::Cut)",
+        "i.key_pressed\n    (k)",
+        "i\n    .consume_key(m, k)",
+        "egui::Event::\n    Key { .. }",
+        "egui::Event ::Paste(p)",
+    ] {
+        assert!(reads_keys(code), "잡지 못했다: {code}");
+    }
+    for code in [
+        "WindowEvent::KeyboardInput { .. }",
+        "my_key_pressed(k)",
+        "let key_pressed = 1;",
+        "return key_pressed_count",
+    ] {
+        assert!(!reads_keys(code), "키 읽기가 아닌데 걸렸다: {code}");
+    }
+    assert_eq!(draw_fn_uses("PopupDef { draw_fn: f, keys }").len(), 0);
+    assert_eq!(draw_fn_uses("pub draw_fn: DrawFn,").len(), 0);
+    for code in [
+        "let f = def.draw_fn;",
+        "let f = def\n    .draw_fn;",
+        "let PopupDef { draw_fn, .. } = def;",
+        "(def.draw_fn)(ui)",
+        "run(def.draw_fn)",
+    ] {
+        assert_eq!(draw_fn_uses(code).len(), 1, "잡지 못했다: {code}");
+    }
 }
