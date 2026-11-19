@@ -1,5 +1,5 @@
-//! 키 입력은 포커스를 가진 인스턴스만 받는다. 같은 선언의 인스턴스가 여럿 보일 때 Escape 대상과
-//! 포커스 소유를 확인한다.
+//! 키 입력은 포커스를 가진 맨 위 인스턴스가 받는다. 같은 선언의 인스턴스가 여러 범위에 보일 때 Escape 대상과
+//! 포커스 소유를 확인한다. 다른 범위의 인스턴스는 포커스를 서로 빼앗지 않는다.
 
 use super::*;
 use crate::adapters::ui::LayoutContext;
@@ -34,9 +34,9 @@ fn escape_targets_the_topmost_focused_instance() {
 }
 
 /// Given 한 범위에 포커스를 가진 인스턴스가 있고, When 다른 범위에 같은 선언을 포커스를 주며 열면,
-/// Then 포커스는 새 인스턴스 하나에만 남는다.
+/// Then 다른 범위의 인스턴스는 포커스를 잃지 않고, 키는 새(맨 위) 인스턴스가 받는다.
 #[test]
-fn a_focused_open_takes_the_focus_from_its_siblings() {
+fn a_focused_open_leaves_the_focus_of_a_sibling_in_another_scope() {
     let mut mgr = manager();
     let first = mgr
         .open_request(
@@ -50,8 +50,12 @@ fn a_focused_open_takes_the_focus_from_its_siblings() {
             true,
         )
         .unwrap();
-    assert!(!mgr.instance(first).unwrap().focused);
+    assert!(mgr.instance(first).unwrap().focused);
     assert!(mgr.instance(second).unwrap().focused);
+    assert_eq!(
+        mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
+        Some(second)
+    );
 }
 
 /// 보이는 surface만 담은 배치. 목록에 없는 surface 범위의 팝업은 숨는다.
@@ -104,9 +108,9 @@ fn focused_instances(mgr: &PopupManager) -> Vec<PopupInstanceId> {
 }
 
 /// Given B를 먼저, A를 나중에 포커스를 주며 열고 A의 범위가 숨었을 때, When B를 누르면, Then A의 범위가
-/// 다시 보여도 포커스는 B 하나다.
+/// 다시 보여도 다른 범위의 A는 포커스를 그대로 갖고, B가 맨 앞이라 키 주인이다.
 #[test]
-fn a_click_takes_the_focus_from_a_hidden_sibling() {
+fn a_click_leaves_a_hidden_sibling_focused_and_makes_the_clicked_one_the_key_owner() {
     let mut mgr = manager();
     let b = mgr
         .open_request(
@@ -127,13 +131,18 @@ fn a_click_takes_the_focus_from_a_hidden_sibling() {
     assert_eq!(focused_instances(&mgr), [a]);
     frame(&mut mgr, &[2], Some(egui::pos2(650.0, 350.0)));
     frame(&mut mgr, &[1, 2], None);
-    assert_eq!(focused_instances(&mgr), [b]);
+    assert!(focused_instances(&mgr).contains(&b));
+    assert!(focused_instances(&mgr).contains(&a));
+    assert_eq!(
+        mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
+        Some(b)
+    );
 }
 
 /// Given passive로 연 B와 포커스를 가진 A가 있고 A의 범위가 숨었을 때, When B를 passive 승격하면,
-/// Then A의 범위가 다시 보여도 포커스는 B 하나다.
+/// Then A의 범위가 다시 보여도 다른 범위의 A는 포커스를 그대로 갖고, B가 맨 앞이라 키 주인이다.
 #[test]
-fn a_passive_promotion_takes_the_focus_from_a_hidden_sibling() {
+fn a_passive_promotion_leaves_a_hidden_sibling_focused_and_makes_the_promoted_one_the_key_owner() {
     let mut mgr = manager();
     let b = mgr
         .open_request(&OpenRequest::new(ID, PopupScope::Surface(2)), false)
@@ -150,5 +159,10 @@ fn a_passive_promotion_takes_the_focus_from_a_hidden_sibling() {
         crate::adapters::ui::popup::route::ScopePath::window_for_test()
     }));
     frame(&mut mgr, &[1, 2], None);
-    assert_eq!(focused_instances(&mgr), [b]);
+    assert!(focused_instances(&mgr).contains(&b));
+    assert!(focused_instances(&mgr).contains(&a));
+    assert_eq!(
+        mgr.focused_dismissal_target().map(|(_, iid, _)| iid),
+        Some(b)
+    );
 }

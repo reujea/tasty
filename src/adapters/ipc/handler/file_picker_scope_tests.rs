@@ -327,7 +327,9 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
         "the picker opens expanded with its parent"
     );
 
-    // 피커가 키 주인이다. Esc 는 피커와 함께 펼친 부모도 접는다.
+    // plugin 호출로 연 피커는 passive 다. 사용자가 누르면 포커스를 받아 키 주인이 된다. Esc 는 피커와 함께
+    // 펼친 부모도 접는다.
+    state.popups.set_focused(FILE_PICKER_POPUP_ID, true);
     assert!(state.refold_key_owner());
     assert!(!state.plugin_popup_expanded.contains(&7));
     frame(&mut state, &mut session);

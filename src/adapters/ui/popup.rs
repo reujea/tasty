@@ -1027,7 +1027,8 @@ impl PopupManager {
             p.look = p.declared_look.covering(covers);
         }
         let (iid, focused) = (p.instance, p.focused);
-        // 키 입력은 포커스를 가진 인스턴스만 받는다. 같은 선언에서 포커스는 하나만 남긴다.
+        // 키 입력은 포커스를 가진 맨 위 인스턴스(키 주인)가 받는다. 다른 범위의 같은 선언 인스턴스는 포커스를 그대로
+        // 둔다(`give_focus`).
         if focused {
             self.give_focus(iid, None);
         }
