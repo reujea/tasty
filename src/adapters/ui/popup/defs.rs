@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use super::{
     PopupAnchor, PopupChrome, PopupContentMargin, PopupDecl, PopupDef, PopupDragHandle,
     PopupEscape, PopupFit, PopupInstances, PopupKeyboard, PopupOutsideClick, PopupResizeHandle,
-    PopupScopeKind, PopupShadow, PopupShell, PopupSize, PopupState, ScrimInput, popup_size,
+    PopupScopeKind, PopupShadow, PopupShell, PopupSize, PopupState, popup_size,
 };
 
 /// host 팝업이 지금 공통으로 갖는 선언 값. `PopupDecl::new`의 기본값과 다른 것은 두 가지다.
@@ -60,7 +60,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // 포커스를 주지 않는다(열기 경로 사이의 불일치).
                     ..host_decl(popup_size(crate::adapters::ui::notification::notifications_popup_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "notification_panel.window_title",
                 fullscreen_stage: Some(
                     crate::adapters::ui::fullscreen::notifications::NOTIFICATIONS_STAGE_ID,
@@ -90,7 +89,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::convert::convert_popup_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "convert_popup.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -119,7 +117,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::explorer_conflict::default_size()))
                 },
-                scrim_input: ScrimInput::BlocksDrop,
                 title_key: "explorer.conflict.popup_title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -143,7 +140,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     ..host_decl(popup_size(super::script_confirm::script_confirm_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "script.confirm.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -172,7 +168,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(crate::adapters::ui::dialog::rename_popup_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "rename_dialog.tab_heading",
                 fullscreen_stage: None,
                 title_fn: Some(crate::adapters::ui::dialog::rename_popup_title),
@@ -202,7 +197,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::explorer_properties::default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "explorer.properties.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -233,7 +227,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(crate::adapters::ui::search_bar::search_bar_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "search.placeholder",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -261,7 +254,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::Queue,
                     ..host_decl(popup_size(egui::vec2(440.0, 160.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "button.ok",
                 fullscreen_stage: None,
                 title_fn: Some(crate::adapters::ui::info_modal::info_modal_title),
@@ -290,7 +282,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::Queue,
                     ..host_decl(popup_size(egui::vec2(480.0, 240.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "approval.popup.title",
                 fullscreen_stage: None,
                 title_fn: Some(super::approval::approval_popup_title),
@@ -318,7 +309,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::file_handler_picker::picker_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "file_handler.picker.title",
                 fullscreen_stage: None,
                 // 자체 헤더가 있으므로 공통 타이틀바를 추가하지 않는다.
@@ -350,7 +340,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(egui::vec2(640.0, 480.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "filepicker.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -378,7 +367,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(660.0, 520.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "port_scanner.heading",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -408,7 +396,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // 실제 크기로 덮어쓰므로 이후 배율이 바뀌어도 동작에는 영향이 없다.
                     ..host_decl(popup_size(egui::vec2(palette_width, 412.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "command_palette.heading",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -439,7 +426,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     // sizer가 배율을 적용한 토큰으로 크기를 계산한다.
                     ..host_decl(popup_size(egui::vec2(560.0, 460.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "dag_list.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -467,7 +453,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     keyboard: PopupKeyboard::Text,
                     ..host_decl(popup_size(egui::vec2(520.0, 460.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "remote_tool.heading",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -495,7 +480,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     ..host_decl(popup_size(egui::vec2(680.0, 460.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "remote_attach.heading",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -528,7 +512,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     focus_on_open: false,
                     ..host_decl(popup_size(egui::vec2(400.0, 180.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "transfer.progress.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -558,7 +541,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::Queue,
                     ..host_decl(popup_size(egui::vec2(400.0, 200.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "transfer.error.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -582,7 +564,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(super::download_run::download_run_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "download_run.dialog.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -606,7 +587,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(super::download_run::download_run_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "download_run.large.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -633,7 +613,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     focus_on_open: false,
                     ..host_decl(popup_size(super::download_run::download_run_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "transfer.progress.title_download_run",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -656,7 +635,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(egui::vec2(360.0, 320.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "preset.popup.apply_workspace_title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -679,7 +657,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(egui::vec2(360.0, 320.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "preset.popup.apply_tab_title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -702,7 +679,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(egui::vec2(360.0, 320.0)))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "preset.popup.apply_pane_title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -729,7 +705,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     anchor: PopupAnchor::AtPoint,
                     ..host_decl(popup_size(crate::adapters::ui::tools_menu::tools_menu_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "tools_menu.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -759,7 +734,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(crate::adapters::ui::mouse_capture_menu::menu_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "popup.mouse_capture_banner_menu.title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -783,7 +757,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(super::confirm_delete_category::confirm_delete_category_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "workspace_category.delete_confirm_title",
                 fullscreen_stage: None,
                 title_fn: Some(super::confirm_delete_category::confirm_delete_category_title),
@@ -806,7 +779,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     ..host_decl(popup_size(super::confirm_force_detach_workspace::confirm_force_detach_workspace_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "attach.force_detach_confirm_title",
                 fullscreen_stage: None,
                 title_fn: Some(
@@ -836,7 +808,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     covers_scope: true,
                     ..host_decl(popup_size(super::confirm_close_remote::confirm_close_remote_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "remote.row.close_remote.confirm",
                 fullscreen_stage: None,
                 title_fn: Some(super::confirm_close_remote::confirm_close_remote_title),
@@ -861,7 +832,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     shell: PopupShell::Panel,
                     ..host_decl(popup_size(crate::adapters::ui::tutorial::topic_popup::tutorial_topics_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "tutorial.popup_title",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -888,7 +858,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     anchor: PopupAnchor::AtPoint,
                     ..host_decl(popup_size(super::rail_category::rail_category_default_size()))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "workspace_category.heading",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -924,7 +893,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                     anchor: PopupAnchor::AtPoint,
                     ..host_decl(modhint_size)
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "settings.accessibility.modifier_hint",
                 fullscreen_stage: None,
                 title_fn: None,
@@ -963,7 +931,6 @@ pub fn all_defs() -> &'static [PopupDef] {
                         crate::adapters::ui::restore_notice::UNMEASURED_HEIGHT.value(),
                     )))
                 },
-                scrim_input: ScrimInput::VisualOnly,
                 title_key: "notice.restore_failed_title",
                 fullscreen_stage: None,
                 title_fn: None,

@@ -286,3 +286,64 @@ fn the_cover_of_a_covering_popup_is_reported() {
         [r_rect()]
     );
 }
+
+/// 덮는 팝업과 아래 버튼 하나를 같은 프레임에 그리고, 그 버튼이 눌렸는지 돌려준다.
+fn frame_with_button(
+    mgr: &mut PopupManager,
+    ctx: &egui::Context,
+    events: Vec<egui::Event>,
+    button_rect: egui::Rect,
+) -> bool {
+    let layout = layout();
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    let mut clicked = false;
+    drop(ctx.run(raw, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            clicked = ui.put(button_rect, egui::Button::new("under")).clicked();
+        });
+        mgr.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], None);
+    }));
+    clicked
+}
+
+/// Given R을 덮는 팝업이 열려 있을 때, When R 범위 안·상자 밖의 아래 위젯을 누르고 떼면, Then 그 위젯은
+/// 눌리지 않는다. L의 위젯은 눌린다(창 범위의 egui 위젯도 덮인 범위에서는 포인터를 받지 않는다).
+#[test]
+fn a_widget_under_a_cover_gets_no_click() {
+    let mut mgr = manager(true, false);
+    open_r(&mut mgr, true);
+    let ctx = egui::Context::default();
+    let click = |pos: egui::Pos2| {
+        vec![
+            egui::Event::PointerMoved(pos),
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ]
+    };
+    let under_r = egui::Rect::from_center_size(r_outside(), egui::vec2(80.0, 30.0));
+    let under_l = egui::Rect::from_center_size(l_point(), egui::vec2(80.0, 30.0));
+    // 첫 프레임은 레이어를 만든다. egui는 직전 프레임 레이어로 판정한다.
+    frame_with_button(&mut mgr, &ctx, vec![], under_r);
+    assert!(!frame_with_button(
+        &mut mgr,
+        &ctx,
+        click(r_outside()),
+        under_r
+    ));
+    frame_with_button(&mut mgr, &ctx, vec![], under_l);
+    assert!(frame_with_button(&mut mgr, &ctx, click(l_point()), under_l));
+}

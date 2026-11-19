@@ -44,7 +44,6 @@ fn manager() -> PopupManager {
             id,
             "test",
             &d,
-            ScrimInput::VisualOnly,
             None,
             PopupScope::Window,
         ));

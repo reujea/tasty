@@ -7,7 +7,7 @@ use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::open_when::DrivenOpen;
 use crate::adapters::ui::popup::{
     PopupAction, PopupChrome, PopupDecl, PopupDef, PopupDragHandle, PopupEscape, PopupOutsideClick,
-    PopupPayload, PopupScope, PopupShadow, ScrimInput, popup_size,
+    PopupPayload, PopupScope, PopupShadow, popup_size,
 };
 use crate::i18n::t;
 use crate::runtime::engine_read::EngineRead;
@@ -348,11 +348,6 @@ pub(crate) fn def() -> PopupDef {
                 width().value(),
                 estimate_h().value(),
             )))
-        },
-        scrim_input: if over_screen {
-            ScrimInput::TakesPointer
-        } else {
-            ScrimInput::VisualOnly
         },
         title_key: "remote.row.popup.connect",
         fullscreen_stage: None,
@@ -717,10 +712,10 @@ mod tests {
         assert_eq!(shown(&state), None);
     }
 
-    /// 마지막 화면 위 모양은 범위를 덮고 scrim 이 포인터를 받으며 modal 그림자다. 빈 workspace 위 모양은
-    /// 덮지 않고 scrim 은 보이기만 하며 popover 그림자다(선언 값).
+    /// 마지막 화면 위 모양은 범위를 덮고(포인터도 그 팝업 것이다) modal 그림자다. 빈 workspace 위 모양은
+    /// 덮지 않고 popover 그림자다(선언 값).
     #[test]
-    fn the_covering_look_takes_the_pointer_and_the_bare_one_does_not() {
+    fn the_covering_look_covers_the_scope_and_the_bare_one_does_not() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let row = saved_row(&mut state, &mut session);
         let look = |state: &MainViewState| {
@@ -729,19 +724,13 @@ mod tests {
                 .instances_of(REMOTE_ROW_POPUP_ID)
                 .next()
                 .unwrap();
-            (p.look.covers_scope, p.look.scrim_input, p.look.shadow)
+            (p.look.covers_scope, p.look.shadow)
         };
         session.remote.row_states = std::collections::HashMap::from([(row, "not_connected")]);
         sync(&mut state, &session.read(), &layout(row));
-        assert_eq!(
-            look(&state),
-            (false, ScrimInput::VisualOnly, PopupShadow::Popover)
-        );
+        assert_eq!(look(&state), (false, PopupShadow::Popover));
         session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
         sync(&mut state, &session.read(), &layout(row));
-        assert_eq!(
-            look(&state),
-            (true, ScrimInput::TakesPointer, PopupShadow::Modal)
-        );
+        assert_eq!(look(&state), (true, PopupShadow::Modal));
     }
 }

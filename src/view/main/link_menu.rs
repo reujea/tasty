@@ -58,7 +58,7 @@ impl MainView {
     /// 메뉴·팝업·배너가 포인터를 덮고 있거나 링크가 없으면 false를 반환해 키를 다음 경로로 넘긴다.
     /// 키보드에서 실행했으므로 toast에 단축키 hint를 붙이지 않는다.
     pub(crate) fn run_copy_link(&mut self, engine: &EngineRead<'_>) -> bool {
-        if self.mouse_overlay_open() || self.state.popup_hovered || self.state.banner_hovered {
+        if self.mouse_overlay_open() || self.pointer_on_popup() || self.state.banner_hovered {
             return false;
         }
         let Some(hovered) = self.compute_hovered_link(engine) else {

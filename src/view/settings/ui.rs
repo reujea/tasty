@@ -27,7 +27,7 @@ pub use keybindings_tab::{KeyCapture, capture_bare_key, capture_winit_key_combo}
 
 use crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
 use crate::adapters::ui::popup::{
-    PopupDecl, PopupDef, PopupId, PopupManager, PopupOutsideClick, ScrimInput, popup_size,
+    PopupDecl, PopupDef, PopupId, PopupManager, PopupOutsideClick, popup_size,
 };
 
 /// 단축키 충돌 확인 팝업 id.
@@ -42,7 +42,6 @@ pub(crate) fn keybinding_conflict_def() -> PopupDef {
             outside_click: PopupOutsideClick::Unfocus,
             ..crate::adapters::ui::popup::defs::host_decl(popup_size(egui::vec2(340.0, 120.0)))
         },
-        scrim_input: ScrimInput::VisualOnly,
         title_key: "settings.keybindings.conflict_title",
         title_fn: None,
         sizer: None,

@@ -73,7 +73,10 @@ pub fn draw_plugin_banners(
 
     for slot in &slots {
         let content_rect = slot.content_rect;
-        let raw_input = collect_mesh_banner_input(ctx, content_rect, pointer_pos);
+        // 팝업 상자나 덮는 팝업이 덮은 자리는 배너 것이 아니다(포인터 대상이 팝업이다).
+        let raw_input = collect_mesh_banner_input(ctx, content_rect, pointer_pos, &|p| {
+            state.popup_owns_point(p)
+        });
 
         let physical = crate::plugin_bridge::mesh_region_of(content_rect, ppp);
         let w_px = physical.width.value().round().max(1.0) as u32;
@@ -180,13 +183,16 @@ fn show_body_cut_tooltip(
 
 /// 콘텐츠 기준 논리 좌표로 포인터·스크롤을 전달한다. 키·텍스트는 전달하지 않는다.
 /// PointerGone은 콘텐츠 영역 포함 여부와 관계없이 전달해 이전 hover 상태를 지운다.
+/// `on_popup`이 참인 좌표는 팝업이 받으므로 배너에 보내지 않는다.
 fn collect_mesh_banner_input(
     ctx: &Context,
     content_rect: Rect,
     pointer_pos: Option<Pos2>,
+    on_popup: &dyn Fn(Pos2) -> bool,
 ) -> RawInputWire {
     let origin = content_rect.min;
-    let pointer_inside = pointer_pos.is_some_and(|p| content_rect.contains(p));
+    let mine = |p: Pos2| content_rect.contains(p) && !on_popup(p);
+    let pointer_inside = pointer_pos.is_some_and(mine);
     // ctx.input 안에서 같은 컨텍스트의 다른 잠금을 잡지 않도록 먼저 읽는다.
     let line = wire_scroll::line_scroll(ctx);
     ctx.input(|i| {
@@ -194,7 +200,7 @@ fn collect_mesh_banner_input(
         let mut events: Vec<RawInputEventWire> = Vec::new();
         for ev in &i.events {
             match ev {
-                Event::PointerMoved(p) if content_rect.contains(*p) => {
+                Event::PointerMoved(p) if mine(*p) => {
                     events.push(RawInputEventWire::PointerMoved {
                         x: p.x - origin.x,
                         y: p.y - origin.y,
@@ -205,7 +211,7 @@ fn collect_mesh_banner_input(
                     button,
                     pressed,
                     modifiers: m,
-                } if content_rect.contains(*pos) => {
+                } if mine(*pos) => {
                     if let Some(button) = map_button(*button) {
                         events.push(RawInputEventWire::PointerButton {
                             x: pos.x - origin.x,
@@ -345,7 +351,12 @@ mod tests {
         let mut wire = None;
         // 실제 입력 처리를 실행하되 렌더 결과는 이 검사에 사용하지 않는다.
         let _full_output = ctx.run(input, |ctx| {
-            wire = Some(collect_mesh_banner_input(ctx, content_rect, Some(pointer)));
+            wire = Some(collect_mesh_banner_input(
+                ctx,
+                content_rect,
+                Some(pointer),
+                &|_| false,
+            ));
         });
         wire?.events.iter().find_map(|e| match e {
             RawInputEventWire::Scroll { x, y } => Some((*x, *y)),
@@ -385,5 +396,50 @@ mod tests {
         let (dx, dy) = collected_scroll(egui::MouseWheelUnit::Point, egui::Vec2::new(1.5, -9.0))
             .expect("휠 이벤트가 와이어 Scroll 로 수집돼야 한다");
         assert_eq!((dx, dy), (1.5, -9.0));
+    }
+
+    /// Given 배너 위 좌표를 팝업(상자나 덮는 범위)이 차지할 때, When 그 자리에서 누르고 휠을 굴리면, Then 배너에는
+    /// 아무 입력도 가지 않는다. 같은 좌표가 팝업 것이 아니면 간다.
+    #[test]
+    fn a_banner_under_a_popup_gets_no_pointer_input() {
+        let content_rect =
+            Rect::from_min_size(Pos2::new(40.0, 40.0), egui::Vec2::new(400.0, 120.0));
+        let pointer = Pos2::new(100.0, 80.0);
+        let collect = |covered: bool| {
+            let ctx = Context::default();
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(
+                    Pos2::ZERO,
+                    egui::Vec2::new(1280.0, 800.0),
+                )),
+                events: vec![
+                    Event::PointerMoved(pointer),
+                    Event::PointerButton {
+                        pos: pointer,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: egui::Modifiers::default(),
+                    },
+                    Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::Vec2::new(0.0, -3.0),
+                        modifiers: egui::Modifiers::default(),
+                    },
+                ],
+                ..Default::default()
+            };
+            let mut wire = None;
+            drop(ctx.run(input, |ctx| {
+                wire = Some(collect_mesh_banner_input(
+                    ctx,
+                    content_rect,
+                    Some(pointer),
+                    &|_| covered,
+                ));
+            }));
+            wire.map_or(0, |w| w.events.len())
+        };
+        assert_eq!(collect(true), 0);
+        assert!(collect(false) >= 3);
     }
 }

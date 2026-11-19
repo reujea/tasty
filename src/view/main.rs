@@ -80,6 +80,8 @@ pub struct MainView {
     /// 로컬 선택과 분리해 Shift 우회·링크 클릭 등 보고하지 않은 누름의 이동도 보내지 않는다.
     /// 우클릭은 포커스를 옮기지 않으므로 포커스와 다른 surface가 대상일 수 있다.
     pub(crate) report_buttons_down: Vec<(u8, u32)>,
+    /// 팝업·egui·배너가 가져간 press 의 버튼. 그 release 도 아래 surface 로 보내지 않는다.
+    pub(crate) blocked_press_buttons: Vec<winit::event::MouseButton>,
     /// Shift로 TUI 입력을 우회해 시작한 로컬 선택. 드래그 중 Shift를 떼도 release까지 유지한다.
     pub(crate) left_select_bypass: bool,
     /// 링크 열기로 소비한 누름인지. 해당 뗌도 TUI에 보내지 않아 단독 release로 링크가 다시 열리는 것을 막는다.
@@ -250,6 +252,7 @@ impl MainView {
             left_mouse_down: false,
             file_drag,
             report_buttons_down: Vec::new(),
+            blocked_press_buttons: Vec::new(),
             left_select_bypass: false,
             link_click_consumed: false,
             right_link_press: None,

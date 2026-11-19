@@ -27,7 +27,7 @@ mod payload;
 pub(crate) mod port_scanner;
 pub(crate) mod port_scanner_close;
 pub(crate) mod preset_apply;
-mod press;
+pub(crate) mod press;
 pub(crate) mod rail_category;
 pub(crate) mod remote_attach;
 pub(crate) mod remote_row;
@@ -88,19 +88,6 @@ fn vec2_of(size: PopupSize) -> egui::Vec2 {
     egui::vec2(size.width.value(), size.height.value())
 }
 
-/// scrim이 받는 입력. `covers_scope`인 팝업만 의미가 있다.
-///
-/// 덮는 팝업의 scrim이 범위 안 입력을 모두 받게 되면 이 값은 사라진다. 그때까지 지금 동작을 그대로 적는다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScrimInput {
-    /// scrim은 보이기만 한다. 누르면 바깥 클릭이다.
-    VisualOnly,
-    /// scrim 위 포인터가 팝업 것이다.
-    TakesPointer,
-    /// 열려 있는 동안 범위 아래 탐색기로 끌어 놓기를 막는다.
-    BlocksDrop,
-}
-
 /// 정의 없이 만든 팝업의 선언 값. 크기는 생성자가 따로 받는다.
 const PLAIN_DECL: PopupDecl = defs::host_decl(PopupSize {
     width: LogicalPx(0.0),
@@ -111,15 +98,13 @@ const PLAIN_DECL: PopupDecl = defs::host_decl(PopupSize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PopupLook {
     pub(crate) covers_scope: bool,
-    pub(crate) scrim_input: ScrimInput,
     pub(crate) shell: PopupShell,
     pub(crate) shadow: PopupShadow,
     pub(crate) content_margin: PopupContentMargin,
 }
 
 impl PopupLook {
-    /// 열 때 정한 덮음 값. 덮으면 modal 그림자와 포인터를 받는 scrim, 덮지 않으면 popover 그림자와
-    /// 보이기만 하는 scrim이다. 셋은 늘 함께 바뀐다.
+    /// 열 때 정한 덮음 값. 덮으면 modal 그림자, 덮지 않으면 popover 그림자다. 둘은 늘 함께 바뀐다.
     fn covering(self, covers_scope: bool) -> Self {
         Self {
             covers_scope,
@@ -128,19 +113,13 @@ impl PopupLook {
             } else {
                 PopupShadow::Popover
             },
-            scrim_input: if covers_scope {
-                ScrimInput::TakesPointer
-            } else {
-                ScrimInput::VisualOnly
-            },
             ..self
         }
     }
 
-    fn of(decl: &PopupDecl, scrim_input: ScrimInput) -> Self {
+    fn of(decl: &PopupDecl) -> Self {
         Self {
             covers_scope: decl.covers_scope,
-            scrim_input,
             shell: decl.shell,
             shadow: decl.shadow,
             content_margin: decl.content_margin,
@@ -270,8 +249,6 @@ pub struct PopupDef {
     pub id: PopupId,
     /// 팝업 사이 동작 차이를 정하는 공통 선언.
     pub decl: PopupDecl,
-    /// scrim이 받는 입력. 덮는 팝업만 의미가 있다.
-    pub scrim_input: ScrimInput,
     /// i18n 키. `t()`로 런타임 번역하여 popup title로 사용.
     pub title_key: &'static str,
     /// 동적 타이틀. 매 프레임 호출. `title_key` 대신 사용된다. (예: rename popup의
@@ -565,8 +542,8 @@ impl PopupState {
             resize_start_rect: egui::Rect::ZERO,
             size_user_overridden: false,
             fullscreen_stage: None,
-            look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
-            declared_look: PopupLook::of(&PLAIN_DECL, ScrimInput::VisualOnly),
+            look: PopupLook::of(&PLAIN_DECL),
+            declared_look: PopupLook::of(&PLAIN_DECL),
             arrange: arrange::Arrange::PLAIN,
         }
     }
@@ -577,7 +554,6 @@ impl PopupState {
         id: PopupId,
         title: impl Into<String>,
         decl: &PopupDecl,
-        scrim_input: ScrimInput,
         drag_region: Option<fn(&PopupState) -> egui::Rect>,
         scope: PopupScope,
     ) -> Self {
@@ -598,7 +574,7 @@ impl PopupState {
             .with_drag_handle(drag_handle)
             .with_resizable(decl.resizable)
             .with_min_size(decl.min_size.map_or(size, vec2_of));
-        popup.look = PopupLook::of(decl, scrim_input);
+        popup.look = PopupLook::of(decl);
         popup.declared_look = popup.look;
         popup.arrange = arrange::Arrange::of(decl);
         popup.instances = decl.instances;
@@ -874,7 +850,6 @@ impl PopupManager {
             def.id,
             crate::i18n::t(def.title_key),
             &def.decl,
-            def.scrim_input,
             def.drag_region,
             PopupScope::Window,
         )
@@ -1223,13 +1198,6 @@ impl PopupManager {
         for iid in open {
             self.close_instance_with(iid, PopupCloseReason::Command, false);
         }
-    }
-
-    /// 범위 아래 탐색기로 끌어 놓기를 막는 팝업이 열려 있는지.
-    pub fn any_open_blocks_drop(&self) -> bool {
-        self.popups
-            .iter()
-            .any(|p| p.open && p.look.scrim_input == ScrimInput::BlocksDrop)
     }
 
     /// 이 선언의 열린 인스턴스. 아래에서 위 순서다.

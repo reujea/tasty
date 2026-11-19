@@ -26,7 +26,7 @@ impl MainView {
         // 수식키 변경 때도 호출되므로 무대 중에는 배경 링크를 조회하지 않는다.
         let new_link = if !matches_mods
             || self.mouse_overlay_open()
-            || self.state.popup_hovered
+            || self.pointer_on_popup()
             || self.state.banner_hovered
         {
             None
@@ -161,7 +161,7 @@ impl MainView {
             self.dragging_divider.is_some(),
             egui_consumed,
             overlay_open,
-            self.state.popup_hovered,
+            self.pointer_on_popup(),
             self.state.banner_hovered,
         ) {
             // 콘텐츠/오버레이 위에서는 리사이즈 커서를 띄우지 않는다(콘텐츠 우선).
@@ -386,30 +386,30 @@ impl MainView {
         }
 
         let overlay_open = self.mouse_overlay_open();
-        // 포인터 대상이 팝업 노드(상자, 덮는 범위)면 그 press는 팝업이 받는다. 아래 surface를 활성화하거나
-        // 선택·분할선 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
-        let notice_hit = button_state == ElementState::Pressed && self.pointer_on_popup_node();
         // 분할선 hit 띠의 press 는 포커스를 바꾸지 않고 곧바로 드래그를 시작한다. 비활성 surface 쪽
         // 띠도 첫 press 부터 분할선을 잡아야 하므로 click-to-activate 보다 먼저 본다.
-        if self.try_press_divider_first(
-            engine,
-            button,
-            button_state,
-            egui_consumed || notice_hit,
-            overlay_open,
-        ) {
+        if self.try_press_divider_first(engine, button, button_state, egui_consumed, overlay_open) {
             return;
         }
-        if !notice_hit && self.try_click_to_activate(engine, button, button_state, overlay_open) {
+        if self.try_click_to_activate(engine, button, button_state, overlay_open) {
             return;
         }
 
+        // 아래에서 가져간 press 의 release 는 같은 곳이 받는다. 그 사이 팝업이 닫혀도 짝 없는 release 가
+        // surface 로 새지 않는다.
+        let captured_release = button_state == ElementState::Released
+            && take_blocked_button(&mut self.blocked_press_buttons, button);
+        // 포인터 대상이 팝업 노드(상자, 덮는 범위)면 그 press는 팝업이 받는다. 아래 surface를 활성화하거나
+        // 선택·분할선 드래그를 시작하지 않는다. 바깥에서 시작한 드래그의 release는 그대로 마무리한다.
         if egui_consumed
-            || notice_hit
+            || captured_release
             || overlay_open
-            || self.state.popup_hovered
+            || self.pointer_on_popup()
             || self.state.banner_hovered
         {
+            if button_state == ElementState::Pressed {
+                self.blocked_press_buttons.push(button);
+            }
             // 비-좌클릭/Release/egui-크롬(사이드바·탭바) 클릭의 소비. 활성 surface 안
             // pane 포커스 갱신은 위 click-to-activate 단계가 흡수하므로 여기서는
             // Release 정리와 egui 소비 repaint 만 남긴다.
@@ -443,6 +443,13 @@ impl MainView {
         }
     }
 
+    /// 포인터 대상이 팝업 노드인지. 이 창의 포인터 처리(누름·뗌·휠·이동·hover·링크·커서)가 모두 이 판정 하나를
+    /// 앞에 둔다. 참이면 아래 surface·분할선·배너로 내려가지 않는다. 이번 egui 프레임의 판정(드롭다운 포함)과
+    /// 직전 프레임에 그린 사각형 판정을 함께 본다. winit 입력은 그 좌표로 egui 프레임을 돌리기 전에 오기 때문이다.
+    pub(super) fn pointer_on_popup(&self) -> bool {
+        self.state.popup_hovered || self.pointer_on_popup_node()
+    }
+
     /// 현재 포인터의 대상이 직전 프레임에 그린 팝업 노드(상자, 덮는 범위)인지.
     pub(super) fn pointer_on_popup_node(&self) -> bool {
         let ppp = self.base.gpu.egui_pixels_per_point();
@@ -463,7 +470,7 @@ impl MainView {
             && !resize_should_yield_to_content(
                 self.state.resize_edge_widget_hovered,
                 self.mouse_overlay_open(),
-                self.state.popup_hovered,
+                self.pointer_on_popup(),
                 self.state.banner_hovered,
                 super::fullscreen_window::window_size_is_locked(&self.base.winit),
             )
@@ -500,7 +507,7 @@ impl MainView {
         if button == MouseButton::Left
             && button_state == ElementState::Pressed
             && !overlay_open
-            && !self.state.popup_hovered
+            && !self.pointer_on_popup()
             && let Some(pos) = self.cursor_position
         {
             let terminal_rect = self.compute_terminal_rect();
@@ -867,7 +874,7 @@ impl MainView {
             || button_state != ElementState::Pressed
             || egui_consumed
             || overlay_open
-            || self.state.popup_hovered
+            || self.pointer_on_popup()
             || self.state.banner_hovered
         {
             return false;
@@ -1191,10 +1198,7 @@ impl MainView {
         if egui_consumed {
             self.mark_dirty();
         }
-        if !egui_consumed
-            && !overlay_open
-            && !self.state.popup_hovered
-            && !self.state.banner_hovered
+        if !egui_consumed && !overlay_open && !self.pointer_on_popup() && !self.state.banner_hovered
         {
             // egui-mesh surface 휠 forward (A1-S7): 포인터가 egui-mesh surface 위면
             // 스크롤 델타를 논리 포인트로 변환해 누적하고 소비한다.
@@ -1375,6 +1379,15 @@ fn push_report_button(stack: &mut Vec<(u8, u32)>, button: u8, surface_id: u32) {
 
 /// 보고 스택에서 버튼을 내린다. 남은 버튼이 있으면 그다음 최근 press 가 motion
 /// 버튼이 된다(여러 버튼을 겹쳐 눌렀다 하나만 뗀 경우).
+/// 위에서 가져간 press 의 버튼이면 목록에서 빼고 참이다. 그 release 도 같은 곳이 받는다.
+fn take_blocked_button(blocked: &mut Vec<MouseButton>, button: MouseButton) -> bool {
+    let Some(i) = blocked.iter().position(|b| *b == button) else {
+        return false;
+    };
+    blocked.swap_remove(i);
+    true
+}
+
 fn pop_report_button(stack: &mut Vec<(u8, u32)>, button: u8) {
     stack.retain(|(b, _)| *b != button);
 }
@@ -1566,6 +1579,24 @@ fn mesh_hover_transition(
 /// 메뉴를 닫는 클릭의 상태 전이와 egui 위젯 반응을 확인한다.
 /// GPU가 필요한 MainView 대신 egui::Context에 동일한 입력을 전달한다.
 /// 입력을 그대로 보낸 경우와 소비한 경우를 비교한다.
+#[cfg(test)]
+mod blocked_button_tests {
+    use super::take_blocked_button;
+    use winit::event::MouseButton;
+
+    /// Given 위(팝업·egui)가 왼쪽과 오른쪽 press를 가져갔을 때, When 오른쪽을 떼면, Then 그 release만 위가
+    /// 받고 왼쪽은 남는다. When 가져가지 않은 가운데를 떼면, Then 아래로 간다.
+    #[test]
+    fn a_release_follows_the_press_its_button_was_taken_by() {
+        let mut blocked = vec![MouseButton::Left, MouseButton::Right];
+        assert!(take_blocked_button(&mut blocked, MouseButton::Right));
+        assert_eq!(blocked, [MouseButton::Left]);
+        assert!(!take_blocked_button(&mut blocked, MouseButton::Middle));
+        assert!(take_blocked_button(&mut blocked, MouseButton::Left));
+        assert!(blocked.is_empty());
+    }
+}
+
 #[cfg(test)]
 mod menu_dismiss_tests {
     use super::menu_dismiss_swallow_step;

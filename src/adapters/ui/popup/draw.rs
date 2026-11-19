@@ -486,6 +486,15 @@ impl PopupManager {
             // 레이어·Area ID는 인스턴스로 정한다. 순서가 바뀌어도 스크롤·커서 같은 egui 상태가 따라간다.
             let layer_id =
                 egui::LayerId::new(egui::Order::Foreground, area_id_of(popup_id, popup_iid));
+            // 덮는 범위의 아래 위젯 입력은 팝업 바로 아래 막는 레이어가 받는다.
+            if let Some(cover) = popup.cover_rect(draw_ctx, screen_rect) {
+                let block =
+                    super::press::block_pointer(ctx, layer_id.id.with("cover_block"), cover);
+                layers.push(block);
+                if popup.arrange.takes_focus {
+                    focus_layers.push(block);
+                }
+            }
             layers.push(layer_id);
             if popup.arrange.takes_focus {
                 focus_layers.push(layer_id);
@@ -718,7 +727,11 @@ impl PopupManager {
         restack_layers(ctx, &layers);
         // egui는 누른 영역을 맨 위로 올린다. 포커스를 받지 않는 팝업을 눌렀으면 모든 팝업 레이어를 함께
         // 올려 지금 순서(그 팝업이 아래)를 지킨다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
-        if primary_pressed && hovered_popup.is_some_and(|iid| self.never_focused(iid)) {
+        // 덮는 범위를 막는 레이어를 누른 경우도 같다. 막는 레이어가 팝업 위로 올라가지 않는다.
+        let pressed_cover = hovered_box.is_none() && hovered_popup.is_some();
+        if press.is_some()
+            && (pressed_cover || hovered_popup.is_some_and(|iid| self.never_focused(iid)))
+        {
             for layer in &layers {
                 ctx.move_to_top(*layer);
             }

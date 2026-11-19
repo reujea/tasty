@@ -195,6 +195,14 @@ pub fn draw_plugin_popups(
             Order::Foreground,
             Id::new("plugin_mesh_popup").with(snap.instance_id),
         );
+        // 덮는 범위의 아래 위젯 입력은 팝업 바로 아래 막는 레이어가 받는다.
+        state
+            .plugin_popup_layers
+            .push(crate::adapters::ui::popup::press::block_pointer(
+                ctx,
+                layer_id.id.with("cover_block"),
+                scope_rect,
+            ));
         state.plugin_popup_layers.push(layer_id);
         // surface 범위를 벗어난 팝업 배경·테두리가 이웃 영역에 보이지 않도록 자른다.
         let painter = ctx.layer_painter(layer_id).with_clip_rect(scope_rect);
@@ -373,6 +381,13 @@ pub fn draw_plugin_popups(
 
     if any_hovered {
         state.popup_hovered = true;
+    }
+    // egui는 누른 영역(덮는 범위를 막는 레이어)을 맨 위로 올린다. 모든 레이어를 함께 올려 막는 레이어가 팝업
+    // 아래에 남게 한다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
+    if press.is_some() {
+        for layer in &state.plugin_popup_layers {
+            ctx.move_to_top(*layer);
+        }
     }
 }
 

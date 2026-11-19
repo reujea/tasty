@@ -12,7 +12,6 @@ fn picker_state(size: egui::Vec2) -> crate::adapters::ui::popup::PopupState {
         FILE_PICKER_POPUP_ID,
         "t",
         &def.decl,
-        def.scrim_input,
         def.drag_region,
         crate::model::popup_kind::PopupScope::Window,
     );

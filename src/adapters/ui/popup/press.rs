@@ -10,6 +10,24 @@ use super::occlusion::Occluder;
 use super::route::RoutedPress;
 use super::{PopupCloseReason, PopupInstanceId, PopupManager, PopupState};
 
+/// 덮는 사각형 위 egui 입력을 받는 빈 레이어를 그린다. 그 아래 위젯(사이드바·탭 바·탐색기·상태바·배너)은
+/// 누름·hover·휠을 받지 않는다. 호출자는 이 레이어를 팝업 레이어 바로 아래에 둔다. egui는 직전 프레임의 레이어로
+/// 판정하므로 열린 다음 프레임부터 막는다.
+pub(crate) fn block_pointer(ctx: &egui::Context, id: egui::Id, rect: egui::Rect) -> egui::LayerId {
+    egui::Area::new(id)
+        .order(egui::Order::Foreground)
+        .fixed_pos(rect.min)
+        .movable(false)
+        .interactable(true)
+        .sense(egui::Sense::click_and_drag())
+        .constrain(false)
+        .show(ctx, |ui| {
+            ui.set_min_size(rect.size());
+            ui.set_max_size(rect.size());
+        });
+    egui::LayerId::new(egui::Order::Foreground, id)
+}
+
 impl PopupState {
     /// 이 팝업이 덮는 사각형. 덮지 않는 팝업은 `None`이다. 배치 범위 사각형이 없으면(창 범위) 화면이다.
     pub(crate) fn cover_rect(

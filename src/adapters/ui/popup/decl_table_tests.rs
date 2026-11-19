@@ -7,7 +7,7 @@
 
 use super::super::{
     PopupContentMargin, PopupDecl, PopupEscape, PopupKeyboard, PopupLook, PopupManager,
-    PopupOutsideClick, PopupShadow, PopupShell, PopupState, ScrimInput,
+    PopupOutsideClick, PopupShadow, PopupShell, PopupState,
 };
 use egui::Color32;
 use tasty_type_appearance::theme::Theme;
@@ -46,8 +46,6 @@ fn color(tok: Tok, th: &Theme) -> Color32 {
 struct Row {
     id: &'static str,
     scrim: bool,
-    scrim_pointer: bool,
-    blocks_drop: bool,
     popover_shadow: bool,
     margin_zero: bool,
     bg: Tok,
@@ -65,8 +63,6 @@ const fn row(
     Row {
         id,
         scrim,
-        scrim_pointer: false,
-        blocks_drop: false,
         popover_shadow,
         margin_zero,
         bg: shell.0,
@@ -83,10 +79,7 @@ const BY_CONTENT: (Tok, Tok, Tok) = (Tok::Transparent, Tok::Transparent, Tok::Tr
 const EXPECTED: &[Row] = &[
     row("notifications", false, false, true, PANEL),
     row("convert_surface", true, false, false, PANEL),
-    Row {
-        blocks_drop: true,
-        ..row("explorer_conflict", true, false, true, RAISED)
-    },
+    row("explorer_conflict", true, false, true, RAISED),
     row("script_changed_confirm", false, false, true, RAISED),
     row(
         "rename",
@@ -206,8 +199,6 @@ fn row_of(id: &'static str, look: &PopupLook) -> Row {
     Row {
         id,
         scrim: look.covers_scope,
-        scrim_pointer: look.scrim_input == ScrimInput::TakesPointer,
-        blocks_drop: look.scrim_input == ScrimInput::BlocksDrop,
         popover_shadow: look.shadow == PopupShadow::Popover,
         margin_zero: look.content_margin == PopupContentMargin::None,
         bg,

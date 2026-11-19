@@ -86,7 +86,6 @@ fn a_changed_cover_closes_the_shown_instance_and_opens_the_other_look() {
     let bare_id = bare.instance;
     assert!(!bare.look.covers_scope);
     assert_eq!(bare.look.shadow, PopupShadow::Popover);
-    assert_eq!(bare.look.scrim_input, ScrimInput::VisualOnly);
 
     mgr.follow_open_when(DRIVEN_ID, Some(open(true)), |_| PopupPayload::None);
     let closed = mgr.take_closed_queue();
@@ -98,7 +97,6 @@ fn a_changed_cover_closes_the_shown_instance_and_opens_the_other_look() {
     assert_ne!(covering.instance, bare_id);
     assert!(covering.look.covers_scope);
     assert_eq!(covering.look.shadow, PopupShadow::Modal);
-    assert_eq!(covering.look.scrim_input, ScrimInput::TakesPointer);
     assert!(mgr.is_passive(DRIVEN_ID));
 
     mgr.follow_open_when(DRIVEN_ID, None, |_| PopupPayload::None);

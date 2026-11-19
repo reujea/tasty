@@ -195,6 +195,19 @@ impl MainView {
             }
             Route::AtCursor(x, y) => (x, y),
         };
+        // 놓는 대상은 포인터 대상이다. 팝업 노드(상자, 덮는 범위)는 놓기를 받지 않는다.
+        let ppp = self.base.gpu.egui_pixels_per_point();
+        if self.state.popup_owns_point(egui::pos2(
+            tasty_type_geometry::length::PhysicalPx(x)
+                .to_logical(ppp)
+                .value(),
+            tasty_type_geometry::length::PhysicalPx(y)
+                .to_logical(ppp)
+                .value(),
+        )) {
+            tracing::debug!(count = drops.len(), "file drop on a popup — ignored");
+            return;
+        }
         let (hit, pane_at) = {
             let scale_factor = self.base.gpu.scale_factor();
             let pane_at = self
