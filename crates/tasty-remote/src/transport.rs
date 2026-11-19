@@ -268,6 +268,10 @@ fn wait_for_reader(
 
 /// reader 스레드가 어떻게 끝나든(panic 포함) 끝 표지를 세운다. panic이면 끊김 표지도 세우고
 /// 깨운다. 정상 종료는 모든 분기가 끊김 표지를 이미 세웠다.
+///
+/// unwinding 중의 깨움은 `catch_unwind`로 감싼다. 깨움 콜백은 호출자가 넘긴 함수라 reader를
+/// panic시킨 것이 그 콜백일 수 있다. 다시 panic한 콜백이 drop 밖으로 나가면 프로세스가 abort한다.
+/// 깨우지 않으면 App이 다음 깨움까지 끊김을 보지 못하므로, 부르되 그 panic은 여기서 멈춘다.
 struct ReaderExit {
     finished: Arc<AtomicBool>,
     disconnected: Arc<AtomicBool>,
@@ -281,8 +285,10 @@ impl Drop for ReaderExit {
             self.disconnected.store(true, Ordering::SeqCst);
         }
         self.finished.store(true, Ordering::Release);
-        if panicked {
-            (self.wake)();
+        if panicked
+            && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.wake)())).is_err()
+        {
+            tracing::error!("attach reader: the wake callback panicked again while unwinding");
         }
     }
 }

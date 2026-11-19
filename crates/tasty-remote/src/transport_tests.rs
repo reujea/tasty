@@ -578,6 +578,42 @@ fn a_panicking_reader_still_lets_a_failed_writer_report_the_disconnect() {
     drop(sender);
 }
 
+/// 깨움 콜백이 panic해 reader가 unwinding하는 중에 guard가 같은 콜백을 다시 불러도 프로세스가
+/// abort하지 않고, reader는 panic으로 끝나며 끝 표지와 끊김 표지가 선다. guard가 그 panic을 잡지
+/// 않으면 시험 프로세스 전체가 abort한다.
+#[test]
+fn a_wake_callback_that_panics_again_while_the_reader_unwinds_does_not_abort() {
+    let (_write_half, conn, mut peer) = opened_attach_pair();
+    let disconnected = Arc::new(AtomicBool::new(false));
+    let finished = Arc::new(AtomicBool::new(false));
+    let (sender, _rx) = super::super::connection::channel();
+    let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = wakes.clone();
+    stream::write_frame(&mut peer, StreamTag::Data, b"").unwrap();
+    let reader = spawn_attach_reader_thread(
+        conn,
+        MirrorOutbox::new(sender.epoch()),
+        sender.clone(),
+        disconnected.clone(),
+        Arc::new(move || {
+            counted.fetch_add(1, Ordering::SeqCst);
+            panic!("wake panics on purpose");
+        }),
+        |_| None,
+        AttachReaderEnd {
+            remote_workspace: 1,
+            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
+            detach_sent: Arc::new(AtomicBool::new(false)),
+            force_detached: Arc::new(AtomicBool::new(false)),
+            finished: finished.clone(),
+        },
+    );
+    assert!(reader.join().is_err(), "the first wake panicked");
+    assert_eq!(wakes.load(Ordering::SeqCst), 2, "the guard woke again");
+    assert!(finished.load(Ordering::SeqCst));
+    assert!(disconnected.load(Ordering::SeqCst));
+}
+
 /// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다.
 #[test]
 fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
