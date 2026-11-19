@@ -5,6 +5,7 @@
 mod cell_decor;
 mod cell_lines;
 mod cell_paint;
+mod change_track;
 mod line_render;
 mod overlay;
 mod pipeline;
@@ -29,6 +30,7 @@ use cell_decor::{
     fill_cell, push_over_lines,
 };
 use cell_paint::{CellOverlays, CellPaint, ScreenPaint, cursor_paint_at, paint_cell, screen_paint};
+pub use change_track::FrameChanges;
 use overlay::composite_over;
 pub use search_paint::SearchHighlights;
 pub use types::ViewportSize;
@@ -121,6 +123,10 @@ pub struct CellRenderer {
     /// render_all에서 기록한 draw call 수. RenderPass 대여와 겹치지 않도록 Cell로 갱신한다.
     last_frame_bg_draws: Cell<u32>,
     last_frame_glyph_draws: Cell<u32>,
+    /// perf 계측이 켜진 프레임에서 직전 프레임과 바뀐 양을 센다.
+    changes: change_track::ChangeTracker,
+    /// 다음 `append_terminal_viewport`를 비교할 surface. 화면 캡처처럼 지정하지 않은 호출은 세지 않는다.
+    tracked_surface: Option<u32>,
     /// 생성 뒤 `update_font` 호출 수. 저장값이 생성 때 적용됐는지 실행 중에 확인하는 데 쓴다.
     /// debug IPC(`debug info`)만 읽으므로 debug 빌드에만 둔다.
     #[cfg(debug_assertions)]
@@ -151,6 +157,31 @@ impl CellRenderer {
         self.last_frame_bg_draws.set(0);
         self.last_frame_glyph_draws.set(0);
         self.atlas.begin_frame();
+    }
+
+    /// 이번 프레임의 변화 집계를 시작한다. `enabled`가 거짓이면 직전 프레임 사본을 버리고 아무것도 보관하지 않는다.
+    pub fn begin_change_frame(&mut self, enabled: bool) {
+        self.tracked_surface = None;
+        self.changes.begin_frame(enabled);
+    }
+
+    /// 다음 `append_terminal_viewport` 호출을 이 surface의 직전 프레임과 비교한다.
+    pub fn track_surface(&mut self, surface_id: u32) {
+        self.tracked_surface = Some(surface_id);
+    }
+
+    /// 변화 집계를 끝낸다. 계측이 꺼진 프레임은 `None`이다.
+    pub fn finish_change_frame(&mut self) -> Option<FrameChanges> {
+        self.tracked_surface = None;
+        self.changes.finish_frame()
+    }
+
+    /// 이번 프레임에 쌓은 (bg, glyph) 인스턴스 수.
+    pub fn instance_counts(&self) -> (u32, u32) {
+        (
+            u32::try_from(self.bg_instances.len()).unwrap_or(u32::MAX),
+            u32::try_from(self.glyph_instances.len()).unwrap_or(u32::MAX),
+        )
     }
 
     /// Append a terminal viewport's instances to the frame accumulator.
@@ -235,9 +266,40 @@ impl CellRenderer {
             };
 
             let (cols, rows) = view.dimensions();
+            if let Some(id) = self.tracked_surface.take() {
+                self.changes
+                    .begin_surface(id, view.cut().revision, cols, rows);
+            }
+            let sign = self.changes.recording().then_some(change_track::SignInput {
+                default_bg,
+                default_fg,
+                ansi,
+                cursor: if view.scroll_offset() == 0 {
+                    cursor
+                } else {
+                    None
+                },
+                overlays,
+                cols,
+                rows,
+            });
 
             if view.scroll_offset() == 0 {
                 let row_offset = view.screen_start();
+                if let Some(sign) = &sign {
+                    change_track::sign_live_screen(
+                        &mut self.changes,
+                        sign,
+                        view.surface(),
+                        row_offset,
+                    );
+                    change_track::sign_overlays(
+                        &mut self.changes,
+                        sign,
+                        preedit,
+                        view.viewport().top_row,
+                    );
+                }
                 self.fill_surface(
                     view.surface(),
                     queue,
@@ -257,6 +319,15 @@ impl CellRenderer {
                 let history_start = scrollback_len.saturating_sub(scroll_offset);
                 let history_end = (history_start + rows).min(scrollback_len);
                 let mut history = view.scrollback_lines(history_start..history_end);
+                if let Some(sign) = &sign {
+                    self.sign_scrolled_rows(sign, &history, history_start, view);
+                    change_track::sign_overlays(
+                        &mut self.changes,
+                        sign,
+                        preedit,
+                        view.viewport().top_row,
+                    );
+                }
 
                 for row_idx in 0..rows {
                     let source_line =
@@ -335,7 +406,57 @@ impl CellRenderer {
 
         let bg_range = bg_start..self.bg_instances.len() as u32;
         let glyph_range = glyph_start..self.glyph_instances.len() as u32;
+        if self.changes.recording() {
+            self.changes.end_surface(
+                bytemuck::cast_slice(&self.bg_instances[bg_start as usize..]),
+                bytemuck::cast_slice(&self.glyph_instances[glyph_start as usize..]),
+                (
+                    std::mem::size_of::<BgInstance>(),
+                    std::mem::size_of::<GlyphInstance>(),
+                ),
+            );
+        }
         self.surface_ranges.push((*viewport, bg_range, glyph_range));
+    }
+
+    /// 스크롤한 위치의 칸 서명을 낸다. 렌더가 꺼내 쓰기 전의 기록 줄을 읽는다.
+    fn sign_scrolled_rows(
+        &mut self,
+        sign: &change_track::SignInput<'_>,
+        history: &[Option<std::borrow::Cow<'_, tasty_terminal::ScrollbackLine>>],
+        history_start: usize,
+        view: &tasty_terminal::TerminalReadView<'_>,
+    ) {
+        let scrollback_len = view.screen_start();
+        let surface_lines = view.surface().screen_lines();
+        for row in 0..sign.rows {
+            let Some(source) = (scrollback_len + row).checked_sub(view.scroll_offset()) else {
+                change_track::RowSigner::new(&mut self.changes, sign, row, usize::MAX).finish();
+                continue;
+            };
+            let mut signer = change_track::RowSigner::new(&mut self.changes, sign, row, source);
+            if source < scrollback_len {
+                if let Some(Some(line)) = source
+                    .checked_sub(history_start)
+                    .and_then(|i| history.get(i))
+                {
+                    let mut col = 0usize;
+                    for (text, attrs) in line.cells() {
+                        if !signer.cell(col, text, attrs) {
+                            break;
+                        }
+                        col += unicode_width(text.chars().next().unwrap_or(' '));
+                    }
+                }
+            } else if let Some(line) = surface_lines.get(source - scrollback_len) {
+                for cell in line.visible_cells() {
+                    if !signer.cell(cell.cell_index(), cell.str(), cell.attrs()) {
+                        break;
+                    }
+                }
+            }
+            signer.finish();
+        }
     }
 
     /// 스크롤백이 아닌 현재 화면의 인스턴스를 추가한다.
@@ -836,6 +957,8 @@ fn clip_scissor(
 mod cell_decor_tests;
 #[cfg(test)]
 mod cell_paint_tests;
+#[cfg(test)]
+mod change_track_tests;
 #[cfg(test)]
 mod hidden_cell_tests;
 #[cfg(test)]

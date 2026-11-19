@@ -317,18 +317,38 @@ GPU 렌더 파이프라인(단일 render pass batching + multi-page atlas — �
 
 ### 측정 segment (`src/gfx/gpu.rs::render()`)
 
-`Instant` 로 단계별 시간을, `CellRenderer` 카운터로 atlas/draw 통계를 잰다. 단계별 시간은 `src/gfx/gpu/frame_timing.rs::FrameBreakdown` 한 값에 모인다.
+`Instant` 로 단계별 시간을, `CellRenderer` 카운터로 atlas/draw 통계를 잰다. 단계별 시간은 `src/gfx/gpu/frame_timing.rs::FrameBreakdown` 한 값에 모인다. 모든 시간은 CPU 벽시계다. GPU가 명령을 실제로 실행한 시간이 아니며 GPU timestamp query는 쓰지 않는다. 제출 뒤 GPU 실행이 늦으면 그 대기는 다음 프레임의 `acquire_ms`나 `present_ms`에 나타난다.
 
 | 변수 | 의미 |
 |------|------|
 | `terminals_ms` | `begin_frame` + N×`append_terminal_viewport` + `flush_buffers` + `render_all`. 핵심 영역 |
+| `terminals_build_ms` | `terminals_ms` 중 인스턴스를 쌓는 구간. `render_terminals` 첫머리(테마·ANSI 팔레트 조회 전)에서 시작해, 마지막 `append_terminal_viewport` 뒤 바뀐 칸 집계를 마무리하는 `finish_change_frame()`까지다. 바뀐 칸 집계가 켜진 프레임은 칸 서명 계산과 직전 프레임 비교를 포함한다 |
+| `terminals_submit_ms` | `terminals_ms` 중 `flush_buffers`(업로드)·`render_all`(draw 기록)·제출 |
 | `acquire_ms` | `surface.get_current_texture()` 대기. 창이 보이지 않거나 compositor가 늦으면 여기서 기다린다 |
+| `overlay_acquire_ms` | WebView 오버레이 창의 `get_current_texture()` 대기. 오버레이가 없으면 0이고 `acquire_ms`에 들어가지 않는다(`other`에 들어간다) |
+| `egui_frame_ms` | egui UI 실행(`run_egui_frame`) |
+| `post_egui_ms` | egui 프레임 뒤 처리. 프레임마다 부르는 `tasty_egui_theme::apply_theme_to_egui`와 터미널 글꼴 갱신이 여기에 들어간다 |
+| `tessellate_ms` / `clear_ms` / `egui_pass_ms` / `present_ms` | egui 도형 분할, 바탕 지우기 pass, egui pass(mesh 팝업 포함), 화면 캡처 처리와 present |
 | `gpu_total_ms` | `render()` 전체(layout + acquire + egui + tessellate + clear + terminals + egui_pass + present + other) |
 | `other` | `gpu_total_ms`에서 나머지 구간 합을 뺀 값. 글꼴 갱신, mesh surface·WebView 오버레이·배너 합성처럼 따로 재지 않는 구간이다. 이 값이 크면 계측하지 않은 구간이 느린 것이다 |
 | `draw_calls_total` | `RenderPass::draw()` 호출 수(`set_pipeline`/`set_scissor_rect` 별도; pipeline 스위치는 frame 당 2 고정) |
 | `surfaces` | 활성(bg/glyph range 비어있지 않은) surface 수 |
 | `atlas_evictions` | 누적 페이지 eviction(단조 증가 — *전후 차이* 가 의미) |
 | `atlas_active_pages` / `atlas_entry_count_sum` | 마지막 sample 의 절대치(percentile 아님) |
+| `bg_instances` / `glyph_instances` | 그 프레임에 쌓은 터미널 bg·glyph 인스턴스 수 |
+| `changed_surfaces` | 터미널 내용 revision(`ContentCut.revision`)이 직전 프레임과 다르거나 직전 프레임에 그리지 않은 surface 수 |
+| `changed_cells` | 칸 좌표별 (문자열, 속성, 적용된 색) 서명이 직전 프레임과 다른 칸 수. 커서·선택·검색·링크·조합 중 글자 같은 덮개도 서명에 들어가므로 커서가 옮겨 가면 두 칸이 바뀐다. 격자 크기가 바뀌었거나 처음 그린 surface는 모든 칸을 센다 |
+| `changed_instance_bytes` | surface별로 같은 순번 인스턴스끼리 비교해 바이트가 다른 인스턴스와 늘거나 준 인스턴스의 바이트 합. 업로드를 줄일 수 있는 양의 추정치다. glyph 인스턴스에는 atlas 좌표가 들어 있어 내용이 같아도 eviction 뒤에 달라지므로 바뀐 칸 수와 따로 센다 |
+
+바뀐 칸은 인스턴스가 아니라 서명으로 센다. 칸 하나가 내는 인스턴스 수는 글리프·선·커서 덮개에 따라 달라지기 때문이다. 서명은 `src/gfx/renderer/change_track.rs`가 렌더러와 같은 칠 함수(`paint_cell`)로 격자를 한 번 더 훑어 만든다. 이 계산과 직전 프레임 사본은 바뀐 칸 집계가 켜진(`tasty::gfx::perf` trace) 프레임에서만 한다. 꺼진 프레임은 보관한 사본도 버린다.
+
+redraw 콜백 안이지만 `render()` 밖인 구간은 `src/app/view_frame.rs`에서 따로 잰다.
+
+| 변수 | 의미 |
+|------|------|
+| `prepare_ms` | 공용 목록 동기화(`sync_shared_lists`)와 `prepare_redraw` |
+| `mesh_relay_ms` | 구독 중인 mesh surface 중계(`relay_subscribed_mesh`) |
+| `webview_sync_ms` | WebView 동기화와 오버레이 host 맞춤 |
 
 ### perf 로그 활성화
 
@@ -336,7 +356,13 @@ GPU 렌더 파이프라인(단일 render pass batching + multi-page atlas — �
 
 - log target: `tasty::gfx::perf` (본체 기본 필터에서 비활성).
 - 활성: `TASTY_LOG=tasty::gfx::perf=info` — 본체가 읽는 변수는 `TASTY_LOG` 다([crash-diagnostics](crash-diagnostics.md)).
-- 한 줄: `perf n=300 surfaces=10 draws=20 terminals_ms p50=… p99=… max=… gpu_total_ms p50=… p99=… max=… acquire_ms p50=… p99=… max=… atlas_evictions=… atlas_pages=… atlas_entries=…`
+- 켜짐 판단: 스위치가 둘이다. 둘 다 `tracing::enabled!`로 이 target의 해당 수준이 어느 출력 층에든 나가는지를 본다.
+  - 구간 시간: `crate::gfx::perf::enabled()`, `tasty::gfx::perf` info. debug 빌드는 파일 로그 층이 debug 이상을 받으므로 늘 켜져 있다. 꺼져 있으면 프레임·redraw 표본을 보관하지 않고 300프레임 집계·정렬·줄 생성도 하지 않는다.
+  - 바뀐 칸 집계: `crate::gfx::perf::changes_enabled()`, `tasty::gfx::perf` trace(`TASTY_LOG=tasty::gfx::perf=trace`). 칸 서명과 직전 프레임 사본은 이때만 만든다. debug 빌드의 기본 파일 필터에서는 꺼져 있다. 칸 서명은 `Terminal::with_view` 안에서 계산하므로, 켜진 동안의 `terminals_build_ms`·`gpu_total_ms`에는 서명 계산 시간이 들어 있다. 서명 비용 없이 구간 시간을 재려면 info로 켠다. trace는 프레임마다 `frame_sample` 줄도 남긴다.
+  - 계측이 꺼졌을 때의 비용은 release 빌드에서 잰다.
+- 프레임 줄: `perf n=300 surfaces=10 draws=20 terminals_ms p50=… p99=… max=… gpu_total_ms p50=… p99=… max=… acquire_ms p50=… p99=… max=… atlas_evictions=… atlas_pages=… atlas_entries=…` 뒤에 `terminals_build_ms`·`terminals_submit_ms`·`egui_frame_ms`·`post_egui_ms`·`tessellate_ms`·`clear_ms`·`egui_pass_ms`·`present_ms`·`overlay_acquire_ms`가 각각 `p50=… p99=…`로, `bg_instances`·`glyph_instances`가 `p50=… p99=… max=…`로 이어진다. 끝은 `changes_n=<계측한 프레임 수> changed_surfaces p50=… p99=… max=… changed_cells … changed_instance_bytes …`이고, 창 안에 계측한 프레임이 없으면(info로만 켠 경우 포함) `changes=untracked`다.
+- redraw 줄: 같은 시점에 `perf_redraw n=… prepare_ms p50=… p99=… max=… mesh_relay_ms … webview_sync_ms …`. 모집단은 최근 300번의 메인 창 redraw 콜백이다. 렌더를 건너뛴 콜백도 들어가므로 `n`이 프레임 줄과 다를 수 있다.
+- 프레임마다 TRACE `frame_sample`(`TASTY_LOG=tasty::gfx::perf=trace`)이 위 프레임 값을 필드로 낸다. 바뀐 양을 재지 않은 프레임은 `changes_tracked=false`다.
 
 ### 재현 시나리오 (`scripts/bench/`)
 

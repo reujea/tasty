@@ -161,7 +161,9 @@ pub struct GpuState {
     /// [`Self::capture_surface_to_png`].
     pub pending_surface_screenshot: Option<(u32, std::path::PathBuf)>,
     /// Frame timing 집계기. `TASTY_LOG=tasty::gfx::perf=info` 일 때만 출력.
-    pub(super) perf: PerfAggregator,
+    pub(crate) perf: PerfAggregator,
+    /// 이번 프레임에 WebView 오버레이 창의 acquire를 기다린 시간(ms). perf 표본에 넣고 비운다.
+    overlay_acquire_ms: f64,
     /// 느린 프레임 경고를 구간 요약으로 묶는다.
     slow_render: frame_timing::SlowRenderLog,
     /// Set when a frame hid the focused terminal cursor during an output burst.
@@ -335,6 +337,7 @@ impl GpuState {
             pending_screenshot: None,
             pending_surface_screenshot: None,
             perf: PerfAggregator::new(),
+            overlay_acquire_ms: 0.0,
             slow_render: frame_timing::SlowRenderLog::default(),
             terminal_cursor_restore_pending: false,
             proxy,
@@ -422,6 +425,7 @@ impl GpuState {
         plugin_manager: Option<crate::app::plugin_display::PluginDisplay<'_>>,
     ) -> Result<(), wgpu::SurfaceError> {
         let render_start = std::time::Instant::now();
+        self.overlay_acquire_ms = 0.0;
         #[cfg(debug_assertions)]
         self.debug_main_frame(window.id())?;
 
@@ -525,7 +529,7 @@ impl GpuState {
         } else {
             Some(&state.search)
         };
-        self.render_terminals(
+        let terminal_cost = self.render_terminals(
             &view,
             &regions,
             &engine.as_ref(),
@@ -619,10 +623,23 @@ impl GpuState {
         self.slow_render.record(&timing);
 
         let (_, _, draw_total) = self.renderer.draw_call_count();
+        let (bg_instances, glyph_instances) = self.renderer.instance_counts();
         self.perf.push(FrameSample {
             gpu_total_ms: timing.total_ms,
             terminals_ms: timing.terminals_ms,
             acquire_ms: timing.acquire_ms,
+            egui_frame_ms: timing.egui_frame_ms,
+            post_egui_ms: timing.post_egui_ms,
+            tessellate_ms: timing.tessellate_ms,
+            clear_ms: timing.clear_ms,
+            egui_pass_ms: timing.egui_pass_ms,
+            present_ms: timing.present_ms,
+            terminals_build_ms: terminal_cost.build_ms,
+            terminals_submit_ms: terminal_cost.submit_ms,
+            overlay_acquire_ms: std::mem::take(&mut self.overlay_acquire_ms),
+            bg_instances,
+            glyph_instances,
+            changes: terminal_cost.changes,
             draw_calls_total: draw_total,
             surfaces: self.renderer.active_surface_count(),
             atlas_evictions: self.renderer.atlas.eviction_count(),

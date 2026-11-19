@@ -298,6 +298,8 @@ impl CellRenderer {
             ),
             last_frame_bg_draws: std::cell::Cell::new(0),
             last_frame_glyph_draws: std::cell::Cell::new(0),
+            changes: Default::default(),
+            tracked_surface: None,
             #[cfg(debug_assertions)]
             font_updates: 0,
         }

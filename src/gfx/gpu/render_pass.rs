@@ -6,6 +6,16 @@ use crate::state::MainViewState;
 
 use super::GpuState;
 
+/// 터미널 pass 한 번의 구간 시간과 직전 프레임과 바뀐 양.
+pub(super) struct TerminalPassCost {
+    /// `begin_frame`부터 모든 surface의 인스턴스를 쌓을 때까지.
+    pub build_ms: f64,
+    /// 버퍼 업로드, draw 기록, 제출.
+    pub submit_ms: f64,
+    /// perf 계측이 꺼진 프레임은 `None`이다.
+    pub changes: Option<crate::gfx::renderer::FrameChanges>,
+}
+
 impl GpuState {
     pub(super) fn render_clear_pass(
         &self,
@@ -59,7 +69,8 @@ impl GpuState {
         preedit: Option<&super::ImePreeditState>,
         link_hover: Option<(u32, &tasty_terminal_link::LinkHighlight)>,
         search: Option<&crate::search_state::SearchState>,
-    ) {
+    ) -> TerminalPassCost {
+        let build_start = std::time::Instant::now();
         self.terminal_cursor_restore_pending = false;
         let theme = crate::theme::theme();
         let term_surface = theme.surface("terminal");
@@ -71,6 +82,8 @@ impl GpuState {
         // Accumulate instance data for every surface into the renderer's
         // shared vecs, recording per-surface (rect, bg range, glyph range).
         self.renderer.begin_frame();
+        self.renderer
+            .begin_change_frame(crate::gfx::perf::changes_enabled());
 
         for (_pane_id, _pane_rect, surface_regions) in regions {
             for region in surface_regions {
@@ -159,6 +172,7 @@ impl GpuState {
                 }
                 let show_cursor = is_focused && !suppress_cursor;
 
+                self.renderer.track_surface(*surface_id);
                 terminal.with_view(&terminal_views.get(engine, *surface_id), |view| {
                     self.renderer.append_terminal_viewport(
                         &view,
@@ -178,6 +192,10 @@ impl GpuState {
                 });
             }
         }
+
+        let changes = self.renderer.finish_change_frame();
+        let build_ms = build_start.elapsed().as_secs_f64() * 1000.0;
+        let submit_start = std::time::Instant::now();
 
         // Single buffer upload (auto-grows if needed) + single encoder/submit.
         self.renderer.flush_buffers(&self.device, &self.queue);
@@ -206,6 +224,11 @@ impl GpuState {
                 .render_all(&mut render_pass, self.size.width, self.size.height);
         }
         self.submit_commands(std::iter::once(encoder.finish()));
+        TerminalPassCost {
+            build_ms,
+            submit_ms: submit_start.elapsed().as_secs_f64() * 1000.0,
+            changes,
+        }
     }
 
     pub(super) fn render_egui_pass(

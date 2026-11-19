@@ -31,12 +31,15 @@ impl App {
         else {
             return;
         };
+        let mut shell = crate::gfx::perf::RedrawShellSample::default();
+        let t0 = std::time::Instant::now();
         // 다른 윈도우가 바꾼 공용 목록(Explorer·포트 즐겨찾기)을 그리기 전에 받는다.
         if session.runtime.sync_shared_lists() {
             tracing::debug!(window = ?id, "shared lists: copy refreshed before redraw");
             crate::view::ui::View::mark_dirty(view);
         }
         view.prepare_redraw(&session.read());
+        shell.prepare_ms = t0.elapsed().as_secs_f64() * 1000.0;
         apply_frame_effects(
             &mut view.state,
             session,
@@ -56,6 +59,7 @@ impl App {
             self.plugin_manager.as_ref(),
             FramePhase::Inputs,
         );
+        let t0 = std::time::Instant::now();
         if let Some(manager) = self.plugin_manager.as_ref() {
             for update in super::view_mesh::relay_subscribed_mesh(
                 &mut session.borrow_mut(),
@@ -72,6 +76,7 @@ impl App {
                 }
             }
         }
+        shell.mesh_relay_ms = t0.elapsed().as_secs_f64() * 1000.0;
         view.render_if_dirty(
             &session.read(),
             self.plugin_manager
@@ -91,6 +96,7 @@ impl App {
                 .as_ref()
                 .map(super::plugin_display::PluginDisplay::new),
         );
+        let t0 = std::time::Instant::now();
         super::webview_sync::synchronize(
             view,
             &mut session.borrow_mut(),
@@ -103,6 +109,8 @@ impl App {
             &self.gpu_instance,
             self.gpu_adapter.as_deref(),
         );
+        shell.webview_sync_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        view.base.gpu.perf.push_shell(shell);
         self.process_remote_tool_requests(id);
         // 팔레트 명령은 렌더 뒤에 실행되므로 그 편집 요청을 이 프레임에서 꺼낸다.
         self.begin_plugin_field_edit(id);

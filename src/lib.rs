@@ -38,6 +38,9 @@ mod intent;
 mod model;
 #[cfg(test)]
 mod namespace_table_for_tests;
+// 렌더 프레임 perf 집계만 쓴다.
+#[cfg(feature = "gui")]
+mod perf_stats;
 mod plugin_bridge;
 mod ports;
 mod remote;

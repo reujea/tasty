@@ -162,21 +162,24 @@ impl super::GpuState {
                 [self.size.width, self.size.height]
             ));
         }
-        let output = match overlay.surface.get_current_texture() {
-            Ok(o) => o,
+        let acquire_start = std::time::Instant::now();
+        let acquired = match overlay.surface.get_current_texture() {
+            Ok(o) => Ok(o),
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 overlay.surface.configure(&self.device, &overlay.config);
-                match overlay.surface.get_current_texture() {
-                    Ok(o) => o,
-                    Err(e) => {
-                        self.overlay_surface = None;
-                        return Err(format!("overlay surface lost: {e}"));
-                    }
-                }
+                overlay
+                    .surface
+                    .get_current_texture()
+                    .map_err(|e| format!("overlay surface lost: {e}"))
             }
+            Err(e) => Err(format!("overlay surface failed: {e}")),
+        };
+        self.overlay_acquire_ms += acquire_start.elapsed().as_secs_f64() * 1000.0;
+        let output = match acquired {
+            Ok(o) => o,
             Err(e) => {
                 self.overlay_surface = None;
-                return Err(format!("overlay surface failed: {e}"));
+                return Err(e);
             }
         };
         let view = output
