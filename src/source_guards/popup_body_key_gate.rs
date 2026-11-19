@@ -1,22 +1,31 @@
 //! host 팝업 본문이 키 입력 문(`body_keys::with_body_keys`) 안에서만 그려지는지 확인한다. 문은 이번 프레임 키
-//! 주인이 아닌 본문을 그리는 동안 키·글자·붙여넣기·복사·잘라내기·IME 사건을 egui 입력에서 뺀다. 그래서 본문이 egui
-//! 입력을 직접 읽든(`key_pressed`·`consume_key`·`events`) 위젯 키 포커스로 읽든 키 주인 플래그를 따른다.
+//! 주인이 아닌 본문을 그리는 동안 키·글자·붙여넣기·복사·잘라내기·IME 사건과 눌린 키 상태(`keys_down`)를 egui
+//! 입력에서 뺀다. 그래서 본문이 egui 입력을 직접 읽든(`key_pressed`·`key_down`·`consume_key`·`events`) 위젯 키
+//! 포커스로 읽든 키 주인 플래그를 따른다. 수식키 상태(`modifiers`)는 가리지 않는다.
 //!
 //! 규칙의 구조를 세 가지로 본다.
 //! 1. 본문 호출 자리는 하나다. draw.rs 에서 본문 콜백 `content_fn` 이 나오는 곳은 매개변수 선언, `draw` 에서
 //!    `draw_routed` 로 넘기는 곳, 문 클로저 안의 호출 하나뿐이다. 문 클로저는 본문 호출 하나만 담는다. 문의 키 플래그는
 //!    이번 프레임 키 주인 값에서 나온다.
-//! 2. 팝업 정의의 본문(`PopupDef::draw_fn`)은 팝업 층이 `draw_routed` 에 넘기는 본문 콜백 안에서만 부른다.
+//! 2. 팝업 정의의 본문(`PopupDef::draw_fn`)은 팝업 층이 `draw_routed` 의 둘째 인자로 넘기는 본문 콜백 클로저
+//!    리터럴 안에서만 부른다.
 //! 3. egui 키 입력을 직접 읽는 파일은 아래 목록 중 하나다. 팝업 본문(문 안에서만 그려진다), 문·키 주인 버튼, 팝업
 //!    밖(이유와 함께), 공용 위젯(부른 쪽의 문을 따른다)으로 나눈다. 새 파일이 키를 읽으면 분류를 정해야 통과한다.
 //!
 //! 키 읽기와 `draw_fn` 은 줄바꿈·공백으로 나눠 쓴 형태(`key_pressed\n(`, `Event::\nKey`, `def\n.draw_fn`)도 같은
-//! 형태로 맞춘 뒤 본다(`joined`). 정의 본문은 부르는 자리뿐 아니라 꺼내 쓰는 자리(`let f = def.draw_fn;`, 구조
-//! 분해)도 팝업 층 하나에만 있어야 한다.
+//! 형태로 맞춘 뒤 본다(`joined`). 키 읽기 메서드를 값으로 담는 경로(`egui::InputState::num_presses`)도 읽기로 본다.
+//! 정의 본문은 부르는 자리뿐 아니라 꺼내 쓰는 자리(`let f = def.draw_fn;`, 전달, 구조 분해. 이름을 바꾼
+//! `PopupDef { draw_fn: body, .. }` 패턴 포함)도 팝업 층 하나에만 있어야 한다.
 //!
-//! 잡지 못하는 것: 본문 모듈의 함수를 팝업 밖에서 이름으로 직접 부르는 경로(3의 목록은 파일 단위다), 위젯이 팝업
-//! 밖에서 키를 읽는 것, egui 입력이 아닌 경로(창 상태에 쌓아 둔 키 등)로 키를 읽는 것, 매크로가 만든 키 읽기,
-//! `use` 별칭으로 이름을 바꾼 키 읽기 함수와 사건 이름(`use egui::Event::Key as K` 등).
+//! 잡지 못하는 것:
+//! - 본문 모듈의 함수를 팝업 밖에서 이름으로 직접 부르는 경로(3의 목록은 파일 단위다).
+//! - 위젯이 팝업 밖에서 키를 읽는 것.
+//! - egui 입력이 아닌 경로(창 상태에 쌓아 둔 키 등)로 키를 읽는 것.
+//! - 매크로가 만든 키 읽기.
+//! - `use` 별칭으로 이름을 바꾼 사건 이름(`use egui::Event::Key as K` 등).
+//! - 키 읽기를 다른 이름의 함수로 감싸 부르는 것(감싼 함수가 든 파일은 3에서 잡힌다).
+//! - 튜플·배열 패턴 안에서 뒤에 다른 요소가 이어지는 구조 분해(`let (PopupDef { draw_fn: b, .. }, x) = …`).
+//! - 본문 콜백 클로저 안에서 정의 본문을 부르기 전에 다른 일을 하는 것(호출 자리만 본다).
 
 use std::collections::BTreeSet;
 
@@ -139,14 +148,37 @@ fn popup_definition_bodies_run_only_inside_the_body_callback() {
         "{FRAME} 의 팝업 본문 호출 `{call}` 이 하나가 아니다"
     );
     let at = frame.find(call).expect("본문 호출");
+    // 본문 호출은 draw_routed 의 둘째 인자인 클로저 리터럴의 본문 안에 있다. 인자를 만드는 블록(`{ 호출; 콜백 }`)이나
+    // 다른 인자 안의 호출은 콜백 밖이다.
     let routed = frame
         .find("popups.draw_routed(")
         .expect("팝업 층의 draw_routed 호출");
-    let open = routed + "popups.draw_routed".len();
-    let close = matching_delim(&frame, open).expect("draw_routed 호출 끝");
+    let args = routed + "popups.draw_routed(".len();
+    let head = "ctx,&mut|cx,ui|{";
+    let mut seen = String::new();
+    let mut body_open = None;
+    for (i, c) in frame[args..].char_indices() {
+        if c.is_whitespace() {
+            continue;
+        }
+        seen.push(c);
+        if !head.starts_with(&seen) {
+            break;
+        }
+        if seen == head {
+            body_open = Some(args + i);
+            break;
+        }
+    }
+    let body_open = body_open.unwrap_or_else(|| {
+        panic!(
+            "{FRAME} 의 draw_routed 둘째 인자가 본문 콜백 클로저 `&mut |cx, ui| {{ … }}` 가 아니다"
+        )
+    });
+    let body_close = matching_delim(&frame, body_open).expect("본문 콜백 끝");
     assert!(
-        routed < at && at < close,
-        "{FRAME} 의 팝업 본문 호출이 draw_routed 에 넘기는 본문 콜백 밖에 있다"
+        body_open < at && at < body_close,
+        "{FRAME} 의 팝업 본문 호출이 draw_routed 에 넘기는 본문 콜백 클로저 안에 있지 않다"
     );
 
     // 팝업 정의 본문은 다른 곳에서 부르거나 꺼내 쓰지 않는다. `draw_fn` 낱말은 필드 선언·초기화(`draw_fn:`)로만
@@ -172,15 +204,19 @@ fn popup_definition_bodies_run_only_inside_the_body_callback() {
     );
 }
 
-/// `draw_fn` 낱말이 필드 선언·초기화(`draw_fn:`)가 아닌 자리. 각 자리의 앞뒤 몇 글자.
+/// `draw_fn` 낱말이 필드 선언·초기화(`draw_fn:`)가 아닌 자리. 이름을 바꾼 구조 분해(`PopupDef { draw_fn: body, .. }`
+/// 패턴)는 읽는 자리로 센다. 각 자리의 앞뒤 몇 글자.
 fn draw_fn_uses(code: &str) -> Vec<String> {
     code.match_indices("draw_fn")
         .filter(|(at, _)| {
             let before = code[..*at].chars().next_back();
             let after = &code[at + "draw_fn".len()..];
-            !before.is_some_and(is_ident)
-                && !after.chars().next().is_some_and(is_ident)
-                && !(after.trim_start().starts_with(':') && !after.trim_start().starts_with("::"))
+            if before.is_some_and(is_ident) || after.chars().next().is_some_and(is_ident) {
+                return false;
+            }
+            let rest = after.trim_start();
+            let field = rest.starts_with(':') && !rest.starts_with("::");
+            !field || in_pattern(code, *at)
         })
         .map(|(at, _)| {
             let start = code[..at].char_indices().rev().nth(8).map_or(0, |(i, _)| i);
@@ -191,6 +227,34 @@ fn draw_fn_uses(code: &str) -> Vec<String> {
             code[start..end].to_string()
         })
         .collect()
+}
+
+/// `at` 을 담은 가장 안쪽 `{ … }` 가 패턴(구조 분해)인지. 닫는 `}` 뒤(닫는 `)`·`]` 는 건너뛴다)가 `=`(let·if let·
+/// match 갈래 `=>`), `:`(매개변수 타입), `|`(클로저 매개변수)면 패턴이다. 구조체 리터럴·필드 선언 뒤에는 이런 글자가
+/// 오지 않는다. 튜플·배열 패턴에서 뒤에 다른 요소가 이어지는 구조 분해(`let (PopupDef { draw_fn: b, .. }, x) = …`)는
+/// 가리지 못한다.
+fn in_pattern(code: &str, at: usize) -> bool {
+    let mut depth = 0usize;
+    let mut open = None;
+    for (i, c) in code[..at].char_indices().rev() {
+        match c {
+            '}' => depth += 1,
+            '{' if depth == 0 => {
+                open = Some(i);
+                break;
+            }
+            '{' => depth -= 1,
+            _ => {}
+        }
+    }
+    let Some(close) = open.and_then(|o| matching_delim(code, o)) else {
+        return false;
+    };
+    let after =
+        code[close + 1..].trim_start_matches(|c: char| c.is_whitespace() || c == ')' || c == ']');
+    (after.starts_with('=') && !after.starts_with("=="))
+        || (after.starts_with(':') && !after.starts_with("::"))
+        || (after.starts_with('|') && !after.starts_with("||"))
 }
 
 /// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
@@ -242,7 +306,7 @@ const OUTSIDE_POPUPS: &[(&str, &str)] = &[
 /// 공용 위젯. 팝업 본문 안에서 그리면 그 본문의 문을 따르고, surface·창에서 그리면 그쪽 입력 규칙을 따른다.
 const SHARED_WIDGETS: &str = "crates/tasty-ui-widgets/src/";
 
-const KEY_READS: [&str; 13] = [
+const KEY_READS: [&str; 14] = [
     "key_pressed(",
     "key_released(",
     "key_down(",
@@ -256,12 +320,18 @@ const KEY_READS: [&str; 13] = [
     "Event::Copy",
     "Event::Cut",
     "Event::Ime(",
+    "keys_down",
 ];
 
-/// 코드(문자열·주석을 가린 뒤)가 egui 키 입력을 직접 읽는지.
+/// 코드(문자열·주석을 가린 뒤)가 egui 키 입력을 직접 읽는지. 키 읽기 메서드를 값으로 담는 경로
+/// (`let read = egui::InputState::num_presses;`)도 읽기로 본다. 메서드 값은 언제나 경로(`::이름`)로 쓴다.
 fn reads_keys(code: &str) -> bool {
     let code = joined(&without_inline_tests(code));
-    KEY_READS.iter().any(|r| reads(&code, r))
+    KEY_READS.iter().any(|r| {
+        reads(&code, r)
+            || r.strip_suffix('(')
+                .is_some_and(|name| path_ends_with(&code, name))
+    })
 }
 
 /// `read` 가 낱말로 나오는지. `Event::Key` 가 `WindowEvent::KeyboardInput` 에 걸리지 않게 앞뒤를 본다. 앞 글자가
@@ -272,6 +342,13 @@ fn reads(code: &str, read: &str) -> bool {
         let after = code[at + read.len()..].chars().next();
         !before.is_some_and(is_ident) && (read.ends_with('(') || !after.is_some_and(is_ident))
     })
+}
+
+/// 경로가 `::name` 으로 끝나는 자리가 있는지(뒤에 낱말 글자가 이어지지 않는다).
+fn path_ends_with(code: &str, name: &str) -> bool {
+    let path = format!("::{name}");
+    code.match_indices(&path)
+        .any(|(at, _)| !code[at + path.len()..].chars().next().is_some_and(is_ident))
 }
 
 /// 인라인 시험 모듈(`#[cfg(test)] mod 이름 { … }`)을 뺀 본문.
@@ -364,6 +441,9 @@ fn the_key_read_scan_catches_each_form() {
         "i\n    .consume_key(m, k)",
         "egui::Event::\n    Key { .. }",
         "egui::Event ::Paste(p)",
+        "let read = egui::InputState::num_presses;",
+        "let down = egui::InputState::key_down;",
+        "i.keys_down.contains(&k)",
     ] {
         assert!(reads_keys(code), "잡지 못했다: {code}");
     }
@@ -376,11 +456,24 @@ fn the_key_read_scan_catches_each_form() {
         assert!(!reads_keys(code), "키 읽기가 아닌데 걸렸다: {code}");
     }
     assert_eq!(draw_fn_uses("PopupDef { draw_fn: f, keys }").len(), 0);
+    assert_eq!(
+        draw_fn_uses("let d = PopupDef { draw_fn: f, keys };").len(),
+        0
+    );
+    assert_eq!(draw_fn_uses("defs.push(PopupDef { draw_fn: f });").len(), 0);
+    assert_eq!(
+        draw_fn_uses("vec![PopupDef { draw_fn: f }, other]").len(),
+        0
+    );
     assert_eq!(draw_fn_uses("pub draw_fn: DrawFn,").len(), 0);
     for code in [
         "let f = def.draw_fn;",
         "let f = def\n    .draw_fn;",
         "let PopupDef { draw_fn, .. } = def;",
+        "let PopupDef { draw_fn: body, .. } = def;",
+        "if let Some(PopupDef { draw_fn: body, .. }) = def {",
+        "match def { PopupDef { draw_fn: body, .. } => body }",
+        "|PopupDef { draw_fn: body, .. }| body",
         "(def.draw_fn)(ui)",
         "run(def.draw_fn)",
     ] {
