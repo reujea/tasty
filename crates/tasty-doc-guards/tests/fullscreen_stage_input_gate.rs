@@ -267,7 +267,8 @@ fn fn_body<'a>(src: &'a str, signature: &str) -> &'a str {
 #[test]
 fn ime_overlay_gate_knows_the_stage() {
     let src = read("src/view/main/ime.rs");
-    let expected = "    let overlay_open = w.state.window_keys_to_overlay();";
+    let expected =
+        "    ImeRoute::To(state.input_destination(engine, state.window_keys_to_overlay()))";
     assert!(
         src.contains(expected),
         "IME 의 `overlay_open` 이 무대를 보지 않는다 — 무대 중 IME Preedit/Commit 이 \
@@ -305,7 +306,15 @@ fn every_overlay_open_composite_is_stage_aware() {
 
     let mut direct = Vec::new();
     let mut callers = Vec::new();
-    for rel in &files {
+    // 시험과 소스 가드는 호출부가 아니다. 장면 시험은 같은 함수를 불러 재고, 가드는 그 이름을 문자열로 담는다.
+    let production = |rel: &str| {
+        let file = rel.rsplit('/').next().unwrap_or(rel);
+        !rel.starts_with("src/source_guards/")
+            && !rel.contains("/tests/")
+            && !file.ends_with("_tests.rs")
+            && file != "tests.rs"
+    };
+    for rel in files.iter().filter(|rel| production(rel)) {
         let src = read(rel);
         for (i, _) in src.match_indices(".keyboard_overlay_open()") {
             // 이 호출을 담은 함수.
@@ -344,7 +353,6 @@ fn every_overlay_open_composite_is_stage_aware() {
         callers,
         vec![
             "src/adapters/ipc/handler/debug_state.rs".to_string(),
-            "src/adapters/ui/egui_panels.rs".to_string(),
             "src/adapters/ui/input/explorer_ime.rs".to_string(),
             "src/app/plugin_glue/shortcut.rs".to_string(),
             "src/app/webview_keys.rs".to_string(),

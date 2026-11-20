@@ -214,15 +214,21 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 |---|------|--------|------|
 | 1 | `window_keys_to_overlay` 정의(`src/state.rs`) | 정의에 포함 | 아래 3의 지점이 모두 이 함수를 부른다 |
 | 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(터미널 포워딩 게이트, 호출부 `src/view/main/keyboard.rs`) | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
-| 3 | 정면 함수를 부르는 곳: `window_feeds_egui`(egui feed 게이트, `src/state/popup_key_owner.rs`), IME(`src/view/main/ime.rs`), plugin 단축키(`src/app/plugin_glue/shortcut.rs`), native webview 포워딩 키(`src/app/webview_keys.rs`), explorer 타입어헤드(`src/adapters/ui/egui_panels.rs`), `ui.state` 의 `keyboard_shortcuts_gated`(`src/adapters/ipc/handler/debug_state.rs`), 외부 끌어내기(`src/view/main/file_drag.rs` `poll_outbound_drag`), X11 조합 종료 키 소유권(`src/adapters/ui/input/explorer_ime.rs`), native 편집 키 차단 상태(`src/app/webview_sync.rs`), 편집 키 판정(`src/view/main/edit_keys.rs`), 플러그인 surface 편집 키(`src/view/main/plugin_surface_keys.rs`) | 정면 함수 | egui feed 는 방향이 반대다(무대 콘텐츠는 egui 위젯이라 키가 egui 로 가야 한다). IME 는 무대만 떠 있으면 조합 Commit 이 터미널로 샌다. plugin 단축키·webview 키·native 편집 키는 `dispatch_window_event_to_view` 이전이나 밖에서 돌아 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)). 타입어헤드·편집 키·플러그인 surface 편집 키는 무대에 들어간 키가 뒤쪽 화면에서 다시 쓰이지 않게 한다. 끌어내기는 OS 드래그라 렌더한 오버레이로 덮을 수 없어 취소한다. 보고 값은 무대 중에 "막히지 않았다"고 보고하지 않게 한다 |
+| 3 | 정면 함수를 부르는 곳: `window_feeds_egui`(egui feed 게이트, `src/state/popup_key_owner.rs`), IME(`src/view/main/ime.rs`), plugin 단축키(`src/app/plugin_glue/shortcut.rs`), native webview 포워딩 키(`src/app/webview_keys.rs`), `ui.state` 의 `keyboard_shortcuts_gated`(`src/adapters/ipc/handler/debug_state.rs`), 외부 끌어내기(`src/view/main/file_drag.rs` `poll_outbound_drag`), X11 조합 종료 키 소유권(`src/adapters/ui/input/explorer_ime.rs`), native 편집 키 차단 상태(`src/app/webview_sync.rs`), 편집 키 판정(`src/view/main/edit_keys.rs`), 플러그인 surface 편집 키(`src/view/main/plugin_surface_keys.rs`) | 정면 함수 | egui feed 는 방향이 반대다(무대 콘텐츠는 egui 위젯이라 키가 egui 로 가야 한다). IME 는 무대만 떠 있으면 조합 Commit 이 터미널로 샌다. plugin 단축키·webview 키·native 편집 키는 `dispatch_window_event_to_view` 이전이나 밖에서 돌아 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)). 편집 키·플러그인 surface 편집 키는 무대에 들어간 키가 뒤쪽 화면에서 다시 쓰이지 않게 한다. 끌어내기는 OS 드래그라 렌더한 오버레이로 덮을 수 없어 취소한다. 보고 값은 무대 중에 "막히지 않았다"고 보고하지 않게 한다 |
 | 4 | `mouse_overlay_open()` 정의 | 정의에 포함 | 마우스 다섯 호출부 전부가 이 하나를 본다 |
 | 5 | `has_egui_overlay_open()` 정의 | 정의에 포함 | WebView 가 무대 위로 뚫고 나오지 못하게 |
 
 무대를 `keyboard_overlay_open()` 안에 넣지 않은 이유는 2 다 — 그 지점은 무대에 대해 다른
 답(0단계 게이트가 이미 처리)을 쓴다. `crates/tasty-doc-guards/tests/fullscreen_stage_input_gate.rs` 의
 `every_overlay_open_composite_is_stage_aware` 가 (a) 정면 함수 본문이 무대를 보는지, (b) 술어를 직접 부르는
-곳이 1·2뿐인지, (c) 정면 함수 호출부 집합이 3과 같은지를 소스에서 확인한다. 새 호출부가 생기면 그 테스트가
-실패하고, 그때 이 표도 함께 갱신한다. 2 의 예외도 그 테스트가 "0단계 게이트가 유지되는가" 로 함께 검증한다.
+곳이 1·2뿐인지, (c) 정면 함수 호출부 집합이 3과 같은지를 소스에서 확인한다. 시험 파일과 소스 가드는 호출부로
+세지 않는다. 새 호출부가 생기면 그 테스트가 실패하고, 그때 이 표도 함께 갱신한다. 2 의 예외도 그 테스트가
+"0단계 게이트가 유지되는가" 로 함께 검증한다.
+
+탐색기 타입어헤드처럼 그리기 중 surface 본문이 키를 받을지 정하는 판정은 정면 함수를 부르지 않는다. 그리는
+입력 몫의 포커스 노드에서 받는 surface 를 꺼낸다(`MainViewState::pass_key_surface`). 그 몫의 포커스 노드가
+무대면 받는 surface 가 없으므로 무대에 들어간 키가 뒤 탐색기로 가지 않는다. 그리기 경로에서 지금 포커스·키
+게이트를 읽는 자리는 소스 가드 `source_guards::draw_pass_key_reads` 가 명부로 고정한다.
 
 알려진 미해소 사안: popup 바깥 클릭이 popup 을 닫으면서, 그 클릭이 겨냥한 하위 액션도 같은 클릭에서 함께 발생한다. 닫힘만 소비하고 액션을 막을지는 UX 판단이 필요해 별개 사안으로 분리돼 있다.
 
