@@ -156,60 +156,79 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
     );
 }
 
-/// 조기 적용의 App 배선: 제품 상태 시험은 같은 판정(`user_focus_open_queued`) 뒤 host Ui 요청을 `intent::popup::handle`
-/// 로, plugin 팝업 열기를 `open_pending_popups` 로 처리한다. App 은 그 둘을 `dispatch_pending_intents`(Ui 요청은 즉시
-/// 갈래의 `dispatch_one_intent`)와 `dispatch_pending_popup_opens` 로 부른다. 판정 → 두 대기열 순서는
-/// `press_focus_call_sites` 가 고정한다. 이 가드는 두 디스패처의 본문 전체(`dispatch_pending_popup_opens`,
-/// `dispatch_pending_intents`), 창 요청 처리(`process_state_batches`)가 세션 묶음 처리(`dispatch_state_intents`)를 부르고
-/// 그 안에 즉시 갈래의 `dispatch_one_intent` 호출이 있음, `classify_intent` 가 Ui 요청을 즉시 갈래로 둠, `dispatch_one_intent` 의 Ui 갈래가 `intent::popup::handle` 임을
-/// 고정한다. `process_state_batches` 안의 반복·조건(창 묶음을 건너뛰는 변경)은 문자열 하나로만 보므로 고정하지 않는다.
+/// 조기 적용의 host·plugin 경로. 키 하나를 처리한 뒤 `App::apply_user_focus_opens` 에서 host Ui 요청이
+/// `intent::popup::handle` 에, plugin 팝업 열기가 `open_pending_popups` 에 닿기까지 App 이 밟는 함수마다 둘 중 하나다.
+/// 공유: 제품 상태 시험(`app::webview_keys::state_tests`)이 같은 함수를 부르므로 그 안의 변경은 시험이 잡는다. 본문 고정:
+/// App 이 있어야 돌므로 시험이 부르지 못하고, 이 가드가 공백을 뺀 본문 전체를 비교한다(조건·기본값·호출을 바꾸면 실패).
+///
+/// | 함수 | 방식 |
+/// |---|---|
+/// | `App::apply_user_focus_opens` | 본문 고정 |
+/// | `MainViewState::user_focus_open_queued` | 공유 |
+/// | `App::dispatch_pending_intents` | 본문 고정 |
+/// | `App::drain_pending_batches` | 본문 고정 |
+/// | `EngineRegistry::of_window` | 본문 고정 |
+/// | `MainViewState::take_pending_intents` | 공유 |
+/// | `App::process_state_batches` | 본문 고정 |
+/// | `EnginesMut::resolve` | 본문 고정 |
+/// | `dispatch_state_intents` | 공유 |
+/// | `App::classify_intent` | 공유(`dispatch_state_intents` 안) |
+/// | `App::dispatch_one_intent` | 공유(`dispatch_state_intents` 안) |
+/// | `intent::popup::handle` | 공유 |
+/// | `App::dispatch_pending_popup_opens` | 본문 고정 |
+/// | `open_pending_popups` | 공유 |
+///
+/// 한계: 공유 함수 안에서 시험이 주지 않는 값에 기대는 갈래는 시험이 보지 못한다. 시험 창은 `ViewBase` 가 없어
+/// `dispatch_state_intents`·`dispatch_one_intent` 의 `view` 를 None 으로 부른다. parked 세션(`drain_pending_batches` 의
+/// parked 반복, `parked_sessions_with_ids`)과 Domain 요청 처리(`run_domain_cascade`)는 R3 경로 밖이다.
 #[test]
 fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
-    let opens = read("src/app/dispatch/popup_opens.rs");
-    let body = squeeze(
-        &fn_body(&opens, "fn dispatch_pending_popup_opens(").expect("dispatch_pending_popup_opens"),
-    );
-    assert_eq!(
-        body,
-        "{open_pending_popups(self.plugin_manager.as_mut(),crate::app::window_access::engines_mut!(self).sessions(),);}",
-        "plugin 팝업 열기 대기열이 open_pending_popups 로 가지 않는다"
-    );
-    let intents = read("src/app/dispatch/intents.rs");
-    let pending = squeeze(
-        &fn_body(&intents, "fn dispatch_pending_intents(").expect("dispatch_pending_intents"),
-    );
-    // 본문 전체를 고정한다. 창 요청 처리 호출을 조건으로 감싸거나 건너뛰는 우회(팔레트 열기 요청이 처리되지 않아 같은
-    // 묶음의 다음 키가 막히지 않음)도 여기서 걸린다.
-    assert_eq!(
-        pending,
-        "{letbatches=self.drain_pending_batches();letmutdomain_batch:Vec<(crate::app::dispatch_domain::DispatchSource,crate::intent::DispatchedIntent,)>=Vec::new();self.process_state_batches(batches,&mutdomain_batch);self.run_domain_cascade(domain_batch);self.refresh_approval_presentations();#[cfg(feature=\"gui\")]self.redraw_windows_for_shared_lists();}",
-        "창 요청이 꺼낸 그대로 처리 단계로 가지 않는다"
-    );
-    let process_fn =
-        squeeze(&fn_body(&intents, "fn process_state_batches(").expect("process_state_batches"));
-    at(
-        &process_fn,
-        "letdomain=dispatch_state_intents(core,state,&mutengine,batch,self.plugin_manager.as_ref(),view.as_deref(),);",
-        "세션 묶음 처리",
-    );
-    let session =
-        squeeze(&fn_body(&intents, "fn dispatch_state_intents(").expect("dispatch_state_intents"));
-    at(
-        &session,
-        "IntentClass::Immediate=>{App::dispatch_one_intent(core,state,engine,&intent,plugins,view)}",
-        "즉시 갈래",
-    );
-    let classify = squeeze(&fn_body(&intents, "fn classify_intent(").expect("classify_intent"));
-    assert!(
-        !classify.contains("Intent::Ui"),
-        "Ui 요청이 즉시 갈래가 아니다"
-    );
-    let one = squeeze(&fn_body(&intents, "fn dispatch_one_intent(").expect("dispatch_one_intent"));
-    at(
-        &one,
-        "Intent::Ui(_)=>{crate::intent::popup::handle(state,engine,intent);}",
-        "Ui 요청 처리",
-    );
+    let pinned = [
+        (
+            "src/app/edit_key_replay.rs",
+            "fn apply_user_focus_opens(",
+            "{letqueued=self.view.views.get(&id).and_then(|view|view.as_main()).is_some_and(|main|{main.state.user_focus_open_queued(self.plugin_manager.as_ref())});ifqueued{self.dispatch_pending_intents();self.dispatch_pending_popup_opens();}}",
+        ),
+        (
+            "src/app/dispatch/intents.rs",
+            "fn dispatch_pending_intents(",
+            "{letbatches=self.drain_pending_batches();letmutdomain_batch:Vec<(crate::app::dispatch_domain::DispatchSource,crate::intent::DispatchedIntent,)>=Vec::new();self.process_state_batches(batches,&mutdomain_batch);self.run_domain_cascade(domain_batch);self.refresh_approval_presentations();#[cfg(feature=\"gui\")]self.redraw_windows_for_shared_lists();}",
+        ),
+        (
+            "src/app/dispatch/intents.rs",
+            "fn drain_pending_batches(",
+            "{letmutwindowed=Vec::new();for(wid,w)inself.view.views.iter_mut(){ifletSome(main)=w.as_main_mut(){letbatch=main.state.take_pending_intents();if!batch.is_empty(){windowed.push((*wid,batch));}}}letmutbatches:Vec<_>=windowed.into_iter().filter_map(|(wid,batch)|self.engines.of_window(wid).map(|id|(id,batch))).collect();for(id,s,_)inself.engines_mut().parked_sessions_with_ids(){letbatch=s.take_pending_intents();if!batch.is_empty(){batches.push((id,batch));}}batches}",
+        ),
+        (
+            "src/app/engine_registry.rs",
+            "fn of_window(",
+            "{self.by_window.get(&wid).copied()}",
+        ),
+        (
+            "src/app/dispatch/intents.rs",
+            "fn process_state_batches(",
+            "{for(id,batch)inbatches{letcore=&mutself.services;letSome(DispatchCtx{state,mutengine,view,..})=engines_mut!(self).resolve(id)else{continue;};letdomain=dispatch_state_intents(core,state,&mutengine,batch,self.plugin_manager.as_ref(),view.as_deref(),);domain_batch.extend(domain.into_iter().map(|intent|{(crate::app::dispatch_domain::DispatchSource::Engine(id),intent,)}));ifletSome(view)=view{view.mark_dirty();}}}",
+        ),
+        (
+            "src/app/window_access.rs",
+            "fn resolve(self, id: EngineId)",
+            "{letSplitMut{views,mutby_id,by_window,parked,..}=self.split();letengine=by_id.remove(&id)?;ifletSome((wid,_))=by_window.iter().find(|(_,e)|**e==id){letMainView{state,base,..}=views.get_mut(wid)?.as_main_mut()?;returnSome(DispatchCtx{state,engine,view:Some(base),});}letp=parked.iter_mut().find(|p|p.engine==id)?;Some(DispatchCtx{state:&mutp.state,engine,view:None,})}",
+        ),
+        (
+            "src/app/dispatch/popup_opens.rs",
+            "fn dispatch_pending_popup_opens(",
+            "{open_pending_popups(self.plugin_manager.as_mut(),crate::app::window_access::engines_mut!(self).sessions(),);}",
+        ),
+    ];
+    for (path, signature, expected) in pinned {
+        let body = squeeze(
+            &fn_body(&read(path), signature).unwrap_or_else(|| panic!("{path} {signature}")),
+        );
+        assert_eq!(
+            body, expected,
+            "{path} 의 `{signature}` 본문이 바뀌었다. 조기 적용 경로의 동작을 상태 시험이 다시 보도록 공유하거나 이 표를 함께 고친다"
+        );
+    }
 }
 
 /// native WebView 가 넘긴 키의 제품 디스패치는 제품 상태 시험(`app::webview_keys::state_tests`)이 부르는 창 단계를 같은
