@@ -159,7 +159,10 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 /// 조기 적용의 App 배선: 제품 상태 시험은 같은 판정(`user_focus_open_queued`) 뒤 host Ui 요청을 `intent::popup::handle`
 /// 로, plugin 팝업 열기를 `open_pending_popups` 로 처리한다. App 은 그 둘을 `dispatch_pending_intents`(Ui 요청은 즉시
 /// 갈래의 `dispatch_one_intent`)와 `dispatch_pending_popup_opens` 로 부른다. 판정 → 두 대기열 순서는
-/// `press_focus_call_sites` 가 고정하고, 이 가드는 두 디스패처가 시험이 부르는 함수에 닿는 연결을 고정한다.
+/// `press_focus_call_sites` 가 고정한다. 이 가드는 두 디스패처의 본문 전체(`dispatch_pending_popup_opens`,
+/// `dispatch_pending_intents`), 창 요청 처리(`process_state_batches`) 안에 즉시 갈래의 `dispatch_one_intent` 호출이
+/// 있음, `classify_intent` 가 Ui 요청을 즉시 갈래로 둠, `dispatch_one_intent` 의 Ui 갈래가 `intent::popup::handle` 임을
+/// 고정한다. `process_state_batches` 안의 반복·조건(창 묶음을 건너뛰는 변경)은 문자열 하나로만 보므로 고정하지 않는다.
 #[test]
 fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
     let opens = read("src/app/dispatch/popup_opens.rs");
@@ -175,17 +178,13 @@ fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
     let pending = squeeze(
         &fn_body(&intents, "fn dispatch_pending_intents(").expect("dispatch_pending_intents"),
     );
-    let drain = at(
-        &pending,
-        "letbatches=self.drain_pending_batches();",
-        "대기열 꺼내기",
+    // 본문 전체를 고정한다. 창 요청 처리 호출을 조건으로 감싸거나 건너뛰는 우회(팔레트 열기 요청이 처리되지 않아 같은
+    // 묶음의 다음 키가 막히지 않음)도 여기서 걸린다.
+    assert_eq!(
+        pending,
+        "{letbatches=self.drain_pending_batches();letmutdomain_batch:Vec<(crate::app::dispatch_domain::DispatchSource,crate::intent::DispatchedIntent,)>=Vec::new();self.process_state_batches(batches,&mutdomain_batch);self.run_domain_cascade(domain_batch);self.refresh_approval_presentations();#[cfg(feature=\"gui\")]self.redraw_windows_for_shared_lists();}",
+        "창 요청이 꺼낸 그대로 처리 단계로 가지 않는다"
     );
-    let process = at(
-        &pending,
-        "self.process_state_batches(batches,&mutdomain_batch);",
-        "창 요청 처리",
-    );
-    assert!(drain < process, "꺼내기 → 처리 순서가 아니다");
     let process_fn =
         squeeze(&fn_body(&intents, "fn process_state_batches(").expect("process_state_batches"));
     at(
