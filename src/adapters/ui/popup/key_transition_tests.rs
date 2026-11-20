@@ -147,6 +147,7 @@ fn a_letter_after_the_find_shortcut_reaches_the_newly_opened_search_field() {
 
 /// Given L 찾기 입력란에 포커스가 없을 때, When 한 묶음에 [L 찾기 입력란 누름, debug 붙여넣기 주입]이 오면, Then 붙여넣기는
 /// 키 주입과 같이 누름 뒤에서 끊겨(`debug_input::inject_clipboard`) 누름 패스 다음 패스로 그려지고 입력란에 들어간다.
+#[cfg(debug_assertions)]
 #[test]
 fn a_debug_paste_after_a_press_is_the_next_pass() {
     let mut s = open_scene(|_| {});
