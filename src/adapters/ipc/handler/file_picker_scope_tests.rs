@@ -688,6 +688,30 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
         surface_owners: Vec::new(),
         tab_content_rects: Vec::new(),
     };
+    // 창의 키 경로: L 은 egui 화면이 아니고 포커스 노드가 L 이라 Esc 는 egui 로 가지 않고, 창 Esc 판정이 처리하지 않으며,
+    // 터미널 게이트도 막지 않아 L 터미널로 간다.
+    if press_escape {
+        state.normalize_focus(&engine.read());
+        assert_eq!(
+            state.focus_node(&engine.read()),
+            crate::state::focus_node::FocusNode::Surface(Some(L))
+        );
+        assert_eq!(
+            state.window_feeds_egui(false, true),
+            None,
+            "Esc 가 egui 로 간다"
+        );
+        let mut pending = Vec::new();
+        assert!(
+            !state.window_escape(&mut pending, false),
+            "창 Esc 판정이 L 의 Esc 를 처리한다"
+        );
+        assert!(
+            !state.window_holds_terminal_keys(),
+            "L 의 Esc 가 터미널로 가지 않는다"
+        );
+        assert!(state.pending_intents.is_empty(), "Esc 가 닫기 요청을 냈다");
+    }
     let ctx = egui::Context::default();
     let escape = press_escape.then(|| egui::Event::Key {
         key: egui::Key::Escape,
