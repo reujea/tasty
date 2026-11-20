@@ -309,6 +309,18 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     push_egui_key(sink, key_name, pressed, modifiers)
 }
 
+/// 메인 창에 주입한 붙여넣기·복사·잘라내기 사건 하나. 키 주입과 같이 지금 입력 몫을 끊은 뒤(`key_focus`) egui 입력
+/// 큐에 넣는다.
+pub(crate) fn inject_clipboard<S: super::input_segment::EguiPressSink + EguiKeySink>(
+    state: &mut crate::state::MainViewState,
+    core: &crate::core::CoreState,
+    sink: &mut S,
+    event: egui::Event,
+) {
+    key_focus(state, core, sink);
+    sink.push_events(vec![event]);
+}
+
 /// 창 종류와 관계없이 그 창의 egui 입력 큐에 키 하나를 실제 키가 egui에 닿는 모양으로 넣는다.
 /// `modifiers`를 주면 그 창의 유지 수식 키를 먼저 바꾸고, 이벤트에는 유지 수식 키를 싣는다.
 /// 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
