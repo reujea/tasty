@@ -1002,6 +1002,19 @@ impl PopupManager {
             .map_or_else(|| request.scope.clone(), |parent| parent.scope.clone())
     }
 
+    /// 이 요청으로 연 인스턴스가 포커스를 받는지. 선언이 등록됐고, 사용자 출처이며, 요청이 포커스를 원하고, 선언이
+    /// 포커스를 받는 배치(`Arrange::takes_focus`)일 때다. 실제 열기(`open_request`)와 즉시 적용 판정
+    /// (`intent::popup::gives_user_focus`)이 이 값 하나를 쓴다.
+    pub fn request_takes_focus(&self, request: &crate::intent::OpenRequest, by_user: bool) -> bool {
+        by_user
+            && request.focus
+            && self
+                .popups
+                .iter()
+                .find(|p| p.id == request.id)
+                .is_some_and(|p| p.arrange.takes_focus)
+    }
+
     /// 열기 요청 하나를 인스턴스로 연다. 위치·포커스·부모·데이터는 요청을 따른다.
     /// 사용자 출처가 아니면 포커스 없이 passive로 연다. 선언이 등록되지 않았으면 `None`이다.
     pub fn open_request(
@@ -1010,6 +1023,7 @@ impl PopupManager {
         by_user: bool,
     ) -> Option<PopupInstanceId> {
         use crate::intent::PopupPlacement;
+        let focused = self.request_takes_focus(request, by_user);
         let p = self.open_slot(request.id, self.request_scope(request))?;
         match request.placement {
             PopupPlacement::Keep => {}
@@ -1023,7 +1037,6 @@ impl PopupManager {
                 p.request_center = false;
             }
         }
-        let focused = by_user && request.focus && p.arrange.takes_focus;
         if !by_user {
             p.passive = true;
         }

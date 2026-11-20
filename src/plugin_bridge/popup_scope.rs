@@ -122,24 +122,34 @@ pub(crate) fn opened_by_user(opener: PopupOpener<'_>) -> bool {
     }
 }
 
-/// 방금 연 plugin 팝업 인스턴스를, 사용자가 연 것이면 그 팝업을 그리는 창의 포커스 노드로 한다. 다음 그리기 전에
-/// 키가 와도 살아 있는 노드로 보도록 결속 범위를 지금 기록한다. 대상 surface 결속 뒤에 부른다.
+/// `opener` 가 연 `instance_id` 인스턴스(`decl` 범위)가 이 창(창 범위 결속 `window_popups`)의 포커스 노드가 되는지.
+/// 사용자가 열었고 이 창에 그리는 인스턴스일 때다. 포커스 노드는 이 창에 그리는 팝업만 될 수 있어, 다른 창에 결속한
+/// 창 범위 인스턴스를 이 창에서 다시 요청해도 이 창의 포커스를 바꾸지 않는다. 연 뒤 포커스(`focus_opened_popup`)가
+/// 이 값을 쓴다.
+#[cfg(feature = "gui")]
+pub(crate) fn focuses_this_window(
+    window_popups: &std::collections::BTreeSet<u64>,
+    opener: PopupOpener<'_>,
+    instance_id: u64,
+    decl: PopupScopeDecl,
+) -> bool {
+    opened_by_user(opener) && drawn_in_window(window_popups, instance_id, decl)
+}
+
+/// 방금 연 plugin 팝업 인스턴스를, 사용자가 연 것이면 그 팝업을 그리는 창의 포커스 노드로 한다(`focuses_this_window`).
+/// 다음 그리기 전에 키가 와도 살아 있는 노드로 보도록 결속 범위를 지금 기록한다. 대상 surface 결속 뒤에 부른다.
 pub(crate) fn focus_opened_popup(
     window: &mut crate::state::MainViewState,
     mgr: &tasty_host_plugin::PluginManager,
     instance_id: u64,
     opener: PopupOpener<'_>,
 ) {
-    if !opened_by_user(opener) {
-        return;
-    }
     let Some((_, inst)) = mgr.popup_instances().find(|(id, _)| *id == instance_id) else {
         return;
     };
-    // 포커스 노드는 이 창에 그리는 팝업만 될 수 있다. 다른 창에 결속한 창 범위 인스턴스를 이 창에서 다시 요청해도
-    // 이 창의 포커스·결속 범위를 바꾸지 않는다.
-    if !drawn_in_window(
+    if !focuses_this_window(
         &window.plugin_window_popups,
+        opener,
         instance_id,
         inst.contribute.scope,
     ) {
