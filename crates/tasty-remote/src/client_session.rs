@@ -658,6 +658,10 @@ impl ClientSessionState {
 }
 
 #[cfg(test)]
+#[path = "close_locally_tests.rs"]
+mod close_locally_tests;
+
+#[cfg(test)]
 mod retained_bytes_tests {
     use super::MirrorEvent;
 
