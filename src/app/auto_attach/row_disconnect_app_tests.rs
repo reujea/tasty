@@ -456,6 +456,50 @@ fn a_saved_mark_refuses_a_remote_attach_to_the_same_target_after_a_restart() {
     assert!(force_detach_marked(&app));
 }
 
+/// S11 재시작: Given 강제 끊김 표지가 파일에 저장된 채 다시 시작한 App 에 같은 대상의 행 A·B 가 복원됐다,
+/// When 첫 poll 전에 A 를 명시 연결하면(저장 표지가 지워진다), Then A 는 풀리고 B 는 기동이 건 보류로 계속
+/// 막힌다. 기동 보류 초기화가 없으면 저장 표지와 함께 B 의 차단도 사라진다.
+#[test]
+fn a_restored_row_stays_held_after_another_row_connects_before_the_first_poll() {
+    alone!("a_restored_row_stays_held_after_another_row_connects_before_the_first_poll");
+    write_saved_mark();
+    let event_loop = event_loop();
+    let mut app = saved_row_app(&event_loop, None);
+    const ROW_B: u32 = 9_200;
+    let mut row_b = crate::model::Workspace::new_with_terminal_marker(
+        ROW_B,
+        "remote b".to_string(),
+        9_201,
+        9_202,
+        9_203,
+    );
+    row_b.mirror = true;
+    row_b.remote_row = Some(binding());
+    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
+    app.engines
+        .get_mut(engine)
+        .expect("the row engine")
+        .push_mirror_workspace(row_b);
+    assert!(app.row_blocked(ROW_B));
+
+    app.connect_saved_row(ROW, true);
+
+    assert!(
+        !force_detach_marked(&app),
+        "the explicit connect erased the mark"
+    );
+    assert!(!app.row_blocked(ROW), "A is released");
+    assert!(
+        app.row_blocked(ROW_B),
+        "B stays held for the rest of the run"
+    );
+    app.maybe_connect_visible_row(Some(ROW_B), None);
+    assert!(
+        !app.remote.active.contains(&ROW_B),
+        "B does not connect by itself"
+    );
+}
+
 /// 행의 창을 park 한다. 시험 장치의 창에는 화면(MainView)이 없어 창 쪽 정리는 workspace 를 찾지 못한다.
 /// parked engine 은 같은 정리 함수가 화면 없이 workspace 를 지운다.
 fn park_row_window(app: &mut App) {
