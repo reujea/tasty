@@ -268,12 +268,12 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
 
     app.connect_saved_row(ROW, true);
     // 명시 연결은 슬롯을 새로 둔다. 기준은 그 뒤, 결과를 거두기 전에 잰다.
-    let (before, backoff_before) = app
+    let (before, backoff_before, scheduled_before) = app
         .remote
         .reconnect
         .get(&ROW)
-        .map(|slot| (slot.attempts, slot.backoff.current()))
-        .unwrap_or_default();
+        .map(|slot| (slot.attempts, slot.backoff.current(), slot.next_attempt))
+        .expect("the explicit connect placed a reconnect slot");
     let resync = app
         .state
         .mirror_attempts
@@ -283,9 +283,12 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
         .map(|(_, target)| target.resync);
     assert_eq!(resync, Some(false), "an ordinary reconnect");
     let until = Instant::now() + Duration::from_secs(10);
+    // 결과를 거두기 직전 시각. 실패 처리는 그 뒤에 돌아 예약을 그 시각보다 뒤로 둔다.
+    let mut consumed_after = Instant::now();
     while !app.state.mirror_attempts.endpoint_snapshot().is_empty() {
         assert!(Instant::now() < until, "the endpoint attempt never ended");
         std::thread::sleep(Duration::from_millis(10));
+        consumed_after = Instant::now();
         app.drain_auto_attach_results();
     }
 
@@ -294,7 +297,6 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
     let state = &app.remote.sessions[0].state;
     assert_ne!(state.phase, SessionState::Connected);
     assert_eq!(state.resync_pending, None);
-    let checked = Instant::now();
     let slot = app.remote.reconnect.get(&ROW).expect("the reconnect slot");
     assert!(
         !slot.given_up,
@@ -306,9 +308,10 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
         "the backoff advanced: {:?} (before {backoff_before:?})",
         slot.backoff.current()
     );
+    // 실패 처리 뒤의 현재 시각과 비교하지 않는다. 시험 스레드가 늦게 깨어나도 예약 자체는 그대로다.
     assert!(
-        slot.next_attempt > checked,
-        "the next attempt is scheduled ahead"
+        slot.next_attempt > scheduled_before && slot.next_attempt > consumed_after,
+        "the failure moved the next attempt past the slot's own schedule and the moment the result was consumed"
     );
     assert!(!marked(&app), "the explicit connect erased the mark");
 }
