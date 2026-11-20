@@ -45,6 +45,15 @@ impl RowWaits {
         self.runs.extend(run.map(|run| (row, run)));
     }
 
+    /// 이 행에 합류한 run을 모두 꺼낸다. 꺼낸 run은 그 뒤 시작한 새 시도의 결과를 받지 않는다.
+    pub(crate) fn take_runs(&mut self, row: u32) -> Vec<u64> {
+        let (taken, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.runs)
+            .into_iter()
+            .partition(|(joined, _)| *joined == row);
+        self.runs = kept;
+        taken.into_iter().map(|(_, run)| run).collect()
+    }
+
     /// 재연결 타이머와 함께 깨울 시각. 행마다 가장 이른 상한이다.
     pub(crate) fn deadlines(&self) -> Vec<(u32, Instant)> {
         let mut out: Vec<(u32, Instant)> = Vec::new();

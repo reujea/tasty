@@ -281,6 +281,9 @@ impl App {
         intake: &super::round_intake::RoundIntake,
     ) {
         for (ticket, target) in intake.tickets.iter().cloned() {
+            if intake.ended_before_install.contains(&ticket) {
+                continue;
+            }
             if !self.mirror_install_target_is_current(&target) {
                 target.cancel_run(TARGET_DISCARDED);
                 self.state
