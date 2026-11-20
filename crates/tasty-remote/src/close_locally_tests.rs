@@ -163,9 +163,11 @@ fn a_failed_install_closes_the_taken_connection_at_once() {
 }
 
 /// 시도 취소가 등록 소켓을 닫으면 이미 `recv` 에 막힌 reader 가 끝난다. 전송을 drop 하기 전에 본다.
-/// drop 의 Detach·writer 닫기·회수 스레드 닫기가 판정을 대신하지 않게 하기 위해서다. 판정은 reader 가
-/// 스스로 남긴 끝 시각으로 한다. 검사 스레드가 픽스처 읽기 기한(30초) 뒤에야 깨어나도, 그 기한 만료로
-/// 끝난 reader 를 취소로 끝난 것으로 보지 않는다.
+/// drop 의 Detach·writer 닫기·회수 스레드 닫기가 판정을 대신하지 않게 하기 위해서다.
+/// 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 검사 스레드가 픽스처 읽기 기한(30초) 뒤에야 깨어나도,
+/// 그 기한 만료로 끝난 reader 를 취소로 끝난 것으로 보지 않는다. 끝 시각은 끝 표지(`finished`)보다 먼저
+/// 서므로, 전송은 끝 표지를 본 뒤에만 버린다. 그 전에 버리면 drop 이 회수를 먼저 시작해, 두 표지 사이에서
+/// 밀린 reader 때문에 회수 대기 판정이 실패할 수 있다.
 #[test]
 fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
     let observe_until = Instant::now() + Duration::from_secs(10);
@@ -174,30 +176,38 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
     let probe = transport.reader_probe.clone();
     wait_until_reader_blocks(&probe);
     assert!(
-        !probe.finished(),
+        probe.ended_at().is_none(),
         "the reader ended before the attempt was cancelled"
     );
 
-    let cancelled = Instant::now();
     remote.cancel_attempt(&token);
+    let cancelled = Instant::now();
     let deadline = observe_until.min(cancelled + Duration::from_secs(5));
-    // 픽스처 읽기 기한보다 길게 기다려, 끝나지 않는 reader 도 끝 시각을 남기게 한다.
+    // 픽스처 읽기 기한보다 길게 기다려, 끝나지 않던 reader 도 그 기한으로 끝나 끝 시각을 남기게 한다.
     let give_up = cancelled + FIXTURE_READ_TIMEOUT + Duration::from_secs(10);
-    let ended = loop {
-        if let Some(ended) = probe.ended_at() {
-            break ended;
-        }
-        assert!(
-            Instant::now() < give_up,
+    while !probe.finished() && Instant::now() < give_up {
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // 기한에 닿은 분기도 여기서 다시 읽는다. 앞서 읽은 값이 낡았을 수 있다.
+    let Some(ended) = probe.ended_at() else {
+        panic!(
             "the cancelled attempt left its reader blocked in recv past the fixture read timeout"
         );
-        std::thread::sleep(Duration::from_millis(2));
     };
     assert!(
         ended < deadline,
-        "the cancelled attempt left its reader blocked in recv: it ended {:?} after the cancel",
+        "the cancelled attempt left its reader blocked in recv: it ended {:?} after the cancel returned",
         ended.saturating_duration_since(cancelled)
     );
+    // 끝 시각을 남긴 reader 는 곧 끝 표지를 세운다. 그 표지를 본 뒤에만 전송을 버린다.
+    let flag_until = Instant::now() + Duration::from_secs(10);
+    while !probe.finished() {
+        assert!(
+            Instant::now() < flag_until,
+            "the reader recorded its end but never set its finished flag"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
 
     let receipt = transport.workers.receipt();
     drop(transport);
