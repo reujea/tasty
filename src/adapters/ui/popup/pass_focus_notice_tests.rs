@@ -71,19 +71,20 @@ fn notice_focused_scene() -> (Scene, Explorer, Explorer, WindowInput) {
         drain(&mut s, &mut input, &mut bodies);
         pass(&mut s, &mut input, &mut bodies);
     }
-    let engine = s.session.borrow_mut();
-    assert_eq!(
-        s.state.focus_node(&engine.read()),
-        FocusNode::Surface(Some(SURFACE_L)),
-        "안내는 포커스 칸을 쓰지 않는다"
-    );
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state.focus_node(&engine.read()),
+            FocusNode::Surface(Some(SURFACE_L)),
+            "안내는 포커스 칸을 쓰지 않는다"
+        );
+    }
     assert!(s.state.popups.bound_input_key_owner().is_none());
     assert!(
         has_keyboard_focus(&s.state.popups),
         "안내 안쪽이 포커스를 가졌다"
     );
     assert!(s.state.window_keys_to_overlay());
-    drop(engine);
     (s, l, r, input)
 }
 
