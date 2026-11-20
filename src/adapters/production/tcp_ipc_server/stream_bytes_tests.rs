@@ -302,7 +302,7 @@ fn force_detach_over_a_socket(
     std::net::TcpStream,
 ) {
     let (mut client, server) = sockets();
-    let reader_copy = server.try_clone().unwrap();
+    let reader_copy = reader_copy_of(&server);
     let hub = StreamHub::new();
     let holder = hub.alloc_id();
     let rx = hub.register(holder);
@@ -377,13 +377,20 @@ fn the_stream_write_timeout_is_armed_on_the_socket() {
     );
 }
 
-/// 서버 읽기 스레드의 소켓 사본이 깨어나 읽기가 돌아오는지 본다. 3초 안에 EOF나 오류로 돌아와야 한다.
-/// 시간 초과(`WouldBlock`·`TimedOut`)는 깨어나지 않았다는 뜻이다.
-fn assert_reader_copy_wakes(mut reader_copy: std::net::TcpStream) {
-    use std::io::Read;
+/// 서버 읽기 스레드의 소켓 사본. 3초 읽기 기한은 소켓을 닫기 전에 건다. macOS는 양쪽이 닫힌 소켓의
+/// 옵션 설정을 `EINVAL`로 거절하므로 닫힌 뒤에는 기한을 걸 수 없다.
+fn reader_copy_of(server: &std::net::TcpStream) -> std::net::TcpStream {
+    let reader_copy = server.try_clone().unwrap();
     reader_copy
         .set_read_timeout(Some(Duration::from_secs(3)))
         .unwrap();
+    reader_copy
+}
+
+/// 서버 읽기 스레드의 소켓 사본([`reader_copy_of`])이 깨어나 읽기가 돌아오는지 본다. 3초 안에 EOF나
+/// 오류로 돌아와야 한다. 시간 초과(`WouldBlock`·`TimedOut`)는 깨어나지 않았다는 뜻이다.
+fn assert_reader_copy_wakes(mut reader_copy: std::net::TcpStream) {
+    use std::io::Read;
     let mut byte = [0u8; 1];
     match reader_copy.read(&mut byte) {
         Ok(0) => {}
@@ -403,7 +410,7 @@ fn assert_reader_copy_wakes(mut reader_copy: std::net::TcpStream) {
 #[test]
 fn a_failed_ending_frame_write_closes_both_sides() {
     let (_client, server) = sockets();
-    let reader_copy = server.try_clone().unwrap();
+    let reader_copy = reader_copy_of(&server);
     server.shutdown(std::net::Shutdown::Write).unwrap();
     let hub = StreamHub::new();
     let rx = hub.register(5);
