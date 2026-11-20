@@ -631,3 +631,38 @@ fn a_force_detach_flagged_after_the_round_observation_ends_the_other_row_next_ro
         "the next round saved the mark"
     );
 }
+
+/// Given 행 A 의 자동 재연결이 endpoint 를 지나 연결 대기 단계에 있다, When 명시적 연결이 그 시도에
+/// 합류한 뒤 같은 대상의 행 B 가 강제로 끊기고 설치를 poll 하면, Then 연결 대기 대상도 명시적으로
+/// 올라가 설치 검사가 버리지 않는다.
+#[test]
+fn an_explicit_connect_joining_at_the_connection_stage_keeps_it() {
+    alone!("an_explicit_connect_joining_at_the_connection_stage_keeps_it");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let _socket = prepare_an_automatic_reconnect(&mut app);
+    let explicit_of_the_connection = |app: &App| {
+        app.state
+            .mirror_attempts
+            .connection_snapshot()
+            .into_iter()
+            .find(|(_, target)| target.row == Some(ROW))
+            .map(|(_, target)| target.explicit)
+    };
+    assert_eq!(explicit_of_the_connection(&app), Some(false));
+
+    app.connect_saved_row(ROW, true);
+    assert_eq!(
+        explicit_of_the_connection(&app),
+        Some(true),
+        "the waiting connection is explicit"
+    );
+    force_detach_the_other_row(&mut app);
+    app.poll_pending_mirror_installs();
+
+    assert_ne!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert!(app.remote.active.contains(&ROW), "the attempt goes on");
+}
