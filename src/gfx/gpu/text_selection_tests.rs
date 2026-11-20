@@ -295,3 +295,19 @@ fn focus_input_to_a_plugin_popup_ends_its_waiting_pastes() {
     assert!(h.hidden_focus_input(&[click()], popup));
     assert_eq!(h.frame(&[], 7, now), ["host"]);
 }
+
+/// Find fields being registered for the pass do not change how a settled paste for a plugin popup
+/// is handed out: the pass that has the popup focused gets it, as before Find fields were held.
+#[test]
+fn a_settled_plugin_popup_paste_goes_out_while_find_fields_are_registered() {
+    let now = Instant::now();
+    let popup = plugin_popup_tag(1);
+    let mut h = HeldPastes::default();
+    h.set_find_fields(&[7]);
+    h.add(vec![(popup, "popup".to_string())], now);
+    assert!(h.frame(&[click()], popup, now).is_empty(), "focus moved");
+    assert!(h.frame(&[], popup, now).is_empty(), "not settled yet");
+    assert_eq!(h.frame(&[], popup, now), ["popup"]);
+    assert!(h.is_empty());
+    assert!(h.receive_find(popup, true).is_empty());
+}
