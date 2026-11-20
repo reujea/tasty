@@ -27,10 +27,12 @@ pub(crate) struct PendingMirrorInstall {
     pub run: Option<crate::request_runs::RunGuard>,
     /// 사용자가 원격 연결 팝업에서 시작했다. 실패하면 시작한 창에 토스트를 띄운다.
     pub user: bool,
-    /// 사용자가 직접 요청한 연결(연결 버튼·행 메뉴의 연결·`SavedRowAction::Connect`·`remote.connect`·
-    /// 원격 팝업)로 시작했거나 그런 연결이 이 시도에 합류했다. 행을 다시 열기·재활성화·부팅 복원·
-    /// 포커스로 시작한 시도는 바로 시도해도 false다. 같은 대상의 강제 끊김 표지가 시도 중에
-    /// 저장돼도 true인 시도의 결과는 버리지 않는다(`drop_attempt_for_force_detached_target`).
+    /// 저장 행의 연결 경로(`connect_saved_row`)에 사용자가 직접 요청한 연결로 들어와 시작했거나 그런
+    /// 연결이 이 시도에 합류했다. 연결 버튼·행 메뉴의 연결(`SavedRowAction::Connect`), `remote.connect`,
+    /// 원격 팝업이 형상이 남은 행을 그 행의 재연결로 넘길 때 true다. 원격 팝업이 연 연결을 직접 설치하는
+    /// 시도는 이 값이 false이고 `user`가 true다. 행을 다시 열기·재활성화·부팅 복원·포커스로 시작한 시도는
+    /// 바로 시도해도 false다. 같은 대상의 강제 끊김 표지가 시도 중에 저장돼도 이 값이나 `user`가 true인
+    /// 시도는 사용자 시도로 보아 결과를 버리지 않는다(`drop_attempt_for_force_detached_target`).
     pub explicit: bool,
     /// 행 없는 수동 요청(`remote.attach`·`attach.into_gui`)의 대상. 같은 대상의 새 요청은
     /// 진행 중인 이전 요청을 대체한다.
