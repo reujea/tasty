@@ -326,6 +326,21 @@ fn a_read_error_after_our_own_disconnect_is_not_a_warning() {
     assert!(end.transport_end.is_ending());
 }
 
+/// 정리 경로: 로컬 해제가 사유를 올리고 소켓을 닫은 뒤 큐에 남은 Detach 의 쓰기 실패는 예상한 실패라
+/// debug 다. 사유가 없던 연결의 쓰기 실패는 실제 쓰기 장애라 경고다.
+#[test]
+fn a_write_failure_after_a_local_release_is_not_a_warning() {
+    let broken = std::io::Error::from(std::io::ErrorKind::BrokenPipe);
+    let open = TransportEnd::new();
+    let (warn, message) = write_failure_notice(&open, &broken, "");
+    assert!(warn, "{message}");
+    let released = TransportEnd::new();
+    released.raise(EndReason::Lost);
+    assert!(released.settle());
+    let (warn, message) = write_failure_notice(&released, &broken, "");
+    assert!(!warn, "{message}");
+}
+
 /// 처음 끊김을 알리는 수신 오류는 원인과 실제로 건 timeout을 경고로 남기고 끊김을 세운다.
 #[test]
 fn the_first_read_error_warns_with_its_cause_and_raises_the_disconnect() {

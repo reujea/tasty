@@ -251,9 +251,10 @@ pub fn spawn_attach_write_thread(
                 link.detach_sent.store(true, Ordering::SeqCst);
             }
             if let Err(e) = stream::write_frame(write_half, item.tag, &item.payload) {
-                tracing::warn!(
-                    "attach write thread{log_suffix}: 프레임을 쓰지 못해 연결 종료로 처리한다: {e}"
-                );
+                match write_failure_notice(end, &e, log_suffix) {
+                    (true, message) => tracing::warn!("{message}"),
+                    (false, message) => tracing::debug!("{message}"),
+                }
                 end.raise(EndReason::Lost);
                 drain_reader_then_settle(write_half, &link, &wake, log_suffix);
                 return;
@@ -264,6 +265,30 @@ pub fn spawn_attach_write_thread(
             }
         }
     })
+}
+
+/// 쓰기 실패를 경고로 남길지와 문구. 실패 전에 이미 끝 사유가 올라 있었으면(로컬 해제가 소켓을 닫은 뒤의
+/// 정리 Detach 등) 예상한 실패라 debug다. 사유가 없던 연결의 실패만 실제 쓰기 장애로 경고한다.
+fn write_failure_notice(
+    end: &TransportEnd,
+    error: &std::io::Error,
+    log_suffix: &str,
+) -> (bool, String) {
+    if end.is_ending() {
+        (
+            false,
+            format!(
+                "attach write thread{log_suffix}: 이미 끝난 연결이라 프레임을 쓰지 못했다: {error}"
+            ),
+        )
+    } else {
+        (
+            true,
+            format!(
+                "attach write thread{log_suffix}: 프레임을 쓰지 못해 연결 종료로 처리한다: {error}"
+            ),
+        )
+    }
 }
 
 /// 쓰기 스레드가 확정한다. 확정에 이겼을 때만 깨운다. 소켓은 어느 쪽이든 닫는다.
