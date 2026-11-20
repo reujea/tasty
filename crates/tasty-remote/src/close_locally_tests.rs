@@ -72,16 +72,22 @@ fn assert_closed_without_detach(peer: &mut std::net::TcpStream) {
 }
 
 /// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 소켓을 닫지 않았다면
-/// reader 가 읽기 기한까지 막혀 회수 스레드가 상한을 다 기다린다.
+/// reader 가 읽기 기한까지 막혀 회수 스레드가 상한을 다 기다린다. 경과는 완료를 읽기 전에 잰다. 스케줄
+/// 지연으로 검사가 늦게 도착해 이미 끝난 회수를 보면 통과가 아니라 실패다.
 fn assert_workers_retire_before_the_reaper_wait(
     receipt: crate::transport::RetirementReceipt,
     dropped: Instant,
 ) {
-    while !receipt.is_done() {
+    loop {
+        let elapsed = dropped.elapsed();
+        let done = receipt.is_done();
         assert!(
-            dropped.elapsed() < Duration::from_millis(200),
-            "the workers were still running at the reaper wait"
+            elapsed < Duration::from_millis(240),
+            "the workers were not seen retired before the reaper wait ({elapsed:?}, done {done})"
         );
+        if done {
+            return;
+        }
         std::thread::sleep(Duration::from_millis(2));
     }
 }
