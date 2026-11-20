@@ -36,6 +36,7 @@ mod input_receipts;
 pub mod outbound;
 pub mod pending_request;
 pub mod transport;
+pub mod transport_end;
 
 pub mod pending_connection;
 
