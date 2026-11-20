@@ -107,15 +107,22 @@ impl App {
         // winit 경로의 modal_blocks_input·입력 게이트와 같이, modal 창이나 overlay·전체화면 무대가
         // 열린 동안에는 plugin·새로고침·host 단축키 어느 것도 처리하지 않는다.
         let modal_active = self.view.is_modal_active();
-        let allowed = match engines_mut!(self).window_pair(id) {
-            Some((main, engine)) => forwarded_key_gate_open(&mut main.state, &engine, modal_active),
-            None => forwarded_key_may_dispatch(modal_active, false, false),
-        };
-        if !allowed {
-            return ForwardedKeyOutcome::Gated;
-        }
-        if self.dispatch_plugin_shortcut_key(id, &ev.key, ev.mods, Some(ev.surface_id)) {
-            return ForwardedKeyOutcome::Handled;
+        {
+            // 창이 없으면 어느 단계도 처리할 대상이 없다.
+            let Some((main, engine)) = engines_mut!(self).window_pair(id) else {
+                return ForwardedKeyOutcome::Gated;
+            };
+            let webviews = &main.webviews;
+            if let Some(outcome) = forwarded_gate_and_plugin_steps(
+                &mut main.state,
+                &engine,
+                modal_active,
+                self.plugin_manager.as_mut(),
+                |sid| webviews.contains_key(&sid),
+                &ev,
+            ) {
+                return outcome;
+            }
         }
         let Some((main, mut engine)) = engines_mut!(self).window_pair(id) else {
             return ForwardedKeyOutcome::Gated;
@@ -269,8 +276,37 @@ fn webview_poll_needed(
         && crate::view::main::redraw::host_window_has_os_focus(winit_focused, webview_holds)
 }
 
+/// 한 창에서 native WebView 가 넘긴 키의 앞 두 단계. 게이트(`forwarded_key_gate_open`)가 닫히면 `Gated`, plugin
+/// 단축키(`plugin_shortcut_in_window`)가 처리하면 `Handled` 로 결과가 정해진다. 정해지지 않으면 None 이고 호출자는
+/// 새로고침·내장 단축키 단계로 간다. `has_webview` 는 surface 에 native WebView 가 있는지다. App 의 디스패치와 제품 상태
+/// 시험이 함께 쓴다.
+fn forwarded_gate_and_plugin_steps(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_access::EngineMut<'_>,
+    modal_active: bool,
+    plugin_manager: Option<&mut crate::plugin::PluginManager>,
+    has_webview: impl Fn(u32) -> bool,
+    ev: &crate::webview::WebViewKeyEvent,
+) -> Option<ForwardedKeyOutcome> {
+    if !forwarded_key_gate_open(state, engine, modal_active) {
+        return Some(ForwardedKeyOutcome::Gated);
+    }
+    if crate::app::plugin_glue::shortcut::plugin_shortcut_in_window(
+        state,
+        engine,
+        plugin_manager,
+        has_webview,
+        &ev.key,
+        ev.mods,
+        Some(ev.surface_id),
+    ) {
+        return Some(ForwardedKeyOutcome::Handled);
+    }
+    None
+}
+
 /// 한 창에서 native WebView 가 넘긴 키를 처리해도 되는지. 포커스 노드를 정규화한 뒤 그 창의 keyboard overlay·전체화면
-/// 무대와 `modal_active`(modal 창)를 본다. App 의 디스패치와 제품 상태 시험이 함께 쓴다.
+/// 무대와 `modal_active`(modal 창)를 본다.
 fn forwarded_key_gate_open(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_access::EngineMut<'_>,

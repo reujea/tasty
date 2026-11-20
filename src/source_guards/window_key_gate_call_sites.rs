@@ -149,9 +149,9 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 }
 
 /// native WebView 가 넘긴 키의 제품 디스패치는 제품 상태 시험(`app::webview_keys::state_tests`)이 부르는 창 단계를 같은
-/// 순서로 부른다: 게이트 → plugin 단축키 → 새로고침 → 받은 surface 의 내장 단축키. plugin 단축키는 창 단계
-/// `plugin_shortcut_in_window` 로, 내장 단축키는 `handle_keybinding_shortcuts` 로, 결과 알림의 재전송은
-/// `resends_to_page` 로 정한다. 시험은 이 단계 안의 변이를 잡고, 이 가드는 제품이 단계를 건너뛰거나 순서를 바꾸는
+/// 순서로 부른다: 게이트·plugin 단축키(`forwarded_gate_and_plugin_steps`, 결과값까지 함께 쓴다) → 새로고침 → 받은
+/// surface 의 내장 단축키. 내장 단축키는 `handle_keybinding_shortcuts` 로, 결과 알림의 재전송은 `resends_to_page` 로
+/// 정한다. 시험은 이 단계 안의 변이를 잡고, 이 가드는 제품이 단계를 건너뛰거나 순서를 바꾸는
 /// 우회를 잡는다.
 #[test]
 fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
@@ -162,12 +162,8 @@ fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
     );
     let steps = [
         (
-            "forwarded_key_gate_open(&mutmain.state,&engine,modal_active)",
-            "게이트",
-        ),
-        (
-            "self.dispatch_plugin_shortcut_key(id,&ev.key,ev.mods,Some(ev.surface_id))",
-            "plugin 단축키",
+            "forwarded_gate_and_plugin_steps(&mutmain.state,&engine,modal_active,self.plugin_manager.as_mut(),|sid|webviews.contains_key(&sid),&ev,){returnoutcome;}",
+            "게이트·plugin 단축키",
         ),
         (
             "dispatch_native_refresh_key(main,&mutengine,&ev)",
@@ -192,6 +188,21 @@ fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
         "webview.finish_forwarded_key(key_id,outcome.resends_to_page());",
         "재전송 판정",
     );
+    let steps = squeeze(
+        &fn_body(&src, "fn forwarded_gate_and_plugin_steps(")
+            .expect("forwarded_gate_and_plugin_steps"),
+    );
+    let gate = at(
+        &steps,
+        "if!forwarded_key_gate_open(state,engine,modal_active){returnSome(ForwardedKeyOutcome::Gated);}",
+        "게이트",
+    );
+    let shortcut = at(
+        &steps,
+        "crate::app::plugin_glue::shortcut::plugin_shortcut_in_window(state,",
+        "plugin 창 단계",
+    );
+    assert!(gate < shortcut, "게이트 → plugin 단축키 순서가 아니다");
     let plugin = read("src/app/plugin_glue/shortcut.rs");
     let window = squeeze(
         &fn_body(&plugin, "fn dispatch_plugin_shortcut_key(")
