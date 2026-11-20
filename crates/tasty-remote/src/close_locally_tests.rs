@@ -55,18 +55,28 @@ fn prepared_with_peer() -> (
     (remote, token, prepared, peer.join().unwrap())
 }
 
+/// `holds` 가 참이 되기를 `deadline` 까지 기다린다. 기한에 닿으면 한 번 더 읽어 그 값을 돌려준다.
+/// 기한 전에 읽은 거짓 뒤에 검사 스레드가 밀려, 그 사이 기한 안에 참이 된 값을 놓치지 않기 위해서다.
+fn holds_by(deadline: Instant, mut holds: impl FnMut() -> bool) -> bool {
+    loop {
+        if holds() {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return holds();
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
 /// reader 가 handshake 뒤 `recv` 에 들어가기를 기다리고 조금 더 둔다. 계수는 recv 직전에 오르므로
 /// 커널 진입의 증거는 아니다. 그래서 음성 대조가 정한 판정에서 실패하는 것을 막힘 증거로 쓴다.
 fn wait_until_reader_blocks(probe: &crate::transport::ReaderProbe) {
-    let deadline = Instant::now() + READY_LIMIT;
-    while !probe.entered_recv() {
-        assert!(
-            Instant::now() < deadline,
-            "ready failure: the reader never reached recv (reader finished {})",
-            probe.finished()
-        );
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    assert!(
+        holds_by(Instant::now() + READY_LIMIT, || probe.entered_recv()),
+        "ready failure: the reader never reached recv (reader finished {})",
+        probe.finished()
+    );
     std::thread::sleep(Duration::from_millis(50));
 }
 
@@ -110,15 +120,12 @@ fn assert_workers_retire_before_the_reaper_wait(
     receipt: crate::transport::RetirementReceipt,
     probe: &crate::transport::ReaderProbe,
 ) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !receipt.is_done() {
-        assert!(
-            Instant::now() < deadline,
-            "retirement not done: the workers were never retired (reader finished {})",
-            probe.finished()
-        );
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    assert!(
+        holds_by(Instant::now() + Duration::from_secs(10), || receipt
+            .is_done()),
+        "retirement not done: the workers were never retired (reader finished {})",
+        probe.finished()
+    );
     assert!(
         !receipt.waited_out(),
         "waited out: the reaper waited out its bound for the workers (reader finished {})",
@@ -185,10 +192,8 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
     let deadline = observe_until.min(cancelled + Duration::from_secs(5));
     // 픽스처 읽기 기한보다 길게 기다려, 끝나지 않던 reader 도 그 기한으로 끝나 끝 시각을 남기게 한다.
     let give_up = cancelled + FIXTURE_READ_TIMEOUT + Duration::from_secs(10);
-    while !probe.finished() && Instant::now() < give_up {
-        std::thread::sleep(Duration::from_millis(2));
-    }
-    // 기한에 닿은 분기도 여기서 다시 읽는다. 앞서 읽은 값이 낡았을 수 있다.
+    holds_by(give_up, || probe.finished());
+    // 기한에 닿은 분기도 여기서 끝 시각을 다시 읽는다. 앞서 읽은 값이 낡았을 수 있다.
     let Some(ended) = probe.ended_at() else {
         panic!(
             "the cancelled attempt left its reader blocked in recv past the fixture read timeout"
@@ -200,14 +205,11 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
         ended.saturating_duration_since(cancelled)
     );
     // 끝 시각을 남긴 reader 는 곧 끝 표지를 세운다. 그 표지를 본 뒤에만 전송을 버린다.
-    let flag_until = Instant::now() + Duration::from_secs(10);
-    while !probe.finished() {
-        assert!(
-            Instant::now() < flag_until,
-            "the reader recorded its end but never set its finished flag"
-        );
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    assert!(
+        holds_by(Instant::now() + Duration::from_secs(10), || probe
+            .finished()),
+        "the reader recorded its end but never set its finished flag"
+    );
 
     let receipt = transport.workers.receipt();
     drop(transport);
