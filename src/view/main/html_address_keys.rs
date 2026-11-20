@@ -57,6 +57,10 @@ impl MainView {
         let Some(sid) = self.state.html_address.focused_surface() else {
             return;
         };
+        // 주소 띠가 포커스 노드일 때만 바꾼다. 팝업에 묶인 키는 건드리지 않는다.
+        if self.state.focus_node(engine) != crate::state::focus_node::FocusNode::HtmlAddress(sid) {
+            return;
+        }
         let WindowEvent::KeyboardInput { event: key, .. } = event else {
             return;
         };

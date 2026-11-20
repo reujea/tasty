@@ -280,6 +280,12 @@ impl HtmlAddressBands {
         self.focus_request = Some(sid);
     }
 
+    /// 시험용: `sid` 띠가 지난 프레임에 키보드 포커스를 가졌던 것으로 둔다.
+    #[cfg(test)]
+    pub(crate) fn set_focused_for_test(&mut self, sid: u32) {
+        self.focused = Some((sid, false));
+    }
+
     #[cfg(test)]
     pub(crate) fn focus_requested(&self) -> Option<u32> {
         self.focus_request
@@ -310,6 +316,14 @@ impl HtmlAddressBands {
     /// (`MainViewState::keyboard_overlay_open`).
     pub(crate) fn has_keyboard_focus(&self) -> bool {
         self.focused.is_some()
+    }
+
+    /// 띠의 키보드 포커스를 놓는다. 다음에 그 띠를 그릴 때 편집을 끝낸다. 팝업이 창의 포커스 노드가 되면 부른다
+    /// (포커스 노드는 창에 하나다).
+    pub(crate) fn release_focus(&mut self) {
+        if let Some((sid, _)) = self.focused.take() {
+            self.drop_focus = Some(sid);
+        }
     }
 
     /// 키보드 포커스를 가진 띠의 surface. 공통 새로고침이 그 surface 를 대상으로 삼는다.

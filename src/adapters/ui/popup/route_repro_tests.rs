@@ -814,3 +814,40 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         "L 의 글자는 터미널로 간다"
     );
 }
+
+/// J7. Given L 의 HTML 주소 띠가 키보드 포커스를 가진 포커스 노드일 때, When 사용자가 팝업을 포커스를 주며 열면,
+/// Then 포커스 노드는 그 팝업 하나이고 주소 띠는 포커스를 놓는다(다음 그리기에서 편집을 끝낸다). 주소 띠 키 재해석은
+/// 포커스 노드가 주소 띠일 때만 돌므로 팝업 키를 바꾸지 않는다.
+#[test]
+fn a_popup_taking_the_focus_node_releases_the_html_address_band() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session) = scene(super::PANE_L);
+    let engine = session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    state.html_address.set_focused_for_test(SURFACE_L);
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::HtmlAddress(SURFACE_L)
+    );
+    let search = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, PopupScope::Surface(SURFACE_L))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    state.normalize_focus(&engine.read());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(search))
+    );
+    assert!(
+        !state.html_address.has_keyboard_focus(),
+        "주소 띠는 포커스를 놓는다"
+    );
+}
