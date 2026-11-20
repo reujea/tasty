@@ -686,3 +686,24 @@ fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
 
 #[path = "transport_exit_tests.rs"]
 mod exits;
+
+/// 회수 대기는 기다림을 끝낸 그 확인으로 상한 도달을 정한다. 끝낸 직후 worker가 끝나도(두 번째
+/// 확인부터 참) 상한까지 기다린 사실이 남아야 한다.
+#[test]
+fn the_reaper_wait_keeps_the_judgement_that_ended_it() {
+    let mut checks = 0;
+    let waited_out = wait_for_workers(
+        || {
+            checks += 1;
+            checks > 1
+        },
+        Duration::ZERO,
+    );
+    assert!(waited_out, "the wait ended at its bound");
+    assert_eq!(checks, 1, "the judgement is not checked again");
+}
+
+#[test]
+fn the_reaper_wait_ends_early_when_the_workers_are_finished() {
+    assert!(!wait_for_workers(|| true, Duration::from_secs(10)));
+}

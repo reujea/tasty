@@ -711,13 +711,10 @@ impl Drop for ConnectionWorkers {
         }
         let receipt = self.receipt.clone();
         std::thread::spawn(move || {
-            let deadline = std::time::Instant::now() + std::time::Duration::from_millis(250);
-            while !handles.iter().all(std::thread::JoinHandle::is_finished)
-                && std::time::Instant::now() < deadline
-            {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            }
-            let waited_out = !handles.iter().all(std::thread::JoinHandle::is_finished);
+            let waited_out = wait_for_workers(
+                || handles.iter().all(std::thread::JoinHandle::is_finished),
+                std::time::Duration::from_millis(250),
+            );
             if let Err(error) = control.shutdown(std::net::Shutdown::Both) {
                 tracing::debug!("retired remote socket already closed: {error}");
             }
@@ -738,6 +735,22 @@ impl Drop for ConnectionWorkers {
             let waited = if waited_out { RETIRE_WAITED_OUT } else { 0 };
             receipt.0.store(end | waited, Ordering::Release);
         });
+    }
+}
+
+/// 회수 스레드가 소켓을 닫기 전에 worker를 기다린다. 대기 상한까지 기다렸으면(`true`) 그 판정을
+/// 그대로 돌려준다. 기다림을 끝낸 확인과 같은 값이라, 끝낸 직후 worker가 끝나도 상한까지 기다린
+/// 사실이 남는다. poll 사이에 worker가 끝난 실제 시각은 알 수 없다.
+fn wait_for_workers(mut all_finished: impl FnMut() -> bool, bound: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + bound;
+    loop {
+        if all_finished() {
+            return false;
+        }
+        if std::time::Instant::now() >= deadline {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
 }
 
