@@ -11,11 +11,18 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 const WAIT: Duration = Duration::from_secs(10);
 
 /// 깨울 때마다 그 순간의 확정 사유를 기록하고 알린다. 소켓 탐침이 있으면 종료 깨움 순간에 이쪽 소켓의
-/// 읽기 쪽이 이미 닫혔는지도 기록한다.
+/// 읽기 쪽과 쓰기 쪽이 각각 이미 닫혔는지도 기록한다.
 struct Wakes {
     seen: Arc<Mutex<Vec<Option<EndReason>>>>,
     terminal: Receiver<EndReason>,
-    closed_at_wake: Arc<Mutex<Vec<bool>>>,
+    closed_at_wake: Arc<Mutex<Vec<SidesClosed>>>,
+}
+
+/// 종료 깨움 순간의 이쪽 소켓 상태.
+#[derive(Debug, PartialEq, Eq)]
+struct SidesClosed {
+    read: bool,
+    write: bool,
 }
 
 fn recording_wake(end: &Arc<TransportEnd>) -> (Arc<dyn Fn() + Send + Sync>, Wakes) {
@@ -39,6 +46,14 @@ fn read_side_closed(probe: &std::net::TcpStream) -> bool {
     }
 }
 
+/// 이쪽 소켓의 쓰기 쪽이 닫혔는지. 쓰기 쪽을 닫은 소켓에 쓰면 오류가 난다. 열려 있으면 한 바이트가 상대에게
+/// 가지만 탐침은 끝이 확정된 뒤에만 돌아 그 연결의 프레임은 더 읽지 않는다.
+fn write_side_closed(probe: &std::net::TcpStream) -> bool {
+    use std::io::Write;
+    let mut probe = probe;
+    probe.write(&[0u8]).is_err()
+}
+
 fn probing_wake(
     end: &Arc<TransportEnd>,
     probe: Option<std::net::TcpStream>,
@@ -54,7 +69,10 @@ fn probing_wake(
             if settled.is_some()
                 && let Some(probe) = &probe
             {
-                closed.lock().unwrap().push(read_side_closed(probe));
+                closed.lock().unwrap().push(SidesClosed {
+                    read: read_side_closed(probe),
+                    write: write_side_closed(probe),
+                });
             }
             seen.lock().unwrap().push(settled);
             if let Some(reason) = settled
@@ -437,7 +455,10 @@ fn every_writer_exit_settles_and_wakes_once_while_the_reader_is_held() {
         assert_eq!(wakes.terminal(), vec![EndReason::Lost], "one terminal wake");
         assert_eq!(
             *wakes.closed_at_wake.lock().unwrap(),
-            vec![true],
+            vec![SidesClosed {
+                read: true,
+                write: true
+            }],
             "both sides were closed before the wake ({exit:?})"
         );
         drop(reader_sender);
