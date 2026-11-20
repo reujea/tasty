@@ -337,3 +337,72 @@ fn a_letter_replayed_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
         fed
     });
 }
+
+/// plugin 팝업 단축키를 밟은 뒤 연 인스턴스가 없고 포커스 노드가 R 터미널 그대로이며, w 가 터미널(PTY)로 가는지 잰다.
+fn the_failed_open_leaves_the_terminal_focused(s: &mut Scene, input: &mut WindowInput) {
+    assert_eq!(
+        s.mgr.popup_instances().count(),
+        0,
+        "실패한 열기는 인스턴스를 남기지 않는다"
+    );
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state.focus_node(&engine.read()),
+            FocusNode::Surface(Some(SURFACE_R))
+        );
+    }
+    assert_eq!(
+        type_text(s, input, false, "w"),
+        None,
+        "w 는 egui 로 가지 않는다"
+    );
+    let engine = s.session.borrow_mut();
+    assert_eq!(
+        s.state
+            .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+        InputDestination::Terminal(SURFACE_R),
+        "w 는 R 터미널 몫이다"
+    );
+}
+
+/// Given 포커스 노드가 R 터미널이고 plugin 으로 가는 송신이 끊겼을 때, When plugin 팝업 단축키가 오면, Then
+/// `popup.open` 을 보내지 못해 인스턴스가 남지 않고 포커스 노드는 R 터미널이다.
+#[test]
+fn a_plugin_popup_that_cannot_be_sent_keeps_the_terminal_focused() {
+    let mut s = open_scene(|_| {});
+    let stub = declare_viewer(&mut s.mgr);
+    let mut input = WindowInput::default();
+    let point = terminal_point_r(&s);
+    focus_terminal(&mut s, &mut input, PANE_R, point);
+    drop(stub);
+    plugin_shortcut(&mut s);
+    the_failed_open_leaves_the_terminal_focused(&mut s, &mut input);
+}
+
+/// Given plugin 팝업 단축키가 연 팝업이 포커스 노드일 때, When plugin 이 `popup.open` 에 오류로 답하고 창이 plugin
+/// 사건을 비우면(`drain_plugin_popup_events`), Then 인스턴스가 지워지고 포커스 노드는 R 터미널로 돌아온다.
+#[test]
+fn a_plugin_popup_whose_open_fails_returns_the_focus() {
+    let mut s = open_scene(|_| {});
+    let _stub = declare_viewer(&mut s.mgr);
+    let mut input = WindowInput::default();
+    let point = terminal_point_r(&s);
+    focus_terminal(&mut s, &mut input, PANE_R, point);
+    plugin_shortcut(&mut s);
+    let opened: Vec<u64> = s.mgr.popup_instances().map(|(id, _)| id).collect();
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state.focus_node(&engine.read()),
+            FocusNode::Popup(PopupNode::Plugin(opened[0])),
+            "열기 응답 전에는 연 팝업이 포커스 노드다"
+        );
+    }
+    s.mgr.fail_popup_opens_for_test(PLUGIN, "no such popup");
+    crate::app::dispatch::plugin_popup_events::drain_plugin_popup_events(
+        std::iter::once(&mut s.state),
+        Some(&mut s.mgr),
+    );
+    the_failed_open_leaves_the_terminal_focused(&mut s, &mut input);
+}

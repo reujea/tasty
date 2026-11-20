@@ -218,6 +218,30 @@ prefix = "{prefix}"
         );
     }
 
+    /// `plugin_id` 가 아직 답하지 않은 `popup.open` 모두에 `error` 로 답한 것처럼 응답을 처리한다.
+    pub fn fail_popup_opens_for_test(&mut self, plugin_id: &str, error: &str) {
+        let mut ids: Vec<u64> = self
+            .pending_requests
+            .iter()
+            .filter(|(_, p)| {
+                p.to == plugin_id && matches!(p.kind, super::PendingRequestKind::PopupOpen { .. })
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        ids.sort_unstable();
+        for id in ids {
+            self.handle_plugin_response(
+                plugin_id,
+                crate::protocol::PluginResponse {
+                    id,
+                    result: None,
+                    error: Some(error.to_string()),
+                    error_code: None,
+                },
+            );
+        }
+    }
+
     /// `plugin_id` 앞 대기 항목의 (호스트 req_id, 원 요청 번호), req_id 순.
     pub fn pending_origins_for_test(&self, plugin_id: &str) -> Vec<(u64, Option<RequestSeq>)> {
         let mut out: Vec<_> = self

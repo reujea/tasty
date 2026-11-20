@@ -257,3 +257,59 @@ fn a_column_declaration_opens_at_the_center_until_the_renderer_draws_columns() {
         tasty_plugin_manifest::PopupAnchor::ScreenCenter
     );
 }
+
+/// `popup.open` 을 보내지 못하면(연결 종료·송신 큐 포화) 인스턴스를 남기지 않는다. 남으면 호스트가 그 인스턴스에
+/// 포커스를 주어 뒤 글자를 삼킨다.
+#[test]
+fn a_popup_open_that_cannot_be_sent_leaves_no_instance() {
+    let (mut mgr, tap) = manager();
+    mgr.declare_popup(PLUGIN, "confirm", surface_decl())
+        .expect("declare");
+    drop(tap);
+    assert!(
+        mgr.open_popup_instance(PLUGIN, "confirm", serde_json::Value::Null)
+            .is_none()
+    );
+    assert_eq!(mgr.popup_instances().count(), 0);
+
+    let (full, _full_tap) = PluginProcess::stub_with_request_rx_capacity(PLUGIN, 1);
+    mgr.processes.insert(PLUGIN.to_string(), full);
+    mgr.declare_popup(PLUGIN, "other", surface_decl())
+        .expect("declare");
+    let first = mgr
+        .open_popup_instance(PLUGIN, "confirm", serde_json::Value::Null)
+        .expect("the first open fills the queue");
+    assert!(
+        mgr.open_popup_instance(PLUGIN, "other", serde_json::Value::Null)
+            .is_none(),
+        "포화된 큐에 넣지 못한 열기는 실패다"
+    );
+    let left: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
+    assert_eq!(left, [first]);
+    assert!(mgr.take_failed_popup_opens().is_empty());
+}
+
+/// plugin 이 `popup.open` 에 오류로 답하면 인스턴스를 지우고 호스트가 풀 수 있게 한 번 알린다.
+#[test]
+fn an_error_answer_to_popup_open_removes_the_instance() {
+    let (mut mgr, tap) = manager();
+    mgr.declare_popup(PLUGIN, "confirm", surface_decl())
+        .expect("declare");
+    let iid = mgr
+        .open_popup_instance(PLUGIN, "confirm", serde_json::Value::Null)
+        .expect("opens");
+    let req = tap.try_recv().expect("popup.open was sent");
+    assert_eq!(req.method, crate::protocol::METHOD_POPUP_OPEN);
+    mgr.handle_plugin_response(
+        PLUGIN,
+        crate::protocol::PluginResponse {
+            id: req.id,
+            result: None,
+            error: Some("no such popup".into()),
+            error_code: None,
+        },
+    );
+    assert_eq!(mgr.popup_instances().count(), 0);
+    assert_eq!(mgr.take_failed_popup_opens(), [iid]);
+    assert!(mgr.take_failed_popup_opens().is_empty(), "한 번만 알린다");
+}
