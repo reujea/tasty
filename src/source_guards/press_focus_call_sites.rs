@@ -279,7 +279,7 @@ fn the_window_picks_the_stage_pass_by_the_live_stage_and_drops_input_without_its
             "드롭 payload 지우기",
         ),
         (
-            "events.insert(first,egui::Event::PointerMoved(origin+egui::vec2(away,0.0)));",
+            "events.insert(first,egui::Event::PointerMoved(origin+egui::vec2(away,0.0)),);",
             "클릭 후보 지우기(뗌 앞 이동)",
         ),
     ] {
