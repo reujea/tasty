@@ -189,3 +189,21 @@ fn a_letter_with_a_notice_shown_but_unfocused_reaches_the_type_ahead() {
     };
     assert!(l.selected().contains("banana"), "L: {:?}", l.selected());
 }
+
+/// Given 안내 안쪽 포커스, When [글자 b, 안내 닫기, 글자 c]가 오면, Then 두 글자는 안내 값이 달라 다른 몫에 들고 각
+/// 몫은 자기 키들의 사건 시점 값을 가진다(앞 몫 참, 뒤 몫 거짓). 글자가 없는 몫은 값이 없다.
+#[test]
+fn each_segment_keeps_the_notice_focus_of_its_own_keys() {
+    let (mut s, mut l, mut r, mut input) = notice_focused_scene();
+    let mut bodies = Bodies::Explorers(&mut l, &mut r);
+    assert_eq!(s.state.pass_notice_focus(), None, "글자가 없는 몫");
+    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    s.state.popups.close(RESTORE_NOTICE_POPUP_ID);
+    assert!(type_text(&mut s, &mut input, true, "c").is_some());
+    assert_eq!(s.state.pass_notice_focus(), Some(true), "b 의 몫");
+    pass(&mut s, &mut input, &mut bodies);
+    assert_eq!(s.state.pass_notice_focus(), Some(false), "c 의 몫");
+    pass(&mut s, &mut input, &mut bodies);
+    assert!(input.is_empty(), "끊은 자리는 하나다");
+    assert_eq!(s.state.pass_notice_focus(), None);
+}
