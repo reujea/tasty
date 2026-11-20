@@ -1,4 +1,15 @@
 //! Outbound socket handshake, reader, writer and heartbeat. No App or View references.
+//!
+//! 연결의 끝은 전송마다 하나인 [`TransportEnd`]에 둔다. 끝을 본 쪽은 사유를 올리고, 끝을 정하는 쪽
+//! 하나가 확정한 뒤 깨운다. 확정에 진 쪽은 깨우지 않는다.
+//!
+//! | 출구 | 사유 | 확정 |
+//! |---|---|---|
+//! | reader: 강제 통지 | `Forced`(`workspace_gone`이면 `Lost`) | `ReaderExit` |
+//! | reader: Detach·EOF·읽기 오류·panic | `Lost` | `ReaderExit` |
+//! | writer: 큐 거절·쓰기 실패·Detach 쓰기 | 쓰기 실패는 `Lost`, 큐 거절은 sender가 `Lost`, Detach는 올리지 않음 | reader를 기다린 뒤 reader, 상한이면 writer가 `Lost`로(`drain_reader_then_settle`) |
+//! | writer: sender 전부 사라짐·panic | `Lost` | writer가 바로(`WriterExit`) |
+//! | heartbeat | 사유가 오르면 멈춘다 | 확정하지 않음 |
 use super::client_session::{FrameSender, MirrorEvent, MirrorOutbox, OutFrame};
 use super::transport_end::{EndReason, TransportEnd};
 use serde_json::Value;

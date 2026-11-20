@@ -32,7 +32,7 @@ pub(crate) struct PendingMirrorInstall {
     /// 원격 팝업이 형상이 남은 행을 그 행의 재연결로 넘길 때 true다. 원격 팝업이 연 연결을 직접 설치하는
     /// 시도는 이 값이 false이고 `user`가 true다. 행을 다시 열기·재활성화·부팅 복원·포커스로 시작한 시도는
     /// 바로 시도해도 false다. 같은 대상의 강제 끊김 표지가 시도 중에 저장돼도 이 값이나 `user`가 true인
-    /// 시도는 사용자 시도로 보아 결과를 버리지 않는다(`drop_attempt_for_force_detached_target`).
+    /// 시도는 사용자 시도로 보아 막지 않는다(`App::auto_attempt_blocked`).
     pub explicit: bool,
     /// 행 없는 수동 요청(`remote.attach`·`attach.into_gui`)의 대상. 같은 대상의 새 요청은
     /// 진행 중인 이전 요청을 대체한다.
