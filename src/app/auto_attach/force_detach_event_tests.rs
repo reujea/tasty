@@ -1,13 +1,18 @@
 //! 강제 끊김이 실제 이벤트 적용·이벤트 루프·실패 처리를 거치는 경로를 실제 `App` 으로 잰다.
 //! 새 프로세스에서 혼자 돈다(`test_rig`).
 
-use super::force_detach_result_tests::{prepare_an_automatic_reconnect, reconnecting_app};
-use super::force_detach_round_tests::{
-    assert_b_ended_by_g1_and_a_dropped, queue_a_forced_reconnect_of_the_other_row, run_json,
+use super::force_detach_result_tests::{
+    ROW_B, prepare_an_automatic_reconnect, push_other_row_session_unflagged, reconnecting_app,
 };
-use super::test_rig::event_loop;
+use super::force_detach_round_tests::{
+    assert_b_ended_by_g1_and_a_dropped, marked, queue_a_forced_reconnect_of_the_other_row,
+    run_json, session_of, ticket_of,
+};
+use super::test_rig::{ROW, event_loop};
 use crate::app::App;
 use std::time::{Duration, Instant};
+use tasty_remote::client_session::{MirrorEvent, SessionState, WorkspaceClose};
+use tasty_remote::transport_end::EndReason;
 use winit::application::ApplicationHandler;
 use winit::event_loop::ActiveEventLoop;
 
@@ -80,4 +85,54 @@ fn the_reader_wake_opens_the_round_through_the_event_loop() {
     );
 
     assert_b_ended_by_g1_and_a_dropped(&mut app, run, joined);
+}
+
+/// G2-a: Given 같은 대상의 행 A 는 자동 재연결이 설치만 남았고 행 B 는 닫기 회신을 기다리며 연결돼 있다,
+/// When 한 회차에 B 의 강제 끊김(관측)과 닫기 성공 회신(이벤트 적용)이 함께 오면, Then B 는 서버 닫기로
+/// 끝나고, 관측이 쓴 표지로 A 는 같은 회차에 버려지며 표지는 남는다. 시험 장치의 창에는 화면이 없어
+/// 창을 park 해 B 의 이벤트를 실제 적용 경로로 적용한다.
+#[test]
+fn a_close_reply_with_a_force_detach_ends_b_while_a_is_dropped_and_the_mark_stays() {
+    alone!("a_close_reply_with_a_force_detach_ends_b_while_a_is_dropped_and_the_mark_stays");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let _socket = prepare_an_automatic_reconnect(&mut app);
+    push_other_row_session_unflagged(&mut app, SessionState::Connected);
+    let (state, _) = crate::state::tests::test_state();
+    app.engines
+        .park(winit::window::WindowId::from(u64::MAX - 2), state)
+        .expect("the rows' window is parked");
+    {
+        let b = app
+            .remote
+            .sessions
+            .iter_mut()
+            .find(|session| session.state.saved_row == Some(ROW_B))
+            .unwrap();
+        b.state.workspace_close = WorkspaceClose::Pending(3);
+        assert!(
+            b.transport
+                .output
+                .push(MirrorEvent::StructuralSucceeded(3, None, 0))
+        );
+    }
+    crate::app::attach_client::tests::settle_transport_end(
+        session_of(&app, ROW_B),
+        EndReason::Forced,
+    );
+
+    app.apply_attach_client_output();
+
+    assert!(
+        app.remote
+            .sessions
+            .iter()
+            .all(|session| session.state.saved_row != Some(ROW_B)),
+        "B ended by the server close"
+    );
+    assert!(
+        ticket_of(&app, ROW).is_none(),
+        "A dropped in the same round"
+    );
+    assert!(marked(&app), "the mark written by the observation stays");
 }
