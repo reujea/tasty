@@ -161,6 +161,9 @@ struct HostHold<E> {
     /// A Wayland read that finished while input it let through was still unprocessed. It is
     /// applied once that input's pass has settled the focus.
     arrived: Option<Arrived>,
+    /// Cut points of egui's input ahead of the edit when it went in. Each pass taken before the
+    /// edit's own takes one segment ahead of it, so the edit is in the pass that finds none left.
+    cuts_ahead: usize,
 }
 
 /// A finished Wayland read for the widget tagged `tag`. `text` is `None` when the read failed.
@@ -185,6 +188,9 @@ pub(crate) struct EditKeyState<E = WindowEvent> {
     /// The last frame's input moves focus only when the next pass begins (see [`defers_focus`]).
     /// Until that pass runs, the focus read between frames is not where an edit would go.
     focus_deferred: bool,
+    /// Cut points now waiting in the window's egui input (`InputCuts`), kept by the window. An edit
+    /// put into the input records it as `cuts_ahead`.
+    cuts: usize,
 }
 
 impl<E> Default for EditKeyState<E> {
@@ -195,6 +201,7 @@ impl<E> Default for EditKeyState<E> {
             hold: None,
             release: None,
             focus_deferred: false,
+            cuts: 0,
         }
     }
 }
@@ -212,6 +219,12 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// The applied bindings this window judges with. `None` judges nothing.
     pub(crate) fn set_bindings(&mut self, bindings: Option<EditBindings>) {
         self.bindings = bindings;
+    }
+
+    /// The cut points waiting in the window's egui input before the next judgment or insert. Only
+    /// the main window cuts its input; every other window keeps 0.
+    pub(crate) fn set_cuts(&mut self, cuts: usize) {
+        self.cuts = cuts;
     }
 
     /// The winit modifiers the next key press is judged with.
@@ -329,6 +342,7 @@ impl<E: HeldEvent> EditKeyState<E> {
             recheck,
             paste_at: None,
             arrived: None,
+            cuts_ahead: self.cuts,
         });
     }
 
@@ -388,6 +402,7 @@ impl<E: HeldEvent> EditKeyState<E> {
             Start::Hold(phase) => {
                 held.phase = phase;
                 held.since = now;
+                held.cuts_ahead = self.cuts;
                 self.mark_paste(ctx);
             }
         }
@@ -407,19 +422,37 @@ impl<E: HeldEvent> EditKeyState<E> {
         has_pending_input(events) || self.focus_deferred
     }
 
-    /// A frame took egui's input `events`: an injected edit is now in that pass. A focus move the
-    /// input defers to the next pass is remembered whether or not a key is held.
+    /// A frame took egui's input `events`: an injected edit with no cut point left ahead of it is
+    /// now in that pass, and one with cut points ahead lets this pass take one of them. The check
+    /// for none left comes before the count goes down. A focus move the input defers to the next
+    /// pass is remembered whether or not a key is held.
     pub(crate) fn input_taken(&mut self, events: &[egui::Event]) {
         self.focus_deferred = events.iter().any(defers_focus);
         if let Some(held) = self.hold.as_mut() {
             match held.phase {
-                Phase::Injected => held.phase = Phase::InPass,
+                Phase::Injected if held.cuts_ahead == 0 => held.phase = Phase::InPass,
+                Phase::Injected => held.cuts_ahead -= 1,
                 Phase::Settle => {
                     let again = events.iter().any(defers_focus);
                     held.phase = Phase::Settling { again };
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// The segment filter dropped the input of the pass just taken (its focus node is not on the
+    /// screen it draws). An edit in that pass ends there without replaying its key: its target is
+    /// gone, as when the field lost focus. The events queued behind it go back in order.
+    pub(crate) fn input_dropped(&mut self) {
+        if matches!(
+            self.hold,
+            Some(HostHold {
+                phase: Phase::InPass,
+                ..
+            })
+        ) {
+            self.resolve_now(Outcome::TargetGone);
         }
     }
 
@@ -500,6 +533,7 @@ impl<E: HeldEvent> EditKeyState<E> {
                 events.push(egui::Event::Paste(text));
                 held.phase = Phase::Injected;
                 held.since = now;
+                held.cuts_ahead = self.cuts;
                 self.mark_paste(ctx);
             }
             None => self.resolve_now(Outcome::NotActed),
@@ -613,6 +647,7 @@ impl super::GpuState {
 
     /// Runs `f` with this window's judgment state and the egui input gathered for the next frame.
     fn with_key_cx<R>(&mut self, f: impl FnOnce(&mut EditKeyState, KeyCx<'_>) -> R) -> R {
+        self.edit_keys.set_cuts(self.egui_input_cuts.len());
         let ctx = self.egui_ctx.clone();
         let mut events = std::mem::take(&mut self.egui_state.egui_input_mut().events);
         let selection = &mut self.text_selection;
@@ -721,6 +756,7 @@ impl super::GpuState {
         if !self.edit_keys.awaits_text() {
             return false;
         }
+        self.edit_keys.set_cuts(self.egui_input_cuts.len());
         let events = &mut self.egui_state.egui_input_mut().events;
         self.edit_keys
             .text_arrived(text, &self.egui_ctx, events, Instant::now());

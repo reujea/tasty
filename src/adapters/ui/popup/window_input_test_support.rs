@@ -15,6 +15,8 @@ pub(crate) struct WindowInput {
     cuts: InputCuts,
     /// 직전 패스가 끊은 자리에서 나눴는지. 창은 나눈 패스 뒤에 다음 패스를 요청한다.
     split: bool,
+    /// 직전 패스의 몫 필터가 입력을 뺐는지(`MainViewState::drop_input_without_its_node`).
+    dropped: bool,
 }
 
 impl EguiPressSink for WindowInput {
@@ -139,7 +141,7 @@ impl WindowInput {
         let mut events = std::mem::take(&mut self.queue);
         self.split = self.cuts.split_pass(&mut events, &mut self.queue);
         before_filter(state, &mut events);
-        state.drop_input_without_its_node(ctx, &mut events);
+        self.dropped = state.drop_input_without_its_node(ctx, &mut events);
         events
     }
 
@@ -151,6 +153,16 @@ impl WindowInput {
         core: &crate::core::CoreState,
     ) {
         key_focus(state, core, self);
+    }
+
+    /// 직전 패스의 몫 필터가 입력을 뺐는지.
+    pub(crate) fn last_pass_dropped(&self) -> bool {
+        self.dropped
+    }
+
+    /// 남은 끊은 자리의 수(`GpuState` 가 편집 판정에 알리는 값, `EditKeyState::set_cuts`).
+    pub(crate) fn cut_count(&self) -> usize {
+        self.cuts.len()
     }
 
     /// 남은 끊은 자리(egui 입력 큐 좌표)의 글.

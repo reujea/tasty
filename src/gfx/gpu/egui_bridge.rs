@@ -277,7 +277,10 @@ impl GpuState {
         self.set_plugin_paste_target(state.frame_plugin_key_target(None));
         state.popups.begin_key_pass(self.egui_escape_held());
         let mut raw_input = self.take_pass_input(window, true);
-        state.drop_input_without_its_node(&self.egui_ctx, &mut raw_input.events);
+        let dropped = state.drop_input_without_its_node(&self.egui_ctx, &mut raw_input.events);
+        if dropped {
+            self.edit_keys.input_dropped();
+        }
         adjust(&mut raw_input);
         let drawn = state.fullscreen_stage_id();
         let output = self.egui_ctx.run(raw_input, |ctx| ui(ctx, state));

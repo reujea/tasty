@@ -282,12 +282,13 @@ impl super::MainViewState {
     ///
     /// 그리기 중 전환 앞 화면에서 열린 몫(`seal_after_drawing_transition` 의 표시)은 노드와 관계없이 그 화면이 아닌 화면을
     /// 그릴 때 같이 뺀다. 같은 화면을 다시 그리면 그 화면의 정상 입력이다. 빼든 전달하든 몫 폐기가 뺀 누름의 짝 뗌은
-    /// 버린다(`drop_stray_releases`).
+    /// 버린다(`drop_stray_releases`). 입력을 뺐으면 참이다(그 몫에 든 보류 편집은 대상이 사라진 것으로 끝난다,
+    /// `EditKeyState::input_dropped`).
     pub(crate) fn drop_input_without_its_node(
         &mut self,
         ctx: &egui::Context,
         events: &mut Vec<egui::Event>,
-    ) {
+    ) -> bool {
         let off_screen =
             self.segment_before_transition && self.segment_screen != self.fullscreen_stage_id();
         let off_node = self
@@ -299,6 +300,7 @@ impl super::MainViewState {
             events.retain(|e| !delivers_input(e));
             end_press_without_click(ctx, events);
         }
+        dropping
     }
 
     /// 몫 폐기가 뺀 누름의 짝 뗌을 뺀다. 사건을 순서대로 보며 버튼의 눌림을 따라간다(시작은 egui 의

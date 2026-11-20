@@ -175,6 +175,10 @@ fn pass(s: &mut FindScene, now: Instant) -> Seen {
             let pastes = held.frame(events, focused, now);
             events.extend(pastes.into_iter().map(Event::Paste));
         });
+    // 몫 필터 뒤: 버려진 몫의 편집은 대상이 사라진 것으로 끝난다(`run_main_pass`).
+    if s.input.last_pass_dropped() {
+        s.edit.input_dropped();
+    }
     let take = s.state.surfaces_take_keys();
     let stage = s.state.pass_draws_stage();
     let raw = egui::RawInput {
@@ -199,6 +203,7 @@ fn pass(s: &mut FindScene, now: Instant) -> Seen {
     // (`GpuState::edit_keys_after_pass`).
     drop(s.edit.after_pass(output.platform_output, &s.ctx));
     if s.edit.needs_rejudge() {
+        s.edit.set_cuts(s.input.cut_count());
         s.edit.rejudge(
             KeyCx {
                 ctx: &s.ctx,
@@ -295,6 +300,7 @@ fn window_key(s: &mut FindScene, event: Ev, modifiers: ModifiersState, clip: Cli
         s.input.key_without_event(&mut s.state, &engine.read());
     }
     s.edit.set_modifiers(modifiers);
+    s.edit.set_cuts(s.input.cut_count());
     let mut clip = Some(clip);
     s.edit.judge(
         &event,
@@ -315,6 +321,7 @@ fn paste_key(s: &mut FindScene, clip: ClipText) -> EguiKey {
 
 /// Wayland 읽기가 끝났다(`GpuState::edit_keys_text_arrived`).
 fn text_arrived(s: &mut FindScene, text: &str) {
+    s.edit.set_cuts(s.input.cut_count());
     s.edit.text_arrived(
         Some(text.into()),
         &s.ctx,

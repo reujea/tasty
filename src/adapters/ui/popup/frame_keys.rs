@@ -371,6 +371,11 @@ impl InputCuts {
         self.0.push_back(len);
     }
 
+    /// 남은 끊은 자리의 수.
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// 남은 끊은 자리가 없는지.
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
