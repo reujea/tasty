@@ -2,7 +2,8 @@
 //! 끊고 포커스 노드를 옮긴다. 키·글자는 창처럼 같은 끊기(`input_segment::key_focus`)와 egui 게이트
 //! (`window_feeds_egui`)를 거쳐 큐에 들어간다(`key`). 패스 입력은 egui 패스와 같은 순서로 꺼낸다
 //! (`PopupManager::begin_key_pass` 뒤 큐를 꺼내 앞 끊은 자리에서 나눔, `InputCuts::split_pass`). Esc 처럼 창이 따로
-//! 고르는 키(`window_escape`)는 각 시험이 창과 같은 함수로 하고 egui 로 보낼 사건만 `push` 한다.
+//! 고르는 키(`window_escape`)는 창과 같은 함수로 거른다(`escape`).
+
 use crate::adapters::ui::popup::frame_keys::InputCuts;
 use crate::state::RequestContext;
 use crate::view::main::input_segment::{EguiPressSink, key_focus, press_focus};
@@ -27,11 +28,6 @@ impl EguiPressSink for WindowInput {
 }
 
 impl WindowInput {
-    /// 창이 egui 로 보낸 사건 하나를 큐에 싣는다. 키·글자 사건은 `key` 로 먼저 끊기를 거친다.
-    pub(crate) fn push(&mut self, event: egui::Event) {
-        self.queue.push(event);
-    }
-
     /// 창이 받은 키·글자 사건 하나. 창처럼 입력 몫 끊기(`key_focus`) → egui 게이트(`window_feeds_egui`) → egui 큐
     /// 순서로 밟는다. `egui_surface` 는 포커스 surface 가 egui 로 입력을 받는지다. 게이트 결과를 돌려준다(`None` 이면
     /// egui 로 가지 않았다).

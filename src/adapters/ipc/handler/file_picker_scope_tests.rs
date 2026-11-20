@@ -921,3 +921,120 @@ fn a_window_picker_takes_the_first_escape_before_an_open_notification_list() {
         "덮인 알림 목록은 그 Esc 로 닫히지 않는다"
     );
 }
+
+/// J5(실제 피커, 글자). Given 알림 목록이 열린 위에 plugin 이 Window 범위 저장 모드 파일 피커를 열었을 때, When 창의
+/// 키 경로로 Tab 을 보내 이름 칸에 egui 키 포커스를 주고 글자를 보내면, Then 덮는 피커가 포커스 노드라 그 글자는 피커
+/// 본문의 이름 칸에 들어간다(덮인 알림 목록이 받지 않는다).
+#[test]
+fn a_window_save_picker_body_receives_the_letters_over_an_open_notification_list() {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    crate::i18n::init("en");
+    let (mut state, mut engine_session) = test_state();
+    let mut engine = engine_session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window),
+            true,
+        )
+        .unwrap();
+    let instances = [(7, parent("window", None))];
+    sync_plugin_popup_scopes(&mut state, instances.iter().map(|(id, inst)| (*id, inst)));
+    let dir = tempfile::tempdir().unwrap();
+    let response = handle_trigger(
+        &mut state,
+        &mut engine,
+        &CallerContext::Plugin {
+            plugin_id: PLUGIN.into(),
+        },
+        json!(1),
+        &json!({"owner_popup_instance": 7, "mode": "save", "location": "local", "default_name": "", "start_dir": dir.path()}),
+    );
+    assert!(response.result.is_some(), "{response:?}");
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(&mut state, &mut engine, &intent);
+    }
+    assert_eq!(picker_scope(&mut state), PopupScope::Window);
+
+    let sid = state.focused_surface_id(&engine.read()).expect("surface");
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 700.0));
+    let layout = LayoutContext {
+        active_workspace: 0,
+        active_workspace_id: 1,
+        pane_rects: vec![],
+        surface_rects: vec![(sid, screen)],
+        active_tabs: vec![],
+        active_tab_ids: vec![],
+        workspace_rect: None,
+        surface_owners: Vec::new(),
+        tab_content_rects: Vec::new(),
+    };
+    let ctx = egui::Context::default();
+    let mut input = WindowInput::default();
+    // 창의 egui 패스 하나(`GpuState::run_main_pass`).
+    let pass = |state: &mut RequestContext,
+                engine: &crate::runtime::engine_read::EngineRead<'_>,
+                input: &mut WindowInput| {
+        let raw = egui::RawInput {
+            screen_rect: Some(screen),
+            events: input.take_pass(state, &ctx),
+            ..Default::default()
+        };
+        drop(ctx.run(raw, |ctx| draw_popup_layer(ctx, state, engine, &layout)));
+        state.close_input_pass(&ctx);
+    };
+    pass(&mut state, &engine.read(), &mut input);
+    state.normalize_focus(&engine.read());
+    let tab = egui::Event::Key {
+        key: egui::Key::Tab,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    let in_text_field = |ctx: &egui::Context| {
+        ctx.memory(|m| m.focused())
+            .is_some_and(|id| egui::TextEdit::load_state(ctx, id).is_some())
+    };
+    for _ in 0..20 {
+        if in_text_field(&ctx) {
+            break;
+        }
+        assert_eq!(
+            input.key(&mut state, &engine.read(), false, tab.clone()),
+            Some(true),
+            "창은 키를 egui 로 보내고 피커에 묶는다"
+        );
+        pass(&mut state, &engine.read(), &mut input);
+    }
+    assert!(
+        in_text_field(&ctx),
+        "Tab 이 피커의 이름 칸에 키 포커스를 준다"
+    );
+
+    for letter in ["a", "b"] {
+        assert_eq!(
+            input.key(
+                &mut state,
+                &engine.read(),
+                false,
+                egui::Event::Text(letter.into())
+            ),
+            Some(true)
+        );
+    }
+    while !input.is_empty() {
+        pass(&mut state, &engine.read(), &mut input);
+    }
+    let picker = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+        .expect("피커가 열려 있다");
+    assert_eq!(
+        picker.save_name.as_deref(),
+        Some("ab"),
+        "글자는 피커 본문의 이름 칸에 들어간다"
+    );
+    assert!(state.popups.is_open("notifications"));
+}

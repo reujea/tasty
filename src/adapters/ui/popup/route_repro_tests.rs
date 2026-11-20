@@ -686,7 +686,8 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         "이름 바꾸기는 열린 채 남는다"
     );
     // 아래는 창의 키·IME 경로가 그대로 읽는 판정이다. 그 경로(`view::main::keyboard`, `view::main::ime::handle_event`)는
-    // GPU 창이 있어야 불러 볼 수 있어 PTY 쓰기 자체는 이 시험이 관측하지 않는다.
+    // 같은 갈래 판정(`input_destination`)으로 보내는 곳을 고른다. PTY 쓰기 자체는 GPU 창이 있어야 불러 볼 수 있어 이
+    // 시험이 관측하지 않는다.
     assert!(
         !state.input_dialog_owns_keys(),
         "keyboard: 입력 대화상자가 키를 갖지 않는다"
@@ -699,6 +700,19 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         state.window_feeds_egui(false, false).is_none(),
         "ime·창 egui 게이트: `window_keys_to_overlay` 가 거짓이라 IME 조합과 키가 egui 로 가지 않는다"
     );
+    {
+        use crate::state::input_destination::InputDestination;
+        assert_eq!(
+            state.input_destination(&engine.read(), state.window_holds_terminal_keys()),
+            InputDestination::Terminal(SURFACE_L),
+            "keyboard: L 의 글자는 L 터미널(PTY) 갈래로 간다"
+        );
+        assert_eq!(
+            state.input_destination(&engine.read(), state.window_keys_to_overlay()),
+            InputDestination::Terminal(SURFACE_L),
+            "ime: L 의 IME 조합은 L 터미널 조합 갈래로 간다"
+        );
+    }
 }
 
 /// J7. Given L 의 HTML 주소 띠가 키보드 포커스를 가진 포커스 노드일 때, When 사용자가 팝업을 포커스를 주며 열면,

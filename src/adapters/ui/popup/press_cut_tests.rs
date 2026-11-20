@@ -250,10 +250,7 @@ fn a_letter_before_a_press_on_the_right_search_stays_with_the_left_field() {
         Some(PopupNode::Host(s.search)),
         "누름 몫(다음 그리기)은 R 검색창 몫이다"
     );
-    pass(&mut s, &mut input);
-    assert!(!input.is_empty(), "누름 뒤 글자는 셋째 패스 몫이다");
-    pass(&mut s, &mut input);
-    assert!(input.is_empty());
+    drain(&mut s, &mut input);
     assert_eq!(
         s.state.search.query, "c",
         "누름 뒤 글자는 R 검색창 입력칸에 들어간다"
@@ -359,7 +356,7 @@ fn recording_pass(
 
 /// (c) Given R 검색창이 포커스 노드이고 L 에 덮는 팝업이 열려 있을 때, When 한 묶음에 [R 키 x, L 팝업 누름, 키 y, R
 /// 터미널 누름, 글자 z]가 오면, Then 창은 누름과 누름 뒤 키마다 끊어 x 는 R 검색창 본문이, y 는 L 팝업 본문이 받고,
-/// z 는 창의 게이트가 egui 로 보내지 않아 어느 팝업 본문도 받지 않는다.
+/// z 는 창의 게이트가 egui 로 보내지 않아 어느 팝업 본문도 받지 않고 창의 키 갈래가 R 터미널로 보낸다.
 #[test]
 fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
     let mut cover_iid = None;
@@ -404,10 +401,15 @@ fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
         None,
         "마지막 글자는 egui 로 가지 않는다"
     );
-    assert!(
-        !s.state.window_holds_terminal_keys(),
-        "마지막 글자는 터미널 게이트를 지난다"
-    );
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state
+                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            crate::state::input_destination::InputDestination::Terminal(SURFACE_R),
+            "마지막 글자는 창의 키 갈래가 R 터미널(PTY)로 보낸다"
+        );
+    }
 
     let mut seen = Vec::new();
     while !input.is_empty() {
@@ -420,15 +422,46 @@ fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
     );
 }
 
-/// (d) Given R 의 plugin 팝업이 포커스 노드이고 창이 그 팝업에 키 x 를 묶었을 때, When 같은 묶음에서 L 터미널을
-/// 누르면, Then 누름 뒤 글자와 IME 는 L 터미널(PTY) 쪽으로 간다. 입력 시점 판정(`plugin_popup_key_target`, 창 게이트,
-/// IME 오버레이 게이트)은 지금 받는 몫을 읽고 앞 몫의 R 결속을 읽지 않는다. 앞 몫은 그 그리기에서 R 이 받는다.
+/// 이번까지 plugin 렌더가 팝업에 보낸 글자 사건(팝업 instance, 글자).
+fn sent_plugin_text(state: &mut RequestContext) -> Vec<(u64, String)> {
+    use crate::app::frame_effect::{DrawEffect, FrameEffect};
+    use crate::app::plugin_display::PluginDisplayRequest;
+    use tasty_plugin_protocol::protocol::RawInputEventWire;
+    state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|d| match d.body {
+            crate::intent::Intent::Frame(FrameEffect::Draw(DrawEffect::PluginDisplay(
+                PluginDisplayRequest::Popup { params, .. },
+            ))) => Some((params.instance_id, params.raw_input.events)),
+            _ => None,
+        })
+        .flat_map(|(id, events)| {
+            events.into_iter().filter_map(move |e| match e {
+                RawInputEventWire::Text { text } => Some((id, text)),
+                _ => None,
+            })
+        })
+        .collect()
+}
+
+/// (d) Given R 의 plugin 팝업이 포커스 노드일 때, When 한 묶음에 [R 키 x, L 터미널 누름, 글자 a, IME 확정]이 오면,
+/// Then x 는 앞 몫을 그리는 plugin 렌더가 R 팝업에 보내고, a 와 IME 는 egui 로 가지 않고 창의 키 갈래와 IME 갈래
+/// (`input_destination`, `view::main::keyboard`·`view::main::ime::handle_event` 가 고르는 판정)가 L 터미널로 보낸다.
+/// 입력 시점 판정(`plugin_popup_key_target`, 창 게이트, IME 오버레이 게이트)은 지금 받는 몫을 읽고 앞 몫의 R 결속을
+/// 읽지 않는다. PTY 쓰기 자체는 GPU 창이 있어야 불러 볼 수 있어 관측하지 않는다.
 #[test]
 fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_to_the_terminal() {
+    use crate::state::input_destination::InputDestination;
     let (mut state, mut session) = scene(PANE_R);
     let engine = session.borrow_mut();
     let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
     let ctx = Context::default();
+    let pass = |state: &mut RequestContext, input: &mut WindowInput| {
+        let events = input.take_pass(state, &ctx);
+        plugin_frame(&ctx, state, &engine.read(), &mgr, events);
+        state.close_input_pass(&ctx);
+    };
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
     let placed = state.plugin_popup_hittest[0].rect;
     let mut input = WindowInput::default();
@@ -437,12 +470,15 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
         state.focus_node(&engine.read()),
         FocusNode::Popup(PopupNode::Plugin(POPUP))
     );
-    let events = input.take_pass(&mut state, &ctx);
-    plugin_frame(&ctx, &mut state, &engine.read(), &mgr, events);
-    state.close_input_pass(&ctx);
+    while !input.is_empty() {
+        pass(&mut state, &mut input);
+    }
+    state.take_pending_intents();
 
-    assert_eq!(state.window_feeds_egui(false, true), Some(true));
-    input.push(text("x"));
+    assert_eq!(
+        input.key(&mut state, &engine.read(), false, text("x")),
+        Some(true)
+    );
     assert_eq!(state.plugin_popup_key_target(), Some(POPUP));
     input.press(&mut state, &engine.read(), surface_rect_l().center());
     {
@@ -462,17 +498,37 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
         "입력 시점의 plugin 키 대상은 지금 몫을 읽는다"
     );
     assert_eq!(
-        state.window_feeds_egui(false, true),
+        input.key(&mut state, &engine.read(), false, text("a")),
         None,
-        "글자와 IME 는 egui 로 가지 않는다(IME 경로가 읽는 오버레이 게이트가 닫혀 있다)"
-    );
-    assert!(
-        !state.window_holds_terminal_keys(),
-        "글자는 터미널 게이트를 지난다"
+        "누름 뒤 글자는 egui 로 가지 않는다"
     );
     assert_eq!(
-        state.popups.frame_bound_key_owner(),
-        Some(PopupNode::Plugin(POPUP)),
-        "앞 몫은 그 그리기에서 R 이 받는다"
+        state.input_destination(&engine.read(), state.window_holds_terminal_keys()),
+        InputDestination::Terminal(SURFACE_L),
+        "키 갈래는 L 터미널(PTY)이다"
+    );
+    assert_eq!(
+        input.key(
+            &mut state,
+            &engine.read(),
+            false,
+            Event::Ime(egui::ImeEvent::Commit("가".into()))
+        ),
+        None,
+        "IME 는 egui 로 가지 않는다"
+    );
+    assert_eq!(
+        state.input_destination(&engine.read(), state.window_keys_to_overlay()),
+        InputDestination::Terminal(SURFACE_L),
+        "IME 갈래는 L 터미널 조합이다"
+    );
+
+    while !input.is_empty() {
+        pass(&mut state, &mut input);
+    }
+    assert_eq!(
+        sent_plugin_text(&mut state),
+        [(POPUP, "x".to_string())],
+        "x 는 R plugin 팝업이 받고 뒤 글자는 받지 않는다"
     );
 }
