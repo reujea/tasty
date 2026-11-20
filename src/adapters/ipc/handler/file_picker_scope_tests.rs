@@ -867,9 +867,9 @@ fn a_window_picker_takes_the_first_escape_before_an_open_notification_list() {
         tab_content_rects: Vec::new(),
     };
     let ctx = egui::Context::default();
-    let mut layer_frame = |state: &mut RequestContext,
-                           engine: &crate::runtime::engine_read::EngineRead<'_>,
-                           events: Vec<egui::Event>| {
+    let layer_frame = |state: &mut RequestContext,
+                       engine: &crate::runtime::engine_read::EngineRead<'_>,
+                       events: Vec<egui::Event>| {
         let raw = egui::RawInput {
             screen_rect: Some(screen),
             events,
