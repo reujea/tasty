@@ -378,7 +378,9 @@ impl GuiTestInstance {
                 settings_open_requested: result["gate_settings_open_requested"]
                     .as_bool()
                     .unwrap_or(false),
-                input_dialog_open: result["gate_input_dialog_open"].as_bool().unwrap_or(false),
+                input_dialog_owns_keys: result["gate_input_dialog_owns_keys"]
+                    .as_bool()
+                    .unwrap_or(false),
                 host_popup_focused: result["gate_host_popup_focused"].as_bool().unwrap_or(false),
                 plugin_popup_owns_keys: result["gate_plugin_popup_owns_keys"]
                     .as_bool()
@@ -776,7 +778,7 @@ impl ModalKind {
 pub struct GateTerms {
     pub fullscreen_stage_active: bool,
     pub settings_open_requested: bool,
-    pub input_dialog_open: bool,
+    pub input_dialog_owns_keys: bool,
     pub host_popup_focused: bool,
     pub plugin_popup_owns_keys: bool,
 }

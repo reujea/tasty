@@ -175,6 +175,12 @@ const ROSTER: &[(&str, Kind, usize, &str)] = &[
         "popup.show 의 target 이 focused_window 일 때만 포커스 창이 있는지 본다. 생략 기본값은 없다",
     ),
     (
+        "src/app/dispatch/surface_popups.rs",
+        PolicyScope,
+        1,
+        "plugin 이 스스로 연 팝업을 그 창의 포커스 노드로 할지(사용자 출처인지) 판정한다. 팝업을 그릴 창과 surface 는 요청이 지목한 surface 로 이미 정했고 이 값으로 고르지 않는다",
+    ),
+    (
         "src/app/dispatch/plugin_ipc.rs",
         Projection,
         1,

@@ -344,7 +344,7 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
         "포커스는 L 인데 키가 오버레이로 간다"
     );
     assert!(
-        !state.window_keys_to_overlay(),
+        state.window_feeds_egui(false, false).is_none(),
         "창의 키 게이트가 L 의 키를 오버레이로 돌린다"
     );
     let picker = state
@@ -806,7 +806,7 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         "L 터미널의 키·IME 는 egui 로 가지 않는다"
     );
     assert!(
-        !state.window_keys_to_overlay(),
+        state.window_feeds_egui(false, false).is_none(),
         "IME 오버레이 게이트가 열린다"
     );
     assert!(
