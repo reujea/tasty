@@ -115,12 +115,11 @@ impl App {
             let blocked = saved_row.is_some_and(|row| self.row_blocked(row));
             let sess = &mut self.remote.sessions[idx];
             let events_deferred = sess.transport.output.has_pending();
-            let (disposition, unknown) = route_session_end(sess, phase, events_deferred);
+            let (disposition, unknown) = route_session_end(sess, phase, events_deferred, blocked);
             if unknown {
                 unknown_close.push(sess.state.local_workspace);
             }
             match disposition {
-                DisconnectDisposition::Resync if blocked => stopped.push(idx),
                 DisconnectDisposition::Resync => resyncing.push(idx),
                 DisconnectDisposition::Reconnect => reconnecting.push(idx),
                 DisconnectDisposition::Stop if saved_row.is_some() => stopped.push(idx),
@@ -159,11 +158,13 @@ impl App {
 ///
 /// 순서: 서버 닫기 성공 회신 → 관측·설치 단계가 지금 전송에 정한 멈춤 → 관측한 끝(처리하지 않은 것만).
 /// 정한 멈춤은 ID 예약을 기다리는 이벤트가 남아 있으면 다음 회차로 미룬다. 그 이벤트에 닫기 회신이
-/// 있을 수 있기 때문이다.
+/// 있을 수 있기 때문이다. `blocked`는 저장 행이 막혀 있다는 뜻이다. 막힌 행의 손실 복구(재동기화)는
+/// 멈춤이 되고, 같은 이유로 남은 이벤트가 있으면 지금 전송의 멈춤으로 미룬다.
 fn route_session_end(
     sess: &mut AttachClientSession,
     phase: SessionState,
     events_deferred: bool,
+    blocked: bool,
 ) -> (DisconnectDisposition, bool) {
     let disposition =
         if sess.state.workspace_close == tasty_remote::client_session::WorkspaceClose::Closed {
@@ -183,7 +184,14 @@ fn route_session_end(
         } else {
             // 다른 전송에 정한 멈춤은 지금 전송의 것이 아니다.
             sess.state.stop_after_events = None;
-            classify_observed_end(sess, phase)
+            match classify_observed_end(sess, phase) {
+                DisconnectDisposition::Resync if blocked && events_deferred => {
+                    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+                    DisconnectDisposition::None
+                }
+                DisconnectDisposition::Resync if blocked => DisconnectDisposition::Stop,
+                observed => observed,
+            }
         };
     // 재연결 중인 세션은 옛 전송을 놓을 때(재연결 진입) 이미 결과 불명을 알렸다. 그 세션의 멈춤은
     // 끊긴 행으로 두기만 한다.

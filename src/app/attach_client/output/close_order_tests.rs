@@ -33,7 +33,7 @@ fn end_after(events: Vec<MirrorEvent>, eof: bool, routed: bool) -> (DisconnectDi
         apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
     }
     let phase = sess.state.phase;
-    route_session_end(&mut sess, phase, false)
+    route_session_end(&mut sess, phase, false, false)
 }
 
 /// Two closes of one mirror prepared before the first is sent: both pass the preparation check, the
@@ -73,7 +73,7 @@ fn a_second_queued_close_is_not_sent_and_the_first_success_still_ends_the_mirror
     observe_end(&mut sess, EndReason::Lost, false);
     let phase = sess.state.phase;
     assert_eq!(
-        route_session_end(&mut sess, phase, false),
+        route_session_end(&mut sess, phase, false, false),
         (DisconnectDisposition::ServerClosed, false)
     );
 }
@@ -142,7 +142,7 @@ fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
         sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
         let phase = sess.state.phase;
         assert_eq!(
-            route_session_end(&mut sess, phase, true),
+            route_session_end(&mut sess, phase, true, false),
             (DisconnectDisposition::None, false),
             "deferred while events wait for an id reservation"
         );
@@ -152,7 +152,7 @@ fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
             let mut host = MirrorHost::parked(&mut state, &mut engine);
             apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
         }
-        route_session_end(&mut sess, phase, false)
+        route_session_end(&mut sess, phase, false, false)
     };
     assert_eq!(
         stop_after(vec![MirrorEvent::StructuralSucceeded(3, None, 0)]),
@@ -174,14 +174,14 @@ fn a_stop_decided_for_the_old_transport_does_not_stop_the_new_one() {
     sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
     let phase = sess.state.phase;
     assert_eq!(
-        route_session_end(&mut sess, phase, true),
+        route_session_end(&mut sess, phase, true, false),
         (DisconnectDisposition::None, false),
         "deferred"
     );
     sess.transport = test_session(9_000, HashMap::new()).transport;
 
     assert_eq!(
-        route_session_end(&mut sess, phase, false),
+        route_session_end(&mut sess, phase, false, false),
         (DisconnectDisposition::None, false),
         "the new transport is not stopped"
     );
@@ -199,8 +199,49 @@ fn a_stop_of_a_reconnecting_session_does_not_repeat_the_unknown_close() {
     sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
 
     assert_eq!(
-        route_session_end(&mut sess, SessionState::Reconnecting, false),
+        route_session_end(&mut sess, SessionState::Reconnecting, false, false),
         (DisconnectDisposition::Stop, false)
+    );
+}
+
+/// ifix1-3 (U8): Given 막힌 저장 행이 손실 복구(재동기화)를 시작한 뒤 옛 전송이 끊겼고 ID 예약을 기다리는
+/// 이벤트가 남았다, When 처리하면, Then 바로 멈추지 않고 지금 전송의 멈춤으로 미룬다. 그 이벤트에 닫기 성공
+/// 회신이 있으면 서버 닫기로 끝나고, 없이 풀리면 멈추며 결과 불명을 알린다.
+#[test]
+fn a_blocked_resync_waits_for_deferred_events_and_yields_to_the_close_reply() {
+    let stop_after = |events: Vec<MirrorEvent>| {
+        let (mut state, mut engine_session) = crate::state::tests::test_state();
+        let mut engine = engine_session.borrow_mut();
+        let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+        sess.state.saved_row = Some(5);
+        sess.state.workspace_close = WorkspaceClose::Pending(3);
+        sess.state.resync_pending = Some(1);
+        observe_end(&mut sess, EndReason::Lost, false);
+        let phase = sess.state.phase;
+        assert_eq!(
+            route_session_end(&mut sess, phase, true, true),
+            (DisconnectDisposition::None, false),
+            "deferred while events wait for an id reservation"
+        );
+        assert!(
+            sess.state.stop_after_events.is_some(),
+            "a stop of this transport"
+        );
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        {
+            let mut host = MirrorHost::parked(&mut state, &mut engine);
+            apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
+        }
+        route_session_end(&mut sess, phase, false, true)
+    };
+    assert_eq!(
+        stop_after(vec![MirrorEvent::StructuralSucceeded(3, None, 0)]),
+        (DisconnectDisposition::ServerClosed, false)
+    );
+    assert_eq!(
+        stop_after(vec![]),
+        (DisconnectDisposition::Stop, true),
+        "no reply: stop with an unknown close result"
     );
 }
 
@@ -226,7 +267,7 @@ fn a_close_reply_wins_over_a_forced_or_lost_end_in_the_same_batch() {
         }
         let phase = sess.state.phase;
         assert_eq!(
-            route_session_end(&mut sess, phase, false),
+            route_session_end(&mut sess, phase, false, false),
             (DisconnectDisposition::ServerClosed, false),
             "{reason:?}"
         );

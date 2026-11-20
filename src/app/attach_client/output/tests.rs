@@ -1017,8 +1017,8 @@ fn force_detach_turns_reconnect_and_resync_into_a_final_stop() {
             reason,
             routed: false,
         });
-        let first = route_session_end(&mut sess, SessionState::Connected, false).0;
-        let again = route_session_end(&mut sess, SessionState::Connected, false).0;
+        let first = route_session_end(&mut sess, SessionState::Connected, false, false).0;
+        let again = route_session_end(&mut sess, SessionState::Connected, false, false).0;
         assert_eq!(again, DisconnectDisposition::None, "routed once");
         first
     };
