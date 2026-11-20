@@ -6,8 +6,9 @@
 //! 그 팝업이 닫히거나 범위가 숨어도 다른 팝업으로 옮기지 않는다. 그 키는 처리한 노드에서 멈춘 것으로 본다.
 //!
 //! 키·IME·텍스트 사건 하나의 주인은 그 사건이 들어온 시점의 포커스 노드다. egui 패스 하나는 입력 몫 하나이고 몫
-//! 하나는 포커스 노드 하나 몫이다. 지금 몫에 키 사건이 실렸거나 키 주인이 묶인 뒤 누름이 오면 창은 그 누름 자리에서
-//! egui 입력을 끊고, 누름 뒤에 키가 오면 그 키 자리에서 끊는다(`cut_key_frame`). 몫은 egui 패스마다 앞에서 하나씩
+//! 하나는 포커스 노드 하나 몫이다. 사건 시점의 포커스 노드가 지금 몫의 노드와 다르면 그 사건 자리에서 egui 입력을
+//! 끊는다. 같은 노드라도 지금 몫에 키 사건이 실렸거나 키 주인이 묶인 뒤 누름이 오면 그 누름 자리에서, 누름 뒤에 키가
+//! 오면 그 키 자리에서 끊는다(`cut_key_frame`). 몫은 egui 패스마다 앞에서 하나씩
 //! 꺼낸다. 몫마다 결속과 넘길 Esc 가 따로 있어 창 게이트는 지금 받는 몫(`bound_input_key_owner`)을, 그리기는 그
 //! 그리기 몫(`frame_bound_key_owner`)을 읽는다. 한 패스에 끊는 자리 수에는 제한이 없다.
 
@@ -103,32 +104,37 @@ impl PopupManager {
     }
 
     /// `incoming` 사건이 egui 입력 큐 `events` 끝에 들어오려 한다. 지금 몫(마지막으로 끊은 자리부터)과 포커스 노드가
-    /// 다를 수 있으면 그 자리에서 끊는다. 누름은 포커스 노드를 옮길 수 있으므로, 누름이 오는데 지금 몫에 키·IME·텍스트
+    /// 다르거나 다를 수 있으면 그 자리에서 끊는다. 누름은 포커스 노드를 옮길 수 있으므로, 누름이 오는데 지금 몫에 키·IME·텍스트
     /// 사건이 실렸거나 키 주인이 묶였거나 넘길 Esc 가 있으면 끊는다. 키가 오는데 지금 몫의 마지막 입력이 누름이면
     /// 끊는다(그 누름이 포커스를 준 위젯은 누름을 처리한 패스 뒤에야 egui 포커스를 가진다). 끊는 조건은 이 함수에만
     /// 있다.
     ///
-    /// 끊으면 닫히는 몫에 결속이 없을 때 `focus`(끊는 시점의 포커스 노드가 팝업이면 그 노드)로 묶는다. 그 몫은 그때의
-    /// 포커스 노드 몫이다. 참이면 호출자는 egui 입력도 그 자리에서 끊는다(`InputCuts::cut_at`).
+    /// `node_changed` 는 그 사건 시점의 포커스 노드가 지금 몫의 노드와 다르다는 것이다(`MainViewState::cut_key_frame`).
+    /// 그러면 사건 종류와 관계없이 끊는다.
+    ///
+    /// 끊으면 닫히는 몫에 결속이 없을 때 `focus`(닫히는 몫의 포커스 노드가 팝업이면 그 노드)로 묶는다. 참이면 호출자는
+    /// egui 입력도 그 자리에서 끊는다(`InputCuts::cut_at`).
     pub(crate) fn cut_key_frame(
         &mut self,
         events: &[egui::Event],
         incoming: Incoming,
         focus: Option<PopupNode>,
+        node_changed: bool,
     ) -> bool {
         let (start, bound, escape) = match self.keys.after_cut.back_mut() {
             Some(after) => (after.at, &mut after.bound, !after.escape.is_empty()),
             None => (0, &mut self.keys.bound, !self.keys.escape.is_empty()),
         };
         let segment = events.get(start..).unwrap_or_default();
-        let cut = match incoming {
-            Incoming::Press => segment.iter().any(is_key_input) || bound.is_some() || escape,
-            Incoming::Key => segment
-                .iter()
-                .rev()
-                .find(|e| is_key_input(e) || is_press(e))
-                .is_some_and(is_press),
-        };
+        let cut = node_changed
+            || match incoming {
+                Incoming::Press => segment.iter().any(is_key_input) || bound.is_some() || escape,
+                Incoming::Key => segment
+                    .iter()
+                    .rev()
+                    .find(|e| is_key_input(e) || is_press(e))
+                    .is_some_and(is_press),
+            };
         if !cut {
             return false;
         }

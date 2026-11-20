@@ -38,7 +38,7 @@ pub(crate) enum FocusNode {
 pub(crate) struct SegmentAfterCut {
     /// 그 몫의 첫 누름 스냅샷.
     press: Option<PressSnapshot>,
-    /// 그 몫을 끊어 닫은 시점의 포커스 노드. 아직 닫히지 않았으면 `None`.
+    /// 그 몫에 처음 든 사건 시점의 포커스 노드.
     focus: Option<FocusNode>,
     /// 그 몫의 사건(누름)이 html 주소 띠의 키 포커스를 풀었다. 앞 몫을 다 그린 뒤 이 몫의 패스에서 푼다.
     release_address: bool,
@@ -181,10 +181,12 @@ impl super::MainViewState {
         }
     }
 
-    /// 누름·키(`incoming`)가 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 지금 몫과 그 사건의 포커스 노드가 다를
-    /// 수 있으면 그 자리에서 끊어 그 사건부터를 뒤 그리기 몫으로 둔다(조건은 `PopupManager::cut_key_frame`). 닫히는
-    /// 몫에는 지금 포커스 노드를 남긴다. 그 몫을 그리는 동안 포커스 노드를 읽는 판정은 이 값을 읽는다
-    /// (`pass_focus_node`). 참이면 호출자는 egui 입력도 그 자리에서 끊는다.
+    /// 누름·키(`incoming`)가 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 그 사건 시점의 포커스 노드가 지금 몫의
+    /// 노드와 다르거나, 같은 노드라도 그 사건이 몫을 나눠야 하면(`PopupManager::cut_key_frame` 의 누름·누름 뒤 키 조건)
+    /// 그 자리에서 끊어 그 사건부터를 뒤 그리기 몫으로 둔다. 몫의 노드는 그 몫에 처음 든 사건 시점의 포커스 노드다.
+    /// 사건 처리 중에 포커스 노드를 바꾸는 전이(누름, 무대 열기·닫기, 주소 띠 해제 등)는 즉시 적용되고, 다음 사건이 그
+    /// 차이로 끊는다. 그 몫을 그리는 동안 포커스 노드를 읽는 판정은 그 몫의 노드를 읽는다(`pass_focus_node`). 참이면
+    /// 호출자는 egui 입력도 그 자리에서 끊는다.
     pub(crate) fn cut_key_frame(
         &mut self,
         core: &CoreState,
@@ -192,23 +194,28 @@ impl super::MainViewState {
         incoming: Incoming,
     ) -> bool {
         let focus = self.focus_node(core);
-        let popup = match focus {
+        let segment = match self.segments_after_cut.back_mut() {
+            Some(slot) => &mut slot.focus,
+            None => &mut self.segment_focus,
+        };
+        let node = *segment.get_or_insert(focus);
+        let popup = match node {
             FocusNode::Popup(node) => Some(node),
             _ => None,
         };
-        let cut = self.popups.cut_key_frame(events, incoming, popup);
+        let cut = self
+            .popups
+            .cut_key_frame(events, incoming, popup, node != focus);
         if cut {
-            match self.segments_after_cut.back_mut() {
-                Some(slot) => slot.focus = Some(focus),
-                None => self.segment_focus = Some(focus),
-            }
-            self.segments_after_cut
-                .push_back(SegmentAfterCut::default());
+            self.segments_after_cut.push_back(SegmentAfterCut {
+                focus: Some(focus),
+                ..SegmentAfterCut::default()
+            });
         }
         cut
     }
 
-    /// 지금 그리는 몫의 포커스 노드. 끊어 닫은 몫이면 닫은 시점의 값, 아니면 지금 포커스 노드다. 그리기 중 포커스
+    /// 지금 그리는 몫의 포커스 노드. 그 몫에 사건이 들었으면 첫 사건 시점의 값, 아니면 지금 포커스 노드다. 그리기 중 포커스
     /// 노드를 읽는 판정(튜토리얼 말풍선 등)은 이 값을 읽는다.
     pub(crate) fn pass_focus_node(&self, core: &CoreState) -> FocusNode {
         self.segment_focus.unwrap_or_else(|| self.focus_node(core))

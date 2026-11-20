@@ -38,8 +38,9 @@ pub(crate) fn press_focus(
     state.keep_press_snapshot(snapshot);
 }
 
-/// 주입한 키·글자 사건 하나가 egui 입력 큐에 들어오기 전에 부른다. 창의 키와 같은 순서다. 지금 몫의 마지막 입력이
-/// 누름이면 그 자리에서 끊는다(`MainViewState::cut_key_frame`). 호출자는 이어서 키 사건을 큐에 넣는다.
+/// 주입한 키·글자 사건 하나가 egui 입력 큐에 들어오기 전에 부른다. 창의 키와 같은 순서다. 사건 시점의 포커스 노드가
+/// 지금 몫의 노드와 다르거나 지금 몫의 마지막 입력이 누름이면 그 자리에서 끊는다(`MainViewState::cut_key_frame`).
+/// 호출자는 이어서 키 사건을 큐에 넣는다.
 pub(crate) fn key_focus(
     state: &mut crate::state::MainViewState,
     core: &crate::core::CoreState,

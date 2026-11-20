@@ -511,10 +511,10 @@ impl MainView {
         self.base.gpu.handle_egui_event(&self.base.winit, event)
     }
 
-    /// 누름·키·IME 사건을 처리하기 전에 부른다. 그 사건이 지금 그리기 몫과 다른 포커스 노드 몫일 수 있으면 그
-    /// 사건부터의 egui 입력을 뒤 그리기 몫으로 넘긴다(`MainViewState::cut_key_frame`). 누름은 포커스 노드를 옮기고,
-    /// 누름 뒤의 키는 옮긴 포커스 노드의 몫이다. 누름이 포커스를 옮기기 전(튜토리얼 말풍선의 키보드 몫을 놓기 전)에
-    /// 끊어 닫히는 몫에 그때의 포커스 노드를 남긴다.
+    /// 누름·키·IME 사건을 처리하기 전에 부른다. 그 사건 시점의 포커스 노드가 지금 그리기 몫의 노드와 다르거나 다를
+    /// 수 있으면 그 사건부터의 egui 입력을 뒤 그리기 몫으로 넘긴다(`MainViewState::cut_key_frame`). 누름·무대 종료 키
+    /// 같은 사건이 바꾼 포커스 노드는 즉시 적용되고, 다음 사건이 그 차이로 끊는다. 누름이 포커스를 옮기기 전(튜토리얼
+    /// 말풍선의 키보드 몫을 놓기 전)에 부른다.
     pub(super) fn cut_input_segment(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         let incoming = match event {
             WindowEvent::MouseInput {
