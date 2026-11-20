@@ -841,3 +841,6 @@ fn a_letter_after_a_popup_press_and_a_terminal_press_goes_to_the_terminal() {
 
 #[path = "pass_focus_release_tests.rs"]
 mod release;
+
+#[path = "pass_focus_notice_tests.rs"]
+mod notice;
