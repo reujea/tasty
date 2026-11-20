@@ -1,5 +1,9 @@
-//! 빈 입력 몫 뒤에 들어간 보류 편집(`EditKeyState` 의 붙여넣기)은 앞 빈 패스가 아니라 그 편집이 든 패스가 판정한다
-//! (R2-15).
+//! 빈 입력 몫 뒤의 붙여넣기와 편집 귀속.
+//!
+//! - 탐색기 Find 입력칸이 egui 포커스를 가진 채 그리기 중 무대 전환이 일어나면, 도착한 `HeldPastes` 항목이 키를 받지
+//!   않는 패스(팝업이 키를 묶은 몫)에서 꺼내져 사라지지 않고 Find 가 키를 받는 일반 패스에서 한 번 들어간다(R2-12r).
+//! - 빈 입력 몫 뒤에 들어간 보류 편집(`EditKeyState` 의 붙여넣기)은 앞 빈 패스가 아니라 그 편집이 든 패스가 판정한다
+//!   (R2-15).
 //!
 //! 장면은 엔진에 실제 explorer surface 를 두고 제품 그리기(`draw_egui_panels`)로 그 Find 를 그린다. 패스 입력은 창과
 //! 같은 분할로 꺼내고, 분할 직후·몫 필터 전에 창처럼 편집 보류에 패스 입력을 알리고 도착한 붙여넣기를 합친다
@@ -12,9 +16,9 @@ use egui::Event;
 use super::super::repro::screen;
 use super::super::{PANE_L, PANE_R, SURFACE_L, SURFACE_R, WORKSPACE, layout, rect};
 use crate::adapters::ui::input::edit_key::{EditBindings, Release};
-use crate::adapters::ui::popup::defs;
 use crate::adapters::ui::popup::frame::draw_popup_layer;
 use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+use crate::adapters::ui::popup::{PopupInstanceId, PopupScope, defs};
 use crate::gfx::gpu::edit_keys::{ClipText, EditKeyOwner, EditKeyState, EguiKey, HeldEvent, KeyCx};
 use crate::gfx::gpu::text_selection::HeldPastes;
 use crate::model::LogicalPx;
@@ -220,6 +224,15 @@ fn pass(s: &mut FindScene, now: Instant) -> Seen {
     }
 }
 
+/// 남은 몫을 모두 그린다.
+fn drain(s: &mut FindScene) -> Vec<Seen> {
+    let mut seen = Vec::new();
+    while !s.input.is_empty() {
+        seen.push(pass(s, Instant::now()));
+    }
+    seen
+}
+
 /// L 탐색기의 지금 보이는 항목 이름. Find 검색어로 거른 결과다.
 fn shown(s: &FindScene) -> Vec<String> {
     s.state
@@ -288,8 +301,134 @@ fn find_scene() -> FindScene {
     s
 }
 
+/// 알림 팝업을 단축키처럼 포커스 없이(passive) 열고 그 전체화면 버튼 자리를 돌려준다.
+fn open_notifications(s: &mut FindScene) -> (PopupInstanceId, egui::Rect) {
+    let iid = s
+        .state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window),
+            true,
+        )
+        .expect("알림 팝업이 열린다");
+    for _ in 0..2 {
+        pass(s, Instant::now());
+    }
+    let button = s
+        .state
+        .popups
+        .instance(iid)
+        .and_then(|p| p.fullscreen_btn_rect())
+        .expect("알림 팝업에 전체화면 버튼이 있다");
+    assert!(!button.intersects(s.field));
+    assert_eq!(
+        s.ctx.memory(|m| m.focused()).map(|id| id.value()),
+        Some(s.tag),
+        "passive 로 연 팝업은 Find 의 egui 포커스를 가져가지 않는다"
+    );
+    (iid, button)
+}
+
 fn has_paste(events: &[Event]) -> bool {
     events.iter().any(|e| matches!(e, Event::Paste(_)))
+}
+
+/// R2-12r 의 제품 순서: 한 redraw 앞에 [알림 팝업 전체화면 버튼 누름(모델 포커스를 팝업으로 승격) → Find 안 대표 터치
+/// 시작(egui 포인터와 포커스를 Find 에) → 원시 사건 없는 수식 키 뗌] 이 오고, 그 패스 A 가 그리기 중 무대를 연다. 첫 무대
+/// 패스 전에 무대 종료 키(F8)가 와서 키 게이트가 알림 팝업을 키 주인으로 묶고 무대를 닫는다. 수식 키 뗌은 노드가 팝업으로
+/// 바뀐 자리에서 두 번 끊어 A 뒤에 팝업 노드 준비 몫 B1 과 결속 없는 B2 를 두고, 봉인이 그 뒤에 F8 몫을 연다.
+fn stage_opened_by_a_press_and_closed_by_f8(s: &mut FindScene) {
+    let (_, button) = open_notifications(s);
+    // 수식 키를 누른 채 앞선 몫의 노드·결속을 비운다.
+    {
+        let engine = s.session.borrow_mut();
+        s.input.key_without_event(&mut s.state, &engine.read());
+    }
+    drain(s);
+    {
+        let engine = s.session.borrow_mut();
+        let read = engine.read();
+        s.input.press(&mut s.state, &read, button.center());
+        let at = s.field.center();
+        s.input.queue_mut().extend([
+            Event::Touch {
+                device_id: egui::TouchDeviceId(0),
+                id: egui::TouchId(0),
+                phase: egui::TouchPhase::Start,
+                pos: at,
+                force: None,
+            },
+            Event::PointerMoved(at),
+            Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ]);
+        s.input.key_without_event(&mut s.state, &read);
+    }
+    let a = pass(s, Instant::now());
+    assert!(!a.stage);
+    assert_eq!(
+        s.state.fullscreen_stage_id(),
+        Some(crate::fullscreen_stages::NOTIFICATIONS_STAGE_ID),
+        "A 패스가 전체화면 버튼으로 무대를 연다"
+    );
+    assert_eq!(
+        s.ctx.memory(|m| m.focused()).map(|id| id.value()),
+        Some(s.tag),
+        "대표 터치가 Find 의 egui 포커스를 지킨다"
+    );
+    // 무대 종료 키: 키 분류·끊기 → egui 게이트(키 주인 결속) → 닫기 핸들러.
+    {
+        let engine = s.session.borrow_mut();
+        s.input.key_without_event(&mut s.state, &engine.read());
+    }
+    assert!(s.state.window_feeds_egui(false, true).is_some());
+    assert!(s.state.close_fullscreen_stage());
+    assert_eq!(
+        s.input.cuts_text(),
+        "InputCuts([0, 0])",
+        "B1 뒤 B2, 봉인한 F8 몫"
+    );
+}
+
+/// Given 일반 화면의 탐색기 Find 입력칸이 egui 포커스를 가지고 알림 팝업이 passive 로 열려 있을 때(R2-12r), When 위
+/// 제품 순서 뒤 Wayland 붙여넣기 응답이 B2 패스와 F8 몫 패스 사이에 도착하면, Then 붙여넣기는 팝업이 키를 묶은 F8 패스에서
+/// 꺼내져 사라지지 않고 키를 묶지 않은 다음 일반 패스에서 Find 에 한 번 들어간다. 응답이 A 앞, A 와 B1 사이, B1 과 B2
+/// 사이에 오면 결속 없는 B2 패스가 정착 패스라 지금도 Find 가 받는다(10차 측정).
+#[test]
+fn a_find_paste_arriving_before_the_pass_whose_keys_a_popup_holds_reaches_the_find_once() {
+    let mut s = find_scene();
+    stage_opened_by_a_press_and_closed_by_f8(&mut s);
+    let b1 = pass(&mut s, Instant::now());
+    assert!(!b1.take && !b1.stage, "B1: 팝업 노드 준비 몫");
+    let b2 = pass(&mut s, Instant::now());
+    assert!(b2.take && !b2.stage, "B2: 결속 없는 몫");
+    let arrived = Instant::now();
+    s.held.add(vec![(s.tag, "banana".into())], arrived);
+    let f8 = pass(&mut s, arrived);
+    assert!(!f8.take && !f8.stage, "F8 몫: 알림 팝업이 키를 묶었다");
+    assert!(
+        !has_paste(&f8.events),
+        "F8 패스는 Find 붙여넣기를 넣지 않는다"
+    );
+    assert_eq!(shown(&s), ["apple.txt", "banana.txt", "cherry.txt"]);
+    assert!(!s.held.is_empty(), "붙여넣기는 F8 패스 뒤에도 남는다");
+    assert!(s.input.is_empty());
+    let next = pass(&mut s, arrived);
+    assert!(next.take);
+    assert!(has_paste(&next.events));
+    assert_eq!(
+        shown(&s),
+        ["banana.txt"],
+        "결속 없는 다음 일반 패스에서 Find 에 한 번 들어간다"
+    );
+    assert!(s.held.is_empty());
+    let after = pass(&mut s, arrived);
+    assert!(!has_paste(&after.events));
+    assert_eq!(shown(&s), ["banana.txt"]);
 }
 
 /// 창 키 하나: 창처럼 키 분류와 끊기(`key_focus`)를 거친 뒤 편집 판정을 받는다. `clip` 은 그 키가 붙여넣기면 읽을
@@ -542,4 +681,131 @@ fn a_paste_whose_segment_is_dropped_ends_without_replaying_the_key() {
         done.replay.is_none(),
         "버려진 편집은 원래 키를 재생하지 않는다"
     );
+}
+
+/// 알림 팝업을 포커스를 주어 열고, 키 하나가 그 팝업을 이번 몫의 키 주인으로 묶게 한다(그 몫의 패스는 surface 본문이
+/// 키를 받지 않는다). Find 의 egui 포커스는 그대로다.
+fn bind_keys_to_a_focused_popup(s: &mut FindScene) {
+    s.state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window).focused(),
+            true,
+        )
+        .expect("알림 팝업이 열린다");
+    for _ in 0..3 {
+        pass(s, Instant::now());
+    }
+    assert_eq!(
+        s.ctx.memory(|m| m.focused()).map(|id| id.value()),
+        Some(s.tag),
+        "Find 가 egui 포커스를 지킨다"
+    );
+}
+
+/// 다음 키 하나를 포커스 팝업에 묶는다.
+fn bound_key(s: &mut FindScene) {
+    {
+        let engine = s.session.borrow_mut();
+        s.input.key_without_event(&mut s.state, &engine.read());
+    }
+    assert!(s.state.window_feeds_egui(false, true).is_some());
+}
+
+/// Given Find 가 egui 포커스를 가지고 그 태그의 붙여넣기가 정착한 뒤, When 팝업이 키를 묶은 패스가 먼저 오고 그다음
+/// 키를 묶지 않은 패스가 오면, Then 붙여넣기는 묶인 패스에서 꺼내지지 않고 다음 열린 패스에서 Find 에 한 번 들어간다.
+#[test]
+fn a_settled_find_paste_waits_out_a_pass_whose_keys_a_popup_holds() {
+    let mut s = find_scene();
+    bind_keys_to_a_focused_popup(&mut s);
+    let arrived = Instant::now();
+    s.held.add(vec![(s.tag, "banana".into())], arrived);
+    bound_key(&mut s);
+    let closed = pass(&mut s, arrived);
+    assert!(!closed.take, "팝업이 이 패스의 키를 묶었다");
+    assert!(!has_paste(&closed.events));
+    assert!(
+        !s.held.is_empty(),
+        "묶인 패스는 Find 붙여넣기를 꺼내지 않는다"
+    );
+    let open = pass(&mut s, arrived);
+    assert!(open.take);
+    assert!(has_paste(&open.events));
+    assert_eq!(shown(&s), ["banana.txt"]);
+    assert!(s.held.is_empty());
+}
+
+/// Given 같은 장면에서, When 묶인 패스가 붙여넣기의 기다림 한도(`PASTE_LIMIT`)를 넘긴 시각에 오면, Then 그 패스에서
+/// 버려지고 다음 열린 패스에도 들어가지 않는다(만료는 보류보다 먼저다).
+#[test]
+fn a_find_paste_past_its_limit_is_dropped_in_the_pass_whose_keys_a_popup_holds() {
+    let mut s = find_scene();
+    bind_keys_to_a_focused_popup(&mut s);
+    let arrived = Instant::now();
+    s.held.add(vec![(s.tag, "banana".into())], arrived);
+    bound_key(&mut s);
+    let late = arrived + crate::file::drag::PASTE_LIMIT;
+    pass(&mut s, late);
+    assert!(
+        s.held.is_empty(),
+        "한도를 넘긴 붙여넣기는 묶인 패스에서 버려진다"
+    );
+    let open = pass(&mut s, late);
+    assert!(!has_paste(&open.events));
+    assert_eq!(shown(&s), ["apple.txt", "banana.txt", "cherry.txt"]);
+}
+
+/// Given 같은 장면에서, When 정착한 뒤 묶인 패스의 egui 포커스가 Find 가 아니고 다음 열린 패스에서 Find 로 돌아오면,
+/// Then 붙여넣기는 묶인 패스에서 버려지고 돌아온 Find 에 뒤늦게 들어가지 않는다(대조).
+#[test]
+fn a_find_paste_dropped_while_focus_was_elsewhere_does_not_come_back_with_the_focus() {
+    let mut s = find_scene();
+    bind_keys_to_a_focused_popup(&mut s);
+    let arrived = Instant::now();
+    s.held.add(vec![(s.tag, "banana".into())], arrived);
+    bound_key(&mut s);
+    let field = s.ctx.memory(|m| m.focused()).expect("Find 포커스");
+    s.ctx.memory_mut(|m| m.surrender_focus(field));
+    pass(&mut s, arrived);
+    assert!(
+        s.held.is_empty(),
+        "포커스가 다른 곳인 정착 패스에서 버려진다"
+    );
+    s.ctx.memory_mut(|m| m.request_focus(field));
+    for _ in 0..3 {
+        let open = pass(&mut s, arrived);
+        assert!(!has_paste(&open.events));
+    }
+    assert_eq!(shown(&s), ["apple.txt", "banana.txt", "cherry.txt"]);
+}
+
+/// Given 명령 팔레트(host 검색창)가 포커스를 가지고 그 입력칸이 egui 포커스를 가질 때, When 그 태그의 붙여넣기가
+/// 도착하면, Then 지금처럼 정착한 패스에서 붙여넣기 사건으로 들어간다(Find 가 아닌 항목의 대조).
+#[test]
+fn a_paste_for_the_command_palette_field_goes_in_as_before() {
+    let mut s = find_scene();
+    s.state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(
+                crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
+                PopupScope::Window,
+            )
+            .focused(),
+            true,
+        )
+        .expect("팔레트가 열린다");
+    for _ in 0..3 {
+        pass(&mut s, Instant::now());
+    }
+    let palette = s
+        .ctx
+        .memory(|m| m.focused())
+        .map(|id| id.value())
+        .expect("팔레트 입력칸이 egui 포커스를 가진다");
+    assert_ne!(palette, s.tag);
+    s.held.add(vec![(palette, "banana".into())], Instant::now());
+    let seen = pass(&mut s, Instant::now());
+    assert!(has_paste(&seen.events), "정착한 패스에서 들어간다");
+    assert!(s.held.is_empty());
 }
