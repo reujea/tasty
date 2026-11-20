@@ -347,10 +347,16 @@ impl App {
                     session.state.local_workspace == *workspace
                         && session.transport.frame_tx.epoch().same(epoch)
                 });
-                index
-                    .ok_or_else(|| anyhow::anyhow!("reconnect target retired"))
-                    .and_then(|index| self.install_reconnected_mirror(index, &target, prepared))
-                    .map(|_| *workspace)
+                match index {
+                    Some(index) => self
+                        .install_reconnected_mirror(index, &target, prepared)
+                        .map(|_| *workspace),
+                    None => {
+                        // 꺼낸 연결을 바로 반납한다. 소켓을 회수 스레드에 맡기지 않는다.
+                        prepared.transport.close_locally();
+                        Err(anyhow::anyhow!("reconnect target retired"))
+                    }
+                }
             } else {
                 self.install_new_mirror(&target, prepared)
             };

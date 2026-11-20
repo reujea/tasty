@@ -488,6 +488,35 @@ impl Drop for ClientTransport {
     }
 }
 
+/// 설치 중인 새 전송. 설치가 끝나 꺼내지 않고 버려지면(설치 실패) 그 자리에서 끝을 확정하고 소켓을
+/// 바로 닫는다. 그냥 버리면 회수 스레드가 worker 를 최대 250ms 기다린 뒤에야 닫는다.
+pub struct InstallGuard(Option<ClientTransport>);
+
+impl InstallGuard {
+    pub fn new(transport: ClientTransport) -> Self {
+        Self(Some(transport))
+    }
+
+    pub fn transport(&self) -> &ClientTransport {
+        self.0
+            .as_ref()
+            .expect("the transport stays until it is installed")
+    }
+
+    /// 설치에 성공해 전송을 넘긴다.
+    pub fn into_installed(mut self) -> ClientTransport {
+        self.0.take().expect("the transport is installed once")
+    }
+}
+
+impl Drop for InstallGuard {
+    fn drop(&mut self) {
+        if let Some(transport) = &self.0 {
+            transport.close_locally();
+        }
+    }
+}
+
 impl ClientTransport {
     /// App 이 이 연결의 소유권을 놓는 자리에서 부른다. 끝을 `Lost`로 확정하고 소켓을 바로 닫는다.
     /// 이미 다른 쪽이 확정했다면 그 사유가 남는다. 이 끝은 회차 관측의 분류 대상이 아니다.

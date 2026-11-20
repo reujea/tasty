@@ -126,7 +126,8 @@ impl App {
             resize_acks,
             transport,
         } = prepared;
-        let frame_tx = transport.frame_tx.clone();
+        let transport = tasty_remote::client_session::InstallGuard::new(transport);
+        let frame_tx = transport.transport().frame_tx.clone();
         let local_ws_id;
         let remote_to_local: HashMap<u32, u32>;
         let markdown_locals: HashSet<u32>;
@@ -198,7 +199,7 @@ impl App {
         }
 
         self.remote.sessions.push(AttachClientSession {
-            transport,
+            transport: transport.into_installed(),
             state: ClientSessionState {
                 structure_ids,
                 local_workspace: local_ws_id,
@@ -281,7 +282,8 @@ impl App {
             transport,
             ..
         } = prepared;
-        let shared_frame_tx = transport.frame_tx.clone();
+        let transport = tasty_remote::client_session::InstallGuard::new(transport);
+        let shared_frame_tx = transport.transport().frame_tx.clone();
         let local_workspace = target
             .reconnect
             .as_ref()
@@ -389,7 +391,7 @@ impl App {
         let sess = &mut self.remote.sessions[sess_idx];
         // 실패할 수 있는 단계를 모두 지난 소유권 이전 지점이다. 옛 전송을 여기서 확정하고 소켓을 닫는다.
         sess.transport.close_locally();
-        sess.transport = transport;
+        sess.transport = transport.into_installed();
         sess.state.observed_end = None;
         sess.state.client_id = client_id;
         sess.state.bulk_port = port;
