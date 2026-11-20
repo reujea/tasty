@@ -354,6 +354,14 @@ const OUTSIDE_POPUPS: &[(&str, &str)] = &[
         "src/adapters/ui/surface/explorer.rs",
         "explorer surface 의 바로 찾기",
     ),
+    (
+        "src/adapters/ui/popup/frame_keys.rs",
+        "창의 입력 끊기가 egui 입력 큐에 키 사건이 실렸는지 센다(본문이 아니다)",
+    ),
+    (
+        "src/adapters/ui/popup/window_input_test_support.rs",
+        "시험 지원: 창처럼 패스 시작의 Escape 눌림 상태를 읽는다",
+    ),
     ("src/adapters/ui/preset/toolbar.rs", "프리셋 편집 창"),
     (
         "src/adapters/ui/preset/surface_settings.rs",
