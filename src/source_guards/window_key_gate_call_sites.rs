@@ -157,8 +157,9 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 }
 
 /// 조기 적용의 host·plugin 경로. 키 하나를 처리한 뒤 `App::apply_user_focus_opens` 에서 host Ui 요청이
-/// `intent::popup::handle` 에, plugin 팝업 열기가 `open_pending_popups` 에 닿기까지 App 이 밟는 함수마다 둘 중 하나다.
-/// 공유: 제품 상태 시험(`app::webview_keys::state_tests`)이 같은 함수를 부르므로 그 안의 변경은 시험이 잡는다. 본문 고정:
+/// `intent::popup::handle` 에, plugin 팝업 열기가 `open_pending_popups` 에 닿기까지 지나는 App 디스패치 함수
+/// (`apply_user_focus_opens` ~ `EngineScanMut::resolve`, `dispatch_pending_popup_opens`)마다 둘 중 하나다. 공유: 제품 상태
+/// 시험(`app::webview_keys::state_tests`)이 같은 함수를 `view` 없이 부르고, 그 범위의 동작을 시험이 단정한다. 본문 고정:
 /// App 이 있어야 돌므로 시험이 부르지 못하고, 이 가드가 공백을 뺀 본문 전체를 비교한다(조건·기본값·호출을 바꾸면 실패).
 ///
 /// | 함수 | 방식 |
@@ -170,7 +171,7 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 /// | `EngineRegistry::of_window` | 본문 고정 |
 /// | `MainViewState::take_pending_intents` | 공유 |
 /// | `App::process_state_batches` | 본문 고정 |
-/// | `EnginesMut::resolve` | 본문 고정 |
+/// | `EngineScanMut::resolve` | 본문 고정 |
 /// | `dispatch_state_intents` | 공유 |
 /// | `App::classify_intent` | 공유(`dispatch_state_intents` 안) |
 /// | `App::dispatch_one_intent` | 공유(`dispatch_state_intents` 안) |
@@ -178,9 +179,10 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 /// | `App::dispatch_pending_popup_opens` | 본문 고정 |
 /// | `open_pending_popups` | 공유 |
 ///
-/// 한계: 공유 함수 안에서 시험이 주지 않는 값에 기대는 갈래는 시험이 보지 못한다. 시험 창은 `ViewBase` 가 없어
-/// `dispatch_state_intents`·`dispatch_one_intent` 의 `view` 를 None 으로 부른다. parked 세션(`drain_pending_batches` 의
-/// parked 반복, `parked_sessions_with_ids`)과 Domain 요청 처리(`run_domain_cascade`)는 R3 경로 밖이다.
+/// 이 표 밖: engine 접근 공용 함수(`EngineScanMut::from_fields`·`split`·`sessions`, `EngineRegistry::split_by_id`), View
+/// 다운캐스트(`View::as_main`·`as_main_mut`), 공유 즉시 처리기의 `view` 가 Some 인 갈래(시험 창은 `ViewBase` 가 없어 None 을
+/// 넘긴다)는 이 가드도 상태 시험도 보지 않는다. parked 세션(`drain_pending_batches` 의 parked 반복,
+/// `parked_sessions_with_ids`)과 Domain 요청 처리(`run_domain_cascade`)는 R3 경로 밖이다.
 #[test]
 fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
     let pinned = [

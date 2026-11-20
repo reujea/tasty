@@ -6,13 +6,14 @@
 //! `classify_intent`, 즉시 요청 처리 `dispatch_one_intent`)에 `view` 없이 넘기고, 돌아온 Domain 요청이 없음을 확인한 뒤
 //! plugin 팝업 열기를 `open_pending_popups` 로 처리한다. 결과 알림은 루프가 건넨 키 ID·surface 와 재전송 판정
 //! (`resends_to_page`)을 기록한다. 제품 디스패치의 단계 순서와 App 소비자의 위임(처리·적용·알림)은
-//! `source_guards::press_focus_call_sites` 와 `source_guards::window_key_gate_call_sites` 가, 조기 적용에서 App 이 밟는
-//! 함수(`apply_user_focus_opens` 부터 `dispatch_state_intents`·`open_pending_popups` 호출까지)의 본문은
+//! `source_guards::press_focus_call_sites` 와 `source_guards::window_key_gate_call_sites` 가, 조기 적용의 App 디스패치
+//! 함수(`apply_user_focus_opens` ~ `EngineScanMut::resolve`, `dispatch_pending_popup_opens`)의 본문은
 //! `window_key_gate_call_sites::early_focus_opens_reach_the_handlers_the_state_test_calls` 의 표가 고정한다.
 //!
 //! 범위 밖: App 의 창 조회와 modal 창, html surface view 단계(`run_received_surface_key`)와 창 제어·스크립트 단계, WebView
-//! 사본에 결과를 넣는 일, 조기 적용의 다른 창·parked 세션과 domain 요청 처리, 공유 함수 안에서 `view` 가 있을 때만 도는
-//! 갈래, native 콜백의 편집 판정과 수집.
+//! 사본에 결과를 넣는 일, 조기 적용의 다른 창·parked 세션과 domain 요청 처리, 공유 즉시 처리기의 `view` 가 Some 인 갈래,
+//! engine 접근 공용 함수(`EngineScanMut::from_fields`·`split`·`sessions`, `EngineRegistry::split_by_id`)와 View
+//! 다운캐스트(`View::as_main`·`as_main_mut`. 시험은 세션을 직접 빌린다), native 콜백의 편집 판정과 수집.
 //! 내장 단축키 단계가 `EventLoopProxy` 를 받으므로 X11 `EventLoop` 가 필요하고, `EventLoop` 는 프로세스에 하나뿐이라
 //! 시험마다 새 프로세스에서 혼자 돈다.
 
