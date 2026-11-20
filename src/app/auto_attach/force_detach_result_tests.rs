@@ -201,6 +201,65 @@ fn a_first_connect_for_a_shown_row_is_requested_as_automatic() {
     );
 }
 
+/// 행 `ROW` 의 첫 연결 대상. 시험 장치에는 View 가 없어 `start_first_connect` 가 대상을 만들지
+/// 못한다(`mirror_install_target`). 그래서 진입점이 정한 출처로 같은 모양의 대상을 만든다.
+fn first_connect_target(app: &App, explicit: bool) -> PendingMirrorInstall {
+    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
+    let row_token = app
+        .engines
+        .get(engine)
+        .and_then(|session| session.remote.row_tokens.get(&ROW))
+        .map(std::sync::Arc::downgrade);
+    PendingMirrorInstall {
+        engine,
+        window: None,
+        view: None,
+        selection: None,
+        activate: false,
+        row: Some(ROW),
+        binding: Some(binding()),
+        row_token,
+        reconnect: None,
+        resync: false,
+        run: None,
+        user: false,
+        explicit,
+        manual: None,
+        profile: Some("rv".to_string()),
+        remote_workspace: Some(3),
+    }
+}
+
+/// Given 세션 없이 첫 연결 중인 행 A, When 같은 대상의 행 B 가 강제로 끊긴 뒤 A 의 결과를 판정하면,
+/// Then 보이게 된 행의 진입점이 정한 출처(자동)의 시도는 버리고 진행 중 표지를 지워 연결 중으로 보이지
+/// 않는다. 명시적 연결의 시도는 그대로 둔다. 첫 연결은 시도 등록과 결과 전달까지 가지 못하므로
+/// 결과 소비·설치 경로가 부르는 판정(`drop_attempt_for_force_detached_target`)을 직접 잰다.
+#[test]
+fn a_first_connect_result_is_dropped_unless_the_connect_was_explicit() {
+    alone!("a_first_connect_result_is_dropped_unless_the_connect_was_explicit");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    let (row, explicit) = app
+        .visible_row_connect(Some(ROW), None)
+        .expect("a shown row starts its first connect");
+    assert_eq!(row, ROW);
+    app.ensure_row_token(ROW);
+    app.remote.active.insert(ROW);
+    force_detach_the_other_row(&mut app);
+
+    let user_chosen = first_connect_target(&app, true);
+    assert!(!app.drop_attempt_for_force_detached_target(&user_chosen));
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the explicit attempt goes on"
+    );
+
+    let shown = first_connect_target(&app, explicit);
+    assert!(app.drop_attempt_for_force_detached_target(&shown));
+    assert!(!app.remote.active.contains(&ROW));
+    assert_ne!(app.row_state_name(ROW), "connecting");
+}
+
 /// Given 끊긴 저장 행, When 그 행으로 다시 옮겨 재연결을 시작한 뒤 같은 대상의 행 B 가 강제로
 /// 끊기면, Then 시도는 비명시적이고 그 결과는 버려진다.
 #[test]
