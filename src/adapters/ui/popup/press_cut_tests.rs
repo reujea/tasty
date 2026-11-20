@@ -541,10 +541,39 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
             "조합은 L 터미널로 간다"
         );
         assert_eq!(
+            target.as_ref().map(|t| t.surface()),
+            Some(Some(SURFACE_L)),
+            "조합을 시작한 대상은 L 이다"
+        );
+        assert_eq!(
             route(&state, &mut target, &read, &Ime::Commit("가".into()), false),
             ImeRoute::To(InputDestination::Terminal(SURFACE_L)),
             "확정은 L 조합 대상에 간다"
         );
+        assert!(target.is_none(), "확정이 조합 대상을 닫는다");
+        // 확정이 조합 대상에 이어지는지: L 에서 시작한 조합을 R 로 옮긴 뒤 확정하면 버린다.
+        assert_eq!(
+            route(
+                &state,
+                &mut target,
+                &read,
+                &Ime::Preedit("나".into(), Some((3, 3))),
+                false
+            ),
+            ImeRoute::To(InputDestination::Terminal(SURFACE_L))
+        );
+        state
+            .navigation
+            .select_pane(read.workspace_at(0).unwrap(), PANE_R);
+        assert_eq!(
+            route(&state, &mut target, &read, &Ime::Commit("나".into()), false),
+            ImeRoute::Dropped,
+            "L 조합의 확정은 R 로 가지 않는다"
+        );
+        state
+            .navigation
+            .select_pane(read.workspace_at(0).unwrap(), PANE_L);
+        state.normalize_focus(&read);
     }
 
     while !input.is_empty() {

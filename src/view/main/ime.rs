@@ -29,6 +29,11 @@ impl CompositionTarget {
             preedit_ended: false,
         }
     }
+    /// 조합을 시작한 surface. 시험이 조합 대상을 확인한다.
+    #[cfg(test)]
+    pub(crate) fn surface(&self) -> Option<u32> {
+        self.surface
+    }
     fn matches(&self, current: &Self) -> bool {
         self.selection.ptr_eq(&current.selection)
             && self.pending == current.pending

@@ -276,8 +276,8 @@ fn letters_around_a_press_on_another_explorer_go_to_their_own_explorer() {
     );
 }
 
-/// Given L html 주소 띠를 편집 중일 때, When 한 묶음에 [Enter, R 검색창 누름]이 오면, Then Enter 를 실은 앞 몫을 그릴
-/// 때 띠가 아직 키 포커스를 가져 주소를 연다. 누름이 띠의 포커스를 푸는 것은 누름 몫의 패스에서다.
+/// Given L html 주소 띠를 편집 중일 때, When 한 묶음에 [Enter, R 검색창 누름]이 오면, Then 누름이 띠의 입력 소유권을
+/// 바로 놓아도 Enter 를 실은 앞 몫(주소 입력칸 노드)을 그릴 때 입력칸이 Enter 를 받아 주소를 연다.
 #[test]
 fn an_address_enter_before_a_popup_press_opens_the_address() {
     let mut s = open_scene(|_| {});
@@ -456,8 +456,8 @@ fn stage_or_window_pass(
 }
 
 /// Given 무대가 창을 덮고 L 탐색기가 그 뒤에 있을 때, When 그리기 전 한 묶음에 [글자 b, 무대 안 누름(뒤 L 의 banana
-/// 줄 자리), 무대 종료 키]가 오고 종료 키가 무대를 닫으면, Then 종료 키 앞 몫(글자·누름)은 무대 패스로 그리고 L 은
-/// 글자도 누름도 받지 않는다. 종료 키 몫부터 일반 화면이다.
+/// 줄 자리), 무대 종료 키]가 오고 종료 키가 무대를 닫으면, Then 세 사건의 몫(글자·누름·종료 키, 모두 무대 노드에서
+/// 들어왔다)은 무대 패스로 그리고 L 은 글자도 누름도 받지 않는다. 그 뒤 패스부터 일반 화면이다.
 #[test]
 fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
     let mut s = open_scene(|_| {});
@@ -502,18 +502,25 @@ fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
 
     let letter = stage_or_window_pass(&mut s, &mut input, &mut l, &mut r);
     let press = stage_or_window_pass(&mut s, &mut input, &mut l, &mut r);
+    let exit = stage_or_window_pass(&mut s, &mut input, &mut l, &mut r);
     assert_eq!(
         l.selected(),
         "",
         "무대 몫의 글자·누름이 뒤 L 탐색기에 닿았다"
     );
-    assert!(letter && press, "글자 몫·누름 몫은 무대로 그린다");
+    assert!(
+        letter && press && exit,
+        "글자·누름·종료 키 몫은 무대로 그린다"
+    );
+    assert!(input.is_empty());
     assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
-    while !input.is_empty() {
+    assert_eq!(l.selected(), "");
+    // 대조: 일반 화면에서 같은 자리를 누르면 L 이 banana 를 고른다(누름이 닿으면 보이는 자리다). 무대 몫의 누름과
+    // egui 더블클릭(0.3초)·세 번 클릭(0.6초) 간격 안에 묶이면 열기 갈래로 가므로, 시간을 준 적 없는 패스마다 egui 가
+    // 예측 간격(1/60초)만큼 시간을 진행하는 것을 써서 빈 패스로 그 간격을 넘긴다.
+    for _ in 0..45 {
         assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
     }
-    assert_eq!(l.selected(), "");
-    // 대조: 일반 화면에서 같은 자리를 누르면 L 이 banana 를 고른다(누름이 닿으면 보이는 자리다).
     {
         let engine = s.session.borrow_mut();
         input.press(&mut s.state, &engine.read(), banana);
@@ -528,4 +535,182 @@ fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
         assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
     }
     assert!(l.selected().contains("banana"), "L: {:?}", l.selected());
+}
+
+/// Given 무대가 창을 덮고 L 탐색기가 그 뒤에 있을 때, When 그리기 전 한 묶음에 누름 없이 [목록 글자 b, 무대 종료 Esc]가
+/// 오고 종료 키가 무대를 닫으면, Then 두 사건은 무대 노드에서 든 한 몫이라 무대 패스로 그리고 L 타입어헤드는 b 를
+/// 읽지 않는다. 그 뒤 글자 a 는 사건 시점의 노드(L)가 무대와 달라 새 몫이 되고 L 이 받는다.
+#[test]
+fn a_letter_and_the_stage_exit_key_without_a_press_stay_in_the_stage() {
+    let mut s = open_scene(|_| {});
+    let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
+    let mut input = WindowInput::default();
+    {
+        let mut bodies = Bodies::Explorers(&mut l, &mut r);
+        focus_left(&mut s, &mut input, &mut bodies);
+    }
+    assert!(s.state.open_fullscreen_stage("blank"));
+    assert!(stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+
+    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    let escape = Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    {
+        let engine = s.session.borrow_mut();
+        assert!(
+            input
+                .key(&mut s.state, &engine.read(), false, escape)
+                .is_some()
+        );
+    }
+    // 창의 무대 종료 키 처리(`try_consume_fullscreen_stage_key`)가 무대를 닫는다. 전이는 즉시 적용된다.
+    assert!(s.state.close_fullscreen_stage());
+    assert!(type_text(&mut s, &mut input, true, "a").is_some());
+
+    assert!(
+        stage_or_window_pass(&mut s, &mut input, &mut l, &mut r),
+        "글자와 종료 키 몫은 무대로 그린다"
+    );
+    assert_eq!(l.selected(), "", "무대 몫의 글자가 뒤 L 탐색기에 닿았다");
+    while !input.is_empty() {
+        assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    }
+    assert!(
+        l.selected().contains("apple"),
+        "무대 뒤 글자는 L 이 받는다: {:?}",
+        l.selected()
+    );
+}
+
+/// 주소 띠를 그리는 L 에 포커스를 두고 띠에 키 포커스를 준다.
+fn focus_address(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
+    focus_left(s, input, bodies);
+    s.state.html_address.request_focus(SURFACE_L);
+    pass(s, input, bodies);
+    let engine = s.session.borrow_mut();
+    assert_eq!(
+        s.state.focus_node(&engine.read()),
+        FocusNode::HtmlAddress(SURFACE_L)
+    );
+}
+
+/// Given L html 주소 띠에 있는 로컬 파일 경로를 입력했을 때, When 한 묶음에 [Enter, R 검색창 누름]이 오면, Then Enter
+/// 를 실은 앞 몫을 그릴 때 띠가 확정해 파일 확인을 시작하고, 누름이 띠의 소유권을 놓아 편집이 끝나도 확인 결과가 오면
+/// 그 파일을 연다.
+#[test]
+fn a_local_file_address_enter_before_a_popup_press_opens_the_file() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let file = dir.path().join("page.html");
+    std::fs::write(&file, "<html></html>").expect("page");
+    let mut s = open_scene(|_| {});
+    let mut navs = Vec::new();
+    let mut bodies = Bodies::Address(&mut navs);
+    let mut input = WindowInput::default();
+    focus_address(&mut s, &mut input, &mut bodies);
+    let typed = file.to_string_lossy().into_owned();
+    assert_eq!(type_text(&mut s, &mut input, false, &typed), Some(false));
+    drain(&mut s, &mut input, &mut bodies);
+
+    let enter = Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    {
+        let engine = s.session.borrow_mut();
+        assert!(
+            input
+                .key(&mut s.state, &engine.read(), false, enter)
+                .is_some()
+        );
+        input.press(&mut s.state, &engine.read(), s.search_field.center());
+        assert!(
+            !s.state.html_address.has_keyboard_focus(),
+            "누름이 띠의 입력 소유권을 바로 놓는다"
+        );
+    }
+    drain(&mut s, &mut input, &mut bodies);
+    // 파일 확인은 작업 스레드가 한다. 결과가 올 때까지 빈 패스로 띠를 다시 그린다.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        if let Bodies::Address(navs) = &bodies
+            && !navs.is_empty()
+        {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "파일 확인 결과로 열지 않았다"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        pass(&mut s, &mut input, &mut bodies);
+    }
+    let Bodies::Address(navs) = &bodies else {
+        unreachable!()
+    };
+    let url = url::Url::from_file_path(&file)
+        .expect("file url")
+        .to_string();
+    assert_eq!(**navs, [WebViewUserNav::Open(url)]);
+    let engine = s.session.borrow_mut();
+    assert_eq!(
+        s.state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(s.search))
+    );
+}
+
+/// Given L html 주소 띠를 편집 중이고 R 에 덮지 않는 검색창이 있을 때, When 그리기 전 한 묶음에 [주소 글자, 검색창
+/// 누름, R 터미널 누름, 글자]가 오면, Then 첫 누름이 띠의 입력 소유권을 바로 놓으므로 뒤 글자는 입력 시점에 egui 로
+/// 가지 않고 R 터미널(PTY) 갈래로 간다. 주소 글자는 놓기 전 몫을 그릴 때 입력칸에 들어간다.
+#[test]
+fn a_letter_after_a_popup_press_and_a_terminal_press_goes_to_the_terminal() {
+    use crate::state::input_destination::InputDestination;
+    let mut s = open_scene(|_| {});
+    let mut navs = Vec::new();
+    let mut bodies = Bodies::Address(&mut navs);
+    let mut input = WindowInput::default();
+    focus_address(&mut s, &mut input, &mut bodies);
+    let point_r = terminal_point_r(&s);
+
+    assert_eq!(type_text(&mut s, &mut input, false, "q"), Some(false));
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), s.search_field.center());
+        input.press(&mut s.state, &engine.read(), point_r);
+    }
+    activate(&mut s, PANE_R);
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state.focus_node(&engine.read()),
+            FocusNode::Surface(Some(SURFACE_R))
+        );
+        assert!(!s.state.html_address.has_keyboard_focus());
+    }
+    assert_eq!(
+        type_text(&mut s, &mut input, false, "z"),
+        None,
+        "뒤 글자는 egui 로 가지 않는다"
+    );
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state
+                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            InputDestination::Terminal(SURFACE_R),
+            "뒤 글자 갈래는 R 터미널(PTY)이다"
+        );
+    }
+    drain(&mut s, &mut input, &mut bodies);
+    assert!(
+        !s.state.html_address.has_keyboard_focus(),
+        "앞 몫을 그린 띠가 입력 소유권을 다시 얻지 않는다"
+    );
 }
