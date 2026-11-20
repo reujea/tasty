@@ -36,19 +36,25 @@ impl App {
             {
                 mgr.bind_popup_instance_surface(instance_id, req.surface_id);
                 if let Some(wid) = self.find_main_with_surface(req.surface_id) {
-                    self.focus_plugin_opened_popup(wid, &req.plugin_id, instance_id);
+                    self.focus_plugin_opened_popup(
+                        wid,
+                        &req.plugin_id,
+                        Some(req.surface_id),
+                        instance_id,
+                    );
                 }
             }
         }
     }
 
     /// plugin 이 스스로 연 팝업(surface 이벤트·`popup.show`)을 그 팝업을 그리는 창의 포커스 노드로 할지 정한다.
-    /// 여는 시점에 그 창의 엔진 포커스 surface 가 그 plugin 의 surface 면 사용자 출처다
-    /// (`popup_scope::opened_by_user`).
+    /// `event_surface`는 surface 이벤트를 낸 surface 다(`popup.show` 면 없다). 판정은
+    /// `popup_scope::opened_by_user` 하나다.
     pub(super) fn focus_plugin_opened_popup(
         &mut self,
         wid: winit::window::WindowId,
         plugin_id: &str,
+        event_surface: Option<u32>,
         instance_id: u64,
     ) {
         let focused = self
@@ -58,6 +64,8 @@ impl App {
         let owner = focused.and_then(|sid| self.plugin_surface_owner_of_any_kind(sid));
         let opener = crate::plugin_bridge::popup_scope::PopupOpener::Plugin {
             plugin_id,
+            event_surface,
+            focused_surface: focused,
             focused_surface_owner: owner.as_deref(),
         };
         let Some(mgr) = self.plugin_manager.as_ref() else {
@@ -102,7 +110,7 @@ impl App {
                 was_open,
             );
         }
-        self.focus_plugin_opened_popup(wid, &req.plugin_id, instance_id);
+        self.focus_plugin_opened_popup(wid, &req.plugin_id, Some(req.surface_id), instance_id);
     }
 
     /// 창에 있는 플러그인 surface 의 소유 플러그인. webview(RemoteSurface)와 egui-mesh 를 모두 본다.

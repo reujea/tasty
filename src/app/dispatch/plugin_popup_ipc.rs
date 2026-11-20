@@ -135,7 +135,7 @@ impl App {
         }
         let drawn_in = window.or_else(|| surface.and_then(|sid| self.find_main_with_surface(sid)));
         if let Some(wid) = drawn_in {
-            self.focus_plugin_opened_popup(wid, &call.plugin_id, instance_id);
+            self.focus_plugin_opened_popup(wid, &call.plugin_id, None, instance_id);
         }
         Ok(instance_id)
     }

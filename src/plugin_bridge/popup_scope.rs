@@ -87,26 +87,35 @@ pub(crate) fn bind_window_popup(
 pub(crate) enum PopupOpener<'a> {
     /// 사용자가 이 창에서 고른 명령(도구 메뉴·명령 팔레트·단축키·변환 입력).
     UserCommand,
-    /// plugin 이 스스로 연 팝업(surface 이벤트·`popup.show`). `focused_surface_owner`는 여는 시점에 그 창의 엔진
-    /// 포커스 surface 를 가진 plugin 이다.
+    /// plugin 이 스스로 연 팝업(surface 이벤트·`popup.show`). `event_surface`는 surface 이벤트로 열었으면 그 이벤트를
+    /// 낸 surface 이고 `popup.show` 면 없다. `focused_surface`·`focused_surface_owner`는 여는 시점에 그 창의 엔진
+    /// 포커스 surface 와 그 surface 를 가진 plugin 이다.
     Plugin {
         plugin_id: &'a str,
+        event_surface: Option<u32>,
+        focused_surface: Option<u32>,
         focused_surface_owner: Option<&'a str>,
     },
     /// 외부 에이전트·debug 의 IPC 열기.
     Agent,
 }
 
-/// 사용자가 연 팝업인지. 사용자가 고른 명령이면 사용자다. plugin 이 스스로 연 팝업은 그 plugin 의 surface 가 여는
-/// 시점에 엔진 포커스 surface 일 때만 사용자 출처로 본다. 에이전트가 연 팝업은 passive 다(포커스 노드를 바꾸지
-/// 않는다. 덮는 팝업이면 정규화가 포커스 노드로 한다).
+/// 사용자가 연 팝업인지. 사용자가 고른 명령이면 사용자다. plugin 이 surface 이벤트로 연 팝업은 그 이벤트를 낸
+/// surface 가 여는 시점에 엔진 포커스 surface 일 때만, `popup.show` 로 연 팝업은 그 plugin 의 surface 가 엔진 포커스
+/// surface 일 때만 사용자 출처로 본다. 에이전트가 연 팝업은 passive 다(포커스 노드를 바꾸지 않는다. 덮는 팝업이면
+/// 정규화가 포커스 노드로 한다).
 pub(crate) fn opened_by_user(opener: PopupOpener<'_>) -> bool {
     match opener {
         PopupOpener::UserCommand => true,
         PopupOpener::Plugin {
             plugin_id,
+            event_surface,
+            focused_surface,
             focused_surface_owner,
-        } => focused_surface_owner == Some(plugin_id),
+        } => match event_surface {
+            Some(surface) => focused_surface == Some(surface),
+            None => focused_surface_owner == Some(plugin_id),
+        },
         PopupOpener::Agent => false,
     }
 }
@@ -267,6 +276,32 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// J2. plugin 이 surface 이벤트로 연 팝업은 이벤트를 낸 surface 가 엔진 포커스일 때만 사용자 출처다. 같은 plugin 의
+    /// 배경 surface B 가 낸 이벤트는 A 에 포커스가 있어도 passive 다. `popup.show`(이벤트 surface 없음)는 그 plugin 의
+    /// surface 가 엔진 포커스면 사용자 출처다.
+    #[test]
+    fn a_surface_event_popup_is_user_opened_only_when_its_own_surface_is_focused() {
+        const A: u32 = 11;
+        const B: u32 = 12;
+        let opener = |event_surface| PopupOpener::Plugin {
+            plugin_id: "p",
+            event_surface,
+            focused_surface: Some(A),
+            focused_surface_owner: Some("p"),
+        };
+        assert!(opened_by_user(opener(Some(A))));
+        assert!(!opened_by_user(opener(Some(B))), "배경 surface 의 이벤트");
+        assert!(opened_by_user(opener(None)), "popup.show");
+        assert!(!opened_by_user(PopupOpener::Plugin {
+            plugin_id: "p",
+            event_surface: None,
+            focused_surface: Some(A),
+            focused_surface_owner: Some("q"),
+        }));
+        assert!(opened_by_user(PopupOpener::UserCommand));
+        assert!(!opened_by_user(PopupOpener::Agent));
+    }
 
     #[test]
     fn only_a_surface_popup_without_a_target_lacks_its_target() {
