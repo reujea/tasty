@@ -111,7 +111,7 @@ pub enum ExplorerMenuTarget {
 /// 넘긴다. `egui_panels`에서 즐겨찾기와 잘라내기 목록을 미리 꺼내 두는 것과 같은
 /// 이유다.
 pub struct ExplorerInput<'a> {
-    /// 지금 그리는 입력 몫의 키를 이 surface 가 받는지(`MainViewState::pass_keys_reach_surface`). egui 이벤트 큐는
+    /// 지금 그리는 입력 몫의 키를 이 surface 가 받는지(`MainViewState::pass_key_node` 가 이 surface 노드). egui 이벤트 큐는
     /// 전역이라, 이 조건이 없으면 한 번의 입력이 열려 있는 모든 탐색기의 선택을 동시에 움직이고, 팝업·무대가
     /// 받은 키로 뒤에 있는 탐색기의 선택이 사용자 모르게 움직인다.
     pub takes_keys: bool,
