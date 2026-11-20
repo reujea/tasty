@@ -33,9 +33,12 @@ fn recording_wake(end: &Arc<TransportEnd>) -> (Arc<dyn Fn() + Send + Sync>, Wake
 /// 쪽만 닫았으면 상대가 보낸 것이 없어 기한까지 기다린다. 기한은 이 소켓에 걸려 같은 연결의 reader에도
 /// 적용되지만, 탐침은 끝이 확정된 뒤에만 돈다.
 fn read_side_closed(probe: &std::net::TcpStream) -> bool {
-    probe
-        .set_read_timeout(Some(Duration::from_millis(100)))
-        .unwrap();
+    // macOS는 읽기 쪽과 쓰기 쪽이 모두 닫힌 소켓의 옵션 설정을 `EINVAL`로 거절한다. 그 거절은 읽기
+    // 쪽이 이미 닫혔다는 뜻이다.
+    if let Err(error) = probe.set_read_timeout(Some(Duration::from_millis(100))) {
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
+        return true;
+    }
     match probe.peek(&mut [0u8; 1]) {
         Ok(read) => read == 0,
         // Windows는 읽기 쪽을 닫은 소켓의 수신을 EOF 대신 오류로 돌려준다.
