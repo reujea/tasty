@@ -146,24 +146,23 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
         );
     }
     let pass = squeeze(&fn_body(&bridge, "fn run_main_pass(").expect("run_main_pass"));
-    let begin = at(&pass, "state.popups.begin_key_pass(", "패스 열기");
-    let take = at(
+    at(
         &pass,
-        concat!("self.take_pass_input", "(window,true)"),
-        "나눈 입력 꺼내기",
+        "super::input_pass::run_input_pass(&mutMainPass{gpu:self,window},state,adjust,ui)",
+        "공유 패스 순서",
     );
-    let run = at(&pass, "self.egui_ctx.run(", "패스 실행");
-    let close = at(&pass, "state.close_input_pass(&self.egui_ctx);", "몫 닫기");
-    assert!(
-        begin < take && take < run && run < close,
-        "열기 → 입력 → 실행 → 닫기 순서가 아니다"
+    let take = squeeze(&impl_fn(&bridge, "for MainPass<'_>", "fn take_input("));
+    assert_eq!(
+        take,
+        concat!("{self.gpu.take_pass_input", "(self.window,true)}"),
+        "나눈 입력 꺼내기"
     );
     let mut splitting = Vec::new();
     for (path, text) in super::rust_sources() {
         let code = squeeze(&strip_comments(&text));
         // 이 가드 자신의 문자열이 세이지 않도록 이어 붙인다.
         let n = code
-            .matches(concat!("take_pass_input", "(window,true)"))
+            .matches(concat!("take_pass_input", "(self.window,true)"))
             .count()
             + code.matches(concat!(".split", "_pass(")).count();
         if n > 0 {
@@ -294,24 +293,122 @@ fn the_window_picks_the_stage_pass_by_the_live_stage_and_drops_input_without_its
         at(&delivers, needle, "누름을 끝내는 사건은 남긴다");
     }
     assert!(!delivers.contains("PointerGone"), "포인터 사라짐을 뺀다");
-    let bridge = read("src/gfx/gpu/egui_bridge.rs");
-    let pass = squeeze(&fn_body(&bridge, "fn run_main_pass(").expect("run_main_pass"));
+    let shared = read("src/gfx/gpu/input_pass.rs");
+    let pass = squeeze(&fn_body(&shared, "fn run_input_pass(").expect("run_input_pass"));
     let take = at(
         &pass,
-        // 위 가드가 세는 문자열이라 이어 붙인다.
-        concat!("letmutraw_input=self.take_pass_input", "(window,true);"),
+        "letmutraw_input=host.take_input();",
         "패스 입력 꺼내기",
     );
     let drop = at(
         &pass,
-        "state.drop_input_without_its_node(&self.egui_ctx,&mutraw_input.events);",
+        "state.drop_input_without_its_node(host.egui_ctx(),&mutraw_input.events);",
         "노드 없는 입력 빼기",
     );
-    let run = at(&pass, "self.egui_ctx.run(raw_input,", "egui 패스");
+    let run = at(&pass, "host.run(raw_input,state,ui);", "egui 패스");
     assert!(
         take < drop && drop < run,
         "입력 꺼내기 → 빼기 → 패스 순서가 아니다"
     );
+}
+
+/// 메인 창 패스의 입력 순서는 제품과 창 입력 하네스가 함께 쓰는 `run_input_pass` 하나다. 몫 열기 → Find 입력칸 알림 →
+/// 입력 꺼내기 → 몫 필터 → (뺐으면) 편집 폐기 알림 → Find 붙여넣기 수령 → 패스 → 몫 닫기 → 그리기 중 전환 봉인 순서를
+/// 고정한다. 함수 안의 동작은 pass_focus 시험이 같은 함수로 잰다. 이 가드는 순서와, 제품 주체(`MainPass`)가 각 자리에서
+/// GPU 상태의 같은 대상을 부르는지를 잡는다. 하네스의 주체는 시험이 직접 쓴다.
+///
+/// 편집 판정의 끊은 자리 수(`EditKeyState::set_cuts`)는 이 함수 밖의 제품 삽입 자리에서 알린다. 판정·재판정 입구
+/// (`with_key_cx`)와 Wayland 텍스트 도착(`edit_keys_text_arrived`)이 판정·삽입 전에 창의 끊은 자리 수를 넘기는지 고정한다.
+/// 하네스는 이 두 자리를 흉내 내므로 시험은 이 호출을 빼는 변이를 잡지 못한다.
+#[test]
+fn the_input_pass_order_is_shared_by_the_product_and_the_harness() {
+    let shared = read("src/gfx/gpu/input_pass.rs");
+    let pass = squeeze(&fn_body(&shared, "fn run_input_pass(").expect("run_input_pass"));
+    let mut last = 0;
+    for (needle, what) in [
+        (
+            "state.popups.begin_key_pass(host.escape_held());",
+            "몫 열기",
+        ),
+        (
+            "host.held_pastes().set_find_fields(&state.find_fields);",
+            "Find 입력칸 알림",
+        ),
+        ("letmutraw_input=host.take_input();", "입력 꺼내기"),
+        (
+            "letdropped=state.drop_input_without_its_node(host.egui_ctx(),&mutraw_input.events);",
+            "몫 필터",
+        ),
+        ("ifdropped{host.input_dropped();}", "편집 폐기 알림"),
+        (
+            ".receive_find(focused,state.find_paste_open());",
+            "Find 붙여넣기 수령",
+        ),
+        ("adjust(&mutraw_input);", "입력 조정"),
+        ("letdrawn=state.fullscreen_stage_id();", "그린 화면"),
+        ("letoutput=host.run(raw_input,state,ui);", "패스"),
+        ("state.close_input_pass(host.egui_ctx());", "몫 닫기"),
+        (
+            "state.seal_after_drawing_transition(drawn,cuts,raw_left);",
+            "그리기 중 전환 봉인",
+        ),
+    ] {
+        let pos = at(&pass, needle, what);
+        assert!(last <= pos, "{what} 의 순서가 바뀌었다");
+        last = pos;
+    }
+    let bridge = read("src/gfx/gpu/egui_bridge.rs");
+    for (name, body) in [
+        ("fn escape_held(", "{self.gpu.egui_escape_held()}"),
+        ("fn held_pastes(", "{&mutself.gpu.held_pastes}"),
+        ("fn egui_ctx(", "{&self.gpu.egui_ctx}"),
+        ("fn input_dropped(", "{self.gpu.edit_keys.input_dropped();}"),
+        ("fn focus_tag(", "{self.gpu.focus_tag()}"),
+        (
+            "fn run(",
+            "{self.gpu.egui_ctx.run(raw_input,|ctx|ui(ctx,state))}",
+        ),
+        (
+            "fn cuts_and_raw_left(",
+            "{letraw_left=self.gpu.egui_state.egui_input().events.len();(&mutself.gpu.egui_input_cuts,raw_left)}",
+        ),
+    ] {
+        assert_eq!(
+            squeeze(&impl_fn(&bridge, "for MainPass<'_>", name)),
+            body,
+            "제품 주체의 {name}"
+        );
+    }
+    let edit = read("src/gfx/gpu/edit_keys.rs");
+    let cx = squeeze(&fn_body(&edit, "fn with_key_cx<").expect("with_key_cx"));
+    let cuts = at(
+        &cx,
+        "self.edit_keys.set_cuts(self.egui_input_cuts.len());",
+        "판정 입구의 끊은 자리 수",
+    );
+    let judge = at(&cx, "letresult=f(", "판정");
+    assert!(cuts < judge, "판정 뒤에 끊은 자리 수를 넘긴다");
+    let arrived =
+        squeeze(&fn_body(&edit, "fn edit_keys_text_arrived(").expect("edit_keys_text_arrived"));
+    let cuts = at(
+        &arrived,
+        "self.edit_keys.set_cuts(self.egui_input_cuts.len());",
+        "텍스트 도착의 끊은 자리 수",
+    );
+    let insert = at(
+        &arrived,
+        ".text_arrived(text,&self.egui_ctx,events,Instant::now());",
+        "삽입",
+    );
+    assert!(cuts < insert, "삽입 뒤에 끊은 자리 수를 넘긴다");
+}
+
+/// `impl ... <header>` 블록 안의 함수 `name` 본문. 블록은 다음 `impl` 줄 앞까지다.
+fn impl_fn(src: &str, header: &str, name: &str) -> String {
+    let start = src.find(header).unwrap_or_else(|| panic!("{header}"));
+    let block = &src[start..];
+    let end = block.find("\nimpl ").unwrap_or(block.len());
+    fn_body(&block[..end], name).unwrap_or_else(|| panic!("{header} {name}"))
 }
 
 /// 그리기 중 전환의 봉인(`seal_after_drawing_transition`)은 끊는 조건(`cut_key_frame` 의 루프)을 거치지 않고 세 저장

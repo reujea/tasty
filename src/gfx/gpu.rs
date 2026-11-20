@@ -7,6 +7,7 @@ mod egui_bridge;
 mod egui_mesh_prepare;
 mod fonts;
 mod frame_timing;
+pub(crate) mod input_pass;
 pub(crate) mod loading;
 mod overlay_paint;
 pub(crate) mod overlay_surface;
