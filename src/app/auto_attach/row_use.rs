@@ -363,7 +363,7 @@ impl App {
             live: self.row_link_live(row),
             active: self.remote.active.contains(&row),
             has_window: self.row_has_window(row),
-            user_disconnected: self.row_user_disconnected(row),
+            user_disconnected: self.row_blocked(row),
             closed_elsewhere: self.row_closed_elsewhere(row),
             notice: self.remote.refusals.notice(row).map(|notice| notice.kind),
             waiting: self.row_waits.waiting.len(),
@@ -442,7 +442,7 @@ impl App {
             Some("remote_workspace_missing")
         } else if !self.row_has_window(row) {
             Some("window_parked")
-        } else if !explicit && self.row_user_disconnected(row) {
+        } else if !explicit && self.row_blocked(row) {
             Some("user_disconnected")
         } else {
             None
@@ -576,7 +576,7 @@ impl App {
     /// `publish_row_states`가 채운다.
     fn row_view(&self, row: u32, name: &'static str) -> crate::remote::state::RowView {
         crate::remote::state::RowView {
-            user_disconnected: self.row_user_disconnected(row),
+            user_disconnected: self.row_blocked(row),
             closed_elsewhere: self.row_closed_elsewhere(row),
             trying_since: matches!(name, "connecting" | "reconnecting")
                 .then(std::time::Instant::now),

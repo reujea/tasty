@@ -377,7 +377,7 @@ impl App {
             journal_writer_lock,
         )?;
         let journal_metrics = journal.metrics_handle();
-        Ok(Self {
+        let mut app = Self {
             journal,
             pending_server_attaches: Vec::new(),
             preset_io: Default::default(),
@@ -507,7 +507,9 @@ impl App {
             gpu_instance: Arc::new(new_gpu_instance()),
             gpu_adapter: None,
             shared_lists_announced: [0, 0],
-        })
+        };
+        app.hold_marked_targets();
+        Ok(app)
     }
 
     /// GUI 자원 없이 mpsc waker로 시작한다.

@@ -78,7 +78,6 @@ impl App {
             .map(|ws| ws.id);
         self.remote.last_active_ws = current_ws_id;
 
-        self.hold_force_detached_rows();
         self.maybe_connect_visible_row(current_ws_id, prev_active);
         self.maybe_trigger_reconnect(current_ws_id, prev_active);
         self.drain_auto_attach_results();
@@ -120,41 +119,34 @@ impl App {
             .collect()
     }
 
-    /// 강제로 끊긴 표지가 저장된 행을 사용자가 끊은 행으로 잡아 둔다. 재시작 뒤 복원된 행도 같아서,
-    /// 명시적 연결 전에는 그 행을 열어도 자동으로 붙지 않는다.
-    fn hold_force_detached_rows(&mut self) {
-        let list = &self.services.registries.remote_force_detached;
-        if list.read(|marks| marks.items.is_empty()) {
-            return;
+    /// 기동 때 저장된 강제 끊김 표지의 연결 대상마다 보류를 건다. 행이 언제 등록되든(레이아웃 복원,
+    /// 나중의 편입, 지연 공개) 등록된 순간부터 그 행은 막힌다.
+    pub(crate) fn hold_marked_targets(&mut self) {
+        let marked = self
+            .services
+            .registries
+            .remote_force_detached
+            .read(|marks| marks.items.clone());
+        for binding in marked {
+            self.remote.held.insert(binding, Default::default());
         }
-        let rows: Vec<u32> = list.read(|marks| {
-            self.engines
-                .all_sessions()
-                .flat_map(|session| {
-                    session
-                        .core_state
-                        .mirror_workspaces()
-                        .iter()
-                        .filter(|ws| ws.remote_row.as_ref().is_some_and(|b| marks.contains(b)))
-                        .map(|ws| ws.id)
-                        .collect::<Vec<_>>()
-                })
-                .collect()
-        });
-        self.remote.user_disconnected.extend(rows);
     }
 
-    /// 사용자가 끊은 행인지. 실행 중 표지와 함께 저장된 강제 끊김 표지도 직접 본다. 저장된 표지를
-    /// 실행 중 표지로 옮기는 `hold_force_detached_rows`는 `poll_auto_attach`에서 돌아, 재시작 뒤 첫
-    /// 회차의 IPC(`process_ipc`)는 그보다 먼저 처리된다. 연결을 정하는 곳은 이 함수로 판정해 순서와
-    /// 상관없이 같은 답을 낸다.
-    pub(crate) fn row_user_disconnected(&self, row: u32) -> bool {
+    /// 행이 막혔는지. 사용자가 끊은 행, 저장 표지가 있는 대상의 행, 보류된 대상의 행 가운데 명시적
+    /// 연결로 풀리지 않은 행이다. 보류는 행이 아니라 연결 대상에 걸려 같은 대상의 다른 행도 막는다.
+    /// 저장 표지도 직접 읽어, 기동 직후 첫 회차의 IPC도 같은 답을 낸다.
+    pub(crate) fn row_blocked(&self, row: u32) -> bool {
         self.remote.user_disconnected.contains(&row)
             || self.saved_row_binding(row).is_some_and(|binding| {
                 self.services
                     .registries
                     .remote_force_detached
                     .read(|marks| marks.contains(&binding))
+                    || self
+                        .remote
+                        .held
+                        .get(&binding)
+                        .is_some_and(|released| !released.contains(&row))
             })
     }
 
@@ -164,15 +156,14 @@ impl App {
         &self,
         target: &crate::app::attach_client::pending::PendingMirrorInstall,
     ) -> bool {
-        !(target.explicit || target.user)
-            && target
-                .row
-                .is_some_and(|row| self.row_user_disconnected(row))
+        !(target.explicit || target.user) && target.row.is_some_and(|row| self.row_blocked(row))
     }
 
-    /// 서버가 강제로 끊은 행의 연결 대상을 저장해 재시작 뒤에도 자동으로 붙지 않게 한다.
+    /// 서버가 강제로 끊은 행의 연결 대상을 저장해 재시작 뒤에도 자동으로 붙지 않게 하고, 이 실행의
+    /// 보류를 건다. 표지가 새로 섰으므로 앞서 명시적 연결로 풀린 행도 다시 막힌다.
     pub(crate) fn mark_force_detached_row(&mut self, row: u32) {
         if let Some(binding) = self.saved_row_binding(row) {
+            self.remote.held.insert(binding.clone(), Default::default());
             self.services
                 .registries
                 .remote_force_detached
@@ -181,10 +172,14 @@ impl App {
     }
 
     /// 명시적 연결(원격 팝업이 행을 넘겨받는 연결 포함)이 강제로 끊긴 표지를 지운다. 이후 끊김은 평소 자동 재연결 규칙을 따른다.
+    /// 그 행의 보류도 풀린다. 같은 대상의 다른 행은 이 실행 동안 계속 막힌다.
     pub(crate) fn forget_force_detached_row(&mut self, row: u32) {
         let Some(binding) = self.saved_row_binding(row) else {
             return;
         };
+        if let Some(released) = self.remote.held.get_mut(&binding) {
+            released.insert(row);
+        }
         let list = &self.services.registries.remote_force_detached;
         if list.read(|marks| marks.contains(&binding)) {
             list.update(|marks| marks.remove(&binding));
@@ -197,6 +192,7 @@ impl App {
         if self.saved_row_for_binding(binding).is_some() {
             return;
         }
+        self.remote.held.remove(binding);
         let list = &self.services.registries.remote_force_detached;
         if list.read(|marks| marks.contains(binding)) {
             list.update(|marks| marks.remove(binding));
@@ -257,7 +253,7 @@ impl App {
         let edge_now = is_reactivation_edge(current_ws_id, prev_active);
         // 사용자가 끊은 행은 다시 열어도 붙지 않는다. 연결 버튼·메뉴 같은 명시적
         // 연결이 표지를 지운다.
-        if self.row_user_disconnected(row) {
+        if self.row_blocked(row) {
             return None;
         }
         let due = match self.row_session_phase(row) {
@@ -416,7 +412,7 @@ impl App {
         for row in rows {
             // 같은 연결 대상의 다른 행이 강제로 끊겼으면 저장된 표지가 이 행도 가리킨다. 재연결 구간에
             // 있던 행도 서버 점유를 다시 잡지 않도록 시도를 거두고 끊긴 행으로 멈춘다.
-            if self.row_user_disconnected(row) {
+            if self.row_blocked(row) {
                 // 사용자가 직접 요청한 시도가 진행 중이면 거두지 않는다. 그 결과는 결과 소비·설치
                 // 검사도 남긴다(`drop_attempt_for_force_detached_target`).
                 if self
@@ -905,6 +901,9 @@ pub(crate) fn forget_row(remote: &mut tasty_remote::outbound::Remote, row: u32) 
     remote.reconnect.remove(&row);
     remote.pending_reactivation.remove(&row);
     remote.user_disconnected.remove(&row);
+    for released in remote.held.values_mut() {
+        released.remove(&row);
+    }
     remote.refusals.clear_notice(row);
 }
 

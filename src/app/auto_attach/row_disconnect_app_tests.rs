@@ -366,9 +366,10 @@ fn a_force_detached_row_stays_stopped_after_a_restart_until_an_explicit_connect(
         .update(|marks| marks.insert(binding()));
     assert!(!app.remote.user_disconnected.contains(&ROW));
 
-    app.hold_force_detached_rows();
+    // 기동이 저장 표지를 읽은 직후 거는 보류.
+    app.hold_marked_targets();
     app.maybe_connect_visible_row(Some(ROW), None);
-    assert!(app.remote.user_disconnected.contains(&ROW));
+    assert!(app.row_blocked(ROW));
     assert!(
         !app.remote.active.contains(&ROW),
         "a restored force-detached row does not connect by itself"
@@ -376,9 +377,10 @@ fn a_force_detached_row_stays_stopped_after_a_restart_until_an_explicit_connect(
 
     app.connect_saved_row(ROW, true);
     assert!(!force_detach_marked(&app));
-    assert!(!app.remote.user_disconnected.contains(&ROW));
-    app.hold_force_detached_rows();
-    assert!(!app.remote.user_disconnected.contains(&ROW));
+    assert!(
+        !app.row_blocked(ROW),
+        "the explicit connect released the row"
+    );
 }
 
 /// Given 연결된 저장 행, When 통지 없이 연결만 끊기면(EOF·heartbeat), Then 지금처럼 재연결 중이 된다.

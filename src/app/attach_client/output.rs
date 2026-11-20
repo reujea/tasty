@@ -112,7 +112,7 @@ impl App {
             }
             // 같은 묶음에 손실 통지와 EOF가 올 수 있어 이벤트 적용 뒤 재attach 여부를 확인한다.
             // 막힌 저장 행은 손실 복구로도 다시 붙지 않는다.
-            let blocked = saved_row.is_some_and(|row| self.row_user_disconnected(row));
+            let blocked = saved_row.is_some_and(|row| self.row_blocked(row));
             let sess = &mut self.remote.sessions[idx];
             let events_deferred = sess.transport.output.has_pending();
             let (disposition, unknown) = route_session_end(sess, phase, events_deferred);

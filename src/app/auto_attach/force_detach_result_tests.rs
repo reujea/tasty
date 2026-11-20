@@ -41,7 +41,7 @@ fn force_detach_the_other_row(app: &mut App) {
         .expect("the row engine")
         .push_mirror_workspace(row_b);
     app.mark_force_detached_row(ROW_B);
-    assert!(app.row_user_disconnected(ROW), "the mark covers the target");
+    assert!(app.row_blocked(ROW), "the mark covers the target");
 }
 
 /// 재연결 중인 행. 시험 장치의 행 세션 원격 id 를 실제 저장 행처럼 binding 의 것으로 맞춘다.
@@ -107,7 +107,7 @@ fn an_endpoint_result_after_the_target_was_force_detached_starts_no_connection()
     app.drain_auto_attach_results();
 
     assert_stopped(&app);
-    assert!(app.row_user_disconnected(ROW), "the mark stays");
+    assert!(app.row_blocked(ROW), "the mark stays");
 }
 
 /// 행 A 의 연결이 준비돼 설치만 남은 뒤 같은 대상의 행 B 를 강제로 끊고 출력 회차 하나를 돈다.
@@ -528,11 +528,11 @@ fn an_old_force_detach_of_another_row_does_not_drop_a_later_automatic_reconnect(
     let mut app = reconnecting_app(&event_loop);
     push_other_row_session(&mut app, SessionState::Disconnected);
     app.mark_force_detached_row(ROW_B);
-    assert!(app.row_user_disconnected(ROW));
+    assert!(app.row_blocked(ROW));
     // 연결 버튼이 부르는 표지 지우기(`connect_saved_row_with_run` 의 명시적 분기).
     app.forget_force_detached_row(ROW);
     assert!(
-        !app.row_user_disconnected(ROW),
+        !app.row_blocked(ROW),
         "the explicit connect cleared the mark"
     );
     let _socket = prepare_an_automatic_reconnect(&mut app);
@@ -563,15 +563,12 @@ fn an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped() 
     let mut app = reconnecting_app(&event_loop);
     let _socket = prepare_an_automatic_reconnect(&mut app);
     push_other_row_session(&mut app, SessionState::Connected);
-    assert!(!app.row_user_disconnected(ROW), "no mark is saved yet");
+    assert!(!app.row_blocked(ROW), "no mark is saved yet");
 
     app.apply_attach_client_output();
 
     assert_stopped(&app);
-    assert!(
-        app.row_user_disconnected(ROW),
-        "the observation of B saved the mark"
-    );
+    assert!(app.row_blocked(ROW), "the observation of B saved the mark");
 }
 
 /// Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 세션은 연결돼 있다, When 출력 회차의
@@ -613,18 +610,12 @@ fn a_force_detach_flagged_after_the_round_observation_ends_the_other_row_next_ro
         Some(SessionState::Connected),
         "B ends next round"
     );
-    assert!(
-        !app.row_user_disconnected(ROW),
-        "no mark is saved this round"
-    );
+    assert!(!app.row_blocked(ROW), "no mark is saved this round");
 
     app.apply_attach_client_output();
 
     assert_eq!(phase_b(&app), Some(SessionState::Disconnected));
-    assert!(
-        app.row_user_disconnected(ROW),
-        "the next round saved the mark"
-    );
+    assert!(app.row_blocked(ROW), "the next round saved the mark");
 }
 
 /// Given 행 A 의 자동 재연결이 endpoint 를 지나 연결 대기 단계에 있다, When 명시적 연결이 그 시도에
