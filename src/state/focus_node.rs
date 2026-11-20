@@ -2,15 +2,19 @@
 //! 관리자가 갖고(`PopupManager::focus`), 나머지(엔진 포커스 surface, html 주소 띠, tutorial 말풍선)는 각자의
 //! 상태에서 계산한다.
 //!
-//! 포커스 위치는 `PopupManager` 의 포커스 칸을 바꾸는 호출(`set_focus`·`give_focus`·`unfocus_node`·`focus_on_press`
-//! 등), 무대·html 주소 띠의 전이, 설정 열기 요청, 튜토리얼 말풍선의 키 포커스, 엔진 포커스 surface 선택으로 바뀐다
-//! (`focus_node` 가 이 순서로 고른다). 그 호출 자리는 팝업 설계 문서(docs/design/systems/popup.md)의 Esc 소유권 절에
-//! 있다. 사건 처리 중의 전이는 즉시 적용하고, 사건 시점의 노드가 지금 입력 몫의 노드와 다르면 그 사건에서 몫을
-//! 끊는다(`cut_key_frame`). 정규화(`normalize_focus`)는 창의 입력과 프레임마다 돌며 보이지 않거나 닫힌 팝업, 엔진
+//! `focus_node` 는 무대 → 설정 열기 요청 → 팝업(`PopupManager` 의 포커스 칸) → html 주소 띠 → 튜토리얼 말풍선의 키
+//! 포커스 → 엔진 포커스 surface 순서로 고른다. 포커스 위치는 그 값들을 바꾸는 전이(포커스 칸을 바꾸는 `set_focus`·
+//! `give_focus`·`unfocus_node`·`focus_on_press` 등, 무대 열기·닫기, 주소 띠의 포커스, 설정 열기 요청, 튜토리얼 키 포커스,
+//! 엔진 포커스 surface 선택)로 바뀐다. 그 호출 자리는 팝업 설계 문서(docs/design/systems/popup.md)의 Esc 소유권 절에
+//! 있다. 사건 처리 중의 전이는 즉시 적용한다. 사용자 입력이 포커스를 주며 연 팝업 요청도 그 키 사건 처리 안에서
+//! 적용한다(`App::apply_user_focus_opens`). 사건 시점의 노드가 지금 입력 몫의 노드와 다르면 그 사건에서 몫을 끊고,
+//! 그 사건이 키면 새 노드의 빈 몫을 하나 먼저 둔다(`cut_key_frame`). 정규화(`normalize_focus`)는 창의 입력과 프레임마다 돌며 보이지 않거나 닫힌 팝업, 엔진
 //! 포커스가 옮겨 간 뒤 경로에서 빠진 팝업의 포커스를 풀고, 덮인 노드에 있는 포커스를 덮는 노드로 옮긴다. 범위마다
 //! 포커스를 기억하지 않는다.
 //!
-//! 그리기는 끊어 둔 입력 몫 하나를 그리므로 그리는 동안의 판정은 그 몫의 포커스 노드(`pass_focus_node`)를 읽는다.
+//! 그리기는 끊어 둔 입력 몫 하나를 그리므로 그리는 동안 키를 받을지 정하는 판정은 그 몫의 포커스 노드
+//! (`pass_focus_node`·`pass_key_node`)를 읽는다. 무엇을 그릴지(무대와 일반 화면)는 지금 상태로 고르고, 몫 노드가 그
+//! 화면에 없으면 그 몫의 입력을 뺀다(`drop_input_without_its_node`).
 
 use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::focus::PopupNode;
