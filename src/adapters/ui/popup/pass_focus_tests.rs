@@ -86,6 +86,7 @@ fn pass_with(
 ) -> Vec<Event> {
     let events = input.take_pass(&mut s.state, &s.ctx);
     let drawn = events.clone();
+    let screen_drawn = s.state.fullscreen_stage_id();
     let engine = s.session.borrow_mut();
     let read = engine.read();
     let raw = egui::RawInput {
@@ -162,7 +163,7 @@ fn pass_with(
         );
         during(state);
     }));
-    state.close_input_pass(&s.ctx);
+    input.close_pass(state, &s.ctx, screen_drawn);
     drawn
 }
 
@@ -470,6 +471,7 @@ fn stage_or_window_pass_with(
     if stage {
         let events = input.take_pass(&mut s.state, &s.ctx);
         let drawn = events.clone();
+        let screen_drawn = s.state.fullscreen_stage_id();
         let engine = s.session.borrow_mut();
         let read = engine.read();
         let raw = egui::RawInput {
@@ -482,7 +484,7 @@ fn stage_or_window_pass_with(
             crate::adapters::ui::draw_fullscreen_stage(ctx, state, &read);
             during(state);
         }));
-        state.close_input_pass(&s.ctx);
+        input.close_pass(state, &s.ctx, screen_drawn);
         (stage, drawn)
     } else {
         let drawn = pass_with(s, input, &mut Bodies::Explorers(l, r), during);

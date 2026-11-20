@@ -263,6 +263,12 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             segment_notice: None,
             #[cfg(feature = "gui")]
+            segment_screen: None,
+            #[cfg(feature = "gui")]
+            segment_before_transition: false,
+            #[cfg(feature = "gui")]
+            dropped_presses: [0; egui::NUM_POINTER_BUTTONS],
+            #[cfg(feature = "gui")]
             segments_after_cut: Default::default(),
             #[cfg(feature = "gui")]
             frame_key_owner: None,

@@ -131,6 +131,19 @@ impl WindowInput {
         events
     }
 
+    /// egui 패스를 마친 뒤 창처럼 몫을 닫고 그리기 중 전환을 처리한다(`run_main_pass`). `drawn` 은 그 패스를 돌리기 전에
+    /// 읽은 `fullscreen_stage_id` 다.
+    pub(crate) fn close_pass(
+        &mut self,
+        state: &mut RequestContext,
+        ctx: &egui::Context,
+        drawn: Option<crate::fullscreen_stages::StageId>,
+    ) {
+        state.close_input_pass(ctx);
+        let raw_left = self.queue.len();
+        state.seal_after_drawing_transition(drawn, &mut self.cuts, raw_left);
+    }
+
     /// 창이 더 그릴 패스가 없는지. 꺼내지 않은 사건이나 끊은 자리가 남았거나 직전 패스가 나눴으면 창은 빈 몫이어도
     /// 다음 패스를 그린다(나눈 패스가 다음 패스를 요청한다, `GpuState::take_pass_input`).
     pub(crate) fn is_empty(&self) -> bool {

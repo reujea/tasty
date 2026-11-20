@@ -62,6 +62,10 @@ pub(crate) struct SegmentAfterCut {
     focus: Option<FocusNode>,
     /// 그 몫 키들의 사건 시점 복원 안내 안쪽 포커스(`restore_notice::has_keyboard_focus`). 키가 없으면 `None` 이다.
     notice: Option<bool>,
+    /// 그 몫이 열린 화면(무대 ID, 일반 화면이면 `None`).
+    screen: Option<crate::fullscreen_stages::StageId>,
+    /// 그리기 중 전환 앞 화면에서 열린 몫이다(`seal_after_drawing_transition`).
+    before_transition: bool,
 }
 
 impl FocusNode {
@@ -223,8 +227,10 @@ impl super::MainViewState {
                 break;
             }
             self.open_segment_focus().get_or_insert(focus);
-            self.segments_after_cut
-                .push_back(SegmentAfterCut::default());
+            self.segments_after_cut.push_back(SegmentAfterCut {
+                screen: self.fullscreen_stage_id(),
+                ..SegmentAfterCut::default()
+            });
             cuts += 1;
         }
         if incoming == Incoming::Key {
@@ -273,18 +279,135 @@ impl super::MainViewState {
     /// 글자·누름·종료 키)은 일반 화면으로 그리지만 그 입력은 일반 화면의 어느 노드 것도 아니다. 그리기 전에 무대가
     /// 열렸으면 무대 밖 노드의 몫도 같다. 패스 입력을 꺼내는 곳(`GpuState::run_main_pass`)이 그 패스를 돌리기 직전에
     /// 부른다.
+    ///
+    /// 그리기 중 전환 앞 화면에서 열린 몫(`seal_after_drawing_transition` 의 표시)은 노드와 관계없이 그 화면이 아닌 화면을
+    /// 그릴 때 같이 뺀다. 같은 화면을 다시 그리면 그 화면의 정상 입력이다. 빼든 전달하든 몫 폐기가 뺀 누름의 짝 뗌은
+    /// 버린다(`drop_stray_releases`).
     pub(crate) fn drop_input_without_its_node(
-        &self,
+        &mut self,
         ctx: &egui::Context,
         events: &mut Vec<egui::Event>,
     ) {
-        let Some(node) = self.segment_focus else {
-            return;
-        };
-        if (node == FocusNode::Stage) != self.pass_draws_stage() {
+        let off_screen =
+            self.segment_before_transition && self.segment_screen != self.fullscreen_stage_id();
+        let off_node = self
+            .segment_focus
+            .is_some_and(|node| (node == FocusNode::Stage) != self.pass_draws_stage());
+        let dropping = off_screen || off_node;
+        self.drop_stray_releases(ctx, events, dropping);
+        if dropping {
             events.retain(|e| !delivers_input(e));
             end_press_without_click(ctx, events);
         }
+    }
+
+    /// 몫 폐기가 뺀 누름의 짝 뗌을 뺀다. 사건을 순서대로 보며 버튼의 눌림을 따라간다(시작은 egui 의
+    /// `pointer.button_down`, 그 뒤 이 패스에 전달하는 누름·뗌). 뗌은 먼저 눌림을 본다. 눌려 있으면(다른 입력원의 누름,
+    /// 이 패스 앞쪽에서 전달한 누름) 남긴다. 눌려 있지 않고 그 버튼의 뺀 누름이 남았으면 그 뗌을 빼고 수를 내린다.
+    /// `dropping` 이면 이 몫의 누름은 빠지므로 수를 올리고, 아니면 그 버튼의 누름을 전달하므로 수를 0 으로 되돌린다.
+    fn drop_stray_releases(
+        &mut self,
+        ctx: &egui::Context,
+        events: &mut Vec<egui::Event>,
+        dropping: bool,
+    ) {
+        let mut down = [false; egui::NUM_POINTER_BUTTONS];
+        ctx.input(|i| {
+            for (n, d) in down.iter_mut().enumerate() {
+                *d = POINTER_BUTTONS
+                    .get(n)
+                    .is_some_and(|b| i.pointer.button_down(*b));
+            }
+        });
+        let dropped = &mut self.dropped_presses;
+        events.retain(|e| {
+            let egui::Event::PointerButton {
+                button, pressed, ..
+            } = e
+            else {
+                return true;
+            };
+            let n = *button as usize;
+            if *pressed {
+                if dropping {
+                    dropped[n] = dropped[n].saturating_add(1);
+                } else {
+                    down[n] = true;
+                    dropped[n] = 0;
+                }
+                true
+            } else if down[n] {
+                down[n] = false;
+                true
+            } else if dropped[n] > 0 {
+                dropped[n] -= 1;
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    /// 그리기 중 전환을 처리한다. `run_main_pass` 가 몫을 닫은 뒤(`close_input_pass`) 부른다. `drawn` 은 이번 패스가 그린
+    /// 화면(패스를 돌리기 전에 읽은 `fullscreen_stage_id`)이다. 지금 화면이 그와 다르면 그 패스 안에서 전환이 일어났다.
+    /// 남은 몫(닫기로 승계된 지금 몫과 뒤 큐) 가운데 열린 화면이 `drawn` 인 몫에만 전환 앞 표시를 적는다. 그 뒤 열린 몫
+    /// (뒤 큐의 꼬리, 없으면 지금 몫)이 표시된 몫이면 남은 원시 큐 끝(`raw_left`)에서 한 번 닫는다(봉인). 전환 뒤
+    /// 다음 묶음의 입력은 지금 화면에서 연 새 몫에 든다. 열린 몫에 사건도 노드·결속·넘길 Esc·누름 스냅샷도 없으면
+    /// 봉인하지 않고 그 몫의 표시를 지워 지금 화면의 몫으로 바꾼다.
+    ///
+    /// 봉인은 끊는 조건(`cut_key_frame` 의 루프)을 거치지 않는다. 세 저장 위치(GPU `cuts`, 팝업 관리자의 뒤 몫, 뒤 큐
+    /// `segments_after_cut`)에 한 칸씩 넣고, 닫는 몫의 노드·결속·넘길 Esc·누름 스냅샷·안내 값은 그대로 둔다. 새 몫은
+    /// 기본값(결속 없음, 안내 값 없음)이고 열린 화면이 지금 화면이며 표시가 없다.
+    pub(crate) fn seal_after_drawing_transition(
+        &mut self,
+        drawn: Option<crate::fullscreen_stages::StageId>,
+        cuts: &mut crate::adapters::ui::popup::frame_keys::InputCuts,
+        raw_left: usize,
+    ) {
+        let now = self.fullscreen_stage_id();
+        if now == drawn {
+            return;
+        }
+        if self.segment_screen == drawn {
+            self.segment_before_transition = true;
+        }
+        for segment in &mut self.segments_after_cut {
+            if segment.screen == drawn {
+                segment.before_transition = true;
+            }
+        }
+        let (marked, no_meta) = match self.segments_after_cut.back() {
+            Some(open) => (
+                open.before_transition,
+                open.focus.is_none() && open.press.is_none(),
+            ),
+            None => (
+                self.segment_before_transition,
+                self.segment_focus.is_none() && self.press_snapshot.is_none(),
+            ),
+        };
+        if !marked {
+            return;
+        }
+        if no_meta && self.popups.open_segment_is_bare(raw_left) {
+            match self.segments_after_cut.back_mut() {
+                Some(open) => {
+                    open.before_transition = false;
+                    open.screen = now;
+                }
+                None => {
+                    self.segment_before_transition = false;
+                    self.segment_screen = now;
+                }
+            }
+            return;
+        }
+        self.popups.seal_open_segment(raw_left);
+        cuts.cut_at(raw_left);
+        self.segments_after_cut.push_back(SegmentAfterCut {
+            screen: now,
+            ..SegmentAfterCut::default()
+        });
     }
 
     /// 지금 그리는 몫의 키를 받는 포커스 노드. 그 몫의 키가 팝업에 묶이지 않았을 때 그 몫의 포커스 노드다. 그리기 중
@@ -313,10 +436,18 @@ impl super::MainViewState {
         if self.popups.close_key_pass() {
             crate::adapters::ui::popup::body_keys::release_escape(ctx);
         }
-        let next = self.segments_after_cut.pop_front().unwrap_or_default();
+        let next = self
+            .segments_after_cut
+            .pop_front()
+            .unwrap_or_else(|| SegmentAfterCut {
+                screen: self.fullscreen_stage_id(),
+                ..SegmentAfterCut::default()
+            });
         self.press_snapshot = next.press;
         self.segment_focus = next.focus;
         self.segment_notice = next.notice;
+        self.segment_screen = next.screen;
+        self.segment_before_transition = next.before_transition;
     }
 
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.
@@ -419,6 +550,15 @@ fn end_press_without_click(ctx: &egui::Context, events: &mut Vec<egui::Event>) {
         );
     }
 }
+
+/// `egui::PointerButton` 을 그 순서(`as usize`)대로 늘어놓은 것.
+const POINTER_BUTTONS: [egui::PointerButton; egui::NUM_POINTER_BUTTONS] = [
+    egui::PointerButton::Primary,
+    egui::PointerButton::Secondary,
+    egui::PointerButton::Middle,
+    egui::PointerButton::Extra1,
+    egui::PointerButton::Extra2,
+];
 
 /// 위젯에 입력을 넣는 사건인지. 누름을 끝내는 사건(버튼 뗌·포인터 사라짐·터치 끝·취소·키 뗌)과 입력이 아닌 사건은
 /// 아니다(`MainViewState::drop_input_without_its_node`).

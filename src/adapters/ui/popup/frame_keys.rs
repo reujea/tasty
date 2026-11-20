@@ -166,6 +166,34 @@ impl PopupManager {
         true
     }
 
+    /// 지금 사건을 받는 몫(뒤 몫의 꼬리, 없으면 이번 몫)에 원시 사건도 결속·넘길 Esc·미전달 Esc 뗌 표시도 없는지.
+    /// `raw_left` 는 남은 egui 입력 큐 길이다(`MainViewState::seal_after_drawing_transition`).
+    pub(crate) fn open_segment_is_bare(&self, raw_left: usize) -> bool {
+        match self.keys.after_cut.back() {
+            Some(after) => {
+                raw_left == after.at
+                    && after.bound.is_none()
+                    && after.escape.is_empty()
+                    && !after.escape_released
+            }
+            None => {
+                raw_left == 0
+                    && self.keys.bound.is_none()
+                    && self.keys.escape.is_empty()
+                    && !self.keys.escape_released
+            }
+        }
+    }
+
+    /// 지금 사건을 받는 몫을 남은 egui 입력 큐 끝(`at`)에서 닫고 결속 없는 새 몫을 연다(그리기 중 전환의 봉인,
+    /// `MainViewState::seal_after_drawing_transition`). 끊는 조건을 거치지 않고, 닫는 몫의 결속·넘길 Esc 는 그대로 둔다.
+    pub(crate) fn seal_open_segment(&mut self, at: usize) {
+        self.keys.after_cut.push_back(AfterCut {
+            at,
+            ..AfterCut::default()
+        });
+    }
+
     /// 키 오버레이가 없어 egui 로 보내지 않은 Esc 뗌이 왔다. 그 뗌은 지금 받는 몫 차례에 egui 의 Escape 눌림을 풀어야
     /// 한다. 앞 몫(끊은 자리 앞의 Esc 누름 등)을 그리기 전에 풀면 그 누름이 남긴 눌림이 뗌 뒤에도 남는다. 그래서 그
     /// 몫의 패스를 닫을 때 푼다(`close_key_pass`).

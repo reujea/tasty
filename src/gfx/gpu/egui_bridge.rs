@@ -279,8 +279,11 @@ impl GpuState {
         let mut raw_input = self.take_pass_input(window, true);
         state.drop_input_without_its_node(&self.egui_ctx, &mut raw_input.events);
         adjust(&mut raw_input);
+        let drawn = state.fullscreen_stage_id();
         let output = self.egui_ctx.run(raw_input, |ctx| ui(ctx, state));
         state.close_input_pass(&self.egui_ctx);
+        let raw_left = self.egui_state.egui_input().events.len();
+        state.seal_after_drawing_transition(drawn, &mut self.egui_input_cuts, raw_left);
         output
     }
 

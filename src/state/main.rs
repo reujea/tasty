@@ -165,6 +165,17 @@ pub struct MainViewState {
     /// 이번 그리기 몫 키들의 사건 시점 복원 안내 안쪽 포커스(`cut_key_frame`). 키가 없는 몫은 `None` 이다.
     #[cfg(feature = "gui")]
     pub(crate) segment_notice: Option<bool>,
+    /// 이번 그리기 몫이 열린 화면(무대 ID, 일반 화면이면 `None`). 몫을 열 때의 `fullscreen_stage_id` 다.
+    #[cfg(feature = "gui")]
+    pub(crate) segment_screen: Option<crate::fullscreen_stages::StageId>,
+    /// 이번 그리기 몫이 그리기 중 전환 앞 화면에서 열린 몫이다(`seal_after_drawing_transition`). 그 화면이 아닌 화면을
+    /// 그리면 위젯에 입력을 넣는 사건을 뺀다(`drop_input_without_its_node`).
+    #[cfg(feature = "gui")]
+    pub(crate) segment_before_transition: bool,
+    /// 버튼별로 몫 폐기가 뺀 누름 중 아직 짝 뗌을 받지 않은 수(`egui::PointerButton` 순서). 눌려 있지 않은 버튼의 뗌이
+    /// 오면 그 뗌을 빼고 하나 내린다. 그 버튼의 누름을 전달하면 0 이 된다.
+    #[cfg(feature = "gui")]
+    pub(crate) dropped_presses: [u8; egui::NUM_POINTER_BUTTONS],
     /// egui 입력을 끊었을 때(`cut_key_frame`) 끊은 뒤 몫마다 그 몫의 첫 누름 스냅샷과 포커스 노드. 앞에서부터 다음
     /// 그리기들의 `press_snapshot`·`segment_focus` 가 된다.
     #[cfg(feature = "gui")]
