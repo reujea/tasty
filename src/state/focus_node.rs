@@ -23,6 +23,19 @@ use crate::adapters::ui::popup::frame_keys::Incoming;
 use crate::adapters::ui::popup::route::{PressSnapshot, ScopePath, path_of_focus, path_of_scope};
 use crate::core::CoreState;
 
+/// 탐색기 `sid` 본문(타입어헤드)이 지금 그리는 몫의 키를 받는지. 몫의 키 노드(`pass_key_node`)가 그 surface 이고,
+/// 그 몫의 키를 복원 안내 안쪽 포커스가 없을 때 분류했을 때다(`pass_notice_focus`). 값이 없으면 키가 없는 몫이라
+/// 받을 키도 없다. 창의 그리기(`draw_egui_panels`)와 시험 하네스가 같은 판정을 쓴다.
+pub(crate) fn explorer_takes_keys(
+    sid: Option<u32>,
+    pass_key_node: Option<FocusNode>,
+    pass_notice_focus: Option<bool>,
+) -> bool {
+    sid.is_some()
+        && pass_key_node == Some(FocusNode::Surface(sid))
+        && pass_notice_focus != Some(true)
+}
+
 /// 창의 포커스 노드.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FocusNode {
@@ -47,6 +60,8 @@ pub(crate) struct SegmentAfterCut {
     press: Option<PressSnapshot>,
     /// 그 몫에 처음 든 키 사건 시점의 포커스 노드. 누름만 든 몫은 끊어 닫을 때의 포커스 노드다.
     focus: Option<FocusNode>,
+    /// 그 몫 키들의 사건 시점 복원 안내 안쪽 포커스(`restore_notice::has_keyboard_focus`). 키가 없으면 `None` 이다.
+    notice: Option<bool>,
 }
 
 impl FocusNode {
@@ -190,6 +205,7 @@ impl super::MainViewState {
         incoming: Incoming,
     ) -> usize {
         let focus = self.focus_node(core);
+        let notice = crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups);
         let mut cuts = 0;
         loop {
             let node = *self.open_segment_focus();
@@ -198,7 +214,12 @@ impl super::MainViewState {
                 _ => None,
             };
             let changed = node.is_some_and(|node| node != focus);
-            if !self.popups.cut_key_frame(events, incoming, popup, changed) {
+            let notice_changed = incoming == Incoming::Key
+                && self.open_segment_notice().is_some_and(|n| n != notice);
+            if !self
+                .popups
+                .cut_key_frame(events, incoming, popup, changed, notice_changed)
+            {
                 break;
             }
             self.open_segment_focus().get_or_insert(focus);
@@ -208,8 +229,17 @@ impl super::MainViewState {
         }
         if incoming == Incoming::Key {
             self.open_segment_focus().get_or_insert(focus);
+            self.open_segment_notice().get_or_insert(notice);
         }
         cuts
+    }
+
+    /// 지금 사건을 받는 몫의 사건 시점 안내 포커스 칸.
+    fn open_segment_notice(&mut self) -> &mut Option<bool> {
+        match self.segments_after_cut.back_mut() {
+            Some(slot) => &mut slot.notice,
+            None => &mut self.segment_notice,
+        }
     }
 
     /// 지금 사건을 받는 몫(마지막으로 끊은 뒤 몫, 없으면 이번 그리기 몫)의 포커스 노드 칸.
@@ -268,6 +298,13 @@ impl super::MainViewState {
             .filter(|node| *node != FocusNode::Stage)
     }
 
+    /// 지금 그리는 몫 키들의 사건 시점 복원 안내 안쪽 포커스. 그 몫에 키가 없으면 `None` 이다. 안내 안쪽 컨트롤이
+    /// 포커스를 가진 동안 분류한 키는 창이 egui 로 보내지만 surface 본문의 키가 아니다. 그 값은 그리기 때 다시 읽지
+    /// 않는다(앞 몫의 바깥 누름이 안내 포커스를 풀 수 있다).
+    pub(crate) fn pass_notice_focus(&self) -> Option<bool> {
+        self.segment_notice
+    }
+
     /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷·
     /// 포커스 노드를 함께 꺼내, 다음 몫의 것(끊어 넘긴 몫의 것, 없으면 비움)을 다음 패스에 남긴다. 창의 egui 패스는
     /// 모두 이 함수로 닫는다(`GpuState::run_main_pass`). 그 몫에 egui 로 보내지 않은 Esc 뗌이 왔으면 패스를 마친
@@ -279,6 +316,7 @@ impl super::MainViewState {
         let next = self.segments_after_cut.pop_front().unwrap_or_default();
         self.press_snapshot = next.press;
         self.segment_focus = next.focus;
+        self.segment_notice = next.notice;
     }
 
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.

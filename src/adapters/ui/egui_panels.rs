@@ -146,6 +146,8 @@ pub fn draw_egui_panels(
     // 아니라 그리는 몫의 키 노드로 정한다. 주소 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다).
     let focused_surface_id = state.focused_surface_id(engine);
     let pass_key_node = state.pass_key_node(engine);
+    // 그 몫 키들을 분류한 사건 시점의 복원 안내 포커스. 탐색기 타입어헤드는 그때 안내가 키를 가졌으면 읽지 않는다.
+    let pass_notice_focus = state.pass_notice_focus();
     // OS 에서 끌어 오는 파일. 좌표는 물리 픽셀이라 egui 논리 포인트로 바꾼다.
     let ppp = ctx.pixels_per_point();
     let os_hover = state.drop_hover.as_ref().and_then(|h| {
@@ -270,8 +272,11 @@ pub fn draw_egui_panels(
                         &explorer_recent_dirs,
                         mirror_ws_id,
                         &crate::explorer_ui::ExplorerInput {
-                            takes_keys: info.surface_id.is_some()
-                                && pass_key_node == Some(FocusNode::Surface(info.surface_id)),
+                            takes_keys: crate::state::focus_node::explorer_takes_keys(
+                                info.surface_id,
+                                pass_key_node,
+                                pass_notice_focus,
+                            ),
                             shortcut_chars: &explorer_shortcut_chars,
                         },
                     )

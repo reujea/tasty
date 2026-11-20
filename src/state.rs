@@ -261,6 +261,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             segment_focus: None,
             #[cfg(feature = "gui")]
+            segment_notice: None,
+            #[cfg(feature = "gui")]
             segments_after_cut: Default::default(),
             #[cfg(feature = "gui")]
             frame_key_owner: None,

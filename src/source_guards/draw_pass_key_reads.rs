@@ -209,7 +209,8 @@ fn the_scan_counts_draw_code_and_skips_test_modules() {
     assert!(!in_scope("src/adapters/ui/popup/press_cut_tests.rs"));
 }
 
-/// 탐색기 본문과 html 주소 입력칸의 키 판정은 그리는 몫의 키 노드(`pass_key_node`) 하나에서 꺼낸다. 그 값은 주소
+/// 탐색기 본문과 html 주소 입력칸의 키 판정은 그리는 몫의 키 노드(`pass_key_node`) 하나에서 꺼낸다. 탐색기는 그 몫
+/// 키들의 사건 시점 안내 포커스(`pass_notice_focus`)도 같은 판정 함수(`explorer_takes_keys`)로 읽는다. 그 값은 주소
 /// 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다). 동작은 `adapters::ui::popup::route::tests::pass_focus` 가 잰다.
 #[test]
 fn the_explorer_and_address_inputs_read_the_pass_key_node() {
@@ -220,9 +221,10 @@ fn the_explorer_and_address_inputs_read_the_pass_key_node() {
     let code: String = src.chars().filter(|c| !c.is_whitespace()).collect();
     let read = "letpass_key_node=state.pass_key_node(engine);";
     let take = "letmuthtml_bands=std::mem::take(&mutstate.html_address);";
-    let input = "takes_keys:info.surface_id.is_some()&&pass_key_node==Some(FocusNode::Surface(info.surface_id)),";
+    let notice = "letpass_notice_focus=state.pass_notice_focus();";
+    let input = "takes_keys:crate::state::focus_node::explorer_takes_keys(info.surface_id,pass_key_node,pass_notice_focus,),";
     let address = "&source,pass_key_node==Some(FocusNode::HtmlAddress(sid)),);";
-    for needle in [read, take, input, address] {
+    for needle in [read, notice, take, input, address] {
         assert_eq!(
             code.matches(needle).count(),
             1,
@@ -232,5 +234,10 @@ fn the_explorer_and_address_inputs_read_the_pass_key_node() {
     assert!(
         code.find(read) < code.find(take),
         "몫의 키 노드를 주소 띠를 꺼낸 뒤에 읽는다"
+    );
+    // 안내 포커스는 그 몫 키들의 사건 시점 값만 읽는다. 그리기 때 다시 읽으면 앞 몫의 바깥 누름이 푼 값을 읽는다.
+    assert!(
+        !code.contains("restore_notice::has_keyboard_focus("),
+        "탐색기 키 판정이 그리기 시점 안내 포커스를 읽는다"
     );
 }

@@ -162,6 +162,9 @@ pub struct MainViewState {
     /// (`pass_focus_node`).
     #[cfg(feature = "gui")]
     pub(crate) segment_focus: Option<crate::state::focus_node::FocusNode>,
+    /// 이번 그리기 몫 키들의 사건 시점 복원 안내 안쪽 포커스(`cut_key_frame`). 키가 없는 몫은 `None` 이다.
+    #[cfg(feature = "gui")]
+    pub(crate) segment_notice: Option<bool>,
     /// egui 입력을 끊었을 때(`cut_key_frame`) 끊은 뒤 몫마다 그 몫의 첫 누름 스냅샷과 포커스 노드. 앞에서부터 다음
     /// 그리기들의 `press_snapshot`·`segment_focus` 가 된다.
     #[cfg(feature = "gui")]

@@ -87,6 +87,7 @@ fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
         let take = state.surfaces_take_keys();
         // `egui_panels` 와 같은 값: 그 몫의 키를 받는 포커스 노드.
         let key_node = state.pass_key_node(&read);
+        let notice = state.pass_notice_focus();
         let mut bands = std::mem::take(&mut state.html_address);
         crate::adapters::ui::popup::body_keys::with_body_keys(ctx, take, || match bodies {
             Bodies::Explorers(l, r) => {
@@ -99,7 +100,7 @@ fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
                         sid,
                         rect,
                         ex,
-                        key_node == Some(FocusNode::Surface(Some(sid))),
+                        crate::state::focus_node::explorer_takes_keys(Some(sid), key_node, notice),
                     );
                 }
             }
