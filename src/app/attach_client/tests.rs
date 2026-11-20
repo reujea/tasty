@@ -137,6 +137,8 @@ pub(crate) fn test_session_with_frames(
     (session, rx)
 }
 
+// 실제 `App` 을 만드는 시험(X11, Linux 전용)만 쓴다.
+#[cfg(target_os = "linux")]
 impl crate::app::App {
     /// 시험 보조: 출력 회차의 관측과 설치 단계만 돈다. 이벤트 적용과 처리는 하지 않는다.
     pub(crate) fn run_install_stage(&mut self) {
@@ -145,6 +147,7 @@ impl crate::app::App {
     }
 }
 
+#[cfg(target_os = "linux")]
 /// 시험이 재연결 성공을 흉내 낸다. 확정된 끝은 되돌릴 수 없으므로 끝이 열린 새 전송과 epoch 로 바꾼다.
 pub(crate) fn replace_with_open_transport(session: &mut AttachClientSession) {
     let fresh = test_session(session.state.local_workspace, HashMap::new());
