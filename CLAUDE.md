@@ -21,7 +21,7 @@ Rust 기반 네이티브 GUI 앱으로 Windows, macOS, Linux 를 모두 지원�
 
 # 핵심 원칙
 
-작업 전에 [정체성](docs/identity.md)과 [제품 원칙](docs/principles/index.md)을 읽는다. 일반 구현의 계약과 이유는 해당 설계·기능·개발 문서에 기록한다. 원칙 간 충돌은 원칙 문서에서 우선순위를 해소하고, 원칙의 예외·미충족을 채택한 결정만 ADR에 남긴다.
+아래 세 항목을 지킨다. 문서·ADR을 어디에 쓰는지는 '문서 갱신' 절을 따른다.
 
 - 에이전트는 터미널 작업을 수행할 수 있다. release에서는 사용자 포커스를 빼앗는 동작을 제공하지 않고 debug에서는 사용자 조작 재현이 가능해야 한다. debug 핸들러는 모듈 선언에 cfg(debug_assertions)를 둔 별도 파일로 분리한다([debug IPC](docs/dev-guide/debug-ipc.md)).
 - 에이전트가 자기 작업에 사용하는 기능은 IPC·CLI 양쪽에서 제공한다. 대상은 ID로 지정하며 현재 선택·스크롤·히스토리 보존 계약은 [포커스 정책](docs/design/policies/focus.md)에 있다.
