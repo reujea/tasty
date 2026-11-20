@@ -425,20 +425,28 @@ impl RequestContext {
         })
     }
 
-    /// 사용자 입력이 포커스를 주며 여는 팝업 요청이 대기열에 있는지. host intent 대기열은 처리기와 같은 판정
-    /// (`intent::popup::gives_user_focus`)으로, plugin 팝업 열기 대기열은 그 처리기가 쓰는 출처
-    /// (`PendingPopupOpen::opener`)를 `opened_by_user` 로 판정한다. 창은 키 사건 하나를 처리한 뒤 이 값이 참이면 그
-    /// 자리에서 두 대기열을 처리해, 그 팝업이 다음 사건 시점의 포커스 노드가 되게 한다(같은 묶음의 뒤 키가 그 팝업
-    /// 몫이 된다).
+    /// 처리하면 이 창의 포커스 노드를 바꾸는 팝업 요청이 대기열에 있는지. host intent 대기열은 처리기와 같은 판정
+    /// (`intent::popup::gives_user_focus`)으로, plugin 팝업 열기 대기열은 여는 처리와 같은 판정
+    /// (`popup_scope::open_would_focus_window`)으로 본다. plugin 매니저가 없으면 plugin 팝업은 열리지 않는다. 창은 키
+    /// 사건 하나를 처리한 뒤 이 값이 참이면 그 자리에서 두 대기열을 처리해, 그 팝업이 다음 사건 시점의 포커스 노드가
+    /// 되게 한다(같은 묶음의 뒤 키가 그 팝업 몫이 된다).
     #[cfg(feature = "gui")]
-    pub(crate) fn user_focus_open_queued(&self) -> bool {
+    pub(crate) fn user_focus_open_queued(
+        &self,
+        mgr: Option<&crate::plugin::PluginManager>,
+    ) -> bool {
         self.pending_intents
             .iter()
             .any(|intent| crate::intent::popup::gives_user_focus(self, intent))
-            || self
-                .pending_popup_opens
-                .iter()
-                .any(|open| crate::plugin_bridge::popup_scope::opened_by_user(open.opener()))
+            || mgr.is_some_and(|mgr| {
+                self.pending_popup_opens.iter().any(|open| {
+                    crate::plugin_bridge::popup_scope::open_would_focus_window(
+                        &self.plugin_window_popups,
+                        mgr,
+                        open,
+                    )
+                })
+            })
     }
 
     /// 등록된 convert_input_popup을 열도록 요청한다. 변환 대상이 있으면 context에 담는다.

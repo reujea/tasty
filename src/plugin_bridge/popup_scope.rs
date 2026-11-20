@@ -136,6 +136,35 @@ pub(crate) fn focuses_this_window(
     opened_by_user(opener) && drawn_in_window(window_popups, instance_id, decl)
 }
 
+/// 대기열의 plugin 팝업 열기 하나를 지금 처리하면 이 창(창 범위 결속 `window_popups`)의 포커스 노드를 바꾸는지. 여는
+/// 처리(`open_one`)와 같은 값으로 정한다. 범위 선언이 없거나(`declared_popup_scope`) 필요한 대상이 없으면
+/// (`lacks_required_target`) 열지 않는다. 같은 팝업의 열린 인스턴스가 있으면 여는 처리가 그 인스턴스를 돌려받고 창
+/// 결속을 바꾸지 않으므로(`is_open`, `bind_window_popup`) 그 인스턴스로 `focuses_this_window` 를 본다. 없으면 새
+/// 인스턴스를 이 창에 결속하므로(`bind_window_popup`) 이 창에 그리는 인스턴스다. plugin 이 열기를 거절하거나 송신이
+/// 실패하는 것은 미리 알 수 없다(그때는 매니저가 인스턴스를 지우고 포커스가 풀린다).
+#[cfg(feature = "gui")]
+pub(crate) fn open_would_focus_window(
+    window_popups: &std::collections::BTreeSet<u64>,
+    mgr: &tasty_host_plugin::PluginManager,
+    open: &crate::state::PendingPopupOpen,
+) -> bool {
+    let Some(decl) = declared_popup_scope(mgr, &open.plugin_id, &open.popup_id) else {
+        return false;
+    };
+    if lacks_required_target(Some(decl), open.target_surface) {
+        return false;
+    }
+    match mgr
+        .popup_instances()
+        .find(|(_, inst)| inst.plugin_id == open.plugin_id && inst.popup_id == open.popup_id)
+    {
+        Some((id, inst)) => {
+            focuses_this_window(window_popups, open.opener(), id, inst.contribute.scope)
+        }
+        None => opened_by_user(open.opener()),
+    }
+}
+
 /// 방금 연 plugin 팝업 인스턴스를, 사용자가 연 것이면 그 팝업을 그리는 창의 포커스 노드로 한다(`focuses_this_window`).
 /// 다음 그리기 전에 키가 와도 살아 있는 노드로 보도록 결속 범위를 지금 기록한다. 대상 surface 결속 뒤에 부른다.
 pub(crate) fn focus_opened_popup(

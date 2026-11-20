@@ -148,19 +148,18 @@ fn opened_for(
 }
 
 /// 이 intent 를 지금 처리하면 사용자 입력으로 포커스를 주며 팝업을 여는지. 처리기([`handle`])와 같은 값
-/// ([`opened_for`])을 읽는다. 열린 인스턴스에 잇는 열기, 같은 범위에 열린 인스턴스의 내용만 바꾸는 다시 열기,
-/// 열린 인스턴스를 닫는 토글은 포커스를 주지 않는다. 대기열의 앞 intent 가 바꿀 상태는 보지 않고 지금 상태로 판정한다.
+/// ([`opened_for`])과 실제 열기의 포커스 판정(`PopupManager::request_takes_focus`: 등록된 선언, 사용자 출처, 요청의
+/// 포커스, 선언의 `takes_focus`)을 읽는다. 열린 인스턴스에 잇는 열기, 같은 범위에 열린 인스턴스의 내용만 바꾸는 다시
+/// 열기, 열린 인스턴스를 닫는 토글은 포커스를 주지 않는다. 대기열의 앞 intent 가 바꿀 상태는 보지 않고 지금 상태로 판정한다.
 #[cfg(feature = "gui")]
 pub(crate) fn gives_user_focus(state: &RequestContext, intent: &DispatchedIntent) -> bool {
-    if !intent.origin.is_user() {
-        return false;
-    }
+    let takes = |r: &OpenRequest| state.popups.request_takes_focus(r, intent.origin.is_user());
     match &intent.body {
         Intent::Ui(UiIntent::OpenPopup(r) | UiIntent::TogglePopup(r)) => {
-            r.focus && opened_for(state, r).is_none()
+            takes(r) && opened_for(state, r).is_none()
         }
         Intent::Ui(UiIntent::ReopenPopup(r)) => {
-            r.focus && !opened_for(state, r).is_some_and(|(_, same_scope)| same_scope)
+            takes(r) && !opened_for(state, r).is_some_and(|(_, same_scope)| same_scope)
         }
         _ => false,
     }

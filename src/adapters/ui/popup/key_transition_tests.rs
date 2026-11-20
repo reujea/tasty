@@ -58,7 +58,7 @@ fn find_shortcut(s: &mut Scene, input: &mut WindowInput, sid: u32) {
     let mut engine = s.session.borrow_mut();
     key_focus(&mut s.state, &engine.read(), input);
     open_or_focus_for(&mut s.state, Some(sid), "find");
-    if s.state.user_focus_open_queued() {
+    if s.state.user_focus_open_queued(Some(&s.mgr)) {
         for intent in s.state.take_pending_intents() {
             crate::intent::popup::handle(&mut s.state, &mut engine, &intent);
         }
@@ -230,7 +230,7 @@ fn plugin_shortcut(s: &mut Scene) {
             target.structure_target(),
         );
     }
-    if s.state.user_focus_open_queued() {
+    if s.state.user_focus_open_queued(Some(&s.mgr)) {
         crate::app::dispatch::popup_opens::open_pending_popups(
             Some(&mut s.mgr),
             std::iter::once((&mut s.state, s.session.borrow_mut())),

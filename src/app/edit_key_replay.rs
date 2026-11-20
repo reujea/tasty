@@ -135,7 +135,10 @@ impl App {
             .views
             .get(&id)
             .and_then(|view| view.as_main())
-            .is_some_and(|main| main.state.user_focus_open_queued());
+            .is_some_and(|main| {
+                main.state
+                    .user_focus_open_queued(self.plugin_manager.as_ref())
+            });
         if queued {
             self.dispatch_pending_intents();
             self.dispatch_pending_popup_opens();

@@ -391,8 +391,9 @@ fn a_debug_clipboard_injection_into_a_main_window_cuts_the_segment_first() {
 /// 창 입력의 키·IME 사건 하나를 view 가 처리한 뒤, 사용자 입력이 포커스를 주며 연 팝업 요청이 대기열에 있으면 그 자리에서
 /// 대기열을 처리한다(`App::apply_user_focus_opens`). 그래야 같은 묶음의 다음 키가 사건 시점의 노드(연 팝업)로 끊긴다. 창
 /// view 앞에서 소비한 plugin 단축키와 편집 보류 재생(원래 키·view 로 가는 줄 선 입력)도 같은 처리를 거친다. 판정
-/// (`user_focus_open_queued`)은 host intent 대기열을 처리기와 같은 값(`intent::popup::opened_for`)으로, plugin 팝업 열기
-/// 대기열을 여는 처리와 같은 출처(`PendingPopupOpen::opener`)로 본다. 동작은 `adapters::ui::popup::route::tests::key_transition`
+/// (`user_focus_open_queued`)은 host intent 대기열을 처리기와 같은 값(`intent::popup::opened_for`,
+/// `PopupManager::request_takes_focus`)으로, plugin 팝업 열기 대기열을 여는 처리와 같은 술어
+/// (`popup_scope::open_would_focus_window` → `focuses_this_window`)로 본다. 동작은 `adapters::ui::popup::route::tests::key_transition`
 /// 이 잰다(그 시험은 이 함수 대신 같은 판정과 대기열 처리를 부른다).
 #[test]
 fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
@@ -442,7 +443,7 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
         squeeze(&fn_body(&src, "fn apply_user_focus_opens(").expect("apply_user_focus_opens"));
     at(
         &apply_fn,
-        ".is_some_and(|main|main.state.user_focus_open_queued());ifqueued{self.dispatch_pending_intents();self.dispatch_pending_popup_opens();}",
+        ".is_some_and(|main|{main.state.user_focus_open_queued(self.plugin_manager.as_ref())});ifqueued{self.dispatch_pending_intents();self.dispatch_pending_popup_opens();}",
         "두 대기열 처리",
     );
     let state = read("src/state.rs");
@@ -455,9 +456,27 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     );
     at(
         &queued,
-        "crate::plugin_bridge::popup_scope::opened_by_user(open.opener())",
+        "crate::plugin_bridge::popup_scope::open_would_focus_window(&self.plugin_window_popups,mgr,open,)",
         "plugin 팝업 열기 판정",
     );
+    let scope = read("src/plugin_bridge/popup_scope.rs");
+    for (name, needle) in [
+        (
+            "fn focus_opened_popup(",
+            "if!focuses_this_window(&window.plugin_window_popups,opener,instance_id,inst.contribute.scope,){return;}",
+        ),
+        (
+            "fn open_would_focus_window(",
+            "Some((id,inst))=>{focuses_this_window(window_popups,open.opener(),id,inst.contribute.scope)}",
+        ),
+        (
+            "fn open_would_focus_window(",
+            "iflacks_required_target(Some(decl),open.target_surface){returnfalse;}",
+        ),
+    ] {
+        let body = squeeze(&fn_body(&scope, name).expect(name));
+        at(&body, needle, "plugin 열기와 즉시 적용 판정의 같은 술어");
+    }
     let opens = squeeze(
         &fn_body(&read("src/app/dispatch/popup_opens.rs"), "fn open_one(").expect("open_one"),
     );
@@ -489,9 +508,21 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     }
     let gives = squeeze(&fn_body(&popup, "fn gives_user_focus(").expect("gives_user_focus"));
     for needle in [
-        "r.focus&&opened_for(state,r).is_none()",
-        "r.focus&&!opened_for(state,r).is_some_and(|(_,same_scope)|same_scope)",
+        "lettakes=|r:&OpenRequest|state.popups.request_takes_focus(r,intent.origin.is_user());",
+        "takes(r)&&opened_for(state,r).is_none()",
+        "takes(r)&&!opened_for(state,r).is_some_and(|(_,same_scope)|same_scope)",
     ] {
-        at(&gives, needle, "즉시 처리 판정의 열린 인스턴스");
+        at(
+            &gives,
+            needle,
+            "즉시 처리 판정의 열린 인스턴스와 포커스 술어",
+        );
     }
+    let manager = read("src/adapters/ui/popup.rs");
+    let open_request = squeeze(&fn_body(&manager, "pub fn open_request(").expect("open_request"));
+    at(
+        &open_request,
+        "letfocused=self.request_takes_focus(request,by_user);",
+        "실제 열기의 포커스 술어",
+    );
 }
