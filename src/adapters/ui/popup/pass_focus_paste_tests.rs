@@ -171,8 +171,10 @@ fn pass(s: &mut FindScene, now: Instant) -> Seen {
     let read = engine.read();
     let screen_drawn = s.state.fullscreen_stage_id();
     let focused = s.ctx.memory(|m| m.focused()).map_or(0, |id| id.value());
+    // 창처럼 직전 일반 패스가 그린 Find 입력칸을 알린다(`run_main_pass`).
+    s.held.set_find_fields(&s.state.find_fields);
     let (held, edit) = (&mut s.held, &mut s.edit);
-    let events = s
+    let mut events = s
         .input
         .take_pass_observed(&mut s.state, &s.ctx, &mut |_, events| {
             edit.input_taken(events);
@@ -183,6 +185,9 @@ fn pass(s: &mut FindScene, now: Instant) -> Seen {
     if s.input.last_pass_dropped() {
         s.edit.input_dropped();
     }
+    // Find 입력칸이 받을 붙여넣기는 그 칸이 키를 받는 일반 패스에서만 필터 뒤에 든다.
+    let found = s.held.receive_find(focused, s.state.find_paste_open());
+    events.extend(found.into_iter().map(Event::Paste));
     let take = s.state.surfaces_take_keys();
     let stage = s.state.pass_draws_stage();
     let raw = egui::RawInput {

@@ -303,6 +303,13 @@ impl super::MainViewState {
         dropping
     }
 
+    /// 탐색기 Find 입력칸이 받을 정착한 붙여넣기를 이번 패스에 넣을 수 있는지(`HeldPastes::receive_find`): 이번 패스가
+    /// 일반 화면을 그리고 그 surface 본문이 키를 받는다. 무대 패스는 Find 를 그리지 않고, 팝업이 키를 묶은 패스는 본문
+    /// 키 게이트가 붙여넣기를 가린다(`with_body_keys`).
+    pub(crate) fn find_paste_open(&self) -> bool {
+        !self.pass_draws_stage() && self.surfaces_take_keys()
+    }
+
     /// 몫 폐기가 뺀 누름의 짝 뗌을 뺀다. 사건을 순서대로 보며 버튼의 눌림을 따라간다(시작은 egui 의
     /// `pointer.button_down`, 그 뒤 이 패스에 전달하는 누름·뗌). 뗌은 먼저 눌림을 본다. 눌려 있으면(다른 입력원의 누름,
     /// 이 패스 앞쪽에서 전달한 누름) 남긴다. 눌려 있지 않고 그 버튼의 뺀 누름이 남았으면 그 뗌을 빼고 수를 내린다.

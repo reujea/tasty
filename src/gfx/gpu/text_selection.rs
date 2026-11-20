@@ -101,7 +101,7 @@ impl GpuState {
 
     /// The input target a paste is meant for: the plugin popup receiving keys, else the widget
     /// focused when it was asked.
-    fn focus_tag(&self) -> u64 {
+    pub(super) fn focus_tag(&self) -> u64 {
         if let Some(instance) = self.plugin_paste_target {
             return plugin_popup_tag(instance);
         }
@@ -163,6 +163,7 @@ impl GpuState {
     /// frame's focus input is counted and a waiting paste is checked against the focus at the
     /// moment egui will apply it.
     pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
+        self.held_pastes.set_find_fields(&[]);
         self.take_pass_input(window, false)
     }
 
@@ -220,6 +221,10 @@ pub(crate) struct HeldPastes {
     items: Vec<(u64, String, std::time::Instant)>,
     /// Frames since the last one with focus input, up to `SETTLE_FRAMES`.
     quiet: u8,
+    /// The explorer Find fields the main window's last normal pass drew. A settled paste for one of
+    /// them goes in only after the pass's segment filter, in a pass that gives the field its keys
+    /// ([`Self::receive_find`]).
+    find_fields: Vec<u64>,
 }
 
 impl Default for HeldPastes {
@@ -227,6 +232,7 @@ impl Default for HeldPastes {
         Self {
             items: Vec::new(),
             quiet: SETTLE_FRAMES,
+            find_fields: Vec::new(),
         }
     }
 }
@@ -282,11 +288,39 @@ impl HeldPastes {
         if self.quiet < SETTLE_FRAMES || self.items.is_empty() {
             return Vec::new();
         }
-        let finished = std::mem::take(&mut self.items)
-            .into_iter()
-            .map(|(tag, text, _)| (tag, text))
-            .collect();
+        let mut finished = Vec::new();
+        for (tag, text, arrived) in std::mem::take(&mut self.items) {
+            if tag == focused && self.find_fields.contains(&tag) {
+                self.items.push((tag, text, arrived));
+            } else {
+                finished.push((tag, text));
+            }
+        }
         pastes_for(finished, focused)
+    }
+
+    /// The Find fields of the pass about to be taken (the main window's, empty for any other).
+    pub(crate) fn set_find_fields(&mut self, fields: &[u64]) {
+        self.find_fields.clear();
+        self.find_fields.extend_from_slice(fields);
+    }
+
+    /// After the segment filter: the settled pastes for the focused Find field, when `open` (the
+    /// pass draws the normal screen and its surfaces take keys). Otherwise they stay for a later
+    /// pass. [`Self::frame`] has already dropped stale ones and those for another field.
+    pub(crate) fn receive_find(&mut self, focused: u64, open: bool) -> Vec<String> {
+        if !open || self.quiet < SETTLE_FRAMES || !self.find_fields.contains(&focused) {
+            return Vec::new();
+        }
+        let mut taken = Vec::new();
+        self.items.retain(|(tag, text, _)| {
+            let take = *tag == focused;
+            if take {
+                taken.push(text.clone());
+            }
+            !take
+        });
+        taken
     }
 }
 

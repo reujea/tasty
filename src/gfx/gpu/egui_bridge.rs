@@ -276,11 +276,19 @@ impl GpuState {
     ) -> egui::FullOutput {
         self.set_plugin_paste_target(state.frame_plugin_key_target(None));
         state.popups.begin_key_pass(self.egui_escape_held());
+        self.held_pastes.set_find_fields(&state.find_fields);
         let mut raw_input = self.take_pass_input(window, true);
         let dropped = state.drop_input_without_its_node(&self.egui_ctx, &mut raw_input.events);
         if dropped {
             self.edit_keys.input_dropped();
         }
+        let focused = self.focus_tag();
+        let found = self
+            .held_pastes
+            .receive_find(focused, state.find_paste_open());
+        raw_input
+            .events
+            .extend(found.into_iter().map(egui::Event::Paste));
         adjust(&mut raw_input);
         let drawn = state.fullscreen_stage_id();
         let output = self.egui_ctx.run(raw_input, |ctx| ui(ctx, state));

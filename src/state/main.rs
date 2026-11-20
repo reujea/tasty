@@ -176,6 +176,11 @@ pub struct MainViewState {
     /// 오면 그 뗌을 빼고 하나 내린다. 그 버튼의 누름을 전달하면 0 이 된다.
     #[cfg(feature = "gui")]
     pub(crate) dropped_presses: [u8; egui::NUM_POINTER_BUTTONS],
+    /// 직전 일반 화면 패스가 그린 탐색기 Find 입력칸의 egui 위젯 ID(`Id::value`). 일반 화면을 그릴 때마다 새로
+    /// 채우고(`draw_egui_panels`) 무대 패스는 바꾸지 않는다. 그 칸이 받을 붙여넣기를 알아보는 데 쓴다
+    /// (`HeldPastes::receive_find`).
+    #[cfg(feature = "gui")]
+    pub(crate) find_fields: Vec<u64>,
     /// egui 입력을 끊었을 때(`cut_key_frame`) 끊은 뒤 몫마다 그 몫의 첫 누름 스냅샷과 포커스 노드. 앞에서부터 다음
     /// 그리기들의 `press_snapshot`·`segment_focus` 가 된다.
     #[cfg(feature = "gui")]

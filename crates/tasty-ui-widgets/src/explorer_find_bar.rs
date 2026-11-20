@@ -45,6 +45,8 @@ pub struct ExplorerFindEvents {
     pub subfolders_toggled: bool,
     /// 입력 칸에 포커스가 있다. 호출자가 이 동안 목록 타입어헤드를 끈다.
     pub field_focused: bool,
+    /// 입력 칸의 egui 위젯 ID. 호출자가 그 칸이 받을 붙여넣기를 알아볼 때 쓴다.
+    pub field_id: Option<egui::Id>,
 }
 
 /// 처음 열 때 입력 칸에 포커스를 준다.
@@ -127,6 +129,7 @@ pub fn explorer_find_bar(
     }
     events.changed = resp.changed();
     events.field_focused = resp.has_focus();
+    events.field_id = Some(resp.id);
     events.escape = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape));
     events
 }

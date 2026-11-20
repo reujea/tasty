@@ -132,6 +132,8 @@ pub fn draw_egui_panels(
     // the store at the same time as `&mut Panel` from `engine.workspaces()`.
     let mut explorer_views = std::mem::take(&mut state.explorer_views);
     explorer_views.begin_poll_frame();
+    // 이번 일반 패스가 그린 Find 입력칸으로 새로 채운다. 키가 가려진 패스에서도 그린 칸은 넣는다.
+    state.find_fields.clear();
     let explorer_now = std::time::Instant::now();
     // egui-winit 이 winit Focused 이벤트로 갱신하는 OS 창 포커스.
     let explorer_window_focused = ctx.input(|i| i.focused);
@@ -282,6 +284,9 @@ pub fn draw_egui_panels(
                     )
                 },
             );
+            if let Some(id) = view.find_field_id() {
+                state.find_fields.push(id.value());
+            }
             if let Some(a) = act
                 && pending_explorer_action.is_none()
             {

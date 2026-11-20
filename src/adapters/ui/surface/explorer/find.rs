@@ -31,6 +31,8 @@ pub(crate) struct FindState {
     focus: bool,
     /// 입력 칸이 키를 받고 있다. 그동안 타입어헤드와 목록 단축키를 멈춘다.
     pub(crate) field_focused: bool,
+    /// 마지막으로 그린 입력 칸의 egui 위젯 ID.
+    field_id: Option<egui::Id>,
     search: Option<Search>,
     filtered: Option<Filtered>,
 }
@@ -92,6 +94,7 @@ impl ExplorerView {
                     deep: false,
                     focus: true,
                     field_focused: false,
+                    field_id: None,
                     search: None,
                     filtered: None,
                 })
@@ -631,12 +634,18 @@ pub(super) fn bar(ui: &mut egui::Ui, theme: &Theme, view: &mut ExplorerView, rem
 }
 
 impl ExplorerView {
+    /// 열린 Find 바가 마지막으로 그린 입력 칸의 egui 위젯 ID.
+    pub(crate) fn find_field_id(&self) -> Option<egui::Id> {
+        self.find.as_ref()?.field_id
+    }
+
     /// Find 바에서 일어난 일을 반영한다. `deep` 은 바가 돌려준 Subfolders 값이다.
     pub(super) fn apply_find_events(&mut self, events: ExplorerFindEvents, deep: bool) {
         let Some(find) = self.find.as_mut() else {
             return;
         };
         find.field_focused = events.field_focused;
+        find.field_id = events.field_id;
         if events.close || (events.escape && find.query.is_empty()) {
             self.find = None;
             return;

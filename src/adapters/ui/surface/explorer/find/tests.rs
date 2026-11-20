@@ -286,6 +286,7 @@ fn searched(outcome: Outcome, skipped: usize) -> FindState {
         deep: true,
         focus: false,
         field_focused: false,
+        field_id: None,
         filtered: None,
         search: Some(Search {
             receipt: None,
