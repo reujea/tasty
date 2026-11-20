@@ -236,16 +236,23 @@ impl super::MainViewState {
     /// 이번 패스 입력 `events` 에서, 그 몫의 포커스 노드가 지금 그리는 화면에 없으면 위젯에 입력을 넣는 사건
     /// (`delivers_input`: 키 누름·글자·IME·붙여넣기·복사·잘라내기·포인터 이동·버튼 누름·휠·터치 시작·이동·확대)을
     /// 뺀다. 누름을 끝내는 사건(버튼 뗌·포인터 사라짐·터치 끝·취소·키 뗌)은 남겨, 다른 화면에서 시작한 egui 의 눌림
-    /// 상태가 풀리게 한다. 포인터 이동을 빼는 것은 그 화면에서 눌린 채인 버튼의 끌기가 되지 않게 하기 위해서다. 창은
-    /// 무대와 일반 화면을 지금 무대 상태로 고른다(`GpuState::render`). 그리기 전에 종료 키가 무대를 닫았으면 무대
-    /// 노드의 몫(무대 안 글자·누름·종료 키)은 일반 화면으로 그리지만 그 입력은 일반 화면의 어느 노드 것도 아니다.
-    /// 그리기 전에 무대가 열렸으면 무대 밖 노드의 몫도 같다. 패스 입력을 꺼내는 곳(`GpuState::run_main_pass`)이 부른다.
-    pub(crate) fn drop_input_without_its_node(&self, events: &mut Vec<egui::Event>) {
+    /// 상태가 풀리게 한다. 남긴 버튼 뗌은 클릭·드래그 끝·드롭을 만들지 않게 넘긴다(`end_press_without_click`).
+    /// 포인터 이동을 빼는 것은 그 화면에서 눌린 채인 버튼의 끌기가 되지 않게 하기 위해서다. 창은 무대와 일반 화면을
+    /// 지금 무대 상태로 고른다(`GpuState::render`). 그리기 전에 종료 키가 무대를 닫았으면 무대 노드의 몫(무대 안
+    /// 글자·누름·종료 키)은 일반 화면으로 그리지만 그 입력은 일반 화면의 어느 노드 것도 아니다. 그리기 전에 무대가
+    /// 열렸으면 무대 밖 노드의 몫도 같다. 패스 입력을 꺼내는 곳(`GpuState::run_main_pass`)이 그 패스를 돌리기 직전에
+    /// 부른다.
+    pub(crate) fn drop_input_without_its_node(
+        &self,
+        ctx: &egui::Context,
+        events: &mut Vec<egui::Event>,
+    ) {
         let Some(node) = self.segment_focus else {
             return;
         };
         if (node == FocusNode::Stage) != self.pass_draws_stage() {
             events.retain(|e| !delivers_input(e));
+            end_press_without_click(ctx, events);
         }
     }
 
@@ -337,6 +344,40 @@ impl super::MainViewState {
             .filter(|(_, z)| above.is_none_or(|a| *z > a))
             .max_by_key(|(_, z)| *z)
             .map(|(node, _)| node)
+    }
+}
+
+/// 그려진 화면에 노드가 없는 몫에 남은 버튼 뗌을, egui 의 눌림 상태만 풀고 클릭·드래그 끝·드롭은 만들지 않게
+/// 고친다. 그 몫을 그리는 패스 바로 전에 부른다.
+/// - egui 가 그 버튼을 눌린 상태로 갖고 있지 않으면 그 뗌은 뺀다. egui 는 누른 시점이 없는 뗌도 클릭으로 세고
+///   전역 클릭 시각을 갱신한다.
+/// - 남긴 첫 뗌 앞에 누른 자리에서 클릭 거리(`max_click_dist`)를 넘는 포인터 이동을 하나 넣는다. egui 는 그만큼
+///   움직인 누름의 뗌을 클릭으로 세지 않으므로 전역 클릭 시각(다음 클릭의 더블클릭 판정)이 바뀌지 않는다.
+/// - 직전 패스의 끌기를 멈춰(`Context::stop_dragging`) 이번 패스가 그 위젯의 `drag_stopped` 를 내지 않게 하고,
+///   끌어 놓기 payload 를 지워(`DragAndDrop::clear_payload`) 이번 화면이 뗌을 드롭으로 받지 않게 한다.
+fn end_press_without_click(ctx: &egui::Context, events: &mut Vec<egui::Event>) {
+    events.retain(|e| match e {
+        egui::Event::PointerButton {
+            button,
+            pressed: false,
+            ..
+        } => ctx.input(|i| i.pointer.button_down(*button)),
+        _ => true,
+    });
+    let Some(first) = events
+        .iter()
+        .position(|e| matches!(e, egui::Event::PointerButton { pressed: false, .. }))
+    else {
+        return;
+    };
+    ctx.stop_dragging();
+    egui::DragAndDrop::clear_payload(ctx);
+    if let Some(origin) = ctx.input(|i| i.pointer.press_origin()) {
+        let away = ctx.options(|o| o.input_options.max_click_dist) + 1.0;
+        events.insert(
+            first,
+            egui::Event::PointerMoved(origin + egui::vec2(away, 0.0)),
+        );
     }
 }
 

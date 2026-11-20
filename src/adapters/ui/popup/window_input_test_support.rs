@@ -127,7 +127,7 @@ impl WindowInput {
             .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
         let mut events = std::mem::take(&mut self.queue);
         self.split = self.cuts.split_pass(&mut events, &mut self.queue);
-        state.drop_input_without_its_node(&mut events);
+        state.drop_input_without_its_node(ctx, &mut events);
         events
     }
 
