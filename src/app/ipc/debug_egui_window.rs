@@ -10,6 +10,20 @@ use crate::ipc::server::{IpcCommand, send_response};
 use crate::view::main::debug_input::{ScrollUnit, push_egui_pointer, push_egui_text};
 use crate::view::ui::View;
 
+/// `window_id` 를 지정한 포인터 주입에 `surface_id` 가 함께 왔다. 창 종류와 관계없이 `-32602` 로 거절한다.
+pub(super) fn reject_surface_with_window(cmd: &IpcCommand) -> IpcStep {
+    let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
+    send_response(
+        &cmd.response_tx,
+        JsonRpcResponse::error(id, -32602, SURFACE_WITH_WINDOW),
+    );
+    IpcStep::Handled
+}
+
+/// `reject_surface_with_window` 의 오류 문구.
+pub(super) const SURFACE_WITH_WINDOW: &str =
+    "'surface_id' cannot be combined with 'window_id'; give fx/fy relative to the window";
+
 /// 창을 지정해 넣을 egui 입력 종류. 메서드 이름 분기는 라우터(`debug_methods.rs`)가 맡는다.
 pub(super) enum EguiInjection {
     Text,
@@ -69,19 +83,13 @@ impl App {
         Ok(body)
     }
 
-    /// 좌표는 그 창 전체에 대한 정규화 좌표(fx, fy)만 받는다. 보조 창에는 surface가 없으므로
-    /// `surface_id`와 함께 주면 거절한다. 단위·버튼·수식 키는 focused window 경로와 같다.
+    /// 좌표는 그 창 전체에 대한 정규화 좌표(fx, fy)만 받는다(`surface_id` 를 함께 준 요청은 라우터가 거절한다,
+    /// `reject_surface_with_window`). 단위·버튼·수식 키는 focused window 경로와 같다. 메인 창은 라우터가 ID 생략
+    /// 경로로 보내므로 여기에는 보조 창만 온다.
     fn debug_egui_mouse_to_window(
         &mut self,
         params: &serde_json::Value,
     ) -> Result<serde_json::Value, (i32, String)> {
-        if params.get("surface_id").is_some_and(|v| !v.is_null()) {
-            return Err((
-                -32602,
-                "'surface_id' cannot be combined with 'window_id'; give fx/fy relative to the window"
-                    .to_string(),
-            ));
-        }
         let unit_name = params
             .get("unit")
             .and_then(|v| v.as_str())
@@ -97,10 +105,6 @@ impl App {
         let modifiers =
             super::window_required::read_egui_modifiers(params).map_err(|m| (-32602, m))?;
         let (wid, view) = self.debug_egui_target(params)?;
-        // 메인 창이면 focused window 경로처럼 이전 메뉴 포획 결과를 지운다.
-        if let Some(main) = view.as_main_mut() {
-            main.debug_captured_menu = None;
-        }
         push_egui_pointer(&mut view.base_mut().gpu, fx, fy, action, modifiers);
         view.mark_dirty();
         Ok(serde_json::json!({ "injected": true, "window_id": wid }))

@@ -27,6 +27,17 @@ impl App {
                 _ => None,
             };
             if let Some(kind) = kind {
+                // 창을 지정한 포인터 주입의 좌표는 그 창 전체 기준만 받는다. 메인 창이어도 `surface_id` 를 함께 주면
+                // 거절한다.
+                if matches!(kind, EguiInjection::Pointer)
+                    && cmd
+                        .request
+                        .params
+                        .get("surface_id")
+                        .is_some_and(|v| !v.is_null())
+                {
+                    return super::debug_egui_window::reject_surface_with_window(cmd);
+                }
                 // 메인 창이면 ID 를 생략한 주입과 같은 진입(입력 몫 끊기)을 거친다. 보조 창만 큐에 바로 넣는다.
                 if let Some((window, wid)) = self.debug_main_window_by_id(&cmd.request.params) {
                     return self.ipc_step_main_window(cmd, window, Some(wid));
