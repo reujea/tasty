@@ -122,13 +122,40 @@ impl WindowInput {
         state: &mut RequestContext,
         ctx: &egui::Context,
     ) -> Vec<egui::Event> {
+        self.take_pass_observed(state, ctx, &mut |_, _| {})
+    }
+
+    /// `take_pass` 와 같다. 분할 직후·몫 필터 전의 사건을 `before_filter` 가 본다. 창은 그 자리에서 편집 보류에 패스
+    /// 입력을 알리고(`EditKeyState::input_taken`) 도착한 붙여넣기를 합친다(`GpuState::take_pass_input`).
+    pub(crate) fn take_pass_observed(
+        &mut self,
+        state: &mut RequestContext,
+        ctx: &egui::Context,
+        before_filter: &mut dyn FnMut(&mut RequestContext, &mut Vec<egui::Event>),
+    ) -> Vec<egui::Event> {
         state
             .popups
             .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
         let mut events = std::mem::take(&mut self.queue);
         self.split = self.cuts.split_pass(&mut events, &mut self.queue);
+        before_filter(state, &mut events);
         state.drop_input_without_its_node(ctx, &mut events);
         events
+    }
+
+    /// 원시 사건 없이 창에 온 키 하나(수식 키 뗌, 편집 보류 뒤에 선 키). 창처럼 키 분류와 끊기(`key_focus`)만
+    /// 거친다.
+    pub(crate) fn key_without_event(
+        &mut self,
+        state: &mut RequestContext,
+        core: &crate::core::CoreState,
+    ) {
+        key_focus(state, core, self);
+    }
+
+    /// 남은 끊은 자리(egui 입력 큐 좌표)의 글.
+    pub(crate) fn cuts_text(&self) -> String {
+        format!("{:?}", self.cuts)
     }
 
     /// egui 패스를 마친 뒤 창처럼 몫을 닫고 그리기 중 전환을 처리한다(`run_main_pass`). `drawn` 은 그 패스를 돌리기 전에

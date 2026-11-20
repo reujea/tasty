@@ -879,3 +879,6 @@ mod notice;
 
 #[path = "pass_focus_transition_tests.rs"]
 mod transition;
+
+#[path = "pass_focus_paste_tests.rs"]
+mod paste;
