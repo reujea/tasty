@@ -113,6 +113,59 @@ fn synthetic_gate_precedes_every_mode_branch() {
         "self.dispatch_window_event_to_view(id, event);",
         "View 전달 함수의 View 이벤트 전달",
     );
+
+    // 이 파일의 View 직접 전달은 `dispatch_key_to_view` 안의 한 곳뿐이다. `dispatch_key_to_view` 는 정의 하나와
+    // 호출 셋(route_window_input 의 View 전달, 편집 보류 재생의 Original·View 갈래)이다. 재생 갈래가 넘기는 사건은
+    // 게이트를 지난 뒤 붙잡힌 것이다: 원래 키와 view 보류의 줄 선 입력은 route_window_input → View 에서, plugin
+    // 보류의 줄 선 입력은 route_window_input 의 보류 줄(`queue_behind_plugin_edit`)에서 붙잡혔다. plugin 보류 줄은
+    // `ReplayStep::Input` 으로 route_window_input 을 다시 거친다.
+    assert_eq!(
+        route_src.matches("dispatch_window_event_to_view(").count(),
+        1,
+        "edit_key_replay.rs 에 dispatch_key_to_view 밖의 View 직접 전달이 있다"
+    );
+    assert_eq!(
+        route_src
+            .matches("self.dispatch_key_to_view(id, event);")
+            .count(),
+        3,
+        "dispatch_key_to_view 호출이 route_window_input 의 View 전달과 재생 두 갈래가 아니다"
+    );
+    let replay = only_at(
+        &route_src,
+        "pub(crate) fn replay_edit_steps(",
+        "편집 보류 재생",
+    );
+    let replay_body = &route_src[replay..];
+    let replay_body = &replay_body[..replay_body
+        .find("\n    }\n")
+        .expect("replay_edit_steps body end")];
+    assert_eq!(
+        replay_body
+            .matches("self.dispatch_key_to_view(id, event);")
+            .count(),
+        2,
+        "재생의 Original·View 갈래가 dispatch_key_to_view 로 넘기지 않는다"
+    );
+    only_at(
+        replay_body,
+        "ReplayStep::Input(event) => self.route_window_input(id, event),",
+        "plugin 보류 줄의 재생",
+    );
+    // 다른 App 파일은 View 로 직접 넘기지 않고 재생 함수를 부른다.
+    for rel in [
+        "src/app/plugin_edit_holds.rs",
+        "src/app/plugin_popup_edit.rs",
+    ] {
+        let other = read(rel);
+        for call in ["dispatch_window_event_to_view(", "dispatch_key_to_view("] {
+            assert_eq!(
+                other.matches(call).count(),
+                0,
+                "{rel} 가 `{call}` 로 View 에 직접 넘긴다"
+            );
+        }
+    }
 }
 
 #[test]
