@@ -290,19 +290,24 @@ fn the_read_loop_ends_on_the_first_frame_after_the_server_ended_the_connection()
 /// 강제 끊김을 실제 writer와 소켓으로 끝까지 잰다. 읽기 스레드가 소켓 사본을 들고 있고,
 /// 연결 정리(`finish_stream_connection`의 `unregister`)가 writer보다 먼저 와도
 /// 통지를 넣었다고 답한 연결은 그 통지를 소켓에 쓰고, 못 넣은 연결은 곧바로 닫혀야 한다.
-/// 돌려주는 값은 응답의 `notified`, client가 받은 태그, client 읽기가 끝난 오류, 서버 읽기 스레드의
-/// 소켓 사본, 그리고 아직 열어 둔 client 소켓이다.
+/// `blocked_reader`면 writer를 돌리기 전에 서버 읽기 스레드 사본에서 읽기를 걸어 둔다([`BlockedRead`]).
+/// 양쪽을 닫는 경로에서만 쓴다. 쓰기 쪽만 닫는 경로는 읽기 쪽을 열어 두므로 그 읽기가 기한까지 남는다.
+/// 돌려주는 값은 응답의 `notified`, client가 받은 태그, client 읽기가 끝난 오류, 걸어 둔 읽기,
+/// 읽기 스레드가 들고 있는 소켓 사본, 그리고 아직 열어 둔 client 소켓이다.
 fn force_detach_over_a_socket(
     free_slots: usize,
+    blocked_reader: bool,
 ) -> (
     bool,
     Vec<StreamTag>,
     std::io::Error,
+    Option<BlockedRead>,
     std::net::TcpStream,
     std::net::TcpStream,
 ) {
     let (mut client, server) = sockets();
-    let reader_copy = reader_copy_of(&server);
+    let reader_copy = server.try_clone().unwrap();
+    let blocked = blocked_reader.then(|| BlockedRead::start(&server));
     let hub = StreamHub::new();
     let holder = hub.alloc_id();
     let rx = hub.register(holder);
@@ -329,25 +334,26 @@ fn force_detach_over_a_socket(
         }
     };
     writer.join().unwrap();
-    (notified, tags, end, reader_copy, client)
+    (notified, tags, end, blocked, reader_copy, client)
 }
 
 /// 큐가 가득 차 통지를 못 넣으면 남은 큐를 버리고 곧바로 닫는다. client는 heartbeat 기한이 아니라
 /// 바로 EOF를 본다(`sockets()`의 2초 읽기 기한 안).
 #[test]
 fn a_force_detach_that_could_not_queue_the_notice_closes_the_socket_at_once() {
-    let (notified, tags, end, reader_copy, _client) = force_detach_over_a_socket(0);
+    let (notified, tags, end, blocked, _reader_copy, _client) = force_detach_over_a_socket(0, true);
     assert!(!notified);
     assert!(tags.is_empty(), "{tags:?}");
     assert_eq!(end.kind(), std::io::ErrorKind::UnexpectedEof, "{end}");
-    // client를 열어 둔 채로 서버 읽기 쪽도 깨어나야 읽기 루프가 끝난다(`Shutdown::Both`).
-    assert_reader_copy_wakes(reader_copy);
+    // client를 열어 둔 채로, 이미 막혀 있던 서버 읽기도 돌아와야 읽기 루프가 끝난다(`Shutdown::Both`).
+    blocked.expect("started").assert_woken();
 }
 
 /// 자리가 하나만 남아 Control만 들어가도 `notified: true`면 그 통지는 소켓에 쓰이고 연결은 닫힌다.
 #[test]
 fn a_queued_force_detach_notice_reaches_the_socket_even_after_the_sink_is_released() {
-    let (notified, tags, end, _reader_copy, _client) = force_detach_over_a_socket(1);
+    let (notified, tags, end, _blocked, _reader_copy, _client) =
+        force_detach_over_a_socket(1, false);
     assert!(notified);
     assert_eq!(tags.last(), Some(&StreamTag::Control), "{:?}", tags.len());
     assert!(tags[..tags.len() - 1].iter().all(|t| *t == StreamTag::Data));
@@ -357,7 +363,8 @@ fn a_queued_force_detach_notice_reaches_the_socket_even_after_the_sink_is_releas
 /// 자리가 넉넉하면 통지와 Detach가 모두 쓰인다. 정리가 먼저 와도 Detach가 버려지지 않는다.
 #[test]
 fn a_force_detach_with_room_writes_the_notice_and_the_detach_before_eof() {
-    let (notified, tags, end, _reader_copy, _client) = force_detach_over_a_socket(8);
+    let (notified, tags, end, _blocked, _reader_copy, _client) =
+        force_detach_over_a_socket(8, false);
     assert!(notified);
     assert_eq!(
         tags[tags.len() - 2..],
@@ -377,40 +384,60 @@ fn the_stream_write_timeout_is_armed_on_the_socket() {
     );
 }
 
-/// 서버 읽기 스레드의 소켓 사본. 3초 읽기 기한은 소켓을 닫기 전에 건다. macOS는 양쪽이 닫힌 소켓의
-/// 옵션 설정을 `EINVAL`로 거절하므로 닫힌 뒤에는 기한을 걸 수 없다.
-fn reader_copy_of(server: &std::net::TcpStream) -> std::net::TcpStream {
-    let reader_copy = server.try_clone().unwrap();
-    reader_copy
-        .set_read_timeout(Some(Duration::from_secs(3)))
-        .unwrap();
-    reader_copy
+/// writer가 닫기 전에 서버 읽기 스레드의 소켓 사본에서 이미 막혀 있는 읽기. 3초 읽기 기한은 소켓을
+/// 닫기 전에 건다. macOS는 양쪽이 닫힌 소켓의 옵션 설정을 `EINVAL`로 거절하기 때문이다.
+/// 읽기 직전 준비 신호를 받고 50ms를 더 둔다. 신호는 recv 진입의 증거가 아니다.
+struct BlockedRead {
+    reader: std::thread::JoinHandle<(Duration, std::io::Result<usize>)>,
 }
 
-/// 서버 읽기 스레드의 소켓 사본([`reader_copy_of`])이 깨어나 읽기가 돌아오는지 본다. 3초 안에 EOF나
-/// 오류로 돌아와야 한다. 시간 초과(`WouldBlock`·`TimedOut`)는 깨어나지 않았다는 뜻이다.
-fn assert_reader_copy_wakes(mut reader_copy: std::net::TcpStream) {
-    use std::io::Read;
-    let mut byte = [0u8; 1];
-    match reader_copy.read(&mut byte) {
-        Ok(0) => {}
-        Ok(n) => panic!("unexpected {n} bytes from the client"),
-        Err(e) => assert!(
-            !matches!(
-                e.kind(),
-                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-            ),
-            "the reader copy was not woken: {e}"
-        ),
+impl BlockedRead {
+    const LIMIT: Duration = Duration::from_secs(3);
+    /// 이보다 늦게 온 취소 코드는 기한 근처라 깨움으로 보지 않는다.
+    const WOKEN_WITHIN: Duration = Duration::from_secs(2);
+    /// 취소로 돌아온 읽기의 OS 코드: Windows의 10004(`WSAEINTR`, 관측값)와 995
+    /// (`ERROR_OPERATION_ABORTED`). std는 995와 기한 만료 10060을 같은 `TimedOut`으로 분류하므로
+    /// 종류가 아니라 코드와 시각으로 가른다.
+    const CANCELLED: &[i32] = if cfg!(windows) { &[10_004, 995] } else { &[] };
+
+    fn start(server: &std::net::TcpStream) -> Self {
+        let mut copy = server.try_clone().unwrap();
+        copy.set_read_timeout(Some(Self::LIMIT)).unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            use std::io::Read;
+            let mut byte = [0u8; 1];
+            ready_tx.send(()).unwrap();
+            let started = std::time::Instant::now();
+            let result = copy.read(&mut byte);
+            (started.elapsed(), result)
+        });
+        ready_rx.recv_timeout(Self::LIMIT).expect("reader ready");
+        std::thread::sleep(Duration::from_millis(50));
+        Self { reader }
+    }
+
+    /// 걸어 둔 읽기가 EOF(`Ok(0)`)로, 또는 기한보다 이르게 취소 코드로 돌아왔다. 기한 만료와 그 밖의
+    /// 오류·바이트 수신은 깨어나지 않은 것이다.
+    fn assert_woken(self) {
+        let (took, result) = self.reader.join().unwrap();
+        match &result {
+            Ok(0) => {}
+            Err(e)
+                if e.raw_os_error()
+                    .is_some_and(|code| Self::CANCELLED.contains(&code))
+                    && took < Self::WOKEN_WITHIN => {}
+            other => panic!("the blocked server read was not woken: {other:?} after {took:?}"),
+        }
     }
 }
 
 /// 끝내는 Control의 쓰기 자체가 실패하면 통지는 쓰이지 않았으므로 쓰기 쪽만 닫지 않고 양쪽을 닫는다.
-/// 쓰기 쪽을 미리 닫아 쓰기를 실패시키고, 읽기 스레드 사본이 깨어나는지로 `Shutdown::Both` 를 잰다.
+/// 쓰기 쪽을 미리 닫아 쓰기를 실패시키고, 이미 막혀 있던 서버 읽기가 돌아오는지로 `Shutdown::Both` 를 잰다.
 #[test]
 fn a_failed_ending_frame_write_closes_both_sides() {
     let (_client, server) = sockets();
-    let reader_copy = reader_copy_of(&server);
+    let blocked = BlockedRead::start(&server);
     server.shutdown(std::net::Shutdown::Write).unwrap();
     let hub = StreamHub::new();
     let rx = hub.register(5);
@@ -431,5 +458,5 @@ fn a_failed_ending_frame_write_closes_both_sides() {
         server_ending.load(Ordering::Acquire),
         "marked before the write"
     );
-    assert_reader_copy_wakes(reader_copy);
+    blocked.assert_woken();
 }

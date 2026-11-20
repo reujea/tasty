@@ -96,7 +96,8 @@ impl TcpIpcServer {
     /// 끝내는 프레임을 끝까지 쓴 연결은 쓰기 쪽만 닫는다. client가 통지를 다 읽은 뒤 EOF를 보고,
     /// 읽기 쪽은 `run_stream_read_loop`가 그 뒤 첫 프레임이나 client의 EOF에서 끝낸다.
     /// 그 밖의 연결(sink 해제, 끝내는 프레임을 포함한 송신 실패)은 양쪽을 닫는다. 읽기 스레드가
-    /// 들고 있는 사본도 깨워야 client가 EOF를 보고 읽기 루프도 끝난다.
+    /// 들고 있는 사본도 깨워야 client가 EOF를 보고 읽기 루프도 끝난다. Windows는 닫기만으로 막힌
+    /// 읽기가 돌아오지 않아 진행 중 I/O 취소를 함께 요청한다([`tasty_utils::socket_wake`]).
     pub(super) fn close_after_writer(
         w: &std::net::TcpStream,
         client_id: StreamClientId,
@@ -107,7 +108,12 @@ impl TcpIpcServer {
         } else {
             std::net::Shutdown::Both
         };
-        if let Err(e) = w.shutdown(how) {
+        let closed = if wrote_ending {
+            w.shutdown(how)
+        } else {
+            tasty_utils::socket_wake::shutdown_both_and_wake(w)
+        };
+        if let Err(e) = closed {
             tracing::debug!("stream client {client_id}: 연결 종료({how:?}) 실패: {e}");
         }
     }
