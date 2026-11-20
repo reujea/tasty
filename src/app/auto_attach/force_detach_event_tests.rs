@@ -285,3 +285,128 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
     );
     assert!(!marked(&app), "the explicit connect erased the mark");
 }
+
+/// 행 `ROW` 의 창을 park 하고 그 engine 에 살아 있는 surface(원격 42 → 로컬 9_003)를 둔다. 세션 0 의 출력
+/// 버퍼에는 새 surface(원격 43)가 필요한 구조 변경을 넣는다. park 한 engine 에는 아직 ID 예약이 없어 그
+/// 구조 변경은 예약을 기다린다.
+fn park_the_rows_with_a_delta_waiting_for_ids(
+    app: &mut App,
+) -> crate::runtime::engine_session::EngineId {
+    let (state, _) = crate::state::tests::test_state();
+    let engine = app
+        .engines
+        .park(winit::window::WindowId::from(u64::MAX - 2), state)
+        .expect("the rows' window is parked");
+    {
+        let (_, parked) = app.engines.parked_session_mut(engine).unwrap();
+        parked
+            .runtime
+            .surfaces
+            .insert(9_003, Box::new(crate::model::TerminalSurface { id: 9_003 }));
+        parked.runtime.terminals.insert(
+            9_003,
+            tasty_terminal::Terminal::new_detached(80, 24),
+            None,
+        );
+    }
+    let session = &mut app.remote.sessions[0];
+    session.state.remote_to_local.insert(42, 9_003);
+    let tree = serde_json::json!({
+        "id": session.state.remote_workspace, "name": "remote", "focused_pane": 70,
+        "panes": [ {
+            "id": 70,
+            "tabs": [ {
+                "id": 30, "name": "Shell", "active": true, "focused_surface": 42,
+                "layout": {
+                    "type": "Split", "direction": "vertical", "ratio": 0.5,
+                    "focus_second": false,
+                    "first": { "type": "Leaf", "id": 42, "kind": "terminal" },
+                    "second": { "type": "Leaf", "id": 43, "kind": "terminal" }
+                }
+            } ]
+        } ]
+    });
+    let surfaces = vec![
+        serde_json::json!({ "remote_id": 42, "role": "terminal", "cols": 80, "rows": 24 }),
+        serde_json::json!({ "remote_id": 43, "role": "terminal", "cols": 80, "rows": 24 }),
+    ];
+    assert!(session.transport.output.push(MirrorEvent::StructuralDelta {
+        workspace_id: session.state.remote_workspace,
+        tree,
+        surfaces,
+    }));
+    engine
+}
+
+/// 두 실제 회차의 멈춤 미룸을 잰다. 첫 회차: 관측이나 설치 단계가 행 A 의 옛 세션(세션 0)에 멈춤을 정했고
+/// 구조 변경이 ID 예약을 기다려 버퍼에 남으므로 `finish_round` 가 그 대기를 넘겨 멈춤을 미룬다(세션은
+/// 재연결 중, 멈춤 남음). ID 를 공급한 뒤 둘째 회차: 구조 변경이 적용되고 정한 멈춤이 끊긴 행으로 끝낸다.
+fn assert_the_stop_waits_one_round_for_the_ids(
+    app: &mut App,
+    engine: crate::runtime::engine_session::EngineId,
+) {
+    app.apply_attach_client_output();
+    assert!(
+        ticket_of(app, ROW).is_none(),
+        "A's attempt ended before install"
+    );
+    let session = &app.remote.sessions[0];
+    assert!(
+        session.transport.output.has_pending(),
+        "the delta waits for an ID reservation"
+    );
+    assert!(
+        session.state.stop_after_events.is_some(),
+        "the round decided a stop for the old session"
+    );
+    assert_eq!(
+        session.state.phase,
+        SessionState::Reconnecting,
+        "and deferred it"
+    );
+
+    {
+        let (_, parked) = app.engines.parked_session_mut(engine).unwrap();
+        crate::app::attach_client::tests::supply_ids(&parked);
+    }
+    app.apply_attach_client_output();
+
+    let session = &app.remote.sessions[0];
+    assert!(!session.transport.output.has_pending(), "the delta applied");
+    assert!(session.state.stop_after_events.is_none());
+    assert_eq!(session.state.phase, SessionState::Disconnected, "stopped");
+    assert!(!app.remote.active.contains(&ROW));
+}
+
+/// S13 G1 배선: Given 행 A 의 자동 재연결 연결이 설치 전에 강제 끊김으로 확정됐고 A 의 옛 세션 버퍼에
+/// ID 예약을 기다릴 구조 변경이 있다, When 실제 회차를 두 번 돌리면(사이에 ID 공급), Then G1 이 정한
+/// 멈춤은 첫 회차에 미뤄지고 둘째 회차에 끊긴 행으로 끝난다.
+#[test]
+fn a_g1_stop_waits_for_the_id_reservation_across_two_real_rounds() {
+    alone!("a_g1_stop_waits_for_the_id_reservation_across_two_real_rounds");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let _socket = prepare_an_automatic_reconnect(&mut app);
+    let engine = park_the_rows_with_a_delta_waiting_for_ids(&mut app);
+    let ticket = ticket_of(&app, ROW).unwrap();
+    let prepared = app.remote.prepared_connection(ticket).unwrap();
+    prepared.transport.end.raise(EndReason::Forced);
+    assert!(prepared.transport.end.settle());
+
+    assert_the_stop_waits_one_round_for_the_ids(&mut app, engine);
+}
+
+/// S13 D4 배선: Given 사용자가 끊어 막힌 행 A 의 자동 재연결 연결이 설치만 남았고 A 의 옛 세션 버퍼에 ID
+/// 예약을 기다릴 구조 변경이 있다, When 실제 회차를 두 번 돌리면(사이에 ID 공급), Then 설치 단계(D4)가
+/// 정한 멈춤은 첫 회차에 미뤄지고 둘째 회차에 끊긴 행으로 끝난다.
+#[test]
+fn a_d4_stop_waits_for_the_id_reservation_across_two_real_rounds() {
+    alone!("a_d4_stop_waits_for_the_id_reservation_across_two_real_rounds");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let _socket = prepare_an_automatic_reconnect(&mut app);
+    let engine = park_the_rows_with_a_delta_waiting_for_ids(&mut app);
+    app.remote.user_disconnected.insert(ROW);
+
+    assert_the_stop_waits_one_round_for_the_ids(&mut app, engine);
+}

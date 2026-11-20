@@ -9,7 +9,7 @@ use tasty_remote::client_session::{
     AttachClientSession, ClientSessionState, ClientTransport, MirrorOutbox, SessionState,
 };
 use tasty_terminal::Terminal;
-pub(super) fn supply_ids(engine: &crate::runtime::engine_access::EngineMut<'_>) {
+pub(crate) fn supply_ids(engine: &crate::runtime::engine_access::EngineMut<'_>) {
     engine
         .runtime
         .ids
