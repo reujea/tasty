@@ -246,3 +246,42 @@ fn user_geometry_is_reported_once_on_release() {
     assert_eq!(released, [(iid, moved)]);
     assert!(frame(&ctx, &mut mgr, Pointer::Idle).released.is_empty());
 }
+
+/// 즉시 적용 판정(`intent::popup::gives_user_focus`)은 실제 열기와 같은 포커스 술어(`request_takes_focus`)를 읽는다.
+/// Given 보통 선언, 키를 받지 않는 선언, 등록되지 않은 선언, When 사용자가 포커스를 주며 여는 요청을 대기열에 두면,
+/// Then 보통 선언만 포커스를 주는 열기로 세고, 키를 받지 않는 선언은 실제로 열어도 포커스를 받지 않는다.
+#[test]
+fn the_early_apply_judgment_reads_the_focus_predicate_of_the_open() {
+    let (mut state, _engine) = crate::state::tests::test_state();
+    state.popups = manager();
+    let request = |id| {
+        OpenRequest::new(id, PopupScope::Window)
+            .centered()
+            .focused()
+    };
+    let intent = |id| crate::intent::UiIntent::OpenPopup(request(id)).from_user_shortcut("test");
+    let gives = |state: &crate::state::RequestContext, id| {
+        crate::intent::popup::gives_user_focus(state, &intent(id))
+    };
+    assert!(gives(&state, NORMAL));
+    assert!(
+        !gives(&state, QUIET),
+        "키를 받지 않는 선언은 포커스를 주지 않는다"
+    );
+    assert!(
+        !gives(&state, "arrange_test_missing"),
+        "등록되지 않은 선언은 열리지 않는다"
+    );
+    assert!(!state.popups.request_takes_focus(&request(NORMAL), false));
+    state
+        .popups
+        .open_request(&request(QUIET), true)
+        .expect("opens");
+    assert!(!state.popups.is_focused(QUIET));
+    assert!(
+        state
+            .popups
+            .open_request(&request("arrange_test_missing"), true)
+            .is_none()
+    );
+}

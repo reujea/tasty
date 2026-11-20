@@ -204,6 +204,17 @@ fn declare_viewer(
 /// 소비되어 끊기 없이 도구를 실행하고(`run_shortcut_action` 이 부르는 `run_tool` 과 같은 열기 대기열), 사용자 입력이
 /// 포커스를 주며 연 팝업 요청이 있으면 그 자리에서 연다.
 fn plugin_shortcut(s: &mut Scene) {
+    queue_plugin_shortcut(s);
+    if s.state.user_focus_open_queued(Some(&s.mgr)) {
+        crate::app::dispatch::popup_opens::open_pending_popups(
+            Some(&mut s.mgr),
+            std::iter::once((&mut s.state, s.session.borrow_mut())),
+        );
+    }
+}
+
+/// plugin 팝업 단축키가 실행하는 도구(`run_tool` 과 같은 열기 대기열에 넣는다).
+fn queue_plugin_shortcut(s: &mut Scene) {
     {
         let engine = s.session.borrow_mut();
         let read = engine.read();
@@ -228,12 +239,6 @@ fn plugin_shortcut(s: &mut Scene) {
             &tool,
             surface,
             target.structure_target(),
-        );
-    }
-    if s.state.user_focus_open_queued(Some(&s.mgr)) {
-        crate::app::dispatch::popup_opens::open_pending_popups(
-            Some(&mut s.mgr),
-            std::iter::once((&mut s.state, s.session.borrow_mut())),
         );
     }
 }
@@ -405,4 +410,42 @@ fn a_plugin_popup_whose_open_fails_returns_the_focus() {
         Some(&mut s.mgr),
     );
     the_failed_open_leaves_the_terminal_focused(&mut s, &mut input);
+}
+
+/// Given 다른 창(A)에 결속해 열린 창 범위 plugin 팝업이 있고 이 창(B)의 포커스 노드가 R 터미널일 때, When B 에서 그
+/// 팝업의 단축키가 오면, Then 여는 처리는 그 인스턴스를 돌려받고 B 의 포커스를 바꾸지 않으므로 즉시 적용 판정이
+/// 거짓이고(`popup_scope::open_would_focus_window`), 대기열을 처리해도 B 의 포커스 노드는 R 터미널이다.
+#[test]
+fn a_plugin_popup_open_in_another_window_does_not_apply_early() {
+    let mut s = open_scene(|_| {});
+    let _stub = declare_viewer(&mut s.mgr);
+    let mut input = WindowInput::default();
+    let point = terminal_point_r(&s);
+    focus_terminal(&mut s, &mut input, PANE_R, point);
+    let in_a = s
+        .mgr
+        .open_popup_instance(PLUGIN, "viewer", serde_json::Value::Null)
+        .expect("창 A 에 연다");
+    assert!(
+        !s.state.plugin_window_popups.contains(&in_a),
+        "A 의 결속이다"
+    );
+    queue_plugin_shortcut(&mut s);
+    assert_eq!(s.state.pending_popup_opens.len(), 1);
+    assert!(
+        !s.state.user_focus_open_queued(Some(&s.mgr)),
+        "B 의 포커스를 바꾸지 않는 열기는 앞당기지 않는다"
+    );
+    crate::app::dispatch::popup_opens::open_pending_popups(
+        Some(&mut s.mgr),
+        std::iter::once((&mut s.state, s.session.borrow_mut())),
+    );
+    let opened: Vec<u64> = s.mgr.popup_instances().map(|(id, _)| id).collect();
+    assert_eq!(opened, [in_a], "같은 인스턴스를 돌려받는다");
+    assert!(!s.state.plugin_window_popups.contains(&in_a));
+    let engine = s.session.borrow_mut();
+    assert_eq!(
+        s.state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_R))
+    );
 }
