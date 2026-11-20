@@ -27,9 +27,6 @@ struct EguiPanelInfo {
     webview_inset: [f32; 3],
 }
 
-/// 비터미널 패널을 그린다. 터미널 내용은 별도 GPU 경로에서 처리한다.
-#[allow(clippy::cognitive_complexity)]
-// complexity-exempt: egui 즉시모드 draw — panel kind별 렌더 분기, 클로저 중첩이 구조적
 /// 시험이 읽는 Find 입력칸 ID 목록의 시점별 값(비운 직후, 등록한 직후). 패스 사이에 목록을 비우고 다시 채웠는지
 /// 가른다(앞 패스 목록을 그대로 쓰면 기록이 없다).
 #[cfg(test)]
@@ -50,6 +47,8 @@ pub(crate) mod find_fields_seen {
     }
 }
 
+/// 비터미널 패널을 그린다. 터미널 내용은 별도 GPU 경로에서 처리한다.
+#[allow(clippy::cognitive_complexity)] // complexity-exempt: egui 즉시모드 draw — panel kind별 렌더 분기, 클로저 중첩이 구조적
 pub fn draw_egui_panels(
     ctx: &egui::Context,
     state: &mut MainViewState,
