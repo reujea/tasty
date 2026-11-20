@@ -147,3 +147,71 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
     let applies = squeeze(&fn_body(&src[start..end], "fn apply_focus_opens(").expect("apply"));
     assert_eq!(applies, "{self.apply_user_focus_opens(id);}");
 }
+
+/// native WebView 가 넘긴 키의 제품 디스패치는 제품 상태 시험(`app::webview_keys::state_tests`)이 부르는 창 단계를 같은
+/// 순서로 부른다: 게이트 → plugin 단축키 → 새로고침 → 받은 surface 의 내장 단축키. plugin 단축키는 창 단계
+/// `plugin_shortcut_in_window` 로, 내장 단축키는 `handle_keybinding_shortcuts` 로, 결과 알림의 재전송은
+/// `resends_to_page` 로 정한다. 시험은 이 단계 안의 변이를 잡고, 이 가드는 제품이 단계를 건너뛰거나 순서를 바꾸는
+/// 우회를 잡는다.
+#[test]
+fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
+    let src = read("src/app/webview_keys.rs");
+    let dispatch = squeeze(
+        &fn_body(&src, "fn dispatch_forwarded_webview_key(")
+            .expect("dispatch_forwarded_webview_key"),
+    );
+    let steps = [
+        (
+            "forwarded_key_gate_open(&mutmain.state,&engine,modal_active)",
+            "게이트",
+        ),
+        (
+            "self.dispatch_plugin_shortcut_key(id,&ev.key,ev.mods,Some(ev.surface_id))",
+            "plugin 단축키",
+        ),
+        (
+            "dispatch_native_refresh_key(main,&mutengine,&ev)",
+            "새로고침",
+        ),
+        (
+            "main.handle_received_shortcut(&engine.read(),&ev.key,ev.mods,&target)",
+            "내장 단축키",
+        ),
+    ];
+    let mut last = 0;
+    for (needle, what) in steps {
+        let pos = at(&dispatch, needle, what);
+        assert!(last <= pos, "{what} 의 순서가 바뀌었다");
+        last = pos;
+    }
+    let finish = squeeze(
+        &fn_body(&src, "fn finish_forwarded_webview_key(").expect("finish_forwarded_webview_key"),
+    );
+    at(
+        &finish,
+        "webview.finish_forwarded_key(key_id,outcome.resends_to_page());",
+        "재전송 판정",
+    );
+    let plugin = read("src/app/plugin_glue/shortcut.rs");
+    let window = squeeze(
+        &fn_body(&plugin, "fn dispatch_plugin_shortcut_key(")
+            .expect("dispatch_plugin_shortcut_key"),
+    );
+    at(
+        &window,
+        "plugin_shortcut_in_window(&mutmain.state,",
+        "plugin 창 단계",
+    );
+    let received = squeeze(
+        &fn_body(
+            &read("src/adapters/ui/input/shortcuts/dispatch.rs"),
+            "fn run_keybinding_shortcuts(",
+        )
+        .expect("run_keybinding_shortcuts"),
+    );
+    at(
+        &received,
+        "if!Self::handle_keybinding_shortcuts(",
+        "내장 단축키 단계",
+    );
+}

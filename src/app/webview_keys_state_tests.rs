@@ -1,0 +1,369 @@
+//! 제품 상태 시험: native WebView 가 넘긴 키 묶음을 제품의 창 단계로 소비하고 창 상태를 본다. 키마다 제품
+//! 디스패치(`App::dispatch_forwarded_webview_key`)와 같은 순서로 게이트(`forwarded_key_gate_open`), plugin 단축키
+//! (`plugin_shortcut_in_window`), 새로고침(`native_refresh_outcome`), 내장 단축키(`MainView::handle_keybinding_shortcuts`)
+//! 를 부른다. 그 뒤 조기 적용 판정(`user_focus_open_queued`)이 참이면 host 요청을 `intent::popup::handle` 로, plugin 팝업
+//! 열기를 `open_pending_popups` 로 처리하고, 결과 알림의 재전송 판정(`ForwardedKeyOutcome::resends_to_page`)을 기록한다.
+//! 제품 디스패치가 이 단계들을 이 순서로 부르는 것은 `source_guards::window_key_gate_call_sites` 가 고정한다.
+//!
+//! 범위 밖: App 의 창 조회와 modal 창, html surface view 단계(`run_received_surface_key`)와 창 제어·스크립트 단계, WebView
+//! 사본에 결과를 넣는 일, 조기 적용의 다른 창·parked 세션과 domain 요청 처리, native 콜백의 편집 판정과 수집.
+//! 내장 단축키 단계가 `EventLoopProxy` 를 받으므로 X11 `EventLoop` 가 필요하고, `EventLoop` 는 프로세스에 하나뿐이라
+//! 시험마다 새 프로세스에서 혼자 돈다.
+
+use std::sync::Arc;
+
+use winit::keyboard::{Key, ModifiersState};
+
+use super::{ForwardedKeyOutcome, forwarded_key_gate_open, native_refresh_outcome};
+use crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID;
+use crate::adapters::ui::popup::focus::PopupNode;
+use crate::plugin::PluginManager;
+use crate::state::MainViewState;
+use crate::state::focus_node::FocusNode;
+use crate::view::main::MainView;
+use crate::webview::WebViewKeyEvent;
+
+const PLUGIN: &str = "com.example.webview-key-popup";
+/// plugin 전역 명령의 기본 조합. 기본 프리셋의 host 바인딩과 겹치지 않는다.
+const PLUGIN_COMBO: &str = "ctrl+alt+y";
+
+/// 키를 받은 WebView 가 있는 창 하나.
+struct Window {
+    state: MainViewState,
+    session: crate::runtime::engine_session::EngineSession,
+    mgr: Option<PluginManager>,
+    proxy: winit::event_loop::EventLoopProxy<crate::AppEvent>,
+    /// 키를 받은 WebView 의 surface. 창의 포커스 surface 다.
+    received: u32,
+    /// 결과 알림에 건넨 (키 ID, 재전송).
+    finished: Vec<(u64, bool)>,
+}
+
+impl Window {
+    fn new(proxy: winit::event_loop::EventLoopProxy<crate::AppEvent>) -> Self {
+        let (state, mut session) = crate::state::tests::test_state();
+        let received = {
+            let engine = session.borrow_mut();
+            state
+                .focused_surface_id(&engine.read())
+                .expect("포커스 surface")
+        };
+        Self {
+            state,
+            session,
+            mgr: None,
+            proxy,
+            received,
+            finished: Vec::new(),
+        }
+    }
+
+    fn key(&self, id: u64, ch: &str, mods: ModifiersState) -> WebViewKeyEvent {
+        WebViewKeyEvent {
+            id,
+            surface_id: self.received,
+            key: Key::Character(ch.into()),
+            mods,
+        }
+    }
+
+    /// 제품 소비 루프처럼 키마다 처리 → 조기 적용 → 결과 알림 순서로 소비한다.
+    fn consume(&mut self, keys: Vec<WebViewKeyEvent>) -> Vec<ForwardedKeyOutcome> {
+        let mut outcomes = Vec::new();
+        for ev in keys {
+            let outcome = self.dispatch(&ev);
+            self.apply_focus_opens();
+            self.finished.push((ev.id, outcome.resends_to_page()));
+            outcomes.push(outcome);
+        }
+        outcomes
+    }
+
+    fn dispatch(&mut self, ev: &WebViewKeyEvent) -> ForwardedKeyOutcome {
+        let engine = self.session.borrow_mut();
+        if !forwarded_key_gate_open(&mut self.state, &engine, false) {
+            return ForwardedKeyOutcome::Gated;
+        }
+        let received = self.received;
+        if crate::app::plugin_glue::shortcut::plugin_shortcut_in_window(
+            &mut self.state,
+            &engine,
+            self.mgr.as_mut(),
+            |sid| sid == received,
+            &ev.key,
+            ev.mods,
+            Some(ev.surface_id),
+        ) {
+            return ForwardedKeyOutcome::Handled;
+        }
+        let read = engine.read();
+        if let Some(outcome) = native_refresh_outcome(
+            &mut self.state,
+            &read,
+            &read.settings.keybindings.refresh,
+            ev,
+        ) {
+            return outcome;
+        }
+        let target = self
+            .state
+            .command_target_for_surface(&read, ev.surface_id)
+            .expect("키를 받은 surface 의 대상");
+        let kb = read.settings.keybindings.clone();
+        let cells = crate::adapters::ui::input::shortcuts::CellGeometry {
+            w: crate::model::PhysicalPx(8.0),
+            h: crate::model::PhysicalPx(16.0),
+            scale_factor: 1.0,
+        };
+        let rect = crate::model::PhysicalRect {
+            x: crate::model::PhysicalPx(0.0),
+            y: crate::model::PhysicalPx(0.0),
+            width: crate::model::PhysicalPx(1280.0),
+            height: crate::model::PhysicalPx(800.0),
+        };
+        ForwardedKeyOutcome::from_handled(MainView::handle_keybinding_shortcuts(
+            &mut self.state,
+            &read,
+            &kb,
+            &ev.key,
+            ev.mods,
+            &target,
+            rect,
+            cells,
+            &self.proxy,
+        ))
+    }
+
+    /// 조기 적용: 판정이 참이면 host 요청과 plugin 팝업 열기를 그 자리에서 처리한다.
+    fn apply_focus_opens(&mut self) {
+        if !self.state.user_focus_open_queued(self.mgr.as_ref()) {
+            return;
+        }
+        let mut engine = self.session.borrow_mut();
+        for intent in self.state.take_pending_intents() {
+            assert!(
+                matches!(intent.body, crate::intent::Intent::Ui(_)),
+                "이 장면의 요청은 host UI 요청뿐이다: {:?}",
+                intent.body
+            );
+            crate::intent::popup::handle(&mut self.state, &mut engine, &intent);
+        }
+        crate::app::dispatch::popup_opens::open_pending_popups(
+            self.mgr.as_mut(),
+            std::iter::once((&mut self.state, engine)),
+        );
+    }
+
+    fn focus_node(&mut self) -> FocusNode {
+        let engine = self.session.borrow_mut();
+        self.state.normalize_focus(&engine);
+        self.state.focus_node(&engine)
+    }
+}
+
+fn event_loop() -> winit::event_loop::EventLoop<crate::AppEvent> {
+    crate::x11_test_loop::x11_event_loop()
+}
+
+fn ctrl_shift() -> ModifiersState {
+    ModifiersState::CONTROL | ModifiersState::SHIFT
+}
+
+/// 기본 프리셋의 두 바인딩이 이 시험이 넣는 키와 실제 수식키 그대로 맞는다.
+fn assert_default_bindings(w: &mut Window) {
+    let keys = [
+        w.key(0, "P", ctrl_shift()),
+        w.key(0, "I", ctrl_shift()),
+        w.key(0, "b", ModifiersState::CONTROL),
+    ];
+    let engine = w.session.borrow_mut();
+    let read = engine.read();
+    let kb = &read.settings.keybindings;
+    for (binding, key) in [
+        &kb.toggle_command_palette,
+        &kb.toggle_notifications,
+        &kb.toggle_sidebar_collapse,
+    ]
+    .into_iter()
+    .zip(keys)
+    {
+        assert!(
+            crate::shortcuts::matches_any_binding(binding, &key.key, key.mods),
+            "{binding:?} 가 {key:?} 와 맞지 않는다"
+        );
+    }
+}
+
+/// host 갈래. Given WebView 가 키 포커스를 쥔 창, When 한 번의 수집에 [Ctrl+Shift+P(명령 팔레트), Ctrl+B(sidebar
+/// 접기)] 가 들면, Then 첫 키는 처리되고 그 자리에서 팔레트가 열려 포커스 노드가 된다. 둘째 키는 팔레트의 게이트에
+/// 막혀(`Gated`) sidebar 가 그대로이고, 두 키 모두 페이지로 다시 넣지 않는다.
+#[test]
+fn a_palette_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_palette_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    assert_default_bindings(&mut w);
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![
+        w.key(1, "P", ctrl_shift()),
+        w.key(2, "b", ModifiersState::CONTROL),
+    ];
+    let outcomes = w.consume(batch);
+    assert_eq!(
+        outcomes,
+        [ForwardedKeyOutcome::Handled, ForwardedKeyOutcome::Gated]
+    );
+    assert_eq!(
+        w.state.sidebar_collapsed, collapsed,
+        "둘째 키가 sidebar 를 바꿨다"
+    );
+    assert_eq!(
+        w.finished,
+        [(1, false), (2, false)],
+        "Gated 를 페이지로 다시 넣었다"
+    );
+    let FocusNode::Popup(PopupNode::Host(iid)) = w.focus_node() else {
+        panic!("포커스 노드가 host 팝업이 아니다: {:?}", w.focus_node());
+    };
+    assert_eq!(
+        w.state.popups.instance(iid).map(|p| p.id),
+        Some(COMMAND_PALETTE_POPUP_ID)
+    );
+}
+
+/// passive 대조. Given 같은 창, When [Ctrl+Shift+I(알림 목록 토글, 포커스를 요청하지 않는 열기), Ctrl+B] 가 들면,
+/// Then 조기 적용이 일어나지 않아 둘째 키가 실행되고(sidebar 반전), 그때 알림 목록은 닫힌 채이며 그 요청이 대기열에
+/// 남는다.
+#[test]
+fn a_passive_open_by_a_forwarded_key_stays_queued_and_the_next_key_runs() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_passive_open_by_a_forwarded_key_stays_queued_and_the_next_key_runs",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    assert_default_bindings(&mut w);
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![
+        w.key(1, "I", ctrl_shift()),
+        w.key(2, "b", ModifiersState::CONTROL),
+    ];
+    let outcomes = w.consume(batch);
+    assert_eq!(
+        outcomes,
+        [ForwardedKeyOutcome::Handled, ForwardedKeyOutcome::Handled]
+    );
+    assert_eq!(w.state.sidebar_collapsed, !collapsed, "둘째 키가 실행됐다");
+    assert_eq!(w.finished, [(1, false), (2, false)]);
+    assert!(
+        !w.state.popups.is_open("notifications"),
+        "알림 목록이 열렸다"
+    );
+    let queued: Vec<_> = w
+        .state
+        .pending_intents
+        .iter()
+        .map(|i| format!("{:?}", i.body))
+        .collect();
+    assert_eq!(queued.len(), 1, "{queued:?}");
+    assert!(
+        queued[0].contains("TogglePopup") && queued[0].contains("notifications"),
+        "{queued:?}"
+    );
+}
+
+/// 창 범위 팝업 `viewer` 를 선언하고, 그 팝업을 여는 전역 명령을 기본 조합 `PLUGIN_COMBO` 로 등록한 관리자.
+fn plugin_manager() -> (PluginManager, tasty_host_plugin::manager::CallerStub) {
+    let mut mgr = PluginManager::with_registries(
+        Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+        Arc::new(crate::file::format::FileFormatRegistry::new()),
+        Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+    );
+    let manifest: tasty_plugin_manifest::Manifest = toml::from_str(&format!(
+        "manifest_version = 1\nid = \"{PLUGIN}\"\nname = \"WebView key popup\"\nversion = \"1.0.0\"\n\
+         api_version = \"{}\"\n[entry]\ntype = \"process\"\ncommand = \"echo\"\n\
+         [[contributes.commands]]\nid = \"open\"\ntitle_i18n_key = \"open.title\"\n\
+         default_keybinding = \"{PLUGIN_COMBO}\"\nscope = \"global\"\n\
+         action = {{ kind = \"open_popup\", popup_id = \"{PLUGIN}/viewer\" }}\n",
+        crate::plugin::manifest::HOST_API_VERSION
+    ))
+    .expect("manifest");
+    mgr.install_packages_for_test(vec![tasty_host_plugin::PluginPackage {
+        dir: std::path::PathBuf::from("/nonexistent/webview-key-popup"),
+        manifest: manifest.clone(),
+    }]);
+    mgr.command_registry.register_plugin(&manifest);
+    let stub = mgr.attach_caller_stub_for_test(PLUGIN);
+    let decl = serde_json::from_value::<tasty_plugin_protocol::PopupDeclSpec>(
+        serde_json::json!({ "scope_kind": "window", "size": { "width": 200, "height": 100 } }),
+    )
+    .expect("spec")
+    .to_decl();
+    mgr.declare_popup(PLUGIN, "viewer", decl).expect("declare");
+    (mgr, stub)
+}
+
+/// plugin 갈래. Given plugin 전역 명령이 창 범위 팝업을 여는 창, When [그 명령의 조합, Ctrl+B] 가 들면, Then 첫 키는
+/// plugin 단축키로 처리되고 그 자리에서 plugin 팝업이 열려 포커스 노드가 된다. 둘째 키는 그 팝업의 게이트에 막힌다.
+/// 그 조합은 WebView 가 호스트로 넘기는 plugin 전역 조합에 든다(`webview_command_bindings`).
+#[test]
+fn a_plugin_popup_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_plugin_popup_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    let (mgr, _stub) = plugin_manager();
+    {
+        let engine = w.session.borrow_mut();
+        let bindings = crate::plugin_bridge::key_dispatch::webview_command_bindings(
+            &mgr,
+            &engine.read().settings.keybindings,
+        );
+        assert!(
+            bindings.global.iter().any(|b| b == PLUGIN_COMBO),
+            "{bindings:?}"
+        );
+    }
+    w.mgr = Some(mgr);
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![
+        w.key(1, "y", ModifiersState::CONTROL | ModifiersState::ALT),
+        w.key(2, "b", ModifiersState::CONTROL),
+    ];
+    let outcomes = w.consume(batch);
+    assert_eq!(
+        outcomes,
+        [ForwardedKeyOutcome::Handled, ForwardedKeyOutcome::Gated]
+    );
+    assert_eq!(
+        w.state.sidebar_collapsed, collapsed,
+        "둘째 키가 sidebar 를 바꿨다"
+    );
+    assert_eq!(w.finished, [(1, false), (2, false)]);
+    let opened: Vec<u64> = w
+        .mgr
+        .as_ref()
+        .expect("관리자")
+        .popup_instances()
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(opened.len(), 1, "{opened:?}");
+    assert_eq!(
+        w.focus_node(),
+        FocusNode::Popup(PopupNode::Plugin(opened[0]))
+    );
+}

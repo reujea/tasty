@@ -24,6 +24,8 @@ mod webview_edit;
 mod window_control;
 mod zoom;
 
+#[cfg(test)]
+pub(crate) use keybinding::CellGeometry;
 pub(crate) use webview_claims::webview_shortcut_policy;
 pub(crate) use webview_edit::{
     edit_binding_after_clipboard, edit_binding_for_key, webview_edit_for_surface_key,

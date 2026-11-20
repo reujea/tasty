@@ -334,6 +334,10 @@ fn native_refresh_outcome(
     Some(ForwardedKeyOutcome::from_handled(requested))
 }
 
+#[cfg(all(test, target_os = "linux"))]
+#[path = "webview_keys_state_tests.rs"]
+mod state_tests;
+
 #[cfg(test)]
 mod tests {
     use super::webview_poll_needed;
