@@ -53,11 +53,14 @@ impl ApplicationHandler<crate::AppEvent> for UserEventsOnly<'_> {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: crate::AppEvent) {
-        if matches!(event, crate::AppEvent::AttachClientData) {
-            self.attach_data_with_wake
-                .push(self.app.attach_client_wake.is_pending());
+        match event {
+            crate::AppEvent::AttachClientData => {
+                let armed = self.app.attach_client_wake.is_pending();
+                self.attach_data_with_wake.push(armed);
+                self.app.user_event(event_loop, event);
+            }
+            other => self.app.user_event(event_loop, other),
         }
-        self.app.user_event(event_loop, event);
     }
 }
 
