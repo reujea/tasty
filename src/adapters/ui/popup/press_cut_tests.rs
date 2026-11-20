@@ -1,7 +1,7 @@
 //! 한 이벤트 묶음에 키와 누름이 섞여 들어올 때 키 하나의 주인은 그 키가 들어온 시점의 포커스 노드다. 창은 키가 실린
 //! 몫 뒤의 누름에서 egui 입력을 끊고(`MainViewState::cut_key_frame`), 패스마다 앞 몫 하나를 그린다.
 //!
-//! 누름은 debug 주입과 같은 함수(`debug_input::press_focus`)로, 패스 입력은 egui 패스와 같은 분할 함수
+//! 누름은 debug 주입과 같은 함수(`input_segment::press_focus`)로, 패스 입력은 egui 패스와 같은 분할 함수
 //! (`InputCuts::split_pass`)로 밟는다(`window_input_test_support`). 창 winit 경로가 같은 함수를 부르는지는 소스 가드
 //! `source_guards::press_focus_call_sites` 가 본다.
 

@@ -1,11 +1,11 @@
-//! 창의 입력 순서를 GPU 없이 밟는 시험 도우미. 누름은 debug 주입과 같은 함수(`debug_input::press_focus`)로 지금 몫을
+//! 창의 입력 순서를 GPU 없이 밟는 시험 도우미. 누름은 debug 주입과 같은 함수(`input_segment::press_focus`)로 지금 몫을
 //! 끊고 포커스 노드를 옮긴다. 패스 입력은 egui 패스와 같은 순서로 꺼낸다(`PopupManager::begin_key_pass` 뒤 큐를 꺼내
 //! 앞 끊은 자리에서 나눔, `InputCuts::split_pass`). 키 사건의 게이트 판정(`window_feeds_egui`·`window_escape`)은 각
 //! 시험이 창과 같은 함수로 하고 egui 로 보낼 사건만 `push` 한다.
 
 use crate::adapters::ui::popup::frame_keys::InputCuts;
 use crate::state::RequestContext;
-use crate::view::main::debug_input::{EguiPressSink, press_focus};
+use crate::view::main::input_segment::{EguiPressSink, press_focus};
 
 /// 창 하나의 egui 입력 큐와 끊은 자리.
 #[derive(Default)]

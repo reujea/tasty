@@ -16,6 +16,8 @@ mod file_drop;
 mod fullscreen_window;
 mod html_address_keys;
 mod html_content;
+#[cfg(any(debug_assertions, test))]
+pub(crate) mod input_segment;
 mod keyboard;
 mod link_menu;
 mod menu_target;

@@ -89,7 +89,8 @@ fn a_debug_pointer_press_moves_the_focus_node_through_the_press_snapshot() {
         "egui 입력에 넣기",
     );
     assert!(focus < push, "포커스 처리 → egui 입력 순서가 아니다");
-    let press = squeeze(&fn_body(&src, "fn press_focus(").expect("press_focus"));
+    let segment = read("src/view/main/input_segment.rs");
+    let press = squeeze(&fn_body(&segment, "fn press_focus(").expect("press_focus"));
     let cut = at(
         &press,
         "ifstate.cut_key_frame(sink.queued_events()){sink.cut_queue_here();}",
