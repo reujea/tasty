@@ -178,7 +178,7 @@ Cargo에는 별도 의존성 설치 단계가 없고 build/test 때 필요한 �
 **UI를 디자인에 맞출 때는 구조와 토큰을 모두 확인한다.**
 
 1. **레이아웃 구조**: [디자인 정합 지침](docs/design/systems/design-parity-notes.md)과 [디자인·갤러리 매핑](docs/design/systems/design-gallery-mapping.md)을 읽는다. 디자인의 grid·컬럼·패딩·정렬 구조를 컴포넌트와 코드에 그대로 옮긴다.
-2. **토큰**: [테마 규칙](docs/design/systems/theme.md)에 따라 색·폰트 크기·선 굵기·간격을 토큰에서 가져온다. raw px와 `from_rgb`를 직접 쓰지 않는다. 4px 그리드, 14px UI 폰트 상한, 1px 보더를 지킨다.
+2. **토큰**: 위 'UI 디자인' 절의 토큰 규칙을 적용한다.
 
 레이아웃 구조가 맞아도 토큰이 다를 수 있으므로 두 항목을 따로 확인한다.
 
