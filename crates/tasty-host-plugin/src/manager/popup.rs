@@ -53,7 +53,8 @@ impl PluginManager {
     /// 반환값은 호스트가 발급한 instance_id. 추후 `close_popup_instance`에
     /// 같은 id를 넘겨야 한다.
     ///
-    /// plugin이 실행 중이 아니거나 popup contribute가 없으면 `None`.
+    /// plugin이 실행 중이 아니거나 popup contribute가 없거나 `popup.open` 을 보내지 못했으면(송신 큐 포화·연결
+    /// 종료) `None`. 보내지 못한 인스턴스는 남기지 않는다.
     pub fn open_popup_instance(
         &mut self,
         plugin_id: &str,
@@ -82,7 +83,7 @@ impl PluginManager {
                 scope_surface: None,
             },
         );
-        self.send_surface_request(
+        let sent = self.send_owned_surface_request(
             plugin_id,
             protocol::METHOD_POPUP_OPEN,
             json!({
@@ -92,7 +93,29 @@ impl PluginManager {
             }),
             PendingRequestKind::PopupOpen { instance_id },
         );
+        if matches!(sent, super::RemotePublication::NeverSent) {
+            self.popup_instances.remove(&instance_id);
+            return None;
+        }
         Some(instance_id)
+    }
+
+    /// plugin 이 `popup.open` 에 오류로 답했다. 그 인스턴스는 열리지 않았으므로 호스트 쪽 인스턴스를 지우고
+    /// (plugin 에 `popup.closed` 는 보내지 않는다) 호스트가 포커스·결속을 풀 수 있게 기록한다.
+    pub(super) fn fail_popup_open(&mut self, plugin_id: &str, instance_id: u64, error: &str) {
+        tracing::warn!("plugin '{plugin_id}' popup.open failed (instance {instance_id}): {error}");
+        if self.popup_instances.remove(&instance_id).is_none() {
+            return;
+        }
+        if let Some(f) = self.popup_mesh_frames.remove(&instance_id) {
+            self.release_plugin_buffer(&f.plugin_id, f.buffer_id);
+        }
+        self.failed_popup_opens.push(instance_id);
+    }
+
+    /// 열기 요청이 오류로 끝나 지운 popup 인스턴스를 꺼낸다. 호스트는 각 창의 결속에서 지워 포커스 노드를 푼다.
+    pub fn take_failed_popup_opens(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.failed_popup_opens)
     }
 
     /// 소유 확인을 기다리는 surface 범위 이벤트 팝업을 모두 꺼낸다.

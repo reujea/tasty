@@ -8,11 +8,12 @@ use tasty_plugin_protocol::popup_spec::PopupDeclSpec;
 use tasty_terminal::waker_factory::NoopWakerFactory;
 
 use super::PluginManager;
-use crate::process::PluginProcess;
+use crate::process::{PluginProcess, RequestTap};
 
 const PLUGIN: &str = "com.example.viewer";
 
-fn manager_with(popups: &str, api: &str) -> PluginManager {
+/// 매니저와 stub 수신단. 수신단을 놓으면 `popup.open` 송신이 끊겨 열기가 실패한다.
+fn manager_with(popups: &str, api: &str) -> (PluginManager, RequestTap) {
     let mut mgr = PluginManager::new(Arc::new(NoopWakerFactory));
     let manifest: tasty_plugin_manifest::Manifest = toml::from_str(&format!(
         r#"
@@ -34,12 +35,12 @@ args = []
         dir: std::path::PathBuf::from("/nonexistent/viewer"),
         manifest,
     }]);
-    let (process, _rx) = PluginProcess::stub_with_request_rx(PLUGIN);
+    let (process, tap) = PluginProcess::stub_with_request_rx(PLUGIN);
     mgr.processes.insert(PLUGIN.to_string(), process);
-    mgr
+    (mgr, tap)
 }
 
-fn manager() -> PluginManager {
+fn manager() -> (PluginManager, RequestTap) {
     manager_with("", tasty_plugin_manifest::HOST_API_VERSION)
 }
 
@@ -55,7 +56,7 @@ fn surface_decl() -> PopupDecl {
 
 #[test]
 fn a_plugin_without_manifest_popups_declares_and_opens_one() {
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     assert!(mgr.popup_decl(PLUGIN, "confirm").is_none());
     mgr.declare_popup(PLUGIN, "confirm", surface_decl())
         .expect("declare");
@@ -87,7 +88,7 @@ fn a_plugin_without_manifest_popups_declares_and_opens_one() {
 #[test]
 fn the_layout_of_a_run_time_declaration_reaches_the_instance() {
     use tasty_plugin_protocol::popup_decl::{PopupEscape, PopupFit};
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     let layout_decl = decl(json!({
         "scope_kind": "surface", "size": { "width": 360, "height": 150 },
         "covers_scope": false, "fit": "shrink", "scope_inset": false, "escape": "ignore"
@@ -118,7 +119,7 @@ fn the_layout_of_a_run_time_declaration_reaches_the_instance() {
 
 #[test]
 fn a_run_time_declaration_wins_over_the_manifest_one() {
-    let mut mgr = manager_with(
+    let (mut mgr, _tap) = manager_with(
         r#"
 [[contributes.popup]]
 id = "viewer"
@@ -144,7 +145,7 @@ size_hint = { width = 480, height = 360 }
 
 #[test]
 fn invalid_declarations_are_refused() {
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     let err = mgr
         .declare_popup(PLUGIN, "Bad_Id", surface_decl())
         .expect_err("bad id");
@@ -178,7 +179,7 @@ fn invalid_declarations_are_refused() {
 
 #[test]
 fn an_older_api_version_cannot_declare() {
-    let mut mgr = manager_with("", "0.0.0-old");
+    let (mut mgr, _tap) = manager_with("", "0.0.0-old");
     let err = mgr
         .declare_popup(PLUGIN, "confirm", surface_decl())
         .expect_err("api mismatch");
@@ -187,7 +188,7 @@ fn an_older_api_version_cannot_declare() {
 
 #[test]
 fn forgetting_the_process_drops_its_declarations() {
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     mgr.declare_popup(PLUGIN, "confirm", surface_decl())
         .expect("declare");
     mgr.forget_plugin_runtime(PLUGIN, "test");
@@ -196,7 +197,7 @@ fn forgetting_the_process_drops_its_declarations() {
 
 #[test]
 fn scopes_the_current_renderer_cannot_draw_do_not_open() {
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     mgr.declare_popup(
         PLUGIN,
         "pane-note",
@@ -212,7 +213,7 @@ fn scopes_the_current_renderer_cannot_draw_do_not_open() {
 
 #[test]
 fn an_open_instance_keeps_the_declaration_it_opened_with() {
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     mgr.declare_popup(PLUGIN, "confirm", surface_decl())
         .expect("declare");
     let iid = mgr
@@ -233,7 +234,7 @@ fn an_open_instance_keeps_the_declaration_it_opened_with() {
 
 #[test]
 fn a_column_declaration_opens_at_the_center_until_the_renderer_draws_columns() {
-    let mut mgr = manager();
+    let (mut mgr, _tap) = manager();
     mgr.declare_popup(
         PLUGIN,
         "notice",

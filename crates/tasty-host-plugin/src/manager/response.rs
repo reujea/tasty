@@ -168,9 +168,10 @@ impl PluginManager {
                 self.finish_surface_retirement(plugin_id, completion, process_binding, resp);
             }
             PendingRequestKind::Other => {}
-            PendingRequestKind::PopupOpen { instance_id } => {
-                handle_popup_open_response(plugin_id, instance_id, resp.result);
-            }
+            PendingRequestKind::PopupOpen { instance_id } => match resp.error {
+                Some(error) => self.fail_popup_open(plugin_id, instance_id, &error),
+                None => handle_popup_open_response(plugin_id, instance_id, resp.result),
+            },
             PendingRequestKind::NamespaceInvoke {
                 plugin_id: _,
                 response_tx,

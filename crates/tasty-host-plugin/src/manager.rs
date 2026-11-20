@@ -455,6 +455,8 @@ pub struct PluginManager {
     pub(super) popup_instances: HashMap<u64, PopupInstance>,
     /// 다음 popup `instance_id`. 1부터 시작해 단조 증가.
     pub(super) next_popup_instance_id: u64,
+    /// 열기 요청이 오류로 끝나 지운 popup 인스턴스. 호스트가 `take_failed_popup_opens` 로 꺼낸다.
+    pub(super) failed_popup_opens: Vec<u64>,
     /// plugin이 실행 중에 `popup.declare`로 등록한 팝업 선언. 키는 (plugin id, popup id).
     /// 같은 id의 매니페스트 선언보다 먼저 쓴다. 프로세스가 끝나면 지운다.
     pub(super) popup_decls: HashMap<(String, String), tasty_plugin_protocol::popup_decl::PopupDecl>,

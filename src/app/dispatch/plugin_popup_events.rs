@@ -104,16 +104,31 @@ pub(crate) fn close_retired_window<'a>(
     }
 }
 
-/// 상태마다 쌓인 popup·banner 닫기와 포커스 변경을 매니저에 전달한다.
+/// 열기 요청이 실패해 매니저가 지운 plugin popup 인스턴스를 이 창의 결속·창 범위 목록에서 지운다. 포커스 노드였으면
+/// 그 노드는 살아 있지 않게 되어(`MainViewState::popup_focus`) 다음 사건부터 포커스가 아래 노드로 돌아간다.
+pub(crate) fn forget_failed_popup_opens(state: &mut MainViewState, failed: &[u64]) {
+    for id in failed {
+        state.plugin_popup_bound_scopes.remove(id);
+        state.plugin_window_popups.remove(id);
+    }
+}
+
+/// 상태마다 쌓인 popup·banner 닫기와 포커스 변경을 매니저에 전달한다. 그 전에 매니저가 열기 실패로 지운 popup
+/// 인스턴스를 각 창의 결속에서 지워, 그 인스턴스가 포커스 노드였으면 바로 풀리게 한다(`plugin_node_alive`).
 pub(crate) fn drain_plugin_popup_events<'a>(
     sessions: impl Iterator<Item = &'a mut MainViewState>,
-    mgr: Option<&mut crate::plugin::PluginManager>,
+    mut mgr: Option<&mut crate::plugin::PluginManager>,
 ) {
+    let failed = mgr
+        .as_deref_mut()
+        .map(|m| m.take_failed_popup_opens())
+        .unwrap_or_default();
     let mut drained_closes: Vec<(u64, tasty_plugin_protocol::PopupCloseReason)> = Vec::new();
     let mut drained_banner_closes: Vec<(u64, tasty_plugin_protocol::BannerCloseReason)> =
         Vec::new();
     let mut drained_focus_bumps: Vec<u64> = Vec::new();
     for s in sessions {
+        forget_failed_popup_opens(s, &failed);
         let closes = std::mem::take(&mut s.plugin_popup_closes);
         cancel_child_file_picker(s, &closes);
         drained_closes.extend(closes);
