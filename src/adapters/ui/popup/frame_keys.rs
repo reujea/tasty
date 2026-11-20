@@ -70,6 +70,9 @@ struct AfterCut {
     escape: HandedEscape,
     /// egui 로 보내지 않은 Esc 뗌이 이 몫에 왔다(`note_unfed_escape_release`).
     escape_released: bool,
+    /// 사건 시점의 포커스 노드가 바뀌어 연 몫이다. 이 몫이 비어 있는 동안 키가 오면 한 번 더 끊어, 이 몫은 새 노드의
+    /// 빈 패스가 된다.
+    node_transition: bool,
 }
 
 /// 입력 시점 결속과 이번 프레임 값.
@@ -110,7 +113,9 @@ impl PopupManager {
     /// 있다.
     ///
     /// `node_changed` 는 그 사건 시점의 포커스 노드가 지금 몫의 노드와 다르다는 것이다(`MainViewState::cut_key_frame`).
-    /// 그러면 사건 종류와 관계없이 끊는다.
+    /// 그러면 사건 종류와 관계없이 끊는다. 그렇게 연 몫에 아무 사건도 들기 전에 키가 오면 한 번 더 끊는다. 앞 몫의
+    /// 마지막 사건(검색 단축키, 무대 종료 키, Esc 해제, 누름 등)이 포커스 노드를 바꿨으면 새 노드는 빈 패스 하나를 먼저
+    /// 그린다. 새 노드의 입력칸은 그 패스에서 egui 키 포커스를 얻고 다음 패스에서 그 키를 받는다(누름 뒤 키와 같은 이유).
     ///
     /// 끊으면 닫히는 몫에 결속이 없을 때 `focus`(닫히는 몫의 포커스 노드가 팝업이면 그 노드)로 묶는다. 참이면 호출자는
     /// egui 입력도 그 자리에서 끊는다(`InputCuts::cut_at`).
@@ -121,19 +126,27 @@ impl PopupManager {
         focus: Option<PopupNode>,
         node_changed: bool,
     ) -> bool {
-        let (start, bound, escape) = match self.keys.after_cut.back_mut() {
-            Some(after) => (after.at, &mut after.bound, !after.escape.is_empty()),
-            None => (0, &mut self.keys.bound, !self.keys.escape.is_empty()),
+        let (start, bound, escape, transition) = match self.keys.after_cut.back_mut() {
+            Some(after) => (
+                after.at,
+                &mut after.bound,
+                !after.escape.is_empty(),
+                after.node_transition,
+            ),
+            None => (0, &mut self.keys.bound, !self.keys.escape.is_empty(), false),
         };
         let segment = events.get(start..).unwrap_or_default();
         let cut = node_changed
             || match incoming {
                 Incoming::Press => segment.iter().any(is_key_input) || bound.is_some() || escape,
-                Incoming::Key => segment
-                    .iter()
-                    .rev()
-                    .find(|e| is_key_input(e) || is_press(e))
-                    .is_some_and(is_press),
+                Incoming::Key => {
+                    (transition && segment.is_empty())
+                        || segment
+                            .iter()
+                            .rev()
+                            .find(|e| is_key_input(e) || is_press(e))
+                            .is_some_and(is_press)
+                }
             };
         if !cut {
             return false;
@@ -141,6 +154,7 @@ impl PopupManager {
         bound.get_or_insert(focus.map_or(Bound::NoPopup, Bound::Popup));
         self.keys.after_cut.push_back(AfterCut {
             at: events.len(),
+            node_transition: node_changed,
             ..AfterCut::default()
         });
         true

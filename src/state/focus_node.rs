@@ -175,31 +175,36 @@ impl super::MainViewState {
     /// 그 자리에서 끊어 그 사건부터를 뒤 그리기 몫으로 둔다. 몫의 노드는 그 몫에 처음 든 키 사건 시점의 포커스
     /// 노드다. 키 없이 누름만 든 몫은 끊는 시점(누름이 옮긴 뒤)의 포커스 노드로 닫는다. 사건 처리 중에 포커스 노드를
     /// 바꾸는 전이(누름, 무대 열기·닫기, 주소 띠 해제 등)는 즉시 적용되고, 다음 사건이 그 차이로 끊는다. 그 몫을
-    /// 그리는 동안 포커스 노드를 읽는 판정은 그 몫의 노드를 읽는다(`pass_focus_node`). 참이면 호출자는 egui 입력도 그
-    /// 자리에서 끊는다.
+    /// 그리는 동안 포커스 노드를 읽는 판정은 그 몫의 노드를 읽는다(`pass_focus_node`). 노드 차이로 끊은 자리에 키가
+    /// 오면 같은 자리에서 한 번 더 끊어 새 노드의 빈 몫을 둔다(`PopupManager::cut_key_frame`). 끊은 수를 돌려준다.
+    /// 호출자는 egui 입력도 그 자리에서 그 수만큼 끊는다.
     pub(crate) fn cut_key_frame(
         &mut self,
         core: &CoreState,
         events: &[egui::Event],
         incoming: Incoming,
-    ) -> bool {
+    ) -> usize {
         let focus = self.focus_node(core);
-        let node = *self.open_segment_focus();
-        let popup = match node.unwrap_or(focus) {
-            FocusNode::Popup(node) => Some(node),
-            _ => None,
-        };
-        let changed = node.is_some_and(|node| node != focus);
-        let cut = self.popups.cut_key_frame(events, incoming, popup, changed);
-        if cut {
+        let mut cuts = 0;
+        loop {
+            let node = *self.open_segment_focus();
+            let popup = match node.unwrap_or(focus) {
+                FocusNode::Popup(node) => Some(node),
+                _ => None,
+            };
+            let changed = node.is_some_and(|node| node != focus);
+            if !self.popups.cut_key_frame(events, incoming, popup, changed) {
+                break;
+            }
             self.open_segment_focus().get_or_insert(focus);
             self.segments_after_cut
                 .push_back(SegmentAfterCut::default());
+            cuts += 1;
         }
         if incoming == Incoming::Key {
             self.open_segment_focus().get_or_insert(focus);
         }
-        cut
+        cuts
     }
 
     /// 지금 사건을 받는 몫(마지막으로 끊은 뒤 몫, 없으면 이번 그리기 몫)의 포커스 노드 칸.

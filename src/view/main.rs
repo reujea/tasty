@@ -524,9 +524,10 @@ impl MainView {
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => Incoming::Key,
             _ => return,
         };
-        if self
-            .state
-            .cut_key_frame(engine, self.base.gpu.egui_input_events_mut(), incoming)
+        for _ in
+            0..self
+                .state
+                .cut_key_frame(engine, self.base.gpu.egui_input_events_mut(), incoming)
         {
             self.base.gpu.cut_egui_input_here();
         }

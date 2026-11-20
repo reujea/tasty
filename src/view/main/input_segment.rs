@@ -31,7 +31,7 @@ pub(crate) fn press_focus(
     pos: egui::Pos2,
     button: egui::PointerButton,
 ) {
-    if state.cut_key_frame(core, sink.queued_events(), Incoming::Press) {
+    for _ in 0..state.cut_key_frame(core, sink.queued_events(), Incoming::Press) {
         sink.cut_queue_here();
     }
     let snapshot = state.take_press_snapshot(core, pos, button);
@@ -46,7 +46,7 @@ pub(crate) fn key_focus(
     core: &crate::core::CoreState,
     sink: &mut impl EguiPressSink,
 ) {
-    if state.cut_key_frame(core, sink.queued_events(), Incoming::Key) {
+    for _ in 0..state.cut_key_frame(core, sink.queued_events(), Incoming::Key) {
         sink.cut_queue_here();
     }
 }
