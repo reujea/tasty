@@ -147,6 +147,7 @@ fn reject_the_queue(sender: &crate::connection::ConnectionSender) {
 }
 
 const FORCE_NOTICE: &[u8] = br#"{"event":"force_detached","reason":"force_detach_workspace"}"#;
+const WORKSPACE_GONE_NOTICE: &[u8] = br#"{"event":"force_detached","reason":"workspace_gone"}"#;
 
 fn wait_finished(handle: &std::thread::JoinHandle<()>, what: &str) {
     let until = std::time::Instant::now() + WAIT;
@@ -156,22 +157,29 @@ fn wait_finished(handle: &std::thread::JoinHandle<()>, what: &str) {
     }
 }
 
-/// S2: reader 출구마다 확정 뒤에 깨운다. 깨움은 확정한 쪽 하나다.
+/// S2: reader 출구마다(강제 통지, workspace 사라짐 통지, EOF, Detach, 수신 오류, 읽기 기한, panic) 확정
+/// 뒤에 깨운다. 깨움은 확정한 쪽 하나다.
 #[test]
 fn every_reader_exit_settles_before_it_wakes() {
     enum Exit {
         Notice,
+        WorkspaceGone,
         Eof,
         Detach,
+        ReadError,
+        Deadline,
         Panic,
     }
     for (exit, expected) in [
         (Exit::Notice, EndReason::Forced),
+        (Exit::WorkspaceGone, EndReason::Lost),
         (Exit::Eof, EndReason::Lost),
         (Exit::Detach, EndReason::Lost),
+        (Exit::ReadError, EndReason::Lost),
+        (Exit::Deadline, EndReason::Lost),
         (Exit::Panic, EndReason::Lost),
     ] {
-        let (_write_half, conn, mut peer) = opened_attach_pair();
+        let (write_half, conn, mut peer) = opened_attach_pair();
         let end = Arc::new(TransportEnd::new());
         let finished = Arc::new(AtomicBool::new(false));
         let (wake, wakes) = recording_wake(&end);
@@ -182,8 +190,15 @@ fn every_reader_exit_settles_before_it_wakes() {
         };
         match exit {
             Exit::Notice => stream::write_frame(&mut peer, StreamTag::Control, FORCE_NOTICE),
+            Exit::WorkspaceGone => {
+                stream::write_frame(&mut peer, StreamTag::Control, WORKSPACE_GONE_NOTICE)
+            }
             Exit::Eof => peer.shutdown(std::net::Shutdown::Write),
             Exit::Detach => stream::write_frame(&mut peer, StreamTag::Detach, b""),
+            // 알 수 없는 tag 의 헤더. 수신이 오류로 끝난다.
+            Exit::ReadError => std::io::Write::write_all(&mut peer, &[0xff, 0, 0, 0, 0]),
+            // 상대가 아무것도 보내지 않아 짧게 건 읽기 기한이 지난다.
+            Exit::Deadline => write_half.set_read_timeout(Some(Duration::from_millis(50))),
             Exit::Panic => stream::write_frame(&mut peer, StreamTag::Control, b"{}"),
         }
         .unwrap();
