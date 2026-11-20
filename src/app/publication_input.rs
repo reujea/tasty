@@ -407,7 +407,7 @@ fn host_keyboard_focus(
     view: &crate::view::main::MainView,
 ) -> Option<(Option<crate::model::popup_kind::PopupId>, Option<egui::Id>)> {
     (view.state.popups.has_focused()
-        || view.state.has_input_dialog_open()
+        || view.state.input_dialog_owns_keys()
         || view.state.plugin_popup_owns_keys()
         || view.state.tutorial.keyboard_focus)
         .then(|| {

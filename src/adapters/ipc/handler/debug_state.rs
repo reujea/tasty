@@ -87,7 +87,7 @@ pub(super) fn handle_ui_state(
             "focus_node": focus_node,
             "gate_fullscreen_stage_active": state.fullscreen_stage_active(),
             "gate_settings_open_requested": state.has_settings_open_request(),
-            "gate_input_dialog_open": state.has_input_dialog_open(),
+            "gate_input_dialog_open": state.input_dialog_owns_keys(),
             "gate_host_popup_focused": host_popup_focused,
             "gate_restore_notice_focused": restore_notice_focused,
             "gate_plugin_popup_owns_keys": state.plugin_popup_owns_keys(),

@@ -756,3 +756,61 @@ fn a_press_on_the_surface_under_its_own_popup_takes_the_focus_from_the_popup() {
     );
     assert!(state.popups.instance(search).is_some_and(|p| p.open));
 }
+
+/// Given R 에 포커스를 가진 이름 바꾸기 입력 대화상자가 열려 있을 때, When L 터미널을 누르면, Then 포커스 노드가 L 로
+/// 옮겨 이름 바꾸기는 열린 채 키를 가져가지 않는다. 창의 터미널 게이트와 키·IME 오버레이 게이트가 모두 열려 L 의 글자와
+/// IME 조합이 터미널로 간다.
+#[test]
+fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
+    use crate::adapters::ui::rename_popup::RENAME_POPUP_ID;
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session) = scene(super::PANE_R);
+    let engine = session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let rename = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(RENAME_POPUP_ID, PopupScope::Surface(SURFACE_R))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    assert!(state.input_dialog_owns_keys());
+    assert!(state.window_holds_terminal_keys());
+
+    let at = surface_rect_l().center();
+    let snapshot = state.take_press_snapshot(&engine.read(), at, egui::PointerButton::Primary);
+    state.keep_press_snapshot(snapshot);
+    {
+        let read = engine.read();
+        state
+            .navigation
+            .select_pane(read.workspace_at(0).unwrap(), super::PANE_L);
+    }
+    state.normalize_focus(&engine.read());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L))
+    );
+    assert!(state.popups.instance(rename).is_some_and(|p| p.open));
+    assert!(
+        state.has_input_dialog_open(),
+        "이름 바꾸기는 열린 채 남는다"
+    );
+    assert!(!state.input_dialog_owns_keys());
+    assert_eq!(
+        state.window_feeds_egui(false, true),
+        None,
+        "L 터미널의 키·IME 는 egui 로 가지 않는다"
+    );
+    assert!(
+        !state.window_keys_to_overlay(),
+        "IME 오버레이 게이트가 열린다"
+    );
+    assert!(
+        !state.window_holds_terminal_keys(),
+        "L 의 글자는 터미널로 간다"
+    );
+}

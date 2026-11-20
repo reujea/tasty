@@ -557,14 +557,23 @@ impl RequestContext {
         }
     }
 
-    /// 텍스트 입력 대화상자가 있는지 반환한다. 헤드리스 debug 조회에서는 false다.
-    #[cfg(any(feature = "gui", debug_assertions))]
+    /// 텍스트 입력 대화상자(이름 바꾸기 팝업)가 열려 있는지. 포커스와 무관하다. 키 게이트는
+    /// [`Self::input_dialog_owns_keys`]를 쓴다.
+    #[cfg(feature = "gui")]
     pub fn has_input_dialog_open(&self) -> bool {
+        self.popups
+            .is_open(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
+    }
+
+    /// 이름 바꾸기 입력 대화상자가 창의 포커스 노드라 키를 받는지. 열려 있기만 하고 포커스를 잃은 대화상자(다른 범위를
+    /// 누른 뒤)는 키를 가져가지 않는다. 헤드리스 debug 조회에서는 false다.
+    #[cfg(any(feature = "gui", debug_assertions))]
+    pub fn input_dialog_owns_keys(&self) -> bool {
         #[cfg(feature = "gui")]
         {
-            // 텍스트를 입력받는 대화상자는 이름 바꾸기 팝업이다. 인스턴스가 열려 있으면 참이다.
             self.popups
-                .is_open(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
+                .host_key_owner()
+                .is_some_and(|p| p.id == crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
         }
         #[cfg(not(feature = "gui"))]
         {
@@ -604,7 +613,7 @@ impl RequestContext {
         let host_popup_focused = false;
         keyboard_overlay_open(
             self.has_settings_open_request(),
-            self.has_input_dialog_open(),
+            self.input_dialog_owns_keys(),
             host_popup_focused,
             self.plugin_popup_owns_keys(),
         )
@@ -768,11 +777,14 @@ impl RequestContext {
 #[cfg(any(feature = "gui", debug_assertions, test))]
 pub(crate) fn keyboard_overlay_open(
     settings_open_requested: bool,
-    input_dialog_open: bool,
+    input_dialog_owns_keys: bool,
     host_popup_focused: bool,
     plugin_popup_owns_keys: bool,
 ) -> bool {
-    settings_open_requested || input_dialog_open || host_popup_focused || plugin_popup_owns_keys
+    settings_open_requested
+        || input_dialog_owns_keys
+        || host_popup_focused
+        || plugin_popup_owns_keys
 }
 
 #[cfg(test)]

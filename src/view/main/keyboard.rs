@@ -49,7 +49,7 @@ impl MainView {
             && self.state.tutorial.active.is_some()
             && !self.state.popups.has_focused()
             && !self.state.fullscreen_stage_active()
-            && !self.state.has_input_dialog_open()
+            && !self.state.input_dialog_owns_keys()
             && !self.state.plugin_popup_owns_keys()
             && !self.state.settings_open_requested
         {
