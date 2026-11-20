@@ -522,11 +522,30 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
         None,
         "IME 는 egui 로 가지 않는다"
     );
-    assert_eq!(
-        state.input_destination(&engine.read(), state.window_keys_to_overlay()),
-        InputDestination::Terminal(SURFACE_L),
-        "IME 갈래는 L 터미널 조합이다"
-    );
+    // 창의 IME 처리(`ime::handle_event`)가 고르는 갈래. 게이트가 egui 로 보내지 않았으므로 egui 소비는 거짓이다.
+    // 조합을 시작한 대상(누름 뒤 L)과 확정 시점의 대상이 같아 확정을 버리지 않고 L 터미널 조합으로 보낸다.
+    {
+        use crate::view::main::ime::{ImeRoute, route};
+        use winit::event::Ime;
+        let read = engine.read();
+        let mut target = None;
+        assert_eq!(
+            route(
+                &state,
+                &mut target,
+                &read,
+                &Ime::Preedit("가".into(), Some((3, 3))),
+                false
+            ),
+            ImeRoute::To(InputDestination::Terminal(SURFACE_L)),
+            "조합은 L 터미널로 간다"
+        );
+        assert_eq!(
+            route(&state, &mut target, &read, &Ime::Commit("가".into()), false),
+            ImeRoute::To(InputDestination::Terminal(SURFACE_L)),
+            "확정은 L 조합 대상에 간다"
+        );
+    }
 
     while !input.is_empty() {
         pass(&mut state, &mut input);
