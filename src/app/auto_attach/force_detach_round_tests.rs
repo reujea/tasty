@@ -581,3 +581,27 @@ fn a_failed_resync_connection_reconnects_the_saved_row() {
         SessionState::Reconnecting
     );
 }
+
+/// U1: Given 연결된 행의 전송에 사유만 올랐다(큐 거절·ID 실패, 쓰기 스레드가 reader 를 기다리는 중),
+/// When 회차를 돌리면, Then 확정 전이라 끝으로 보지 않는다. 확정한 뒤의 회차에 재연결로 들어간다.
+#[test]
+fn a_raised_but_unsettled_end_waits_for_the_settle() {
+    alone!("a_raised_but_unsettled_end_waits_for_the_settle");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
+    app.remote.sessions[0].state.remote_workspace = binding().remote_workspace;
+    app.ensure_row_token(ROW);
+    let end = app.remote.sessions[0].transport.end.clone();
+    end.raise(EndReason::Lost);
+
+    app.apply_attach_client_output();
+    assert_eq!(app.remote.sessions[0].state.phase, SessionState::Connected);
+    assert!(app.remote.sessions[0].state.observed_end.is_none());
+
+    assert!(end.settle());
+    app.apply_attach_client_output();
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Reconnecting
+    );
+}
