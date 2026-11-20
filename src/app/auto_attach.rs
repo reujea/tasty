@@ -158,6 +158,18 @@ impl App {
             })
     }
 
+    /// 자동으로 시작한 시도를 막는지. 사용자가 직접 요청한 시도(명시적 연결·원격 팝업)는 막지 않는다.
+    /// 결과 소비·설치 검사·재연결 스케줄러가 모두 이 판정 하나를 쓴다.
+    pub(crate) fn auto_attempt_blocked(
+        &self,
+        target: &crate::app::attach_client::pending::PendingMirrorInstall,
+    ) -> bool {
+        !(target.explicit || target.user)
+            && target
+                .row
+                .is_some_and(|row| self.row_user_disconnected(row))
+    }
+
     /// 서버가 강제로 끊은 행의 연결 대상을 저장해 재시작 뒤에도 자동으로 붙지 않게 한다.
     pub(crate) fn mark_force_detached_row(&mut self, row: u32) {
         if let Some(binding) = self.saved_row_binding(row) {
@@ -407,7 +419,12 @@ impl App {
             if self.row_user_disconnected(row) {
                 // 사용자가 직접 요청한 시도가 진행 중이면 거두지 않는다. 그 결과는 결과 소비·설치
                 // 검사도 남긴다(`drop_attempt_for_force_detached_target`).
-                if self.state.mirror_attempts.row_has_user_attempt(row) {
+                if self
+                    .state
+                    .mirror_attempts
+                    .row_attempts(row)
+                    .any(|target| !self.auto_attempt_blocked(target))
+                {
                     continue;
                 }
                 self.abandon_row_attempts(row, "the row's target was force-detached");

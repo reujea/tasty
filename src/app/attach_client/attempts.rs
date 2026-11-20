@@ -109,14 +109,14 @@ impl MirrorAttempts {
             }
         }
     }
-    /// 행의 진행 중 시도 가운데 사용자가 직접 요청한 연결(명시적 연결·원격 팝업)이 있는지.
-    pub(crate) fn row_has_user_attempt(&self, row: u32) -> bool {
+    /// 행의 진행 중 시도. 활성 endpoint 해석과 연결 대기만 본다.
+    pub(crate) fn row_attempts(&self, row: u32) -> impl Iterator<Item = &PendingMirrorInstall> {
         self.endpoints
             .iter()
             .filter(|(token, _)| token.is_active())
             .map(|(_, target)| target)
             .chain(self.connections.values())
-            .any(|target| target.row == Some(row) && (target.explicit || target.user))
+            .filter(move |target| target.row == Some(row))
     }
 }
 

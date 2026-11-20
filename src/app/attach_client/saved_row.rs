@@ -95,15 +95,12 @@ impl App {
         target: &super::pending::PendingMirrorInstall,
         site: DropSite,
     ) -> bool {
+        if !self.auto_attempt_blocked(target) {
+            return false;
+        }
         let Some(row) = target.row else {
             return false;
         };
-        if target.explicit || target.user {
-            return false;
-        }
-        if !self.row_user_disconnected(row) {
-            return false;
-        }
         tracing::info!("gui attach: 연결 대상이 강제로 끊긴 행 {row}의 진행 중 시도 결과를 버린다");
         target.cancel_run("the saved row's target was force-detached");
         match site {
