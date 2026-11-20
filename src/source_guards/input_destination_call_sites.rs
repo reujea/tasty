@@ -45,14 +45,24 @@ fn the_window_key_path_picks_its_branch_through_the_input_destination() {
     );
 }
 
-/// IME: 키·IME 오버레이 게이트(`window_keys_to_overlay`)를 넘긴 판정으로 갈래를 고르고, 오버레이·mesh 갈래가 아니면
-/// 터미널 조합으로 간다.
+/// IME: 갈래 판정 함수(`ime::route`)가 키·IME 오버레이 게이트(`window_keys_to_overlay`)를 넘긴 판정으로 갈래를 고르고,
+/// 창의 IME 처리(`handle_event`)는 그 함수의 값으로만 갈래를 고른다. 오버레이·mesh 갈래가 아니면 터미널 조합으로 간다.
 #[test]
 fn the_window_ime_path_picks_its_branch_through_the_input_destination() {
     let src = read("src/view/main/ime.rs");
+    let route = squeeze(&fn_body(&src, "fn route(").expect("route"));
+    assert_eq!(
+        route
+            .matches("ImeRoute::To(state.input_destination(engine,state.window_keys_to_overlay()))")
+            .count(),
+        1,
+        "IME 판정"
+    );
     let body = squeeze(&fn_body(&src, "fn handle_event(").expect("handle_event"));
     for arm in [
-        "matchw.state.input_destination(engine,w.state.window_keys_to_overlay()){",
+        "letdestination=matchroute(&w.state,&mutw.ime_request_target,engine,&event,egui_consumed,){",
+        "ImeRoute::To(destination)=>destination,",
+        "matchdestination{",
         "InputDestination::EguiMesh(sid)=>{forward_ime_to_egui_mesh(w,sid,event);",
         "InputDestination::AttachMesh(sid)=>{forward_ime_to_attach_mesh(w,sid,event);",
         "InputDestination::Terminal(_)|InputDestination::Other(_)=>{}",
@@ -60,7 +70,8 @@ fn the_window_ime_path_picks_its_branch_through_the_input_destination() {
         assert_eq!(body.matches(arm).count(), 1, "IME 갈래 `{arm}`");
     }
     assert!(
-        !body.contains("window_keys_to_overlay();")
+        !body.contains("window_keys_to_overlay(")
+            && !body.contains("input_destination(")
             && !body.contains("focused_egui_mesh_surface_id"),
         "IME 갈래를 판정 밖에서 고른다"
     );

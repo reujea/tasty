@@ -21,11 +21,11 @@ pub(crate) struct CompositionTarget {
     preedit_ended: bool,
 }
 impl CompositionTarget {
-    fn capture(w: &MainView, engine: &EngineRead<'_>) -> Self {
+    fn capture(state: &crate::state::MainViewState, engine: &EngineRead<'_>) -> Self {
         Self {
-            selection: w.state.navigation.generation(),
-            pending: w.state.attach_pending.selection_serial,
-            surface: w.state.focused_surface_id(engine),
+            selection: state.navigation.generation(),
+            pending: state.attach_pending.selection_serial,
+            surface: state.focused_surface_id(engine),
             preedit_ended: false,
         }
     }
@@ -35,11 +35,51 @@ impl CompositionTarget {
             && self.surface == current.surface
     }
 }
-fn accepts_commit(w: &mut MainView, engine: &EngineRead<'_>) -> bool {
-    let current = CompositionTarget::capture(w, engine);
-    w.ime_request_target
-        .take()
-        .is_none_or(|target| target.matches(&current))
+
+/// IME 사건 하나가 가는 곳.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ImeRoute {
+    /// 창의 egui 게이트가 egui 로 보냈다.
+    Egui,
+    /// 조합을 시작한 대상(선택·생성 대기·포커스 surface)이 바뀌어 버리는 확정.
+    Dropped,
+    /// 창이 고른 갈래(`MainViewState::input_destination`).
+    To(InputDestination),
+}
+
+/// 창의 IME 사건 하나의 갈래를 고르고 조합 대상(`target`, 창의 `ime_request_target`)을 갱신한다. 창의 IME 처리
+/// (`handle_event`)가 이 판정 하나로 갈래를 고른다. 창 없이 시험이 직접 부른다.
+pub(crate) fn route(
+    state: &crate::state::MainViewState,
+    target: &mut Option<CompositionTarget>,
+    engine: &EngineRead<'_>,
+    event: &Ime,
+    egui_consumed: bool,
+) -> ImeRoute {
+    if egui_consumed {
+        return ImeRoute::Egui;
+    }
+    let current = CompositionTarget::capture(state, engine);
+    match event {
+        // Enabled activates an input method; the first nonempty Preedit begins a composition.
+        Ime::Preedit(text, _) if text.is_empty() => {
+            if let Some(target) = target {
+                target.preedit_ended = true;
+            }
+        }
+        Ime::Preedit(_, _) if target.as_ref().is_none_or(|target| target.preedit_ended) => {
+            *target = Some(current)
+        }
+        Ime::Commit(_) => {
+            if !target.take().is_none_or(|target| target.matches(&current)) {
+                return ImeRoute::Dropped;
+            }
+        }
+        Ime::Disabled => *target = None,
+        _ => {}
+    }
+    // 팝업·무대가 있으면 조합 문자를 배경 터미널에 보내지 않는다.
+    ImeRoute::To(state.input_destination(engine, state.window_keys_to_overlay()))
 }
 
 #[cfg(test)]
@@ -97,45 +137,28 @@ pub(crate) fn handle_event(
     event: Ime,
     egui_consumed: bool,
 ) {
-    let _ = engine; // engine alias: 일부 분기/cfg 에서 미사용 — reborrow 로 unused 경고 억제(값 drop, Result 아님).
-    if egui_consumed {
-        w.mark_dirty();
-        return;
-    }
+    let destination = match route(
+        &w.state,
+        &mut w.ime_request_target,
+        engine,
+        &event,
+        egui_consumed,
+    ) {
+        ImeRoute::Egui => {
+            w.mark_dirty();
+            return;
+        }
+        ImeRoute::Dropped => {
+            w.ime_preedit = None;
+            w.mark_dirty();
+            return;
+        }
+        ImeRoute::To(destination) => destination,
+    };
 
-    let target = CompositionTarget::capture(w, engine);
-    match &event {
-        // Enabled activates an input method; the first nonempty Preedit begins a composition.
-        Ime::Preedit(text, _) if text.is_empty() => {
-            if let Some(target) = &mut w.ime_request_target {
-                target.preedit_ended = true;
-            }
-        }
-        Ime::Preedit(_, _)
-            if w.ime_request_target
-                .as_ref()
-                .is_none_or(|target| target.preedit_ended) =>
-        {
-            w.ime_request_target = Some(target.clone())
-        }
-        Ime::Commit(_) => {
-            if !accepts_commit(w, engine) {
-                w.ime_preedit = None;
-                w.mark_dirty();
-                return;
-            }
-        }
-        Ime::Disabled => w.ime_request_target = None,
-        _ => {}
-    }
-
-    // 팝업·무대가 있으면 조합 문자를 배경 터미널에 보내지 않는다.
     // Enabled/Disabled는 상태 추적에 사용한다. plugin 팝업 입력은 egui 수집기가 이미 전달하므로 여기서 반복하지 않는다.
     // mesh surface는 터미널 오버레이 대신 플러그인에 조합·확정을 전달한다.
-    match w
-        .state
-        .input_destination(engine, w.state.window_keys_to_overlay())
-    {
+    match destination {
         InputDestination::Overlay => {
             match event {
                 Ime::Enabled => {
@@ -266,7 +289,7 @@ pub(super) fn flush_preedit(w: &mut MainView, engine: &EngineRead<'_>) {
             return;
         }
     };
-    let current = CompositionTarget::capture(w, engine);
+    let current = CompositionTarget::capture(&w.state, engine);
     if w.ime_request_target
         .as_ref()
         .is_some_and(|target| !target.matches(&current))
