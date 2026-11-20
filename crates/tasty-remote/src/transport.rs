@@ -622,12 +622,23 @@ pub fn spawn_attach_heartbeat_thread(
 /// reaper closes the exact socket and joins its workers, never a current replacement connection.
 #[derive(Clone)]
 pub struct RetirementReceipt(std::sync::Arc<std::sync::atomic::AtomicU8>);
+/// 회수가 끝났고 worker 가 모두 정상으로 끝났다.
+const RETIRED: u8 = 1;
+/// 회수가 끝났고 panic 한 worker 가 있었다.
+const RETIRE_FAILED: u8 = 2;
+/// 회수 스레드가 대기 상한까지 기다렸다. 끝 값에 더해진다.
+const RETIRE_WAITED_OUT: u8 = 4;
 impl RetirementReceipt {
     pub fn is_done(&self) -> bool {
         self.0.load(Ordering::Acquire) != 0
     }
     pub fn failed(&self) -> bool {
-        self.0.load(Ordering::Acquire) == 2
+        self.0.load(Ordering::Acquire) & RETIRE_FAILED != 0
+    }
+    /// 회수 스레드가 대기 상한(250ms)이 지나도록 끝나지 않은 worker 를 보고 소켓을 닫았는지. 반납이 그
+    /// 자리에서 소켓을 닫았다면 worker 는 그 전에 끝난다. 회수가 끝나기 전에는 false 다.
+    pub fn waited_out(&self) -> bool {
+        self.0.load(Ordering::Acquire) & RETIRE_WAITED_OUT != 0
     }
 }
 pub struct ConnectionWorkers {
@@ -680,6 +691,7 @@ impl Drop for ConnectionWorkers {
             {
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
+            let waited_out = !handles.iter().all(std::thread::JoinHandle::is_finished);
             if let Err(error) = control.shutdown(std::net::Shutdown::Both) {
                 tracing::debug!("retired remote socket already closed: {error}");
             }
@@ -696,9 +708,9 @@ impl Drop for ConnectionWorkers {
                 }
             }
             failed |= reap_tunnel(tunnel);
-            receipt
-                .0
-                .store(if failed { 2 } else { 1 }, Ordering::Release);
+            let end = if failed { RETIRE_FAILED } else { RETIRED };
+            let waited = if waited_out { RETIRE_WAITED_OUT } else { 0 };
+            receipt.0.store(end | waited, Ordering::Release);
         });
     }
 }
@@ -717,9 +729,10 @@ pub(crate) fn join_attempt_workers(handles: Vec<std::thread::JoinHandle<()>>) ->
                 tracing::error!("remote endpoint worker panicked");
             }
         }
-        result
-            .0
-            .store(if failed { 2 } else { 1 }, Ordering::Release);
+        result.0.store(
+            if failed { RETIRE_FAILED } else { RETIRED },
+            Ordering::Release,
+        );
     });
     receipt
 }
@@ -859,9 +872,10 @@ pub(crate) fn retire_tunnel(tunnel: tasty_ssh::SshTunnel) -> RetirementReceipt {
     let completed = receipt.clone();
     std::thread::spawn(move || {
         let failed = reap_tunnel(Some(tunnel));
-        completed
-            .0
-            .store(if failed { 2 } else { 1 }, Ordering::Release);
+        completed.0.store(
+            if failed { RETIRE_FAILED } else { RETIRED },
+            Ordering::Release,
+        );
     });
     receipt
 }
