@@ -297,6 +297,80 @@ fn a_loss_on_a_blocked_row_gives_no_recovery_notice_and_stops() {
     }
 }
 
+/// S13 실제 배선: Given 멈춤이 정해진 연결의 출력 버퍼에 구조 변경(새 surface)과 그 뒤의 닫기 성공 회신이
+/// 있고 ID 예약이 아직 없다, When 실제 버퍼 비우기로 적용하면, Then 구조 변경이 ID 예약을 기다려 그 뒤
+/// 이벤트와 함께 버퍼로 돌아가고 처리는 멈춤을 미룬다. 예약이 채워진 뒤의 적용에서 닫기 회신이 들어와
+/// 서버 닫기로 끝난다. 회차의 `has_pending` 연결(`finish_round`)은 같은 값을 넘긴다.
+#[test]
+fn a_decided_stop_waits_for_a_real_id_reservation_and_the_close_reply_behind_it_wins() {
+    use crate::app::attach_client::tests::{ParkedEngine, parked_with_mirror, supply_ids};
+    let ws_id = 9_000u32;
+    let (survivor_remote, survivor_local, new_remote) = (42u32, 9_003u32, 43u32);
+    let mut parked = parked_with_mirror(ws_id, survivor_local);
+    let mut sess = test_session(ws_id, HashMap::from([(survivor_remote, survivor_local)]));
+    sess.state.saved_row = Some(5);
+    sess.state.workspace_close = WorkspaceClose::Pending(3);
+    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+    let tree = serde_json::json!({
+        "id": 7, "name": "mirror", "focused_pane": 70,
+        "panes": [ {
+            "id": 70,
+            "tabs": [ {
+                "id": 30, "name": "Shell", "active": true, "focused_surface": survivor_remote,
+                "layout": {
+                    "type": "Split", "direction": "vertical", "ratio": 0.5,
+                    "focus_second": false,
+                    "first": { "type": "Leaf", "id": survivor_remote, "kind": "terminal" },
+                    "second": { "type": "Leaf", "id": new_remote, "kind": "terminal" }
+                }
+            } ]
+        } ]
+    });
+    let surfaces = vec![
+        serde_json::json!({ "remote_id": survivor_remote, "role": "terminal", "cols": 80, "rows": 24 }),
+        serde_json::json!({ "remote_id": new_remote, "role": "terminal", "cols": 80, "rows": 24 }),
+    ];
+    assert!(sess.transport.output.push(MirrorEvent::StructuralDelta {
+        workspace_id: 7,
+        tree,
+        surfaces,
+    }));
+    assert!(
+        sess.transport
+            .output
+            .push(MirrorEvent::StructuralSucceeded(3, None, 0))
+    );
+    let ParkedEngine {
+        view_restore: state,
+        session,
+    } = &mut parked[1];
+    let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+    {
+        let mut engine = session.borrow_mut();
+        let mut host = MirrorHost::parked(state, &mut engine);
+        host.drain_and_apply(&mut sess, &mut plugin_manager);
+    }
+    let deferred = sess.transport.output.has_pending();
+    assert!(deferred, "the delta and the reply behind it went back");
+    let phase = sess.state.phase;
+    assert_eq!(
+        route_session_end(&mut sess, phase, deferred, false),
+        (DisconnectDisposition::None, false)
+    );
+    {
+        let mut engine = session.borrow_mut();
+        supply_ids(&engine);
+        let mut host = MirrorHost::parked(state, &mut engine);
+        host.drain_and_apply(&mut sess, &mut plugin_manager);
+    }
+    let deferred = sess.transport.output.has_pending();
+    assert!(!deferred);
+    assert_eq!(
+        route_session_end(&mut sess, phase, deferred, false),
+        (DisconnectDisposition::ServerClosed, false)
+    );
+}
+
 /// S7: 같은 묶음에 닫기 성공 회신과 강제 끊김이 함께 오면 서버 닫기로 끝난다(G2-a). 손실 끝도 같다.
 #[test]
 fn a_close_reply_wins_over_a_forced_or_lost_end_in_the_same_batch() {
