@@ -395,10 +395,13 @@ fn assert_the_stop_waits_one_round_for_the_ids(
         "and deferred it"
     );
 
-    {
+    // 둘째 회차 전의 로컬 ID(준비 단계의 9_003 포함). 43 이 이 중 하나를 가리키면 새 surface 가 아니다.
+    let before: std::collections::HashSet<u32> = {
         let (_, parked) = app.engines.parked_session_mut(engine).unwrap();
         crate::app::attach_client::tests::supply_ids(&parked);
-    }
+        parked.runtime.surfaces.keys().copied().collect()
+    };
+    assert!(before.contains(&9_003));
     app.apply_attach_client_output();
 
     let session = &app.remote.sessions[0];
@@ -407,12 +410,16 @@ fn assert_the_stop_waits_one_round_for_the_ids(
         "nothing waits in the buffer"
     );
     // 버퍼가 빈 것만으로는 적용을 뜻하지 않는다(적용 오류도 버퍼를 다시 채우지 않는다). 새 surface 43 이
-    // 로컬 ID 로 매핑되고 park 한 engine 에 그 surface 가 생겼는지 본다.
+    // 둘째 회차 전에 없던 로컬 ID 로 매핑되고 park 한 engine 에 그 surface 가 생겼는지 본다.
     let local = *session
         .state
         .remote_to_local
         .get(&43)
         .expect("the delta mapped the new surface");
+    assert!(
+        !before.contains(&local),
+        "surface 43 maps to a new local ID, not an existing one: {local}"
+    );
     {
         let (_, parked) = app.engines.parked_session_mut(engine).unwrap();
         assert!(
