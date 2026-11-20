@@ -106,7 +106,7 @@ fn a_seal_of_the_queue_tail_pushes_one_slot_at_the_raw_left() {
 }
 
 /// Given 무대, When [무대 클릭 A, 키 K] 의 A 를 그리며 무대를 닫으면(뒤 큐가 빈다), Then 봉인은 승계된 지금 몫 K 를
-/// 남은 원시 길이(0)에서 닫고 새 몫을 뒤 큐에 둔다. When 그 뒤 K 를 그리는 패스가 다시 무대를 열면, Then 사건·노드·
+/// 남은 원시 길이(1)에서 닫고 새 몫을 뒤 큐에 둔다. When 그 뒤 K 를 그리는 패스가 다시 무대를 열면, Then 사건·노드·
 /// 결속이 없는 열린 몫(새 몫)은 봉인하지 않고 표시를 지워 열린 화면을 무대로 바꾼다. 끊은 자리는 늘지 않는다. When 그
 /// 몫을 그려 닫으면, Then 다음 지금 몫은 패스 닫기가 지금 화면(무대)으로 연다.
 #[test]
@@ -120,9 +120,9 @@ fn a_seal_of_the_inherited_segment_then_a_bare_open_segment_loses_its_mark() {
         assert!(st.close_fullscreen_stage());
     });
     assert!(stage);
-    assert!(input.queue_mut().is_empty());
-    assert_eq!(s.state.popups.cut_ats(), [0]);
-    assert_eq!(input.cuts_text(), "InputCuts([0])");
+    assert_eq!(input.queue_mut().len(), 1, "K 의 원시 길이");
+    assert_eq!(s.state.popups.cut_ats(), [1]);
+    assert_eq!(input.cuts_text(), "InputCuts([1])");
     assert_eq!(
         shape(&s.state.segment_slots()),
         [
