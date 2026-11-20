@@ -399,7 +399,25 @@ fn assert_the_stop_waits_one_round_for_the_ids(
     app.apply_attach_client_output();
 
     let session = &app.remote.sessions[0];
-    assert!(!session.transport.output.has_pending(), "the delta applied");
+    assert!(
+        !session.transport.output.has_pending(),
+        "nothing waits in the buffer"
+    );
+    // 버퍼가 빈 것만으로는 적용을 뜻하지 않는다(적용 오류도 버퍼를 다시 채우지 않는다). 새 surface 43 이
+    // 로컬 ID 로 매핑되고 park 한 engine 에 그 surface 가 생겼는지 본다.
+    let local = *session
+        .state
+        .remote_to_local
+        .get(&43)
+        .expect("the delta mapped the new surface");
+    {
+        let (_, parked) = app.engines.parked_session_mut(engine).unwrap();
+        assert!(
+            parked.runtime.surfaces.contains_key(&local),
+            "the delta created surface {local} in the parked engine"
+        );
+    }
+    let session = &app.remote.sessions[0];
     assert!(session.state.stop_after_events.is_none());
     assert_eq!(session.state.phase, SessionState::Disconnected, "stopped");
     assert!(!app.remote.active.contains(&ROW));
