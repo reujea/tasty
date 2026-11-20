@@ -669,14 +669,16 @@ fn a_wake_payload_whose_destructor_panics_does_not_abort_the_reader_exit() {
 ///
 /// 기다림의 시작은 상대가 쓰기 쪽 닫힘의 EOF를 본 시각이고, 끝은 깨움 콜백이 불린 시각이다
 /// (끊김 표지는 그 직전에 선다). 두 시각 모두 그 일을 겪은 스레드가 바로 찍으므로 시험 스레드의
-/// 관측 지연이 들어가지 않는다. 상대 스레드가 EOF를 늦게 깨면 잰 값이 줄어들 수 있어 하한은
-/// 상한의 절반으로 둔다. 기다리지 않고 바로 알리는 writer는 0에 가까워 이 하한에 걸린다.
+/// 관측 지연이 들어가지 않는다. 남는 것은 두 스레드가 깨어나는 지연이다. 상대 스레드가 EOF를 늦게
+/// 보면 잰 값이 줄고, 기다리지 않는 writer가 표지를 세우기 전에 밀려나면 잰 값이 늘어난다. 시험 전용
+/// 상한을 1초로 두고 하한을 그 절반(500ms)으로 두어, 어느 쪽이든 지연이 수백 ms를 넘어야 판정이
+/// 흔들리게 한다. 상한을 쓰는 실제 값(60초)은 이 시험의 대상이 아니다.
 #[test]
 fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
     use std::io::Read;
     use std::sync::Mutex;
     use std::time::Instant;
-    const CAP: Duration = Duration::from_millis(300);
+    const CAP: Duration = Duration::from_secs(1);
     let (write_half, _conn, mut peer) = opened_attach_pair();
     peer.set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
