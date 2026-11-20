@@ -95,12 +95,23 @@ fn synthetic_gate_precedes_every_mode_branch() {
     );
     let view = only_at(
         body,
-        "self.dispatch_window_event_to_view(id, event);",
+        "self.dispatch_key_to_view(id, event);",
         "View 이벤트 전달",
     );
     assert!(
         shortcut < view,
         "route_window_input 에서 plugin 단축키 가로채기가 View 전달보다 뒤에 있다."
+    );
+    // View 전달은 `dispatch_key_to_view` 가 맡는다(키·IME 면 그 뒤 포커스 팝업 즉시 적용).
+    let to_view = only_at(&route_src, "fn dispatch_key_to_view(", "View 전달 함수");
+    let to_view_body = &route_src[to_view..];
+    let to_view_body = &to_view_body[..to_view_body
+        .find("\n    }\n")
+        .expect("dispatch_key_to_view body end")];
+    only_at(
+        to_view_body,
+        "self.dispatch_window_event_to_view(id, event);",
+        "View 전달 함수의 View 이벤트 전달",
     );
 }
 
