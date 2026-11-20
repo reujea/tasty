@@ -40,8 +40,6 @@ pub(crate) struct SegmentAfterCut {
     press: Option<PressSnapshot>,
     /// 그 몫에 처음 든 사건 시점의 포커스 노드.
     focus: Option<FocusNode>,
-    /// 그 몫의 사건(누름)이 html 주소 띠의 키 포커스를 풀었다. 앞 몫을 다 그린 뒤 이 몫의 패스에서 푼다.
-    release_address: bool,
 }
 
 impl FocusNode {
@@ -129,19 +127,8 @@ impl super::MainViewState {
         // 포커스 노드는 창에 하나다. 팝업이 포커스 노드면 주소 띠와 튜토리얼 말풍선은 키 포커스를 놓는다(둘이
         // 포커스를 얻는 누름은 이미 팝업 칸을 비운다).
         if self.popup_focus().is_some() {
-            if self.html_address.has_keyboard_focus() {
-                self.release_address_in_segment();
-            }
+            self.html_address.release_focus();
             self.tutorial.keyboard_focus = false;
-        }
-    }
-
-    /// 주소 띠의 키 포커스를 지금 사건이 든 몫에서 푼다. 끊어 둔 뒤 몫이 있으면 그 몫의 패스를 열 때 풀어, 앞 몫을
-    /// 그리는 띠가 그 몫의 키(편집 중 Enter 등)를 포커스를 가진 채 받는다(`close_input_pass`).
-    fn release_address_in_segment(&mut self) {
-        match self.segments_after_cut.back_mut() {
-            Some(slot) => slot.release_address = true,
-            None => self.html_address.release_focus(),
         }
     }
 
@@ -228,15 +215,13 @@ impl super::MainViewState {
         self.pass_focus_node(core) == FocusNode::Stage
     }
 
-    /// 지금 그리는 몫의 키를 본문으로 받는 surface. 그 몫의 포커스 노드가 surface 이고 그 몫의 키가 팝업에 묶이지
-    /// 않았을 때 그 surface 다. 그리기 중 surface 본문이 egui 키를 읽을지 정하는 판정(탐색기 타입어헤드 등)은 지금
-    /// 포커스(`focused_surface_id`·`window_keys_to_overlay`)가 아니라 이 값을 읽는다. 뒤 몫의 누름이 옮긴 포커스로
-    /// 앞 몫의 키를 판정하지 않기 위해서다.
-    pub(crate) fn pass_key_surface(&self, core: &CoreState) -> Option<u32> {
-        match self.pass_focus_node(core) {
-            FocusNode::Surface(sid) if self.surfaces_take_keys() => sid,
-            _ => None,
-        }
+    /// 지금 그리는 몫의 키를 받는 포커스 노드. 그 몫의 키가 팝업에 묶이지 않았을 때 그 몫의 포커스 노드다. 그리기 중
+    /// surface 본문(탐색기 타입어헤드)과 html 주소 입력칸이 그 몫의 키를 받을지는 지금 포커스(`focused_surface_id`·
+    /// `window_keys_to_overlay`·주소 띠의 소유권)가 아니라 이 값이 자기 노드(`Surface`·`HtmlAddress`)인지로 정한다.
+    /// 뒤 몫의 사건이 옮긴 포커스로 앞 몫의 키를 판정하지 않기 위해서다.
+    pub(crate) fn pass_key_node(&self, core: &CoreState) -> Option<FocusNode> {
+        self.surfaces_take_keys()
+            .then(|| self.pass_focus_node(core))
     }
 
     /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷·
@@ -250,9 +235,6 @@ impl super::MainViewState {
         let next = self.segments_after_cut.pop_front().unwrap_or_default();
         self.press_snapshot = next.press;
         self.segment_focus = next.focus;
-        if next.release_address {
-            self.html_address.release_focus();
-        }
     }
 
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.

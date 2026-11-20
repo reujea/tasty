@@ -118,6 +118,7 @@ fn a_lookup_answer_for_an_edited_input_is_dropped() {
     let mut band = Band::default();
     band.field.buffer = "a.html".into();
     band.submit("a.html", None, &src, answered(LocalFileStatus::File));
+    band.field.editing = true;
     band.field.buffer = "a.htm".into();
     assert_eq!(band.poll_lookup(), None);
     assert!(band.lookup.is_none());
@@ -221,7 +222,7 @@ fn run(
         |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 let rect = ui.max_rect();
-                out = Some(bands.draw(ui, &theme, 3, rect, src));
+                out = Some(bands.draw(ui, &theme, 3, rect, src, false));
             });
         },
     ));
@@ -366,4 +367,22 @@ fn the_blocked_remote_marker_reshows_the_notice_without_navigating() {
     // 편집이 시작됐다면 요청한 포커스가 다음 프레임에 띠로 온다.
     run(&ctx, &mut bands, &src, vec![]);
     assert!(!bands.has_keyboard_focus());
+}
+
+/// Given 로컬 파일 주소를 Enter 로 확정해 파일 확인을 기다릴 때, When 포커스 해제·잃음이 편집을 끝내 입력칸을 되돌리면,
+/// Then 확정한 입력의 확인은 남아 결과가 오면 그 파일을 연다. 사용자가 입력을 고친 경우만 버린다.
+#[test]
+fn ending_the_edit_keeps_the_lookup_of_the_submitted_input() {
+    let info = tasty_model::WebViewNavInfo::default();
+    let cwd = root();
+    let src = source(&info, Some(&cwd));
+    let mut band = Band::default();
+    band.field.buffer = "a.html".into();
+    band.field.editing = true;
+    band.submit("a.html", None, &src, answered(LocalFileStatus::File));
+    band.field.revert("https://example.com/old");
+    assert_eq!(
+        band.poll_lookup(),
+        Some(Ok(file_url(&root().join("a.html"))))
+    );
 }

@@ -1,6 +1,7 @@
-//! 그리기 중 surface 본문이 키를 받을지는 그리는 입력 몫의 포커스 노드로 정한다(`MainViewState::pass_key_surface`).
-//! 뒤 몫의 누름이 옮긴 지금 포커스로 앞 몫의 키를 판정하지 않는다. 탐색기 타입어헤드는 그 값을 읽고(`egui_panels` 와
-//! 같은 식), html 주소 띠의 포커스 해제는 그 해제를 일으킨 몫의 패스에서 적용된다.
+//! 그리기 중 surface 본문과 html 주소 입력칸이 키를 받을지는 그리는 입력 몫의 키 노드로 정한다
+//! (`MainViewState::pass_key_node`). 뒤 몫의 사건이 옮긴 지금 포커스로 앞 몫의 키를 판정하지 않는다. 탐색기 타입어헤드와
+//! 주소 입력칸은 그 값을 읽는다(`egui_panels` 와 같은 식). 주소 띠의 소유권은 입력 시점에 놓고, 입력칸의 편집은 놓기
+//! 전 몫을 그린 뒤에 끝낸다.
 //!
 //! 입력은 창과 같은 끊기·게이트(`WindowInput`), 패스는 egui 패스와 같은 분할(`WindowInput::take_pass`)로 밟는다.
 //! 그리기는 창처럼 surface 본문(본문 키 게이트 `with_body_keys` 안) → host 팝업 층 → plugin 팝업 순서다.
@@ -78,8 +79,8 @@ fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
     crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, s.mgr.popup_instances());
     drop(s.ctx.run(raw, |ctx| {
         let take = state.surfaces_take_keys();
-        // `egui_panels` 와 같은 값: 그 몫의 키를 본문으로 받는 surface.
-        let key_surface = state.pass_key_surface(&read);
+        // `egui_panels` 와 같은 값: 그 몫의 키를 받는 포커스 노드.
+        let key_node = state.pass_key_node(&read);
         let mut bands = std::mem::take(&mut state.html_address);
         crate::adapters::ui::popup::body_keys::with_body_keys(ctx, take, || match bodies {
             Bodies::Explorers(l, r) => {
@@ -87,7 +88,13 @@ fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
                     (SURFACE_L, surface_rect_l(), &mut **l),
                     (SURFACE_R, surface_rect_r(), &mut **r),
                 ] {
-                    draw_explorer(ctx, sid, rect, ex, key_surface == Some(sid));
+                    draw_explorer(
+                        ctx,
+                        sid,
+                        rect,
+                        ex,
+                        key_node == Some(FocusNode::Surface(Some(sid))),
+                    );
                 }
             }
             Bodies::Address(navs) => {
@@ -112,7 +119,14 @@ fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
                         let band =
                             egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 40.0));
                         let theme = tasty_themes::mocha_fallback();
-                        let out = bands.draw(ui, &theme, SURFACE_L, band, &src);
+                        let out = bands.draw(
+                            ui,
+                            &theme,
+                            SURFACE_L,
+                            band,
+                            &src,
+                            key_node == Some(FocusNode::HtmlAddress(SURFACE_L)),
+                        );
                         navs.extend(out.nav);
                     });
             }

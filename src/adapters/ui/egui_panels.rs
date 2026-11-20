@@ -4,6 +4,7 @@ use crate::adapters::ui::surface::html_script_banner::remote_address_marker;
 use crate::model::PhysicalRect;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
+use crate::state::focus_node::FocusNode;
 use crate::theme;
 
 /// 탐색기의 최근 폴더를 RecentFiles에 저장할 kind. 주소창 자동완성에서 다시 읽는다.
@@ -141,10 +142,10 @@ pub fn draw_egui_panels(
         state.explorer_clipboard.cut_paths();
     // 렌더 중 state를 빌리기 전에 최근 폴더를 한 번 읽어 둔다.
     let explorer_recent_dirs: Vec<String> = state.recent_files.get(EXPLORER_RECENT_KIND);
-    // 포커스 표시(바탕·외부 변경 확인)에 쓰는 지금 포커스 surface. 키를 받을지는 이 값이 아니라 그리는 몫의
-    // 포커스 노드로 정한다. 주소 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다).
+    // 포커스 표시(바탕·외부 변경 확인)에 쓰는 지금 포커스 surface. 탐색기 본문과 주소 입력칸이 키를 받을지는 이 값이
+    // 아니라 그리는 몫의 키 노드로 정한다. 주소 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다).
     let focused_surface_id = state.focused_surface_id(engine);
-    let pass_key_surface = state.pass_key_surface(engine);
+    let pass_key_node = state.pass_key_node(engine);
     // OS 에서 끌어 오는 파일. 좌표는 물리 픽셀이라 egui 논리 포인트로 바꾼다.
     let ppp = ctx.pixels_per_point();
     let os_hover = state.drop_hover.as_ref().and_then(|h| {
@@ -270,7 +271,7 @@ pub fn draw_egui_panels(
                         mirror_ws_id,
                         &crate::explorer_ui::ExplorerInput {
                             takes_keys: info.surface_id.is_some()
-                                && info.surface_id == pass_key_surface,
+                                && pass_key_node == Some(FocusNode::Surface(info.surface_id)),
                             shortcut_chars: &explorer_shortcut_chars,
                         },
                     )
@@ -372,7 +373,14 @@ pub fn draw_egui_panels(
                                     web_page: html_snapshot.as_ref().is_some_and(|s| s.web),
                                     native: &native_content,
                                 };
-                            let frame = html_bands.draw(ui, &th, sid, panel, &source);
+                            let frame = html_bands.draw(
+                                ui,
+                                &th,
+                                sid,
+                                panel,
+                                &source,
+                                pass_key_node == Some(FocusNode::HtmlAddress(sid)),
+                            );
                             if let Some(nav) = frame.nav {
                                 html_navs.push((sid, nav));
                             }

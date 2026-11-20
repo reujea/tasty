@@ -204,10 +204,11 @@ impl Band {
         }
     }
 
-    /// 기다리던 파일 확인이 끝났으면 결과를 돌려준다. 확인 중에 입력이 바뀌었으면 버린다.
+    /// 기다리던 파일 확인이 끝났으면 결과를 돌려준다. 확인 중에 사용자가 입력을 고쳤으면 버린다. 편집을 끝낸
+    /// 되돌리기(포커스 해제·잃음)는 확정한 입력을 지우지 않으므로, 확인 결과가 오면 그 입력을 연다.
     fn poll_lookup(&mut self) -> Option<Result<String, AddressError>> {
         let lookup = self.lookup.as_ref()?;
-        if lookup.input != self.field.buffer {
+        if self.field.editing && lookup.input != self.field.buffer {
             self.lookup = None;
             return None;
         }
@@ -318,8 +319,8 @@ impl HtmlAddressBands {
         self.focused.is_some()
     }
 
-    /// 띠의 키보드 포커스를 놓는다. 다음에 그 띠를 그릴 때 편집을 끝낸다. 팝업이 창의 포커스 노드가 되면 부른다
-    /// (포커스 노드는 창에 하나다).
+    /// 띠의 키보드 포커스를 놓는다. 입력 시점의 소유권은 바로 놓고(`has_keyboard_focus`), 입력칸의 편집은 놓은 뒤
+    /// 그리는 몫에서 끝낸다(`draw` 의 `pass_keys`). 팝업이 창의 포커스 노드가 되면 부른다(포커스 노드는 창에 하나다).
     pub(crate) fn release_focus(&mut self) {
         if let Some((sid, _)) = self.focused.take() {
             self.drop_focus = Some(sid);
@@ -350,7 +351,9 @@ impl HtmlAddressBands {
         self.bands.retain(|sid, _| live(*sid));
     }
 
-    /// 띠 하나를 그린다. `rect`는 띠가 놓일 패널 위쪽 영역이다.
+    /// 띠 하나를 그린다. `rect`는 띠가 놓일 패널 위쪽 영역이다. `pass_keys` 는 그리는 입력 몫의 포커스 노드가 이 띠의
+    /// 주소 입력칸인지다(`MainViewState::pass_key_node`). 입력 시점에 포커스를 놓았어도(`release_focus`) 놓기 전 몫을
+    /// 그리는 동안에는 입력칸이 그 몫의 키(편집 중 Enter 등)를 받고, 놓은 뒤 몫에서 편집을 끝낸다.
     pub(crate) fn draw(
         &mut self,
         ui: &mut egui::Ui,
@@ -358,6 +361,7 @@ impl HtmlAddressBands {
         sid: u32,
         rect: egui::Rect,
         source: &HtmlAddressSource<'_>,
+        pass_keys: bool,
     ) -> BandFrame {
         let id = egui::Id::new(("html_address", sid));
         let field_id = html_address_field_id(id);
@@ -384,7 +388,10 @@ impl HtmlAddressBands {
         } else {
             kind
         };
-        if self.drop_focus.take_if(|s| *s == sid).is_some() {
+        // 놓은 포커스의 편집 끝내기를 미루는 몫: 입력 시점에 이미 놓았고(소유권 없음) 이 몫은 놓기 전 몫이다.
+        let released_before =
+            pass_keys && self.drop_focus == Some(sid) && self.focused.is_none_or(|(s, _)| s != sid);
+        if !released_before && self.drop_focus.take_if(|s| *s == sid).is_some() {
             html_address_surrender_focus(ui, id);
             if band.field.error.is_none() {
                 band.field.revert(&committed_display);
@@ -445,7 +452,9 @@ impl HtmlAddressBands {
             &mut band.field,
             &view,
         );
-        if out.has_keyboard_focus {
+        if released_before {
+            // 입력 시점의 소유권은 이미 놓았다. 앞 몫의 키를 받은 입력칸이 소유권을 다시 얻지 않는다.
+        } else if out.has_keyboard_focus {
             self.focused = Some((sid, !had_focus));
         } else if had_focus {
             self.focused = None;

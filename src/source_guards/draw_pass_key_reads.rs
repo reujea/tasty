@@ -1,6 +1,6 @@
 //! 그리기 경로(`src/adapters/ui`, `src/gfx`)에서 지금 포커스(`focused_surface_id`)와 지금 키 게이트
 //! (`window_keys_to_overlay`·`keyboard_overlay_open`·`window_holds_terminal_keys`)를 읽는 자리를 명부로 고정한다.
-//! 그리기는 끊어 둔 입력 몫 하나를 그리므로, 그 몫의 키를 받을지는 그 몫의 포커스 노드(`MainViewState::pass_key_surface`,
+//! 그리기는 끊어 둔 입력 몫 하나를 그리므로, 그 몫의 키를 받을지는 그 몫의 포커스 노드(`MainViewState::pass_key_node`,
 //! `pass_focus_node`)로 정한다. 지금 값은 뒤 몫의 누름이 이미 옮긴 값일 수 있다. 명부의 자리는 키 판정이 아니라
 //! 표시·명령 대상·포커스 경로 계산이라 지금 값을 읽는다. 새 자리가 생기면 이 가드가 실패하고, 키 판정이면 몫 값으로
 //! 바꾸고 표시용이면 이유와 함께 명부에 더한다.
@@ -116,7 +116,7 @@ fn draw_paths_read_the_live_focus_only_where_the_list_allows() {
     assert_eq!(
         found, allowed,
         "그리기 경로가 지금 포커스·키 게이트를 읽는 자리가 명부와 다르다. 키를 받을지 정하는 판정이면 \
-         `MainViewState::pass_key_surface`(몫의 포커스 노드)를 읽고, 표시·명령 대상이면 이유와 함께 명부에 더한다"
+         `MainViewState::pass_key_node`(몫의 포커스 노드)를 읽고, 표시·명령 대상이면 이유와 함께 명부에 더한다"
     );
 }
 
@@ -135,19 +135,20 @@ fn the_scan_counts_draw_code_and_skips_test_modules() {
     assert!(!in_scope("src/adapters/ui/popup/press_cut_tests.rs"));
 }
 
-/// 탐색기 본문의 키 판정은 그리는 몫의 포커스 노드에서 꺼낸 값이다. 그 값은 주소 띠를 꺼내기 전에 읽는다
-/// (포커스 노드가 띠의 포커스를 읽는다). 동작은 `adapters::ui::popup::route::tests::pass_focus` 가 잰다.
+/// 탐색기 본문과 html 주소 입력칸의 키 판정은 그리는 몫의 키 노드(`pass_key_node`) 하나에서 꺼낸다. 그 값은 주소
+/// 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다). 동작은 `adapters::ui::popup::route::tests::pass_focus` 가 잰다.
 #[test]
-fn the_explorer_input_reads_the_pass_key_surface() {
+fn the_explorer_and_address_inputs_read_the_pass_key_node() {
     let src = super::strip_comments(
         &std::fs::read_to_string(super::repo_root().join("src/adapters/ui/egui_panels.rs"))
             .expect("egui_panels.rs"),
     );
     let code: String = src.chars().filter(|c| !c.is_whitespace()).collect();
-    let read = "letpass_key_surface=state.pass_key_surface(engine);";
+    let read = "letpass_key_node=state.pass_key_node(engine);";
     let take = "letmuthtml_bands=std::mem::take(&mutstate.html_address);";
-    let input = "takes_keys:info.surface_id.is_some()&&info.surface_id==pass_key_surface,";
-    for needle in [read, take, input] {
+    let input = "takes_keys:info.surface_id.is_some()&&pass_key_node==Some(FocusNode::Surface(info.surface_id)),";
+    let address = "&source,pass_key_node==Some(FocusNode::HtmlAddress(sid)),);";
+    for needle in [read, take, input, address] {
         assert_eq!(
             code.matches(needle).count(),
             1,
@@ -156,6 +157,6 @@ fn the_explorer_input_reads_the_pass_key_surface() {
     }
     assert!(
         code.find(read) < code.find(take),
-        "몫의 키 surface 를 주소 띠를 꺼낸 뒤에 읽는다"
+        "몫의 키 노드를 주소 띠를 꺼낸 뒤에 읽는다"
     );
 }
