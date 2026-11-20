@@ -27,6 +27,24 @@ impl EguiPressSink for WindowInput {
     }
 }
 
+/// debug 키 주입(`debug_input::inject_key`)이 넣는 큐. 수식 키는 유지하지 않고 클립보드는 비었다.
+#[cfg(debug_assertions)]
+impl crate::view::main::debug_input::EguiKeySink for WindowInput {
+    fn held_modifiers(&self) -> egui::Modifiers {
+        egui::Modifiers::NONE
+    }
+
+    fn hold_modifiers(&mut self, _modifiers: egui::Modifiers) {}
+
+    fn clipboard_text(&mut self) -> Option<String> {
+        None
+    }
+
+    fn push_events(&mut self, events: Vec<egui::Event>) {
+        self.queue.extend(events);
+    }
+}
+
 impl WindowInput {
     /// 창이 받은 키·글자 사건 하나. 창처럼 입력 몫 끊기(`key_focus`) → egui 게이트(`window_feeds_egui`) → egui 큐
     /// 순서로 밟는다. `egui_surface` 는 포커스 surface 가 egui 로 입력을 받는지다. 게이트 결과를 돌려준다(`None` 이면

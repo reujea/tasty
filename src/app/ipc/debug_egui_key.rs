@@ -1,7 +1,7 @@
 //! `debug.inject_egui_key`의 처리 본체. 포커스된 메인 창 입구와 `window_id` 입구가 같이 쓴다.
 //! 사용자 입력 재현이므로 release에는 두지 않는다.
 
-use crate::view::main::debug_input::{EguiKeySink, push_egui_key};
+use crate::view::main::debug_input::{EguiKeySink, PushedKey, push_egui_key};
 
 /// 요청의 `key`(기본 `Escape`)·`pressed`(기본 누름)·`modifiers`로 그 창에 키 하나를 넣고 응답 본문을 만든다.
 /// `modifiers`를 주면 그 창의 유지 수식 키를 바꾸고, 생략하면 유지 상태를 그대로 싣는다.
@@ -9,6 +9,17 @@ use crate::view::main::debug_input::{EguiKeySink, push_egui_key};
 pub(super) fn egui_key_body(
     sink: &mut dyn EguiKeySink,
     params: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    egui_key_body_with(params, |key, pressed, modifiers| {
+        push_egui_key(sink, key, pressed, modifiers)
+    })
+}
+
+/// `egui_key_body` 와 같되 키를 넣는 일은 `push` 가 한다. 메인 창 입구는 입력 몫을 끊고 넣는 함수
+/// (`debug_input::inject_key`)를 준다.
+pub(super) fn egui_key_body_with(
+    params: &serde_json::Value,
+    push: impl FnOnce(&str, bool, Option<egui::Modifiers>) -> Option<PushedKey>,
 ) -> Result<serde_json::Value, String> {
     let key = params
         .get("key")
@@ -19,7 +30,7 @@ pub(super) fn egui_key_body(
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
     let modifiers = super::window_required::read_egui_modifiers(params)?;
-    Ok(match push_egui_key(sink, key, pressed, modifiers) {
+    Ok(match push(key, pressed, modifiers) {
         Some(pushed) => serde_json::json!({ "injected": true, "pushed": pushed.name() }),
         None => serde_json::json!({ "injected": false }),
     })

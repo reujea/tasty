@@ -182,3 +182,42 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
         "끊은 자리로 입력을 나누는 자리가 run_main_pass 밖에 있다: {splitting:?}"
     );
 }
+
+/// debug 키 주입: 메인 창 입구가 `inject_key`(끊기 → 넣기)로 키를 넣는다. 포인터(`press_focus`)·글자(`key_focus`)
+/// 주입과 진입 순서가 같다. `inject_key` 의 동작은 `adapters::ui::popup::route::tests::pass_focus` 가 그 함수를 직접
+/// 불러 잰다.
+#[test]
+fn a_debug_key_injection_cuts_the_segment_before_the_key() {
+    let src = read("src/app/ipc/window_required.rs");
+    let code = squeeze(&src);
+    let at_key = code
+        .find("ifcmd.request.method==\"debug.inject_egui_key\"{")
+        .expect("debug.inject_egui_key 입구");
+    let branch = &code[at_key..];
+    let branch = &branch[..branch.find("returnIpcStep::Handled;").expect("입구 끝")];
+    at(branch, "egui_key_body_with(", "키 본문");
+    at(
+        branch,
+        "crate::view::main::debug_input::inject_key(&mutw.state,&read,&mutw.base.gpu,key,pressed,modifiers,)",
+        "끊고 넣는 주입",
+    );
+    assert!(
+        !branch.contains("egui_key_body("),
+        "끊지 않고 넣는 본문을 쓴다"
+    );
+    let input = read("src/view/main/debug_input.rs");
+    let inject = squeeze(&fn_body(&input, "fn inject_key<").expect("inject_key"));
+    let cut = at(&inject, "key_focus(state,core,sink);", "입력 끊기");
+    let push = at(
+        &inject,
+        "push_egui_key(sink,key_name,pressed,modifiers)",
+        "키 넣기",
+    );
+    assert!(cut < push, "끊기 → 넣기 순서가 아니다");
+    let text = squeeze(&fn_body(&input, "fn debug_inject_egui_text(").expect("text"));
+    assert!(
+        text.find("key_focus(&mutself.state,engine,&mutself.base.gpu);")
+            < text.find("push_egui_text(&mutself.base.gpu,text)"),
+        "글자 주입이 끊기 → 넣기 순서가 아니다"
+    );
+}

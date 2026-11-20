@@ -317,3 +317,68 @@ fn an_address_enter_before_a_popup_press_opens_the_address() {
         FocusNode::Popup(PopupNode::Host(s.search))
     );
 }
+
+/// Given 메인 창에 debug 주입으로 [포인터 누름, 키 Enter]를 넣으면, Then 키 주입도 창의 키처럼 누름 뒤에서 입력 몫을
+/// 끊어(`debug_input::inject_key` → `key_focus`) 두 패스로 나뉜다. 누름 패스에는 키가 없고 Enter 는 다음 패스 몫이다.
+#[cfg(debug_assertions)]
+#[test]
+fn an_injected_key_after_an_injected_press_is_the_next_pass() {
+    use crate::view::main::debug_input::{PushedKey, inject_key};
+    let mut s = open_scene(|_| {});
+    let mut input = WindowInput::default();
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), s.search_field.center());
+        assert_eq!(
+            inject_key(
+                &mut s.state,
+                &engine.read(),
+                &mut input,
+                "Enter",
+                true,
+                None
+            ),
+            Some(PushedKey::Key)
+        );
+    }
+    let is_key = |e: &Event| matches!(e, Event::Key { .. });
+    let first = input.take_pass(&mut s.state, &s.ctx);
+    assert!(
+        first
+            .iter()
+            .any(|e| matches!(e, Event::PointerButton { pressed: true, .. })),
+        "{first:?}"
+    );
+    assert!(
+        !first.iter().any(is_key),
+        "누름 패스에 키가 있다: {first:?}"
+    );
+    s.state.close_input_pass(&s.ctx);
+    let second = input.take_pass(&mut s.state, &s.ctx);
+    assert!(
+        matches!(
+            second[..],
+            [Event::Key {
+                key: egui::Key::Enter,
+                pressed: true,
+                ..
+            }]
+        ),
+        "{second:?}"
+    );
+    s.state.close_input_pass(&s.ctx);
+    assert!(input.is_empty());
+    let engine = s.session.borrow_mut();
+    assert_eq!(
+        inject_key(
+            &mut s.state,
+            &engine.read(),
+            &mut input,
+            "NoSuchKey",
+            true,
+            None
+        ),
+        None
+    );
+    assert!(input.is_empty(), "매핑 불가 키는 끊지도 넣지도 않는다");
+}

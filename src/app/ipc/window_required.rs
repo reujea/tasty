@@ -273,11 +273,24 @@ impl App {
         }
         #[cfg(debug_assertions)]
         if cmd.request.method == "debug.inject_egui_key" {
-            let body =
-                match super::debug_egui_key::egui_key_body(&mut w.base.gpu, &cmd.request.params) {
-                    Ok(body) => body,
-                    Err(msg) => return reject_bad_params(cmd, &msg),
-                };
+            // 메인 창의 키 주입은 창의 키처럼 입력 몫을 끊고 넣는다(`inject_key`).
+            let read = engine.read();
+            let body = match super::debug_egui_key::egui_key_body_with(
+                &cmd.request.params,
+                |key, pressed, modifiers| {
+                    crate::view::main::debug_input::inject_key(
+                        &mut w.state,
+                        &read,
+                        &mut w.base.gpu,
+                        key,
+                        pressed,
+                        modifiers,
+                    )
+                },
+            ) {
+                Ok(body) => body,
+                Err(msg) => return reject_bad_params(cmd, &msg),
+            };
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
                 body,

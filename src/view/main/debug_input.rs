@@ -293,6 +293,22 @@ impl PushedKey {
     }
 }
 
+/// 메인 창에 주입한 키 하나. 창의 키와 같은 순서로 지금 입력 몫을 끊은 뒤(`key_focus`) 키를 egui 입력 큐에 넣는다
+/// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 매핑 불가 키면
+/// 끊지도 넣지도 않고 `None`.
+pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
+    state: &mut crate::state::MainViewState,
+    core: &crate::core::CoreState,
+    sink: &mut S,
+    key_name: &str,
+    pressed: bool,
+    modifiers: Option<egui::Modifiers>,
+) -> Option<PushedKey> {
+    egui::Key::from_name(key_name)?;
+    key_focus(state, core, sink);
+    push_egui_key(sink, key_name, pressed, modifiers)
+}
+
 /// 창 종류와 관계없이 그 창의 egui 입력 큐에 키 하나를 실제 키가 egui에 닿는 모양으로 넣는다.
 /// `modifiers`를 주면 그 창의 유지 수식 키를 먼저 바꾸고, 이벤트에는 유지 수식 키를 싣는다.
 /// 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
