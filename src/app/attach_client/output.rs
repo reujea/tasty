@@ -74,6 +74,9 @@ impl App {
                 )
             };
 
+            // 막힌 저장 행은 손실 복구로도 다시 붙지 않는다. 이벤트 적용은 복구 안내를 내지 않고, 처리는
+            // 재동기화 대신 멈춘다.
+            let blocked = saved_row.is_some_and(|row| self.row_blocked(row));
             let host = mirror_output_host(
                 self.find_main_with_workspace(local_ws),
                 self.engines().parked_with_ids().map(|(id, e)| (id, e.core)),
@@ -86,7 +89,9 @@ impl App {
                     let mut pair = engines_mut!(self).window_pair(wid);
                     let mut mirror_host = pair.as_mut().map(|(m, engine)| {
                         let view = m.base.state.identity();
-                        MirrorHost::windowed(&mut m.state, engine).for_view(view)
+                        MirrorHost::windowed(&mut m.state, engine)
+                            .for_view(view)
+                            .row_blocked(blocked)
                     });
                     if let Some(host) = mirror_host.as_mut() {
                         resume_resync_in_window(sess, host);
@@ -104,15 +109,13 @@ impl App {
                         .expect("mirror_output_host가 방금 찾은 parked engine");
                     apply_pending_mirror_output(
                         sess,
-                        Some(MirrorHost::parked(state, &mut engine)),
+                        Some(MirrorHost::parked(state, &mut engine).row_blocked(blocked)),
                         &mut self.plugin_manager,
                     );
                 }
                 None => {}
             }
             // 같은 묶음에 손실 통지와 EOF가 올 수 있어 이벤트 적용 뒤 재attach 여부를 확인한다.
-            // 막힌 저장 행은 손실 복구로도 다시 붙지 않는다.
-            let blocked = saved_row.is_some_and(|row| self.row_blocked(row));
             let sess = &mut self.remote.sessions[idx];
             let events_deferred = sess.transport.output.has_pending();
             let (disposition, unknown) = route_session_end(sess, phase, events_deferred, blocked);
@@ -302,6 +305,8 @@ struct MirrorHost<'a, 'engine> {
     windowed: bool,
     /// 창의 View. 요청한 View에만 보내는 안내(캡처 회신)가 대조한다.
     view: Option<std::sync::Weak<()>>,
+    /// 저장 행이 막혀 손실 복구가 다시 붙지 않는다. 복구 안내를 내지 않는다.
+    row_blocked: bool,
 }
 
 impl<'a, 'engine> MirrorHost<'a, 'engine> {
@@ -323,11 +328,17 @@ impl<'a, 'engine> MirrorHost<'a, 'engine> {
             engine,
             windowed: true,
             view: None,
+            row_blocked: false,
         }
     }
 
     fn for_view(mut self, view: std::sync::Weak<()>) -> Self {
         self.view = Some(view);
+        self
+    }
+
+    fn row_blocked(mut self, blocked: bool) -> Self {
+        self.row_blocked = blocked;
         self
     }
 
@@ -354,6 +365,7 @@ impl<'a, 'engine> MirrorHost<'a, 'engine> {
             engine,
             windowed: false,
             view: None,
+            row_blocked: false,
         }
     }
 
@@ -480,9 +492,18 @@ fn resume_resync_in_window(sess: &mut AttachClientSession, host: &mut MirrorHost
 }
 
 /// Detach 뒤 EOF를 확인하면 재attach한다. 큐 전송 실패도 끊김 처리를 기다린다.
+/// 막힌 저장 행은 처리 단계가 재attach 대신 멈추므로 복구 안내를 내지 않는다. 멈춘 행은 끊긴 행 표시로
+/// 보인다.
 fn release_for_resync(sess: &mut AttachClientSession, host: &mut MirrorHost<'_, '_>) {
     if let Err(e) = sess.send_frame(StreamTag::Detach, Vec::new()) {
         tracing::warn!("attach mirror: 재동기화용 Detach 를 큐에 못 넣었다 — 끊김을 기다린다: {e}");
+    }
+    if host.row_blocked {
+        tracing::info!(
+            "attach mirror: mirror workspace {} — 막힌 저장 행이라 재attach 하지 않아 복구 안내를 생략한다",
+            sess.state.local_workspace
+        );
+        return;
     }
     host.toast(
         crate::i18n::t("attach.toast.mirror_desynced").to_string(),

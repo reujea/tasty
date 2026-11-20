@@ -245,6 +245,58 @@ fn a_blocked_resync_waits_for_deferred_events_and_yields_to_the_close_reply() {
     );
 }
 
+/// ifix1-4 (U8): Given 창에 있는 저장 행, When 손실 통지(`Desynced`)를 실제 이벤트 적용 경로로 받고 옛 전송이
+/// 끊기면, Then 막힌 행은 Detach 만 보내고 복구 안내를 내지 않으며 처리는 멈춤이다. 막히지 않은 행은 복구
+/// 안내를 한 번 내고 재동기화한다.
+#[test]
+fn a_loss_on_a_blocked_row_gives_no_recovery_notice_and_stops() {
+    for blocked in [true, false] {
+        let (mut state, mut engine_session) = crate::state::tests::test_state();
+        let mut engine = engine_session.borrow_mut();
+        let (mut sess, frames_out) = crate::app::attach_client::tests::test_session_with_frames(
+            9_000,
+            HashMap::from([(42, 9_003)]),
+        );
+        sess.state.saved_row = Some(5);
+        let toasts_before = state.toasts.len();
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        {
+            let mut host = MirrorHost::windowed(&mut state, &mut engine).row_blocked(blocked);
+            apply_mirror_events(
+                &mut sess,
+                &mut host,
+                &mut plugin_manager,
+                vec![MirrorEvent::Desynced { frames: 1 }],
+            );
+        }
+        let sent: Vec<_> = frames_out
+            .try_iter()
+            .map(|queued| queued.frame.tag)
+            .collect();
+        assert_eq!(
+            sent,
+            vec![tasty_ipc::stream::StreamTag::Detach],
+            "{blocked}"
+        );
+        assert_eq!(
+            state.toasts.len(),
+            toasts_before + usize::from(!blocked),
+            "recovery notice only when it really resyncs ({blocked})"
+        );
+        observe_end(&mut sess, EndReason::Lost, false);
+        let phase = sess.state.phase;
+        let expected = if blocked {
+            DisconnectDisposition::Stop
+        } else {
+            DisconnectDisposition::Resync
+        };
+        assert_eq!(
+            route_session_end(&mut sess, phase, false, blocked),
+            (expected, false)
+        );
+    }
+}
+
 /// S7: 같은 묶음에 닫기 성공 회신과 강제 끊김이 함께 오면 서버 닫기로 끝난다(G2-a). 손실 끝도 같다.
 #[test]
 fn a_close_reply_wins_over_a_forced_or_lost_end_in_the_same_batch() {

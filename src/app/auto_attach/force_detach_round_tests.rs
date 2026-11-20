@@ -350,7 +350,8 @@ fn a_reconnecting_row_of_a_force_detached_target_gives_up_its_real_slot() {
 /// When A 가 손실 통지로 재동기화를 시작한 상태(`resync_pending`, Detach 보냄)에서 서버 EOF 가 오면,
 /// Then 재attach 하지 않고 끊긴 행으로 두며 새 시도를 등록하지 않는다. 이어서 A 를 명시 재연결하면 그
 /// 시도는 재동기화가 아닌 일반 재연결이다. 시험 장치에는 창 View 가 없어 출력 이벤트가 적용되지 않으므로
-/// 손실 통지 대신 `begin_resync` 가 남기는 상태를 직접 둔다.
+/// 손실 통지 대신 `begin_resync` 가 남기는 상태를 직접 둔다. 실제 손실 통지를 적용하는 단계(복구 안내 없음,
+/// 멈춤)는 `output::close_order_tests::a_loss_on_a_blocked_row_gives_no_recovery_notice_and_stops` 가 잰다.
 #[test]
 fn a_loss_on_an_explicitly_installed_row_under_the_mark_stops() {
     alone!("a_loss_on_an_explicitly_installed_row_under_the_mark_stops");
