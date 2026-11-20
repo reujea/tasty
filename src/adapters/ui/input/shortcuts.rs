@@ -24,7 +24,7 @@ mod webview_edit;
 mod window_control;
 mod zoom;
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 pub(crate) use keybinding::CellGeometry;
 pub(crate) use webview_claims::webview_shortcut_policy;
 pub(crate) use webview_edit::{
