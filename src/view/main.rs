@@ -481,6 +481,30 @@ impl MainView {
         result
     }
 
+    /// 키는 창의 포커스 노드에서 시작한다. 판정마다 같은 값을 읽도록 키 사건을 처음 받을 때 정규화한다.
+    fn normalize_focus_on_key(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
+        if matches!(
+            event,
+            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
+        ) {
+            self.state.normalize_focus(engine);
+        }
+    }
+
+    /// 키·modifier 가 아닌 창 사건을 egui 에 보낸다. 누름이면 먼저 키 결속 뒤 누름의 입력 끊기를 본다.
+    fn feed_egui_pointer_or_other(&mut self, event: &WindowEvent) -> (bool, bool) {
+        if matches!(
+            event,
+            WindowEvent::MouseInput {
+                state: winit::event::ElementState::Pressed,
+                ..
+            }
+        ) {
+            self.cut_key_frame_before_press();
+        }
+        self.base.gpu.handle_egui_event(&self.base.winit, event)
+    }
+
     /// 누름을 egui 입력에 넣기 전에 부른다. 이번 그리기에 키 주인이 이미 묶였으면 누름부터의 입력을 다음 그리기로
     /// 넘긴다(`PopupManager::cut_key_frame`). 누름이 포커스 노드를 옮기므로 누름 뒤의 키는 다음 그리기의 키 주인이
     /// 받는다.
@@ -520,13 +544,7 @@ impl MainView {
             return ViewAction::None;
         }
 
-        // 키는 창의 포커스 노드에서 시작한다. 판정마다 같은 값을 읽도록 키 사건을 처음 받을 때 정규화한다.
-        if matches!(
-            &event,
-            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
-        ) {
-            self.state.normalize_focus(engine);
-        }
+        self.normalize_focus_on_key(engine, &event);
 
         // 편집 바인딩 판정은 egui-winit과 단축키 디스패치보다 먼저 한 번 한다.
         let Some(edit_judged) = self.edit_key_gate(engine, &event) else {
@@ -566,16 +584,7 @@ impl MainView {
         } else if menu_dismiss_swallow || os_resize_press {
             (false, true)
         } else {
-            if matches!(
-                &event,
-                WindowEvent::MouseInput {
-                    state: winit::event::ElementState::Pressed,
-                    ..
-                }
-            ) {
-                self.cut_key_frame_before_press();
-            }
-            self.base.gpu.handle_egui_event(&self.base.winit, &event)
+            self.feed_egui_pointer_or_other(&event)
         };
 
         if egui_repaint {

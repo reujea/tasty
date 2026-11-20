@@ -41,12 +41,20 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
         "ifself.state.popups.cut_key_frame(at){self.base.gpu.cut_egui_input_here();}",
         "입력 끊기",
     );
-    let call = at(
-        &main,
-        "self.cut_key_frame_before_press();}self.base.gpu.handle_egui_event(&self.base.winit,&event)",
+    let feed = squeeze(
+        &fn_body(&read("src/view/main.rs"), "fn feed_egui_pointer_or_other(")
+            .expect("feed_egui_pointer_or_other"),
+    );
+    at(
+        &feed,
+        "self.cut_key_frame_before_press();}self.base.gpu.handle_egui_event(&self.base.winit,event)",
         "누름을 egui 에 넣기 전 끊기",
     );
-    assert!(call > 0);
+    at(
+        &main,
+        "self.feed_egui_pointer_or_other(&event)",
+        "키가 아닌 사건의 egui 전달",
+    );
     let mouse = read("src/view/main/mouse.rs");
     let handle = squeeze(&fn_body(&mouse, "fn handle_mouse_input(").expect("handle_mouse_input"));
     at(
