@@ -101,3 +101,49 @@ fn the_terminal_goes_through_the_window_hold_gate() {
         "창의 Esc 처리가 이번 egui 입력에서 Esc 를 뺀다",
     );
 }
+
+/// native WebView 가 넘긴 키: `pump_webview_key_events` 는 수집한 키를 `consume_forwarded_keys` 로만 소비하고, 그 루프는
+/// 키마다 처리 → 포커스 열기 적용 → 결과 알림 순서로 돈다. 제품 소비자(`App`)의 적용은 winit 키와 같은
+/// `apply_user_focus_opens` 다. 순서 자체는 `app::webview_keys` 의 소비 순서 시험이 잰다. 이 가드는 펌프가 루프를
+/// 거치지 않고 키를 처리하거나 제품 소비자의 적용이 다른 함수로 바뀌는 우회를 잡는다.
+#[test]
+fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
+    let src = read("src/app/webview_keys.rs");
+    let pump = squeeze(&fn_body(&src, "fn pump_webview_key_events(").expect("pump"));
+    at(
+        &pump,
+        "consume_forwarded_keys(self,key_batch);",
+        "소비 루프",
+    );
+    assert!(
+        !pump.contains("dispatch_forwarded_webview_key(")
+            && !pump.contains("finish_forwarded_webview_key("),
+        "펌프가 소비 루프 밖에서 키를 처리한다"
+    );
+    let consume = squeeze(&fn_body(&src, "fn consume_forwarded_keys(").expect("consume"));
+    let dispatch = at(&consume, "letoutcome=consumer.dispatch(id,ev);", "키 처리");
+    let apply = at(
+        &consume,
+        "consumer.apply_focus_opens(id);",
+        "포커스 열기 적용",
+    );
+    let finish = at(
+        &consume,
+        "consumer.finish(id,surface_id,key_id,outcome);",
+        "결과 알림",
+    );
+    assert!(
+        dispatch < apply && apply < finish,
+        "처리 → 적용 → 알림 순서가 아니다"
+    );
+    // 대역 소비자(시험 모듈)와 trait 선언에도 같은 이름이 있으므로 제품 소비자 impl 만 잘라 읽는다.
+    let start = src
+        .find("impl ForwardedKeyConsumer for App")
+        .expect("제품 소비자");
+    let end = start
+        + src[start..]
+            .find("fn consume_forwarded_keys(")
+            .expect("소비 루프");
+    let applies = squeeze(&fn_body(&src[start..end], "fn apply_focus_opens(").expect("apply"));
+    assert_eq!(applies, "{self.apply_user_focus_opens(id);}");
+}
