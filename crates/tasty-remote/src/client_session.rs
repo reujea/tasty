@@ -353,6 +353,8 @@ pub struct ClientTransport {
     /// 받은 원격 explorer 작업 통지. 작업 상태를 가진 App 이 도착 순서대로 꺼낸다.
     pub explorer_inbox: Vec<Value>,
     pub html: crate::html_document::HtmlSession,
+    #[cfg(test)]
+    pub reader_probe: crate::transport::ReaderProbe,
 }
 pub struct ClientSessionState {
     pub structure_ids: MirrorStructureIds,

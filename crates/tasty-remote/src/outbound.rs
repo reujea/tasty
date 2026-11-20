@@ -113,7 +113,7 @@ impl std::hash::Hash for AttemptToken {
 /// Cancellation can race EOF or a previous shutdown of another clone of this socket.
 /// Failure does not establish a join: callers still retain and poll the worker receipt.
 fn shutdown_cancelled_socket(socket: &std::net::TcpStream) {
-    match socket.shutdown(std::net::Shutdown::Both) {
+    match tasty_utils::socket_wake::shutdown_both_and_wake(socket) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotConnected => {
             tracing::debug!("remote cancellation socket already disconnected: {error}");

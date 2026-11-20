@@ -299,7 +299,7 @@ fn settle_by_writer(
 ) {
     end.raise(EndReason::Lost);
     let won = end.settle();
-    if let Err(error) = write_half.shutdown(std::net::Shutdown::Both) {
+    if let Err(error) = tasty_utils::socket_wake::shutdown_both_and_wake(write_half) {
         tracing::debug!("remote socket already closed: {error}");
     }
     if won {
@@ -381,7 +381,7 @@ impl Drop for WriterExit {
         }
         self.end.raise(EndReason::Lost);
         let won = self.end.settle();
-        if let Err(error) = self.socket.shutdown(std::net::Shutdown::Both) {
+        if let Err(error) = tasty_utils::socket_wake::shutdown_both_and_wake(&self.socket) {
             tracing::debug!("remote socket already closed: {error}");
         }
         if won {
@@ -445,6 +445,28 @@ pub struct AttachReaderEnd {
     pub finished: Arc<AtomicBool>,
     #[cfg(test)]
     pub gate: Option<ReaderGate>,
+    /// 시험 전용: handshake 뒤 `conn.recv()`에 들어가기 직전마다 더한다.
+    #[cfg(test)]
+    pub recv_entries: Option<Arc<std::sync::atomic::AtomicUsize>>,
+}
+
+/// 시험 전용: 준비된 전송의 reader를 밖에서 본다. `recv_entries`는 recv 직전 계수, `finished`는
+/// [`AttachReaderEnd::finished`]의 복제다([`ReaderExit`]가 Release로 세운다).
+#[cfg(test)]
+#[derive(Clone)]
+pub struct ReaderProbe {
+    pub recv_entries: Arc<std::sync::atomic::AtomicUsize>,
+    pub finished: Arc<AtomicBool>,
+}
+
+#[cfg(test)]
+impl ReaderProbe {
+    pub fn entered_recv(&self) -> bool {
+        self.recv_entries.load(Ordering::SeqCst) > 0
+    }
+    pub fn finished(&self) -> bool {
+        self.finished.load(Ordering::Acquire)
+    }
 }
 
 /// 시험 전용: reader가 프레임을 받은 뒤 분기 판별 전에 멈춘다. 도착을 알리고 놓아줄 때까지 기다린다.
@@ -526,6 +548,10 @@ pub fn spawn_attach_reader_thread(
         let transport_end = &end.transport_end;
         let mut mesh_assembler = tasty_ipc::mesh_stream::MeshFrameAssembler::new();
         loop {
+            #[cfg(test)]
+            if let Some(entries) = &end.recv_entries {
+                entries.fetch_add(1, Ordering::SeqCst);
+            }
             match conn.recv() {
                 Ok(frame) => {
                     #[cfg(test)]
@@ -667,7 +693,7 @@ impl ConnectionWorkers {
     /// 작업 스레드 정리는 drop 이 맡는다.
     pub fn close_socket(&self) {
         if let Some(control) = &self.control
-            && let Err(error) = control.shutdown(std::net::Shutdown::Both)
+            && let Err(error) = tasty_utils::socket_wake::shutdown_both_and_wake(control)
         {
             tracing::debug!("remote socket already closed: {error}");
         }
@@ -793,6 +819,11 @@ impl PreparedConnection {
         let output = MirrorOutbox::new(frame_tx.epoch());
         let detach_sent = Arc::new(AtomicBool::new(false));
         let reader_finished = Arc::new(AtomicBool::new(false));
+        #[cfg(test)]
+        let reader_probe = ReaderProbe {
+            recv_entries: Arc::default(),
+            finished: reader_finished.clone(),
+        };
         let writer = spawn_attach_write_thread(
             write_half,
             frame_rx,
@@ -821,6 +852,8 @@ impl PreparedConnection {
                 finished: reader_finished,
                 #[cfg(test)]
                 gate: None,
+                #[cfg(test)]
+                recv_entries: Some(reader_probe.recv_entries.clone()),
             },
         );
         let heartbeat = spawn_attach_heartbeat_thread(frame_tx.clone(), end.clone());
@@ -848,6 +881,8 @@ impl PreparedConnection {
                 agent_hello_sent: false,
                 explorer_inbox: Vec::new(),
                 html,
+                #[cfg(test)]
+                reader_probe,
             },
         })
     }
