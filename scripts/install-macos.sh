@@ -22,15 +22,24 @@ APP_NAME="Tasty"
 SRC_APP="dist/$APP_NAME.app"
 DEST_APP="/Applications/$APP_NAME.app"
 
-# Installing is not a development command, so lints and warnings must not stop
-# or clutter the build. --cap-lints=allow lowers the workspace deny lints for
-# this build only. Any RUSTFLAGS the caller set are kept in front of it.
-# Note that RUSTFLAGS replaces target.<triple>.rustflags from .cargo/config.toml;
-# the repository sets none for macOS targets.
-INSTALL_RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cap-lints=allow"
-
+# Installing is not a development command, so rustc lints of the built crates
+# must not stop or clutter the build. --cap-lints=allow lowers the workspace
+# deny lints for this build only, and flags the caller set are kept in front.
+# Cargo ignores RUSTFLAGS when CARGO_ENCODED_RUSTFLAGS is set, so the cap goes
+# into whichever of the two Cargo will read (a set but empty
+# CARGO_ENCODED_RUSTFLAGS still wins over RUSTFLAGS). Either one replaces
+# target.<triple>.rustflags and build.rustflags from config files; the
+# repository sets none for macOS targets.
+# Build scripts are host artifacts of a --target build and do not get the cap.
 # Assemble the .app bundle without packaging a DMG (NO_DMG=1).
-NO_DMG=1 RUSTFLAGS="$INSTALL_RUSTFLAGS" ./scripts/build-macos-dmg.sh "$@"
+if [[ -n "${CARGO_ENCODED_RUSTFLAGS+set}" ]]; then
+    flag_sep=$'\x1f'
+    NO_DMG=1 CARGO_ENCODED_RUSTFLAGS="${CARGO_ENCODED_RUSTFLAGS:+$CARGO_ENCODED_RUSTFLAGS$flag_sep}--cap-lints=allow" \
+        ./scripts/build-macos-dmg.sh "$@"
+else
+    NO_DMG=1 RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cap-lints=allow" \
+        ./scripts/build-macos-dmg.sh "$@"
+fi
 
 if [[ ! -d "$SRC_APP" ]]; then
     echo "Error: expected bundle missing: $SRC_APP" >&2
