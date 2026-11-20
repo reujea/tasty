@@ -70,7 +70,7 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
             transport_end: Arc::new(TransportEnd::new()),
             finished: Arc::new(AtomicBool::new(false)),
             gate: None,
-            recv_entries: None,
+            probe: None,
         },
     );
     stream::write_frame(&mut peer, StreamTag::Control, b"{}").unwrap();
@@ -285,7 +285,7 @@ fn reader_end() -> AttachReaderEnd {
         transport_end: Arc::new(TransportEnd::new()),
         finished: Arc::new(AtomicBool::new(false)),
         gate: None,
-        recv_entries: None,
+        probe: None,
     }
 }
 
@@ -298,7 +298,7 @@ fn reader_link(end: &Arc<TransportEnd>, finished: &Arc<AtomicBool>) -> AttachRea
         transport_end: end.clone(),
         finished: finished.clone(),
         gate: None,
-        recv_entries: None,
+        probe: None,
     }
 }
 

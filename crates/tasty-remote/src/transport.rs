@@ -445,18 +445,34 @@ pub struct AttachReaderEnd {
     pub finished: Arc<AtomicBool>,
     #[cfg(test)]
     pub gate: Option<ReaderGate>,
-    /// 시험 전용: handshake 뒤 `conn.recv()`에 들어가기 직전마다 더한다.
+    /// 시험 전용: reader를 밖에서 보는 관측값([`ReaderProbe`]).
     #[cfg(test)]
-    pub recv_entries: Option<Arc<std::sync::atomic::AtomicUsize>>,
+    pub probe: Option<ReaderProbe>,
 }
 
-/// 시험 전용: 준비된 전송의 reader를 밖에서 본다. `recv_entries`는 recv 직전 계수, `finished`는
-/// [`AttachReaderEnd::finished`]의 복제다([`ReaderExit`]가 Release로 세운다).
+/// 시험 전용: 준비된 전송의 reader를 밖에서 본다. `recv_entries`는 handshake 뒤 `conn.recv()`에
+/// 들어가기 직전마다 더하는 계수, `finished`는 [`AttachReaderEnd::finished`]의 복제다([`ReaderExit`]가
+/// Release로 세운다). `ended_at`은 reader 스레드가 끝 표지를 세우기 직전에 자기 시각을 남긴다.
+/// 검사 스레드가 늦게 깨어나도 reader가 언제 끝났는지를 reader 쪽 시각으로 비교하기 위해서다.
 #[cfg(test)]
 #[derive(Clone)]
 pub struct ReaderProbe {
     pub recv_entries: Arc<std::sync::atomic::AtomicUsize>,
     pub finished: Arc<AtomicBool>,
+    pub ended_at: Arc<std::sync::OnceLock<std::time::Instant>>,
+}
+
+/// 시험 전용: drop될 때 reader의 끝 시각을 남긴다. [`ReaderExit`]보다 뒤에 선언해 먼저 drop된다.
+#[cfg(test)]
+struct ReaderEndStamp(Arc<std::sync::OnceLock<std::time::Instant>>);
+
+#[cfg(test)]
+impl Drop for ReaderEndStamp {
+    fn drop(&mut self) {
+        if self.0.set(std::time::Instant::now()).is_err() {
+            tracing::debug!("reader end stamp already set");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -466,6 +482,9 @@ impl ReaderProbe {
     }
     pub fn finished(&self) -> bool {
         self.finished.load(Ordering::Acquire)
+    }
+    pub fn ended_at(&self) -> Option<std::time::Instant> {
+        self.ended_at.get().copied()
     }
 }
 
@@ -545,12 +564,17 @@ pub fn spawn_attach_reader_thread(
             finished: end.finished.clone(),
             wake: wake.clone(),
         };
+        #[cfg(test)]
+        let _stamp = end
+            .probe
+            .as_ref()
+            .map(|probe| ReaderEndStamp(probe.ended_at.clone()));
         let transport_end = &end.transport_end;
         let mut mesh_assembler = tasty_ipc::mesh_stream::MeshFrameAssembler::new();
         loop {
             #[cfg(test)]
-            if let Some(entries) = &end.recv_entries {
-                entries.fetch_add(1, Ordering::SeqCst);
+            if let Some(probe) = &end.probe {
+                probe.recv_entries.fetch_add(1, Ordering::SeqCst);
             }
             match conn.recv() {
                 Ok(frame) => {
@@ -836,6 +860,7 @@ impl PreparedConnection {
         let reader_probe = ReaderProbe {
             recv_entries: Arc::default(),
             finished: reader_finished.clone(),
+            ended_at: Arc::default(),
         };
         let writer = spawn_attach_write_thread(
             write_half,
@@ -866,7 +891,7 @@ impl PreparedConnection {
                 #[cfg(test)]
                 gate: None,
                 #[cfg(test)]
-                recv_entries: Some(reader_probe.recv_entries.clone()),
+                probe: Some(reader_probe.clone()),
             },
         );
         let heartbeat = spawn_attach_heartbeat_thread(frame_tx.clone(), end.clone());
