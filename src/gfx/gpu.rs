@@ -762,16 +762,20 @@ impl GpuState {
         // 무대에서도 입력을 소비해 나간 뒤 한꺼번에 전달되지 않게 한다.
         stall_watchdog::set_phase(stall_watchdog::Phase::Acquire);
         let output = self.acquire_surface()?;
-        let raw_input = self.take_egui_input(window);
         let egui::FullOutput {
             platform_output,
             textures_delta,
             shapes,
             pixels_per_point,
             viewport_output: _,
-        } = self.egui_ctx.run(raw_input, |ctx| {
-            crate::adapters::ui::draw_fullscreen_stage(ctx, state, engine);
-        });
+        } = self.run_main_pass(
+            window,
+            state,
+            |_| {},
+            |ctx, state| {
+                crate::adapters::ui::draw_fullscreen_stage(ctx, state, engine);
+            },
+        );
         self.apply_platform_output(window, state, platform_output);
 
         let paint_jobs = self.egui_ctx.tessellate(shapes, pixels_per_point);

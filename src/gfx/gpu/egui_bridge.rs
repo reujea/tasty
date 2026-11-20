@@ -131,116 +131,156 @@ impl GpuState {
         plugin_manager: Option<crate::app::plugin_display::PluginDisplay<'_>>,
         host_popup_on_top: bool,
     ) -> egui::FullOutput {
-        self.set_plugin_paste_target(state.frame_plugin_key_target(None));
-        state.popups.begin_key_pass(self.egui_escape_held());
-        let mut raw_input = self.take_egui_input(window);
-        // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
-        keep_screen_while_minimized(
-            &mut raw_input,
-            cfg!(windows) && window.is_minimized() == Some(true),
-        );
         self.egui_ctx.options_mut(|o| {
             o.line_scroll_speed = engine.settings.general.wheel_line_scroll;
         });
         let scale_factor = self.scale_factor;
-        let proxy = &self.proxy;
+        let proxy = self.proxy.clone();
+        let proxy = &proxy;
         // 직전 동기화가 지원 모드를 골랐으면 그 모드·그림 위치·페이지로 그림을 준비한다. 동기화는 이 그림이
         // present 된 프레임에만 페이지를 드러낸다.
         let has_overlay_surface = self.overlay_surface.is_some();
         let surface_size = [self.size.width, self.size.height];
 
-        self.egui_ctx.run(raw_input, |ctx| {
-            crate::state::webview_overlay::begin_frame(ctx, &mut state.webview_overlay);
-            // 팝업 층보다 먼저 그리는 화면. 창이 이번 프레임 키를 팝업 키 주인에 묶었으면 이 화면들은 그 키를 보지
-            // 않는다(팝업이 처리한 Esc 가 탐색기 찾기 입력란 등으로 새지 않는다).
-            let surfaces_take_keys = state.surfaces_take_keys();
-            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, surfaces_take_keys, || {
-                // 타이틀바를 먼저 등록해 사이드바가 그 아래에서 시작하게 한다.
-                ui::titlebar::draw_titlebar(ctx, state, window, proxy);
-                let plugin_alert = plugin_manager.map_or(0, |m| m.attention_count());
-                // 닫힌 대상의 이동 대기 표시와 "이곳으로 이동" 메뉴가 남지 않게 한다.
-                ui::move_source::clear_if_target_closed(engine, &mut state.pending_move);
-                ui::draw_ui(ctx, state, engine, scale_factor, plugin_alert);
-                ui::draw_pane_dividers(ctx, dividers, scale_factor);
-                ui::draw_surface_highlights(ctx, state, engine, terminal_rect, scale_factor);
-                ui::draw_pane_tab_bars(ctx, state, engine, pane_rects, terminal_rect, scale_factor);
-                ui::draw_egui_panels(ctx, state, engine, pane_rects, scale_factor);
-                // 탭 바와 점유 테두리 뒤에 그려 대상 rect에서 가장 마지막에 둔다.
-                let move_mark = ui::move_source::resolve(
-                    state.pending_move,
-                    &state.navigation,
+        // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
+        let minimized = cfg!(windows) && window.is_minimized() == Some(true);
+        self.run_main_pass(
+            window,
+            state,
+            |raw_input| keep_screen_while_minimized(raw_input, minimized),
+            |ctx, state| {
+                crate::state::webview_overlay::begin_frame(ctx, &mut state.webview_overlay);
+                // 팝업 층보다 먼저 그리는 화면. 창이 이번 프레임 키를 팝업 키 주인에 묶었으면 이 화면들은 그 키를 보지
+                // 않는다(팝업이 처리한 Esc 가 탐색기 찾기 입력란 등으로 새지 않는다).
+                let surfaces_take_keys = state.surfaces_take_keys();
+                crate::adapters::ui::popup::body_keys::with_body_keys(
+                    ctx,
+                    surfaces_take_keys,
+                    || {
+                        // 타이틀바를 먼저 등록해 사이드바가 그 아래에서 시작하게 한다.
+                        ui::titlebar::draw_titlebar(ctx, state, window, proxy);
+                        let plugin_alert = plugin_manager.map_or(0, |m| m.attention_count());
+                        // 닫힌 대상의 이동 대기 표시와 "이곳으로 이동" 메뉴가 남지 않게 한다.
+                        ui::move_source::clear_if_target_closed(engine, &mut state.pending_move);
+                        ui::draw_ui(ctx, state, engine, scale_factor, plugin_alert);
+                        ui::draw_pane_dividers(ctx, dividers, scale_factor);
+                        ui::draw_surface_highlights(
+                            ctx,
+                            state,
+                            engine,
+                            terminal_rect,
+                            scale_factor,
+                        );
+                        ui::draw_pane_tab_bars(
+                            ctx,
+                            state,
+                            engine,
+                            pane_rects,
+                            terminal_rect,
+                            scale_factor,
+                        );
+                        ui::draw_egui_panels(ctx, state, engine, pane_rects, scale_factor);
+                        // 탭 바와 점유 테두리 뒤에 그려 대상 rect에서 가장 마지막에 둔다.
+                        let move_mark = ui::move_source::resolve(
+                            state.pending_move,
+                            &state.navigation,
+                            engine,
+                            state.active_workspace_index(engine),
+                            pane_rects,
+                            state.tab_bar_height,
+                            Some(&state.layout_previews),
+                            scale_factor,
+                        );
+                        ui::move_source::draw_move_source_ring(ctx, move_mark, scale_factor);
+                        ui::draw_status_bar(ctx, state, engine, terminal_rect, scale_factor);
+                        ui::link_remote_tip::draw(ctx, state, scale_factor);
+                    },
+                );
+                // host 팝업을 먼저 그려 같은 프레임의 영역을 plugin hit-test에 전달한다.
+                // 반대로 host가 보는 plugin 영역은 직전 프레임 값이다.
+                // source_guards::frame_draw_order가 호출 순서를 검사한다.
+                crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
+                    state,
+                    plugin_manager
+                        .into_iter()
+                        .flat_map(|mgr| mgr.popup_instances()),
+                );
+                let popup_layout =
+                    ui::draw_popups(ctx, state, engine, pane_rects, terminal_rect, scale_factor);
+                crate::plugin_bridge::popup_render::draw_plugin_popups(
+                    ctx,
+                    state,
                     engine,
-                    state.active_workspace_index(engine),
-                    pane_rects,
-                    state.tab_bar_height,
-                    Some(&state.layout_previews),
+                    plugin_manager,
+                    Some(&popup_layout),
+                );
+                enforce_foreground_z_order(ctx, state.banner_layer, pane_rects);
+                // 입력 영역 갱신 순서와 별개로 최종 레이어 순서를 명시한다.
+                enforce_host_plugin_popup_z_order(
+                    ctx,
+                    &state.popup_layers,
+                    &state.plugin_popup_layers,
+                    host_popup_on_top,
+                );
+                crate::plugin_bridge::banner_render::draw_plugin_banners(
+                    ctx,
+                    state,
+                    engine,
+                    plugin_manager,
+                );
+                ui::drop_overlay::draw_drop_overlay(
+                    ctx,
+                    state,
+                    engine,
+                    terminal_rect,
                     scale_factor,
                 );
-                ui::move_source::draw_move_source_ring(ctx, move_mark, scale_factor);
-                ui::draw_status_bar(ctx, state, engine, terminal_rect, scale_factor);
-                ui::link_remote_tip::draw(ctx, state, scale_factor);
-            });
-            // host 팝업을 먼저 그려 같은 프레임의 영역을 plugin hit-test에 전달한다.
-            // 반대로 host가 보는 plugin 영역은 직전 프레임 값이다.
-            // source_guards::frame_draw_order가 호출 순서를 검사한다.
-            crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
-                state,
-                plugin_manager
-                    .into_iter()
-                    .flat_map(|mgr| mgr.popup_instances()),
-            );
-            let popup_layout =
-                ui::draw_popups(ctx, state, engine, pane_rects, terminal_rect, scale_factor);
-            crate::plugin_bridge::popup_render::draw_plugin_popups(
-                ctx,
-                state,
-                engine,
-                plugin_manager,
-                Some(&popup_layout),
-            );
-            enforce_foreground_z_order(ctx, state.banner_layer, pane_rects);
-            // 입력 영역 갱신 순서와 별개로 최종 레이어 순서를 명시한다.
-            enforce_host_plugin_popup_z_order(
-                ctx,
-                &state.popup_layers,
-                &state.plugin_popup_layers,
-                host_popup_on_top,
-            );
-            crate::plugin_bridge::banner_render::draw_plugin_banners(
-                ctx,
-                state,
-                engine,
-                plugin_manager,
-            );
-            ui::drop_overlay::draw_drop_overlay(ctx, state, engine, terminal_rect, scale_factor);
-            // attach 대기는 팝업 관리자가 이번 프레임에 쌓은 안내 열 아래에 잇는다.
-            let notice_column_occupied = state.restore_notices.column;
-            ui::attach_loading::draw(
-                ctx,
-                state,
-                engine,
-                terminal_rect,
-                scale_factor,
-                notice_column_occupied,
-            );
+                // attach 대기는 팝업 관리자가 이번 프레임에 쌓은 안내 열 아래에 잇는다.
+                let notice_column_occupied = state.restore_notices.column;
+                ui::attach_loading::draw(
+                    ctx,
+                    state,
+                    engine,
+                    terminal_rect,
+                    scale_factor,
+                    notice_column_occupied,
+                );
 
-            // 이 프레임이 winit 누름을 처리했다. 다음 누름은 새로 남긴다. 입력을 끊어 넘긴 누름의 스냅샷은 다음
-            // 프레임 몫이다.
-            state.end_press_frame();
-            crate::state::webview_overlay::end_frame(ctx, &mut state.webview_overlay);
-            crate::state::webview_overlay::prepare_paint_job(
-                &mut state.webview_overlay,
-                has_overlay_surface,
-                surface_size,
-                |targets, pages| {
-                    super::overlay_paint::overlay_shapes(ctx, targets, host_popup_on_top, pages)
-                },
-            );
-            // egui가 프레임마다 커서를 갱신하므로 저장된 창 리사이즈 방향도 여기서 반영한다.
-            if let Some(dir) = state.pending_resize_cursor {
-                ctx.set_cursor_icon(ui::titlebar::resize_cursor(dir));
-            }
-        })
+                crate::state::webview_overlay::end_frame(ctx, &mut state.webview_overlay);
+                crate::state::webview_overlay::prepare_paint_job(
+                    &mut state.webview_overlay,
+                    has_overlay_surface,
+                    surface_size,
+                    |targets, pages| {
+                        super::overlay_paint::overlay_shapes(ctx, targets, host_popup_on_top, pages)
+                    },
+                );
+                // egui가 프레임마다 커서를 갱신하므로 저장된 창 리사이즈 방향도 여기서 반영한다.
+                if let Some(dir) = state.pending_resize_cursor {
+                    ctx.set_cursor_icon(ui::titlebar::resize_cursor(dir));
+                }
+            },
+        )
+    }
+
+    /// 메인 창의 egui 패스 하나. 패스 하나는 입력 몫 하나다. 창이 끊은 자리 하나(`InputCuts::split_pass`)로 이번
+    /// 패스 입력을 나누고, 그 몫의 결속·넘길 Esc·누름 스냅샷을 이 패스에서 쓴 뒤 닫는다
+    /// (`MainViewState::close_input_pass`). 그리기가 몫을 읽지 않는 패스(전체화면 무대)도 같은 함수로 열고 닫아,
+    /// 끊은 자리와 몫이 늘 하나씩 짝을 이룬다. 메인 창의 egui 패스는 모두 이 함수로 연다.
+    pub(super) fn run_main_pass(
+        &mut self,
+        window: &Window,
+        state: &mut MainViewState,
+        adjust: impl FnOnce(&mut egui::RawInput),
+        mut ui: impl FnMut(&egui::Context, &mut MainViewState),
+    ) -> egui::FullOutput {
+        self.set_plugin_paste_target(state.frame_plugin_key_target(None));
+        state.popups.begin_key_pass(self.egui_escape_held());
+        let mut raw_input = self.take_pass_input(window, true);
+        adjust(&mut raw_input);
+        let output = self.egui_ctx.run(raw_input, |ctx| ui(ctx, state));
+        state.close_input_pass();
+        output
     }
 
     pub(super) fn post_egui_update(

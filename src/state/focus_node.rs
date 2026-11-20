@@ -167,8 +167,11 @@ impl super::MainViewState {
         cut
     }
 
-    /// 그리기 몫 하나를 마쳤다. 다음 몫의 누름 스냅샷(끊어 넘긴 누름의 것, 없으면 비움)을 다음 그리기에 남긴다.
-    pub(crate) fn end_press_frame(&mut self) {
+    /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷을
+    /// 함께 꺼내, 다음 몫의 누름 스냅샷(끊어 넘긴 누름의 것, 없으면 비움)을 다음 패스에 남긴다. 창의 egui 패스는 모두
+    /// 이 함수로 닫는다(`GpuState::run_main_pass`).
+    pub(crate) fn close_input_pass(&mut self) {
+        self.popups.close_key_pass();
         self.press_snapshot = self.press_snapshots_after_cut.pop_front().flatten();
     }
 

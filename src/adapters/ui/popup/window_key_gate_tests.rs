@@ -901,7 +901,7 @@ fn frame_escapes_with_hits(
         hits = result.hit_rects;
     }));
     state.host_popup_hittest = hits;
-    state.end_press_frame();
+    state.close_input_pass();
     seen
 }
 

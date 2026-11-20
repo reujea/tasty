@@ -72,6 +72,8 @@ pub(crate) struct KeySlots {
     frame: Option<FrameKeys>,
     /// 이번 프레임 키 주인에게 넘길 Esc 사건. 키 주인을 정할 때 옮긴다.
     frame_escape: HandedEscape,
+    /// 지금 패스가 자기 몫을 꺼냈는지. 패스를 닫을 때(`close_key_pass`) 꺼내지 않은 몫을 꺼내 버린다.
+    pass_taken: bool,
 }
 
 impl PopupManager {
@@ -156,8 +158,8 @@ impl PopupManager {
     /// 프레임 범위·표시 판정 뒤 host·plugin 후보로 정한 값)다.
     pub(crate) fn decide_frame_keys(&mut self, live: Option<PopupKeyOwner>) -> FrameKeys {
         // 넘길 Esc 는 창이 묶은 주인 것이다. 묶인 값이 없는 프레임에는 넘길 Esc 도 없다.
-        let escape = std::mem::take(&mut self.keys.escape);
-        let keys = match self.keys.bound.take() {
+        let (bound, escape) = self.take_pass_segment();
+        let keys = match bound {
             Some(Bound::Popup(PopupNode::Host(iid))) => {
                 self.keys.frame_escape = escape;
                 FrameKeys {
@@ -188,8 +190,15 @@ impl PopupManager {
             }
         };
         self.keys.frame = Some(keys);
-        // 끊은 뒤 첫 몫이 다음 그리기의 결속이 된다. 이번 그리기 몫이 큐에서 빠졌으므로 남은 몫의 자리와 넘길 Esc
-        // 의 자리를 그만큼 앞당긴다.
+        keys
+    }
+
+    /// 이번 패스의 몫(결속·넘길 Esc)을 꺼낸다. 끊은 뒤 첫 몫이 다음 패스의 몫이 된다. 이번 몫이 egui 입력 큐에서
+    /// 빠졌으므로 남은 몫의 자리와 넘길 Esc 의 자리를 그만큼 앞당긴다.
+    fn take_pass_segment(&mut self) -> (Option<Bound>, HandedEscape) {
+        self.keys.pass_taken = true;
+        let bound = self.keys.bound.take();
+        let escape = std::mem::take(&mut self.keys.escape);
         if let Some(after) = self.keys.after_cut.pop_front() {
             let by = after.at;
             self.keys.bound = after.bound;
@@ -199,7 +208,24 @@ impl PopupManager {
                 rest.escape = std::mem::take(&mut rest.escape).shifted_back(by);
             }
         }
-        keys
+        (bound, escape)
+    }
+
+    /// 아직 그리지 않은 끊은 뒤 몫의 수.
+    #[cfg(test)]
+    pub(crate) fn cut_segments_left(&self) -> usize {
+        self.keys.after_cut.len()
+    }
+
+    /// egui 패스 하나를 닫는다. 그리기가 키 주인을 정하지 않은 패스(전체화면 무대)도 자기 몫 하나를 꺼내 버려,
+    /// 패스와 몫이 하나씩 짝을 이룬다. 이번 패스의 키 주인과 남은 넘길 Esc 도 비운다.
+    pub(crate) fn close_key_pass(&mut self) {
+        if !self.keys.pass_taken {
+            drop(self.take_pass_segment());
+        }
+        self.keys.pass_taken = false;
+        self.keys.frame = None;
+        self.keys.frame_escape = HandedEscape::default();
     }
 
     /// 그리기가 이번 프레임 키 주인을 꺼낸다. 호출자가 정하지 않았으면(host 그리기만 부르는 갤러리·시험) host

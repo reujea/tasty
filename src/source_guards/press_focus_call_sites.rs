@@ -110,3 +110,56 @@ fn a_debug_pointer_press_moves_the_focus_node_through_the_press_snapshot() {
         "끊기 → 스냅샷 → 남기기 순서가 아니다"
     );
 }
+
+/// 메인 창의 egui 패스(일반 프레임과 전체 화면 무대)는 모두 `run_main_pass` 하나로 열고 닫는다. 그 함수만 끊은 자리로
+/// 입력을 나누고, 같은 자리에서 입력 몫과 누름 스냅샷을 꺼낸다. 패스 하나 = 끊은 자리 하나 = 몫 하나가 깨지지 않게
+/// 호출부와 나누는 자리를 고정한다. 몫을 함께 꺼내는 동작은 `press_cut_tests` 의 무대 장면 시험이 잰다.
+#[test]
+fn every_main_window_pass_opens_and_closes_through_one_function() {
+    let gpu = read("src/gfx/gpu.rs");
+    let bridge = read("src/gfx/gpu/egui_bridge.rs");
+    for (src, sig) in [
+        (&gpu, "fn render_fullscreen_stage("),
+        (&bridge, "fn run_egui_frame("),
+    ] {
+        let body = squeeze(&fn_body(src, sig).unwrap_or_else(|| panic!("{sig}")));
+        at(&body, "self.run_main_pass(", sig);
+        assert!(
+            !body.contains("take_egui_input(") && !body.contains("take_pass_input("),
+            "{sig}: 입력을 직접 꺼낸다"
+        );
+    }
+    let pass = squeeze(&fn_body(&bridge, "fn run_main_pass(").expect("run_main_pass"));
+    let begin = at(&pass, "state.popups.begin_key_pass(", "패스 열기");
+    let take = at(
+        &pass,
+        "self.take_pass_input(window,true)",
+        "나눈 입력 꺼내기",
+    );
+    let run = at(&pass, "self.egui_ctx.run(", "패스 실행");
+    let close = at(&pass, "state.close_input_pass();", "몫 닫기");
+    assert!(
+        begin < take && take < run && run < close,
+        "열기 → 입력 → 실행 → 닫기 순서가 아니다"
+    );
+    let mut splitting = Vec::new();
+    for (path, text) in super::rust_sources() {
+        let code = squeeze(&strip_comments(&text));
+        let n = code.matches("take_pass_input(window,true)").count()
+            + code.matches(".split_pass(").count();
+        if n > 0 {
+            splitting.push((path.display().to_string(), n));
+        }
+    }
+    let allowed = [
+        "src/gfx/gpu/egui_bridge.rs",
+        "src/gfx/gpu/text_selection.rs",
+        "src/adapters/ui/popup/window_input_test_support.rs",
+    ];
+    assert!(
+        splitting
+            .iter()
+            .all(|(p, n)| *n == 1 && allowed.iter().any(|a| p.ends_with(a))),
+        "끊은 자리로 입력을 나누는 자리가 run_main_pass 밖에 있다: {splitting:?}"
+    );
+}

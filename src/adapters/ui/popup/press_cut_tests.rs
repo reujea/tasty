@@ -254,6 +254,56 @@ fn a_letter_before_a_press_on_the_right_search_stays_with_the_left_field() {
     assert_eq!(s.query, "ab");
 }
 
+/// 전체화면 무대 패스는 팝업을 그리지 않지만 패스 하나가 몫 하나를 닫는다. Given L 찾기 입력란이 포커스 노드일 때, When
+/// 무대 패스를 사이에 두고 [글자 s, L 찾기 입력란 누름]을 세 번 받은 뒤 무대를 나가 R 검색창을 누르고 글자 q 를 치면,
+/// Then 무대 뒤 남은 몫은 없고 q 는 R 검색어에 들어간다.
+#[test]
+fn stage_passes_close_their_segments_so_a_key_after_the_stage_reaches_the_popup() {
+    let mut s = open_scene(|_| {});
+    let mut input = WindowInput::default();
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), s.find.center());
+    }
+    activate(&mut s, PANE_L);
+    pass(&mut s, &mut input);
+    for _ in 0..3 {
+        assert_eq!(s.state.window_feeds_egui(true, true), Some(false));
+        input.push(text("s"));
+        {
+            let engine = s.session.borrow_mut();
+            input.press(&mut s.state, &engine.read(), s.find.center());
+        }
+        // 무대 패스: 입력을 꺼내고 팝업 층 없이 닫는다(`render_fullscreen_stage`).
+        while !input.is_empty() {
+            drop(input.take_pass(&mut s.state, &s.ctx));
+            s.state.close_input_pass();
+        }
+    }
+    assert!(
+        s.state.press_snapshots_after_cut.is_empty(),
+        "무대 뒤 남은 누름 몫이 없다"
+    );
+    assert!(
+        s.state.popups.cut_segments_left() == 0,
+        "무대 뒤 남은 몫이 없다"
+    );
+
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), s.search_field.center());
+    }
+    pass(&mut s, &mut input);
+    pass(&mut s, &mut input);
+    assert_eq!(s.state.window_feeds_egui(false, true), Some(true));
+    input.push(text("q"));
+    pass(&mut s, &mut input);
+    assert_eq!(
+        s.state.search.query, "q",
+        "무대 뒤 글자는 R 검색창에 들어간다"
+    );
+}
+
 /// (c) Given R 검색창이 포커스 노드이고 L 에 덮는 팝업이 열려 있을 때, When 한 묶음에 [R 키 x, L 팝업 누름, 키 y, R
 /// 터미널 누름, 글자 z]가 오면, Then 창은 두 누름에서 각각 끊어 x 는 R 검색창, y 는 L 팝업 몫으로 그리고, z 는 창의
 /// 게이트가 터미널로 보낸다(egui 로 가지 않는다).
@@ -347,7 +397,7 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
     );
     let events = input.take_pass(&mut state, &ctx);
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, events);
-    state.end_press_frame();
+    state.close_input_pass();
 
     assert_eq!(state.window_feeds_egui(false, true), Some(true));
     input.push(text("x"));

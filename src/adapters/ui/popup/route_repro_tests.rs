@@ -171,7 +171,7 @@ fn the_first_press_into_the_right_scope_does_not_close_its_plugin_popup() {
     for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
         mgr.touch_popup_instance_z(id);
     }
-    state.end_press_frame();
+    state.close_input_pass();
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
     plugin_frame(
         &ctx,
@@ -242,7 +242,7 @@ fn host_frame(
             Some(popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout()), &[], press.as_ref()));
         state.popups = popups;
     }));
-    state.end_press_frame();
+    state.close_input_pass();
     let result: crate::adapters::ui::popup::PopupDrawResult = result.unwrap();
     // 메인 창처럼 다음 누름의 포인터 대상은 이 프레임에 배치한 팝업 노드다(`frame::draw_popup_layer`).
     state.host_popup_hittest = result.hit_rects.clone();
@@ -416,7 +416,7 @@ pub(super) fn window_frame_with_find(
             Some(&layout()),
         );
     }));
-    state.end_press_frame();
+    state.close_input_pass();
     (out, field)
 }
 
@@ -552,7 +552,7 @@ fn the_first_press_into_a_scope_with_only_a_plugin_popup_focuses_it() {
     for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
         mgr.touch_popup_instance_z(id);
     }
-    state.end_press_frame();
+    state.close_input_pass();
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
     plugin_frame(
         &ctx,

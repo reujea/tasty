@@ -163,13 +163,20 @@ impl GpuState {
     /// frame's focus input is counted and a waiting paste is checked against the focus at the
     /// moment egui will apply it.
     pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
+        self.take_pass_input(window, false)
+    }
+
+    /// `take_egui_input` 과 같다. `main_pass` 면 끊은 자리부터는 그다음 패스 몫으로 남긴다. 끊은 자리마다 메인 창
+    /// 상태의 입력 몫·누름 스냅샷이 하나씩 쌓이므로, 나누기는 그것을 함께 꺼내는 `run_main_pass` 만 한다.
+    pub(super) fn take_pass_input(&mut self, window: &Window, main_pass: bool) -> egui::RawInput {
         self.edit_keys_before_input(window);
         let mut raw_input = self.egui_state.take_egui_input(window);
-        // 끊은 자리부터는 그다음 패스 몫이다. 남은 사건을 다음 입력 앞에 되돌리고 그 패스를 요청한다.
-        if self.egui_input_cuts.split_pass(
-            &mut raw_input.events,
-            &mut self.egui_state.egui_input_mut().events,
-        ) {
+        if main_pass
+            && self.egui_input_cuts.split_pass(
+                &mut raw_input.events,
+                &mut self.egui_state.egui_input_mut().events,
+            )
+        {
             self.egui_ctx.request_repaint();
         }
         self.edit_keys.input_taken(&raw_input.events);
