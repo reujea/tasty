@@ -125,6 +125,15 @@ pub(crate) fn focus_opened_popup(
     let Some((_, inst)) = mgr.popup_instances().find(|(id, _)| *id == instance_id) else {
         return;
     };
+    // 포커스 노드는 이 창에 그리는 팝업만 될 수 있다. 다른 창에 결속한 창 범위 인스턴스를 이 창에서 다시 요청해도
+    // 이 창의 포커스·결속 범위를 바꾸지 않는다.
+    if !drawn_in_window(
+        &window.plugin_window_popups,
+        instance_id,
+        inst.contribute.scope,
+    ) {
+        return;
+    }
     window.plugin_popup_bound_scopes.insert(
         instance_id,
         (
@@ -224,9 +233,12 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
     instances: impl Iterator<Item = (u64, &'a PopupInstance)>,
 ) {
     let instances: Vec<(u64, &PopupInstance)> = instances.collect();
+    // 키 후보는 이 창에 그리는 인스턴스만이다(다른 창에 결속한 창 범위 인스턴스는 빠진다).
+    let window_popups = &state.plugin_window_popups;
     state.plugin_popup_frame_entries = Some(
         instances
             .iter()
+            .filter(|(id, inst)| drawn_in_window(window_popups, *id, inst.contribute.scope))
             .map(|(id, inst)| {
                 (
                     *id,

@@ -156,6 +156,56 @@ fn reopening_from_another_window_keeps_the_first_window() {
     );
 }
 
+/// Given A 창에 결속한 창 범위 plugin 팝업이 열려 있고 B 창의 포커스 노드가 B 의 host 팝업일 때, When B 에서 같은
+/// 팝업을 다시 요청하면, Then B 의 포커스 노드와 결속 범위는 그대로이고 B 를 그린 프레임의 키 후보에도 그 팝업이
+/// 없다(포커스 노드는 그 창에 그리는 팝업만 될 수 있다).
+#[test]
+fn reopening_from_another_window_does_not_take_that_windows_focus() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    let (mut mgr, _stub) = manager();
+    let (mut a, mut a_session) = crate::state::tests::test_state();
+    let (mut b, mut b_session) = crate::state::tests::test_state();
+    for def in crate::adapters::ui::popup::defs::all_defs() {
+        b.popups.register_def(def, 1.0);
+    }
+    let palette = b
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(
+                crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID,
+                crate::adapters::ui::popup::PopupScope::Window,
+            )
+            .focused(),
+            true,
+        )
+        .unwrap();
+    for state in [&mut a, &mut b] {
+        state
+            .pending_popup_opens
+            .push(crate::state::PendingPopupOpen {
+                plugin_id: PLUGIN.into(),
+                popup_id: "viewer".into(),
+                context: serde_json::Value::Null,
+                target_surface: None,
+            });
+    }
+    open_pending_popups(
+        Some(&mut mgr),
+        std::iter::once((&mut a, a_session.borrow_mut())),
+    );
+    let opened: Vec<u64> = mgr.popup_instances().map(|(id, _)| id).collect();
+    assert_eq!(a.popups.focus(), Some(PopupNode::Plugin(opened[0])));
+    open_pending_popups(
+        Some(&mut mgr),
+        std::iter::once((&mut b, b_session.borrow_mut())),
+    );
+    assert_eq!(b.popups.focus(), Some(PopupNode::Host(palette)));
+    assert!(!b.plugin_popup_bound_scopes.contains_key(&opened[0]));
+    let in_b = drawn(&mut b, &b_session.borrow_mut().read(), &mgr);
+    assert!(in_b.is_empty(), "{in_b:?}");
+    assert!(!b.plugin_popup_owns_keys());
+}
+
 fn open_tool_in(
     state: &mut MainViewState,
     session: &mut crate::runtime::engine_session::EngineSession,
