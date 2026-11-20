@@ -223,7 +223,7 @@ impl App {
 pub(crate) fn plugin_shortcut_in_window(
     state: &mut crate::state::MainViewState,
     engine: &crate::runtime::engine_access::EngineMut<'_>,
-    mut plugin_manager: Option<&mut plugin::PluginManager>,
+    plugin_manager: Option<&mut plugin::PluginManager>,
     has_webview: impl Fn(u32) -> bool,
     shortcut_key: &winit::keyboard::Key,
     mods: winit::keyboard::ModifiersState,
