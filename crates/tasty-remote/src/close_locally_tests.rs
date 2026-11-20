@@ -71,6 +71,21 @@ fn assert_closed_without_detach(peer: &mut std::net::TcpStream) {
     assert!(started.elapsed() < Duration::from_millis(250));
 }
 
+/// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 소켓을 닫지 않았다면
+/// reader 가 읽기 기한까지 막혀 회수 스레드가 상한을 다 기다린다.
+fn assert_workers_retire_before_the_reaper_wait(
+    receipt: crate::transport::RetirementReceipt,
+    dropped: Instant,
+) {
+    while !receipt.is_done() {
+        assert!(
+            dropped.elapsed() < Duration::from_millis(200),
+            "the workers were still running at the reaper wait"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
 #[test]
 fn close_locally_closes_the_socket_at_once_and_settles_lost() {
     let (_remote, prepared, mut peer) = prepared_with_peer();
@@ -81,6 +96,9 @@ fn close_locally_closes_the_socket_at_once_and_settles_lost() {
         Some(crate::transport_end::EndReason::Lost)
     );
     assert_closed_without_detach(&mut peer);
+    let receipt = transport.workers.receipt();
+    drop(transport);
+    assert_workers_retire_before_the_reaper_wait(receipt, Instant::now());
 }
 
 #[test]
@@ -88,7 +106,10 @@ fn a_failed_install_closes_the_taken_connection_at_once() {
     let (_remote, prepared, mut peer) = prepared_with_peer();
     let guard = InstallGuard::new(prepared.transport);
     let end = guard.transport().end.clone();
+    let receipt = guard.transport().workers.receipt();
+    let dropped = Instant::now();
     drop(guard);
     assert_eq!(end.settled(), Some(crate::transport_end::EndReason::Lost));
     assert_closed_without_detach(&mut peer);
+    assert_workers_retire_before_the_reaper_wait(receipt, dropped);
 }
