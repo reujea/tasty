@@ -416,6 +416,23 @@ impl RequestContext {
         })
     }
 
+    /// 사용자 입력이 포커스를 주며 여는 팝업 요청이 대기열에 있는지. 창은 키 사건 하나를 처리한 뒤 이 값이 참이면
+    /// 그 자리에서 대기열을 처리해, 그 팝업이 다음 사건 시점의 포커스 노드가 되게 한다(같은 묶음의 뒤 키가 그 팝업
+    /// 몫이 된다).
+    #[cfg(feature = "gui")]
+    pub(crate) fn user_focus_open_queued(&self) -> bool {
+        use crate::intent::{Intent, UiIntent};
+        self.pending_intents.iter().any(|intent| {
+            intent.origin.is_user()
+                && matches!(
+                    &intent.body,
+                    Intent::Ui(
+                        UiIntent::OpenPopup(r) | UiIntent::ReopenPopup(r) | UiIntent::TogglePopup(r)
+                    ) if r.focus
+                )
+        })
+    }
+
     /// 등록된 convert_input_popup을 열도록 요청한다. 변환 대상이 있으면 context에 담는다.
     /// 변환 대상이 없고 입력 시점 대상이 생성 대기 초안이면 큐 대신 그 초안에 걸어 두고 true를 반환한다.
     /// kind나 팝업 선언을 찾지 못하면 경고를 기록하고 false를 반환한다. surface 범위로 선언한 팝업인데

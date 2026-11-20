@@ -107,7 +107,29 @@ impl App {
         {
             return;
         }
+        let key = matches!(
+            event,
+            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
+        );
         self.dispatch_window_event_to_view(id, event);
+        if key {
+            self.apply_user_focus_opens(id);
+        }
+    }
+
+    /// 키 사건이 포커스를 주며 여는 팝업을 요청했으면 대기열을 그 자리에서 처리한다. 포커스 노드 전이는 그 키 사건
+    /// 처리 안에서 적용돼야 같은 묶음의 다음 키가 사건 시점의 노드(그 팝업)로 끊긴다(`MainViewState::cut_key_frame`).
+    /// 대기열 처리 순서(`dispatch_pending_intents`)는 바꾸지 않고 처리 시점만 앞당긴다.
+    pub(crate) fn apply_user_focus_opens(&mut self, id: WindowId) {
+        let queued = self
+            .view
+            .views
+            .get(&id)
+            .and_then(|view| view.as_main())
+            .is_some_and(|main| main.state.user_focus_open_queued());
+        if queued {
+            self.dispatch_pending_intents();
+        }
     }
 
     fn set_edit_replay(&mut self, id: WindowId, edit: Option<EditKey>) {
