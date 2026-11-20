@@ -26,7 +26,7 @@ use super::projection::{build_mirror_workspace, lease_mirror_ids, mirror_id_need
 use super::resources::{
     install_mirror_fallbacks, push_markdown_changed, push_markdown_content_result,
 };
-use super::round_observation::RoundObservation;
+use super::round_intake::RoundIntake;
 use super::survivors::{keep_terminal_resize_state, merge_survivor_mapping};
 use super::user_waits;
 use crate::app::App;
@@ -42,23 +42,18 @@ use tasty_remote::client_session::{
 };
 
 impl App {
+    /// 출력 회차 하나: 관측 → 설치 → 이벤트 적용 → 처리.
+    ///
     /// 창이 있는 engine, parked engine 순서로 적용 대상을 찾은 뒤 출력 버퍼를 비운다.
     /// 대상이 없으면 버퍼를 유지한다. 고아 판정·정리도 같은 engine 범위를 확인해야 한다.
     pub(crate) fn apply_attach_client_output(&mut self) {
-        let observation = RoundObservation::observe(&self.remote.sessions);
-        self.apply_attach_client_output_observed(observation);
+        let intake = self.observe_round();
+        self.finish_round(intake);
     }
 
-    /// 회차 시작에 찍은 관측값으로 한 회차를 처리한다. 설치 검사(`drop_attempt_for_force_detached_target`)와
-    /// 끝 분류가 이 관측값의 끊김·강제 끊김을 함께 쓴다. 관측 뒤에 선 표지는 다음 회차에 분류한다.
-    pub(crate) fn apply_attach_client_output_observed(&mut self, observation: RoundObservation) {
-        self.state.round_observation = Some(observation);
-        self.apply_observed_round();
-        self.state.round_observation = None;
-    }
-
-    fn apply_observed_round(&mut self) {
-        self.poll_pending_mirror_installs();
+    /// 관측 뒤의 단계. 같은 회차의 판정은 모두 `intake`와 관측 단계가 쓴 표지·고정 사유를 쓴다.
+    pub(crate) fn finish_round(&mut self, intake: RoundIntake) {
+        self.poll_pending_mirror_installs(&intake);
         super::op_runs::end_closed_connections();
         if self.remote.sessions.is_empty() {
             return;
@@ -68,13 +63,12 @@ impl App {
         let mut unknown_close: Vec<u32> = Vec::new();
         let mut reconnecting: Vec<usize> = Vec::new();
         let mut resyncing: Vec<usize> = Vec::new();
-        let mut force_detached: Vec<usize> = Vec::new();
+        let mut stopped: Vec<usize> = Vec::new();
         for idx in 0..self.remote.sessions.len() {
-            let (local_ws, (disconnected, force_detached_end), state, saved_row) = {
+            let (local_ws, phase, saved_row) = {
                 let sess = &self.remote.sessions[idx];
                 (
                     sess.state.local_workspace,
-                    RoundObservation::end_of(self.state.round_observation.as_ref(), sess),
                     sess.state.phase,
                     sess.state.saved_row,
                 )
@@ -117,28 +111,17 @@ impl App {
                 None => {}
             }
             // 같은 묶음에 손실 통지와 EOF가 올 수 있어 이벤트 적용 뒤 재attach 여부를 확인한다.
-            let sess = &self.remote.sessions[idx];
-            let installing = self
-                .state
-                .mirror_attempts
-                .installing_epoch(sess.state.local_workspace, &sess.transport.frame_tx.epoch());
-            let (disposition, unknown) = decide_session_end(
-                sess,
-                (disconnected, force_detached_end),
-                state,
-                saved_row.is_some(),
-                installing,
-            );
+            let sess = &mut self.remote.sessions[idx];
+            let events_deferred = sess.transport.output.has_pending();
+            let (disposition, unknown) = route_session_end(sess, phase, events_deferred);
             if unknown {
                 unknown_close.push(sess.state.local_workspace);
             }
             match disposition {
                 DisconnectDisposition::Resync => resyncing.push(idx),
                 DisconnectDisposition::Reconnect => reconnecting.push(idx),
-                DisconnectDisposition::ForceDetached if saved_row.is_some() => {
-                    force_detached.push(idx)
-                }
-                DisconnectDisposition::ForceDetached => dead.push(idx),
+                DisconnectDisposition::Stop if saved_row.is_some() => stopped.push(idx),
+                DisconnectDisposition::Stop => dead.push(idx),
                 DisconnectDisposition::Cleanup => dead.push(idx),
                 DisconnectDisposition::ServerClosed => closed.push(idx),
                 DisconnectDisposition::None => {}
@@ -161,38 +144,72 @@ impl App {
         for &idx in &reconnecting {
             self.enter_reconnecting(idx);
         }
-        for &idx in &force_detached {
-            self.stop_after_force_detach(idx);
+        for &idx in &stopped {
+            self.stop_saved_row(idx);
         }
         self.end_sessions(&dead, &closed);
     }
 }
-/// 이벤트를 적용한 뒤 세션의 끝을 정한다. 단절·phase·저장 여부는 이벤트 적용 전에 읽은 값이고,
-/// 단절과 강제 끊김은 회차 시작의 관측값(`RoundObservation`)이다.
+
+/// 이벤트를 적용한 뒤 세션의 끝을 정한다. `phase`는 이벤트 적용 전에 읽은 값이다.
 /// 두 번째 값은 회신 없이 끝난 서버 닫기가 있어 결과를 모른다고 알려야 하는지다.
-fn decide_session_end(
-    sess: &AttachClientSession,
-    (disconnected, force_detached): (bool, bool),
+///
+/// 순서: 서버 닫기 성공 회신 → 관측·설치 단계가 정한 멈춤 → 관측한 끝(처리하지 않은 것만).
+/// 정한 멈춤은 ID 예약을 기다리는 이벤트가 남아 있으면 다음 회차로 미룬다. 그 이벤트에 닫기 회신이
+/// 있을 수 있기 때문이다.
+fn route_session_end(
+    sess: &mut AttachClientSession,
     phase: SessionState,
-    saved: bool,
-    installing: bool,
+    events_deferred: bool,
 ) -> (DisconnectDisposition, bool) {
-    let disposition = session_end(
-        sess.state.workspace_close,
-        installing,
-        after_force_detach(
-            disconnect_disposition(disconnected, phase, sess.resync_released(), saved),
-            force_detached,
-        ),
-    );
+    let disposition =
+        if sess.state.workspace_close == tasty_remote::client_session::WorkspaceClose::Closed {
+            DisconnectDisposition::ServerClosed
+        } else if sess.state.stop_after_events {
+            if events_deferred {
+                DisconnectDisposition::None
+            } else {
+                sess.state.stop_after_events = false;
+                DisconnectDisposition::Stop
+            }
+        } else {
+            classify_observed_end(sess, phase)
+        };
     let unknown = matches!(
         disposition,
         DisconnectDisposition::Resync
             | DisconnectDisposition::Reconnect
-            | DisconnectDisposition::ForceDetached
+            | DisconnectDisposition::Stop
             | DisconnectDisposition::Cleanup
     ) && super::workspace_close::close_result_unknown(sess);
     (disposition, unknown)
+}
+
+/// 관측 단계가 기록한 끝을 한 번만 분류한다. 지금 전송의 끝이 아니거나 이미 분류한 끝은 None이다.
+/// 강제 끊김은 정식 종료라 재연결·재동기화하지 않는다.
+fn classify_observed_end(
+    sess: &mut AttachClientSession,
+    phase: SessionState,
+) -> DisconnectDisposition {
+    let current = sess.transport.frame_tx.epoch();
+    let resync_released = sess.resync_released();
+    let saved = sess.state.saved_row.is_some();
+    let Some(end) = sess
+        .state
+        .observed_end
+        .as_mut()
+        .filter(|end| !end.routed && end.epoch.same(&current))
+    else {
+        return DisconnectDisposition::None;
+    };
+    end.routed = true;
+    if phase != SessionState::Connected {
+        return DisconnectDisposition::None;
+    }
+    if end.reason == tasty_remote::transport_end::EndReason::Forced {
+        return DisconnectDisposition::Stop;
+    }
+    disconnect_disposition(true, phase, resync_released, saved)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -228,29 +245,12 @@ enum DisconnectDisposition {
     None,
     Resync,
     Reconnect,
-    /// 서버가 강제로 끊었다. 저장된 원격 행은 재연결하지 않고 끊긴 행으로 남는다.
-    ForceDetached,
+    /// 재연결·재동기화하지 않고 멈춘다. 저장된 원격 행은 끊긴 행으로 남고, 에이전트 mirror는 정리한다.
+    /// 서버의 강제 끊기와 관측·설치 단계가 정한 멈춤이 여기로 온다.
+    Stop,
     Cleanup,
     /// 서버가 workspace를 닫았다고 회신했다. 재연결 없이 로컬에서 정리한다.
     ServerClosed,
-}
-
-/// 이벤트를 적용한 뒤 세션의 처리를 정한다. 서버 닫기 성공 회신은 같은 묶음의 EOF나 뒤따를 EOF,
-/// 진행 중인 재연결 설치보다 우선한다. 그 밖에 설치 continuation이 이 epoch를 소유하면 기다린다.
-fn session_end(
-    close: tasty_remote::client_session::WorkspaceClose,
-    installing: bool,
-    disconnect: DisconnectDisposition,
-) -> DisconnectDisposition {
-    if close == tasty_remote::client_session::WorkspaceClose::Closed {
-        DisconnectDisposition::ServerClosed
-    } else if installing {
-        // A handshake/ID reservation continuation owns this epoch until installation or failure.
-        // Its original transport (including the tunnel) must not be taken a second time.
-        DisconnectDisposition::None
-    } else {
-        disconnect
-    }
 }
 
 /// 연결별 종료 신호에는 한 번만 반응한다. 저장된 원격 행은 재연결하고 에이전트 mirror는 정리한다.
@@ -270,20 +270,6 @@ fn disconnect_disposition(
         DisconnectDisposition::Reconnect
     } else {
         DisconnectDisposition::Cleanup
-    }
-}
-
-/// 서버의 강제 끊기는 정식 종료라 재연결·재동기화하지 않는다. 연결 끊김(EOF·TTL)은 그대로 둔다.
-/// 에이전트 mirror는 원래 재연결하지 않으므로 정리(Cleanup)를 유지한다.
-fn after_force_detach(
-    disposition: DisconnectDisposition,
-    force_detached: bool,
-) -> DisconnectDisposition {
-    match disposition {
-        DisconnectDisposition::Resync | DisconnectDisposition::Reconnect if force_detached => {
-            DisconnectDisposition::ForceDetached
-        }
-        other => other,
     }
 }
 

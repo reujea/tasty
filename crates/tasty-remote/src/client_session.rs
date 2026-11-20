@@ -202,6 +202,16 @@ mod outbox {
                 pending.bytes += bytes;
             }
         }
+        /// 아직 적용하지 않은 이벤트가 남았는지. ID 예약을 기다려 되돌린 이벤트도 포함한다.
+        pub fn has_pending(&self) -> bool {
+            !tasty_utils::poison::recover_mutex(
+                self.pending.lock(),
+                super::MIRROR_OUTBOX_WHAT,
+                &super::MIRROR_OUTBOX_POISONED,
+            )
+            .events
+            .is_empty()
+        }
         pub fn drain(&self) -> Vec<MirrorEvent> {
             let mut pending = tasty_utils::poison::recover_mutex(
                 self.pending.lock(),
@@ -396,6 +406,21 @@ pub struct ClientSessionState {
     pub resync_awaiting_window: bool,
     /// 이 연결로 보낸 서버 workspace 닫기의 진행.
     pub workspace_close: WorkspaceClose,
+    /// 회차 관측이 이 세션의 전송에서 읽은 확정된 끝. 전송(epoch)마다 한 번만 적고, 처리 단계가 한 번만
+    /// 분류한다. 새 전송을 설치하면 None으로 시작한다.
+    pub observed_end: Option<ObservedEnd>,
+    /// 관측·설치 단계가 이 세션을 멈추기로 정했다. 옛 전송의 해제와 멈춤은 같은 회차의 이벤트 적용과
+    /// 닫기 판정 뒤로 넘긴다. 처리 단계가 멈출 때 지운다.
+    pub stop_after_events: bool,
+}
+
+/// 회차 관측이 기록한 전송의 끝.
+#[derive(Clone)]
+pub struct ObservedEnd {
+    pub epoch: super::connection::ConnectionEpoch,
+    pub reason: crate::transport_end::EndReason,
+    /// 처리 단계가 이 끝을 이미 분류했다. 같은 끝을 다시 분류하지 않는다.
+    pub routed: bool,
 }
 
 /// 서버 workspace 닫기 요청의 진행. 한 연결에서 하나만 기다린다.

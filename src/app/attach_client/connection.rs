@@ -224,6 +224,8 @@ impl App {
                 resync_pending: None,
                 resync_awaiting_window: false,
                 workspace_close: Default::default(),
+                observed_end: None,
+                stop_after_events: false,
             },
         });
         tracing::info!(
@@ -388,6 +390,7 @@ impl App {
         // 실패할 수 있는 단계를 모두 지난 소유권 이전 지점이다. 옛 전송을 여기서 확정하고 소켓을 닫는다.
         sess.transport.close_locally();
         sess.transport = transport;
+        sess.state.observed_end = None;
         sess.state.client_id = client_id;
         sess.state.bulk_port = port;
         sess.state.op_seq = 0;

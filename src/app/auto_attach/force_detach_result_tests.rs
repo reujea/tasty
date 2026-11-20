@@ -18,6 +18,9 @@ macro_rules! alone {
     };
 }
 
+const OUTSIDE_ROUND: crate::app::attach_client::saved_row::DropSite =
+    crate::app::attach_client::saved_row::DropSite::OutsideRound;
+
 /// 같은 연결 대상을 가리키는 두 번째 저장 행.
 const ROW_B: u32 = 9_200;
 
@@ -107,7 +110,7 @@ fn an_endpoint_result_after_the_target_was_force_detached_starts_no_connection()
     assert!(app.row_user_disconnected(ROW), "the mark stays");
 }
 
-/// 행 A 의 연결이 준비돼 설치만 남은 뒤 같은 대상의 행 B 를 강제로 끊고 설치를 poll 한다.
+/// 행 A 의 연결이 준비돼 설치만 남은 뒤 같은 대상의 행 B 를 강제로 끊고 출력 회차 하나를 돈다.
 fn poll_an_install_prepared_before_the_mark(explicit: bool) -> App {
     let event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
@@ -128,7 +131,7 @@ fn poll_an_install_prepared_before_the_mark(explicit: bool) -> App {
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
     force_detach_the_other_row(&mut app);
 
-    app.poll_pending_mirror_installs();
+    app.apply_attach_client_output();
     app
 }
 
@@ -212,7 +215,7 @@ fn assert_kept_through_the_install_check(
         app.remote.collect_connections();
     }
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
     assert_ne!(
         app.remote.sessions[0].state.phase,
         SessionState::Disconnected
@@ -292,14 +295,14 @@ fn a_first_connect_result_is_dropped_unless_the_connect_was_explicit() {
     force_detach_the_other_row(&mut app);
 
     let user_chosen = first_connect_target(&app, true);
-    assert!(!app.drop_attempt_for_force_detached_target(&user_chosen));
+    assert!(!app.drop_attempt_for_force_detached_target(&user_chosen, OUTSIDE_ROUND));
     assert!(
         app.remote.active.contains(&ROW),
         "the explicit attempt goes on"
     );
 
     let shown = first_connect_target(&app, explicit);
-    assert!(app.drop_attempt_for_force_detached_target(&shown));
+    assert!(app.drop_attempt_for_force_detached_target(&shown, OUTSIDE_ROUND));
     assert!(!app.remote.active.contains(&ROW));
     assert_ne!(app.row_state_name(ROW), "connecting");
 }
@@ -378,7 +381,7 @@ fn the_scheduler_keeps_an_explicit_reconnect_after_the_target_was_force_detached
         app.remote.collect_connections();
     }
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
     assert_ne!(
         app.remote.sessions[0].state.phase,
         SessionState::Disconnected
@@ -460,8 +463,7 @@ fn push_other_row_session(app: &mut App, phase: SessionState) {
     flag_the_other_row_force_detached(app);
 }
 
-/// reader 가 강제 끊김 통지를 처리한 것처럼 행 `ROW_B` 세션 전송의 `force_detached`·`disconnected` 를
-/// 그 순서로 세운다.
+/// reader 가 강제 끊김 통지를 처리한 것처럼 행 `ROW_B` 세션 전송의 끝을 `Forced`로 확정한다.
 fn flag_the_other_row_force_detached(app: &App) {
     let session_b = app
         .remote
@@ -535,7 +537,7 @@ fn an_old_force_detach_of_another_row_does_not_drop_a_later_automatic_reconnect(
     );
     let _socket = prepare_an_automatic_reconnect(&mut app);
 
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
 
     assert_ne!(
         app.remote.sessions[0].state.phase,
@@ -551,10 +553,9 @@ fn an_old_force_detach_of_another_row_does_not_drop_a_later_automatic_reconnect(
     );
 }
 
-/// Given 같은 출력 회차에 행 A 의 재연결 연결이 설치만 남았고 같은 대상의 행 B 세션의 reader 가 강제
-/// 끊김 통지를 처리해 전송 표지만 섰다(표지는 아직 저장 전), When 그 회차를 처리하면
-/// (`apply_attach_client_output`, 설치가 B 의 끝 분류보다 먼저), Then A 는 설치되지 않고 끊긴 행이 되며
-/// B 의 끝 분류가 표지를 저장한다.
+/// Given 같은 출력 회차에 행 A 의 재연결 연결이 설치만 남았고 같은 대상의 행 B 세션의 전송이 강제
+/// 끊김으로 확정됐다(표지는 아직 저장 전), When 그 회차를 처리하면(`apply_attach_client_output`, 관측이
+/// 설치보다 먼저), Then 관측 단계가 표지를 저장하고 A 는 설치되지 않고 끊긴 행이 된다.
 #[test]
 fn an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped() {
     alone!("an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped");
@@ -569,14 +570,14 @@ fn an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped() 
     assert_stopped(&app);
     assert!(
         app.row_user_disconnected(ROW),
-        "the end of B saved the mark"
+        "the observation of B saved the mark"
     );
 }
 
-/// Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 세션은 연결돼 있다, When 출력 회차가
-/// 관측값을 찍은 뒤에 B 의 reader 가 강제 끊김 통지를 처리하고(전송 표지가 섬) 그 회차를 처리하면,
-/// Then 그 회차의 설치 검사는 A 를 버리지 않고 끝 분류도 B 를 그대로 둔다. 다음 회차에 B 가 강제
-/// 끊김으로 분류되어 표지가 저장된다. A 의 설치 뒤에 B 가 끊긴 것과 같은 순서다. 시험 장치에 View 가
+/// Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 세션은 연결돼 있다, When 출력 회차의
+/// 관측 단계가 끝난 뒤에 B 의 전송이 강제 끊김으로 확정되고 그 회차의 나머지를 처리하면, Then 그
+/// 회차의 설치 검사는 A 를 버리지 않고 처리도 B 를 그대로 둔다. 다음 회차의 관측이 B 의 끝을 기록해
+/// 표지를 저장하고 처리가 B 를 멈춘다. A 의 설치 뒤에 B 가 끊긴 것과 같은 순서다. 시험 장치에 View 가
 /// 없어 A 의 설치를 끝까지 마치는지는 재지 않고, 버리지 않았다는 것만 본다.
 #[test]
 fn a_force_detach_flagged_after_the_round_observation_ends_the_other_row_next_round() {
@@ -585,12 +586,10 @@ fn a_force_detach_flagged_after_the_round_observation_ends_the_other_row_next_ro
     let mut app = reconnecting_app(&event_loop);
     let _socket = prepare_an_automatic_reconnect(&mut app);
     push_other_row_session_unflagged(&mut app, SessionState::Connected);
-    let observation = crate::app::attach_client::round_observation::RoundObservation::observe(
-        &app.remote.sessions,
-    );
+    let intake = app.observe_round();
     flag_the_other_row_force_detached(&app);
 
-    app.apply_attach_client_output_observed(observation);
+    app.finish_round(intake);
 
     assert_ne!(
         app.remote.sessions[0].state.phase,
@@ -654,7 +653,7 @@ fn an_explicit_connect_joining_at_the_connection_stage_keeps_it() {
         "the waiting connection is explicit"
     );
     force_detach_the_other_row(&mut app);
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
 
     assert_ne!(
         app.remote.sessions[0].state.phase,

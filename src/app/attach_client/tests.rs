@@ -130,9 +130,19 @@ pub(crate) fn test_session_with_frames(
             resync_pending: None,
             resync_awaiting_window: false,
             workspace_close: Default::default(),
+            observed_end: None,
+            stop_after_events: false,
         },
     };
     (session, rx)
+}
+
+impl crate::app::App {
+    /// 시험 보조: 출력 회차의 관측과 설치 단계만 돈다. 이벤트 적용과 처리는 하지 않는다.
+    pub(crate) fn run_install_stage(&mut self) {
+        let intake = self.observe_round();
+        self.poll_pending_mirror_installs(&intake);
+    }
 }
 
 /// 시험이 재연결 성공을 흉내 낸다. 확정된 끝은 되돌릴 수 없으므로 끝이 열린 새 전송과 epoch 로 바꾼다.

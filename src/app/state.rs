@@ -15,10 +15,6 @@ pub(crate) struct AppState {
     pub(crate) started: bool,
     #[cfg(feature = "gui")]
     pub(crate) mirror_attempts: crate::app::attach_client::attempts::MirrorAttempts,
-    /// 진행 중인 출력 회차가 시작할 때 찍은 세션 끝 관측값. 회차 밖에서는 None이다.
-    #[cfg(feature = "gui")]
-    pub(crate) round_observation:
-        Option<crate::app::attach_client::round_observation::RoundObservation>,
     /// 워커가 자기 자신 여부를 판정한 `attach.into_gui` 요청.
     #[cfg(feature = "gui")]
     pub(crate) into_gui_checks: crate::app::attach_client::into_gui::IntoGuiChecks,

@@ -275,11 +275,12 @@ impl App {
             self.services.attach_heartbeat.get(),
         )
     }
-    pub(crate) fn poll_pending_mirror_installs(&mut self) {
-        self.remote.collect_connections();
-        self.end_expired_reconnect_windows();
-        let pending = self.state.mirror_attempts.connection_snapshot();
-        for (ticket, target) in pending {
+    /// 회차의 설치 단계. 관측 단계가 찍은 시도 목록만 돈다. 결과를 거두는 일과 만료는 관측 단계가 했다.
+    pub(crate) fn poll_pending_mirror_installs(
+        &mut self,
+        intake: &super::round_intake::RoundIntake,
+    ) {
+        for (ticket, target) in intake.tickets.iter().cloned() {
             if !self.mirror_install_target_is_current(&target) {
                 target.cancel_run(TARGET_DISCARDED);
                 self.state
@@ -288,7 +289,10 @@ impl App {
                 self.end_discarded_row_attempt(&target);
                 continue;
             }
-            if self.drop_attempt_for_force_detached_target(&target) {
+            if self.drop_attempt_for_force_detached_target(
+                &target,
+                super::saved_row::DropSite::InstallStage,
+            ) {
                 self.state
                     .mirror_attempts
                     .cancel_connection(ticket, &mut self.remote);

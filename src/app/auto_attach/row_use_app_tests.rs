@@ -384,7 +384,7 @@ fn park_and_reopen_while_installing(user: bool) {
         .engines
         .park(winit::window::WindowId::from(u64::MAX - 2), state)
         .expect("the row's window is parked");
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
     app.advance_row_waits();
     assert!(
         !app.remote.active.contains(&ROW),
@@ -446,7 +446,7 @@ fn a_discarded_install_leaves_the_mark_of_a_newer_attempt() {
         }
     }
     app.remote.active.insert(ROW);
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
     assert!(
         app.state.mirror_attempts.connection_snapshot().is_empty(),
         "the stale install was discarded"

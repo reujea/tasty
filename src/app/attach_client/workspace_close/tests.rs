@@ -100,8 +100,8 @@ fn disconnect_cancels_only_that_mirrors_reconnect_attempts() {
     assert_eq!(cancel_mirror_attempts(&mut attempts, &mut remote, 20), 2);
     assert!(!own.is_active());
     assert!(other.is_active());
-    assert!(!attempts.installing_epoch(20, &sender.epoch()));
-    assert!(attempts.installing_epoch(21, &other_sender.epoch()));
+    assert!(!reconnect_pending(&attempts, 20, &sender.epoch()));
+    assert!(reconnect_pending(&attempts, 21, &other_sender.epoch()));
     let endpoints = attempts.endpoint_snapshot();
     assert_eq!(endpoints.len(), 1);
     assert_eq!(
@@ -185,4 +185,18 @@ fn closing_one_of_two_tabs_of_a_saved_row_does_not_ask() {
         saved_row_close(&session.core_state, &D::CloseTab { tab_id: 902 }),
         None
     );
+}
+
+/// 시험 보조: 이 workspace·epoch를 재연결 대상으로 삼은 설치 대기가 등록돼 있는지.
+fn reconnect_pending(
+    attempts: &MirrorAttempts,
+    workspace: u32,
+    epoch: &tasty_remote::connection::ConnectionEpoch,
+) -> bool {
+    attempts.connection_snapshot().iter().any(|(_, target)| {
+        target
+            .reconnect
+            .as_ref()
+            .is_some_and(|(id, pending)| *id == workspace && epoch.same(pending))
+    })
 }

@@ -1000,14 +1000,33 @@ fn html_retired_ids_stay_separate_from_markdown_content_routes() {
     assert_eq!(markdown_mirror_local(&session, 31), None);
 }
 
-/// 서버의 강제 끊기는 재연결·재동기화하지 않는다. 연결 끊김과 에이전트 mirror 정리는 그대로다.
+/// 서버의 강제 끊기는 재연결·재동기화하지 않고 멈춘다. 연결 끊김은 재연결이고, 에이전트 mirror는
+/// 멈춤이 곧 정리다. 관측한 끝은 한 번만 분류한다.
 #[test]
 fn force_detach_turns_reconnect_and_resync_into_a_final_stop() {
+    use tasty_remote::transport_end::EndReason;
+    let routed = |saved: bool, resync: bool, reason: EndReason| {
+        let mut sess = test_session(9_000, HashMap::new());
+        sess.state.saved_row = saved.then_some(9_000);
+        if resync {
+            sess.state.resync_pending = Some(1);
+        }
+        crate::app::attach_client::tests::settle_transport_end(&sess, reason);
+        sess.state.observed_end = Some(tasty_remote::client_session::ObservedEnd {
+            epoch: sess.transport.frame_tx.epoch(),
+            reason,
+            routed: false,
+        });
+        let first = route_session_end(&mut sess, SessionState::Connected, false).0;
+        let again = route_session_end(&mut sess, SessionState::Connected, false).0;
+        assert_eq!(again, DisconnectDisposition::None, "routed once");
+        first
+    };
     use DisconnectDisposition::*;
-    assert_eq!(after_force_detach(Reconnect, true), ForceDetached);
-    assert_eq!(after_force_detach(Resync, true), ForceDetached);
-    assert_eq!(after_force_detach(Reconnect, false), Reconnect);
-    assert_eq!(after_force_detach(Resync, false), Resync);
-    assert_eq!(after_force_detach(Cleanup, true), Cleanup);
-    assert_eq!(after_force_detach(None, true), None);
+    assert_eq!(routed(true, false, EndReason::Forced), Stop);
+    assert_eq!(routed(true, true, EndReason::Forced), Stop);
+    assert_eq!(routed(false, false, EndReason::Forced), Stop);
+    assert_eq!(routed(true, false, EndReason::Lost), Reconnect);
+    assert_eq!(routed(true, true, EndReason::Lost), Resync);
+    assert_eq!(routed(false, false, EndReason::Lost), Cleanup);
 }

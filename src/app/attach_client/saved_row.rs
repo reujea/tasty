@@ -2,7 +2,6 @@
 //! 세션 연결·재연결 자체는 `connection`에 있다.
 
 use super::connection::{remove_mirror_workspace_from_engine, remove_mirror_workspace_from_parked};
-use super::round_observation::RoundObservation;
 use crate::app::App;
 use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
@@ -39,19 +38,27 @@ impl App {
         cancelled
     }
 
-    /// 서버가 강제로 끊은 저장된 원격 행. 재연결 구간을 열지 않고 끊긴 행으로 두며, 사용자가 끊은
-    /// 행처럼 표지를 남겨 그 행을 다시 열어도 붙지 않는다. 표지는 연결 대상으로 저장해 클라이언트를
-    /// 다시 시작해도 남는다. 연결 버튼·메뉴·`remote.connect` 같은 명시적 연결만 표지를 지우고 다시 붙인다.
-    pub(super) fn stop_after_force_detach(&mut self, idx: usize) {
-        let Some(row) = self.remote.sessions[idx].state.saved_row else {
-            return;
-        };
+    /// 서버가 강제로 끊은 저장된 원격 행의 연결 대상에 표지를 남긴다. 관측 단계만 부른다. 사용자가
+    /// 끊은 행처럼 그 행을 다시 열어도 붙지 않고, 표지는 연결 대상으로 저장해 클라이언트를 다시 시작해도
+    /// 남는다. 연결 버튼·메뉴·`remote.connect` 같은 명시적 연결만 표지를 지우고 다시 붙인다.
+    pub(super) fn mark_force_detached_target(&mut self, row: u32) {
         self.remote.user_disconnected.insert(row);
         self.mark_force_detached_row(row);
-        self.enter_disconnected(row);
         tracing::info!(
             "gui attach: 서버가 saved remote row {row} 의 점유를 강제로 끊어 재연결하지 않는다"
         );
+    }
+
+    /// 처리 단계가 멈추기로 정한 저장 행을 끊긴 행으로 둔다. 재연결·재동기화를 하지 않는다. 옛 전송의
+    /// 재동기화 상태도 함께 끝내, 이후 명시적 재연결이 일반 재연결로 등록되게 한다.
+    pub(super) fn stop_saved_row(&mut self, idx: usize) {
+        let state = &mut self.remote.sessions[idx].state;
+        state.resync_pending = None;
+        state.resync_awaiting_window = false;
+        let Some(row) = state.saved_row else {
+            return;
+        };
+        self.enter_disconnected(row);
     }
 
     /// 저장된 원격 행을 형상을 남긴 끊긴 행으로 둔다. 연결이 남아 있으면 먼저 놓는다.
@@ -79,11 +86,14 @@ impl App {
     /// 재연결은 `maybe_trigger_reconnect`가 거두지만, 이미 시작한 시도(첫 연결 포함)의 결과는 그 검사를
     /// 지나지 않고 결과 소비(`apply_auto_attach_outcome`)와 설치(`poll_pending_mirror_installs`)로 온다.
     /// 명시적 연결과 원격 팝업으로 시작한 시도는 사용자가 고른 연결이라 그대로 둔다. 버렸으면 true다.
-    /// 행은 끊긴 상태로 남는다. 세션이 있으면 `enter_disconnected`로 멈추고, 첫 연결이면 진행 중
-    /// 표지만 지운다. 표지가 있는 동안 그 행을 다시 열어도 붙지 않는다.
+    /// 설치 단계의 표지는 같은 회차의 관측 단계가 이미 썼다.
+    ///
+    /// 행은 끊긴 상태로 남는다. 첫 연결이면 진행 중 표지만 지운다. 세션이 있으면 회차 밖(결과 소비)에서는
+    /// 바로 멈추고, 설치 단계에서는 옛 전송의 해제와 멈춤을 같은 회차의 이벤트 적용 뒤로 넘긴다.
     pub(crate) fn drop_attempt_for_force_detached_target(
         &mut self,
         target: &super::pending::PendingMirrorInstall,
+        site: DropSite,
     ) -> bool {
         let Some(row) = target.row else {
             return false;
@@ -91,36 +101,32 @@ impl App {
         if target.explicit || target.user {
             return false;
         }
-        if !self.row_user_disconnected(row) && !self.target_force_detached_this_round(row) {
+        if !self.row_user_disconnected(row) {
             return false;
         }
         tracing::info!("gui attach: 연결 대상이 강제로 끊긴 행 {row}의 진행 중 시도 결과를 버린다");
         target.cancel_run("the saved row's target was force-detached");
-        self.remote.active.remove(&row);
-        self.enter_disconnected(row);
-        true
-    }
-
-    /// 같은 연결 대상의 다른 저장 행이 강제로 끊겼지만 아직 끝을 분류하지 않아 표지가 저장되지 않았는지.
-    /// 끝 분류는 Connected 세션만 다루고, 분류한 세션은 Disconnected로 남긴 채 전송 표지를 지우지 않는다.
-    /// 그래서 Connected 세션만 본다. 분류가 끝난 옛 표지를 보면 명시적 연결이 저장 표지를 지운 뒤의
-    /// 자동 재연결도 계속 버리게 된다.
-    /// `apply_attach_client_output`은 대기 연결 설치를 세션 끝 분류(`stop_after_force_detach`가 표지를
-    /// 저장)보다 먼저 한다. 회차 순서를 바꾸면 같은 회차의 설치 여부를 보는 끝 분류(`installing_epoch`)도
-    /// 달라지므로, 순서는 두고 설치 검사가 회차 시작의 관측값(`RoundObservation`)을 본다. 끝 분류도 같은
-    /// 관측값을 쓰므로 이번 회차에 강제 끊김으로 분류될 행이 곧 여기서 보는 행이다. 회차 밖(endpoint 결과
-    /// 소비)에서는 지금 값을 관측한다.
-    fn target_force_detached_this_round(&self, row: u32) -> bool {
-        let Some(binding) = self.saved_row_binding(row) else {
-            return false;
-        };
-        let same_target = |other: u32| self.saved_row_binding(other).as_ref() == Some(&binding);
-        match &self.state.round_observation {
-            Some(round) => round.force_detached_rows().any(same_target),
-            None => RoundObservation::observe(&self.remote.sessions)
-                .force_detached_rows()
-                .any(same_target),
+        match site {
+            DropSite::OutsideRound => {
+                self.remote.active.remove(&row);
+                self.enter_disconnected(row);
+            }
+            DropSite::InstallStage => {
+                let session = target.reconnect.as_ref().and_then(|(workspace, epoch)| {
+                    self.remote.sessions.iter_mut().find(|session| {
+                        session.state.local_workspace == *workspace
+                            && session.transport.frame_tx.epoch().same(epoch)
+                    })
+                });
+                match session {
+                    Some(session) => session.state.stop_after_events = true,
+                    None => {
+                        self.remote.active.remove(&row);
+                    }
+                }
+            }
         }
+        true
     }
 
     fn mark_row_window_dirty(&mut self, row: u32) {
@@ -167,4 +173,13 @@ impl App {
                 .then_some(session.id)
         })
     }
+}
+
+/// 시도를 버리는 판정을 부른 자리.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DropSite {
+    /// 출력 회차의 설치 단계. 세션의 멈춤은 처리 단계가 한다.
+    InstallStage,
+    /// 회차 밖(endpoint 결과 소비). 살아 있는 옛 전송이 없어 바로 멈춘다.
+    OutsideRound,
 }

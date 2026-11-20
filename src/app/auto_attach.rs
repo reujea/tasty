@@ -644,7 +644,10 @@ impl App {
             self.remote.discard_endpoint_outcome(outcome);
             return;
         };
-        if self.drop_attempt_for_force_detached_target(&target) {
+        if self.drop_attempt_for_force_detached_target(
+            &target,
+            crate::app::attach_client::saved_row::DropSite::OutsideRound,
+        ) {
             if let Ok((tunnel, _)) = outcome.result {
                 self.remote.retire_tunnel(tunnel);
             }

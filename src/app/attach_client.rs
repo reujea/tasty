@@ -19,12 +19,12 @@ pub(crate) mod pending;
 mod projection;
 mod resize_sync;
 mod resources;
-pub(crate) mod round_observation;
+pub(crate) mod round_intake;
 mod survivors;
 mod terminal_read;
 
 mod file_download;
-mod saved_row;
+pub(crate) mod saved_row;
 mod user_waits;
 mod wire;
 pub(crate) mod workspace_close;

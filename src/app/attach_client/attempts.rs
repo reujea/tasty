@@ -2,7 +2,6 @@
 use super::pending::PendingMirrorInstall;
 use std::collections::HashMap;
 use tasty_remote::{
-    connection::ConnectionEpoch,
     outbound::{AttemptToken, Remote},
     pending_connection::ConnectionTicket,
 };
@@ -118,14 +117,6 @@ impl MirrorAttempts {
             .map(|(_, target)| target)
             .chain(self.connections.values())
             .any(|target| target.row == Some(row) && (target.explicit || target.user))
-    }
-    pub(crate) fn installing_epoch(&self, workspace: u32, epoch: &ConnectionEpoch) -> bool {
-        self.connections.values().any(|pending| {
-            pending
-                .reconnect
-                .as_ref()
-                .is_some_and(|(id, pending_epoch)| *id == workspace && epoch.same(pending_epoch))
-        })
     }
 }
 
@@ -305,6 +296,20 @@ mod tests {
         remote.finish_attempt(&current);
     }
 
+    /// 시험 보조: 이 workspace·epoch를 재연결 대상으로 삼은 설치 대기가 등록돼 있는지.
+    fn reconnect_pending(
+        attempts: &MirrorAttempts,
+        workspace: u32,
+        epoch: &tasty_remote::connection::ConnectionEpoch,
+    ) -> bool {
+        attempts.connection_snapshot().iter().any(|(_, target)| {
+            target
+                .reconnect
+                .as_ref()
+                .is_some_and(|(id, pending)| *id == workspace && epoch.same(pending))
+        })
+    }
+
     #[test]
     fn connection_replacement_and_failure_keep_other_targets_and_epochs() {
         let (_, first) = crate::state::tests::test_state();
@@ -321,14 +326,14 @@ mod tests {
         replacement.reconnect = Some((20, new_sender.epoch()));
         pending.supersede_connections(&replacement, &mut remote);
         pending.register_connection(ConnectionTicket(3), replacement);
-        assert!(!pending.installing_epoch(20, &old_sender.epoch()));
-        assert!(pending.installing_epoch(20, &new_sender.epoch()));
+        assert!(!reconnect_pending(&pending, 20, &old_sender.epoch()));
+        assert!(reconnect_pending(&pending, 20, &new_sender.epoch()));
         // A late failure for the replaced ticket cannot remove the replacement.
         pending.cancel_connection(ConnectionTicket(1), &mut remote);
-        assert!(pending.installing_epoch(20, &new_sender.epoch()));
+        assert!(reconnect_pending(&pending, 20, &new_sender.epoch()));
         assert_eq!(pending.connection_snapshot().len(), 2);
         pending.finish_connection(ConnectionTicket(3));
-        assert!(!pending.installing_epoch(20, &new_sender.epoch()));
+        assert!(!reconnect_pending(&pending, 20, &new_sender.epoch()));
         let remaining = pending.connection_snapshot();
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].1.engine, other.id);

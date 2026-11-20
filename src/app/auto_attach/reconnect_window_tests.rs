@@ -195,7 +195,7 @@ fn a_connection_ready_after_the_window_ran_out_is_not_installed() {
     app.remote.reconnect.get_mut(&ROW).unwrap().started =
         Instant::now() - window - Duration::from_secs(1);
 
-    app.poll_pending_mirror_installs();
+    app.run_install_stage();
 
     assert_eq!(
         app.remote.sessions[0].state.phase,
