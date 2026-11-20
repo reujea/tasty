@@ -156,12 +156,11 @@ impl MainView {
             pressed: true,
         } = &action
         {
+            self.cut_key_frame_before_press();
             let snapshot = self
                 .state
                 .take_press_snapshot(engine, pos, map_egui_button(*button));
-            if self.state.press_snapshot.is_none() {
-                self.state.press_snapshot = Some(snapshot);
-            }
+            self.state.keep_press_snapshot(snapshot);
         }
         push_egui_pointer_at(&mut self.base.gpu, pos, action, modifiers);
         true

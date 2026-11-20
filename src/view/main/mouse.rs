@@ -379,9 +379,8 @@ impl MainView {
         // 뒤에 오는 키가 그 누름의 포커스 노드를 따른다).
         if button_state == ElementState::Pressed
             && let Some(snapshot) = self.press_snapshot_now(engine, button)
-            && self.state.press_snapshot.is_none()
         {
-            self.state.press_snapshot = Some(snapshot);
+            self.state.keep_press_snapshot(snapshot);
         }
 
         let overlay_open = self.mouse_overlay_open();

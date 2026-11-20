@@ -223,8 +223,9 @@ impl GpuState {
                 notice_column_occupied,
             );
 
-            // 이 프레임이 winit 누름을 처리했다. 다음 누름은 새로 남긴다.
-            state.press_snapshot = None;
+            // 이 프레임이 winit 누름을 처리했다. 다음 누름은 새로 남긴다. 입력을 끊어 넘긴 누름의 스냅샷은 다음
+            // 프레임 몫이다.
+            state.press_snapshot = state.press_snapshot_after_cut.take();
             crate::state::webview_overlay::end_frame(ctx, &mut state.webview_overlay);
             crate::state::webview_overlay::prepare_paint_job(
                 &mut state.webview_overlay,

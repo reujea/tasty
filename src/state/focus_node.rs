@@ -135,6 +135,16 @@ impl super::MainViewState {
         snapshot
     }
 
+    /// 창이 받은 누름의 스냅샷을 그 누름을 처리할 프레임에 남긴다. 한 프레임에는 첫 누름만 남긴다. 키 결속 뒤 누름에서
+    /// 입력을 끊었으면(`PopupManager::key_frame_cut`) 끊은 뒤 첫 누름은 다음 프레임 몫이다.
+    pub(crate) fn keep_press_snapshot(&mut self, snapshot: PressSnapshot) {
+        if self.popups.key_frame_cut() {
+            self.press_snapshot_after_cut.get_or_insert(snapshot);
+        } else {
+            self.press_snapshot.get_or_insert(snapshot);
+        }
+    }
+
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.
     fn node_of_z(&self, z: u64) -> Option<PopupNode> {
         if let Some(p) = self.popups.open_with_z(z) {

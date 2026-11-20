@@ -90,7 +90,7 @@ impl super::MainViewState {
     /// 팝업 층 아래 egui 화면(surface UI·사이드바 등)이 이번 프레임 키 입력을 볼지. 창이 이번 프레임 키를 팝업
     /// 키 주인에 묶었으면 그 키는 팝업 것이라 아래 화면은 보지 않는다(팝업 층보다 먼저 그리므로 이 값으로 막는다).
     pub(crate) fn surfaces_take_keys(&self) -> bool {
-        self.popups.bound_input_key_owner().is_none()
+        self.popups.frame_bound_key_owner().is_none()
     }
 
     /// 지금 키를 받을 수 있는 포커스 노드 팝업. host 는 인스턴스다.
@@ -116,7 +116,7 @@ impl super::MainViewState {
         decided: Option<Option<PopupKeyOwner>>,
     ) -> Option<u64> {
         plugin_target(
-            decided.unwrap_or_else(|| match self.popups.bound_input_key_owner() {
+            decided.unwrap_or_else(|| match self.popups.frame_bound_key_owner() {
                 Some(PopupNode::Plugin(id)) => Some(PopupKeyOwner::Plugin(id)),
                 Some(PopupNode::Host(_)) => Some(PopupKeyOwner::Host),
                 None => self.popup_key_owner(),

@@ -481,6 +481,16 @@ impl MainView {
         result
     }
 
+    /// 누름을 egui 입력에 넣기 전에 부른다. 이번 그리기에 키 주인이 이미 묶였으면 누름부터의 입력을 다음 그리기로
+    /// 넘긴다(`PopupManager::cut_key_frame`). 누름이 포커스 노드를 옮기므로 누름 뒤의 키는 다음 그리기의 키 주인이
+    /// 받는다.
+    pub(super) fn cut_key_frame_before_press(&mut self) {
+        let at = self.base.gpu.egui_input_events_mut().len();
+        if self.state.popups.cut_key_frame(at) {
+            self.base.gpu.cut_egui_input_here();
+        }
+    }
+
     /// 이 버튼 사건이 OS 창 테두리 리사이즈의 누름이나 그 짝인 뗌인지(`begin_os_resize_press`). 메뉴를 닫는
     /// 클릭으로 삼킨 사건이면 리사이즈를 시작하지 않고 거짓이지만, 같은 버튼의 리사이즈 기록은 정리한다.
     fn os_resize_owns_event(&mut self, event: &WindowEvent, menu_dismiss_swallow: bool) -> bool {
@@ -556,6 +566,15 @@ impl MainView {
         } else if menu_dismiss_swallow || os_resize_press {
             (false, true)
         } else {
+            if matches!(
+                &event,
+                WindowEvent::MouseInput {
+                    state: winit::event::ElementState::Pressed,
+                    ..
+                }
+            ) {
+                self.cut_key_frame_before_press();
+            }
             self.base.gpu.handle_egui_event(&self.base.winit, &event)
         };
 

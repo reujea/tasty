@@ -87,6 +87,14 @@ impl HandedEscape {
     pub(crate) fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
+
+    /// 앞의 `by` 사건이 이번 그리기 몫으로 빠졌다. 원래 자리를 그만큼 앞당긴다.
+    pub(crate) fn shifted_back(mut self, by: usize) -> Self {
+        for (at, _) in &mut self.events {
+            *at = at.saturating_sub(by);
+        }
+        self
+    }
 }
 
 /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(`handed`, 수식키 포함)을 키 주인을 그리는 동안만 넣는다. host 팝업

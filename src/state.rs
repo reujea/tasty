@@ -247,6 +247,7 @@ impl RequestContext {
             plugin_popup_covers: Vec::new(),
             #[cfg(feature = "gui")]
             press_snapshot: None,
+            press_snapshot_after_cut: None,
             #[cfg(feature = "gui")]
             frame_key_owner: None,
             #[cfg(feature = "gui")]

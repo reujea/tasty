@@ -4,6 +4,11 @@
 //!
 //! 창의 키 처리는 그리기보다 먼저 돈다. 그래서 창이 고른 키 주인이 있으면 그 값이 그 프레임의 키 주인이다. 그사이
 //! 그 팝업이 닫히거나 범위가 숨어도 다른 팝업으로 옮기지 않는다. 그 키는 처리한 노드에서 멈춘 것으로 본다.
+//!
+//! 키 주인이 묶인 뒤 누름이 오면 누름이 포커스 노드를 옮기므로, 누름부터의 입력은 다음 그리기 몫이다. 창은 그 자리에서
+//! egui 입력을 끊고(`cut_key_frame`) 끊은 뒤의 키는 다음 그리기 몫 결속에 묶는다. 그래서 한 프레임의 키 주인은 늘
+//! 하나이고, 누름 앞의 키는 그 시점 주인이, 누름 뒤의 키는 누름이 정한 포커스 노드가 받는다. 한 프레임에 끊는 자리는
+//! 하나다. 끊은 뒤의 두 번째 누름은 끊지 않는다.
 
 use super::body_keys::HandedEscape;
 use super::focus::PopupNode;
@@ -26,10 +31,20 @@ impl FrameKeys {
     }
 }
 
+/// 끊은 자리 뒤의 입력 시점 결속(다음 그리기 몫).
+#[derive(Debug, Default)]
+struct AfterCut {
+    /// 끊은 자리. 이 앞의 egui 입력 사건은 이번 그리기 몫이다.
+    at: usize,
+    bound: Option<PopupNode>,
+    escape: HandedEscape,
+}
+
 /// 입력 시점 결속과 이번 프레임 값.
 #[derive(Debug, Default)]
 pub(crate) struct KeySlots {
     bound: Option<PopupNode>,
+    after_cut: Option<AfterCut>,
     /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(수식키 포함)과 그 자리. 묶인 키 주인(host 본문·plugin 렌더)에
     /// 넘긴다.
     escape: HandedEscape,
@@ -42,7 +57,28 @@ impl PopupManager {
     /// 창이 키를 처리할 때 그 시점의 키 주인을 묶는다. 이번 프레임에 먼저 묶인 값이 있으면 그대로 둔다(한 프레임의
     /// 키는 첫 키를 받은 주인 하나가 받는다).
     pub(crate) fn bind_input_key_owner(&mut self, owner: PopupNode) {
-        self.keys.bound.get_or_insert(owner);
+        match &mut self.keys.after_cut {
+            Some(after) => after.bound.get_or_insert(owner),
+            None => self.keys.bound.get_or_insert(owner),
+        };
+    }
+
+    /// 누름이 egui 입력의 `at` 자리에 들어오려 한다. 이번 그리기에 이미 묶인 키 주인이 있고 아직 끊지 않았으면 그
+    /// 자리에서 끊는다. 참이면 호출자는 egui 입력을 그 자리에서 끊어 누름부터 다음 그리기로 넘긴다.
+    pub(crate) fn cut_key_frame(&mut self, at: usize) -> bool {
+        if self.keys.bound.is_none() || self.keys.after_cut.is_some() {
+            return false;
+        }
+        self.keys.after_cut = Some(AfterCut {
+            at,
+            ..AfterCut::default()
+        });
+        true
+    }
+
+    /// 이번 그리기 입력을 누름 자리에서 끊었는지. 끊은 뒤의 누름 스냅샷은 다음 그리기 몫이다.
+    pub(crate) fn key_frame_cut(&self) -> bool {
+        self.keys.after_cut.is_some()
     }
 
     /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건을 묶인 키 주인이 읽게 한다(host 본문의 하위 화면 되돌아가기,
@@ -53,7 +89,10 @@ impl PopupManager {
         held_before: bool,
         taken: Vec<(usize, egui::Event)>,
     ) {
-        self.keys.escape.push(held_before, taken);
+        match &mut self.keys.after_cut {
+            Some(after) => after.escape.push(held_before, taken),
+            None => self.keys.escape.push(held_before, taken),
+        }
     }
 
     /// 이번 프레임 키 주인에게 넘길 Esc 사건을 꺼낸다. host 그리기가 host 키 주인일 때, 남은 것은 plugin 렌더가
@@ -62,8 +101,16 @@ impl PopupManager {
         std::mem::take(&mut self.keys.frame_escape)
     }
 
-    /// 창이 묶은 키 주인. 아직 그리지 않았으면 `Some`이다.
+    /// 창이 지금 받는 키의 결속(끊었으면 끊은 뒤 몫). 창의 키 게이트가 읽는다.
     pub(crate) fn bound_input_key_owner(&self) -> Option<PopupNode> {
+        match &self.keys.after_cut {
+            Some(after) => after.bound,
+            None => self.keys.bound,
+        }
+    }
+
+    /// 이번 그리기 몫의 결속. 그리기 중 읽는다(끊은 뒤 몫은 다음 그리기 것이다).
+    pub(crate) fn frame_bound_key_owner(&self) -> Option<PopupNode> {
         self.keys.bound
     }
 
@@ -99,6 +146,11 @@ impl PopupManager {
             }
         };
         self.keys.frame = Some(keys);
+        // 끊은 뒤 몫이 다음 그리기의 결속이 된다. 넘길 Esc 의 자리는 끊은 자리만큼 앞당긴다.
+        if let Some(after) = self.keys.after_cut.take() {
+            self.keys.bound = after.bound;
+            self.keys.escape = after.escape.shifted_back(after.at);
+        }
         keys
     }
 
