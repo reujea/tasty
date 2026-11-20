@@ -309,7 +309,7 @@ pub(crate) fn plugin_shortcut_in_window(
             action,
             &target,
         );
-    } else if let Some(mgr) = plugin_manager.as_deref_mut() {
+    } else if let Some(mgr) = plugin_manager {
         crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
             mgr, &plugin_id, &cmd_id, surface_id,
         );
