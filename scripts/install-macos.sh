@@ -22,9 +22,11 @@ APP_NAME="Tasty"
 SRC_APP="dist/$APP_NAME.app"
 DEST_APP="/Applications/$APP_NAME.app"
 
-# Installing is not a development command, so rustc lints of the built crates
-# must not stop or clutter the build. --cap-lints=allow lowers the workspace
-# deny lints for this build only, and flags the caller set are kept in front.
+# Installing is not a development command, so the rustc lints that the cap
+# applies to in the built crates must not stop or clutter the build.
+# --cap-lints=allow lowers the workspace deny lints for this build only, and
+# flags the caller set are kept in front. Lints the caller forces with
+# --force-warn are not capped and still warn.
 # Cargo ignores RUSTFLAGS when CARGO_ENCODED_RUSTFLAGS is set, so the cap goes
 # into whichever of the two Cargo will read (a set but empty
 # CARGO_ENCODED_RUSTFLAGS still wins over RUSTFLAGS). Either one replaces
