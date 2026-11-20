@@ -73,7 +73,19 @@ enum Bodies<'a> {
 
 /// 창의 egui 패스 하나: 다음 몫 입력을 꺼내 surface 본문 → host 팝업 층 → plugin 팝업을 그리고 몫을 닫는다.
 fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
+    pass_with(s, input, bodies, &mut |_| {});
+}
+
+/// `pass` 와 같고, 그리는 중(plugin 팝업 뒤) `during` 을 부른다. 그리기 중 무대를 여닫는 버튼(무대 종료 버튼,
+/// 팝업 무대 버튼)처럼 패스 안에서 상태를 바꾸는 자리다. 이 패스에 실제로 든 사건을 돌려준다.
+fn pass_with(
+    s: &mut Scene,
+    input: &mut WindowInput,
+    bodies: &mut Bodies<'_>,
+    during: &mut dyn FnMut(&mut crate::state::RequestContext),
+) -> Vec<Event> {
     let events = input.take_pass(&mut s.state, &s.ctx);
+    let drawn = events.clone();
     let engine = s.session.borrow_mut();
     let read = engine.read();
     let raw = egui::RawInput {
@@ -148,8 +160,10 @@ fn pass(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
             Some(crate::app::plugin_display::PluginDisplay::new(&s.mgr)),
             Some(&layout()),
         );
+        during(state);
     }));
     state.close_input_pass(&s.ctx);
+    drawn
 }
 
 fn draw_explorer(
@@ -440,9 +454,22 @@ fn stage_or_window_pass(
     l: &mut Explorer,
     r: &mut Explorer,
 ) -> bool {
+    stage_or_window_pass_with(s, input, l, r, &mut |_| {}).0
+}
+
+/// `stage_or_window_pass` 와 같고, 그리는 중 `during` 을 부른다(그리기 중 화면 전환). 무대 패스였는지와 이 패스에
+/// 실제로 든 사건을 돌려준다.
+fn stage_or_window_pass_with(
+    s: &mut Scene,
+    input: &mut WindowInput,
+    l: &mut Explorer,
+    r: &mut Explorer,
+    during: &mut dyn FnMut(&mut crate::state::RequestContext),
+) -> (bool, Vec<Event>) {
     let stage = s.state.pass_draws_stage();
     if stage {
         let events = input.take_pass(&mut s.state, &s.ctx);
+        let drawn = events.clone();
         let engine = s.session.borrow_mut();
         let read = engine.read();
         let raw = egui::RawInput {
@@ -453,12 +480,14 @@ fn stage_or_window_pass(
         let state = &mut s.state;
         drop(s.ctx.run(raw, |ctx| {
             crate::adapters::ui::draw_fullscreen_stage(ctx, state, &read);
+            during(state);
         }));
         state.close_input_pass(&s.ctx);
+        (stage, drawn)
     } else {
-        pass(s, input, &mut Bodies::Explorers(l, r));
+        let drawn = pass_with(s, input, &mut Bodies::Explorers(l, r), during);
+        (stage, drawn)
     }
-    stage
 }
 
 /// Given 무대가 창을 덮고 L 탐색기가 그 뒤에 있을 때, When 그리기 전 한 묶음에 [글자 b, 무대 안 누름(뒤 L 의 banana
@@ -845,3 +874,6 @@ mod release;
 
 #[path = "pass_focus_notice_tests.rs"]
 mod notice;
+
+#[path = "pass_focus_transition_tests.rs"]
+mod transition;
