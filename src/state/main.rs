@@ -157,8 +157,9 @@ pub struct MainViewState {
     /// winit 이 누름을 처리할 때 남긴 누르기 직전 포커스. 그 누름을 처리한 egui 프레임이 끝나면 비운다.
     #[cfg(feature = "gui")]
     pub(crate) press_snapshot: Option<crate::adapters::ui::popup::route::PressSnapshot>,
-    /// 이번 그리기 몫의 포커스 노드. 그 몫에 처음 든 사건 시점의 포커스 노드다(`cut_key_frame`). 사건이 들지 않은
-    /// 몫은 `None` 이고 지금 포커스 노드를 쓴다(`pass_focus_node`).
+    /// 이번 그리기 몫의 포커스 노드. 그 몫에 처음 든 키 사건 시점의 포커스 노드이고, 누름만 든 몫은 끊어 닫을 때의
+    /// 포커스 노드다(`cut_key_frame`). 키가 들지 않고 끊기지도 않은 몫은 `None` 이고 지금 포커스 노드를 쓴다
+    /// (`pass_focus_node`).
     #[cfg(feature = "gui")]
     pub(crate) segment_focus: Option<crate::state::focus_node::FocusNode>,
     /// egui 입력을 끊었을 때(`cut_key_frame`) 끊은 뒤 몫마다 그 몫의 첫 누름 스냅샷과 포커스 노드. 앞에서부터 다음
