@@ -173,12 +173,56 @@ fn registered_attempt(app: &App) -> PendingMirrorInstall {
         .expect("an attempt for the row is registered")
 }
 
-/// 시험 장치에는 View 가 없어 첫 연결 대상은 `mirror_install_target_is_current` 를 통과하지 못한다.
-/// 그래서 실제 진입점이 등록한 대상에 대해 결과 소비·설치 경로가 부르는 판정을 잰다.
-fn drop_after_marking_the_other_row(app: &mut App) -> bool {
-    let target = registered_attempt(app);
-    force_detach_the_other_row(app);
-    app.drop_attempt_for_force_detached_target(&target)
+/// 진입점이 띄운 endpoint worker 의 결과를 받아, 같은 시도 토큰으로 준비된 상대 포트를 가리키는 결과로
+/// 바꿔 결과 소비(`drain_auto_attach_results` → `apply_auto_attach_outcome`)에 넣는다. 시험 장치에는
+/// 프로필이 없어 worker 는 실패를 보고하고, 실패 처리는 행을 끊긴 행으로 만들 수 있어 버림과 구분되지
+/// 않는다. 그래서 결과만 바꾸고 소비 경로는 실제 함수를 그대로 지난다.
+fn deliver_a_ready_endpoint(app: &mut App) -> std::sync::mpsc::Receiver<std::net::TcpStream> {
+    let (port, peer) = ready_peer();
+    let mut outcome = app
+        .remote
+        .rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the endpoint worker reports");
+    assert_eq!(outcome.row, Some(ROW));
+    outcome.result = Ok((None, port));
+    app.remote.tx.send(outcome).unwrap();
+    app.drain_auto_attach_results();
+    peer
+}
+
+/// 결과 소비가 큐에 넣은 행 `ROW` 의 연결이 준비되기를 기다려 설치 검사(`poll_pending_mirror_installs`)
+/// 를 지나게 하고, 버려지지 않았는지 본다. 시험 장치에 View 가 없어 설치를 끝까지 마치는지는 재지
+/// 않는다. 큐에 든 연결의 출처는 돌려준다.
+fn assert_kept_through_the_install_check(
+    app: &mut App,
+    peer: std::sync::mpsc::Receiver<std::net::TcpStream>,
+) -> bool {
+    let (ticket, target) = app
+        .state
+        .mirror_attempts
+        .connection_snapshot()
+        .into_iter()
+        .find(|(_, target)| target.row == Some(ROW))
+        .expect("the result queued a connection");
+    let until = Instant::now() + Duration::from_secs(10);
+    while app.remote.prepared_connection(ticket).is_none() {
+        assert!(Instant::now() < until, "the connection never got ready");
+        std::thread::sleep(Duration::from_millis(10));
+        app.remote.collect_connections();
+    }
+    let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
+    app.poll_pending_mirror_installs();
+    assert_ne!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert_eq!(
+        app.remote.reconnect.get(&ROW).map(|slot| slot.given_up),
+        Some(false)
+    );
+    assert!(app.remote.active.contains(&ROW), "the attempt goes on");
+    target.explicit
 }
 
 /// Given 세션 없는 저장 행, When 그 행이 보이게 된 프레임(edge, 재시작 뒤 첫 프레임 포함)과 그 뒤
@@ -261,7 +305,8 @@ fn a_first_connect_result_is_dropped_unless_the_connect_was_explicit() {
 }
 
 /// Given 끊긴 저장 행, When 그 행으로 다시 옮겨 재연결을 시작한 뒤 같은 대상의 행 B 가 강제로
-/// 끊기면, Then 시도는 비명시적이고 그 결과는 버려진다.
+/// 끊기고 그 시도의 endpoint 결과가 도착하면, Then 시도는 비명시적이고 결과 소비가 버려 연결을 큐에
+/// 넣지 않는다.
 #[test]
 fn a_reconnect_started_by_reopening_the_row_is_automatic_and_dropped() {
     alone!("a_reconnect_started_by_reopening_the_row_is_automatic_and_dropped");
@@ -273,12 +318,14 @@ fn a_reconnect_started_by_reopening_the_row_is_automatic_and_dropped() {
     app.maybe_connect_visible_row(Some(ROW), Some(ROW_B));
     assert!(app.remote.active.contains(&ROW), "the reconnect started");
     assert!(!registered_attempt(&app).explicit);
-    assert!(drop_after_marking_the_other_row(&mut app));
+    force_detach_the_other_row(&mut app);
+    let _peer = deliver_a_ready_endpoint(&mut app);
     assert_stopped(&app);
 }
 
 /// Given 끊긴 저장 행, When 연결 버튼처럼 명시적 연결(`connect_saved_row(.., true)`)로 재연결을 시작한
-/// 뒤 같은 대상의 행 B 가 강제로 끊기면, Then 등록된 시도는 명시적이고 결과를 버리지 않는다.
+/// 뒤 같은 대상의 행 B 가 강제로 끊기고 endpoint 결과가 도착하면, Then 등록된 시도는 명시적이고 결과
+/// 소비가 연결을 큐에 넣으며(출처 유지) 설치 검사도 버리지 않는다.
 #[test]
 fn a_reconnect_started_by_an_explicit_connect_is_kept() {
     alone!("a_reconnect_started_by_an_explicit_connect_is_kept");
@@ -289,11 +336,9 @@ fn a_reconnect_started_by_an_explicit_connect_is_kept() {
     }
     app.connect_saved_row(ROW, true);
     assert!(registered_attempt(&app).explicit);
-    assert!(!drop_after_marking_the_other_row(&mut app));
-    assert!(
-        app.remote.active.contains(&ROW),
-        "the explicit attempt goes on"
-    );
+    force_detach_the_other_row(&mut app);
+    let peer = deliver_a_ready_endpoint(&mut app);
+    assert!(assert_kept_through_the_install_check(&mut app, peer));
 }
 
 /// Given 명시적 연결로 재연결 중인 행 A, When 같은 대상의 행 B 가 강제로 끊긴 뒤 재연결 스케줄러가
@@ -366,7 +411,8 @@ fn an_explicit_connect_joining_an_automatic_reconnect_keeps_it() {
         app.remote.active.contains(&ROW),
         "the attempt is not abandoned"
     );
-    assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
+    let peer = deliver_a_ready_endpoint(&mut app);
+    assert!(assert_kept_through_the_install_check(&mut app, peer));
 }
 
 /// `remote.connect` 요청을 실제 IPC 진입점으로 보내고 접수 응답을 받는다.
@@ -404,7 +450,8 @@ fn a_remote_connect_joining_an_automatic_reconnect_keeps_it() {
         app.remote.active.contains(&ROW),
         "the attempt is not abandoned"
     );
-    assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
+    let peer = deliver_a_ready_endpoint(&mut app);
+    assert!(assert_kept_through_the_install_check(&mut app, peer));
 }
 
 /// 같은 대상의 행 `ROW_B` 와 그 세션을 둔다. 표지는 저장하지 않는다.
