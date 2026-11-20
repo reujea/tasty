@@ -1,10 +1,13 @@
 //! 창의 입력 순서를 GPU 없이 밟는 시험 도우미. 누름은 debug 주입과 같은 함수(`input_segment::press_focus`)로 지금 몫을
 //! 끊고 포커스 노드를 옮긴다. 키·글자는 창처럼 같은 끊기(`input_segment::key_focus`)와 egui 게이트
 //! (`window_feeds_egui`)를 거쳐 큐에 들어간다(`key`). 패스 입력은 egui 패스와 같은 순서로 꺼낸다
-//! (`PopupManager::begin_key_pass` 뒤 큐를 꺼내 앞 끊은 자리에서 나눔, `InputCuts::split_pass`). Esc 처럼 창이 따로
-//! 고르는 키(`window_escape`)는 창과 같은 함수로 거른다(`escape`).
+//! (`PopupManager::begin_key_pass` 뒤 큐를 꺼내 앞 끊은 자리에서 나눔, `InputCuts::split_pass`). 몫을 닫는 패스는 제품
+//! 패스와 같은 순서 함수(`gfx::gpu::input_pass::run_input_pass`)로 돈다(`run_pass`). Esc 처럼 창이 따로 고르는
+//! 키(`window_escape`)는 창과 같은 함수로 거른다(`escape`).
 
 use crate::adapters::ui::popup::frame_keys::InputCuts;
+use crate::gfx::gpu::input_pass::{InputPassHost, run_input_pass};
+use crate::gfx::gpu::text_selection::HeldPastes;
 use crate::state::RequestContext;
 use crate::view::main::input_segment::{EguiPressSink, key_focus, press_focus};
 
@@ -15,8 +18,69 @@ pub(crate) struct WindowInput {
     cuts: InputCuts,
     /// 직전 패스가 끊은 자리에서 나눴는지. 창은 나눈 패스 뒤에 다음 패스를 요청한다.
     split: bool,
-    /// 직전 패스의 몫 필터가 입력을 뺐는지(`MainViewState::drop_input_without_its_node`).
-    dropped: bool,
+}
+
+/// 하네스 패스가 창의 두 자리에서 부르는 일(`run_pass`).
+pub(crate) enum PassHook<'a> {
+    /// 끊은 자리에서 나눈 직후·몫 필터 전의 패스 입력. 창은 여기서 편집 보류에 패스 입력을 알리고 도착한 붙여넣기를
+    /// 합친다(`GpuState::take_pass_input`).
+    Taken(&'a mut HeldPastes, &'a mut Vec<egui::Event>),
+    /// 몫 필터가 입력을 뺐다. 창은 편집 보류를 대상이 사라진 것으로 끝낸다.
+    Dropped,
+}
+
+/// 하네스 패스의 주체.
+struct HarnessPass<'a> {
+    input: &'a mut WindowInput,
+    ctx: &'a egui::Context,
+    screen: egui::Rect,
+    held: &'a mut HeldPastes,
+    hook: &'a mut dyn FnMut(PassHook<'_>),
+}
+
+impl InputPassHost for HarnessPass<'_> {
+    fn escape_held(&self) -> bool {
+        self.ctx.input(|i| i.key_down(egui::Key::Escape))
+    }
+
+    fn held_pastes(&mut self) -> &mut HeldPastes {
+        self.held
+    }
+
+    fn take_input(&mut self) -> egui::RawInput {
+        let mut events = self.input.split_off_pass();
+        (self.hook)(PassHook::Taken(self.held, &mut events));
+        egui::RawInput {
+            screen_rect: Some(self.screen),
+            events,
+            ..Default::default()
+        }
+    }
+
+    fn egui_ctx(&self) -> &egui::Context {
+        self.ctx
+    }
+
+    fn input_dropped(&mut self) {
+        (self.hook)(PassHook::Dropped);
+    }
+
+    fn focus_tag(&self) -> u64 {
+        self.ctx.memory(|m| m.focused()).map_or(0, |id| id.value())
+    }
+
+    fn run(
+        &mut self,
+        raw_input: egui::RawInput,
+        state: &mut RequestContext,
+        mut ui: impl FnMut(&egui::Context, &mut RequestContext),
+    ) -> egui::FullOutput {
+        self.ctx.run(raw_input, |ctx| ui(ctx, state))
+    }
+
+    fn cuts_and_raw_left(&mut self) -> (&mut InputCuts, usize) {
+        (&mut self.input.cuts, self.input.queue.len())
+    }
 }
 
 impl EguiPressSink for WindowInput {
@@ -58,12 +122,7 @@ impl WindowInput {
         egui_surface: bool,
         event: egui::Event,
     ) -> Option<bool> {
-        key_focus(state, core, self);
-        let fed = state.window_feeds_egui(egui_surface, true);
-        if fed.is_some() {
-            self.queue.push(event);
-        }
-        fed
+        self.key_events(state, core, egui_surface, vec![event])
     }
 
     /// 창이 받은 Esc 누름·뗌 하나(`feed_egui_keyboard` → `keyboard::handle_keyboard_input`). 끊기 → egui 게이트를
@@ -118,46 +177,80 @@ impl WindowInput {
         });
     }
 
-    /// 다음 egui 패스의 입력.
+    /// 다음 egui 패스의 입력. 몫을 닫지 않는 시험이 쓴다.
     pub(crate) fn take_pass(
         &mut self,
         state: &mut RequestContext,
         ctx: &egui::Context,
     ) -> Vec<egui::Event> {
-        self.take_pass_observed(state, ctx, &mut |_, _| {})
-    }
-
-    /// `take_pass` 와 같다. 분할 직후·몫 필터 전의 사건을 `before_filter` 가 본다. 창은 그 자리에서 편집 보류에 패스
-    /// 입력을 알리고(`EditKeyState::input_taken`) 도착한 붙여넣기를 합친다(`GpuState::take_pass_input`).
-    pub(crate) fn take_pass_observed(
-        &mut self,
-        state: &mut RequestContext,
-        ctx: &egui::Context,
-        before_filter: &mut dyn FnMut(&mut RequestContext, &mut Vec<egui::Event>),
-    ) -> Vec<egui::Event> {
         state
             .popups
             .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
-        let mut events = std::mem::take(&mut self.queue);
-        self.split = self.cuts.split_pass(&mut events, &mut self.queue);
-        before_filter(state, &mut events);
-        self.dropped = state.drop_input_without_its_node(ctx, &mut events);
+        let mut events = self.split_off_pass();
+        state.drop_input_without_its_node(ctx, &mut events);
         events
     }
 
-    /// 원시 사건 없이 창에 온 키 하나(수식 키 뗌, 편집 보류 뒤에 선 키). 창처럼 키 분류와 끊기(`key_focus`)만
-    /// 거친다.
+    /// 큐를 앞 끊은 자리에서 나눠 이번 패스 몫을 꺼낸다(`InputCuts::split_pass`).
+    fn split_off_pass(&mut self) -> Vec<egui::Event> {
+        let mut events = std::mem::take(&mut self.queue);
+        self.split = self.cuts.split_pass(&mut events, &mut self.queue);
+        events
+    }
+
+    /// 제품 패스와 같은 순서 함수(`run_input_pass`)로 egui 패스 하나를 돌리고 몫을 닫는다. `hook` 은 창이 편집 보류와
+    /// 붙여넣기를 다루는 두 자리다(`PassHook`). 이 패스에 실제로 든 사건과 패스 출력을 돌려준다.
+    pub(crate) fn run_pass(
+        &mut self,
+        state: &mut RequestContext,
+        ctx: &egui::Context,
+        screen: egui::Rect,
+        held: &mut HeldPastes,
+        hook: &mut dyn FnMut(PassHook<'_>),
+        ui: impl FnMut(&egui::Context, &mut RequestContext),
+    ) -> (Vec<egui::Event>, egui::FullOutput) {
+        let mut drawn = Vec::new();
+        let output = run_input_pass(
+            &mut HarnessPass {
+                input: self,
+                ctx,
+                screen,
+                held,
+                hook,
+            },
+            state,
+            |raw| drawn.clone_from(&raw.events),
+            ui,
+        );
+        (drawn, output)
+    }
+
+    /// 창이 받은 키 사건 하나와 그 사건이 egui 에 남기는 원시 사건들(수식 키 뗌은 0개). 창처럼 끊기(`key_focus`) →
+    /// egui 게이트(`window_feeds_egui`, 키 사건이라 키 주인을 묶는다) → egui 큐 순서로 밟는다
+    /// (`MainView::feed_egui_keyboard`). 게이트 결과를 돌려준다.
+    pub(crate) fn key_events(
+        &mut self,
+        state: &mut RequestContext,
+        core: &crate::core::CoreState,
+        egui_surface: bool,
+        events: Vec<egui::Event>,
+    ) -> Option<bool> {
+        key_focus(state, core, self);
+        let fed = state.window_feeds_egui(egui_surface, true);
+        if fed.is_some() {
+            self.queue.extend(events);
+        }
+        fed
+    }
+
+    /// egui 게이트 앞에서 멈춘 창 키 하나(편집 판정이 붙잡은 키, `MainView::edit_key_gate`). 창처럼 키 분류와
+    /// 끊기(`key_focus`)만 거친다.
     pub(crate) fn key_without_event(
         &mut self,
         state: &mut RequestContext,
         core: &crate::core::CoreState,
     ) {
         key_focus(state, core, self);
-    }
-
-    /// 직전 패스의 몫 필터가 입력을 뺐는지.
-    pub(crate) fn last_pass_dropped(&self) -> bool {
-        self.dropped
     }
 
     /// 남은 끊은 자리의 수(`GpuState` 가 편집 판정에 알리는 값, `EditKeyState::set_cuts`).
@@ -168,19 +261,6 @@ impl WindowInput {
     /// 남은 끊은 자리(egui 입력 큐 좌표)의 글.
     pub(crate) fn cuts_text(&self) -> String {
         format!("{:?}", self.cuts)
-    }
-
-    /// egui 패스를 마친 뒤 창처럼 몫을 닫고 그리기 중 전환을 처리한다(`run_main_pass`). `drawn` 은 그 패스를 돌리기 전에
-    /// 읽은 `fullscreen_stage_id` 다.
-    pub(crate) fn close_pass(
-        &mut self,
-        state: &mut RequestContext,
-        ctx: &egui::Context,
-        drawn: Option<crate::fullscreen_stages::StageId>,
-    ) {
-        state.close_input_pass(ctx);
-        let raw_left = self.queue.len();
-        state.seal_after_drawing_transition(drawn, &mut self.cuts, raw_left);
     }
 
     /// 창이 더 그릴 패스가 없는지. 꺼내지 않은 사건이나 끊은 자리가 남았거나 직전 패스가 나눴으면 창은 빈 몫이어도

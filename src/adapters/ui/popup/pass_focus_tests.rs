@@ -20,6 +20,7 @@ use crate::adapters::ui::popup::window_input_test_support::WindowInput;
 use crate::adapters::ui::surface::html_address::HtmlAddressSource;
 use crate::explorer_ui::ExplorerInput;
 use crate::explorer_ui::view::{DirEntryInfo, ExplorerView, LoadState};
+use crate::gfx::gpu::text_selection::HeldPastes;
 use crate::plugin_bridge::popup_render::draw_plugin_popups;
 use crate::state::focus_node::FocusNode;
 use crate::webview::WebViewUserNav;
@@ -84,86 +85,92 @@ fn pass_with(
     bodies: &mut Bodies<'_>,
     during: &mut dyn FnMut(&mut crate::state::RequestContext),
 ) -> Vec<Event> {
-    let events = input.take_pass(&mut s.state, &s.ctx);
-    let drawn = events.clone();
-    let screen_drawn = s.state.fullscreen_stage_id();
     let engine = s.session.borrow_mut();
     let read = engine.read();
-    let raw = egui::RawInput {
-        screen_rect: Some(screen()),
-        events,
-        ..Default::default()
-    };
-    let state = &mut s.state;
-    crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, s.mgr.popup_instances());
-    drop(s.ctx.run(raw, |ctx| {
-        let take = state.surfaces_take_keys();
-        // `egui_panels` 와 같은 값: 그 몫의 키를 받는 포커스 노드.
-        let key_node = state.pass_key_node(&read);
-        let notice = state.pass_notice_focus();
-        let mut bands = std::mem::take(&mut state.html_address);
-        crate::adapters::ui::popup::body_keys::with_body_keys(ctx, take, || match bodies {
-            Bodies::Explorers(l, r) => {
-                for (sid, rect, ex) in [
-                    (SURFACE_L, surface_rect_l(), &mut **l),
-                    (SURFACE_R, surface_rect_r(), &mut **r),
-                ] {
-                    draw_explorer(
-                        ctx,
-                        sid,
-                        rect,
-                        ex,
-                        crate::state::focus_node::explorer_takes_keys(Some(sid), key_node, notice),
-                    );
-                }
-            }
-            Bodies::Address(navs) => {
-                let info = tasty_model::WebViewNavInfo::default();
-                let src = HtmlAddressSource {
-                    nav: crate::model::NavState::Done,
-                    info: &info,
-                    host_url: None,
-                    cwd: None,
-                    home: None,
-                    mirror: false,
-                    received: None,
-                    remote_marker: None,
-                    web_page: false,
-                    native: &[],
-                };
-                let rect = surface_rect_l();
-                egui::Area::new(egui::Id::new("pass_focus_address"))
-                    .fixed_pos(rect.min)
-                    .show(ctx, |ui| {
-                        ui.set_width(rect.width());
-                        let band =
-                            egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 40.0));
-                        let theme = tasty_themes::mocha_fallback();
-                        let out = bands.draw(
-                            ui,
-                            &theme,
-                            SURFACE_L,
-                            band,
-                            &src,
-                            key_node == Some(FocusNode::HtmlAddress(SURFACE_L)),
+    let mgr = &s.mgr;
+    let (drawn, output) = input.run_pass(
+        &mut s.state,
+        &s.ctx,
+        screen(),
+        &mut HeldPastes::default(),
+        &mut |_| {},
+        |ctx, state| {
+            crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
+                state,
+                mgr.popup_instances(),
+            );
+            let take = state.surfaces_take_keys();
+            // `egui_panels` 와 같은 값: 그 몫의 키를 받는 포커스 노드.
+            let key_node = state.pass_key_node(&read);
+            let notice = state.pass_notice_focus();
+            let mut bands = std::mem::take(&mut state.html_address);
+            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, take, || match bodies {
+                Bodies::Explorers(l, r) => {
+                    for (sid, rect, ex) in [
+                        (SURFACE_L, surface_rect_l(), &mut **l),
+                        (SURFACE_R, surface_rect_r(), &mut **r),
+                    ] {
+                        draw_explorer(
+                            ctx,
+                            sid,
+                            rect,
+                            ex,
+                            crate::state::focus_node::explorer_takes_keys(
+                                Some(sid),
+                                key_node,
+                                notice,
+                            ),
                         );
-                        navs.extend(out.nav);
-                    });
-            }
-        });
-        bands.finish_frame();
-        state.html_address = bands;
-        draw_popup_layer(ctx, state, &read, &layout());
-        draw_plugin_popups(
-            ctx,
-            state,
-            &read,
-            Some(crate::app::plugin_display::PluginDisplay::new(&s.mgr)),
-            Some(&layout()),
-        );
-        during(state);
-    }));
-    input.close_pass(state, &s.ctx, screen_drawn);
+                    }
+                }
+                Bodies::Address(navs) => {
+                    let info = tasty_model::WebViewNavInfo::default();
+                    let src = HtmlAddressSource {
+                        nav: crate::model::NavState::Done,
+                        info: &info,
+                        host_url: None,
+                        cwd: None,
+                        home: None,
+                        mirror: false,
+                        received: None,
+                        remote_marker: None,
+                        web_page: false,
+                        native: &[],
+                    };
+                    let rect = surface_rect_l();
+                    egui::Area::new(egui::Id::new("pass_focus_address"))
+                        .fixed_pos(rect.min)
+                        .show(ctx, |ui| {
+                            ui.set_width(rect.width());
+                            let band =
+                                egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 40.0));
+                            let theme = tasty_themes::mocha_fallback();
+                            let out = bands.draw(
+                                ui,
+                                &theme,
+                                SURFACE_L,
+                                band,
+                                &src,
+                                key_node == Some(FocusNode::HtmlAddress(SURFACE_L)),
+                            );
+                            navs.extend(out.nav);
+                        });
+                }
+            });
+            bands.finish_frame();
+            state.html_address = bands;
+            draw_popup_layer(ctx, state, &read, &layout());
+            draw_plugin_popups(
+                ctx,
+                state,
+                &read,
+                Some(crate::app::plugin_display::PluginDisplay::new(mgr)),
+                Some(&layout()),
+            );
+            during(state);
+        },
+    );
+    drop(output);
     drawn
 }
 
@@ -469,22 +476,20 @@ fn stage_or_window_pass_with(
 ) -> (bool, Vec<Event>) {
     let stage = s.state.pass_draws_stage();
     if stage {
-        let events = input.take_pass(&mut s.state, &s.ctx);
-        let drawn = events.clone();
-        let screen_drawn = s.state.fullscreen_stage_id();
         let engine = s.session.borrow_mut();
         let read = engine.read();
-        let raw = egui::RawInput {
-            screen_rect: Some(screen()),
-            events,
-            ..Default::default()
-        };
-        let state = &mut s.state;
-        drop(s.ctx.run(raw, |ctx| {
-            crate::adapters::ui::draw_fullscreen_stage(ctx, state, &read);
-            during(state);
-        }));
-        input.close_pass(state, &s.ctx, screen_drawn);
+        let (drawn, output) = input.run_pass(
+            &mut s.state,
+            &s.ctx,
+            screen(),
+            &mut HeldPastes::default(),
+            &mut |_| {},
+            |ctx, state| {
+                crate::adapters::ui::draw_fullscreen_stage(ctx, state, &read);
+                during(state);
+            },
+        );
+        drop(output);
         (stage, drawn)
     } else {
         let drawn = pass_with(s, input, &mut Bodies::Explorers(l, r), during);
