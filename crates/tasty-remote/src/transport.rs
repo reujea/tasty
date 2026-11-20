@@ -210,27 +210,27 @@ pub fn spawn_attach_write_thread(
     log_suffix: &'static str,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
-        let _exit = WriterExit {
-            socket: write_half.try_clone().map_err(|error| {
-                tracing::debug!("attach write thread{log_suffix}: no socket clone for the panic guard: {error}");
-            }).ok(),
+        // panic guard가 쓰기 핸들 자체를 쥔다. 복제 핸들은 만들 수 없을 때(descriptor 고갈) guard가 소켓을
+        // 닫지 못하므로 쓰지 않는다. 스레드는 guard를 거쳐 같은 핸들로 쓴다.
+        let mut exit = WriterExit {
+            socket: write_half,
             end: link.transport_end.clone(),
             wake: wake.clone(),
         };
-        let mut write_half = write_half;
+        let write_half = &mut exit.socket;
         let end = &link.transport_end;
         loop {
             let queued = match frame_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                 Ok(queued) => queued,
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                     if end.is_ending() {
-                        drain_reader_then_settle(&write_half, &link, &wake, log_suffix);
+                        drain_reader_then_settle(write_half, &link, &wake, log_suffix);
                         return;
                     }
                     continue;
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    settle_by_writer(&write_half, end, &wake);
+                    settle_by_writer(write_half, end, &wake);
                     return;
                 }
             };
@@ -240,7 +240,7 @@ pub fn spawn_attach_write_thread(
             let item = queued.frame;
             let detach = item.tag == StreamTag::Detach;
             if !detach && end.is_ending() {
-                drain_reader_then_settle(&write_half, &link, &wake, log_suffix);
+                drain_reader_then_settle(write_half, &link, &wake, log_suffix);
                 return;
             }
             if !detach && !queued.epoch.is_active() {
@@ -250,16 +250,16 @@ pub fn spawn_attach_write_thread(
                 // 쓰기 뒤에는 서버가 바로 닫을 수 있어 reader가 먼저 EOF를 본다.
                 link.detach_sent.store(true, Ordering::SeqCst);
             }
-            if let Err(e) = stream::write_frame(&mut write_half, item.tag, &item.payload) {
+            if let Err(e) = stream::write_frame(write_half, item.tag, &item.payload) {
                 tracing::warn!(
                     "attach write thread{log_suffix}: 프레임을 쓰지 못해 연결 종료로 처리한다: {e}"
                 );
                 end.raise(EndReason::Lost);
-                drain_reader_then_settle(&write_half, &link, &wake, log_suffix);
+                drain_reader_then_settle(write_half, &link, &wake, log_suffix);
                 return;
             }
             if detach {
-                drain_reader_then_settle(&write_half, &link, &wake, log_suffix);
+                drain_reader_then_settle(write_half, &link, &wake, log_suffix);
                 return;
             }
         }
@@ -344,7 +344,7 @@ fn cap_released(link: &AttachWriterEnd) -> bool {
 /// 쓰기 스레드가 panic으로 끝나면(W5) 바로 확정하고 소켓을 닫는다. 통지 보존은 포기한다.
 /// 깨움은 [`ReaderExit`]와 같은 이유로 `catch_unwind`로 감싸고 payload를 잊는다.
 struct WriterExit {
-    socket: Option<TcpStream>,
+    socket: TcpStream,
     end: Arc<TransportEnd>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -356,9 +356,7 @@ impl Drop for WriterExit {
         }
         self.end.raise(EndReason::Lost);
         let won = self.end.settle();
-        if let Some(socket) = &self.socket
-            && let Err(error) = socket.shutdown(std::net::Shutdown::Both)
-        {
+        if let Err(error) = self.socket.shutdown(std::net::Shutdown::Both) {
             tracing::debug!("remote socket already closed: {error}");
         }
         if won {

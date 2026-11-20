@@ -10,20 +10,52 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 const WAIT: Duration = Duration::from_secs(10);
 
-/// 깨울 때마다 그 순간의 확정 사유를 기록하고 알린다.
+/// 깨울 때마다 그 순간의 확정 사유를 기록하고 알린다. 소켓 탐침이 있으면 종료 깨움 순간에 이쪽 소켓의
+/// 읽기 쪽이 이미 닫혔는지도 기록한다.
 struct Wakes {
     seen: Arc<Mutex<Vec<Option<EndReason>>>>,
     terminal: Receiver<EndReason>,
+    closed_at_wake: Arc<Mutex<Vec<bool>>>,
 }
 
 fn recording_wake(end: &Arc<TransportEnd>) -> (Arc<dyn Fn() + Send + Sync>, Wakes) {
+    probing_wake(end, None)
+}
+
+/// 이쪽 소켓의 읽기 쪽이 닫혔는지. 양쪽을 닫은(`shutdown(Both)`) 소켓은 기다리지 않고 끝을 준다. 쓰기
+/// 쪽만 닫았으면 상대가 보낸 것이 없어 기한까지 기다린다. 기한은 이 소켓에 걸려 같은 연결의 reader에도
+/// 적용되지만, 탐침은 끝이 확정된 뒤에만 돈다.
+fn read_side_closed(probe: &std::net::TcpStream) -> bool {
+    probe
+        .set_read_timeout(Some(Duration::from_millis(100)))
+        .unwrap();
+    match probe.peek(&mut [0u8; 1]) {
+        Ok(read) => read == 0,
+        // Windows는 읽기 쪽을 닫은 소켓의 수신을 EOF 대신 오류로 돌려준다.
+        Err(error) => !matches!(
+            error.kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+        ),
+    }
+}
+
+fn probing_wake(
+    end: &Arc<TransportEnd>,
+    probe: Option<std::net::TcpStream>,
+) -> (Arc<dyn Fn() + Send + Sync>, Wakes) {
     let seen = Arc::new(Mutex::new(Vec::new()));
+    let closed_at_wake = Arc::new(Mutex::new(Vec::new()));
     let (tx, terminal) = channel();
     let wake: Arc<dyn Fn() + Send + Sync> = {
-        let (end, seen) = (end.clone(), seen.clone());
+        let (end, seen, closed) = (end.clone(), seen.clone(), closed_at_wake.clone());
         let tx = Mutex::new(tx);
         Arc::new(move || {
             let settled = end.settled();
+            if settled.is_some()
+                && let Some(probe) = &probe
+            {
+                closed.lock().unwrap().push(read_side_closed(probe));
+            }
             seen.lock().unwrap().push(settled);
             if let Some(reason) = settled
                 && tx.lock().unwrap().send(reason).is_err()
@@ -32,7 +64,14 @@ fn recording_wake(end: &Arc<TransportEnd>) -> (Arc<dyn Fn() + Send + Sync>, Wake
             }
         })
     };
-    (wake, Wakes { seen, terminal })
+    (
+        wake,
+        Wakes {
+            seen,
+            terminal,
+            closed_at_wake,
+        },
+    )
 }
 
 impl Wakes {
@@ -261,6 +300,7 @@ fn the_writer_settles_at_the_cap_and_a_later_notice_does_not_change_it() {
 }
 
 /// 쓰기 스레드의 출구를 일으키는 방법.
+#[derive(Debug)]
 enum WriterExit {
     /// 큐 거절.
     Rejected,
@@ -277,7 +317,7 @@ enum WriterExit {
 }
 
 /// S4: 쓰기 스레드의 출구마다 reader가 멈춘 상태에서 쓰기 스레드가 `Lost`로 확정하고 한 번 깨운다.
-/// 그 뒤 reader가 끝나도 더 깨우지 않는다.
+/// 깨우는 순간에는 이미 소켓 양쪽을 닫았다(panic guard 포함). 그 뒤 reader가 끝나도 더 깨우지 않는다.
 #[test]
 fn every_writer_exit_settles_and_wakes_once_while_the_reader_is_held() {
     for exit in [
@@ -291,7 +331,7 @@ fn every_writer_exit_settles_and_wakes_once_while_the_reader_is_held() {
         let (write_half, conn, mut peer) = opened_attach_pair();
         let end = Arc::new(TransportEnd::new());
         let finished = Arc::new(AtomicBool::new(false));
-        let (wake, wakes) = recording_wake(&end);
+        let (wake, wakes) = probing_wake(&end, Some(write_half.try_clone().unwrap()));
         let (sender, rx) = crate::connection::channel();
         sender.bind_failure(end.clone(), wake.clone());
         let (gate, arrived, release) = reader_gate();
@@ -380,6 +420,11 @@ fn every_writer_exit_settles_and_wakes_once_while_the_reader_is_held() {
         reader.join().unwrap();
         assert_eq!(end.settled(), Some(EndReason::Lost));
         assert_eq!(wakes.terminal(), vec![EndReason::Lost], "one terminal wake");
+        assert_eq!(
+            *wakes.closed_at_wake.lock().unwrap(),
+            vec![true],
+            "both sides were closed before the wake ({exit:?})"
+        );
         drop(reader_sender);
     }
 }
