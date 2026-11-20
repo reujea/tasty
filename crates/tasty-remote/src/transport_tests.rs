@@ -665,3 +665,6 @@ fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
     assert_eq!(end.settled(), Some(EndReason::Lost));
     drop(sender);
 }
+
+#[path = "transport_exit_tests.rs"]
+mod exits;
