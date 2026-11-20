@@ -93,7 +93,7 @@ impl App {
             .and_then(|w| w.as_main())
             .and_then(|main| main.webviews.get(&surface_id))
         {
-            webview.finish_forwarded_key(key_id, outcome == ForwardedKeyOutcome::NotHandled);
+            webview.finish_forwarded_key(key_id, outcome.resends_to_page());
         }
     }
 
@@ -106,15 +106,12 @@ impl App {
     ) -> ForwardedKeyOutcome {
         // winit 경로의 modal_blocks_input·입력 게이트와 같이, modal 창이나 overlay·전체화면 무대가
         // 열린 동안에는 plugin·새로고침·host 단축키 어느 것도 처리하지 않는다.
-        let gates = engines_mut!(self).window_pair(id).map(|(main, engine)| {
-            main.state.normalize_focus(&engine);
-            (
-                main.state.window_keys_to_overlay(),
-                main.state.fullscreen_stage_active(),
-            )
-        });
-        let (overlay_open, fullscreen) = gates.unwrap_or((false, false));
-        if !forwarded_key_may_dispatch(self.view.is_modal_active(), overlay_open, fullscreen) {
+        let modal_active = self.view.is_modal_active();
+        let allowed = match engines_mut!(self).window_pair(id) {
+            Some((main, engine)) => forwarded_key_gate_open(&mut main.state, &engine, modal_active),
+            None => forwarded_key_may_dispatch(modal_active, false, false),
+        };
+        if !allowed {
             return ForwardedKeyOutcome::Gated;
         }
         if self.dispatch_plugin_shortcut_key(id, &ev.key, ev.mods, Some(ev.surface_id)) {
@@ -240,6 +237,12 @@ impl ForwardedKeyOutcome {
             Self::NotHandled
         }
     }
+
+    /// 키를 가져간 WebView 에 다시 넣어 엔진·페이지로 보낼지. 처리하지 못한 키만 보낸다. 입력 게이트가 막은 키는
+    /// 보내지 않는다.
+    fn resends_to_page(self) -> bool {
+        self == Self::NotHandled
+    }
 }
 
 // A receiving page may be hidden by its host state while WebKit still owes native completions.
@@ -264,6 +267,21 @@ fn webview_poll_needed(
     any_visible
         && !minimized
         && crate::view::main::redraw::host_window_has_os_focus(winit_focused, webview_holds)
+}
+
+/// 한 창에서 native WebView 가 넘긴 키를 처리해도 되는지. 포커스 노드를 정규화한 뒤 그 창의 keyboard overlay·전체화면
+/// 무대와 `modal_active`(modal 창)를 본다. App 의 디스패치와 제품 상태 시험이 함께 쓴다.
+fn forwarded_key_gate_open(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_access::EngineMut<'_>,
+    modal_active: bool,
+) -> bool {
+    state.normalize_focus(engine);
+    forwarded_key_may_dispatch(
+        modal_active,
+        state.window_keys_to_overlay(),
+        state.fullscreen_stage_active(),
+    )
 }
 
 /// native WebView 가 넘긴 키를 plugin·새로고침·host 단축키로 처리해도 되는지. winit 경로가 막는

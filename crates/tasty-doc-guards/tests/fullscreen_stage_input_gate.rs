@@ -280,7 +280,7 @@ fn ime_overlay_gate_knows_the_stage() {
 #[test]
 fn plugin_shortcut_gate_knows_the_stage() {
     let src = read("src/app/plugin_glue/shortcut.rs");
-    let expected = "        if main.state.window_keys_to_overlay() {";
+    let expected = "    if state.window_keys_to_overlay() {";
     assert!(
         src.contains(expected),
         "플러그인 단축키 경로에 무대 차단 조건이 없다. 일반 키보드 처리보다 먼저 실행되므로 여기서 별도로 막아야 한다."

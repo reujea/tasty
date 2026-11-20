@@ -41,11 +41,13 @@ impl MainView {
         key: &Key,
         mods: ModifiersState,
     ) -> Option<WebViewEditAction> {
-        let sid = self.state.focused_surface_id(engine)?;
-        if !self.webviews.contains_key(&sid) {
-            return None;
-        }
-        edit_binding_for_key(&engine.settings.keybindings, key, mods)
+        webview_edit_for_surface_key(
+            &self.state,
+            |sid| self.webviews.contains_key(&sid),
+            engine,
+            key,
+            mods,
+        )
     }
 
     /// host 창이 받은 키가 포커스 WebView의 편집 바인딩이면 실행한다.
@@ -76,6 +78,22 @@ pub(crate) fn webview_edit_order() -> impl Iterator<Item = WebViewEditAction> {
         .into_iter()
         .map(WebViewEditAction::from)
         .chain(AFTER_CLIPBOARD_EDITS)
+}
+
+/// `webview_edit_for_key` 의 판정. 포커스 surface 에 native WebView 가 있고(`has_webview`) 키가 편집 바인딩이면 그
+/// 편집이다. 창 view 가 없는 plugin 단축키 단계도 같은 판정을 쓴다.
+pub(crate) fn webview_edit_for_surface_key(
+    state: &crate::state::MainViewState,
+    has_webview: impl Fn(u32) -> bool,
+    engine: &EngineRead<'_>,
+    key: &Key,
+    mods: ModifiersState,
+) -> Option<WebViewEditAction> {
+    let sid = state.focused_surface_id(engine)?;
+    if !has_webview(sid) {
+        return None;
+    }
+    edit_binding_for_key(&engine.settings.keybindings, key, mods)
 }
 
 /// 키가 가리키는 편집 액션. host 창 경로에서 plugin 명령보다 먼저 검사한다.

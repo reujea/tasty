@@ -190,7 +190,8 @@ impl App {
         self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, None)
     }
 
-    /// winit과 native webview 입력이 같은 차단 조건·우선순위를 사용한다.
+    /// winit과 native webview 입력이 같은 차단 조건·우선순위를 사용한다. 창의 판정·실행은
+    /// `plugin_shortcut_in_window` 가 한다.
     pub(crate) fn dispatch_plugin_shortcut_key(
         &mut self,
         id: winit::window::WindowId,
@@ -204,94 +205,116 @@ impl App {
         let Some((main, engine)) = engines_mut!(self).window_pair(id) else {
             return false;
         };
-        // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 키는 창의
-        // 포커스 노드에서 시작하므로 그 값을 먼저 정규화한다.
-        main.state.normalize_focus(&engine);
-        if main.state.window_keys_to_overlay() {
-            return false;
-        }
-        // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이다. winit 키는 지금의 대상이다.
-        let (focused, target) = match received_by {
-            Some(sid) => (
-                crate::plugin_bridge::key_dispatch::plugin_surface(&engine.as_ref(), sid),
-                main.state
-                    .command_target_for_surface(&engine.read(), sid)
-                    .unwrap_or(crate::state::command_target::CommandTarget {
-                        surface: Some(
-                            crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(
-                                sid,
-                            ),
-                        ),
-                        ..Default::default()
-                    }),
-            ),
-            None => (
-                crate::plugin_bridge::key_dispatch::focused_plugin_surface(
-                    &main.state,
-                    &engine.as_ref(),
-                ),
-                main.state.command_target(&engine.read()),
-            ),
-        };
-        // 포커스 WebView의 편집 바인딩은 plugin 명령보다 먼저다. native 자식이 키를 받을 때와 같은 순서다.
-        if main
-            .webview_edit_for_key(&engine.read(), shortcut_key, mods)
-            .is_some()
-        {
-            return false;
-        }
-        let host_kb = engine.runtime.settings.keybindings.clone();
+        let webviews = &main.webviews;
+        plugin_shortcut_in_window(
+            &mut main.state,
+            &engine,
+            self.plugin_manager.as_mut(),
+            |sid| webviews.contains_key(&sid),
+            shortcut_key,
+            mods,
+            received_by,
+        )
+    }
+}
 
-        let matched = {
-            let Some(mgr) = self.plugin_manager.as_ref() else {
-                return false;
-            };
-            match &focused {
-                Some((plugin_id, surface_id)) => {
-                    crate::plugin_bridge::key_dispatch::match_plugin_shortcut(
-                        mgr,
-                        plugin_id,
-                        shortcut_key,
-                        mods,
-                        &host_kb,
-                    )
-                    .map(|cmd_id| (plugin_id.clone(), cmd_id, Some(*surface_id)))
-                }
-                None => crate::plugin_bridge::key_dispatch::match_global_shortcut(
+/// 한 창에서 plugin 명령 단축키를 판정하고 실행한다. `has_webview` 는 surface 에 native WebView 가 있는지다. 처리했으면
+/// true 이고, 호출자는 일반 창 키 처리를 생략한다. App 의 단축키 처리와 제품 상태 시험이 함께 쓴다.
+pub(crate) fn plugin_shortcut_in_window(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_access::EngineMut<'_>,
+    mut plugin_manager: Option<&mut plugin::PluginManager>,
+    has_webview: impl Fn(u32) -> bool,
+    shortcut_key: &winit::keyboard::Key,
+    mods: winit::keyboard::ModifiersState,
+    received_by: Option<u32>,
+) -> bool {
+    // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 키는 창의
+    // 포커스 노드에서 시작하므로 그 값을 먼저 정규화한다.
+    state.normalize_focus(engine);
+    if state.window_keys_to_overlay() {
+        return false;
+    }
+    // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이다. winit 키는 지금의 대상이다.
+    let (focused, target) = match received_by {
+        Some(sid) => (
+            crate::plugin_bridge::key_dispatch::plugin_surface(&engine.as_ref(), sid),
+            state
+                .command_target_for_surface(&engine.read(), sid)
+                .unwrap_or(crate::state::command_target::CommandTarget {
+                    surface: Some(
+                        crate::state::attach_pending::deferred::CommandSurfaceTarget::Surface(sid),
+                    ),
+                    ..Default::default()
+                }),
+        ),
+        None => (
+            crate::plugin_bridge::key_dispatch::focused_plugin_surface(state, &engine.as_ref()),
+            state.command_target(&engine.read()),
+        ),
+    };
+    // 포커스 WebView의 편집 바인딩은 plugin 명령보다 먼저다. native 자식이 키를 받을 때와 같은 순서다.
+    if shortcuts::webview_edit_for_surface_key(
+        state,
+        has_webview,
+        &engine.read(),
+        shortcut_key,
+        mods,
+    )
+    .is_some()
+    {
+        return false;
+    }
+    let host_kb = engine.runtime.settings.keybindings.clone();
+
+    let matched = {
+        let Some(mgr) = plugin_manager.as_deref() else {
+            return false;
+        };
+        match &focused {
+            Some((plugin_id, surface_id)) => {
+                crate::plugin_bridge::key_dispatch::match_plugin_shortcut(
                     mgr,
+                    plugin_id,
                     shortcut_key,
                     mods,
                     &host_kb,
                 )
-                .map(|(plugin_id, cmd_id)| (plugin_id, cmd_id, None)),
+                .map(|cmd_id| (plugin_id.clone(), cmd_id, Some(*surface_id)))
             }
-        };
-        let Some((plugin_id, cmd_id, surface_id)) = matched else {
-            return false;
-        };
-
-        let action = self
-            .plugin_manager
-            .as_ref()
-            .and_then(|mgr| mgr.command_registry.find(&plugin_id, &cmd_id))
-            .and_then(|e| e.action.clone());
-
-        if let Some(action) = action {
-            return run_shortcut_action(
-                &mut main.state,
-                &engine.read(),
-                self.plugin_manager.as_mut(),
-                (plugin_id, cmd_id, surface_id),
-                action,
-                &target,
-            );
-        } else if let Some(mgr) = self.plugin_manager.as_mut() {
-            crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
-                mgr, &plugin_id, &cmd_id, surface_id,
-            );
+            None => crate::plugin_bridge::key_dispatch::match_global_shortcut(
+                mgr,
+                shortcut_key,
+                mods,
+                &host_kb,
+            )
+            .map(|(plugin_id, cmd_id)| (plugin_id, cmd_id, None)),
         }
-        true
+    };
+    let Some((plugin_id, cmd_id, surface_id)) = matched else {
+        return false;
+    };
+
+    let action = plugin_manager
+        .as_deref()
+        .and_then(|mgr| mgr.command_registry.find(&plugin_id, &cmd_id))
+        .and_then(|e| e.action.clone());
+
+    if let Some(action) = action {
+        return run_shortcut_action(
+            state,
+            &engine.read(),
+            plugin_manager,
+            (plugin_id, cmd_id, surface_id),
+            action,
+            &target,
+        );
+    } else if let Some(mgr) = plugin_manager.as_deref_mut() {
+        crate::plugin_bridge::key_dispatch::dispatch_plugin_command(
+            mgr, &plugin_id, &cmd_id, surface_id,
+        );
     }
+    true
 }
 
 /// 명령 단축키의 action 갈래. 대상은 키를 입력한 시점의 것을 호출자가 넘긴다. action과 command.invoke를 함께 실행하면

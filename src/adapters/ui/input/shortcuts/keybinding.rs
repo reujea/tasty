@@ -13,7 +13,7 @@ use crate::state::command_target::CommandTarget;
 
 /// 같은 창·프레임에서 얻은 셀 크기와 배율을 함께 전달한다.
 #[derive(Clone, Copy)]
-pub(super) struct CellGeometry {
+pub(crate) struct CellGeometry {
     pub w: crate::model::PhysicalPx,
     pub h: crate::model::PhysicalPx,
     /// 논리↔물리 변환 배율. pane 보더가 논리라 레이아웃 계산에 필요하다.
@@ -30,7 +30,7 @@ pub(crate) enum PresetApplyScope {
 
 impl MainView {
     #[allow(clippy::too_many_arguments)] // reason: keybinding dispatch context
-    pub(super) fn handle_keybinding_shortcuts(
+    pub(crate) fn handle_keybinding_shortcuts(
         state: &mut crate::state::MainViewState,
         engine: &EngineRead<'_>,
         kb: &crate::settings::KeybindingSettings,
