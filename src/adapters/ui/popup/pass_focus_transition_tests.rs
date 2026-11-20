@@ -78,7 +78,7 @@ fn wait_out_double_click(
     r: &mut Explorer,
 ) {
     for _ in 0..45 {
-        drop(stage_or_window_pass(s, input, l, r));
+        stage_or_window_pass(s, input, l, r);
     }
 }
 
