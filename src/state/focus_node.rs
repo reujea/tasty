@@ -222,20 +222,53 @@ impl super::MainViewState {
         self.segment_focus.unwrap_or_else(|| self.focus_node(core))
     }
 
-    /// 지금 그리는 몫을 전체화면 무대로 그리는지. 그 몫의 포커스 노드가 무대일 때다. 창의 패스 경로
-    /// (`GpuState::render`)가 이 값으로 무대와 일반 화면을 고른다. 그 몫 뒤의 종료 키가 그리기 전에 무대를 닫았어도 무대
-    /// 몫의 입력(무대 안 누름 등)은 무대 패스로 그려 뒤 화면에 닿지 않는다. 닫힌 무대의 패스는 아무것도 그리지 않는다.
-    pub(crate) fn pass_draws_stage(&self, core: &CoreState) -> bool {
-        self.pass_focus_node(core) == FocusNode::Stage
+    /// 지금 패스를 전체화면 무대로 그리는지. 지금 무대 상태다(무엇을 그릴지는 지금 상태로 고른다). 창의 패스 경로
+    /// (`GpuState::render`)가 이 값으로 무대와 일반 화면을 고른다. 그리기 전에 종료 키가 무대를 닫았으면 무대 노드의
+    /// 몫도 일반 화면으로 그린다(빈 무대 프레임을 제출하지 않는다). 그 몫의 입력은 `drop_input_without_its_node` 가 뺀다.
+    pub(crate) fn pass_draws_stage(&self) -> bool {
+        self.fullscreen_stage_active()
+    }
+
+    /// 이번 패스 입력 `events` 에서, 그 몫의 포커스 노드가 지금 그리는 화면에 없으면 사용자 입력(키·글자·IME·붙여넣기·
+    /// 복사·잘라내기·포인터 이동·버튼·휠·터치)을 뺀다. 포인터 이동도 빼는 것은 그 화면에서 눌린 채인 버튼의 끌기가 되지
+    /// 않게 하기 위해서다. 창은 무대와 일반 화면을 지금 무대 상태로 고른다(`GpuState::render`). 그리기 전에
+    /// 종료 키가 무대를 닫았으면 무대 노드의 몫(무대 안 글자·누름·종료 키)은 일반 화면으로 그리지만 그 입력은 일반 화면의
+    /// 어느 노드 것도 아니다. 그리기 전에 무대가 열렸으면 무대 밖 노드의 몫도 같다. 패스 입력을 꺼내는 곳
+    /// (`GpuState::run_main_pass`)이 부른다.
+    pub(crate) fn drop_input_without_its_node(&self, events: &mut Vec<egui::Event>) {
+        let Some(node) = self.segment_focus else {
+            return;
+        };
+        if (node == FocusNode::Stage) != self.pass_draws_stage() {
+            events.retain(|e| {
+                !matches!(
+                    e,
+                    egui::Event::Key { .. }
+                        | egui::Event::Text(_)
+                        | egui::Event::Ime(_)
+                        | egui::Event::Paste(_)
+                        | egui::Event::Copy
+                        | egui::Event::Cut
+                        | egui::Event::PointerMoved(_)
+                        | egui::Event::MouseMoved(_)
+                        | egui::Event::PointerButton { .. }
+                        | egui::Event::MouseWheel { .. }
+                        | egui::Event::Touch { .. }
+                        | egui::Event::Zoom(_)
+                )
+            });
+        }
     }
 
     /// 지금 그리는 몫의 키를 받는 포커스 노드. 그 몫의 키가 팝업에 묶이지 않았을 때 그 몫의 포커스 노드다. 그리기 중
     /// surface 본문(탐색기 타입어헤드)과 html 주소 입력칸이 그 몫의 키를 받을지는 지금 포커스(`focused_surface_id`·
     /// `window_keys_to_overlay`·주소 띠의 소유권)가 아니라 이 값이 자기 노드(`Surface`·`HtmlAddress`)인지로 정한다.
-    /// 뒤 몫의 사건이 옮긴 포커스로 앞 몫의 키를 판정하지 않기 위해서다.
+    /// 뒤 몫의 사건이 옮긴 포커스로 앞 몫의 키를 판정하지 않기 위해서다. 무대 노드의 몫은 surface·주소 띠가 받지 않는다
+    /// (`None`).
     pub(crate) fn pass_key_node(&self, core: &CoreState) -> Option<FocusNode> {
         self.surfaces_take_keys()
             .then(|| self.pass_focus_node(core))
+            .filter(|node| *node != FocusNode::Stage)
     }
 
     /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷·

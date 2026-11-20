@@ -424,17 +424,15 @@ fn row_center(s: &mut Scene, l: &mut Explorer, r: &mut Explorer, name: &str) -> 
         .expect("L 에 항목 줄이 그려진다")
 }
 
-/// 창의 패스 하나를 창과 같은 경로 선택(`pass_draws_stage`)으로 그린다. 무대면 무대 그리기, 아니면 탐색기 화면이다.
+/// 창의 패스 하나를 창과 같은 경로 선택(`pass_draws_stage`, 지금 무대 상태)으로 그린다. 무대면 무대 그리기, 아니면 탐색기 화면이다. 패스
+/// 입력은 창처럼 몫 노드가 그 화면에 없으면 사용자 입력을 뺀 것이다(`WindowInput::take_pass`).
 fn stage_or_window_pass(
     s: &mut Scene,
     input: &mut WindowInput,
     l: &mut Explorer,
     r: &mut Explorer,
 ) -> bool {
-    let stage = {
-        let engine = s.session.borrow_mut();
-        s.state.pass_draws_stage(&engine.read())
-    };
+    let stage = s.state.pass_draws_stage();
     if stage {
         let events = input.take_pass(&mut s.state, &s.ctx);
         let engine = s.session.borrow_mut();
@@ -457,9 +455,9 @@ fn stage_or_window_pass(
 
 /// Given 무대가 창을 덮고 L 탐색기가 그 뒤에 있을 때, When 그리기 전 한 묶음에 [글자 b, 무대 안 누름(뒤 L 의 banana
 /// 줄 자리), 무대 종료 키]가 오고 종료 키가 무대를 닫으면, Then 세 사건의 몫(글자·누름·종료 키, 모두 무대 노드에서
-/// 들어왔다)은 무대 패스로 그리고 L 은 글자도 누름도 받지 않는다. 그 뒤 패스부터 일반 화면이다.
+/// 들어왔다)은 닫힌 무대 대신 일반 화면으로 그리지만 그 입력은 빠져 L 은 글자도 누름도 받지 않는다.
 #[test]
-fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
+fn segments_of_the_closed_stage_draw_the_window_without_their_input() {
     let mut s = open_scene(|_| {});
     let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
     let mut input = WindowInput::default();
@@ -509,8 +507,8 @@ fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
         "무대 몫의 글자·누름이 뒤 L 탐색기에 닿았다"
     );
     assert!(
-        letter && press && exit,
-        "글자·누름·종료 키 몫은 무대로 그린다"
+        !letter && !press && !exit,
+        "닫힌 무대의 몫은 일반 화면으로 그린다"
     );
     assert!(input.is_empty());
     assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
@@ -538,10 +536,11 @@ fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
 }
 
 /// Given 무대가 창을 덮고 L 탐색기가 그 뒤에 있을 때, When 그리기 전 한 묶음에 누름 없이 [목록 글자 b, 무대 종료 Esc]가
-/// 오고 종료 키가 무대를 닫으면, Then 두 사건은 무대 노드에서 든 한 몫이라 무대 패스로 그리고 L 타입어헤드는 b 를
-/// 읽지 않는다. 그 뒤 글자 a 는 사건 시점의 노드(L)가 무대와 달라 새 몫이 되고 L 이 받는다.
+/// 오고 종료 키가 무대를 닫으면, Then 두 사건은 무대 노드에서 든 한 몫이고 그 패스는 일반 화면을 그리지만(무대
+/// 렌더러로 가지 않는다) L 타입어헤드는 b 를 읽지 않는다. 그 뒤 글자 a 는 사건 시점의 노드(L)가 무대와 달라 새 몫이
+/// 되고 L 이 받는다.
 #[test]
-fn a_letter_and_the_stage_exit_key_without_a_press_stay_in_the_stage() {
+fn a_letter_and_the_stage_exit_key_without_a_press_draw_the_window_without_the_letter() {
     let mut s = open_scene(|_| {});
     let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
     let mut input = WindowInput::default();
@@ -572,9 +571,14 @@ fn a_letter_and_the_stage_exit_key_without_a_press_stay_in_the_stage() {
     assert!(s.state.close_fullscreen_stage());
     assert!(type_text(&mut s, &mut input, true, "a").is_some());
 
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(s.state.pass_focus_node(&engine.read()), FocusNode::Stage);
+        assert_eq!(s.state.pass_key_node(&engine.read()), None);
+    }
     assert!(
-        stage_or_window_pass(&mut s, &mut input, &mut l, &mut r),
-        "글자와 종료 키 몫은 무대로 그린다"
+        !stage_or_window_pass(&mut s, &mut input, &mut l, &mut r),
+        "글자와 종료 키 몫(무대 노드)은 닫힌 무대 대신 일반 화면으로 그린다"
     );
     assert_eq!(l.selected(), "", "무대 몫의 글자가 뒤 L 탐색기에 닿았다");
     while !input.is_empty() {

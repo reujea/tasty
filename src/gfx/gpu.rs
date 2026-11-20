@@ -455,7 +455,7 @@ impl GpuState {
         // 앞당기면 surface 캡처를 처리하지 못하고 뒤로 미루면 배경 PTY 크기가 바뀐다.
         // 호출부의 attach 중계도 건너뛰지 않아야 한다. 무대 경로는 창 캡처와 present를 유지한다.
         // docs/design/systems/fullscreen-stage.md 참고.
-        if state.pass_draws_stage(engine) {
+        if state.pass_draws_stage() {
             return self.render_fullscreen_stage(state, engine, window);
         }
 

@@ -277,6 +277,7 @@ impl GpuState {
         self.set_plugin_paste_target(state.frame_plugin_key_target(None));
         state.popups.begin_key_pass(self.egui_escape_held());
         let mut raw_input = self.take_pass_input(window, true);
+        state.drop_input_without_its_node(&mut raw_input.events);
         adjust(&mut raw_input);
         let output = self.egui_ctx.run(raw_input, |ctx| ui(ctx, state));
         state.close_input_pass(&self.egui_ctx);
