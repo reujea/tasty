@@ -160,8 +160,8 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 /// 로, plugin 팝업 열기를 `open_pending_popups` 로 처리한다. App 은 그 둘을 `dispatch_pending_intents`(Ui 요청은 즉시
 /// 갈래의 `dispatch_one_intent`)와 `dispatch_pending_popup_opens` 로 부른다. 판정 → 두 대기열 순서는
 /// `press_focus_call_sites` 가 고정한다. 이 가드는 두 디스패처의 본문 전체(`dispatch_pending_popup_opens`,
-/// `dispatch_pending_intents`), 창 요청 처리(`process_state_batches`) 안에 즉시 갈래의 `dispatch_one_intent` 호출이
-/// 있음, `classify_intent` 가 Ui 요청을 즉시 갈래로 둠, `dispatch_one_intent` 의 Ui 갈래가 `intent::popup::handle` 임을
+/// `dispatch_pending_intents`), 창 요청 처리(`process_state_batches`)가 세션 묶음 처리(`dispatch_state_intents`)를 부르고
+/// 그 안에 즉시 갈래의 `dispatch_one_intent` 호출이 있음, `classify_intent` 가 Ui 요청을 즉시 갈래로 둠, `dispatch_one_intent` 의 Ui 갈래가 `intent::popup::handle` 임을
 /// 고정한다. `process_state_batches` 안의 반복·조건(창 묶음을 건너뛰는 변경)은 문자열 하나로만 보므로 고정하지 않는다.
 #[test]
 fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
@@ -189,7 +189,14 @@ fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
         squeeze(&fn_body(&intents, "fn process_state_batches(").expect("process_state_batches"));
     at(
         &process_fn,
-        "IntentClass::Immediate=>Self::dispatch_one_intent(core,state,&mutengine,&intent,",
+        "letdomain=dispatch_state_intents(core,state,&mutengine,batch,self.plugin_manager.as_ref(),view.as_deref(),);",
+        "세션 묶음 처리",
+    );
+    let session =
+        squeeze(&fn_body(&intents, "fn dispatch_state_intents(").expect("dispatch_state_intents"));
+    at(
+        &session,
+        "IntentClass::Immediate=>{App::dispatch_one_intent(core,state,engine,&intent,plugins,view)}",
         "즉시 갈래",
     );
     let classify = squeeze(&fn_body(&intents, "fn classify_intent(").expect("classify_intent"));

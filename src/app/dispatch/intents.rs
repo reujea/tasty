@@ -89,24 +89,20 @@ impl App {
             else {
                 continue;
             };
-            for intent in batch {
-                #[cfg(debug_assertions)]
-                crate::intent::watch::observe(&intent);
-                match Self::classify_intent(&intent) {
-                    IntentClass::Domain => domain_batch.push((
-                        crate::app::dispatch_domain::DispatchSource::Engine(id),
-                        intent,
-                    )),
-                    IntentClass::Immediate => Self::dispatch_one_intent(
-                        core,
-                        state,
-                        &mut engine,
-                        &intent,
-                        self.plugin_manager.as_ref(),
-                        view.as_deref(),
-                    ),
-                }
-            }
+            let domain = dispatch_state_intents(
+                core,
+                state,
+                &mut engine,
+                batch,
+                self.plugin_manager.as_ref(),
+                view.as_deref(),
+            );
+            domain_batch.extend(domain.into_iter().map(|intent| {
+                (
+                    crate::app::dispatch_domain::DispatchSource::Engine(id),
+                    intent,
+                )
+            }));
             if let Some(view) = view {
                 view.mark_dirty();
             }
@@ -600,3 +596,29 @@ mod tests {
 #[cfg(test)]
 #[path = "intents_approval_tests.rs"]
 mod approval_tests;
+
+/// 한 세션(창 또는 parked)의 요청 묶음을 들어온 순서대로 처리한다. 즉시 요청은 그 세션 상태에 바로 적용하고 Domain
+/// 요청은 들어온 순서대로 돌려준다(호출자가 출처를 붙여 뒤에 처리한다). `view` 는 그 세션의 창이고 parked 세션이면
+/// None 이다. App 의 창 요청 처리(`App::process_state_batches`)와 R3 제품 상태 시험(`app::webview_keys::state_tests`)이
+/// 함께 쓴다.
+pub(crate) fn dispatch_state_intents(
+    core: &mut crate::app::services::AppServices,
+    state: &mut crate::state::MainViewState,
+    engine: &mut EngineMut<'_>,
+    batch: Vec<crate::intent::DispatchedIntent>,
+    plugins: Option<&crate::plugin::PluginManager>,
+    view: Option<&crate::view::ViewBase>,
+) -> Vec<crate::intent::DispatchedIntent> {
+    let mut domain = Vec::new();
+    for intent in batch {
+        #[cfg(debug_assertions)]
+        crate::intent::watch::observe(&intent);
+        match App::classify_intent(&intent) {
+            IntentClass::Domain => domain.push(intent),
+            IntentClass::Immediate => {
+                App::dispatch_one_intent(core, state, engine, &intent, plugins, view)
+            }
+        }
+    }
+    domain
+}
