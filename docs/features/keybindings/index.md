@@ -204,7 +204,7 @@ Option 시퀀스·튜플 원소와 중첩 Option의 Some(None)은 표현을 다�
   활성 plugin 의 모든 명령을 담는 상위집합이다(키가 host 에 도착하는 시점의 모델 포커스를
   브리지가 claim 시점에는 알 수 없다). 비활성 plugin 명령은 실행할 수 없으므로 claim
   하면 키가 페이지에도 host 에도 안 가고 사라진다 — `is_disabled` 로 거른다. 도달 이후의
-  우선순위 판정은 winit 경로와 같은 `dispatch_plugin_shortcut_key` 가 그대로 한다 — 모델
+  우선순위 판정은 winit 경로(`dispatch_plugin_shortcut_key`)와 같은 창 단계 `plugin_shortcut_in_window` 가 한다 — 모델
   포커스가 어떤 plugin surface 에 있으면 그 plugin 의 명령만 후보다([key-mapping.md](../../design/policies/key-mapping.md)).
 - **페이지 예약 콤보 대조는 콤보 동등성으로 한다** — plugin 매니페스트는 raw 문자열
   (`"Ctrl+F"`)이라 사용자 설정(`"ctrl+f"`)과 대소문자·modifier 순서가 다를 수 있어, 실제
