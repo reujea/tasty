@@ -426,6 +426,57 @@ impl GpuState {
     }
 }
 
+/// 메인 창 패스의 주체(`input_pass::run_input_pass`). 입력은 창 egui 입력에서 끊은 자리로 나눠 꺼낸다.
+struct MainPass<'a> {
+    gpu: &'a mut GpuState,
+    window: &'a Window,
+}
+
+impl super::input_pass::InputPassHost for MainPass<'_> {
+    fn escape_held(&self) -> bool {
+        self.gpu.egui_escape_held()
+    }
+
+    fn held_pastes(&mut self) -> &mut super::text_selection::HeldPastes {
+        &mut self.gpu.held_pastes
+    }
+
+    fn take_input(&mut self) -> egui::RawInput {
+        self.gpu.take_pass_input(self.window, true)
+    }
+
+    fn egui_ctx(&self) -> &egui::Context {
+        &self.gpu.egui_ctx
+    }
+
+    fn input_dropped(&mut self) {
+        self.gpu.edit_keys.input_dropped();
+    }
+
+    fn focus_tag(&self) -> u64 {
+        self.gpu.focus_tag()
+    }
+
+    fn run(
+        &mut self,
+        raw_input: egui::RawInput,
+        state: &mut MainViewState,
+        mut ui: impl FnMut(&egui::Context, &mut MainViewState),
+    ) -> egui::FullOutput {
+        self.gpu.egui_ctx.run(raw_input, |ctx| ui(ctx, state))
+    }
+
+    fn cuts_and_raw_left(
+        &mut self,
+    ) -> (
+        &mut crate::adapters::ui::popup::frame_keys::InputCuts,
+        usize,
+    ) {
+        let raw_left = self.gpu.egui_state.egui_input().events.len();
+        (&mut self.gpu.egui_input_cuts, raw_left)
+    }
+}
+
 #[cfg(test)]
 // 테스트는 의도적으로 무시하는 결과가 많아 let _ 사유 검사에서 제외한다.
 #[allow(clippy::let_underscore_must_use)]
@@ -654,56 +705,5 @@ mod tests {
         assert!(!host_popup_should_render_on_top(Some(5), None));
         assert!(!host_popup_should_render_on_top(None, Some(5)));
         assert!(!host_popup_should_render_on_top(None, None));
-    }
-}
-
-/// 메인 창 패스의 주체(`input_pass::run_input_pass`). 입력은 창 egui 입력에서 끊은 자리로 나눠 꺼낸다.
-struct MainPass<'a> {
-    gpu: &'a mut GpuState,
-    window: &'a Window,
-}
-
-impl super::input_pass::InputPassHost for MainPass<'_> {
-    fn escape_held(&self) -> bool {
-        self.gpu.egui_escape_held()
-    }
-
-    fn held_pastes(&mut self) -> &mut super::text_selection::HeldPastes {
-        &mut self.gpu.held_pastes
-    }
-
-    fn take_input(&mut self) -> egui::RawInput {
-        self.gpu.take_pass_input(self.window, true)
-    }
-
-    fn egui_ctx(&self) -> &egui::Context {
-        &self.gpu.egui_ctx
-    }
-
-    fn input_dropped(&mut self) {
-        self.gpu.edit_keys.input_dropped();
-    }
-
-    fn focus_tag(&self) -> u64 {
-        self.gpu.focus_tag()
-    }
-
-    fn run(
-        &mut self,
-        raw_input: egui::RawInput,
-        state: &mut MainViewState,
-        mut ui: impl FnMut(&egui::Context, &mut MainViewState),
-    ) -> egui::FullOutput {
-        self.gpu.egui_ctx.run(raw_input, |ctx| ui(ctx, state))
-    }
-
-    fn cuts_and_raw_left(
-        &mut self,
-    ) -> (
-        &mut crate::adapters::ui::popup::frame_keys::InputCuts,
-        usize,
-    ) {
-        let raw_left = self.gpu.egui_state.egui_input().events.len();
-        (&mut self.gpu.egui_input_cuts, raw_left)
     }
 }
