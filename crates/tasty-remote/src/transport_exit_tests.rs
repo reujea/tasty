@@ -38,7 +38,7 @@ fn read_side_closed(probe: &std::net::TcpStream) -> bool {
     if let Err(error) = probe.set_read_timeout(Some(Duration::from_millis(100))) {
         const EINVAL: i32 = 22;
         assert!(
-            cfg!(target_vendor = "apple") && error.raw_os_error() == Some(EINVAL),
+            cfg!(target_os = "macos") && error.raw_os_error() == Some(EINVAL),
             "{error}"
         );
         return true;
