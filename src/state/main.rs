@@ -159,6 +159,7 @@ pub struct MainViewState {
     pub(crate) press_snapshot: Option<crate::adapters::ui::popup::route::PressSnapshot>,
     /// 키 결속 뒤 누름에서 egui 입력을 끊었을 때(`PopupManager::cut_key_frame`) 끊은 뒤 첫 누름의 스냅샷. 다음
     /// 프레임의 `press_snapshot` 이 된다.
+    #[cfg(feature = "gui")]
     pub(crate) press_snapshot_after_cut: Option<crate::adapters::ui::popup::route::PressSnapshot>,
     /// 이번 프레임의 키 주인. host 팝업 그리기가 이번 프레임 범위·표시 판정 뒤 한 번 정하고(`decide_frame_key_owner`),
     /// host 본문과 뒤에 그리는 plugin 팝업 렌더가 같은 값을 쓴다. 그리는 중 host 팝업이 닫혀도 바뀌지 않는다.
