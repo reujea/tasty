@@ -152,7 +152,8 @@ fn a_close_reply_with_a_force_detach_ends_b_while_a_is_dropped_and_the_mark_stay
 
 /// U8 이어서: Given 표지 아래에서 연결된 행 A 가 손실 뒤 멈췄다, When A 를 명시 재연결했는데 연결 대상을
 /// 해석하지 못하면, Then 그 시도는 재동기화가 아닌 일반 재연결의 실패로 끝나 진행 중 표지를 지우고 재연결
-/// 실패 처리(백오프 또는 영구 실패면 끊긴 행)를 탄다. 시험의 격리 홈에는 프로필이 없어 해석이 실패한다.
+/// 실패 처리를 탄다. 시험의 격리 홈에는 프로필이 없어 해석이 실패한다. 이 실패는 영구 거절이 아니므로 그
+/// 처리는 시도 수를 올리고 백오프를 한 단계 늘린 뒤 다음 시도를 앞으로 예약한다.
 #[test]
 fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
     alone!("an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect");
@@ -176,9 +177,15 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
         app.remote.sessions[0].state.phase,
         SessionState::Disconnected
     );
-    let before = app.remote.reconnect.get(&ROW).map(|slot| slot.attempts);
 
     app.connect_saved_row(ROW, true);
+    // 명시 연결은 슬롯을 새로 둔다. 기준은 그 뒤, 결과를 거두기 전에 잰다.
+    let (before, backoff_before) = app
+        .remote
+        .reconnect
+        .get(&ROW)
+        .map(|slot| (slot.attempts, slot.backoff.current()))
+        .unwrap_or_default();
     let resync = app
         .state
         .mirror_attempts
@@ -199,12 +206,21 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
     let state = &app.remote.sessions[0].state;
     assert_ne!(state.phase, SessionState::Connected);
     assert_eq!(state.resync_pending, None);
+    let checked = Instant::now();
     let slot = app.remote.reconnect.get(&ROW).expect("the reconnect slot");
     assert!(
-        slot.given_up || Some(slot.attempts) > before,
-        "the reconnect failure handling ran: attempts {} (before {before:?}), given_up {}",
-        slot.attempts,
-        slot.given_up
+        !slot.given_up,
+        "a missing profile is not a permanent refusal"
+    );
+    assert_eq!(slot.attempts, before + 1, "one failed attempt counted");
+    assert!(
+        slot.backoff.current() > backoff_before,
+        "the backoff advanced: {:?} (before {backoff_before:?})",
+        slot.backoff.current()
+    );
+    assert!(
+        slot.next_attempt > checked,
+        "the next attempt is scheduled ahead"
     );
     assert!(!marked(&app), "the explicit connect erased the mark");
 }
