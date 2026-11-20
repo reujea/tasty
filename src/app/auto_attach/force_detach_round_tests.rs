@@ -27,6 +27,13 @@ const FORCE_NOTICE: &[u8] = br#"{"event":"force_detached","reason":"force_detach
 
 /// handshake 를 마친 뒤 서버의 강제 끊김 통지를 보내는 상대. 소켓은 돌려준다.
 pub(super) fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
+    forced_peer_after(None)
+}
+
+/// `forced_peer` 와 같되 `gate` 가 있으면 요청을 읽은 뒤 그 신호를 받을 때까지 응답을 미룬다.
+fn forced_peer_after(
+    gate: Option<std::sync::mpsc::Receiver<()>>,
+) -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
     use std::io::{BufRead, BufReader};
     use tasty_ipc::stream::{self, StreamTag};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -38,6 +45,9 @@ pub(super) fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStre
         BufReader::new(socket.try_clone().unwrap())
             .read_line(&mut request)
             .unwrap();
+        if let Some(gate) = gate {
+            gate.recv().unwrap();
+        }
         for control in [
             serde_json::json!({"ok": true, "proto": 1, "client_id": 7}),
             serde_json::json!({"event": "attached_workspace", "name": "remote", "tree": null, "surfaces": []}),
@@ -90,6 +100,14 @@ pub(super) fn run_json(run: u64) -> serde_json::Value {
 pub(super) fn queue_a_forced_reconnect_of_the_other_row(
     app: &mut App,
 ) -> (std::sync::mpsc::Receiver<std::net::TcpStream>, u64, u64) {
+    queue_a_gated_forced_reconnect_of_the_other_row(app, None)
+}
+
+/// `queue_a_forced_reconnect_of_the_other_row` 와 같되 상대의 응답을 `gate` 신호까지 미룬다.
+fn queue_a_gated_forced_reconnect_of_the_other_row(
+    app: &mut App,
+    gate: Option<std::sync::mpsc::Receiver<()>>,
+) -> (std::sync::mpsc::Receiver<std::net::TcpStream>, u64, u64) {
     push_other_row_session_unflagged(app, SessionState::Reconnecting);
     app.ensure_row_token(ROW_B);
     let index = app
@@ -105,7 +123,7 @@ pub(super) fn queue_a_forced_reconnect_of_the_other_row(
         .unwrap();
     target.run = Some(crate::request_runs::RunGuard::new(run, "dropped"));
     app.row_waits.join_run(ROW_B, Some(joined));
-    let (port, peer) = forced_peer();
+    let (port, peer) = forced_peer_after(gate);
     app.queue_mirror_connection(target, port, 3, None).unwrap();
     app.remote.active.insert(ROW_B);
     (peer, run, joined)
@@ -190,6 +208,54 @@ fn a_forced_connection_still_in_the_result_channel_ends_before_install() {
     app.apply_attach_client_output();
 
     assert_b_ended_by_g1_and_a_dropped(&mut app, run, joined);
+}
+
+/// 설치 단계는 관측의 스냅샷만 본다. Given 행 B 의 재연결 연결이 관측 때 결과 채널에도 없었다(상대가
+/// handshake 응답을 미룸), When 관측 뒤 B 가 강제 끊김으로 확정되고 같은 회차의 처리 단계가 돌면, Then
+/// 처리 단계는 B 의 결과를 거두지 않고(티켓 남음, 준비된 연결 없음, 표지 없음, run 진행 중) 다음 회차의
+/// 관측이 B 를 G1 으로 끝낸다. 처리 단계가 결과를 다시 거두면 B 가 관측을 거치지 않고 그 회차에 거둬진다.
+#[test]
+fn the_install_stage_takes_only_the_connections_of_the_observation() {
+    alone!("the_install_stage_takes_only_the_connections_of_the_observation");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let (gate, held) = std::sync::mpsc::channel();
+    let (peer, run, joined) = queue_a_gated_forced_reconnect_of_the_other_row(&mut app, Some(held));
+    let ticket = ticket_of(&app, ROW_B).unwrap();
+    let intake = app.observe_round();
+    assert!(
+        app.remote.prepared_connection(ticket).is_none(),
+        "not ready at the observation"
+    );
+    gate.send(()).unwrap();
+    let _socket_b = peer.recv_timeout(Duration::from_secs(5)).unwrap();
+    std::thread::sleep(Duration::from_millis(500));
+
+    app.finish_round(intake);
+
+    assert!(
+        ticket_of(&app, ROW_B) == Some(ticket),
+        "the install stage left B queued"
+    );
+    assert!(
+        app.remote.prepared_connection(ticket).is_none(),
+        "and did not collect it"
+    );
+    assert!(!marked(&app));
+    assert_ne!(run_json(run)["state"], "failed");
+    app.apply_attach_client_output();
+    assert!(marked(&app), "the next observation marked the target");
+    assert!(ticket_of(&app, ROW_B).is_none());
+    assert!(!app.remote.active.contains(&ROW_B));
+    assert_eq!(
+        session_of(&app, ROW_B).state.phase,
+        SessionState::Disconnected
+    );
+    for id in [run, joined] {
+        let json = run_json(id);
+        assert_eq!(json["state"], "failed", "{json}");
+        assert_eq!(json["result"], FORCE_DETACHED_BEFORE_INSTALL, "{json}");
+    }
 }
 
 /// S8: Given B 의 준비된 연결이 강제 끊김으로 확정됐지만 행 토큰이 바뀌어 낡은 시도다, When 회차를
