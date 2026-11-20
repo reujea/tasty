@@ -139,14 +139,14 @@ fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
         let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
         sess.state.saved_row = Some(5);
         sess.state.workspace_close = WorkspaceClose::Pending(3);
-        sess.state.stop_after_events = true;
+        sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
         let phase = sess.state.phase;
         assert_eq!(
             route_session_end(&mut sess, phase, true),
             (DisconnectDisposition::None, false),
             "deferred while events wait for an id reservation"
         );
-        assert!(sess.state.stop_after_events, "the stop is kept");
+        assert!(sess.state.stop_after_events.is_some(), "the stop is kept");
         let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
         {
             let mut host = MirrorHost::parked(&mut state, &mut engine);
@@ -163,6 +163,29 @@ fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
         (DisconnectDisposition::Stop, true),
         "no reply: stop with an unknown close result"
     );
+}
+
+/// ifix1-1: Given 옛 전송에 정한 멈춤이 ID 예약 때문에 미뤄졌다, When 그 사이 새 전송이 설치되면, Then
+/// 처리 단계는 새 전송을 멈추지 않고 옛 멈춤을 지운다. 새 전송의 끝이 없으므로 아무 처리도 없다.
+#[test]
+fn a_stop_decided_for_the_old_transport_does_not_stop_the_new_one() {
+    let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+    sess.state.saved_row = Some(5);
+    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+    let phase = sess.state.phase;
+    assert_eq!(
+        route_session_end(&mut sess, phase, true),
+        (DisconnectDisposition::None, false),
+        "deferred"
+    );
+    sess.transport = test_session(9_000, HashMap::new()).transport;
+
+    assert_eq!(
+        route_session_end(&mut sess, phase, false),
+        (DisconnectDisposition::None, false),
+        "the new transport is not stopped"
+    );
+    assert!(sess.state.stop_after_events.is_none(), "the old stop ends");
 }
 
 /// S7: 같은 묶음에 닫기 성공 회신과 강제 끊김이 함께 오면 서버 닫기로 끝난다(G2-a). 손실 끝도 같다.

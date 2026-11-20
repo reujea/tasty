@@ -129,7 +129,7 @@ impl App {
                     && session.transport.frame_tx.epoch().same(epoch)
             })
         {
-            session.state.stop_after_events = true;
+            session.state.stop_after_events = Some(session.transport.frame_tx.epoch());
         }
     }
 }

@@ -409,9 +409,10 @@ pub struct ClientSessionState {
     /// 회차 관측이 이 세션의 전송에서 읽은 확정된 끝. 전송(epoch)마다 한 번만 적고, 처리 단계가 한 번만
     /// 분류한다. 새 전송을 설치하면 None으로 시작한다.
     pub observed_end: Option<ObservedEnd>,
-    /// 관측·설치 단계가 이 세션을 멈추기로 정했다. 옛 전송의 해제와 멈춤은 같은 회차의 이벤트 적용과
-    /// 닫기 판정 뒤로 넘긴다. 처리 단계가 멈출 때 지운다.
-    pub stop_after_events: bool,
+    /// 관측·설치 단계가 이 세션을 멈추기로 정한 전송(epoch). 옛 전송의 해제와 멈춤은 같은 회차의 이벤트
+    /// 적용과 닫기 판정 뒤로 넘긴다. 멈춤은 그 전송의 몫이다. 사용자가 연결을 놓거나 새 전송을 설치하면
+    /// 끝나고, 처리 단계는 지금 전송의 멈춤만 적용한다. 처리 단계가 멈출 때 지운다.
+    pub stop_after_events: Option<super::connection::ConnectionEpoch>,
 }
 
 /// 회차 관측이 기록한 전송의 끝.

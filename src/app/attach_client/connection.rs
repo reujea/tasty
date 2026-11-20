@@ -226,7 +226,7 @@ impl App {
                 resync_awaiting_window: false,
                 workspace_close: Default::default(),
                 observed_end: None,
-                stop_after_events: false,
+                stop_after_events: None,
             },
         });
         tracing::info!(
@@ -393,6 +393,8 @@ impl App {
         sess.transport.close_locally();
         sess.transport = transport.into_installed();
         sess.state.observed_end = None;
+        // 옛 전송에 정한 멈춤은 새 전송을 닫지 않는다.
+        sess.state.stop_after_events = None;
         sess.state.client_id = client_id;
         sess.state.bulk_port = port;
         sess.state.op_seq = 0;

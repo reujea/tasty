@@ -605,3 +605,35 @@ fn a_raised_but_unsettled_end_waits_for_the_settle() {
         SessionState::Reconnecting
     );
 }
+
+/// ifix1-1: Given 연결된 행의 멈춤이 정해졌고(ID 예약 때문에 미뤄진 상태) 닫기 회신을 기다린다, When 사용자가
+/// 그 행을 끊으면, Then 그 자리에서 결과 불명을 한 번 알리고 닫기 대기와 멈춤이 끝난다. 다음 회차는 끊긴
+/// 행에 멈춤을 다시 적용하지 않고 같은 안내도 다시 내지 않는다.
+#[test]
+fn a_user_disconnect_ends_the_deferred_stop_and_the_close_wait() {
+    alone!("a_user_disconnect_ends_the_deferred_stop_and_the_close_wait");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
+    app.ensure_row_token(ROW);
+    {
+        let sess = &mut app.remote.sessions[0];
+        sess.state.workspace_close = tasty_remote::client_session::WorkspaceClose::Pending(3);
+        sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+    }
+
+    app.disconnect_mirror_workspace(ROW);
+
+    let state = &app.remote.sessions[0].state;
+    assert_eq!(state.phase, SessionState::Disconnected);
+    assert!(state.stop_after_events.is_none(), "the stop ends");
+    assert_eq!(
+        state.workspace_close,
+        tasty_remote::client_session::WorkspaceClose::Idle,
+        "the unknown result was told once"
+    );
+    app.apply_attach_client_output();
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+}

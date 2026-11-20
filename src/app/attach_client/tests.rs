@@ -131,7 +131,7 @@ pub(crate) fn test_session_with_frames(
             resync_awaiting_window: false,
             workspace_close: Default::default(),
             observed_end: None,
-            stop_after_events: false,
+            stop_after_events: None,
         },
     };
     (session, rx)

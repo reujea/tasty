@@ -116,7 +116,9 @@ impl App {
                     })
                 });
                 match session {
-                    Some(session) => session.state.stop_after_events = true,
+                    Some(session) => {
+                        session.state.stop_after_events = Some(session.transport.frame_tx.epoch())
+                    }
                     None => {
                         self.remote.active.remove(&row);
                     }

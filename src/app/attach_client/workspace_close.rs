@@ -349,6 +349,11 @@ impl App {
                     crate::adapters::ui::ToastKind::Warning,
                 );
             }
+            // 사용자가 놓은 전송의 닫기 결과는 방금 알렸고, 그 전송에 정한 멈춤도 여기서 끝난다. 다음 회차가
+            // 같은 안내를 다시 내거나 끊긴 행에 멈춤을 다시 적용하지 않는다.
+            let state = &mut self.remote.sessions[index].state;
+            state.workspace_close = Default::default();
+            state.stop_after_events = None;
             if let Err(error) = self.remote.sessions[index]
                 .send_frame(crate::ipc::stream::StreamTag::Detach, Vec::new())
             {

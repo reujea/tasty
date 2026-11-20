@@ -157,7 +157,7 @@ impl App {
 /// 이벤트를 적용한 뒤 세션의 끝을 정한다. `phase`는 이벤트 적용 전에 읽은 값이다.
 /// 두 번째 값은 회신 없이 끝난 서버 닫기가 있어 결과를 모른다고 알려야 하는지다.
 ///
-/// 순서: 서버 닫기 성공 회신 → 관측·설치 단계가 정한 멈춤 → 관측한 끝(처리하지 않은 것만).
+/// 순서: 서버 닫기 성공 회신 → 관측·설치 단계가 지금 전송에 정한 멈춤 → 관측한 끝(처리하지 않은 것만).
 /// 정한 멈춤은 ID 예약을 기다리는 이벤트가 남아 있으면 다음 회차로 미룬다. 그 이벤트에 닫기 회신이
 /// 있을 수 있기 때문이다.
 fn route_session_end(
@@ -168,14 +168,21 @@ fn route_session_end(
     let disposition =
         if sess.state.workspace_close == tasty_remote::client_session::WorkspaceClose::Closed {
             DisconnectDisposition::ServerClosed
-        } else if sess.state.stop_after_events {
+        } else if sess
+            .state
+            .stop_after_events
+            .as_ref()
+            .is_some_and(|epoch| epoch.same(&sess.transport.frame_tx.epoch()))
+        {
             if events_deferred {
                 DisconnectDisposition::None
             } else {
-                sess.state.stop_after_events = false;
+                sess.state.stop_after_events = None;
                 DisconnectDisposition::Stop
             }
         } else {
+            // 다른 전송에 정한 멈춤은 지금 전송의 것이 아니다.
+            sess.state.stop_after_events = None;
             classify_observed_end(sess, phase)
         };
     let unknown = matches!(
