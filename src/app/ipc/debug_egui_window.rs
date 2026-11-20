@@ -106,6 +106,19 @@ impl App {
         Ok(serde_json::json!({ "injected": true, "window_id": wid }))
     }
 
+    /// `window_id` 가 메인 창이면 그 창과 ID. egui 주입 라우터가 메인 창을 ID 생략 경로와 같은 진입으로 보낸다.
+    pub(super) fn debug_main_window_by_id(
+        &self,
+        params: &serde_json::Value,
+    ) -> Option<(winit::window::WindowId, u64)> {
+        let wid = params::read_int::<u64>(params, "window_id").ok()??;
+        self.view
+            .views
+            .iter()
+            .find(|(w, view)| u64::from(**w) == wid && view.as_main().is_some())
+            .map(|(w, _)| (*w, wid))
+    }
+
     /// 창은 ID로만 고른다. 포커스된 창으로 대신하지 않는다.
     pub(super) fn debug_egui_target(
         &mut self,

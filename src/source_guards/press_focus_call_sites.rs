@@ -244,3 +244,37 @@ fn the_window_picks_the_stage_pass_by_the_pass_focus_node() {
         "패스 경로를 지금 무대 상태로 고른다"
     );
 }
+
+/// `window_id` 로 메인 창을 지정한 egui 주입(포인터·글자·키)도 ID 를 생략한 주입과 같은 진입(`ipc_step_main_window`:
+/// 포인터 `press_focus`, 글자·키 `key_focus`)을 거친다. 라우터가 보조 창 직접 경로보다 먼저 메인 창을 고른다. 그 진입의
+/// 끊기 동작은 `a_debug_key_injection_cuts_the_segment_before_the_key` 와 pass_focus 시험이 잰다.
+#[test]
+fn a_window_id_injection_into_a_main_window_takes_the_main_window_entry() {
+    let router = squeeze(&read("src/app/ipc/debug_methods.rs"));
+    let main = at(
+        &router,
+        "ifletSome((window,wid))=self.debug_main_window_by_id(&cmd.request.params){returnself.ipc_step_main_window(cmd,window,Some(wid));}",
+        "메인 창 진입",
+    );
+    let direct = at(
+        &router,
+        "returnself.ipc_handle_debug_egui_to_window(cmd,kind);",
+        "보조 창 직접 경로",
+    );
+    assert!(
+        main < direct,
+        "메인 창을 보조 창 직접 경로보다 먼저 고르지 않는다"
+    );
+    let window = squeeze(&read("src/app/ipc/window_required.rs"));
+    at(
+        &window,
+        "self.ipc_step_main_window(cmd,focused_id,None)",
+        "ID 생략 경로의 같은 진입",
+    );
+    let pick = squeeze(&read("src/app/ipc/debug_egui_window.rs"));
+    at(
+        &pick,
+        ".find(|(w,view)|u64::from(**w)==wid&&view.as_main().is_some())",
+        "메인 창 판정",
+    );
+}

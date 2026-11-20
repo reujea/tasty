@@ -173,6 +173,25 @@ impl App {
                 return IpcStep::Handled;
             }
         };
+        self.ipc_step_main_window(cmd, focused_id, None)
+    }
+
+    /// 메인 창 `window` 에서 창 의존 메서드를 처리한다. 포커스 창 경로와 `window_id` 로 메인 창을 지정한 egui 주입
+    /// (`debug_methods`)이 같은 진입(포인터 `press_focus`, 글자·키 `key_focus`)을 거친다. `echo_window` 를 주면 egui
+    /// 주입 응답에 그 창 ID 를 싣는다.
+    #[cfg(debug_assertions)]
+    pub(crate) fn ipc_step_main_window(
+        &mut self,
+        cmd: &IpcCommand,
+        focused_id: winit::window::WindowId,
+        echo_window: Option<u64>,
+    ) -> IpcStep {
+        let echo = |mut body: serde_json::Value| {
+            if let Some(wid) = echo_window {
+                body["window_id"] = serde_json::json!(wid);
+            }
+            body
+        };
         let (w, mut engine) = match self.engines_mut().window_pair(focused_id) {
             Some(pair) => pair,
             // 현재 ID가 MainView를 가리키지 않으면 별도 응답 없이 처리됨으로 반환한다.
@@ -251,7 +270,7 @@ impl App {
                 w.debug_inject_egui_pointer(&engine.read(), fx, fy, surface_id, action, modifiers);
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                serde_json::json!({ "injected": ok }),
+                echo(serde_json::json!({ "injected": ok })),
             );
             send_response(&cmd.response_tx, response);
             return IpcStep::Handled;
@@ -266,7 +285,7 @@ impl App {
             let ok = w.debug_inject_egui_text(&engine.read(), text);
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                serde_json::json!({ "injected": ok }),
+                echo(serde_json::json!({ "injected": ok })),
             );
             send_response(&cmd.response_tx, response);
             return IpcStep::Handled;
@@ -293,7 +312,7 @@ impl App {
             };
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                body,
+                echo(body),
             );
             send_response(&cmd.response_tx, response);
             return IpcStep::Handled;

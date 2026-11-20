@@ -27,6 +27,10 @@ impl App {
                 _ => None,
             };
             if let Some(kind) = kind {
+                // 메인 창이면 ID 를 생략한 주입과 같은 진입(입력 몫 끊기)을 거친다. 보조 창만 큐에 바로 넣는다.
+                if let Some((window, wid)) = self.debug_main_window_by_id(&cmd.request.params) {
+                    return self.ipc_step_main_window(cmd, window, Some(wid));
+                }
                 return self.ipc_handle_debug_egui_to_window(cmd, kind);
             }
         }
