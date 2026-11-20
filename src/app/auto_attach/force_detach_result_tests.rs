@@ -22,7 +22,7 @@ const OUTSIDE_ROUND: crate::app::attach_client::saved_row::DropSite =
     crate::app::attach_client::saved_row::DropSite::OutsideRound;
 
 /// 같은 연결 대상을 가리키는 두 번째 저장 행.
-const ROW_B: u32 = 9_200;
+pub(super) const ROW_B: u32 = 9_200;
 
 /// 행 `ROW` 와 같은 대상의 행 `ROW_B` 를 같은 창에 두고, `ROW_B` 를 강제로 끊긴 행으로 저장한다.
 fn force_detach_the_other_row(app: &mut App) {
@@ -45,7 +45,7 @@ fn force_detach_the_other_row(app: &mut App) {
 }
 
 /// 재연결 중인 행. 시험 장치의 행 세션 원격 id 를 실제 저장 행처럼 binding 의 것으로 맞춘다.
-fn reconnecting_app(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> App {
+pub(super) fn reconnecting_app(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> App {
     let mut app = app_with_saved_row(event_loop, Some(SessionState::Reconnecting));
     for session in &mut app.remote.sessions {
         session.state.remote_workspace = binding().remote_workspace;
@@ -55,7 +55,7 @@ fn reconnecting_app(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) 
     app
 }
 
-fn assert_stopped(app: &App) {
+pub(super) fn assert_stopped(app: &App) {
     assert!(
         app.state.mirror_attempts.connection_snapshot().is_empty(),
         "no connection is queued or installed"
@@ -250,7 +250,7 @@ fn a_first_connect_for_a_shown_row_is_requested_as_automatic() {
 
 /// 행 `ROW` 의 첫 연결 대상. 시험 장치에는 View 가 없어 `start_first_connect` 가 대상을 만들지
 /// 못한다(`mirror_install_target`). 그래서 진입점이 정한 출처로 같은 모양의 대상을 만든다.
-fn first_connect_target(app: &App, explicit: bool) -> PendingMirrorInstall {
+pub(super) fn first_connect_target(app: &App, explicit: bool) -> PendingMirrorInstall {
     let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
     let row_token = app
         .engines
@@ -477,7 +477,7 @@ fn flag_the_other_row_force_detached(app: &App) {
     );
 }
 
-fn push_other_row_session_unflagged(app: &mut App, phase: SessionState) {
+pub(super) fn push_other_row_session_unflagged(app: &mut App, phase: SessionState) {
     let mut row_b = crate::model::Workspace::new_with_terminal_marker(
         ROW_B,
         "remote b".to_string(),
@@ -501,7 +501,7 @@ fn push_other_row_session_unflagged(app: &mut App, phase: SessionState) {
 }
 
 /// 재연결 중인 행 A 의 자동 연결을 준비해 설치만 남긴다.
-fn prepare_an_automatic_reconnect(app: &mut App) -> std::net::TcpStream {
+pub(super) fn prepare_an_automatic_reconnect(app: &mut App) -> std::net::TcpStream {
     let (port, peer) = ready_peer();
     let target = app
         .mirror_install_target(None, Some(ROW), Some(0), false)

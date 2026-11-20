@@ -128,3 +128,68 @@ fn without_the_awaited_success_the_mirror_is_not_ended() {
         "a live connection keeps waiting without an unknown notice"
     );
 }
+
+/// S13·S7: 관측·설치 단계가 정한 멈춤은 ID 예약을 기다리는 이벤트가 남은 동안 미룬다. 그 이벤트에 닫기
+/// 성공 회신이 있으면 멈춤보다 서버 닫기가 먼저이고, 회신 없이 풀리면 멈추며 결과 불명을 알린다.
+#[test]
+fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
+    let stop_after = |events: Vec<MirrorEvent>| {
+        let (mut state, mut engine_session) = crate::state::tests::test_state();
+        let mut engine = engine_session.borrow_mut();
+        let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+        sess.state.saved_row = Some(5);
+        sess.state.workspace_close = WorkspaceClose::Pending(3);
+        sess.state.stop_after_events = true;
+        let phase = sess.state.phase;
+        assert_eq!(
+            route_session_end(&mut sess, phase, true),
+            (DisconnectDisposition::None, false),
+            "deferred while events wait for an id reservation"
+        );
+        assert!(sess.state.stop_after_events, "the stop is kept");
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        {
+            let mut host = MirrorHost::parked(&mut state, &mut engine);
+            apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
+        }
+        route_session_end(&mut sess, phase, false)
+    };
+    assert_eq!(
+        stop_after(vec![MirrorEvent::StructuralSucceeded(3, None, 0)]),
+        (DisconnectDisposition::ServerClosed, false)
+    );
+    assert_eq!(
+        stop_after(vec![]),
+        (DisconnectDisposition::Stop, true),
+        "no reply: stop with an unknown close result"
+    );
+}
+
+/// S7: 같은 묶음에 닫기 성공 회신과 강제 끊김이 함께 오면 서버 닫기로 끝난다(G2-a). 손실 끝도 같다.
+#[test]
+fn a_close_reply_wins_over_a_forced_or_lost_end_in_the_same_batch() {
+    for reason in [EndReason::Forced, EndReason::Lost] {
+        let (mut state, mut engine_session) = crate::state::tests::test_state();
+        let mut engine = engine_session.borrow_mut();
+        let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+        sess.state.saved_row = Some(5);
+        sess.state.workspace_close = WorkspaceClose::Pending(3);
+        observe_end(&mut sess, reason, false);
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        {
+            let mut host = MirrorHost::parked(&mut state, &mut engine);
+            apply_mirror_events(
+                &mut sess,
+                &mut host,
+                &mut plugin_manager,
+                vec![MirrorEvent::StructuralSucceeded(3, None, 0)],
+            );
+        }
+        let phase = sess.state.phase;
+        assert_eq!(
+            route_session_end(&mut sess, phase, false),
+            (DisconnectDisposition::ServerClosed, false),
+            "{reason:?}"
+        );
+    }
+}
