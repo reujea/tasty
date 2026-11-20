@@ -64,13 +64,7 @@ impl App {
             }
         }
 
-        for (id, keys) in key_batch {
-            for ev in keys {
-                let (key_id, surface_id) = (ev.id, ev.surface_id);
-                let outcome = self.dispatch_forwarded_webview_key(id, ev);
-                self.finish_forwarded_webview_key(id, surface_id, key_id, outcome);
-            }
-        }
+        consume_forwarded_keys(self, key_batch);
         needs_poll
     }
 
@@ -159,6 +153,72 @@ impl App {
         // 호스트 단축키가 마지막 workspace를 닫았을 수 있어 다음 redraw 전에 닫기 요청을 처리한다.
         self.close_self_requesting_windows();
         ForwardedKeyOutcome::from_handled(handled)
+    }
+}
+
+/// native WebView 가 넘긴 키 묶음을 키 하나씩 처리하는 쪽. 제품은 `App` 이고, 소비 순서 시험은 대역을 쓴다.
+trait ForwardedKeyConsumer {
+    /// 키 하나를 plugin·새로고침·host 단축키로 처리한다.
+    fn dispatch(
+        &mut self,
+        id: winit::window::WindowId,
+        ev: crate::webview::WebViewKeyEvent,
+    ) -> ForwardedKeyOutcome;
+    /// 키 하나를 처리한 직후, 그 창 대기열에 포커스를 주는 팝업 열기가 있으면 다음 키 판정 전에 적용한다.
+    #[expect(
+        dead_code,
+        reason = "the consumer loop does not apply focus opens between forwarded keys yet"
+    )]
+    fn apply_focus_opens(&mut self, id: winit::window::WindowId);
+    /// 처리 결과를 키를 가져간 WebView 에 알린다.
+    fn finish(
+        &mut self,
+        id: winit::window::WindowId,
+        surface_id: u32,
+        key_id: u64,
+        outcome: ForwardedKeyOutcome,
+    );
+}
+
+impl ForwardedKeyConsumer for App {
+    fn dispatch(
+        &mut self,
+        id: winit::window::WindowId,
+        ev: crate::webview::WebViewKeyEvent,
+    ) -> ForwardedKeyOutcome {
+        self.dispatch_forwarded_webview_key(id, ev)
+    }
+
+    fn apply_focus_opens(&mut self, id: winit::window::WindowId) {
+        self.apply_user_focus_opens(id);
+    }
+
+    fn finish(
+        &mut self,
+        id: winit::window::WindowId,
+        surface_id: u32,
+        key_id: u64,
+        outcome: ForwardedKeyOutcome,
+    ) {
+        self.finish_forwarded_webview_key(id, surface_id, key_id, outcome);
+    }
+}
+
+/// 수집한 키 묶음을 창별로 사건 순서대로 소비한다. 수집(`take_pending`)은 view 를 빌린 채 하고, 소비는 그 뒤에
+/// 한다.
+fn consume_forwarded_keys(
+    consumer: &mut impl ForwardedKeyConsumer,
+    batch: Vec<(
+        winit::window::WindowId,
+        Vec<crate::webview::WebViewKeyEvent>,
+    )>,
+) {
+    for (id, keys) in batch {
+        for ev in keys {
+            let (key_id, surface_id) = (ev.id, ev.surface_id);
+            let outcome = consumer.dispatch(id, ev);
+            consumer.finish(id, surface_id, key_id, outcome);
+        }
     }
 }
 
