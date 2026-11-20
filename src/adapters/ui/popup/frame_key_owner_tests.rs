@@ -643,3 +643,73 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
         );
     }
 }
+
+/// 창의 egui 패스 하나(`GpuState::run_main_pass`): 다음 몫의 입력을 꺼내 그리고 그 몫을 닫는다.
+fn window_pass(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: &PluginManager,
+    input: &mut crate::adapters::ui::popup::window_input_test_support::WindowInput,
+) {
+    let events = input.take_pass(state, ctx);
+    frame(ctx, state, engine, mgr, &layout_without_l(), events);
+    state.close_input_pass(ctx);
+}
+
+/// Given plugin 팝업 P 가 포커스 노드일 때, When 한 묶음에 [P 에 넘긴 Esc 누름, 팝업 밖 누름, egui 로 가지 않는 Esc
+/// 뗌]이 오면, Then 그 뗌은 P 의 누름을 그린 패스 뒤에 egui 의 Escape 눌림을 푼다. 다시 P 에 포커스를 주고 누른 Esc 는
+/// 반복이 아니다. 뗌을 받은 즉시 풀면 앞 패스가 넘긴 누름이 눌림을 다시 남겨 다음 누름이 반복이 된다.
+#[test]
+fn an_unfed_escape_release_after_a_press_releases_after_the_escape_it_follows() {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h: _,
+        g: _,
+    } = open_scene_with(tasty_plugin_protocol::popup_decl::PopupEscape::Unfocus);
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    window_pass(&ctx, &mut state, &engine.read(), &mgr, &mut input);
+    focus_p(&mut state);
+    state.take_pending_intents();
+
+    assert!(
+        input.escape(&ctx, &mut state, &engine.read(), true),
+        "창이 P 에 넘긴다"
+    );
+    // L 은 이 배치에서 보이지 않아 어느 팝업 노드도 덮지 않는다.
+    let outside = super::surface_rect_l().center();
+    assert!(!state.popup_owns_point(outside));
+    input.press(&mut state, &engine.read(), outside);
+    assert_eq!(
+        state.popup_focus(),
+        None,
+        "누름이 팝업 밖으로 포커스를 옮긴다"
+    );
+    assert!(!input.escape(&ctx, &mut state, &engine.read(), false));
+    while !input.is_empty() {
+        window_pass(&ctx, &mut state, &engine.read(), &mgr, &mut input);
+    }
+    assert_eq!(
+        sent_escape_keys(&mut state),
+        vec![(true, false)],
+        "P 는 넘긴 누름을 받는다"
+    );
+    assert!(
+        !ctx.input(|i| i.key_down(egui::Key::Escape)),
+        "뗌이 실린 몫을 닫은 뒤 Escape 가 눌린 채 남지 않는다"
+    );
+
+    focus_p(&mut state);
+    assert!(input.escape(&ctx, &mut state, &engine.read(), true));
+    window_pass(&ctx, &mut state, &engine.read(), &mgr, &mut input);
+    assert_eq!(
+        sent_escape_keys(&mut state),
+        vec![(true, false)],
+        "다음 Esc 는 반복이 아니다"
+    );
+}

@@ -468,8 +468,7 @@ impl MainView {
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
         let Some(bound) = self.state.window_feeds_egui(egui_surface, binds) else {
-            // egui 로 보내지 않는 Esc 뗌도 egui 의 Escape 눌림 기록은 푼다(넘긴 Esc 누름이 남긴 눌림).
-            self.base.gpu.egui_unfed_key(event);
+            self.note_unfed_key(event);
             return (false, false);
         };
         if bound {
@@ -482,6 +481,19 @@ impl MainView {
         let result = self.base.gpu.handle_egui_event(&self.base.winit, event);
         self.remap_html_address_keys(engine, event, from, edit_judged);
         result
+    }
+
+    /// egui 로 보내지 않은 키 사건. Esc 뗌이면 egui 의 Escape 눌림 기록(넘긴 Esc 누름이 남긴 눌림)을 그 뗌이 실린
+    /// 입력 몫의 패스를 닫을 때 풀도록 남기고 그 패스를 요청한다(`PopupManager::note_unfed_escape_release`). 지금
+    /// 풀면 아직 그리지 않은 앞 몫의 Esc 누름이 뗌 뒤에 눌림을 다시 남긴다.
+    fn note_unfed_key(&mut self, event: &WindowEvent) {
+        if let WindowEvent::KeyboardInput { event, .. } = event
+            && event.state == winit::event::ElementState::Released
+            && event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
+        {
+            self.state.popups.note_unfed_escape_release();
+            self.mark_dirty();
+        }
     }
 
     /// 키는 창의 포커스 노드에서 시작한다. 판정마다 같은 값을 읽도록 키 사건을 처음 받을 때 정규화한다.

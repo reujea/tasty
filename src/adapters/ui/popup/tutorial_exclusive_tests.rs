@@ -125,7 +125,7 @@ fn an_enter_before_a_popup_press_in_the_same_batch_advances_the_tutorial() {
     let pass = |state: &mut RequestContext, input: &mut WindowInput| {
         let events = input.take_pass(state, &ctx);
         window_frame(&ctx, state, &engine.read(), &mgr, events);
-        state.close_input_pass();
+        state.close_input_pass(&ctx);
     };
     pass(&mut state, &mut input);
     pass(&mut state, &mut input);

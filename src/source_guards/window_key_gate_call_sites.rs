@@ -35,7 +35,7 @@ fn the_egui_feed_goes_through_the_window_feed_gate() {
     let body = squeeze(&fn_body(&src, "fn feed_egui_keyboard(").expect("feed_egui_keyboard"));
     let gate = at(
         &body,
-        "letSome(bound)=self.state.window_feeds_egui(egui_surface,binds)else{self.base.gpu.egui_unfed_key(event);return(false,false);};",
+        "letSome(bound)=self.state.window_feeds_egui(egui_surface,binds)else{self.note_unfed_key(event);return(false,false);};",
         "egui 전달 게이트",
     );
     let feed = at(

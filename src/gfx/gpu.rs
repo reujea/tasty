@@ -387,17 +387,6 @@ impl GpuState {
         &mut self.egui_state.egui_input_mut().events
     }
 
-    /// egui 로 보내지 않은 키 사건을 받았다. Esc 뗌이면 egui 의 Escape 눌림 기록을 푼다
-    /// (`popup::body_keys::release_escape`).
-    pub fn egui_unfed_key(&self, event: &winit::event::WindowEvent) {
-        if let winit::event::WindowEvent::KeyboardInput { event, .. } = event
-            && event.state == winit::event::ElementState::Released
-            && event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
-        {
-            crate::adapters::ui::popup::body_keys::release_escape(&self.egui_ctx);
-        }
-    }
-
     /// 직전 egui 패스 끝에 Escape 가 눌려 있는지. 다음 패스는 이 상태에서 반복 여부를 판정한다.
     pub fn egui_escape_held(&self) -> bool {
         self.egui_ctx.input(|i| i.key_down(egui::Key::Escape))

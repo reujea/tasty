@@ -283,7 +283,7 @@ fn stage_passes_close_their_segments_so_a_key_after_the_stage_reaches_the_popup(
         // 무대 패스: 입력을 꺼내고 팝업 층 없이 닫는다(`render_fullscreen_stage`).
         while !input.is_empty() {
             drop(input.take_pass(&mut s.state, &s.ctx));
-            s.state.close_input_pass();
+            s.state.close_input_pass(&s.ctx);
         }
     }
     assert!(
@@ -353,7 +353,7 @@ fn recording_pass(
         state.host_popup_hittest = result.hit_rects;
         state.host_popup_covers = result.covers;
     }));
-    s.state.close_input_pass();
+    s.state.close_input_pass(&s.ctx);
     seen
 }
 
@@ -439,7 +439,7 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
     );
     let events = input.take_pass(&mut state, &ctx);
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, events);
-    state.close_input_pass();
+    state.close_input_pass(&ctx);
 
     assert_eq!(state.window_feeds_egui(false, true), Some(true));
     input.push(text("x"));

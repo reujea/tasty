@@ -279,7 +279,7 @@ impl GpuState {
         let mut raw_input = self.take_pass_input(window, true);
         adjust(&mut raw_input);
         let output = self.egui_ctx.run(raw_input, |ctx| ui(ctx, state));
-        state.close_input_pass();
+        state.close_input_pass(&self.egui_ctx);
         output
     }
 

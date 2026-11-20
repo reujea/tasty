@@ -38,7 +38,7 @@ fn layout() -> LayoutContext {
 
 /// 창이 키 사건 하나를 받는 경로(`view::main::feed_egui_keyboard` → `keyboard::handle_keyboard_input`)를 창과 같은
 /// 판정 함수로 밟는다. egui 로 보낼 키만 `pending`(그 키를 실은 프레임의 egui 입력)에 싣는다. egui 로 보내지 않은 Esc
-/// 뗌은 egui 의 Escape 눌림 기록을 푼다(`Gpu::egui_unfed_key`). 뗌은 처리하지 않고, Esc 누름은 창의 Esc 처리를
+/// 뗌은 그 몫의 패스를 닫을 때 egui 의 Escape 눌림 기록을 풀도록 남긴다(`MainView::note_unfed_key`). 뗌은 처리하지 않고, Esc 누름은 창의 Esc 처리를
 /// 거친다(`ctx` 의 직전 패스 Escape 눌림을 넘긴다). 터미널(PTY)로 가면 참이다. 창 호출부를 부르지 않으므로 호출부
 /// 우회는 소스 가드 몫이다.
 fn window_key(
@@ -55,7 +55,7 @@ fn window_key(
     if state.window_feeds_egui(false, true).is_some() {
         pending.push(event.clone());
     } else if escape && !pressed {
-        super::body_keys::release_escape(ctx);
+        state.popups.note_unfed_escape_release();
     }
     if !pressed {
         return false;
@@ -104,6 +104,9 @@ fn frame_reading(
         events,
         ..Default::default()
     };
+    state
+        .popups
+        .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
     drop(ctx.run(raw, |ctx| {
         state.popups.prepare_frame_for_draw(ctx, Some(&layout));
         state.decide_frame_key_owner(Some(&layout));
@@ -118,6 +121,7 @@ fn frame_reading(
             &[],
         );
     }));
+    state.close_input_pass(ctx);
     seen
 }
 
@@ -621,6 +625,9 @@ fn frame_escapes(
         events,
         ..Default::default()
     };
+    state
+        .popups
+        .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
     drop(ctx.run(raw, |ctx| {
         state.popups.prepare_frame_for_draw(ctx, Some(&layout));
         state.decide_frame_key_owner(Some(&layout));
@@ -645,6 +652,7 @@ fn frame_escapes(
             &[],
         );
     }));
+    state.close_input_pass(ctx);
     seen
 }
 
@@ -700,7 +708,7 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
 }
 
 /// Given 팝업이 X 하나뿐일 때, When 창이 첫 Esc 누름으로 X 의 포커스를 풀어 X 에 넘기고 그 뗌이 다음 프레임에 터미널
-/// 경로(egui 로 보내지 않음)로 가면, Then egui 의 Escape 눌림 기록이 풀린다. X 에 다시 포커스를 주고 새로 누른 Esc 는
+/// 경로(egui 로 보내지 않음)로 가면, Then 그 뗌이 실린 몫의 패스를 닫을 때 egui 의 Escape 눌림 기록이 풀린다. X 에 다시 포커스를 주고 새로 누른 Esc 는
 /// 반복이 아니다.
 #[test]
 fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_repeat() {
@@ -737,9 +745,10 @@ fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_re
     assert!(!state.popups.has_focused(), "키 오버레이가 없다");
     window_key(&ctx, &mut state, &mut pending, escape_release());
     assert!(pending.is_empty(), "그 뗌은 egui 로 가지 않는다");
+    assert!(frame_escapes(&ctx, &mut state, pending).is_empty());
     assert!(
         !ctx.input(|i| i.key_down(egui::Key::Escape)),
-        "egui 의 Escape 눌림 기록이 풀린다"
+        "그 뗌이 실린 몫의 패스를 닫으면 egui 의 Escape 눌림 기록이 풀린다"
     );
 
     state.popups.set_instance_focused(x, true);
@@ -875,6 +884,9 @@ fn frame_escapes_with_hits(
         ..Default::default()
     };
     let mut hits = Vec::new();
+    state
+        .popups
+        .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
     drop(ctx.run(raw, |ctx| {
         state.popups.prepare_frame_for_draw(ctx, Some(&layout));
         state.decide_frame_key_owner(Some(&layout));
@@ -901,7 +913,7 @@ fn frame_escapes_with_hits(
         hits = result.hit_rects;
     }));
     state.host_popup_hittest = hits;
-    state.close_input_pass();
+    state.close_input_pass(ctx);
     seen
 }
 

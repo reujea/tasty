@@ -153,7 +153,7 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
         "나눈 입력 꺼내기",
     );
     let run = at(&pass, "self.egui_ctx.run(", "패스 실행");
-    let close = at(&pass, "state.close_input_pass();", "몫 닫기");
+    let close = at(&pass, "state.close_input_pass(&self.egui_ctx);", "몫 닫기");
     assert!(
         begin < take && take < run && run < close,
         "열기 → 입력 → 실행 → 닫기 순서가 아니다"

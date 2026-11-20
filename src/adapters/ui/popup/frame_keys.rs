@@ -67,6 +67,8 @@ struct AfterCut {
     at: usize,
     bound: Option<Bound>,
     escape: HandedEscape,
+    /// egui 로 보내지 않은 Esc 뗌이 이 몫에 왔다(`note_unfed_escape_release`).
+    escape_released: bool,
 }
 
 /// 입력 시점 결속과 이번 프레임 값.
@@ -83,6 +85,10 @@ pub(crate) struct KeySlots {
     frame_escape: HandedEscape,
     /// 지금 패스가 자기 몫을 꺼냈는지. 패스를 닫을 때(`close_key_pass`) 꺼내지 않은 몫을 꺼내 버린다.
     pass_taken: bool,
+    /// 지금 받는 첫 몫에 egui 로 보내지 않은 Esc 뗌이 왔다.
+    escape_released: bool,
+    /// 이번 패스 몫에 egui 로 보내지 않은 Esc 뗌이 왔다. 패스를 닫을 때 egui 의 Escape 눌림을 푼다.
+    pass_escape_released: bool,
 }
 
 impl PopupManager {
@@ -132,6 +138,16 @@ impl PopupManager {
             ..AfterCut::default()
         });
         true
+    }
+
+    /// 키 오버레이가 없어 egui 로 보내지 않은 Esc 뗌이 왔다. 그 뗌은 지금 받는 몫 차례에 egui 의 Escape 눌림을 풀어야
+    /// 한다. 앞 몫(끊은 자리 앞의 Esc 누름 등)을 그리기 전에 풀면 그 누름이 남긴 눌림이 뗌 뒤에도 남는다. 그래서 그
+    /// 몫의 패스를 닫을 때 푼다(`close_key_pass`).
+    pub(crate) fn note_unfed_escape_release(&mut self) {
+        match self.keys.after_cut.back_mut() {
+            Some(after) => after.escape_released = true,
+            None => self.keys.escape_released = true,
+        }
     }
 
     /// egui 패스를 시작한다. `escape_held` 는 직전 패스 끝의 Escape 눌림 상태다. 이 패스 몫으로 넘길 Esc 의 반복
@@ -223,9 +239,11 @@ impl PopupManager {
         self.keys.pass_taken = true;
         let bound = self.keys.bound.take();
         let escape = std::mem::take(&mut self.keys.escape);
+        self.keys.pass_escape_released = std::mem::take(&mut self.keys.escape_released);
         if let Some(after) = self.keys.after_cut.pop_front() {
             let by = after.at;
             self.keys.bound = after.bound;
+            self.keys.escape_released = after.escape_released;
             self.keys.escape = after.escape.shifted_back(by);
             for rest in &mut self.keys.after_cut {
                 rest.at = rest.at.saturating_sub(by);
@@ -242,14 +260,16 @@ impl PopupManager {
     }
 
     /// egui 패스 하나를 닫는다. 그리기가 키 주인을 정하지 않은 패스(전체화면 무대)도 자기 몫 하나를 꺼내 버려,
-    /// 패스와 몫이 하나씩 짝을 이룬다. 이번 패스의 키 주인과 남은 넘길 Esc 도 비운다.
-    pub(crate) fn close_key_pass(&mut self) {
+    /// 패스와 몫이 하나씩 짝을 이룬다. 이번 패스의 키 주인과 남은 넘길 Esc 도 비운다. 이 몫에 egui 로 보내지 않은 Esc
+    /// 뗌이 왔으면 참이다(호출자가 egui 의 Escape 눌림을 푼다).
+    pub(crate) fn close_key_pass(&mut self) -> bool {
         if !self.keys.pass_taken {
             drop(self.take_pass_segment());
         }
         self.keys.pass_taken = false;
         self.keys.frame = None;
         self.keys.frame_escape = HandedEscape::default();
+        std::mem::take(&mut self.keys.pass_escape_released)
     }
 
     /// 그리기가 이번 프레임 키 주인을 꺼낸다. 호출자가 정하지 않았으면(host 그리기만 부르는 갤러리·시험) host

@@ -50,6 +50,36 @@ impl WindowInput {
         fed
     }
 
+    /// 창이 받은 Esc 누름·뗌 하나(`feed_egui_keyboard` → `keyboard::handle_keyboard_input`). 끊기 → egui 게이트를
+    /// 거쳐, egui 로 가면 큐에 싣고 가지 않는 뗌은 그 몫에 남긴다(`MainView::note_unfed_key`). 누름은 창의 Esc 처리
+    /// (`window_escape`, 직전 패스의 Escape 눌림)를 거친다. 창이 처리했으면 참이다.
+    pub(crate) fn escape(
+        &mut self,
+        ctx: &egui::Context,
+        state: &mut RequestContext,
+        core: &crate::core::CoreState,
+        pressed: bool,
+    ) -> bool {
+        key_focus(state, core, self);
+        let event = egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        if state.window_feeds_egui(false, true).is_some() {
+            self.queue.push(event);
+        } else if !pressed {
+            state.popups.note_unfed_escape_release();
+        }
+        pressed
+            && state.window_escape(
+                &mut self.queue,
+                ctx.input(|i| i.key_down(egui::Key::Escape)),
+            )
+    }
+
     /// 창이 처리할 Esc 를 고를 큐(`MainViewState::window_escape` 의 `pending`).
     pub(crate) fn queue_mut(&mut self) -> &mut Vec<egui::Event> {
         &mut self.queue
