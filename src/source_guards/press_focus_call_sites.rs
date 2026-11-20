@@ -215,9 +215,14 @@ fn a_debug_key_injection_cuts_the_segment_before_the_key() {
     );
     assert!(cut < push, "끊기 → 넣기 순서가 아니다");
     let text = squeeze(&fn_body(&input, "fn debug_inject_egui_text(").expect("text"));
+    let text_cut = at(
+        &text,
+        "key_focus(&mutself.state,engine,&mutself.base.gpu);",
+        "글자 주입의 입력 끊기",
+    );
+    let text_push = at(&text, "push_egui_text(&mutself.base.gpu,text)", "글자 넣기");
     assert!(
-        text.find("key_focus(&mutself.state,engine,&mutself.base.gpu);")
-            < text.find("push_egui_text(&mutself.base.gpu,text)"),
+        text_cut < text_push,
         "글자 주입이 끊기 → 넣기 순서가 아니다"
     );
 }
