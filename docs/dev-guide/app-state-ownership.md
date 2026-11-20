@@ -54,7 +54,7 @@ terminal tell·broadcast·respawn 실행 함수는 `EngineMut` 대신 `TerminalI
 (`approval.list` 류)는 저장소를 읽는다.
 
 두 판정은 dialog 가 없어도 debug 빌드의 두 조합에 남는다(release 헤드리스에는 없다) —
-`has_input_dialog_open` 은 debug 헤드리스에서 `false` 를 답하고, 그 값을 쓰는 `keyboard_overlay_open`
+`input_dialog_owns_keys`(이름 바꾸기 대화상자가 포커스 노드인지)는 debug 헤드리스에서 `false` 를 답하고, 그 값을 쓰는 `keyboard_overlay_open`
 도 그대로다. `ui.state` debug 덤프가 두 값을 두 조합에서 같은 키로 찍기 때문이다.
 
 ## 나머지 필드
