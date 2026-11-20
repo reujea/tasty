@@ -347,7 +347,7 @@ just build-all                                          # 번들 준비 + 본체
 - **Windows** MSI 는 `cargo-wix` + `wix/main.wxs`. **UpgradeCode GUID 는 절대 변경 금지** — 바뀌면 새 제품으로 인식되어 구버전과 공존.
 - CI: `.github/workflows/release.yml` (self-hosted runner, Linux x64/arm64 라벨 분기, Windows). `workflow_dispatch` 로 태그 없는 수동 검증 빌드 가능.
 
-현재 머신에 바로 설치하려면 `just install` — 본체를 dist 빌드하고 잠금 파일의 공식 플러그인을 받아 현재 OS 에 설치한다 (자동 감지). macOS 는 `scripts/install-macos.sh` 가 `build-macos-dmg.sh` 를 `NO_DMG=1` 로 재사용해 `dist/Tasty.app` 만 조립한 뒤 `/Applications/Tasty.app` 을 덮어쓴다. 번들 플러그인은 앱 실행 시 `~/.tasty/plugins` 로 동기화된다(설치본 버전이 더 높으면 건너뛴다). (Linux/Windows 자동 설치는 미구현 — `just dist-linux`/`dist-windows` 산출물로 수동 설치.)
+현재 머신에 바로 설치하려면 `just install` — 본체를 dist 빌드하고 잠금 파일의 공식 플러그인을 받아 현재 OS 에 설치한다 (자동 감지). macOS 는 `scripts/install-macos.sh` 가 `build-macos-dmg.sh` 를 `NO_DMG=1` 로 재사용해 `dist/Tasty.app` 만 조립한 뒤 `/Applications/Tasty.app` 을 덮어쓴다. `just install` 은 개발용 명령이 아니라 설치용이므로 lint 와 경고를 무시하고 빌드한다. `install-macos.sh` 가 `RUSTFLAGS` 끝에 `--cap-lints=allow` 를 붙여(호출자가 준 값은 앞에 보존) workspace 의 deny lint 가 설치 빌드를 멈추지 않는다. `RUSTFLAGS` 는 `.cargo/config.toml` 의 target 별 `rustflags` 를 가리지만 macOS target 에는 설정된 값이 없다. `--target` 을 주고 빌드하므로 build script 에는 이 값이 전달되지 않는다. `just dist`·`build-macos-dmg.sh` 직접 호출·CI 는 lint 를 그대로 적용한다. 번들 플러그인은 앱 실행 시 `~/.tasty/plugins` 로 동기화된다(설치본 버전이 더 높으면 건너뛴다). (Linux/Windows 자동 설치는 미구현 — `just dist-linux`/`dist-windows` 산출물로 수동 설치.)
 
 ### dist 빌드 명령 카탈로그
 

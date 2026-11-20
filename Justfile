@@ -30,6 +30,7 @@ dist:
 # 플러그인은 호스트 시작 시 번들 설치 정책에 따라 동기화한다.
 
 # macOS 앱 번들을 빌드해 /Applications에 설치한다.
+# 개발용 명령이 아니라서 lint와 경고를 무시하고 빌드한다(RUSTFLAGS에 --cap-lints=allow).
 install:
     #!/bin/bash
     set -euo pipefail
