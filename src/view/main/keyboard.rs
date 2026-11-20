@@ -50,7 +50,7 @@ impl MainView {
             && !self.state.popups.has_focused()
             && !self.state.fullscreen_stage_active()
             && !self.state.has_input_dialog_open()
-            && !self.state.plugin_popup_open
+            && !self.state.plugin_popup_owns_keys()
             && !self.state.settings_open_requested
         {
             crate::adapters::ui::tutorial::interrupt_and_reopen(&mut self.state);
@@ -295,7 +295,7 @@ impl MainView {
             // 팝업을 여는 단축키는 조합 문자를 버리고, 그 외에는 PTY로 확정 전송한다.
             // plugin 팝업은 아직 캐시에 없을 수 있으므로 열기 요청 큐도 확인한다.
             if self.state.popups.has_focused()
-                || self.state.plugin_popup_open
+                || self.state.plugin_popup_owns_keys()
                 || !self.state.pending_popup_opens.is_empty()
             {
                 self.clear_ime_preedit(engine);
