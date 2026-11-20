@@ -26,7 +26,7 @@ macro_rules! alone {
 const FORCE_NOTICE: &[u8] = br#"{"event":"force_detached","reason":"force_detach_workspace"}"#;
 
 /// handshake 를 마친 뒤 서버의 강제 끊김 통지를 보내는 상대. 소켓은 돌려준다.
-fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
+pub(super) fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
     use std::io::{BufRead, BufReader};
     use tasty_ipc::stream::{self, StreamTag};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -55,14 +55,17 @@ fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
     (port, rx)
 }
 
-fn marked(app: &App) -> bool {
+pub(super) fn marked(app: &App) -> bool {
     app.services
         .registries
         .remote_force_detached
         .read(|marks| marks.contains(&binding()))
 }
 
-fn session_of(app: &App, row: u32) -> &tasty_remote::client_session::AttachClientSession {
+pub(super) fn session_of(
+    app: &App,
+    row: u32,
+) -> &tasty_remote::client_session::AttachClientSession {
     app.remote
         .sessions
         .iter()
@@ -70,7 +73,7 @@ fn session_of(app: &App, row: u32) -> &tasty_remote::client_session::AttachClien
         .expect("the row session")
 }
 
-fn ticket_of(app: &App, row: u32) -> Option<ConnectionTicket> {
+pub(super) fn ticket_of(app: &App, row: u32) -> Option<ConnectionTicket> {
     app.state
         .mirror_attempts
         .connection_snapshot()
@@ -79,12 +82,12 @@ fn ticket_of(app: &App, row: u32) -> Option<ConnectionTicket> {
         .map(|(ticket, _)| ticket)
 }
 
-fn run_json(run: u64) -> serde_json::Value {
+pub(super) fn run_json(run: u64) -> serde_json::Value {
     crate::request_runs::lookup(run, None).expect("the run")
 }
 
 /// 행 `ROW_B` 의 재연결 시도를 강제로 끊기는 상대로 큐에 넣는다. run 과 합류 run 도 단다.
-fn queue_a_forced_reconnect_of_the_other_row(
+pub(super) fn queue_a_forced_reconnect_of_the_other_row(
     app: &mut App,
 ) -> (std::sync::mpsc::Receiver<std::net::TcpStream>, u64, u64) {
     push_other_row_session_unflagged(app, SessionState::Reconnecting);
@@ -127,7 +130,7 @@ fn collect_until_forced(app: &mut App, row: u32) {
 }
 
 /// G1 로 끝난 B 와 그 때문에 버려진 A 를 확인한다. run 과 합류 run 은 같은 실패로 끝난다(S14).
-fn assert_b_ended_by_g1_and_a_dropped(app: &mut App, run: u64, joined: u64) {
+pub(super) fn assert_b_ended_by_g1_and_a_dropped(app: &mut App, run: u64, joined: u64) {
     assert_stopped(app);
     assert!(marked(app), "the observation marked the target");
     assert_eq!(
