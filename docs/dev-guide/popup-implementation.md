@@ -68,7 +68,7 @@ PopupDef {
     id: "my_popup",
     decl: PopupDecl {
         outside_click: PopupOutsideClick::Unfocus, // Close = 바깥 클릭에 닫힘
-        sticky_focus: false,                       // true = 바깥 클릭해도 키보드 포커스 유지
+        sticky_focus: false,                       // 포커스 판정이 읽지 않는 선언 값
         chrome: PopupChrome::TitleBar,             // Headless = 타이틀바·닫기버튼 없이 콘텐츠만
         drag_handle: PopupDragHandle::TitleBar,
         resizable: false,
@@ -142,7 +142,7 @@ state.dispatch_intent(
 | `keyboard` | None / Keys / Text | Keys | `None` 인지만 읽는다. `None` 인 팝업은 열거나 눌러도 키보드 포커스를 받지 않고 다른 팝업의 포커스도 바꾸지 않으며, 맨 앞으로 올라오지 않고 다른 팝업 아래에 그린다. Esc 주인(`topmost_visible_open`)도 되지 않는다. `Keys`·`Text` 의 차이는 읽지 않는다. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸, 창의 파일 선택도 이 정의의 인스턴스) |
 | `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 `remote_row` 가 `Unfocus` 다. 하위 화면이 있는 팝업은 `Close` 지만 하위 화면에서는 첫 Esc 가 하위 화면만 닫는다(`dag_list` 상세 보기는 목록으로, `remote_tool` 양식은 앞 화면으로) |
 | `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |
-| `sticky_focus` | bool | false | 바깥 클릭에도 키보드 포커스 유지 |
+| `sticky_focus` | bool | false | 없음. 포커스 노드 판정이 읽지 않는다. 바깥 누름은 늘 포커스를 옮긴다([popup 설계](../design/systems/popup.md#sticky_focus)) |
 | `chrome` | TitleBar / Headless | TitleBar | 공통 타이틀바·닫기 버튼을 그릴지 |
 | `drag_handle` | None / TitleBar / Region | TitleBar | 이동 영역. `Region` 이면 정의의 `drag_region` 함수를 쓴다 |
 | `resizable` | bool | false | 끌어서 크기 조절(min_size·scope 경계 클램프, 엣지별 리사이즈 커서). 잡은 변은 포인터를 따라간다 |
