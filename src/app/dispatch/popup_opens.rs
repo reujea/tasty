@@ -63,6 +63,7 @@ fn open_one(
         );
         return;
     }
+    let opener = open.opener();
     let was_open = crate::plugin_bridge::popup_scope::is_open(mgr, &open.plugin_id, &open.popup_id);
     let Some(instance_id) = mgr.open_popup_instance(&open.plugin_id, &open.popup_id, open.context)
     else {
@@ -73,13 +74,7 @@ fn open_one(
     if let Some(sid) = open.target_surface {
         mgr.bind_popup_instance_surface(instance_id, sid);
     }
-    // 이 큐는 사용자가 이 창에서 고른 명령(도구 메뉴·명령 팔레트·단축키·변환 입력)이 채운다.
-    crate::plugin_bridge::popup_scope::focus_opened_popup(
-        state,
-        mgr,
-        instance_id,
-        crate::plugin_bridge::popup_scope::PopupOpener::UserCommand,
-    );
+    crate::plugin_bridge::popup_scope::focus_opened_popup(state, mgr, instance_id, opener);
 }
 
 #[cfg(test)]

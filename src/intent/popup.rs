@@ -74,8 +74,7 @@ pub fn handle(
                 }
             }
             UiIntent::TogglePopup(request) => {
-                let scope = state.popups.request_scope(request);
-                match state.popups.instance_for(request.id, &scope) {
+                match opened_for(state, request).map(|(instance, _)| instance) {
                     Some(instance) => state.popups.close_instance(
                         instance,
                         crate::adapters::ui::popup::PopupCloseReason::Command,
@@ -132,6 +131,41 @@ fn enqueue_refresh(
     });
 }
 
+/// 이 요청에 쓸, 이미 열린 인스턴스와 그 인스턴스가 요청 범위에 있는지. 열기·다시 열기·토글 처리와 즉시 적용
+/// 판정([`gives_user_focus`])이 이 값 하나를 읽는다.
+#[cfg(feature = "gui")]
+fn opened_for(
+    state: &RequestContext,
+    request: &OpenRequest,
+) -> Option<(crate::adapters::ui::popup::PopupInstanceId, bool)> {
+    let scope = state.popups.request_scope(request);
+    let instance = state.popups.instance_for(request.id, &scope)?;
+    let same_scope = state
+        .popups
+        .instance(instance)
+        .is_some_and(|p| p.scope == scope);
+    Some((instance, same_scope))
+}
+
+/// 이 intent 를 지금 처리하면 사용자 입력으로 포커스를 주며 팝업을 여는지. 처리기([`handle`])와 같은 값
+/// ([`opened_for`])을 읽는다. 열린 인스턴스에 잇는 열기, 같은 범위에 열린 인스턴스의 내용만 바꾸는 다시 열기,
+/// 열린 인스턴스를 닫는 토글은 포커스를 주지 않는다. 대기열의 앞 intent 가 바꿀 상태는 보지 않고 지금 상태로 판정한다.
+#[cfg(feature = "gui")]
+pub(crate) fn gives_user_focus(state: &RequestContext, intent: &DispatchedIntent) -> bool {
+    if !intent.origin.is_user() {
+        return false;
+    }
+    match &intent.body {
+        Intent::Ui(UiIntent::OpenPopup(r) | UiIntent::TogglePopup(r)) => {
+            r.focus && opened_for(state, r).is_none()
+        }
+        Intent::Ui(UiIntent::ReopenPopup(r)) => {
+            r.focus && !opened_for(state, r).is_some_and(|(_, same_scope)| same_scope)
+        }
+        _ => false,
+    }
+}
+
 /// 요청을 연다. 인스턴스 정책이 이 요청에 쓸 인스턴스가 이미 열려 있으면 위치·포커스를 바꾸지 않는다
 /// (사용자가 준 포커스를 빼앗지 않는다). 큐 팝업이면 요청의 항목을 그 인스턴스의 차례 뒤에 잇는다.
 /// 열었으면 새 인스턴스 id다.
@@ -141,8 +175,7 @@ fn open(
     request: &OpenRequest,
     by_user: bool,
 ) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
-    let scope = state.popups.request_scope(request);
-    if let Some(instance) = state.popups.instance_for(request.id, &scope) {
+    if let Some((instance, _)) = opened_for(state, request) {
         state.popups.append_queued(instance, request);
         return None;
     }
@@ -159,12 +192,7 @@ fn open(
 /// 닫고 새 범위로 연다. 같은 범위에 열려 있으면 위치·포커스는 그대로 두고 인스턴스 데이터만 바꾼다.
 #[cfg(feature = "gui")]
 fn reopen(state: &mut RequestContext, request: &OpenRequest, by_user: bool) {
-    let scope = state.popups.request_scope(request);
-    if let Some(instance) = state.popups.instance_for(request.id, &scope) {
-        let same_scope = state
-            .popups
-            .instance(instance)
-            .is_some_and(|p| p.scope == scope);
+    if let Some((instance, same_scope)) = opened_for(state, request) {
         if same_scope {
             state
                 .popups

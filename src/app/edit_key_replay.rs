@@ -81,13 +81,13 @@ impl App {
             match step {
                 ReplayStep::Original(event, edit) => {
                     self.set_edit_replay(id, Some(edit));
-                    self.dispatch_window_event_to_view(id, event);
+                    self.dispatch_key_to_view(id, event);
                     // 창이 키를 받지 않고 돌아갔으면 남은 표시가 다음 키에 붙지 않게 지운다.
                     self.set_edit_replay(id, None);
                 }
                 ReplayStep::View(event) => {
                     if !self.queue_behind_plugin_edit(id, &event) {
-                        self.dispatch_window_event_to_view(id, event);
+                        self.dispatch_key_to_view(id, event);
                     }
                 }
                 ReplayStep::Input(event) => self.route_window_input(id, event),
@@ -102,11 +102,19 @@ impl App {
             return;
         }
         // 포커스된 plugin surface의 단축키를 호스트 action보다 먼저 처리한다.
+        // 단축키가 연 plugin 팝업도 창 view 로 간 키처럼 그 자리에서 적용한다.
         if let WindowEvent::KeyboardInput { event: ke, .. } = &event
             && self.try_plugin_shortcut(id, ke)
         {
+            self.apply_user_focus_opens(id);
             return;
         }
+        self.dispatch_key_to_view(id, event);
+    }
+
+    /// 사건을 창 view 로 넘기고, 키·IME 사건이면 그 사건이 포커스를 주며 연 팝업을 그 자리에서 적용한다. 창 입력과
+    /// 편집 보류 재생(원래 키·view 로 가는 줄 선 입력)이 이 길을 함께 쓴다.
+    fn dispatch_key_to_view(&mut self, id: WindowId, event: WindowEvent) {
         let key = matches!(
             event,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
@@ -119,7 +127,8 @@ impl App {
 
     /// 키 사건이 포커스를 주며 여는 팝업을 요청했으면 대기열을 그 자리에서 처리한다. 포커스 노드 전이는 그 키 사건
     /// 처리 안에서 적용돼야 같은 묶음의 다음 키가 사건 시점의 노드(그 팝업)로 끊긴다(`MainViewState::cut_key_frame`).
-    /// 대기열 처리 순서(`dispatch_pending_intents`)는 바꾸지 않고 처리 시점만 앞당긴다.
+    /// 판정(`user_focus_open_queued`)은 host intent 대기열과 plugin 팝업 열기 대기열을 함께 본다. 참이면 두 대기열을
+    /// 평소 순서(intent 다음 plugin 팝업 열기)대로 모두 처리하고, 처리 시점만 앞당긴다.
     pub(crate) fn apply_user_focus_opens(&mut self, id: WindowId) {
         let queued = self
             .view
@@ -129,6 +138,7 @@ impl App {
             .is_some_and(|main| main.state.user_focus_open_queued());
         if queued {
             self.dispatch_pending_intents();
+            self.dispatch_pending_popup_opens();
         }
     }
 

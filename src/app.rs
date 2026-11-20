@@ -30,7 +30,7 @@ pub(crate) mod dispatch;
 #[cfg(feature = "gui")]
 pub(crate) mod dispatch_domain;
 #[cfg(feature = "gui")]
-mod edit_key_replay;
+pub(crate) mod edit_key_replay;
 #[cfg(feature = "gui")]
 mod egui_repaint;
 #[cfg(feature = "gui")]

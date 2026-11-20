@@ -134,6 +134,15 @@ pub(crate) struct PendingPopupOpen {
     pub(crate) target_surface: Option<u32>,
 }
 
+#[cfg(feature = "gui")]
+impl PendingPopupOpen {
+    /// 이 요청을 연 쪽. 이 큐는 사용자가 이 창에서 고른 명령(도구 메뉴·명령 팔레트·단축키·변환 입력)만 채운다.
+    /// 여는 처리(`open_one`)와 즉시 적용 판정(`MainViewState::user_focus_open_queued`)이 이 값을 함께 읽는다.
+    pub(crate) fn opener(&self) -> crate::plugin_bridge::popup_scope::PopupOpener<'static> {
+        crate::plugin_bridge::popup_scope::PopupOpener::UserCommand
+    }
+}
+
 /// 파일 드래그 중 누적한 경로와 시작 좌표.
 #[cfg(feature = "gui")]
 #[derive(Debug, Clone, Default)]
@@ -416,21 +425,20 @@ impl RequestContext {
         })
     }
 
-    /// 사용자 입력이 포커스를 주며 여는 팝업 요청이 대기열에 있는지. 창은 키 사건 하나를 처리한 뒤 이 값이 참이면
-    /// 그 자리에서 대기열을 처리해, 그 팝업이 다음 사건 시점의 포커스 노드가 되게 한다(같은 묶음의 뒤 키가 그 팝업
+    /// 사용자 입력이 포커스를 주며 여는 팝업 요청이 대기열에 있는지. host intent 대기열은 처리기와 같은 판정
+    /// (`intent::popup::gives_user_focus`)으로, plugin 팝업 열기 대기열은 그 처리기가 쓰는 출처
+    /// (`PendingPopupOpen::opener`)를 `opened_by_user` 로 판정한다. 창은 키 사건 하나를 처리한 뒤 이 값이 참이면 그
+    /// 자리에서 두 대기열을 처리해, 그 팝업이 다음 사건 시점의 포커스 노드가 되게 한다(같은 묶음의 뒤 키가 그 팝업
     /// 몫이 된다).
     #[cfg(feature = "gui")]
     pub(crate) fn user_focus_open_queued(&self) -> bool {
-        use crate::intent::{Intent, UiIntent};
-        self.pending_intents.iter().any(|intent| {
-            intent.origin.is_user()
-                && matches!(
-                    &intent.body,
-                    Intent::Ui(
-                        UiIntent::OpenPopup(r) | UiIntent::ReopenPopup(r) | UiIntent::TogglePopup(r)
-                    ) if r.focus
-                )
-        })
+        self.pending_intents
+            .iter()
+            .any(|intent| crate::intent::popup::gives_user_focus(self, intent))
+            || self
+                .pending_popup_opens
+                .iter()
+                .any(|open| crate::plugin_bridge::popup_scope::opened_by_user(open.opener()))
     }
 
     /// 등록된 convert_input_popup을 열도록 요청한다. 변환 대상이 있으면 context에 담는다.
