@@ -591,6 +591,119 @@ fn a_letter_and_the_stage_exit_key_without_a_press_draw_the_window_without_the_l
     );
 }
 
+/// 왼쪽 버튼 뗌.
+fn release_at(pos: egui::Pos2) -> Event {
+    Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    }
+}
+
+/// 창의 키 누름 하나(`key`).
+fn key_press(key: egui::Key) -> Event {
+    Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// Given 무대가 창을 덮을 때, When 무대 안 누름을 무대 패스로 그린 뒤 [무대 종료 Esc, 버튼 뗌]이 오고 종료 키가 무대를
+/// 닫으면, Then 뗌은 닫힌 무대 몫(일반 화면으로 그린다)에서도 빠지지 않아 무대에서 시작한 egui 의 눌림이 풀린다.
+#[test]
+fn a_release_after_the_stage_closed_ends_the_press_drawn_on_the_stage() {
+    let mut s = open_scene(|_| {});
+    let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
+    let mut input = WindowInput::default();
+    {
+        let mut bodies = Bodies::Explorers(&mut l, &mut r);
+        focus_left(&mut s, &mut input, &mut bodies);
+    }
+    assert!(s.state.open_fullscreen_stage("blank"));
+    assert!(stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    let point = screen().center();
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), point);
+    }
+    assert!(
+        stage_or_window_pass(&mut s, &mut input, &mut l, &mut r),
+        "누름은 무대 패스로 그린다"
+    );
+    assert!(
+        s.ctx.input(|i| i.pointer.any_down()),
+        "무대가 누름을 받았다"
+    );
+    {
+        let engine = s.session.borrow_mut();
+        let escape = key_press(egui::Key::Escape);
+        assert!(
+            input
+                .key(&mut s.state, &engine.read(), false, escape)
+                .is_some()
+        );
+    }
+    // 창의 무대 종료 키 처리(`try_consume_fullscreen_stage_key`)가 무대를 닫는다.
+    assert!(s.state.close_fullscreen_stage());
+    input.queue_mut().push(release_at(point));
+    while !input.is_empty() {
+        assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    }
+    assert!(
+        !s.ctx.input(|i| i.pointer.any_down()),
+        "닫힌 무대 몫의 뗌이 빠져 버튼이 눌린 채로 남았다"
+    );
+    assert_eq!(l.selected(), "", "무대 몫의 누름이 뒤 L 탐색기에 닿았다");
+}
+
+/// Given 일반 화면에서 L 의 banana 줄을 누른 채일 때, When 키 하나가 무대를 열고 버튼 뗌이 오면, Then 키 몫(L 노드)은
+/// 열린 무대로 그려 키는 빠지지만 뗌은 남아 일반 화면에서 시작한 egui 의 눌림이 풀린다.
+#[test]
+fn a_release_after_a_key_opened_the_stage_ends_the_press_drawn_on_the_window() {
+    let mut s = open_scene(|_| {});
+    let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
+    let mut input = WindowInput::default();
+    {
+        let mut bodies = Bodies::Explorers(&mut l, &mut r);
+        focus_left(&mut s, &mut input, &mut bodies);
+    }
+    let banana = row_center(&mut s, &mut l, &mut r, "banana.txt");
+    for _ in 0..45 {
+        assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    }
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), banana);
+    }
+    while !input.is_empty() {
+        assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    }
+    assert!(s.ctx.input(|i| i.pointer.any_down()), "L 이 누름을 받았다");
+    {
+        let engine = s.session.borrow_mut();
+        let key = key_press(egui::Key::F11);
+        assert!(input.key(&mut s.state, &engine.read(), true, key).is_some());
+    }
+    // 창의 키 처리가 무대를 연다. 전이는 즉시 적용된다.
+    assert!(s.state.open_fullscreen_stage("blank"));
+    input.queue_mut().push(release_at(banana));
+    assert!(
+        stage_or_window_pass(&mut s, &mut input, &mut l, &mut r),
+        "키 몫은 열린 무대로 그린다"
+    );
+    while !input.is_empty() {
+        stage_or_window_pass(&mut s, &mut input, &mut l, &mut r);
+    }
+    assert!(
+        !s.ctx.input(|i| i.pointer.any_down()),
+        "열린 무대로 그린 몫의 뗌이 빠져 버튼이 눌린 채로 남았다"
+    );
+}
+
 /// 주소 띠를 그리는 L 에 포커스를 두고 띠에 키 포커스를 준다.
 fn focus_address(s: &mut Scene, input: &mut WindowInput, bodies: &mut Bodies<'_>) {
     focus_left(s, input, bodies);

@@ -173,3 +173,163 @@ fn a_debug_paste_after_a_press_is_the_next_pass() {
         "붙여넣기가 누름이 포커스를 준 입력란에 들어간다"
     );
 }
+
+const PLUGIN: &str = "com.example.key-popup";
+
+/// `mgr` 에 창 범위 팝업 하나(`viewer`)를 선언한 plugin 을 설치한다. 돌려준 stub 은 시험 동안 둔다.
+fn declare_viewer(
+    mgr: &mut crate::plugin::PluginManager,
+) -> tasty_host_plugin::manager::CallerStub {
+    let manifest = toml::from_str(&format!(
+        "manifest_version = 1\nid = \"{PLUGIN}\"\nname = \"Key popup\"\nversion = \"1.0.0\"\n\
+         api_version = \"{}\"\n[entry]\ntype = \"process\"\ncommand = \"echo\"\n",
+        crate::plugin::manifest::HOST_API_VERSION
+    ))
+    .expect("manifest");
+    mgr.install_packages_for_test(vec![tasty_host_plugin::PluginPackage {
+        dir: std::path::PathBuf::from("/nonexistent/key-popup"),
+        manifest,
+    }]);
+    let stub = mgr.attach_caller_stub_for_test(PLUGIN);
+    let decl = serde_json::from_value::<tasty_plugin_protocol::PopupDeclSpec>(
+        serde_json::json!({ "scope_kind": "window", "size": { "width": 200, "height": 100 } }),
+    )
+    .expect("spec")
+    .to_decl();
+    mgr.declare_popup(PLUGIN, "viewer", decl).expect("declare");
+    stub
+}
+
+/// 창이 받은 plugin 팝업 단축키 하나(`App::route_window_input` 의 `try_plugin_shortcut` 갈래). 단축키는 창 view 앞에서
+/// 소비되어 끊기 없이 도구를 실행하고(`run_shortcut_action` 이 부르는 `run_tool` 과 같은 열기 대기열), 사용자 입력이
+/// 포커스를 주며 연 팝업 요청이 있으면 그 자리에서 연다.
+fn plugin_shortcut(s: &mut Scene) {
+    {
+        let engine = s.session.borrow_mut();
+        let read = engine.read();
+        let target = s.state.command_target(&read);
+        let surface = s.state.focused_surface_id(&read);
+        let tool = crate::plugin::tool_registry::ToolItem {
+            source: crate::plugin::tool_registry::ToolSource::Plugin {
+                plugin_id: PLUGIN.into(),
+                tool_id: "open".into(),
+            },
+            key: format!("{PLUGIN}/open"),
+            label_i18n_key: String::new(),
+            icon: None,
+            action: crate::plugin::manifest::ToolAction::OpenPopup {
+                popup_id: format!("{PLUGIN}/viewer"),
+            },
+            order_hint: 0,
+        };
+        crate::adapters::ui::tools_menu::invoke_tool_on(
+            &mut s.state,
+            &read,
+            &tool,
+            surface,
+            target.structure_target(),
+        );
+    }
+    if s.state.user_focus_open_queued() {
+        crate::app::dispatch::popup_opens::open_pending_popups(
+            Some(&mut s.mgr),
+            std::iter::once((&mut s.state, s.session.borrow_mut())),
+        );
+    }
+}
+
+/// k 를 R 터미널로 보낸 뒤 `shortcut_then_w` 로 plugin 팝업 단축키와 w 를 밟고, w 가 새 plugin 팝업 몫인지 잰다.
+fn k_then_plugin_popup_takes_w(
+    s: &mut Scene,
+    input: &mut WindowInput,
+    shortcut_then_w: impl FnOnce(&mut Scene, &mut WindowInput) -> Option<bool>,
+) {
+    assert_eq!(
+        type_text(s, input, false, "k"),
+        None,
+        "k 는 egui 로 가지 않는다"
+    );
+    {
+        let engine = s.session.borrow_mut();
+        assert_eq!(
+            s.state
+                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            InputDestination::Terminal(SURFACE_R),
+            "k 의 갈래는 터미널(PTY)이다"
+        );
+    }
+    let fed = shortcut_then_w(s, input);
+    let opened: Vec<u64> = s.mgr.popup_instances().map(|(id, _)| id).collect();
+    assert_eq!(opened.len(), 1, "단축키가 plugin 팝업 하나를 연다");
+    assert!(fed.is_some(), "w 는 plugin 팝업 몫이라 egui 로 간다");
+    let engine = s.session.borrow_mut();
+    assert_eq!(
+        s.state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Plugin(opened[0]))
+    );
+    assert_eq!(
+        s.state.plugin_popup_key_target(),
+        Some(opened[0]),
+        "w 의 키 주인"
+    );
+    assert_eq!(
+        s.state
+            .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+        InputDestination::Overlay,
+        "w 는 터미널(PTY)로 가지 않는다"
+    );
+}
+
+/// Given 포커스 노드가 R 터미널이고 plugin 팝업이 열려 있지 않을 때, When 한 묶음에 [k, plugin 팝업 단축키, w]가 오면,
+/// Then k 는 R 터미널로 가고 단축키가 연 plugin 팝업이 그 키 처리 안에서 포커스 노드가 되어 w 는 그 팝업 몫이다.
+#[test]
+fn a_letter_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
+    let mut s = open_scene(|_| {});
+    let _stub = declare_viewer(&mut s.mgr);
+    let mut input = WindowInput::default();
+    let point = terminal_point_r(&s);
+    focus_terminal(&mut s, &mut input, PANE_R, point);
+    k_then_plugin_popup_takes_w(&mut s, &mut input, |s, input| {
+        plugin_shortcut(s);
+        type_text(s, input, false, "w")
+    });
+}
+
+/// Given plugin 입력칸의 편집 보류 뒤에 [plugin 팝업 단축키, w]가 줄 섰을 때, When 보류가 풀려 재생하면, Then 줄 선
+/// 입력은 plugin 단축키 단계부터 다시 거쳐(`ReplayStep::Input`) 단축키가 연 팝업이 그 자리에서 포커스 노드가 되고 w 는
+/// 그 팝업 몫이다.
+#[test]
+fn a_letter_replayed_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
+    use crate::adapters::ui::input::edit_key::Release;
+    use crate::app::edit_key_replay::{HoldSite, ReplayStep, replay_steps};
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    enum Queued {
+        Shortcut,
+        W,
+    }
+    let mut s = open_scene(|_| {});
+    let _stub = declare_viewer(&mut s.mgr);
+    let mut input = WindowInput::default();
+    let point = terminal_point_r(&s);
+    focus_terminal(&mut s, &mut input, PANE_R, point);
+    let steps = replay_steps(
+        Release {
+            replay: None,
+            queued: vec![Queued::Shortcut, Queued::W],
+        },
+        HoldSite::BeforePluginShortcuts,
+    );
+    k_then_plugin_popup_takes_w(&mut s, &mut input, |s, input| {
+        let mut fed = None;
+        for step in steps {
+            let ReplayStep::Input(event) = step else {
+                panic!("plugin 보류 뒤 줄 선 입력은 단축키 단계부터 다시 거친다: {step:?}");
+            };
+            match event {
+                Queued::Shortcut => plugin_shortcut(s),
+                Queued::W => fed = type_text(s, input, false, "w"),
+            }
+        }
+        fed
+    });
+}
