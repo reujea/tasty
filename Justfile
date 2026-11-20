@@ -30,7 +30,7 @@ dist:
 # 플러그인은 호스트 시작 시 번들 설치 정책에 따라 동기화한다.
 
 # macOS 앱 번들을 빌드해 /Applications에 설치한다.
-# 개발용 명령이 아니라서 빌드 대상 크레이트의 rustc lint와 경고를 무시한다(--cap-lints=allow).
+# 개발용 명령이 아니라서 빌드 대상 크레이트에서 cap이 적용되는 rustc lint를 무시한다(--cap-lints=allow).
 # build.rs의 lint와 cargo 자체 경고는 그대로다. 자세한 범위는 docs/dev-guide/build.md.
 install:
     #!/bin/bash
