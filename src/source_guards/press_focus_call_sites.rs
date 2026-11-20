@@ -250,6 +250,23 @@ fn the_window_picks_the_stage_pass_by_the_live_stage_and_drops_input_without_its
         pick, "{self.fullscreen_stage_active()}",
         "무대 경로를 지금 무대 상태가 아닌 값으로 고른다"
     );
+    let dropper = squeeze(
+        &fn_body(&node, "fn drop_input_without_its_node(").expect("drop_input_without_its_node"),
+    );
+    at(
+        &dropper,
+        "events.retain(|e|!delivers_input(e));",
+        "입력 사건만 빼기",
+    );
+    let delivers = squeeze(&fn_body(&node, "fn delivers_input(").expect("delivers_input"));
+    for needle in [
+        "egui::Event::Key{pressed,..}|egui::Event::PointerButton{pressed,..}=>*pressed,",
+        "egui::Event::Touch{phase,..}=>{!matches!(phase,egui::TouchPhase::End|egui::TouchPhase::Cancel)}",
+        "_=>false,",
+    ] {
+        at(&delivers, needle, "누름을 끝내는 사건은 남긴다");
+    }
+    assert!(!delivers.contains("PointerGone"), "포인터 사라짐을 뺀다");
     let bridge = read("src/gfx/gpu/egui_bridge.rs");
     let pass = squeeze(&fn_body(&bridge, "fn run_main_pass(").expect("run_main_pass"));
     let take = at(
@@ -345,37 +362,109 @@ fn a_debug_clipboard_injection_into_a_main_window_cuts_the_segment_first() {
 }
 
 /// 창 입력의 키·IME 사건 하나를 view 가 처리한 뒤, 사용자 입력이 포커스를 주며 연 팝업 요청이 대기열에 있으면 그 자리에서
-/// 대기열을 처리한다(`App::apply_user_focus_opens`). 그래야 같은 묶음의 다음 키가 사건 시점의 노드(연 팝업)로 끊긴다.
-/// 동작은 `adapters::ui::popup::route::tests::key_transition` 이 잰다(그 시험은 이 함수 대신 같은 판정
-/// `user_focus_open_queued` 와 대기열 처리를 부른다).
+/// 대기열을 처리한다(`App::apply_user_focus_opens`). 그래야 같은 묶음의 다음 키가 사건 시점의 노드(연 팝업)로 끊긴다. 창
+/// view 앞에서 소비한 plugin 단축키와 편집 보류 재생(원래 키·view 로 가는 줄 선 입력)도 같은 처리를 거친다. 판정
+/// (`user_focus_open_queued`)은 host intent 대기열을 처리기와 같은 값(`intent::popup::opened_for`)으로, plugin 팝업 열기
+/// 대기열을 여는 처리와 같은 출처(`PendingPopupOpen::opener`)로 본다. 동작은 `adapters::ui::popup::route::tests::key_transition`
+/// 이 잰다(그 시험은 이 함수 대신 같은 판정과 대기열 처리를 부른다).
 #[test]
 fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     let src = read("src/app/edit_key_replay.rs");
     let route = squeeze(&fn_body(&src, "fn route_window_input(").expect("route_window_input"));
-    let key = at(
+    let plugin = at(
         &route,
+        "&&self.try_plugin_shortcut(id,ke){self.apply_user_focus_opens(id);return;}",
+        "plugin 단축키 뒤 즉시 처리",
+    );
+    let view = at(&route, "self.dispatch_key_to_view(id,event);", "view 처리");
+    assert!(plugin < view, "plugin 단축키 → view 순서가 아니다");
+    let to_view =
+        squeeze(&fn_body(&src, "fn dispatch_key_to_view(").expect("dispatch_key_to_view"));
+    let key = at(
+        &to_view,
         "letkey=matches!(event,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_));",
         "키 사건 판정",
     );
-    let view = at(
-        &route,
+    let dispatch = at(
+        &to_view,
         "self.dispatch_window_event_to_view(id,event);",
-        "view 처리",
+        "view 넘김",
     );
     let apply = at(
-        &route,
+        &to_view,
         "ifkey{self.apply_user_focus_opens(id);}",
         "포커스 팝업 즉시 처리",
     );
     assert!(
-        key < view && view < apply,
+        key < dispatch && dispatch < apply,
         "판정 → view → 즉시 처리 순서가 아니다"
+    );
+    let replay = squeeze(&fn_body(&src, "fn replay_edit_steps(").expect("replay_edit_steps"));
+    assert_eq!(
+        replay
+            .matches("self.dispatch_key_to_view(id,event);")
+            .count(),
+        2,
+        "편집 보류 재생의 원래 키·view 갈래가 즉시 처리를 거치지 않는다"
+    );
+    assert!(
+        !replay.contains("dispatch_window_event_to_view"),
+        "편집 보류 재생이 즉시 처리 없이 view 로 넘긴다"
     );
     let apply_fn =
         squeeze(&fn_body(&src, "fn apply_user_focus_opens(").expect("apply_user_focus_opens"));
     at(
         &apply_fn,
-        ".is_some_and(|main|main.state.user_focus_open_queued());ifqueued{self.dispatch_pending_intents();}",
-        "대기열 처리",
+        ".is_some_and(|main|main.state.user_focus_open_queued());ifqueued{self.dispatch_pending_intents();self.dispatch_pending_popup_opens();}",
+        "두 대기열 처리",
     );
+    let state = read("src/state.rs");
+    let queued =
+        squeeze(&fn_body(&state, "fn user_focus_open_queued(").expect("user_focus_open_queued"));
+    at(
+        &queued,
+        ".any(|intent|crate::intent::popup::gives_user_focus(self,intent))",
+        "host intent 판정",
+    );
+    at(
+        &queued,
+        "crate::plugin_bridge::popup_scope::opened_by_user(open.opener())",
+        "plugin 팝업 열기 판정",
+    );
+    let opens = squeeze(
+        &fn_body(&read("src/app/dispatch/popup_opens.rs"), "fn open_one(").expect("open_one"),
+    );
+    at(&opens, "letopener=open.opener();", "여는 처리의 출처");
+    at(
+        &opens,
+        "focus_opened_popup(state,mgr,instance_id,opener);",
+        "여는 처리의 포커스",
+    );
+    let popup = read("src/intent/popup.rs");
+    let handle = squeeze(&fn_body(&popup, "pub fn handle(").expect("handle"));
+    at(
+        &handle,
+        "UiIntent::TogglePopup(request)=>{matchopened_for(state,request)",
+        "토글 처리의 열린 인스턴스",
+    );
+    for (name, needle) in [
+        (
+            "fn open(",
+            "ifletSome((instance,_))=opened_for(state,request){",
+        ),
+        (
+            "fn reopen(",
+            "ifletSome((instance,same_scope))=opened_for(state,request){",
+        ),
+    ] {
+        let body = squeeze(&fn_body(&popup, name).expect(name));
+        at(&body, needle, name);
+    }
+    let gives = squeeze(&fn_body(&popup, "fn gives_user_focus(").expect("gives_user_focus"));
+    for needle in [
+        "r.focus&&opened_for(state,r).is_none()",
+        "r.focus&&!opened_for(state,r).is_some_and(|(_,same_scope)|same_scope)",
+    ] {
+        at(&gives, needle, "즉시 처리 판정의 열린 인스턴스");
+    }
 }
