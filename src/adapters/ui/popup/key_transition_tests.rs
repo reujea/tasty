@@ -261,16 +261,20 @@ fn k_then_plugin_popup_takes_w(
     let fed = shortcut_then_w(s, input);
     let opened: Vec<u64> = s.mgr.popup_instances().map(|(id, _)| id).collect();
     assert_eq!(opened.len(), 1, "단축키가 plugin 팝업 하나를 연다");
-    assert!(fed.is_some(), "w 는 plugin 팝업 몫이라 egui 로 간다");
+    assert_eq!(
+        fed,
+        Some(true),
+        "w 는 egui 로 가고 입력 시점에 키 주인을 묶는다"
+    );
     let engine = s.session.borrow_mut();
     assert_eq!(
         s.state.focus_node(&engine.read()),
         FocusNode::Popup(PopupNode::Plugin(opened[0]))
     );
     assert_eq!(
-        s.state.plugin_popup_key_target(),
-        Some(opened[0]),
-        "w 의 키 주인"
+        s.state.popups.bound_input_key_owner(),
+        Some(PopupNode::Plugin(opened[0])),
+        "w 의 입력 몫은 연 plugin 팝업에 묶였다(지금 포커스로 대신 고르지 않는다)"
     );
     assert_eq!(
         s.state
