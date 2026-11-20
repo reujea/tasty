@@ -49,8 +49,9 @@ fn stage_branch_sits_between_offscreen_capture_and_layout() {
         "self.handle_pending_surface_screenshot(state, &engine.as_ref());",
         "offscreen 캡처",
     );
-    // 무대 분기는 그리는 입력 몫의 포커스 노드로 고른다(`MainViewState::pass_draws_stage`).
-    let branch = only_at(&src, "if state.pass_draws_stage(engine) {", "무대 분기");
+    // 무대 분기는 지금 무대 상태로 고른다(`MainViewState::pass_draws_stage`). 몫 노드가 그 화면에 없는 패스의 입력은 패스 입력을 꺼낸 자리에서 뺀다
+    // (`MainViewState::drop_input_without_its_node`).
+    let branch = only_at(&src, "if state.pass_draws_stage() {", "무대 분기");
     let resize = only_at(&src, "self.prepare_layout(", "배경 레이아웃 계산");
     assert!(
         screenshot < branch,
