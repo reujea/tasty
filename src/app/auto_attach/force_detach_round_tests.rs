@@ -249,21 +249,47 @@ fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
     assert!(started.elapsed() < Duration::from_millis(250));
 }
 
-/// 행 A 의 자동 재연결을 준비하고, 관측 뒤에 그 전송을 강제 끊김으로 확정한다.
+/// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 반납이 그 자리에서 소켓 양쪽을
+/// 닫아야 reader 가 바로 끝난다. 쓰기 스레드가 쓰기 쪽만 닫으면 reader 는 상대가 닫을 때까지 막혀 회수
+/// 스레드가 상한을 다 기다린다. 경과는 완료를 읽기 전에 재므로, 늦게 도착한 검사가 이미 끝난 회수를
+/// 통과로 읽지 않는다.
+fn assert_workers_retire_before_the_reaper_wait(
+    receipt: &tasty_remote::transport::RetirementReceipt,
+    released: Instant,
+) {
+    loop {
+        let elapsed = released.elapsed();
+        let done = receipt.is_done();
+        assert!(
+            elapsed < Duration::from_millis(240),
+            "the workers were not seen retired before the reaper wait ({elapsed:?}, done {done})"
+        );
+        if done {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// 행 A 의 자동 재연결을 준비하고, 관측 뒤에 그 전송을 강제 끊김으로 확정한다. 그 연결 worker 의 회수
+/// 영수증도 돌려준다.
 fn settle_a_after_the_observation(
     app: &mut App,
-) -> crate::app::attach_client::round_intake::RoundIntake {
+) -> (
+    crate::app::attach_client::round_intake::RoundIntake,
+    tasty_remote::transport::RetirementReceipt,
+) {
     let intake = app.observe_round();
     let ticket = ticket_of(app, ROW).unwrap();
     let prepared = app.remote.prepared_connection(ticket).unwrap();
     prepared.transport.end.raise(EndReason::Forced);
     assert!(prepared.transport.end.settle());
-    intake
+    (intake, prepared.transport.workers.receipt())
 }
 
 /// S12(a): Given 사용자가 끊어 막힌 행 A 의 자동 재연결이 설치만 남았다, When 관측 뒤 A 의 전송이 강제
 /// 끊김으로 확정되고 같은 회차의 설치 검사가 A 를 버리면, Then 표지는 이번 회차에도 다음 회차에도 서지
-/// 않고 서버 쪽 소켓은 바로 닫힌다.
+/// 않고 반납이 그 자리에서 소켓 양쪽을 닫는다(worker 가 회수 대기 전에 끝나고 서버 쪽은 EOF 를 받는다).
 #[test]
 fn a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once() {
     alone!("a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once");
@@ -271,32 +297,37 @@ fn a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once(
     let mut app = reconnecting_app(&event_loop);
     let mut socket = prepare_an_automatic_reconnect(&mut app);
     app.remote.user_disconnected.insert(ROW);
-    let intake = settle_a_after_the_observation(&mut app);
+    let (intake, receipt) = settle_a_after_the_observation(&mut app);
 
+    let released = Instant::now();
     app.finish_round(intake);
 
     assert!(ticket_of(&app, ROW).is_none(), "dropped");
     assert!(!marked(&app));
+    assert_workers_retire_before_the_reaper_wait(&receipt, released);
     assert_closed_at_once(&mut socket);
     app.apply_attach_client_output();
     assert!(!marked(&app), "nor next round");
 }
 
 /// S12(c): Given 행 A 의 자동 재연결이 설치만 남았다, When 관측 뒤 A 의 전송이 강제 끊김으로 확정되고
-/// 행 토큰이 바뀌어 같은 회차에 낡음으로 폐기되면, Then 표지는 서지 않고 소켓은 바로 닫힌다.
+/// 행 토큰이 바뀌어 같은 회차에 낡음으로 폐기되면, Then 표지는 서지 않고 반납이 그 자리에서 소켓 양쪽을
+/// 닫는다.
 #[test]
 fn a_connection_discarded_as_stale_after_the_observation_writes_no_mark() {
     alone!("a_connection_discarded_as_stale_after_the_observation_writes_no_mark");
     let event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
     let mut socket = prepare_an_automatic_reconnect(&mut app);
-    let intake = settle_a_after_the_observation(&mut app);
+    let (intake, receipt) = settle_a_after_the_observation(&mut app);
     rotate_row_token(&mut app, ROW);
 
+    let released = Instant::now();
     app.finish_round(intake);
 
     assert!(ticket_of(&app, ROW).is_none(), "discarded");
     assert!(!marked(&app));
+    assert_workers_retire_before_the_reaper_wait(&receipt, released);
     assert_closed_at_once(&mut socket);
     app.apply_attach_client_output();
     assert!(!marked(&app), "nor next round");
@@ -423,8 +454,9 @@ fn the_one_predicate_blocks_only_automatic_attempts_of_blocked_rows() {
 }
 
 /// S11: 보류는 확정 뒤 명시 연결로 풀린 행만 놓고 같은 대상의 다른 행·나중에 편입된 행은 막는다.
-/// 새 표지가 서면 풀린 행도 다시 막히고, 마지막 행을 없애면 보류가 풀린다. 기동 복원(첫 poll 전 명시
-/// 연결 포함)은 `row_disconnect_app_tests` 의 재시작 시험이 잰다.
+/// 새 표지가 서면 풀린 행도 다시 막히고, 마지막 행을 없애면 보류가 풀린다. 기동 복원(첫 poll 전 다른 행의
+/// 명시 연결 포함)은 `row_disconnect_app_tests::a_restored_row_stays_held_after_another_row_connects_before_the_first_poll`
+/// 이 잰다.
 #[test]
 fn the_hold_covers_every_row_of_the_target_but_the_released_one() {
     alone!("the_hold_covers_every_row_of_the_target_but_the_released_one");
