@@ -96,7 +96,8 @@ pub(crate) enum PopupOpener<'a> {
         focused_surface: Option<u32>,
         focused_surface_owner: Option<&'a str>,
     },
-    /// 외부 에이전트·debug 의 IPC 열기.
+    /// 외부 에이전트·debug 의 IPC 열기(debug 빌드의 `debug.popup.open`).
+    #[cfg(debug_assertions)]
     Agent,
 }
 
@@ -116,6 +117,7 @@ pub(crate) fn opened_by_user(opener: PopupOpener<'_>) -> bool {
             Some(surface) => focused_surface == Some(surface),
             None => focused_surface_owner == Some(plugin_id),
         },
+        #[cfg(debug_assertions)]
         PopupOpener::Agent => false,
     }
 }
@@ -300,6 +302,7 @@ mod tests {
             focused_surface_owner: Some("q"),
         }));
         assert!(opened_by_user(PopupOpener::UserCommand));
+        #[cfg(debug_assertions)]
         assert!(!opened_by_user(PopupOpener::Agent));
     }
 

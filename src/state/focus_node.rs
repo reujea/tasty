@@ -31,6 +31,7 @@ pub(crate) enum FocusNode {
 
 impl FocusNode {
     /// debug 상태 조회(`debug.ui_state`의 `focus_node`)에 싣는 값. `kind`와 대상 id 다.
+    #[cfg(debug_assertions)]
     pub(crate) fn describe(self) -> serde_json::Value {
         use serde_json::json;
         match self {
