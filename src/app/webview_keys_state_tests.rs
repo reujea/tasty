@@ -1,9 +1,12 @@
-//! 제품 상태 시험: native WebView 가 넘긴 키 묶음을 제품의 창 단계로 소비하고 창 상태를 본다. 키마다 제품
-//! 디스패치(`App::dispatch_forwarded_webview_key`)와 같은 순서로 게이트(`forwarded_key_gate_open`), plugin 단축키
-//! (`plugin_shortcut_in_window`), 새로고침(`native_refresh_outcome`), 내장 단축키(`MainView::handle_keybinding_shortcuts`)
-//! 를 부른다. 그 뒤 조기 적용 판정(`user_focus_open_queued`)이 참이면 host 요청을 `intent::popup::handle` 로, plugin 팝업
-//! 열기를 `open_pending_popups` 로 처리하고, 결과 알림의 재전송 판정(`ForwardedKeyOutcome::resends_to_page`)을 기록한다.
-//! 제품 디스패치가 이 단계들을 이 순서로 부르는 것은 `source_guards::window_key_gate_call_sites` 가 고정한다.
+//! 제품 상태 시험: native WebView 가 넘긴 키 묶음을 제품 소비 루프(`consume_forwarded_keys`)로 소비하고 창 상태를 본다.
+//! 시험 창이 제품 소비자 trait(`ForwardedKeyConsumer`)를 구현한다. 키 처리는 제품 디스패치(`App::dispatch_forwarded_webview_key`)
+//! 와 같은 순서로 게이트·plugin 단축키 단계(`forwarded_gate_and_plugin_steps`, `Gated`·`Handled` 결과값까지 제품과 같은
+//! 함수), 새로고침(`native_refresh_outcome`), 내장 단축키(`MainView::handle_keybinding_shortcuts`)를 부른다. 조기 적용은 제품과
+//! 같은 판정(`user_focus_open_queued`)이 참이면 host 요청을 `intent::popup::handle` 로, plugin 팝업 열기를
+//! `open_pending_popups` 로 처리한다. 결과 알림은 루프가 건넨 키 ID·surface 와 재전송 판정(`resends_to_page`)을 기록한다.
+//! 제품 디스패치의 단계 순서, App 소비자의 위임(처리·적용·알림), 조기 적용의 App 배선(`apply_user_focus_opens` →
+//! `dispatch_pending_intents`·`dispatch_pending_popup_opens`, Ui 요청의 `intent::popup::handle`, `open_pending_popups` 연결)은
+//! `source_guards::window_key_gate_call_sites` 와 `source_guards::press_focus_call_sites` 가 고정한다.
 //!
 //! 범위 밖: App 의 창 조회와 modal 창, html surface view 단계(`run_received_surface_key`)와 창 제어·스크립트 단계, WebView
 //! 사본에 결과를 넣는 일, 조기 적용의 다른 창·parked 세션과 domain 요청 처리, native 콜백의 편집 판정과 수집.
@@ -14,7 +17,10 @@ use std::sync::Arc;
 
 use winit::keyboard::{Key, ModifiersState};
 
-use super::{ForwardedKeyOutcome, forwarded_key_gate_open, native_refresh_outcome};
+use super::{
+    ForwardedKeyConsumer, ForwardedKeyOutcome, consume_forwarded_keys,
+    forwarded_gate_and_plugin_steps, native_refresh_outcome,
+};
 use crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID;
 use crate::adapters::ui::popup::focus::PopupNode;
 use crate::plugin::PluginManager;
@@ -35,8 +41,8 @@ struct Window {
     proxy: winit::event_loop::EventLoopProxy<crate::AppEvent>,
     /// 키를 받은 WebView 의 surface. 창의 포커스 surface 다.
     received: u32,
-    /// 결과 알림에 건넨 (키 ID, 재전송).
-    finished: Vec<(u64, bool)>,
+    /// 결과 알림에 건넨 (키 ID, 결과).
+    finished: Vec<(u64, ForwardedKeyOutcome)>,
 }
 
 impl Window {
@@ -67,41 +73,52 @@ impl Window {
         }
     }
 
-    /// 제품 소비 루프처럼 키마다 처리 → 조기 적용 → 결과 알림 순서로 소비한다.
+    /// 한 번의 수집으로 받은 키 묶음을 제품 소비 루프로 소비하고 키마다의 결과를 돌려준다.
     fn consume(&mut self, keys: Vec<WebViewKeyEvent>) -> Vec<ForwardedKeyOutcome> {
-        let mut outcomes = Vec::new();
-        for ev in keys {
-            let outcome = self.dispatch(&ev);
-            self.apply_focus_opens();
-            self.finished.push((ev.id, outcome.resends_to_page()));
-            outcomes.push(outcome);
-        }
-        outcomes
+        consume_forwarded_keys(self, vec![(winit::window::WindowId::from(1), keys)]);
+        self.finished.iter().map(|(_, outcome)| *outcome).collect()
     }
 
-    fn dispatch(&mut self, ev: &WebViewKeyEvent) -> ForwardedKeyOutcome {
+    /// 결과 알림마다 (키 ID, 페이지로 다시 넣는지).
+    fn resent(&self) -> Vec<(u64, bool)> {
+        self.finished
+            .iter()
+            .map(|(key_id, outcome)| (*key_id, outcome.resends_to_page()))
+            .collect()
+    }
+
+    fn focus_node(&mut self) -> FocusNode {
         let engine = self.session.borrow_mut();
-        if !forwarded_key_gate_open(&mut self.state, &engine, false) {
-            return ForwardedKeyOutcome::Gated;
-        }
+        self.state.normalize_focus(&engine);
+        self.state.focus_node(&engine)
+    }
+}
+
+impl ForwardedKeyConsumer for Window {
+    /// 제품 디스패치의 창 단계: 게이트·plugin 단축키 → 새로고침 → 받은 surface 의 내장 단축키.
+    fn dispatch(
+        &mut self,
+        _id: winit::window::WindowId,
+        ev: WebViewKeyEvent,
+    ) -> ForwardedKeyOutcome {
+        let engine = self.session.borrow_mut();
         let received = self.received;
-        if crate::app::plugin_glue::shortcut::plugin_shortcut_in_window(
+        if let Some(outcome) = forwarded_gate_and_plugin_steps(
             &mut self.state,
             &engine,
+            false,
             self.mgr.as_mut(),
             |sid| sid == received,
-            &ev.key,
-            ev.mods,
-            Some(ev.surface_id),
+            &ev,
         ) {
-            return ForwardedKeyOutcome::Handled;
+            return outcome;
         }
         let read = engine.read();
         if let Some(outcome) = native_refresh_outcome(
             &mut self.state,
             &read,
             &read.settings.keybindings.refresh,
-            ev,
+            &ev,
         ) {
             return outcome;
         }
@@ -134,8 +151,8 @@ impl Window {
         ))
     }
 
-    /// 조기 적용: 판정이 참이면 host 요청과 plugin 팝업 열기를 그 자리에서 처리한다.
-    fn apply_focus_opens(&mut self) {
+    /// 조기 적용: 제품과 같은 판정이 참이면 host 요청과 plugin 팝업 열기를 그 자리에서 처리한다.
+    fn apply_focus_opens(&mut self, _id: winit::window::WindowId) {
         if !self.state.user_focus_open_queued(self.mgr.as_ref()) {
             return;
         }
@@ -154,10 +171,18 @@ impl Window {
         );
     }
 
-    fn focus_node(&mut self) -> FocusNode {
-        let engine = self.session.borrow_mut();
-        self.state.normalize_focus(&engine);
-        self.state.focus_node(&engine)
+    fn finish(
+        &mut self,
+        _id: winit::window::WindowId,
+        surface_id: u32,
+        key_id: u64,
+        outcome: ForwardedKeyOutcome,
+    ) {
+        assert_eq!(
+            surface_id, self.received,
+            "키 {key_id} 의 결과를 다른 WebView 에 알린다"
+        );
+        self.finished.push((key_id, outcome));
     }
 }
 
@@ -224,7 +249,7 @@ fn a_palette_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state() 
         "둘째 키가 sidebar 를 바꿨다"
     );
     assert_eq!(
-        w.finished,
+        w.resent(),
         [(1, false), (2, false)],
         "Gated 를 페이지로 다시 넣었다"
     );
@@ -263,7 +288,7 @@ fn a_passive_open_by_a_forwarded_key_stays_queued_and_the_next_key_runs() {
         [ForwardedKeyOutcome::Handled, ForwardedKeyOutcome::Handled]
     );
     assert_eq!(w.state.sidebar_collapsed, !collapsed, "둘째 키가 실행됐다");
-    assert_eq!(w.finished, [(1, false), (2, false)]);
+    assert_eq!(w.resent(), [(1, false), (2, false)]);
     assert!(
         !w.state.popups.is_open("notifications"),
         "알림 목록이 열렸다"
@@ -353,7 +378,7 @@ fn a_plugin_popup_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_sta
         w.state.sidebar_collapsed, collapsed,
         "둘째 키가 sidebar 를 바꿨다"
     );
-    assert_eq!(w.finished, [(1, false), (2, false)]);
+    assert_eq!(w.resent(), [(1, false), (2, false)]);
     let opened: Vec<u64> = w
         .mgr
         .as_ref()

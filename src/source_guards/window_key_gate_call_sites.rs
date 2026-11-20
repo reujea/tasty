@@ -144,8 +144,66 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
         + src[start..]
             .find("fn consume_forwarded_keys(")
             .expect("소비 루프");
-    let applies = squeeze(&fn_body(&src[start..end], "fn apply_focus_opens(").expect("apply"));
+    let consumer = &src[start..end];
+    let applies = squeeze(&fn_body(consumer, "fn apply_focus_opens(").expect("apply"));
     assert_eq!(applies, "{self.apply_user_focus_opens(id);}");
+    let dispatches = squeeze(&fn_body(consumer, "fn dispatch(").expect("dispatch"));
+    assert_eq!(dispatches, "{self.dispatch_forwarded_webview_key(id,ev)}");
+    let finishes = squeeze(&fn_body(consumer, "fn finish(").expect("finish"));
+    assert_eq!(
+        finishes,
+        "{self.finish_forwarded_webview_key(id,surface_id,key_id,outcome);}"
+    );
+}
+
+/// 조기 적용의 App 배선: 제품 상태 시험은 같은 판정(`user_focus_open_queued`) 뒤 host Ui 요청을 `intent::popup::handle`
+/// 로, plugin 팝업 열기를 `open_pending_popups` 로 처리한다. App 은 그 둘을 `dispatch_pending_intents`(Ui 요청은 즉시
+/// 갈래의 `dispatch_one_intent`)와 `dispatch_pending_popup_opens` 로 부른다. 판정 → 두 대기열 순서는
+/// `press_focus_call_sites` 가 고정하고, 이 가드는 두 디스패처가 시험이 부르는 함수에 닿는 연결을 고정한다.
+#[test]
+fn early_focus_opens_reach_the_handlers_the_state_test_calls() {
+    let opens = read("src/app/dispatch/popup_opens.rs");
+    let body = squeeze(
+        &fn_body(&opens, "fn dispatch_pending_popup_opens(").expect("dispatch_pending_popup_opens"),
+    );
+    assert_eq!(
+        body,
+        "{open_pending_popups(self.plugin_manager.as_mut(),crate::app::window_access::engines_mut!(self).sessions(),);}",
+        "plugin 팝업 열기 대기열이 open_pending_popups 로 가지 않는다"
+    );
+    let intents = read("src/app/dispatch/intents.rs");
+    let pending = squeeze(
+        &fn_body(&intents, "fn dispatch_pending_intents(").expect("dispatch_pending_intents"),
+    );
+    let drain = at(
+        &pending,
+        "letbatches=self.drain_pending_batches();",
+        "대기열 꺼내기",
+    );
+    let process = at(
+        &pending,
+        "self.process_state_batches(batches,&mutdomain_batch);",
+        "창 요청 처리",
+    );
+    assert!(drain < process, "꺼내기 → 처리 순서가 아니다");
+    let process_fn =
+        squeeze(&fn_body(&intents, "fn process_state_batches(").expect("process_state_batches"));
+    at(
+        &process_fn,
+        "IntentClass::Immediate=>Self::dispatch_one_intent(core,state,&mutengine,&intent,",
+        "즉시 갈래",
+    );
+    let classify = squeeze(&fn_body(&intents, "fn classify_intent(").expect("classify_intent"));
+    assert!(
+        !classify.contains("Intent::Ui"),
+        "Ui 요청이 즉시 갈래가 아니다"
+    );
+    let one = squeeze(&fn_body(&intents, "fn dispatch_one_intent(").expect("dispatch_one_intent"));
+    at(
+        &one,
+        "Intent::Ui(_)=>{crate::intent::popup::handle(state,engine,intent);}",
+        "Ui 요청 처리",
+    );
 }
 
 /// native WebView 가 넘긴 키의 제품 디스패치는 제품 상태 시험(`app::webview_keys::state_tests`)이 부르는 창 단계를 같은
