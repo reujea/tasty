@@ -28,6 +28,8 @@ use crate::webview::WebViewUserNav;
 struct Explorer {
     panel: tasty_model::ExplorerPanel,
     view: ExplorerView,
+    /// 그리기가 낸 액션(파일 열기 등)의 Debug 글.
+    actions: Vec<String>,
 }
 
 impl Explorer {
@@ -50,7 +52,11 @@ impl Explorer {
                 ..Default::default()
             })
             .collect();
-        Self { panel, view }
+        Self {
+            panel,
+            view,
+            actions: Vec::new(),
+        }
     }
 
     /// 고른 항목의 이름들.
@@ -165,7 +171,7 @@ fn draw_explorer(
         .show(ctx, |ui| {
             ui.set_width(rect.width());
             ui.set_height(rect.height());
-            crate::explorer_ui::draw_explorer(
+            let action = crate::explorer_ui::draw_explorer(
                 ui,
                 &ex.panel,
                 &mut ex.view,
@@ -180,6 +186,7 @@ fn draw_explorer(
                     shortcut_chars: &chars,
                 },
             );
+            ex.actions.extend(action.map(|a| format!("{a:?}")));
         });
 }
 
@@ -831,3 +838,6 @@ fn a_letter_after_a_popup_press_and_a_terminal_press_goes_to_the_terminal() {
         "앞 몫을 그린 띠가 입력 소유권을 다시 얻지 않는다"
     );
 }
+
+#[path = "pass_focus_release_tests.rs"]
+mod release;
