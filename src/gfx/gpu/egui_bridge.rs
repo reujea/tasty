@@ -131,7 +131,8 @@ impl GpuState {
         plugin_manager: Option<crate::app::plugin_display::PluginDisplay<'_>>,
         host_popup_on_top: bool,
     ) -> egui::FullOutput {
-        self.set_plugin_paste_target(state.plugin_popup_key_target());
+        self.set_plugin_paste_target(state.frame_plugin_key_target(None));
+        state.popups.begin_key_pass(self.egui_escape_held());
         let mut raw_input = self.take_egui_input(window);
         // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
         keep_screen_while_minimized(
@@ -225,7 +226,7 @@ impl GpuState {
 
             // 이 프레임이 winit 누름을 처리했다. 다음 누름은 새로 남긴다. 입력을 끊어 넘긴 누름의 스냅샷은 다음
             // 프레임 몫이다.
-            state.press_snapshot = state.press_snapshot_after_cut.take();
+            state.end_press_frame();
             crate::state::webview_overlay::end_frame(ctx, &mut state.webview_overlay);
             crate::state::webview_overlay::prepare_paint_job(
                 &mut state.webview_overlay,

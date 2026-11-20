@@ -17,9 +17,9 @@ use crate::plugin_bridge::popup_render::draw_plugin_popups;
 use crate::state::RequestContext;
 
 const PLUGIN: &str = "com.example.markdown";
-const POPUP: u64 = 7;
+pub(super) const POPUP: u64 = 7;
 
-fn screen() -> egui::Rect {
+pub(super) fn screen() -> egui::Rect {
     to_egui(rect(
         LogicalPx(0.0),
         LogicalPx(0.0),
@@ -51,7 +51,7 @@ fn instance(z_seq: u64) -> tasty_host_plugin::PopupInstance {
     }
 }
 
-fn manager_with_r_popup(z_seq: u64) -> PluginManager {
+pub(super) fn manager_with_r_popup(z_seq: u64) -> PluginManager {
     let mut mgr = PluginManager::with_registries(
         Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
         Arc::new(crate::file::format::FileFormatRegistry::new()),
@@ -61,7 +61,7 @@ fn manager_with_r_popup(z_seq: u64) -> PluginManager {
     mgr
 }
 
-fn plugin_frame(
+pub(super) fn plugin_frame(
     ctx: &Context,
     state: &mut RequestContext,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -95,7 +95,9 @@ fn press(pos: Pos2) -> Event {
     }
 }
 
-fn closes_of_popup(state: &RequestContext) -> Vec<tasty_plugin_protocol::PopupCloseReason> {
+pub(super) fn closes_of_popup(
+    state: &RequestContext,
+) -> Vec<tasty_plugin_protocol::PopupCloseReason> {
     state
         .plugin_popup_closes
         .iter()
@@ -169,7 +171,7 @@ fn the_first_press_into_the_right_scope_does_not_close_its_plugin_popup() {
     for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
         mgr.touch_popup_instance_z(id);
     }
-    state.press_snapshot = state.press_snapshot_after_cut.take();
+    state.end_press_frame();
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
     plugin_frame(
         &ctx,
@@ -184,10 +186,10 @@ fn the_first_press_into_the_right_scope_does_not_close_its_plugin_popup() {
     );
 }
 
-const HOST_POPUP: crate::adapters::ui::popup::PopupId = "route_repro_cover";
+pub(super) const HOST_POPUP: crate::adapters::ui::popup::PopupId = "route_repro_cover";
 
 /// 덮고 바깥 클릭에 닫히는 host 팝업을 `surface` 범위에 연다.
-fn open_host_popup(
+pub(super) fn open_host_popup(
     state: &mut RequestContext,
     surface: u32,
     focused: bool,
@@ -240,7 +242,7 @@ fn host_frame(
             Some(popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout()), &[], press.as_ref()));
         state.popups = popups;
     }));
-    state.press_snapshot = state.press_snapshot_after_cut.take();
+    state.end_press_frame();
     let result: crate::adapters::ui::popup::PopupDrawResult = result.unwrap();
     // 메인 창처럼 다음 누름의 포인터 대상은 이 프레임에 배치한 팝업 노드다(`frame::draw_popup_layer`).
     state.host_popup_hittest = result.hit_rects.clone();
@@ -360,7 +362,7 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
 
 /// 창의 한 프레임: 탐색기 찾기 입력란(팝업 층보다 먼저 그리는 L 화면) → host 팝업 층 → plugin 팝업. 입력란이 받은
 /// 사건과, 입력란이 포커스를 가졌으면 그 위젯 id 를 돌려준다.
-fn window_frame_with_find(
+pub(super) fn window_frame_with_find(
     ctx: &Context,
     state: &mut RequestContext,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -414,7 +416,7 @@ fn window_frame_with_find(
             Some(&layout()),
         );
     }));
-    state.press_snapshot = state.press_snapshot_after_cut.take();
+    state.end_press_frame();
     (out, field)
 }
 
@@ -516,122 +518,6 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
     assert_eq!(state.plugin_popup_key_target(), None);
 }
 
-/// Given R 의 검색창이 포커스 노드이고 창이 이번 그리기 키를 이미 R 에 묶었을 때(앞선 R 키), When 같은 이벤트 묶음에서
-/// L 찾기 입력란을 누르고 글자를 치면, Then 창은 누름 자리에서 egui 입력을 끊어(`MainView::cut_key_frame_before_press`
-/// 와 같은 순서) 앞선 키는 R 이 묶인 그리기에, 누름과 글자는 다음 그리기에 넣는다. 글자는 창의 키 게이트를 지나 L
-/// 입력란에 들어가고 터미널 게이트도 막히지 않는다.
-#[test]
-fn a_letter_after_a_press_follows_the_press_even_when_an_earlier_key_was_bound() {
-    use crate::adapters::ui::popup::focus::PopupNode;
-    use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
-    use crate::state::focus_node::FocusNode;
-    let (mut state, mut session) = scene(super::PANE_R);
-    let engine = session.borrow_mut();
-    for def in defs::all_defs() {
-        state.popups.register_def(def, 1.0);
-    }
-    let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
-    let search = state
-        .popups
-        .open_request(
-            &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, PopupScope::Surface(SURFACE_R))
-                .focused(),
-            true,
-        )
-        .unwrap();
-    let ctx = Context::default();
-    let mut query = String::new();
-    let (_, field) = window_frame_with_find(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        Vec::new(),
-        &mut query,
-        true,
-    );
-    let field = field
-        .and_then(|id| ctx.read_response(id))
-        .map(|r| r.rect)
-        .expect("찾기 입력란이 그려진다");
-    window_frame_with_find(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        Vec::new(),
-        &mut query,
-        false,
-    );
-    assert_eq!(
-        state.focus_node(&engine.read()),
-        FocusNode::Popup(PopupNode::Host(search))
-    );
-
-    // 묶음 [R 키, L 누름, 글자]. 창은 R 키를 받으며 키 주인(검색창)을 묶는다.
-    let mut pending = Vec::new();
-    assert_eq!(state.window_feeds_egui(false, true), Some(true));
-    pending.push(Event::Text("x".into()));
-    // 누름을 egui 입력에 넣기 전에 끊는다.
-    let at = field.center();
-    let cut = state
-        .popups
-        .cut_key_frame(pending.len())
-        .then_some(pending.len());
-    assert_eq!(cut, Some(1), "앞선 결속이 있으니 누름 자리에서 끊는다");
-    pending.extend([Event::PointerMoved(at), press(at)]);
-    let snapshot = state.take_press_snapshot(&engine.read(), at, egui::PointerButton::Primary);
-    state.keep_press_snapshot(snapshot);
-    {
-        let read = engine.read();
-        state
-            .navigation
-            .select_pane(read.workspace_at(0).unwrap(), super::PANE_L);
-    }
-    state.normalize_focus(&engine.read());
-    assert_eq!(
-        state.window_feeds_egui(true, true),
-        Some(false),
-        "누름 뒤 글자에는 팝업 키 주인이 없다"
-    );
-    assert!(
-        !state.window_holds_terminal_keys(),
-        "누름 뒤 글자는 터미널 게이트에서도 막히지 않는다"
-    );
-    pending.push(Event::Text("a".into()));
-
-    // 그리기 둘: 끊은 앞(R 키)과 끊은 뒤(누름, 글자).
-    let rest = pending.split_off(cut.unwrap());
-    let (first, _) = window_frame_with_find(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        pending,
-        &mut query,
-        false,
-    );
-    assert!(!first.field_focused);
-    assert_eq!(query, "", "R 에 묶인 키는 L 입력란에 들어가지 않는다");
-    assert!(
-        state.press_snapshot.is_some(),
-        "끊은 뒤 누름의 스냅샷은 다음 그리기 몫으로 남는다"
-    );
-    let (after, _) = window_frame_with_find(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        rest,
-        &mut query,
-        false,
-    );
-    assert!(after.field_focused, "L 입력란이 포커스를 가진다");
-    assert_eq!(query, "a", "누름 뒤 글자는 L 입력란에 들어간다");
-    assert!(state.popups.instance(search).is_some_and(|p| p.open));
-    assert_eq!(closes_of_popup(&state), []);
-}
-
 /// Given 엔진 포커스가 L 이고 R 에 plugin 팝업(바깥 클릭에 닫힘)만 있을 때, When R 범위 안·팝업 밖을 처음 누르면,
 /// Then 닫히지 않고 그 plugin 팝업이 포커스 노드가 된다. When 같은 자리를 다시 누르면, Then 닫힘 요청이다.
 #[test]
@@ -666,7 +552,7 @@ fn the_first_press_into_a_scope_with_only_a_plugin_popup_focuses_it() {
     for id in std::mem::take(&mut state.plugin_popup_focus_bumps) {
         mgr.touch_popup_instance_z(id);
     }
-    state.press_snapshot = state.press_snapshot_after_cut.take();
+    state.end_press_frame();
     plugin_frame(&ctx, &mut state, &engine.read(), &mgr, Vec::new());
     plugin_frame(
         &ctx,

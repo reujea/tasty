@@ -437,5 +437,9 @@ mod repro;
 mod pending;
 
 #[cfg(feature = "gui")]
+#[path = "press_cut_tests.rs"]
+mod press_cut;
+
+#[cfg(feature = "gui")]
 #[path = "frame_key_owner_tests.rs"]
 mod frame_keys;

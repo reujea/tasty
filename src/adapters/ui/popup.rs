@@ -44,6 +44,8 @@ pub(crate) mod script_confirm;
 pub(crate) mod transfer;
 mod view_local;
 #[cfg(all(test, feature = "gui"))]
+pub(crate) mod window_input_test_support;
+#[cfg(all(test, feature = "gui"))]
 #[path = "popup/window_key_gate_tests.rs"]
 mod window_key_gate_tests;
 pub use arrange::NoticeColumn;

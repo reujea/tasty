@@ -166,12 +166,10 @@ impl GpuState {
         self.edit_keys_before_input(window);
         let mut raw_input = self.egui_state.take_egui_input(window);
         // 끊은 자리부터는 그다음 패스 몫이다. 남은 사건을 다음 입력 앞에 되돌리고 그 패스를 요청한다.
-        if let Some(at) = self.egui_input_cut.take()
-            && at < raw_input.events.len()
-        {
-            let rest = raw_input.events.split_off(at);
-            let next = &mut self.egui_state.egui_input_mut().events;
-            next.splice(0..0, rest);
+        if self.egui_input_cuts.split_pass(
+            &mut raw_input.events,
+            &mut self.egui_state.egui_input_mut().events,
+        ) {
             self.egui_ctx.request_repaint();
         }
         self.edit_keys.input_taken(&raw_input.events);

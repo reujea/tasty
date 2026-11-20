@@ -16,9 +16,15 @@ impl super::MainViewState {
         })
     }
 
-    /// 키를 받는 팝업이 plugin 팝업이면 그 instance id. 창이 이번 키의 주인을 묶었으면 그 값을 따른다.
+    /// 입력 시점에 키를 받는 팝업이 plugin 팝업이면 그 instance id. 창이 지금 받는 몫(끊었으면 뒤 몫)의 결속을
+    /// 따르고, 결속이 없으면 지금 포커스 노드다. 창 게이트·붙여넣기·plugin 키 전달 같은 입력 시점 판정이 읽는다. 그리기는
+    /// 그 그리기 몫의 결속을 읽는 [`Self::frame_plugin_key_target`]을 쓴다.
     pub(crate) fn plugin_popup_key_target(&self) -> Option<u64> {
-        self.frame_plugin_key_target(None)
+        plugin_target(match self.popups.bound_input_key_owner() {
+            Some(PopupNode::Plugin(id)) => Some(PopupKeyOwner::Plugin(id)),
+            Some(PopupNode::Host(_)) => Some(PopupKeyOwner::Host),
+            None => self.popup_key_owner(),
+        })
     }
 
     /// 이번 프레임의 키 주인을 정한다. host 팝업 그리기가 이번 프레임 범위·표시 판정(`prepare_frame_for_draw`)
@@ -116,9 +122,10 @@ impl super::MainViewState {
         decided: Option<Option<PopupKeyOwner>>,
     ) -> Option<u64> {
         plugin_target(
-            decided.unwrap_or_else(|| match self.popups.frame_bound_key_owner() {
-                Some(PopupNode::Plugin(id)) => Some(PopupKeyOwner::Plugin(id)),
-                Some(PopupNode::Host(_)) => Some(PopupKeyOwner::Host),
+            decided.unwrap_or_else(|| match self.popups.frame_binding() {
+                Some(Some(PopupNode::Plugin(id))) => Some(PopupKeyOwner::Plugin(id)),
+                Some(Some(PopupNode::Host(_))) => Some(PopupKeyOwner::Host),
+                Some(None) => None,
                 None => self.popup_key_owner(),
             }),
         )

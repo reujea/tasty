@@ -1,5 +1,5 @@
 //! 누름이 포커스 노드를 정하는 자리(J6)가 창의 누름 경로와 debug 포인터 주입에서 같은 함수를 거치는지 확인한다.
-//! 포커스 노드를 옮기는 판정(`MainViewState::take_press_snapshot`)과 입력 끊기(`PopupManager::cut_key_frame`)의 동작은
+//! 포커스 노드를 옮기는 판정(`MainViewState::take_press_snapshot`)과 입력 끊기(`MainViewState::cut_key_frame`)의 동작은
 //! 장면 시험(`adapters::ui::popup::route::tests::repro`)이 그 함수를 직접 불러 잰다. 창 호출부가 그 함수를 부르지
 //! 않으면 장면 시험은 보지 못하므로 호출부의 모양을 여기서 고정한다.
 //!
@@ -38,7 +38,7 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     );
     at(
         &cut,
-        "ifself.state.popups.cut_key_frame(at){self.base.gpu.cut_egui_input_here();}",
+        "ifself.state.cut_key_frame(self.base.gpu.egui_input_events_mut()){self.base.gpu.cut_egui_input_here();}",
         "입력 끊기",
     );
     let feed = squeeze(
@@ -70,31 +70,43 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     );
 }
 
-/// debug 포인터 주입: 누름이면 입력을 끊고 같은 누름 스냅샷 함수로 포커스 노드를 옮긴 뒤 egui 입력에 넣는다.
+/// debug 포인터 주입: 누름이면 `press_focus`(끊기 → 누름 스냅샷 → 남기기)를 거친 뒤 egui 입력에 넣는다. `press_focus` 의
+/// 동작은 `view::main::debug_input` 의 시험이 그 함수를 직접 불러 잰다.
 #[test]
 fn a_debug_pointer_press_moves_the_focus_node_through_the_press_snapshot() {
     let src = read("src/view/main/debug_input.rs");
     let body = squeeze(
         &fn_body(&src, "fn debug_inject_egui_pointer(").expect("debug_inject_egui_pointer"),
     );
-    let cut = at(&body, "self.cut_key_frame_before_press();", "입력 끊기");
-    let take = at(
+    let focus = at(
         &body,
-        ".take_press_snapshot(engine,pos,map_egui_button(*button));",
-        "누름 스냅샷 함수",
-    );
-    let keep = at(
-        &body,
-        "self.state.keep_press_snapshot(snapshot);",
-        "스냅샷 남기기",
+        "press_focus(&mutself.state,engine,&mutself.base.gpu,pos,map_egui_button(*button),);",
+        "누름의 포커스 처리",
     );
     let push = at(
         &body,
         "push_egui_pointer_at(&mutself.base.gpu,pos,action,modifiers);",
         "egui 입력에 넣기",
     );
+    assert!(focus < push, "포커스 처리 → egui 입력 순서가 아니다");
+    let press = squeeze(&fn_body(&src, "fn press_focus(").expect("press_focus"));
+    let cut = at(
+        &press,
+        "ifstate.cut_key_frame(sink.queued_events()){sink.cut_queue_here();}",
+        "입력 끊기",
+    );
+    let take = at(
+        &press,
+        ".take_press_snapshot(core,pos,button);",
+        "누름 스냅샷 함수",
+    );
+    let keep = at(
+        &press,
+        "state.keep_press_snapshot(snapshot);",
+        "스냅샷 남기기",
+    );
     assert!(
-        cut < take && take < keep && keep < push,
-        "끊기 → 스냅샷 → 남기기 → egui 입력 순서가 아니다"
+        cut < take && take < keep,
+        "끊기 → 스냅샷 → 남기기 순서가 아니다"
     );
 }

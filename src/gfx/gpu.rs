@@ -172,8 +172,9 @@ pub struct GpuState {
     /// The view consumes this to request one follow-up redraw so the cursor
     /// reappears after the burst settles even if no more PTY bytes arrive.
     pub(super) terminal_cursor_restore_pending: bool,
-    /// 다음 egui 입력을 끊을 자리(`cut_egui_input_at`). 이 자리부터의 사건은 그다음 패스로 넘긴다.
-    pub(super) egui_input_cut: Option<usize>,
+    /// egui 입력 큐를 끊은 자리들(`cut_egui_input_here`). 패스마다 앞 자리 하나에서 나눠 뒤 사건을 그다음 패스로
+    /// 넘긴다.
+    pub(super) egui_input_cuts: crate::adapters::ui::popup::frame_keys::InputCuts,
     /// 타이틀바 닫기 등을 해당 창의 AppEvent로 보내는 proxy.
     pub(super) proxy: EventLoopProxy<AppEvent>,
 }
@@ -345,7 +346,7 @@ impl GpuState {
             presented_instances: (0, 0),
             slow_render: frame_timing::SlowRenderLog::default(),
             terminal_cursor_restore_pending: false,
-            egui_input_cut: None,
+            egui_input_cuts: Default::default(),
             proxy,
         })
     }
@@ -374,11 +375,11 @@ impl GpuState {
         (response.consumed, response.repaint)
     }
 
-    /// 다음 egui 패스 입력을 지금 자리에서 끊는다. 이 뒤로 들어오는 사건은 그다음 패스가 받는다
-    /// (`PopupManager::cut_key_frame`). 이미 끊었으면 처음 자리를 그대로 둔다. 끊은 자리를 돌려준다.
-    pub fn cut_egui_input_here(&mut self) -> usize {
+    /// egui 입력 큐를 지금 자리에서 끊는다. 이 뒤로 들어오는 사건은 앞 몫을 실은 패스 다음 패스가 받는다
+    /// (`MainViewState::cut_key_frame`).
+    pub fn cut_egui_input_here(&mut self) {
         let at = self.egui_state.egui_input_mut().events.len();
-        *self.egui_input_cut.get_or_insert(at)
+        self.egui_input_cuts.cut_at(at);
     }
 
     /// 다음 egui 프레임에 넣을 입력 이벤트. 호스트 입력 위젯의 키 재해석이 쓴다.

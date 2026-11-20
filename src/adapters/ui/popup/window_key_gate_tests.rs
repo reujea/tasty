@@ -858,3 +858,130 @@ fn a_covering_window_popup_takes_the_first_escape_before_an_open_notification_li
     });
     assert!(!closes_notifications, "알림 목록 닫기 요청이 없다");
 }
+
+/// [`frame_escapes`]와 같은 창의 한 프레임. 배치한 팝업을 다음 누름의 포인터 대상으로 남긴다(`frame::draw_popup_layer`
+/// 처럼). 본문마다 본 Escape 사건(인스턴스, 눌림, 반복)을 돌려준다.
+fn frame_escapes_with_hits(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    events: Vec<egui::Event>,
+) -> Vec<(PopupInstanceId, bool, bool)> {
+    let layout = layout();
+    let mut seen = Vec::new();
+    let raw = egui::RawInput {
+        screen_rect: Some(rect(0.0, 0.0, 1200.0, 700.0)),
+        events,
+        ..Default::default()
+    };
+    let mut hits = Vec::new();
+    drop(ctx.run(raw, |ctx| {
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        state.decide_frame_key_owner(Some(&layout));
+        let result = state.popups.draw(
+            ctx,
+            &mut |cx, ui| {
+                ui.input(|i| {
+                    for e in &i.events {
+                        if let egui::Event::Key {
+                            key: egui::Key::Escape,
+                            pressed,
+                            repeat,
+                            ..
+                        } = e
+                        {
+                            seen.push((cx.instance, *pressed, *repeat));
+                        }
+                    }
+                })
+            },
+            Some(&layout),
+            &[],
+        );
+        hits = result.hit_rects;
+    }));
+    state.host_popup_hittest = hits;
+    state.end_press_frame();
+    seen
+}
+
+/// (e) Given 키 주인 X 가 직전 패스에서 Esc 누름을 받아 egui 가 Escape 를 눌린 채로 볼 때, When 한 묶음에 [Esc 뗌, 다른
+/// 범위 팝업 Y 누름, 새 Esc 누름]이 오면, Then 창은 Y 누름에서 끊고, 뗌을 실은 앞 패스 뒤의 패스에서 Y 가 받는 새
+/// Esc 는 반복이 아니다(뒤 몫의 반복 판정은 앞 몫의 뗌을 반영한 상태에서 시작한다).
+#[test]
+fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    state.popups.register(
+        PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
+            .with_instances(PopupInstances::PerScopeTarget),
+    );
+    let y = open(&mut state, 3, false);
+    let x = open(&mut state, 1, true);
+    for p in state.popups.popups.iter_mut() {
+        p.close_on_outside_click = false;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(240.0, 200.0));
+    }
+    let ctx = egui::Context::default();
+    frame_escapes_with_hits(&ctx, &mut state, Vec::new());
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
+    assert_eq!(
+        frame_escapes_with_hits(&ctx, &mut state, pending),
+        [(x, true, false)]
+    );
+    assert!(
+        ctx.input(|i| i.key_down(egui::Key::Escape)),
+        "넘긴 누름은 egui 처럼 눌림으로 남는다"
+    );
+    state.popups.set_instance_focused(x, true);
+    let y_at = state
+        .host_popup_hittest
+        .iter()
+        .map(|o| o.rect)
+        .find(|r| rect(600.0, 100.0, 600.0, 600.0).contains(r.center()))
+        .expect("Y 가 그려진다")
+        .center();
+
+    let mut input = WindowInput::default();
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        input.queue_mut(),
+        escape_release()
+    ));
+    {
+        let engine = session.borrow_mut();
+        input.press(&mut state, &engine.read(), y_at);
+    }
+    assert!(
+        state.popups.is_instance_focused(y),
+        "누름이 Y 로 포커스를 옮긴다"
+    );
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        input.queue_mut(),
+        key(egui::Key::Escape)
+    ));
+    let first = input.take_pass(&mut state, &ctx);
+    assert_eq!(
+        frame_escapes_with_hits(&ctx, &mut state, first),
+        [(x, false, false)],
+        "앞 패스는 X 가 뗌을 본다"
+    );
+    assert!(!ctx.input(|i| i.key_down(egui::Key::Escape)));
+    let second = input.take_pass(&mut state, &ctx);
+    assert_eq!(
+        frame_escapes_with_hits(&ctx, &mut state, second),
+        [(y, true, false)],
+        "새 Esc 는 Y 가 받고 반복이 아니다"
+    );
+    assert!(input.is_empty());
+}

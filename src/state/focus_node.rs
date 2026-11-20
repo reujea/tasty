@@ -141,14 +141,32 @@ impl super::MainViewState {
         snapshot
     }
 
-    /// 창이 받은 누름의 스냅샷을 그 누름을 처리할 프레임에 남긴다. 한 프레임에는 첫 누름만 남긴다. 키 결속 뒤 누름에서
-    /// 입력을 끊었으면(`PopupManager::key_frame_cut`) 끊은 뒤 첫 누름은 다음 프레임 몫이다.
+    /// 창이 받은 누름의 스냅샷을 그 누름을 처리할 그리기 몫에 남긴다. 한 몫에는 첫 누름만 남긴다. 입력을 끊었으면
+    /// (`cut_key_frame`) 마지막으로 끊은 뒤 몫의 것이다.
     pub(crate) fn keep_press_snapshot(&mut self, snapshot: PressSnapshot) {
-        if self.popups.key_frame_cut() {
-            self.press_snapshot_after_cut.get_or_insert(snapshot);
-        } else {
-            self.press_snapshot.get_or_insert(snapshot);
+        match self.press_snapshots_after_cut.back_mut() {
+            Some(slot) => {
+                slot.get_or_insert(snapshot);
+            }
+            None => {
+                self.press_snapshot.get_or_insert(snapshot);
+            }
         }
+    }
+
+    /// 누름이 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 지금 몫에 키가 실렸으면 그 자리에서 끊어 누름부터를
+    /// 뒤 그리기 몫으로 둔다(`PopupManager::cut_key_frame`). 참이면 호출자는 egui 입력도 그 자리에서 끊는다.
+    pub(crate) fn cut_key_frame(&mut self, events: &[egui::Event]) -> bool {
+        let cut = self.popups.cut_key_frame(events);
+        if cut {
+            self.press_snapshots_after_cut.push_back(None);
+        }
+        cut
+    }
+
+    /// 그리기 몫 하나를 마쳤다. 다음 몫의 누름 스냅샷(끊어 넘긴 누름의 것, 없으면 비움)을 다음 그리기에 남긴다.
+    pub(crate) fn end_press_frame(&mut self) {
+        self.press_snapshot = self.press_snapshots_after_cut.pop_front().flatten();
     }
 
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.

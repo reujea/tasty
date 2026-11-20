@@ -505,12 +505,13 @@ impl MainView {
         self.base.gpu.handle_egui_event(&self.base.winit, event)
     }
 
-    /// 누름을 egui 입력에 넣기 전에 부른다. 이번 그리기에 키 주인이 이미 묶였으면 누름부터의 입력을 다음 그리기로
-    /// 넘긴다(`PopupManager::cut_key_frame`). 누름이 포커스 노드를 옮기므로 누름 뒤의 키는 다음 그리기의 키 주인이
-    /// 받는다.
+    /// 누름을 egui 입력에 넣기 전에 부른다. 지금 몫에 키가 실렸으면 누름부터의 입력을 뒤 그리기 몫으로 넘긴다
+    /// (`MainViewState::cut_key_frame`). 누름이 포커스 노드를 옮기므로 누름 뒤의 키는 그 몫의 키 주인이 받는다.
     pub(super) fn cut_key_frame_before_press(&mut self) {
-        let at = self.base.gpu.egui_input_events_mut().len();
-        if self.state.popups.cut_key_frame(at) {
+        if self
+            .state
+            .cut_key_frame(self.base.gpu.egui_input_events_mut())
+        {
             self.base.gpu.cut_egui_input_here();
         }
     }

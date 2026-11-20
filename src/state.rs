@@ -248,7 +248,7 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             press_snapshot: None,
             #[cfg(feature = "gui")]
-            press_snapshot_after_cut: None,
+            press_snapshots_after_cut: Default::default(),
             #[cfg(feature = "gui")]
             frame_key_owner: None,
             #[cfg(feature = "gui")]

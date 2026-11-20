@@ -88,6 +88,11 @@ impl HandedEscape {
         self.events.is_empty()
     }
 
+    /// 이 몫을 실은 egui 패스가 시작할 때의 Escape 눌림 상태로 반복 판정의 출발점을 맞춘다.
+    pub(crate) fn start_from(&mut self, held_before: bool) {
+        self.held_before = held_before;
+    }
+
     /// 앞의 `by` 사건이 이번 그리기 몫으로 빠졌다. 원래 자리를 그만큼 앞당긴다.
     pub(crate) fn shifted_back(mut self, by: usize) -> Self {
         for (at, _) in &mut self.events {
