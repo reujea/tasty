@@ -107,3 +107,67 @@ fn enter_does_not_press_the_tutorial_button_after_a_plugin_popup_takes_the_focus
         "Enter 가 튜토리얼 다음 단추를 누르지 않는다"
     );
 }
+
+/// Given 튜토리얼 다음 단추가 egui 키 포커스를 가지고 R 에 plugin 팝업이 열려 있을 때, When 한 묶음에 [Enter, 그 plugin
+/// 팝업 누름]이 오면, Then Enter 는 누름 앞 몫(포커스 노드가 튜토리얼인 몫)으로 그려져 튜토리얼 단계를 넘긴다. 누름이
+/// 포커스 노드를 팝업으로 옮긴 뒤 온 Enter 는 단계를 넘기지 않는다. 창처럼 누름 앞에서 끊고, 누름을 처리하는
+/// 튜토리얼 입력(`route_tutorial_input`)이 키보드 몫을 놓는 것도 끊은 뒤다.
+#[test]
+fn an_enter_before_a_popup_press_in_the_same_batch_advances_the_tutorial() {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    let (mut state, mut session) = scene(PANE_R);
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let mgr = manager_with_r_popup(tasty_host_plugin::next_popup_z_seq());
+    state.tutorial.request_start(0);
+    state.tutorial.keyboard_focus = true;
+    let mut input = WindowInput::default();
+    let pass = |state: &mut RequestContext, input: &mut WindowInput| {
+        let events = input.take_pass(state, &ctx);
+        window_frame(&ctx, state, &engine.read(), &mgr, events);
+        state.close_input_pass();
+    };
+    pass(&mut state, &mut input);
+    pass(&mut state, &mut input);
+    assert_eq!(state.focus_node(&engine.read()), FocusNode::Tutorial);
+    assert!(
+        ctx.memory(|m| m.focused().is_some()),
+        "다음 단추가 egui 키 포커스를 가진다"
+    );
+    let placed = state.plugin_popup_hittest[0].rect;
+
+    for pressed in [true, false] {
+        assert!(
+            input
+                .key(&mut state, &engine.read(), false, key(Key::Enter, pressed))
+                .is_some(),
+            "튜토리얼 키보드 몫이라 Enter 는 egui 로 간다"
+        );
+    }
+    input.press(&mut state, &engine.read(), placed.center());
+    state.tutorial.keyboard_focus = false;
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Plugin(POPUP))
+    );
+    while !input.is_empty() {
+        pass(&mut state, &mut input);
+    }
+    assert_eq!(
+        state.tutorial.active.map(|a| a.step),
+        Some(1),
+        "누름 앞 Enter 가 튜토리얼 단계를 넘긴다"
+    );
+
+    for pressed in [true, false] {
+        input.key(&mut state, &engine.read(), false, key(Key::Enter, pressed));
+    }
+    while !input.is_empty() {
+        pass(&mut state, &mut input);
+    }
+    assert_eq!(
+        state.tutorial.active.map(|a| a.step),
+        Some(1),
+        "누름 뒤 Enter 는 단계를 넘기지 않는다"
+    );
+}

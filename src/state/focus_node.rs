@@ -9,6 +9,7 @@
 
 use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::focus::PopupNode;
+use crate::adapters::ui::popup::frame_keys::Incoming;
 use crate::adapters::ui::popup::route::{PressSnapshot, ScopePath, path_of_focus, path_of_scope};
 use crate::core::CoreState;
 
@@ -27,6 +28,15 @@ pub(crate) enum FocusNode {
     Tutorial,
     /// 엔진 포커스 surface. surface 가 없으면 `None`이다.
     Surface(Option<u32>),
+}
+
+/// 끊은 자리 뒤 그리기 몫 하나의 누름 스냅샷과 포커스 노드.
+#[derive(Debug, Default)]
+pub(crate) struct SegmentAfterCut {
+    /// 그 몫의 첫 누름 스냅샷.
+    press: Option<PressSnapshot>,
+    /// 그 몫을 끊어 닫은 시점의 포커스 노드. 아직 닫히지 않았으면 `None`.
+    focus: Option<FocusNode>,
 }
 
 impl FocusNode {
@@ -147,9 +157,9 @@ impl super::MainViewState {
     /// 창이 받은 누름의 스냅샷을 그 누름을 처리할 그리기 몫에 남긴다. 한 몫에는 첫 누름만 남긴다. 입력을 끊었으면
     /// (`cut_key_frame`) 마지막으로 끊은 뒤 몫의 것이다.
     pub(crate) fn keep_press_snapshot(&mut self, snapshot: PressSnapshot) {
-        match self.press_snapshots_after_cut.back_mut() {
+        match self.segments_after_cut.back_mut() {
             Some(slot) => {
-                slot.get_or_insert(snapshot);
+                slot.press.get_or_insert(snapshot);
             }
             None => {
                 self.press_snapshot.get_or_insert(snapshot);
@@ -157,22 +167,47 @@ impl super::MainViewState {
         }
     }
 
-    /// 누름이 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 지금 몫에 키가 실렸으면 그 자리에서 끊어 누름부터를
-    /// 뒤 그리기 몫으로 둔다(`PopupManager::cut_key_frame`). 참이면 호출자는 egui 입력도 그 자리에서 끊는다.
-    pub(crate) fn cut_key_frame(&mut self, events: &[egui::Event]) -> bool {
-        let cut = self.popups.cut_key_frame(events);
+    /// 누름·키(`incoming`)가 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 지금 몫과 그 사건의 포커스 노드가 다를
+    /// 수 있으면 그 자리에서 끊어 그 사건부터를 뒤 그리기 몫으로 둔다(조건은 `PopupManager::cut_key_frame`). 닫히는
+    /// 몫에는 지금 포커스 노드를 남긴다. 그 몫을 그리는 동안 포커스 노드를 읽는 판정은 이 값을 읽는다
+    /// (`pass_focus_node`). 참이면 호출자는 egui 입력도 그 자리에서 끊는다.
+    pub(crate) fn cut_key_frame(
+        &mut self,
+        core: &CoreState,
+        events: &[egui::Event],
+        incoming: Incoming,
+    ) -> bool {
+        let focus = self.focus_node(core);
+        let popup = match focus {
+            FocusNode::Popup(node) => Some(node),
+            _ => None,
+        };
+        let cut = self.popups.cut_key_frame(events, incoming, popup);
         if cut {
-            self.press_snapshots_after_cut.push_back(None);
+            match self.segments_after_cut.back_mut() {
+                Some(slot) => slot.focus = Some(focus),
+                None => self.segment_focus = Some(focus),
+            }
+            self.segments_after_cut
+                .push_back(SegmentAfterCut::default());
         }
         cut
     }
 
-    /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷을
-    /// 함께 꺼내, 다음 몫의 누름 스냅샷(끊어 넘긴 누름의 것, 없으면 비움)을 다음 패스에 남긴다. 창의 egui 패스는 모두
-    /// 이 함수로 닫는다(`GpuState::run_main_pass`).
+    /// 지금 그리는 몫의 포커스 노드. 끊어 닫은 몫이면 닫은 시점의 값, 아니면 지금 포커스 노드다. 그리기 중 포커스
+    /// 노드를 읽는 판정(튜토리얼 말풍선 등)은 이 값을 읽는다.
+    pub(crate) fn pass_focus_node(&self, core: &CoreState) -> FocusNode {
+        self.segment_focus.unwrap_or_else(|| self.focus_node(core))
+    }
+
+    /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷·
+    /// 포커스 노드를 함께 꺼내, 다음 몫의 것(끊어 넘긴 몫의 것, 없으면 비움)을 다음 패스에 남긴다. 창의 egui 패스는
+    /// 모두 이 함수로 닫는다(`GpuState::run_main_pass`).
     pub(crate) fn close_input_pass(&mut self) {
         self.popups.close_key_pass();
-        self.press_snapshot = self.press_snapshots_after_cut.pop_front().flatten();
+        let next = self.segments_after_cut.pop_front().unwrap_or_default();
+        self.press_snapshot = next.press;
+        self.segment_focus = next.focus;
     }
 
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.

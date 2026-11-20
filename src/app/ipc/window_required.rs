@@ -263,7 +263,7 @@ impl App {
             let Some(text) = params.get("text").and_then(|v| v.as_str()) else {
                 return reject_bad_params(cmd, "missing or non-string 'text'");
             };
-            let ok = w.debug_inject_egui_text(text);
+            let ok = w.debug_inject_egui_text(&engine.read(), text);
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
                 serde_json::json!({ "injected": ok }),

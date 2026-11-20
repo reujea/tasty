@@ -906,8 +906,8 @@ fn frame_escapes_with_hits(
 }
 
 /// (e) Given 키 주인 X 가 직전 패스에서 Esc 누름을 받아 egui 가 Escape 를 눌린 채로 볼 때, When 한 묶음에 [Esc 뗌, 다른
-/// 범위 팝업 Y 누름, 새 Esc 누름]이 오면, Then 창은 Y 누름에서 끊고, 뗌을 실은 앞 패스 뒤의 패스에서 Y 가 받는 새
-/// Esc 는 반복이 아니다(뒤 몫의 반복 판정은 앞 몫의 뗌을 반영한 상태에서 시작한다).
+/// 범위 팝업 Y 누름, 새 Esc 누름]이 오면, Then 창은 Y 누름과 그 뒤 Esc 에서 끊고, 뗌을 실은 앞 패스 뒤의 패스에서 Y 가
+/// 받는 새 Esc 는 반복이 아니다(뒤 몫의 반복 판정은 앞 몫의 뗌을 반영한 상태에서 시작한다).
 #[test]
 fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
     use crate::adapters::ui::popup::window_input_test_support::WindowInput;
@@ -965,6 +965,11 @@ fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
         state.popups.is_instance_focused(y),
         "누름이 Y 로 포커스를 옮긴다"
     );
+    {
+        // 창은 누름 뒤 키를 받기 전에 그 키 자리에서 끊는다(`MainView::cut_input_segment`).
+        let engine = session.borrow_mut();
+        crate::view::main::input_segment::key_focus(&mut state, &engine.read(), &mut input);
+    }
     assert!(!window_key(
         &ctx,
         &mut state,
@@ -978,6 +983,8 @@ fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
         "앞 패스는 X 가 뗌을 본다"
     );
     assert!(!ctx.input(|i| i.key_down(egui::Key::Escape)));
+    let press = input.take_pass(&mut state, &ctx);
+    assert_eq!(frame_escapes_with_hits(&ctx, &mut state, press), []);
     let second = input.take_pass(&mut state, &ctx);
     assert_eq!(
         frame_escapes_with_hits(&ctx, &mut state, second),

@@ -3,7 +3,7 @@
 
 #![cfg(debug_assertions)]
 
-use super::input_segment::press_focus;
+use super::input_segment::{key_focus, press_focus};
 use crate::model::PhysicalPx;
 use crate::runtime::engine_read::EngineRead;
 use winit::dpi::PhysicalPosition;
@@ -171,7 +171,16 @@ impl MainView {
 
     /// 문자열 전체를 한 egui Text 이벤트로 넣는다. 빈 값·제어문자 등 실입력에서
     /// 전달되지 않는 문자열은 거절한다. Enter·Tab 같은 키 동작은 키 주입을 사용한다.
-    pub(crate) fn debug_inject_egui_text(&mut self, text: &str) -> bool {
+    /// 넣기 전에 창의 키처럼 입력 몫을 끊는다(`key_focus`).
+    pub(crate) fn debug_inject_egui_text(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        text: &str,
+    ) -> bool {
+        if !text_reaches_egui_as_typed(text) {
+            return false;
+        }
+        key_focus(&mut self.state, engine, &mut self.base.gpu);
         push_egui_text(&mut self.base.gpu, text)
     }
 }

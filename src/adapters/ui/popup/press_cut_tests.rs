@@ -58,42 +58,44 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     extra(&mut state);
     let ctx = Context::default();
     let mut query = String::new();
-    let engine = session.borrow_mut();
-    let (_, find) = window_frame_with_find(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        Vec::new(),
-        &mut query,
-        true,
-    );
-    let find = find
-        .and_then(|id| ctx.read_response(id))
-        .map(|r| r.rect)
-        .expect("찾기 입력란이 그려진다");
-    window_frame_with_find(
-        &ctx,
-        &mut state,
-        &engine.read(),
-        &mgr,
-        Vec::new(),
-        &mut query,
-        false,
-    );
-    // 포커스를 가진 검색창이 입력칸에 egui 키 포커스를 준다.
-    let search_field = ctx
-        .memory(|m| m.focused())
-        .and_then(|id| ctx.read_response(id))
-        .map(|r| r.rect)
-        .expect("검색창 입력칸이 키 포커스를 가진다");
-    assert!(surface_rect_l().contains(find.center()));
-    assert!(surface_rect_r().contains(search_field.center()));
-    assert_eq!(
-        state.focus_node(&engine.read()),
-        FocusNode::Popup(PopupNode::Host(search))
-    );
-    drop(engine);
+    let (find, search_field) = {
+        let engine = session.borrow_mut();
+        let (_, find) = window_frame_with_find(
+            &ctx,
+            &mut state,
+            &engine.read(),
+            &mgr,
+            Vec::new(),
+            &mut query,
+            true,
+        );
+        let find = find
+            .and_then(|id| ctx.read_response(id))
+            .map(|r| r.rect)
+            .expect("찾기 입력란이 그려진다");
+        window_frame_with_find(
+            &ctx,
+            &mut state,
+            &engine.read(),
+            &mgr,
+            Vec::new(),
+            &mut query,
+            false,
+        );
+        // 포커스를 가진 검색창이 입력칸에 egui 키 포커스를 준다.
+        let search_field = ctx
+            .memory(|m| m.focused())
+            .and_then(|id| ctx.read_response(id))
+            .map(|r| r.rect)
+            .expect("검색창 입력칸이 키 포커스를 가진다");
+        assert!(surface_rect_l().contains(find.center()));
+        assert!(surface_rect_r().contains(search_field.center()));
+        assert_eq!(
+            state.focus_node(&engine.read()),
+            FocusNode::Popup(PopupNode::Host(search))
+        );
+        (find, search_field)
+    };
     Scene {
         state,
         session,
@@ -122,6 +124,12 @@ fn terminal_point_r(scene: &Scene) -> egui::Pos2 {
         .expect("R 에 팝업이 덮지 않은 자리가 있다")
 }
 
+/// 창이 받은 글자 하나(`WindowInput::key`: 끊기 → egui 게이트 → 큐). 게이트 결과를 돌려준다.
+fn type_text(s: &mut Scene, input: &mut WindowInput, egui_surface: bool, t: &str) -> Option<bool> {
+    let engine = s.session.borrow_mut();
+    input.key(&mut s.state, &engine.read(), egui_surface, text(t))
+}
+
 /// 창이 다음 패스 입력을 꺼내 한 프레임을 그린다.
 fn pass(scene: &mut Scene, input: &mut WindowInput) {
     let events = input.take_pass(&mut scene.state, &scene.ctx);
@@ -137,6 +145,13 @@ fn pass(scene: &mut Scene, input: &mut WindowInput) {
     );
 }
 
+/// 남은 몫을 모두 그린다.
+fn drain(scene: &mut Scene, input: &mut WindowInput) {
+    while !input.is_empty() {
+        pass(scene, input);
+    }
+}
+
 /// L 을 누른 뒤의 click-to-activate(엔진 포커스 이동)를 창처럼 반영한다.
 fn activate(scene: &mut Scene, pane: u32) {
     let engine = scene.session.borrow_mut();
@@ -149,25 +164,23 @@ fn activate(scene: &mut Scene, pane: u32) {
 }
 
 /// (b) Given R 검색창이 포커스 노드일 때, When 한 묶음에 [R 키 x, L 찾기 입력란 누름, 글자 a]가 오면, Then x 는 R
-/// 검색어에 실제로 들어가고 a 는 L 입력란에 들어간다. 창은 누름에서 끊어 두 패스로 그린다.
+/// 검색어에 실제로 들어가고 a 는 L 입력란에 들어간다. 창은 누름 자리와 누름 뒤 글자 자리에서 끊어 세 패스로 그린다.
 #[test]
 fn a_key_before_a_press_reaches_the_popup_and_the_letter_after_reaches_the_left_field() {
     let mut s = open_scene(|_| {});
     let mut input = WindowInput::default();
-    assert_eq!(s.state.window_feeds_egui(false, true), Some(true));
-    input.push(text("x"));
+    assert_eq!(type_text(&mut s, &mut input, false, "x"), Some(true));
     {
         let engine = s.session.borrow_mut();
         input.press(&mut s.state, &engine.read(), s.find.center());
     }
     activate(&mut s, PANE_L);
     assert_eq!(
-        s.state.window_feeds_egui(true, true),
+        type_text(&mut s, &mut input, true, "a"),
         Some(false),
         "누름 뒤 글자에는 팝업 키 주인이 없다"
     );
     assert!(!s.state.window_holds_terminal_keys());
-    input.push(text("a"));
 
     pass(&mut s, &mut input);
     assert_eq!(
@@ -177,6 +190,9 @@ fn a_key_before_a_press_reaches_the_popup_and_the_letter_after_reaches_the_left_
     assert_eq!(s.query, "", "R 몫 키는 L 입력란에 들어가지 않는다");
     assert!(!input.is_empty(), "누름부터는 다음 패스 몫이다");
     pass(&mut s, &mut input);
+    assert_eq!(s.query, "", "누름 몫에는 글자가 없다");
+    assert!(!input.is_empty(), "누름 뒤 글자는 셋째 패스 몫이다");
+    pass(&mut s, &mut input);
     assert_eq!(s.query, "a", "누름 뒤 글자는 L 입력란에 들어간다");
     assert_eq!(s.state.search.query, "x");
     assert!(input.is_empty());
@@ -185,8 +201,9 @@ fn a_key_before_a_press_reaches_the_popup_and_the_letter_after_reaches_the_left_
 }
 
 /// (a) Given L 찾기 입력란이 포커스 노드이고 R 검색창이 열린 채 포커스가 없을 때, When 한 묶음에 [L 글자 b, R 검색창
-/// 누름, 글자 c]가 오면, Then b 는 L 입력란에 들어가고 c 의 몫은 R 검색창에 묶여 L 로 가지 않는다. 앞 몫의 키가
-/// 팝업에 묶이지 않았어도 누름에서 끊는다. c 가 입력칸에 들어가지 못하는 egui 한계는 본문 주석에 있다.
+/// 누름, 글자 c]가 오면, Then b 는 L 입력란에, c 는 R 검색창 입력칸에 들어간다. 앞 몫의 키가 팝업에 묶이지 않았어도
+/// 누름에서 끊고, 누름 뒤 글자에서 다시 끊는다. 누름 몫의 패스에서 입력칸이 egui 포커스를 얻은 뒤 c 를 실은 패스를
+/// 그린다(egui 는 누름이 있는 패스에 직전 패스까지 포커스가 없던 입력칸에 그 패스의 글자를 넣지 않는다).
 #[test]
 fn a_letter_before_a_press_on_the_right_search_stays_with_the_left_field() {
     let mut s = open_scene(|_| {});
@@ -196,11 +213,9 @@ fn a_letter_before_a_press_on_the_right_search_stays_with_the_left_field() {
         input.press(&mut s.state, &engine.read(), s.find.center());
     }
     activate(&mut s, PANE_L);
-    assert_eq!(s.state.window_feeds_egui(true, true), Some(false));
-    input.push(text("a"));
-    pass(&mut s, &mut input);
+    assert_eq!(type_text(&mut s, &mut input, true, "a"), Some(false));
+    drain(&mut s, &mut input);
     assert_eq!(s.query, "a");
-    assert!(input.is_empty());
     {
         let engine = s.session.borrow_mut();
         assert_eq!(
@@ -209,8 +224,7 @@ fn a_letter_before_a_press_on_the_right_search_stays_with_the_left_field() {
         );
     }
 
-    assert_eq!(s.state.window_feeds_egui(true, true), Some(false));
-    input.push(text("b"));
+    assert_eq!(type_text(&mut s, &mut input, true, "b"), Some(false));
     {
         let engine = s.session.borrow_mut();
         input.press(&mut s.state, &engine.read(), s.search_field.center());
@@ -220,38 +234,31 @@ fn a_letter_before_a_press_on_the_right_search_stays_with_the_left_field() {
         );
     }
     assert_eq!(
-        s.state.window_feeds_egui(false, true),
+        type_text(&mut s, &mut input, false, "c"),
         Some(true),
         "누름 뒤 글자는 R 검색창에 묶인다"
     );
-    input.push(text("c"));
 
     pass(&mut s, &mut input);
-    assert_eq!(
-        s.state.popups.frame_bound_key_owner(),
-        Some(PopupNode::Host(s.search)),
-        "누름부터의 몫(다음 그리기)은 R 검색창에 묶였다"
-    );
     assert_eq!(s.query, "ab", "누름 앞 글자는 L 입력란에 들어간다");
     assert_eq!(
         s.state.search.query, "",
         "누름 앞 글자는 R 검색창에 들어가지 않는다"
     );
-    pass(&mut s, &mut input);
-    assert_eq!(s.query, "ab", "누름 뒤 글자는 L 입력란에 들어가지 않는다");
-    // 같은 그리기 한계: egui 는 누름이 있는 프레임에 포인터 아래(직전 패스 배치로 판정한 hover)가 아닌 포커스 위젯의
-    // 포커스를 푼다. 직전 패스까지 포커스가 없던 검색창의 입력칸은 이 누름 프레임에 키 포커스를 지키지 못해, 같은 몫의
-    // 글자 c 는 검색창 본문에 실려 오지만 입력칸에 들어가지 않는다. 입력칸은 이 그리기에서 포커스를 요청하고 다음
-    // 패스부터 글자를 받는다.
-    assert_eq!(s.state.search.query, "");
-    assert!(input.is_empty());
-    input.push(text("d"));
-    pass(&mut s, &mut input);
     assert_eq!(
-        s.state.search.query, "d",
-        "다음 패스 글자는 R 검색창에 들어간다"
+        s.state.popups.frame_bound_key_owner(),
+        Some(PopupNode::Host(s.search)),
+        "누름 몫(다음 그리기)은 R 검색창 몫이다"
     );
-    assert_eq!(s.query, "ab");
+    pass(&mut s, &mut input);
+    assert!(!input.is_empty(), "누름 뒤 글자는 셋째 패스 몫이다");
+    pass(&mut s, &mut input);
+    assert!(input.is_empty());
+    assert_eq!(
+        s.state.search.query, "c",
+        "누름 뒤 글자는 R 검색창 입력칸에 들어간다"
+    );
+    assert_eq!(s.query, "ab", "누름 뒤 글자는 L 입력란에 들어가지 않는다");
 }
 
 /// 전체화면 무대 패스는 팝업을 그리지 않지만 패스 하나가 몫 하나를 닫는다. Given L 찾기 입력란이 포커스 노드일 때, When
@@ -268,8 +275,7 @@ fn stage_passes_close_their_segments_so_a_key_after_the_stage_reaches_the_popup(
     activate(&mut s, PANE_L);
     pass(&mut s, &mut input);
     for _ in 0..3 {
-        assert_eq!(s.state.window_feeds_egui(true, true), Some(false));
-        input.push(text("s"));
+        assert_eq!(type_text(&mut s, &mut input, true, "s"), Some(false));
         {
             let engine = s.session.borrow_mut();
             input.press(&mut s.state, &engine.read(), s.find.center());
@@ -281,7 +287,7 @@ fn stage_passes_close_their_segments_so_a_key_after_the_stage_reaches_the_popup(
         }
     }
     assert!(
-        s.state.press_snapshots_after_cut.is_empty(),
+        s.state.segments_after_cut.is_empty(),
         "무대 뒤 남은 누름 몫이 없다"
     );
     assert!(
@@ -295,8 +301,7 @@ fn stage_passes_close_their_segments_so_a_key_after_the_stage_reaches_the_popup(
     }
     pass(&mut s, &mut input);
     pass(&mut s, &mut input);
-    assert_eq!(s.state.window_feeds_egui(false, true), Some(true));
-    input.push(text("q"));
+    assert_eq!(type_text(&mut s, &mut input, false, "q"), Some(true));
     pass(&mut s, &mut input);
     assert_eq!(
         s.state.search.query, "q",
@@ -304,14 +309,64 @@ fn stage_passes_close_their_segments_so_a_key_after_the_stage_reaches_the_popup(
     );
 }
 
+/// 창의 한 패스처럼 다음 몫의 입력을 꺼내 host 팝업 층을 그리고(`frame::draw_popup_layer` 순서) 그 몫을 닫는다.
+/// 본문 자리마다 그 본문이 받는 글자 사건을 기록해 돌려준다(키 주인이 아닌 본문은 키 문이 글자를 가린다). 정의 본문은
+/// 팝업 층 밖에서 부르지 않으므로(`source_guards::popup_body_key_gate`) 본문 자리가 받는 입력을 기록한다.
+fn recording_pass(
+    s: &mut Scene,
+    input: &mut WindowInput,
+) -> Vec<(crate::adapters::ui::popup::PopupInstanceId, String)> {
+    let events = input.take_pass(&mut s.state, &s.ctx);
+    let engine = s.session.borrow_mut();
+    let read = engine.read();
+    let state = &mut s.state;
+    let raw = egui::RawInput {
+        screen_rect: Some(super::repro::screen()),
+        events,
+        ..Default::default()
+    };
+    let mut seen = Vec::new();
+    let layout = super::layout();
+    drop(s.ctx.run(raw, |ctx| {
+        let press =
+            crate::adapters::ui::popup::frame::frame_press(ctx, state, &read, Some(&layout));
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        state.decide_frame_key_owner(Some(&layout));
+        let mut popups =
+            std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+        let result = popups.draw_routed(
+            ctx,
+            &mut |cx, ui| {
+                ui.input(|i| {
+                    for e in &i.events {
+                        if let Event::Text(t) = e {
+                            seen.push((cx.instance, t.clone()));
+                        }
+                    }
+                });
+            },
+            Some(&layout),
+            &[],
+            press.as_ref(),
+        );
+        state.popups = popups;
+        state.host_popup_hittest = result.hit_rects;
+        state.host_popup_covers = result.covers;
+    }));
+    s.state.close_input_pass();
+    seen
+}
+
 /// (c) Given R 검색창이 포커스 노드이고 L 에 덮는 팝업이 열려 있을 때, When 한 묶음에 [R 키 x, L 팝업 누름, 키 y, R
-/// 터미널 누름, 글자 z]가 오면, Then 창은 두 누름에서 각각 끊어 x 는 R 검색창, y 는 L 팝업 몫으로 그리고, z 는 창의
-/// 게이트가 터미널로 보낸다(egui 로 가지 않는다).
+/// 터미널 누름, 글자 z]가 오면, Then 창은 누름과 누름 뒤 키마다 끊어 x 는 R 검색창 본문이, y 는 L 팝업 본문이 받고,
+/// z 는 창의 게이트가 egui 로 보내지 않아 어느 팝업 본문도 받지 않는다.
 #[test]
 fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
+    let mut cover_iid = None;
     let mut s = open_scene(|state| {
-        open_host_popup(state, SURFACE_L, false);
+        cover_iid = Some(open_host_popup(state, SURFACE_L, false));
     });
+    let cover_iid = cover_iid.unwrap();
     let cover = s
         .state
         .host_popup_hittest
@@ -320,21 +375,17 @@ fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
         .find(|r| surface_rect_l().contains(r.center()))
         .expect("L 의 덮는 팝업이 그려진다");
     let mut input = WindowInput::default();
-    assert_eq!(s.state.window_feeds_egui(false, true), Some(true));
-    input.push(text("x"));
-    let cover_node = {
+    assert_eq!(type_text(&mut s, &mut input, false, "x"), Some(true));
+    {
         let engine = s.session.borrow_mut();
         input.press(&mut s.state, &engine.read(), cover.center());
-        match s.state.focus_node(&engine.read()) {
-            FocusNode::Popup(node @ PopupNode::Host(iid)) => {
-                assert_ne!(iid, s.search, "L 팝업이 포커스 노드다");
-                node
-            }
-            other => panic!("L 팝업이 포커스 노드가 아니다: {other:?}"),
-        }
-    };
-    assert_eq!(s.state.window_feeds_egui(false, true), Some(true));
-    input.push(text("y"));
+        assert_eq!(
+            s.state.focus_node(&engine.read()),
+            FocusNode::Popup(PopupNode::Host(cover_iid)),
+            "L 팝업이 포커스 노드다"
+        );
+    }
+    assert_eq!(type_text(&mut s, &mut input, false, "y"), Some(true));
     let terminal = terminal_point_r(&s);
     {
         let engine = s.session.borrow_mut();
@@ -349,33 +400,24 @@ fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
         );
     }
     assert_eq!(
-        s.state.window_feeds_egui(false, true),
+        type_text(&mut s, &mut input, false, "z"),
         None,
         "마지막 글자는 egui 로 가지 않는다"
     );
     assert!(
         !s.state.window_holds_terminal_keys(),
-        "마지막 글자는 터미널로 간다"
+        "마지막 글자는 터미널 게이트를 지난다"
     );
 
-    pass(&mut s, &mut input);
-    assert_eq!(s.state.search.query, "x", "첫 몫은 R 검색창 것이다");
+    let mut seen = Vec::new();
+    while !input.is_empty() {
+        seen.extend(recording_pass(&mut s, &mut input));
+    }
     assert_eq!(
-        s.state.popups.frame_bound_key_owner(),
-        Some(cover_node),
-        "둘째 몫은 L 팝업에 묶였다"
+        seen,
+        [(s.search, "x".to_string()), (cover_iid, "y".to_string())],
+        "x 는 R 검색창 본문, y 는 L 팝업 본문이 받고 z 는 어느 본문도 받지 않는다"
     );
-    pass(&mut s, &mut input);
-    assert_eq!(
-        s.state.search.query, "x",
-        "둘째 몫 키는 R 검색창에 가지 않는다"
-    );
-    assert_eq!(s.query, "", "L 입력란도 받지 않는다");
-    assert_eq!(s.state.popups.frame_bound_key_owner(), None);
-    assert!(!input.is_empty(), "둘째 누름부터는 셋째 패스 몫이다");
-    pass(&mut s, &mut input);
-    assert!(input.is_empty());
-    assert_eq!(s.state.search.query, "x");
 }
 
 /// (d) Given R 의 plugin 팝업이 포커스 노드이고 창이 그 팝업에 키 x 를 묶었을 때, When 같은 묶음에서 L 터미널을

@@ -43,6 +43,7 @@ use winit::event::WindowEvent;
 use winit::keyboard::ModifiersState;
 
 use crate::AppEvent;
+use crate::adapters::ui::popup::frame_keys::Incoming;
 use crate::clipboard::terminal::TerminalClipboard;
 use crate::gpu::{GpuState, ImePreeditState};
 use crate::model::{PhysicalPx, PhysicalRect};
@@ -493,26 +494,27 @@ impl MainView {
         }
     }
 
-    /// 키·modifier 가 아닌 창 사건을 egui 에 보낸다. 누름이면 먼저 키 결속 뒤 누름의 입력 끊기를 본다.
+    /// 키·modifier 가 아닌 창 사건을 egui 에 보낸다.
     fn feed_egui_pointer_or_other(&mut self, event: &WindowEvent) -> (bool, bool) {
-        if matches!(
-            event,
-            WindowEvent::MouseInput {
-                state: winit::event::ElementState::Pressed,
-                ..
-            }
-        ) {
-            self.cut_key_frame_before_press();
-        }
         self.base.gpu.handle_egui_event(&self.base.winit, event)
     }
 
-    /// 누름을 egui 입력에 넣기 전에 부른다. 지금 몫에 키가 실렸으면 누름부터의 입력을 뒤 그리기 몫으로 넘긴다
-    /// (`MainViewState::cut_key_frame`). 누름이 포커스 노드를 옮기므로 누름 뒤의 키는 그 몫의 키 주인이 받는다.
-    pub(super) fn cut_key_frame_before_press(&mut self) {
+    /// 누름·키·IME 사건을 처리하기 전에 부른다. 그 사건이 지금 그리기 몫과 다른 포커스 노드 몫일 수 있으면 그
+    /// 사건부터의 egui 입력을 뒤 그리기 몫으로 넘긴다(`MainViewState::cut_key_frame`). 누름은 포커스 노드를 옮기고,
+    /// 누름 뒤의 키는 옮긴 포커스 노드의 몫이다. 누름이 포커스를 옮기기 전(튜토리얼 말풍선의 키보드 몫을 놓기 전)에
+    /// 끊어 닫히는 몫에 그때의 포커스 노드를 남긴다.
+    pub(super) fn cut_input_segment(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
+        let incoming = match event {
+            WindowEvent::MouseInput {
+                state: winit::event::ElementState::Pressed,
+                ..
+            } => Incoming::Press,
+            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => Incoming::Key,
+            _ => return,
+        };
         if self
             .state
-            .cut_key_frame(self.base.gpu.egui_input_events_mut())
+            .cut_key_frame(engine, self.base.gpu.egui_input_events_mut(), incoming)
         {
             self.base.gpu.cut_egui_input_here();
         }
@@ -548,6 +550,7 @@ impl MainView {
         }
 
         self.normalize_focus_on_key(engine, &event);
+        self.cut_input_segment(engine, &event);
 
         // 편집 바인딩 판정은 egui-winit과 단축키 디스패치보다 먼저 한 번 한다.
         let Some(edit_judged) = self.edit_key_gate(engine, &event) else {

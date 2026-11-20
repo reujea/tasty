@@ -5,9 +5,9 @@
 //! 창의 키 처리는 그리기보다 먼저 돈다. 그래서 창이 고른 키 주인이 있으면 그 값이 그 프레임의 키 주인이다. 그사이
 //! 그 팝업이 닫히거나 범위가 숨어도 다른 팝업으로 옮기지 않는다. 그 키는 처리한 노드에서 멈춘 것으로 본다.
 //!
-//! 키·IME·텍스트 사건 하나의 주인은 그 사건이 들어온 시점의 포커스 노드다. 포커스 노드는 누름에서만 바뀐다. 그래서
-//! 한 그리기 입력에는 한 포커스 노드 몫의 키만 싣는다. 지금 몫에 키 사건이 실렸거나 키 주인이 묶인 뒤 누름이 오면 창은
-//! 그 누름 자리에서 egui 입력을 끊고(`cut_key_frame`) 누름부터를 새 몫으로 둔다. 몫은 그리기마다 앞에서 하나씩
+//! 키·IME·텍스트 사건 하나의 주인은 그 사건이 들어온 시점의 포커스 노드다. egui 패스 하나는 입력 몫 하나이고 몫
+//! 하나는 포커스 노드 하나 몫이다. 지금 몫에 키 사건이 실렸거나 키 주인이 묶인 뒤 누름이 오면 창은 그 누름 자리에서
+//! egui 입력을 끊고, 누름 뒤에 키가 오면 그 키 자리에서 끊는다(`cut_key_frame`). 몫은 egui 패스마다 앞에서 하나씩
 //! 꺼낸다. 몫마다 결속과 넘길 Esc 가 따로 있어 창 게이트는 지금 받는 몫(`bound_input_key_owner`)을, 그리기는 그
 //! 그리기 몫(`frame_bound_key_owner`)을 읽는다. 한 패스에 끊는 자리 수에는 제한이 없다.
 
@@ -51,6 +51,15 @@ impl Bound {
     }
 }
 
+/// egui 입력 큐 끝에 들어오려는 사건의 종류(`cut_key_frame`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Incoming {
+    /// 포인터 누름. 포커스 노드를 옮길 수 있다.
+    Press,
+    /// 키·IME 사건.
+    Key,
+}
+
 /// 끊은 자리 뒤의 입력 시점 결속(뒤 그리기 몫).
 #[derive(Debug, Default)]
 struct AfterCut {
@@ -87,22 +96,37 @@ impl PopupManager {
         };
     }
 
-    /// 누름이 egui 입력 큐 `events` 끝에 들어오려 한다. 지금 몫(마지막으로 끊은 자리부터)에 키·IME·텍스트 사건이
-    /// 실렸거나 키 주인이 묶였거나 넘길 Esc 가 있으면 그 자리에서 끊는다. 누름은 포커스 노드를 옮길 수 있으므로 그
-    /// 앞의 키와 같은 그리기에 싣지 않는다. 참이면 호출자는 egui 입력도 그 자리에서 끊는다(`InputCuts::cut_at`).
-    pub(crate) fn cut_key_frame(&mut self, events: &[egui::Event]) -> bool {
+    /// `incoming` 사건이 egui 입력 큐 `events` 끝에 들어오려 한다. 지금 몫(마지막으로 끊은 자리부터)과 포커스 노드가
+    /// 다를 수 있으면 그 자리에서 끊는다. 누름은 포커스 노드를 옮길 수 있으므로, 누름이 오는데 지금 몫에 키·IME·텍스트
+    /// 사건이 실렸거나 키 주인이 묶였거나 넘길 Esc 가 있으면 끊는다. 키가 오는데 지금 몫의 마지막 입력이 누름이면
+    /// 끊는다(그 누름이 포커스를 준 위젯은 누름을 처리한 패스 뒤에야 egui 포커스를 가진다). 끊는 조건은 이 함수에만
+    /// 있다.
+    ///
+    /// 끊으면 닫히는 몫에 결속이 없을 때 `focus`(끊는 시점의 포커스 노드가 팝업이면 그 노드)로 묶는다. 그 몫은 그때의
+    /// 포커스 노드 몫이다. 참이면 호출자는 egui 입력도 그 자리에서 끊는다(`InputCuts::cut_at`).
+    pub(crate) fn cut_key_frame(
+        &mut self,
+        events: &[egui::Event],
+        incoming: Incoming,
+        focus: Option<PopupNode>,
+    ) -> bool {
         let (start, bound, escape) = match self.keys.after_cut.back_mut() {
             Some(after) => (after.at, &mut after.bound, !after.escape.is_empty()),
             None => (0, &mut self.keys.bound, !self.keys.escape.is_empty()),
         };
-        let carries_keys = events
-            .get(start..)
-            .is_some_and(|segment| segment.iter().any(is_key_input));
-        if !(carries_keys || bound.is_some() || escape) {
+        let segment = events.get(start..).unwrap_or_default();
+        let cut = match incoming {
+            Incoming::Press => segment.iter().any(is_key_input) || bound.is_some() || escape,
+            Incoming::Key => segment
+                .iter()
+                .rev()
+                .find(|e| is_key_input(e) || is_press(e))
+                .is_some_and(is_press),
+        };
+        if !cut {
             return false;
         }
-        // 팝업에 묶이지 않은 앞 몫의 키는 그때의 포커스 노드(팝업 아님) 것이다.
-        bound.get_or_insert(Bound::NoPopup);
+        bound.get_or_insert(focus.map_or(Bound::NoPopup, Bound::Popup));
         self.keys.after_cut.push_back(AfterCut {
             at: events.len(),
             ..AfterCut::default()
@@ -242,6 +266,11 @@ impl PopupManager {
     }
 }
 
+/// 포인터 버튼 누름.
+fn is_press(event: &egui::Event) -> bool {
+    matches!(event, egui::Event::PointerButton { pressed: true, .. })
+}
+
 /// 키 주인 몫으로 세는 egui 입력 사건(키·글자·IME·붙여넣기·복사·잘라내기).
 fn is_key_input(event: &egui::Event) -> bool {
     matches!(
@@ -266,6 +295,12 @@ impl InputCuts {
     /// 큐 길이 `len` 자리에서 끊는다.
     pub(crate) fn cut_at(&mut self, len: usize) {
         self.0.push_back(len);
+    }
+
+    /// 남은 끊은 자리가 없는지.
+    #[cfg(test)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// 이번 패스 입력 `events` 를 앞 자리에서 나눈다. 그 뒤 사건은 다음 입력 큐 `next` 앞에 순서대로 되돌리고 남은

@@ -157,11 +157,15 @@ pub struct MainViewState {
     /// winit 이 누름을 처리할 때 남긴 누르기 직전 포커스. 그 누름을 처리한 egui 프레임이 끝나면 비운다.
     #[cfg(feature = "gui")]
     pub(crate) press_snapshot: Option<crate::adapters::ui::popup::route::PressSnapshot>,
-    /// 누름에서 egui 입력을 끊었을 때(`cut_key_frame`) 끊은 뒤 몫마다 그 몫의 첫 누름 스냅샷. 앞에서부터 다음
-    /// 그리기들의 `press_snapshot` 이 된다.
+    /// 이번 그리기 몫의 포커스 노드. 그 몫을 끊어 닫을 때(`cut_key_frame`) 그 시점의 포커스 노드를 남긴다. 끊기지
+    /// 않은 마지막 몫은 `None` 이고 지금 포커스 노드를 쓴다(`pass_focus_node`).
     #[cfg(feature = "gui")]
-    pub(crate) press_snapshots_after_cut:
-        std::collections::VecDeque<Option<crate::adapters::ui::popup::route::PressSnapshot>>,
+    pub(crate) segment_focus: Option<crate::state::focus_node::FocusNode>,
+    /// egui 입력을 끊었을 때(`cut_key_frame`) 끊은 뒤 몫마다 그 몫의 첫 누름 스냅샷과 포커스 노드. 앞에서부터 다음
+    /// 그리기들의 `press_snapshot`·`segment_focus` 가 된다.
+    #[cfg(feature = "gui")]
+    pub(crate) segments_after_cut:
+        std::collections::VecDeque<crate::state::focus_node::SegmentAfterCut>,
     /// 이번 프레임의 키 주인. host 팝업 그리기가 이번 프레임 범위·표시 판정 뒤 한 번 정하고(`decide_frame_key_owner`),
     /// host 본문과 뒤에 그리는 plugin 팝업 렌더가 같은 값을 쓴다. 그리는 중 host 팝업이 닫혀도 바뀌지 않는다.
     /// plugin 렌더가 꺼내 비운다. `None`이면 이번 프레임에 정하지 않았다.

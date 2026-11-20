@@ -28,32 +28,47 @@ fn at(body: &str, needle: &str, what: &str) -> usize {
     body.find(needle).unwrap_or_default()
 }
 
-/// 창의 누름: egui 로 보내기 전에 입력을 끊고, 누름 처리가 누름 스냅샷 함수로 포커스 노드를 옮겨 그 프레임에 남긴다.
+/// 창의 누름·키: 사건을 처리하기 전에(튜토리얼 입력·egui 전달·누름 스냅샷보다 먼저) 입력 몫을 끊고, 누름 처리가
+/// 누름 스냅샷 함수로 포커스 노드를 옮겨 그 프레임에 남긴다.
 #[test]
 fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
-    let main = squeeze(&read("src/view/main.rs"));
-    let cut = squeeze(
-        &fn_body(&read("src/view/main.rs"), "fn cut_key_frame_before_press(")
-            .expect("cut_key_frame_before_press"),
+    let src = read("src/view/main.rs");
+    let cut = squeeze(&fn_body(&src, "fn cut_input_segment(").expect("cut_input_segment"));
+    at(
+        &cut,
+        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return,",
+        "끊을 사건",
     );
     at(
         &cut,
-        "ifself.state.cut_key_frame(self.base.gpu.egui_input_events_mut()){self.base.gpu.cut_egui_input_here();}",
+        "ifself.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming){self.base.gpu.cut_egui_input_here();}",
         "입력 끊기",
     );
-    let feed = squeeze(
-        &fn_body(&read("src/view/main.rs"), "fn feed_egui_pointer_or_other(")
-            .expect("feed_egui_pointer_or_other"),
+    let handle = squeeze(&fn_body(&src, "fn handle_engine_event(").expect("handle_engine_event"));
+    let normalize = at(
+        &handle,
+        "self.normalize_focus_on_key(engine,&event);",
+        "키의 정규화",
     );
-    at(
-        &feed,
-        "self.cut_key_frame_before_press();}self.base.gpu.handle_egui_event(&self.base.winit,event)",
-        "누름을 egui 에 넣기 전 끊기",
+    let cut_at = at(
+        &handle,
+        "self.cut_input_segment(engine,&event);",
+        "입력 끊기 호출",
     );
-    at(
-        &main,
+    let tutorial = at(
+        &handle,
+        "self.route_tutorial_input(&event)",
+        "튜토리얼 입력",
+    );
+    let keys = at(&handle, "self.feed_egui_keyboard(", "키의 egui 전달");
+    let other = at(
+        &handle,
         "self.feed_egui_pointer_or_other(&event)",
         "키가 아닌 사건의 egui 전달",
+    );
+    assert!(
+        normalize < cut_at && cut_at < tutorial && tutorial < keys && keys < other,
+        "정규화 → 끊기 → 튜토리얼 → egui 전달 순서가 아니다"
     );
     let mouse = read("src/view/main/mouse.rs");
     let handle = squeeze(&fn_body(&mouse, "fn handle_mouse_input(").expect("handle_mouse_input"));
@@ -93,7 +108,7 @@ fn a_debug_pointer_press_moves_the_focus_node_through_the_press_snapshot() {
     let press = squeeze(&fn_body(&segment, "fn press_focus(").expect("press_focus"));
     let cut = at(
         &press,
-        "ifstate.cut_key_frame(sink.queued_events()){sink.cut_queue_here();}",
+        "ifstate.cut_key_frame(core,sink.queued_events(),Incoming::Press){sink.cut_queue_here();}",
         "입력 끊기",
     );
     let take = at(
@@ -134,7 +149,7 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
     let begin = at(&pass, "state.popups.begin_key_pass(", "패스 열기");
     let take = at(
         &pass,
-        "self.take_pass_input(window,true)",
+        concat!("self.take_pass_input", "(window,true)"),
         "나눈 입력 꺼내기",
     );
     let run = at(&pass, "self.egui_ctx.run(", "패스 실행");
@@ -146,8 +161,11 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
     let mut splitting = Vec::new();
     for (path, text) in super::rust_sources() {
         let code = squeeze(&strip_comments(&text));
-        let n = code.matches("take_pass_input(window,true)").count()
-            + code.matches(".split_pass(").count();
+        // 이 가드 자신의 문자열이 세이지 않도록 이어 붙인다.
+        let n = code
+            .matches(concat!("take_pass_input", "(window,true)"))
+            .count()
+            + code.matches(concat!(".split", "_pass(")).count();
         if n > 0 {
             splitting.push((path.display().to_string(), n));
         }

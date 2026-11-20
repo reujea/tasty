@@ -12,6 +12,7 @@ use crate::adapters::ui::LayoutContext;
 use crate::i18n::t;
 use crate::intent::UiIntent;
 use crate::state::MainViewState;
+use crate::state::focus_node::FocusNode;
 use tasty_type_appearance::theme::Theme;
 
 pub fn resolve_marker_rect(
@@ -72,8 +73,10 @@ pub fn draw_tutorial_overlay(
         return;
     };
     // A popup that is the focus node owns the input, host or plugin. The palette itself fulfills the
-    // discovery step.
-    if state.popup_focus().is_some() || state.fullscreen_stage_active() {
+    // discovery step. The focus node is the one of the input segment this pass draws: a press later in
+    // the same batch moves the live focus node, but the keys before it still belong to the callout.
+    let node = state.pass_focus_node(engine);
+    if matches!(node, FocusNode::Popup(_) | FocusNode::Stage) {
         return;
     }
     let topic = &all_topics()[a.topic];
@@ -177,7 +180,7 @@ pub fn draw_tutorial_overlay(
             size,
             ready: ready || (prepare && !state.tutorial.preparing),
             prepare,
-            keyboard_focus: state.tutorial.keyboard_focus,
+            keyboard_focus: node == FocusNode::Tutorial,
             anchored: target.is_some_and(|target| {
                 !target.intersects(egui::Rect::from_min_size(placement.pos, size))
             }),
