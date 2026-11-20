@@ -445,6 +445,10 @@ mod press_cut;
 mod pass_focus;
 
 #[cfg(feature = "gui")]
+#[path = "key_transition_tests.rs"]
+mod key_transition;
+
+#[cfg(feature = "gui")]
 #[path = "tutorial_exclusive_tests.rs"]
 mod tutorial_exclusive;
 
