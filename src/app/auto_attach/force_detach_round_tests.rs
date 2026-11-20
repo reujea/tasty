@@ -320,15 +320,15 @@ fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
 
 /// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 반납이 그 자리에서 소켓 양쪽을
 /// 닫아야 reader 가 바로 끝난다. 쓰기 스레드가 쓰기 쪽만 닫으면 reader 는 상대가 닫을 때까지 막혀 회수
-/// 스레드가 상한을 다 기다린다. 경과는 완료를 읽기 전에 재므로, 늦게 도착한 검사가 이미 끝난 회수를
-/// 통과로 읽지 않는다.
+/// 스레드가 상한을 다 기다린다. 경과는 완료를 읽은 뒤에 재서 완료를 관측한 시각에 상한을 적용한다. 늦게
+/// 도착한 검사가 회수 대기 뒤에 완료를 보면 통과가 아니라 실패다.
 fn assert_workers_retire_before_the_reaper_wait(
     receipt: &tasty_remote::transport::RetirementReceipt,
     released: Instant,
 ) {
     loop {
-        let elapsed = released.elapsed();
         let done = receipt.is_done();
+        let elapsed = released.elapsed();
         assert!(
             elapsed < Duration::from_millis(240),
             "the workers were not seen retired before the reaper wait ({elapsed:?}, done {done})"
