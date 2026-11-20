@@ -593,3 +593,50 @@ fn a_covering_passive_popup_is_the_focus_node() {
         "키는 터미널로 가지 않는다"
     );
 }
+
+/// Given L 에 포커스를 가진 검색창(덮지 않음)이 있고 엔진 포커스도 L 일 때, When 창이 L 의 터미널 본문(검색창 밖)
+/// 누름을 처리하면, Then 엔진 포커스는 그대로여도 포커스 노드는 L surface 라 다음 키는 터미널로 간다. 검색창은 열린
+/// 채 포커스만 잃는다.
+#[test]
+fn a_press_on_the_surface_under_its_own_popup_takes_the_focus_from_the_popup() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session) = scene(super::PANE_L);
+    let engine = session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let search = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, PopupScope::Surface(SURFACE_L))
+                .focused(),
+            true,
+        )
+        .unwrap();
+    let ctx = Context::default();
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        draw_popup_layer(ctx, &mut state, &engine.read(), &layout());
+    }));
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(search))
+    );
+    let body = egui::pos2(surface_rect_l().center().x, surface_rect_l().max.y - 10.0);
+    assert!(!state.popup_owns_point(body), "누른 곳은 검색창 밖이다");
+    state.take_press_snapshot(&engine.read(), body, egui::PointerButton::Primary);
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_L))
+    );
+    assert!(
+        !state.window_holds_terminal_keys(),
+        "다음 키는 터미널로 간다"
+    );
+    assert!(state.popups.instance(search).is_some_and(|p| p.open));
+}
