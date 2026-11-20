@@ -190,13 +190,11 @@ Cargo에는 별도 의존성 설치 단계가 없고 build/test 때 필요한 �
 
 ## 단축키 (필수)
 
-**ESC·Enter 같은 기본 조작을 제외한 Tasty 자체 단축키는 설정의 단축키 탭에서 변경 가능해야 한다.** 설정 대상은 `KeybindingSettings`로 노출하고 하드코딩하지 않는다. macOS NSMenu / Windows AcceleratorTable / Linux Wayland 같은 OS 메뉴 측 key equivalent 도 `KeybindingSettings` 의 대응 binding 값을 따라가야 한다.
+**ESC·Enter 같은 기본 조작을 제외한 Tasty 자체 단축키는 설정의 단축키 탭에서 변경 가능해야 한다.** 설정 대상은 `KeybindingSettings`로 노출하고 하드코딩하지 않는다.
 
 예외는 **OS가 관리하며 Tasty가 변경·해제·가로채기할 수 없는 단축키**다. macOS Spotlight의 `Cmd+Space`나 OS 전역 윈도우 전환 등이 해당한다. Tasty가 제어할 수 없는 단축키는 설정에 노출하는 대상에서 제외한다.
 
-Tasty가 직접 등록하는 NSMenu·AcceleratorTable 메뉴의 key equivalent는 `KeybindingSettings`의 binding을 사용한다. 대응 binding이 없으면 비워 둔다. `cut:`·`performClose:`·`miniaturize:`·`hide:`처럼 OS 표준 selector를 사용해도 단축키를 상수로 지정할 수는 없다. `with_default_menu(false)`로 만든 메뉴의 단축키는 Tasty가 관리한다.
-
-tasty 특화 액션 (예: `tastyQuit:` / `tastyNewWindow:` / split / convert 등) 은 **반드시** `KeybindingSettings` 의 대응 필드를 읽어 key equivalent 를 설정해야 한다. binding 이 빈 vec 이면 key equivalent 도 비워두어 단축키 없는 메뉴 항목으로 표시한다.
+Tasty가 직접 등록하는 OS 메뉴(macOS NSMenu·Windows AcceleratorTable·Linux Wayland. `tastyQuit:`·`tastyNewWindow:`·split·convert 같은 Tasty 특화 액션 포함)의 key equivalent는 `KeybindingSettings`의 대응 binding을 사용한다. binding이 없거나 빈 vec이면 비워 둬서 단축키 없는 항목으로 표시한다. `cut:`·`performClose:`·`miniaturize:`·`hide:`처럼 OS 표준 selector를 사용해도 단축키를 상수로 지정할 수는 없다. `with_default_menu(false)`로 만든 메뉴의 단축키는 Tasty가 관리한다.
 
 상세 (modifier 매핑 규칙, 위치 기반 추상화): [`docs/design/policies/key-mapping.md`](docs/design/policies/key-mapping.md).
 
