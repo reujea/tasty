@@ -165,10 +165,6 @@ trait ForwardedKeyConsumer {
         ev: crate::webview::WebViewKeyEvent,
     ) -> ForwardedKeyOutcome;
     /// 키 하나를 처리한 직후, 그 창 대기열에 포커스를 주는 팝업 열기가 있으면 다음 키 판정 전에 적용한다.
-    #[expect(
-        dead_code,
-        reason = "the consumer loop does not apply focus opens between forwarded keys yet"
-    )]
     fn apply_focus_opens(&mut self, id: winit::window::WindowId);
     /// 처리 결과를 키를 가져간 WebView 에 알린다.
     fn finish(
@@ -205,7 +201,7 @@ impl ForwardedKeyConsumer for App {
 }
 
 /// 수집한 키 묶음을 창별로 사건 순서대로 소비한다. 수집(`take_pending`)은 view 를 빌린 채 하고, 소비는 그 뒤에
-/// 한다.
+/// 한다. 키마다 처리 → 포커스 열기 적용(`App::apply_user_focus_opens`) → 결과 알림 순서다.
 fn consume_forwarded_keys(
     consumer: &mut impl ForwardedKeyConsumer,
     batch: Vec<(
@@ -217,6 +213,9 @@ fn consume_forwarded_keys(
         for ev in keys {
             let (key_id, surface_id) = (ev.id, ev.surface_id);
             let outcome = consumer.dispatch(id, ev);
+            // 이 키가 포커스를 주는 팝업을 열었으면 다음 키는 그 팝업의 게이트로 판정한다(winit 키와 같은 조기
+            // 적용). 결과와 관계없이 부른다. 대기열에 그런 요청이 없으면 아무것도 하지 않는다.
+            consumer.apply_focus_opens(id);
             consumer.finish(id, surface_id, key_id, outcome);
         }
     }
