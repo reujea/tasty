@@ -685,19 +685,19 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         state.has_input_dialog_open(),
         "이름 바꾸기는 열린 채 남는다"
     );
-    assert!(!state.input_dialog_owns_keys());
-    assert_eq!(
-        state.window_feeds_egui(false, true),
-        None,
-        "L 터미널의 키·IME 는 egui 로 가지 않는다"
-    );
+    // 아래는 창의 키·IME 경로가 그대로 읽는 판정이다. 그 경로(`view::main::keyboard`, `view::main::ime::handle_event`)는
+    // GPU 창이 있어야 불러 볼 수 있어 PTY 쓰기 자체는 이 시험이 관측하지 않는다.
     assert!(
-        state.window_feeds_egui(false, false).is_none(),
-        "IME 오버레이 게이트가 열린다"
+        !state.input_dialog_owns_keys(),
+        "keyboard: 입력 대화상자가 키를 갖지 않는다"
     );
     assert!(
         !state.window_holds_terminal_keys(),
-        "L 의 글자는 터미널로 간다"
+        "keyboard: 터미널 게이트(`overlay_open`)가 열려 L 의 글자가 PTY 로 간다"
+    );
+    assert!(
+        state.window_feeds_egui(false, false).is_none(),
+        "ime·창 egui 게이트: `window_keys_to_overlay` 가 거짓이라 IME 조합과 키가 egui 로 가지 않는다"
     );
 }
 

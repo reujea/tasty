@@ -688,8 +688,10 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
         surface_owners: Vec::new(),
         tab_content_rects: Vec::new(),
     };
-    // 창의 키 경로: L 은 egui 화면이 아니고 포커스 노드가 L 이라 Esc 는 egui 로 가지 않고, 창 Esc 판정이 처리하지 않으며,
-    // 터미널 게이트도 막지 않아 L 터미널로 간다.
+    // 창의 키 경로가 읽는 판정만 잰다. L 은 egui 화면이 아니고 포커스 노드가 L 이라 Esc 는 egui 로 가지 않고
+    // (`window_feeds_egui`), 창 Esc 판정이 소비하지 않으며(`window_escape`), 터미널 게이트가 막지 않는다
+    // (`window_holds_terminal_keys`). L PTY 에 실제로 쓰는 것(`view::main::keyboard`)은 GPU 창이 있어야 불러 볼 수
+    // 있어 이 시험이 관측하지 않는다. 아래 그리기는 같은 Esc 가 egui 프레임에 실려도 R 피커가 닫히지 않는지 따로 본다.
     if press_escape {
         state.normalize_focus(&engine.read());
         assert_eq!(
@@ -805,4 +807,117 @@ fn other_requests_leave_the_bound_scopes_alone() {
         [(7, &inst)].into_iter(),
     );
     assert!(state.plugin_popup_bound_scopes.is_empty());
+}
+
+/// J5(실제 피커). Given 알림 목록이 열린 위에 plugin 이 Window 범위 파일 피커를 열었을 때, When 창이 Esc 를 받으면,
+/// Then 덮는 피커가 포커스 노드라 Esc 는 피커 본문(`owns_escape`, 열린 하위 메뉴 없음)이 읽어 피커만 닫고 덮인 알림
+/// 목록은 닫지 않는다. 글자는 저장 모드 이름 칸만 읽으므로 여기서는 창 게이트가 피커에 키를 묶는지로 잰다.
+#[test]
+fn a_window_picker_takes_the_first_escape_before_an_open_notification_list() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::state::focus_node::FocusNode;
+    crate::i18n::init("en");
+    let (mut state, mut engine_session) = test_state();
+    let mut engine = engine_session.borrow_mut();
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window),
+            true,
+        )
+        .unwrap();
+    let instances = [(7, parent("window", None))];
+    sync_plugin_popup_scopes(&mut state, instances.iter().map(|(id, inst)| (*id, inst)));
+    let caller = CallerContext::Plugin {
+        plugin_id: PLUGIN.into(),
+    };
+    let response = handle_trigger(
+        &mut state,
+        &mut engine,
+        &caller,
+        json!(1),
+        &json!({"owner_popup_instance": 7}),
+    );
+    assert!(response.result.is_some(), "{response:?}");
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(&mut state, &mut engine, &intent);
+    }
+    assert_eq!(picker_scope(&mut state), PopupScope::Window);
+    let picker = state
+        .popups
+        .entries_of(FILE_PICKER_POPUP_ID)
+        .next()
+        .map(|p| p.instance)
+        .expect("피커가 열린다");
+
+    let sid = state.focused_surface_id(&engine.read()).expect("surface");
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 700.0));
+    let layout = LayoutContext {
+        active_workspace: 0,
+        active_workspace_id: 1,
+        pane_rects: vec![],
+        surface_rects: vec![(sid, screen)],
+        active_tabs: vec![],
+        active_tab_ids: vec![],
+        workspace_rect: None,
+        surface_owners: Vec::new(),
+        tab_content_rects: Vec::new(),
+    };
+    let ctx = egui::Context::default();
+    let mut layer_frame = |state: &mut RequestContext,
+                           engine: &crate::runtime::engine_read::EngineRead<'_>,
+                           events: Vec<egui::Event>| {
+        let raw = egui::RawInput {
+            screen_rect: Some(screen),
+            events,
+            ..Default::default()
+        };
+        drop(ctx.run(raw, |ctx| draw_popup_layer(ctx, state, engine, &layout)));
+    };
+    layer_frame(&mut state, &engine.read(), Vec::new());
+    state.normalize_focus(&engine.read());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(picker)),
+        "덮는 피커가 포커스 노드다"
+    );
+    assert_eq!(
+        state.window_feeds_egui(false, true),
+        Some(true),
+        "창은 키를 egui 로 보내고 피커에 묶는다"
+    );
+
+    let escape = egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    let mut pending = vec![escape];
+    state.window_escape(&mut pending, false);
+    layer_frame(&mut state, &engine.read(), pending);
+    let closes_notifications = state.pending_intents.iter().any(|i| {
+        matches!(
+            &i.body,
+            crate::intent::Intent::Ui(crate::intent::UiIntent::ClosePopup {
+                id: "notifications"
+            })
+        )
+    });
+    assert!(!closes_notifications, "알림 목록 닫기 요청이 없다");
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(&mut state, &mut engine, &intent);
+    }
+    assert!(
+        state.popups.instance(picker).is_none_or(|p| !p.open),
+        "피커 본문이 Esc 를 읽어 닫힌다"
+    );
+    assert!(
+        state.popups.is_open("notifications"),
+        "덮인 알림 목록은 그 Esc 로 닫히지 않는다"
+    );
 }

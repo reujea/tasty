@@ -754,9 +754,10 @@ fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_re
     assert_eq!(seen, [(x, true, false)], "새 누름은 반복이 아니다");
 }
 
-/// J5. Given 알림 목록이 열려 있고 창을 덮는 Window 범위 팝업(passive 로 연 피커 같은 것)이 그 위에 있을 때, When 글자와
-/// Esc 를 창의 키 경로로 보내면, Then 덮는 팝업이 포커스 노드라 글자와 첫 Esc 는 그 팝업 본문이 읽고 덮인 알림 목록은
-/// 그 Esc 로 닫히지 않는다.
+/// J5(시험용 덮는 팝업). Given 알림 목록이 열려 있고 창을 덮는 passive Window 범위 시험용 팝업이 그 위에 있을 때, When
+/// 글자와 Esc 를 창의 키 경로로 보내면, Then 덮는 팝업이 포커스 노드라 글자와 첫 Esc 는 그 팝업 본문이 읽고 덮인 알림
+/// 목록은 그 Esc 로 닫히지 않는다. 실제 파일 피커 본문으로 잰 같은 장면은
+/// `adapters::ipc::handler::file_picker` 의 범위 시험(`file_picker_scope_tests.rs`)에 있다.
 #[test]
 fn a_covering_window_popup_takes_the_first_escape_before_an_open_notification_list() {
     use crate::adapters::ui::popup::focus::PopupNode;
