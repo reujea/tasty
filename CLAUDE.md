@@ -230,7 +230,7 @@ Tasty가 직접 등록하는 OS 메뉴(macOS NSMenu·Windows AcceleratorTable·L
 - [`docs/dev-guide/model-view-split.md`](docs/dev-guide/model-view-split.md) — Model + Host View 분리 패턴
 - [`docs/dev-guide/gpu-rendering.md`](docs/dev-guide/gpu-rendering.md) — GPU 렌더링 구조
 - [`docs/dev-guide/agent-runner.md`](docs/dev-guide/agent-runner.md) — 작업 의존 관계(DAG)에 따라 작업을 실행하는 방법. 여러 AI 에이전트가 같은 Tasty를 사용할 때 필요한 협업 기능 6종(`agent.*`: task DAG · barrier · semaphore · lease · reducer · rate-limit)을 설명한다. 기능과 인터페이스는 [`docs/features/agent-collaboration/index.md`](docs/features/agent-collaboration/index.md)에 있다.
-- [`docs/dev-guide/plugin-development.md`](docs/dev-guide/plugin-development.md)(민감 데이터는 그 문서 §6 의 [민감 데이터 절](docs/dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택)), [`plugin-permissions.md`](docs/dev-guide/plugin-permissions.md) — Plugin 제작. **번들 plugin 코드를 고친 뒤 실행 중 tasty 인스턴스에 재빌드·재시작 없이 반영할 때도 이 문서 §9.1** (빌드 → 재서명 → `disable` → `upgrade-builtins` → `enable` 순서) — "새 plugin 만들기"가 아니라도 반드시 먼저 확인한다.
+- [`docs/dev-guide/plugin-development.md`](docs/dev-guide/plugin-development.md)(민감 데이터는 그 문서 §6 의 [민감 데이터 절](docs/dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택)), [`plugin-permissions.md`](docs/dev-guide/plugin-permissions.md) — Plugin 제작. **번들 plugin 코드를 고친 뒤 실행 중 tasty 인스턴스에 재빌드·재시작 없이 반영할 때도 이 문서 §9.1** (실행 중 프로필 확인 → `disable` → 그 프로필로 `just build-plugins --from-checkout`(서명 포함) → `upgrade-builtins` → `enable` 순서. 공식 플러그인은 공식 플러그인 레포 체크아웃에서 빌드하고, 이 workspace에서 빌드하는 것은 mesh-demo뿐이다) — "새 plugin 만들기"가 아니라도 반드시 먼저 확인한다.
 
 ## 자체 검증
 
