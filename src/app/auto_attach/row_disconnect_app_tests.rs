@@ -233,16 +233,14 @@ fn end_row_connection(app: &mut App, forced: bool) {
         .iter()
         .find(|session| session.state.saved_row == Some(ROW))
         .expect("the row session");
-    if forced {
-        session
-            .transport
-            .force_detached
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-    session
-        .transport
-        .disconnected
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+    crate::app::attach_client::tests::settle_transport_end(
+        session,
+        if forced {
+            tasty_remote::transport_end::EndReason::Forced
+        } else {
+            tasty_remote::transport_end::EndReason::Lost
+        },
+    );
     app.apply_attach_client_output();
 }
 
@@ -316,14 +314,10 @@ fn a_force_detached_saved_row_skips_the_toast_cleanup_path() {
     let mut agent = crate::app::attach_client::tests::test_session(AGENT_MIRROR, HashMap::new());
     agent.state.remote_workspace = 42;
     agent.state.phase = SessionState::Connected;
-    agent
-        .transport
-        .force_detached
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    agent
-        .transport
-        .disconnected
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+    crate::app::attach_client::tests::settle_transport_end(
+        &agent,
+        tasty_remote::transport_end::EndReason::Forced,
+    );
     app.remote.sessions.push(agent);
     assert!(mirror_alive(&app, ROW));
     assert!(mirror_alive(&app, AGENT_MIRROR));

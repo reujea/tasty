@@ -179,10 +179,10 @@ fn resyncing_app(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> 
     let mut app = app_with_saved_row(event_loop, Some(SessionState::Connected));
     app.ensure_row_token(ROW);
     app.remote.sessions[0].state.resync_pending = Some(0);
-    app.remote.sessions[0]
-        .transport
-        .disconnected
-        .store(true, std::sync::atomic::Ordering::Release);
+    crate::app::attach_client::tests::settle_transport_end(
+        &app.remote.sessions[0],
+        tasty_remote::transport_end::EndReason::Lost,
+    );
     app
 }
 
@@ -203,10 +203,7 @@ fn a_remote_attach_during_resync_gets_its_success() {
     );
 
     app.remote.sessions[0].state.resync_pending = None;
-    app.remote.sessions[0]
-        .transport
-        .disconnected
-        .store(false, std::sync::atomic::Ordering::Release);
+    crate::app::attach_client::tests::replace_with_open_transport(&mut app.remote.sessions[0]);
     app.advance_row_waits();
     assert_eq!(
         crate::request_runs::lookup(run, None).unwrap()["state"],

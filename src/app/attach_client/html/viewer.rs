@@ -40,8 +40,7 @@ pub(in crate::app::attach_client) fn synchronize(
     sess: &mut AttachClientSession,
     engine: &mut EngineMut<'_>,
 ) -> bool {
-    let live = !sess.transport.disconnected.load(Ordering::Acquire)
-        && sess.transport.frame_tx.epoch().is_active();
+    let live = !sess.transport.end.is_ending() && sess.transport.frame_tx.epoch().is_active();
     let available = live
         && sess.transport.html.server_entry
         && sess.transport.html.server_transfer

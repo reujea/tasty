@@ -38,10 +38,7 @@ pub(in crate::app::attach_client) fn source_changed(
 pub(super) fn synchronize(sess: &mut AttachClientSession, engine: &mut EngineMut<'_>) -> bool {
     let available = engine.runtime.http_viewer_available
         && sess.state.resync_pending.is_none()
-        && !sess
-            .transport
-            .disconnected
-            .load(std::sync::atomic::Ordering::Acquire)
+        && !sess.transport.end.is_ending()
         && sess.transport.frame_tx.epoch().is_active()
         && sess.transport.html.server_http;
     let projection = engine

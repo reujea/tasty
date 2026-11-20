@@ -11,7 +11,6 @@ use crate::ipc::stream::{StreamControl, StreamTag};
 use crate::model::Workspace;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use tasty_remote::client_session::{
     MirrorEvent, MirrorOutbox, MirrorStructureIds, OutFrame, SessionState, SharedFrameSender,
 };
@@ -372,7 +371,7 @@ fn a_loss_on_a_parked_mirror_without_an_anchor_waits_for_a_window_instead_of_clo
     );
     assert_eq!(
         disconnect_disposition(
-            sess.transport.disconnected.load(Ordering::SeqCst),
+            sess.transport.end.settled().is_some(),
             sess.state.phase,
             sess.resync_released(),
             sess.state.saved_row.is_some(),

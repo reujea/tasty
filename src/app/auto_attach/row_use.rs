@@ -507,12 +507,7 @@ impl App {
             .sessions
             .iter()
             .find(|session| session.state.saved_row == Some(row))
-            .is_some_and(|session| {
-                !session
-                    .transport
-                    .disconnected
-                    .load(std::sync::atomic::Ordering::Acquire)
-            })
+            .is_some_and(|session| !session.transport.end.is_ending())
     }
 
     /// 각 engine에 저장된 원격 행의 연결 상태를 싣는다.

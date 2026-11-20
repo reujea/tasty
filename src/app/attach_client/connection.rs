@@ -19,7 +19,6 @@ use crate::runtime::engine_access::EngineMut;
 use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::Ordering;
 use tasty_remote::client_session::{
     AttachClientSession, ClientSessionState, MirrorStructureIds, SessionState,
 };
@@ -292,8 +291,6 @@ impl App {
         let removed_documents;
         {
             let sess = &mut self.remote.sessions[sess_idx];
-            sess.transport.frame_tx.retire();
-            sess.transport.disconnected.store(true, Ordering::Release);
 
             let Some((main, mut engine)) = engines_mut!(self).window_pair(wid) else {
                 anyhow::bail!("window {wid:?} 가 더 이상 MainView 가 아님 — 재연결 취소");
@@ -388,6 +385,8 @@ impl App {
         super::documents::destroy(&mut self.plugin_manager, markdown.into_iter().chain(html));
 
         let sess = &mut self.remote.sessions[sess_idx];
+        // 실패할 수 있는 단계를 모두 지난 소유권 이전 지점이다. 옛 전송을 여기서 확정하고 소켓을 닫는다.
+        sess.transport.close_locally();
         sess.transport = transport;
         sess.state.client_id = client_id;
         sess.state.bulk_port = port;
@@ -504,10 +503,9 @@ impl App {
                 super::html::lock_mirror(mirror).disconnect();
             }
             sess.state.phase = phase;
-            sess.transport.frame_tx.retire();
             // 옛 소켓을 재연결 성공까지 열어 두면 서버는 그 연결을 살아 있는 점유자로 보고 새 attach 를
-            // already_attached 로 거절한다(긴 재시도 간격). 끊겼다고 본 지금 닫는다.
-            sess.transport.workers.close_socket();
+            // already_attached 로 거절한다(긴 재시도 간격). 끊겼다고 본 지금 확정하고 닫는다.
+            sess.transport.close_locally();
             (
                 sess.state.saved_row,
                 sess.state.local_workspace,
@@ -582,11 +580,11 @@ impl App {
             &mut self.plugin_manager,
             markdown.iter().chain(html).copied(),
         );
-        // 사용자 닫기도 heartbeat를 멈춰 소켓이 불필요하게 유지되지 않게 한다.
-        sess.transport.disconnected.store(true, Ordering::SeqCst);
         if let Err(error) = sess.send_frame(StreamTag::Detach, Vec::new()) {
             tracing::debug!(%error, "detach notice could not reach the closing writer");
         }
+        // 정리가 곧 소유권을 놓는 지점이다. 끝을 확정하고 소켓을 바로 닫는다. heartbeat도 멈춘다.
+        sess.transport.close_locally();
         if let Some(engine) = saved_row {
             self.journal
                 .admit_remote_row(engine, sess.state.local_workspace, true);

@@ -1,5 +1,6 @@
 //! A bounded queued frame belongs to exactly one connection, never a replaceable sender slot.
 use super::client_session::OutFrame;
+use super::transport_end::{EndReason, TransportEnd};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -45,9 +46,9 @@ impl Drop for QueuedBytes {
         self.counter.fetch_sub(self.bytes, Ordering::AcqRel);
     }
 }
-/// 연결 실패를 알릴 상대 — 끊김 플래그와 깨우기 콜백. `bind_failure` 가 채우고
-/// `fail` 이 읽는다.
-type FailureObserver = (Arc<AtomicBool>, Arc<dyn Fn() + Send + Sync>);
+/// 연결 실패를 알릴 상대 — 연결의 끝과 깨우기 콜백. `bind_failure` 가 채우고
+/// `fail` 이 읽는다. 실패는 사유만 올린다. 확정은 쓰기 스레드나 reader가 한다.
+type FailureObserver = (Arc<TransportEnd>, Arc<dyn Fn() + Send + Sync>);
 pub struct ConnectionSender {
     began: std::time::Instant,
     epoch: ConnectionEpoch,
@@ -108,7 +109,7 @@ impl ConnectionSender {
             tracing::debug!("input checkpoint rejected; connection failure observer owns cleanup");
         }
     }
-    pub fn bind_failure(&self, disconnected: Arc<AtomicBool>, wake: Arc<dyn Fn() + Send + Sync>) {
+    pub fn bind_failure(&self, end: Arc<TransportEnd>, wake: Arc<dyn Fn() + Send + Sync>) {
         let mut observer = self.failure.lock().unwrap_or_else(|poison| {
             tasty_utils::poison::recover_poisoned(
                 poison,
@@ -116,10 +117,10 @@ impl ConnectionSender {
                 &FAILURE_POISON_REPORTED,
             )
         });
-        *observer = Some((disconnected.clone(), wake.clone()));
+        *observer = Some((end.clone(), wake.clone()));
         drop(observer);
         if self.failed.load(Ordering::Acquire) {
-            disconnected.store(true, Ordering::Release);
+            end.raise(EndReason::Lost);
             wake();
         }
     }
@@ -142,8 +143,8 @@ impl ConnectionSender {
                 )
             })
             .clone();
-        if let Some((disconnected, wake)) = observer {
-            disconnected.store(true, Ordering::Release);
+        if let Some((end, wake)) = observer {
+            end.raise(EndReason::Lost);
             wake();
         }
     }

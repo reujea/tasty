@@ -47,7 +47,6 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
     sender.enable_input_receipts(true);
     sender.user_input_dispatched(std::time::Instant::now());
     let output = MirrorOutbox::new(sender.epoch());
-    let disconnected = Arc::new(AtomicBool::new(false));
     let (wake_tx, wake_rx) = std::sync::mpsc::channel();
     let wake = Arc::new(move || {
         wake_tx.send(()).expect("test receiver remains alive");
@@ -56,7 +55,6 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
         conn,
         output.clone(),
         sender.clone(),
-        disconnected,
         wake,
         |_| {
             Some(MirrorEvent::StructuralDelta {
@@ -69,8 +67,9 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
             remote_workspace: 1,
             heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
             detach_sent: Arc::new(AtomicBool::new(false)),
-            force_detached: Arc::new(AtomicBool::new(false)),
+            transport_end: Arc::new(TransportEnd::new()),
             finished: Arc::new(AtomicBool::new(false)),
+            gate: None,
         },
     );
     stream::write_frame(&mut peer, StreamTag::Control, b"{}").unwrap();
@@ -282,47 +281,76 @@ fn reader_end() -> AttachReaderEnd {
         remote_workspace: 513,
         heartbeat_timeout: Duration::from_secs(45),
         detach_sent: Arc::new(AtomicBool::new(false)),
-        force_detached: Arc::new(AtomicBool::new(false)),
+        transport_end: Arc::new(TransportEnd::new()),
         finished: Arc::new(AtomicBool::new(false)),
+        gate: None,
     }
 }
 
-/// 이쪽이 먼저 끊김을 알린(정리·쓰기 실패) 뒤의 수신 오류는 원격 원인이 아니라 경고하지 않는다.
+/// 시험용 reader 끝 정보. `end`와 `finished`를 시험이 관찰한다.
+fn reader_link(end: &Arc<TransportEnd>, finished: &Arc<AtomicBool>) -> AttachReaderEnd {
+    AttachReaderEnd {
+        remote_workspace: 1,
+        heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
+        detach_sent: Arc::new(AtomicBool::new(false)),
+        transport_end: end.clone(),
+        finished: finished.clone(),
+        gate: None,
+    }
+}
+
+/// 시험용 쓰기 스레드 끝 정보. 이음새는 비워 둔다.
+fn writer_link(
+    end: &Arc<TransportEnd>,
+    finished: &Arc<AtomicBool>,
+    cap: Duration,
+) -> AttachWriterEnd {
+    AttachWriterEnd {
+        transport_end: end.clone(),
+        detach_sent: Arc::new(AtomicBool::new(false)),
+        reader_finished: finished.clone(),
+        reader_wait_cap: cap,
+        seams: WriterSeams::default(),
+    }
+}
+
+/// 이쪽이 먼저 사유를 올린(정리·쓰기 실패) 뒤의 수신 오류는 원격 원인이 아니라 경고하지 않는다.
 #[test]
 fn a_read_error_after_our_own_disconnect_is_not_a_warning() {
-    let disconnected = AtomicBool::new(true);
+    let end = reader_end();
+    end.transport_end.raise(EndReason::Lost);
     let eof = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
-    let (warn, message) = reader_end().outcome(&eof, &disconnected);
+    let (warn, message) = end.outcome(&eof);
     assert!(!warn, "{message}");
     assert!(message.contains("PeerClosed"), "{message}");
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert!(end.transport_end.is_ending());
 }
 
 /// 처음 끊김을 알리는 수신 오류는 원인과 실제로 건 timeout을 경고로 남기고 끊김을 세운다.
 #[test]
 fn the_first_read_error_warns_with_its_cause_and_raises_the_disconnect() {
-    let disconnected = AtomicBool::new(false);
+    let end = reader_end();
     let timeout = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::WouldBlock));
-    let (warn, message) = reader_end().outcome(&timeout, &disconnected);
+    let (warn, message) = end.outcome(&timeout);
     assert!(warn, "{message}");
     for part in ["remote workspace 513", "45초"] {
         assert!(message.contains(part), "{part} in {message}");
     }
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert!(end.transport_end.is_ending());
+    assert_eq!(end.transport_end.settled(), None, "the reader exit settles");
 }
 
-/// 재동기화는 disconnected 를 세우지 않고 Detach 만 보낸다. 그 뒤의 EOF 는 이쪽이 끝낸 연결이라
-/// 경고하지 않되, 재attach 가 이어지도록 끊김은 세운다.
+/// 재동기화는 사유를 올리지 않고 Detach 만 보낸다. 그 뒤의 EOF 는 이쪽이 끝낸 연결이라
+/// 경고하지 않되, 재attach 가 이어지도록 끊김 사유는 올린다.
 #[test]
 fn a_read_error_after_our_own_detach_is_not_a_warning_but_still_disconnects() {
     let end = reader_end();
     end.detach_sent.store(true, Ordering::SeqCst);
-    let disconnected = AtomicBool::new(false);
     let eof = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
-    let (warn, message) = end.outcome(&eof, &disconnected);
+    let (warn, message) = end.outcome(&eof);
     assert!(!warn, "{message}");
     assert!(message.contains("Detach"), "{message}");
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert!(end.transport_end.is_ending());
 }
 
 /// 쓰기 스레드는 Detach 를 쓰기 전에 표지를 세운다. 쓰기 쪽을 미리 닫아 쓰기가 반드시 실패하게 해
@@ -340,17 +368,14 @@ fn the_writer_marks_our_detach_before_writing_it() {
             payload: Vec::new(),
         })
         .unwrap();
-    let detach_sent = Arc::new(AtomicBool::new(false));
-    let writer = spawn_attach_write_thread(
-        ours,
-        rx,
-        Arc::new(AtomicBool::new(false)),
-        detach_sent.clone(),
-        Arc::new(AtomicBool::new(true)),
-        std::time::Duration::from_secs(60),
-        Arc::new(|| {}),
-        " detach order test",
+    let mut link = writer_link(
+        &Arc::new(TransportEnd::new()),
+        &Arc::new(AtomicBool::new(true)),
+        Duration::from_secs(60),
     );
+    let detach_sent = Arc::new(AtomicBool::new(false));
+    link.detach_sent = detach_sent.clone();
+    let writer = spawn_attach_write_thread(ours, rx, link, Arc::new(|| {}), " detach order test");
     writer.join().unwrap();
     assert!(detach_sent.load(Ordering::SeqCst));
 }
@@ -373,88 +398,42 @@ fn a_rejection_reason_reads_back_from_the_connection_error() {
     assert_eq!(attach_rejection_reason("connection refused"), None);
 }
 
-/// 서버가 `force_detached`를 보내고 닫은 연결에서 이쪽 쓰기가 먼저 실패해도, reader가 그 통지를
-/// 처리하기 전에는 끊김을 알리지 않는다. 그래서 App은 끊김을 볼 때 강제 끊김 표지도 함께 본다.
+/// 서버가 `force_detached`를 보내고 닫은 연결에서 이쪽 쓰기가 먼저 실패해도, 쓰기 스레드는 확정하지
+/// 않고 reader를 기다린다. reader가 통지를 처리해 `Forced`로 확정하고, 확정 뒤의 깨움만 확정된
+/// 사유를 본다.
 ///
-/// 순서는 시간이 아니라 신호로 맞춘다. 너무 큰 프레임으로 송신을 실패시키고, writer가 실패 분기에서
-/// 쓰기 쪽을 닫은 것(상대가 보는 EOF)을 확인한 뒤에야 상대가 통지를 보내고 reader를 시작한다.
-/// 이 사이 writer가 기한으로 끊김을 알리면 대개 `!disconnected` 단언이나 깨우기 기록에서 드러난다.
-///
-/// 한계: EOF는 writer가 실패 분기에서 쓰기 쪽을 닫았다는 것까지만 고정한다. 쓰기 쪽 종료는 두고
-/// reader 대기만 없앤 writer는 EOF 직후 끊김 표지를 세우므로 바로 뒤의 `!disconnected` 단언이
-/// 실패한다(빌드 머신에서 30회 중 30회 검출). 다만 두 스케줄에서는 놓칠 수 있다.
-/// - 그 writer가 EOF와 표지 사이에서 reader가 끝날 때까지 멈추는 경우.
-/// - 그 writer가 `!disconnected` 확인 직후 표지를 세우고 깨우기 전에 멈춘 사이 reader가 통지를
-///   처리하는 경우. 그러면 두 깨우기 모두 끊김과 강제 끊김이 함께 선 상태만 기록해 깨우기 기록
-///   단언도 통과한다.
-///
-/// 시험 전용 동기화 지점은 두지 않았다.
+/// 순서는 신호로 맞춘다. 너무 큰 프레임으로 송신을 실패시키고, 쓰기 스레드가 쓰기 쪽을 닫은 것(상대가
+/// 보는 EOF)을 확인한 뒤에야 상대가 통지를 보내고 reader를 시작한다.
 #[test]
 fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
-    use std::io::{BufRead, BufReader, Read};
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let ours = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-    let handshake = std::thread::spawn(move || {
-        let (mut peer, _) = listener.accept().unwrap();
-        let mut request = String::new();
-        BufReader::new(peer.try_clone().unwrap())
-            .read_line(&mut request)
-            .unwrap();
-        stream::write_frame(
-            &mut peer,
-            StreamTag::Control,
-            &serde_json::to_vec(&serde_json::json!({"ok":true,"proto":1,"client_id":7})).unwrap(),
-        )
-        .unwrap();
-        peer
-    });
-    let write_half = ours.try_clone().unwrap();
-    let (conn, _) = StreamConnection::open(ours, 1).unwrap();
-    let mut peer = handshake.join().unwrap();
-
-    let disconnected = Arc::new(AtomicBool::new(false));
-    let force_detached = Arc::new(AtomicBool::new(false));
+    use std::io::Read;
+    let (write_half, conn, mut peer) = opened_attach_pair();
+    let end = Arc::new(TransportEnd::new());
     let finished = Arc::new(AtomicBool::new(false));
-    // 깨울 때마다 끊김과 강제 끊김 표지를 함께 기록한다. App이 깨어나 읽는 순서와 같다.
+    // 깨울 때마다 그 순간의 확정 사유를 기록한다. App이 깨어나 읽는 값과 같다.
     let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
     let wake: Arc<dyn Fn() + Send + Sync> = {
-        let (disconnected, force_detached, seen) =
-            (disconnected.clone(), force_detached.clone(), seen.clone());
-        Arc::new(move || {
-            let pair = (
-                disconnected.load(Ordering::SeqCst),
-                force_detached.load(Ordering::SeqCst),
-            );
-            seen.lock().unwrap().push(pair);
-        })
+        let (end, seen) = (end.clone(), seen.clone());
+        Arc::new(move || seen.lock().unwrap().push(end.settled()))
     };
-    let (sender, rx) = super::super::connection::channel();
-    sender
-        .send(OutFrame {
-            tag: StreamTag::Control,
-            payload: vec![0; stream::MAX_FRAME_LEN as usize + 1],
-        })
-        .unwrap();
+    let (sender, rx) = failing_send();
     let writer = spawn_attach_write_thread(
         write_half,
         rx,
-        disconnected.clone(),
-        Arc::new(AtomicBool::new(false)),
-        finished.clone(),
-        std::time::Duration::from_secs(60),
+        writer_link(&end, &finished, Duration::from_secs(60)),
         wake.clone(),
         " force detach race test",
     );
-    // writer가 실패 분기에 들어와 쓰기 쪽을 닫았다는 신호. 읽기 기한은 실패 판정에만 쓴다.
     peer.set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
     let mut rest = Vec::new();
     peer.read_to_end(&mut rest)
         .expect("the writer must close its send side when a write fails");
     assert!(rest.is_empty(), "the oversized frame must not be written");
-    assert!(
-        !disconnected.load(Ordering::SeqCst),
-        "the writer reported the disconnect before the reader finished"
+    assert_eq!(
+        end.settled(),
+        None,
+        "the writer settled before the reader finished"
     );
     stream::write_frame(
         &mut peer,
@@ -463,32 +442,21 @@ fn a_write_failure_waits_for_the_reader_to_see_a_force_detach_notice() {
     )
     .unwrap();
     peer.shutdown(std::net::Shutdown::Write).unwrap();
-    let output = MirrorOutbox::new(sender.epoch());
     let reader = spawn_attach_reader_thread(
         conn,
-        output,
+        MirrorOutbox::new(sender.epoch()),
         sender.clone(),
-        disconnected.clone(),
         wake,
         |_| None,
-        AttachReaderEnd {
-            remote_workspace: 1,
-            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
-            detach_sent: Arc::new(AtomicBool::new(false)),
-            force_detached: force_detached.clone(),
-            finished,
-        },
+        reader_link(&end, &finished),
     );
     reader.join().unwrap();
     writer.join().unwrap();
     drop(sender);
     let seen = seen.lock().unwrap();
-    assert!(
-        seen.iter()
-            .all(|(disconnected, forced)| !disconnected || *forced),
-        "a disconnect became visible without the force-detach mark: {seen:?}"
-    );
-    assert_eq!(seen.last(), Some(&(true, true)), "{seen:?}");
+    let terminal: Vec<_> = seen.iter().flatten().collect();
+    assert_eq!(terminal, vec![&EndReason::Forced], "{seen:?}");
+    assert_eq!(end.settled(), Some(EndReason::Forced));
 }
 
 /// 핸드셰이크까지 마친 연결 한 쌍. 이쪽 쓰기용 사본, reader용 연결, 상대 소켓을 돌려준다.
@@ -539,16 +507,13 @@ fn panicking_decode(_: &[u8]) -> Option<MirrorEvent> {
 #[test]
 fn a_panicking_reader_still_lets_a_failed_writer_report_the_disconnect() {
     let (write_half, conn, mut peer) = opened_attach_pair();
-    let disconnected = Arc::new(AtomicBool::new(false));
+    let end = Arc::new(TransportEnd::new());
     let finished = Arc::new(AtomicBool::new(false));
     let (sender, rx) = failing_send();
     let writer = spawn_attach_write_thread(
         write_half,
         rx,
-        disconnected.clone(),
-        Arc::new(AtomicBool::new(false)),
-        finished.clone(),
-        Duration::from_secs(60),
+        writer_link(&end, &finished, Duration::from_secs(60)),
         Arc::new(|| {}),
         " reader panic test",
     );
@@ -557,16 +522,9 @@ fn a_panicking_reader_still_lets_a_failed_writer_report_the_disconnect() {
         conn,
         MirrorOutbox::new(sender.epoch()),
         sender.clone(),
-        disconnected.clone(),
         Arc::new(|| {}),
         panicking_decode,
-        AttachReaderEnd {
-            remote_workspace: 1,
-            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
-            detach_sent: Arc::new(AtomicBool::new(false)),
-            force_detached: Arc::new(AtomicBool::new(false)),
-            finished: finished.clone(),
-        },
+        reader_link(&end, &finished),
     );
     assert!(reader.join().is_err(), "the reader panicked");
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
@@ -579,7 +537,7 @@ fn a_panicking_reader_still_lets_a_failed_writer_report_the_disconnect() {
     }
     writer.join().unwrap();
     assert!(finished.load(Ordering::SeqCst));
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert_eq!(end.settled(), Some(EndReason::Lost));
     drop(sender);
 }
 
@@ -589,7 +547,7 @@ fn a_panicking_reader_still_lets_a_failed_writer_report_the_disconnect() {
 #[test]
 fn a_wake_callback_that_panics_again_while_the_reader_unwinds_does_not_abort() {
     let (_write_half, conn, mut peer) = opened_attach_pair();
-    let disconnected = Arc::new(AtomicBool::new(false));
+    let end = Arc::new(TransportEnd::new());
     let finished = Arc::new(AtomicBool::new(false));
     let (sender, _rx) = super::super::connection::channel();
     let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -599,24 +557,17 @@ fn a_wake_callback_that_panics_again_while_the_reader_unwinds_does_not_abort() {
         conn,
         MirrorOutbox::new(sender.epoch()),
         sender.clone(),
-        disconnected.clone(),
         Arc::new(move || {
             counted.fetch_add(1, Ordering::SeqCst);
             panic!("wake panics on purpose");
         }),
         |_| None,
-        AttachReaderEnd {
-            remote_workspace: 1,
-            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
-            detach_sent: Arc::new(AtomicBool::new(false)),
-            force_detached: Arc::new(AtomicBool::new(false)),
-            finished: finished.clone(),
-        },
+        reader_link(&end, &finished),
     );
     assert!(reader.join().is_err(), "the first wake panicked");
     assert_eq!(wakes.load(Ordering::SeqCst), 2, "the guard woke again");
     assert!(finished.load(Ordering::SeqCst));
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert_eq!(end.settled(), Some(EndReason::Lost));
 }
 
 /// 소멸자가 panic하는 payload. unwinding 중에 drop되면 프로세스가 abort한다.
@@ -633,7 +584,7 @@ impl Drop for PanicsOnDrop {
 #[test]
 fn a_wake_payload_whose_destructor_panics_does_not_abort_the_reader_exit() {
     let (_write_half, conn, mut peer) = opened_attach_pair();
-    let disconnected = Arc::new(AtomicBool::new(false));
+    let end = Arc::new(TransportEnd::new());
     let finished = Arc::new(AtomicBool::new(false));
     let (sender, _rx) = super::super::connection::channel();
     let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -643,7 +594,6 @@ fn a_wake_payload_whose_destructor_panics_does_not_abort_the_reader_exit() {
         conn,
         MirrorOutbox::new(sender.epoch()),
         sender.clone(),
-        disconnected.clone(),
         Arc::new(move || {
             if counted.fetch_add(1, Ordering::SeqCst) == 0 {
                 panic!("the first wake panics on purpose");
@@ -651,24 +601,18 @@ fn a_wake_payload_whose_destructor_panics_does_not_abort_the_reader_exit() {
             std::panic::panic_any(PanicsOnDrop);
         }),
         |_| None,
-        AttachReaderEnd {
-            remote_workspace: 1,
-            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
-            detach_sent: Arc::new(AtomicBool::new(false)),
-            force_detached: Arc::new(AtomicBool::new(false)),
-            finished: finished.clone(),
-        },
+        reader_link(&end, &finished),
     );
     assert!(reader.join().is_err(), "the first wake panicked");
     assert_eq!(wakes.load(Ordering::SeqCst), 2, "the guard woke again");
     assert!(finished.load(Ordering::SeqCst));
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert_eq!(end.settled(), Some(EndReason::Lost));
 }
 
-/// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 끊김을 알린다.
+/// reader가 끝나지 않는 연결에서도 송신이 실패한 writer는 상한 뒤 `Lost`로 확정하고 깨운다.
 ///
 /// 기다림의 시작은 상대가 쓰기 쪽 닫힘의 EOF를 본 시각이고, 끝은 깨움 콜백이 불린 시각이다
-/// (끊김 표지는 그 직전에 선다). 두 시각 모두 그 일을 겪은 스레드가 바로 찍으므로 시험 스레드의
+/// (확정은 그 직전에 한다). 두 시각 모두 그 일을 겪은 스레드가 바로 찍으므로 시험 스레드의
 /// 관측 지연이 들어가지 않는다. 남는 것은 두 스레드가 깨어나는 지연이다. 상대 스레드가 EOF를 늦게
 /// 보면 잰 값이 줄고, 기다리지 않는 writer가 표지를 세우기 전에 밀려나면 잰 값이 늘어난다. 시험 전용
 /// 상한을 1초로 두고 하한을 그 절반(500ms)으로 두어, 어느 쪽이든 지연이 수백 ms를 넘어야 판정이
@@ -688,15 +632,12 @@ fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
     });
     let woke_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let stamp = woke_at.clone();
-    let disconnected = Arc::new(AtomicBool::new(false));
+    let end = Arc::new(TransportEnd::new());
     let (sender, rx) = failing_send();
     let writer = spawn_attach_write_thread(
         write_half,
         rx,
-        disconnected.clone(),
-        Arc::new(AtomicBool::new(false)),
-        Arc::new(AtomicBool::new(false)),
-        CAP,
+        writer_link(&end, &Arc::new(AtomicBool::new(false)), CAP),
         Arc::new(move || {
             stamp.lock().unwrap().get_or_insert_with(Instant::now);
         }),
@@ -721,6 +662,6 @@ fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
         waited >= CAP / 2,
         "the disconnect came before the cap: {waited:?}"
     );
-    assert!(disconnected.load(Ordering::SeqCst));
+    assert_eq!(end.settled(), Some(EndReason::Lost));
     drop(sender);
 }

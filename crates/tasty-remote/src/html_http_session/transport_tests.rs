@@ -165,10 +165,13 @@ fn actual_tcp_writer_drops_retired_http_begin_and_keeps_live_legacy_frames() {
         let worker = crate::transport::spawn_attach_write_thread(
             socket,
             rx,
-            Arc::new(AtomicBool::new(false)),
-            Arc::new(AtomicBool::new(false)),
-            Arc::new(AtomicBool::new(true)),
-            std::time::Duration::from_secs(60),
+            crate::transport::AttachWriterEnd {
+                transport_end: Arc::new(crate::transport_end::TransportEnd::new()),
+                detach_sent: Arc::new(AtomicBool::new(false)),
+                reader_finished: Arc::new(AtomicBool::new(true)),
+                reader_wait_cap: std::time::Duration::from_secs(60),
+                seams: crate::transport::WriterSeams::default(),
+            },
             Arc::new(|| {}),
             " owned HTTP retirement fixture",
         );

@@ -7,13 +7,13 @@
 //! 분류되어 그 끊김은 이번 회차의 설치 뒤에 일어난 것과 같아진다.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tasty_remote::client_session::{AttachClientSession, SessionState};
+use tasty_remote::transport_end::{EndReason, TransportEnd};
 
-/// 세션 하나의 관측값. 전송은 `disconnected` 표지의 `Arc` 로 알아본다. 회차 중에 설치가 세션의
+/// 세션 하나의 관측값. 전송은 끝 값의 `Arc` 로 알아본다. 회차 중에 설치가 세션의
 /// 전송을 바꾸면 관측값은 그 세션에 맞지 않는다.
 struct SessionEnd {
-    transport: Arc<AtomicBool>,
+    transport: Arc<TransportEnd>,
     disconnected: bool,
     force_detached: bool,
     phase: SessionState,
@@ -25,17 +25,16 @@ pub(crate) struct RoundObservation {
 }
 
 impl RoundObservation {
-    /// 지금 세션들의 전송 표지를 읽는다. `disconnected` 를 먼저 읽는다. reader 는 통지를 처리해
-    /// `force_detached` 를 세운 뒤 `disconnected` 를 세우므로, 끊김을 본 관측에서 통지가 빠지지 않는다.
+    /// 지금 세션들의 확정된 끝을 한 번씩 읽는다. 두 값은 같은 `settled()` 결과에서 만든다.
     pub(crate) fn observe(sessions: &[AttachClientSession]) -> Self {
         let sessions = sessions
             .iter()
             .map(|session| {
-                let disconnected = session.transport.disconnected.load(Ordering::SeqCst);
+                let (disconnected, force_detached) = settled_pair(&session.transport.end);
                 SessionEnd {
-                    transport: session.transport.disconnected.clone(),
+                    transport: session.transport.end.clone(),
                     disconnected,
-                    force_detached: session.transport.force_detached.load(Ordering::SeqCst),
+                    force_detached,
                     phase: session.state.phase,
                     saved_row: session.state.saved_row,
                 }
@@ -49,15 +48,9 @@ impl RoundObservation {
         round
             .into_iter()
             .flat_map(|round| round.sessions.iter())
-            .find(|end| Arc::ptr_eq(&end.transport, &session.transport.disconnected))
+            .find(|end| Arc::ptr_eq(&end.transport, &session.transport.end))
             .map(|end| (end.disconnected, end.force_detached))
-            .unwrap_or_else(|| {
-                let disconnected = session.transport.disconnected.load(Ordering::SeqCst);
-                (
-                    disconnected,
-                    session.transport.force_detached.load(Ordering::SeqCst),
-                )
-            })
+            .unwrap_or_else(|| settled_pair(&session.transport.end))
     }
 
     /// 회차 시작에 끝 분류 전(Connected)이면서 강제로 끊긴 저장 행. 이번 회차의 끝 분류가 강제
@@ -70,4 +63,10 @@ impl RoundObservation {
             })
             .filter_map(|end| end.saved_row)
     }
+}
+
+/// (끊김, 강제 끊김)을 확정된 사유 하나에서 만든다. 확정 전이면 둘 다 거짓이다.
+fn settled_pair(end: &TransportEnd) -> (bool, bool) {
+    let settled = end.settled();
+    (settled.is_some(), settled == Some(EndReason::Forced))
 }

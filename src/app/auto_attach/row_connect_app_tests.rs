@@ -143,10 +143,7 @@ fn remote_connect_clears_the_user_disconnect_and_a_held_request_runs_after_it() 
 
     // 시도가 붙었다.
     app.remote.sessions[0].state.phase = SessionState::Connected;
-    app.remote.sessions[0]
-        .transport
-        .disconnected
-        .store(false, std::sync::atomic::Ordering::Release);
+    crate::app::attach_client::tests::replace_with_open_transport(&mut app.remote.sessions[0]);
     app.advance_row_waits();
     // 요청은 대기에서 나와 실행됐다. 응답은 실행 경로가 보내며 행 거절이 아니다.
     assert!(

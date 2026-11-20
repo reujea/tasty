@@ -12,11 +12,7 @@ pub(super) fn locations_of(sessions: &[AttachClientSession]) -> HashMap<u32, Mir
     sessions
         .iter()
         .map(|s| {
-            let live = s.state.phase == SessionState::Connected
-                && !s
-                    .transport
-                    .disconnected
-                    .load(std::sync::atomic::Ordering::Acquire);
+            let live = s.state.phase == SessionState::Connected && !s.transport.end.is_ending();
             (
                 s.state.local_workspace,
                 MirrorLocation {
@@ -73,8 +69,8 @@ mod tests {
         session.state.phase = SessionState::Connected;
         session
             .transport
-            .disconnected
-            .store(true, std::sync::atomic::Ordering::Release);
+            .end
+            .raise(tasty_remote::transport_end::EndReason::Lost);
         assert!(locations_of(std::slice::from_ref(&session))[&10].reconnecting);
     }
 }

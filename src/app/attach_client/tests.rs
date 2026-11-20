@@ -5,7 +5,6 @@ use crate::runtime::engine_session::{EngineId, EngineSession};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use tasty_remote::client_session::{
     AttachClientSession, ClientSessionState, ClientTransport, MirrorOutbox, SessionState,
 };
@@ -94,8 +93,7 @@ pub(crate) fn test_session_with_frames(
         transport: ClientTransport {
             workers: tasty_remote::transport::ConnectionWorkers::new(control, Vec::new()),
             output: MirrorOutbox::new(tx.epoch()),
-            disconnected: Arc::new(AtomicBool::new(false)),
-            force_detached: Arc::new(AtomicBool::new(false)),
+            end: Arc::new(tasty_remote::transport_end::TransportEnd::new()),
             frame_tx: tx,
             tunnel: None,
             explorer_write: true,
@@ -135,6 +133,24 @@ pub(crate) fn test_session_with_frames(
         },
     };
     (session, rx)
+}
+
+/// 시험이 재연결 성공을 흉내 낸다. 확정된 끝은 되돌릴 수 없으므로 끝이 열린 새 전송과 epoch 로 바꾼다.
+pub(crate) fn replace_with_open_transport(session: &mut AttachClientSession) {
+    let fresh = test_session(session.state.local_workspace, HashMap::new());
+    session.transport = fresh.transport;
+}
+
+/// 시험이 전송의 끝을 확정한다. 제품 경로에서는 reader·쓰기 스레드·로컬 해제가 한다.
+pub(crate) fn settle_transport_end(
+    session: &AttachClientSession,
+    reason: tasty_remote::transport_end::EndReason,
+) {
+    session.transport.end.raise(reason);
+    assert!(
+        session.transport.end.settle(),
+        "the test settles an open end"
+    );
 }
 
 /// 실제 kind 등록 경로를 사용하며 플러그인 프로세스 대신 채널 수신자로 명령을 확인한다.

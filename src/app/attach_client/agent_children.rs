@@ -182,11 +182,8 @@ impl App {
     /// 새 연결마다 출처 토큰을 한 번 보낸다. 구 서버 연결에는 보내지 않는다.
     fn hello(&mut self, idx: usize, ws: u32) {
         let sess = &mut self.remote.sessions[idx];
-        let connected = sess.state.phase == SessionState::Connected
-            && !sess
-                .transport
-                .disconnected
-                .load(std::sync::atomic::Ordering::SeqCst);
+        let connected =
+            sess.state.phase == SessionState::Connected && !sess.transport.end.is_ending();
         let token = {
             let mut client = agents::client();
             let entry = client.sessions.entry(ws).or_default();

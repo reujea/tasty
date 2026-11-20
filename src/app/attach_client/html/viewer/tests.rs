@@ -91,7 +91,9 @@ fn http_sender_old_peer_and_disconnect_retire_captured_owners_without_sending() 
     assert!(rx.try_recv().is_err());
     sess.transport.html.server_http = true;
     let second = document(&mut sess);
-    sess.transport.disconnected.store(true, Ordering::Release);
+    sess.transport
+        .end
+        .raise(tasty_remote::transport_end::EndReason::Lost);
     assert!(!synchronize(&mut sess, &mut engine));
     assert!(!second.is_current());
     assert!(rx.try_recv().is_err());

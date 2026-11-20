@@ -2,7 +2,6 @@
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use tasty_ipc::stream::StreamTag;
 use tasty_model::Workspace;
 /// Host-independent remote directory values; the application chooses its local picker cache.
@@ -321,9 +320,9 @@ pub struct AttachClientSession {
 pub struct ClientTransport {
     pub workers: crate::transport::ConnectionWorkers,
     pub output: MirrorOutbox,
-    pub disconnected: Arc<AtomicBool>,
-    /// 서버가 강제 끊기(`force_detached`)로 이 연결을 끝냈다. 저장된 원격 행도 재연결하지 않는다.
-    pub force_detached: Arc<AtomicBool>,
+    /// 이 연결의 끝. reader·쓰기 스레드·로컬 해제 가운데 하나만 확정한다. App 은 회차 관측에서만
+    /// 확정된 사유를 읽고, I/O 가능 여부는 `is_ending()`으로 본다.
+    pub end: Arc<crate::transport_end::TransportEnd>,
     pub frame_tx: SharedFrameSender,
     pub tunnel: Option<tasty_ssh::SshTunnel>,
     /// 서버가 원격 explorer 파일 작업을 받는다. 구 서버 descriptor 에는 이 기능이 없다.
@@ -458,9 +457,20 @@ impl Drop for ClientTransport {
             tracing::debug!("remote detach queue already closed: {error}");
         }
         self.workers.retire_tunnel(self.tunnel.take());
+        self.end.raise(crate::transport_end::EndReason::Lost);
+        self.end.settle();
         self.frame_tx.retire();
-        self.disconnected
-            .store(true, std::sync::atomic::Ordering::Release);
+    }
+}
+
+impl ClientTransport {
+    /// App 이 이 연결의 소유권을 놓는 자리에서 부른다. 끝을 `Lost`로 확정하고 소켓을 바로 닫는다.
+    /// 이미 다른 쪽이 확정했다면 그 사유가 남는다. 이 끝은 회차 관측의 분류 대상이 아니다.
+    pub fn close_locally(&self) {
+        self.end.raise(crate::transport_end::EndReason::Lost);
+        self.end.settle();
+        self.frame_tx.retire();
+        self.workers.close_socket();
     }
 }
 

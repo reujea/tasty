@@ -37,7 +37,6 @@ use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
 use apply_event::apply_one_mirror_event;
 use serde_json::Value;
-use std::sync::atomic::Ordering;
 use tasty_remote::client_session::{
     AttachClientSession, MirrorEvent, PendingOpFocus, SessionState,
 };
@@ -418,8 +417,11 @@ fn apply_mirror_events(
                     (host.engine.runtime.waker)();
                 } else {
                     tracing::warn!("mirror structural identity reservation failed: {error}");
+                    // 사유만 올린다. 쓰기 스레드가 reader를 기다린 뒤 확정한다.
                     sess.transport.frame_tx.retire();
-                    sess.transport.disconnected.store(true, Ordering::Release);
+                    sess.transport
+                        .end
+                        .raise(tasty_remote::transport_end::EndReason::Lost);
                 }
                 return;
             }

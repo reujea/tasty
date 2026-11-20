@@ -345,10 +345,7 @@ impl crate::app::App {
             .filter(|s| {
                 s.transport.explorer_write
                     && s.state.phase == tasty_remote::client_session::SessionState::Connected
-                    && !s
-                        .transport
-                        .disconnected
-                        .load(std::sync::atomic::Ordering::Acquire)
+                    && !s.transport.end.is_ending()
             })
             .map(|s| s.state.local_workspace)
             .collect();
@@ -360,10 +357,7 @@ impl crate::app::App {
             .map(|s| {
                 let connected = s.state.phase
                     == tasty_remote::client_session::SessionState::Connected
-                    && !s
-                        .transport
-                        .disconnected
-                        .load(std::sync::atomic::Ordering::Acquire);
+                    && !s.transport.end.is_ending();
                 (
                     s.state.local_workspace,
                     crate::remote::state::ExplorerRemoteHost {

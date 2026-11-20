@@ -469,14 +469,10 @@ fn flag_the_other_row_force_detached(app: &App) {
         .iter()
         .find(|session| session.state.saved_row == Some(ROW_B))
         .expect("the session of row B");
-    session_b
-        .transport
-        .force_detached
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    session_b
-        .transport
-        .disconnected
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+    crate::app::attach_client::tests::settle_transport_end(
+        session_b,
+        tasty_remote::transport_end::EndReason::Forced,
+    );
 }
 
 fn push_other_row_session_unflagged(app: &mut App, phase: SessionState) {
