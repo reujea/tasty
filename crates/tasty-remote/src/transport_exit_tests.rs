@@ -383,3 +383,54 @@ fn every_writer_exit_settles_and_wakes_once_while_the_reader_is_held() {
         drop(reader_sender);
     }
 }
+
+/// U7-a (a): 재동기화의 Detach를 쓴 뒤에도 쓰기 스레드는 reader를 기다린다. 그동안 서버가 옛 소켓에
+/// 강제 통지를 쓰면 reader가 `Forced`로 확정한다. Detach 직후 소켓을 닫고 `Lost`로 확정하면 실패한다.
+#[test]
+fn a_notice_after_the_resync_detach_is_still_settled_as_forced() {
+    let (write_half, conn, mut peer) = opened_attach_pair();
+    let end = Arc::new(TransportEnd::new());
+    let finished = Arc::new(AtomicBool::new(false));
+    let (wake, wakes) = recording_wake(&end);
+    let (sender, rx) = crate::connection::channel();
+    sender.bind_failure(end.clone(), wake.clone());
+    let (seams, entered, cap_gate) = seams();
+    let writer = spawn_attach_write_thread(
+        write_half,
+        rx,
+        seamed_writer_link(&end, &finished, seams),
+        wake.clone(),
+        " U7a",
+    );
+    let reader = spawn_attach_reader_thread(
+        conn,
+        MirrorOutbox::new(sender.epoch()),
+        sender.clone(),
+        wake,
+        |_| None,
+        reader_link(&end, &finished),
+    );
+
+    sender
+        .send(OutFrame {
+            tag: StreamTag::Detach,
+            payload: Vec::new(),
+        })
+        .unwrap();
+    entered
+        .recv_timeout(WAIT)
+        .expect("the writer waits after the Detach");
+    let detach = stream::read_frame(&mut peer).unwrap();
+    assert_eq!(detach.tag, StreamTag::Detach);
+    stream::write_frame(&mut peer, StreamTag::Control, FORCE_NOTICE).unwrap();
+    assert_eq!(
+        wakes.terminal.recv_timeout(WAIT).unwrap(),
+        EndReason::Forced
+    );
+    reader.join().unwrap();
+    cap_gate.store(true, Ordering::SeqCst);
+    writer.join().unwrap();
+    assert_eq!(end.settled(), Some(EndReason::Forced));
+    assert_eq!(wakes.terminal(), vec![EndReason::Forced]);
+    drop(sender);
+}

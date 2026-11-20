@@ -478,3 +478,106 @@ fn the_hold_covers_every_row_of_the_target_but_the_released_one() {
     );
     assert!(!marked(&app));
 }
+
+/// 연결된 행 A 가 손실 통지로 재동기화를 시작한 뒤(`resync_pending`, Detach 보냄) 옛 전송이 `reason`
+/// 으로 확정된 상태. 재동기화 연결은 `port` 로 간다.
+fn resyncing_app(
+    event_loop: &winit::event_loop::EventLoop<crate::AppEvent>,
+    reason: EndReason,
+    port: u16,
+) -> App {
+    let mut app = app_with_saved_row(event_loop, Some(SessionState::Connected));
+    app.remote.sessions[0].state.remote_workspace = binding().remote_workspace;
+    app.remote.sessions[0].state.bulk_port = port;
+    app.remote.sessions[0].state.resync_pending = Some(1);
+    app.ensure_row_token(ROW);
+    crate::app::attach_client::tests::settle_transport_end(&app.remote.sessions[0], reason);
+    app
+}
+
+fn assert_no_attempt(app: &App) {
+    assert!(app.state.mirror_attempts.connection_snapshot().is_empty());
+    assert!(app.state.mirror_attempts.endpoint_snapshot().is_empty());
+}
+
+/// U7-a (a): Given 재동기화 Detach 뒤 옛 소켓의 강제 통지가 먼저 와 `Forced`로 확정됐다, When 회차를
+/// 돌리면, Then 표지를 쓰고 새 handshake 없이 끊긴 행이 되며 재동기화 상태가 비워진다. 전송 쪽 순서는
+/// `transport::tests::exits::a_notice_after_the_resync_detach_is_still_settled_as_forced` 가 잰다.
+#[test]
+fn a_force_detach_after_the_resync_detach_stops_the_row() {
+    alone!("a_force_detach_after_the_resync_detach_stops_the_row");
+    let event_loop = event_loop();
+    let mut app = resyncing_app(&event_loop, EndReason::Forced, 1);
+
+    app.apply_attach_client_output();
+
+    assert!(marked(&app));
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert_no_attempt(&app);
+    assert_eq!(app.remote.sessions[0].state.resync_pending, None);
+}
+
+/// U7-a (b): Given 손실 끝으로 재동기화가 실제 `resync_session` 경로로 새 연결을 큐에 넣었다, When 그
+/// 연결이 설치 전에 강제로 끊긴 뒤 회차를 돌리면, Then G1 으로 끝나 표지를 쓰고 행은 끊긴 행이 되며
+/// 재동기화 상태가 비워진다.
+#[test]
+fn a_resync_connection_forced_before_install_stops_the_row() {
+    alone!("a_resync_connection_forced_before_install_stops_the_row");
+    let event_loop = event_loop();
+    let (port, _peer) = forced_peer();
+    let mut app = resyncing_app(&event_loop, EndReason::Lost, port);
+    app.apply_attach_client_output();
+    let (_, target) = app
+        .state
+        .mirror_attempts
+        .connection_snapshot()
+        .into_iter()
+        .find(|(_, target)| target.row == Some(ROW))
+        .expect("the resync queued a connection");
+    assert!(target.resync, "the resync path");
+    collect_until_forced(&mut app, ROW);
+
+    app.apply_attach_client_output();
+
+    assert!(marked(&app));
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert_no_attempt(&app);
+    let state = &app.remote.sessions[0].state;
+    assert_eq!(state.resync_pending, None);
+    assert!(!state.resync_awaiting_window);
+}
+
+/// U7-a 이어하기 실패: Given 재동기화 연결이 handshake 전에 실패했다, When 회차를 돌리면, Then 저장 행은
+/// 재연결 중이 되고(처리 단계가 아니라 실패 처리가 스스로 끝낸다) 표지는 없다.
+#[test]
+fn a_failed_resync_connection_reconnects_the_saved_row() {
+    alone!("a_failed_resync_connection_reconnects_the_saved_row");
+    let event_loop = event_loop();
+    let port = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let mut app = resyncing_app(&event_loop, EndReason::Lost, port);
+    app.apply_attach_client_output();
+    let ticket = ticket_of(&app, ROW).expect("the resync queued a connection");
+    let until = Instant::now() + Duration::from_secs(10);
+    while app.remote.connection_error(ticket).is_none() {
+        assert!(Instant::now() < until, "the connection never failed");
+        std::thread::sleep(Duration::from_millis(10));
+        app.remote.collect_connections();
+    }
+
+    app.apply_attach_client_output();
+
+    assert!(!marked(&app));
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Reconnecting
+    );
+}
