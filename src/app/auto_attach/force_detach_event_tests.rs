@@ -8,7 +8,7 @@ use super::force_detach_round_tests::{
     assert_b_ended_by_g1_and_a_dropped, marked, queue_a_forced_reconnect_of_the_other_row,
     run_json, session_of, ticket_of,
 };
-use super::test_rig::{ROW, event_loop};
+use super::test_rig::{ROW, app_with_saved_row, binding, event_loop};
 use crate::app::App;
 use std::time::{Duration, Instant};
 use tasty_remote::client_session::{MirrorEvent, SessionState, WorkspaceClose};
@@ -135,4 +135,63 @@ fn a_close_reply_with_a_force_detach_ends_b_while_a_is_dropped_and_the_mark_stay
         "A dropped in the same round"
     );
     assert!(marked(&app), "the mark written by the observation stays");
+}
+
+/// U8 이어서: Given 표지 아래에서 연결된 행 A 가 손실 뒤 멈췄다, When A 를 명시 재연결했는데 연결 대상을
+/// 해석하지 못하면, Then 그 시도는 재동기화가 아닌 일반 재연결의 실패로 끝나 진행 중 표지를 지우고 재연결
+/// 실패 처리(백오프 또는 영구 실패면 끊긴 행)를 탄다. 시험의 격리 홈에는 프로필이 없어 해석이 실패한다.
+#[test]
+fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
+    alone!("an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
+    app.remote.sessions[0].state.remote_workspace = binding().remote_workspace;
+    app.ensure_row_token(ROW);
+    push_other_row_session_unflagged(&mut app, SessionState::Connected);
+    crate::app::attach_client::tests::settle_transport_end(
+        session_of(&app, ROW_B),
+        EndReason::Forced,
+    );
+    app.apply_attach_client_output();
+    app.remote.sessions[0].state.resync_pending = Some(1);
+    crate::app::attach_client::tests::settle_transport_end(
+        &app.remote.sessions[0],
+        EndReason::Lost,
+    );
+    app.apply_attach_client_output();
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    let before = app.remote.reconnect.get(&ROW).map(|slot| slot.attempts);
+
+    app.connect_saved_row(ROW, true);
+    let resync = app
+        .state
+        .mirror_attempts
+        .endpoint_snapshot()
+        .into_iter()
+        .find(|(_, target)| target.row == Some(ROW))
+        .map(|(_, target)| target.resync);
+    assert_eq!(resync, Some(false), "an ordinary reconnect");
+    let until = Instant::now() + Duration::from_secs(10);
+    while !app.state.mirror_attempts.endpoint_snapshot().is_empty() {
+        assert!(Instant::now() < until, "the endpoint attempt never ended");
+        std::thread::sleep(Duration::from_millis(10));
+        app.drain_auto_attach_results();
+    }
+
+    assert!(!app.remote.active.contains(&ROW), "no attempt in progress");
+    assert!(app.state.mirror_attempts.connection_snapshot().is_empty());
+    let state = &app.remote.sessions[0].state;
+    assert_ne!(state.phase, SessionState::Connected);
+    assert_eq!(state.resync_pending, None);
+    let slot = app.remote.reconnect.get(&ROW).expect("the reconnect slot");
+    assert!(
+        slot.given_up || Some(slot.attempts) > before,
+        "the reconnect failure handling ran: attempts {} (before {before:?}), given_up {}",
+        slot.attempts,
+        slot.given_up
+    );
+    assert!(!marked(&app), "the explicit connect erased the mark");
 }
