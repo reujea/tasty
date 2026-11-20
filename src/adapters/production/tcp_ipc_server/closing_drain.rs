@@ -37,11 +37,14 @@ const SATURATED_DISCARD_MAX_BYTES: usize = 1024 * 1024;
 
 #[cfg(not(target_os = "linux"))]
 pub(super) fn drain_before_close(stream: &mut TcpStream) {
+    // 읽기 기한은 쓰기 쪽을 닫기 전에 건다. macOS 는 상대가 이미 FIN 을 보낸 소켓의 쓰기 쪽까지 닫으면
+    // 옵션 설정을 `EINVAL` 로 거절한다. 그 뒤에 걸면 수신 큐에 남은 바이트를 비우지 못한 채 닫는다.
+    let armed = stream.set_read_timeout(Some(DRAIN_IDLE));
     if let Err(e) = stream.shutdown(Shutdown::Write) {
         tracing::debug!("IPC refusal half-close failed: {e}");
         return;
     }
-    if let Err(e) = stream.set_read_timeout(Some(DRAIN_IDLE)) {
+    if let Err(e) = armed {
         tracing::debug!("IPC refusal drain could not set a read timeout: {e}");
         return;
     }

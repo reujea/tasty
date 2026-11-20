@@ -164,3 +164,30 @@ fn an_oversized_line_refusal_is_read_and_then_closes_without_reset() {
         other => panic!("거절 뒤 정상 종료가 아니다: {other:?}"),
     }
 }
+
+// -32060(Linux 밖): 요청을 보내고 쓰기 쪽을 먼저 닫은(FIN) 클라이언트도 거절 전에 수신 큐를 비운다.
+// macOS 는 상대 FIN 을 받은 소켓의 쓰기 쪽까지 닫으면 옵션 설정을 `EINVAL` 로 거절하므로, 읽기 기한을
+// 쓰기 쪽을 닫은 뒤에 걸면 비우지 못하고 닫는다. 비웠다면 수신 큐에는 FIN 만 남아 EOF 가 보인다.
+#[cfg(not(target_os = "linux"))]
+#[test]
+fn a_refusal_drains_a_client_that_already_closed_its_write_side() {
+    let (mut client, mut server_side) = pair();
+    client.write_all(PING_LINE).expect("send");
+    wait_until_arrived(&server_side);
+    server_side.set_nonblocking(false).expect("blocking");
+    client
+        .shutdown(std::net::Shutdown::Write)
+        .expect("client half-close");
+    // 루프백의 FIN 은 바로 도착한다. 요청 바이트 뒤에 있어 peek 으로 도착을 볼 수 없다.
+    std::thread::sleep(Duration::from_millis(100));
+    let probe = server_side.try_clone().expect("clone");
+
+    super::closing_drain::drain_before_close(&mut server_side);
+
+    probe.set_nonblocking(true).expect("nonblocking");
+    let mut b = [0u8; 1];
+    match probe.peek(&mut b) {
+        Ok(0) => {}
+        other => panic!("닫기 전 수신 큐에 읽지 않은 요청이 남았다: {other:?}"),
+    }
+}
