@@ -22,8 +22,15 @@ APP_NAME="Tasty"
 SRC_APP="dist/$APP_NAME.app"
 DEST_APP="/Applications/$APP_NAME.app"
 
+# Installing is not a development command, so lints and warnings must not stop
+# or clutter the build. --cap-lints=allow lowers the workspace deny lints for
+# this build only. Any RUSTFLAGS the caller set are kept in front of it.
+# Note that RUSTFLAGS replaces target.<triple>.rustflags from .cargo/config.toml;
+# the repository sets none for macOS targets.
+INSTALL_RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cap-lints=allow"
+
 # Assemble the .app bundle without packaging a DMG (NO_DMG=1).
-NO_DMG=1 ./scripts/build-macos-dmg.sh "$@"
+NO_DMG=1 RUSTFLAGS="$INSTALL_RUSTFLAGS" ./scripts/build-macos-dmg.sh "$@"
 
 if [[ ! -d "$SRC_APP" ]]; then
     echo "Error: expected bundle missing: $SRC_APP" >&2
