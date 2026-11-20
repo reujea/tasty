@@ -71,8 +71,9 @@ pub fn draw_tutorial_overlay(
     let Some(a) = state.tutorial.active else {
         return;
     };
-    // Focused popups own their input. The palette itself fulfills the discovery step.
-    if state.popups.has_focused() || state.fullscreen_stage_active() {
+    // A popup that is the focus node owns the input, host or plugin. The palette itself fulfills the
+    // discovery step.
+    if state.popup_focus().is_some() || state.fullscreen_stage_active() {
         return;
     }
     let topic = &all_topics()[a.topic];

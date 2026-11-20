@@ -111,10 +111,13 @@ impl super::MainViewState {
         if let Some(cover) = self.top_cover_over(&path, above) {
             self.popups.set_focus(Some(cover));
         }
-        // 포커스 노드는 창에 하나다. 팝업이 포커스 노드면 주소 띠는 포커스를 놓는다(주소 띠가 포커스를 얻는 누름은
-        // 이미 팝업 칸을 비운다).
-        if self.popup_focus().is_some() && self.html_address.has_keyboard_focus() {
-            self.html_address.release_focus();
+        // 포커스 노드는 창에 하나다. 팝업이 포커스 노드면 주소 띠와 튜토리얼 말풍선은 키 포커스를 놓는다(둘이
+        // 포커스를 얻는 누름은 이미 팝업 칸을 비운다).
+        if self.popup_focus().is_some() {
+            if self.html_address.has_keyboard_focus() {
+                self.html_address.release_focus();
+            }
+            self.tutorial.keyboard_focus = false;
         }
     }
 

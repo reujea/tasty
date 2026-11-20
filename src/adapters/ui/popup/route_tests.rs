@@ -441,5 +441,9 @@ mod pending;
 mod press_cut;
 
 #[cfg(feature = "gui")]
+#[path = "tutorial_exclusive_tests.rs"]
+mod tutorial_exclusive;
+
+#[cfg(feature = "gui")]
 #[path = "frame_key_owner_tests.rs"]
 mod frame_keys;
