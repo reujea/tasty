@@ -5,8 +5,9 @@ use super::force_detach_result_tests::{
     ROW_B, prepare_an_automatic_reconnect, push_other_row_session_unflagged, reconnecting_app,
 };
 use super::force_detach_round_tests::{
-    assert_b_ended_by_g1_and_a_dropped, marked, queue_a_forced_reconnect_of_the_other_row,
-    run_json, session_of, ticket_of,
+    PeerGates, assert_b_ended_by_g1_and_a_dropped, marked,
+    queue_a_gated_forced_reconnect_of_the_other_row, run_json, session_of, ticket_of,
+    wait_for_and_lower_the_attach_wake,
 };
 use super::test_rig::{ROW, app_with_saved_row, binding, event_loop};
 use crate::app::App;
@@ -27,11 +28,20 @@ macro_rules! alone {
 
 /// 사용자 이벤트와 `about_to_wait` 의 미룬 스트림 회차만 `App` 에 넘기는 이벤트 루프 처리기. 주기 확인
 /// (`about_to_wait` 의 타이머가 부르는 `poll_attach_views`)은 넘기지 않는다. 그래서 회차는 깨움 문이 열린
-/// 때만 `AttachClientData`(간격 안이면 미룬 회차)로 열린다. 자리마다 깨움 문이 열려 있었는지 기록한다.
+/// 때만 `AttachClientData` 나 미룬 회차로 열린다. `run` 이 어느 자리에서 실패로 끝났는지 기록한다.
 struct UserEventsOnly<'a> {
     app: &'a mut App,
+    run: u64,
     attach_data_with_wake: Vec<bool>,
-    deferred_with_wake: Vec<bool>,
+    ended_at: Option<&'static str>,
+}
+
+impl UserEventsOnly<'_> {
+    fn note_end(&mut self, site: &'static str) {
+        if self.ended_at.is_none() && run_json(self.run)["state"] == "failed" {
+            self.ended_at = Some(site);
+        }
+    }
 }
 
 impl ApplicationHandler<crate::AppEvent> for UserEventsOnly<'_> {
@@ -46,10 +56,8 @@ impl ApplicationHandler<crate::AppEvent> for UserEventsOnly<'_> {
     }
 
     fn about_to_wait(&mut self, _: &ActiveEventLoop) {
-        if self.app.attach_client_wake.is_pending() {
-            self.deferred_with_wake.push(true);
-        }
         self.app.run_deferred_stream_rounds();
+        self.note_end("about_to_wait");
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: crate::AppEvent) {
@@ -58,16 +66,47 @@ impl ApplicationHandler<crate::AppEvent> for UserEventsOnly<'_> {
                 let armed = self.app.attach_client_wake.is_pending();
                 self.attach_data_with_wake.push(armed);
                 self.app.user_event(event_loop, event);
+                self.note_end("AttachClientData");
             }
             other => self.app.user_event(event_loop, other),
         }
     }
 }
 
-/// S9: Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 의 재연결 연결을 강제 끊김 통지를 보내는
-/// 상대로 큐에 넣었다, When 시험이 결과를 직접 거두지 않고 실제 이벤트 루프의 사용자 이벤트만 배달하면,
-/// Then reader 의 깨움이 깨움 문을 거쳐 `AttachClientData` 로 배달되고, 그 깨움이 연 회차(간격 안이면
-/// 같은 깨움의 미룬 회차)가 B 를 G1 으로 끝내고 A 를 버린다. 주기 확인 경로(`attach_poll`)는 돌리지 않는다.
+/// 이벤트 루프에 쌓인 이벤트를 `App` 에 넘기지 않고 버린다.
+struct Discard;
+
+impl ApplicationHandler<crate::AppEvent> for Discard {
+    fn resumed(&mut self, _: &ActiveEventLoop) {}
+
+    fn window_event(
+        &mut self,
+        _: &ActiveEventLoop,
+        _: winit::window::WindowId,
+        _: winit::event::WindowEvent,
+    ) {
+    }
+
+    fn user_event(&mut self, _: &ActiveEventLoop, _: crate::AppEvent) {}
+}
+
+/// 깨움 문을 내리고 지금까지 쌓인 사용자 이벤트를 버린다. 그 뒤 문은 닫혀 있어야 한다.
+fn quiesce(event_loop: &mut winit::event_loop::EventLoop<crate::AppEvent>, app: &App) {
+    use winit::platform::pump_events::EventLoopExtPumpEvents;
+    app.attach_client_wake.open_round();
+    for _ in 0..3 {
+        event_loop.pump_app_events(Some(Duration::from_millis(10)), &mut Discard);
+    }
+    assert!(!app.attach_client_wake.is_pending(), "nothing woke since");
+}
+
+/// S9: Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 의 재연결 연결 결과가 채널에 있으며,
+/// 그 두 결과의 깨움과 사용자 이벤트는 비웠다(상대는 강제 끊김 통지를 아직 보내지 않음), When 상대가
+/// 통지를 보내 B 의 reader 가 강제 끊김을 확정하고 실제 이벤트 루프가 사용자 이벤트를 배달하면, Then 그
+/// reader 깨움이 깨움 문을 연 채 `AttachClientData` 로 배달되고, 그 이벤트의 처리(제품 진입
+/// `run_attach_client_round(Event)`)가 연 회차가 B 를 G1 으로 끝내고 A 를 버린다. 주기 확인 경로는 돌리지
+/// 않는다. reader 가 깨우기 전에 사유를 확정하는 순서는 전송 시험 S2 가 잰다. 이 시험은 깨움 콜백 안에서
+/// 사유를 읽지 않는다.
 #[test]
 fn the_reader_wake_opens_the_round_through_the_event_loop() {
     alone!("the_reader_wake_opens_the_round_through_the_event_loop");
@@ -75,15 +114,31 @@ fn the_reader_wake_opens_the_round_through_the_event_loop() {
     let mut event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
     let _socket = prepare_an_automatic_reconnect(&mut app);
-    let (_peer, run, joined) = queue_a_forced_reconnect_of_the_other_row(&mut app);
+    quiesce(&mut event_loop, &app);
+    let (handshake, handshake_held) = std::sync::mpsc::channel();
+    let (notice, notice_held) = std::sync::mpsc::channel();
+    let (peer, run, joined) = queue_a_gated_forced_reconnect_of_the_other_row(
+        &mut app,
+        PeerGates {
+            handshake: Some(handshake_held),
+            notice: Some(notice_held),
+        },
+    );
+    handshake.send(()).unwrap();
+    wait_for_and_lower_the_attach_wake(&app, "B's connection result");
+    quiesce(&mut event_loop, &app);
+    assert_ne!(run_json(run)["state"], "failed", "no round ran yet");
 
+    notice.send(()).unwrap();
+    let _socket_b = peer.recv_timeout(Duration::from_secs(5)).unwrap();
     let mut handler = UserEventsOnly {
         app: &mut app,
+        run,
         attach_data_with_wake: Vec::new(),
-        deferred_with_wake: Vec::new(),
+        ended_at: None,
     };
     let until = Instant::now() + Duration::from_secs(10);
-    while run_json(run)["state"] != "failed" {
+    while handler.ended_at.is_none() {
         assert!(
             Instant::now() < until,
             "no round ended B through the event loop"
@@ -91,10 +146,16 @@ fn the_reader_wake_opens_the_round_through_the_event_loop() {
         event_loop.pump_app_events(Some(Duration::from_millis(20)), &mut handler);
     }
     let delivered = std::mem::take(&mut handler.attach_data_with_wake);
-    let deferred = std::mem::take(&mut handler.deferred_with_wake);
-    assert!(
-        delivered.contains(&true),
-        "an AttachClientData arrived with the wake gate armed: {delivered:?} (deferred {deferred:?})"
+    let ended_at = handler.ended_at;
+    assert_eq!(
+        delivered.first(),
+        Some(&true),
+        "the reader wake arrived as AttachClientData with the gate armed: {delivered:?}"
+    );
+    assert_eq!(
+        ended_at,
+        Some("AttachClientData"),
+        "the event itself opened the round"
     );
 
     assert_b_ended_by_g1_and_a_dropped(&mut app, run, joined);
