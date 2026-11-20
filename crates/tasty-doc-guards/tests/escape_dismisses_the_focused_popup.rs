@@ -1,7 +1,8 @@
 //! Escape 처리에서 설정 열기 요청·펼친 팝업 다시 접기·알림·plugin 키 주인·포커스된 팝업의 순서를 확인한다.
 //! 창 위로 펼친 키 주인 팝업의 Esc는 닫거나 포커스를 풀지 않고 다시 접는다. 아래 알림 목록이나 host 팝업을
 //! 먼저 닫지 않도록 알림·일반 팝업 처리보다 먼저 있어야 한다.
-//! 앞의 두 분기는 포커스와 무관하게 처리하므로 일반 팝업 처리보다 먼저 있어야 한다.
+//! 설정 열기 요청 분기는 포커스와 무관하게, 알림 분기는 포커스 노드가 다른 팝업이 아닐 때 처리하므로 일반 팝업
+//! 처리보다 먼저 있어야 한다.
 //! settings_open_requested는 열기 요청 상태다. 이미 열린 설정 모달을 Escape로 닫는 경로를 뜻하지 않는다.
 //! 팝업이 키 입력을 막기 전에 Escape를 처리하도록 오버레이 검사보다 앞에 있어야 한다.
 //! 여기서는 호출 위치·순서만 확인하며 대상 선택 동작은 adapters::ui::popup의 단위 테스트가 확인한다.
@@ -57,7 +58,7 @@ fn the_three_escape_consumers_keep_their_order() {
     );
     let notifications = only_at(
         body,
-        "if self.popups.is_open(\"notifications\") {",
+        "if self.notifications_take_escape(live) {",
         "Escape 의 notifications 분기",
     );
     let general = only_at(

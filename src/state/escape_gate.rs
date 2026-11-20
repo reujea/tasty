@@ -82,7 +82,9 @@ impl super::MainViewState {
                 hand_to_owner: plugin_owns_keys,
             };
         }
-        if self.popups.is_open("notifications") {
+        // 알림 목록은 포커스 노드가 다른 팝업이 아닐 때만 Esc 를 받는다. 창을 덮는 피커처럼 다른 팝업이 포커스 노드면
+        // Esc 는 그 팝업에서 시작한다.
+        if self.notifications_take_escape(live) {
             self.dispatch_intent(
                 crate::intent::UiIntent::ClosePopup {
                     id: "notifications",
@@ -124,5 +126,22 @@ impl super::MainViewState {
             };
         }
         EscapeGate::Pass
+    }
+
+    /// 열린 알림 목록이 이 Esc 로 닫히는지. 포커스 노드가 팝업이 아니거나 알림 목록 자신일 때다.
+    fn notifications_take_escape(
+        &self,
+        live: Option<crate::adapters::ui::popup::focus::PopupNode>,
+    ) -> bool {
+        use crate::adapters::ui::popup::focus::PopupNode;
+        self.popups.is_open("notifications")
+            && match live {
+                None => true,
+                Some(PopupNode::Host(iid)) => self
+                    .popups
+                    .instance(iid)
+                    .is_some_and(|p| p.id == "notifications"),
+                Some(PopupNode::Plugin(_)) => false,
+            }
     }
 }

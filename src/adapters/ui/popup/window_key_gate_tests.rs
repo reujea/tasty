@@ -753,3 +753,108 @@ fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_re
     let seen = frame_escapes(&ctx, &mut state, pending);
     assert_eq!(seen, [(x, true, false)], "새 누름은 반복이 아니다");
 }
+
+/// J5. Given 알림 목록이 열려 있고 창을 덮는 Window 범위 팝업(passive 로 연 피커 같은 것)이 그 위에 있을 때, When 글자와
+/// Esc 를 창의 키 경로로 보내면, Then 덮는 팝업이 포커스 노드라 글자와 첫 Esc 는 그 팝업 본문이 읽고 덮인 알림 목록은
+/// 그 Esc 로 닫히지 않는다.
+#[test]
+fn a_covering_window_popup_takes_the_first_escape_before_an_open_notification_list() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::state::focus_node::FocusNode;
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    for def in super::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    state.popups.register(PopupState::new(
+        ID,
+        "test",
+        egui::vec2(200.0, 100.0),
+        PopupScope::Window,
+    ));
+    state
+        .popups
+        .open_request(&OpenRequest::new("notifications", PopupScope::Window), true)
+        .unwrap();
+    let mut req = OpenRequest::new(ID, PopupScope::Window).centered();
+    req.covers_scope = Some(true);
+    let picker = state.popups.open_request(&req, false).unwrap();
+    for p in state
+        .popups
+        .popups
+        .iter_mut()
+        .filter(|p| p.instance == picker)
+    {
+        p.close_on_outside_click = false;
+    }
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut state, Vec::new());
+    let engine = session.borrow_mut();
+    state.normalize_focus(&engine.read());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(picker)),
+        "덮는 passive 팝업이 포커스 노드다"
+    );
+
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        &mut pending,
+        egui::Event::Text("a".into())
+    ));
+    let layout = layout();
+    let mut texts = Vec::new();
+    let raw = egui::RawInput {
+        screen_rect: Some(rect(0.0, 0.0, 1200.0, 700.0)),
+        events: pending,
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        state.decide_frame_key_owner(Some(&layout));
+        state.popups.draw(
+            ctx,
+            &mut |cx, ui| {
+                let typed = ui.input(|i| {
+                    i.events
+                        .iter()
+                        .any(|e| matches!(e, egui::Event::Text(t) if t == "a"))
+                });
+                if typed {
+                    texts.push(cx.instance);
+                }
+            },
+            Some(&layout),
+            &[],
+        );
+    }));
+    assert_eq!(texts, [picker], "글자는 덮는 팝업 본문이 읽는다");
+
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
+    assert_eq!(
+        frame_reading(&ctx, &mut state, pending, egui::Key::Escape),
+        [picker],
+        "첫 Esc 는 덮는 팝업 본문이 읽는다"
+    );
+    assert!(
+        state.popups.is_open("notifications"),
+        "덮인 알림 목록은 그 Esc 로 닫히지 않는다"
+    );
+    let closes_notifications = state.pending_intents.iter().any(|i| {
+        matches!(
+            &i.body,
+            crate::intent::Intent::Ui(crate::intent::UiIntent::ClosePopup {
+                id: "notifications"
+            })
+        )
+    });
+    assert!(!closes_notifications, "알림 목록 닫기 요청이 없다");
+}
