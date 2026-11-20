@@ -111,13 +111,10 @@ pub enum ExplorerMenuTarget {
 /// 넘긴다. `egui_panels`에서 즐겨찾기와 잘라내기 목록을 미리 꺼내 두는 것과 같은
 /// 이유다.
 pub struct ExplorerInput<'a> {
-    /// 이 surface가 현재 포커스를 가지고 있는지. egui 이벤트 큐는 전역이라, 이 조건이
-    /// 없으면 한 번의 입력이 열려 있는 모든 탐색기의 선택을 동시에 움직인다.
-    pub focused: bool,
-    /// 팝업·모달·입력 다이얼로그가 떠 있는지. 그런 상태에서도 키 입력은 egui로 들어오므로
-    /// (`view::main`의 전달 조건이 `overlay_open || egui_surface`다) 여기서 막지 않으면
-    /// 뒤에 있는 탐색기의 선택이 사용자 모르게 움직인다.
-    pub overlay_open: bool,
+    /// 지금 그리는 입력 몫의 키를 이 surface 가 받는지(`MainViewState::pass_keys_reach_surface`). egui 이벤트 큐는
+    /// 전역이라, 이 조건이 없으면 한 번의 입력이 열려 있는 모든 탐색기의 선택을 동시에 움직이고, 팝업·무대가
+    /// 받은 키로 뒤에 있는 탐색기의 선택이 사용자 모르게 움직인다.
+    pub takes_keys: bool,
     /// 수식 키 없이 단축키로 등록된 영숫자. 그 글자는 단축키가 가져간다
     /// (`type_ahead::unmodified_binding_chars`).
     pub shortcut_chars: &'a HashSet<char>,
@@ -1045,8 +1042,7 @@ fn apply_type_ahead(ui: &egui::Ui, view: &mut ExplorerView, input: &ExplorerInpu
     // 휠로 다른 곳을 보는 동안에도 화면이 끌려간다. 방금 만든 항목은 목록에 나타난 프레임에 한 번 스크롤한다.
     view.scroll_to = view.take_reveal();
 
-    if !input.focused
-        || input.overlay_open
+    if !input.takes_keys
         || view.text_input_active()
         || !matches!(view.state, LoadState::Ok)
         || view.entries.is_empty()
@@ -1641,8 +1637,7 @@ mod tests {
         };
         let shortcut_chars = std::collections::HashSet::new();
         let input = super::ExplorerInput {
-            focused: false,
-            overlay_open: false,
+            takes_keys: false,
             shortcut_chars: &shortcut_chars,
         };
         let out = ctx.run(

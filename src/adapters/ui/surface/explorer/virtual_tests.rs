@@ -87,8 +87,7 @@ impl Harness {
         };
         let shortcut_chars = HashSet::new();
         let input = super::ExplorerInput {
-            focused: self.focused,
-            overlay_open: false,
+            takes_keys: self.focused,
             shortcut_chars: &shortcut_chars,
         };
         let raw = RawInput {

@@ -751,6 +751,8 @@ mod unrouted_dispatch_reasons;
 mod workflow_fail_fast_tests;
 
 #[cfg(test)]
+mod draw_pass_key_reads;
+#[cfg(test)]
 mod floor_arguments_are_not_discarded;
 mod frame_draw_order;
 #[cfg(test)]

@@ -37,6 +37,8 @@ pub(crate) struct SegmentAfterCut {
     press: Option<PressSnapshot>,
     /// 그 몫을 끊어 닫은 시점의 포커스 노드. 아직 닫히지 않았으면 `None`.
     focus: Option<FocusNode>,
+    /// 그 몫의 사건(누름)이 html 주소 띠의 키 포커스를 풀었다. 앞 몫을 다 그린 뒤 이 몫의 패스에서 푼다.
+    release_address: bool,
 }
 
 impl FocusNode {
@@ -125,9 +127,18 @@ impl super::MainViewState {
         // 포커스를 얻는 누름은 이미 팝업 칸을 비운다).
         if self.popup_focus().is_some() {
             if self.html_address.has_keyboard_focus() {
-                self.html_address.release_focus();
+                self.release_address_in_segment();
             }
             self.tutorial.keyboard_focus = false;
+        }
+    }
+
+    /// 주소 띠의 키 포커스를 지금 사건이 든 몫에서 푼다. 끊어 둔 뒤 몫이 있으면 그 몫의 패스를 열 때 풀어, 앞 몫을
+    /// 그리는 띠가 그 몫의 키(편집 중 Enter 등)를 포커스를 가진 채 받는다(`close_input_pass`).
+    fn release_address_in_segment(&mut self) {
+        match self.segments_after_cut.back_mut() {
+            Some(slot) => slot.release_address = true,
+            None => self.html_address.release_focus(),
         }
     }
 
@@ -200,6 +211,17 @@ impl super::MainViewState {
         self.segment_focus.unwrap_or_else(|| self.focus_node(core))
     }
 
+    /// 지금 그리는 몫의 키를 본문으로 받는 surface. 그 몫의 포커스 노드가 surface 이고 그 몫의 키가 팝업에 묶이지
+    /// 않았을 때 그 surface 다. 그리기 중 surface 본문이 egui 키를 읽을지 정하는 판정(탐색기 타입어헤드 등)은 지금
+    /// 포커스(`focused_surface_id`·`window_keys_to_overlay`)가 아니라 이 값을 읽는다. 뒤 몫의 누름이 옮긴 포커스로
+    /// 앞 몫의 키를 판정하지 않기 위해서다.
+    pub(crate) fn pass_key_surface(&self, core: &CoreState) -> Option<u32> {
+        match self.pass_focus_node(core) {
+            FocusNode::Surface(sid) if self.surfaces_take_keys() => sid,
+            _ => None,
+        }
+    }
+
     /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷·
     /// 포커스 노드를 함께 꺼내, 다음 몫의 것(끊어 넘긴 몫의 것, 없으면 비움)을 다음 패스에 남긴다. 창의 egui 패스는
     /// 모두 이 함수로 닫는다(`GpuState::run_main_pass`). 그 몫에 egui 로 보내지 않은 Esc 뗌이 왔으면 패스를 마친
@@ -211,6 +233,9 @@ impl super::MainViewState {
         let next = self.segments_after_cut.pop_front().unwrap_or_default();
         self.press_snapshot = next.press;
         self.segment_focus = next.focus;
+        if next.release_address {
+            self.html_address.release_focus();
+        }
     }
 
     /// 순번 하나의 팝업 노드. host·plugin 이 같은 전역 순번을 쓴다.

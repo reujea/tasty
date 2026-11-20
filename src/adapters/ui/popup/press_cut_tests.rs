@@ -25,18 +25,18 @@ fn text(s: &str) -> Event {
 }
 
 /// R 에 포커스를 가진 검색창을 열고 L 찾기 입력란을 그린 장면. 찾기 입력란과 검색창 입력칸의 자리를 돌려준다.
-struct Scene {
-    state: RequestContext,
-    session: crate::runtime::engine_session::EngineSession,
-    mgr: PluginManager,
-    ctx: Context,
-    search: crate::adapters::ui::popup::PopupInstanceId,
-    find: egui::Rect,
-    search_field: egui::Rect,
-    query: String,
+pub(super) struct Scene {
+    pub(super) state: RequestContext,
+    pub(super) session: crate::runtime::engine_session::EngineSession,
+    pub(super) mgr: PluginManager,
+    pub(super) ctx: Context,
+    pub(super) search: crate::adapters::ui::popup::PopupInstanceId,
+    pub(super) find: egui::Rect,
+    pub(super) search_field: egui::Rect,
+    pub(super) query: String,
 }
 
-fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
+pub(super) fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
     let (mut state, mut session) = scene(PANE_R);
     for def in defs::all_defs() {
         state.popups.register_def(def, 1.0);
@@ -109,7 +109,7 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
 }
 
 /// R 터미널의 빈 자리. 검색창 입력칸이 아니고 어느 팝업 노드(상자·덮는 범위)의 포인터 대상도 아니다.
-fn terminal_point_r(scene: &Scene) -> egui::Pos2 {
+pub(super) fn terminal_point_r(scene: &Scene) -> egui::Pos2 {
     let r = surface_rect_r();
     let covered = |p: egui::Pos2| scene.search_field.contains(p) || scene.state.popup_owns_point(p);
     (1..20)
@@ -125,7 +125,12 @@ fn terminal_point_r(scene: &Scene) -> egui::Pos2 {
 }
 
 /// 창이 받은 글자 하나(`WindowInput::key`: 끊기 → egui 게이트 → 큐). 게이트 결과를 돌려준다.
-fn type_text(s: &mut Scene, input: &mut WindowInput, egui_surface: bool, t: &str) -> Option<bool> {
+pub(super) fn type_text(
+    s: &mut Scene,
+    input: &mut WindowInput,
+    egui_surface: bool,
+    t: &str,
+) -> Option<bool> {
     let engine = s.session.borrow_mut();
     input.key(&mut s.state, &engine.read(), egui_surface, text(t))
 }
@@ -153,7 +158,7 @@ fn drain(scene: &mut Scene, input: &mut WindowInput) {
 }
 
 /// L 을 누른 뒤의 click-to-activate(엔진 포커스 이동)를 창처럼 반영한다.
-fn activate(scene: &mut Scene, pane: u32) {
+pub(super) fn activate(scene: &mut Scene, pane: u32) {
     let engine = scene.session.borrow_mut();
     let read = engine.read();
     scene

@@ -141,12 +141,10 @@ pub fn draw_egui_panels(
         state.explorer_clipboard.cut_paths();
     // 렌더 중 state를 빌리기 전에 최근 폴더를 한 번 읽어 둔다.
     let explorer_recent_dirs: Vec<String> = state.recent_files.get(EXPLORER_RECENT_KIND);
-    // 타입어헤드를 허용할지 판단하는 값들. 셋 다 `state`와 `engine`을 읽어야 해서
-    // 가변 차용이 걸리는 루프에 들어가기 전에 미리 꺼내 둔다(위 스냅샷들과 같은 이유).
+    // 포커스 표시(바탕·외부 변경 확인)에 쓰는 지금 포커스 surface. 키를 받을지는 이 값이 아니라 그리는 몫의
+    // 포커스 노드로 정한다. 주소 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다).
     let focused_surface_id = state.focused_surface_id(engine);
-    // 전체화면 무대도 함께 확인한다. 무대가 떠 있는 동안 그 뒤의 패널로 입력이 새면
-    // 안 되기 때문이다.
-    let overlay_open = state.window_keys_to_overlay();
+    let pass_key_surface = state.pass_key_surface(engine);
     // OS 에서 끌어 오는 파일. 좌표는 물리 픽셀이라 egui 논리 포인트로 바꾼다.
     let ppp = ctx.pixels_per_point();
     let os_hover = state.drop_hover.as_ref().and_then(|h| {
@@ -271,9 +269,8 @@ pub fn draw_egui_panels(
                         &explorer_recent_dirs,
                         mirror_ws_id,
                         &crate::explorer_ui::ExplorerInput {
-                            focused: info.surface_id.is_some()
-                                && info.surface_id == focused_surface_id,
-                            overlay_open,
+                            takes_keys: info.surface_id.is_some()
+                                && info.surface_id == pass_key_surface,
                             shortcut_chars: &explorer_shortcut_chars,
                         },
                     )
