@@ -27,13 +27,20 @@ const FORCE_NOTICE: &[u8] = br#"{"event":"force_detached","reason":"force_detach
 
 /// handshake 를 마친 뒤 서버의 강제 끊김 통지를 보내는 상대. 소켓은 돌려준다.
 pub(super) fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
-    forced_peer_after(None)
+    forced_peer_after(PeerGates::default())
 }
 
-/// `forced_peer` 와 같되 `gate` 가 있으면 요청을 읽은 뒤 그 신호를 받을 때까지 응답을 미룬다.
-fn forced_peer_after(
-    gate: Option<std::sync::mpsc::Receiver<()>>,
-) -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
+/// 상대가 응답을 미루는 자리. 신호를 받을 때까지 그 자리에서 기다린다.
+#[derive(Default)]
+pub(super) struct PeerGates {
+    /// 요청을 읽은 뒤 handshake 응답 전.
+    pub(super) handshake: Option<std::sync::mpsc::Receiver<()>>,
+    /// handshake 응답 뒤 강제 끊김 통지 전.
+    pub(super) notice: Option<std::sync::mpsc::Receiver<()>>,
+}
+
+/// `forced_peer` 와 같되 `gates` 의 자리마다 신호를 받을 때까지 미룬다.
+fn forced_peer_after(gates: PeerGates) -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
     use std::io::{BufRead, BufReader};
     use tasty_ipc::stream::{self, StreamTag};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -45,7 +52,7 @@ fn forced_peer_after(
         BufReader::new(socket.try_clone().unwrap())
             .read_line(&mut request)
             .unwrap();
-        if let Some(gate) = gate {
+        if let Some(gate) = gates.handshake {
             gate.recv().unwrap();
         }
         for control in [
@@ -58,6 +65,9 @@ fn forced_peer_after(
                 &serde_json::to_vec(&control).unwrap(),
             )
             .unwrap();
+        }
+        if let Some(gate) = gates.notice {
+            gate.recv().unwrap();
         }
         stream::write_frame(&mut socket, StreamTag::Control, FORCE_NOTICE).unwrap();
         tx.send(socket).unwrap();
@@ -100,13 +110,13 @@ pub(super) fn run_json(run: u64) -> serde_json::Value {
 pub(super) fn queue_a_forced_reconnect_of_the_other_row(
     app: &mut App,
 ) -> (std::sync::mpsc::Receiver<std::net::TcpStream>, u64, u64) {
-    queue_a_gated_forced_reconnect_of_the_other_row(app, None)
+    queue_a_gated_forced_reconnect_of_the_other_row(app, PeerGates::default())
 }
 
-/// `queue_a_forced_reconnect_of_the_other_row` 와 같되 상대의 응답을 `gate` 신호까지 미룬다.
-fn queue_a_gated_forced_reconnect_of_the_other_row(
+/// `queue_a_forced_reconnect_of_the_other_row` 와 같되 상대가 `gates` 의 자리마다 신호를 기다린다.
+pub(super) fn queue_a_gated_forced_reconnect_of_the_other_row(
     app: &mut App,
-    gate: Option<std::sync::mpsc::Receiver<()>>,
+    gates: PeerGates,
 ) -> (std::sync::mpsc::Receiver<std::net::TcpStream>, u64, u64) {
     push_other_row_session_unflagged(app, SessionState::Reconnecting);
     app.ensure_row_token(ROW_B);
@@ -123,7 +133,7 @@ fn queue_a_gated_forced_reconnect_of_the_other_row(
         .unwrap();
     target.run = Some(crate::request_runs::RunGuard::new(run, "dropped"));
     app.row_waits.join_run(ROW_B, Some(joined));
-    let (port, peer) = forced_peer_after(gate);
+    let (port, peer) = forced_peer_after(gates);
     app.queue_mirror_connection(target, port, 3, None).unwrap();
     app.remote.active.insert(ROW_B);
     (peer, run, joined)
@@ -145,6 +155,17 @@ fn collect_until_forced(app: &mut App, row: u32) {
         assert!(Instant::now() < until, "the connection never got forced");
         std::thread::sleep(Duration::from_millis(10));
     }
+}
+
+/// mirror 연결의 깨움 문이 열릴 때까지 기다린 뒤 내린다. 연결 결과는 채널에 보낸 뒤, reader 의 끝은
+/// 확정한 뒤 깨우므로(S2) 깨움을 본 때에는 그 사실이 이미 있다.
+pub(super) fn wait_for_and_lower_the_attach_wake(app: &App, what: &str) {
+    let until = Instant::now() + Duration::from_secs(10);
+    while !app.attach_client_wake.is_pending() {
+        assert!(Instant::now() < until, "no wake for {what}");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    app.attach_client_wake.open_round();
 }
 
 /// G1 로 끝난 B 와 그 때문에 버려진 A 를 확인한다. run 과 합류 run 은 같은 실패로 끝난다(S14).
@@ -211,7 +232,8 @@ fn a_forced_connection_still_in_the_result_channel_ends_before_install() {
 }
 
 /// 설치 단계는 관측의 스냅샷만 본다. Given 행 B 의 재연결 연결이 관측 때 결과 채널에도 없었다(상대가
-/// handshake 응답을 미룸), When 관측 뒤 B 가 강제 끊김으로 확정되고 같은 회차의 처리 단계가 돌면, Then
+/// handshake 응답을 미룸), When 관측 뒤 B 의 결과가 채널에 도착하고(그 깨움을 본다) reader 가 강제
+/// 끊김으로 확정한 뒤(통지를 그 다음에 보내고 그 깨움을 본다) 같은 회차의 처리 단계가 돌면, Then
 /// 처리 단계는 B 의 결과를 거두지 않고(티켓 남음, 준비된 연결 없음, 표지 없음, run 진행 중) 다음 회차의
 /// 관측이 B 를 G1 으로 끝낸다. 처리 단계가 결과를 다시 거두면 B 가 관측을 거치지 않고 그 회차에 거둬진다.
 #[test]
@@ -219,17 +241,27 @@ fn the_install_stage_takes_only_the_connections_of_the_observation() {
     alone!("the_install_stage_takes_only_the_connections_of_the_observation");
     let event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
-    let (gate, held) = std::sync::mpsc::channel();
-    let (peer, run, joined) = queue_a_gated_forced_reconnect_of_the_other_row(&mut app, Some(held));
+    let (handshake, handshake_held) = std::sync::mpsc::channel();
+    let (notice, notice_held) = std::sync::mpsc::channel();
+    let (peer, run, joined) = queue_a_gated_forced_reconnect_of_the_other_row(
+        &mut app,
+        PeerGates {
+            handshake: Some(handshake_held),
+            notice: Some(notice_held),
+        },
+    );
     let ticket = ticket_of(&app, ROW_B).unwrap();
+    app.attach_client_wake.open_round();
     let intake = app.observe_round();
     assert!(
         app.remote.prepared_connection(ticket).is_none(),
         "not ready at the observation"
     );
-    gate.send(()).unwrap();
+    handshake.send(()).unwrap();
+    wait_for_and_lower_the_attach_wake(&app, "B's connection result");
+    notice.send(()).unwrap();
     let _socket_b = peer.recv_timeout(Duration::from_secs(5)).unwrap();
-    std::thread::sleep(Duration::from_millis(500));
+    wait_for_and_lower_the_attach_wake(&app, "B's reader settling the forced end");
 
     app.finish_round(intake);
 
