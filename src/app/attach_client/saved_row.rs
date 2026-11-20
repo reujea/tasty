@@ -101,7 +101,10 @@ impl App {
         true
     }
 
-    /// 같은 연결 대상의 다른 저장 행이 이번 출력 회차에 강제로 끊겼지만 아직 표지가 저장되지 않았는지.
+    /// 같은 연결 대상의 다른 저장 행이 강제로 끊겼지만 아직 끝을 분류하지 않아 표지가 저장되지 않았는지.
+    /// 끝 분류는 Connected 세션만 다루고, 분류한 세션은 Disconnected로 남긴 채 전송 표지를 지우지 않는다.
+    /// 그래서 Connected 세션만 본다. 분류가 끝난 옛 표지를 보면 명시적 연결이 저장 표지를 지운 뒤의
+    /// 자동 재연결도 계속 버리게 된다.
     /// reader가 통지를 처리해 전송 표지를 세웠어도 `apply_attach_client_output`은 대기 연결 설치를
     /// 세션 끝 분류(`stop_after_force_detach`가 표지를 저장)보다 먼저 한다. 회차 순서를 바꾸면
     /// 같은 회차의 설치 여부를 보는 끝 분류(`installing_epoch`)도 달라지므로, 순서는 두고 설치 검사가
@@ -111,7 +114,8 @@ impl App {
             return false;
         };
         self.remote.sessions.iter().any(|session| {
-            session.transport.force_detached.load(Ordering::SeqCst)
+            session.state.phase == SessionState::Connected
+                && session.transport.force_detached.load(Ordering::SeqCst)
                 && session.transport.disconnected.load(Ordering::SeqCst)
                 && session
                     .state
