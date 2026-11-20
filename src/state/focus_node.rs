@@ -15,6 +15,7 @@
 //! 그리기는 끊어 둔 입력 몫 하나를 그리므로 그리는 동안 키를 받을지 정하는 판정은 그 몫의 포커스 노드
 //! (`pass_focus_node`·`pass_key_node`)를 읽는다. 무엇을 그릴지(무대와 일반 화면)는 지금 상태로 고르고, 몫 노드가 그
 //! 화면에 없으면 그 몫에서 위젯에 입력을 넣는 사건을 빼고 누름을 끝내는 사건은 남긴다(`drop_input_without_its_node`).
+//! 남긴 버튼 뗌은 egui 의 눌림 상태만 풀고 클릭·끌기 끝·드롭은 만들지 않는다(`end_press_without_click`).
 
 use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::focus::PopupNode;
