@@ -325,12 +325,13 @@ fn rotate_row_token(app: &mut App, row: u32) {
     }
 }
 
-/// 서버 쪽 소켓이 회수 대기(250ms)보다 먼저 EOF 를 받는지.
+/// 서버 쪽 소켓이 EOF 를 받는지. 그 EOF 가 회수 대기 전에 왔는지는 벽시계로 재지 않고
+/// [`assert_workers_retire_before_the_reaper_wait`] 가 회수 영수증으로 잰다. 회수 스레드도 대기 뒤에
+/// 소켓을 닫으므로 여기 기한은 닫히지 않은 소켓에서 멈추지 않기 위한 것이다.
 fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
     socket
-        .set_read_timeout(Some(Duration::from_millis(200)))
+        .set_read_timeout(Some(Duration::from_secs(5)))
         .unwrap();
-    let started = Instant::now();
     let mut buf = [0u8; 4096];
     loop {
         match socket.read(&mut buf) {
@@ -347,29 +348,25 @@ fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
             Err(_) => break,
         }
     }
-    assert!(started.elapsed() < Duration::from_millis(250));
 }
 
 /// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 반납이 그 자리에서 소켓 양쪽을
 /// 닫아야 reader 가 바로 끝난다. 쓰기 스레드가 쓰기 쪽만 닫으면 reader 는 상대가 닫을 때까지 막혀 회수
-/// 스레드가 상한을 다 기다린다. 경과는 완료를 읽은 뒤에 재서 완료를 관측한 시각에 상한을 적용한다. 늦게
-/// 도착한 검사가 회수 대기 뒤에 완료를 보면 통과가 아니라 실패다.
+/// 스레드가 상한을 다 기다린 뒤 소켓을 닫는다. 그 여부는 회수 스레드가 영수증에 남기므로
+/// (`RetirementReceipt::waited_out`) 검사 스레드가 밀려도 판정이 바뀌지 않는다. 회수 완료를 기다리는
+/// 기한은 멈추지 않기 위한 것이다.
 fn assert_workers_retire_before_the_reaper_wait(
     receipt: &tasty_remote::transport::RetirementReceipt,
-    released: Instant,
 ) {
-    loop {
-        let done = receipt.is_done();
-        let elapsed = released.elapsed();
-        assert!(
-            elapsed < Duration::from_millis(240),
-            "the workers were not seen retired before the reaper wait ({elapsed:?}, done {done})"
-        );
-        if done {
-            return;
-        }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !receipt.is_done() {
+        assert!(Instant::now() < deadline, "the workers were never retired");
         std::thread::sleep(Duration::from_millis(2));
     }
+    assert!(
+        !receipt.waited_out(),
+        "the reaper waited out its bound for the workers"
+    );
 }
 
 /// 행 A 의 자동 재연결을 준비하고, 관측 뒤에 그 전송을 강제 끊김으로 확정한다. 그 연결 worker 의 회수
@@ -400,12 +397,11 @@ fn a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once(
     app.remote.user_disconnected.insert(ROW);
     let (intake, receipt) = settle_a_after_the_observation(&mut app);
 
-    let released = Instant::now();
     app.finish_round(intake);
 
     assert!(ticket_of(&app, ROW).is_none(), "dropped");
     assert!(!marked(&app));
-    assert_workers_retire_before_the_reaper_wait(&receipt, released);
+    assert_workers_retire_before_the_reaper_wait(&receipt);
     assert_closed_at_once(&mut socket);
     app.apply_attach_client_output();
     assert!(!marked(&app), "nor next round");
@@ -423,12 +419,11 @@ fn a_connection_discarded_as_stale_after_the_observation_writes_no_mark() {
     let (intake, receipt) = settle_a_after_the_observation(&mut app);
     rotate_row_token(&mut app, ROW);
 
-    let released = Instant::now();
     app.finish_round(intake);
 
     assert!(ticket_of(&app, ROW).is_none(), "discarded");
     assert!(!marked(&app));
-    assert_workers_retire_before_the_reaper_wait(&receipt, released);
+    assert_workers_retire_before_the_reaper_wait(&receipt);
     assert_closed_at_once(&mut socket);
     app.apply_attach_client_output();
     assert!(!marked(&app), "nor next round");
