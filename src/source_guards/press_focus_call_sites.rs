@@ -221,3 +221,21 @@ fn a_debug_key_injection_cuts_the_segment_before_the_key() {
         "글자 주입이 끊기 → 넣기 순서가 아니다"
     );
 }
+
+/// 창의 패스 경로(무대·일반 화면)는 그리는 몫의 포커스 노드로 고른다(`MainViewState::pass_draws_stage`). 지금 무대
+/// 상태로 고르면 그리기 전에 무대를 닫은 종료 키 앞 몫(무대 안 누름 등)이 일반 화면에 닿는다. 동작은
+/// `adapters::ui::popup::route::tests::pass_focus` 의 무대 장면이 잰다.
+#[test]
+fn the_window_picks_the_stage_pass_by_the_pass_focus_node() {
+    let gpu = read("src/gfx/gpu.rs");
+    let render = squeeze(&fn_body(&gpu, "pub fn render(").expect("render"));
+    at(
+        &render,
+        "ifstate.pass_draws_stage(engine){returnself.render_fullscreen_stage(state,engine,window);}",
+        "무대 경로 선택",
+    );
+    assert!(
+        !render.contains("fullscreen_stage_active()"),
+        "패스 경로를 지금 무대 상태로 고른다"
+    );
+}

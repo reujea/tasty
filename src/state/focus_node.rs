@@ -211,6 +211,13 @@ impl super::MainViewState {
         self.segment_focus.unwrap_or_else(|| self.focus_node(core))
     }
 
+    /// 지금 그리는 몫을 전체화면 무대로 그리는지. 그 몫의 포커스 노드가 무대일 때다. 창의 패스 경로
+    /// (`GpuState::render`)가 이 값으로 무대와 일반 화면을 고른다. 그 몫 뒤의 종료 키가 그리기 전에 무대를 닫았어도 무대
+    /// 몫의 입력(무대 안 누름 등)은 무대 패스로 그려 뒤 화면에 닿지 않는다. 닫힌 무대의 패스는 아무것도 그리지 않는다.
+    pub(crate) fn pass_draws_stage(&self, core: &CoreState) -> bool {
+        self.pass_focus_node(core) == FocusNode::Stage
+    }
+
     /// 지금 그리는 몫의 키를 본문으로 받는 surface. 그 몫의 포커스 노드가 surface 이고 그 몫의 키가 팝업에 묶이지
     /// 않았을 때 그 surface 다. 그리기 중 surface 본문이 egui 키를 읽을지 정하는 판정(탐색기 타입어헤드 등)은 지금
     /// 포커스(`focused_surface_id`·`window_keys_to_overlay`)가 아니라 이 값을 읽는다. 뒤 몫의 누름이 옮긴 포커스로

@@ -382,3 +382,136 @@ fn an_injected_key_after_an_injected_press_is_the_next_pass() {
     );
     assert!(input.is_empty(), "매핑 불가 키는 끊지도 넣지도 않는다");
 }
+
+/// L·R 탐색기를 그린 화면에서 `name` 항목 줄의 가운데.
+fn row_center(s: &mut Scene, l: &mut Explorer, r: &mut Explorer, name: &str) -> egui::Pos2 {
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        ..Default::default()
+    };
+    let out = s.ctx.run(raw, |ctx| {
+        for (sid, rect, ex) in [
+            (SURFACE_L, surface_rect_l(), &mut *l),
+            (SURFACE_R, surface_rect_r(), &mut *r),
+        ] {
+            draw_explorer(ctx, sid, rect, ex, false);
+        }
+    });
+    out.shapes
+        .iter()
+        .find_map(|c| match &c.shape {
+            egui::epaint::Shape::Text(t)
+                if t.galley.text() == name && surface_rect_l().contains(t.pos) =>
+            {
+                Some(t.visual_bounding_rect().center())
+            }
+            _ => None,
+        })
+        .expect("L 에 항목 줄이 그려진다")
+}
+
+/// 창의 패스 하나를 창과 같은 경로 선택(`pass_draws_stage`)으로 그린다. 무대면 무대 그리기, 아니면 탐색기 화면이다.
+fn stage_or_window_pass(
+    s: &mut Scene,
+    input: &mut WindowInput,
+    l: &mut Explorer,
+    r: &mut Explorer,
+) -> bool {
+    let stage = {
+        let engine = s.session.borrow_mut();
+        s.state.pass_draws_stage(&engine.read())
+    };
+    if stage {
+        let events = input.take_pass(&mut s.state, &s.ctx);
+        let engine = s.session.borrow_mut();
+        let read = engine.read();
+        let raw = egui::RawInput {
+            screen_rect: Some(screen()),
+            events,
+            ..Default::default()
+        };
+        let state = &mut s.state;
+        drop(s.ctx.run(raw, |ctx| {
+            crate::adapters::ui::draw_fullscreen_stage(ctx, state, &read);
+        }));
+        state.close_input_pass(&s.ctx);
+    } else {
+        pass(s, input, &mut Bodies::Explorers(l, r));
+    }
+    stage
+}
+
+/// Given 무대가 창을 덮고 L 탐색기가 그 뒤에 있을 때, When 그리기 전 한 묶음에 [글자 b, 무대 안 누름(뒤 L 의 banana
+/// 줄 자리), 무대 종료 키]가 오고 종료 키가 무대를 닫으면, Then 종료 키 앞 몫(글자·누름)은 무대 패스로 그리고 L 은
+/// 글자도 누름도 받지 않는다. 종료 키 몫부터 일반 화면이다.
+#[test]
+fn segments_before_the_stage_exit_key_are_drawn_as_the_stage() {
+    let mut s = open_scene(|_| {});
+    let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
+    let mut input = WindowInput::default();
+    {
+        let mut bodies = Bodies::Explorers(&mut l, &mut r);
+        focus_left(&mut s, &mut input, &mut bodies);
+    }
+    let banana = row_center(&mut s, &mut l, &mut r, "banana.txt");
+    assert!(s.state.open_fullscreen_stage("blank"));
+    assert!(stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+
+    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), banana);
+    }
+    input.queue_mut().push(Event::PointerButton {
+        pos: banana,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    let escape = Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    {
+        let engine = s.session.borrow_mut();
+        assert!(
+            input
+                .key(&mut s.state, &engine.read(), false, escape)
+                .is_some()
+        );
+    }
+    // 창의 무대 종료 키 처리(`try_consume_fullscreen_stage_key`)가 무대를 닫는다.
+    assert!(s.state.close_fullscreen_stage());
+
+    let letter = stage_or_window_pass(&mut s, &mut input, &mut l, &mut r);
+    let press = stage_or_window_pass(&mut s, &mut input, &mut l, &mut r);
+    assert_eq!(
+        l.selected(),
+        "",
+        "무대 몫의 글자·누름이 뒤 L 탐색기에 닿았다"
+    );
+    assert!(letter && press, "글자 몫·누름 몫은 무대로 그린다");
+    assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    while !input.is_empty() {
+        assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    }
+    assert_eq!(l.selected(), "");
+    // 대조: 일반 화면에서 같은 자리를 누르면 L 이 banana 를 고른다(누름이 닿으면 보이는 자리다).
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), banana);
+    }
+    input.queue_mut().push(Event::PointerButton {
+        pos: banana,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    while !input.is_empty() {
+        assert!(!stage_or_window_pass(&mut s, &mut input, &mut l, &mut r));
+    }
+    assert!(l.selected().contains("banana"), "L: {:?}", l.selected());
+}
