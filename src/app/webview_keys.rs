@@ -321,6 +321,118 @@ fn native_refresh_outcome(
 mod tests {
     use super::webview_poll_needed;
 
+    /// 소비 순서 시험의 대역. 첫 키(명령 팔레트 토글)는 포커스를 주는 팝업 열기를 대기열에 넣고, 대기열 적용이 그
+    /// 팝업을 연다. 팝업이 열려 있으면 다음 키는 입력 게이트에 막힌다(`Gated`). 열기가 포커스를 주지 않으면
+    /// (`focusing` 거짓, 알림 목록 토글) 게이트를 닫지 않는다.
+    struct Consumer {
+        focusing: bool,
+        queued: bool,
+        overlay_open: bool,
+        sidebar_toggled: bool,
+        log: Vec<String>,
+        finished: Vec<(u64, bool)>,
+    }
+
+    impl Consumer {
+        fn new(focusing: bool) -> Self {
+            Self {
+                focusing,
+                queued: false,
+                overlay_open: false,
+                sidebar_toggled: false,
+                log: Vec::new(),
+                finished: Vec::new(),
+            }
+        }
+    }
+
+    impl super::ForwardedKeyConsumer for Consumer {
+        fn dispatch(
+            &mut self,
+            _id: winit::window::WindowId,
+            ev: crate::webview::WebViewKeyEvent,
+        ) -> super::ForwardedKeyOutcome {
+            self.log.push(format!("dispatch {}", ev.id));
+            if self.overlay_open {
+                return super::ForwardedKeyOutcome::Gated;
+            }
+            if ev.id == 1 {
+                self.queued = true;
+            } else {
+                self.sidebar_toggled = true;
+            }
+            super::ForwardedKeyOutcome::Handled
+        }
+
+        fn apply_focus_opens(&mut self, _id: winit::window::WindowId) {
+            self.log.push("apply".into());
+            if self.queued && self.focusing {
+                self.overlay_open = true;
+            }
+            self.queued = false;
+        }
+
+        fn finish(
+            &mut self,
+            _id: winit::window::WindowId,
+            _surface_id: u32,
+            key_id: u64,
+            outcome: super::ForwardedKeyOutcome,
+        ) {
+            self.log.push(format!("finish {key_id}"));
+            self.finished
+                .push((key_id, outcome == super::ForwardedKeyOutcome::NotHandled));
+        }
+    }
+
+    fn batch() -> Vec<(
+        winit::window::WindowId,
+        Vec<crate::webview::WebViewKeyEvent>,
+    )> {
+        use winit::keyboard::{Key, ModifiersState};
+        let key = |id, ch: &str| crate::webview::WebViewKeyEvent {
+            id,
+            surface_id: 7,
+            key: Key::Character(ch.into()),
+            mods: ModifiersState::CONTROL,
+        };
+        vec![(
+            winit::window::WindowId::from(1),
+            vec![key(1, "P"), key(2, "b")],
+        )]
+    }
+
+    /// Given 한 번의 수집에 [명령 팔레트를 여는 키, sidebar 접기 키]가 들었을 때, When 소비하면, Then 키마다 처리 →
+    /// 포커스 열기 적용 → 결과 알림 순서로 돌아, 둘째 키는 열린 팔레트의 게이트에 막히고(`Gated`) sidebar 가 바뀌지
+    /// 않으며 페이지로 다시 넘기지 않는다.
+    #[test]
+    fn a_focused_popup_opened_by_a_forwarded_key_gates_the_next_key_of_the_batch() {
+        let mut consumer = Consumer::new(true);
+        super::consume_forwarded_keys(&mut consumer, batch());
+        assert_eq!(
+            consumer.log,
+            [
+                "dispatch 1",
+                "apply",
+                "finish 1",
+                "dispatch 2",
+                "apply",
+                "finish 2"
+            ]
+        );
+        assert!(!consumer.sidebar_toggled, "둘째 키가 sidebar 를 바꿨다");
+        assert_eq!(consumer.finished, [(1, false), (2, false)]);
+    }
+
+    /// 대조: 첫 키의 열기가 포커스를 주지 않으면(알림 목록 토글) 둘째 키는 그대로 처리된다.
+    #[test]
+    fn a_passive_open_by_a_forwarded_key_leaves_the_next_key_alone() {
+        let mut consumer = Consumer::new(false);
+        super::consume_forwarded_keys(&mut consumer, batch());
+        assert!(consumer.sidebar_toggled);
+        assert_eq!(consumer.finished, [(1, false), (2, false)]);
+    }
+
     /// 자식 WebView가 포커스를 쥐어 winit이 창을 비활성으로 알려도 폴링한다.
     #[test]
     fn a_webview_holding_the_focus_keeps_the_poll_running() {
