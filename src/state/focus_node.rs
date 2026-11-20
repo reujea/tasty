@@ -68,6 +68,17 @@ pub(crate) struct SegmentAfterCut {
     before_transition: bool,
 }
 
+/// 시험이 읽는 몫 하나의 칸(`MainViewState::segment_slots`).
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SegmentSlots {
+    pub(crate) screen: Option<crate::fullscreen_stages::StageId>,
+    pub(crate) marked: bool,
+    pub(crate) focus: Option<FocusNode>,
+    pub(crate) notice: Option<bool>,
+    pub(crate) press: bool,
+}
+
 impl FocusNode {
     /// debug 상태 조회(`debug.ui_state`의 `focus_node`)에 싣는 값. `kind`와 대상 id 다.
     #[cfg(debug_assertions)]
@@ -86,6 +97,27 @@ impl FocusNode {
 }
 
 impl super::MainViewState {
+    /// 지금 몫과 뒤 큐 몫들의 칸(열린 화면·전환 앞 표시·노드·안내 값·누름 스냅샷 유무), 그리는 순서다.
+    #[cfg(test)]
+    pub(crate) fn segment_slots(&self) -> Vec<SegmentSlots> {
+        let current = SegmentSlots {
+            screen: self.segment_screen,
+            marked: self.segment_before_transition,
+            focus: self.segment_focus,
+            notice: self.segment_notice,
+            press: self.press_snapshot.is_some(),
+        };
+        std::iter::once(current)
+            .chain(self.segments_after_cut.iter().map(|s| SegmentSlots {
+                screen: s.screen,
+                marked: s.before_transition,
+                focus: s.focus,
+                notice: s.notice,
+                press: s.press.is_some(),
+            }))
+            .collect()
+    }
+
     /// 지금 포커스 노드. 팝업 노드는 정규화한 값(`normalize_focus`)이다.
     pub(crate) fn focus_node(&self, core: &CoreState) -> FocusNode {
         if self.fullscreen_stage_active() {

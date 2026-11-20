@@ -15,6 +15,7 @@ use egui::Event;
 
 use super::super::repro::screen;
 use super::super::{PANE_L, PANE_R, SURFACE_L, SURFACE_R, WORKSPACE, layout, rect};
+use crate::adapters::ui::find_fields_seen;
 use crate::adapters::ui::input::edit_key::{EditBindings, Release};
 use crate::adapters::ui::popup::frame::draw_popup_layer;
 use crate::adapters::ui::popup::window_input_test_support::WindowInput;
@@ -413,8 +414,14 @@ fn a_find_paste_arriving_before_the_pass_whose_keys_a_popup_holds_reaches_the_fi
     assert!(b2.take && !b2.stage, "B2: 결속 없는 몫");
     let arrived = Instant::now();
     s.held.add(vec![(s.tag, "banana".into())], arrived);
+    drop(find_fields_seen::take());
     let f8 = pass(&mut s, arrived);
     assert!(!f8.take && !f8.stage, "F8 몫: 알림 팝업이 키를 묶었다");
+    assert_eq!(
+        find_fields_seen::take(),
+        [vec![], vec![s.tag]],
+        "키가 가려진 F8 패스도 목록을 비운 뒤 그린 Find 입력칸(요청 태그)을 등록한다"
+    );
     assert!(
         !has_paste(&f8.events),
         "F8 패스는 Find 붙여넣기를 넣지 않는다"
@@ -813,4 +820,36 @@ fn a_paste_for_the_command_palette_field_goes_in_as_before() {
     let seen = pass(&mut s, Instant::now());
     assert!(has_paste(&seen.events), "정착한 패스에서 들어간다");
     assert!(s.held.is_empty());
+}
+
+/// Given Find 가 egui 포커스를 가지고 팝업 결속이 없을 때, When 그 태그의 정착한 붙여넣기가 있는 채 무대 패스를 그리면,
+/// Then 무대 패스는 Find 를 그리지 않으므로 키 게이트가 열려 있어도 항목을 넣지 않고 남긴다. When 재포커스 없이 일반
+/// 화면으로 돌아오면, Then egui 가 무대 패스 끝에 Find 의 포커스를 지웠으므로 첫 일반 패스가 태그 불일치로 항목을 버린다.
+#[test]
+fn a_stage_pass_keeps_a_settled_find_paste_and_the_lost_focus_drops_it() {
+    let mut s = find_scene();
+    let arrived = Instant::now();
+    s.held.add(vec![(s.tag, "banana".into())], arrived);
+    assert!(s.state.open_fullscreen_stage("blank"));
+    assert!(s.state.surfaces_take_keys(), "무대 패스 입구의 결속 없음");
+    assert_eq!(
+        s.ctx.memory(|m| m.focused()).map(|id| id.value()),
+        Some(s.tag),
+        "무대 패스 입구의 태그 일치"
+    );
+    let stage = pass(&mut s, arrived);
+    assert!(stage.stage);
+    assert!(!has_paste(&stage.events));
+    assert!(!s.held.is_empty(), "무대 패스 뒤에도 항목이 남는다");
+    assert_eq!(
+        s.ctx.memory(|m| m.focused()),
+        None,
+        "무대 패스가 Find 포커스를 지웠다"
+    );
+    assert!(s.state.close_fullscreen_stage());
+    let back = pass(&mut s, arrived);
+    assert!(!back.stage);
+    assert!(!has_paste(&back.events));
+    assert!(s.held.is_empty(), "태그 불일치로 버린다");
+    assert_eq!(shown(&s), ["apple.txt", "banana.txt", "cherry.txt"]);
 }

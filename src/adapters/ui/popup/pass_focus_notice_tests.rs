@@ -207,3 +207,50 @@ fn each_segment_keeps_the_notice_focus_of_its_own_keys() {
     assert!(input.is_empty(), "끊은 자리는 하나다");
     assert_eq!(s.state.pass_notice_focus(), None);
 }
+
+/// 안내 안쪽 포커스 장면에서 한 묶음에 [L 빈 곳 클릭(몫 A), (`twice` 면 L 빈 곳 클릭 한 번 더), 글자 b] 를 넣고 A 를
+/// 그리는 패스가 무대를 연다(그리기 중 전환의 봉인).
+fn seal_after_a_notice_letter(twice: bool) -> Scene {
+    let (mut s, mut l, mut r, mut input) = notice_focused_scene();
+    let rect = surface_rect_l();
+    let empty = egui::pos2(rect.left() + 24.0, rect.bottom() - 24.0);
+    let presses = if twice { 2 } else { 1 };
+    for _ in 0..presses {
+        {
+            let engine = s.session.borrow_mut();
+            input.press(&mut s.state, &engine.read(), empty);
+        }
+        input.queue_mut().push(release_at(empty));
+    }
+    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    let (stage, _) = stage_or_window_pass_with(&mut s, &mut input, &mut l, &mut r, &mut |st| {
+        assert!(st.open_fullscreen_stage("blank"));
+    });
+    assert!(!stage);
+    s
+}
+
+/// Given 안내 안쪽 포커스, When [L 클릭, 글자 b] 의 클릭 패스가 무대를 열어 b 의 몫(안내 값 참)이 지금 몫으로 승계된 채
+/// 봉인되면, Then 닫는 몫의 안내 값은 그대로 참이고 봉인이 연 새 몫의 값은 없다.
+#[test]
+fn a_seal_of_the_inherited_segment_keeps_its_notice_focus() {
+    let s = seal_after_a_notice_letter(false);
+    assert_eq!(s.state.pass_notice_focus(), Some(true));
+    let slots = s.state.segment_slots();
+    assert_eq!(slots.len(), 2, "{slots:?}");
+    assert!(slots[0].marked && !slots[1].marked);
+    assert_eq!(slots[1].notice, None, "봉인한 새 몫");
+}
+
+/// Given 안내 안쪽 포커스, When [L 클릭, L 클릭, 글자 b] 의 첫 클릭 패스가 무대를 열어 뒤 큐 꼬리(b 의 몫)가 봉인되면,
+/// Then 그 몫의 안내 값은 그대로 참이고 봉인이 연 새 몫의 값은 없다.
+#[test]
+fn a_seal_of_the_queue_tail_keeps_its_notice_focus() {
+    let s = seal_after_a_notice_letter(true);
+    let slots = s.state.segment_slots();
+    assert_eq!(slots.len(), 3, "{slots:?}");
+    assert_eq!(slots[0].notice, None, "누름만 든 지금 몫");
+    assert_eq!(slots[1].notice, Some(true), "b 의 몫");
+    assert!(slots[1].marked && !slots[2].marked);
+    assert_eq!(slots[2].notice, None, "봉인한 새 몫");
+}

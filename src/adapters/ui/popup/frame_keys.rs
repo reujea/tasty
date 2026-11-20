@@ -313,6 +313,12 @@ impl PopupManager {
         self.keys.after_cut.len()
     }
 
+    /// 아직 그리지 않은 끊은 뒤 몫들이 시작하는 egui 입력 큐 좌표(`AfterCut::at`).
+    #[cfg(test)]
+    pub(crate) fn cut_ats(&self) -> Vec<usize> {
+        self.keys.after_cut.iter().map(|a| a.at).collect()
+    }
+
     /// egui 패스 하나를 닫는다. 그리기가 키 주인을 정하지 않은 패스(전체화면 무대)도 자기 몫 하나를 꺼내 버려,
     /// 패스와 몫이 하나씩 짝을 이룬다. 이번 패스의 키 주인과 남은 넘길 Esc 도 비운다. 이 몫에 egui 로 보내지 않은 Esc
     /// 뗌이 왔으면 참이다(호출자가 egui 의 Escape 눌림을 푼다).

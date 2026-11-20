@@ -882,3 +882,6 @@ mod transition;
 
 #[path = "pass_focus_paste_tests.rs"]
 mod paste;
+
+#[path = "pass_focus_seal_tests.rs"]
+mod seal;

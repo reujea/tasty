@@ -314,6 +314,31 @@ fn the_window_picks_the_stage_pass_by_the_live_stage_and_drops_input_without_its
     );
 }
 
+/// 그리기 중 전환의 봉인(`seal_after_drawing_transition`)은 끊는 조건(`cut_key_frame` 의 루프)을 거치지 않고 세 저장
+/// 위치에 남은 원시 길이로 한 칸씩 넣는다. 끊는 조건을 거치면 누름·키 조건이 맞지 않는 열린 몫을 봉인하지 못하고 닫는
+/// 몫의 노드를 채운다. 칸에 적는 값은 pass_focus::seal 시험이 잰다.
+#[test]
+fn the_drawing_transition_seal_does_not_take_the_cut_conditions() {
+    let node = read("src/state/focus_node.rs");
+    let seal = squeeze(
+        &fn_body(&node, "fn seal_after_drawing_transition(")
+            .expect("seal_after_drawing_transition"),
+    );
+    assert!(!seal.contains("cut_key_frame"), "봉인이 끊는 조건을 거친다");
+    let popups = at(
+        &seal,
+        "self.popups.seal_open_segment(raw_left);",
+        "팝업 관리자의 뒤 몫",
+    );
+    let cuts = at(&seal, "cuts.cut_at(raw_left);", "GPU 끊은 자리");
+    let queue = at(
+        &seal,
+        "self.segments_after_cut.push_back(SegmentAfterCut{screen:now,..SegmentAfterCut::default()});",
+        "뒤 큐",
+    );
+    assert!(popups < cuts && cuts < queue);
+}
+
 /// `window_id` 로 메인 창을 지정한 egui 주입(포인터·글자·키)도 ID 를 생략한 주입과 같은 진입(`ipc_step_main_window`:
 /// 포인터 `press_focus`, 글자·키 `key_focus`)을 거친다. 라우터가 보조 창 직접 경로보다 먼저 메인 창을 고른다. 그 진입의
 /// 끊기 동작은 `a_debug_key_injection_cuts_the_segment_before_the_key` 와 pass_focus 시험이 잰다.

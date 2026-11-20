@@ -42,6 +42,8 @@ pub(crate) mod tutorial;
 pub(crate) mod workspace_action_popup;
 
 pub mod input;
+#[cfg(test)]
+pub(crate) use egui_panels::find_fields_seen;
 
 pub use banner::{
     BannerManager, BannerScope, BannerState, PluginBannerCloseKind, PluginBannerMeshSlot,
