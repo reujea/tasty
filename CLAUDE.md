@@ -105,7 +105,7 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 63 개 — 그중 `
 
 워크스페이스 구조, 프로필 상세, LTO 설명, 빌드 시간 측정, 크레이트 분리 가이드 전체: [`docs/dev-guide/build.md`](docs/dev-guide/build.md).
 
-## Conductor/에이전트 병렬 작업 시 빌드·검증 명령
+## 빌드·검증 명령
 
 변경에 맞는 검사를 직접 실행한다. 자동 실행 범위와 빌드 조합은
 [CI 가이드](docs/dev-guide/ci-gates.md)에서 확인한다.
