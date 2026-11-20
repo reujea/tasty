@@ -160,7 +160,7 @@ fn forwarded_webview_keys_are_consumed_through_the_consumer_loop() {
 /// `intent::popup::handle` 에, plugin 팝업 열기가 `open_pending_popups` 에 닿기까지 지나는 App 디스패치 함수
 /// (`apply_user_focus_opens` ~ `EngineScanMut::resolve`, `dispatch_pending_popup_opens`)마다 둘 중 하나다. 공유: 제품 상태
 /// 시험(`app::webview_keys::state_tests`)이 같은 함수를 `view` 없이 부르고, 그 범위의 동작을 시험이 단정한다. 본문 고정:
-/// App 이 있어야 돌므로 시험이 부르지 못하고, 이 가드가 공백을 뺀 본문 전체를 비교한다(조건·기본값·호출을 바꾸면 실패).
+/// 지금 상태 시험이 부르지 않는 함수이고, 이 가드가 공백을 뺀 본문 전체를 비교한다(조건·기본값·호출을 바꾸면 실패).
 ///
 /// | 함수 | 방식 |
 /// |---|---|
