@@ -21,7 +21,7 @@ fn end_after(
         apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
     }
     let phase = sess.state.phase;
-    decide_session_end(&sess, eof, phase, true, installing)
+    decide_session_end(&sess, (eof, false), phase, true, installing)
 }
 
 /// Two closes of one mirror prepared before the first is sent: both pass the preparation check, the
@@ -60,7 +60,7 @@ fn a_second_queued_close_is_not_sent_and_the_first_success_still_ends_the_mirror
     }
     let phase = sess.state.phase;
     assert_eq!(
-        decide_session_end(&sess, true, phase, true, false),
+        decide_session_end(&sess, (true, false), phase, true, false),
         (DisconnectDisposition::ServerClosed, false)
     );
 }

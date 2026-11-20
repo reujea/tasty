@@ -2,11 +2,11 @@
 //! 세션 연결·재연결 자체는 `connection`에 있다.
 
 use super::connection::{remove_mirror_workspace_from_engine, remove_mirror_workspace_from_parked};
+use super::round_observation::RoundObservation;
 use crate::app::App;
 use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use tasty_remote::client_session::SessionState;
 
 impl App {
@@ -105,23 +105,22 @@ impl App {
     /// 끝 분류는 Connected 세션만 다루고, 분류한 세션은 Disconnected로 남긴 채 전송 표지를 지우지 않는다.
     /// 그래서 Connected 세션만 본다. 분류가 끝난 옛 표지를 보면 명시적 연결이 저장 표지를 지운 뒤의
     /// 자동 재연결도 계속 버리게 된다.
-    /// reader가 통지를 처리해 전송 표지를 세웠어도 `apply_attach_client_output`은 대기 연결 설치를
-    /// 세션 끝 분류(`stop_after_force_detach`가 표지를 저장)보다 먼저 한다. 회차 순서를 바꾸면
-    /// 같은 회차의 설치 여부를 보는 끝 분류(`installing_epoch`)도 달라지므로, 순서는 두고 설치 검사가
-    /// 전송 표지도 보게 한다.
+    /// `apply_attach_client_output`은 대기 연결 설치를 세션 끝 분류(`stop_after_force_detach`가 표지를
+    /// 저장)보다 먼저 한다. 회차 순서를 바꾸면 같은 회차의 설치 여부를 보는 끝 분류(`installing_epoch`)도
+    /// 달라지므로, 순서는 두고 설치 검사가 회차 시작의 관측값(`RoundObservation`)을 본다. 끝 분류도 같은
+    /// 관측값을 쓰므로 이번 회차에 강제 끊김으로 분류될 행이 곧 여기서 보는 행이다. 회차 밖(endpoint 결과
+    /// 소비)에서는 지금 값을 관측한다.
     fn target_force_detached_this_round(&self, row: u32) -> bool {
         let Some(binding) = self.saved_row_binding(row) else {
             return false;
         };
-        self.remote.sessions.iter().any(|session| {
-            session.state.phase == SessionState::Connected
-                && session.transport.force_detached.load(Ordering::SeqCst)
-                && session.transport.disconnected.load(Ordering::SeqCst)
-                && session
-                    .state
-                    .saved_row
-                    .is_some_and(|other| self.saved_row_binding(other).as_ref() == Some(&binding))
-        })
+        let same_target = |other: u32| self.saved_row_binding(other).as_ref() == Some(&binding);
+        match &self.state.round_observation {
+            Some(round) => round.force_detached_rows().any(same_target),
+            None => RoundObservation::observe(&self.remote.sessions)
+                .force_detached_rows()
+                .any(same_target),
+        }
     }
 
     fn mark_row_window_dirty(&mut self, row: u32) {

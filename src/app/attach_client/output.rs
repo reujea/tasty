@@ -26,6 +26,7 @@ use super::projection::{build_mirror_workspace, lease_mirror_ids, mirror_id_need
 use super::resources::{
     install_mirror_fallbacks, push_markdown_changed, push_markdown_content_result,
 };
+use super::round_observation::RoundObservation;
 use super::survivors::{keep_terminal_resize_state, merge_survivor_mapping};
 use super::user_waits;
 use crate::app::App;
@@ -45,6 +46,19 @@ impl App {
     /// 창이 있는 engine, parked engine 순서로 적용 대상을 찾은 뒤 출력 버퍼를 비운다.
     /// 대상이 없으면 버퍼를 유지한다. 고아 판정·정리도 같은 engine 범위를 확인해야 한다.
     pub(crate) fn apply_attach_client_output(&mut self) {
+        let observation = RoundObservation::observe(&self.remote.sessions);
+        self.apply_attach_client_output_observed(observation);
+    }
+
+    /// 회차 시작에 찍은 관측값으로 한 회차를 처리한다. 설치 검사(`drop_attempt_for_force_detached_target`)와
+    /// 끝 분류가 이 관측값의 끊김·강제 끊김을 함께 쓴다. 관측 뒤에 선 표지는 다음 회차에 분류한다.
+    pub(crate) fn apply_attach_client_output_observed(&mut self, observation: RoundObservation) {
+        self.state.round_observation = Some(observation);
+        self.apply_observed_round();
+        self.state.round_observation = None;
+    }
+
+    fn apply_observed_round(&mut self) {
         self.poll_pending_mirror_installs();
         super::op_runs::end_closed_connections();
         if self.remote.sessions.is_empty() {
@@ -57,11 +71,11 @@ impl App {
         let mut resyncing: Vec<usize> = Vec::new();
         let mut force_detached: Vec<usize> = Vec::new();
         for idx in 0..self.remote.sessions.len() {
-            let (local_ws, disconnected, state, saved_row) = {
+            let (local_ws, (disconnected, force_detached_end), state, saved_row) = {
                 let sess = &self.remote.sessions[idx];
                 (
                     sess.state.local_workspace,
-                    sess.transport.disconnected.load(Ordering::SeqCst),
+                    RoundObservation::end_of(self.state.round_observation.as_ref(), sess),
                     sess.state.phase,
                     sess.state.saved_row,
                 )
@@ -109,8 +123,13 @@ impl App {
                 .state
                 .mirror_attempts
                 .installing_epoch(sess.state.local_workspace, &sess.transport.frame_tx.epoch());
-            let (disposition, unknown) =
-                decide_session_end(sess, disconnected, state, saved_row.is_some(), installing);
+            let (disposition, unknown) = decide_session_end(
+                sess,
+                (disconnected, force_detached_end),
+                state,
+                saved_row.is_some(),
+                installing,
+            );
             if unknown {
                 unknown_close.push(sess.state.local_workspace);
             }
@@ -149,11 +168,12 @@ impl App {
         self.end_sessions(&dead, &closed);
     }
 }
-/// 이벤트를 적용한 뒤 세션의 끝을 정한다. 단절·phase·저장 여부는 이벤트 적용 전에 읽은 값이다.
+/// 이벤트를 적용한 뒤 세션의 끝을 정한다. 단절·phase·저장 여부는 이벤트 적용 전에 읽은 값이고,
+/// 단절과 강제 끊김은 회차 시작의 관측값(`RoundObservation`)이다.
 /// 두 번째 값은 회신 없이 끝난 서버 닫기가 있어 결과를 모른다고 알려야 하는지다.
 fn decide_session_end(
     sess: &AttachClientSession,
-    disconnected: bool,
+    (disconnected, force_detached): (bool, bool),
     phase: SessionState,
     saved: bool,
     installing: bool,
@@ -163,7 +183,7 @@ fn decide_session_end(
         installing,
         after_force_detach(
             disconnect_disposition(disconnected, phase, sess.resync_released(), saved),
-            sess.transport.force_detached.load(Ordering::SeqCst),
+            force_detached,
         ),
     );
     let unknown = matches!(

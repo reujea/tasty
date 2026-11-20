@@ -348,9 +348,32 @@ fn a_remote_connect_joining_an_automatic_reconnect_keeps_it() {
     assert!(!app.drop_attempt_for_force_detached_target(&registered_attempt(&app)));
 }
 
-/// 같은 대상의 행 `ROW_B` 와 그 세션을 둔다. reader 가 강제 끊김 통지를 처리한 것처럼 전송의
-/// `force_detached`·`disconnected` 를 세운다. 표지는 저장하지 않는다.
+/// 같은 대상의 행 `ROW_B` 와 그 세션을 둔다. 표지는 저장하지 않는다.
 fn push_other_row_session(app: &mut App, phase: SessionState) {
+    push_other_row_session_unflagged(app, phase);
+    flag_the_other_row_force_detached(app);
+}
+
+/// reader 가 강제 끊김 통지를 처리한 것처럼 행 `ROW_B` 세션 전송의 `force_detached`·`disconnected` 를
+/// 그 순서로 세운다.
+fn flag_the_other_row_force_detached(app: &App) {
+    let session_b = app
+        .remote
+        .sessions
+        .iter()
+        .find(|session| session.state.saved_row == Some(ROW_B))
+        .expect("the session of row B");
+    session_b
+        .transport
+        .force_detached
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    session_b
+        .transport
+        .disconnected
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn push_other_row_session_unflagged(app: &mut App, phase: SessionState) {
     let mut row_b = crate::model::Workspace::new_with_terminal_marker(
         ROW_B,
         "remote b".to_string(),
@@ -370,14 +393,6 @@ fn push_other_row_session(app: &mut App, phase: SessionState) {
     session_b.state.saved_row = Some(ROW_B);
     session_b.state.remote_workspace = binding().remote_workspace;
     session_b.state.phase = phase;
-    session_b
-        .transport
-        .force_detached
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    session_b
-        .transport
-        .disconnected
-        .store(true, std::sync::atomic::Ordering::SeqCst);
     app.remote.sessions.push(session_b);
 }
 
@@ -453,5 +468,60 @@ fn an_install_in_the_round_that_ends_the_other_row_by_force_detach_is_dropped() 
     assert!(
         app.row_user_disconnected(ROW),
         "the end of B saved the mark"
+    );
+}
+
+/// Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 세션은 연결돼 있다, When 출력 회차가
+/// 관측값을 찍은 뒤에 B 의 reader 가 강제 끊김 통지를 처리하고(전송 표지가 섬) 그 회차를 처리하면,
+/// Then 그 회차의 설치 검사는 A 를 버리지 않고 끝 분류도 B 를 그대로 둔다. 다음 회차에 B 가 강제
+/// 끊김으로 분류되어 표지가 저장된다. A 의 설치 뒤에 B 가 끊긴 것과 같은 순서다. 시험 장치에 View 가
+/// 없어 A 의 설치를 끝까지 마치는지는 재지 않고, 버리지 않았다는 것만 본다.
+#[test]
+fn a_force_detach_flagged_after_the_round_observation_ends_the_other_row_next_round() {
+    alone!("a_force_detach_flagged_after_the_round_observation_ends_the_other_row_next_round");
+    let event_loop = event_loop();
+    let mut app = reconnecting_app(&event_loop);
+    let _socket = prepare_an_automatic_reconnect(&mut app);
+    push_other_row_session_unflagged(&mut app, SessionState::Connected);
+    let observation = crate::app::attach_client::round_observation::RoundObservation::observe(
+        &app.remote.sessions,
+    );
+    flag_the_other_row_force_detached(&app);
+
+    app.apply_attach_client_output_observed(observation);
+
+    assert_ne!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected,
+        "the install check kept A"
+    );
+    assert!(app.remote.active.contains(&ROW), "A's attempt goes on");
+    assert_eq!(
+        app.remote.reconnect.get(&ROW).map(|slot| slot.given_up),
+        Some(false)
+    );
+    let phase_b = |app: &App| {
+        app.remote
+            .sessions
+            .iter()
+            .find(|session| session.state.saved_row == Some(ROW_B))
+            .map(|session| session.state.phase)
+    };
+    assert_eq!(
+        phase_b(&app),
+        Some(SessionState::Connected),
+        "B ends next round"
+    );
+    assert!(
+        !app.row_user_disconnected(ROW),
+        "no mark is saved this round"
+    );
+
+    app.apply_attach_client_output();
+
+    assert_eq!(phase_b(&app), Some(SessionState::Disconnected));
+    assert!(
+        app.row_user_disconnected(ROW),
+        "the next round saved the mark"
     );
 }

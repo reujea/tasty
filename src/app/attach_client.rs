@@ -19,6 +19,7 @@ pub(crate) mod pending;
 mod projection;
 mod resize_sync;
 mod resources;
+pub(crate) mod round_observation;
 mod survivors;
 mod terminal_read;
 
