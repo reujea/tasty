@@ -7,7 +7,6 @@ use super::force_detach_result_tests::{
 use super::force_detach_round_tests::{
     PeerGates, assert_b_ended_by_g1_and_a_dropped, marked,
     queue_a_gated_forced_reconnect_of_the_other_row, run_json, session_of, ticket_of,
-    wait_for_and_lower_the_attach_wake,
 };
 use super::test_rig::{ROW, app_with_saved_row, binding, event_loop};
 use crate::app::App;
@@ -55,7 +54,12 @@ impl ApplicationHandler<crate::AppEvent> for UserEventsOnly<'_> {
     ) {
     }
 
+    /// 미룬 회차는 첫 `AttachClientData` 를 배달한 뒤에만 넘긴다. reader 가 깨움 문을 연 뒤 그 이벤트가
+    /// 큐에 들어가기 전에 이 자리가 먼저 와도 회차가 이벤트보다 앞서 열리지 않는다.
     fn about_to_wait(&mut self, _: &ActiveEventLoop) {
+        if self.attach_data_with_wake.is_empty() {
+            return;
+        }
         self.app.run_deferred_stream_rounds();
         self.note_end("about_to_wait");
     }
@@ -73,8 +77,11 @@ impl ApplicationHandler<crate::AppEvent> for UserEventsOnly<'_> {
     }
 }
 
-/// 이벤트 루프에 쌓인 이벤트를 `App` 에 넘기지 않고 버린다.
-struct Discard;
+/// 이벤트 루프에 쌓인 이벤트를 `App` 에 넘기지 않고 버린다. 버린 `AttachClientData` 수를 센다.
+#[derive(Default)]
+struct Discard {
+    attach_data: usize,
+}
 
 impl ApplicationHandler<crate::AppEvent> for Discard {
     fn resumed(&mut self, _: &ActiveEventLoop) {}
@@ -87,21 +94,41 @@ impl ApplicationHandler<crate::AppEvent> for Discard {
     ) {
     }
 
-    fn user_event(&mut self, _: &ActiveEventLoop, _: crate::AppEvent) {}
+    fn user_event(&mut self, _: &ActiveEventLoop, event: crate::AppEvent) {
+        self.attach_data += match event {
+            crate::AppEvent::AttachClientData => 1,
+            _ => 0,
+        };
+    }
 }
 
-/// 깨움 문을 내리고 지금까지 쌓인 사용자 이벤트를 버린다. 그 뒤 문은 닫혀 있어야 한다.
-fn quiesce(event_loop: &mut winit::event_loop::EventLoop<crate::AppEvent>, app: &App) {
+/// 연결 결과 워커 하나의 깨움을 끝까지 소비한다. 깨움 문은 닫힌 채 시작해야 한다. 워커는 결과를 보낸 뒤
+/// 깨우고, 깨움 문은 닫힘에서 열림으로 바꾼 쪽만 이벤트를 보낸다(`StreamWakeGate::notify`). 그래서 문이
+/// 열린 것을 보고, 그 워커가 보낸 `AttachClientData` 가 실제로 배달된 것까지 본 뒤에 문을 내린다. 그 뒤에는
+/// 그 워커의 깨움이 늦게 도착할 수 없다.
+fn consume_one_wake(
+    event_loop: &mut winit::event_loop::EventLoop<crate::AppEvent>,
+    app: &App,
+    what: &str,
+) {
     use winit::platform::pump_events::EventLoopExtPumpEvents;
-    app.attach_client_wake.open_round();
-    for _ in 0..3 {
-        event_loop.pump_app_events(Some(Duration::from_millis(10)), &mut Discard);
+    let until = Instant::now() + Duration::from_secs(10);
+    while !app.attach_client_wake.is_pending() {
+        assert!(Instant::now() < until, "no wake for {what}");
+        std::thread::sleep(Duration::from_millis(2));
     }
+    let mut discard = Discard::default();
+    while discard.attach_data == 0 {
+        assert!(Instant::now() < until, "the wake for {what} sent no event");
+        event_loop.pump_app_events(Some(Duration::from_millis(10)), &mut discard);
+    }
+    assert_eq!(discard.attach_data, 1, "one event for {what}");
+    app.attach_client_wake.open_round();
     assert!(!app.attach_client_wake.is_pending(), "nothing woke since");
 }
 
 /// S9: Given 행 A 의 자동 재연결이 설치만 남았고 같은 대상의 행 B 의 재연결 연결 결과가 채널에 있으며,
-/// 그 두 결과의 깨움과 사용자 이벤트는 비웠다(상대는 강제 끊김 통지를 아직 보내지 않음), When 상대가
+/// 그 두 결과 워커의 깨움은 이벤트 배달까지 끝나 비웠다(상대는 강제 끊김 통지를 아직 보내지 않음), When 상대가
 /// 통지를 보내 B 의 reader 가 강제 끊김을 확정하고 실제 이벤트 루프가 사용자 이벤트를 배달하면, Then 그
 /// reader 깨움이 깨움 문을 연 채 `AttachClientData` 로 배달되고, 그 이벤트의 처리(제품 진입
 /// `run_attach_client_round(Event)`)가 연 회차가 B 를 G1 으로 끝내고 A 를 버린다. 주기 확인 경로는 돌리지
@@ -113,8 +140,9 @@ fn the_reader_wake_opens_the_round_through_the_event_loop() {
     use winit::platform::pump_events::EventLoopExtPumpEvents;
     let mut event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
+    assert!(!app.attach_client_wake.is_pending());
     let _socket = prepare_an_automatic_reconnect(&mut app);
-    quiesce(&mut event_loop, &app);
+    consume_one_wake(&mut event_loop, &app, "A's connection result");
     let (handshake, handshake_held) = std::sync::mpsc::channel();
     let (notice, notice_held) = std::sync::mpsc::channel();
     let (peer, run, joined) = queue_a_gated_forced_reconnect_of_the_other_row(
@@ -125,8 +153,7 @@ fn the_reader_wake_opens_the_round_through_the_event_loop() {
         },
     );
     handshake.send(()).unwrap();
-    wait_for_and_lower_the_attach_wake(&app, "B's connection result");
-    quiesce(&mut event_loop, &app);
+    consume_one_wake(&mut event_loop, &app, "B's connection result");
     assert_ne!(run_json(run)["state"], "failed", "no round ran yet");
 
     notice.send(()).unwrap();
