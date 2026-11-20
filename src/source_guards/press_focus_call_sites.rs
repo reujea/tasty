@@ -229,6 +229,8 @@ fn a_debug_key_injection_cuts_the_segment_before_the_key() {
 
 /// 창의 패스 경로(무대·일반 화면)는 지금 무대 상태로 고른다(`MainViewState::pass_draws_stage`). 그 몫의 포커스 노드가 그 화면에 없으면(닫힌 무대의 몫,
 /// 그리기 전에 연 무대 앞 몫) 패스 입력을 꺼낸 자리에서 사용자 입력을 뺀다(`MainViewState::drop_input_without_its_node`).
+/// 남긴 뗌은 egui 가 쥔 단추 것만 두고, 그 앞에 클릭 거리 밖 이동을 넣고 끌기·드롭 payload 를 지워 클릭·끌기 끝·드롭을
+/// 만들지 않게 한다(`end_press_without_click`).
 /// 몫 노드로 경로를 고르면 닫힌 무대의 몫이 빈 무대 프레임을 제출한다. 동작은 `adapters::ui::popup::route::tests::pass_focus`
 /// 의 무대 장면이 잰다.
 #[test]
@@ -253,11 +255,36 @@ fn the_window_picks_the_stage_pass_by_the_live_stage_and_drops_input_without_its
     let dropper = squeeze(
         &fn_body(&node, "fn drop_input_without_its_node(").expect("drop_input_without_its_node"),
     );
-    at(
+    let retain = at(
         &dropper,
         "events.retain(|e|!delivers_input(e));",
         "입력 사건만 빼기",
     );
+    let end = at(
+        &dropper,
+        "end_press_without_click(ctx,events);",
+        "남긴 뗌 정리",
+    );
+    assert!(retain < end, "입력을 뺀 뒤 남긴 뗌을 정리한다");
+    let ender =
+        squeeze(&fn_body(&node, "fn end_press_without_click(").expect("end_press_without_click"));
+    for (needle, what) in [
+        (
+            "egui::Event::PointerButton{button,pressed:false,..}=>ctx.input(|i|i.pointer.button_down(*button)),",
+            "egui 가 쥐지 않은 단추의 뗌 빼기",
+        ),
+        ("ctx.stop_dragging();", "끌기 끝 없이 끌기 풀기"),
+        (
+            "egui::DragAndDrop::clear_payload(ctx);",
+            "드롭 payload 지우기",
+        ),
+        (
+            "events.insert(first,egui::Event::PointerMoved(origin+egui::vec2(away,0.0)));",
+            "클릭 후보 지우기(뗌 앞 이동)",
+        ),
+    ] {
+        at(&ender, needle, what);
+    }
     let delivers = squeeze(&fn_body(&node, "fn delivers_input(").expect("delivers_input"));
     for needle in [
         "egui::Event::Key{pressed,..}|egui::Event::PointerButton{pressed,..}=>*pressed,",
@@ -277,7 +304,7 @@ fn the_window_picks_the_stage_pass_by_the_live_stage_and_drops_input_without_its
     );
     let drop = at(
         &pass,
-        "state.drop_input_without_its_node(&mutraw_input.events);",
+        "state.drop_input_without_its_node(&self.egui_ctx,&mutraw_input.events);",
         "노드 없는 입력 빼기",
     );
     let run = at(&pass, "self.egui_ctx.run(raw_input,", "egui 패스");
