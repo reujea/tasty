@@ -35,6 +35,8 @@ pub(crate) mod focus_node;
 mod fullscreen_stage_tests;
 #[cfg(feature = "gui")]
 mod handler_recent;
+#[cfg(feature = "gui")]
+pub(crate) mod input_destination;
 #[cfg(any(feature = "gui", test))]
 mod layout;
 #[cfg(feature = "gui")]

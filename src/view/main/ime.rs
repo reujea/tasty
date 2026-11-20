@@ -3,6 +3,7 @@
 //! PTY 에코 위치 보정은 유지한다. 공통 처리는 Commit 문자 폭을 더하고 에코가 따라온 만큼 뺀다.
 
 use crate::runtime::engine_read::EngineRead;
+use crate::state::input_destination::InputDestination;
 use tasty_plugin_protocol::ImeWire;
 use winit::event::Ime;
 
@@ -130,31 +131,35 @@ pub(crate) fn handle_event(
 
     // 팝업·무대가 있으면 조합 문자를 배경 터미널에 보내지 않는다.
     // Enabled/Disabled는 상태 추적에 사용한다. plugin 팝업 입력은 egui 수집기가 이미 전달하므로 여기서 반복하지 않는다.
-    let overlay_open = w.state.window_keys_to_overlay();
-    if overlay_open {
-        match event {
-            Ime::Enabled => {
-                w.ime_active = true;
-            }
-            Ime::Disabled => {
-                w.ime_active = false;
-            }
-            Ime::Preedit(..) | Ime::Commit(..) => {}
-        }
-        w.mark_dirty();
-        return;
-    }
-
     // mesh surface는 터미널 오버레이 대신 플러그인에 조합·확정을 전달한다.
-    if let Some(sid) = w.focused_egui_mesh_surface_id(engine) {
-        forward_ime_to_egui_mesh(w, sid, event);
-        w.mark_dirty();
-        return;
-    }
-    if let Some(sid) = w.focused_attach_mesh_surface_id(engine) {
-        forward_ime_to_attach_mesh(w, sid, event);
-        w.mark_dirty();
-        return;
+    match w
+        .state
+        .input_destination(engine, w.state.window_keys_to_overlay())
+    {
+        InputDestination::Overlay => {
+            match event {
+                Ime::Enabled => {
+                    w.ime_active = true;
+                }
+                Ime::Disabled => {
+                    w.ime_active = false;
+                }
+                Ime::Preedit(..) | Ime::Commit(..) => {}
+            }
+            w.mark_dirty();
+            return;
+        }
+        InputDestination::EguiMesh(sid) => {
+            forward_ime_to_egui_mesh(w, sid, event);
+            w.mark_dirty();
+            return;
+        }
+        InputDestination::AttachMesh(sid) => {
+            forward_ime_to_attach_mesh(w, sid, event);
+            w.mark_dirty();
+            return;
+        }
+        InputDestination::Terminal(_) | InputDestination::Other(_) => {}
     }
 
     match event {

@@ -1,10 +1,10 @@
 use crate::runtime::engine_read::EngineRead;
+use crate::state::input_destination::InputDestination;
 use winit::event::ElementState;
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 
 use super::MainView;
 use crate::app::command::{DomainIntent, SendPayload};
-use crate::state::FocusedSurfaceType;
 use crate::view::ui::View;
 
 /// `decide_key_to_terminal` 의 입력 — 현재 focused terminal 의 read-only 상태.
@@ -116,25 +116,16 @@ impl MainView {
             return;
         }
 
-        if overlay_open {
-            return;
-        }
-
-        let surface_type = self.state.focused_surface_type(engine);
         let typing_surface_id = self.state.focused_surface_id(engine);
 
-        match surface_type {
-            FocusedSurfaceType::Terminal => self.forward_key_to_terminal(engine, event),
-            _ => {
-                // markdown/image 등 egui-mesh surface 면 plugin 으로 Key/Text forward.
-                // html/empty/None 등 비-mesh surface 는 여전히 no-op.
-                if let Some(sid) = self.focused_egui_mesh_surface_id(engine) {
-                    self.forward_key_to_egui_mesh(sid, event);
-                } else if let Some(sid) = self.focused_attach_mesh_surface_id(engine) {
-                    // attach mesh mirror surface — 위와 동형이되 목적지가 원격.
-                    self.forward_key_to_attach_mesh(sid, event);
-                }
-            }
+        // markdown/image 등 egui-mesh surface 면 plugin 으로, attach mesh mirror 면 원격 plugin 으로 Key/Text 를
+        // 보낸다. html/empty/None 등 입력을 받지 않는 surface 는 no-op 이다.
+        match self.state.input_destination(engine, overlay_open) {
+            InputDestination::Overlay => return,
+            InputDestination::Terminal(_) => self.forward_key_to_terminal(engine, event),
+            InputDestination::EguiMesh(sid) => self.forward_key_to_egui_mesh(sid, event),
+            InputDestination::AttachMesh(sid) => self.forward_key_to_attach_mesh(sid, event),
+            InputDestination::Other(_) => {}
         }
 
         if let Some(sid) = typing_surface_id {

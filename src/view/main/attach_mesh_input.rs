@@ -52,16 +52,6 @@ impl MainView {
         None
     }
 
-    /// 포커스된 원격 mesh surface ID.
-    pub(super) fn focused_attach_mesh_surface_id(
-        &self,
-        engine: &crate::runtime::engine_read::EngineRead<'_>,
-    ) -> Option<u32> {
-        let sid = self.state.focused_surface_id(engine)?;
-        let surface = engine.find_surface_by_id(sid)?;
-        surface.attach_mesh().map(|_| sid)
-    }
-
     /// 포인터 버튼 누름/뗌을 attach mesh surface 에 누적.
     pub(super) fn attach_mesh_push_pointer_button(
         &mut self,

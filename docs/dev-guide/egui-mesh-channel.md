@@ -342,8 +342,8 @@ early-return 경로도 포함: 이 경로에 진입한 이벤트는 mesh 판정 
 **이전** 대상에 `PointerGone` 을 1 회 forward 한다. 안 그러면 plugin 쪽 egui 가 마지막
 `PointerMoved` 위치에 포인터가 계속 있다고 착각해 hover 하이라이트가 잔류할 수 있다.
 
-키/IME 는 **포커스된 egui-mesh surface 에만** 간다(`focused_egui_mesh_surface_id`
-downcast 판정). 중앙 키 디스패처(`keyboard.rs handle_keyboard_input`)가 단축키·vi·
+키/IME 는 **포커스된 egui-mesh surface 에만** 간다(`MainViewState::input_destination`
+의 `EguiMesh` 갈래. 키 처리와 IME 처리가 같은 판정으로 터미널·egui-mesh·attach mesh 갈래를 고른다). 중앙 키 디스패처(`keyboard.rs handle_keyboard_input`)가 단축키·vi·
 escape 소비를 **먼저** 처리한 뒤, 소비되지 않은 키를 이 forward 로 넘긴다 — 단축키
 선점 순서는 터미널 forward 와 동일하다. IME 는 조합 중 preedit 문자열까지 나르므로
 (commit-only 아님) plugin 의 egui `TextEdit` 이 조합 중간 상태를 인라인 표시한다.
