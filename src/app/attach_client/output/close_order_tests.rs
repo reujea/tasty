@@ -188,6 +188,22 @@ fn a_stop_decided_for_the_old_transport_does_not_stop_the_new_one() {
     assert!(sess.state.stop_after_events.is_none(), "the old stop ends");
 }
 
+/// ifix1-2: Given 닫기 회신을 기다리던 연결이 끊겨 재연결 진입 때 결과 불명을 이미 알렸다, When 그 재연결
+/// 중인 세션에 정한 멈춤이 적용되면, Then 멈추기만 하고 결과 불명을 다시 알리지 않는다.
+#[test]
+fn a_stop_of_a_reconnecting_session_does_not_repeat_the_unknown_close() {
+    let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+    sess.state.saved_row = Some(5);
+    sess.state.workspace_close = WorkspaceClose::Pending(3);
+    sess.state.phase = SessionState::Reconnecting;
+    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+
+    assert_eq!(
+        route_session_end(&mut sess, SessionState::Reconnecting, false),
+        (DisconnectDisposition::Stop, false)
+    );
+}
+
 /// S7: 같은 묶음에 닫기 성공 회신과 강제 끊김이 함께 오면 서버 닫기로 끝난다(G2-a). 손실 끝도 같다.
 #[test]
 fn a_close_reply_wins_over_a_forced_or_lost_end_in_the_same_batch() {

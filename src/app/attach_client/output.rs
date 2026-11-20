@@ -185,13 +185,17 @@ fn route_session_end(
             sess.state.stop_after_events = None;
             classify_observed_end(sess, phase)
         };
-    let unknown = matches!(
-        disposition,
-        DisconnectDisposition::Resync
-            | DisconnectDisposition::Reconnect
-            | DisconnectDisposition::Stop
-            | DisconnectDisposition::Cleanup
-    ) && super::workspace_close::close_result_unknown(sess);
+    // 재연결 중인 세션은 옛 전송을 놓을 때(재연결 진입) 이미 결과 불명을 알렸다. 그 세션의 멈춤은
+    // 끊긴 행으로 두기만 한다.
+    let unknown = phase == SessionState::Connected
+        && matches!(
+            disposition,
+            DisconnectDisposition::Resync
+                | DisconnectDisposition::Reconnect
+                | DisconnectDisposition::Stop
+                | DisconnectDisposition::Cleanup
+        )
+        && super::workspace_close::close_result_unknown(sess);
     (disposition, unknown)
 }
 
