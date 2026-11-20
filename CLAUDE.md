@@ -101,7 +101,7 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 63 개 — 그중 `
 > 크레이트 수는 `crates/` 바로 아래에서 Cargo.toml을 가진 디렉터리 수다. workspace에서 제외된 크레이트도 세며 루트 패키지는 제외한다. [아키텍처 문서](docs/architecture/index.md), 이 문서, 두 README의 수치를 함께 갱신한다. `architecture_crate_list_complete`와 `readme_badge_parity`가 실제 디렉터리 목록과 비교한다.
 
 - **일상 개발**: `cargo build` 또는 `cargo build --release`.
-- **배포 산출물 빌드 (DMG / MSI / AppImage 등)**: `cargo build --profile dist`. 일상 빌드에는 사용하지 않는다 (3.5 배 느림).
+- **배포 산출물 빌드 (DMG / MSI / AppImage 등)**: `cargo build --profile dist`. 일상 빌드에는 사용하지 않는다 (full LTO라 release보다 훨씬 오래 걸린다).
 
 워크스페이스 구조, 프로필 상세, LTO 설명, 빌드 시간 측정, 크레이트 분리 가이드 전체: [`docs/dev-guide/build.md`](docs/dev-guide/build.md).
 
