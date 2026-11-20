@@ -233,34 +233,19 @@ impl super::MainViewState {
         self.fullscreen_stage_active()
     }
 
-    /// 이번 패스 입력 `events` 에서, 그 몫의 포커스 노드가 지금 그리는 화면에 없으면 사용자 입력(키·글자·IME·붙여넣기·
-    /// 복사·잘라내기·포인터 이동·버튼·휠·터치)을 뺀다. 포인터 이동도 빼는 것은 그 화면에서 눌린 채인 버튼의 끌기가 되지
-    /// 않게 하기 위해서다. 창은 무대와 일반 화면을 지금 무대 상태로 고른다(`GpuState::render`). 그리기 전에
-    /// 종료 키가 무대를 닫았으면 무대 노드의 몫(무대 안 글자·누름·종료 키)은 일반 화면으로 그리지만 그 입력은 일반 화면의
-    /// 어느 노드 것도 아니다. 그리기 전에 무대가 열렸으면 무대 밖 노드의 몫도 같다. 패스 입력을 꺼내는 곳
-    /// (`GpuState::run_main_pass`)이 부른다.
+    /// 이번 패스 입력 `events` 에서, 그 몫의 포커스 노드가 지금 그리는 화면에 없으면 위젯에 입력을 넣는 사건
+    /// (`delivers_input`: 키 누름·글자·IME·붙여넣기·복사·잘라내기·포인터 이동·버튼 누름·휠·터치 시작·이동·확대)을
+    /// 뺀다. 누름을 끝내는 사건(버튼 뗌·포인터 사라짐·터치 끝·취소·키 뗌)은 남겨, 다른 화면에서 시작한 egui 의 눌림
+    /// 상태가 풀리게 한다. 포인터 이동을 빼는 것은 그 화면에서 눌린 채인 버튼의 끌기가 되지 않게 하기 위해서다. 창은
+    /// 무대와 일반 화면을 지금 무대 상태로 고른다(`GpuState::render`). 그리기 전에 종료 키가 무대를 닫았으면 무대
+    /// 노드의 몫(무대 안 글자·누름·종료 키)은 일반 화면으로 그리지만 그 입력은 일반 화면의 어느 노드 것도 아니다.
+    /// 그리기 전에 무대가 열렸으면 무대 밖 노드의 몫도 같다. 패스 입력을 꺼내는 곳(`GpuState::run_main_pass`)이 부른다.
     pub(crate) fn drop_input_without_its_node(&self, events: &mut Vec<egui::Event>) {
         let Some(node) = self.segment_focus else {
             return;
         };
         if (node == FocusNode::Stage) != self.pass_draws_stage() {
-            events.retain(|e| {
-                !matches!(
-                    e,
-                    egui::Event::Key { .. }
-                        | egui::Event::Text(_)
-                        | egui::Event::Ime(_)
-                        | egui::Event::Paste(_)
-                        | egui::Event::Copy
-                        | egui::Event::Cut
-                        | egui::Event::PointerMoved(_)
-                        | egui::Event::MouseMoved(_)
-                        | egui::Event::PointerButton { .. }
-                        | egui::Event::MouseWheel { .. }
-                        | egui::Event::Touch { .. }
-                        | egui::Event::Zoom(_)
-                )
-            });
+            events.retain(|e| !delivers_input(e));
         }
     }
 
@@ -352,5 +337,26 @@ impl super::MainViewState {
             .filter(|(_, z)| above.is_none_or(|a| *z > a))
             .max_by_key(|(_, z)| *z)
             .map(|(node, _)| node)
+    }
+}
+
+/// 위젯에 입력을 넣는 사건인지. 누름을 끝내는 사건(버튼 뗌·포인터 사라짐·터치 끝·취소·키 뗌)과 입력이 아닌 사건은
+/// 아니다(`MainViewState::drop_input_without_its_node`).
+fn delivers_input(event: &egui::Event) -> bool {
+    match event {
+        egui::Event::Key { pressed, .. } | egui::Event::PointerButton { pressed, .. } => *pressed,
+        egui::Event::Touch { phase, .. } => {
+            !matches!(phase, egui::TouchPhase::End | egui::TouchPhase::Cancel)
+        }
+        egui::Event::Text(_)
+        | egui::Event::Ime(_)
+        | egui::Event::Paste(_)
+        | egui::Event::Copy
+        | egui::Event::Cut
+        | egui::Event::PointerMoved(_)
+        | egui::Event::MouseMoved(_)
+        | egui::Event::MouseWheel { .. }
+        | egui::Event::Zoom(_) => true,
+        _ => false,
     }
 }
