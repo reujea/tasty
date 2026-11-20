@@ -2,10 +2,13 @@
 //! 관리자가 갖고(`PopupManager::focus`), 나머지(엔진 포커스 surface, html 주소 띠, tutorial 말풍선)는 각자의
 //! 상태에서 계산한다.
 //!
-//! 포커스 위치를 바꾸는 곳은 셋이다. 사용자가 연 팝업(`open_request`), 누름(`take_press_snapshot`), 그리고 창의
-//! 입력과 프레임마다 도는 정규화(`normalize_focus`)다. 정규화는 보이지 않거나 닫힌 팝업, 엔진 포커스가 옮겨 간 뒤
-//! 경로에서 빠진 팝업의 포커스를 풀고, 덮인 노드에 있는 포커스를 덮는 노드로 옮긴다. 범위마다 포커스를 기억하지
-//! 않는다.
+//! 포커스 위치는 `PopupManager` 의 포커스 칸을 바꾸는 호출(`set_focus`·`give_focus`·`unfocus_node`·`focus_on_press`
+//! 등)과 무대·html 주소 띠의 전이로 바뀐다. 그 목록과 호출 자리는 팝업 설계 문서(docs/design/systems/popup.md)의
+//! Esc 소유권 절에 있다. 정규화(`normalize_focus`)는 창의 입력과 프레임마다 돌며 보이지 않거나 닫힌 팝업, 엔진
+//! 포커스가 옮겨 간 뒤 경로에서 빠진 팝업의 포커스를 풀고, 덮인 노드에 있는 포커스를 덮는 노드로 옮긴다. 범위마다
+//! 포커스를 기억하지 않는다.
+//!
+//! 그리기는 끊어 둔 입력 몫 하나를 그리므로 그리는 동안의 판정은 그 몫의 포커스 노드(`pass_focus_node`)를 읽는다.
 
 use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::focus::PopupNode;
