@@ -165,9 +165,12 @@ fn an_oversized_line_refusal_is_read_and_then_closes_without_reset() {
     }
 }
 
-// -32060(Linux 밖): 요청을 보내고 쓰기 쪽을 먼저 닫은(FIN) 클라이언트도 거절 전에 수신 큐를 비운다.
+// -32060(Linux 밖): 요청을 보내고 쓰기 쪽을 먼저 닫은(FIN) 클라이언트에게도, 거절 응답을 쓴 뒤 소켓을
+// 닫기 전에 수신 큐를 비운다(제품 순서는 거절 응답 쓰기 → drain → 닫기이고, 이 시험은 drain 만 부른다).
 // macOS 는 상대 FIN 을 받은 소켓의 쓰기 쪽까지 닫으면 옵션 설정을 `EINVAL` 로 거절하므로, 읽기 기한을
 // 쓰기 쪽을 닫은 뒤에 걸면 비우지 못하고 닫는다. 비웠다면 수신 큐에는 FIN 만 남아 EOF 가 보인다.
+// FIN 도착은 100ms 대기로 가정한다. FIN 이 그보다 늦으면 이 시험은 macOS 에서 고치기 전 순서도
+// 통과시킬 수 있다(놓침 방향의 한계).
 #[cfg(not(target_os = "linux"))]
 #[test]
 fn a_refusal_drains_a_client_that_already_closed_its_write_side() {
