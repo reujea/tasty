@@ -663,10 +663,6 @@ const WIDGET_CALLS: &[(&str, &str)] = &[
         "crates/tasty-ui-widgets/src/rename_popup.rs",
     ),
     (
-        "src/adapters/ui/mouse_capture_menu.rs",
-        "crates/tasty-ui-widgets/src/banner_more_unknown.rs",
-    ),
-    (
         "src/adapters/ui/popup/dag_list.rs",
         "crates/tasty-ui-widgets/src/multi_select.rs",
     ),
