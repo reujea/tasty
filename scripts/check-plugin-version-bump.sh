@@ -266,6 +266,8 @@ read_lock_ids() {  # <scan 파일>
         }
         $1 == "K" && inp {
             if ($2 == "unknown") { fail("[[plugin]] 표에 읽을 수 없는 키가 있다"); next }
+            # id.source 같은 점 구분 키는 배포 파서가 거부한다. 앞의 id 문자열을 잠금 id 로 받지 않는다.
+            if ($2 == "dotted" && $7 == "id") { fail("[[plugin]] 표에 id 로 시작하는 점 구분 키가 있다"); next }
             if ($3 != "id") next
             ids++
             if ($2 != "bare" || $4 != "basic") { fail("id 가 맨 키·기본 문자열이 아니다"); next }
@@ -286,6 +288,8 @@ read_manifest_id() {  # <scan 파일>
         $1 == "H" { top_done = 1; next }
         $1 == "K" && !top_done {
             if ($2 == "unknown") { fail("최상위에 읽을 수 없는 키가 있다"); next }
+            # id 와 id.x 가 함께 있으면 문자열과 표가 같은 키를 정의해 호스트 파서가 거부한다.
+            if ($2 == "dotted" && $7 == "id") { fail("최상위에 id 로 시작하는 점 구분 키가 있다"); next }
             if ($3 != "id") next
             n++
             if ($4 != "basic" && $4 != "literal") { fail("id 가 단순 문자열이 아니다"); next }

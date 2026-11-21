@@ -736,3 +736,26 @@ fn the_scanner_rejects_headers_it_cannot_read_and_keeps_markers_apart() {
         "불 값을 읽지 못했다:\n{out}"
     );
 }
+
+/// 같은 표에 `id` 와 `id.source` 같은 점 구분 키가 함께 있으면 앞의 문자열을 id 로 받지 않는다.
+/// 잠금 파일은 배포 파서가, 매니페스트는 호스트 TOML 파서가 거부하는 입력이다.
+#[test]
+fn an_id_next_to_a_dotted_id_key_is_undecidable() {
+    let (code, text) = judge_with_lock(
+        &format!("schema = 1\n{LOCKED_TABLE}id.source = \"x\"\n"),
+        None,
+    );
+    assert_eq!(code, 2, "잠금 표의 점 구분 id 키를 받았다:\n{text}");
+    assert!(
+        text.contains("[[plugin]] 표에 id 로 시작하는 점 구분 키가 있다"),
+        "잠금 표의 거절 사유가 없다:\n{text}"
+    );
+    let (code, text) = locked_manifest_judgement(
+        "id = \"com.tasty.fixture\"\nid.source = \"x\"\nversion = \"0.1.0\"\n",
+    );
+    assert_eq!(code, 2, "매니페스트의 점 구분 id 키를 받았다:\n{text}");
+    assert!(
+        text.contains("최상위에 id 로 시작하는 점 구분 키가 있다"),
+        "매니페스트의 거절 사유가 없다:\n{text}"
+    );
+}
