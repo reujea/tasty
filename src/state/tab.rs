@@ -7,7 +7,7 @@ use serde_json::Value;
 use tasty_model::TabSwitch;
 
 use super::RequestContext;
-#[cfg(any(feature = "gui", debug_assertions, test))]
+#[cfg(any(feature = "gui", debug_assertions))]
 use crate::core::CoreState;
 
 impl RequestContext {
