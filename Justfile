@@ -69,13 +69,13 @@ dist-windows-arm64:
 
 # 배포 결과와 패키징 중간 파일을 삭제한다.
 dist-clean:
-    rm -rf dist target/debian target/generate-rpm target/AppDir
+    rm -rf dist target/debian target/generate-rpm target/generate-rpm-assets target/AppDir
 
 # Linux 패키징 도구를 설치한다. apt 단계에는 sudo 권한이 필요하다.
 dist-setup-linux:
     #!/bin/bash
     set -euo pipefail
-    sudo apt install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev rpm cpio binutils
+    sudo apt install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev rpm cpio binutils python3
     cargo install cargo-deb cargo-generate-rpm
     if ! command -v linuxdeploy &>/dev/null; then
         mkdir -p "$HOME/.local/bin"

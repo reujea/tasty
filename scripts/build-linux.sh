@@ -19,6 +19,7 @@
 #   cargo install cargo-generate-rpm   # .rpm 패키지 생성 (debug 빌드에선 생략)
 #   rpm, cpio, binutils                # .rpm Requires 생성(/usr/lib/rpm/find-requires)과 산출물 검사.
 #                                      # debug 외 빌드는 없으면 본체 빌드 전에 멈춘다. Ubuntu: sudo apt install rpm cpio binutils
+#   python3 (3.11+, tomllib)           # .rpm 폴더 항목 생성(scripts/lib/rpm_dir_assets.py). debug 외 빌드는 없으면 본체 빌드 전에 멈춘다
 #   linuxdeploy (PATH에 위치)          # .AppImage 생성. 다음 한 번만 실행:
 #     curl -fsSL -o ~/.local/bin/linuxdeploy \
 #       https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$(uname -m).AppImage
@@ -140,6 +141,13 @@ RPM_FIND_REQUIRES=/usr/lib/rpm/find-requires
 # rpm 도구가 없으면 Requires 방식이 빌드 머신마다 달라지지 않도록 오래 걸리는 빌드 전에 멈춘다.
 if [[ "$PROFILE" != "debug" ]]; then
     check_rpm_tools "$RPM_FIND_REQUIRES" || exit 1
+fi
+# rpm이 자기 폴더를 소유하도록 assets에 폴더 항목을 덧붙인다. 생성기의 Python도 본체 빌드 전에 확인한다.
+# shellcheck source=scripts/lib/rpm-dirs.sh
+. "scripts/lib/rpm-dirs.sh"
+RPM_ASSETS_TOML=target/generate-rpm-assets/assets.toml
+if [[ "$PROFILE" != "debug" ]]; then
+    check_rpm_dir_tools || exit 1
 fi
 
 # 빌드 전에 서명 키를 준비해야 대응 공개키가 바이너리에 포함된다.
@@ -263,7 +271,9 @@ if [[ "$PROFILE" != "debug" ]]; then
 
     echo "==> Building .rpm package..."
     # Requires 방식은 여기서 정한다. 인자를 빼면 find-requires가 없는 머신에서 ldd 기반 builtin으로 바뀐다.
-    cargo generate-rpm --profile "$PROFILE" --auto-req find-requires
+    # 폴더 항목은 번들 플러그인 파일에서 정해지므로 스테이징·권한 정리 뒤에 만든다.
+    write_rpm_assets_overwrite Cargo.toml "$RPM_ASSETS_TOML" || exit 1
+    cargo generate-rpm --profile "$PROFILE" --auto-req find-requires --metadata-overwrite "$RPM_ASSETS_TOML"
     rpm_candidates=$(ls -t target/generate-rpm/tasty-*.rpm)
     RPM_SRC=$(head -1 <<<"$rpm_candidates")
     cp "$RPM_SRC" "$DIST_DIR/"
@@ -419,7 +429,14 @@ if [[ -n "$RPM_FILE" ]]; then
         echo "Error: rpm -qpi failed on $RPM_FILE" >&2
         exit 1
     }
-    RPM_LISTING=$(rpm -qpl "$RPM_FILE" 2>/dev/null)
+    # 헤더의 파일 목록에서 일반 파일만 고지·플러그인 대조에 넘긴다. 폴더는 소유 검사로 따로 보고,
+    # 그 밖의 종류(링크 등)는 rpm_regular_files가 거부한다.
+    RPM_ENTRIES=$(rpm_header_entries "$RPM_FILE") || {
+        echo "Error: cannot list the file entries of $RPM_FILE" >&2
+        exit 1
+    }
+    RPM_LISTING=$(rpm_regular_files "$RPM_ENTRIES" "$RPM_FILE") || exit 1
+    verify_rpm_dir_ownership "$RPM_ENTRIES" "$RPM_FILE" "${RPM_OWNED_ROOTS[@]}" || exit 1
     verify_notice_listing "$RPM_LISTING" "/usr/share/licenses/tasty/" "$RPM_FILE" flat || exit 1
     verify_bundled_plugin_listing "$RPM_LISTING" "/usr/lib/tasty/plugins/" "$RPM_FILE" || exit 1
     VERIFY_TMP=$(mktemp -d)

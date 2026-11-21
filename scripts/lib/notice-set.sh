@@ -53,7 +53,7 @@ verify_notice_tree() {
     done <<<"$files"
 }
 
-# 목록의 한 줄이 prefix+경로와 같은지 확인한다. 줄마다 경로 하나여야 하며(tar -t, rpm -qpl,
+# 목록의 한 줄이 prefix+경로와 같은지 확인한다. 줄마다 경로 하나여야 하며(tar -t, rpm 헤더 목록의 일반 파일,
 # dpkg-deb --fsys-tarfile | tar -t), 앞의 "./" 하나만 떼고 줄 전체를 비교한다.
 # 그래서 다른 폴더 아래에 같은 이름이 있어도 통과하지 않는다. 파일 내용 검사는 아니다.
 # flat 모드는 RPM 배치처럼 LICENSES/ 접두를 뺀 이름을 찾는다.

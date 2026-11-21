@@ -105,6 +105,7 @@ assets = [
     { source = "THIRD_PARTY_LICENSES.md", dest = "/usr/share/licenses/tasty/THIRD_PARTY_LICENSES.md", mode = "644" },
     { source = "LICENSES/*", dest = "/usr/share/licenses/tasty/", mode = "644" },
     # 번들 플러그인: deb와 같은 원본 폴더를 통째로 싣는다. 권한은 파일 권한을 따른다.
+    # 이 표는 파일만 싣는다. 폴더 항목은 scripts/build-linux.sh가 scripts/lib/rpm_dir_assets.py로 덧붙인다.
     { source = "target/bundled-plugins/**/*", dest = "/usr/lib/tasty/plugins/" },
 ]
 

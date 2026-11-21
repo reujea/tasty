@@ -610,7 +610,9 @@ fn build_linux_pins_the_requires_generator_before_building() {
         .expect("build-linux.sh");
     assert!(src.contains("RPM_FIND_REQUIRES=/usr/lib/rpm/find-requires\n"));
     assert!(
-        src.contains("cargo generate-rpm --profile \"$PROFILE\" --auto-req find-requires\n"),
+        src.contains(
+            "cargo generate-rpm --profile \"$PROFILE\" --auto-req find-requires --metadata-overwrite \"$RPM_ASSETS_TOML\"\n"
+        ),
         "rpm Requires 방식은 저장소가 정한다"
     );
     let check = "    check_rpm_tools \"$RPM_FIND_REQUIRES\" || exit 1\n";

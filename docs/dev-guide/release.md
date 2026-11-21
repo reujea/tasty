@@ -227,7 +227,7 @@ Windows 호스트(x64)에는 러너가 둘 있다.
 
 ```bash
 # Linux (x64/arm64 공통)
-sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev rpm cpio binutils
+sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev rpm cpio binutils python3
 cargo install cargo-deb cargo-generate-rpm
 mkdir -p ~/.local/bin
 curl -fsSL -o ~/.local/bin/linuxdeploy \
@@ -237,7 +237,7 @@ which cargo-deb cargo-generate-rpm linuxdeploy   # 검증
 ls -l /usr/lib/rpm/find-requires                 # rpm Requires 생성기(rpm 패키지)
 ```
 
-rpm 의 자동 Requires 는 `scripts/build-linux.sh` 가 `cargo generate-rpm --auto-req find-requires` 로 만든다. 이 모드는 대체 경로가 없어서 두 Linux 러너(x64 `tasty-server-x64`, ARM64 `tasty-gx10-arm64`) 모두에 `rpm` 패키지(`/usr/lib/rpm/find-requires`, `rpm2cpio`)와 `cpio`·`binutils`가 있어야 한다. 없으면 build-linux.sh 가 본체 빌드 전에 멈춘다. 두 러너는 Ubuntu 24.04 의 rpm 4.18.2 를 쓴다. 빌드 스크립트의 Requires 대조가 따르는 elfdeps 규칙도 이 버전 기준이다([빌드](build.md#linux)).
+rpm 의 자동 Requires 는 `scripts/build-linux.sh` 가 `cargo generate-rpm --auto-req find-requires` 로 만든다. 이 모드는 대체 경로가 없어서 두 Linux 러너(x64 `tasty-server-x64`, ARM64 `tasty-gx10-arm64`) 모두에 `rpm` 패키지(`/usr/lib/rpm/find-requires`, `rpm2cpio`)와 `cpio`·`binutils`, rpm 폴더 항목 생성에 쓰는 Python 3.11 이상(`tomllib`, Ubuntu 24.04 기본 3.12)이 있어야 한다. 없으면 build-linux.sh 가 본체 빌드 전에 멈춘다. 두 러너는 Ubuntu 24.04 의 rpm 4.18.2 를 쓴다. 빌드 스크립트의 Requires 대조가 따르는 elfdeps 규칙도 이 버전 기준이다([빌드](build.md#linux)).
 
 ```powershell
 # Windows

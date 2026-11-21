@@ -223,13 +223,13 @@ dist 스크립트는 플러그인을 빌드하지 않는다. 서명 키를 준�
 | 패키지 | plugin 폴더 | 목록의 원천 | 대조 |
 |---|---|---|---|
 | Linux `.tar.gz`·헤드리스 `.tar.gz` | `plugins/` | 스테이징 폴더 복사 | 목록의 파일 집합, 푼 트리의 바이트 |
-| Linux `.deb`·`.rpm` | `/usr/lib/tasty/plugins/` | `Cargo.toml` assets의 `target/bundled-plugins/**/*` glob 하나 | 패키지 목록의 파일 집합. rpm은 payload를 풀어 파일 내용까지 대조한다 |
+| Linux `.deb`·`.rpm` | `/usr/lib/tasty/plugins/` | `Cargo.toml` assets의 `target/bundled-plugins/**/*` glob 하나. rpm은 `build-linux.sh`가 그 파일들의 조상 폴더 항목을 덧붙인다 | 패키지 목록의 파일 집합. rpm은 헤더 목록의 일반 파일로 비교하고 payload를 풀어 파일 내용까지 대조하며 폴더 소유도 확인한다 |
 | Linux `.AppImage` | `usr/bin/plugins/` | 스테이징 폴더 복사 | linuxdeploy에 넘긴 AppDir의 바이트 |
 | macOS `Tasty.app`·`.dmg`·헤드리스 `.tar.gz` | `Contents/Resources/plugins/`, 헤드리스는 `plugins/` | 스테이징 폴더 복사(앱 codesign 전) | 앱·마운트한 DMG·푼 헤드리스 트리의 바이트, 헤드리스 목록의 파일 집합 |
 | Windows `.zip`·헤드리스 `.zip` | `plugins\` | 스테이징 폴더 복사 | 푼 트리의 파일 집합·SHA256 |
 | Windows `.msi` | `bin\plugins\` | 빌드 때 만드는 `target\bundled-plugins.wxs` | 관리 설치(또는 `dark.exe -x`) 트리의 파일 집합·SHA256 |
 
-- deb·rpm assets는 mode를 적지 않아 파일 권한을 그대로 싣는다. `build-linux.sh`가 서명 뒤 실행 권한이 있는 파일은 755, 나머지는 644로 맞춘다. 두 도구는 `--profile <p>`를 받으면 assets의 `target/release/` 접두를 `target/<p>/`로 바꿔 읽고, `target/bundled-plugins`는 그대로 읽는다.
+- deb·rpm assets는 mode를 적지 않아 파일 권한을 그대로 싣는다. rpm의 폴더 항목만 권한 755를 명시한다. `build-linux.sh`가 서명 뒤 실행 권한이 있는 파일은 755, 나머지는 644로 맞춘다. 두 도구는 `--profile <p>`를 받으면 assets의 `target/release/` 접두를 `target/<p>/`로 바꿔 읽고, `target/bundled-plugins`는 그대로 읽는다.
 - MSI fragment는 받은 폴더를 그대로 옮긴 `DirectoryRef Id='PluginsDir'`와 `ComponentGroup Id='BundledPlugins'`다. Directory·Component·File Id는 상대 경로의 SHA-256 앞 24자리라 폴더 구성이 같으면 같다. `wix/main.wxs`는 `Bin` 아래에 빈 `PluginsDir`만 두고 `Binaries` 기능이 그 그룹을 담는다. `cargo wix --include`로 fragment를 넘긴다. doc-guards `wix_takes_bundled_plugins_from_the_generated_group`가 `main.wxs`에 플러그인 파일이 남지 않았는지와 이 연결을 확인한다. 생성 결과는 MSI를 만든 뒤 위 대조가 확인한다.
 - MSI의 루트 인벤토리 검사는 `bin\plugins\` 밖의 `THIRD_PARTY_LICENSES.md`만 센다. PE 검사의 실행 파일 수는 본체 하나와 스테이징 폴더의 `<id>` 폴더 수다.
 - 플러그인 레포가 새 릴리스에서 파일을 더하거나 빼도 패키징 설정은 고치지 않는다. 잠금 파일만 갱신한다([잠금 파일 갱신](#잠금-파일-갱신)).

@@ -29,7 +29,7 @@ fetch_bundled_plugins() {
     fi
 }
 
-# deb·rpm은 assets에 mode를 적지 않고 파일 권한을 그대로 싣는다. umask에 따라 달라지지 않도록
+# deb·rpm은 assets에 mode를 적지 않고 파일 권한을 그대로 싣는다(rpm 폴더 항목은 rpm_dir_assets.py가 755를 명시). umask에 따라 달라지지 않도록
 # 실행 권한이 있는 파일은 755, 나머지 파일은 644, 폴더는 755로 맞춘다.
 normalize_bundled_plugin_modes() {
     find "$BUNDLED_PLUGINS_DIR" -type d -exec chmod 755 {} +
@@ -49,7 +49,7 @@ stage_bundled_plugins() {
     cp -R "$BUNDLED_PLUGINS_DIR/." "$dest/"
 }
 
-# 패키지 목록(tar -t, rpm -qpl, dpkg-deb --fsys-tarfile | tar -t)에서 prefix 아래 파일 집합이
+# 패키지 목록(tar -t, rpm 헤더 목록의 일반 파일, dpkg-deb --fsys-tarfile | tar -t)에서 prefix 아래 파일 집합이
 # 스테이징 폴더와 같은지 본다. 앞의 "./"를 떼고, "/"로 끝나는 폴더 줄은 뺀다. 내용은 비교하지 않는다.
 verify_bundled_plugin_listing() {
     local listing="$1" prefix="$2" label="$3" want got diff
