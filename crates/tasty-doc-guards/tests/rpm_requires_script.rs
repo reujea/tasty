@@ -432,7 +432,12 @@ fn an_extraction_failure_names_the_file() {
 
 #[test]
 fn a_sort_failure_fails_the_expected_set_and_the_comparison() {
-    let (dir, bin) = verify_fixture("rpm-verify-sort", &[("sort", "#!/bin/sh\nexit 2\n")]);
+    // 정렬은 끝내고 비정상 종료한다. 출력이 비면 빈 집합 검사가 대신 잡아 정렬 실패 전달을 재지 못한다.
+    let fake_sort = format!(
+        "#!/bin/sh\n'{}' \"$@\"\nexit 2\n",
+        find_real("sort").display()
+    );
+    let (dir, bin) = verify_fixture("rpm-verify-sort", &[("sort", &fake_sort)]);
     let (rc, _, err) = run(dir.path(), &bin, "rpm_expected_requires payload");
     assert_eq!(rc, 1, "{err}");
     assert!(
