@@ -259,7 +259,7 @@ fn an_osc7_cwd_becomes_the_tab_name() {
             // 제목 본문과 같을 때만 제목을 원인으로 본다.
             let (cwd_seen, titles) = osc_seen(raw);
             let title_caused =
-                cfg!(feature = "gui") && whole && !cwd_seen && titles.iter().any(|t| *t == name);
+                cfg!(feature = "gui") && whole && !cwd_seen && titles.contains(&name);
             let cause = if title_caused {
                 "셸이 제목을 보냈다"
             } else {
