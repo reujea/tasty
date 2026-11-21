@@ -22,6 +22,7 @@
 
 use std::collections::BTreeSet;
 
+use tasty_doc_guards::floored_walk::{CountedOn, Floor, Pick, walk_dirs_with_floor};
 use tasty_doc_guards::official_plugins::{
     LOCK_FILE, Lock, REFRESH_HINT, check, contract_mismatches, parse_lock, read_host_contract,
 };
@@ -54,6 +55,52 @@ fn bundled_ids() -> Vec<String> {
         .filter(|p| p.bundle)
         .map(|p| p.id.clone())
         .collect()
+}
+
+/// `crates/` 바로 아래 디렉터리 순회의 하한. 하한은 방문한 디렉터리 수에 적용한다.
+const CRATES_DIR_FLOOR: Floor = Floor {
+    min: 45,
+    measured: 54,
+    measured_on: "2026-11-21",
+    counted_on: CountedOn::Tree(
+        "8d9f31b1fd — git ls-tree -d --name-only HEAD crates/ 로 센 crates 바로 아래 디렉터리 54개.",
+    ),
+    why_this_gap: "crates 바로 아래 디렉터리만 방문하고 그 아래로는 내려가지 않는다. 크레이트 몇 개를 합치거나 옮겨도 통과하도록 9개 여유를 둔다. 그보다 줄면 루트를 잘못 잡았거나 순회가 실패한 것이므로 재측정한다.",
+};
+
+/// workspace 플러그인 크레이트 가운데 매니페스트가 있고 `bundle = false`를 적지 않은 것의 id.
+/// 배포 스크립트는 잠금 파일의 `bundle = true` 산출물만 싣고 workspace 플러그인은 싣지 않는다.
+fn workspace_ids_claiming_to_ship(root: &std::path::Path) -> BTreeSet<String> {
+    let crates = walk_dirs_with_floor(&root.join("crates"), root, &CRATES_DIR_FLOOR, &|_| {
+        Pick::TakeAndStop
+    })
+    .unwrap_or_else(|why| panic!("{why}"));
+    let mut ids = BTreeSet::new();
+    for krate in crates {
+        let name = krate
+            .path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        if !name.starts_with("tasty-plugin-") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(krate.path.join("tasty-plugin.toml")) else {
+            continue;
+        };
+        let unbundled = text.lines().any(|l| {
+            let t: String = l.chars().filter(|c| !c.is_whitespace()).collect();
+            t == "bundle=false" || t.starts_with("bundle=false#")
+        });
+        if unbundled {
+            continue;
+        }
+        let id = tasty_doc_guards::official_plugins::manifest_top_level_str(&text, "id")
+            .unwrap_or_else(|| panic!("{name}/tasty-plugin.toml에서 id를 읽지 못했다"));
+        ids.insert(id);
+    }
+    ids
 }
 
 fn locked_ids(lock: &Lock) -> BTreeSet<String> {
@@ -391,6 +438,20 @@ fn default_staging_branch(text: &str) -> Option<String> {
     let open = start + lines[start..].iter().position(|l| *l == "else")?;
     let close = open + lines[open..].iter().position(|l| *l == "fi")?;
     Some(lines[open + 1..close].join("\n"))
+}
+
+/// 배포 패키지가 싣는 집합은 잠금 파일의 `bundle = true` 항목이다. workspace 플러그인(mesh-demo)이
+/// `bundle = false`를 잃거나 true로 바꾸면 배포 대상이라고 선언하지만 패키지에는 들어가지 않으므로 실패한다.
+#[test]
+fn the_shipped_set_is_the_bundled_lock_entries() {
+    let bundled: BTreeSet<String> = bundled_ids().into_iter().collect();
+    let mut shipped = bundled.clone();
+    shipped.extend(workspace_ids_claiming_to_ship(&repo_root()));
+    assert_eq!(
+        shipped, bundled,
+        "workspace 플러그인(crates/tasty-plugin-*/tasty-plugin.toml 중 bundle = false가 아닌 것)이 배포 대상이라고 \
+         선언한다. 배포 스크립트는 잠금 파일의 bundle = true 산출물만 싣는다"
+    );
 }
 
 #[test]
