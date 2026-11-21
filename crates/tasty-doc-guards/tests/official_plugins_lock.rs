@@ -132,12 +132,15 @@ fn really_fetches(p: &FetchArgs) -> bool {
 
 /// 임시 루트에 `scripts/fetch-official-plugins.sh` 스텁을 두고 대상 코드를 실제 bash로 실행해, 스텁이 받은
 /// argv를 호출마다 돌려준다. 셸 문법(따옴표, 리다이렉션, 명령 경계, 줄 연속)은 bash가 판정한다.
-/// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고, 대상이 실패하면 기록과 관계없이 시험이 실패한다.
-/// 스텁은 호출마다 파일 하나에 인자를 NUL로 끝맺어 적으므로 빈 인자와 제어 문자도 그대로 남는다.
+/// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고(source와 함수 호출은 운영처럼 따로 선 문장이다),
+/// 대상이 실패하면 기록과 관계없이 시험이 실패한다. 스텁은 호출마다 `mktemp`로 고유한 파일을 잡아 인자를
+/// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다. 스텁은 잠시 뒤 `--out` 폴더에
+/// 완료 표지를 남기고, 하네스는 대상이 끝난 바로 그 시점에 표지를 확인한다. 운영 흐름도 fetch 줄 뒤에 곧바로
+/// 산출물을 쓰므로, 백그라운드로 띄워 끝나기 전에 넘어가는 호출은 실패로 본다.
 /// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
-/// - `package`: `scripts/lib/bundled-plugins.sh`를 source하고 `fetch_bundled_plugins <platform>`을 부른다.
-/// - `staging`: 넘긴 원문(스테이징 기본 분기)을 `root`·`platform`·`stage` 변수와 함께 실행한다. 백그라운드로 띄운
-///   명령도 기록되도록 끝에서 기다린다.
+/// - `package`: `scripts/lib/bundled-plugins.sh`(원문을 넘기면 그 원문)를 source하고 `fetch_bundled_plugins <platform>`을
+///   부른다.
+/// - `staging`: 넘긴 원문(스테이징 기본 분기)을 `root`·`platform`·`stage` 변수와 함께 실행한다.
 #[cfg(unix)]
 fn fetch_argvs(mode: &str, platform: &str, branch: &str) -> Vec<Vec<String>> {
     fetch_run(mode, platform, branch).unwrap_or_else(|why| panic!("{why}"))
@@ -154,23 +157,33 @@ mkdir -p "$root/scripts/lib" "$root/calls"
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
 calls="$(cd "$(dirname "$0")/.." && pwd)/calls"
-n=$(find "$calls" -type f | wc -l)
-printf '%s\0' "$@" > "$calls/$(printf '%06d' "$n")"
+record="$(mktemp "$calls/call.XXXXXX")"
+printf '%s\0' "$@" > "$record"
+out=""
 while [ $# -gt 0 ]; do
-    if [ "$1" = --out ] && [ $# -ge 2 ]; then mkdir -p "$2"; fi
+    if [ "$1" = --out ] && [ $# -ge 2 ]; then out="$2"; fi
     shift
 done
+if [ -n "$out" ]; then mkdir -p "$out"; fi
+sleep 0.3
+if [ -n "$out" ] && [ -d "$out" ]; then : > "$out/.fetched"; fi
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
 rc=0
 case "$mode" in
     package)
-        cp "$repo/scripts/lib/bundled-plugins.sh" "$root/scripts/lib/"
-        (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh && fetch_bundled_plugins "$1"' run "$platform") > /dev/null 2>&1 || rc=$?
+        if [ -n "$branch" ]; then
+            printf '%s\n' "$branch" > "$root/scripts/lib/bundled-plugins.sh"
+        else
+            cp "$repo/scripts/lib/bundled-plugins.sh" "$root/scripts/lib/"
+        fi
+        (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
+fetch_bundled_plugins "$1"
+[ -f target/bundled-plugins/.fetched ]' run "$platform") > /dev/null 2>&1 || rc=$?
         ;;
     staging)
         (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
-wait") > /dev/null 2>&1 || rc=$?
+[ -f \"\$stage/.fetched\" ]") > /dev/null 2>&1 || rc=$?
         ;;
 esac
 printf 'RC=%s\n' "$rc"
@@ -224,7 +237,6 @@ done
 /// 따옴표·백틱·줄 연속이 없는 한 줄이어야 공백으로 나눈 단어가 PowerShell의 인자와 같다. 그 밖의 꼴은
 /// 판정하지 않고 실패한다. 주석 줄과 안내 명령(`Write-Error`·`Write-Host`)의 문자열은 호출이 아니다.
 fn windows_fetch_argv() -> Vec<String> {
-    const CALL: &str = "& $Bash ./scripts/fetch-official-plugins.sh";
     let text = read("scripts/build-windows.ps1");
     let calls: Vec<&str> = text
         .lines()
@@ -240,13 +252,23 @@ fn windows_fetch_argv() -> Vec<String> {
         "scripts/build-windows.ps1 의 fetch 줄이 하나가 아니다: {calls:?}"
     );
     let call = calls[0];
+    windows_call_args(call).unwrap_or_else(|| {
+        panic!(
+            "scripts/build-windows.ps1 의 fetch 줄이 `{WINDOWS_CALL} <인자>` 꼴(앞 세 단어 일치, 따옴표·백틱·주석·명령 구분·호출 연산자 뒤 `&` 없음)이 아니다: {call}"
+        )
+    })
+}
+
+const WINDOWS_CALL: &str = "& $Bash ./scripts/fetch-official-plugins.sh";
+
+/// PowerShell fetch 줄 하나에서 스크립트 경로 뒤 인자를 읽는다. 판독할 수 있는 꼴이 아니면 `None`이다.
+fn windows_call_args(call: &str) -> Option<Vec<String>> {
     let words: Vec<&str> = call.split_whitespace().collect();
-    let head: Vec<&str> = CALL.split(' ').collect();
-    assert!(
-        words.starts_with(&head) && !call.contains(['"', '\'', '`', '#', ';', '|']),
-        "scripts/build-windows.ps1 의 fetch 줄이 `{CALL} <인자>` 꼴(앞 세 단어 일치, 따옴표·백틱·주석·명령 구분 없음)이 아니다: {call}"
-    );
-    words[head.len()..].iter().map(|w| w.to_string()).collect()
+    let head: Vec<&str> = WINDOWS_CALL.split(' ').collect();
+    let readable = words.starts_with(&head)
+        && !call.contains(['"', '\'', '`', '#', ';', '|'])
+        && !words[1..].iter().any(|w| w.contains('&'));
+    readable.then(|| words[head.len()..].iter().map(|w| w.to_string()).collect())
 }
 
 /// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
@@ -375,6 +397,24 @@ fn the_windows_package_fetches_only_bundled_entries() {
     );
 }
 
+#[test]
+fn the_windows_call_reader_rejects_command_separators() {
+    let real = "& $Bash ./scripts/fetch-official-plugins.sh --platform $PluginPlatform --out target/bundled-plugins";
+    assert!(windows_call_args(real).is_some(), "정상 호출 꼴을 거부했다");
+    for bad in [
+        real.replacen(" target/bundled-plugins", " &&", 1),
+        format!("{real} && Write-Host done"),
+        format!("{real} & other"),
+        real.replacen(".sh --platform", ".sh--platform", 1),
+        format!("{real}; other"),
+    ] {
+        assert!(
+            windows_call_args(&bad).is_none(),
+            "판독할 수 없는 꼴을 읽었다: {bad}"
+        );
+    }
+}
+
 /// 하네스가 셸 판정을 bash에 맡기는지: 명령 경계·따옴표·리다이렉션 변이를 bash가 실제로 넘기는 argv로 본다.
 #[cfg(unix)]
 #[test]
@@ -391,7 +431,6 @@ fn the_staging_harness_reads_what_bash_passes() {
     };
     assert!(one(real).all && really_fetches(&one(real)));
     for (what, branch) in [
-        ("뒤 명령의 --all", real.replacen(" --all", " & : --all", 1)),
         (
             "값 자리의 --all",
             real.replacen(" --all", " --cache --all", 1),
@@ -424,6 +463,11 @@ fn the_staging_harness_reads_what_bash_passes() {
     for (what, branch) in [
         ("fetch 앞의 실패", format!("false\n{real}")),
         ("fetch 뒤의 실패", format!("{real}\nexit 1")),
+        (
+            "백그라운드로 띄운 fetch",
+            real.replacen(" --all", " & : --all", 1),
+        ),
+        ("백그라운드로 띄운 정상 fetch", format!("{real} &")),
     ] {
         assert!(
             fetch_run("staging", "linux-x64", &branch).is_err(),
@@ -440,6 +484,56 @@ fn the_staging_harness_reads_what_bash_passes() {
         &format!("printf '%s\\n' 'Run scripts/fetch-official-plugins.sh'\n{real}"),
     );
     assert_eq!(calls.len(), 1, "안내문을 fetch 호출로 셌다: {calls:?}");
+    // 동시에 끝나는 두 호출도 각자 기록된다. 하나가 다른 하나를 덮으면 --all 없는 호출만 남는다.
+    let calls = fetch_argvs(
+        "staging",
+        "linux-x64",
+        &format!("{real} &\n{} &\nwait", real.replacen(" --all", "", 1)),
+    );
+    assert_eq!(
+        calls.len(),
+        2,
+        "동시 호출 두 건을 모두 기록하지 않았다: {calls:?}"
+    );
+    assert_eq!(
+        calls.iter().filter(|c| parse_fetch(c).all).count(),
+        1,
+        "동시 호출 중 --all 호출이 하나가 아니다: {calls:?}"
+    );
+}
+
+/// 배포 하네스는 헬퍼를 운영처럼 따로 선 문장으로 source한다. 헬퍼 최상위의 실패는 fetch 전에 멈춘다.
+#[cfg(unix)]
+#[test]
+fn the_package_harness_stops_on_a_failing_helper() {
+    let helper = read("scripts/lib/bundled-plugins.sh");
+    assert!(
+        fetch_run("package", "linux-x64", &helper).is_ok(),
+        "원문 헬퍼를 넘긴 배포 하네스가 실패했다"
+    );
+    assert!(
+        fetch_run("package", "linux-x64", &format!("false\n{helper}")).is_err(),
+        "헬퍼 최상위의 실패를 통과시켰다"
+    );
+}
+
+/// 기본 분기 추출기는 `--from-checkout` 분기의 호출을 기본 분기 판정에 넣지 않는다.
+#[cfg(unix)]
+#[test]
+fn the_default_branch_reader_ignores_the_checkout_branch() {
+    let real = "    bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\"";
+    let text = format!("if [[ \"$from_checkout\" -eq 1 ]]; then\n{real} --all\nelse\n{real}\nfi\n");
+    let branch = default_staging_branch(&text).expect("기본 분기를 찾지 못했다");
+    let calls = fetch_argvs("staging", "linux-x64", &branch);
+    assert_eq!(
+        calls.len(),
+        1,
+        "기본 분기의 fetch 호출이 하나가 아니다: {calls:?}"
+    );
+    assert!(
+        !parse_fetch(&calls[0]).all,
+        "--from-checkout 분기의 --all 을 기본 분기 판정에 썼다"
+    );
 }
 
 #[test]

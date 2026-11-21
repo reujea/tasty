@@ -286,6 +286,11 @@ lock_unchanged() {
 }
 
 if [[ "$mode" == check ]]; then
+    # 링크인 루트는 어떤 검사로도 따라가지 않는다(CR 검사의 grep -r 도 링크 너머를 연다).
+    if [[ -L "$fixtures" ]]; then
+        echo "Error: the fixture root is a symbolic link: $fixtures_rel" >&2
+        exit 1
+    fi
     if [[ ! -d "$fixtures" ]]; then
         echo "Error: no fixtures in $fixtures_rel. Run --update." >&2
         exit 1

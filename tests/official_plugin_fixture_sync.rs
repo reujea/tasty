@@ -261,15 +261,17 @@ fn check_finds_a_changed_byte_and_a_stale_fixture() {
     fs::remove_file(fixtures.join("com.tasty.alpha")).expect("alpha 링크 지우기");
     fs::rename(&real_alpha, fixtures.join("com.tasty.alpha")).expect("alpha 되돌리기");
 
-    // 픽스처 루트 자체가 링크여도 따라가지 않는다.
+    // 픽스처 루트 자체가 링크여도 따라가지 않는다. 링크 너머에 CR 파일을 두어, CR 검사가 링크를 따라
+    // 읽기 전에 멈추는지도 본다.
     let real_root = root.path.join("real-fixtures");
     fs::rename(&fixtures, &real_root).expect("루트 옮기기");
     std::os::unix::fs::symlink(&real_root, &fixtures).expect("루트 링크");
+    fs::write(real_root.join("com.tasty.alpha/cr.txt"), "a\r\n").expect("CR 파일");
     let (code, text) = root.run(&["--check"]);
     assert_eq!(code, 1, "링크인 픽스처 루트를 따라가 대조했다:\n{text}");
     assert!(
-        text.contains("the fixture root is a symbolic link"),
-        "루트 링크를 말하지 않는다:\n{text}"
+        text.contains("the fixture root is a symbolic link") && !text.contains("CR bytes"),
+        "CR 검사보다 먼저 루트 링크를 말하지 않는다:\n{text}"
     );
 }
 
