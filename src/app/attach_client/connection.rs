@@ -621,9 +621,7 @@ impl App {
         }
     }
 }
-/// 재연결(재동기화 포함) 설치를 마친 mirror 를 View 에 알린다. 옛 연결의 목록 요청은 응답하지
-/// 않으므로 이 mirror 의 탐색기는 새 연결로 다시 읽는다.
-/// 다시 붙었다는 toast 는 없다. 저장 행은 표지가, 에이전트 mirror 는 재연결 자체가 없다.
+
 /// 재연결 설치가 새 전송을 세션에 넘긴다. 옛 전송을 여기서 확정하고 소켓을 닫는다. 옛 전송의 관측 기록과
 /// 그 전송에 정한 멈춤은 새 전송의 몫이 아니라 함께 끝낸다.
 pub(crate) fn adopt_reconnected_transport(
@@ -636,6 +634,9 @@ pub(crate) fn adopt_reconnected_transport(
     sess.state.stop_after_events = None;
 }
 
+/// 재연결(재동기화 포함) 설치를 마친 mirror 를 View 에 알린다. 옛 연결의 목록 요청은 응답하지
+/// 않으므로 이 mirror 의 탐색기는 새 연결로 다시 읽는다.
+/// 다시 붙었다는 toast 는 없다. 저장 행은 표지가, 에이전트 mirror 는 재연결 자체가 없다.
 fn finish_reconnected_view(state: &mut crate::state::MainViewState, local_workspace: u32) {
     state.explorer_views.reload_mirror(local_workspace);
 }
