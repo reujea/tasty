@@ -228,7 +228,7 @@ Linux의 실행 확인과 Windows의 코드·컴파일 확인은 구별한다.
 
 ## 비-목표
 
-- 개별 surface kind 의 렌더/동작 — [concepts/plugins](../../concepts/plugins.md), [plugins/](../../plugins/index.md).
+- 개별 surface kind 의 렌더/동작 — [Surface 종류](../../surfaces/index.md). 번들 플러그인 목록은 [`BUILTINS` 카탈로그](../../plugins/index.md#카탈로그-builtins).
 
 ## 관련
 
