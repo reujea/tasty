@@ -55,11 +55,11 @@ jobs:
         run: rustup component add clippy
 
       # CRLF 정규화 실패는 Rust 컴파일을 막지 않으므로 Clippy는 계속 실행한다.
-      # 기존 warning을 모두 오류로 바꾸지 않고 deny 수준의 오류만 차단한다.
+      # -D warnings로 workspace 멤버의 warn 수준 lint도 오류로 올린다. 경고 0이 통과 조건이다.
       - name: cargo clippy
         if: ${{ !cancelled() }}
         shell: pwsh
-        run: cargo clippy --workspace --all-targets --locked
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       # Windows 전용 분기와 플랫폼 의존 동작을 검사한다.
       # --no-fail-fast로 한 테스트 바이너리가 실패해도 나머지 결과를 수집한다.
@@ -184,9 +184,16 @@ jobs:
         run: bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache
 
       # 기본 feature의 Clippy에서는 제외되는 headless 전용 코드도 검사한다.
+      # -D warnings로 경고도 실패로 본다.
       - name: cargo clippy (headless)
         if: ${{ !cancelled() }}
-        run: cargo clippy --workspace --all-targets --no-default-features --locked
+        run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
+
+      # Linux에서만 컴파일되는 gui 코드는 Windows와 headless Clippy 어디에도 보이지 않는다.
+      # 기본 feature로 같은 기준(-D warnings)을 적용한다. 컴파일 검사이며 시험은 실행하지 않는다.
+      - name: cargo clippy (linux, gui)
+        if: ${{ !cancelled() }}
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       # Linux의 GUI 개발 빌드를 컴파일하고 단위 테스트를 실행한다.
       # release 검사와는 debug_assertions 조건이 다르며 통합 테스트는 포함하지 않는다.
