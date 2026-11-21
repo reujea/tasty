@@ -134,10 +134,12 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// argv를 호출마다 돌려준다. 셸 문법(따옴표, 리다이렉션, 명령 경계, 줄 연속)은 bash가 판정한다.
 /// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고(source와 함수 호출은 운영처럼 따로 선 문장이다),
 /// 대상이 실패하면 기록과 관계없이 시험이 실패한다. 스텁은 호출마다 `mktemp`로 고유한 파일을 잡아 인자를
-/// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다. `&`로 띄운 fetch는 종료 상태가
-/// `set -e`에 닿지 않으므로 시점과 관계없이 실패로 본다. job control이 없는 bash는 비동기 명령의 표준 입력을
-/// /dev/null로 바꾸므로, 스텁은 표준 입력이 하네스가 준 파일인지로 이를 가린다. 하네스는 대상의 출력 파이프가
-/// 닫힐 때까지(그 파이프를 물려받은 자손이 모두 끝날 때까지) 기다린 뒤 기록을 모으므로 늦게 시작한 호출도 남는다.
+/// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다.
+/// 대상은 두 번 돈다. 한 번은 스텁이 성공하고, 한 번은 같은 기록과 산출물 표지를 남긴 뒤 종료 23으로 실패한다.
+/// 두 번째 실행에서 대상이 성공하면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
+/// `|| true`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
+/// 하네스는 stdout·stderr와 따로 둔 fd 9 파이프가 닫힐 때까지(그 fd를 물려받은 자손이 모두 끝날 때까지)
+/// 기다린 뒤 기록을 모으므로, 출력을 돌린 채 늦게 시작한 호출도 남는다. fd 9를 직접 닫은 자손은 기다리지 못한다.
 /// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
 /// - `package`: `scripts/lib/bundled-plugins.sh`(원문을 넘기면 그 원문)를 source하고 `fetch_bundled_plugins <platform>`을
 ///   부른다.
@@ -147,28 +149,50 @@ fn fetch_argvs(mode: &str, platform: &str, branch: &str) -> Vec<Vec<String>> {
     fetch_run(mode, platform, branch).unwrap_or_else(|why| panic!("{why}"))
 }
 
-/// `fetch_argvs`와 같고, 대상이 운영 셸 옵션에서 실패하면 `Err`를 돌려준다.
+/// `fetch_argvs`와 같고, 대상이 운영 셸 옵션에서 실패하거나 fetch 실패에도 성공하면 `Err`를 돌려준다.
 #[cfg(unix)]
 fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>>, String> {
+    let (rc, calls) = fetch_collect(mode, platform, branch, false);
+    if rc != "0" {
+        return Err(format!(
+            "{mode} ({platform}) 대상이 운영 셸 옵션에서 실패했다(RC={rc}): {calls:?}"
+        ));
+    }
+    let (rc, failed) = fetch_collect(mode, platform, branch, true);
+    if rc == "0" {
+        return Err(format!(
+            "{mode} ({platform}) 대상이 fetch 실패에도 성공했다(실패를 전파하지 않는 호출): {failed:?}"
+        ));
+    }
+    Ok(calls)
+}
+
+/// 하네스를 한 번 돌려 대상의 종료 상태와 스텁이 받은 argv를 돌려준다. `fail`이면 스텁이 기록 뒤 종료 23이다.
+#[cfg(unix)]
+fn fetch_collect(
+    mode: &str,
+    platform: &str,
+    branch: &str,
+    fail: bool,
+) -> (String, Vec<Vec<String>>) {
     const HARNESS: &str = r#"set -eu
-repo="$1"; mode="$2"; platform="$3"; branch="$4"
+repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
-mkdir -p "$root/scripts/lib" "$root/calls" "$root/bg"
-: > "$root/stdin"
+mkdir -p "$root/scripts/lib" "$root/calls"
+if [ "$fail" = 1 ]; then : > "$root/fail"; fi
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
 top="$(cd "$(dirname "$0")/.." && pwd)"
 record="$(mktemp "$top/calls/call.XXXXXX")"
 printf '%s\0' "$@" > "$record"
-# job control이 없는 bash는 `&`로 띄운 명령의 표준 입력을 /dev/null로 바꾼다.
-if ! [ /dev/stdin -ef "$top/stdin" ]; then : > "$top/bg/$(basename "$record")"; fi
 out=""
 while [ $# -gt 0 ]; do
     if [ "$1" = --out ] && [ $# -ge 2 ]; then out="$2"; fi
     shift
 done
 if [ -n "$out" ]; then mkdir -p "$out" && : > "$out/.fetched"; fi
+if [ -e "$top/fail" ]; then exit 23; fi
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
 rc=0
@@ -181,16 +205,15 @@ case "$mode" in
         fi
         (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
 fetch_bundled_plugins "$1"
-[ -f target/bundled-plugins/.fetched ]' run "$platform") < "$root/stdin" 2>&1 | cat > /dev/null
+[ -f target/bundled-plugins/.fetched ]' run "$platform") 9>&1 > /dev/null 2>&1 | cat > /dev/null
         rc=${PIPESTATUS[0]}
         ;;
     staging)
         (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
-[ -f \"\$stage/.fetched\" ]") < "$root/stdin" 2>&1 | cat > /dev/null
+[ -f \"\$stage/.fetched\" ]") 9>&1 > /dev/null 2>&1 | cat > /dev/null
         rc=${PIPESTATUS[0]}
         ;;
 esac
-if [ -n "$(ls -A "$root/bg")" ]; then rc=background; fi
 printf 'RC=%s\n' "$rc"
 for f in "$root/calls"/*; do
     [ -f "$f" ] || continue
@@ -202,7 +225,7 @@ done
     let out = std::process::Command::new("bash")
         .args(["-c", HARNESS, "harness"])
         .arg(repo_root())
-        .args([mode, platform, branch])
+        .args([mode, platform, branch, if fail { "1" } else { "0" }])
         .output()
         .expect("bash 하네스를 실행하지 못했다");
     assert!(
@@ -212,11 +235,11 @@ done
     );
     let text = String::from_utf8(out.stdout).expect("하네스 출력이 UTF-8이 아니다");
     let mut lines = text.lines();
-    if lines.next() != Some("RC=0") {
-        return Err(format!(
-            "{mode} ({platform}) 대상이 운영 셸 옵션에서 실패했다:\n{text}"
-        ));
-    }
+    let rc = lines
+        .next()
+        .and_then(|l| l.strip_prefix("RC="))
+        .unwrap_or_else(|| panic!("하네스 출력 형식이 다르다:\n{text}"))
+        .to_string();
     let mut calls = Vec::new();
     while let Some(marker) = lines.next() {
         assert_eq!(marker, "CALL", "하네스 출력 형식이 다르다:\n{text}");
@@ -235,7 +258,7 @@ done
         );
         calls.push(args);
     }
-    Ok(calls)
+    (rc, calls)
 }
 
 /// `scripts/build-windows.ps1`의 fetch 호출 줄. PowerShell은 이 시험 환경에서 실행하지 않으므로 원문을 읽는다.
@@ -489,17 +512,44 @@ fn the_staging_harness_reads_what_bash_passes() {
         &format!("printf '%s\\n' 'Run scripts/fetch-official-plugins.sh'\n{real}"),
     );
     assert_eq!(calls.len(), 1, "안내문을 fetch 호출로 셌다: {calls:?}");
-    // `&`로 띄운 fetch는 끝나는 시점과 관계없이 실패다. 대상이 끝난 뒤 시작하는 호출도 기다려 본다.
+    // 함께 띄운 두 호출은 각자 기록된다(하나가 다른 하나를 덮지 않는다). 그래도 실패를 전파하지 않으므로 거부한다.
     let plain = real.replacen(" --all", "", 1);
+    let together = format!("{real} &\n{plain} &\nwait");
+    let (rc, calls) = fetch_collect("staging", "linux-x64", &together, false);
+    assert_eq!(
+        rc, "0",
+        "함께 띄운 두 호출의 성공 실행이 실패했다: {calls:?}"
+    );
+    assert_eq!(
+        calls.len(),
+        2,
+        "동시 호출 두 건을 모두 기록하지 않았다: {calls:?}"
+    );
+    assert_eq!(
+        calls.iter().filter(|c| parse_fetch(c).all).count(),
+        1,
+        "동시 호출 중 --all 호출이 하나가 아니다: {calls:?}"
+    );
+    // fetch 실패를 전파하지 않는 꼴은 띄운 시점이나 표준 입력과 관계없이 실패다.
     for (what, branch) in [
-        (
-            "함께 띄우고 기다린 두 호출",
-            format!("{real} &\n{plain} &\nwait"),
-        ),
+        ("함께 띄우고 기다린 두 호출", together.clone()),
         (
             "띄운 뒤 끝날 때까지 쉰 호출",
             format!("{real} &\nsleep 0.6"),
         ),
+        (
+            "표준 입력을 넘겨 띄운 호출",
+            format!("exec 3<&0\n{real} <&3 &\nwait"),
+        ),
+        ("실패를 삼킨 호출", format!("{real} || true")),
+    ] {
+        assert!(
+            fetch_run("staging", "linux-x64", &branch).is_err(),
+            "{what}: fetch 실패를 전파하지 않는 분기를 통과시켰다"
+        );
+    }
+    // 대상이 끝난 뒤 시작하는 호출도 fd 9 파이프가 닫힐 때까지 기다려 모은다.
+    for (what, branch) in [
         (
             "정상 호출 뒤 늦게 띄운 호출",
             format!("{real}\n(sleep 0.5; {plain}) &"),
@@ -508,10 +558,16 @@ fn the_staging_harness_reads_what_bash_passes() {
             "손자로 늦게 띄운 호출",
             format!("{real}\n( (sleep 0.5; {plain}) & )"),
         ),
+        (
+            "출력을 모두 돌리고 늦게 띄운 호출",
+            format!("{real}\n(sleep 0.4; {plain}) > /dev/null 2>&1 &"),
+        ),
     ] {
-        assert!(
-            fetch_run("staging", "linux-x64", &branch).is_err(),
-            "{what}: 백그라운드 fetch를 통과시켰다"
+        let (_, calls) = fetch_collect("staging", "linux-x64", &branch, false);
+        assert_eq!(
+            calls.len(),
+            2,
+            "{what}: 늦게 시작한 호출을 모으지 못했다: {calls:?}"
         );
     }
 }
