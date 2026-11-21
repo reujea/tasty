@@ -1132,7 +1132,7 @@ fn each_frame_decision_gives_its_keys_to_one_node_only() {
 /// 두 번째 plugin 팝업. P 와 같은 선언으로 R 에 연다.
 const OTHER_POPUP: u64 = 10;
 
-/// 이번 프레임 plugin 렌더가 `instance`에 보낸 요청의 입력.
+/// 이번 프레임 plugin 렌더가 보낸 모든 plugin 팝업 Popup 요청의 (인스턴스, 입력).
 fn sent_inputs(
     state: &mut RequestContext,
 ) -> Vec<(u64, tasty_plugin_protocol::protocol::RawInputWire)> {
