@@ -53,7 +53,7 @@
 
 ## 공식 플러그인 id 집합
 
-공식 플러그인 id는 잠금 파일 `official-plugins.lock.toml`의 `[[plugin]]`, `crates/tasty-host-plugin/src/builtin.rs`의 `BUILTINS`(windows·not windows 두 벌), `crates/tasty-host-plugin/src/official.rs`의 `OFFICIAL_PLUGIN_IDS`에 있다. `BUILTINS`와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 tasty에 남는 `com.tasty.mesh-demo`를 더한 집합이다. 배포 패키지에 넣는 집합은 잠금 파일의 `bundle = true`다. `fetch-official-plugins.sh`가 잠금 파일에서 고르므로, doc-guards `official_plugins_lock`은 배포 패키지 스크립트가 `--all` 없이, 개발 번들 스크립트가 `--all`로 부르는지 호출 옵션을 본다. 잠금 항목의 `bundle`과 매니페스트의 `bundle`이 같은지는 아래 픽스처 가드가 본다. id 집합 대조(`BUILTINS`·`OFFICIAL_PLUGIN_IDS`)도 `official_plugins_lock`이 하고, 잠금 파일 형식과 갱신 절차는 [플러그인 패키징](plugin-packaging.md#공식-플러그인-잠금-파일)에 있다.
+공식 플러그인 id는 잠금 파일 `official-plugins.lock.toml`의 `[[plugin]]`, `crates/tasty-host-plugin/src/builtin.rs`의 `BUILTINS`(windows·not windows 두 벌), `crates/tasty-host-plugin/src/official.rs`의 `OFFICIAL_PLUGIN_IDS`에 있다. `BUILTINS`와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 tasty에 남는 `com.tasty.mesh-demo`를 더한 집합이다. 배포 패키지에 넣는 집합은 잠금 파일의 `bundle = true`다. `fetch-official-plugins.sh`가 잠금 파일에서 고르므로, doc-guards `official_plugins_lock`은 배포 패키지 스크립트가 `--all` 없이, 개발 번들 스크립트가 `--all`로 부르는지 호출 옵션을 본다. Bash 스크립트는 스텁 fetch를 둔 임시 루트에서 실제 bash로 실행해 받은 인자를 보고(Unix), PowerShell 줄은 원문을 읽는다. 잠금 항목의 `bundle`과 매니페스트의 `bundle`이 같은지는 아래 픽스처 가드가 본다. id 집합 대조(`BUILTINS`·`OFFICIAL_PLUGIN_IDS`)도 `official_plugins_lock`이 하고, 잠금 파일 형식과 갱신 절차는 [플러그인 패키징](plugin-packaging.md#공식-플러그인-잠금-파일)에 있다.
 
 ## 공식 플러그인 호스트 시험 픽스처
 
