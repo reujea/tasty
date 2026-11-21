@@ -46,6 +46,8 @@ pub struct PresetView {
     /// 열려 있는 surface 설정 화면(대상 leaf + draft). `None` 이면 미리보기가 보인다.
     surface_cfg: Option<SurfaceCfg>,
     file_chooser: crate::view::file_chooser::WindowFileChooser,
+    /// 직전 `run_egui` 뒤의 egui 포커스 기록. 다음 프레임 키 주인(W1)을 정한다.
+    key_record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
     pending_browse: Option<crate::adapters::ui::preset::surface_settings::FieldBrowseRequest>,
     pub(crate) toasts: ToastManager,
     /// This window's clipboard: egui widget copies go through the copy door with it.
@@ -87,6 +89,7 @@ impl PresetView {
             selected_node: None,
             surface_cfg: None,
             file_chooser: Default::default(),
+            key_record: Default::default(),
             pending_browse: None,
             toasts: ToastManager::new(),
             pending_presentation: None,
@@ -254,6 +257,10 @@ impl View for PresetView {
             .as_ref()
             .map(KindCatalog::from_registry)
             .unwrap_or_default();
+        // 키 주인은 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
+        let key_owner = self
+            .file_chooser
+            .key_owner(&self.base.gpu.egui_ctx, self.key_record);
         let active_kind = &mut self.active_kind;
         let sel_ws = &mut self.selected_workspace;
         let sel_tab = &mut self.selected_tab;
@@ -268,21 +275,24 @@ impl View for PresetView {
 
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
             reconcile_browse(surface_cfg, chooser, pending_browse, &catalog);
-            chooser.mark_input_owner(ctx);
-            crate::preset_ui::draw_preset_panel(
-                ctx,
-                drafts,
-                active_kind,
-                sel_ws,
-                sel_tab,
-                sel_pane,
-                editing,
-                selected_node,
-                surface_cfg,
-                toasts,
-                &catalog,
-                keybindings,
-            );
+            chooser.put_key_owner(key_owner);
+            // 파일 선택 창이 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다.
+            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, key_owner.is_none(), || {
+                crate::preset_ui::draw_preset_panel(
+                    ctx,
+                    drafts,
+                    active_kind,
+                    sel_ws,
+                    sel_tab,
+                    sel_pane,
+                    editing,
+                    selected_node,
+                    surface_cfg,
+                    toasts,
+                    &catalog,
+                    keybindings,
+                );
+            });
             if let Some(request) = surface_cfg
                 .as_mut()
                 .and_then(SurfaceCfg::take_browse_request)
@@ -314,6 +324,9 @@ impl View for PresetView {
             };
             toasts.draw(ctx, &empty_layout, false);
         });
+        self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
+            &self.base.gpu.egui_ctx,
+        );
 
         if let Some(previous) = &mut self.pending_presentation {
             previous.toolbar.retain_input(&self.base.gpu.egui_ctx);

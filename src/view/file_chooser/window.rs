@@ -1,7 +1,8 @@
 //! 창이 자기 `PopupManager`에 연 파일 피커 정의의 인스턴스와 그 결과 보관.
 use super::{FileChooserMode, FileChooserOutcome, LocalFileChooser};
 use crate::adapters::ui::popup::file_picker::{FILE_PICKER_POPUP_ID, report_hidden_crumbs_menu};
-use crate::adapters::ui::popup::{PopupManager, defs};
+use crate::adapters::ui::popup::window_keys::WindowFocusRecord;
+use crate::adapters::ui::popup::{PopupInstanceId, PopupManager, defs};
 use std::path::PathBuf;
 use tasty_type_geometry::length::LogicalPx;
 
@@ -122,18 +123,22 @@ impl WindowFileChooser {
     pub(crate) fn take_outcome(&mut self, consumer: &'static str) -> Option<FileChooserOutcome> {
         self.chooser.take_outcome(consumer)
     }
-    pub(crate) fn mark_input_owner(&self, ctx: &egui::Context) {
-        ctx.data_mut(|d| {
-            d.insert_temp(
-                egui::Id::new("view_local_file_chooser_open"),
-                self.is_open(),
-            )
-        });
+    /// 이 창의 키 주인(W1). `record`는 직전 `run_egui` 뒤의 포커스 기록이다. 창 `render`가 `run_egui` 전에 한 번 정한다.
+    pub(crate) fn key_owner(
+        &self,
+        ctx: &egui::Context,
+        record: WindowFocusRecord,
+    ) -> Option<PopupInstanceId> {
+        self.popups.window_key_owner(ctx, record)
     }
-}
-pub(crate) fn owns_input(ctx: &egui::Context) -> bool {
-    ctx.data(|d| d.get_temp::<bool>(egui::Id::new("view_local_file_chooser_open")))
-        .unwrap_or(false)
+    /// 이번 패스 관리자에 W1 값을 넣는다. 다시 그리는 패스도 같은 값을 받도록 패스마다 부른다.
+    pub(crate) fn put_key_owner(&mut self, owner: Option<PopupInstanceId>) {
+        self.popups.decide_frame_keys_for(owner);
+    }
+    /// 이번 패스에 받은 키 주인. chooser 그리기보다 앞에서 키를 읽는 창 위젯 판정이 쓴다.
+    pub(crate) fn received_key_owner(&self) -> Option<PopupInstanceId> {
+        self.popups.received_window_key_owner()
+    }
 }
 
 #[cfg(test)]

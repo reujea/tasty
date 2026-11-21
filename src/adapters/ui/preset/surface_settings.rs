@@ -98,11 +98,11 @@ pub(super) fn draw_surface_settings(
 ) -> CfgOutcome {
     // 키는 위젯보다 먼저 읽는다 — Kind 드롭다운이 열려 있을 때의 Esc 는 드롭다운을
     // 닫는 키이지 화면을 닫는 키가 아니고, 그 popup 은 이번 프레임 안에서 닫힌다.
-    let chooser_open = crate::view::file_chooser::owns_input(ui.ctx());
+    // 파일 선택 창이 키 주인이면 창 `render`가 이 화면을 키 없이 그린다(W1).
     let (esc, enter) = ui.input(|i| {
         (
-            !chooser_open && ui.is_enabled() && i.key_pressed(egui::Key::Escape),
-            !chooser_open && ui.is_enabled() && i.key_pressed(egui::Key::Enter),
+            ui.is_enabled() && i.key_pressed(egui::Key::Escape),
+            ui.is_enabled() && i.key_pressed(egui::Key::Enter),
         )
     });
     let popup_open = ui.memory(|m| m.any_popup_open());

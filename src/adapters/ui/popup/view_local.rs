@@ -15,20 +15,20 @@ pub fn drawn_by_view(
 }
 
 impl PopupManager {
-    /// 창의 팝업을 그린다. `content`의 세 번째 인자는 그 인스턴스가 Esc 주인(이 프레임을 시작할 때
-    /// 열린 것 중 맨 위)인지이고, 참을 돌려주면 그리기가 끝난 뒤 그 인스턴스를 닫는다.
+    /// 창의 팝업을 그린다. `content`의 세 번째 인자는 그 인스턴스가 이번 패스 키 주인(창이 넣은 W1 값, 넣지
+    /// 않았으면 포커스 인스턴스)인지이고, 참을 돌려주면 그리기가 끝난 뒤 그 인스턴스를 닫는다.
     /// 이 프레임에 닫힌 팝업(셸에서 닫힘, 콘텐츠가 닫음, 그 밖의 닫기 대기열)의 id를 돌려준다.
     pub fn draw_view_local(
         &mut self,
         ctx: &egui::Context,
         content: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui, bool) -> bool,
     ) -> Vec<PopupId> {
-        let escape_owner = self.escape_owner();
+        let key_owner = self.pass_key_host();
         let mut done = Vec::new();
         let result = self.draw(
             ctx,
             &mut |cx, ui| {
-                if content(cx, ui, Some(cx.instance) == escape_owner) {
+                if content(cx, ui, Some(cx.instance) == key_owner) {
                     done.push(cx.instance);
                 }
             },
@@ -42,10 +42,5 @@ impl PopupManager {
         let mut closed = result.closed;
         closed.extend(self.take_closed_ids());
         closed
-    }
-
-    /// Esc를 받을 인스턴스. 열린 것 중 z 순서가 가장 위인 것이다.
-    pub fn escape_owner(&self) -> Option<super::PopupInstanceId> {
-        self.topmost_visible_open(None).map(|(_, iid, _)| iid)
     }
 }

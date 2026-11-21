@@ -293,6 +293,25 @@ impl PopupManager {
         keys
     }
 
+    /// 별도 창이 정한 이번 패스 키 주인(W1)을 받은 그대로 남긴다. 다시 읽지 않는다. 별도 창에는 묶인 값이 없으므로
+    /// 패스 몫은 꺼내 버린다. 다시 그리는 패스마다 창이 같은 값으로 다시 부른다.
+    pub(crate) fn decide_frame_keys_for(&mut self, host: Option<PopupInstanceId>) {
+        drop(self.take_pass_segment());
+        self.keys.frame_escape = HandedEscape::default();
+        self.keys.frame = Some(FrameKeys {
+            owner: host.map(|_| PopupKeyOwner::Host),
+            host,
+        });
+    }
+
+    /// 이번 패스 그리기가 키를 줄 host 인스턴스. 넣은 값이 없으면 `take_frame_keys`의 대신 정하기와 같은 값이다.
+    pub(super) fn pass_key_host(&self) -> Option<PopupInstanceId> {
+        match self.keys.frame {
+            Some(keys) => keys.host,
+            None => self.host_key_owner().map(|p| p.instance),
+        }
+    }
+
     /// 이번 패스의 몫(결속·넘길 Esc)을 꺼낸다. 끊은 뒤 첫 몫이 다음 패스의 몫이 된다. 이번 몫이 egui 입력 큐에서
     /// 빠졌으므로 남은 몫의 자리와 넘길 Esc 의 자리를 그만큼 앞당긴다.
     fn take_pass_segment(&mut self) -> (Option<Bound>, HandedEscape) {

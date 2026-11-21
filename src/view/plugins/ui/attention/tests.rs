@@ -213,7 +213,12 @@ fn window_step(
         events,
         ..Default::default()
     };
+    let owner = ui_state.folder_chooser.key_owner(
+        ctx,
+        crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
+    );
     ctx.run(raw, |ctx| {
+        ui_state.folder_chooser.put_key_owner(owner);
         crate::plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions);
     })
 }
@@ -350,7 +355,12 @@ fn esc_and_selection_are_ignored_while_removing() {
         events: vec![escape()],
         ..Default::default()
     };
+    let owner = ui_state.folder_chooser.key_owner(
+        &ctx,
+        crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
+    );
     drop(ctx.run(raw, |ctx| {
+        ui_state.folder_chooser.put_key_owner(owner);
         crate::plugins_ui::draw_plugins_panel(ctx, &snapshot, &mut ui_state, &mut actions);
         left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     }));

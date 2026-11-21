@@ -480,6 +480,23 @@ impl SettingsUiState {
         }
     }
 
+    /// 설정 창의 키 주인(W1). `record`는 직전 `run_egui` 뒤의 포커스 기록이다. `render`가 `run_egui` 전에 한 번 정한다.
+    pub(crate) fn window_key_owner(
+        &self,
+        ctx: &egui::Context,
+        record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
+    ) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
+        self.popups.window_key_owner(ctx, record)
+    }
+
+    /// 이번 패스 관리자에 W1 값을 넣는다. 다시 그리는 패스도 같은 값을 받도록 패스마다 부른다.
+    pub(crate) fn put_window_key_owner(
+        &mut self,
+        owner: Option<crate::adapters::ui::popup::PopupInstanceId>,
+    ) {
+        self.popups.decide_frame_keys_for(owner);
+    }
+
     /// 설정 창 안에서 로컬 파일 선택 popup 을 연다. 결과는 `consumer` 키로
     /// `file_chooser.take_outcome` 해 가져간다. 이미 열려 있던 선택은 취소로 끝난다.
     ///
@@ -657,193 +674,197 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     let th = crate::theme::theme();
     let sep = egui::Stroke::new(th.border_width.value(), th.border_strong().to_egui());
 
-    egui::CentralPanel::default()
-        .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))
-        .show(ctx, |ui| {
-            // ── L1 헤더 밴드 (디자인 header height44 / bg-sidebar / border-bottom) ──
-            let header = egui::TopBottomPanel::top("settings_header")
-                .exact_height(SETTINGS_HEADER_HEIGHT.value())
-                .resizable(false)
-                .show_separator_line(false)
-                .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))
-                .show_inside(ui, |ui| draw_l1_tab_band(ui, &th, ui_state));
-            let hr = header.response.rect;
-            ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, sep);
+    // 팝업이 키 주인(W1)이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 팝업 그리기 전에 돌려놓는다.
+    let window_takes_keys = ui_state.popups.received_window_key_owner().is_none();
+    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))
+            .show(ctx, |ui| {
+                // ── L1 헤더 밴드 (디자인 header height44 / bg-sidebar / border-bottom) ──
+                let header = egui::TopBottomPanel::top("settings_header")
+                    .exact_height(SETTINGS_HEADER_HEIGHT.value())
+                    .resizable(false)
+                    .show_separator_line(false)
+                    .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))
+                    .show_inside(ui, |ui| draw_l1_tab_band(ui, &th, ui_state));
+                let hr = header.response.rect;
+                ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, sep);
 
-            // ── L2 영속 사이드바 (디자인 width200 / bg-sidebar / border-right) ──
-            let sections = build_l2_sections(ui_state);
-            let l2_placeholder = if ui_state.active_tab == SettingsTab::Plugins {
-                t("settings.filter.plugins")
-            } else {
-                t("settings.filter.sections")
-            };
-            let side = egui::SidePanel::left("settings_l2_sidebar")
-                .exact_width(SETTINGS_SIDEBAR_WIDTH.value())
-                .resizable(false)
-                .show_separator_line(false)
-                .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))
-                .show_inside(ui, |ui| {
-                    draw_l2_sidebar(ui, &th, &sections, &mut ui_state.l2_filter, l2_placeholder)
-                });
-            let sr = side.response.rect;
-            // SidePanel response.rect 은 exact_width 를 넘는 resize handle 영역을
-            // 포함하므로 border 는 left + width 에 그린다 (design-parity-notes).
-            ui.painter().vline(
-                sr.left() + SETTINGS_SIDEBAR_WIDTH.value() - 0.5,
-                sr.y_range(),
-                sep,
-            );
-            if let Some(i) = side.inner {
-                apply_l2_select(ui_state, &sections[i].select);
-            }
+                // ── L2 영속 사이드바 (디자인 width200 / bg-sidebar / border-right) ──
+                let sections = build_l2_sections(ui_state);
+                let l2_placeholder = if ui_state.active_tab == SettingsTab::Plugins {
+                    t("settings.filter.plugins")
+                } else {
+                    t("settings.filter.sections")
+                };
+                let side = egui::SidePanel::left("settings_l2_sidebar")
+                    .exact_width(SETTINGS_SIDEBAR_WIDTH.value())
+                    .resizable(false)
+                    .show_separator_line(false)
+                    .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))
+                    .show_inside(ui, |ui| {
+                        draw_l2_sidebar(ui, &th, &sections, &mut ui_state.l2_filter, l2_placeholder)
+                    });
+                let sr = side.response.rect;
+                // SidePanel response.rect 은 exact_width 를 넘는 resize handle 영역을
+                // 포함하므로 border 는 left + width 에 그린다 (design-parity-notes).
+                ui.painter().vline(
+                    sr.left() + SETTINGS_SIDEBAR_WIDTH.value() - 0.5,
+                    sr.y_range(),
+                    sep,
+                );
+                if let Some(i) = side.inner {
+                    apply_l2_select(ui_state, &sections[i].select);
+                }
 
-            // ── 콘텐츠 컬럼 (스크롤 본문 + 내부 footer) ──
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))
-                .show_inside(ui, |ui| {
-                    // footer (디자인 border-top / justify-flex-end / Cancel ghost + Save primary)
-                    let footer = egui::TopBottomPanel::bottom("settings_footer")
-                        .resizable(false)
-                        .show_separator_line(false)
-                        .frame(
-                            egui::Frame::NONE
-                                .fill(th.bg_panel().to_egui())
-                                .inner_margin(egui::Margin {
-                                    left: SETTINGS_FOOTER_PAD_X,
-                                    right: SETTINGS_FOOTER_PAD_X,
-                                    top: th.spacing_md.value() as i8,
-                                    bottom: th.spacing_md.value() as i8,
-                                }),
-                        )
-                        .show_inside(ui, |ui| {
-                            draw_settings_footer(ui, &th, settings, ui_state, &mut result);
-                        });
-                    let fr = footer.response.rect;
-                    ui.painter().hline(fr.x_range(), fr.top() + 0.5, sep);
+                // ── 콘텐츠 컬럼 (스크롤 본문 + 내부 footer) ──
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))
+                    .show_inside(ui, |ui| {
+                        // footer (디자인 border-top / justify-flex-end / Cancel ghost + Save primary)
+                        let footer = egui::TopBottomPanel::bottom("settings_footer")
+                            .resizable(false)
+                            .show_separator_line(false)
+                            .frame(
+                                egui::Frame::NONE
+                                    .fill(th.bg_panel().to_egui())
+                                    .inner_margin(egui::Margin {
+                                        left: SETTINGS_FOOTER_PAD_X,
+                                        right: SETTINGS_FOOTER_PAD_X,
+                                        top: th.spacing_md.value() as i8,
+                                        bottom: th.spacing_md.value() as i8,
+                                    }),
+                            )
+                            .show_inside(ui, |ui| {
+                                draw_settings_footer(ui, &th, settings, ui_state, &mut result);
+                            });
+                        let fr = footer.response.rect;
+                        ui.painter().hline(fr.x_range(), fr.top() + 0.5, sep);
 
-                    egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE)
-                        .show_inside(ui, |ui| {
-                            let mut draft = ui_state.draft.take().unwrap();
+                        egui::CentralPanel::default()
+                            .frame(egui::Frame::NONE)
+                            .show_inside(ui, |ui| {
+                                let mut draft = ui_state.draft.take().unwrap();
 
-                            // Keybindings › Preset 은 자체 padding + 내부 스크롤을
-                            // 가진 DrillDown 이라 표준 패딩/스크롤 래퍼 밖에서
-                            // full-bleed 로 그린다 (디자인 settings_window.jsx
-                            // `fullBleed`).
-                            let full_bleed = ui_state.active_tab == SettingsTab::Keybindings
-                                && matches!(
-                                    ui_state.keybindings_sub_tab,
-                                    KeybindingsSubTab::Preset | KeybindingsSubTab::ImportExport
-                                );
-                            if full_bleed {
-                                draw_active_content(
-                                    ui,
-                                    &mut draft,
-                                    ui_state,
-                                    captured_double_tap,
-                                    file_format,
-                                    file_handler,
-                                );
-                            } else {
-                                egui::ScrollArea::vertical()
-                                    .auto_shrink([false, false])
-                                    .drag_to_scroll(false)
-                                    .show(ui, |ui| {
-                                        // 자체 레이아웃을 쓰는 full-bleed 화면을 제외한 공통 너비 제한.
-                                        tasty_ui_widgets::settings_content_column(
-                                            ui,
-                                            th.settings_content_max_width(),
-                                            |ui| {
-                                                draw_active_content(
-                                                    ui,
-                                                    &mut draft,
-                                                    ui_state,
-                                                    captured_double_tap,
-                                                    file_format,
-                                                    file_handler,
-                                                );
-                                            },
-                                        );
-                                    });
-                            }
-
-                            // 충돌 감지 시 팝업 열기.
-                            // intent-exempt: `ui_state.popups` 는 settings 윈도우 내부의
-                            // 별도 PopupManager. host Intent 큐(MainViewState.popups) 와 별개 —
-                            // sub-modal 내부 lifecycle 이므로 직접 호출 유지.
-                            // 현재 편집 중인 배율로 크기를 먼저 구한 뒤 popups를 변경한다.
-                            let conflict_size =
-                                if !ui_state.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID) {
-                                    ui_state.pending_binding.as_ref().map(|pending| {
-                                        let zoom = draft.appearance.ui_scale_factor();
-                                        conflict_popup_size(
-                                            ui,
-                                            &th,
-                                            conflict_message_text(pending, &settings.general),
-                                            zoom,
-                                        )
-                                    })
+                                // Keybindings › Preset 은 자체 padding + 내부 스크롤을
+                                // 가진 DrillDown 이라 표준 패딩/스크롤 래퍼 밖에서
+                                // full-bleed 로 그린다 (디자인 settings_window.jsx
+                                // `fullBleed`).
+                                let full_bleed = ui_state.active_tab == SettingsTab::Keybindings
+                                    && matches!(
+                                        ui_state.keybindings_sub_tab,
+                                        KeybindingsSubTab::Preset | KeybindingsSubTab::ImportExport
+                                    );
+                                if full_bleed {
+                                    draw_active_content(
+                                        ui,
+                                        &mut draft,
+                                        ui_state,
+                                        captured_double_tap,
+                                        file_format,
+                                        file_handler,
+                                    );
                                 } else {
-                                    None
-                                };
-                            if let Some(size) = conflict_size {
-                                if let Some(p) =
-                                    ui_state.popups.get_mut(KEYBINDING_CONFLICT_POPUP_ID)
-                                {
-                                    p.set_needed_size(size);
+                                    egui::ScrollArea::vertical()
+                                        .auto_shrink([false, false])
+                                        .drag_to_scroll(false)
+                                        .show(ui, |ui| {
+                                            // 자체 레이아웃을 쓰는 full-bleed 화면을 제외한 공통 너비 제한.
+                                            tasty_ui_widgets::settings_content_column(
+                                                ui,
+                                                th.settings_content_max_width(),
+                                                |ui| {
+                                                    draw_active_content(
+                                                        ui,
+                                                        &mut draft,
+                                                        ui_state,
+                                                        captured_double_tap,
+                                                        file_format,
+                                                        file_handler,
+                                                    );
+                                                },
+                                            );
+                                        });
                                 }
-                                ui_state.popups.open_centered_focused(
-                                    KEYBINDING_CONFLICT_POPUP_ID,
-                                    crate::model::popup_kind::PopupScope::Window,
-                                );
-                            }
 
-                            // 충돌 팝업에서 수락/거부 처리
-                            if ui_state.conflict_accepted {
-                                ui_state.conflict_accepted = false;
-                                if let Some(pending) = ui_state.pending_binding.take() {
-                                    // 충돌 제거: 다른 quick-switch 슬롯이면 그 슬롯을 비우고,
-                                    // 아니면 일반 콤보 필드에서 해당 바인딩 제거.
-                                    if let Some(cb) = pending.conflicting_bare {
-                                        clear_bare_target(&mut draft.keybindings, cb);
+                                // 충돌 감지 시 팝업 열기.
+                                // intent-exempt: `ui_state.popups` 는 settings 윈도우 내부의
+                                // 별도 PopupManager. host Intent 큐(MainViewState.popups) 와 별개 —
+                                // sub-modal 내부 lifecycle 이므로 직접 호출 유지.
+                                // 현재 편집 중인 배율로 크기를 먼저 구한 뒤 popups를 변경한다.
+                                let conflict_size =
+                                    if !ui_state.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID) {
+                                        ui_state.pending_binding.as_ref().map(|pending| {
+                                            let zoom = draft.appearance.ui_scale_factor();
+                                            conflict_popup_size(
+                                                ui,
+                                                &th,
+                                                conflict_message_text(pending, &settings.general),
+                                                zoom,
+                                            )
+                                        })
                                     } else {
-                                        draft.keybindings.remove_binding(
-                                            &pending.conflicting_field,
-                                            pending.conflicting_idx,
-                                        );
+                                        None
+                                    };
+                                if let Some(size) = conflict_size {
+                                    if let Some(p) =
+                                        ui_state.popups.get_mut(KEYBINDING_CONFLICT_POPUP_ID)
+                                    {
+                                        p.set_needed_size(size);
                                     }
-                                    // 타겟 기록: bare-key 슬롯이면 raw 키를 accessor 로,
-                                    // 아니면 일반 콤보 필드에 합성 콤보를 기록.
-                                    if let Some(bt) = pending.bare_target {
-                                        set_bare_target(
-                                            &mut draft.keybindings,
-                                            bt,
-                                            &pending.bare_raw_key,
-                                        );
-                                    } else {
-                                        draft.keybindings.replace_binding_at(
-                                            &pending.target_field,
-                                            pending.target_idx,
-                                            pending.combo,
-                                        );
-                                    }
+                                    ui_state.popups.open_centered_focused(
+                                        KEYBINDING_CONFLICT_POPUP_ID,
+                                        crate::model::popup_kind::PopupScope::Window,
+                                    );
                                 }
-                                // intent-exempt: settings 윈도우 내부 sub-modal close.
-                                ui_state.popups.close(KEYBINDING_CONFLICT_POPUP_ID);
-                            }
-                            if ui_state.conflict_cancelled {
-                                ui_state.conflict_cancelled = false;
-                                ui_state.pending_binding = None;
-                                // intent-exempt: settings 윈도우 내부 sub-modal close.
-                                ui_state.popups.close(KEYBINDING_CONFLICT_POPUP_ID);
-                            }
 
-                            ui_state.draft = Some(draft);
-                        });
-                });
-        });
+                                // 충돌 팝업에서 수락/거부 처리
+                                if ui_state.conflict_accepted {
+                                    ui_state.conflict_accepted = false;
+                                    if let Some(pending) = ui_state.pending_binding.take() {
+                                        // 충돌 제거: 다른 quick-switch 슬롯이면 그 슬롯을 비우고,
+                                        // 아니면 일반 콤보 필드에서 해당 바인딩 제거.
+                                        if let Some(cb) = pending.conflicting_bare {
+                                            clear_bare_target(&mut draft.keybindings, cb);
+                                        } else {
+                                            draft.keybindings.remove_binding(
+                                                &pending.conflicting_field,
+                                                pending.conflicting_idx,
+                                            );
+                                        }
+                                        // 타겟 기록: bare-key 슬롯이면 raw 키를 accessor 로,
+                                        // 아니면 일반 콤보 필드에 합성 콤보를 기록.
+                                        if let Some(bt) = pending.bare_target {
+                                            set_bare_target(
+                                                &mut draft.keybindings,
+                                                bt,
+                                                &pending.bare_raw_key,
+                                            );
+                                        } else {
+                                            draft.keybindings.replace_binding_at(
+                                                &pending.target_field,
+                                                pending.target_idx,
+                                                pending.combo,
+                                            );
+                                        }
+                                    }
+                                    // intent-exempt: settings 윈도우 내부 sub-modal close.
+                                    ui_state.popups.close(KEYBINDING_CONFLICT_POPUP_ID);
+                                }
+                                if ui_state.conflict_cancelled {
+                                    ui_state.conflict_cancelled = false;
+                                    ui_state.pending_binding = None;
+                                    // intent-exempt: settings 윈도우 내부 sub-modal close.
+                                    ui_state.popups.close(KEYBINDING_CONFLICT_POPUP_ID);
+                                }
 
-    // Esc와 충돌 팝업의 키는 열린 것 중 맨 위 팝업 하나만 받는다.
+                                ui_state.draft = Some(draft);
+                            });
+                    });
+            });
+    });
+
+    // Esc와 충돌 팝업의 키는 이번 패스 키 주인(W1) 팝업 하나만 받는다.
     let mut conflict_owns_keys = false;
     let closed = {
         let pending = ui_state.pending_binding.clone();
@@ -896,7 +917,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     }
     apply_file_chooser_outcomes(ui_state);
 
-    // 키보드로 충돌 팝업 수락/거부 — 파일 선택이 그 위에 떠 있으면 키는 그쪽 것이다.
+    // 키보드로 충돌 팝업 수락/거부 — 충돌 팝업이 이번 패스 키 주인일 때만 읽는다.
     if conflict_owns_keys {
         ctx.input(|i| {
             if i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Y) {

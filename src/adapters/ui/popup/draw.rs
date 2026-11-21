@@ -952,7 +952,8 @@ impl PopupManager {
         }
     }
 
-    /// 현재 그릴 팝업 중 z가 가장 높은 것을 찾는다. Escape 처리 대상을 정할 때 쓴다.
+    /// 현재 그릴 팝업 중 z가 가장 높은 것을 찾는다. 시험이 z 순서를 본다.
+    #[cfg(test)]
     pub fn topmost_visible_open(
         &self,
         draw_ctx: Option<&LayoutContext>,
@@ -1059,7 +1060,7 @@ impl PopupManager {
 }
 
 /// 팝업 인스턴스의 egui 레이어·Area ID.
-fn area_id_of(popup_id: PopupId, instance: PopupInstanceId) -> egui::Id {
+pub(super) fn area_id_of(popup_id: PopupId, instance: PopupInstanceId) -> egui::Id {
     egui::Id::new("popup").with(popup_id).with(instance.0)
 }
 

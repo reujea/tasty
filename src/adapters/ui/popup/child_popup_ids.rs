@@ -47,6 +47,31 @@ pub(super) fn retain(ctx: &egui::Context, open: impl Fn(PopupInstanceId) -> bool
     });
 }
 
+/// `instance`의 등록 자식(rect 등록부와 이 목록)의 egui popup id. 자식 팝업은 그 id의 Foreground Area로 그려진다.
+pub(super) fn child_layer_ids(ctx: &egui::Context, instance: PopupInstanceId) -> Vec<egui::Id> {
+    let overlay = super::child_overlay_registry_id();
+    ctx.memory(|m| {
+        let rects = m
+            .data
+            .get_temp::<super::ChildOverlayMap>(overlay)
+            .unwrap_or_default();
+        let ids = m
+            .data
+            .get_temp::<ChildPopupIdMap>(registry_id())
+            .unwrap_or_default();
+        rects
+            .into_iter()
+            .filter(|((owner, _), _)| *owner == instance)
+            .map(|(_, (id, _))| id)
+            .chain(
+                ids.into_iter()
+                    .filter(|((owner, _), _)| *owner == instance)
+                    .map(|(_, id)| id),
+            )
+            .collect()
+    })
+}
+
 #[cfg(test)]
 /// 시험이 자식 팝업 id 목록을 본다.
 pub(crate) fn child_popup_ids(

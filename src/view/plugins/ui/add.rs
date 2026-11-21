@@ -83,7 +83,8 @@ fn draw_add_form(
         ui_state.add_in_flight = true;
     }
     // 미인증 판정에서는 Esc 가 Cancel 과 같다. 아무것도 설치하지 않고 경로 입력으로 돌아간다.
-    let esc_cancels = !ui_state.folder_chooser.is_open()
+    // 폴더 선택 창이 키 주인(W1)이면 Esc 는 그 창 것이다.
+    let esc_cancels = ui_state.folder_chooser.received_key_owner().is_none()
         && preview
             .as_ref()
             .is_some_and(|p| p.trust_state.is_unverified())
@@ -493,7 +494,12 @@ mod tests {
                 events: frame.clone(),
                 ..Default::default()
             };
+            let owner = ui_state.folder_chooser.key_owner(
+                &ctx,
+                crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
+            );
             output = Some(ctx.run(raw, |ctx| {
+                ui_state.folder_chooser.put_key_owner(owner);
                 draw_add_tab(ctx, &PluginsSnapshot::default(), ui_state, &mut actions);
             }));
         }
@@ -577,7 +583,8 @@ mod tests {
             active_tab: super::super::PluginsTab::Add,
             add_preview: Some(preview(AddTrustState::Unsigned, false)),
             add_path_input: "/tmp/p".into(),
-            add_focus_pending: true,
+            // Cancel 포커스가 남으면 chooser 가 키 주인이 아니다. 그 장면은 아래 포커스 밖 시험이 맡는다.
+            add_focus_pending: false,
             ..Default::default()
         };
         state.folder_chooser.open(
@@ -588,6 +595,10 @@ mod tests {
         let ctx = egui::Context::default();
         let mut actions = Vec::new();
         let mut frame = |state: &mut PluginsUiState, events| {
+            let owner = state.folder_chooser.key_owner(
+                &ctx,
+                crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
+            );
             drop(ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -598,6 +609,7 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
+                    state.folder_chooser.put_key_owner(owner);
                     super::super::draw_plugins_panel(
                         ctx,
                         &PluginsSnapshot::default(),
@@ -608,6 +620,16 @@ mod tests {
             ));
         };
         frame(&mut state, vec![]);
+        assert!(
+            state
+                .folder_chooser
+                .key_owner(
+                    &ctx,
+                    crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx)
+                )
+                .is_some(),
+            "the chooser owns the keys before the Esc frame"
+        );
         frame(&mut state, key(egui::Key::Escape));
         assert_eq!(
             state.add_path_input, "/tmp/p",
@@ -621,6 +643,101 @@ mod tests {
             "a later Esc keeps the existing unverified-cancel contract"
         );
         assert!(state.add_path_input.is_empty());
+        assert!(actions.is_empty());
+    }
+
+    /// 창 전체를 한 프레임 그린다. 창 `render`처럼 직전 패스 뒤 포커스 기록으로 키 주인을 정해 넣는다.
+    fn window_frame(
+        ctx: &egui::Context,
+        state: &mut PluginsUiState,
+        actions: &mut Vec<PluginsAction>,
+        events: Vec<egui::Event>,
+    ) {
+        let owner = state.folder_chooser.key_owner(
+            ctx,
+            crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
+        );
+        drop(ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(880.0, 760.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                state.folder_chooser.put_key_owner(owner);
+                super::super::draw_plugins_panel(ctx, &PluginsSnapshot::default(), state, actions)
+            },
+        ));
+    }
+
+    /// 미인증 미리보기와 폴더 선택 창이 열린 Add 탭. `focus_cancel`이면 첫 프레임에 Cancel 이 포커스를 받는다.
+    fn preview_with_chooser(directory: &std::path::Path, focus_cancel: bool) -> PluginsUiState {
+        let mut state = PluginsUiState {
+            active_tab: super::super::PluginsTab::Add,
+            add_preview: Some(preview(AddTrustState::Unsigned, false)),
+            add_path_input: "/tmp/p".into(),
+            add_focus_pending: focus_cancel,
+            ..Default::default()
+        };
+        assert!(state.folder_chooser.open(
+            "plugins.add",
+            crate::view::file_chooser::FileChooserMode::Folder,
+            directory.to_str().unwrap(),
+        ));
+        state
+    }
+
+    fn next_owner(
+        ctx: &egui::Context,
+        state: &PluginsUiState,
+    ) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
+        state.folder_chooser.key_owner(
+            ctx,
+            crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
+        )
+    }
+
+    /// Given 폴더 선택 창이 키 주인인 미인증 미리보기, When Esc, Then 미리보기는 취소되지 않는다.
+    #[test]
+    fn preview_ignores_escape_while_the_chooser_owns_keys() {
+        crate::i18n::init("en");
+        let directory = tempfile::tempdir().unwrap();
+        let mut state = preview_with_chooser(directory.path(), false);
+        let ctx = egui::Context::default();
+        let mut actions = Vec::new();
+        window_frame(&ctx, &mut state, &mut actions, vec![]);
+        assert!(
+            next_owner(&ctx, &state).is_some(),
+            "the chooser owns the keys"
+        );
+        window_frame(&ctx, &mut state, &mut actions, key(egui::Key::Escape));
+        assert!(state.add_preview.is_some());
+        assert_eq!(state.add_path_input, "/tmp/p");
+        assert!(actions.is_empty());
+    }
+
+    /// Given 폴더 선택 창이 열리고 Cancel 에 포커스가 남은 미인증 미리보기, When Esc, Then 미리보기가 취소되고 폴더
+    /// 선택 창은 열린 채다.
+    #[test]
+    fn preview_takes_escape_when_focus_is_outside_the_chooser() {
+        crate::i18n::init("en");
+        let directory = tempfile::tempdir().unwrap();
+        let mut state = preview_with_chooser(directory.path(), true);
+        let ctx = egui::Context::default();
+        let mut actions = Vec::new();
+        window_frame(&ctx, &mut state, &mut actions, vec![]);
+        assert_eq!(
+            next_owner(&ctx, &state),
+            None,
+            "the Cancel focus is outside"
+        );
+        window_frame(&ctx, &mut state, &mut actions, key(egui::Key::Escape));
+        assert!(state.add_preview.is_none());
+        assert!(state.add_path_input.is_empty());
+        assert!(state.folder_chooser.is_open());
         assert!(actions.is_empty());
     }
 

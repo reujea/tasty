@@ -18,6 +18,8 @@ pub struct SettingsView {
     pub base: ViewBase,
     pub settings: Settings,
     settings_ui_state: SettingsUiState,
+    /// 직전 `run_egui` 뒤의 egui 포커스 기록. 다음 프레임 키 주인(W1)을 정한다.
+    key_record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
     /// `FileHandler` 탭의 Extension Mapping sub-tab 에서 사용. Save 시 user TOML 에 직접 저장.
     file_format: FileFormatRegistry,
     /// 같은 사용자 TOML의 handler 섹션을 함께 내보내 저장 시 보존한다.
@@ -68,6 +70,7 @@ impl SettingsView {
             opened_settings: settings.clone(),
             settings,
             settings_ui_state: SettingsUiState::new(),
+            key_record: Default::default(),
             file_format,
             file_handler,
             shown: false,
@@ -196,6 +199,10 @@ impl View for SettingsView {
         self.base.begin_frame();
 
         let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
+        // 키 주인은 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
+        let key_owner = self
+            .settings_ui_state
+            .window_key_owner(&self.base.gpu.egui_ctx, self.key_record);
         let mut settings = self.settings.clone();
         let reduced_motion = settings.accessibility.reduced_motion;
         let ui_state = &mut self.settings_ui_state;
@@ -206,6 +213,7 @@ impl View for SettingsView {
         let file_format = self.file_format.clone();
         let file_handler = self.file_handler.clone();
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
+            ui_state.put_window_key_owner(key_owner);
             action = settings_ui::draw_settings_panel(
                 ctx,
                 settings_ui::SettingsPanelCtx {
@@ -230,6 +238,9 @@ impl View for SettingsView {
             };
             toasts.draw(ctx, &empty_layout, reduced_motion);
         });
+        self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
+            &self.base.gpu.egui_ctx,
+        );
 
         self.settings_ui_state.invalidate_edited_export();
         self.settings = settings;

@@ -343,7 +343,9 @@ pub fn draw_plugins_panel(
     // 예약 id 폴더를 지우는 중에는 취소 경로가 없으므로 그 확인으로는 Esc 를 소비하지 않는다.
     let remove_cancellable =
         ui_state.confirm_remove_folder.is_some() && ui_state.removing_folder.is_none();
-    if !ui_state.folder_chooser.is_open()
+    // 폴더 선택 창이 키 주인(W1)이면 Esc 는 그 창 것이다.
+    let window_takes_keys = ui_state.folder_chooser.received_key_owner().is_none();
+    if window_takes_keys
         && (ui_state.confirm_uninstall_id.is_some() || remove_cancellable)
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
     {
@@ -351,92 +353,95 @@ pub fn draw_plugins_panel(
         ui_state.cancel_remove_confirm();
     }
 
-    egui::TopBottomPanel::top("plugins_header")
-        .exact_height(th.plugins_header_height().value())
-        .show(ctx, |ui| {
-            ui.horizontal_centered(|ui| {
-                hspace(ui, th.spacing_md);
-                // 디자인 헤더: plug 아이콘 + 타이틀.
-                // 헤더 장식 accent — `plugins-header-glyph` → `accent-decorative`(peach).
-                ui.add(icons::PLUG.image(
-                    PLUG_HEADER_GLYPH.value(),
-                    egui::Color32::from(th.plugins_header_glyph()),
-                ));
-                hspace(ui, th.spacing_xs);
-                ui.label(
-                    egui::RichText::new(t("plugins.title"))
-                        .size(th.font_size_max.value())
-                        .strong()
-                        .color(egui::Color32::from(th.text_primary())),
-                );
-                hspace(ui, th.spacing_sm);
-                draw_header_divider(ui, &th);
-                hspace(ui, th.spacing_sm);
-
-                // 세그먼트 탭 (Installed N / Attention N / Add plugin).
-                let installed_count = snapshot.plugins.len();
-                if segment_tab(
-                    ui,
-                    &th,
-                    t("plugins.tab_list"),
-                    Some(installed_count),
-                    false,
-                    ui_state.active_tab == PluginsTab::List,
-                ) {
-                    ui_state.active_tab = PluginsTab::List;
-                }
-                hspace(ui, STRUCT_GAP_2);
-                // Attention 탭 — 확인 필요 plugin 개수를 danger 배지로 노출.
-                let attention_count = snapshot.attention.len();
-                if segment_tab(
-                    ui,
-                    &th,
-                    t("plugins.tab_attention"),
-                    Some(attention_count),
-                    true,
-                    ui_state.active_tab == PluginsTab::Attention,
-                ) {
-                    ui_state.active_tab = PluginsTab::Attention;
-                }
-                hspace(ui, STRUCT_GAP_2);
-                if segment_tab(
-                    ui,
-                    &th,
-                    t("plugins.tab_add"),
-                    None,
-                    false,
-                    ui_state.active_tab == PluginsTab::Add,
-                ) {
-                    ui_state.active_tab = PluginsTab::Add;
-                }
-
-                // 우측 클러스터 (오른쪽→왼쪽): X 닫기 → 검색 입력.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    // 폴더 선택 창이 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 그 창을 그리기 전에 돌려놓는다.
+    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
+        egui::TopBottomPanel::top("plugins_header")
+            .exact_height(th.plugins_header_height().value())
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    hspace(ui, th.spacing_md);
+                    // 디자인 헤더: plug 아이콘 + 타이틀.
+                    // 헤더 장식 accent — `plugins-header-glyph` → `accent-decorative`(peach).
+                    ui.add(icons::PLUG.image(
+                        PLUG_HEADER_GLYPH.value(),
+                        egui::Color32::from(th.plugins_header_glyph()),
+                    ));
+                    hspace(ui, th.spacing_xs);
+                    ui.label(
+                        egui::RichText::new(t("plugins.title"))
+                            .size(th.font_size_max.value())
+                            .strong()
+                            .color(egui::Color32::from(th.text_primary())),
+                    );
                     hspace(ui, th.spacing_sm);
-                    if close_icon_button(ui, &th) {
-                        actions.push(PluginsAction::Close);
+                    draw_header_divider(ui, &th);
+                    hspace(ui, th.spacing_sm);
+
+                    // 세그먼트 탭 (Installed N / Attention N / Add plugin).
+                    let installed_count = snapshot.plugins.len();
+                    if segment_tab(
+                        ui,
+                        &th,
+                        t("plugins.tab_list"),
+                        Some(installed_count),
+                        false,
+                        ui_state.active_tab == PluginsTab::List,
+                    ) {
+                        ui_state.active_tab = PluginsTab::List;
                     }
-                    // 검색/필터는 목록이 있는 Installed 탭에서만 동작 (Add 탭은
-                    // 로컬 경로 설치 폼이라 필터 대상 목록이 없다).
-                    if ui_state.active_tab == PluginsTab::List {
+                    hspace(ui, STRUCT_GAP_2);
+                    // Attention 탭 — 확인 필요 plugin 개수를 danger 배지로 노출.
+                    let attention_count = snapshot.attention.len();
+                    if segment_tab(
+                        ui,
+                        &th,
+                        t("plugins.tab_attention"),
+                        Some(attention_count),
+                        true,
+                        ui_state.active_tab == PluginsTab::Attention,
+                    ) {
+                        ui_state.active_tab = PluginsTab::Attention;
+                    }
+                    hspace(ui, STRUCT_GAP_2);
+                    if segment_tab(
+                        ui,
+                        &th,
+                        t("plugins.tab_add"),
+                        None,
+                        false,
+                        ui_state.active_tab == PluginsTab::Add,
+                    ) {
+                        ui_state.active_tab = PluginsTab::Add;
+                    }
+
+                    // 우측 클러스터 (오른쪽→왼쪽): X 닫기 → 검색 입력.
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         hspace(ui, th.spacing_sm);
-                        let edit = egui::TextEdit::singleline(&mut ui_state.filter)
-                            .hint_text(tasty_egui_theme::hint_text(
-                                &th,
-                                t("plugins.filter_placeholder"),
-                            ))
-                            .desired_width(th.field_width_lg.value());
-                        ui.add(edit);
-                    }
+                        if close_icon_button(ui, &th) {
+                            actions.push(PluginsAction::Close);
+                        }
+                        // 검색/필터는 목록이 있는 Installed 탭에서만 동작 (Add 탭은
+                        // 로컬 경로 설치 폼이라 필터 대상 목록이 없다).
+                        if ui_state.active_tab == PluginsTab::List {
+                            hspace(ui, th.spacing_sm);
+                            let edit = egui::TextEdit::singleline(&mut ui_state.filter)
+                                .hint_text(tasty_egui_theme::hint_text(
+                                    &th,
+                                    t("plugins.filter_placeholder"),
+                                ))
+                                .desired_width(th.field_width_lg.value());
+                            ui.add(edit);
+                        }
+                    });
                 });
             });
-        });
 
-    match ui_state.active_tab {
-        PluginsTab::List => draw_list_tab(ctx, snapshot, ui_state, actions),
-        PluginsTab::Attention => draw_attention_tab(ctx, snapshot, ui_state, actions),
-        PluginsTab::Add => draw_add_tab(ctx, snapshot, ui_state, actions),
-    }
+        match ui_state.active_tab {
+            PluginsTab::List => draw_list_tab(ctx, snapshot, ui_state, actions),
+            PluginsTab::Attention => draw_attention_tab(ctx, snapshot, ui_state, actions),
+            PluginsTab::Add => draw_add_tab(ctx, snapshot, ui_state, actions),
+        }
+    });
     ui_state.folder_chooser.draw(ctx);
     add::apply_folder_result(ui_state, snapshot);
 }

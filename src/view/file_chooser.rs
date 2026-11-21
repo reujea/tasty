@@ -9,7 +9,7 @@
 #[cfg(test)]
 mod folder_tests;
 mod window;
-pub(crate) use window::{WindowFileChooser, folder_size, owns_input, register, start_directory};
+pub(crate) use window::{WindowFileChooser, folder_size, register, start_directory};
 
 use crate::adapters::ui::popup::file_picker::save;
 #[cfg(test)]

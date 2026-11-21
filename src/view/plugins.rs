@@ -18,6 +18,8 @@ pub struct PluginsView {
     pub snapshot: PluginsSnapshot,
     pub pending_actions: Vec<PluginsAction>,
     ui_state: PluginsUiState,
+    /// 직전 `run_egui` 뒤의 egui 포커스 기록. 다음 프레임 키 주인(W1)을 정한다.
+    key_record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
     shown: bool,
     should_close: bool,
     pub(crate) toasts: ToastManager,
@@ -38,6 +40,7 @@ impl PluginsView {
             snapshot,
             pending_actions: Vec::new(),
             ui_state: PluginsUiState::default(),
+            key_record: Default::default(),
             shown: false,
             should_close: false,
             toasts: ToastManager::new(),
@@ -107,12 +110,18 @@ impl View for PluginsView {
         self.base.begin_frame();
 
         let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
+        // 키 주인은 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
+        let key_owner = self
+            .ui_state
+            .folder_chooser
+            .key_owner(&self.base.gpu.egui_ctx, self.key_record);
         let snapshot = &self.snapshot;
         let ui_state = &mut self.ui_state;
         let actions = &mut self.pending_actions;
         let toasts = &mut self.toasts;
 
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
+            ui_state.folder_chooser.put_key_owner(key_owner);
             plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions);
 
             let empty_layout = LayoutContext {
@@ -128,6 +137,9 @@ impl View for PluginsView {
             };
             toasts.draw(ctx, &empty_layout, false);
         });
+        self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
+            &self.base.gpu.egui_ctx,
+        );
 
         self.base.finish_egui_frame(full_output);
         if crate::clipboard::copy::copy_egui_text(

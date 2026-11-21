@@ -36,7 +36,13 @@ fn run_window(
         ..Default::default()
     };
     let mut esc_left = false;
+    // 창 `render`처럼 직전 패스 뒤 포커스 기록으로 키 주인을 정해 패스마다 넣는다.
+    let owner = ui_state.folder_chooser.key_owner(
+        ctx,
+        crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
+    );
     drop(ctx.run(raw, |ctx| {
+        ui_state.folder_chooser.put_key_owner(owner);
         draw_plugins_panel(ctx, snapshot, ui_state, actions);
         esc_left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     }));
@@ -132,4 +138,96 @@ fn folder_chooser_owns_escape_before_the_uninstall_confirm() {
     assert!(actions.is_empty());
     run_window(&ctx, &snapshot, &mut state, &mut actions, vec![escape()]);
     assert!(state.confirm_uninstall_id.is_none());
+}
+
+/// 창 전체를 한 프레임 그리고 그 출력을 돌려준다. 키 주인은 `run_window`와 같이 넣는다.
+fn draw_window(
+    ctx: &egui::Context,
+    snapshot: &PluginsSnapshot,
+    ui_state: &mut PluginsUiState,
+    actions: &mut Vec<PluginsAction>,
+) -> egui::FullOutput {
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(720.0, 480.0),
+        )),
+        ..Default::default()
+    };
+    let owner = ui_state.folder_chooser.key_owner(
+        ctx,
+        crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
+    );
+    ctx.run(raw, |ctx| {
+        ui_state.folder_chooser.put_key_owner(owner);
+        draw_plugins_panel(ctx, snapshot, ui_state, actions);
+    })
+}
+
+fn next_owner(
+    ctx: &egui::Context,
+    ui_state: &PluginsUiState,
+) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
+    ui_state.folder_chooser.key_owner(
+        ctx,
+        crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
+    )
+}
+
+fn open_chooser(state: &mut PluginsUiState) {
+    assert!(state.folder_chooser.open(
+        "plugins.add",
+        crate::view::file_chooser::FileChooserMode::Folder,
+        ""
+    ));
+}
+
+/// Given 폴더 선택 창이 키 주인인 제거 확인, When Esc, Then 제거 확인은 Esc 를 보지 않는다.
+#[test]
+fn uninstall_confirm_ignores_escape_while_the_chooser_owns_keys() {
+    crate::i18n::init("en");
+    let (snapshot, mut state) = confirming(PluginsTab::List);
+    let ctx = egui::Context::default();
+    let mut actions = Vec::new();
+    open_chooser(&mut state);
+    run_window(&ctx, &snapshot, &mut state, &mut actions, Vec::new());
+    assert!(
+        next_owner(&ctx, &state).is_some(),
+        "the chooser owns the keys"
+    );
+    run_window(&ctx, &snapshot, &mut state, &mut actions, vec![escape()]);
+    assert_eq!(
+        state.confirm_uninstall_id.as_deref(),
+        Some("com.example.first")
+    );
+    assert!(actions.is_empty());
+}
+
+/// Given 폴더 선택 창이 열리고 패스 시작 포커스가 창의 필터 입력칸, When Esc, Then 제거 확인이 Esc 를 받아 닫히고
+/// 폴더 선택 창은 열린 채다.
+#[test]
+fn uninstall_confirm_takes_escape_when_focus_is_outside_the_chooser() {
+    crate::i18n::init("en");
+    let (snapshot, mut state) = confirming(PluginsTab::List);
+    let ctx = egui::Context::default();
+    let mut actions = Vec::new();
+    open_chooser(&mut state);
+    let out = draw_window(&ctx, &snapshot, &mut state, &mut actions);
+    let filter = crate::adapters::ui::popup::window_keys::focusable_at_text(
+        &ctx,
+        &out,
+        t("plugins.filter_placeholder"),
+        egui::Order::Background,
+    );
+    ctx.memory_mut(|m| m.request_focus(filter));
+    drop(draw_window(&ctx, &snapshot, &mut state, &mut actions));
+    assert_eq!(
+        next_owner(&ctx, &state),
+        None,
+        "the pass starts at the filter"
+    );
+    run_window(&ctx, &snapshot, &mut state, &mut actions, vec![escape()]);
+    assert_eq!(state.confirm_uninstall_id, None);
+    assert!(state.folder_chooser.is_open());
+    assert!(actions.is_empty());
 }

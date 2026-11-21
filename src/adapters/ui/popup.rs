@@ -53,6 +53,7 @@ pub(crate) mod window_input_test_support;
 #[cfg(all(test, feature = "gui"))]
 #[path = "popup/window_key_gate_tests.rs"]
 mod window_key_gate_tests;
+pub(crate) mod window_keys;
 pub use arrange::NoticeColumn;
 pub(crate) use child_popup_ids::report_child_popup_id;
 #[cfg(test)]
