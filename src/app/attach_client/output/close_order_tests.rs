@@ -139,7 +139,9 @@ fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
         let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
         sess.state.saved_row = Some(5);
         sess.state.workspace_close = WorkspaceClose::Pending(3);
-        sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+        sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+            sess.transport.frame_tx.epoch(),
+        ));
         let phase = sess.state.phase;
         assert_eq!(
             route_session_end(&mut sess, phase, true, false),
@@ -171,7 +173,9 @@ fn a_decided_stop_waits_for_deferred_events_and_yields_to_the_close_reply() {
 fn a_stop_decided_for_the_old_transport_does_not_stop_the_new_one() {
     let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
     sess.state.saved_row = Some(5);
-    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+    sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+        sess.transport.frame_tx.epoch(),
+    ));
     let phase = sess.state.phase;
     assert_eq!(
         route_session_end(&mut sess, phase, true, false),
@@ -196,7 +200,9 @@ fn a_stop_of_a_reconnecting_session_does_not_repeat_the_unknown_close() {
     sess.state.saved_row = Some(5);
     sess.state.workspace_close = WorkspaceClose::Pending(3);
     sess.state.phase = SessionState::Reconnecting;
-    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+    sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+        sess.transport.frame_tx.epoch(),
+    ));
 
     assert_eq!(
         route_session_end(&mut sess, SessionState::Reconnecting, false, false),
@@ -310,7 +316,9 @@ fn a_decided_stop_waits_for_a_real_id_reservation_and_the_close_reply_behind_it_
     let mut sess = test_session(ws_id, HashMap::from([(survivor_remote, survivor_local)]));
     sess.state.saved_row = Some(5);
     sess.state.workspace_close = WorkspaceClose::Pending(3);
-    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+    sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+        sess.transport.frame_tx.epoch(),
+    ));
     let tree = serde_json::json!({
         "id": 7, "name": "mirror", "focused_pane": 70,
         "panes": [ {

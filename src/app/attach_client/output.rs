@@ -176,7 +176,7 @@ fn route_session_end(
             .state
             .stop_after_events
             .as_ref()
-            .is_some_and(|epoch| epoch.same(&sess.transport.frame_tx.epoch()))
+            .is_some_and(|stop| stop.is_for(&sess.transport.frame_tx.epoch()))
         {
             if events_deferred {
                 DisconnectDisposition::None
@@ -189,7 +189,10 @@ fn route_session_end(
             sess.state.stop_after_events = None;
             match classify_observed_end(sess, phase) {
                 DisconnectDisposition::Resync if blocked && events_deferred => {
-                    sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+                    sess.state.stop_after_events =
+                        Some(tasty_remote::client_session::DeferredStop::new(
+                            sess.transport.frame_tx.epoch(),
+                        ));
                     DisconnectDisposition::None
                 }
                 DisconnectDisposition::Resync if blocked => DisconnectDisposition::Stop,

@@ -129,7 +129,9 @@ impl App {
                     && session.transport.frame_tx.epoch().same(epoch)
             })
         {
-            session.state.stop_after_events = Some(session.transport.frame_tx.epoch());
+            session.state.stop_after_events = Some(
+                tasty_remote::client_session::DeferredStop::new(session.transport.frame_tx.epoch()),
+            );
         }
     }
 }

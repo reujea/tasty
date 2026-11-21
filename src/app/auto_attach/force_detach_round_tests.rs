@@ -747,7 +747,9 @@ fn a_user_disconnect_ends_the_deferred_stop_and_the_close_wait() {
     {
         let sess = &mut app.remote.sessions[0];
         sess.state.workspace_close = tasty_remote::client_session::WorkspaceClose::Pending(3);
-        sess.state.stop_after_events = Some(sess.transport.frame_tx.epoch());
+        sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+            sess.transport.frame_tx.epoch(),
+        ));
     }
 
     app.disconnect_mirror_workspace(ROW);

@@ -414,7 +414,24 @@ pub struct ClientSessionState {
     /// 관측·설치 단계가 이 세션을 멈추기로 정한 전송(epoch). 옛 전송의 해제와 멈춤은 같은 회차의 이벤트
     /// 적용과 닫기 판정 뒤로 넘긴다. 멈춤은 그 전송의 몫이다. 사용자가 연결을 놓거나 새 전송을 설치하면
     /// 끝나고, 처리 단계는 지금 전송의 멈춤만 적용한다. 처리 단계가 멈출 때 지운다.
-    pub stop_after_events: Option<super::connection::ConnectionEpoch>,
+    pub stop_after_events: Option<DeferredStop>,
+}
+
+/// 관측·설치 단계가 정한 멈춤. 정한 순간의 전송에 묶인다.
+#[derive(Clone)]
+pub struct DeferredStop {
+    pub epoch: super::connection::ConnectionEpoch,
+}
+
+impl DeferredStop {
+    pub fn new(epoch: super::connection::ConnectionEpoch) -> Self {
+        Self { epoch }
+    }
+
+    /// 이 멈춤이 `epoch` 전송의 것인지.
+    pub fn is_for(&self, epoch: &super::connection::ConnectionEpoch) -> bool {
+        self.epoch.same(epoch)
+    }
 }
 
 /// 회차 관측이 기록한 전송의 끝.
