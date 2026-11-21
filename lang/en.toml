@@ -470,7 +470,6 @@ font_search_placeholder = "Search fonts"
 font_no_match = "No matching fonts"
 font_loading = "Loading fonts…"
 font_family_default = "monospace (default)"
-font_override = "Font override"
 
 [settings.appearance.colors]
 focused_heading = "Focused"
@@ -1393,21 +1392,6 @@ trigger_remove = "Remove trigger"
 
 [image_viewer]
 no_image = "No image loaded"
-prev = "Previous image"
-next = "Next image"
-refresh = "Refresh"
-edit = "Edit"
-new_image = "New image"
-save = "Save"
-cancel = "Cancel"
-brush_size = "Brush:"
-color = "Color:"
-new_image_title = "New Image"
-width = "Width:"
-height = "Height:"
-save_path_title = "Save As"
-undo = "Undo"
-redo = "Redo"
 
 [toast]
 font_rejected = "Could not load the font: {}. Using another font."

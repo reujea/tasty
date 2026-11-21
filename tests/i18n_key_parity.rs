@@ -34,11 +34,6 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         &["ko", "ja", "zh-Hans"],
         "MiB is the same binary size unit in all locales",
     ),
-    (
-        "image.state.too_large_size",
-        &["ko", "ja", "zh-Hans"],
-        "숫자 자리와 단위 기호 (× px)",
-    ),
     ("app.name", &["ko", "ja", "zh-Hans"], "제품명"),
     (
         "explorer.kind.markdown",
@@ -49,41 +44,6 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "settings.appearance.subtab.tasty",
         &["ko", "ja", "zh-Hans"],
         "제품명",
-    ),
-    (
-        "settings.subtab.claude",
-        &["ko", "ja", "zh-Hans"],
-        "제품명 (Claude Code)",
-    ),
-    (
-        "settings.subtab.codex",
-        &["ko", "ja", "zh-Hans"],
-        "제품명 (Codex)",
-    ),
-    (
-        "settings.subtab.markdown",
-        &["ko", "ja", "zh-Hans"],
-        "포맷명",
-    ),
-    (
-        "git_viewer.tools_menu_item",
-        &["ko", "ja", "zh-Hans"],
-        "도구명 (Git)",
-    ),
-    (
-        "git_viewer.heading",
-        &["ko", "ja", "zh-Hans"],
-        "도구명 (Git)",
-    ),
-    (
-        "git_viewer.diff_heading",
-        &["ko", "ja"],
-        "개발 도구 관용 표기 (Diff)",
-    ),
-    (
-        "git_viewer.detached",
-        &["ko", "ja"],
-        "git HEAD 상태 토큰 — 명령 출력과 같은 말이어야 한다",
     ),
     (
         "remote_tool.attach_tag_inline",
@@ -151,16 +111,6 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "remote check 결과 행 — 기계 파싱 대상",
     ),
     (
-        "claude.profile.error_prefix",
-        &["ko", "ja"],
-        "에러 접두 식별자 (profile:)",
-    ),
-    (
-        "claude.gate.error_prefix",
-        &["ko", "ja", "zh-Hans"],
-        "에러 접두 식별자 (gate:)",
-    ),
-    (
         "settings.keybindings.subtab.surface",
         &["zh-Hans"],
         "zh-Hans 용어집이 Surface 를 라틴 표기로 유지한다",
@@ -184,16 +134,6 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "surface.restore.tab_title_fallback",
         &["zh-Hans"],
         "zh-Hans 용어집이 Shell 을 라틴 표기로 유지한다",
-    ),
-    (
-        "surface.kind.markdown",
-        &["zh-Hans"],
-        "zh-Hans 용어집이 Markdown 을 라틴 표기로 유지한다",
-    ),
-    (
-        "file_handler.format.markdown",
-        &["zh-Hans"],
-        "zh-Hans 용어집이 Markdown 을 라틴 표기로 유지한다",
     ),
 ];
 
@@ -1081,10 +1021,6 @@ const ORPHAN_KEYS: &[(&str, &str)] = &[
         "소비자 검사에서 사용처를 찾지 못했다. 삭제 전 실제 UI 사용 여부를 확인한다.",
     ),
     (
-        "clipboard_viewer.popup.title",
-        "소비자 검사에서 사용처를 찾지 못했다. 삭제 전 실제 UI 사용 여부를 확인한다.",
-    ),
-    (
         "dialog.error.file_not_found",
         "소비자 검사에서 사용처를 찾지 못했다. 삭제 전 실제 UI 사용 여부를 확인한다.",
     ),
@@ -1123,18 +1059,6 @@ const ORPHAN_KEYS: &[(&str, &str)] = &[
     (
         "explorer.tab.new",
         "호출부 0 — `explorer.tab.close` 와 같은 자리, 같은 사유",
-    ),
-    (
-        "git_viewer.error",
-        "소비자 검사에서 사용처를 찾지 못했다. 삭제 전 실제 UI 사용 여부를 확인한다.",
-    ),
-    (
-        "html.settings.note",
-        "소비자 검사에서 사용처를 찾지 못했다. 삭제 전 실제 UI 사용 여부를 확인한다.",
-    ),
-    (
-        "markdown.addr.no_recent",
-        "소비자 검사에서 사용처를 찾지 못했다. 삭제 전 실제 UI 사용 여부를 확인한다.",
     ),
     (
         "pane_context_menu.new_explorer",
@@ -1239,10 +1163,6 @@ const ORPHAN_KEYS: &[(&str, &str)] = &[
     (
         "settings.terminal.heading",
         "탭 제목을 L2 사이드바가 그리게 되면서 호출부가 사라졌다",
-    ),
-    (
-        "git_viewer.diff_heading",
-        "호출부 0 — 이 파일의 SAME_AS_ENGLISH_ALLOWLIST 가 유일한 언급이다",
     ),
     (
         "toast.copied_files",

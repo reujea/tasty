@@ -18,7 +18,7 @@ src/catalog/chrome_loading.rs	Restoring layout…	boot.phase_restoring_layout
 src/catalog/chrome_loading.rs	Saving layout…	shutdown.phase_saving_layout
 src/catalog/chrome_loading.rs	Stopping plugins…	shutdown.phase_stopping_plugins
 src/catalog/chrome_loading.rs	Use this shell	settings.terminal.shell_confirm
-src/catalog/components/apply_preset.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/apply_preset.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/apply_preset.rs	Pane	preset.tab.pane,settings.keybindings.subtab.pane,tutorial.step_pane_title
 src/catalog/components/apply_preset.rs	Tab	port_scanner.column_tab,preset.tab.tab,settings.keybindings.subtab.tab,tutorial.step_tab_title
 src/catalog/components/apply_preset.rs	Workspace	port_scanner.column_workspace,preset.tab.workspace,settings.keybindings.subtab.workspace,tutorial.step_workspace_title
@@ -28,7 +28,7 @@ src/catalog/components/attach_loading/matrix.rs	mirror	remote_attach.chain_badge
 src/catalog/components/attach_loading/matrix.rs	move	explorer.remote.op_move
 src/catalog/components/attach_loading/matrix.rs	off	settings.file_handler.extension_mapping.off
 src/catalog/components/category_dialogs.rs	Add workspace	workspace_category.add_workspace
-src/catalog/components/category_dialogs.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/category_dialogs.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/category_dialogs.rs	Collapse	sidebar.collapse_button,workspace_category.collapse
 src/catalog/components/category_dialogs.rs	Delete category	workspace_category.delete_category
 src/catalog/components/category_dialogs.rs	Delete category?	workspace_category.delete_confirm_title
@@ -128,7 +128,7 @@ src/catalog/components/explorer_states.rs	This folder is empty	explorer.state.em
 src/catalog/components/explorer_states.rs	You don't have access to read this folder.	explorer.state.no_permission_sub
 src/catalog/components/explorer_states/popups.rs	Add	button.add,explorer.popup.add_favorite.add,settings.terminal.input_add,settings.terminal.mouse_capture_banner_blacklist_add_button,settings.terminal.mouse_capture_blacklist_add_button
 src/catalog/components/explorer_states/popups.rs	Add to favorites	explorer.popup.add_favorite.title
-src/catalog/components/explorer_states/popups.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/explorer_states/popups.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/explorer_states/popups.rs	Name	explorer.column.name,filepicker.column.name,remote_tool.field_name
 src/catalog/components/explorer_states/popups.rs	Path	explorer.props.path
 src/catalog/components/explorer_states/popups.rs	Rename	context_menu.rename_title,explorer.context_menu.rename,explorer.popup.rename.rename,explorer.popup.rename.title,preset.toolbar.rename
@@ -155,7 +155,7 @@ src/catalog/components/file_handler_picker.rs	plugin	file_handler.picker.origin_
 src/catalog/components/file_handler_picker.rs	unknown	remote_tool.filter_unknown
 src/catalog/components/file_handler_picker.rs	yesterday	file_handler.picker.when_yesterday
 src/catalog/components/file_handler_picker/frame.rs	All handlers	file_handler.picker.fallback_heading
-src/catalog/components/file_handler_picker/frame.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/file_handler_picker/frame.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/file_handler_picker/frame.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/components/file_handler_picker/frame.rs	Open file with…	file_handler.picker.header_title
 src/catalog/components/file_handler_picker/frame.rs	Recent	file_handler.picker.recent_heading
@@ -174,26 +174,25 @@ src/catalog/components/file_picker.rs	Retry	explorer.properties.retry,explorer.s
 src/catalog/components/file_picker.rs	disabled	settings.file_handler.common.disabled
 src/catalog/components/file_picker.rs	—	dag.detail.none,port_scanner.external_dash
 src/catalog/components/file_picker/footer.rs	, 	explorer.properties.list_separator
-src/catalog/components/file_picker/footer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/file_picker/footer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/file_picker/footer.rs	File name	filepicker.name_field_label
 src/catalog/components/file_picker/footer.rs	No file selected	filepicker.no_file_selected
 src/catalog/components/file_picker/footer.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/components/file_picker/footer.rs	Overwrite	filepicker.save.overwrite_button,settings.keybindings.conflict_apply
-src/catalog/components/file_picker/footer.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/file_picker/footer.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/file_picker/footer.rs	Type a file name	filepicker.save.name_placeholder
 src/catalog/components/file_picker/footer.rs	{} selected	explorer.status.selected
 src/catalog/components/fullscreen_stage.rs	Notifications	fullscreen.notifications.title,notification_panel.window_title,settings.notifications.heading,settings.tab.notifications
-src/catalog/components/git_viewer.rs	Refresh	explorer.nav.refresh,image_viewer.refresh,port_scanner.refresh
+src/catalog/components/git_viewer.rs	Refresh	explorer.nav.refresh,port_scanner.refresh
 src/catalog/components/html_chrome.rs	Failed to load	webview.error
 src/catalog/components/html_chrome.rs	Loading…	explorer.state.loading,filepicker.loading,loading.generic,webview.loading
 src/catalog/components/html_chrome.rs	No page loaded	webview.no_page
-src/catalog/components/image_viewer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
-src/catalog/components/image_viewer.rs	New Image	image_viewer.new_image_title,pane_context_menu.new_image
+src/catalog/components/image_viewer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/image_viewer.rs	New Image	pane_context_menu.new_image
 src/catalog/components/image_viewer.rs	OK	button.ok
 src/catalog/components/image_viewer.rs	Permission denied	explorer.state.no_permission,filepicker.error_perm.title
 src/catalog/components/image_viewer.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
-src/catalog/components/image_viewer.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
-src/catalog/components/image_viewer.rs	Save As	image_viewer.save_path_title
+src/catalog/components/image_viewer.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/image_viewer.rs	—	dag.detail.none,port_scanner.external_dash
 src/catalog/components/info_modal.rs	Notifications	fullscreen.notifications.title,notification_panel.window_title,settings.notifications.heading,settings.tab.notifications
 src/catalog/components/info_modal.rs	OK	button.ok
@@ -227,7 +226,7 @@ src/catalog/components/kb_import_export/open_values.rs	Read with warnings	settin
 src/catalog/components/kb_import_export/open_values.rs	Try again	remote_attach.try_again,settings.keybindings.ie_export_retry
 src/catalog/components/kb_import_export/remaining_values.rs	Read with warnings	settings.keybindings.ie_notices_title
 src/catalog/components/kb_import_export/remaining_values.rs	Try again	remote_attach.try_again,settings.keybindings.ie_export_retry
-src/catalog/components/markdown_open.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/markdown_open.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/markdown_viewer.rs	Failed to load	webview.error
 src/catalog/components/markdown_viewer.rs	Image	convert_popup.image
 src/catalog/components/markdown_viewer.rs	Loading…	explorer.state.loading,filepicker.loading,loading.generic,webview.loading
@@ -241,7 +240,7 @@ src/catalog/components/md_address.rs	No matching path	explorer.address.empty
 src/catalog/components/md_address.rs	Reload	html_address.reload
 src/catalog/components/md_address.rs	disabled	settings.file_handler.common.disabled
 src/catalog/components/md_address.rs	disconnected	status_bar.remote_disconnected
-src/catalog/components/md_large_file.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/md_large_file.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/md_large_file.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/components/modifier_hint.rs	Apply workspace preset	preset.popup.apply_workspace_title
 src/catalog/components/modifier_hint.rs	Close tab	attach.pending.close_tab,explorer.tab.close
@@ -261,7 +260,7 @@ src/catalog/components/notification_panel.rs	Empty	surface.kind.empty
 src/catalog/components/notification_panel.rs	Error	dag.detail.error
 src/catalog/components/notification_panel.rs	Info	notification_panel.info
 src/catalog/components/notification_panel.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
-src/catalog/components/occupancy_borders.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/occupancy_borders.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/occupancy_borders.rs	Force detach	attach.force_detach
 src/catalog/components/plugin_settings.rs	Dark	settings.appearance.theme.dark
 src/catalog/components/plugin_settings.rs	Light	settings.appearance.theme.light
@@ -270,7 +269,7 @@ src/catalog/components/plugins_window.rs	Attention	plugins.tab_attention
 src/catalog/components/plugins_window.rs	Filter installed…	plugins.filter_placeholder
 src/catalog/components/plugins_window.rs	Installed	plugins.tab_list
 src/catalog/components/plugins_window.rs	Plugins	button.plugins,plugins.title,settings.keybindings.subtab.plugins,settings.tab.plugin
-src/catalog/components/plugins_window/add.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/plugins_window/add.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/plugins_window/add.rs	Find folder…	plugins.add_browse
 src/catalog/components/plugins_window/add.rs	Homepage	plugins.homepage
 src/catalog/components/plugins_window/add.rs	None	plugins.add_none,settings.keybindings.hint_none,settings.keybindings.plugins.mode_none
@@ -322,7 +321,7 @@ src/catalog/components/preset_editor.rs	Terminal	convert_popup.terminal,settings
 src/catalog/components/preset_editor.rs	Workspace	port_scanner.column_workspace,preset.tab.workspace,settings.keybindings.subtab.workspace,tutorial.step_workspace_title
 src/catalog/components/preset_surface_settings.rs	(none)	remote_tool.passkey_none
 src/catalog/components/preset_surface_settings.rs	Browse…	preset.field.browse,settings.remote_transfer.browse,settings.scripts.browse
-src/catalog/components/preset_surface_settings.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/preset_surface_settings.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/preset_surface_settings.rs	Explorer	convert_popup.explorer,settings.appearance.subtab.explorer,settings.keybindings.subtab.explorer,surface.kind.explorer
 src/catalog/components/preset_surface_settings.rs	File	explorer.type.file,menu.macos.file,preset.field.file
 src/catalog/components/preset_surface_settings.rs	Host	remote_tool.field_host
@@ -334,21 +333,21 @@ src/catalog/components/preset_surface_settings.rs	Startup command	preset.edit.st
 src/catalog/components/preset_surface_settings.rs	Terminal	convert_popup.terminal,settings.appearance.subtab.terminal,settings.tab.terminal,settings.terminal.heading,surface.kind.terminal
 src/catalog/components/preset_surface_settings.rs	unsaved	preset.settings.unsaved
 src/catalog/components/preset_view.rs	Done	preset.toolbar.done,tutorial.btn_done
-src/catalog/components/preset_view.rs	Edit	explorer.props.perm.edit,image_viewer.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
+src/catalog/components/preset_view.rs	Edit	explorer.props.perm.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
 src/catalog/components/preset_view.rs	Pane	preset.tab.pane,settings.keybindings.subtab.pane,tutorial.step_pane_title
 src/catalog/components/preset_view.rs	Tab	port_scanner.column_tab,preset.tab.tab,settings.keybindings.subtab.tab,tutorial.step_tab_title
 src/catalog/components/preset_view.rs	Workspace	port_scanner.column_workspace,preset.tab.workspace,settings.keybindings.subtab.workspace,tutorial.step_workspace_title
 src/catalog/components/preset_view.rs	run	command_palette.hint_run
 src/catalog/components/preset_view.rs	{} presets	preset.header.count
 src/catalog/components/prim_autocomplete.rs	No matching path	explorer.address.empty
-src/catalog/components/prim_button.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/prim_button.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/prim_button.rs	Disabled	plugins.disabled
 src/catalog/components/prim_button.rs	Force detach	attach.force_detach
 src/catalog/components/prim_button.rs	Large	settings.appearance.ui_scale_large
 src/catalog/components/prim_button.rs	Medium	settings.appearance.ui_scale_medium
 src/catalog/components/prim_button.rs	New tab	attach.pending.new_tab,explorer.tab.new
 src/catalog/components/prim_button.rs	Open folder	plugins.open_folder
-src/catalog/components/prim_button.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/prim_button.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/prim_button.rs	Small	settings.appearance.ui_scale_small
 src/catalog/components/prim_button.rs	default	file_handler.picker.default_tag
 src/catalog/components/prim_button.rs	disabled	settings.file_handler.common.disabled
@@ -363,14 +362,14 @@ src/catalog/components/prim_drilldown.rs	Active	settings.keybindings.preset_acti
 src/catalog/components/prim_drilldown.rs	Applied	settings.keybindings.preset_applied_button
 src/catalog/components/prim_drilldown.rs	Apply	explorer.props.perm.apply,port_scanner.state_filter_apply,preset.popup.apply_button,remote_tool.filter_apply,settings.file_handler.hook_handlers.seq_apply,settings.keybindings.apply_button
 src/catalog/components/prim_drilldown.rs	Back	explorer.nav.back,html_address.back,settings.keybindings.preset_back,tutorial.btn_back
-src/catalog/components/prim_drilldown.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/prim_drilldown.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/prim_drilldown.rs	Copy	dag.detail.copy,explorer.context_menu.copy_files,explorer.properties.copy,terminal_context_menu.copy,terminal_context_menu.link_copy
 src/catalog/components/prim_drilldown.rs	Current	settings.keybindings.preset_col_before
 src/catalog/components/prim_drilldown.rs	Default	settings.appearance.colors.default
 src/catalog/components/prim_drilldown.rs	Find	explorer.command.find
 src/catalog/components/prim_drilldown.rs	New tab	attach.pending.new_tab,explorer.tab.new
 src/catalog/components/prim_drilldown.rs	Paste	explorer.context_menu.paste
-src/catalog/components/prim_drilldown.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/prim_drilldown.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/prim_drilldown.rs	Tasty stock bindings	settings.keybindings.preset_desc_tasty
 src/catalog/components/prim_drilldown.rs	transition	dag.rel.transition
 src/catalog/components/prim_forms.rs	Alt	settings.general.alt_display_style_alt,settings.terminal.link_modifier_alt
@@ -441,7 +440,7 @@ src/catalog/components/remote.rs	Add attach	remote_tool.attach_add
 src/catalog/components/remote.rs	Add profile	remote_tool.local_ssh_add,remote_tool.profile_add
 src/catalog/components/remote.rs	Apply	explorer.props.perm.apply,port_scanner.state_filter_apply,preset.popup.apply_button,remote_tool.filter_apply,settings.file_handler.hook_handlers.seq_apply,settings.keybindings.apply_button
 src/catalog/components/remote.rs	Attach	remote_tool.tab_attach
-src/catalog/components/remote.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/remote.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/remote.rs	Connection	remote_tool.field_connection
 src/catalog/components/remote.rs	Deselect all	port_scanner.state_filter_deselect_all,remote_tool.filter_deselect_all
 src/catalog/components/remote.rs	Executable	remote_tool.field_executable
@@ -462,7 +461,7 @@ src/catalog/components/remote.rs	Remote connections	remote_tool.heading
 src/catalog/components/remote.rs	Remote profiles	remote_tool.tab_profiles
 src/catalog/components/remote.rs	Reset	remote_tool.filter_reset,settings.appearance.colors.reset,settings.file_handler.extension_mapping.reset,settings.keybindings.plugins.reset_button
 src/catalog/components/remote.rs	SSH profile	remote_tool.attach_mode_ref,remote_tool.field_ssh_ref
-src/catalog/components/remote.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/remote.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/remote.rs	Select all	port_scanner.state_filter_select_all,remote_tool.filter_select_all
 src/catalog/components/remote.rs	Shell	attach.tab_title_fallback,remote_tool.field_shell,surface.restore.tab_title_fallback
 src/catalog/components/remote.rs	User	remote_tool.field_user
@@ -475,7 +474,7 @@ src/catalog/components/remote.rs	profile	remote_tool.attach_tag_profile
 src/catalog/components/remote.rs	unknown	remote_tool.filter_unknown
 src/catalog/components/remote.rs	—	dag.detail.none,port_scanner.external_dash
 src/catalog/components/remote/forms.rs	(none)	remote_tool.passkey_none
-src/catalog/components/remote/forms.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/remote/forms.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/remote/forms.rs	FIELDS	remote_tool.fields_section
 src/catalog/components/remote/forms.rs	Host	remote_tool.field_host
 src/catalog/components/remote/forms.rs	Host is required.	remote_tool.err_host_empty
@@ -486,7 +485,7 @@ src/catalog/components/remote/forms.rs	New passkey	remote_tool.passkey_form_add
 src/catalog/components/remote/forms.rs	New profile	remote_tool.profile_form_add
 src/catalog/components/remote/forms.rs	Passkey	remote_tool.field_passkey
 src/catalog/components/remote/forms.rs	Port	port_scanner.column_port,remote_tool.field_port
-src/catalog/components/remote/forms.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/remote/forms.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/remote/forms.rs	Shell	attach.tab_title_fallback,remote_tool.field_shell,surface.restore.tab_title_fallback
 src/catalog/components/remote/forms.rs	Type	explorer.column.type,remote_tool.field_type
 src/catalog/components/remote/forms.rs	User	remote_tool.field_user
@@ -497,7 +496,7 @@ src/catalog/components/remote/passkeys.rs	Add passkey	remote_tool.passkey_add
 src/catalog/components/remote/passkeys.rs	Unknown kind.	remote_tool.kind_unknown_hint
 src/catalog/components/remote/passkeys.rs	inline	remote_tool.attach_tag_inline
 src/catalog/components/remote/passkeys.rs	{} · {}	dag_list.row_meta
-src/catalog/components/remote_attach.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/remote_attach.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/remote_attach.rs	Connect	remote.row.popup.connect,remote_attach.connect
 src/catalog/components/remote_attach.rs	Create & connect	remote_attach.connect_create
 src/catalog/components/remote_attach.rs	Stop	explorer.find.stop,html_remote.stop,remote_attach.stop
@@ -529,12 +528,12 @@ src/catalog/components/script_manager.rs	Auto-run:	settings.scripts.autorun_labe
 src/catalog/components/script_manager.rs	Scripts	settings.misc.scripts
 src/catalog/components/script_manager.rs	Unbound	settings.scripts.unbound
 src/catalog/components/script_manager.rs	changed	script.confirm.changed_tag,settings.scripts.changed_badge
-src/catalog/components/segmented.rs	Edit	explorer.props.perm.edit,image_viewer.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
+src/catalog/components/segmented.rs	Edit	explorer.props.perm.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
 src/catalog/components/segmented.rs	Preview	settings.appearance.preview_heading
 src/catalog/components/settings.rs	(not found)	settings.general.language_missing_suffix
 src/catalog/components/settings.rs	Appearance	settings.appearance.heading,settings.tab.appearance
 src/catalog/components/settings.rs	Background opacity:	settings.appearance.background_opacity_label
-src/catalog/components/settings.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/settings.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/settings.rs	Colors	settings.appearance.subtab.colors
 src/catalog/components/settings.rs	Default	settings.appearance.colors.default
 src/catalog/components/settings.rs	Filter…	port_scanner.search_placeholder
@@ -545,14 +544,14 @@ src/catalog/components/settings.rs	Keybindings	settings.keybindings.heading,sett
 src/catalog/components/settings.rs	Language:	settings.general.language_label
 src/catalog/components/settings.rs	Ligatures:	settings.appearance.ligatures_label
 src/catalog/components/settings.rs	Plugins	button.plugins,plugins.title,settings.keybindings.subtab.plugins,settings.tab.plugin
-src/catalog/components/settings.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/settings.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/settings.rs	Settings	button.settings,settings.window.title
 src/catalog/components/settings.rs	Terminal	convert_popup.terminal,settings.appearance.subtab.terminal,settings.tab.terminal,settings.terminal.heading,surface.kind.terminal
 src/catalog/components/settings.rs	Theme	settings.appearance.subtab.theme
 src/catalog/components/settings_appearance_colors.rs	Default	settings.appearance.colors.default
 src/catalog/components/settings_appearance_colors.rs	Reset all	settings.appearance.colors.reset_all
 src/catalog/components/settings_appearance_colors.rs	disabled	settings.file_handler.common.disabled
-src/catalog/components/settings_file_handlers.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/settings_file_handlers.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/settings_file_handlers/copy.rs	IPC	settings.file_handler.handlers.action_ipc
 src/catalog/components/settings_file_handlers/copy.rs	Id	settings.file_handler.detectors.field_id
 src/catalog/components/settings_file_handlers/copy.rs	System	settings.file_handler.handlers.action_system
@@ -569,7 +568,7 @@ src/catalog/components/settings_font_override.rs	Unfocused	settings.appearance.c
 src/catalog/components/settings_font_override.rs	Use default	settings.appearance.font.use_default_label,settings.appearance.terminal.use_default
 src/catalog/components/settings_font_rejected.rs	Custom font file	settings.appearance.font.override_custom_font_label
 src/catalog/components/settings_font_rejected.rs	Input	attach.pending.input,settings.terminal.input
-src/catalog/components/settings_font_rejected.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/settings_font_rejected.rs	Save	button.save,filepicker.save.save_button,remote_tool.save
 src/catalog/components/settings_font_rejected.rs	{}	remote.size_sync.names
 src/catalog/components/settings_general_grid.rs	Ask	settings.general.close_behavior_ask
 src/catalog/components/settings_general_grid.rs	Close behavior:	settings.general.close_behavior_label
@@ -579,9 +578,9 @@ src/catalog/components/settings_general_grid.rs	pt	settings.number.unit_pt
 src/catalog/components/settings_handler.rs	Action:	settings.file_handler.hook_handlers.action_label
 src/catalog/components/settings_handler.rs	Add	button.add,explorer.popup.add_favorite.add,settings.terminal.input_add,settings.terminal.mouse_capture_banner_blacklist_add_button,settings.terminal.mouse_capture_blacklist_add_button
 src/catalog/components/settings_handler.rs	Add handler	settings.file_handler.handlers.add,settings.file_handler.hook_handlers.add_button
-src/catalog/components/settings_handler.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/settings_handler.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/settings_handler.rs	Copy edit command	settings.file_handler.hook_handlers.seq_copy_cli
-src/catalog/components/settings_handler.rs	Edit	explorer.props.perm.edit,image_viewer.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
+src/catalog/components/settings_handler.rs	Edit	explorer.props.perm.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
 src/catalog/components/settings_handler.rs	Edit with CLI	settings.file_handler.hook_handlers.seq_edit_with_cli
 src/catalog/components/settings_handler.rs	Event id:	settings.file_handler.hook_handlers.field_event_id
 src/catalog/components/settings_handler.rs	New hook handler	settings.file_handler.hook_handlers.new_head
@@ -589,21 +588,21 @@ src/catalog/components/settings_handler.rs	Remove	plugins.attn_remove,settings.f
 src/catalog/components/settings_handler.rs	Reset	remote_tool.filter_reset,settings.appearance.colors.reset,settings.file_handler.extension_mapping.reset,settings.keybindings.plugins.reset_button
 src/catalog/components/settings_handler.rs	Shell cmd:	settings.file_handler.hook_handlers.shell_cmd_label
 src/catalog/components/settings_handler.rs	Shell command:	settings.file_handler.hook_handlers.field_shell_command
-src/catalog/components/settings_handler.rs	Undo	explorer.menu.undo_none,explorer.result.undo,image_viewer.undo,settings.file_handler.common.undo,settings.file_handler.extension_mapping.undo,settings.file_handler.hook_handlers.undo
+src/catalog/components/settings_handler.rs	Undo	explorer.menu.undo_none,explorer.result.undo,settings.file_handler.common.undo,settings.file_handler.extension_mapping.undo,settings.file_handler.hook_handlers.undo
 src/catalog/components/settings_handler.rs	not installed	settings.file_handler.extension_mapping.unregistered
 src/catalog/components/settings_handler.rs	off	settings.file_handler.extension_mapping.off
 src/catalog/components/settings_handler.rs	prio {}	settings.file_handler.hook_handlers.prio
 src/catalog/components/settings_handler.rs	removed on save	settings.file_handler.common.pending_removed,settings.file_handler.extension_mapping.removed_on_save
 src/catalog/components/settings_handler.rs	reset on save	settings.file_handler.extension_mapping.reset_on_save
 src/catalog/components/settings_handler.rs	you	file_handler.picker.origin_user
-src/catalog/components/settings_hook_override.rs	Edit	explorer.props.perm.edit,image_viewer.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
+src/catalog/components/settings_hook_override.rs	Edit	explorer.props.perm.edit,preset.toolbar.edit,remote_tool.edit,settings.file_handler.hook_handlers.seq_edit
 src/catalog/components/settings_hook_override.rs	Provided by {} — can't be removed	settings.file_handler.common.locked
 src/catalog/components/settings_hook_override.rs	Revert	settings.file_handler.hook_handlers.revert
-src/catalog/components/settings_hook_override.rs	Undo	explorer.menu.undo_none,explorer.result.undo,image_viewer.undo,settings.file_handler.common.undo,settings.file_handler.extension_mapping.undo,settings.file_handler.hook_handlers.undo
+src/catalog/components/settings_hook_override.rs	Undo	explorer.menu.undo_none,explorer.result.undo,settings.file_handler.common.undo,settings.file_handler.extension_mapping.undo,settings.file_handler.hook_handlers.undo
 src/catalog/components/settings_hook_override.rs	edited	settings.file_handler.hook_handlers.edited
 src/catalog/components/settings_hook_override.rs	reverts on save	settings.file_handler.hook_handlers.reverts_on_save
 src/catalog/components/settings_hook_seq.rs	Apply	explorer.props.perm.apply,port_scanner.state_filter_apply,preset.popup.apply_button,remote_tool.filter_apply,settings.file_handler.hook_handlers.seq_apply,settings.keybindings.apply_button
-src/catalog/components/settings_hook_seq.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/settings_hook_seq.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/settings_hook_seq.rs	you	file_handler.picker.origin_user
 src/catalog/components/settings_keybinding_rows.rs	Close active:	settings.keybindings.close_active_label
 src/catalog/components/settings_keybinding_rows.rs	Closes in order: tab → pane → workspace.	settings.keybindings.close_active_desc
@@ -652,7 +651,7 @@ src/catalog/components/tools_menu.rs	Remote connections…	remote_tool.tools_men
 src/catalog/components/tools_menu.rs	Task DAGs	dag_list.title,dag_list.tools_menu_item
 src/catalog/components/tools_menu.rs	Tutorial…	tutorial.tools_menu_item
 src/catalog/components/tools_menu.rs	built-in	file_handler.picker.origin_host,plugins.builtin_badge
-src/catalog/components/transfer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/components/transfer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/transfer.rs	Dismiss	explorer.result.dismiss,remote.size_sync.dismiss,transfer.error.dismiss
 src/catalog/components/transfer.rs	Receiving file	transfer.progress.title
 src/catalog/components/transfer.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
@@ -664,7 +663,7 @@ src/catalog/foundations_disabled_ink.rs	Copy address	port_scanner.copy_address
 src/catalog/foundations_disabled_ink.rs	disabled	settings.file_handler.common.disabled
 src/catalog/foundations_rolegaps.rs	Favorites	explorer.sidebar.favorites,port_scanner.favorites_heading
 src/catalog/foundations_rolegaps.rs	Listening ports	port_scanner.heading
-src/catalog/foundations_settled.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/foundations_settled.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/foundations_settled.rs	Delete	preset.toolbar.delete,remote_tool.delete
 src/catalog/foundations_settled.rs	New tab	attach.pending.new_tab,explorer.tab.new
 src/catalog/foundations_settled.rs	Split pane	attach.pending.split_pane
@@ -694,7 +693,7 @@ src/catalog/plugins_settled.rs	Focused	settings.appearance.colors.focused_headin
 src/catalog/plugins_settled.rs	Go	explorer.address.go
 src/catalog/plugins_settled.rs	Unfocused	settings.appearance.colors.unfocused_heading,settings.appearance.preview_unfocused
 src/catalog/popup_frame.rs	close	command_palette.hint_close
-src/catalog/spacing.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/spacing.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/surface_focus.rs	mirror	remote_attach.chain_badge
 src/catalog/theme.rs	Delete	preset.toolbar.delete,remote_tool.delete
 src/catalog/theme.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button

@@ -470,7 +470,6 @@ font_search_placeholder = "글꼴 검색"
 font_no_match = "일치하는 글꼴 없음"
 font_loading = "글꼴을 불러오는 중…"
 font_family_default = "monospace (기본)"
-font_override = "개별 폰트 설정"
 
 [settings.appearance.colors]
 focused_heading = "포커스 상태"
@@ -1346,21 +1345,6 @@ trigger_remove = "트리거 제거"
 
 [image_viewer]
 no_image = "로드된 이미지 없음"
-prev = "이전 이미지"
-next = "다음 이미지"
-refresh = "새로고침"
-edit = "편집"
-new_image = "새 이미지"
-save = "저장"
-cancel = "취소"
-brush_size = "굵기:"
-color = "색상:"
-new_image_title = "새 이미지"
-width = "너비:"
-height = "높이:"
-save_path_title = "다른 이름으로 저장"
-undo = "실행 취소"
-redo = "다시 실행"
 
 [toast]
 font_rejected = "폰트를 불러오지 못했습니다: {}. 다른 폰트로 표시합니다."
