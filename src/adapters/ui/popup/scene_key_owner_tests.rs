@@ -480,6 +480,12 @@ fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_
     );
 
     let (after_down, after_enter) = topics_beside_convert(false);
+    // Enter 프레임의 주제 쪽 관측을 먼저 본다. ArrowDown 단정이 앞서 실패하면 Enter가 주제 목록에 닿았는지는 가려지지 않는다.
+    assert_eq!(
+        (after_enter.1, after_enter.2),
+        (None, true),
+        "변환이 주인이면 Enter에 주제 시작 요청이 없고 주제 목록이 열린 채다"
+    );
     assert_eq!(
         after_down,
         (0, None, true, convert_at(1)),
