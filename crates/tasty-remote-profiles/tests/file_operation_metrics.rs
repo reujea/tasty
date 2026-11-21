@@ -1,5 +1,6 @@
 //! Actual backend operations inside the same bounded observation scope used by FileExecutor.
 use std::{fs, sync::Arc};
+#[cfg(unix)]
 use tasty_doc_guards::floored_walk::{CountedOn, Floor, entries_with_floor};
 use tasty_remote_profiles::{
     ManagedCleanup, MutationStage, Passkey, PasskeyCommand, Passkeys, RemoteFileStore,
