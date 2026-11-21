@@ -319,7 +319,7 @@ just build-all                                          # 번들 준비 + 본체
 
 산출물: `${CARGO_TARGET_DIR:-target}/<profile>/builtin-plugins/<id>/{tasty-plugin.toml, <bin>, tasty-plugin.toml.sig(non-debug), lang/}`(받은 공식 플러그인은 고지 파일도 담을 수 있다). 스크립트는 `CARGO_TARGET_DIR` 를 cargo 와 같은 자리(호출 위치 기준)에서 읽는다 — 레포 밖 target 을 쓰는 작업 트리에서도 cargo 가 실제로 쓴 자리에 스테이징한다. `--target <triple>` 을 주면 `target/<triple>/<profile>/` 아래에 놓는다.
 
-> **위 스테이징은 "부팅 시 user dir 로 흐른다" 전제(=호스트 재시작)다.** **이미 실행 중인 tasty 에** 플러그인 변경만(호스트 재빌드·재시작 없이) 반영·검증하려면 — 실행 프로필 확인 → 그 프로필로 번들 준비(서명 포함) → `plugin disable → upgrade-builtins[ --force] → enable` 절차를 쓴다: [plugin-development §9.1](plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요).
+> **위 스테이징은 "부팅 시 user dir 로 흐른다" 전제(=호스트 재시작)다.** **이미 실행 중인 tasty 에** 플러그인 변경만(호스트 재빌드·재시작 없이) 반영·검증하려면 — 실행 프로필 확인 → `plugin disable` → 그 프로필로 번들 준비(서명 포함) → `upgrade-builtins[ --force]` → `enable` 절차를 쓴다: [plugin-development §9.1](plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요).
 
 ## 배포 패키징
 

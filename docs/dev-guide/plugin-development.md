@@ -774,7 +774,7 @@ tasty plugin disable com.tasty.<name>
 PROFILE=release just build-plugins --from-checkout     # 실행 중 tasty 와 같은 프로필. 고친 플러그인 레포 체크아웃에서 빌드
 PROFILE=release just build-plugins                     # 잠금 파일의 릴리스 산출물로 되돌릴 때
 ```
-release/dist 프로필은 같은 명령이 키 준비 → 빌드(또는 받기) → `sign-bundle.sh --dir` 서명까지 한다. 서명이 없으면 다음 단계가 `untrusted: UnknownKey` 로 skip 한다. debug 호스트는 서명을 보지 않는다. release/dist 의 `upgrade-builtins` 는 workspace 소스를 읽지 않는다. mesh-demo 만 고쳤다면 `cargo build -p tasty-plugin-mesh-demo`(프로필 맞춤) 뒤 같은 `just build-plugins` 로 다시 놓는다.
+release/dist 프로필은 같은 명령이 키 준비 → 빌드(또는 받기) → `sign-bundle.sh --dir` 서명까지 한다. 서명이 없으면 다음 단계가 `untrusted: UnknownKey` 로 skip 한다. debug 호스트는 서명을 보지 않는다. release/dist 의 `upgrade-builtins` 는 workspace 소스를 읽지 않는다. mesh-demo 만 고쳤다면 옵션 없이 같은 프로필로 `just build-plugins` 를 실행한다(스크립트가 mesh-demo 를 빌드해 놓는다).
 
 **3) 재동기화 → 재기동 (순서 중요)**
 ```bash
