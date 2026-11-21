@@ -102,6 +102,8 @@ struct FetchArgs {
     /// 모르는 인자나 값이 빠진 옵션을 만나 종료 2로 끝난다.
     invalid: bool,
     platform: Option<String>,
+    /// `--lock`으로 기본 잠금 파일 대신 다른 파일을 지정했다.
+    lock: bool,
     out: bool,
 }
 
@@ -113,6 +115,7 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
         help: false,
         invalid: false,
         platform: None,
+        lock: false,
         out: false,
     };
     let mut rest = argv.iter();
@@ -125,6 +128,7 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
                 };
                 match a.as_str() {
                     "--platform" => parsed.platform = Some(value.clone()).filter(|v| !v.is_empty()),
+                    "--lock" => parsed.lock = true,
                     "--out" => parsed.out = !value.is_empty(),
                     _ => {}
                 }
@@ -143,9 +147,10 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
     parsed
 }
 
-/// 받기까지 가는 호출: 도움말·모르는 인자·값 빠진 옵션 없이 `--platform`·`--out`에 값이 있다.
+/// 기본 잠금 파일로 받기까지 가는 호출: 도움말·모르는 인자·값 빠진 옵션 없이 `--platform`·`--out`에 값이 있고,
+/// `--lock`으로 이 가드가 읽지 않는 다른 잠금 파일을 지정하지 않는다.
 fn really_fetches(p: &FetchArgs) -> bool {
-    !p.help && !p.invalid && p.platform.is_some() && p.out
+    !p.help && !p.invalid && p.platform.is_some() && p.out && !p.lock
 }
 
 /// 임시 루트에 `scripts/fetch-official-plugins.sh` 스텁을 두고 대상 코드를 실제 bash로 실행해, 스텁이 받은
@@ -662,13 +667,10 @@ fn the_package_harness_stops_on_a_failing_helper() {
         "헬퍼 최상위의 실패를 통과시켰다"
     );
     // 스텁 산출물은 실제 fetch처럼 --all 유무에 따라 다르다. 실제 잠금의 bundle 구성에 기대지 않도록 잠금 id(픽스처
-    // 폴더와 같다)로 배포 항목과 개발 전용 항목을 합성한다. 배포 집합에 없는 항목을 요구하면 실패한다.
+    // 폴더와 같다) 하나를 개발 전용으로, 나머지(없을 수 있다)를 배포 항목으로 합성한다. 배포 집합에 없는 항목을
+    // 요구하면 실패한다.
     let mut ids: Vec<String> = locked_ids(&lock()).into_iter().collect();
-    assert!(
-        ids.len() >= 2,
-        "픽스처가 두 개보다 적어 배포·개발 집합을 나눌 수 없다: {ids:?}"
-    );
-    let dev_only = ids.pop().expect("개발 전용 항목");
+    let dev_only = ids.pop().expect("잠금 파일에 항목이 없다");
     let bundled = ids;
     // 헬퍼 함수가 fetch를 마친 뒤 그 항목의 폴더를 요구하도록 감싼다.
     let requires = |id: &str| {
@@ -708,6 +710,21 @@ fn the_package_harness_stops_on_a_failing_helper() {
         .is_ok(),
         "--all 에 개발 전용 {dev_only}를 내놓지 않았다"
     );
+    // 배포 항목이 하나도 없어도 --all은 잠금의 모든 항목을 내놓는다.
+    let all_present: String = locked_ids(&lock())
+        .iter()
+        .map(|id| format!("\n[ -d \"$stage/{id}\" ]"))
+        .collect();
+    assert!(
+        fetch_run_with(
+            "staging",
+            "linux-x64",
+            &format!("{real} --all{all_present}"),
+            &[]
+        )
+        .is_ok(),
+        "배포 항목이 없을 때 --all 이 잠금의 모든 항목을 내놓지 않았다"
+    );
 }
 
 /// 기본 분기 추출기는 `--from-checkout` 분기의 호출을 기본 분기 판정에 넣지 않는다.
@@ -743,6 +760,7 @@ fn the_fetch_argument_reader_follows_the_fetch_parser() {
         "--platform p --out o 2>&1",
         "--platform p --out",
         "--platform p",
+        "--platform p --out o --lock target/official-plugins.lock.toml",
     ] {
         assert!(
             !really_fetches(&parse_fetch(&argv(bad))),
