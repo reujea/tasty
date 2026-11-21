@@ -69,11 +69,15 @@ fn builtin_arms() -> Vec<(String, BTreeSet<(String, String)>)> {
     arms
 }
 
-/// 매니페스트 원문의 최상위 `id`.
-fn manifest_id(manifest: &std::path::Path) -> Option<String> {
-    let text = std::fs::read_to_string(manifest).ok()?;
-    text.lines()
-        .find_map(|line| field(line.trim().replace(' ', "").as_str(), "id="))
+/// 매니페스트 폴더의 최상위 `id`. 매니페스트가 없으면 None이다(번들 대상이 아닌 라이브러리 크레이트).
+/// 호스트와 같은 해석기(`Manifest::read`)로 읽어 공백·인용 표기에 따라 id를 놓치지 않는다.
+fn manifest_id(dir: &std::path::Path) -> Option<String> {
+    if !dir.join("tasty-plugin.toml").is_file() {
+        return None;
+    }
+    let manifest = tasty_plugin_manifest::Manifest::read(dir)
+        .unwrap_or_else(|e| panic!("{} 매니페스트를 해석하지 못했다: {e}", dir.display()));
+    Some(manifest.id)
 }
 
 /// BUILTINS와 별개로 디스크의 플러그인 매니페스트에서 ID를 읽는다. workspace 크레이트
@@ -89,14 +93,14 @@ fn manifest_specs() -> BTreeSet<(String, String)> {
             continue;
         }
         // 매니페스트가 없는 라이브러리 크레이트는 번들 대상이 아니다
-        if let Some(id) = manifest_id(&e.path().join("tasty-plugin.toml")) {
+        if let Some(id) = manifest_id(&e.path()) {
             by_id.insert(id, dir);
         }
     }
     let fixtures = tasty_test_support::official_plugin_fixtures_root();
     let entries = std::fs::read_dir(&fixtures).expect("공식 플러그인 픽스처 폴더를 읽지 못했다");
     for e in entries.flatten() {
-        let Some(id) = manifest_id(&e.path().join("tasty-plugin.toml")) else {
+        let Some(id) = manifest_id(&e.path()) else {
             continue;
         };
         let suffix = id.strip_prefix(ID_PREFIX).unwrap_or(&id).to_string();

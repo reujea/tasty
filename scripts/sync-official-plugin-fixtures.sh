@@ -325,11 +325,12 @@ while IFS=$'\t' read -r id want_version want_bundle; do
         continue
     fi
     # 매니페스트 최상위의 id·version·bundle. 오프라인 가드(official_plugin_fixtures.rs top_level)와 같은 규칙이다:
-    # 읽지 못한 키나 불 값이 아닌 bundle이 하나라도 있으면 그 뒤 레코드와 관계없이 읽지 못한 것으로 본다.
+    # 읽지 못한 키, 불 값이 아닌 bundle, 두 번 나온 id·version·bundle이 하나라도 있으면 위치와 관계없이 실패다.
     # bundle 키가 없으면 호스트 기본값 true다.
     if ! top="$(awk -F'\t' '
         $1 == "H" { exit }
         $1 == "K" && $2 == "unknown" { bad = 1 }
+        $1 == "K" && ($3 == "id" || $3 == "version" || $3 == "bundle") && seen[$3]++ { bad = 1 }
         $1 == "K" && $3 == "bundle" { if ($4 == "bool") b = $5; else bad = 1 }
         $1 == "K" && $3 == "id" && ($4 == "basic" || $4 == "literal") { id = $5 }
         $1 == "K" && $3 == "version" && ($4 == "basic" || $4 == "literal") { v = $5 }

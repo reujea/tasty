@@ -298,6 +298,10 @@ fn a_candidate_failing_the_offline_checks_keeps_the_fixtures() {
             "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle = false\n\"\\u0066uture\" = \"x\"\n",
         ),
         (
+            "중복 version, 잠금 값이 마지막",
+            "id = \"com.tasty.beta\"\nversion = \"2.0.9\"\nversion = \"2.0.0\"\nbundle = false\n",
+        ),
+        (
             "여러 줄 문자열 안의 가짜 version",
             "id = \"com.tasty.beta\"\nnote = \"\"\"\nversion = \"2.0.0\"\n\"\"\"\nversion = \"2.0.9\"\nbundle = false\n",
         ),

@@ -81,6 +81,27 @@ fn fetch_calls(rel: &str) -> Vec<String> {
     fetch_calls_in(&read(rel))
 }
 
+/// 호출 줄의 인자 토큰. 줄 끝 주석(공백 뒤 `#`부터)은 인자가 아니다.
+fn call_args(call: &str) -> Vec<&str> {
+    let code = call
+        .find(" #")
+        .or_else(|| call.find("\t#"))
+        .map_or(call, |i| &call[..i]);
+    code.split_whitespace().collect()
+}
+
+/// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
+/// `if [[ "$from_checkout" -eq 1 ]]; then` 뒤 맨 앞 열 `else`부터 맨 앞 열 `fi`까지다.
+fn default_staging_branch(text: &str) -> Option<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let start = lines
+        .iter()
+        .position(|l| *l == "if [[ \"$from_checkout\" -eq 1 ]]; then")?;
+    let open = start + lines[start..].iter().position(|l| *l == "else")?;
+    let close = open + lines[open..].iter().position(|l| *l == "fi")?;
+    Some(lines[open + 1..close].join("\n"))
+}
+
 fn fetch_calls_in(text: &str) -> Vec<String> {
     text.lines()
         .map(str::trim)
@@ -160,17 +181,38 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         assert!(!calls.is_empty(), "{rel}에서 fetch 호출을 찾지 못했다");
         for call in &calls {
             assert!(
-                !call.split_whitespace().any(|w| w == "--all"),
+                !call_args(call).contains(&"--all"),
                 "{rel}의 배포 fetch가 --all 로 bundle = false 항목까지 싣는다: {call}"
             );
         }
     }
-    let staging = fetch_calls("scripts/stage-dev-plugins.sh");
+    let branch = default_staging_branch(&read("scripts/stage-dev-plugins.sh")).expect(
+        "scripts/stage-dev-plugins.sh 에서 --from-checkout 이 아닌 기본 분기를 찾지 못했다",
+    );
+    let staging = fetch_calls_in(&branch);
+    assert_eq!(
+        staging.len(),
+        1,
+        "기본 분기의 fetch 호출이 하나가 아니다: {staging:?}"
+    );
     assert!(
-        staging
-            .iter()
-            .any(|c| c.split_whitespace().any(|w| w == "--all")),
-        "scripts/stage-dev-plugins.sh 기본 경로가 --all 로 받지 않는다: {staging:?}"
+        call_args(&staging[0]).contains(&"--all"),
+        "scripts/stage-dev-plugins.sh 기본 분기가 --all 로 받지 않는다: {}",
+        staging[0]
+    );
+}
+
+/// 주석에만 남은 `--all`은 인자가 아니고, 기본 분기 밖의 호출은 기본 분기로 세지 않는다.
+#[test]
+fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
+    assert!(!call_args("bash fetch-official-plugins.sh --out x # --all").contains(&"--all"));
+    assert!(call_args("bash fetch-official-plugins.sh --out x --all # 모두").contains(&"--all"));
+    let text = "if [[ \"$from_checkout\" -eq 1 ]]; then\n    bash scripts/fetch-official-plugins.sh --all\nelse\n    bash scripts/fetch-official-plugins.sh --out y\nfi\n";
+    let branch = default_staging_branch(text).expect("기본 분기");
+    assert_eq!(
+        fetch_calls_in(&branch),
+        ["bash scripts/fetch-official-plugins.sh --out y"],
+        "다른 분기의 호출을 기본 분기로 읽었다"
     );
 }
 

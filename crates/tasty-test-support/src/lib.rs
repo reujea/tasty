@@ -129,7 +129,7 @@ pub fn official_plugin_fixtures_root() -> std::path::PathBuf {
 ///
 /// # Panics
 ///
-/// 폴더를 읽지 못하거나 매니페스트를 읽지 못하면 panic한다.
+/// 폴더를 읽지 못하거나 매니페스트를 해석하지 못하면 panic한다. 계약 검증(`validate`)은 하지 않는다.
 pub fn bundled_plugin_manifest_dirs() -> Vec<std::path::PathBuf> {
     fn manifest_dirs_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
         let mut dirs: Vec<_> = std::fs::read_dir(root)
@@ -152,7 +152,9 @@ pub fn bundled_plugin_manifest_dirs() -> Vec<std::path::PathBuf> {
         .map(|d| (d, false))
         .chain(fixtures.into_iter().map(|d| (d, true)))
     {
-        let id = tasty_plugin_manifest::Manifest::load(&dir)
+        // 고를 때는 검증하지 않는다. 같은 id의 사본이 계약 오류를 가져도 픽스처 선택 전에 멈추지 않게 하고,
+        // 검증은 호출자가 고른 매니페스트에 한다.
+        let id = tasty_plugin_manifest::Manifest::read(&dir)
             .unwrap_or_else(|e| panic!("{} 매니페스트를 읽지 못했다: {e}", dir.display()))
             .id;
         if from_fixture || !by_id.contains_key(&id) {

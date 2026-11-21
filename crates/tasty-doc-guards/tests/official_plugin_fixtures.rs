@@ -37,24 +37,24 @@ fn fixtures_root() -> PathBuf {
 
 /// 픽스처 루트 바로 아래 폴더 순회의 하한.
 const FIXTURE_DIRS_FLOOR: Floor = Floor {
-    min: 6,
+    min: 1,
     measured: 8,
     measured_on: "2026-11-21",
     counted_on: CountedOn::Tree(
         "50c1597c7d — 픽스처 폴더는 잠금 id마다 하나이고, 이 커밋의 잠금 파일 [[plugin]]이 8개다.",
     ),
-    why_this_gap: "픽스처 폴더 수는 잠금 파일의 플러그인 수를 따른다. 공식 플러그인 한두 개를 잠금 파일에서 빼는 변경을 허용하고, 그보다 줄면 루트를 잘못 잡았거나 read_dir이 실패한 것으로 본다.",
+    why_this_gap: "폴더 수는 잠금 파일의 플러그인 수를 따르고, 잠금 id 집합과의 같음은 fixtures_are_the_locked_plugins가 따로 본다. 하한은 루트를 잘못 잡았거나 read_dir이 실패해 하나도 못 읽은 경우만 잡는다. sync --update가 들이는 후보는 잠금 항목마다 폴더가 있어 이 하한을 늘 넘으므로 두 검사의 통과 조건이 갈리지 않는다.",
 };
 
 /// 픽스처 파일 순회의 하한.
 const FIXTURE_FILES_FLOOR: Floor = Floor {
-    min: 30,
+    min: 2,
     measured: 40,
     measured_on: "2026-11-21",
     counted_on: CountedOn::Tree(
         "50c1597c7d — 이 커밋의 잠금 파일이 가리키는 산출물 8개에서 매니페스트 하나와 lang 4개씩을 받아 40개다.",
     ),
-    why_this_gap: "플러그인마다 매니페스트 하나와 내장 언어 4개의 lang 파일이다. 공식 플러그인 두 개(10파일)가 빠지는 변경까지 허용하고, 그보다 적으면 수집 실패로 본다.",
+    why_this_gap: "플러그인마다 매니페스트와 lang 파일이 있고, 잠금 항목별 매니페스트·lang/en.toml 존재는 다른 시험이 본다. 하한은 순회가 아무것도 못 읽은 경우만 잡는다. sync --update가 들이는 후보는 잠금 항목마다 매니페스트와 en.toml 두 파일 이상이라 이 하한을 늘 넘는다.",
 };
 
 fn fixture_ids(root: &Path) -> BTreeSet<String> {
@@ -75,15 +75,21 @@ struct TopLevel {
 }
 
 /// `toml-scan.awk` 출력(탭 구분 레코드)에서 최상위 `id`·`version`·`bundle`을 뽑는다. sync 스크립트의
-/// 교체 전 검사와 같은 규칙이다: 읽지 못한 키나 불 값이 아닌 `bundle`은 오류다.
+/// 교체 전 검사와 같은 규칙이다: 읽지 못한 키, 불 값이 아닌 `bundle`, 두 번 나온 `id`·`version`·`bundle`은 오류다.
 fn top_level(scan: &str) -> Result<TopLevel, String> {
     let mut top = TopLevel {
         id: None,
         version: None,
         bundle: true,
     };
+    let mut seen = BTreeSet::new();
     for record in scan.lines() {
         let fields: Vec<&str> = record.split('\t').collect();
+        if let ["K", _, key @ ("id" | "version" | "bundle"), ..] = fields.as_slice()
+            && !seen.insert(*key)
+        {
+            return Err(format!("최상위 {key} 가 두 번 나온다"));
+        }
         match fields.as_slice() {
             ["H", ..] => break,
             ["E", why] => return Err(format!("스캐너가 읽지 못했다: {why}")),
@@ -274,6 +280,10 @@ fn the_top_level_reader_follows_the_scanner_records() {
     assert!(
         top_level("K\tbare\tbundle\tbool\tfalse\nK\tunknown\t\tbasic\tx\n").is_err(),
         "bundle 뒤의 읽지 못한 키를 놓쳤다"
+    );
+    assert!(
+        top_level("K\tbare\tversion\tbasic\t0.2.9\nK\tbare\tversion\tbasic\t0.2.2\n").is_err(),
+        "중복 version 을 마지막 값으로 덮었다"
     );
     assert!(top_level("E\t3: 표 머리를 읽지 못했다\n").is_err());
 }
