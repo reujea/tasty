@@ -16,3 +16,6 @@ crates/tasty-plugin-*/tasty-plugin.toml.sig
 # ensure_dev_bundle이 저장소 루트를 찾을 수 있도록 target과 같은 디렉터리에 둔다.
 # 실행 절차: docs/dev-guide/e2e-tests.md
 /target-e2e-headless
+
+# sync-official-plugin-fixtures.sh 가 픽스처 옆에 만드는 교체 폴더. 복구에 실패하면 백업이 남는다.
+/crates/tasty-test-support/fixtures/.official-plugins-sync.*/

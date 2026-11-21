@@ -568,6 +568,10 @@ fn a_lock_table_header_the_scanner_cannot_read_is_undecidable() {
             format!("{LOCKED_TABLE}\n  [[plugin . artifact]]\n  platform = \"x\"\n"),
         ),
         (
+            "앞선 [[plugin]] 없는 artifact",
+            format!("[[plugin.artifact]]\nplatform = \"x\"\n{LOCKED_TABLE}"),
+        ),
+        (
             "generate 가 쓰지 않는 표",
             format!("[[plugins]]\nid = \"com.tasty.other\"\n{LOCKED_TABLE}"),
         ),

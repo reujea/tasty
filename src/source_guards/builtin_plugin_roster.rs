@@ -81,9 +81,25 @@ fn manifest_id(dir: &std::path::Path) -> Option<String> {
 }
 
 /// BUILTINS와 별개로 디스크의 플러그인 매니페스트에서 ID를 읽는다. workspace 크레이트
-/// (`crates/tasty-plugin-*/`)와 공식 플러그인 픽스처의 합집합이고 같은 id면 픽스처를 쓴다.
+/// (`crates/tasty-plugin-*/`)와 공식 플러그인 픽스처의 합집합이고 두 원천에 같은 id가 있으면 픽스처를 쓴다.
+/// 같은 원천 안에서 id가 겹치면 두 폴더를 밝히고 멈춘다.
 /// 픽스처의 크레이트 이름은 공식 플러그인 레포의 이름 규칙(`tasty-plugin-<id 접미>`)으로 정한다.
 fn manifest_specs() -> BTreeSet<(String, String)> {
+    fn insert_once(
+        by_id: &mut std::collections::BTreeMap<String, (String, std::path::PathBuf)>,
+        id: String,
+        crate_dir: String,
+        path: std::path::PathBuf,
+    ) {
+        if let Some((_, prev)) = by_id.get(&id) {
+            panic!(
+                "같은 원천에서 id {id} 가 두 번 나온다: {} 와 {}",
+                prev.display(),
+                path.display()
+            );
+        }
+        by_id.insert(id, (crate_dir, path));
+    }
     let mut by_id = std::collections::BTreeMap::new();
     let crates = repo_root().join("crates");
     let entries = std::fs::read_dir(&crates).expect("crates/ 를 읽지 못했다");
@@ -94,9 +110,10 @@ fn manifest_specs() -> BTreeSet<(String, String)> {
         }
         // 매니페스트가 없는 라이브러리 크레이트는 번들 대상이 아니다
         if let Some(id) = manifest_id(&e.path()) {
-            by_id.insert(id, dir);
+            insert_once(&mut by_id, id, dir, e.path());
         }
     }
+    let mut fixture_ids = std::collections::BTreeMap::new();
     let fixtures = tasty_test_support::official_plugin_fixtures_root();
     let entries = std::fs::read_dir(&fixtures).expect("공식 플러그인 픽스처 폴더를 읽지 못했다");
     for e in entries.flatten() {
@@ -104,9 +121,18 @@ fn manifest_specs() -> BTreeSet<(String, String)> {
             continue;
         };
         let suffix = id.strip_prefix(ID_PREFIX).unwrap_or(&id).to_string();
-        by_id.insert(id, format!("{PLUGIN_CRATE_PREFIX}{suffix}"));
+        insert_once(
+            &mut fixture_ids,
+            id,
+            format!("{PLUGIN_CRATE_PREFIX}{suffix}"),
+            e.path(),
+        );
     }
-    by_id.into_iter().collect()
+    by_id.extend(fixture_ids);
+    by_id
+        .into_iter()
+        .map(|(id, (crate_dir, _))| (id, crate_dir))
+        .collect()
 }
 
 /// 지정한 머리글로 시작하는 표만 읽는다.

@@ -222,6 +222,31 @@ fn check_finds_a_changed_byte_and_a_stale_fixture() {
     );
 }
 
+/// 배포 파서는 `[[plugin.artifact]]` 를 앞선 `[[plugin]]` 에 붙여 읽는다. 앞에 붙을 표가 없는 잠금 파일은 받지 않는다.
+#[test]
+fn an_artifact_table_before_any_plugin_table_is_rejected() {
+    let root = Root::new();
+    root.write(
+        "official-plugins.lock.toml",
+        &format!("[[plugin.artifact]]\nplatform = \"x\"\n{LOCK}"),
+    );
+    for mode in ["--update", "--check"] {
+        let (code, text) = root.run(&[mode]);
+        assert_eq!(
+            code, 2,
+            "{mode}: 앞선 [[plugin]] 없는 artifact 표를 받았다:\n{text}"
+        );
+        assert!(
+            text.contains("[[plugin.artifact]] before any [[plugin]] table"),
+            "{mode}: 구조 오류를 말하지 않는다:\n{text}"
+        );
+    }
+    assert!(
+        root.fetch_log().is_empty(),
+        "잘못된 잠금 파일로 fetch 를 불렀다"
+    );
+}
+
 #[test]
 fn a_lock_file_changed_while_fetching_fails_both_modes() {
     let root = Root::new();
@@ -296,6 +321,14 @@ fn a_candidate_failing_the_offline_checks_keeps_the_fixtures() {
         (
             "bundle 뒤의 읽지 못한 키",
             "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle = false\n\"\\u0066uture\" = \"x\"\n",
+        ),
+        (
+            "점 구분 키로 표가 된 bundle",
+            "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle.enabled = false\n",
+        ),
+        (
+            "뒤쪽 표로 정의한 bundle",
+            "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\n[entry]\ntype = \"process\"\n[bundle]\nenabled = false\n",
         ),
         (
             "중복 version, 잠금 값이 마지막",

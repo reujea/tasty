@@ -83,15 +83,32 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
         bundle: true,
     };
     let mut seen = BTreeSet::new();
+    let mut top_done = false;
     for record in scan.lines() {
         let fields: Vec<&str> = record.split('\t').collect();
+        // 어느 위치든 bundle 표([bundle], [bundle.x])는 최상위 bundle 을 불 값이 아닌 표로 만든다.
+        if let ["H", head, ..] = fields.as_slice() {
+            let name = head.trim_start_matches('[').trim_end_matches(']');
+            if name == "bundle" || name.starts_with("bundle.") {
+                return Err("bundle 이 표다".to_string());
+            }
+            top_done = true;
+            continue;
+        }
+        if top_done {
+            continue;
+        }
+        if let ["K", "dotted", key, ..] = fields.as_slice()
+            && key.starts_with("bundle.")
+        {
+            return Err("bundle 이 점 구분 키로 표가 된다".to_string());
+        }
         if let ["K", _, key @ ("id" | "version" | "bundle"), ..] = fields.as_slice()
             && !seen.insert(*key)
         {
             return Err(format!("최상위 {key} 가 두 번 나온다"));
         }
         match fields.as_slice() {
-            ["H", ..] => break,
             ["E", why] => return Err(format!("스캐너가 읽지 못했다: {why}")),
             ["K", "unknown", ..] => return Err("최상위에 읽을 수 없는 키가 있다".to_string()),
             ["K", _, "bundle", "bool", v] => top.bundle = *v == "true",
@@ -285,6 +302,18 @@ fn the_top_level_reader_follows_the_scanner_records() {
         top_level("K\tbare\tversion\tbasic\t0.2.9\nK\tbare\tversion\tbasic\t0.2.2\n").is_err(),
         "중복 version 을 마지막 값으로 덮었다"
     );
+    for (what, scan) in [
+        ("점 구분 키", "K\tdotted\tbundle.enabled\tbool\tfalse\n"),
+        (
+            "표 머리",
+            "K\tbare\tid\tbasic\tx\nH\t[entry]\tbare\nH\t[bundle]\tbare\n",
+        ),
+    ] {
+        assert!(
+            top_level(scan).is_err(),
+            "{what}: 표가 된 bundle 을 기본값 true 로 읽었다"
+        );
+    }
     assert!(top_level("E\t3: 표 머리를 읽지 못했다\n").is_err());
 }
 

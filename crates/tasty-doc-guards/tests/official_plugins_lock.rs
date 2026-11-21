@@ -83,11 +83,19 @@ fn fetch_calls(rel: &str) -> Vec<String> {
 
 /// 호출 줄의 인자 토큰. 줄 끝 주석(공백 뒤 `#`부터)은 인자가 아니다.
 fn call_args(call: &str) -> Vec<&str> {
-    let code = call
-        .find(" #")
-        .or_else(|| call.find("\t#"))
-        .map_or(call, |i| &call[..i]);
+    // 공백·탭 뒤의 첫 `#`부터가 주석이다. 둘 중 먼저 나오는 것을 쓴다.
+    let comment = call
+        .char_indices()
+        .zip(call.chars().skip(1))
+        .find(|((_, c), next)| c.is_whitespace() && *next == '#')
+        .map(|((i, _), _)| i);
+    let code = comment.map_or(call, |i| &call[..i]);
     code.split_whitespace().collect()
+}
+
+/// 개발 스테이징이 쓰는 실제 호출 꼴: `bash "$root/scripts/fetch-official-plugins.sh" ...`.
+fn is_staging_fetch_call(args: &[&str]) -> bool {
+    matches!(args, ["bash", script, ..] if script.trim_matches('"').ends_with("/scripts/fetch-official-plugins.sh"))
 }
 
 /// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
@@ -195,8 +203,14 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         1,
         "기본 분기의 fetch 호출이 하나가 아니다: {staging:?}"
     );
+    let args = call_args(&staging[0]);
     assert!(
-        call_args(&staging[0]).contains(&"--all"),
+        is_staging_fetch_call(&args),
+        "scripts/stage-dev-plugins.sh 기본 분기의 fetch 줄이 bash 로 스크립트를 부르는 호출이 아니다: {}",
+        staging[0]
+    );
+    assert!(
+        args.contains(&"--all"),
         "scripts/stage-dev-plugins.sh 기본 분기가 --all 로 받지 않는다: {}",
         staging[0]
     );
@@ -207,6 +221,17 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
 fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
     assert!(!call_args("bash fetch-official-plugins.sh --out x # --all").contains(&"--all"));
     assert!(call_args("bash fetch-official-plugins.sh --out x --all # 모두").contains(&"--all"));
+    assert!(
+        !call_args("bash fetch-official-plugins.sh --out \"$stage\"\t# --all # 설명")
+            .contains(&"--all"),
+        "탭 뒤 주석의 --all 을 인자로 읽었다"
+    );
+    let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\" --all";
+    assert!(is_staging_fetch_call(&call_args(real)));
+    assert!(
+        !is_staging_fetch_call(&call_args(&real.replacen("bash", ":", 1))),
+        "무동작 명령을 fetch 호출로 보았다"
+    );
     let text = "if [[ \"$from_checkout\" -eq 1 ]]; then\n    bash scripts/fetch-official-plugins.sh --all\nelse\n    bash scripts/fetch-official-plugins.sh --out y\nfi\n";
     let branch = default_staging_branch(text).expect("기본 분기");
     assert_eq!(

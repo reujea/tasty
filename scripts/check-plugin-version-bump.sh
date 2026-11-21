@@ -256,6 +256,8 @@ read_lock_ids() {  # <scan 파일>
             # generate 가 쓰는 세 표의 맨 이름만 받는다. 다른 표 머리는 id 를 담은 표를 놓칠 수 있다.
             if ($3 != "bare" || ($2 != "[release]" && $2 != "[[plugin]]" && $2 != "[[plugin.artifact]]")) fail("잠금 파일에 모르는 표가 있다: " $2)
             inp = ($2 == "[[plugin]]"); if (inp) { tables++; ids = 0 }
+            # 배포 파서는 [[plugin.artifact]] 가 앞선 [[plugin]] 에 붙는다고 읽는다.
+            if ($2 == "[[plugin.artifact]]" && tables == 0) fail("[[plugin.artifact]] 앞에 [[plugin]] 표가 없다")
             next
         }
         $1 == "K" && inp {

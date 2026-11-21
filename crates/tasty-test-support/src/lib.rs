@@ -124,12 +124,14 @@ pub fn official_plugin_fixtures_root() -> std::path::PathBuf {
 }
 
 /// 호스트 시험이 보는 번들 플러그인 매니페스트 폴더. workspace 크레이트 바로 아래의
-/// `tasty-plugin.toml` 폴더와 공식 플러그인 픽스처 폴더의 합집합이다. 같은 id가 둘 다에 있으면
-/// 픽스처 쪽을 남긴다(공식 플러그인의 계약은 잠금 파일이 가리키는 릴리스 산출물이다). id 순으로 돌려준다.
+/// `tasty-plugin.toml` 폴더와 공식 플러그인 픽스처 폴더의 합집합이다. 같은 id가 workspace와 픽스처
+/// 양쪽에 있으면 픽스처 쪽을 남긴다(공식 플러그인의 계약은 잠금 파일이 가리키는 릴리스 산출물이다).
+/// id 순으로 돌려준다.
 ///
 /// # Panics
 ///
-/// 폴더를 읽지 못하거나 매니페스트를 해석하지 못하면 panic한다. 계약 검증(`validate`)은 하지 않는다.
+/// 폴더를 읽지 못하거나 매니페스트를 해석하지 못하면 panic한다. 같은 원천(workspace 또는 픽스처)
+/// 안에서 id가 겹쳐도 두 경로를 밝히고 panic한다. 계약 검증(`validate`)은 하지 않는다.
 pub fn bundled_plugin_manifest_dirs() -> Vec<std::path::PathBuf> {
     fn manifest_dirs_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
         let mut dirs: Vec<_> = std::fs::read_dir(root)
@@ -143,25 +145,32 @@ pub fn bundled_plugin_manifest_dirs() -> Vec<std::path::PathBuf> {
         dirs.sort();
         dirs
     }
-    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut by_id = std::collections::BTreeMap::new();
-    let fixtures = manifest_dirs_under(&official_plugin_fixtures_root());
-    let workspace = manifest_dirs_under(&here.join(".."));
-    for (dir, from_fixture) in workspace
-        .into_iter()
-        .map(|d| (d, false))
-        .chain(fixtures.into_iter().map(|d| (d, true)))
-    {
-        // 고를 때는 검증하지 않는다. 같은 id의 사본이 계약 오류를 가져도 픽스처 선택 전에 멈추지 않게 하고,
-        // 검증은 호출자가 고른 매니페스트에 한다.
-        let id = tasty_plugin_manifest::Manifest::read(&dir)
-            .unwrap_or_else(|e| panic!("{} 매니페스트를 읽지 못했다: {e}", dir.display()))
-            .id;
-        if from_fixture || !by_id.contains_key(&id) {
+    // 고를 때는 검증하지 않는다. 같은 id의 사본이 계약 오류를 가져도 픽스처 선택 전에 멈추지 않게 하고,
+    // 검증은 호출자가 고른 매니페스트에 한다.
+    fn by_id(
+        dirs: Vec<std::path::PathBuf>,
+    ) -> std::collections::BTreeMap<String, std::path::PathBuf> {
+        let mut by_id: std::collections::BTreeMap<String, std::path::PathBuf> =
+            std::collections::BTreeMap::new();
+        for dir in dirs {
+            let id = tasty_plugin_manifest::Manifest::read(&dir)
+                .unwrap_or_else(|e| panic!("{} 매니페스트를 읽지 못했다: {e}", dir.display()))
+                .id;
+            if let Some(prev) = by_id.get(&id) {
+                panic!(
+                    "같은 원천에서 id {id} 가 두 번 나온다: {} 와 {}",
+                    prev.display(),
+                    dir.display()
+                );
+            }
             by_id.insert(id, dir);
         }
+        by_id
     }
-    by_id.into_values().collect()
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut merged = by_id(manifest_dirs_under(&here.join("..")));
+    merged.extend(by_id(manifest_dirs_under(&official_plugin_fixtures_root())));
+    merged.into_values().collect()
 }
 
 /// 플랫폼에 맞는 시험용 절대경로. tmp/exp는 Unix의 /tmp/exp, Windows의 C:\tmp\exp가 된다.
