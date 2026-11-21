@@ -396,10 +396,9 @@ pre-push는 Git이 전달한 원격·로컬 SHA를 비교한다. 원격 객체�
 경로는 SDK와 `tasty-ui-widgets`(→ `tasty-egui-theme`) 두 갈래다.
 SDK는 `plugin_catalog::load`만, `tasty-egui-theme`는 `font` 모듈만 부른다.
 두 경로 모두 내장 번역표(`builtin_toml`)에 닿지 않아 번역표가 링크 단계에서 빠진다.
-`lang/en.toml` 한 줄만 바꾼 트리와 원래 트리를 각각
-mesh-demo를 포함한 플러그인 9개를 `cargo build --release --locked`와 `--profile dist`로 빌드해 sha256을 비교했다.
-두 프로필 모두 9개 바이너리가 같았고, 같은 원래 트리를 다른 경로에 두 번 빌드한 잡음 바닥도 9/9 같았다.
-바이너리에는 번역 키나 값 문자열이 들어 있지 않다.
+`lang/en.toml`의 값 한 줄을 바꾸고 `cargo build --locked --profile <release|dist> -p tasty-plugin-mesh-demo`로
+다시 빌드하면 `tasty-i18n`은 다시 컴파일되지만 mesh-demo 바이너리의 sha256은 바꾸기 전·바꾼 뒤·되돌린 뒤 셋이 같았다
+(2026-11-21, x86_64 Linux, 두 프로필 모두).
 번들 플러그인이 링크하는 크레이트(플러그인 자신, SDK, `tasty-egui-theme`, `tasty-ui-widgets` 등)
 중 하나라도 `init`·`available_languages`·`scan_languages`처럼
 `builtin_toml`에 닿는 함수를 쓰게 되면 이 전제가 깨진다.
@@ -415,9 +414,8 @@ mesh-demo를 포함한 플러그인 9개를 `cargo build --release --locked`와 
 다른 하나는 읽는 크레이트가 플러그인 폐포 밖이라는 것이다. 이 예외는 그 크레이트가 매니페스트 플러그인의
 normal·build 폐포(모든 target)에 들어오면 실패한다. 폐포는 Cargo.lock과 각 매니페스트로 구한다.
 `tasty-ui-widgets`의 `LOGO_PNG`(`assets/icons/icon_256.png`)도 링크에서 빠진다고 잰 예외다.
-번들 플러그인 9개의 release 바이너리(aarch64 Linux)에서 이 PNG의 바이트열을 찾지 못했고,
-같은 빌드의 호스트 바이너리에서는 PNG 전체를 찾았다. 플러그인 소스는 `LOGO_PNG`와 `draw_wordmark`를 부르지 않는다.
-`dist` 프로필과 다른 target은 재지 않았다.
+mesh-demo의 release·dist 바이너리(2026-11-21, x86_64 Linux)에서 이 PNG(14329바이트)의 바이트열을 찾지 못했다.
+mesh-demo 소스는 `LOGO_PNG`와 `draw_wordmark`를 부르지 않는다. 다른 target은 재지 않았다.
 링크에서 빠진다는 예외는 사용처를 감시하지 않는다. 플러그인 쪽 코드가 `builtin_toml`에 닿는 함수나
 `LOGO_PNG`를 쓰게 되어도 시험은 통과하므로, 다시 측정할 조건은 계속 사람이 확인한다.
 `build.rs`가 `rerun-if-changed` 없이 직접 읽는 파일과 크레이트 루트가 아닌 빌드 스크립트(매니페스트의 `build = "..."`)도 모으지 않는다.
