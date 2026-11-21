@@ -30,7 +30,8 @@ pub(super) fn forced_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStre
     forced_peer_after(PeerGates::default())
 }
 
-/// 상대가 응답을 미루는 자리. 신호를 받을 때까지 그 자리에서 기다린다.
+/// 상대가 응답을 미루는 자리. 신호를 받을 때까지 그 자리에서 기다린다. 신호 없이 보내는 쪽이 버려지면
+/// 상대는 그 자리에서 조용히 끝난다.
 #[derive(Default)]
 pub(super) struct PeerGates {
     /// 요청을 읽은 뒤 handshake 응답 전.
@@ -54,8 +55,11 @@ pub(super) fn forced_peer_after(
         BufReader::new(socket.try_clone().unwrap())
             .read_line(&mut request)
             .unwrap();
-        if let Some(gate) = gates.handshake {
-            gate.recv().unwrap();
+        // 신호 대신 보내는 쪽을 버리면 시험이 이 연결을 거둔 것이다. 응답하지 않고 끝낸다.
+        if let Some(gate) = gates.handshake
+            && gate.recv().is_err()
+        {
+            return;
         }
         for control in [
             serde_json::json!({"ok": true, "proto": 1, "client_id": 7}),
@@ -68,8 +72,10 @@ pub(super) fn forced_peer_after(
             )
             .unwrap();
         }
-        if let Some(gate) = gates.notice {
-            gate.recv().unwrap();
+        if let Some(gate) = gates.notice
+            && gate.recv().is_err()
+        {
+            return;
         }
         stream::write_frame(&mut socket, StreamTag::Control, FORCE_NOTICE).unwrap();
         tx.send(socket).unwrap();

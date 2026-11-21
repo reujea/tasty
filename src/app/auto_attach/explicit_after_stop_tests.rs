@@ -382,6 +382,7 @@ fn the_stop_takes_back_a_waiting_automatic_connection_before_the_explicit_restar
     assert!(app.remote.active.contains(&ROW));
     assert_eq!(slot_given_up(&app), Some(false));
     assert_eq!(run_state(run2), "running", "{}", run_json(run2));
+    // 거둔 연결이라 handshake 를 보내지 않는다. 보내는 쪽을 버려 상대를 끝낸다.
     drop(gate);
 }
 
