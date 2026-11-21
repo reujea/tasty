@@ -323,14 +323,6 @@ fn a_candidate_failing_the_offline_checks_keeps_the_fixtures() {
             "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle = false\n\"\\u0066uture\" = \"x\"\n",
         ),
         (
-            "점 구분 키로 표가 된 bundle",
-            "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle.enabled = false\n",
-        ),
-        (
-            "뒤쪽 표로 정의한 bundle",
-            "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\n[entry]\ntype = \"process\"\n[bundle]\nenabled = false\n",
-        ),
-        (
             "중복 version, 잠금 값이 마지막",
             "id = \"com.tasty.beta\"\nversion = \"2.0.9\"\nversion = \"2.0.0\"\nbundle = false\n",
         ),
@@ -348,6 +340,56 @@ fn a_candidate_failing_the_offline_checks_keeps_the_fixtures() {
             "{what}: 실패한 갱신이 기존 픽스처를 바꿨다"
         );
     }
+}
+
+/// 잠금 값이 `true`인 alpha에서 `bundle`을 표로 만든다. 표를 기본값 `true`로 읽으면 값 대조가 통과하므로
+/// 판독 오류로 실패하는지 본다. 점이 든 따옴표 조각은 그 조각 하나가 첫 키다.
+#[test]
+fn a_bundle_table_fails_even_where_the_lock_value_is_true() {
+    let root = Root::new();
+    root.update_ok();
+    let before = root.fixtures();
+    let head = "id = \"com.tasty.alpha\"\nversion = \"1.0.0\"\n";
+    for (what, tail) in [
+        ("점 구분 키", "bundle.enabled = false\n"),
+        (
+            "뒤쪽 표",
+            "[entry]\ntype = \"process\"\n[bundle]\nenabled = false\n",
+        ),
+        (
+            "점이 든 따옴표 조각의 표",
+            "[bundle.\"x.y\"]\nenabled = false\n",
+        ),
+        (
+            "이스케이프로 쓴 표 이름",
+            "[\"bu\\u006edle\"]\nenabled = false\n",
+        ),
+    ] {
+        root.write(
+            "payload/com.tasty.alpha/tasty-plugin.toml",
+            &format!("{head}{tail}"),
+        );
+        let (code, text) = root.run(&["--update"]);
+        assert_eq!(code, 1, "{what}: 표가 된 bundle 을 들였다:\n{text}");
+        assert!(
+            text.contains("com.tasty.alpha: tasty-plugin.toml has a top-level key it cannot read"),
+            "{what}: 판독 오류로 실패하지 않았다:\n{text}"
+        );
+        assert_eq!(
+            root.fixtures(),
+            before,
+            "{what}: 실패한 갱신이 기존 픽스처를 바꿨다"
+        );
+    }
+    root.write(
+        "payload/com.tasty.alpha/tasty-plugin.toml",
+        &format!("{head}\"bundle.other\".enabled = false\n"),
+    );
+    let (code, text) = root.run(&["--update"]);
+    assert_eq!(
+        code, 0,
+        "따옴표 조각 \"bundle.other\" 를 bundle 표로 보았다:\n{text}"
+    );
 }
 
 #[test]

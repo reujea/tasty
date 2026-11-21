@@ -98,6 +98,28 @@ fn is_staging_fetch_call(args: &[&str]) -> bool {
     matches!(args, ["bash", script, ..] if script.trim_matches('"').ends_with("/scripts/fetch-official-plugins.sh"))
 }
 
+/// fetch 스크립트 뒤의 독립 옵션. `scripts/fetch-official-plugins.sh`의 파서처럼 값을 받는 옵션은
+/// 다음 토큰을 값으로 소비하므로 `--cache --all`의 `--all`은 옵션이 아니다.
+fn fetch_flags<'a>(args: &[&'a str]) -> Vec<&'a str> {
+    const TAKES_VALUE: [&str; 4] = ["--platform", "--out", "--lock", "--cache"];
+    let Some(script) = args
+        .iter()
+        .position(|a| a.trim_matches('"').ends_with("fetch-official-plugins.sh"))
+    else {
+        return Vec::new();
+    };
+    let mut flags = Vec::new();
+    let mut rest = args[script + 1..].iter();
+    while let Some(a) = rest.next() {
+        if TAKES_VALUE.contains(a) {
+            rest.next();
+        } else {
+            flags.push(*a);
+        }
+    }
+    flags
+}
+
 /// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
 /// `if [[ "$from_checkout" -eq 1 ]]; then` 뒤 맨 앞 열 `else`부터 맨 앞 열 `fi`까지다.
 fn default_staging_branch(text: &str) -> Option<String> {
@@ -210,7 +232,7 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         staging[0]
     );
     assert!(
-        args.contains(&"--all"),
+        fetch_flags(&args).contains(&"--all"),
         "scripts/stage-dev-plugins.sh 기본 분기가 --all 로 받지 않는다: {}",
         staging[0]
     );
@@ -228,6 +250,11 @@ fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
     );
     let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\" --all";
     assert!(is_staging_fetch_call(&call_args(real)));
+    assert!(fetch_flags(&call_args(real)).contains(&"--all"));
+    assert!(
+        !fetch_flags(&call_args(&real.replacen("--all", "--cache --all", 1))).contains(&"--all"),
+        "값 자리의 --all 을 옵션으로 읽었다"
+    );
     assert!(
         !is_staging_fetch_call(&call_args(&real.replacen("bash", ":", 1))),
         "무동작 명령을 fetch 호출로 보았다"

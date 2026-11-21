@@ -86,11 +86,13 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
     let mut top_done = false;
     for record in scan.lines() {
         let fields: Vec<&str> = record.split('\t').collect();
-        // 어느 위치든 bundle 표([bundle], [bundle.x])는 최상위 bundle 을 불 값이 아닌 표로 만든다.
-        if let ["H", head, ..] = fields.as_slice() {
-            let name = head.trim_start_matches('[').trim_end_matches(']');
-            if name == "bundle" || name.starts_with("bundle.") {
-                return Err("bundle 이 표다".to_string());
+        // 어느 위치든 첫 조각이 bundle 인 표([bundle], [bundle."x.y"])는 최상위 bundle 을 불 값이 아닌 표로
+        // 만든다. 첫 조각을 확신할 수 없는 표(빈칸)도 bundle 일 수 있어 실패다.
+        if let ["H", ..] = fields.as_slice() {
+            match fields.get(3) {
+                Some(&"bundle") => return Err("bundle 이 표다".to_string()),
+                Some(&"") | None => return Err("표 머리의 첫 조각을 확신할 수 없다".to_string()),
+                Some(_) => {}
             }
             top_done = true;
             continue;
@@ -98,9 +100,7 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
         if top_done {
             continue;
         }
-        if let ["K", "dotted", key, ..] = fields.as_slice()
-            && key.starts_with("bundle.")
-        {
+        if let ["K", "dotted", _, _, _, "bundle", ..] = fields.as_slice() {
             return Err("bundle 이 점 구분 키로 표가 된다".to_string());
         }
         if let ["K", _, key @ ("id" | "version" | "bundle"), ..] = fields.as_slice()
@@ -111,10 +111,10 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
         match fields.as_slice() {
             ["E", why] => return Err(format!("스캐너가 읽지 못했다: {why}")),
             ["K", "unknown", ..] => return Err("최상위에 읽을 수 없는 키가 있다".to_string()),
-            ["K", _, "bundle", "bool", v] => top.bundle = *v == "true",
+            ["K", _, "bundle", "bool", v, ..] => top.bundle = *v == "true",
             ["K", _, "bundle", ..] => return Err("bundle 값이 불 값이 아니다".to_string()),
-            ["K", _, "id", "basic" | "literal", v] => top.id = Some((*v).to_string()),
-            ["K", _, "version", "basic" | "literal", v] => top.version = Some((*v).to_string()),
+            ["K", _, "id", "basic" | "literal", v, ..] => top.id = Some((*v).to_string()),
+            ["K", _, "version", "basic" | "literal", v, ..] => top.version = Some((*v).to_string()),
             _ => {}
         }
     }
@@ -279,7 +279,7 @@ fn fixtures_carry_no_carriage_returns() {
 fn the_top_level_reader_follows_the_scanner_records() {
     assert_eq!(
         top_level(
-            "K\tbare\tid\tbasic\tcom.tasty.x\nH\t[entry]\tbare\nK\tbare\tbundle\tbool\tfalse\n"
+            "K\tbare\tid\tbasic\tcom.tasty.x\tid\nH\t[entry]\tbare\tentry\nK\tbare\tbundle\tbool\tfalse\tbundle\n"
         ),
         Ok(TopLevel {
             id: Some("com.tasty.x".to_string()),
@@ -303,11 +303,16 @@ fn the_top_level_reader_follows_the_scanner_records() {
         "중복 version 을 마지막 값으로 덮었다"
     );
     for (what, scan) in [
-        ("점 구분 키", "K\tdotted\tbundle.enabled\tbool\tfalse\n"),
+        (
+            "점 구분 키",
+            "K\tdotted\tbundle.enabled\tbool\tfalse\tbundle\n",
+        ),
         (
             "표 머리",
-            "K\tbare\tid\tbasic\tx\nH\t[entry]\tbare\nH\t[bundle]\tbare\n",
+            "K\tbare\tid\tbasic\tx\tid\nH\t[entry]\tbare\tentry\nH\t[bundle]\tbare\tbundle\n",
         ),
+        ("점이 든 따옴표 조각의 표", "H\t[]\tunknown\tbundle\n"),
+        ("첫 조각을 확신할 수 없는 표", "H\t[]\tunknown\t\n"),
     ] {
         assert!(
             top_level(scan).is_err(),
