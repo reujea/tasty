@@ -101,12 +101,31 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
 /// 매니페스트를 스캐너로 읽은 레코드. 스캐너가 실패하면 그 이유를 돌려준다.
 #[cfg(unix)]
 fn scan_file(path: &Path) -> Result<String, String> {
-    let out = std::process::Command::new("awk")
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("{}를 읽지 못했다: {e}", path.display()))?;
+    scan_text(&text)
+}
+
+/// 원문을 표준 입력으로 스캐너에 넘긴다.
+#[cfg(unix)]
+fn scan_text(body: &str) -> Result<String, String> {
+    use std::io::Write;
+    let mut child = std::process::Command::new("awk")
         .arg("-f")
         .arg(repo_root().join("scripts/lib/toml-scan.awk"))
-        .arg(path)
-        .output()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| format!("awk를 실행하지 못했다: {e}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or("awk 표준 입력을 열지 못했다")?
+        .write_all(body.as_bytes())
+        .map_err(|e| format!("awk에 원문을 넘기지 못했다: {e}"))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("awk를 기다리지 못했다: {e}"))?;
     let text = String::from_utf8_lossy(&out.stdout).into_owned();
     if out.status.success() {
         return Ok(text);
@@ -231,8 +250,6 @@ fn the_top_level_reader_follows_the_scanner_records() {
 #[cfg(unix)]
 #[test]
 fn quoted_and_string_hidden_bundle_keys_read_like_toml() {
-    let dir = std::env::temp_dir().join(format!("tasty-fixture-bundle-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("임시 폴더");
     for (what, body) in [
         ("인용 키", "id = \"com.tasty.x\"\n\"bundle\" = false\n"),
         (
@@ -240,10 +257,7 @@ fn quoted_and_string_hidden_bundle_keys_read_like_toml() {
             "id = \"com.tasty.x\"\ndescription = \"\"\"\nbundle = true\n\"\"\"\nbundle = false\n",
         ),
     ] {
-        let path = dir.join("tasty-plugin.toml");
-        std::fs::write(&path, body).expect("쓰기");
-        let top = scan_file(&path).and_then(|scan| top_level(&scan));
+        let top = scan_text(body).and_then(|scan| top_level(&scan));
         assert_eq!(top.map(|t| t.bundle), Ok(false), "{what}");
     }
-    std::fs::remove_dir_all(&dir).expect("임시 폴더 지우기");
 }
