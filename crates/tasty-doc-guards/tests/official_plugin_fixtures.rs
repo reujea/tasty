@@ -87,12 +87,13 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
     for record in scan.lines() {
         let fields: Vec<&str> = record.split('\t').collect();
         // 어느 위치든 첫 조각이 bundle 인 표([bundle], [bundle."x.y"])는 최상위 bundle 을 불 값이 아닌 표로
-        // 만든다. 첫 조각을 확신할 수 없는 표(빈칸)도 bundle 일 수 있어 실패다.
+        // 만든다. 첫 조각을 디코딩하지 못한 표(unknown)도 bundle 일 수 있어 실패다. 빈 인용 키 [""] 는 bundle 이
+        // 아니다.
         if let ["H", ..] = fields.as_slice() {
-            match fields.get(3) {
-                Some(&"bundle") => return Err("bundle 이 표다".to_string()),
-                Some(&"") | None => return Err("표 머리의 첫 조각을 확신할 수 없다".to_string()),
-                Some(_) => {}
+            match fields.get(3..5) {
+                Some(["known", "bundle"]) => return Err("bundle 이 표다".to_string()),
+                Some(["known", _]) => {}
+                _ => return Err("표 머리의 첫 조각을 확신할 수 없다".to_string()),
             }
             top_done = true;
             continue;
@@ -100,7 +101,7 @@ fn top_level(scan: &str) -> Result<TopLevel, String> {
         if top_done {
             continue;
         }
-        if let ["K", "dotted", _, _, _, "bundle", ..] = fields.as_slice() {
+        if let ["K", "dotted", _, _, _, _, "bundle", ..] = fields.as_slice() {
             return Err("bundle 이 점 구분 키로 표가 된다".to_string());
         }
         if let ["K", _, key @ ("id" | "version" | "bundle"), ..] = fields.as_slice()
@@ -279,7 +280,7 @@ fn fixtures_carry_no_carriage_returns() {
 fn the_top_level_reader_follows_the_scanner_records() {
     assert_eq!(
         top_level(
-            "K\tbare\tid\tbasic\tcom.tasty.x\tid\nH\t[entry]\tbare\tentry\nK\tbare\tbundle\tbool\tfalse\tbundle\n"
+            "K\tbare\tid\tbasic\tcom.tasty.x\tknown\tid\nH\t[entry]\tbare\tknown\tentry\nK\tbare\tbundle\tbool\tfalse\tknown\tbundle\n"
         ),
         Ok(TopLevel {
             id: Some("com.tasty.x".to_string()),
@@ -305,14 +306,17 @@ fn the_top_level_reader_follows_the_scanner_records() {
     for (what, scan) in [
         (
             "점 구분 키",
-            "K\tdotted\tbundle.enabled\tbool\tfalse\tbundle\n",
+            "K\tdotted\tbundle.enabled\tbool\tfalse\tknown\tbundle\n",
         ),
         (
             "표 머리",
-            "K\tbare\tid\tbasic\tx\tid\nH\t[entry]\tbare\tentry\nH\t[bundle]\tbare\tbundle\n",
+            "K\tbare\tid\tbasic\tx\tknown\tid\nH\t[entry]\tbare\tknown\tentry\nH\t[bundle]\tbare\tknown\tbundle\n",
         ),
-        ("점이 든 따옴표 조각의 표", "H\t[]\tunknown\tbundle\n"),
-        ("첫 조각을 확신할 수 없는 표", "H\t[]\tunknown\t\n"),
+        (
+            "점이 든 따옴표 조각의 표",
+            "H\t[]\tunknown\tknown\tbundle\n",
+        ),
+        ("첫 조각을 확신할 수 없는 표", "H\t[]\tunknown\tunknown\t\n"),
     ] {
         assert!(
             top_level(scan).is_err(),
@@ -336,6 +340,48 @@ fn quoted_and_string_hidden_bundle_keys_read_like_toml() {
     ] {
         let top = scan_text(body).and_then(|scan| top_level(&scan));
         assert_eq!(top.map(|t| t.bundle), Ok(false), "{what}");
+    }
+}
+
+/// sync 시험(`tests/official_plugin_fixture_sync.rs`)과 같은 원문으로 표가 된 `bundle`을 거부 이유와 함께 본다.
+/// 빈 인용 키 표 `[""]`와 따옴표 조각 `"bundle.other"`는 `bundle`이 아니라 기본값 true로 읽는다.
+#[cfg(unix)]
+#[test]
+fn bundle_tables_in_raw_manifests_are_rejected_with_the_reason() {
+    let head = "id = \"com.tasty.x\"\nversion = \"1.0.0\"\n";
+    for (what, tail, why) in [
+        ("점 구분 키", "bundle.enabled = false\n", "점 구분 키"),
+        (
+            "뒤쪽 표",
+            "[entry]\ntype = \"process\"\n[bundle]\nenabled = false\n",
+            "bundle 이 표다",
+        ),
+        (
+            "점이 든 따옴표 조각의 표",
+            "[bundle.\"x.y\"]\nenabled = false\n",
+            "bundle 이 표다",
+        ),
+        (
+            "이스케이프로 쓴 표 이름",
+            "[\"bu\\u006edle\"]\nenabled = false\n",
+            "확신할 수 없다",
+        ),
+    ] {
+        let top = scan_text(&format!("{head}{tail}")).and_then(|scan| top_level(&scan));
+        match top {
+            Err(e) => assert!(e.contains(why), "{what}: 거부 이유가 다르다: {e}"),
+            Ok(t) => panic!("{what}: 표가 된 bundle 을 {} 로 읽었다", t.bundle),
+        }
+    }
+    for (what, tail) in [
+        (
+            "따옴표 조각 bundle.other",
+            "\"bundle.other\".enabled = false\n",
+        ),
+        ("빈 인용 키 표", "[\"\"]\nenabled = false\n"),
+    ] {
+        let top = scan_text(&format!("{head}{tail}")).and_then(|scan| top_level(&scan));
+        assert_eq!(top.map(|t| t.bundle), Ok(true), "{what}");
     }
 }
 

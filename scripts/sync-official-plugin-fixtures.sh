@@ -331,11 +331,11 @@ while IFS=$'\t' read -r id want_version want_bundle; do
     # bundle 키가 없으면 호스트 기본값 true다.
     if ! top="$(awk -F'\t' '
         # 어느 위치든 첫 조각이 bundle 인 표([bundle], [bundle."x.y"])는 최상위 bundle 을 불 값이 아닌 표로 만든다.
-        # 첫 조각을 확신할 수 없는 표(빈칸)도 bundle 일 수 있어 실패다.
-        $1 == "H" { top_done = 1; if ($4 == "" || $4 == "bundle") bad = 1; next }
+        # 첫 조각을 디코딩하지 못한 표(unknown)도 bundle 일 수 있어 실패다. 빈 인용 키 [""] 는 bundle 이 아니다.
+        $1 == "H" { top_done = 1; if ($4 != "known" || $5 == "bundle") bad = 1; next }
         top_done { next }
         $1 == "K" && $2 == "unknown" { bad = 1 }
-        $1 == "K" && $2 == "dotted" && $6 == "bundle" { bad = 1 }
+        $1 == "K" && $2 == "dotted" && $7 == "bundle" { bad = 1 }
         $1 == "K" && ($3 == "id" || $3 == "version" || $3 == "bundle") && seen[$3]++ { bad = 1 }
         $1 == "K" && $3 == "bundle" { if ($4 == "bool") b = $5; else bad = 1 }
         $1 == "K" && $3 == "id" && ($4 == "basic" || $4 == "literal") { id = $5 }

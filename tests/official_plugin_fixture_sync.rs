@@ -381,15 +381,23 @@ fn a_bundle_table_fails_even_where_the_lock_value_is_true() {
             "{what}: 실패한 갱신이 기존 픽스처를 바꿨다"
         );
     }
-    root.write(
-        "payload/com.tasty.alpha/tasty-plugin.toml",
-        &format!("{head}\"bundle.other\".enabled = false\n"),
-    );
-    let (code, text) = root.run(&["--update"]);
-    assert_eq!(
-        code, 0,
-        "따옴표 조각 \"bundle.other\" 를 bundle 표로 보았다:\n{text}"
-    );
+    for (what, tail) in [
+        (
+            "따옴표 조각 bundle.other",
+            "\"bundle.other\".enabled = false\n",
+        ),
+        ("빈 인용 키 표", "[\"\"]\nenabled = false\n"),
+    ] {
+        root.write(
+            "payload/com.tasty.alpha/tasty-plugin.toml",
+            &format!("{head}{tail}"),
+        );
+        let (code, text) = root.run(&["--update"]);
+        assert_eq!(
+            code, 0,
+            "{what}: bundle 이 아닌 표를 bundle 표로 보았다:\n{text}"
+        );
+    }
 }
 
 #[test]

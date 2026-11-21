@@ -493,11 +493,11 @@ fn the_scanner_reads_keys_after_closing_quote_runs_and_marks_tab_keys() {
     let (code, out) = scan("a = \"\"\"x\"\"\"\"\nb = '''y'''''\nid = \"z\"\n\"i\td\" = \"w\"\n");
     assert_eq!(code, 0, "정상 입력을 거부했다:\n{out}");
     assert!(
-        out.contains("K\tbare\tid\tbasic\tz\tid\n"),
+        out.contains("K\tbare\tid\tbasic\tz\tknown\tid\n"),
         "닫는 따옴표 묶음 뒤 키를 읽지 못했다:\n{out}"
     );
     assert!(
-        out.contains("K\tunknown\t\tbasic\tw\t\n"),
+        out.contains("K\tunknown\t\tbasic\tw\tunknown\t\n"),
         "탭이 든 따옴표 키를 unknown 으로 내지 않았다:\n{out}"
     );
 }
@@ -537,15 +537,15 @@ fn the_scanner_reads_dotted_keys_and_marks_escaped_segments() {
         scan("\"entry\".type = \"exec\"\nentry . command = 'x'\n\"a\\u0062\".c = 1\n");
     assert_eq!(code, 0, "정상 입력을 거부했다:\n{out}");
     assert!(
-        out.contains("K\tdotted\tentry.type\tbasic\texec\tentry\n"),
+        out.contains("K\tdotted\tentry.type\tbasic\texec\tknown\tentry\n"),
         "따옴표 조각이 든 점 구분 키를 읽지 못했다:\n{out}"
     );
     assert!(
-        out.contains("K\tdotted\tentry.command\tliteral\tx\tentry\n"),
+        out.contains("K\tdotted\tentry.command\tliteral\tx\tknown\tentry\n"),
         "공백이 든 점 구분 키를 읽지 못했다:\n{out}"
     );
     assert!(
-        out.contains("K\tunknown\t\tother\t\t\n"),
+        out.contains("K\tunknown\t\tother\t\tunknown\t\n"),
         "이스케이프 조각을 unknown 으로 내지 않았다:\n{out}"
     );
 }
@@ -675,21 +675,21 @@ fn the_scanner_rejects_headers_it_cannot_read_and_keeps_markers_apart() {
     assert_eq!(code, 0, "따옴표 이름 표 머리를 거부했다:\n{out}");
     assert_eq!(
         out,
-        "H\t[]\tunknown\ta]\nH\t[entry]\tquoted\tentry\nH\t[[plugin.artifact]]\tspaced\tplugin\n",
+        "H\t[]\tunknown\tknown\ta]\nH\t[entry]\tquoted\tknown\tentry\nH\t[[plugin.artifact]]\tspaced\tknown\tplugin\n",
         "표 머리 레코드가 다르다"
     );
     let (code, out) = scan("\"?\" = \"x\"\n\"a\\u0062\" = \"y\"\nflag = false # 주석\n");
     assert_eq!(code, 0, "정상 입력을 거부했다:\n{out}");
     assert!(
-        out.contains("K\tquoted\t?\tbasic\tx\t?\n"),
+        out.contains("K\tquoted\t?\tbasic\tx\tknown\t?\n"),
         "\"?\" 키를 읽지 못했다:\n{out}"
     );
     assert!(
-        out.contains("K\tunknown\t\tbasic\ty\t\n"),
+        out.contains("K\tunknown\t\tbasic\ty\tunknown\t\n"),
         "이스케이프 키를 unknown 으로 내지 않았다:\n{out}"
     );
     assert!(
-        out.contains("K\tbare\tflag\tbool\tfalse\tflag\n"),
+        out.contains("K\tbare\tflag\tbool\tfalse\tknown\tflag\n"),
         "불 값을 읽지 못했다:\n{out}"
     );
 }

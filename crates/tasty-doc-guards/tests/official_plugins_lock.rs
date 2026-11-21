@@ -81,43 +81,82 @@ fn fetch_calls(rel: &str) -> Vec<String> {
     fetch_calls_in(&read(rel))
 }
 
-/// 호출 줄의 인자 토큰. 줄 끝 주석(공백 뒤 `#`부터)은 인자가 아니다.
-fn call_args(call: &str) -> Vec<&str> {
-    // 공백·탭 뒤의 첫 `#`부터가 주석이다. 둘 중 먼저 나오는 것을 쓴다.
-    let comment = call
-        .char_indices()
-        .zip(call.chars().skip(1))
-        .find(|((_, c), next)| c.is_whitespace() && *next == '#')
-        .map(|((i, _), _)| i);
-    let code = comment.map_or(call, |i| &call[..i]);
-    code.split_whitespace().collect()
+/// 호출 줄을 셸처럼 단어로 나눈다. 큰·작은따옴표 안의 공백은 단어를 나누지 않고 따옴표는 벗긴다.
+/// 따옴표 밖 `\`는 다음 글자를 그대로 둔다. 단어 첫머리의 따옴표 밖 `#`부터는 주석이다.
+/// 변수 확장은 하지 않는다(`"$stage"`는 글자 그대로 `$stage`).
+fn call_args(call: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut in_word = false;
+    let mut quote: Option<char> = None;
+    let mut chars = call.chars();
+    while let Some(c) = chars.next() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some('"') if c == '\\' => {
+                if let Some(n) = chars.next() {
+                    word.push(n);
+                }
+            }
+            Some(_) => word.push(c),
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                in_word = true;
+            }
+            None if c == '\\' => {
+                if let Some(n) = chars.next() {
+                    word.push(n);
+                }
+                in_word = true;
+            }
+            None if c.is_whitespace() => {
+                if in_word {
+                    words.push(std::mem::take(&mut word));
+                    in_word = false;
+                }
+            }
+            None if c == '#' && !in_word => break,
+            None => {
+                word.push(c);
+                in_word = true;
+            }
+        }
+    }
+    if in_word {
+        words.push(word);
+    }
+    words
 }
 
 /// 개발 스테이징이 쓰는 실제 호출 꼴: `bash "$root/scripts/fetch-official-plugins.sh" ...`.
-fn is_staging_fetch_call(args: &[&str]) -> bool {
-    matches!(args, ["bash", script, ..] if script.trim_matches('"').ends_with("/scripts/fetch-official-plugins.sh"))
+fn is_staging_fetch_call(args: &[String]) -> bool {
+    matches!(args, [bash, script, ..] if bash == "bash" && script.ends_with("/scripts/fetch-official-plugins.sh"))
 }
 
 /// fetch 스크립트 뒤의 독립 옵션. `scripts/fetch-official-plugins.sh`의 파서처럼 값을 받는 옵션은
-/// 다음 토큰을 값으로 소비하므로 `--cache --all`의 `--all`은 옵션이 아니다.
-fn fetch_flags<'a>(args: &[&'a str]) -> Vec<&'a str> {
+/// 다음 단어를 값으로 소비하므로 `--cache --all`의 `--all`은 옵션이 아니다.
+fn fetch_flags(args: &[String]) -> Vec<&str> {
     const TAKES_VALUE: [&str; 4] = ["--platform", "--out", "--lock", "--cache"];
     let Some(script) = args
         .iter()
-        .position(|a| a.trim_matches('"').ends_with("fetch-official-plugins.sh"))
+        .position(|a| a.ends_with("fetch-official-plugins.sh"))
     else {
         return Vec::new();
     };
     let mut flags = Vec::new();
     let mut rest = args[script + 1..].iter();
     while let Some(a) = rest.next() {
-        if TAKES_VALUE.contains(a) {
+        if TAKES_VALUE.contains(&a.as_str()) {
             rest.next();
         } else {
-            flags.push(*a);
+            flags.push(a.as_str());
         }
     }
     flags
+}
+
+fn has_word(args: &[String], want: &str) -> bool {
+    args.iter().any(|a| a == want)
 }
 
 /// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
@@ -211,7 +250,7 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         assert!(!calls.is_empty(), "{rel}에서 fetch 호출을 찾지 못했다");
         for call in &calls {
             assert!(
-                !call_args(call).contains(&"--all"),
+                !has_word(&call_args(call), "--all"),
                 "{rel}의 배포 fetch가 --all 로 bundle = false 항목까지 싣는다: {call}"
             );
         }
@@ -241,19 +280,36 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
 /// 주석에만 남은 `--all`은 인자가 아니고, 기본 분기 밖의 호출은 기본 분기로 세지 않는다.
 #[test]
 fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
-    assert!(!call_args("bash fetch-official-plugins.sh --out x # --all").contains(&"--all"));
-    assert!(call_args("bash fetch-official-plugins.sh --out x --all # 모두").contains(&"--all"));
+    assert!(!has_word(
+        &call_args("bash fetch-official-plugins.sh --out x # --all"),
+        "--all"
+    ));
+    assert!(has_word(
+        &call_args("bash fetch-official-plugins.sh --out x --all # 모두"),
+        "--all"
+    ));
     assert!(
-        !call_args("bash fetch-official-plugins.sh --out \"$stage\"\t# --all # 설명")
-            .contains(&"--all"),
+        !has_word(
+            &call_args("bash fetch-official-plugins.sh --out \"$stage\"\t# --all # 설명"),
+            "--all"
+        ),
         "탭 뒤 주석의 --all 을 인자로 읽었다"
     );
     let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\" --all";
     assert!(is_staging_fetch_call(&call_args(real)));
     assert!(fetch_flags(&call_args(real)).contains(&"--all"));
+    for (what, tail) in [
+        ("값 자리", "--cache --all"),
+        ("따옴표 안 공백이 든 값", "--cache \"$stage --all cache\""),
+    ] {
+        assert!(
+            !fetch_flags(&call_args(&real.replacen("--all", tail, 1))).contains(&"--all"),
+            "{what}의 --all 을 옵션으로 읽었다"
+        );
+    }
     assert!(
-        !fetch_flags(&call_args(&real.replacen("--all", "--cache --all", 1))).contains(&"--all"),
-        "값 자리의 --all 을 옵션으로 읽었다"
+        fetch_flags(&call_args(&real.replacen("--all", "\"--all\"", 1))).contains(&"--all"),
+        "따옴표로 쓴 실제 옵션 --all 을 놓쳤다"
     );
     assert!(
         !is_staging_fetch_call(&call_args(&real.replacen("bash", ":", 1))),

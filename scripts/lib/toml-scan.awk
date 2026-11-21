@@ -1,18 +1,19 @@
 # TOML 문서의 표 머리와 키를 줄 단위가 아니라 문자 단위로 읽어 낸다.
 # 출력(탭 구분):
-#   H<TAB><머리><TAB><이름 형식><TAB><첫 조각>   표 머리. [[ plugin ]] 은 "[[plugin]]", [ release ] 는 "[release]"
+#   H<TAB><머리><TAB><이름 형식><TAB><첫 조각 형식><TAB><첫 조각>   표 머리. [[ plugin ]] 은 "[[plugin]]", [ release ] 는 "[release]"
 #       이름은 키와 같은 조각(맨 키, 따옴표 키)을 점으로 이은 것이다. ["entry"] 는 "[entry]" 로 낸다.
 #       이름 형식: bare(맨 키 조각만, 점 앞뒤 공백 없음) | spaced(맨 키 조각만, 점 앞뒤에 공백) |
 #                  quoted(따옴표 조각이 있고 모두 맨 키 글자) |
 #                  unknown(맨 키 글자 밖의 글자·이스케이프·탭이 든 따옴표 조각. 머리 자리 이름은 빈칸).
 #       공백·탭 밖의 공백 문자처럼 조각으로 읽지 못하는 머리는 오류로 끝난다.
-#   K<TAB><키 형식><TAB><키><TAB><값 형식><TAB><값><TAB><첫 조각>
+#   K<TAB><키 형식><TAB><키><TAB><값 형식><TAB><값><TAB><첫 조각 형식><TAB><첫 조각>
 #       키 형식: bare | quoted | dotted(점으로 이은 조각 둘 이상, 키 자리는 조각을 점으로 이은 값)
 #                | unknown(이스케이프나 탭이 든 따옴표 조각이 있다. 키 자리는 빈칸).
 #       값 형식: basic("[A-Za-z0-9._-]+") | literal('[A-Za-z0-9._-]+') | bool(true·false) | other.
 #                other 의 값 자리는 빈칸이다(값에 탭이 있어도 레코드가 섞이지 않게).
 #   첫 조각: 머리·키의 첫 조각을 따옴표를 벗긴 값으로 낸다. 점이 든 따옴표 조각("a.b")도 한 조각이다.
-#       이스케이프나 탭이 든 첫 조각은 디코딩하지 않고 빈칸으로 낸다(읽는 쪽은 빈칸을 확신할 수 없는 값으로 본다).
+#       첫 조각 형식: known(값 그대로, 빈 인용 키 "" 는 빈칸) | unknown(이스케이프나 탭이 들어 디코딩하지 않았다.
+#       첫 조각 자리는 빈칸).
 # 주석, 기본·리터럴 문자열, 여러 줄 문자열, 배열·인라인 표의 괄호 깊이를 따라가므로
 # 여러 줄 문자열 안의 "id = ..." 나 "[entry]" 줄, 중첩 배열 원소의 "[" 를 키·표 머리로 읽지 않는다.
 # 닫히지 않은 문자열·괄호가 남으면 "E<TAB><이유>"를 내고 종료 코드 3으로 끝난다.
@@ -62,10 +63,10 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 # t 의 pos 부터 점으로 이은 키 조각(맨 키, 기본·리터럴 따옴표 키)을 읽는다. 조각 사이 공백을 허용한다.
 # 결과: SKEY(조각을 점으로 이은 값), SPOS(조각 뒤 공백을 건넌 위치), SN(조각 수), SQ(따옴표 조각 있음),
 # SUNK(이스케이프나 탭이 든 따옴표 조각 있음), SNB(맨 키 글자 밖의 글자가 든 따옴표 조각 있음),
-# SSP(점 앞뒤에 공백이 있음), SROOT(첫 조각, 이스케이프나 탭이 있으면 빈칸).
+# SSP(점 앞뒤에 공백이 있음), SROOT(첫 조각), SRF(첫 조각 형식 known|unknown).
 # 읽지 못하면 bad 를 채우고 0 을 돌려준다.
 function segments(t, pos,    n, c, j, seg, p0) {
-    n = length(t); SN = 0; SKEY = ""; SQ = 0; SUNK = 0; SNB = 0; SSP = 0; SROOT = ""
+    n = length(t); SN = 0; SKEY = ""; SQ = 0; SUNK = 0; SNB = 0; SSP = 0; SROOT = ""; SRF = "known"
     while (1) {
         p0 = pos
         while (pos <= n && (substr(t, pos, 1) == " " || substr(t, pos, 1) == "\t")) pos++
@@ -78,7 +79,7 @@ function segments(t, pos,    n, c, j, seg, p0) {
             }
             if (j > n) { bad = NR ": 따옴표 키가 닫히지 않았다"; return 0 }
             seg = substr(t, pos + 1, j - pos - 1); SQ = 1
-            if ((c == "\"" && index(seg, "\\") > 0) || index(seg, "\t") > 0) { SUNK = 1; if (SN == 0) seg = "" }
+            if ((c == "\"" && index(seg, "\\") > 0) || index(seg, "\t") > 0) { SUNK = 1; if (SN == 0) { seg = ""; SRF = "unknown" } }
             if (seg !~ /^[A-Za-z0-9_-]+$/) SNB = 1
             pos = j + 1
         } else if (match(substr(t, pos), /^[A-Za-z0-9_-]+/)) {
@@ -112,7 +113,7 @@ function segments(t, pos,    n, c, j, seg, p0) {
         if (tail != "" && substr(tail, 1, 1) != "#") { bad = NR ": 표 머리 뒤에 읽을 수 없는 내용이 있다"; next }
         hform = (SUNK || SNB) ? "unknown" : (SQ ? "quoted" : (SSP ? "spaced" : "bare"))
         name = (hform == "unknown") ? "" : SKEY
-        printf "H\t%s\t%s\t%s\n", (arr ? "[[" name "]]" : "[" name "]"), hform, SROOT
+        printf "H\t%s\t%s\t%s\t%s\n", (arr ? "[[" name "]]" : "[" name "]"), hform, SRF, SROOT
         next
     }
     if (!segments(t, 1)) next
@@ -129,7 +130,7 @@ function segments(t, pos,    n, c, j, seg, p0) {
     else if (match(v, /^'[A-Za-z0-9._-]+'[ \t]*(#.*)?$/)) vform = "literal"
     else if (match(v, /^(true|false)[ \t]*(#.*)?$/)) { vform = "bool"; val = substr(v, 1, (substr(v, 1, 1) == "t") ? 4 : 5) }
     if (vform == "basic" || vform == "literal") { q = substr(v, 1, 1); val = substr(v, 2); val = substr(val, 1, index(val, q) - 1) }
-    printf "K\t%s\t%s\t%s\t%s\t%s\n", kform, key, vform, val, SROOT
+    printf "K\t%s\t%s\t%s\t%s\t%s\t%s\n", kform, key, vform, val, SRF, SROOT
     scan(v, 1)
 }
 
