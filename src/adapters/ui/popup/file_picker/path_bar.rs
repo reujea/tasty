@@ -10,12 +10,12 @@ use crate::adapters::ui::icons;
 use crate::theme::Theme;
 
 /// 오른쪽 버튼 폭을 먼저 확보하고 남은 폭에 breadcrumb을 그린다. 경로·Up·Refresh 사이는 모두
-/// `fp-section-gap` 이다.
+/// `fp-section-gap` 이다. 숨은 경로 `…` 메뉴를 그렸으면 그 egui popup id를 돌려준다.
 pub(super) fn path_bar(
     ui: &mut egui::Ui,
     props: &FilePickerProps<'_>,
     action: &mut FilePickerAction,
-) {
+) -> Option<egui::Id> {
     let th = props.theme;
     let (row, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), ControlSize::Sm.height(th)),
@@ -57,7 +57,7 @@ pub(super) fn path_bar(
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
     crumbs_ui.set_clip_rect(crumbs_rect.intersect(ui.clip_rect()));
-    draw_crumbs(&mut crumbs_ui, props, action);
+    draw_crumbs(&mut crumbs_ui, props, action)
 }
 
 /// root는 고정폭 글꼴을 사용한다.
@@ -176,13 +176,17 @@ fn step_memory_id(ui: &egui::Ui) -> egui::Id {
     ui.make_persistent_id("file_picker_path_bar_step")
 }
 
-fn draw_crumbs(ui: &mut egui::Ui, props: &FilePickerProps<'_>, action: &mut FilePickerAction) {
+fn draw_crumbs(
+    ui: &mut egui::Ui,
+    props: &FilePickerProps<'_>,
+    action: &mut FilePickerAction,
+) -> Option<egui::Id> {
     let th = props.theme;
     let gap = STRUCT_GAP_2.value();
     ui.spacing_mut().item_spacing.x = gap;
     let n = props.crumbs.len();
     if n == 0 {
-        return;
+        return None;
     }
     let natural: Vec<f32> = props
         .crumbs
@@ -202,6 +206,7 @@ fn draw_crumbs(ui: &mut egui::Ui, props: &FilePickerProps<'_>, action: &mut File
     let plan = plan(&measure, previous);
     ui.memory_mut(|m| m.data.insert_temp(memory_id, plan.step));
 
+    let mut hidden_menu = None;
     for (slot_idx, placed) in plan.placed.iter().enumerate() {
         if slot_idx > 0 {
             ui.add(icons::CHEVRON_RIGHT.image(CRUMB_GLYPH.value(), th.text_disabled().into()));
@@ -235,18 +240,21 @@ fn draw_crumbs(ui: &mut egui::Ui, props: &FilePickerProps<'_>, action: &mut File
                     }
                 }
             }
-            CrumbSlot::Hidden(range) => hidden_crumbs(ui, props, range.clone(), action),
+            CrumbSlot::Hidden(range) => {
+                hidden_menu = Some(hidden_crumbs(ui, props, range.clone(), action));
+            }
         }
     }
+    hidden_menu
 }
 
-/// `…` 크럼 — 클릭하면 숨긴 조상들을 메뉴로 나열한다.
+/// `…` 크럼 — 클릭하면 숨긴 조상들을 메뉴로 나열한다. 메뉴의 egui popup id를 돌려준다.
 fn hidden_crumbs(
     ui: &mut egui::Ui,
     props: &FilePickerProps<'_>,
     range: std::ops::Range<usize>,
     action: &mut FilePickerAction,
-) {
+) -> egui::Id {
     let th = props.theme;
     let galley = crumb_galley(ui, th, "…", false, false, natural_width(ui, th, "…", false));
     let (rect, resp) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
@@ -301,6 +309,7 @@ fn hidden_crumbs(
         )
     });
     ui.spacing_mut().menu_margin = prev_margin;
+    popup_id
 }
 
 /// 숨은 조상 폴더 행을 그리고 누른 행의 크럼 번호를 돌려준다. 행은 다른 메뉴처럼

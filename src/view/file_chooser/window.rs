@@ -1,6 +1,6 @@
 //! 창이 자기 `PopupManager`에 연 파일 피커 정의의 인스턴스와 그 결과 보관.
 use super::{FileChooserMode, FileChooserOutcome, LocalFileChooser};
-use crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
+use crate::adapters::ui::popup::file_picker::{FILE_PICKER_POPUP_ID, report_hidden_crumbs_menu};
 use crate::adapters::ui::popup::{PopupManager, defs};
 use std::path::PathBuf;
 use tasty_type_geometry::length::LogicalPx;
@@ -107,8 +107,12 @@ impl WindowFileChooser {
         let closed = self
             .popups
             .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
-                cx.id == FILE_PICKER_POPUP_ID
-                    && chooser.draw(ui, &crate::theme::theme(), owns_escape)
+                if cx.id != FILE_PICKER_POPUP_ID {
+                    return false;
+                }
+                let drawn = chooser.draw(ui, &crate::theme::theme(), owns_escape);
+                report_hidden_crumbs_menu(ui, cx.instance, drawn.child_menu);
+                drawn.done
             });
         // 응답을 끝낸 뒤 닫혔으면 결과가 남고, 그 밖의 경로로 닫혔으면 취소다.
         if closed.contains(&FILE_PICKER_POPUP_ID) {

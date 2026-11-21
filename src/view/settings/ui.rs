@@ -854,7 +854,13 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
             .popups
             .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
                 if cx.id == FILE_PICKER_POPUP_ID {
-                    return chooser.draw(ui, &th, owns_escape);
+                    let drawn = chooser.draw(ui, &th, owns_escape);
+                    crate::adapters::ui::popup::file_picker::report_hidden_crumbs_menu(
+                        ui,
+                        cx.instance,
+                        drawn.child_menu,
+                    );
+                    return drawn.done;
                 }
                 if cx.id == KEYBINDING_CONFLICT_POPUP_ID
                     && let Some(pending) = &pending

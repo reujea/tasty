@@ -215,6 +215,22 @@ pub struct FilePickerViewOut {
     /// 뷰가 그린 헤더 줄. 셸 타이틀바가 없는 popup 은 이 사각형을 이동 손잡이로 보고한다.
     /// Esc 로 바로 닫히는 프레임에는 헤더를 그리지 않아 `Rect::NOTHING` 이다.
     pub header_rect: egui::Rect,
+    /// 경로 막대가 그린 숨은 경로 메뉴의 egui popup id. 그 갈래를 그리지 않은 프레임에는 None이다.
+    /// 호출자가 [`report_hidden_crumbs_menu`]로 자기 인스턴스의 자식 팝업 id로 보고한다.
+    pub hidden_crumbs_menu: Option<egui::Id>,
+}
+
+/// 숨은 경로 메뉴의 자식 팝업 id 키.
+pub(crate) const HIDDEN_CRUMBS_MENU_KEY: &str = "file_picker_hidden_crumbs";
+
+/// 숨은 경로 메뉴 id를 `instance`의 자식 팝업 id로 보고한다. 메뉴를 그리지 않았으면 지운다.
+/// 메뉴는 상자와 배치 범위 밖으로 나올 수 있어 포인터 대상이 되는 rect 등록부에는 넣지 않는다.
+pub(crate) fn report_hidden_crumbs_menu(
+    ui: &egui::Ui,
+    instance: super::PopupInstanceId,
+    menu: Option<egui::Id>,
+) {
+    super::report_child_popup_id(ui.ctx(), instance, HIDDEN_CRUMBS_MENU_KEY, menu);
 }
 
 /// 헤더·경로·푸터 영역을 먼저 정하고 목록에는 남은 높이를 준다.
@@ -229,6 +245,7 @@ pub fn draw_file_picker_view(ui: &mut egui::Ui, props: &FilePickerProps<'_>) -> 
         return FilePickerViewOut {
             action: FilePickerAction::Escape,
             header_rect: egui::Rect::NOTHING,
+            hidden_crumbs_menu: None,
         };
     }
 
@@ -342,7 +359,7 @@ fn draw_view_sections(
             ))
             .layout(egui::Layout::top_down(egui::Align::Min)),
     );
-    path_bar::path_bar(&mut path_ui, props, &mut action);
+    let hidden_crumbs_menu = path_bar::path_bar(&mut path_ui, props, &mut action);
     hline(ui, th, outer.x_range(), band.bottom());
 
     let rest = egui::Rect::from_min_max(egui::pos2(outer.left(), band.bottom()), outer.max);
@@ -387,6 +404,7 @@ fn draw_view_sections(
     FilePickerViewOut {
         action,
         header_rect,
+        hidden_crumbs_menu,
     }
 }
 
@@ -788,6 +806,7 @@ pub fn draw_file_picker(
     let out = draw_file_picker_view(ui, &props);
     // 셸 타이틀바가 없으므로 위젯 헤더 줄을 이동 손잡이로 보고한다.
     super::header_drag::report(ui.ctx(), cx.instance, out.header_rect);
+    report_hidden_crumbs_menu(ui, cx.instance, out.hidden_crumbs_menu);
     apply_action(data, state, engine, out.action)
 }
 

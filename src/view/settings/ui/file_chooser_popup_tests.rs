@@ -47,7 +47,7 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
         drop(ctx.run(raw, |ctx| {
             let chooser = &mut st.file_chooser;
             let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, owns_escape| {
-                cx.id == FILE_PICKER_POPUP_ID && chooser.draw(ui, &th, owns_escape)
+                cx.id == FILE_PICKER_POPUP_ID && chooser.draw(ui, &th, owns_escape).done
             });
             if closed.contains(&FILE_PICKER_POPUP_ID) {
                 st.file_chooser.cancel();

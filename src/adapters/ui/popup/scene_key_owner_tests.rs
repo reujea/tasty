@@ -685,3 +685,277 @@ fn a_closed_instance_drops_its_child_overlays() {
     assert!(!keys.contains(&(a, MENU)));
     assert!(keys.contains(&(b, MENU)));
 }
+
+/// 창의 host 팝업 층 한 프레임. 칠한 글자와 그 화면 사각형을 돌려준다.
+fn frame_rects(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+    events: Vec<Event>,
+) -> Vec<(String, egui::Rect)> {
+    fn walk(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
+        match shape {
+            egui::epaint::Shape::Text(t) => out.push((
+                t.galley.text().to_owned(),
+                egui::Rect::from_min_size(t.pos, t.galley.size()),
+            )),
+            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    let out = ctx.run(raw, |ctx| draw_popup_layer(ctx, state, engine, &layout()));
+    state.close_input_pass(ctx);
+    let mut texts = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut texts);
+    }
+    texts
+}
+
+fn text_rect(texts: &[(String, egui::Rect)], wanted: &str) -> egui::Rect {
+    texts
+        .iter()
+        .find(|(s, _)| s == wanted)
+        .map(|(_, r)| *r)
+        .unwrap_or_else(|| panic!("{wanted} 이 칠해진다: {texts:?}"))
+}
+
+fn pointer(pos: egui::Pos2, pressed: bool) -> Vec<Event> {
+    vec![
+        Event::PointerMoved(pos),
+        Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]
+}
+
+/// `pos`를 누른 프레임과 뗀 프레임을 그리고 뗀 프레임의 글자를 돌려준다.
+fn click(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+    pos: egui::Pos2,
+) -> Vec<(String, egui::Rect)> {
+    frame_rects(ctx, state, engine, pointer(pos, true));
+    frame_rects(ctx, state, engine, pointer(pos, false))
+}
+
+/// remote_tool을 창 범위에 키 주인으로 열고 프로필 추가 양식까지 들어간다.
+fn remote_tool_form(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+) -> PopupInstanceId {
+    use crate::adapters::ui::popup::remote_tool::REMOTE_TOOL_POPUP_ID;
+    registered(state);
+    let iid = state
+        .popups
+        .open_request(
+            &OpenRequest::new(REMOTE_TOOL_POPUP_ID, PopupScope::Window)
+                .centered()
+                .focused(),
+            true,
+        )
+        .expect("remote_tool opens");
+    frame_rects(ctx, state, engine, Vec::new());
+    let texts = frame_rects(ctx, state, engine, Vec::new());
+    let add = text_rect(&texts, t("remote_tool.profile_add"));
+    click(ctx, state, engine, add.center());
+    iid
+}
+
+const TYPE_SUGGEST: &str = "remote_tool.type_suggest";
+
+/// Given 프로필 양식의 종류 제안 ComboBox를 열고 닫을 때, Then 등록부의 그 인스턴스 항목은 열려 있는 동안만 있고,
+/// 등록한 popup id가 egui의 열린 팝업이다(`ComboBox::is_open`과 같은 규칙).
+#[test]
+fn a_registered_combo_reports_the_egui_open_state() {
+    use crate::adapters::ui::popup::child_overlay_entry;
+    let (mut state, mut session) = scene(PANE_R);
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let iid = remote_tool_form(&ctx, &mut state, &engine.read());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let arrow = text_rect(&texts, "▾");
+    assert!(child_overlay_entry(&ctx, iid, TYPE_SUGGEST).is_none());
+
+    click(&ctx, &mut state, &engine.read(), arrow.center());
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let (popup, _) = child_overlay_entry(&ctx, iid, TYPE_SUGGEST).expect("열린 목록이 등록된다");
+    assert!(
+        ctx.memory(|m| m.is_popup_open(popup)),
+        "등록한 id가 egui의 열린 팝업이다"
+    );
+
+    click(&ctx, &mut state, &engine.read(), arrow.center());
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert!(
+        !ctx.memory(|m| m.any_popup_open()),
+        "다시 누르면 목록이 닫힌다"
+    );
+    assert!(
+        child_overlay_entry(&ctx, iid, TYPE_SUGGEST).is_none(),
+        "닫힌 목록은 등록부에 없다"
+    );
+}
+
+/// Given remote_tool 양식의 종류 제안 목록이 상자 오른쪽 밖·창 안에 열려 있을 때, When 그 목록의 상자 밖 부분을
+/// 누르면, Then 누름은 remote_tool의 것이다. 포커스 노드가 remote_tool이고 그 점의 포인터 대상도 remote_tool이라
+/// 아래 surface가 그 포인터를 받지 않는다. 덮는 사각형(창 전체) 때문에 등록 전에도 같다.
+#[test]
+fn a_combo_list_outside_the_remote_tool_keeps_its_focus() {
+    use crate::model::LogicalPx;
+    let (mut state, mut session) = scene(PANE_R);
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let iid = remote_tool_form(&ctx, &mut state, &engine.read());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    click(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        text_rect(&texts, "▾").center(),
+    );
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert!(ctx.memory(|m| m.any_popup_open()), "egui 목록이 열렸다");
+    let boxed = state
+        .popups
+        .instance(iid)
+        .and_then(|p| p.box_rect())
+        .expect("상자");
+    let item = text_rect(&texts, "http");
+    let pt = egui::pos2(boxed.right() + LogicalPx(8.0).value(), item.center().y);
+    assert!(!boxed.contains(pt), "누를 점은 상자 밖이다");
+    // after-only: 등록 rect 단정은 C4a-R 뒤에만 있다.
+    assert!(
+        crate::adapters::ui::popup::child_overlay_rects(&ctx, iid)
+            .iter()
+            .any(|r| r.contains(pt)),
+        "등록한 목록 영역이 그 점을 포함한다"
+    );
+
+    // 포인터 대상은 직전 프레임의 배치로 정한다. 누르기 전 배치에서 본다.
+    let z = state.popups.instance(iid).expect("열려 있다").z_seq;
+    assert_eq!(state.popup_pointer_target(pt).map(|o| o.z_seq), Some(z));
+    assert!(
+        state.popup_owns_point(pt),
+        "아래 surface는 그 포인터를 받지 않는다"
+    );
+
+    frame_rects(&ctx, &mut state, &engine.read(), pointer(pt, true));
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(iid)),
+        "누름 대상과 포커스가 remote_tool이다"
+    );
+}
+
+/// `depth`단 하위 폴더를 만든 임시 폴더. 가장 깊은 폴더 경로도 돌려준다.
+fn deep_dir(depth: usize) -> (tempfile::TempDir, std::path::PathBuf) {
+    let root = tempfile::tempdir().expect("임시 폴더");
+    let mut deep = root.path().to_path_buf();
+    for i in 0..depth {
+        deep.push(format!("d{i:02}"));
+    }
+    std::fs::create_dir_all(&deep).expect("깊은 폴더");
+    (root, deep)
+}
+
+/// `sid` 범위에 `start_dir`로 피커를 연다.
+fn open_picker_at(
+    state: &mut RequestContext,
+    engine: &mut crate::runtime::engine_access::EngineMut<'_>,
+    sid: u32,
+    start_dir: &std::path::Path,
+) -> PopupInstanceId {
+    let caller = tasty_ipc::caller::CallerContext::Plugin {
+        plugin_id: "com.example.crumbs".into(),
+    };
+    let response = crate::adapters::ipc::handler::file_picker::handle_trigger(
+        state,
+        engine,
+        &caller,
+        serde_json::json!(1),
+        &serde_json::json!({
+            "origin_surface_id": sid,
+            "location": "local",
+            "mode": "folder",
+            "start_dir": start_dir.to_string_lossy(),
+        }),
+    );
+    assert!(response.result.is_some(), "{response:?}");
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(state, engine, &intent);
+    }
+    crate::adapters::ui::popup::file_picker::instances::open_pickers(state)
+        .map(|(iid, _)| iid)
+        .find(|iid| {
+            state.popups.instance(*iid).map(|p| &p.scope) == Some(&PopupScope::Surface(sid))
+        })
+        .expect("picker opened")
+}
+
+/// Given 메인 창 피커의 숨은 경로 메뉴가 상자 밖까지 열려 있을 때, Then 그 메뉴 id는 피커 인스턴스의 자식 팝업 id
+/// 목록에 있고 egui에서 열려 있다. rect 등록부에는 없고, 상자 밖 메뉴 영역의 점은 포인터 상자에 들지 않는다.
+#[test]
+fn the_hidden_crumbs_menu_is_a_child_of_its_picker() {
+    use crate::adapters::ui::popup::file_picker::HIDDEN_CRUMBS_MENU_KEY;
+    use crate::adapters::ui::popup::{child_overlay_keys, child_popup_ids};
+    let (_root, deep) = deep_dir(40);
+    let (mut state, mut session) = scene(PANE_R);
+    let mut engine = session.borrow_mut();
+    registered(&mut state);
+    let picker = open_picker_at(&mut state, &mut engine, SURFACE_R, &deep);
+    let ctx = Context::default();
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    // 피커가 R보다 넓어 접힌 보기 버튼으로 그려진다. 눌러 창 위에 펼친다.
+    let show = text_rect(&texts, t("popup.collapsed_button.label"));
+    click(&ctx, &mut state, &engine.read(), show.center());
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    click(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        text_rect(&texts, "…").center(),
+    );
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+
+    let menu = child_popup_ids(&ctx)
+        .into_iter()
+        .find(|(key, _)| *key == (picker, HIDDEN_CRUMBS_MENU_KEY))
+        .map(|(_, id)| id)
+        .expect("메뉴 id가 피커 인스턴스로 보고된다");
+    assert!(ctx.memory(|m| m.is_popup_open(menu)), "egui 메뉴가 열렸다");
+    assert!(!child_overlay_keys(&ctx).contains(&(picker, HIDDEN_CRUMBS_MENU_KEY)));
+
+    let menu_rect = ctx.memory(|m| m.area_rect(menu)).expect("메뉴 영역");
+    let boxed = state
+        .popups
+        .instance(picker)
+        .and_then(|p| p.box_rect())
+        .expect("상자");
+    let pt = egui::pos2(
+        menu_rect.center().x,
+        (boxed.bottom() + menu_rect.bottom()) / 2.0,
+    );
+    assert!(
+        menu_rect.contains(pt) && !boxed.contains(pt),
+        "메뉴가 상자 밖으로 나온 점이 있다: 메뉴 {menu_rect:?}, 상자 {boxed:?}"
+    );
+    assert!(
+        pointer_boxes(&ctx, &state.popups)
+            .iter()
+            .all(|o| !o.rect.contains(pt)),
+        "상자 밖 메뉴 영역은 포인터 상자가 아니다"
+    );
+}

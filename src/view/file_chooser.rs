@@ -80,6 +80,14 @@ struct ChooserSession {
     title: Option<&'static str>,
 }
 
+/// [`LocalFileChooser::draw`] 한 번의 결과.
+pub(crate) struct ChooserDraw {
+    /// 팝업을 닫아야 한다.
+    pub(crate) done: bool,
+    /// 그린 숨은 경로 메뉴의 egui popup id. 그 메뉴를 그리지 않은 프레임에는 None이다.
+    pub(crate) child_menu: Option<egui::Id>,
+}
+
 /// 독립 View가 소유하는 파일 선택 상태. 한 번에 하나만 열린다.
 #[derive(Default)]
 pub(crate) struct LocalFileChooser {
@@ -184,19 +192,24 @@ impl LocalFileChooser {
         }
     }
 
-    /// popup 콘텐츠. 닫혀야 하면 `true`.
-    pub(crate) fn draw(&mut self, ui: &mut egui::Ui, th: &Theme, owns_escape: bool) -> bool {
+    /// popup 콘텐츠. 닫혀야 하면 `done`이 참이다. `child_menu`는 그린 숨은 경로 메뉴의 egui popup id이고,
+    /// 호출자가 자기 인스턴스로 등록한다.
+    pub(crate) fn draw(&mut self, ui: &mut egui::Ui, th: &Theme, owns_escape: bool) -> ChooserDraw {
         let Some(s) = self.session.as_mut() else {
-            return true;
+            return ChooserDraw {
+                done: true,
+                child_menu: None,
+            };
         };
-        let action = draw_view(ui, th, s, owns_escape);
-        match s.apply(action) {
+        let (action, child_menu) = draw_view(ui, th, s, owns_escape);
+        let done = match s.apply(action) {
             Some(o) => {
                 self.finish(o);
                 true
             }
             None => false,
-        }
+        };
+        ChooserDraw { done, child_menu }
     }
 
     fn finish(&mut self, outcome: FileChooserOutcome) {
@@ -424,7 +437,7 @@ fn draw_view(
     th: &Theme,
     s: &ChooserSession,
     owns_escape: bool,
-) -> FilePickerAction {
+) -> (FilePickerAction, Option<egui::Id>) {
     let crumbs: Vec<CrumbView> = s
         .ancestors()
         .iter()
@@ -530,7 +543,7 @@ fn draw_view(
         crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID,
         out.header_rect,
     );
-    out.action
+    (out.action, out.hidden_crumbs_menu)
 }
 
 #[cfg(test)]

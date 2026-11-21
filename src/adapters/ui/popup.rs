@@ -1,6 +1,7 @@
 pub(crate) mod approval;
 mod arrange;
 pub(crate) mod body_keys;
+mod child_popup_ids;
 pub(crate) mod command_palette;
 pub(crate) mod confirm_close_remote;
 pub(crate) mod confirm_delete_category;
@@ -53,6 +54,9 @@ pub(crate) mod window_input_test_support;
 #[path = "popup/window_key_gate_tests.rs"]
 mod window_key_gate_tests;
 pub use arrange::NoticeColumn;
+pub(crate) use child_popup_ids::report_child_popup_id;
+#[cfg(test)]
+pub(crate) use child_popup_ids::{child_overlay_entry, child_popup_ids};
 pub use view_local::drawn_by_view;
 
 use crate::state::MainViewState;
@@ -538,20 +542,20 @@ fn child_overlay_hit(ctx: &egui::Context, instance: PopupInstanceId, pos: egui::
     })
 }
 
-/// 등록부에서 `open`이 거짓인 인스턴스의 항목을 지운다. 관리자가 그리기 첫머리에 자기 열린 인스턴스로 부른다.
+/// 등록부와 자식 팝업 id 목록에서 `open`이 거짓인 인스턴스의 항목을 지운다. 관리자가 그리기 첫머리에 자기 열린 인스턴스로 부른다.
 /// 등록부는 그 창의 `Context`에 있고 한 창의 관리자는 하나라 다른 관리자의 등록을 지우지 않는다.
 fn retain_child_overlays(ctx: &egui::Context, open: impl Fn(PopupInstanceId) -> bool) {
     let id = child_overlay_registry_id();
     ctx.memory_mut(|m| {
-        let Some(mut map) = m.data.get_temp::<ChildOverlayMap>(id) else {
-            return;
-        };
-        let before = map.len();
-        map.retain(|(owner, _), _| open(*owner));
-        if map.len() != before {
-            m.data.insert_temp(id, map);
+        if let Some(mut map) = m.data.get_temp::<ChildOverlayMap>(id) {
+            let before = map.len();
+            map.retain(|(owner, _), _| open(*owner));
+            if map.len() != before {
+                m.data.insert_temp(id, map);
+            }
         }
     });
+    child_popup_ids::retain(ctx, open);
 }
 
 #[cfg(test)]
