@@ -375,7 +375,7 @@ while IFS=$'\t' read -r id want_version want_bundle; do
         bad=1
         continue
     fi
-    # 매니페스트 최상위의 id·version·bundle. 오프라인 가드(official_plugin_fixtures.rs top_level)와 같은 규칙이다:
+    # 매니페스트 최상위의 id·version·bundle. 오프라인 가드의 판독기(crates/tasty-doc-guards/src/plugin_manifest_scan.rs top_level)와 같은 규칙이다:
     # 읽지 못한 키, 불 값이 아닌 bundle(점 구분 키·표 포함), 두 번 나온 id·version·bundle이 하나라도 있으면
     # 위치와 관계없이 실패다.
     # bundle 키가 없으면 호스트 기본값 true다.
