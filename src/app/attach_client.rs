@@ -31,7 +31,8 @@ pub(crate) mod workspace_close;
 
 #[cfg(test)]
 pub(crate) mod tests;
-#[cfg(test)]
+// 이 재수출을 쓰는 App 시험은 X11 이벤트 루프가 필요해 Linux 에서만 컴파일한다.
+#[cfg(all(test, target_os = "linux"))]
 pub(crate) use connection::adopt_reconnected_transport;
 
 use git_query::deliver_git_query_result;
