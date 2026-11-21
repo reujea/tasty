@@ -400,7 +400,7 @@ fn a_fixture_only_change_does_not_query_the_dependency_closure() {
     let stub = tempfile::tempdir().expect("스텁 디렉토리");
     tasty_test_support::write_executable(
         &stub.path().join("cargo"),
-        "#!/bin/sh\necho zz-cargo-called >&2\nexit 101\n".to_owned(),
+        "#!/bin/sh\necho zz-cargo-called >&2\nexit 101\n",
     )
     .expect("스텁 작성");
     let out = git_env::command("bash")

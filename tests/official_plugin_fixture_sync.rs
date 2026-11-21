@@ -67,7 +67,7 @@ impl Root {
         }
         tasty_test_support::write_executable(
             &path.join("scripts/fetch-official-plugins.sh"),
-            FETCH_STUB.to_owned(),
+            FETCH_STUB,
         )
         .expect("fetch 스텁");
         let root = Self { _dir: dir, path };
