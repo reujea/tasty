@@ -247,7 +247,8 @@ pub(crate) struct App {
     #[cfg(feature = "gui")]
     pub(crate) boot_screen_toasts: crate::adapters::ui::ToastManager,
     /// System tray / status item. Must be kept alive for the tray to remain visible.
-    /// `None` when the platform tray is unavailable (graceful degradation, docs/architecture/shutdown-sequence.md).
+    /// `None` until a tray has been created: before the attempt, when boot skipped it, or when creation
+    /// failed (graceful degradation, docs/design/policies/system-tray.md, docs/architecture/shutdown-sequence.md).
     #[cfg(all(
         any(windows, target_os = "macos", target_os = "linux"),
         feature = "gui"

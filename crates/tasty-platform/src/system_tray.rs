@@ -8,10 +8,17 @@
 //! - macOS: menu bar status item (`NSStatusItem`)
 //! - Linux: StatusNotifierItem / AppIndicator (via GTK)
 //!
-//! Per docs/design/policies/system-tray.md#백그라운드-진입--복귀-os별 this is best-effort: when the platform has no usable tray
-//! (minimal WM, missing AppIndicator host, etc.), [`create_tray_icon`] returns
-//! `None` and the caller falls back to taskbar/dock minimize. Creation never
-//! aborts the app.
+//! Per docs/design/policies/system-tray.md#graceful-degradation this is best-effort: when the tray
+//! cannot be created (GTK init failure, no AppIndicator library on Linux, a
+//! builder error), [`create_tray_icon`] returns `None` and the caller falls back
+//! to taskbar/dock minimize; such failures never abort the app. On Linux the
+//! AppIndicator library is probed with `dlopen` before building, because
+//! `libappindicator-sys` panics when it cannot load it. A library that loads but
+//! lacks a required symbol still panics inside that crate.
+//!
+//! A missing tray host is a different case: with the library present but no
+//! StatusNotifierWatcher (or a failed registration), creation still succeeds and
+//! the icon may simply not be shown anywhere.
 //!
 //! Threading constraints (from the `tray-icon` crate docs):
 //! - macOS: the tray must be created on the main thread while the event loop is
@@ -42,8 +49,9 @@ pub struct TrayMenuIds {
 /// Creates the system tray icon with menu. Returns the TrayIcon (must be kept alive)
 /// and the menu item IDs for event handling.
 ///
-/// Returns `None` (graceful degradation) when the platform tray is unavailable —
-/// the caller falls back to taskbar/dock minimize.
+/// Returns `None` (graceful degradation) when the tray cannot be created —
+/// the caller falls back to taskbar/dock minimize. A created tray does not
+/// guarantee that a host shows the icon.
 pub fn create_tray_icon() -> Option<(TrayIcon, TrayMenuIds)> {
     match create_tray_icon_inner() {
         Ok(result) => Some(result),
@@ -91,6 +99,16 @@ fn create_tray_icon_inner() -> Result<(TrayIcon, TrayMenuIds), Box<dyn std::erro
     #[cfg(target_os = "linux")]
     crate::gtk_init::ensure().map_err(|e| format!("GTK init failed: {e}"))?;
 
+    // Linux: building the tray makes libappindicator-sys load AppIndicator and panic
+    // if it cannot. Check first so a missing library takes the same `None` path.
+    #[cfg(target_os = "linux")]
+    appindicator_library().ok_or_else(|| {
+        format!(
+            "dlopen failed for every AppIndicator library name ({})",
+            APPINDICATOR_LIBRARIES.join(", ")
+        )
+    })?;
+
     let icon =
         crate::app_icon::tray_icon().ok_or("failed to decode tray icon from embedded PNG")?;
 
@@ -109,6 +127,48 @@ fn create_tray_icon_inner() -> Result<(TrayIcon, TrayMenuIds), Box<dyn std::erro
     Ok((tray_icon, ids))
 }
 
+/// The names `libappindicator-sys` 0.9 tries, in its order. The last two are
+/// tried only with its `backcompat` feature, which `tray-icon` 0.22 enables
+/// through `libappindicator`'s default features. Keep this list in step with that
+/// crate when upgrading `tray-icon`.
+#[cfg(target_os = "linux")]
+const APPINDICATOR_LIBRARIES: [&str; 4] = [
+    "libayatana-appindicator3.so.1",
+    "libappindicator3.so.1",
+    "libayatana-appindicator3.so",
+    "libappindicator3.so",
+];
+
+/// The first AppIndicator library name that loads. A success is kept for the
+/// process lifetime (the handle stays open, so later attempts do not add
+/// references); a failure is not kept, so the next tray attempt probes again.
+#[cfg(target_os = "linux")]
+fn appindicator_library() -> Option<&'static str> {
+    static FOUND: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+    if let Some(name) = FOUND.get() {
+        return Some(name);
+    }
+    let name = first_loadable(&APPINDICATOR_LIBRARIES)?;
+    Some(FOUND.get_or_init(|| name))
+}
+
+/// Opens each name with the flags `libloading` uses (`RTLD_LAZY | RTLD_LOCAL`)
+/// and returns the first that loads. The handle is left open on purpose: the
+/// library is about to be loaded again by `libappindicator-sys`, and closing a
+/// GObject library before that is not worth the risk.
+#[cfg(target_os = "linux")]
+fn first_loadable(names: &[&'static str]) -> Option<&'static str> {
+    names.iter().copied().find(|name| {
+        let Ok(c_name) = std::ffi::CString::new(*name) else {
+            return false;
+        };
+        // SAFETY: c_name is a NUL-terminated string that outlives the call, and
+        // dlopen does not keep the pointer.
+        let handle = unsafe { libc::dlopen(c_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL) };
+        !handle.is_null()
+    })
+}
+
 /// Poll for tray menu events. Returns the menu item ID if an event was received.
 pub fn poll_menu_event() -> Option<String> {
     MenuEvent::receiver().try_recv().ok().map(|e| e.id.0)
@@ -122,5 +182,23 @@ pub fn pump_gtk_events() {
         while gtk::events_pending() {
             gtk::main_iteration_do(false);
         }
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::first_loadable;
+
+    #[test]
+    fn a_missing_library_name_is_not_loadable() {
+        assert_eq!(first_loadable(&["libtasty-does-not-exist.so.0"]), None);
+    }
+
+    #[test]
+    fn the_first_loadable_name_wins() {
+        assert_eq!(
+            first_loadable(&["libtasty-does-not-exist.so.0", "libc.so.6", "libm.so.6"]),
+            Some("libc.so.6")
+        );
     }
 }
