@@ -611,9 +611,9 @@ Linux는 직접 실행한 테스트 PID의 `/proc/<pid>/fd`, macOS는 `lsof -p <
 | 조합 | debug | release |
 |---|---|---|
 | macOS + gui | check-macos: 컴파일·유닛 | — |
-| Windows + gui | check-windows: 컴파일·lint·유닛·지목 통합 | — |
-| Linux + headless | check-headless: 컴파일·lint·전체 스위트(skip 제외) | — |
-| Linux + gui | check-headless의 gui lint 단계·gui 유닛 단계·관측용 E2E | check-release: 컴파일 |
+| Windows + gui | check-windows: 컴파일·lint(`-D warnings`)·유닛·지목 통합 | — |
+| Linux + headless | check-headless: 컴파일·lint(`-D warnings`)·전체 스위트(skip 제외) | — |
+| Linux + gui | check-headless의 gui lint 단계(`-D warnings`)·gui 유닛 단계·관측용 E2E | check-release: 컴파일 |
 
 잡 성공만으로 표의 모든 단계를 실행했다고 판단하지 않는다. 단계별 conclusion을 읽는다.
 GUI feature 또는 OS 전용 모듈 안의 테스트는 다른 조합에서 컴파일 대상에서 사라질 수 있다.
