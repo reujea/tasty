@@ -107,7 +107,7 @@ impl PopupManager {
                 });
             }
             boxes.extend(
-                super::child_overlay_rects(ctx, p.id)
+                super::child_overlay_rects(ctx, p.instance)
                     .into_iter()
                     .map(|rect| Occluder {
                         rect,

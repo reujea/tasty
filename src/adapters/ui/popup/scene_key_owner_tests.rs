@@ -543,3 +543,145 @@ fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_
         "변환이 주인이면 ArrowDown으로 고른 항목(dag_graph)으로 R surface 변환을 Enter 프레임에서 요청한다"
     );
 }
+
+const OVERLAY_OWNER: crate::adapters::ui::popup::PopupId = "scene_overlay_owner";
+const MENU: &str = "menu";
+
+/// 같은 정의(`PerScopeTarget`)의 인스턴스 A(L 범위)·B(R 범위)를 연 관리자. 한 번 그려 상자 위치를 정한다.
+fn two_overlay_owners(
+    ctx: &Context,
+) -> (
+    crate::adapters::ui::popup::PopupManager,
+    PopupInstanceId,
+    PopupInstanceId,
+) {
+    use crate::adapters::ui::popup::{PopupInstances, PopupManager, PopupState};
+    use crate::model::LogicalPx;
+    let mut mgr = PopupManager::new();
+    mgr.register(
+        PopupState::new(
+            OVERLAY_OWNER,
+            "overlay owner",
+            egui::vec2(120.0, 80.0),
+            PopupScope::Window,
+        )
+        .with_instances(PopupInstances::PerScopeTarget),
+    );
+    let a = mgr
+        .open_request(
+            &OpenRequest::new(OVERLAY_OWNER, PopupScope::Surface(SURFACE_L))
+                .at(super::point(LogicalPx(40.0), LogicalPx(60.0))),
+            false,
+        )
+        .expect("A opens");
+    let b = mgr
+        .open_request(
+            &OpenRequest::new(OVERLAY_OWNER, PopupScope::Surface(SURFACE_R))
+                .at(super::point(LogicalPx(490.0), LogicalPx(60.0))),
+            false,
+        )
+        .expect("B opens");
+    draw_overlay_owners(ctx, &mut mgr);
+    (mgr, a, b)
+}
+
+fn draw_overlay_owners(ctx: &Context, mgr: &mut crate::adapters::ui::popup::PopupManager) {
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        mgr.draw_routed(
+            ctx,
+            &mut |_, _| crate::adapters::ui::PopupAction::None,
+            Some(&layout()),
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            &[],
+            None,
+        );
+    }));
+}
+
+/// A·B 상자 밖에 나온 두 메뉴 사각형. A의 것은 L, B의 것은 R 안에 있다.
+fn menus() -> (egui::Rect, egui::Rect) {
+    use crate::model::LogicalPx;
+    let menu_a = super::to_egui(super::rect(
+        LogicalPx(40.0),
+        LogicalPx(400.0),
+        LogicalPx(160.0),
+        LogicalPx(120.0),
+    ));
+    let menu_b = super::to_egui(super::rect(
+        LogicalPx(600.0),
+        LogicalPx(400.0),
+        LogicalPx(160.0),
+        LogicalPx(120.0),
+    ));
+    (menu_a, menu_b)
+}
+
+fn pointer_boxes(
+    ctx: &Context,
+    mgr: &crate::adapters::ui::popup::PopupManager,
+) -> Vec<crate::adapters::ui::popup::occlusion::Occluder> {
+    let open: Vec<usize> = (0..mgr.popups.len())
+        .filter(|&i| mgr.popups[i].open)
+        .collect();
+    mgr.pointer_boxes(ctx, &open, Some(&layout()), screen())
+}
+
+/// Given 같은 정의의 두 인스턴스가 같은 overlay 키로 자식 메뉴를 등록했을 때, Then 서로 덮어쓰지 않고, A 메뉴
+/// 안의 점은 A의 안쪽 누름이며 B의 바깥 누름 판정이 가로채지 않는다.
+#[test]
+fn two_instances_keep_their_own_child_overlays() {
+    use crate::adapters::ui::popup::{
+        child_overlay_hit, child_overlay_rects, report_child_overlay_rect,
+    };
+    let ctx = Context::default();
+    let (mgr, a, b) = two_overlay_owners(&ctx);
+    let (menu_a, menu_b) = menus();
+    report_child_overlay_rect(&ctx, a, MENU, Some((egui::Id::new("menu a"), menu_a)));
+    report_child_overlay_rect(&ctx, b, MENU, Some((egui::Id::new("menu b"), menu_b)));
+
+    assert_eq!(child_overlay_rects(&ctx, a), vec![menu_a]);
+    assert_eq!(child_overlay_rects(&ctx, b), vec![menu_b]);
+    assert!(child_overlay_hit(&ctx, a, menu_a.center()));
+    assert!(!child_overlay_hit(&ctx, b, menu_a.center()));
+    assert!(!child_overlay_hit(&ctx, a, menu_b.center()));
+
+    let z = |iid| mgr.instance(iid).expect("open").z_seq;
+    let boxes = pointer_boxes(&ctx, &mgr);
+    let owners_of = |r: egui::Rect| -> Vec<u64> {
+        boxes
+            .iter()
+            .filter(|o| o.rect == r)
+            .map(|o| o.z_seq)
+            .collect()
+    };
+    assert_eq!(owners_of(menu_a), vec![z(a)]);
+    assert_eq!(owners_of(menu_b), vec![z(b)]);
+}
+
+/// Given 자식 메뉴를 등록한 인스턴스 A를 닫았을 때, Then 다음 그리기 전 포인터 상자 질의에 A 메뉴가 없고,
+/// 다음 `draw_routed` 첫머리 뒤 등록부에 A 키가 없다. 열린 B의 등록은 남는다.
+#[test]
+fn a_closed_instance_drops_its_child_overlays() {
+    use crate::adapters::ui::popup::{
+        PopupCloseReason, child_overlay_keys, report_child_overlay_rect,
+    };
+    let ctx = Context::default();
+    let (mut mgr, a, b) = two_overlay_owners(&ctx);
+    let (menu_a, menu_b) = menus();
+    report_child_overlay_rect(&ctx, a, MENU, Some((egui::Id::new("menu a"), menu_a)));
+    report_child_overlay_rect(&ctx, b, MENU, Some((egui::Id::new("menu b"), menu_b)));
+
+    mgr.close_instance(a, PopupCloseReason::Command);
+    let boxes = pointer_boxes(&ctx, &mgr);
+    assert!(boxes.iter().all(|o| o.rect != menu_a));
+    assert!(boxes.iter().any(|o| o.rect == menu_b));
+
+    draw_overlay_owners(&ctx, &mut mgr);
+    let keys = child_overlay_keys(&ctx);
+    assert!(!keys.contains(&(a, MENU)));
+    assert!(keys.contains(&(b, MENU)));
+}

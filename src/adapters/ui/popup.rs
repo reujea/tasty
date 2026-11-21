@@ -450,30 +450,33 @@ pub(crate) fn reported_header_drag_rect(
     ctx.memory(|m| m.data.get_temp(header_drag_rect_id(popup_id)))
 }
 
-/// 팝업 안의 드롭다운 영역을 저장할 공용 슬롯. overlay_key로 각각 구분한다.
+/// 팝업 안의 드롭다운 영역을 저장할 공용 슬롯. (인스턴스, overlay_key)로 각각 구분한다.
 fn child_overlay_registry_id() -> egui::Id {
     egui::Id::new("popup.child_overlay_registry")
 }
 
-type ChildOverlayMap = std::collections::HashMap<&'static str, (PopupId, egui::Rect)>;
+/// 등록 키 (인스턴스, overlay_key) → (egui 팝업 id, 영역). 같은 정의의 인스턴스 둘이 서로 덮어쓰지 않는다.
+type ChildOverlayMap =
+    std::collections::HashMap<(PopupInstanceId, &'static str), (egui::Id, egui::Rect)>;
 
 /// 드롭다운이 부모 밖으로 나와도 바깥 클릭으로 처리하지 않도록 실제 영역을 보고한다.
-/// 같은 팝업의 여러 드롭다운은 고유 overlay_key로 구분한다. 닫히면 None을 보고해 지운다.
+/// 같은 인스턴스의 여러 드롭다운은 고유 overlay_key로 구분한다. 닫히면 None을 보고해 지운다.
+/// `child`는 열린 자식의 egui 팝업 id와 영역이다.
 pub fn report_child_overlay_rect(
     ctx: &egui::Context,
-    popup_id: PopupId,
+    instance: PopupInstanceId,
     overlay_key: &'static str,
-    rect: Option<egui::Rect>,
+    child: Option<(egui::Id, egui::Rect)>,
 ) {
     let id = child_overlay_registry_id();
     ctx.memory_mut(|m| {
         let mut map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
-        match rect {
-            Some(r) => {
-                map.insert(overlay_key, (popup_id, r));
+        match child {
+            Some(entry) => {
+                map.insert((instance, overlay_key), entry);
             }
             None => {
-                map.remove(overlay_key);
+                map.remove(&(instance, overlay_key));
             }
         }
         m.data.insert_temp(id, map);
@@ -483,7 +486,7 @@ pub fn report_child_overlay_rect(
 /// egui popup `dropdown_id` 의 열림 상태와 영역을 [`report_child_overlay_rect`] 로 보고한다.
 pub fn report_dropdown_overlay(
     ui: &egui::Ui,
-    popup_id: PopupId,
+    instance: PopupInstanceId,
     overlay_key: &'static str,
     dropdown_id: egui::Id,
 ) {
@@ -491,43 +494,76 @@ pub fn report_dropdown_overlay(
         .memory(|m| m.is_popup_open(dropdown_id))
         .then(|| ui.memory(|m| m.area_rect(dropdown_id)))
         .flatten();
-    report_child_overlay_rect(ui.ctx(), popup_id, overlay_key, rect);
+    report_child_overlay_rect(
+        ui.ctx(),
+        instance,
+        overlay_key,
+        rect.map(|r| (dropdown_id, r)),
+    );
 }
 
-/// 자식 드롭다운이 열려 있는지 확인한다. 부모의 Escape 처리가 본문보다 먼저 실행되므로
+/// 자식 드롭다운이 등록돼 있는지 확인한다. 부모의 Escape 처리가 본문보다 먼저 실행되므로
 /// 이 값이 true면 부모를 닫지 않고 드롭다운에 Escape 처리를 맡긴다.
 pub fn child_overlay_open(
     ctx: &egui::Context,
-    popup_id: PopupId,
+    instance: PopupInstanceId,
     overlay_key: &'static str,
 ) -> bool {
     let id = child_overlay_registry_id();
     ctx.memory(|m| {
         let map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
-        map.get(overlay_key)
-            .is_some_and(|(pid, _)| *pid == popup_id)
+        map.contains_key(&(instance, overlay_key))
     })
 }
 
-/// `popup_id` 소유의 열린 자식 오버레이 사각형.
-fn child_overlay_rects(ctx: &egui::Context, popup_id: PopupId) -> Vec<egui::Rect> {
+/// `instance` 소유의 열린 자식 오버레이 사각형.
+fn child_overlay_rects(ctx: &egui::Context, instance: PopupInstanceId) -> Vec<egui::Rect> {
     let id = child_overlay_registry_id();
     ctx.memory(|m| {
         let map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
-        map.values()
-            .filter(|(pid, _)| *pid == popup_id)
-            .map(|(_, rect)| *rect)
+        map.iter()
+            .filter(|((owner, _), _)| *owner == instance)
+            .map(|(_, (_, rect))| *rect)
             .collect()
     })
 }
 
-/// `popup_id` 소유의 자식 오버레이 중 `pos` 를 포함하는 것이 있는지 hit-test.
-fn child_overlay_hit(ctx: &egui::Context, popup_id: PopupId, pos: egui::Pos2) -> bool {
+/// `instance` 소유의 자식 오버레이 중 `pos` 를 포함하는 것이 있는지 hit-test.
+fn child_overlay_hit(ctx: &egui::Context, instance: PopupInstanceId, pos: egui::Pos2) -> bool {
     let id = child_overlay_registry_id();
     ctx.memory(|m| {
         let map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
-        map.values()
-            .any(|(pid, rect)| *pid == popup_id && rect.contains(pos))
+        map.iter()
+            .any(|((owner, _), (_, rect))| *owner == instance && rect.contains(pos))
+    })
+}
+
+/// 등록부에서 `open`이 거짓인 인스턴스의 항목을 지운다. 관리자가 그리기 첫머리에 자기 열린 인스턴스로 부른다.
+/// 등록부는 그 창의 `Context`에 있고 한 창의 관리자는 하나라 다른 관리자의 등록을 지우지 않는다.
+fn retain_child_overlays(ctx: &egui::Context, open: impl Fn(PopupInstanceId) -> bool) {
+    let id = child_overlay_registry_id();
+    ctx.memory_mut(|m| {
+        let Some(mut map) = m.data.get_temp::<ChildOverlayMap>(id) else {
+            return;
+        };
+        let before = map.len();
+        map.retain(|(owner, _), _| open(*owner));
+        if map.len() != before {
+            m.data.insert_temp(id, map);
+        }
+    });
+}
+
+#[cfg(test)]
+/// 시험이 등록부 키를 본다.
+pub(crate) fn child_overlay_keys(ctx: &egui::Context) -> Vec<(PopupInstanceId, &'static str)> {
+    let id = child_overlay_registry_id();
+    ctx.memory(|m| {
+        m.data
+            .get_temp::<ChildOverlayMap>(id)
+            .unwrap_or_default()
+            .into_keys()
+            .collect()
     })
 }
 

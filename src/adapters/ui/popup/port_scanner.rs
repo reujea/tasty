@@ -297,6 +297,8 @@ pub struct PortScannerFilter<'a> {
 /// `CoreState` — every value is read-only. All user-facing strings are
 /// pre-resolved by the wrapper so the view is i18n-agnostic.
 pub struct PortScannerProps<'a> {
+    /// 자식 드롭다운을 등록할 팝업 인스턴스.
+    pub instance: super::PopupInstanceId,
     pub theme: &'a Theme,
     pub view_state: PortScannerViewState<'a>,
     pub filter: PortScannerFilter<'a>,
@@ -429,6 +431,7 @@ pub fn draw_port_scanner_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
+    instance: super::PopupInstanceId,
 ) -> PopupAction {
     let th = theme::theme();
     let ctx = ui.ctx().clone();
@@ -523,6 +526,7 @@ pub fn draw_port_scanner_popup(
     };
 
     let props = PortScannerProps {
+        instance,
         theme: &th,
         view_state,
         present_states: &present_states,
@@ -1272,7 +1276,7 @@ fn draw_column_chooser(
         )
     });
     // 팝업 밖으로 나온 드롭다운도 안쪽 클릭으로 인식하도록 영역을 보고한다.
-    super::report_dropdown_overlay(ui, PORT_SCANNER_POPUP_ID, COLUMN_CHOOSER_POPUP_ID, popup_id);
+    super::report_dropdown_overlay(ui, props.instance, COLUMN_CHOOSER_POPUP_ID, popup_id);
 
     out
 }
@@ -1457,7 +1461,7 @@ fn draw_state_filter(ui: &mut egui::Ui, props: &PortScannerProps<'_>) -> Option<
             },
         )
     });
-    super::report_dropdown_overlay(ui, PORT_SCANNER_POPUP_ID, STATE_FILTER_POPUP_ID, popup_id);
+    super::report_dropdown_overlay(ui, props.instance, STATE_FILTER_POPUP_ID, popup_id);
     if applied.is_some() {
         ui.memory_mut(|m| m.close_popup());
     }
@@ -2070,6 +2074,7 @@ mod tests {
         show_all_system: bool,
     ) -> PortScannerProps<'a> {
         PortScannerProps {
+            instance: crate::adapters::ui::popup::PopupInstanceId(1),
             theme,
             view_state,
             present_states: &[],
@@ -2185,7 +2190,12 @@ mod tests {
         let mut action = None;
         drop(ctx.run(raw, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                action = Some(draw_port_scanner_popup(ui, &mut state, &engine.read()));
+                action = Some(draw_port_scanner_popup(
+                    ui,
+                    &mut state,
+                    &engine.read(),
+                    crate::adapters::ui::popup::PopupInstanceId(1),
+                ));
             });
         }));
         assert!(matches!(

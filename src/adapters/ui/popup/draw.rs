@@ -227,6 +227,8 @@ impl PopupManager {
         plugin_occluders: &[Occluder],
         press: Option<&RoutedPress>,
     ) -> PopupDrawResult {
+        // 닫힌 인스턴스의 자식 드롭다운 등록을 그리기 전에 지운다.
+        super::retain_child_overlays(ctx, |iid| self.instance(iid).is_some());
         let th = theme::theme();
         let screen_rect = ctx.screen_rect();
         let mut closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
@@ -317,7 +319,7 @@ impl PopupManager {
                         hovered_handle = Some(popup.instance);
                     }
                     break; // topmost popup wins
-                } else if super::child_overlay_hit(ctx, popup.id, pos) {
+                } else if super::child_overlay_hit(ctx, popup.instance, pos) {
                     // 드롭다운은 egui 별도 Area라 팝업 clip을 상속하지 않고 범위 밖에도 그려진다. 좌표 경로와
                     // 무관하게 그 팝업 내용의 하위 노드이므로 팝업 안 누름으로 취급한다.
                     hovered_popup = Some(popup.instance);

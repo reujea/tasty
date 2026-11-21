@@ -264,11 +264,12 @@ pub fn draw_dag_list_popup(
         return PopupAction::Close;
     };
     let dag: &mut DagListState = dag;
+    let instance = cx.instance;
 
     // 드롭다운이 열려 있으면 부모 닫기만 건너뛴다. 본문은 그려야 드롭다운이 Escape를 처리한다.
     let esc = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
     let esc_owned_by_dropdown =
-        esc && super::child_overlay_open(ui.ctx(), DAG_LIST_POPUP_ID, STATUS_SELECT_OVERLAY_KEY);
+        esc && super::child_overlay_open(ui.ctx(), instance, STATUS_SELECT_OVERLAY_KEY);
     if esc && !esc_owned_by_dropdown {
         if dag.view.is_detail() {
             back_to_list(dag);
@@ -329,7 +330,9 @@ pub fn draw_dag_list_popup(
         .show(
             ui,
             theme,
-            |ui, theme| close |= draw_list(ui, theme, &mut cell.borrow_mut(), &visible, total),
+            |ui, theme| {
+                close |= draw_list(ui, theme, instance, &mut cell.borrow_mut(), &visible, total)
+            },
             |ui, theme| {
                 let pending = backbar_action.borrow_mut().take();
                 open_session.set(draw_detail_graph(
@@ -373,6 +376,7 @@ fn back_to_list(dag: &mut DagListState) {
 fn draw_list(
     ui: &mut egui::Ui,
     theme: &Theme,
+    instance: super::PopupInstanceId,
     dag: &mut DagListState,
     visible: &[usize],
     total: usize,
@@ -423,12 +427,7 @@ fn draw_list(
                 );
                 // 팝업 밖으로 나온 드롭다운도 안쪽 클릭으로 인식하도록 영역을 보고한다.
                 let overlay_id = multi_select_popup_id(ui, STATUS_SELECT_SALT);
-                super::report_dropdown_overlay(
-                    ui,
-                    DAG_LIST_POPUP_ID,
-                    STATUS_SELECT_OVERLAY_KEY,
-                    overlay_id,
-                );
+                super::report_dropdown_overlay(ui, instance, STATUS_SELECT_OVERLAY_KEY, overlay_id);
             });
         });
     ui.painter()

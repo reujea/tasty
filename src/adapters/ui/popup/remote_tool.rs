@@ -284,6 +284,7 @@ pub fn draw_remote_tool_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    instance: super::PopupInstanceId,
 ) -> PopupAction {
     let th = theme::theme();
     let ctx = ui.ctx().clone();
@@ -372,7 +373,9 @@ pub fn draw_remote_tool_popup(
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing = saved_spacing;
             match st.tab {
-                Tab::Profiles => draw_profiles_tab(ui, &th, &mut st, &mut profiles, &passkeys),
+                Tab::Profiles => {
+                    draw_profiles_tab(ui, &th, instance, &mut st, &mut profiles, &passkeys)
+                }
                 Tab::Attach => draw_attach_tab(ui, &th, &mut st, &mut profiles, &passkeys),
                 Tab::Passkeys => draw_passkeys_tab(ui, &th, &mut st, &passkeys),
             }
@@ -525,12 +528,13 @@ fn draw_tab_bar(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, x_range: egui::
 fn draw_profiles_tab(
     ui: &mut egui::Ui,
     th: &Theme,
+    instance: super::PopupInstanceId,
     st: &mut UiState,
     profiles: &mut RemoteProfiles,
     passkeys: &Passkeys,
 ) {
     match st.profile_view.clone() {
-        Sub::List => draw_profile_list(ui, th, st, profiles, passkeys),
+        Sub::List => draw_profile_list(ui, th, instance, st, profiles, passkeys),
         Sub::Form => draw_profile_form(ui, th, st, passkeys),
         Sub::ConfirmDelete(name) => {
             if let Some(act) = draw_confirm_delete(
@@ -554,6 +558,7 @@ fn draw_profiles_tab(
 fn draw_profile_list(
     ui: &mut egui::Ui,
     th: &Theme,
+    instance: super::PopupInstanceId,
     st: &mut UiState,
     profiles: &RemoteProfiles,
     passkeys: &Passkeys,
@@ -568,7 +573,8 @@ fn draw_profile_list(
         add_clicked = add_button(ui, th, t("remote_tool.profile_add")).clicked();
         if protocols.len() >= 2 {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                new_filter = draw_protocol_filter(ui, th, st, &protocols, &applied_hidden);
+                new_filter =
+                    draw_protocol_filter(ui, th, instance, st, &protocols, &applied_hidden);
             });
         }
     });
@@ -696,6 +702,7 @@ fn draw_local_ssh_section(
 fn draw_protocol_filter(
     ui: &mut egui::Ui,
     th: &Theme,
+    instance: super::PopupInstanceId,
     st: &mut UiState,
     protocols: &[String],
     applied_hidden: &HashSet<String>,
@@ -768,7 +775,7 @@ fn draw_protocol_filter(
         });
     });
     // 부모 밖으로 나온 드롭다운도 안쪽 클릭으로 인식하도록 영역을 보고한다.
-    super::report_dropdown_overlay(ui, REMOTE_TOOL_POPUP_ID, FILTER_POPUP_ID, popup_id);
+    super::report_dropdown_overlay(ui, instance, FILTER_POPUP_ID, popup_id);
     if applied.is_some() {
         ui.memory_mut(|m| m.close_popup());
     }
@@ -2210,7 +2217,14 @@ mod tests {
             out.clear();
             let full = ctx.run(egui::RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    draw_profile_list(ui, &th, st, profiles, &passkeys);
+                    draw_profile_list(
+                        ui,
+                        &th,
+                        crate::adapters::ui::popup::PopupInstanceId(1),
+                        st,
+                        profiles,
+                        &passkeys,
+                    );
                 });
             });
             for shape in full.shapes.iter() {

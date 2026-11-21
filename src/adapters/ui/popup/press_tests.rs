@@ -506,9 +506,9 @@ fn a_press_on_a_dropdown_outside_its_parent_scope_focuses_the_parent_node() {
     let ctx = egui::Context::default();
     crate::adapters::ui::popup::report_child_overlay_rect(
         &ctx,
-        R_POPUP,
+        r,
         "dropdown",
-        Some(dropdown),
+        Some((egui::Id::new("dropdown"), dropdown)),
     );
     let raw = egui::RawInput {
         screen_rect: Some(screen()),

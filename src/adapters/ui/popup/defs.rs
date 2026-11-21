@@ -372,7 +372,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 sizer: None,
                 drag_region: Some(panel_header_drag_strip),
                 on_open: None,
-                draw_fn: |ui, state, engine, _| super::port_scanner::draw_port_scanner_popup(ui, state, engine),
+                draw_fn: |ui, state, engine, cx| super::port_scanner::draw_port_scanner_popup(ui, state, engine, cx.instance),
                 // 닫힌 경로(사유)에 따라 스캔 상태를 남길지 정한다.
                 #[cfg(debug_assertions)]
                 debug_payload: None,
@@ -456,7 +456,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 sizer: None,
                 drag_region: Some(panel_header_drag_strip),
                 on_open: None,
-                draw_fn: |ui, state, engine, _| super::remote_tool::draw_remote_tool_popup(ui, state, engine),
+                draw_fn: |ui, state, engine, cx| super::remote_tool::draw_remote_tool_popup(ui, state, engine, cx.instance),
                 #[cfg(debug_assertions)]
                 debug_payload: None,
                 on_close: Some(|ctx, state, engine, _| {
