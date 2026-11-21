@@ -22,7 +22,7 @@ Window는 winit OS 창이고 View는 Tasty가 그 창에 두는 표현이다(1 V
 - Windows에서 최소화 중인 창은 작업 표시줄 아이콘 크기를 client 크기로 보고하므로 표면과 터미널 격자 크기를 유지한다([작업 영역](../../features/work-area/index.md#분할-비율과-탐색기-칸-하한)).
 - 최소화는 두 종류다.
   - 창 하나의 OS 최소화: titlebar 최소화 버튼(`src/adapters/ui/titlebar/mod.rs`)과 팔레트 `minimize_window`(`src/adapters/ui/input/shortcuts/dispatch.rs`)는 모든 OS에서 그 창에 `set_minimized(true)`를 부른다. 창 관계는 그대로다.
-  - 앱 수준 최소화 `AppEvent::Minimize`: 종료 확인 모달의 최소화, `close_behavior` 최소화, `quit_minimize` 단축키에서 나온다. `handle_minimize`(`src/app/event_handler.rs`)가 처리하며 macOS는 모든 MainView를 park한다. Windows와 Linux는 트레이가 있으면 모든 창을 숨기고 없으면 모든 창을 OS 최소화한다. 트레이 동작은 [시스템 트레이](../../design/policies/system-tray.md)에 있다.
+  - 앱 수준 최소화 `AppEvent::Minimize`: 종료 확인 모달의 최소화, `close_behavior` 최소화, `quit_minimize` 단축키에서 나온다. `handle_minimize`(`src/app/event_handler.rs`)가 처리하며 macOS는 모든 MainView를 park한다. Windows와 Linux는 트레이가 있으면 모든 창에 `set_visible(false)`를, 없으면 `set_minimized(true)`를 부른다. 네이티브 Wayland에서는 `set_visible`이 동작하지 않아 트레이가 있어도 창이 남는다. 트레이 동작은 [시스템 트레이](../../design/policies/system-tray.md)에 있다.
 - 최대화·전체화면 창은 Tasty의 가장자리 리사이즈 밴드를 쓰지 않는다. macOS는 OS 장식이 리사이즈를 맡는다.
 
 ### 포커스와 모달
