@@ -86,6 +86,17 @@ fn slot_given_up(app: &App) -> Option<bool> {
     app.remote.reconnect.get(&ROW).map(|slot| slot.given_up)
 }
 
+fn slot_started(app: &App) -> Instant {
+    app.remote.reconnect.get(&ROW).expect("the slot").started
+}
+
+/// 행 세션의 지금 전송에 연결 의사 없는 새 멈춤을 정한다.
+fn decide_a_stop_on_the_current_transport(app: &mut App) {
+    let index = row_index(app);
+    let session = &mut app.remote.sessions[index];
+    session.state.stop_after_events = Some(DeferredStop::new(session.transport.frame_tx.epoch()));
+}
+
 fn run_state(run: u64) -> String {
     run_json(run)["state"]
         .as_str()
@@ -267,6 +278,7 @@ fn a_g1_stop_applied_first_keeps_the_explicit_attempt_and_its_runs() {
     let run2 = request_remote_connect(&mut app);
     assert_eq!(stop(&app), Some(true));
     assert_eq!(endpoint_attempts(&app), vec![(true, false)]);
+    let started = slot_started(&app);
 
     release_output(&mut app);
     app.apply_attach_client_output();
@@ -276,6 +288,7 @@ fn a_g1_stop_applied_first_keeps_the_explicit_attempt_and_its_runs() {
     assert_eq!(phase(&app), SessionState::Reconnecting, "not a stopped row");
     assert!(app.remote.active.contains(&ROW), "the progress mark stays");
     assert_eq!(slot_given_up(&app), Some(false), "the slot is not given up");
+    assert_eq!(slot_started(&app), started, "the same reconnect window");
     assert_eq!(endpoint_attempts(&app), vec![(true, false)]);
     assert_eq!(run_state(run1), "running", "{}", run_json(run1));
     assert_eq!(run_state(run2), "running", "{}", run_json(run2));
@@ -388,8 +401,11 @@ fn the_stop_takes_back_a_waiting_automatic_connection_before_the_explicit_restar
 
 /// 완료 조건 4: Given G1 멈춤에 명시적 연결 의사가 남았다, When 재연결 설치가 새 전송을 넘기면
 /// (`adopt_reconnected_transport`, 성공 설치가 부르는 자리), Then 처리 단계 전에 새 전송과 멈춤 없음이 보이고
-/// 다음 회차는 멈춤을 적용하지 않으며 새 시도도 더 시작하지 않는다. 성공 설치 전체는 MainView 가 없어 재지
-/// 않는다.
+/// 다음 두 회차는 멈춤을 적용하지 않는다. 행은 재연결 중이고 명시적 시도·진행 표지·같은 슬롯이 남으며 새
+/// 시도는 없다. 이어 그 새 전송에 의사 없는 멈춤을 정해 적용하면 옛 의사로 시도를 이어 두지 않고 끊긴 행이 된다.
+///
+/// 재지 않는 것: 성공 설치의 나머지(Connected 전이, `active`·시도 정리)와 그 뒤 연결 유지. 설치는 mirror 를
+/// 창의 MainView 에서 바꾸는데 시험 장치에는 MainView 가 없어 App 경로의 성공 설치를 끝까지 돌릴 수 없다.
 #[test]
 fn an_install_before_the_stop_ends_the_stop_and_its_intent() {
     alone!("an_install_before_the_stop_ends_the_stop_and_its_intent");
@@ -397,6 +413,8 @@ fn an_install_before_the_stop_ends_the_stop_and_its_intent() {
     let mut app = g1_deferred(&event_loop);
     request_remote_connect(&mut app);
     assert_eq!(stop(&app), Some(true));
+    assert_eq!(endpoint_attempts(&app), vec![(true, false)]);
+    let started = slot_started(&app);
     let index = row_index(&app);
     let old = app.remote.sessions[index].transport.frame_tx.epoch();
     let fresh = crate::app::attach_client::tests::test_session(ROW, HashMap::new()).transport;
@@ -407,14 +425,42 @@ fn an_install_before_the_stop_ends_the_stop_and_its_intent() {
     );
 
     let session = &app.remote.sessions[index];
-    assert!(
-        !session.transport.frame_tx.epoch().same(&old),
-        "a new transport"
-    );
+    let epoch = session.transport.frame_tx.epoch();
+    assert!(!epoch.same(&old), "a new transport");
     assert!(session.state.stop_after_events.is_none());
+    for round in 0..2 {
+        app.apply_attach_client_output();
+        app.advance_row_waits();
+        assert_eq!(stop(&app), None, "round {round}");
+        assert_eq!(phase(&app), SessionState::Reconnecting, "round {round}");
+        assert!(app.remote.active.contains(&ROW), "round {round}");
+        assert_eq!(slot_given_up(&app), Some(false), "round {round}");
+        assert_eq!(slot_started(&app), started, "round {round}: the same slot");
+        assert_eq!(
+            endpoint_attempts(&app),
+            vec![(true, false)],
+            "round {round}: the explicit attempt only"
+        );
+        let index = row_index(&app);
+        assert!(
+            app.remote.sessions[index]
+                .transport
+                .frame_tx
+                .epoch()
+                .same(&epoch),
+            "round {round}: the adopted transport stays"
+        );
+    }
+
+    decide_a_stop_on_the_current_transport(&mut app);
     app.apply_attach_client_output();
-    assert_ne!(phase(&app), SessionState::Disconnected);
-    assert_eq!(endpoint_attempts(&app).len(), 1, "no further attempt");
+    assert_eq!(stop(&app), None);
+    assert_eq!(
+        phase(&app),
+        SessionState::Disconnected,
+        "the new stop carries no intent"
+    );
+    assert_eq!(slot_given_up(&app), Some(true));
 }
 
 /// 완료 조건 5 (run 없음): Given D4 로 멈춤이 기록되고 `active` 가 남았다, When run 없는 명시적 연결
@@ -622,8 +668,11 @@ fn a_local_close_ends_the_intent_with_the_session() {
 }
 
 /// 완료 조건 7 (재연결 설치 결과): Given 의사가 남은 멈춤이 있는 채 세션 전송만 새 것으로 바뀌었다, When
-/// 회차를 돌리면, Then 처리 단계가 옛 전송의 멈춤을 버리고 연결을 시작하지 않는다. 이어 새 전송에 새 멈춤을
-/// 정해 적용해도 새 시도는 없다.
+/// 회차를 돌리면, Then 처리 단계가 옛 전송의 멈춤을 버리고 연결을 시작하지 않으며, 세션은 새 전송으로 다음
+/// 회차까지 연결된 채 남는다. 이어 새 전송에 새 멈춤을 정해 적용해도 옛 의사로 연결하지 않고 끊긴 행이 된다.
+///
+/// 전송은 직접 바꾼다. 이 시험이 재는 것은 옛 epoch 의 멈춤을 버리는 처리 단계다. 실제 재연결 설치는 MainView
+/// 가 없어 돌리지 않는다(위 완료 조건 4 시험).
 #[test]
 fn a_stop_of_an_older_transport_never_uses_its_intent() {
     alone!("a_stop_of_an_older_transport_never_uses_its_intent");
@@ -633,13 +682,31 @@ fn a_stop_of_an_older_transport_never_uses_its_intent() {
     assert_eq!(stop(&app), Some(true));
     let index = row_index(&app);
     let fresh = crate::app::attach_client::tests::test_session(ROW, HashMap::new()).transport;
+    let epoch = fresh.frame_tx.epoch();
     app.remote.sessions[index].transport = fresh;
 
-    app.apply_attach_client_output();
-    assert_eq!(stop(&app), None, "the older stop was dropped");
-    assert_no_attempt(&app);
+    for round in 0..2 {
+        app.apply_attach_client_output();
+        assert_eq!(
+            stop(&app),
+            None,
+            "round {round}: the older stop was dropped"
+        );
+        assert_eq!(phase(&app), SessionState::Connected, "round {round}");
+        assert!(!app.remote.active.contains(&ROW), "round {round}");
+        assert_no_attempt(&app);
+        let index = row_index(&app);
+        assert!(
+            app.remote.sessions[index]
+                .transport
+                .frame_tx
+                .epoch()
+                .same(&epoch),
+            "round {round}: the new transport stays"
+        );
+    }
 
-    decide_a_stop_on_a_new_transport(&mut app);
+    decide_a_stop_on_the_current_transport(&mut app);
     app.apply_attach_client_output();
     assert_eq!(phase(&app), SessionState::Disconnected);
     assert_no_attempt(&app);
