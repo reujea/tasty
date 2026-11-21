@@ -145,7 +145,7 @@ fn the_popup_body_is_called_once_inside_the_key_gate() {
         "letframe_keys=self.take_frame_keys();",
         "letkeys_at_start:Option<PopupInstanceId>=frame_keys.host;",
         "letframe_has_key_owner=frame_keys.held();",
-        "focused:keys_at_start==Some(popup.instance),",
+        "focused:super::frame_keys::receives_frame_keys(keys_at_start,popup.instance,),",
         "lettakes_keys=cx.focused||(!frame_has_key_owner&&!popup.arrange.takes_focus);",
     ] {
         assert_eq!(

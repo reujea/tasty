@@ -834,7 +834,10 @@ impl PopupManager {
                                 let mut cx = PopupCx {
                                     id: popup.id,
                                     instance: popup.instance,
-                                    focused: keys_at_start == Some(popup.instance),
+                                    focused: super::frame_keys::receives_frame_keys(
+                                        keys_at_start,
+                                        popup.instance,
+                                    ),
                                     keys: PopupKeys::none(ctx),
                                     payload: &mut popup.payload,
                                 };

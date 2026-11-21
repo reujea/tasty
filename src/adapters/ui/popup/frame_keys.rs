@@ -33,6 +33,12 @@ impl FrameKeys {
     }
 }
 
+/// 이 노드가 이번 프레임 키를 받는지. `target`은 그 쪽이 이미 고른 이번 프레임 키 대상이다(host 본문은
+/// [`FrameKeys::host`], plugin 렌더는 `frame_plugin_key_target`). 비교만 하고 결정이 없을 때 대상을 고르지 않는다.
+pub(crate) fn receives_frame_keys<T: PartialEq>(target: Option<T>, node: T) -> bool {
+    target == Some(node)
+}
+
 /// 한 그리기 몫의 입력 시점 결속.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Bound {

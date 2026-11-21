@@ -281,3 +281,37 @@ fn the_manager_hands_the_given_edit_bindings_to_the_passage() {
         "빈 조합이면 Ctrl+V는 소비 집합 밖이다"
     );
 }
+
+/// Given 같은 정의의 인스턴스 둘이 열렸고 host 키 주인이 나중에 연 것일 때, When host 팝업 층만 그리면(창 결정 없음),
+/// Then 본문 문은 `host_key_owner`가 고른 인스턴스만 열린다.
+#[test]
+fn with_a_key_owner_only_the_host_key_owner_body_gate_opens() {
+    let mut mgr = PopupManager::new();
+    mgr.register(
+        PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
+            .with_instances(PopupInstances::PerScopeTarget),
+    );
+    let first = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(1)).focused(),
+            true,
+        )
+        .unwrap();
+    let second = mgr
+        .open_request(
+            &OpenRequest::new(ID, PopupScope::Surface(2)).focused(),
+            true,
+        )
+        .unwrap();
+    let seen = frame(&mut mgr, &EditBindings::default(), enter(), gate);
+    assert_eq!(
+        mgr.host_key_owner().map(|p| p.instance),
+        Some(second),
+        "전제: host 키 주인은 나중에 연 인스턴스"
+    );
+    assert!(
+        !of(&seen, first).1,
+        "키 주인이 아닌 인스턴스의 본문 문은 닫힌다"
+    );
+    assert!(of(&seen, second).1, "키 주인의 본문 문은 열린다");
+}

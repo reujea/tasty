@@ -713,3 +713,418 @@ fn an_unfed_escape_release_after_a_press_releases_after_the_escape_it_follows() 
         "다음 Esc 는 반복이 아니다"
     );
 }
+
+/// plugin 팝업 P(R 범위)만 연 장면. 엔진 포커스는 L 이고 팝업 포커스는 없다.
+fn plugin_only_scene() -> (
+    RequestContext,
+    crate::runtime::engine_session::EngineSession,
+    PluginManager,
+) {
+    crate::i18n::init("en");
+    let (mut state, session) = scene(super::PANE_L);
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let mut mgr = PluginManager::with_registries(
+        Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+        Arc::new(crate::file::format::FileFormatRegistry::new()),
+        Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+    );
+    mgr.insert_popup_instance_for_test(
+        POPUP,
+        plugin_popup(
+            tasty_host_plugin::next_popup_z_seq(),
+            tasty_plugin_protocol::popup_decl::PopupEscape::Close,
+        ),
+    );
+    (state, session, mgr)
+}
+
+/// plugin 렌더 입력: Esc 가 아닌 키 누름 하나와 IME 사건 하나. 포인터 누름은 넣지 않는다(누름 스냅샷이 포커스를
+/// 옮기지 않게).
+fn render_input() -> Vec<Event> {
+    vec![
+        Event::Key {
+            key: egui::Key::A,
+            physical_key: Some(egui::Key::A),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+        Event::Ime(egui::ImeEvent::Preedit("ㄱ".into())),
+    ]
+}
+
+/// 렌더 입력으로 한 프레임을 그린다. `with_host`면 host 팝업 층을 먼저 그린다. `before_render`는 plugin 렌더 직전
+/// 상태를 단정한다.
+fn render_frame(
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: &PluginManager,
+    with_host: bool,
+    before_render: &dyn Fn(&RequestContext),
+) {
+    let ctx = Context::default();
+    let layout = layout();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(900.0, 700.0),
+        )),
+        events: render_input(),
+        ..Default::default()
+    };
+    drop(ctx.run(input, |ctx| {
+        crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(state, mgr.popup_instances());
+        if with_host {
+            draw_popup_layer(ctx, state, engine, &layout);
+        }
+        before_render(state);
+        draw_plugin_popups(
+            ctx,
+            state,
+            engine,
+            Some(crate::app::plugin_display::PluginDisplay::new(mgr)),
+            Some(&layout),
+        );
+    }));
+}
+
+/// 이번 프레임 plugin 렌더가 P 에 보낸 요청의 입력. 요청이 없으면 `None`이다.
+fn sent_input(state: &mut RequestContext) -> Option<tasty_plugin_protocol::protocol::RawInputWire> {
+    use crate::app::frame_effect::{DrawEffect, FrameEffect};
+    use crate::app::plugin_display::PluginDisplayRequest;
+    state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|d| match d.body {
+            crate::intent::Intent::Frame(FrameEffect::Draw(DrawEffect::PluginDisplay(
+                PluginDisplayRequest::Popup { params, .. },
+            ))) if params.instance_id == POPUP => Some(params.raw_input),
+            _ => None,
+        })
+        .last()
+}
+
+/// 요청 입력에 Esc 가 아닌 키 사건과 IME 사건이 있는지.
+fn key_and_ime(input: &tasty_plugin_protocol::protocol::RawInputWire) -> (bool, bool) {
+    use tasty_plugin_protocol::protocol::RawInputEventWire as W;
+    (
+        input
+            .events
+            .iter()
+            .any(|e| matches!(e, W::Key { key, .. } if key != "Escape")),
+        input.events.iter().any(|e| matches!(e, W::Ime { .. })),
+    )
+}
+
+/// 팝업이 아닌 포커스 노드(엔진 포커스 surface)에서 키를 받은 몫을 누름으로 끊어 닫는다. 닫힌 몫은 `NoPopup`으로
+/// 묶이고 뒤 몫은 결속이 없다. 그 뒤 포커스를 P 로 옮긴다(끊기는 다시 부르지 않는다).
+fn close_a_no_popup_segment_then_focus_p(state: &mut RequestContext, core: &tasty_core::CoreState) {
+    assert!(
+        state.popup_focus().is_none(),
+        "끊는 몫의 포커스 노드는 팝업이 아니다"
+    );
+    let typed = vec![Event::Key {
+        key: egui::Key::B,
+        physical_key: Some(egui::Key::B),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+    assert_eq!(
+        state.cut_key_frame(
+            core,
+            &typed,
+            crate::adapters::ui::popup::frame_keys::Incoming::Press
+        ),
+        1,
+        "키가 든 몫을 누름이 한 번 끊는다"
+    );
+    assert_eq!(
+        state.popups.frame_binding(),
+        Some(None),
+        "닫힌 몫은 NoPopup 이다"
+    );
+    focus_p(state);
+}
+
+fn plugin_owner() -> Option<crate::adapters::ui::popup::occlusion::PopupKeyOwner> {
+    Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(POPUP))
+}
+
+/// Given plugin 팝업 P 가 보이고 팝업 키 주인이 없을 때, When host 팝업 층과 plugin 렌더를 그리면, Then P 의 요청은
+/// 키 포커스가 없고 키·IME 사건을 싣지 않는다.
+#[test]
+fn a_plugin_popup_takes_no_keys_in_a_frame_without_a_key_owner() {
+    let (mut state, mut session, mgr) = plugin_only_scene();
+    let engine = session.borrow_mut();
+    render_frame(&mut state, &engine.read(), &mgr, true, &|state| {
+        assert_eq!(
+            state.frame_key_owner,
+            Some(None),
+            "전제(무주인): 결정은 키 주인 없음"
+        );
+        assert_eq!(
+            state.popups.frame_binding(),
+            None,
+            "전제(무주인): 몫 결속 없음"
+        );
+        assert_eq!(
+            state.popup_key_owner(),
+            None,
+            "전제(무주인): live 키 주인 없음"
+        );
+    });
+    let input = sent_input(&mut state).expect("P 의 Popup 요청이 없다");
+    assert!(!input.focused, "(무주인) wire.raw_input.focused 가 참이다");
+    assert_eq!(
+        key_and_ime(&input),
+        (false, false),
+        "키 주인 없는 프레임의 P 는 키·IME 를 받지 않는다"
+    );
+}
+
+/// Given 창이 host 피커 H 를 이 프레임 키 주인으로 묶었고 plugin 팝업 P 가 함께 보일 때, When 그리면, Then 결정은
+/// Host 이고 P 의 요청은 키 포커스가 없고 키·IME 사건을 싣지 않는다.
+#[test]
+fn a_bound_host_render_gives_the_plugin_popup_no_keys() {
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h,
+        ..
+    } = open_scene();
+    let engine = session.borrow_mut();
+    state
+        .popups
+        .bind_input_key_owner(crate::adapters::ui::popup::focus::PopupNode::Host(h));
+    render_frame(&mut state, &engine.read(), &mgr, true, &|state| {
+        assert_eq!(
+            state.frame_key_owner,
+            Some(Some(
+                crate::adapters::ui::popup::occlusion::PopupKeyOwner::Host
+            )),
+            "전제(결속 Host): 결정은 Host"
+        );
+        assert_eq!(
+            state.popups.frame_binding(),
+            None,
+            "전제(결속 Host): 몫 결속은 꺼냈다"
+        );
+    });
+    let input = sent_input(&mut state).expect("P 의 Popup 요청이 없다");
+    assert!(
+        !input.focused,
+        "(결속 Host) wire.raw_input.focused 가 참이다"
+    );
+    assert_eq!(
+        key_and_ime(&input),
+        (false, false),
+        "Host 결정 프레임의 P 는 키·IME 를 받지 않는다"
+    );
+}
+
+/// Given 팝업이 아닌 노드의 몫(`NoPopup`)을 host 그리기가 이 프레임 결정으로 정했고 그 뒤 포커스가 P 로 옮겼을 때,
+/// When plugin 렌더를 그리면, Then 결정 `Some(None)`을 따라 P 는 키를 받지 않는다(대체 경로로 떨어지지 않는다).
+#[test]
+fn a_decided_no_popup_keeps_the_fallback_plugin_from_keys() {
+    let (mut state, mut session, mgr) = plugin_only_scene();
+    let engine = session.borrow_mut();
+    close_a_no_popup_segment_then_focus_p(&mut state, engine.read().core);
+    render_frame(&mut state, &engine.read(), &mgr, true, &|state| {
+        assert_eq!(
+            state.frame_key_owner,
+            Some(None),
+            "전제(가): 결정 Some(None)"
+        );
+        assert_eq!(
+            state.popups.frame_binding(),
+            None,
+            "전제(가): 뒤 몫 결속 없음"
+        );
+        assert_eq!(
+            state.popup_key_owner(),
+            plugin_owner(),
+            "전제(가): live 키 주인은 P"
+        );
+    });
+    let input = sent_input(&mut state).expect("P 의 Popup 요청이 없다");
+    assert!(!input.focused, "(가) wire.raw_input.focused 가 참이다");
+    assert_eq!(
+        key_and_ime(&input),
+        (false, false),
+        "결정 NoPopup 프레임의 P 는 키·IME 를 받지 않는다"
+    );
+}
+
+/// Given 팝업이 아닌 노드의 몫(`NoPopup`) 결속이 남았고 결정이 없으며 포커스가 P 일 때, When host 그리기 없이 plugin
+/// 렌더만 그리면, Then 몫 결속을 따라 P 는 키를 받지 않는다(live 판정으로 떨어지지 않는다).
+#[test]
+fn a_no_popup_binding_keeps_the_fallback_plugin_from_keys() {
+    let (mut state, mut session, mgr) = plugin_only_scene();
+    let engine = session.borrow_mut();
+    close_a_no_popup_segment_then_focus_p(&mut state, engine.read().core);
+    render_frame(&mut state, &engine.read(), &mgr, false, &|state| {
+        assert_eq!(state.frame_key_owner, None, "전제(나): 결정 없음");
+        assert_eq!(
+            state.popups.frame_binding(),
+            Some(None),
+            "전제(나): 몫 결속 NoPopup"
+        );
+        assert_eq!(
+            state.popup_key_owner(),
+            plugin_owner(),
+            "전제(나): live 키 주인은 P"
+        );
+    });
+    let input = sent_input(&mut state).expect("P 의 Popup 요청이 없다");
+    assert!(!input.focused, "(나) wire.raw_input.focused 가 참이다");
+    assert_eq!(
+        key_and_ime(&input),
+        (false, false),
+        "NoPopup 결속 몫의 P 는 키·IME 를 받지 않는다"
+    );
+}
+
+/// Given 결정도 몫 결속도 없고 포커스가 P 일 때, When plugin 렌더만 그리면, Then live 판정으로 P 가 키를 받는다.
+#[test]
+fn with_no_decision_or_binding_the_live_plugin_takes_keys() {
+    let (mut state, mut session, mgr) = plugin_only_scene();
+    let engine = session.borrow_mut();
+    focus_p(&mut state);
+    render_frame(&mut state, &engine.read(), &mgr, false, &|state| {
+        assert_eq!(state.frame_key_owner, None, "전제(다): 결정 없음");
+        assert_eq!(state.popups.frame_binding(), None, "전제(다): 몫 결속 없음");
+        assert_eq!(
+            state.popup_key_owner(),
+            plugin_owner(),
+            "전제(다): live 키 주인은 P"
+        );
+    });
+    let input = sent_input(&mut state).expect("P 의 Popup 요청이 없다");
+    assert!(input.focused, "(다) wire.raw_input.focused 가 거짓이다");
+    assert_eq!(
+        key_and_ime(&input),
+        (true, true),
+        "live 키 주인 P 는 키·IME 를 받는다"
+    );
+}
+
+/// 결정 전 준비. 상태, 코어, 장면의 H·G 를 받는다.
+type Setup =
+    Box<dyn Fn(&mut RequestContext, &tasty_core::CoreState, PopupInstanceId, PopupInstanceId)>;
+
+/// 장면 H(L 피커)·G(R 피커)·P(R plugin)에서 `setup` 뒤 이 프레임 키를 정하고, host 쪽 키 대상(`FrameKeys.host`)과
+/// plugin 쪽 대상(`frame_plugin_key_target`)을 돌려준다.
+fn decide_after(
+    setup: &Setup,
+) -> (
+    PopupInstanceId,
+    PopupInstanceId,
+    Option<PopupInstanceId>,
+    Option<u64>,
+) {
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h,
+        g,
+    } = open_scene();
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    let layout = layout();
+    let mut keys = (None, None);
+    drop(ctx.run(egui::RawInput::default(), |ctx| {
+        crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
+            &mut state,
+            mgr.popup_instances(),
+        );
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        setup(&mut state, engine.read().core, h, g);
+        state.decide_frame_key_owner(Some(&layout));
+        let host = state.popups.take_frame_keys().host;
+        let decided = state.frame_key_owner.take();
+        keys = (host, state.frame_plugin_key_target(decided));
+    }));
+    (h, g, keys.0, keys.1)
+}
+
+/// Given 이 프레임 결정이 (결속 Host / 결속 Plugin / NoPopup 몫 / 결속 없음의 live host·plugin) 일 때, When 공통 판정
+/// 함수로 각 후보를 판정하면, Then 경우마다 정해진 노드 하나만(NoPopup 이면 아무도) 이 프레임 키를 받는다. host 는
+/// `FrameKeys.host`, plugin 은 `frame_plugin_key_target`의 값을 판정 함수에 넣는다.
+#[test]
+fn each_frame_decision_gives_its_keys_to_one_node_only() {
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::adapters::ui::popup::frame_keys::receives_frame_keys as judge;
+    // (경우, 결정 전 준비, H·G·P 가 받는지)
+    let cases: Vec<(&str, Setup, [bool; 3])> = vec![
+        (
+            "결속 Host",
+            Box::new(|state, _, h, _| state.popups.bind_input_key_owner(PopupNode::Host(h))),
+            [true, false, false],
+        ),
+        (
+            "결속 Plugin",
+            Box::new(|state, _, _, _| state.popups.bind_input_key_owner(PopupNode::Plugin(POPUP))),
+            [false, false, true],
+        ),
+        (
+            "NoPopup",
+            Box::new(|state, core, _, _| {
+                state.popups.set_focus(None);
+                assert!(
+                    state.popup_focus().is_none(),
+                    "NoPopup: 포커스 노드는 팝업이 아니다"
+                );
+                let typed = vec![Event::Key {
+                    key: egui::Key::B,
+                    physical_key: Some(egui::Key::B),
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }];
+                assert_eq!(
+                    state.cut_key_frame(
+                        core,
+                        &typed,
+                        crate::adapters::ui::popup::frame_keys::Incoming::Press
+                    ),
+                    1,
+                    "NoPopup: 키가 든 몫을 누름이 끊는다"
+                );
+            }),
+            [false, false, false],
+        ),
+        (
+            "live host",
+            Box::new(|state, _, _, g| state.popups.set_focus(Some(PopupNode::Host(g)))),
+            [false, true, false],
+        ),
+        (
+            "live plugin",
+            Box::new(|state, _, _, _| focus_p(state)),
+            [false, false, true],
+        ),
+    ];
+    for (case, setup, [h_takes, g_takes, p_takes]) in cases {
+        let (h, g, host, plugin) = decide_after(&setup);
+        assert_eq!(
+            judge(host, h),
+            h_takes,
+            "{case}: H 판정 (host 대상 {host:?})"
+        );
+        assert_eq!(
+            judge(host, g),
+            g_takes,
+            "{case}: G 판정 (host 대상 {host:?})"
+        );
+        assert_eq!(
+            judge(plugin, POPUP),
+            p_takes,
+            "{case}: P 판정 (plugin 대상 {plugin:?})"
+        );
+    }
+}

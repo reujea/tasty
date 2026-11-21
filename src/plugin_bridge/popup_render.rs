@@ -231,7 +231,10 @@ fn draw_plugin_popups_with_keys(
                 ));
         }
         state.plugin_popup_layers.push(layer_id);
-        let has_key_focus = key_target == Some(snap.instance_id);
+        let has_key_focus = crate::adapters::ui::popup::frame_keys::receives_frame_keys(
+            key_target,
+            snap.instance_id,
+        );
 
         if let SnapDisplay::Collapsed(frame) = snap.display {
             // 접힌 팝업은 보기 버튼 프레임만 그리고 플러그인에 크기·입력을 보내지 않는다.
