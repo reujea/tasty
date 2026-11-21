@@ -10,7 +10,6 @@ use crate::adapters::ui::popup::convert::{CONVERT_POPUP_ID, ConvertPayload};
 use crate::adapters::ui::popup::focus::PopupNode;
 use crate::adapters::ui::popup::frame::draw_popup_layer;
 use crate::adapters::ui::popup::{PopupInstanceId, PopupPayload, PopupScope, defs};
-use crate::adapters::ui::rename_popup::RenamePayload;
 use crate::adapters::ui::tutorial::topic_popup::TUTORIAL_TOPICS_POPUP_ID;
 use crate::i18n::t;
 use crate::intent::OpenRequest;
@@ -203,21 +202,48 @@ fn enter_confirms_only_the_palette_and_leaves_the_convert_popup_of_another_scope
     );
 }
 
-/// Given R 범위에 변환 팝업과 이름 바꾸기가 열려 있고 키 주인이 L surface일 때, When Enter·화살표·Esc·글자가 오면,
+/// R pane의 탭 이름 바꾸기를 제품 열기 경로(`rename_popup::open`과 의도 적용)로 열고, 그 옆 R surface에 첫 항목을 고른
+/// 변환 팝업을 키 없이 연다. 이름 바꾸기가 키 주인이다. (상태, 엔진, 변환, 이름 바꾸기)를 돌려준다.
+fn rename_beside_convert() -> (
+    RequestContext,
+    crate::runtime::engine_session::EngineSession,
+    PopupInstanceId,
+    PopupInstanceId,
+) {
+    let (mut state, mut session) = scene(PANE_R);
+    registered(&mut state);
+    let convert = open_convert(&mut state, SURFACE_R, false);
+    let read = session.read();
+    assert!(crate::adapters::ui::rename_popup::open(
+        &mut state,
+        &read,
+        crate::state::RenameTarget::TabName { tab_id: SURFACE_R },
+        "old".into(),
+        crate::intent::UiIntent::from_user_context_menu,
+    ));
+    drop(read);
+    crate::intent::popup::apply_pending(&mut state, &mut session);
+    let rename = state
+        .popups
+        .instances_of(crate::adapters::ui::rename_popup::RENAME_POPUP_ID)
+        .map(|p| (p.instance, p.scope.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(rename.len(), 1, "이름 바꾸기 하나가 열린다: {rename:?}");
+    let (rename, scope) = rename[0].clone();
+    assert_eq!(
+        scope,
+        PopupScope::Pane(PANE_R),
+        "탭 이름 바꾸기는 그 탭의 pane 범위다"
+    );
+    (state, session, convert, rename)
+}
+
+/// Given R pane 탭 이름 바꾸기와 R surface 변환 팝업이 열려 있고 키 주인이 L surface일 때, When Enter·화살표·Esc·글자가 오면,
 /// Then 두 팝업은 열린 채 선택과 입력이 그대로다.
 #[test]
 fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
-    let (mut state, mut session) = scene(PANE_R);
+    let (mut state, mut session, convert, rename) = rename_beside_convert();
     let engine = session.borrow_mut();
-    registered(&mut state);
-    let convert = open_convert(&mut state, SURFACE_R, false);
-    let rename = crate::adapters::ui::rename_popup::open_for_test(
-        &mut state,
-        RenamePayload::new(crate::state::RenameTarget::NewCategory, "old".into()),
-        PopupScope::Surface(SURFACE_R),
-        None,
-    )
-    .expect("rename opens");
     let ctx = Context::default();
     let labels = convert_labels(&engine.read());
     frame(&ctx, &mut state, &engine.read(), Vec::new());
