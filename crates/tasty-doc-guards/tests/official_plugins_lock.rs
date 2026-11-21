@@ -98,6 +98,7 @@ enum Dialect {
 
 /// 원문을 Bash처럼 논리적 명령으로 나누고 각 명령을 단어로 나눈다.
 /// - 따옴표 밖 줄바꿈·`;`·`|`·`||`·`&&`·`&`에서 명령이 끝난다(PowerShell의 홀로 쓴 `&`는 단어).
+///   리다이렉션의 `&`(`2>&1`·`>&2`·`&>file`)는 명령을 끝내지 않고 단어에 남는다.
 ///   따옴표 밖과 큰따옴표 안의 `\` 바로 뒤 줄바꿈은 줄 연속이라 둘 다 지운다.
 /// - 큰·작은따옴표 안의 공백·줄바꿈은 단어를 나누지 않고 따옴표는 벗긴다. 따옴표 밖 `\`는 다음 글자를
 ///   그대로 둔다. 큰따옴표 안 `\`는 `$`·`` ` ``·`"`·`\` 앞에서만 이스케이프이고 그 밖에서는 글자로 남는다
@@ -154,7 +155,10 @@ fn commands_in(text: &str, dialect: Dialect) -> Vec<Vec<String>> {
             None if c == '\n'
                 || c == ';'
                 || c == '|'
-                || (c == '&' && (dialect == Dialect::Bash || chars.peek() == Some(&'&'))) =>
+                || (c == '&'
+                    && !word.ends_with(['>', '<'])
+                    && chars.peek() != Some(&'>')
+                    && (dialect == Dialect::Bash || chars.peek() == Some(&'&'))) =>
             {
                 if (c == '&' && chars.peek() == Some(&'&'))
                     || (c == '|' && chars.peek() == Some(&'|'))
@@ -205,24 +209,83 @@ fn is_staging_fetch_call(args: &[String]) -> bool {
     matches!(args, [bash, script, ..] if bash == "bash" && script.ends_with("/scripts/fetch-official-plugins.sh"))
 }
 
-/// fetch 스크립트 뒤의 독립 옵션. `scripts/fetch-official-plugins.sh`의 파서처럼 값을 받는 옵션은
-/// 다음 단어를 값으로 소비하므로 `--cache --all`의 `--all`은 옵션이 아니다.
-fn fetch_flags(args: &[String]) -> Vec<&str> {
-    const TAKES_VALUE: [&str; 4] = ["--platform", "--out", "--lock", "--cache"];
-    let Some(script) = args
+/// fetch 스크립트 뒤의 인자를 `scripts/fetch-official-plugins.sh`의 파서처럼 순서대로 한 번 읽은 결과.
+struct FetchArgs {
+    all: bool,
+    /// `-h`·`--help`를 만나 사용법만 내고 끝난다.
+    help: bool,
+    /// 모르는 인자나 값이 빠진 옵션을 만나 종료 2로 끝난다.
+    invalid: bool,
+    platform: bool,
+    out: bool,
+}
+
+/// 셸이 인자에서 걷어 내는 리다이렉션 단어. 대상이 붙지 않은 연산자(`>` 등)는 다음 단어까지 걷는다.
+fn redirection(word: &str) -> Option<bool> {
+    let op = word.trim_start_matches(|c: char| c.is_ascii_digit());
+    let ops = ["&>>", "&>", ">>", ">&", "<&", ">", "<"];
+    let found = ops.iter().find(|o| op.starts_with(**o))?;
+    Some(op.len() == found.len())
+}
+
+/// 값을 받는 옵션은 다음 단어를 값으로 소비하므로 `--cache --all`의 `--all`은 옵션이 아니다.
+/// `--help`나 모르는 인자를 만나면 실제 파서처럼 거기서 멈춘다.
+fn parse_fetch(args: &[String]) -> Option<FetchArgs> {
+    let script = args
         .iter()
-        .position(|a| a.ends_with("fetch-official-plugins.sh"))
-    else {
+        .position(|a| a.ends_with("fetch-official-plugins.sh"))?;
+    let mut parsed = FetchArgs {
+        all: false,
+        help: false,
+        invalid: false,
+        platform: false,
+        out: false,
+    };
+    let mut rest = args[script + 1..].iter();
+    while let Some(a) = rest.next() {
+        if let Some(takes_target) = redirection(a) {
+            if takes_target {
+                rest.next();
+            }
+            continue;
+        }
+        match a.as_str() {
+            "--platform" | "--out" | "--lock" | "--cache" => {
+                let Some(value) = rest.next() else {
+                    parsed.invalid = true;
+                    break;
+                };
+                match a.as_str() {
+                    "--platform" => parsed.platform = !value.is_empty(),
+                    "--out" => parsed.out = !value.is_empty(),
+                    _ => {}
+                }
+            }
+            "--all" => parsed.all = true,
+            "-h" | "--help" => {
+                parsed.help = true;
+                break;
+            }
+            _ => {
+                parsed.invalid = true;
+                break;
+            }
+        }
+    }
+    Some(parsed)
+}
+
+/// fetch 호출이 받는 옵션 표기. 실제 파서가 멈춘 뒤의 인자는 들지 않는다.
+fn fetch_flags(args: &[String]) -> Vec<&'static str> {
+    let Some(p) = parse_fetch(args) else {
         return Vec::new();
     };
     let mut flags = Vec::new();
-    let mut rest = args[script + 1..].iter();
-    while let Some(a) = rest.next() {
-        if TAKES_VALUE.contains(&a.as_str()) {
-            rest.next();
-        } else {
-            flags.push(a.as_str());
-        }
+    if p.all {
+        flags.push("--all");
+    }
+    if p.help {
+        flags.push("--help");
     }
     flags
 }
@@ -254,28 +317,19 @@ fn fetch_calls_in_dialect(text: &str, dialect: Dialect) -> Vec<Vec<String>> {
     const MESSAGE: [&str; 4] = ["echo", "printf", "Write-Error", "Write-Host"];
     commands_in(text, dialect)
         .into_iter()
-        .filter(|c| !MESSAGE.contains(&c[0].as_str()))
+        .filter(|c| {
+            // `if ! printf ...` 처럼 조건문 머리 뒤의 실행 명령을 본다.
+            const HEAD: [&str; 8] = ["if", "!", "then", "else", "elif", "do", "while", "until"];
+            let run = c.iter().find(|w| !HEAD.contains(&w.as_str()));
+            !run.is_some_and(|w| MESSAGE.contains(&w.as_str()))
+        })
         .filter(|c| c.iter().any(|w| w.ends_with("fetch-official-plugins.sh")))
         .collect()
 }
 
-/// fetch 호출이 실제로 받는지: 도움말(`-h`·`--help`)로 끝나지 않고 `--platform`·`--out`에 값이 있다.
+/// fetch 호출이 실제로 받는지: 도움말·모르는 인자·값 빠진 옵션 없이 `--platform`·`--out`에 값이 있다.
 fn fetch_really_runs(args: &[String]) -> bool {
-    let flags = fetch_flags(args);
-    if flags.iter().any(|f| matches!(*f, "-h" | "--help")) {
-        return false;
-    }
-    let Some(script) = args
-        .iter()
-        .position(|a| a.ends_with("fetch-official-plugins.sh"))
-    else {
-        return false;
-    };
-    let rest = &args[script + 1..];
-    ["--platform", "--out"].iter().all(|opt| {
-        rest.windows(2)
-            .any(|w| w[0] == *opt && !w[1].is_empty() && !w[1].starts_with("--"))
-    })
+    parse_fetch(args).is_some_and(|p| !p.help && !p.invalid && p.platform && p.out)
 }
 
 #[test]
@@ -493,6 +547,36 @@ fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
         fetch_flags(&fetch_calls_in(&quoted)[0]).contains(&"--all"),
         "큰따옴표 안 줄 연속으로 이은 --all 을 놓쳤다"
     );
+    let consumed = real.replacen(
+        "--platform \"$platform\" --out \"$stage\" --all",
+        "--cache --platform linux-arm64 --out stage --all",
+        1,
+    );
+    assert!(
+        !fetch_really_runs(&call_args(&consumed)),
+        "--cache 가 --platform 을 값으로 소비한 호출을 받기로 보았다"
+    );
+    let redirected = package.replacen("\"; then", "\" 2>&1 --all; then", 1);
+    let calls = fetch_calls_in(&redirected);
+    assert_eq!(
+        calls.len(),
+        1,
+        "리다이렉션의 & 에서 명령을 끊었다: {calls:?}"
+    );
+    assert!(
+        fetch_flags(&calls[0]).contains(&"--all"),
+        "2>&1 뒤의 --all 을 놓쳤다"
+    );
+    let hinted = format!(
+        "if ! printf '%s\\n' 'Run scripts/fetch-official-plugins.sh'; then\n  exit 1\nfi\n{package}\n"
+    );
+    let calls = fetch_calls_in(&hinted);
+    assert_eq!(
+        calls.len(),
+        1,
+        "if ! printf 안내문을 fetch 호출로 셌다: {calls:?}"
+    );
+    assert!(is_package_fetch_call(rel, &calls[0]));
     for help in ["--help --all", "-h"] {
         let call = &fetch_calls_in(&real.replacen("--all", help, 1))[0];
         assert!(

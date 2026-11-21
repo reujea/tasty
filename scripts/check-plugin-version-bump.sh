@@ -217,6 +217,8 @@ else
     CHANGED=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- "$SCAN_ROOT/")
     OUTSIDE=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- . ":(exclude)$SCAN_ROOT/")
 fi
+# 호스트 시험 픽스처는 어떤 플러그인의 빌드 입력도 아니다. 잠금 파일·매니페스트를 읽을지 정하기 전에 뺀다.
+CHANGED=$(printf '%s\n' "$CHANGED" | sed "\|^$SCAN_ROOT/tasty-test-support/fixtures/official-plugins/|d")
 
 # src/lang/assets는 확장자에 관계없이 비교한다. 이 범위를 바꾸면 CI 경로 필터도 함께 대조한다.
 build_affecting() {
@@ -258,6 +260,7 @@ read_lock_ids() {  # <scan 파일>
             inp = ($2 == "[[plugin]]"); if (inp) { tables++; ids = 0 }
             # 배포 파서는 [[plugin.artifact]] 가 앞선 [[plugin]] 에 붙는다고 읽는다.
             if ($2 == "[[plugin.artifact]]" && tables == 0) fail("[[plugin.artifact]] 앞에 [[plugin]] 표가 없다")
+            if ($2 == "[release]" && releases++) fail("[release] 표가 두 번 나온다")
             next
         }
         $1 == "K" && inp {
@@ -401,8 +404,6 @@ CHANGED_CRATES=""
 while IFS= read -r f; do
     [ -z "$f" ] && continue
     build_affecting "$f" || continue
-    # 호스트 시험 픽스처는 어떤 플러그인의 빌드 입력도 아니다.
-    case "$f" in "$SCAN_ROOT"/tasty-test-support/fixtures/official-plugins/*) continue ;; esac
     CHANGED_CRATES="$CHANGED_CRATES
 $(crate_dir_of "$f")"
 done <<EOF

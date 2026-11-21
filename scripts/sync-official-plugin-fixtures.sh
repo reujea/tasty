@@ -149,6 +149,7 @@ if ! awk -F'\t' '
     function fail(m) { if (err == "") err = m }
     $1 == "H" {
         if ($3 != "bare" || ($2 != "[release]" && $2 != "[[plugin]]" && $2 != "[[plugin.artifact]]")) fail("unexpected table " $2)
+        if ($2 == "[release]" && releases++) fail("[release] table appears twice")
         inp = ($2 == "[[plugin]]"); if (inp) n++
         if ($2 == "[[plugin.artifact]]" && n == 0) fail("[[plugin.artifact]] before any [[plugin]] table")
         next
@@ -242,14 +243,14 @@ compare() {
 $want
 EOF
     done
-    for dir in "$fix"/*/; do
-        [[ -d "$dir" ]] || continue
+    # 글롭 */ 는 점으로 시작하는 폴더를 빼므로 find 로 바로 아래 폴더를 모두 본다(오프라인 가드와 같은 집합).
+    while IFS= read -r -d '' dir; do
         id="$(basename "$dir")"
         if ! is_locked_id "$id"; then
             echo "  not in the lock file: $id" >&2
             bad=1
         fi
-    done
+    done < <(find "$fix" -mindepth 1 -maxdepth 1 -type d -print0)
     return "$bad"
 }
 

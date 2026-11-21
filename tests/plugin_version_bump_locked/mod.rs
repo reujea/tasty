@@ -435,6 +435,43 @@ fn a_fixture_only_change_does_not_query_the_dependency_closure() {
     );
 }
 
+/// 픽스처 경로는 잠금 파일을 읽을지 정하기 전에 빠진다. 읽을 수 없는 잠금 파일이 있어도 픽스처만 바꾼
+/// 변경은 두 모드 모두 판정 대상 0건으로 끝난다.
+#[test]
+fn a_fixture_only_change_skips_the_lock_and_manifest_reads() {
+    const FIXTURE: &str = "crates/tasty-test-support/fixtures/official-plugins/com.tasty.fixture";
+    let tmp = seed_repo();
+    let d = tmp.path();
+    write(
+        d,
+        "official-plugins.lock.toml",
+        "[[plugins]]\nid = \"com.tasty.fixture\"\n",
+    );
+    write(
+        d,
+        &format!("{FIXTURE}/tasty-plugin.toml"),
+        "id = \"com.tasty.fixture\"\nversion = \"9.9.9\"\n",
+    );
+    write(d, &format!("{FIXTURE}/lang/en.toml"), "a = \"b\"\n");
+    commit_all(d, "seed fixture and an unreadable lock");
+    write(d, &format!("{FIXTURE}/lang/en.toml"), "a = \"c\"\n");
+    write(
+        d,
+        &format!("{FIXTURE}/tasty-plugin.toml"),
+        "\"a\\u0062\" = 1\n",
+    );
+    both_modes(d, "change fixture", |mode, code, text| {
+        assert_eq!(
+            code, 0,
+            "{mode}: 픽스처만 바꿨는데 잠금 파일을 읽었다:\n{text}"
+        );
+        assert!(
+            text.contains("판정 대상 0 건"),
+            "{mode}: 판정 대상이 0건이 아니다:\n{text}"
+        );
+    });
+}
+
 /// 수집 루트를 넓힌 사본도 스캐너를 찾아 잠금 id 판정을 한다.
 #[test]
 fn a_widened_root_still_reads_the_lock_file() {
@@ -566,6 +603,10 @@ fn a_lock_table_header_the_scanner_cannot_read_is_undecidable() {
         (
             "점 앞뒤 공백",
             format!("{LOCKED_TABLE}\n  [[plugin . artifact]]\n  platform = \"x\"\n"),
+        ),
+        (
+            "두 번 나온 [release]",
+            format!("[release]\ntag = \"v1\"\n{LOCKED_TABLE}\n[release]\ntag = \"v2\"\n"),
         ),
         (
             "앞선 [[plugin]] 없는 artifact",

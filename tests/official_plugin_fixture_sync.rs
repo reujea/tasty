@@ -220,6 +220,15 @@ fn check_finds_a_changed_byte_and_a_stale_fixture() {
         !root.path.join(FIXTURES).join("com.tasty.stale").exists(),
         "--update 가 잠금 파일에 없는 픽스처를 남겼다"
     );
+
+    // 점으로 시작하는 폴더도 픽스처 폴더 집합에 든다(오프라인 가드와 같은 집합).
+    fs::create_dir_all(root.path.join(FIXTURES).join(".stale")).expect(".stale 폴더");
+    let (code, text) = root.run(&["--check"]);
+    assert_eq!(code, 1, "점으로 시작하는 옛 폴더를 놓쳤다:\n{text}");
+    assert!(
+        text.contains("not in the lock file: .stale"),
+        "점 폴더를 말하지 않는다:\n{text}"
+    );
 }
 
 /// 잠금 파일은 fetch 전에 checker와 같은 조건으로 읽는다. 배포 파서는 `[[plugin.artifact]]` 를 앞선
@@ -239,6 +248,11 @@ fn a_lock_file_the_release_tools_reject_stops_before_fetching() {
             "id is not an official plugin id: com.example.demo",
         ),
         ("중복 id", dup, "duplicate id com.tasty.alpha"),
+        (
+            "두 번 나온 [release]",
+            format!("{LOCK}\n[release]\ntag = \"v1.0.0\"\n"),
+            "[release] table appears twice",
+        ),
     ] {
         let root = Root::new();
         root.write("official-plugins.lock.toml", &lock);
