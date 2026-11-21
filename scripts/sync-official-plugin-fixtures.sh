@@ -142,9 +142,9 @@ if ! awk -f "$scan_awk" "$work/lock.toml" > "$work/lock.scan"; then
     echo "Error: could not read official-plugins.lock.toml: $(sed -n '$p' "$work/lock.scan")" >&2
     exit 2
 fi
-# 잠금 항목의 id와 bundle을 탭으로 나열한다. 잠금 파일은 generate가 쓰는 형식만 받는다:
+# 잠금 항목의 id·version·bundle을 탭으로 나열한다. 잠금 파일은 generate가 쓰는 형식만 받는다:
 # 표는 [release]·[[plugin]]·[[plugin.artifact]]의 맨 이름이고, [[plugin]]마다 맨 키 id(기본 문자열)와
-# bundle(불 값)이 하나씩 있다. 잠금 파일에는 bundle 기본값이 없다(official-plugins check가 거부한다).
+# version(기본 문자열)·bundle(불 값)이 하나씩 있다. 잠금 파일에는 bundle 기본값이 없다(official-plugins check가 거부한다).
 if ! awk -F'\t' '
     function fail(m) { if (err == "") err = m }
     $1 == "H" {
@@ -154,12 +154,13 @@ if ! awk -F'\t' '
     }
     $1 == "K" && inp && $2 == "unknown" { fail("unreadable key in a [[plugin]] table") }
     $1 == "K" && inp && $3 == "id" { if ($2 != "bare" || $4 != "basic" || (n in id)) fail("unexpected id in plugin " n); id[n] = $5 }
+    $1 == "K" && inp && $3 == "version" { if ($2 != "bare" || $4 != "basic" || (n in v)) fail("unexpected version in plugin " n); v[n] = $5 }
     $1 == "K" && inp && $3 == "bundle" { if ($2 != "bare" || $4 != "bool" || (n in b)) fail("unexpected bundle in plugin " n); b[n] = $5 }
     END {
         if (n == 0) fail("no [[plugin]] table")
-        for (i = 1; i <= n; i++) if (!(i in id) || !(i in b)) fail("plugin " i " has no id or no bundle")
+        for (i = 1; i <= n; i++) if (!(i in id) || !(i in v) || !(i in b)) fail("plugin " i " lacks id, version or bundle")
         if (err != "") { print err > "/dev/stderr"; exit 3 }
-        for (i = 1; i <= n; i++) print id[i] "\t" b[i]
+        for (i = 1; i <= n; i++) print id[i] "\t" v[i] "\t" b[i]
     }
 ' "$work/lock.scan" > "$work/lock.entries"; then
     echo "Error: could not read the plugin entries of official-plugins.lock.toml" >&2
@@ -307,13 +308,15 @@ if ! compare "$work/out" "$cand"; then
 fi
 # 들이기 전에 오프라인 가드(official_plugin_fixtures)와 같은 조건을 후보에 적용한다.
 bad=0
-while IFS=$'\t' read -r id want_bundle; do
+while IFS=$'\t' read -r id want_version want_bundle; do
     [[ -n "$id" ]] || continue
     if [[ ! -f "$cand/$id/lang/en.toml" ]]; then
         echo "  $id: lang/en.toml is missing" >&2
         bad=1
     fi
     if [[ ! -f "$cand/$id/tasty-plugin.toml" ]]; then
+        echo "  $id: tasty-plugin.toml is missing" >&2
+        bad=1
         continue
     fi
     if ! awk -f "$scan_awk" "$cand/$id/tasty-plugin.toml" > "$work/manifest.scan"; then
@@ -321,14 +324,22 @@ while IFS=$'\t' read -r id want_bundle; do
         bad=1
         continue
     fi
-    # 매니페스트 최상위 bundle. 키가 없으면 호스트 기본값 true다. 불 값이 아니면 읽지 못한 것으로 본다.
-    have_bundle="$(awk -F'\t' '
+    # 매니페스트 최상위의 id·version·bundle. 오프라인 가드(official_plugin_fixtures.rs top_level)와 같은 규칙이다:
+    # 읽지 못한 키나 불 값이 아닌 bundle이 하나라도 있으면 그 뒤 레코드와 관계없이 읽지 못한 것으로 본다.
+    # bundle 키가 없으면 호스트 기본값 true다.
+    if ! top="$(awk -F'\t' '
         $1 == "H" { exit }
-        $1 == "K" && $2 == "unknown" { v = "?" }
-        $1 == "K" && $3 == "bundle" { v = ($4 == "bool") ? $5 : "?" }
-        END { print (v == "" ? "true" : v) }' "$work/manifest.scan")"
-    if [[ "$have_bundle" != "$want_bundle" ]]; then
-        echo "  $id: bundle = $have_bundle in the manifest, $want_bundle in the lock file" >&2
+        $1 == "K" && $2 == "unknown" { bad = 1 }
+        $1 == "K" && $3 == "bundle" { if ($4 == "bool") b = $5; else bad = 1 }
+        $1 == "K" && $3 == "id" && ($4 == "basic" || $4 == "literal") { id = $5 }
+        $1 == "K" && $3 == "version" && ($4 == "basic" || $4 == "literal") { v = $5 }
+        END { if (bad) exit 1; print id "\t" v "\t" (b == "" ? "true" : b) }' "$work/manifest.scan")"; then
+        echo "  $id: tasty-plugin.toml has a top-level key it cannot read" >&2
+        bad=1
+        continue
+    fi
+    if [[ "$top" != "$id"$'\t'"$want_version"$'\t'"$want_bundle" ]]; then
+        echo "  $id: id, version, bundle = ${top//$'\t'/, } in the manifest, $id, $want_version, $want_bundle in the lock file" >&2
         bad=1
     fi
 done < "$work/lock.entries"

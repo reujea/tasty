@@ -166,6 +166,16 @@ fn official_plugin_fixtures_are_not_surfaces() {
         !is_plugin_lang_surface(&fixture),
         "픽스처 번역 파일을 사용자 표면으로 셌다"
     );
+    for side in ["new", "previous"] {
+        let swap = format!(
+            "crates/tasty-test-support/fixtures/{}probe/{side}/com.tasty.probe/lang/en.toml",
+            tasty_doc_guards::OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX
+        );
+        assert!(
+            !is_plugin_lang_surface(&swap),
+            "픽스처 교체용 폴더의 번역 파일을 사용자 표면으로 셌다: {swap}"
+        );
+    }
     assert!(
         is_plugin_lang_surface("crates/tasty-plugin-probe/lang/en.toml"),
         "일반 플러그인 번역 파일을 놓쳤다"

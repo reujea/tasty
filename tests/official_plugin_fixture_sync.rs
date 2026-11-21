@@ -285,6 +285,32 @@ fn a_candidate_failing_the_offline_checks_keeps_the_fixtures() {
         before,
         "실패한 갱신이 기존 픽스처를 바꿨다"
     );
+    root.write("payload/com.tasty.alpha/lang/en.toml", "a = \"b\"\n");
+
+    // 오프라인 가드와 같은 판독: 읽지 못한 키는 뒤의 bundle 과 관계없이 실패, version 은 여러 줄 문자열 밖의 값.
+    for (what, beta) in [
+        (
+            "읽지 못한 키 뒤의 bundle",
+            "\"\\u0066uture\" = \"x\"\nid = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle = false\n",
+        ),
+        (
+            "bundle 뒤의 읽지 못한 키",
+            "id = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle = false\n\"\\u0066uture\" = \"x\"\n",
+        ),
+        (
+            "여러 줄 문자열 안의 가짜 version",
+            "id = \"com.tasty.beta\"\nnote = \"\"\"\nversion = \"2.0.0\"\n\"\"\"\nversion = \"2.0.9\"\nbundle = false\n",
+        ),
+    ] {
+        root.write("payload/com.tasty.beta/tasty-plugin.toml", beta);
+        let (code, text) = root.run(&["--update"]);
+        assert_eq!(code, 1, "{what}: 후보를 들였다:\n{text}");
+        assert_eq!(
+            root.fixtures(),
+            before,
+            "{what}: 실패한 갱신이 기존 픽스처를 바꿨다"
+        );
+    }
 }
 
 #[test]

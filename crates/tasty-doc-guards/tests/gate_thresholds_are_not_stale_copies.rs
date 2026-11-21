@@ -327,9 +327,13 @@ fn official_plugin_fixtures_are_not_scanned() {
         "{}/com.tasty.probe/tasty-plugin.toml",
         tasty_doc_guards::OFFICIAL_PLUGIN_FIXTURES_DIR
     );
+    let swap = format!(
+        "crates/tasty-test-support/fixtures/{}probe/previous/com.tasty.probe/tasty-plugin.toml",
+        tasty_doc_guards::OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX
+    );
     let kept = "crates/tasty-plugin-probe/tasty-plugin.toml";
     assert_eq!(
-        text_files_of([fixture.as_str(), kept].into_iter()),
+        text_files_of([fixture.as_str(), swap.as_str(), kept].into_iter()),
         vec![kept.to_string()],
         "픽스처를 골랐거나 일반 매니페스트를 놓쳤다"
     );

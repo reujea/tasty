@@ -76,22 +76,43 @@ use std::path::{Path, PathBuf};
 pub const OFFICIAL_PLUGIN_FIXTURES_DIR: &str =
     "crates/tasty-test-support/fixtures/official-plugins";
 
-/// 디렉터리가 공식 플러그인 픽스처 폴더인지 경로 조각 단위로 본다. 재귀 수집이 이 폴더로 내려가지 않게 한다.
+/// 픽스처 갱신(`scripts/sync-official-plugin-fixtures.sh --update`)이 픽스처 폴더와 같은 부모 아래에 잠시
+/// 만드는 교체용 폴더의 이름 머리. 이름 바꾸기로 들이려고 같은 부모에 두며, 끝나면 지운다.
+pub const OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX: &str = ".official-plugins-sync.";
+
+/// 픽스처 폴더의 부모(저장소 상대 경로).
+const OFFICIAL_PLUGIN_FIXTURES_PARENT: &str = "crates/tasty-test-support/fixtures";
+
+/// 디렉터리가 공식 플러그인 픽스처 폴더나 그 교체용 폴더인지 경로 조각 단위로 본다. 재귀 수집이 이 폴더로
+/// 내려가지 않게 한다.
 pub fn is_official_plugin_fixtures_dir(dir: &Path) -> bool {
     dir.ends_with(OFFICIAL_PLUGIN_FIXTURES_DIR)
+        || (dir
+            .parent()
+            .is_some_and(|p| p.ends_with(OFFICIAL_PLUGIN_FIXTURES_PARENT))
+            && dir.file_name().is_some_and(|n| {
+                n.to_string_lossy()
+                    .starts_with(OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX)
+            }))
 }
 
-/// 저장소 상대 경로(구분자 `/` 또는 `\`)가 공식 플러그인 픽스처 폴더나 그 아래인지 본다.
+/// 저장소 상대 경로(구분자 `/` 또는 `\`)가 공식 플러그인 픽스처 폴더나 그 교체용 폴더, 또는 그 아래인지 본다.
 pub fn is_official_plugin_fixture(rel: &str) -> bool {
     let rel = floored_walk::normalized_rel(Path::new(rel), Path::new(""));
-    rel == OFFICIAL_PLUGIN_FIXTURES_DIR
+    let under = |dir: &str| {
+        rel.strip_prefix(dir)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+    };
+    under(OFFICIAL_PLUGIN_FIXTURES_DIR)
         || rel
-            .strip_prefix(OFFICIAL_PLUGIN_FIXTURES_DIR)
-            .is_some_and(|rest| rest.starts_with('/'))
+            .strip_prefix(OFFICIAL_PLUGIN_FIXTURES_PARENT)
+            .and_then(|rest| rest.strip_prefix('/'))
+            .is_some_and(|rest| rest.starts_with(OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX))
 }
 
 /// 재귀 수집 가드가 공식 플러그인 픽스처와 그 갱신 후보를 빼는지 볼 합성 트리를 `root` 아래에 만든다.
-/// 픽스처 폴더, `target` 아래 갱신 후보, `kept_dir`에 같은 이름(`name`)·내용(`body`)의 파일을 하나씩 둔다.
+/// 픽스처 폴더, `target` 아래 갱신 후보, 교체용 폴더의 새 후보(`new`)와 옛 픽스처(`previous`), `kept_dir`에
+/// 같은 이름(`name`)·내용(`body`)의 파일을 하나씩 둔다.
 /// 수집 결과에 남아야 할 저장소 상대 경로(`kept_dir/name`)를 돌려준다. 빈 결과가 저절로 통과하지 않게
 /// 소비자는 이 경로가 수집됐는지도 함께 단언한다.
 ///
@@ -108,6 +129,12 @@ pub fn seed_official_plugin_fixture_probe(
     for rel in [
         format!("{OFFICIAL_PLUGIN_FIXTURES_DIR}/com.tasty.probe/{name}"),
         format!("target/official-plugin-fixtures-sync/run.probe/candidate/com.tasty.probe/{name}"),
+        format!(
+            "{OFFICIAL_PLUGIN_FIXTURES_PARENT}/{OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX}probe/new/com.tasty.probe/{name}"
+        ),
+        format!(
+            "{OFFICIAL_PLUGIN_FIXTURES_PARENT}/{OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX}probe/previous/com.tasty.probe/{name}"
+        ),
         kept.clone(),
     ] {
         let path = root.join(&rel);
@@ -314,6 +341,36 @@ pub fn method_table(src: &str) -> BTreeMap<String, Option<Vec<String>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fixture_paths_include_the_swap_folders_beside_them() {
+        let swap = format!(
+            "{OFFICIAL_PLUGIN_FIXTURES_PARENT}/{OFFICIAL_PLUGIN_FIXTURES_SYNC_PREFIX}AbC123"
+        );
+        for rel in [
+            OFFICIAL_PLUGIN_FIXTURES_DIR.to_string(),
+            format!("{OFFICIAL_PLUGIN_FIXTURES_DIR}/com.tasty.x/lang/en.toml"),
+            swap.clone(),
+            format!("{swap}/new/com.tasty.x/tasty-plugin.toml"),
+            format!("{swap}\\previous\\com.tasty.x\\lang\\ko.toml"),
+        ] {
+            assert!(is_official_plugin_fixture(&rel), "{rel}");
+        }
+        for rel in [
+            "crates/tasty-test-support/fixtures/official-plugins-extra/x.toml",
+            "crates/tasty-test-support/fixtures/.other/x.toml",
+            "crates/tasty-test-support/src/lib.rs",
+        ] {
+            assert!(!is_official_plugin_fixture(rel), "{rel}");
+        }
+        assert!(is_official_plugin_fixtures_dir(Path::new(&swap)));
+        assert!(is_official_plugin_fixtures_dir(Path::new(
+            OFFICIAL_PLUGIN_FIXTURES_DIR
+        )));
+        assert!(!is_official_plugin_fixtures_dir(Path::new(
+            "crates/tasty-test-support/fixtures/.other"
+        )));
+    }
 
     /// 추가 의존성 없이 시험용 캐시 디렉터리를 만든다.
     fn temp_dir_named(suffix: &str) -> PathBuf {

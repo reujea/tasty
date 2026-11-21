@@ -564,6 +564,10 @@ fn a_lock_table_header_the_scanner_cannot_read_is_undecidable() {
             format!("{LOCKED_TABLE}[\"plugin\"]\nid = \"com.tasty.other\"\n"),
         ),
         (
+            "점 앞뒤 공백",
+            format!("{LOCKED_TABLE}\n  [[plugin . artifact]]\n  platform = \"x\"\n"),
+        ),
+        (
             "generate 가 쓰지 않는 표",
             format!("[[plugins]]\nid = \"com.tasty.other\"\n{LOCKED_TABLE}"),
         ),
@@ -666,7 +670,7 @@ fn the_scanner_rejects_headers_it_cannot_read_and_keeps_markers_apart() {
     let (code, out) = scan("[\"a]\"]\n[ \"entry\" ]\n[[ plugin . artifact ]]\n");
     assert_eq!(code, 0, "따옴표 이름 표 머리를 거부했다:\n{out}");
     assert_eq!(
-        out, "H\t[]\tunknown\nH\t[entry]\tquoted\nH\t[[plugin.artifact]]\tbare\n",
+        out, "H\t[]\tunknown\nH\t[entry]\tquoted\nH\t[[plugin.artifact]]\tspaced\n",
         "표 머리 레코드가 다르다"
     );
     let (code, out) = scan("\"?\" = \"x\"\n\"a\\u0062\" = \"y\"\nflag = false # 주석\n");
