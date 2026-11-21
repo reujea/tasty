@@ -129,6 +129,11 @@ enum Kind {
 /// 검색 결과 중 현재 값 설명이 아닌 파일과 제외 근거.
 const EXCLUDED: &[(&str, Kind, &str)] = &[
     (
+        "crates/tasty-doc-guards/tests/official_plugins_lock.rs",
+        Kind::OtherMeaning,
+        "crates 바로 아래 디렉터리 실측 수 54이며 공용 순회 래칫 상한이 아니다",
+    ),
+    (
         "crates/tasty-doc-guards/tests/release_assets_match_the_guide.rs",
         Kind::OtherMeaning,
         "릴리스 자산 실측 개수 19이며 doc 주석 계측 편향이 아니다",
