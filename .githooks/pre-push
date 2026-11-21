@@ -166,8 +166,8 @@ fmt_check_all() {
 run_check B.19 'cargo fmt --check' fmt_check_all
 
 # ─
-# B.4  개발 빌드와 테스트 코드의 컴파일·Clippy 검사: correctness 경고는 오류로 처리
-run_check B.4 'cargo clippy --workspace --all-targets -- -D clippy::correctness' cargo clippy --workspace --all-targets -- -D clippy::correctness
+# B.4  개발 빌드와 테스트 코드의 컴파일·Clippy 검사: 모든 경고를 오류로 처리(CI clippy 단계와 같은 기준)
+run_check B.4 'cargo clippy --workspace --all-targets -- -D warnings' cargo clippy --workspace --all-targets -- -D warnings
 
 # ─
 # B.8  release 설정으로 워크스페이스 컴파일
