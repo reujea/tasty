@@ -78,14 +78,13 @@ fn scanner_records(out: std::process::Output) -> Result<String, String> {
     if out.status.success() {
         return Ok(text);
     }
-    let why = text
-        .lines()
-        .find_map(|l| l.strip_prefix("E\t"))
-        .unwrap_or("이유 없음");
-    Err(format!(
-        "스캐너가 종료 {:?}로 끝났다: {why}",
-        out.status.code()
-    ))
+    let code = out.status.code();
+    let Some(why) = text.lines().find_map(|l| l.strip_prefix("E\t")) else {
+        return Err(format!(
+            "스캐너가 종료 {code:?}로 끝났고 이유 레코드가 없다"
+        ));
+    };
+    Err(format!("스캐너가 종료 {code:?}로 끝났다: {why}"))
 }
 
 /// 실제 매니페스트 파일을 경로 인자로 스캐너에 넘긴다. sync 스크립트와 같은 호출이다.
