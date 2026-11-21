@@ -13,7 +13,9 @@
 //! 한계: 같은 version의 내용 변이(잠금 해시만 바뀐 재발행)는 보지 못한다. 그 대조는 CI의
 //! `scripts/sync-official-plugin-fixtures.sh --check`가 받은 산출물과 바이트로 한다.
 
-use std::collections::{BTreeMap, BTreeSet};
+#[cfg(unix)]
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use tasty_doc_guards::floored_walk::{

@@ -382,6 +382,7 @@ fn windows_call_args(call: &str) -> Option<Vec<String>> {
 
 /// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
 /// `if [[ "$from_checkout" -eq 1 ]]; then` 뒤 맨 앞 열 `else`부터 맨 앞 열 `fi`까지다.
+#[cfg(unix)]
 fn default_staging_branch(text: &str) -> Option<String> {
     let lines: Vec<&str> = text.lines().collect();
     let start = lines
