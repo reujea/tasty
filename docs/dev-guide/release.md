@@ -227,14 +227,17 @@ Windows 호스트(x64)에는 러너가 둘 있다.
 
 ```bash
 # Linux (x64/arm64 공통)
-sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev
+sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev rpm cpio binutils
 cargo install cargo-deb cargo-generate-rpm
 mkdir -p ~/.local/bin
 curl -fsSL -o ~/.local/bin/linuxdeploy \
   https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$(uname -m).AppImage
 chmod +x ~/.local/bin/linuxdeploy
 which cargo-deb cargo-generate-rpm linuxdeploy   # 검증
+ls -l /usr/lib/rpm/find-requires                 # rpm Requires 생성기(rpm 패키지)
 ```
+
+rpm 의 자동 Requires 는 `scripts/build-linux.sh` 가 `cargo generate-rpm --auto-req find-requires` 로 만든다. 이 모드는 대체 경로가 없어서 두 Linux 러너(x64 `tasty-server-x64`, ARM64 `tasty-gx10-arm64`) 모두에 `rpm` 패키지(`/usr/lib/rpm/find-requires`, `rpm2cpio`)와 `cpio`·`binutils`가 있어야 한다. 없으면 build-linux.sh 가 본체 빌드 전에 멈춘다. 두 러너는 Ubuntu 24.04 의 rpm 4.18.2 를 쓴다. 빌드 스크립트의 Requires 대조가 따르는 elfdeps 규칙도 이 버전 기준이다([빌드](build.md#linux)).
 
 ```powershell
 # Windows
@@ -307,6 +310,8 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 | 증상 | 해결 |
 |------|------|
 | `cargo-deb`/`cargo-generate-rpm`/`linuxdeploy` not found | 1회 설치 누락 + `release.yml` Setup PATH 점검 |
+| `rpm packaging tools missing` 또는 `find-requires ... failed` | 러너에 `rpm cpio binutils` 설치(위 1회 도구 설치). Requires 생성은 대체 경로가 없다 |
+| `rpm requires do not match` | 출력의 `unexpected`·`missing` 줄과 `<- /경로` 를 본다. 새 실행 스크립트·전이 의존·수동 Requires 형식(`이름 = "*"` 만 지원)을 확인한다 |
 | `cmake`/`freetype`/`fontconfig` 빠짐 | `build-linux.sh` 안내대로 `apt install` |
 | `could not fetch the locked official plugins`, `fetch-official-plugins.sh failed` | 받기 단계의 앞 줄에서 원인(`missing`·`sha256 mismatch`·curl 오류)을 본다. 해시가 다르면 잠금 파일과 공식 플러그인 릴리스가 어긋난 것이라 [잠금 파일 갱신](plugin-packaging.md#잠금-파일-갱신)으로 다시 만든다. 러너에서 GitHub Releases에 접근할 수 있는지 확인한다 |
 | 러너 offline | `systemctl status` → `restart` |

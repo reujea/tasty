@@ -17,6 +17,8 @@
 #   curl, tar                          # 번들 플러그인: official-plugins.lock.toml의 산출물을 받는다(빌드하지 않는다)
 #   cargo install cargo-deb            # .deb 패키지 생성 (debug 빌드에선 생략)
 #   cargo install cargo-generate-rpm   # .rpm 패키지 생성 (debug 빌드에선 생략)
+#   rpm, cpio, binutils                # .rpm Requires 생성(/usr/lib/rpm/find-requires)과 산출물 검사.
+#                                      # debug 외 빌드는 없으면 본체 빌드 전에 멈춘다. Ubuntu: sudo apt install rpm cpio binutils
 #   linuxdeploy (PATH에 위치)          # .AppImage 생성. 다음 한 번만 실행:
 #     curl -fsSL -o ~/.local/bin/linuxdeploy \
 #       https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$(uname -m).AppImage
@@ -129,6 +131,15 @@ if [[ ${#MISSING_DEPS[@]} -gt 0 ]]; then
         [[ ${#UNMAPPED[@]} -gt 0 ]] && echo "  (no package mapping for: ${UNMAPPED[*]})" >&2
         exit 1
     fi
+fi
+
+# rpm Requires 생성기. cargo-generate-rpm --auto-req find-requires가 읽는 고정 경로와 같아야 한다.
+RPM_FIND_REQUIRES=/usr/lib/rpm/find-requires
+# shellcheck source=scripts/lib/rpm-requires.sh
+. "scripts/lib/rpm-requires.sh"
+# rpm 도구가 없으면 Requires 방식이 빌드 머신마다 달라지지 않도록 오래 걸리는 빌드 전에 멈춘다.
+if [[ "$PROFILE" != "debug" ]]; then
+    check_rpm_tools "$RPM_FIND_REQUIRES" || exit 1
 fi
 
 # 빌드 전에 서명 키를 준비해야 대응 공개키가 바이너리에 포함된다.
@@ -251,7 +262,8 @@ if [[ "$PROFILE" != "debug" ]]; then
     DEB_FILE="$DIST_DIR/$(basename "$DEB_SRC")"
 
     echo "==> Building .rpm package..."
-    cargo generate-rpm --profile "$PROFILE"
+    # Requires 방식은 여기서 정한다. 인자를 빼면 find-requires가 없는 머신에서 ldd 기반 builtin으로 바뀐다.
+    cargo generate-rpm --profile "$PROFILE" --auto-req find-requires
     rpm_candidates=$(ls -t target/generate-rpm/tasty-*.rpm)
     RPM_SRC=$(head -1 <<<"$rpm_candidates")
     cp "$RPM_SRC" "$DIST_DIR/"
@@ -402,7 +414,7 @@ if [[ -n "$DEB_FILE" ]]; then
     }
     rm -rf "$VERIFY_TMP"
 fi
-if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
+if [[ -n "$RPM_FILE" ]]; then
     rpm -qpi "$RPM_FILE" >/dev/null 2>&1 || {
         echo "Error: rpm -qpi failed on $RPM_FILE" >&2
         exit 1
@@ -410,24 +422,31 @@ if [[ -n "$RPM_FILE" ]] && command -v rpm &>/dev/null; then
     RPM_LISTING=$(rpm -qpl "$RPM_FILE" 2>/dev/null)
     verify_notice_listing "$RPM_LISTING" "/usr/share/licenses/tasty/" "$RPM_FILE" flat || exit 1
     verify_bundled_plugin_listing "$RPM_LISTING" "/usr/lib/tasty/plugins/" "$RPM_FILE" || exit 1
-    # rpm 도구가 있는 환경에서만 payload를 풀어 바이너리를 확인한다.
-    if command -v rpm2cpio &>/dev/null && command -v cpio &>/dev/null; then
-        VERIFY_TMP=$(mktemp -d)
-        RPM_ABS="$(cd "$(dirname "$RPM_FILE")" && pwd)/$(basename "$RPM_FILE")"
-        # cargo-generate-rpm 패키지는 rpm2cpio가 payload를 모두 내보낸 뒤에도 1로 끝난다.
-        # 그 종료 코드 대신 cpio 결과와 바이너리가 풀렸는지로 판정한다.
-        rpm2cpio "$RPM_ABS" >"$VERIFY_TMP/payload.cpio" 2>/dev/null || true
-        if ! (cd "$VERIFY_TMP" && cpio -idm --quiet <payload.cpio) || [[ ! -f "$VERIFY_TMP/usr/bin/tasty" ]]; then
-            rm -rf "$VERIFY_TMP"
-            echo "Error: cannot extract usr/bin/tasty from $RPM_FILE" >&2
-            exit 1
-        fi
-        verify_symbol_table "$VERIFY_TMP/usr/bin/tasty" "$RPM_FILE" || {
-            rm -rf "$VERIFY_TMP"
-            exit 1
-        }
+    VERIFY_TMP=$(mktemp -d)
+    RPM_ABS="$(cd "$(dirname "$RPM_FILE")" && pwd)/$(basename "$RPM_FILE")"
+    # cargo-generate-rpm 패키지는 rpm2cpio가 payload를 모두 내보낸 뒤에도 1로 끝난다.
+    # 그 종료 코드 대신 cpio 결과와 바이너리가 풀렸는지로 판정한다.
+    rpm2cpio "$RPM_ABS" >"$VERIFY_TMP/payload.cpio" 2>/dev/null || true
+    if ! (cd "$VERIFY_TMP" && cpio -idm --quiet <payload.cpio) || [[ ! -f "$VERIFY_TMP/usr/bin/tasty" ]]; then
         rm -rf "$VERIFY_TMP"
+        echo "Error: cannot extract usr/bin/tasty from $RPM_FILE" >&2
+        exit 1
     fi
+    rm -f "$VERIFY_TMP/payload.cpio"
+    verify_symbol_table "$VERIFY_TMP/usr/bin/tasty" "$RPM_FILE" || {
+        rm -rf "$VERIFY_TMP"
+        exit 1
+    }
+    verify_bundled_plugin_tree "$VERIFY_TMP/usr/lib/tasty/plugins" "$RPM_FILE" || {
+        rm -rf "$VERIFY_TMP"
+        exit 1
+    }
+    # 자동 Requires가 payload ELF의 직접 의존과 정확히 같은지 본다. 전이 의존이 들어오거나 통째로 빠지면 실패한다.
+    verify_rpm_requires "$RPM_FILE" "$VERIFY_TMP" Cargo.toml "$RPM_FIND_REQUIRES" || {
+        rm -rf "$VERIFY_TMP"
+        exit 1
+    }
+    rm -rf "$VERIFY_TMP"
 fi
 # AppImage는 실행하지 않고 파일 종류와 패키징 입력 AppDir만 확인한다.
 if [[ -n "$APPIMAGE_FILE" ]]; then

@@ -223,7 +223,7 @@ dist 스크립트는 플러그인을 빌드하지 않는다. 서명 키를 준�
 | 패키지 | plugin 폴더 | 목록의 원천 | 대조 |
 |---|---|---|---|
 | Linux `.tar.gz`·헤드리스 `.tar.gz` | `plugins/` | 스테이징 폴더 복사 | 목록의 파일 집합, 푼 트리의 바이트 |
-| Linux `.deb`·`.rpm` | `/usr/lib/tasty/plugins/` | `Cargo.toml` assets의 `target/bundled-plugins/**/*` glob 하나 | 패키지 목록의 파일 집합(`rpm` 명령이 없으면 rpm은 건너뛴다) |
+| Linux `.deb`·`.rpm` | `/usr/lib/tasty/plugins/` | `Cargo.toml` assets의 `target/bundled-plugins/**/*` glob 하나 | 패키지 목록의 파일 집합. rpm은 payload를 풀어 파일 내용까지 대조한다 |
 | Linux `.AppImage` | `usr/bin/plugins/` | 스테이징 폴더 복사 | linuxdeploy에 넘긴 AppDir의 바이트 |
 | macOS `Tasty.app`·`.dmg`·헤드리스 `.tar.gz` | `Contents/Resources/plugins/`, 헤드리스는 `plugins/` | 스테이징 폴더 복사(앱 codesign 전) | 앱·마운트한 DMG·푼 헤드리스 트리의 바이트, 헤드리스 목록의 파일 집합 |
 | Windows `.zip`·헤드리스 `.zip` | `plugins\` | 스테이징 폴더 복사 | 푼 트리의 파일 집합·SHA256 |

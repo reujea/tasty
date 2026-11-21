@@ -75,7 +75,7 @@ dist-clean:
 dist-setup-linux:
     #!/bin/bash
     set -euo pipefail
-    sudo apt install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev
+    sudo apt install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev rpm cpio binutils
     cargo install cargo-deb cargo-generate-rpm
     if ! command -v linuxdeploy &>/dev/null; then
         mkdir -p "$HOME/.local/bin"

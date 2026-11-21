@@ -87,7 +87,9 @@ assets = [
 [package.metadata.generate-rpm]
 license = "MIT"
 summary = "Cross-platform GPU-accelerated terminal emulator for AI coding agents"
-auto-req = "builtin"
+# 자동 Requires 방식은 scripts/build-linux.sh가 --auto-req find-requires로 정한다. cargo-generate-rpm은 이 표의
+# auto-req 값 중 "no"·"disabled"만 읽으므로 여기에 두지 않는다. 아래 requires 표는 이름 = "*" 형식만 쓴다
+# (build-linux.sh의 Requires 대조가 그 형식만 읽는다).
 assets = [
     { source = "target/release/tasty", dest = "/usr/bin/tasty", mode = "755" },
     { source = "assets/linux/tasty.desktop", dest = "/usr/share/applications/tasty.desktop", mode = "644" },
