@@ -83,7 +83,7 @@ pub fn is_official_plugin_fixtures_dir(dir: &Path) -> bool {
 
 /// 저장소 상대 경로(구분자 `/` 또는 `\`)가 공식 플러그인 픽스처 폴더나 그 아래인지 본다.
 pub fn is_official_plugin_fixture(rel: &str) -> bool {
-    let rel = rel.replace('\\', "/");
+    let rel = floored_walk::normalized_rel(Path::new(rel), Path::new(""));
     rel == OFFICIAL_PLUGIN_FIXTURES_DIR
         || rel
             .strip_prefix(OFFICIAL_PLUGIN_FIXTURES_DIR)
