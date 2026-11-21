@@ -7,13 +7,6 @@ use std::net::{IpAddr, Ipv4Addr};
 const SUFFIX: &str = ".tasty.localhost";
 const IPV6_LOOPBACK: &str = "ipv6-loopback";
 
-#[cfg_attr(
-    not(any(target_os = "macos", test)),
-    expect(
-        dead_code,
-        reason = "only the macOS WebKit view addresses hosts by alias"
-    )
-)]
 /// The alias for a host WebKit would reach on the client itself, if it needs one.
 pub(crate) fn alias_host(host: &str) -> Option<String> {
     let bare = host
@@ -47,13 +40,6 @@ pub(crate) fn logical_host(host: &str) -> Option<String> {
     }
 }
 
-#[cfg_attr(
-    not(any(target_os = "macos", test)),
-    expect(
-        dead_code,
-        reason = "only the macOS WebKit view addresses hosts by alias"
-    )
-)]
 fn map_url(url: &str, map: impl Fn(&str) -> Option<String>) -> Option<String> {
     let mut url = url::Url::parse(url).ok()?;
     if !matches!(url.scheme(), "http" | "https" | "ws" | "wss") {
