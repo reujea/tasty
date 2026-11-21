@@ -9,10 +9,21 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, walk_with_floor};
+
 const FIXTURES: &str = "crates/tasty-test-support/fixtures/official-plugins";
 
+/// 합성 픽스처 순회의 하한. 폴더가 있으면 합성 플러그인마다 매니페스트와 lang 파일이 있다.
+const SYNTHETIC_FIXTURE_FLOOR: Floor = Floor {
+    min: 1,
+    measured: 5,
+    measured_on: "2026-11-21",
+    counted_on: CountedOn::SyntheticTree,
+    why_this_gap: "합성 산출물은 alpha의 매니페스트·en·ko와 beta의 매니페스트·en으로 5파일이다. 일부 시험은 파일을 바꾸거나 지운 뒤 다시 세므로 하나 이상이면 수집이 동작한 것으로 본다.",
+};
+
 const LOCK: &str = "[release]\ntag = \"v9.9.9\"\n\n\
-                    [[plugin]]\nid = \"com.tasty.alpha\"\nversion = \"1.0.0\"\n\n\
+                    [[plugin]]\nid = \"com.tasty.alpha\"\nversion = \"1.0.0\"\nbundle = true\n\n\
                     [[plugin]]\nid = \"com.tasty.beta\"\nversion = \"2.0.0\"\nbundle = false\n";
 
 /// 받은 인자와 전용 캐시의 파일 목록을 기록하고, payload 폴더를 출력 폴더로 복사한다.
@@ -106,34 +117,28 @@ impl Root {
     /// 픽스처 트리의 (상대 경로, 바이트) 목록. 없으면 빈 목록이다.
     fn fixtures(&self) -> Vec<(String, Vec<u8>)> {
         let base = self.path.join(FIXTURES);
-        let mut out = Vec::new();
-        collect(&base, &base, &mut out);
-        out.sort();
-        out
+        if !base.is_dir() {
+            return Vec::new();
+        }
+        walk_with_floor(
+            &base,
+            &base,
+            &SYNTHETIC_FIXTURE_FLOOR,
+            Descend::Everything,
+            &|_| true,
+        )
+        .unwrap_or_else(|why| panic!("{why}"))
+        .into_iter()
+        .map(|w| {
+            let bytes = fs::read(&w.path).expect("픽스처 읽기");
+            (w.rel, bytes)
+        })
+        .collect()
     }
 
     fn update_ok(&self) {
         let (code, text) = self.run(&["--update"]);
         assert_eq!(code, 0, "--update 가 실패했다:\n{text}");
-    }
-}
-
-fn collect(dir: &Path, base: &Path, out: &mut Vec<(String, Vec<u8>)>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries {
-        let p = entry.expect("폴더 항목").path();
-        if p.is_dir() {
-            collect(&p, base, out);
-        } else {
-            let rel = p
-                .strip_prefix(base)
-                .expect("상대 경로")
-                .to_string_lossy()
-                .into_owned();
-            out.push((rel, fs::read(&p).expect("픽스처 읽기")));
-        }
     }
 }
 

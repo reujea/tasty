@@ -251,7 +251,13 @@ read_lock_ids() {  # <scan 파일>
     awk -F'\t' '
         function fail(m) { if (err == "") err = m }
         function close_table() { if (inp && ids != 1) fail("[[plugin]] 표의 id 가 " ids " 개다") }
-        $1 == "H" { close_table(); inp = ($2 == "[[plugin]]"); if (inp) { tables++; ids = 0 }; next }
+        $1 == "H" {
+            close_table()
+            # generate 가 쓰는 세 표의 맨 이름만 받는다. 다른 표 머리는 id 를 담은 표를 놓칠 수 있다.
+            if ($3 != "bare" || ($2 != "[release]" && $2 != "[[plugin]]" && $2 != "[[plugin.artifact]]")) fail("잠금 파일에 모르는 표가 있다: " $2)
+            inp = ($2 == "[[plugin]]"); if (inp) { tables++; ids = 0 }
+            next
+        }
         $1 == "K" && inp {
             if ($2 == "unknown") { fail("[[plugin]] 표에 읽을 수 없는 키가 있다"); next }
             if ($3 != "id") next

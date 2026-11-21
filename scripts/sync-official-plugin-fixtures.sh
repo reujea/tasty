@@ -8,7 +8,7 @@
 #                   stage-dev-plugins.sh 바로 뒤에 돌 때 다시 받지 않는다. fetch는 늘 전용 캐시만 검증하고 풀므로
 #                   그 사이 기본 캐시가 바뀌어도 검증한 바이트와 푼 바이트가 같다. 복사 중 바뀐 파일은 해시가 달라 다시 받는다.
 # 종료 코드: 0 일치·갱신 완료, 1 불일치·갱신 실패, 2 사용법·환경 오류(받기 실패 포함).
-# 필요한 것: bash, awk, cmp, find, grep, df와 fetch-official-plugins.sh가 요구하는 도구. Windows는 Git Bash에서 실행한다.
+# 필요한 것: bash, awk, cmp, cp, find, grep, mktemp와 fetch-official-plugins.sh가 요구하는 도구. Windows는 Git Bash에서 실행한다.
 set -euo pipefail
 
 usage() {
@@ -21,7 +21,8 @@ fixtures_rel="crates/tasty-test-support/fixtures/official-plugins"
 fixtures="$root/$fixtures_rel"
 lock_file="$root/official-plugins.lock.toml"
 scan_awk="$root/scripts/lib/toml-scan.awk"
-# 후보와 백업은 레포와 같은 파일시스템의 target 아래에 둔다. 재귀 품질 가드가 target을 빌드 캐시로 건너뛴다.
+# 후보는 target 아래에서 만들고 대조한다(재귀 품질 가드가 target을 빌드 캐시로 건너뛴다). 들일 때는 픽스처 폴더와 같은 부모 아래의
+# 새 점 폴더로 복사해 이름만 바꾼다. 점 폴더는 재귀 가드가 건너뛰고 끝나면 지운다.
 work_root="$root/target/official-plugin-fixtures-sync"
 lock_dir="$work_root.lock"
 
@@ -90,21 +91,25 @@ fi
 work=""
 lock_held=0
 backup=""
+side=""
 installed=0
 
 # 들이기 전에 끝나면 옮겨 둔 기존 픽스처를 되돌린다. 들였으면 백업을 버린다.
 cleanup() {
-    local rc=$?
+    local rc=$? keep_side=0
     trap - EXIT INT TERM
     if [[ -n "$backup" && -e "$backup" && "$installed" -eq 0 ]]; then
         if [[ ! -e "$fixtures" ]] && mv "$backup" "$fixtures"; then
             echo "Restored the previous fixtures in $fixtures_rel" >&2
         else
             echo "Error: could not restore $fixtures_rel. The previous fixtures are at $backup." >&2
-            echo "  Move them back by hand before removing $work." >&2
-            work=""
+            echo "  Move them back by hand before removing $side." >&2
+            keep_side=1
             rc=1
         fi
+    fi
+    if [[ -n "$side" && "$keep_side" -eq 0 ]] && ! rm -rf "$side"; then
+        echo "Warning: could not remove $side" >&2
     fi
     if [[ -n "$work" ]] && ! rm -rf "$work"; then
         echo "Warning: could not remove $work" >&2
@@ -137,13 +142,29 @@ if ! awk -f "$scan_awk" "$work/lock.toml" > "$work/lock.scan"; then
     echo "Error: could not read official-plugins.lock.toml: $(sed -n '$p' "$work/lock.scan")" >&2
     exit 2
 fi
-# 잠금 항목의 id와 bundle(없으면 true)을 탭으로 나열한다.
-awk -F'\t' '
-    $1 == "H" { inp = ($2 == "[[plugin]]"); if (inp) n++; next }
-    $1 == "K" && inp && $3 == "id" { id[n] = $5 }
-    $1 == "K" && inp && $3 == "bundle" { b[n] = $5 }
-    END { for (i = 1; i <= n; i++) print id[i] "\t" ((i in b) ? b[i] : "true") }
-' "$work/lock.scan" > "$work/lock.entries"
+# 잠금 항목의 id와 bundle을 탭으로 나열한다. 잠금 파일은 generate가 쓰는 형식만 받는다:
+# 표는 [release]·[[plugin]]·[[plugin.artifact]]의 맨 이름이고, [[plugin]]마다 맨 키 id(기본 문자열)와
+# bundle(불 값)이 하나씩 있다. 잠금 파일에는 bundle 기본값이 없다(official-plugins check가 거부한다).
+if ! awk -F'\t' '
+    function fail(m) { if (err == "") err = m }
+    $1 == "H" {
+        if ($3 != "bare" || ($2 != "[release]" && $2 != "[[plugin]]" && $2 != "[[plugin.artifact]]")) fail("unexpected table " $2)
+        inp = ($2 == "[[plugin]]"); if (inp) n++
+        next
+    }
+    $1 == "K" && inp && $2 == "unknown" { fail("unreadable key in a [[plugin]] table") }
+    $1 == "K" && inp && $3 == "id" { if ($2 != "bare" || $4 != "basic" || (n in id)) fail("unexpected id in plugin " n); id[n] = $5 }
+    $1 == "K" && inp && $3 == "bundle" { if ($2 != "bare" || $4 != "bool" || (n in b)) fail("unexpected bundle in plugin " n); b[n] = $5 }
+    END {
+        if (n == 0) fail("no [[plugin]] table")
+        for (i = 1; i <= n; i++) if (!(i in id) || !(i in b)) fail("plugin " i " has no id or no bundle")
+        if (err != "") { print err > "/dev/stderr"; exit 3 }
+        for (i = 1; i <= n; i++) print id[i] "\t" b[i]
+    }
+' "$work/lock.scan" > "$work/lock.entries"; then
+    echo "Error: could not read the plugin entries of official-plugins.lock.toml" >&2
+    exit 2
+fi
 mkdir "$work/out" "$work/cache"
 if [[ "$shared_cache" -eq 1 ]]; then
     tag="$(awk -F'\t' '$1 == "H" { rel = ($2 == "[release]"); next } $1 == "K" && rel && $3 == "tag" { print $5 }' "$work/lock.scan")"
@@ -300,7 +321,12 @@ while IFS=$'\t' read -r id want_bundle; do
         bad=1
         continue
     fi
-    have_bundle="$(awk -F'\t' '$1 == "H" { exit } $1 == "K" && $3 == "bundle" { v = $5 } END { print (v == "" ? "true" : v) }' "$work/manifest.scan")"
+    # 매니페스트 최상위 bundle. 키가 없으면 호스트 기본값 true다. 불 값이 아니면 읽지 못한 것으로 본다.
+    have_bundle="$(awk -F'\t' '
+        $1 == "H" { exit }
+        $1 == "K" && $2 == "unknown" { v = "?" }
+        $1 == "K" && $3 == "bundle" { v = ($4 == "bool") ? $5 : "?" }
+        END { print (v == "" ? "true" : v) }' "$work/manifest.scan")"
     if [[ "$have_bundle" != "$want_bundle" ]]; then
         echo "  $id: bundle = $have_bundle in the manifest, $want_bundle in the lock file" >&2
         bad=1
@@ -310,22 +336,24 @@ if [[ "$bad" -ne 0 ]]; then
     echo "Error: the candidate fails the fixture checks; the fixtures were left unchanged" >&2
     exit 1
 fi
-mkdir -p "$(dirname "$fixtures")"
-mount_of() { df -P "$1" | awk 'NR == 2 { print $NF }'; }
-if [[ "$(mount_of "$work")" != "$(mount_of "$(dirname "$fixtures")")" ]]; then
-    echo "Error: $work_root is on another file system than $fixtures_rel; the fixtures were left unchanged" >&2
-    exit 2
+# 교체는 픽스처 폴더와 같은 부모 아래의 새 폴더끼리 이름만 바꾼다. 같은 폴더 안이라 mv가 복사로 바뀌지 않는다.
+parent="$(dirname "$fixtures")"
+mkdir -p "$parent"
+side="$(mktemp -d "$parent/.official-plugins-sync.XXXXXX")"
+if ! cp -R "$cand" "$side/new" || ! compare "$cand" "$side/new"; then
+    echo "Error: could not place the candidate next to $fixtures_rel; the fixtures were left unchanged" >&2
+    exit 1
 fi
 # 들이기 직전에만 잠금 파일을 다시 대조한다. 들인 뒤의 변경은 official_plugin_fixtures 검사와 CI --check가 잡는다.
 lock_unchanged || exit 1
 if [[ -e "$fixtures" ]]; then
-    backup="$work/previous"
+    backup="$side/previous"
     if ! mv "$fixtures" "$backup"; then
         echo "Error: could not move $fixtures_rel aside; it was left unchanged" >&2
         exit 1
     fi
 fi
-if ! mv "$cand" "$fixtures"; then
+if ! mv "$side/new" "$fixtures"; then
     echo "Error: could not move the new fixtures into $fixtures_rel" >&2
     exit 1
 fi

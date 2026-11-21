@@ -550,7 +550,8 @@ fn the_scanner_reads_dotted_keys_and_marks_escaped_segments() {
     );
 }
 
-/// 배포 도구가 받는 공백이라도 스캐너가 확신할 수 없는 표 머리는 id 를 조용히 빼지 않고 판정 불가로 멈춘다.
+/// 스캐너가 확신할 수 없는 표 머리나 generate 가 쓰지 않는 표 머리는 id 를 조용히 빼지 않고 판정 불가로 멈춘다.
+/// 배포 도구는 `[[plugins]]` 를 거부하지만 줄바꿈 없는 공백은 받으므로, 어느 쪽이든 판정을 멈추는 것이 안전하다.
 #[test]
 fn a_lock_table_header_the_scanner_cannot_read_is_undecidable() {
     for (what, lock) in [
@@ -562,10 +563,30 @@ fn a_lock_table_header_the_scanner_cannot_read_is_undecidable() {
             "따옴표 표 이름",
             format!("{LOCKED_TABLE}[\"plugin\"]\nid = \"com.tasty.other\"\n"),
         ),
+        (
+            "generate 가 쓰지 않는 표",
+            format!("[[plugins]]\nid = \"com.tasty.other\"\n{LOCKED_TABLE}"),
+        ),
     ] {
         let (code, text) = judge_with_lock(&lock, None);
         assert_eq!(code, 2, "{what}: 읽지 못한 표 머리를 건너뛰었다:\n{text}");
     }
+}
+
+/// 매니페스트의 따옴표 표 이름(`["entry"]`)은 TOML로 `[entry]`와 같다. 최상위 id 를 그대로 읽어 잠금 id 로 판정한다.
+#[test]
+fn a_quoted_table_name_in_a_manifest_is_read() {
+    let (code, text) = locked_manifest_judgement(
+        "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n[\"entry\"]\ntype = \"process\"\n",
+    );
+    assert_eq!(
+        code, 0,
+        "따옴표 표 이름 매니페스트를 판정하지 못했다:\n{text}"
+    );
+    assert!(
+        text.contains(LOCKED_NOTE),
+        "잠금 id 로 판정하지 않았다:\n{text}"
+    );
 }
 
 /// 판독기가 쓰는 표지와 같은 글자의 실제 키는 그 키로 읽는다.
@@ -638,10 +659,16 @@ fn an_outside_dependency_linked_only_by_a_locked_plugin_skips_its_closure() {
 
 #[test]
 fn the_scanner_rejects_headers_it_cannot_read_and_keeps_markers_apart() {
-    for body in ["[[\u{a0}plugin]]\n", "[\"a]\"]\n", "[a b]\n"] {
+    for body in ["[[\u{a0}plugin]]\n", "[a b]\n", "[\"a\"\n"] {
         let (code, out) = scan(body);
         assert_eq!(code, 3, "읽지 못한 표 머리를 받았다 ({body:?}):\n{out}");
     }
+    let (code, out) = scan("[\"a]\"]\n[ \"entry\" ]\n[[ plugin . artifact ]]\n");
+    assert_eq!(code, 0, "따옴표 이름 표 머리를 거부했다:\n{out}");
+    assert_eq!(
+        out, "H\t[]\tunknown\nH\t[entry]\tquoted\nH\t[[plugin.artifact]]\tbare\n",
+        "표 머리 레코드가 다르다"
+    );
     let (code, out) = scan("\"?\" = \"x\"\n\"a\\u0062\" = \"y\"\nflag = false # 주석\n");
     assert_eq!(code, 0, "정상 입력을 거부했다:\n{out}");
     assert!(

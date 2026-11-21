@@ -1,7 +1,10 @@
 # TOML 문서의 표 머리와 키를 줄 단위가 아니라 문자 단위로 읽어 낸다.
 # 출력(탭 구분):
-#   H<TAB><머리>        표 머리. [[ plugin ]] 은 "[[plugin]]", [ release ] 는 "[release]"
-#       표 이름은 점으로 이은 맨 키만 받는다. 따옴표 이름이나 공백·탭 밖의 공백 문자가 들면 오류로 끝난다.
+#   H<TAB><머리><TAB><이름 형식>   표 머리. [[ plugin ]] 은 "[[plugin]]", [ release ] 는 "[release]"
+#       이름은 키와 같은 조각(맨 키, 따옴표 키)을 점으로 이은 것이다. ["entry"] 는 "[entry]" 로 낸다.
+#       이름 형식: bare(맨 키 조각만) | quoted(따옴표 조각이 있고 모두 맨 키 글자) |
+#                  unknown(맨 키 글자 밖의 글자·이스케이프·탭이 든 따옴표 조각. 머리 자리 이름은 빈칸).
+#       공백·탭 밖의 공백 문자처럼 조각으로 읽지 못하는 머리는 오류로 끝난다.
 #   K<TAB><키 형식><TAB><키><TAB><값 형식><TAB><값>
 #       키 형식: bare | quoted | dotted(점으로 이은 조각 둘 이상, 키 자리는 조각을 점으로 이은 값)
 #                | unknown(이스케이프나 탭이 든 따옴표 조각이 있다. 키 자리는 빈칸).
@@ -53,32 +56,12 @@ function scan(s, i,    c, n, j) {
 
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 
-{
-    sub(/\r$/, "")
-    if (bad != "") next
-    line = $0
-    if (ml != "" || depth > 0) { scan(line, 1); next }
-    t = line; sub(/^[ \t]+/, "", t)
-    if (t == "" || substr(t, 1, 1) == "#") next
-    if (substr(t, 1, 1) == "[") {
-        if (substr(t, 1, 2) == "[[") {
-            rest = substr(t, 3); k = index(rest, "]]")
-            if (k == 0) { bad = NR ": 배열 표 머리를 읽지 못했다"; next }
-            name = trim(substr(rest, 1, k - 1)); tail = trim(substr(rest, k + 2))
-            head = "[[" name "]]"
-        } else {
-            rest = substr(t, 2); k = index(rest, "]")
-            if (k == 0) { bad = NR ": 표 머리를 읽지 못했다"; next }
-            name = trim(substr(rest, 1, k - 1)); tail = trim(substr(rest, k + 1))
-            head = "[" name "]"
-        }
-        if (tail != "" && substr(tail, 1, 1) != "#") { bad = NR ": 표 머리 뒤에 읽을 수 없는 내용이 있다"; next }
-        if (name !~ /^[A-Za-z0-9_-]+([.][A-Za-z0-9_-]+)*$/) { bad = NR ": 맨 키로만 된 표 이름이 아니다"; next }
-        printf "H\t%s\n", head
-        next
-    }
-    # 키: 점으로 이은 조각(맨 키, 기본·리터럴 따옴표 키). 조각 사이 공백을 허용한다.
-    pos = 1; n = length(t); segs = 0; key = ""; quoted = 0; unk = 0
+# t 의 pos 부터 점으로 이은 키 조각(맨 키, 기본·리터럴 따옴표 키)을 읽는다. 조각 사이 공백을 허용한다.
+# 결과: SKEY(조각을 점으로 이은 값), SPOS(조각 뒤 공백을 건넌 위치), SN(조각 수), SQ(따옴표 조각 있음),
+# SUNK(이스케이프나 탭이 든 따옴표 조각 있음), SNB(맨 키 글자 밖의 글자가 든 따옴표 조각 있음).
+# 읽지 못하면 bad 를 채우고 0 을 돌려준다.
+function segments(t, pos,    n, c, j, seg) {
+    n = length(t); SN = 0; SKEY = ""; SQ = 0; SUNK = 0; SNB = 0
     while (1) {
         while (pos <= n && (substr(t, pos, 1) == " " || substr(t, pos, 1) == "\t")) pos++
         c = substr(t, pos, 1)
@@ -87,22 +70,48 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
                 if (c == "\"" && substr(t, j, 1) == "\\") { j++; continue }
                 if (substr(t, j, 1) == c) break
             }
-            if (j > n) { bad = NR ": 따옴표 키가 닫히지 않았다"; break }
-            seg = substr(t, pos + 1, j - pos - 1); quoted = 1
-            if ((c == "\"" && index(seg, "\\") > 0) || index(seg, "\t") > 0) unk = 1
+            if (j > n) { bad = NR ": 따옴표 키가 닫히지 않았다"; return 0 }
+            seg = substr(t, pos + 1, j - pos - 1); SQ = 1
+            if ((c == "\"" && index(seg, "\\") > 0) || index(seg, "\t") > 0) SUNK = 1
+            if (seg !~ /^[A-Za-z0-9_-]+$/) SNB = 1
             pos = j + 1
         } else if (match(substr(t, pos), /^[A-Za-z0-9_-]+/)) {
             seg = substr(t, pos, RLENGTH); pos += RLENGTH
-        } else { bad = NR ": 키를 읽지 못했다"; break }
-        segs++
-        key = (segs == 1) ? seg : key "." seg
+        } else { bad = NR ": 키를 읽지 못했다"; return 0 }
+        SN++
+        SKEY = (SN == 1) ? seg : SKEY "." seg
         while (pos <= n && (substr(t, pos, 1) == " " || substr(t, pos, 1) == "\t")) pos++
         if (substr(t, pos, 1) == ".") { pos++; continue }
         break
     }
+    SPOS = pos
+    return 1
+}
+
+{
+    sub(/\r$/, "")
     if (bad != "") next
-    kform = (segs > 1) ? "dotted" : (quoted ? "quoted" : "bare")
-    if (unk) { kform = "unknown"; key = "" }
+    line = $0
+    if (ml != "" || depth > 0) { scan(line, 1); next }
+    t = line; sub(/^[ \t]+/, "", t)
+    if (t == "" || substr(t, 1, 1) == "#") next
+    if (substr(t, 1, 1) == "[") {
+        arr = (substr(t, 1, 2) == "[[")
+        shut = arr ? "]]" : "]"
+        if (!segments(t, arr ? 3 : 2)) next
+        if (substr(t, SPOS, length(shut)) != shut) { bad = NR ": 표 머리를 읽지 못했다"; next }
+        tail = trim(substr(t, SPOS + length(shut)))
+        if (tail != "" && substr(tail, 1, 1) != "#") { bad = NR ": 표 머리 뒤에 읽을 수 없는 내용이 있다"; next }
+        hform = (SUNK || SNB) ? "unknown" : (SQ ? "quoted" : "bare")
+        name = (hform == "unknown") ? "" : SKEY
+        printf "H\t%s\t%s\n", (arr ? "[[" name "]]" : "[" name "]"), hform
+        next
+    }
+    if (!segments(t, 1)) next
+    pos = SPOS
+    kform = (SN > 1) ? "dotted" : (SQ ? "quoted" : "bare")
+    key = SKEY
+    if (SUNK) { kform = "unknown"; key = "" }
     rest = substr(t, pos)
     rest = trim(rest)
     if (substr(rest, 1, 1) != "=") { bad = NR ": 키 뒤에 = 가 없다"; next }
