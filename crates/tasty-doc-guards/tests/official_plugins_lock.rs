@@ -135,9 +135,11 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고(source와 함수 호출은 운영처럼 따로 선 문장이다),
 /// 대상이 실패하면 기록과 관계없이 시험이 실패한다. 스텁은 호출마다 `mktemp`로 고유한 파일을 잡아 인자를
 /// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다.
-/// 대상은 두 번 돈다. 한 번은 스텁이 성공하고, 한 번은 같은 기록과 산출물 표지를 남긴 뒤 종료 23으로 실패한다.
-/// 두 번째 실행에서 대상이 성공하면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
-/// `|| true`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
+/// 대상은 네 번 돈다. 성공 실행은 스텁이 `--out`에 픽스처의 플러그인 트리(`<id>/tasty-plugin.toml` 등)와 표지를
+/// 남기고 종료 0이며, 대상이 0으로 끝나고 분기 뒤 하네스 검사까지 도달해야 한다. 실패 주입 세 번은 같은 기록을
+/// 남긴 뒤 `early1`(산출물 없이 종료 1), `late1`(산출물을 남기고 종료 1), `late23`(산출물을 남기고 종료 23)이다.
+/// 실패 주입에서 대상의 원래 종료값이 0이면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
+/// `|| true`, `|| exit 0`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
 /// 하네스는 stdout·stderr·fd 9를 한 수집 파이프에 잇고 그 파이프가 닫힐 때까지(그 fd 중 하나라도 물려받은 자손이
 /// 모두 끝날 때까지) 기다린 뒤 기록을 모으므로, 일부 fd를 돌린 채 늦게 시작한 호출도 남는다. 세 fd를 모두 닫거나
 /// 돌린 자손은 기다리지 못한다.
@@ -162,7 +164,7 @@ fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>
     // 실제 fetch는 산출물 전후 어디서든 종료 1로 실패한다. 특정 종료값만 삼키는 꼴도 거부하도록 세 가지로 돈다.
     for fail in ["early1", "late1", "late23"] {
         let (rc, failed) = fetch_collect(mode, platform, branch, fail);
-        if rc == "0" {
+        if rc == "0" || rc.starts_with("0-") {
             return Err(format!(
                 "{mode} ({platform}) 대상이 fetch 실패({fail})에도 성공했다(실패를 전파하지 않는 호출): {failed:?}"
             ));
@@ -174,7 +176,7 @@ fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>
 /// 하네스를 한 번 돌려 대상의 종료 상태와 스텁이 받은 argv를 돌려준다. `fail`이 `early1`이면 스텁이 기록만 하고
 /// 산출물 없이 종료 1, `late1`·`late23`이면 산출물 표지까지 남긴 뒤 종료 1·23이다(실제 fetch는 일부 산출물을 만든 뒤에도
 /// 종료 1로 실패한다). 대상이 0으로 끝났어도 분기 뒤
-/// 하네스 검사까지 도달하지 않았으면(중간의 `exit 0` 등) RC는 `unreached`다.
+/// 하네스 검사까지 도달하지 않았으면(중간의 `exit 0` 등) RC는 원래 종료값을 앞에 둔 `0-unreached`다.
 #[cfg(unix)]
 fn fetch_collect(
     mode: &str,
@@ -188,6 +190,7 @@ root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 mkdir -p "$root/scripts/lib" "$root/calls"
 if [ -n "$fail" ]; then printf '%s' "$fail" > "$root/fail"; fi
+cp -R "$repo/crates/tasty-test-support/fixtures/official-plugins" "$root/fixture-tree"
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
 top="$(cd "$(dirname "$0")/.." && pwd)"
@@ -199,7 +202,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 if [ "$(cat "$top/fail" 2>/dev/null)" = early1 ]; then exit 1; fi
-if [ -n "$out" ]; then mkdir -p "$out" && : > "$out/.fetched"; fi
+if [ -n "$out" ]; then mkdir -p "$out" && cp -R "$top/fixture-tree/." "$out/" && : > "$out/.fetched"; fi
 case "$(cat "$top/fail" 2>/dev/null)" in late1) exit 1 ;; late23) exit 23 ;; esac
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
@@ -224,7 +227,7 @@ fetch_bundled_plugins "$1"
         rc=${PIPESTATUS[0]}
         ;;
 esac
-if [ "$rc" = 0 ] && ! [ -e "$root/.reached" ]; then rc=unreached; fi
+if [ "$rc" = 0 ] && ! [ -e "$root/.reached" ]; then rc=0-unreached; fi
 printf 'RC=%s\n' "$rc"
 for f in "$root/calls"/*; do
     [ -f "$f" ] || continue
@@ -556,6 +559,11 @@ fn the_staging_harness_reads_what_bash_passes() {
         (
             "종료 1만 삼키는 호출",
             format!("{real} &\npid=$!\nwait \"$pid\" || [ \"$?\" -eq 1 ]"),
+        ),
+        ("실패 때만 끝내는 호출", format!("{real} || exit 0")),
+        (
+            "실제 산출물이 있으면 실패를 삼키는 호출",
+            format!("{real} || [ -f \"$stage/com.tasty.claude/tasty-plugin.toml\" ]"),
         ),
         (
             "검사 전에 끝내는 분기",
