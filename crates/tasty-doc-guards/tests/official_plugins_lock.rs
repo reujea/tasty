@@ -38,6 +38,16 @@ fn lock() -> Lock {
         .unwrap_or_else(|errors| panic!("{LOCK_FILE}를 읽지 못했다:\n  {}", errors.join("\n  ")))
 }
 
+/// 잠금 파일에서 배포 패키지에 싣는(`bundle = true`) id.
+fn bundled_ids() -> Vec<String> {
+    lock()
+        .plugins
+        .iter()
+        .filter(|p| p.bundle)
+        .map(|p| p.id.clone())
+        .collect()
+}
+
 fn locked_ids(lock: &Lock) -> BTreeSet<String> {
     lock.plugins.iter().map(|p| p.id.clone()).collect()
 }
@@ -141,8 +151,11 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 실패 주입에서 대상의 원래 종료값이 0이면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
 /// `|| true`, `|| exit 0`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
 /// 하네스는 stdout·stderr·fd 9를 한 수집 파이프에 잇고 그 파이프가 닫힐 때까지(그 fd 중 하나라도 물려받은 자손이
-/// 모두 끝날 때까지) 기다린 뒤 기록을 모으므로, 일부 fd를 돌린 채 늦게 시작한 호출도 남는다. 세 fd를 모두 닫거나
-/// 돌린 자손은 기다리지 못한다.
+/// 모두 끝날 때까지) 기다린 뒤 기록을 모으므로, 일부 fd를 돌린 채 늦게 시작한 호출도 남는다.
+/// 스텁 산출물은 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만이다.
+/// 이 가드는 정직한 실수(배포 호출의 `--all`, 실패 무시, 백그라운드 실행, 검사 전 종료)를 잡는다. 가드를 일부러
+/// 피하도록 쓴 대상(1·23 밖의 특정 종료값이나 하네스만의 산출물 차이를 보고 실패를 삼키기, 세 fd를 모두 닫거나 돌리고
+/// 늦게 시작하는 자손)은 범위 밖이며 잡지 못한다.
 /// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
 /// - `package`: `scripts/lib/bundled-plugins.sh`(원문을 넘기면 그 원문)를 source하고 `fetch_bundled_plugins <platform>`을
 ///   부른다.
@@ -185,24 +198,31 @@ fn fetch_collect(
     fail: &str,
 ) -> (String, Vec<Vec<String>>) {
     const HARNESS: &str = r#"set -eu
-repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"
+repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"; bundled="$6"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 mkdir -p "$root/scripts/lib" "$root/calls"
 if [ -n "$fail" ]; then printf '%s' "$fail" > "$root/fail"; fi
-cp -R "$repo/crates/tasty-test-support/fixtures/official-plugins" "$root/fixture-tree"
+# 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만 산출물로 둔다.
+fixtures="$repo/crates/tasty-test-support/fixtures/official-plugins"
+cp -R "$fixtures" "$root/tree-all"
+mkdir -p "$root/tree-bundle"
+for id in $bundled; do cp -R "$fixtures/$id" "$root/tree-bundle/"; done
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
 top="$(cd "$(dirname "$0")/.." && pwd)"
 record="$(mktemp "$top/calls/call.XXXXXX")"
 printf '%s\0' "$@" > "$record"
+args=("$@")
 out=""
 while [ $# -gt 0 ]; do
     if [ "$1" = --out ] && [ $# -ge 2 ]; then out="$2"; fi
     shift
 done
 if [ "$(cat "$top/fail" 2>/dev/null)" = early1 ]; then exit 1; fi
-if [ -n "$out" ]; then mkdir -p "$out" && cp -R "$top/fixture-tree/." "$out/" && : > "$out/.fetched"; fi
+tree=tree-bundle
+for a in "${args[@]}"; do if [ "$a" = --all ]; then tree=tree-all; fi; done
+if [ -n "$out" ]; then mkdir -p "$out" && cp -R "$top/$tree/." "$out/" && : > "$out/.fetched"; fi
 case "$(cat "$top/fail" 2>/dev/null)" in late1) exit 1 ;; late23) exit 23 ;; esac
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
@@ -239,7 +259,7 @@ done
     let out = std::process::Command::new("bash")
         .args(["-c", HARNESS, "harness"])
         .arg(repo_root())
-        .args([mode, platform, branch, fail])
+        .args([mode, platform, branch, fail, &bundled_ids().join(" ")])
         .output()
         .expect("bash 하네스를 실행하지 못했다");
     assert!(
@@ -616,6 +636,35 @@ fn the_package_harness_stops_on_a_failing_helper() {
         fetch_run("package", "linux-x64", &format!("false\n{helper}")).is_err(),
         "헬퍼 최상위의 실패를 통과시켰다"
     );
+    // 스텁 산출물은 실제 fetch처럼 --all 유무에 따라 다르다. 배포 집합에 없는 항목을 요구하면 실패한다.
+    let dev_only: Vec<String> = lock()
+        .plugins
+        .iter()
+        .filter(|p| !p.bundle)
+        .map(|p| p.id.clone())
+        .collect();
+    assert!(
+        !dev_only.is_empty(),
+        "잠금 파일에 bundle = false 항목이 없어 이 시험이 아무것도 재지 않는다"
+    );
+    // 헬퍼 함수가 fetch를 마친 뒤 그 항목의 폴더를 요구하도록 감싼다.
+    let requires = |id: &str| {
+        format!(
+            "{helper}\neval \"orig_$(declare -f fetch_bundled_plugins)\"\nfetch_bundled_plugins() {{ orig_fetch_bundled_plugins \"$@\"; [ -d \"$BUNDLED_PLUGINS_DIR/{id}\" ]; }}"
+        )
+    };
+    for id in &dev_only {
+        assert!(
+            fetch_run("package", "linux-x64", &requires(id)).is_err(),
+            "배포 산출물에 개발 전용 {id}가 있다고 보았다"
+        );
+    }
+    for id in bundled_ids() {
+        assert!(
+            fetch_run("package", "linux-x64", &requires(&id)).is_ok(),
+            "배포 산출물에 {id}가 없다고 보았다"
+        );
+    }
 }
 
 /// 기본 분기 추출기는 `--from-checkout` 분기의 호출을 기본 분기 판정에 넣지 않는다.
