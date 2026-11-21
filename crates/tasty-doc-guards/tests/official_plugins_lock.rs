@@ -218,6 +218,8 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고(source와 함수 호출은 운영처럼 따로 선 문장이다),
 /// 대상이 실패하면 기록과 관계없이 시험이 실패한다. 스텁은 호출마다 `mktemp`로 고유한 파일을 잡아 인자를
 /// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다.
+/// 동시 호출은 같은 `--out`(산출물과 표지 `.fetched`)을 함께 쓰므로 그 산출물 단계는 호출 사이에 잠금으로 차례로
+/// 돈다. 잠금을 얻지 못하거나 놓지 못하면 하네스가 실패한다.
 /// 대상은 네 번 돈다. 성공 실행은 스텁이 `--out`에 픽스처의 플러그인 트리(`<id>/tasty-plugin.toml` 등)와 표지를
 /// 남기고 종료 0이며, 대상이 0으로 끝나고 분기 뒤 하네스 검사까지 도달해야 한다. 실패 주입 세 번은 같은 기록을
 /// 남긴 뒤 `early1`(산출물 없이 종료 1), `late1`(산출물을 남기고 종료 1), `late23`(산출물을 남기고 종료 23)이다.
@@ -291,6 +293,8 @@ repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"; bundled="$6"; all="
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 mkdir -p "$root/scripts/lib" "$root/calls"
+# 스텁은 잠금 문제를 이 파일에 덧붙인다. 미리 만들어 두면 루트에 새 항목을 못 만드는 경우에도 기록이 남는다.
+: > "$root/lock-error"
 if [ -n "$fail" ]; then printf '%s' "$fail" > "$root/fail"; fi
 # 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만 산출물로 둔다.
 fixtures="$repo/crates/tasty-test-support/fixtures/official-plugins"
@@ -322,7 +326,21 @@ done
 if [ "$(cat "$top/fail" 2>/dev/null)" = early1 ]; then exit 1; fi
 # 실제 fetch는 고른 항목이 하나도 없으면 산출물을 만들기 전에 종료 1이다.
 if [ -z "$(ls -A "$top/$tree")" ]; then exit 1; fi
-if [ -n "$out" ]; then mkdir -p "$out" && cp -R "$top/$tree/." "$out/" && : > "$out/.fetched"; fi
+if [ -n "$out" ]; then
+    # 같은 --out에 함께 복사하면 GNU cp가 상대가 먼저 만든 항목에서 File exists로 실패하므로 산출물 단계만
+    # 호출 사이에 차례로 돈다. flock은 macOS에 기본으로 없어 mkdir 잠금을 쓴다. 잠금 문제는 인자 없는 wait가
+    # 삼키지 않도록 lock-error에 적고 하네스가 수집 뒤 실패로 낸다.
+    lock="$top/out.lock"; waited=0
+    until mkdir "$lock" 2>/dev/null; do
+        waited=$((waited + 1))
+        if [ "$waited" -ge 500 ]; then echo "산출물 잠금을 얻지 못했다: $lock" >> "$top/lock-error"; exit 97; fi
+        sleep 0.01
+    done
+    made=0
+    { mkdir -p "$out" && cp -R "$top/$tree/." "$out/" && : > "$out/.fetched"; } || made=$?
+    rmdir "$lock" || echo "산출물 잠금을 놓지 못했다: $lock" >> "$top/lock-error"
+    [ "$made" -eq 0 ]
+fi
 case "$(cat "$top/fail" 2>/dev/null)" in late1) exit 1 ;; late23) exit 23 ;; esac
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
@@ -348,6 +366,7 @@ fetch_bundled_plugins "$1"
         ;;
 esac
 if [ "$rc" = 0 ] && ! [ -e "$root/.reached" ]; then rc=0-unreached; fi
+if [ -s "$root/lock-error" ]; then cat "$root/lock-error" >&2; exit 97; fi
 printf 'RC=%s\n' "$rc"
 for f in "$root/calls"/*; do
     [ -f "$f" ] || continue
