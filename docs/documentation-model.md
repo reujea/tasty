@@ -24,7 +24,7 @@ Tasty는 화면 없이도 동작한다. 기능 문서는 내부 동작을 먼저
 | 기획문서 | `docs/features/<f>/index.md` | 호스트가 제공하는 기능의 내부 동작 | 문서를 직접 갱신 |
 | Surface 종류 | `docs/surfaces/<kind>/index.md`와 필요한 `screens/` | surface kind 하나의 내부 동작·수명·저장·IPC·화면. 호스트 내장과 플러그인 제공을 구분하지 않는다 | features와 같은 구조로 갱신. 공통 항목은 [surfaces 색인](surfaces/index.md#타입-문서의-공통-항목) |
 | 화면정의서 | 기능 문서의 `## 화면` 절 또는 `docs/features/<f>/screens/<s>.md` | 화면 요소와 상태별 표시·조작 | 문서를 직접 갱신. 파일 분리 기준은 §3 |
-| 번들 플러그인 | `docs/plugins/<id>/index.md`와 필요한 `screens/` | surface kind 를 제공하지 않는 플러그인의 동작·화면, 번들 카탈로그 | features와 같은 구조로 갱신 |
+| 번들 플러그인 | `docs/plugins/index.md`(카탈로그). 플러그인별 문서는 tasty-official-plugins 레포의 `docs/plugins/<id>/index.md`와 필요한 `screens/` | surface kind 를 제공하지 않는 플러그인의 동작·화면, 번들 카탈로그 | 카탈로그는 직접 갱신. 플러그인별 문서는 그 레포에서 features와 같은 구조로 갱신 |
 | 횡단 규칙·흐름 | `docs/design/{policies,flows,systems}/` | 여러 기능에 공통인 규칙·흐름 | 문서를 직접 갱신 |
 | 용어 | `docs/concepts/` | 프로젝트 공통 용어 | 문서를 직접 갱신 |
 | 제품 원칙 | `docs/principles/` | 판단 기준·적용 범위·충돌 시 우선순위 | 최신 유효 내용만 유지 |
@@ -44,7 +44,7 @@ Tasty는 화면 없이도 동작한다. 기능 문서는 내부 동작을 먼저
 | 에이전트 가이드 | 별도 가이드는 미신설. 조회 문서는 [reference](reference/index.md) | IPC·CLI 조작 방법. 릴리스 파일에는 첨부하지 않음 | 사용자의 AI 에이전트 |
 | 설치 | `docs/installation.md` | OS·아키텍처별 설치 방법 | 사용자·에이전트 |
 
-호스트가 플러그인에 제공하는 런타임·권한·렌더링·번들 규칙은 개발 가이드에 둔다. 플러그인 자체의 기능을 설명하는 `docs/plugins/`·`docs/surfaces/`와 구분한다.
+호스트가 플러그인에 제공하는 런타임·권한·렌더링·번들 규칙은 개발 가이드에 둔다. 플러그인 자체의 기능을 설명하는 `docs/surfaces/`와 tasty-official-plugins 레포의 플러그인 문서와 구분한다.
 
 Surface kind 문서는 제공 주체보다 kind 를 기준으로 둔다. 플러그인이 kind 를 제공하면 그 플러그인의 파일 핸들러·CLI·설정 페이지·popup 기여도 같은 kind 문서에 적고, `docs/plugins/`에 연결용 문서나 동작 사본을 만들지 않는다. 여러 kind 가 공유하는 구조 트리·분할·생성 경계는 [작업 영역](features/work-area/index.md), 여러 기능에 걸친 정책은 `docs/design/`, 일반 구현의 이유는 해당 문서에, 원칙의 예외·미충족 결정만 ADR에 둔다. 개발·운영 문서는 코드와 절차를 기준으로 검토·교정하며, 디자인 도구를 도입했다는 이유로 처음부터 다시 쓰지는 않는다.
 
@@ -77,7 +77,7 @@ docs/features/<feature>/
 - headless 전용 기능은 화면 절과 `screens/`를 만들지 않고 머리에 `**화면**: 없음 — headless 전용`으로 적는다.
 - 여러 화면은 `screens/`에 화면별 파일로 둔다.
 - [기획 템플릿](features/_feature.template.md)과 [화면 템플릿](features/_screen.template.md)을 사용한다. 화면을 절로 넣을 때도 항목은 같고 제목 단계만 내린다.
-- Surface 종류(`docs/surfaces/<kind>/`)와 번들 플러그인(`docs/plugins/<id>/`)도 같은 기준을 따른다. Surface 종류는 [surface 템플릿](surfaces/_surface.template.md)을 사용한다.
+- Surface 종류(`docs/surfaces/<kind>/`)와 tasty-official-plugins 레포의 번들 플러그인 문서(`docs/plugins/<id>/`)도 같은 기준을 따른다. Surface 종류는 [surface 템플릿](surfaces/_surface.template.md)을 사용한다.
 
 ## 4. 연결 개념 — 합성 화면은 "언급" 으로만 잇는다
 
