@@ -83,7 +83,7 @@ struct FetchArgs {
     help: bool,
     /// 모르는 인자나 값이 빠진 옵션을 만나 종료 2로 끝난다.
     invalid: bool,
-    platform: bool,
+    platform: Option<String>,
     out: bool,
 }
 
@@ -94,7 +94,7 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
         all: false,
         help: false,
         invalid: false,
-        platform: false,
+        platform: None,
         out: false,
     };
     let mut rest = argv.iter();
@@ -106,7 +106,7 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
                     break;
                 };
                 match a.as_str() {
-                    "--platform" => parsed.platform = !value.is_empty(),
+                    "--platform" => parsed.platform = Some(value.clone()).filter(|v| !v.is_empty()),
                     "--out" => parsed.out = !value.is_empty(),
                     _ => {}
                 }
@@ -127,49 +127,64 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
 
 /// 받기까지 가는 호출: 도움말·모르는 인자·값 빠진 옵션 없이 `--platform`·`--out`에 값이 있다.
 fn really_fetches(p: &FetchArgs) -> bool {
-    !p.help && !p.invalid && p.platform && p.out
+    !p.help && !p.invalid && p.platform.is_some() && p.out
 }
 
 /// 임시 루트에 `scripts/fetch-official-plugins.sh` 스텁을 두고 대상 코드를 실제 bash로 실행해, 스텁이 받은
 /// argv를 호출마다 돌려준다. 셸 문법(따옴표, 리다이렉션, 명령 경계, 줄 연속)은 bash가 판정한다.
+/// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고, 대상이 실패하면 기록과 관계없이 시험이 실패한다.
+/// 스텁은 호출마다 파일 하나에 인자를 NUL로 끝맺어 적으므로 빈 인자와 제어 문자도 그대로 남는다.
 /// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
-/// - `package`: `scripts/lib/bundled-plugins.sh`를 source하고 `fetch_bundled_plugins`를 부른다.
+/// - `package`: `scripts/lib/bundled-plugins.sh`를 source하고 `fetch_bundled_plugins <platform>`을 부른다.
 /// - `staging`: 넘긴 원문(스테이징 기본 분기)을 `root`·`platform`·`stage` 변수와 함께 실행한다. 백그라운드로 띄운
 ///   명령도 기록되도록 끝에서 기다린다.
 #[cfg(unix)]
-fn fetch_argvs(mode: &str, branch: &str) -> Vec<Vec<String>> {
+fn fetch_argvs(mode: &str, platform: &str, branch: &str) -> Vec<Vec<String>> {
+    fetch_run(mode, platform, branch).unwrap_or_else(|why| panic!("{why}"))
+}
+
+/// `fetch_argvs`와 같고, 대상이 운영 셸 옵션에서 실패하면 `Err`를 돌려준다.
+#[cfg(unix)]
+fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>>, String> {
     const HARNESS: &str = r#"set -eu
-repo="$1"; mode="$2"; branch="$3"
+repo="$1"; mode="$2"; platform="$3"; branch="$4"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
-mkdir -p "$root/scripts/lib"
+mkdir -p "$root/scripts/lib" "$root/calls"
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
-log="$(cd "$(dirname "$0")/.." && pwd)/fetch.log"
-for a in "$@"; do printf '%s' "$a" >> "$log"; done
-printf '' >> "$log"
+calls="$(cd "$(dirname "$0")/.." && pwd)/calls"
+n=$(find "$calls" -type f | wc -l)
+printf '%s\0' "$@" > "$calls/$(printf '%06d' "$n")"
 while [ $# -gt 0 ]; do
     if [ "$1" = --out ] && [ $# -ge 2 ]; then mkdir -p "$2"; fi
     shift
 done
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
+rc=0
 case "$mode" in
     package)
         cp "$repo/scripts/lib/bundled-plugins.sh" "$root/scripts/lib/"
-        (cd "$root" && . scripts/lib/bundled-plugins.sh && fetch_bundled_plugins linux-x64) > /dev/null 2>&1 || true
+        (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh && fetch_bundled_plugins "$1"' run "$platform") > /dev/null 2>&1 || rc=$?
         ;;
     staging)
-        (cd "$root" && root="$root" platform=linux-x64 stage="$root/stage" bash -c "$branch
-wait") > /dev/null 2>&1 || true
+        (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
+wait") > /dev/null 2>&1 || rc=$?
         ;;
 esac
-if [ -f "$root/fetch.log" ]; then cat "$root/fetch.log"; fi
+printf 'RC=%s\n' "$rc"
+for f in "$root/calls"/*; do
+    [ -f "$f" ] || continue
+    printf 'CALL\n'
+    od -An -v -tx1 "$f" | tr -d ' \n'
+    printf '\n'
+done
 "#;
     let out = std::process::Command::new("bash")
         .args(["-c", HARNESS, "harness"])
         .arg(repo_root())
-        .args([mode, branch])
+        .args([mode, platform, branch])
         .output()
         .expect("bash 하네스를 실행하지 못했다");
     assert!(
@@ -177,17 +192,32 @@ if [ -f "$root/fetch.log" ]; then cat "$root/fetch.log"; fi
         "bash 하네스가 실패했다: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    String::from_utf8(out.stdout)
-        .expect("스텁 기록이 UTF-8이 아니다")
-        .split('\u{1e}')
-        .filter(|call| !call.is_empty())
-        .map(|call| {
-            call.split('\u{1f}')
-                .filter(|a| !a.is_empty())
-                .map(String::from)
-                .collect()
-        })
-        .collect()
+    let text = String::from_utf8(out.stdout).expect("하네스 출력이 UTF-8이 아니다");
+    let mut lines = text.lines();
+    if lines.next() != Some("RC=0") {
+        return Err(format!(
+            "{mode} ({platform}) 대상이 운영 셸 옵션에서 실패했다:\n{text}"
+        ));
+    }
+    let mut calls = Vec::new();
+    while let Some(marker) = lines.next() {
+        assert_eq!(marker, "CALL", "하네스 출력 형식이 다르다:\n{text}");
+        let hex = lines.next().unwrap_or("");
+        let bytes: Vec<u8> = (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).expect("16진 기록"))
+            .collect();
+        let argv = String::from_utf8(bytes).expect("인자가 UTF-8이 아니다");
+        // 인자마다 NUL로 끝맺으므로 마지막 조각만 빈 문자열이다. 그 앞의 빈 조각은 실제 빈 인자다.
+        let mut args: Vec<String> = argv.split('\0').map(String::from).collect();
+        assert_eq!(
+            args.pop().as_deref(),
+            Some(""),
+            "NUL로 끝나지 않은 기록이다"
+        );
+        calls.push(args);
+    }
+    Ok(calls)
 }
 
 /// `scripts/build-windows.ps1`의 fetch 호출 줄. PowerShell은 이 시험 환경에서 실행하지 않으므로 원문을 읽는다.
@@ -210,14 +240,13 @@ fn windows_fetch_argv() -> Vec<String> {
         "scripts/build-windows.ps1 의 fetch 줄이 하나가 아니다: {calls:?}"
     );
     let call = calls[0];
+    let words: Vec<&str> = call.split_whitespace().collect();
+    let head: Vec<&str> = CALL.split(' ').collect();
     assert!(
-        call.starts_with(CALL) && !call.contains(['"', '\'', '`', '#', ';', '|']),
-        "scripts/build-windows.ps1 의 fetch 줄이 `{CALL} <인자>` 꼴(따옴표·백틱·주석·명령 구분 없음)이 아니다: {call}"
+        words.starts_with(&head) && !call.contains(['"', '\'', '`', '#', ';', '|']),
+        "scripts/build-windows.ps1 의 fetch 줄이 `{CALL} <인자>` 꼴(앞 세 단어 일치, 따옴표·백틱·주석·명령 구분 없음)이 아니다: {call}"
     );
-    call[CALL.len()..]
-        .split_whitespace()
-        .map(String::from)
-        .collect()
+    words[head.len()..].iter().map(|w| w.to_string()).collect()
 }
 
 /// `scripts/stage-dev-plugins.sh`의 기본 분기(`--from-checkout`이 아닐 때) 본문. 맨 앞 열의
@@ -296,33 +325,44 @@ fn builtins_are_the_locked_plugins_plus_mesh_demo() {
 #[cfg(unix)]
 #[test]
 fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() {
-    let package = fetch_argvs("package", "");
-    assert_eq!(
-        package.len(),
-        1,
-        "fetch_bundled_plugins 의 fetch 호출이 하나가 아니다: {package:?}"
-    );
-    let p = parse_fetch(&package[0]);
-    assert!(
-        really_fetches(&p) && !p.all,
-        "scripts/lib/bundled-plugins.sh 의 배포 fetch 가 --all 없이 --platform·--out 으로 받지 않는다: {:?}",
-        package[0]
-    );
+    // 배포 헬퍼는 build-linux.sh(linux-x64·linux-arm64)와 build-macos-dmg.sh(macos-arm64)가 부른다.
+    for platform in ["linux-x64", "linux-arm64", "macos-arm64"] {
+        let package = fetch_argvs("package", platform, "");
+        assert_eq!(
+            package.len(),
+            1,
+            "{platform}: fetch_bundled_plugins 의 fetch 호출이 하나가 아니다: {package:?}"
+        );
+        let p = parse_fetch(&package[0]);
+        assert!(
+            really_fetches(&p) && !p.all && p.platform.as_deref() == Some(platform),
+            "{platform}: scripts/lib/bundled-plugins.sh 의 배포 fetch 가 그 플랫폼으로 --all 없이 받지 않는다: {:?}",
+            package[0]
+        );
+    }
     let branch = default_staging_branch(&read("scripts/stage-dev-plugins.sh")).expect(
         "scripts/stage-dev-plugins.sh 에서 --from-checkout 이 아닌 기본 분기를 찾지 못했다",
     );
-    let staging = fetch_argvs("staging", &branch);
-    assert_eq!(
-        staging.len(),
-        1,
-        "기본 분기의 fetch 호출이 하나가 아니다: {staging:?}"
-    );
-    let p = parse_fetch(&staging[0]);
-    assert!(
-        really_fetches(&p) && p.all,
-        "scripts/stage-dev-plugins.sh 기본 분기가 --platform·--out·--all 로 받지 않는다: {:?}",
-        staging[0]
-    );
+    for platform in [
+        "linux-x64",
+        "linux-arm64",
+        "macos-arm64",
+        "windows-x64",
+        "windows-arm64",
+    ] {
+        let staging = fetch_argvs("staging", platform, &branch);
+        assert_eq!(
+            staging.len(),
+            1,
+            "{platform}: 기본 분기의 fetch 호출이 하나가 아니다: {staging:?}"
+        );
+        let p = parse_fetch(&staging[0]);
+        assert!(
+            really_fetches(&p) && p.all && p.platform.as_deref() == Some(platform),
+            "{platform}: scripts/stage-dev-plugins.sh 기본 분기가 그 플랫폼으로 --all 받지 않는다: {:?}",
+            staging[0]
+        );
+    }
 }
 
 #[test]
@@ -341,7 +381,7 @@ fn the_windows_package_fetches_only_bundled_entries() {
 fn the_staging_harness_reads_what_bash_passes() {
     let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\" --all";
     let one = |branch: &str| {
-        let calls = fetch_argvs("staging", branch);
+        let calls = fetch_argvs("staging", "linux-x64", branch);
         assert_eq!(
             calls.len(),
             1,
@@ -372,12 +412,31 @@ fn the_staging_harness_reads_what_bash_passes() {
         one(&real.replacen(" --all", " 2>&1 --all", 1)).all,
         "리다이렉션 뒤의 --all 을 놓쳤다"
     );
+    for (what, branch) in [
+        ("빈 인자", format!("{real} \"\"")),
+        (
+            "제어 문자가 붙은 --all",
+            real.replacen(" --all", " $'--all\\x1f'", 1),
+        ),
+    ] {
+        assert!(!really_fetches(&one(&branch)), "{what}: 받기로 보았다");
+    }
+    for (what, branch) in [
+        ("fetch 앞의 실패", format!("false\n{real}")),
+        ("fetch 뒤의 실패", format!("{real}\nexit 1")),
+    ] {
+        assert!(
+            fetch_run("staging", "linux-x64", &branch).is_err(),
+            "{what}: 운영 셸 옵션에서 실패하는 분기를 통과시켰다"
+        );
+    }
     assert!(
         one(&real.replacen(" --all", " \\\n    --all", 1)).all,
         "줄 연속으로 넘긴 --all 을 놓쳤다"
     );
     let calls = fetch_argvs(
         "staging",
+        "linux-x64",
         &format!("printf '%s\\n' 'Run scripts/fetch-official-plugins.sh'\n{real}"),
     );
     assert_eq!(calls.len(), 1, "안내문을 fetch 호출로 셌다: {calls:?}");

@@ -245,6 +245,32 @@ fn check_finds_a_changed_byte_and_a_stale_fixture() {
         text.contains("symbolic link in the fixture root: com.tasty.linked"),
         "링크를 말하지 않는다:\n{text}"
     );
+    fs::remove_file(root.path.join(FIXTURES).join("com.tasty.linked")).expect("링크 지우기");
+
+    // 잠금 id 자리가 같은 내용을 가리키는 링크여도 따라가 대조하지 않는다.
+    let fixtures = root.path.join(FIXTURES);
+    let real_alpha = root.path.join("real-alpha");
+    fs::rename(fixtures.join("com.tasty.alpha"), &real_alpha).expect("alpha 옮기기");
+    std::os::unix::fs::symlink(&real_alpha, fixtures.join("com.tasty.alpha")).expect("alpha 링크");
+    let (code, text) = root.run(&["--check"]);
+    assert_eq!(code, 1, "잠금 id 자리의 링크를 따라가 대조했다:\n{text}");
+    assert!(
+        text.contains("symbolic link in the fixture root: com.tasty.alpha"),
+        "잠금 id 자리의 링크를 말하지 않는다:\n{text}"
+    );
+    fs::remove_file(fixtures.join("com.tasty.alpha")).expect("alpha 링크 지우기");
+    fs::rename(&real_alpha, fixtures.join("com.tasty.alpha")).expect("alpha 되돌리기");
+
+    // 픽스처 루트 자체가 링크여도 따라가지 않는다.
+    let real_root = root.path.join("real-fixtures");
+    fs::rename(&fixtures, &real_root).expect("루트 옮기기");
+    std::os::unix::fs::symlink(&real_root, &fixtures).expect("루트 링크");
+    let (code, text) = root.run(&["--check"]);
+    assert_eq!(code, 1, "링크인 픽스처 루트를 따라가 대조했다:\n{text}");
+    assert!(
+        text.contains("the fixture root is a symbolic link"),
+        "루트 링크를 말하지 않는다:\n{text}"
+    );
 }
 
 /// 잠금 파일은 fetch 전에 checker와 같은 조건으로 읽는다. 배포 파서는 `[[plugin.artifact]]` 를 앞선

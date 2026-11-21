@@ -221,7 +221,17 @@ fixture_files() {
 # 받은 폴더(<out root>)와 픽스처 루트를 대조한다. 다른 점을 모두 적고 하나라도 있으면 1.
 compare() {
     local out="$1" fix="$2" bad=0 id want have name dir
+    # 링크는 읽기 전에 거부한다. 루트나 항목이 링크면 링크 너머의 파일로 대조하게 된다.
+    if [[ -L "$fix" ]]; then
+        echo "  the fixture root is a symbolic link: $fix" >&2
+        return 1
+    fi
     for id in "${ids[@]}"; do
+        if [[ -L "$fix/$id" ]]; then
+            echo "  symbolic link in the fixture root: $id" >&2
+            bad=1
+            continue
+        fi
         if [[ ! -d "$fix/$id" ]]; then
             echo "  missing fixture: $id" >&2
             bad=1
