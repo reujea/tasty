@@ -157,7 +157,7 @@ compare_rpm_requires() {
 
 # $1 = rpm -qpR 출력 파일, $2 = payload 폴더, $3 = Cargo.toml, $4 = find-requires 경로(진단용).
 verify_rpm_requires_from() {
-    local reqs=$1 root=$2 manifest=$3 find_requires=$4 work rc=0 entry f
+    local reqs=$1 root=$2 manifest=$3 find_requires=$4 work rc=0 entry f one
     if [[ ! -s "$reqs" ]]; then
         echo "Error: the rpm has no requires at all" >&2
         return 1
@@ -172,7 +172,9 @@ verify_rpm_requires_from() {
         while IFS= read -r entry; do
             entry=${entry#unexpected: }
             while IFS= read -r -d '' f; do
-                if printf '%s' "$f" | "$find_requires" 2>/dev/null | grep -qxF "$entry"; then
+                # 조기 종료하는 grep -q에 생성기를 직접 잇지 않는다(pipefail에서 SIGPIPE로 놓친다).
+                one=$(printf '%s' "$f" | "$find_requires" 2>/dev/null) || one=""
+                if grep -qxF "$entry" <<<"$one"; then
                     echo "  $entry <- /${f#"$root"/}" >&2
                 fi
             done < <(find "$root" -type f -print0)
