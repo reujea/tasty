@@ -45,7 +45,8 @@ impl EditBindings {
         }
     }
 
-    fn combos(&self, edit: EditKey) -> &[String] {
+    /// 한 편집 동작의 바인딩 목록.
+    pub(crate) fn combos(&self, edit: EditKey) -> &[String] {
         match edit {
             EditKey::Copy => &self.copy,
             EditKey::Cut => &self.cut,

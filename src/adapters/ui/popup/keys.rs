@@ -10,6 +10,8 @@
     )
 )]
 
+use crate::adapters::ui::input::edit_key::{EditBindings, EditKey};
+
 /// 팝업이 바인딩으로 판정하는 기본 조작.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BasicKey {
@@ -82,27 +84,31 @@ impl BasicKey {
 }
 
 /// 키 누름 하나가 선언 `keyboard`의 소비 집합에 드는지. 집합 밖 키는 팝업이 쓰지 않으므로 조상으로 올라간다.
-/// Ctrl·Cmd·Alt·Option(비-macOS의 Win·Super는 `super_held`)이 붙은 조합은 어느 집합에도 들지 않는다.
-/// `Keys`는 수정키 없는 키와 Shift+Tab, `Text`는 거기에 Shift+키를 더한다.
+/// Ctrl·Cmd·Alt·Option(비-macOS의 Win·Super는 `super_held`)이 붙은 조합은 편집 바인딩이 아니면 어느 집합에도
+/// 들지 않는다. `Keys`는 수정키 없는 키와 Shift+Tab, `Text`는 거기에 Shift+키를 더한다. 편집 바인딩
+/// (`edits`의 복사·잘라내기·붙여넣기)에 맞는 누름은 수정키와 관계없이 `Text`의 집합 안이고 `Keys`의 집합 밖이다.
+/// 판정에 쓰는 수정키는 `modifiers`다.
 pub(crate) fn consumes_key(
     keyboard: super::PopupKeyboard,
     key: egui::Key,
     modifiers: egui::Modifiers,
     super_held: bool,
+    edits: &EditBindings,
 ) -> bool {
     use super::PopupKeyboard;
+    let edit = EditKey::ORDER.iter().any(|e| {
+        tasty_key_match::binding_matches_egui(edits.combos(*e), key, modifiers, super_held)
+    });
     let command = modifiers.ctrl || modifiers.alt || modifiers.mac_cmd || super_held;
-    if command {
-        return false;
-    }
     match keyboard {
         PopupKeyboard::None => false,
-        PopupKeyboard::Keys => !modifiers.shift || key == egui::Key::Tab,
-        PopupKeyboard::Text => true,
+        PopupKeyboard::Keys => !edit && !command && (!modifiers.shift || key == egui::Key::Tab),
+        PopupKeyboard::Text => edit || !command,
     }
 }
 
-/// 글자·IME 조합·붙여넣기·복사·잘라내기를 소비하는지. `Text`만 소비한다.
+/// 글자·IME 조합과 egui 편집 사건(`Event::Paste`·`Copy`·`Cut`)을 소비하는지. `Text`만 소비한다. 키 누름으로
+/// 오는 편집 바인딩은 [`consumes_key`]가 판정한다.
 pub(crate) fn consumes_text(keyboard: super::PopupKeyboard) -> bool {
     keyboard == super::PopupKeyboard::Text
 }
@@ -125,24 +131,37 @@ pub(crate) struct PopupKeys {
     receives: bool,
     keyboard: super::PopupKeyboard,
     super_held: bool,
+    edits: EditBindings,
     consumed: Vec<ConsumedKey>,
 }
 
 impl PopupKeys {
-    /// `receives`는 이 인스턴스가 이번 프레임에 키를 받는지다. 누가 받는지는 호출자가 정한다.
-    pub(crate) fn new(ctx: &egui::Context, receives: bool, keyboard: super::PopupKeyboard) -> Self {
+    /// `receives`는 이 인스턴스가 이번 프레임에 키를 받는지다. 누가 받는지는 호출자가 정한다. `edits`는 그 창에
+    /// 적용된 편집 바인딩이다.
+    pub(crate) fn new(
+        ctx: &egui::Context,
+        receives: bool,
+        keyboard: super::PopupKeyboard,
+        edits: &EditBindings,
+    ) -> Self {
         Self {
             ctx: ctx.clone(),
             receives: receives && keyboard != super::PopupKeyboard::None,
             keyboard,
             super_held: tasty_key_match::super_held(ctx),
+            edits: edits.clone(),
             consumed: Vec::new(),
         }
     }
 
     /// 아무 키도 주지 않는 통로.
     pub(crate) fn none(ctx: &egui::Context) -> Self {
-        Self::new(ctx, false, super::PopupKeyboard::None)
+        Self::new(
+            ctx,
+            false,
+            super::PopupKeyboard::None,
+            &EditBindings::default(),
+        )
     }
 
     /// 이 통로가 키를 주는지.
@@ -170,7 +189,9 @@ impl PopupKeys {
 
     /// 콘텐츠 고유 키(숫자·글자 단축키)를 소비한다. 소비 집합 밖 조합은 소비하지 않는다.
     pub(crate) fn consume_key(&mut self, modifiers: egui::Modifiers, key: egui::Key) -> bool {
-        if !self.receives || !consumes_key(self.keyboard, key, modifiers, self.super_held) {
+        if !self.receives
+            || !consumes_key(self.keyboard, key, modifiers, self.super_held, &self.edits)
+        {
             return false;
         }
         // egui `consume_key`는 Alt·Shift가 더 붙은 누름도 잡는다. 그 조합은 집합 밖이라 올라가야 하므로

@@ -89,6 +89,21 @@ pub fn consume_binding_egui(
 }
 
 #[cfg(feature = "egui-input")]
+/// 키 누름 하나(키와 그 누름의 수정자)가 바인딩 목록 가운데 하나와 맞는지 돌려준다. 입력을 바꾸지 않는다.
+/// 판정은 [`consume_binding_egui`] 가 지울 `Key` 사건을 고르는 것과 같다.
+pub fn binding_matches_egui(
+    bindings: &[String],
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+    super_held: bool,
+) -> bool {
+    bindings.iter().filter_map(|b| parse_binding(b)).any(|p| {
+        token_to_egui_key(&p.key.to_ascii_lowercase()) == Some(key)
+            && egui_modifiers_match(&p, &modifiers, super_held)
+    })
+}
+
+#[cfg(feature = "egui-input")]
 /// modifier 매핑은 winit 경로(`matches_binding`)와 같은 [`token_axes_egui`] 규칙을 따른다.
 fn egui_modifiers_match(
     parsed: &ParsedBinding<'_>,
@@ -548,6 +563,44 @@ mod egui_tests {
 
     fn text(s: &str) -> egui::Event {
         egui::Event::Text(s.into())
+    }
+
+    /// 키 누름 하나의 판정은 `consume_binding_egui` 가 지우는 `Key` 사건과 같다.
+    #[test]
+    fn the_single_press_match_agrees_with_consume() {
+        let ctrl = egui::Modifiers {
+            ctrl: true,
+            command: !cfg!(target_os = "macos"),
+            ..Default::default()
+        };
+        let ctrl_shift = egui::Modifiers {
+            shift: true,
+            ..ctrl
+        };
+        let bindings = ["ctrl+v", "ctrl+shift+y", "v"];
+        let events = vec![
+            press(egui::Key::V, ctrl),
+            press(egui::Key::V, egui::Modifiers::NONE),
+            press(egui::Key::V, ctrl_shift),
+            press(egui::Key::Y, ctrl_shift),
+            press(egui::Key::Y, ctrl),
+            press(egui::Key::C, ctrl),
+        ];
+        let owned: Vec<String> = bindings.iter().map(|b| (*b).into()).collect();
+        let matched: Vec<egui::Event> = events
+            .iter()
+            .filter(|e| match e {
+                egui::Event::Key { key, modifiers, .. } => {
+                    binding_matches_egui(&owned, *key, *modifiers, false)
+                }
+                _ => false,
+            })
+            .cloned()
+            .collect();
+        let (_, left) = consume_events(&bindings, events.clone());
+        let removed: Vec<egui::Event> = events.into_iter().filter(|e| !left.contains(e)).collect();
+        assert_eq!(matched, removed);
+        assert_eq!(matched.len(), 3);
     }
 
     /// 맞는 키 누름 바로 뒤의 글자도 지운다. 앞뒤로 친 다른 글자는 남는다.
