@@ -266,10 +266,12 @@ fn the_manager_hands_the_given_edit_bindings_to_the_passage() {
         );
         of(&seen, iid)
     };
-    let mut kb = crate::settings::KeybindingSettings::default();
-    kb.copy = Vec::new();
-    kb.cut = Vec::new();
-    kb.paste = vec!["ctrl+v".to_string()];
+    let kb = crate::settings::KeybindingSettings {
+        copy: Vec::new(),
+        cut: Vec::new(),
+        paste: vec!["ctrl+v".to_string()],
+        ..Default::default()
+    };
     assert_eq!(
         consumes(&EditBindings::from_settings(&kb)),
         (true, true),

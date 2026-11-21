@@ -205,10 +205,12 @@ fn the_empty_passage_gives_no_keys() {
 /// 복사·잘라내기·붙여넣기 목록을 통째로 정한 편집 바인딩. 기본 설정에 기대지 않는다.
 fn edits(copy: &[&str], cut: &[&str], paste: &[&str]) -> EditBindings {
     let own = |l: &[&str]| l.iter().map(|b| (*b).to_string()).collect::<Vec<_>>();
-    let mut kb = crate::settings::KeybindingSettings::default();
-    kb.copy = own(copy);
-    kb.cut = own(cut);
-    kb.paste = own(paste);
+    let kb = crate::settings::KeybindingSettings {
+        copy: own(copy),
+        cut: own(cut),
+        paste: own(paste),
+        ..Default::default()
+    };
     EditBindings::from_settings(&kb)
 }
 
