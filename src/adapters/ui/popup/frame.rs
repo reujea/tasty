@@ -1,3 +1,4 @@
+use crate::adapters::ui::input::edit_key::EditBindings;
 use crate::adapters::ui::popup::{PopupCloseHook, PopupCloseReason, PopupInstanceId};
 use crate::state::MainViewState;
 
@@ -275,6 +276,7 @@ pub(crate) fn draw_popup_layer(
             }
         },
         Some(draw_ctx),
+        &EditBindings::from_settings(&engine.settings.keybindings),
         &plugin_occluders,
         press.as_ref(),
     );

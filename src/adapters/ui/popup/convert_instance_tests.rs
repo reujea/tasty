@@ -122,6 +122,12 @@ fn draw_with_key(key: egui::Key, focused: [bool; 2]) -> [&'static str; 2] {
                     id: CONVERT_POPUP_ID,
                     instance: PopupInstanceId::NONE,
                     focused: focused[i],
+                    keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                        ctx,
+                        focused[i],
+                        crate::adapters::ui::popup::PopupKeyboard::Keys,
+                        &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                    ),
                     payload: &mut payload,
                 };
                 let action = super::draw_convert_popup(ui, &mut state, &engine, &mut cx);

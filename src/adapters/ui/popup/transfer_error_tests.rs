@@ -207,6 +207,12 @@ fn dismiss(
                 id: TRANSFER_ERROR_POPUP_ID,
                 instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                 focused: true,
+                keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    true,
+                    crate::adapters::ui::popup::PopupKeyboard::Keys,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                ),
                 payload: &mut *payload,
             };
             action = draw_transfer_error(ui, state, engine, &mut cx);

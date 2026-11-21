@@ -293,7 +293,14 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
             );
             let mut popups =
                 std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
-            popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], None);
+            popups.draw_routed(
+                ctx,
+                &mut |_, _| {},
+                Some(&layout),
+                &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                &[],
+                None,
+            );
             state.popups = popups;
         }));
         state.press_snapshot = None;
@@ -405,7 +412,14 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
             );
             let mut popups =
                 std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
-            popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], press.as_ref());
+            popups.draw_routed(
+                ctx,
+                &mut |_, _| {},
+                Some(&layout),
+                &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                &[],
+                press.as_ref(),
+            );
             state.popups = popups;
         }));
         state.press_snapshot = None;

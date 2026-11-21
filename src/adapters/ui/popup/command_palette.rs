@@ -1235,6 +1235,12 @@ pub(crate) mod enabled_tests {
                         id: COMMAND_PALETTE_POPUP_ID,
                         instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                         focused: true,
+                        keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                            ctx,
+                            true,
+                            crate::adapters::ui::popup::PopupKeyboard::Text,
+                            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                        ),
                         payload: &mut payload,
                     },
                 );

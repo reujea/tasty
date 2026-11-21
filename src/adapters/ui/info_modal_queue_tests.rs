@@ -555,6 +555,12 @@ fn closes_on_key(
                 id,
                 instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                 focused,
+                keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    focused,
+                    crate::adapters::ui::popup::PopupKeyboard::Keys,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                ),
                 payload: &mut *payload,
             };
             action = draw(ui, state, engine, &mut cx);

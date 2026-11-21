@@ -238,8 +238,14 @@ fn host_frame(
             crate::adapters::ui::popup::frame::frame_press(ctx, state, engine, Some(&layout()));
         let mut popups =
             std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
-        result =
-            Some(popups.draw_routed(ctx, &mut |_, _| {}, Some(&layout()), &[], press.as_ref()));
+        result = Some(popups.draw_routed(
+            ctx,
+            &mut |_, _| {},
+            Some(&layout()),
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            &[],
+            press.as_ref(),
+        ));
         state.popups = popups;
     }));
     state.close_input_pass(ctx);

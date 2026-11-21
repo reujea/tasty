@@ -1089,7 +1089,7 @@ pub fn draw_file_handler_picker(
         open_settings_button_label: t("file_handler.picker.open_settings_button"),
     };
 
-    let action = draw_file_handler_picker_view(ui, &props, cx.focused);
+    let action = draw_file_handler_picker_view(ui, &props, cx.keys.receives());
 
     match action {
         FileHandlerPickerAction::None => PopupAction::None,
@@ -1637,6 +1637,12 @@ mod tests {
                     id: PICKER_POPUP_ID,
                     instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                     focused: false,
+                    keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                        ctx,
+                        false,
+                        crate::adapters::ui::popup::PopupKeyboard::Keys,
+                        &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                    ),
                     payload: &mut payload,
                 };
                 assert!(matches!(
@@ -1712,6 +1718,12 @@ mod tests {
                         id: PICKER_POPUP_ID,
                         instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                         focused: focused[i],
+                        keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                            ctx,
+                            focused[i],
+                            crate::adapters::ui::popup::PopupKeyboard::Keys,
+                            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                        ),
                         payload: &mut payload,
                     };
                     *done = match draw_file_handler_picker(ui, &mut state, &read, &mut cx) {

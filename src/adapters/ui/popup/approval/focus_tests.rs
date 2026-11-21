@@ -251,3 +251,64 @@ fn a_second_approval_keeps_the_shown_one_and_its_comment() {
     assert_eq!(shown.comment, "draft");
     assert_eq!(state.approval_inbox.len(), 2);
 }
+
+/// 승인 본문을 관리자 없이 바로 한 프레임 부른다. 호출마다 자기 상태·payload·Num2 프레임을 쓰고, 그 호출이 낸
+/// 인텐트만 꺼내 첫 응답과 본문 반환값을 돌려준다.
+fn draw_directly(receives: bool) -> (Option<String>, bool) {
+    let (mut state, mut engine_session) = crate::state::tests::test_state();
+    let engine = engine_session.borrow_mut();
+    assert!(state.approval_inbox.push(record("req-1")));
+    assert_eq!(
+        state.approval_inbox.front().map(|r| r.request.id.clone()),
+        Some(ApprovalId("req-1".into())),
+        "받은 편지함 맨 앞이 그 요청이다"
+    );
+    let mut payload = PopupPayload::None;
+    let mut action = PopupAction::Close;
+    let mut digit = false;
+    let ctx = egui::Context::default();
+    drop(ctx.run(raw(vec![key(egui::Key::Num2)]), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            digit = ui.input(|i| i.key_pressed(egui::Key::Num2));
+            assert!(
+                ShownApproval::of(&payload).is_none_or(|s| !s.submitting),
+                "부르기 전 payload는 응답을 보낸 상태가 아니다"
+            );
+            let keys = if receives {
+                crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    true,
+                    crate::adapters::ui::popup::PopupKeyboard::Text,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                )
+            } else {
+                crate::adapters::ui::popup::keys::PopupKeys::none(ctx)
+            };
+            let mut cx = crate::adapters::ui::popup::PopupCx {
+                id: APPROVAL_POPUP_ID,
+                instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                focused: receives,
+                keys,
+                payload: &mut payload,
+            };
+            action = draw_approval_popup(ui, &mut state, &engine.read(), &mut cx);
+        });
+    }));
+    assert!(digit, "그 프레임에 Num2가 눌렸다");
+    let shown = ShownApproval::of(&payload).expect("본문이 같은 요청의 승인 표시를 만든다");
+    assert_eq!(shown.id, ApprovalId("req-1".into()));
+    let answer = responded(&state.take_pending_intents());
+    (answer, matches!(action, PopupAction::None))
+}
+
+/// Given 승인 요청 하나를 본문에 바로 넘길 때, When 키를 주는 통로로 Num2를 넣으면, Then `deny`로 답한다. When 빈
+/// 통로로 같은 키를 넣으면, Then 답하지 않는다. 관리자 문이 키를 가리지 않는 경로라 본문 게이트만 본다.
+#[test]
+fn the_body_answers_a_digit_only_through_a_receiving_key_passage() {
+    let (answer, none) = draw_directly(true);
+    assert_eq!(answer.as_deref(), Some("deny"), "키를 주는 통로는 답한다");
+    assert!(none);
+    let (answer, none) = draw_directly(false);
+    assert_eq!(answer, None, "빈 통로로는 답하지 않는다");
+    assert!(none, "빈 통로의 반환값은 PopupAction::None이다");
+}

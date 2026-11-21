@@ -1,10 +1,12 @@
 //! 팝업 렌더링과 입력·표시 범위 계산.
 
 use crate::adapters::ui::LayoutContext;
+use crate::adapters::ui::input::edit_key::EditBindings;
 use crate::theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::elide_popup_title as elide_for_width;
 
+use super::keys::PopupKeys;
 use super::occlusion::{Occluder, PointOwnership, point_ownership};
 use super::route::RoutedPress;
 use super::{
@@ -200,16 +202,25 @@ impl PopupManager {
         plugin_occluders: &[Occluder],
     ) -> PopupDrawResult {
         let press = RoutedPress::from_frame_at_press(ctx, draw_ctx);
-        self.draw_routed(ctx, content_fn, draw_ctx, plugin_occluders, press.as_ref())
+        self.draw_routed(
+            ctx,
+            content_fn,
+            draw_ctx,
+            &EditBindings::default(),
+            plugin_occluders,
+            press.as_ref(),
+        )
     }
 
     /// [`Self::draw`]와 같고, 이번 프레임의 누름을 호출자가 정한다(메인 창은 winit 시점의 포커스를 담는다).
+    /// `edits`는 그 창에 적용된 편집 바인딩이다. 본문이 받는 키 통로([`PopupCx::keys`])에 전한다.
     #[allow(clippy::cognitive_complexity)] // complexity-exempt: egui 즉시모드 draw — 열린 popup별 content_fn 콜백 + 경계 clamp, 클로저 중첩이 구조적
     pub(crate) fn draw_routed(
         &mut self,
         ctx: &egui::Context,
         content_fn: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui),
         draw_ctx: Option<&LayoutContext>,
+        edits: &EditBindings,
         plugin_occluders: &[Occluder],
         press: Option<&RoutedPress>,
     ) -> PopupDrawResult {
@@ -824,11 +835,13 @@ impl PopupManager {
                                     id: popup.id,
                                     instance: popup.instance,
                                     focused: keys_at_start == Some(popup.instance),
+                                    keys: PopupKeys::none(ctx),
                                     payload: &mut popup.payload,
                                 };
                                 // 키 주인이 아닌 본문은 키 입력을 보지 못한다(직접 읽기와 위젯 키 포커스 모두).
                                 let takes_keys = cx.focused
                                     || (!frame_has_key_owner && !popup.arrange.takes_focus);
+                                cx.keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits);
                                 super::body_keys::with_body_keys(ctx, takes_keys, || {
                                     content_fn(&mut cx, ui)
                                 })

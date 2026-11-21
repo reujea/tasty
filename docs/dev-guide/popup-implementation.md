@@ -48,9 +48,9 @@ pub fn draw_my_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    cx: &mut PopupCx<'_>,              // 인스턴스 id·포커스·인스턴스 데이터
+    cx: &mut PopupCx<'_>,              // 인스턴스 id·포커스·키 통로·인스턴스 데이터
 ) -> PopupAction {
-    if cx.focused && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+    if cx.keys.receives() && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         // None | Close | CloseBy(사유) | ReleaseFocus
         return PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape);
     }
@@ -118,7 +118,7 @@ state.dispatch_intent(
 | `sizer` | `Option<fn(&MainViewState, &EngineRead, &PopupPayload) -> Vec2>` | 동적 크기. **매 프레임 인스턴스마다 호출된다**(그 인스턴스의 데이터를 받는다) — 아래 "sizer 는 매 프레임 돈다" 참조. **`ui_scale_factor()` 곱 금지** — sizing 토큰에 host UI zoom 이 이미 baked. 추가 곱은 이중 곱셈으로 medium/large 에서 layout 붕괴. **사용자가 직접 리사이즈한 팝업(`resizable`)에서는 리사이즈 이후 sizer 가 크기를 덮어쓰지 않는다**(`size_user_overridden` 가드 — popup close 시 리셋되어 다음 open 에 복원) |
 | `drag_region` | `Option<fn(&PopupState) -> Rect>` | `decl.drag_handle` 이 `Region` 일 때 팝업이 pos/size 로부터 계산하는 전용 핸들 띠. 타이틀바 없는 팝업도 이동할 수 있다 |
 | `fullscreen_stage` | `Option<StageId>` | `Some(id)` 면 타이틀바 X 왼쪽에 전체화면 버튼이 붙고, 누르면 그 [무대](../design/systems/fullscreen-stage.md)가 뜬다. 노출 여부와 대상이 한 필드라 "버튼은 있는데 갈 곳이 없는" 상태가 생기지 않는다. 아래 "전체화면 버튼" 참고 |
-| `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 인스턴스 데이터를 준다 |
+| `draw_fn` | `fn(&mut Ui, &mut MainViewState, &EngineRead, &mut PopupCx) -> PopupAction` | 매 프레임 인스턴스마다 렌더. `PopupCx`는 선언 id, 인스턴스 id, 그리기 시작 때의 포커스, 관리자가 넘긴 키 통로(`keys`, 본문 키 게이트는 `keys.receives()`), 인스턴스 데이터를 준다 |
 | `on_open` | `Option<fn(&mut MainViewState)>` | 새 인스턴스를 열기 직전에 한 번 부른다. 이미 열린 인스턴스에 온 요청(dedup)에서는 부르지 않는다. 튜토리얼 목록과 명령 팔레트가 쓴다 |
 | `on_close` | `Option<fn(&egui::Context, &mut MainViewState, &EngineRead, &ClosedPopup)>` | 닫힘 뒷정리 훅. 모든 닫기 경로가 거치는 관리자의 인스턴스 닫기를 통해 어떤 경로로 닫히든 인스턴스마다 정확히 한 번 실행한다. `ClosedPopup`은 선언 id, 인스턴스 id, 닫기 사유, 닫히기 직전 범위, 인스턴스 데이터를 담는다(아래 "닫힘 정리" 참고). 큐의 다음 항목을 직접 여는 훅은 그 항목을 넣은 요청의 출처(`Queued.origin`)로 연다 |
 | `debug_payload` | `Option<fn(&MainViewState, &CoreState, Option<u32>) -> PopupPayload>`(debug 빌드 전용) | `debug.host_popup.open` 이 사용자 클릭 없이 열 때 실을 인스턴스 데이터. 세 번째 인자는 `surface_scope` 로 열 때의 대상 surface 다. 변환 팝업만 채운다(그 surface 를 바꿀 대상으로). 핸들러는 팝업 id 로 갈라지지 않는다 |
@@ -139,7 +139,7 @@ state.dispatch_intent(
 | `anchor` | ScopeCenter / ScopeTop / AtPoint / Cursor / Column | ScopeCenter | `Column` 과 `ScopeTop` 만 읽는다. `Column` 인스턴스는 호출자가 `set_notice_column` 으로 정한 안내 열에 연 순서로 위에서부터 쌓이고(폭은 열의 폭, 높이는 직전 프레임의 크기), 그리기 결과의 `column_rect` 가 차지한 사각형의 합이다. `ScopeTop` 인 보이는 팝업의 사각형은 `reserved_top_bands` 가 다른 배치가 피할 띠로 돌려준다. 나머지 값의 위치는 여는 쪽 `OpenRequest` 의 `placement` 가 정한다. 범위 가운데가 아닌 곳에 붙는 6개(`tools_menu`·`search_bar`·`rail_category`·배너 더보기 메뉴·`modifier_hint`·`restore_notice`)만 다른 값을 적었다. 메인 창은 프레임마다 팝업을 그리기 전에 창 범위 배너와 `reserved_top_bands` 아래로 안내 열을 정하고, `column_rect` 를 attach 대기 칩이 이어 붙을 자리로 쓴다 |
 | `scope_inset` | bool | true | 접힘 판정 경계에만 쓴다(`popup::display`). 배치 경계의 Surface 범위 안쪽 여백은 범위 종류로 정하고 원격 행 팝업만 범위 사각형을 그대로 쓴다. 원격 행 팝업은 선언 하나(`remote_row`)이고, 열 때 정하는 덮음 값(`OpenRequest::covers_scope`)으로 범위를 덮는 모양(마지막 화면 위)과 덮지 않는 모양을 고른다 |
 | `focus_on_open` | bool | true | 없음. 포커스는 여는 쪽 `OpenRequest` 의 `focus` 와 요청 출처가 정한다. 값은 사용자가 여는 주 경로가 포커스를 주는지를 적었다. 포커스 없이 여는 `transfer_progress`·`download_run_progress`, 에이전트 요청으로만 열리는 `approval`, 원격 행 팝업 `remote_row` 가 false 다. `notifications` 는 true 지만 단축키로 열 때는 지금 포커스를 가져가지 않는다(사이드바 클릭과 열기 경로가 다르다) |
-| `keyboard` | None / Keys / Text | Keys | `None` 인지만 읽는다. `None` 인 팝업은 열거나 눌러도 키보드 포커스를 받지 않고 다른 팝업의 포커스도 바꾸지 않으며, 맨 앞으로 올라오지 않고 다른 팝업 아래에 그린다. Esc 주인(`topmost_visible_open`)도 되지 않는다. `Keys`·`Text` 의 차이는 읽지 않는다. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸, 창의 파일 선택도 이 정의의 인스턴스) |
+| `keyboard` | None / Keys / Text | Keys | 관리자는 `None` 인지만 읽는다. `None` 인 팝업은 열거나 눌러도 키보드 포커스를 받지 않고 다른 팝업의 포커스도 바꾸지 않으며, 맨 앞으로 올라오지 않고 다른 팝업 아래에 그린다. Esc 주인(`topmost_visible_open`)도 되지 않는다. 본문 키 통로(`PopupCx.keys`)는 `None` 이면 키를 주지 않는다. `Keys`·`Text` 의 차이는 그 통로의 소비 집합(`popup::keys`)만 읽는다. 글자를 편집하는 입력칸이 있는 팝업이 `Text` 다: `rename`·`search_bar`·`command_palette`·`port_scanner`·`dag_list`·`approval`·`remote_tool`·`file_picker`(저장 모드 이름 칸, 창의 파일 선택도 이 정의의 인스턴스) |
 | `escape` | Close / Unfocus / Ignore | Close | 없음. Esc 는 `draw_fn` 과 키 처리 경로가 처리한다. 포커스된 팝업에서 키 처리 경로는 포커스를 놓고 바깥 클릭에 닫히는 팝업이면 닫는다. 같은 키를 받은 `draw_fn` 이 팝업을 닫을 수 있다. 둘 다 닫지 않는 `explorer_conflict`·`explorer_properties`·`approval`·`transfer_progress`·`download_run_progress` 와 원격 행 팝업 `remote_row` 가 `Unfocus` 다. 하위 화면이 있는 팝업은 `Close` 지만 하위 화면에서는 첫 Esc 가 하위 화면만 닫는다(`dag_list` 상세 보기는 목록으로, `remote_tool` 양식은 앞 화면으로) |
 | `outside_click` | Close / Unfocus / Ignore | Unfocus | 바깥 클릭에 닫을지(`Close`) 포커스만 놓을지 |
 | `sticky_focus` | bool | false | 없음. 포커스 노드 판정이 읽지 않는다. 바깥 누름은 늘 포커스를 옮긴다([popup 설계](../design/systems/popup.md#sticky_focus)) |

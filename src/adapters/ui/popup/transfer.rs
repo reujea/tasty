@@ -398,7 +398,7 @@ pub fn draw_transfer_error(
     let download_run = matches!(head.kind, TransferErrorKind::DownloadRun { .. });
 
     // passive로 열린 실패 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
-    let keys = cx.focused;
+    let keys = cx.keys.receives();
     let esc = keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
     let mut dismiss = esc || (keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)));
     let mut retry = false;

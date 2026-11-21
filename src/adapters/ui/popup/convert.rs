@@ -157,7 +157,7 @@ pub fn draw_convert_popup(
     let popup::PopupPayload::Convert(target) = cx.payload else {
         return PopupAction::None;
     };
-    match draw_convert_content(ui, state, engine, target, cx.focused) {
+    match draw_convert_content(ui, state, engine, target, cx.keys.receives()) {
         Some(ConvertResult::Close) => PopupAction::CloseBy(popup::PopupCloseReason::Escape),
         Some(ConvertResult::Action(action)) => {
             apply_convert_action(state, engine, target.surface_id, action);

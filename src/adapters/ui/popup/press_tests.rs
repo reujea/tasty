@@ -119,7 +119,14 @@ fn press(
     };
     let mut result = None;
     drop(ctx.run(raw, |ctx| {
-        result = Some(mgr.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], Some(&routed)));
+        result = Some(mgr.draw_routed(
+            ctx,
+            &mut |_, _| {},
+            Some(&layout),
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            &[],
+            Some(&routed),
+        ));
     }));
     result.unwrap()
 }
@@ -517,7 +524,14 @@ fn a_press_on_a_dropdown_outside_its_parent_scope_focuses_the_parent_node() {
         ..Default::default()
     };
     drop(ctx.run(raw, |ctx| {
-        mgr.draw_routed(ctx, &mut |_, _| {}, Some(&layout), &[], Some(&routed));
+        mgr.draw_routed(
+            ctx,
+            &mut |_, _| {},
+            Some(&layout),
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            &[],
+            Some(&routed),
+        );
     }));
     assert_eq!(state(&mgr, l).map(|s| s.0), Some(false));
     assert_eq!(state(&mgr, r).map(|s| s.0), Some(true));

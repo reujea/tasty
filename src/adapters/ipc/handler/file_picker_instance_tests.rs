@@ -227,6 +227,12 @@ fn draw_two_pickers_with_key(key: egui::Key, keys: [bool; 2]) -> [&'static str; 
                         id: crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID,
                         instance: iids[i],
                         focused: keys[i],
+                        keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                            ui.ctx(),
+                            keys[i],
+                            crate::adapters::ui::popup::PopupKeyboard::Text,
+                            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                        ),
                         payload,
                     };
                     let action = crate::adapters::ui::popup::file_picker::draw_file_picker(

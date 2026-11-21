@@ -6,6 +6,9 @@ pub(crate) mod confirm_close_remote;
 pub(crate) mod confirm_delete_category;
 pub(crate) mod confirm_force_detach_workspace;
 pub(crate) mod convert;
+#[cfg(test)]
+#[path = "popup/cx_keys_tests.rs"]
+mod cx_keys_tests;
 pub(crate) mod dag_list;
 #[cfg(all(debug_assertions, feature = "gui"))]
 mod debug_view;
@@ -158,8 +161,11 @@ impl PopupInstanceId {
 pub struct PopupCx<'a> {
     pub id: PopupId,
     pub instance: PopupInstanceId,
-    /// 이 인스턴스가 이번 프레임을 시작할 때 키보드 포커스를 가졌는지.
+    /// 이 인스턴스가 이번 프레임 키 주인인지. 관리자가 본문 문(`takes_keys`)을 정할 때 읽는다. 본문 키 게이트는
+    /// `keys.receives()`를 쓴다.
     pub focused: bool,
+    /// 관리자가 넘긴 키 통로. 본문 문이 열렸고 선언 `keyboard`가 `None`이 아니면 `receives()`가 참이다.
+    pub keys: keys::PopupKeys,
     /// 인스턴스 데이터.
     pub payload: &'a mut PopupPayload,
 }

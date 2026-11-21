@@ -200,7 +200,7 @@ pub fn draw_info_modal(
 
     let dismiss_idx = buttons.len() - 1;
     // passive로 열린 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
-    let keys = cx.focused;
+    let keys = cx.keys.receives();
     let escape = keys && ctx.input(|i| i.key_pressed(egui::Key::Escape));
     let confirm = escape
         || out.clicked == Some(dismiss_idx)

@@ -93,7 +93,7 @@ pub fn draw_search_bar(
     let theme = crate::theme::theme();
 
     // 팝업의 focused 상태에 텍스트 필드 포커스를 맞춘다.
-    let want_focus = cx.focused;
+    let want_focus = cx.keys.receives();
     // 검색 대상은 인스턴스가 가진 surface다. 대상 없이 연 검색창만 포커스된 터미널을 찾는다.
     let target = match cx.payload {
         crate::adapters::ui::popup::PopupPayload::Search { surface_id } => *surface_id,

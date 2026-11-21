@@ -129,7 +129,7 @@ pub struct FilePickerProps<'a> {
     pub mode: FilePickerMode<'a>,
     /// 이 프레임에 Esc 를 소비할 자격이 있는가(docs/design/systems/popup.md).
     /// `false` 면 위에 다른 popup 이 있다는 뜻이라 Esc 를 무시한다 — 한 번의 Esc 로
-    /// 스택 전체가 닫히는 것을 막는다. 판정은 키 주인(`PopupCx::focused`)이다.
+    /// 스택 전체가 닫히는 것을 막는다. 판정은 관리자가 넘긴 키 통로(`PopupCx::keys`의 `receives()`)다.
     pub owns_escape: bool,
 
     // i18n — 호출처가 t() 로 미리 해상해서 전달(file_handler_picker.rs 관례).
@@ -638,8 +638,9 @@ pub fn draw_file_picker(
     }
 
     let th = theme::theme();
-    // 키 입력은 키 주인 인스턴스만 읽는다(`cx.focused`). 다른 범위의 피커는 같은 키에 취소·확정되지 않는다.
-    let owns_escape = cx.focused;
+    // 키 입력은 관리자가 키를 준 인스턴스만 읽는다(`cx.keys.receives()`). 다른 범위의 피커는 같은 키에 취소·확정되지
+    // 않는다.
+    let owns_escape = cx.keys.receives();
 
     let is_remote = data.mirror_ws_id.is_some();
     let crumb_targets = path_ancestors(is_remote, &data.current_dir);

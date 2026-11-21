@@ -113,8 +113,8 @@ pub fn draw_rename_popup(
         save_enabled,
         waiting: waiting.as_deref(),
         // 키 입력과 입력 포커스는 포커스를 가진 인스턴스만 가져간다. agent가 연 passive 인스턴스는 빼앗지 않는다.
-        autofocus: cx.focused,
-        keys: cx.focused,
+        autofocus: cx.keys.receives(),
+        keys: cx.keys.receives(),
     };
     let drawn = ui.scope(|ui| rename_popup(ui, &th, &view, &mut rename.buffer));
     let measured = Some(LogicalPx(drawn.response.rect.height()));
@@ -542,6 +542,12 @@ mod tests {
                                 id: "rename",
                                 instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                                 focused: false,
+                                keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                                    ctx,
+                                    false,
+                                    crate::adapters::ui::popup::PopupKeyboard::Text,
+                                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                                ),
                                 payload: &mut *payload,
                             },
                         );
@@ -622,6 +628,7 @@ mod tests {
                                     id: "rename",
                                     instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
                                     focused: focused[i],
+                                    keys: crate::adapters::ui::popup::keys::PopupKeys::new(ctx, focused[i], crate::adapters::ui::popup::PopupKeyboard::Text, &crate::adapters::ui::input::edit_key::EditBindings::default()),
                                     payload: &mut *payload,
                                 },
                             );

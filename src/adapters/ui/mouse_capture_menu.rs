@@ -218,7 +218,7 @@ pub fn draw_menu(
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     // 키 입력은 포커스를 가진 인스턴스만 읽는다. 다른 surface의 메뉴는 같은 Esc에 닫히지 않는다.
-    if cx.focused && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+    if cx.keys.receives() && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
         return PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape);
     }
     let Some(&MenuPayload {
@@ -375,6 +375,12 @@ mod tests {
             id: "test",
             instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
             focused,
+            keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                ui.ctx(),
+                focused,
+                crate::adapters::ui::popup::PopupKeyboard::Keys,
+                &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            ),
             payload: &mut payload,
         };
         draw_menu(ui, state, engine, &mut cx)

@@ -456,7 +456,7 @@ pub fn draw_approval_popup(
     let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(inner_rect));
     let ui = &mut child_ui;
 
-    let mut props = props_from_record(&record, &mut shown.comment, cx.focused);
+    let mut props = props_from_record(&record, &mut shown.comment, cx.keys.receives());
     let view_action = draw_approval_view(ui, &theme::theme(), &mut props);
 
     if let ApprovalViewAction::Chosen { key: choice_key } = view_action
