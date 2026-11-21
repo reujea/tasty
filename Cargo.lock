@@ -5975,6 +5975,7 @@ dependencies = [
  "tasty-settings",
  "tasty-ssh",
  "tasty-terminal",
+ "tasty-test-support",
  "tasty-tui-simulator",
  "tasty-utils",
  "tempfile",

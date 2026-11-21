@@ -69,28 +69,40 @@ fn builtin_arms() -> Vec<(String, BTreeSet<(String, String)>)> {
     arms
 }
 
-/// BUILTINS와 별개로 디스크의 플러그인 매니페스트에서 ID를 읽는다.
+/// 매니페스트 원문의 최상위 `id`.
+fn manifest_id(manifest: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(manifest).ok()?;
+    text.lines()
+        .find_map(|line| field(line.trim().replace(' ', "").as_str(), "id="))
+}
+
+/// BUILTINS와 별개로 디스크의 플러그인 매니페스트에서 ID를 읽는다. workspace 크레이트
+/// (`crates/tasty-plugin-*/`)와 공식 플러그인 픽스처의 합집합이고 같은 id면 픽스처를 쓴다.
+/// 픽스처의 크레이트 이름은 공식 플러그인 레포의 이름 규칙(`tasty-plugin-<id 접미>`)으로 정한다.
 fn manifest_specs() -> BTreeSet<(String, String)> {
+    let mut by_id = std::collections::BTreeMap::new();
     let crates = repo_root().join("crates");
-    let mut out = BTreeSet::new();
     let entries = std::fs::read_dir(&crates).expect("crates/ 를 읽지 못했다");
     for e in entries.flatten() {
         let dir = e.file_name().to_string_lossy().to_string();
         if !dir.starts_with(PLUGIN_CRATE_PREFIX) {
             continue;
         }
-        let manifest = e.path().join("tasty-plugin.toml");
-        let Ok(text) = std::fs::read_to_string(&manifest) else {
-            continue; // 매니페스트가 없는 라이브러리 크레이트는 번들 대상이 아니다
-        };
-        for line in text.lines() {
-            if let Some(v) = field(line.trim().replace(' ', "").as_str(), "id=") {
-                out.insert((v, dir.clone()));
-                break;
-            }
+        // 매니페스트가 없는 라이브러리 크레이트는 번들 대상이 아니다
+        if let Some(id) = manifest_id(&e.path().join("tasty-plugin.toml")) {
+            by_id.insert(id, dir);
         }
     }
-    out
+    let fixtures = tasty_test_support::official_plugin_fixtures_root();
+    let entries = std::fs::read_dir(&fixtures).expect("공식 플러그인 픽스처 폴더를 읽지 못했다");
+    for e in entries.flatten() {
+        let Some(id) = manifest_id(&e.path().join("tasty-plugin.toml")) else {
+            continue;
+        };
+        let suffix = id.strip_prefix(ID_PREFIX).unwrap_or(&id).to_string();
+        by_id.insert(id, format!("{PLUGIN_CRATE_PREFIX}{suffix}"));
+    }
+    by_id.into_iter().collect()
 }
 
 /// 지정한 머리글로 시작하는 표만 읽는다.

@@ -3,7 +3,7 @@
 //! 해당 경로를 지원하려면 먼저 실패 기록도 구현해야 한다. 번역된 최종 오류만 감싸면 영어 원본을 잃을 수 있다.
 //! 관련 검사는 hook_failure_reason_stays_english에 있다.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use tasty_cli::hook_failure::is_hook_method;
 use tasty_plugin_manifest::{CliSubcommandDecl, Manifest};
@@ -18,21 +18,12 @@ fn dispatch_without_recording(sub: &CliSubcommandDecl) -> Option<&'static str> {
     None
 }
 
+/// 번들 플러그인 매니페스트. 공식 플러그인은 잠금 파일 산출물의 픽스처를 읽는다.
 fn manifest_paths() -> Vec<PathBuf> {
-    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("crates");
-    assert!(crates.is_dir(), "crates/ 가 사라졌다: {}", crates.display());
-    let mut paths = Vec::new();
-    for entry in std::fs::read_dir(&crates)
-        .expect("crates/ 를 열 수 없다")
-        .flatten()
-    {
-        let manifest = entry.path().join("tasty-plugin.toml");
-        if manifest.is_file() {
-            paths.push(manifest);
-        }
-    }
-    paths.sort();
-    paths
+    tasty_test_support::bundled_plugin_manifest_dirs()
+        .into_iter()
+        .map(|dir| dir.join("tasty-plugin.toml"))
+        .collect()
 }
 
 /// 매니페스트·전체 하위 명령·hook 하위 명령의 수를 각각 확인한다.

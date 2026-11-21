@@ -6,8 +6,11 @@
 //!    (a) host_api_version, (b) protocol 크레이트 버전, (c) manifest_version,
 //!    (d) Cargo.lock의 epaint 버전, (e) `HEAD:vendor/epaint` 트리 id.
 //! 3. 집합: 호스트 `BUILTINS`의 id 집합(두 cfg 판 모두)과 `OFFICIAL_PLUGIN_IDS`가 잠금 파일 전체 id에
-//!    tasty에 남는 mesh-demo를 더한 집합과 같다. 지금 배포 스크립트가 고르는 집합(크레이트 매니페스트
-//!    중 `bundle = false`가 아닌 것)이 잠금 파일의 `bundle = true` 집합과 같다.
+//!    tasty에 남는 mesh-demo를 더한 집합과 같다.
+//! 4. 배포 집합: 배포 패키지 스크립트(`scripts/lib/bundled-plugins.sh`, `scripts/build-windows.ps1`)는
+//!    `fetch-official-plugins.sh`를 `--all` 없이 불러 잠금 파일의 `bundle = true` 항목만 받고, 개발 번들
+//!    (`scripts/stage-dev-plugins.sh`의 기본 경로)은 `--all`로 모두 받는다. 잠금 항목의 `bundle`과 매니페스트의
+//!    `bundle`이 같은지는 `official_plugin_fixtures.rs`가 픽스처 매니페스트로 본다.
 //!
 //! 한계: 계약 대조는 버전 값만 본다. 버전을 올리지 않은 protocol schema 변경은 잡지 못한다.
 //! tasty 릴리스 사이의 develop에서는 protocol 변경이 `CHANGELOG.md`의 `[Unreleased]`에만 쌓이고
@@ -15,14 +18,9 @@
 //! 뒤 편집 결과 회신(Hello `capabilities`, `EditOutcome`)이 버전 0.2.16 그대로 들어왔다. 추가 변형이라
 //! 옛 플러그인과 호환되지만, 호환이 아닌 변경도 같은 방식으로 지나갈 수 있다. 트리 id 비교(엄격안)를
 //! 쓰지 않은 이유와 대신 지키는 규칙은 docs/dev-guide/plugin-packaging.md의 "계약 호환 가드" 절이다.
-//!
-//! 배포 집합의 원천은 패키징이 잠금 파일을 읽게 바뀌고 플러그인 크레이트가 저장소를 떠나면 바꿔야
-//! 한다. 그때 크레이트 매니페스트가 사라지면 이 가드는 빈 집합으로 실패한다.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
-use tasty_doc_guards::floored_walk::{CountedOn, Floor, Pick, walk_dirs_with_floor};
 use tasty_doc_guards::official_plugins::{
     LOCK_FILE, Lock, REFRESH_HINT, check, contract_mismatches, parse_lock, read_host_contract,
 };
@@ -77,50 +75,19 @@ fn read(rel: &str) -> String {
         .unwrap_or_else(|e| panic!("{rel}를 읽지 못했다: {e}"))
 }
 
-/// `crates/` 바로 아래 디렉터리 순회의 하한. 하한은 방문한 디렉터리 수에 적용한다.
-const CRATES_DIR_FLOOR: Floor = Floor {
-    min: 50,
-    measured: 63,
-    measured_on: "2026-11-16",
-    counted_on: CountedOn::Tree(
-        "8b44acc6e — git ls-tree -d --name-only HEAD crates/ 로 센 crates 바로 아래 디렉터리 63개.",
-    ),
-    why_this_gap: "crates 바로 아래 디렉터리만 방문하고 그 아래로는 내려가지 않는다. 63개 중 tasty-plugin-* 는 14개이고 매니페스트가 있는 것은 9개다. 플러그인 크레이트가 공식 플러그인 레포로 한꺼번에 옮겨지는 경우(최대 9개 정도)를 허용해 하한을 50으로 정했다. 그보다 줄면 루트를 잘못 잡았거나 read_dir이 실패한 것이므로 재측정한다.",
-};
+/// 스크립트 원문에서 `fetch-official-plugins.sh`를 실행하는 줄. 주석 줄과 Windows 스크립트의 안내 문자열
+/// (`Write-Error`)은 실행이 아니라 뺀다.
+fn fetch_calls(rel: &str) -> Vec<String> {
+    fetch_calls_in(&read(rel))
+}
 
-/// 배포 스크립트(`scripts/build-linux.sh` 등)와 같은 판정: 매니페스트가 있고 `bundle = false`가 아닌
-/// 플러그인 크레이트. id는 매니페스트 최상위 `id`다.
-fn shipped_ids(root: &Path) -> BTreeSet<String> {
-    let crates = walk_dirs_with_floor(&root.join("crates"), root, &CRATES_DIR_FLOOR, &|_| {
-        Pick::TakeAndStop
-    })
-    .unwrap_or_else(|why| panic!("{why}"));
-    let mut ids = BTreeSet::new();
-    for krate in crates {
-        let name = krate
-            .path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        if !name.starts_with("tasty-plugin-") {
-            continue;
-        }
-        let Ok(text) = std::fs::read_to_string(krate.path.join("tasty-plugin.toml")) else {
-            continue;
-        };
-        let unbundled = text.lines().any(|l| {
-            let t: String = l.chars().filter(|c| !c.is_whitespace()).collect();
-            t == "bundle=false" || t.starts_with("bundle=false#")
-        });
-        if unbundled {
-            continue;
-        }
-        let id = tasty_doc_guards::official_plugins::manifest_top_level_str(&text, "id")
-            .unwrap_or_else(|| panic!("{name}/tasty-plugin.toml에서 id를 읽지 못했다"));
-        ids.insert(id);
-    }
-    ids
+fn fetch_calls_in(text: &str) -> Vec<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| l.contains("fetch-official-plugins.sh"))
+        .filter(|l| !l.starts_with('#') && !l.starts_with("Write-Error"))
+        .map(String::from)
+        .collect()
 }
 
 #[test]
@@ -181,20 +148,41 @@ fn builtins_are_the_locked_plugins_plus_mesh_demo() {
     );
 }
 
+/// 배포 패키지는 잠금 파일의 `bundle = true` 항목만 싣고 개발 번들은 모두 싣는다. 받을 집합은
+/// `fetch-official-plugins.sh`가 잠금 파일에서 고르므로 호출 옵션 `--all` 유무가 배포 집합을 정한다.
 #[test]
-fn the_shipped_set_is_the_bundled_lock_entries() {
-    let lock = lock();
-    let bundled: BTreeSet<String> = lock
-        .plugins
-        .iter()
-        .filter(|p| p.bundle)
-        .map(|p| p.id.clone())
-        .collect();
-    let shipped = shipped_ids(&repo_root());
+fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() {
+    for rel in [
+        "scripts/lib/bundled-plugins.sh",
+        "scripts/build-windows.ps1",
+    ] {
+        let calls = fetch_calls(rel);
+        assert!(!calls.is_empty(), "{rel}에서 fetch 호출을 찾지 못했다");
+        for call in &calls {
+            assert!(
+                !call.split_whitespace().any(|w| w == "--all"),
+                "{rel}의 배포 fetch가 --all 로 bundle = false 항목까지 싣는다: {call}"
+            );
+        }
+    }
+    let staging = fetch_calls("scripts/stage-dev-plugins.sh");
+    assert!(
+        staging
+            .iter()
+            .any(|c| c.split_whitespace().any(|w| w == "--all")),
+        "scripts/stage-dev-plugins.sh 기본 경로가 --all 로 받지 않는다: {staging:?}"
+    );
+}
+
+#[test]
+fn the_fetch_call_reader_skips_comments_and_messages() {
+    let text = "# fetch-official-plugins.sh --all 은 설명이다\n\
+                Write-Error \"Install Git to run scripts/fetch-official-plugins.sh.\"\n\
+                    bash scripts/fetch-official-plugins.sh --platform x --out y --all\n\
+                echo done\n";
     assert_eq!(
-        shipped, bundled,
-        "배포 스크립트가 고르는 플러그인(crates/tasty-plugin-*/tasty-plugin.toml 중 bundle = false가 아닌 것)과 \
-         잠금 파일의 bundle = true 집합이 다르다"
+        fetch_calls_in(text),
+        ["bash scripts/fetch-official-plugins.sh --platform x --out y --all"]
     );
 }
 

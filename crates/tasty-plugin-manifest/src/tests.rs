@@ -794,7 +794,7 @@ fn lang_dir_custom() {
 fn bundled_image_plugin_manifest_validates() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("tasty-plugin-image");
+        .join("tasty-test-support/fixtures/official-plugins/com.tasty.image");
     let m = Manifest::load(&path).expect("image plugin manifest should load");
     assert_eq!(m.id, "com.tasty.image");
     assert_eq!(m.surface_kinds.len(), 1);
@@ -815,7 +815,7 @@ fn bundled_image_plugin_manifest_validates() {
 fn bundled_claude_plugin_manifest_validates() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("tasty-plugin-claude");
+        .join("tasty-test-support/fixtures/official-plugins/com.tasty.claude");
     let m = Manifest::load(&path).expect("claude plugin manifest should load");
     assert_eq!(m.id, "com.tasty.claude");
     // Claude Code 세션 변수는 Claude 플러그인이 선언한다. 사용자 설정은 선언하지 않는다.
@@ -849,7 +849,7 @@ fn bundled_claude_plugin_manifest_validates() {
 fn bundled_codex_plugin_manifest_validates() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("tasty-plugin-codex");
+        .join("tasty-test-support/fixtures/official-plugins/com.tasty.codex");
     let m = Manifest::load(&path).expect("codex plugin manifest should load");
     assert_eq!(m.id, "com.tasty.codex");
     // 대화마다 바뀌는 thread ID만 지우고 사용자 설정 CODEX_HOME은 남긴다.
@@ -878,7 +878,7 @@ fn bundled_codex_plugin_manifest_validates() {
 fn bundled_claude_requires_the_codex_caller_context() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("tasty-plugin-claude");
+        .join("tasty-test-support/fixtures/official-plugins/com.tasty.claude");
     let m = Manifest::load(&path).expect("claude plugin manifest should load");
     assert_eq!(m.contributes.requires_caller_context, ["codex"]);
     assert!(m.contributes.caller_context.is_empty());
@@ -2547,7 +2547,9 @@ fn window_contribute_id_format_validated() {
 #[test]
 fn example_markdown_plugin_manifest_parses() {
     // 실제 번들 Markdown 매니페스트의 호환성을 검사한다.
-    let text = include_str!("../../tasty-plugin-markdown/tasty-plugin.toml");
+    let text = include_str!(
+        "../../tasty-test-support/fixtures/official-plugins/com.tasty.markdown/tasty-plugin.toml"
+    );
     let m = parse(text).expect("example markdown manifest should parse and validate");
     assert_eq!(m.id, "com.tasty.markdown");
     assert_eq!(m.surface_kinds.len(), 1);

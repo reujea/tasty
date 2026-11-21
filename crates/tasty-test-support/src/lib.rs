@@ -113,10 +113,53 @@ impl Default for IsolatedHome {
 /// 잠금 파일(`official-plugins.lock.toml`)이 가리키는 공식 플러그인 릴리스 산출물의 매니페스트·번역 원문 폴더.
 /// 호스트 계약 시험이 공식 매니페스트를 읽을 때 입력으로 쓴다. 갱신은 `scripts/sync-official-plugin-fixtures.sh`가 한다.
 pub fn official_plugin_dir(id: &str) -> std::path::PathBuf {
+    official_plugin_fixtures_root().join(id)
+}
+
+/// 공식 플러그인 픽스처 폴더들이 있는 루트(`fixtures/official-plugins`).
+pub fn official_plugin_fixtures_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")
         .join("official-plugins")
-        .join(id)
+}
+
+/// 호스트 시험이 보는 번들 플러그인 매니페스트 폴더. workspace 크레이트 바로 아래의
+/// `tasty-plugin.toml` 폴더와 공식 플러그인 픽스처 폴더의 합집합이다. 같은 id가 둘 다에 있으면
+/// 픽스처 쪽을 남긴다(공식 플러그인의 계약은 잠금 파일이 가리키는 릴리스 산출물이다). id 순으로 돌려준다.
+///
+/// # Panics
+///
+/// 폴더를 읽지 못하거나 매니페스트를 읽지 못하면 panic한다.
+pub fn bundled_plugin_manifest_dirs() -> Vec<std::path::PathBuf> {
+    fn manifest_dirs_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let mut dirs: Vec<_> = std::fs::read_dir(root)
+            .unwrap_or_else(|e| panic!("{} 를 읽지 못했다: {e}", root.display()))
+            .map(|e| {
+                e.unwrap_or_else(|e| panic!("{} 항목을 읽지 못했다: {e}", root.display()))
+                    .path()
+            })
+            .filter(|dir| dir.join("tasty-plugin.toml").is_file())
+            .collect();
+        dirs.sort();
+        dirs
+    }
+    let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut by_id = std::collections::BTreeMap::new();
+    let fixtures = manifest_dirs_under(&official_plugin_fixtures_root());
+    let workspace = manifest_dirs_under(&here.join(".."));
+    for (dir, from_fixture) in workspace
+        .into_iter()
+        .map(|d| (d, false))
+        .chain(fixtures.into_iter().map(|d| (d, true)))
+    {
+        let id = tasty_plugin_manifest::Manifest::load(&dir)
+            .unwrap_or_else(|e| panic!("{} 매니페스트를 읽지 못했다: {e}", dir.display()))
+            .id;
+        if from_fixture || !by_id.contains_key(&id) {
+            by_id.insert(id, dir);
+        }
+    }
+    by_id.into_values().collect()
 }
 
 /// 플랫폼에 맞는 시험용 절대경로. tmp/exp는 Unix의 /tmp/exp, Windows의 C:\tmp\exp가 된다.
@@ -239,12 +282,11 @@ pub mod strip_env_keys {
 
     /// 번들 Claude·Codex 매니페스트의 제거 선언. 키는 매니페스트 id 다.
     pub fn bundled_plugin_rules() -> BTreeMap<String, InheritedEnvRules> {
-        let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-        ["tasty-plugin-claude", "tasty-plugin-codex"]
+        ["com.tasty.claude", "com.tasty.codex"]
             .into_iter()
-            .map(|dir| {
-                let m = tasty_plugin_manifest::Manifest::load(&crates.join(dir))
-                    .unwrap_or_else(|e| panic!("{dir} 매니페스트를 읽지 못했다: {e}"));
+            .map(|id| {
+                let m = tasty_plugin_manifest::Manifest::load(&crate::official_plugin_dir(id))
+                    .unwrap_or_else(|e| panic!("{id} 매니페스트를 읽지 못했다: {e}"));
                 (m.id, m.contributes.strip_inherited_env.to_rules())
             })
             .collect()

@@ -398,10 +398,8 @@ fn owner_id_for(m: &tasty_plugin_manifest::Manifest) -> &str {
         .unwrap_or(m.id.as_str())
 }
 
-fn install_bundled_manifest_strategies(plugin_dir: &str) -> (CompletionStrategyRegistry, String) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("crates")
-        .join(plugin_dir);
+fn install_bundled_manifest_strategies(plugin_id: &str) -> (CompletionStrategyRegistry, String) {
+    let path = tasty_test_support::official_plugin_dir(plugin_id);
     let m = tasty_plugin_manifest::Manifest::load(&path).expect("bundled manifest should load");
     let owner_id = owner_id_for(&m).to_string();
     let decls: Vec<CompletionStrategyDecl> = m
@@ -414,7 +412,7 @@ fn install_bundled_manifest_strategies(plugin_dir: &str) -> (CompletionStrategyR
         .collect();
     assert!(
         !decls.is_empty(),
-        "{plugin_dir} manifest should declare at least one completion strategy"
+        "{plugin_id} manifest should declare at least one completion strategy"
     );
     let reg = CompletionStrategyRegistry::new();
     reg.install_plugin_strategies(&owner_id, &decls);
@@ -423,7 +421,7 @@ fn install_bundled_manifest_strategies(plugin_dir: &str) -> (CompletionStrategyR
 
 #[test]
 fn bundled_claude_manifest_spawn_default_strategy_resolves() {
-    let (reg, owner_id) = install_bundled_manifest_strategies("tasty-plugin-claude");
+    let (reg, owner_id) = install_bundled_manifest_strategies("com.tasty.claude");
     assert_eq!(owner_id, "claude");
     let winner = reg
         .resolve_default_for_method("claude.spawn")
@@ -436,7 +434,7 @@ fn bundled_claude_manifest_spawn_default_strategy_resolves() {
 
 #[test]
 fn bundled_codex_manifest_spawn_default_strategy_resolves() {
-    let (reg, owner_id) = install_bundled_manifest_strategies("tasty-plugin-codex");
+    let (reg, owner_id) = install_bundled_manifest_strategies("com.tasty.codex");
     assert_eq!(owner_id, "codex");
     let winner = reg
         .resolve_default_for_method("codex.spawn")
@@ -450,7 +448,7 @@ fn bundled_codex_manifest_spawn_default_strategy_resolves() {
 /// tell의 기본 전략이 빠지면 자식 완료를 기다리지 않고 다음 작업을 시작할 수 있다.
 #[test]
 fn bundled_claude_manifest_tell_default_strategy_resolves() {
-    let (reg, owner_id) = install_bundled_manifest_strategies("tasty-plugin-claude");
+    let (reg, owner_id) = install_bundled_manifest_strategies("com.tasty.claude");
     assert_eq!(owner_id, "claude");
     let winner = reg
         .resolve_default_for_method("claude.tell")
@@ -471,11 +469,11 @@ fn bundled_claude_manifest_tell_default_strategy_resolves() {
 /// 자식 종료는 실패로 분류해 후속 작업이 성공 산출물을 기대하지 않게 한다.
 #[test]
 fn bundled_manifests_classify_exited_as_failure() {
-    for (plugin_dir, methods) in [
-        ("tasty-plugin-claude", ["claude.spawn", "claude.tell"]),
-        ("tasty-plugin-codex", ["codex.spawn", "codex.tell"]),
+    for (plugin_id, methods) in [
+        ("com.tasty.claude", ["claude.spawn", "claude.tell"]),
+        ("com.tasty.codex", ["codex.spawn", "codex.tell"]),
     ] {
-        let (reg, _) = install_bundled_manifest_strategies(plugin_dir);
+        let (reg, _) = install_bundled_manifest_strategies(plugin_id);
         for method in methods {
             let winner = reg
                 .resolve_default_for_method(method)
@@ -504,7 +502,7 @@ fn bundled_manifests_classify_exited_as_failure() {
 /// Claude의 needs_input은 성공 상태로 취급하는 현재 정책을 확인한다.
 #[test]
 fn bundled_claude_manifest_keeps_needs_input_as_success() {
-    let (reg, _) = install_bundled_manifest_strategies("tasty-plugin-claude");
+    let (reg, _) = install_bundled_manifest_strategies("com.tasty.claude");
     for method in ["claude.spawn", "claude.tell"] {
         let winner = reg.resolve_default_for_method(method).expect("resolves");
         match winner.kind {
@@ -526,7 +524,7 @@ fn bundled_claude_manifest_keeps_needs_input_as_success() {
 /// Codex는 폴링 대상 인자로 surface를 사용한다.
 #[test]
 fn bundled_codex_manifest_tell_default_strategy_maps_surface_key() {
-    let (reg, _) = install_bundled_manifest_strategies("tasty-plugin-codex");
+    let (reg, _) = install_bundled_manifest_strategies("com.tasty.codex");
     let winner = reg
         .resolve_default_for_method("codex.tell")
         .expect("codex.tell should resolve a default completion strategy");

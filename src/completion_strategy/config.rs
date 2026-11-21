@@ -177,11 +177,8 @@ mod tests {
         completion_strategy: Vec<CompletionStrategyDecl>,
     }
 
-    fn load_bundled_completion_strategies(plugin_crate: &str) -> Vec<CompletionStrategyDecl> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("crates")
-            .join(plugin_crate)
-            .join("tasty-plugin.toml");
+    fn load_bundled_completion_strategies(plugin_id: &str) -> Vec<CompletionStrategyDecl> {
+        let path = tasty_test_support::official_plugin_dir(plugin_id).join("tasty-plugin.toml");
         let s = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{} read 실패: {e}", path.display()));
         let parsed: BundledManifestProbe =
@@ -203,7 +200,7 @@ mod tests {
     /// spawn 응답의 child_surface_id를 claude.state의 surface_id로 넘겨야 한다.
     #[test]
     fn claude_spawn_wait_manifest_maps_child_surface_id_to_surface_id() {
-        let strategies = load_bundled_completion_strategies("tasty-plugin-claude");
+        let strategies = load_bundled_completion_strategies("com.tasty.claude");
         let decl = spawn_wait_poll_decl(&strategies);
         assert_eq!(
             decl.map_from_response
@@ -216,7 +213,7 @@ mod tests {
     /// codex.state는 claude와 달리 대상 인자 이름이 surface다.
     #[test]
     fn codex_spawn_wait_manifest_maps_child_surface_id_to_surface() {
-        let strategies = load_bundled_completion_strategies("tasty-plugin-codex");
+        let strategies = load_bundled_completion_strategies("com.tasty.codex");
         let decl = spawn_wait_poll_decl(&strategies);
         assert_eq!(
             decl.map_from_response

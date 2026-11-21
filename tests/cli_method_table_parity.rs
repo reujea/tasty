@@ -374,8 +374,7 @@ fn cli_reachable_methods(root: &Path) -> std::collections::BTreeSet<String> {
         }
     }
 
-    let mut manifests = Vec::new();
-    collect_manifests(&root.join("crates"), &mut manifests);
+    let manifests = bundled_manifests();
     for path in &manifests {
         let Ok(src) = std::fs::read_to_string(path) else {
             continue;
@@ -401,19 +400,13 @@ fn cli_reachable_methods(root: &Path) -> std::collections::BTreeSet<String> {
     out
 }
 
-/// 크레이트 바로 아래(`crates/<크레이트>/tasty-plugin.toml`)의 매니페스트만 모은다.
-/// 더 깊은 곳의 매니페스트(시험 픽스처 등)는 이 workspace가 빌드하는 플러그인이 아니다.
-fn collect_manifests(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let manifest = entry.path().join("tasty-plugin.toml");
-        if manifest.is_file() {
-            out.push(manifest);
-        }
-    }
-    out.sort();
+/// 번들 플러그인 매니페스트. 크레이트 바로 아래(`crates/<크레이트>/tasty-plugin.toml`)와 공식
+/// 플러그인 픽스처의 합집합이고 같은 id면 픽스처를 쓴다. 더 깊은 곳의 매니페스트(빌드 폴더 등)는 보지 않는다.
+fn bundled_manifests() -> Vec<PathBuf> {
+    tasty_test_support::bundled_plugin_manifest_dirs()
+        .into_iter()
+        .map(|dir| dir.join("tasty-plugin.toml"))
+        .collect()
 }
 
 fn table_rows(text: &str, header: &str) -> Vec<Vec<String>> {
@@ -576,8 +569,7 @@ fn top_level_commands(root: &Path) -> std::collections::BTreeSet<String> {
             break;
         }
     }
-    let mut manifests = Vec::new();
-    collect_manifests(&root.join("crates"), &mut manifests);
+    let manifests = bundled_manifests();
     for path in manifests {
         let manifest: toml::Value = std::fs::read_to_string(&path)
             .expect("plugin manifest readable")

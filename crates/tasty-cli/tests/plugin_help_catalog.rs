@@ -1,37 +1,19 @@
 //! Bundled manifest text, translation keys, and shipped catalogs move together.
-use std::path::Path;
-use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, walk_with_floor};
+
+/// 번들 플러그인 매니페스트 수의 하한. 공식 플러그인 8개(픽스처)와 workspace의 mesh-demo다.
+/// 구성원을 빼는 것은 명시적인 제품 변경이라 설명 없는 감소를 받지 않는다.
+const BUNDLED_MANIFESTS_FLOOR: usize = 9;
 
 #[test]
 fn every_bundled_cli_description_and_argument_has_a_catalog_key() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let mut slots = 0;
-    let floor = Floor {
-        min: 9,
-        measured: 9,
-        measured_on: "2026-09-15",
-        counted_on: CountedOn::Tree(
-            "4d307aeb3 — 이 lane 의 tip 은 체리픽으로 main에 반영되며 사라졌다. 반영된 트리에서 다시 셌고 \
-             값은 9 로 같다.",
-        ),
-        why_this_gap: "Each bundled plugin has one manifest directly under its crate. Removing a member is an explicit product change, so no unexplained decrease is accepted.",
-    };
-    let manifests = walk_with_floor(
-        root,
-        root,
-        &floor,
-        Descend::SkipBuildCachesAndDotDirs,
-        &|entry| {
-            entry
-                .path
-                .file_name()
-                .is_some_and(|name| name == "tasty-plugin.toml")
-                && entry.path.parent().and_then(Path::parent) == Some(root)
-        },
-    )
-    .unwrap();
-    for entry in manifests {
-        let dir = entry.path.parent().unwrap();
+    let manifests = tasty_test_support::bundled_plugin_manifest_dirs();
+    assert!(
+        manifests.len() >= BUNDLED_MANIFESTS_FLOOR,
+        "번들 매니페스트가 {}개로 하한 {BUNDLED_MANIFESTS_FLOOR}보다 적다: {manifests:?}",
+        manifests.len()
+    );
+    for dir in &manifests {
         let manifest = tasty_plugin_manifest::Manifest::load(dir).unwrap();
         let catalogs: Vec<_> = tasty_i18n::BUILTIN_CODES
             .iter()

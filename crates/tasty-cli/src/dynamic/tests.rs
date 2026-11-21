@@ -677,7 +677,8 @@ subcommands = [
 /// 실제 매니페스트가 실패 종류를 받을 stdin_field를 선언했는지 확인한다.
 #[test]
 fn claude_hook_args_carry_the_stop_failure_error_from_stdin() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tasty-plugin-claude");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tasty-test-support/fixtures/official-plugins/com.tasty.claude");
     let manifest =
         tasty_plugin_manifest::Manifest::load(&dir).expect("claude manifest should load");
     let cli = manifest
@@ -711,7 +712,8 @@ fn claude_hook_args_carry_the_stop_failure_error_from_stdin() {
 /// plugin 은 background_tasks 배열의 항목 status 로 백그라운드 대기 Stop 을 가린다.
 #[test]
 fn claude_hook_args_carry_background_work_fields_from_stdin_unchanged() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tasty-plugin-claude");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tasty-test-support/fixtures/official-plugins/com.tasty.claude");
     let manifest =
         tasty_plugin_manifest::Manifest::load(&dir).expect("claude manifest should load");
     let cli = manifest
@@ -954,13 +956,14 @@ fn only_a_method_that_declares_the_child_table_gets_it() {
 /// 표 분기는 매니페스트 선언을 지나므로 번들 플러그인의 선언이 빠지면 JSON 으로 돌아간다.
 #[test]
 fn bundled_children_commands_declare_the_child_table_and_the_format_flag() {
-    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tasty-test-support/fixtures/official-plugins");
     for (plugin, method) in [
-        ("tasty-plugin-claude", "claude.children"),
-        ("tasty-plugin-codex", "codex.children"),
+        ("com.tasty.claude", "claude.children"),
+        ("com.tasty.codex", "codex.children"),
     ] {
         let manifest =
-            tasty_plugin_manifest::Manifest::load(&crates.join(plugin)).expect("manifest");
+            tasty_plugin_manifest::Manifest::load(&fixtures.join(plugin)).expect("manifest");
         let cli = &manifest.contributes.cli[0];
         let sub = cli
             .subcommands

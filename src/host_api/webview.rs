@@ -387,7 +387,7 @@ mod settings_resolve_tests {
     #[test]
     fn bundled_html_and_markdown_keep_their_defaults() {
         let html = bundled_source(include_str!(
-            "../../crates/tasty-plugin-html/tasty-plugin.toml"
+            "../../crates/tasty-test-support/fixtures/official-plugins/com.tasty.html/tasty-plugin.toml"
         ));
         assert_eq!(html.plugin_id, "com.tasty.html");
         assert_eq!(
@@ -400,7 +400,7 @@ mod settings_resolve_tests {
             }
         );
         let markdown = bundled_source(include_str!(
-            "../../crates/tasty-plugin-markdown/tasty-plugin.toml"
+            "../../crates/tasty-test-support/fixtures/official-plugins/com.tasty.markdown/tasty-plugin.toml"
         ));
         assert_eq!(markdown.plugin_id, "com.tasty.markdown");
         assert_eq!(

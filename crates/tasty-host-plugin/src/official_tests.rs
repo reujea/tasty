@@ -67,21 +67,15 @@ fn bundled_ids_of_every_os_are_official() {
     }
 }
 
-/// 이 레포가 내는 플러그인 매니페스트의 id는 모두 공식 목록에 있어야 설치된다.
+/// 번들 플러그인 매니페스트(workspace와 공식 플러그인 픽스처)의 id는 모두 공식 목록에 있어야 설치된다.
 #[test]
 fn repository_plugin_manifests_are_official() {
-    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let mut seen = 0;
-    for entry in std::fs::read_dir(&crates).expect("crates dir").flatten() {
-        let dir = entry.path();
-        if !dir.join("tasty-plugin.toml").is_file() {
-            continue;
-        }
-        let manifest = tasty_plugin_manifest::Manifest::load(&dir).expect("manifest");
+    let dirs = tasty_test_support::bundled_plugin_manifest_dirs();
+    for dir in &dirs {
+        let manifest = tasty_plugin_manifest::Manifest::load(dir).expect("manifest");
         assert_eq!(admit_plugin_id(&manifest.id), Ok(()), "{}", dir.display());
-        seen += 1;
     }
-    assert_eq!(seen, 9, "plugin manifests under crates/");
+    assert_eq!(dirs.len(), 9, "bundled plugin manifests: {dirs:?}");
 }
 
 #[test]

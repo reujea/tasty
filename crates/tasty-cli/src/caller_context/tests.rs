@@ -283,7 +283,8 @@ fn the_reserved_key_cannot_come_from_arguments() {
 
 #[test]
 fn bundled_codex_declaration_keeps_the_previous_contract() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tasty-plugin-codex");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tasty-test-support/fixtures/official-plugins/com.tasty.codex");
     let manifest = tasty_plugin_manifest::Manifest::load(&dir).expect("codex manifest");
     let sources: Vec<_> = manifest
         .contributes

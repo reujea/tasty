@@ -19,8 +19,7 @@ fn selected_plugin_folder_runs_existing_validation_and_cancel_preserves_input() 
     assert!(matches!(state.add_error, Some(AddError::Read(_))));
     assert!(state.add_preview.is_none());
     std::fs::copy(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("crates/tasty-plugin-image/tasty-plugin.toml"),
+        tasty_test_support::official_plugin_dir("com.tasty.image").join("tasty-plugin.toml"),
         directory.path().join("tasty-plugin.toml"),
     )
     .unwrap();
@@ -50,8 +49,7 @@ fn an_unknown_reserved_id_shows_the_invalid_box_without_a_preview() {
     let mut state = PluginsUiState::default();
     let snapshot = PluginsSnapshot::default();
     let image = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("crates/tasty-plugin-image/tasty-plugin.toml"),
+        tasty_test_support::official_plugin_dir("com.tasty.image").join("tasty-plugin.toml"),
     )
     .unwrap();
     std::fs::write(

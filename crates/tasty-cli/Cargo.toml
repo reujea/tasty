@@ -38,6 +38,8 @@ tempfile = "3"
 # dev 전용이라 산출물·의존 폐포에 안 들어간다(plugin version gate 와 층 가드는
 # 둘 다 `[dev-dependencies]` 를 보지 않는다). 그 크레이트 자신은 의존 0 이다.
 tasty-doc-guards = { path = "../tasty-doc-guards" }
+# 번들 플러그인 매니페스트(공식 플러그인 픽스처 포함)를 시험에서 읽는다.
+tasty-test-support = { path = "../tasty-test-support" }
 
 [lints]
 workspace = true
