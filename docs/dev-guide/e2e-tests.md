@@ -501,7 +501,7 @@ E2E 와 달리 **GUI surface 없이** 도는 결정적 회귀 가드. `crates/ta
 - **ratatui 금지** — raw escape 직접 출력해야 "터미널이 시퀀스를 올바로 해석하는가"를 검증할 수 있다.
 - 디버그 IPC 는 release 에 없다 — E2E 는 debug 빌드 전용.
 - **shell ZLE/readline 함정**: E2E 하네스는 격리 config 에 `shell = "/bin/sh"` 를 박고 `SHELL` 을 지우지만(`tests/common/mod.rs`), 셸을 직접 띄운 surface 나 수동 검증 인스턴스는 사용자 로그인 셸을 쓴다(`GeneralSettings::detect_shell`). `Alt+X`(execute-named-cmd), `Ctrl+R`(history-search), `Ctrl+X Ctrl+E`(edit-command-line) 등은 prompt 를 바꿔 후속 명령을 오염시킨다. shell-disruptive 키는 별도 임시 surface 에서 보내고 닫거나, `Ctrl+G`(abort)로 reset 후 진행. 증상: stripped 출력에 글자 사이 `_` 나 BEL 다수면 ZLE incremental 모드에 갇힌 것.
-- **시스템 rc의 OSC 제목 함정**: Tasty는 하네스의 `/bin/sh`를 `-li`(login)로 띄운다. `/bin/sh`가 bash인 배포판(Fedora)에서는 `/etc/profile`이 `/etc/bashrc`를 읽고, 그 `PROMPT_COMMAND`가 OSC 0 제목을 보낸다. 탭 표시 이름은 OSC 제목이 cwd보다 우선하므로, 탭 이름이나 제목을 단언하는 시험은 시작 스크립트를 읽지 않는 셸로 띄우고 제목이 오지 않았는지 먼저 확인한다(`an_osc7_cwd_becomes_the_tab_name`의 래퍼 `sh` 참고).
+- **시스템 rc의 OSC 제목 함정**: Windows가 아니면 Tasty는 하네스의 `/bin/sh`를 `-li`(login)로 띄운다. login 셸이 읽는 시스템 시작 스크립트가 OSC 0 제목을 보내는 배포판이 있다. Fedora는 `/bin/sh`가 bash이고, `/etc/profile`이 `/etc/bashrc`를 읽어 조건이 맞으면 OSC 0 제목을 보내는 `PROMPT_COMMAND`를 설정한다. 탭 표시 이름은 OSC 제목이 cwd보다 우선하므로, 탭 이름이나 제목을 단언하는 시험은 시작 스크립트를 읽지 않는 셸로 띄우고 제목이 오지 않았는지 먼저 확인한다(`an_osc7_cwd_becomes_the_tab_name`의 래퍼 `sh` 참고).
 
 ## 관련
 
