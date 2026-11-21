@@ -35,7 +35,7 @@
 
 ## 라벨 글꼴의 언어 집합
 
-`font-label`이 UI sans를 읽는 언어(`ja`, `zh`)는 디자인 정본 `vendor/tokens/base.css`의 `:lang()` 규칙과 `crates/tasty-ui-widgets/src/label_font.rs`의 상수 두 곳에 있다. 내장 언어 목록의 부분 집합이므로 `BUILTIN_CODES`와 같은 집합인지 보는 `tests/i18n_language_lists.rs`에는 넣지 않는다. 대조는 `label_font_languages_match_the_design_source`가 한다.
+`font-label`이 UI sans를 읽는 언어(`ja`, `zh`)는 디자인 정본 `vendor/tokens/base.css`의 `:lang()` 규칙과 `crates/tasty-ui-widgets/src/label_font.rs`의 상수 두 곳에 있다. 내장 언어 목록의 부분 집합이므로 `BUILTIN_CODES`와 같은 집합을 요구하는 언어 목록 대조에는 넣지 않는다. 대조는 `label_font_languages_match_the_design_source`가 한다.
 
 조회는 언어 코드만 받고 `BUILTIN_CODES`를 읽지 않으므로 언어를 등록해도 이 코드를 고치지 않는다. 대신 `a_language_the_mono_face_cannot_hold_reads_the_ui_font`가 내장 목록을 돌며, 카탈로그에 D2Coding에 없는 글자가 있는데 라벨이 고정폭인 언어를 찾는다.
 

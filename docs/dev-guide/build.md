@@ -13,8 +13,8 @@ workspace는 본 바이너리(`src/`)와 `crates/*`로 구성한다. 전체 목�
 |--------|-----|------|
 | **type-\*** primitive | `tasty-type-geometry`(길이), `tasty-type-appearance`(색·theme schema) | 최하위 schema/primitive |
 | 도메인 leaf (GUI-free) | `tasty-model`, `tasty-i18n`, `tasty-settings`, `tasty-themes`, `tasty-terminal`, `tasty-memory`, `tasty-hooks`, `tasty-ipc`, `tasty-ssh`, `tasty-remote`, `tasty-portscan` 등 | 공용 도메인·IO |
-| plugin 인프라 | `tasty-plugin-protocol`, `tasty-plugin-sdk`, `tasty-plugin-manifest`, `tasty-host-plugin`, `tasty-plugin-agent-common` | 호스트↔plugin 와이어·SDK·번들 plugin 공용 헬퍼 |
-| 번들 plugin | `tasty-plugin-{claude,codex,image,html,markdown,git-viewer,clipboard-viewer,mesh-demo,agent-stream}` | → [`../plugins/`](../plugins/index.md) |
+| plugin 인프라 | `tasty-plugin-protocol`, `tasty-plugin-sdk`, `tasty-plugin-manifest`, `tasty-host-plugin` | 호스트↔plugin 와이어·SDK·매니페스트 |
+| 번들 plugin | `tasty-plugin-mesh-demo` | 공식 플러그인 8개는 [공식 플러그인 레포](https://github.com/zilhak/tasty-official-plugins)에서 빌드하고 잠금 파일로 받는다. → [`../plugins/`](../plugins/index.md) |
 | CLI / 테스트 | `tasty-cli`, `tasty-tui-simulator` | |
 
 본 바이너리는 각 크레이트를 재수출해 `crate::model::X` / `crate::theme::theme()` 같은 경로가 그대로 동작한다.
@@ -93,13 +93,11 @@ Windows 에서 GUI 서브시스템(`windows_subsystem = "windows"`)은 release �
 그래서 헤드리스판과 debug 빌드는 콘솔 서브시스템이며, 콘솔에서 실행하면 셸이 종료를 기다리고 출력과 종료 코드를 받는다.
 부모 콘솔에 붙는 `src/boot/os.rs` 의 `attach_windows_console_if_needed` 도 같은 조합에서만 동작한다. 콘솔 서브시스템을 고른 이유는 [릴리스 절차](release.md).
 
-#### Linux 시험 빌드의 시스템 라이브러리
+#### Linux gui 빌드의 시스템 라이브러리
 
-Linux 에서 `tasty-plugin-markdown` 의 시험을 빌드하려면 GTK3·WebKitGTK 개발 패키지가 필요하다. 그 크레이트의
-Linux 전용 dev 의존성(webkit2gtk·gtk·javascriptcore — [webview 레이아웃 시험](ci-gates.md#webview-레이아웃-시험))은
-feature 와 무관하게 시험 빌드에 들어오므로, `cargo test --workspace`·`cargo clippy --workspace --all-targets` 는
-`--no-default-features` 조합에서도 이 라이브러리를 요구한다. 없으면 플러그인 시험 전체가 -sys 빌드 스크립트에서
-실패한다. 시험을 빌드하지 않는 `cargo check -p tasty-plugin-markdown` 은 이 라이브러리 없이도 통과한다.
+Linux 에서 기본 feature(`gui`)는 WebView 오버레이를 위해 webkit2gtk·gtk 를 링크한다(루트 `Cargo.toml` 의 Linux 대상 의존성).
+그래서 gui 조합을 빌드하려면 GTK3·WebKitGTK 개발 패키지가 필요하다. 이 의존성은 optional 이라
+`--no-default-features` 조합은 이 라이브러리를 빌드하지 않는다.
 
 ```bash
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev   # Debian·Ubuntu 계열
@@ -248,7 +246,7 @@ append 하게 해서 **실행 횟수**를 세야 갈린다. 저장소 밖 임시
 
 ### 나머지 빌드 스크립트
 
-워크스페이스의 빌드 스크립트는 루트까지 합쳐 일곱이다. 각자 선언하는 것:
+워크스페이스의 빌드 스크립트는 루트까지 합쳐 넷이다. 각자 선언하는 것:
 
 | 스크립트 | 선언 | 한 번 돌 때 나가는 줄 수 |
 |---|---|---|
@@ -256,7 +254,6 @@ append 하게 해서 **실행 횟수**를 세야 갈린다. 저장소 밖 임시
 | `crates/tasty-host-plugin/build.rs` | `keys` 디렉토리 · `PROFILE` env | 2 |
 | `crates/tasty-i18n/build.rs` | `lang/*.toml` 을 하나씩 | 디스크의 `lang/*.toml` 수만큼 |
 | `crates/tasty-doc-guards/build.rs` | `src` 디렉토리 통째 | 1 |
-| `crates/tasty-plugin-{clipboard-viewer,image,markdown}/build.rs` | `build.rs` 자기 자신만 | 각 1 |
 
 `crates/tasty-cli/src/dynamic/build.rs` 는 **빌드 스크립트가 아니다** — 그 크레이트의 평범한
 `mod build` 이고, 어느 `Cargo.toml` 에도 `build = ` 지정이 없다(빌드 스크립트는 패키지 루트의
@@ -264,39 +261,6 @@ append 하게 해서 **실행 횟수**를 세야 갈린다. 저장소 밖 임시
 
 `tasty-i18n` 은 루프에서 파일마다 한 줄씩 내보내므로 **소스의 `println!` 수(1)와 실제로 나가는
 줄 수가 다르다.** 두 값을 섞어 세지 마라.
-
-### plugin 세 개가 자기 자신만 거는 이유
-
-세 plugin 의 빌드 스크립트는 `tasty-icons` 의 `Icon.svg` 문자열을 읽어 `OUT_DIR` 에 점배열을
-베이크한다([테마 시스템 (운영 상세)](../design/systems/theme.md)).
-그런데 거는 것은 `build.rs` 자기 자신뿐이다. **형태만 보면 입력을 빠뜨린 것 같지만 아니다** —
-아이콘은 파일이 아니라 `crates/tasty-icons/src/lib.rs` 안의 문자열 리터럴이고, 그것이 바뀌면
-`tasty-icons` 가 다시 컴파일되며, `tasty-icons` 는 세 스크립트의 **build-dependency** 라 그
-재컴파일이 스크립트 재컴파일을, 스크립트 재컴파일이 재실행을 끌고 온다. 즉 입력 선언이 아니라
-**의존 그래프**가 트리거를 공급한다.
-
-그 사슬은 관측된 것이다. `FOLDER` 아이콘의 `d` 속성 한 글자를 바꾸고 세 패키지를 다시 빌드하면
-`CARGO_LOG=cargo::core::compiler::fingerprint=info` 가 사슬을 그대로 찍는다.
-
-```
-tasty-icons  lib   dirty: FsStatusOutdated
-  → …/markdown  build-script-build  Build           dirty: FsStatusOutdated(StaleDepFingerprint …)
-    → …/markdown  build-script-build  RunCustomBuild  dirty: FsStatusOutdated(StaleDepFingerprint …)
-```
-
-그리고 셋 다 다시 돌았다(`target/<profile>/build/<pkg>-<hash>/invoked.timestamp` 가 갱신된다).
-`markdown` 만 생성 결과가 달라지는데, `FOLDER` 를 베이크하는 것이 그 하나이기 때문이다 —
-**나머지 둘은 자기가 안 쓰는 아이콘이 바뀌어도 다시 돈다.** 트리거는 크레이트 단위라
-필요보다 거칠고, 대신 놓치지 않는다.
-
-반대 방향도 쟀다. plugin 자신의 `src/` 를 고치고 같은 빌드를 돌리면 크레이트는 다시
-컴파일되지만 **빌드 스크립트는 다시 돌지 않는다**(`invoked.timestamp` 불변). 선언이 하나라도
-있으면 "패키지 안 아무 파일" 기본값이 꺼지기 때문이고, 그것이 여기서 노린 바다.
-
-**전후 비교에서는 `-p` 목록을 같게 유지한다.** cargo 의 feature 통일은 선택된 패키지 집합에 따라
-달라지고, 달라지면 `-C metadata` 해시가 달라져 `build/<pkg>-<hash>/` 가 **새로 생긴다.** 그
-새 디렉토리는 방금 실행된 것처럼 보여서, 재실행이 없는데 있는 것으로 읽힌다. 앞뒤 빌드의
-패키지 선택을 고정해라.
 
 ## Plugin 빌드 / 스테이징
 

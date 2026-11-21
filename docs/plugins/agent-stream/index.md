@@ -6,7 +6,7 @@
 - **주체**: AI Agent (CLI/IPC). 로컬 사용자 UI 없음 — headless
 - **배포/통합**: workspace 번들(`BUILTINS` 등록) · CLI + IPC namespace — [plugins 개념](../../concepts/plugins.md)
   - `bundle = false` — 배포 패키징(DMG / AppImage / MSIX / deb)에서는 제외한다. 워크스페이스 빌드의 dev 번들 sync 는 그대로 동작한다.
-- **코드**: `crates/tasty-plugin-agent-stream/`
+- **코드**: `tasty-official-plugins/crates/tasty-plugin-agent-stream/`
 - **화면**: 없음
 - **근거**: Agent Stream 설계 — 수집·SSE 노출·요청 매칭. [웹훅 신뢰 모델](../../features/webhook/index.md).
 

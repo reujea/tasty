@@ -584,7 +584,7 @@ render process가 끝나기 전에 시작한 등록은 그 뒤 복구 재로드�
 
 view가 사라지면(`PlatformWebView`의 drop) 붙잡은 탐색을 버리고, 그 뒤 늦게 온 등록·적용 완료는 아무것도 하지 않는다.
 
-규칙은 focus면 표지를 빈 값으로, 아니면 `initial`로 둔다. 사용자 정의 속성의 `initial`은 `var()`를 무효로 만들어 페이지의 unfocus 값이 쓰인다. 번들 markdown 페이지는 Linux가 아닌 OS에서 표지를 스스로 선언하므로(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`), 규칙의 구체성을 `:root`보다 높여(`:root:root`) 그 선언을 덮는다. 페이지가 선언하지 않아도 같은 값이 된다.
+규칙은 focus면 표지를 빈 값으로, 아니면 `initial`로 둔다. 사용자 정의 속성의 `initial`은 `var()`를 무효로 만들어 페이지의 unfocus 값이 쓰인다. 번들 markdown 페이지는 Linux가 아닌 OS에서 표지를 스스로 선언하므로(`tasty-official-plugins/crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`), 규칙의 구체성을 `:root`보다 높여(`:root:root`) 그 선언을 덮는다. 페이지가 선언하지 않아도 같은 값이 된다.
 
 측정(Windows 11, WebView2, 격리 debug 인스턴스, 계산값은 개발자 도구 포트의 `Runtime.evaluate`로 읽음):
 
@@ -622,7 +622,7 @@ WKWebView에는 공개 사용자 스타일시트 API가 없어 스크립트로 `
 - 지금 문서 적용이 실패하는 경로는 실제 실행에서 일으키지 못해 단위 시험으로만 확인했다.
 - 스크롤을 내린 상태의 위치 유지, 주소칸 입력·찾기어·선택 유지, 포커스와 함께 새로 연 문서의 첫 프레임은 측정하지 않았다. debug 휠 주입이 native WebView에 닿지 않고, 키 입력 자동화를 쓰지 않았으며, split·새 탭이 포커스를 옮기지 않는다. 문서를 다시 싣지 않는 것은 load 시작 수로 확인했다.
 
-번들 markdown 페이지는 Linux가 아닌 OS에서 페이지 CSS에 표지를 스스로 선언한다(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`). 위 인라인 선언이 그 선언보다 앞선다.
+번들 markdown 페이지는 Linux가 아닌 OS에서 페이지 CSS에 표지를 스스로 선언한다(`tasty-official-plugins/crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `HOST_SENDS_MARKER`). 위 인라인 선언이 그 선언보다 앞선다.
 
 ## egui 오버레이와 native WebView
 

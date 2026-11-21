@@ -5,7 +5,7 @@
 - **Status**: Implemented (bundled plugin)
 - **주체**: AI Agent / 로컬 사용자 (`tasty claude` CLI · IPC)
 - **배포/통합**: bundled · cli + ipc_namespace + 멀티에이전트 — [plugins 개념](../../concepts/plugins.md)
-- **코드**: `crates/tasty-plugin-claude/`
+- **코드**: `tasty-official-plugins/crates/tasty-plugin-claude/`
 - **화면**: 없음 — CLI/IPC 로 터미널 surface 를 조작하는 실행 관리 플러그인 (headless).
 
 > CLI·IPC, 부모·자식 관계, 훅 설치를 함께 제공하는 예제다. 구현 구조는 [플러그인 개발](../../dev-guide/plugin-development.md#cli--ipc-namespace)을 참고한다.
@@ -26,7 +26,7 @@
 
 ## Tasty 자식에서 지우는 세션 변수
 
-매니페스트 `[contributes.strip_inherited_env]`로 Claude Code가 자기 세션의 자식에 넣는 표지·비밀·세션 값을 선언한다. 이 플러그인이 설치·활성이면 Tasty는 터미널 셸·훅·작업 자식에서 이 값을 지운다([선언 형식과 적용 조건](../../dev-guide/plugin-development.md#상속-환경변수-제거-contributesstrip_inherited_env)). 바깥 Claude Code 세션 안에서 Tasty를 띄워도 그 터미널에서 실행한 Claude가 자식 세션 표지(`CLAUDE_CODE_CHILD_SESSION`)를 물려받아 transcript 저장을 끄지 않고, 세션 비밀(`CLAUDE_CODE_MESSAGING_TOKEN`)이 무관한 셸로 새지 않는다. 정본은 `crates/tasty-plugin-claude/tasty-plugin.toml`이며 목록은 Claude Code 2.1.291 기준이다.
+매니페스트 `[contributes.strip_inherited_env]`로 Claude Code가 자기 세션의 자식에 넣는 표지·비밀·세션 값을 선언한다. 이 플러그인이 설치·활성이면 Tasty는 터미널 셸·훅·작업 자식에서 이 값을 지운다([선언 형식과 적용 조건](../../dev-guide/plugin-development.md#상속-환경변수-제거-contributesstrip_inherited_env)). 바깥 Claude Code 세션 안에서 Tasty를 띄워도 그 터미널에서 실행한 Claude가 자식 세션 표지(`CLAUDE_CODE_CHILD_SESSION`)를 물려받아 transcript 저장을 끄지 않고, 세션 비밀(`CLAUDE_CODE_MESSAGING_TOKEN`)이 무관한 셸로 새지 않는다. 정본은 `tasty-official-plugins/crates/tasty-plugin-claude/tasty-plugin.toml`이며 목록은 Claude Code 2.1.291 기준이다.
 
 - 이름: `CLAUDECODE`·`CLAUDE_PID`·`CLAUDE_EFFORT`·`CLAUDE_PLUGIN_ROOT`·`CLAUDE_PLUGIN_DATA`·`CLAUDE_PROJECT_DIR`·`CLAUDE_ENV_FILE`·`CLAUDE_CODE_SESSION_ID`·`CLAUDE_CODE_CHILD_SESSION`·`CLAUDE_CODE_SESSION_ATTENDED`·`CLAUDE_CODE_EXECPATH`·`CLAUDE_CODE_ENTRYPOINT`·`CLAUDE_CODE_MESSAGING_SOCKET`·`CLAUDE_CODE_MESSAGING_TOKEN`·`CLAUDE_CODE_INVOKED_SKILLS`·`CLAUDE_CODE_BRIDGE_SESSION_ID`. Bash·훅 자식 env 조립, 플러그인 훅·MCP 자식 env 조립, 새 Claude를 띄울 때 스스로 지우는 목록을 기준으로 하며 Claude Code 버전에 따라 늘어날 수 있다.
 - 접두사: `CLAUDE_PLUGIN_OPTION_`. 플러그인 훅에 플러그인 옵션을 주입하는 이름공간이라 키가 옵션마다 다르다.
@@ -167,7 +167,7 @@ attach 로 연결한 원격 워크스페이스(mirror)에 `spawn` 하면 자식�
 - **목록**: `tasty claude profile-list` — **이름으로 부착 가능한 것 전부**를 보여준다: 등록 프로필(`user/<이름>`, `description` 없음) · 등록 게이트(`user/<이름>`, 게이트임을 알리는 `description`) · host 기본 게이트(`host/continue-checklist`). 여기에 항상 전역 설치돼 있는 내장 훅 9종(`host/<token>`, attachable 아님 — 위 "Claude Code 훅 통합" 절의 `install.rs::MANAGED_HOOKS` 를 그대로 나열, 정의를 복제하지 않는다)이 더해진다. `profile-list` 와 `gate-list` 가 둘 다 게이트를 보여주는 것은 의도된 중복이다 — 전자는 "부착 가능한 것들" 관점, 후자는 "게이트 정의"(본문·센티넬·상한·on/off) 관점.
 - **조회**: `tasty claude profile-show <이름>` — 등록 프로필이면 원본 JSON 그대로, 게이트면 그 게이트를 발동시키는 **생성된 Stop 훅 조각**. `owner` 는 실제 출처를 그대로 반영한다(`user` 등록 프로필/등록 게이트, `host` 기본 게이트). `tasty claude profile-current [--surface <id>]` — 그 surface 에 지금 부착된 것(이름 또는 경로)과 내장 훅 목록을 함께 보여준다("지금 이 세션에 무슨 프로필/게이트가 걸려 있나").
 - **이름 해석 순서(부착 시)**: `--profile <이름>` 으로 **부착할 때**의 순서다 — ① `profiles/registered/<이름>.json` → ② 등록 게이트 → ③ host 기본 게이트 → ④ 내장 훅 토큰이면 "attach 불가" 에러 → ⑤ 그 외 미등록 에러. ①과 ②는 등록 시점에 상호 배제되지만(아래 "Stop-훅 게이트 레지스트리" 의 이름 충돌 거부) 순서는 방어적으로 고정돼 있다. 위 `profile-show` 는 이 경로를 쓰지 않으므로 ④가 적용되지 않는다 — 내장 훅 토큰을 주면 "attach 불가" 가 아니라 미등록 에러(`no registered profile named 'user/stop'`)가 난다.
-- **프로필 병합**(`crates/tasty-plugin-claude/src/profile_merge.rs`): 여러 이름을 지정하면 순서대로 읽어 JSON 하나로 만들고 `TASTY_PLUGIN_DATA_DIR/profiles/generated/<정렬된-이름들>.json`에 저장한다. 부착할 때마다 다시 만들며 등록 원본은 덮어쓰지 않는다. 병합 규칙은 다음과 같다.
+- **프로필 병합**(`tasty-official-plugins/crates/tasty-plugin-claude/src/profile_merge.rs`): 여러 이름을 지정하면 순서대로 읽어 JSON 하나로 만들고 `TASTY_PLUGIN_DATA_DIR/profiles/generated/<정렬된-이름들>.json`에 저장한다. 부착할 때마다 다시 만들며 등록 원본은 덮어쓰지 않는다. 병합 규칙은 다음과 같다.
 
   | 키 유형 | 예 | 규칙 |
   |---|---|---|

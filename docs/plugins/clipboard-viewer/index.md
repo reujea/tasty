@@ -5,7 +5,7 @@
 - **Status**: Implemented (bundled plugin)
 - **주체**: 로컬 사용자 (도구 메뉴 / 단축키 → popup)
 - **배포/통합**: bundled · 도구 메뉴 항목 + popup — [plugins 개념](../../concepts/plugins.md)
-- **코드**: `crates/tasty-plugin-clipboard-viewer/`
+- **코드**: `tasty-official-plugins/crates/tasty-plugin-clipboard-viewer/`
 - **화면**: [screens/clipboard-viewer.md](screens/clipboard-viewer.md)
 
 > **예제로서**: **도구 메뉴 항목 + popup** 예제. 클립보드를 host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 하는 [호스트 호출 계약](../../dev-guide/plugin-permissions.md) 비-샌드박스 모델의 레퍼런스 → [plugin-development](../../dev-guide/plugin-development.md#도구-메뉴-항목--popup).

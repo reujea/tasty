@@ -392,18 +392,16 @@ pre-push는 Git이 전달한 원격·로컬 SHA를 비교한다. 원격 객체�
 새 ref 생성과 삭제처럼 비교할 이전 버전이 없는 경우는 건너뛴 이유와 개수를 따로 보고한다.
 
 루트 `lang/*.toml`은 비교 대상이 아니다. `tasty-i18n`이 이 파일을 `include_str!`로 품고
-번들 플러그인 9개가 모두 `tasty-i18n`에 normal 의존한다. 경로는 모두 SDK를 거치며,
-clipboard-viewer·git-viewer·image·markdown은 `tasty-egui-theme` 경로도 있다
-(clipboard-viewer·git-viewer·markdown은 `tasty-ui-widgets`를 거치기도 한다).
-claude·codex는 `tasty-plugin-agent-common`을 거쳐서도 SDK에 닿는다.
+이 레포에서 빌드하는 번들 플러그인 mesh-demo가 `tasty-i18n`에 normal 의존한다.
+경로는 SDK와 `tasty-ui-widgets`(→ `tasty-egui-theme`) 두 갈래다.
 SDK는 `plugin_catalog::load`만, `tasty-egui-theme`는 `font` 모듈만 부른다.
 두 경로 모두 내장 번역표(`builtin_toml`)에 닿지 않아 번역표가 링크 단계에서 빠진다.
 `lang/en.toml` 한 줄만 바꾼 트리와 원래 트리를 각각
-`cargo build --release --locked -p <번들 플러그인 9개>`와 `--profile dist`로 빌드해 sha256을 비교했다.
+mesh-demo를 포함한 플러그인 9개를 `cargo build --release --locked`와 `--profile dist`로 빌드해 sha256을 비교했다.
 두 프로필 모두 9개 바이너리가 같았고, 같은 원래 트리를 다른 경로에 두 번 빌드한 잡음 바닥도 9/9 같았다.
 바이너리에는 번역 키나 값 문자열이 들어 있지 않다.
-번들 플러그인이 링크하는 크레이트(플러그인 자신, SDK, `tasty-egui-theme`, `tasty-ui-widgets`,
-`tasty-plugin-agent-common` 등) 중 하나라도 `init`·`available_languages`·`scan_languages`처럼
+번들 플러그인이 링크하는 크레이트(플러그인 자신, SDK, `tasty-egui-theme`, `tasty-ui-widgets` 등)
+중 하나라도 `init`·`available_languages`·`scan_languages`처럼
 `builtin_toml`에 닿는 함수를 쓰게 되면 이 전제가 깨진다.
 의존 경로는 `cargo tree -e normal,build -i tasty-i18n -p <플러그인>`으로 확인한다.
 그때는 다시 측정하고 루트 `lang/`을 검사 대상에 넣는다.

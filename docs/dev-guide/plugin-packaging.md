@@ -4,7 +4,7 @@
 
 ## 번들 plugin 목록 (SoT)
 
-`crates/tasty-host-plugin/src/builtin.rs::BUILTINS` 가 기준 목록이다. 아래 표는 탐색용이다. 추가·제거할 때는 실제 `BUILTINS` 목록과 패키징 설정을 함께 확인한다:
+`crates/tasty-host-plugin/src/builtin.rs::BUILTINS` 가 기준 목록이다. 아래 표는 탐색용이다. 추가·제거할 때는 실제 `BUILTINS` 목록과 패키징 설정을 함께 확인한다. mesh-demo 를 뺀 crate 는 [공식 플러그인 레포](https://github.com/zilhak/tasty-official-plugins)에 있고, 이 레포는 잠금 파일(`official-plugins.lock.toml`)이 가리키는 릴리스 산출물을 받는다:
 
 | crate | plugin ID |
 |-------|-----------|
@@ -23,7 +23,7 @@
 `crates/tasty-host-plugin/src/official.rs::OFFICIAL_PLUGIN_IDS`가 Tasty가 아는 공식 플러그인 id 목록이다. 번들 여부와 무관하며, 번들에서 빠져 따로 내려받아 설치하는 공식 플러그인도 이 목록으로 판정한다. 이 목록에 없는 `com.tasty.*` id는 설치·탐색·등록에서 거부된다([플러그인 관리](../features/plugin-system/index.md#예약-id-comtasty)).
 
 - `BUILTINS`의 id는 모두 이 목록에 있어야 한다. `official::tests::bundled_ids_of_every_os_are_official`가 `builtin.rs` 원문에서 두 OS 벌(`#[cfg(windows)]`·`#[cfg(not(windows))]`)의 id 18개를 읽어 대조하고, `bundled_ids_of_this_build_are_official`가 이 빌드가 고른 벌을 대조한다.
-- 번들 플러그인 매니페스트(레포 `crates/*/tasty-plugin.toml`과 공식 플러그인 픽스처, 같은 id면 픽스처)의 id도 모두 이 목록에 있어야 한다(`repository_plugin_manifests_are_official`, 매니페스트 9개).
+- 번들 플러그인 매니페스트(레포 `crates/*/tasty-plugin.toml`인 mesh-demo와 공식 플러그인 픽스처 8개)의 id도 모두 이 목록에 있어야 한다(`repository_plugin_manifests_are_official`, 매니페스트 9개).
 - 새 공식 플러그인은 `BUILTINS`와 별도로 이 목록에 한 줄을 넣는다. 위 시험들과 목록 길이 단언(`every_official_id_is_admitted`)을 함께 고친다.
 - 번들 설치·갱신은 번들 폴더 매니페스트의 `id`가 폴더 이름(`BuiltinSpec::id`)과 같은지 복사 전에 확인한다. 다르면 복사 없이 실패로 남긴다.
 

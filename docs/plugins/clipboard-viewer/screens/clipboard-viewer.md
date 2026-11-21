@@ -52,7 +52,7 @@ plugin 은 header~footer content 영역만 그린다(`cbFrame`/`Scrim` 은 desig
 
 ## HTML prettify 인덴터
 
-`crates/tasty-plugin-clipboard-viewer/src/html_format.rs::prettify` — 정규 HTML5 파서가 아니라
+`tasty-official-plugins/crates/tasty-plugin-clipboard-viewer/src/html_format.rs::prettify` — 정규 HTML5 파서가 아니라
 태그 깊이를 세는 휴리스틱 토크나이저(새 외부 의존성 없음). Design System 시안이 검증한 참조
 알고리즘(`>\s+<` 공백 정규화 → `<...>` 태그 경계 split → 닫는 태그는 먼저 depth 감소, 여는
 태그는 출력 후 depth 증가, void element/self-closing 은 증가 없음)을 그대로 포팅했다. 단
@@ -64,7 +64,7 @@ DOM 파싱/sanitize/render 는 하지 않는다. malformed 입력(닫히지 않�
 
 ## Other raw 포맷 열거
 
-`crates/tasty-plugin-clipboard-viewer/src/raw_formats/{mod,windows,macos,x11}.rs` — arboard 는
+`tasty-official-plugins/crates/tasty-plugin-clipboard-viewer/src/raw_formats/{mod,windows,macos,x11}.rs` — arboard 는
 클립보드 포맷 열거를 노출하지 않는다(`arboard::Error::ContentNotAvailable` doc comment 가
 "비어있음"과 "이 4개(text/files/image/html)가 아닌 포맷"을 구분하지 않는다고 명시). 플랫폼별로
 raw API 를 직접 호출해 나머지를 열거한다:

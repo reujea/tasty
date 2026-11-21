@@ -70,7 +70,7 @@ surface hook 은 셸 명령 문자열 대신 **공유 훅 핸들러 레지스트
   `registered_plugins` 기록까지 지워야 다음 hello가 `finalize_plugin_hello`를 거쳐
   이벤트 목록을 다시 등록한다. 기록이 남으면 재시작한 plugin의 hello가 무시될 수 있다.
 - 내장도 아니고 활성 플러그인이 선언하지도 않은 키(오타·미존재 이벤트)는 **등록 거부**(`invalid_params`, 에러 메시지에 내장 + 활성 선언 목록 안내). 실행될 수 없는 훅 등록을 막는다.
-- 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 동작하지 않는 설정 방지). claude plugin 이 선언하는 키는 `crates/tasty-plugin-claude/tasty-plugin.toml` 의 `[[contributes.hook_events]]` 가 정본이다.
+- 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 동작하지 않는 설정 방지). claude plugin 이 선언하는 키는 `tasty-official-plugins/crates/tasty-plugin-claude/tasty-plugin.toml` 의 `[[contributes.hook_events]]` 가 정본이다.
 
 - **once**는 첫 매칭 이벤트에서 한 번 실행한 뒤 등록을 제거한다. 한 번의 판정에 이벤트가 여러 개 들어와도 같은 once 등록을 다시 실행하지 않는다. 기본값인 persistent는 맞는 이벤트마다 실행한다. 검증 방법은 [guard-verification](../../dev-guide/guard-verification.md)을 따른다.
 - **비동기 실행**: 훅 동작은 백그라운드에서(메인 루프 블로킹 없음 — 셸은 자식 프로세스 스레드, `IpcSequence` 는 아래 "바인딩" 절의 실행기 스레드). 각 이벤트의 발생 surface ID 를 추적해 올바른 surface 에서 실행.

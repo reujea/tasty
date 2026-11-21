@@ -7,7 +7,7 @@
 - **Status**: Implemented (bundled plugin)
 - **주체**: 로컬 사용자 (GUI surface) · AI Agent (`tasty html` CLI)
 - **배포/통합**: bundled · surface_kind(webview) · 파일 핸들러 — [plugins 개념](../../concepts/plugins.md)
-- **코드**: `crates/tasty-plugin-html/`, host WebView 오버레이
+- **코드**: `tasty-official-plugins/crates/tasty-plugin-html/`, host WebView 오버레이
 - **화면**: [아래 절](#화면)
 
 > **예제로서**: `rendering = "webview"` surface 의 예제 → [plugin-development](../../dev-guide/plugin-development.md#surface-kind--rendering-3-종).

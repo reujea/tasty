@@ -1,6 +1,6 @@
 # tiny_http 0.12.0 — tasty 사본
 
-crates.io의 `tiny_http` 0.12.0(상류 커밋 `212b1c45852fef2093dc1374875a9393c55eb4b9`)에 아래 패치를 적용한 사본이다. 루트 `Cargo.toml`의 `[patch.crates-io]`가 이 디렉토리를 가리키므로 본체 웹훅 리스너와 agent-stream 플러그인의 SSE 서버 등 모든 소비자가 이 사본으로 빌드된다. 결정 이유와 대안은 [웹훅 (Inbound webhook listener)](../../docs/features/webhook/index.md)에 있다.
+crates.io의 `tiny_http` 0.12.0(상류 커밋 `212b1c45852fef2093dc1374875a9393c55eb4b9`)에 아래 패치를 적용한 사본이다. 루트 `Cargo.toml`의 `[patch.crates-io]`가 이 디렉토리를 가리키므로 본체 웹훅 리스너가 이 사본으로 빌드된다. 공식 agent-stream 플러그인의 SSE 서버도 공식 플러그인 레포의 `[patch.crates-io]`가 이 레포의 커밋을 git 의존으로 가리켜 같은 사본을 쓴다. 결정 이유와 대안은 [웹훅 (Inbound webhook listener)](../../docs/features/webhook/index.md)에 있다.
 
 ## 옮긴 것과 뺀 것
 

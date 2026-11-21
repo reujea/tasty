@@ -4,7 +4,7 @@ attach 로 연결한 원격 워크스페이스(mirror)에 `tasty claude spawn` /
 
 - C: 부모가 있는 Tasty(attach client, mirror 보유). L: C 의 mirror surface. S: 자식이 실제로 도는 Tasty(attach 서버). R: S 의 surface.
 - host 쪽 전달(출처 토큰·holder 검사·통지 outbox·ACK·tombstone)은 [attach 동작](../dev-guide/attach-behavior.md)과 [원격 attach](../features/remote-attach/index.md)가 정본이다. 이 문서는 provider plugin 이 그 위에서 하는 일만 적는다.
-- 공용 코드: `crates/tasty-plugin-agent-common/src/remote_attach.rs`·`remote_results.rs`(물리 부모의 결과 보관). claude 는 `crates/tasty-plugin-claude/src/remote.rs`·`crates/tasty-plugin-claude/src/codex_return/attach.rs`. codex 는 `crates/tasty-plugin-codex/src/handlers/remote.rs`·`crates/tasty-plugin-codex/src/delivery/attach_out.rs`.
+- 공용 코드: `tasty-official-plugins/crates/tasty-plugin-agent-common/src/remote_attach.rs`·`remote_results.rs`(물리 부모의 결과 보관). claude 는 `tasty-official-plugins/crates/tasty-plugin-claude/src/remote.rs`·`tasty-official-plugins/crates/tasty-plugin-claude/src/codex_return/attach.rs`. codex 는 `tasty-official-plugins/crates/tasty-plugin-codex/src/handlers/remote.rs`·`tasty-official-plugins/crates/tasty-plugin-codex/src/delivery/attach_out.rs`.
 
 ## 매니페스트 선언
 

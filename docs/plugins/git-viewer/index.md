@@ -5,7 +5,7 @@
 - **Status**: Implemented (bundled plugin)
 - **주체**: 로컬 사용자 (도구 메뉴 → popup) · AI Agent (IPC trigger)
 - **배포/통합**: bundled · 도구 메뉴 항목 + popup — [plugins 개념](../../concepts/plugins.md)
-- **코드**: `crates/tasty-plugin-git-viewer/` · 조회 로직은 host core 와 공유하는
+- **코드**: `tasty-official-plugins/crates/tasty-plugin-git-viewer/` · 조회 로직은 host core 와 공유하는
   `crates/tasty-git-core/`
 - **화면**: [screens/git-viewer.md](screens/git-viewer.md)
 

@@ -21,7 +21,7 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 호스트의 전용 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (같은 Windows 호스트의 전용 러너 `win-arm64`) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
-| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64 고정 — 매 run이 x86_64 gui release 컴파일을 검사하게 한다) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (Linux 러너(x64 또는 ARM64)에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
 | 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
@@ -255,7 +255,7 @@ Linux self-hosted 러너는 x86_64 러너(`tasty-server-x64`, 라벨 `self-hoste
 | `[self-hosted, Linux, X64]` | build-check·release `build-linux-x64` | x86_64 패키지를 만든다 |
 | `[self-hosted, Linux, ARM64]` | build-check·release `build-linux-arm64` | aarch64 패키지를 만든다 |
 
-- 공유 라벨 잡의 결과가 러너에 따라 달라질 수 있는 지점은 아키텍처보다 러너 환경이다. 두 러너의 WebKitGTK 판이 달라 `check-headless`의 관측용 webview 레이아웃 단계 결과가 갈릴 수 있다. gui 단위 단계가 Xvfb 아래에서 고르는 그래픽 경로도 두 머신에서 같은지 확인하지 않았다.
+- 공유 라벨 잡의 결과가 러너에 따라 달라질 수 있는 지점은 아키텍처보다 러너 환경이다. gui 단위 단계가 Xvfb 아래에서 고르는 그래픽 경로도 두 머신에서 같은지 확인하지 않았다.
 - 두 러너는 파일시스템을 공유하지 않고 워크플로는 `actions/cache`를 쓰지 않으므로, 아키텍처가 다른 산출물이 섞이지 않는다.
 - 한 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다. 공유 라벨 잡이 ARM64 러너를 쓰는 동안에는 태그 시점의 `build-linux-arm64`가 그 잡이 끝날 때까지 기다린다.
 
@@ -613,7 +613,7 @@ Linux는 직접 실행한 테스트 PID의 `/proc/<pid>/fd`, macOS는 `lsof -p <
 | macOS + gui | check-macos: 컴파일·유닛 | — |
 | Windows + gui | check-windows: 컴파일·유닛·지목 통합 | — |
 | Linux + headless | check-headless: 컴파일·전체 스위트(skip 제외) | — |
-| Linux + gui | check-headless의 gui 유닛 단계·관측용 E2E·관측용 webview 레이아웃 | check-release: 컴파일 |
+| Linux + gui | check-headless의 gui 유닛 단계·관측용 E2E | check-release: 컴파일 |
 
 잡 성공만으로 표의 모든 단계를 실행했다고 판단하지 않는다. 단계별 conclusion을 읽는다.
 GUI feature 또는 OS 전용 모듈 안의 테스트는 다른 조합에서 컴파일 대상에서 사라질 수 있다.
@@ -724,7 +724,7 @@ cargo clippy --workspace --all-targets \
   디스플레이 소켓·lock과 lock pid의 생존, 열린 fd 수, `RLIMIT_NOFILE`, 실패 시각을 panic 메시지에 싣는다.
   winit은 실패한 연결을 프로세스 전역에 보관하므로 같은 프로세스에서는 다시 연결할 수 없다. 서버 쪽 사정
   (리셋·클라이언트 상한)은 이 메시지와 위 Xvfb 로그를 함께 읽어 가른다.
-- 같은 잡의 e2e·webview layout 관측 단계의 `xvfb-run`에는 `-noreset`·`-e`를 넣지 않는다. 두 단계는
+- 같은 잡의 e2e 관측 단계의 `xvfb-run`에는 `-noreset`·`-e`를 넣지 않는다. 이 단계는
   `continue-on-error: true`라 잡을 막지 않고, 그 단계에서 `XOpenDisplayFailed`를 관측한 기록이 없다.
   근거 없이 서버 인자를 바꾸면 관측하는 조건이 달라진다.
 
@@ -753,45 +753,6 @@ grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 이 시험이 들어가지 않고 이름 제외도 필요 없다. 같은 잡의 관측용 GUI/Xvfb 단계가 실행하지만
 `continue-on-error: true`이므로 실패가 잡을 차단하지 않는다. 차단 검사로 승격할 때는
 러너의 Xvfb 가용성과 연속 성공 기록을 확인한다. 필요한 연속 횟수 N은 아직 정하지 않았다.
-
-### webview 레이아웃 시험
-
-`crates/tasty-plugin-markdown/src/render/webview_layout_tests.rs` 는 `render_document` 의 HTML 을
-화면 밖 WebKitGTK 창에 띄우고 `getBoundingClientRect()` 로 주소창 배치를 잰다. 긴 문서 끝과 앵커
-이동 뒤에 주소창 `top` 이 0 인지, 짧은 문서의 `body` 가 뷰포트 높이를 채우는지를 본다. 콜아웃 라벨이 찾기와 선택 문자열에 잡히는지도 실제 찾기 스크립트와 `Selection.toString()` 으로 본다. 생성 CSS
-문자열 시험은 선언만 보므로, 문자열 시험이 보지 않는 선언이 배치를 깨는 경우는 이 시험만 실패한다.
-`render/bed_focus_webkit_tests.rs` 는 호스트의 바탕 포커스 시트([WebView §바탕 포커스 상태](../design/systems/webview.md#바탕-포커스-상태))를 넣고 뺄 때 문서를 다시 싣지 않고 바탕·표 칸·zebra 계산값이 바뀌는지, 스크롤과 선택이 그대로인지, JS 를 끈 문서의 바탕 픽셀이 바뀌는지, 시트를 먼저 넣고 실은 문서가 처음부터 focus 값인지를 본다.
-하네스는 같은 HTML 을 같은 엔진의 기본 설정으로 배치한다. 호스트가 WebView 에 주는 zoom·JS 게이트·콘텐츠
-필터는 재현하지 않는다.
-
-- **Linux 전용이다.** 모듈이 `#[cfg(all(test, target_os = "linux"))]` 이고 dev 의존성(webkit2gtk·gtk·
-  javascriptcore)도 Linux 대상에만 있다. macOS(WKWebView)·Windows(WebView2)의 배치는 이 시험이 재지 않는다.
-- **Linux 에서 플러그인 시험을 빌드하려면 GTK3·WebKitGTK 개발 패키지가 필요하다.** dev 의존성은 feature 와
-  무관하므로 `cargo test -p tasty-plugin-markdown`·`cargo test --workspace`·`cargo clippy --all-targets` 가
-  `--no-default-features` 조합에서도 그 -sys 크레이트를 빌드한다. 라이브러리가 없으면 레이아웃 시험만 빠지는
-  것이 아니라 플러그인 시험 전체가 컴파일 단계에서 실패한다. 설치 패키지는 [빌드 가이드](build.md#linux-시험-빌드의-시스템-라이브러리)에 있다.
-- **디스플레이가 필요해 `#[ignore]` 다.** 그래서 `check-headless` 의 gui 유닛 단계(`--lib --bins`)는
-  Xvfb 안에서 돌지만 이 시험은 ignored 로만 세고 실행하지 않는다. 실행은 같은 잡의 `cargo test (linux, gui, webview layout — 관측용)`
-  단계가 xvfb-run 안에서 이름으로 지목해서 한다. `DISPLAY` 가 없으면 조용히 통과하지 않고 실패한다.
-- **파일마다 시험이 하나다.** GTK 는 한 프로세스에서 한 스레드만 초기화하고 libtest 는 `--test-threads=1` 에서도 시험마다 스레드를 따로 만든다(측정). 그래서 두 파일의 시험을 각각 다른 프로세스로 지목한다. 단계 스크립트는 기본 셸의 `-e` 로 돌므로 앞 호출이 실패하면 뒤 호출은 실행되지 않는다.
-- 지목 실행은 이름이 어긋나면 `0 passed` 로 통과하므로, 문서 가드
-  `the_webview_layout_step_names_the_one_layout_test`(`ci_channel_claims_match_workflows.rs`)가 두 파일 각각의
-  `#[ignore]` 시험이 하나뿐인지와, 자동 잡의 호출이 `-p tasty-plugin-markdown … -- --ignored --exact
-  render::<모듈>::<그 이름>` 으로 고르는지를 함께 본다. e2e 단계의
-  `the_gui_layer_a_display_revives_is_exactly_the_one_named_test` 와 같은 형태다.
-- **관측용이다.** e2e 단계와 같이 `continue-on-error: true` 라 실패해도 잡을 차단하지 않으므로, 결과는
-  단계 conclusion 으로 확인한다. 차단으로 승격하는 기준(연속 통과 횟수)은 e2e 와 함께 아직 정하지 않았다. Linux 러너에서 이 단계의 실행 결과는
-  아직 관측 기록이 없다. 러너에 xvfb-run 이 있고 같은 잡의 e2e 단계가 Xvfb 안에서 gui 바이너리를 띄운다는 것만 확인했다.
-- 로컬 실행:
-
-```bash
-env -u WAYLAND_DISPLAY -u DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
-  cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact \
-  render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk
-env -u WAYLAND_DISPLAY -u DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
-  cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact \
-  render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place
-```
 
 `gui_tests` 에 자동 채널이 없다. 각 시험이 `#[ignore]`이므로 디스플레이만 제공해서는
 실행되지 않는다. 수동 실행은 `--ignored`가 필요하며, 전용 디스플레이와 격리된 TASTY_HOME을

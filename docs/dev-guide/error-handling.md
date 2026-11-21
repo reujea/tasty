@@ -239,7 +239,7 @@ poison 상태는 명시적으로 해제하지 않는 한 유지된다. 초당 �
 `recover_read` · `recover_write` · `recover_try_write` — 각각 락 이름과 보고 플래그를
 받는다). 헬퍼를 쓰지 않는 쪽이 맞는 경우도 있다: 한 파일 안에서 지점마다 답이 갈리고
 그 판단이 이미 인라인으로 적혀 있다면, 그중 한 곳만 헬퍼로 바꾸는 것은 형태를 둘로
-늘릴 뿐이다(`crates/tasty-plugin-agent-stream` 이 그 예다).
+늘릴 뿐이다(`tasty-official-plugins/crates/tasty-plugin-agent-stream` 이 그 예다).
 
 ```rust
 // ✅ 복구 + 관측 (자료구조 조작만 하는 임계구역)

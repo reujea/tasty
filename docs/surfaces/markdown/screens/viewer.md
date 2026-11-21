@@ -38,7 +38,7 @@
 
 펜스드 코드블록 언어가 `mermaid` 인 블록(` ```mermaid `)은 `code.language-mermaid` 로 살아남아
 [mermaid.js](https://github.com/mermaid-js/mermaid)(MIT, 오프라인 vendor —
-`crates/tasty-plugin-markdown/assets/mermaid.min.js` + `NOTICE.md`)로 렌더된다. 문서에 mermaid
+`tasty-official-plugins/crates/tasty-plugin-markdown/assets/mermaid.min.js` + `NOTICE.md`)로 렌더된다. 문서에 mermaid
 블록이 하나도 없으면 이 스크립트는 아예 삽입되지 않는다(수 MB 번들이라 불필요한 문서에 매번
 인라인하는 낭비를 피함). 테마는 `Theme.is_light` 에 따라 mermaid 내장 `default`/`dark` 팔레트로
 매핑되며, 테마 전환 시 문서 전체가 재생성되므로(`reload_all_webviews`) 별도 런타임 재테마
@@ -53,7 +53,7 @@ class="math math-display">`(원본 LaTeX 소스가 HTML-escape된 텍스트)로 
 할 필요가 없다). 실제 수식 렌더링은 mermaid와 동일한 클래스의 작업(브라우저 JS
 라이브러리, 필요한 문서에만 신뢰된 스크립트 삽입)으로
 [KaTeX](https://katex.org)(MIT, 오프라인 vendor —
-`crates/tasty-plugin-markdown/assets/katex.min.{js,css}` + `assets/fonts/KaTeX_*.woff2` +
+`tasty-official-plugins/crates/tasty-plugin-markdown/assets/katex.min.{js,css}` + `assets/fonts/KaTeX_*.woff2` +
 `NOTICE.md`)가 수행한다. 문서에 math span이 하나도 없으면 이 스크립트(JS+CSS+폰트 합쳐 약
 1MB)는 아예 삽입되지 않는다 — mermaid/highlight.js와 동일한 조건부 삽입 절약 패턴.
 
@@ -108,7 +108,7 @@ macOS·Windows에서 실제 실행한 결과는 없다.
 펜스드 코드블록(` ```rust ` 등)은 `sanitize_fence_lang` 이 언어 토큰을 `[A-Za-z0-9_+-]` 로 정규화한
 `code.language-<lang>` class 를 그대로 유지한 채 렌더되고, 실제 토큰 강조는 **브라우저**에서
 [highlight.js](https://highlightjs.org)(BSD-3-Clause, 오프라인 vendor —
-`crates/tasty-plugin-markdown/assets/highlight.min.js` + `NOTICE.md`, 36개 언어를 포함하는
+`tasty-official-plugins/crates/tasty-plugin-markdown/assets/highlight.min.js` + `NOTICE.md`, 36개 언어를 포함하는
 "common" 번들)가 수행한다. 서버(syntect 등) 대신 브라우저를 택한 이유는
 `sanitize_html`(`render.rs`)의 태그/속성 화이트리스트를 건드릴 필요가 없고, mermaid 가 이미
 증명한 "신뢰된 wrapper 에 조건부 스크립트 삽입" 패턴을 그대로 재사용할 수 있기 때문이다.
@@ -445,8 +445,8 @@ CSS 클래스(`--md-space-sm` 배수)로 표현된다. 접기/펼치기는 `nav_
 하네스는 같은 HTML을 같은 엔진의 기본 설정으로 배치한다. 호스트가 WebView에 주는 zoom·JS 게이트·콘텐츠 필터는 재현하지 않는다.
 뷰포트 1000×800에서 긴 문서를 끝까지 스크롤한 뒤와 앵커 이동 뒤에 주소창 `rect.top`이 0인지
 (`scrollTop`으로 실제 스크롤도 확인한다), 짧은 문서의 `body` 높이가 800인지를 본다.
-GTK3는 디스플레이가 있어야 하므로 이 시험은 `#[ignore]`이고, `check-headless`의 관측용 단계가
-xvfb-run 안에서 이름으로 실행한다([CI 가이드](../../../dev-guide/ci-gates.md#webview-레이아웃-시험)).
+GTK3는 디스플레이가 있어야 하므로 이 시험은 `#[ignore]`이고, 공식 플러그인 레포의 CI(`tasty-official-plugins/.github/workflows/ci.yml` 의 `test (linux, webview layout)` 단계)가
+xvfb-run 안에서 이름으로 실행한다.
 macOS(WKWebView)·Windows(WebView2)의 실제 레이아웃 결과는 확인되지 않았다.
 
 모든 heading 에 `scroll-margin-top:calc(var(--md-addr-bar-h) + var(--md-space-sm))` 을 줘, 앵커

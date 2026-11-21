@@ -5,7 +5,7 @@
 - **Status**: Implemented (bundled plugin)
 - **주체**: AI Agent / 로컬 사용자 (`tasty codex` CLI · IPC)
 - **배포/통합**: bundled · cli + ipc_namespace + 멀티에이전트 — [plugins 개념](../../concepts/plugins.md)
-- **코드**: `crates/tasty-plugin-codex/`
+- **코드**: `tasty-official-plugins/crates/tasty-plugin-codex/`
 - **화면**: 없음 — CLI/IPC 실행 관리 플러그인 (headless).
 
 > CLI·IPC로 자식 프로세스를 실행하고 관리하는 예제다. [플러그인 개발](../../dev-guide/plugin-development.md#cli--ipc-namespace)을 참고한다.

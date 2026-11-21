@@ -63,7 +63,7 @@ tiny_http = { path = "vendor/tiny_http" }
 - **왜 사본인가**: 상류 0.12.0 의 `Content-Length` 리더는 요청을 파괴할 때 읽지 않은 body 를 끝까지 읽는다(drain). 웹훅 413 이 그 drain 없이 연결을 닫게 하는 공개 API(`Request::respond_and_close`)를 더한 최소 패치다. 결정·대안·재검토 조건은 [웹훅 (Inbound webhook listener)](../features/webhook/index.md), 사본 범위·패치 목록은 [`vendor/tiny_http/PATCHES.md`](../../vendor/tiny_http/PATCHES.md).
 - **워크스페이스 멤버가 아니다**: 루트 `Cargo.toml` 의 `exclude` 에 있다 — 워크스페이스 lint·clippy·fmt·파일 SLOC 게이트가 상류 코드를 판정하지 않고, `crates/` 크레이트 수에도 안 들어간다.
 - **리스크**: `cargo update` 가 이 의존을 올리지 않고 상류 수정도 자동으로 포함되지 않는다.
-- **plugin 버전 게이트**: 이 사본을 링크하는 `tasty-plugin-agent-stream` 은 매니페스트 id가 잠금 파일에 있는 공식 플러그인이라 plugin 버전 게이트의 대상이 아니다([플러그인 버전 비교](release.md#플러그인-버전-비교)). 게이트는 워크스페이스 밖 path 의존을 잠금 파일에 없는 플러그인의 의존 폐포로만 찾는다.
+- **공식 플러그인도 이 사본을 쓴다**: 이 레포에서 이 사본을 링크하는 것은 본체뿐이다. 공식 agent-stream 플러그인의 SSE 서버는 공식 플러그인 레포 루트 `Cargo.toml` 의 `[patch.crates-io]` 가 이 레포의 커밋을 git 의존으로 가리켜 같은 사본으로 빌드한다. 패치를 바꾸면 그 커밋 고정도 함께 올려야 공식 플러그인에 반영된다.
 
 ### 점검 / 전환 트리거
 

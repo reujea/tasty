@@ -3,7 +3,7 @@
 - **Status**: Implemented
 - **주체**: 로컬 사용자 (Tools 메뉴 트리거 · 탭 스트립 메뉴 "새 HTML..." 트리거 · 설정·플러그인·프리셋의 로컬 파일/폴더 선택 · 이미지 다른 이름으로 저장) + plugin(`file_picker.trigger` IPC — plugin 호출자 전용, CLI·agent 는 `-32016`)
 - **설계**: [원격 attach (Remote attach)](../remote-attach/index.md) (attach 커스텀 이벤트 채널 + 하이브리드 신뢰 모델), [내부 팝업 시스템](../../design/systems/popup.md) (plugin 트리거 — 즉시 ack + 이벤트 push). 관련: [파일 핸들러 (File handler)](../file-handler/index.md)(옛 `fs.pick_file` 제거 — 이 피커가 그 자리를 대신한다)
-- **코드**: `src/adapters/ui/popup/file_picker.rs`(popup wrapper/view/action), `src/core/fs_list.rs`(공유 디렉토리 나열), `src/app/local_reads.rs`(`directory` 로컬 읽기 요청 · `poll_file_picker_reads` 결과 반영), `src/adapters/ui/file_open_tool.rs`(Tools 메뉴·단축키 호출자 — 열기와 결과 적용), `src/adapters/ui/new_tab_picker.rs`(탭 스트립 메뉴 "새 HTML..." 호출자 — 열기와 결과 적용, 진입은 `src/view/main/redraw.rs`의 `apply_pane_menu_selection`), `src/adapters/ipc/handler/file_picker.rs`(`file_picker.trigger` — plugin 호출자, `"file_picker.result"` push), `src/app/dispatch/file_picker.rs`(결과를 꺼내 호출자에게 넘기는 drain), `src/remote/server/content_queries.rs`(서버측 `handle_list_dir_request`), `src/app/attach_client/wire.rs`(client 원격 파싱 + `MirrorEvent::ListDirResult`), `crates/tasty-ipc/src/stream_hub.rs`(`ListDirRequestMsg` 분류), `crates/tasty-plugin-markdown/src/popup.rs`(파일 열기 팝업 Browse caller), `crates/tasty-plugin-markdown/src/browse.rs`(주소창 폴더 버튼 caller), `crates/tasty-plugin-image/src/picker.rs`(이미지 저장 경로 caller), `src/adapters/ipc/handler/picker_proofs.rs`(확정 선택의 사용자 출처 증명), `src/view/file_chooser.rs`(Settings·Plugins·Preset의 로컬 전용 재사용)
+- **코드**: `src/adapters/ui/popup/file_picker.rs`(popup wrapper/view/action), `src/core/fs_list.rs`(공유 디렉토리 나열), `src/app/local_reads.rs`(`directory` 로컬 읽기 요청 · `poll_file_picker_reads` 결과 반영), `src/adapters/ui/file_open_tool.rs`(Tools 메뉴·단축키 호출자 — 열기와 결과 적용), `src/adapters/ui/new_tab_picker.rs`(탭 스트립 메뉴 "새 HTML..." 호출자 — 열기와 결과 적용, 진입은 `src/view/main/redraw.rs`의 `apply_pane_menu_selection`), `src/adapters/ipc/handler/file_picker.rs`(`file_picker.trigger` — plugin 호출자, `"file_picker.result"` push), `src/app/dispatch/file_picker.rs`(결과를 꺼내 호출자에게 넘기는 drain), `src/remote/server/content_queries.rs`(서버측 `handle_list_dir_request`), `src/app/attach_client/wire.rs`(client 원격 파싱 + `MirrorEvent::ListDirResult`), `crates/tasty-ipc/src/stream_hub.rs`(`ListDirRequestMsg` 분류), `tasty-official-plugins/crates/tasty-plugin-markdown/src/popup.rs`(파일 열기 팝업 Browse caller), `tasty-official-plugins/crates/tasty-plugin-markdown/src/browse.rs`(주소창 폴더 버튼 caller), `tasty-official-plugins/crates/tasty-plugin-image/src/picker.rs`(이미지 저장 경로 caller), `src/adapters/ipc/handler/picker_proofs.rs`(확정 선택의 사용자 출처 증명), `src/view/file_chooser.rs`(Settings·Plugins·Preset의 로컬 전용 재사용)
 - **화면**: 없음 (popup 은 갤러리 specimen `crates/tasty-gallery/src/catalog/components/file_picker.rs` 로 시각 확인)
 
 ## 목적
@@ -566,9 +566,9 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   `FilePickerData.requester`/`filters`), `src/core/mod.rs`(`next_file_picker_request_id` — `FpLoadState::Loading`
   의 내부 `request_id` 와 별개 네임스페이스), `src/intent.rs`(`Intent`/`UiIntent::
   from_agent_plugin`).
-- plugin caller: `crates/tasty-plugin-markdown/src/popup.rs`(`trigger_file_picker`,
-  `FILE_PICKER_RESULT_EVENT`), `crates/tasty-plugin-markdown/src/browse.rs`(주소창 폴더 버튼 —
-  `trigger_params`·`request_id_of`·`navigate_params`), `crates/tasty-plugin-markdown/src/main.rs`(`pending_file_picker`
+- plugin caller: `tasty-official-plugins/crates/tasty-plugin-markdown/src/popup.rs`(`trigger_file_picker`,
+  `FILE_PICKER_RESULT_EVENT`), `tasty-official-plugins/crates/tasty-plugin-markdown/src/browse.rs`(주소창 폴더 버튼 —
+  `trigger_params`·`request_id_of`·`navigate_params`), `tasty-official-plugins/crates/tasty-plugin-markdown/src/main.rs`(`pending_file_picker`
   의 팝업·surface 출처 구분, `take_picker_result`, `on_event` 의 `"file_picker.result"` 수신).
 - 사용자 출처 증명: `src/adapters/ipc/handler/picker_proofs.rs`(`record`·`take`), 기록은
   `deliver_result`, 소비는 `src/adapters/ipc/handler/markdown.rs`(`picked_by_user`).

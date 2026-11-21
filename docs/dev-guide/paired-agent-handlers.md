@@ -1,5 +1,6 @@
 # Claude/Codex 짝 핸들러의 호환 경계
 
+두 plugin과 공용 크레이트 `tasty-plugin-agent-common`의 코드는 [공식 플러그인 레포](https://github.com/zilhak/tasty-official-plugins)에 있다.
 두 plugin은 서로 다른 CLI를 실행한다. 공용 판정은 `tasty-plugin-agent-common`에서
 공유하고, 이미 공개된 응답과 각 CLI의 기동·종료 계약은 유지한다. 함수 이름이나
 본문이 비슷하다는 이유만으로 응답 형식·번역 키·CLI 플래그를 통일하지 않는다.

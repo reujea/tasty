@@ -71,7 +71,7 @@ idle/needs_input 상태를 보관한다. 마지막 상태 보고 시각 `last_st
 [AttentionStore](../surface-highlight/index.md)의 `AttentionKind::NeedsInput`와는 별개다.
 Claude 플러그인은 같은 훅에서 `terminal.set_state`와
 `surface.completion { kind: "needs_input" }`를 함께 호출한다
-(`crates/tasty-plugin-claude/src/hook.rs::apply_hook`). 사용자가 탭을 보면 해제되는 것은
+(`tasty-official-plugins/crates/tasty-plugin-claude/src/hook.rs::apply_hook`). 사용자가 탭을 보면 해제되는 것은
 화면 알림이며, `tasty terminal state`의 상태 보고는 바뀌지 않는다.
 
 ### spawn과 점유
@@ -309,7 +309,7 @@ true인 경우(`pty_busy`/`confirmed`)와 필요한 관측이 없는 경우
 임계값 조정이 소비자 계약 변경이 된다.
 
 **소비자 정합**: claude plugin 의 `claude.children` remap 은 화이트리스트라 세 필드를
-명시적으로 옮긴다(`crates/tasty-plugin-claude/src/handlers.rs`). codex plugin 의
+명시적으로 옮긴다(`tasty-official-plugins/crates/tasty-plugin-claude/src/handlers.rs`). codex plugin 의
 `codex.children` 은 passthrough 라 자동 반영된다.
 
 ### `--child <n>` 은 index 지 surface_id 가 아니다

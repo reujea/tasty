@@ -74,8 +74,8 @@ tasty 가 단일라인 tell 을 본문과 제출 `\r` 을 **한 문자열(`"{msg
   연결에만 별도 `\r` write 를 보낸다. 요청 decode 와 오류 매핑은
   `src/adapters/ipc/handler/terminal.rs` 의 `handle_tell` 이 맡는다. 이 경로가 유일한 구현이다.
 - `claude`/`codex` 플러그인의 `tell` 은 자체 페이로드 조립 로직을 갖지 않고 `terminal.tell`
-  IPC 를 그대로 호출해 위임한다(`crates/tasty-plugin-claude/src/handlers.rs`,
-  `crates/tasty-plugin-codex/src/handlers.rs` 의 `handle_tell` — 둘 다 `host_call(host,
+  IPC 를 그대로 호출해 위임한다(`tasty-official-plugins/crates/tasty-plugin-claude/src/handlers.rs`,
+  `tasty-official-plugins/crates/tasty-plugin-codex/src/handlers.rs` 의 `handle_tell` — 둘 다 `host_call(host,
   "terminal.tell", …)` 한 줄). `terminal.spawn` 의 초기 command 주입도 같은 `tell_payload` 를
   거친다.
 - 호스트 `terminal.broadcast` 도 동일 함정을 피한다 — `src/app/terminal_input.rs` 의
@@ -281,8 +281,8 @@ Monitor의 전달은 외부 도구 동작에 의존한다. 기존 관측에는 i
 ### 패키징된 macOS `.app` 의 PATH 제약 — hook 셸 커맨드가 자기 자신을 재호출할 때
 
 완료 알림 hook(`register_notify_hooks` — claude 는
-`crates/tasty-plugin-claude/src/notifications.rs`, codex 는
-`crates/tasty-plugin-codex/src/handlers.rs`)이
+`tasty-official-plugins/crates/tasty-plugin-claude/src/notifications.rs`, codex 는
+`tasty-official-plugins/crates/tasty-plugin-codex/src/handlers.rs`)이
 등록하는 `command` 는 `tasty claude notify-done ...` / `tasty codex notify-caller ...` 형태로,
 **`tasty` 자기 자신을 PATH 로 재호출**한다. 이 셸 커맨드는 `src/hook_runtime/trigger.rs::spawn_shell`
 이 `sh -c`(windows `cmd /C`)로 실행하며 **부모(host 앱) 프로세스의 환경을 상속**한다.

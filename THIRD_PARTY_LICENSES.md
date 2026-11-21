@@ -67,17 +67,17 @@ OFL 1.1과 Ubuntu Font Licence 1.0은 폰트를 재배포할 때 저작권 고�
 
 ## markdown plugin 의 렌더링 엔진
 
-마크다운 플러그인(`crates/tasty-plugin-markdown`)은 아래 세 엔진의 24개 파일을 컴파일할 때
+마크다운 플러그인(`tasty-official-plugins/crates/tasty-plugin-markdown`)은 아래 세 엔진의 24개 파일을 컴파일할 때
 바이너리에 포함합니다(`include_str!` 4개, `include_bytes!` 20개). 이 자산은 실행 중
 다운로드하지 않습니다. 출처 URL, sha512, 갱신 방법은
-[자산 고지](crates/tasty-plugin-markdown/assets/NOTICE.md)에 있으며, 여기에는 배포에 필요한
+[자산 고지](https://github.com/zilhak/tasty-official-plugins/blob/develop/crates/tasty-plugin-markdown/assets/NOTICE.md)에 있으며, 여기에는 배포에 필요한
 라이선스 정보를 정리했습니다.
 
 ### mermaid
 
 - 출처: https://github.com/mermaid-js/mermaid (npm `mermaid`)
 - 버전: 11.16.1
-- 적용 범위: `crates/tasty-plugin-markdown/assets/mermaid.min.js`
+- 적용 범위: `tasty-official-plugins/crates/tasty-plugin-markdown/assets/mermaid.min.js`
 - 라이선스: MIT — Copyright (c) 2014 - 2022 Knut Sveidqvist
 - 라이선스 본문: [`LICENSES/mermaid-MIT.txt`](LICENSES/mermaid-MIT.txt) (태그 `mermaid@11.16.1` 의 `LICENSE`)
 - 번들에 포함된 다른 MIT 구성요소(jQuery 이벤트 모듈 등)의 고지 주석도
@@ -87,7 +87,7 @@ OFL 1.1과 Ubuntu Font Licence 1.0은 폰트를 재배포할 때 저작권 고�
 
 - 출처: https://github.com/highlightjs/highlight.js (cdnjs 의 prebuilt "common" 번들)
 - 버전: 11.10.0
-- 적용 범위: `crates/tasty-plugin-markdown/assets/highlight.min.js`
+- 적용 범위: `tasty-official-plugins/crates/tasty-plugin-markdown/assets/highlight.min.js`
 - 라이선스: BSD-3-Clause — Copyright (c) 2006, Ivan Sagalaev
 - 라이선스 본문: [`LICENSES/highlightjs-BSD-3-Clause.txt`](LICENSES/highlightjs-BSD-3-Clause.txt) (태그 `11.10.0` 의 `LICENSE`)
 - 번들 파일 머리의 배너(`(c) 2006-2024 Josh Goebel <hello@joshgoebel.com> and other contributors`)도
@@ -98,7 +98,7 @@ OFL 1.1과 Ubuntu Font Licence 1.0은 폰트를 재배포할 때 저작권 고�
 
 - 출처: https://github.com/KaTeX/KaTeX (npm `katex`)
 - 버전: 0.18.4
-- 적용 범위: `crates/tasty-plugin-markdown/assets/katex.min.js`, `crates/tasty-plugin-markdown/assets/katex.min.css`, `crates/tasty-plugin-markdown/assets/fonts/KaTeX_*.woff2` (20 개)
+- 적용 범위: `tasty-official-plugins/crates/tasty-plugin-markdown/assets/katex.min.js`, `tasty-official-plugins/crates/tasty-plugin-markdown/assets/katex.min.css`, `tasty-official-plugins/crates/tasty-plugin-markdown/assets/fonts/KaTeX_*.woff2` (20 개)
 - 라이선스: MIT — Copyright (c) 2013-2020 Khan Academy and other contributors
 - 라이선스 본문: [`LICENSES/KaTeX-MIT.txt`](LICENSES/KaTeX-MIT.txt) (태그 `v0.18.4` 의 `LICENSE`)
 - 폰트에도 같은 MIT 라이선스가 적용됩니다. 해당 `LICENSE`에는 폰트에만 적용하는 별도
