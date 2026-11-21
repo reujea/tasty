@@ -587,20 +587,17 @@ mod egui_tests {
             press(egui::Key::C, ctrl),
         ];
         let owned: Vec<String> = bindings.iter().map(|b| (*b).into()).collect();
-        let matched: Vec<egui::Event> = events
-            .iter()
-            .filter(|e| match e {
-                egui::Event::Key { key, modifiers, .. } => {
-                    binding_matches_egui(&owned, *key, *modifiers, false)
-                }
-                _ => false,
-            })
-            .cloned()
-            .collect();
-        let (_, left) = consume_events(&bindings, events.clone());
-        let removed: Vec<egui::Event> = events.into_iter().filter(|e| !left.contains(e)).collect();
-        assert_eq!(matched, removed);
-        assert_eq!(matched.len(), 3);
+        let mut matched = 0;
+        for event in events {
+            let egui::Event::Key { key, modifiers, .. } = &event else {
+                unreachable!("키 누름만 넣었다");
+            };
+            let judged = binding_matches_egui(&owned, *key, *modifiers, false);
+            let (removed, _) = consume_events(&bindings, vec![event.clone()]);
+            assert_eq!(judged, removed, "{event:?}");
+            matched += usize::from(judged);
+        }
+        assert_eq!(matched, 3);
     }
 
     /// 맞는 키 누름 바로 뒤의 글자도 지운다. 앞뒤로 친 다른 글자는 남는다.
