@@ -22,10 +22,13 @@
 
 use std::collections::BTreeSet;
 
+#[cfg(unix)]
 use tasty_doc_guards::floored_walk::{CountedOn, Floor, Pick, walk_dirs_with_floor};
 use tasty_doc_guards::official_plugins::{
     LOCK_FILE, Lock, REFRESH_HINT, check, contract_mismatches, parse_lock, read_host_contract,
 };
+#[cfg(unix)]
+use tasty_doc_guards::plugin_manifest_scan::{scan_text, top_level};
 use tasty_doc_guards::repo_root;
 
 /// 공식 플러그인 레포로 옮기지 않고 tasty에 남는 시범 플러그인.
@@ -58,6 +61,7 @@ fn bundled_ids() -> Vec<String> {
 }
 
 /// `crates/` 바로 아래 디렉터리 순회의 하한. 하한은 방문한 디렉터리 수에 적용한다.
+#[cfg(unix)]
 const CRATES_DIR_FLOOR: Floor = Floor {
     min: 45,
     measured: 54,
@@ -68,8 +72,9 @@ const CRATES_DIR_FLOOR: Floor = Floor {
     why_this_gap: "crates 바로 아래 디렉터리만 방문하고 그 아래로는 내려가지 않는다. 크레이트 몇 개를 합치거나 옮겨도 통과하도록 9개 여유를 둔다. 그보다 줄면 루트를 잘못 잡았거나 순회가 실패한 것이므로 재측정한다.",
 };
 
-/// workspace 플러그인 크레이트 가운데 매니페스트가 있고 `bundle = false`를 적지 않은 것의 id.
+/// workspace 플러그인 크레이트 가운데 매니페스트가 있고 최상위 `bundle = false`를 적지 않은 것의 id.
 /// 배포 스크립트는 잠금 파일의 `bundle = true` 산출물만 싣고 workspace 플러그인은 싣지 않는다.
+#[cfg(unix)]
 fn workspace_ids_claiming_to_ship(root: &std::path::Path) -> BTreeSet<String> {
     let crates = walk_dirs_with_floor(&root.join("crates"), root, &CRATES_DIR_FLOOR, &|_| {
         Pick::TakeAndStop
@@ -89,18 +94,26 @@ fn workspace_ids_claiming_to_ship(root: &std::path::Path) -> BTreeSet<String> {
         let Ok(text) = std::fs::read_to_string(krate.path.join("tasty-plugin.toml")) else {
             continue;
         };
-        let unbundled = text.lines().any(|l| {
-            let t: String = l.chars().filter(|c| !c.is_whitespace()).collect();
-            t == "bundle=false" || t.starts_with("bundle=false#")
-        });
-        if unbundled {
-            continue;
+        if let Some(id) =
+            shipping_id(&text).unwrap_or_else(|why| panic!("{name}/tasty-plugin.toml: {why}"))
+        {
+            ids.insert(id);
         }
-        let id = tasty_doc_guards::official_plugins::manifest_top_level_str(&text, "id")
-            .unwrap_or_else(|| panic!("{name}/tasty-plugin.toml에서 id를 읽지 못했다"));
-        ids.insert(id);
     }
     ids
+}
+
+/// 매니페스트가 배포 대상이라고 선언하면(최상위 `bundle`이 없거나 true) 그 id를 돌려준다.
+/// sync 스크립트와 같은 TOML 스캐너로 표 구조를 따라 읽으므로 표 머리 아래의 `bundle`은 최상위 값이 아니다.
+#[cfg(unix)]
+fn shipping_id(manifest: &str) -> Result<Option<String>, String> {
+    let top = scan_text(manifest).and_then(|scan| top_level(&scan))?;
+    if !top.bundle {
+        return Ok(None);
+    }
+    top.id
+        .map(Some)
+        .ok_or_else(|| "최상위 id가 없다".to_string())
 }
 
 fn locked_ids(lock: &Lock) -> BTreeSet<String> {
@@ -442,6 +455,8 @@ fn default_staging_branch(text: &str) -> Option<String> {
 
 /// 배포 패키지가 싣는 집합은 잠금 파일의 `bundle = true` 항목이다. workspace 플러그인(mesh-demo)이
 /// `bundle = false`를 잃거나 true로 바꾸면 배포 대상이라고 선언하지만 패키지에는 들어가지 않으므로 실패한다.
+/// 스캐너가 awk로 돌므로 Unix에서만 실행한다. 매니페스트 원문은 OS마다 같아 Linux 실행으로 덮인다.
+#[cfg(unix)]
 #[test]
 fn the_shipped_set_is_the_bundled_lock_entries() {
     let bundled: BTreeSet<String> = bundled_ids().into_iter().collect();
@@ -451,6 +466,22 @@ fn the_shipped_set_is_the_bundled_lock_entries() {
         shipped, bundled,
         "workspace 플러그인(crates/tasty-plugin-*/tasty-plugin.toml 중 bundle = false가 아닌 것)이 배포 대상이라고 \
          선언한다. 배포 스크립트는 잠금 파일의 bundle = true 산출물만 싣는다"
+    );
+}
+
+/// 배포 선언 판독은 줄 모양이 아니라 TOML 구조를 따른다.
+#[cfg(unix)]
+#[test]
+fn the_shipping_reader_follows_the_toml_structure() {
+    assert_eq!(
+        shipping_id("id = \"com.tasty.x\"\n\"bundle\" = false\n"),
+        Ok(None),
+        "따옴표 키 \"bundle\" = false 를 배포 제외로 읽지 않았다"
+    );
+    assert_eq!(
+        shipping_id("id = \"com.tasty.x\"\n\n[entry]\nbundle = false\n"),
+        Ok(Some("com.tasty.x".to_string())),
+        "[entry] 아래의 bundle = false 를 최상위 배포 제외로 읽었다"
     );
 }
 
