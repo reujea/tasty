@@ -645,7 +645,7 @@ ASCII 중심 `strings`는 한글 이름을 놓친다. 로그에서 ignored와 �
 |---|---|---|
 | 기본 feature 전체 스위트 | `cargo test --workspace --locked` | 병합 후 최종 트리. test.yml의 전체 실행 잡은 수동 전용 |
 | Linux 기본 feature clippy | `cargo clippy --workspace --all-targets --locked -- -D warnings` (`check-headless` 의 `cargo clippy (linux, gui)` 스텝과 같은 명령) | 해당 작업의 최종 검증. 패키지만 지정한 결과로 대신하지 않음 |
-| headless clippy | `cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings` (`check-headless` 의 `cargo clippy (headless)` 스텝과 같은 명령) | headless 경로나 `cfg(not(feature = "gui"))` 코드를 바꿨을 때. 그 코드는 위 기본 feature clippy 에 보이지 않는다. `-D warnings` 라 workspace 멤버의 경고 하나도 실패다. `let_underscore_must_use` 도 같다 — 사유를 주석으로만 남기면 lint 가 발동할 수 있고, 충족된 문장 단위 `expect` 는 그 진단을 억제한다([error-handling](error-handling.md)의 「`clippy::let_underscore_must_use` 는 무엇을 세는가」) |
+| headless clippy | `cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings` (`check-headless` 의 `cargo clippy (headless)` 스텝과 같은 명령) | headless 경로나 `cfg(not(feature = "gui"))` 코드를 바꿨을 때. 그 코드는 위 기본 feature clippy 에 보이지 않는다. `-D warnings` 라 workspace 멤버의 rustc·Clippy lint 경고는 하나라도 실패다. Cargo 자체 메시지(future-incompat 보고, build script 의 `cargo:warning`)는 실패로 바뀌지 않는다. `let_underscore_must_use` 도 같다 — 사유를 주석으로만 남기면 lint 가 발동할 수 있고, 충족된 문장 단위 `expect` 는 그 진단을 억제한다([error-handling](error-handling.md)의 「`clippy::let_underscore_must_use` 는 무엇을 세는가」) |
 | dist 빌드 | `bash scripts/build-macos-dmg.sh` · `./scripts/build-windows.ps1` · `bash scripts/build-linux.sh` | build-check.yml 수동 실행 |
 
 ### 크레이트를 지목한 clippy 는 push 와 다른 feature 집합을 잰다

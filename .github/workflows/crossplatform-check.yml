@@ -55,7 +55,8 @@ jobs:
         run: rustup component add clippy
 
       # CRLF 정규화 실패는 Rust 컴파일을 막지 않으므로 Clippy는 계속 실행한다.
-      # -D warnings로 workspace 멤버의 warn 수준 lint도 오류로 올린다. 경고 0이 통과 조건이다.
+      # -D warnings로 workspace 멤버의 warn 수준 rustc·Clippy lint도 오류로 올린다. 그 경고 0이 통과 조건이다.
+      # Cargo 자체 메시지(future-incompat 보고, build script의 cargo:warning)는 실패로 바뀌지 않는다.
       - name: cargo clippy
         if: ${{ !cancelled() }}
         shell: pwsh
@@ -184,7 +185,7 @@ jobs:
         run: bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache
 
       # 기본 feature의 Clippy에서는 제외되는 headless 전용 코드도 검사한다.
-      # -D warnings로 경고도 실패로 본다.
+      # -D warnings로 workspace 멤버의 rustc·Clippy lint 경고도 실패로 본다(Cargo 자체 메시지는 제외).
       - name: cargo clippy (headless)
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings

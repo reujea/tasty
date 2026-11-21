@@ -108,7 +108,7 @@ push 저장소의 경로를 전달하지 않는다. 이는 [Git 훅의 저장소
 | B.17 | `bash scripts/check-core-writer-ratchet.sh` (`script-gates.yml`과 같은 명령) |
 | B.18 | `bash scripts/check-shell-assets.sh`로 추적 셸 자산 전체를 검사한다. CI와 달리 `install-shellcheck.sh`로 도구를 받지 않으며, 도구가 없으면 종료 코드 2로 실패한다. staged 파일만 보는 A.3와 구분한다. |
 | B.19 | `cargo fmt --check`와 `cargo fmt --check --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml`. 작업 트리 전체를 보며 staged Rust 파일이 있을 때만 도는 A.2와 구분한다. 둘 중 하나만 실패해도 실패한다. |
-| B.4 | `cargo clippy --workspace --all-targets -- -D warnings`로 워크스페이스의 개발 빌드·테스트 코드 컴파일과 lint를 함께 검사한다. 경고 하나도 실패이며 CI clippy 단계와 같은 기준이다. 훅을 실행하는 호스트의 기본 feature·기본 타깃으로 잰다. |
+| B.4 | `cargo clippy --workspace --all-targets -- -D warnings`로 워크스페이스의 개발 빌드·테스트 코드 컴파일과 lint를 함께 검사한다. workspace 멤버의 rustc·Clippy lint 경고는 하나라도 실패이며 CI clippy 단계와 같은 기준이다. Cargo 자체 메시지(future-incompat 보고, build script의 `cargo:warning`)는 `-D warnings`가 바꾸지 않아 실패가 아니다. 훅을 실행하는 호스트의 기본 feature·기본 타깃으로 잰다. |
 | B.8 | `cargo check --workspace --release --locked` |
 | B.6 | `cargo check --no-default-features` |
 | B.7 | `cargo test -p tasty-doc-guards`. `TASTY_PAGE_DIR`가 없으면 `scripts/fetch-design-source.sh`로 `crates/tasty-design-tokens/dtcg/SOURCE` 커밋의 tasty-page를 공용 `.git/design-source/<SOURCE 커밋>`에 받아 넘긴다(네트워크 필요). |

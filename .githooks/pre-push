@@ -166,7 +166,8 @@ fmt_check_all() {
 run_check B.19 'cargo fmt --check' fmt_check_all
 
 # ─
-# B.4  개발 빌드와 테스트 코드의 컴파일·Clippy 검사: 모든 경고를 오류로 처리(CI clippy 단계와 같은 기준)
+# B.4  개발 빌드와 테스트 코드의 컴파일·Clippy 검사: workspace 멤버의 rustc·Clippy lint 경고를 오류로 처리(CI clippy 단계와 같은 기준).
+#      Cargo 자체 메시지(future-incompat 보고, build script의 cargo:warning)는 실패로 바뀌지 않는다.
 run_check B.4 'cargo clippy --workspace --all-targets -- -D warnings' cargo clippy --workspace --all-targets -- -D warnings
 
 # ─
