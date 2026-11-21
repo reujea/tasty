@@ -71,7 +71,8 @@ OFL 1.1과 Ubuntu Font Licence 1.0은 폰트를 재배포할 때 저작권 고�
 바이너리에 포함합니다(`include_str!` 4개, `include_bytes!` 20개). 이 자산은 실행 중
 다운로드하지 않습니다. 출처 URL, sha512, 갱신 방법은
 [자산 고지](https://github.com/zilhak/tasty-official-plugins/blob/develop/crates/tasty-plugin-markdown/assets/NOTICE.md)에 있으며, 여기에는 배포에 필요한
-라이선스 정보를 정리했습니다.
+라이선스 정보를 정리했습니다. 같은 자산 고지는 공식 플러그인 릴리스 산출물의 `com.tasty.markdown/NOTICE.md`로
+들어 있고, 배포 패키지에서는 플러그인 폴더 `plugins/com.tasty.markdown/NOTICE.md`에 있습니다.
 
 ### mermaid
 
