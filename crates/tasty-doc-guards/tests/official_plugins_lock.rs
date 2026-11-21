@@ -134,9 +134,10 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// argv를 호출마다 돌려준다. 셸 문법(따옴표, 리다이렉션, 명령 경계, 줄 연속)은 bash가 판정한다.
 /// 대상은 운영 스크립트와 같은 `set -euo pipefail`로 돌고(source와 함수 호출은 운영처럼 따로 선 문장이다),
 /// 대상이 실패하면 기록과 관계없이 시험이 실패한다. 스텁은 호출마다 `mktemp`로 고유한 파일을 잡아 인자를
-/// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다. 스텁은 잠시 뒤 `--out` 폴더에
-/// 완료 표지를 남기고, 하네스는 대상이 끝난 바로 그 시점에 표지를 확인한다. 운영 흐름도 fetch 줄 뒤에 곧바로
-/// 산출물을 쓰므로, 백그라운드로 띄워 끝나기 전에 넘어가는 호출은 실패로 본다.
+/// NUL로 끝맺어 적으므로 동시 호출, 빈 인자, 제어 문자가 그대로 남는다. `&`로 띄운 fetch는 종료 상태가
+/// `set -e`에 닿지 않으므로 시점과 관계없이 실패로 본다. job control이 없는 bash는 비동기 명령의 표준 입력을
+/// /dev/null로 바꾸므로, 스텁은 표준 입력이 하네스가 준 파일인지로 이를 가린다. 하네스는 대상의 출력 파이프가
+/// 닫힐 때까지(그 파이프를 물려받은 자손이 모두 끝날 때까지) 기다린 뒤 기록을 모으므로 늦게 시작한 호출도 남는다.
 /// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
 /// - `package`: `scripts/lib/bundled-plugins.sh`(원문을 넘기면 그 원문)를 source하고 `fetch_bundled_plugins <platform>`을
 ///   부른다.
@@ -153,20 +154,21 @@ fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>
 repo="$1"; mode="$2"; platform="$3"; branch="$4"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
-mkdir -p "$root/scripts/lib" "$root/calls"
+mkdir -p "$root/scripts/lib" "$root/calls" "$root/bg"
+: > "$root/stdin"
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
-calls="$(cd "$(dirname "$0")/.." && pwd)/calls"
-record="$(mktemp "$calls/call.XXXXXX")"
+top="$(cd "$(dirname "$0")/.." && pwd)"
+record="$(mktemp "$top/calls/call.XXXXXX")"
 printf '%s\0' "$@" > "$record"
+# job control이 없는 bash는 `&`로 띄운 명령의 표준 입력을 /dev/null로 바꾼다.
+if ! [ /dev/stdin -ef "$top/stdin" ]; then : > "$top/bg/$(basename "$record")"; fi
 out=""
 while [ $# -gt 0 ]; do
     if [ "$1" = --out ] && [ $# -ge 2 ]; then out="$2"; fi
     shift
 done
-if [ -n "$out" ]; then mkdir -p "$out"; fi
-sleep 0.3
-if [ -n "$out" ] && [ -d "$out" ]; then : > "$out/.fetched"; fi
+if [ -n "$out" ]; then mkdir -p "$out" && : > "$out/.fetched"; fi
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
 rc=0
@@ -179,13 +181,16 @@ case "$mode" in
         fi
         (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
 fetch_bundled_plugins "$1"
-[ -f target/bundled-plugins/.fetched ]' run "$platform") > /dev/null 2>&1 || rc=$?
+[ -f target/bundled-plugins/.fetched ]' run "$platform") < "$root/stdin" 2>&1 | cat > /dev/null
+        rc=${PIPESTATUS[0]}
         ;;
     staging)
         (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
-[ -f \"\$stage/.fetched\" ]") > /dev/null 2>&1 || rc=$?
+[ -f \"\$stage/.fetched\" ]") < "$root/stdin" 2>&1 | cat > /dev/null
+        rc=${PIPESTATUS[0]}
         ;;
 esac
+if [ -n "$(ls -A "$root/bg")" ]; then rc=background; fi
 printf 'RC=%s\n' "$rc"
 for f in "$root/calls"/*; do
     [ -f "$f" ] || continue
@@ -484,22 +489,31 @@ fn the_staging_harness_reads_what_bash_passes() {
         &format!("printf '%s\\n' 'Run scripts/fetch-official-plugins.sh'\n{real}"),
     );
     assert_eq!(calls.len(), 1, "안내문을 fetch 호출로 셌다: {calls:?}");
-    // 동시에 끝나는 두 호출도 각자 기록된다. 하나가 다른 하나를 덮으면 --all 없는 호출만 남는다.
-    let calls = fetch_argvs(
-        "staging",
-        "linux-x64",
-        &format!("{real} &\n{} &\nwait", real.replacen(" --all", "", 1)),
-    );
-    assert_eq!(
-        calls.len(),
-        2,
-        "동시 호출 두 건을 모두 기록하지 않았다: {calls:?}"
-    );
-    assert_eq!(
-        calls.iter().filter(|c| parse_fetch(c).all).count(),
-        1,
-        "동시 호출 중 --all 호출이 하나가 아니다: {calls:?}"
-    );
+    // `&`로 띄운 fetch는 끝나는 시점과 관계없이 실패다. 대상이 끝난 뒤 시작하는 호출도 기다려 본다.
+    let plain = real.replacen(" --all", "", 1);
+    for (what, branch) in [
+        (
+            "함께 띄우고 기다린 두 호출",
+            format!("{real} &\n{plain} &\nwait"),
+        ),
+        (
+            "띄운 뒤 끝날 때까지 쉰 호출",
+            format!("{real} &\nsleep 0.6"),
+        ),
+        (
+            "정상 호출 뒤 늦게 띄운 호출",
+            format!("{real}\n(sleep 0.5; {plain}) &"),
+        ),
+        (
+            "손자로 늦게 띄운 호출",
+            format!("{real}\n( (sleep 0.5; {plain}) & )"),
+        ),
+    ] {
+        assert!(
+            fetch_run("staging", "linux-x64", &branch).is_err(),
+            "{what}: 백그라운드 fetch를 통과시켰다"
+        );
+    }
 }
 
 /// 배포 하네스는 헬퍼를 운영처럼 따로 선 문장으로 source한다. 헬퍼 최상위의 실패는 fetch 전에 멈춘다.
