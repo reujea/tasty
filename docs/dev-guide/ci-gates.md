@@ -133,7 +133,7 @@ CI에 해당 캐시가 없었다면 그 실행으로 캐시가 있는 환경까�
 `test.yml`의 `test-linux-x64`(수동 실행)다. 공식 플러그인은 잠금 파일의 릴리스 산출물을 받고 mesh-demo만 workspace에서 빌드한다.
 `check-windows`·`check-macos`는 `--lib --bins`와 지목한 패키지만 돌려 번들이 필요 없으므로 이 단계가 없다.
 
-- 픽스처 대조: `check-headless`는 바로 뒤 `check official plugin fixtures` 단계에서 `bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache`를 실행한다. 방금 받은 압축 파일을 전용 폴더로 복사해 다시 검증하고 풀어, 호스트 시험 픽스처가 잠금 산출물과 바이트로 같은지 본다. 다르면 단계가 실패한다([플러그인 패키징](plugin-packaging.md#호스트-시험-픽스처)).
+- 픽스처 대조: `check-headless`는 `cargo test (headless)` 바로 뒤 `check official plugin fixtures` 단계(`if: ${{ !cancelled() }}`라 앞 단계가 실패해도 돈다)에서 `bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache`를 실행한다. `stage official plugins` 단계가 받은 압축 파일을 전용 폴더로 복사해 다시 검증하고 풀어, 호스트 시험 픽스처가 잠금 산출물과 바이트로 같은지 본다. 다르면 단계가 실패한다. headless 시험 뒤에 두어 픽스처가 어긋난 변경에서도 호스트 시험 결과가 남는다([플러그인 패키징](plugin-packaging.md#호스트-시험-픽스처)).
 - 네트워크: 이 단계는 GitHub 릴리스에서 산출물을 받는다. 받기나 SHA-256 대조가 실패하면 단계가 실패하고 잡이 실패한다.
 - 캐시: `actions/cache`를 쓰지 않는다. 받은 압축 파일은 `target/official-plugins/<tag>/<platform>/`에 두고 해시가 맞으면 다시 받지 않지만, 체크아웃의 `git clean -ffdx`([self-hosted 러너의 작업 트리](#self-hosted-러너의-작업-트리))가 무시 파일인 `target`을 지우면 매번 받는다. 산출물은 8개 압축 파일이다.
 - 계약 차이: 받은 산출물은 공식 플러그인 레포가 기준으로 삼은 tasty 커밋의 SDK·protocol로 빌드됐다. 이 레포가 그 뒤 계약을 바꿨다면 새 계약에 기대는 통합 시험은 받은 번들로 통과하지 않는다. 그런 시험은 공식 플러그인 레포가 새 계약으로 릴리스하고 잠금 파일을 갱신한 뒤에 켠다. 로컬에서는 `just build-plugins --from-checkout <체크아웃> --with-local-tasty`로 먼저 확인할 수 있다([build.md](build.md#plugin-빌드--스테이징)).

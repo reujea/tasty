@@ -162,12 +162,6 @@ jobs:
       - name: stage official plugins
         run: bash scripts/stage-dev-plugins.sh --profile debug
 
-      # 호스트 시험 픽스처가 잠금 파일의 릴리스 산출물과 바이트로 같은지 본다. 같은 version의 재발행도 잡는다.
-      # 바로 위 단계가 채운 받기 캐시를 SHA-256 확인 뒤 재사용하므로 다시 받지 않는다.
-      # 기준: docs/dev-guide/plugin-packaging.md#호스트-시험-픽스처
-      - name: check official plugin fixtures
-        run: bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache
-
       # headless 전용 구현과 IPC·attach·PTY 통합 경로를 검사한다.
       # GUI 전용 gui_tests 타깃은 Cargo의 required-features로 제외된다.
       # e2e 하네스는 같은 feature로 빌드한 headless 바이너리를 실행한다.
@@ -180,6 +174,14 @@ jobs:
           TASTY_PAGE_DIR="$(bash scripts/fetch-design-source.sh "$RUNNER_TEMP/tasty-page")"
           export TASTY_PAGE_DIR
           cargo test --workspace --no-default-features --locked --no-fail-fast
+
+      # 호스트 시험 픽스처가 잠금 파일의 릴리스 산출물과 바이트로 같은지 본다. 같은 version의 재발행도 잡는다.
+      # stage official plugins 단계가 채운 받기 캐시를 SHA-256 확인 뒤 재사용하므로 다시 받지 않는다.
+      # headless 시험 뒤에 두어 픽스처가 어긋나도 호스트 시험 결과를 볼 수 있게 하고, 앞 단계가 실패해도 돈다.
+      # 기준: docs/dev-guide/plugin-packaging.md#호스트-시험-픽스처
+      - name: check official plugin fixtures
+        if: ${{ !cancelled() }}
+        run: bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache
 
       # 기본 feature의 Clippy에서는 제외되는 headless 전용 코드도 검사한다.
       - name: cargo clippy (headless)
