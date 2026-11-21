@@ -93,11 +93,16 @@ impl Root {
     }
 
     fn run(&self, args: &[&str]) -> (i32, String) {
+        self.run_with_env(args, &[])
+    }
+
+    fn run_with_env(&self, args: &[&str], envs: &[(&str, std::ffi::OsString)]) -> (i32, String) {
         let out = Command::new("bash")
             .arg(self.path.join("scripts/sync-official-plugin-fixtures.sh"))
             .args(args)
             .current_dir(&self.path)
             .env_remove("CARGO_TARGET_DIR")
+            .envs(envs.iter().map(|(k, v)| (*k, v)))
             .output()
             .expect("sync 스크립트 실행");
         (
@@ -546,6 +551,11 @@ fn links_and_unlistable_folders_inside_a_fixture_fail_the_check() {
     fs::remove_file(alpha.join("lang/extra.toml")).expect("링크 지우기");
     root.update_ok();
 
+    // root 는 권한을 무시해 폴더를 읽으므로 나열 실패를 재현할 수 없다.
+    // SAFETY: geteuid 는 인자 없이 현재 프로세스의 유효 사용자 ID 만 읽는다.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
     let locked = alpha.join("lang/locked");
     fs::create_dir_all(&locked).expect("읽기 막을 폴더");
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).expect("권한 막기");
@@ -556,4 +566,74 @@ fn links_and_unlistable_folders_inside_a_fixture_fail_the_check() {
         text.contains("could not list") && text.contains("com.tasty.alpha"),
         "나열 실패를 말하지 않는다:\n{text}"
     );
+}
+
+/// 받은 쪽(`find lang -type f`)이나 픽스처 쪽(`find . -type f`)의 파일 목록 명령만 실패시키는 `find` 스텁.
+/// 다른 호출(링크 탐색 등)은 진짜 `find`로 넘긴다.
+const FIND_STUB: &str = r##"#!/usr/bin/env bash
+if [[ "${2:-} ${3:-}" == "-type f" ]]; then
+    if [[ "$FIND_FAIL" == want && "$1" == lang ]] || [[ "$FIND_FAIL" == have && "$1" == . ]]; then
+        echo "find stub: refused $*" >&2
+        exit 1
+    fi
+fi
+exec "$REAL_FIND" "$@"
+"##;
+
+/// 두 파일 목록 명령의 실패를 각각 따로 본다. 앞선 링크 탐색은 통과하므로 그 검사가 덮지 않는다.
+#[test]
+fn each_file_listing_failure_fails_the_check_on_its_own() {
+    let root = Root::new();
+    root.update_ok();
+    let real_find = std::env::split_paths(&std::env::var_os("PATH").expect("PATH"))
+        .map(|d| d.join("find"))
+        .find(|p| p.is_file())
+        .expect("PATH 에 find 가 없다");
+    let bin = root.path.join("stub-bin");
+    fs::create_dir_all(&bin).expect("스텁 폴더");
+    tasty_test_support::write_executable(&bin.join("find"), FIND_STUB).expect("find 스텁");
+    let mut path = std::ffi::OsString::from(&bin);
+    path.push(":");
+    path.push(std::env::var_os("PATH").expect("PATH"));
+
+    let (code, text) = root.run_with_env(
+        &["--check"],
+        &[
+            ("PATH", path.clone()),
+            ("REAL_FIND", real_find.clone().into()),
+            ("FIND_FAIL", "none".into()),
+        ],
+    );
+    assert_eq!(
+        code, 0,
+        "스텁이 실패시키지 않을 때 대조가 통과하지 않는다:\n{text}"
+    );
+
+    for (side, said) in [
+        (
+            "want",
+            "could not list the fetched files of com.tasty.alpha",
+        ),
+        (
+            "have",
+            "could not list the fixture files of com.tasty.alpha",
+        ),
+    ] {
+        let (code, text) = root.run_with_env(
+            &["--check"],
+            &[
+                ("PATH", path.clone()),
+                ("REAL_FIND", real_find.clone().into()),
+                ("FIND_FAIL", side.into()),
+            ],
+        );
+        assert_eq!(
+            code, 1,
+            "{side} 쪽 파일 목록 실패로 대조를 통과했다:\n{text}"
+        );
+        assert!(
+            text.contains(said),
+            "{side} 쪽 나열 실패를 말하지 않는다:\n{text}"
+        );
+    }
 }

@@ -256,7 +256,7 @@ compare() {
             continue
         fi
         if ! have="$(cd "$fix/$id" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)"; then
-            echo "  could not list $fix/$id" >&2
+            echo "  could not list the fixture files of $id" >&2
             bad=1
             continue
         fi
