@@ -512,7 +512,7 @@ impl JournalApplication {
         self.notices.push(notice);
     }
 
-    #[cfg(any(feature = "gui", test))]
+    #[cfg(any(feature = "gui", all(test, unix)))]
     pub(crate) fn damaged_layout_slots(&self) -> impl Iterator<Item = u32> + '_ {
         self.damaged_slots.iter().copied()
     }
