@@ -389,7 +389,7 @@ fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
 /// 한 프레임 뒤의 (주제 선택, 시작 요청, 주제 목록이 열려 있는지, 변환 상태).
 type TopicsSeen = (usize, Option<usize>, bool, Option<(bool, ConvertPayload)>);
 
-/// 프레임 하나가 남긴 surface 변환 요청(대상, 바꿀 kind).
+/// 한 번 큐를 비울 때 모은 surface 변환 요청(대상, 바꿀 kind).
 type Converts = Vec<(u32, String)>;
 
 /// 대기 인텐트를 모두 꺼내 그 가운데 surface 변환 요청만 돌려준다. 큐는 누적이므로 프레임마다 꺼내야 그 프레임의 요청이다.
@@ -540,6 +540,6 @@ fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_
     assert_eq!(
         enter_converts,
         vec![(SURFACE_R, "dag_graph".to_string())],
-        "변환이 주인이면 Enter 프레임에서 고른 항목(dag_graph)으로 R surface 변환을 요청한다"
+        "변환이 주인이면 ArrowDown으로 고른 항목(dag_graph)으로 R surface 변환을 Enter 프레임에서 요청한다"
     );
 }
