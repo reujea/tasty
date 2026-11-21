@@ -121,13 +121,6 @@ fn apply_input_events(app: &mut App, engine: &mut EngineMut<'_>, outcome: &mut P
 }
 
 fn apply_input_frames(
-    #[cfg_attr(
-        not(debug_assertions),
-        expect(
-            unused_variables,
-            reason = "only the debug echo of unrouted input writes to the stream hub"
-        )
-    )]
     app: &mut App,
     engine: &mut EngineMut<'_>,
     frames: impl IntoIterator<Item = (u32, Vec<u8>)>,
