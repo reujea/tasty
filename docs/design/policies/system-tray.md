@@ -33,7 +33,8 @@ GUI 앱이 백그라운드로 들어가면 가능한 환경에서 트레이나 �
 
 - 트레이 생성 직전에 `gtk::init()`을 호출한다. 실패하면 `None`을 반환하고 트레이 없는 환경의 동작을 따른다.
 - winit의 `about_to_wait`에서 `pump_gtk_events()`가 비차단 `gtk::main_iteration_do(false)`를 호출한다. 처리할 이벤트가 없으면 즉시 반환한다.
-- 런타임에는 `libgtk-3`, `libappindicator3` 또는 `libayatana-appindicator3`, `libxdo`가 필요하다. 빌드에는 해당 `-dev` 패키지가 필요하다.
+- 빌드에는 GTK 3 개발 패키지(`libgtk-3-dev` 등)가 필요하다. 런타임에는 `libgtk-3`과 AppIndicator 라이브러리(`libayatana-appindicator3` 또는 `libappindicator3`)가 필요하다. AppIndicator는 링크하지 않고 실행 중에 연다.
+- `tray-icon`의 기본 기능 `libxdo`는 끈다(본체와 `tasty-platform` 두 선언 모두). 그 기능은 Tasty가 쓰지 않는 muda 기본 메뉴 항목(복사·붙여넣기 등)의 키 입력에만 쓰이고, 켜면 배포본이 빌드 머신의 `libxdo` soname에 묶인다.
 
 ### DE 가용성 (best-effort 범위)
 

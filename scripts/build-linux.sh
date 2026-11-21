@@ -65,10 +65,6 @@ for lib in freetype2 fontconfig; do
         MISSING_DEPS+=("$lib")
     fi
 done
-# libxdo 개발 패키지의 링크 가능 여부는 .pc 파일 대신 실제 링커로 확인한다.
-if ! echo 'int main(void){return 0;}' | cc -xc - -lxdo -o /dev/null 2>/dev/null; then
-    MISSING_DEPS+=("libxdo")
-fi
 
 if [[ ${#MISSING_DEPS[@]} -gt 0 ]]; then
     PKG_MGR=""
@@ -89,9 +85,6 @@ if [[ ${#MISSING_DEPS[@]} -gt 0 ]]; then
             dnf:fontconfig)     echo fontconfig-devel ;;
             pacman:fontconfig)  echo fontconfig ;;
             zypper:fontconfig)  echo fontconfig-devel ;;
-            apt-get:libxdo)        echo libxdo-dev ;;
-            dnf:libxdo|zypper:libxdo) echo libxdo-devel ;;
-            pacman:libxdo)         echo xdotool ;;
             *) echo "" ;;
         esac
     }

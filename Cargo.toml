@@ -265,7 +265,9 @@ rand = "0.9"
 # 로컬 시각 표시와 UTC rfc3339 문자열. Windows는 시간대 자료가 OS에 없어 기본 기능의 묶음 자료를 쓴다.
 jiff = "1"
 pulldown-cmark = { version = "0.12", default-features = false, optional = true }
-tray-icon = { version = "0.22", optional = true }
+# 기본 기능 libxdo는 쓰지 않는 muda PredefinedMenuItem(복사·붙여넣기 키 입력)용이라 끈다. Linux 배포본이
+# 빌드 머신의 libxdo soname에 묶인다. 본체와 tasty-platform 두 선언에서 모두 꺼야 feature 통합으로 다시 켜지지 않는다.
+tray-icon = { version = "0.22", default-features = false, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }

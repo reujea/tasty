@@ -22,7 +22,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # 윈도잉 의존성은 gui feature에서만 사용한다.
 winit = { version = "0.30", optional = true }
 png = { version = "0.18", optional = true }
-tray-icon = { version = "0.22", optional = true }
+# 기본 기능 libxdo는 쓰지 않는 muda PredefinedMenuItem(복사·붙여넣기 키 입력)용이라 끈다. Linux 배포본이
+# 빌드 머신의 libxdo soname에 묶인다. 본체와 tasty-platform 두 선언에서 모두 꺼야 feature 통합으로 다시 켜지지 않는다.
+tray-icon = { version = "0.22", default-features = false, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # macOS 권한 조회도 본체와 같은 홈 디렉터리 해석을 사용한다.
