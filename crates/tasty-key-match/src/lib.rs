@@ -117,6 +117,23 @@ fn egui_modifiers_match(
         && option == parsed.option
 }
 
+/// 창의 Esc 판정이 보는 수식키. `command` 는 macOS Command, `super_` 는 비-macOS Win·Super 다([`token_axes`] 와
+/// 같은 축). winit·egui 수식키에서 만드는 변환은 이 크레이트를 쓰는 창 쪽에 있다.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KeyMods {
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub command: bool,
+    pub super_: bool,
+}
+
+/// 창이 받은 키 누름이 창의 Esc 처리 대상인지. 메인 창 키 경로와 시험 입구가 같은 함수로 판정한다. 지금은 Escape
+/// 키면 수식키와 관계없이 참이다.
+pub fn is_window_escape(is_escape_key: bool, _mods: KeyMods) -> bool {
+    is_escape_key
+}
+
 /// 저장 토큰 `alt`·`option` 에 해당하는 수정자가 눌렸는지 돌려준다. 하단 수정자 열의 위치로
 /// 정한다. macOS 는 `alt` = Command(winit super), `option` = Option(winit alt)이고, 다른 OS 는
 /// `alt` = Alt, `option` = 같은 위치의 Win·Super 다.
@@ -745,6 +762,29 @@ mod egui_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn window_escape_judgement() {
+        let none = KeyMods::default();
+        for mods in [
+            none,
+            KeyMods {
+                shift: true,
+                ..none
+            },
+            KeyMods {
+                command: true,
+                ..none
+            },
+            KeyMods {
+                super_: true,
+                ..none
+            },
+        ] {
+            assert!(is_window_escape(true, mods), "{mods:?}");
+        }
+        assert!(!is_window_escape(false, none));
+    }
 
     #[test]
     fn the_first_bad_key_says_whether_an_os_key_name_was_written() {

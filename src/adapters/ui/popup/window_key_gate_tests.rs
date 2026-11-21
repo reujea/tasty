@@ -418,6 +418,52 @@ fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() 
     assert!(pending.is_empty(), "다음 키는 egui 로 가지 않는다");
 }
 
+/// Given 포커스된 host 팝업 X(Esc 선언 Close)가 키 주인일 때, When 창이 Shift+Esc 누름을 받으면, Then 창의 Esc
+/// 처리가 시험 입구와 메인 창이 함께 쓰는 공유 판정(`tasty_key_match::is_window_escape`)을 거쳐 그 누름을 처리하고
+/// egui 큐에서 뺀다. 판정은 지금 수식키를 보지 않는다.
+#[test]
+fn shift_escape_is_judged_by_the_shared_function() {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    state.popups.register(
+        PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
+            .with_instances(PopupInstances::PerScopeTarget),
+    );
+    let x = open(&mut state, 1, true);
+    {
+        let p = state.popups.instance_mut(x).unwrap();
+        p.close_on_outside_click = false;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(240.0, 200.0));
+    }
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut state, Vec::new());
+    assert_eq!(
+        state.popups.focused_dismissal_target().map(|t| t.1),
+        Some(x),
+        "X 가 키 주인이다"
+    );
+    let engine = session.borrow_mut();
+    let mut input = WindowInput::default();
+    let handled = input.escape_with(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        true,
+        egui::Modifiers::SHIFT,
+    );
+    assert!(input.escape_fed(), "그 누름이 egui 큐에 실렸다");
+    assert!(handled, "창이 처리한다");
+    assert!(
+        !input
+            .queue_mut()
+            .iter()
+            .any(super::body_keys::is_escape_press),
+        "창이 처리한 누름은 egui 큐에서 빠졌다"
+    );
+}
+
 /// 이번 프레임 키 주인의 egui 사건을 버튼이 가져가는지 본다. `focus` 위젯에 egui 키 포커스를 주고 Enter 를 넣는다.
 fn enter_on_focused(ctx: &egui::Context, state: &mut RequestContext, focus: egui::Id) {
     ctx.memory_mut(|m| m.request_focus(focus));

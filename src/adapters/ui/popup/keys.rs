@@ -12,6 +12,37 @@
 
 use crate::adapters::ui::input::edit_key::{EditBindings, EditKey};
 
+/// winit 수식키를 창의 Esc 판정 값(`tasty_key_match::KeyMods`)으로 바꾼다. 축은 `tasty_key_match::token_axes` 와
+/// 같다: macOS 는 Super 가 Command 이고, 다른 OS 는 Win·Super 다.
+pub(crate) fn window_key_mods(mods: winit::keyboard::ModifiersState) -> tasty_key_match::KeyMods {
+    let macos = cfg!(target_os = "macos");
+    tasty_key_match::KeyMods {
+        shift: mods.shift_key(),
+        ctrl: mods.control_key(),
+        alt: mods.alt_key(),
+        command: macos && mods.super_key(),
+        super_: !macos && mods.super_key(),
+    }
+}
+
+/// egui 수식키를 창의 Esc 판정 값으로 바꾼다(시험 입구 `WindowInput::escape_with`). egui 는 비-macOS 의 Win·Super 를
+/// 담지 않으므로 그 값은 `super_held`(`tasty_key_match::super_held`)로 받는다. 비-macOS 의 `Modifiers::command` 는
+/// Ctrl 과 같은 값이라 쓰지 않는다.
+#[cfg(test)]
+pub(crate) fn egui_window_key_mods(
+    mods: egui::Modifiers,
+    super_held: bool,
+) -> tasty_key_match::KeyMods {
+    let macos = cfg!(target_os = "macos");
+    tasty_key_match::KeyMods {
+        shift: mods.shift,
+        ctrl: mods.ctrl,
+        alt: mods.alt,
+        command: macos && mods.mac_cmd,
+        super_: !macos && super_held,
+    }
+}
+
 /// 팝업이 바인딩으로 판정하는 기본 조작.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BasicKey {
