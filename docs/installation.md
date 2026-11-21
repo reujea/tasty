@@ -4,13 +4,15 @@ Tasty는 GitHub Releases 에서 OS·아키텍처·설치 형태별 산출물로 
 
 ## 산출물 매트릭스
 
+Linux 산출물은 형식과 아키텍처(x86_64·aarch64)에 관계없이 glibc 2.39 이상이 필요하다([Linux](#linux)).
+
 | OS | 아키텍처 | 산출물 | 비고 |
 |----|---------|--------|------|
 | Linux | x86_64 | `tasty-{ver}-linux-x64.tar.gz` | 동적 링크 · glibc/freetype/fontconfig/GTK 등 시스템 라이브러리 필요 |
-| Linux | x86_64 | `tasty_{ver}-1_amd64.deb` | Debian/Ubuntu/Mint |
-| Linux | x86_64 | `tasty-{ver}-1.x86_64.rpm` | Fedora/RHEL/openSUSE |
-| Linux | x86_64 | `Tasty-{ver}-x86_64.AppImage` | 의존 라이브러리를 묶은 단일 파일 |
-| Linux | aarch64 | `tasty-{ver}-linux-arm64.tar.gz` / `_arm64.deb` / `.aarch64.rpm` / `-aarch64.AppImage` | ARM64 |
+| Linux | x86_64 | `tasty_{ver}-1_amd64.deb` | Ubuntu 24.04+ / Linux Mint 22+ / Debian 13+ |
+| Linux | x86_64 | `tasty-{ver}-1.x86_64.rpm` | Fedora 40+ / openSUSE Leap 16.0+ / Tumbleweed |
+| Linux | x86_64 | `Tasty-{ver}-x86_64.AppImage` | 라이브러리 일부를 묶은 단일 파일. glibc는 시스템 것을 쓴다 |
+| Linux | aarch64 | `tasty-{ver}-linux-arm64.tar.gz` / `_arm64.deb` / `.aarch64.rpm` / `-aarch64.AppImage` | ARM64. 형식별 조건은 x86_64와 같다 |
 | macOS | arm64 | `Tasty-{ver}-macos-arm64.dmg` | App Bundle 드래그 설치 (Apple Silicon 전용) |
 | Windows | x86_64 | `tasty-{ver}-windows-x64.zip` | 바이너리만 압축 |
 | Windows | x86_64 | `tasty-{ver}-windows-x64.msi` | 시작 메뉴/제거 등록 인스톨러 |
@@ -22,11 +24,14 @@ Tasty는 GitHub Releases 에서 OS·아키텍처·설치 형태별 산출물로 
 ## Linux
 
 ```bash
-# .deb (Debian/Ubuntu/Mint)
+# .deb (Ubuntu 24.04+ / Linux Mint 22+ / Debian 13+)
 sudo apt install ./tasty_{ver}-1_amd64.deb      # 또는 dpkg -i + apt-get install -f
 
-# .rpm (Fedora/RHEL/openSUSE)
+# .rpm (Fedora 40+)
 sudo dnf install ./tasty-{ver}-1.x86_64.rpm
+
+# .rpm (openSUSE Leap 16.0+ / Tumbleweed)
+sudo zypper install ./tasty-{ver}-1.x86_64.rpm
 
 # .AppImage (설치 없이 실행)
 chmod +x Tasty-{ver}-x86_64.AppImage && ./Tasty-{ver}-x86_64.AppImage
@@ -37,11 +42,14 @@ tar -xzf tasty-{ver}-linux-x64.tar.gz && ./tasty-linux-x64/tasty
 ```
 
 - `.deb`/`.rpm`: `tasty` 가 PATH 등록 + 데스크톱 메뉴 아이콘 등록. 의존성은 패키지 메타데이터(`libfreetype6`/`libfontconfig1`/`libgtk-3`/`libwebkit2gtk-4.1` 등)로 자동 분석. GPU 가속(Vulkan)은 `libvulkan1`/`vulkan-loader` 를 Recommends 로만 요구 — 없어도 설치·실행은 되고 소프트웨어 렌더러로 fallback 한다. `zenity` 도 deb·rpm 모두 Recommends 다 — 두 번째 실행이 실행 중 Tasty에 요청을 넘기지 못했을 때의 메시지 상자(rfd)가 쓰며, 없으면 데스크톱 알림으로 대신한다. 데스크톱 항목은 `StartupNotify=true` 라 실행기가 활성화 토큰을 넘긴다.
-- `.AppImage`: 필요한 라이브러리를 번들. 데스크톱 메뉴 등록은 수동(`appimaged` 또는 `.desktop` 을 `~/.local/share/applications/`).
+- `.AppImage`: 실행에 쓰는 라이브러리 일부를 번들하고 glibc는 시스템 것을 쓴다. 데스크톱 메뉴 등록은 수동(`appimaged` 또는 `.desktop` 을 `~/.local/share/applications/`).
 - `.tar.gz`: PATH·메뉴 등록 사용자 직접. 편한 등록을 원하면 `.deb`/`.rpm`/`.AppImage` 권장. 필요 `.so` 가
   없으면 실행 전 `tasty` wrapper 가 감지해 안내 후 종료한다(`tasty.bin` 이 실제 바이너리).
-- **최소 glibc**: 빌드 환경(Ubuntu 24.04, glibc 2.39)보다 오래된 배포판(Ubuntu 20.04/Debian 11 등)은
-  `tasty: /lib/x86_64-linux-gnu/libc.so.6: version 'GLIBC_2.39' not found` 로 실행이 안 될 수 있다.
+- **최소 glibc**: 모든 Linux 산출물(deb·rpm·AppImage·tar.gz, x86_64·aarch64)은 빌드 환경(Ubuntu 24.04)의 glibc 2.39 이상이 필요하다.
+  표에 없는 배포판에도 같은 조건이 적용되고, deb·rpm은 배포판 저장소가 필요한 라이브러리를 제공해야 설치된다.
+  RHEL 10은 glibc 2.39라 조건을 충족하지만 기본 저장소에 rpm이 요구하는 WebKitGTK가 없다.
+  Ubuntu 22.04, Debian 12, RHEL 9, openSUSE Leap 15.6은 glibc가 낮아 패키지 설치 중 glibc 의존성 오류가 나거나
+  실행할 때 `GLIBC_2.39 not found`가 난다. glibc 버전은 `ldd --version` 출력 첫 줄로 확인한다.
   구배포판 지원을 위한 별도 빌드는 제공하지 않는다 — 필요하면 소스 빌드([dev-guide/build](dev-guide/build.md)).
 - **최소 WebKitGTK**: HTML·Markdown 뷰어가 WebKitGTK 2.40 API를 사용한다(`Cargo.toml`의 `webkit2gtk` feature `v2_40`). 빌드 기준인 Ubuntu 24.04의 `libwebkit2gtk-4.1`은 이를 만족한다(2026-09-29 Ubuntu 24.04 arm64에서 2.50.4 확인).
 

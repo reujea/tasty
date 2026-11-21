@@ -10,7 +10,7 @@
 #   dist/tasty-{version}-linux-{arch}.tar.gz       # arch: x64 | arm64
 #   dist/tasty_{version}-1_{deb-arch}.deb          # debug 제외, deb-arch: amd64 | arm64
 #   dist/tasty-{version}-1.{rpm-arch}.rpm          # debug 제외, rpm-arch: x86_64 | aarch64
-#   dist/Tasty-{version}-{rpm-arch}.AppImage       # debug 제외, distro-무관 단일 파일
+#   dist/Tasty-{version}-{rpm-arch}.AppImage       # debug 제외, 단일 파일(시스템 glibc 2.39+ 필요)
 #   dist/tasty-headless-{version}-linux-{arch}.tar.gz  # gui feature 없는 헤드리스 빌드
 #
 # Requires:
