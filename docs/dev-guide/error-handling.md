@@ -33,12 +33,17 @@ let _ = self.state.split_surface(SplitDirection::Vertical);
 
 실패를 무시해도 되는 경우에만 `let _ =` 를 허용하되 **왜 무시하는지 한 줄 주석**을 단다. 근거 없는 `let _ =` 는 리뷰에서 차단.
 
-제품 코드에서 `Result`나 `#[must_use]` 값을 버리는 문장에는 주석과 함께 문장 단위
-`#[expect(clippy::let_underscore_must_use, reason = "...")]`도 단다. 주석만 있으면
-`let_underscore_must_use`(warn)가 발동하고, CI clippy 단계와 pre-push B.4는 `-D warnings`로
-돌아 그 경고에서 실패한다. `must_use`가 아닌 값을 버리는 `let _ =`(변수 바인딩 억제 등)에는
-lint가 발동하지 않으므로 주석만 단다. 발동하지 않는 자리에 `expect`를 달면
-`unfulfilled_lint_expectations`로 같은 단계가 실패한다.
+기준은 그 문장에서 `let_underscore_must_use`(warn)가 실제로 발동하는가다. 이 lint는 두 경우에
+발동한다. 버리는 값의 타입이 `#[must_use]`인 경우(`Result` 등)와, 오른쪽 식의 마지막 호출 대상
+함수·메서드에 `#[must_use]`가 붙은 경우다. 예를 들어 `let _ = f().is_ok();`는 버리는 값이
+`bool`이지만 `Result::is_ok`가 `#[must_use]`라 진단된다.
+
+- 발동하는 제품 코드 문장에는 주석과 함께 문장 단위
+  `#[expect(clippy::let_underscore_must_use, reason = "...")]`를 단다. 주석만 있으면 lint가
+  발동하고, CI clippy 단계와 pre-push B.4는 `-D warnings`로 돌아 그 경고에서 실패한다.
+- 발동하지 않는 문장(변수 바인딩 억제 `let _ = path;`처럼 타입도 호출 대상도 `#[must_use]`가
+  아닌 경우)에는 주석만 단다. 발동하지 않는 자리에 `expect`를 달면
+  `unfulfilled_lint_expectations`로 같은 단계가 실패한다.
 
 ```rust
 #[expect(
