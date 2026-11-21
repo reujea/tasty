@@ -118,7 +118,7 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 54 개 — 그중 `
 | workspace 전체 개발 빌드 | `cargo build --workspace` |
 | 개발 번들 준비(아래 설명) | `PROFILE=debug just build-plugins` |
 | release 컴파일·빌드 확인 | `cargo build --release` |
-| lint | `cargo clippy --workspace --all-targets --locked` |
+| lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | 포맷 | `cargo fmt --check` |
 | 문서 검사 | `export TASTY_PAGE_DIR="$(bash scripts/fetch-design-source.sh)"` 뒤 `cargo test -p tasty-doc-guards --locked`. 디자인 정본 대조 시험이 `dtcg/SOURCE` 커밋의 tasty-page를 읽는다 |
 | 전체 테스트 | `cargo test --workspace --locked` |

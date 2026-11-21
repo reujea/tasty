@@ -153,9 +153,10 @@ cargo check -p tasty --no-default-features --all-targets
 
 `dead_code` 는 이 크레이트에서 error 라, 새 필드가 headless 에 컴파일되고 아무도 안 읽으면 앞
 검사가 그 필드를 이름으로 찍고 실패한다. `③` 의 `expect` 는 거꾸로 — headless 에 읽는 자가 생겨
-진단이 사라지면 `unfulfilled_lint_expectations` 가 해당 항목을 **경고로** 알린다. 빌드·CI 를 막지는
-않는다 — 그 lint 는 warn 이고 `Cargo.toml` 의 `[workspace.lints.rust]` deny 목록 밖이며, CI 는 `-D warnings` 를
-안 쓴다. 그래서 이 칸의 변화는 경고 수로만 보인다. `②` 를 `cfg(feature =
+진단이 사라지면 `unfulfilled_lint_expectations` 가 해당 항목을 **경고로** 알린다. 그 lint 는 warn 이고
+`Cargo.toml` 의 `[workspace.lints.rust]` deny 목록 밖이라 앞의 `cargo check` 에서는 경고로만 보인다.
+CI 의 headless clippy 단계(`cargo clippy (headless)`)는 `-D warnings` 로 돌아 이 경고에서 **실패한다**
+(pre-push 의 headless 검사 B.6 은 `cargo check` 라 경고로만 보인다). `②` 를 `cfg(feature =
 "gui")` 로 좁히면 뒤 검사가 그 정의를 부르는 시험에서 실패한다.
 
 `없음` 칸은 MainViewState에만 있는 필드 또는 GUI 조건으로 제외되는 정의다.

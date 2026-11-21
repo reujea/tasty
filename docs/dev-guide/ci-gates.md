@@ -19,9 +19,9 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | 포맷 | `cargo fmt --check` (+ `crates/tasty-plugin-sdk-wasm/` 매니페스트) | `format-check.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 | [실측] |
 | SemVer 가드 | `cargo test --locked --no-default-features --no-fail-fast --test api_baseline_0_7 --test changelog_unreleased --test cli_naming_count_drift` | `test.yml` 의 `semver-guards` (self-hosted Linux, x64·ARM64 공유 — [Linux 러너 배치](#linux-러너-배치)) | develop·release·main push · 수동 | [실측] |
 | macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
-| Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked -- -D warnings` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 호스트의 전용 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (같은 Windows 호스트의 전용 러너 `win-arm64`) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
-| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
+| headless 컴파일 · **전체 스위트** · lint **+ Linux gui lint·단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings` · `cargo clippy --workspace --all-targets --locked -- -D warnings`(스텝 `cargo clippy (linux, gui)` — 기본 feature, Linux에서만 컴파일되는 gui 코드의 lint) · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64 고정 — 매 run이 x86_64 gui release 컴파일을 검사하게 한다) | develop·release·main push(문서 제외) · PR · 수동 | [실측] |
 | Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (Linux 러너(x64 또는 ARM64)에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동 | [배선] |
 | 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | develop·release·main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
@@ -533,7 +533,7 @@ cargo build -p tasty-doc-guards --bin workflow-channels
 | 테스트가 어디 있나 | 자동 **실행** | 자동 **컴파일** | 실례 |
 |---|---|---|---|
 | lib 유닛 테스트 (`src/`·`crates/*/src/` 안의 `#[cfg(test)] mod tests`) | **있다** — 두 조합 모두가 유닛 타깃을 포함한다. 기본 조합은 `crossplatform-check`·`crossplatform-check-macos` 의 **세 잡 모두**가 `--lib --bins` 로 돌린다(`check-macos` · `check-windows` · `check-headless` 의 `cargo test (linux, gui, unit)` 스텝), 헤드리스 조합은 `check-headless` 의 전체 스위트가 담는다. 한때 조합 격자에 빈 칸(Linux + gui + debug)이 있었고 지금은 그 gui 스텝이 채운다 — 아래 절 | 있다 | `ui_font_size_tokens_are_integers_at_every_zoom` |
-| 통합 테스트 (`tests/*.rs`) | **헤드리스 조합에만 있다** — `check-headless` 가 전체 스위트를 돌린다(gui feature 로 묶여 이 조합에서 컴파일하지 않는 `multi_window_owner_routing` 은 같은 잡의 관측용 gui/Xvfb 스텝이 돌리지만 `continue-on-error` 라 **차단하지 않는다**). **기본 조합에는 없다** — 그 조합의 세 잡은 `--lib --bins` 이고(예외는 Windows 잡이 지목하는 `-p tasty-shm -p tasty-doc-guards` 뿐이다) `test.yml` 의 전체 스위트는 `workflow_dispatch` 전용 그리고 `check-headless` 는 `paths-ignore: docs/** · **/*.md` 뒤에 있어 **문서만 바뀐 push 에서는 이 칸이 통째로 비는 것**에 유의한다 | **있다** — clippy `--all-targets` 가 타깃으로 잡는다 | `tests/i18n_key_parity.rs` |
+| 통합 테스트 (`tests/*.rs`) | **헤드리스 조합에만 있다** — `check-headless` 가 전체 스위트를 돌린다(gui feature 로 묶여 이 조합에서 컴파일하지 않는 `multi_window_owner_routing` 은 같은 잡의 관측용 gui/Xvfb 스텝이 돌리지만 `continue-on-error` 라 **차단하지 않는다**). **기본 조합에는 없다** — 그 조합의 세 잡은 `--lib --bins` 이고(예외는 Windows 잡이 지목하는 `-p tasty-shm -p tasty-doc-guards` 뿐이다) `test.yml` 의 전체 스위트는 `workflow_dispatch` 전용 그리고 `check-headless` 는 `paths-ignore: docs/** · **/*.md` 뒤에 있어 **문서만 바뀐 push 에서는 이 칸이 통째로 비는 것**에 유의한다 | **있다** — clippy `--all-targets` 가 타깃으로 잡는다(Windows·headless·Linux gui 세 clippy 스텝. gui feature로 묶인 통합 타깃은 Windows와 Linux gui 스텝이 컴파일한다) | `tests/i18n_key_parity.rs` |
 | 문서 가드 통합 테스트 (`crates/tasty-doc-guards/tests/*.rs`) | **있다 — 두 조합과 무관하게** `doc-guards.yml` 이 `-p tasty-doc-guards` 로 돌리고, **Windows 잡도 같은 지목으로 돌린다**(그쪽은 OS 축을 연다). 이 잡에는 경로 필터가 없어 문서만 바뀐 push에서도 실행한다([가드 검증](guard-verification.md)). `check-headless` 의 전체 스위트에서도 함께 돈다 | 있다 | `crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs` |
 | SemVer 가드 3종 | **있다** — `semver-guards` 가 `--test` 로 이름을 지목한다 (develop·release·main push) | 있다 | `api_baseline_0_7` · `changelog_unreleased` · `cli_naming_count_drift` |
 | 포맷 | **있다** — `format-check.yml` (develop·release·main push · PR) + pre-commit | — | `cargo fmt --check` |
@@ -611,9 +611,9 @@ Linux는 직접 실행한 테스트 PID의 `/proc/<pid>/fd`, macOS는 `lsof -p <
 | 조합 | debug | release |
 |---|---|---|
 | macOS + gui | check-macos: 컴파일·유닛 | — |
-| Windows + gui | check-windows: 컴파일·유닛·지목 통합 | — |
-| Linux + headless | check-headless: 컴파일·전체 스위트(skip 제외) | — |
-| Linux + gui | check-headless의 gui 유닛 단계·관측용 E2E | check-release: 컴파일 |
+| Windows + gui | check-windows: 컴파일·lint·유닛·지목 통합 | — |
+| Linux + headless | check-headless: 컴파일·lint·전체 스위트(skip 제외) | — |
+| Linux + gui | check-headless의 gui lint 단계·gui 유닛 단계·관측용 E2E | check-release: 컴파일 |
 
 잡 성공만으로 표의 모든 단계를 실행했다고 판단하지 않는다. 단계별 conclusion을 읽는다.
 GUI feature 또는 OS 전용 모듈 안의 테스트는 다른 조합에서 컴파일 대상에서 사라질 수 있다.
@@ -644,8 +644,8 @@ ASCII 중심 `strings`는 한글 이름을 놓친다. 로그에서 ignored와 �
 | 검사 | 명령 | 실행 시점 |
 |---|---|---|
 | 기본 feature 전체 스위트 | `cargo test --workspace --locked` | 병합 후 최종 트리. test.yml의 전체 실행 잡은 수동 전용 |
-| Linux 기본 feature clippy | `cargo clippy --workspace --all-targets --locked` | 해당 작업의 최종 검증. 패키지만 지정한 결과로 대신하지 않음 |
-| headless clippy | `cargo clippy --workspace --all-targets --no-default-features --locked` (`check-headless` 의 `cargo clippy (headless)` 스텝과 같은 명령) | headless 경로나 `cfg(not(feature = "gui"))` 코드를 바꿨을 때. 그 코드는 위 기본 feature clippy 에 보이지 않는다. `check-headless` 도 같은 명령을 돌리지만 경고만으로는 실패하지 않으므로 출력의 `warning` 줄을 직접 읽는다. `let_underscore_must_use` 경고는 막지 않는 명부다([error-handling](error-handling.md)의 「`clippy::let_underscore_must_use` 는 무엇을 세는가」) |
+| Linux 기본 feature clippy | `cargo clippy --workspace --all-targets --locked -- -D warnings` (`check-headless` 의 `cargo clippy (linux, gui)` 스텝과 같은 명령) | 해당 작업의 최종 검증. 패키지만 지정한 결과로 대신하지 않음 |
+| headless clippy | `cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings` (`check-headless` 의 `cargo clippy (headless)` 스텝과 같은 명령) | headless 경로나 `cfg(not(feature = "gui"))` 코드를 바꿨을 때. 그 코드는 위 기본 feature clippy 에 보이지 않는다. `-D warnings` 라 workspace 멤버의 경고 하나도 실패다. `let_underscore_must_use` 도 같다 — 사유를 주석으로만 남기면 lint 가 발동할 수 있고, 충족된 문장 단위 `expect` 는 그 진단을 억제한다([error-handling](error-handling.md)의 「`clippy::let_underscore_must_use` 는 무엇을 세는가」) |
 | dist 빌드 | `bash scripts/build-macos-dmg.sh` · `./scripts/build-windows.ps1` · `bash scripts/build-linux.sh` | build-check.yml 수동 실행 |
 
 ### 크레이트를 지목한 clippy 는 push 와 다른 feature 집합을 잰다
@@ -673,7 +673,7 @@ cargo tree --workspace -e features -i tracing \
 cargo clippy -p <크레이트> --all-targets --features tracing/log \
   -- -D clippy::correctness                 # 싼 쪽 — 이 한 갈래만 닫는다
 cargo clippy --workspace --all-targets \
-  -- -D clippy::correctness                 # push(B.4)와 같은 범위
+  -- -D warnings                            # push(B.4)와 같은 범위
 ```
 
 가운데 명령은 그 크레이트가 `tracing` 을 의존으로 가질 때만 받아들여지고, `tracing/log` 라는
@@ -1005,10 +1005,10 @@ allow 검사에는 cfg_attr 안의 allow와 한글 `이유:` 표지도 포함한
 | pre-commit | `cargo fmt --check` | ✅ `format-check.yml` |
 | pre-commit | mod/use 선언 순서 · `egui::Window` 직접 사용 · `println!`/`dbg!` | ❌ 훅에만 있다 |
 | pre-commit | plugin 산출물이 바뀌었는데 매니페스트 `version` 이 그대로 (P.1) | ✅ `plugin-version-check.yml` — **같은 스크립트를 부른다**. 훅은 index 를 `develop`(없으면 `origin/develop`) 과의 merge-base 와 비교하고(amend·rebase 에 안 흔들리게), CI 는 밀어넣은 범위의 두 끝점을 비교한다. `tasty.pluginBump=deferred` lane 작업 트리의 훅은 검사하지 않는다. `develop`에 반영된 커밋마다의 증가는 병합 단계(`plugin-bump-fixup.sh` 와 그 뒤 커밋별 `--range c^ c` 검사)가 보장하고, B.9·CI 는 범위 끝점 두 개만 비교한다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)) |
-| pre-commit | 주석 없는 `let _ =` (C.6) | 부분 — 전수판 `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 훅의 상위집합이고, 그 전수판을 `doc-guards.yml`(경로 필터 없음) · `check-windows` · `check-headless` 가 자동 실행한다. 자동 잡의 clippy는 `let_underscore_must_use`(warn)로 `let _ = <Result>`를 알린다. 주석의 사유는 검사하지 않아 사유가 있는 코드에도 경고하며, `-D warnings`가 없어 이 경고만으로 빌드를 막지는 않는다([error-handling](error-handling.md)) |
+| pre-commit | 주석 없는 `let _ =` (C.6) | 부분 — 전수판 `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 훅의 상위집합이고, 그 전수판을 `doc-guards.yml`(경로 필터 없음) · `check-windows` · `check-headless` 가 자동 실행한다. 자동 잡의 clippy는 `let_underscore_must_use`(warn)로 `let _ = <Result>`를 알린다. 주석의 사유는 검사하지 않아 사유를 주석으로만 남기면 lint가 발동할 수 있고, 충족된 문장 단위 `expect`는 그 진단을 억제한다. 자동 잡은 `-D warnings`로 돌므로 lint가 발동하고 유효한 `expect`·`allow`로 억제되지 않은 제품 `let _ = <Result>`는 clippy 스텝을 실패시킨다([error-handling](error-handling.md)) |
 | pre-commit | 로컬 티켓 인용(T.1) | ✅ doc-guards.yml과 pre-push B.7도 no_todo_file_citation을 실행한다. 이 검사는 staged diff가 아닌 전체 작업 트리를 읽는다. |
 | pre-push | 플러그인 버전 `--range <원격 tip> <로컬 tip>`(B.9) | ✅ plugin-version-check.yml과 같은 스크립트다. Git이 전달한 두 tip을 사용하며 비교 범위를 알 수 없으면 실패한다. staged 변경을 보는 P.1과 구분한다. |
-| pre-push | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | 부분 — Windows 잡의 clippy 는 `--locked` 를 쓰고 correctness deny 를 걸지 않는다. 그리고 이 훅은 Linux 트리의 워크스페이스 feature 집합으로 lint 를 센다. 지금은 `tracing/log` 를 켜는 의존이 없지만, 그런 의존이 생기면 이 훅은 켜진 쪽으로 세고 Windows 잡은 그 갈림을 못 본다([크레이트를 지목한 clippy](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
+| pre-push | `cargo clippy --workspace --all-targets -- -D warnings` | 부분 — 훅은 실행하는 호스트의 기본 feature·기본 타깃으로 잰다. Linux 호스트에서 타깃·Cargo 설정이 같으면 `check-headless` 의 `cargo clippy (linux, gui)` 스텝과 같은 조합이고 차이는 `--locked` 뿐이다. Windows 잡과는 OS·타깃에 따라 컴파일되는 코드가 다르다. 둘 다 `--workspace` 라 feature 를 워크스페이스 전체로 통합하지만, `tracing/log` 같은 갈래를 켜는 의존이 생기면 Windows 잡이 그 갈래를 보는지는 그 타깃의 의존 그래프에 달린다. 지금은 켜는 의존이 없다([크레이트를 지목한 clippy](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
 | pre-push | `cargo check --no-default-features` | ✅ `crossplatform-check.yml` |
 | pre-push | `cargo test -p tasty-doc-guards` | ✅ `doc-guards.yml` — **같은 크레이트를 부른다**. 훅은 push 하는 머신에서만 돌아 worker 머신엔 이 채널이 없다 |
 | pre-push | `cargo check --workspace --release --locked` | ✅ crossplatform-check.yml의 check-release와 같은 명령이다. debug 검사와 별도로 실행하며 bin 하나로 좁히지 않는다. |

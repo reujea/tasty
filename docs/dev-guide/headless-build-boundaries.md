@@ -28,8 +28,9 @@ View의 비동기 파일 읽기 receipt와 대기 스크립트는 GUI 전용이�
 
 빼면 동작이 바뀌므로 제외하지 않는다. 자리마다 `cfg_attr(not(feature = "gui"), expect(...))`
 로 그 항목에 필요한 이유를 설명한다. 조건이 달라져 진단이 사라지면
-`unfulfilled_lint_expectations` 가 해당 항목을 **경고한다** — 빌드·CI 를 막지는 않는다
-(그 lint 는 warn 이고 `Cargo.toml` 의 deny 목록 밖이며, CI 는 `-D warnings` 를 안 쓴다). 모듈이나 crate 전체를 덮는
+`unfulfilled_lint_expectations` 가 해당 항목을 **경고한다**. 그 lint 는 warn 이고 `Cargo.toml` 의
+deny 목록 밖이라 `cargo check`(pre-push B.6 포함)에서는 경고로만 보이지만, CI 의 headless clippy
+단계(`cargo clippy (headless)`)는 `-D warnings` 로 돌아 **실패한다**. 모듈이나 crate 전체를 덮는
 dead_code 예외는 쓰지 않는다.
 
 모듈·crate 단위 `dead_code` 억제는 이 경계 밖의 두 부류에만 남는다 — 통합 시험 공용 모듈
