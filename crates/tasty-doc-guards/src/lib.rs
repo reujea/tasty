@@ -62,6 +62,9 @@ pub mod sha256;
 /// 공식 플러그인 잠금 파일의 형식·생성·검사·계약 대조. `official-plugins` bin과 가드가 쓴다.
 pub mod official_plugins;
 
+/// 플러그인 매니페스트 최상위 id·version·bundle을 TOML 스캐너 레코드로 읽는다.
+pub mod plugin_manifest_scan;
+
 /// 시험의 자식 프로세스가 부모의 저장소 지정 Git 환경을 상속하지 않게 한다.
 pub mod git_env;
 
