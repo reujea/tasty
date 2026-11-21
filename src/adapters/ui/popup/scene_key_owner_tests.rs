@@ -389,9 +389,33 @@ fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
 /// 한 프레임 뒤의 (주제 선택, 시작 요청, 주제 목록이 열려 있는지, 변환 상태).
 type TopicsSeen = (usize, Option<usize>, bool, Option<(bool, ConvertPayload)>);
 
+/// 프레임 하나가 남긴 surface 변환 요청(대상, 바꿀 kind).
+type Converts = Vec<(u32, String)>;
+
+/// 대기 인텐트를 모두 꺼내 그 가운데 surface 변환 요청만 돌려준다. 큐는 누적이므로 프레임마다 꺼내야 그 프레임의 요청이다.
+fn take_converts(state: &mut RequestContext) -> Converts {
+    state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|i| match i.body {
+            crate::intent::Intent::ConvertSurface { surface_id, target } => Some((
+                surface_id,
+                match target {
+                    crate::intent::ConvertTarget::Terminal => "terminal".to_string(),
+                    crate::intent::ConvertTarget::Kind { kind, .. } => kind,
+                },
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
 /// 튜토리얼 주제 목록과 R 범위 변환 팝업을 함께 열고 `owner_is_topics` 쪽을 키 주인으로 둔다. ArrowDown 프레임과
-/// Enter 프레임을 따로 넣고 각 프레임 뒤의 관측과, Enter 프레임까지 쌓인 surface 변환 요청(대상, 바꿀 kind)을 돌려준다.
-fn topics_beside_convert(owner_is_topics: bool) -> (TopicsSeen, TopicsSeen, Vec<(u32, String)>) {
+/// Enter 프레임을 따로 넣고, 프레임마다 그 뒤의 관측과 그 프레임까지 새로 쌓인 surface 변환 요청을 돌려준다.
+/// ArrowDown 쪽 요청에는 앞선 빈 프레임의 것도 들어간다.
+fn topics_beside_convert(
+    owner_is_topics: bool,
+) -> ((TopicsSeen, Converts), (TopicsSeen, Converts)) {
     let (mut state, mut session) = scene(PANE_R);
     let engine = session.borrow_mut();
     registered(&mut state);
@@ -441,28 +465,14 @@ fn topics_beside_convert(owner_is_topics: bool) -> (TopicsSeen, TopicsSeen, Vec<
             convert_of(state, convert),
         )
     };
-    let after_down = seen(&state);
+    let after_down = (seen(&state), take_converts(&mut state));
 
     let texts = frame(&ctx, &mut state, &engine.read(), vec![press(Key::Enter)]);
     assert!(
         painted(&texts, t("tutorial.popup_title")),
         "Enter 프레임에도 주제 목록 본문이 그려진다: {texts:?}"
     );
-    let converts = state
-        .take_pending_intents()
-        .into_iter()
-        .filter_map(|i| match i.body {
-            crate::intent::Intent::ConvertSurface { surface_id, target } => Some((
-                surface_id,
-                match target {
-                    crate::intent::ConvertTarget::Terminal => "terminal".to_string(),
-                    crate::intent::ConvertTarget::Kind { kind, .. } => kind,
-                },
-            )),
-            _ => None,
-        })
-        .collect();
-    (after_down, seen(&state), converts)
+    (after_down, (seen(&state), take_converts(&mut state)))
 }
 
 /// Given 튜토리얼 주제 목록과 R 범위 변환 팝업이 함께 열려 있을 때, When ArrowDown 프레임 뒤 Enter 프레임이 오면,
@@ -481,11 +491,16 @@ fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_
         ))
     };
 
-    let (after_down, after_enter, converts) = topics_beside_convert(true);
+    let ((after_down, down_converts), (after_enter, enter_converts)) = topics_beside_convert(true);
     assert_eq!(
         after_down,
         (1, None, true, convert_at(0)),
         "주제 목록이 주인이면 ArrowDown으로 주제 선택만 옮는다"
+    );
+    assert_eq!(
+        down_converts,
+        Vec::new(),
+        "주제 목록이 주인이면 ArrowDown 프레임까지 surface 변환 요청이 없다"
     );
     assert_eq!(
         after_enter,
@@ -493,12 +508,12 @@ fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_
         "주제 목록이 주인이면 Enter로 고른 주제의 시작을 요청하고 닫힌다. 변환은 그대로다"
     );
     assert_eq!(
-        converts,
+        enter_converts,
         Vec::new(),
-        "주제 목록이 주인이면 surface 변환 요청이 없다"
+        "주제 목록이 주인이면 Enter 프레임에 surface 변환 요청이 없다"
     );
 
-    let (after_down, after_enter, converts) = topics_beside_convert(false);
+    let ((after_down, down_converts), (after_enter, enter_converts)) = topics_beside_convert(false);
     // Enter 프레임의 주제 쪽 관측을 먼저 본다. ArrowDown 단정이 먼저 실패하면 시험이 거기서 멈춰 Enter가 주제 목록에
     // 닿았는지를 보지 못한다.
     assert_eq!(
@@ -512,14 +527,19 @@ fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_
         "변환이 주인이면 ArrowDown으로 변환 선택만 옮고 주제 목록은 열린 채 그대로다"
     );
     assert_eq!(
+        down_converts,
+        Vec::new(),
+        "변환이 주인이어도 ArrowDown 프레임까지는 surface 변환 요청이 없다"
+    );
+    assert_eq!(
         after_enter,
         (0, None, true, None),
         "변환이 주인이면 Enter로 변환이 확정해 닫히고 주제 목록은 열린 채 시작 요청이 없다"
     );
     // 이 장면의 변환 목록은 현재 kind(terminal)를 뺀 등록 kind이고, ArrowDown으로 고른 둘째 항목이 dag_graph다.
     assert_eq!(
-        converts,
+        enter_converts,
         vec![(SURFACE_R, "dag_graph".to_string())],
-        "변환이 주인이면 Enter로 고른 항목(dag_graph)으로 R surface 변환을 요청한다"
+        "변환이 주인이면 Enter 프레임에서 고른 항목(dag_graph)으로 R surface 변환을 요청한다"
     );
 }
