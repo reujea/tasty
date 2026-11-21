@@ -121,7 +121,7 @@ fn press(
     drop(ctx.run(raw, |ctx| {
         result = Some(mgr.draw_routed(
             ctx,
-            &mut |_, _| {},
+            &mut |_, _| crate::adapters::ui::PopupAction::None,
             Some(&layout),
             &crate::adapters::ui::input::edit_key::EditBindings::default(),
             &[],
@@ -526,7 +526,7 @@ fn a_press_on_a_dropdown_outside_its_parent_scope_focuses_the_parent_node() {
     drop(ctx.run(raw, |ctx| {
         mgr.draw_routed(
             ctx,
-            &mut |_, _| {},
+            &mut |_, _| crate::adapters::ui::PopupAction::None,
             Some(&layout),
             &crate::adapters::ui::input::edit_key::EditBindings::default(),
             &[],

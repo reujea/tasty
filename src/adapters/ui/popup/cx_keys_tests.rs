@@ -59,6 +59,7 @@ fn frame<T>(
             &mut |cx, ui| {
                 let out = probe(cx, ui);
                 seen.push((cx.instance, out));
+                crate::adapters::ui::PopupAction::None
             },
             Some(&layout),
             edits,

@@ -255,24 +255,13 @@ pub(crate) fn draw_popup_layer(
         .copied()
         .collect();
 
-    let mut dispatch_closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
-    let mut dispatch_unfocused: Vec<PopupInstanceId> = Vec::new();
-    let draw_result = popups.draw_routed(
+    let mut draw_result = popups.draw_routed(
         ctx,
         &mut |cx, ui| {
             if let Some(def) = crate::adapters::ui::popup::defs::find(cx.id) {
-                match (def.draw_fn)(ui, state, engine, cx) {
-                    crate::adapters::ui::PopupAction::Close => {
-                        dispatch_closed.push((cx.instance, PopupCloseReason::Content))
-                    }
-                    crate::adapters::ui::PopupAction::CloseBy(reason) => {
-                        dispatch_closed.push((cx.instance, reason))
-                    }
-                    crate::adapters::ui::PopupAction::ReleaseFocus => {
-                        dispatch_unfocused.push(cx.instance)
-                    }
-                    crate::adapters::ui::PopupAction::None => {}
-                }
+                (def.draw_fn)(ui, state, engine, cx)
+            } else {
+                crate::adapters::ui::PopupAction::None
             }
         },
         Some(draw_ctx),
@@ -280,6 +269,20 @@ pub(crate) fn draw_popup_layer(
         &plugin_occluders,
         press.as_ref(),
     );
+    let mut dispatch_closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
+    let mut dispatch_unfocused: Vec<PopupInstanceId> = Vec::new();
+    for (iid, action) in std::mem::take(&mut draw_result.actions) {
+        match action {
+            crate::adapters::ui::PopupAction::Close => {
+                dispatch_closed.push((iid, PopupCloseReason::Content))
+            }
+            crate::adapters::ui::PopupAction::CloseBy(reason) => {
+                dispatch_closed.push((iid, reason))
+            }
+            crate::adapters::ui::PopupAction::ReleaseFocus => dispatch_unfocused.push(iid),
+            crate::adapters::ui::PopupAction::None => {}
+        }
+    }
 
     state.host_popup_covers = draw_result.covers;
     // egui_bridge가 최종 레이어 순서를 정할 때 사용한다.

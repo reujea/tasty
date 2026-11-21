@@ -295,7 +295,7 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
                 std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
             popups.draw_routed(
                 ctx,
-                &mut |_, _| {},
+                &mut |_, _| crate::adapters::ui::PopupAction::None,
                 Some(&layout),
                 &crate::adapters::ui::input::edit_key::EditBindings::default(),
                 &[],
@@ -414,7 +414,7 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
                 std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
             popups.draw_routed(
                 ctx,
-                &mut |_, _| {},
+                &mut |_, _| crate::adapters::ui::PopupAction::None,
                 Some(&layout),
                 &crate::adapters::ui::input::edit_key::EditBindings::default(),
                 &[],

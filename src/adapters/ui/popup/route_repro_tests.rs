@@ -240,7 +240,7 @@ fn host_frame(
             std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
         result = Some(popups.draw_routed(
             ctx,
-            &mut |_, _| {},
+            &mut |_, _| crate::adapters::ui::PopupAction::None,
             Some(&layout()),
             &crate::adapters::ui::input::edit_key::EditBindings::default(),
             &[],

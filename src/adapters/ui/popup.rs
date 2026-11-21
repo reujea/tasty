@@ -242,6 +242,8 @@ pub struct ResizeEdges {
 pub struct PopupDrawResult {
     /// Popup IDs that were closed this frame.
     pub closed: Vec<PopupId>,
+    /// 본문이 낸 결과(`PopupAction::None` 제외)와 그 인스턴스. 처리(닫기·포커스 해제)는 호출자가 한다.
+    pub actions: Vec<(PopupInstanceId, PopupAction)>,
     /// 포인터가 그린 팝업 노드(상자, 덮는 범위) 위인지. 창의 포인터 판정은 이 값이 아니라 배치한 사각형을 쓴다
     /// (`MainViewState::popup_pointer_target`). 시험이 이 프레임의 판정을 확인할 때 읽는다.
     #[cfg(test)]

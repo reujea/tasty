@@ -346,6 +346,7 @@ fn recording_pass(
                         }
                     }
                 });
+                crate::adapters::ui::PopupAction::None
             },
             Some(&layout),
             &crate::adapters::ui::input::edit_key::EditBindings::default(),

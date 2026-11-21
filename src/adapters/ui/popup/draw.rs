@@ -10,8 +10,8 @@ use super::keys::PopupKeys;
 use super::occlusion::{Occluder, PointOwnership, point_ownership};
 use super::route::RoutedPress;
 use super::{
-    PopupCloseReason, PopupCx, PopupDrawResult, PopupId, PopupInstanceId, PopupManager, PopupScope,
-    PopupShadow, PopupShell, ResizeEdges,
+    PopupAction, PopupCloseReason, PopupCx, PopupDrawResult, PopupId, PopupInstanceId,
+    PopupManager, PopupScope, PopupShadow, PopupShell, ResizeEdges,
 };
 
 /// 리사이즈 테두리 밴드 폭(px). popup_rect 가장자리 안쪽 이 폭 안에서 누르면 리사이즈.
@@ -197,14 +197,17 @@ impl PopupManager {
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
-        content_fn: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui),
+        body: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui),
         draw_ctx: Option<&LayoutContext>,
         plugin_occluders: &[Occluder],
     ) -> PopupDrawResult {
         let press = RoutedPress::from_frame_at_press(ctx, draw_ctx);
         self.draw_routed(
             ctx,
-            content_fn,
+            &mut |cx, ui| {
+                body(cx, ui);
+                PopupAction::None
+            },
             draw_ctx,
             &EditBindings::default(),
             plugin_occluders,
@@ -218,7 +221,7 @@ impl PopupManager {
     pub(crate) fn draw_routed(
         &mut self,
         ctx: &egui::Context,
-        content_fn: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui),
+        content_fn: &mut dyn FnMut(&mut PopupCx<'_>, &mut egui::Ui) -> PopupAction,
         draw_ctx: Option<&LayoutContext>,
         edits: &EditBindings,
         plugin_occluders: &[Occluder],
@@ -227,6 +230,8 @@ impl PopupManager {
         let th = theme::theme();
         let screen_rect = ctx.screen_rect();
         let mut closed: Vec<(PopupInstanceId, PopupCloseReason)> = Vec::new();
+        // 본문이 낸 결과. 셸 닫기(`closed`)와 따로 호출자에게 돌려준다.
+        let mut actions: Vec<(PopupInstanceId, PopupAction)> = Vec::new();
         let mut bring_front: Option<PopupInstanceId> = None;
         let mut fullscreen_requested: Option<crate::adapters::ui::fullscreen::StageId> = None;
         let mut layers: Vec<egui::LayerId> = Vec::new();
@@ -845,9 +850,13 @@ impl PopupManager {
                                 let takes_keys = cx.focused
                                     || (!frame_has_key_owner && !popup.arrange.takes_focus);
                                 cx.keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits);
-                                super::body_keys::with_body_keys(ctx, takes_keys, || {
-                                    content_fn(&mut cx, ui)
-                                })
+                                let action =
+                                    super::body_keys::with_body_keys(ctx, takes_keys, || {
+                                        content_fn(&mut cx, ui)
+                                    });
+                                if !matches!(action, PopupAction::None) {
+                                    actions.push((cx.instance, action));
+                                }
                             },
                         );
                         if let Some(grip) = grip_rect {
@@ -928,6 +937,7 @@ impl PopupManager {
 
         PopupDrawResult {
             closed: closed_ids,
+            actions,
             covers,
             #[cfg(test)]
             hovered: hovered_popup.is_some(),
