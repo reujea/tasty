@@ -101,6 +101,90 @@ fn read_only_queries() {
     assert!(!tabs["tabs"].as_array().unwrap().is_empty());
 }
 
+/// an_osc7_cwd_becomes_the_tab_name의 전제 검사가 셸 출력 원문에서 OSC 제목을 판정하는 규칙.
+#[cfg(not(windows))]
+mod osc7_precondition {
+    /// 원문 출력을 Tasty와 같은 termwiz 파서로 읽어 OSC 7 수신 여부와 OSC 0/2 제목 본문을 돌려준다.
+    /// 7비트(ESC ])와 8비트 C1 OSC 형식을 터미널과 같은 규칙으로 구분한다.
+    fn osc_seen(raw: &str) -> (bool, Vec<String>) {
+        use termwiz::escape::{Action, OperatingSystemCommand as Osc};
+        let mut cwd = false;
+        let mut titles = Vec::new();
+        for action in termwiz::escape::parser::Parser::new().parse_as_vec(raw.as_bytes()) {
+            if let Action::OperatingSystemCommand(osc) = action {
+                match *osc {
+                    Osc::CurrentWorkingDirectory(_) => cwd = true,
+                    Osc::SetIconNameAndWindowTitle(t)
+                    | Osc::SetWindowTitle(t)
+                    | Osc::SetWindowTitleSun(t) => titles.push(t),
+                    _ => {}
+                }
+            }
+        }
+        (cwd, titles)
+    }
+
+    /// surface.read_since_mark 응답으로 셸이 OSC 0/2 제목을 보냈다고 단정할 수 있는지 판정한다.
+    /// `shown`이 있으면 그 이름과 같은 제목만, 없으면 아무 제목이나 본다. 보관 범위가 잘렸거나(앞부분의
+    /// OSC 7을 볼 수 없다) 손실 변환된 바이트가 있거나(8비트 C1 OSC 형식을 확인할 수 없다) OSC 7이 함께
+    /// 왔으면(이름이 cwd에서 왔을 수 있다) 단정하지 않는다. 원문은 tree 뒤에 읽어 그 시점까지의 출력을 담는다.
+    pub(super) fn shell_sent_title(read: &serde_json::Value, shown: Option<&str>) -> bool {
+        let raw = read["text"].as_str().unwrap_or_default();
+        let whole = read["retention_start"] == 0
+            && read["cursor"] == 0
+            && read["next_cursor"] == read["retention_end"]
+            && !raw.contains('\u{FFFD}');
+        if !whole {
+            return false;
+        }
+        let (cwd_seen, titles) = osc_seen(raw);
+        !cwd_seen
+            && match shown {
+                Some(name) => titles.iter().any(|t| t == name),
+                None => !titles.is_empty(),
+            }
+    }
+
+    fn read_of(text: &str) -> serde_json::Value {
+        serde_json::json!({
+            "text": text,
+            "cursor": 0,
+            "retention_start": 0,
+            "next_cursor": text.len(),
+            "retention_end": text.len(),
+        })
+    }
+
+    /// 제목 본문이 원본 탭 이름과 같으면 표시 이름 비교로는 드러나지 않으므로, OSC 7 직전의 제목 검사가 잡아야 한다.
+    #[test]
+    fn a_title_equal_to_the_raw_tab_name_is_still_a_shell_title() {
+        let read = read_of("\x1b]0;Shell\x07osc7-ready> ");
+        assert!(shell_sent_title(&read, None));
+        assert!(shell_sent_title(&read, Some("Shell")));
+    }
+
+    #[test]
+    fn the_title_check_does_not_decide_when_the_output_is_incomplete_or_carries_osc7() {
+        assert!(!shell_sent_title(&read_of("osc7-ready> "), None));
+        assert!(!shell_sent_title(
+            &read_of("\x1b]7;file://h/tmp/repo\x07\x1b]0;repo\x07"),
+            Some("repo")
+        ));
+        // UTF-8로 인코딩된 C1 OSC 7(U+009D)도 터미널과 같은 규칙으로 OSC 7로 본다.
+        assert!(!shell_sent_title(
+            &read_of("\u{9d}7;file://h/tmp/repo\x07\x1b]0;repo\x07"),
+            Some("repo")
+        ));
+        let mut cut = read_of("\x1b]0;Shell\x07");
+        cut["retention_start"] = serde_json::json!(4);
+        assert!(!shell_sent_title(&cut, None));
+        assert!(!shell_sent_title(
+            &read_of("\u{FFFD}\x1b]0;Shell\x07"),
+            None
+        ));
+    }
+}
+
 /// OSC 7의 cwd가 표시 이름에 반영되는지 GUI와 헤드리스에서 확인한다.
 /// OSC 제목은 cwd보다 우선하므로 셸이 제목을 보내면 이 시험의 전제가 깨진다. 하네스의 `/bin/sh -li`는
 /// 배포판에 따라 시스템 시작 스크립트에서 제목을 보낸다(Fedora는 /bin/sh가 bash이고 /etc/bashrc가
@@ -141,26 +225,6 @@ fn an_osc7_cwd_becomes_the_tab_name() {
                 }
             }
         }
-    }
-
-    /// 원문 출력을 Tasty와 같은 termwiz 파서로 읽어 OSC 7 수신 여부와 OSC 0/2 제목 본문을 돌려준다.
-    /// 7비트(ESC ])와 8비트 C1 OSC 형식을 터미널과 같은 규칙으로 구분한다.
-    fn osc_seen(raw: &str) -> (bool, Vec<String>) {
-        use termwiz::escape::{Action, OperatingSystemCommand as Osc};
-        let mut cwd = false;
-        let mut titles = Vec::new();
-        for action in termwiz::escape::parser::Parser::new().parse_as_vec(raw.as_bytes()) {
-            if let Action::OperatingSystemCommand(osc) = action {
-                match *osc {
-                    Osc::CurrentWorkingDirectory(_) => cwd = true,
-                    Osc::SetIconNameAndWindowTitle(t)
-                    | Osc::SetWindowTitle(t)
-                    | Osc::SetWindowTitleSun(t) => titles.push(t),
-                    _ => {}
-                }
-            }
-        }
-        (cwd, titles)
     }
 
     let _lane = exclusive_lane();
@@ -239,35 +303,47 @@ fn an_osc7_cwd_becomes_the_tab_name() {
             .to_string()
     };
 
-    // GUI는 제목을 별도 intent로 늦게 반영할 수 있어 한 번이 아니라 짧은 시간 동안 본다.
-    let settle = std::time::Instant::now() + Duration::from_secs(2);
-    while std::time::Instant::now() < settle {
-        let name = shown();
-        if name != raw_name {
-            let read = tasty.call(
-                "surface.read_since_mark",
-                json!({ "surface_id": sid, "strip_ansi": false }),
-            );
-            let raw = read["text"].as_str().unwrap_or_default();
-            // 보관 범위가 잘렸거나(앞부분의 OSC 7을 볼 수 없다) 손실 변환된 바이트가 있으면(8비트 C1 OSC 형식을
-            // 확인할 수 없다) 원인을 단정하지 않는다. 원문은 tree 뒤에 읽어 그 시점까지의 출력을 담는다.
-            let whole = read["retention_start"] == 0
-                && read["cursor"] == 0
-                && read["next_cursor"] == read["retention_end"]
-                && !raw.contains('\u{FFFD}');
-            // 원문에 OSC 7이 없으면 cwd 이름은 그대로이므로, OSC 제목을 탭 이름에 투영하는 GUI에서 이름이
-            // 제목 본문과 같을 때만 제목을 원인으로 본다.
-            let (cwd_seen, titles) = osc_seen(raw);
-            let title_caused =
-                cfg!(feature = "gui") && whole && !cwd_seen && titles.contains(&name);
-            let cause = if title_caused {
+    let read_raw = || {
+        tasty.call(
+            "surface.read_since_mark",
+            json!({ "surface_id": sid, "strip_ansi": false }),
+        )
+    };
+    let check_name = |name: &str| {
+        if name == raw_name {
+            return;
+        }
+        let read = read_raw();
+        // GUI만 OSC 제목을 탭 이름에 투영하고 cwd보다 우선한다.
+        let cause =
+            if cfg!(feature = "gui") && osc7_precondition::shell_sent_title(&read, Some(name)) {
                 "셸이 제목을 보냈다"
             } else {
                 "OSC 7 전 탭 표시 이름이 바뀌었다"
             };
-            panic!("{cause}: 표시 {name:?} / 원본 {raw_name:?} / 셸 출력 {raw:?}");
-        }
+        panic!(
+            "{cause}: 표시 {name:?} / 원본 {raw_name:?} / 셸 출력 {:?}",
+            read["text"]
+        );
+    };
+
+    // GUI는 제목을 별도 intent로 늦게 반영할 수 있어 한 번이 아니라 짧은 시간 동안 본다.
+    let settle = std::time::Instant::now() + Duration::from_secs(2);
+    while std::time::Instant::now() < settle {
+        check_name(&shown());
         std::thread::sleep(Duration::from_millis(100));
+    }
+    // 마지막 표본 뒤에 반영된 제목과, 원본 이름(Shell)과 같아 표시 이름으로는 드러나지 않는 제목을
+    // OSC 7을 보내기 직전에 한 번 더 본다. 이 검사는 표시 이름과 관계없이 원문의 제목을 본다.
+    check_name(&shown());
+    if cfg!(feature = "gui") {
+        let read = read_raw();
+        assert!(
+            !osc7_precondition::shell_sent_title(&read, None),
+            "셸이 제목을 보냈다: 표시 {:?} / 원본 {raw_name:?} / 셸 출력 {:?}",
+            shown(),
+            read["text"]
+        );
     }
 
     let dir = format!("tasty-osc7-{}", std::process::id());
