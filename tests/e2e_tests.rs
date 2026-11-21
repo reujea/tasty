@@ -21,6 +21,37 @@ fn exclusive_lane() -> RwLockWriteGuard<'static, ()> {
     WINDOW_EXCLUSIVE.write().unwrap_or_else(|e| e.into_inner())
 }
 
+/// 공용 셸 설정을 하네스 값으로 되돌린다. panic 중에는 인스턴스가 응답하지 않을 수 있어
+/// 실패를 stderr에 남기기만 하고 다시 panic하지 않는다.
+#[cfg(any(not(windows), feature = "gui"))]
+struct RestoreShell(&'static TastyInstance);
+
+#[cfg(any(not(windows), feature = "gui"))]
+impl Drop for RestoreShell {
+    fn drop(&mut self) {
+        use std::io::Write as _;
+
+        let params = json!({ "settings": { "general": { "shell": common::ISOLATED_SHELL } } });
+        if !std::thread::panicking() {
+            self.0.call("debug.settings.apply", params);
+            return;
+        }
+        let outcome = common::exchange(
+            self.0.port(),
+            "debug.settings.apply",
+            &params,
+            common::RESPONSE_WAIT,
+        );
+        let applied = matches!(&outcome, Ok(resp) if resp["result"]["applied"] == true);
+        if !applied {
+            // eprintln!은 stderr 쓰기 실패에 panic하므로, unwind 중에는 쓰기 실패를 흡수한다.
+            match writeln!(std::io::stderr(), "셸 설정 복원 실패: {outcome:?}") {
+                Ok(()) | Err(_) => {}
+            }
+        }
+    }
+}
+
 /// 반환한 잠금 가드는 시나리오가 끝날 때까지 _lane에 보관한다.
 fn scenario(
     name: &str,
@@ -194,38 +225,11 @@ mod osc7_precondition {
 #[cfg(not(windows))]
 #[test]
 fn an_osc7_cwd_becomes_the_tab_name() {
-    use std::io::Write as _;
     use std::os::unix::fs::PermissionsExt;
 
     // surface.screen_text는 행 끝 공백을 지우므로 준비 신호는 PS1의 후행 공백을 뺀 문자열로 찾는다.
     const PS1: &str = "osc7-ready> ";
     const READY: &str = "osc7-ready>";
-
-    /// 공용 셸 설정을 하네스 값으로 되돌린다. panic 중에는 인스턴스가 응답하지 않을 수 있어
-    /// 실패를 stderr에 남기기만 하고 다시 panic하지 않는다.
-    struct RestoreShell(&'static common::TastyInstance);
-    impl Drop for RestoreShell {
-        fn drop(&mut self) {
-            let params = json!({ "settings": { "general": { "shell": common::ISOLATED_SHELL } } });
-            if !std::thread::panicking() {
-                self.0.call("debug.settings.apply", params);
-                return;
-            }
-            let outcome = common::exchange(
-                self.0.port(),
-                "debug.settings.apply",
-                &params,
-                common::RESPONSE_WAIT,
-            );
-            let applied = matches!(&outcome, Ok(resp) if resp["result"]["applied"] == true);
-            if !applied {
-                // eprintln!은 stderr 쓰기 실패에 panic하므로, unwind 중에는 쓰기 실패를 흡수한다.
-                match writeln!(std::io::stderr(), "셸 설정 복원 실패: {outcome:?}") {
-                    Ok(()) | Err(_) => {}
-                }
-            }
-        }
-    }
 
     let _lane = exclusive_lane();
     let tasty = common::shared();
@@ -1340,22 +1344,10 @@ fn wait_x11_window_viewable(xid: u64) {
 
 /// 새 창의 첫 workspace가 셸을 시작하지 못하면 workspace 없는 창을 등록하지 않고 창 생성이
 /// 실패한다. 앱은 계속 응답하고 기존 창만 남는다. 셸 설정을 바꾸는 동안 다른 시험이 터미널을
-/// 만들지 않도록 단독 lane에서 실행하고, 끝나면 격리 설정의 셸로 되돌린다.
+/// 만들지 않도록 단독 lane에서 실행하고, panic 중에도 격리 설정의 셸로 되돌린다.
 #[cfg(feature = "gui")]
 #[test]
 fn a_new_window_whose_first_workspace_fails_is_refused_and_the_app_keeps_running() {
-    struct RestoreShell(&'static common::TastyInstance);
-    impl Drop for RestoreShell {
-        fn drop(&mut self) {
-            // 실패한 시험에서는 인스턴스가 응답하지 않을 수 있어 복원 호출로 다시 panic하지 않는다.
-            if !std::thread::panicking() {
-                self.0.call(
-                    "debug.settings.apply",
-                    json!({ "settings": { "general": { "shell": common::ISOLATED_SHELL } } }),
-                );
-            }
-        }
-    }
     let _lane = exclusive_lane();
     let tasty = common::shared();
     let before = tasty.call("window.list", json!({}));
