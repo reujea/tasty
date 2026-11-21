@@ -70,6 +70,8 @@ pub(crate) struct RecentSaveSnapshot {
     pub(crate) dirty_age_us: Option<u64>,
 }
 
+// headless 비시험 조합에서는 by_kind만 남아 기본값이 derive와 같다.
+#[cfg_attr(not(any(feature = "gui", test)), derive(Default))]
 struct Inner {
     /// 종류별 최신순 목록.
     by_kind: HashMap<String, Vec<Entry>>,
@@ -83,6 +85,7 @@ struct Inner {
     dirty_since: Option<std::time::Instant>,
 }
 
+#[cfg(any(feature = "gui", test))]
 impl Default for Inner {
     fn default() -> Self {
         Self {
