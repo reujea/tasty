@@ -279,7 +279,8 @@ impl App {
     /// 에이전트의 `remote.connect`, 원격 팝업)이라는 출처다. 그때는 사용자가 끊은 표지를 먼저
     /// 지우고, 재연결 중인 행은 새 재연결 구간을 시작하며, 시도에 명시적 출처를 싣는다. 진행 중인
     /// 시도가 있으면 새 구간을 열지 않고 그 시도에 합류해 명시적 출처로 올린다. 그 시도는 지금 구간이
-    /// 끝나면(`end_expired_reconnect_windows`) 다른 시도처럼 거둬진다. 행을 다시
+    /// 끝나면(`end_expired_reconnect_windows`) 다른 시도처럼 거둬진다. 처리 단계가 그 행에 정한 멈춤을
+    /// 미루는 중이면 그 멈춤에 연결 의사를 남겨, 멈춤을 적용한 뒤에도 이 연결이 이어진다. 행을 다시
     /// 열기·행 재활성화·부팅 복원·포커스로 보이게 된 행(`maybe_connect_visible_row`)은 바로
     /// 시도하더라도 자동 연결이라 false다.
     pub(crate) fn connect_saved_row(&mut self, row: u32, explicit: bool) {
@@ -297,6 +298,8 @@ impl App {
             // 명시적으로 다시 연결하면 앞서 끊은 뜻은 끝난다. 다음 단절은 자동 재연결과 시간 만료를 따른다.
             self.remote.user_disconnected.remove(&row);
             self.forget_force_detached_row(row);
+            // 그 행에 미룬 멈춤이 있으면 멈춤 뒤에 이 연결을 잇는다(`stop_saved_row`).
+            self.note_connect_after_stop(row);
         }
         if self.remote.active.contains(&row) {
             if explicit {
@@ -314,7 +317,8 @@ impl App {
         self.ensure_row_token(row);
         self.remote.pending_reactivation.remove(&row);
         match self.row_session_phase(row) {
-            // 재동기화(Resync) 중인 행은 이미 다시 붙는 중이라 run 을 그 결과에 합류시킨다.
+            // 재동기화(Resync) 중이거나 멈춤을 미룬 채 링크가 끝난 행이다. run 을 그 결과에 합류시킨다.
+            // 멈춤을 미룬 행이면 위의 연결 의사로 멈춤 뒤 새 재연결이 시작되고 run 은 그 결과에 남는다.
             Some(SessionState::Connected) if !self.row_link_live(row) => {
                 if explicit {
                     self.state.mirror_attempts.mark_row_explicit(row);

@@ -51,14 +51,77 @@ impl App {
 
     /// 처리 단계가 멈추기로 정한 저장 행을 끊긴 행으로 둔다. 재연결·재동기화를 하지 않는다. 옛 전송의
     /// 재동기화 상태도 함께 끝내, 이후 명시적 재연결이 일반 재연결로 등록되게 한다.
-    pub(super) fn stop_saved_row(&mut self, idx: usize) {
+    ///
+    /// `connect_after`는 멈춤을 미룬 동안 명시적 연결이 왔다는 뜻이다. 그 연결이 시작한 사용자 시도가
+    /// 아직 유효하면 끊긴 행으로 바꾸지 않고 재동기화 상태만 끝낸다. 행의 진행 표지와 재연결 슬롯이
+    /// 남아 기존 대기·만료·결과 경로가 그 시도를 다룬다. 그런 시도가 없으면 끊긴 행으로 두고 행을
+    /// 돌려준다. 호출자가 `connect_after_stop`으로 그 연결을 시작한다.
+    pub(super) fn stop_saved_row(&mut self, idx: usize, connect_after: bool) -> Option<u32> {
         let state = &mut self.remote.sessions[idx].state;
         state.resync_pending = None;
         state.resync_awaiting_window = false;
-        let Some(row) = state.saved_row else {
-            return;
-        };
+        let row = state.saved_row?;
+        if connect_after && self.row_has_live_user_attempt(row) {
+            tracing::info!("gui attach: saved remote row {row} 의 멈춤 뒤 명시적 시도를 이어 둔다");
+            return None;
+        }
         self.enter_disconnected(row);
+        connect_after.then_some(row)
+    }
+
+    /// 멈춤 뒤에 미룬 명시적 연결을 시작한다. 그 행에 남은 시도(자동 시도 포함)를 먼저 거둬 옛 시도의
+    /// 결과가 새 시도의 진행 표지와 슬롯을 바꾸지 않게 한다. 표지는 다시 지우지 않는다. 의사를 남긴
+    /// 명시적 연결이 이미 지웠고, 그 뒤에 선 표지는 명시적 시도를 막지 않는다.
+    pub(super) fn connect_after_stop(&mut self, row: u32) {
+        if self.saved_row_binding(row).is_none() {
+            return;
+        }
+        self.abandon_row_attempts(row, "an explicit connect after the stop replaces it");
+        self.remote.pending_reactivation.remove(&row);
+        tracing::info!("gui attach: saved remote row {row} 의 멈춤 뒤 미룬 명시적 연결을 시작한다");
+        self.restart_disconnected_row(row, None, true);
+    }
+
+    /// 행에 아직 유효한 사용자 시도(명시적 연결·원격 팝업)가 있는지.
+    fn row_has_live_user_attempt(&self, row: u32) -> bool {
+        self.state.mirror_attempts.row_attempts(row).any(|target| {
+            (target.explicit || target.user) && self.mirror_install_target_is_current(target)
+        })
+    }
+
+    /// 명시적 연결이 그 행 세션의 지금 전송에 정한 멈춤에 연결 의사를 남긴다. 다른 전송의 멈춤에는
+    /// 남기지 않는다.
+    pub(crate) fn note_connect_after_stop(&mut self, row: u32) {
+        if let Some(session) = self
+            .remote
+            .sessions
+            .iter_mut()
+            .find(|session| session.state.saved_row == Some(row))
+        {
+            let epoch = session.transport.frame_tx.epoch();
+            if let Some(stop) = session
+                .state
+                .stop_after_events
+                .as_mut()
+                .filter(|stop| stop.is_for(&epoch))
+            {
+                stop.connect_after = true;
+            }
+        }
+    }
+
+    /// 멈춤에 남은 연결 의사를 버린다. 멈춤은 그대로 둔다. 멈춤을 적용하기 전에 행이 끊긴 행이 되면
+    /// 그 명시적 연결은 결과(만료·거절·다시 막힘·사용자 끊기)를 이미 받은 것이다.
+    pub(crate) fn drop_connect_after_stop(&mut self, row: u32) {
+        if let Some(stop) = self
+            .remote
+            .sessions
+            .iter_mut()
+            .find(|session| session.state.saved_row == Some(row))
+            .and_then(|session| session.state.stop_after_events.as_mut())
+        {
+            stop.connect_after = false;
+        }
     }
 
     /// 저장된 원격 행을 형상을 남긴 끊긴 행으로 둔다. 연결이 남아 있으면 먼저 놓는다.
@@ -75,6 +138,7 @@ impl App {
         if self.remote.sessions[idx].state.phase == SessionState::Connected {
             self.release_session_connection(idx, SessionState::Disconnected);
         }
+        self.drop_connect_after_stop(row);
         self.remote.sessions[idx].state.phase = SessionState::Disconnected;
         self.remote.active.remove(&row);
         self.remote.reconnect.entry(row).or_default().given_up = true;

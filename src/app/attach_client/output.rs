@@ -63,7 +63,7 @@ impl App {
         let mut unknown_close: Vec<u32> = Vec::new();
         let mut reconnecting: Vec<usize> = Vec::new();
         let mut resyncing: Vec<usize> = Vec::new();
-        let mut stopped: Vec<usize> = Vec::new();
+        let mut stopped: Vec<(usize, bool)> = Vec::new();
         for idx in 0..self.remote.sessions.len() {
             let (local_ws, phase, saved_row) = {
                 let sess = &self.remote.sessions[idx];
@@ -125,8 +125,13 @@ impl App {
             match disposition {
                 DisconnectDisposition::Resync => resyncing.push(idx),
                 DisconnectDisposition::Reconnect => reconnecting.push(idx),
-                DisconnectDisposition::Stop if saved_row.is_some() => stopped.push(idx),
-                DisconnectDisposition::Stop => dead.push(idx),
+                DisconnectDisposition::Stop if saved_row.is_some() => stopped.push((idx, false)),
+                DisconnectDisposition::StopThenConnect if saved_row.is_some() => {
+                    stopped.push((idx, true))
+                }
+                DisconnectDisposition::Stop | DisconnectDisposition::StopThenConnect => {
+                    dead.push(idx)
+                }
                 DisconnectDisposition::Cleanup => dead.push(idx),
                 DisconnectDisposition::ServerClosed => closed.push(idx),
                 DisconnectDisposition::None => {}
@@ -149,10 +154,15 @@ impl App {
         for &idx in &reconnecting {
             self.enter_reconnecting(idx);
         }
-        for &idx in &stopped {
-            self.stop_saved_row(idx);
-        }
+        let restart: Vec<u32> = stopped
+            .iter()
+            .filter_map(|&(idx, connect_after)| self.stop_saved_row(idx, connect_after))
+            .collect();
         self.end_sessions(&dead, &closed);
+        // 멈춤 뒤에 미룬 명시 연결을 지금 시작한다. 세션 인덱스가 바뀐 뒤라 행으로 찾는다.
+        for row in restart {
+            self.connect_after_stop(row);
+        }
     }
 }
 
@@ -161,7 +171,8 @@ impl App {
 ///
 /// 순서: 서버 닫기 성공 회신 → 관측·설치 단계가 지금 전송에 정한 멈춤 → 관측한 끝(처리하지 않은 것만).
 /// 정한 멈춤은 ID 예약을 기다리는 이벤트가 남아 있으면 다음 회차로 미룬다. 그 이벤트에 닫기 회신이
-/// 있을 수 있기 때문이다. `blocked`는 저장 행이 막혀 있다는 뜻이다. 막힌 행의 손실 복구(재동기화)는
+/// 있을 수 있기 때문이다. 미룬 동안 명시적 연결이 와 멈춤에 연결 의사를 남겼으면 `StopThenConnect`다.
+/// 서버 닫기 성공 회신이 같은 회차에 있으면 그 의사는 세션과 함께 버려진다. `blocked`는 저장 행이 막혀 있다는 뜻이다. 막힌 행의 손실 복구(재동기화)는
 /// 멈춤이 되고, 같은 이유로 남은 이벤트가 있으면 지금 전송의 멈춤으로 미룬다.
 fn route_session_end(
     sess: &mut AttachClientSession,
@@ -181,8 +192,10 @@ fn route_session_end(
             if events_deferred {
                 DisconnectDisposition::None
             } else {
-                sess.state.stop_after_events = None;
-                DisconnectDisposition::Stop
+                match sess.state.stop_after_events.take() {
+                    Some(stop) if stop.connect_after => DisconnectDisposition::StopThenConnect,
+                    _ => DisconnectDisposition::Stop,
+                }
             }
         } else {
             // 다른 전송에 정한 멈춤은 지금 전송의 것이 아니다.
@@ -200,13 +213,14 @@ fn route_session_end(
             }
         };
     // 재연결 중인 세션은 옛 전송을 놓을 때(재연결 진입) 이미 결과 불명을 알렸다. 그 세션의 멈춤은
-    // 끊긴 행으로 두기만 한다.
+    // 안내 없이 끊긴 행으로 두거나 미룬 명시 연결로 넘긴다.
     let unknown = phase == SessionState::Connected
         && matches!(
             disposition,
             DisconnectDisposition::Resync
                 | DisconnectDisposition::Reconnect
                 | DisconnectDisposition::Stop
+                | DisconnectDisposition::StopThenConnect
                 | DisconnectDisposition::Cleanup
         )
         && super::workspace_close::close_result_unknown(sess);
@@ -276,6 +290,8 @@ enum DisconnectDisposition {
     /// 재연결·재동기화하지 않고 멈춘다. 저장된 원격 행은 끊긴 행으로 남고, 에이전트 mirror는 정리한다.
     /// 서버의 강제 끊기와 관측·설치 단계가 정한 멈춤이 여기로 온다.
     Stop,
+    /// 정한 멈춤을 적용한 뒤 미룬 동안 받은 명시적 연결을 잇는다(`App::stop_saved_row`).
+    StopThenConnect,
     Cleanup,
     /// 서버가 workspace를 닫았다고 회신했다. 재연결 없이 로컬에서 정리한다.
     ServerClosed,

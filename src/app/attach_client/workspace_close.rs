@@ -326,8 +326,10 @@ impl App {
         let previous_state = self.row_state_name(row);
         let idle = matches!(previous_state, "disconnected" | "failed" | "not_connected");
         if idle && row_attempt_count(&self.state.mirror_attempts, row) == 0 {
-            // 이미 끊긴 행은 토큰 교체·닫기 결과 안내·Detach·재연결 표지를 다시 만들지 않는다.
+            // 이미 끊긴 행은 토큰 교체·닫기 결과 안내·Detach·재연결 표지를 다시 만들지 않는다. 멈춤에 남은
+            // 연결 의사는 사용자의 마지막 뜻이 끊기라 버린다.
             self.remote.user_disconnected.insert(row);
+            self.drop_connect_after_stop(row);
             tracing::info!(
                 "mirror disconnect: saved remote row {row} was already {previous_state}"
             );
