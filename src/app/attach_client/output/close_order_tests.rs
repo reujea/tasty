@@ -210,6 +210,38 @@ fn a_stop_of_a_reconnecting_session_does_not_repeat_the_unknown_close() {
     );
 }
 
+/// Given 미룬 멈춤에 명시적 연결 의사가 남았다, When 이벤트가 풀린 뒤 처리하면, Then 의사를 실은 멈춤
+/// (`StopThenConnect`)으로 끝나고 멈춤은 지워진다. 연결된 세션의 닫기 회신을 기다리던 중이면 결과 불명도
+/// 알린다. 같은 회차에 닫기 성공 회신이 있으면 서버 닫기가 이긴다.
+#[test]
+fn a_deferred_stop_with_a_connect_intent_routes_as_stop_then_connect() {
+    let route = |close: WorkspaceClose| {
+        let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+        sess.state.saved_row = Some(5);
+        sess.state.workspace_close = close;
+        let mut stop =
+            tasty_remote::client_session::DeferredStop::new(sess.transport.frame_tx.epoch());
+        stop.connect_after = true;
+        sess.state.stop_after_events = Some(stop);
+        let phase = sess.state.phase;
+        let routed = route_session_end(&mut sess, phase, false, false);
+        (routed, sess.state.stop_after_events.is_none())
+    };
+    assert_eq!(
+        route(WorkspaceClose::Idle),
+        ((DisconnectDisposition::StopThenConnect, false), true)
+    );
+    assert_eq!(
+        route(WorkspaceClose::Pending(3)),
+        ((DisconnectDisposition::StopThenConnect, true), true),
+        "an unknown close result is told like a plain stop"
+    );
+    assert_eq!(
+        route(WorkspaceClose::Closed).0,
+        (DisconnectDisposition::ServerClosed, false)
+    );
+}
+
 /// ifix1-3 (U8): Given 막힌 저장 행이 손실 복구(재동기화)를 시작한 뒤 옛 전송이 끊겼고 ID 예약을 기다리는
 /// 이벤트가 남았다, When 처리하면, Then 바로 멈추지 않고 지금 전송의 멈춤으로 미룬다. 그 이벤트에 닫기 성공
 /// 회신이 있으면 서버 닫기로 끝나고, 없이 풀리면 멈추며 결과 불명을 알린다.

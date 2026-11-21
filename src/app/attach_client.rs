@@ -31,6 +31,8 @@ pub(crate) mod workspace_close;
 
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+pub(crate) use connection::adopt_reconnected_transport;
 
 use git_query::deliver_git_query_result;
 

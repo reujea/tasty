@@ -626,7 +626,7 @@ impl App {
 /// 다시 붙었다는 toast 는 없다. 저장 행은 표지가, 에이전트 mirror 는 재연결 자체가 없다.
 /// 재연결 설치가 새 전송을 세션에 넘긴다. 옛 전송을 여기서 확정하고 소켓을 닫는다. 옛 전송의 관측 기록과
 /// 그 전송에 정한 멈춤은 새 전송의 몫이 아니라 함께 끝낸다.
-pub(super) fn adopt_reconnected_transport(
+pub(crate) fn adopt_reconnected_transport(
     sess: &mut AttachClientSession,
     transport: tasty_remote::client_session::InstallGuard,
 ) {

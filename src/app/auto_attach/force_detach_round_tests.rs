@@ -40,7 +40,9 @@ pub(super) struct PeerGates {
 }
 
 /// `forced_peer` 와 같되 `gates` 의 자리마다 신호를 받을 때까지 미룬다.
-fn forced_peer_after(gates: PeerGates) -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
+pub(super) fn forced_peer_after(
+    gates: PeerGates,
+) -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
     use std::io::{BufRead, BufReader};
     use tasty_ipc::stream::{self, StreamTag};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -140,7 +142,7 @@ pub(super) fn queue_a_gated_forced_reconnect_of_the_other_row(
 }
 
 /// 준비된 `row` 연결의 전송이 강제 끊김으로 확정될 때까지 결과를 거둔다.
-fn collect_until_forced(app: &mut App, row: u32) {
+pub(super) fn collect_until_forced(app: &mut App, row: u32) {
     let ticket = ticket_of(app, row).expect("the queued connection");
     let until = Instant::now() + Duration::from_secs(10);
     loop {
@@ -610,7 +612,7 @@ fn the_hold_covers_every_row_of_the_target_but_the_released_one() {
 
 /// 연결된 행 A 가 손실 통지로 재동기화를 시작한 뒤(`resync_pending`, Detach 보냄) 옛 전송이 `reason`
 /// 으로 확정된 상태. 재동기화 연결은 `port` 로 간다.
-fn resyncing_app(
+pub(super) fn resyncing_app(
     event_loop: &winit::event_loop::EventLoop<crate::AppEvent>,
     reason: EndReason,
     port: u16,
