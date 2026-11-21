@@ -468,43 +468,59 @@ fn a_bundle_table_fails_even_where_the_lock_value_is_true() {
     }
 }
 
+/// 기록된 fetch 인자에서 `opt` 다음 값을 읽는다.
+fn arg_after(log: &str, opt: &str) -> String {
+    log.split_whitespace()
+        .skip_while(|w| *w != opt)
+        .nth(1)
+        .unwrap_or_else(|| panic!("fetch 에 {opt} 를 넘기지 않았다:\n{log}"))
+        .to_owned()
+}
+
 #[test]
 fn shared_cache_seeds_a_private_copy_and_is_off_by_default() {
     let root = Root::new();
     root.update_ok();
-    let first = root.fetch_log();
-    assert!(
-        !first.contains("CACHED"),
-        "--shared-cache 없이 기본 캐시를 썼다:\n{first}"
-    );
     // 스크립트가 고른 플랫폼을 첫 실행의 인자에서 읽어 그 자리의 기본 캐시를 채운다.
-    let platform = first
-        .split_whitespace()
-        .skip_while(|w| *w != "--platform")
-        .nth(1)
-        .unwrap_or_else(|| panic!("fetch 에 --platform 을 넘기지 않았다:\n{first}"))
-        .to_owned();
-    root.write(
-        &format!("target/official-plugins/v9.9.9/{platform}/seeded.tar.gz"),
-        "x",
-    );
-    root.write(
-        &format!("target/official-plugins/v9.9.9/{platform}/partial.tar.gz.part"),
-        "x",
-    );
-    let (code, text) = root.run(&["--check", "--shared-cache"]);
-    assert_eq!(code, 0, "--shared-cache 대조가 실패했다:\n{text}");
-    let log = root.fetch_log();
+    let platform = arg_after(&root.fetch_log(), "--platform");
+    let shared = format!("target/official-plugins/v9.9.9/{platform}");
+    root.write(&format!("{shared}/seeded.tar.gz"), "x");
+    root.write(&format!("{shared}/partial.tar.gz.part"), "x");
+    // 실행마다 기록을 비워 그 실행이 받은 인자와 캐시만 본다.
+    let fresh_log = |args: &[&str]| -> String {
+        let log = root.path.join("fetch.log");
+        if log.exists() {
+            fs::remove_file(&log).expect("fetch 기록 지우기");
+        }
+        let (code, text) = root.run(args);
+        assert_eq!(code, 0, "{args:?} 대조가 실패했다:\n{text}");
+        root.fetch_log()
+    };
+
+    let off = fresh_log(&["--check"]);
     assert!(
-        log.contains("CACHED seeded.tar.gz"),
-        "기본 캐시 파일을 전용 캐시로 옮기지 않았다:\n{log}"
+        !off.contains("CACHED seeded.tar.gz"),
+        "--shared-cache 없이 기본 캐시를 썼다:\n{off}"
+    );
+    let on = fresh_log(&["--check", "--shared-cache"]);
+    assert!(
+        on.contains("CACHED seeded.tar.gz"),
+        "기본 캐시 파일을 전용 캐시로 옮기지 않았다:\n{on}"
     );
     assert!(
-        !log.contains("CACHED partial"),
-        "받다 만 .part 파일까지 옮겼다:\n{log}"
+        !on.contains("CACHED partial"),
+        "받다 만 .part 파일까지 옮겼다:\n{on}"
     );
+    let cache = arg_after(&on, "--cache");
     assert!(
-        !log.contains("/target/official-plugins/v9.9.9/"),
-        "fetch 에 기본 캐시를 직접 넘겼다:\n{log}"
+        !Path::new(&cache).starts_with(root.path.join("target/official-plugins")),
+        "fetch 에 기본 캐시를 직접 넘겼다: {cache}"
+    );
+    // 다 받은 같은 이름의 파일은 옮긴다. 위 부재 확인이 이름 때문에 통과한 것이 아니다.
+    root.write(&format!("{shared}/partial.tar.gz"), "x");
+    let done = fresh_log(&["--check", "--shared-cache"]);
+    assert!(
+        done.contains("CACHED partial"),
+        "다 받은 캐시 파일을 옮기지 않았다:\n{done}"
     );
 }
