@@ -208,17 +208,18 @@ ver_gt() {
 
 # 변경 경로와 plugin 명부의 기준 디렉터리.
 SCAN_ROOT=crates
+# 호스트 시험 픽스처는 어떤 플러그인의 빌드 입력도 아니다. 잠금 파일·매니페스트를 읽을지 정하기 전에
+# Git 경로 지정으로 뺀다(출력 문자열을 거르면 Git이 인용한 비ASCII 경로를 놓친다).
+FIXTURES_PATH="$SCAN_ROOT/tasty-test-support/fixtures/official-plugins/"
 
 if [ "$MODE" = staged ]; then
     # 비교 기준과 같은 BASE↔index 차이다. base 뒤 앞선 커밋의 변경도 여기에 들어온다.
-    CHANGED=$(git diff --cached --name-only --diff-filter=ACMRD "$BASE" -- "$SCAN_ROOT/")
+    CHANGED=$(git diff --cached --name-only --diff-filter=ACMRD "$BASE" -- "$SCAN_ROOT/" ":(exclude)$FIXTURES_PATH")
     OUTSIDE=$(git diff --cached --name-only --diff-filter=ACMRD "$BASE" -- . ":(exclude)$SCAN_ROOT/")
 else
-    CHANGED=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- "$SCAN_ROOT/")
+    CHANGED=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- "$SCAN_ROOT/" ":(exclude)$FIXTURES_PATH")
     OUTSIDE=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- . ":(exclude)$SCAN_ROOT/")
 fi
-# 호스트 시험 픽스처는 어떤 플러그인의 빌드 입력도 아니다. 잠금 파일·매니페스트를 읽을지 정하기 전에 뺀다.
-CHANGED=$(printf '%s\n' "$CHANGED" | sed "\|^$SCAN_ROOT/tasty-test-support/fixtures/official-plugins/|d")
 
 # src/lang/assets는 확장자에 관계없이 비교한다. 이 범위를 바꾸면 CI 경로 필터도 함께 대조한다.
 build_affecting() {

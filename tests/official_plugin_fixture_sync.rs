@@ -229,6 +229,22 @@ fn check_finds_a_changed_byte_and_a_stale_fixture() {
         text.contains("not in the lock file: .stale"),
         "점 폴더를 말하지 않는다:\n{text}"
     );
+    fs::remove_dir(root.path.join(FIXTURES).join(".stale")).expect(".stale 지우기");
+
+    // 폴더를 가리키는 링크는 링크 너머를 읽지 않고 오류다.
+    let elsewhere = root.path.join("elsewhere");
+    fs::create_dir_all(&elsewhere).expect("링크 대상");
+    std::os::unix::fs::symlink(
+        &elsewhere,
+        root.path.join(FIXTURES).join("com.tasty.linked"),
+    )
+    .expect("링크 만들기");
+    let (code, text) = root.run(&["--check"]);
+    assert_eq!(code, 1, "픽스처 루트의 폴더 링크를 놓쳤다:\n{text}");
+    assert!(
+        text.contains("symbolic link in the fixture root: com.tasty.linked"),
+        "링크를 말하지 않는다:\n{text}"
+    );
 }
 
 /// 잠금 파일은 fetch 전에 checker와 같은 조건으로 읽는다. 배포 파서는 `[[plugin.artifact]]` 를 앞선

@@ -455,6 +455,8 @@ fn a_fixture_only_change_skips_the_lock_and_manifest_reads() {
     write(d, &format!("{FIXTURE}/lang/en.toml"), "a = \"b\"\n");
     commit_all(d, "seed fixture and an unreadable lock");
     write(d, &format!("{FIXTURE}/lang/en.toml"), "a = \"c\"\n");
+    // Git 은 비ASCII 경로를 인용해 출력한다. 경로 지정으로 빼므로 인용 형식과 관계없이 빠진다.
+    write(d, &format!("{FIXTURE}/lang/한국어.toml"), "a = \"가\"\n");
     write(
         d,
         &format!("{FIXTURE}/tasty-plugin.toml"),

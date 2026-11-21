@@ -243,14 +243,22 @@ compare() {
 $want
 EOF
     done
-    # 글롭 */ 는 점으로 시작하는 폴더를 빼므로 find 로 바로 아래 폴더를 모두 본다(오프라인 가드와 같은 집합).
+    # 글롭 */ 는 점으로 시작하는 폴더를 빼므로 find 로 바로 아래 항목을 모두 본다(오프라인 가드와 같은 집합).
+    # 목록은 파일로 받아 find 의 종료 상태를 먼저 확인한다. 폴더를 가리키는 링크는 링크 너머를 읽지 않고 오류다.
+    if ! find "$fix" -mindepth 1 -maxdepth 1 -print0 > "$work/fixture-entries"; then
+        echo "  could not list $fix" >&2
+        return 1
+    fi
     while IFS= read -r -d '' dir; do
         id="$(basename "$dir")"
-        if ! is_locked_id "$id"; then
+        if [[ -L "$dir" ]]; then
+            echo "  symbolic link in the fixture root: $id" >&2
+            bad=1
+        elif [[ -d "$dir" ]] && ! is_locked_id "$id"; then
             echo "  not in the lock file: $id" >&2
             bad=1
         fi
-    done < <(find "$fix" -mindepth 1 -maxdepth 1 -type d -print0)
+    done < "$work/fixture-entries"
     return "$bad"
 }
 
