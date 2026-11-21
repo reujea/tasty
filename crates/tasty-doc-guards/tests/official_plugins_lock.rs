@@ -102,7 +102,7 @@ struct FetchArgs {
     /// 모르는 인자나 값이 빠진 옵션을 만나 종료 2로 끝난다.
     invalid: bool,
     platform: Option<String>,
-    /// `--lock`으로 기본 잠금 파일 대신 다른 파일을 지정했다.
+    /// `--lock`을 넘겼다. 기본 파일을 명시해도 이 가드는 옵션 자체를 거부한다.
     lock: bool,
     out: bool,
 }
@@ -148,7 +148,7 @@ fn parse_fetch(argv: &[String]) -> FetchArgs {
 }
 
 /// 기본 잠금 파일로 받기까지 가는 호출: 도움말·모르는 인자·값 빠진 옵션 없이 `--platform`·`--out`에 값이 있고,
-/// `--lock`으로 이 가드가 읽지 않는 다른 잠금 파일을 지정하지 않는다.
+/// `--lock`을 넘기지 않는다(이 가드는 기본 잠금만 읽으므로 기본 파일을 명시한 `--lock`도 거부한다).
 fn really_fetches(p: &FetchArgs) -> bool {
     !p.help && !p.invalid && p.platform.is_some() && p.out && !p.lock
 }
@@ -181,18 +181,21 @@ fn fetch_argvs(mode: &str, platform: &str, branch: &str) -> Vec<Vec<String>> {
 /// `fetch_argvs`와 같고, 대상이 운영 셸 옵션에서 실패하거나 fetch 실패에도 성공하면 `Err`를 돌려준다.
 #[cfg(unix)]
 fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>>, String> {
-    fetch_run_with(mode, platform, branch, &bundled_ids())
+    let all: Vec<String> = locked_ids(&lock()).into_iter().collect();
+    fetch_run_with(mode, platform, branch, &all, &bundled_ids())
 }
 
-/// `fetch_run`과 같고, 스텁이 `--all` 없이 받을 때 산출물로 둘 id를 잠금 파일 대신 `bundled`로 정한다.
+/// `fetch_run`과 같고, 스텁이 `--all`로 받을 때와 없이 받을 때 산출물로 둘 id를 잠금 파일 대신 `all`·`bundled`로
+/// 정한다. 픽스처에 없는 id는 빈 폴더로 만든다.
 #[cfg(unix)]
 fn fetch_run_with(
     mode: &str,
     platform: &str,
     branch: &str,
+    all: &[String],
     bundled: &[String],
 ) -> Result<Vec<Vec<String>>, String> {
-    let (rc, calls) = fetch_collect(mode, platform, branch, "", bundled);
+    let (rc, calls) = fetch_collect(mode, platform, branch, "", all, bundled);
     if rc != "0" {
         return Err(format!(
             "{mode} ({platform}) 대상이 운영 셸 옵션에서 실패했다(RC={rc}): {calls:?}"
@@ -200,7 +203,7 @@ fn fetch_run_with(
     }
     // 실제 fetch는 산출물 전후 어디서든 종료 1로 실패한다. 특정 종료값만 삼키는 꼴도 거부하도록 세 가지로 돈다.
     for fail in ["early1", "late1", "late23"] {
-        let (rc, failed) = fetch_collect(mode, platform, branch, fail, bundled);
+        let (rc, failed) = fetch_collect(mode, platform, branch, fail, all, bundled);
         if rc == "0" || rc.starts_with("0-") {
             return Err(format!(
                 "{mode} ({platform}) 대상이 fetch 실패({fail})에도 성공했다(실패를 전파하지 않는 호출): {failed:?}"
@@ -220,19 +223,26 @@ fn fetch_collect(
     platform: &str,
     branch: &str,
     fail: &str,
+    all: &[String],
     bundled: &[String],
 ) -> (String, Vec<Vec<String>>) {
     const HARNESS: &str = r#"set -eu
-repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"; bundled="$6"
+repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"; bundled="$6"; all="$7"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 mkdir -p "$root/scripts/lib" "$root/calls"
 if [ -n "$fail" ]; then printf '%s' "$fail" > "$root/fail"; fi
 # 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만 산출물로 둔다.
 fixtures="$repo/crates/tasty-test-support/fixtures/official-plugins"
-cp -R "$fixtures" "$root/tree-all"
-mkdir -p "$root/tree-bundle"
-for id in $bundled; do cp -R "$fixtures/$id" "$root/tree-bundle/"; done
+tree_of() {
+    mkdir -p "$1"
+    shift
+    for id in "$@"; do
+        if [ -d "$fixtures/$id" ]; then cp -R "$fixtures/$id" "$tree/"; else mkdir -p "$tree/$id"; fi
+    done
+}
+tree="$root/tree-all"; tree_of "$tree" $all
+tree="$root/tree-bundle"; tree_of "$tree" $bundled
 cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 #!/usr/bin/env bash
 top="$(cd "$(dirname "$0")/.." && pwd)"
@@ -250,6 +260,8 @@ while [ $# -gt 0 ]; do
     esac
 done
 if [ "$(cat "$top/fail" 2>/dev/null)" = early1 ]; then exit 1; fi
+# 실제 fetch는 고른 항목이 하나도 없으면 산출물을 만들기 전에 종료 1이다.
+if [ -z "$(ls -A "$top/$tree")" ]; then exit 1; fi
 if [ -n "$out" ]; then mkdir -p "$out" && cp -R "$top/$tree/." "$out/" && : > "$out/.fetched"; fi
 case "$(cat "$top/fail" 2>/dev/null)" in late1) exit 1 ;; late23) exit 23 ;; esac
 STUB
@@ -287,7 +299,14 @@ done
     let out = std::process::Command::new("bash")
         .args(["-c", HARNESS, "harness"])
         .arg(repo_root())
-        .args([mode, platform, branch, fail, &bundled.join(" ")])
+        .args([
+            mode,
+            platform,
+            branch,
+            fail,
+            &bundled.join(" "),
+            &all.join(" "),
+        ])
         .output()
         .expect("bash 하네스를 실행하지 못했다");
     assert!(
@@ -578,8 +597,16 @@ fn the_staging_harness_reads_what_bash_passes() {
     assert_eq!(calls.len(), 1, "안내문을 fetch 호출로 셌다: {calls:?}");
     // 함께 띄운 두 호출은 각자 기록된다(하나가 다른 하나를 덮지 않는다). 그래도 실패를 전파하지 않으므로 거부한다.
     let plain = real.replacen(" --all", "", 1);
+    let locked: Vec<String> = locked_ids(&lock()).into_iter().collect();
     let together = format!("{real} &\n{plain} &\nwait");
-    let (rc, calls) = fetch_collect("staging", "linux-x64", &together, "", &bundled_ids());
+    let (rc, calls) = fetch_collect(
+        "staging",
+        "linux-x64",
+        &together,
+        "",
+        &locked,
+        &bundled_ids(),
+    );
     assert_eq!(
         rc, "0",
         "함께 띄운 두 호출의 성공 실행이 실패했다: {calls:?}"
@@ -644,7 +671,8 @@ fn the_staging_harness_reads_what_bash_passes() {
             format!("{real}\n(sleep 0.3; {plain}) 9> /dev/null &"),
         ),
     ] {
-        let (_, calls) = fetch_collect("staging", "linux-x64", &branch, "", &bundled_ids());
+        let (_, calls) =
+            fetch_collect("staging", "linux-x64", &branch, "", &locked, &bundled_ids());
         assert_eq!(
             calls.len(),
             2,
@@ -666,12 +694,11 @@ fn the_package_harness_stops_on_a_failing_helper() {
         fetch_run("package", "linux-x64", &format!("false\n{helper}")).is_err(),
         "헬퍼 최상위의 실패를 통과시켰다"
     );
-    // 스텁 산출물은 실제 fetch처럼 --all 유무에 따라 다르다. 실제 잠금의 bundle 구성에 기대지 않도록 잠금 id(픽스처
-    // 폴더와 같다) 하나를 개발 전용으로, 나머지(없을 수 있다)를 배포 항목으로 합성한다. 배포 집합에 없는 항목을
-    // 요구하면 실패한다.
-    let mut ids: Vec<String> = locked_ids(&lock()).into_iter().collect();
-    let dev_only = ids.pop().expect("잠금 파일에 항목이 없다");
-    let bundled = ids;
+    // 스텁 산출물은 실제 fetch처럼 --all 유무에 따라 다르다. 실제 잠금의 구성에 기대지 않도록 배포 항목과 개발 전용
+    // 항목을 하나씩 가진 합성 집합으로 잰다. 배포 집합에 없는 항목을 요구하면 실패한다.
+    let bundled = vec!["com.tasty.synthetic-bundled".to_string()];
+    let dev_only = "com.tasty.synthetic-dev".to_string();
+    let all = vec![bundled[0].clone(), dev_only.clone()];
     // 헬퍼 함수가 fetch를 마친 뒤 그 항목의 폴더를 요구하도록 감싼다.
     let requires = |id: &str| {
         format!(
@@ -679,15 +706,21 @@ fn the_package_harness_stops_on_a_failing_helper() {
         )
     };
     assert!(
-        fetch_run_with("package", "linux-x64", &requires(&dev_only), &bundled).is_err(),
+        fetch_run_with("package", "linux-x64", &requires(&dev_only), &all, &bundled).is_err(),
         "배포 산출물에 개발 전용 {dev_only}가 있다고 보았다"
     );
-    for id in &bundled {
-        assert!(
-            fetch_run_with("package", "linux-x64", &requires(id), &bundled).is_ok(),
-            "배포 산출물에 {id}가 없다고 보았다"
-        );
-    }
+    assert!(
+        fetch_run_with(
+            "package",
+            "linux-x64",
+            &requires(&bundled[0]),
+            &all,
+            &bundled
+        )
+        .is_ok(),
+        "배포 산출물에 {}가 없다고 보았다",
+        bundled[0]
+    );
     // 값 옵션이 소비한 --all은 전체 받기가 아니므로 산출물도 배포 집합이다.
     let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\"";
     assert!(
@@ -695,6 +728,7 @@ fn the_package_harness_stops_on_a_failing_helper() {
             "staging",
             "linux-x64",
             &format!("{real} --cache --all\n[ ! -d \"$stage/{dev_only}\" ]"),
+            &all,
             &bundled
         )
         .is_ok(),
@@ -705,13 +739,18 @@ fn the_package_harness_stops_on_a_failing_helper() {
             "staging",
             "linux-x64",
             &format!("{real} --all\n[ -d \"$stage/{dev_only}\" ]"),
+            &all,
             &bundled
         )
         .is_ok(),
         "--all 에 개발 전용 {dev_only}를 내놓지 않았다"
     );
-    // 배포 항목이 하나도 없어도 --all은 잠금의 모든 항목을 내놓는다.
-    let all_present: String = locked_ids(&lock())
+    // 배포 항목이 하나도 없으면 실제 fetch처럼 배포 받기는 실패하고, --all은 모든 항목을 내놓는다.
+    assert!(
+        fetch_run_with("package", "linux-x64", &helper, &all, &[]).is_err(),
+        "배포 항목이 없는 받기를 성공으로 보았다"
+    );
+    let all_present: String = all
         .iter()
         .map(|id| format!("\n[ -d \"$stage/{id}\" ]"))
         .collect();
@@ -720,10 +759,11 @@ fn the_package_harness_stops_on_a_failing_helper() {
             "staging",
             "linux-x64",
             &format!("{real} --all{all_present}"),
+            &all,
             &[]
         )
         .is_ok(),
-        "배포 항목이 없을 때 --all 이 잠금의 모든 항목을 내놓지 않았다"
+        "배포 항목이 없을 때 --all 이 모든 항목을 내놓지 않았다"
     );
 }
 
