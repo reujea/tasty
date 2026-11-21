@@ -97,7 +97,18 @@ fn frame_reading(
     events: Vec<egui::Event>,
     read: egui::Key,
 ) -> Vec<PopupInstanceId> {
+    frame_calls(ctx, state, events, read).1
+}
+
+/// [`frame_reading`]과 같고, 본문 콜백이 불린 인스턴스도 함께 돌려준다(불림, 키를 읽음).
+fn frame_calls(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    events: Vec<egui::Event>,
+    read: egui::Key,
+) -> (Vec<PopupInstanceId>, Vec<PopupInstanceId>) {
     let layout = layout();
+    let mut called = Vec::new();
     let mut seen = Vec::new();
     let raw = egui::RawInput {
         screen_rect: Some(rect(0.0, 0.0, 1200.0, 700.0)),
@@ -113,6 +124,9 @@ fn frame_reading(
         state.popups.draw(
             ctx,
             &mut |cx, ui| {
+                if !called.contains(&cx.instance) {
+                    called.push(cx.instance);
+                }
                 if ui.input(|i| i.key_pressed(read)) && !seen.contains(&cx.instance) {
                     seen.push(cx.instance);
                 }
@@ -122,7 +136,7 @@ fn frame_reading(
         );
     }));
     state.close_input_pass(ctx);
-    seen
+    (called, seen)
 }
 
 struct Scene {
@@ -281,7 +295,10 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
         x,
     } = open_scene(|state| {
         let iid = open(state, 3, false);
-        state.popups.instance_mut(iid).unwrap().arrange.takes_focus = false;
+        let p = state.popups.instance_mut(iid).unwrap();
+        // 포커스를 받지 않는 선언과 같게 두 값을 함께 바꾼다(`takes_focus == (keyboard != None)`).
+        p.arrange.takes_focus = false;
+        p.keyboard = super::PopupKeyboard::None;
         n = Some(iid);
     });
     let n = n.unwrap();
@@ -306,12 +323,14 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
         !state.popups.instance(x).is_some_and(|p| p.open),
         "창이 X 를 닫는다"
     );
-    let seen = frame_reading(
+    let (called, seen) = frame_calls(
         &ctx,
         &mut state,
         vec![key(egui::Key::Escape)],
         egui::Key::Escape,
     );
+    assert!(called.contains(&n), "N({n:?})의 본문이 불렸다: {called:?}");
+    assert!(!seen.contains(&n), "N({n:?})은 그 Esc 를 읽지 않는다");
     assert!(
         seen.is_empty(),
         "아래 N({n:?})은 그 Esc 를 읽지 않는다: {seen:?}"

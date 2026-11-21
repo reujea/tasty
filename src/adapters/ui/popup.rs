@@ -388,6 +388,11 @@ pub struct PopupState {
     declared_look: PopupLook,
     /// 선언에서 온 배치·포커스 값.
     arrange: arrange::Arrange,
+    /// 선언의 Esc 동작. 선언 없이 만든 팝업은 `PopupDecl::new`의 기본(`Close`)이다.
+    escape: PopupEscape,
+    /// 선언의 키 소비 집합. 선언 없이 만든 팝업은 `PopupDecl::new`의 기본(`Keys`)이다. 선언으로 만든
+    /// 인스턴스와 그 사본에서 `arrange.takes_focus == (keyboard != None)`이다.
+    keyboard: PopupKeyboard,
     /// 좁은 범위의 표시 상태(그대로·접힘·창 위). 매 프레임 `judge_display`가 정한다.
     display: display::PopupDisplay,
 }
@@ -576,6 +581,8 @@ impl PopupState {
             look: PopupLook::of(&PLAIN_DECL),
             declared_look: PopupLook::of(&PLAIN_DECL),
             arrange: arrange::Arrange::PLAIN,
+            escape: PopupEscape::Close,
+            keyboard: PopupKeyboard::Keys,
             display: display::PopupDisplay::Fits,
         }
     }
@@ -609,6 +616,8 @@ impl PopupState {
         popup.look = PopupLook::of(decl);
         popup.declared_look = popup.look;
         popup.arrange = arrange::Arrange::of(decl);
+        popup.escape = decl.escape;
+        popup.keyboard = decl.keyboard;
         popup.instances = decl.instances;
         popup
     }
@@ -700,6 +709,8 @@ impl PopupState {
             look: self.look,
             declared_look: self.declared_look,
             arrange: self.arrange,
+            escape: self.escape,
+            keyboard: self.keyboard,
             display: self.display,
             payload: PopupPayload::None,
         }

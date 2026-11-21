@@ -404,3 +404,83 @@ fn only_attached_menus_and_notices_leave_their_scope_uncovered() {
         ]
     );
 }
+
+/// 선언으로 만든 인스턴스는 선언의 Esc 동작과 키 소비 집합을 그대로 갖고, 포커스를 받는지는 그 집합에서 나온다.
+#[test]
+fn every_declared_instance_carries_its_escape_and_keyboard() {
+    let decls = all_decls();
+    let popups = registered();
+    assert_eq!(popups.len(), decls.len(), "등록 수와 선언 수");
+    for (id, decl) in decls {
+        let p = popups
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap_or_else(|| panic!("`{id}` 가 등록되지 않았다"));
+        assert_eq!(p.escape, decl.escape, "{id} escape");
+        assert_eq!(p.keyboard, decl.keyboard, "{id} keyboard");
+        assert_eq!(
+            p.arrange.takes_focus,
+            p.keyboard != PopupKeyboard::None,
+            "{id} takes_focus"
+        );
+    }
+}
+
+/// 선언 없이 만든 인스턴스는 `PopupDecl::new`의 기본값을 갖는다.
+#[test]
+fn an_undeclared_instance_takes_the_declaration_defaults() {
+    let p = PopupState::new(
+        "undeclared",
+        "t",
+        egui::vec2(10.0, 10.0),
+        crate::adapters::ui::popup::PopupScope::Window,
+    );
+    let defaults = PopupDecl::new(
+        tasty_plugin_protocol::popup_decl::PopupScopeKind::Window,
+        super::super::popup_size(egui::vec2(10.0, 10.0)),
+    );
+    assert_eq!(
+        (p.escape, p.keyboard),
+        (PopupEscape::Close, PopupKeyboard::Keys)
+    );
+    assert_eq!((p.escape, p.keyboard), (defaults.escape, defaults.keyboard));
+}
+
+/// 같은 선언의 둘째 인스턴스(닫힌 항목이 없어 새로 만든 사본)도 선언 값을 갖는다.
+#[test]
+fn a_fresh_copy_keeps_the_declared_escape_and_keyboard() {
+    use crate::adapters::ui::popup::{PopupInstances, PopupScope};
+    use crate::intent::OpenRequest;
+    const ID: &str = "copy_decl";
+    let decl = PopupDecl {
+        instances: PopupInstances::Multi,
+        keyboard: PopupKeyboard::Text,
+        escape: PopupEscape::Unfocus,
+        ..PopupDecl::new(
+            tasty_plugin_protocol::popup_decl::PopupScopeKind::Window,
+            super::super::popup_size(egui::vec2(100.0, 50.0)),
+        )
+    };
+    let mut mgr = PopupManager::new();
+    mgr.register(PopupState::declared(
+        ID,
+        "t",
+        &decl,
+        None,
+        PopupScope::Window,
+    ));
+    let first = mgr
+        .open_request(&OpenRequest::new(ID, PopupScope::Window), true)
+        .unwrap();
+    let second = mgr
+        .open_request(&OpenRequest::new(ID, PopupScope::Window), true)
+        .unwrap();
+    assert_ne!(first, second, "둘째 열기는 새 인스턴스");
+    assert_eq!(mgr.instances_of(ID).count(), 2, "사본이 하나 더 생겼다");
+    assert!(mgr.instance(first).unwrap().open && mgr.instance(second).unwrap().open);
+    let copy = mgr.instance(second).unwrap();
+    assert_eq!(
+        (copy.keyboard, copy.escape),
+        (PopupKeyboard::Text, PopupEscape::Unfocus)
+    );
+}
