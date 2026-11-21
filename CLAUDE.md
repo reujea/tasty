@@ -76,6 +76,7 @@ Conventional Commits 형식을 따른다 (예: `feat(themes): add latte theme`).
 ### Plugin (`crates/tasty-plugin-*/Cargo.toml`)
 
 매니페스트가 있는 번들 플러그인의 제품 내용이 달라지면 패치 버전을 올린다.
+매니페스트 id가 `official-plugins.lock.toml`에 있는 공식 플러그인은 공식 플러그인 레포가 버전을 관리하므로 대상이 아니다.
 해당 디렉터리뿐 아니라 normal/build 의존성의 변경도 포함한다.
 저장소 안 path 의존성은 workspace 밖에 있어도 검사한다.
 

@@ -241,6 +241,85 @@ $f"; fi
 done <<EOF
 $OUTSIDE
 EOF
+# 공식 플러그인은 tasty-official-plugins 레포가 버전을 관리하고 tasty는 잠금 파일의 릴리스 산출물만 싣는다.
+# 잠금 파일 id와 같은 매니페스트를 가진 크레이트는 판정 대상에서 뺀다. 둘 다 비교 대상 트리(index 또는 AFTER)에서 읽는다.
+SCAN_AWK="$(cd "$(dirname "$0")" && pwd)/lib/toml-scan.awk"
+LOCK_FILE=official-plugins.lock.toml
+LOCKED_DIRS=""
+# toml-scan.awk 출력에서 잠금 파일 [[plugin]] 표의 id를 뽑는다. 배포 도구가 받는 꼴(맨 키, 기본 문자열)만 받는다.
+read_lock_ids() {  # <scan 파일>
+    awk -F'\t' '
+        function fail(m) { if (err == "") err = m }
+        function close_table() { if (inp && ids != 1) fail("[[plugin]] 표의 id 가 " ids " 개다") }
+        $1 == "H" { close_table(); inp = ($2 == "[[plugin]]"); if (inp) { tables++; ids = 0 }; next }
+        $1 == "K" && inp {
+            if ($3 == "?") { fail("[[plugin]] 표에 읽을 수 없는 키가 있다"); next }
+            if ($3 != "id") next
+            ids++
+            if ($2 != "bare" || $4 != "basic") { fail("id 가 맨 키·기본 문자열이 아니다"); next }
+            if ($5 !~ /^com[.]tasty[.][a-z0-9-]+$/) { fail("id 가 공식 플러그인 id 꼴이 아니다: " $5); next }
+            if (seen[$5]++) { fail("id 가 중복됐다: " $5); next }
+            print $5
+        }
+        END {
+            close_table()
+            if (tables == 0) fail("[[plugin]] 표가 없다")
+            if (err != "") { print "E\t" err; exit 3 }
+        }' "$1"
+}
+# 매니페스트 최상위(첫 표 머리 앞)의 id 하나를 뽑는다. 확신할 수 없는 표기는 판정 불가다.
+read_manifest_id() {  # <scan 파일>
+    awk -F'\t' '
+        function fail(m) { if (err == "") err = m }
+        $1 == "H" { top_done = 1; next }
+        $1 == "K" && !top_done {
+            if ($3 == "?") { fail("최상위에 읽을 수 없는 키가 있다"); next }
+            if ($3 != "id") next
+            n++
+            if ($4 != "basic" && $4 != "literal") { fail("id 가 단순 문자열이 아니다"); next }
+            id = $5
+        }
+        END {
+            if (err == "" && n != 1) fail("최상위 id 가 " n + 0 " 개다")
+            if (err != "") { print "E\t" err; exit 3 }
+            print id
+        }' "$1"
+}
+compute_locked_dirs() {
+    local out ids man rel mid
+    exists_at "$(after_ref "$LOCK_FILE")" || return 0
+    [ -f "$SCAN_AWK" ] || die "판정 불가: TOML 판독기가 없다: $SCAN_AWK"
+    git show "$(after_ref "$LOCK_FILE")" > "$WORK/lock.toml" \
+        || die "판정 불가: 잠금 파일을 꺼내지 못했다: $(after_ref "$LOCK_FILE")"
+    awk -f "$SCAN_AWK" "$WORK/lock.toml" > "$WORK/lock.scan" \
+        || die "판정 불가: 잠금 파일을 읽지 못했다: $(sed -n '$p' "$WORK/lock.scan")"
+    out=$(read_lock_ids "$WORK/lock.scan") \
+        || die "판정 불가: 잠금 파일 $LOCK_FILE: $(printf '%s\n' "$out" | sed -n '$p' | cut -f2)"
+    ids=" $(printf '%s\n' "$out" | tr '\n' ' ')"
+    for man in "$ROOT/$SCAN_ROOT"/*/tasty-plugin.toml; do
+        [ -f "$man" ] || continue
+        rel="$SCAN_ROOT/$(basename "$(dirname "$man")")"
+        exists_at "$(after_ref "$rel/tasty-plugin.toml")" || continue
+        git show "$(after_ref "$rel/tasty-plugin.toml")" > "$WORK/manifest.toml" \
+            || die "판정 불가: 매니페스트를 꺼내지 못했다: $rel/tasty-plugin.toml"
+        awk -f "$SCAN_AWK" "$WORK/manifest.toml" > "$WORK/manifest.scan" \
+            || die "판정 불가: $rel/tasty-plugin.toml 을 읽지 못했다: $(sed -n '$p' "$WORK/manifest.scan")"
+        mid=$(read_manifest_id "$WORK/manifest.scan") \
+            || die "판정 불가: $rel/tasty-plugin.toml: $(printf '%s\n' "$mid" | sed -n '$p' | cut -f2)"
+        case "$ids" in *" $mid "*) LOCKED_DIRS="$LOCKED_DIRS $rel" ;; esac
+    done
+}
+is_locked_dir() {
+    case " $LOCKED_DIRS " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+SKIPPED_LOCKED=""
+note_locked() {
+    case " $SKIPPED_LOCKED " in *" $1 "*) ;; *) SKIPPED_LOCKED="$SKIPPED_LOCKED $1" ;; esac
+}
+if [ -n "$CHANGED$OUTSIDE_BUILD" ]; then
+    compute_locked_dirs
+fi
+
 MEMBERS=""; MEMBERS_READ=0
 read_members() {
     [ "$MEMBERS_READ" = 1 ] && return 0
@@ -254,6 +333,7 @@ $(cat "$WORK/metadata.err")"
 if [ -n "$OUTSIDE_BUILD" ]; then
     for man in "$ROOT/$SCAN_ROOT"/*/tasty-plugin.toml; do
         [ -f "$man" ] || continue
+        is_locked_dir "$SCAN_ROOT/$(basename "$(dirname "$man")")" && continue
         closure_of "$(basename "$(dirname "$man")")"
         while IFS= read -r p; do
             [ -z "$p" ] && continue
@@ -294,6 +374,8 @@ CHANGED_CRATES=""
 while IFS= read -r f; do
     [ -z "$f" ] && continue
     build_affecting "$f" || continue
+    # 호스트 시험 픽스처는 어떤 플러그인의 빌드 입력도 아니다.
+    case "$f" in "$SCAN_ROOT"/tasty-test-support/fixtures/official-plugins/*) continue ;; esac
     CHANGED_CRATES="$CHANGED_CRATES
 $(crate_dir_of "$f")"
 done <<EOF
@@ -308,7 +390,9 @@ done
 
 PLUGINS=""
 for c in $CHANGED_CRATES; do
-    [ -f "$ROOT/$c/tasty-plugin.toml" ] && PLUGINS="$PLUGINS $c"
+    [ -f "$ROOT/$c/tasty-plugin.toml" ] || continue
+    if is_locked_dir "$c"; then note_locked "$c"; continue; fi
+    PLUGINS="$PLUGINS $c"
 done
 
 # cargo tree는 range의 각 과거 그래프가 아니라 현재 작업 트리를 읽는다.
@@ -318,12 +402,16 @@ if [ -n "${SHARED_CHANGED// /}" ]; then
         [ -f "$man" ] || continue
         pdir=$(dirname "$man"); pname=$(basename "$pdir"); prel="$SCAN_ROOT/$pname"
         case " $PLUGINS " in *" $prel "*) continue ;; esac
+        if is_locked_dir "$prel"; then note_locked "$prel"; continue; fi
         for c in $SHARED_CHANGED; do
             if links_crate "$pname" "$c"; then PLUGINS="$PLUGINS $prel"; break; fi
         done
     done
 fi
 PLUGINS=$(printf '%s\n' $PLUGINS | sed -n '/./p' | sort -u)
+if [ -n "${SKIPPED_LOCKED// /}" ]; then
+    echo "[plugin-version] 잠금 파일의 공식 플러그인 id라 대상에서 뺐다:$SKIPPED_LOCKED"
+fi
 
 INVOLVED=$(printf '%s\n' $CHANGED_CRATES | sed -n '/./p' | sort -u)
 if [ "$MODE" = staged ]; then

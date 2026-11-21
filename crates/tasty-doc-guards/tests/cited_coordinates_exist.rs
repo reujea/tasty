@@ -227,7 +227,9 @@ fn comment_prefixes(rel: &str) -> Option<&'static [&'static str]> {
         .map(|(_, e)| e);
     match ext {
         Some("rs" | "m" | "mjs" | "jsx" | "ts" | "tsx" | "astro" | "swift") => Some(&["//"]),
-        Some("toml" | "sh" | "bash" | "yml" | "yaml" | "py" | "just" | "ps1") => Some(&["#"]),
+        Some("toml" | "sh" | "bash" | "awk" | "yml" | "yaml" | "py" | "just" | "ps1") => {
+            Some(&["#"])
+        }
         Some("lua") => Some(&["--"]),
         // 블록 주석의 첫 줄(`/*`)과 이어지는 줄(` *`)도 읽는다.
         Some("c" | "h") => Some(&["//", "/*", "*"]),

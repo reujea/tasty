@@ -8,6 +8,7 @@
 #![cfg(unix)]
 
 mod gate_env;
+mod plugin_version_bump_locked;
 
 use std::fs;
 use std::path::Path;
@@ -78,8 +79,10 @@ fn widened_script(d: &Path, root: &str) -> String {
     // 스크립트가 상대 경로로 읽는 공용 헬퍼도 함께 복사한다.
     let gate_dir = d.join(".gate");
     fs::create_dir_all(gate_dir.join("lib")).expect("사본 디렉토리 생성");
-    let helper = format!("{}/scripts/lib/judge-bin.sh", env!("CARGO_MANIFEST_DIR"));
-    fs::copy(&helper, gate_dir.join("lib/judge-bin.sh")).expect("공용 헬퍼 사본");
+    for helper in ["judge-bin.sh", "toml-scan.awk"] {
+        let src = format!("{}/scripts/lib/{helper}", env!("CARGO_MANIFEST_DIR"));
+        fs::copy(&src, gate_dir.join("lib").join(helper)).expect("공용 헬퍼 사본");
+    }
     let out = gate_dir.join("widened-gate.sh");
     fs::write(&out, src.replace(from, &format!("\nSCAN_ROOT={root}\n"))).expect("사본 쓰기");
     out.to_string_lossy().into_owned()
