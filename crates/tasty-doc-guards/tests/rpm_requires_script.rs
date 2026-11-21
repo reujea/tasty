@@ -231,11 +231,13 @@ fn a_readelf_failure_names_the_file() {
 
 #[test]
 fn an_executable_script_or_an_elf_free_payload_is_rejected() {
+    // 실행 비트만 있는 데이터 파일은 Requires를 만들지 않아 허용한다(공식 플러그인 고지 파일 사례).
     let dir = Scratch::new("rpm-contract");
     let bin = tool_dir(dir.path(), &[("readelf", FAKE_READELF)]);
     let payload = dir.path().join("payload");
     std::fs::create_dir(&payload).expect("payload");
     std::fs::write(payload.join("icon.png"), "png").expect("png");
+    write_exec(&payload.join("notice.txt"), "text\n", 0o755);
     let (rc, _, err) = run(dir.path(), &bin, "rpm_expected_requires payload");
     assert_eq!(rc, 1);
     assert!(err.contains("no ELF files in the payload"), "{err}");
@@ -251,7 +253,7 @@ fn an_executable_script_or_an_elf_free_payload_is_rejected() {
     let (rc, _, err) = run(dir.path(), &bin, "rpm_expected_requires payload");
     assert_eq!(rc, 1);
     assert!(
-        err.contains("executable non-ELF file in the payload: /helper"),
+        err.contains("executable script in the payload: /helper"),
         "{err}"
     );
 }

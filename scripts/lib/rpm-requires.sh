@@ -85,7 +85,8 @@ rpm_expected_requires_file() {
 }
 
 # payload 폴더의 기대 Requires 합집합을 정렬해 출력한다. ELF가 없거나 payload 계약을 어기면 1.
-# 계약: 실행 비트가 있는 파일은 모두 ELF이고(실행 스크립트 금지), ELF는 모두 실행 비트가 있다.
+# 계약: 실행 비트가 있는 #! 스크립트를 싣지 않고(rpm의 스크립트 생성기가 해석기 Requires를 더한다),
+# ELF는 모두 실행 비트가 있다. 실행 비트만 있는 데이터 파일은 생성기가 Requires를 내지 않아 허용한다.
 rpm_expected_requires() {
     local root=$1 f rel elf_count=0 rc=0 out
     out=$(
@@ -95,8 +96,8 @@ rpm_expected_requires() {
                 rpm_has_exec_bit "$f" || { echo "Error: ELF without an execute bit in the payload: /$rel" >&2; exit 1; }
                 rpm_expected_requires_file "$f" || exit 1
                 echo "#elf"
-            elif rpm_has_exec_bit "$f"; then
-                echo "Error: executable non-ELF file in the payload: /$rel" >&2
+            elif rpm_has_exec_bit "$f" && [[ "$(LC_ALL=C head -c 2 "$f" 2>/dev/null)" == "#!" ]]; then
+                echo "Error: executable script in the payload: /$rel" >&2
                 exit 1
             fi
         done < <(find "$root" -type f -print0)
