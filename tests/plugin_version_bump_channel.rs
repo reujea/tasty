@@ -1193,3 +1193,152 @@ fn no_mode_argument_is_undecidable_not_a_pass() {
     );
     assert!(text.contains("--staged 또는 --range"), "{text}");
 }
+
+const FIXTURE_LOCK: &str =
+    "schema = 1\n\n[[plugin]]\nid = \"com.tasty.fixture\"\nversion = \"9.9.9\"\n";
+
+/// 잠금 파일을 둔 저장소에서 플러그인 소스를 바꾼 커밋을 만든다. 판정이 잠금 파일·매니페스트 판독까지 간다.
+fn locked_change_repo(lock: &str, manifest: Option<&str>) -> tempfile::TempDir {
+    let tmp = seed_repo();
+    let d = tmp.path();
+    if let Some(m) = manifest {
+        write(d, &format!("{PLUGIN}/tasty-plugin.toml"), m);
+    }
+    write(d, "official-plugins.lock.toml", lock);
+    commit_all(d, "seed lock");
+    write(
+        d,
+        &format!("{PLUGIN}/src/main.rs"),
+        "fn main() {\n    let msg = \"changed\";\n}\n",
+    );
+    commit_all(d, "change");
+    tmp
+}
+
+fn assert_refused(what: &str, (code, text): (i32, String), words: &str) {
+    assert_eq!(code, 2, "{what}: 판정 불가가 아니다:\n{text}");
+    assert!(
+        text.contains(words),
+        "{what}: 거절 사유 `{words}` 가 출력에 없다:\n{text}"
+    );
+}
+
+/// 잠금 파일과 매니페스트를 읽지 못한 사유는 서로 다른 문구로 나온다. 같은 종료 코드만 보면 다른 실패가 대신 통과한다.
+#[test]
+fn each_lock_and_manifest_read_failure_names_its_own_cause() {
+    let unclosed_lock = format!("{FIXTURE_LOCK}note = \"\"\"\n열림\n");
+    let cases: [(&str, &str, Option<&str>, &str); 4] = [
+        (
+            "닫히지 않은 잠금 파일",
+            &unclosed_lock,
+            None,
+            "잠금 파일을 TOML 로 읽지 못했다",
+        ),
+        (
+            "id 가 둘인 잠금 표",
+            "[[plugin]]\nid = \"com.tasty.fixture\"\nid = \"com.tasty.other\"\n",
+            None,
+            "잠금 파일의 플러그인 id 를 받을 수 없다",
+        ),
+        (
+            "닫히지 않은 매니페스트",
+            FIXTURE_LOCK,
+            Some("id = \"com.tasty.fixture\"\nnote = \"\"\"\n열림\n"),
+            "매니페스트를 TOML 로 읽지 못했다",
+        ),
+        (
+            "id 가 이스케이프인 매니페스트",
+            FIXTURE_LOCK,
+            Some("id = \"com.tasty.\\u0066ixture\"\n"),
+            "매니페스트 id 를 받을 수 없다",
+        ),
+    ];
+    for (what, lock, manifest, words) in cases {
+        let tmp = locked_change_repo(lock, manifest);
+        assert_refused(
+            what,
+            check(tmp.path(), &["--range", "HEAD^", "HEAD"]),
+            words,
+        );
+    }
+}
+
+/// 스크립트 옆의 TOML 판독기가 없으면 잠금 파일을 읽지 않고 판정 불가로 멈춘다.
+#[test]
+fn a_missing_toml_reader_is_undecidable() {
+    let tmp = locked_change_repo(FIXTURE_LOCK, None);
+    let gate_dir = tempfile::tempdir().expect("사본 디렉토리");
+    fs::create_dir_all(gate_dir.path().join("lib")).expect("사본 디렉토리 생성");
+    fs::copy(
+        format!("{}/scripts/lib/judge-bin.sh", env!("CARGO_MANIFEST_DIR")),
+        gate_dir.path().join("lib/judge-bin.sh"),
+    )
+    .expect("공용 헬퍼 사본");
+    let gate = gate_dir.path().join("check-plugin-version-bump.sh");
+    fs::copy(script(), &gate).expect("게이트 사본");
+    assert_refused(
+        "판독기 없음",
+        check_with(
+            &gate.to_string_lossy(),
+            tmp.path(),
+            &["--range", "HEAD^", "HEAD"],
+        ),
+        "TOML 판독기가 없다",
+    );
+}
+
+/// PATH 앞의 `git` 스텁이 `pattern`(sh case 패턴)과 맞는 호출만 실패시키고 나머지는 실제 git 으로 넘긴다.
+fn check_with_failing_git(d: &Path, pattern: &str) -> (i32, String) {
+    let stub = tempfile::tempdir().expect("스텁 디렉토리");
+    let dir = stub.path().display().to_string();
+    tasty_test_support::write_executable(
+        &stub.path().join("git"),
+        format!(
+            "#!/bin/sh\ncase \"$*\" in\n  {pattern}) echo zz-git-refused >&2; exit 128 ;;\nesac\n\
+             PATH=\"${{PATH#{dir}:}}\" exec git \"$@\"\n"
+        ),
+    )
+    .expect("스텁 작성");
+    let out = git_env::command("bash")
+        .arg(script())
+        .args(["--range", "HEAD^", "HEAD"])
+        .current_dir(d)
+        .env(
+            "PATH",
+            format!("{dir}:{}", std::env::var("PATH").unwrap_or_default()),
+        )
+        .output()
+        .expect("게이트 스크립트 실행");
+    let run = gate_env::GateRun::from_output(&out);
+    (run.code, run.output)
+}
+
+/// 잠금 파일·매니페스트를 git 에서 꺼내는 단계가 실패하면 그 단계를 말하고 판정 불가로 멈춘다.
+#[test]
+fn a_git_failure_while_reading_the_lock_or_a_manifest_names_the_step() {
+    for (what, pattern, words) in [
+        (
+            "트리 나열",
+            "\"ls-tree -r --name-only \"*\" -- official-plugins.lock.toml\"",
+            "비교 대상 트리를 나열하지 못했다",
+        ),
+        (
+            "잠금 파일 꺼내기",
+            "\"show \"*\":official-plugins.lock.toml\"",
+            "잠금 파일을 꺼내지 못했다",
+        ),
+        (
+            "매니페스트 꺼내기",
+            "\"show \"*\":crates/tasty-plugin-fixture/tasty-plugin.toml\"",
+            "매니페스트를 꺼내지 못했다",
+        ),
+    ] {
+        let tmp = locked_change_repo(FIXTURE_LOCK, None);
+        let (code, text) = check_with_failing_git(tmp.path(), pattern);
+        assert!(
+            text.contains("zz-git-refused"),
+            "{what}: 스텁이 실패시킬 호출이 없었다:\n{text}"
+        );
+        assert_refused(what, (code, text), words);
+    }
+}

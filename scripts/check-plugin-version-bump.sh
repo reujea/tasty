@@ -318,9 +318,9 @@ compute_locked_dirs() {
     git show "$(after_ref "$LOCK_FILE")" > "$WORK/lock.toml" \
         || die "판정 불가: 잠금 파일을 꺼내지 못했다: $(after_ref "$LOCK_FILE")"
     awk -f "$SCAN_AWK" "$WORK/lock.toml" > "$WORK/lock.scan" \
-        || die "판정 불가: 잠금 파일을 읽지 못했다: $(sed -n '$p' "$WORK/lock.scan")"
+        || die "판정 불가: 잠금 파일을 TOML 로 읽지 못했다: $(sed -n '$p' "$WORK/lock.scan")"
     out=$(read_lock_ids "$WORK/lock.scan") \
-        || die "판정 불가: 잠금 파일 $LOCK_FILE: $(printf '%s\n' "$out" | sed -n '$p' | cut -f2)"
+        || die "판정 불가: 잠금 파일의 플러그인 id 를 받을 수 없다 ($LOCK_FILE): $(printf '%s\n' "$out" | sed -n '$p' | cut -f2)"
     ids=" $(printf '%s\n' "$out" | tr '\n' ' ')"
     # 매니페스트 목록도 비교 대상 트리에서 읽는다. 작업 트리에서만 지운 매니페스트도 분류한다.
     target_tree_paths "$SCAN_ROOT"
@@ -331,9 +331,9 @@ compute_locked_dirs() {
         git show "$(after_ref "$man")" > "$WORK/manifest.toml" \
             || die "판정 불가: 매니페스트를 꺼내지 못했다: $man"
         awk -f "$SCAN_AWK" "$WORK/manifest.toml" > "$WORK/manifest.scan" \
-            || die "판정 불가: $man 을 읽지 못했다: $(sed -n '$p' "$WORK/manifest.scan")"
+            || die "판정 불가: 매니페스트를 TOML 로 읽지 못했다 ($man): $(sed -n '$p' "$WORK/manifest.scan")"
         mid=$(read_manifest_id "$WORK/manifest.scan") \
-            || die "판정 불가: $man: $(printf '%s\n' "$mid" | sed -n '$p' | cut -f2)"
+            || die "판정 불가: 매니페스트 id 를 받을 수 없다 ($man): $(printf '%s\n' "$mid" | sed -n '$p' | cut -f2)"
         case "$ids" in *" $mid "*) LOCKED_DIRS="$LOCKED_DIRS $rel" ;; esac
     done < "$WORK/manifests.paths"
 }
