@@ -12,6 +12,17 @@
 //!    리터럴 안에서만 부른다.
 //! 3. egui 키 입력을 직접 읽는 파일은 아래 목록 중 하나다. 팝업 본문(문 안에서만 그려진다), 문·키 주인 버튼, 팝업
 //!    밖(이유와 함께), 공용 위젯(부른 쪽의 문을 따른다)으로 나눈다. 새 파일이 키를 읽으면 분류를 정해야 통과한다.
+//!    보는 범위는 폴더 뿌리 셋(`src/adapters/ui`, `crates/tasty-ui-widgets/src`, `src/view/file_chooser`)과 파일
+//!    둘(`src/view/file_chooser.rs`, `src/view/settings/ui.rs`)이다. 폴더 뿌리는 하한을 둔 순회로 모아, 뿌리가
+//!    없거나 비면 실패한다.
+//! 4. 팝업 층 파일이 키를 읽는 공용 위젯 파일의 자유 함수(줄 머리 `pub fn`)를 부르는 (호출자 파일, 위젯 파일) 짝은
+//!    아래 목록과 같다. 공용 위젯은 3의 분류를 면제받으므로, 팝업 층에서 키를 읽는 위젯을 새로 부르면 이 목록에서
+//!    걸린다. 목록의 짝이 사라져도 실패한다.
+//!
+//! 시험 코드는 빼고 본다. 이름이 `*_tests.rs`·`tests.rs`이거나 `/tests/`·`virtual_tests/` 아래인 파일, 그리고 단독 줄
+//! `#[cfg(test)]` 뒤 첫 코드 줄에서 중괄호가 열리는 항목(`mod`·한 줄 시그니처 `fn`·`impl`)이다(공유 파서
+//! `cfg_predicate::blank_gated_lines`). 첫 줄에 `{`가 없는 여러 줄 시그니처의 시험 함수는 첫 줄만 빠지므로 그 안의
+//! 키 읽기는 제품 키 읽기로 센다(넓게 잡는 쪽).
 //!
 //! 키 읽기와 `draw_fn` 은 줄바꿈·공백으로 나눠 쓴 형태(`key_pressed\n(`, `Event::\nKey`, `def\n.draw_fn`)도 같은
 //! 형태로 맞춘 뒤 본다(`joined`). 키 읽기 메서드를 값으로 담는 경로(`egui::InputState::num_presses`)도 읽기로 본다.
@@ -29,8 +40,12 @@
 //! - `use` 별칭으로 이름을 바꾼 사건 이름(`use egui::Event::Key as K` 등).
 //! - 키 읽기를 다른 이름의 함수로 감싸 부르는 것(감싼 함수가 든 파일은 3에서 잡힌다).
 //! - 본문 콜백 클로저 안에서 정의 본문을 부르기 전에 다른 일을 하는 것(호출 자리만 본다).
+//! - 4에서: 위젯의 메서드 호출(`SearchableSelect::show`, `Input::new()` 사슬 등), 위젯 함수를 다른 이름으로 다시
+//!   내보내 부르는 경로, 위젯 크레이트 안의 키 읽기, 위젯이 받은 클로저 안의 키 읽기.
 
 use std::collections::BTreeSet;
+
+use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, Walked, walk_with_floor};
 
 use super::{matching_delim, repo_root, strip_comments};
 
@@ -342,10 +357,12 @@ const POPUP_BODIES: &[&str] = &[
     "src/adapters/ui/tutorial/topic_popup.rs",
 ];
 
-/// 문 자체와 이번 프레임 키 주인 값(`takes_keys`)을 받는 접힌 보기 버튼.
+/// 문 자체, 이번 프레임 키 주인 값(`takes_keys`)을 받는 접힌 보기 버튼, 관리자가 넘긴 통로로만 키를 읽는 키 통로
+/// 모듈.
 const GATE_AND_OWNER_BUTTONS: &[&str] = &[
     "src/adapters/ui/popup/body_keys.rs",
     "src/adapters/ui/popup/display.rs",
+    "src/adapters/ui/popup/keys.rs",
 ];
 
 /// 팝업 본문이 아닌 곳. 그 화면의 입력 규칙을 따른다.
@@ -362,17 +379,22 @@ const OUTSIDE_POPUPS: &[(&str, &str)] = &[
         "src/adapters/ui/popup/window_input_test_support.rs",
         "시험 지원: 창처럼 패스 시작의 Escape 눌림 상태를 읽는다",
     ),
+    ("src/adapters/ui/preset.rs", "프리셋 편집 창의 단축키 판정"),
     ("src/adapters/ui/preset/toolbar.rs", "프리셋 편집 창"),
     (
         "src/adapters/ui/preset/surface_settings.rs",
         "프리셋 편집 창",
+    ),
+    (
+        "src/view/settings/ui.rs",
+        "설정 창 충돌 팝업 키. 별도 창의 팝업 키 경로에서 다룬다",
     ),
 ];
 
 /// 공용 위젯. 팝업 본문 안에서 그리면 그 본문의 문을 따르고, surface·창에서 그리면 그쪽 입력 규칙을 따른다.
 const SHARED_WIDGETS: &str = "crates/tasty-ui-widgets/src/";
 
-const KEY_READS: [&str; 14] = [
+const KEY_READS: [&str; 16] = [
     "key_pressed(",
     "key_released(",
     "key_down(",
@@ -387,12 +409,14 @@ const KEY_READS: [&str; 14] = [
     "Event::Cut",
     "Event::Ime(",
     "keys_down",
+    "consume_binding_egui(",
+    "any_binding_pressed_egui(",
 ];
 
 /// 코드(문자열·주석을 가린 뒤)가 egui 키 입력을 직접 읽는지. 키 읽기 메서드를 값으로 담는 경로
 /// (`let read = egui::InputState::num_presses;`)도 읽기로 본다. 메서드 값은 언제나 경로(`::이름`)로 쓴다.
 fn reads_keys(code: &str) -> bool {
-    let code = joined(&without_inline_tests(code));
+    let code = joined(&shipped(code));
     KEY_READS.iter().any(|r| {
         reads(&code, r)
             || r.strip_suffix('(')
@@ -417,60 +441,102 @@ fn path_ends_with(code: &str, name: &str) -> bool {
         .any(|(at, _)| !code[at + path.len()..].chars().next().is_some_and(is_ident))
 }
 
-/// 인라인 시험 모듈(`#[cfg(test)] mod 이름 { … }`)을 뺀 본문.
-fn without_inline_tests(src: &str) -> String {
-    let mut out = String::new();
-    let mut rest = src;
-    while let Some(at) = rest.find("#[cfg(test)]") {
-        let after = &rest[at + "#[cfg(test)]".len()..];
-        let head = after.trim_start();
-        let Some(name_end) = head
-            .strip_prefix("mod ")
-            .and_then(|h| h.find(|c: char| !is_ident(c)).map(|n| n + 4))
-        else {
-            out.push_str(&rest[..at + "#[cfg(test)]".len()]);
-            rest = after;
-            continue;
-        };
-        let skipped = after.len() - head.len();
-        let body = &head[name_end..];
-        let open_rel = body.len() - body.trim_start().len();
-        if !body.trim_start().starts_with('{') {
-            out.push_str(&rest[..at + "#[cfg(test)]".len()]);
-            rest = after;
-            continue;
+/// 시험 조건부 항목(`#[cfg(test)]`)을 비운 본문(공유 파서). 줄 번호는 그대로다.
+fn shipped(code: &str) -> String {
+    tasty_doc_guards::cfg_predicate::blank_gated_lines(code, "test")
+}
+
+/// 폴더 뿌리와 하한. 측정은 develop에서 닿는 lane 기점 `fbdbca1914`의 `git ls-tree` `.rs` 수다. 그 뒤 lane 커밋이
+/// `src/adapters/ui`에 popup 키 파일 셋을 더해 시험 트리에서는 277개를 모은다.
+const ROOTS: [(&str, Floor); 3] = [
+    (
+        "src/adapters/ui",
+        Floor {
+            min: 250,
+            measured: 274,
+            measured_on: "2026-11-21",
+            counted_on: CountedOn::Tree("fbdbca1914"),
+            why_this_gap: "UI 어댑터 파일은 기능 이동·통합으로 수십 개씩 줄 수 있어 약 1할의 여유를 둔다. 뿌리 경로가 틀리거나 비면 0이라 이 하한에서 걸린다.",
+        },
+    ),
+    (
+        "crates/tasty-ui-widgets/src",
+        Floor {
+            min: 120,
+            measured: 137,
+            measured_on: "2026-11-21",
+            counted_on: CountedOn::Tree("fbdbca1914"),
+            why_this_gap: "공용 위젯 파일은 위젯 통합으로 줄 수 있어 약 1할의 여유를 둔다. 뿌리 경로가 틀리거나 비면 0이라 이 하한에서 걸린다.",
+        },
+    ),
+    (
+        "src/view/file_chooser",
+        Floor {
+            min: 2,
+            measured: 2,
+            measured_on: "2026-11-21",
+            counted_on: CountedOn::Tree("fbdbca1914"),
+            why_this_gap: "파일이 window.rs와 folder_tests.rs 둘뿐이고 지금 분류할 제품 키 읽기가 없어, 하한이 없으면 뿌리가 틀리거나 비어도 양방향 대조가 통과한다. 그래서 여유 없이 둘로 둔다.",
+        },
+    ),
+];
+
+/// 폴더 뿌리 대신 하나씩 읽는 파일. 그 폴더의 다른 파일은 이 가드의 범위가 아니다.
+const FILES: [&str; 2] = ["src/view/file_chooser.rs", "src/view/settings/ui.rs"];
+
+fn is_test_file(rel: &str) -> bool {
+    let name = rel.rsplit('/').next().unwrap_or_default();
+    name.ends_with("_tests.rs")
+        || name == "tests.rs"
+        || rel.contains("/tests/")
+        || rel.contains("virtual_tests/")
+}
+
+fn source_text(path: &std::path::Path, rel: &str) -> String {
+    std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("{rel} 을 읽지 못했다: {e}"))
+        .replace("\r\n", "\n")
+}
+
+/// 가드가 보는 제품 파일(저장소 상대 경로 `/` 구분)과 문자열·주석을 가린 본문.
+fn scanned_sources() -> Vec<(String, String)> {
+    let root = repo_root();
+    let mut out = Vec::new();
+    for (dir, floor) in &ROOTS {
+        let walked = walk_with_floor(
+            &root.join(dir),
+            &root,
+            floor,
+            Descend::Everything,
+            &|w: &Walked| w.rel.ends_with(".rs"),
+        )
+        .unwrap_or_else(|why| panic!("{why}"));
+        for w in walked {
+            let text = source_text(&w.path, &w.rel);
+            out.push((w.rel, text));
         }
-        let open = at + "#[cfg(test)]".len() + skipped + name_end + open_rel;
-        let close = matching_delim(rest, open).expect("시험 모듈 끝");
-        out.push_str(&rest[..at]);
-        rest = &rest[close + 1..];
     }
-    out.push_str(rest);
-    out
+    for rel in FILES {
+        let text = source_text(&root.join(rel), rel);
+        out.push((rel.to_string(), text));
+    }
+    out.into_iter()
+        .filter(|(rel, _)| !is_test_file(rel))
+        .map(|(rel, text)| {
+            let masked = tasty_doc_guards::source_text::mask_non_code_aligned(&text);
+            (rel, masked)
+        })
+        .collect()
 }
 
 #[test]
 fn every_direct_key_read_is_classified() {
-    let found: BTreeSet<String> = tasty_doc_guards::source_text::rust_sources(
-        &repo_root(),
-        &["src/adapters/ui", "crates/tasty-ui-widgets/src"],
-    )
-    .into_iter()
-    .filter(|(rel, _)| {
-        let rel = rel.to_string_lossy();
-        let name = rel.rsplit('/').next().unwrap_or_default();
-        let test_file = name.ends_with("_tests.rs")
-            || name == "tests.rs"
-            || rel.contains("/tests/")
-            || rel.contains("virtual_tests/");
-        !test_file
-    })
-    .filter(|(_, text)| {
-        // 문자열·주석 안의 괄호와 낱말은 가린다.
-        reads_keys(&tasty_doc_guards::source_text::mask_non_code_aligned(text))
-    })
-    .map(|(rel, _)| rel.to_string_lossy().into_owned())
-    .collect();
+    // 문자열·주석 안의 괄호와 낱말은 가린 본문을 본다.
+    let found: BTreeSet<String> = scanned_sources()
+        .into_iter()
+        .filter(|(_, code)| reads_keys(code))
+        .map(|(rel, _)| rel)
+        .collect();
 
     let listed: BTreeSet<String> = POPUP_BODIES
         .iter()
@@ -510,6 +576,9 @@ fn the_key_read_scan_catches_each_form() {
         "let read = egui::InputState::num_presses;",
         "let down = egui::InputState::key_down;",
         "i.keys_down.contains(&k)",
+        "tasty_key_match::consume_binding_egui(&b, i, s)",
+        "any_binding_pressed_egui\n    (&b, i, s)",
+        "#[cfg(test)]\nfn helper(\n    i: &InputState,\n) -> bool {\n    i.key_pressed(k)\n}",
     ] {
         assert!(reads_keys(code), "잡지 못했다: {code}");
     }
@@ -518,6 +587,9 @@ fn the_key_read_scan_catches_each_form() {
         "my_key_pressed(k)",
         "let key_pressed = 1;",
         "return key_pressed_count",
+        "my_consume_binding_egui(&b)",
+        "#[cfg(test)]\nmod t {\n    fn f(i: &InputState) -> bool { i.key_pressed(k) }\n}",
+        "#[cfg(test)]\nfn f(i: &InputState) -> bool {\n    i.key_pressed(k)\n}",
     ] {
         assert!(!reads_keys(code), "키 읽기가 아닌데 걸렸다: {code}");
     }
@@ -572,4 +644,114 @@ fn the_key_read_scan_catches_each_form() {
     ] {
         assert_eq!(draw_fn_uses(code).len(), 1, "잡지 못했다: {code}");
     }
+}
+
+/// 키를 직접 읽지 않는 팝업 본문 파일. 키를 읽는 위젯을 부르는 호출자로만 본다.
+const POPUP_BODIES_WITHOUT_KEY_READS: &[&str] = &[
+    "src/adapters/ui/dialog.rs",
+    "src/adapters/ui/restore_notice.rs",
+];
+
+/// 팝업 층 파일이 부르는, 키를 읽는 공용 위젯 파일 짝.
+const WIDGET_CALLS: &[(&str, &str)] = &[
+    (
+        "src/adapters/ui/dialog.rs",
+        "crates/tasty-ui-widgets/src/explorer_name_edit.rs",
+    ),
+    (
+        "src/adapters/ui/dialog.rs",
+        "crates/tasty-ui-widgets/src/rename_popup.rs",
+    ),
+    (
+        "src/adapters/ui/mouse_capture_menu.rs",
+        "crates/tasty-ui-widgets/src/banner_more_unknown.rs",
+    ),
+    (
+        "src/adapters/ui/popup/dag_list.rs",
+        "crates/tasty-ui-widgets/src/multi_select.rs",
+    ),
+    (
+        "src/adapters/ui/popup/display.rs",
+        "crates/tasty-ui-widgets/src/collapsed_popup.rs",
+    ),
+    (
+        "src/adapters/ui/popup/draw.rs",
+        "crates/tasty-ui-widgets/src/collapsed_popup.rs",
+    ),
+    (
+        "src/adapters/ui/popup/explorer_conflict.rs",
+        "crates/tasty-ui-widgets/src/explorer_ops.rs",
+    ),
+    (
+        "src/adapters/ui/restore_notice.rs",
+        "crates/tasty-ui-widgets/src/restore_notice.rs",
+    ),
+];
+
+fn is_popup_layer(rel: &str) -> bool {
+    rel.starts_with("src/adapters/ui/popup/")
+        || POPUP_BODIES.contains(&rel)
+        || POPUP_BODIES_WITHOUT_KEY_READS.contains(&rel)
+        || FILES.contains(&rel)
+        || rel.starts_with("src/view/file_chooser/")
+}
+
+/// 줄 머리 `pub fn 이름`의 이름들(자유 함수).
+fn free_fns(code: &str) -> Vec<String> {
+    code.lines()
+        .filter_map(|line| line.strip_prefix("pub fn "))
+        .map(|rest| {
+            rest.chars()
+                .take_while(|c| is_ident(*c))
+                .collect::<String>()
+        })
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
+/// 낱말 경계 뒤 `name` 과 `(`(사이 공백 허용)가 나오는지.
+fn calls(code: &str, name: &str) -> bool {
+    code.match_indices(name).any(|(at, _)| {
+        let before = code[..at].chars().next_back();
+        let rest = code[at + name.len()..].trim_start();
+        !before.is_some_and(is_ident)
+            && !code[at + name.len()..].chars().next().is_some_and(is_ident)
+            && rest.starts_with('(')
+    })
+}
+
+#[test]
+fn every_widget_call_from_a_popup_layer_is_pinned() {
+    let sources = scanned_sources();
+    let widgets: Vec<(String, Vec<String>)> = sources
+        .iter()
+        .filter(|(rel, code)| rel.starts_with(SHARED_WIDGETS) && reads_keys(code))
+        .map(|(rel, code)| (rel.clone(), free_fns(&shipped(code))))
+        .collect();
+    let found: BTreeSet<(String, String)> = sources
+        .iter()
+        .filter(|(rel, _)| is_popup_layer(rel))
+        .flat_map(|(caller, code)| {
+            let code = shipped(code);
+            widgets
+                .iter()
+                .filter(|(_, names)| names.iter().any(|n| calls(&code, n)))
+                .map(|(widget, _)| (caller.clone(), widget.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let pinned: BTreeSet<(String, String)> = WIDGET_CALLS
+        .iter()
+        .map(|(c, w)| (c.to_string(), w.to_string()))
+        .collect();
+    let new: Vec<_> = found.difference(&pinned).collect();
+    assert!(
+        new.is_empty(),
+        "팝업 층 파일이 키를 읽는 공용 위젯을 새로 부른다. 그 위젯이 부른 쪽의 키 문을 따르는지 확인하고 WIDGET_CALLS 에 넣는다: {new:?}"
+    );
+    let gone: Vec<_> = pinned.difference(&found).collect();
+    assert!(
+        gone.is_empty(),
+        "WIDGET_CALLS 의 짝이 더는 없다. 목록에서 뺀다: {gone:?}"
+    );
 }
