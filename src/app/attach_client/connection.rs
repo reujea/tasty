@@ -389,12 +389,8 @@ impl App {
         super::documents::destroy(&mut self.plugin_manager, markdown.into_iter().chain(html));
 
         let sess = &mut self.remote.sessions[sess_idx];
-        // 실패할 수 있는 단계를 모두 지난 소유권 이전 지점이다. 옛 전송을 여기서 확정하고 소켓을 닫는다.
-        sess.transport.close_locally();
-        sess.transport = transport.into_installed();
-        sess.state.observed_end = None;
-        // 옛 전송에 정한 멈춤은 새 전송을 닫지 않는다.
-        sess.state.stop_after_events = None;
+        // 실패할 수 있는 단계를 모두 지난 소유권 이전 지점이다.
+        adopt_reconnected_transport(sess, transport);
         sess.state.client_id = client_id;
         sess.state.bulk_port = port;
         sess.state.op_seq = 0;
@@ -628,6 +624,18 @@ impl App {
 /// 재연결(재동기화 포함) 설치를 마친 mirror 를 View 에 알린다. 옛 연결의 목록 요청은 응답하지
 /// 않으므로 이 mirror 의 탐색기는 새 연결로 다시 읽는다.
 /// 다시 붙었다는 toast 는 없다. 저장 행은 표지가, 에이전트 mirror 는 재연결 자체가 없다.
+/// 재연결 설치가 새 전송을 세션에 넘긴다. 옛 전송을 여기서 확정하고 소켓을 닫는다. 옛 전송의 관측 기록과
+/// 그 전송에 정한 멈춤은 새 전송의 몫이 아니라 함께 끝낸다.
+pub(super) fn adopt_reconnected_transport(
+    sess: &mut AttachClientSession,
+    transport: tasty_remote::client_session::InstallGuard,
+) {
+    sess.transport.close_locally();
+    sess.transport = transport.into_installed();
+    sess.state.observed_end = None;
+    sess.state.stop_after_events = None;
+}
+
 fn finish_reconnected_view(state: &mut crate::state::MainViewState, local_workspace: u32) {
     state.explorer_views.reload_mirror(local_workspace);
 }

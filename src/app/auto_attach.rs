@@ -333,20 +333,23 @@ impl App {
             Some(SessionState::Reconnecting) => {
                 self.row_waits.join_run(row, run);
             }
-            Some(SessionState::Disconnected) => {
-                if let Some(session) = self
-                    .remote
-                    .sessions
-                    .iter_mut()
-                    .find(|session| session.state.saved_row == Some(row))
-                {
-                    session.state.phase = SessionState::Reconnecting;
-                }
-                self.remote.reconnect.insert(row, ReconnectSlot::new());
-                self.trigger_reconnect_row(row, None, None, run, explicit);
-            }
+            Some(SessionState::Disconnected) => self.restart_disconnected_row(row, run, explicit),
             None => self.start_first_connect(row, binding, run, explicit),
         }
+    }
+
+    /// 끊긴 행을 새 재연결 구간으로 바로 다시 붙인다. 표지는 건드리지 않는다.
+    pub(crate) fn restart_disconnected_row(&mut self, row: u32, run: Option<u64>, explicit: bool) {
+        if let Some(session) = self
+            .remote
+            .sessions
+            .iter_mut()
+            .find(|session| session.state.saved_row == Some(row))
+        {
+            session.state.phase = SessionState::Reconnecting;
+        }
+        self.remote.reconnect.insert(row, ReconnectSlot::new());
+        self.trigger_reconnect_row(row, None, None, run, explicit);
     }
 
     /// 행의 연결 토큰이 없으면 만든다. 토큰이 없으면 시작한 시도가 바로 낡은 것으로 버려진다.
