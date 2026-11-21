@@ -238,8 +238,53 @@ fn rename_beside_convert() -> (
     (state, session, convert, rename)
 }
 
-/// Given R pane 탭 이름 바꾸기와 R surface 변환 팝업이 열려 있고 키 주인이 L surface일 때, When Enter·화살표·Esc·글자가 오면,
-/// Then 두 팝업은 열린 채 선택과 입력이 그대로다.
+fn rename_buffers(state: &RequestContext) -> Vec<String> {
+    crate::adapters::ui::rename_popup::instances(state)
+        .map(|r| r.buffer.clone())
+        .collect()
+}
+
+/// 이름 바꾸기 본문을 그린 표시를 지운다. 다음 프레임 뒤 다시 채워졌으면 그 프레임에 그려진 것이다.
+fn forget_rename_height(state: &mut RequestContext) {
+    for p in crate::adapters::ui::rename_popup::instances_mut(state) {
+        p.content_height = None;
+    }
+}
+
+fn rename_drawn(state: &RequestContext) -> bool {
+    crate::adapters::ui::rename_popup::instances(state).all(|r| r.content_height.is_some())
+}
+
+/// 양성 대조: Given R pane 탭 이름 바꾸기가 키 주인이고 R surface에 변환 팝업이 열려 있을 때, When 글자가 오면,
+/// Then 이름 바꾸기 입력이 egui 포커스를 얻고 글자가 입력에 들어간다. 아래 음성 시험과 같은 장면이다.
+#[test]
+fn the_rename_popup_takes_letters_while_it_owns_the_keys() {
+    let (mut state, mut session, _convert, rename) = rename_beside_convert();
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    frame(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(rename)),
+        "이름 바꾸기가 키 주인이다"
+    );
+    assert!(
+        ctx.memory(|m| m.focused()).is_some(),
+        "이름 바꾸기 입력이 egui 포커스를 얻는다"
+    );
+    forget_rename_height(&mut state);
+    frame(&ctx, &mut state, &engine.read(), letters());
+    assert!(rename_drawn(&state), "이름 바꾸기 본문이 그려진다");
+    let buffers = rename_buffers(&state);
+    assert!(
+        buffers.len() == 1 && buffers[0].contains("abcdefghijklmnopqrstuvwxyz"),
+        "키 주인인 이름 바꾸기 입력에 글자가 들어간다: {buffers:?}"
+    );
+}
+
+/// Given R pane 탭 이름 바꾸기와 R surface 변환 팝업이 열려 있고 키 주인이 L surface로 옮겨졌을 때, When 글자, Enter,
+/// 화살표와 Esc가 각각 다른 프레임에 오면, Then 이름 바꾸기 입력은 egui 포커스를 잃고 글자를 받지 않으며 Enter로
+/// 확정하지 않는다. 변환 선택도 그대로이고 두 팝업은 열린 채다.
 #[test]
 fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
     let (mut state, mut session, convert, rename) = rename_beside_convert();
@@ -247,6 +292,13 @@ fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
     let ctx = Context::default();
     let labels = convert_labels(&engine.read());
     frame(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        state.focus_node(&engine.read()),
+        FocusNode::Popup(PopupNode::Host(rename)),
+        "처음에는 이름 바꾸기가 키 주인이다"
+    );
+    let input = ctx.memory(|m| m.focused());
+    assert!(input.is_some(), "이름 바꾸기 입력이 egui 포커스를 얻는다");
 
     let snapshot = state.take_press_snapshot(
         &engine.read(),
@@ -266,47 +318,71 @@ fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
         FocusNode::Surface(Some(SURFACE_L)),
         "키 주인은 L surface다"
     );
+    let unchanged = Some((
+        true,
+        ConvertPayload {
+            surface_id: SURFACE_R,
+            selected: Some(0),
+        },
+    ));
 
-    for p in crate::adapters::ui::rename_popup::instances_mut(&mut state) {
-        p.content_height = None;
-    }
-    let mut events = vec![
-        press(Key::ArrowDown),
-        press(Key::ArrowUp),
-        press(Key::Enter),
-        press(Key::Escape),
-    ];
-    events.extend(letters());
-    let texts = frame(&ctx, &mut state, &engine.read(), events);
+    forget_rename_height(&mut state);
+    frame(&ctx, &mut state, &engine.read(), letters());
+    assert!(
+        rename_drawn(&state),
+        "글자 프레임에 이름 바꾸기 본문이 그려진다"
+    );
+    assert_eq!(
+        ctx.memory(|m| m.focused()),
+        None,
+        "키 주인이 아닌 이름 바꾸기 입력은 egui 포커스를 내놓는다(앞 포커스 {input:?})"
+    );
+    assert_eq!(
+        rename_buffers(&state),
+        vec!["old".to_string()],
+        "이름 바꾸기 입력이 글자를 받지 않는다"
+    );
+
+    forget_rename_height(&mut state);
+    frame(&ctx, &mut state, &engine.read(), vec![press(Key::Enter)]);
+    assert!(
+        rename_drawn(&state),
+        "Enter 프레임에 이름 바꾸기 본문이 그려진다"
+    );
+    assert!(
+        state.popups.instance(rename).is_some(),
+        "이름 바꾸기가 Enter로 확정하지 않고 열린 채다"
+    );
+    assert_eq!(rename_buffers(&state), vec!["old".to_string()]);
+
+    forget_rename_height(&mut state);
+    let texts = frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        vec![
+            press(Key::ArrowDown),
+            press(Key::ArrowUp),
+            press(Key::ArrowDown),
+            press(Key::Escape),
+        ],
+    );
     assert!(
         convert_drawn(&texts, &labels),
         "변환 본문이 그려진다: 항목 {labels:?}, 칠한 글자 {texts:?}"
     );
     assert!(
-        crate::adapters::ui::rename_popup::instances(&state).all(|r| r.content_height.is_some()),
-        "이름 바꾸기 본문이 그려진다"
+        rename_drawn(&state),
+        "화살표·Esc 프레임에 이름 바꾸기 본문이 그려진다"
     );
     assert_eq!(
         convert_of(&state, convert),
-        Some((
-            true,
-            ConvertPayload {
-                surface_id: SURFACE_R,
-                selected: Some(0),
-            }
-        )),
+        unchanged,
         "변환 팝업은 열린 채 선택이 그대로다"
     );
     assert!(
-        state.popups.instance(rename).is_some_and(|p| p.open),
-        "이름 바꾸기는 열린 채다"
-    );
-    assert_eq!(
-        crate::adapters::ui::rename_popup::instances(&state)
-            .map(|r| r.buffer.clone())
-            .collect::<Vec<_>>(),
-        vec!["old".to_string()],
-        "이름 바꾸기 입력이 그대로다"
+        state.popups.instance(rename).is_some(),
+        "이름 바꾸기는 Esc에도 열린 채다"
     );
 }
 
