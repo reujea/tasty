@@ -81,21 +81,30 @@ fn read(rel: &str) -> String {
 fn fetch_calls(rel: &str) -> Vec<Vec<String>> {
     let text = read(rel);
     if rel.ends_with(".ps1") {
-        text.lines().flat_map(fetch_calls_in).collect()
+        text.lines()
+            .flat_map(|l| fetch_calls_in_dialect(l, Dialect::PowerShell))
+            .collect()
     } else {
         fetch_calls_in(&text)
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Dialect {
+    Bash,
+    /// 한 줄씩 넘긴다. 홀로 쓴 `&`는 호출 연산자(`& $Bash`)라 단어로 남긴다.
+    PowerShell,
+}
+
 /// 원문을 Bash처럼 논리적 명령으로 나누고 각 명령을 단어로 나눈다.
-/// - 따옴표 밖 줄바꿈·`;`·`|`·`||`·`&&`에서 명령이 끝난다. 따옴표 밖 `\` 바로 뒤 줄바꿈은 줄 연속이다.
-///   홀로 쓴 `&`는 단어 글자다(PowerShell 호출 연산자 `& $Bash`).
+/// - 따옴표 밖 줄바꿈·`;`·`|`·`||`·`&&`·`&`에서 명령이 끝난다(PowerShell의 홀로 쓴 `&`는 단어).
+///   따옴표 밖과 큰따옴표 안의 `\` 바로 뒤 줄바꿈은 줄 연속이라 둘 다 지운다.
 /// - 큰·작은따옴표 안의 공백·줄바꿈은 단어를 나누지 않고 따옴표는 벗긴다. 따옴표 밖 `\`는 다음 글자를
 ///   그대로 둔다. 큰따옴표 안 `\`는 `$`·`` ` ``·`"`·`\` 앞에서만 이스케이프이고 그 밖에서는 글자로 남는다
 ///   (`"\--all"`은 `\--all`).
 /// - 단어 첫머리의 따옴표 밖 `#`부터 줄 끝까지는 주석이다.
 /// - 변수 확장은 하지 않는다(`"$stage"`는 글자 그대로 `$stage`).
-fn commands_in(text: &str) -> Vec<Vec<String>> {
+fn commands_in(text: &str, dialect: Dialect) -> Vec<Vec<String>> {
     let mut commands = Vec::new();
     let mut words: Vec<String> = Vec::new();
     let mut word = String::new();
@@ -114,6 +123,9 @@ fn commands_in(text: &str) -> Vec<Vec<String>> {
             Some('"') if c == '\\' => match chars.peek() {
                 Some(&n @ ('$' | '`' | '"' | '\\')) => {
                     word.push(n);
+                    chars.next();
+                }
+                Some('\n') => {
                     chars.next();
                 }
                 _ => word.push(c),
@@ -142,9 +154,11 @@ fn commands_in(text: &str) -> Vec<Vec<String>> {
             None if c == '\n'
                 || c == ';'
                 || c == '|'
-                || (c == '&' && chars.peek() == Some(&'&')) =>
+                || (c == '&' && (dialect == Dialect::Bash || chars.peek() == Some(&'&'))) =>
             {
-                if c == '&' || (c == '|' && chars.peek() == Some(&'|')) {
+                if (c == '&' && chars.peek() == Some(&'&'))
+                    || (c == '|' && chars.peek() == Some(&'|'))
+                {
                     chars.next();
                 }
                 end_word(&mut words, &mut word, &mut in_word);
@@ -165,7 +179,10 @@ fn commands_in(text: &str) -> Vec<Vec<String>> {
 
 /// 한 줄 호출의 첫 명령 단어. 회귀 입력을 짧게 쓰기 위한 것이다.
 fn call_args(call: &str) -> Vec<String> {
-    commands_in(call).into_iter().next().unwrap_or_default()
+    commands_in(call, Dialect::Bash)
+        .into_iter()
+        .next()
+        .unwrap_or_default()
 }
 
 /// 배포 스크립트의 실제 호출 꼴. Bash는 `if ! ./scripts/fetch-official-plugins.sh ...`,
@@ -227,10 +244,38 @@ fn default_staging_branch(text: &str) -> Option<String> {
 }
 
 fn fetch_calls_in(text: &str) -> Vec<Vec<String>> {
-    commands_in(text)
+    fetch_calls_in_dialect(text, Dialect::Bash)
+}
+
+/// 스크립트 이름으로 끝나는 단어가 있는 명령. 안내만 내는 명령(`echo`·`printf`·`Write-Error`·`Write-Host`)의
+/// 인자는 실행이 아니라 뺀다. 그 밖의 명령은 실행 접두(`if !`·`bash`·`env` 등)와 관계없이 후보로 남겨
+/// 호출 꼴 검사가 판정한다.
+fn fetch_calls_in_dialect(text: &str, dialect: Dialect) -> Vec<Vec<String>> {
+    const MESSAGE: [&str; 4] = ["echo", "printf", "Write-Error", "Write-Host"];
+    commands_in(text, dialect)
         .into_iter()
+        .filter(|c| !MESSAGE.contains(&c[0].as_str()))
         .filter(|c| c.iter().any(|w| w.ends_with("fetch-official-plugins.sh")))
         .collect()
+}
+
+/// fetch 호출이 실제로 받는지: 도움말(`-h`·`--help`)로 끝나지 않고 `--platform`·`--out`에 값이 있다.
+fn fetch_really_runs(args: &[String]) -> bool {
+    let flags = fetch_flags(args);
+    if flags.iter().any(|f| matches!(*f, "-h" | "--help")) {
+        return false;
+    }
+    let Some(script) = args
+        .iter()
+        .position(|a| a.ends_with("fetch-official-plugins.sh"))
+    else {
+        return false;
+    };
+    let rest = &args[script + 1..];
+    ["--platform", "--out"].iter().all(|opt| {
+        rest.windows(2)
+            .any(|w| w[0] == *opt && !w[1].is_empty() && !w[1].starts_with("--"))
+    })
 }
 
 #[test]
@@ -303,8 +348,8 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         assert!(!calls.is_empty(), "{rel}에서 fetch 호출을 찾지 못했다");
         for call in &calls {
             assert!(
-                is_package_fetch_call(rel, call),
-                "{rel}의 fetch 명령이 스크립트를 실행하는 호출 꼴이 아니다: {call:?}"
+                is_package_fetch_call(rel, call) && fetch_really_runs(call),
+                "{rel}의 fetch 명령이 --platform·--out 으로 받는 호출 꼴이 아니다: {call:?}"
             );
             assert!(
                 !fetch_flags(call).contains(&"--all"),
@@ -323,7 +368,7 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
     );
     let args = &staging[0];
     assert!(
-        is_staging_fetch_call(args),
+        is_staging_fetch_call(args) && fetch_really_runs(args),
         "scripts/stage-dev-plugins.sh 기본 분기의 fetch 명령이 bash 로 스크립트를 부르는 호출이 아니다: {args:?}"
     );
     assert!(
@@ -393,7 +438,7 @@ fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
     let ps = "& $Bash ./scripts/fetch-official-plugins.sh --platform $PluginPlatform --out target/bundled-plugins";
     assert!(is_package_fetch_call(
         "scripts/build-windows.ps1",
-        &call_args(ps)
+        &fetch_calls_in_dialect(ps, Dialect::PowerShell)[0]
     ));
     assert!(
         !is_staging_fetch_call(&call_args(&real.replacen("bash", ":", 1))),
@@ -426,6 +471,51 @@ fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
         !fetch_flags(&fetch_calls_in(&real.replacen(" --all", " && : --all", 1))[0])
             .contains(&"--all"),
         "다른 명령의 --all 을 fetch 옵션으로 읽었다"
+    );
+    assert!(
+        !fetch_flags(&fetch_calls_in(&real.replacen(" --all", " & : --all", 1))[0])
+            .contains(&"--all"),
+        "Bash 의 & 뒤 명령의 --all 을 fetch 옵션으로 읽었다"
+    );
+    let ps = "& $Bash ./scripts/fetch-official-plugins.sh --platform $P --out target/x";
+    let calls = fetch_calls_in_dialect(ps, Dialect::PowerShell);
+    assert_eq!(
+        calls.len(),
+        1,
+        "PowerShell 호출 연산자에서 명령을 끊었다: {calls:?}"
+    );
+    assert!(is_package_fetch_call(
+        "scripts/build-windows.ps1",
+        &calls[0]
+    ));
+    let quoted = real.replacen(" --all", " \"--a\\\nll\"", 1);
+    assert!(
+        fetch_flags(&fetch_calls_in(&quoted)[0]).contains(&"--all"),
+        "큰따옴표 안 줄 연속으로 이은 --all 을 놓쳤다"
+    );
+    for help in ["--help --all", "-h"] {
+        let call = &fetch_calls_in(&real.replacen("--all", help, 1))[0];
+        assert!(
+            !fetch_really_runs(call),
+            "도움말로 끝나는 호출을 받기로 보았다: {help}"
+        );
+    }
+    assert!(fetch_really_runs(&call_args(real)));
+    assert!(
+        !fetch_really_runs(&call_args(
+            "if ! ./scripts/fetch-official-plugins.sh --help; then"
+        )),
+        "인자를 --help 로 바꾼 배포 호출을 받기로 보았다"
+    );
+    let windows = "Write-Error \"Install Git for Windows to run scripts/fetch-official-plugins.sh\"\n& $Bash ./scripts/fetch-official-plugins.sh --platform $P --out target/x\n";
+    let calls: Vec<_> = windows
+        .lines()
+        .flat_map(|l| fetch_calls_in_dialect(l, Dialect::PowerShell))
+        .collect();
+    assert_eq!(
+        calls.len(),
+        1,
+        "마침표 없는 안내문을 fetch 호출로 셌다: {calls:?}"
     );
     let continued = real.replacen(" --all", " \\\n    --all", 1);
     let calls = fetch_calls_in(&continued);

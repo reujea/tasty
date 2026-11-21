@@ -3,7 +3,7 @@
 //!
 //! 1. 픽스처 폴더 집합이 잠금 파일 id 집합과 같다.
 //! 2. 픽스처 매니페스트의 `id`·`version`·`bundle`(없으면 true)이 잠금 항목과 같다.
-//! 3. 픽스처마다 `lang/en.toml`이 있다(모든 플랫폼).
+//! 3. 픽스처마다 `tasty-plugin.toml`과 `lang/en.toml`이 있다(모든 플랫폼).
 //! 4. 픽스처 파일에 CR 바이트가 없다. Git이 줄끝을 바꾸면 산출물과 바이트가 달라진다.
 //!
 //! 2번은 `scripts/sync-official-plugin-fixtures.sh --update`가 교체 전에 후보에 적용하는 판독과 같은
