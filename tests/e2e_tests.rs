@@ -102,27 +102,174 @@ fn read_only_queries() {
 }
 
 /// OSC 7의 cwd가 표시 이름에 반영되는지 GUI와 헤드리스에서 확인한다.
-/// 하네스의 /bin/sh는 OSC 제목을 자동 전송하지 않으므로 제목 우선순위와 섞이지 않는다.
-/// printf의 이스케이프 해석이 다른 Windows는 제외한다.
+/// OSC 제목은 cwd보다 우선하므로 셸이 제목을 보내면 이 시험의 전제가 깨진다. 하네스의 `/bin/sh -li`는
+/// 배포판에 따라 시스템 시작 스크립트에서 제목을 보낸다(Fedora는 /bin/sh가 bash이고 /etc/bashrc가
+/// OSC 0 PROMPT_COMMAND를 설정한다). 그래서 시작 스크립트를 읽지 않는 비login 대화형 sh 래퍼로 띄우고,
+/// 준비 신호 뒤 제목이 오지 않았는지 먼저 확인한다. 공용 셸 설정을 바꾸므로 단독 lane에서 실행하고
+/// panic 중에도 되돌린다. printf의 이스케이프 해석이 다른 Windows는 제외한다.
 #[cfg(not(windows))]
 #[test]
 fn an_osc7_cwd_becomes_the_tab_name() {
-    // 표시 이름은 tree에서 읽는다. tab.list는 원본 name을 반환한다.
-    fn tab_names(v: &serde_json::Value, out: &mut Vec<String>) {
-        match v {
-            serde_json::Value::Object(o) => {
-                if o.contains_key("surface")
-                    && let Some(n) = o.get("name").and_then(|n| n.as_str())
-                {
-                    out.push(n.to_string());
-                }
-                o.values().for_each(|c| tab_names(c, out));
+    use std::io::Write as _;
+    use std::os::unix::fs::PermissionsExt;
+
+    // surface.screen_text는 행 끝 공백을 지우므로 준비 신호는 PS1의 후행 공백을 뺀 문자열로 찾는다.
+    const PS1: &str = "osc7-ready> ";
+    const READY: &str = "osc7-ready>";
+
+    /// 공용 셸 설정을 하네스 값으로 되돌린다. panic 중에는 인스턴스가 응답하지 않을 수 있어
+    /// 실패를 stderr에 남기기만 하고 다시 panic하지 않는다.
+    struct RestoreShell(&'static common::TastyInstance);
+    impl Drop for RestoreShell {
+        fn drop(&mut self) {
+            let params = json!({ "settings": { "general": { "shell": common::ISOLATED_SHELL } } });
+            if !std::thread::panicking() {
+                self.0.call("debug.settings.apply", params);
+                return;
             }
-            serde_json::Value::Array(a) => a.iter().for_each(|c| tab_names(c, out)),
-            _ => {}
+            let outcome = common::exchange(
+                self.0.port(),
+                "debug.settings.apply",
+                &params,
+                common::RESPONSE_WAIT,
+            );
+            let applied = matches!(&outcome, Ok(resp) if resp["result"]["applied"] == true);
+            if !applied {
+                // eprintln!은 stderr 쓰기 실패에 panic하므로, unwind 중에는 쓰기 실패를 흡수한다.
+                match writeln!(std::io::stderr(), "셸 설정 복원 실패: {outcome:?}") {
+                    Ok(()) | Err(_) => {}
+                }
+            }
         }
     }
-    let (tasty, _ws, sid, _pid, _lane) = scenario("e2e-osc7-tab-name");
+
+    /// 원문 출력을 Tasty와 같은 termwiz 파서로 읽어 OSC 7 수신 여부와 OSC 0/2 제목 본문을 돌려준다.
+    /// 7비트(ESC ])와 8비트 C1 OSC 형식을 터미널과 같은 규칙으로 구분한다.
+    fn osc_seen(raw: &str) -> (bool, Vec<String>) {
+        use termwiz::escape::{Action, OperatingSystemCommand as Osc};
+        let mut cwd = false;
+        let mut titles = Vec::new();
+        for action in termwiz::escape::parser::Parser::new().parse_as_vec(raw.as_bytes()) {
+            if let Action::OperatingSystemCommand(osc) = action {
+                match *osc {
+                    Osc::CurrentWorkingDirectory(_) => cwd = true,
+                    Osc::SetIconNameAndWindowTitle(t)
+                    | Osc::SetWindowTitle(t)
+                    | Osc::SetWindowTitleSun(t) => titles.push(t),
+                    _ => {}
+                }
+            }
+        }
+        (cwd, titles)
+    }
+
+    let _lane = exclusive_lane();
+    let tasty = common::shared();
+    let shell_dir = tempfile::tempdir().expect("wrapper shell dir");
+    // 이름을 bash로 지으면 --rcfile 통합 경로로 바뀌므로 sh로 짓는다. exec 대상은 절대 경로라 자기 자신을 부르지 않는다.
+    let shell = shell_dir.path().join("sh");
+    std::fs::write(
+        &shell,
+        format!(
+            "#!/bin/sh\n\
+             # Tasty가 붙인 -li를 버리고 비login 대화형으로 띄워 /etc/profile과 /etc/bashrc를 읽지 않는다.\n\
+             unset PROMPT_COMMAND ENV BASH_ENV\n\
+             PS1='{PS1}'\n\
+             export PS1\n\
+             exec /bin/sh -i\n"
+        ),
+    )
+    .expect("write wrapper shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755))
+        .expect("make wrapper shell executable");
+    let shell = shell
+        .to_str()
+        .expect("wrapper shell path is UTF-8")
+        .to_string();
+    let _restore = RestoreShell(tasty);
+    tasty.call(
+        "debug.settings.apply",
+        json!({ "settings": { "general": { "shell": shell } } }),
+    );
+
+    let ws = tasty.create_workspace("e2e-osc7-tab-name");
+    let sid = ws.surface_id;
+    // 아래 시간은 모두 폴링 기한이다. 호출마다의 응답 대기는 하네스 상한을 따른다.
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while !tasty.screen_text_of(sid).contains(READY) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "래퍼 셸 프롬프트가 나오지 않았다: {}",
+            tasty.screen_text_of(sid)
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    // 공유 트리 전체가 아니라 이 workspace의 이 탭 하나만 본다. tab.list는 원본 이름, tree는 표시 이름이다.
+    let pid = tasty.first_pane_id_in_workspace(ws.id);
+    let tabs = tasty.call("tab.list", json!({ "pane_id": pid }));
+    let tab = tabs["tabs"]
+        .as_array()
+        .and_then(|tabs| tabs.iter().find(|t| t["surface_id"].as_u64() == Some(sid)))
+        .unwrap_or_else(|| panic!("tab.list에서 surface {sid}의 탭을 찾지 못했다: {tabs}"));
+    let tab_id = tab["id"].as_u64().expect("tab.list returns tab id");
+    let raw_name = tab["name"]
+        .as_str()
+        .expect("tab.list returns name")
+        .to_string();
+    let shown = || -> String {
+        let tree = tasty.call("tree", json!({}));
+        let by_id = |v: &serde_json::Value, key: &str, id: u64| {
+            v[key]
+                .as_array()
+                .and_then(|items| items.iter().find(|i| i["id"].as_u64() == Some(id)))
+                .cloned()
+        };
+        let ws_node = tree
+            .as_array()
+            .and_then(|all| all.iter().find(|w| w["id"].as_u64() == Some(ws.id)))
+            .unwrap_or_else(|| panic!("tree에서 workspace {}를 찾지 못했다", ws.id));
+        let pane = by_id(ws_node, "panes", pid)
+            .unwrap_or_else(|| panic!("tree에서 pane {pid}를 찾지 못했다: {ws_node}"));
+        let tab = by_id(&pane, "tabs", tab_id)
+            .unwrap_or_else(|| panic!("tree에서 tab {tab_id}를 찾지 못했다: {pane}"));
+        tab["name"]
+            .as_str()
+            .unwrap_or_else(|| panic!("tree 탭에 name이 없다: {tab}"))
+            .to_string()
+    };
+
+    // GUI는 제목을 별도 intent로 늦게 반영할 수 있어 한 번이 아니라 짧은 시간 동안 본다.
+    let settle = std::time::Instant::now() + Duration::from_secs(2);
+    while std::time::Instant::now() < settle {
+        let name = shown();
+        if name != raw_name {
+            let read = tasty.call(
+                "surface.read_since_mark",
+                json!({ "surface_id": sid, "strip_ansi": false }),
+            );
+            let raw = read["text"].as_str().unwrap_or_default();
+            // 보관 범위가 잘렸거나(앞부분의 OSC 7을 볼 수 없다) 손실 변환된 바이트가 있으면(8비트 C1 OSC 형식을
+            // 확인할 수 없다) 원인을 단정하지 않는다. 원문은 tree 뒤에 읽어 그 시점까지의 출력을 담는다.
+            let whole = read["retention_start"] == 0
+                && read["cursor"] == 0
+                && read["next_cursor"] == read["retention_end"]
+                && !raw.contains('\u{FFFD}');
+            // 원문에 OSC 7이 없으면 cwd 이름은 그대로이므로, OSC 제목을 탭 이름에 투영하는 GUI에서 이름이
+            // 제목 본문과 같을 때만 제목을 원인으로 본다.
+            let (cwd_seen, titles) = osc_seen(raw);
+            let title_caused =
+                cfg!(feature = "gui") && whole && !cwd_seen && titles.iter().any(|t| *t == name);
+            let cause = if title_caused {
+                "셸이 제목을 보냈다"
+            } else {
+                "OSC 7 전 탭 표시 이름이 바뀌었다"
+            };
+            panic!("{cause}: 표시 {name:?} / 원본 {raw_name:?} / 셸 출력 {raw:?}");
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
     let dir = format!("tasty-osc7-{}", std::process::id());
     tasty.send_text(
         sid,
@@ -130,14 +277,13 @@ fn an_osc7_cwd_becomes_the_tab_name() {
     );
     let deadline = std::time::Instant::now() + Duration::from_secs(15);
     loop {
-        let mut names = Vec::new();
-        tab_names(&tasty.call("tree", json!({})), &mut names);
-        if names.iter().any(|n| n == &dir) {
+        let name = shown();
+        if name == dir {
             break;
         }
         assert!(
             std::time::Instant::now() < deadline,
-            "OSC 7 cwd({dir}) 가 탭 이름이 되지 않았다: {names:?} / 화면: {}",
+            "OSC 7 cwd({dir}) 가 탭 이름이 되지 않았다: {name:?} / 화면: {}",
             tasty.screen_text_of(sid)
         );
         std::thread::sleep(Duration::from_millis(100));
