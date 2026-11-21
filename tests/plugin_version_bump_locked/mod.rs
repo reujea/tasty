@@ -492,3 +492,51 @@ fn the_scanner_reads_keys_after_closing_quote_runs_and_marks_tab_keys() {
         "탭이 든 따옴표 키를 ? 로 내지 않았다:\n{out}"
     );
 }
+
+/// 점으로 이은 키(`"entry".type`)는 TOML에서 `[entry]` 표와 같다. id 와 무관한 정상 표기라 판정 불가가 아니어야 한다.
+#[test]
+fn dotted_keys_in_a_manifest_are_read_in_both_modes() {
+    let tmp = seed_repo();
+    let d = tmp.path();
+    write(
+        d,
+        &format!("{PLUGIN}/tasty-plugin.toml"),
+        "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n\"entry\".type = \"exec\"\nentry . command = \"x\"\n",
+    );
+    write_lock(d, &["com.tasty.fixture"]);
+    commit_all(d, "seed lock");
+    write(
+        d,
+        &format!("{PLUGIN}/src/main.rs"),
+        "fn main() {\n    let msg = \"changed\";\n}\n",
+    );
+    both_modes(d, "change", |mode, code, text| {
+        assert_eq!(
+            code, 0,
+            "{mode}: 점으로 이은 키 때문에 판정이 실패했다:\n{text}"
+        );
+        assert!(
+            text.contains(LOCKED_NOTE),
+            "{mode}: 잠금 id 로 판정하지 않았다:\n{text}"
+        );
+    });
+}
+
+#[test]
+fn the_scanner_reads_dotted_keys_and_marks_escaped_segments() {
+    let (code, out) =
+        scan("\"entry\".type = \"exec\"\nentry . command = 'x'\n\"a\\u0062\".c = 1\n");
+    assert_eq!(code, 0, "정상 입력을 거부했다:\n{out}");
+    assert!(
+        out.contains("K\tdotted\tentry.type\tbasic\texec\n"),
+        "따옴표 조각이 든 점 구분 키를 읽지 못했다:\n{out}"
+    );
+    assert!(
+        out.contains("K\tdotted\tentry.command\tliteral\tx\n"),
+        "공백이 든 점 구분 키를 읽지 못했다:\n{out}"
+    );
+    assert!(
+        out.contains("K\tdotted\t?\tother\t\n"),
+        "이스케이프 조각을 ? 로 내지 않았다:\n{out}"
+    );
+}

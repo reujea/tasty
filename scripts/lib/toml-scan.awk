@@ -2,7 +2,8 @@
 # 출력(탭 구분):
 #   H<TAB><머리>        표 머리. [[ plugin ]] 은 "[[plugin]]", [ release ] 는 "[release]"
 #   K<TAB><키 형식><TAB><키><TAB><값 형식><TAB><값>
-#       키 형식: bare | quoted. 이스케이프나 탭이 든 따옴표 키는 키 자리에 ? 를 낸다.
+#       키 형식: bare | quoted | dotted(점으로 이은 조각 둘 이상, 키 자리는 조각을 점으로 이은 값).
+#       이스케이프나 탭이 든 따옴표 조각이 있으면 키 자리에 ? 를 낸다.
 #       값 형식: basic("[A-Za-z0-9._-]+") | literal('[A-Za-z0-9._-]+') | other. other 의 값 자리는 빈칸이다(값에 탭이 있어도 레코드가 섞이지 않게).
 # 주석, 기본·리터럴 문자열, 여러 줄 문자열, 배열·인라인 표의 괄호 깊이를 따라가므로
 # 여러 줄 문자열 안의 "id = ..." 나 "[entry]" 줄, 중첩 배열 원소의 "[" 를 키·표 머리로 읽지 않는다.
@@ -73,25 +74,33 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
         printf "H\t%s\n", head
         next
     }
-    # 키
-    c = substr(t, 1, 1)
-    if (c == "\"" || c == "'") {
-        n = length(t)
-        for (j = 2; j <= n; j++) {
-            if (c == "\"" && substr(t, j, 1) == "\\") { j++; continue }
-            if (substr(t, j, 1) == c) break
-        }
-        if (j > n) { bad = NR ": 따옴표 키가 닫히지 않았다"; next }
-        key = substr(t, 2, j - 2); kform = "quoted"
-        if ((c == "\"" && index(key, "\\") > 0) || index(key, "\t") > 0) key = "?"
-        rest = substr(t, j + 1)
-    } else {
-        k = index(t, "=")
-        if (k == 0) { bad = NR ": key = value 형식이 아니다"; next }
-        key = trim(substr(t, 1, k - 1)); kform = "bare"
-        if (index(key, "\t") > 0) key = "?"
-        rest = substr(t, k)
+    # 키: 점으로 이은 조각(맨 키, 기본·리터럴 따옴표 키). 조각 사이 공백을 허용한다.
+    pos = 1; n = length(t); segs = 0; key = ""; quoted = 0; unk = 0
+    while (1) {
+        while (pos <= n && (substr(t, pos, 1) == " " || substr(t, pos, 1) == "\t")) pos++
+        c = substr(t, pos, 1)
+        if (c == "\"" || c == "'") {
+            for (j = pos + 1; j <= n; j++) {
+                if (c == "\"" && substr(t, j, 1) == "\\") { j++; continue }
+                if (substr(t, j, 1) == c) break
+            }
+            if (j > n) { bad = NR ": 따옴표 키가 닫히지 않았다"; break }
+            seg = substr(t, pos + 1, j - pos - 1); quoted = 1
+            if ((c == "\"" && index(seg, "\\") > 0) || index(seg, "\t") > 0) unk = 1
+            pos = j + 1
+        } else if (match(substr(t, pos), /^[A-Za-z0-9_-]+/)) {
+            seg = substr(t, pos, RLENGTH); pos += RLENGTH
+        } else { bad = NR ": 키를 읽지 못했다"; break }
+        segs++
+        key = (segs == 1) ? seg : key "." seg
+        while (pos <= n && (substr(t, pos, 1) == " " || substr(t, pos, 1) == "\t")) pos++
+        if (substr(t, pos, 1) == ".") { pos++; continue }
+        break
     }
+    if (bad != "") next
+    kform = (segs > 1) ? "dotted" : (quoted ? "quoted" : "bare")
+    if (unk) key = "?"
+    rest = substr(t, pos)
     rest = trim(rest)
     if (substr(rest, 1, 1) != "=") { bad = NR ": 키 뒤에 = 가 없다"; next }
     v = trim(substr(rest, 2))
