@@ -253,7 +253,7 @@ read_lock_ids() {  # <scan 파일>
         function close_table() { if (inp && ids != 1) fail("[[plugin]] 표의 id 가 " ids " 개다") }
         $1 == "H" { close_table(); inp = ($2 == "[[plugin]]"); if (inp) { tables++; ids = 0 }; next }
         $1 == "K" && inp {
-            if ($3 == "?") { fail("[[plugin]] 표에 읽을 수 없는 키가 있다"); next }
+            if ($2 == "unknown") { fail("[[plugin]] 표에 읽을 수 없는 키가 있다"); next }
             if ($3 != "id") next
             ids++
             if ($2 != "bare" || $4 != "basic") { fail("id 가 맨 키·기본 문자열이 아니다"); next }
@@ -273,7 +273,7 @@ read_manifest_id() {  # <scan 파일>
         function fail(m) { if (err == "") err = m }
         $1 == "H" { top_done = 1; next }
         $1 == "K" && !top_done {
-            if ($3 == "?") { fail("최상위에 읽을 수 없는 키가 있다"); next }
+            if ($2 == "unknown") { fail("최상위에 읽을 수 없는 키가 있다"); next }
             if ($3 != "id") next
             n++
             if ($4 != "basic" && $4 != "literal") { fail("id 가 단순 문자열이 아니다"); next }
@@ -285,9 +285,23 @@ read_manifest_id() {  # <scan 파일>
             print id
         }' "$1"
 }
+# 비교 대상 트리(index 또는 AFTER)에서 pathspec 아래 경로를 $WORK/tree.paths 에 나열한다.
+# 없는 경로는 빈 목록이고, 조회 자체가 실패하면 판정 불가다.
+target_tree_paths() {  # <pathspec>
+    local rc
+    if [ "$MODE" = staged ]; then
+        git ls-files -- "$1" > "$WORK/tree.paths" 2> "$WORK/tree.err"
+        rc=$?
+    else
+        git ls-tree -r --name-only "$AFTER" -- "$1" > "$WORK/tree.paths" 2> "$WORK/tree.err"
+        rc=$?
+    fi
+    [ "$rc" -eq 0 ] || die "판정 불가: 비교 대상 트리를 나열하지 못했다 ($1): $(cat "$WORK/tree.err")"
+}
 compute_locked_dirs() {
-    local out ids man rel mid
-    exists_at "$(after_ref "$LOCK_FILE")" || return 0
+    local out ids rel mid
+    target_tree_paths "$LOCK_FILE"
+    grep -qxF "$LOCK_FILE" "$WORK/tree.paths" || return 0
     [ -f "$SCAN_AWK" ] || die "판정 불가: TOML 판독기가 없다: $SCAN_AWK"
     git show "$(after_ref "$LOCK_FILE")" > "$WORK/lock.toml" \
         || die "판정 불가: 잠금 파일을 꺼내지 못했다: $(after_ref "$LOCK_FILE")"
@@ -296,18 +310,20 @@ compute_locked_dirs() {
     out=$(read_lock_ids "$WORK/lock.scan") \
         || die "판정 불가: 잠금 파일 $LOCK_FILE: $(printf '%s\n' "$out" | sed -n '$p' | cut -f2)"
     ids=" $(printf '%s\n' "$out" | tr '\n' ' ')"
-    for man in "$ROOT/$SCAN_ROOT"/*/tasty-plugin.toml; do
-        [ -f "$man" ] || continue
-        rel="$SCAN_ROOT/$(basename "$(dirname "$man")")"
-        exists_at "$(after_ref "$rel/tasty-plugin.toml")" || continue
-        git show "$(after_ref "$rel/tasty-plugin.toml")" > "$WORK/manifest.toml" \
-            || die "판정 불가: 매니페스트를 꺼내지 못했다: $rel/tasty-plugin.toml"
+    # 매니페스트 목록도 비교 대상 트리에서 읽는다. 작업 트리에서만 지운 매니페스트도 분류한다.
+    target_tree_paths "$SCAN_ROOT"
+    grep -E "^${SCAN_ROOT}/[^/]+/tasty-plugin[.]toml\$" "$WORK/tree.paths" > "$WORK/manifests.paths"
+    while IFS= read -r man; do
+        [ -n "$man" ] || continue
+        rel="${man%/tasty-plugin.toml}"
+        git show "$(after_ref "$man")" > "$WORK/manifest.toml" \
+            || die "판정 불가: 매니페스트를 꺼내지 못했다: $man"
         awk -f "$SCAN_AWK" "$WORK/manifest.toml" > "$WORK/manifest.scan" \
-            || die "판정 불가: $rel/tasty-plugin.toml 을 읽지 못했다: $(sed -n '$p' "$WORK/manifest.scan")"
+            || die "판정 불가: $man 을 읽지 못했다: $(sed -n '$p' "$WORK/manifest.scan")"
         mid=$(read_manifest_id "$WORK/manifest.scan") \
-            || die "판정 불가: $rel/tasty-plugin.toml: $(printf '%s\n' "$mid" | sed -n '$p' | cut -f2)"
+            || die "판정 불가: $man: $(printf '%s\n' "$mid" | sed -n '$p' | cut -f2)"
         case "$ids" in *" $mid "*) LOCKED_DIRS="$LOCKED_DIRS $rel" ;; esac
-    done
+    done < "$WORK/manifests.paths"
 }
 is_locked_dir() {
     case " $LOCKED_DIRS " in *" $1 "*) return 0 ;; *) return 1 ;; esac
@@ -333,7 +349,10 @@ $(cat "$WORK/metadata.err")"
 if [ -n "$OUTSIDE_BUILD" ]; then
     for man in "$ROOT/$SCAN_ROOT"/*/tasty-plugin.toml; do
         [ -f "$man" ] || continue
-        is_locked_dir "$SCAN_ROOT/$(basename "$(dirname "$man")")" && continue
+        if is_locked_dir "$SCAN_ROOT/$(basename "$(dirname "$man")")"; then
+            note_locked "$SCAN_ROOT/$(basename "$(dirname "$man")")"
+            continue
+        fi
         closure_of "$(basename "$(dirname "$man")")"
         while IFS= read -r p; do
             [ -z "$p" ] && continue

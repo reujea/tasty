@@ -174,7 +174,8 @@ fn a_lock_file_only_in_the_work_tree_is_not_used() {
     );
 }
 
-/// 변경과 함께 판정 결과를 돌려준다. 잠금 파일 본문만 바꿔 같은 변경을 잰다.
+/// 잠금 파일 본문(과 매니페스트)만 바꿔 같은 변경을 staged·range 두 모드로 잰다.
+/// 두 모드의 종료 코드와 잠금 id 안내 유무가 같아야 하며, range 결과를 돌려준다.
 fn judge_with_lock(lock: &str, manifest: Option<&str>) -> (i32, String) {
     let tmp = seed_repo();
     let d = tmp.path();
@@ -188,8 +189,16 @@ fn judge_with_lock(lock: &str, manifest: Option<&str>) -> (i32, String) {
         &format!("{PLUGIN}/src/main.rs"),
         "fn main() {\n    let msg = \"changed\";\n}\n",
     );
-    commit_all(d, "change");
-    check(d, &["--range", "HEAD^", "HEAD"])
+    run_git(d, &["add", "-A"]);
+    let (staged_code, staged_text) = check(d, &["--staged"]);
+    run_git(d, &["commit", "--quiet", "-m", "change"]);
+    let (code, text) = check(d, &["--range", "HEAD^", "HEAD"]);
+    assert_eq!(
+        (staged_code, staged_text.contains(LOCKED_NOTE)),
+        (code, text.contains(LOCKED_NOTE)),
+        "staged·range 판정이 다르다:\n--- staged\n{staged_text}\n--- range\n{text}"
+    );
+    (code, text)
 }
 
 const LOCKED_TABLE: &str = "\n[[plugin]]\nid = \"com.tasty.fixture\"\nversion = \"9.9.9\"\n";
@@ -488,8 +497,8 @@ fn the_scanner_reads_keys_after_closing_quote_runs_and_marks_tab_keys() {
         "닫는 따옴표 묶음 뒤 키를 읽지 못했다:\n{out}"
     );
     assert!(
-        out.contains("K\tquoted\t?\tbasic\tw\n"),
-        "탭이 든 따옴표 키를 ? 로 내지 않았다:\n{out}"
+        out.contains("K\tunknown\t\tbasic\tw\n"),
+        "탭이 든 따옴표 키를 unknown 으로 내지 않았다:\n{out}"
     );
 }
 
@@ -501,7 +510,7 @@ fn dotted_keys_in_a_manifest_are_read_in_both_modes() {
     write(
         d,
         &format!("{PLUGIN}/tasty-plugin.toml"),
-        "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n\"entry\".type = \"exec\"\nentry . command = \"x\"\n",
+        "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n\"entry\".type = \"process\"\nentry . command = \"tasty-plugin-fixture\"\n",
     );
     write_lock(d, &["com.tasty.fixture"]);
     commit_all(d, "seed lock");
@@ -536,7 +545,115 @@ fn the_scanner_reads_dotted_keys_and_marks_escaped_segments() {
         "공백이 든 점 구분 키를 읽지 못했다:\n{out}"
     );
     assert!(
-        out.contains("K\tdotted\t?\tother\t\n"),
-        "이스케이프 조각을 ? 로 내지 않았다:\n{out}"
+        out.contains("K\tunknown\t\tother\t\n"),
+        "이스케이프 조각을 unknown 으로 내지 않았다:\n{out}"
+    );
+}
+
+/// 배포 도구가 받는 공백이라도 스캐너가 확신할 수 없는 표 머리는 id 를 조용히 빼지 않고 판정 불가로 멈춘다.
+#[test]
+fn a_lock_table_header_the_scanner_cannot_read_is_undecidable() {
+    for (what, lock) in [
+        (
+            "줄바꿈 없는 공백",
+            "[[\u{a0}plugin]]\nid = \"com.tasty.fixture\"\n".to_owned(),
+        ),
+        (
+            "따옴표 표 이름",
+            format!("{LOCKED_TABLE}[\"plugin\"]\nid = \"com.tasty.other\"\n"),
+        ),
+    ] {
+        let (code, text) = judge_with_lock(&lock, None);
+        assert_eq!(code, 2, "{what}: 읽지 못한 표 머리를 건너뛰었다:\n{text}");
+    }
+}
+
+/// 판독기가 쓰는 표지와 같은 글자의 실제 키는 그 키로 읽는다.
+#[test]
+fn a_real_question_mark_key_is_not_the_unknown_marker() {
+    let (code, text) = locked_manifest_judgement(
+        "id = \"com.tasty.fixture\"\n\"?\" = \"ignored\"\nversion = \"0.1.0\"\n",
+    );
+    assert_eq!(code, 0, "\"?\" 키를 읽을 수 없는 키로 보았다:\n{text}");
+    assert!(
+        text.contains(LOCKED_NOTE),
+        "잠금 id 로 판정하지 않았다:\n{text}"
+    );
+}
+
+/// 잠금 id 플러그인만 링크하는 워크스페이스 밖 의존이 바뀌면 그 플러그인의 폐포를 조회하지 않고 뺐다고 알린다.
+#[test]
+fn an_outside_dependency_linked_only_by_a_locked_plugin_skips_its_closure() {
+    let tmp = seed_vendored_workspace();
+    let d = tmp.path();
+    write_lock(d, &["com.tasty.fixture"]);
+    commit_all(d, "seed lock");
+    write(
+        d,
+        "vendor/upstream/src/lib.rs",
+        "pub fn greet() {\n    let _ = 2;\n}\n",
+    );
+    commit_all(d, "change the outside dependency");
+
+    let stub = tempfile::tempdir().expect("스텁 디렉토리");
+    tasty_test_support::write_executable(
+        &stub.path().join("cargo"),
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = tree ]; then echo zz-cargo-tree-called >&2; exit 101; fi\nexec \"{real}\" \"$@\"\n",
+            real = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())
+        ),
+    )
+    .expect("스텁 작성");
+    let out = git_env::command("bash")
+        .arg(script())
+        .args(["--range", "HEAD^", "HEAD"])
+        .current_dir(d)
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                stub.path().display(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .output()
+        .expect("게이트 스크립트 실행");
+    let run = gate_env::GateRun::from_output(&out);
+    assert_eq!(
+        run.code, 0,
+        "잠금 id 플러그인의 폐포를 조회했다:\n{}",
+        run.output
+    );
+    assert!(
+        !run.output.contains("zz-cargo-tree-called"),
+        "cargo tree 를 불렀다:\n{}",
+        run.output
+    );
+    assert!(
+        run.output.contains(LOCKED_NOTE) && run.output.contains(PLUGIN),
+        "뺀 크레이트를 알리지 않는다:\n{}",
+        run.output
+    );
+}
+
+#[test]
+fn the_scanner_rejects_headers_it_cannot_read_and_keeps_markers_apart() {
+    for body in ["[[\u{a0}plugin]]\n", "[\"a]\"]\n", "[a b]\n"] {
+        let (code, out) = scan(body);
+        assert_eq!(code, 3, "읽지 못한 표 머리를 받았다 ({body:?}):\n{out}");
+    }
+    let (code, out) = scan("\"?\" = \"x\"\n\"a\\u0062\" = \"y\"\nflag = false # 주석\n");
+    assert_eq!(code, 0, "정상 입력을 거부했다:\n{out}");
+    assert!(
+        out.contains("K\tquoted\t?\tbasic\tx\n"),
+        "\"?\" 키를 읽지 못했다:\n{out}"
+    );
+    assert!(
+        out.contains("K\tunknown\t\tbasic\ty\n"),
+        "이스케이프 키를 unknown 으로 내지 않았다:\n{out}"
+    );
+    assert!(
+        out.contains("K\tbare\tflag\tbool\tfalse\n"),
+        "불 값을 읽지 못했다:\n{out}"
     );
 }

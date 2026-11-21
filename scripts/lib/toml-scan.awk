@@ -1,10 +1,12 @@
 # TOML 문서의 표 머리와 키를 줄 단위가 아니라 문자 단위로 읽어 낸다.
 # 출력(탭 구분):
 #   H<TAB><머리>        표 머리. [[ plugin ]] 은 "[[plugin]]", [ release ] 는 "[release]"
+#       표 이름은 점으로 이은 맨 키만 받는다. 따옴표 이름이나 공백·탭 밖의 공백 문자가 들면 오류로 끝난다.
 #   K<TAB><키 형식><TAB><키><TAB><값 형식><TAB><값>
-#       키 형식: bare | quoted | dotted(점으로 이은 조각 둘 이상, 키 자리는 조각을 점으로 이은 값).
-#       이스케이프나 탭이 든 따옴표 조각이 있으면 키 자리에 ? 를 낸다.
-#       값 형식: basic("[A-Za-z0-9._-]+") | literal('[A-Za-z0-9._-]+') | other. other 의 값 자리는 빈칸이다(값에 탭이 있어도 레코드가 섞이지 않게).
+#       키 형식: bare | quoted | dotted(점으로 이은 조각 둘 이상, 키 자리는 조각을 점으로 이은 값)
+#                | unknown(이스케이프나 탭이 든 따옴표 조각이 있다. 키 자리는 빈칸).
+#       값 형식: basic("[A-Za-z0-9._-]+") | literal('[A-Za-z0-9._-]+') | bool(true·false) | other.
+#                other 의 값 자리는 빈칸이다(값에 탭이 있어도 레코드가 섞이지 않게).
 # 주석, 기본·리터럴 문자열, 여러 줄 문자열, 배열·인라인 표의 괄호 깊이를 따라가므로
 # 여러 줄 문자열 안의 "id = ..." 나 "[entry]" 줄, 중첩 배열 원소의 "[" 를 키·표 머리로 읽지 않는다.
 # 닫히지 않은 문자열·괄호가 남으면 "E<TAB><이유>"를 내고 종료 코드 3으로 끝난다.
@@ -71,6 +73,7 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
             head = "[" name "]"
         }
         if (tail != "" && substr(tail, 1, 1) != "#") { bad = NR ": 표 머리 뒤에 읽을 수 없는 내용이 있다"; next }
+        if (name !~ /^[A-Za-z0-9_-]+([.][A-Za-z0-9_-]+)*$/) { bad = NR ": 맨 키로만 된 표 이름이 아니다"; next }
         printf "H\t%s\n", head
         next
     }
@@ -99,7 +102,7 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     }
     if (bad != "") next
     kform = (segs > 1) ? "dotted" : (quoted ? "quoted" : "bare")
-    if (unk) key = "?"
+    if (unk) { kform = "unknown"; key = "" }
     rest = substr(t, pos)
     rest = trim(rest)
     if (substr(rest, 1, 1) != "=") { bad = NR ": 키 뒤에 = 가 없다"; next }
@@ -107,7 +110,8 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     val = ""; vform = "other"
     if (match(v, /^"[A-Za-z0-9._-]+"[ \t]*(#.*)?$/)) vform = "basic"
     else if (match(v, /^'[A-Za-z0-9._-]+'[ \t]*(#.*)?$/)) vform = "literal"
-    if (vform != "other") { q = substr(v, 1, 1); val = substr(v, 2); val = substr(val, 1, index(val, q) - 1) }
+    else if (match(v, /^(true|false)[ \t]*(#.*)?$/)) { vform = "bool"; val = substr(v, 1, (substr(v, 1, 1) == "t") ? 4 : 5) }
+    if (vform == "basic" || vform == "literal") { q = substr(v, 1, 1); val = substr(v, 2); val = substr(val, 1, index(val, q) - 1) }
     printf "K\t%s\t%s\t%s\t%s\n", kform, key, vform, val
     scan(v, 1)
 }
