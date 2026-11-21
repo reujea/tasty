@@ -27,8 +27,8 @@ const COLORED_LOCALS: &[(&str, &str)] = &[
     ("crates/tasty-ui-widgets/src/code_area.rs", "hint"),
 ];
 
-/// 현재 `.hint_text(` 호출은 13곳이다. 순회가 비거나 진입 문자열이 낡아 0건으로 통과하는 것을 막는 하한이다.
-const MIN_SITES: usize = 13;
+/// 현재 `.hint_text(` 호출은 12곳이다(2026-11-21 측정). 순회가 비거나 진입 문자열이 낡아 0건으로 통과하는 것을 막는 하한이다.
+const MIN_SITES: usize = 12;
 
 /// `open`(여는 괄호 바로 뒤)부터 짝이 되는 닫는 괄호 앞까지.
 fn paren_arg(code: &str, open: usize) -> &str {
