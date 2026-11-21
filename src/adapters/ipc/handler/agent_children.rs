@@ -15,6 +15,10 @@ use crate::remote::agent_children::client::{CALL_REPLY_LIMIT, Call, CallState, O
 use crate::runtime::engine_access::EngineMut;
 
 pub(crate) fn handle_agent_method(
+    #[cfg_attr(
+        not(feature = "gui"),
+        expect(unused_variables, reason = "a headless instance has no mirrors")
+    )]
     engine: &mut EngineMut<'_>,
     caller: &crate::ipc::caller::CallerContext,
     id: Value,
