@@ -524,3 +524,36 @@ fn shared_cache_seeds_a_private_copy_and_is_off_by_default() {
         "다 받은 캐시 파일을 옮기지 않았다:\n{done}"
     );
 }
+
+/// 플러그인 폴더 안의 링크는 파일 목록에서 빠지므로 대조 전에 거부한다. 폴더를 나열하지 못하면
+/// 부분 목록으로 대조하지 않고 실패한다.
+#[test]
+fn links_and_unlistable_folders_inside_a_fixture_fail_the_check() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = Root::new();
+    root.update_ok();
+    let alpha = root.path.join(FIXTURES).join("com.tasty.alpha");
+
+    let target = root.path.join("extra.toml");
+    fs::write(&target, "e = \"f\"\n").expect("링크 대상");
+    std::os::unix::fs::symlink(&target, alpha.join("lang/extra.toml")).expect("링크 만들기");
+    let (code, text) = root.run(&["--check"]);
+    assert_eq!(code, 1, "플러그인 폴더 안의 링크를 놓쳤다:\n{text}");
+    assert!(
+        text.contains("symbolic link inside the fixture: com.tasty.alpha"),
+        "폴더 안의 링크를 말하지 않는다:\n{text}"
+    );
+    fs::remove_file(alpha.join("lang/extra.toml")).expect("링크 지우기");
+    root.update_ok();
+
+    let locked = alpha.join("lang/locked");
+    fs::create_dir_all(&locked).expect("읽기 막을 폴더");
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).expect("권한 막기");
+    let (code, text) = root.run(&["--check"]);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("권한 되돌리기");
+    assert_eq!(code, 1, "나열하지 못한 폴더로 대조를 통과했다:\n{text}");
+    assert!(
+        text.contains("could not list") && text.contains("com.tasty.alpha"),
+        "나열 실패를 말하지 않는다:\n{text}"
+    );
+}

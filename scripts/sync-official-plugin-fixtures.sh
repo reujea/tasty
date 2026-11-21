@@ -206,21 +206,22 @@ is_locked_id() {
 }
 
 # 한 플러그인 폴더에서 픽스처가 담는 파일(매니페스트와 lang/ 아래 전부)을 상대 경로로 나열한다.
+# 나열 명령이 실패하면 0 이 아닌 상태로 끝난다(호출부의 || 가 set -e 를 끄므로 직접 전한다).
 fixture_files() {
     (
-        cd "$1"
+        cd "$1" || exit 1
         if [[ -f tasty-plugin.toml ]]; then
             echo tasty-plugin.toml
         fi
         if [[ -d lang ]]; then
-            find lang -type f
+            find lang -type f || exit 1
         fi
     ) | LC_ALL=C sort
 }
 
 # 받은 폴더(<out root>)와 픽스처 루트를 대조한다. 다른 점을 모두 적고 하나라도 있으면 1.
 compare() {
-    local out="$1" fix="$2" bad=0 id want have name dir
+    local out="$1" fix="$2" bad=0 id want have name dir links
     # 링크는 읽기 전에 거부한다. 루트나 항목이 링크면 링크 너머의 파일로 대조하게 된다.
     if [[ -L "$fix" ]]; then
         echo "  the fixture root is a symbolic link: $fix" >&2
@@ -237,8 +238,28 @@ compare() {
             bad=1
             continue
         fi
-        want="$(fixture_files "$out/$id")"
-        have="$(cd "$fix/$id" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)"
+        # 폴더 안의 링크는 find -type f 목록에서 빠져 대조를 건너뛴다. 나열 전에 거부한다.
+        if ! links="$(find "$fix/$id" -type l)"; then
+            echo "  could not list $fix/$id" >&2
+            bad=1
+            continue
+        fi
+        if [[ -n "$links" ]]; then
+            echo "  symbolic link inside the fixture: $id" >&2
+            bad=1
+            continue
+        fi
+        # 부분 목록으로 대조가 통과하지 않도록 두 목록 명령의 실패를 각각 본다.
+        if ! want="$(fixture_files "$out/$id")"; then
+            echo "  could not list the fetched files of $id" >&2
+            bad=1
+            continue
+        fi
+        if ! have="$(cd "$fix/$id" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)"; then
+            echo "  could not list $fix/$id" >&2
+            bad=1
+            continue
+        fi
         if [[ "$want" != "$have" ]]; then
             echo "  file set differs: $id" >&2
             bad=1
