@@ -587,8 +587,11 @@ fn each_file_listing_failure_fails_the_check_on_its_own() {
     root.update_ok();
     let real_find = std::env::split_paths(&std::env::var_os("PATH").expect("PATH"))
         .map(|d| d.join("find"))
-        .find(|p| p.is_file())
-        .expect("PATH 에 find 가 없다");
+        .find(|p| {
+            use std::os::unix::fs::PermissionsExt;
+            fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        })
+        .expect("PATH 에 실행 가능한 find 가 없다");
     let bin = root.path.join("stub-bin");
     fs::create_dir_all(&bin).expect("스텁 폴더");
     tasty_test_support::write_executable(&bin.join("find"), FIND_STUB).expect("find 스텁");
