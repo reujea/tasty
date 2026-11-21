@@ -168,8 +168,8 @@ fn held() -> MirrorEvent {
 /// 재연결 중인 행 A 의 자동 연결이 설치 전에 강제 끊김으로 확정됐고(G1) 출력이 남아 멈춤을 미룬 상태.
 fn g1_deferred(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> App {
     let mut app = reconnecting_app(event_loop);
+    // 상대 소켓은 이 회차가 끝날 때까지 연다. 먼저 닫으면 전송이 손실로 끝나 확정 순서가 갈린다.
     let socket = prepare_an_automatic_reconnect(&mut app);
-    drop(socket);
     let ticket = ticket_of(&app, ROW).unwrap();
     let prepared = app.remote.prepared_connection(ticket).unwrap();
     prepared.transport.end.raise(EndReason::Forced);
@@ -182,6 +182,7 @@ fn g1_deferred(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> Ap
     assert_eq!(stop(&app), Some(false));
     assert_eq!(phase(&app), SessionState::Reconnecting);
     assert!(!app.remote.active.contains(&ROW));
+    drop(socket);
     app
 }
 
@@ -463,8 +464,8 @@ fn a_d4_stop_then_a_remote_connect_ends_its_run_with_the_new_connection() {
 /// 멈춤이 미뤄졌다. 행의 진행 표지는 남는다.
 fn d4_deferred(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> App {
     let mut app = reconnecting_app(event_loop);
+    // 상대 소켓은 이 회차가 끝날 때까지 연다. 먼저 닫으면 전송이 손실로 끝나 확정 순서가 갈린다.
     let socket = prepare_an_automatic_reconnect(&mut app);
-    drop(socket);
     app.remote.user_disconnected.insert(ROW);
     hold_output(&mut app, held());
 
@@ -474,6 +475,7 @@ fn d4_deferred(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> Ap
     assert_eq!(stop(&app), Some(false));
     assert_eq!(phase(&app), SessionState::Reconnecting);
     assert!(app.remote.active.contains(&ROW), "the progress mark stays");
+    drop(socket);
     app
 }
 
