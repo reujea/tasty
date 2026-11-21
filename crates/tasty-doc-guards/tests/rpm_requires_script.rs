@@ -48,7 +48,11 @@ fn write_exec(path: &Path, body: &str, mode: u32) {
 fn tool_dir(root: &Path, fakes: &[(&str, &str)]) -> PathBuf {
     let dir = root.join("bin");
     std::fs::create_dir_all(&dir).expect("bin");
-    for name in REAL_TOOLS {
+    // 가짜로 바꿀 명령은 실물 링크를 만들지 않는다. 링크 위에 쓰면 링크를 따라가 실물을 덮어쓴다.
+    for name in REAL_TOOLS
+        .iter()
+        .filter(|n| !fakes.iter().any(|(f, _)| f == *n))
+    {
         std::os::unix::fs::symlink(find_real(name), dir.join(name)).expect("symlink");
     }
     for (name, body) in fakes {
@@ -351,6 +355,116 @@ fn an_empty_requires_list_is_rejected() {
     );
     assert_eq!(rc, 1);
     assert!(err.contains("the rpm has no requires at all"), "{err}");
+}
+
+/// 가짜 readelf로 읽히는 ELF 하나(`main`)와 수동 Requires 두 개를 가진 Cargo.toml을 둔 폴더.
+fn verify_fixture(what: &str, fakes: &[(&str, &str)]) -> (Scratch, PathBuf) {
+    let dir = Scratch::new(what);
+    let mut all: Vec<(&str, &str)> = vec![("readelf", FAKE_READELF)];
+    all.extend_from_slice(fakes);
+    let bin = tool_dir(dir.path(), &all);
+    let payload = dir.path().join("payload");
+    std::fs::create_dir(&payload).expect("payload");
+    fake_elf(
+        &payload.join("main"),
+        0o755,
+        HEADER_PIE,
+        DYNAMIC_MAIN,
+        VERSIONS_MAIN,
+    );
+    std::fs::write(
+        dir.path().join("m.toml"),
+        "[package.metadata.generate-rpm.requires]\nfreetype = \"*\"\nfontconfig = \"*\"\n",
+    )
+    .expect("m.toml");
+    (dir, bin)
+}
+
+const VERIFY: &str = "verify_rpm_requires_from reqs payload m.toml /nonexistent";
+
+#[test]
+fn the_verify_path_passes_a_matching_rpm() {
+    let (dir, bin) = verify_fixture("rpm-verify-ok", &[]);
+    std::fs::write(dir.path().join("reqs"), matching().join("\n") + "\n").expect("reqs");
+    let (rc, out, err) = run(dir.path(), &bin, VERIFY);
+    assert_eq!(rc, 0, "{err}");
+    assert!(out.contains("entries match 6 expected"), "{out}");
+}
+
+#[test]
+fn the_verify_path_rejects_an_rpm_with_only_manual_requires() {
+    // --auto-req disabled 로 만든 rpm처럼 자동 Requires가 통째로 빠진 경우.
+    let (dir, bin) = verify_fixture("rpm-verify-manual-only", &[]);
+    std::fs::write(dir.path().join("reqs"), "freetype\nfontconfig\n/bin/sh\n").expect("reqs");
+    let (rc, _, err) = run(dir.path(), &bin, VERIFY);
+    assert_eq!(rc, 1, "{err}");
+    assert!(err.contains("missing: libfoo.so.1()(64bit)"), "{err}");
+    assert!(err.contains("missing: rtld(GNU_HASH)"), "{err}");
+}
+
+#[test]
+fn a_find_failure_fails_the_verify_path() {
+    // 목록을 모두 낸 뒤 실패하는 find. 상태를 잃으면 이 payload는 통과한다.
+    let body = format!(
+        "#!/bin/sh\n{} \"$@\"\nexit 1\n",
+        find_real("find").display()
+    );
+    let (dir, bin) = verify_fixture("rpm-verify-find", &[("find", body.as_str())]);
+    std::fs::write(dir.path().join("reqs"), matching().join("\n") + "\n").expect("reqs");
+    let (rc, _, err) = run(dir.path(), &bin, VERIFY);
+    assert_eq!(rc, 1, "{err}");
+    assert!(
+        err.contains("find failed while listing the payload"),
+        "{err}"
+    );
+}
+
+#[test]
+fn an_extraction_failure_names_the_file() {
+    let (dir, bin) = verify_fixture("rpm-verify-sed", &[("sed", "#!/bin/sh\nexit 4\n")]);
+    let (rc, _, err) = run(dir.path(), &bin, "rpm_expected_requires_file payload/main");
+    assert_eq!(rc, 1, "{err}");
+    assert!(
+        err.contains("extracting NEEDED and version requires failed on payload/main"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_sort_failure_fails_the_expected_set_and_the_comparison() {
+    let (dir, bin) = verify_fixture("rpm-verify-sort", &[("sort", "#!/bin/sh\nexit 2\n")]);
+    let (rc, _, err) = run(dir.path(), &bin, "rpm_expected_requires payload");
+    assert_eq!(rc, 1, "{err}");
+    assert!(
+        err.contains("sorting the expected requires failed"),
+        "{err}"
+    );
+    std::fs::write(dir.path().join("expected"), EXPECTED_MAIN.join("\n") + "\n").expect("e");
+    std::fs::write(dir.path().join("manual"), "freetype\nfontconfig\n").expect("m");
+    std::fs::write(dir.path().join("actual"), matching().join("\n") + "\n").expect("a");
+    let (rc, _, err) = run(
+        dir.path(),
+        &bin,
+        "compare_rpm_requires actual expected manual",
+    );
+    assert_eq!(rc, 2, "{err}");
+    assert!(
+        err.contains("comparing rpm requires failed (awk 0, sort 2)"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_payload_with_no_expected_requires_is_rejected() {
+    // NEEDED·버전 요구·GNU_HASH가 하나도 없는 ELF만 있으면 기대 집합이 비어 수동 항목만으로 통과하게 된다.
+    let dir = Scratch::new("rpm-verify-empty-set");
+    let bin = tool_dir(dir.path(), &[("readelf", FAKE_READELF)]);
+    let payload = dir.path().join("payload");
+    std::fs::create_dir(&payload).expect("payload");
+    fake_elf(&payload.join("static"), 0o755, HEADER_SO, "", "");
+    let (rc, _, err) = run(dir.path(), &bin, "rpm_expected_requires payload");
+    assert_eq!(rc, 1, "{err}");
+    assert!(err.contains("yield no expected requires"), "{err}");
 }
 
 #[test]

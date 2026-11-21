@@ -52,7 +52,7 @@ rpm_has_exec_bit() {
 
 # 한 ELF 파일이 내야 할 Requires를 출력한다. readelf 실패는 경로와 함께 1을 돌려준다.
 rpm_expected_requires_file() {
-    local f=$1 header dynamic versions
+    local f=$1 header dynamic versions out
     header=$(LC_ALL=C readelf -hlW "$f" 2>/dev/null) || { echo "Error: readelf -hl failed on $f" >&2; return 1; }
     grep -qE '^ +Class: +ELF64$' <<<"$header" || { echo "Error: $f is not ELF64; the (64bit) requires check expects ELF64" >&2; return 1; }
     grep -qE '^ +Type: +(EXEC|DYN) ' <<<"$header" || return 0
@@ -61,24 +61,32 @@ rpm_expected_requires_file() {
     fi
     dynamic=$(LC_ALL=C readelf -dW "$f" 2>/dev/null) || { echo "Error: readelf -d failed on $f" >&2; return 1; }
     versions=$(LC_ALL=C readelf -VW "$f" 2>/dev/null) || { echo "Error: readelf -V failed on $f" >&2; return 1; }
-    {
-        sed -n 's/.*(NEEDED).*\[\(.*\)\]$/\1/p' <<<"$dynamic" | LC_ALL=C awk '{ print $0 "\t" }'
-        LC_ALL=C awk '
-            /^Version needs section/ { inneed = 1; next }
-            /^Version (definition|symbols) section/ { inneed = 0; next }
-            inneed && match($0, /File: [^ ]+/) { file = substr($0, RSTART + 6, RLENGTH - 6); next }
-            inneed && file != "" && match($0, /Name: [^ ]+/) { print file "\t" substr($0, RSTART + 6, RLENGTH - 6) }
-        ' <<<"$versions"
-    } | LC_ALL=C awk -F '\t' '
+    # 추출 단계마다 종료 상태를 본다. 실패를 빈 결과로 넘기면 기대 집합이 줄어든 채 대조가 통과한다.
+    if ! out=$(
+        set -o pipefail
         {
-            s = $1
-            if (s !~ /[^[:space:]]/) next
-            if (index(s, ".so") == 0) next
-            p = substr(s, 1, 3)
-            if (p != "lib" && p != "ld." && p != "ld-" && p != "ld6") next
-            print s "(" $2 ")(64bit)"
-        }
-    '
+            sed -n 's/.*(NEEDED).*\[\(.*\)\]$/\1/p' <<<"$dynamic" | LC_ALL=C awk '{ print $0 "\t" }' || exit 1
+            LC_ALL=C awk '
+                /^Version needs section/ { inneed = 1; next }
+                /^Version (definition|symbols) section/ { inneed = 0; next }
+                inneed && match($0, /File: [^ ]+/) { file = substr($0, RSTART + 6, RLENGTH - 6); next }
+                inneed && file != "" && match($0, /Name: [^ ]+/) { print file "\t" substr($0, RSTART + 6, RLENGTH - 6) }
+            ' <<<"$versions" || exit 1
+        } | LC_ALL=C awk -F '\t' '
+            {
+                s = $1
+                if (s !~ /[^[:space:]]/) next
+                if (index(s, ".so") == 0) next
+                p = substr(s, 1, 3)
+                if (p != "lib" && p != "ld." && p != "ld-" && p != "ld6") next
+                print s "(" $2 ")(64bit)"
+            }
+        '
+    ); then
+        echo "Error: extracting NEEDED and version requires failed on $f" >&2
+        return 1
+    fi
+    [[ -n "$out" ]] && printf '%s\n' "$out"
     if grep -qE '\(GNU_HASH\)' <<<"$dynamic" && ! grep -qE '\(HASH\)' <<<"$dynamic"; then
         echo "rtld(GNU_HASH)"
     fi
@@ -88,7 +96,14 @@ rpm_expected_requires_file() {
 # 계약: 실행 비트가 있는 #! 스크립트를 싣지 않고(rpm의 스크립트 생성기가 해석기 Requires를 더한다),
 # ELF는 모두 실행 비트가 있다. 실행 비트만 있는 데이터 파일은 생성기가 Requires를 내지 않아 허용한다.
 rpm_expected_requires() {
-    local root=$1 f rel elf_count=0 rc=0 out
+    local root=$1 f rel elf_count=0 rc=0 out list sorted
+    # find의 종료 상태를 잃지 않도록 목록을 파일로 먼저 받는다(프로세스 치환은 상태를 버린다).
+    list=$(mktemp) || { echo "Error: mktemp failed while listing $root" >&2; return 1; }
+    if ! find "$root" -type f -print0 >"$list"; then
+        rm -f "$list"
+        echo "Error: find failed while listing the payload under $root" >&2
+        return 1
+    fi
     out=$(
         while IFS= read -r -d '' f; do
             rel=${f#"$root"/}
@@ -100,14 +115,23 @@ rpm_expected_requires() {
                 echo "Error: executable script in the payload: /$rel" >&2
                 exit 1
             fi
-        done < <(find "$root" -type f -print0)
+        done <"$list"
     ) || rc=1
+    rm -f "$list"
     elf_count=$(grep -cx '#elf' <<<"$out" || true)
     if [[ $rc -eq 0 && $elf_count -eq 0 ]]; then
         echo "Error: no ELF files in the payload under $root" >&2
         rc=1
     fi
-    grep -vx '#elf' <<<"$out" | grep . | LC_ALL=C sort -u
+    if ! sorted=$(set -o pipefail; LC_ALL=C awk '$0 != "#elf" && $0 != ""' <<<"$out" | LC_ALL=C sort -u); then
+        echo "Error: sorting the expected requires failed" >&2
+        return 1
+    fi
+    if [[ $rc -eq 0 && -z "$sorted" ]]; then
+        echo "Error: the payload ELF files under $root yield no expected requires" >&2
+        rc=1
+    fi
+    [[ -n "$sorted" ]] && printf '%s\n' "$sorted"
     return "$rc"
 }
 
@@ -153,7 +177,13 @@ compare_rpm_requires() {
             exit bad
         }
     ' "$1" | LC_ALL=C sort
-    return "${PIPESTATUS[0]}"
+    local st=("${PIPESTATUS[@]}")
+    # awk는 어긋남이면 1이다. 그 밖의 값과 sort 실패는 대조를 하지 못한 것이다.
+    if [[ ${st[0]} -gt 1 || ${st[1]} -ne 0 ]]; then
+        echo "Error: comparing rpm requires failed (awk ${st[0]}, sort ${st[1]})" >&2
+        return 2
+    fi
+    return "${st[0]}"
 }
 
 # $1 = rpm -qpR 출력 파일, $2 = payload 폴더, $3 = Cargo.toml, $4 = find-requires 경로(진단용).
@@ -163,10 +193,15 @@ verify_rpm_requires_from() {
         echo "Error: the rpm has no requires at all" >&2
         return 1
     fi
-    work=$(mktemp -d)
+    work=$(mktemp -d) || { echo "Error: mktemp failed for the rpm requires check" >&2; return 1; }
     rpm_expected_requires "$root" >"$work/expected" || rc=1
     rpm_manual_requires "$manifest" >"$work/manual" || rc=1
-    if [[ $rc -eq 0 ]] && ! compare_rpm_requires "$reqs" "$work/expected" "$work/manual" >"$work/diff"; then
+    local crc=0
+    if [[ $rc -eq 0 ]]; then
+        compare_rpm_requires "$reqs" "$work/expected" "$work/manual" >"$work/diff" || crc=$?
+        [[ $crc -gt 1 ]] && rc=1
+    fi
+    if [[ $crc -eq 1 ]]; then
         echo "Error: rpm requires do not match the direct dependencies of the payload ELF files:" >&2
         sed 's/^/  /' "$work/diff" >&2
         # 기대에 없는 항목은 payload 파일마다 생성기를 다시 돌려 낸 파일을 찾는다.
