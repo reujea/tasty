@@ -386,11 +386,12 @@ fn popups_of_another_scope_keep_their_state_while_a_surface_owns_the_keys() {
     );
 }
 
-/// 튜토리얼 주제 목록과 R 범위 변환 팝업을 함께 열고 `owner_is_topics` 쪽을 키 주인으로 둔 뒤 ArrowDown·Enter를 넣는다.
-/// (주제 선택, 시작 요청, 변환 상태)를 돌려준다.
-fn topics_beside_convert(
-    owner_is_topics: bool,
-) -> (usize, Option<usize>, Option<(bool, ConvertPayload)>) {
+/// 한 프레임 뒤의 (주제 선택, 시작 요청, 주제 목록이 열려 있는지, 변환 상태).
+type TopicsSeen = (usize, Option<usize>, bool, Option<(bool, ConvertPayload)>);
+
+/// 튜토리얼 주제 목록과 R 범위 변환 팝업을 함께 열고 `owner_is_topics` 쪽을 키 주인으로 둔다. ArrowDown 프레임과
+/// Enter 프레임을 따로 넣고 각 프레임 뒤의 관측을 돌려준다.
+fn topics_beside_convert(owner_is_topics: bool) -> (TopicsSeen, TopicsSeen) {
     let (mut state, mut session) = scene(PANE_R);
     let engine = session.borrow_mut();
     registered(&mut state);
@@ -432,44 +433,61 @@ fn topics_beside_convert(
         convert_drawn(&texts, &labels),
         "변환 본문이 그려진다: 항목 {labels:?}, 칠한 글자 {texts:?}"
     );
-    (
-        state.tutorial.popup_selected,
-        state.tutorial.pending_start,
-        convert_of(&state, convert),
-    )
+    let seen = |state: &RequestContext| -> TopicsSeen {
+        (
+            state.tutorial.popup_selected,
+            state.tutorial.pending_start,
+            state.popups.instance(topics).is_some(),
+            convert_of(state, convert),
+        )
+    };
+    let after_down = seen(&state);
+
+    let texts = frame(&ctx, &mut state, &engine.read(), vec![press(Key::Enter)]);
+    assert!(
+        painted(&texts, t("tutorial.popup_title")),
+        "Enter 프레임에도 주제 목록 본문이 그려진다: {texts:?}"
+    );
+    (after_down, seen(&state))
 }
 
-/// Given 튜토리얼 주제 목록과 R 범위 변환 팝업이 함께 열려 있을 때, When ArrowDown이 오면, Then 키 주인 쪽만 선택을
-/// 옮긴다. 주제 목록이 주인이면 변환 선택이 그대로이고, 변환이 주인이면 주제 선택이 그대로다.
+/// Given 튜토리얼 주제 목록과 R 범위 변환 팝업이 함께 열려 있을 때, When ArrowDown 프레임 뒤 Enter 프레임이 오면,
+/// Then 키 주인 쪽만 반응한다. 주제 목록이 주인이면 주제 선택이 옮고 Enter로 시작을 요청하며 변환은 그대로다.
+/// 변환이 주인이면 변환 선택이 옮고 Enter로 변환을 확정해 닫히며, 주제 목록은 두 프레임 뒤 모두 열린 채 선택과
+/// 시작 요청이 그대로다.
 #[test]
 fn only_the_key_owner_reacts_when_tutorial_topics_share_the_screen_with_another_popup() {
-    let (topic_selected, started, convert) = topics_beside_convert(true);
-    assert_eq!(topic_selected, 1, "주제 목록이 주인이면 주제 선택이 옮는다");
-    assert_eq!(started, None);
-    assert_eq!(
-        convert,
+    let convert_at = |selected| {
         Some((
             true,
             ConvertPayload {
                 surface_id: SURFACE_R,
-                selected: Some(0),
-            }
-        )),
-        "주제 목록이 주인이면 변환 선택은 그대로다"
+                selected: Some(selected),
+            },
+        ))
+    };
+
+    let (after_down, after_enter) = topics_beside_convert(true);
+    assert_eq!(
+        after_down,
+        (1, None, true, convert_at(0)),
+        "주제 목록이 주인이면 ArrowDown으로 주제 선택만 옮는다"
+    );
+    assert_eq!(
+        after_enter,
+        (1, Some(1), false, convert_at(0)),
+        "주제 목록이 주인이면 Enter로 고른 주제의 시작을 요청하고 닫힌다. 변환은 그대로다"
     );
 
-    let (topic_selected, started, convert) = topics_beside_convert(false);
-    assert_eq!(topic_selected, 0, "변환이 주인이면 주제 선택은 그대로다");
-    assert_eq!(started, None, "변환이 주인이면 주제 시작 요청이 없다");
+    let (after_down, after_enter) = topics_beside_convert(false);
     assert_eq!(
-        convert,
-        Some((
-            true,
-            ConvertPayload {
-                surface_id: SURFACE_R,
-                selected: Some(1),
-            }
-        )),
-        "변환이 주인이면 변환 선택이 옮는다"
+        after_down,
+        (0, None, true, convert_at(1)),
+        "변환이 주인이면 ArrowDown으로 변환 선택만 옮고 주제 목록은 열린 채 그대로다"
+    );
+    assert_eq!(
+        after_enter,
+        (0, None, true, None),
+        "변환이 주인이면 Enter로 변환이 확정해 닫히고 주제 목록은 열린 채 시작 요청이 없다"
     );
 }
