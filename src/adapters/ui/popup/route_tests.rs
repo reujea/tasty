@@ -455,3 +455,7 @@ mod tutorial_exclusive;
 #[cfg(feature = "gui")]
 #[path = "frame_key_owner_tests.rs"]
 mod frame_keys;
+
+#[cfg(feature = "gui")]
+#[path = "scene_key_owner_tests.rs"]
+mod scene_keys;
