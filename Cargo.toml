@@ -113,9 +113,13 @@ freetype = "*"
 fontconfig = "*"
 
 # Debian의 libvulkan1과 같은 동적 로딩용 권장 의존성이다.
+# tray-icon은 AppIndicator를 링크하지 않고 실행 중에 열어서 자동 Requires에 나오지 않는다. 패키지 이름이 배포판마다
+# 달라(Fedora libayatana-appindicator-gtk3, openSUSE 등) soname capability로 권장한다. cargo-generate-rpm은 키를
+# 그대로 Recommends 이름으로 쓴다.
 [package.metadata.generate-rpm.recommends]
 vulkan-loader = "*"
 zenity = "*"
+"libayatana-appindicator3.so.1()(64bit)" = "*"
 
 # 모듈과 공개 API는 lib에, 실행 진입점은 bin에 둔다.
 # 외부 공개 범위는 cargo doc -p tasty --no-deps로 확인할 수 있다.

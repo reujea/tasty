@@ -373,6 +373,15 @@ fn manual_requires_come_from_cargo_toml_and_accept_only_any_version() {
     assert_eq!(rc, 1);
     assert!(err.contains("only name = \"*\""), "{err}");
 
+    // 다음 표(recommends)의 따옴표 키는 수동 Requires로 읽지 않는다. Recommends는 rpm -qpR에도 나오지 않는다.
+    let with_recommends = "[package.metadata.generate-rpm.requires]\nfreetype = \"*\"\n\n\
+                           [package.metadata.generate-rpm.recommends]\n\
+                           \"libayatana-appindicator3.so.1()(64bit)\" = \"*\"\n";
+    std::fs::write(dir.path().join("r.toml"), with_recommends).expect("r");
+    let (rc, out, err) = run(dir.path(), &bin, "rpm_manual_requires r.toml");
+    assert_eq!(rc, 0, "{err}");
+    assert_eq!(lines(&out), ["freetype"]);
+
     let empty = "[package.metadata.generate-rpm.requires]\n\n[other]\nx = \"*\"\n";
     std::fs::write(dir.path().join("e.toml"), empty).expect("e");
     let (rc, _, err) = run(dir.path(), &bin, "rpm_manual_requires e.toml");
