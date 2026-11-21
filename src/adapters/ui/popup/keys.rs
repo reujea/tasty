@@ -124,7 +124,8 @@ pub(crate) enum ConsumedKey {
 }
 
 /// 팝업 그리기가 키를 읽는 통로. 키를 받지 않는 인스턴스(`receives`가 거짓이거나 선언이 `None`)는
-/// 모든 조회에서 빈 값을 받는다. 소비 집합 밖 키도 빈 값이다. 소비한 키는 기록해 관리자가 남은 키를
+/// 모든 조회에서 빈 값을 받는다. 소비 집합 밖 키도 기본 조작·콘텐츠 고유 키 모두 빈 값이고 입력에 남는다.
+/// 키 누름은 사건 하나씩 그 사건의 수정키로 판정한다. 소비한 키는 기록해 관리자가 남은 키를
 /// 선언대로 처리하거나 조상으로 올릴 때 쓴다.
 pub(crate) struct PopupKeys {
     ctx: egui::Context,
@@ -169,18 +170,72 @@ impl PopupKeys {
         self.receives
     }
 
-    /// 기본 조작이 이번 프레임에 눌렸는지. 소비하지 않는다.
-    pub(crate) fn pressed(&self, basic: BasicKey) -> bool {
-        self.receives && self.ctx.input(|i| basic.pressed(i, self.super_held))
+    /// 사건이 기본 조작 `basic`의 누름이면 그 키와 사건의 수정키. 프레임 수정키는 보지 않는다.
+    fn basic_press(
+        &self,
+        basic: BasicKey,
+        event: &egui::Event,
+    ) -> Option<(egui::Key, egui::Modifiers)> {
+        match event {
+            egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } if tasty_key_match::binding_matches_egui(
+                &basic.owned_bindings(),
+                *key,
+                *modifiers,
+                self.super_held,
+            ) =>
+            {
+                Some((*key, *modifiers))
+            }
+            _ => None,
+        }
     }
 
-    /// 기본 조작 누름을 소비한다. 소비했으면 기록하고 참이다.
+    /// 키 누름 하나가 이 통로 선언의 소비 집합에 드는지.
+    fn in_set(&self, (key, modifiers): (egui::Key, egui::Modifiers)) -> bool {
+        consumes_key(self.keyboard, key, modifiers, self.super_held, &self.edits)
+    }
+
+    /// 기본 조작이 이번 프레임에 눌렸는지. 소비 집합 안의 누름만 센다. 소비하지 않는다.
+    pub(crate) fn pressed(&self, basic: BasicKey) -> bool {
+        self.receives
+            && self.ctx.input(|i| {
+                i.events
+                    .iter()
+                    .filter_map(|e| self.basic_press(basic, e))
+                    .any(|p| self.in_set(p))
+            })
+    }
+
+    /// 기본 조작 누름 가운데 소비 집합 안의 것을 소비한다. 소비했으면 기록하고 참이다. 지운 누름 바로 뒤의
+    /// 글자 사건도 지운다(`tasty_key_match::consume_binding_egui`와 같은 규칙).
     pub(crate) fn consume(&mut self, basic: BasicKey) -> bool {
         if !self.receives {
             return false;
         }
-        let super_held = self.super_held;
-        let hit = self.ctx.input_mut(|i| basic.consume(i, super_held));
+        let hit = self.ctx.input_mut(|i| {
+            let mut hit = false;
+            let mut n = 0;
+            while n < i.events.len() {
+                let take = self
+                    .basic_press(basic, &i.events[n])
+                    .is_some_and(|p| self.in_set(p));
+                if !take {
+                    n += 1;
+                    continue;
+                }
+                i.events.remove(n);
+                hit = true;
+                if matches!(i.events.get(n), Some(egui::Event::Text(_))) {
+                    i.events.remove(n);
+                }
+            }
+            hit
+        });
         if hit {
             self.consumed.push(ConsumedKey::Basic(basic));
         }

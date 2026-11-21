@@ -385,3 +385,82 @@ fn a_keys_popup_leaves_edit_bindings() {
         "paste [ctrl+v]이면 같은 v를 소비"
     );
 }
+
+/// 기본 조작을 한 번 조회하고 소비한 뒤 같은 키 누름이 남았는지.
+fn basic_once(
+    keyboard: PopupKeyboard,
+    edits: &EditBindings,
+    frame_mods: egui::Modifiers,
+    event_mods: egui::Modifiers,
+    key: egui::Key,
+    basic: BasicKey,
+) -> (bool, bool, bool) {
+    frame_with(frame_mods, vec![press(key, event_mods)], |ctx| {
+        let mut keys = PopupKeys::new(ctx, true, keyboard, edits);
+        let pressed = keys.pressed(basic);
+        let consumed = keys.consume(basic);
+        let left = ctx.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, .. } if *k == key))
+        });
+        (pressed, consumed, left)
+    })
+}
+
+/// 편집 바인딩으로 저장한 수식키 없는 키는 `Keys` 팝업의 소비 집합 밖이라 기본 조작으로도 받지 않는다.
+#[test]
+fn a_keys_popup_leaves_a_basic_key_saved_as_an_edit_binding() {
+    let none = egui::Modifiers::NONE;
+    let (pressed, consumed, left) = basic_once(
+        PopupKeyboard::Keys,
+        &edits(&[], &[], &["tab"]),
+        none,
+        none,
+        egui::Key::Tab,
+        BasicKey::Tab,
+    );
+    assert!(!pressed, "(a) Keys paste [tab]: pressed(Tab)이 참이다");
+    assert!(!consumed, "(a) Keys paste [tab]: consume(Tab)이 참이다");
+    assert!(left, "(a) Keys paste [tab]: Tab 누름이 지워졌다");
+}
+
+/// 대조: 같은 설정에서 `Text` 팝업은 편집 바인딩이 소비 집합 안이라 받고 지운다.
+#[test]
+fn a_text_popup_takes_a_basic_key_saved_as_an_edit_binding() {
+    let none = egui::Modifiers::NONE;
+    assert_eq!(
+        basic_once(
+            PopupKeyboard::Text,
+            &edits(&[], &[], &["tab"]),
+            none,
+            none,
+            egui::Key::Tab,
+            BasicKey::Tab,
+        ),
+        (true, true, false),
+        "(b) Text paste [tab]"
+    );
+}
+
+/// 기본 조작은 사건의 수정키로 판정한다. 프레임 수정키가 비어도 Ctrl+Tab 누름은 Tab이 아니다.
+#[test]
+fn a_basic_key_is_judged_by_the_event_modifiers_not_the_frame() {
+    let (pressed, consumed, left) = basic_once(
+        PopupKeyboard::Keys,
+        &EditBindings::default(),
+        egui::Modifiers::NONE,
+        egui::Modifiers::CTRL,
+        egui::Key::Tab,
+        BasicKey::Tab,
+    );
+    assert!(
+        !pressed,
+        "(c) 사건 Ctrl+Tab·프레임 빈 수정키: pressed(Tab)이 참이다"
+    );
+    assert!(
+        !consumed,
+        "(c) 사건 Ctrl+Tab·프레임 빈 수정키: consume(Tab)이 참이다"
+    );
+    assert!(left, "(c) Ctrl+Tab 누름이 지워졌다");
+}
