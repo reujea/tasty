@@ -468,7 +468,7 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         let p = parse_fetch(&package[0]);
         assert!(
             really_fetches(&p) && !p.all && p.platform.as_deref() == Some(platform),
-            "{platform}: scripts/lib/bundled-plugins.sh 의 배포 fetch 가 그 플랫폼으로 --all 없이 받지 않는다: {:?}",
+            "{platform}: scripts/lib/bundled-plugins.sh 의 배포 fetch 가 그 플랫폼으로 --all·--lock 없이 받지 않는다: {:?}",
             package[0]
         );
     }
@@ -491,7 +491,7 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         let p = parse_fetch(&staging[0]);
         assert!(
             really_fetches(&p) && p.all && p.platform.as_deref() == Some(platform),
-            "{platform}: scripts/stage-dev-plugins.sh 기본 분기가 그 플랫폼으로 --all 받지 않는다: {:?}",
+            "{platform}: scripts/stage-dev-plugins.sh 기본 분기가 그 플랫폼으로 --lock 없이 --all 받지 않는다: {:?}",
             staging[0]
         );
     }
@@ -504,7 +504,7 @@ fn the_windows_package_fetches_only_bundled_entries() {
     let p = parse_fetch(&argv);
     assert!(
         really_fetches(&p) && !p.all,
-        "scripts/build-windows.ps1 의 배포 fetch 가 --all 없이 --platform·--out 으로 받지 않는다: {argv:?}"
+        "scripts/build-windows.ps1 의 배포 fetch 가 --all·--lock 없이 --platform·--out 으로 받지 않는다: {argv:?}"
     );
 }
 
@@ -640,7 +640,11 @@ fn the_staging_harness_reads_what_bash_passes() {
         ("실패 때만 끝내는 호출", format!("{real} || exit 0")),
         (
             "실제 산출물이 있으면 실패를 삼키는 호출",
-            format!("{real} || [ -f \"$stage/com.tasty.claude/tasty-plugin.toml\" ]"),
+            // 잠금의 첫 항목(픽스처에 매니페스트가 있다)으로 고정해 잠금 구성과 관계없이 매니페스트를 본다.
+            format!(
+                "{real} || [ -f \"$stage/{}/tasty-plugin.toml\" ]",
+                locked[0]
+            ),
         ),
         (
             "검사 전에 끝내는 분기",
