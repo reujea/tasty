@@ -93,7 +93,7 @@ fn the_layout_of_a_run_time_declaration_reaches_the_instance() {
         "scope_kind": "surface", "size": { "width": 360, "height": 150 },
         "covers_scope": false, "fit": "shrink", "scope_inset": false, "escape": "ignore"
     }));
-    mgr.declare_popup(PLUGIN, "confirm", layout_decl.clone())
+    mgr.declare_popup(PLUGIN, "confirm", layout_decl)
         .expect("declare");
     let iid = mgr
         .open_popup_instance(PLUGIN, "confirm", json!({ "surface_id": 7 }))

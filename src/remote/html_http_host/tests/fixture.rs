@@ -7,12 +7,14 @@ use std::{
     },
     time::Duration,
 };
+/// Every request the fixture received, as (head, body).
+type Requests = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
 pub(super) struct Fixture {
     url: String,
     count: Arc<AtomicUsize>,
     upload: Arc<Mutex<Vec<u8>>>,
     release: Arc<AtomicBool>,
-    requests: Arc<Mutex<Vec<(String, Vec<u8>)>>>,
+    requests: Requests,
     stop: Arc<AtomicBool>,
     join: Option<std::thread::JoinHandle<()>>,
 }

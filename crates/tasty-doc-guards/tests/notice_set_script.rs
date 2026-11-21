@@ -149,11 +149,14 @@ fn a_link_in_licenses_is_rejected() {
     assert!(err.contains("LICENSES/c.txt"), "stderr: {err}");
 }
 
+/// 숨김 항목 시험의 한 경우: 이름과 그 항목을 만드는 함수.
+type HiddenCase = (&'static str, fn(&Path));
+
 /// 점으로 시작하는 항목도 열거해 같은 규칙을 적용한다. 숨김 폴더·링크가 열거에서 빠지면
 /// 거부 분기를 우회하고, 숨김 파일은 라이선스 본문이 아니므로 받지 않는다.
 #[test]
 fn hidden_entries_in_licenses_are_rejected() {
-    let cases: [(&str, fn(&Path)); 3] = [
+    let cases: [HiddenCase; 3] = [
         (".sub", |root| {
             std::fs::create_dir(root.join("LICENSES/.sub")).expect("hidden dir");
             std::fs::write(root.join("LICENSES/.sub/New-MIT.txt"), "n\n").expect("new");

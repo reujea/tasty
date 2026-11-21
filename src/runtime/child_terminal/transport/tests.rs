@@ -191,22 +191,23 @@ fn dropped_reply_and_owner_still_drain_the_accepted_command() {
 }
 #[test]
 fn failed_admission_keeps_baseline_and_explicit_retry_does_not_replay_old_command() {
-    let mut limits = Limits::default();
-    limits.queue_items = 1;
+    let limits = Limits {
+        queue_items: 1,
+        ..Limits::default()
+    };
     let mut f = Fixture::limits(limits);
     let mut client = f.client();
     let (release, gate) = f.gate();
     client.set_idle(100, true);
     assert!(client.submit().is_err());
     assert!(
-        client
+        !client
             .client
             .lock()
             .unwrap()
             .accepted
             .idle
-            .get(&100)
-            .is_none()
+            .contains_key(&100)
     );
     gate_done(release, gate);
     wait(&client.submit().unwrap()).unwrap();
@@ -228,8 +229,10 @@ fn corrupt_latest_refuses_reservation_without_index_or_replacement() {
 }
 #[test]
 fn pending_adopt_close_retains_cleanup_until_admitted_before_shutdown_fence() {
-    let mut limits = Limits::default();
-    limits.queue_items = 2;
+    let limits = Limits {
+        queue_items: 2,
+        ..Limits::default()
+    };
     let mut f = Fixture::limits(limits);
     let mut client = f.client();
     let (release, gate) = f.gate();
@@ -375,8 +378,10 @@ fn engine_retirement_reports_saved_but_unapplied_and_never_hangs_the_original_ti
 #[cfg(feature = "gui")]
 #[test]
 fn atomic_adopt_tags_new_identities_and_pending_window_retirement_removes_counters() {
-    let mut limits = Limits::default();
-    limits.queue_items = 2;
+    let limits = Limits {
+        queue_items: 2,
+        ..Limits::default()
+    };
     let mut f = Fixture::limits(limits);
     let mut client = f.client();
     client.bind_slot(Some(17));
@@ -394,9 +399,9 @@ fn atomic_adopt_tags_new_identities_and_pending_window_retirement_removes_counte
     wait(&next).unwrap();
     let disk = f.disk();
     assert!(disk.parent_of_child(200).is_none());
-    assert!(disk.next_index.get(&20).is_none());
+    assert!(!disk.next_index.contains_key(&20));
     assert!(disk.parent_of_child(100).is_none());
-    assert!(disk.next_index.get(&10).is_none());
+    assert!(!disk.next_index.contains_key(&10));
     assert!(disk.slot_of.values().all(|slot| *slot != 17));
 }
 
@@ -428,8 +433,10 @@ fn retirement_keeps_other_engines_unregistered_numeric_and_external_reservations
 #[cfg(feature = "gui")]
 #[test]
 fn existing_owner_retirement_survives_full_queue_and_owner_drop_until_final_drain() {
-    let mut limits = Limits::default();
-    limits.queue_items = 1;
+    let limits = Limits {
+        queue_items: 1,
+        ..Limits::default()
+    };
     let mut f = Fixture::limits(limits);
     let mut owner = f.client();
     owner.bind_slot(Some(17));
