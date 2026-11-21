@@ -4,7 +4,7 @@
 
 ## 원칙
 
-`Result` 를 `let _ =` 로 무시하지 않는다. 무시는 *명시적 정책 결정* 이어야 하고 그 이유가 주석으로 남는다.
+`Result` 를 `let _ =` 로 무시하지 않는다. 무시는 *명시적 정책 결정* 이어야 하고 그 이유가 주석과 문장 단위 `expect`의 `reason`으로 남는다([의도적 무시](#의도적-무시)).
 
 ```rust
 // ✅ 실패 시 로그 (기본 패턴)
@@ -33,9 +33,19 @@ let _ = self.state.split_surface(SplitDirection::Vertical);
 
 실패를 무시해도 되는 경우에만 `let _ =` 를 허용하되 **왜 무시하는지 한 줄 주석**을 단다. 근거 없는 `let _ =` 는 리뷰에서 차단.
 
+제품 코드에서 `Result`나 `#[must_use]` 값을 버리는 문장에는 주석과 함께 문장 단위
+`#[expect(clippy::let_underscore_must_use, reason = "...")]`도 단다. 주석만 있으면
+`let_underscore_must_use`(warn)가 발동하고, CI clippy 단계와 pre-push B.4는 `-D warnings`로
+돌아 그 경고에서 실패한다. `must_use`가 아닌 값을 버리는 `let _ =`(변수 바인딩 억제 등)에는
+lint가 발동하지 않으므로 주석만 단다. 발동하지 않는 자리에 `expect`를 달면
+`unfulfilled_lint_expectations`로 같은 단계가 실패한다.
+
 ```rust
-// 채널 receiver 가 이미 drop 된 정상 종료 케이스 — 송신 실패 무시.
-let _ = tx.send(msg);
+#[expect(
+    clippy::let_underscore_must_use,
+    reason = "The receiver may already be dropped during shutdown."
+)]
+let _ = tx.send(msg); // 채널 receiver 가 이미 drop 된 정상 종료 케이스 — 송신 실패 무시.
 ```
 
 ### 정상 종료와 의도된 반환값 버리기
