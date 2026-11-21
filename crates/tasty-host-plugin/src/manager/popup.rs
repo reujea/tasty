@@ -179,6 +179,17 @@ impl PluginManager {
         self.popup_instances.insert(instance_id, instance);
     }
 
+    /// 프로세스 없이 팝업 렌더를 시험하기 위해 그 인스턴스가 받은 최근 프레임을 둔다.
+    /// test-support 기능을 켰을 때만 제공한다.
+    #[cfg(feature = "test-support")]
+    pub fn insert_popup_mesh_frame_for_test(
+        &mut self,
+        instance_id: u64,
+        frame: super::EguiMeshFrame,
+    ) {
+        self.popup_mesh_frames.insert(instance_id, frame);
+    }
+
     /// 현재 활성 popup 인스턴스 목록. PopupManager 렌더 / debug IPC가 사용.
     pub fn popup_instances(&self) -> impl Iterator<Item = (u64, &PopupInstance)> {
         self.popup_instances.iter().map(|(k, v)| (*k, v))

@@ -1128,3 +1128,176 @@ fn each_frame_decision_gives_its_keys_to_one_node_only() {
         );
     }
 }
+
+/// 두 번째 plugin 팝업. P 와 같은 선언으로 R 에 연다.
+const OTHER_POPUP: u64 = 10;
+
+/// 이번 프레임 plugin 렌더가 `instance`에 보낸 요청의 입력.
+fn sent_inputs(
+    state: &mut RequestContext,
+) -> Vec<(u64, tasty_plugin_protocol::protocol::RawInputWire)> {
+    use crate::app::frame_effect::{DrawEffect, FrameEffect};
+    use crate::app::plugin_display::PluginDisplayRequest;
+    state
+        .take_pending_intents()
+        .into_iter()
+        .filter_map(|d| match d.body {
+            crate::intent::Intent::Frame(FrameEffect::Draw(DrawEffect::PluginDisplay(
+                PluginDisplayRequest::Popup { params, .. },
+            ))) => Some((params.instance_id, params.raw_input)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Given 키 주인인 plugin 팝업 P 와 키 주인이 아닌 plugin 팝업 Q 에 각각 보류 편집 요청이 줄 서 있을 때, When
+/// `draw_plugin_popups`로 그리면, Then 각 요청은 자기 인스턴스의 `Popup` 요청 입력 끝에 붙고 다른 인스턴스에는 붙지
+/// 않는다. 붙이기는 키 주인과 관계없이 인스턴스로 고른다.
+#[test]
+fn a_held_edit_request_rides_on_its_own_popup_request() {
+    use tasty_plugin_protocol::protocol::RawInputEventWire as W;
+    let (mut state, mut session, mut mgr) = plugin_only_scene();
+    mgr.insert_popup_instance_for_test(
+        OTHER_POPUP,
+        plugin_popup(
+            tasty_host_plugin::next_popup_z_seq(),
+            tasty_plugin_protocol::popup_decl::PopupEscape::Close,
+        ),
+    );
+    let engine = session.borrow_mut();
+    focus_p(&mut state);
+    let mine = W::PasteText {
+        text: "for P".into(),
+    };
+    state.plugin_popup_edit_requests.push((POPUP, mine.clone()));
+    state.plugin_popup_edit_requests.push((OTHER_POPUP, W::Cut));
+    render_frame(&mut state, &engine.read(), &mgr, false, &|state| {
+        assert_eq!(
+            state.popup_key_owner(),
+            plugin_owner(),
+            "전제: live 키 주인은 P"
+        );
+    });
+    let sent = sent_inputs(&mut state);
+    let input_of = |id: u64| {
+        sent.iter()
+            .rev()
+            .find(|(iid, _)| *iid == id)
+            .map(|(_, input)| input.clone())
+    };
+    let p = input_of(POPUP).expect("P 의 Popup 요청이 없다");
+    assert!(p.focused, "전제: P 가 키 포커스를 가진다");
+    assert_eq!(
+        p.events.last(),
+        Some(&mine),
+        "P 의 보류 편집 요청이 P 요청 입력 끝에 붙는다"
+    );
+    assert!(
+        !p.events.contains(&W::Cut),
+        "Q 의 편집 요청이 P 요청에 붙었다"
+    );
+    let q = input_of(OTHER_POPUP).expect("Q 의 Popup 요청이 없다");
+    assert!(!q.focused, "전제: Q 는 키 포커스가 없다");
+    assert_eq!(
+        q.events.last(),
+        Some(&W::Cut),
+        "키 주인이 아닌 Q 의 편집 요청도 Q 요청 입력 끝에 붙는다"
+    );
+    assert!(
+        !q.events.contains(&mine),
+        "P 의 편집 요청이 Q 요청에 붙었다"
+    );
+    assert!(
+        state.plugin_popup_edit_requests.is_empty(),
+        "붙인 요청은 대기열에서 빠진다"
+    );
+}
+
+/// 캐럿을 든 P 의 최근 프레임.
+fn frame_with_caret(
+    ime: &tasty_plugin_protocol::ImeCursorWire,
+) -> tasty_host_plugin::EguiMeshFrame {
+    tasty_host_plugin::EguiMeshFrame {
+        plugin_id: PLUGIN.into(),
+        buffer_id: tasty_plugin_protocol::SharedBufferId(1),
+        generation: 1,
+        frame_seq: 1,
+        full_textures: true,
+        byte_len: 0,
+        ime_cursor: Some(*ime),
+        banner_body_cut: None,
+    }
+}
+
+/// P 에 캐럿 든 프레임을 두고 한 프레임 그린 뒤 (저장된 캐럿 영역, P 의 창 영역)을 돌려준다. `focus`면 P 를
+/// 포커스 노드로 한다.
+fn caret_after_render(
+    focus: bool,
+    ime: &tasty_plugin_protocol::ImeCursorWire,
+) -> (
+    Option<crate::model::PhysicalRect>,
+    Option<crate::model::PhysicalRect>,
+) {
+    let (mut state, mut session, mut mgr) = plugin_only_scene();
+    mgr.insert_popup_mesh_frame_for_test(POPUP, frame_with_caret(ime));
+    let engine = session.borrow_mut();
+    if focus {
+        focus_p(&mut state);
+    }
+    render_frame(&mut state, &engine.read(), &mgr, !focus, &|state| {
+        assert_eq!(
+            state.popup_key_owner().is_some(),
+            focus,
+            "전제: live 키 주인이 P 인지"
+        );
+    });
+    let region = state
+        .plugin_mesh_popup_regions
+        .iter()
+        .find(|(id, _)| *id == POPUP)
+        .map(|(_, r)| *r);
+    (state.plugin_popup_ime_cursor_area, region)
+}
+
+/// 비교용 네 변(물리 px).
+fn edges(r: crate::model::PhysicalRect) -> (f32, f32, f32, f32) {
+    (r.x.value(), r.y.value(), r.width.value(), r.height.value())
+}
+
+/// Given P 의 최근 프레임이 IME 캐럿을 들고 있을 때, When `draw_plugin_popups`로 그리면, Then 키 포커스를 가진 P 는
+/// 그 캐럿을 P 의 창 영역 기준으로 `plugin_popup_ime_cursor_area`에 저장하고, 키 포커스가 없는 P 는 저장하지 않는다.
+#[test]
+fn only_the_focused_plugin_popup_stores_its_ime_caret() {
+    use tasty_plugin_protocol::protocol::RectWire;
+    let ime = tasty_plugin_protocol::ImeCursorWire {
+        rect: RectWire {
+            x: 4.0,
+            y: 6.0,
+            width: 120.0,
+            height: 20.0,
+        },
+        cursor_rect: RectWire {
+            x: 30.0,
+            y: 8.0,
+            width: 1.0,
+            height: 16.0,
+        },
+    };
+    let (caret, region) = caret_after_render(true, &ime);
+    let region = region.expect("P 를 그렸다");
+    assert_eq!(
+        caret.map(edges),
+        Some(edges(crate::plugin_bridge::mesh_ime_cursor_area(
+            region, &ime, 1.0
+        ))),
+        "포커스 P 의 캐럿이 창 좌표로 저장된다"
+    );
+
+    let (caret, region) = caret_after_render(false, &ime);
+    assert!(region.is_some(), "포커스 없는 P 도 그렸다");
+    assert_eq!(
+        caret.map(edges),
+        None,
+        "포커스 없는 P 는 캐럿을 저장하지 않는다"
+    );
+}
