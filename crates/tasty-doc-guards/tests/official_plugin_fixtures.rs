@@ -234,18 +234,20 @@ fn fixture_manifests_match_their_lock_entries() {
 
 /// 스캐너와 무관한 파일 존재 검사라 모든 플랫폼에서 돈다.
 #[test]
-fn every_fixture_has_an_english_catalog() {
+fn every_fixture_has_its_manifest_and_english_catalog() {
+    // 두 필수 파일의 존재는 모든 플랫폼에서 본다. 필드 판독만 스캐너가 있는 Unix 에서 돈다.
     let lock = lock();
     let root = fixtures_root();
-    let missing: Vec<&str> = lock
+    let missing: Vec<String> = lock
         .plugins
         .iter()
-        .filter(|p| !root.join(&p.id).join("lang/en.toml").is_file())
-        .map(|p| p.id.as_str())
+        .flat_map(|p| ["tasty-plugin.toml", "lang/en.toml"].map(|f| (p, f)))
+        .filter(|(p, f)| !root.join(&p.id).join(f).is_file())
+        .map(|(p, f)| format!("{}/{f}", p.id))
         .collect();
     assert!(
         missing.is_empty(),
-        "픽스처에 lang/en.toml 이 없다. scripts/sync-official-plugin-fixtures.sh --update 로 다시 쓴다: {missing:?}"
+        "픽스처에 필수 파일이 없다. scripts/sync-official-plugin-fixtures.sh --update 로 다시 쓴다: {missing:?}"
     );
 }
 

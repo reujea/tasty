@@ -144,7 +144,7 @@ if ! awk -f "$scan_awk" "$work/lock.toml" > "$work/lock.scan"; then
 fi
 # 잠금 항목의 id·version·bundle을 탭으로 나열한다. 잠금 파일은 generate가 쓰는 형식만 받는다:
 # 표는 [release]·[[plugin]]·[[plugin.artifact]]의 맨 이름이고, [[plugin]]마다 맨 키 id(기본 문자열)와
-# version(기본 문자열)·bundle(불 값)이 하나씩 있다. 잠금 파일에는 bundle 기본값이 없다(official-plugins check가 거부한다).
+# version(기본 문자열)·bundle(불 값)이 하나씩 있다. id는 checker와 같은 공식 id 꼴이고 겹치지 않는다. 잠금 파일에는 bundle 기본값이 없다(official-plugins check가 거부한다).
 if ! awk -F'\t' '
     function fail(m) { if (err == "") err = m }
     $1 == "H" {
@@ -154,7 +154,12 @@ if ! awk -F'\t' '
         next
     }
     $1 == "K" && inp && $2 == "unknown" { fail("unreadable key in a [[plugin]] table") }
-    $1 == "K" && inp && $3 == "id" { if ($2 != "bare" || $4 != "basic" || (n in id)) fail("unexpected id in plugin " n); id[n] = $5 }
+    $1 == "K" && inp && $3 == "id" {
+        if ($2 != "bare" || $4 != "basic" || (n in id)) fail("unexpected id in plugin " n)
+        if ($5 !~ /^com[.]tasty[.][a-z0-9-]+$/) fail("id is not an official plugin id: " $5)
+        if (ids[$5]++) fail("duplicate id " $5)
+        id[n] = $5
+    }
     $1 == "K" && inp && $3 == "version" { if ($2 != "bare" || $4 != "basic" || (n in v)) fail("unexpected version in plugin " n); v[n] = $5 }
     $1 == "K" && inp && $3 == "bundle" { if ($2 != "bare" || $4 != "bool" || (n in b)) fail("unexpected bundle in plugin " n); b[n] = $5 }
     END {

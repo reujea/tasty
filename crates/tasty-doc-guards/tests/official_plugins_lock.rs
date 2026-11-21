@@ -81,8 +81,10 @@ fn fetch_calls(rel: &str) -> Vec<String> {
     fetch_calls_in(&read(rel))
 }
 
-/// 호출 줄을 셸처럼 단어로 나눈다. 큰·작은따옴표 안의 공백은 단어를 나누지 않고 따옴표는 벗긴다.
-/// 따옴표 밖 `\`는 다음 글자를 그대로 둔다. 단어 첫머리의 따옴표 밖 `#`부터는 주석이다.
+/// 호출 줄을 Bash처럼 단어로 나눈다. 큰·작은따옴표 안의 공백은 단어를 나누지 않고 따옴표는 벗긴다.
+/// 따옴표 밖 `\`는 다음 글자를 그대로 둔다. 큰따옴표 안 `\`는 `$`·`` ` ``·`"`·`\` 앞에서만 이스케이프이고
+/// 그 밖에서는 글자로 남는다(`"\--all"`은 `\--all`). 단어 첫머리의 따옴표 밖 `#`부터는 주석이고,
+/// 따옴표 밖 `;`·`|`에서 명령이 끝난다.
 /// 변수 확장은 하지 않는다(`"$stage"`는 글자 그대로 `$stage`).
 fn call_args(call: &str) -> Vec<String> {
     let mut words = Vec::new();
@@ -93,11 +95,13 @@ fn call_args(call: &str) -> Vec<String> {
     while let Some(c) = chars.next() {
         match quote {
             Some(q) if c == q => quote = None,
-            Some('"') if c == '\\' => {
-                if let Some(n) = chars.next() {
+            Some('"') if c == '\\' => match chars.clone().next() {
+                Some(n @ ('$' | '`' | '"' | '\\')) => {
                     word.push(n);
+                    chars.next();
                 }
-            }
+                _ => word.push(c),
+            },
             Some(_) => word.push(c),
             None if c == '"' || c == '\'' => {
                 quote = Some(c);
@@ -115,7 +119,7 @@ fn call_args(call: &str) -> Vec<String> {
                     in_word = false;
                 }
             }
-            None if c == '#' && !in_word => break,
+            None if (c == '#' && !in_word) || c == ';' || c == '|' => break,
             None => {
                 word.push(c);
                 in_word = true;
@@ -126,6 +130,21 @@ fn call_args(call: &str) -> Vec<String> {
         words.push(word);
     }
     words
+}
+
+/// 배포 스크립트의 실제 호출 꼴. Bash는 `if ! ./scripts/fetch-official-plugins.sh ...`,
+/// PowerShell은 `& $Bash ./scripts/fetch-official-plugins.sh ...`다.
+fn is_package_fetch_call(rel: &str, args: &[String]) -> bool {
+    const SCRIPT: &str = "./scripts/fetch-official-plugins.sh";
+    match rel {
+        "scripts/lib/bundled-plugins.sh" => {
+            matches!(args, [a, b, script, ..] if a == "if" && b == "!" && script == SCRIPT)
+        }
+        "scripts/build-windows.ps1" => {
+            matches!(args, [a, b, script, ..] if a == "&" && b == "$Bash" && script == SCRIPT)
+        }
+        _ => false,
+    }
 }
 
 /// 개발 스테이징이 쓰는 실제 호출 꼴: `bash "$root/scripts/fetch-official-plugins.sh" ...`.
@@ -249,8 +268,13 @@ fn the_package_scripts_fetch_only_bundled_entries_and_dev_staging_fetches_all() 
         let calls = fetch_calls(rel);
         assert!(!calls.is_empty(), "{rel}에서 fetch 호출을 찾지 못했다");
         for call in &calls {
+            let args = call_args(call);
             assert!(
-                !has_word(&call_args(call), "--all"),
+                is_package_fetch_call(rel, &args),
+                "{rel}의 fetch 줄이 스크립트를 실행하는 호출 꼴이 아니다: {call}"
+            );
+            assert!(
+                !fetch_flags(&args).contains(&"--all"),
                 "{rel}의 배포 fetch가 --all 로 bundle = false 항목까지 싣는다: {call}"
             );
         }
@@ -311,6 +335,35 @@ fn the_staging_check_reads_only_real_arguments_of_the_default_branch() {
         fetch_flags(&call_args(&real.replacen("--all", "\"--all\"", 1))).contains(&"--all"),
         "따옴표로 쓴 실제 옵션 --all 을 놓쳤다"
     );
+    assert!(
+        !fetch_flags(&call_args(&real.replacen("--all", "\"\\--all\"", 1))).contains(&"--all"),
+        "큰따옴표 안 \\--all 을 --all 로 읽었다(Bash는 백슬래시를 남긴다)"
+    );
+    let package = "if ! ./scripts/fetch-official-plugins.sh --platform \"$platform\" --out \"$BUNDLED_PLUGINS_DIR\"; then";
+    let rel = "scripts/lib/bundled-plugins.sh";
+    assert!(is_package_fetch_call(rel, &call_args(package)));
+    assert!(
+        !is_package_fetch_call(rel, &call_args(&package.replacen("if !", "if ! :", 1))),
+        "무동작 명령을 배포 fetch 호출로 보았다"
+    );
+    assert!(
+        !fetch_flags(&call_args(&package.replacen(
+            "--out",
+            "--cache \"--all\" --out",
+            1
+        )))
+        .contains(&"--all"),
+        "값 자리의 \"--all\" 을 배포 옵션으로 읽었다"
+    );
+    assert!(
+        fetch_flags(&call_args(&package.replacen("; then", " --all; then", 1))).contains(&"--all"),
+        "배포 호출의 실제 --all 을 놓쳤다"
+    );
+    let ps = "& $Bash ./scripts/fetch-official-plugins.sh --platform $PluginPlatform --out target/bundled-plugins";
+    assert!(is_package_fetch_call(
+        "scripts/build-windows.ps1",
+        &call_args(ps)
+    ));
     assert!(
         !is_staging_fetch_call(&call_args(&real.replacen("bash", ":", 1))),
         "무동작 명령을 fetch 호출로 보았다"

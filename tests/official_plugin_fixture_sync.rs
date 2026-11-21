@@ -222,29 +222,39 @@ fn check_finds_a_changed_byte_and_a_stale_fixture() {
     );
 }
 
-/// 배포 파서는 `[[plugin.artifact]]` 를 앞선 `[[plugin]]` 에 붙여 읽는다. 앞에 붙을 표가 없는 잠금 파일은 받지 않는다.
+/// 잠금 파일은 fetch 전에 checker와 같은 조건으로 읽는다. 배포 파서는 `[[plugin.artifact]]` 를 앞선
+/// `[[plugin]]` 에 붙여 읽고, id는 공식 id 꼴이며 겹치지 않아야 한다. 어기면 두 모드 모두 받기 전에 멈춘다.
 #[test]
-fn an_artifact_table_before_any_plugin_table_is_rejected() {
-    let root = Root::new();
-    root.write(
-        "official-plugins.lock.toml",
-        &format!("[[plugin.artifact]]\nplatform = \"x\"\n{LOCK}"),
-    );
-    for mode in ["--update", "--check"] {
-        let (code, text) = root.run(&[mode]);
-        assert_eq!(
-            code, 2,
-            "{mode}: 앞선 [[plugin]] 없는 artifact 표를 받았다:\n{text}"
-        );
+fn a_lock_file_the_release_tools_reject_stops_before_fetching() {
+    let dup = LOCK.replace("com.tasty.beta", "com.tasty.alpha");
+    for (what, lock, why) in [
+        (
+            "앞선 [[plugin]] 없는 artifact",
+            format!("[[plugin.artifact]]\nplatform = \"x\"\n{LOCK}"),
+            "[[plugin.artifact]] before any [[plugin]] table",
+        ),
+        (
+            "공식 id 꼴이 아닌 id",
+            LOCK.replace("com.tasty.beta", "com.example.demo"),
+            "id is not an official plugin id: com.example.demo",
+        ),
+        ("중복 id", dup, "duplicate id com.tasty.alpha"),
+    ] {
+        let root = Root::new();
+        root.write("official-plugins.lock.toml", &lock);
+        for mode in ["--update", "--check"] {
+            let (code, text) = root.run(&[mode]);
+            assert_eq!(code, 2, "{what} {mode}: 잠금 파일을 받았다:\n{text}");
+            assert!(
+                text.contains(why),
+                "{what} {mode}: 이유를 말하지 않는다:\n{text}"
+            );
+        }
         assert!(
-            text.contains("[[plugin.artifact]] before any [[plugin]] table"),
-            "{mode}: 구조 오류를 말하지 않는다:\n{text}"
+            root.fetch_log().is_empty(),
+            "{what}: 잘못된 잠금 파일로 fetch 를 불렀다"
         );
     }
-    assert!(
-        root.fetch_log().is_empty(),
-        "잘못된 잠금 파일로 fetch 를 불렀다"
-    );
 }
 
 #[test]
