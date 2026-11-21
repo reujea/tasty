@@ -71,6 +71,56 @@ pub mod design_source;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+/// 공식 플러그인 호스트 시험 픽스처의 저장소 상대 경로. 잠금 파일이 가리키는 릴리스 산출물의
+/// 매니페스트·번역 원문이라 tasty에서 문구·형식을 고칠 수 없다. 레포를 재귀로 도는 품질 가드는 이 아래를 뺀다.
+pub const OFFICIAL_PLUGIN_FIXTURES_DIR: &str =
+    "crates/tasty-test-support/fixtures/official-plugins";
+
+/// 디렉터리가 공식 플러그인 픽스처 폴더인지 경로 조각 단위로 본다. 재귀 수집이 이 폴더로 내려가지 않게 한다.
+pub fn is_official_plugin_fixtures_dir(dir: &Path) -> bool {
+    dir.ends_with(OFFICIAL_PLUGIN_FIXTURES_DIR)
+}
+
+/// 저장소 상대 경로(구분자 `/` 또는 `\`)가 공식 플러그인 픽스처 폴더나 그 아래인지 본다.
+pub fn is_official_plugin_fixture(rel: &str) -> bool {
+    let rel = rel.replace('\\', "/");
+    rel == OFFICIAL_PLUGIN_FIXTURES_DIR
+        || rel
+            .strip_prefix(OFFICIAL_PLUGIN_FIXTURES_DIR)
+            .is_some_and(|rest| rest.starts_with('/'))
+}
+
+/// 재귀 수집 가드가 공식 플러그인 픽스처와 그 갱신 후보를 빼는지 볼 합성 트리를 `root` 아래에 만든다.
+/// 픽스처 폴더, `target` 아래 갱신 후보, `kept_dir`에 같은 이름(`name`)·내용(`body`)의 파일을 하나씩 둔다.
+/// 수집 결과에 남아야 할 저장소 상대 경로(`kept_dir/name`)를 돌려준다. 빈 결과가 저절로 통과하지 않게
+/// 소비자는 이 경로가 수집됐는지도 함께 단언한다.
+///
+/// # Panics
+///
+/// 파일을 쓰지 못하면 panic한다.
+pub fn seed_official_plugin_fixture_probe(
+    root: &Path,
+    name: &str,
+    kept_dir: &str,
+    body: &str,
+) -> String {
+    let kept = format!("{kept_dir}/{name}");
+    for rel in [
+        format!("{OFFICIAL_PLUGIN_FIXTURES_DIR}/com.tasty.probe/{name}"),
+        format!("target/official-plugin-fixtures-sync/run.probe/candidate/com.tasty.probe/{name}"),
+        kept.clone(),
+    ] {
+        let path = root.join(&rel);
+        let parent = path
+            .parent()
+            .unwrap_or_else(|| panic!("{rel} 의 부모 경로가 없다"));
+        std::fs::create_dir_all(parent)
+            .unwrap_or_else(|e| panic!("{} 를 만들지 못했다 — {e}", parent.display()));
+        std::fs::write(&path, body).unwrap_or_else(|e| panic!("{rel} 를 쓰지 못했다 — {e}"));
+    }
+    kept
+}
+
 /// CARGO_MANIFEST_DIR에서 두 단계 올라가 저장소 루트를 찾는다.
 /// Cargo.toml만으로는 이 크레이트 자체와 구분할 수 없어 외부 표지 파일도 확인한다.
 /// 표지가 없으면 빈 디렉터리에서 검사를 계속하지 않고 panic한다.

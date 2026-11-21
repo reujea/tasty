@@ -61,8 +61,11 @@ fn is_pruned(name: &str) -> bool {
 }
 
 /// 이름 제외뿐 아니라 빌드 캐시 표식도 확인해 임의 CARGO_TARGET_DIR를 제외한다.
+/// 공식 플러그인 픽스처는 공식 플러그인 레포의 원문이라 그 레포 경로를 인용할 수 있다.
 fn is_pruned_dir(path: &Path, name: &str) -> bool {
-    is_pruned(name) || tasty_doc_guards::is_build_cache_dir(path)
+    is_pruned(name)
+        || tasty_doc_guards::is_build_cache_dir(path)
+        || tasty_doc_guards::is_official_plugin_fixtures_dir(path)
 }
 
 fn is_path_char(c: char) -> bool {
@@ -1026,4 +1029,24 @@ fn the_link_floor_sees_a_collapsed_collection() {
     // 뒷정리 실패는 무시한다 — 임시 디렉토리라 남아도 다음 실행이 먼저 지우고, 여기서
     // 죽으면 위 단정의 결과가 정리 오류에 가린다.
     let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_scanned() {
+    let dir = tasty_doc_guards::temp_scratch::Scratch::new("cited-fixtures");
+    let root = dir.path();
+    let kept = tasty_doc_guards::seed_official_plugin_fixture_probe(
+        root,
+        "tasty-plugin.toml",
+        "crates/tasty-plugin-probe",
+        "# docs/plugins/probe.md\n",
+    );
+    let mut out = Vec::new();
+    gather(root, &mut out);
+    let rels: Vec<String> = out.iter().map(|p| rel_of(p, root)).collect();
+    assert_eq!(
+        rels,
+        vec![kept],
+        "픽스처나 갱신 후보를 수집했거나 일반 매니페스트를 놓쳤다"
+    );
 }

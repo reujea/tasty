@@ -307,12 +307,32 @@ fn tracked_text_files() -> Vec<String> {
         "`git ls-files` 가 실패했다: {}",
         String::from_utf8_lossy(&out.stderr).trim()
     );
+    text_files_of(String::from_utf8_lossy(&out.stdout).lines())
+}
+
+/// 추적 파일 목록에서 훑을 텍스트를 고른다. 공식 플러그인 픽스처는 공식 플러그인 레포의 원문이라
+/// 그 수치가 tasty 게이트의 사본이 아니다.
+fn text_files_of<'a>(tracked: impl Iterator<Item = &'a str>) -> Vec<String> {
     let exts = [".md", ".rs", ".toml", ".sh", ".yml", ".yaml"];
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
+    tracked
         .filter(|f| exts.iter().any(|e| f.ends_with(e)))
+        .filter(|f| !tasty_doc_guards::is_official_plugin_fixture(f))
         .map(str::to_string)
         .collect()
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_scanned() {
+    let fixture = format!(
+        "{}/com.tasty.probe/tasty-plugin.toml",
+        tasty_doc_guards::OFFICIAL_PLUGIN_FIXTURES_DIR
+    );
+    let kept = "crates/tasty-plugin-probe/tasty-plugin.toml";
+    assert_eq!(
+        text_files_of([fixture.as_str(), kept].into_iter()),
+        vec![kept.to_string()],
+        "픽스처를 골랐거나 일반 매니페스트를 놓쳤다"
+    );
 }
 
 /// 어휘창을 통과한 파일 전체(과포함 스캔).

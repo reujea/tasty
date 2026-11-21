@@ -100,8 +100,11 @@ fn is_pruned(name: &str) -> bool {
 }
 
 /// 이름이 다른 CARGO_TARGET_DIR도 캐시 표식으로 제외한다.
+/// 공식 플러그인 픽스처는 공식 플러그인 레포의 원문이라 그 레포의 검사 몫이다.
 fn is_pruned_dir(path: &Path, name: &str) -> bool {
-    is_pruned(name) || tasty_doc_guards::is_build_cache_dir(path)
+    is_pruned(name)
+        || tasty_doc_guards::is_build_cache_dir(path)
+        || tasty_doc_guards::is_official_plugin_fixtures_dir(path)
 }
 
 /// 금지되는 하위 디렉토리 — 이 넷 뒤에 오는 경로만 P3 가 잡는다.
@@ -1182,5 +1185,25 @@ fn the_scan_reaches_every_major_branch_of_the_tree() {
         missing.is_empty(),
         "다음 경로에서 한 파일도 수집하지 못했다: {missing:?} (전체 {}개). is_pruned/is_scan_target/VENDORED_FILES와 순회 경로를 확인한다. 실제 검사 범위가 바뀐 근거 없이 경로를 목록에서 제거하지 않는다.",
         rels.len()
+    );
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_scanned() {
+    let dir = tasty_doc_guards::temp_scratch::Scratch::new("no-todo-fixtures");
+    let root = dir.path();
+    let kept = tasty_doc_guards::seed_official_plugin_fixture_probe(
+        root,
+        "tasty-plugin.toml",
+        "crates/tasty-plugin-probe",
+        "id = \"com.tasty.probe\"\n",
+    );
+    let mut out = Vec::new();
+    gather(root, root, &mut out);
+    let rels: Vec<String> = out.iter().map(|p| rel_of(p, root)).collect();
+    assert_eq!(
+        rels,
+        vec![kept],
+        "픽스처나 갱신 후보를 수집했거나 일반 매니페스트를 놓쳤다"
     );
 }

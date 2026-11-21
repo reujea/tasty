@@ -74,7 +74,11 @@ fn gather(path: &Path, root: &Path, out: &mut Vec<PathBuf>) {
         if p.is_dir() {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
             // 이름이 다른 CARGO_TARGET_DIR도 캐시 표식으로 제외한다.
-            if is_pruned(name) || tasty_doc_guards::is_build_cache_dir(&p) {
+            // 공식 플러그인 픽스처는 공식 플러그인 레포의 원문이라 그 레포의 검사 몫이다.
+            if is_pruned(name)
+                || tasty_doc_guards::is_build_cache_dir(&p)
+                || tasty_doc_guards::is_official_plugin_fixtures_dir(&p)
+            {
                 continue;
             }
         }
@@ -150,5 +154,25 @@ fn allowlist_files_point_at_paths_that_exist() {
     assert!(
         missing.is_empty(),
         "면제가 없는 경로를 가리킨다 — 옮겼으면 항목도 옮기고, 사라졌으면 항목을 지워라: {missing:?}"
+    );
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_scanned() {
+    let dir = tasty_doc_guards::temp_scratch::Scratch::new("no-emoji-fixtures");
+    let root = dir.path();
+    let kept = tasty_doc_guards::seed_official_plugin_fixture_probe(
+        root,
+        "tasty-plugin.toml",
+        "crates/tasty-plugin-probe",
+        "id = \"com.tasty.probe\"\n",
+    );
+    let mut out = Vec::new();
+    gather(root, root, &mut out);
+    let rels: Vec<String> = out.iter().map(|p| rel_of(p, root)).collect();
+    assert_eq!(
+        rels,
+        vec![kept],
+        "픽스처나 갱신 후보를 수집했거나 일반 매니페스트를 놓쳤다"
     );
 }

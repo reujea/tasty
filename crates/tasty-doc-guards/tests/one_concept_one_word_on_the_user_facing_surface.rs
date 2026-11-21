@@ -144,9 +144,32 @@ fn user_facing_files() -> Vec<Surface> {
         &root,
         &PLUGIN_LANG_FLOOR,
         Descend::SkipBuildCaches,
-        &|rel| rel.contains("/lang/") && rel.ends_with(".toml"),
+        &|rel| is_plugin_lang_surface(rel),
     ));
     out
+}
+
+/// crates 아래 플러그인 번역 파일. 공식 플러그인 픽스처는 공식 플러그인 레포의 원문이라 그 레포의 용어 검사 몫이다.
+fn is_plugin_lang_surface(rel: &str) -> bool {
+    rel.contains("/lang/")
+        && rel.ends_with(".toml")
+        && !tasty_doc_guards::is_official_plugin_fixture(rel)
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_surfaces() {
+    let fixture = format!(
+        "{}/com.tasty.probe/lang/en.toml",
+        tasty_doc_guards::OFFICIAL_PLUGIN_FIXTURES_DIR
+    );
+    assert!(
+        !is_plugin_lang_surface(&fixture),
+        "픽스처 번역 파일을 사용자 표면으로 셌다"
+    );
+    assert!(
+        is_plugin_lang_surface("crates/tasty-plugin-probe/lang/en.toml"),
+        "일반 플러그인 번역 파일을 놓쳤다"
+    );
 }
 
 /// 같은 순회를 합성 트리에서도 검사할 수 있도록 루트·하한·필터를 받는다.

@@ -1569,10 +1569,16 @@ fn is_dynamically_assembled(key: &str, templates: &BTreeSet<(String, String)>) -
 /// 카탈로그와 자기 검사 파일을 제외한 Rust·TOML을 수집한다. Git 추적 여부를 직접 확인하지는 않는다.
 /// 문서는 키를 설명할 뿐 소비하지 않을 수 있어 대상에 넣지 않는다.
 fn consumer_files() -> Vec<PathBuf> {
+    consumer_files_under(root())
+}
+
+/// 합성 트리에서도 같은 순회를 검사할 수 있게 기준 폴더를 받는다.
+/// 공식 플러그인 픽스처는 공식 플러그인의 키를 쓰는 원문이라 이 카탈로그의 사용처가 아니다.
+fn consumer_files_under(base: &Path) -> Vec<PathBuf> {
     const SKIP_DIRS: &[&str] = &["target", ".git", "node_modules"];
     const CONSUMER_EXT: &[&str] = &["rs", "toml"];
     let mut out = Vec::new();
-    let mut stack = vec![root().to_path_buf()];
+    let mut stack = vec![base.to_path_buf()];
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
@@ -1581,13 +1587,16 @@ fn consumer_files() -> Vec<PathBuf> {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
             if path.is_dir() {
-                if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
+                if name.starts_with('.')
+                    || SKIP_DIRS.contains(&name.as_str())
+                    || tasty_doc_guards::is_official_plugin_fixtures_dir(&path)
+                {
                     continue;
                 }
                 stack.push(path);
                 continue;
             }
-            let rel = rel_of(&path);
+            let rel = normalized_rel(&path, base);
             if LANGS
                 .iter()
                 .any(|l| rel.ends_with(&format!("lang/{l}.toml")))
@@ -1868,5 +1877,26 @@ fn assembled_namespaces_point_at_a_living_assembler() {
         problems.is_empty(),
         "동적 namespace의 조립 파일이나 카탈로그 키를 찾지 못했다:\n{}",
         problems.join("\n")
+    );
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_consumers() {
+    let dir = tasty_doc_guards::temp_scratch::Scratch::new("i18n-consumer-fixtures");
+    let base = dir.path();
+    let kept = tasty_doc_guards::seed_official_plugin_fixture_probe(
+        base,
+        "tasty-plugin.toml",
+        "crates/tasty-plugin-probe",
+        "description_key = \"probe.key\"\n",
+    );
+    let rels: Vec<String> = consumer_files_under(base)
+        .iter()
+        .map(|p| normalized_rel(p, base))
+        .collect();
+    assert_eq!(
+        rels,
+        vec![kept],
+        "픽스처나 갱신 후보를 사용처로 셌거나 일반 매니페스트를 놓쳤다"
     );
 }

@@ -53,6 +53,11 @@ git push origin release
    ```bash
    cargo test -p tasty-doc-guards --test official_plugins_lock
    ```
+   잠금 파일을 갱신했으면 호스트 시험 픽스처도 다시 써서 같은 커밋에 넣는다([호스트 시험 픽스처](plugin-packaging.md#호스트-시험-픽스처)).
+   ```bash
+   bash scripts/sync-official-plugin-fixtures.sh --update
+   cargo test -p tasty-doc-guards --test official_plugin_fixtures
+   ```
 
 ### 2. Plugin 매니페스트 서명
 

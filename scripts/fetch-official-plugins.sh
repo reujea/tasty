@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # 잠금 파일(official-plugins.lock.toml)이 가리키는 공식 플러그인 릴리스 산출물을 받아
 # SHA-256을 대조하고 <out>/<id>/에 푼다. 푼 매니페스트는 현재 호스트의 파서·검증기로 읽어 본다.
-# 사용: scripts/fetch-official-plugins.sh --platform <p> --out <dir> [--all] [--lock <path>]
+# 사용: scripts/fetch-official-plugins.sh --platform <p> --out <dir> [--all] [--lock <path>] [--cache <dir>]
 #   <p>: macos-arm64 | windows-x64 | windows-arm64 | linux-x64 | linux-arm64
 #   --all: bundle = false 플러그인까지 받는다(개발 경로용). 없으면 배포 대상만.
 #   --out: 매번 비우거나 새로 만든다. 이번 계획에 없는 폴더가 남아 있으면 unpack이 실패한다.
-# 받은 파일은 ${CARGO_TARGET_DIR:-target}/official-plugins/<tag>/<platform>/에 둔다.
+# 받은 파일은 ${CARGO_TARGET_DIR:-target}/official-plugins/<tag>/<platform>/에 둔다. --cache를 주면 그 폴더에 둔다.
 # 해시가 맞는 파일은 다시 받지 않고, 맞지 않는 파일은 지우고 다시 받는다.
 # 해시 계산과 TOML 읽기는 official-plugins 도구(crates/tasty-doc-guards)가 한다.
 # 필요한 것: bash(3.2 이상, macOS 기본 bash 포함), cargo, curl, tar. Windows는 Git Bash에서 실행한다.
@@ -14,7 +14,7 @@ set -euo pipefail
 usage() {
     cat <<'USAGE'
 Usage:
-  fetch-official-plugins.sh --platform <platform> --out <dir> [--all] [--lock <path>]
+  fetch-official-plugins.sh --platform <platform> --out <dir> [--all] [--lock <path>] [--cache <dir>]
 USAGE
     exit "${1:-2}"
 }
@@ -24,6 +24,7 @@ platform=""
 out=""
 all=""
 lock="$root/official-plugins.lock.toml"
+cache_dir=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -40,6 +41,11 @@ while [[ $# -gt 0 ]]; do
         --lock)
             [[ $# -ge 2 ]] || usage 2
             lock="$2"
+            shift 2
+            ;;
+        --cache)
+            [[ $# -ge 2 ]] || usage 2
+            cache_dir="$2"
             shift 2
             ;;
         --all)
@@ -86,7 +92,7 @@ fi
 # 받은 파일 위치: URL의 태그 칸(.../download/<tag>/<file>)으로 나눈다.
 first_url="$(cut -f4 "$plan_file" | sed -n '1p')"
 tag="$(basename "$(dirname "$first_url")")"
-cache="${CARGO_TARGET_DIR:-$root/target}/official-plugins/$tag/$platform"
+cache="${cache_dir:-${CARGO_TARGET_DIR:-$root/target}/official-plugins/$tag/$platform}"
 mkdir -p "$cache"
 
 # verify가 이름을 대는 파일(없음·해시 불일치)만 받는다.

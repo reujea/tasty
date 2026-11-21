@@ -110,6 +110,15 @@ impl Default for IsolatedHome {
     }
 }
 
+/// 잠금 파일(`official-plugins.lock.toml`)이 가리키는 공식 플러그인 릴리스 산출물의 매니페스트·번역 원문 폴더.
+/// 호스트 계약 시험이 공식 매니페스트를 읽을 때 입력으로 쓴다. 갱신은 `scripts/sync-official-plugin-fixtures.sh`가 한다.
+pub fn official_plugin_dir(id: &str) -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("fixtures")
+        .join("official-plugins")
+        .join(id)
+}
+
 /// 플랫폼에 맞는 시험용 절대경로. tmp/exp는 Unix의 /tmp/exp, Windows의 C:\tmp\exp가 된다.
 pub fn abs_path(rel: &str) -> std::path::PathBuf {
     #[cfg(windows)]

@@ -54,3 +54,7 @@
 ## 공식 플러그인 id 집합
 
 공식 플러그인 id는 잠금 파일 `official-plugins.lock.toml`의 `[[plugin]]`, `crates/tasty-host-plugin/src/builtin.rs`의 `BUILTINS`(windows·not windows 두 벌), `crates/tasty-host-plugin/src/official.rs`의 `OFFICIAL_PLUGIN_IDS`에 있다. `BUILTINS`와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 tasty에 남는 `com.tasty.mesh-demo`를 더한 집합이다. 배포 패키지에 넣는 집합은 잠금 파일의 `bundle = true`이고(배포 스크립트가 이 집합을 받는다), 크레이트 매니페스트(`bundle = false`가 아닌 것)의 id와 같아야 한다. `BUILTINS`에는 배포 여부 필드가 없으므로 두 집합을 따로 대조한다. 대조는 doc-guards `official_plugins_lock`이 하고, 잠금 파일 형식과 갱신 절차는 [플러그인 패키징](plugin-packaging.md#공식-플러그인-잠금-파일)에 있다.
+
+## 공식 플러그인 호스트 시험 픽스처
+
+`crates/tasty-test-support/fixtures/official-plugins/`의 폴더 집합과 각 매니페스트의 `id`·`version`·`bundle`은 잠금 파일 `[[plugin]]`의 사본이고, 파일 바이트는 잠금 파일이 가리키는 릴리스 산출물의 사본이다. 앞의 것은 doc-guards `official_plugin_fixtures`가 네트워크 없이, 뒤의 것은 `crossplatform-check.yml`의 `check official plugin fixtures` 단계가 받은 산출물과 대조한다. 갱신은 `scripts/sync-official-plugin-fixtures.sh --update`로 하고 잠금 파일과 같은 커밋에 넣는다([플러그인 패키징](plugin-packaging.md#호스트-시험-픽스처)).

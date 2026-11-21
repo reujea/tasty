@@ -401,18 +401,19 @@ fn cli_reachable_methods(root: &Path) -> std::collections::BTreeSet<String> {
     out
 }
 
+/// 크레이트 바로 아래(`crates/<크레이트>/tasty-plugin.toml`)의 매니페스트만 모은다.
+/// 더 깊은 곳의 매니페스트(시험 픽스처 등)는 이 workspace가 빌드하는 플러그인이 아니다.
 fn collect_manifests(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
-        let p = entry.path();
-        if p.is_dir() {
-            collect_manifests(&p, out);
-        } else if p.file_name().and_then(|n| n.to_str()) == Some("tasty-plugin.toml") {
-            out.push(p);
+        let manifest = entry.path().join("tasty-plugin.toml");
+        if manifest.is_file() {
+            out.push(manifest);
         }
     }
+    out.sort();
 }
 
 fn table_rows(text: &str, header: &str) -> Vec<Vec<String>> {

@@ -259,7 +259,11 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if path.is_dir() {
-            if SKIP_DIRS.contains(&name.as_ref()) || name.starts_with('.') && name != ".github" {
+            // 공식 플러그인 픽스처는 공식 플러그인 레포의 원문이라 tasty CI 주장이 아니다.
+            if SKIP_DIRS.contains(&name.as_ref())
+                || name.starts_with('.') && name != ".github"
+                || tasty_doc_guards::is_official_plugin_fixtures_dir(&path)
+            {
                 continue;
             }
             collect_files(&path, out);
@@ -3361,5 +3365,25 @@ fn the_steps_that_were_lifted_out_of_the_failure_chain_stay_lifted() {
         "if가 있는 검증 스텝이 {}개다(기준 {PROTECTED_STEPS}).\n    {}\n스텝 추가·삭제와 조건식을 확인하고 SWALLOWABLE_STEPS와 함께 비교한다. if가 있다는 것만으로 앞선 실패 뒤 실행이 보장되지는 않는다.",
         protected.len(),
         protected.join("\n    ")
+    );
+}
+
+#[test]
+fn official_plugin_fixtures_are_not_collected() {
+    let dir = tasty_doc_guards::temp_scratch::Scratch::new("ci-claims-fixtures");
+    let root = dir.path();
+    let kept = tasty_doc_guards::seed_official_plugin_fixture_probe(
+        root,
+        "tasty-plugin.toml",
+        "crates/tasty-plugin-probe",
+        "description = \"CI 에서 돈다\"\n",
+    );
+    let mut files = Vec::new();
+    collect_files(root, &mut files);
+    let rels: Vec<String> = files.iter().map(|p| normalized_rel(p, root)).collect();
+    assert_eq!(
+        rels,
+        vec![kept],
+        "픽스처나 갱신 후보를 수집했거나 일반 매니페스트를 놓쳤다"
     );
 }

@@ -71,10 +71,10 @@ doc-guards 크레이트는 의존성을 두지 않으므로 이 도구는 잠금
 ### 받기 스크립트
 
 ```bash
-scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock <파일>]
+scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock <파일>] [--cache <폴더>]
 ```
 
-`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. 스테이징 폴더(`--out`)는 매번 비우거나 새로 만든다. 이전에 푼 다른 플러그인이 남아 있으면 `unpack`이 실패한다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
+`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래, `--cache`를 주면 그 폴더)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. 스테이징 폴더(`--out`)는 매번 비우거나 새로 만든다. 이전에 푼 다른 플러그인이 남아 있으면 `unpack`이 실패한다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
 
 ### 잠금 파일 갱신
 
@@ -98,6 +98,12 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 
 3. `cargo test -p tasty-doc-guards --test official_plugins_lock`로 완비·계약·집합 가드를 확인한다.
 4. 한 플랫폼 이상에서 `scripts/fetch-official-plugins.sh --platform <p> --out <임시 폴더> --all`로 실제로 받아 본다.
+5. 호스트 시험 픽스처를 새 산출물로 다시 쓰고 확인한다. 잠금 파일과 바뀐 픽스처를 같은 커밋에 넣는다([호스트 시험 픽스처](#호스트-시험-픽스처)).
+
+   ```bash
+   bash scripts/sync-official-plugin-fixtures.sh --update
+   cargo test -p tasty-doc-guards --test official_plugin_fixtures
+   ```
 
 ### 계약 호환 가드
 
@@ -116,6 +122,24 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 한계: 이 가드는 버전 값만 비교한다. protocol schema를 바꾸고 버전을 그대로 두면 지나간다. protocol 버전과 `CHANGELOG.md`는 tasty 릴리스 때 올리므로([릴리스 절차](release.md#1-버전--changelog)) 릴리스 사이의 develop에서는 버전이 그대로인 채 schema가 바뀌는 것이 정상 흐름이고, 그 변경은 가드가 보지 못한다. 실제로 v0.1.0의 `tasty_rev` 뒤에 편집 결과 회신(`PluginEvent::Hello`의 `capabilities`, `EditOutcome`)이 protocol 0.2.16 그대로 들어왔다. 추가 변형이라 옛 플러그인과 호환되지만 호환되지 않는 변경도 같은 길로 지나갈 수 있다. 그래서 protocol 변경은 [protocol CHANGELOG 정책](../../crates/tasty-plugin-protocol/CHANGELOG.md#정책)대로 `tasty_rev` 시점의 플러그인과 호환되게 만든다.
 
 `tasty_rev` 시점과 지금의 `crates/tasty-plugin-protocol`·`crates/tasty-plugin-manifest` 트리 id를 비교하는 엄격안은 쓰지 않는다. 주석 한 줄에도 실패해서 계약 크레이트를 고칠 때마다 플러그인 레포 릴리스를 강제하고, v0.1.0에서도 바로 실패한다. 버전 축 가드와 CHANGELOG 정책으로 시작하고, 호환되지 않는 변경이 버전 없이 들어온 사례가 생기면 다시 판단한다.
+
+### 호스트 시험 픽스처
+
+호스트가 공식 매니페스트를 읽고 쓰는 방식(파싱·기본값·CLI 선언·번역 키 등)을 보는 시험은 `crates/tasty-test-support/fixtures/official-plugins/<id>/`를 입력으로 쓴다. 폴더마다 잠금 파일이 가리키는 릴리스 산출물의 `tasty-plugin.toml`과 `lang/` 원문이 바이트 그대로 있다. 잠금 파일의 `[[plugin]]` 전부(`bundle = false` 포함)가 대상이다. `tasty_test_support::official_plugin_dir(id)`가 폴더 경로를 주고, test-support에 의존하지 않는 크레이트는 `tasty_doc_guards::OFFICIAL_PLUGIN_FIXTURES_DIR` 또는 `CARGO_MANIFEST_DIR` 기준 상대 경로로 같은 폴더를 읽는다.
+
+`scripts/sync-official-plugin-fixtures.sh`가 픽스처를 갱신하고 대조한다.
+
+```bash
+bash scripts/sync-official-plugin-fixtures.sh --update               # 잠금 산출물로 픽스처를 다시 쓴다
+bash scripts/sync-official-plugin-fixtures.sh --check [--shared-cache] # 받은 산출물과 바이트로 대조한다
+```
+
+- 받기: 잠금 파일을 사본으로 떠서 `fetch-official-plugins.sh --platform <호스트> --lock <사본> --all --out <빈 폴더> --cache <전용 폴더>`로 받는다. 해시 확인은 fetch가 한다. 실행 폴더는 `target/official-plugin-fixtures-sync/` 아래이고, 같은 폴더의 `.lock` 디렉터리로 동시 실행을 막는다. `--shared-cache`는 fetch 기본 캐시(`target/official-plugins/<tag>/<platform>/`)의 파일을 전용 폴더로 복사한 뒤 받으므로, 같은 체크아웃에서 `stage-dev-plugins.sh` 바로 뒤에 돌면 다시 받지 않는다.
+- `--update`: 후보를 따로 만들어 CR 바이트가 없는지, 받은 폴더와 바이트가 같은지, 잠금 항목마다 `lang/en.toml`이 있고 `bundle`이 같은지 본다. 하나라도 어기면 기존 픽스처를 그대로 두고 실패한다. 들이기 직전에 잠금 파일이 받기 시작할 때와 같은지 다시 보고, 기존 폴더를 옮긴 뒤 후보를 이름 바꾸기로 들인다. 잠금 파일에 없는 옛 픽스처는 남지 않는다.
+- `--check`: 잠금 id마다 매니페스트와 `lang/` 파일 집합·바이트를 대조하고, 잠금 파일에 없는 픽스처 폴더와 CR 바이트도 실패로 본다. 받는 동안 잠금 파일이 바뀌면 실패한다.
+- 대조 두 겹: doc-guards `official_plugin_fixtures`가 네트워크 없이 폴더 집합·`id`·`version`·`bundle`·`lang/en.toml`·CR 없음을 본다. 같은 version의 내용 변이(잠금 해시만 바뀐 재발행)와 번역 원문 차이는 `crossplatform-check.yml`의 `check official plugin fixtures` 단계(`--check --shared-cache`)가 바이트로 잡는다([CI 가이드](ci-gates.md#번들-플러그인-준비)).
+- 줄끝: `.gitattributes`의 LF 정규화를 픽스처에도 그대로 둔다. CRLF 원문이 들어오면 갱신·오프라인 가드·CI 대조가 실패한다.
+- 품질 가드: 픽스처는 공식 플러그인 레포의 원문이라 tasty에서 문구를 고칠 수 없다. 레포를 재귀로 도는 품질 가드(이모지·번역 키 사용처·경로 인용·로컬 문서 참조·게이트 수치·CI 주장·용어)는 이 폴더를 뺀다. 그 검사는 공식 플러그인 레포의 몫이다.
 
 ## 서명
 
