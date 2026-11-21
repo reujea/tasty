@@ -758,4 +758,33 @@ fn an_id_next_to_a_dotted_id_key_is_undecidable() {
         text.contains("최상위에 id 로 시작하는 점 구분 키가 있다"),
         "매니페스트의 거절 사유가 없다:\n{text}"
     );
+    for (name, manifest) in [
+        (
+            "[id] 표 머리",
+            "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n\n[id]\nsource = \"x\"\n",
+        ),
+        (
+            "[id.x] 표 머리",
+            "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n\n[id.x]\nsource = \"x\"\n",
+        ),
+    ] {
+        let (code, text) = locked_manifest_judgement(manifest);
+        assert_eq!(
+            code, 2,
+            "{name}: id 뒤 같은 이름의 표 머리를 받았다:\n{text}"
+        );
+        assert!(
+            text.contains("id 로 시작하는 표 머리가 있다"),
+            "{name}: 표 머리 거절 사유가 없다:\n{text}"
+        );
+    }
+    // 이스케이프 조각은 디코딩하지 않으므로 id 인지 알 수 없다.
+    let (code, text) = locked_manifest_judgement(
+        "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n\n[\"\\u0069d\"]\nsource = \"x\"\n",
+    );
+    assert_eq!(code, 2, "이스케이프 표 머리를 받았다:\n{text}");
+    assert!(
+        text.contains("첫 조각을 읽을 수 없는 표 머리가 있다"),
+        "이스케이프 표 머리 거절 사유가 없다:\n{text}"
+    );
 }

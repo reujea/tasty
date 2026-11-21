@@ -285,7 +285,12 @@ read_lock_ids() {  # <scan 파일>
 read_manifest_id() {  # <scan 파일>
     awk -F'\t' '
         function fail(m) { if (err == "") err = m }
-        $1 == "H" { top_done = 1; next }
+        $1 == "H" {
+            # [id]·[id.x] 같은 머리는 최상위 id 문자열과 같은 키를 다시 정의해 호스트 파서가 거부한다.
+            if ($4 == "unknown") fail("첫 조각을 읽을 수 없는 표 머리가 있다")
+            else if ($5 == "id") fail("id 로 시작하는 표 머리가 있다")
+            top_done = 1; next
+        }
         $1 == "K" && !top_done {
             if ($2 == "unknown") { fail("최상위에 읽을 수 없는 키가 있다"); next }
             # id 와 id.x 가 함께 있으면 문자열과 표가 같은 키를 정의해 호스트 파서가 거부한다.
