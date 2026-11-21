@@ -8,16 +8,15 @@
 # .complexity-frozen-files의 code SLOC 합계(분리된 모듈도 유지한다). scripts/check-frozen-sum-ratchet.sh에서 검사한다.
 # 합계가 예산 + 1000을 넘으면 실패한다. 예산보다 작아져도 실패하므로 예산을 낮춘다.
 # 항목을 추가할 때는 해당 파일 크기를 합계에 반영한다.
-# frozen-sum-budget: 35293
+# frozen-sum-budget: 33441
 #
 # tokei가 doc 주석 앞의 문자열 줄 등을 누락한 줄 수.
 # 이 수가 바뀌면 코드 크기가 같아도 측정 합계가 달라진다.
 # 검사 스크립트의 측정값에 맞춰 이 수와 위 예산을 함께 보정한다.
-# doc-comment-bias: 28
+# doc-comment-bias: 19
 crates/tasty-gallery/src/catalog.rs
 crates/tasty-host-plugin/src/builtin.rs
 crates/tasty-memory/src/lib.rs
-crates/tasty-plugin-markdown/src/render.rs
 crates/tasty-type-appearance/src/theme.rs
 src/adapters/ui/popup/port_scanner.rs
 src/adapters/ui/popup/remote_tool.rs
@@ -29,7 +28,7 @@ src/view/settings/ui.rs
 src/view/settings/ui/tabs/appearance.rs
 
 # ── 아래 6개는 게이트 도입 뒤 추가된 예외다.
-# 위 13개는 게이트 도입 당시의 예외다.
+# 위 12개는 게이트 도입 당시의 예외다.
 crates/tasty-gallery/src/catalog/components/preset_editor.rs
 crates/tasty-plugin-manifest/src/validate.rs
 src/adapters/ipc/handler.rs

@@ -460,23 +460,7 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.tasty-output]
 opt-level = 3
-[profile.dev.package.tasty-plugin-agent-stream]
-opt-level = 3
-[profile.dev.package.tasty-plugin-claude]
-opt-level = 3
-[profile.dev.package.tasty-plugin-clipboard-viewer]
-opt-level = 3
-[profile.dev.package.tasty-plugin-codex]
-opt-level = 3
-[profile.dev.package.tasty-plugin-git-viewer]
-opt-level = 3
-[profile.dev.package.tasty-plugin-html]
-opt-level = 3
-[profile.dev.package.tasty-plugin-image]
-opt-level = 3
 [profile.dev.package.tasty-plugin-manifest]
-opt-level = 3
-[profile.dev.package.tasty-plugin-markdown]
 opt-level = 3
 [profile.dev.package.tasty-plugin-mesh-demo]
 opt-level = 3

@@ -18,8 +18,12 @@ const CRATES_DIR: &str = "crates";
 const PLUGIN_CRATE_PREFIX: &str = "tasty-plugin-";
 const MANIFEST_NAME: &str = "tasty-plugin.toml";
 
-/// 2026-09-05 매니페스트가 있는 플러그인 9개를 측정했다. 빈 수집을 찾는 하한이다.
-const MIN_PLUGINS: usize = 8;
+/// 2026-11-21 매니페스트가 있는 플러그인 1개(mesh-demo)를 측정했다. 공식 플러그인은 공식 레포로 옮겼고
+/// 그 소스의 같은 검사는 공식 레포가 한다. 빈 수집을 찾는 하한이다.
+const MIN_PLUGINS: usize = 1;
+
+/// 2026-11-21 test 전용을 뺀 플러그인 소스 1개(`crates/tasty-plugin-mesh-demo/src/main.rs`)를 측정했다.
+const MIN_PLUGIN_SOURCES: usize = 1;
 
 /// 번역 검사에서 제외할 진단 호출의 검색 문자열.
 const DIAGNOSTIC_MARKERS: &[&str] = &[
@@ -194,7 +198,7 @@ fn no_bundled_plugin_ships_a_locale_specific_literal() {
     let srcs = bundled_plugin_srcs();
     assert!(
         srcs.len() >= MIN_PLUGINS,
-        "매니페스트가 있는 플러그인을 {}개만 찾았다(하한 {MIN_PLUGINS}, 2026-09-05 측정 9개). 탐색 범위를 확인한다.",
+        "매니페스트가 있는 플러그인을 {}개만 찾았다(하한 {MIN_PLUGINS}, 2026-11-21 측정 1개). 탐색 범위를 확인한다.",
         srcs.len()
     );
     let root = repo_root();
@@ -228,8 +232,8 @@ fn no_bundled_plugin_ships_a_locale_specific_literal() {
         }
     }
     assert!(
-        files >= 10,
-        "플러그인 소스를 {files}개만 수집했다(test 전용 제외 {skipped}개). 경로와 수집 범위를 확인한다."
+        files >= MIN_PLUGIN_SOURCES,
+        "플러그인 소스를 {files}개만 수집했다(하한 {MIN_PLUGIN_SOURCES}, test 전용 제외 {skipped}개). 경로와 수집 범위를 확인한다."
     );
     // test 전용 파일이 실제 검사 목록에 들어오지 않았는지 대조한다.
     let leaked: Vec<String> = scanned

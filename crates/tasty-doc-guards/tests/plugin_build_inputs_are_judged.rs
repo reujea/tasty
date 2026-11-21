@@ -41,7 +41,8 @@ const JUDGED_PATTERNS: &[&str] = &[
 ];
 
 /// 현재 트리에서 모이는 입력 수의 하한이다. 0개 수집을 통과로 읽지 않기 위한 값이다.
-const MIN_INPUTS: usize = 40;
+/// 2026-11-21 공식 플러그인 사본을 뺀 트리에서 24개를 쟀다.
+const MIN_INPUTS: usize = 20;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {

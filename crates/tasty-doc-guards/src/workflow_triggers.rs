@@ -523,7 +523,7 @@ mod coverage_tests {
             "`tasty-doc-guards` 가 필터 없는 채널에 안 덮인다: {c:?}"
         );
         assert!(
-            !c.covers("a_target_no_workflow_names", "tasty-plugin-markdown"),
+            !c.covers("a_target_no_workflow_names", "tasty-plugin-mesh-demo"),
             "이 타깃은 지목되지 않았고 패키지 전체 실행도 없는데 포함된 것으로 보고했다. 새 --workspace 실행이 생겼거나 판독 범위가 잘못됐는지 확인한다: {c:?}"
         );
     }

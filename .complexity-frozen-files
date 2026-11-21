@@ -3,8 +3,6 @@
 crates/tasty-gallery/src/catalog.rs
 crates/tasty-host-plugin/src/builtin.rs
 crates/tasty-memory/src/lib.rs
-crates/tasty-plugin-markdown/src/render.rs
-crates/tasty-plugin-markdown/src/render/callout.rs
 crates/tasty-type-appearance/src/theme.rs
 src/adapters/ui/popup/port_scanner.rs
 src/adapters/ui/popup/remote_tool.rs

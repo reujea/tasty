@@ -1505,61 +1505,6 @@ fn the_gui_layer_a_display_revives_is_exactly_the_one_named_test() {
     );
 }
 
-/// markdown WebKitGTK 시험을 이름으로 고르는 자동 호출이 실제 시험 이름과 맞는지 확인한다.
-/// 지목 실행은 이름이 어긋나면 `0 passed` 로 통과하므로, 시험 이름과 호출을 여기서 함께 대조한다.
-/// GTK 는 한 프로세스에서 한 스레드만 초기화하므로 파일마다 시험을 하나 두고 각각 따로 지목한다.
-#[test]
-fn the_webview_layout_step_names_the_one_layout_test() {
-    for leaf in ["webview_layout_tests", "bed_focus_webkit_tests"] {
-        assert_one_named_webkit_test(leaf);
-    }
-}
-
-fn assert_one_named_webkit_test(leaf: &str) {
-    const PACKAGE: &str = "tasty-plugin-markdown";
-    const PARENT: &str = "crates/tasty-plugin-markdown/src/render.rs";
-    let module = format!("render::{leaf}");
-    let file = format!("crates/tasty-plugin-markdown/src/render/{leaf}.rs");
-    let root = repo_root();
-
-    let parent = std::fs::read_to_string(root.join(PARENT)).expect("render.rs 를 읽지 못했다");
-    assert!(
-        parent.contains(&format!("mod {leaf};")),
-        "{PARENT} 가 {leaf} 모듈을 선언하지 않는다. 모듈 경로 {module} 가 바뀌었다면 이 검사와 워크플로를 함께 고친다."
-    );
-    let text = std::fs::read_to_string(root.join(&file))
-        .unwrap_or_else(|e| panic!("{file} 를 읽지 못했다: {e}"));
-    let fns = test_fns_with_ignore(&text);
-    assert_eq!(
-        fns.len(),
-        1,
-        "{file} 의 시험이 {}개다({fns:?}). 지목 실행은 한 이름만 고르므로 시험을 늘리면 워크플로 호출과 이 검사를 함께 바꾼다.",
-        fns.len()
-    );
-    let (name, ignored) = &fns[0];
-    assert!(
-        *ignored,
-        "{name} 에 #[ignore] 가 없다. Xvfb 안에서 도는 차단 단계인 --lib --bins 단계에서도 실행된다."
-    );
-    let full = format!("{module}::{name}");
-
-    let invocations = automatic_test_invocations(&root);
-    assert!(
-        !invocations.is_empty(),
-        "자동 잡의 cargo test 호출을 찾지 못했다. 수집 범위와 명령 판독을 확인한다."
-    );
-    let selected = invocations.iter().any(|(_, tail)| {
-        let words: Vec<&str> = tail.split_whitespace().collect();
-        let package = words.windows(2).any(|w| w[0] == "-p" && w[1] == PACKAGE);
-        let (filters, exact) = positive_filters(tail);
-        package && exact && words.contains(&"--ignored") && filters.contains(&full)
-    });
-    assert!(
-        selected,
-        "`-p {PACKAGE} … -- --ignored --exact {full}` 로 이 시험을 고르는 자동 호출이 없다. 시험 이름이 바뀌었다면 워크플로의 webview layout 단계를 함께 고친다."
-    );
-}
-
 /// gui_tests 전체가 #[ignore] 상태인지 확인한다. 디스플레이만 있어서는 일반 실행에 포함되지 않는다.
 #[test]
 fn the_gui_suite_needs_a_flag_not_a_display() {
@@ -1751,7 +1696,7 @@ fn can_reach_gui_tests(command: &str) -> bool {
 #[test]
 fn only_calls_that_can_build_gui_tests_count_for_its_channel() {
     assert!(!can_reach_gui_tests(
-        "cargo test -p tasty-plugin-markdown --locked -- --ignored --exact x"
+        "cargo test -p tasty-plugin-mesh-demo --locked -- --ignored --exact x"
     ));
     assert!(!can_reach_gui_tests(
         "cargo test --workspace --locked --test e2e_tests -- --ignored"
@@ -3297,10 +3242,10 @@ fn every_time_marker_carries_its_own_reason() {
 /// YAML 주석을 제외한 사본에서 센다. 실제 실행 결과를 수집한 수는 아니다.
 const SWALLOWABLE_STEPS: usize = 6;
 
-/// if가 있는 검증 스텝 수(2026-10-07, check-headless의 webview 레이아웃 관측 단계를 더해 7).
+/// if가 있는 검증 스텝 수(2026-11-21, 공식 플러그인 사본과 함께 webview 레이아웃 관측 단계를 빼 6).
 /// 조건식을 계산하지 않아 앞선 실패 뒤 실행을 보장하지 않는다.
 /// 두 분류를 함께 대조하지만 수만으로 스텝 삭제와 조건 변경을 구별할 수는 없다.
-const PROTECTED_STEPS: usize = 7;
+const PROTECTED_STEPS: usize = 6;
 
 fn workflow_texts() -> Vec<(String, String)> {
     let root = repo_root();

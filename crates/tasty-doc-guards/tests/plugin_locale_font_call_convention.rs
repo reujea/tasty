@@ -1,63 +1,14 @@
-//! 네 egui 플러그인의 소스에 폰트 환경변수 이름과 공용 검증 함수 호출이 있는지, 언어팩 글꼴을
-//! 설치하는 곳이 호스트가 넘긴 글꼴 번호를 읽어 넘기는지 확인한다.
-//! 동일한 폰트를 사용하도록 하는 규약이며 실제 화면의 글리프 렌더링까지 검사하지는 않는다.
-//! 호스트의 환경변수 정의는 src/boot/locale.rs의 font_env_path에 있다.
+//! 호스트에서 언어팩 글꼴을 설치하는 곳이 넘겨받은 글꼴 번호를 읽어 넘기는지, 시스템 CJK 글꼴 후보가 한 파일에만
+//! 있는지 확인한다. 동일한 폰트를 사용하도록 하는 규약이며 실제 화면의 글리프 렌더링까지 검사하지는 않는다.
+//! 호스트의 환경변수 정의는 src/boot/locale.rs의 font_env_path에 있다. 공식 egui 플러그인 소스의 같은 규약은
+//! 공식 플러그인 레포가 검사한다.
 
 use std::path::Path;
 
 use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, normalized_rel, walk_with_floor};
 use tasty_doc_guards::repo_root;
 
-/// 플러그인과 폰트 설치 파일. 파일을 옮기면 이 목록도 갱신한다.
-const UI_PLUGINS: &[(&str, &str)] = &[
-    ("tasty-plugin-clipboard-viewer", "src/main.rs"),
-    ("tasty-plugin-git-viewer", "src/main.rs"),
-    ("tasty-plugin-image", "src/main.rs"),
-    ("tasty-plugin-markdown", "src/popup.rs"),
-];
-
-/// host 가 resolve 한 폰트 경로를 자식에 물려주는 env 이름. 넷이 이 철자를 읽어야 한다.
-const LOCALE_FONT_ENV: &str = "TASTY_LOCALE_FONT";
-/// 붙이기 전 ab_glyph 검증 + append 를 하는 공유 헬퍼. 넷이 이것을 불러야 한다(사본 금지).
-const HELPER: &str = "install_locale_font_fallback";
-
-#[test]
-fn every_ui_plugin_reads_the_same_locale_font_env_and_calls_the_shared_helper() {
-    let root = repo_root();
-    let mut checked = 0usize;
-    let mut missing_env = Vec::new();
-    let mut missing_helper = Vec::new();
-
-    for (plugin, file) in UI_PLUGINS {
-        let path = root.join("crates").join(plugin).join(file);
-        let src = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-        checked += 1;
-        if !src.contains(LOCALE_FONT_ENV) {
-            missing_env.push(*plugin);
-        }
-        if !src.contains(HELPER) {
-            missing_helper.push(*plugin);
-        }
-    }
-
-    assert_eq!(
-        checked,
-        UI_PLUGINS.len(),
-        "scanned {checked} plugin(s), expected {} — the scan is broken, not clean",
-        UI_PLUGINS.len()
-    );
-    assert!(
-        missing_env.is_empty(),
-        "UI plugins missing the locale font variable {LOCALE_FONT_ENV}: {missing_env:?}"
-    );
-    assert!(
-        missing_helper.is_empty(),
-        "UI plugins missing the shared font validation helper {HELPER}: {missing_helper:?}"
-    );
-}
-
-/// 호스트에서 언어팩 글꼴을 설치하는 파일. 플러그인과 같은 번호를 읽어야 한다.
+/// 호스트에서 언어팩 글꼴을 설치하는 파일. 플러그인에 넘긴 것과 같은 번호를 읽어야 한다.
 const HOST_LOCALE_FONT_INSTALLERS: &[&str] =
     &["src/adapters/ui/font_registry.rs", "src/gfx/gpu/fonts.rs"];
 
@@ -70,26 +21,22 @@ const FACE_PASSED_DIRECTLY: &str =
 #[test]
 fn every_locale_font_install_passes_the_face_number_from_the_host() {
     let root = repo_root();
-    let plugin_files = UI_PLUGINS
-        .iter()
-        .map(|(plugin, file)| format!("crates/{plugin}/{file}"));
-    let host_files = HOST_LOCALE_FONT_INSTALLERS.iter().map(ToString::to_string);
     let mut checked = 0usize;
     let mut dropped = Vec::new();
-    for file in plugin_files.chain(host_files) {
-        let src = std::fs::read_to_string(root.join(&file))
+    for file in HOST_LOCALE_FONT_INSTALLERS {
+        let src = std::fs::read_to_string(root.join(file))
             .unwrap_or_else(|e| panic!("cannot read {file}: {e}"));
         let compact: String = src.chars().filter(|c| !c.is_whitespace()).collect();
         checked += 1;
         let through_variable =
             compact.contains(FACE_IN_A_VARIABLE) && compact.contains(FACE_VARIABLE_PASSED);
         if !through_variable && !compact.contains(FACE_PASSED_DIRECTLY) {
-            dropped.push(file);
+            dropped.push(*file);
         }
     }
     assert_eq!(
         checked,
-        UI_PLUGINS.len() + HOST_LOCALE_FONT_INSTALLERS.len(),
+        HOST_LOCALE_FONT_INSTALLERS.len(),
         "the scan is broken, not clean"
     );
     assert!(

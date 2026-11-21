@@ -17,8 +17,8 @@ const MIN_HOST_PREFIXES: usize = 35;
 
 /// 번들 플러그인이 사용하는 namespace를 예약하면 매니페스트가 거절된다. 겹치는 호스트 구현은 아래 중계 목록과 별도로 대조한다.
 const CLAIMED_BY_A_BUNDLED_PLUGIN: &[(&str, &str)] = &[
-    ("image", "tasty-plugin-image 의 ipc_namespace"),
-    ("markdown", "tasty-plugin-markdown 의 ipc_namespace"),
+    ("image", "공식 image 플러그인의 ipc_namespace"),
+    ("markdown", "공식 markdown 플러그인의 ipc_namespace"),
 ];
 
 /// 현재 호스트 메서드는 없지만 선점하지 못하도록 예약한 이름과 그 사유.

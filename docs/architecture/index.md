@@ -1,6 +1,6 @@
 # 아키텍처 개요
 
-Tasty는 본 바이너리(`src/`)와 63 개 크레이트(`crates/*`)로 구성된 Cargo workspace다. 도메인 로직은 GUI 없이 동작하고, GUI·IPC·OS 연동은 port와 adapter로 연결한다.
+Tasty는 본 바이너리(`src/`)와 54 개 크레이트(`crates/*`)로 구성된 Cargo workspace다. 도메인 로직은 GUI 없이 동작하고, GUI·IPC·OS 연동은 port와 adapter로 연결한다.
 
 ## 기술 스택
 
@@ -66,7 +66,7 @@ OS 호출은 `tasty-platform` 크레이트에 둬 본체 타입에 직접 의존
 
 셀 렌더링에서 반복 호출하는 tasty-cell-width, tasty-terminal-link, tasty-selection은 dev에서도 opt-level 3으로 빌드한다. workspace 멤버는 외부 의존용 별표 설정에 포함되지 않아 개별 등록이 필요하다. 선택 기준은 실행 시간 감소와 수정 후 재컴파일 시간 증가를 각각 비교하는 것이다. 폭 계산·링크 검출의 반복 비용 감소가 작은 추가 컴파일 비용보다 커 채택했다. 새 크레이트를 무조건 같은 수준으로 최적화하지는 않는다. 호출이 캐시되거나 해당 크레이트 수정 빈도가 늘면 번갈아 빌드·실행해 다시 비교한다.
 
-## 워크스페이스 크레이트 (63)
+## 워크스페이스 크레이트 (54)
 
 아래 목록은 낮은 계층부터 나열한다. 의존은 상위에서 하위로 향하며 순환을 허용하지 않는다. `architecture_layer_order_holds`가 매니페스트 의존과 순서를 대조한다. 크레이트 소속은 각 절 첫 문단에서 백틱 이름으로 시작하는 항목을 읽는다. 순서와 다른 의존을 발견하면 실제 의존과 문서의 계층 순서를 함께 확인한다.
 
@@ -169,7 +169,7 @@ mirror 이름·부제·설명·분류와 혼합 표시 순서는 비영속 App c
 `tasty-platform`은 본 바이너리가 사용하고 도메인-IO와 primitive 계층에만 의존한다. 네이티브 메뉴·트레이는 egui 위젯이 아니므로 본체·갤러리 공용 UI 계층과 구분한다.
 
 ### plugin protocol / SDK (프로토콜·프로세스 경계)
-`tasty-plugin-protocol`(호스트·plugin 전송 타입, → type-appearance/type-geometry) · `tasty-plugin-sdk`(외부 plugin SDK, → protocol/type-geometry/shm/utils/i18n) · `tasty-plugin-sdk-wasm`(WASM 타깃 SDK) · `tasty-plugin-agent-common`(Claude·Codex 공용 prompt 임시파일·훅 정리·children 응답·reboot 인자. 매니페스트가 없어 번들 plugin은 아님, → sdk/protocol)
+`tasty-plugin-protocol`(호스트·plugin 전송 타입, → type-appearance/type-geometry) · `tasty-plugin-sdk`(외부 plugin SDK, → protocol/type-geometry/shm/utils/i18n) · `tasty-plugin-sdk-wasm`(WASM 타깃 SDK)
 
 이 계층은 protocol·SDK를 통해 호스트와 통신하며 도메인-IO에 직접 의존하지 않는다. 이 경계가 OS 샌드박스를 뜻하지는 않는다. **예외 하나** — `tasty-plugin-sdk` → `tasty-i18n`: 호스트와 SDK 가 설치·사용자 plugin 카탈로그 로딩을 공유한다.
 
@@ -179,8 +179,8 @@ mirror 이름·부제·설명·분류와 혼합 표시 순서는 비영속 App c
 ### 실행 runtime
 `tasty-task-runtime`(TaskService/TaskScope·runner thread·작업 실행·완료 대기 hub/feed와 hook wait. task 원본은 tasty-agent/MemoryStorage이며 App/Core/View 의존 없음, → agent/memory/ipc/utils). App은 실제 completion registry resolver와 명시 DAG 대상 값을 주입한다. runner stop, task 취소, OS child 종료는 별개 계약이다.
 
-### 번들 plugin (bin 크레이트, 모두 `tasty-plugin-sdk` 의존)
-`tasty-plugin-claude` · `tasty-plugin-codex` · `tasty-plugin-git-viewer` · `tasty-plugin-clipboard-viewer` · `tasty-plugin-image` · `tasty-plugin-html` · `tasty-plugin-markdown` · `tasty-plugin-agent-stream` · `tasty-plugin-mesh-demo`(+ manifest). 뒤의 둘은 `bundle = false` 라 배포 패키징에서는 빠지고 dev 번들 sync 로만 붙는다. — [concepts/plugins](../concepts/plugins.md)
+### 번들 plugin (bin 크레이트, `tasty-plugin-sdk` 의존)
+`tasty-plugin-mesh-demo`(+ manifest). 배포 패키징에서는 빠지고 dev 번들에만 붙는 시범 plugin이다. 공식 플러그인(claude·codex·git-viewer·clipboard-viewer·image·html·markdown·agent-stream)은 [공식 플러그인 레포](https://github.com/zilhak/tasty-official-plugins)의 릴리스 산출물을 잠금 파일(`official-plugins.lock.toml`)로 받는다. — [concepts/plugins](../concepts/plugins.md)
 
 ### 도구 / standalone
 `tasty-tui-simulator`(E2E TUI 시뮬레이터, lib + `tasty-tui-sim` binary — 로직은 lib 공유, debug 빌드에선 `tasty debug sim` 으로도 노출) · `tasty-gallery`(ui-widgets 데모 바이너리, `cargo run -p tasty-gallery` — 본체 빌드와 분리)

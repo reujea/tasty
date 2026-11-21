@@ -74,22 +74,8 @@ const RULES: &[Rule] = &[
                 ],
             ),
             within("src/adapters/production/arboard_clip.rs", &["write_text"]),
-            // 클립보드가 아니다: 글꼴 shaping 버퍼, claude plugin 시험의 화면 대역.
+            // 클립보드가 아니다: 글꼴 shaping 버퍼.
             whole("crates/tasty-font/"),
-            within(
-                "crates/tasty-plugin-claude/src/error_scan.rs",
-                &[
-                    "transient_error_that_keeps_producing_output_never_stalls",
-                    "an_old_error_followed_by_more_output_uses_the_normal_threshold",
-                    "an_error_followed_by_a_short_redraw_still_uses_the_error_threshold",
-                    "status_line_redraws_of_an_idle_target_never_fire_a_stall",
-                    "new_output_starts_a_new_quiet_stretch_for_the_state_check",
-                    "output_resumption_rearms_and_does_not_double_fire",
-                    "a_screen_notice_before_a_restart_is_not_repeated_while_the_output_stays",
-                    "a_background_wait_is_noticed_once",
-                    "an_error_split_across_two_polls_is_still_detected",
-                ],
-            ),
         ],
     },
     Rule {
@@ -487,11 +473,6 @@ fn a_write_in_another_function_of_an_allowed_file_is_found() {
             "src/clipboard/copy.rs",
             "fn copy_egui_text(gpu: &mut G) -> bool { take(gpu.take_egui_copy()) }\n\
              fn copy_now(gpu: &mut G) { gpu.take_egui_copy(); }\n",
-        ),
-        (
-            "crates/tasty-plugin-claude/src/error_scan.rs",
-            "fn a_background_wait_is_noticed_once() { host.set_text(t); }\n\
-             fn copy_now() { cb.set_text(t); }\n",
         ),
         (
             "src/file/drag/wayland/clip.rs",

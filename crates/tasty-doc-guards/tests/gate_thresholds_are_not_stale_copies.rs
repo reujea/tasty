@@ -129,6 +129,11 @@ enum Kind {
 /// 검색 결과 중 현재 값 설명이 아닌 파일과 제외 근거.
 const EXCLUDED: &[(&str, Kind, &str)] = &[
     (
+        "crates/tasty-doc-guards/tests/release_assets_match_the_guide.rs",
+        Kind::OtherMeaning,
+        "릴리스 자산 실측 개수 19이며 doc 주석 계측 편향이 아니다",
+    ),
+    (
         "src/app/anomaly_settings.rs",
         Kind::OtherMeaning,
         "SlowLoop 기본 반복 건수 20을 검증하는 시험이며 코드 복잡도 기준이 아니다",
@@ -192,11 +197,6 @@ const EXCLUDED: &[(&str, Kind, &str)] = &[
         "crates/tasty-memory/src/tests.rs",
         Kind::OtherMeaning,
         "테스트 픽스처의 행 수",
-    ),
-    (
-        "crates/tasty-plugin-agent-stream/src/handlers.rs",
-        Kind::OtherMeaning,
-        "POLL_MAX_LIMIT = 1000",
     ),
     (
         "crates/tasty-plugin-manifest/src/types.rs",

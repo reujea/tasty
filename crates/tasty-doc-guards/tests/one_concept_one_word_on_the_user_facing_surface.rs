@@ -61,32 +61,6 @@ const NOT_A_WINDOW: &[NotAWindow] = &[
         evidence: "settings.anomaly.slow_loop_window_secs·call_burst_window_secs의 라벨이다. 두 unit은 초이며 src/view/settings/ui/tabs/anomaly_detection.rs가 crates/tasty-settings/src/anomaly_detection.rs의 해당 기간 필드에 연결한다. OS Window를 여는 항목이 아니다.",
     },
     NotAWindow {
-        path: "crates/tasty-plugin-image/lang/ko.toml",
-        phrase: "파일 선택 창",
-        count: 1,
-        evidence: "이미지 찾아보기가 여는 저장 피커다. src/adapters/ui/popup/defs.rs의 host PopupDef id file_picker이며 별도 OS View가 아니다.",
-    },
-    NotAWindow {
-        path: "crates/tasty-plugin-clipboard-viewer/lang/ko.toml",
-        phrase: "스냅샷 창은",
-        count: 1,
-        evidence: "매니페스트 `crates/tasty-plugin-clipboard-viewer/tasty-plugin.toml` 이 \
-                   `[[contributes.popup]]` 로 선언한다",
-    },
-    NotAWindow {
-        path: "crates/tasty-plugin-clipboard-viewer/lang/ko.toml",
-        phrase: "기존 창을 앞으로",
-        count: 1,
-        evidence: "같은 popup 을 한 문장 안에서 두 번째로 가리킨다 — 근거는 위와 같은 매니페스트다",
-    },
-    NotAWindow {
-        path: "crates/tasty-plugin-git-viewer/lang/ko.toml",
-        phrase: "기존 창을 앞으로",
-        count: 1,
-        evidence: "매니페스트 `crates/tasty-plugin-git-viewer/tasty-plugin.toml` 이 \
-                   `[[contributes.popup]]` 로 선언한다",
-    },
-    NotAWindow {
         path: "lang/ko.toml",
         phrase: "주소창으로 이동",
         count: 1,
@@ -119,13 +93,13 @@ const HOST_LANG_FLOOR: Floor = Floor {
 };
 
 const PLUGIN_LANG_FLOOR: Floor = Floor {
-    min: 20,
-    measured: 36,
-    measured_on: "2026-11-10",
+    min: 4,
+    measured: 4,
+    measured_on: "2026-11-21",
     counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree(
-        "d4e70f3ef에 zh-Hans 언어 파일을 더한 트리 — 번들 플러그인 lang의 toml 파일 36개를 셌다.",
+        "e79de86fcc에서 공식 플러그인 사본을 지운 트리 — 번들 플러그인 lang의 toml 파일 4개(mesh-demo)를 셌다.",
     ),
-    why_this_gap: "2026-11-10에 플러그인 9개 × 언어 4개로 36개 파일을 측정했다. 플러그인 4개가 정리되는 경우를 허용한 하한 20이다. 더 줄면 실제 감소인지 수집 오류인지 확인한다.",
+    why_this_gap: "공식 플러그인은 공식 레포로 옮겨 tasty에는 mesh-demo 하나만 남았다. mesh-demo의 en/ko/ja/zh-Hans 네 파일이 모두 필요해 여유를 두지 않았다. 더 줄면 실제 감소인지 수집 오류인지 확인한다.",
 };
 
 type Surface = (String, String);

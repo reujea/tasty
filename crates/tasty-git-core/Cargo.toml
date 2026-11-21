@@ -3,7 +3,7 @@ name = "tasty-git-core"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "Read-only git2 wrapper (repo discovery, status/log/diff/worktrees) shared by the host core (remote attach git query) and tasty-plugin-git-viewer (local)."
+description = "Read-only git2 wrapper (repo discovery, status/log/diff/worktrees) shared by the host core (remote attach git query) and the official git-viewer plugin (local)."
 repository = "https://github.com/zilhak/tasty"
 
 [dependencies]

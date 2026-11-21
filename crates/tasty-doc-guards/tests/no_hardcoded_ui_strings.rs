@@ -119,11 +119,6 @@ const PENDING_FIX_LITERALS: &[(&str, &str, &str)] = &[
         "stream.open 거절 사유 폴백 — bail! 로 CLI stderr 에 노출",
     ),
     (
-        "crates/tasty-plugin-git-viewer/src/main.rs",
-        "remote git query failed",
-        "plugin 오류 패널(self.error)에 표시 — Translator 키로 대체",
-    ),
-    (
         "src/adapters/ipc/handler/telemetry/session.rs",
         "(시작 없음)",
         "IPC 응답 텍스트에 한국어 하드코딩 — t() 또는 언어 중립 토큰",

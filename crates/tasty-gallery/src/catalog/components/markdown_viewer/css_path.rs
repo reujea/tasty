@@ -1,5 +1,5 @@
 //! 마크다운 본문이 WebView와 CSS로 그려질 때의 색 대응표와 제목 단계. 본체
-//! `tasty-plugin-markdown` 렌더러의 `theme_css`·`hljs_css`·`heading_sizes_px`와 같은 값을 쓴다.
+//! 공식 markdown 플러그인 렌더러의 `theme_css`·`hljs_css`·`heading_sizes_px`와 같은 값을 쓴다.
 
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;

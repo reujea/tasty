@@ -37,7 +37,7 @@ pub(crate) enum Fail {
     Internal,
 }
 
-/// 플러그인 문구(`crates/tasty-plugin-markdown/lang/*.toml` 의 `markdown.address.*`). 갤러리는 본체
+/// 플러그인 문구(공식 markdown 플러그인 lang 의 `markdown.address.*`). 갤러리는 본체
 /// 번역표만 읽으므로 시안 문구를 그대로 둔다.
 struct Copy {
     open: &'static str,

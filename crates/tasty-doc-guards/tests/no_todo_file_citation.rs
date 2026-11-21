@@ -67,15 +67,6 @@ const PRUNE_DIRS: &[&str] = &[
     "AGENTS.md",
 ];
 
-/// 외부 minified 번들만 파일별로 제외한다. 큰 번들의 패턴 우연 일치와 스캔 비용을 피한다.
-/// 디렉터리 전체를 제외하면 직접 작성한 assets도 빠질 수 있다.
-const VENDORED_FILES: &[&str] = &[
-    "crates/tasty-plugin-markdown/assets/highlight.min.js",
-    "crates/tasty-plugin-markdown/assets/katex.min.css",
-    "crates/tasty-plugin-markdown/assets/katex.min.js",
-    "crates/tasty-plugin-markdown/assets/mermaid.min.js",
-];
-
 /// gitignored 로컬 폴더 이름의 조각. 이 파일 자신이 P6 에 걸리지 않도록 나눠 둔다.
 const LOCAL_HEAD: &str = "claude";
 const LOCAL_TAIL: &str = "-workspace";
@@ -508,11 +499,8 @@ fn out_of_scope(id: &str, rel: &str) -> bool {
     id == "P7" && rel.to_ascii_lowercase().ends_with(".md")
 }
 
-/// 등록 외부 번들과 바이너리 확장자 외에는 확장자 없는 파일도 검사한다.
+/// 바이너리 확장자 외에는 확장자 없는 파일도 검사한다.
 fn is_scan_target(rel: &str) -> bool {
-    if VENDORED_FILES.contains(&rel) {
-        return false;
-    }
     let name = rel.rsplit('/').next().unwrap_or("");
     // 선행 `.` 은 확장자 구분자가 아니다 — dotfile 은 확장자 없음으로 본다.
     let ext = name
@@ -855,11 +843,11 @@ fn p6_allows_identifiers_and_build_outputs() {
     assert_eq!(find_p6("id = \"com.tasty.claude\""), None);
     assert_eq!(find_p6("com.tasty.claude-design 은 제거됐다"), None);
     assert_eq!(
-        find_p6("crates/tasty-plugin-claude/tasty-plugin.toml.sig"),
+        find_p6("crates/tasty-plugin-mesh-demo/tasty-plugin.toml.sig"),
         None
     );
     assert_eq!(find_p6("site/release.json 을 읽는다"), None);
-    assert_eq!(find_p6("target/release/tasty-plugin-claude"), None);
+    assert_eq!(find_p6("target/release/tasty-plugin-mesh-demo"), None);
 }
 
 #[test]
@@ -962,7 +950,7 @@ fn p7_is_out_of_scope_in_markdown_only() {
         "CLAUDE.md",
         "docs/dev-guide/ci-gates.md",
         "site/content/help/troubleshooting.md",
-        "crates/tasty-plugin-markdown/assets/NOTICE.md",
+        "crates/tasty-design-tokens/README.md",
     ] {
         assert!(
             violations_in_line(rel, prose).is_empty(),
@@ -987,7 +975,7 @@ fn scan_target_covers_scripts_ci_and_root_docs() {
     assert!(is_scan_target("site/content/help/troubleshooting.md"));
     assert!(!is_scan_target("assets/icon.png"));
     assert!(!is_scan_target(
-        "crates/tasty-plugin-claude/tasty-plugin.toml.sig"
+        "crates/tasty-plugin-mesh-demo/tasty-plugin.toml.sig"
     ));
 }
 
@@ -1042,45 +1030,9 @@ fn a_build_dir_under_another_name_is_still_pruned() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// 등록된 번들의 존재와 같은 디렉터리의 미등록 minified 번들을 함께 확인한다.
-#[test]
-fn the_vendored_list_matches_what_is_there() {
-    let root = &tasty_doc_guards::repo_root();
-    for rel in VENDORED_FILES {
-        assert!(
-            root.join(rel).is_file(),
-            "vendored 목록이 없는 파일을 가리킨다: {rel} — 번들이 옮겨졌으면 목록도 옮겨라"
-        );
-    }
-
-    let dir = root.join("crates/tasty-plugin-markdown/assets");
-    let mut unlisted = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("vendored 디렉토리를 읽지 못했다") {
-        let path = entry.expect("디렉토리 항목").path();
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        if !(name.ends_with(".min.js") || name.ends_with(".min.css")) {
-            continue;
-        }
-        let rel = format!("crates/tasty-plugin-markdown/assets/{name}");
-        if !VENDORED_FILES.contains(&rel.as_str()) {
-            unlisted.push(rel);
-        }
-    }
-    assert!(
-        unlisted.is_empty(),
-        "목록에 없는 minified 번들이 있다 — 열거를 갱신해라: {unlisted:?}"
-    );
-}
-
 #[test]
 fn our_own_files_under_assets_are_scanned() {
-    for rel in [
-        "assets/linux/tasty.desktop",
-        "assets/icons/tasty-melon.svg",
-        "crates/tasty-plugin-markdown/assets/NOTICE.md",
-    ] {
+    for rel in ["assets/linux/tasty.desktop", "assets/icons/tasty-melon.svg"] {
         assert!(
             is_scan_target(rel),
             "우리가 쓴 파일이 스캔 대상에서 빠졌다: {rel}"
@@ -1092,9 +1044,6 @@ fn our_own_files_under_assets_are_scanned() {
             "그 파일이 든 디렉토리가 이름으로 가지치기된다: {dir}"
         );
     }
-    assert!(!is_scan_target(
-        "crates/tasty-plugin-markdown/assets/katex.min.js"
-    ));
 }
 
 #[test]
@@ -1183,7 +1132,7 @@ fn the_scan_reaches_every_major_branch_of_the_tree() {
         .collect();
     assert!(
         missing.is_empty(),
-        "다음 경로에서 한 파일도 수집하지 못했다: {missing:?} (전체 {}개). is_pruned/is_scan_target/VENDORED_FILES와 순회 경로를 확인한다. 실제 검사 범위가 바뀐 근거 없이 경로를 목록에서 제거하지 않는다.",
+        "다음 경로에서 한 파일도 수집하지 못했다: {missing:?} (전체 {}개). is_pruned/is_scan_target와 순회 경로를 확인한다. 실제 검사 범위가 바뀐 근거 없이 경로를 목록에서 제거하지 않는다.",
         rels.len()
     );
 }

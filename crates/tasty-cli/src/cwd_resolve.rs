@@ -70,7 +70,7 @@ pub fn normalize_cwd_arg(raw: &str) -> Result<String> {
 /// raw 값을 호출자 cwd 기준 absolute path 로 정규화 + **파일** 존재 검증
 /// (`path_kind = "file"`, `normalize_cwd_arg` 의 파일 버전 — 디렉토리면 거부).
 /// 파일 *내용* 검증(JSON 파싱 등)은 하지 않는다 — 그건 그 내용을 아는 plugin 핸들러
-/// 몫이다(예: claude 세션 프로필의 JSON 유효성은 `tasty-plugin-claude` 가 검증).
+/// 몫이다(예: claude 세션 프로필의 JSON 유효성은 공식 claude 플러그인이 검증).
 pub fn normalize_file_arg(raw: &str) -> Result<String> {
     if raw.is_empty() {
         bail!("{}", tasty_i18n::t("cli.cwd_resolve.path_empty"));
