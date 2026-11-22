@@ -30,6 +30,7 @@ pub(crate) mod redraw;
 mod saved_row_menu;
 pub(crate) mod selection;
 mod shutdown;
+mod titlebar_press;
 pub(crate) mod vi_copy;
 
 pub(crate) mod ime;
