@@ -3237,12 +3237,16 @@ fn every_time_marker_carries_its_own_reason() {
     assert_eq!(before, seen.len(), "같은 표지가 명부에 두 번 있다");
 }
 
-/// swallowable_verification_steps가 분류한 스텝 수(2026-09-08, b134d28e3).
-/// 앞선 스텝이 있고 cargo test/clippy를 호출하며 if·continue-on-error가 없는 스텝이다.
-/// YAML 주석을 제외한 사본에서 센다. 실제 실행 결과를 수집한 수는 아니다.
+/// swallowable_verification_steps가 분류하는 스텝 수의 상한이다. 같은 잡에 앞선 스텝이 있고
+/// cargo test/clippy를 호출하며 if·continue-on-error가 없는 스텝을 센다.
+/// YAML 주석을 지운 선언을 세므로 수동 실행 전용 잡의 스텝도 들고, 실제 실행 결과를 수집한 수는 아니다.
+/// 시험은 상한으로 비교해(늘면 실패, 줄면 통과) 통과만으로 실제 수를 알 수 없다.
+/// aa47a379d9의 .github/workflows에서 6개를 셌다(2026-11-22). 세는 스텝 목록은 실패 메시지가 출력한다.
 const SWALLOWABLE_STEPS: usize = 6;
 
-/// if가 있는 검증 스텝 수(2026-11-22, check-windows에 headless clippy, check-headless에 headless release clippy 단계를 더해 9).
+/// protected_verification_steps가 분류하는 스텝 수다. if가 있고 cargo test/clippy를 호출하는 스텝을 세며,
+/// continue-on-error: true인 관측용 스텝도 든다. 시험은 같은지 비교한다.
+/// aa47a379d9의 .github/workflows에서 9개를 셌다(2026-11-22). 세는 스텝 목록은 실패 메시지가 출력한다.
 /// 조건식을 계산하지 않아 앞선 실패 뒤 실행을 보장하지 않는다.
 /// 두 분류를 함께 대조하지만 수만으로 스텝 삭제와 조건 변경을 구별할 수는 없다.
 const PROTECTED_STEPS: usize = 9;
