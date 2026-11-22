@@ -705,7 +705,7 @@ fn find_bindings_keep_their_meaning() {
     for (key, modifiers) in combos {
         for case in ["none", "focused", "other"] {
             let (mut state, mut session) = test_state();
-            let mut session = session.borrow_mut();
+            let session = session.borrow_mut();
             session.runtime.settings.keybindings.find =
                 vec!["f2".into(), "ctrl+f".into(), "alt+f".into()];
             let engine = session.read();
