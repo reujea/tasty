@@ -23,6 +23,9 @@ pub mod process;
 pub mod shell_family;
 pub mod socket_wake;
 pub mod target;
+/// 시험 전용 대기 도우미. 의존 크레이트의 시험은 `test-support` 기능으로 켠다.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_wait;
 /// Full Windows file identity captured from a borrowed live file handle.
 #[cfg(windows)]
 #[allow(

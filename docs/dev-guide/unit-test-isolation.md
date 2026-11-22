@@ -398,6 +398,12 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   은 완료를 `recv_timeout(1초)` 가 실패할 때까지 모아 "남은 것은 credit 대기 중" 으로 판정했다.
   worker 처리가 부하로 1초 넘게 늦으면 루프가 일찍 끝나고, 늦게 온 완료를 다음 단정이 받는다.
   지금은 요청을 순서대로 처리하는 worker 에 읽기 요청(barrier)을 하나 더 넣고 그 완료까지 모은다.
+- 폴링해야 하는 대기는 기한에서 조건을 한 번 더 읽는다: `while !cond() { assert!(Instant::now() < deadline); sleep }`
+  는 조건을 거짓으로 읽은 뒤 검사 스레드가 밀려 시각을 기한 뒤에 읽으면, 그 사이 조건이 참이 됐어도 실패한다.
+  `tasty_utils::test_wait::holds_by`(`test-support` 기능)는 기한에 닿으면 조건을 한 번 더 읽어 그 값을 돌려준다.
+  조건 읽기에 진행 작업(결과 거두기·이벤트 pump)이 붙은 루프는 원래 순서(읽기 → 진행 → 읽기)를 지키고, 기한 뒤
+  마지막 읽기에서 그 작업을 한 번 더 돌려도 판정이 바뀌지 않는 자리에서만 쓴다. 기한 뒤 작업이 만료 처리처럼
+  판정 대상을 바꿀 수 있으면 원래 루프를 두고 사유를 주석에 적는다.
 - 기한은 그 계약이 말하는 구간만 잰다: `disable_returns_before_a_stalled_child_exits` 의 500 ms 상한은
   "메인 루프가 회수(최대 2초)를 기다리지 않는다"를 가른다. 제품에서 설정 파일 확정은 writer worker 가 하고
   메인 루프는 `apply_config_change` 만 부르므로, 시험도 `prepare_config_change`·`execute` 로 확정한 뒤
