@@ -2013,3 +2013,307 @@ fn escape_closes_download_run_progress() {
     assert_eq!(actions, vec!["CloseBy(Escape)".to_string()]);
     assert!(closed);
 }
+
+// ---- 키 주인이 아닌 팝업의 egui 텍스트 포커스(G7). 관리자가 그린 뒤 놓는다. ----
+
+use crate::adapters::ui::popup::PopupKeyboard;
+use crate::adapters::ui::popup::port_scanner::{PORT_SCANNER_POPUP_ID, PortScanState, ScanScope};
+
+fn egui_focus(ctx: &Context) -> Option<egui::Id> {
+    ctx.memory(|m| m.focused())
+}
+
+/// 포트 스캐너를 창 범위 가운데에 키 주인으로 연다. 빈 조회 결과를 미리 넣어 조회를 시작하지 않는다.
+fn open_scanner(state: &mut RequestContext) -> PopupInstanceId {
+    state.port_scan = PortScanState::Ready {
+        rows: Vec::new(),
+        scope: ScanScope::Tasty,
+    };
+    state
+        .popups
+        .open_request(
+            &OpenRequest::new(PORT_SCANNER_POPUP_ID, PopupScope::Window)
+                .centered()
+                .focused(),
+            true,
+        )
+        .expect("port scanner opens")
+}
+
+/// 키 주인 포트 스캐너를 그리고 검색 입력칸(자동 `request_focus` 없음)을 눌러 egui 포커스를 준다. 그 포커스 id를
+/// 돌려준다.
+fn scanner_with_focused_input(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+) -> (PopupInstanceId, egui::Id) {
+    let scanner = open_scanner(state);
+    frame_rects(ctx, state, engine, Vec::new());
+    let texts = frame_rects(ctx, state, engine, Vec::new());
+    let field = text_rect(&texts, t("port_scanner.search_placeholder"));
+    click(ctx, state, engine, field.center());
+    let focused = egui_focus(ctx).expect("누른 검색 입력칸이 egui 포커스를 가진다");
+    assert!(
+        egui::TextEdit::load_state(ctx, focused).is_some(),
+        "포커스 위젯이 텍스트 입력칸이다"
+    );
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(scanner)),
+        "포트 스캐너가 키 주인이다"
+    );
+    (scanner, focused)
+}
+
+fn open_palette_unfocused(state: &mut RequestContext) -> PopupInstanceId {
+    state
+        .popups
+        .open_request(
+            &OpenRequest::new(COMMAND_PALETTE_POPUP_ID, PopupScope::Window).centered(),
+            true,
+        )
+        .expect("palette opens")
+}
+
+/// T-10b-1: Given 포트 스캐너 검색 입력칸이 egui 포커스를 가진 키 주인이고 그 뒤에 그리는 팔레트가 키 없이 보일 때,
+/// When 몇 패스를 그리고 글자를 치면, Then 포커스는 주인 입력칸에 남고 글자는 주인이 받는다. 팔레트 입력칸은 비어 있다.
+#[test]
+fn owner_input_keeps_focus_beside_a_visible_palette() {
+    let (mut state, mut session) = scene(PANE_L);
+    let engine = session.borrow_mut();
+    registered(&mut state);
+    let ctx = Context::default();
+    let (scanner, field) = scanner_with_focused_input(&ctx, &mut state, &engine.read());
+    let palette = open_palette_unfocused(&mut state);
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let order = |wanted: &str| {
+        texts
+            .iter()
+            .position(|(s, _)| s == wanted)
+            .unwrap_or_else(|| panic!("{wanted} 이 칠해진다: {texts:?}"))
+    };
+    assert!(
+        order(t("command_palette.hint_close")) > order(t("port_scanner.heading")),
+        "팔레트가 주인보다 뒤에 그려진다"
+    );
+    assert!(state.popups.instance(palette).is_some_and(|p| p.open));
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(scanner)),
+        "보이는 팔레트는 키 주인이 아니다"
+    );
+    assert_eq!(egui_focus(&ctx), Some(field), "포커스는 주인 입력칸에 있다");
+
+    frame_rects(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        vec![Event::Text("qz".into())],
+    );
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        egui_focus(&ctx),
+        Some(field),
+        "글자 뒤에도 포커스는 주인 입력칸에 있다"
+    );
+    assert!(
+        texts.iter().any(|(s, _)| s == "qz"),
+        "주인 입력칸이 글자를 받는다: {texts:?}"
+    );
+    let query = match state.popups.instance(palette).map(|p| &p.payload) {
+        Some(PopupPayload::CommandPalette(input)) => input.query.clone(),
+        _ => panic!("팔레트 인스턴스 데이터가 아니다"),
+    };
+    assert!(
+        query.is_empty(),
+        "팔레트 입력칸은 글자를 받지 않는다: {query:?}"
+    );
+}
+
+/// T-10b-2: Given plugin 팝업이 키 주인이고 host 팔레트가 키 없이 보일 때, When 두 프레임을 그리면, Then 팔레트
+/// 입력칸은 egui 포커스를 갖지 않고 plugin 요청은 키 포커스와 키 사건을 싣는다.
+#[test]
+fn plugin_owner_leaves_the_palette_without_focus() {
+    use super::frame_keys::{focus_p, key_and_ime, plugin_only_scene, render_frame_on, sent_input};
+    let (mut state, mut session, mgr) = plugin_only_scene();
+    let engine = session.borrow_mut();
+    let palette = open_palette_unfocused(&mut state);
+    focus_p(&mut state);
+    let ctx = Context::default();
+    render_frame_on(&ctx, &mut state, &engine.read(), &mgr, true, &|_| {});
+    state.close_input_pass(&ctx);
+    drop(sent_input(&mut state));
+    render_frame_on(&ctx, &mut state, &engine.read(), &mgr, true, &|_| {});
+    assert!(
+        state.popups.instance(palette).is_some_and(|p| p.open),
+        "팔레트가 열려 있다"
+    );
+    assert_eq!(
+        egui_focus(&ctx),
+        None,
+        "비주인 팔레트 입력칸에 포커스가 없다"
+    );
+    let input = sent_input(&mut state).expect("P 의 Popup 요청이 없다");
+    assert!(input.focused, "plugin 주인 요청은 키 포커스를 싣는다");
+    assert!(key_and_ime(&input).0, "plugin 주인 요청은 키 사건을 싣는다");
+}
+
+/// 좌우 surface에 변환 팝업 A(키 없음)·B(키 주인)를 연다. 시험 본문으로 그린다.
+fn two_converts(state: &mut RequestContext) -> (PopupInstanceId, PopupInstanceId) {
+    registered(state);
+    let a = open_convert(state, SURFACE_L, false);
+    let b = open_convert(state, SURFACE_R, true);
+    state.popups.set_instance_focused(b, true);
+    (a, b)
+}
+
+/// T-10b-3: Given `keyboard = None` 팝업 A 안 입력칸에 클릭으로 egui 포커스를 준 뒤 B 가 키 주인일 때, When 클릭 없는
+/// 패스를 그리면, Then 그 입력칸 포커스가 남는다.
+#[test]
+fn a_text_focus_in_a_keyboard_none_popup_is_kept() {
+    let (mut state, mut session) = scene(PANE_L);
+    let (a, b) = two_converts(&mut state);
+    state.popups.instance_mut(a).expect("A").keyboard = PopupKeyboard::None;
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    let field = std::cell::Cell::new(None::<(egui::Id, egui::Rect)>);
+    let mut text = String::new();
+    let mut body =
+        |ui: &mut egui::Ui, _: &mut RequestContext, _: &EngineRead<'_>, cx: &mut PopupCx<'_>| {
+            if cx.instance == a {
+                let resp = ui.add(egui::TextEdit::singleline(&mut text).id_salt("t10b3"));
+                field.set(Some((resp.id, resp.rect)));
+            }
+            Some(PopupAction::None)
+        };
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    let (id, rect) = field.get().expect("A 본문이 입력칸을 그린다");
+    input.queue_mut().extend(pointer(rect.center(), true));
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    input.queue_mut().extend(pointer(rect.center(), false));
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert_eq!(
+        egui_focus(&ctx),
+        Some(id),
+        "누른 입력칸이 egui 포커스를 가진다"
+    );
+
+    state.popups.set_instance_focused(b, true);
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(b)),
+        "B 가 키 주인이다"
+    );
+    assert_eq!(
+        egui_focus(&ctx),
+        Some(id),
+        "keyboard None 팝업의 입력칸 포커스는 남는다"
+    );
+}
+
+/// T-10b-4: Given 변환 팝업이 키 주인이고 포트 스캐너가 키 없이 보일 때, When 한 패스에 키와 스캐너 입력칸 누름이
+/// 함께 오면, Then 그 패스 뒤 누른 입력칸 포커스가 남는다.
+#[test]
+fn a_click_this_pass_keeps_the_new_text_focus() {
+    let (mut state, mut session) = scene(PANE_L);
+    let engine = session.borrow_mut();
+    registered(&mut state);
+    let ctx = Context::default();
+    let scanner = open_scanner(&mut state);
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let field = text_rect(&texts, t("port_scanner.search_placeholder"));
+    let convert = open_convert(&mut state, SURFACE_R, true);
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(convert)),
+        "변환 팝업이 키 주인이다"
+    );
+    assert!(state.popups.instance(scanner).is_some_and(|p| p.open));
+    assert_eq!(egui_focus(&ctx), None, "누르기 전에는 포커스가 없다");
+
+    let mut events = vec![press(Key::ArrowDown)];
+    events.extend(pointer(field.center(), true));
+    frame_rects(&ctx, &mut state, &engine.read(), events);
+    let focused = egui_focus(&ctx).expect("누른 입력칸이 이번 패스에 포커스를 얻는다");
+    assert!(egui::TextEdit::load_state(&ctx, focused).is_some());
+}
+
+/// T-10b-5: Given 키 주인이 아닌 A 본문의 원격 닫기 확인이 첫 렌더에 취소 버튼에 포커스를 줄 때, When 이어서 그리면,
+/// Then 버튼 포커스가 남는다(텍스트 위젯이 아니다).
+#[test]
+fn a_non_owner_button_keeps_its_focus() {
+    let (mut state, mut session) = scene(PANE_L);
+    let (a, b) = two_converts(&mut state);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    let first = std::cell::Cell::new(true);
+    let mut body =
+        |ui: &mut egui::Ui, _: &mut RequestContext, _: &EngineRead<'_>, cx: &mut PopupCx<'_>| {
+            if cx.instance == a {
+                let glyph = |_: &mut egui::Ui, _: egui::Rect, _: egui::Color32| {};
+                drop(tasty_ui_widgets::close_remote_confirm(
+                    ui,
+                    &crate::theme::theme(),
+                    &tasty_ui_widgets::CloseRemoteConfirmView {
+                        title: "t",
+                        last: None,
+                        body: "b",
+                        cancel: "Cancel",
+                        confirm: "Close",
+                        glyph: &glyph,
+                        focus_cancel: first.replace(false),
+                    },
+                ));
+            }
+            Some(PopupAction::None)
+        };
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(b)),
+        "B 가 키 주인이다"
+    );
+    let button = egui_focus(&ctx).expect("취소 버튼이 egui 포커스를 가진다");
+    assert!(egui::TextEdit::load_state(&ctx, button).is_none());
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert_eq!(
+        egui_focus(&ctx),
+        Some(button),
+        "비주인 버튼 포커스는 남는다"
+    );
+}
+
+/// T-10b-6: Given 포트 스캐너 검색 입력칸이 egui 포커스를 가진 채 변환 팝업이 키 주인이 될 때, When 클릭 없는 패스를
+/// 그리면, Then 그 입력칸 포커스가 풀린다.
+#[test]
+fn a_stale_text_focus_in_a_non_owner_is_released() {
+    let (mut state, mut session) = scene(PANE_L);
+    let engine = session.borrow_mut();
+    registered(&mut state);
+    let ctx = Context::default();
+    let (scanner, field) = scanner_with_focused_input(&ctx, &mut state, &engine.read());
+    let convert = open_convert(&mut state, SURFACE_R, true);
+    assert_eq!(
+        egui_focus(&ctx),
+        Some(field),
+        "패스 전 비주인 입력칸이 포커스를 가진다"
+    );
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(convert)),
+        "변환 팝업이 키 주인이다"
+    );
+    assert!(state.popups.instance(scanner).is_some_and(|p| p.open));
+    assert_eq!(egui_focus(&ctx), None, "비주인 입력칸 포커스가 풀린다");
+}

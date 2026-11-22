@@ -1,5 +1,7 @@
 //! 팝업 렌더링과 입력·표시 범위 계산.
 
+mod text_focus;
+
 use crate::adapters::ui::LayoutContext;
 use crate::adapters::ui::input::edit_key::EditBindings;
 use crate::theme;
@@ -261,6 +263,9 @@ impl PopupManager {
         // 키 주인이 없는 프레임에는 포커스를 받지 않는 팝업(복원 안내 등)의 본문이 자기 위젯 키 포커스로 키를 읽는다.
         // 창이 묶은 주인이 그사이 닫혔으면 그 키는 처리한 노드에서 멈춘 것이므로 키 주인이 있는 프레임이다.
         let frame_has_key_owner = frame_keys.held();
+        // 키 주인이 아닌 본문의 텍스트 포커스는 그린 뒤 놓는다(`text_focus`). 그리기 전 포커스와 본문마다 문 값을 모은다.
+        let focus_at_start = ctx.memory(|m| m.focused());
+        let mut bodies: Vec<text_focus::BodyKeys> = Vec::new();
         // 창이 처리한 Esc 는 egui 입력에 없다. 묶인 host 키 주인 본문이 읽도록 본문들을 그리는 동안만 원래 사건을
         // 넣는다. plugin 키 주인 몫은 plugin 렌더가 꺼낸다. 별도 창은 넘긴 Esc 대신 창이 넣은 표지를 쓴다.
         let window_escape = self.take_window_escape();
@@ -882,6 +887,12 @@ impl PopupManager {
                                 let takes_keys = cx.focused
                                     || (!frame_has_key_owner && !popup.arrange.takes_focus);
                                 let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits);
+                                bodies.push(text_focus::BodyKeys {
+                                    area: layer_id.id,
+                                    instance: popup.instance,
+                                    takes_keys,
+                                    keyboard: popup.keyboard,
+                                });
                                 // 키 주인 통로는 이번 패스 Esc 표지로 Esc 를 맞춘다. 본문 전에 자식 팝업 열림을 읽는다.
                                 cx.keys = if cx.focused {
                                     keys.with_escape_marks(std::mem::take(&mut pass_escape.marks))
@@ -967,6 +978,7 @@ impl PopupManager {
         // 이번 프레임에 배치·clamp를 마친 상자를 뒤에 그릴 plugin 팝업과 창의 포인터 판정에 전달한다.
         // 호출 순서는 egui_bridge::run_egui_frame과 source_guards::frame_draw_order에서 확인한다.
         let hit_rects = self.pointer_boxes(ctx, &still_open, draw_ctx, screen_rect);
+        text_focus::release_non_owner_text_focus(ctx, &bodies, focus_at_start);
         restack_layers(ctx, &layers);
         // egui는 누른 영역을 맨 위로 올린다. 포커스를 받지 않는 팝업을 눌렀으면 모든 팝업 레이어를 함께
         // 올려 지금 순서(그 팝업이 아래)를 지킨다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.

@@ -178,7 +178,7 @@ fn open_scene_with(escape: tasty_plugin_protocol::popup_decl::PopupEscape) -> Sc
 }
 
 /// 사용자가 P 를 누른 것처럼 P 를 창의 포커스 노드로 한다.
-fn focus_p(state: &mut RequestContext) {
+pub(super) fn focus_p(state: &mut RequestContext) {
     state
         .popups
         .set_focus(Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(
@@ -769,7 +769,7 @@ fn an_unfed_escape_release_after_a_press_releases_after_the_escape_it_follows() 
 }
 
 /// plugin 팝업 P(R 범위)만 연 장면. 엔진 포커스는 L 이고 팝업 포커스는 없다.
-fn plugin_only_scene() -> (
+pub(super) fn plugin_only_scene() -> (
     RequestContext,
     crate::runtime::engine_session::EngineSession,
     PluginManager,
@@ -818,7 +818,25 @@ fn render_frame(
     with_host: bool,
     before_render: &dyn Fn(&RequestContext),
 ) {
-    let ctx = Context::default();
+    render_frame_on(
+        &Context::default(),
+        state,
+        engine,
+        mgr,
+        with_host,
+        before_render,
+    );
+}
+
+/// [`render_frame`]와 같고 `ctx` 에 그린다(여러 프레임에 걸친 egui 상태를 보는 시험).
+pub(super) fn render_frame_on(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    mgr: &PluginManager,
+    with_host: bool,
+    before_render: &dyn Fn(&RequestContext),
+) {
     let layout = layout();
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
@@ -845,7 +863,9 @@ fn render_frame(
 }
 
 /// 이번 프레임 plugin 렌더가 P 에 보낸 요청의 입력. 요청이 없으면 `None`이다.
-fn sent_input(state: &mut RequestContext) -> Option<tasty_plugin_protocol::protocol::RawInputWire> {
+pub(super) fn sent_input(
+    state: &mut RequestContext,
+) -> Option<tasty_plugin_protocol::protocol::RawInputWire> {
     use crate::app::frame_effect::{DrawEffect, FrameEffect};
     use crate::app::plugin_display::PluginDisplayRequest;
     state
@@ -861,7 +881,7 @@ fn sent_input(state: &mut RequestContext) -> Option<tasty_plugin_protocol::proto
 }
 
 /// 요청 입력에 Esc 가 아닌 키 사건과 IME 사건이 있는지.
-fn key_and_ime(input: &tasty_plugin_protocol::protocol::RawInputWire) -> (bool, bool) {
+pub(super) fn key_and_ime(input: &tasty_plugin_protocol::protocol::RawInputWire) -> (bool, bool) {
     use tasty_plugin_protocol::protocol::RawInputEventWire as W;
     (
         input

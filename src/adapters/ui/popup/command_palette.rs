@@ -163,7 +163,8 @@ pub(crate) fn draw_command_palette_view(
                     icons::SEARCH.image(rect.height(), color).paint_at(ui, rect);
                 })
                 .show(ui, theme, props.query_buffer);
-            if !resp.has_focus() {
+            // 입력칸 포커스는 키 주인일 때만 요청한다. 보이기만 하는 팔레트가 주인 입력칸 포커스를 빼앗지 않는다.
+            if keys.receives() && !resp.has_focus() {
                 resp.request_focus();
             }
             if resp.changed() {
