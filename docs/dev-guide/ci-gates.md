@@ -632,10 +632,15 @@ Linux 루트 lib 시험(`cargo test -p tasty --lib`, 기본 feature, 기본 병�
 무부하는 50ms 표본 20회에서 151~314, 5ms 표본 3회에서 224~840이었다.
 CPU를 모두 쓰는 바쁜 루프 16개를 함께 돌리면 50ms 표본 20회에서 1258~1618, 5ms 표본 11회에서 1376~1629였다.
 soft 8192에서 돌린 54회 모두 통과했고 `os error 24`는 없었다. 같은 부하에서 soft를 1024로 낮추면 3회 모두 EMFILE로 실패했다.
-부하 최고 시점의 fd는 매번 pipe·socket·`/dev/null`이 4:2:1이었고, 그때 시험 프로세스의 스레드 230여 개 중
-200개 안팎이 `intent::headless` 시험의 이름을 물려받은 스레드였다. 이 시험 두 개는 훅을 128번씩 실행하고,
-훅 실행(`hook_runtime::trigger`)은 훅마다 이름 없는 스레드에서 `Command::output()`을 부른다.
-spawn 하나는 끝날 때까지 pipe 4개·socketpair 2개·`/dev/null` 1개를 쥐므로 CPU 경합으로 spawn이 늦어질수록 최고 fd가 커진다.
+부하 최고 시점의 fd는 매번 pipe·socket·`/dev/null` 세 종류가 대부분이었고 그 비율은 대략 4:2:1이었다
+(예: 1506개 중 pipe 854·socket 431·`/dev/null` 214, 나머지 7개는 파일·eventpoll·eventfd).
+스레드 이름은 부하 3회에서만 집계했다. 최고 시점 스레드 243·232·223개 중 221·211·198개가
+`intent::headless` 시험의 이름을 물려받은 스레드였다.
+
+해석은 다음과 같다. 이 시험 두 개는 셸 명령 훅을 128번씩 실행한다. 셸 명령 훅(`hook_runtime::trigger`의 인라인 셸과
+셸 명령 핸들러)은 실행마다 이름 없는 스레드에서 `Command::output()`을 부른다. IPC 시퀀스 핸들러는 이 경로를 타지 않는다.
+최고 시점 구성은 `output()`의 spawn 준비 단계 fd(stdout·stderr pipe 4개, exec 통지 socket 2개, stdin `/dev/null` 1개)와 부합한다.
+부하에서 최고 표본이 커진 것은 그 준비 단계에 머무는 spawn이 많이 겹쳤기 때문으로 보이지만, spawn별 fd 수명은 재지 않았다.
 같은 날 Linux CI 잡(`tasty-gx10-arm64`·`tasty-server-x64` 러너) 안의 루트 시험 프로세스는 soft·hard 모두 524288이었다.
 Linux 잡에는 macOS의 `fd budget` 같은 점검 단계가 없다.
 
