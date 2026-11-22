@@ -240,8 +240,10 @@ fn write_executable(path: &Path, body: &str) {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("권한");
 }
 
-/// 호출자 꼴 셸. `$2` 폴더에서 `$3` 동작을 한다: own(잡기·놓기 반복), other(남의 잠금 반복 잡기), hold(잡고 대기).
-/// cleanup은 운영 스크립트와 같은 꼴이고, `$4`가 있으면 정리 중에 그만큼 쉰다.
+/// 호출자 꼴 셸. `$2` 폴더에서 `$3` 동작을 한다: own(잡기·놓기 반복), other(남의 잠금 반복 잡기), hold(잡고
+/// `held`를 남긴 뒤 대기), noclobber(잡은 뒤 호출자가 noclobber를 켜고 끝냄).
+/// cleanup은 운영 스크립트와 같은 꼴이고, `$4`가 있으면 정리 중에 `cleaning`을 남기고 시험이 `resume`을 만들 때까지
+/// 기다린다(시험은 신호를 보낸 뒤 `resume`을 만든다).
 const CALLER: &str = r#". "$1"
 dir=$2 pause=${4:-}
 cleanup() {
@@ -249,7 +251,10 @@ cleanup() {
     local rc=$run_lock_status
     trap - EXIT
     case $- in *C*) echo "noclobber left on" >&2 ;; esac
-    if [ -n "$pause" ]; then : > "$dir/cleaning"; sleep "$pause" || :; fi
+    if [ -n "$pause" ]; then
+        : > "$dir/cleaning"
+        until [ -e "$dir/resume" ]; do sleep 0.01 || :; done
+    fi
     run_lock_release || echo "Warning: could not remove $dir/L" >&2
     run_lock_finish "$rc"
 }
@@ -269,7 +274,13 @@ while :; do
         other) [ "$r" -eq 1 ] || { echo "acquire $r" >&2; exit 7; } ;;
         hold)
             [ "$r" -eq 0 ] || { echo "acquire $r" >&2; exit 6; }
+            : > "$2/held"
             while :; do sleep 0.01; done
+            ;;
+        noclobber)
+            [ "$r" -eq 0 ] || { echo "acquire $r" >&2; exit 5; }
+            set -C
+            exit 0
             ;;
     esac
 done
@@ -299,14 +310,15 @@ fn signal_group(child: &Child, sig: &str) {
         .expect("kill 실행");
 }
 
-fn wait_for(path: &Path) {
+/// `path`가 생길 때까지 기다린다. 시간이 지나면 셸 그룹을 끝내고 거둔 뒤 패닉한다.
+fn wait_for(child: &mut Child, path: &Path) {
     let end = Instant::now() + Duration::from_secs(10);
     while !path.exists() {
-        assert!(
-            Instant::now() < end,
-            "{} 를 기다리다 시간이 지났다",
-            path.display()
-        );
+        if Instant::now() >= end {
+            signal_group(child, "KILL");
+            child.wait().expect("강제 종료한 셸 거두기");
+            panic!("{} 를 기다리다 시간이 지났다", path.display());
+        }
         std::thread::sleep(Duration::from_millis(1));
     }
 }
@@ -344,7 +356,7 @@ fn round_dir(base: &Path, i: u32) -> PathBuf {
 fn left(d: &Path) -> Vec<String> {
     names(d)
         .into_iter()
-        .filter(|n| !matches!(n.as_str(), "ready" | "err" | "cleaning"))
+        .filter(|n| !matches!(n.as_str(), "ready" | "err" | "held" | "cleaning" | "resume"))
         .collect()
 }
 
@@ -354,7 +366,7 @@ fn term_while_taking_and_releasing_leaves_no_lock_or_token() {
     for i in 0..60 {
         let d = round_dir(dir.path(), i);
         let mut child = spawn_caller(&d, "own", "");
-        wait_for(&d.join("ready"));
+        wait_for(&mut child, &d.join("ready"));
         std::thread::sleep(jitter(i));
         signal_group(&child, "TERM");
         let rc = finish(&mut child, Some("TERM"));
@@ -369,6 +381,19 @@ fn term_while_taking_and_releasing_leaves_no_lock_or_token() {
     }
 }
 
+/// 위 시험의 noclobber 검사가 실제로 출력을 보는지 확인한다. 잡은 뒤 호출자가 noclobber를 켜고 끝나면 cleanup이
+/// 그 줄을 내고, 잠금은 그래도 지운다.
+#[test]
+fn the_cleanup_reports_noclobber_the_caller_left_on() {
+    let dir = Scratch::new("run-lock-noclobber-on");
+    let d = round_dir(dir.path(), 0);
+    let mut child = spawn_caller(&d, "noclobber", "");
+    assert_eq!(finish(&mut child, None), 0);
+    let err = std::fs::read_to_string(d.join("err")).unwrap_or_default();
+    assert!(err.contains("noclobber left on"), "{err}");
+    assert!(left(&d).is_empty(), "남은 파일 {:?}", left(&d));
+}
+
 #[test]
 fn term_while_another_run_holds_the_lock_leaves_that_lock_alone() {
     let dir = Scratch::new("run-lock-term-other");
@@ -376,7 +401,7 @@ fn term_while_another_run_holds_the_lock_leaves_that_lock_alone() {
         let d = round_dir(dir.path(), i);
         std::fs::write(d.join("L"), "other\n").expect("남의 잠금");
         let mut child = spawn_caller(&d, "other", "");
-        wait_for(&d.join("ready"));
+        wait_for(&mut child, &d.join("ready"));
         std::thread::sleep(jitter(i));
         signal_group(&child, "TERM");
         let rc = finish(&mut child, Some("TERM"));
@@ -395,35 +420,49 @@ fn int_while_holding_and_int_during_cleanup_end_with_130_and_no_lock() {
     // 잡고 대기하는 중 INT 한 번.
     let d = round_dir(dir.path(), 0);
     let mut child = spawn_caller(&d, "hold", "");
-    wait_for(&d.join("ready"));
-    wait_for(&d.join("L"));
+    wait_for(&mut child, &d.join("held"));
     signal_group(&child, "INT");
     assert_eq!(finish(&mut child, None), 130);
     assert!(left(&d).is_empty(), "남은 파일 {:?}", left(&d));
-    // TERM으로 정리를 시작시킨 뒤 정리 중 INT 한 번. 정리를 마치고 130으로 끝난다.
+    // TERM으로 정리를 시작시킨 뒤 정리 중 INT 한 번. 정리는 시험이 INT를 보낸 뒤 `resume`을 만들 때까지 기다리므로
+    // INT는 늘 정리 도중에 닿는다. 정리를 마치고 130으로 끝난다.
     let d = round_dir(dir.path(), 1);
-    let mut child = spawn_caller(&d, "hold", "0.3");
-    wait_for(&d.join("ready"));
-    wait_for(&d.join("L"));
+    let mut child = spawn_caller(&d, "hold", "wait");
+    wait_for(&mut child, &d.join("held"));
     signal_group(&child, "TERM");
-    wait_for(&d.join("cleaning"));
+    wait_for(&mut child, &d.join("cleaning"));
     signal_group(&child, "INT");
+    std::fs::write(d.join("resume"), "").expect("resume 표지");
     assert_eq!(finish(&mut child, None), 130);
     assert!(left(&d).is_empty(), "남은 파일 {:?}", left(&d));
 }
 
 /// 다른 실행이 스테이징 잠금을 쥐고 있으면 stage-dev-plugins.sh가 기존 두 줄과 종료 1로 끝나고 번들 폴더를 만들지 않는다.
+/// 스크립트와 도우미를 임시 루트에 복사하고 fetch를 기록만 하고 실패하는 스텁으로 막아, 잠금이 회귀해도 실제
+/// 받기(cargo·curl)가 돌지 않는다.
 #[test]
 fn staging_refuses_a_held_lock_with_the_existing_message() {
     let dir = Scratch::new("run-lock-stage");
-    let profile = dir.path().join("debug");
-    std::fs::create_dir(&profile).expect("프로필 폴더");
+    let root = dir.path().join("root");
+    std::fs::create_dir_all(root.join("scripts/lib")).expect("scripts 폴더");
+    let repo = tasty_doc_guards::repo_root();
+    for rel in ["scripts/stage-dev-plugins.sh", "scripts/lib/run-lock.sh"] {
+        std::fs::copy(repo.join(rel), root.join(rel)).unwrap_or_else(|e| panic!("{rel} 복사: {e}"));
+    }
+    let fetched = dir.path().join("fetched");
+    write_executable(
+        &root.join("scripts/fetch-official-plugins.sh"),
+        &format!("#!/bin/sh\n: > '{}'\nexit 1\n", fetched.display()),
+    );
+    let target = dir.path().join("target");
+    let profile = target.join("debug");
+    std::fs::create_dir_all(&profile).expect("프로필 폴더");
     let lock = profile.join("builtin-plugins.lock");
     std::fs::write(&lock, "other\n").expect("남의 잠금");
     let out = Command::new("bash")
-        .arg(tasty_doc_guards::repo_root().join("scripts/stage-dev-plugins.sh"))
+        .arg(root.join("scripts/stage-dev-plugins.sh"))
         .args(["--platform", "linux-x64"])
-        .env("CARGO_TARGET_DIR", dir.path())
+        .env("CARGO_TARGET_DIR", &target)
         .output()
         .expect("bash 실행");
     let err = String::from_utf8_lossy(&out.stderr);
@@ -446,6 +485,7 @@ fn staging_refuses_a_held_lock_with_the_existing_message() {
         );
     }
     assert!(!bundle.exists(), "번들 폴더를 만들었다");
+    assert!(!fetched.exists(), "잠금을 못 잡았는데 fetch를 불렀다");
     assert_eq!(std::fs::read_to_string(&lock).expect("잠금"), "other\n");
     assert_eq!(
         names(&profile),
