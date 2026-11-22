@@ -105,7 +105,8 @@ pub(crate) struct BulkEndpoint {
     pub heartbeat_timeout: std::time::Duration,
 }
 
-/// 기존 workspace 점유에 연결된 bulk 채널을 연다. timeout 설정 실패는 경고만 남긴다.
+/// 기존 workspace 점유에 연결된 bulk 채널을 연다. timeout 설정 실패는 경고만 남긴다. 시도가 이미
+/// 취소됐다면 설정·open 실패는 취소가 소켓을 닫은 결과이므로 취소 오류로 끝낸다(설정 실패는 경고 없이).
 #[cfg(test)]
 fn open_bulk_connection(endpoint: BulkEndpoint) -> anyhow::Result<StreamConnection> {
     open_bulk_connection_bound(endpoint, None)
@@ -123,16 +124,46 @@ fn open_bulk_connection_bound(
     if let Some(attempt) = attempt {
         attempt.register_socket(&sock)?;
     }
-    if let Err(e) = sock.set_read_timeout(Some(heartbeat_timeout)) {
-        tracing::warn!("bulk upload: failed to set read timeout: {e}");
-    }
-    if let Err(e) = sock.set_write_timeout(Some(heartbeat_timeout)) {
-        tracing::warn!("bulk upload: failed to set write timeout: {e}");
-    }
+    #[cfg(test)]
+    tasty_remote::attempt_seam::at(tasty_remote::attempt_seam::Stage::AfterRegister, &sock);
+    arm_bulk_timeouts_with(
+        attempt,
+        || sock.set_read_timeout(Some(heartbeat_timeout)),
+        || sock.set_write_timeout(Some(heartbeat_timeout)),
+    )?;
+    #[cfg(test)]
+    tasty_remote::attempt_seam::at(tasty_remote::attempt_seam::Stage::BeforeOpen, &sock);
     let (mut conn, _client_id) =
-        StreamConnection::open_bulk_with_timeout(sock, STREAM_PROTO, remote_ws, heartbeat_timeout)?;
+        StreamConnection::open_bulk_with_timeout(sock, STREAM_PROTO, remote_ws, heartbeat_timeout)
+            .map_err(|error| match attempt {
+                Some(attempt) => tasty_remote::outbound::retired_or(attempt, error),
+                None => error,
+            })?;
     declare_bulk_loss_notify(&mut conn);
     Ok(conn)
+}
+
+/// bulk 소켓에 읽기·쓰기 기한을 건다. 실패하면 경고를 남기고 진행한다. 취소된 시도에서는 경고 없이 취소
+/// 오류로 끝낸다. 시험이 설정 결과를 넣을 수 있게 설정 호출을 받는다.
+fn arm_bulk_timeouts_with(
+    attempt: Option<&tasty_remote::outbound::AttemptToken>,
+    set_read: impl FnOnce() -> std::io::Result<()>,
+    set_write: impl FnOnce() -> std::io::Result<()>,
+) -> anyhow::Result<()> {
+    let retired = || attempt.is_some_and(|attempt| !attempt.is_active());
+    if let Err(e) = set_read() {
+        if retired() {
+            anyhow::bail!(tasty_remote::outbound::ATTEMPT_RETIRED);
+        }
+        tracing::warn!("bulk upload: failed to set read timeout: {e}");
+    }
+    if let Err(e) = set_write() {
+        if retired() {
+            anyhow::bail!(tasty_remote::outbound::ATTEMPT_RETIRED);
+        }
+        tracing::warn!("bulk upload: failed to set write timeout: {e}");
+    }
+    Ok(())
 }
 
 /// 결과가 유실되면 기다리기만 하지 않도록 손실 통지를 요청한다. 구 서버는 무시할 수 있다.

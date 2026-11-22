@@ -6257,9 +6257,11 @@ dependencies = [
  "tasty-model",
  "tasty-remote-profiles",
  "tasty-ssh",
+ "tasty-test-support",
  "tasty-utils",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "url",
 ]
 

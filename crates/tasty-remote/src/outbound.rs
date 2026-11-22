@@ -91,6 +91,20 @@ impl Remote {
     }
 }
 
+/// 취소된 시도의 연결 단계가 돌려주는 오류 문구.
+pub const ATTEMPT_RETIRED: &str = "connection attempt retired";
+
+/// 시도가 이미 비활성이면 취소 오류를, 활성이면 원 오류를 돌려준다. 취소는 등록 소켓 양쪽을 닫으므로 그
+/// 뒤의 소켓 설정이나 open 은 실패한다(macOS 는 양쪽을 닫은 소켓의 옵션 설정을 `EINVAL` 로 거절한다).
+/// 그 실패를 소켓 오류가 아니라 취소로 보고하기 위해서다.
+pub fn retired_or(attempt: &AttemptToken, error: impl Into<anyhow::Error>) -> anyhow::Error {
+    if attempt.is_active() {
+        error.into()
+    } else {
+        anyhow::anyhow!(ATTEMPT_RETIRED)
+    }
+}
+
 #[derive(Clone)]
 pub struct AttemptToken(std::sync::Arc<AttemptState>);
 struct AttemptState {
@@ -215,7 +229,7 @@ impl AttemptToken {
             self.0.shutdown_cancelled_socket(&control);
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Interrupted,
-                "connection attempt retired",
+                ATTEMPT_RETIRED,
             ));
         }
         sockets.push(control);

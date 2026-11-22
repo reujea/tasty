@@ -20,6 +20,11 @@
 pub mod browse;
 pub mod create;
 
+#[cfg(test)]
+mod attempt_retired_tests;
+/// 시험 전용: 연결 단계 사이에 시험이 끼어드는 자리. App 의 bulk 연결 시험도 쓴다.
+#[cfg(any(test, feature = "test-support"))]
+pub mod attempt_seam;
 pub mod client_session;
 /// Persistent connection/session ownership shared by host adapters without App/View dependencies.
 pub mod connection;

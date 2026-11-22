@@ -30,7 +30,7 @@ serde_json = "1"
 anyhow = "1"
 
 [features]
-# 다른 크레이트의 시험이 시도 토큰의 취소 닫기 계수를 읽게 한다.
+# 다른 크레이트의 시험이 시도 토큰의 취소 닫기 계수를 읽고 연결 단계 사이에 끼어들게 한다.
 test-support = []
 
 [lints]
@@ -40,3 +40,6 @@ workspace = true
 tokio = { version = "=1.54.1", features = ["rt", "macros", "sync", "net"] }
 # 의존 크레이트에는 호출자의 cfg(test)가 적용되지 않아 시험 도우미 기능을 명시한다.
 tasty-utils = { path = "../tasty-utils", features = ["test-support"] }
+# 경고 로그를 단언하는 시험이 구독자를 걸고 혼자 돈다(rerun_alone).
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+tasty-test-support = { path = "../tasty-test-support" }

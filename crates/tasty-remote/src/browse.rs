@@ -132,9 +132,20 @@ pub(crate) fn probe_method_bound(
         .with_context(|| format!("터널 localport 127.0.0.1:{port} 연결 실패"))?;
     if let Some(attempt) = attempt {
         attempt.register_socket(&stream)?;
+        #[cfg(test)]
+        crate::attempt_seam::at(crate::attempt_seam::Stage::AfterRegister, &stream);
     }
-    stream.set_read_timeout(Some(PROBE_TIMEOUT))?;
-    stream.set_write_timeout(Some(PROBE_TIMEOUT))?;
+    // 취소가 등록 소켓을 닫은 뒤의 설정 실패는 취소로 보고한다.
+    let retired_or = |error: std::io::Error| match attempt {
+        Some(attempt) => crate::outbound::retired_or(attempt, error),
+        None => error.into(),
+    };
+    stream
+        .set_read_timeout(Some(PROBE_TIMEOUT))
+        .map_err(retired_or)?;
+    stream
+        .set_write_timeout(Some(PROBE_TIMEOUT))
+        .map_err(retired_or)?;
 
     let request = JsonRpcRequest {
         caller_agent_id: None,

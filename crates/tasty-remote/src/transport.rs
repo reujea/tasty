@@ -26,18 +26,23 @@ pub fn attach_handshake(
     heartbeat_timeout: std::time::Duration,
 ) -> anyhow::Result<AttachHandshake> {
     if !cancel.is_active() {
-        anyhow::bail!("connection attempt retired");
+        anyhow::bail!(super::outbound::ATTEMPT_RETIRED);
     }
     let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     let sock = TcpStream::connect_timeout(&address, std::time::Duration::from_millis(250))?;
     cancel.register_socket(&sock)?;
-    arm_attach_timeouts(&sock, log_prefix, heartbeat_timeout);
+    #[cfg(test)]
+    super::attempt_seam::at(super::attempt_seam::Stage::AfterRegister, &sock);
+    arm_attach_timeouts(&sock, log_prefix, heartbeat_timeout, cancel)?;
+    #[cfg(test)]
+    super::attempt_seam::at(super::attempt_seam::Stage::BeforeOpen, &sock);
     let (mut conn, client_id) = StreamConnection::open_attach_workspace_with_timeout(
         sock,
         STREAM_PROTO,
         workspace,
         heartbeat_timeout,
-    )?;
+    )
+    .map_err(|error| super::outbound::retired_or(cancel, error))?;
     let first = conn.recv()?;
     if first.tag != StreamTag::Control {
         anyhow::bail!("expected attach Control frame, got {:?}", first.tag);
@@ -113,13 +118,42 @@ pub fn descriptor_has_capability(ctrl: &Value, name: &str) -> bool {
         .is_some_and(|list| list.iter().any(|v| v.as_str() == Some(name)))
 }
 
-pub fn arm_attach_timeouts(sock: &TcpStream, log_prefix: &str, timeout: std::time::Duration) {
-    if let Err(e) = sock.set_read_timeout(Some(timeout)) {
+/// 소켓에 읽기·쓰기 기한을 건다. 실패하면 경고를 남기고 진행한다. 시도가 이미 취소됐다면 그 실패는 취소가
+/// 소켓을 닫은 결과이므로 경고 없이 취소 오류로 끝낸다.
+pub fn arm_attach_timeouts(
+    sock: &TcpStream,
+    log_prefix: &str,
+    timeout: std::time::Duration,
+    cancel: &super::outbound::AttemptToken,
+) -> anyhow::Result<()> {
+    arm_timeouts_with(
+        cancel,
+        log_prefix,
+        || sock.set_read_timeout(Some(timeout)),
+        || sock.set_write_timeout(Some(timeout)),
+    )
+}
+
+/// [`arm_attach_timeouts`]의 몸체. 시험이 설정 결과를 넣을 수 있게 설정 호출을 받는다.
+pub(crate) fn arm_timeouts_with(
+    cancel: &super::outbound::AttemptToken,
+    log_prefix: &str,
+    set_read: impl FnOnce() -> std::io::Result<()>,
+    set_write: impl FnOnce() -> std::io::Result<()>,
+) -> anyhow::Result<()> {
+    if let Err(e) = set_read() {
+        if !cancel.is_active() {
+            anyhow::bail!(super::outbound::ATTEMPT_RETIRED);
+        }
         tracing::warn!("{log_prefix}: failed to set read timeout: {e}");
     }
-    if let Err(e) = sock.set_write_timeout(Some(timeout)) {
+    if let Err(e) = set_write() {
+        if !cancel.is_active() {
+            anyhow::bail!(super::outbound::ATTEMPT_RETIRED);
+        }
         tracing::warn!("{log_prefix}: failed to set write timeout: {e}");
     }
+    Ok(())
 }
 
 /// 서버가 workspace attach를 거절했을 때 연결 오류의 머리. 뒤에 서버의 거절 사유가 붙는다.
