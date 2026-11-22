@@ -202,7 +202,7 @@ Windows 빌드 스크립트는 태그 없는 `workflow_dispatch`에서도 cleanu
 | systemd 서비스 | `actions.runner.zilhak-tasty.tasty-server-x64.service` | `…tasty-gx10-arm64.service` |
 | 자동 시작 | enabled | enabled |
 
-아키텍처 산출물을 만드는 잡(`build-linux-x64`, `build-linux-arm64`)과 `check-release`·`test-linux-x64`는 아키텍처 라벨로 한 러너에 고정한다. 나머지 Linux 잡은 `[self-hosted, Linux]`라 두 러너 가운데 비어 있는 쪽이 받는다. 잡별 배치와 이유는 [Linux 러너 배치](ci-gates.md#linux-러너-배치)에 있다. 각 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다.
+아키텍처별 배포 패키지를 만드는 잡(`build-linux-x64`, `build-linux-arm64`)과 `check-release`·`test-linux-x64`는 아키텍처 라벨로 한 러너에 고정한다. 나머지 Linux 잡은 `[self-hosted, Linux]`라 두 러너 가운데 비어 있는 쪽이 받는다. 잡별 배치와 이유는 [Linux 러너 배치](ci-gates.md#linux-러너-배치)에 있다. 각 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다.
 
 macOS/Windows 러너도 동일 패턴(라벨만 `[self-hosted, macOS]` / `[self-hosted, Windows]`).
 

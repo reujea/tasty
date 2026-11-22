@@ -252,13 +252,13 @@ Linux self-hosted 러너는 x86_64 러너(`tasty-server-x64`, 라벨 `self-hoste
 
 | 라벨 | 잡 | 이유 |
 |---|---|---|
-| `[self-hosted, Linux]` | test `semver-guards`, script-gates `script-gates`, complexity-check `check-file-size`, supply-chain-check `cargo-deny`, plugin-version-check `version-bump`, crossplatform-check `check-headless`·`check-android`, release `create-release`·`publish-release` | 호스트 아키텍처에 따라 산출물이나 판정 범위가 달라지지 않는다. `cargo-deny`와 `version-bump`는 모든 대상의 의존 그래프를 읽고, `check-android`는 교차 대상이 고정이다 |
+| `[self-hosted, Linux]` | test `semver-guards`, script-gates `script-gates`, complexity-check `check-file-size`, supply-chain-check `cargo-deny`, plugin-version-check `version-bump`, crossplatform-check `check-headless`·`check-android`, release `create-release`·`publish-release` | 잡마다 판정 대상이 다르다. `cargo-deny`·`version-bump`는 모든 대상의 의존 그래프를 판정하고, `check-android`는 검사 대상이 `aarch64-linux-android`로 고정이다. `script-gates`·`check-file-size`는 소스와 셸 자산의 텍스트를 판정한다. `create-release`·`publish-release`는 checkout·Git·셸·gh로 릴리스 메타데이터를 처리하고 Rust를 빌드하지 않는다. `check-headless`·`semver-guards`는 타깃을 지정하지 않으므로 배정된 러너의 타깃(x86_64 또는 aarch64)으로 빌드·실행하고, run마다 어느 쪽을 볼지 정해져 있지 않다. 추적한 Rust·Cargo 소스에서 x86_64·aarch64를 가르는 cfg는 찾지 못했다(`git grep -n -E 'target_arch\|target_pointer_width\|target_endian' -- '*.rs' '*.toml'`이 `vendor/epaint`의 `wasm32` 조건 2줄뿐이다). 이 공유 배치는 그 관측에 기대며, 동작이 같다는 증명은 아니다. 아키텍처에 따라 달라지는 입력도 있다: 호스트용으로 빌드하거나 받는 검사 도구(`mask-source`·`strip-cfg-test`, 없을 때 설치하는 `cargo-deny`·`tokei`, `uname -m`으로 고르는 shellcheck), `check-android`의 proc macro·build script, `check-headless`가 `uname -m`으로 고르는 공식 플러그인 산출물과 픽스처(`stage official plugins`·`check official plugin fixtures`). 두 아키텍처를 가르는 cfg가 생기면 이 행과 아래 `check-release` 행을 다시 본다 |
 | `[self-hosted, Linux, X64]` | crossplatform-check `check-release` | 호스트 타깃을 검사하므로 공유 라벨이면 ARM64 러너가 받은 run은 aarch64만 본다. 매 run이 x86_64 gui release 컴파일을 검사하도록 고정한다 |
 | `[self-hosted, Linux, X64]` | test `test-linux-x64` | 잡 이름과 의도가 x86_64 Linux 전체 시험이다 |
 | `[self-hosted, Linux, X64]` | build-check·release `build-linux-x64` | x86_64 패키지를 만든다 |
 | `[self-hosted, Linux, ARM64]` | build-check·release `build-linux-arm64` | aarch64 패키지를 만든다 |
 
-- 공유 라벨 잡의 결과가 러너에 따라 달라질 수 있는 지점은 아키텍처보다 러너 환경이다. gui 단위 단계가 Xvfb 아래에서 고르는 그래픽 경로도 두 머신에서 같은지 확인하지 않았다.
+- 공유 라벨 잡의 결과가 러너에 따라 달라질 수 있는 지점은 의존 크레이트의 아키텍처별 코드, 위 행의 아키텍처별 입력(검사 도구, 공식 플러그인 산출물·픽스처), 러너 환경이다. gui 단위 단계가 Xvfb 아래에서 고르는 그래픽 경로도 두 머신에서 같은지 확인하지 않았다.
 - 두 러너는 파일시스템을 공유하지 않고 워크플로는 `actions/cache`를 쓰지 않으므로, 아키텍처가 다른 산출물이 섞이지 않는다.
 - 한 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다. 공유 라벨 잡이 ARM64 러너를 쓰는 동안에는 태그 시점의 `build-linux-arm64`가 그 잡이 끝날 때까지 기다린다.
 
