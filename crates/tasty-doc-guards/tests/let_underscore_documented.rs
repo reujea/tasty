@@ -976,8 +976,7 @@ impl<'a> Code<'a> {
     /// 문장 그룹으로 읽은 `{` 그룹 `g` 가 소문자 이름의 구조체 리터럴(`s { a: 1 }`)일 수 있는가.
     /// `group_kind` 는 대문자 이름만 리터럴로 보므로, 이런 그룹 안 요소는 끝을 정할 수 없다.
     /// `{` 바로 앞이 소문자·`_` 로 시작하는 이름이고(라벨 블록 `'a: {` 은 앞이 `:` 라 해당하지 않는다), 클로저 반환 타입(`-> u8 {`)이 아니며,
-    /// 머리에 아이템·제어 키워드가 없을 때 그렇다고 본다. `header` 는 `}` 에서 멈추므로, 머리가 `} = 식` 이면
-    /// 그 `}` 의 짝인 구조체 패턴(`if let Foo { a } = h {`)의 머리까지 이어 본다(`if`·`while` 의 몸체는 후보가 아니다).
+    /// 머리에 아이템·제어 키워드가 없고 `if`·`while` 조건의 몸체(`control_head_before`)가 아닐 때 그렇다고 본다.
     fn maybe_lowercase_literal(&self, g: usize) -> bool {
         if g == NONE || self.b[g] != b'{' || self.group_kind(g).0 {
             return false;
@@ -999,19 +998,10 @@ impl<'a> Code<'a> {
         if !lower || ret_type {
             return false;
         }
-        let (mut words, _, mut start) = self.header(g);
-        // 구조체 패턴 뒤 `= 식 {` 이면 `let` 이 나올 때까지 패턴(`Foo { a } | Bar { b }`)의 머리 단어도 더한다.
-        let after_pattern = (start..g).any(|k| self.b[k] == b'=' && self.is_assign_eq(k));
-        while after_pattern
-            && !words.contains(&"let")
-            && let Some(close) = self.prev_non_ws(start)
-            && self.b[close] == b'}'
-            && self.pair[close] != NONE
-        {
-            let (more, _, s2) = self.header(self.pair[close]);
-            words.extend(more);
-            start = s2;
+        if self.control_head_before(g) {
+            return false;
         }
+        let (words, _, _) = self.header(g);
         ![
             "impl",
             "trait",
@@ -1034,6 +1024,48 @@ impl<'a> Code<'a> {
         ]
         .iter()
         .any(|w| words.contains(w))
+    }
+
+    /// `{` 그룹 `g` 앞 머리가 `if`·`while` 조건인가. `header` 는 구조체 패턴(`if let Foo { a } = h {`)의 `}` 에서
+    /// 멈추므로, 같은 깊이에서 괄호 짝을 건너뛰며 문장 시작(`;`·`,`·감싸는 여는 괄호, 또는 조건의 일부가 아닌
+    /// `let`)까지 거꾸로 읽는다. `if`·`while` 뒤의 `let` 과 `&&`·`||` 뒤의 `let`(let 체인)은 조건의 일부다.
+    fn control_head_before(&self, g: usize) -> bool {
+        let is_kw = |s0: usize, e: usize, w: &[u8]| &self.b[s0..e] == w;
+        let mut k = g;
+        while let Some(p) = self.prev_non_ws(k) {
+            let c = self.b[p];
+            if matches!(c, b')' | b']' | b'}') && self.pair[p] != NONE {
+                k = self.pair[p];
+                continue;
+            }
+            if matches!(c, b';' | b',' | b'(' | b'[' | b'{' | b')' | b']' | b'}') {
+                return false;
+            }
+            if !is_ident_byte(c) {
+                k = p;
+                continue;
+            }
+            let mut s0 = p;
+            while s0 > 0 && is_ident_byte(self.b[s0 - 1]) {
+                s0 -= 1;
+            }
+            let raw = s0 >= 2 && &self.b[s0 - 2..s0] == b"r#";
+            if !raw && (is_kw(s0, p + 1, b"if") || is_kw(s0, p + 1, b"while")) {
+                return true;
+            }
+            if !raw && is_kw(s0, p + 1, b"let") {
+                let in_condition = self.prev_non_ws(s0).is_some_and(|q| {
+                    (q > 0 && matches!(&self.b[q - 1..=q], b"&&" | b"||"))
+                        || self.word_at(q.saturating_sub(1), b"if")
+                        || (q >= 4 && self.word_at(q - 4, b"while"))
+                });
+                if !in_condition {
+                    return false;
+                }
+            }
+            k = s0;
+        }
+        false
     }
 
     /// `k` 의 `|` 가 클로저 매개변수를 열 수 있는 자리인가(요소 처음, `move` 뒤, `(`·`,`·`=`·`=>` 뒤).
@@ -3528,6 +3560,10 @@ mod helper_tests {
             "if let Foo { a: Bar { b } } = h",
             "if let Foo { a } | Bar { a } = h",
             "if let Some(a) = h",
+            // let 체인: 구조체 패턴이 가운데·끝에 온다.
+            "if let A = x && let Reply::Intent { .. } = &p.reply && let Some(r) = &v.y",
+            "while let A = x && let Reply::Intent { a } = &p.reply",
+            "if a && let Foo { a } = h",
         ] {
             assert_eq!(
                 both(&format!(
