@@ -225,6 +225,12 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 남긴 뒤 `early1`(산출물 없이 종료 1), `late1`(산출물을 남기고 종료 1), `late23`(산출물을 남기고 종료 23)이다.
 /// 실패 주입에서 대상의 원래 종료값이 0이면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
 /// `|| true`, `|| exit 0`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
+/// 하네스 검사에서 `.fetched`가 없으면 하네스 루트의 절대 경로에 `.missing-fetched` 표지를 남기고 1로 끝난다.
+/// 실패 주입 실행에 이 표지가 있으면 대상이 fetch 실패에서 멈추지 않고 하네스 검사까지 간 것이므로 종료값이 1이어도
+/// 실패로 본다. 기다리지 않은 백그라운드 호출은 검사와 스텁의 `.fetched` 생성 중 어느 쪽이 먼저냐에 따라 종료값이
+/// 0이나 1이 되는데, 두 경우 모두 이 판정이나 위의 종료값 0 판정에 걸리므로 실행 순서와 관계없이 거부된다.
+/// 실패를 삼킨 뒤 산출물을 지우는 호출도 같은 표지를 남긴다. 표지를 쓰지 못하면 `.reached` 없이 0으로 끝내
+/// `0-unreached`로 거부한다(종료값 1로 정상 전파와 섞이지 않게 한다).
 /// 하네스는 stdout·stderr를 한 수집 파이프에, fd 9를 스텁의 제어 파이프에 잇고 두 파이프가 모두 닫힐 때까지(그 fd 중
 /// 하나라도 물려받은 자손이 모두 끝날 때까지) 기다린 뒤 기록을 모으므로, 일부 fd를 돌린 채 늦게 시작한 호출도 남는다.
 /// 스텁의 산출물 단계가 실패하면 그 호출은 그 값으로 끝나고, `copy-error` 파일과 fd 9 표지로 알려 하네스가 실패한다
@@ -233,7 +239,9 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 스텁 산출물은 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만이다.
 /// 이 가드는 정직한 실수(배포 호출의 `--all`, 실패 무시, 백그라운드 실행, 검사 전 종료)를 잡는다. 가드를 일부러
 /// 피하도록 쓴 대상(1·23 밖의 특정 종료값이나 하네스만의 산출물 차이를 보고 실패를 삼키기, 세 fd를 모두 닫거나 돌리고
-/// 늦게 시작하는 자손)은 범위 밖이며 잡지 못한다.
+/// 늦게 시작하는 자손)은 범위 밖이며 잡지 못한다. 백그라운드로 띄운 뒤 하네스 검사에 닿기 전에 대상이 스스로
+/// 산출물을 읽다 실패하는 꼴(직접 `.fetched`를 검사하거나 없는 폴더를 `find`하다 pipefail로 멈추기)도 종료값이
+/// 실행 순서에 달려 있어 잡지 못할 수 있다.
 /// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
 /// - `package`: `scripts/lib/bundled-plugins.sh`(원문을 넘기면 그 원문)를 source하고 `fetch_bundled_plugins <platform>`을
 ///   부른다.
@@ -243,7 +251,8 @@ fn fetch_argvs(mode: &str, platform: &str, branch: &str) -> Vec<Vec<String>> {
     fetch_run(mode, platform, branch).unwrap_or_else(|why| panic!("{why}"))
 }
 
-/// `fetch_argvs`와 같고, 대상이 운영 셸 옵션에서 실패하거나 fetch 실패에도 성공하면 `Err`를 돌려준다.
+/// `fetch_argvs`와 같고, 대상이 운영 셸 옵션에서 실패하거나, fetch 실패에도 성공하거나, 실패 주입 실행에서 하네스
+/// 검사까지 가서 `.fetched`가 없으면 `Err`를 돌려준다.
 #[cfg(unix)]
 fn fetch_run(mode: &str, platform: &str, branch: &str) -> Result<Vec<Vec<String>>, String> {
     let all: Vec<String> = locked_ids(&lock()).into_iter().collect();
@@ -274,14 +283,20 @@ fn fetch_run_with(
                 "{mode} ({platform}) 대상이 fetch 실패({fail})에도 성공했다(실패를 전파하지 않는 호출): {failed:?}"
             ));
         }
+        if rc.ends_with("-missing-fetched") {
+            return Err(format!(
+                "{mode} ({platform}) 실패 주입({fail}) 실행에서 대상이 하네스 검사까지 진행했고 .fetched가 없었다(RC={rc}): {failed:?}"
+            ));
+        }
     }
     Ok(calls)
 }
 
 /// 하네스를 한 번 돌려 대상의 종료 상태와 스텁이 받은 argv를 돌려준다. `fail`이 `early1`이면 스텁이 기록만 하고
 /// 산출물 없이 종료 1, `late1`·`late23`이면 산출물 표지까지 남긴 뒤 종료 1·23이다(실제 fetch는 일부 산출물을 만든 뒤에도
-/// 종료 1로 실패한다). 대상이 0으로 끝났어도 분기 뒤
-/// 하네스 검사까지 도달하지 않았으면(중간의 `exit 0` 등) RC는 원래 종료값을 앞에 둔 `0-unreached`다.
+/// 종료 1로 실패한다). 대상이 0으로 끝났고 `.reached`가 없으면(중간의 `exit 0`, 하네스 검사의 표지 쓰기 실패 등)
+/// RC는 원래 종료값을 앞에 둔 `0-unreached`다. 하네스 검사에서 `.fetched`가 없어 `.missing-fetched` 표지가 남았으면
+/// RC 끝에 `-missing-fetched`를 붙인다(예: `1-missing-fetched`).
 /// 하네스 자체가 실패하면(잠금·산출물·수집기 오류) 패닉한다.
 #[cfg(unix)]
 fn fetch_collect(
@@ -411,14 +426,14 @@ collect() {
     cst=${st#* }
 }
 run_package() {
-    (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
+    (cd "$root" && root="$PWD" bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
 fetch_bundled_plugins "$1"
-[ -f target/bundled-plugins/.fetched ]
+[ -f target/bundled-plugins/.fetched ] || { : > "$root/.missing-fetched" || exit 0; exit 1; }
 : > .reached' run "$platform")
 }
 run_staging() {
     (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
-[ -f \"\$stage/.fetched\" ]
+[ -f \"\$stage/.fetched\" ] || { : > \"\$root/.missing-fetched\" || exit 0; exit 1; }
 : > \"\$root/.reached\"")
 }
 case "$mode" in
@@ -444,6 +459,7 @@ case "$mode" in
         ;;
 esac
 if [ "$rc" = 0 ] && ! [ -e "$root/.reached" ]; then rc=0-unreached; fi
+if [ -f "$root/.missing-fetched" ]; then rc="$rc-missing-fetched"; fi
 if [ -s "$root/lock-error" ]; then cat "$root/lock-error" >&2; exit 97; fi
 if [ "$cst" != 0 ] && [ "$cst" != 3 ]; then echo "수집기가 실패했다($cst)" >&2; exit 98; fi
 if [ -s "$root/copy-error" ] || [ "$cst" = 3 ]; then
@@ -828,6 +844,23 @@ fn the_staging_harness_reads_what_bash_passes() {
             format!("exec 3<&0\n{real} <&3 &\nwait"),
         ),
         ("실패를 삼킨 호출", format!("{real} || true")),
+        (
+            "실패를 삼키고 산출물을 지운 호출",
+            format!("{real} || rm -rf \"$stage\""),
+        ),
+        // 아래 둘은 각각 late1·late23에서만 하네스 검사까지 가므로 그 실패 주입의 표지 판정을 따로 지킨다.
+        (
+            "산출물을 남긴 종료 1만 삼키고 산출물을 지운 호출",
+            format!(
+                "{real} || {{ s=$?; if [ \"$s\" -eq 1 ] && [ -f \"$stage/.fetched\" ]; then rm -rf \"$stage\"; else exit \"$s\"; fi; }}"
+            ),
+        ),
+        (
+            "산출물을 남긴 종료 23만 삼키고 산출물을 지운 호출",
+            format!(
+                "{real} || {{ s=$?; if [ \"$s\" -eq 23 ] && [ -f \"$stage/.fetched\" ]; then rm -rf \"$stage\"; else exit \"$s\"; fi; }}"
+            ),
+        ),
         (
             "종료 1만 삼키는 호출",
             format!("{real} &\npid=$!\nwait \"$pid\" || [ \"$?\" -eq 1 ]"),
