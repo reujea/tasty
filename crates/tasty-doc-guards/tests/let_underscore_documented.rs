@@ -3536,4 +3536,38 @@ mod helper_tests {
             );
         }
     }
+
+    #[test]
+    fn narrowed_elements_narrow_allow_but_not_re_enabled_levels() {
+        // P3: 표식이 붙은 필드 자체도 속성만 덮는다.
+        assert_eq!(
+            both(
+                "fn g() {\n    let v = s {\n        #[cfg(test)]\n        a: {\n            {IGNORE}\n            1\n        },\n    };\n}\n"
+            ),
+            (vec![5], vec![])
+        );
+        // P3·P4: 좁힘 대상에 단 allow 도 속성만 덮어 테스트 자리는 면제되지 않는다.
+        for src in [
+            format!(
+                "#[cfg(test)]\nmod t {{\n    fn g() {{\n        let v = s {{\n            {EXEMPT}\n            a: {{\n                {{IGNORE}}\n                1\n            }},\n        }};\n    }}\n}}\n"
+            ),
+            format!(
+                "#[cfg(test)]\nmod t {{\n    m! {{\n        {EXEMPT}\n        fn a() $body\n        fn b() {{\n            {{IGNORE}}\n        }}\n    }}\n}}\n"
+            ),
+        ] {
+            assert_eq!(
+                uncovered_test_sites(&with_ignore(&src), false),
+                vec![6],
+                "{src}"
+            );
+        }
+        // P4: forbid 도 warn 처럼 좁히지 않는다.
+        let forbid = with_ignore(&format!(
+            "#[cfg(test)]\n{EXEMPT}\nmod t {{\n    m! {{\n        #[forbid(clippy::let_underscore_must_use)]\n        fn a() $body\n        fn b() {{\n            {{IGNORE}}\n        }}\n    }}\n}}\n"
+        ));
+        assert_eq!(
+            test_scope_sites(&forbid, false),
+            vec![(7, Some(Level::Forbid))]
+        );
+    }
 }
