@@ -615,7 +615,9 @@ impl MainView {
 
         match event {
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
-                self.base.gpu.sync_scale_factor(&self.base.winit);
+                let rescaled = self.base.gpu.sync_scale_factor(&self.base.winit);
+                self.state.titlebar_rect =
+                    titlebar_press::titlebar_rect_after_rescale(self.state.titlebar_rect, rescaled);
                 let new_size = self.window_surface_size();
                 self.base.gpu.resize(new_size);
                 if self.state.fullscreen_stage_active() {

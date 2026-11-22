@@ -20,6 +20,15 @@ impl MainView {
     }
 }
 
+/// 배율이 바뀌면 저장된 타이틀바 영역(옛 배율의 물리 좌표)을 버린다. 다음 패스가 새 배율로 다시 적을 때까지는
+/// egui 판정만 쓴다. 옛 영역이 남으면 배율이 내려간 뒤 작업 영역 첫 줄의 누름을 타이틀바로 잘못 본다.
+pub(super) fn titlebar_rect_after_rescale(
+    rect: Option<PhysicalRect>,
+    scale_changed: bool,
+) -> Option<PhysicalRect> {
+    if scale_changed { None } else { rect }
+}
+
 /// 직전 패스에 그린 타이틀바 패널 위의 좌버튼 누름인지. 좌표·영역은 물리 좌표이고 경계는 위·왼쪽 포함, 아래·오른쪽
 /// 제외다(패널 아래 변은 작업 영역의 첫 줄). 창이 줄어든 뒤 첫 패스 전에는 저장된 영역이 창보다 넓을 수 있어 지금 창
 /// 크기도 본다. 창 크기 조회는 X11 에서 서버 왕복이라 패널 안 누름일 때만 부른다.
@@ -53,7 +62,7 @@ fn press_on_titlebar(
 /// 직전 패스에 그린 타이틀바 위 좌버튼 누름을 사건 좌표로 가리는 판정을 확인한다.
 #[cfg(test)]
 mod titlebar_press_tests {
-    use super::press_on_titlebar;
+    use super::{press_on_titlebar, titlebar_rect_after_rescale};
     use crate::model::{PhysicalPx, PhysicalRect};
     use std::cell::Cell;
     use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -167,5 +176,32 @@ mod titlebar_press_tests {
             size
         ));
         assert_eq!(reads.get(), 1);
+    }
+
+    /// Given 배율 2 에서 그린 타이틀바(물리 72px), When 배율이 1 로 내려간 뒤 첫 패스 전에 작업 영역 첫 줄(y=40)을
+    /// 누르면, Then 타이틀바로 보지 않는다. 배율이 그대로면 저장된 영역을 쓴다.
+    #[test]
+    fn a_rescale_drops_the_titlebar_drawn_at_the_old_scale() {
+        let drawn_at_2x = PhysicalRect {
+            height: PhysicalPx(72.0),
+            ..BAR
+        };
+        let row = Some(PhysicalPosition::new(100.0, 40.0));
+        let kept = titlebar_rect_after_rescale(Some(drawn_at_2x), false);
+        assert!(press_on_titlebar(
+            MouseButton::Left,
+            Pressed,
+            row,
+            kept,
+            || WINDOW
+        ));
+        let dropped = titlebar_rect_after_rescale(Some(drawn_at_2x), true);
+        assert!(!press_on_titlebar(
+            MouseButton::Left,
+            Pressed,
+            row,
+            dropped,
+            || WINDOW
+        ));
     }
 }
