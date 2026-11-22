@@ -1,6 +1,6 @@
 //! 타이틀바 위 좌버튼 누름을 사건 좌표로 가린다. egui 의 소비 판정(`wants_pointer_input`)은 직전 패스의 포인터
-//! 위치를 보므로, 포인터를 옮기자마자 누른 타이틀바 버튼이 터미널 클릭(선택·클릭 커서 이동)으로도 처리됐다.
-//! 규칙은 `docs/architecture/input-layer.md` 의 '타이틀바 좌클릭 press' 단락에 있다.
+//! 위치를 보므로, 포인터를 옮기자마자 누른 타이틀바 버튼은 egui 판정만으로는 터미널 클릭(선택·클릭 커서 이동)으로도
+//! 처리된다. 규칙은 `docs/architecture/input-layer.md` 의 '타이틀바 좌클릭 press' 단락에 있다.
 
 use super::MainView;
 use crate::model::{PhysicalPx, PhysicalRect};
