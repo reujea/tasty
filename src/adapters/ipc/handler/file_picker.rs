@@ -623,3 +623,7 @@ mod scope_tests;
 #[cfg(test)]
 #[path = "file_picker_instance_tests.rs"]
 mod instance_tests;
+
+#[cfg(test)]
+#[path = "file_picker_fold_focus_tests.rs"]
+mod fold_focus_tests;
