@@ -105,8 +105,8 @@ pub(crate) struct BulkEndpoint {
     pub heartbeat_timeout: std::time::Duration,
 }
 
-/// 기존 workspace 점유에 연결된 bulk 채널을 연다. timeout 설정 실패는 경고만 남긴다. 시도가 이미
-/// 취소됐다면 설정·open 실패는 취소가 소켓을 닫은 결과이므로 취소 오류로 끝낸다(설정 실패는 경고 없이).
+/// 기존 workspace 점유에 연결된 bulk 채널을 연다. timeout 설정 실패는 경고만 남긴다. 실패했을 때 시도가
+/// 이미 비활성이면 설정·open 실패를 원인과 상관없이 취소 오류로 끝낸다(설정 실패는 경고 없이).
 #[cfg(test)]
 fn open_bulk_connection(endpoint: BulkEndpoint) -> anyhow::Result<StreamConnection> {
     open_bulk_connection_bound(endpoint, None)

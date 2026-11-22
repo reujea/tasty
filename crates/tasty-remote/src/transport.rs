@@ -117,9 +117,9 @@ pub fn descriptor_has_capability(ctrl: &Value, name: &str) -> bool {
 }
 
 /// 등록한 소켓에 읽기·쓰기 기한을 건다. 실패하면 호출자의 `warn` 으로 경고를 남기고 진행한다. 경고는
-/// 호출자 모듈에서 내야 로그 target(모듈 경로)이 그대로다. 시도가 이미 취소됐다면 그 실패는 취소가 소켓을
-/// 닫은 결과이므로 경고 없이 취소 오류로 끝낸다. 시험 빌드에서는 앞뒤로 [`attempt_seam`](super::attempt_seam)
-/// 자리를 지난다.
+/// 호출자 모듈에서 내야 로그 target(모듈 경로)이 그대로다. 설정이 실패했을 때 시도가 이미 비활성이면 경고
+/// 없이 취소 오류로 끝낸다. 판정은 실패의 원인을 보지 않고 시도의 활성 여부만 읽는다. 취소된 시도의 실패는
+/// 보고할 소켓 오류가 아니기 때문이다. 시험 빌드에서는 앞뒤로 `attempt_seam` 자리를 지난다.
 pub fn arm_socket_timeouts(
     sock: &TcpStream,
     timeout: std::time::Duration,
