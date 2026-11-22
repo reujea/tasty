@@ -384,6 +384,34 @@ impl<'a> Code<'a> {
         .any(|w| self.word_at(k, w))
     }
 
+    /// 매크로 입력 안 아이템 `[body, end)` 의 경계가 매크로 변수 때문에 불확실한가. 최상위(짝 괄호 밖)의
+    /// `$` 뒤 최상위에 새 아이템이나 `let` 이 나오면 그렇다고 본다. 아이템의 최상위에는 다른 아이템·문장이
+    /// 올 수 없으므로 `$body` 가 몸체 자리를 대신해 다음 요소까지 이어 읽은 것이다. 괄호 안의 `$setup` 과
+    /// `fn $name()` 은 해당하지 않는다.
+    fn item_boundary_unsure(&self, body: usize, end: usize) -> bool {
+        let mut dollar = false;
+        let mut k = body;
+        while k < end {
+            let c = self.b[k];
+            if matches!(c, b'(' | b'[' | b'{') && self.pair[k] != NONE {
+                k = self.pair[k] + 1;
+                continue;
+            }
+            if c == b'$' {
+                dollar = true;
+            } else if dollar
+                && is_ident_byte(c)
+                && !is_ident_byte(self.b[k - 1])
+                && self.b[k - 1] != b'$'
+                && (self.starts_item(k) || self.word_at(k, b"let"))
+            {
+                return true;
+            }
+            k += 1;
+        }
+        false
+    }
+
     /// `i` 앞의 마지막 비공백 위치.
     fn prev_non_ws(&self, i: usize) -> Option<usize> {
         (0..i).rev().find(|&k| !self.b[k].is_ascii_whitespace())
@@ -1255,14 +1283,18 @@ fn scopes(masked: &str, raw: &str) -> Scopes {
         if !marker && level.is_none() {
             continue;
         }
-        // 매크로 입력 안에서 아이템이 아닌 요소(식·문장·팔)에 붙은 테스트 표식과 면제는 그 속성이 든 묶음의 시작부터 그 속성 끝까지만 덮는다
-        // (범위를 좁히는 쪽). 아이템(`proptest! { #[test] fn .. }`)은 일반 규칙으로 읽는다. warn·deny·forbid 는
-        // 범위를 좁히면 다시 켠 진단을 놓치므로 일반 규칙대로 읽는다.
-        // 소문자 이름의 구조체 리터럴일 수 있는 그룹 안 요소도 같은 규칙으로 좁힌다(필드가 쉼표에서 끝나지 않고
-        // 다음 필드를 덮지 않게).
-        let macro_input = inner.is_none()
-            && ((code.in_macro_input(hash) && !code.starts_item(code.attr_run(hash).1))
-                || code.maybe_lowercase_literal(code.parent[hash]));
+        // 끝을 텍스트로 정할 수 없는 요소에 붙은 테스트 표식과 면제는 그 속성이 든 묶음의 시작부터 그 속성 끝까지만
+        // 덮는다(범위를 좁히는 쪽). 그런 요소는 매크로 입력 안의 아이템이 아닌 요소(식·문장·팔), 매크로 입력 안에서
+        // 최상위 `$` 때문에 경계가 불확실한 아이템(`fn a() $body`), 소문자 이름의 구조체 리터럴일 수 있는 그룹 안의
+        // 요소다. 매크로 입력 안의 그 밖의 아이템(`proptest! { #[test] fn .. }`)은 일반 규칙으로 읽는다.
+        // warn·deny·forbid 는 범위를 좁히면 다시 켠 진단을 놓치므로 일반 규칙대로 읽는다.
+        let macro_input = inner.is_none() && {
+            let body = code.attr_run(hash).1;
+            (code.in_macro_input(hash)
+                && (!code.starts_item(body)
+                    || code.item_boundary_unsure(body, code.element_end(body))))
+                || code.maybe_lowercase_literal(code.parent[hash])
+        };
         let span = if inner.is_some() {
             let Some(span) = code.inner_attr_span(hash) else {
                 continue;
@@ -2993,6 +3025,42 @@ mod helper_tests {
         // 그 요소 전체를 덮는다.
         let rewarn = with_ignore(
             "#[cfg(test)]\n#[allow(clippy::let_underscore_must_use)]\nmod t {\n    fn g() {\n        if let s { a } = h {\n            #[warn(clippy::let_underscore_must_use)]\n            {\n                {IGNORE}\n            }\n        }\n    }\n}\n",
+        );
+        assert_eq!(
+            test_scope_sites(&rewarn, false),
+            vec![(7, Some(Level::Warn))]
+        );
+    }
+
+    #[test]
+    fn a_metavariable_in_place_of_an_item_body_covers_only_the_attributes() {
+        for (src, want, why) in [
+            (
+                "m! {\n    #[cfg(test)]\n    fn a() $body\n    fn b() {\n        {IGNORE}\n    }\n}\n",
+                (vec![5], vec![]),
+                "몸체 자리의 `$body` 뒤 다음 아이템",
+            ),
+            (
+                "m! {\n    #[cfg(test)]\n    fn a() $body\n    {IGNORE}\n}\n",
+                (vec![4], vec![]),
+                "몸체 자리의 `$body` 뒤 문장",
+            ),
+            (
+                "m! {\n    #[cfg(test)]\n    fn a() {\n        $setup;\n        {IGNORE}\n    }\n}\n",
+                (vec![], vec![5]),
+                "몸체 안의 치환",
+            ),
+            (
+                "m! {\n    #[cfg(test)]\n    fn $name() {\n        {IGNORE}\n    }\n}\n",
+                (vec![], vec![4]),
+                "이름 자리의 치환",
+            ),
+        ] {
+            assert_eq!(both(src), want, "{why}");
+        }
+        // warn·deny·forbid 는 좁히지 않는다.
+        let rewarn = with_ignore(
+            "#[cfg(test)]\n#[allow(clippy::let_underscore_must_use)]\nmod t {\n    m! {\n        #[warn(clippy::let_underscore_must_use)]\n        fn a() $body\n        fn b() {\n            {IGNORE}\n        }\n    }\n}\n",
         );
         assert_eq!(
             test_scope_sites(&rewarn, false),
