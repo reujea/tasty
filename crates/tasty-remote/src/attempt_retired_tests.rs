@@ -239,28 +239,36 @@ fn on_macos_a_cancelled_handshake_stops_at_the_timeout_without_a_warning() {
     peer.join().unwrap();
 }
 
-/// macOS browse B-1: 등록 직후 취소되면 읽기 기한 설정 실패가 취소 오류가 된다. 활성 시도는 원 오류를 돌려준다.
-/// 쓰기 기한 설정 분기는 읽기 설정이 먼저 실패해 닿지 않는다.
+/// macOS browse B-1: 등록 직후 취소되면 읽기 기한 설정 실패가 경고 없이 취소 오류가 된다. 활성 시도는 그
+/// 설정의 원 소켓 오류(`EINVAL`)를 그대로 돌려준다. 쓰기 기한 설정 분기는 읽기 설정이 먼저 실패해 닿지 않는다.
 #[cfg(target_os = "macos")]
 #[test]
 fn on_macos_a_cancelled_probe_reports_the_cancel_at_the_timeout() {
+    if tasty_test_support::rerun_alone(
+        module_path!(),
+        "on_macos_a_cancelled_probe_reports_the_cancel_at_the_timeout",
+    ) {
+        return;
+    }
+    /// macOS 의 `EINVAL`.
+    const EINVAL: i32 = 22;
+    let probe = |attempt: &AttemptToken, port: u16| {
+        crate::browse::probe_method_bound(port, "system.info", serde_json::json!({}), Some(attempt))
+    };
     let mut remote = Remote::new();
     let active = remote.begin_attempt(None, None).unwrap();
     let (port, peer) = silent_peer();
     attempt_seam::arm(Stage::AfterRegister, |socket| {
         socket.shutdown(std::net::Shutdown::Both).unwrap();
     });
-    let error = crate::browse::probe_method_bound(
-        port,
-        "system.info",
-        serde_json::json!({}),
-        Some(&active),
-    )
-    .expect_err("the closed socket ends the probe");
-    assert_ne!(
-        error.to_string(),
-        ATTEMPT_RETIRED,
-        "the active attempt keeps its error"
+    let error = probe(&active, port).expect_err("the closed socket ends the probe");
+    let socket_error = error
+        .downcast_ref::<std::io::Error>()
+        .unwrap_or_else(|| panic!("the active attempt keeps the socket error: {error:#}"));
+    assert_eq!(
+        socket_error.raw_os_error(),
+        Some(EINVAL),
+        "the read timeout setting's own error: {socket_error}"
     );
     peer.join().unwrap();
 
@@ -268,13 +276,10 @@ fn on_macos_a_cancelled_probe_reports_the_cancel_at_the_timeout() {
     let (port, peer) = silent_peer();
     let cancel = retired.clone();
     attempt_seam::arm(Stage::AfterRegister, move |_| cancel.cancel());
-    let error = crate::browse::probe_method_bound(
-        port,
-        "system.info",
-        serde_json::json!({}),
-        Some(&retired),
-    )
-    .expect_err("the cancel ends the probe");
+    let mut result = Ok(serde_json::Value::Null);
+    let logs = capture_logs(|| result = probe(&retired, port));
+    let error = result.expect_err("the cancel ends the probe");
     assert_eq!(error.to_string(), ATTEMPT_RETIRED);
+    assert!(warn_lines(&logs).is_empty(), "no warning:\n{logs}");
     peer.join().unwrap();
 }
