@@ -379,6 +379,10 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 - 포트: `tasty-ssh` 의 `reserve_local_port` 는 포트를 점유하는 리스너를 함께 반환한다 —
   리스너를 잡고 있는 한 그 포트는 이 프로세스 소유라 rebind 레이스가 없다. 프로덕션에서
   ssh 가 rebind 해야 하는 경우만 명시적으로 drop 하고, 그 창은 ready-probe 재시도가 흡수한다.
+- 제품이 포트를 놓는 경우: HTTP 프록시 endpoint 의 Reload 후계는 선행 endpoint 가 join 으로
+  놓은 포트를 다시 bind 한다. `successor_rebinds_the_joined_address_with_fresh_credentials` 는
+  후계 bind 가 `EndpointError::Bind { kind: AddrInUse, .. }` 로 실패한 경우에만 처음부터
+  최대 3회 다시 하고, 다른 오류는 바로 실패하며 시도별 오류를 메시지에 남긴다.
 
 ### 형태 C — 부하 의존 벽시계 마감(deadline)
 

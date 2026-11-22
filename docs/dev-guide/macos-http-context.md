@@ -122,7 +122,9 @@ loopback port after the predecessor has joined, with a fresh token. The view the
 clears the disk, memory and fetch caches and service-worker registrations, keeps
 cookies, and calls `reload`, which resends the current entry with its original
 method, body and cookies. A document without a Reload receipt is replaced by a new
-view.
+view. If another socket takes the port before the successor binds it, the
+successor fails and the surface shows the usual failed state. The warning log
+names the bind error kind, `AddrInUse` for a taken port, and its OS error code.
 
 ## Direct network paths
 

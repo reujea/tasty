@@ -97,8 +97,10 @@ The successor bridge admits only a first request that matches the captured main
 request's URL, method and upload. A document without a Reload receipt, such as
 one whose first load failed or whose peer did not negotiate Reload, is replaced
 by a new view instead. That view requests the entry URL with GET and starts
-without the previous cookies. If another process takes the port before the
-successor binds it, the successor fails and the failure is shown.
+without the previous cookies. If another socket, in another process or in Tasty
+itself, takes the port before the successor binds it, the successor fails and the
+surface shows the usual failed state. The warning log names the bind error kind,
+`AddrInUse` for a taken port, and its OS error code.
 
 ## Direct network paths
 
