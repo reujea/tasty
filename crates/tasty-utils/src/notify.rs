@@ -168,8 +168,6 @@ fn append_line_to(path: &Path, line: &str, cap: u64) -> io::Result<()> {
     }
     // 공유 잠금을 얻으면 정상 배타 비우기와 겹치지 않는다. 잠금 실패 때는 그대로 쓴다.
     let _shared = meta.as_ref().and_then(|m| MetaLock::shared(m, &meta_path));
-    #[cfg(test)]
-    let unlocked_from = _shared.is_none().then(|| unaccounted::peek(path));
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -177,10 +175,13 @@ fn append_line_to(path: &Path, line: &str, cap: u64) -> io::Result<()> {
     let mut record = String::with_capacity(line.len() + 1);
     record.push_str(line);
     record.push('\n');
+    #[cfg(test)]
+    let unlocked_from = _shared.is_none().then(|| unaccounted::peek(path));
     let written = file.write_all(record.as_bytes());
     #[cfg(test)]
     if let Some(from) = unlocked_from {
-        unaccounted::record_unlocked_append(path, &from, record.len() as u64);
+        let to = unaccounted::peek(path);
+        unaccounted::record_unlocked_append(path, &from, &to, record.len() as u64);
     }
     written
 }
@@ -452,13 +453,19 @@ mod unaccounted {
         });
     }
 
-    /// 공유 잠금 없는 append 한 건을 기록한다. `from`은 쓰기 전에 본 계수다. 그 사이 배타
-    /// 비우기 구간이 진행 중이었거나 시작됐으면 겹친 것으로 센다.
-    pub(super) fn record_unlocked_append(path: &Path, from: &Counts, bytes: u64) {
+    /// 공유 잠금 없는 append 한 건을 기록한다. `from`·`to`는 쓰기 호출 직전·직후에 본 계수다.
+    /// 그 사이 배타 비우기 구간이 진행 중이었거나 시작됐으면 겹친 것으로 센다.
+    ///
+    /// 겹침 판정은 실제 손실 가능 구간보다 넓다. 배타 쪽 구간은 `truncate_over_cap` 호출 전체라
+    /// 파일 열기와 크기 미달로 끝난 시도까지 들어가고, append 쪽도 쓰기 완료와 `to` 사이의
+    /// 틈이 있다. 이를 길이 측정~`set_len(0)`으로 좁히려면 제품 함수 안에 시험 표지를 더 넣어야
+    /// 해서 넣지 않았다. 그래서 겹친 것으로 센 append의 바이트만큼은, 그것과 무관한 다른 누계 밖
+    /// 손실이 있어도 동등식 하한이 통과시킬 수 있다.
+    pub(super) fn record_unlocked_append(path: &Path, from: &Counts, to: &Counts, bytes: u64) {
         update(path, |c| {
             c.unlocked_append += 1;
             if from.locked_started != from.locked_finished
-                || c.locked_started != from.locked_started
+                || to.locked_started != from.locked_started
             {
                 c.unlocked_append_overlap += 1;
                 c.unlocked_append_overlap_bytes += bytes;
@@ -764,6 +771,8 @@ mod tests {
         skipped: Option<u64>,
         /// 메타의 공유 잠금을 쥐고 읽었는가. 메타가 아직 없으면 거짓이다.
         locked: bool,
+        /// 공유 잠금 아래에서 본 저하 계수. unknown을 설명할 비우기의 구간을 정한다.
+        counts: unaccounted::Counts,
     }
 
     fn resume(log: &Path, next_offset: u64) -> Resume {
@@ -797,6 +806,9 @@ mod tests {
         };
         let base = parse_retention_start(&read_or_absent(std::fs::read_to_string(&meta_path))?);
         let bytes = read_or_absent(std::fs::read(log))?;
+        // 공유 잠금을 쥔 동안 계수를 뜬다. 배타 비우기와 그 기록은 이 잠금과 겹치지 않으므로, 이
+        // 값은 이 읽기가 관측한 파일 상태까지의 배타 비우기 기록을 정확히 담는다.
+        let counts = unaccounted::peek(log);
         let len = bytes.len() as u64;
         let (physical, truncated, skipped) = if next_offset < base {
             (0, true, Some(base - next_offset))
@@ -818,6 +830,7 @@ mod tests {
             truncated,
             skipped,
             locked: guard.is_some(),
+            counts,
         })
     }
 
@@ -1039,6 +1052,15 @@ mod tests {
         );
     }
 
+    /// 끝날 때(panic 포함) 끝난 writer 수를 하나 올린다.
+    struct WriterDone<'a>(&'a std::sync::atomic::AtomicUsize);
+
+    impl Drop for WriterDone<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
     // 동시 쓰기와 재개 읽기에서 받은 바이트 + 기록된 손실 = 쓴 바이트인지 확인한다.
     // 이 부하에서 계약이 허용한 저하(배타 잠금 예산 초과 등)가 0번이라고 가정하지 않는다.
     // 저하는 `unaccounted` 계수로 설명돼야 한다. 줄마다 9바이트인 append가 write 호출 한 번으로
@@ -1062,17 +1084,20 @@ mod tests {
                 let log = &log;
                 let done = &done;
                 scope.spawn(move || {
+                    // panic으로 끝나도 끝난 writer로 센다. 그래야 reader가 멈추고 scope가 그 panic을
+                    // 시험 실패로 넘긴다.
+                    let _finished = WriterDone(done);
                     for i in 0..ROUNDS {
                         append_line_to(log, &format!("w{w}-{i:05}"), CAP).unwrap();
                     }
-                    done.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 });
             }
             let mut offset = 0u64;
             let mut rejected_after_writers = 0usize;
-            // unknown마다 그 읽기 구간에 기록된 누계 밖 비우기를 하나씩 배정한다. `used`는 이미
-            // 배정한 비우기 수, `window_from`은 직전에 채택한 읽기를 시작할 때의 비우기 수다.
-            let (mut used, mut window_from) = (0u64, 0u64);
+            // 직전에 채택한 읽기가 공유 잠금 아래에서 본 누계 밖 비우기 수. unknown은 그 뒤로 이번
+            // 읽기까지 사이에 기록된 비우기가 있어야 설명된다. 연속한 채택 읽기의 구간은 겹치지
+            // 않으므로 한 비우기가 두 unknown을 설명하는 일은 없다.
+            let mut seen_truncations = 0u64;
             loop {
                 let finished = done.load(std::sync::atomic::Ordering::SeqCst) == WRITERS;
                 let before = unaccounted::peek(&log);
@@ -1115,16 +1140,15 @@ mod tests {
                     Some(n) => skipped_bytes += n,
                     None => {
                         unknown += 1;
-                        let floor = used.max(window_from);
                         assert!(
-                            after.truncations() > floor,
+                            r.counts.truncations() > seen_truncations,
                             "unknown {unknown} 번째를 설명할 누계 밖 비우기가 직전 읽기 이후에 없다\
-                             (배정한 {used}, 구간 시작 {window_from}). 계수 {after:?}"
+                             (직전 읽기까지 {seen_truncations} 건). 계수 {:?}",
+                            r.counts
                         );
-                        used = floor + 1;
                     }
                 }
-                window_from = before.truncations();
+                seen_truncations = r.counts.truncations();
                 offset = r.next_offset;
                 if finished {
                     break;
@@ -1144,9 +1168,10 @@ mod tests {
              {rejected}",
             c.truncations()
         );
-        // 메타 내용이 바뀐 갱신 실패는 누계를 어느 쪽으로든 망가뜨렸을 수 있어 바이트 합을
-        // 판정하지 않는다. 누계 밖 비우기는 받은 + 잃은 을 쓴 값보다 작게만 만든다. 공유 잠금 없는
-        // append는 배타 비우기 구간과 겹친 것의 바이트만 누계 밖에서 지워질 수 있다.
+        // 메타 내용이 바뀌었거나 갱신 전후 내용을 읽지 못해 변경 여부를 모르는 갱신 실패는 누계를
+        // 어느 쪽으로든 망가뜨렸을 수 있어 바이트 합을 판정하지 않는다. 누계 밖 비우기는 받은 +
+        // 잃은 을 쓴 값보다 작게만 만든다. 공유 잠금 없는 append는 배타 비우기 구간과 겹친 것의
+        // 바이트만 누계 밖에서 지워질 수 있다(겹침 판정이 넓은 한계는 `record_unlocked_append`).
         if c.meta_update == 0 {
             if c.truncations() == 0 {
                 let floor = written - c.unlocked_append_overlap_bytes;
