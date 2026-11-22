@@ -2250,7 +2250,8 @@ fn a_click_this_pass_keeps_the_new_text_focus() {
     assert!(state.popups.instance(scanner).is_some_and(|p| p.open));
     assert_eq!(egui_focus(&ctx), None, "누르기 전에는 포커스가 없다");
 
-    let mut events = vec![press(Key::ArrowDown)];
+    // 화살표·Tab 은 egui 가 포커스 이동에 쓴다. 포커스를 옮기지 않는 키를 쓴다.
+    let mut events = vec![press(Key::F3)];
     events.extend(pointer(field.center(), true));
     events.extend(pointer(field.center(), false));
     frame_rects(&ctx, &mut state, &engine.read(), events);
