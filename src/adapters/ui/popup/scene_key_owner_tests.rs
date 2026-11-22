@@ -2075,27 +2075,23 @@ fn open_palette_unfocused(state: &mut RequestContext) -> PopupInstanceId {
         .expect("palette opens")
 }
 
-/// T-10b-1: Given 포트 스캐너 검색 입력칸이 egui 포커스를 가진 키 주인이고 그 뒤에 그리는 팔레트가 키 없이 보일 때,
-/// When 몇 패스를 그리고 글자를 치면, Then 포커스는 주인 입력칸에 남고 글자는 주인이 받는다. 팔레트 입력칸은 비어 있다.
+/// T-10b-1: Given 포트 스캐너 검색 입력칸이 egui 포커스를 가진 키 주인이고 그 아래 팔레트가 키 없이 보일 때, When 몇
+/// 패스를 그리고 글자를 치면, Then 포커스는 주인 입력칸에 남고 글자는 주인이 받는다. 팔레트 입력칸은 비어 있다.
+/// 팔레트를 먼저 연다. 나중에 연 팔레트는 덮는 팝업이라 정규화가 키 주인을 팔레트로 옮긴다.
 #[test]
 fn owner_input_keeps_focus_beside_a_visible_palette() {
     let (mut state, mut session) = scene(PANE_L);
     let engine = session.borrow_mut();
     registered(&mut state);
     let ctx = Context::default();
-    let (scanner, field) = scanner_with_focused_input(&ctx, &mut state, &engine.read());
     let palette = open_palette_unfocused(&mut state);
+    let (scanner, field) = scanner_with_focused_input(&ctx, &mut state, &engine.read());
     frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
-    let order = |wanted: &str| {
-        texts
-            .iter()
-            .position(|(s, _)| s == wanted)
-            .unwrap_or_else(|| panic!("{wanted} 이 칠해진다: {texts:?}"))
-    };
+    let palette_hint = format!("esc {}", t("command_palette.hint_close"));
     assert!(
-        order(t("command_palette.hint_close")) > order(t("port_scanner.heading")),
-        "팔레트가 주인보다 뒤에 그려진다"
+        texts.iter().any(|(s, _)| *s == palette_hint),
+        "팔레트가 보인다: {texts:?}"
     );
     assert!(state.popups.instance(palette).is_some_and(|p| p.open));
     assert_eq!(
@@ -2136,9 +2132,17 @@ fn owner_input_keeps_focus_beside_a_visible_palette() {
 #[test]
 fn plugin_owner_leaves_the_palette_without_focus() {
     use super::frame_keys::{focus_p, key_and_ime, plugin_only_scene, render_frame_on, sent_input};
-    let (mut state, mut session, mgr) = plugin_only_scene();
+    let (mut state, mut session, mut mgr) = plugin_only_scene();
     let engine = session.borrow_mut();
     let palette = open_palette_unfocused(&mut state);
+    // P 를 팔레트 위로 다시 넣는다. 나중에 연 팔레트는 덮는 팝업이라 정규화가 키 주인을 팔레트로 옮긴다.
+    mgr.insert_popup_instance_for_test(
+        super::frame_keys::POPUP,
+        super::frame_keys::plugin_popup(
+            tasty_host_plugin::next_popup_z_seq(),
+            tasty_plugin_protocol::popup_decl::PopupEscape::Close,
+        ),
+    );
     focus_p(&mut state);
     let ctx = Context::default();
     render_frame_on(&ctx, &mut state, &engine.read(), &mgr, true, &|_| {});
@@ -2148,6 +2152,11 @@ fn plugin_owner_leaves_the_palette_without_focus() {
     assert!(
         state.popups.instance(palette).is_some_and(|p| p.open),
         "팔레트가 열려 있다"
+    );
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Plugin(super::frame_keys::POPUP)),
+        "P 가 키 주인이다"
     );
     assert_eq!(
         egui_focus(&ctx),
@@ -2216,8 +2225,8 @@ fn a_text_focus_in_a_keyboard_none_popup_is_kept() {
     );
 }
 
-/// T-10b-4: Given 변환 팝업이 키 주인이고 포트 스캐너가 키 없이 보일 때, When 한 패스에 키와 스캐너 입력칸 누름이
-/// 함께 오면, Then 그 패스 뒤 누른 입력칸 포커스가 남는다.
+/// T-10b-4: Given 변환 팝업이 키 주인이고 포트 스캐너가 키 없이 보일 때, When 한 패스에 키와 스캐너 입력칸 클릭(누름과
+/// 뗌)이 함께 오면, Then 그 패스 뒤 누른 입력칸 포커스가 남는다. egui 입력칸은 뗌에서 포커스를 얻는다.
 #[test]
 fn a_click_this_pass_keeps_the_new_text_focus() {
     let (mut state, mut session) = scene(PANE_L);
@@ -2241,6 +2250,7 @@ fn a_click_this_pass_keeps_the_new_text_focus() {
 
     let mut events = vec![press(Key::ArrowDown)];
     events.extend(pointer(field.center(), true));
+    events.extend(pointer(field.center(), false));
     frame_rects(&ctx, &mut state, &engine.read(), events);
     let focused = egui_focus(&ctx).expect("누른 입력칸이 이번 패스에 포커스를 얻는다");
     assert!(egui::TextEdit::load_state(&ctx, focused).is_some());
@@ -2261,7 +2271,7 @@ fn a_non_owner_button_keeps_its_focus() {
         |ui: &mut egui::Ui, _: &mut RequestContext, _: &EngineRead<'_>, cx: &mut PopupCx<'_>| {
             if cx.instance == a {
                 let glyph = |_: &mut egui::Ui, _: egui::Rect, _: egui::Color32| {};
-                drop(tasty_ui_widgets::close_remote_confirm(
+                let _confirm = tasty_ui_widgets::close_remote_confirm(
                     ui,
                     &crate::theme::theme(),
                     &tasty_ui_widgets::CloseRemoteConfirmView {
@@ -2273,7 +2283,7 @@ fn a_non_owner_button_keeps_its_focus() {
                         glyph: &glyph,
                         focus_cancel: first.replace(false),
                     },
-                ));
+                );
             }
             Some(PopupAction::None)
         };

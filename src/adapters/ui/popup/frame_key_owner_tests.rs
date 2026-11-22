@@ -18,9 +18,9 @@ use crate::plugin_bridge::popup_render::draw_plugin_popups;
 use crate::state::RequestContext;
 
 const PLUGIN: &str = "com.example.keys";
-const POPUP: u64 = 9;
+pub(super) const POPUP: u64 = 9;
 
-fn plugin_popup(
+pub(super) fn plugin_popup(
     z_seq: u64,
     escape: tasty_plugin_protocol::popup_decl::PopupEscape,
 ) -> tasty_host_plugin::PopupInstance {
