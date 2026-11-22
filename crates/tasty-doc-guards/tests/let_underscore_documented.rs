@@ -298,7 +298,7 @@ impl<'a> Code<'a> {
                 // 표시를 써서 정하므로 여기서는 보지 않는다.
                 let list = g != NONE
                     && (self.b[g] != b'{'
-                        || self.prev_non_ws(g).is_some_and(|p| self.b[p] == b'!'));
+                        || self.prev_non_ws(g).is_some_and(|p| self.macro_bang(p)));
                 self.block_body(k, limit, list)
             })
             .collect();
@@ -333,20 +333,22 @@ impl<'a> Code<'a> {
         i
     }
 
+    /// `p` 의 `!` 가 매크로 호출(`name!`)의 것인가. 앞이 이름이 아니면(`-> !`·`= !{`) 반환 타입이나 단항 연산자이고,
+    /// `if !(..)` 처럼 식 키워드 뒤의 `!` 도 단항 연산자다.
+    fn macro_bang(&self, p: usize) -> bool {
+        self.b[p] == b'!'
+            && self
+                .prev_non_ws(p)
+                .is_some_and(|q| is_ident_byte(self.b[q]) && !self.keyword_ends_at(q))
+    }
+
     /// `hash` 가 매크로 입력(`name!(..)`·`name![..]`·`name! {..}`·`macro_rules! name {..}`, `!` 앞뒤 공백 허용) 안에 있는가.
     /// 매크로 입력은 Rust 문법이 아닌 토큰 열일 수 있어 요소의 끝을 텍스트로 정할 수 없다.
     fn in_macro_input(&self, hash: usize) -> bool {
         let mut g = self.parent[hash];
         while g != NONE {
             if let Some(p) = self.prev_non_ws(g) {
-                // `if !(..)` 처럼 키워드 뒤의 `!` 는 단항 연산자다.
-                let bang_after_name = |p: usize| {
-                    self.b[p] == b'!'
-                        && self
-                            .prev_non_ws(p)
-                            .is_some_and(|q| is_ident_byte(self.b[q]) && !self.keyword_ends_at(q))
-                };
-                if bang_after_name(p) {
+                if self.macro_bang(p) {
                     return true;
                 }
                 if is_ident_byte(self.b[p]) {
@@ -3435,6 +3437,41 @@ mod helper_tests {
             fixture("fn f() {\n    // 이유\n    # [allow(unused)]\n    {IGNORE}\n}\n"),
             Vec::<usize>::new()
         );
+    }
+
+    #[test]
+    fn a_never_return_type_or_a_unary_not_before_a_body_is_not_a_macro_call() {
+        // 검사식의 `Result<u8, u16>` 쉼표에서 멈추면 `match` 본문을 못 찾아 팔 목록을 문장으로 읽는다.
+        let arms = [
+            (
+                "        p if p.is_null() => (),\n        _ => {\n            {IGNORE}\n        }\n",
+                (vec![6], vec![]),
+            ),
+            (
+                "        p => if { p.is_null() } {\n            {IGNORE}\n        } else {\n            ()\n        },\n        _ => (),\n",
+                (vec![], vec![5]),
+            ),
+        ];
+        for (open, close) in [
+            ("fn f(ptr: *const u8) -> ! {", "    loop {}\n}"),
+            ("fn f(ptr: *const u8) -> () {", "    loop {}\n}"),
+            ("fn f(ptr: *const u8) -> bool { !{", "    true\n} }"),
+            ("fn f(ptr: *const u8) -> bool { {", "    true\n} }"),
+            (
+                "fn f(ptr: *const u8) -> bool { if !{",
+                "    true\n} { true } else { false } }",
+            ),
+        ] {
+            for (arm, want) in &arms {
+                assert_eq!(
+                    &both(&format!(
+                        "{open}\n    match ptr as *const Result<u8, u16> {{\n        #[cfg(test)]\n{arm}    }}\n{close}\n"
+                    )),
+                    want,
+                    "{open}"
+                );
+            }
+        }
     }
 
     #[test]
