@@ -763,6 +763,8 @@ impl GpuState {
             state,
             |_| {},
             |ctx, state| {
+                // 무대는 타이틀바를 그리지 않는다. 지난 패스의 타이틀바 영역이 누름 판정에 남지 않게 한다.
+                state.titlebar_rect = None;
                 crate::adapters::ui::draw_fullscreen_stage(ctx, state, engine);
             },
         );

@@ -299,6 +299,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             titlebar_close_rect: None,
             #[cfg(feature = "gui")]
+            titlebar_rect: None,
+            #[cfg(feature = "gui")]
             halt_pointer_inside: false,
             recent_files: crate::recent_files::RecentFiles::load(),
             #[cfg(feature = "gui")]

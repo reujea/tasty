@@ -81,6 +81,8 @@ pub struct TitlebarDrawResult {
     pub resize_priority_hovered: bool,
     /// 이번 프레임의 닫기 버튼 영역. 저장이 멈춘 동안에도 이 버튼은 포인터를 받는다.
     pub close_rect: Option<egui::Rect>,
+    /// 이번 프레임 타이틀바 패널의 배치 영역(논리 좌표). 아래 변은 작업 영역의 위 변이다.
+    pub panel_rect: egui::Rect,
 }
 
 /// 상단 바와 창 버튼을 그린다. 버튼·macOS 네이티브 버튼 영역은 드래그에서 제외한다.
@@ -96,7 +98,7 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
         th.titlebar_bg_inactive()
     };
 
-    egui::TopBottomPanel::top("tasty_titlebar")
+    let panel = egui::TopBottomPanel::top("tasty_titlebar")
         .exact_height(props.height)
         .frame(egui::Frame::new().fill(bg.to_egui()))
         .show_separator_line(false)
@@ -172,6 +174,7 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
         actions,
         resize_priority_hovered,
         close_rect,
+        panel_rect: panel.response.rect,
     }
 }
 

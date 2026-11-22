@@ -239,6 +239,10 @@ pub struct MainViewState {
     /// 직전 프레임에 그린 타이틀바 닫기 버튼 영역(논리 좌표). 없으면 OS가 버튼을 그린다.
     #[cfg(feature = "gui")]
     pub(crate) titlebar_close_rect: Option<egui::Rect>,
+    /// 직전 패스에 그린 타이틀바 패널의 배치 영역(물리 좌표). 타이틀바를 그리지 않은 패스 뒤에는 없다.
+    /// 좌버튼 누름을 터미널로 보낼지 정할 때 egui 판정(직전 패스의 포인터 위치)을 보완한다.
+    #[cfg(feature = "gui")]
+    pub(crate) titlebar_rect: Option<crate::model::PhysicalRect>,
     /// 저장이 멈춘 동안 포인터가 받을 수 있는 영역(안내·닫기 버튼) 위에 있는지.
     #[cfg(feature = "gui")]
     pub(crate) halt_pointer_inside: bool,

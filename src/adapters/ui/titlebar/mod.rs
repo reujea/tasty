@@ -71,6 +71,10 @@ pub fn draw_titlebar(
     let result = draw_titlebar_view(ctx, &props);
     state.resize_edge_widget_hovered = result.resize_priority_hovered;
     state.titlebar_close_rect = result.close_rect;
+    state.titlebar_rect = Some(physical_panel_rect(
+        result.panel_rect,
+        ctx.pixels_per_point(),
+    ));
     for action in result.actions {
         match action {
             TitlebarAction::StartDrag => {
@@ -90,6 +94,17 @@ pub fn draw_titlebar(
             }
         }
     }
+}
+
+/// 패널 배치 영역을 그 패스의 배율로 물리 좌표에 옮긴다. 포인터 사건 좌표(물리)와 비교하는 데 쓴다.
+fn physical_panel_rect(rect: egui::Rect, pixels_per_point: f32) -> crate::model::PhysicalRect {
+    crate::model::LogicalRect {
+        x: crate::model::LogicalPx(rect.min.x),
+        y: crate::model::LogicalPx(rect.min.y),
+        width: crate::model::LogicalPx(rect.width()),
+        height: crate::model::LogicalPx(rect.height()),
+    }
+    .to_physical(pixels_per_point)
 }
 
 /// 창 리사이즈 방향을 egui 커서로 바꾼다.
