@@ -170,13 +170,15 @@ impl PopupManager {
     }
 
     /// 범위를 덮는 보이는 host 인스턴스와 그 배치 범위·순번. 포커스를 받지 않는 인스턴스는 포커스 노드가 될 수
-    /// 없으므로 빠진다.
+    /// 없으므로 빠진다. 부모 버튼이 대표하는(그리지 않는) 자식도 빠진다. 그 자식이 덮는 노드로 남으면 포커스를
+    /// 보기 버튼으로 넘긴 뒤 정규화가 포커스를 숨은 자식에게 되돌려 키를 받는 팝업이 없어진다.
     pub(crate) fn covering_nodes(
         &self,
     ) -> impl Iterator<Item = (PopupInstanceId, PopupScope, u64)> + '_ {
         self.popups
             .iter()
             .filter(|p| p.open && p.scope_visible && p.covers() && p.arrange.takes_focus)
+            .filter(|p| p.display != super::display::PopupDisplay::Collapsed(None))
             .map(|p| (p.instance, p.placement_scope(), p.z_seq))
     }
 
