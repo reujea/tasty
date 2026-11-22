@@ -225,8 +225,11 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 남긴 뒤 `early1`(산출물 없이 종료 1), `late1`(산출물을 남기고 종료 1), `late23`(산출물을 남기고 종료 23)이다.
 /// 실패 주입에서 대상의 원래 종료값이 0이면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
 /// `|| true`, `|| exit 0`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
-/// 하네스는 stdout·stderr·fd 9를 한 수집 파이프에 잇고 그 파이프가 닫힐 때까지(그 fd 중 하나라도 물려받은 자손이
-/// 모두 끝날 때까지) 기다린 뒤 기록을 모으므로, 일부 fd를 돌린 채 늦게 시작한 호출도 남는다.
+/// 하네스는 stdout·stderr를 한 수집 파이프에, fd 9를 스텁의 제어 파이프에 잇고 두 파이프가 모두 닫힐 때까지(그 fd 중
+/// 하나라도 물려받은 자손이 모두 끝날 때까지) 기다린 뒤 기록을 모으므로, 일부 fd를 돌린 채 늦게 시작한 호출도 남는다.
+/// 스텁의 산출물 단계가 실패하면 그 호출은 그 값으로 끝나고, `copy-error` 파일과 fd 9 표지로 알려 하네스가 실패한다
+/// (인자 없는 `wait`이 스텁의 종료값을 삼키고 다른 호출의 `.fetched`가 남아도 드러난다). 수집기 자체가 실패해도
+/// 하네스가 실패한다.
 /// 스텁 산출물은 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만이다.
 /// 이 가드는 정직한 실수(배포 호출의 `--all`, 실패 무시, 백그라운드 실행, 검사 전 종료)를 잡는다. 가드를 일부러
 /// 피하도록 쓴 대상(1·23 밖의 특정 종료값이나 하네스만의 산출물 차이를 보고 실패를 삼키기, 세 fd를 모두 닫거나 돌리고
@@ -279,6 +282,7 @@ fn fetch_run_with(
 /// 산출물 없이 종료 1, `late1`·`late23`이면 산출물 표지까지 남긴 뒤 종료 1·23이다(실제 fetch는 일부 산출물을 만든 뒤에도
 /// 종료 1로 실패한다). 대상이 0으로 끝났어도 분기 뒤
 /// 하네스 검사까지 도달하지 않았으면(중간의 `exit 0` 등) RC는 원래 종료값을 앞에 둔 `0-unreached`다.
+/// 하네스 자체가 실패하면(잠금·산출물·수집기 오류) 패닉한다.
 #[cfg(unix)]
 fn fetch_collect(
     mode: &str,
@@ -288,13 +292,37 @@ fn fetch_collect(
     all: &[String],
     bundled: &[String],
 ) -> (String, Vec<Vec<String>>) {
+    let out = fetch_harness(mode, platform, branch, fail, all, bundled);
+    assert!(
+        out.status.success(),
+        "bash 하네스가 실패했다: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    parse_harness(out.stdout)
+}
+
+/// `fetch_collect`의 하네스 실행만 한다. `fail`의 `copy<N>`은 N번째로 산출물 단계에 들어온 호출의 복사를 실패시킨다
+/// (하네스 자체가 그 실패로 끝나는지 보는 시험 전용).
+#[cfg(unix)]
+fn fetch_harness(
+    mode: &str,
+    platform: &str,
+    branch: &str,
+    fail: &str,
+    all: &[String],
+    bundled: &[String],
+) -> std::process::Output {
     const HARNESS: &str = r#"set -eu
 repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"; bundled="$6"; all="$7"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 mkdir -p "$root/scripts/lib" "$root/calls"
-# 스텁은 잠금 문제를 이 파일에 덧붙인다. 미리 만들어 두면 루트에 새 항목을 못 만드는 경우에도 기록이 남는다.
+# 스텁은 잠금 문제와 산출물 단계 실패를 이 파일들에 덧붙인다. 미리 만들어 두면 루트에 새 항목을 못 만드는 경우에도
+# 기록이 남는다. 산출물 실패는 파일에 쓰지 못해도 드러나도록 fd 9(제어 파이프)에도 표지로 알린다.
 : > "$root/lock-error"
+: > "$root/copy-error"
+marker=@@tasty-stub-copy-error@@
+collector_marker=@@tasty-collector-failed@@
 if [ -n "$fail" ]; then printf '%s' "$fail" > "$root/fail"; fi
 # 실제 fetch처럼 `--all`이면 잠금의 모든 항목, 아니면 `bundle = true` 항목만 산출물로 둔다.
 fixtures="$repo/crates/tasty-test-support/fixtures/official-plugins"
@@ -307,8 +335,8 @@ tree_of() {
 }
 tree="$root/tree-all"; tree_of "$tree" $all
 tree="$root/tree-bundle"; tree_of "$tree" $bundled
-cat > "$root/scripts/fetch-official-plugins.sh" <<'STUB'
-#!/usr/bin/env bash
+printf '#!/usr/bin/env bash\nmarker=%q\n' "$marker" > "$root/scripts/fetch-official-plugins.sh"
+cat >> "$root/scripts/fetch-official-plugins.sh" <<'STUB'
 top="$(cd "$(dirname "$0")/.." && pwd)"
 record="$(mktemp "$top/calls/call.XXXXXX")"
 printf '%s\0' "$@" > "$record"
@@ -330,7 +358,8 @@ if [ -n "$out" ]; then
     # 같은 --out에 함께 복사하면 GNU cp가 상대가 먼저 만든 항목에서 File exists로 실패하므로 산출물 단계만
     # 호출 사이에 차례로 돈다. flock은 macOS에 기본으로 없고, 일부 mkdir 구현(Ubuntu 26.04 기본 uutils)은 동시에
     # 같은 디렉터리를 만들 때 진 쪽도 0으로 끝나 mkdir 잠금이 배타적이지 않다. 그래서 bash 자체의 noclobber
-    # 리다이렉션(없는 파일을 O_EXCL로 연다)으로 잠금 파일을 만든다. set -C는 뒤의 덮어쓰기에 번지지 않게 서브셸에
+    # 리다이렉션(없는 파일을 O_EXCL로 연다)으로 잠금 파일을 만든다. 운영 스크립트의 scripts/lib/run-lock.sh와 같은
+    # 원리이고, 이 스텁은 기다리며 다시 시도한다. set -C는 뒤의 덮어쓰기에 번지지 않게 서브셸에
     # 둔다. 잠금 문제는 인자 없는 wait가 삼키지 않도록 lock-error에 적고 하네스가 수집 뒤 실패로 낸다.
     lock="$top/out.lock"; waited=0
     until ( set -C; : > "$lock" ) 2>/dev/null; do
@@ -338,15 +367,55 @@ if [ -n "$out" ]; then
         if [ "$waited" -ge 500 ]; then echo "산출물 잠금을 얻지 못했다: $lock" >> "$top/lock-error"; exit 97; fi
         sleep 0.01
     done
+    # 잠금 안에서 산출물 단계에 들어온 순번을 센다. fail이 copy<N>이면 N번째 호출의 복사를 실패시킨다.
+    entered=$(( $(cat "$top/out.entered" 2>/dev/null || echo 0) + 1 ))
+    echo "$entered" > "$top/out.entered"
+    copy=cp
+    if [ "$(cat "$top/fail" 2>/dev/null)" = "copy$entered" ]; then copy=false; fi
     made=0
-    { mkdir -p "$out" && cp -R "$top/$tree/." "$out/" && : > "$out/.fetched"; } || made=$?
+    { mkdir -p "$out" && "$copy" -R "$top/$tree/." "$out/" && : > "$out/.fetched"; } || made=$?
     rm "$lock" || echo "산출물 잠금을 놓지 못했다: $lock" >> "$top/lock-error"
-    [ "$made" -eq 0 ]
+    # 산출물 실패는 이 호출의 종료값이다. 인자 없는 wait이 그 값을 삼킬 수 있으므로 하네스에도 알린다. 두 통지는
+    # 한쪽이 신호(SIGXFSZ 등)로 끝나도 다른 쪽과 종료가 돌도록 각각 서브셸에 둔다.
+    if [ "$made" -ne 0 ]; then
+        ( echo "산출물 단계가 실패했다(rc=$made): $out" >> "$top/copy-error" ) 2>/dev/null || :
+        ( printf '\n%s\n' "$marker" >&9 ) 2>/dev/null || :
+        exit "$made"
+    fi
 fi
 case "$(cat "$top/fail" 2>/dev/null)" in late1) exit 1 ;; late23) exit 23 ;; esac
 STUB
 chmod +x "$root/scripts/fetch-official-plugins.sh"
 rc=0
+cst=0
+# 대상의 stdout·stderr는 cat 파이프로, fd 9는 awk 제어 파이프로 보낸다. awk는 EOF까지 읽고 스텁 표지가 있으면 3,
+# 안쪽 cat이 실패했다는 표지가 있으면 4로 끝난다. 표지는 줄 끝으로 판정한다(bash printf는 앞 줄바꿈과 표지를 따로
+# 쓰므로 그 사이 다른 출력이 끼면 표지가 그 뒤에 붙는다).
+collect() {
+    set +e
+    ( "$@" 9>&4 4>&- 2>&1 | cat > /dev/null 4>&-
+      inner="${PIPESTATUS[0]} ${PIPESTATUS[1]}"
+      if [ "${inner#* }" != 0 ]; then printf '\n%s\n' "$collector_marker" >&4; fi
+      exit "${inner% *}" ) 4>&1 | awk -v m="$marker" -v c="$collector_marker" '
+        substr($0, length($0) - length(c) + 1) == c { bad = 1 }
+        substr($0, length($0) - length(m) + 1) == m { n++ }
+        END { exit (bad ? 4 : (n ? 3 : 0)) }'
+    st="${PIPESTATUS[0]} ${PIPESTATUS[1]}"
+    set -e
+    rc=${st% *}
+    cst=${st#* }
+}
+run_package() {
+    (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
+fetch_bundled_plugins "$1"
+[ -f target/bundled-plugins/.fetched ]
+: > .reached' run "$platform")
+}
+run_staging() {
+    (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
+[ -f \"\$stage/.fetched\" ]
+: > \"\$root/.reached\"")
+}
 case "$mode" in
     package)
         if [ -n "$branch" ]; then
@@ -354,21 +423,19 @@ case "$mode" in
         else
             cp "$repo/scripts/lib/bundled-plugins.sh" "$root/scripts/lib/"
         fi
-        (cd "$root" && bash -euo pipefail -c '. scripts/lib/bundled-plugins.sh
-fetch_bundled_plugins "$1"
-[ -f target/bundled-plugins/.fetched ]
-: > .reached' run "$platform") 9>&1 2>&1 | cat > /dev/null
-        rc=${PIPESTATUS[0]}
+        collect run_package
         ;;
     staging)
-        (cd "$root" && root="$root" platform="$platform" stage="$root/stage" bash -euo pipefail -c "$branch
-[ -f \"\$stage/.fetched\" ]
-: > \"\$root/.reached\"") 9>&1 2>&1 | cat > /dev/null
-        rc=${PIPESTATUS[0]}
+        collect run_staging
         ;;
 esac
 if [ "$rc" = 0 ] && ! [ -e "$root/.reached" ]; then rc=0-unreached; fi
 if [ -s "$root/lock-error" ]; then cat "$root/lock-error" >&2; exit 97; fi
+if [ "$cst" != 0 ] && [ "$cst" != 3 ]; then echo "수집기가 실패했다($cst)" >&2; exit 98; fi
+if [ -s "$root/copy-error" ] || [ "$cst" = 3 ]; then
+    if [ -s "$root/copy-error" ]; then cat "$root/copy-error" >&2; else echo "스텁 산출물 단계가 실패했다(fd 9 표지)" >&2; fi
+    exit 98
+fi
 printf 'RC=%s\n' "$rc"
 for f in "$root/calls"/*; do
     [ -f "$f" ] || continue
@@ -377,7 +444,7 @@ for f in "$root/calls"/*; do
     printf '\n'
 done
 "#;
-    let out = std::process::Command::new("bash")
+    std::process::Command::new("bash")
         .args(["-c", HARNESS, "harness"])
         .arg(repo_root())
         .args([
@@ -389,13 +456,13 @@ done
             &all.join(" "),
         ])
         .output()
-        .expect("bash 하네스를 실행하지 못했다");
-    assert!(
-        out.status.success(),
-        "bash 하네스가 실패했다: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let text = String::from_utf8(out.stdout).expect("하네스 출력이 UTF-8이 아니다");
+        .expect("bash 하네스를 실행하지 못했다")
+}
+
+/// 하네스 표준출력을 대상의 종료 상태와 스텁 호출 기록으로 나눈다.
+#[cfg(unix)]
+fn parse_harness(stdout: Vec<u8>) -> (String, Vec<Vec<String>>) {
+    let text = String::from_utf8(stdout).expect("하네스 출력이 UTF-8이 아니다");
     let mut lines = text.lines();
     let rc = lines
         .next()
@@ -795,6 +862,44 @@ fn the_staging_harness_reads_what_bash_passes() {
             calls.len(),
             2,
             "{what}: 늦게 시작한 호출을 모으지 못했다: {calls:?}"
+        );
+    }
+}
+
+/// 스텁의 산출물 단계 실패는 그 호출의 종료값이다. 대상이 인자 없는 `wait`으로 그 값을 삼키고 다른 호출이
+/// `.fetched`를 남겨도 하네스가 실패로 낸다.
+#[cfg(unix)]
+#[test]
+fn a_stub_copy_failure_fails_the_harness() {
+    let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\" --all";
+    let plain = real.replacen(" --all", "", 1);
+    let locked: Vec<String> = locked_ids(&lock()).into_iter().collect();
+    let together = format!("{real} &\n{plain} &\nwait");
+    for (what, branch, fail) in [
+        (
+            "함께 띄운 두 호출 중 뒤의 복사 실패",
+            together.as_str(),
+            "copy2",
+        ),
+        ("앞에서 부른 호출의 복사 실패", real, "copy1"),
+    ] {
+        let out = fetch_harness(
+            "staging",
+            "linux-x64",
+            branch,
+            fail,
+            &locked,
+            &bundled_ids(),
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            !out.status.success(),
+            "{what}: 하네스가 성공했다: {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        assert!(
+            stderr.contains("산출물 단계가 실패했다"),
+            "{what}: 산출물 실패를 알리지 않았다: {stderr}"
         );
     }
 }
