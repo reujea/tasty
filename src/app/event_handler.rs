@@ -269,16 +269,6 @@ impl ApplicationHandler<AppEvent> for App {
         window.set_ime_allowed(true);
         self.begin_boot(window, gpu, init_settings, boot_t0, true);
 
-        #[cfg(windows)]
-        crate::jump_list::setup_jump_list();
-
-        // 창을 다시 만들더라도 트레이는 하나만 유지한다. 생성할 수 없으면 taskbar·dock 최소화로 동작한다.
-        #[cfg(all(
-            any(windows, target_os = "macos", target_os = "linux"),
-            feature = "gui"
-        ))]
-        self.ensure_tray_icon_once();
-
         tracing::info!(
             target: "tasty::boot",
             ms = boot_t0.elapsed().as_secs_f64() * 1000.0,
@@ -719,6 +709,19 @@ impl App {
         window.set_visible(true);
         self.shell_setup_gpu = Some(gpu);
         self.shell_setup_window = Some(window);
+    }
+
+    /// `begin_boot` 끝에서 부른다. 셸 설정 화면을 거친 부팅도 점프 목록과 트레이를 준비한다.
+    pub(super) fn prepare_platform_at_boot_start(&mut self) {
+        #[cfg(windows)]
+        crate::jump_list::setup_jump_list();
+
+        // 창을 다시 만들더라도 트레이는 하나만 유지한다. 생성할 수 없으면 taskbar·dock 최소화로 동작한다.
+        #[cfg(all(
+            any(windows, target_os = "macos", target_os = "linux"),
+            feature = "gui"
+        ))]
+        self.ensure_tray_icon_once();
     }
 
     /// 창 복원 때 트레이를 다시 만들지 않는다. 생성 불가는 일반 최소화로 처리한다.

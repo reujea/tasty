@@ -22,8 +22,8 @@
 //!
 //! Threading constraints (from the `tray-icon` crate docs):
 //! - macOS: the tray must be created on the main thread while the event loop is
-//!   already running (earliest at `StartCause::Init`). Our creation site runs in
-//!   the winit main-thread window setup, after the loop is up.
+//!   already running (earliest at `StartCause::Init`). Our creation site runs on
+//!   the winit main thread when boot starts, after the loop is up.
 //! - Linux: a GTK event loop must be running on the creating thread, and the
 //!   tray must be created on that thread. tasty pumps GTK iterations from the
 //!   main loop (see the caller's polling site) rather than running a dedicated
@@ -174,7 +174,8 @@ fn first_loadable(names: &[&'static str]) -> Option<&'static str> {
         //   may fail), so this may load the library earlier than, or without,
         //   the build. In the product call the probe itself runs inside
         //   `create_tray_icon_inner` after `gtk_init::ensure()` succeeded, on the thread
-        //   that owns GTK (the winit main thread in `resumed`), the same context in which
+        //   that owns GTK (the winit main thread when boot starts: `begin_boot`, reached from
+        //   `resumed` or from the shell setup confirmation), the same context in which
         //   the build would load it. The unit tests call this function directly with only
         //   libc.so.6, libm.so.6 (already loaded, so no new initializer runs) and a name
         //   that does not exist; the GTK conditions do not apply to them.

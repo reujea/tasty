@@ -97,6 +97,7 @@ impl App {
     }
 
     /// 테마를 적용하고 첫 로딩 프레임을 그린다. hidden으로 만든 창만 표시를 전환한다.
+    /// 끝에서 플랫폼 준비(Windows 점프 목록, 트레이)를 시도하므로 두 부팅 진입점이 따로 부르지 않는다.
     pub(crate) fn begin_boot(
         &mut self,
         window: Arc<Window>,
@@ -134,6 +135,7 @@ impl App {
         Self::present_first_boot_frame(&mut boot, &progress, boot_t0, window_hidden);
         self.boot = Some(boot);
         self.state.boot = Some(progress);
+        self.prepare_platform_at_boot_start();
     }
 
     /// 첫 로딩 프레임부터 사용자 테마를 쓰도록 적용한다. state.db도 엔진 생성 전에 준비한다.
