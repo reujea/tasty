@@ -296,7 +296,7 @@ impl<'a> Code<'a> {
         i
     }
 
-    /// `hash` 가 매크로 입력(`name!(..)`·`name![..]`·`name! {..}`·`macro_rules! name {..}`) 안에 있는가.
+    /// `hash` 가 매크로 입력(`name!(..)`·`name![..]`·`name! {..}`·`macro_rules! name {..}`, `!` 앞뒤 공백 허용) 안에 있는가.
     /// 매크로 입력은 Rust 문법이 아닌 토큰 열일 수 있어 요소의 끝을 텍스트로 정할 수 없다.
     fn in_macro_input(&self, hash: usize) -> bool {
         let mut g = self.parent[hash];
@@ -316,8 +316,12 @@ impl<'a> Code<'a> {
                     while s0 > 0 && is_ident_byte(self.b[s0 - 1]) {
                         s0 -= 1;
                     }
+                    // `macro_rules` 와 `!` 사이의 공백(마스킹된 주석 포함)은 건너뛴다.
                     if self.prev_non_ws(s0).is_some_and(|q| {
-                        self.b[q] == b'!' && q >= 11 && self.word_at(q - 11, b"macro_rules")
+                        self.b[q] == b'!'
+                            && self
+                                .prev_non_ws(q)
+                                .is_some_and(|r| r >= 10 && self.word_at(r - 10, b"macro_rules"))
                     }) {
                         return true;
                     }
@@ -2894,5 +2898,18 @@ mod helper_tests {
             ),
             (vec![6], vec![3])
         );
+    }
+
+    #[test]
+    fn spaces_or_comments_before_the_macro_rules_bang_keep_the_macro_input() {
+        for head in ["macro_rules!", "macro_rules !", "macro_rules /* c */ !"] {
+            assert_eq!(
+                both(&format!(
+                    "{head} m {{\n    () => {{\n        #[cfg(test)]\n        x\n        {{IGNORE}}\n    }};\n}}\n"
+                )),
+                (vec![5], vec![]),
+                "{head}"
+            );
+        }
     }
 }
