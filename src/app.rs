@@ -297,7 +297,7 @@ pub(crate) struct App {
     /// 그 전에 닫힌 창은 닫기 경로에서 제거한다.
     #[cfg(feature = "gui")]
     pub(crate) pending_focus_hint_clear: std::collections::HashSet<WindowId>,
-    /// 다음에 만드는 창에 넣을 실행기 활성화 토큰(외부 활성화 요청에 창이 없을 때).
+    /// 다음에 만드는 창에 넣을 실행기 활성화 토큰(외부 활성화가 새 창을 실제로 만들 때).
     #[cfg(feature = "gui")]
     pub(crate) next_window_activation:
         Option<crate::boot::single_instance::evidence::LaunchEvidence>,

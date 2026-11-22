@@ -38,7 +38,7 @@ pub enum ActivationRequested {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActivationError {
     /// Wayland 창인데 토큰이 없거나 컴포지터가 `xdg_activation_v1`을 제공하지 않는다.
-    /// 기존 창을 앞으로 가져올 수 없으므로 호출자는 토큰을 실은 새 창으로 대신한다.
+    /// 기존 창을 앞으로 가져올 수 없으므로 호출자는 새 창 경로로 넘긴다.
     WaylandUnsupported(String),
     /// 그 밖의 실패. 로그만 남긴다.
     Other(String),

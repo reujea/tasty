@@ -1,14 +1,15 @@
 //! 같은 홈으로 다시 실행한 두 번째 프로세스의 활성화 요청을 처리한다.
 //!
-//! 증거가 있는 요청만 창 상태를 바꾼다. 숨기거나 최소화한 MainView를 다시 보이고, 사용자가 마지막으로
-//! 쓰던 MainView의 활성화를 OS에 요청한다. 포커스 이동 여부는 OS가 정하며 Tasty는 `focus_window()`를
-//! 부르지 않는다(docs/design/policies/focus.md). MainView가 없으면 토큰을 실어 새 창 하나를 만든다. 만드는 중인 창이 있으면
-//! 새로 만들지 않고 그 창이 등록될 때 활성화를 요청한다.
+//! 증거가 있는 요청만 처리한다. 사용자가 마지막으로 쓰던 MainView의 활성화를 OS에 요청하고, Windows·X11은
+//! 그 전에 모든 View에 보이기와 최소화 해제를 요청한다. 포커스 이동 여부는 OS가 정하며 Tasty는
+//! `focus_window()`를 부르지 않는다(docs/design/policies/focus.md). MainView가 없으면 새 창 경로로 간다.
+//! 만드는 중인 창이 있으면 새로 만들지 않는다. Windows·X11은 그 창이 등록될 때 활성화를 요청하고,
+//! 네이티브 Wayland는 이 요청을 남기지 않는다.
 //!
-//! Wayland에서는 두 번째 실행이 받은 xdg-activation 토큰으로 기존 창의 활성화를 요청한다. 토큰이 없으면
-//! 기존 창을 건드리지 않고 토큰 없는 새 창을 연다([`can_raise_existing_view`]). 컴포지터가
-//! `xdg_activation_v1`을 제공하지 않아 요청하지 못하면 토큰을 실은 새 창을 연다. 다시 보이기만 한 창은
-//! 앞으로 오지 않아 무반응으로 보이기 때문이다.
+//! 네이티브 Wayland에서는 winit이 보이기·최소화 해제를 무시하므로 Tasty는 창 상태를 바꾸지 못하고, 두 번째
+//! 실행이 받은 xdg-activation 토큰으로 기존 창의 활성화만 요청한다. 토큰이 없으면 기존 창에 요청할 수
+//! 없어 새 창 경로로 간다([`can_raise_existing_view`]). 컴포지터가 `xdg_activation_v1`을 제공하지 않아
+//! 요청하지 못해도 토큰을 가진 채 새 창 경로로 간다.
 //!
 //! 요청을 받는 경로는 Windows·Linux 에만 있다(Linux D-Bus `Activate`, Windows 등록 메시지). macOS 는
 //! 같은 앱을 다시 열면 OS 가 기존 프로세스에 전달하므로 받는 쪽 처리를 빌드하지 않는다. 만드는 중인 창에
@@ -29,16 +30,16 @@ use crate::boot::single_instance::ExternalActivation;
 pub(crate) enum ActivationPlan<W> {
     /// 증거가 없다. 아무것도 바꾸지 않는다.
     Ignore,
-    /// MainView가 없다. 새 창을 연다.
+    /// MainView가 없거나, Wayland에서 이 요청에 토큰이 없다. 새 창 경로로 간다.
     OpenWindow,
-    /// 트레이 복원처럼 모든 View를 다시 보이고 `target`의 활성화를 OS에 요청한다.
+    /// `target`의 활성화를 OS에 요청한다. Windows·X11은 그 전에 모든 View에 보이기·최소화 해제를 요청한다.
     Restore { views: Vec<W>, target: W },
 }
 
 #[cfg(any(windows, target_os = "linux"))]
 /// `views`는 (창, MainView 여부) 목록이다. 대상은 마지막으로 포커스를 가졌던 View이고, 그 값이 없거나
-/// 이미 닫힌 창이면 가장 작은 id의 MainView다. `raise_existing`이 거짓인 백엔드에서는 창이 있어도 새 창을
-/// 연다. 기존 창을 다시 보이기만 하고 앞으로 가져오지 못하면 사용자에게는 무반응으로 보이기 때문이다.
+/// 이미 닫힌 창이면 가장 작은 id의 MainView다. `raise_existing`이 거짓이면(Wayland에서 토큰이 없는 요청)
+/// 기존 창에 활성화를 요청할 수 없으므로 창이 있어도 새 창 경로를 고른다.
 pub(crate) fn plan_activation<W: Copy + Ord>(
     has_evidence: bool,
     raise_existing: bool,
@@ -80,7 +81,8 @@ fn raises_existing_view(wayland: bool, has_wayland_token: bool) -> bool {
 
 #[cfg(any(windows, target_os = "linux"))]
 /// 새로 연 창이 등록된 뒤 OS 활성화를 한 번 더 요청할지. X11은 생성 때 startup id를 싣고 등록 뒤
-/// `_NET_ACTIVE_WINDOW`를 보내는 두 단계를 쓴다. Wayland는 생성 속성에 실은 토큰 한 번으로 끝낸다.
+/// `_NET_ACTIVE_WINDOW`를 보내는 두 단계를 쓴다. Wayland는 생성 속성에 실은 토큰 한 번으로 끝낸다. 그 요청은
+/// 토큰이 있고 컴포지터가 `xdg_activation_v1`을 제공할 때만 나간다.
 /// xdg-activation 토큰은 컴포지터가 한 번 쓰면 무효로 할 수 있다.
 fn activates_after_creation(wayland: bool, raise_existing: bool) -> bool {
     raise_existing && !wayland
@@ -124,16 +126,18 @@ impl App {
                 self.open_activated_window(event_loop, request, activate_after);
             }
             ActivationPlan::Restore { views, target } => {
-                self.restore_and_activate(event_loop, &views, target, request);
+                self.restore_and_activate(event_loop, wayland, &views, target, request);
             }
         }
     }
 
     #[cfg(any(windows, target_os = "linux"))]
-    /// 트레이 복원과 같은 방식이되 focus_window()는 부르지 않는다. 포커스는 OS가 정한다.
+    /// 트레이 보이기와 같은 `set_visible(true)`·`set_minimized(false)`를 부르되 `focus_window()`는 부르지
+    /// 않는다. 포커스는 OS가 정한다. 네이티브 Wayland에서는 winit이 두 호출을 무시한다.
     fn restore_and_activate(
         &mut self,
         event_loop: &ActiveEventLoop,
+        wayland: bool,
         views: &[WindowId],
         target: WindowId,
         request: ExternalActivation,
@@ -145,13 +149,10 @@ impl App {
                 window.set_minimized(false);
             }
         }
-        tracing::info!(
-            "external activation: restored {} view(s), requesting OS activation of {target:?}",
-            views.len()
-        );
+        tracing::info!("{}", restore_log_line(wayland, views.len(), target));
         if self.request_os_activation(target, &request) == OsActivation::WaylandUnsupported {
             tracing::info!(
-                "external activation: the existing window cannot be raised; opening a new one"
+                "external activation: the existing window cannot be raised; taking the new-window path"
             );
             self.open_activated_window(event_loop, request, false);
         }
@@ -160,7 +161,8 @@ impl App {
     #[cfg(any(windows, target_os = "linux"))]
     /// 증거를 창 생성 속성에 실어 새 창을 만든다. Wayland는 그중 xdg-activation 토큰만 싣는다.
     /// `activate_after`가 참이면 등록 뒤 같은 증거로 OS 활성화를 한 번 더 요청한다
-    /// ([`activates_after_creation`]).
+    /// ([`activates_after_creation`]). 만드는 중인 창이 있으면 싣기 전에 돌아가며, 요청은
+    /// `activate_after`가 참일 때(Windows·X11)만 그 창에 남긴다.
     fn open_activated_window(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -168,11 +170,15 @@ impl App {
         activate_after: bool,
     ) {
         if self.pending_window.is_some() {
-            tracing::info!(
-                "external activation: a window is being created; activating it when ready"
-            );
             if activate_after {
+                tracing::info!(
+                    "external activation: a window is being created; activating it when ready"
+                );
                 self.pending_external_activation = Some(request);
+            } else {
+                tracing::info!(
+                    "external activation: a window is being created; native Wayland keeps neither this request nor its token"
+                );
             }
             return;
         }
@@ -203,6 +209,21 @@ impl App {
         let result =
             crate::platform::window_activation::request_activation(&view.base().winit, &evidence);
         log_os_activation(id, result)
+    }
+}
+
+#[cfg(any(windows, target_os = "linux"))]
+/// 기존 창 경로의 로그 한 줄. 네이티브 Wayland에서는 winit이 보이기·최소화 해제를 무시하므로
+/// 복원했다고 적지 않는다.
+fn restore_log_line<W: std::fmt::Debug>(wayland: bool, views: usize, target: W) -> String {
+    if wayland {
+        format!(
+            "external activation: winit ignores unhide and unminimize for {views} view(s) on native Wayland; requesting compositor activation of {target:?}"
+        )
+    } else {
+        format!(
+            "external activation: restored {views} view(s), requesting OS activation of {target:?}"
+        )
     }
 }
 
@@ -256,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn no_main_view_opens_a_window() {
+    fn no_main_view_takes_the_new_window_path() {
         assert_eq!(
             plan_activation::<u32>(true, true, &[], None),
             ActivationPlan::OpenWindow
@@ -318,7 +339,7 @@ mod tests {
 
     #[test]
     fn only_x11_and_windows_activate_a_new_window_again_after_creation() {
-        // Wayland: 생성 속성의 토큰 한 번만 쓴다. 토큰이 있어 기존 창을 올릴 수 있는 요청도 같다.
+        // Wayland: 등록 뒤 다시 요청하지 않는다. 토큰이 있어 기존 창을 올릴 수 있는 요청도 같다.
         assert!(!activates_after_creation(true, true));
         assert!(!activates_after_creation(true, false));
         // X11·Windows: 생성 뒤 OS 활성화를 한 번 더 요청한다.
@@ -326,8 +347,8 @@ mod tests {
     }
 
     #[test]
-    fn a_backend_that_cannot_raise_an_existing_view_always_opens_a_new_one() {
-        // 토큰 없는 Wayland 요청: MainView가 있어도 숨김·최소화 창을 건드리지 않고 새 창을 연다.
+    fn a_wayland_request_without_a_token_takes_the_new_window_path_only_with_evidence() {
+        // 토큰 없는 Wayland 요청: 증거가 있으면 MainView가 있어도 OpenWindow(새 창 경로)다.
         assert_eq!(
             plan_activation(true, false, &[(2, true), (1, true)], Some(1)),
             ActivationPlan::OpenWindow
@@ -341,5 +362,19 @@ mod tests {
             plan_activation(false, false, &[(1, true)], Some(1)),
             ActivationPlan::Ignore
         );
+    }
+
+    #[test]
+    fn the_restore_log_says_restored_only_off_native_wayland() {
+        let x11 = restore_log_line(false, 2, 7);
+        assert_eq!(
+            x11,
+            "external activation: restored 2 view(s), requesting OS activation of 7"
+        );
+        let wayland = restore_log_line(true, 2, 7);
+        assert!(!wayland.contains("restored"), "{wayland}");
+        assert!(wayland.contains("native Wayland"), "{wayland}");
+        assert!(wayland.contains("2 view(s)"), "{wayland}");
+        assert!(wayland.contains("compositor activation of 7"), "{wayland}");
     }
 }
