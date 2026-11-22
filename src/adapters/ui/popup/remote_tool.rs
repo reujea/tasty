@@ -288,6 +288,7 @@ pub fn draw_remote_tool_popup(
 ) -> PopupAction {
     let instance = cx.instance;
     let th = theme::theme();
+    let pen = Pen { th: &th, instance };
     let ctx = ui.ctx().clone();
     let mut st = read_ui(&ctx);
 
@@ -368,12 +369,8 @@ pub fn draw_remote_tool_popup(
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing = saved_spacing;
             match st.tab {
-                Tab::Profiles => {
-                    draw_profiles_tab(ui, &th, instance, &mut st, &mut profiles, &passkeys)
-                }
-                Tab::Attach => {
-                    draw_attach_tab(ui, &th, instance, &mut st, &mut profiles, &passkeys)
-                }
+                Tab::Profiles => draw_profiles_tab(ui, pen, &mut st, &mut profiles, &passkeys),
+                Tab::Attach => draw_attach_tab(ui, pen, &mut st, &mut profiles, &passkeys),
                 Tab::Passkeys => draw_passkeys_tab(ui, &th, &mut st, &passkeys),
             }
         });
@@ -524,15 +521,15 @@ fn draw_tab_bar(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, x_range: egui::
 
 fn draw_profiles_tab(
     ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
+    pen: Pen<'_>,
     st: &mut UiState,
     profiles: &mut RemoteProfiles,
     passkeys: &Passkeys,
 ) {
+    let th = pen.th;
     match st.profile_view.clone() {
-        Sub::List => draw_profile_list(ui, th, instance, st, profiles, passkeys),
-        Sub::Form => draw_profile_form(ui, th, instance, st, passkeys),
+        Sub::List => draw_profile_list(ui, pen, st, profiles, passkeys),
+        Sub::Form => draw_profile_form(ui, pen, st, passkeys),
         Sub::ConfirmDelete(name) => {
             if let Some(act) = draw_confirm_delete(
                 ui,
@@ -554,12 +551,12 @@ fn draw_profiles_tab(
 
 fn draw_profile_list(
     ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
+    pen: Pen<'_>,
     st: &mut UiState,
     profiles: &RemoteProfiles,
     passkeys: &Passkeys,
 ) {
+    let th = pen.th;
     let ctx = ui.ctx().clone();
     let protocols = protocol_set(&profiles.profiles);
     let applied_hidden = read_filter(&ctx);
@@ -570,8 +567,7 @@ fn draw_profile_list(
         add_clicked = add_button(ui, th, t("remote_tool.profile_add")).clicked();
         if protocols.len() >= 2 {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                new_filter =
-                    draw_protocol_filter(ui, th, instance, st, &protocols, &applied_hidden);
+                new_filter = draw_protocol_filter(ui, pen, st, &protocols, &applied_hidden);
             });
         }
     });
@@ -698,12 +694,12 @@ fn draw_local_ssh_section(
 /// 공용 위젯을 사용하며 열기·초안 초기화·닫기·영역 보고는 이 함수에서 처리한다.
 fn draw_protocol_filter(
     ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
+    pen: Pen<'_>,
     st: &mut UiState,
     protocols: &[String],
     applied_hidden: &HashSet<String>,
 ) -> Option<HashSet<String>> {
+    let Pen { th, instance } = pen;
     let popup_id = egui::Id::new(FILTER_POPUP_ID);
     let total = protocols.len();
     let active_hidden = protocols
@@ -1028,13 +1024,8 @@ fn edit_form(
     (do_save, do_cancel)
 }
 
-fn draw_profile_form(
-    ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
-    st: &mut UiState,
-    passkeys: &Passkeys,
-) {
+fn draw_profile_form(ui: &mut egui::Ui, pen: Pen<'_>, st: &mut UiState, passkeys: &Passkeys) {
+    let th = pen.th;
     // 폼은 스크롤 본문과 고정 푸터를 나누고 자체 여백을 적용한다.
     let (do_save, do_cancel) = edit_form(
         ui,
@@ -1076,24 +1067,24 @@ fn draw_profile_form(
                             .desired_width(edit_w)
                             .font(egui::TextStyle::Monospace),
                     );
-                    let combo = tasty_egui_theme::with_popover_frame(ui, th, |ui| {
-                        egui::ComboBox::from_id_salt("remote_tool.type_suggest")
-                            .selected_text("▾")
-                            .width(combo_w)
-                            .show_ui(ui, |ui| {
-                                ui.spacing_mut().item_spacing.y = 0.0;
-                                for kt in KNOWN_TYPES {
-                                    tasty_ui_widgets::menu_option_value(
-                                        ui,
-                                        th,
-                                        &mut f.kind,
-                                        (*kt).to_string(),
-                                        kt,
-                                    );
-                                }
-                            })
-                    });
-                    report_combo_overlay(ui, instance, "remote_tool.type_suggest", &combo.response);
+                    combo(
+                        ui,
+                        pen,
+                        "remote_tool.type_suggest",
+                        "▾",
+                        Some(combo_w),
+                        |ui| {
+                            for kt in KNOWN_TYPES {
+                                tasty_ui_widgets::menu_option_value(
+                                    ui,
+                                    th,
+                                    &mut f.kind,
+                                    (*kt).to_string(),
+                                    kt,
+                                );
+                            }
+                        },
+                    );
                 });
             });
             if unknown {
@@ -1124,8 +1115,8 @@ fn draw_profile_form(
                     "us-east",
                     false,
                 );
-                shell_row(ui, th, instance, "remote_tool.shell", &mut f.shell);
-                passkey_dropdown_row(ui, th, instance, &mut f.passkey_ref, passkeys);
+                shell_row(ui, pen, "remote_tool.shell", &mut f.shell);
+                passkey_dropdown_row(ui, pen, &mut f.passkey_ref, passkeys);
                 if f.shell == "auto" {
                     indented_hint(
                         ui,
@@ -1152,7 +1143,7 @@ fn draw_profile_form(
                     "lab",
                     false,
                 );
-                passkey_dropdown_row(ui, th, instance, &mut f.passkey_ref, passkeys);
+                passkey_dropdown_row(ui, pen, &mut f.passkey_ref, passkeys);
                 ui.add_space(th.spacing_xs.value());
                 ui.horizontal(|ui| {
                     selectable_label(
@@ -1216,52 +1207,35 @@ fn draw_profile_form(
     }
 }
 
-fn passkey_dropdown_row(
-    ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
-    value: &mut String,
-    passkeys: &Passkeys,
-) {
+fn passkey_dropdown_row(ui: &mut egui::Ui, pen: Pen<'_>, value: &mut String, passkeys: &Passkeys) {
+    let th = pen.th;
     form_row(ui, th, t("remote_tool.field_passkey"), |ui| {
         let sel = if value.is_empty() {
             t("remote_tool.passkey_none").to_string()
         } else {
             value.clone()
         };
-        let combo = tasty_egui_theme::with_popover_frame(ui, th, |ui| {
-            egui::ComboBox::from_id_salt("remote_tool.passkey_ref")
-                .selected_text(sel)
-                .width(ui.available_width())
-                .show_ui(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    tasty_ui_widgets::menu_option_value(
-                        ui,
-                        th,
-                        value,
-                        String::new(),
-                        t("remote_tool.passkey_none"),
-                    );
-                    for k in &passkeys.passkeys {
-                        tasty_ui_widgets::menu_option_value(ui, th, value, k.name.clone(), &k.name);
-                    }
-                })
+        combo(ui, pen, "remote_tool.passkey_ref", sel, None, |ui| {
+            let none = t("remote_tool.passkey_none");
+            tasty_ui_widgets::menu_option_value(ui, th, value, String::new(), none);
+            for k in &passkeys.passkeys {
+                tasty_ui_widgets::menu_option_value(ui, th, value, k.name.clone(), &k.name);
+            }
         });
-        report_combo_overlay(ui, instance, "remote_tool.passkey_ref", &combo.response);
     });
 }
 
 fn draw_attach_tab(
     ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
+    pen: Pen<'_>,
     st: &mut UiState,
     profiles: &mut RemoteProfiles,
     passkeys: &Passkeys,
 ) {
+    let th = pen.th;
     match st.attach_view.clone() {
         Sub::List => draw_attach_list(ui, th, st, profiles),
-        Sub::Form => draw_attach_form(ui, th, instance, st, profiles, passkeys),
+        Sub::Form => draw_attach_form(ui, pen, st, profiles, passkeys),
         Sub::ConfirmDelete(name) => {
             if let Some(act) = draw_confirm_delete(
                 ui,
@@ -1484,12 +1458,12 @@ pub(crate) fn form_from_attach(p: &RemoteProfile) -> AttachForm {
 
 fn draw_attach_form(
     ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
+    pen: Pen<'_>,
     st: &mut UiState,
     profiles: &mut RemoteProfiles,
     passkeys: &Passkeys,
 ) {
+    let th = pen.th;
     let (do_save, do_cancel) = edit_form(
         ui,
         th,
@@ -1552,40 +1526,27 @@ fn draw_attach_form(
                     } else {
                         f.ssh_ref.clone()
                     };
-                    let combo = tasty_egui_theme::with_popover_frame(ui, th, |ui| {
-                        egui::ComboBox::from_id_salt("remote_tool.attach_ssh_ref")
-                            .selected_text(sel)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                ui.spacing_mut().item_spacing.y = 0.0;
-                                for sp in profiles.profiles.iter().filter(|sp| sp.kind == "ssh") {
-                                    let display = match &sp.label {
-                                        Some(l) if !l.is_empty() => {
-                                            format!("{} ({})", sp.name, l)
-                                        }
-                                        _ => sp.name.clone(),
-                                    };
-                                    tasty_ui_widgets::menu_option_value(
-                                        ui,
-                                        th,
-                                        &mut f.ssh_ref,
-                                        sp.name.clone(),
-                                        &display,
-                                    );
-                                }
-                            })
+                    combo(ui, pen, "remote_tool.attach_ssh_ref", sel, None, |ui| {
+                        for sp in profiles.profiles.iter().filter(|sp| sp.kind == "ssh") {
+                            let display = match &sp.label {
+                                Some(l) if !l.is_empty() => format!("{} ({})", sp.name, l),
+                                _ => sp.name.clone(),
+                            };
+                            let name = sp.name.clone();
+                            tasty_ui_widgets::menu_option_value(
+                                ui,
+                                th,
+                                &mut f.ssh_ref,
+                                name,
+                                &display,
+                            );
+                        }
                     });
-                    report_combo_overlay(
-                        ui,
-                        instance,
-                        "remote_tool.attach_ssh_ref",
-                        &combo.response,
-                    );
                 });
             } else {
                 connection_rows(ui, th, &mut f.host, &mut f.user, &mut f.port);
-                shell_row(ui, th, instance, "remote_tool.attach_shell", &mut f.shell);
-                passkey_dropdown_row(ui, th, instance, &mut f.passkey_ref, passkeys);
+                shell_row(ui, pen, "remote_tool.attach_shell", &mut f.shell);
+                passkey_dropdown_row(ui, pen, &mut f.passkey_ref, passkeys);
             }
 
             ui.add_space(th.spacing_xs.value());
@@ -1605,29 +1566,13 @@ fn draw_attach_form(
                 true,
             );
             form_row(ui, th, t("remote_tool.field_port_mode"), |ui| {
-                let combo = tasty_egui_theme::with_popover_frame(ui, th, |ui| {
-                    egui::ComboBox::from_id_salt("remote_tool.attach_port_mode")
-                        .selected_text(f.port_mode.clone())
-                        .width(ui.available_width())
-                        .show_ui(ui, |ui| {
-                            ui.spacing_mut().item_spacing.y = 0.0;
-                            for m in PORT_MODES {
-                                tasty_ui_widgets::menu_option_value(
-                                    ui,
-                                    th,
-                                    &mut f.port_mode,
-                                    (*m).to_string(),
-                                    m,
-                                );
-                            }
-                        })
+                let sel = f.port_mode.clone();
+                combo(ui, pen, "remote_tool.attach_port_mode", sel, None, |ui| {
+                    for m in PORT_MODES {
+                        let mode = (*m).to_string();
+                        tasty_ui_widgets::menu_option_value(ui, th, &mut f.port_mode, mode, m);
+                    }
                 });
-                report_combo_overlay(
-                    ui,
-                    instance,
-                    "remote_tool.attach_port_mode",
-                    &combo.response,
-                );
             });
             text_row(
                 ui,
@@ -2005,38 +1950,47 @@ fn connection_rows(
 }
 
 /// 원격 셸을 고르는 행.
-fn shell_row(
-    ui: &mut egui::Ui,
-    th: &Theme,
-    instance: super::PopupInstanceId,
-    salt: &'static str,
-    shell: &mut String,
-) {
+fn shell_row(ui: &mut egui::Ui, pen: Pen<'_>, salt: &'static str, shell: &mut String) {
+    let th = pen.th;
     form_row(ui, th, t("remote_tool.field_shell"), |ui| {
-        let combo = tasty_egui_theme::with_popover_frame(ui, th, |ui| {
-            egui::ComboBox::from_id_salt(salt)
-                .selected_text(shell.clone())
-                .width(ui.available_width())
-                .show_ui(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    for sh in SHELLS {
-                        tasty_ui_widgets::menu_option_value(ui, th, shell, (*sh).to_string(), sh);
-                    }
-                })
+        let sel = shell.clone();
+        combo(ui, pen, salt, sel, None, |ui| {
+            for sh in SHELLS {
+                tasty_ui_widgets::menu_option_value(ui, th, shell, (*sh).to_string(), sh);
+            }
         });
-        report_combo_overlay(ui, instance, salt, &combo.response);
     });
 }
 
-/// ComboBox 목록을 그 인스턴스의 자식 드롭다운으로 등록한다. egui 0.31은 목록의 popup id를 버튼 id의
-/// `with("popup")`에 둔다(`ComboBox::is_open`이 같은 규칙으로 읽는다). 등록 키는 ComboBox salt다.
-fn report_combo_overlay(
-    ui: &egui::Ui,
+/// 폼 그리기가 함께 넘기는 테마와 이 팝업 인스턴스(자식 드롭다운 등록 키).
+#[derive(Clone, Copy)]
+struct Pen<'a> {
+    th: &'a Theme,
     instance: super::PopupInstanceId,
+}
+
+/// 팝오버 테두리의 폼 ComboBox(목록 줄 간격 0, 폭이 없으면 남은 폭)를 그리고 그 목록을 그 인스턴스의 자식 드롭다운으로 등록한다. egui
+/// 0.31은 목록의 popup id를 버튼 id의 `with("popup")`에 둔다(`ComboBox::is_open`이 같은 규칙으로 읽는다). 등록 키는
+/// ComboBox salt다.
+fn combo(
+    ui: &mut egui::Ui,
+    pen: Pen<'_>,
     salt: &'static str,
-    button: &egui::Response,
+    selected: impl Into<egui::WidgetText>,
+    width: Option<f32>,
+    items: impl FnOnce(&mut egui::Ui),
 ) {
-    super::report_dropdown_overlay(ui, instance, salt, button.id.with("popup"));
+    let width = width.unwrap_or_else(|| ui.available_width());
+    let combo = tasty_egui_theme::with_popover_frame(ui, pen.th, |ui| {
+        egui::ComboBox::from_id_salt(salt)
+            .selected_text(selected)
+            .width(width)
+            .show_ui(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                items(ui);
+            })
+    });
+    super::report_dropdown_overlay(ui, pen.instance, salt, combo.response.id.with("popup"));
 }
 
 /// 입력의 무한 폭이 라벨을 밀어내지 않도록 라벨 고정 폭과 남은 입력 폭을 직접 나눈다.
@@ -2260,14 +2214,8 @@ mod tests {
             out.clear();
             let full = ctx.run(egui::RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    draw_profile_list(
-                        ui,
-                        &th,
-                        crate::adapters::ui::popup::PopupInstanceId(1),
-                        st,
-                        profiles,
-                        &passkeys,
-                    );
+                    let instance = crate::adapters::ui::popup::PopupInstanceId(1);
+                    draw_profile_list(ui, Pen { th: &th, instance }, st, profiles, &passkeys);
                 });
             });
             for shape in full.shapes.iter() {
@@ -2781,7 +2729,16 @@ mod tests {
                 let result = popups.draw_routed(
                     ctx,
                     &mut |cx, ui| {
-                        draw_profile_list(ui, &th, cx.instance, st, &profiles, &passkeys);
+                        draw_profile_list(
+                            ui,
+                            Pen {
+                                th: &th,
+                                instance: cx.instance,
+                            },
+                            st,
+                            &profiles,
+                            &passkeys,
+                        );
                         PopupAction::None
                     },
                     None,
