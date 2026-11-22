@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn the_library_list_matches_upstream_order() {
-        // libappindicator-sys 0.9.0 src/lib.rs `LIB`, backcompat names last.
+        // libappindicator-sys-0.9.0/src/lib.rs `LIB`, backcompat names last.
         assert_eq!(
             APPINDICATOR_LIBRARIES,
             [
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn the_required_symbols_match_the_checked_set() {
-        // tray-icon 0.22.0 src/platform_impl/gtk/mod.rs through libappindicator 0.9.0.
+        // tray-icon-0.22.0/src/platform_impl/gtk/mod.rs through libappindicator-0.9.0/src/lib.rs.
         assert_eq!(
             APPINDICATOR_REQUIRED_SYMBOLS,
             [
