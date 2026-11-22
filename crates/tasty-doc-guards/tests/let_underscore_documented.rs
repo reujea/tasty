@@ -1026,7 +1026,7 @@ impl<'a> Code<'a> {
         .any(|w| words.contains(w))
     }
 
-    /// `{` 그룹 `g` 앞 머리가 `if`·`while` 조건인가. `header` 는 구조체 패턴(`if let Foo { a } = h {`)의 `}` 에서
+    /// `{` 그룹 `g` 앞 머리가 `if`·`while` 조건이나 `for .. in 식` 인가. `header` 는 구조체 패턴(`if let Foo { a } = h {`)의 `}` 에서
     /// 멈추므로, 같은 깊이에서 괄호 짝을 건너뛰며 문장 시작(`;`·`,`·감싸는 여는 괄호, 또는 조건의 일부가 아닌
     /// `let`)까지 거꾸로 읽는다. `if`·`while` 뒤의 `let` 과 `&&`·`||` 뒤의 `let`(let 체인)은 조건의 일부다.
     fn control_head_before(&self, g: usize) -> bool {
@@ -1050,7 +1050,12 @@ impl<'a> Code<'a> {
                 s0 -= 1;
             }
             let raw = s0 >= 2 && &self.b[s0 - 2..s0] == b"r#";
-            if !raw && (is_kw(s0, p + 1, b"if") || is_kw(s0, p + 1, b"while")) {
+            // `for Foo { a } in xs {` 의 몸체도 제어식 몸체다.
+            if !raw
+                && (is_kw(s0, p + 1, b"if")
+                    || is_kw(s0, p + 1, b"while")
+                    || is_kw(s0, p + 1, b"for"))
+            {
                 return true;
             }
             if !raw && is_kw(s0, p + 1, b"let") {
@@ -3570,6 +3575,8 @@ mod helper_tests {
             "if let A = x && let Reply::Intent { .. } = &p.reply && let Some(r) = &v.y",
             "while let A = x && let Reply::Intent { a } = &p.reply",
             "if a && let Foo { a } = h",
+            // for 패턴: 구조체 패턴을 분해한다.
+            "for ClippedShape { shape, .. } in shapes",
         ] {
             assert_eq!(
                 both(&format!(
