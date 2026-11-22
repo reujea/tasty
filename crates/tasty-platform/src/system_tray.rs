@@ -162,22 +162,28 @@ fn first_loadable(names: &[&'static str]) -> Option<&'static str> {
         let Ok(c_name) = std::ffi::CString::new(*name) else {
             return false;
         };
-        // SAFETY: loading runs no initializer the tray path would not run next anyway.
+        // SAFETY: the probe opens only libraries the tray path itself opens, in the same context.
         // - Pointer: c_name is a NUL-terminated string that lives until the call returns;
         //   dlopen copies what it needs and keeps no pointer to it.
         // - Initialization routines: dlopen runs the library's initializers, which
-        //   libloading 0.7.4 treats as calling an unknown foreign function. The only
-        //   caller, `appindicator_library`, passes `APPINDICATOR_LIBRARIES`: the names
-        //   and order that libappindicator-sys 0.9 (pulled in by tray-icon 0.22) opens
-        //   with the same RTLD_LAZY | RTLD_LOCAL flags inside `TrayIconBuilder::build`,
-        //   which `create_tray_icon_inner` calls right after this check. It runs only
-        //   after `gtk_init::ensure()` succeeded, on the thread that owns GTK (the winit
-        //   main thread in `resumed`), where that build would load the same library.
-        //   The unit tests pass only libc.so.6, libm.so.6 (already loaded, so no new
-        //   initializer runs) and a name that does not exist.
+        //   libloading 0.7.4 treats as calling an unknown foreign function. The product
+        //   call is `appindicator_library`, which passes `APPINDICATOR_LIBRARIES`: the
+        //   names and order that libappindicator-sys 0.9 (pulled in by tray-icon 0.22)
+        //   opens with the same RTLD_LAZY | RTLD_LOCAL flags once `TrayIconBuilder::build`
+        //   is reached. Reaching it is not guaranteed (icon decoding and menu setup come
+        //   between and may fail), so this may load the library earlier than, or without,
+        //   the build. In the product call the probe itself runs inside
+        //   `create_tray_icon_inner` after `gtk_init::ensure()` succeeded, on the thread
+        //   that owns GTK (the winit main thread in `resumed`), the same context in which
+        //   the build would load it. The unit tests call this function directly with only
+        //   libc.so.6, libm.so.6 (already loaded, so no new initializer runs) and a name
+        //   that does not exist; the GTK conditions do not apply to them.
         // - Termination routines: the handle is never passed to dlclose, so this code
         //   never triggers the library's unload routines.
-        // - Threads: POSIX requires dlopen to be thread-safe.
+        // - Threads: POSIX.1-2008 volume 2 §2.9.1 requires every function it defines to be
+        //   thread-safe except those it lists, and dlopen is not listed:
+        //   https://pubs.opengroup.org/onlinepubs/9699919799/functions/V2_chap02.html#tag_15_09_01
+        //   (the reading libloading 0.7.4 records in src/os/unix/mod.rs for `Library: Sync`).
         let handle = unsafe { libc::dlopen(c_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL) };
         !handle.is_null()
     })
