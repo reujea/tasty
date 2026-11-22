@@ -79,7 +79,11 @@ fn assert_rejected(home: &Path, out: &Output, expected: &str) {
     }
     assert!(!stderr.contains(NO_INSTANCE_MARK), "{stderr}");
     let reports = home.join("crash-reports");
-    let count = std::fs::read_dir(&reports).map_or(0, |dir| dir.count());
+    let count = match std::fs::read_dir(&reports) {
+        Ok(dir) => dir.count(),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => 0,
+        Err(err) => panic!("read {}: {err}", reports.display()),
+    };
     assert_eq!(count, 0, "crash reports in {}", reports.display());
 }
 
