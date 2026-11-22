@@ -1219,8 +1219,7 @@ mod admission_tests {
         );
     }
 
-    // 명령을 시작한 상태로 응답 채널을 유지해 실행 후 timeout을 재현한다.
-    // 시작 전 만료는 다른 오류여야 한다.
+    // 큐와 입장 장부만 만든다.
     fn test_queue(tx: mpsc::Sender<IpcCommand>, limits: QueueLimits) -> CommandQueue {
         CommandQueue {
             tx,
@@ -1228,6 +1227,7 @@ mod admission_tests {
         }
     }
 
+    // 시작한 명령의 응답 대기가 상한을 넘기면 결과 불명으로 답한다. 시작 전 만료는 다른 오류다.
     #[test]
     fn a_wait_past_the_callers_bound_answers_unknown_outcome() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
@@ -1277,9 +1277,10 @@ mod admission_tests {
             // 끝나므로 이 전송의 실패에 대해 할 일이 없다.
             let _ = done_tx.send(kept);
         });
+        // 50ms 는 응답 대기 상한이고 5초는 이 시험이 완료 신호를 기다리는 상한이다.
         let kept = done_rx
             .recv_timeout(Duration::from_secs(5))
-            .expect("호출자가 실은 상한이 안 걸렸다 — 기다림이 안 끝났다");
+            .unwrap_or_else(|e| panic!("완료 채널에서 5초 안에 신호를 받지 못했다: {e:?}"));
         assert!(kept, "만료는 연결을 끊는 사건이 아니다");
         waiter.join().expect("waiter");
         assert_eq!(
