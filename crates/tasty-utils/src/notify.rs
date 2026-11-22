@@ -457,8 +457,9 @@ mod unaccounted {
     /// 그 사이 배타 비우기 구간이 진행 중이었거나 시작됐으면 겹친 것으로 센다.
     ///
     /// 겹침 판정은 실제 손실 가능 구간보다 넓다. 배타 쪽 구간은 `truncate_over_cap` 호출 전체라
-    /// 파일 열기와 크기 미달로 끝난 시도까지 들어가고, append 쪽도 쓰기 완료와 `to` 사이의
-    /// 틈이 있다. 이를 길이 측정~`set_len(0)`으로 좁히려면 제품 함수 안에 시험 표지를 더 넣어야
+    /// 파일 열기와 크기 미달로 끝난 시도까지 들어가고, append 쪽도 `from`을 뜬 뒤 `write_all`을
+    /// 시작하기 전과 쓰기 완료 뒤 `to`를 뜨기 전의 틈이 있다. 그 틈에 끝난 정상 비우기와 시간만
+    /// 겹친 append도 겹친 것으로 세어 하한에서 그 바이트를 뺀다. 이를 길이 측정~`set_len(0)`으로 좁히려면 제품 함수 안에 시험 표지를 더 넣어야
     /// 해서 넣지 않았다. 그래서 겹친 것으로 센 append의 바이트만큼은, 그것과 무관한 다른 누계 밖
     /// 손실이 있어도 동등식 하한이 통과시킬 수 있다.
     pub(super) fn record_unlocked_append(path: &Path, from: &Counts, to: &Counts, bytes: u64) {
@@ -771,7 +772,8 @@ mod tests {
         skipped: Option<u64>,
         /// 메타의 공유 잠금을 쥐고 읽었는가. 메타가 아직 없으면 거짓이다.
         locked: bool,
-        /// 공유 잠금 아래에서 본 저하 계수. unknown을 설명할 비우기의 구간을 정한다.
+        /// 읽기 도중에 본 저하 계수. unknown을 설명할 비우기의 구간을 정한다. 메타가 있어 공유
+        /// 잠금을 얻은 경우(`locked`)에만 그 읽기가 관측한 상태까지의 기록이라는 보장이 있다.
         counts: unaccounted::Counts,
     }
 
@@ -806,8 +808,10 @@ mod tests {
         };
         let base = parse_retention_start(&read_or_absent(std::fs::read_to_string(&meta_path))?);
         let bytes = read_or_absent(std::fs::read(log))?;
-        // 공유 잠금을 쥔 동안 계수를 뜬다. 배타 비우기와 그 기록은 이 잠금과 겹치지 않으므로, 이
-        // 값은 이 읽기가 관측한 파일 상태까지의 배타 비우기 기록을 정확히 담는다.
+        // 메타가 있어 공유 잠금을 얻었다면 그 잠금을 쥔 동안 계수를 뜨는 것이다. 배타 비우기와 그
+        // 기록은 이 잠금과 겹치지 않으므로, 이 값은 이 읽기가 관측한 파일 상태까지의 배타 비우기
+        // 기록을 정확히 담는다. 메타가 없으면(guard None) 잠금 없이 같은 자리에서 뜰 뿐이라 이
+        // 보장이 없다(`a_partial_trailing_line_is_left_for_the_next_resume`가 이 분기다).
         let counts = unaccounted::peek(log);
         let len = bytes.len() as u64;
         let (physical, truncated, skipped) = if next_offset < base {
