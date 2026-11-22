@@ -1059,9 +1059,10 @@ fn draw_profile_form(ui: &mut egui::Ui, pen: Pen<'_>, st: &mut UiState, passkeys
             form_row(ui, th, t("remote_tool.field_type"), |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = th.spacing_xs.value();
-                    let combo_w = th.item_height_interactive.value();
+                    let combo_w = th.item_height_interactive;
                     let edit_w =
-                        (ui.available_width() - combo_w - ui.spacing().item_spacing.x).max(0.0);
+                        (ui.available_width() - combo_w.value() - ui.spacing().item_spacing.x)
+                            .max(0.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut f.kind)
                             .desired_width(edit_w)
@@ -1977,10 +1978,10 @@ fn combo(
     pen: Pen<'_>,
     salt: &'static str,
     selected: impl Into<egui::WidgetText>,
-    width: Option<f32>,
+    width: Option<LogicalPx>,
     items: impl FnOnce(&mut egui::Ui),
 ) {
-    let width = width.unwrap_or_else(|| ui.available_width());
+    let width = width.map_or_else(|| ui.available_width(), |w| w.value());
     let combo = tasty_egui_theme::with_popover_frame(ui, pen.th, |ui| {
         egui::ComboBox::from_id_salt(salt)
             .selected_text(selected)
