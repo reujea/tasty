@@ -258,6 +258,7 @@ fn unpublished_cleanup_outlasts_a_lock_description_kept_by_a_forked_child() {
             Arc::new(move || wake.store(true, Ordering::Release)),
         );
         let attempts = work.discard_attempts();
+        let (work, gate) = work.with_claim_gate();
         assert!(runtime.spawn_profile(work).is_ok());
         // The job keeps its permit from publication until the claim settles.
         wait_result(
@@ -267,11 +268,18 @@ fn unpublished_cleanup_outlasts_a_lock_description_kept_by_a_forked_child() {
         );
         let mut child = InheritedLock::take(home.path());
         drop(receipt);
+        drop(gate);
         // Released only after a real Busy, or after the job gave up: a release before the first
         // attempt would pass even with no retry.
         wait_for("the cleanup's first Busy", || {
             attempts.busy() > 0 || runtime.parts.jobs.available_permits() == 8
         });
+        assert!(
+            attempts.busy() > 0,
+            "the job ended with no Busy seen: {}; with none refused, one possible cause is a \
+             preparation that failed after it left the lock file",
+            attempts.refusals()
+        );
         child.release();
         wait_for("the job's permit", || {
             runtime.parts.jobs.available_permits() == 8
@@ -281,7 +289,8 @@ fn unpublished_cleanup_outlasts_a_lock_description_kept_by_a_forked_child() {
                 .unwrap()
                 .count(),
             1,
-            "the unpublished root must be gone, only the lock file stays"
+            "the unpublished root must be gone, only the lock file stays: {}",
+            attempts.refusals()
         );
         drop(runtime);
         drop(setup);

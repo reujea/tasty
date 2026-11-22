@@ -6,7 +6,7 @@ use crate::host_api::webview::http_endpoint::runtime::tests::HANG_LIMIT;
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{OnceLock, atomic::AtomicUsize},
+    sync::{OnceLock, atomic::AtomicUsize, mpsc},
     thread::{self, JoinHandle},
 };
 
@@ -47,6 +47,23 @@ impl ProfileWork {
     fn with_discard_wait(mut self, wait: Duration) -> Self {
         self.discard_wait = wait;
         self
+    }
+    /// Keeps a published success from starting its claim deadline until the returned sender drops,
+    /// so no claim can expire before the test holds the lock.
+    pub(crate) fn with_claim_gate(mut self) -> (Self, mpsc::Sender<()>) {
+        let (open, gate) = mpsc::channel();
+        self.claim_gate = Some(gate);
+        (self, open)
+    }
+}
+impl DiscardAttempts {
+    /// What the cleanup was refused with, for the messages of a cleanup that kept its root.
+    pub(crate) fn refusals(&self) -> String {
+        format!(
+            "{} refused attempt(s), first: {:?}",
+            self.refused(),
+            self.first_refusal()
+        )
     }
 }
 
@@ -92,10 +109,12 @@ fn a_stale_receipt_answers_while_its_worker_waits_for_the_lock() {
     let current = Arc::new(AtomicBool::new(true));
     let (receipt, work, wake) = request(home.path(), current.clone(), MAX_CLAIM_WAIT);
     let attempts = work.discard_attempts();
+    let (work, gate) = work.with_claim_gate();
     let worker = thread::spawn(move || work.run());
     woken(&wake, &worker);
     let lock = hold(&namespace(home.path()));
     current.store(false, Ordering::Release);
+    drop(gate);
     first_busy(&attempts, &worker);
     // Nothing that holds the lock can end here, so an answer must not depend on the wait.
     assert!(
@@ -105,9 +124,17 @@ fn a_stale_receipt_answers_while_its_worker_waits_for_the_lock() {
     assert!(matches!(receipt.poll(), Some(Err(PrepareError::Retired))));
     drop(lock);
     joined(worker);
+    // A worker that ended before any Busy cannot meet the lock after its release either.
+    assert!(
+        attempts.busy() > 0,
+        "the worker ended with no Busy seen: {}; with none refused, one possible cause is a \
+         preparation that failed after it left the lock file",
+        attempts.refusals()
+    );
     assert!(
         roots(home.path()).is_empty(),
-        "the cleanup gave up on the lock"
+        "the cleanup gave up on the lock: {}",
+        attempts.refusals()
     );
     assert!(matches!(receipt.poll(), Some(Err(PrepareError::Retired))));
 }

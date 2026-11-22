@@ -68,6 +68,9 @@ pub(crate) struct ProfileWork {
     discard_wait: Duration,
     #[cfg(test)]
     discard_attempts: Arc<discard_tests::DiscardAttempts>,
+    /// Holds a published success before its claim deadline starts, until the sender drops.
+    #[cfg(test)]
+    claim_gate: Option<std::sync::mpsc::Receiver<()>>,
 }
 impl Preparation {
     pub(crate) fn new(
@@ -96,6 +99,8 @@ impl Preparation {
                 discard_wait: MAX_CLAIM_WAIT,
                 #[cfg(test)]
                 discard_attempts: Arc::default(),
+                #[cfg(test)]
+                claim_gate: None,
             },
         )
     }
@@ -158,6 +163,12 @@ impl ProfileWork {
         (shared.wake)();
         if !needs_claim {
             return;
+        }
+        #[cfg(test)]
+        if let Some(gate) = self.claim_gate.take()
+            && gate.recv().is_err()
+        {
+            tracing::debug!("claim gate opened");
         }
         self.await_claim(&shared);
     }
