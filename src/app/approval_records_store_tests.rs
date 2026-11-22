@@ -228,40 +228,154 @@ fn concurrent_waiters_record_one_timeout() {
     assert!(matches!(stored[0].state, ApprovalState::TimedOut { .. }));
 }
 
-/// 응답이 만료보다 먼저 오면 응답 기록 하나만 남고 대기 워커는 쓰지 않는다. 만료가 먼저면
-/// 만료 기록이 남고 늦은 응답은 거절돼 쓰지 않는다. 어느 쪽이든 저장 결과가 메모리 상태와 같다.
+/// 대기 워커를 띄운다. 워커가 디렉터리를 함께 가져, 시험이 워커를 회수하지 못하고 실패해도
+/// 늦은 만료 쓰기 동안 디렉터리가 남는다. 디렉터리를 먼저 받아 저장소(SQLite 연결)가
+/// 디렉터리보다 먼저 해제된다.
+fn spawn_waiter(
+    dir: &Arc<tempfile::TempDir>,
+    approvals: &Arc<ApprovalStore>,
+    access: &MemoryAccess,
+    id: &ApprovalId,
+    wait_ms: u64,
+) -> std::thread::JoinHandle<Result<WaitOutcome, ApprovalError>> {
+    let (dir, approvals, access, id) = (dir.clone(), approvals.clone(), access.clone(), id.clone());
+    std::thread::spawn(move || {
+        let _dir = dir;
+        let access = access;
+        await_approval(&approvals, &access, &id, Some(wait_ms))
+    })
+}
+
+/// 저장소에서 다시 읽은 승인 기록. history 조회 경로(`stored_records`)로 역직렬화한다.
+fn stored_record(memory: &Arc<Mutex<MemoryStore>>, id: &ApprovalId) -> ApprovalRecord {
+    stored_records(&mut *memory.lock().unwrap(), None, None, None)
+        .unwrap()
+        .into_iter()
+        .find(|r| r.request.id == *id)
+        .expect("stored")
+}
+
+/// 저장된 상태 전체가 메모리 상태와 같다.
+fn assert_stored_matches_live(
+    memory: &Arc<Mutex<MemoryStore>>,
+    approvals: &ApprovalStore,
+    id: &ApprovalId,
+) -> ApprovalState {
+    let stored = stored_record(memory, id);
+    assert_eq!(stored.state, approvals.get(id).unwrap().state);
+    stored.state
+}
+
+/// Given 기록한 요청과 시험이 쥔 memory 잠금, When 대기 워커가 만료 전이를 적용하고 늦은
+/// 응답이 오면, Then 그 응답은 만료 기록이 저장되기 전에 거절된다. 잠금을 푼 뒤 대기 결과는
+/// 만료이고 저장 기록은 만료 하나(version 2)다. 워커는 승인 잠금을 놓은 뒤에야 memory 잠금을
+/// 잡으므로, 잠금을 쥐는 동안 상태가 만료로 보이면 만료 전이와 기록 사이에 응답한 것이 된다.
+#[test]
+fn a_timeout_applied_first_rejects_a_late_response_before_the_write() {
+    let dir = Arc::new(tempfile::tempdir().expect("tempdir"));
+    let (memory, access) = open(&dir.path().join("memory.db"), MemoryConfig::default());
+    let approvals = Arc::new(ApprovalStore::new());
+    let created = approvals.request(request(None, None)).unwrap();
+    let id = created.record.request.id.clone();
+    write(&access, created);
+    let key = record_key(&id).expect("a generated id has a record key");
+    let held = memory.lock().unwrap();
+    let waiter = spawn_waiter(&dir, &approvals, &access, &id, 1);
+    // 잠금을 쥔 동안에는 단정하지 않는다. 그 자리의 panic은 memory 잠금을 오염시키고 대기
+    // 워커를 회수하지 못한 채 임시 디렉터리를 지운다.
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while !matches!(
+        approvals.get(&id).unwrap().state,
+        ApprovalState::TimedOut { .. }
+    ) {
+        if std::time::Instant::now() >= deadline {
+            drop(held);
+            panic!("the waiter did not apply the timeout within 10s");
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let late = approvals.respond(&id, "approve".into(), Responder::User, None);
+    let version_at_late = held.get(&Scope::Global, &key).map(|e| e.map(|e| e.version));
+    drop(held);
+    let outcome = waiter.join().unwrap().unwrap();
+    assert!(
+        matches!(late, Err(ApprovalError::AlreadyResponded(_))),
+        "{late:?}"
+    );
+    assert_eq!(version_at_late.unwrap(), Some(1), "no timeout record yet");
+    assert!(
+        matches!(outcome, WaitOutcome::TimedOut { .. }),
+        "{outcome:?}"
+    );
+    assert_eq!(version_of(&memory, &Scope::Global, &id), Some(2));
+    let state = assert_stored_matches_live(&memory, &approvals, &id);
+    assert!(matches!(state, ApprovalState::TimedOut { .. }));
+}
+
+/// Given 기록한 요청, When 응답이 먼저 적용된 뒤 대기를 부르면, Then 대기 결과는 응답이고
+/// 대기 워커는 기록을 쓰지 않는다(반환 직후 version 1). 응답 쪽이 기록하면 version 2다.
+#[test]
+fn a_response_applied_first_leaves_the_write_to_the_responder() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (memory, access) = open(&dir.path().join("memory.db"), MemoryConfig::default());
+    let approvals = ApprovalStore::new();
+    let created = approvals.request(request(None, None)).unwrap();
+    let id = created.record.request.id.clone();
+    write(&access, created);
+    let change = approvals
+        .respond(&id, "approve".into(), Responder::User, None)
+        .expect("the request is pending");
+    let outcome = await_approval(&approvals, &access, &id, Some(5_000)).unwrap();
+    assert!(
+        matches!(outcome, WaitOutcome::Responded { .. }),
+        "{outcome:?}"
+    );
+    assert_eq!(version_of(&memory, &Scope::Global, &id), Some(1));
+    write(&access, change);
+    assert_eq!(version_of(&memory, &Scope::Global, &id), Some(2));
+    let state = assert_stored_matches_live(&memory, &approvals, &id);
+    assert!(matches!(state, ApprovalState::Responded { .. }));
+}
+
+/// Given 기록한 요청과 유한 마감의 대기 워커, When 응답과 만료가 순서를 정하지 않고 겹치면,
+/// Then 어느 쪽이 이기든 기록은 승자 하나다. 응답이 받아들여지면 대기 결과는 응답이고, 거절되면
+/// 만료다. 저장 기록은 version 2이고 그 상태가 메모리 상태·승자와 같다.
 #[test]
 fn a_response_and_a_timeout_race_to_one_record() {
-    let dir = tempfile::tempdir().expect("tempdir");
+    let dir = Arc::new(tempfile::tempdir().expect("tempdir"));
     let (memory, access) = open(&dir.path().join("memory.db"), MemoryConfig::default());
     let approvals = Arc::new(ApprovalStore::new());
     for wait_ms in [5_000, 1] {
         let created = approvals.request(request(None, None)).unwrap();
         let id = created.record.request.id.clone();
         write(&access, created);
-        let waiter = {
-            let (approvals, access, id) = (approvals.clone(), access.clone(), id.clone());
-            std::thread::spawn(move || await_approval(&approvals, &access, &id, Some(wait_ms)))
-        };
+        let waiter = spawn_waiter(&dir, &approvals, &access, &id, wait_ms);
         std::thread::sleep(Duration::from_millis(20));
-        if let Ok(change) = approvals.respond(&id, "approve".into(), Responder::User, None) {
-            write(&access, change);
-        }
+        // 응답이 받아들여지면 대기 회수 전에 기록한다. 오류는 회수한 뒤에 판정한다.
+        let response = approvals
+            .respond(&id, "approve".into(), Responder::User, None)
+            .map(|change| write(&access, change));
         let outcome = waiter.join().unwrap().unwrap();
-        assert_eq!(version_of(&memory, &Scope::Global, &id), Some(2));
-        let live = approvals.get(&id).unwrap();
-        let stored = stored_records(&mut *memory.lock().unwrap(), None, None, None)
-            .unwrap()
-            .into_iter()
-            .find(|r| r.request.id == id)
-            .expect("stored");
-        assert_eq!(
-            serde_json::to_value(&stored.state).unwrap(),
-            serde_json::to_value(&live.state).unwrap()
-        );
-        match wait_ms {
-            1 => assert!(matches!(outcome, WaitOutcome::TimedOut { .. })),
-            _ => assert!(matches!(outcome, WaitOutcome::Responded { .. })),
+        let response_won = match response {
+            Ok(()) => true,
+            Err(ApprovalError::AlreadyResponded(_)) => false,
+            Err(other) => panic!("unexpected response error: {other:?}"),
+        };
+        match (response_won, &outcome) {
+            (true, WaitOutcome::Responded { .. }) | (false, WaitOutcome::TimedOut { .. }) => {}
+            _ => panic!("response accepted {response_won} but the waiter saw {outcome:?}"),
         }
+        assert_eq!(version_of(&memory, &Scope::Global, &id), Some(2));
+        let state = assert_stored_matches_live(&memory, &approvals, &id);
+        assert_eq!(
+            matches!(state, ApprovalState::Responded { .. }),
+            response_won,
+            "{state:?}"
+        );
+        assert_eq!(
+            matches!(state, ApprovalState::TimedOut { .. }),
+            !response_won,
+            "{state:?}"
+        );
     }
 }
