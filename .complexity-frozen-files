@@ -41,4 +41,3 @@ src/app/attach_client/navigation.rs
 src/app/attach_client/resources.rs
 src/app/attach_client/documents.rs
 src/app/attach_client/git_query.rs
-src/view/main/titlebar_press.rs
