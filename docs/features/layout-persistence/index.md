@@ -119,11 +119,12 @@ GUI 부팅은 가장 먼저 데이터 홈의 구조 저널 writer 잠금(`<홈>/
 release는 같은 홈에 프로세스 하나만 둔다. 잠금을 얻은 인스턴스는 `<홈>/tasty.instance`에 PID·프로세스 시작 시각을 쓰고, IPC 서버가 열리면 포트를 넣어 다시 쓴다(임시 파일 뒤 rename). 정상 종료 때 저널 잠금을 놓기 전에 지운다. 비정상 종료로 남은 파일은 두 번째 실행과 CLI가 PID와 시작 시각으로 알아본다. CLI는 그 판별로 남은 포트 파일을 구분한다([남은 포트 파일](../remote-attach/index.md#남은-포트-파일)). Linux release는 세션 버스에 `io.github.zilhak.tasty`(정규화한 기본 홈) 또는 `io.github.zilhak.tasty.h<정규화 경로 해시>`(다른 홈) 이름으로 `org.freedesktop.Application`을 등록한다. debug는 `TASTY_DEBUG_SINGLE_INSTANCE=1`일 때만 등록한다.
 
 - Given 잠금이 다른 프로세스에 있고 인스턴스 파일의 PID·시작 시각이 살아 있는 프로세스와 같고 포트가 있을 때, When release GUI를 사용자 실행 증거 없이 실행하면, Then `window.create`로 새 View 하나를 요청하고 종료 코드 0으로 끝난다. 새 View는 `tasty new window`와 같은 에이전트 창이며 슬롯 규칙도 같다.
-- Given 같은 조건에서 실행기가 준 `XDG_ACTIVATION_TOKEN`·`DESKTOP_STARTUP_ID`(Linux)나 `AllowSetForegroundWindow` 성공(Windows)이 있을 때, When release GUI를 실행하면, Then 실행 중인 Tasty가 숨기거나 최소화한 View를 다시 보이고 마지막 포커스 View의 활성화를 OS에 요청한다. MainView가 없으면 새 창을 연다. 두 번째 프로세스는 종료 코드 0으로 끝난다.
-- Given 네이티브 Wayland(`DISPLAY` 없음)에서 실행기 토큰이 있을 때, When release GUI를 실행하면, Then 실행 중인 Tasty가 그 토큰으로 마지막 포커스 View의 활성화를 컴포지터에 요청한다(`xdg_activation_v1`). 앞으로 올릴지는 컴포지터가 정한다.
-- Given 네이티브 Wayland(`DISPLAY` 없음)에서 실행기 토큰 없이 `DESKTOP_STARTUP_ID`만 있을 때, When 증거가 있는 다시 실행을 받으면, Then 기존 View는 그대로 두고 토큰 없는 새 창 하나를 연다. 앞으로 올 근거가 없으므로 컴포지터가 정한다.
-- Given 네이티브 Wayland(`DISPLAY` 없음)에서 실행기 토큰이 있지만 컴포지터가 `xdg_activation_v1`을 제공하지 않을 때, When 다시 실행을 받으면, Then 기존 View는 그대로 두고 토큰을 실은 새 창 하나를 연다.
-- Given 네이티브 Wayland(`DISPLAY` 없음)에서 실행기 토큰이 있고 MainView가 없을 때, When 다시 실행을 받으면, Then 토큰을 새 창의 생성 속성에만 싣는다. X11처럼 등록 뒤 활성화를 다시 요청하지 않는다(토큰은 한 번 쓰면 무효가 될 수 있다).
+- Given 같은 조건의 X11(XWayland 포함)·Windows에서 실행기가 준 `XDG_ACTIVATION_TOKEN`·`DESKTOP_STARTUP_ID`(Linux)나 `AllowSetForegroundWindow` 성공(Windows)이 있을 때, When release GUI를 실행하면, Then 실행 중인 Tasty가 모든 View에 보이기와 최소화 해제를 요청하고 마지막 포커스 View(없으면 가장 작은 id의 MainView)의 활성화를 OS에 요청한다. MainView가 없으면 새 창 경로로 처리한다(만드는 중인 창과 Windows 두 번째 프로세스의 처리는 [포커스 정책](../../design/policies/focus.md#같은-홈으로-다시-실행했을-때-release-단일-실행)). 두 번째 프로세스는 종료 코드 0으로 끝난다.
+- Given 실행 중인 Tasty가 네이티브 Wayland 백엔드로 떠 있고(`DISPLAY`가 없거나 X 연결에 실패한 경우, [선택 규칙](../../design/systems/linux-display-backend.md#선택-규칙)) MainView가 있으며 컴포지터가 `xdg_activation_v1`을 제공하고 실행기 토큰이 있을 때, When release GUI를 실행하면, Then 실행 중인 Tasty가 그 토큰으로 마지막 포커스 View(없으면 가장 작은 id의 MainView)의 활성화를 컴포지터에 요청한다. 창 숨김·최소화 상태는 Tasty가 바꾸지 못한다(winit이 보이기·최소화 해제를 무시한다). 최소화한 창이 다시 보일지와 앞으로 올릴지는 컴포지터가 정한다.
+- Given 네이티브 Wayland 백엔드에서 실행기 토큰 없이 `DESKTOP_STARTUP_ID`만 있을 때, When 증거가 있는 다시 실행을 받으면, Then 기존 View는 그대로 두고 토큰 없는 새 창 경로로 처리한다. 앞으로 올 근거가 없으므로 컴포지터가 정한다.
+- Given 네이티브 Wayland 백엔드에서 실행기 토큰이 있지만 컴포지터가 `xdg_activation_v1`을 제공하지 않을 때, When 다시 실행을 받으면, Then 기존 View는 그대로 두고 토큰을 가진 채 새 창 경로로 처리한다. 새 창의 생성 속성에 토큰을 실어도 컴포지터가 프로토콜을 제공하지 않으므로 활성화 요청은 나가지 않는다.
+- Given 네이티브 Wayland 백엔드에서 실행기 토큰이 있고 MainView가 없을 때, When 다시 실행을 받으면, Then 토큰을 새 창의 생성 속성에만 싣는다. X11처럼 등록 뒤 활성화를 다시 요청하지 않는다(토큰은 한 번 쓰면 무효가 될 수 있다).
+- Given 네이티브 Wayland 백엔드에서 만드는 중인 창이 있을 때, When 새 창 경로로 가는 다시 실행을 받으면, Then 창을 더 만들지 않고 이 요청과 토큰을 남기지 않는다.
 - Given 인스턴스 파일의 PID·시작 시각이 살아 있는 프로세스와 같고 포트가 있을 때, When release GUI를 실행하면, Then writer 잠금 재시도(`WRITER_LOCK_WAIT`)를 기다리지 않고 바로 넘긴다.
 - Given 인스턴스 파일이 없거나 포트가 없거나 PID·시작 시각이 맞지 않을 때, When release GUI를 실행하면, Then 잠금 재시도 뒤 20초까지 기다린다. 그 사이 잠금이 풀리면 평소처럼 부팅한다.
 - Given 넘기는 중에 연결이 끊기거나 D-Bus 이름 소유자가 사라졌을 때, When 기록의 프로세스가 더 이상 살아 있지 않으면, Then 두 번째 프로세스는 기한을 기다리지 않고 기록과 writer 잠금을 다시 확인하고, 잠금을 얻으면 평소처럼 부팅한다(실행 요청이 사라지지 않는다).

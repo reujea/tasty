@@ -287,12 +287,12 @@ Tasty에는 포커스를 주는 IPC 메서드가 없다.
 
 - 증거 없음(Linux에서 터미널·에이전트·스크립트로 `tasty` 실행, Windows에서 `AllowSetForegroundWindow`가 거절된 실행, macOS에서 바이너리 직접 실행): `window.create`와 같은 `Agent` 창 하나로 끝난다.
   위 "에이전트가 만든 창과 포커스" 규칙을 그대로 따르며 숨긴 창·최소화한 창·`focused_view_id`를 건드리지 않는다.
-- 증거 있음(앱 목록·실행기·시작 메뉴로 실행. Windows는 포그라운드 프로세스나 그것이 시작한 프로세스면 `AllowSetForegroundWindow`가 성공하므로 앞에 있는 터미널에서 친 `tasty`도 여기에 든다. 실 기기 미측정): 실행 중인 Tasty가 숨기거나 최소화한 View를 트레이 복원처럼 다시 보이고,
-  `focused_view_id`의 View 활성화를 OS에 요청한다. `focus_window()`는 부르지 않는다.
+- 증거 있음(앱 목록·실행기·시작 메뉴로 실행. Windows는 포그라운드 프로세스나 그것이 시작한 프로세스면 `AllowSetForegroundWindow`가 성공하므로 앞에 있는 터미널에서 친 `tasty`도 여기에 든다. 실 기기 미측정): 실행 중인 Tasty가 대상 View의 활성화를 OS에 요청한다. 대상은 `focused_view_id`가 가리키는 View이고, 그 값이 없거나 이미 닫힌 창이면 가장 작은 id의 MainView다.
+  Windows·X11(XWayland 포함)은 그 전에 모든 View에 보이기(`set_visible(true)`)와 최소화 해제(`set_minimized(false)`)를 요청한다. 트레이 보이기와 같은 호출이며, X11의 최소화 해제는 창 관리자가 처리한다. `focus_window()`는 부르지 않는다.
   - X11(Wayland 세션의 XWayland 포함): 창에 `_NET_STARTUP_ID`를 걸고 startup id의 `_TIME` 타임스탬프로 `_NET_ACTIVE_WINDOW`(source 1)를 보낸다. GNOME의 XWayland에서 실행기 토큰만 받아도 포커스가 옮겨 간다(실행 중 인스턴스에 `Activate`를 직접 보내 격리 세션에서 확인했고 두 번째 프로세스 경로는 미측정).
   - Windows: 두 번째 프로세스가 `AllowSetForegroundWindow`로 넘긴 권한으로 `SetForegroundWindow`를 부른다.
-  - 네이티브 Wayland(`DISPLAY` 없는 환경): 두 번째 실행이 받은 xdg-activation 토큰으로 기존 창 surface에 `xdg_activation_v1.activate`를 보낸다(winit 포크의 `WindowExtWayland::activate_with_token`). 위 복원 대신 새 `User` 창을 열고 숨김·최소화 창은 그대로 두는 경우가 둘이다. 토큰이 없으면 토큰 없는 새 창이고, 컴포지터가 `xdg_activation_v1`을 제공하지 않으면 토큰을 실은 새 창이다. MainView가 없어 새 창을 열 때는 토큰을 생성 속성에만 싣고 등록 뒤 다시 요청하지 않는다.
-  - MainView가 하나도 없으면 증거를 실은 `User` 창을 연다. 만드는 중인 창이 있으면 새로 만들지 않고 그 창이 등록될 때 요청한다.
+  - 네이티브 Wayland(실행 중인 Tasty의 이벤트 루프가 Wayland 백엔드일 때. 비어 있지 않은 `WAYLAND_DISPLAY` 또는 `WAYLAND_SOCKET`이 있고 `DISPLAY`가 없거나 X 연결에 실패한 경우, [선택 규칙](../systems/linux-display-backend.md#선택-규칙)): 두 번째 실행이 받은 xdg-activation 토큰으로 기존 창 surface에 `xdg_activation_v1.activate`를 보낸다(winit 포크의 `WindowExtWayland::activate_with_token`). winit이 보이기·최소화 해제를 무시하므로 Tasty는 창을 다시 보이거나 최소화를 풀지 못한다. 최소화한 창이 다시 보일지는 활성화 요청을 받은 컴포지터가 정한다(실행기 토큰을 받은 release 다시 실행의 화면 결과는 미측정). 기존 창에 활성화를 요청하는 대신 새 창 경로로 처리하는 경우가 둘이다. 토큰이 없으면 토큰 없는 새 창 경로이고, 컴포지터가 `xdg_activation_v1`을 제공하지 않으면 토큰을 가진 채 새 창 경로로 간다. 새 창 경로에서는 토큰을 생성 속성에만 싣고 등록 뒤 다시 요청하지 않는다.
+  - MainView가 하나도 없으면 증거를 실은 `User` 창 경로로 처리한다. 만드는 중인 창이 있으면 새로 만들지 않는다. Windows·X11은 그 창이 등록될 때 활성화를 요청하고, 네이티브 Wayland는 이 요청을 남기지 않으며 그 창의 생성 속성에도 토큰이 실리지 않는다. Windows에서는 두 번째 프로세스가 MainView 창을 찾지 못하면 등록 메시지 대신 `window.create`로 새 창을 요청하고, 응답받은 창에 직접 `SetForegroundWindow`를 부른다.
 - 증거는 OS 판단의 근거일 뿐 위조 불가능한 증명은 아니다. X11 startup id는 같은 사용자의 어떤 프로세스든 만들 수 있다.
   한계와 근거는 이 문서의 "같은 홈의 다시 실행" 절에 있다.
 

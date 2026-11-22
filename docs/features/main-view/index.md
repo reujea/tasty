@@ -20,7 +20,7 @@ tasty 의 주 윈도우. 워크스페이스를 호스팅하고 사이드바·탭
 
 `create_new_window` 로 **MainView 를 여러 개** 띄울 수 있다. 각 MainView 는 독립 winit Window(1:1)이고 자기 `MainViewState` 를 가지며 독립 EngineSession의 구조 projection이 연결된다. View 는 `views: HashMap<WindowId, Box<dyn View>>`, engine 은 `App.engines` 가 관리한다([multi-window](../../architecture/multi-window.md#engine-registry와-parked--pty-생존)).
 
-release는 같은 데이터 홈에 프로세스 하나만 둔다. 같은 홈으로 다시 실행하면 두 번째 프로세스는 창을 만들지 않는다. 사용자 실행 증거가 있으면 실행 중인 MainView를 다시 보이고 OS에 활성화를 요청하며, 없으면 `tasty new window`와 같은 새 MainView 하나를 요청한다([같은 홈의 다시 실행](../layout-persistence/index.md#같은-홈의-다시-실행)).
+release는 같은 데이터 홈에 프로세스 하나만 둔다. 같은 홈으로 다시 실행하면 두 번째 프로세스는 창을 만들지 않는다. 사용자 실행 증거가 있고 살아 있는 MainView가 있으면(네이티브 Wayland는 실행기 토큰과 컴포지터의 `xdg_activation_v1` 제공도 있어야 한다) 그 활성화를 OS에 요청하고(Windows·X11은 보이기·최소화 해제도 요청한다), 그 조건이 안 되면 새 창 경로로 처리한다. 증거가 없으면 `tasty new window`와 같은 새 MainView 하나를 요청한다([같은 홈의 다시 실행](../layout-persistence/index.md#같은-홈의-다시-실행)).
 
 ### headless 와의 관계
 
