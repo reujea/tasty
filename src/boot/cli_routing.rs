@@ -34,10 +34,7 @@ pub(crate) fn parse_or_route() -> anyhow::Result<Routed> {
     let cli = match cmd.try_get_matches_from(&args) {
         Ok(matches) => match cli::Cli::from_arg_matches(&matches) {
             Ok(cli) => cli,
-            Err(err) => {
-                cli::format_parse_error(err);
-                unreachable!();
-            }
+            Err(err) => cli::format_parse_error(err, &args),
         },
         Err(err) => {
             if cli::help_route::needs_plugin_tree(err.kind())
@@ -46,8 +43,7 @@ pub(crate) fn parse_or_route() -> anyhow::Result<Routed> {
                 result?;
                 return Ok(Routed::AlreadyHandled);
             }
-            cli::format_parse_error(err);
-            unreachable!();
+            cli::format_parse_error(err, &args);
         }
     };
 

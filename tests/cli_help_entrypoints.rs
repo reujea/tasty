@@ -200,6 +200,22 @@ fn unknown_paths_exit_2_with_the_nearest_parent_candidates() {
     }
 }
 
+/// 끝의 단독 `help`는 파싱 전에 `-h`로 바뀐다. 앞선 루트 옵션 값이 틀려 오류 출력으로 가도
+/// 두 형태가 같은 루트 문맥(최상위 명령 후보)을 보여야 한다.
+#[test]
+fn a_root_option_error_before_bare_help_shows_the_root_context() {
+    for plugin in [true, false] {
+        let dir = home_in("en", plugin, false);
+        let home = dir.path();
+        let bare = fails(home, &["--webhook-port=0", "help"]);
+        assert_eq!(bare, fails(home, &["--webhook-port=0", "-h"]));
+        assert!(
+            bare.contains("Available subcommands for 'tasty':"),
+            "{bare}"
+        );
+    }
+}
+
 #[test]
 fn a_broken_manifest_is_reported_and_host_help_still_works() {
     let dir = home(true, true);

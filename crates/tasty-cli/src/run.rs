@@ -117,8 +117,7 @@ pub fn try_run_plugin_cli(args: &[String]) -> Option<Result<()>> {
         Ok(m) => m,
         Err(err) => {
             if is_plugin_cmd || is_help_output(err.kind()) {
-                crate::help::format_parse_error(err);
-                unreachable!();
+                crate::help::format_parse_error(err, args);
             }
             return None;
         }

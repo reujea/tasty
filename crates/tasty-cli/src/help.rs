@@ -113,14 +113,13 @@ fn format_args(cmd: &clap::Command) -> String {
 
 /// Resolve the deepest matched command from raw CLI args.
 /// 루트 옵션과 그 값, `help <경로>`의 `help`를 건너뛰어 실제 하위 명령 문맥을 찾는다.
-fn resolve_command_path() -> (clap::Command, String) {
-    let args: Vec<String> = std::env::args().collect();
+fn resolve_command_path(args: &[String]) -> (clap::Command, String) {
     let root = match tasty_host_plugin::plugin_root() {
         Some(root) => dynamic::build_augmented_cli(&dynamic::discover_plugin_clis(&root)),
         None => crate::help_i18n::command(),
     };
     // `help` 접두는 clap이 help 하위 명령을 만들기 전의 트리로 판별한다.
-    let tokens = crate::help_route::command_path_tokens(&root, &args).to_vec();
+    let tokens = crate::help_route::command_path_tokens(&root, args).to_vec();
     let mut current = root;
     // 인자 action·num_args 기본값이 채워진 상태로 사용법을 읽는다.
     current.build();
@@ -212,8 +211,9 @@ fn tree_lines(root: &clap::Command) -> Vec<String> {
     out
 }
 
-/// Format a contextual error message for a failed parse.
-pub fn format_parse_error(err: clap::Error) {
+/// Format a contextual error message for a failed parse and exit.
+/// `args` is the argv the parser received; it locates the command context.
+pub fn format_parse_error(err: clap::Error, args: &[String]) -> ! {
     use clap::error::ErrorKind;
 
     match err.kind() {
@@ -221,7 +221,7 @@ pub fn format_parse_error(err: clap::Error) {
         | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
         | ErrorKind::DisplayVersion => err.exit(),
         _ => {
-            let (current, cmd_path) = resolve_command_path();
+            let (current, cmd_path) = resolve_command_path(args);
             let children = visible_subcommands(&current);
 
             crate::out::errln!("{}", crate::help_error::render(&err));
