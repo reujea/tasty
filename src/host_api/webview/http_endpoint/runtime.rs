@@ -92,12 +92,12 @@ impl Setup {
         let (stop, shutdown) = mpsc::channel();
         let body = move || {
             let _permit = permit;
+            // An injected error stands in for build()'s own result, so both take one branch.
             #[cfg(test)]
-            if let Some(error) = build_fault {
-                setup_failed(error, tx, &wake);
-                return;
-            }
-            setup_worker(worker, tx, shutdown, wake);
+            let built = build_fault.map_or_else(build_runtime, Err);
+            #[cfg(not(test))]
+            let built = build_runtime();
+            setup_worker(built, worker, tx, shutdown, wake);
         };
         #[cfg(test)]
         let spawned = match spawn_fault {
@@ -139,18 +139,21 @@ fn spawn_setup(body: impl FnOnce() + Send + 'static) -> std::io::Result<JoinHand
         .name("html-native-setup".into())
         .spawn(body)
 }
+fn build_runtime() -> std::io::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(8)
+        .enable_all()
+        .build()
+}
 fn setup_worker(
+    built: std::io::Result<tokio::runtime::Runtime>,
     worker: Arc<State>,
     tx: mpsc::SyncSender<Result<Parts, RuntimeError>>,
     shutdown: mpsc::Receiver<()>,
     wake: Arc<dyn Fn() + Send + Sync>,
 ) {
-    let runtime = match tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .max_blocking_threads(8)
-        .enable_all()
-        .build()
-    {
+    let runtime = match built {
         Ok(runtime) => runtime,
         Err(error) => {
             setup_failed(error, tx, &wake);
