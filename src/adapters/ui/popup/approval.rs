@@ -230,14 +230,25 @@ pub enum ApprovalViewAction {
     },
 }
 
-/// 클릭과 1..=9 키 입력을 선택 결과로 반환한다. Escape는 응답으로 처리하지 않는다.
+/// 보기 한 번의 결과. 숫자 키는 보기가 읽지 않는다. 호출자가 `digits_choose` 일 때 팝업 키 통로로 숫자를 읽어
+/// [`with_digit_choice`]로 버튼 결과를 덮는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApprovalView {
+    /// 클릭으로 고른 결과.
+    pub action: ApprovalViewAction,
+    /// 이번 패스 숫자 키를 선택으로 읽는지. 팝업이 키보드 포커스를 가졌고 코멘트 입력칸에는 포커스가 없을 때다.
+    /// 코멘트를 그린 뒤에 정하므로 이번 패스 클릭으로 코멘트가 포커스를 얻으면 거짓이다.
+    pub digits_choose: bool,
+}
+
+/// 클릭을 선택 결과로 반환하고 숫자 키를 읽을지 알린다. Escape는 응답으로 처리하지 않는다.
 /// 코멘트 입력 중의 숫자는 글자다. egui의 `TextEdit`은 Key 이벤트를 소비하지 않으므로
 /// 입력칸 포커스를 직접 확인한다.
 pub fn draw_approval_view(
     ui: &mut egui::Ui,
     theme: &Theme,
     props: &mut ApprovalProps<'_>,
-) -> ApprovalViewAction {
+) -> ApprovalView {
     let sev_color = match props.severity {
         Severity::Info => theme.text_muted().to_egui(),
         Severity::Warn => theme.accent_warning_raised().to_egui(),
@@ -301,39 +312,46 @@ pub fn draw_approval_view(
         }
     });
 
-    let pressed_num = digits_choose
-        .then(|| {
-            ui.ctx().input(|i| {
-                for n in 1..=9u8 {
-                    let key = match n {
-                        1 => egui::Key::Num1,
-                        2 => egui::Key::Num2,
-                        3 => egui::Key::Num3,
-                        4 => egui::Key::Num4,
-                        5 => egui::Key::Num5,
-                        6 => egui::Key::Num6,
-                        7 => egui::Key::Num7,
-                        8 => egui::Key::Num8,
-                        9 => egui::Key::Num9,
-                        _ => continue,
-                    };
-                    if i.key_pressed(key) {
-                        return Some(n as usize);
-                    }
-                }
-                None
-            })
-        })
-        .flatten();
-    if let Some(idx) = pressed_num
-        && let Some(choice) = props.choices.get(idx - 1)
-    {
-        action = ApprovalViewAction::Chosen {
-            key: choice.key.clone(),
-        };
+    ApprovalView {
+        action,
+        digits_choose,
     }
+}
 
-    action
+/// 선택지 번호 키. 앞에서부터 1번이다.
+const DIGIT_KEYS: [egui::Key; 9] = [
+    egui::Key::Num1,
+    egui::Key::Num2,
+    egui::Key::Num3,
+    egui::Key::Num4,
+    egui::Key::Num5,
+    egui::Key::Num6,
+    egui::Key::Num7,
+    egui::Key::Num8,
+    egui::Key::Num9,
+];
+
+/// 보기 결과에 숫자 키 선택을 덮는다. `digits_choose` 면 1번부터 `min(9, 항목 수)` 번까지 수식키 없는 누름과 Shift
+/// 누름을 `keys` 에서 차례로 소비해 보고 첫 적중 번호를 고른다(작은 번호 우선, 숫자가 클릭을 덮는다). 항목 수보다
+/// 큰 번호와 Ctrl·Alt·Cmd가 붙은 숫자는 소비하지 않는다.
+pub(crate) fn with_digit_choice(
+    view: ApprovalView,
+    keys: &mut popup::keys::PopupKeys,
+    choices: &[ApprovalChoiceView],
+) -> ApprovalViewAction {
+    if !view.digits_choose {
+        return view.action;
+    }
+    let hit = DIGIT_KEYS.iter().take(choices.len()).position(|&key| {
+        keys.consume_key(egui::Modifiers::NONE, key)
+            || keys.consume_key(egui::Modifiers::SHIFT, key)
+    });
+    match hit.and_then(|idx| choices.get(idx)) {
+        Some(choice) => ApprovalViewAction::Chosen {
+            key: choice.key.clone(),
+        },
+        None => view.action,
+    }
 }
 
 /// 승인 레코드를 번역한 화면 입력으로 바꾼다.
@@ -457,7 +475,8 @@ pub fn draw_approval_popup(
     let ui = &mut child_ui;
 
     let mut props = props_from_record(&record, &mut shown.comment, cx.keys.receives());
-    let view_action = draw_approval_view(ui, &theme::theme(), &mut props);
+    let view = draw_approval_view(ui, &theme::theme(), &mut props);
+    let view_action = with_digit_choice(view, &mut cx.keys, &props.choices);
 
     if let ApprovalViewAction::Chosen { key: choice_key } = view_action
         && !shown.submitting
@@ -593,6 +612,23 @@ mod view_tests {
     use super::*;
     use tasty_themes::mocha_fallback;
 
+    /// 보기를 그리고 팝업 호출자처럼 키 통로로 숫자 선택을 덮는다. 통로는 `keyboard_focused` 면 키를 받는 `Text`
+    /// 통로다(승인 팝업 선언 `keyboard`).
+    fn view_and_digits(
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        props: &mut ApprovalProps<'_>,
+    ) -> ApprovalViewAction {
+        let view = draw_approval_view(ui, theme, props);
+        let mut keys = popup::keys::PopupKeys::new(
+            ui.ctx(),
+            props.keyboard_focused,
+            popup::PopupKeyboard::Text,
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+        );
+        with_digit_choice(view, &mut keys, &props.choices)
+    }
+
     /// 1 frame egui Context 안에서 view 함수를 호출하고 결과 action 을 받는다.
     fn run_view<F>(props_builder: F) -> ApprovalViewAction
     where
@@ -628,7 +664,7 @@ mod view_tests {
                     comment_buffer: &mut buf,
                     keyboard_focused: true,
                 };
-                action = draw_approval_view(ui, &theme, &mut props);
+                action = view_and_digits(ui, &theme, &mut props);
             });
         });
         action
@@ -754,7 +790,7 @@ mod view_tests {
                         comment_buffer: buf,
                         keyboard_focused,
                     };
-                    *action = draw_approval_view(ui, &theme, &mut props);
+                    *action = view_and_digits(ui, &theme, &mut props);
                 });
             }));
         };
@@ -793,6 +829,269 @@ mod view_tests {
     fn digit_is_ignored_while_popup_lacks_keyboard_focus() {
         let (action, _) = run_digit_frames(false, false);
         assert_eq!(action, ApprovalViewAction::None);
+    }
+
+    fn choices(n: usize) -> Vec<ApprovalChoiceView> {
+        (1..=n)
+            .map(|i| ApprovalChoiceView {
+                key: format!("c{i}"),
+                label: format!("Choice {i}"),
+                destructive: false,
+            })
+            .collect()
+    }
+
+    fn digit(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+
+    fn chosen(n: usize) -> ApprovalViewAction {
+        ApprovalViewAction::Chosen {
+            key: format!("c{n}"),
+        }
+    }
+
+    /// 키보드 포커스를 가진 승인 보기를 같은 Context로 여러 프레임 그린다.
+    struct View {
+        ctx: egui::Context,
+        choices: Vec<ApprovalChoiceView>,
+        buf: String,
+    }
+
+    /// 한 프레임 결과: 고른 결과, 숫자 선택 뒤 입력에 남은 눌린 키, 칠한 글자와 영역.
+    struct Frame {
+        action: ApprovalViewAction,
+        left: Vec<egui::Key>,
+        texts: Vec<(String, egui::Rect)>,
+    }
+
+    impl View {
+        fn new(n: usize) -> Self {
+            let mut view = Self {
+                ctx: egui::Context::default(),
+                choices: choices(n),
+                buf: String::new(),
+            };
+            view.frame(Vec::new());
+            view
+        }
+
+        fn frame(&mut self, events: Vec<egui::Event>) -> Frame {
+            fn walk(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
+                match shape {
+                    egui::epaint::Shape::Text(t) => out.push((
+                        t.galley.text().to_owned(),
+                        egui::Rect::from_min_size(t.pos, t.galley.size()),
+                    )),
+                    egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                    _ => {}
+                }
+            }
+            let theme = mocha_fallback();
+            let mut action = ApprovalViewAction::None;
+            let mut left = Vec::new();
+            let raw = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let out = self.ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let mut props = ApprovalProps {
+                        id: "abc".to_string(),
+                        severity: Severity::Info,
+                        severity_label: "INFO".to_string(),
+                        comment_label: "Comment".to_string(),
+                        comment_hint: "Hint".to_string(),
+                        body: None,
+                        choices: self.choices.clone(),
+                        comment_buffer: &mut self.buf,
+                        keyboard_focused: true,
+                    };
+                    action = view_and_digits(ui, &theme, &mut props);
+                    left = ui.input(|i| {
+                        i.events
+                            .iter()
+                            .filter_map(|e| match e {
+                                egui::Event::Key {
+                                    key, pressed: true, ..
+                                } => Some(*key),
+                                _ => None,
+                            })
+                            .collect()
+                    });
+                });
+            });
+            let mut texts = Vec::new();
+            for clipped in &out.shapes {
+                walk(&clipped.shape, &mut texts);
+            }
+            Frame {
+                action,
+                left,
+                texts,
+            }
+        }
+
+        /// 칠한 글자 `wanted` 의 가운데.
+        fn center_of(&mut self, wanted: &str) -> egui::Pos2 {
+            let texts = self.frame(Vec::new()).texts;
+            texts
+                .iter()
+                .find(|(s, _)| s == wanted)
+                .map(|(_, r)| r.center())
+                .unwrap_or_else(|| panic!("{wanted} 를 칠하지 않았다: {texts:?}"))
+        }
+    }
+
+    fn click_at(pos: egui::Pos2) -> Vec<egui::Event> {
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        vec![button(true), button(false)]
+    }
+
+    /// T-8-1: Given 키 주인 승인 보기, When 수식키 없는 `Num1` 을 누르면, Then 1번을 고른다.
+    #[test]
+    fn a_bare_digit_picks_the_choice() {
+        let mut view = View::new(2);
+        let f = view.frame(vec![digit(egui::Key::Num1, egui::Modifiers::NONE)]);
+        assert_eq!(f.action, chosen(1));
+    }
+
+    /// T-8-2: Given 키 주인 승인 보기, When Shift+`Num1` 사건이 오면, Then 1번을 고른다.
+    #[test]
+    fn a_shifted_digit_event_picks_the_choice() {
+        let mut view = View::new(2);
+        let f = view.frame(vec![digit(egui::Key::Num1, egui::Modifiers::SHIFT)]);
+        assert_eq!(f.action, chosen(1));
+    }
+
+    /// T-8-3: Given 키 주인 승인 보기, When Ctrl+`Num1` 을 누르면, Then 고르지 않는다.
+    #[test]
+    fn a_ctrl_digit_does_not_pick() {
+        let mut view = View::new(2);
+        let f = view.frame(vec![digit(egui::Key::Num1, egui::Modifiers::CTRL)]);
+        assert_eq!(f.action, ApprovalViewAction::None);
+    }
+
+    /// T-8-3a: Given 키 주인 승인 보기, When Alt+`Num1` 을 누르면, Then 고르지 않는다.
+    #[test]
+    fn an_alt_digit_does_not_pick() {
+        let mut view = View::new(2);
+        let f = view.frame(vec![digit(egui::Key::Num1, egui::Modifiers::ALT)]);
+        assert_eq!(f.action, ApprovalViewAction::None);
+    }
+
+    /// Cmd+`Num1` 누름.
+    #[cfg(target_os = "macos")]
+    fn command_digit(_ctx: &egui::Context) -> egui::Event {
+        digit(
+            egui::Key::Num1,
+            egui::Modifiers::MAC_CMD | egui::Modifiers::COMMAND,
+        )
+    }
+
+    /// Super+`Num1` 누름. 비-macOS 는 Super 를 egui 수식키에 싣지 않으므로 사건 수식키는 없고 `super_held` 로 남긴다.
+    #[cfg(not(target_os = "macos"))]
+    fn command_digit(ctx: &egui::Context) -> egui::Event {
+        tasty_key_match::note_modifiers(ctx, winit::keyboard::ModifiersState::SUPER);
+        digit(egui::Key::Num1, egui::Modifiers::NONE)
+    }
+
+    /// T-8-3m: Given 키 주인 승인 보기, When Cmd(비-macOS Super)+`Num1` 을 누르면, Then 고르지 않는다.
+    #[test]
+    fn a_command_digit_does_not_pick() {
+        let mut view = View::new(2);
+        let press = command_digit(&view.ctx);
+        let f = view.frame(vec![press]);
+        assert_eq!(f.action, ApprovalViewAction::None);
+    }
+
+    /// T-8-4: Given 코멘트 입력칸에 포커스가 있는 승인 보기, When `Num1` 을 누르면, Then 고르지 않는다.
+    #[test]
+    fn a_digit_with_the_comment_focused_is_ignored() {
+        let mut view = View::new(2);
+        view.ctx
+            .memory_mut(|m| m.request_focus(egui::Id::new(COMMENT_FIELD_ID)));
+        view.frame(Vec::new());
+        assert!(
+            view.ctx
+                .memory(|m| m.has_focus(egui::Id::new(COMMENT_FIELD_ID)))
+        );
+        let f = view.frame(vec![digit(egui::Key::Num1, egui::Modifiers::NONE)]);
+        assert_eq!(f.action, ApprovalViewAction::None);
+    }
+
+    /// T-8-4c: Given 승인 보기, When 한 패스에 코멘트 입력칸 클릭과 `Num1` 이 오면, Then 그 패스에 코멘트가 포커스를
+    /// 얻어 고르지 않는다.
+    #[test]
+    fn a_click_into_the_comment_this_pass_stops_the_digit() {
+        let mut view = View::new(2);
+        let at = view.center_of("Hint");
+        view.frame(vec![egui::Event::PointerMoved(at)]);
+        let mut events = click_at(at);
+        events.push(digit(egui::Key::Num1, egui::Modifiers::NONE));
+        let f = view.frame(events);
+        assert!(
+            view.ctx
+                .memory(|m| m.has_focus(egui::Id::new(COMMENT_FIELD_ID))),
+            "코멘트가 포커스를 얻었다"
+        );
+        assert_eq!(f.action, ApprovalViewAction::None);
+    }
+
+    /// T-8-5: Given 승인 보기, When 한 패스에 2번 버튼 클릭과 `Num1` 이 오면, Then 숫자가 덮어 1번을 고른다.
+    #[test]
+    fn a_digit_overrides_a_button_click_in_the_same_pass() {
+        let mut view = View::new(2);
+        let at = view.center_of("Choice 2 (2)");
+        view.frame(vec![egui::Event::PointerMoved(at)]);
+        let mut clicked = view.frame(click_at(at));
+        assert_eq!(clicked.action, chosen(2), "클릭만으로는 2번이다");
+        let mut events = click_at(at);
+        events.push(digit(egui::Key::Num1, egui::Modifiers::NONE));
+        clicked = view.frame(events);
+        assert_eq!(clicked.action, chosen(1));
+    }
+
+    /// T-8-6: Given 항목 셋, When 한 패스에 [`Num3`, `Num1`] 이 오면, Then 작은 번호 1번을 고른다.
+    #[test]
+    fn the_smaller_of_two_digits_wins() {
+        let mut view = View::new(3);
+        let f = view.frame(vec![
+            digit(egui::Key::Num3, egui::Modifiers::NONE),
+            digit(egui::Key::Num1, egui::Modifiers::NONE),
+        ]);
+        assert_eq!(f.action, chosen(1));
+    }
+
+    /// T-8-6r: Given 항목 셋, When 한 패스에 [`Num1`, `Num3`] 이 오면, Then 1번을 고른다.
+    #[test]
+    fn the_smaller_of_two_digits_wins_in_event_order_too() {
+        let mut view = View::new(3);
+        let f = view.frame(vec![
+            digit(egui::Key::Num1, egui::Modifiers::NONE),
+            digit(egui::Key::Num3, egui::Modifiers::NONE),
+        ]);
+        assert_eq!(f.action, chosen(1));
+    }
+
+    /// T-8-7: Given 항목 둘, When `Num5` 를 누르면, Then 고르지 않고 그 누름이 입력에 남는다.
+    #[test]
+    fn a_digit_past_the_choices_is_left_unused() {
+        let mut view = View::new(2);
+        let f = view.frame(vec![digit(egui::Key::Num5, egui::Modifiers::NONE)]);
+        assert_eq!(f.action, ApprovalViewAction::None);
+        assert!(f.left.contains(&egui::Key::Num5), "{:?}", f.left);
     }
 
     #[test]

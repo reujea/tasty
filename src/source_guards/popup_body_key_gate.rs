@@ -333,7 +333,6 @@ fn enclosing_open(code: &str, pos: usize) -> Option<usize> {
 /// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
 const POPUP_BODIES: &[&str] = &[
     "src/adapters/ui/info_modal.rs",
-    "src/adapters/ui/popup/approval.rs",
     "src/adapters/ui/popup/command_palette.rs",
     "src/adapters/ui/popup/convert.rs",
     "src/adapters/ui/popup/file_picker/folder.rs",
@@ -415,8 +414,20 @@ fn reads(code: &str, read: &str) -> bool {
     code.match_indices(read).any(|(at, _)| {
         let before = code[..at].chars().next_back();
         let after = code[at + read.len()..].chars().next();
-        !before.is_some_and(is_ident) && (read.ends_with('(') || !after.is_some_and(is_ident))
+        !before.is_some_and(is_ident)
+            && (read.ends_with('(') || !after.is_some_and(is_ident))
+            && !is_channel_call(code, at, read)
     })
+}
+
+/// 팝업 키 통로(`PopupKeys`)의 `consume_key(` 호출인지. 앞이 `keys.` 이고 그 앞이 낱말 글자가 아니다
+/// (`cx.keys.consume_key(`·`keys.consume_key(`). 통로는 이번 프레임 키 주인에게만, 선언 소비 집합 안의 누름만
+/// 주므로 egui 입력을 직접 읽는 것이 아니다.
+fn is_channel_call(code: &str, at: usize, read: &str) -> bool {
+    read == "consume_key("
+        && code[..at]
+            .strip_suffix("keys.")
+            .is_some_and(|rest| !rest.chars().next_back().is_some_and(is_ident))
 }
 
 /// 경로가 `::name` 으로 끝나는 자리가 있는지(뒤에 낱말 글자가 이어지지 않는다).
@@ -575,6 +586,8 @@ fn the_key_read_scan_catches_each_form() {
         "my_consume_binding_egui(&b)",
         "#[cfg(test)]\nmod t {\n    fn f(i: &InputState) -> bool { i.key_pressed(k) }\n}",
         "#[cfg(test)]\nfn f(i: &InputState) -> bool {\n    i.key_pressed(k)\n}",
+        "cx.keys.consume_key(m, k)",
+        "keys\n    .consume_key(m, k)",
     ] {
         assert!(!reads_keys(code), "키 읽기가 아닌데 걸렸다: {code}");
     }
@@ -635,6 +648,7 @@ fn the_key_read_scan_catches_each_form() {
 const POPUP_BODIES_WITHOUT_KEY_READS: &[&str] = &[
     "src/adapters/ui/dialog.rs",
     "src/adapters/ui/mouse_capture_menu.rs",
+    "src/adapters/ui/popup/approval.rs",
     "src/adapters/ui/popup/confirm_close_remote.rs",
     "src/adapters/ui/popup/confirm_delete_category.rs",
     "src/adapters/ui/popup/confirm_force_detach_workspace.rs",
