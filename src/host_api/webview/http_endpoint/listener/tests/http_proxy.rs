@@ -251,11 +251,13 @@ fn port_taken(error: EndpointError) -> bool {
         }
     )
 }
-#[derive(Debug)]
-enum Failure {
-    First(EndpointError),
-    Successor { port: u16, error: EndpointError },
+#[derive(Clone, Copy, Debug)]
+enum Stage {
+    First,
+    Successor,
 }
+/// The stage that failed, the port it bound (0 for the first endpoint) and its error.
+type Failure = (Stage, u16, EndpointError);
 /// Join an endpoint on a kernel-picked port, then start its successor on the same port.
 async fn rebind_after_join(
     calls: &Arc<AtomicUsize>,
@@ -267,7 +269,7 @@ async fn rebind_after_join(
         budget.clone(),
     )
     .await
-    .map_err(Failure::First)?;
+    .map_err(|error| (Stage::First, 0, error))?;
     let port = first.port();
     assert_eq!(port, proxy_port(&first));
     let old = authorization(&first);
@@ -278,7 +280,7 @@ async fn rebind_after_join(
         budget.clone(),
     )
     .await
-    .map_err(|error| Failure::Successor { port, error })?;
+    .map_err(|error| (Stage::Successor, port, error))?;
     Ok((second, port, old))
 }
 /// The released port can be taken by any socket on the host before the successor binds it, as in
@@ -291,7 +293,7 @@ async fn successor_rebinds_the_joined_address_with_fresh_credentials() {
     let (second, port, old) = loop {
         match rebind_after_join(&calls, &budget).await {
             Ok(rebound) => break rebound,
-            Err(failure @ Failure::Successor { error, .. }) if port_taken(error) => {
+            Err(failure @ (Stage::Successor, _, error)) if port_taken(error) => {
                 attempts.push(failure);
                 assert_eq!(budget.active_owners(), 0, "{attempts:?}");
                 assert!(
