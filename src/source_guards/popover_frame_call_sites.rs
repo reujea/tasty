@@ -11,9 +11,10 @@
 //! 선택 행(`selectable_value` · `selectable_label`)은 현재 값을 accent 채움으로 칠하므로 디자인의 선택
 //! 표현(글자 + 오른쪽 체크, 채움 없음)과 다르다. `show_ui` 클로저 본문을 중괄호 짝으로 잘라 확인한다.
 //! remote_tool 폼은 ComboBox 를 도우미 `combo(..)` 로 그리고 목록 행은 호출자가 마지막 클로저 인자로 넘긴다. 그
-//! 파일의 `combo(` 호출마다 괄호 짝으로 인자 범위를 자르고, 그 안의 마지막 클로저(`|이름| {`)가 인자 끝까지
-//! 이어지는지 본다. 그 본문에 egui 기본 선택 행이 없고, 공용 옵션 행 함수를 정확한 이름으로 부르며 첫 인자로
-//! 그 클로저의 매개변수를 넘기는지 본다. 다른 파일의 도우미나 클로저를 변수로 넘긴 호출은 보지 않는다.
+//! 파일을 문자열·문자 리터럴과 주석을 바이트 정렬로 가린 뒤, `combo(` 호출마다 괄호 짝으로 인자 범위를 자르고
+//! 깊이 0 의 쉼표로 나눈 마지막 최상위 인자가 `|이름| { .. }` 클로저인지 본다. 그 본문에 egui 기본 선택 행이 없고,
+//! 공용 옵션 행 함수를 정확한 이름으로 부르며 첫 인자로 그 클로저의 매개변수를 넘기는지 본다. 다른 파일의 도우미나
+//! 클로저를 변수로 넘긴 호출은 보지 않는다.
 
 use super::rust_sources;
 
@@ -151,23 +152,11 @@ const HELPER_COMBO_CALL: &str = "combo(";
 /// 공용 옵션 행 함수.
 const SHARED_ROWS: &[&str] = &["menu_option", "menu_option_value"];
 
-/// `open` 위치의 `(` 와 짝이 되는 `)` 의 위치. 큰따옴표 문자열 안의 괄호는 세지 않는다.
+/// `open` 위치의 `(` 와 짝이 되는 `)` 의 위치. `code` 는 리터럴·주석을 가린 텍스트다.
 fn paren_end(code: &str, open: usize) -> Option<usize> {
     let mut depth = 0usize;
-    let mut in_str = false;
-    let mut escaped = false;
     for (i, c) in code[open..].char_indices() {
-        if in_str {
-            match (escaped, c) {
-                (true, _) => escaped = false,
-                (false, '\\') => escaped = true,
-                (false, '"') => in_str = false,
-                _ => {}
-            }
-            continue;
-        }
         match c {
-            '"' => in_str = true,
             '(' => depth += 1,
             ')' => {
                 depth -= 1;
@@ -185,30 +174,50 @@ fn is_ident(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// 인자 범위 `args` 의 마지막 클로저 `|이름| {` 의 매개변수 이름과 `{` 위치(범위 안 상대). 그 본문이 인자 끝까지
-/// 이어지지 않으면(뒤에 다른 인자가 있으면) 없다.
-fn last_closure(args: &str) -> Option<(&str, usize)> {
-    let mut found = None;
-    for (bar, _) in args.match_indices('|') {
-        let rest = &args[bar + 1..];
-        let name_len = rest.find(|c: char| !is_ident(c)).unwrap_or(rest.len());
-        if name_len == 0 || !rest[name_len..].starts_with('|') {
-            continue;
+/// 인자 범위 `args`(리터럴·주석을 가린 텍스트)의 마지막 최상위 인자. 괄호·대괄호·중괄호 깊이 0 의 쉼표로 나누고
+/// 끝의 빈 인자(뒤따르는 쉼표)는 건너뛴다. 돌려주는 값은 그 인자의 시작 위치(범위 안 상대)와 앞뒤 공백을 뺀 텍스트다.
+fn last_top_level_arg(args: &str) -> Option<(usize, &str)> {
+    let mut depth = 0isize;
+    let mut start = 0;
+    let mut last = None;
+    for (i, c) in args.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                last = Some((start, &args[start..i]));
+                start = i + 1;
+            }
+            _ => {}
         }
-        let after = &rest[name_len + 1..];
-        let gap = after.len() - after.trim_start().len();
-        if !after[gap..].starts_with('{') {
-            continue;
-        }
-        found = Some((&rest[..name_len], bar + 1 + name_len + 1 + gap));
     }
-    let (name, open) = found?;
-    let body = brace_body(args, open);
-    let tail = args[open + body.len() + 1..].trim();
-    (tail.is_empty() || tail == ",").then_some((name, open))
+    let tail = &args[start..];
+    let (at, arg) = if tail.trim().is_empty() {
+        last?
+    } else {
+        (start, tail)
+    };
+    let lead = arg.len() - arg.trim_start().len();
+    Some((at + lead, arg.trim()))
 }
 
-/// 본문이 공용 옵션 행 함수를 정확한 이름으로 부르고 첫 인자로 `param` 을 넘기는지.
+/// 마지막 최상위 인자가 `|이름| { .. }` 클로저 하나이면 그 매개변수 이름과 본문(중괄호 안).
+fn last_closure(args: &str) -> Option<(&str, &str)> {
+    let (_, arg) = last_top_level_arg(args)?;
+    let rest = arg.strip_prefix('|')?;
+    let name_len = rest.find(|c: char| !is_ident(c)).unwrap_or(rest.len());
+    if name_len == 0 {
+        return None;
+    }
+    let body = rest[name_len..]
+        .strip_prefix('|')?
+        .trim_start()
+        .strip_prefix('{')?
+        .strip_suffix('}')?;
+    Some((&rest[..name_len], body))
+}
+
+/// 본문(리터럴·주석을 가린 텍스트)이 공용 옵션 행 함수를 정확한 이름으로 부르고 첫 인자로 `param` 을 넘기는지.
 fn calls_shared_row(body: &str, param: &str) -> bool {
     SHARED_ROWS.iter().any(|row| {
         body.match_indices(&format!("{row}(")).any(|(at, _)| {
@@ -222,11 +231,12 @@ fn calls_shared_row(body: &str, param: &str) -> bool {
     })
 }
 
-/// 도우미 `combo(` 호출 중 마지막 클로저 인자(목록 행)가 egui 기본 선택 행을 쓰거나 공용 옵션 행을 그 클로저의
-/// `Ui` 로 부르지 않는 호출의 줄 번호와 검사한 호출 수. 앞 글자가 식별자·`.` 이면 다른 이름이고, `fn combo(` 는
-/// 정의다. 인자 끝에 클로저가 없는 호출도 위반이다.
+/// 도우미 `combo(` 호출 중 마지막 최상위 인자(목록 행 클로저)가 egui 기본 선택 행을 쓰거나 공용 옵션 행을 그
+/// 클로저의 `Ui` 로 부르지 않는 호출의 줄 번호와 검사한 호출 수. 판정은 모두 문자열·문자 리터럴과 주석을 바이트
+/// 정렬로 가린 텍스트에서 한다. 앞 글자가 식별자·`.` 이면 다른 이름이고, `fn combo(` 는 정의다. 마지막 인자가
+/// 클로저가 아닌 호출도 위반이다.
 fn helper_combo_rows(src: &str) -> (Vec<usize>, usize) {
-    let code = tasty_doc_guards::source_text::mask_comments_aligned(src);
+    let code = tasty_doc_guards::source_text::mask_non_code_aligned(src);
     let mut offenders = Vec::new();
     let mut seen = 0;
     for (at, _) in code.match_indices(HELPER_COMBO_CALL) {
@@ -242,8 +252,7 @@ fn helper_combo_rows(src: &str) -> (Vec<usize>, usize) {
             continue;
         };
         let args = &code[open + 1..close];
-        let ok = last_closure(args).is_some_and(|(param, brace)| {
-            let body = brace_body(args, brace);
+        let ok = last_closure(args).is_some_and(|(param, body)| {
             !EGUI_SELECTABLE.iter().any(|e| body.contains(e)) && calls_shared_row(body, param)
         });
         if !ok {
@@ -299,6 +308,16 @@ fn the_helper_combo_judge_reads_the_row_closure() {
     let trailing =
         "combo(ui, pen, \"a\", sel, |ui| {\n    menu_option(ui, th, false, \"x\");\n}, None);";
     assert_eq!(helper_combo_rows(trailing), (vec![1], 1));
+    // 문자열 안의 공용 행 이름은 호출이 아니다.
+    let in_string =
+        "combo(ui, pen, \"a\", sel, None, |rows| {\n    rows.label(\"menu_option(rows,\");\n});";
+    assert_eq!(helper_combo_rows(in_string), (vec![1], 1));
+    // 행 클로저 안의 중첩 클로저는 마지막 인자가 아니다. 바깥 클로저 본문 전체를 본다.
+    let nested = "combo(ui, pen, \"a\", sel, None, |rows| {\n    rows.horizontal(|inner| {\n        inner.add_space(1.0);\n    });\n    menu_option_value(rows, th, &mut v, 1, \"x\");\n});";
+    assert_eq!(helper_combo_rows(nested), (vec![], 1));
+    // 문자열 안의 짝 없는 중괄호는 인자 범위를 넘기지 않는다. 뒤 호출은 따로 판정한다.
+    let open_brace = "combo(ui, pen, \"a\", sel, None, |rows| {\n    rows.label(\"{\");\n    menu_option(rows, th, false, \"x\");\n});\ncombo(ui, pen, \"b\", sel, None, |ui| {\n    ui.selectable_value(&mut v, 1, \"x\");\n});";
+    assert_eq!(helper_combo_rows(open_brace), (vec![5], 2));
 }
 
 #[test]
