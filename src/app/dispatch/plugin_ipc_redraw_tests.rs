@@ -1,5 +1,6 @@
 //! 플러그인 host call 처리 여부를 about_to_wait의 redraw 판단에 넘기는지 잰다. 창이 없는 App이라
-//! dirty 자체는 볼 수 없어서 판단 입력(반환값)을 확인한다. 회신은 게이트가 호출을 보류할 수 있어 보지 않는다.
+//! dirty 자체는 볼 수 없어서 판단 입력(반환값)을 확인한다. 회신 내용은 판단하지 않고, 게이트에 보류한
+//! 호출이 끝났는지 확인할 때만 회신 도착을 본다.
 //! `App`을 만드는 데 X11 디스플레이가 필요하고 winit `EventLoop`는 프로세스에 하나뿐이라 새 프로세스에서 혼자 돈다.
 
 use std::sync::Arc;
@@ -57,7 +58,9 @@ fn processing_a_plugin_call_reports_it_for_the_redraw() {
 }
 
 /// Given 요청 게이트에 보류한 플러그인 호출, When IPC 회차가 게이트를 진행해 그 호출을 재개하면,
-/// Then 재개 사실이 플러그인 redraw 판단에 한 번 남는다.
+/// Then 첫 재개 회차에 재개 사실이 플러그인 redraw 판단에 남는다.
+/// When 호출이 끝나 재개할 호출이 없는 회차(행 대기도 없다)를 돌면, Then 표지가 서지 않는다.
+/// 재개한 호출은 writer 결과를 기다리며 게이트에 다시 설 수 있고, 다시 선 호출은 재개할 때마다 다시 세운다.
 #[test]
 fn a_plugin_call_resumed_from_the_request_gate_reaches_the_redraw_decision() {
     if crate::test_support::rerun_alone(
@@ -68,7 +71,7 @@ fn a_plugin_call_resumed_from_the_request_gate_reaches_the_redraw_decision() {
     }
     let _home = crate::test_support::IsolatedHome::new();
     let event_loop = crate::x11_test_loop::x11_event_loop::<crate::AppEvent>();
-    let (mut app, _caller) = app_with_caller(&event_loop);
+    let (mut app, caller) = app_with_caller(&event_loop);
     let manager = app.plugin_manager.as_mut().expect("manager");
     manager.queue_plugin_call_for_test(CALLER, 1, "banner.close", json!({}));
     let call = manager.take_pending_plugin_calls().remove(0);
@@ -91,6 +94,26 @@ fn a_plugin_call_resumed_from_the_request_gate_reaches_the_redraw_decision() {
         std::mem::take(&mut app.plugin_calls_resumed),
         "게이트에서 재개한 플러그인 호출을 redraw 판단에 넘기지 않았다"
     );
+    // 재개한 호출은 cap 조회 결과를 기다리며 게이트에 다시 설 수 있다. 호스트 루프처럼 결과가 나올 때까지
+    // 회차를 돌린다. 그 회차들의 재개 표지는 이 시험이 판정하지 않으므로 소비만 한다.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !app.gate_queue.is_empty() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "a gated plugin call never finished"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        app.process_ipc();
+        app.plugin_calls_resumed = false;
+    }
+    let replies: Vec<_> = caller
+        .drain_requests()
+        .into_iter()
+        .filter(|(_, params)| params["call_id"] == 1)
+        .collect();
+    assert_eq!(replies.len(), 1, "게이트를 지난 호출의 회신: {replies:?}");
+
+    assert!(app.gate_queue.is_empty());
     app.process_ipc();
     assert!(
         !app.plugin_calls_resumed,
