@@ -493,7 +493,8 @@ fn run_dynamic_client_polling(
 /// Run the CLI client: connect to a running tasty instance and execute the command.
 ///
 /// stdout 이 파이프 조기 종료(EPIPE)로 닫히면 조용히 `Ok(())` — 종료 코드 0(docs/dev-guide/cli-structure.md#stdout-출력-outrs).
-/// 출력 경로 전체가 [`crate::out`] 을 거치므로 `StdoutClosed` 가 여기까지 `?` 로 올라온다.
+/// raw attach bridge 를 뺀 출력 경로가 [`crate::out`] 을 거치므로 `StdoutClosed` 가 여기까지 `?` 로 올라온다.
+/// raw bridge 는 stdout 에 직접 쓰고 BrokenPipe 를 세션 완료로 끝내 성공으로 돌아온다.
 pub fn run_client(command: Commands, port_file: Option<&str>) -> Result<()> {
     run_client_with(command, port_file, Envelope::default())
 }

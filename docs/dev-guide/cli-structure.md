@@ -180,8 +180,9 @@ BrokenPipe는 `StdoutClosed`로 구분해 CLI 진입점의 `quiet_if_stdout_clos
 
 출력 도중 즉시 process::exit하지 않고 오류를 전파해야 SSH 터널 등 Drop 정리가 수행된다.
 폴링 명령은 다음 실제 출력 때 닫힌 파이프를 감지한다. 출력할 데이터가 없으면 빈 flush만으로
-닫힘을 알 수 없어 기다릴 수 있다. raw attach bridge는 best-effort로 화면을 미러하므로
-stdout 닫힘을 세션 detach로 승격하지 않는 별도 경로다.
+닫힘을 알 수 없어 기다릴 수 있다. raw attach bridge는 `std::io::stdout()`에 직접 쓰는 별도 경로다.
+BrokenPipe면 세션을 정상 완료로 끝내 `StdoutClosed` 없이 종료 코드 0이 되고, 다른 출력 오류는 반환한다
+([attach — CLI 출력 종료](attach-behavior.md#cli-출력-종료), [오류 처리](error-handling.md#stdout-쓰기-cli-클라이언트)).
 
 stderr에는 `errln!`을 사용한다. 쓰기 실패는 더 보고할 채널이 없으므로 무시하지만,
 원래 명령의 실패 1·파싱 오류 2 등 종료 코드는 유지한다. 실제 버그의 panic hook은 유지한다.

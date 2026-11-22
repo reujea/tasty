@@ -396,8 +396,14 @@ crash report 가 된다. Rust 런타임은 SIGPIPE 를 무시하도록 두고 Wi
   crash report 가 된다. stderr 는 실패를 알리는 마지막 채널이라 그 쓰기의 실패는 **버리고**,
   종료 코드는 명령이 원래 내던 값 그대로다(stdout 처럼 0 으로 접지 않는다 — 대개 이미 실패한
   명령이다). 근거는 [CLI 크레이트 내부 구조 — 세 갈래 대칭](cli-structure.md).
-- 예외: `local/attach.rs` raw bridge 는 `std::io::stdout()` 핸들에 best-effort 미러하고 결과를
-  주석과 함께 무시한다 — stdout 이 닫혀도 attach 세션은 계속돼야 한다.
+- 예외: `local/attach.rs` raw bridge 는 `crate::out` 대신 `std::io::stdout()` 핸들에 직접 쓴다.
+  오류 처리는 위 규칙과 같은 방향이다. 화면 데이터의 write·flush 가 `BrokenPipe` 면 세션을 정상 완료로
+  끝내 `StdoutClosed` 를 거치지 않고 종료 코드 0 이 되고, 그 밖의 쓰기 오류는 호출자에게 반환한다.
+  세션이 종료(`Completed`·`Disconnected`)로 끝나면 SGR 초기화를 쓰고, 그 실패는 `BrokenPipe` 면 넘기고
+  그 밖이면 `tracing::warn!` 으로 남긴다. 다른 오류로 반환하거나 재동기화로 끝나면 초기화를 건너뛴다.
+  동작 정본은 [attach — CLI 출력 종료](attach-behavior.md#cli-출력-종료), 시험은 `attach.rs` 의
+  `closed_stdout_finishes_attach_but_other_output_errors_are_returned` 와
+  `a_closed_stdout_at_the_end_of_a_session_is_not_an_error` 다.
 
 ```rust
 // ✅ CLI 출력
