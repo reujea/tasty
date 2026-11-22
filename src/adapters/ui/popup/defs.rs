@@ -594,7 +594,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 debug_payload: None,
                 on_close: Some(super::download_run::on_close_download_run_large),
             },
-            // 다운로드 진행 — Esc·바깥 클릭으로 닫히지 않는다. 멈추는 것은 Stop download 하나다.
+            // 다운로드 진행 — Esc 로 닫고 바깥 클릭은 포커스만 푼다. 닫아도 다운로드는 계속 받고, 같은 수신 묶음에는
+            // 다시 열지 않는다(`on_close_download_run_progress`). 멈추는 것은 Stop download 하나다.
             PopupDef {
                 id: super::download_run::DOWNLOAD_RUN_PROGRESS_POPUP_ID,
                 decl: PopupDecl {
@@ -618,7 +619,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 draw_fn: super::download_run::draw_download_run_progress,
                 #[cfg(debug_assertions)]
                 debug_payload: None,
-                on_close: None,
+                on_close: Some(super::download_run::on_close_download_run_progress),
             },
             PopupDef {
                 id: super::preset_apply::APPLY_WORKSPACE_POPUP_ID,

@@ -1966,6 +1966,8 @@ fn a_down_and_escape_in_one_share_move_the_tutorial_selection() {
 
 /// 제품 정의 `id` 를 L 범위에 열어 키 주인으로 두고, 수식키 없는 Esc 한 패스 뒤 그 인스턴스 결과를 돌려준다. 본문은
 /// 시험 본문(아무것도 쓰지 않는다)이라 결과는 선언 `escape` 와 중앙 단계가 정한다. 닫혔는지도 함께 돌려준다.
+/// 이 도우미를 쓰는 T-6b-2a·2b·2c 는 선언값과 관리자 닫힘까지만 본다. 실제 본문, 닫기 훅 뒤 상태, 다음 갱신의
+/// 재개방은 보지 않는다(다운로드 진행의 재개방은 `download_run_tests` T-F2-1 이 본다).
 fn escape_on_a_declared_popup(id: crate::adapters::ui::popup::PopupId) -> (Vec<String>, bool) {
     let (mut state, mut session) = scene(PANE_L);
     registered(&mut state);

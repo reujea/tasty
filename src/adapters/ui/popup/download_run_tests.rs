@@ -258,3 +258,55 @@ fn the_progress_opens_in_the_first_receiving_surface_and_stays() {
         Some(&crate::model::popup_kind::PopupScope::Surface(201))
     );
 }
+
+/// T-F2-1: Given 받는 중인 다운로드의 진행 팝업에 포커스가 있을 때, When 창을 거친 Esc 로 닫으면, Then 다운로드는
+/// 계속 받고 같은 수신 묶음의 다음 진행 동기화에도 닫힌 채다. 받는 다운로드가 없어진 뒤 새 다운로드가 받기
+/// 시작하면 다시 연다.
+#[test]
+fn an_escape_closed_progress_stays_closed_for_the_rest_of_the_batch() {
+    use crate::adapters::ui::popup::window_input_test_support::{layer_escape, layer_frame};
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    for def in super::super::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let surface = state.focused_surface_id(&read).expect("포커스 surface");
+    state.dialogs.download_run.runs.push(run(5, surface, true));
+    assert!(open_progress_for_receiving(&mut state));
+    let ctx = egui::Context::default();
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    state
+        .popups
+        .set_focused(DOWNLOAD_RUN_PROGRESS_POPUP_ID, true);
+    layer_escape(&ctx, &mut state, &read);
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    assert!(
+        !state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID),
+        "Esc 로 닫힌다"
+    );
+    assert!(
+        state
+            .dialogs
+            .download_run
+            .runs
+            .iter()
+            .any(|r| r.id == 5 && r.receiving),
+        "닫아도 다운로드는 계속 받는다"
+    );
+    assert!(
+        !open_progress_for_receiving(&mut state),
+        "같은 수신 묶음에는 다시 열지 않는다"
+    );
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    assert!(!state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID));
+
+    state.dialogs.download_run.runs.clear();
+    assert!(!open_progress_for_receiving(&mut state));
+    state.dialogs.download_run.runs.push(run(6, surface, true));
+    assert!(
+        open_progress_for_receiving(&mut state),
+        "새 수신 묶음은 다시 연다"
+    );
+}
