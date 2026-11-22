@@ -154,7 +154,7 @@ check_let_underscore() {
             # 문자열을 제거한 소스를 줄 번호로 읽는다. 없으면 한 줄 정규식으로 검사한다.
             BEGIN { if (maskfile != "") { while ((getline ml < maskfile) > 0) MASK[++mn] = ml } }
             function flush() { if (pending != "") { print pending; pending = "" } }
-            # 위쪽 사유 주석을 찾을 때 빈 줄과 `#[..]` 속성 줄은 건너뛴다.
+            # 위쪽 사유 주석을 찾을 때 빈 줄과 속성 줄(`#[..]`·`#![..]`, `#`·`!` 뒤 공백 허용)은 건너뛴다.
             # 소스 사본이 없으면 바로 윗줄만 확인한다.
             function comment_above(ln,   i, l) {
                 if (mn == 0) return (prev ~ /^[[:space:]]*\/\//)
@@ -162,7 +162,7 @@ check_let_underscore() {
                     if (!(i in MASK)) return 0
                     l = MASK[i]
                     if (l ~ /^[[:space:]]*$/)    continue
-                    if (l ~ /^[[:space:]]*#\[/)  continue
+                    if (l ~ /^[[:space:]]*#[[:space:]]*!?[[:space:]]*\[/) continue
                     return (l ~ /^[[:space:]]*\/\//)
                 }
                 return 0

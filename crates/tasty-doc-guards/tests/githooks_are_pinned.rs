@@ -580,3 +580,72 @@ fn hook_bash_command() -> std::process::Command {
 fn hook_path(path: &std::path::Path) -> String {
     tasty_doc_guards::floored_walk::normalized_rel(path, std::path::Path::new(""))
 }
+
+/// pre-commit C.6 의 awk 판정을 훅 파일에서 잘라, 꾸민 staged diff 와 판정기 사본(`masked`)으로 실행한다.
+/// 출력은 사유 주석이 없다고 본 `let _ =` 줄들이다.
+fn c6_violations(masked: &str, diff: &str) -> String {
+    let hook = std::fs::read_to_string(repo_root().join(".githooks/pre-commit"))
+        .unwrap_or_else(|e| panic!("pre-commit 을 못 읽었다: {e}"));
+    let open = "awk -v maskfile=\"$masked_file\" '";
+    let starts: Vec<usize> = hook
+        .match_indices(open)
+        .map(|(i, _)| i + open.len())
+        .collect();
+    assert_eq!(
+        starts.len(),
+        1,
+        "C.6 awk 시작 표지 `{open}` 를 {}곳에서 찾았다",
+        starts.len()
+    );
+    let rest = &hook[starts[0]..];
+    let end = rest
+        .find("\n        ')")
+        .expect("C.6 awk 끝 표지(`')` 줄)를 못 찾았다");
+    let program = &rest[..end];
+    assert!(
+        program.contains("function comment_above("),
+        "잘라 낸 awk 에 comment_above 가 없다"
+    );
+    let scratch = tasty_doc_guards::temp_scratch::Scratch::new("c6-awk");
+    for (name, text) in [
+        ("c6.awk", program),
+        ("masked.rs", masked),
+        ("staged.diff", diff),
+    ] {
+        std::fs::write(scratch.path().join(name), text)
+            .unwrap_or_else(|e| panic!("{name} 를 못 썼다: {e}"));
+    }
+    let output = hook_bash_command()
+        .current_dir(scratch.path())
+        .args(["-c", "awk -v maskfile=masked.rs -f c6.awk < staged.diff"])
+        .output()
+        .expect("run the C.6 awk program");
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("awk 출력이 UTF-8 이 아니다")
+}
+
+/// C.6 은 판정기 사본으로 위쪽 사유 주석을 찾을 때 가드처럼 `#[`·`#![`·`# [`·`# ! [` 속성 줄을 건너뛴다.
+#[test]
+fn the_c6_reason_search_skips_every_attribute_spelling() {
+    // C.6 이 이 파일을 검사하므로 금지 형태를 런타임에 조립한다.
+    let stmt = format!("let {}= g();", "_ ");
+    for attr in [
+        "#[cfg(windows)]",
+        "#![allow(unused)]",
+        "# [cfg(windows)]",
+        "# ! [allow(unused)]",
+    ] {
+        for (reason, want) in [("// 이유", 0), ("g();", 1)] {
+            let masked = format!("fn f() {{\n    {reason}\n    {attr}\n    {stmt}\n}}\n");
+            let diff = format!(
+                "--- a/x.rs\n+++ b/x.rs\n@@ -1,4 +1,5 @@\n fn f() {{\n     {reason}\n     {attr}\n+    {stmt}\n }}\n"
+            );
+            let out = c6_violations(&masked, &diff);
+            assert_eq!(out.lines().count(), want, "{attr} {reason}: {out:?}");
+        }
+    }
+}
