@@ -237,3 +237,24 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
     drop(transport);
     assert_retired(receipt, &probe);
 }
+
+/// 반납 없이 버린 전송은 회수 스레드가 대기 상한 뒤 소켓을 닫는다. 그 닫기가 recv 에 막힌 reader 도 끝내야
+/// 회수가 읽기 기한(30초)까지 늦어지지 않는다. 상대는 열린 채 응답하지 않고, writer 는 Detach 를 쓴 뒤 쓰기
+/// 쪽만 닫고 reader 를 30초까지 기다리므로 먼저 소켓을 닫지 않는다. Linux·macOS 는 `shutdown` 만으로도
+/// 막힌 읽기가 돌아오므로 이 시험이 닫기 함수의 차이를 가르는 것은 Windows 뿐이다.
+#[test]
+fn a_dropped_transport_wakes_a_reader_blocked_in_recv() {
+    let (_remote, _token, prepared, _peer) = prepared_with_peer();
+    let transport = prepared.transport;
+    let probe = transport.reader_probe.clone();
+    wait_until_reader_blocks(&probe);
+    assert!(
+        !probe.finished(),
+        "the reader ended before the transport was dropped"
+    );
+    let receipt = transport.workers.receipt();
+    let dropped = Instant::now();
+    drop(transport);
+    assert_reader_released(&probe, dropped);
+    assert_retired(receipt, &probe);
+}

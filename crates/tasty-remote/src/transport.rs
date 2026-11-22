@@ -821,7 +821,8 @@ impl Drop for ConnectionWorkers {
             );
             #[cfg(test)]
             wait_while_reaper_close_held(&held);
-            if let Err(error) = control.shutdown(std::net::Shutdown::Both) {
+            // 버린 전송의 reader 가 아직 recv 에 막혀 있을 수 있어, Windows 에서도 그 읽기를 끝내는 닫기를 쓴다.
+            if let Err(error) = tasty_utils::socket_wake::shutdown_both_and_wake(&control) {
                 tracing::debug!("retired remote socket already closed: {error}");
             }
             // 끝난 worker부터 join해 그 panic 로그를 먼저 남긴다. panic한 reader가 `failed`로 남는 것은
