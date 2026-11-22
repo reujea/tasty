@@ -357,6 +357,13 @@ impl<'a> Code<'a> {
         if self.word_at(k, b"const") {
             return self.b.get(self.skip_ws(k + 5, self.b.len())) != Some(&b'{');
         }
+        // `union` 은 약한 키워드라 뒤에 이름이 올 때만 아이템이다(`union::f()`·`union(..)` 은 식).
+        if self.word_at(k, b"union") {
+            return self
+                .b
+                .get(self.skip_ws(k + 5, self.b.len()))
+                .is_some_and(|&c| is_ident_byte(c));
+        }
         [
             &b"fn"[..],
             b"mod",
@@ -364,7 +371,6 @@ impl<'a> Code<'a> {
             b"trait",
             b"struct",
             b"enum",
-            b"union",
             b"type",
             b"static",
             b"use",
@@ -2855,5 +2861,38 @@ mod helper_tests {
             "crates/tasty-agent/tests/runner_integration.rs"
         ));
         assert!(!is_test_path("src/core/agent/task.rs"));
+    }
+
+    /// 테스트 범위로 센 `let _` 자리의 줄 번호(1부터, `violations_in` 과 같은 기준).
+    fn site_lines(template: &str) -> Vec<usize> {
+        test_scope_sites(&with_ignore(template), false)
+            .into_iter()
+            .map(|(i, _)| i + 1)
+            .collect()
+    }
+
+    /// `violations_in` 과 `test_scope_sites` 두 판정 경로의 결과.
+    fn both(template: &str) -> (Vec<usize>, Vec<usize>) {
+        (fixture(template), site_lines(template))
+    }
+
+    #[test]
+    fn a_union_path_or_call_is_an_expression_not_an_item() {
+        for head in ["union::f(1)", "union(1)", "other::f(1)"] {
+            assert_eq!(
+                both(&format!(
+                    "m! {{\n    #[cfg(test)]\n    {head}\n    {{IGNORE}}\n}}\n"
+                )),
+                (vec![4], vec![]),
+                "{head}"
+            );
+        }
+        // 이름이 뒤따르는 `union` 은 아이템이다.
+        assert_eq!(
+            both(
+                "m! {\n    #[cfg(test)]\n    union U { a: [u8; { {IGNORE} 1 }] }\n}\nfn f() {\n    {IGNORE}\n}\n"
+            ),
+            (vec![6], vec![3])
+        );
     }
 }
