@@ -382,7 +382,9 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 - 제품이 포트를 놓는 경우: HTTP 프록시 endpoint 의 Reload 후계는 선행 endpoint 가 join 으로
   놓은 포트를 다시 bind 한다. `successor_rebinds_the_joined_address_with_fresh_credentials` 는
   후계 bind 가 `EndpointError::Bind { kind: AddrInUse, .. }` 로 실패한 경우에만 처음부터
-  최대 3회 다시 하고, 다른 오류는 바로 실패하며 시도별 오류를 메시지에 남긴다.
+  다시 해 최초 포함 최대 3회 시도(재시도 최대 2회)하고, 다른 오류는 바로 실패하며 시도별
+  오류를 메시지에 남긴다. 포트를 쥔 주체는 관측하지 않으므로, 선행 endpoint 가 포트를 가끔만
+  놓지 않는 회귀는 다음 시도가 새 포트로 성공하면 가려진다.
 
 ### 형태 C — 부하 의존 벽시계 마감(deadline)
 

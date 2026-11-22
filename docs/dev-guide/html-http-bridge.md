@@ -296,7 +296,7 @@ The Windows GUI client uses the same HttpSession, bridge, body source and endpoi
 
 The session adds client-local headers to each endpoint response. The first response for the main-frame URL recorded at `NavigationStarting` claims the main response, scans its exact verified body and decides the document's scripts. Until scripts are allowed, every response carries `script-src 'none'` and `no-store`. Local headers follow the verified head; framing names and `Set-Cookie` are refused.
 
-Windows retains the view and WebView2 context across Reload like Linux. Because WebView2 fixes the proxy address at environment creation, the predecessor records its endpoint port and the successor session binds that port only after the predecessor endpoint has joined. The view then adopts the successor session and credentials, clears HTTP caches and calls Reload, which resends the original method, upload and cookies. Script Allow still replays the exact verified response once in the same view.
+Windows retains the view and WebView2 context across Reload like Linux. Because WebView2 fixes the proxy address at environment creation, the predecessor records its endpoint port and the successor session binds that port only after the predecessor endpoint has joined. The view then adopts the successor session and credentials, clears HTTP caches and calls Reload, which resends the original method, upload and cookies. If another socket takes the recorded port before the successor binds it, the successor session fails, the surface shows the failed state and the warning log keeps the bind error kind and OS code. Script Allow still replays the exact verified response once in the same view.
 
 ## macOS App session and native factory
 
