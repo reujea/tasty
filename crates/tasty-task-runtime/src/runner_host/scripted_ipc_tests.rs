@@ -56,7 +56,8 @@ fn reply(cmd: IpcCommand, result: Value) {
 
 /// `answer_state_idle` 이면 `.state` 로 끝나는 명령은 단계를 쓰지 않고 idle 로 바로 답한다.
 /// 그 밖의 명령은 단계를 하나씩 쓰며, 단계가 다 떨어진 뒤 온 명령은 보낸 스레드에서 실패한다.
-/// `.state` 는 단계 큐를 보기 전에 답하므로 단계가 떨어진 뒤에도 실패하지 않는다.
+/// `answer_state_idle` 이면 `.state` 는 단계 큐를 보기 전에 답하므로 단계가 떨어진 뒤에도 실패하지
+/// 않는다. 꺼져 있으면 `.state` 도 단계를 쓴다.
 pub(crate) fn install(ctx: &RunnerContext, steps: Vec<Step>, answer_state_idle: bool) -> Scripted {
     let (tx, cmds) = mpsc::channel::<IpcCommand>();
     let (fwd_tx, fwd_rx) = mpsc::channel::<IpcCommand>();
