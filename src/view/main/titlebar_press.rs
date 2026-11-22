@@ -8,8 +8,24 @@ use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseButton};
 
 impl MainView {
+    /// 누름을 위(egui·타이틀바·팝업·배너)에 남길 포인터 대상인지(`button_stays_above` 의 `over_above`).
+    pub(super) fn press_over_above(
+        &self,
+        button: MouseButton,
+        state: ElementState,
+        egui_consumed: bool,
+    ) -> bool {
+        let on_titlebar = self.left_press_on_titlebar(button, state);
+        over_above(
+            egui_consumed,
+            on_titlebar,
+            self.pointer_on_popup(),
+            self.state.banner_hovered,
+        )
+    }
+
     /// 이 버튼 사건이 직전 패스에 그린 타이틀바 위의 좌버튼 누름인지. 지금 포인터 좌표(물리)로 본다.
-    pub(super) fn left_press_on_titlebar(&self, button: MouseButton, state: ElementState) -> bool {
+    fn left_press_on_titlebar(&self, button: MouseButton, state: ElementState) -> bool {
         press_on_titlebar(
             button,
             state,
@@ -18,6 +34,16 @@ impl MainView {
             || self.base.winit.inner_size(),
         )
     }
+}
+
+/// 위 대상 판정. egui 판정이 직전 패스 위치라 놓치는 타이틀바 누름을 `on_titlebar` 가 더한다.
+fn over_above(
+    egui_consumed: bool,
+    on_titlebar: bool,
+    on_popup: bool,
+    banner_hovered: bool,
+) -> bool {
+    egui_consumed || on_titlebar || on_popup || banner_hovered
 }
 
 /// 배율이 바뀌면 저장된 타이틀바 영역(옛 배율의 물리 좌표)을 버린다. 다음 패스가 새 배율로 다시 적을 때까지는
@@ -62,7 +88,7 @@ fn press_on_titlebar(
 /// 직전 패스에 그린 타이틀바 위 좌버튼 누름을 사건 좌표로 가리는 판정을 확인한다.
 #[cfg(test)]
 mod titlebar_press_tests {
-    use super::{press_on_titlebar, titlebar_rect_after_rescale};
+    use super::{over_above, press_on_titlebar, titlebar_rect_after_rescale};
     use crate::model::{PhysicalPx, PhysicalRect};
     use std::cell::Cell;
     use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -176,6 +202,17 @@ mod titlebar_press_tests {
             size
         ));
         assert_eq!(reads.get(), 1);
+    }
+
+    /// egui 가 소비하지 않은 누름이라도 타이틀바 누름이면 위에 남는다. 이 항이 빠지면 닫기 버튼 누름이 터미널
+    /// 클릭으로 내려가 셸에 방향키가 간다.
+    #[test]
+    fn a_titlebar_press_alone_keeps_the_press_above() {
+        assert!(over_above(false, true, false, false));
+        assert!(!over_above(false, false, false, false));
+        assert!(over_above(true, false, false, false));
+        assert!(over_above(false, false, true, false));
+        assert!(over_above(false, false, false, true));
     }
 
     /// Given 배율 2 에서 그린 타이틀바(물리 72px), When 배율이 1 로 내려간 뒤 첫 패스 전에 작업 영역 첫 줄(y=40)을

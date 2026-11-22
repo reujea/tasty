@@ -402,12 +402,11 @@ impl MainView {
         // 선택·분할선 드래그를 시작하지 않는다.
         // egui 판정은 직전 패스의 포인터 위치를 본다. 이동 직후의 누름은 타이틀바 위여도 소비되지 않아
         // 터미널 클릭(선택·클릭 커서 이동)으로 샌다. 타이틀바 좌버튼 누름은 사건 좌표로 따로 본다.
-        let on_titlebar = self.left_press_on_titlebar(button, button_state);
         if button_stays_above(
             button_state,
             captured_release,
             overlay_open,
-            egui_consumed || on_titlebar || self.pointer_on_popup() || self.state.banner_hovered,
+            self.press_over_above(button, button_state, egui_consumed),
         ) {
             if button_state == ElementState::Pressed {
                 self.blocked_press_buttons.push(button);
