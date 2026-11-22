@@ -1747,6 +1747,57 @@ fn root_level(roots: &[PathBuf]) -> Root {
     root_level_of(&heads)
 }
 
+/// 한 파일의 테스트 범위 자리(`info`)에서 고칠 것을 kind 마다 한 줄씩 만든다. `root` 는 저장소 루트,
+/// `roots` 는 이 파일의 크레이트 루트 후보(테스트 타깃이면 비어 있다).
+fn file_report(
+    root: &Path,
+    rel: &str,
+    info: &[Site],
+    own_target: bool,
+    roots: &[PathBuf],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let root_lv = root_level(roots);
+    let sites: Vec<(usize, Option<Level>)> = info.iter().map(|s| (s.line, s.level)).collect();
+    let left = needs(&sites, root_lv);
+    let root_expect_at = root_expect(roots).map(|p| rel_of(p, root));
+    let exemption = exemption_site(info, root_lv, root_expect_at.as_deref());
+    for kind in [
+        Need::Reenabled,
+        Need::Forbidden,
+        Need::Exemption,
+        Need::RootConflict,
+    ] {
+        let Some(&(line, _)) = left.iter().find(|(_, n)| *n == kind) else {
+            continue;
+        };
+        let (line, expect) = match (kind, &exemption) {
+            (Need::Exemption, Some((l, e))) => (*l, e.as_ref()),
+            _ => (line, None),
+        };
+        let fix = match kind {
+            Need::Reenabled => "감싸는 아이템·블록이 lint 를 다시 켰다(`warn`·`deny`). 다시 켠 속성보다 안쪽에 `#[allow(clippy::let_underscore_must_use)]` 를 단다".to_string(),
+            Need::Forbidden => "감싸는 `forbid(clippy::let_underscore_must_use)` 는 안쪽 `allow` 로 풀 수 없다(E0453). `forbid` 를 `deny` 로 바꾸고 안쪽에 `allow` 를 단다".to_string(),
+            Need::Exemption => {
+                let where_to = roots
+                    .first()
+                    .map(|p| rel_of(p, root))
+                    .unwrap_or_else(|| "(크레이트 루트를 못 찾았다)".to_string());
+                exemption_fix(own_target, &where_to, expect)
+            }
+            Need::RootConflict => {
+                let names: Vec<String> = roots.iter().map(|p| rel_of(p, root)).collect();
+                format!(
+                    "크레이트 루트 후보 {} 의 머리 수준이 `allow`·`forbid` 로 갈려 이 파일에 적용되는 수준을 정할 수 없다(가드는 어느 타깃이 이 파일을 컴파일하는지 따지지 않는다). `forbid` 를 단 루트의 `forbid` 를 `deny` 로 바꾸고, 다른 후보의 면제에 기대지 말고 이 파일 머리나 감싸는 아이템에 `#[allow(clippy::let_underscore_must_use)]` 를 단다. 파일 안에서 `warn`·`deny` 로 다시 켠 자리는 그 속성보다 안쪽에 단다",
+                    names.join("·")
+                )
+            }
+        };
+        out.push(format!("  {rel}:{}  ← {fix}", line + 1));
+    }
+    out
+}
+
 /// 제품 코드의 값 무시 목록에 테스트가 섞이지 않도록 lint 면제를 확인한다.
 /// 타입을 모르는 검사이므로 테스트 범위의 `let _ =`마다 그 자리를 덮는 면제를 요구한다.
 /// 인정하는 자리는 파일 머리·감싸는 블록 안쪽의 `#![..]`, 감싸는 아이템·문장의 `#[..]`, 크레이트 루트다.
@@ -1788,43 +1839,7 @@ fn test_scope_stays_out_of_the_lint_roster() {
         } else {
             crate_roots(root, &rel)
         };
-        let root_lv = root_level(&roots);
-        let left = needs(&sites, root_lv);
-        let root_expect_at = root_expect(&roots).map(|p| rel_of(p, root));
-        let exemption = exemption_site(&info, root_lv, root_expect_at.as_deref());
-        for kind in [
-            Need::Reenabled,
-            Need::Forbidden,
-            Need::Exemption,
-            Need::RootConflict,
-        ] {
-            let Some(&(line, _)) = left.iter().find(|(_, n)| *n == kind) else {
-                continue;
-            };
-            let (line, expect) = match (kind, &exemption) {
-                (Need::Exemption, Some((l, e))) => (*l, e.as_ref()),
-                _ => (line, None),
-            };
-            let fix = match kind {
-                Need::Reenabled => "감싸는 아이템·블록이 lint 를 다시 켰다(`warn`·`deny`). 다시 켠 속성보다 안쪽에 `#[allow(clippy::let_underscore_must_use)]` 를 단다".to_string(),
-                Need::Forbidden => "감싸는 `forbid(clippy::let_underscore_must_use)` 는 안쪽 `allow` 로 풀 수 없다(E0453). `forbid` 를 `deny` 로 바꾸고 안쪽에 `allow` 를 단다".to_string(),
-                Need::Exemption => {
-                    let where_to = roots
-                        .first()
-                        .map(|p| rel_of(p, root))
-                        .unwrap_or_else(|| "(크레이트 루트를 못 찾았다)".to_string());
-                    exemption_fix(own_target, &where_to, expect)
-                }
-                Need::RootConflict => {
-                    let names: Vec<String> = roots.iter().map(|p| rel_of(p, root)).collect();
-                    format!(
-                        "크레이트 루트 후보 {} 의 머리 수준이 `allow`·`forbid` 로 갈려 이 파일에 적용되는 수준을 정할 수 없다(가드는 어느 타깃이 이 파일을 컴파일하는지 따지지 않는다). `forbid` 를 단 루트의 `forbid` 를 `deny` 로 바꾸고, 다른 후보의 면제에 기대지 말고 이 파일 머리나 감싸는 아이템에 `#[allow(clippy::let_underscore_must_use)]` 를 단다. 파일 안에서 `warn`·`deny` 로 다시 켠 자리는 그 속성보다 안쪽에 단다",
-                        names.join("·")
-                    )
-                }
-            };
-            report.push(format!("  {rel}:{}  ← {fix}", line + 1));
-        }
+        report.extend(file_report(root, &rel, &info, own_target, &roots));
     }
 
     assert!(
@@ -3449,6 +3464,29 @@ mod helper_tests {
             exemption_site(&info, Root::Known(None), None),
             Some((3, None))
         );
+        // 운영 경로: 실제 루트 파일을 읽는 `root_expect` 와 `file_report` 를 거쳐 안내가 나온다.
+        let repo = tasty_doc_guards::temp_scratch::Scratch::new("letguard-root-expect");
+        let src = repo.path().join("src");
+        fs::create_dir_all(&src).expect("src 디렉터리");
+        let lib = src.join("lib.rs");
+        fs::write(&lib, root).expect("루트 파일");
+        let roots = [lib];
+        assert_eq!(root_expect(&roots), Some(&roots[0]));
+        let report = file_report(repo.path(), "src/m.rs", &info, false, &roots);
+        assert_eq!(report.len(), 1, "{report:?}");
+        assert!(report[0].starts_with("  src/m.rs:4  ← "), "{report:?}");
+        assert!(
+            report[0].contains("크레이트 루트 후보 `src/lib.rs` 의 머리에"),
+            "{report:?}"
+        );
+        assert!(
+            report[0].contains("unfulfilled_lint_expectations"),
+            "{report:?}"
+        );
+    }
+
+    #[test]
+    fn the_exemption_guidance_says_what_to_change() {
         // expect 아래 자리는 allow 를 따로 더하지 않고 그 expect 를 allow 로 바꾸라고 한다.
         for own in [false, true] {
             let fix = exemption_fix(own, "src/lib.rs", Some(&ExpectAt::Site));
