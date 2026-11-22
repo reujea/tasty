@@ -3,6 +3,7 @@
 mod profile_admission;
 #[cfg(target_os = "linux")]
 mod profile_fixture;
+mod setup_errors;
 use super::*;
 #[cfg(target_os = "linux")]
 use crate::host_api::webview::http_context::preparation::Preparation;
@@ -63,7 +64,7 @@ pub(super) fn start(current: Current) -> Started {
         current,
         Arc::new(move || wake.store(true, Ordering::Release)),
     )
-    .unwrap_or_else(|_| panic!("setup"));
+    .unwrap_or_else(|error| panic!("setup: {error:?}"));
     Started { setup, published }
 }
 pub(super) fn ready(started: &mut Started) -> NativeRuntime {
@@ -73,13 +74,39 @@ pub(super) fn ready(started: &mut Started) -> NativeRuntime {
         || published.load(Ordering::Acquire),
         || setup.poll(),
     )
-    .unwrap_or_else(|_| panic!("runtime setup"))
+    .unwrap_or_else(|error| panic!("runtime setup: {error:?}"))
 }
 pub(super) fn reaped() {
     wait_for("retired runtime owners", || {
         retirement::reap().unwrap();
         retirement::owners() == 0
     });
+}
+/// One injected setup failure, taken by the calling thread's next `Setup::start` only, so tests
+/// running beside it never meet it.
+pub(crate) mod fault {
+    use std::{cell::Cell, io};
+    #[derive(Clone, Copy)]
+    pub(crate) enum Fault {
+        /// The setup thread cannot be created.
+        Spawn(i32),
+        /// The setup thread cannot build its Tokio runtime.
+        Build(i32),
+    }
+    thread_local! {
+        static NEXT: Cell<Option<Fault>> = const { Cell::new(None) };
+    }
+    pub(crate) fn inject(fault: Fault) {
+        NEXT.with(|next| next.set(Some(fault)));
+    }
+    /// The spawn and build errors the injection stands for, as raw OS errors.
+    pub(crate) fn take() -> (Option<io::Error>, Option<io::Error>) {
+        match NEXT.with(Cell::take) {
+            Some(Fault::Spawn(code)) => (Some(io::Error::from_raw_os_error(code)), None),
+            Some(Fault::Build(code)) => (None, Some(io::Error::from_raw_os_error(code))),
+            None => (None, None),
+        }
+    }
 }
 /// All fixtures using the process-wide runtime owner budget share TEST through actual teardown.
 pub(in super::super) fn with_runtime(run: impl FnOnce(NativeRuntime)) {
@@ -120,7 +147,7 @@ fn setup_capacity_and_retired_workers_remain_charged_until_actual_job_terminatio
     for _ in 0..7 {
         pending.push(
             Setup::start(Arc::new(|| true), Arc::new(|| {}))
-                .unwrap_or_else(|_| panic!("bounded setup")),
+                .unwrap_or_else(|error| panic!("bounded setup: {error:?}")),
         );
     }
     assert!(matches!(

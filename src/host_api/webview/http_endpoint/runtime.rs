@@ -17,7 +17,23 @@ use tokio::{runtime::Handle, sync::Semaphore};
 pub(crate) enum RuntimeError {
     Capacity,
     Retired,
-    Worker,
+    /// The I/O cause when a thread or runtime could not be created; a lost setup channel or a
+    /// poisoned retirement has none.
+    Worker(Option<IoCause>),
+}
+/// What an I/O failure was, kept in `Debug` output so a refused setup names its cause.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct IoCause {
+    kind: std::io::ErrorKind,
+    os: Option<i32>,
+}
+impl RuntimeError {
+    fn io(error: &std::io::Error) -> Self {
+        Self::Worker(Some(IoCause {
+            kind: error.kind(),
+            os: error.raw_os_error(),
+        }))
+    }
 }
 struct State {
     live: AtomicBool,
@@ -60,6 +76,9 @@ impl Setup {
         current: Current,
         wake: Arc<dyn Fn() + Send + Sync>,
     ) -> Result<Self, RuntimeError> {
+        // Taken first, so an early return leaves nothing for this thread's next setup.
+        #[cfg(test)]
+        let (spawn_fault, build_fault) = tests::fault::take();
         if !current() {
             return Err(RuntimeError::Retired);
         }
@@ -71,13 +90,24 @@ impl Setup {
         let worker = state.clone();
         let (tx, result) = mpsc::sync_channel(1);
         let (stop, shutdown) = mpsc::channel();
-        let thread = std::thread::Builder::new()
-            .name("html-native-setup".into())
-            .spawn(move || {
-                let _permit = permit;
-                setup_worker(worker, tx, shutdown, wake);
-            })
-            .map_err(|_| RuntimeError::Worker)?;
+        let body = move || {
+            let _permit = permit;
+            #[cfg(test)]
+            if let Some(error) = build_fault {
+                setup_failed(error, tx, &wake);
+                return;
+            }
+            setup_worker(worker, tx, shutdown, wake);
+        };
+        #[cfg(test)]
+        let spawned = match spawn_fault {
+            // Dropping the body returns its owner permit, as a real spawn failure does.
+            Some(error) => Err(error),
+            None => spawn_setup(body),
+        };
+        #[cfg(not(test))]
+        let spawned = spawn_setup(body);
+        let thread = spawned.map_err(|error| RuntimeError::io(&error))?;
         Ok(Self {
             result,
             owner: Some(Owner {
@@ -91,7 +121,7 @@ impl Setup {
         let result = match self.result.try_recv() {
             Ok(result) => result,
             Err(mpsc::TryRecvError::Empty) => return None,
-            Err(mpsc::TryRecvError::Disconnected) => Err(RuntimeError::Worker),
+            Err(mpsc::TryRecvError::Disconnected) => Err(RuntimeError::Worker(None)),
         };
         let owner = self.owner.take()?;
         Some(match result {
@@ -103,6 +133,11 @@ impl Setup {
             Err(error) => Err(error),
         })
     }
+}
+fn spawn_setup(body: impl FnOnce() + Send + 'static) -> std::io::Result<JoinHandle<()>> {
+    std::thread::Builder::new()
+        .name("html-native-setup".into())
+        .spawn(body)
 }
 fn setup_worker(
     worker: Arc<State>,
@@ -146,7 +181,7 @@ fn setup_failed(
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
     tracing::warn!(%error, "native HTTP runtime setup failed");
-    if tx.send(Err(RuntimeError::Worker)).is_err() {
+    if tx.send(Err(RuntimeError::io(&error))).is_err() {
         tracing::debug!("native runtime setup receiver retired");
     }
     wake();

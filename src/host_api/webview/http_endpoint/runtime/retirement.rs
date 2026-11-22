@@ -28,12 +28,12 @@ pub(super) fn retain(thread: JoinHandle<()>) {
 }
 pub(super) fn reap() -> Result<(), RuntimeError> {
     if POISONED.load(Ordering::Acquire) {
-        return Err(RuntimeError::Worker);
+        return Err(RuntimeError::Worker(None));
     }
     let Ok(mut retired) = RETIRED.lock() else {
         POISONED.store(true, Ordering::Release);
         tracing::error!("native runtime retirement poisoned; new runtimes refused");
-        return Err(RuntimeError::Worker);
+        return Err(RuntimeError::Worker(None));
     };
     let mut index = 0;
     while index < retired.len() {
