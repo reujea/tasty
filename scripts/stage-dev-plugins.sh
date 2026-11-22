@@ -17,7 +17,7 @@
 # 실행 중인 Tasty는 설치 폴더(TASTY_HOME/plugins/<id>)의 실행 파일을 쓰므로 이 폴더를 잠그지 않는다.
 # 다른 프로세스(탐색기·백신 등)가 이 폴더의 파일을 열고 있으면 옮기기가 실패하고 폴더는 그대로 남는다.
 # 스테이징 폴더는 실행마다 새로 만들고 끝날 때 지운다. 같은 target·프로필의 동시 실행은
-# <profile>/builtin-plugins.lock 폴더로 막는다. 이 실행이 끝나면 잠금을 푼다.
+# <profile>/builtin-plugins.lock 잠금 파일로 막는다(scripts/lib/run-lock.sh). 이 실행이 끝나면 잠금을 푼다.
 # 필요한 것: bash(3.2 이상), cargo, curl, tar. debug가 아니면 openssl. Windows는 Git Bash에서 실행한다.
 set -euo pipefail
 
@@ -31,6 +31,8 @@ USAGE
 }
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/run-lock.sh
+. "$root/scripts/lib/run-lock.sh"
 caller="$PWD"
 profile="debug"
 platform=""
@@ -172,7 +174,6 @@ cd "$root"
 # 끝날 때 되돌리거나 지울 것. 교체 중인 폴더(pending_*)는 스테이징 폴더와 따로 다룬다.
 stage=""
 mesh_stage=""
-lock_held=0
 pending_old=""
 pending_dest=""
 pending_published=0
@@ -199,8 +200,11 @@ settle_pending() {
 }
 
 cleanup() {
-    local rc=$?
-    trap - EXIT INT TERM
+    run_lock_defer_signals "$?"
+    # 이유: run_lock_status는 source한 scripts/lib/run-lock.sh의 run_lock_defer_signals가 정한다.
+    # shellcheck disable=SC2154
+    local rc=$run_lock_status
+    trap - EXIT
     settle_pending || rc=1
     local dir
     for dir in "$stage" "$mesh_stage"; do
@@ -208,26 +212,24 @@ cleanup() {
             echo "Warning: could not remove $dir" >&2
         fi
     done
-    if [[ "$lock_held" -eq 1 ]]; then
-        rmdir "$lock" || echo "Warning: could not remove $lock" >&2
-    fi
-    exit "$rc"
+    run_lock_release || echo "Warning: could not remove $lock" >&2
+    run_lock_finish "$rc"
 }
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'run_lock_signal 130' INT
+trap 'run_lock_signal 143' TERM
 
 mkdir -p "$profile_dir"
-if ! mkdir "$lock" 2>/dev/null; then
-    if [[ -d "$lock" ]]; then
-        echo "Error: another run is staging into $bundle ($lock exists)." >&2
-        echo "  Wait for it to finish and run this again. If no run is in progress, remove $lock." >&2
-    else
-        echo "Error: could not create $lock" >&2
-    fi
+lock_rc=0
+run_lock_acquire "$lock" || lock_rc=$?
+if [[ "$lock_rc" -eq 1 ]]; then
+    echo "Error: another run is staging into $bundle ($lock exists)." >&2
+    echo "  Wait for it to finish and run this again. If no run is in progress, remove $lock." >&2
+    exit 1
+elif [[ "$lock_rc" -ne 0 ]]; then
+    echo "Error: could not create $lock" >&2
     exit 1
 fi
-lock_held=1
 
 # 본체에 공개키를 포함할 수 있도록 본체 빌드보다 먼저 서명 키를 준비한다.
 if [[ "$profile" != debug ]]; then

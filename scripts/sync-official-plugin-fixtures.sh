@@ -17,6 +17,8 @@ usage() {
 }
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/run-lock.sh
+. "$root/scripts/lib/run-lock.sh"
 fixtures_rel="crates/tasty-test-support/fixtures/official-plugins"
 fixtures="$root/$fixtures_rel"
 lock_file="$root/official-plugins.lock.toml"
@@ -24,7 +26,7 @@ scan_awk="$root/scripts/lib/toml-scan.awk"
 # 후보는 target 아래에서 만들고 대조한다(재귀 품질 가드가 target을 빌드 캐시로 건너뛴다). 들일 때는 픽스처 폴더와 같은 부모 아래의
 # 새 점 폴더로 복사해 이름만 바꾼다. 점 폴더는 재귀 가드가 건너뛰고 끝나면 지운다.
 work_root="$root/target/official-plugin-fixtures-sync"
-lock_dir="$work_root.lock"
+lock="$work_root.lock"
 
 mode=""
 shared_cache=0
@@ -89,15 +91,17 @@ if ! platform="$(host_platform)"; then
 fi
 
 work=""
-lock_held=0
 backup=""
 side=""
 installed=0
 
 # 들이기 전에 끝나면 옮겨 둔 기존 픽스처를 되돌린다. 들였으면 백업을 버린다.
 cleanup() {
-    local rc=$? keep_side=0
-    trap - EXIT INT TERM
+    run_lock_defer_signals "$?"
+    # 이유: run_lock_status는 source한 scripts/lib/run-lock.sh의 run_lock_defer_signals가 정한다.
+    # shellcheck disable=SC2154
+    local rc=$run_lock_status keep_side=0
+    trap - EXIT
     if [[ -n "$backup" && -e "$backup" && "$installed" -eq 0 ]]; then
         if [[ ! -e "$fixtures" ]] && mv "$backup" "$fixtures"; then
             echo "Restored the previous fixtures in $fixtures_rel" >&2
@@ -114,26 +118,26 @@ cleanup() {
     if [[ -n "$work" ]] && ! rm -rf "$work"; then
         echo "Warning: could not remove $work" >&2
     fi
-    if [[ "$lock_held" -eq 1 ]] && ! rmdir "$lock_dir"; then
-        echo "Warning: could not remove $lock_dir" >&2
+    if ! run_lock_release; then
+        echo "Warning: could not remove $lock" >&2
     fi
-    exit "$rc"
+    run_lock_finish "$rc"
 }
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'run_lock_signal 130' INT
+trap 'run_lock_signal 143' TERM
 
 mkdir -p "$work_root"
-if ! mkdir "$lock_dir" 2>/dev/null; then
-    if [[ -d "$lock_dir" ]]; then
-        echo "Error: another run is syncing the fixtures ($lock_dir exists)." >&2
-        echo "  Wait for it to finish and run this again. If no run is in progress, remove $lock_dir." >&2
-    else
-        echo "Error: could not create $lock_dir" >&2
-    fi
+lock_rc=0
+run_lock_acquire "$lock" || lock_rc=$?
+if [[ "$lock_rc" -eq 1 ]]; then
+    echo "Error: another run is syncing the fixtures ($lock exists)." >&2
+    echo "  Wait for it to finish and run this again. If no run is in progress, remove $lock." >&2
+    exit 2
+elif [[ "$lock_rc" -ne 0 ]]; then
+    echo "Error: could not create $lock" >&2
     exit 2
 fi
-lock_held=1
 work="$(mktemp -d "$work_root/run.XXXXXX")"
 
 # 받기와 대조가 같은 잠금 파일을 보도록 사본을 쓴다.

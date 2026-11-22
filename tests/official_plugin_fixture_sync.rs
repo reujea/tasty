@@ -62,6 +62,7 @@ impl Root {
         for rel in [
             "scripts/sync-official-plugin-fixtures.sh",
             "scripts/lib/toml-scan.awk",
+            "scripts/lib/run-lock.sh",
         ] {
             fs::copy(repo.join(rel), path.join(rel)).unwrap_or_else(|e| panic!("{rel} 복사: {e}"));
         }
@@ -639,4 +640,39 @@ fn each_file_listing_failure_fails_the_check_on_its_own() {
             "{side} 쪽 나열 실패를 말하지 않는다:\n{text}"
         );
     }
+}
+
+/// 다른 실행이 동시 실행 잠금을 쥐고 있으면 두 모드 모두 받기 전에 기존 두 줄로 거부하고 종료 2다.
+/// 남의 잠금은 그대로 둔다.
+#[test]
+fn a_held_run_lock_refuses_both_modes_before_fetching() {
+    let root = Root::new();
+    let rel = "target/official-plugin-fixtures-sync.lock";
+    root.write(rel, "other\n");
+    let lock = root.path.join(rel);
+    for mode in ["--update", "--check"] {
+        let (code, text) = root.run(&[mode]);
+        assert_eq!(code, 2, "{mode}: 잠금이 있는데 진행했다:\n{text}");
+        for line in [
+            format!(
+                "Error: another run is syncing the fixtures ({} exists).",
+                lock.display()
+            ),
+            format!(
+                "  Wait for it to finish and run this again. If no run is in progress, remove {}.",
+                lock.display()
+            ),
+        ] {
+            assert!(
+                text.lines().any(|l| l == line),
+                "{mode}: 안내 줄이 없다: {line}\n{text}"
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(&lock).expect("잠금 읽기"),
+            "other\n",
+            "{mode}: 남의 잠금을 바꿨다"
+        );
+    }
+    assert!(root.fetch_log().is_empty(), "잠금이 있는데 fetch 를 불렀다");
 }

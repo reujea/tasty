@@ -411,3 +411,45 @@ fn int_while_holding_and_int_during_cleanup_end_with_130_and_no_lock() {
     assert_eq!(finish(&mut child, None), 130);
     assert!(left(&d).is_empty(), "남은 파일 {:?}", left(&d));
 }
+
+/// 다른 실행이 스테이징 잠금을 쥐고 있으면 stage-dev-plugins.sh가 기존 두 줄과 종료 1로 끝나고 번들 폴더를 만들지 않는다.
+#[test]
+fn staging_refuses_a_held_lock_with_the_existing_message() {
+    let dir = Scratch::new("run-lock-stage");
+    let profile = dir.path().join("debug");
+    std::fs::create_dir(&profile).expect("프로필 폴더");
+    let lock = profile.join("builtin-plugins.lock");
+    std::fs::write(&lock, "other\n").expect("남의 잠금");
+    let out = Command::new("bash")
+        .arg(tasty_doc_guards::repo_root().join("scripts/stage-dev-plugins.sh"))
+        .args(["--platform", "linux-x64"])
+        .env("CARGO_TARGET_DIR", dir.path())
+        .output()
+        .expect("bash 실행");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    let bundle = profile.join("builtin-plugins");
+    for line in [
+        format!(
+            "Error: another run is staging into {} ({} exists).",
+            bundle.display(),
+            lock.display()
+        ),
+        format!(
+            "  Wait for it to finish and run this again. If no run is in progress, remove {}.",
+            lock.display()
+        ),
+    ] {
+        assert!(
+            err.lines().any(|l| l == line),
+            "안내 줄이 없다: {line}\n{err}"
+        );
+    }
+    assert!(!bundle.exists(), "번들 폴더를 만들었다");
+    assert_eq!(std::fs::read_to_string(&lock).expect("잠금"), "other\n");
+    assert_eq!(
+        names(&profile),
+        vec!["builtin-plugins.lock"],
+        "다른 파일을 남겼다"
+    );
+}
