@@ -98,6 +98,9 @@ struct AttemptState {
     ssh: std::sync::Mutex<Vec<tasty_ssh::SshCancel>>,
     active: std::sync::atomic::AtomicBool,
     sockets: std::sync::Mutex<Vec<std::net::TcpStream>>,
+    /// 시험 전용: 이 시도가 취소로 닫은 등록 소켓의 수. 닫는 함수 안에서 닫은 직후 더한다.
+    #[cfg(any(test, feature = "test-support"))]
+    closed_sockets: std::sync::atomic::AtomicUsize,
 }
 impl PartialEq for AttemptToken {
     fn eq(&self, other: &Self) -> bool {
@@ -110,18 +113,24 @@ impl std::hash::Hash for AttemptToken {
         std::hash::Hash::hash(&(std::sync::Arc::as_ptr(&self.0) as usize), state);
     }
 }
-/// Cancellation can race EOF or a previous shutdown of another clone of this socket.
-/// Failure does not establish a join: callers still retain and poll the worker receipt.
-fn shutdown_cancelled_socket(socket: &std::net::TcpStream) {
-    match tasty_utils::socket_wake::shutdown_both_and_wake(socket) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotConnected => {
-            tracing::debug!("remote cancellation socket already disconnected: {error}");
-        }
-        Err(error) => {
-            tracing::warn!(
-                "remote cancellation socket shutdown failed; waiting for worker exit: {error}"
-            );
+impl AttemptState {
+    /// Cancellation can race EOF or a previous shutdown of another clone of this socket.
+    /// Failure does not establish a join: callers still retain and poll the worker receipt.
+    fn shutdown_cancelled_socket(&self, socket: &std::net::TcpStream) {
+        let shut = tasty_utils::socket_wake::shutdown_both_and_wake(socket);
+        #[cfg(any(test, feature = "test-support"))]
+        self.closed_sockets
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        match shut {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotConnected => {
+                tracing::debug!("remote cancellation socket already disconnected: {error}");
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "remote cancellation socket shutdown failed; waiting for worker exit: {error}"
+                );
+            }
         }
     }
 }
@@ -137,6 +146,13 @@ impl AttemptToken {
     }
     pub fn is_active(&self) -> bool {
         self.0.active.load(std::sync::atomic::Ordering::Acquire)
+    }
+    /// 시험 전용: 이 시도가 취소로 닫은 등록 소켓의 수.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn closed_socket_count(&self) -> usize {
+        self.0
+            .closed_sockets
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
     pub(crate) fn cancel(&self) {
         self.0
@@ -159,7 +175,7 @@ impl AttemptToken {
                 &ATTEMPT_SOCKETS_POISON_REPORTED,
             );
             for socket in sockets.drain(..) {
-                shutdown_cancelled_socket(&socket);
+                self.0.shutdown_cancelled_socket(&socket);
             }
         }
     }
@@ -196,7 +212,7 @@ impl AttemptToken {
             .lock()
             .map_err(|_| std::io::Error::other("connection cancellation state poisoned"))?;
         if !self.is_active() {
-            shutdown_cancelled_socket(&control);
+            self.0.shutdown_cancelled_socket(&control);
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Interrupted,
                 "connection attempt retired",
@@ -364,6 +380,8 @@ impl Remote {
             ssh: std::sync::Mutex::new(Vec::new()),
             active: std::sync::atomic::AtomicBool::new(true),
             sockets: std::sync::Mutex::new(Vec::new()),
+            #[cfg(any(test, feature = "test-support"))]
+            closed_sockets: Default::default(),
         }));
         self.attempts.push(AttemptRecord {
             token: token.clone(),

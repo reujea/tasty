@@ -29,6 +29,10 @@ serde_json = "1"
 # Error handling
 anyhow = "1"
 
+[features]
+# 다른 크레이트의 시험이 시도 토큰의 취소 닫기 계수를 읽게 한다.
+test-support = []
+
 [lints]
 workspace = true
 

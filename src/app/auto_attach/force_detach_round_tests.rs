@@ -331,9 +331,9 @@ fn rotate_row_token(app: &mut App, row: u32) {
     }
 }
 
-/// 서버 쪽 소켓이 EOF 를 받는지. 그 EOF 가 회수 대기 전에 왔는지는 벽시계로 재지 않고
-/// [`assert_workers_retire_before_the_reaper_wait`] 가 회수 영수증으로 잰다. 회수 스레드도 대기 뒤에
-/// 소켓을 닫으므로 여기 기한은 닫히지 않은 소켓에서 멈추지 않기 위한 것이다.
+/// 서버 쪽 소켓이 EOF 를 받는지. 회수 스레드도 대기 뒤에 소켓을 닫으므로 이 EOF 는 즉시 닫기의 증거가
+/// 아니다. 즉시 닫기는 [`assert_cancel_closed_the_socket`] 이 본다. 여기 기한은 닫히지 않은 소켓에서 멈추지
+/// 않기 위한 것이다.
 fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
     socket
         .set_read_timeout(Some(Duration::from_secs(5)))
@@ -356,44 +356,49 @@ fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
     }
 }
 
-/// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 반납이 그 자리에서 소켓 양쪽을
-/// 닫아야 reader 가 바로 끝난다. 쓰기 스레드가 쓰기 쪽만 닫으면 reader 는 상대가 닫을 때까지 막혀 회수
-/// 스레드가 상한을 다 기다린 뒤 소켓을 닫는다. 그 여부는 회수 스레드가 영수증에 남기므로
-/// (`RetirementReceipt::waited_out`) 검사 스레드가 밀려도 판정이 바뀌지 않는다. 회수 완료를 기다리는
-/// 기한은 멈추지 않기 위한 것이다.
-fn assert_workers_retire_before_the_reaper_wait(
-    receipt: &tasty_remote::transport::RetirementReceipt,
-) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !receipt.is_done() {
-        assert!(Instant::now() < deadline, "the workers were never retired");
-        std::thread::sleep(Duration::from_millis(2));
-    }
+/// 설치 전에 버려진 연결은 시도 취소(`AttemptToken::cancel`)가 등록 소켓 양쪽을 그 자리에서 닫는다. 계수는
+/// 닫는 함수 안에서 닫은 직후 오르고 회수 스레드는 올리지 않으므로, 회차가 돌아왔을 때 늘어 있으면 회차 안에서
+/// 닫은 것이다. 막힌 reader 가 그 닫기로 풀리는지는 같은 취소를 쓰는 tasty-remote 의
+/// `cancelling_the_attempt_ends_a_reader_blocked_in_recv` 가 잰다.
+fn assert_cancel_closed_the_socket(token: &tasty_remote::outbound::AttemptToken, before: usize) {
     assert!(
-        !receipt.waited_out(),
-        "the reaper waited out its bound for the workers"
+        token.closed_socket_count() > before,
+        "not closed at once: the round did not close the registered socket"
     );
 }
 
+/// 버린 연결의 worker 가 모두 회수되고 panic 한 것이 없다. 기한은 멈추지 않기 위한 것이다.
+fn assert_retired(receipt: &tasty_remote::transport::RetirementReceipt) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    assert!(
+        holds_by(deadline, || receipt.is_done()),
+        "the workers were never retired"
+    );
+    assert!(!receipt.failed(), "a worker panicked");
+}
+
 /// 행 A 의 자동 재연결을 준비하고, 관측 뒤에 그 전송을 강제 끊김으로 확정한다. 그 연결 worker 의 회수
-/// 영수증도 돌려준다.
+/// 영수증과 시도 토큰도 돌려준다.
 fn settle_a_after_the_observation(
     app: &mut App,
 ) -> (
     crate::app::attach_client::round_intake::RoundIntake,
     tasty_remote::transport::RetirementReceipt,
+    tasty_remote::outbound::AttemptToken,
 ) {
     let intake = app.observe_round();
     let ticket = ticket_of(app, ROW).unwrap();
+    let token = app.remote.connection_token(ticket).unwrap();
     let prepared = app.remote.prepared_connection(ticket).unwrap();
     prepared.transport.end.raise(EndReason::Forced);
     assert!(prepared.transport.end.settle());
-    (intake, prepared.transport.workers.receipt())
+    (intake, prepared.transport.workers.receipt(), token)
 }
 
 /// S12(a): Given 사용자가 끊어 막힌 행 A 의 자동 재연결이 설치만 남았다, When 관측 뒤 A 의 전송이 강제
 /// 끊김으로 확정되고 같은 회차의 설치 검사가 A 를 버리면, Then 표지는 이번 회차에도 다음 회차에도 서지
-/// 않고 반납이 그 자리에서 소켓 양쪽을 닫는다(worker 가 회수 대기 전에 끝나고 서버 쪽은 EOF 를 받는다).
+/// 않고 시도 취소가 회차 안에서 등록 소켓 양쪽을 닫는다(닫기 계수가 늘고, worker 는 회수되며 서버 쪽은 EOF 를
+/// 받는다).
 #[test]
 fn a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once() {
     alone!("a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once");
@@ -401,35 +406,39 @@ fn a_connection_dropped_after_the_observation_writes_no_mark_and_closes_at_once(
     let mut app = reconnecting_app(&event_loop);
     let mut socket = prepare_an_automatic_reconnect(&mut app);
     app.remote.user_disconnected.insert(ROW);
-    let (intake, receipt) = settle_a_after_the_observation(&mut app);
+    let (intake, receipt, token) = settle_a_after_the_observation(&mut app);
+    let closed_before = token.closed_socket_count();
 
     app.finish_round(intake);
 
+    assert_cancel_closed_the_socket(&token, closed_before);
     assert!(ticket_of(&app, ROW).is_none(), "dropped");
     assert!(!marked(&app));
-    assert_workers_retire_before_the_reaper_wait(&receipt);
+    assert_retired(&receipt);
     assert_closed_at_once(&mut socket);
     app.apply_attach_client_output();
     assert!(!marked(&app), "nor next round");
 }
 
 /// S12(c): Given 행 A 의 자동 재연결이 설치만 남았다, When 관측 뒤 A 의 전송이 강제 끊김으로 확정되고
-/// 행 토큰이 바뀌어 같은 회차에 낡음으로 폐기되면, Then 표지는 서지 않고 반납이 그 자리에서 소켓 양쪽을
-/// 닫는다.
+/// 행 토큰이 바뀌어 같은 회차에 낡음으로 폐기되면, Then 표지는 서지 않고 시도 취소가 회차 안에서 등록 소켓
+/// 양쪽을 닫는다.
 #[test]
 fn a_connection_discarded_as_stale_after_the_observation_writes_no_mark() {
     alone!("a_connection_discarded_as_stale_after_the_observation_writes_no_mark");
     let event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
     let mut socket = prepare_an_automatic_reconnect(&mut app);
-    let (intake, receipt) = settle_a_after_the_observation(&mut app);
+    let (intake, receipt, token) = settle_a_after_the_observation(&mut app);
     rotate_row_token(&mut app, ROW);
+    let closed_before = token.closed_socket_count();
 
     app.finish_round(intake);
 
+    assert_cancel_closed_the_socket(&token, closed_before);
     assert!(ticket_of(&app, ROW).is_none(), "discarded");
     assert!(!marked(&app));
-    assert_workers_retire_before_the_reaper_wait(&receipt);
+    assert_retired(&receipt);
     assert_closed_at_once(&mut socket);
     app.apply_attach_client_output();
     assert!(!marked(&app), "nor next round");

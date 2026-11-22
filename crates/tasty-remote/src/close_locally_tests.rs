@@ -67,9 +67,9 @@ fn wait_until_reader_blocks(probe: &crate::transport::ReaderProbe) {
     std::thread::sleep(Duration::from_millis(50));
 }
 
-/// 상대가 Detach 프레임 없이 EOF 를 받는다. 그 EOF 가 회수 대기 전에 왔는지는 벽시계로 재지 않고
-/// [`assert_workers_retire_before_the_reaper_wait`] 가 회수 영수증으로 잰다. 회수 스레드도 대기 뒤에
-/// 소켓을 닫으므로 여기 기한은 닫히지 않은 소켓에서 멈추지 않기 위한 것이다.
+/// 상대가 Detach 프레임 없이 EOF 를 받는다. 그 EOF 가 회수 스레드의 닫기보다 먼저인지는 호출자가 정한다
+/// (전송을 버리기 전에 부르거나 회수 닫기를 막아 둔 채 부른다). 여기 기한은 닫히지 않은 소켓에서 멈추지
+/// 않기 위한 것이다.
 fn assert_closed_without_detach(
     peer: &mut std::net::TcpStream,
     probe: &crate::transport::ReaderProbe,
@@ -98,12 +98,38 @@ fn assert_closed_without_detach(
     }
 }
 
-/// 반납한 연결의 worker 가 회수 스레드의 대기 상한(250ms)보다 먼저 끝난다. 막힌 reader 가 닫기로
-/// 끝나지 않았다면 회수 스레드가 상한을 다 기다리거나(`waited_out`), 픽스처 읽기 기한(30초)까지
-/// join 에 막혀 아래 10초 안에 완료되지 않는다. 회수 스레드는 모든 worker 를 join 한 뒤에만 완료를
-/// 쓰므로 완료 뒤 `waited_out`·`failed` 를 읽는다. 그때의 reader 끝 표지는 join 뒤의 값이라 250ms
-/// 시점에 늦은 worker 를 가리키지 않는다.
-fn assert_workers_retire_before_the_reaper_wait(
+/// 반납 호출이 돌아올 때 이 스레드에서 소켓을 이미 닫았다. 회수 스레드는 이 표지를 세우지 않고, 닫기를
+/// 다른 스레드에 넘기면 표지가 비거나 그 스레드를 가리킨다.
+fn assert_closed_by_this_thread(stamp: &crate::transport::CloseStamp) {
+    assert_eq!(
+        stamp.by(),
+        Some(std::thread::current().id()),
+        "not closed at once: the return did not close the socket on its own thread"
+    );
+}
+
+/// 막힌 reader 가 회수 스레드의 닫기 전에 끝났다. 호출자는 전송을 아직 버리지 않았거나 회수 닫기를 막아 둔
+/// 채 부른다. 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 상한은 닫기 뒤 5초와, 첫 recv 직전 시각 +
+/// 픽스처 읽기 기한 중 이른 쪽이라 첫 읽기의 기한 만료로 끝난 reader 는 통과하지 못한다.
+fn assert_reader_released(probe: &crate::transport::ReaderProbe, closed: Instant) {
+    let first_recv = probe
+        .first_recv_at()
+        .expect("the reader stamps its first recv before it counts the entry");
+    holds_by(closed + Duration::from_secs(10), || probe.finished());
+    let Some(ended) = probe.ended_at() else {
+        panic!("blocked reader: the close left the reader in recv");
+    };
+    let bound = (first_recv + FIXTURE_READ_TIMEOUT).min(closed + Duration::from_secs(5));
+    assert!(
+        ended < bound,
+        "blocked reader: it ended {:?} after the close",
+        ended.saturating_duration_since(closed)
+    );
+}
+
+/// 버린 연결의 worker 가 모두 회수되고 panic 한 것이 없다. 회수 스레드는 모든 worker 를 join 한 뒤에만
+/// 완료를 쓴다. 기한은 멈추지 않기 위한 것이다.
+fn assert_retired(
     receipt: crate::transport::RetirementReceipt,
     probe: &crate::transport::ReaderProbe,
 ) {
@@ -114,55 +140,61 @@ fn assert_workers_retire_before_the_reaper_wait(
         probe.finished()
     );
     assert!(
-        !receipt.waited_out(),
-        "waited out: the reaper waited out its bound for the workers (reader finished {})",
-        probe.finished()
-    );
-    assert!(
         !receipt.failed(),
         "failed: a worker panicked (reader finished {})",
         probe.finished()
     );
 }
 
+/// 반납은 이 스레드에서 소켓을 닫고, 막힌 reader 는 전송을 버리기 전에(회수 스레드가 없을 때) 끝난다.
 #[test]
 fn close_locally_closes_the_socket_at_once_and_settles_lost() {
     let (_remote, _token, prepared, mut peer) = prepared_with_peer();
     let transport = prepared.transport;
     let probe = transport.reader_probe.clone();
     wait_until_reader_blocks(&probe);
+    let closed = Instant::now();
     transport.close_locally();
+    assert_closed_by_this_thread(&transport.workers.close_stamp());
     assert_eq!(
         transport.end.settled(),
         Some(crate::transport_end::EndReason::Lost)
     );
+    assert_reader_released(&probe, closed);
     assert_closed_without_detach(&mut peer, &probe);
     let receipt = transport.workers.receipt();
     drop(transport);
-    assert_workers_retire_before_the_reaper_wait(receipt, &probe);
+    assert_retired(receipt, &probe);
 }
 
+/// 설치에 실패한 guard 는 이 스레드에서 소켓을 닫는다. guard 의 drop 은 회수도 시작하므로 회수 스레드의
+/// 닫기를 막아 둔 채 reader 의 끝과 상대의 EOF 를 본다.
 #[test]
 fn a_failed_install_closes_the_taken_connection_at_once() {
     let (_remote, _token, prepared, mut peer) = prepared_with_peer();
     let guard = InstallGuard::new(prepared.transport);
     let end = guard.transport().end.clone();
     let receipt = guard.transport().workers.receipt();
+    let stamp = guard.transport().workers.close_stamp();
     let probe = guard.transport().reader_probe.clone();
+    let hold = guard.transport().workers.hold_reaper_close();
     wait_until_reader_blocks(&probe);
+    let closed = Instant::now();
     drop(guard);
+    assert_closed_by_this_thread(&stamp);
     assert_eq!(end.settled(), Some(crate::transport_end::EndReason::Lost));
+    assert_reader_released(&probe, closed);
     assert_closed_without_detach(&mut peer, &probe);
-    assert_workers_retire_before_the_reaper_wait(receipt, &probe);
+    drop(hold);
+    assert_retired(receipt, &probe);
 }
 
 /// 시도 취소가 등록 소켓을 닫으면 이미 `recv` 에 막힌 reader 가 끝난다. 전송을 drop 하기 전에 본다.
 /// drop 의 Detach·writer 닫기·회수 스레드 닫기가 판정을 대신하지 않게 하기 위해서다.
 /// 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 상한은 취소 뒤 5초와, reader 가 첫 recv 직전에 남긴 시각 +
 /// 픽스처 읽기 기한(30초) 중 이른 쪽이다. 첫 읽기의 기한 만료는 그 시각 + 30초 이후에만 일어나므로, 검사
-/// 스레드가 늦게 깨어나거나 준비가 오래 걸려도 그 만료로 끝난 reader 를 취소로 끝난 것으로 보지 않는다. 끝 시각은 끝 표지(`finished`)보다 먼저
-/// 서므로, 전송은 끝 표지를 본 뒤에만 버린다. 그 전에 버리면 drop 이 회수를 먼저 시작해, 두 표지 사이에서
-/// 밀린 reader 때문에 회수 대기 판정이 실패할 수 있다.
+/// 스레드가 늦게 깨어나거나 준비가 오래 걸려도 그 만료로 끝난 reader 를 취소로 끝난 것으로 보지 않는다.
+/// 끝 시각은 끝 표지(`finished`)보다 먼저 서므로, 전송은 끝 표지를 본 뒤에만 버린다.
 #[test]
 fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
     let (mut remote, token, prepared, _peer) = prepared_with_peer();
@@ -203,5 +235,5 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
 
     let receipt = transport.workers.receipt();
     drop(transport);
-    assert_workers_retire_before_the_reaper_wait(receipt, &probe);
+    assert_retired(receipt, &probe);
 }

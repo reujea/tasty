@@ -697,8 +697,8 @@ impl RetirementReceipt {
     pub fn failed(&self) -> bool {
         self.0.load(Ordering::Acquire) & RETIRE_FAILED != 0
     }
-    /// 회수 스레드가 대기 상한(250ms)이 지나도록 끝나지 않은 worker 를 보고 소켓을 닫았는지. 반납이 그
-    /// 자리에서 소켓을 닫았다면 worker 는 그 전에 끝난다. 회수가 끝나기 전에는 false 다.
+    /// 회수 스레드가 대기 상한(250ms)이 지나도록 끝나지 않은 worker 를 보고 소켓을 닫았는지. 회수 스레드가
+    /// 관측한 사실이라 worker 스레드의 스케줄에 따라 달라진다. 회수가 끝나기 전에는 false 다.
     pub fn waited_out(&self) -> bool {
         self.0.load(Ordering::Acquire) & RETIRE_WAITED_OUT != 0
     }
@@ -708,7 +708,49 @@ pub struct ConnectionWorkers {
     control: Option<TcpStream>,
     handles: Vec<std::thread::JoinHandle<()>>,
     tunnel: Option<tasty_ssh::SshTunnel>,
+    /// 시험 전용: [`Self::close_socket`]이 소켓을 닫은 스레드. 반납 호출이 자기 스레드에서 닫았는지 본다.
+    #[cfg(test)]
+    closed_at_once: Arc<std::sync::OnceLock<std::thread::ThreadId>>,
+    /// 시험 전용: 참인 동안 회수 스레드가 소켓을 닫지 않고 기다린다([`ReaperCloseHold`]).
+    #[cfg(test)]
+    reaper_close_held: Arc<AtomicBool>,
 }
+
+/// 시험 전용: [`ConnectionWorkers::close_socket`]이 소켓을 닫은 스레드. 닫지 않았으면 `None` 이다.
+#[cfg(test)]
+pub struct CloseStamp(Arc<std::sync::OnceLock<std::thread::ThreadId>>);
+
+#[cfg(test)]
+impl CloseStamp {
+    pub fn by(&self) -> Option<std::thread::ThreadId> {
+        self.0.get().copied()
+    }
+}
+
+/// 시험 전용: 회수 스레드의 소켓 닫기를 막아 둔다. drop 하면 놓는다.
+#[cfg(test)]
+pub struct ReaperCloseHold(Arc<AtomicBool>);
+
+#[cfg(test)]
+impl Drop for ReaperCloseHold {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+/// 시험 전용: 시험이 hold 를 놓을 때까지 기다린다. 놓지 않아도 멈추지 않게 60초에서 그친다.
+#[cfg(test)]
+fn wait_while_reaper_close_held(held: &AtomicBool) {
+    let give_up = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while held.load(Ordering::Acquire) {
+        if std::time::Instant::now() >= give_up {
+            tracing::debug!("reaper close hold was never released");
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+}
+
 impl ConnectionWorkers {
     pub fn new(control: TcpStream, handles: Vec<std::thread::JoinHandle<()>>) -> Self {
         Self {
@@ -716,7 +758,22 @@ impl ConnectionWorkers {
             control: Some(control),
             handles,
             tunnel: None,
+            #[cfg(test)]
+            closed_at_once: Arc::default(),
+            #[cfg(test)]
+            reaper_close_held: Arc::default(),
         }
+    }
+    /// 시험 전용: 회수 스레드가 소켓을 닫기 전에 hold 가 풀리기를 기다리게 한다.
+    #[cfg(test)]
+    pub fn hold_reaper_close(&self) -> ReaperCloseHold {
+        self.reaper_close_held.store(true, Ordering::Release);
+        ReaperCloseHold(self.reaper_close_held.clone())
+    }
+    /// 시험 전용: [`Self::close_socket`]이 소켓을 닫은 스레드를 읽는 표지. 연결을 버린 뒤에도 읽는다.
+    #[cfg(test)]
+    pub fn close_stamp(&self) -> CloseStamp {
+        CloseStamp(self.closed_at_once.clone())
     }
     pub fn receipt(&self) -> RetirementReceipt {
         self.receipt.clone()
@@ -728,10 +785,19 @@ impl ConnectionWorkers {
     /// 읽고 점유를 놓으므로, 같은 상대에 다시 붙는 새 연결이 already_attached 로 거절되지 않는다.
     /// 작업 스레드 정리는 drop 이 맡는다.
     pub fn close_socket(&self) {
-        if let Some(control) = &self.control
-            && let Err(error) = tasty_utils::socket_wake::shutdown_both_and_wake(control)
-        {
-            tracing::debug!("remote socket already closed: {error}");
+        if let Some(control) = &self.control {
+            let shut = tasty_utils::socket_wake::shutdown_both_and_wake(control);
+            #[cfg(test)]
+            if self
+                .closed_at_once
+                .set(std::thread::current().id())
+                .is_err()
+            {
+                tracing::debug!("remote socket close stamp already set");
+            }
+            if let Err(error) = shut {
+                tracing::debug!("remote socket already closed: {error}");
+            }
         }
     }
 }
@@ -746,11 +812,15 @@ impl Drop for ConnectionWorkers {
             handle.thread().unpark();
         }
         let receipt = self.receipt.clone();
+        #[cfg(test)]
+        let held = self.reaper_close_held.clone();
         std::thread::spawn(move || {
             let waited_out = wait_for_workers(
                 || handles.iter().all(std::thread::JoinHandle::is_finished),
                 std::time::Duration::from_millis(250),
             );
+            #[cfg(test)]
+            wait_while_reaper_close_held(&held);
             if let Err(error) = control.shutdown(std::net::Shutdown::Both) {
                 tracing::debug!("retired remote socket already closed: {error}");
             }

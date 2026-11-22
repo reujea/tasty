@@ -167,6 +167,15 @@ impl Remote {
             _ => None,
         }
     }
+    /// 시험 전용: 대기 중인 연결의 시도 토큰.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn connection_token(&self, ticket: ConnectionTicket) -> Option<AttemptToken> {
+        match self.pending_connections.get(&ticket)? {
+            PendingConnection::Connecting(token)
+            | PendingConnection::Ready(token, _)
+            | PendingConnection::Failed(token, _) => Some(token.clone()),
+        }
+    }
     pub fn connection_error(&self, ticket: ConnectionTicket) -> Option<String> {
         match self.pending_connections.get(&ticket) {
             Some(PendingConnection::Failed(_, error)) => Some(error.clone()),
