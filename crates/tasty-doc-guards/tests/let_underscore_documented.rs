@@ -433,7 +433,7 @@ impl<'a> Code<'a> {
     /// 매크로 입력 안 아이템 `[body, end)` 의 경계가 매크로 변수 때문에 불확실한가. 최상위(짝 괄호 밖)의
     /// `$` 뒤 최상위에 새 아이템이나 `let` 이 나오면 그렇다고 본다. 아이템의 최상위에는 다른 아이템·문장이
     /// 올 수 없으므로 `$body` 가 몸체 자리를 대신해 다음 요소까지 이어 읽은 것이다. 괄호 안의 `$setup` 과
-    /// `fn $name()` 은 해당하지 않는다.
+    /// `fn $name()`, 아이템 이름 뒤의 제네릭 목록(`fn $name<const N: usize>`)은 해당하지 않는다.
     fn item_boundary_unsure(&self, body: usize, end: usize) -> bool {
         let mut dollar = false;
         let mut k = body;
@@ -441,6 +441,13 @@ impl<'a> Code<'a> {
             let c = self.b[k];
             if matches!(c, b'(' | b'[' | b'{') && self.pair[k] != NONE {
                 k = self.pair[k] + 1;
+                continue;
+            }
+            if c == b'<'
+                && self.after_item_name(k)
+                && let Some(close) = self.angle_close(k, end)
+            {
+                k = close + 1;
                 continue;
             }
             if c == b'$' {
@@ -456,6 +463,52 @@ impl<'a> Code<'a> {
             k += 1;
         }
         false
+    }
+
+    /// `open` 의 `<` 가 아이템 키워드 뒤 이름(`fn name`·`struct $name` 등) 바로 다음에 있는가. 그 자리의 `<` 는
+    /// 제네릭 목록을 열고 비교 연산자가 아니다.
+    fn after_item_name(&self, open: usize) -> bool {
+        let Some(p) = self.prev_non_ws(open).filter(|&p| is_ident_byte(self.b[p])) else {
+            return false;
+        };
+        let mut s0 = p;
+        while s0 > 0 && is_ident_byte(self.b[s0 - 1]) {
+            s0 -= 1;
+        }
+        if let Some(d) = self.prev_non_ws(s0).filter(|&d| self.b[d] == b'$') {
+            s0 = d;
+        }
+        let Some(q) = self.prev_non_ws(s0).filter(|&q| is_ident_byte(self.b[q])) else {
+            return false;
+        };
+        let mut w = q;
+        while w > 0 && is_ident_byte(self.b[w - 1]) {
+            w -= 1;
+        }
+        [&b"fn"[..], b"struct", b"enum", b"union", b"trait", b"type"]
+            .iter()
+            .any(|kw| self.word_at(w, kw))
+    }
+
+    /// `open` 의 `<` 와 짝인 `>`(`end` 앞까지). 안의 괄호 짝은 건너뛰고 `->` 의 `>` 는 세지 않는다.
+    fn angle_close(&self, open: usize, end: usize) -> Option<usize> {
+        let mut depth = 0;
+        let mut k = open;
+        while k < end {
+            match self.b[k] {
+                b'(' | b'[' | b'{' if self.pair[k] != NONE => k = self.pair[k],
+                b'<' => depth += 1,
+                b'>' if self.b[k - 1] != b'-' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(k);
+                    }
+                }
+                _ => {}
+            }
+            k += 1;
+        }
+        None
     }
 
     /// `i` 앞의 마지막 비공백 위치.
@@ -2965,6 +3018,23 @@ mod helper_tests {
             assert_eq!(test_scope_sites(&test, false), vec![(2, None)], "{stmt:?}");
             let exempt = format!("#[cfg(test)]\n{EXEMPT}\nfn t() {{\n    {stmt}\n}}\n");
             assert!(item_is_exempt(&exempt, 3), "{stmt:?}");
+        }
+    }
+
+    #[test]
+    fn a_generic_list_after_a_metavariable_item_name_is_not_a_new_item() {
+        for head in [
+            "fn $name<const N: usize>()",
+            "fn $name<F: Fn() -> u8, const N: usize>(f: F)",
+            "fn $name<const N: usize>() -> [u8; N]",
+        ] {
+            assert_eq!(
+                both(&format!(
+                    "macro_rules! m {{\n    ($name:ident) => {{\n        #[cfg(test)]\n        {head} {{\n            {{IGNORE}}\n        }}\n    }};\n}}\n"
+                )),
+                (vec![], vec![5]),
+                "{head}"
+            );
         }
     }
 
