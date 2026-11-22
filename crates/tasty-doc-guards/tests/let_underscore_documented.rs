@@ -1657,29 +1657,52 @@ fn need_of(level: Option<Level>, root: Root) -> Option<Need> {
     }
 }
 
-/// `Need::Exemption` 으로 보고할 대표 자리(줄 번호)와 그 자리가 `expect` 아래인가. 파일 안 `expect` 가
-/// 덮거나 크레이트 루트 머리에 `expect` 가 있는(`root_expect`) 자리를 먼저 고른다.
-fn exemption_site(sites: &[Site], root: Root, root_expect: bool) -> Option<(usize, bool)> {
+/// `Need::Exemption` 자리와 관련된 `expect` 가 어디서 찾은 것인가.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ExpectAt {
+    /// 파일 안에서 그 자리를 덮는 `expect`.
+    Site,
+    /// 크레이트 루트 후보(경로) 머리의 `expect`. 가드는 그 후보가 이 파일을 컴파일하는 타깃의 루트인지
+    /// 따지지 않으므로 그 자리를 덮는다고 단정하지 않는다.
+    RootCandidate(String),
+}
+
+/// `Need::Exemption` 으로 보고할 대표 자리(줄 번호)와 관련된 `expect`. 파일 안 `expect` 가 덮는 자리를 먼저
+/// 고르고, 없으면 첫 자리에 크레이트 루트 후보의 `expect`(`root_expect`)를 붙인다.
+fn exemption_site(
+    sites: &[Site],
+    root: Root,
+    root_expect: Option<&str>,
+) -> Option<(usize, Option<ExpectAt>)> {
     let mut found = sites
         .iter()
-        .filter(|s| need_of(s.level, root) == Some(Need::Exemption))
-        .map(|s| (s.line, s.under_expect || root_expect));
+        .filter(|s| need_of(s.level, root) == Some(Need::Exemption));
     let first = found.next()?;
-    Some(if first.1 {
-        first
-    } else {
-        found.find(|&(_, under)| under).unwrap_or(first)
-    })
+    if let Some(s) = std::iter::once(first).chain(found).find(|s| s.under_expect) {
+        return Some((s.line, Some(ExpectAt::Site)));
+    }
+    Some((
+        first.line,
+        root_expect.map(|p| ExpectAt::RootCandidate(p.to_string())),
+    ))
 }
 
 /// `Need::Exemption` 의 안내. 테스트 타깃이면 파일 머리·감싸는 아이템, 아니면 크레이트 루트 `where_to` 에
-/// `allow` 를 달라고 한다. `under_expect` 면 `allow` 를 따로 더하지 말고 그 `expect` 를 `allow` 로 바꾸라고
+/// `allow` 를 달라고 한다. `expect` 가 있으면 `allow` 를 따로 더하지 말고 그 `expect` 를 `allow` 로 바꾸라고
 /// 한다(따로 더하면 `expect` 가 남아 미충족 기대로 실패할 수 있다).
-fn exemption_fix(own_target: bool, where_to: &str, under_expect: bool) -> String {
-    if under_expect {
-        return format!(
-            "이 자리를 덮은 `expect(clippy::let_underscore_must_use)` 를 `allow(clippy::let_underscore_must_use)` 로 바꾼다. {EXPECT_REASON}"
-        );
+fn exemption_fix(own_target: bool, where_to: &str, expect: Option<&ExpectAt>) -> String {
+    match expect {
+        Some(ExpectAt::Site) => {
+            return format!(
+                "이 자리를 덮은 `expect(clippy::let_underscore_must_use)` 를 `allow(clippy::let_underscore_must_use)` 로 바꾼다. {EXPECT_REASON}"
+            );
+        }
+        Some(ExpectAt::RootCandidate(at)) => {
+            return format!(
+                "크레이트 루트 후보 `{at}` 의 머리에 `expect(clippy::let_underscore_must_use)` 가 있다(가드는 그 후보가 이 파일을 컴파일하는 타깃의 루트인지 따지지 않는다). 그 루트가 이 파일을 컴파일한다면 그 `expect` 를 `allow` 로 바꿔 `{CRATE_EXEMPTION}` 로 단다. {EXPECT_REASON}"
+            );
+        }
+        None => {}
     }
     if own_target {
         format!(
@@ -1693,11 +1716,13 @@ fn exemption_fix(own_target: bool, where_to: &str, under_expect: bool) -> String
 /// `expect` 를 테스트 범위 면제로 보지 않는 이유.
 const EXPECT_REASON: &str = "가드는 `expect` 를 면제로 보지 않는다. 활성 `expect` 는 그것이 직접 억제한 발동이 없으면 미충족 기대 경고(`unfulfilled_lint_expectations`)를 내고, 이 프로젝트의 clippy 는 `-D warnings` 로 돌아 그 경고가 실패가 된다. 가드는 값의 타입과 관계없이 테스트 범위의 모든 `let _` 에 면제를 요구하므로 lint 가 발동하지 않는 자리에도 면제가 필요하다";
 
-fn root_expect(roots: &[PathBuf]) -> bool {
-    roots
-        .iter()
-        .filter_map(|p| fs::read_to_string(p).ok())
-        .any(|t| scopes(&tasty_doc_guards::source_text::mask_non_code(&t), &t).head_expect)
+/// 머리에 `expect(clippy::let_underscore_must_use)` 를 단 첫 크레이트 루트 후보.
+fn root_expect(roots: &[PathBuf]) -> Option<&PathBuf> {
+    roots.iter().find(|p| {
+        fs::read_to_string(p).is_ok_and(|t| {
+            scopes(&tasty_doc_guards::source_text::mask_non_code(&t), &t).head_expect
+        })
+    })
 }
 
 /// 크레이트 루트 후보들의 머리 수준. 후보 중 하나라도 면제면 면제(어느 타깃이 이 파일을
@@ -1765,7 +1790,8 @@ fn test_scope_stays_out_of_the_lint_roster() {
         };
         let root_lv = root_level(&roots);
         let left = needs(&sites, root_lv);
-        let exemption = exemption_site(&info, root_lv, root_expect(&roots));
+        let root_expect_at = root_expect(&roots).map(|p| rel_of(p, root));
+        let exemption = exemption_site(&info, root_lv, root_expect_at.as_deref());
         for kind in [
             Need::Reenabled,
             Need::Forbidden,
@@ -1775,9 +1801,9 @@ fn test_scope_stays_out_of_the_lint_roster() {
             let Some(&(line, _)) = left.iter().find(|(_, n)| *n == kind) else {
                 continue;
             };
-            let (line, under_expect) = match (kind, exemption) {
-                (Need::Exemption, Some(e)) => e,
-                _ => (line, false),
+            let (line, expect) = match (kind, &exemption) {
+                (Need::Exemption, Some((l, e))) => (*l, e.as_ref()),
+                _ => (line, None),
             };
             let fix = match kind {
                 Need::Reenabled => "감싸는 아이템·블록이 lint 를 다시 켰다(`warn`·`deny`). 다시 켠 속성보다 안쪽에 `#[allow(clippy::let_underscore_must_use)]` 를 단다".to_string(),
@@ -1787,7 +1813,7 @@ fn test_scope_stays_out_of_the_lint_roster() {
                         .first()
                         .map(|p| rel_of(p, root))
                         .unwrap_or_else(|| "(크레이트 루트를 못 찾았다)".to_string());
-                    exemption_fix(own_target, &where_to, under_expect)
+                    exemption_fix(own_target, &where_to, expect)
                 }
                 Need::RootConflict => {
                     let names: Vec<String> = roots.iter().map(|p| rel_of(p, root)).collect();
@@ -3352,9 +3378,18 @@ mod helper_tests {
             exemption_site(
                 &test_scope_site_info(&shared, false),
                 Root::Known(None),
-                false
+                None
             ),
-            Some((3, true))
+            Some((3, Some(ExpectAt::Site)))
+        );
+        // 파일 안 expect 가 있으면 루트 후보의 expect 보다 그것을 안내한다.
+        assert_eq!(
+            exemption_site(
+                &test_scope_site_info(&shared, false),
+                Root::Known(None),
+                Some("src/lib.rs")
+            ),
+            Some((3, Some(ExpectAt::Site)))
         );
         // 앞에 expect 밖 자리가 있어도 expect 아래 자리를 대표로 고른다.
         let later = with_ignore(&format!(
@@ -3371,9 +3406,9 @@ mod helper_tests {
             exemption_site(
                 &test_scope_site_info(&later, false),
                 Root::Known(None),
-                false
+                None
             ),
-            Some((3, true))
+            Some((3, Some(ExpectAt::Site)))
         );
         // 대조: allow 는 면제다. 테스트 빌드에서 꺼지는 expect 는 expect 로 보지 않는다.
         let allow = with_ignore(&format!(
@@ -3407,16 +3442,16 @@ mod helper_tests {
         );
         let info = test_scope_site_info(&module, false);
         assert_eq!(
-            exemption_site(&info, Root::Known(None), true),
-            Some((3, true))
+            exemption_site(&info, Root::Known(None), Some("src/lib.rs")),
+            Some((3, Some(ExpectAt::RootCandidate("src/lib.rs".to_string()))))
         );
         assert_eq!(
-            exemption_site(&info, Root::Known(None), false),
-            Some((3, false))
+            exemption_site(&info, Root::Known(None), None),
+            Some((3, None))
         );
         // expect 아래 자리는 allow 를 따로 더하지 않고 그 expect 를 allow 로 바꾸라고 한다.
         for own in [false, true] {
-            let fix = exemption_fix(own, "src/lib.rs", true);
+            let fix = exemption_fix(own, "src/lib.rs", Some(&ExpectAt::Site));
             assert!(
                 fix.contains("`allow(clippy::let_underscore_must_use)` 로 바꾼다"),
                 "{fix}"
@@ -3426,11 +3461,20 @@ mod helper_tests {
             assert!(!fix.contains(CRATE_EXEMPTION), "{fix}");
             assert!(!fix.contains(TARGET_EXEMPTION), "{fix}");
         }
-        let plain = exemption_fix(false, "src/lib.rs", false);
+        // 루트 후보에서만 찾은 expect 는 그 자리를 덮는다고 단정하지 않는다.
+        let cand = exemption_fix(
+            false,
+            "src/lib.rs",
+            Some(&ExpectAt::RootCandidate("src/main.rs".to_string())),
+        );
+        assert!(cand.contains("크레이트 루트 후보 `src/main.rs`"), "{cand}");
+        assert!(!cand.contains("이 자리를 덮은"), "{cand}");
+        assert!(cand.contains("unfulfilled_lint_expectations"), "{cand}");
+        let plain = exemption_fix(false, "src/lib.rs", None);
         assert!(plain.contains(CRATE_EXEMPTION), "{plain}");
         assert!(!plain.contains("unfulfilled_lint_expectations"), "{plain}");
         assert!(!plain.contains("expect("), "{plain}");
-        let own = exemption_fix(true, "", false);
+        let own = exemption_fix(true, "", None);
         assert!(own.contains(TARGET_EXEMPTION), "{own}");
         assert!(own.contains(EXEMPT), "{own}");
         assert!(!own.contains("unfulfilled_lint_expectations"), "{own}");
