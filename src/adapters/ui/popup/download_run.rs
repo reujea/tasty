@@ -38,9 +38,9 @@ pub struct DownloadRunState {
     pub large: VecDeque<DownloadRunLarge>,
     /// 이 창에서 시작해 아직 끝나지 않은 다운로드.
     pub runs: Vec<DownloadRunEntry>,
-    /// 사용자가 이 수신 묶음의 진행 팝업을 닫았다. 받는 다운로드가 하나도 없게 되면 풀린다. 그동안 진행 팝업을
-    /// 다시 열지 않는다.
-    pub progress_dismissed: bool,
+    /// 사용자가 진행 팝업을 닫을 때 받던 다운로드. 이 다운로드들만 받는 동안에는 진행 팝업을 다시 열지 않는다.
+    /// 그중 끝난 것은 진행을 맞출 때 빠지고, 닫은 뒤 다른 다운로드가 받기 시작하면 다시 연다.
+    pub progress_dismissed: Vec<u64>,
 }
 
 #[derive(Debug)]
@@ -177,24 +177,29 @@ pub(crate) fn sync_progress(state: &mut MainViewState, progress: &[downloads::Pr
 
 /// 받는 중인 다운로드가 있고 진행 팝업이 닫혀 있으면 처음 받는 다운로드의 surface 범위로
 /// 포커스 없이 연다. 여러 다운로드가 한 팝업을 공유하며, 열린 뒤에는 범위를 바꾸지 않는다.
-/// 사용자가 닫은 수신 묶음(받는 다운로드가 끊기지 않고 이어진 동안)에는 다시 열지 않는다.
+/// 사용자가 닫을 때 받던 다운로드만 받는 동안에는 다시 열지 않는다. 닫은 뒤 다른 다운로드가 받기 시작하면 그
+/// 다운로드의 surface 범위로 다시 연다. 펌프 한 번에 앞 다운로드가 끝나고 새 다운로드가 시작해도 같다.
 pub(crate) fn open_progress_for_receiving(state: &mut MainViewState) -> bool {
-    let receiving = state
-        .dialogs
-        .download_run
+    let runs = &mut state.dialogs.download_run;
+    let live: Vec<u64> = runs
         .runs
         .iter()
-        .find(|r| r.receiving)
+        .filter(|r| r.receiving)
+        .map(|r| r.id)
+        .collect();
+    runs.progress_dismissed.retain(|id| live.contains(id));
+    let receiving = runs
+        .runs
+        .iter()
+        .find(|r| r.receiving && !runs.progress_dismissed.contains(&r.id))
         .map(|r| r.surface);
     let Some(surface) = receiving else {
-        state.dialogs.download_run.progress_dismissed = false;
         return false;
     };
-    if state.dialogs.download_run.progress_dismissed
-        || state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID)
-    {
+    if state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID) {
         return false;
     }
+    state.dialogs.download_run.progress_dismissed.clear();
     // intent-exempt: 받기 시작이라는 시스템 사건이 연다. 사용자 출처 Intent가 없고 passive로 열면 WebView 가림 규칙이 달라져 포커스 없는 일반 팝업으로 직접 연다.
     state.popups.open_request(
         &crate::intent::OpenRequest::new(
@@ -343,8 +348,8 @@ pub fn on_close_download_run(
 }
 
 /// 답하지 않고 닫으면 그 다운로드를 취소한다. 남은 확인이 있으면 이어서 연다.
-/// 사용자가 진행 팝업을 닫으면 이 수신 묶음에는 다시 열지 않는다. 다운로드는 멈추지 않는다(멈춤은 Stop
-/// download). 받는 다운로드가 없어 본문이 스스로 닫은 경우는 표시하지 않는다.
+/// 사용자가 진행 팝업을 닫으면 그때 받던 다운로드를 적어 둔다. 그 다운로드들만 받는 동안에는 다시 열지 않는다.
+/// 다운로드는 멈추지 않는다(멈춤은 Stop download). 받는 다운로드가 없어 본문이 스스로 닫은 경우는 적지 않는다.
 pub fn on_close_download_run_progress(
     _ctx: &egui::Context,
     state: &mut MainViewState,
@@ -353,7 +358,13 @@ pub fn on_close_download_run_progress(
 ) {
     use crate::adapters::ui::popup::PopupCloseReason as R;
     if matches!(closed.reason, R::Escape | R::CloseButton | R::OutsideClick) {
-        state.dialogs.download_run.progress_dismissed = true;
+        let runs = &mut state.dialogs.download_run;
+        runs.progress_dismissed = runs
+            .runs
+            .iter()
+            .filter(|r| r.receiving)
+            .map(|r| r.id)
+            .collect();
     }
 }
 

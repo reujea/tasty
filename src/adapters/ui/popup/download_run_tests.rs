@@ -310,3 +310,91 @@ fn an_escape_closed_progress_stays_closed_for_the_rest_of_the_batch() {
         "새 수신 묶음은 다시 연다"
     );
 }
+
+fn progress(id: u64) -> crate::remote::file_download::client::Progress {
+    crate::remote::file_download::client::Progress {
+        id,
+        name: String::new(),
+        received: 1,
+        total: 2,
+    }
+}
+
+/// 진행 팝업을 창을 거친 Esc 로 닫는다. 받는 다운로드 A(5)가 있는 상태에서 연다.
+fn escape_closed_progress(
+    state: &mut MainViewState,
+    read: &EngineRead<'_>,
+    ctx: &egui::Context,
+    surface: u32,
+) {
+    use crate::adapters::ui::popup::window_input_test_support::{layer_escape, layer_frame};
+    for def in super::super::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    state.dialogs.download_run.runs.push(run(5, surface, false));
+    assert!(
+        sync_progress(state, &[progress(5)]),
+        "A 가 받기 시작하면 연다"
+    );
+    assert!(state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID));
+    layer_frame(ctx, state, read, Vec::new());
+    state
+        .popups
+        .set_focused(DOWNLOAD_RUN_PROGRESS_POPUP_ID, true);
+    layer_escape(ctx, state, read);
+    layer_frame(ctx, state, read, Vec::new());
+    assert!(
+        !state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID),
+        "Esc 로 닫힌다"
+    );
+    sync_progress(state, &[progress(5)]);
+    assert!(
+        !state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID),
+        "A 만 받는 동안에는 다시 열지 않는다"
+    );
+}
+
+/// T-G1-1: Given A 를 받는 동안 진행 팝업을 Esc 로 닫았고 B 는 받기 전(시작만 함)일 때, When 펌프 한 번에 A 가
+/// 끝나고(Done 이 행을 지운다) B 가 받기 시작하면, Then 그 펌프의 진행 맞추기(`sync_progress`, App 이 창마다 부르는
+/// 본문)가 진행 팝업을 B 의 surface 범위로 다시 연다. 두 펌프 사이에 받는 다운로드가 0 개인 순간이 없다.
+#[test]
+fn a_download_that_starts_in_the_pump_that_ends_the_dismissed_one_reopens_the_progress() {
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    let surface = state.focused_surface_id(&read).expect("포커스 surface");
+    escape_closed_progress(&mut state, &read, &ctx, surface);
+    state.dialogs.download_run.runs.push(run(6, 201, false));
+    // 펌프: A 의 Done 을 적용하고 B 의 진행을 맞춘다.
+    state.dialogs.download_run.runs.retain(|r| r.id != 5);
+    assert!(
+        sync_progress(&mut state, &[progress(6)]),
+        "같은 펌프에 시작한 B 는 진행 팝업을 다시 연다"
+    );
+    assert_eq!(
+        state.popups.open_scope(DOWNLOAD_RUN_PROGRESS_POPUP_ID),
+        Some(&crate::model::popup_kind::PopupScope::Surface(201)),
+        "다시 열 때는 새로 받는 다운로드의 surface 범위다"
+    );
+}
+
+/// T-G1-2: Given A 를 받는 동안 진행 팝업을 Esc 로 닫았을 때, When A 가 아직 받는 중에 B 가 받기 시작하면, Then
+/// 진행 팝업을 다시 연다. 닫을 때 받던 다운로드만 받는 동안에만 닫힌 채다.
+#[test]
+fn a_download_that_starts_while_the_dismissed_one_continues_reopens_the_progress() {
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    let surface = state.focused_surface_id(&read).expect("포커스 surface");
+    escape_closed_progress(&mut state, &read, &ctx, surface);
+    state.dialogs.download_run.runs.push(run(6, surface, false));
+    assert!(
+        sync_progress(&mut state, &[progress(5), progress(6)]),
+        "닫은 뒤 받기 시작한 B 는 진행 팝업을 다시 연다"
+    );
+    assert!(state.popups.is_open(DOWNLOAD_RUN_PROGRESS_POPUP_ID));
+}
