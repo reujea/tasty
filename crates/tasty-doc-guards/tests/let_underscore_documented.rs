@@ -101,7 +101,8 @@ fn is_test_path(rel: &str) -> bool {
     rel.split('/').any(|seg| TEST_DIRS.contains(&seg))
 }
 
-/// mask_non_code로 주석·리터럴을 지운 줄을 받아 `let _ =` 마다 `let` 의 위치를 돌려준다.
+/// mask_non_code로 주석·리터럴을 지우고 `rust_spaces_to_ascii` 로 공백을 바꾼 줄을 받아 `let _ =` 마다 `let` 의
+/// 위치를 돌려준다(바꾸지 않으면 `\u{200E}let` 의 앞 바이트를 식별자로 읽는다).
 fn let_underscores(code: &str) -> Vec<usize> {
     let mut out = Vec::new();
     let bytes = code.as_bytes();
@@ -1484,6 +1485,7 @@ fn statement_end(lines: &[&str], start: usize) -> usize {
 }
 
 /// 바로 앞의 유의미한 줄이 `//` 주석인가 — 빈 줄과 속성(`attr_bracket`)으로 시작하는 줄은 건너뛴다.
+/// `lines` 는 `rust_spaces_to_ascii` 를 거친 사본이어야 `#\u{200E}[..]` 같은 줄을 속성으로 읽는다.
 fn preceded_by_comment(lines: &[&str], start: usize) -> bool {
     let mut j = start;
     while j > 0 {
@@ -1502,8 +1504,9 @@ fn violations_in(text: &str) -> Vec<(usize, String)> {
     let raw: Vec<&str> = text.lines().collect();
     // 코드 탐색과 사유 탐색에 필요한 마스킹 범위가 다르다.
     let code_src = tasty_doc_guards::source_text::mask_non_code(text);
-    let lit_src = tasty_doc_guards::source_text::mask_literals(text);
-    let code: Vec<&str> = code_src.lines().collect();
+    let lit_src = rust_spaces_to_ascii(&tasty_doc_guards::source_text::mask_literals(text));
+    let scan_src = rust_spaces_to_ascii(&code_src);
+    let code: Vec<&str> = scan_src.lines().collect();
     let lit: Vec<&str> = lit_src.lines().collect();
     let tests = scopes(&code_src, text).test;
     let starts = line_starts(&code_src);
@@ -1630,7 +1633,7 @@ fn test_scope_site_info(text: &str, whole_file: bool) -> Vec<Site> {
     let s = scopes(&code_src, text);
     let starts = line_starts(&code_src);
     let mut out = Vec::new();
-    for (i, line) in code_src.lines().enumerate() {
+    for (i, line) in rust_spaces_to_ascii(&code_src).lines().enumerate() {
         for col in let_underscores(line) {
             let pos = starts[i] + col;
             if whole_file || covers(&s.test, pos) {
@@ -1951,7 +1954,7 @@ mod helper_tests {
         let code_src = tasty_doc_guards::source_text::mask_non_code(text);
         let s = scopes(&code_src, text);
         let starts = line_starts(&code_src);
-        code_src
+        rust_spaces_to_ascii(&code_src)
             .lines()
             .nth(line)
             .map(let_underscores)
@@ -2926,6 +2929,43 @@ mod helper_tests {
             ),
             vec![6]
         );
+    }
+
+    #[test]
+    fn non_ascii_rust_whitespace_is_whitespace_in_the_candidate_and_reason_scans() {
+        // 사유 역탐색은 비ASCII Rust 공백이 낀 속성 줄·주석 줄을 건너뛰거나 읽는다.
+        for (comment, attr) in [
+            ("// 이유", "#\u{200E}[cfg(windows)]"),
+            ("// 이유", "\u{200E}#[cfg(windows)]"),
+            ("// 이유", "#\u{2028}[cfg(windows)]"),
+            ("// 이유", "#!\u{200F}[allow(unused)]"),
+            ("\u{200E}// 이유", "#[cfg(windows)]"),
+        ] {
+            assert_eq!(
+                fixture(&format!(
+                    "fn f() {{\n    {comment}\n    {attr}\n    {{IGNORE}}\n}}\n"
+                )),
+                Vec::<usize>::new(),
+                "{comment:?} {attr:?}"
+            );
+        }
+        // 후보 탐색은 `let` 앞뒤의 비ASCII Rust 공백을 공백으로 본다.
+        for stmt in [
+            format!("let\u{200E}{}= g();", "_ "),
+            format!("\u{200E}let {}= g();", "_ "),
+            format!("let\u{200F}{}\u{85}= g();", "_"),
+        ] {
+            assert_eq!(
+                scan(&format!("fn f() {{\n    {stmt}\n}}\n")),
+                vec![2],
+                "{stmt:?}"
+            );
+            let test = format!("#[cfg(test)]\nfn t() {{\n    {stmt}\n}}\n");
+            assert_eq!(scan(&test), Vec::<usize>::new(), "{stmt:?}");
+            assert_eq!(test_scope_sites(&test, false), vec![(2, None)], "{stmt:?}");
+            let exempt = format!("#[cfg(test)]\n{EXEMPT}\nfn t() {{\n    {stmt}\n}}\n");
+            assert!(item_is_exempt(&exempt, 3), "{stmt:?}");
+        }
     }
 
     #[test]
