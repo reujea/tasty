@@ -150,6 +150,31 @@ pub(crate) fn queue_large_confirm(state: &mut MainViewState, id: u64, name: Stri
     }
 }
 
+/// 받는 중인 다운로드의 진행(`progress`)을 이 창의 다운로드 행에 옮기고 진행 팝업을 열지 정한다. 메인 루프가
+/// 끝난 다운로드 사건을 적용한 뒤 창마다 한 번 부른다. 바뀐 것이 있으면 참이다.
+pub(crate) fn sync_progress(state: &mut MainViewState, progress: &[downloads::Progress]) -> bool {
+    let mut changed = false;
+    for run in &mut state.dialogs.download_run.runs {
+        let Some(p) = progress.iter().find(|p| p.id == run.id) else {
+            continue;
+        };
+        if !run.receiving || run.received != p.received || run.total != p.total {
+            changed = true;
+        }
+        run.receiving = true;
+        run.received = p.received;
+        run.total = p.total;
+        if !p.name.is_empty() {
+            run.name.clone_from(&p.name);
+        }
+        run.started.get_or_insert_with(Instant::now);
+    }
+    if open_progress_for_receiving(state) {
+        changed = true;
+    }
+    changed
+}
+
 /// 받는 중인 다운로드가 있고 진행 팝업이 닫혀 있으면 처음 받는 다운로드의 surface 범위로
 /// 포커스 없이 연다. 여러 다운로드가 한 팝업을 공유하며, 열린 뒤에는 범위를 바꾸지 않는다.
 /// 사용자가 닫은 수신 묶음(받는 다운로드가 끊기지 않고 이어진 동안)에는 다시 열지 않는다.

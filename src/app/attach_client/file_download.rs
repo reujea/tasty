@@ -113,28 +113,7 @@ impl App {
             let Some(main) = view.as_main_mut() else {
                 continue;
             };
-            let mut changed = false;
-            for run in &mut main.state.dialogs.download_run.runs {
-                let Some(p) = progress.iter().find(|p| p.id == run.id) else {
-                    continue;
-                };
-                if !run.receiving || run.received != p.received || run.total != p.total {
-                    changed = true;
-                }
-                run.receiving = true;
-                run.received = p.received;
-                run.total = p.total;
-                if !p.name.is_empty() {
-                    run.name.clone_from(&p.name);
-                }
-                run.started.get_or_insert_with(std::time::Instant::now);
-            }
-            if crate::adapters::ui::popup::download_run::open_progress_for_receiving(
-                &mut main.state,
-            ) {
-                changed = true;
-            }
-            if changed {
+            if crate::adapters::ui::popup::download_run::sync_progress(&mut main.state, &progress) {
                 main.mark_dirty();
             }
         }
