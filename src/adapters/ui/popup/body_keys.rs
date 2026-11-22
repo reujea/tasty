@@ -104,21 +104,8 @@ impl HandedEscape {
 
 /// 창이 처리해 egui 입력에서 뺀 원래 Esc 사건(`handed`, 수식키 포함)을 키 주인을 그리는 동안만 넣는다. host 팝업
 /// 층에서는 묶인 키 주인 본문만 읽는다(다른 본문은 문이 가린다). plugin 렌더는 키 주인 팝업에만 키를 보낸다. 팝업 층
-/// 보다 먼저 그린 화면과 egui 의 패스 시작 처리(키 포커스 해제)는 이 Esc 를 보지 않는다. 키 주인이 읽지 않고 남긴
-/// 사건은 끝나면 뺀다. 뒤에 그리는 것은 보지 않는다. 눌린 키 상태는 egui 가 처리했을 때 값으로 남긴다.
-pub(crate) fn with_handed_escape<R>(
-    ctx: &egui::Context,
-    handed: &HandedEscape,
-    draw: impl FnOnce() -> R,
-) -> R {
-    let put = hand_escape(ctx, handed);
-    let marks = handed_marks(ctx, &put);
-    let out = draw();
-    withdraw_escape(ctx, &put, &marks);
-    out
-}
-
-/// [`with_handed_escape`]의 앞쪽. 그리기가 한 함수 호출이 아닌 host 팝업 층이 쓴다.
+/// 보다 먼저 그린 화면과 egui 의 패스 시작 처리(키 포커스 해제)는 이 Esc 를 보지 않는다. 그린 뒤
+/// [`withdraw_escape`]가 키 주인이 읽지 않고 남긴 사건을 뺀다.
 ///
 /// 사건을 원래 자리(같은 프레임의 뗌보다 앞)에 `events`·`raw.events` 둘 다 넣고, egui 패스 시작과 같은 규칙으로
 /// Escape 의 반복 여부와 `keys_down` 을 정한다(눌림은 이미 눌려 있었으면 반복, 뗌은 놓음). 넣은 사건(반복 여부를
@@ -151,6 +138,12 @@ impl PutEscape {
     /// 넘긴 사건이 있는지.
     pub(crate) fn is_empty(&self) -> bool {
         self.events.is_empty()
+    }
+
+    /// `events` 에 넣은 사건마다 그 목록 Esc 누름 가운데 순번과 넣은 값. plugin 렌더가 그 누름만 wire 에서 건너뛸 때
+    /// 쓴다(값은 확인에만 쓴다).
+    pub(crate) fn handed_presses(&self) -> &[(usize, egui::Event)] {
+        &self.events
     }
 }
 
@@ -237,7 +230,7 @@ fn place_escape(
     (put, down)
 }
 
-/// [`with_handed_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 자리로 뺀다. `events` 에서는 표지(`marks`, 키 주인이
+/// [`hand_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 자리로 뺀다. `events` 에서는 표지(`marks`, 키 주인이
 /// 소비한 누름의 표지는 이미 지워졌다)가 남은 넘긴 누름을, `raw.events` 에서는 넣은 자리를 뺀다. 값으로 고르지 않는다.
 /// 넘기지 않은 같은 값의 누름(비-macOS 의 Super+Esc 는 egui 사건 값이 수식키 없는 Esc 와 같다)을 남긴다. 눌린 키 상태는
 /// 그대로 둔다(egui 가 이 Esc 를 처리했을 때처럼 다음 프레임 판정의 출발점이 된다).
@@ -297,7 +290,7 @@ pub(crate) fn release_escape(ctx: &egui::Context) {
 
 #[cfg(test)]
 mod tests {
-    use super::{HandedEscape, with_body_keys, with_handed_escape};
+    use super::{HandedEscape, hand_escape, handed_marks, with_body_keys, withdraw_escape};
 
     fn key(key: egui::Key) -> egui::Event {
         egui::Event::Key {
@@ -404,7 +397,9 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
-                    let (owner, other, seen, raw) = with_handed_escape(ctx, &handed, || {
+                    let put = hand_escape(ctx, &handed);
+                    let marks = handed_marks(ctx, &put);
+                    let (owner, other, seen, raw) = {
                         let owner = with_body_keys(ctx, true, || {
                             ctx.input(|i| {
                                 (
@@ -423,7 +418,8 @@ mod tests {
                         });
                         let (seen, raw) = ctx.input(|i| (i.events.clone(), i.raw.events.clone()));
                         (owner, other, seen, raw)
-                    });
+                    };
+                    withdraw_escape(ctx, &put, &marks);
                     let mut expected = vec![moved.clone(), key(egui::Key::Escape)];
                     expected.extend(later.clone());
                     assert_eq!(seen, expected, "원래 자리");

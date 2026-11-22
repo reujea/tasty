@@ -41,14 +41,15 @@ pub fn draw_plugin_popups(
     plugin_manager: Option<PluginDisplay<'_>>,
     layout: Option<&LayoutContext>,
 ) {
+    use crate::adapters::ui::popup::body_keys::{hand_escape, handed_marks, withdraw_escape};
     // 창이 plugin 키 주인 몫으로 egui 입력에서 뺀 원래 Esc 사건. 렌더가 키 주인 팝업에만 키를 보내므로 렌더하는
-    // 동안 넣는다. host 키 주인 몫은 host 그리기가 이미 꺼냈다.
+    // 동안 넣는다. host 키 주인 몫은 host 그리기가 이미 꺼냈다. egui 의 사건 순서·눌린 키 상태는 넣은 사건으로
+    // 갱신하고, 선언이 그 Esc 를 내용에 보내지 않으면 렌더가 wire 에서 그 누름만 건너뛴다.
     let handed = state.popups.take_handed_escape();
-    // plugin Esc 는 창이 사건마다 그 수식키로 판정해 넘긴 Esc 가 있을 때다. egui 입력을 다시 읽지 않는다.
-    let escape_pressed = !handed.is_empty();
-    crate::adapters::ui::popup::body_keys::with_handed_escape(ctx, &handed, || {
-        draw_plugin_popups_with_keys(ctx, state, engine, plugin_manager, layout, escape_pressed)
-    });
+    let put = hand_escape(ctx, &handed);
+    let marks = handed_marks(ctx, &put);
+    draw_plugin_popups_with_keys(ctx, state, engine, plugin_manager, layout, &put);
+    withdraw_escape(ctx, &put, &marks);
 }
 
 fn draw_plugin_popups_with_keys(
@@ -57,8 +58,10 @@ fn draw_plugin_popups_with_keys(
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     plugin_manager: Option<PluginDisplay<'_>>,
     layout: Option<&LayoutContext>,
-    escape_pressed: bool,
+    put: &crate::adapters::ui::popup::body_keys::PutEscape,
 ) {
+    // plugin Esc 는 창이 사건마다 그 수식키로 판정해 넘긴 Esc 가 있을 때다. egui 입력을 다시 읽지 않는다.
+    let escape_pressed = !put.is_empty();
     // 누름 스냅샷은 직전 렌더의 키 후보로 찍는다. 아래에서 후보를 비우기 전이어야 키 주인 plugin 팝업이 포커스
     // 노드로 남는다(host 팝업 그리기가 먼저 찍었으면 그 값을 쓴다).
     let press = crate::adapters::ui::popup::frame::frame_press(ctx, state, _engine, layout);
@@ -274,11 +277,11 @@ fn draw_plugin_popups_with_keys(
                 press.as_ref(),
                 ownership,
             );
-            if escape_pressed && has_key_focus && snap.closes_on_escape() {
-                state
-                    .plugin_popup_closes
-                    .push((snap.instance_id, PopupCloseReason::Escape));
-            }
+            apply_escape(
+                state,
+                snap.instance_id,
+                escape_action(escape_pressed && has_key_focus, false, snap.layout.escape),
+            );
             continue;
         }
 
@@ -378,6 +381,18 @@ fn draw_plugin_popups_with_keys(
             tasty_ui_widgets::paint_popup_focus_edge(&painter, &th, rect);
         }
 
+        // 펼친 팝업의 Esc 는 선언과 무관하게 다시 접기다. 다시 접기와 Ignore 는 넘긴 Esc 누름을 내용에 보내지 않는다
+        // (markdown 파일 열기처럼 내용이 Esc 를 취소로 받는 팝업이 닫히지 않는다).
+        let escape = escape_action(
+            escape_pressed && has_key_focus,
+            expanded,
+            snap.layout.escape,
+        );
+        let skip: &[(usize, Event)] = if escape.keeps_escape_from_content() {
+            put.handed_presses()
+        } else {
+            &[]
+        };
         // 아래 팝업에 키가 전달되면 Escape 하나로 여러 팝업이 닫힐 수 있다.
         let mut route = state
             .plugin_mesh_popup_forward
@@ -391,16 +406,8 @@ fn draw_plugin_popups_with_keys(
             ownership == Some(PointOwnership::OccludedByHigher),
             has_key_focus,
             &mut route,
+            skip,
         );
-        // 펼친 팝업의 Esc는 다시 접기로 소비한다. 내용(markdown 파일 열기 등)이 받으면 취소로 닫힌다.
-        let escape = escape_action(
-            escape_pressed && has_key_focus,
-            expanded,
-            snap.closes_on_escape(),
-        );
-        if escape == EscapeAction::Refold {
-            drop_escape_keys(&mut raw_input);
-        }
         // 보류한 편집 키의 요청은 이 프레임 입력 뒤에 붙인다. 그 뒤의 입력은 보류 뒤에 줄을 서 있다.
         raw_input.events.extend(take_edit_requests(
             &mut state.plugin_popup_edit_requests,
@@ -499,16 +506,7 @@ fn draw_plugin_popups_with_keys(
             press.as_ref(),
             ownership,
         );
-        match escape {
-            // 다시 접기는 닫기 사건이 없다.
-            EscapeAction::Refold => {
-                state.popups.refold_plugin(snap.instance_id);
-            }
-            EscapeAction::Close => state
-                .plugin_popup_closes
-                .push((snap.instance_id, PopupCloseReason::Escape)),
-            EscapeAction::None => {}
-        }
+        apply_escape(state, snap.instance_id, escape);
     }
 
     // egui는 누른 영역(덮는 범위를 막는 레이어)을 맨 위로 올린다. 모든 레이어를 함께 올려 막는 레이어가 팝업
@@ -593,7 +591,8 @@ impl MeshSnap {
         self.layout.covers_scope || self.display == SnapDisplay::Expanded
     }
 
-    /// Esc가 이 팝업을 닫는지. plugin 팝업에는 포커스 해제 상태가 없어 `unfocus`도 닫지 않는다.
+    /// Esc가 이 팝업을 닫는지(선언 `close`).
+    #[cfg(test)]
     fn closes_on_escape(&self) -> bool {
         self.layout.escape == tasty_plugin_protocol::popup_decl::PopupEscape::Close
     }
@@ -763,28 +762,61 @@ fn is_user_activation(raw: &RawInputWire) -> bool {
     })
 }
 
-/// 키 주인 plugin 팝업이 받은 Esc 의 처리. 펼친 팝업은 선언과 관계없이 다시 접고 내용에 Esc 를 보내지 않는다.
+/// 키 주인 plugin 팝업이 받은 Esc 의 처리. 렌더가 선언 `escape` 와 표시 상태로 정하는 유일한 자리다. 펼친 팝업은
+/// 선언과 관계없이 다시 접는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EscapeAction {
+    /// 넘긴 Esc 가 없다.
     None,
+    /// 다시 접는다. 넘긴 Esc 를 내용에 보내지 않는다.
     Refold,
+    /// 사유 Escape 로 닫는다.
     Close,
+    /// 이 패스 입력을 내용에 보낸 뒤 인스턴스 포커스를 놓는다. 닫지 않는다.
+    Unfocus,
+    /// 넘긴 Esc 를 내용에 보내지 않고 포커스를 유지한다.
+    Ignore,
 }
 
-fn escape_action(owner_escape: bool, expanded: bool, closes_on_escape: bool) -> EscapeAction {
-    match (owner_escape, expanded, closes_on_escape) {
-        (false, ..) => EscapeAction::None,
-        (true, true, _) => EscapeAction::Refold,
-        (true, false, true) => EscapeAction::Close,
-        (true, false, false) => EscapeAction::None,
+impl EscapeAction {
+    /// 넘긴 Esc 누름을 wire 에서 건너뛰는지.
+    fn keeps_escape_from_content(self) -> bool {
+        matches!(self, Self::Refold | Self::Ignore)
     }
 }
 
-/// 다시 접기로 소비한 Esc 키를 mesh 입력에서 뺀다. 다른 키·텍스트는 그대로 둔다.
-fn drop_escape_keys(raw: &mut RawInputWire) {
-    raw.events.retain(
-        |e| !matches!(e, RawInputEventWire::Key { key, .. } if key == egui::Key::Escape.name()),
-    );
+fn escape_action(
+    owner_escape: bool,
+    expanded: bool,
+    declared: tasty_plugin_protocol::popup_decl::PopupEscape,
+) -> EscapeAction {
+    use tasty_plugin_protocol::popup_decl::PopupEscape;
+    match (owner_escape, expanded, declared) {
+        (false, ..) => EscapeAction::None,
+        (true, true, _) => EscapeAction::Refold,
+        (true, false, PopupEscape::Close) => EscapeAction::Close,
+        (true, false, PopupEscape::Unfocus) => EscapeAction::Unfocus,
+        (true, false, PopupEscape::Ignore) => EscapeAction::Ignore,
+    }
+}
+
+/// 렌더가 정한 Esc 처리를 적용한다. 입력 전송(접히지 않은 팝업) 뒤에 부른다.
+fn apply_escape(state: &mut RequestContext, instance: u64, escape: EscapeAction) {
+    match escape {
+        // 다시 접기는 닫기 사건이 없다.
+        EscapeAction::Refold => state.popups.refold_plugin(instance),
+        EscapeAction::Close => state
+            .plugin_popup_closes
+            .push((instance, PopupCloseReason::Escape)),
+        EscapeAction::Unfocus => {
+            state
+                .popups
+                .unfocus_node(crate::adapters::ui::popup::focus::PopupNode::Plugin(
+                    instance,
+                ))
+        }
+        EscapeAction::None | EscapeAction::Ignore => {}
+    }
 }
 
 /// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다. 뗌은 이 팝업에서
@@ -798,6 +830,7 @@ fn collect_mesh_popup_input(
     pointer_occluded: bool,
     has_key_focus: bool,
     route: &mut crate::plugin_bridge::MeshPointerRoute,
+    skip: &[(usize, Event)],
 ) -> RawInputWire {
     let origin = content_rect.min;
     let pointer_inside = !pointer_occluded && pointer_pos.is_some_and(|p| content_rect.contains(p));
@@ -807,7 +840,16 @@ fn collect_mesh_popup_input(
     ctx.input(|i| {
         let modifiers = map_modifiers(&i.modifiers);
         let mut events: Vec<RawInputEventWire> = Vec::new();
+        // `skip` 은 넘긴 Esc 누름의 순번이다. 사건 값으로 고르지 않는다(같은 값의 다른 누름을 남긴다).
+        let mut presses = 0;
         for ev in &i.events {
+            if crate::adapters::ui::popup::body_keys::is_escape_press(ev) {
+                presses += 1;
+                if let Some((_, put)) = skip.iter().find(|(n, _)| *n == presses - 1) {
+                    debug_assert_eq!(put, ev, "건너뛰는 누름은 넘긴 사건이다");
+                    continue;
+                }
+            }
             match ev {
                 Event::PointerMoved(p) if accepts_pointer(*p) => {
                     events.push(RawInputEventWire::PointerMoved {
@@ -1479,6 +1521,7 @@ mod tests {
                 false,
                 true,
                 &mut Default::default(),
+                &[],
             ));
         });
         wire?.events.iter().find_map(|e| match e {
@@ -1526,6 +1569,15 @@ mod tests {
     }
 
     fn collected_events(events: Vec<Event>, has_key_focus: bool) -> Vec<RawInputEventWire> {
+        collected_events_skipping(events, has_key_focus, &[])
+    }
+
+    /// [`collected_events`]와 같고 넘긴 Esc 누름 `skip`(순번과 값)을 건너뛴다.
+    fn collected_events_skipping(
+        events: Vec<Event>,
+        has_key_focus: bool,
+        skip: &[(usize, Event)],
+    ) -> Vec<RawInputEventWire> {
         let ctx = Context::default();
         let content_rect = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(300.0, 200.0));
         let input = egui::RawInput {
@@ -1545,6 +1597,7 @@ mod tests {
                 false,
                 has_key_focus,
                 &mut Default::default(),
+                skip,
             ));
         });
         wire.expect("수집 함수가 와이어를 만들어야 한다").events
@@ -1638,15 +1691,39 @@ mod tests {
         assert!(collected_events(edits(), false).is_empty());
     }
 
-    /// 펼친 키 주인 팝업의 Esc 는 선언이 닫기여도 다시 접기이고, 그 Esc 는 mesh 내용에 가지 않는다.
-    /// markdown 파일 열기처럼 내용이 Esc 를 취소로 받는 팝업이 닫히지 않는다.
+    /// 펼친 키 주인 팝업의 Esc 는 선언이 닫기여도 다시 접기이고, 넘긴 그 Esc 누름은 mesh 내용에 가지 않는다(Ignore 도
+    /// 같다). markdown 파일 열기처럼 내용이 Esc 를 취소로 받는 팝업이 닫히지 않는다. 같은 패스의 Esc 뗌과 글자는 간다.
     #[test]
     fn escape_on_an_expanded_popup_refolds_and_never_reaches_its_content() {
-        assert_eq!(escape_action(true, true, true), EscapeAction::Refold);
-        assert_eq!(escape_action(true, true, false), EscapeAction::Refold);
-        assert_eq!(escape_action(true, false, true), EscapeAction::Close);
-        assert_eq!(escape_action(true, false, false), EscapeAction::None);
-        assert_eq!(escape_action(false, true, true), EscapeAction::None);
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        assert_eq!(
+            escape_action(true, true, PopupEscape::Close),
+            EscapeAction::Refold
+        );
+        assert_eq!(
+            escape_action(true, true, PopupEscape::Ignore),
+            EscapeAction::Refold
+        );
+        assert_eq!(
+            escape_action(true, false, PopupEscape::Close),
+            EscapeAction::Close
+        );
+        assert_eq!(
+            escape_action(true, false, PopupEscape::Unfocus),
+            EscapeAction::Unfocus
+        );
+        assert_eq!(
+            escape_action(true, false, PopupEscape::Ignore),
+            EscapeAction::Ignore
+        );
+        assert_eq!(
+            escape_action(false, true, PopupEscape::Close),
+            EscapeAction::None
+        );
+        assert!(EscapeAction::Refold.keeps_escape_from_content());
+        assert!(EscapeAction::Ignore.keeps_escape_from_content());
+        assert!(!EscapeAction::Unfocus.keeps_escape_from_content());
+        assert!(!EscapeAction::Close.keeps_escape_from_content());
 
         let esc = |pressed| Event::Key {
             key: egui::Key::Escape,
@@ -1655,27 +1732,23 @@ mod tests {
             repeat: false,
             modifiers: egui::Modifiers::NONE,
         };
-        let mut raw = wire(collected_events(
+        let got = collected_events_skipping(
             vec![esc(true), Event::Text("a".into()), esc(false)],
             true,
-        ));
-        assert!(
-            raw.events
-                .iter()
-                .any(|e| matches!(e, RawInputEventWire::Key { .. })),
-            "키 주인 팝업은 빼기 전 Esc 를 수집한다"
-        );
-        drop_escape_keys(&mut raw);
-        assert!(
-            raw.events
-                .iter()
-                .all(|e| !matches!(e, RawInputEventWire::Key { .. })),
-            "{:?}",
-            raw.events
+            &[(0, esc(true))],
         );
         assert!(
-            raw.events
-                .iter()
+            !got.iter()
+                .any(|e| matches!(e, RawInputEventWire::Key { pressed: true, .. })),
+            "넘긴 누름은 가지 않는다: {got:?}"
+        );
+        assert!(
+            got.iter()
+                .any(|e| matches!(e, RawInputEventWire::Key { pressed: false, .. })),
+            "뗌은 간다: {got:?}"
+        );
+        assert!(
+            got.iter()
                 .any(|e| matches!(e, RawInputEventWire::Text { text } if text == "a"))
         );
     }
@@ -1727,7 +1800,27 @@ mod tests {
         events: Vec<Event>,
         modifiers: Modifiers,
     ) {
-        let layout = layout_with_surface_7(true);
+        pass_in(
+            ctx,
+            state,
+            engine,
+            mgr,
+            events,
+            modifiers,
+            &layout_with_surface_7(true),
+        );
+    }
+
+    /// [`escape_pass`]와 같고 레이아웃이 `layout` 이다.
+    fn pass_in(
+        ctx: &Context,
+        state: &mut crate::state::RequestContext,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        mgr: &crate::plugin::PluginManager,
+        events: Vec<Event>,
+        modifiers: Modifiers,
+        layout: &LayoutContext,
+    ) {
         let input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(
                 Pos2::ZERO,
@@ -1743,13 +1836,13 @@ mod tests {
                 mgr.popup_instances(),
             );
             // host 층이 이번 프레임 키 주인을 정하고 남은 넘긴 Esc 를 plugin 렌더에 둔다.
-            crate::adapters::ui::popup::frame::draw_popup_layer(ctx, state, engine, &layout);
+            crate::adapters::ui::popup::frame::draw_popup_layer(ctx, state, engine, layout);
             draw_plugin_popups(
                 ctx,
                 state,
                 engine,
                 Some(crate::app::plugin_display::PluginDisplay::new(mgr)),
-                Some(&layout),
+                Some(layout),
             );
         }));
         state.press_snapshot = None;
@@ -1840,6 +1933,444 @@ mod tests {
         );
         assert!(!handled, "창은 Shift+Esc 를 처리하지 않는다");
         assert!(!plugin_closed(&state), "팝업은 열려 있다");
+    }
+
+    /// 선언 Esc 가 `escape` 인 plugin 팝업 하나(id 1)의 장면과 그 레이아웃.
+    struct PluginScene {
+        state: crate::state::RequestContext,
+        session: crate::runtime::engine_session::EngineSession,
+        mgr: crate::plugin::PluginManager,
+        ctx: Context,
+        layout: LayoutContext,
+    }
+
+    /// `narrow` 면 포커스 surface 범위(200×120)에서 좁아 접히고, 아니면 창 범위다. 첫 프레임을 그린 뒤 창의 포커스
+    /// 노드로 두고, 그때까지의 요청은 비운다.
+    fn plugin_scene(
+        escape: tasty_plugin_protocol::popup_decl::PopupEscape,
+        narrow: bool,
+    ) -> PluginScene {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let sid = state
+            .focused_surface_id(&session.borrow_mut().read())
+            .expect("surface");
+        let mut mgr = crate::plugin::PluginManager::with_registries(
+            std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+            std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+            std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+        );
+        let (mut inst, layout) = if narrow {
+            let rect = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(200.0, 120.0));
+            (
+                instance(
+                    PopupScopeDecl::Surface,
+                    Some(sid),
+                    PopupAnchor::ScreenCenter,
+                ),
+                layout_with_surface(sid, rect),
+            )
+        } else {
+            state.plugin_window_popups.insert(1);
+            (
+                instance(PopupScopeDecl::Window, None, PopupAnchor::ScreenCenter),
+                layout_with_surface_7(true),
+            )
+        };
+        inst.contribute.layout.escape = escape;
+        mgr.insert_popup_instance_for_test(1, inst);
+        let mut scene = PluginScene {
+            state,
+            session,
+            mgr,
+            ctx: Context::default(),
+            layout,
+        };
+        scene.pass(Vec::new());
+        scene
+            .state
+            .popups
+            .set_focus(Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(
+                1,
+            )));
+        drop(scene.state.take_pending_intents());
+        scene
+    }
+
+    impl PluginScene {
+        /// 창을 거치지 않은 사건으로 한 패스를 그린다.
+        fn pass(&mut self, events: Vec<Event>) {
+            let engine = self.session.borrow_mut();
+            pass_in(
+                &self.ctx,
+                &mut self.state,
+                &engine.read(),
+                &self.mgr,
+                events,
+                Modifiers::NONE,
+                &self.layout,
+            );
+        }
+
+        /// `before` 뒤 창이 받은 수식키 없는 Esc 누름(`held` 는 직전 Escape 눌림), 그 뒤 `after` 를 한 패스로 그린다.
+        /// 창이 그 Esc 를 처리했는지 돌려준다.
+        fn escape_pass(&mut self, before: Vec<Event>, held: bool, after: Vec<Event>) -> bool {
+            let mut events = before;
+            let from = events.len();
+            events.push(esc_press(held));
+            let handled = self.state.window_escape(&mut events, Some(from), held);
+            events.extend(after);
+            self.pass(events);
+            handled
+        }
+
+        /// 이번 패스까지 쌓인 plugin 팝업 1 의 wire 요청들(요청마다 키 포커스와 사건).
+        fn sent(&mut self) -> Vec<(bool, Vec<RawInputEventWire>)> {
+            use crate::app::frame_effect::{DrawEffect, FrameEffect};
+            use crate::app::plugin_display::PluginDisplayRequest;
+            self.state
+                .take_pending_intents()
+                .into_iter()
+                .filter_map(|d| match d.body {
+                    crate::intent::Intent::Frame(FrameEffect::Draw(DrawEffect::PluginDisplay(
+                        PluginDisplayRequest::Popup { params, .. },
+                    ))) if params.instance_id == 1 => {
+                        Some((params.raw_input.focused, params.raw_input.events))
+                    }
+                    _ => None,
+                })
+                .collect()
+        }
+
+        /// 팝업 1 의 배치 사각형 가운데(내용 영역 안).
+        fn center(&self) -> Pos2 {
+            self.state
+                .plugin_popup_hittest
+                .first()
+                .expect("팝업이 배치됐다")
+                .rect
+                .center()
+        }
+
+        fn focused(&self) -> bool {
+            self.state.popups.focus()
+                == Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(1))
+        }
+
+        fn closed(&self) -> bool {
+            plugin_closed(&self.state)
+        }
+    }
+
+    fn esc_press(repeat: bool) -> Event {
+        Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    fn esc_release() -> Event {
+        Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: false,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    fn shift_esc_press() -> Event {
+        Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::SHIFT,
+        }
+    }
+
+    /// wire 사건이 Esc 키면 (눌림, 반복, Shift).
+    fn wire_escape(e: &RawInputEventWire) -> Option<(bool, bool, bool)> {
+        match e {
+            RawInputEventWire::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+            } if key == "Escape" => Some((*pressed, *repeat, modifiers.shift)),
+            _ => None,
+        }
+    }
+
+    fn is_wire_pointer_move(e: &RawInputEventWire) -> bool {
+        matches!(e, RawInputEventWire::PointerMoved { .. })
+    }
+
+    /// 이번 패스 요청 하나를 꺼낸다. 요청이 있고 대상이 키 주인(포커스 있음)인지 먼저 단정한다.
+    fn the_request(scene: &mut PluginScene) -> Vec<RawInputEventWire> {
+        let mut sent = scene.sent();
+        assert_eq!(
+            sent.len(),
+            1,
+            "이번 패스에 팝업 1 의 wire 요청이 하나 있다: {sent:?}"
+        );
+        let (focused, events) = sent.remove(0);
+        assert!(focused, "렌더의 키 대상이 팝업 1 이다");
+        events
+    }
+
+    /// T-4b-1: Given Ignore 선언 plugin 키 주인(접히지 않음), When 한 패스 [포인터 이동, Esc] 가 오면, Then 그 요청에
+    /// 포인터 이동은 있고 Esc 는 없으며 포커스가 남는다.
+    #[test]
+    fn an_ignore_plugin_popup_gets_no_escape_on_the_wire() {
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        let mut scene = plugin_scene(PopupEscape::Ignore, false);
+        let at = scene.center();
+        assert!(scene.escape_pass(vec![Event::PointerMoved(at)], false, Vec::new()));
+        let events = the_request(&mut scene);
+        assert!(
+            events.iter().any(is_wire_pointer_move),
+            "포인터 이동이 실린다(내용 안, 가림 없음): {events:?}"
+        );
+        assert!(
+            !events.iter().any(|e| wire_escape(e).is_some()),
+            "Esc 는 가지 않는다: {events:?}"
+        );
+        assert!(scene.focused(), "포커스가 남는다");
+        assert!(!scene.closed());
+    }
+
+    /// 좁은 범위에서 접힌 plugin 팝업을 펼친 장면.
+    fn expanded_scene(escape: tasty_plugin_protocol::popup_decl::PopupEscape) -> PluginScene {
+        let mut scene = plugin_scene(escape, true);
+        scene.state.popups.expand_plugin(1);
+        scene.pass(Vec::new());
+        scene.pass(Vec::new());
+        assert!(scene.state.popups.plugin_expanded().contains(&1), "펼쳤다");
+        drop(scene.state.take_pending_intents());
+        scene
+    }
+
+    /// T-4b-2: Given 펼친 Ignore 선언 plugin 키 주인, When Esc 가 오면, Then 다시 접히고 포커스가 남는다.
+    #[test]
+    fn an_expanded_ignore_plugin_popup_folds_on_escape() {
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        let mut scene = expanded_scene(PopupEscape::Ignore);
+        assert!(scene.escape_pass(Vec::new(), false, Vec::new()));
+        assert!(!scene.state.popups.plugin_expanded().contains(&1), "접힌다");
+        assert!(scene.focused(), "묶인 주인이 그대로다");
+        assert!(!scene.closed());
+    }
+
+    /// T-4b-3: Given Unfocus 선언 plugin 키 주인, When [포인터 이동, Esc] 가 오면, Then 그 요청에 Esc 가 실리고 그 뒤
+    /// 포커스를 놓으며 닫지 않는다.
+    #[test]
+    fn an_unfocus_plugin_popup_sends_escape_then_releases_focus() {
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        let mut scene = plugin_scene(PopupEscape::Unfocus, false);
+        let at = scene.center();
+        assert!(scene.escape_pass(vec![Event::PointerMoved(at)], false, Vec::new()));
+        let events = the_request(&mut scene);
+        assert!(
+            events
+                .iter()
+                .any(|e| wire_escape(e) == Some((true, false, false))),
+            "Esc 가 내용에 간다: {events:?}"
+        );
+        assert!(!scene.focused(), "포커스를 놓는다");
+        assert!(!scene.closed(), "닫지 않는다");
+    }
+
+    /// T-4b-4: Given Close 선언 plugin 키 주인, When Esc 가 오면, Then 닫힌다.
+    #[test]
+    fn a_close_plugin_popup_closes_on_escape() {
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        let mut scene = plugin_scene(PopupEscape::Close, false);
+        assert!(scene.escape_pass(Vec::new(), false, Vec::new()));
+        assert!(scene.closed());
+    }
+
+    /// T-4b-5: Given Ignore 선언 plugin 키 주인, When 한 패스 [넘긴 Esc 누름, Esc 뗌, Shift+Esc 누름] 이 오면, Then 넘긴
+    /// 누름만 빠지고 뗌과 Shift+Esc 는 wire 에 간다.
+    #[test]
+    fn only_the_handed_escape_press_is_dropped() {
+        use tasty_plugin_protocol::popup_decl::PopupEscape;
+        let mut scene = plugin_scene(PopupEscape::Ignore, false);
+        let at = scene.center();
+        assert!(scene.escape_pass(
+            vec![Event::PointerMoved(at)],
+            false,
+            vec![esc_release(), shift_esc_press()],
+        ));
+        let events = the_request(&mut scene);
+        let escapes: Vec<_> = events.iter().filter_map(wire_escape).collect();
+        assert_eq!(
+            escapes.iter().map(|(p, _, s)| (*p, *s)).collect::<Vec<_>>(),
+            vec![(false, false), (true, true)],
+            "뗌과 Shift+Esc 누름만 남는다: {events:?}"
+        );
+    }
+
+    /// 접힌 plugin 키 주인의 Esc 한 패스. 접힘 표시를 그렸고 wire 요청이 없는지 먼저 단정한다.
+    fn collapsed_escape(escape: tasty_plugin_protocol::popup_decl::PopupEscape) -> PluginScene {
+        let mut scene = plugin_scene(escape, true);
+        assert!(
+            !scene.state.popups.plugin_expanded().contains(&1),
+            "펼치지 않았다"
+        );
+        assert!(scene.escape_pass(Vec::new(), false, Vec::new()));
+        assert!(
+            scene.sent().is_empty(),
+            "접힌 갈래는 wire 요청을 만들지 않는다"
+        );
+        scene
+    }
+
+    /// T-4b-6: Given 접힌 Close 선언 plugin 키 주인, When Esc 가 오면, Then 닫힌다.
+    #[test]
+    fn escape_closes_a_collapsed_close_plugin_popup() {
+        let scene = collapsed_escape(tasty_plugin_protocol::popup_decl::PopupEscape::Close);
+        assert!(scene.closed());
+    }
+
+    /// T-4b-7: Given 접힌 Unfocus 선언 plugin 키 주인, When Esc 가 오면, Then 포커스를 놓고 열린 채다.
+    #[test]
+    fn escape_releases_focus_of_a_collapsed_unfocus_plugin_popup() {
+        let scene = collapsed_escape(tasty_plugin_protocol::popup_decl::PopupEscape::Unfocus);
+        assert!(!scene.focused(), "포커스를 놓는다");
+        assert!(!scene.closed());
+    }
+
+    /// T-4b-8: Given 접힌 Ignore 선언 plugin 키 주인, When Esc 가 오면, Then 포커스가 남고 열린 채다.
+    #[test]
+    fn escape_keeps_focus_of_a_collapsed_ignore_plugin_popup() {
+        let scene = collapsed_escape(tasty_plugin_protocol::popup_decl::PopupEscape::Ignore);
+        assert!(scene.focused(), "포커스가 남는다");
+        assert!(!scene.closed());
+    }
+
+    /// 몫 1 [넘긴 Esc 누름] 을 그린 Ignore 키 주인 장면. 넘긴 Esc 가 비지 않았는지와 패스 끝 Escape 눌림을 단정한다.
+    fn held_after_a_handed_press() -> PluginScene {
+        let mut scene = plugin_scene(
+            tasty_plugin_protocol::popup_decl::PopupEscape::Ignore,
+            false,
+        );
+        assert!(
+            scene.escape_pass(Vec::new(), false, Vec::new()),
+            "넘긴 Esc 가 있다"
+        );
+        assert!(
+            scene
+                .ctx
+                .input(|i| i.keys_down.contains(&egui::Key::Escape)),
+            "몫 1 패스 끝에 Escape 가 눌려 있다"
+        );
+        drop(scene.state.take_pending_intents());
+        scene
+    }
+
+    /// 창이 처리하지 않는 Shift+Esc 누름 한 몫의 wire Esc 사건.
+    fn shift_escape_share(scene: &mut PluginScene) -> Vec<(bool, bool, bool)> {
+        scene.pass(vec![shift_esc_press()]);
+        the_request(scene).iter().filter_map(wire_escape).collect()
+    }
+
+    /// T-4b-9: Given 몫 1 에 넘긴 Esc 누름을 그린 Ignore 키 주인, When 몫 2 [Shift+Esc 누름] 이 오면, Then egui 가 그
+    /// 누름을 반복으로 정해 wire 의 Shift+Esc 가 반복이다.
+    #[test]
+    fn a_handed_escape_press_keeps_the_egui_key_state_for_the_next_share() {
+        let mut scene = held_after_a_handed_press();
+        assert_eq!(shift_escape_share(&mut scene), vec![(true, true, true)]);
+    }
+
+    /// T-4b-9r: Given T-4b-9 의 몫 1·2 뒤, When 몫 3 [Esc 뗌], 몫 4 [Shift+Esc 누름] 이 오면, Then 몫 4 의 Shift+Esc 는
+    /// 반복이 아니다.
+    #[test]
+    fn a_new_press_after_the_release_is_not_a_repeat() {
+        let mut scene = held_after_a_handed_press();
+        drop(shift_escape_share(&mut scene));
+        scene.pass(vec![esc_release()]);
+        drop(scene.state.take_pending_intents());
+        assert_eq!(shift_escape_share(&mut scene), vec![(true, false, true)]);
+    }
+
+    /// T-4b-10: Given 앞 몫에서 Escape 를 누른 채인 Ignore 키 주인, When 한 몫 [창이 처리하지 않은 Esc 반복(Super+Esc),
+    /// 포인터 이동, 넘긴 Esc 반복] 이 오면, Then wire 에는 포인터 이동 앞 누름 하나만 있고, 거둔 뒤 egui `events`·
+    /// `raw.events` 도 포인터 이동 앞에만 Esc 누름이 하나 있으며 Escape 눌림이 남는다. 비-macOS 에서 Super 는 egui 사건에
+    /// 없어 두 누름의 값이 같다. 넘긴 누름은 값이 아니라 자리로 고른다.
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn the_handed_press_is_skipped_by_its_place_not_its_value() {
+        let mut scene = held_after_a_handed_press();
+        let at = scene.center();
+        assert_eq!(esc_press(true), esc_press(true), "두 누름의 egui 값이 같다");
+        assert!(scene.escape_pass(
+            vec![esc_press(true), Event::PointerMoved(at)],
+            true,
+            Vec::new(),
+        ));
+        let events = the_request(&mut scene);
+        let moved = events
+            .iter()
+            .position(is_wire_pointer_move)
+            .expect("포인터 이동이 실린다(내용 안)");
+        let presses: Vec<usize> = events
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| matches!(wire_escape(e), Some((true, ..))))
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(presses.len(), 1, "wire 의 Esc 누름은 하나다: {events:?}");
+        assert!(
+            presses[0] < moved,
+            "그 누름은 포인터 이동 앞이다: {events:?}"
+        );
+        let (seen, raw, held) = scene.ctx.input(|i| {
+            (
+                i.events.clone(),
+                i.raw.events.clone(),
+                i.keys_down.contains(&egui::Key::Escape),
+            )
+        });
+        for (what, list) in [("events", seen), ("raw.events", raw)] {
+            let moved = list
+                .iter()
+                .position(|e| matches!(e, Event::PointerMoved(_)))
+                .expect("포인터 이동");
+            let presses: Vec<usize> = list
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| crate::adapters::ui::popup::body_keys::is_escape_press(e))
+                .map(|(n, _)| n)
+                .collect();
+            assert_eq!(presses.len(), 1, "{what}: {list:?}");
+            assert!(presses[0] < moved, "{what}: {list:?}");
+        }
+        assert!(held, "Escape 눌림이 남는다");
+    }
+
+    /// T-4b-11: Given 펼친 plugin 키 주인, When 한 몫 [넘긴 Esc 누름, Esc 뗌, Shift+Esc 누름] 이 오면, Then 다시 접히고
+    /// wire 에는 넘긴 누름이 없고 Esc 뗌과 Shift+Esc 누름이 있다.
+    #[test]
+    fn an_expanded_plugin_popup_keeps_the_release_and_other_escapes_on_the_wire() {
+        let mut scene = expanded_scene(tasty_plugin_protocol::popup_decl::PopupEscape::Close);
+        let at = scene.center();
+        assert!(scene.escape_pass(
+            vec![Event::PointerMoved(at)],
+            false,
+            vec![esc_release(), shift_esc_press()],
+        ));
+        let events = the_request(&mut scene);
+        let escapes: Vec<_> = events
+            .iter()
+            .filter_map(wire_escape)
+            .map(|(p, _, s)| (p, s))
+            .collect();
+        assert_eq!(escapes, vec![(false, false), (true, true)], "{events:?}");
+        assert!(!scene.state.popups.plugin_expanded().contains(&1), "접힌다");
+        assert!(!scene.closed(), "닫지 않는다");
     }
 
     #[test]

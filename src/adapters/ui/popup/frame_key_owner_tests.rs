@@ -603,11 +603,10 @@ fn dispatch_like_app(
 }
 
 /// Given 키 주인이 Esc 선언 `Unfocus`(Esc 로 닫히지 않음)인 plugin 팝업 P 일 때, When Esc 를 누른 채 두 프레임에 걸쳐
-/// 누름이 오면(창이 두 번 처리해 넘긴다), Then 프레임마다 앱 처리 단계를 거친 뒤에도 P 는 닫는 요청 없이 열린 채
-/// 다음 프레임을 받는다. P 는 첫 프레임에 새 누름, 둘째 프레임에 반복 누름을 받는다. 창을 거치지 않고 egui 가
-/// 그대로 처리한 프레임별 결과와 같다.
+/// 누름이 오면, Then 첫 프레임에 창이 넘긴 새 누름을 P 가 받고(창을 거치지 않고 egui 가 처리한 결과와 같다) 그 입력을
+/// 보낸 뒤 P 의 포커스가 풀린다. P 는 닫는 요청 없이 열린 채다. 둘째 프레임의 누름은 P 가 키 주인이 아니라 받지 않는다.
 #[test]
-fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
+fn a_held_escape_reaches_an_unfocus_plugin_owner_once_and_releases_it() {
     let Scene {
         mut state,
         mut session,
@@ -632,60 +631,71 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
     assert!(dispatch_like_app(&mut state, &mut mgr).is_empty());
     state.take_pending_intents();
 
-    let plain = Context::default();
-    for (n, expected) in [vec![(true, false)], vec![(true, true)]]
-        .into_iter()
-        .enumerate()
-    {
-        let mut events = escape();
-        assert!(
-            state.window_escape(
-                &mut events,
-                Some(0),
-                ctx.input(|i| i.key_down(egui::Key::Escape))
-            ),
-            "plugin 키 주인 갈래"
-        );
-        draw(&mut state, &mgr, events);
-        assert_eq!(
-            sent_escape_keys(&mut state),
-            expected,
-            "{n}번째 프레임에 P 가 받은 Esc(눌림, 반복)"
-        );
-        let closes = dispatch_like_app(&mut state, &mut mgr);
-        assert!(
-            closes.iter().all(|(id, _)| *id != POPUP),
-            "Unfocus 선언 P 는 Esc 로 닫히지 않는다: {closes:?}"
-        );
-        assert!(
-            mgr.popup_instances().any(|(id, _)| id == POPUP),
-            "P 가 열린 채 다음 프레임을 받는다"
-        );
-
-        let mut plain_seen = Vec::new();
-        drop(plain.run(
-            egui::RawInput {
-                events: escape(),
-                ..Default::default()
-            },
-            |ctx| {
-                ctx.input(|i| {
-                    for e in &i.events {
-                        if let Event::Key {
-                            pressed, repeat, ..
-                        } = e
-                        {
-                            plain_seen.push((*pressed, *repeat));
-                        }
+    let mut events = escape();
+    assert!(
+        state.window_escape(
+            &mut events,
+            Some(0),
+            ctx.input(|i| i.key_down(egui::Key::Escape))
+        ),
+        "plugin 키 주인 갈래"
+    );
+    draw(&mut state, &mgr, events);
+    assert_eq!(
+        sent_escape_keys(&mut state),
+        vec![(true, false)],
+        "P 가 받은 Esc(눌림, 반복)"
+    );
+    let mut plain_seen = Vec::new();
+    drop(Context::default().run(
+        egui::RawInput {
+            events: escape(),
+            ..Default::default()
+        },
+        |ctx| {
+            ctx.input(|i| {
+                for e in &i.events {
+                    if let Event::Key {
+                        pressed, repeat, ..
+                    } = e
+                    {
+                        plain_seen.push((*pressed, *repeat));
                     }
-                })
-            },
-        ));
-        assert_eq!(
-            plain_seen, expected,
-            "{n}번째 프레임: 창을 거치지 않은 egui 결과와 같다"
-        );
-    }
+                }
+            })
+        },
+    ));
+    assert_eq!(
+        plain_seen,
+        vec![(true, false)],
+        "창을 거치지 않은 egui 결과와 같다"
+    );
+    let closes = dispatch_like_app(&mut state, &mut mgr);
+    assert!(
+        closes.iter().all(|(id, _)| *id != POPUP),
+        "Unfocus 선언 P 는 Esc 로 닫히지 않는다: {closes:?}"
+    );
+    assert!(
+        mgr.popup_instances().any(|(id, _)| id == POPUP),
+        "P 가 열린 채다"
+    );
+    assert_ne!(
+        state.popups.focus(),
+        Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(POPUP)),
+        "입력을 보낸 뒤 P 의 포커스가 풀린다"
+    );
+
+    let mut events = escape();
+    let handled = state.window_escape(
+        &mut events,
+        Some(0),
+        ctx.input(|i| i.key_down(egui::Key::Escape)),
+    );
+    draw(&mut state, &mgr, events);
+    assert!(
+        sent_escape_keys(&mut state).is_empty(),
+        "둘째 누름은 P 가 받지 않는다(창 처리 {handled})"
+    );
 }
 
 /// 창의 egui 패스 하나(`GpuState::run_main_pass`): 다음 몫의 입력을 꺼내 그리고 그 몫을 닫는다.

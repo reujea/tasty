@@ -4,7 +4,7 @@
 //! 창이 처리한 Esc 누름은 언제나 egui 입력에서 뺀다(뗌은 남겨 egui 의 눌린 키 상태를 푼다). egui 는 패스 시작에서 입력에 남은 Esc 로 위젯 키 포커스를 풀므로,
 //! 남기면 팝업 층 아래 화면(탐색기 찾기 입력란 등)이 포커스를 잃는다. 키 주인이 그 Esc 를 읽어야 하면(host 본문의
 //! 하위 화면 되돌아가기, plugin 렌더의 닫기·다시 접기) 뺀 원래 사건을 그 키 주인을 그리는 동안만 되넣는다
-//! (`body_keys::with_handed_escape`).
+//! (`body_keys::hand_escape`·`withdraw_escape`).
 
 /// 창 Esc 처리 결과.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,13 +77,6 @@ impl super::MainViewState {
         if live.is_none() && !self.popups.is_open("notifications") {
             return EscapeGate::Pass;
         }
-        // plugin 키 주인이 창 위로 펼친 팝업이면 그 렌더가 이 Esc 로 다시 접는다(닫지 않는다). 아래 알림 목록이나 host
-        // 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다.
-        if self.refold_key_owner() {
-            return EscapeGate::Consumed {
-                hand_to_owner: true,
-            };
-        }
         // 알림 목록은 포커스 노드가 다른 팝업이 아닐 때만 Esc 를 받는다. 창을 덮는 피커처럼 다른 팝업이 포커스 노드면
         // Esc 는 그 팝업에서 시작한다.
         if self.notifications_take_escape(live) {
@@ -97,8 +90,8 @@ impl super::MainViewState {
                 hand_to_owner: false,
             };
         }
-        // plugin 팝업이 키 주인이면 그 렌더가 Esc 를 받는다(선언이 `Close`면 닫는다). 아래의 포커스된 host 팝업은
-        // 건드리지 않는다.
+        // plugin 팝업이 키 주인이면 그 렌더가 Esc 를 받아 선언과 표시 상태로 처리한다(펼쳤으면 다시 접기). 아래의
+        // 포커스된 host 팝업과 알림 목록은 건드리지 않는다(plugin 키 주인이면 알림 목록은 위에서 Esc 를 받지 않는다).
         if matches!(
             self.popup_key_owner(),
             Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))

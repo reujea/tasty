@@ -1,6 +1,6 @@
-//! Escape 처리에서 설정 열기 요청·펼친 팝업 다시 접기·알림·plugin 키 주인·포커스된 팝업의 순서를 확인한다.
-//! 창 위로 펼친 키 주인 팝업의 Esc는 닫거나 포커스를 풀지 않고 다시 접는다. 아래 알림 목록이나 host 팝업을
-//! 먼저 닫지 않도록 알림·일반 팝업 처리보다 먼저 있어야 한다.
+//! Escape 처리에서 설정 열기 요청·알림·plugin 키 주인·포커스된 팝업의 순서를 확인한다.
+//! plugin 키 주인의 Esc는 펼쳤든 아니든 그 렌더에 넘긴다(렌더가 선언과 표시 상태로 닫기·다시 접기를 정한다). 아래
+//! host 팝업을 먼저 닫지 않도록 일반 팝업 처리보다 먼저 있어야 한다.
 //! 설정 열기 요청 분기는 포커스와 무관하게, 알림 분기는 포커스 노드가 다른 팝업이 아닐 때 처리하므로 일반 팝업
 //! 처리보다 먼저 있어야 한다.
 //! settings_open_requested는 열기 요청 상태다. 이미 열린 설정 모달을 Escape로 닫는 경로를 뜻하지 않는다.
@@ -66,11 +66,6 @@ fn the_three_escape_consumers_keep_their_order() {
         "if let Some((instance, escape)) = self.popups.host_key_owner_escape() {",
         "Escape 의 host 키 주인 분기",
     );
-    let refold = only_at(
-        body,
-        "if self.refold_key_owner() {",
-        "Escape 의 펼친 popup 다시 접기 분기",
-    );
     let plugin_owner = only_at(
         body,
         "Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))",
@@ -81,12 +76,12 @@ fn the_three_escape_consumers_keep_their_order() {
         "plugin 키 주인 분기가 일반 팝업 처리보다 뒤에 있다. plugin 팝업이 받을 Esc 로 아래 host 팝업이 닫힌다."
     );
     assert!(
-        refold < notifications,
-        "다시 접기가 알림 처리보다 뒤에 있다. 펼친 팝업의 Esc가 아래 알림 목록을 닫으면 안 된다."
-    );
-    assert!(
-        refold < general,
-        "다시 접기가 일반 팝업 처리보다 뒤에 있다. 펼친 팝업의 Esc가 닫기·포커스 해제로 가면 안 된다."
+        body[plugin_owner..general]
+            .trim_start_matches(|c: char| c != '{')
+            .split('}')
+            .next()
+            .is_some_and(|branch| branch.contains("hand_to_owner: true")),
+        "plugin 키 주인 분기가 그 Esc 를 렌더에 넘기지 않는다. 펼친 plugin 팝업의 다시 접기와 선언 처리는 렌더가 한다."
     );
 
     assert!(

@@ -148,16 +148,6 @@ impl super::MainViewState {
             PopupKeyOwner::Plugin(_) => None,
         }
     }
-
-    /// Esc 의 다시 접기 판정. 키 주인이 펼친 plugin 팝업이면 참이다. 그 팝업은 이번 프레임 렌더가 접고 그 Esc 를 mesh
-    /// 내용에 보내지 않는다(`plugin_bridge::popup_render`). 펼친 host 팝업은 팝업 층 중앙 단계가 본문 뒤에 접는다.
-    pub(crate) fn refold_key_owner(&self) -> bool {
-        match self.popup_key_owner() {
-            #[cfg(feature = "gui")]
-            Some(PopupKeyOwner::Plugin(id)) => self.popups.plugin_expanded().contains(&id),
-            _ => false,
-        }
-    }
 }
 
 fn plugin_target(owner: Option<PopupKeyOwner>) -> Option<u64> {
@@ -244,23 +234,40 @@ mod tests {
         assert_eq!(state.frame_plugin_key_target(None), Some(42));
     }
 
-    /// 키 주인이 펼친 plugin 팝업이면 Esc 다시 접기가 소비한다. 아래 host 팝업은 닫히지 않는다. 펼치지 않은 plugin
-    /// 팝업이나 펼치지 않은 host 팝업이 키 주인이면 다음 처리로 간다.
+    /// 창의 수식키 없는 Esc 누름 하나(`window_escape` 의 `pending`).
+    #[cfg(feature = "gui")]
+    fn bare_escape() -> Vec<egui::Event> {
+        vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]
+    }
+
+    /// 창이 묶은 Esc 를 이번 프레임 키 주인 몫으로 꺼내 비지 않았는지(그리기가 키 주인을 정한 뒤 렌더가 꺼내는 값).
+    #[cfg(feature = "gui")]
+    fn handed_to_the_frame(state: &mut crate::state::MainViewState) -> bool {
+        let live = state.popup_key_owner();
+        state.popups.decide_frame_keys(live);
+        !state.popups.take_handed_escape().is_empty()
+    }
+
+    /// 키 주인이 펼친 plugin 팝업이면 창은 그 Esc 를 렌더에 넘기고 접지 않는다(렌더가 접는다). 아래 host 팝업은
+    /// 닫히지 않는다.
     #[cfg(feature = "gui")]
     #[test]
-    fn escape_refolds_only_an_expanded_key_owner_and_leaves_the_popup_below() {
+    fn escape_on_an_expanded_plugin_key_owner_is_handed_and_leaves_the_popup_below() {
         let mut state = state_with_host_popup();
         let host = state
             .popups
             .open_centered_focused("host_popup", PopupScope::Window)
             .unwrap();
-        assert!(!state.refold_key_owner(), "펼치지 않은 host 키 주인");
-
         place_plugin_popup(&mut state, 42, true);
-        assert!(!state.refold_key_owner(), "펼치지 않은 plugin 키 주인");
-
         state.popups.expand_plugin(42);
-        assert!(state.refold_key_owner());
+        assert!(state.window_escape(&mut bare_escape(), Some(0), false));
+        assert!(handed_to_the_frame(&mut state), "plugin 렌더에 넘긴다");
         let p = state.popups.instance(host).unwrap();
         assert!(p.open, "아래 host 팝업은 열린 채다");
         assert!(
@@ -271,7 +278,7 @@ mod tests {
 
     /// Given L 범위의 host 팝업, 그 위에 포커스 노드인 펼친 plugin 팝업(file-open), 맨 위에 그 plugin 팝업이 연
     /// passive 피커가 있을 때, Then passive 피커는 포커스 노드를 바꾸지 않으므로 키 주인은 펼친 plugin 팝업이다.
-    /// When Esc 의 다시 접기를 하면, Then 소비되고 L 팝업은 열린 채다. host 대상은 없다.
+    /// When Esc 가 오면, Then 창이 plugin 키 주인에게 넘기고 L 팝업은 열린 채다. host 대상은 없다.
     #[cfg(feature = "gui")]
     #[test]
     fn a_passive_picker_on_top_takes_no_keys_and_escape_never_reaches_the_popup_below() {
@@ -307,9 +314,10 @@ mod tests {
             state.popups.host_key_owner().is_none(),
             "다시 접기·일반 Esc 의 host 대상은 없다(passive 피커도 아래 L 팝업도 아니다)"
         );
+        assert!(state.window_escape(&mut bare_escape(), Some(0), false));
         assert!(
-            state.refold_key_owner(),
-            "펼친 plugin 키 주인이 Esc 를 소비한다"
+            handed_to_the_frame(&mut state),
+            "펼친 plugin 키 주인이 Esc 를 받는다"
         );
         let p = state.popups.instance(below).unwrap();
         assert!(p.open, "아래 L 팝업은 닫히지 않는다");
