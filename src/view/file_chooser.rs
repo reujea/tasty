@@ -194,12 +194,13 @@ impl LocalFileChooser {
 
     /// popup 콘텐츠. 닫혀야 하면 `done`이 참이다. `child_menu`는 그린 숨은 경로 메뉴의 egui popup id이고,
     /// 호출자가 자기 인스턴스로 등록한다.
-    /// `escape` 는 호출자가 이 패스 Esc 를 이 피커에 썼는지다(`FilePickerProps::escape`).
+    /// `keys` 는 관리자가 이 인스턴스에 넘긴 키 통로이고 폴더 키를 읽는다. `escape` 는 호출자가 이 패스 Esc 를 이
+    /// 피커에 썼는지다(`FilePickerProps::escape`).
     pub(crate) fn draw(
         &mut self,
         ui: &mut egui::Ui,
         th: &Theme,
-        owns_escape: bool,
+        keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
         escape: bool,
     ) -> ChooserDraw {
         let Some(s) = self.session.as_mut() else {
@@ -208,7 +209,7 @@ impl LocalFileChooser {
                 child_menu: None,
             };
         };
-        let (action, child_menu) = draw_view(ui, th, s, owns_escape, escape);
+        let (action, child_menu) = draw_view(ui, th, s, keys, escape);
         let done = match s.apply(action) {
             Some(o) => {
                 self.finish(o);
@@ -443,7 +444,7 @@ fn draw_view(
     ui: &mut egui::Ui,
     th: &Theme,
     s: &ChooserSession,
-    owns_escape: bool,
+    keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
     escape: bool,
 ) -> (FilePickerAction, Option<egui::Id>) {
     let crumbs: Vec<CrumbView> = s
@@ -512,7 +513,6 @@ fn draw_view(
         entries: &entries,
         selected: &s.selected,
         mode,
-        owns_escape,
         escape,
         title_label: s.title(),
         name_field_label: t(if s.is_folder() {
@@ -546,7 +546,7 @@ fn draw_view(
         filters: &s.filters,
         filter_showing: t("filepicker.filter_showing"),
     };
-    let out = draw_file_picker_view(ui, &props);
+    let out = draw_file_picker_view(ui, &props, keys);
     crate::adapters::ui::popup::report_header_drag_rect(
         ui.ctx(),
         crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID,

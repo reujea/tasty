@@ -27,14 +27,19 @@ pub(super) fn footer<'a>(p: &'a FilePickerProps<'a>) -> Option<FolderPickerFoote
     })
 }
 
-pub(super) fn keyboard(ui: &egui::Ui, p: &FilePickerProps<'_>) -> Option<FilePickerAction> {
+/// 폴더 모드의 키. 키 통로의 노드 키맵 읽기라 egui 매처처럼 패턴에 없는 Shift·Alt 가 붙은 누름도 같은 조작이다.
+pub(super) fn keyboard(
+    ui: &egui::Ui,
+    p: &FilePickerProps<'_>,
+    keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
+) -> Option<FilePickerAction> {
     if ui.memory(|m| m.any_popup_open())
-        || !p.owns_escape
+        || !keys.receives()
         || !matches!(p.mode, FilePickerMode::Folder { .. })
     {
         return None;
     }
-    let consume = |key, modifiers| ui.input_mut(|i| i.consume_key(modifiers, key));
+    let mut consume = |key, modifiers| keys.consume_keymap_key(modifiers, key);
     if consume(egui::Key::ArrowUp, egui::Modifiers::ALT) {
         return Some(FilePickerAction::NavigateUp);
     }

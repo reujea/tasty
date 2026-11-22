@@ -331,10 +331,7 @@ fn enclosing_open(code: &str, pos: usize) -> Option<usize> {
 }
 
 /// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
-const POPUP_BODIES: &[&str] = &[
-    "src/adapters/ui/popup/file_picker/folder.rs",
-    "src/adapters/ui/search_bar.rs",
-];
+const POPUP_BODIES: &[&str] = &[];
 
 /// 문 자체와 관리자가 넘긴 통로로만 키를 읽는 키 통로 모듈.
 const GATE_AND_OWNER_BUTTONS: &[&str] = &[
@@ -647,6 +644,7 @@ const POPUP_BODIES_WITHOUT_KEY_READS: &[&str] = &[
     "src/adapters/ui/popup/dag_list.rs",
     "src/adapters/ui/popup/file_handler_picker.rs",
     "src/adapters/ui/popup/file_picker.rs",
+    "src/adapters/ui/popup/file_picker/folder.rs",
     "src/adapters/ui/popup/port_scanner.rs",
     "src/adapters/ui/popup/preset_apply.rs",
     "src/adapters/ui/popup/rail_category.rs",
@@ -656,6 +654,7 @@ const POPUP_BODIES_WITHOUT_KEY_READS: &[&str] = &[
     "src/adapters/ui/popup/script_confirm.rs",
     "src/adapters/ui/popup/transfer.rs",
     "src/adapters/ui/restore_notice.rs",
+    "src/adapters/ui/search_bar.rs",
     "src/adapters/ui/tools_menu.rs",
     "src/adapters/ui/tutorial/topic_popup.rs",
 ];

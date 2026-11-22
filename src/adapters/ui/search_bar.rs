@@ -121,15 +121,11 @@ pub fn draw_search_bar(
         // find 단축키는 입력칸보다 먼저 소비한다. 입력칸이 먼저 받으면 alt·option 조합의 글자가
         // 검색어에 들어간다.
         let query_id = ui.make_persistent_id("search_bar_query");
-        let super_held = crate::adapters::ui::input::shortcuts::super_held(ui.ctx());
+        // 검색 띠의 노드 키맵(find)은 키 통로로 읽는다. 매처는 단축키 매처 그대로다.
         let find_pressed = ui.memory(|m| m.has_focus(query_id))
-            && ui.input_mut(|i| {
-                crate::adapters::ui::input::shortcuts::consume_binding_egui(
-                    &engine.settings.keybindings.find,
-                    i,
-                    super_held,
-                )
-            });
+            && cx
+                .keys
+                .consume_keymap_binding(&engine.settings.keybindings.find);
         let response = tasty_ui_widgets::Input::new()
             .ground(tasty_ui_widgets::Ground::Raised)
             .id(query_id)

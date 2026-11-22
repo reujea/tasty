@@ -439,6 +439,35 @@ impl PopupKeys {
         self.consumed.extend(taken);
         last
     }
+
+    /// 노드 키맵 읽기: `modifiers`+`key` 누름 하나를 egui `consume_key`와 같은 매처(`matches_logically`, 패턴에
+    /// 없는 Shift·Alt 는 허용)로 소비한다. 소비 집합 판정을 거치지 않는다. 폴더 키처럼 집합 밖 조합(Alt+↑)과 수식키를
+    /// 너그럽게 받는 조작이 그 노드의 키맵으로 쓴다. 소비했으면 패턴을 기록한다.
+    pub(crate) fn consume_keymap_key(
+        &mut self,
+        modifiers: egui::Modifiers,
+        key: egui::Key,
+    ) -> bool {
+        if !self.receives {
+            return false;
+        }
+        let hit = self.ctx.input_mut(|i| i.consume_key(modifiers, key));
+        if hit {
+            self.consumed.push(ConsumedKey::Key { key, modifiers });
+        }
+        hit
+    }
+
+    /// 노드 키맵 읽기: 설정 바인딩 목록(`bindings`) 가운데 하나에 맞는 누름을 단축키 매처(`consume_binding_egui`)로
+    /// 소비한다. 소비 집합 판정을 거치지 않는다. 검색 띠의 find 처럼 사용자가 정한 단축키를 그 노드가 쓴다.
+    pub(crate) fn consume_keymap_binding(&mut self, bindings: &[String]) -> bool {
+        if !self.receives {
+            return false;
+        }
+        let super_held = self.super_held;
+        self.ctx
+            .input_mut(|i| tasty_key_match::consume_binding_egui(bindings, i, super_held))
+    }
 }
 
 #[cfg(test)]

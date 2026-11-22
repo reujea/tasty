@@ -867,60 +867,57 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         let accepted = &mut ui_state.conflict_accepted;
         let cancelled = &mut ui_state.conflict_cancelled;
         let chooser = &mut ui_state.file_chooser;
-        ui_state
-            .popups
-            .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
-                if cx.id == FILE_PICKER_POPUP_ID {
-                    // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
-                    let escape =
-                        !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
-                            && cx
-                                .keys
-                                .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-                    let drawn = chooser.draw(ui, &th, owns_escape, escape);
-                    crate::adapters::ui::popup::file_picker::report_hidden_crumbs_menu(
-                        ui,
-                        cx.instance,
-                        drawn.child_menu,
-                    );
-                    return drawn.done;
-                }
-                if cx.id == KEYBINDING_CONFLICT_POPUP_ID
-                    && let Some(pending) = &pending
-                {
-                    // 안내 문자열은 open 직전 크기 산정과 동일 출처를 쓴다
-                    // (quick-switch 슬롯 충돌 라벨 처리 포함 — conflict_message_text).
-                    ui.label(conflict_message_text(pending, &settings.general));
-                    vspace(ui, th.spacing_sm);
-                    ui.horizontal(|ui| {
-                        if ui.button(t("button.cancel")).clicked() {
-                            *cancelled = true;
-                        }
-                        if ui
-                            .button(t("settings.keybindings.conflict_apply"))
-                            .clicked()
-                        {
-                            *accepted = true;
-                        }
-                    });
-                    // 키보드 적용(Enter·Y)과 거부(N)는 키 통로로 읽는다(이번 패스 키 주인만 받는다).
-                    use crate::adapters::ui::popup::keys::BasicKey;
-                    if cx.keys.consume(BasicKey::Confirm)
-                        || cx.keys.consume_key(egui::Modifiers::NONE, egui::Key::Y)
+        ui_state.popups.draw_view_local(ctx, &mut |cx, ui, _| {
+            if cx.id == FILE_PICKER_POPUP_ID {
+                // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
+                let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
+                    && cx
+                        .keys
+                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+                let drawn = chooser.draw(ui, &th, &mut cx.keys, escape);
+                crate::adapters::ui::popup::file_picker::report_hidden_crumbs_menu(
+                    ui,
+                    cx.instance,
+                    drawn.child_menu,
+                );
+                return drawn.done;
+            }
+            if cx.id == KEYBINDING_CONFLICT_POPUP_ID
+                && let Some(pending) = &pending
+            {
+                // 안내 문자열은 open 직전 크기 산정과 동일 출처를 쓴다
+                // (quick-switch 슬롯 충돌 라벨 처리 포함 — conflict_message_text).
+                ui.label(conflict_message_text(pending, &settings.general));
+                vspace(ui, th.spacing_sm);
+                ui.horizontal(|ui| {
+                    if ui.button(t("button.cancel")).clicked() {
+                        *cancelled = true;
+                    }
+                    if ui
+                        .button(t("settings.keybindings.conflict_apply"))
+                        .clicked()
                     {
                         *accepted = true;
                     }
-                    if cx.keys.consume_key(egui::Modifiers::NONE, egui::Key::N) {
-                        *cancelled = true;
-                    }
-                    // 적용 표지를 세운 패스의 Esc 는 쓴 것이다. 다음 패스 표지 처리가 적용을 먼저 정한다.
-                    if *accepted {
-                        cx.keys
-                            .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-                    }
+                });
+                // 키보드 적용(Enter·Y)과 거부(N)는 키 통로로 읽는다(이번 패스 키 주인만 받는다).
+                use crate::adapters::ui::popup::keys::BasicKey;
+                if cx.keys.consume(BasicKey::Confirm)
+                    || cx.keys.consume_key(egui::Modifiers::NONE, egui::Key::Y)
+                {
+                    *accepted = true;
                 }
-                false
-            })
+                if cx.keys.consume_key(egui::Modifiers::NONE, egui::Key::N) {
+                    *cancelled = true;
+                }
+                // 적용 표지를 세운 패스의 Esc 는 쓴 것이다. 다음 패스 표지 처리가 적용을 먼저 정한다.
+                if *accepted {
+                    cx.keys
+                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+                }
+            }
+            false
+        })
     };
 
     // X 버튼 등으로 충돌 팝업이 닫힌 경우 pending_binding 정리

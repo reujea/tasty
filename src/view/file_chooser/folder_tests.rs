@@ -99,6 +99,15 @@ fn folder_outcome_is_consumer_owned_and_consumed_once_including_cancel() {
 }
 
 fn frame(ch: &mut LocalFileChooser, ctx: &egui::Context, key: egui::Key) {
+    frame_with(ch, ctx, key, egui::Modifiers::NONE);
+}
+
+fn frame_with(
+    ch: &mut LocalFileChooser,
+    ctx: &egui::Context,
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+) {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
@@ -109,14 +118,26 @@ fn frame(ch: &mut LocalFileChooser, ctx: &egui::Context, key: egui::Key) {
             physical_key: None,
             pressed: true,
             repeat: false,
-            modifiers: egui::Modifiers::NONE,
+            modifiers,
         }],
         ..Default::default()
     };
     drop(ctx.run(input, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            // 관리자 없이 그리므로 그 Esc 를 피커에 쓴 것은 시험이 정한다(관리자 통로가 소비한 경우와 같다).
-            ch.draw(ui, &crate::theme::theme(), true, key == egui::Key::Escape);
+            // 관리자 없이 그리므로 키 주인 통로와 그 Esc 를 피커에 쓴 것은 시험이 정한다(관리자 통로가 소비한 경우와
+            // 같다).
+            let mut keys = crate::adapters::ui::popup::keys::PopupKeys::new(
+                ctx,
+                true,
+                crate::adapters::ui::popup::PopupKeyboard::Text,
+                &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            );
+            ch.draw(
+                ui,
+                &crate::theme::theme(),
+                &mut keys,
+                key == egui::Key::Escape,
+            );
         });
     }));
 }
@@ -146,5 +167,18 @@ fn folder_keyboard_skips_files_and_enter_confirms_while_right_enters() {
     assert_eq!(
         ch.take_outcome("folder.test"),
         Some(FileChooserOutcome::Cancelled)
+    );
+}
+
+/// T-9b-5: Given egui 드롭다운이 열린 별도 창 폴더 선택, When Alt+↑ 를 누르면, Then 상위 폴더로 가지 않는다.
+#[test]
+fn alt_up_with_a_dropdown_open_does_nothing() {
+    let ctx = egui::Context::default();
+    let mut ch = loaded(FileChooserMode::Folder);
+    ctx.memory_mut(|m| m.open_popup(egui::Id::new("folder-test-dropdown")));
+    frame_with(&mut ch, &ctx, egui::Key::ArrowUp, egui::Modifiers::ALT);
+    assert_eq!(
+        ch.session.as_ref().unwrap().current_dir,
+        PathBuf::from("/fixture")
     );
 }

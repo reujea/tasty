@@ -127,10 +127,6 @@ pub struct FilePickerProps<'a> {
     /// 선택된 엔트리 이름(현재 디렉토리 기준).
     pub selected: &'a [String],
     pub mode: FilePickerMode<'a>,
-    /// 이 프레임에 Esc 를 소비할 자격이 있는가(docs/design/systems/popup.md).
-    /// `false` 면 위에 다른 popup 이 있다는 뜻이라 Esc 를 무시한다 — 한 번의 Esc 로
-    /// 스택 전체가 닫히는 것을 막는다. 판정은 관리자가 넘긴 키 통로(`PopupCx::keys`의 `receives()`)다.
-    pub owns_escape: bool,
     /// 호출자가 이 패스 Esc 를 이 보기에 썼다(본문 전에 자식 팝업이 닫혀 있고 키 통로가 Esc 를 소비했다). 참이면 보기는
     /// 다른 것을 그리지 않고 취소한다.
     pub escape: bool,
@@ -238,7 +234,12 @@ pub(crate) fn report_hidden_crumbs_menu(
 
 /// 헤더·경로·푸터 영역을 먼저 정하고 목록에는 남은 높이를 준다.
 /// 긴 경로는 breadcrumb 안에서 줄여 푸터 버튼 영역을 보존한다.
-pub fn draw_file_picker_view(ui: &mut egui::Ui, props: &FilePickerProps<'_>) -> FilePickerViewOut {
+/// 폴더 키는 `keys`(관리자가 넘긴 키 통로)로 읽는다. 키를 받지 않는 인스턴스는 폴더 키에 반응하지 않는다.
+pub fn draw_file_picker_view(
+    ui: &mut egui::Ui,
+    props: &FilePickerProps<'_>,
+    keys: &mut super::keys::PopupKeys,
+) -> FilePickerViewOut {
     let ctx = ui.ctx().clone();
     let nested_popup_open = ctx.memory(|m| m.any_popup_open());
     if props.escape {
@@ -253,7 +254,7 @@ pub fn draw_file_picker_view(ui: &mut egui::Ui, props: &FilePickerProps<'_>) -> 
     // 내용은 `fp-*` 인셋 안에 그린다.
     let outer = ui.available_rect_before_wrap();
     let mut out = draw_view_sections(ui, props, outer);
-    if !nested_popup_open && let Some(action) = folder::keyboard(ui, props) {
+    if !nested_popup_open && let Some(action) = folder::keyboard(ui, props, keys) {
         out.action = action;
     }
     ui.advance_cursor_after_rect(outer);
@@ -656,9 +657,7 @@ pub fn draw_file_picker(
     }
 
     let th = theme::theme();
-    // 키 입력은 관리자가 키를 준 인스턴스만 읽는다(`cx.keys.receives()`). 다른 범위의 피커는 같은 키에 취소·확정되지
-    // 않는다.
-    let owns_escape = cx.keys.receives();
+    // 키 입력은 관리자가 키를 준 인스턴스만 읽는다(`cx.keys`). 다른 범위의 피커는 같은 키에 취소·확정되지 않는다.
     // Esc 는 본문 전에 자식 팝업(경로 메뉴)이 닫혀 있을 때만 이 피커 것이다. 열려 있으면 egui 가 그 메뉴를 닫는다.
     let escape = !super::child_popup_open(ui.ctx(), cx.instance)
         && cx.keys.consume(super::keys::BasicKey::Escape);
@@ -768,7 +767,6 @@ pub fn draw_file_picker(
                 selection_text: &selection_text,
             },
         },
-        owns_escape,
         escape,
         title_label,
         name_field_label,
@@ -807,7 +805,7 @@ pub fn draw_file_picker(
         filter_showing: t("filepicker.filter_showing"),
     };
 
-    let out = draw_file_picker_view(ui, &props);
+    let out = draw_file_picker_view(ui, &props, &mut cx.keys);
     // 셸 타이틀바가 없으므로 위젯 헤더 줄을 이동 손잡이로 보고한다.
     super::header_drag::report(ui.ctx(), cx.instance, out.header_rect);
     report_hidden_crumbs_menu(ui, cx.instance, out.hidden_crumbs_menu);

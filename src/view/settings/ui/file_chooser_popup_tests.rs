@@ -46,7 +46,7 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
     for raw in inputs {
         drop(ctx.run(raw, |ctx| {
             let chooser = &mut st.file_chooser;
-            let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, owns_escape| {
+            let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, _| {
                 if cx.id != FILE_PICKER_POPUP_ID {
                     return false;
                 }
@@ -54,7 +54,7 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
                     && cx
                         .keys
                         .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-                chooser.draw(ui, &th, owns_escape, escape).done
+                chooser.draw(ui, &th, &mut cx.keys, escape).done
             });
             if closed.contains(&FILE_PICKER_POPUP_ID) {
                 st.file_chooser.cancel();
@@ -91,7 +91,7 @@ fn the_settings_chooser_has_no_shell_title_bar() {
             ctx,
             &mut |id, ui| {
                 if id.id == FILE_PICKER_POPUP_ID {
-                    chooser.draw(ui, &th, true, false);
+                    chooser.draw(ui, &th, &mut id.keys, false);
                 }
             },
             None,

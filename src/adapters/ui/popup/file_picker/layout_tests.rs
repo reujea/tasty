@@ -137,7 +137,6 @@ fn painted_frames_filtered(
         entries,
         selected: &selected,
         mode,
-        owns_escape: false,
         escape: false,
         title_label: "title",
         name_field_label: "File name",
@@ -186,7 +185,14 @@ fn painted_frames_filtered(
                     ui.set_min_size(content.size());
                     ui.set_max_size(content.size());
                     ui.set_clip_rect(content);
-                    draw_file_picker_view(ui, &props);
+                    // 키를 받지 않는 통로다(폴더 키 없음).
+                    let mut keys = crate::adapters::ui::popup::keys::PopupKeys::new(
+                        ctx,
+                        false,
+                        crate::adapters::ui::popup::PopupKeyboard::Text,
+                        &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                    );
+                    draw_file_picker_view(ui, &props, &mut keys);
                 });
         });
         out = full.shapes;

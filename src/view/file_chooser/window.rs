@@ -112,21 +112,19 @@ impl WindowFileChooser {
     ) {
         self.popups.put_window_pass_keys(ctx, keys);
         let chooser = &mut self.chooser;
-        let closed = self
-            .popups
-            .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
-                if cx.id != FILE_PICKER_POPUP_ID {
-                    return false;
-                }
-                // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
-                let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
-                    && cx
-                        .keys
-                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-                let drawn = chooser.draw(ui, &crate::theme::theme(), owns_escape, escape);
-                report_hidden_crumbs_menu(ui, cx.instance, drawn.child_menu);
-                drawn.done
-            });
+        let closed = self.popups.draw_view_local(ctx, &mut |cx, ui, _| {
+            if cx.id != FILE_PICKER_POPUP_ID {
+                return false;
+            }
+            // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
+            let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
+                && cx
+                    .keys
+                    .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+            let drawn = chooser.draw(ui, &crate::theme::theme(), &mut cx.keys, escape);
+            report_hidden_crumbs_menu(ui, cx.instance, drawn.child_menu);
+            drawn.done
+        });
         // 응답을 끝낸 뒤 닫혔으면 결과가 남고, 그 밖의 경로로 닫혔으면 취소다.
         if closed.contains(&FILE_PICKER_POPUP_ID) {
             self.chooser.cancel();

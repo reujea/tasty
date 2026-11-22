@@ -128,3 +128,165 @@ fn a_loading_folder_cannot_confirm() {
     ));
     assert_eq!(confirmed(&state), None);
 }
+
+// ── 폴더 키(노드 키맵 읽기). 수식키는 egui 매처처럼 패턴에 없는 Shift·Alt 를 허용한다. ──
+
+fn entries() -> Vec<FilePickerEntryView> {
+    ["proj", "src"]
+        .into_iter()
+        .map(|name| FilePickerEntryView {
+            name: name.into(),
+            is_dir: true,
+            size_display: String::new(),
+            modified_display: String::new(),
+        })
+        .collect()
+}
+
+/// `mode` 로 폴더 목록 보기의 키만 한 프레임 읽는다. `dropdown` 이면 그리기 전에 egui 팝업 하나가 열려 있다.
+fn folder_key(
+    mode: FilePickerMode<'_>,
+    dropdown: bool,
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+) -> Option<FilePickerAction> {
+    let th = crate::theme::theme();
+    let entries = entries();
+    let selected: Vec<String> = Vec::new();
+    let props = FilePickerProps {
+        theme: &th,
+        remote_host: None,
+        crumbs: &[],
+        state: FpViewState::Loaded,
+        entries: &entries,
+        selected: &selected,
+        mode,
+        escape: false,
+        title_label: "",
+        name_field_label: "",
+        name_placeholder: "",
+        cancel_label: "",
+        confirm_label: "",
+        overwrite_warning: "",
+        hidden_folders_one: "",
+        hidden_folders_many: "",
+        folder_not_save_target: "",
+        folder_open_enters: "",
+        empty_label: "",
+        loading_label: "",
+        loading_body_local: "",
+        loading_body_remote: "",
+        error_perm_title: "",
+        error_perm_retry: "",
+        error_conn_title: "",
+        error_conn_reconnect: "",
+        col_name: "",
+        col_size: "",
+        col_modified: "",
+        filters: &[],
+        filter_showing: "",
+    };
+    let ctx = egui::Context::default();
+    if dropdown {
+        ctx.memory_mut(|m| m.open_popup(egui::Id::new("folder-test-dropdown")));
+    }
+    let mut action = None;
+    drop(ctx.run(
+        egui::RawInput {
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: Some(key),
+                pressed: true,
+                repeat: false,
+                modifiers,
+            }],
+            ..Default::default()
+        },
+        |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let mut keys = crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    true,
+                    crate::adapters::ui::popup::PopupKeyboard::Text,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                );
+                action = folder::keyboard(ui, &props, &mut keys);
+            });
+        },
+    ));
+    action
+}
+
+fn folder_mode() -> FilePickerMode<'static> {
+    FilePickerMode::Folder {
+        path: "/w",
+        hint: "",
+        file_tooltip: "",
+    }
+}
+
+/// T-9b-1: Given 폴더 모드 목록, When Alt+↑ 를 누르면, Then 상위 폴더로 간다.
+#[test]
+fn alt_up_goes_to_the_parent_folder() {
+    assert_eq!(
+        folder_key(
+            folder_mode(),
+            false,
+            egui::Key::ArrowUp,
+            egui::Modifiers::ALT
+        ),
+        Some(FilePickerAction::NavigateUp)
+    );
+}
+
+/// T-9b-2: Given 폴더 모드 목록, When Alt+Shift+↑ 를 누르면, Then 상위 폴더로 간다.
+#[test]
+fn alt_shift_up_goes_to_the_parent_folder() {
+    assert_eq!(
+        folder_key(
+            folder_mode(),
+            false,
+            egui::Key::ArrowUp,
+            egui::Modifiers::ALT | egui::Modifiers::SHIFT
+        ),
+        Some(FilePickerAction::NavigateUp)
+    );
+}
+
+/// T-9b-3: Given 폴더 모드 목록, When Shift+Enter 를 누르면, Then 지금 폴더를 확정한다.
+#[test]
+fn shift_enter_opens_the_folder() {
+    assert_eq!(
+        folder_key(
+            folder_mode(),
+            false,
+            egui::Key::Enter,
+            egui::Modifiers::SHIFT
+        ),
+        Some(FilePickerAction::Confirm)
+    );
+}
+
+/// T-9b-4: Given 일반 파일 모드 목록, When Alt+↑ 를 누르면, Then 아무 동작도 없다.
+#[test]
+fn alt_up_in_file_mode_does_nothing() {
+    let open = FilePickerMode::Open { selection_text: "" };
+    assert_eq!(
+        folder_key(open, false, egui::Key::ArrowUp, egui::Modifiers::ALT),
+        None
+    );
+}
+
+/// T-9b-5: Given egui 드롭다운이 열린 폴더 모드 목록, When Alt+↑ 를 누르면, Then 아무 동작도 없다.
+#[test]
+fn alt_up_with_a_dropdown_open_does_nothing() {
+    assert_eq!(
+        folder_key(
+            folder_mode(),
+            true,
+            egui::Key::ArrowUp,
+            egui::Modifiers::ALT
+        ),
+        None
+    );
+}

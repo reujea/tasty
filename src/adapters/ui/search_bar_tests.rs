@@ -593,3 +593,151 @@ fn modified_enter_and_arrows_are_ignored_by_the_search_bar() {
         }
     }
 }
+
+/// `event` 한 프레임을 팝업 층으로 그리고, 그린 뒤 그 누름이 입력에 남았는지 돌려준다.
+fn find_frame(
+    ctx: &egui::Context,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    event: egui::Event,
+) -> bool {
+    let egui::Event::Key { key, .. } = event else {
+        panic!("a key press");
+    };
+    let mut left = false;
+    drop(ctx.run(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 720.0),
+            )),
+            events: vec![event],
+            ..Default::default()
+        },
+        |ctx| {
+            crate::adapters::ui::draw_popups(
+                ctx,
+                state,
+                engine,
+                &[],
+                PhysicalRect {
+                    x: PhysicalPx(0.0),
+                    y: PhysicalPx(0.0),
+                    width: PhysicalPx(1280.0),
+                    height: PhysicalPx(720.0),
+                },
+                1.0,
+            );
+            left = ctx.input(|i| {
+                i.events.iter().any(
+                    |e| matches!(e, egui::Event::Key { key: k, pressed: true, .. } if *k == key),
+                )
+            });
+        },
+    ));
+    left
+}
+
+fn ctrl_f() -> egui::Event {
+    egui::Event::Key {
+        key: egui::Key::F,
+        physical_key: Some(egui::Key::F),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::CTRL,
+    }
+}
+
+/// T-9b-6: Given 입력칸에 포커스가 있는 검색창, When find(Ctrl+F)를 누르면, Then 그 누름을 쓰고 포커스를 터미널로 돌린다.
+#[test]
+fn find_returns_focus_to_the_terminal() {
+    let (mut state, mut session) = test_state();
+    let session = session.borrow_mut();
+    let engine = session.read();
+    let ctx = egui::Context::default();
+    open_with_query(&ctx, &mut state, &engine);
+    assert!(state.popups.is_focused(SEARCH_BAR_POPUP_ID));
+    assert!(
+        !find_frame(&ctx, &mut state, &engine, ctrl_f()),
+        "find 를 썼다"
+    );
+    assert!(!state.popups.is_focused(SEARCH_BAR_POPUP_ID));
+}
+
+/// T-9b-7: Given 막 연 검색창(입력칸이 아직 포커스를 요청하기 전), When 첫 프레임에 find 를 누르면, Then 검색창은 그
+/// 누름을 쓰지 않는다.
+#[test]
+fn find_before_the_field_has_focus_is_not_taken() {
+    let (mut state, mut session) = test_state();
+    let session = session.borrow_mut();
+    let engine = session.read();
+    let ctx = egui::Context::default();
+    state.popups.open_at_focused(
+        SEARCH_BAR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(100.0, 100.0),
+    );
+    assert!(
+        find_frame(&ctx, &mut state, &engine, ctrl_f()),
+        "누름이 남는다"
+    );
+    assert!(state.popups.is_open(SEARCH_BAR_POPUP_ID));
+}
+
+/// T-9b-8: Given find 바인딩 [F2, Ctrl+F, Alt+F], When 검색창이 없을 때·입력칸에 포커스가 있을 때·다른 surface 를
+/// 대상으로 열렸을 때 각 바인딩을 누르면, Then 검색창이 없으면 아무도 쓰지 않고, 있으면 검색창이 그 누름을 쓰고
+/// 포커스를 터미널로 돌린다.
+#[test]
+fn find_bindings_keep_their_meaning() {
+    const OTHER: u32 = 4_242;
+    let press = |key, modifiers| egui::Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers,
+    };
+    let combos = [
+        (egui::Key::F2, egui::Modifiers::NONE),
+        (egui::Key::F, egui::Modifiers::CTRL),
+        (egui::Key::F, egui::Modifiers::ALT),
+    ];
+    for (key, modifiers) in combos {
+        for case in ["none", "focused", "other"] {
+            let (mut state, mut session) = test_state();
+            let mut session = session.borrow_mut();
+            session.runtime.settings.keybindings.find =
+                vec!["f2".into(), "ctrl+f".into(), "alt+f".into()];
+            let engine = session.read();
+            let ctx = egui::Context::default();
+            match case {
+                "focused" => open_with_query(&ctx, &mut state, &engine),
+                "other" => {
+                    state.popups.open_request(
+                        &crate::intent::OpenRequest::new(
+                            SEARCH_BAR_POPUP_ID,
+                            crate::model::popup_kind::PopupScope::Window,
+                        )
+                        .at(egui::pos2(100.0, 100.0))
+                        .focused()
+                        .with_payload(
+                            crate::adapters::ui::popup::PopupPayload::Search { surface_id: OTHER },
+                        ),
+                        true,
+                    );
+                    for _ in 0..20 {
+                        escape_frame(&ctx, &mut state, &engine, vec![]);
+                    }
+                }
+                _ => {}
+            }
+            let left = find_frame(&ctx, &mut state, &engine, press(key, modifiers));
+            let bar = case != "none";
+            assert_eq!(left, !bar, "{case} {key:?} {modifiers:?}");
+            assert!(
+                !state.popups.is_focused(SEARCH_BAR_POPUP_ID),
+                "{case} {key:?} {modifiers:?}"
+            );
+        }
+    }
+}
