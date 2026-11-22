@@ -1790,10 +1790,16 @@ mod helper_tests {
             "#[cfg(test)]\n// 이유: 시험 정리\n{EXEMPT}\nmod m {{\n    fn t() {{\n        {{IGNORE}}\n    }}\n}}\n"
         ));
         assert!(item_is_exempt(&src, 5));
+        // 주석을 건너뛴 한 묶음이라 `#[cfg(test)]` 가 모듈 전체를 테스트 범위로 덮고, 그 자리가 면제된다.
+        assert_eq!(test_scope_sites(&src, false), vec![(5, Some(Level::Allow))]);
         let multi = with_ignore(
             "#[cfg(test)]\n#[cfg_attr(\n    unix,\n    allow(clippy::let_underscore_must_use)\n)]\nmod m {\n    fn t() {\n        {IGNORE}\n    }\n}\n",
         );
         assert!(item_is_exempt(&multi, 7));
+        assert_eq!(
+            test_scope_sites(&multi, false),
+            vec![(7, Some(Level::Allow))]
+        );
     }
 
     #[test]
