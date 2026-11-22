@@ -435,7 +435,8 @@ impl<'a> Code<'a> {
     /// 매크로 입력 안 아이템 `[body, end)` 의 경계가 매크로 변수 때문에 불확실한가. 최상위(짝 괄호 밖)의
     /// `$` 뒤 최상위에 새 아이템이나 `let` 이 나오면 그렇다고 본다. 아이템의 최상위에는 다른 아이템·문장이
     /// 올 수 없으므로 `$body` 가 몸체 자리를 대신해 다음 요소까지 이어 읽은 것이다. 괄호 안의 `$setup` 과
-    /// `fn $name()`, 아이템 이름 뒤의 제네릭 목록(`fn $name<const N: usize>`)은 해당하지 않는다.
+    /// `fn $name()`, 아이템 이름 뒤의 제네릭 목록(`fn $name<const N: usize>`)은 해당하지 않는다. `$` 뒤 반환 타입의
+    /// `impl Trait`·`fn()` 은 새 아이템으로 읽는다(지원 한계, error-handling.md).
     fn item_boundary_unsure(&self, body: usize, end: usize) -> bool {
         let mut dollar = false;
         let mut k = body;
