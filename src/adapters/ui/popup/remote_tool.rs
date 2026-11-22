@@ -2093,9 +2093,9 @@ pub(crate) fn accept_detection(
     true
 }
 
-#[cfg(test)]
 // 테스트는 의도적으로 무시하는 결과가 많아 let _ 사유 검사에서 제외한다.
 #[allow(clippy::let_underscore_must_use)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
