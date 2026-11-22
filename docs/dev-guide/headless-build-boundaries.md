@@ -30,7 +30,8 @@ View의 비동기 파일 읽기 receipt와 대기 스크립트는 GUI 전용이�
 로 그 항목에 필요한 이유를 설명한다. 조건이 달라져 진단이 사라지면
 `unfulfilled_lint_expectations` 가 해당 항목을 **경고한다**. 그 lint 는 warn 이고 `Cargo.toml` 의
 deny 목록 밖이라 `cargo check`(pre-push B.6 포함)에서는 경고로만 보이지만, CI 의 headless clippy
-단계(`cargo clippy (headless)`)는 `-D warnings` 로 돌아 **실패한다**. 모듈이나 crate 전체를 덮는
+스텝(`check-headless`·`check-windows` 의 `cargo clippy (headless)` 와 `check-headless` 의 `cargo clippy (headless, release)`)은
+`-D warnings` 로 돌아 **실패한다**. 모듈이나 crate 전체를 덮는
 dead_code 예외는 쓰지 않는다.
 
 모듈·crate 단위 `dead_code` 억제는 이 경계 밖의 두 부류에만 남는다 — 통합 시험 공용 모듈
@@ -82,8 +83,8 @@ cargo check --workspace --release --all-targets
 정상이더라도 release 헤드리스에서 미사용으로 판정될 수 있다. 해당 정의에는 호출자 조건을
 합친 `cfg(any(feature = "gui", debug_assertions))`를 적용하고, 테스트가 호출하면 `test`도 더한다.
 
-커밋 전에 여덟 조합을 모두 실행하는 자동 검사는 없다. headless debug 컴파일은 pre-push 와
-`check-headless` 가, release gui 라이브러리는 pre-push 와 `check-release` 가 본다.
+커밋 전에 여덟 조합을 모두 실행하는 자동 검사는 없다. headless debug 컴파일은 `check-headless` 가
+workspace 전체를, pre-push B.6 이 루트 패키지와 그 의존을 본다(두 범위의 차이는 [ci-gates](ci-gates.md#로컬-훅이-앞당겨-주는-것)). release gui 라이브러리는 pre-push 와 `check-release` 가 본다.
 release headless `--all-targets` 칸은 `check-headless` 의 `cargo clippy (headless, release)` 가 본다
 ([ci-gates](ci-gates.md)). 타깃 옵션 없는 release headless 칸은 lib·bin 만 선택하고 시험·예제에 필요한
 dev-dependency 를 선택하지 않아(예: 루트의 `tokio/test-util`) feature 집합이 다르므로 별도 검사다. 이 칸과
