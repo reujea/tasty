@@ -25,9 +25,7 @@ const EXIT_CODE: u8 = 1;
 
 /// "이미 사용 중인 홈" 문구. body에 사용 중인 홈의 실제 경로를 넣고, 같은 내용을 로그에도 남긴다.
 pub(crate) fn error_info(home: &Path) -> BootErrorInfo {
-    let title = crate::i18n::t("boot.home_in_use.title").to_string();
-    let body = crate::i18n::t_fmt("boot.home_in_use.body", &home.display().to_string());
-    let hint = crate::i18n::t("boot.home_in_use.hint").to_string();
+    let (title, body, hint) = crate::boot::home_lock::home_in_use_text(home);
     tracing::error!("boot refused: data home in use\n{title}\n{body}\n{hint}");
     BootErrorInfo { title, body, hint }
 }

@@ -272,7 +272,7 @@ fn a_held_writer_lock_is_reported_as_home_in_use() {
     drop(start(home.path()));
     let database = super::identity::journal_database_path(home.path());
     let lock = preempt_after_release(&database);
-    // 핸들 없이 여는 경로(헤드리스·테스트)도 같은 종류로 알린다.
+    // 핸들 없이 여는 경로(선점을 판정하지 못한 부팅·테스트)도 같은 종류로 알린다.
     let worker = JournalWorker::spawn(home.path().to_owned(), Arc::new(|| {})).unwrap();
     let Completion::StartupFailed(error) = receive(&worker) else {
         panic!("a held writer lock must refuse startup")

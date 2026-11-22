@@ -21,7 +21,8 @@ fn invalid_file_boot_uses_and_persists_one_normalized_snapshot() {
     let memory = Arc::new(Mutex::new(
         tasty_memory::MemoryStore::open_in_memory().unwrap(),
     ));
-    let mut app = crate::app::App::new_headless(waker.journal_waker(), None, Some(memory)).unwrap();
+    let mut app =
+        crate::app::App::new_headless(waker.journal_waker(), None, Some(memory), None).unwrap();
     let mut session = bootstrap_engine(&mut app, &settings, waker.waker_factory()).unwrap();
     assert_eq!(
         session.runtime.settings.anomaly_detection,

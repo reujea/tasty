@@ -161,7 +161,7 @@ pub(crate) fn make_gui(proxy: winit::event_loop::EventLoopProxy<crate::AppEvent>
 }
 #[cfg(not(feature = "gui"))]
 pub(crate) fn make_headless() -> App {
-    App::new_headless(std::sync::Arc::new(|| {}), None, None).unwrap()
+    App::new_headless(std::sync::Arc::new(|| {}), None, None, None).unwrap()
 }
 
 fn drain_other_writers(app: &mut App, end: Instant) {

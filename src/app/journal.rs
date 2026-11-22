@@ -195,13 +195,13 @@ impl JournalApplication {
         );
     }
 
-    #[cfg(any(test, not(feature = "gui")))]
+    #[cfg(test)]
     pub(crate) fn new(wake: Arc<dyn Fn() + Send + Sync>) -> anyhow::Result<Self> {
         Self::new_with_writer_lock(wake, None)
     }
 
-    /// `writer_lock`은 부팅 첫머리에서 이 홈의 저널에 대해 선점한 잠금이다(GUI 부팅). 없으면
-    /// worker가 저장소를 연 뒤 잠근다(헤드리스·테스트).
+    /// `writer_lock`은 부팅 첫머리에서 이 홈의 저널에 대해 선점한 잠금이다(GUI·헤드리스 부팅). 없으면
+    /// worker가 저장소를 연 뒤 잠근다(선점을 판정하지 못한 부팅·테스트).
     pub(crate) fn new_with_writer_lock(
         wake: Arc<dyn Fn() + Send + Sync>,
         writer_lock: Option<tasty_event_store::WriterLock>,

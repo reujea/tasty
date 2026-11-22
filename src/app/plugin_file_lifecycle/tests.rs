@@ -8,7 +8,7 @@ use tasty_host_plugin::manager::file_config::ConfigChange;
 
 const ID: &str = "com.example.file-receipt";
 fn app() -> App {
-    let mut app = App::new_headless(Arc::new(|| {}), None, None).unwrap();
+    let mut app = App::new_headless(Arc::new(|| {}), None, None, None).unwrap();
     let mut mgr = crate::plugin::PluginManager::with_registries(
         Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
         Arc::new(crate::file::format::FileFormatRegistry::new()),

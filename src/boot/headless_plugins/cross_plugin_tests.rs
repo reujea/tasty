@@ -48,8 +48,8 @@ fn fixture((owner, prefix): (&'static str, &str)) -> Fixture {
     let home = crate::test_support::IsolatedHome::new();
     let (events_tx, _events) = mpsc::channel();
     let waker = crate::adapters::production::headless_waker::HeadlessWaker::new(events_tx);
-    let mut app =
-        crate::app::App::new_headless(waker.journal_waker(), None, None).expect("headless app");
+    let mut app = crate::app::App::new_headless(waker.journal_waker(), None, None, None)
+        .expect("headless app");
     app.plugin_manager = Some(crate::plugin::PluginManager::with_registries(
         Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
         Arc::new(crate::file::format::FileFormatRegistry::new()),

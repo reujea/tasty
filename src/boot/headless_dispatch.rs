@@ -534,8 +534,8 @@ mod namespace_forward_tests {
         let _home = crate::test_support::IsolatedHome::new();
         let (events_tx, _events) = mpsc::channel();
         let waker = crate::adapters::production::headless_waker::HeadlessWaker::new(events_tx);
-        let mut app =
-            crate::app::App::new_headless(waker.journal_waker(), None, None).expect("headless app");
+        let mut app = crate::app::App::new_headless(waker.journal_waker(), None, None, None)
+            .expect("headless app");
         let mut session =
             crate::runtime::engine_session::EngineSession::new(80, 24, Arc::new(|| {}))
                 .expect("engine");
@@ -622,8 +622,8 @@ mod app_layer_reply_tests {
         let _home = crate::test_support::IsolatedHome::new();
         let (events_tx, _events) = mpsc::channel();
         let waker = crate::adapters::production::headless_waker::HeadlessWaker::new(events_tx);
-        let mut app =
-            crate::app::App::new_headless(waker.journal_waker(), None, None).expect("headless app");
+        let mut app = crate::app::App::new_headless(waker.journal_waker(), None, None, None)
+            .expect("headless app");
         assert!(
             app.services.memory_access().is_queued(),
             "writer 있는 구성이어야 한다"

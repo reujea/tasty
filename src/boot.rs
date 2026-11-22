@@ -24,6 +24,7 @@ mod headless_settings_tests;
 pub(crate) mod headless_stream;
 #[cfg(feature = "gui")]
 pub(crate) mod home_in_use;
+mod home_lock;
 pub(crate) mod locale;
 pub(crate) mod locale_font;
 #[cfg(not(feature = "gui"))]
@@ -112,25 +113,32 @@ pub fn run() -> anyhow::Result<std::process::ExitCode> {
         cli_routing::Routed::Gui(cli) => {
             // 로그 파일·memory.db·설정·플러그인·저널을 건드리기 전에 이 홈의 저널 writer 잠금을 선점한다.
             // 잡혀 있으면 저널 worker와 같은 구간 동안 다시 시도한다. 창을 만들기 전이라 멈춘 화면이 없다.
-            // 그래도 다른 Tasty가 쥐고 있으면 그 인스턴스의 홈에 부작용을 내지 않는다. release는 실행 중인
-            // Tasty에 요청을 넘기고 끝나며(단일 실행), debug는 "홈 사용 중" 오류 화면을 띄운다.
-            #[cfg(feature = "gui")]
-            let writer_lock = match preempt_home_writer_lock() {
-                HomeWriterLock::Acquired(lock, home) => {
+            // 그래도 다른 Tasty가 쥐고 있으면 그 인스턴스의 홈에 부작용을 내지 않는다. release GUI는 실행 중인
+            // Tasty에 요청을 넘기고 끝나며(단일 실행), debug GUI는 "홈 사용 중" 오류 화면을 띄우고,
+            // 헤드리스는 stderr에 같은 문구를 쓰고 종료 코드 1로 끝난다.
+            let writer_lock = match home_lock::preempt_home_writer_lock() {
+                #[cfg(feature = "gui")]
+                home_lock::HomeWriterLock::Acquired { lock, home } => {
                     single_instance::instance_file::publish_started(&home);
                     Some(lock)
                 }
-                HomeWriterLock::Held(home) if cfg!(debug_assertions) => {
+                #[cfg(not(feature = "gui"))]
+                home_lock::HomeWriterLock::Acquired { lock } => Some(lock),
+                #[cfg(feature = "gui")]
+                home_lock::HomeWriterLock::Held(home) if cfg!(debug_assertions) => {
                     return home_in_use::run(&home);
                 }
-                HomeWriterLock::Held(home) => match single_instance::second::handle_held(&home, cli.webhook_port) {
+                #[cfg(feature = "gui")]
+                home_lock::HomeWriterLock::Held(home) => match single_instance::second::handle_held(&home, cli.webhook_port) {
                     single_instance::second::HeldOutcome::Exit(code) => return Ok(code),
                     single_instance::second::HeldOutcome::BootNormally(lock) => {
                         single_instance::instance_file::publish_started(&home);
                         Some(lock)
                     }
                 },
-                HomeWriterLock::Unchecked => None,
+                #[cfg(not(feature = "gui"))]
+                home_lock::HomeWriterLock::Held(home) => return Ok(home_lock::refuse_headless(&home)),
+                home_lock::HomeWriterLock::Unchecked => None,
             };
             // CLI도 같은 바이너리라 호스트로 결정한 뒤 열어야 실행 중 호스트의 로그를 자르지 않는다.
             os::enable_host_file_log();
@@ -149,7 +157,7 @@ pub fn run() -> anyhow::Result<std::process::ExitCode> {
             }
             #[cfg(not(feature = "gui"))]
             {
-                return run_headless(cli);
+                return run_headless(cli, writer_lock);
             }
         }
     }.map(|()| std::process::ExitCode::SUCCESS)
@@ -167,46 +175,6 @@ fn run_subcommand(
 fn run_augmented_help() -> anyhow::Result<()> {
     locale::init();
     cli::print_augmented_help()
-}
-
-#[cfg(feature = "gui")]
-enum HomeWriterLock {
-    Acquired(tasty_event_store::WriterLock, std::path::PathBuf),
-    /// 다른 프로세스가 이 홈의 저널 writer 잠금을 쥐고 있다.
-    Held(std::path::PathBuf),
-    /// 홈을 알 수 없거나 잠금을 쓸 수 없다. 저널 worker가 다시 시도하고 그 결과로 판정한다.
-    Unchecked,
-}
-
-#[cfg(feature = "gui")]
-fn preempt_home_writer_lock() -> HomeWriterLock {
-    let Some(home) = tasty_utils::path::tasty_home() else {
-        return HomeWriterLock::Unchecked;
-    };
-    // release 단일 실행: PID·시작 시각이 살아 있고 포트가 있는 인스턴스 기록이면 잠금 재시도
-    // (`WRITER_LOCK_WAIT`)를 기다리지 않고 바로 넘긴다. 낡은 기록이나 포트 없는 기록은 재시도 경로로 간다.
-    if !cfg!(debug_assertions)
-        && matches!(
-            single_instance::instance_file::read_state(&home),
-            single_instance::instance_file::InstanceState::Live(_)
-        )
-    {
-        return HomeWriterLock::Held(home);
-    }
-    let database = crate::runtime::journal_product::journal_database_path(&home);
-    match tasty_event_store::preempt_writer_lock(&database) {
-        Ok(tasty_event_store::WriterPreempt::Acquired(lock)) => {
-            HomeWriterLock::Acquired(lock, home)
-        }
-        Ok(tasty_event_store::WriterPreempt::Held) => HomeWriterLock::Held(home),
-        Err(e) => {
-            tracing::warn!(
-                "journal writer lock preempt failed for {}: {e}; the journal worker will retry",
-                database.display()
-            );
-            HomeWriterLock::Unchecked
-        }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -869,7 +837,10 @@ fn load_headless_settings() -> crate::settings::Settings {
 
 /// gui feature 없는 빌드의 호스트 루프. IPC·PTY·플러그인 이벤트와 타이머를 처리한다.
 #[cfg(not(feature = "gui"))]
-fn run_headless(cli: cli::Cli) -> anyhow::Result<std::process::ExitCode> {
+fn run_headless(
+    cli: cli::Cli,
+    writer_lock: Option<tasty_event_store::WriterLock>,
+) -> anyhow::Result<std::process::ExitCode> {
     use std::sync::mpsc;
 
     use crate::adapters::production::headless_waker::HeadlessWaker;
@@ -888,7 +859,12 @@ fn run_headless(cli: cli::Cli) -> anyhow::Result<std::process::ExitCode> {
     // 비정상 종료한 프로세스가 남긴 디스크 스크롤백을 설정과 관계없이 백그라운드에서 회수한다.
     tasty_terminal::disk_scrollback::spawn_orphan_reclaim();
 
-    let mut app = App::new_headless(waker.journal_waker(), cli.port_file, memory_arc)?;
+    let mut app = App::new_headless(
+        waker.journal_waker(),
+        cli.port_file,
+        memory_arc,
+        writer_lock,
+    )?;
     app.hub.webhook = Some(webhook);
     // 서버가 받는 첫 연결부터 설정값을 쓰도록 IPC를 열기 전에 반영한다.
     crate::app::attach_heartbeat::apply(&app.services, &boot_settings);
@@ -1188,7 +1164,7 @@ mod journal_event_tests {
             tasty_memory::MemoryStore::open_in_memory().unwrap(),
         ));
         let mut app =
-            crate::app::App::new_headless(waker.journal_waker(), None, Some(memory)).unwrap();
+            crate::app::App::new_headless(waker.journal_waker(), None, Some(memory), None).unwrap();
         let mut settings = crate::settings::Settings::default();
         settings.general.shell = "/bin/sh".into();
         settings.general.startup_command = "exec sleep 60".into();

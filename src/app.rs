@@ -513,17 +513,19 @@ impl App {
         Ok(app)
     }
 
-    /// GUI 자원 없이 mpsc waker로 시작한다.
+    /// GUI 자원 없이 mpsc waker로 시작한다. `writer_lock`은 부팅 첫머리에서 선점한 저널 writer 잠금이다.
     #[cfg(not(feature = "gui"))]
     pub(crate) fn new_headless(
         journal_wake: std::sync::Arc<dyn Fn() + Send + Sync>,
         port_file: Option<String>,
         memory: Option<std::sync::Arc<std::sync::Mutex<tasty_memory::MemoryStore>>>,
+        writer_lock: Option<tasty_event_store::WriterLock>,
     ) -> anyhow::Result<Self> {
         let (stream_inbound_tx, stream_inbound_rx) = std::sync::mpsc::channel();
         let mut timers = tasty_timer::TimerHub::new();
         timers::register_steady_state(&mut timers, std::time::Instant::now());
-        let journal = journal::JournalApplication::new(journal_wake.clone())?;
+        let journal =
+            journal::JournalApplication::new_with_writer_lock(journal_wake.clone(), writer_lock)?;
         let journal_metrics = journal.metrics_handle();
         Ok(Self {
             journal,
