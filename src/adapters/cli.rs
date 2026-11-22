@@ -4,5 +4,6 @@
 
 pub use tasty_cli::{
     Cli, Commands, Envelope, format_parse_error, help_route, localized_command,
-    print_augmented_help, print_command_tree, run_client_with, try_run_plugin_cli,
+    print_augmented_help, print_command_tree, process_args_or_exit, run_client_with,
+    try_run_plugin_cli,
 };

@@ -2236,6 +2236,10 @@ ssh_profile_exclusive = "--ssh 和 --profile 不能同时使用。"
 remote_attach_target_required = "需要远程附加目标（--ssh 或 --profile）。本地附加使用 `tasty debug attach`（调试构建）。"
 remote_check_target_required = "需要远程检查目标（--ssh 或 --profile）。"
 
+[cli.argv]
+not_utf8 = "错误：第 {} 个参数不是有效的 UTF-8。参数从程序名之后的第一个开始计为 1。未运行或发送任何内容。"
+program_not_utf8 = "错误：程序名（argv[0]）不是有效的 UTF-8。未运行或发送任何内容。"
+
 [cli.attach]
 attached_surface = "已附加 Surface {}（client_id={}，{}x{}）"
 attached_workspace = "已附加工作区 {}（client_id={}，{} 个终端，{} 个占位符）"

@@ -2220,6 +2220,10 @@ ssh_profile_exclusive = "--ssh と --profile は同時に使用できません�
 remote_attach_target_required = "リモート attach 対象が必要です (--ssh または --profile)。ローカル attach は `tasty debug attach` (debug ビルド) を使用してください。"
 remote_check_target_required = "リモート check 対象が必要です (--ssh または --profile)。"
 
+[cli.argv]
+not_utf8 = "エラー: {} 番目の引数が有効な UTF-8 ではありません。引数はプログラム名の次を 1 として数えます。何も実行・送信していません。"
+program_not_utf8 = "エラー: プログラム名 (argv[0]) が有効な UTF-8 ではありません。何も実行・送信していません。"
+
 [cli.attach]
 attached_surface = "サーフェス {} に接続しました (client_id={}, {}x{})"
 attached_workspace = "ワークスペース {} に接続しました (client_id={}, ターミナル {} 個、プレースホルダー {} 個)"

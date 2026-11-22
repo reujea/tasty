@@ -2285,6 +2285,10 @@ ssh_profile_exclusive = "--ssh and --profile cannot be used together."
 remote_attach_target_required = "remote attach target required (--ssh or --profile). Local attach is `tasty debug attach` (debug builds)."
 remote_check_target_required = "remote check target required (--ssh or --profile)."
 
+[cli.argv]
+not_utf8 = "Error: argument {} is not valid UTF-8. Arguments are counted from 1 after the program name. Nothing was run or sent."
+program_not_utf8 = "Error: the program name (argv[0]) is not valid UTF-8. Nothing was run or sent."
+
 [cli.attach]
 attached_surface = "attached surface {} (client_id={}, {}x{})"
 attached_workspace = "attached workspace {} (client_id={}, {} terminals, {} placeholders)"

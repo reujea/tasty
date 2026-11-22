@@ -17,10 +17,12 @@ pub(crate) fn parse_or_route() -> anyhow::Result<Routed> {
 
     // 플러그인 인자 오류·매니페스트 경고도 번역을 사용하므로 라우팅 전에 초기화한다.
     super::locale::init();
+    // UTF-8이 아닌 인자는 도움말·명령 해석·호스트 시작보다 먼저 사용 오류로 끝낸다.
+    // 번역 초기화 뒤라 설정한 언어로 알린다.
+    let args = cli::process_args_or_exit();
 
     // tasty-cli 라이브러리 버전 대신 실행 바이너리의 버전을 표시한다.
     let cmd = cli::localized_command().version(env!("CARGO_PKG_VERSION"));
-    let args: Vec<String> = std::env::args().collect();
 
     // 전체 트리는 루트 옵션 위치의 -a/--all만 요청으로 본다. 옵션 값이나 하위 명령의 데이터는 제외한다.
     if cli::help_route::scan_root(&cmd, &args).all {

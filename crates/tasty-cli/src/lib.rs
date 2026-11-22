@@ -3,6 +3,7 @@
 // 이유: 테스트는 let _ = 사유 주석 정책의 대상이 아니며 제품 lint는 유지한다.
 #![cfg_attr(test, allow(clippy::let_underscore_must_use))]
 
+mod argv;
 pub mod caller_context;
 pub mod commands;
 mod contract;
@@ -37,6 +38,7 @@ pub use tasty_remote::create as remote_create;
 
 pub use tasty_ssh as ssh;
 
+pub use argv::process_args_or_exit;
 pub use commands::*;
 pub use help::{format_parse_error, print_augmented_help, print_command_tree};
 // 실제 파싱에는 번역된 명령 트리를 사용한다.
