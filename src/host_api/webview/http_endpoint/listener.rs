@@ -47,9 +47,28 @@ pub(crate) enum EndpointError {
     Destination,
     Tls,
     Io,
+    /// Binding the loopback listener failed; keeps the OS cause, e.g. `AddrInUse` when another
+    /// socket took the port a retained Reload inherits.
+    Bind {
+        kind: std::io::ErrorKind,
+        os_error: Option<i32>,
+    },
     Body,
     Identity,
     Worker,
+}
+fn bind_error(port: u16, error: &std::io::Error) -> EndpointError {
+    tracing::warn!(
+        port,
+        kind = ?error.kind(),
+        os_error = ?error.raw_os_error(),
+        %error,
+        "HTTP endpoint bind failed"
+    );
+    EndpointError::Bind {
+        kind: error.kind(),
+        os_error: error.raw_os_error(),
+    }
 }
 pub(crate) trait ResponseOwner: Send {
     fn body(&self) -> &Arc<VerifiedBody>;
@@ -227,7 +246,7 @@ impl Endpoint {
         let realm = ProxyRealm::from_random_bytes(entropy);
         let listener = TcpListener::bind(("127.0.0.1", config.port))
             .await
-            .map_err(|_| EndpointError::Io)?;
+            .map_err(|error| bind_error(config.port, &error))?;
         let port = listener.local_addr().map_err(|_| EndpointError::Io)?.port();
         let proxy_uri = match config.transport {
             Transport::Socks => token.proxy_uri(port),
