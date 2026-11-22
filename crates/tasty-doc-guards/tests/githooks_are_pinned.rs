@@ -633,13 +633,22 @@ fn c6_violations(masked: &str, diff: &str) -> String {
 fn the_c6_reason_search_skips_every_attribute_spelling() {
     // C.6 이 이 파일을 검사하므로 금지 형태를 런타임에 조립한다.
     let stmt = format!("let {}= g();", "_ ");
-    for attr in [
+    let attrs = [
         "#[cfg(windows)]",
         "#![allow(unused)]",
         "# [cfg(windows)]",
         "# ! [allow(unused)]",
-    ] {
-        for (reason, want) in [("// 이유", 0), ("g();", 1)] {
+        "#!  [allow(unused)]",
+        "#  [cfg(windows)]",
+    ];
+    // 줄 중간에 속성 꼴이 있는 줄은 속성 줄이 아니므로 탐색이 거기서 멈춘다.
+    let blockers = ["x#[y]", "foo # [bar];"];
+    for (attr, reasons) in attrs
+        .iter()
+        .map(|a| (*a, [("// 이유", 0), ("g();", 1)]))
+        .chain(blockers.iter().map(|b| (*b, [("// 이유", 1), ("g();", 1)])))
+    {
+        for (reason, want) in reasons {
             let masked = format!("fn f() {{\n    {reason}\n    {attr}\n    {stmt}\n}}\n");
             let diff = format!(
                 "--- a/x.rs\n+++ b/x.rs\n@@ -1,4 +1,5 @@\n fn f() {{\n     {reason}\n     {attr}\n+    {stmt}\n }}\n"
