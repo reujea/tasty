@@ -3,8 +3,8 @@
 //! 다운로드 변형([`TransferErrorKind::DownloadRun`])이 맡는다. 다운로드 상태는
 //! [`crate::remote::file_download::client`] 에 있고, 메인 루프가 그 결과를 이 창의 상태로 옮긴다.
 //!
-//! 대화상자와 큰 파일 확인은 Esc·바깥 클릭이 Cancel 과 같다. 진행 팝업은 Esc·바깥 클릭으로 닫히지
-//! 않고, 다운로드를 멈추는 것은 Stop download 하나다.
+//! 대화상자와 큰 파일 확인은 Esc·바깥 클릭이 Cancel 과 같다. 진행 팝업은 Esc 로 닫히고 바깥 클릭은 포커스만
+//! 푼다. 닫아도 다운로드는 계속 받고, 다운로드를 멈추는 것은 Stop download 하나다.
 
 use std::collections::VecDeque;
 use std::time::Instant;
@@ -347,7 +347,6 @@ pub fn on_close_download_run(
     state.dialogs.download_run.ask = None;
 }
 
-/// 답하지 않고 닫으면 그 다운로드를 취소한다. 남은 확인이 있으면 이어서 연다.
 /// 사용자가 진행 팝업을 닫으면 그때 받던 다운로드를 적어 둔다. 그 다운로드들만 받는 동안에는 다시 열지 않는다.
 /// 다운로드는 멈추지 않는다(멈춤은 Stop download). 받는 다운로드가 없어 본문이 스스로 닫은 경우는 적지 않는다.
 pub fn on_close_download_run_progress(
@@ -368,6 +367,7 @@ pub fn on_close_download_run_progress(
     }
 }
 
+/// 답하지 않고 닫으면 그 다운로드를 취소한다. 남은 확인이 있으면 이어서 연다.
 pub fn on_close_download_run_large(
     _ctx: &egui::Context,
     state: &mut MainViewState,
