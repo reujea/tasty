@@ -1028,7 +1028,8 @@ impl<'a> Code<'a> {
 
     /// `{` 그룹 `g` 앞 머리가 `if`·`while` 조건이나 `for .. in 식` 인가. `header` 는 구조체 패턴(`if let Foo { a } = h {`)의 `}` 에서
     /// 멈추므로, 같은 깊이에서 괄호 짝을 건너뛰며 문장 시작(`;`·`,`·감싸는 여는 괄호, 또는 조건의 일부가 아닌
-    /// `let`)까지 거꾸로 읽는다. `if`·`while` 뒤의 `let` 과 `&&`·`||` 뒤의 `let`(let 체인)은 조건의 일부다.
+    /// `let`)까지 거꾸로 읽는다. `if`·`while` 뒤의 `let` 과 `&&` 뒤의 `let`(Rust let 체인의 구분자는 `&&` 뿐이다)은
+    /// 조건의 일부로 본다. `||` 뒤의 `let` 은 Rust 문법이 아니지만, 가드는 텍스트 근사로 이것도 조건의 일부로 읽는다.
     fn control_head_before(&self, g: usize) -> bool {
         let is_kw = |s0: usize, e: usize, w: &[u8]| &self.b[s0..e] == w;
         let mut k = g;
