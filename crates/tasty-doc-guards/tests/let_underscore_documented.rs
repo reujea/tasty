@@ -1673,23 +1673,25 @@ fn exemption_site(sites: &[Site], root: Root, root_expect: bool) -> Option<(usiz
 }
 
 /// `Need::Exemption` 의 안내. 테스트 타깃이면 파일 머리·감싸는 아이템, 아니면 크레이트 루트 `where_to` 에
-/// `allow` 를 달라고 한다. `under_expect` 면 `expect` 가 면제가 아닌 이유를 덧붙인다.
+/// `allow` 를 달라고 한다. `under_expect` 면 `allow` 를 따로 더하지 말고 그 `expect` 를 `allow` 로 바꾸라고
+/// 한다(따로 더하면 `expect` 가 남아 미충족 기대로 실패할 수 있다).
 fn exemption_fix(own_target: bool, where_to: &str, under_expect: bool) -> String {
-    let fix = if own_target {
+    if under_expect {
+        return format!(
+            "이 자리를 덮은 `expect(clippy::let_underscore_must_use)` 를 `allow(clippy::let_underscore_must_use)` 로 바꾼다. {EXPECT_REASON}"
+        );
+    }
+    if own_target {
         format!(
             "파일 머리에 `{TARGET_EXEMPTION}` 또는 감싸는 아이템에 `#[allow(clippy::let_underscore_must_use)]`"
         )
     } else {
         format!("크레이트 루트 `{where_to}` 에 `{CRATE_EXEMPTION}`")
-    };
-    if under_expect {
-        format!(
-            "{fix}. 테스트 범위 면제는 `allow` 로 단다 — 이 자리를 덮은 `expect(clippy::let_underscore_must_use)` 는 면제로 보지 않는다(가드는 타입과 관계없이 테스트 범위의 모든 `let _` 에 면제를 요구하므로, lint 가 발동하지 않는 빌드에서는 `expect` 가 `unfulfilled_lint_expectations` 로 실패한다)"
-        )
-    } else {
-        fix
     }
 }
+
+/// `expect` 를 테스트 범위 면제로 보지 않는 이유.
+const EXPECT_REASON: &str = "가드는 `expect` 를 면제로 보지 않는다. 활성 `expect` 는 그것이 직접 억제한 발동이 없으면 미충족 기대 경고(`unfulfilled_lint_expectations`)를 내고, 이 프로젝트의 clippy 는 `-D warnings` 로 돌아 그 경고가 실패가 된다. 가드는 값의 타입과 관계없이 테스트 범위의 모든 `let _` 에 면제를 요구하므로 lint 가 발동하지 않는 자리에도 면제가 필요하다";
 
 fn root_expect(roots: &[PathBuf]) -> bool {
     roots
@@ -3412,24 +3414,26 @@ mod helper_tests {
             exemption_site(&info, Root::Known(None), false),
             Some((3, false))
         );
-        let fix = exemption_fix(false, "src/lib.rs", true);
-        assert!(fix.contains(CRATE_EXEMPTION), "{fix}");
-        assert!(fix.contains("unfulfilled_lint_expectations"), "{fix}");
-        assert!(fix.contains("expect("), "{fix}");
+        // expect 아래 자리는 allow 를 따로 더하지 않고 그 expect 를 allow 로 바꾸라고 한다.
+        for own in [false, true] {
+            let fix = exemption_fix(own, "src/lib.rs", true);
+            assert!(
+                fix.contains("`allow(clippy::let_underscore_must_use)` 로 바꾼다"),
+                "{fix}"
+            );
+            assert!(fix.contains("unfulfilled_lint_expectations"), "{fix}");
+            assert!(fix.contains("-D warnings"), "{fix}");
+            assert!(!fix.contains(CRATE_EXEMPTION), "{fix}");
+            assert!(!fix.contains(TARGET_EXEMPTION), "{fix}");
+        }
         let plain = exemption_fix(false, "src/lib.rs", false);
         assert!(plain.contains(CRATE_EXEMPTION), "{plain}");
         assert!(!plain.contains("unfulfilled_lint_expectations"), "{plain}");
         assert!(!plain.contains("expect("), "{plain}");
-        for under in [true, false] {
-            let own = exemption_fix(true, "", under);
-            assert!(own.contains(TARGET_EXEMPTION), "{own}");
-            assert!(own.contains(EXEMPT), "{own}");
-            assert_eq!(
-                own.contains("unfulfilled_lint_expectations"),
-                under,
-                "{own}"
-            );
-        }
+        let own = exemption_fix(true, "", false);
+        assert!(own.contains(TARGET_EXEMPTION), "{own}");
+        assert!(own.contains(EXEMPT), "{own}");
+        assert!(!own.contains("unfulfilled_lint_expectations"), "{own}");
     }
 
     #[test]
