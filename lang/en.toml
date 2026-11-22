@@ -2286,8 +2286,8 @@ remote_attach_target_required = "remote attach target required (--ssh or --profi
 remote_check_target_required = "remote check target required (--ssh or --profile)."
 
 [cli.argv]
-not_utf8 = "Error: argument {} is not valid UTF-8. Arguments are counted from 1 after the program name. Nothing was run or sent."
-program_not_utf8 = "Error: the program name (argv[0]) is not valid UTF-8. Nothing was run or sent."
+not_utf8 = "Error: argument {} contains invalid UTF-8. The first argument after the program name is numbered 1. Nothing was executed or sent."
+program_not_utf8 = "Error: the program name (argv[0]) contains invalid UTF-8. Nothing was executed or sent."
 
 [cli.attach]
 attached_surface = "attached surface {} (client_id={}, {}x{})"
