@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use tasty_remote::client_session::SessionState;
 use tasty_remote::outbound::ReconnectSlot;
 use tasty_remote::pending_connection::ConnectionTicket;
+use tasty_utils::test_wait::holds_by;
 
 /// Given 재연결 중이며 endpoint 해석과 설치를 기다리는 연결이 진행 중인 행, When 재연결 시간이 지나면,
 /// Then 깨울 시각에 그 끝이 들어 있고, 그때 두 시도를 취소하고 끊긴 행이 되며 늦게 온 결과는 낡은 것이다.
@@ -185,11 +186,16 @@ fn a_connection_ready_after_the_window_ran_out_is_not_installed() {
     app.remote.active.insert(ROW);
     let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
     let until = Instant::now() + Duration::from_secs(10);
-    while app.remote.prepared_connection(ticket).is_none() {
-        assert!(Instant::now() < until, "the connection never got ready");
-        std::thread::sleep(Duration::from_millis(10));
-        app.remote.collect_connections();
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                app.remote.collect_connections();
+            }
+            app.remote.prepared_connection(ticket).is_some()
+        }),
+        "the connection never got ready"
+    );
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
     let window = app.reconnect_window();
     app.remote.reconnect.get_mut(&ROW).unwrap().started =

@@ -120,6 +120,8 @@ fn request_remote_connect(app: &mut App) -> u64 {
 }
 
 /// 행의 진행 중 endpoint 시도가 실제 결과(시험 장치의 프로필 `rv` 없음 → 일반 실패)로 끝날 때까지 거둔다.
+/// holds_by 로 바꾸지 않는다. 기한 뒤 마지막 drain 은 결과 거두기와 재연결 창 만료를 함께 처리해, 비었다는
+/// 사실이 실제 결과로 끝난 것인지 가를 수 없다.
 fn wait_for_the_endpoint_result(app: &mut App) {
     let until = Instant::now() + Duration::from_secs(10);
     while !endpoint_attempts(app).is_empty() {

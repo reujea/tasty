@@ -8,6 +8,7 @@ use crate::app::attach_client::pending::PendingMirrorInstall;
 use std::time::{Duration, Instant};
 use tasty_remote::client_session::SessionState;
 use tasty_remote::outbound::{AutoAttachOutcome, ReconnectSlot};
+use tasty_utils::test_wait::holds_by;
 
 macro_rules! alone {
     ($name:literal) => {
@@ -123,11 +124,16 @@ fn poll_an_install_prepared_before_the_mark(explicit: bool) -> App {
     app.remote.active.insert(ROW);
     let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
     let until = Instant::now() + Duration::from_secs(10);
-    while app.remote.prepared_connection(ticket).is_none() {
-        assert!(Instant::now() < until, "the connection never got ready");
-        std::thread::sleep(Duration::from_millis(10));
-        app.remote.collect_connections();
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                app.remote.collect_connections();
+            }
+            app.remote.prepared_connection(ticket).is_some()
+        }),
+        "the connection never got ready"
+    );
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
     force_detach_the_other_row(&mut app);
 
@@ -209,11 +215,16 @@ fn assert_kept_through_the_install_check(
         .find(|(_, target)| target.row == Some(ROW))
         .expect("the result queued a connection");
     let until = Instant::now() + Duration::from_secs(10);
-    while app.remote.prepared_connection(ticket).is_none() {
-        assert!(Instant::now() < until, "the connection never got ready");
-        std::thread::sleep(Duration::from_millis(10));
-        app.remote.collect_connections();
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                app.remote.collect_connections();
+            }
+            app.remote.prepared_connection(ticket).is_some()
+        }),
+        "the connection never got ready"
+    );
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
     app.run_install_stage();
     assert_ne!(
@@ -375,11 +386,16 @@ fn the_scheduler_keeps_an_explicit_reconnect_after_the_target_was_force_detached
     app.queue_mirror_connection(target, port, 3, None).unwrap();
     let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
     let until = Instant::now() + Duration::from_secs(10);
-    while app.remote.prepared_connection(ticket).is_none() {
-        assert!(Instant::now() < until, "the connection never got ready");
-        std::thread::sleep(Duration::from_millis(10));
-        app.remote.collect_connections();
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                app.remote.collect_connections();
+            }
+            app.remote.prepared_connection(ticket).is_some()
+        }),
+        "the connection never got ready"
+    );
     let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
     app.run_install_stage();
     assert_ne!(
@@ -510,11 +526,16 @@ pub(super) fn prepare_an_automatic_reconnect(app: &mut App) -> std::net::TcpStre
     app.remote.active.insert(ROW);
     let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
     let until = Instant::now() + Duration::from_secs(10);
-    while app.remote.prepared_connection(ticket).is_none() {
-        assert!(Instant::now() < until, "the connection never got ready");
-        std::thread::sleep(Duration::from_millis(10));
-        app.remote.collect_connections();
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                app.remote.collect_connections();
+            }
+            app.remote.prepared_connection(ticket).is_some()
+        }),
+        "the connection never got ready"
+    );
     peer.recv_timeout(Duration::from_secs(5)).unwrap()
 }
 

@@ -13,6 +13,7 @@ use crate::app::App;
 use std::time::{Duration, Instant};
 use tasty_remote::client_session::{MirrorEvent, SessionState, WorkspaceClose};
 use tasty_remote::transport_end::EndReason;
+use tasty_utils::test_wait::holds_by;
 use winit::application::ApplicationHandler;
 use winit::event_loop::ActiveEventLoop;
 
@@ -102,6 +103,15 @@ impl ApplicationHandler<crate::AppEvent> for Discard {
     }
 }
 
+/// 이벤트 pump 의 대기 시간. 기한이 지났으면 기다리지 않고 이미 도착한 이벤트만 처리한다.
+fn pump_wait(until: Instant, millis: u64) -> Duration {
+    if Instant::now() >= until {
+        Duration::ZERO
+    } else {
+        Duration::from_millis(millis)
+    }
+}
+
 /// 연결 결과 워커 하나의 깨움을 끝까지 소비한다. 깨움 문은 닫힌 채 시작해야 한다. 워커는 결과를 보낸 뒤
 /// 깨우고, 깨움 문은 닫힘에서 열림으로 바꾼 쪽만 이벤트를 보낸다(`StreamWakeGate::notify`). 그래서 문이
 /// 열린 것을 보고, 그 워커가 보낸 `AttachClientData` 가 실제로 배달된 것까지 본 뒤에 문을 내린다. 그 뒤에는
@@ -113,15 +123,22 @@ fn consume_one_wake(
 ) {
     use winit::platform::pump_events::EventLoopExtPumpEvents;
     let until = Instant::now() + Duration::from_secs(10);
-    while !app.attach_client_wake.is_pending() {
-        assert!(Instant::now() < until, "no wake for {what}");
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    assert!(
+        holds_by(until, || app.attach_client_wake.is_pending()),
+        "no wake for {what}"
+    );
     let mut discard = Discard::default();
-    while discard.attach_data == 0 {
-        assert!(Instant::now() < until, "the wake for {what} sent no event");
-        event_loop.pump_app_events(Some(Duration::from_millis(10)), &mut discard);
-    }
+    let mut first = true;
+    // 기한 뒤의 마지막 확인은 기다리지 않고 이미 도착한 이벤트만 처리한다.
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                event_loop.pump_app_events(Some(pump_wait(until, 10)), &mut discard);
+            }
+            discard.attach_data != 0
+        }),
+        "the wake for {what} sent no event"
+    );
     assert_eq!(discard.attach_data, 1, "one event for {what}");
     app.attach_client_wake.open_round();
     assert!(!app.attach_client_wake.is_pending(), "nothing woke since");
@@ -165,13 +182,16 @@ fn the_reader_wake_opens_the_round_through_the_event_loop() {
         ended_at: None,
     };
     let until = Instant::now() + Duration::from_secs(10);
-    while handler.ended_at.is_none() {
-        assert!(
-            Instant::now() < until,
-            "no round ended B through the event loop"
-        );
-        event_loop.pump_app_events(Some(Duration::from_millis(20)), &mut handler);
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                event_loop.pump_app_events(Some(pump_wait(until, 20)), &mut handler);
+            }
+            handler.ended_at.is_some()
+        }),
+        "no round ended B through the event loop"
+    );
     let delivered = std::mem::take(&mut handler.attach_data_with_wake);
     let ended_at = handler.ended_at;
     assert_eq!(
@@ -283,6 +303,8 @@ fn an_explicit_reconnect_after_a_stopped_loss_fails_as_an_ordinary_reconnect() {
         .map(|(_, target)| target.resync);
     assert_eq!(resync, Some(false), "an ordinary reconnect");
     let until = Instant::now() + Duration::from_secs(10);
+    // holds_by 로 바꾸지 않는다. 기한 뒤 마지막 drain 은 결과 거두기와 재연결 창 만료를 함께 처리해,
+    // 비었다는 사실이 실제 결과를 거둔 것인지 가를 수 없고 아래 비교의 기준 시각도 그 뜻을 잃는다.
     // 결과를 거두기 직전 시각. 실패 처리는 그 뒤에 돌아 예약을 그 시각보다 뒤로 둔다.
     let mut consumed_after = Instant::now();
     while !app.state.mirror_attempts.endpoint_snapshot().is_empty() {

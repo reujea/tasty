@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use tasty_remote::client_session::SessionState;
 use tasty_remote::pending_connection::ConnectionTicket;
 use tasty_remote::transport_end::EndReason;
+use tasty_utils::test_wait::holds_by;
 
 macro_rules! alone {
     ($name:literal) => {
@@ -151,28 +152,25 @@ pub(super) fn queue_a_gated_forced_reconnect_of_the_other_row(
 pub(super) fn collect_until_forced(app: &mut App, row: u32) {
     let ticket = ticket_of(app, row).expect("the queued connection");
     let until = Instant::now() + Duration::from_secs(10);
-    loop {
-        app.remote.collect_connections();
-        if app
-            .remote
-            .prepared_connection(ticket)
-            .is_some_and(|prepared| prepared.transport.end.settled() == Some(EndReason::Forced))
-        {
-            return;
-        }
-        assert!(Instant::now() < until, "the connection never got forced");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        holds_by(until, || {
+            app.remote.collect_connections();
+            app.remote
+                .prepared_connection(ticket)
+                .is_some_and(|prepared| prepared.transport.end.settled() == Some(EndReason::Forced))
+        }),
+        "the connection never got forced"
+    );
 }
 
 /// mirror 연결의 깨움 문이 열릴 때까지 기다린 뒤 내린다. 연결 결과는 채널에 보낸 뒤, reader 의 끝은
 /// 확정한 뒤 깨우므로(S2) 깨움을 본 때에는 그 사실이 이미 있다.
 pub(super) fn wait_for_and_lower_the_attach_wake(app: &App, what: &str) {
     let until = Instant::now() + Duration::from_secs(10);
-    while !app.attach_client_wake.is_pending() {
-        assert!(Instant::now() < until, "no wake for {what}");
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    assert!(
+        holds_by(until, || app.attach_client_wake.is_pending()),
+        "no wake for {what}"
+    );
     app.attach_client_wake.open_round();
 }
 
@@ -704,11 +702,16 @@ fn a_failed_resync_connection_reconnects_the_saved_row() {
     app.apply_attach_client_output();
     let ticket = ticket_of(&app, ROW).expect("the resync queued a connection");
     let until = Instant::now() + Duration::from_secs(10);
-    while app.remote.connection_error(ticket).is_none() {
-        assert!(Instant::now() < until, "the connection never failed");
-        std::thread::sleep(Duration::from_millis(10));
-        app.remote.collect_connections();
-    }
+    let mut first = true;
+    assert!(
+        holds_by(until, || {
+            if !std::mem::take(&mut first) {
+                app.remote.collect_connections();
+            }
+            app.remote.connection_error(ticket).is_some()
+        }),
+        "the connection never failed"
+    );
 
     app.apply_attach_client_output();
 
