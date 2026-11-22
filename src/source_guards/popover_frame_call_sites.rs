@@ -11,8 +11,9 @@
 //! 선택 행(`selectable_value` · `selectable_label`)은 현재 값을 accent 채움으로 칠하므로 디자인의 선택
 //! 표현(글자 + 오른쪽 체크, 채움 없음)과 다르다. `show_ui` 클로저 본문을 중괄호 짝으로 잘라 확인한다.
 //! remote_tool 폼은 ComboBox 를 도우미 `combo(..)` 로 그리고 목록 행은 호출자가 마지막 클로저 인자로 넘긴다. 그
-//! 파일의 `combo(` 호출마다 첫 `|ui| {` 클로저 본문을 같은 방법으로 잘라, egui 기본 선택 행이 없고 공용 옵션
-//! 행이 있는지 본다. 다른 파일의 도우미나 클로저를 변수로 넘긴 호출은 보지 않는다.
+//! 파일의 `combo(` 호출마다 괄호 짝으로 인자 범위를 자르고, 그 안의 마지막 클로저(`|이름| {`)가 인자 끝까지
+//! 이어지는지 본다. 그 본문에 egui 기본 선택 행이 없고, 공용 옵션 행 함수를 정확한 이름으로 부르며 첫 인자로
+//! 그 클로저의 매개변수를 넘기는지 본다. 다른 파일의 도우미나 클로저를 변수로 넘긴 호출은 보지 않는다.
 
 use super::rust_sources;
 
@@ -147,29 +148,106 @@ fn combo_rows(src: &str) -> (Vec<usize>, usize) {
 /// 목록 행을 호출자 클로저로 받는 ComboBox 도우미를 쓰는 파일과 그 호출 문자열.
 const HELPER_COMBO_FILE: &str = "src/adapters/ui/popup/remote_tool.rs";
 const HELPER_COMBO_CALL: &str = "combo(";
-/// 공용 옵션 행 함수(`menu_option` · `menu_option_value`)의 공통 앞부분.
-const SHARED_ROW: &str = "menu_option";
+/// 공용 옵션 행 함수.
+const SHARED_ROWS: &[&str] = &["menu_option", "menu_option_value"];
 
-/// 도우미 `combo(` 호출 중 행 클로저가 egui 기본 선택 행을 쓰거나 공용 옵션 행을 쓰지 않는 호출의 줄 번호와 검사한
-/// 호출 수. 앞 글자가 식별자·`.` 이면 다른 이름이고, `fn combo(` 는 정의다.
+/// `open` 위치의 `(` 와 짝이 되는 `)` 의 위치. 큰따옴표 문자열 안의 괄호는 세지 않는다.
+fn paren_end(code: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_str = false;
+    let mut escaped = false;
+    for (i, c) in code[open..].char_indices() {
+        if in_str {
+            match (escaped, c) {
+                (true, _) => escaped = false,
+                (false, '\\') => escaped = true,
+                (false, '"') => in_str = false,
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '"' => in_str = true,
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open + i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn is_ident(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// 인자 범위 `args` 의 마지막 클로저 `|이름| {` 의 매개변수 이름과 `{` 위치(범위 안 상대). 그 본문이 인자 끝까지
+/// 이어지지 않으면(뒤에 다른 인자가 있으면) 없다.
+fn last_closure(args: &str) -> Option<(&str, usize)> {
+    let mut found = None;
+    for (bar, _) in args.match_indices('|') {
+        let rest = &args[bar + 1..];
+        let name_len = rest.find(|c: char| !is_ident(c)).unwrap_or(rest.len());
+        if name_len == 0 || !rest[name_len..].starts_with('|') {
+            continue;
+        }
+        let after = &rest[name_len + 1..];
+        let gap = after.len() - after.trim_start().len();
+        if !after[gap..].starts_with('{') {
+            continue;
+        }
+        found = Some((&rest[..name_len], bar + 1 + name_len + 1 + gap));
+    }
+    let (name, open) = found?;
+    let body = brace_body(args, open);
+    let tail = args[open + body.len() + 1..].trim();
+    (tail.is_empty() || tail == ",").then_some((name, open))
+}
+
+/// 본문이 공용 옵션 행 함수를 정확한 이름으로 부르고 첫 인자로 `param` 을 넘기는지.
+fn calls_shared_row(body: &str, param: &str) -> bool {
+    SHARED_ROWS.iter().any(|row| {
+        body.match_indices(&format!("{row}(")).any(|(at, _)| {
+            if body[..at].chars().next_back().is_some_and(is_ident) {
+                return false;
+            }
+            let arg = body[at + row.len() + 1..].trim_start();
+            arg.strip_prefix(param)
+                .is_some_and(|r| r.trim_start().starts_with(','))
+        })
+    })
+}
+
+/// 도우미 `combo(` 호출 중 마지막 클로저 인자(목록 행)가 egui 기본 선택 행을 쓰거나 공용 옵션 행을 그 클로저의
+/// `Ui` 로 부르지 않는 호출의 줄 번호와 검사한 호출 수. 앞 글자가 식별자·`.` 이면 다른 이름이고, `fn combo(` 는
+/// 정의다. 인자 끝에 클로저가 없는 호출도 위반이다.
 fn helper_combo_rows(src: &str) -> (Vec<usize>, usize) {
     let code = tasty_doc_guards::source_text::mask_comments_aligned(src);
     let mut offenders = Vec::new();
     let mut seen = 0;
     for (at, _) in code.match_indices(HELPER_COMBO_CALL) {
         let before = code[..at].chars().next_back();
-        if before.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
-            || code[..at].ends_with("fn ")
-        {
+        if before.is_some_and(|c| is_ident(c) || c == '.') || code[..at].ends_with("fn ") {
             continue;
         }
-        let Some(rel) = code[at..].find("|ui| {") else {
+        seen += 1;
+        let open = at + HELPER_COMBO_CALL.len() - 1;
+        let line = code[..at].matches('\n').count() + 1;
+        let Some(close) = paren_end(&code, open) else {
+            offenders.push(line);
             continue;
         };
-        seen += 1;
-        let body = brace_body(&code, at + rel + "|ui| ".len());
-        if EGUI_SELECTABLE.iter().any(|e| body.contains(e)) || !body.contains(SHARED_ROW) {
-            offenders.push(code[..at].matches('\n').count() + 1);
+        let args = &code[open + 1..close];
+        let ok = last_closure(args).is_some_and(|(param, brace)| {
+            let body = brace_body(args, brace);
+            !EGUI_SELECTABLE.iter().any(|e| body.contains(e)) && calls_shared_row(body, param)
+        });
+        if !ok {
+            offenders.push(line);
         }
     }
     (offenders, seen)
@@ -207,6 +285,20 @@ fn the_helper_combo_judge_reads_the_row_closure() {
     assert_eq!(helper_combo_rows(egui_row), (vec![2], 1));
     let no_shared = "combo(ui, pen, \"a\", sel, None, |ui| {\n    ui.label(\"x\");\n});\nreport_combo(x);\nself.combo(y);";
     assert_eq!(helper_combo_rows(no_shared), (vec![1], 1));
+    // 행 클로저 매개변수 이름이 달라도 그 호출의 마지막 클로저를 본다. 뒤 호출의 공용 행으로 통과하지 않는다.
+    let renamed = "combo(ui, pen, \"a\", sel, None, |rows| {\n    rows.selectable_value(&mut v, 1, \"x\");\n});\nform_row(ui, th, t(\"b\"), |ui| {\n    menu_option_value(ui, th, &mut w, 2, \"y\");\n});";
+    assert_eq!(helper_combo_rows(renamed), (vec![1], 1));
+    // 공용 행은 정확한 이름의 호출이고 첫 인자가 그 클로저의 매개변수다.
+    let lookalike = "combo(ui, pen, \"a\", sel, None, |ui| {\n    menu_option_valuex(ui, th, &mut v, 1, \"x\");\n});";
+    assert_eq!(helper_combo_rows(lookalike), (vec![1], 1));
+    let outer_ui = "combo(ui, pen, \"a(\", sel, None, |rows| {\n    menu_option_value(ui, th, &mut v, 1, \"x\");\n});";
+    assert_eq!(helper_combo_rows(outer_ui), (vec![1], 1));
+    let rows_ok = "combo(ui, pen, \"a\", sel, None, |rows| {\n    tasty_ui_widgets::menu_option_value(rows, th, &mut v, 1, \"x\");\n},);";
+    assert_eq!(helper_combo_rows(rows_ok), (vec![], 1));
+    // 마지막 인자가 클로저가 아니면 위반이다.
+    let trailing =
+        "combo(ui, pen, \"a\", sel, |ui| {\n    menu_option(ui, th, false, \"x\");\n}, None);";
+    assert_eq!(helper_combo_rows(trailing), (vec![1], 1));
 }
 
 #[test]
