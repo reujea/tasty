@@ -146,8 +146,8 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
     };
     assert!(
         attempts.busy() > 0,
-        "the cleanup ended without a Busy: {}; with none refused, the preparation failed or its \
-         claim expired before the lock was taken",
+        "the job ended with no Busy seen: {}; with none refused, one possible cause is a \
+         preparation that failed or a claim that expired before the lock was taken",
         refusals()
     );
     assert_eq!(jobs.available_permits(), 7, "{}", refusals());
@@ -164,6 +164,11 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
     );
     drop(lock);
     reaped();
-    assert_eq!(jobs.available_permits(), 8);
-    assert_eq!(fs::read_dir(&namespace).unwrap().count(), 1);
+    assert_eq!(jobs.available_permits(), 8, "{}", refusals());
+    assert_eq!(
+        fs::read_dir(&namespace).unwrap().count(),
+        1,
+        "{}",
+        refusals()
+    );
 }
