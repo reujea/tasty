@@ -3374,6 +3374,9 @@ mod helper_tests {
 
     const EXPECT: &str = "#[expect(clippy::let_underscore_must_use)]";
 
+    /// 루트 후보 분기의 교체 안내.
+    const ROOT_SWAP: &str = "그 루트가 이 파일을 컴파일한다면 그 `expect` 를 `allow` 로 바꿔";
+
     /// (줄 번호 0부터, 그 자리의 판정, expect 아래인가). 같은 자리의 판정과 expect 를 함께 본다.
     fn exemption_info(text: &str, root: Root) -> Vec<(usize, Option<Need>, bool)> {
         test_scope_site_info(text, false)
@@ -3513,6 +3516,7 @@ mod helper_tests {
             report[0].contains("크레이트 루트 후보 `src/lib.rs` 의 머리에"),
             "{report:?}"
         );
+        assert!(report[0].contains(ROOT_SWAP), "{report:?}");
         assert!(
             report[0].contains("unfulfilled_lint_expectations"),
             "{report:?}"
@@ -3540,6 +3544,8 @@ mod helper_tests {
             Some(&ExpectAt::RootCandidate("src/main.rs".to_string())),
         );
         assert!(cand.contains("크레이트 루트 후보 `src/main.rs`"), "{cand}");
+        // 별도 allow 를 더하지 않고 그 루트의 expect 를 allow 로 바꾸라고 한다.
+        assert!(cand.contains(ROOT_SWAP), "{cand}");
         assert!(!cand.contains("이 자리를 덮은"), "{cand}");
         assert!(cand.contains("unfulfilled_lint_expectations"), "{cand}");
         let plain = exemption_fix(false, "src/lib.rs", None);
