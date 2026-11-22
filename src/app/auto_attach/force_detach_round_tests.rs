@@ -249,7 +249,7 @@ fn a_forced_connection_still_in_the_result_channel_ends_before_install() {
             .transport
             .end
             .is_ending(),
-        "A's transport did not end, so no wake above was A's"
+        "A's transport raised an end reason before the round"
     );
     let ticket = ticket_of(&app, ROW_B).unwrap();
     assert!(
