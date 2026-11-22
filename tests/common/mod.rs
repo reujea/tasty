@@ -578,3 +578,68 @@ impl Drop for TastyInstance {
         let _ = std::fs::remove_dir_all(&self.isolated_home);
     }
 }
+
+/// 여러 호스트가 같은 데이터 홈을 쓰는 프로세스 시험의 격리 루트. 공용 인스턴스와 달리 `--port-file`을
+/// 주지 않으므로 호스트는 기본 포트 파일(`<홈>/tasty.port`)을 쓰고 부팅 때 그 홈의 `notify/`를 정리한다.
+/// 프로세스 수명은 호출자가 [`spawn_diag::ChildReaper`]로 관리하고, 루트는 이 값이 drop될 때 지운다.
+pub struct SharedHome {
+    root: PathBuf,
+}
+
+impl SharedHome {
+    pub fn new() -> Self {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let unique = format!(
+            "{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
+        let root = std::env::temp_dir().join(format!("tasty-test-shared-home-{unique}"));
+        std::fs::create_dir_all(&root).expect("failed to create shared home");
+        std::fs::write(root.join(".zshrc"), "").ok();
+        std::fs::write(root.join(".bashrc"), "").ok();
+        write_isolated_config(&root, false, false);
+        Self { root }
+    }
+
+    /// 호스트가 쓰는 데이터 홈(`TASTY_HOME`).
+    pub fn tasty_home(&self) -> PathBuf {
+        self.root.join(".tasty")
+    }
+
+    /// 기본 포트 파일에 적힌 포트. 파일이 없거나 숫자가 아니면 `None`.
+    pub fn published_port(&self) -> Option<u16> {
+        std::fs::read_to_string(self.tasty_home().join("tasty.port"))
+            .ok()?
+            .trim()
+            .parse()
+            .ok()
+    }
+
+    /// 이 홈으로 호스트를 실행할 명령. stderr는 호출자가 읽도록 파이프로 둔다.
+    pub fn host_command(&self) -> Command {
+        let mut command = Command::new(spawn_diag::instance_bin());
+        command
+            .env("HOME", &self.root)
+            .env("TASTY_HOME", self.tasty_home())
+            .env("ZDOTDIR", &self.root)
+            .env_remove("OH_MY_ZSH")
+            .env_remove("ZSH")
+            .env_remove("SHELL")
+            .env_remove("TASTY_SURFACE_ID")
+            .env(spawn_diag::LOG_ENV, spawn_diag::LOG_FILTER)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        spawn_diag::apply_os_open_record(&mut command, &self.root);
+        spawn_diag::apply_bundle_opt_in(&mut command, &self.tasty_home());
+        spawn_diag::apply_display_policy(&mut command);
+        command
+    }
+}
+
+impl Drop for SharedHome {
+    fn drop(&mut self) {
+        // 이유: 정리 중 삭제 실패를 다시 보고할 곳이 없다. 남은 폴더는 시스템 임시 디렉터리에 있다.
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
