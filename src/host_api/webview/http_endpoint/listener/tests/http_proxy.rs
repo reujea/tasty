@@ -256,9 +256,9 @@ enum Stage {
     First,
     Successor,
 }
-/// The stage that failed, the port it bound (0 for the first endpoint) and its error.
+/// The stage that failed, the port it asked for (0 for the first endpoint, the inherited port for
+/// the successor) and its error.
 type Failure = (Stage, u16, EndpointError);
-/// Join an endpoint on a kernel-picked port, then start its successor on the same port.
 async fn rebind_after_join(
     calls: &Arc<AtomicUsize>,
     budget: &EndpointBudget,
@@ -284,7 +284,14 @@ async fn rebind_after_join(
     Ok((second, port, old))
 }
 /// The released port can be taken by any socket on the host before the successor binds it, as in
-/// the product's retained Reload. Only that observed `AddrInUse` starts the pair over.
+/// the product's retained Reload. Only that observed `AddrInUse` starts the pair over, at most
+/// three attempts in all.
+///
+/// The test does not observe who holds the port. A predecessor that never releases it fails all
+/// three attempts, but one that keeps it only now and then is hidden when a later attempt gets a
+/// new port. Telling the predecessor from another socket would need I/O to whatever listens there,
+/// which may never answer, or per-process socket tables that only Linux exposes and that cannot
+/// single out the predecessor among the other loopback sockets of this test process.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn successor_rebinds_the_joined_address_with_fresh_credentials() {
     let budget = EndpointBudget::new();
@@ -298,7 +305,7 @@ async fn successor_rebinds_the_joined_address_with_fresh_credentials() {
                 assert_eq!(budget.active_owners(), 0, "{attempts:?}");
                 assert!(
                     attempts.len() < 3,
-                    "successor port kept being taken: {attempts:?}"
+                    "successor bind reported AddrInUse on every attempt: {attempts:?}"
                 );
             }
             Err(failure) => {
