@@ -136,9 +136,14 @@ _run_lock_drop_token() {
 }
 
 # 리다이렉션을 건 채 부른다. 본문에 들어왔으면 열기는 성공한 것이다(쓰기 실패와 구분한다).
+# bash 3.2(macOS libc)는 실패한 내장 출력의 버퍼를 버리지 않아, 리다이렉션이 풀린 뒤 다음 내장 출력에 섞여 나간다.
+# 쓰기가 실패하면 잠금을 연 채 빈 출력으로 그 버퍼를 fd 2로 흘려 비운다. 유일한 호출부가 fd 2를 /dev/null에 둔다.
+# /dev/null을 다시 열지 않는 것은 그 열기가 실패하면 비우기를 건너뛰기 때문이다. 결과는 첫 쓰기의 실패다.
 _run_lock_fill() {
     run_lock_opened=1
-    printf '%s\n' "$run_lock_token"
+    printf '%s\n' "$run_lock_token" && return 0
+    printf '%s' '' >&2
+    return 1
 }
 
 # 결과: 0 잡음, 1 이미 있음(다른 실행 또는 남은 잠금), 2 만들 수 없음(부모 폴더 없음·권한·쓰기 실패).
