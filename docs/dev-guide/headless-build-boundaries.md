@@ -83,8 +83,11 @@ cargo check --workspace --release --all-targets
 합친 `cfg(any(feature = "gui", debug_assertions))`를 적용하고, 테스트가 호출하면 `test`도 더한다.
 
 커밋 전에 여덟 조합을 모두 실행하는 자동 검사는 없다. headless debug 컴파일은 pre-push 와
-`check-headless` 가, release gui 라이브러리는 pre-push 와 `check-release` 가 본다
-([ci-gates](ci-gates.md)). release headless 두 칸과 release gui `--all-targets` 칸은 자동 검사에 포함되지 않으므로 직접 실행한다.
+`check-headless` 가, release gui 라이브러리는 pre-push 와 `check-release` 가 본다.
+release headless `--all-targets` 칸은 `check-headless` 의 `cargo clippy (headless, release)` 가 본다
+([ci-gates](ci-gates.md)). 타깃 옵션 없는 release headless 칸은 lib·bin 만 선택하고 시험·예제에 필요한
+dev-dependency 를 선택하지 않아(예: 루트의 `tokio/test-util`) feature 집합이 다르므로 별도 검사다. 이 칸과
+release gui `--all-targets` 칸은 자동 검사에 포함되지 않으므로 직접 실행한다.
 
 ## 두 조합이 같게 하는 것
 

@@ -5,7 +5,8 @@
 //!
 //! 이 검사는 DEBUG_METHODS와 비교하므로 debug 빌드에서만 실행한다.
 //! 자동 실행은 헤드리스 조합에서만 일어난다(check-headless). 기본 조합의 --lib --bins 호출에는 포함되지 않는다.
-//! Windows·헤드리스·Linux gui의 clippy --all-targets는 컴파일 검사이며 실행과 구별한다.
+//! Windows(gui·헤드리스)·헤드리스·Linux gui의 debug clippy --all-targets는 컴파일 검사이며 실행과 구별한다.
+//! headless release clippy는 이 타깃을 선택하지만 debug_assertions가 꺼져 본문이 제외된다.
 #![cfg(debug_assertions)]
 
 use tasty_doc_guards::cfg_predicate as cfg_span;

@@ -3242,10 +3242,10 @@ fn every_time_marker_carries_its_own_reason() {
 /// YAML 주석을 제외한 사본에서 센다. 실제 실행 결과를 수집한 수는 아니다.
 const SWALLOWABLE_STEPS: usize = 6;
 
-/// if가 있는 검증 스텝 수(2026-11-22, check-headless에 Linux gui clippy 단계를 더해 7).
+/// if가 있는 검증 스텝 수(2026-11-22, check-windows에 headless clippy, check-headless에 headless release clippy 단계를 더해 9).
 /// 조건식을 계산하지 않아 앞선 실패 뒤 실행을 보장하지 않는다.
 /// 두 분류를 함께 대조하지만 수만으로 스텝 삭제와 조건 변경을 구별할 수는 없다.
-const PROTECTED_STEPS: usize = 7;
+const PROTECTED_STEPS: usize = 9;
 
 fn workflow_texts() -> Vec<(String, String)> {
     let root = repo_root();
