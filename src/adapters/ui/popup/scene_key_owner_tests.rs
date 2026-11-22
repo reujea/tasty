@@ -2237,7 +2237,9 @@ fn a_click_this_pass_keeps_the_new_text_focus() {
     frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     let field = text_rect(&texts, t("port_scanner.search_placeholder"));
-    let convert = open_convert(&mut state, SURFACE_R, true);
+    // 스캐너 입력칸은 오른쪽 surface 위에 있다. 변환 팝업을 왼쪽에 열어 그 범위 층이 입력칸을 가리지 않게 한다.
+    assert!(field.center().x > super::surface_rect_l().right());
+    let convert = open_convert(&mut state, SURFACE_L, true);
     frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     assert_eq!(
