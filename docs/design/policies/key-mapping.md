@@ -330,6 +330,15 @@ Tasty가 소비한다. 설정되지 않았거나 동작하지 못했으면 원�
     egui-winit 경로가 다시 읽어 늦게 붙여넣는다. 기다림이 빈 값·시한으로 끝나 팝업에 재생한 기본 붙여넣기 키도 같은 경로를
     탄다.
 
+## 팝업 기본 조작 키
+
+팝업의 기본 조작(Esc·Enter·Space·화살표·Tab·Shift+Tab)은 키 코드를 직접 비교하지 않고 단축키와 같은 바인딩 판정(`tasty_key_match`)으로 읽는다(`src/adapters/ui/popup/keys.rs` 의 `BasicKey`).
+
+- 바인딩은 고정 값이다(`escape`, `enter`, 펼침은 `enter`·`space`, `up`·`down`·`left`·`right`, `tab`, `shift+tab`). ESC·Enter 같은 기본 조작이라 설정 단축키 탭에 노출하지 않는다.
+- 수식키는 정확히 같아야 맞는다. Ctrl+Enter·Alt+↓·Shift+Esc 는 기본 조작이 아니다. 창의 Esc 판정도 수식키 없는 Escape 만 받는다(`tasty_key_match::is_window_escape`). 수식키가 붙은 조합을 쓰는 팝업(검색 바의 Shift+Enter 같은 이전 결과)은 그 조합을 따로 읽는다.
+- 숫자·글자 단축키(승인 선택지, 변환 팝업 글자)는 콘텐츠 고유 키라 이 표에 두지 않는다. 승인 선택지는 수식키 없는 숫자와 Shift+숫자만, 변환 팝업 글자는 물리 키 위치로 고른다.
+- 팝업은 그 팝업이 이번 프레임 키 주인일 때만 이 키를 받는다. 받는 통로와 소비 집합은 [팝업 구현](../../dev-guide/popup-implementation.md#본문의-키)에 있다.
+
 ## OS 고유 키 이름 혼용 금지
 
 바인딩 토큰 `ctrl`/`alt`/`shift` 는 **물리적 위치를 추상화한 이름**이며 OS 가 인식하는 키 이름과 다를 수 있다. tasty 는 각 키를 OS 고유 이름으로 인식하고 바인딩 문자열과의 변환만 OS별로 다르게 한다:
