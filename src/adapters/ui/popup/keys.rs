@@ -169,6 +169,8 @@ pub(crate) struct PopupKeys {
     edits: EditBindings,
     consumed: Vec<ConsumedKey>,
     escape_marks: Option<super::body_keys::EscapeMarks>,
+    /// 이 인스턴스가 펼친 묶음 안이라 본문이 쓰지 않은 Esc 를 중앙 단계가 다시 접는다(`refolding`).
+    refolds: bool,
 }
 
 /// 판정한 키 누름 하나와 그 판정에 쓴 수식키.
@@ -211,6 +213,7 @@ impl PopupKeys {
             edits: edits.clone(),
             consumed: Vec::new(),
             escape_marks: None,
+            refolds: false,
         }
     }
 
@@ -223,6 +226,18 @@ impl PopupKeys {
     /// 남은 Esc 표지를 돌려준다(소비한 누름의 표지는 지웠다). 관리자가 넘긴 Esc 를 거둘 때 쓴다.
     pub(crate) fn take_escape_marks(&mut self) -> Option<super::body_keys::EscapeMarks> {
         self.escape_marks.take()
+    }
+
+    /// 이 인스턴스가 펼친 묶음 안인지 싣는다. 관리자가 본문을 부르기 전에 정한다.
+    pub(crate) fn refolding(mut self, expanded: bool) -> Self {
+        self.refolds = expanded;
+        self
+    }
+
+    /// 이 패스 Esc 가 펼친 묶음을 다시 접는 몫인지. 참이면 본문은 Esc 로 취소·닫기 같은 자기 동작을 하지 않고 남겨,
+    /// 중앙 단계가 묶음 뿌리부터 접게 한다.
+    pub(crate) fn escape_refolds(&self) -> bool {
+        self.refolds
     }
 
     /// 아무 키도 주지 않는 통로.

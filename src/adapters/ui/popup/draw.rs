@@ -874,6 +874,7 @@ impl PopupManager {
                             ctx,
                             edge.opaque,
                             || {
+                                let refolds = popup.expanded();
                                 let mut cx = PopupCx {
                                     id: popup.id,
                                     instance: popup.instance,
@@ -887,7 +888,8 @@ impl PopupManager {
                                 // 키 주인이 아닌 본문은 키 입력을 보지 못한다(직접 읽기와 위젯 키 포커스 모두).
                                 let takes_keys = cx.focused
                                     || (!frame_has_key_owner && !popup.arrange.takes_focus);
-                                let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits);
+                                let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits)
+                                    .refolding(refolds);
                                 bodies.push(text_focus::BodyKeys {
                                     area: layer_id.id,
                                     instance: popup.instance,

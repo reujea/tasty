@@ -9,6 +9,8 @@
 
 #[cfg(test)]
 mod admission_tests;
+#[cfg(test)]
+mod fold_tests;
 mod folder;
 #[cfg(test)]
 mod folder_tests;
@@ -659,7 +661,9 @@ pub fn draw_file_picker(
     let th = theme::theme();
     // 키 입력은 관리자가 키를 준 인스턴스만 읽는다(`cx.keys`). 다른 범위의 피커는 같은 키에 취소·확정되지 않는다.
     // Esc 는 본문 전에 자식 팝업(경로 메뉴)이 닫혀 있을 때만 이 피커 것이다. 열려 있으면 egui 가 그 메뉴를 닫는다.
+    // 펼친 묶음 안의 Esc 는 취소하지 않고 남겨 중앙 단계가 묶음 뿌리부터 접는다.
     let escape = !super::child_popup_open(ui.ctx(), cx.instance)
+        && !cx.keys.escape_refolds()
         && cx.keys.consume(super::keys::BasicKey::Escape);
 
     let is_remote = data.mirror_ws_id.is_some();

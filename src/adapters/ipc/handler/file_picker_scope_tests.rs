@@ -271,7 +271,8 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
         tab_content_rects: Vec::new(),
     };
     let ctx = egui::Context::default();
-    // plugin 렌더 뒤 host 팝업을 그린다. host 판정은 직전 plugin 렌더가 적은 부모 표시를 읽는다.
+    // 제품 순서대로 host 팝업 층(실제 정의 본문과 닫기 훅)을 그린 뒤 plugin 팝업을 그린다. host 판정은 직전 패스
+    // plugin 렌더가 적은 부모 표시를 읽는다.
     let frame = |state: &mut RequestContext,
                  session: &mut crate::runtime::engine_session::EngineSession| {
         let raw = egui::RawInput {
@@ -283,6 +284,12 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
         };
         let engine = session.borrow_mut();
         drop(ctx.run(raw, |ctx| {
+            crate::adapters::ui::popup::frame::draw_popup_layer(
+                ctx,
+                state,
+                &engine.read(),
+                &layout,
+            );
             sync_plugin_popup_scopes(state, mgr.popup_instances());
             crate::plugin_bridge::popup_render::draw_plugin_popups(
                 ctx,
@@ -291,18 +298,8 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
                 Some(crate::app::plugin_display::PluginDisplay::new(&mgr)),
                 Some(&layout),
             );
-            let mut popups =
-                std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
-            popups.draw_routed(
-                ctx,
-                &mut |_, _| crate::adapters::ui::PopupAction::None,
-                Some(&layout),
-                &crate::adapters::ui::input::edit_key::EditBindings::default(),
-                &[],
-                None,
-            );
-            state.popups = popups;
         }));
+        state.close_input_pass(&ctx);
         state.press_snapshot = None;
     };
     state.popups.expand_plugin(7);
@@ -356,6 +353,10 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
     frame(&mut state, &mut session);
     let (expanded, collapsed) = picker(&mut state);
     assert!(!expanded && collapsed, "the picker folds with its parent");
+    assert!(
+        state.dialogs.finished_file_pickers.is_empty(),
+        "the folding Escape does not cancel the picker"
+    );
     assert_eq!(
         state.popup_key_owner(),
         Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(7)),
