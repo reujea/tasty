@@ -89,7 +89,7 @@ parked는 OS 최소화가 아니고 headless도 아니다. OS 최소화된 창�
 | 포커스 View가 모달 | 불가 | `focused_view_id`는 MainView만 가리킨다 |
 | 창 0개 + engine 살아 있음 | 가능 | parked. 트레이가 프로세스를 유지할 수 있다 |
 | parked engine + busy·attention 변화 | 가능 | busy 폴링(`poll_busy_states`, `src/app/busy.rs`)과 mirror 이벤트는 parked engine에도 적용된다 |
-| 최소화된 창 + 그 창의 engine parked | 불가 | OS 최소화(모든 OS의 창 하나 최소화, Windows·Linux의 앱 수준 최소화)와 트레이 숨김은 창 관계를 유지한다. macOS의 앱 수준 최소화는 OS 최소화가 아니라 MainView를 없애고 park하므로 최소화된 창이 남지 않는다 |
+| 최소화된 창 + 그 창의 engine parked | 불가 | OS 최소화(모든 OS의 창 하나 최소화, 트레이가 없을 때의 Windows·X11과 네이티브 Wayland의 앱 수준 최소화)와 트레이 숨김(트레이가 있을 때의 Windows·X11 앱 수준 최소화)은 창 관계를 유지한다. macOS의 앱 수준 최소화는 OS 최소화가 아니라 MainView를 없애고 park하므로 최소화된 창이 남지 않는다 |
 | 이미 OS 전체화면 + 무대 | 가능 | 무대를 닫아도 OS 전체화면은 유지된다 |
 | headless + 창 상태 | N/A | View가 없다 |
 
