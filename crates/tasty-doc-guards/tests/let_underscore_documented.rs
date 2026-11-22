@@ -974,7 +974,8 @@ impl<'a> Code<'a> {
     /// 문장 그룹으로 읽은 `{` 그룹 `g` 가 소문자 이름의 구조체 리터럴(`s { a: 1 }`)일 수 있는가.
     /// `group_kind` 는 대문자 이름만 리터럴로 보므로, 이런 그룹 안 요소는 끝을 정할 수 없다.
     /// `{` 바로 앞이 소문자·`_` 로 시작하는 이름이고(라벨 블록 `'a: {` 은 앞이 `:` 라 해당하지 않는다), 클로저 반환 타입(`-> u8 {`)이 아니며,
-    /// 머리에 아이템·제어 키워드가 없을 때 그렇다고 본다.
+    /// 머리에 아이템·제어 키워드가 없을 때 그렇다고 본다. `header` 는 `}` 에서 멈추므로, 머리가 `} = 식` 이면
+    /// 그 `}` 의 짝인 구조체 패턴(`if let Foo { a } = h {`)의 머리까지 이어 본다(`if`·`while` 의 몸체는 후보가 아니다).
     fn maybe_lowercase_literal(&self, g: usize) -> bool {
         if g == NONE || self.b[g] != b'{' || self.group_kind(g).0 {
             return false;
@@ -996,7 +997,19 @@ impl<'a> Code<'a> {
         if !lower || ret_type {
             return false;
         }
-        let (words, _, _) = self.header(g);
+        let (mut words, _, mut start) = self.header(g);
+        // 구조체 패턴 뒤 `= 식 {` 이면 `let` 이 나올 때까지 패턴(`Foo { a } | Bar { b }`)의 머리 단어도 더한다.
+        let after_pattern = (start..g).any(|k| self.b[k] == b'=' && self.is_assign_eq(k));
+        while after_pattern
+            && !words.contains(&"let")
+            && let Some(close) = self.prev_non_ws(start)
+            && self.b[close] == b'}'
+            && self.pair[close] != NONE
+        {
+            let (more, _, s2) = self.header(self.pair[close]);
+            words.extend(more);
+            start = s2;
+        }
         ![
             "impl",
             "trait",
@@ -3160,10 +3173,9 @@ mod helper_tests {
             ),
             (vec![], vec![5])
         );
-        // 좁힘은 테스트 표식과 allow 에만 쓴다. 머리를 못 읽는 `if let` 몸체(후보 그룹) 안에서 다시 켠 warn 은
-        // 그 요소 전체를 덮는다.
+        // 좁힘은 테스트 표식과 allow 에만 쓴다. 후보 그룹 안에서 다시 켠 warn 은 그 요소 전체를 덮는다.
         let rewarn = with_ignore(
-            "#[cfg(test)]\n#[allow(clippy::let_underscore_must_use)]\nmod t {\n    fn g() {\n        if let s { a } = h {\n            #[warn(clippy::let_underscore_must_use)]\n            {\n                {IGNORE}\n            }\n        }\n    }\n}\n",
+            "#[cfg(test)]\n#[allow(clippy::let_underscore_must_use)]\nmod t {\n    fn g() {\n        let v = s {\n            #[warn(clippy::let_underscore_must_use)]\n            a: {\n                {IGNORE}\n                1\n            },\n        };\n    }\n}\n",
         );
         assert_eq!(
             test_scope_sites(&rewarn, false),
@@ -3416,6 +3428,25 @@ mod helper_tests {
                 own.contains("unfulfilled_lint_expectations"),
                 under,
                 "{own}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_let_pattern_body_is_not_a_lowercase_literal() {
+        for head in [
+            "if let Foo { a } = h",
+            "while let Foo { a } = h",
+            "if let Foo { a: Bar { b } } = h",
+            "if let Foo { a } | Bar { a } = h",
+            "if let Some(a) = h",
+        ] {
+            assert_eq!(
+                both(&format!(
+                    "fn g() {{\n    {head} {{\n        #[cfg(test)]\n        {{\n            {{IGNORE}}\n        }}\n    }}\n}}\n"
+                )),
+                (vec![], vec![5]),
+                "{head}"
             );
         }
     }
