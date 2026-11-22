@@ -214,18 +214,43 @@ fn a_ready_forced_connection_ends_before_install_and_drops_the_other_attempt() {
 }
 
 /// S6(b): Given B 의 결과가 아직 결과 채널에 있다(회차 시작 때 Connecting), When 회차를 돌리면, Then
-/// 관측의 첫 단계가 결과를 거둬 Ready 와 같이 G1 으로 끝낸다. 결과 채널의 전송이 강제 끊김으로 확정될
-/// 때까지는 상대가 통지를 쓴 뒤 기다려 만든다(전송을 거두지 않고는 확정을 볼 수 없다). 덜 기다렸으면
-/// 이 시험은 통과하지 않고 실패한다.
+/// 관측의 첫 단계가 결과를 거둬 Ready 와 같이 G1 으로 끝낸다. 결과를 거두지 않고 그 자리를 만들려고 시간
+/// 대신 깨움을 본다. A 의 결과 깨움을 먼저 내려 B 의 신호로 오인하지 않게 하고, B 는 handshake 를 풀어
+/// 결과 깨움을 본 다음 통지를 보내고 통지 뒤 깨움을 기다린다. 깨움은 출처를 구분하지 않으므로 이 순서는 각
+/// 소켓이 읽기 제한(30초)과 I/O 실패에 닿지 않는 동안만 성립한다. A 의 끝 사유가 없음을 회차 전에 보아
+/// A 의 깨움이 섞인 경우를 잡고, B 의 강제 끊김 확정은 회차의 G1 결과로 확인한다.
 #[test]
 fn a_forced_connection_still_in_the_result_channel_ends_before_install() {
     alone!("a_forced_connection_still_in_the_result_channel_ends_before_install");
     let event_loop = event_loop();
     let mut app = reconnecting_app(&event_loop);
+    assert!(!app.attach_client_wake.is_pending(), "no wake before A");
     let _socket = prepare_an_automatic_reconnect(&mut app);
-    let (peer, run, joined) = queue_a_forced_reconnect_of_the_other_row(&mut app);
+    wait_for_and_lower_the_attach_wake(&app, "A's connection result");
+    let (handshake, handshake_held) = std::sync::mpsc::channel();
+    let (notice, notice_held) = std::sync::mpsc::channel();
+    let (peer, run, joined) = queue_a_gated_forced_reconnect_of_the_other_row(
+        &mut app,
+        PeerGates {
+            handshake: Some(handshake_held),
+            notice: Some(notice_held),
+        },
+    );
+    handshake.send(()).unwrap();
+    wait_for_and_lower_the_attach_wake(&app, "B's connection result");
+    notice.send(()).unwrap();
     let _socket_b = peer.recv_timeout(Duration::from_secs(5)).unwrap();
-    std::thread::sleep(Duration::from_millis(500));
+    wait_for_and_lower_the_attach_wake(&app, "the wake after B's force notice");
+    let ticket_a = ticket_of(&app, ROW).unwrap();
+    assert!(
+        !app.remote
+            .prepared_connection(ticket_a)
+            .expect("A was collected")
+            .transport
+            .end
+            .is_ending(),
+        "A's transport did not end, so no wake above was A's"
+    );
     let ticket = ticket_of(&app, ROW_B).unwrap();
     assert!(
         app.remote.prepared_connection(ticket).is_none(),
