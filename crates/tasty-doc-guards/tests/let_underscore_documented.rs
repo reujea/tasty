@@ -1195,7 +1195,7 @@ fn scopes(masked: &str, raw: &str) -> Scopes {
         if !marker && level.is_none() {
             continue;
         }
-        // 매크로 입력 안에서 아이템이 아닌 요소(식·문장·팔)에 붙은 테스트 표식과 면제는 그 속성만 덮는다
+        // 매크로 입력 안에서 아이템이 아닌 요소(식·문장·팔)에 붙은 테스트 표식과 면제는 그 속성이 든 묶음의 시작부터 그 속성 끝까지만 덮는다
         // (범위를 좁히는 쪽). 아이템(`proptest! { #[test] fn .. }`)은 일반 규칙으로 읽는다. warn·deny·forbid 는
         // 범위를 좁히면 다시 켠 진단을 놓치므로 일반 규칙대로 읽는다.
         let macro_input = inner.is_none()
