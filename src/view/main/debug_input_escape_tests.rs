@@ -86,3 +86,30 @@ fn an_injected_shift_escape_stays_in_the_egui_input() {
     layer_frame(&ctx, &mut state, &read, events);
     assert!(state.popups.is_open(COMMAND_PALETTE_POPUP_ID));
 }
+
+/// T-G3-1: Given 키 주인 명령 팔레트와 창이 실물 Win·Super 를 누른 것으로 보는 상태(비-macOS), When debug 주입으로
+/// 수식키 없는 Esc 를 넣으면, Then 실제 Super+Esc 처럼 창의 Esc 판정 대상이 아니라 그 누름이 egui 입력에 남고 팔레트는
+/// 열린 채다. egui 수식키는 비-macOS 의 Win·Super 를 담지 않으므로 창은 그 상태를 따로 읽는다.
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn an_injected_escape_with_the_real_super_held_is_not_a_bare_escape() {
+    let (mut state, mut session, ctx) = palette_scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let mut input = WindowInput::default();
+    input.hold_super(true);
+    assert_eq!(
+        inject_key(&mut state, &read, &mut input, "Escape", true, None),
+        Some(PushedKey::Key)
+    );
+    let events = std::mem::take(input.queue_mut());
+    assert!(
+        events.iter().any(is_escape_press),
+        "Super 를 쥔 Esc 는 창이 처리하지 않는다: {events:?}"
+    );
+    layer_frame(&ctx, &mut state, &read, events);
+    assert!(
+        state.popups.is_open(COMMAND_PALETTE_POPUP_ID),
+        "Super+Esc 로는 팔레트가 닫히지 않는다"
+    );
+}

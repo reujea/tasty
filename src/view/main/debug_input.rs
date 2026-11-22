@@ -253,6 +253,11 @@ pub(crate) trait EguiKeySink {
     fn escape_held(&self) -> bool {
         false
     }
+    /// 창이 지금 실물 Win·Super 를 누른 것으로 보는지(`tasty_key_match::super_held`). egui 수식키는 비-macOS 의
+    /// Win·Super 를 담지 않으므로 창의 Esc 판정은 이 값을 따로 읽는다.
+    fn super_held(&self) -> bool {
+        false
+    }
 }
 
 impl EguiKeySink for crate::gpu::GpuState {
@@ -270,6 +275,10 @@ impl EguiKeySink for crate::gpu::GpuState {
 
     fn escape_held(&self) -> bool {
         self.egui_escape_held()
+    }
+
+    fn super_held(&self) -> bool {
+        tasty_key_match::super_held(&self.egui_ctx)
     }
 
     fn push_events(&mut self, events: Vec<egui::Event>) {
@@ -304,7 +313,8 @@ impl PushedKey {
 /// 메인 창에 주입한 키 하나. 창의 키와 같은 순서로 지금 입력 몫을 끊은 뒤(`key_focus`) 키를 egui 입력 큐에 넣는다
 /// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 매핑 불가 키면
 /// 끊지도 넣지도 않고 `None`. 넣은 사건에 수식키 없는 Esc 누름이 있으면 실제 키처럼 창의 Esc 판정
-/// (`MainViewState::window_escape`, 대상은 `tasty_key_match::is_window_escape`)을 거친다. 처리한 누름은 egui 큐에서
+/// (`MainViewState::window_escape`, 대상은 `tasty_key_match::is_window_escape`)을 거친다. 수식키는 주입이 쥔 egui
+/// 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super(`EguiKeySink::super_held`)다. 처리한 누름은 egui 큐에서
 /// 빠지고 키 주인 몫으로 넘어간다.
 pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     state: &mut crate::state::MainViewState,
@@ -318,7 +328,10 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     key_focus(state, core, sink);
     let from = sink.queued_events().len();
     let pushed = push_egui_key(sink, key_name, pressed, modifiers)?;
-    let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(sink.held_modifiers(), false);
+    let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(
+        sink.held_modifiers(),
+        sink.super_held(),
+    );
     let loaded = sink.queued_events().get(from..).is_some_and(|e| {
         e.iter()
             .any(crate::adapters::ui::popup::body_keys::is_escape_press)

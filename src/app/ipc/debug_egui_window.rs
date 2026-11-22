@@ -68,7 +68,8 @@ impl App {
     }
 
     /// 처리는 focused window 경로와 같고(`debug_egui_key.rs`), 응답에 `window_id`를 더한다.
-    /// 유지 수식 키는 창마다 따로다. 넣은 Esc 누름에는 실제 키처럼 그 창의 Esc 표지를 쌓는다.
+    /// 유지 수식 키는 창마다 따로다. 넣은 Esc 누름에는 실제 키처럼 그 창의 Esc 표지를 쌓는다. 표지의 Win·Super 는
+    /// 그 창이 지금 누른 것으로 보는 실물 상태다.
     fn debug_egui_key_to_window(
         &mut self,
         params: &serde_json::Value,
@@ -80,7 +81,7 @@ impl App {
             super::debug_egui_key::egui_key_body(gpu, params).map_err(|m| (-32602, m))?;
         let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(
             gpu.debug_egui_modifiers(),
-            false,
+            tasty_key_match::super_held(&gpu.egui_ctx),
         );
         gpu.debug_load_escape_marks(from, mods);
         if body["injected"] == true {

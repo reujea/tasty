@@ -23,6 +23,9 @@ pub(crate) struct WindowInput {
     /// debug 키 주입이 유지하는 수식 키(`EguiKeySink::hold_modifiers`).
     #[cfg(debug_assertions)]
     debug_held: egui::Modifiers,
+    /// 창이 실물 Win·Super 를 누른 것으로 보는지(`EguiKeySink::super_held`).
+    #[cfg(debug_assertions)]
+    debug_super: bool,
 }
 
 /// 하네스 패스가 창의 두 자리에서 부르는 일(`run_pass`).
@@ -115,6 +118,18 @@ impl crate::view::main::debug_input::EguiKeySink for WindowInput {
 
     fn push_events(&mut self, events: Vec<egui::Event>) {
         self.queue.extend(events);
+    }
+
+    fn super_held(&self) -> bool {
+        self.debug_super
+    }
+}
+
+#[cfg(debug_assertions)]
+impl WindowInput {
+    /// 창이 실물 Win·Super 를 누른 것으로 보게 한다(실제 창은 winit 수식키 변화로 기록한다).
+    pub(crate) fn hold_super(&mut self, held: bool) {
+        self.debug_super = held;
     }
 }
 
