@@ -203,7 +203,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      # debug_assertions가 꺼진 headless 코드의 Clippy다. debug 핸들러만 쓰는 정의의 미사용 진단은 이 조합에서만 보인다.
+      # debug_assertions가 꺼진 headless 코드의 Clippy다. debug 핸들러만 쓰는 정의의 미사용 진단은 debug 조합 Clippy에 보이지 않고, -D warnings로 실패시키는 것은 이 스텝뿐이다.
       # target/release를 쓰므로 이 잡의 다른 cargo 스텝(target/debug)의 산출물을 건드리지 않는다. 기준은 -D warnings다.
       - name: cargo clippy (headless, release)
         if: ${{ !cancelled() }}
