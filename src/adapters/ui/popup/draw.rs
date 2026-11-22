@@ -616,6 +616,7 @@ impl PopupManager {
 
             let popup_id = popup.id;
             let popup_iid = popup.instance;
+            let expanded = popup.expanded();
             let is_headless = popup.headless;
             let popup_rect = popup.popup_rect();
             let content_rect = popup.content_rect();
@@ -888,7 +889,16 @@ impl PopupManager {
                                 if let Some(marks) = cx.keys.take_escape_marks() {
                                     pass_escape.marks = marks;
                                 }
-                                let close = if escape_here {
+                                let close = if escape_here && expanded {
+                                    if super::escape_step::central_refold(
+                                        cx.keys.consumed(),
+                                        &action,
+                                        child_open,
+                                    ) {
+                                        refold_requested = Some(cx.instance);
+                                    }
+                                    None
+                                } else if escape_here {
                                     super::escape_step::central_close(
                                         popup.escape,
                                         cx.keys.consumed(),

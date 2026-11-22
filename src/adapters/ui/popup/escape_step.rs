@@ -2,7 +2,8 @@
 //! 풀어 그 Esc 를 넘긴다(`state::escape_gate`). 본문을 그린 뒤 이 단계가 선언 `escape` 와 본문 결과로 마무리한다.
 //! 본문이 그 Esc 를 썼으면 닫지 않는다. 썼다는 것은 셋 가운데 하나다: (a) 본문이 키 통로로 Esc 를 소비했다, (b) 본문
 //! 결과가 `PopupAction::None` 이 아니다, (c) 본문을 그리기 전에 이 인스턴스의 자식 팝업이 열려 있었다(egui 가 그 자식을
-//! 닫는다). 쓰지 않았고 선언이 Close 면 사유 Escape 로 닫는다. Unfocus 는 사건 시점 해제로 끝이다.
+//! 닫는다). 쓰지 않았고 선언이 Close 면 사유 Escape 로 닫는다. Unfocus 는 사건 시점 해제로 끝이다. 펼친 host 팝업은
+//! 창이 포커스를 풀지 않고 넘기며, 쓰지 않았으면 선언과 무관하게 그 Esc 에 묶인 인스턴스를 다시 접는다(닫지 않는다).
 //!
 //! 별도 창에는 창의 Esc 판정이 없다. 그 창이 egui 에 적재한 Esc 누름마다 사건 시점 수식키를 표지로 남기고(`Gpu`),
 //! 창 `render` 가 W1 키 주인과 함께 패스마다 관리자에 넣는다(`WindowPassKeys`). 그 패스 사건은 "W1 키 주인이 있고 표지
@@ -75,6 +76,15 @@ pub(super) fn central_close(
 ) -> Option<PopupAction> {
     (escape == PopupEscape::Close && !content_used_escape(consumed, action, child_open))
         .then_some(PopupAction::CloseBy(PopupCloseReason::Escape))
+}
+
+/// 이 패스 Esc 를 받은 펼친 키 주인의 마무리. 본문이 쓰지 않았으면 다시 접는다(닫지 않는다).
+pub(super) fn central_refold(
+    consumed: &[ConsumedKey],
+    action: &PopupAction,
+    child_open: bool,
+) -> bool {
+    !content_used_escape(consumed, action, child_open)
 }
 
 /// 이번 패스 Esc 사건과 키 주인 통로에 줄 표지.

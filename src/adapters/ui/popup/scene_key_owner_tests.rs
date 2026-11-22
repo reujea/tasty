@@ -1435,6 +1435,69 @@ fn shift_escape_does_not_fold_an_expanded_popup() {
     assert!(p.open && p.expanded(), "펼친 채다");
 }
 
+/// T-4a4-3: Given 펼친 키 주인 DAG 목록 팝업 A 와 그 위에 연 R 의 변환 팝업 B(A 의 묶음 밖), When 한 창 사건 묶음
+/// [Esc, B 누름] 이 오면, Then Esc 몫을 그리는 시점에 B 가 live 이고 A 는 여전히 펼쳐 그려지며, 다시 접기는 그 Esc 에
+/// 묶인 A 를 접고 B 는 그대로다.
+#[test]
+fn refold_uses_the_instance_bound_to_the_escape() {
+    use crate::adapters::ui::popup::dag_list::DAG_LIST_POPUP_ID;
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let a = state
+        .popups
+        .open_request(
+            &OpenRequest::new(DAG_LIST_POPUP_ID, PopupScope::Surface(SURFACE_L))
+                .centered()
+                .focused(),
+            true,
+        )
+        .expect("dag list opens");
+    if let Some(p) = state.popups.instance_mut(a) {
+        p.arrange.fit = crate::adapters::ui::popup::PopupFit::Collapse;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(800.0, 800.0));
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    state.popups.expand(a);
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(state.popups.instance(a).unwrap().expanded(), "A 를 펼쳤다");
+    let b = open_convert(&mut state, SURFACE_R, false);
+    body_pass(&ctx, &mut state, &read, &mut input);
+    let b_display = state.popups.instance(b).unwrap().display;
+    let b_center = state.popups.instance(b).unwrap().popup_rect().center();
+
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    input.press(&mut state, &read, b_center);
+    assert_eq!(
+        state.focus_node(&read),
+        FocusNode::Popup(PopupNode::Host(b)),
+        "B 가 live 다"
+    );
+    assert!(
+        state.popups.instance(a).unwrap().expanded(),
+        "Esc 몫을 그리는 시점에 A 는 펼친 채다"
+    );
+    let events = input.take_pass(&mut state, &ctx);
+    let texts = frame(&ctx, &mut state, &read, events);
+    state.press_snapshot = None;
+    assert!(
+        painted(&texts, t("dag_list.status_any")),
+        "Esc 몫에 A 를 그린다"
+    );
+    while !input.is_empty() {
+        body_pass(&ctx, &mut state, &read, &mut input);
+    }
+    body_pass(&ctx, &mut state, &read, &mut input);
+    let pa = state.popups.instance(a).unwrap();
+    assert!(pa.open && pa.collapsed(), "그 Esc 에 묶인 A 가 접힌다");
+    let pb = state.popups.instance(b).unwrap();
+    assert!(pb.open && pb.display == b_display, "B 는 그대로다");
+}
+
 /// T-4a3-19: Given 원격 이름 바꾸기 확인을 기다리는 이름 바꾸기(키 주인), When Esc 가 오면, Then 열린 채다.
 #[test]
 fn escape_on_a_waiting_rename_keeps_it_open() {

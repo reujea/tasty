@@ -551,14 +551,6 @@ impl PopupManager {
         }
         true
     }
-
-    /// Esc: 키 주인(맨 위 포커스 인스턴스)이 펼쳐져 있으면 다시 접고 참이다. 닫기 사건은 없다.
-    pub fn refold_focused(&mut self) -> bool {
-        let Some((_, iid, _)) = self.focused_dismissal_target() else {
-            return false;
-        };
-        self.refold(iid)
-    }
 }
 
 #[cfg(test)]

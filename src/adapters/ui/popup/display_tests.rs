@@ -174,17 +174,14 @@ fn escape_folds_an_expanded_popup_back_without_closing_it() {
         let ctx = egui::Context::default();
         frame(&mut mgr, &ctx, 200.0, vec![]);
         press_show_button(&mut mgr, &ctx, iid, 200.0);
-        assert!(mgr.refold_focused());
+        assert!(mgr.refold(iid));
         let (_, result) = frame(&mut mgr, &ctx, width, vec![]);
         assert!(result.closed.is_empty());
         assert!(mgr.take_closed_queue().is_empty());
         let p = mgr.instance(iid).unwrap();
         assert!(p.open && mgr.is_instance_focused(iid));
         assert_eq!(p.collapsed(), collapsed, "{width}");
-        assert!(
-            !mgr.refold_focused(),
-            "펼친 팝업이 없으면 Esc는 다음 처리로 간다"
-        );
+        assert!(!mgr.refold(iid), "펼치지 않은 팝업은 다시 접을 것이 없다");
     }
 }
 
@@ -309,7 +306,7 @@ fn a_child_of_an_expanded_parent_expands_and_folds_with_it() {
         .unwrap();
     frame(&mut mgr, &ctx, 200.0, vec![]);
     assert!(mgr.instance(child).unwrap().expanded());
-    assert!(mgr.refold_focused());
+    assert!(mgr.refold(child));
     frame(&mut mgr, &ctx, 200.0, vec![]);
     assert!(mgr.instance(parent).unwrap().collapsed());
     assert!(mgr.instance(child).unwrap().collapsed());
@@ -346,7 +343,7 @@ fn a_child_too_big_for_a_fitting_parent_folds_alone() {
     press_show_button(&mut mgr, &ctx, child, 200.0);
     assert!(mgr.instance(child).unwrap().expanded());
     assert_eq!(display(&mgr, parent), PopupDisplay::Fits);
-    assert!(mgr.refold_focused());
+    assert!(mgr.refold(child));
     frame(&mut mgr, &ctx, 200.0, vec![]);
     assert!(mgr.instance(child).unwrap().collapsed());
     assert_eq!(display(&mgr, parent), PopupDisplay::Fits);

@@ -334,10 +334,23 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
         "the picker opens expanded with its parent"
     );
 
-    // plugin 호출로 연 피커는 passive 다. 사용자가 누르면 포커스를 받아 키 주인이 된다. Esc 는 피커와 함께
-    // 펼친 부모도 접는다.
+    // plugin 호출로 연 피커는 passive 다. 사용자가 누르면 포커스를 받아 키 주인이 된다. 창은 펼친 피커의 Esc 를
+    // 넘기고, 본문이 쓰지 않았으면 중앙 단계가 피커와 함께 펼친 부모도 접는다.
     state.popups.set_focused(FILE_PICKER_POPUP_ID, true);
-    assert!(state.refold_key_owner());
+    let mut events = vec![egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+    assert!(state.window_escape(&mut events, Some(0), false));
+    assert!(
+        state.popups.plugin_expanded().contains(&7),
+        "창은 사건 시점에 접지 않는다"
+    );
+    state.popups.begin_key_pass(false);
+    frame(&mut state, &mut session);
     assert!(!state.popups.plugin_expanded().contains(&7));
     frame(&mut state, &mut session);
     frame(&mut state, &mut session);

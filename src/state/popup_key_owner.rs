@@ -149,11 +149,10 @@ impl super::MainViewState {
         }
     }
 
-    /// Esc 의 다시 접기. 키 주인이 펼친 host 팝업이면 지금 접고, 펼친 plugin 팝업이면 참만 돌려준다.
-    /// plugin 팝업은 이번 프레임 렌더가 접고 그 Esc 를 mesh 내용에 보내지 않는다(`plugin_bridge::popup_render`).
-    pub(crate) fn refold_key_owner(&mut self) -> bool {
+    /// Esc 의 다시 접기 판정. 키 주인이 펼친 plugin 팝업이면 참이다. 그 팝업은 이번 프레임 렌더가 접고 그 Esc 를 mesh
+    /// 내용에 보내지 않는다(`plugin_bridge::popup_render`). 펼친 host 팝업은 팝업 층 중앙 단계가 본문 뒤에 접는다.
+    pub(crate) fn refold_key_owner(&self) -> bool {
         match self.popup_key_owner() {
-            Some(PopupKeyOwner::Host) => self.popups.refold_focused(),
             #[cfg(feature = "gui")]
             Some(PopupKeyOwner::Plugin(id)) => self.popups.plugin_expanded().contains(&id),
             _ => false,

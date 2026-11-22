@@ -306,3 +306,91 @@ fn shift_escape_over_the_graph_clears_only_the_selection() {
     assert_eq!(view(&state), Some(DrillDownView::Detail), "상세에 머문다");
     assert_eq!(selected(&state), None, "그래프 선택이 풀린다");
 }
+
+/// 포커스 surface 에서 좁아 접힌 뒤 펼친 키 주인 DAG 목록 팝업(목록 화면).
+fn expanded_list(
+    ctx: &egui::Context,
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> crate::adapters::ui::popup::PopupInstanceId {
+    use crate::adapters::ui::popup::window_input_test_support::layer_frame;
+    crate::i18n::init("en");
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let surface = state.focused_surface_id(engine).expect("포커스 surface");
+    let iid = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(
+                DAG_LIST_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Surface(surface),
+            )
+            .centered()
+            .focused(),
+            true,
+        )
+        .expect("DAG 목록 팝업");
+    if let Some(p) = state.popups.instance_mut(iid) {
+        p.arrange.fit = crate::adapters::ui::popup::PopupFit::Collapse;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(800.0, 1600.0));
+    }
+    layer_frame(ctx, state, engine, Vec::new());
+    assert!(
+        state.popups.instance(iid).unwrap().collapsed(),
+        "좁아 접힌다"
+    );
+    state.popups.expand(iid);
+    layer_frame(ctx, state, engine, Vec::new());
+    assert!(state.popups.instance(iid).unwrap().expanded(), "펼쳤다");
+    iid
+}
+
+/// T-4a4-1: Given 펼친 키 주인 DAG 목록 팝업(목록 화면), When Esc 가 오면, Then 닫히지 않고 다시 접힌다.
+#[test]
+fn escape_folds_the_expanded_list() {
+    use crate::adapters::ui::popup::window_input_test_support::{layer_escape, layer_frame};
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    let iid = expanded_list(&ctx, &mut state, &read);
+    layer_escape(&ctx, &mut state, &read);
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    let p = state.popups.instance(iid).unwrap();
+    assert!(p.open, "닫히지 않는다");
+    assert!(p.collapsed(), "다시 접힌다");
+}
+
+/// T-4a4-2: Given 상태 필터가 열린 펼친 키 주인 DAG 목록 팝업, When Esc 가 두 패스에 하나씩 오면, Then 첫 Esc 는
+/// 필터만 닫고 팝업은 펼친 채이며, 둘째 Esc 에 다시 접힌다.
+#[test]
+fn escape_on_an_expanded_list_closes_the_status_filter_first() {
+    use crate::adapters::ui::popup::child_popup_ids::child_popup_open;
+    use crate::adapters::ui::popup::window_input_test_support::{
+        layer_click, layer_escape, layer_frame, painted_at,
+    };
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    let iid = expanded_list(&ctx, &mut state, &read);
+    let texts = layer_frame(&ctx, &mut state, &read, Vec::new());
+    let filter = painted_at(&texts, crate::i18n::t("dag_list.status_any")).expect("상태 필터 버튼");
+    layer_click(&ctx, &mut state, &read, filter.center());
+    assert!(child_popup_open(&ctx, iid), "상태 필터가 열렸다");
+    assert!(state.popups.instance(iid).unwrap().expanded());
+
+    layer_escape(&ctx, &mut state, &read);
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    assert!(!child_popup_open(&ctx, iid), "첫 Esc 에 필터가 닫힌다");
+    let p = state.popups.instance(iid).unwrap();
+    assert!(p.open && p.expanded(), "팝업은 펼친 채다");
+
+    layer_escape(&ctx, &mut state, &read);
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    let p = state.popups.instance(iid).unwrap();
+    assert!(p.open, "닫히지 않는다");
+    assert!(p.collapsed(), "둘째 Esc 에 다시 접힌다");
+}

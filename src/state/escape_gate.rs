@@ -6,8 +6,6 @@
 //! 하위 화면 되돌아가기, plugin 렌더의 닫기·다시 접기) 뺀 원래 사건을 그 키 주인을 그리는 동안만 되넣는다
 //! (`body_keys::with_handed_escape`).
 
-use crate::adapters::ui::popup::occlusion::PopupKeyOwner;
-
 /// 창 Esc 처리 결과.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EscapeGate {
@@ -79,13 +77,11 @@ impl super::MainViewState {
         if live.is_none() && !self.popups.is_open("notifications") {
             return EscapeGate::Pass;
         }
-        // 키 주인(host·plugin)이 창 위로 펼친 팝업이면 다시 접는다. 닫지 않고 포커스와 상태를 그대로 둔다.
-        // 아래 알림 목록이나 host 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다. plugin 키 주인은 그 렌더가
-        // 이 Esc 로 접으므로 그 렌더에 넘긴다.
-        let plugin_owns_keys = matches!(self.popup_key_owner(), Some(PopupKeyOwner::Plugin(_)));
+        // plugin 키 주인이 창 위로 펼친 팝업이면 그 렌더가 이 Esc 로 다시 접는다(닫지 않는다). 아래 알림 목록이나 host
+        // 팝업보다 먼저 판정해 그쪽을 접거나 닫지 않는다.
         if self.refold_key_owner() {
             return EscapeGate::Consumed {
-                hand_to_owner: plugin_owns_keys,
+                hand_to_owner: true,
             };
         }
         // 알림 목록은 포커스 노드가 다른 팝업이 아닐 때만 Esc 를 받는다. 창을 덮는 피커처럼 다른 팝업이 포커스 노드면
@@ -117,6 +113,13 @@ impl super::MainViewState {
         // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
         if let Some((instance, escape)) = self.popups.host_key_owner_escape() {
             use crate::adapters::ui::popup::PopupEscape;
+            // 펼친 host 팝업은 포커스를 풀지 않고 넘긴다. 본문이 쓰지 않았으면 중앙 단계가 이 Esc 에 묶인 인스턴스를
+            // 다시 접는다(닫지 않는다). 선언 `escape` 와 무관하다.
+            if self.popups.instance(instance).is_some_and(|p| p.expanded()) {
+                return EscapeGate::Consumed {
+                    hand_to_owner: true,
+                };
+            }
             if escape == PopupEscape::Ignore {
                 return EscapeGate::Consumed {
                     hand_to_owner: false,
