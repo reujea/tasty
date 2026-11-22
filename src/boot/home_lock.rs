@@ -1,7 +1,8 @@
 //! 부팅 첫머리의 데이터 홈 writer 잠금 선점. GUI와 헤드리스가 함께 쓴다.
 //!
 //! 로그 파일·memory.db·설정·플러그인·저널·IPC를 건드리기 전에 이 홈의 구조 저널 writer 잠금을 잡는다.
-//! 다른 Tasty가 쥐고 있으면(`Held`) 실행 중인 인스턴스의 홈에 부작용을 내지 않고 끝낸다.
+//! 다른 Tasty가 쥐고 있으면(`Held`) 헤드리스는 실행 중인 인스턴스의 홈에 부작용을 내지 않고 끝낸다.
+//! release GUI는 실행 중인 Tasty에 요청을 넘기며 같은 홈의 `launch.log`·`launch.log.lock`을 쓴다.
 
 use std::path::{Path, PathBuf};
 

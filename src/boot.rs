@@ -113,9 +113,9 @@ pub fn run() -> anyhow::Result<std::process::ExitCode> {
         cli_routing::Routed::Gui(cli) => {
             // 로그 파일·memory.db·설정·플러그인·저널을 건드리기 전에 이 홈의 저널 writer 잠금을 선점한다.
             // 잡혀 있으면 저널 worker와 같은 구간 동안 다시 시도한다. 창을 만들기 전이라 멈춘 화면이 없다.
-            // 그래도 다른 Tasty가 쥐고 있으면 그 인스턴스의 홈에 부작용을 내지 않는다. release GUI는 실행 중인
-            // Tasty에 요청을 넘기고 끝나며(단일 실행), debug GUI는 "홈 사용 중" 오류 화면을 띄우고,
-            // 헤드리스는 stderr에 같은 문구를 쓰고 종료 코드 1로 끝난다.
+            // 그래도 다른 Tasty가 쥐고 있으면 release GUI는 실행 중인 Tasty에 요청을 넘기고 끝나며(단일 실행,
+            // 같은 홈의 launch.log를 쓴다), debug GUI는 "홈 사용 중" 오류 화면을 띄우고, 헤드리스는 그 홈에
+            // 부작용을 내지 않은 채 stderr에 같은 문구를 쓰고 종료 코드 1로 끝난다.
             let writer_lock = match home_lock::preempt_home_writer_lock() {
                 #[cfg(feature = "gui")]
                 home_lock::HomeWriterLock::Acquired { lock, home } => {
