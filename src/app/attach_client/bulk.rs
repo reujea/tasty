@@ -124,46 +124,16 @@ fn open_bulk_connection_bound(
     if let Some(attempt) = attempt {
         attempt.register_socket(&sock)?;
     }
-    #[cfg(test)]
-    tasty_remote::attempt_seam::at(tasty_remote::attempt_seam::Stage::AfterRegister, &sock);
-    arm_bulk_timeouts_with(
-        attempt,
-        || sock.set_read_timeout(Some(heartbeat_timeout)),
-        || sock.set_write_timeout(Some(heartbeat_timeout)),
-    )?;
-    #[cfg(test)]
-    tasty_remote::attempt_seam::at(tasty_remote::attempt_seam::Stage::BeforeOpen, &sock);
+    tasty_remote::transport::arm_socket_timeouts(&sock, heartbeat_timeout, attempt, warn_timeout)?;
     let (mut conn, _client_id) =
         StreamConnection::open_bulk_with_timeout(sock, STREAM_PROTO, remote_ws, heartbeat_timeout)
-            .map_err(|error| match attempt {
-                Some(attempt) => tasty_remote::outbound::retired_or(attempt, error),
-                None => error,
-            })?;
+            .map_err(|error| tasty_remote::outbound::retired_or(attempt, error))?;
     declare_bulk_loss_notify(&mut conn);
     Ok(conn)
 }
 
-/// bulk 소켓에 읽기·쓰기 기한을 건다. 실패하면 경고를 남기고 진행한다. 취소된 시도에서는 경고 없이 취소
-/// 오류로 끝낸다. 시험이 설정 결과를 넣을 수 있게 설정 호출을 받는다.
-fn arm_bulk_timeouts_with(
-    attempt: Option<&tasty_remote::outbound::AttemptToken>,
-    set_read: impl FnOnce() -> std::io::Result<()>,
-    set_write: impl FnOnce() -> std::io::Result<()>,
-) -> anyhow::Result<()> {
-    let retired = || attempt.is_some_and(|attempt| !attempt.is_active());
-    if let Err(e) = set_read() {
-        if retired() {
-            anyhow::bail!(tasty_remote::outbound::ATTEMPT_RETIRED);
-        }
-        tracing::warn!("bulk upload: failed to set read timeout: {e}");
-    }
-    if let Err(e) = set_write() {
-        if retired() {
-            anyhow::bail!(tasty_remote::outbound::ATTEMPT_RETIRED);
-        }
-        tracing::warn!("bulk upload: failed to set write timeout: {e}");
-    }
-    Ok(())
+fn warn_timeout(what: &str, e: &std::io::Error) {
+    tracing::warn!("bulk upload: failed to set {what}: {e}");
 }
 
 /// 결과가 유실되면 기다리기만 하지 않도록 손실 통지를 요청한다. 구 서버는 무시할 수 있다.

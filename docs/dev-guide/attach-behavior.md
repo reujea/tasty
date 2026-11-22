@@ -712,7 +712,7 @@ backoff 재연결이 매번 `start_gui_attach` 로 완전 신규 mirror workspac
   spawn 하게 함)으로 분기한다. 저장되지 않은 세션은 즉시
   `cleanup_mirror_workspace`. 재연결 시간이 지나면 `Disconnected` 가 된다. 이때도 형상은 남는다.
 - **늦은 결과**: App은 endpoint 결과의 AttemptToken, 원 View/engine 설치 대상, 행과 현재 연결 대상·행 토큰을 확인한다. 닫히거나 변경된 대상의 결과는 `Remote::discard_endpoint_outcome`으로 넘긴다. 원 tunnel은 Remote retirement worker가 보유해 kill/wait하며 App drain에서 blocking Drop하지 않는다. 원 worker와 retirement receipt의 실제 join 관측이 끝나야 회수가 완료된다.
-- **취소 뒤 소켓 설정 실패**: 시도 취소는 등록 소켓 양쪽을 닫으므로 그 뒤 같은 소켓의 기한 설정과 handshake open 은 실패한다(macOS 는 양쪽을 닫은 소켓의 옵션 설정을 `EINVAL` 로 거절한다). attach handshake(`arm_attach_timeouts`)·bulk 연결·원격 IPC 조회(`probe_method_bound`)는 시도가 비활성이면 이 기한 설정 실패를 경고 없이 `connection attempt retired`(`ATTEMPT_RETIRED`) 오류로 끝낸다. attach·bulk 의 open 실패도 시도가 비활성이면 같은 오류로 바꾼다(open 안의 `TCP_NODELAY` 경고는 이 처리 밖이다). 활성 시도에서 기한 설정이 실패하면 attach·bulk 는 경고 뒤 진행하고 조회는 원 오류를 돌려준다. 시험은 `crates/tasty-remote/src/attempt_retired_tests.rs` 와 `src/app/attach_client/bulk/tests.rs` 다. 실제 소켓의 사전 기한 설정 분기는 macOS 시험만 지나고, 다른 OS 는 설정 결과를 넣는 시험으로 그 분기를 잰다.
+- **취소 뒤 소켓 설정 실패**: 시도 취소는 등록 소켓 양쪽을 닫으므로 그 뒤 같은 소켓의 기한 설정과 handshake open 은 실패한다(macOS 는 양쪽을 닫은 소켓의 옵션 설정을 `EINVAL` 로 거절한다). attach handshake·bulk 연결(공용 `arm_socket_timeouts`)·원격 IPC 조회(`probe_method_bound`)는 시도가 비활성이면 이 기한 설정 실패를 경고 없이 `connection attempt retired`(`ATTEMPT_RETIRED`) 오류로 끝낸다. attach·bulk 의 open 실패도 시도가 비활성이면 같은 오류로 바꾼다(open 안의 `TCP_NODELAY` 경고는 이 처리 밖이다). 활성 시도에서 기한 설정이 실패하면 attach·bulk 는 경고 뒤 진행하고 조회는 원 오류를 돌려준다. 시험은 `crates/tasty-remote/src/attempt_retired_tests.rs` 와 `src/app/attach_client/bulk/tests.rs` 다. 실제 소켓의 사전 기한 설정 분기는 macOS 시험만 지나고, 다른 OS 는 설정 결과를 넣는 시험으로 그 분기를 잰다.
 
 ## mirror 세션 종료 (client → 원격 점유 해제)
 

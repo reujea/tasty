@@ -136,10 +136,7 @@ pub(crate) fn probe_method_bound(
         crate::attempt_seam::at(crate::attempt_seam::Stage::AfterRegister, &stream);
     }
     // 취소가 등록 소켓을 닫은 뒤의 설정 실패는 취소로 보고한다.
-    let retired_or = |error: std::io::Error| match attempt {
-        Some(attempt) => crate::outbound::retired_or(attempt, error),
-        None => error.into(),
-    };
+    let retired_or = |error| crate::outbound::retired_or(attempt, error);
     stream
         .set_read_timeout(Some(PROBE_TIMEOUT))
         .map_err(retired_or)?;

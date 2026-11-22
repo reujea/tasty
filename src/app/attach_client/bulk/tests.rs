@@ -130,16 +130,17 @@ fn the_heartbeat_timeout_is_still_on_the_bulk_socket_after_the_handshake() {
 
 /// 취소된 시도의 bulk 연결은 기한 설정이나 open 실패를 취소 오류로 끝낸다. 실제 소켓에서 기한 설정이 실패하는
 /// 것은 macOS 뿐이라(양쪽을 닫은 소켓의 옵션 설정을 거절한다) 사전 기한 설정 분기는 macOS 시험과 설정 결과를
-/// 넣는 [`arm_bulk_timeouts_with`] 시험이 잰다. 로그를 단언하는 시험은 혼자 돈다
+/// 넣는 시험(bulk 의 경고 함수를 그대로 넘긴다)이 잰다. 로그를 단언하는 시험은 혼자 돈다
 /// (`docs/dev-guide/unit-test-isolation.md` "tracing 콜사이트 관심 캐시").
 mod retired_attempt {
-    use super::super::{BulkEndpoint, arm_bulk_timeouts_with, open_bulk_connection_bound};
+    use super::super::{BulkEndpoint, open_bulk_connection_bound, warn_timeout};
     use std::cell::RefCell;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tasty_remote::attempt_seam::{self, Stage};
     use tasty_remote::outbound::{ATTEMPT_RETIRED, AttemptToken, Remote};
+    use tasty_remote::transport::arm_timeouts_with;
 
     fn capture_logs(f: impl FnOnce()) -> String {
         #[derive(Clone)]
@@ -177,8 +178,8 @@ mod retired_attempt {
         std::io::Error::from(std::io::ErrorKind::InvalidInput)
     }
 
-    /// 읽기·쓰기 기한 실패 두 분기. 시도가 없거나 활성이면 경고 뒤 다음 설정으로 진행하고, 취소된 시도는 그
-    /// 자리에서 경고 없이 돌아온다. 경고가 이 구독자에 닿는 것이 관측 범위의 근거다.
+    /// 읽기·쓰기 기한 실패 두 분기를 bulk 의 경고 함수로 지난다. 시도가 없거나 활성이면 경고 뒤 다음 설정으로
+    /// 진행하고, 취소된 시도는 그 자리에서 경고 없이 돌아온다. 경고가 이 구독자에 닿는 것이 관측 범위의 근거다.
     #[test]
     fn a_bulk_timeout_failure_on_a_retired_attempt_returns_the_cancel_without_a_warning() {
         if tasty_test_support::rerun_alone(
@@ -197,10 +198,15 @@ mod retired_attempt {
             for attempt in [None, Some(&active)] {
                 let mut wrote = false;
                 let logs = capture_logs(|| {
-                    arm_bulk_timeouts_with(attempt, set_read, || {
-                        wrote = true;
-                        set_write()
-                    })
+                    arm_timeouts_with(
+                        attempt,
+                        set_read,
+                        || {
+                            wrote = true;
+                            set_write()
+                        },
+                        warn_timeout,
+                    )
                     .expect("carries on");
                 });
                 assert!(wrote, "{what}: went on to the write timeout");
@@ -214,10 +220,15 @@ mod retired_attempt {
             let mut wrote = false;
             let mut result = Ok(());
             let logs = capture_logs(|| {
-                result = arm_bulk_timeouts_with(Some(&retired), set_read, || {
-                    wrote = true;
-                    set_write()
-                });
+                result = arm_timeouts_with(
+                    Some(&retired),
+                    set_read,
+                    || {
+                        wrote = true;
+                        set_write()
+                    },
+                    warn_timeout,
+                );
             });
             let error = result.expect_err("a retired attempt stops");
             assert_eq!(error.to_string(), ATTEMPT_RETIRED, "{what}");

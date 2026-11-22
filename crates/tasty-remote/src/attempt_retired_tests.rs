@@ -54,6 +54,10 @@ fn attempts() -> (Remote, AttemptToken, AttemptToken) {
     (remote, active, retired)
 }
 
+fn warn_probe(what: &str, e: &std::io::Error) {
+    tracing::warn!("probe: failed to set {what}: {e}");
+}
+
 fn einval() -> std::io::Error {
     std::io::Error::from(std::io::ErrorKind::InvalidInput)
 }
@@ -61,8 +65,15 @@ fn einval() -> std::io::Error {
 #[test]
 fn a_failure_on_a_retired_attempt_reads_as_the_cancel() {
     let (_remote, active, retired) = attempts();
-    assert_eq!(retired_or(&retired, einval()).to_string(), ATTEMPT_RETIRED);
-    assert_ne!(retired_or(&active, einval()).to_string(), ATTEMPT_RETIRED);
+    assert_eq!(
+        retired_or(Some(&retired), einval()).to_string(),
+        ATTEMPT_RETIRED
+    );
+    assert_ne!(
+        retired_or(Some(&active), einval()).to_string(),
+        ATTEMPT_RETIRED
+    );
+    assert_ne!(retired_or(None, einval()).to_string(), ATTEMPT_RETIRED);
 }
 
 /// 읽기 기한 실패와 쓰기 기한 실패 두 분기. 활성 시도는 경고 뒤 다음 설정으로 진행하고, 취소된 시도는 그
@@ -82,10 +93,15 @@ fn a_timeout_failure_on_a_retired_attempt_returns_the_cancel_without_a_warning()
 
         let mut wrote = false;
         let logs = capture_logs(|| {
-            arm_timeouts_with(&active, "probe", set_read, || {
-                wrote = true;
-                set_write()
-            })
+            arm_timeouts_with(
+                Some(&active),
+                set_read,
+                || {
+                    wrote = true;
+                    set_write()
+                },
+                warn_probe,
+            )
             .expect("an active attempt carries on");
         });
         assert!(
@@ -106,10 +122,15 @@ fn a_timeout_failure_on_a_retired_attempt_returns_the_cancel_without_a_warning()
         let mut wrote = false;
         let mut result = Ok(());
         let logs = capture_logs(|| {
-            result = arm_timeouts_with(&retired, "probe", set_read, || {
-                wrote = true;
-                set_write()
-            });
+            result = arm_timeouts_with(
+                Some(&retired),
+                set_read,
+                || {
+                    wrote = true;
+                    set_write()
+                },
+                warn_probe,
+            );
         });
         let error = result.expect_err("a retired attempt stops");
         assert_eq!(error.to_string(), ATTEMPT_RETIRED, "{what}");

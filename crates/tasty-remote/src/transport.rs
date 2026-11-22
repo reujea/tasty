@@ -31,18 +31,16 @@ pub fn attach_handshake(
     let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     let sock = TcpStream::connect_timeout(&address, std::time::Duration::from_millis(250))?;
     cancel.register_socket(&sock)?;
-    #[cfg(test)]
-    super::attempt_seam::at(super::attempt_seam::Stage::AfterRegister, &sock);
-    arm_attach_timeouts(&sock, log_prefix, heartbeat_timeout, cancel)?;
-    #[cfg(test)]
-    super::attempt_seam::at(super::attempt_seam::Stage::BeforeOpen, &sock);
+    arm_socket_timeouts(&sock, heartbeat_timeout, Some(cancel), |what, e| {
+        tracing::warn!("{log_prefix}: failed to set {what}: {e}");
+    })?;
     let (mut conn, client_id) = StreamConnection::open_attach_workspace_with_timeout(
         sock,
         STREAM_PROTO,
         workspace,
         heartbeat_timeout,
     )
-    .map_err(|error| super::outbound::retired_or(cancel, error))?;
+    .map_err(|error| super::outbound::retired_or(Some(cancel), error))?;
     let first = conn.recv()?;
     if first.tag != StreamTag::Control {
         anyhow::bail!("expected attach Control frame, got {:?}", first.tag);
@@ -118,40 +116,48 @@ pub fn descriptor_has_capability(ctrl: &Value, name: &str) -> bool {
         .is_some_and(|list| list.iter().any(|v| v.as_str() == Some(name)))
 }
 
-/// 소켓에 읽기·쓰기 기한을 건다. 실패하면 경고를 남기고 진행한다. 시도가 이미 취소됐다면 그 실패는 취소가
-/// 소켓을 닫은 결과이므로 경고 없이 취소 오류로 끝낸다.
-pub fn arm_attach_timeouts(
+/// 등록한 소켓에 읽기·쓰기 기한을 건다. 실패하면 호출자의 `warn` 으로 경고를 남기고 진행한다. 경고는
+/// 호출자 모듈에서 내야 로그 target(모듈 경로)이 그대로다. 시도가 이미 취소됐다면 그 실패는 취소가 소켓을
+/// 닫은 결과이므로 경고 없이 취소 오류로 끝낸다. 시험 빌드에서는 앞뒤로 [`attempt_seam`](super::attempt_seam)
+/// 자리를 지난다.
+pub fn arm_socket_timeouts(
     sock: &TcpStream,
-    log_prefix: &str,
     timeout: std::time::Duration,
-    cancel: &super::outbound::AttemptToken,
+    attempt: Option<&super::outbound::AttemptToken>,
+    warn: impl Fn(&str, &std::io::Error),
 ) -> anyhow::Result<()> {
+    #[cfg(any(test, feature = "test-support"))]
+    super::attempt_seam::at(super::attempt_seam::Stage::AfterRegister, sock);
     arm_timeouts_with(
-        cancel,
-        log_prefix,
+        attempt,
         || sock.set_read_timeout(Some(timeout)),
         || sock.set_write_timeout(Some(timeout)),
-    )
+        warn,
+    )?;
+    #[cfg(any(test, feature = "test-support"))]
+    super::attempt_seam::at(super::attempt_seam::Stage::BeforeOpen, sock);
+    Ok(())
 }
 
-/// [`arm_attach_timeouts`]의 몸체. 시험이 설정 결과를 넣을 수 있게 설정 호출을 받는다.
-pub(crate) fn arm_timeouts_with(
-    cancel: &super::outbound::AttemptToken,
-    log_prefix: &str,
+/// [`arm_socket_timeouts`]의 판정. 시험이 설정 결과를 넣을 수 있게 설정 호출을 받는다.
+pub fn arm_timeouts_with(
+    attempt: Option<&super::outbound::AttemptToken>,
     set_read: impl FnOnce() -> std::io::Result<()>,
     set_write: impl FnOnce() -> std::io::Result<()>,
+    warn: impl Fn(&str, &std::io::Error),
 ) -> anyhow::Result<()> {
+    let retired = || attempt.is_some_and(|attempt| !attempt.is_active());
     if let Err(e) = set_read() {
-        if !cancel.is_active() {
+        if retired() {
             anyhow::bail!(super::outbound::ATTEMPT_RETIRED);
         }
-        tracing::warn!("{log_prefix}: failed to set read timeout: {e}");
+        warn("read timeout", &e);
     }
     if let Err(e) = set_write() {
-        if !cancel.is_active() {
+        if retired() {
             anyhow::bail!(super::outbound::ATTEMPT_RETIRED);
         }
-        tracing::warn!("{log_prefix}: failed to set write timeout: {e}");
+        warn("write timeout", &e);
     }
     Ok(())
 }
