@@ -183,7 +183,8 @@ fn first_loadable(names: &[&'static str]) -> Option<&'static str> {
         // - Threads: POSIX.1-2017 volume 2 §2.9.1 requires every function it defines to be
         //   thread-safe except those it lists, and dlopen is not listed:
         //   https://pubs.opengroup.org/onlinepubs/9699919799/functions/V2_chap02.html#tag_15_09_01
-        //   (the reading libloading 0.7.4 records in src/os/unix/mod.rs for `Library: Sync`).
+        //   (the reading libloading 0.7.4 records in libloading-0.7.4/src/os/unix/mod.rs for
+        //   `Library: Sync`).
         let handle = unsafe { libc::dlopen(c_name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL) };
         !handle.is_null()
     })
