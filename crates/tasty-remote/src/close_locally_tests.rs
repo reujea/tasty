@@ -158,13 +158,13 @@ fn a_failed_install_closes_the_taken_connection_at_once() {
 
 /// 시도 취소가 등록 소켓을 닫으면 이미 `recv` 에 막힌 reader 가 끝난다. 전송을 drop 하기 전에 본다.
 /// drop 의 Detach·writer 닫기·회수 스레드 닫기가 판정을 대신하지 않게 하기 위해서다.
-/// 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 검사 스레드가 픽스처 읽기 기한(30초) 뒤에야 깨어나도,
-/// 그 기한 만료로 끝난 reader 를 취소로 끝난 것으로 보지 않는다. 끝 시각은 끝 표지(`finished`)보다 먼저
+/// 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 상한은 취소 뒤 5초와, reader 가 첫 recv 직전에 남긴 시각 +
+/// 픽스처 읽기 기한(30초) 중 이른 쪽이다. 첫 읽기의 기한 만료는 그 시각 + 30초 이후에만 일어나므로, 검사
+/// 스레드가 늦게 깨어나거나 준비가 오래 걸려도 그 만료로 끝난 reader 를 취소로 끝난 것으로 보지 않는다. 끝 시각은 끝 표지(`finished`)보다 먼저
 /// 서므로, 전송은 끝 표지를 본 뒤에만 버린다. 그 전에 버리면 drop 이 회수를 먼저 시작해, 두 표지 사이에서
 /// 밀린 reader 때문에 회수 대기 판정이 실패할 수 있다.
 #[test]
 fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
-    let observe_until = Instant::now() + Duration::from_secs(10);
     let (mut remote, token, prepared, _peer) = prepared_with_peer();
     let transport = prepared.transport;
     let probe = transport.reader_probe.clone();
@@ -174,9 +174,12 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
         "the reader ended before the attempt was cancelled"
     );
 
+    let first_recv = probe
+        .first_recv_at()
+        .expect("the reader stamps its first recv before it counts the entry");
     remote.cancel_attempt(&token);
     let cancelled = Instant::now();
-    let deadline = observe_until.min(cancelled + Duration::from_secs(5));
+    let deadline = (first_recv + FIXTURE_READ_TIMEOUT).min(cancelled + Duration::from_secs(5));
     // 픽스처 읽기 기한보다 길게 기다려, 끝나지 않던 reader 도 그 기한으로 끝나 끝 시각을 남기게 한다.
     let give_up = cancelled + FIXTURE_READ_TIMEOUT + Duration::from_secs(10);
     holds_by(give_up, || probe.finished());

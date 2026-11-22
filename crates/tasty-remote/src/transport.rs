@@ -454,12 +454,15 @@ pub struct AttachReaderEnd {
 /// 들어가기 직전마다 더하는 계수, `finished`는 [`AttachReaderEnd::finished`]의 복제다([`ReaderExit`]가
 /// Release로 세운다). `ended_at`은 reader 스레드가 끝 표지를 세우기 직전에 자기 시각을 남긴다.
 /// 검사 스레드가 늦게 깨어나도 reader가 언제 끝났는지를 reader 쪽 시각으로 비교하기 위해서다.
+/// `first_recv_at`은 첫 `conn.recv()` 직전의 시각이다. 계수보다 먼저 남기므로 계수를 본 쪽은 이 값도 본다.
+/// 읽기 기한은 recv 호출부터 재므로 첫 읽기의 기한 만료는 이 시각 + 기한 이후에만 일어난다.
 #[cfg(test)]
 #[derive(Clone)]
 pub struct ReaderProbe {
     pub recv_entries: Arc<std::sync::atomic::AtomicUsize>,
     pub finished: Arc<AtomicBool>,
     pub ended_at: Arc<std::sync::OnceLock<std::time::Instant>>,
+    pub first_recv_at: Arc<std::sync::OnceLock<std::time::Instant>>,
 }
 
 /// 시험 전용: drop될 때 reader의 끝 시각을 남긴다. [`ReaderExit`]보다 뒤에 선언해 먼저 drop된다.
@@ -485,6 +488,9 @@ impl ReaderProbe {
     }
     pub fn ended_at(&self) -> Option<std::time::Instant> {
         self.ended_at.get().copied()
+    }
+    pub fn first_recv_at(&self) -> Option<std::time::Instant> {
+        self.first_recv_at.get().copied()
     }
 }
 
@@ -574,6 +580,12 @@ pub fn spawn_attach_reader_thread(
         loop {
             #[cfg(test)]
             if let Some(probe) = &end.probe {
+                // 두 번째 이후의 recv 는 첫 시각을 그대로 둔다.
+                if probe.first_recv_at.get().is_none()
+                    && probe.first_recv_at.set(std::time::Instant::now()).is_err()
+                {
+                    tracing::debug!("reader first recv stamp already set");
+                }
                 probe.recv_entries.fetch_add(1, Ordering::SeqCst);
             }
             match conn.recv() {
@@ -861,6 +873,7 @@ impl PreparedConnection {
             recv_entries: Arc::default(),
             finished: reader_finished.clone(),
             ended_at: Arc::default(),
+            first_recv_at: Arc::default(),
         };
         let writer = spawn_attach_write_thread(
             write_half,
