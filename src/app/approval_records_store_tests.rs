@@ -282,15 +282,17 @@ fn a_timeout_applied_first_rejects_a_late_response_before_the_write() {
     let held = memory.lock().unwrap();
     let waiter = spawn_waiter(&dir, &approvals, &access, &id, 1);
     // 잠금을 쥔 동안에는 단정하지 않는다. 그 자리의 panic은 memory 잠금을 오염시키고 대기
-    // 워커를 회수하지 못한 채 임시 디렉터리를 지운다.
+    // 워커를 회수(join)하지 못한다. 실패할 때는 잠금을 먼저 놓는다. 임시 디렉터리는 워커가
+    // 사본을 가져가므로 워커가 끝날 때까지 남는다.
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    while !matches!(
-        approvals.get(&id).unwrap().state,
-        ApprovalState::TimedOut { .. }
-    ) {
-        if std::time::Instant::now() >= deadline {
-            drop(held);
-            panic!("the waiter did not apply the timeout within 10s");
+    loop {
+        match approvals.get(&id).map(|r| r.state) {
+            Some(ApprovalState::TimedOut { .. }) => break,
+            Some(_) if std::time::Instant::now() < deadline => {}
+            state => {
+                drop(held);
+                panic!("the waiter did not apply the timeout within 10s: {state:?}");
+            }
         }
         std::thread::sleep(Duration::from_millis(1));
     }
