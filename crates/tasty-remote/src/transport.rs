@@ -496,6 +496,9 @@ pub struct AttachReaderEnd {
 /// 검사 스레드가 늦게 깨어나도 reader가 언제 끝났는지를 reader 쪽 시각으로 비교하기 위해서다.
 /// `first_recv_at`은 첫 `conn.recv()` 직전의 시각이다. 계수보다 먼저 남기므로 계수를 본 쪽은 이 값도 본다.
 /// 읽기 기한은 recv 호출부터 재므로 첫 읽기의 기한 만료는 이 시각 + 기한 이후에만 일어난다.
+/// `end_os_error`는 reader를 끝낸 recv 오류의 OS 코드다(EOF처럼 OS 코드가 없는 끝은 `None`). 끝 시각보다
+/// 먼저 남긴다. Windows에서 막혀 있던 읽기를 닫기 함수의 취소가 깨우면 취소 코드로, 닫힌 뒤 새로 건 읽기는
+/// EOF로 끝나므로 이 값이 닫기 전에 읽기가 `recv`에 들어가 있었는지를 가른다.
 #[cfg(test)]
 #[derive(Clone)]
 pub struct ReaderProbe {
@@ -503,6 +506,7 @@ pub struct ReaderProbe {
     pub finished: Arc<AtomicBool>,
     pub ended_at: Arc<std::sync::OnceLock<std::time::Instant>>,
     pub first_recv_at: Arc<std::sync::OnceLock<std::time::Instant>>,
+    pub end_os_error: Arc<std::sync::OnceLock<Option<i32>>>,
 }
 
 /// 시험 전용: drop될 때 reader의 끝 시각을 남긴다. [`ReaderExit`]보다 뒤에 선언해 먼저 drop된다.
@@ -531,6 +535,10 @@ impl ReaderProbe {
     }
     pub fn first_recv_at(&self) -> Option<std::time::Instant> {
         self.first_recv_at.get().copied()
+    }
+    /// reader가 recv 오류로 끝났으면 그 OS 코드(없으면 `Some(None)`), 오류로 끝나지 않았으면 `None`이다.
+    pub fn end_os_error(&self) -> Option<Option<i32>> {
+        self.end_os_error.get().copied()
     }
 }
 
@@ -687,6 +695,15 @@ pub fn spawn_attach_reader_thread(
                     }
                 }
                 Err(e) => {
+                    #[cfg(test)]
+                    if let Some(probe) = &end.probe {
+                        let code = e
+                            .downcast_ref::<std::io::Error>()
+                            .and_then(std::io::Error::raw_os_error);
+                        if probe.end_os_error.set(code).is_err() {
+                            tracing::debug!("reader end error stamp already set");
+                        }
+                    }
                     end.report(&e);
                     break;
                 }
@@ -985,6 +1002,7 @@ impl PreparedConnection {
             finished: reader_finished.clone(),
             ended_at: Arc::default(),
             first_recv_at: Arc::default(),
+            end_os_error: Arc::default(),
         };
         let writer = spawn_attach_write_thread(
             write_half,

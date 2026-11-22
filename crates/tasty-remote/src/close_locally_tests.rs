@@ -57,7 +57,7 @@ fn prepared_with_peer() -> (
 }
 
 /// reader 가 handshake 뒤 `recv` 에 들어가기를 기다리고 조금 더 둔다. 계수는 recv 직전에 오르므로
-/// 커널 진입의 증거는 아니다. 그래서 음성 대조가 정한 판정에서 실패하는 것을 막힘 증거로 쓴다.
+/// 커널 진입의 증거는 아니다. 닫기 전에 읽기가 들어가 있었는지는 회차가 끝난 뒤 [`woken`] 이 가른다.
 fn wait_until_reader_blocks(probe: &crate::transport::ReaderProbe) {
     assert!(
         holds_by(Instant::now() + READY_LIMIT, || probe.entered_recv()),
@@ -65,6 +65,56 @@ fn wait_until_reader_blocks(probe: &crate::transport::ReaderProbe) {
         probe.finished()
     );
     std::thread::sleep(Duration::from_millis(50));
+}
+
+/// 회차의 reader 가 닫기 전에 이미 `recv` 에 들어가 있었는지.
+#[derive(Debug, PartialEq)]
+enum Woken {
+    /// 막혀 있던 읽기를 닫기가 깨웠다.
+    InFlight,
+    /// 읽기가 닫힌 뒤에 시작됐을 수 있어 막힌 읽기를 깨웠는지 알 수 없다.
+    Undecided,
+}
+
+/// Windows 에서 닫기 함수의 취소로 돌아온 읽기의 OS 코드(`tasty_utils::socket_wake` 시험의 관측값
+/// `WSAEINTR` 10004 와 `ERROR_OPERATION_ABORTED` 995). std 는 10004 를 `Interrupted` 로 분류하지 않으므로
+/// `read_exact` 가 다시 읽지 않고 이 코드가 reader 의 끝 오류로 남는다.
+const CANCELLED_READ: &[i32] = &[10_004, 995];
+/// 판정할 수 없는 회차를 다시 도는 횟수.
+const RUNS: usize = 3;
+
+/// 닫기 뒤 reader 가 계수를 올리고 실제 `recv` 를 부르기 전에 밀리면, 원래 `shutdown` 만 하는 회귀에서도
+/// 뒤늦은 읽기가 바로 EOF 로 끝나 판정을 통과한다. Windows 는 막혀 있던 읽기를 취소 코드로 깨우고 닫힌 뒤
+/// 새로 건 읽기는 EOF 로 끝내므로, 취소 코드로 끝난 회차만 막힌 읽기를 깨운 것으로 본다. Linux·macOS 는 두
+/// 경우 모두 EOF 라 가르지 못한다. 그 OS 의 `shutdown` 은 막힌 읽기도 돌려보내 이 시험이 닫기 함수의 차이를
+/// 가르지 않으므로 끝난 회차를 모두 판정한 것으로 본다.
+fn woken(probe: &crate::transport::ReaderProbe) -> Woken {
+    if !cfg!(windows) {
+        return Woken::InFlight;
+    }
+    match probe.end_os_error() {
+        Some(Some(code)) if CANCELLED_READ.contains(&code) => Woken::InFlight,
+        _ => Woken::Undecided,
+    }
+}
+
+/// 회차를 판정할 수 있을 때까지 [`RUNS`] 번까지 돈다. 회차 안의 단언은 매 회차 그대로 실패한다.
+fn until_decided(mut run: impl FnMut() -> (Woken, Option<Option<i32>>)) {
+    let mut ends = Vec::new();
+    for _ in 0..RUNS {
+        let (woken, end) = run();
+        if woken == Woken::InFlight {
+            return;
+        }
+        ends.push(end);
+    }
+    panic!(
+        "undecided: in {RUNS} runs the reader never read before the close (reader end errors {ends:?})"
+    );
+}
+
+fn decided(probe: &crate::transport::ReaderProbe) -> (Woken, Option<Option<i32>>) {
+    (woken(probe), probe.end_os_error())
 }
 
 /// 상대가 Detach 프레임 없이 EOF 를 받는다. 그 EOF 가 회수 스레드의 닫기보다 먼저인지는 호출자가 정한다
@@ -149,6 +199,10 @@ fn assert_retired(
 /// 반납은 이 스레드에서 소켓을 닫고, 막힌 reader 는 전송을 버리기 전에(회수 스레드가 없을 때) 끝난다.
 #[test]
 fn close_locally_closes_the_socket_at_once_and_settles_lost() {
+    until_decided(close_locally_run);
+}
+
+fn close_locally_run() -> (Woken, Option<Option<i32>>) {
     let (_remote, _token, prepared, mut peer) = prepared_with_peer();
     let transport = prepared.transport;
     let probe = transport.reader_probe.clone();
@@ -165,12 +219,17 @@ fn close_locally_closes_the_socket_at_once_and_settles_lost() {
     let receipt = transport.workers.receipt();
     drop(transport);
     assert_retired(receipt, &probe);
+    decided(&probe)
 }
 
 /// 설치에 실패한 guard 는 이 스레드에서 소켓을 닫는다. guard 의 drop 은 회수도 시작하므로 회수 스레드의
 /// 닫기를 막아 둔 채 reader 의 끝과 상대의 EOF 를 본다.
 #[test]
 fn a_failed_install_closes_the_taken_connection_at_once() {
+    until_decided(failed_install_run);
+}
+
+fn failed_install_run() -> (Woken, Option<Option<i32>>) {
     let (_remote, _token, prepared, mut peer) = prepared_with_peer();
     let guard = InstallGuard::new(prepared.transport);
     let end = guard.transport().end.clone();
@@ -187,6 +246,7 @@ fn a_failed_install_closes_the_taken_connection_at_once() {
     assert_closed_without_detach(&mut peer, &probe);
     drop(hold);
     assert_retired(receipt, &probe);
+    decided(&probe)
 }
 
 /// 시도 취소가 등록 소켓을 닫으면 이미 `recv` 에 막힌 reader 가 끝난다. 전송을 drop 하기 전에 본다.
@@ -197,6 +257,10 @@ fn a_failed_install_closes_the_taken_connection_at_once() {
 /// 끝 시각은 끝 표지(`finished`)보다 먼저 서므로, 전송은 끝 표지를 본 뒤에만 버린다.
 #[test]
 fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
+    until_decided(cancel_run);
+}
+
+fn cancel_run() -> (Woken, Option<Option<i32>>) {
     let (mut remote, token, prepared, _peer) = prepared_with_peer();
     let transport = prepared.transport;
     let probe = transport.reader_probe.clone();
@@ -236,14 +300,20 @@ fn cancelling_the_attempt_ends_a_reader_blocked_in_recv() {
     let receipt = transport.workers.receipt();
     drop(transport);
     assert_retired(receipt, &probe);
+    decided(&probe)
 }
 
 /// 반납 없이 버린 전송은 회수 스레드가 대기 상한 뒤 소켓을 닫는다. 그 닫기가 recv 에 막힌 reader 도 끝내야
 /// 회수가 읽기 기한(30초)까지 늦어지지 않는다. 상대는 열린 채 응답하지 않고, writer 는 Detach 를 쓴 뒤 쓰기
 /// 쪽만 닫고 reader 를 30초까지 기다리므로 먼저 소켓을 닫지 않는다. Linux·macOS 는 `shutdown` 만으로도
-/// 막힌 읽기가 돌아오므로 이 시험이 닫기 함수의 차이를 가르는 것은 Windows 뿐이다.
+/// 막힌 읽기가 돌아오므로 이 시험이 닫기 함수의 차이를 가르는 것은 Windows 뿐이다. 그 차이는 닫기 전에
+/// 읽기가 `recv` 에 들어가 있던 회차에서만 드러나므로 [`until_decided`] 로 그런 회차를 판정한다.
 #[test]
 fn a_dropped_transport_wakes_a_reader_blocked_in_recv() {
+    until_decided(dropped_run);
+}
+
+fn dropped_run() -> (Woken, Option<Option<i32>>) {
     let (_remote, _token, prepared, _peer) = prepared_with_peer();
     let transport = prepared.transport;
     let probe = transport.reader_probe.clone();
@@ -257,4 +327,5 @@ fn a_dropped_transport_wakes_a_reader_blocked_in_recv() {
     drop(transport);
     assert_reader_released(&probe, dropped);
     assert_retired(receipt, &probe);
+    decided(&probe)
 }
