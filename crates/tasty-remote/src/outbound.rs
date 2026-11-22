@@ -115,7 +115,7 @@ struct AttemptState {
     ssh: std::sync::Mutex<Vec<tasty_ssh::SshCancel>>,
     active: std::sync::atomic::AtomicBool,
     sockets: std::sync::Mutex<Vec<std::net::TcpStream>>,
-    /// 시험 전용: 이 시도가 취소로 닫은 등록 소켓의 수. 닫는 함수 안에서 닫은 직후 더한다.
+    /// 시험 전용: 이 시도가 취소로 닫은 등록 소켓의 수. 닫는 함수 안에서 양쪽 닫기가 성공했을 때만 더한다.
     #[cfg(any(test, feature = "test-support"))]
     closed_sockets: std::sync::atomic::AtomicUsize,
 }
@@ -136,8 +136,10 @@ impl AttemptState {
     fn shutdown_cancelled_socket(&self, socket: &std::net::TcpStream) {
         let shut = tasty_utils::socket_wake::shutdown_both_and_wake(socket);
         #[cfg(any(test, feature = "test-support"))]
-        self.closed_sockets
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if shut.is_ok() {
+            self.closed_sockets
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
         match shut {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotConnected => {
@@ -164,7 +166,7 @@ impl AttemptToken {
     pub fn is_active(&self) -> bool {
         self.0.active.load(std::sync::atomic::Ordering::Acquire)
     }
-    /// 시험 전용: 이 시도가 취소로 닫은 등록 소켓의 수.
+    /// 시험 전용: 이 시도가 취소로 닫는 데 성공한 등록 소켓의 수. 닫기 실패는 세지 않는다.
     #[cfg(any(test, feature = "test-support"))]
     pub fn closed_socket_count(&self) -> usize {
         self.0

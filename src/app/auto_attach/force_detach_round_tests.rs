@@ -357,8 +357,8 @@ fn assert_closed_at_once(socket: &mut std::net::TcpStream) {
 }
 
 /// 설치 전에 버려진 연결은 시도 취소(`AttemptToken::cancel`)가 등록 소켓 양쪽을 그 자리에서 닫는다. 계수는
-/// 닫는 함수 안에서 닫은 직후 오르고 회수 스레드는 올리지 않으므로, 회차가 돌아왔을 때 늘어 있으면 회차 안에서
-/// 닫은 것이다. 막힌 reader 가 그 닫기로 풀리는지는 같은 취소를 쓰는 tasty-remote 의
+/// 닫는 함수 안에서 양쪽 닫기가 성공했을 때만 오르고 회수 스레드는 올리지 않으므로, 회차가 돌아왔을 때 늘어
+/// 있으면 회차 안에서 닫기에 성공한 것이다. 닫기가 실패하면 계수가 그대로라 뒤의 회수 닫기가 대신하지 못한다. 막힌 reader 가 그 닫기로 풀리는지는 같은 취소를 쓰는 tasty-remote 의
 /// `cancelling_the_attempt_ends_a_reader_blocked_in_recv` 가 잰다.
 fn assert_cancel_closed_the_socket(token: &tasty_remote::outbound::AttemptToken, before: usize) {
     assert!(
