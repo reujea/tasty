@@ -645,19 +645,10 @@ impl<'a> Code<'a> {
     /// (조건·검사식 자리에는 괄호 없는 구조체 리터럴이 올 수 없다). 그 밖의 `{..}` 는 블록 피연산자다.
     /// `list` 이면 제네릭 인자 밖의 `,` 에서 멈춘다(목록의 다음 요소).
     fn block_body(&self, start: usize, limit: usize, list: bool) -> Option<usize> {
-        if self.b.get(start) == Some(&b'{') {
-            return Some(start);
-        }
-        let start = self.after_label(start);
-        if self.b.get(start) == Some(&b'{') {
-            return Some(start);
-        }
-        for (w, len) in [(&b"unsafe"[..], 6), (b"loop", 4), (b"const", 5)] {
-            if self.word_at(start, w) {
-                let k = self.skip_ws(start + len, limit);
-                return (self.b.get(k) == Some(&b'{')).then_some(k);
-            }
-        }
+        let start = match self.direct_body(start, limit) {
+            Ok(body) => return body,
+            Err(start) => start,
+        };
         let kw = [&b"if"[..], b"while", b"match", b"for"]
             .into_iter()
             .find(|w| self.word_at(start, w))?;
@@ -704,16 +695,7 @@ impl<'a> Code<'a> {
                     continue;
                 }
                 b';' => return None,
-                b'=' if pattern
-                    && kw != b"for"
-                    && !matches!(self.b.get(k + 1), Some(b'=' | b'>'))
-                    && !matches!(
-                        k.checked_sub(1).map(|p| self.b[p]),
-                        Some(b'=' | b'!' | b'<' | b'>')
-                    ) =>
-                {
-                    pattern = false;
-                }
+                b'=' if pattern && kw != b"for" && self.is_assign_eq(k) => pattern = false,
                 _ if is_ident_byte(c) && (k == 0 || !is_ident_byte(self.b[k - 1])) => {
                     if self.word_at(k, b"let") {
                         pattern = true;
@@ -739,6 +721,34 @@ impl<'a> Code<'a> {
             k += 1;
         }
         None
+    }
+
+    /// 키워드 없이 본문이 정해지는 블록 식(`{`, 라벨 뒤 `{`, `unsafe`·`loop`·`const` 블록)이면
+    /// `Ok(본문)`(`{` 가 없으면 `Ok(None)`), 아니면 라벨 뒤 위치를 `Err` 로 돌려준다.
+    fn direct_body(&self, start: usize, limit: usize) -> Result<Option<usize>, usize> {
+        if self.b.get(start) == Some(&b'{') {
+            return Ok(Some(start));
+        }
+        let start = self.after_label(start);
+        if self.b.get(start) == Some(&b'{') {
+            return Ok(Some(start));
+        }
+        for (w, len) in [(&b"unsafe"[..], 6), (b"loop", 4), (b"const", 5)] {
+            if self.word_at(start, w) {
+                let k = self.skip_ws(start + len, limit);
+                return Ok((self.b.get(k) == Some(&b'{')).then_some(k));
+            }
+        }
+        Err(start)
+    }
+
+    /// `k` 의 `=` 가 대입(패턴 끝)인가. `==`·`=>`·`<=`·`>=`·`!=` 의 일부가 아니다.
+    fn is_assign_eq(&self, k: usize) -> bool {
+        !matches!(self.b.get(k + 1), Some(b'=' | b'>'))
+            && !matches!(
+                k.checked_sub(1).map(|p| self.b[p]),
+                Some(b'=' | b'!' | b'<' | b'>')
+            )
     }
 
     /// 라벨(`'done:`, raw 라벨 `'r#async:`)이 있으면 그 뒤 첫 글자, 없으면 `k`.
@@ -834,7 +844,7 @@ impl<'a> Code<'a> {
                             Stmt::Let => true,
                             _ => self.continues(close + 1, next, limit, list),
                         };
-                        if !continues && !(list && angle > 0) {
+                        if !(continues || (list && angle > 0)) {
                             // 블록 뒤 `;` 는 같은 문장·선언의 끝이다.
                             return if !list && self.b.get(next) == Some(&b';') {
                                 next + 1
