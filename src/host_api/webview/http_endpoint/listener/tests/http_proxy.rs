@@ -233,24 +233,78 @@ async fn authenticated_connect_terminates_the_mapped_tls_leaf_before_http() {
     endpoint.join().await.unwrap();
     assert_eq!(budget.active_connections(), 0);
 }
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn successor_rebinds_the_joined_address_with_fresh_credentials() {
-    let budget = EndpointBudget::new();
-    let calls = Arc::new(AtomicUsize::new(0));
-    let first = start("http://remote.example/doc", counting(&calls), &budget).await;
+fn proxy_config(port: u16, handler: Handler) -> EndpointConfig {
+    let mut config = config_with(
+        "http://remote.example/doc".into(),
+        handler,
+        Transport::HttpProxy,
+    );
+    config.port = port;
+    config
+}
+fn port_taken(error: EndpointError) -> bool {
+    matches!(
+        error,
+        EndpointError::Bind {
+            kind: std::io::ErrorKind::AddrInUse,
+            ..
+        }
+    )
+}
+#[derive(Debug)]
+enum Failure {
+    First(EndpointError),
+    Successor { port: u16, error: EndpointError },
+}
+/// Join an endpoint on a kernel-picked port, then start its successor on the same port.
+async fn rebind_after_join(
+    calls: &Arc<AtomicUsize>,
+    budget: &EndpointBudget,
+) -> Result<(Endpoint, u16, String), Failure> {
+    let first = Endpoint::start(
+        Handle::current(),
+        proxy_config(0, counting(calls)),
+        budget.clone(),
+    )
+    .await
+    .map_err(Failure::First)?;
     let port = first.port();
     assert_eq!(port, proxy_port(&first));
     let old = authorization(&first);
     first.join().await.unwrap();
-    let mut config = config_with(
-        "http://remote.example/doc".into(),
-        counting(&calls),
-        Transport::HttpProxy,
-    );
-    config.port = port;
-    let second = Endpoint::start(Handle::current(), config, budget.clone())
-        .await
-        .unwrap_or_else(|_| panic!("successor endpoint"));
+    let second = Endpoint::start(
+        Handle::current(),
+        proxy_config(port, counting(calls)),
+        budget.clone(),
+    )
+    .await
+    .map_err(|error| Failure::Successor { port, error })?;
+    Ok((second, port, old))
+}
+/// The released port can be taken by any socket on the host before the successor binds it, as in
+/// the product's retained Reload. Only that observed `AddrInUse` starts the pair over.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn successor_rebinds_the_joined_address_with_fresh_credentials() {
+    let budget = EndpointBudget::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut attempts = Vec::new();
+    let (second, port, old) = loop {
+        match rebind_after_join(&calls, &budget).await {
+            Ok(rebound) => break rebound,
+            Err(failure @ Failure::Successor { error, .. }) if port_taken(error) => {
+                attempts.push(failure);
+                assert_eq!(budget.active_owners(), 0, "{attempts:?}");
+                assert!(
+                    attempts.len() < 3,
+                    "successor port kept being taken: {attempts:?}"
+                );
+            }
+            Err(failure) => {
+                attempts.push(failure);
+                panic!("successor endpoint: {attempts:?}");
+            }
+        }
+    };
     assert_eq!(second.port(), port);
     assert_ne!(authorization(&second), old);
     let request =
@@ -259,6 +313,34 @@ async fn successor_rebinds_the_joined_address_with_fresh_credentials() {
     assert!(bytes.starts_with(b"HTTP/1.1 407 "));
     assert_eq!(calls.load(Ordering::Acquire), 0);
     second.join().await.unwrap();
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_port_held_by_another_socket_fails_the_bind_as_address_in_use() {
+    let budget = EndpointBudget::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let holder = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = holder.local_addr().unwrap().port();
+    let error = Endpoint::start(
+        Handle::current(),
+        proxy_config(port, counting(&calls)),
+        budget.clone(),
+    )
+    .await
+    .err()
+    .expect("bind on a held port");
+    let EndpointError::Bind {
+        kind: std::io::ErrorKind::AddrInUse,
+        os_error: Some(code),
+    } = error
+    else {
+        panic!("{error:?}");
+    };
+    assert_eq!(
+        std::io::Error::from_raw_os_error(code).kind(),
+        std::io::ErrorKind::AddrInUse
+    );
+    assert_eq!(budget.active_owners(), 0);
+    drop(holder);
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn loopback_alias_tunnel_reaches_the_handler_as_the_remote_loopback_host() {
