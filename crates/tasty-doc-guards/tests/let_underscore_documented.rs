@@ -208,6 +208,13 @@ fn attr_bracket(b: &[u8], hash: usize, inner: bool) -> Option<usize> {
     (b.get(k) == Some(&b'[')).then_some(k)
 }
 
+/// 이름 자리에 올 수 없는 식 키워드. 뒤의 `{`·`(` 가 피연산자를 끝내지 않고(`operand_end`), 뒤의 `!` 가
+/// 매크로 호출이 아니다(`in_macro_input`).
+const EXPR_KEYWORDS: &[&[u8]] = &[
+    b"if", b"match", b"while", b"for", b"in", b"unsafe", b"else", b"loop", b"let", b"return",
+    b"break", b"mut", b"ref", b"move", b"async", b"const",
+];
+
 /// 바이트 구간(끝은 제외).
 type Span = std::ops::Range<usize>;
 
@@ -325,11 +332,12 @@ impl<'a> Code<'a> {
         let mut g = self.parent[hash];
         while g != NONE {
             if let Some(p) = self.prev_non_ws(g) {
+                // `if !(..)` 처럼 키워드 뒤의 `!` 는 단항 연산자다.
                 let bang_after_name = |p: usize| {
                     self.b[p] == b'!'
                         && self
                             .prev_non_ws(p)
-                            .is_some_and(|q| is_ident_byte(self.b[q]))
+                            .is_some_and(|q| is_ident_byte(self.b[q]) && !self.keyword_ends_at(q))
                 };
                 if bang_after_name(p) {
                     return true;
@@ -844,34 +852,20 @@ impl<'a> Code<'a> {
         if !is_ident_byte(c) {
             return false;
         }
+        !self.keyword_ends_at(p)
+    }
+
+    /// `p` 에서 끝나는 단어가 피연산자가 될 수 없는 키워드(`EXPR_KEYWORDS`)인가. raw 식별자(`r#match`)는
+    /// 키워드가 아니다.
+    fn keyword_ends_at(&self, p: usize) -> bool {
         let mut s0 = p;
         while s0 > 0 && is_ident_byte(self.b[s0 - 1]) {
             s0 -= 1;
         }
-        // raw 식별자(`r#match`)는 키워드가 아니다.
         if s0 >= 2 && &self.b[s0 - 2..s0] == b"r#" {
-            return true;
+            return false;
         }
-        let word = &self.b[s0..=p];
-        ![
-            &b"if"[..],
-            b"match",
-            b"while",
-            b"for",
-            b"in",
-            b"unsafe",
-            b"else",
-            b"loop",
-            b"let",
-            b"return",
-            b"break",
-            b"mut",
-            b"ref",
-            b"move",
-            b"async",
-            b"const",
-        ]
-        .contains(&word)
+        EXPR_KEYWORDS.contains(&&self.b[s0..=p])
     }
 
     /// `from` 부터 요소의 끝을 찾는 일반 규칙(괄호 짝, `;`·`,`, 블록 뒤 이어짐).
@@ -3111,6 +3105,26 @@ mod helper_tests {
         assert_eq!(
             fixture("fn f() {\n    // 이유\n    # [allow(unused)]\n    {IGNORE}\n}\n"),
             Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn a_keyword_before_a_unary_not_is_not_a_macro_call() {
+        for head in ["if !(", "if (", "while !(", "return !("] {
+            assert_eq!(
+                both(&format!(
+                    "fn g() {{\n    {head}{{\n        #[cfg(test)]\n        {{\n            {{IGNORE}}\n        }}\n        true\n    }}) {{}}\n}}\n"
+                )),
+                (vec![], vec![5]),
+                "{head}"
+            );
+        }
+        // 이름 뒤의 `!` 는 여전히 매크로 호출이다.
+        assert_eq!(
+            both(
+                "fn g() {\n    m!({\n        #[cfg(test)]\n        x\n        {IGNORE}\n    });\n}\n"
+            ),
+            (vec![5], vec![])
         );
     }
 }
