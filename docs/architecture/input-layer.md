@@ -20,12 +20,12 @@ z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안�
 | 2b | 포커스를 받지 않는 팝업(Modifier-hint·복원 안내) | 순서 2 와 같다 | 창 팝업 인스턴스라 Popup 과 같은 판정이다. 드래그/그립 크기 조절/X·안내 버튼 클릭이 하위 surface 포커스로 새지 않는다 |
 | 2c | **Divider press** (좌클릭 press) | `!egui_consumed && !banner_hovered` 이고 `find_*_divider_at` | 포커스를 바꾸지 않고 드래그 시작 — 비활성 surface 쪽 hit 띠도 첫 press 부터(아래 참고) |
 | 3 | **비활성 surface 전환** (좌클릭 press) | `surface_id_at_position != focused` | 첫 클릭은 surface 전환이 소비 — 그 위 배너/egui 위젯과 무관(아래 참고) |
-| 4 | egui 위젯 (사이드바·탭바·오버레이) | `egui_consumed` | egui 가 소비하면 종료 |
+| 4 | egui 위젯 (타이틀바·사이드바·탭바·오버레이) | `egui_consumed`, 좌클릭 press 는 `left_press_on_titlebar` 도 | egui 가 소비하면 종료. 직전 패스에 그린 타이틀바 패널 위 좌클릭 press 도 여기서 끝난다(아래 참고) |
 | 5 | Banner | `state.banner_hovered` | 배너 위면 소비(터미널 무시) — **단 비활성 surface 전환에는 적용되지 않음** |
 | 6 | Divider | `find_*_divider_at`(threshold) | 분할 경계 안이면 소비(드래그 시작) |
 | 7 | Terminal/Surface | — | 최하위, 콘텐츠가 처리 |
 
-`handle_cursor_moved` / `handle_mouse_input` / `handle_mouse_wheel` 이 모두 같은 가드(`egui_consumed || overlay_open || pointer_on_popup() || state.banner_hovered`)로 상위 레이어를 먼저 거른 뒤 divider → terminal 로 내려간다. 배너는 **자기 영역의 마우스를 소비**(뒤로 전파 X)하는 focus-less 오버레이라 popup 과 같은 precedence 에서 차단한다(Toast 는 입력을 통과시키므로 이 가드에 없다 — [banner 시스템](../design/systems/banner.md)).
+`handle_cursor_moved` / `handle_mouse_input` / `handle_mouse_wheel` 이 모두 같은 가드(`egui_consumed || overlay_open || pointer_on_popup() || state.banner_hovered`)로 상위 레이어를 먼저 거른 뒤 divider → terminal 로 내려간다. `handle_mouse_input` 은 여기에 타이틀바 좌클릭 press 판정을 더한다. 배너는 **자기 영역의 마우스를 소비**(뒤로 전파 X)하는 focus-less 오버레이라 popup 과 같은 precedence 에서 차단한다(Toast 는 입력을 통과시키므로 이 가드에 없다 — [banner 시스템](../design/systems/banner.md)).
 
 **순서 6 은 버튼 없는 hover motion 보고에도 적용된다.** DECSET 1003(AnyEventMouse)을 켠 앱에 커서 이동을 보고하기 전에 press 경로와 **같은 threshold**(`state::mouse::DIVIDER_HIT_THRESHOLD`)로 divider 밴드를 먼저 판정하고, 밴드 안이면 보고하지 않는다 — 밴드는 gap(1~2px)보다 넓어 양쪽 surface rect 안쪽까지 겹치므로, 이 가드가 없으면 "커서는 ↔ 인데 그 아래 TUI 는 hover 를 계속 받는" 불일치가 생긴다. OS 창 리사이즈 가장자리 밴드와 divider 드래그 진행 중에도 같은 이유로 보고하지 않는다. 대상은 focused surface 한정이다([터미널 (Terminal)](../surfaces/terminal/index.md)) — 순서 3(비활성 surface 전환)이 클릭에 대해 세운 "배경 캡쳐 TUI 로 마우스가 새지 않게" 원칙을 hover 에도 적용한 것이며, 다만 hover 는 포커스를 옮기지 않는다. **버튼을 누른 채 시작한 드래그 motion 은 이 가드들의 적용 대상이 아니다** — 대상 surface 가 press 시점에 고정되므로 밴드/이웃 surface 로 나가도 원래 surface 기준으로 계속 보고된다.
 
@@ -86,6 +86,8 @@ egui 패스(`src/adapters/ui/draw.rs`)가 프레임 N에서 이 열기 요청을
 - **트레이드오프**: 비활성 surface 첫 클릭은 전환에만 쓰이고 그 자리 selection/cursor/마우스 리포트로 흐르지 않는다(한 번 더 클릭). 배경 캡쳐 TUI 로 마우스가 새는 것을 막는다.
 - 분할선 hit 띠 안의 press 는 이 단계 전에 드래그로 소비된다(순서 2c). 띠 밖만 전환 대상이다.
 - gating 은 `surface_id_at_position(x,y) != focused_surface_id` — 이미 활성인 surface 안 클릭은 전환 단계를 건너뛰어 정상(selection/리포트/divider)으로 흐른다. egui 크롬(사이드바·탭바)은 surface rect 밖이라 `surface_id_at_position == None` → 전환 대상 아님 → `egui_consumed` 로 소비.
+
+**타이틀바 좌클릭 press 는 사건 좌표로 가린다.** `egui_consumed` 는 egui 가 직전 패스에 받은 포인터 위치로 정한다(`wants_pointer_input`). 포인터 이동과 press 가 프레임 사이에 함께 오면 타이틀바 버튼 위 press 도 소비되지 않은 것으로 나와 터미널 클릭(선택, 클릭 커서 이동)이 돈다. egui 는 다음 패스에 같은 press 를 처리하므로 한 press 를 두 곳이 받는다. 그래서 타이틀바를 그릴 때 패널 배치 영역을 그 패스 배율로 물리 좌표에 옮겨 `MainViewState::titlebar_rect` 에 두고, 좌클릭 press 의 물리 사건 좌표가 그 안이며 지금 창 안이면 위에 남긴다(`left_press_on_titlebar`, 위·왼쪽 포함, 아래·오른쪽 제외). 짝 release 는 다른 위 press 와 같이 `blocked_press_buttons` 로 위에 남는다. 전체화면 무대처럼 타이틀바를 그리지 않는 패스는 그 영역을 지운다. 판정은 egui 판정을 다시 계산하지 않는 라우팅 규칙이다. 배율이 바뀐 뒤 첫 패스 전에는 저장된 영역이 옛 배율 기준이다. 이 판정보다 앞선 단계(메뉴 닫기, OS 테두리 리사이즈, 분할선 우선 press, click-to-activate)는 그대로 먼저 본다.
 
 ### 팝업 사각형 / `banner_hovered` 프레임 간 전달
 
@@ -198,7 +200,7 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 왜 조합이 다른가:
 
 - **키보드/IME 판정**은 키 이벤트를 egui와 중앙 디스패처(터미널/단축키) 중 어디로 보낼지 정한다. 이 앱은 키를 기본적으로 egui 에 주지 않으므로, "지금 텍스트 입력을 받는 오버레이가 있는가" 라는 넓은 정의가 필요하다.
-- **마우스** 는 `src/view/main.rs` 의 이벤트 분기에서 **항상 무조건** egui 로 먼저 전달되고 `egui_consumed` 로 결과를 받는다 — 라우팅 전제 자체가 없다. Popup 위 클릭은 이미 `egui_consumed`/`popup_owns_point`(위치 기반)로 정확히 처리되므로, 여기 남은 항은 **모달(별도 OS 창) 전용** 보강 게이트일 뿐이다. `has_input_dialog_open()`(rename, popup 시스템으로 구현됨)과 `popups.has_focused()` 는 정책상 Popup 이 비모달이라 위치 밖 클릭까지 막을 이유가 없어 안 들어간다.
+- **마우스** 는 `src/view/main.rs` 의 이벤트 분기에서 **항상 무조건** egui 로 먼저 전달되고 `egui_consumed` 로 결과를 받는다 — 라우팅 전제 자체가 없다. 그 결과는 직전 패스의 포인터 위치 기준이라, 타이틀바 좌클릭 press 는 위 '타이틀바 좌클릭 press' 단락의 사건 좌표 판정을 함께 쓴다. Popup 위 클릭은 이미 `egui_consumed`/`popup_owns_point`(위치 기반)로 정확히 처리되므로, 여기 남은 항은 **모달(별도 OS 창) 전용** 보강 게이트일 뿐이다. `has_input_dialog_open()`(rename, popup 시스템으로 구현됨)과 `popups.has_focused()` 는 정책상 Popup 이 비모달이라 위치 밖 클릭까지 막을 이유가 없어 안 들어간다.
 - **WebView** 는 입력이 아니라 **표시** 질문이다. WebView 는 OS 네이티브 자식 뷰라 wgpu 표면 **위**에 있어 "안 그리는 것" 만으로는 사라지지 않는다 — 숨기려면 `set_visible(false)` 가 필요하고 그 게이트가 이 함수다. 그래서 popup 을 `has_focused()` 가 아니라 `has_visible_open()` 으로 넓게 본다. 페이지를 보인 채 두는 모드에서는 대상이 보이는 동안 WebView 영역의 포인터를 호스트가 받으므로, 페이지 위 클릭도 egui 의 바깥 클릭으로 처리된다.
 
 **plugin egui-mesh popup 의 키보드 계층**: 이 popup 은 host 인스턴스가 아니라 `popups.has_focused()` 로 잡히지 않지만, 키보드 계층에서는 **focused host popup 과 동급**이다 — 창의 포커스 노드이면 키/IME 가 egui 로 들어가고 터미널로는 안 간다. 열려 있기만 한 plugin popup(다른 범위, passive)은 키를 가져가지 않는다. 그 **키와 IME 조합**은 `collect_mesh_popup_input` 이 `ctx.input` 에서 수집해 plugin 프로세스로 forward 하므로, 게이트가 닫혀 있으면 forward 소스가 비어 입력이 통째로 터미널로 전달된다. IME 는 조합 세션 네 단계를 모두 전달한다 — Commit 만 실으면 egui `TextEdit` 이 조합 결과를 조용히 버린다([egui-mesh-channel § 입력 게이트](../dev-guide/egui-mesh-channel.md)). 게이트 지점(winit 이벤트 핸들러)은 `PluginManager` 에 접근할 수 없어 포커스 칸과 렌더 프레임이 남긴 plugin 후보로 정하는 `MainViewState::plugin_popup_owns_keys()` 를 읽는다 — 마우스 쪽 팝업 사각형과 같은 프레임 간 전달 패턴이다(위 "프레임 간 전달" 절). 같은 술어를 IME 라우팅(`view::main::ime`)과 plugin surface 단축키 게이트(`app::plugin_glue::shortcut`)도 공유한다. 예외는 `set_ime_allowed` 판정(`gfx/gpu.rs`) 하나 — plugin popup 은 host egui 위젯이 없어 IME 를 끄면 popup 안에서 조합 입력을 못 하게 되므로 제외한다. 겹친 popup 중 **누가** 키를 갖는지는 z 순서가 아니라 창의 포커스 노드가 정한다([popup.md § 포커스](../design/systems/popup.md#포커스)).

@@ -29,6 +29,7 @@
 - **캡션 버튼** (Linux/Windows, tasty 가 그림): `Minimize`/`ToggleMaximize`/`Close`. macOS 는 OS 신호등이라 tasty 가 안 그림(`controls=None`).
 - **Close** 는 네이티브 `CloseRequested` 와 동일 라이프사이클(`AppEvent::CloseWindow`)로 라우팅 — 캡션 클릭 자체는 사용자 입력이며, 에이전트의 창 닫기는 별도 window.close 요청으로 처리한다.
 - macOS 만 좌측 신호등 폭(`MACOS_TRAFFIC_LIGHT_INSET`)만큼 드래그 hit 영역을 제외.
+- 타이틀바 위 좌클릭은 터미널로 내려가지 않는다. 포인터를 옮기자마자 누른 클릭도 그렇다(egui 판정이 직전 패스 위치를 보는 시간차를 사건 좌표로 막는다, [입력 계층](../../architecture/input-layer.md)).
 
 ### 상단 inset
 
@@ -64,6 +65,7 @@
 - Given 타이틀바 빈 영역 When 드래그 Then 윈도우가 이동한다.
 - Given 타이틀바 When 더블클릭 Then maximize 토글된다.
 - Given 캡션 close 버튼 When 클릭 Then 네이티브 닫기와 동일 경로로 윈도우가 닫힌다.
+- Given 터미널 위에 있던 포인터 When 캡션 버튼으로 옮기자마자 누르면 Then 버튼 동작만 일어나고 터미널에 선택·커서 이동 입력이 가지 않는다.
 - Given 창 가장자리 When 드래그 Then 해당 방향으로 리사이즈된다.
 
 > OS별 시각·동작이라 각 플랫폼 스크린샷 + 수동 윈도우 조작으로 검증. `resize_direction_at` 은 단위 테스트(OS 무관).
