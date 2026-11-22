@@ -9,7 +9,7 @@
 원본의 미완 effect는 성공으로 만들지 않으며 저장된 복원 명령을 다시 실행하지 않는다.
 임시 상태는 legacy 자료를 재수입하지 않는 새 기본 workspace다. 원본 크기가 커도 정상 복원이
 가능하면 그대로 복원한다. 실제 저장 오류는 실패로 남기고 원인을 알린다.
-다른 프로세스가 같은 홈을 쓰는 경우(홈 사용 중)와 임시 저장소도 실패한 경우는 부팅 오류 화면에 남는다. 엔진이 저장소에 묶인 뒤의 실행 중 halt는 이 경로를 쓰지 않고 [실행 중 halt 안내](#실행-중-halt-안내)로 알린다.
+다른 프로세스가 같은 홈을 쓰는 경우(홈 사용 중)와 임시 저장소도 실패한 경우는 GUI에서 부팅 오류 화면에 남는다. 헤드리스는 화면 없이 stderr 문구와 실패 종료 코드로 끝난다([데이터 홈 단일 소유](#데이터-홈-단일-소유)). 엔진이 저장소에 묶인 뒤의 실행 중 halt는 이 경로를 쓰지 않고 [실행 중 halt 안내](#실행-중-halt-안내)로 알린다.
 
 - **Status**: Implemented
 - **주체**: 로컬 사용자 (설정 토글)
@@ -103,20 +103,21 @@ headless 빌드(`--no-default-features`)는 레이아웃을 영속하지 않는�
 
 #### 데이터 홈 단일 소유
 
-GUI 부팅은 가장 먼저 데이터 홈의 구조 저널 writer 잠금(`<홈>/structure/journal.db.writer-lock`)을 얻는다. 잠금이 잡혀 있으면 저널 worker의 writer 잠금과 같은 재시도 구간(`WRITER_LOCK_WAIT`, 2초) 동안 10ms부터 두 배씩 최대 100ms 간격으로 다시 시도한다. 비정상 종료한 이전 인스턴스의 잠금이 그 안에 풀리면 그대로 부팅한다. 재시도는 창을 만들기 전에 끝나므로 멈춘 창이 보이지 않는다. 호스트 로그 파일, `memory.db`, 설정 저장, 플러그인, 테마, 저널, 슬롯 파일, IPC, 트레이보다 앞선다.
+GUI와 헤드리스 부팅은 가장 먼저 데이터 홈의 구조 저널 writer 잠금(`<홈>/structure/journal.db.writer-lock`) 선점을 시도한다. release GUI는 그 전에 `tasty.instance`가 살아 있는 인스턴스를 가리키면 재시도 없이 잡혀 있는 것으로 본다(아래 "같은 홈의 다시 실행"). 잠금이 잡혀 있으면 저널 worker의 writer 잠금과 같은 재시도 구간(`WRITER_LOCK_WAIT`, 2초) 동안 10ms부터 두 배씩 최대 100ms 간격으로 다시 시도한다. 비정상 종료한 이전 인스턴스의 잠금이 그 안에 풀리면 그대로 부팅한다. 재시도는 창을 만들기 전에 끝나므로 멈춘 창이 보이지 않는다. 호스트 로그 파일, `memory.db`, 웹훅, 설정 저장, 플러그인, 테마, 저널, 슬롯 파일, IPC, 트레이보다 앞선다.
 
 - Given 다른 프로세스가 같은 홈의 writer 잠금을 재시도 구간 내내 쥐고 있을 때, When release GUI를 실행하면, Then 두 번째 프로세스는 창 없이 실행 중인 Tasty에 요청을 넘기고 끝난다(아래 "같은 홈의 다시 실행").
 - Given debug GUI를 실행할 때, Then 증거 환경변수(`XDG_ACTIVATION_TOKEN`·`DESKTOP_STARTUP_ID`)를 시작 직후 지우고, 잠금을 얻으면 `tasty.instance`를 쓰고 종료 때 지우는 것은 release와 같다. 두 번째 실행을 넘기는 동작과 D-Bus 등록만 release 전용이다.
 - Given 같은 조건에서, When debug GUI를 실행하면, Then 그 홈의 파일을 만들거나 바꾸지 않고 창과 GPU만 만들어 "이미 사용 중인 데이터 폴더" 부팅 오류 화면(`boot.home_in_use.*`)을 띄운다. 본문에 홈 경로를 넣고 같은 문구를 `tracing::error!`로 stderr에 남긴다. Quit 버튼이나 창 닫기로 종료 코드 1로 끝난다.
-- Given 잠금을 얻었을 때, When 부팅이 이어지면, Then 그 잠금을 저널 worker에 넘겨 저장소가 그 잠금으로 writer가 된다. 저널 schema migration은 잠금을 쥔 뒤에만 실행된다.
-- Given 잠금 시도를 판정할 수 없을 때(홈을 알 수 없거나 잠금 파일을 쓸 수 없음), When 부팅이 이어지면, Then 저널 worker가 저장소를 연 뒤 다시 잠근다. 이때 잠금이 이미 쥐어져 있거나 다른 프로세스가 저널 binding(`journal.binding-lock`)을 writer 잠금과 같은 재시도 구간 내내 초기화하고 있으면 worker는 실패 종류를 "홈 사용 중"으로 보내고, 부팅 오류 화면은 엔진 오류 대신 같은 "이미 사용 중" 문구를 고른다. 오류 문자열은 해석하지 않는다.
+- Given 같은 조건에서, When 헤드리스를 실행하면, Then 실행 중인 인스턴스의 홈 파일(`notify/`, `tasty.port`, 호스트 로그, `memory.db`, 설정, 웹훅, 플러그인 폴더, 저널)을 만들거나 바꾸지 않고 "이미 사용 중인 데이터 폴더" 문구(`boot.home_in_use.*`, 본문에 홈 경로)를 stderr에 직접 쓴 뒤 종료 코드 1로 끝난다. 로그 필터(`TASTY_LOG`)와 관계없이 출력한다. 실행 중인 인스턴스는 기본 포트 파일로 계속 찾을 수 있다.
+- Given 잠금을 얻었을 때(GUI·헤드리스), When 부팅이 이어지면, Then 그 잠금을 저널 worker에 넘겨 저장소가 그 잠금으로 writer가 된다. 저널 schema migration은 잠금을 쥔 뒤에만 실행된다.
+- Given 잠금 시도를 판정할 수 없을 때(홈을 알 수 없거나 잠금 파일을 쓸 수 없음), When 부팅이 이어지면, Then 저널 worker가 저장소를 연 뒤 다시 잠근다. 이때 잠금이 이미 쥐어져 있거나 다른 프로세스가 저널 binding(`journal.binding-lock`)을 writer 잠금과 같은 재시도 구간 내내 초기화하고 있으면 worker는 실패 종류를 "홈 사용 중"으로 보내고, GUI의 부팅 오류 화면은 엔진 오류 대신 같은 "이미 사용 중" 문구를 고른다. 오류 문자열은 해석하지 않는다. 헤드리스는 이 경우 지금까지의 부팅 단계를 거친 뒤 엔진 부팅 오류로 끝난다. 그 사이의 단계는 홈을 바꿀 수 있으므로 위의 무변경 보장은 잠금이 잡혀 있음을 확인한 경우(`Held`)에만 해당한다.
 - Given 같은 프로세스가 fork한 자식이 exec 전까지 방금 놓은 binding 잠금의 열린 파일 설명을 공유할 때, When worker가 저장소를 다시 열면, Then 재시도 구간 안에 풀리는 잠금을 기다려 얻고 "홈 사용 중"으로 보내지 않는다. writer 잠금도 같은 이유로 같은 재시도를 쓴다.
 
-헤드리스 빌드는 첫머리 선점을 하지 않는다. 같은 홈의 두 번째 헤드리스 프로세스는 저널 worker의 잠금에서 시작에 실패한다.
+무변경 보장은 이미 실행 중인 인스턴스의 홈에 대한 것이다. 빈 홈을 두 프로세스가 동시에 처음 쓰면, 잠금을 얻지 못한 쪽이 `structure/`나 잠금 파일을 먼저 만들었을 수 있다. 선점은 기존 잠금 파일을 자르지 않는다.
 
 #### 같은 홈의 다시 실행
 
-release는 같은 홈에 프로세스 하나만 둔다. 잠금을 얻은 인스턴스는 `<홈>/tasty.instance`에 PID·프로세스 시작 시각을 쓰고, IPC 서버가 열리면 포트를 넣어 다시 쓴다(임시 파일 뒤 rename). 정상 종료 때 저널 잠금을 놓기 전에 지운다. 비정상 종료로 남은 파일은 두 번째 실행과 CLI가 PID와 시작 시각으로 알아본다. CLI는 그 판별로 남은 포트 파일을 구분한다([남은 포트 파일](../remote-attach/index.md#남은-포트-파일)). Linux release는 세션 버스에 `io.github.zilhak.tasty`(정규화한 기본 홈) 또는 `io.github.zilhak.tasty.h<정규화 경로 해시>`(다른 홈) 이름으로 `org.freedesktop.Application`을 등록한다. debug는 `TASTY_DEBUG_SINGLE_INSTANCE=1`일 때만 등록한다.
+release GUI는 같은 홈에 프로세스 하나만 두고 두 번째 실행의 요청을 실행 중인 인스턴스에 넘긴다. 인스턴스 기록은 GUI 공통이다. 잠금을 얻은 GUI 인스턴스(debug·release)는 `<홈>/tasty.instance`에 PID·프로세스 시작 시각을 쓰고, IPC 서버가 열리면 포트를 넣어 다시 쓴다(임시 파일 뒤 rename). 정상 종료 때 저널 잠금을 놓기 전에 지운다. 헤드리스는 이 파일을 쓰지 않는다. 비정상 종료로 남은 파일은 두 번째 실행과 CLI가 PID와 시작 시각으로 알아본다. CLI는 그 판별로 남은 포트 파일을 구분한다([남은 포트 파일](../remote-attach/index.md#남은-포트-파일)). Linux release는 세션 버스에 `io.github.zilhak.tasty`(정규화한 기본 홈) 또는 `io.github.zilhak.tasty.h<정규화 경로 해시>`(다른 홈) 이름으로 `org.freedesktop.Application`을 등록한다. debug는 `TASTY_DEBUG_SINGLE_INSTANCE=1`일 때만 등록한다.
 
 - Given 잠금이 다른 프로세스에 있고 인스턴스 파일의 PID·시작 시각이 살아 있는 프로세스와 같고 포트가 있을 때, When release GUI를 사용자 실행 증거 없이 실행하면, Then `window.create`로 새 View 하나를 요청하고 종료 코드 0으로 끝난다. 새 View는 `tasty new window`와 같은 에이전트 창이며 슬롯 규칙도 같다.
 - Given 같은 조건의 X11(XWayland 포함)·Windows에서 실행기가 준 `XDG_ACTIVATION_TOKEN`·`DESKTOP_STARTUP_ID`(Linux)나 `AllowSetForegroundWindow` 성공(Windows)이 있을 때, When release GUI를 실행하면, Then 실행 중인 Tasty가 모든 View에 보이기와 최소화 해제를 요청하고 마지막 포커스 View(없으면 가장 작은 id의 MainView)의 활성화를 OS에 요청한다. MainView가 없으면 새 창 경로로 처리한다(만드는 중인 창과 Windows 두 번째 프로세스의 처리는 [포커스 정책](../../design/policies/focus.md#같은-홈으로-다시-실행했을-때-release-단일-실행)). 두 번째 프로세스는 종료 코드 0으로 끝난다.

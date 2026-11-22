@@ -52,8 +52,8 @@ Tasty 를 개발하는 환경이 곧 Tasty 다 (dogfooding). 보통 사용자·�
 
 - 격리는 **tasty 의 상태**(루트 디렉토리)만 가른다. OS 열기(브라우저 · 파일 관리자)는 사용자 데스크톱의 이미 떠 있는 브라우저에 닿는다 — 검증 인스턴스는 `TASTY_DEBUG_OS_OPEN_LOG` 와 가짜 브라우저로 띄운다([아래 "tasty 에서 직접 검증"](#tasty-에서-직접-검증), [debug-ipc.md](debug-ipc.md)).
 - 격리는 **debug ↔ release** 기준이다. 두 debug 인스턴스를 동시에 띄우면 같은 `~/.tasty-debug/` 루트(포트파일 `~/.tasty-debug/tasty.port`)를 공유하므로 충돌한다 — 이때는 `TASTY_HOME` 으로 루트를 분리한다. checkout/worktree만 나눠서는 사용자 데이터 경로가 달라지지 않는다.
-- release는 데이터 홈 하나에 프로세스 하나만 둔다. release 바이너리를 `TASTY_HOME` 없이 실행하면 사용자의 `~/.tasty`를 쓰는 실행 중 Tasty로 요청이 넘어가 사용자 화면에 새 창이 생긴다. release 검증은 반드시 고유한 `TASTY_HOME`으로 띄운다. 같은 홈의 두 번째 실행 과정은 `<홈>/launch.log`에 남는다([같은 홈의 다시 실행](../features/layout-persistence/index.md#같은-홈의-다시-실행)).
-- 단일 실행의 D-Bus 서비스는 debug에서 기본으로 등록하지 않는다. debug 격리 인스턴스로 `gdbus`를 시험하려면 `TASTY_DEBUG_SINGLE_INSTANCE=1`로 띄운다. debug의 두 번째 실행은 이 값과 무관하게 "홈 사용 중" 화면으로 끝난다.
+- release GUI는 데이터 홈 하나에 프로세스 하나만 둔다. release GUI 바이너리를 `TASTY_HOME` 없이 실행하면 사용자의 `~/.tasty`를 쓰는 실행 중 Tasty로 요청이 넘어가 사용자 화면에 새 창이 생긴다. release 검증은 반드시 고유한 `TASTY_HOME`으로 띄운다. 같은 홈의 두 번째 실행 과정은 `<홈>/launch.log`에 남는다([같은 홈의 다시 실행](../features/layout-persistence/index.md#같은-홈의-다시-실행)).
+- 단일 실행의 D-Bus 서비스는 debug에서 기본으로 등록하지 않는다. debug 격리 인스턴스로 `gdbus`를 시험하려면 `TASTY_DEBUG_SINGLE_INSTANCE=1`로 띄운다. debug의 두 번째 실행은 이 값과 무관하게 "홈 사용 중" 화면으로 끝난다. 헤드리스 빌드(debug·release)의 두 번째 실행은 넘기지 않고 같은 문구를 stderr에 쓴 뒤 종료 코드 1로 끝나며, 실행 중인 인스턴스의 홈을 바꾸지 않는다.
 
 #### 관련
 
