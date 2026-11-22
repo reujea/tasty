@@ -20,7 +20,8 @@ multiple_unsafe_ops_per_block = "deny"
 # 도메인 오류를 일괄 Box로 감싸는 비용을 피한다. 새 오류 타입은 크기와 Box 사용을 검토한다.
 # 적용 위치를 확인하려면 이 lint를 임시로 warn으로 바꿔 Clippy를 실행한다.
 result_large_err = "allow"
-# Result 등 must_use 값을 무시한 위치를 경고한다. 사유 주석은 Clippy가 검사하지 않는다.
+# must_use 타입의 값이나 must_use 함수·메서드의 호출 결과를 let _ =로 버린 위치를 경고한다.
+# 사유 주석은 Clippy가 검사하지 않는다.
 # 주석 정책은 let_underscore_documented 테스트로 별도 확인한다.
 # 범위: docs/dev-guide/error-handling.md
 let_underscore_must_use = "warn"
