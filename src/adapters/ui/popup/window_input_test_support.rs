@@ -125,7 +125,8 @@ impl crate::view::main::debug_input::EguiKeySink for WindowInput {
     }
 }
 
-#[cfg(debug_assertions)]
+// 부르는 시험(T-G3-1)이 비-macOS 전용이라 같은 조건으로 둔다. macOS 는 Super 가 egui 수식키(Cmd)에 있다.
+#[cfg(all(debug_assertions, not(target_os = "macos")))]
 impl WindowInput {
     /// 창이 실물 Win·Super 를 누른 것으로 보게 한다(실제 창은 winit 수식키 변화로 기록한다).
     pub(crate) fn hold_super(&mut self, held: bool) {
