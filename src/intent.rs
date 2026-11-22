@@ -306,7 +306,8 @@ pub enum UiIntent {
         id: PopupId,
     },
     /// 열린 인스턴스 하나를 사유와 함께 닫는다. 같은 선언의 다른 인스턴스는 그대로다.
-    #[cfg(feature = "gui")]
+    /// 보내는 곳이 debug IPC 하나뿐이라 debug 빌드에만 둔다.
+    #[cfg(all(feature = "gui", debug_assertions))]
     CloseInstance {
         instance: crate::adapters::ui::popup::PopupInstanceId,
         reason: crate::adapters::ui::popup::PopupCloseReason,
