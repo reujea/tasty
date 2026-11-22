@@ -66,7 +66,7 @@ pub(crate) fn install(ctx: &RunnerContext, steps: Vec<Step>, answer_state_idle: 
     let script = steps.clone();
     let waker = Arc::new(move || {
         let cmds = cmds.lock().expect("commands lock");
-        while let Ok(cmd) = cmds.try_recv() {
+        for cmd in cmds.try_iter() {
             if answer_state_idle && cmd.request.method.ends_with(".state") {
                 assert_eq!(claim(&cmd), Claim::Run);
                 reply(cmd, json!({ "state": "idle" }));
