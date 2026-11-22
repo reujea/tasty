@@ -27,8 +27,8 @@ pub(crate) fn window_key_mods(mods: winit::keyboard::ModifiersState) -> tasty_ke
 
 /// egui 수식키를 창의 Esc 판정 값으로 바꾼다(시험 입구 `WindowInput::escape_with`). egui 는 비-macOS 의 Win·Super 를
 /// 담지 않으므로 그 값은 `super_held`(`tasty_key_match::super_held`)로 받는다. 비-macOS 의 `Modifiers::command` 는
-/// Ctrl 과 같은 값이라 쓰지 않는다.
-#[cfg(test)]
+/// Ctrl 과 같은 값이라 쓰지 않는다. debug 키 주입도 같은 변환으로 창의 Esc 판정 대상을 정한다.
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn egui_window_key_mods(
     mods: egui::Modifiers,
     super_held: bool,

@@ -1,5 +1,7 @@
 mod boot_error;
 #[cfg(debug_assertions)]
+mod debug_escape_marks;
+#[cfg(debug_assertions)]
 mod debug_surface;
 mod delayed_repaint;
 pub(crate) mod edit_keys;

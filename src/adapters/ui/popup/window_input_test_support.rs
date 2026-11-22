@@ -20,6 +20,9 @@ pub(crate) struct WindowInput {
     split: bool,
     /// 마지막 `escape_with` 가 그 사건을 egui 큐에 실었는지. 창 판정이 그 사건을 빼기 전 관측이다.
     escape_fed: bool,
+    /// debug 키 주입이 유지하는 수식 키(`EguiKeySink::hold_modifiers`).
+    #[cfg(debug_assertions)]
+    debug_held: egui::Modifiers,
 }
 
 /// 하네스 패스가 창의 두 자리에서 부르는 일(`run_pass`).
@@ -95,14 +98,16 @@ impl EguiPressSink for WindowInput {
     }
 }
 
-/// debug 키 주입(`debug_input::inject_key`)이 넣는 큐. 수식 키는 유지하지 않고 클립보드는 비었다.
+/// debug 키 주입(`debug_input::inject_key`)이 넣는 큐. 주입이 준 수식 키를 유지하고 클립보드는 비었다.
 #[cfg(debug_assertions)]
 impl crate::view::main::debug_input::EguiKeySink for WindowInput {
     fn held_modifiers(&self) -> egui::Modifiers {
-        egui::Modifiers::NONE
+        self.debug_held
     }
 
-    fn hold_modifiers(&mut self, _modifiers: egui::Modifiers) {}
+    fn hold_modifiers(&mut self, modifiers: egui::Modifiers) {
+        self.debug_held = modifiers;
+    }
 
     fn clipboard_text(&mut self) -> Option<String> {
         None

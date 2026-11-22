@@ -249,6 +249,10 @@ pub(crate) trait EguiKeySink {
     fn clipboard_text(&mut self) -> Option<String>;
     /// 다음 프레임의 egui 입력 큐에 이벤트를 넣는다.
     fn push_events(&mut self, events: Vec<egui::Event>);
+    /// 직전 egui 패스 끝에 Escape 가 눌려 있는지(창의 Esc 판정이 받는 값).
+    fn escape_held(&self) -> bool {
+        false
+    }
 }
 
 impl EguiKeySink for crate::gpu::GpuState {
@@ -262,6 +266,10 @@ impl EguiKeySink for crate::gpu::GpuState {
 
     fn clipboard_text(&mut self) -> Option<String> {
         self.debug_clipboard_text()
+    }
+
+    fn escape_held(&self) -> bool {
+        self.egui_escape_held()
     }
 
     fn push_events(&mut self, events: Vec<egui::Event>) {
@@ -295,7 +303,9 @@ impl PushedKey {
 
 /// 메인 창에 주입한 키 하나. 창의 키와 같은 순서로 지금 입력 몫을 끊은 뒤(`key_focus`) 키를 egui 입력 큐에 넣는다
 /// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 매핑 불가 키면
-/// 끊지도 넣지도 않고 `None`.
+/// 끊지도 넣지도 않고 `None`. 넣은 사건에 수식키 없는 Esc 누름이 있으면 실제 키처럼 창의 Esc 판정
+/// (`MainViewState::window_escape`, 대상은 `tasty_key_match::is_window_escape`)을 거친다. 처리한 누름은 egui 큐에서
+/// 빠지고 키 주인 몫으로 넘어간다.
 pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     state: &mut crate::state::MainViewState,
     core: &crate::core::CoreState,
@@ -306,7 +316,22 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
 ) -> Option<PushedKey> {
     egui::Key::from_name(key_name)?;
     key_focus(state, core, sink);
-    push_egui_key(sink, key_name, pressed, modifiers)
+    let from = sink.queued_events().len();
+    let pushed = push_egui_key(sink, key_name, pressed, modifiers)?;
+    let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(sink.held_modifiers(), false);
+    let loaded = sink.queued_events().get(from..).is_some_and(|e| {
+        e.iter()
+            .any(crate::adapters::ui::popup::body_keys::is_escape_press)
+    });
+    if loaded && tasty_key_match::is_window_escape(true, mods) {
+        let held = sink.escape_held();
+        if !state.window_escape(sink.queued_events(), Some(from), held) {
+            tracing::debug!(
+                "the window did not take the injected Escape; it stays in the egui input"
+            );
+        }
+    }
+    Some(pushed)
 }
 
 /// 메인 창에 주입한 붙여넣기·복사·잘라내기 사건 하나. 키 주입과 같이 지금 입력 몫을 끊은 뒤(`key_focus`) egui 입력
@@ -431,6 +456,10 @@ fn map_egui_button(button: MouseButton) -> egui::PointerButton {
         _ => egui::PointerButton::Primary,
     }
 }
+
+#[cfg(all(test, feature = "gui"))]
+#[path = "debug_input_escape_tests.rs"]
+mod escape_tests;
 
 #[cfg(test)]
 mod tests {
