@@ -10,6 +10,9 @@
 //! 열린 ComboBox 목록의 행은 공용 옵션 행(`menu_option` · `menu_option_value`)으로 그린다. egui 기본
 //! 선택 행(`selectable_value` · `selectable_label`)은 현재 값을 accent 채움으로 칠하므로 디자인의 선택
 //! 표현(글자 + 오른쪽 체크, 채움 없음)과 다르다. `show_ui` 클로저 본문을 중괄호 짝으로 잘라 확인한다.
+//! remote_tool 폼은 ComboBox 를 도우미 `combo(..)` 로 그리고 목록 행은 호출자가 마지막 클로저 인자로 넘긴다. 그
+//! 파일의 `combo(` 호출마다 첫 `|ui| {` 클로저 본문을 같은 방법으로 잘라, egui 기본 선택 행이 없고 공용 옵션
+//! 행이 있는지 본다. 다른 파일의 도우미나 클로저를 변수로 넘긴 호출은 보지 않는다.
 
 use super::rust_sources;
 
@@ -139,6 +142,71 @@ fn combo_rows(src: &str) -> (Vec<usize>, usize) {
         }
     }
     (offenders, seen)
+}
+
+/// 목록 행을 호출자 클로저로 받는 ComboBox 도우미를 쓰는 파일과 그 호출 문자열.
+const HELPER_COMBO_FILE: &str = "src/adapters/ui/popup/remote_tool.rs";
+const HELPER_COMBO_CALL: &str = "combo(";
+/// 공용 옵션 행 함수(`menu_option` · `menu_option_value`)의 공통 앞부분.
+const SHARED_ROW: &str = "menu_option";
+
+/// 도우미 `combo(` 호출 중 행 클로저가 egui 기본 선택 행을 쓰거나 공용 옵션 행을 쓰지 않는 호출의 줄 번호와 검사한
+/// 호출 수. 앞 글자가 식별자·`.` 이면 다른 이름이고, `fn combo(` 는 정의다.
+fn helper_combo_rows(src: &str) -> (Vec<usize>, usize) {
+    let code = tasty_doc_guards::source_text::mask_comments_aligned(src);
+    let mut offenders = Vec::new();
+    let mut seen = 0;
+    for (at, _) in code.match_indices(HELPER_COMBO_CALL) {
+        let before = code[..at].chars().next_back();
+        if before.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
+            || code[..at].ends_with("fn ")
+        {
+            continue;
+        }
+        let Some(rel) = code[at..].find("|ui| {") else {
+            continue;
+        };
+        seen += 1;
+        let body = brace_body(&code, at + rel + "|ui| ".len());
+        if EGUI_SELECTABLE.iter().any(|e| body.contains(e)) || !body.contains(SHARED_ROW) {
+            offenders.push(code[..at].matches('\n').count() + 1);
+        }
+    }
+    (offenders, seen)
+}
+
+#[test]
+fn every_combo_helper_list_draws_shared_option_rows() {
+    let src = rust_sources()
+        .into_iter()
+        .find(|(rel, _)| rel.to_string_lossy().replace('\\', "/") == HELPER_COMBO_FILE)
+        .map(|(_, src)| src)
+        .unwrap_or_else(|| panic!("{HELPER_COMBO_FILE} 를 순회에서 찾지 못했다"));
+    let (offenders, seen) = helper_combo_rows(&src);
+    // 현재 도우미 호출은 5곳이다. 순회가 비거나 호출 문자열이 낡아 0건으로 통과하는 것을 막는 하한이다.
+    assert!(
+        seen >= 5,
+        "{HELPER_COMBO_FILE} 의 combo( 호출을 {seen}곳만 찾았다(하한 5). 호출 문자열을 확인한다."
+    );
+    assert!(
+        offenders.is_empty(),
+        "combo( 의 목록 행이 egui 기본 선택 행을 쓰거나 공용 menu_option · menu_option_value 를 쓰지 않는다:\n{}",
+        offenders
+            .iter()
+            .map(|l| format!("{HELPER_COMBO_FILE}:{l}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn the_helper_combo_judge_reads_the_row_closure() {
+    let shared = "fn combo(ui: &mut Ui, items: impl FnOnce(&mut Ui)) {}\ncombo(ui, pen, \"a\", sel, None, |ui| {\n    menu_option_value(ui, th, &mut v, 1, \"x\");\n});\nui.selectable_value(&mut w, 2, \"y\");";
+    assert_eq!(helper_combo_rows(shared), (vec![], 1));
+    let egui_row = "\ncombo(ui, pen, \"a\", sel, None, |ui| {\n    ui.selectable_value(&mut v, 1, \"x\");\n    menu_option(ui, th, false, \"y\");\n});";
+    assert_eq!(helper_combo_rows(egui_row), (vec![2], 1));
+    let no_shared = "combo(ui, pen, \"a\", sel, None, |ui| {\n    ui.label(\"x\");\n});\nreport_combo(x);\nself.combo(y);";
+    assert_eq!(helper_combo_rows(no_shared), (vec![1], 1));
 }
 
 #[test]

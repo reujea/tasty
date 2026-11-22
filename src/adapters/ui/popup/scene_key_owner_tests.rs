@@ -775,30 +775,38 @@ fn remote_tool_form(
 const TYPE_SUGGEST: &str = "remote_tool.type_suggest";
 
 /// Given 프로필 양식의 종류 제안 ComboBox를 열고 닫을 때, Then 등록부의 그 인스턴스 항목은 열려 있는 동안만 있고,
-/// 등록한 popup id가 egui의 열린 팝업이다(`ComboBox::is_open`과 같은 규칙).
+/// 그 버튼 id로 읽은 `ComboBox::is_open`이 등록부 열림과 같으며 등록한 popup id는 그 버튼 id의 `with("popup")`이다.
 #[test]
 fn a_registered_combo_reports_the_egui_open_state() {
     use crate::adapters::ui::popup::child_overlay_entry;
+    use crate::adapters::ui::popup::window_input_test_support::click_widget_at;
     let (mut state, mut session) = scene(PANE_R);
     let engine = session.borrow_mut();
     let ctx = Context::default();
     let iid = remote_tool_form(&ctx, &mut state, &engine.read());
     let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     let arrow = text_rect(&texts, "▾");
+    let button = click_widget_at(&ctx, arrow.center()).expect("종류 제안 ComboBox 버튼");
     assert!(child_overlay_entry(&ctx, iid, TYPE_SUGGEST).is_none());
+    assert!(!egui::ComboBox::is_open(&ctx, button));
 
     click(&ctx, &mut state, &engine.read(), arrow.center());
     frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     let (popup, _) = child_overlay_entry(&ctx, iid, TYPE_SUGGEST).expect("열린 목록이 등록된다");
     assert!(
-        ctx.memory(|m| m.is_popup_open(popup)),
-        "등록한 id가 egui의 열린 팝업이다"
+        egui::ComboBox::is_open(&ctx, button),
+        "버튼 id로 읽은 ComboBox가 열려 있다"
+    );
+    assert_eq!(
+        popup,
+        button.with("popup"),
+        "등록한 id는 그 버튼의 목록 id다"
     );
 
     click(&ctx, &mut state, &engine.read(), arrow.center());
     frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
     assert!(
-        !ctx.memory(|m| m.any_popup_open()),
+        !egui::ComboBox::is_open(&ctx, button),
         "다시 누르면 목록이 닫힌다"
     );
     assert!(

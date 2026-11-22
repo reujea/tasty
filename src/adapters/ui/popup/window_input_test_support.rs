@@ -354,6 +354,20 @@ pub(crate) fn painted_texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)>
     texts
 }
 
+/// 마지막으로 끝난 패스에서 `pos` 를 덮는 클릭 가능 위젯 중 가장 작은 것의 id. ComboBox 라면 그 버튼 id 다
+/// (`egui::ComboBox::is_open(ctx, id)` 가 읽는 id).
+pub(crate) fn click_widget_at(ctx: &egui::Context, pos: egui::Pos2) -> Option<egui::Id> {
+    ctx.viewport(|vp| {
+        vp.prev_pass
+            .widgets
+            .layers()
+            .flat_map(|(_, rects)| rects.iter())
+            .filter(|w| w.sense.senses_click() && w.interact_rect.contains(pos))
+            .min_by(|a, b| a.interact_rect.area().total_cmp(&b.interact_rect.area()))
+            .map(|w| w.id)
+    })
+}
+
 /// 칠한 글자 `wanted` 의 영역.
 pub(crate) fn painted_at(texts: &[(String, egui::Rect)], wanted: &str) -> Option<egui::Rect> {
     texts.iter().find(|(s, _)| s == wanted).map(|(_, r)| *r)

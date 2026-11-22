@@ -2658,10 +2658,15 @@ mod tests {
         let iid = remote_tool_form(&ctx, &mut state, &read);
         let texts = layer_frame(&ctx, &mut state, &read, Vec::new());
         let combo = painted_at(&texts, t("remote_tool.passkey_none")).expect("패스키 ComboBox");
+        let button = super::super::window_input_test_support::click_widget_at(&ctx, combo.center())
+            .expect("패스키 ComboBox 버튼");
         layer_click(&ctx, &mut state, &read, combo.center());
-        assert!(ctx.memory(|m| m.any_popup_open()), "egui 목록이 열렸다");
+        assert!(
+            egui::ComboBox::is_open(&ctx, button),
+            "패스키 목록이 열렸다"
+        );
         let texts = layer_escape(&ctx, &mut state, &read);
-        assert!(!ctx.memory(|m| m.any_popup_open()), "ComboBox 가 닫힌다");
+        assert!(!egui::ComboBox::is_open(&ctx, button), "ComboBox 가 닫힌다");
         assert!(
             painted_at(&texts, t("remote_tool.field_passkey")).is_some(),
             "그 패스에 양식이 그려졌다"
