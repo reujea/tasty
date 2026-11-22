@@ -329,6 +329,7 @@ mod retired_attempt {
         );
         peer.join().unwrap();
 
+        let mut result = Ok(());
         let logs = capture_logs(|| result = cancelled_at(Stage::AfterRegister));
         let error = result.expect_err("the cancel ends the open");
         assert_eq!(error.to_string(), ATTEMPT_RETIRED);
