@@ -301,8 +301,9 @@ fn fetch_collect(
     parse_harness(out.stdout)
 }
 
-/// `fetch_collect`의 하네스 실행만 한다. `fail`의 `copy<N>`은 N번째로 산출물 단계에 들어온 호출의 복사를 실패시킨다
-/// (하네스 자체가 그 실패로 끝나는지 보는 시험 전용).
+/// `fetch_collect`의 하네스 실행만 한다. `fail`의 `copy<N>`·`copy<N> <K>`는 N번째로 산출물 단계에 들어온 호출의 복사를
+/// 종료값 1·K로 실패시킨다(하네스 자체가 그 실패로 끝나는지 보는 시험 전용). `mode`가 `stub`이면 대상 없이 스텁을
+/// 직접 한 번 부르고 그 종료값만 RC로 낸다.
 #[cfg(unix)]
 fn fetch_harness(
     mode: &str,
@@ -367,11 +368,15 @@ if [ -n "$out" ]; then
         if [ "$waited" -ge 500 ]; then echo "산출물 잠금을 얻지 못했다: $lock" >> "$top/lock-error"; exit 97; fi
         sleep 0.01
     done
-    # 잠금 안에서 산출물 단계에 들어온 순번을 센다. fail이 copy<N>이면 N번째 호출의 복사를 실패시킨다.
+    # 잠금 안에서 산출물 단계에 들어온 순번을 센다. fail이 "copy<N> <K>"면 N번째 호출의 복사가 종료값 K(없으면 1)로
+    # 실패한다.
     entered=$(( $(cat "$top/out.entered" 2>/dev/null || echo 0) + 1 ))
     echo "$entered" > "$top/out.entered"
+    f_mode="" f_code=""
+    read -r f_mode f_code 2>/dev/null < "$top/fail" || :
+    fail_copy() { return "${f_code:-1}"; }
     copy=cp
-    if [ "$(cat "$top/fail" 2>/dev/null)" = "copy$entered" ]; then copy=false; fi
+    if [ "$f_mode" = "copy$entered" ]; then copy=fail_copy; fi
     made=0
     { mkdir -p "$out" && "$copy" -R "$top/$tree/." "$out/" && : > "$out/.fetched"; } || made=$?
     rm "$lock" || echo "산출물 잠금을 놓지 못했다: $lock" >> "$top/lock-error"
@@ -427,6 +432,15 @@ case "$mode" in
         ;;
     staging)
         collect run_staging
+        ;;
+    stub)
+        # 대상 없이 스텁을 직접 한 번 부른다. 스텁 자신의 종료값만 RC로 내고 기록 판정은 하지 않는다.
+        set +e
+        bash "$root/scripts/fetch-official-plugins.sh" --platform "$platform" --out "$root/stage" --all 9> /dev/null > /dev/null 2>&1
+        rc=$?
+        set -e
+        printf 'RC=%s\n' "$rc"
+        exit 0
         ;;
 esac
 if [ "$rc" = 0 ] && ! [ -e "$root/.reached" ]; then rc=0-unreached; fi
@@ -901,6 +915,17 @@ fn a_stub_copy_failure_fails_the_harness() {
             stderr.contains("산출물 단계가 실패했다"),
             "{what}: 산출물 실패를 알리지 않았다: {stderr}"
         );
+    }
+    // 스텁을 직접 부르면 주입한 복사 실패의 종료값이 그대로 나온다(통지만 남기고 계속 가지 않는다).
+    for (fail, want) in [("", "0"), ("copy1", "1"), ("copy1 37", "37")] {
+        let out = fetch_harness("stub", "linux-x64", "", fail, &locked, &bundled_ids());
+        assert!(
+            out.status.success(),
+            "스텁 직접 호출 하네스가 실패했다: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let (rc, _) = parse_harness(out.stdout);
+        assert_eq!(rc, want, "복사 실패 {fail:?}의 스텁 종료값");
     }
 }
 
