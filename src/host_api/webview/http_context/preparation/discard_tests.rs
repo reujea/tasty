@@ -49,15 +49,17 @@ impl ProfileWork {
         self
     }
     /// Keeps a published success from starting its claim deadline until the returned sender drops,
-    /// so no claim can expire before the test holds the lock.
-    pub(crate) fn with_claim_gate(mut self) -> (Self, mpsc::Sender<()>) {
+    /// so no claim can expire before the test holds the lock. The sender carries no value it could
+    /// send, so dropping it is the only release.
+    pub(crate) fn with_claim_gate(mut self) -> (Self, mpsc::Sender<std::convert::Infallible>) {
         let (open, gate) = mpsc::channel();
         self.claim_gate = Some(gate);
         (self, open)
     }
 }
 impl DiscardAttempts {
-    /// What the cleanup was refused with, for the messages of a cleanup that kept its root.
+    /// What the cleanup was refused with, for the failure messages of a cleanup that met no Busy
+    /// or kept its root.
     pub(crate) fn refusals(&self) -> String {
         format!(
             "{} refused attempt(s), first: {:?}",

@@ -68,9 +68,10 @@ pub(crate) struct ProfileWork {
     discard_wait: Duration,
     #[cfg(test)]
     discard_attempts: Arc<discard_tests::DiscardAttempts>,
-    /// Holds a published success before its claim deadline starts, until the sender drops.
+    /// Holds a published success before its claim deadline starts until the test drops the
+    /// sender; an uninhabited message type leaves no other way to open it.
     #[cfg(test)]
-    claim_gate: Option<std::sync::mpsc::Receiver<()>>,
+    claim_gate: Option<std::sync::mpsc::Receiver<std::convert::Infallible>>,
 }
 impl Preparation {
     pub(crate) fn new(
@@ -165,10 +166,8 @@ impl ProfileWork {
             return;
         }
         #[cfg(test)]
-        if let Some(gate) = self.claim_gate.take()
-            && gate.recv().is_err()
-        {
-            tracing::debug!("claim gate opened");
+        if let Some(gate) = self.claim_gate.take() {
+            let Err(std::sync::mpsc::RecvError) = gate.recv();
         }
         self.await_claim(&shared);
     }
