@@ -431,7 +431,8 @@ fn occupy_after_claim(journal: &mut JournalApplication, session: &mut EngineSess
 }
 
 /// Where the engine release holds this PTY generation: kept alive outside the engine, retired with
-/// its observation, or neither (another path ended the process).
+/// its observation, or neither (the generation is in neither the kept list nor the retirement
+/// receipts).
 #[cfg(unix)]
 fn release_ownership(
     session: &EngineSession,
