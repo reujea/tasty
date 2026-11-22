@@ -329,8 +329,8 @@ pub fn pump_gtk_events() {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::{
-        APPINDICATOR_REQUIRED_SYMBOLS, ProbeFailure, cached_probe, first_loadable, missing_symbols,
-        probe,
+        APPINDICATOR_LIBRARIES, APPINDICATOR_REQUIRED_SYMBOLS, ProbeFailure, cached_probe,
+        first_loadable, missing_symbols, probe,
     };
     use std::cell::Cell;
     use std::sync::OnceLock;
@@ -440,5 +440,121 @@ mod tests {
         let (runs, outcomes) = count_runs(&cell, || Ok("libexample.so.1"));
         assert_eq!(runs, 1);
         assert!(outcomes.iter().all(|o| *o == Ok("libexample.so.1")));
+    }
+
+    /// The upstream versions `APPINDICATOR_LIBRARIES` and
+    /// `APPINDICATOR_REQUIRED_SYMBOLS` were last checked against.
+    const UPSTREAM_CHECKED: [(&str, &str); 3] = [
+        ("tray-icon", "0.22.0"),
+        ("libappindicator", "0.9.0"),
+        ("libappindicator-sys", "0.9.0"),
+    ];
+
+    /// Every version of package `name` in Cargo.lock text (a `name = "x"` line
+    /// followed by its `version = "y"` line).
+    fn lock_versions<'a>(lock: &'a str, name: &str) -> Vec<&'a str> {
+        let target = format!("name = \"{name}\"");
+        let mut versions = Vec::new();
+        let mut lines = lock.lines();
+        while let Some(line) = lines.next() {
+            if line.trim() == target
+                && let Some(next) = lines.next()
+                && let Some(v) = next.trim().strip_prefix("version = ")
+            {
+                versions.push(v.trim_matches('"'));
+            }
+        }
+        versions
+    }
+
+    fn check_upstream_versions(lock: &str) -> Result<(), String> {
+        for (name, expected) in UPSTREAM_CHECKED {
+            let found = lock_versions(lock, name);
+            if found != [expected] {
+                return Err(format!(
+                    "Cargo.lock has {name} {found:?}, but the AppIndicator pre-check was checked \
+                     against {name} {expected} only. Re-check APPINDICATOR_LIBRARIES against the \
+                     names and order of `LIB` in libappindicator-sys <version>/src/lib.rs, and \
+                     APPINDICATOR_REQUIRED_SYMBOLS against the functions libappindicator \
+                     <version>/src/lib.rs and tray-icon <version>/src/platform_impl/gtk/mod.rs \
+                     call. If the libloading version libappindicator-sys uses changed, re-check \
+                     the load flags and the null handling too. Confirm backcompat is still on \
+                     with `cargo tree -p tasty-platform --features gui -e features,no-dev -i \
+                     libappindicator-sys` and `cargo tree -p tasty -e features,no-dev -i \
+                     libappindicator-sys --target x86_64-unknown-linux-gnu`. Then update \
+                     UPSTREAM_CHECKED."
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn workspace_lock() -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.lock");
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()))
+    }
+
+    #[test]
+    fn upstream_versions_match_the_last_checked_ones() {
+        if let Err(message) = check_upstream_versions(&workspace_lock()) {
+            panic!("{message}");
+        }
+    }
+
+    #[test]
+    fn a_different_upstream_version_asks_for_a_recheck() {
+        let lock = workspace_lock();
+        for (name, expected) in UPSTREAM_CHECKED {
+            let entry = format!("name = \"{name}\"\nversion = \"{expected}\"");
+            assert!(lock.contains(&entry), "Cargo.lock lacks {entry:?}");
+
+            let changed =
+                lock.replace(&entry, &format!("name = \"{name}\"\nversion = \"999.0.0\""));
+            let message =
+                check_upstream_versions(&changed).expect_err("a changed version must fail");
+            for part in [name, expected, "999.0.0", "src/lib.rs"] {
+                assert!(message.contains(part), "{message:?} lacks {part:?}");
+            }
+
+            let doubled = lock.replace(
+                &entry,
+                &format!("{entry}\n\n[[package]]\nname = \"{name}\"\nversion = \"999.0.0\""),
+            );
+            assert!(
+                check_upstream_versions(&doubled).is_err(),
+                "a second {name} version must fail"
+            );
+        }
+    }
+
+    #[test]
+    fn the_library_list_matches_upstream_order() {
+        // libappindicator-sys 0.9.0 src/lib.rs `LIB`, backcompat names last.
+        assert_eq!(
+            APPINDICATOR_LIBRARIES,
+            [
+                "libayatana-appindicator3.so.1",
+                "libappindicator3.so.1",
+                "libayatana-appindicator3.so",
+                "libappindicator3.so",
+            ]
+        );
+    }
+
+    #[test]
+    fn the_required_symbols_match_the_checked_set() {
+        // tray-icon 0.22.0 src/platform_impl/gtk/mod.rs through libappindicator 0.9.0.
+        assert_eq!(
+            APPINDICATOR_REQUIRED_SYMBOLS,
+            [
+                "app_indicator_new",
+                "app_indicator_set_status",
+                "app_indicator_set_icon_theme_path",
+                "app_indicator_set_icon_full",
+                "app_indicator_set_menu",
+                "app_indicator_set_label",
+            ]
+        );
     }
 }
