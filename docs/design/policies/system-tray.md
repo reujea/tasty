@@ -31,7 +31,7 @@ GUI 앱이 백그라운드로 들어가면 가능한 환경에서 트레이나 �
 2. **Linux에서 트레이는 만들었지만 표시할 곳이 없음**: AppIndicator 라이브러리가 열리고 나머지 생성 단계도 성공하면 `tray_icon`은 `Some`이다. 이후 단계는 조건이 따로 있다.
    - SNI 등록: 세션 버스에 `org.kde.StatusNotifierWatcher`가 있고 `RegisterStatusNotifierItem` 요청이 성공해야 한다. watcher가 없거나 등록 요청이 오류를 반환하면 Ayatana AppIndicator는 GtkStatusIcon 대체 경로를 쓴다.
    - 아이콘 표시: 등록을 받아 그리는 SNI host, 또는 대체 경로가 쓸 XEmbed 트레이가 있어야 한다.
-   - 둘 다 없으면 아이콘은 보이지 않지만 백그라운드 진입은 트레이가 있는 경우와 같은 `set_visible(false)`다. 다시 보이게 하는 방법은 [같은 홈으로 다시 실행했을 때](focus.md#같은-홈으로-다시-실행했을-때-release-단일-실행)의 활성화 증거가 있는 실행이다. 증거 없는 터미널 실행은 새 창 하나를 연다.
+   - 둘 다 없으면 아이콘은 보이지 않지만 백그라운드 진입은 트레이가 있는 경우와 같은 `set_visible(false)` 호출이다. X11(XWayland 포함)에서는 창이 숨겨지고, 네이티브 Wayland에서는 이 호출이 효과가 없어 창이 그대로 남는다([OS별 표](#백그라운드-진입--복귀-os별)). X11·XWayland에서 숨긴 창을 다시 보이게 하는 방법은 [같은 홈으로 다시 실행했을 때](focus.md#같은-홈으로-다시-실행했을-때-release-단일-실행)의 활성화 증거가 있는 실행이다. 증거 없는 터미널 실행은 새 창 하나를 연다.
    - 실측 범위: Fedora 45 X11(Xvfb, 창 관리자 없음) 세션에서 release rpm으로 watcher가 없을 때와 모의 watcher가 있을 때 모두 트레이 생성 로그, 앱 수준 최소화 뒤 창 unmap, 활성화 증거를 붙인 두 번째 실행 뒤 같은 창의 복원을 확인했다. 모의 watcher에는 `RegisterStatusNotifierItem`이 들어왔다. AppIndicator 라이브러리를 가린 세션에서는 패닉 없이 창이 남고 dlopen 실패 경고 뒤 최소화 경로를 탔다. GNOME·KDE 실제 데스크톱에서 아이콘이 표시되는지는 측정하지 않았다.
 
 ## Linux 특이사항 (GTK)
@@ -51,7 +51,7 @@ GUI 앱이 백그라운드로 들어가면 가능한 환경에서 트레이나 �
 | KDE Plasma | 네이티브 SNI 사용 |
 | GNOME / Ubuntu | AppIndicator 확장 필요 |
 | XFCE / Cinnamon / MATE | 환경의 트레이 지원 사용 |
-| 미니멀 WM / 트레이 없는 환경 | 생성 실패면 최소화, 트레이만 만들어졌으면 아이콘 없이 숨김([트레이가 없는 환경](#graceful-degradation)) |
+| 미니멀 WM / 트레이 없는 환경 | 생성 실패면 최소화. 트레이만 만들어졌으면 아이콘 없이 `set_visible(false)`를 부르며, X11·XWayland에서는 창이 숨겨지고 네이티브 Wayland에서는 창이 남는다([트레이가 없는 환경](#graceful-degradation)) |
 
 ## 스레드 제약
 
