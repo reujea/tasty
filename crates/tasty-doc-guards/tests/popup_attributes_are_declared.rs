@@ -172,7 +172,7 @@ fn defines_own_popup_id(src: &str) -> bool {
 }
 
 fn scanned_files(root: &Path) -> Vec<(String, String)> {
-    let entries = entries_with_floor(&root.join(POPUP_DIR), root, &POPUP_DIR_FLOOR, 80)
+    let entries = entries_with_floor(&root.join(POPUP_DIR), root, &POPUP_DIR_FLOOR, 120)
         .unwrap_or_else(|why| panic!("{why}"));
     let mut out = Vec::new();
     let root_file = std::fs::read_to_string(root.join(POPUP_ROOT_FILE))
