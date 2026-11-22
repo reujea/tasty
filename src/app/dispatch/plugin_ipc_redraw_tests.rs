@@ -94,22 +94,26 @@ fn a_plugin_call_resumed_from_the_request_gate_reaches_the_redraw_decision() {
         std::mem::take(&mut app.plugin_calls_resumed),
         "게이트에서 재개한 플러그인 호출을 redraw 판단에 넘기지 않았다"
     );
-    // 재개한 호출은 cap 조회 결과를 기다리며 게이트에 다시 설 수 있다. 호스트 루프처럼 결과가 나올 때까지
-    // 회차를 돌린다. 그 회차들의 재개 표지는 이 시험이 판정하지 않으므로 소비만 한다.
+    // 재개한 호출은 cap 조회 결과를 기다리며 게이트에 다시 설 수 있다. 호스트 루프가 부르는 것과 같은
+    // process_ipc를 게이트가 빌 때까지 부른다. 그 회차들의 재개 표지는 이 시험이 판정하지 않으므로 소비만 한다.
+    // 기한은 회차를 돈 뒤에도 게이트가 남았을 때만 판정한다. 결과가 나온 뒤 시험 스레드가 늦게 깨어나도
+    // 그 회차가 결과를 거둔다.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     while !app.gate_queue.is_empty() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "a gated plugin call never finished"
-        );
         std::thread::sleep(std::time::Duration::from_millis(1));
         app.process_ipc();
         app.plugin_calls_resumed = false;
+        assert!(
+            app.gate_queue.is_empty() || std::time::Instant::now() < deadline,
+            "a gated plugin call never finished"
+        );
     }
     let replies: Vec<_> = caller
         .drain_requests()
         .into_iter()
-        .filter(|(_, params)| params["call_id"] == 1)
+        .filter(|(method, params)| {
+            method == tasty_host_plugin::protocol::METHOD_IPC_RESULT && params["call_id"] == 1
+        })
         .collect();
     assert_eq!(replies.len(), 1, "게이트를 지난 호출의 회신: {replies:?}");
 
