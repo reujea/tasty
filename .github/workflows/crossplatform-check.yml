@@ -258,12 +258,17 @@ jobs:
 
       # 실패 원인을 조사할 때도 필요하므로 앞 스텝의 실패와 관계없이 진단한다.
       # 디스크·도구 상태 출력에 실패해도 컴파일·테스트 결과를 바꾸지 않는다.
+      # release Clippy 스텝은 target/release를, 다른 cargo 스텝은 target/debug를 쓰므로 프로필별 크기도 낸다.
+      # 잡 끝 시점의 크기이며 잡 중 최고 사용량은 아니다.
       - name: disk (diagnostic)
         if: ${{ !cancelled() }}
         continue-on-error: true
         run: |
           df -h .
           du -sh target 2>/dev/null || echo "target 없음"
+          for d in target/debug target/release; do
+            if [ -d "$d" ]; then du -sh "$d" || echo "$d 크기를 읽지 못함"; else echo "$d 없음"; fi
+          done
           du -sh ~/.cargo 2>/dev/null || true
           command -v xvfb-run || echo "xvfb-run 없음"
 
