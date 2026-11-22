@@ -259,7 +259,12 @@ fn unpublished_cleanup_outlasts_a_lock_description_kept_by_a_forked_child() {
         );
         let attempts = work.discard_attempts();
         assert!(runtime.spawn_profile(work).is_ok());
-        wait_for("profile work", || published.load(Ordering::Acquire));
+        // The job keeps its permit from publication until the claim settles.
+        wait_result(
+            "profile work",
+            || runtime.parts.jobs.available_permits() == 8,
+            || published.load(Ordering::Acquire).then_some(()),
+        );
         let mut child = InheritedLock::take(home.path());
         drop(receipt);
         // Released only after a real Busy, or after the job gave up: a release before the first

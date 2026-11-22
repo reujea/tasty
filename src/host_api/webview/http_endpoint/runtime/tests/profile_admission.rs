@@ -107,8 +107,15 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
         Arc::new(move || wake.store(true, Ordering::Release)),
     );
     let attempts = work.discard_attempts();
+    let jobs = runtime.parts.jobs.clone();
     assert!(runtime.spawn_profile(work).is_ok());
-    wait_for("profile work", || published.load(Ordering::Acquire));
+    // The only job holds its permit from publication until the claim settles, so all permits back
+    // with nothing published means the work ended without a result.
+    wait_result(
+        "profile work",
+        || jobs.available_permits() == 8,
+        || published.load(Ordering::Acquire).then_some(()),
+    );
     let namespace = home.path().join("native-http-profiles");
     let lock = OpenOptions::new()
         .read(true)
@@ -117,18 +124,44 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
         .unwrap();
     wait_for("namespace lock", || {
         // SAFETY: fixture owns this descriptor until the cleanup is released below.
-        unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) == 0 }
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+            return true;
+        }
+        let error = std::io::Error::last_os_error();
+        assert_eq!(error.kind(), std::io::ErrorKind::WouldBlock, "{error}");
+        false
     });
     drop(receipt);
-    wait_for("the cleanup's first Busy", || attempts.busy() > 0);
-    let jobs = runtime.parts.jobs.clone();
-    assert_eq!(jobs.available_permits(), 7);
+    // A cleanup that ends without a Busy returns the permit: waiting only for a Busy would then
+    // spend the whole hang limit on an outcome that is already final.
+    wait_for("the cleanup's first Busy", || {
+        attempts.busy() > 0 || jobs.available_permits() == 8
+    });
+    let refusals = || {
+        format!(
+            "{} refused attempt(s), first: {:?}",
+            attempts.refused(),
+            attempts.first_refusal()
+        )
+    };
+    assert!(
+        attempts.busy() > 0,
+        "the cleanup ended without a Busy: {}; with none refused, the preparation failed or its \
+         claim expired before the lock was taken",
+        refusals()
+    );
+    assert_eq!(jobs.available_permits(), 7, "{}", refusals());
     assert_eq!(retirement::owners(), 1);
     drop(runtime);
     drop(setup);
-    assert_eq!(jobs.available_permits(), 7);
+    assert_eq!(jobs.available_permits(), 7, "{}", refusals());
     assert_eq!(retirement::owners(), 1);
-    assert_eq!(fs::read_dir(&namespace).unwrap().count(), 2);
+    assert_eq!(
+        fs::read_dir(&namespace).unwrap().count(),
+        2,
+        "{}",
+        refusals()
+    );
     drop(lock);
     reaped();
     assert_eq!(jobs.available_permits(), 8);

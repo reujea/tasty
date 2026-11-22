@@ -6,7 +6,7 @@ use crate::host_api::webview::http_endpoint::runtime::tests::HANG_LIMIT;
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::atomic::AtomicUsize,
+    sync::{OnceLock, atomic::AtomicUsize},
     thread::{self, JoinHandle},
 };
 
@@ -15,18 +15,29 @@ use std::{
 pub(crate) struct DiscardAttempts {
     busy: AtomicUsize,
     refused: AtomicUsize,
+    /// Any error other than Busy ends the cleanup, so the first one is the one that kept the root.
+    first_refusal: OnceLock<String>,
 }
 impl DiscardAttempts {
     pub(super) fn record(&self, attempt: &Result<(), ProfileError>) {
         match attempt {
             Err(ProfileError::Busy) => &self.busy,
-            Err(_) => &self.refused,
+            Err(error) => {
+                self.first_refusal.get_or_init(|| error.to_string());
+                &self.refused
+            }
             Ok(()) => return,
         }
         .fetch_add(1, Ordering::AcqRel);
     }
     pub(crate) fn busy(&self) -> usize {
         self.busy.load(Ordering::Acquire)
+    }
+    pub(crate) fn refused(&self) -> usize {
+        self.refused.load(Ordering::Acquire)
+    }
+    pub(crate) fn first_refusal(&self) -> Option<&str> {
+        self.first_refusal.get().map(String::as_str)
     }
 }
 impl ProfileWork {
