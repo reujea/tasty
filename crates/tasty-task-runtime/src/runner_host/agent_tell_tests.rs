@@ -1,8 +1,9 @@
 //! 기존 세션에 보내는 `<provider>.tell` 이 응답 대기 상한(5초)을 넘길 때의 경계.
 //!
 //! 모의 IPC([`scripted_ipc`](crate::runner_host::scripted_ipc))는 보낸 스레드에서 `.state` 에 idle 로
-//! 바로 답하고, 나머지 명령은 정한 단계대로 시작시켜 넘기거나(시험이 늦게 답하거나 닫는다) 시작시키지
-//! 않고 넘긴다(큐 대기 중 만료).
+//! 바로 답하고, 나머지 명령은 정한 단계대로 시작시켜 넘기거나(시험이 늦게 답하거나 닫는다), 시작시키지
+//! 않고 넘기거나(큐 대기 중 만료), 시작시켜 그 자리에서 답한다(큐에서 만료된 지시를 다시 보낸 두 번째
+//! `.tell`).
 
 use serde_json::{Value, json};
 use tasty_agent::runner::{DispatchHandle, PollOutcome, TaskExecutor};

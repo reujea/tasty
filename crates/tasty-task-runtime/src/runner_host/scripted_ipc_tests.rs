@@ -3,8 +3,8 @@
 //!
 //! 응답 대기 상한은 waker 가 돌아온 뒤에 흐르므로 claim 과 즉시 응답이 그 상한과 경쟁하지 않는다.
 //! 늦은 응답과 채널 종료는 시험 본체가 첫 dispatch·poll 이 반환한 뒤에 한다. 남는 전제는 큐 기한이
-//! 명령을 만든 시각부터 흐르므로(`IpcCommand::claim`), 같은 스레드의 명령 생성부터 waker 까지의
-//! 몇 줄이 그 기한(5초)보다 짧다는 것이다.
+//! 명령을 만든 시각부터 흐르므로, 같은 스레드에서 명령 생성부터 waker 안의 잠금·`try_recv`·단계
+//! 선택을 거쳐 `IpcCommand::claim` 안의 큐 경과 판정까지가 그 기한(5초)보다 짧다는 것이다.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, mpsc};
@@ -55,7 +55,8 @@ fn reply(cmd: IpcCommand, result: Value) {
 }
 
 /// `answer_state_idle` 이면 `.state` 로 끝나는 명령은 단계를 쓰지 않고 idle 로 바로 답한다.
-/// 단계가 다 떨어진 뒤 온 명령은 보낸 스레드에서 실패한다.
+/// 그 밖의 명령은 단계를 하나씩 쓰며, 단계가 다 떨어진 뒤 온 명령은 보낸 스레드에서 실패한다.
+/// `.state` 는 단계 큐를 보기 전에 답하므로 단계가 떨어진 뒤에도 실패하지 않는다.
 pub(crate) fn install(ctx: &RunnerContext, steps: Vec<Step>, answer_state_idle: bool) -> Scripted {
     let (tx, cmds) = mpsc::channel::<IpcCommand>();
     let (fwd_tx, fwd_rx) = mpsc::channel::<IpcCommand>();

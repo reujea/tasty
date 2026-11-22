@@ -477,12 +477,12 @@ mod tests {
     }
 
     #[test]
-    fn a_public_dispatch_started_past_its_bound_is_a_timeout() {
+    fn a_public_dispatch_that_started_then_waited_past_its_bound_is_a_timeout() {
         let (tx, rx) = mpsc::channel::<IpcCommand>();
         let (held_tx, held_rx) = mpsc::channel::<IpcCommand>();
         let rx = std::sync::Mutex::new(rx);
         // 보낸 스레드가 응답 대기 전에 부르는 waker 안에서 꺼내 시작시킨다. 남는 전제는 요청에
-        // 실린 큐 기한(1초)이 명령 생성부터 이 claim 까지의 몇 줄 사이에 지나지 않는 것이다.
+        // 실린 큐 기한(1초)이 명령 생성부터 claim 안의 경과 판정까지 지나지 않는 것이다.
         let waker: IpcWaker = Arc::new(move || {
             let cmd = rx
                 .lock()
