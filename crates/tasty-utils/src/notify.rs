@@ -252,7 +252,7 @@ impl<'a> MetaLock<'a> {
                             meta_path.display(),
                             EXCLUSIVE_LOCK_BUDGET
                         );
-                        return Exclusive::Unavailable;
+                        return Exclusive::TimedOut;
                     }
                     std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
                 }
@@ -261,7 +261,7 @@ impl<'a> MetaLock<'a> {
                         "notify meta {} exclusive lock failed: {e}",
                         meta_path.display()
                     );
-                    return Exclusive::Unavailable;
+                    return Exclusive::Failed;
                 }
             }
         }
@@ -273,8 +273,11 @@ enum Exclusive<'a> {
     Locked(MetaLock<'a>),
     /// 기다리는 동안 다른 writer가 이미 비워 요청이 해소됐다.
     NotNeeded,
-    /// 잠금을 얻지 못했다. 잠금 없이 비울 수 있으나 누계는 올리지 않는다.
-    Unavailable,
+    /// 예산 동안 다른 보유자 때문에 잠금을 얻지 못했다. 잠금 없이 비울 수 있으나 누계는
+    /// 올리지 않는다.
+    TimedOut,
+    /// 잠금 시도가 경합이 아닌 오류로 실패했다. 처리는 `TimedOut`과 같다.
+    Failed,
 }
 
 impl Drop for MetaLock<'_> {
@@ -296,7 +299,7 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
     let exclusive = match meta.map(|m| MetaLock::exclusive(m, meta_path, over_cap)) {
         Some(Exclusive::Locked(lock)) => Some(lock),
         Some(Exclusive::NotNeeded) => return,
-        Some(Exclusive::Unavailable) | None => None,
+        Some(Exclusive::TimedOut | Exclusive::Failed) | None => None,
     };
     let Some(discarded) = truncate_over_cap(path, cap) else {
         return;
