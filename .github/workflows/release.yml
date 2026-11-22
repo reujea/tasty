@@ -89,8 +89,8 @@ jobs:
     needs: create-release
     if: ${{ always() && (needs.create-release.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: [self-hosted, Windows]
-    # 실측 최대 25.9분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 80
+    # build-check build-windows 대리 실측 최대 29.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 

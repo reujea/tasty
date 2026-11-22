@@ -301,6 +301,11 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
   2026-10-07~2026-10-08의 최근 30회다. 이 행들은 2026-11-22에 develop push 최근 10회로 다시 계산해도
   상한이 바뀌지 않아 표를 그대로 두었다.
 - 대리:
+  - release build-windows는 현재 배치에서 build-windows-arm64와 같은 호스트에서 겹쳐 돈다. 태그 실행 5회는 두 Windows
+    빌드가 `tasty-win-runner` 한 러너에서 차례로 돈 옛 배치의 값(최대 25.9분)이라 쓰지 않는다. 태그 release의 현재
+    배치에서 두 Windows 빌드가 겹칠 때의 시간은 미측정이고, 두 빌드가 겹쳐 돈 build-check의 실측(42752143294·
+    42784461025 가운데 최대 29.9분)을 대리로 쓴다. 이 대리값에는 release의 자산 업로드와 측정 뒤 바뀐 패키징
+    비용이 들어 있지 않다. 현재 배치에서 첫 태그 실행이 끝나면 자기 실측으로 바꾼다.
   - release build-windows-arm64는 현재 배치(전용 러너 `win-arm64`)의 태그 실행이 없어 같은 스크립트를 같은
     러너에서 실행하는 build-check build-windows-arm64의 실측을 쓴다. 전용 러너로 옮기기 전 x64 러너에서 잰
     자기 실측(3회, 최대 25.8분)은 다른 배치의 값이라 쓰지 않는다. 이 대리값에는 release의 자산 업로드와
@@ -336,7 +341,7 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 | plugin-version-check.yml | version-bump | 25 | 0 | 0.4 | 3 | 10 |
 | release.yml | create-release | 5 | 0 | 0.2 (arm64) | 3 | 10 |
 | release.yml | build-macos | 0 | 0 | 미측정(전용 러너에서 GH 잡 실행 0회) | 미측정(전용 러너에서 GH 잡 실행 0회) | 180 |
-| release.yml | build-windows | 5 | 0 | 25.9 | 3 | 80 |
+| release.yml | build-windows | 0 | 0 | 29.9 (build-check 대리) | 5 | 150 |
 | release.yml | build-windows-arm64 | 0 | 0 | 36.3 (build-check 대리) | 5 | 185 |
 | release.yml | build-linux-x64 | 5 | 0 | 18.1 | 3 | 55 |
 | release.yml | build-linux-arm64 | 5 | 0 | 15.2 | 3 | 50 |
