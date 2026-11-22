@@ -247,7 +247,8 @@ fn missing_symbols(
 /// # Safety
 ///
 /// `handle` must be a non-null handle returned by `dlopen` that has not been
-/// passed to `dlclose`.
+/// passed to `dlclose`. The other invariants of this lookup are recorded in
+/// docs/dev-guide/linux-appindicator-probe.md.
 #[cfg(target_os = "linux")]
 unsafe fn lookup_symbol(handle: *mut libc::c_void, symbol: &str) -> *mut libc::c_void {
     let Ok(c_symbol) = std::ffi::CString::new(symbol) else {

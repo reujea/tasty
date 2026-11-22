@@ -51,6 +51,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 | [popup-implementation](popup-implementation.md) | Popup(`PopupDef` 시스템) |
 | [dag-layout](dag-layout.md) | Task DAG 좌표 계산(`tasty-dag-layout`) — 레이어 배치·엣지 라우팅·어댑터 경계 |
 | [context-menu](context-menu.md) | OS 네이티브 컨텍스트 메뉴 |
+| [linux-appindicator-probe](linux-appindicator-probe.md) | Linux 트레이 사전 검사(`dlopen`·`dlsym`)의 unsafe 불변조건 — 핸들 수명, GTK 초기화 뒤·객체 생성 전 조회 전제, 상류 판 고정 |
 | [timer-hub](timer-hub.md) | 메인 루프의 주기 작업 등록·취소·데드라인과 대기 방식 |
 | [crash-diagnostics](crash-diagnostics.md) | 크래시 진단·로그 위치 · 콜백 안팎과 대기 IPC 정지 관측 · GUI/headless 진단 범위 · WebView 로드/배치/표시 실패 |
 | [memory-leak-soak](memory-leak-soak.md) | 메모리 누수 soak 테스트 — 4계층 지표·판정·플랫폼별 attribution |
