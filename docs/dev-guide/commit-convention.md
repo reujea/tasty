@@ -38,7 +38,9 @@ tasty 는 [Conventional Commits](https://www.conventionalcommits.org/) 를 따�
 | `perf` | 동작은 같고 성능만 개선 |
 | `style` | 동작·구조 변화 없는 표기 변경(포맷, 정렬 등) |
 | `i18n` | 번역 변경 — 하드코딩 문자열의 번역 키 전환, `lang/{en,ko,ja,zh-Hans}.toml` 키 추가/수정 |
-| `chore` | 빌드 설정, 의존성, CI, 버전 bump 등 |
+| `ci` | CI 설정 — `.github/workflows/` 의 워크플로, 러너 설정 |
+| `build` | 빌드·패키징 설정 — Cargo 빌드 설정과 프로필, 빌드·패키징 스크립트 |
+| `chore` | 의존성, 버전 bump 등 그 밖의 유지 작업. CI 설정과 빌드·패키징 설정은 넣지 않는다 |
 
 `i18n` 을 `refactor` 로 흡수하지 않는 이유: 리뷰어가 "어떤 문자열이 번역 대상이 됐고 어떤 lang 파일이 같이 바뀌었나" 로 히스토리를 걸러야 하는데, 그 기준이 구조 개선과 섞이면 잡히지 않는다. 키 정합(4 파일 동일 키 · placeholder 개수)이 깨지는 회귀도 이 type 안에서 추적된다. 번역 키를 건드리지 않는 문자열 리팩토링은 그대로 `refactor`.
 
@@ -76,6 +78,8 @@ fix(focus): preserve focus when closing non-active tab
 refactor(intent): split surface intent module by action type
 docs(dev-guide): add i18n policy
 i18n(cli): route passkey CLI strings through translation keys
+ci(crossplatform): add a headless clippy step to the Windows job
+build(profile): split debug info in the dev profile
 chore(deps): bump wgpu to 22.1
 ```
 
