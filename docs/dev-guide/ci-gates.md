@@ -625,9 +625,23 @@ cargo check -p tasty-doc-guards --all-targets --target x86_64-pc-windows-msvc
 
 `fd budget`은 soft 상한이 4096 미만이면 실패하며 상한을 변경하지는 않는다.
 실제 PTY와 자식 셸을 띄우는 시험(저널·PTY 하네스)의 fd 수요는 별도로 확인해야 한다. 공유 픽스처 `test_state()`는 PTY를 열지 않는다([유닛 테스트 격리](unit-test-isolation.md) §8).
-2026-09-06 run 33994212447에서 macOS soft 상한은 10240이었다. 당시 Linux 테스트의
-최고 fd는 기본 병렬도 966, threads=3에서 1157이었다. 이는 서로 다른 OS의 측정이며
-macOS의 실제 여유를 증명하지 않는다. 병렬도를 줄이면 fd가 반드시 감소한다는 근거도 아니다.
+2026-09-06 run 33994212447에서 macOS soft 상한은 10240이었다.
+
+Linux 루트 lib 시험(`cargo test -p tasty --lib`, 기본 feature, 기본 병렬도 16)의 최고 fd는
+2026-11-22 8945hs(x86_64 Ubuntu, 커밋 7af61292d2, soft 8192)에서 다음과 같았다.
+무부하는 50ms 표본 20회에서 151~314, 5ms 표본 3회에서 224~840이었다.
+CPU를 모두 쓰는 바쁜 루프 16개를 함께 돌리면 50ms 표본 20회에서 1258~1618, 5ms 표본 11회에서 1376~1629였다.
+soft 8192에서 돌린 54회 모두 통과했고 `os error 24`는 없었다. 같은 부하에서 soft를 1024로 낮추면 3회 모두 EMFILE로 실패했다.
+부하 최고 시점의 fd는 매번 pipe·socket·`/dev/null`이 4:2:1이었고, 그때 시험 프로세스의 스레드 230여 개 중
+200개 안팎이 `intent::headless` 시험의 이름을 물려받은 스레드였다. 이 시험 두 개는 훅을 128번씩 실행하고,
+훅 실행(`hook_runtime::trigger`)은 훅마다 이름 없는 스레드에서 `Command::output()`을 부른다.
+spawn 하나는 끝날 때까지 pipe 4개·socketpair 2개·`/dev/null` 1개를 쥐므로 CPU 경합으로 spawn이 늦어질수록 최고 fd가 커진다.
+같은 날 Linux CI 잡(`tasty-gx10-arm64`·`tasty-server-x64` 러너) 안의 루트 시험 프로세스는 soft·hard 모두 524288이었다.
+Linux 잡에는 macOS의 `fd budget` 같은 점검 단계가 없다.
+
+이 값들은 표본의 최고값이라 하한으로 읽는다. 서로 다른 OS의 측정이라 macOS의 실제 여유를 증명하지 않는다.
+CI가 실행하는 headless·gui 워크스페이스 시험 전체의 최고 fd도 아니다.
+병렬도를 바꿔 잰 값이 없으므로 병렬도를 줄이면 fd가 줄어든다고 가정하지 않는다.
 
 한도 검사 실패 시 하한부터 낮추지 않는다. 해당 러너에서 실제 최고 fd와 수명을 측정한다.
 Linux는 직접 실행한 테스트 PID의 `/proc/<pid>/fd`, macOS는 `lsof -p <pid>` 등을 이용하되
