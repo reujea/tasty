@@ -213,7 +213,11 @@ fn cached_probe<'a>(
 #[cfg(target_os = "linux")]
 fn probe(names: &[&'static str], symbols: &[&'static str]) -> Result<&'static str, ProbeFailure> {
     let (library, handle) = first_loadable(names).ok_or(ProbeFailure::NotLoadable)?;
-    let missing = missing_symbols(symbols, |symbol| lookup_symbol(handle, symbol));
+    let missing = missing_symbols(symbols, |symbol| {
+        // SAFETY: handle came from dlopen in `first_loadable` just above and is never
+        // passed to dlclose, so it stays valid for every lookup.
+        unsafe { lookup_symbol(handle, symbol) }
+    });
     if missing.is_empty() {
         Ok(library)
     } else {
@@ -239,8 +243,13 @@ fn missing_symbols(
 
 /// The raw `dlsym` address of `symbol` in `handle`, or null when the name has an
 /// interior NUL. It does not interpret `dlerror`; [`missing_symbols`] decides.
+///
+/// # Safety
+///
+/// `handle` must be a non-null handle returned by `dlopen` that has not been
+/// passed to `dlclose`.
 #[cfg(target_os = "linux")]
-fn lookup_symbol(handle: *mut libc::c_void, symbol: &str) -> *mut libc::c_void {
+unsafe fn lookup_symbol(handle: *mut libc::c_void, symbol: &str) -> *mut libc::c_void {
     let Ok(c_symbol) = std::ffi::CString::new(symbol) else {
         return std::ptr::null_mut();
     };
@@ -251,8 +260,8 @@ fn lookup_symbol(handle: *mut libc::c_void, symbol: &str) -> *mut libc::c_void {
     //   (libloading-0.7.4/src/os/unix/mod.rs, `Library::get`).
     unsafe { libc::dlerror() };
     // SAFETY: the lookup only reads the symbol table of a library this module opened.
-    // - Pointer: handle is a non-null handle returned by dlopen in `first_loadable`
-    //   and never passed to dlclose; c_symbol is a NUL-terminated string that lives
+    // - Pointer: the caller guarantees handle is a valid dlopen handle that has not been
+    //   passed to dlclose (function-level Safety doc); c_symbol is a NUL-terminated string that lives
     //   until the call returns.
     // - Resolver code: for a GNU IFUNC symbol dlsym runs the library's resolver. In
     //   the product call this runs in the same thread context as the dlopen above
