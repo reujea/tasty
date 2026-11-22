@@ -261,15 +261,13 @@ pub struct CollapseButton<'a> {
     pub tooltip: &'a str,
     pub hovered: bool,
     pub pressed: bool,
-    /// 이 버튼의 팝업이 이번 프레임 키 주인이다. 아니면 egui 키 포커스가 남아 있어도 Enter·Space를 읽지 않는다.
-    pub takes_keys: bool,
 }
 
 /// [`popup_collapse_button`]의 결과.
 #[derive(Debug, Default)]
 pub struct CollapseButtonOutput {
-    /// 버튼이 키 포커스를 가진 채 Enter·Space를 눌렀다. 포인터 누름은 포함하지 않는다.
-    pub activated: bool,
+    /// 버튼이 egui 키 포커스를 가졌다. 키는 읽지 않는다. 호출자가 그 셸의 키 통로로 판정한다.
+    pub focused: bool,
     /// 글리프를 읽지 못했다. 호출자가 기록한다.
     pub glyph_error: Option<egui::load::LoadError>,
 }
@@ -312,14 +310,8 @@ pub fn popup_collapse_button(
             |ui| ui.label(b.tooltip),
         );
     }
-    let activated = focused
-        && b.takes_keys
-        && ctx.input_mut(|i| {
-            i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
-                || i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
-        });
     CollapseButtonOutput {
-        activated,
+        focused,
         glyph_error,
     }
 }
@@ -368,14 +360,15 @@ mod tests {
         );
     }
 
-    /// 접기 버튼은 Tab 키 포커스를 받고, 포커스가 있을 때만 Enter·Space로 접기를 요청한다. 접근 이름은 라벨이다.
+    /// T-5-4: 접기 버튼은 Tab 키 포커스를 받고 그 포커스를 알린다. 키는 읽지 않아 Enter 사건이 egui 입력에 남는다
+    /// (호출자가 그 셸의 키 통로로 판정한다). 접근 이름은 라벨이다.
     #[test]
-    fn the_collapse_button_takes_key_focus_and_answers_enter_and_space() {
+    fn the_fold_button_reports_focus_without_reading_keys() {
         let theme = tasty_themes::mocha_fallback();
         let ctx = egui::Context::default();
         let id = egui::Id::new("collapse");
         let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(24.0, 24.0));
-        let run_with = |key: Option<egui::Key>, focus: bool, takes_keys: bool| {
+        let run = |key: Option<egui::Key>, focus: bool| {
             let events = key
                 .map(|key| {
                     vec![egui::Event::Key {
@@ -387,7 +380,8 @@ mod tests {
                     }]
                 })
                 .unwrap_or_default();
-            let mut activated = false;
+            let mut focused = false;
+            let mut left = false;
             let out = ctx.run(
                 egui::RawInput {
                     events,
@@ -398,7 +392,7 @@ mod tests {
                         ctx.memory_mut(|m| m.request_focus(id));
                     }
                     let painter = ctx.layer_painter(egui::LayerId::background());
-                    activated = popup_collapse_button(
+                    focused = popup_collapse_button(
                         ctx,
                         &painter,
                         &theme,
@@ -410,18 +404,21 @@ mod tests {
                             tooltip: "tip",
                             hovered: false,
                             pressed: false,
-                            takes_keys,
                         },
                     )
-                    .activated;
+                    .focused;
+                    left = ctx.input(|i| {
+                        i.events
+                            .iter()
+                            .any(|e| matches!(e, egui::Event::Key { pressed: true, .. }))
+                    });
                 },
             );
-            (activated, out)
+            (focused, left, out)
         };
-        let run = |key, focus| run_with(key, focus, true);
-        assert!(!run(Some(egui::Key::Enter), false).0, "포커스 없는 Enter");
+        assert!(!run(Some(egui::Key::Enter), false).0, "포커스 없음");
         // 포커스를 얻는 프레임에 접근 이름이 실린 사건이 나간다.
-        let (_, out) = run(None, true);
+        let (_, _, out) = run(None, true);
         assert!(
             out.platform_output.events.iter().any(|e| matches!(
                 e,
@@ -431,13 +428,11 @@ mod tests {
             "접근 이름: {:?}",
             out.platform_output.events
         );
-        assert!(run(Some(egui::Key::Enter), true).0);
-        assert!(run(Some(egui::Key::Space), true).0);
-        // 키 포커스가 남아도 팝업이 키 주인이 아니면 읽지 않고 남긴다.
-        assert!(
-            !run_with(Some(egui::Key::Enter), true, false).0,
-            "키 주인이 아닌 Enter"
-        );
+        for key in [egui::Key::Enter, egui::Key::Space] {
+            let (focused, left, _) = run(Some(key), true);
+            assert!(focused, "{key:?}: 포커스를 알린다");
+            assert!(left, "{key:?}: 키를 읽지 않아 사건이 남는다");
+        }
     }
 
     fn frames() -> (egui::Vec2, egui::Vec2) {

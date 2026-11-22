@@ -65,8 +65,6 @@ pub(crate) struct CollapsedDraw {
     pub(crate) on_scrim: bool,
     /// 포커스 표시. 버튼 링·포커스 가장자리를 켠다. 키는 받지 않는다.
     pub(crate) focused: bool,
-    /// 이번 프레임 키 주인이면 Enter·Space로 펼친다.
-    pub(crate) takes_keys: bool,
 }
 
 /// 접힌 팝업의 WebView 오버레이 대상. 펼친 상자 대신 버튼 프레임을 페이지 위에 합성한다.
@@ -94,8 +92,9 @@ pub(crate) fn collapsed_overlay_target(
     }
 }
 
-/// 접힌 팝업의 프레임과 보기 버튼을 그 팝업 레이어에 그린다. 버튼을 누르거나 키 주인일 때 Enter·Space를
-/// 누르면 참이다(펼치기). `clip`은 논리 범위 사각형이다.
+/// 접힌 팝업의 프레임과 보기 버튼을 그 팝업 레이어에 그린다. 버튼을 왼쪽 버튼으로 누르거나 셸이 넘긴 키 통로
+/// (`keys`, 이번 프레임 키 주인일 때만 키를 준다)로 펼치기 기본 조작(`BasicKey::Expand`)을 누르면 참이다. 수식키가
+/// 붙은 Enter·Space 는 펼치지 않는다. `clip`은 논리 범위 사각형이다.
 pub(crate) fn draw_collapsed(
     ctx: &egui::Context,
     th: &tasty_type_appearance::theme::Theme,
@@ -103,17 +102,14 @@ pub(crate) fn draw_collapsed(
     frame: CollapsedPlacement,
     clip: egui::Rect,
     look: CollapsedDraw,
+    keys: &mut super::keys::PopupKeys,
 ) -> bool {
     if let Some(scrim) = look.scrim {
         ctx.layer_painter(layer_id)
             .with_clip_rect(clip)
             .rect_filled(scrim, 0.0, th.scrim().to_egui());
     }
-    let keyed = look.takes_keys
-        && ctx.input_mut(|i| {
-            i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
-                || i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
-        });
+    let keyed = keys.consume(super::keys::BasicKey::Expand);
     let clicked = egui::Area::new(layer_id.id)
         .order(egui::Order::Foreground)
         .fixed_pos(frame.rect.min)
@@ -136,14 +132,9 @@ pub(crate) fn draw_collapsed(
             )
         })
         .inner;
-    // egui 는 키 포커스가 남은 버튼의 Enter·Space 도 클릭으로 돌려준다. 이번 프레임 키 주인이 아니면 포인터
-    // 클릭만 받는다.
-    let clicked = if look.takes_keys {
-        clicked.clicked()
-    } else {
-        clicked.clicked_by(egui::PointerButton::Primary)
-    };
-    clicked || keyed
+    // egui 는 키 포커스가 남은 버튼의 Enter·Space 도(수식키와 무관하게) 클릭으로 돌려준다. 키는 위 통로로만 받고
+    // 여기서는 포인터 클릭만 받는다.
+    clicked.clicked_by(egui::PointerButton::Primary) || keyed
 }
 
 /// 라벨 버튼 프레임과 아이콘 버튼 프레임의 바깥 크기. 접힘 배치(`place_collapsed`)가 쓴다.
@@ -188,18 +179,17 @@ pub(crate) struct HostBar {
     pub(crate) hovered: bool,
     /// 접기 버튼의 키 포커스·툴팁 식별자.
     pub(crate) id: egui::Id,
-    /// 이 팝업이 이번 프레임 키 주인이다.
-    pub(crate) takes_keys: bool,
 }
 
 /// 펼친 headless 팝업의 host 제목줄과 접기 버튼을 그린다. 제목 문구는 없고 버튼은 닫기 자리에 있다.
-/// 접기 버튼이 키로 눌렸으면 참이다.
+/// 접기 버튼이 키로 눌렸으면 참이다(`keys` 는 [`collapse_button`]과 같다).
 pub(crate) fn paint_host_bar(
     ctx: &egui::Context,
     painter: &egui::Painter,
     th: &tasty_type_appearance::theme::Theme,
     layer_id: egui::LayerId,
     bar: HostBar,
+    keys: &mut super::keys::PopupKeys,
 ) -> bool {
     let title = host_bar_rect(bar.box_rect);
     let cr = bar.radius as u8;
@@ -227,8 +217,8 @@ pub(crate) fn paint_host_bar(
             id: bar.id,
             rect: btn,
             hovered: bar.hovered,
-            takes_keys: bar.takes_keys,
         },
+        keys,
     )
 }
 
@@ -238,25 +228,21 @@ pub(crate) struct CollapseSlot {
     pub(crate) id: egui::Id,
     pub(crate) rect: egui::Rect,
     pub(crate) hovered: bool,
-    /// 이 팝업이 이번 프레임 키 주인이다. 아니면 키 포커스가 남아도 Enter·Space를 읽지 않는다.
-    pub(crate) takes_keys: bool,
 }
 
-/// 펼친 팝업의 접기 버튼(host·plugin 공용 위젯). 키 포커스에서 Enter·Space를 누르면 참이다. 포인터 누름은
-/// 호출자의 누름 경로가 판정한다.
+/// 펼친 팝업의 접기 버튼(host·plugin 공용 위젯). 버튼이 egui 키 포커스를 가질 때만 셸이 넘긴 키 통로(`keys`, 이번
+/// 프레임 키 주인일 때만 키를 준다)로 펼치기 기본 조작(`BasicKey::Expand`)을 소비하고 참이다. 그래서 펼친 팝업 안
+/// 다른 컨트롤의 Enter 를 빼앗지 않고, 수식키가 붙은 Enter·Space 로는 접지 않는다. 포인터 누름은 호출자의 누름
+/// 경로가 판정한다.
 pub(crate) fn collapse_button(
     ctx: &egui::Context,
     painter: &egui::Painter,
     th: &tasty_type_appearance::theme::Theme,
     layer_id: egui::LayerId,
     slot: CollapseSlot,
+    keys: &mut super::keys::PopupKeys,
 ) -> bool {
-    let CollapseSlot {
-        id,
-        rect,
-        hovered,
-        takes_keys,
-    } = slot;
+    let CollapseSlot { id, rect, hovered } = slot;
     let out = tasty_ui_widgets::popup_collapse_button(
         ctx,
         painter,
@@ -269,13 +255,12 @@ pub(crate) fn collapse_button(
             tooltip: crate::i18n::t("popup.collapse_button.tooltip"),
             hovered,
             pressed: hovered && ctx.input(|i| i.pointer.primary_down()),
-            takes_keys,
         },
     );
     if let Some(err) = out.glyph_error {
         tracing::warn!("popup collapse button glyph failed to load: {err}");
     }
-    out.activated
+    out.focused && keys.consume(super::keys::BasicKey::Expand)
 }
 
 /// plugin 팝업의 펼침과 그 팝업이 연 host 팝업(파일 피커)이 따르는 표시 상태. 펼침은 사용자가 보기 버튼으로

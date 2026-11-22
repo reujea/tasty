@@ -405,3 +405,237 @@ fn an_expanded_popup_larger_than_the_window_fits_its_frame_and_keeps_its_content
     assert_eq!(rect.size() + p.expanded_overflow(), needed);
     assert!(p.expanded_overflow().x > 0.0 || p.expanded_overflow().y > 0.0);
 }
+
+fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+    egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers,
+    }
+}
+
+/// 키 주인인 접힌 팝업을 한 프레임 그린다.
+fn collapsed_owner() -> (PopupManager, egui::Context, PopupInstanceId) {
+    let mut mgr = manager(true, false);
+    let iid = open_in_r(&mut mgr);
+    let ctx = egui::Context::default();
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().collapsed());
+    (mgr, ctx, iid)
+}
+
+/// 키 주인인 접힌 팝업의 보기 버튼에 egui 키 포커스를 준다(Tab). 접힘 Area 자체도 클릭을 받아 포커스 순서에
+/// 들므로 그 Area 를 건너뛸 때까지 Tab 을 보낸다.
+fn collapsed_with_button_focus() -> (PopupManager, egui::Context, PopupInstanceId) {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    let area = super::super::draw::area_id_of(POP, iid).with("move");
+    let mut focused = None;
+    for _ in 0..4 {
+        frame(
+            &mut mgr,
+            &ctx,
+            200.0,
+            vec![key(egui::Key::Tab, egui::Modifiers::NONE)],
+        );
+        frame(&mut mgr, &ctx, 200.0, vec![]);
+        focused = ctx.memory(|m| m.focused());
+        if focused.is_some_and(|id| id != area) {
+            break;
+        }
+    }
+    assert!(
+        focused.is_some_and(|id| id != area),
+        "보기 버튼이 egui 포커스다: {focused:?}"
+    );
+    assert!(mgr.instance(iid).unwrap().collapsed());
+    (mgr, ctx, iid)
+}
+
+/// T-5-1: Given 키 주인인 접힌 팝업, When Enter 를 누르면, Then 펼친다.
+#[test]
+fn enter_expands_a_collapsed_popup() {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+    );
+    assert!(mgr.instance(iid).unwrap().expanded());
+}
+
+/// T-5-3s: Given 키 주인인 접힌 팝업, When Space 를 누르면, Then 펼친다.
+#[test]
+fn space_expands_a_collapsed_popup() {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Space, egui::Modifiers::NONE)],
+    );
+    assert!(mgr.instance(iid).unwrap().expanded());
+}
+
+/// T-5-2: Given 키 주인인 접힌 팝업, When Shift+Enter 를 누르면, Then 펼치지 않는다.
+#[test]
+fn shift_enter_does_not_expand_a_collapsed_popup() {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Enter, egui::Modifiers::SHIFT)],
+    );
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().collapsed());
+}
+
+/// T-5-3: Given 보기 버튼이 egui 포커스인 접힌 키 주인, When Ctrl+Enter 를 누르면(egui 가 키로 만든 클릭), Then
+/// 펼치지 않는다.
+#[test]
+fn ctrl_enter_on_the_focused_button_does_not_expand() {
+    let (mut mgr, ctx, iid) = collapsed_with_button_focus();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Enter, egui::Modifiers::CTRL)],
+    );
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().collapsed());
+}
+
+/// T-5-3a: Given 보기 버튼이 egui 포커스인 접힌 키 주인, When Alt+Space 를 누르면, Then 펼치지 않는다.
+#[test]
+fn alt_space_does_not_expand_a_collapsed_popup() {
+    let (mut mgr, ctx, iid) = collapsed_with_button_focus();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Space, egui::Modifiers::ALT)],
+    );
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().collapsed());
+}
+
+/// Cmd+Enter 누름.
+#[cfg(target_os = "macos")]
+fn command_enter(_ctx: &egui::Context) -> egui::Event {
+    key(
+        egui::Key::Enter,
+        egui::Modifiers::MAC_CMD | egui::Modifiers::COMMAND,
+    )
+}
+
+/// Cmd(Super)+Enter 누름. 비-macOS 는 Super 를 egui 수식키에 싣지 않으므로 사건 수식키는 없고 `super_held` 로 남긴다.
+#[cfg(not(target_os = "macos"))]
+fn command_enter(ctx: &egui::Context) -> egui::Event {
+    tasty_key_match::note_modifiers(ctx, winit::keyboard::ModifiersState::SUPER);
+    key(egui::Key::Enter, egui::Modifiers::NONE)
+}
+
+/// T-5-3m: Given 키 주인인 접힌 팝업, When Cmd(비-macOS Super)+Enter 를 누르면, Then 펼치지 않는다.
+#[test]
+fn command_enter_does_not_expand_a_collapsed_popup() {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    let press = command_enter(&ctx);
+    frame(&mut mgr, &ctx, 200.0, vec![press]);
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().collapsed());
+}
+
+/// 키 주인인 펼친 팝업의 접기 버튼에 egui 키 포커스를 준다.
+fn expanded_with_fold_focus() -> (PopupManager, egui::Context, PopupInstanceId) {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    press_show_button(&mut mgr, &ctx, iid, 200.0);
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().expanded());
+    let id = egui::Id::new("popup.collapse_button").with(iid.0);
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(ctx.memory(|m| m.has_focus(id)), "접기 버튼이 egui 포커스다");
+    (mgr, ctx, iid)
+}
+
+/// T-5-5: Given 접기 버튼이 egui 포커스인 펼친 키 주인, When Enter 를 누르면, Then 접힌다.
+#[test]
+fn enter_folds_from_the_focused_fold_button() {
+    let (mut mgr, ctx, iid) = expanded_with_fold_focus();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+    );
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().collapsed());
+}
+
+/// T-5-6: Given 접기 버튼이 egui 포커스인 펼친 키 주인, When Shift+Enter 를 누르면, Then 접히지 않는다.
+#[test]
+fn shift_enter_does_not_fold() {
+    let (mut mgr, ctx, iid) = expanded_with_fold_focus();
+    frame(
+        &mut mgr,
+        &ctx,
+        200.0,
+        vec![key(egui::Key::Enter, egui::Modifiers::SHIFT)],
+    );
+    frame(&mut mgr, &ctx, 200.0, vec![]);
+    assert!(mgr.instance(iid).unwrap().expanded());
+}
+
+/// 본문에 버튼 하나를 그리는 프레임. 버튼 id 와 눌림을 돌려준다.
+fn frame_with_button(
+    mgr: &mut PopupManager,
+    ctx: &egui::Context,
+    events: Vec<egui::Event>,
+) -> Option<(egui::Id, bool)> {
+    let layout = layout(200.0);
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    let mut button = None;
+    drop(ctx.run(raw, |ctx| {
+        mgr.draw(
+            ctx,
+            &mut |_, ui| {
+                let r = ui.button("x");
+                button = Some((r.id, r.clicked()));
+            },
+            Some(&layout),
+            &[],
+        );
+    }));
+    button
+}
+
+/// T-5-7: Given 펼친 키 주인 본문의 다른 버튼이 egui 포커스일 때, When Enter 를 누르면, Then 그 버튼이 받고 팝업은
+/// 접히지 않는다.
+#[test]
+fn enter_on_another_control_is_not_taken_by_the_fold_button() {
+    let (mut mgr, ctx, iid) = collapsed_owner();
+    press_show_button(&mut mgr, &ctx, iid, 200.0);
+    let (id, _) = frame_with_button(&mut mgr, &ctx, vec![]).expect("본문을 그린다");
+    ctx.memory_mut(|m| m.request_focus(id));
+    frame_with_button(&mut mgr, &ctx, vec![]);
+    assert!(ctx.memory(|m| m.has_focus(id)), "본문 버튼이 egui 포커스다");
+    let (_, clicked) = frame_with_button(
+        &mut mgr,
+        &ctx,
+        vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+    )
+    .expect("본문을 그린다");
+    frame_with_button(&mut mgr, &ctx, vec![]);
+    assert!(clicked, "본문 버튼이 Enter 를 받는다");
+    assert!(
+        mgr.instance(iid).unwrap().expanded(),
+        "접기 버튼은 Enter 를 가져가지 않는다"
+    );
+}

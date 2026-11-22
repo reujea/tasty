@@ -207,6 +207,18 @@ fn draw_plugin_popups_with_keys(
     occluders.extend(covers.iter().copied());
     state.plugin_popup_covers.extend(covers);
 
+    // 셸(보기 버튼·접기 버튼)의 키 통로. Enter·Space 만 받고, 이번 프레임 키 주인 팝업에만 키를 준다.
+    let edits = crate::adapters::ui::input::edit_key::EditBindings::from_settings(
+        &_engine.settings.keybindings,
+    );
+    let shell_keys = |takes_keys: bool| {
+        crate::adapters::ui::popup::keys::PopupKeys::new(
+            ctx,
+            takes_keys,
+            crate::adapters::ui::popup::PopupKeyboard::Keys,
+            &edits,
+        )
+    };
     let ppp = ctx.pixels_per_point().max(f32::EPSILON);
     let current_theme = {
         let th = crate::theme::theme();
@@ -249,7 +261,6 @@ fn draw_plugin_popups_with_keys(
                 .then_some(scope_rect),
                 on_scrim: snap.layout.covers_scope,
                 focused: has_key_focus,
-                takes_keys: has_key_focus,
             };
             state
                 .webview_overlay
@@ -263,7 +274,15 @@ fn draw_plugin_popups_with_keys(
                     ppp,
                 ));
             let th = crate::theme::theme();
-            if display::draw_collapsed(ctx, &th, layer_id, frame, scope_rect, look) {
+            if display::draw_collapsed(
+                ctx,
+                &th,
+                layer_id,
+                frame,
+                scope_rect,
+                look,
+                &mut shell_keys(has_key_focus),
+            ) {
                 state.popups.expand_plugin(snap.instance_id);
                 state.plugin_popup_focus_bumps.push(snap.instance_id);
             }
@@ -370,8 +389,8 @@ fn draw_plugin_popups_with_keys(
                     title_edge: th.border_frame().to_egui(),
                     hovered,
                     id: Id::new("plugin_popup.collapse_button").with(snap.instance_id),
-                    takes_keys: has_key_focus,
                 },
+                &mut shell_keys(has_key_focus),
             );
             if keyed || hovered && press.as_ref().is_some_and(|p| p.is_primary()) {
                 state.popups.refold_plugin(snap.instance_id);
@@ -2371,6 +2390,53 @@ mod tests {
         assert_eq!(escapes, vec![(false, false), (true, true)], "{events:?}");
         assert!(!scene.state.popups.plugin_expanded().contains(&1), "접힌다");
         assert!(!scene.closed(), "닫지 않는다");
+    }
+
+    fn shell_key(key: egui::Key, modifiers: Modifiers) -> Event {
+        Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+
+    /// T-5-8: Given 접힌 plugin 키 주인, When Enter 를 누르면, Then 펼친다.
+    #[test]
+    fn enter_expands_a_collapsed_plugin_popup() {
+        let mut scene = plugin_scene(tasty_plugin_protocol::popup_decl::PopupEscape::Close, true);
+        assert!(!scene.state.popups.plugin_expanded().contains(&1));
+        scene.pass(vec![shell_key(egui::Key::Enter, Modifiers::NONE)]);
+        assert!(scene.state.popups.plugin_expanded().contains(&1), "펼친다");
+    }
+
+    /// T-5-9: Given 접힌 plugin 키 주인, When Shift+Enter 를 누르면, Then 펼치지 않는다.
+    #[test]
+    fn shift_enter_does_not_expand_a_collapsed_plugin_popup() {
+        let mut scene = plugin_scene(tasty_plugin_protocol::popup_decl::PopupEscape::Close, true);
+        scene.pass(vec![shell_key(egui::Key::Enter, Modifiers::SHIFT)]);
+        scene.pass(Vec::new());
+        assert!(!scene.state.popups.plugin_expanded().contains(&1));
+    }
+
+    /// T-5-10: Given 접기 버튼이 egui 포커스인 펼친 plugin 키 주인, When Shift+Enter 를 누르면, Then 접히지 않는다.
+    #[test]
+    fn shift_enter_does_not_fold_an_expanded_plugin_popup() {
+        let mut scene = expanded_scene(tasty_plugin_protocol::popup_decl::PopupEscape::Close);
+        let id = Id::new("plugin_popup.collapse_button").with(1u64);
+        scene.ctx.memory_mut(|m| m.request_focus(id));
+        scene.pass(Vec::new());
+        assert!(
+            scene.ctx.memory(|m| m.has_focus(id)),
+            "접기 버튼이 egui 포커스다"
+        );
+        scene.pass(vec![shell_key(egui::Key::Enter, Modifiers::SHIFT)]);
+        scene.pass(Vec::new());
+        assert!(
+            scene.state.popups.plugin_expanded().contains(&1),
+            "접히지 않는다"
+        );
     }
 
     #[test]

@@ -157,7 +157,6 @@ pub fn draw_title_buttons(
                     tooltip: crate::i18n::t("popup.collapse_button.tooltip"),
                     hovered,
                     pressed: hovered && down,
-                    takes_keys: true,
                 },
             );
             if let Some(err) = out.glyph_error {

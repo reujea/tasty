@@ -344,11 +344,9 @@ const POPUP_BODIES: &[&str] = &[
     "src/adapters/ui/tutorial/topic_popup.rs",
 ];
 
-/// 문 자체, 이번 프레임 키 주인 값(`takes_keys`)을 받는 접힌 보기 버튼, 관리자가 넘긴 통로로만 키를 읽는 키 통로
-/// 모듈.
+/// 문 자체와 관리자가 넘긴 통로로만 키를 읽는 키 통로 모듈.
 const GATE_AND_OWNER_BUTTONS: &[&str] = &[
     "src/adapters/ui/popup/body_keys.rs",
-    "src/adapters/ui/popup/display.rs",
     "src/adapters/ui/popup/keys.rs",
 ];
 
@@ -665,14 +663,6 @@ const WIDGET_CALLS: &[(&str, &str)] = &[
     (
         "src/adapters/ui/popup/dag_list.rs",
         "crates/tasty-ui-widgets/src/multi_select.rs",
-    ),
-    (
-        "src/adapters/ui/popup/display.rs",
-        "crates/tasty-ui-widgets/src/collapsed_popup.rs",
-    ),
-    (
-        "src/adapters/ui/popup/draw.rs",
-        "crates/tasty-ui-widgets/src/collapsed_popup.rs",
     ),
     (
         "src/adapters/ui/popup/explorer_conflict.rs",

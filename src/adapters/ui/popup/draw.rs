@@ -580,7 +580,6 @@ impl PopupManager {
                             .filter(|r| !tasty_egui_theme::overlay_edge::scrim_skipped(*r, &pages)),
                         on_scrim: popup.look.covers_scope,
                         focused: shown_focus == Some(popup.instance),
-                        takes_keys: keys_at_start == Some(popup.instance),
                     };
                     if !popup.passive && popup.arrange.takes_focus {
                         overlay_targets.push(super::display::collapsed_overlay_target(
@@ -592,7 +591,16 @@ impl PopupManager {
                             ctx.pixels_per_point(),
                         ));
                     }
-                    if super::display::draw_collapsed(ctx, &th, layer_id, frame, scope_clip, look) {
+                    // 보기 버튼은 Enter·Space 만 받는다. 이번 프레임 키 주인일 때만 키를 준다.
+                    let mut keys = PopupKeys::new(
+                        ctx,
+                        keys_at_start == Some(popup.instance),
+                        super::PopupKeyboard::Keys,
+                        edits,
+                    );
+                    if super::display::draw_collapsed(
+                        ctx, &th, layer_id, frame, scope_clip, look, &mut keys,
+                    ) {
                         expand_requested = Some(popup.instance);
                     }
                 }
@@ -803,12 +811,13 @@ impl PopupManager {
                         &painter,
                         &th,
                         layer_id,
-                        super::display::CollapseSlot {
-                            id,
-                            rect,
-                            hovered,
-                            takes_keys: keys_at_start == Some(popup_iid),
-                        },
+                        super::display::CollapseSlot { id, rect, hovered },
+                        &mut PopupKeys::new(
+                            ctx,
+                            keys_at_start == Some(popup_iid),
+                            super::PopupKeyboard::Keys,
+                            edits,
+                        ),
                     ) {
                         refold_requested = Some(popup_iid);
                     }
