@@ -158,14 +158,15 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::Shutdown => {
                 self.begin_shutdown(event_loop);
             }
-            AppEvent::Minimize => self.handle_minimize(),
+            AppEvent::Minimize => self.handle_minimize(event_loop),
             AppEvent::QuitRequested => {
                 self.handle_quit_requested(event_loop);
             }
             AppEvent::CloseWindow(id) => {
                 self.request_close_window(id, event_loop);
             }
-            // Windows·Linux는 숨긴 창을 재사용한다. macOS는 parked 상태로 새 창을 만든다.
+            // Windows는 숨긴 창을 다시 보이게 한다. X11(XWayland 포함)은 트레이로 숨긴 창을 다시
+            // map하고 최소화 해제는 창 관리자에 요청한다. 네이티브 Wayland에서는 winit이 세 호출을 무시한다.
             #[cfg(any(windows, target_os = "linux"))]
             AppEvent::TrayShowWindow => {
                 for w in self.view.views.values() {
@@ -173,10 +174,17 @@ impl ApplicationHandler<AppEvent> for App {
                     w.base().winit.set_minimized(false);
                     w.base().winit.focus_window();
                 }
-                tracing::info!(
-                    "restored {} window(s) from system tray",
-                    self.view.views.len()
-                );
+                let n = self.view.views.len();
+                #[cfg(target_os = "linux")]
+                if crate::boot::single_instance::is_wayland(event_loop) {
+                    tracing::info!(
+                        "tray show on native Wayland: winit ignores unhide, unminimize and focus; {n} window(s) left to the compositor"
+                    );
+                } else {
+                    tracing::info!("restored {n} window(s) from system tray");
+                }
+                #[cfg(windows)]
+                tracing::info!("restored {n} window(s) from system tray");
             }
             #[cfg(any(windows, target_os = "linux"))]
             AppEvent::ExternalActivate(request) => {
@@ -716,7 +724,7 @@ impl App {
         #[cfg(windows)]
         crate::jump_list::setup_jump_list();
 
-        // 창을 다시 만들더라도 트레이는 하나만 유지한다. 생성할 수 없으면 taskbar·dock 최소화로 동작한다.
+        // 창을 다시 만들더라도 트레이는 하나만 유지한다. 생성할 수 없으면 플랫폼별 최소화로 대신한다(정책 문서의 OS별 표).
         #[cfg(all(
             any(windows, target_os = "macos", target_os = "linux"),
             feature = "gui"
@@ -724,7 +732,7 @@ impl App {
         self.ensure_tray_icon_once();
     }
 
-    /// 창 복원 때 트레이를 다시 만들지 않는다. 생성 불가는 일반 최소화로 처리한다.
+    /// 창 복원 때 트레이를 다시 만들지 않는다. 생성 불가는 정책 문서 OS별 표의 대체 동작을 따른다.
     #[cfg(all(
         any(windows, target_os = "macos", target_os = "linux"),
         feature = "gui"
@@ -827,9 +835,9 @@ impl App {
             && let Some(menu_id) = crate::system_tray::poll_menu_event()
         {
             if menu_id == ids.show_window {
-                // 기존 MainView가 있으면 다시 표시하고, 모두 parked 상태일 때만 새 창을 만든다.
                 #[cfg(target_os = "macos")]
                 {
+                    // 살아 있는 MainView가 있으면 그 창의 포커스를 요청하고, 없으면 CreateWindow를 보낸다.
                     let target = self
                         .view
                         .focused_view_id
@@ -975,8 +983,13 @@ impl App {
         }
     }
 
-    /// macOS는 MainView 상태를 park하고 창을 없앤다. Windows·Linux는 창을 숨기거나 최소화한다.
-    fn handle_minimize(&mut self) {
+    /// macOS는 MainView 상태를 park하고 창을 없앤다. Windows는 트레이가 있으면 창을 숨기고 없으면 최소화한다.
+    /// X11(XWayland 포함)은 트레이가 있으면 창을 숨기고 없으면 창 관리자에 최소화를 요청한다.
+    /// 네이티브 Wayland는 숨김이 불가능해 트레이 유무와 관계없이 컴포지터에 최소화를 요청한다.
+    fn handle_minimize(&mut self, event_loop: &ActiveEventLoop) {
+        // Wayland 판정은 Linux에서만 쓴다.
+        #[cfg(not(target_os = "linux"))]
+        let _unused = event_loop;
         #[cfg(target_os = "macos")]
         {
             let drained: Vec<_> = self.view.views.drain().collect();
@@ -1009,16 +1022,22 @@ impl App {
         }
         #[cfg(target_os = "linux")]
         {
-            if self.tray_icon.is_some() {
-                for w in self.view.views.values() {
+            let wayland = crate::boot::single_instance::is_wayland(event_loop);
+            let hide = self.tray_icon.is_some() && !wayland;
+            for w in self.view.views.values() {
+                if hide {
                     w.base().winit.set_visible(false);
-                }
-                tracing::info!("hid {} window(s) to system tray", self.view.views.len());
-            } else {
-                for w in self.view.views.values() {
+                } else {
                     w.base().winit.set_minimized(true);
                 }
-                tracing::info!("minimized {} window(s) to taskbar", self.view.views.len());
+            }
+            let n = self.view.views.len();
+            if wayland {
+                tracing::info!("requested compositor minimize for {n} window(s) (native Wayland)");
+            } else if hide {
+                tracing::info!("hid {n} window(s) to system tray");
+            } else {
+                tracing::info!("minimized {n} window(s) to taskbar");
             }
         }
     }

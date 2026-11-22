@@ -11,7 +11,7 @@
 //! Per docs/design/policies/system-tray.md#graceful-degradation this is best-effort: when the tray
 //! cannot be created (GTK init failure, no AppIndicator library on Linux, a
 //! builder error), [`create_tray_icon`] returns `None` and the caller falls back
-//! to taskbar/dock minimize; such failures never abort the app. On Linux the
+//! to the per-platform minimize in the policy's OS table; such failures never abort the app. On Linux the
 //! AppIndicator library is probed with `dlopen` before building, because
 //! `libappindicator-sys` panics when it cannot load it; the first library that
 //! loads is also checked for the functions that crate calls, which panics too
@@ -51,7 +51,8 @@ pub struct TrayMenuIds {
 /// and the menu item IDs for event handling.
 ///
 /// Returns `None` (graceful degradation) when the tray cannot be created —
-/// the caller falls back to taskbar/dock minimize. A created tray does not
+/// the caller falls back to the per-platform minimize in the policy's OS table
+/// (docs/design/policies/system-tray.md). A created tray does not
 /// guarantee that a host shows the icon.
 pub fn create_tray_icon() -> Option<(TrayIcon, TrayMenuIds)> {
     match create_tray_icon_inner() {

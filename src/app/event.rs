@@ -123,7 +123,9 @@ pub(crate) enum AppEvent {
         )
     )]
     QuitRequested,
-    /// Windows·Linux의 숨긴 창을 다시 표시한다. macOS는 창 생성 경로로 복원한다.
+    /// Windows는 숨긴 창을 다시 표시한다. X11(XWayland 포함)은 트레이로 숨긴 창을 다시 map하고 최소화 해제는
+    /// 창 관리자에 요청한다. 네이티브 Wayland에서는 수신부의 호출이 창 상태를 바꾸지 않는다.
+    /// macOS는 이 이벤트를 쓰지 않고 메뉴 분기에서 처리한다.
     #[cfg(all(any(windows, target_os = "linux"), feature = "gui"))]
     TrayShowWindow,
     /// 같은 홈으로 다시 실행한 두 번째 프로세스의 활성화 요청(Linux D-Bus `Activate`, Windows 등록 메시지).
