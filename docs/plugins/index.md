@@ -1,8 +1,8 @@
 # 번들 플러그인 (Bundled plugins)
 
-Tasty가 관리하는 공식 플러그인 목록이다([plugins 개념](../concepts/plugins.md)). 배포 패키지에 동봉된 플러그인은 첫 부팅 때 자동 설치하며, `bundle=false`인 개발용 항목은 패키지에서 제외한다. 각 플러그인은 외부 플러그인과 동일한 라이프사이클(활성/비활성/제거)을 따른다 — 관리 UI 는 [plugin-system](../features/plugin-system/index.md). 플러그인별 문서의 정본은 [tasty-official-plugins 레포](https://github.com/zilhak/tasty-official-plugins/tree/develop/docs/plugins)의 `docs/plugins/`에 있다.
+Tasty가 관리하는 공식 플러그인 목록이다([plugins 개념](../concepts/plugins.md)). 배포 패키지에 동봉된 플러그인은 첫 부팅 때 자동 설치하며, `bundle=false`인 개발용 항목은 패키지에서 제외한다. 각 플러그인은 외부 플러그인과 동일한 라이프사이클(활성/비활성/제거)을 따른다 — 관리 UI 는 [plugin-system](../features/plugin-system/index.md).
 
-surface kind 를 제공하는 플러그인(markdown·image·html)은 그 kind 의 명세가 정본이므로 [`surfaces/`](../surfaces/index.md)의 kind 문서에 둔다. 파일 핸들러·CLI·설정 페이지·popup 처럼 같은 플러그인의 다른 기여도 그 문서에 함께 적는다. surface 를 제공하지 않는 플러그인은 tasty-official-plugins 레포의 `docs/plugins/<id>/index.md`(동작) + 화면(UI 가 있으면 — 기획문서의 `## 화면` 절이 기본, 화면이 둘 이상이거나 자기 규칙을 가지면 `screens/` 파일. 기준은 [documentation-model §3](../documentation-model.md#3-폴더-구조-중첩))에 둔다. 이 영역은 [features/](../features/index.md) 와 구조가 같되, **host 가 아니라 플러그인이 제공**하는 동작이라 분리되어 있다. 양식은 features 템플릿을 그대로 쓴다.
+배포되는 surface kind 제공 플러그인(markdown·image·html)은 그 kind 의 명세가 정본이므로 [`surfaces/`](../surfaces/index.md)의 kind 문서에 둔다. 파일 핸들러·CLI·설정 페이지·popup 처럼 같은 플러그인의 다른 기여도 그 문서에 함께 적는다. surface 를 제공하지 않는 플러그인 문서의 정본은 [tasty-official-plugins 레포](https://github.com/zilhak/tasty-official-plugins/tree/develop/docs/plugins)의 `docs/plugins/<id>/index.md`(동작) + 화면(UI 가 있으면 — 기획문서의 `## 화면` 절이 기본, 화면이 둘 이상이거나 자기 규칙을 가지면 `screens/` 파일. 기준은 [documentation-model §3](../documentation-model.md#3-폴더-구조-중첩))에 둔다. 이 영역은 [features/](../features/index.md) 와 구조가 같되, **host 가 아니라 플러그인이 제공**하는 동작이라 분리되어 있다. 양식은 features 템플릿을 그대로 쓴다. 개발용으로 배포에서 빠지는 mesh-demo(`bundle=false`)는 egui-mesh kind 를 제공하지만 kind 문서 대신 [egui-mesh 채널](../dev-guide/egui-mesh-channel.md) 개발 가이드가 설명한다.
 
 Claude의 훅 설치는 [완료 알림 mod](https://github.com/zilhak/tasty-official-plugins/blob/develop/docs/plugins/claude/notify-mod.md)도 관리한다. 실제 모델 수신과 로컬 시험의 범위는 구분한다.
 
