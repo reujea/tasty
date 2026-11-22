@@ -175,8 +175,10 @@ fn is_ident(c: char) -> bool {
 }
 
 /// 인자 범위 `args`(리터럴·주석을 가린 텍스트)의 마지막 최상위 인자. 괄호·대괄호·중괄호 깊이 0 의 쉼표로 나누고
-/// 끝의 빈 인자(뒤따르는 쉼표)는 건너뛴다. 돌려주는 값은 그 인자의 시작 위치(범위 안 상대)와 앞뒤 공백을 뺀 텍스트다.
-fn last_top_level_arg(args: &str) -> Option<(usize, &str)> {
+/// 끝의 빈 인자(뒤따르는 쉼표)는 건너뛴다. 비었는지는 같은 바이트 구간의 `kept`(주석만 가리고 리터럴은 남긴 텍스트)로
+/// 본다. 가린 문자·문자열 리터럴 인자는 공백이지만 빈 인자가 아니다. 돌려주는 값은 그 인자의 시작 위치(범위 안
+/// 상대)와 앞뒤 공백을 뺀 가린 텍스트다.
+fn last_top_level_arg<'a>(args: &'a str, kept: &str) -> Option<(usize, &'a str)> {
     let mut depth = 0isize;
     let mut start = 0;
     let mut last = None;
@@ -192,7 +194,7 @@ fn last_top_level_arg(args: &str) -> Option<(usize, &str)> {
         }
     }
     let tail = &args[start..];
-    let (at, arg) = if tail.trim().is_empty() {
+    let (at, arg) = if kept[start..].trim().is_empty() {
         last?
     } else {
         (start, tail)
@@ -201,9 +203,10 @@ fn last_top_level_arg(args: &str) -> Option<(usize, &str)> {
     Some((at + lead, arg.trim()))
 }
 
-/// 마지막 최상위 인자가 `|이름| { .. }` 클로저 하나이면 그 매개변수 이름과 본문(중괄호 안).
-fn last_closure(args: &str) -> Option<(&str, &str)> {
-    let (_, arg) = last_top_level_arg(args)?;
+/// 마지막 최상위 인자가 `|이름| { .. }` 클로저 하나이면 그 매개변수 이름과 본문(중괄호 안). `kept` 는
+/// `last_top_level_arg` 와 같다.
+fn last_closure<'a>(args: &'a str, kept: &str) -> Option<(&'a str, &'a str)> {
+    let (_, arg) = last_top_level_arg(args, kept)?;
     let rest = arg.strip_prefix('|')?;
     let name_len = rest.find(|c: char| !is_ident(c)).unwrap_or(rest.len());
     if name_len == 0 {
@@ -237,6 +240,7 @@ fn calls_shared_row(body: &str, param: &str) -> bool {
 /// 클로저가 아닌 호출도 위반이다.
 fn helper_combo_rows(src: &str) -> (Vec<usize>, usize) {
     let code = tasty_doc_guards::source_text::mask_non_code_aligned(src);
+    let kept = tasty_doc_guards::source_text::mask_comments_aligned(src);
     let mut offenders = Vec::new();
     let mut seen = 0;
     for (at, _) in code.match_indices(HELPER_COMBO_CALL) {
@@ -252,7 +256,7 @@ fn helper_combo_rows(src: &str) -> (Vec<usize>, usize) {
             continue;
         };
         let args = &code[open + 1..close];
-        let ok = last_closure(args).is_some_and(|(param, body)| {
+        let ok = last_closure(args, &kept[open + 1..close]).is_some_and(|(param, body)| {
             !EGUI_SELECTABLE.iter().any(|e| body.contains(e)) && calls_shared_row(body, param)
         });
         if !ok {
@@ -318,6 +322,12 @@ fn the_helper_combo_judge_reads_the_row_closure() {
     // 문자열 안의 짝 없는 중괄호는 인자 범위를 넘기지 않는다. 뒤 호출은 따로 판정한다.
     let open_brace = "combo(ui, pen, \"a\", sel, None, |rows| {\n    rows.label(\"{\");\n    menu_option(rows, th, false, \"x\");\n});\ncombo(ui, pen, \"b\", sel, None, |ui| {\n    ui.selectable_value(&mut v, 1, \"x\");\n});";
     assert_eq!(helper_combo_rows(open_brace), (vec![5], 2));
+    // 가린 리터럴 마지막 인자는 끝 쉼표가 아니다. 마지막 인자가 클로저가 아니므로 위반이다.
+    let literal_tail = "combo(ui, pen, \"a\", sel, |rows| {\n    menu_option(rows, th, false, \"x\");\n}, \"tail\");";
+    assert_eq!(helper_combo_rows(literal_tail), (vec![1], 1));
+    let char_tail =
+        "combo(ui, pen, \"a\", sel, |rows| {\n    menu_option(rows, th, false, \"x\");\n}, 'x');";
+    assert_eq!(helper_combo_rows(char_tail), (vec![1], 1));
 }
 
 #[test]
