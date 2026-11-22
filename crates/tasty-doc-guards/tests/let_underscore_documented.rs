@@ -3148,4 +3148,22 @@ mod helper_tests {
             );
         }
     }
+
+    /// 지원 한계: 구조체 패턴 클로저 매개변수(`|S { a }: S|`)는 읽지 못해 표식이 속성만 덮는다.
+    /// 테스트 자리가 제품으로 보고되는 보이는 실패다(`closure_params_end`).
+    #[test]
+    fn a_struct_pattern_closure_parameter_is_a_known_visible_failure() {
+        assert_eq!(
+            both(
+                "fn g() {\n    #[cfg(test)]\n    match |S { a }: S| { a } {\n        _ => {\n            {IGNORE}\n        }\n    }\n}\n"
+            ),
+            (vec![5], vec![])
+        );
+        assert_eq!(
+            both(
+                "fn g() {\n    #[cfg(test)]\n    match |(a, b): (u8, u8)| { a } {\n        _ => {\n            {IGNORE}\n        }\n    }\n}\n"
+            ),
+            (vec![], vec![5])
+        );
+    }
 }
