@@ -154,7 +154,10 @@ pub fn draw(
     };
     let th = theme::theme();
     let mut apply_all = view.ops.conflict_apply_all;
-    let shown = ui.scope(|ui| conflict_card(ui, &th, &props, &mut apply_all));
+    // 카드는 키를 읽지 않는다. Enter 는 이 팝업의 키 통로가 판정한다(소비하지 않아 포커스된 버튼의 Enter 는 그 버튼이
+    // 받는다). Esc 는 선언 Ignore 라 창이 받지 않는다.
+    let confirm = cx.keys.pressed(super::keys::BasicKey::Confirm);
+    let shown = ui.scope(|ui| conflict_card(ui, &th, &props, &mut apply_all, confirm));
     view.ops.conflict_height = shown.response.rect.height();
     view.ops.conflict_apply_all = apply_all;
     let Some(pick) = shown.inner else {
@@ -270,6 +273,55 @@ mod tests {
         );
         assert_eq!(right.take_answer(), None);
         assert!(right.pending_ask().is_some());
+    }
+
+    /// T-6b-1: Given 포커스를 받은 충돌 질문(제품 정의, 선언 Ignore), When 수식키 없는 Esc 가 오면, Then 창이 그 Esc 를
+    /// 처리하고 사건 시점에 포커스가 그대로다. 그린 뒤에도 남은 작업을 취소하지 않고 질문이 열린 채다.
+    #[test]
+    fn escape_does_nothing_on_the_conflict_question() {
+        use crate::adapters::ui::popup::window_input_test_support::layer_frame;
+        crate::i18n::init("en");
+        let (mut state, mut session) = crate::state::tests::test_state();
+        for def in super::super::defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let sid = state.focused_surface_id(&read).expect("surface");
+        let shared = waiting(&mut state, sid);
+        let iid = state
+            .popups
+            .open_request(&open_request(sid), true)
+            .expect("question opens");
+        state.popups.set_instance_focused(iid, true);
+        let ctx = egui::Context::default();
+        layer_frame(&ctx, &mut state, &read, Vec::new());
+        assert!(
+            state.popups.is_instance_focused(iid),
+            "질문이 포커스를 가진다"
+        );
+        let mut events = vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }];
+        assert!(
+            state.window_escape(&mut events, Some(0), false),
+            "창이 Esc 를 처리한다"
+        );
+        assert!(
+            state.popups.is_instance_focused(iid),
+            "사건 시점에 포커스가 그대로다"
+        );
+        layer_frame(&ctx, &mut state, &read, events);
+        layer_frame(&ctx, &mut state, &read, Vec::new());
+        assert_eq!(shared.take_answer(), None, "남은 작업을 취소하지 않는다");
+        assert!(
+            state.popups.instance(iid).is_some_and(|p| p.open),
+            "질문이 열린 채다"
+        );
     }
 
     /// 비교 줄의 수정 시각은 로컬 시간대의 `YYYY-MM-DD HH:MM` 이다.

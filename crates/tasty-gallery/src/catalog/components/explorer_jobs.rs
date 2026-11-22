@@ -295,8 +295,8 @@ fn conflict_shell(ui: &mut egui::Ui, theme: &Theme, folder: bool) {
                 keep_both: t("explorer.conflict.keep_both"),
             };
             let mut checked = false;
-            // 갤러리 예제는 답을 받지 않는다.
-            if conflict_card(ui, theme, &props, &mut checked).is_some() {
+            // 갤러리 예제는 답을 받지 않고 키 판정값도 넘기지 않는다.
+            if conflict_card(ui, theme, &props, &mut checked, false).is_some() {
                 ui.ctx().request_repaint();
             }
         });

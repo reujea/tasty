@@ -292,16 +292,16 @@ fn registered_scopes_match_the_declared_scope_kind() {
 /// - focus_on_open: 사용자가 여는 주 경로가 포커스를 주는지. 사용자 경로가 없는 팝업은 false다.
 ///   경로마다 다른 팝업은 notifications 하나다(사이드바는 포커스, 단축키는 포커스 없음).
 const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bool)] = {
-    use PopupEscape::{Close as EscClose, Unfocus as EscUnfocus};
+    use PopupEscape::{Close as EscClose, Ignore as EscIgnore, Unfocus as EscUnfocus};
     use PopupKeyboard::{Keys, Text};
     use PopupOutsideClick::{Close as OutClose, Unfocus as OutUnfocus};
     &[
         ("notifications", Keys, EscClose, OutUnfocus, true),
         ("convert_surface", Keys, EscClose, OutClose, true),
-        ("explorer_conflict", Keys, EscUnfocus, OutUnfocus, true),
+        ("explorer_conflict", Keys, EscIgnore, OutUnfocus, true),
         ("script_changed_confirm", Keys, EscClose, OutUnfocus, true),
         ("rename", Text, EscClose, OutUnfocus, true),
-        ("explorer_properties", Keys, EscUnfocus, OutUnfocus, true),
+        ("explorer_properties", Keys, EscClose, OutUnfocus, true),
         ("search_bar", Text, EscClose, OutUnfocus, true),
         ("info_modal", Keys, EscClose, OutUnfocus, true),
         ("approval", Text, EscUnfocus, OutUnfocus, false),
@@ -312,11 +312,11 @@ const INPUT_EXPECTED: &[(&str, PopupKeyboard, PopupEscape, PopupOutsideClick, bo
         ("dag_list", Text, EscClose, OutUnfocus, true),
         ("remote_tool", Text, EscClose, OutUnfocus, true),
         ("remote_attach", Keys, EscClose, OutUnfocus, true),
-        ("transfer_progress", Keys, EscUnfocus, OutUnfocus, false),
+        ("transfer_progress", Keys, EscClose, OutUnfocus, false),
         ("transfer_error", Keys, EscClose, OutClose, true),
         ("download_run", Keys, EscClose, OutClose, true),
         ("download_run_large", Keys, EscClose, OutClose, true),
-        ("download_run_progress", Keys, EscUnfocus, OutUnfocus, false),
+        ("download_run_progress", Keys, EscClose, OutUnfocus, false),
         ("apply_workspace_preset", Keys, EscClose, OutClose, true),
         ("apply_tab_preset", Keys, EscClose, OutClose, true),
         ("apply_pane_preset", Keys, EscClose, OutClose, true),

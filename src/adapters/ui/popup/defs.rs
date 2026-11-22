@@ -110,7 +110,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     resizable: false,
                     min_size: None,
                     content_margin: PopupContentMargin::None,
-                    escape: PopupEscape::Unfocus,
+                    escape: PopupEscape::Ignore,
                     // 질문을 띄운 칸마다 따로 연다. 칸은 인스턴스 데이터다.
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::explorer_conflict::default_size()))
@@ -190,7 +190,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     // 시안 바탕이 bg-panel 이고 읽기 실패 화면의 Retry 가 Secondary 버튼이다.
                     shell: PopupShell::Panel,
-                    escape: PopupEscape::Unfocus,
+                    escape: PopupEscape::Close,
                     // 탐색기 칸마다 따로 연다. 항목과 읽기는 인스턴스 데이터다.
                     instances: PopupInstances::PerScopeTarget,
                     ..host_decl(popup_size(super::explorer_properties::default_size()))
@@ -503,7 +503,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
-                    escape: PopupEscape::Unfocus,
+                    escape: PopupEscape::Close,
                     focus_on_open: false,
                     ..host_decl(popup_size(egui::vec2(400.0, 180.0)))
                 },
@@ -602,7 +602,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     drag_handle: PopupDragHandle::None,
                     resizable: false,
                     min_size: None,
-                    escape: PopupEscape::Unfocus,
+                    escape: PopupEscape::Close,
                     // 수신을 시작하면 open_centered로 열려 포커스를 받지 않는다.
                     focus_on_open: false,
                     ..host_decl(popup_size(super::download_run::download_run_default_size()))

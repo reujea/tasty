@@ -1955,3 +1955,61 @@ fn a_down_and_escape_in_one_share_move_the_tutorial_selection() {
         "다시 열어도 1번 행이 선택이다"
     );
 }
+
+/// 제품 정의 `id` 를 L 범위에 열어 키 주인으로 두고, 수식키 없는 Esc 한 패스 뒤 그 인스턴스 결과를 돌려준다. 본문은
+/// 시험 본문(아무것도 쓰지 않는다)이라 결과는 선언 `escape` 와 중앙 단계가 정한다. 닫혔는지도 함께 돌려준다.
+fn escape_on_a_declared_popup(id: crate::adapters::ui::popup::PopupId) -> (Vec<String>, bool) {
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let iid = state
+        .popups
+        .open_request(
+            &OpenRequest::new(id, PopupScope::Surface(SURFACE_L)).focused(),
+            true,
+        )
+        .expect("popup opens");
+    state.popups.set_instance_focused(iid, true);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    let mut body =
+        |_: &mut egui::Ui, _: &mut RequestContext, _: &EngineRead<'_>, cx: &mut PopupCx<'_>| {
+            (cx.instance == iid).then_some(PopupAction::None)
+        };
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert!(state.popups.is_instance_focused(iid), "{id} 가 키 주인이다");
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    let actions = layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    (action_of(&actions, iid), !is_open(&state, iid))
+}
+
+/// T-6b-2a: Given 키 주인 explorer 속성, When Esc 가 오면, Then 사유 Escape 로 닫힌다.
+#[test]
+fn escape_closes_explorer_properties() {
+    let (actions, closed) = escape_on_a_declared_popup(
+        crate::adapters::ui::popup::explorer_properties::EXPLORER_PROPERTIES_POPUP_ID,
+    );
+    assert_eq!(actions, vec!["CloseBy(Escape)".to_string()]);
+    assert!(closed);
+}
+
+/// T-6b-2b: Given 키 주인 전송 진행, When Esc 가 오면, Then 사유 Escape 로 닫힌다.
+#[test]
+fn escape_closes_transfer_progress() {
+    let (actions, closed) = escape_on_a_declared_popup(
+        crate::adapters::ui::popup::transfer::TRANSFER_PROGRESS_POPUP_ID,
+    );
+    assert_eq!(actions, vec!["CloseBy(Escape)".to_string()]);
+    assert!(closed);
+}
+
+/// T-6b-2c: Given 키 주인 다운로드 후 실행 진행, When Esc 가 오면, Then 사유 Escape 로 닫힌다.
+#[test]
+fn escape_closes_download_run_progress() {
+    let (actions, closed) = escape_on_a_declared_popup(
+        crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_PROGRESS_POPUP_ID,
+    );
+    assert_eq!(actions, vec!["CloseBy(Escape)".to_string()]);
+    assert!(closed);
+}

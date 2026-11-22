@@ -581,12 +581,14 @@ pub enum ConflictPick {
 }
 
 /// 충돌 카드의 내용. 카드 표면(배경·테두리·그림자)은 popup 셸이 그린다. 고른 답을 돌려준다.
-/// Enter 는 Keep both, Esc 는 Cancel the rest 다.
+/// 카드는 키를 읽지 않는다. `confirm` 은 호출자가 이번 프레임 확정 기본 조작(Enter)을 판정한 값이고, 버튼으로 고른
+/// 답이 없을 때 Keep both 를 고른다. Esc 는 카드가 다루지 않는다.
 pub fn conflict_card(
     ui: &mut egui::Ui,
     theme: &Theme,
     props: &ConflictProps<'_>,
     apply_all: &mut bool,
+    confirm: bool,
 ) -> Option<ConflictPick> {
     let mut pick = None;
     ui.vertical(|ui| {
@@ -714,14 +716,8 @@ pub fn conflict_card(
                 });
             });
     });
-    if pick.is_none() {
-        ui.input(|i| {
-            if i.key_pressed(egui::Key::Enter) {
-                pick = Some(ConflictPick::KeepBoth);
-            } else if i.key_pressed(egui::Key::Escape) {
-                pick = Some(ConflictPick::CancelRest);
-            }
-        });
+    if pick.is_none() && confirm {
+        pick = Some(ConflictPick::KeepBoth);
     }
     pick
 }
@@ -988,3 +984,7 @@ pub fn drag_chip(
 #[cfg(test)]
 #[path = "explorer_ops_layout_tests.rs"]
 mod layout_tests;
+
+#[cfg(test)]
+#[path = "explorer_ops_card_key_tests.rs"]
+mod card_key_tests;
