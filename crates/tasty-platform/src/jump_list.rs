@@ -43,8 +43,11 @@ pub fn setup_jump_list() {
 }
 
 fn setup_jump_list_inner() -> Result<(), Box<dyn std::error::Error>> {
-    // SAFETY: 전체 Windows Jump List COM 시퀀스를 단일 thread (main)에서 실행.
-    // CoCreateInstance는 process-wide COM init 후 호출되며(main.rs에서 보장),
+    // SAFETY: 전체 Windows Jump List COM 시퀀스를 단일 thread (이벤트 루프)에서 실행.
+    // 이 함수는 첫 창을 만든 뒤 같은 스레드에서 불린다(본체 `begin_boot` 끝의
+    // `prepare_platform_at_boot_start`). winit은 그 창을 만들 때 끌어놓기 지원(기본값, Tasty는 끄지 않는다)을
+    // 위해 그 스레드에서 `OleInitialize`를 불러 STA로 COM을 초기화하므로 CoCreateInstance의 전제가 선다.
+    // 창 생성 전이나 다른 스레드에서 부르거나 `with_drag_and_drop(false)`를 쓰면 이 전제가 깨진다.
     // 모든 PCWSTR 인자는 'static w!() 매크로 또는 호출 끝까지 살아있는
     // local Vec<u16>(`wide_null`)의 ptr이다 — 번역 라벨(desc_wide / title_wide)도
     // 이 블록이 끝날 때까지 drop 되지 않는다. shell_link.cast()는 같은 객체의 COM interface
