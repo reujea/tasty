@@ -546,13 +546,10 @@ fn a_panicking_reader_still_lets_a_failed_writer_report_the_disconnect() {
     );
     assert!(reader.join().is_err(), "the reader panicked");
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    while !writer.is_finished() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the writer kept waiting for a reader that panicked"
-        );
-        std::thread::yield_now();
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || writer.is_finished()),
+        "the writer kept waiting for a reader that panicked"
+    );
     writer.join().unwrap();
     assert!(finished.load(Ordering::SeqCst));
     assert_eq!(end.settled(), Some(EndReason::Lost));
@@ -662,13 +659,10 @@ fn a_failed_writer_reports_the_disconnect_after_the_wait_cap() {
         " reader wait cap test",
     );
     let deadline = Instant::now() + Duration::from_secs(10);
-    while !writer.is_finished() {
-        assert!(
-            Instant::now() < deadline,
-            "the writer must give up waiting for the reader at the cap"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || writer.is_finished()),
+        "the writer must give up waiting for the reader at the cap"
+    );
     writer.join().unwrap();
     let eof_at = eof_seen
         .join()

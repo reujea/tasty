@@ -5,15 +5,7 @@ use std::fs;
 // This post-release positive observation may retry; held-lock/stale-generation calls never do.
 fn cleanup_after_release(publication: &PortFilePublication) -> bool {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-    loop {
-        if publication.cleanup_if_owned().unwrap() {
-            return true;
-        }
-        if std::time::Instant::now() >= deadline {
-            return false;
-        }
-        std::thread::yield_now();
-    }
+    tasty_utils::test_wait::holds_by(deadline, || publication.cleanup_if_owned().unwrap())
 }
 
 #[test]

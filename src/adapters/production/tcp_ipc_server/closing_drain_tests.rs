@@ -23,13 +23,13 @@ fn wait_until_arrived(server_side: &TcpStream) {
     server_side.set_nonblocking(true).expect("nonblocking");
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut b = [0u8; 1];
-    while !matches!(server_side.peek(&mut b), Ok(n) if n > 0) {
-        assert!(
-            Instant::now() < deadline,
-            "요청 바이트가 서버에 도착하지 않았다"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || matches!(
+            server_side.peek(&mut b),
+            Ok(n) if n > 0
+        )),
+        "요청 바이트가 서버에 도착하지 않았다"
+    );
 }
 
 #[test]

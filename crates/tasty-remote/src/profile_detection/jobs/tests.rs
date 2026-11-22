@@ -28,13 +28,10 @@ fn done(progress: Progress) -> DetectionUpdate {
 fn probed(result: Result<String, String>) -> Job {
     let worker = std::thread::spawn(move || result);
     let deadline = Instant::now() + Duration::from_secs(2);
-    while !worker.is_finished() {
-        assert!(
-            Instant::now() < deadline,
-            "owned scripted probe did not finish"
-        );
-        std::thread::yield_now();
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || worker.is_finished()),
+        "owned scripted probe did not finish"
+    );
     Job {
         id: DetectionId(7),
         name: "original".into(),

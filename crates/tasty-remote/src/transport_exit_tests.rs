@@ -176,10 +176,10 @@ const WORKSPACE_GONE_NOTICE: &[u8] = br#"{"event":"force_detached","reason":"wor
 
 fn wait_finished(handle: &std::thread::JoinHandle<()>, what: &str) {
     let until = std::time::Instant::now() + WAIT;
-    while !handle.is_finished() {
-        assert!(std::time::Instant::now() < until, "{what} did not finish");
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(until, || handle.is_finished()),
+        "{what} did not finish"
+    );
 }
 
 /// S2: reader 출구마다(강제 통지, workspace 사라짐 통지, EOF, Detach, 수신 오류, 읽기 기한, panic) 확정

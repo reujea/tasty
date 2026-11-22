@@ -88,14 +88,14 @@ mod loop_tests {
             .map(|_| std::net::TcpStream::connect(&addr).expect("connect"))
             .collect();
 
+        // accept 루프는 대기 상한을 기록한 뒤에 수락·거절 계수를 올린다. 세 계수가 모두 선 스냅샷을
+        // 기다리고, 기한에 닿으면 마지막으로 읽은 스냅샷으로 아래를 판정한다.
         let deadline = Instant::now() + Duration::from_secs(5);
-        let s = loop {
-            let s = stats.snapshot();
-            if s.accept_waits >= 2 || Instant::now() > deadline {
-                break s;
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        };
+        let mut s = stats.snapshot();
+        tasty_utils::test_wait::holds_by(deadline, || {
+            s = stats.snapshot();
+            s.accept_waits >= 2 && s.accept_waits == s.accepted + s.refused_saturated
+        });
         assert_eq!(
             s.accept_waits, 2,
             "연결 둘을 꺼냈는데 기록이 {}",

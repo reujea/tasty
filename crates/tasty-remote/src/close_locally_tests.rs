@@ -5,6 +5,7 @@ use super::*;
 use std::io::{BufRead, BufReader};
 use std::time::{Duration, Instant};
 use tasty_ipc::stream::{self, StreamTag};
+use tasty_utils::test_wait::holds_by;
 
 /// 픽스처 연결의 읽기 기한이자 writer 의 reader 대기 상한. 아래 관측 기한(영수증 10초, 취소 뒤
 /// 5초)보다 길어서, 첫 읽기의 기한 만료나 그 상한이 닫기 대신 reader 를 끝내 통과시키지 못한다.
@@ -53,20 +54,6 @@ fn prepared_with_peer() -> (
     )
     .unwrap();
     (remote, token, prepared, peer.join().unwrap())
-}
-
-/// `holds` 가 참이 되기를 `deadline` 까지 기다린다. 기한에 닿으면 한 번 더 읽어 그 값을 돌려준다.
-/// 기한 전에 읽은 거짓 뒤에 검사 스레드가 밀려, 그 사이 기한 안에 참이 된 값을 놓치지 않기 위해서다.
-fn holds_by(deadline: Instant, mut holds: impl FnMut() -> bool) -> bool {
-    loop {
-        if holds() {
-            return true;
-        }
-        if Instant::now() >= deadline {
-            return holds();
-        }
-        std::thread::sleep(Duration::from_millis(2));
-    }
 }
 
 /// reader 가 handshake 뒤 `recv` 에 들어가기를 기다리고 조금 더 둔다. 계수는 recv 직전에 오르므로

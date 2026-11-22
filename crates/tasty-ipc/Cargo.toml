@@ -25,6 +25,8 @@ tempfile = "3"
 [dev-dependencies]
 tempfile = "3"
 tasty-type-appearance = { path = "../tasty-type-appearance" }
+# 의존 크레이트에는 호출자의 cfg(test)가 적용되지 않아 시험 도우미 기능을 명시한다.
+tasty-utils = { path = "../tasty-utils", features = ["test-support"] }
 
 [lints]
 workspace = true

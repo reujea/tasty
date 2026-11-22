@@ -3,21 +3,17 @@ use std::{
     fs,
     path::Path,
     process::{Child, Command, Stdio},
-    thread,
     time::{Duration, Instant},
 };
 use tasty_ipc::port_file::publish_port_file_to;
 
 fn wait_for(path: &Path) {
     let deadline = Instant::now() + Duration::from_secs(20);
-    while !path.exists() {
-        assert!(
-            Instant::now() < deadline,
-            "fixture marker timeout: {}",
-            path.display()
-        );
-        thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || path.exists()),
+        "fixture marker timeout: {}",
+        path.display()
+    );
 }
 
 fn writer(root: &Path) {
