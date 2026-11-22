@@ -194,14 +194,21 @@ impl LocalFileChooser {
 
     /// popup 콘텐츠. 닫혀야 하면 `done`이 참이다. `child_menu`는 그린 숨은 경로 메뉴의 egui popup id이고,
     /// 호출자가 자기 인스턴스로 등록한다.
-    pub(crate) fn draw(&mut self, ui: &mut egui::Ui, th: &Theme, owns_escape: bool) -> ChooserDraw {
+    /// `escape` 는 호출자가 이 패스 Esc 를 이 피커에 썼는지다(`FilePickerProps::escape`).
+    pub(crate) fn draw(
+        &mut self,
+        ui: &mut egui::Ui,
+        th: &Theme,
+        owns_escape: bool,
+        escape: bool,
+    ) -> ChooserDraw {
         let Some(s) = self.session.as_mut() else {
             return ChooserDraw {
                 done: true,
                 child_menu: None,
             };
         };
-        let (action, child_menu) = draw_view(ui, th, s, owns_escape);
+        let (action, child_menu) = draw_view(ui, th, s, owns_escape, escape);
         let done = match s.apply(action) {
             Some(o) => {
                 self.finish(o);
@@ -437,6 +444,7 @@ fn draw_view(
     th: &Theme,
     s: &ChooserSession,
     owns_escape: bool,
+    escape: bool,
 ) -> (FilePickerAction, Option<egui::Id>) {
     let crumbs: Vec<CrumbView> = s
         .ancestors()
@@ -505,6 +513,7 @@ fn draw_view(
         selected: &s.selected,
         mode,
         owns_escape,
+        escape,
         title_label: s.title(),
         name_field_label: t(if s.is_folder() {
             "picker.folder.label"

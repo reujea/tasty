@@ -63,8 +63,8 @@ fn the_three_escape_consumers_keep_their_order() {
     );
     let general = only_at(
         body,
-        "if let Some((_, instance, closes)) = self.popups.focused_dismissal_target() {",
-        "Escape 의 포커스된 popup 분기",
+        "if let Some((instance, escape)) = self.popups.host_key_owner_escape() {",
+        "Escape 의 host 키 주인 분기",
     );
     let refold = only_at(
         body,
@@ -119,22 +119,38 @@ fn the_escape_path_runs_before_the_overlay_gate() {
     );
 }
 
-/// 팝업의 닫기 여부를 바깥 클릭 정책과 맞춘다. 닫지 않는 팝업도 포커스는 해제해야 한다.
+/// host 키 주인의 Esc 는 바깥 누름 정책이 아니라 선언 `escape` 를 따른다. Ignore 는 넘기지 않고, Close·Unfocus 는
+/// 사건 시점에 포커스를 풀고 그 Esc 를 넘긴다(닫기는 팝업 층 중앙 단계가 내용 결과를 본 뒤 정한다).
 #[test]
-fn escape_closes_only_what_an_outside_click_would_close() {
+fn escape_follows_the_declaration() {
     let src = read(ESCAPE_GATE);
-    let start = only_at(
-        &src,
-        "if let Some((_, instance, closes)) = self.popups.focused_dismissal_target() {",
-        "Escape 의 포커스된 popup 분기",
+    let start = only_at(&src, "fn escape_gate(", "창 Esc 판정 함수");
+    let gate = &src[start..];
+    for gone in ["close_on_outside_click", "focused_dismissal_target"] {
+        assert!(
+            !gate.contains(gone),
+            "창 Esc 판정이 `{gone}` 를 읽는다. 닫기는 선언 escape 를 따른다."
+        );
+    }
+    let host = only_at(
+        gate,
+        "if let Some((instance, escape)) = self.popups.host_key_owner_escape() {",
+        "Escape 의 host 키 주인 분기",
     );
-    let body = &src[start..start + 400];
+    let body = &gate[host..];
+    let ignore = only_at(body, "if escape == PopupEscape::Ignore {", "Ignore 갈래");
+    let release = only_at(
+        body,
+        "self.popups.set_instance_focused(instance, false);",
+        "사건 시점 포커스 해제",
+    );
+    let ignore_body = &body[ignore..release];
     assert!(
-        body.contains("set_instance_focused(instance, false)"),
-        "팝업 포커스 해제가 없어 오버레이 입력 차단에서 벗어날 수 없다: {body}"
+        ignore_body.contains("hand_to_owner: false"),
+        "Ignore 갈래가 Esc 를 넘긴다: {ignore_body}"
     );
     assert!(
-        body.contains("if closes {"),
-        "팝업 닫기가 close_on_outside_click 조건을 따르지 않는다: {body}"
+        body[release..].contains("hand_to_owner: true"),
+        "Close·Unfocus 갈래가 포커스를 푼 뒤 Esc 를 넘기지 않는다"
     );
 }

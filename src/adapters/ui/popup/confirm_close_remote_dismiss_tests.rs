@@ -128,7 +128,10 @@ fn escape_closes_the_close_remote_confirmation_and_sends_nothing() {
     let (mut state, session) = opened();
     let ctx = egui::Context::default();
     frame(&ctx, screen(), &mut state, &session);
-    frame(&ctx, key(egui::Key::Escape), &mut state, &session);
+    // 창이 그 Esc 를 판정해 키 주인 확인에 넘긴다. 확인 본문은 Esc 를 읽지 않고 중앙 단계가 선언대로 닫는다.
+    let mut raw = key(egui::Key::Escape);
+    assert!(state.window_escape(&mut raw.events, Some(0), false));
+    frame(&ctx, raw, &mut state, &session);
     assert!(!state.popups.is_open(CONFIRM_CLOSE_REMOTE_POPUP_ID));
     assert!(pending(&state).is_none());
     assert!(nothing_sent(&mut state));

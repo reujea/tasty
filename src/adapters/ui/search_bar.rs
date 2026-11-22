@@ -150,18 +150,13 @@ pub fn draw_search_bar(
             response.surrender_focus();
         }
 
-        // 실제 필드 포커스가 있을 때만 검색 키를 처리한다. 창의 Esc 단계가 팝업 포커스를 먼저 놓아도 그 Esc 는
-        // egui 입력에서 빠졌다가 이 본문을 그리는 동안만 되넣어지므로(`body_keys::with_handed_escape`) 입력칸은 이번
-        // 프레임에 아직 포커스를 가진 채 그 Esc 를 읽는다.
+        // 실제 필드 포커스가 있을 때만 검색 키를 처리한다. Esc 는 읽지 않는다. 중앙 단계가 선언대로 닫고 닫기 훅이
+        // 검색 상태를 비운다.
         if response.has_focus() {
             // find 단축키 → 검색창은 그대로 두고 포커스만 터미널로 되돌린다.
             if find_pressed {
                 response.surrender_focus();
                 action = PopupAction::ReleaseFocus;
-            } else if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                // Escape → 닫기 + 검색 상태 clear (하이라이트 제거) + 터미널 포커스 복귀.
-                state.search.clear();
-                action = PopupAction::Close;
             } else {
                 if response.changed() {
                     state.search.surface_id = target;

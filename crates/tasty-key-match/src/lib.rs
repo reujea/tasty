@@ -128,10 +128,10 @@ pub struct KeyMods {
     pub super_: bool,
 }
 
-/// 창이 받은 키 누름이 창의 Esc 처리 대상인지. 메인 창 키 경로와 시험 입구가 같은 함수로 판정한다. 지금은 Escape
-/// 키면 수식키와 관계없이 참이다.
-pub fn is_window_escape(is_escape_key: bool, _mods: KeyMods) -> bool {
-    is_escape_key
+/// 창이 받은 키 누름이 창의 Esc 처리 대상인지. 메인 창 키 경로, 별도 창 Esc 표지, 시험 입구가 같은 함수로
+/// 판정한다. 수식키 없는 Escape 만 참이다(고정 바인딩 `escape` 와 정확히 같다).
+pub fn is_window_escape(is_escape_key: bool, mods: KeyMods) -> bool {
+    is_escape_key && mods == KeyMods::default()
 }
 
 /// 저장 토큰 `alt`·`option` 에 해당하는 수정자가 눌렸는지 돌려준다. 하단 수정자 열의 위치로
@@ -766,8 +766,8 @@ mod tests {
     #[test]
     fn window_escape_judgement() {
         let none = KeyMods::default();
+        assert!(is_window_escape(true, none));
         for mods in [
-            none,
             KeyMods {
                 shift: true,
                 ..none
@@ -781,7 +781,7 @@ mod tests {
                 ..none
             },
         ] {
-            assert!(is_window_escape(true, mods), "{mods:?}");
+            assert!(!is_window_escape(true, mods), "{mods:?}");
         }
         assert!(!is_window_escape(false, none));
     }

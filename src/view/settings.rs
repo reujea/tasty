@@ -199,10 +199,14 @@ impl View for SettingsView {
         self.base.begin_frame();
 
         let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
-        // 키 주인은 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
-        let key_owner = self
-            .settings_ui_state
-            .window_key_owner(&self.base.gpu.egui_ctx, self.key_record);
+        let marks = self.base.gpu.take_window_escape_marks();
+        // 키 주인과 Esc 표지는 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
+        let pass_keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+            owner: self
+                .settings_ui_state
+                .window_key_owner(&self.base.gpu.egui_ctx, self.key_record),
+            marks,
+        };
         let mut settings = self.settings.clone();
         let reduced_motion = settings.accessibility.reduced_motion;
         let ui_state = &mut self.settings_ui_state;
@@ -213,7 +217,6 @@ impl View for SettingsView {
         let file_format = self.file_format.clone();
         let file_handler = self.file_handler.clone();
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
-            ui_state.put_window_key_owner(key_owner);
             action = settings_ui::draw_settings_panel(
                 ctx,
                 settings_ui::SettingsPanelCtx {
@@ -222,6 +225,7 @@ impl View for SettingsView {
                     captured_double_tap: captured_dt,
                     file_format: &file_format,
                     file_handler: &file_handler,
+                    pass_keys: &pass_keys,
                 },
             );
 

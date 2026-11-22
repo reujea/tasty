@@ -118,9 +118,6 @@ pub fn draw_rail_category_popup(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;
-    }
     let Some(cat_id) = target_id(cx.payload) else {
         return PopupAction::Close;
     };

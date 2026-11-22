@@ -15,12 +15,13 @@ pub(super) fn draw_add_tab(
     snapshot: &PluginsSnapshot,
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
+    keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
 ) {
     let th = theme::theme();
 
     egui::CentralPanel::default().show(ctx, |ui| {
         vspace(ui, th.spacing_md);
-        draw_add_form(ui, snapshot, ui_state, actions, &th);
+        draw_add_form(ui, snapshot, ui_state, actions, &th, keys.owner);
     });
 }
 
@@ -32,6 +33,7 @@ fn draw_add_form(
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
     th: &theme::Theme,
+    key_owner: Option<crate::adapters::ui::popup::PopupInstanceId>,
 ) {
     // 액션 바가 창 안에 남도록, 같은 내용을 보이지 않게 먼저 그려 높이를 잰다.
     let footer_height = {
@@ -84,7 +86,7 @@ fn draw_add_form(
     }
     // 미인증 판정에서는 Esc 가 Cancel 과 같다. 아무것도 설치하지 않고 경로 입력으로 돌아간다.
     // 폴더 선택 창이 키 주인(W1)이면 Esc 는 그 창 것이다.
-    let esc_cancels = ui_state.folder_chooser.received_key_owner().is_none()
+    let esc_cancels = key_owner.is_none()
         && preview
             .as_ref()
             .is_some_and(|p| p.trust_state.is_unverified())
@@ -498,9 +500,23 @@ mod tests {
                 &ctx,
                 crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
             );
+            // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+            let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+                owner,
+                marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+                    &raw.events,
+                    0,
+                    tasty_key_match::KeyMods::default(),
+                ),
+            };
             output = Some(ctx.run(raw, |ctx| {
-                ui_state.folder_chooser.put_key_owner(owner);
-                draw_add_tab(ctx, &PluginsSnapshot::default(), ui_state, &mut actions);
+                draw_add_tab(
+                    ctx,
+                    &PluginsSnapshot::default(),
+                    ui_state,
+                    &mut actions,
+                    &keys,
+                );
             }));
         }
         (actions, output.expect("drawn"))
@@ -594,11 +610,20 @@ mod tests {
         );
         let ctx = egui::Context::default();
         let mut actions = Vec::new();
-        let mut frame = |state: &mut PluginsUiState, events| {
+        let mut frame = |state: &mut PluginsUiState, events: Vec<egui::Event>| {
             let owner = state.folder_chooser.key_owner(
                 &ctx,
                 crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
             );
+            // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+            let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+                owner,
+                marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+                    &events,
+                    0,
+                    tasty_key_match::KeyMods::default(),
+                ),
+            };
             drop(ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -609,12 +634,12 @@ mod tests {
                     ..Default::default()
                 },
                 |ctx| {
-                    state.folder_chooser.put_key_owner(owner);
                     super::super::draw_plugins_panel(
                         ctx,
                         &PluginsSnapshot::default(),
                         state,
                         &mut actions,
+                        &keys,
                     )
                 },
             ));
@@ -657,6 +682,15 @@ mod tests {
             ctx,
             crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
         );
+        // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+        let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+            owner,
+            marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+                &events,
+                0,
+                tasty_key_match::KeyMods::default(),
+            ),
+        };
         drop(ctx.run(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -667,8 +701,13 @@ mod tests {
                 ..Default::default()
             },
             |ctx| {
-                state.folder_chooser.put_key_owner(owner);
-                super::super::draw_plugins_panel(ctx, &PluginsSnapshot::default(), state, actions)
+                super::super::draw_plugins_panel(
+                    ctx,
+                    &PluginsSnapshot::default(),
+                    state,
+                    actions,
+                    &keys,
+                )
             },
         ));
     }

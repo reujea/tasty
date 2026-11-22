@@ -399,8 +399,7 @@ pub fn draw_transfer_error(
 
     // passive로 열린 실패 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
     let keys = cx.keys.receives();
-    let esc = keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
-    let mut dismiss = esc || (keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)));
+    let mut dismiss = keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter));
     let mut retry = false;
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
     let drawn = ui.vertical(|ui| {
@@ -453,10 +452,10 @@ pub fn draw_transfer_error(
         return retry_head_error(state, engine, cx.payload);
     }
     // 닫기 훅이 맨 앞 실패를 꺼내고 다음 실패를 그 출처로 다시 연다.
-    match (dismiss, esc) {
-        (false, _) => PopupAction::None,
-        (true, true) => PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape),
-        (true, false) => PopupAction::Close,
+    if dismiss {
+        PopupAction::Close
+    } else {
+        PopupAction::None
     }
 }
 

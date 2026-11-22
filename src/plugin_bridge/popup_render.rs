@@ -44,8 +44,10 @@ pub fn draw_plugin_popups(
     // 창이 plugin 키 주인 몫으로 egui 입력에서 뺀 원래 Esc 사건. 렌더가 키 주인 팝업에만 키를 보내므로 렌더하는
     // 동안 넣는다. host 키 주인 몫은 host 그리기가 이미 꺼냈다.
     let handed = state.popups.take_handed_escape();
+    // plugin Esc 는 창이 사건마다 그 수식키로 판정해 넘긴 Esc 가 있을 때다. egui 입력을 다시 읽지 않는다.
+    let escape_pressed = !handed.is_empty();
     crate::adapters::ui::popup::body_keys::with_handed_escape(ctx, &handed, || {
-        draw_plugin_popups_with_keys(ctx, state, engine, plugin_manager, layout)
+        draw_plugin_popups_with_keys(ctx, state, engine, plugin_manager, layout, escape_pressed)
     });
 }
 
@@ -55,6 +57,7 @@ fn draw_plugin_popups_with_keys(
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     plugin_manager: Option<PluginDisplay<'_>>,
     layout: Option<&LayoutContext>,
+    escape_pressed: bool,
 ) {
     // 누름 스냅샷은 직전 렌더의 키 후보로 찍는다. 아래에서 후보를 비우기 전이어야 키 주인 plugin 팝업이 포커스
     // 노드로 남는다(host 팝업 그리기가 먼저 찍었으면 그 값을 쓴다).
@@ -119,7 +122,6 @@ fn draw_plugin_popups_with_keys(
     let pointer_pos = press
         .map(|p| p.pos)
         .or_else(|| ctx.input(|i| i.pointer.hover_pos()));
-    let escape_pressed = ctx.input(|i| i.key_pressed(egui::Key::Escape));
 
     // 다른 팝업에 가린 좌표를 판정하려면 모든 팝업의 배치가 먼저 필요하다.
     let placed = place_visible(
@@ -1042,6 +1044,7 @@ fn anchor_pos(anchor: PopupAnchor, size: Vec2, bounds: Rect, pointer_pos: Option
 #[cfg(test)]
 mod tests {
     use super::*;
+    use egui::Modifiers;
 
     fn wire(events: Vec<RawInputEventWire>) -> RawInputWire {
         RawInputWire {
@@ -1675,6 +1678,168 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, RawInputEventWire::Text { text } if text == "a"))
         );
+    }
+
+    /// 창 범위 Close 선언 plugin 팝업 하나를 열고 창의 포커스 노드로 둔다. 첫 프레임을 그려 창 판정이 쓸 직전 렌더를
+    /// 남긴다.
+    fn focused_plugin_popup() -> (
+        crate::state::RequestContext,
+        crate::runtime::engine_session::EngineSession,
+        crate::plugin::PluginManager,
+        Context,
+    ) {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        state.plugin_window_popups.insert(1);
+        let mut mgr = crate::plugin::PluginManager::with_registries(
+            std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+            std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+            std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+        );
+        let mut inst = instance(PopupScopeDecl::Window, None, PopupAnchor::ScreenCenter);
+        inst.contribute.layout.escape = tasty_plugin_protocol::popup_decl::PopupEscape::Close;
+        mgr.insert_popup_instance_for_test(1, inst);
+        let ctx = Context::default();
+        {
+            let engine = session.borrow_mut();
+            escape_pass(
+                &ctx,
+                &mut state,
+                &engine.read(),
+                &mgr,
+                Vec::new(),
+                Modifiers::NONE,
+            );
+        }
+        state
+            .popups
+            .set_focus(Some(crate::adapters::ui::popup::focus::PopupNode::Plugin(
+                1,
+            )));
+        (state, session, mgr, ctx)
+    }
+
+    /// 창 입력 몫 하나를 패스 수식키 `modifiers` 로 그린다.
+    fn escape_pass(
+        ctx: &Context,
+        state: &mut crate::state::RequestContext,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        mgr: &crate::plugin::PluginManager,
+        events: Vec<Event>,
+        modifiers: Modifiers,
+    ) {
+        let layout = layout_with_surface_7(true);
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                Pos2::ZERO,
+                Vec2::new(1280.0, PAGE_HEIGHT),
+            )),
+            events,
+            modifiers,
+            ..Default::default()
+        };
+        drop(ctx.run(input, |ctx| {
+            crate::plugin_bridge::popup_scope::sync_plugin_popup_scopes(
+                state,
+                mgr.popup_instances(),
+            );
+            // host 층이 이번 프레임 키 주인을 정하고 남은 넘긴 Esc 를 plugin 렌더에 둔다.
+            crate::adapters::ui::popup::frame::draw_popup_layer(ctx, state, engine, &layout);
+            draw_plugin_popups(
+                ctx,
+                state,
+                engine,
+                Some(crate::app::plugin_display::PluginDisplay::new(mgr)),
+                Some(&layout),
+            );
+        }));
+        state.press_snapshot = None;
+    }
+
+    fn plugin_closed(state: &crate::state::RequestContext) -> bool {
+        state.plugin_popup_closes.iter().any(|(id, _)| *id == 1)
+    }
+
+    /// 창이 받은 Esc 하나(`escape_with`)와 그 몫 패스. 창이 처리했는지와 패스에 든 사건을 돌려준다.
+    fn window_escape_pass(
+        ctx: &Context,
+        state: &mut crate::state::RequestContext,
+        session: &mut crate::runtime::engine_session::EngineSession,
+        mgr: &crate::plugin::PluginManager,
+        event_mods: Modifiers,
+        pass_mods: Modifiers,
+    ) -> (bool, Vec<Event>) {
+        let engine = session.borrow_mut();
+        let mut input =
+            crate::adapters::ui::popup::window_input_test_support::WindowInput::default();
+        let handled = input.escape_with(ctx, state, &engine.read(), true, event_mods);
+        assert!(input.escape_fed(), "Esc 는 egui 큐에 실린다");
+        let events = input.take_pass(state, ctx);
+        escape_pass(ctx, state, &engine.read(), mgr, events.clone(), pass_mods);
+        (handled, events)
+    }
+
+    /// Given Close 선언 plugin 팝업이 키 주인일 때, When Shift+Esc 가 오면, Then 창은 처리하지 않아 넘긴 Esc 가 없고
+    /// 팝업은 열려 있다. 그 키는 egui 입력에 남아 mesh 입력으로 간다.
+    #[test]
+    fn shift_escape_does_not_close_a_plugin_popup() {
+        let (mut state, mut session, mgr, ctx) = focused_plugin_popup();
+        let (handled, events) = window_escape_pass(
+            &ctx,
+            &mut state,
+            &mut session,
+            &mgr,
+            Modifiers::SHIFT,
+            Modifiers::SHIFT,
+        );
+        assert!(!handled, "창은 Shift+Esc 를 처리하지 않는다");
+        assert!(!plugin_closed(&state), "팝업은 열려 있다");
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::Key { key: egui::Key::Escape, pressed: true, modifiers, .. } if modifiers.shift
+            )),
+            "Shift+Esc 는 egui 입력에 남는다: {events:?}"
+        );
+        assert!(
+            collected_events(events, true)
+                .iter()
+                .any(|e| matches!(e, RawInputEventWire::Key { .. })),
+            "그 키는 wire 로 간다"
+        );
+    }
+
+    /// Given Close 선언 plugin 팝업이 키 주인일 때, When 수식키 없는 Esc 뒤 같은 패스에 Shift 가 눌려 패스 수식키가
+    /// Shift 면, Then 넘긴 Esc 로 닫는다. 판정은 패스 끝 수식키가 아니라 사건 시점 수식키다.
+    #[test]
+    fn a_bare_escape_closes_even_if_shift_is_down_at_the_pass_end() {
+        let (mut state, mut session, mgr, ctx) = focused_plugin_popup();
+        let (handled, _) = window_escape_pass(
+            &ctx,
+            &mut state,
+            &mut session,
+            &mgr,
+            Modifiers::NONE,
+            Modifiers::SHIFT,
+        );
+        assert!(handled, "창은 수식키 없는 Esc 를 처리한다");
+        assert!(plugin_closed(&state), "넘긴 Esc 로 닫는다");
+    }
+
+    /// Given Close 선언 plugin 팝업이 키 주인일 때, When Shift+Esc 뒤 같은 패스에 Shift 를 떼 패스 수식키가 없으면,
+    /// Then 닫지 않는다.
+    #[test]
+    fn a_shift_escape_does_not_close_after_shift_is_released() {
+        let (mut state, mut session, mgr, ctx) = focused_plugin_popup();
+        let (handled, _) = window_escape_pass(
+            &ctx,
+            &mut state,
+            &mut session,
+            &mgr,
+            Modifiers::SHIFT,
+            Modifiers::NONE,
+        );
+        assert!(!handled, "창은 Shift+Esc 를 처리하지 않는다");
+        assert!(!plugin_closed(&state), "팝업은 열려 있다");
     }
 
     #[test]

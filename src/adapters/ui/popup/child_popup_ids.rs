@@ -72,6 +72,13 @@ pub(super) fn child_layer_ids(ctx: &egui::Context, instance: PopupInstanceId) ->
     })
 }
 
+/// `instance`의 등록 자식 팝업 가운데 지금 egui 에서 열린 것이 있는지. 사각형만 남은 등록은 열림이 아니다. Esc 중앙
+/// 단계의 (c)와 하위 화면 갈래가 본문 전에 같은 값으로 읽는다(앞 패스 끝의 열림이다).
+pub(crate) fn child_popup_open(ctx: &egui::Context, instance: PopupInstanceId) -> bool {
+    let ids = child_layer_ids(ctx, instance);
+    ctx.memory(|m| ids.iter().any(|id| m.is_popup_open(*id)))
+}
+
 #[cfg(test)]
 /// 시험이 자식 팝업 id 목록을 본다.
 pub(crate) fn child_popup_ids(

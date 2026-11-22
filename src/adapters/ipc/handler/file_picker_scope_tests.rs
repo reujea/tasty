@@ -719,7 +719,7 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
         );
         let mut pending = Vec::new();
         assert!(
-            !state.window_escape(&mut pending, false),
+            !state.window_escape(&mut pending, Some(0), false),
             "창 Esc 판정이 L 의 Esc 를 처리한다"
         );
         assert!(
@@ -912,7 +912,7 @@ fn a_window_picker_takes_the_first_escape_before_an_open_notification_list() {
         modifiers: egui::Modifiers::NONE,
     };
     let mut pending = vec![escape];
-    state.window_escape(&mut pending, false);
+    state.window_escape(&mut pending, Some(0), false);
     layer_frame(&mut state, &engine.read(), pending);
     let closes_notifications = state.pending_intents.iter().any(|i| {
         matches!(

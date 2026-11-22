@@ -110,8 +110,6 @@ pub enum CommandPaletteAction {
     QueryChanged,
     /// 키보드 ↑/↓ 또는 마우스 hover 로 선택 인덱스 변경. items 범위 내에서만 발생.
     SelectionChanged(usize),
-    /// Escape 키.
-    Close,
 }
 
 /// 키 입력과 검색 변경을 화면 동작으로 반환한다.
@@ -120,10 +118,6 @@ pub fn draw_command_palette_view(
     theme: &Theme,
     props: &mut CommandPaletteProps<'_>,
 ) -> CommandPaletteAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return CommandPaletteAction::Close;
-    }
-
     let (up, down, enter) = ui.ctx().input(|i| {
         (
             i.key_pressed(egui::Key::ArrowUp),
@@ -464,7 +458,6 @@ pub fn draw_command_palette_popup(
 
     match view_action {
         CommandPaletteAction::None => PopupAction::None,
-        CommandPaletteAction::Close => PopupAction::Close,
         CommandPaletteAction::QueryChanged => {
             input.selected = 0;
             PopupAction::None
@@ -875,9 +868,9 @@ mod view_tests {
     }
 
     #[test]
-    fn escape_key_returns_close() {
+    fn the_view_does_not_read_escape() {
         let action = run_view(make_items(3), 0, Some(egui::Key::Escape));
-        assert_eq!(action, CommandPaletteAction::Close);
+        assert_eq!(action, CommandPaletteAction::None);
     }
 
     #[test]

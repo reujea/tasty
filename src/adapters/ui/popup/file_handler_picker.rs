@@ -95,8 +95,6 @@ pub struct FileHandlerPickerProps<'a> {
 pub enum FileHandlerPickerAction {
     None,
     Cancel,
-    /// Escape로 취소했다. 결과는 Cancel과 같고 닫기 사유만 다르다.
-    Escape,
     Select(String),
     Dispatch(String),
     OpenSettings,
@@ -843,17 +841,12 @@ fn footer_band(ui: &mut egui::Ui, props: &FileHandlerPickerProps<'_>) -> (bool, 
     (open, cancel)
 }
 
-/// 화면 입력을 받아 사용자 동작을 반환한다. 키 입력은 포커스를 가진 선택창(`keys`)만 읽는다.
+/// 화면 입력을 받아 사용자 동작을 반환한다. Esc 는 읽지 않는다(팝업 층이 선언대로 닫는다).
 pub fn draw_file_handler_picker_view(
     ui: &mut egui::Ui,
     props: &FileHandlerPickerProps<'_>,
-    keys: bool,
 ) -> FileHandlerPickerAction {
     let mut action = FileHandlerPickerAction::None;
-
-    if keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return FileHandlerPickerAction::Escape;
-    }
 
     let empty = props.candidates.is_empty() && props.recent.is_empty();
     let mut open_settings = false;
@@ -1089,19 +1082,15 @@ pub fn draw_file_handler_picker(
         open_settings_button_label: t("file_handler.picker.open_settings_button"),
     };
 
-    let action = draw_file_handler_picker_view(ui, &props, cx.keys.receives());
+    let action = draw_file_handler_picker_view(ui, &props);
 
     match action {
         FileHandlerPickerAction::None => PopupAction::None,
-        FileHandlerPickerAction::Cancel | FileHandlerPickerAction::Escape => {
+        FileHandlerPickerAction::Cancel => {
             if let Some(p) = picker_of_mut(cx.payload) {
                 p.result = Some(FileHandlerPickerResult::Cancelled);
             }
-            if action == FileHandlerPickerAction::Escape {
-                PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
-            } else {
-                PopupAction::Close
-            }
+            PopupAction::Close
         }
         FileHandlerPickerAction::Select(id) => {
             if let Some(p) = picker_of_mut(cx.payload) {
@@ -1239,7 +1228,7 @@ mod tests {
             let mut out = FileHandlerPickerAction::None;
             drop(ctx.run(raw, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    out = draw_file_handler_picker_view(ui, &self.props(), true);
+                    out = draw_file_handler_picker_view(ui, &self.props());
                 });
             }));
             out
@@ -1423,12 +1412,12 @@ mod tests {
     }
 
     #[test]
-    fn escape_cancels() {
+    fn the_view_does_not_read_escape() {
         let c = Case::new();
         let ctx = egui::Context::default();
         assert_eq!(
             c.run(&ctx, key(egui::Key::Escape)),
-            FileHandlerPickerAction::Escape
+            FileHandlerPickerAction::None
         );
     }
 
@@ -1739,11 +1728,11 @@ mod tests {
         closed
     }
 
-    /// Given 두 범위에 선택창이 보이고 한쪽만 포커스를 가졌을 때, When Escape를 누르면,
-    /// Then 포커스를 가진 선택창만 닫힌다.
+    /// Given 두 범위에 선택창이 보이고 한쪽만 포커스를 가졌을 때, When Escape를 누르면, Then 두 본문 모두 닫지 않는다.
+    /// 본문은 Esc 를 읽지 않는다. 닫기는 팝업 층 중앙 단계가 선언대로 정한다(T-4a3-25).
     #[test]
-    fn escape_closes_only_the_focused_picker() {
-        assert_eq!(escape_results([false, true]), ["none", "escape"]);
-        assert_eq!(escape_results([true, false]), ["escape", "none"]);
+    fn the_picker_bodies_leave_escape_to_the_popup_layer() {
+        assert_eq!(escape_results([false, true]), ["none", "none"]);
+        assert_eq!(escape_results([true, false]), ["none", "none"]);
     }
 }

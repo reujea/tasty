@@ -333,27 +333,14 @@ fn enclosing_open(code: &str, pos: usize) -> Option<usize> {
 /// 팝업 정의의 본문 모듈. 문 안에서만 그려진다.
 const POPUP_BODIES: &[&str] = &[
     "src/adapters/ui/info_modal.rs",
-    "src/adapters/ui/mouse_capture_menu.rs",
     "src/adapters/ui/popup/approval.rs",
     "src/adapters/ui/popup/command_palette.rs",
-    "src/adapters/ui/popup/confirm_close_remote.rs",
-    "src/adapters/ui/popup/confirm_delete_category.rs",
-    "src/adapters/ui/popup/confirm_force_detach_workspace.rs",
     "src/adapters/ui/popup/convert.rs",
-    "src/adapters/ui/popup/dag_list.rs",
-    "src/adapters/ui/popup/file_handler_picker.rs",
-    "src/adapters/ui/popup/file_picker.rs",
     "src/adapters/ui/popup/file_picker/folder.rs",
-    "src/adapters/ui/popup/port_scanner.rs",
     "src/adapters/ui/popup/preset_apply.rs",
-    "src/adapters/ui/popup/rail_category.rs",
-    "src/adapters/ui/popup/remote_attach.rs",
     "src/adapters/ui/popup/remote_attach/nav.rs",
-    "src/adapters/ui/popup/remote_tool.rs",
-    "src/adapters/ui/popup/script_confirm.rs",
     "src/adapters/ui/popup/transfer.rs",
     "src/adapters/ui/search_bar.rs",
-    "src/adapters/ui/tools_menu.rs",
     "src/adapters/ui/tutorial/topic_popup.rs",
 ];
 
@@ -649,7 +636,20 @@ fn the_key_read_scan_catches_each_form() {
 /// 키를 직접 읽지 않는 팝업 본문 파일. 키를 읽는 위젯을 부르는 호출자로만 본다.
 const POPUP_BODIES_WITHOUT_KEY_READS: &[&str] = &[
     "src/adapters/ui/dialog.rs",
+    "src/adapters/ui/mouse_capture_menu.rs",
+    "src/adapters/ui/popup/confirm_close_remote.rs",
+    "src/adapters/ui/popup/confirm_delete_category.rs",
+    "src/adapters/ui/popup/confirm_force_detach_workspace.rs",
+    "src/adapters/ui/popup/dag_list.rs",
+    "src/adapters/ui/popup/file_handler_picker.rs",
+    "src/adapters/ui/popup/file_picker.rs",
+    "src/adapters/ui/popup/port_scanner.rs",
+    "src/adapters/ui/popup/rail_category.rs",
+    "src/adapters/ui/popup/remote_attach.rs",
+    "src/adapters/ui/popup/remote_tool.rs",
+    "src/adapters/ui/popup/script_confirm.rs",
     "src/adapters/ui/restore_notice.rs",
+    "src/adapters/ui/tools_menu.rs",
 ];
 
 /// 팝업 층 파일이 부르는, 키를 읽는 공용 위젯 파일 짝.

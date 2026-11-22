@@ -29,6 +29,8 @@ impl PopupManager {
             ctx,
             &mut |cx, ui| {
                 if content(cx, ui, Some(cx.instance) == key_owner) {
+                    // 그 패스에 남은 Esc 는 끝낸 콘텐츠가 쓴 것이다. 중앙 단계가 Escape 로 다시 닫지 않는다.
+                    cx.keys.consume(super::keys::BasicKey::Escape);
                     done.push(cx.instance);
                 }
             },
@@ -38,6 +40,16 @@ impl PopupManager {
         );
         for iid in done {
             self.close_instance(iid, tasty_plugin_protocol::PopupCloseReason::Command);
+        }
+        // 중앙 단계가 선언대로 닫은 인스턴스.
+        for (iid, action) in result.actions {
+            match action {
+                PopupAction::Close => {
+                    self.close_instance(iid, tasty_plugin_protocol::PopupCloseReason::Content)
+                }
+                PopupAction::CloseBy(reason) => self.close_instance(iid, reason),
+                PopupAction::ReleaseFocus | PopupAction::None => {}
+            }
         }
         let mut closed = result.closed;
         closed.extend(self.take_closed_ids());

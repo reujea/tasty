@@ -585,15 +585,11 @@ pub fn draw_port_scanner_popup(
         label_favorite_remove: t("port_scanner.favorite_remove_tooltip"),
     };
 
-    let escape = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
     let action = draw_port_scanner_view(ui, &props);
 
     match action {
         PortScannerAction::None => PopupAction::None,
         // 스캔 상태는 닫기 훅이 사유를 보고 정리한다.
-        PortScannerAction::Close if escape => {
-            PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
-        }
         PortScannerAction::Close => PopupAction::Close,
         PortScannerAction::Refresh => {
             kick_off_scan(
@@ -931,18 +927,6 @@ pub fn draw_port_scanner_view(
     ui: &mut egui::Ui,
     props: &PortScannerProps<'_>,
 ) -> PortScannerAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        // 드롭다운이 열려 있으면 Escape로 드롭다운만 닫는다.
-        let popup_open = ui
-            .ctx()
-            .memory(|m| m.is_popup_open(egui::Id::new(STATE_FILTER_POPUP_ID)));
-        if popup_open {
-            ui.ctx().memory_mut(|m| m.close_popup());
-            return PortScannerAction::None;
-        }
-        return PortScannerAction::Close;
-    }
-
     let mut action = PortScannerAction::None;
 
     // 공통 내부 여백 없이 구역마다 여백을 주고 구역 사이 간격은 없앤다.
@@ -2159,7 +2143,7 @@ mod tests {
     }
 
     #[test]
-    fn view_returns_close_on_escape() {
+    fn the_view_does_not_read_escape() {
         let mut raw = egui::RawInput::default();
         raw.events.push(egui::Event::Key {
             key: egui::Key::Escape,
@@ -2169,13 +2153,12 @@ mod tests {
             modifiers: egui::Modifiers::NONE,
         });
         let action = run_view(raw, &[]);
-        assert_eq!(action, PortScannerAction::Close);
+        assert_eq!(action, PortScannerAction::None);
     }
 
-    /// 팝업 그리기 함수가 Esc로 닫을 때 사유 `Escape`를 붙인다. 닫기 버튼과 사유가 갈려야 닫기 훅이
-    /// 경로를 구분한다.
+    /// 팝업 그리기 함수는 Esc 를 읽지 않는다. 사유 Escape 닫기는 팝업 층 중앙 단계가 정한다(T-4a3-25).
     #[test]
-    fn the_popup_closes_with_the_escape_reason_on_escape() {
+    fn the_popup_body_does_not_read_escape() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let engine = session.borrow_mut();
         let mut raw = egui::RawInput::default();
@@ -2198,12 +2181,7 @@ mod tests {
                 ));
             });
         }));
-        assert!(matches!(
-            action,
-            Some(PopupAction::CloseBy(
-                crate::adapters::ui::popup::PopupCloseReason::Escape
-            ))
-        ));
+        assert!(matches!(action, Some(PopupAction::None)));
     }
 
     /// 닫힌 경로마다 사유가 다르고, 콘텐츠 닫기·Esc만 스캔 상태를 버린다. 바깥 클릭·명령으로
@@ -2807,5 +2785,242 @@ mod tests {
             });
         }));
         assert_eq!(out, PortScannerAction::None);
+    }
+
+    // ---- 팝업 층 Esc 장면(T-4a3-4·10·13·27). 창의 Esc 판정을 거친 Esc 로 팝업 층을 그린다. ----
+
+    use crate::adapters::ui::popup::window_input_test_support::{
+        layer_click as click_at, layer_escape as escape_frame, layer_frame, painted_at,
+    };
+
+    /// 결과가 있는 스캐너를 키 주인으로 연다(스캔을 새로 시작하지 않는다).
+    fn ready_scanner(state: &mut MainViewState) -> crate::adapters::ui::popup::PopupInstanceId {
+        crate::i18n::init("en");
+        for def in crate::adapters::ui::popup::defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        state.port_scan = PortScanState::Ready {
+            rows: vec![
+                row_with_state(3000, PortState::Listen),
+                row_with_state(3001, PortState::Established),
+            ],
+            scope: ScanScope::Tasty,
+        };
+        state
+            .popups
+            .open_request(
+                &crate::intent::OpenRequest::new(
+                    PORT_SCANNER_POPUP_ID,
+                    crate::adapters::ui::popup::PopupScope::Window,
+                )
+                .centered()
+                .focused(),
+                true,
+            )
+            .expect("scanner opens")
+    }
+
+    fn open_state_filter(ctx: &egui::Context, state: &mut MainViewState, engine: &EngineRead<'_>) {
+        layer_frame(ctx, state, engine, Vec::new());
+        let texts = layer_frame(ctx, state, engine, Vec::new());
+        let button = painted_at(&texts, t("port_scanner.state_filter"))
+            .or_else(|| {
+                texts
+                    .iter()
+                    .find(|(s, _)| s.starts_with(t("port_scanner.state_filter")))
+                    .map(|(_, r)| *r)
+            })
+            .expect("상태 필터 버튼");
+        let texts = click_at(ctx, state, engine, button.center());
+        assert!(
+            ctx.memory(|m| m.is_popup_open(egui::Id::new(STATE_FILTER_POPUP_ID))),
+            "상태 필터가 열렸다"
+        );
+        assert!(painted_at(&texts, t("port_scanner.state_filter_title")).is_some());
+    }
+
+    fn scanner_open(
+        state: &MainViewState,
+        iid: crate::adapters::ui::popup::PopupInstanceId,
+    ) -> bool {
+        state.popups.instance(iid).is_some_and(|p| p.open)
+    }
+
+    /// T-4a3-4: Given 상태 필터가 열린 키 주인 스캐너, When Esc 가 오면, Then 필터만 닫히고 스캐너는 열린 채이며 닫기 훅이
+    /// 스캔 상태를 버리지 않는다.
+    #[test]
+    fn escape_closes_only_the_open_state_filter() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let iid = ready_scanner(&mut state);
+        let ctx = egui::Context::default();
+        open_state_filter(&ctx, &mut state, &read);
+        escape_frame(&ctx, &mut state, &read);
+        assert!(!ctx.memory(|m| m.is_popup_open(egui::Id::new(STATE_FILTER_POPUP_ID))));
+        assert!(scanner_open(&state, iid), "스캐너는 열린 채다");
+        assert!(
+            matches!(state.port_scan, PortScanState::Ready { .. }),
+            "스캔 상태가 남는다"
+        );
+    }
+
+    /// T-4a3-10: Given 상태 필터가 열린 키 주인 스캐너, When Esc 가 두 패스에 하나씩 오면, Then 첫 Esc 뒤 필터만 닫히고
+    /// 스캐너가 계속 키를 받으며, 둘째 Esc 에 스캐너가 닫힌다.
+    #[test]
+    fn the_scanner_keeps_the_keys_after_escape_closes_its_filter() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let iid = ready_scanner(&mut state);
+        let ctx = egui::Context::default();
+        open_state_filter(&ctx, &mut state, &read);
+        escape_frame(&ctx, &mut state, &read);
+        assert!(!ctx.memory(|m| m.is_popup_open(egui::Id::new(STATE_FILTER_POPUP_ID))));
+        assert!(scanner_open(&state, iid));
+        assert_eq!(
+            state.focus_node(&read),
+            crate::state::focus_node::FocusNode::Popup(
+                crate::adapters::ui::popup::focus::PopupNode::Host(iid)
+            ),
+            "스캐너가 키를 받는다"
+        );
+        escape_frame(&ctx, &mut state, &read);
+        assert!(!scanner_open(&state, iid), "둘째 Esc 에 닫힌다");
+    }
+
+    /// T-4a3-13: Given 열 선택기가 열린 키 주인 스캐너, When Esc 가 오면, Then 열 선택기만 닫히고 스캐너는 열린 채다.
+    /// 열 선택기 버튼은 글자가 없어 검색칸 오른쪽을 차례로 눌러 찾는다(제목 글자가 칠해지면 열린 것이다).
+    #[test]
+    fn escape_closes_only_the_open_column_chooser() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let iid = ready_scanner(&mut state);
+        let ctx = egui::Context::default();
+        layer_frame(&ctx, &mut state, &read, Vec::new());
+        let texts = layer_frame(&ctx, &mut state, &read, Vec::new());
+        let search = painted_at(&texts, t("port_scanner.search_placeholder")).expect("검색칸");
+        let title = t("port_scanner.columns_menu_title");
+        let mut opened = false;
+        let mut x = search.right();
+        while x < search.right() + 400.0 && !opened {
+            let texts = click_at(&ctx, &mut state, &read, egui::pos2(x, search.center().y));
+            opened = painted_at(&texts, title).is_some();
+            x += 4.0;
+        }
+        assert!(opened, "열 선택기가 열렸다");
+        assert!(scanner_open(&state, iid));
+        escape_frame(&ctx, &mut state, &read);
+        let texts = layer_frame(&ctx, &mut state, &read, Vec::new());
+        assert!(painted_at(&texts, title).is_none(), "열 선택기가 닫힌다");
+        assert!(
+            !ctx.memory(|m| m.any_popup_open()),
+            "egui 팝업이 남지 않는다"
+        );
+        assert!(scanner_open(&state, iid), "스캐너는 열린 채다");
+    }
+
+    /// T-4a3-27: Given 스캔 상태가 Idle 이고 대기 요청이 없으며 즐겨찾기가 있을 때, When 스캐너의 첫 패스에 Esc 가 오면,
+    /// Then 본문이 그 패스에 두 스캔을 시작하고(본문 뒤·훅 전 `Loading { request: Some(_) }`) 사유 Escape 닫기 훅이 두
+    /// 상태를 Idle 로 되돌린다.
+    #[test]
+    fn escape_on_the_scanner_leaves_both_scans_idle() {
+        use crate::adapters::ui::popup::PopupCloseReason;
+        let (mut state, mut session) = crate::state::tests::test_state();
+        session
+            .runtime
+            .port_favorites
+            .change(|f| f.items.push(favorite("127.0.0.1", 3000)));
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let iid = ready_scanner(&mut state);
+        state.port_scan = PortScanState::Idle;
+        assert!(matches!(state.port_favorites_scan, PortScanState::Idle));
+        assert!(!read.port_favorites.is_empty(), "즐겨찾기가 있다");
+        let ctx = egui::Context::default();
+        let mut events = vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }];
+        assert!(state.window_escape(&mut events, Some(0), false));
+        state
+            .popups
+            .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 900.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut actions = Vec::new();
+        drop(ctx.run(raw, |ctx| {
+            state.popups.prepare_frame_for_draw(ctx, None);
+            state.normalize_focus(&read);
+            state.decide_frame_key_owner(None);
+            let mut popups =
+                std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+            let mut result = popups.draw_routed(
+                ctx,
+                // 정의 본문은 팝업 층에서만 꺼낸다(본문 호출 가드). 이 시험은 스캐너 본문을 이름으로 부른다.
+                &mut |cx, ui| {
+                    if cx.instance == iid {
+                        super::draw_port_scanner_popup(ui, &mut state, &read, cx.instance)
+                    } else {
+                        PopupAction::None
+                    }
+                },
+                None,
+                &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                &[],
+                None,
+            );
+            state.popups = popups;
+            actions = std::mem::take(&mut result.actions);
+        }));
+        let closing: Vec<PopupCloseReason> = actions
+            .iter()
+            .filter(|(i, _)| *i == iid)
+            .filter_map(|(_, a)| match a {
+                PopupAction::CloseBy(r) => Some(*r),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            closing,
+            vec![PopupCloseReason::Escape],
+            "그 패스에 사유 Escape 로 닫는다"
+        );
+        for scan in [&state.port_scan, &state.port_favorites_scan] {
+            assert!(
+                matches!(
+                    scan,
+                    PortScanState::Loading {
+                        request: Some(_),
+                        ..
+                    }
+                ),
+                "본문 뒤·훅 전: 그 패스에 시작한 스캔"
+            );
+        }
+        state.popups.close_instance(iid, PopupCloseReason::Escape);
+        for closed in state.popups.take_closed_queue() {
+            super::super::port_scanner_close::on_close_port_scanner_popup(
+                &ctx, &mut state, &read, &closed,
+            );
+        }
+        assert!(
+            matches!(state.port_scan, PortScanState::Idle),
+            "닫기 훅 뒤 Idle"
+        );
+        assert!(
+            matches!(state.port_favorites_scan, PortScanState::Idle),
+            "즐겨찾기 스캔도 Idle"
+        );
     }
 }

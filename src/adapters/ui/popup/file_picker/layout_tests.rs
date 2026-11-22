@@ -138,6 +138,7 @@ fn painted_frames_filtered(
         selected: &selected,
         mode,
         owns_escape: false,
+        escape: false,
         title_label: "title",
         name_field_label: "File name",
         name_placeholder: "placeholder",

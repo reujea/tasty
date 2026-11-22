@@ -44,8 +44,6 @@ pub struct RenamePopupView<'a> {
 pub enum RenamePopupAction {
     None,
     Cancel,
-    /// Esc로 취소했다. 결과는 Cancel과 같고 닫기 사유만 다르다.
-    Escape,
     Confirm(String),
 }
 
@@ -89,7 +87,7 @@ pub fn rename_popup_base_height(theme: &Theme, layout: RenamePopupLayout) -> Log
 }
 
 /// 입력 → (오류 또는 대기 줄) → 우측 정렬 버튼 행을 그린다.
-/// Enter/Save 는 확정, Escape/Cancel 은 취소다. Enter 는 입력 포커스가 필요하다.
+/// Enter/Save 는 확정, Cancel 은 취소다. Esc 는 읽지 않는다(호출자의 팝업 층이 정한다). Enter 는 입력 포커스가 필요하다.
 /// 같은 프레임에 둘 다 발생하면 확정을 우선한다.
 pub fn rename_popup(
     ui: &mut egui::Ui,
@@ -113,9 +111,6 @@ fn content(
 ) -> RenamePopupAction {
     let ctx = ui.ctx().clone();
     let waiting = view.waiting.is_some();
-    if !waiting && view.keys && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        return RenamePopupAction::Escape;
-    }
     ui.spacing_mut().item_spacing = egui::vec2(theme.spacing_sm.value(), 0.0);
 
     // 키를 읽지 않는 인스턴스는 직전 프레임까지 가진 입력 포커스를 TextEdit가 이벤트를 읽기 전에 놓는다.

@@ -456,7 +456,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                 sizer: None,
                 drag_region: Some(panel_header_drag_strip),
                 on_open: None,
-                draw_fn: |ui, state, engine, cx| super::remote_tool::draw_remote_tool_popup(ui, state, engine, cx.instance),
+                draw_fn: |ui, state, engine, cx| super::remote_tool::draw_remote_tool_popup(ui, state, engine, cx),
                 #[cfg(debug_assertions)]
                 debug_payload: None,
                 on_close: Some(|ctx, state, engine, _| {

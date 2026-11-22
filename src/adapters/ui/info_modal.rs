@@ -201,9 +201,7 @@ pub fn draw_info_modal(
     let dismiss_idx = buttons.len() - 1;
     // passive로 열린 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
     let keys = cx.keys.receives();
-    let escape = keys && ctx.input(|i| i.key_pressed(egui::Key::Escape));
-    let confirm = escape
-        || out.clicked == Some(dismiss_idx)
+    let confirm = out.clicked == Some(dismiss_idx)
         || (keys && ctx.input(|i| i.key_pressed(egui::Key::Enter)));
     let mut open_permission_settings = false;
     if let Some(i) = out.clicked
@@ -219,10 +217,10 @@ pub fn draw_info_modal(
     }
 
     // 닫기 훅이 맨 앞 안내를 꺼내고 다음 안내를 그 출처로 다시 연다.
-    match (confirm, escape) {
-        (false, _) => PopupAction::None,
-        (true, true) => PopupAction::CloseBy(popup::PopupCloseReason::Escape),
-        (true, false) => PopupAction::Close,
+    if confirm {
+        PopupAction::Close
+    } else {
+        PopupAction::None
     }
 }
 

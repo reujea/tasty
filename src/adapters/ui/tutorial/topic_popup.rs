@@ -29,10 +29,6 @@ pub fn draw_tutorial_topics_popup(
         crate::adapters::ui::tutorial::open_catalog(state);
     }
     let th = theme::theme();
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;
-    }
-
     let mut action = PopupAction::None;
     if ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowDown)) {
         state.tutorial.popup_selected =

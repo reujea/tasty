@@ -157,11 +157,11 @@ fn first_shortcut_key() -> egui::Key {
     egui::Key::from_name(&ch.to_string()).expect("letter key")
 }
 
-/// Given 두 surface에 변환 팝업이 보이고 한쪽만 포커스를 가졌을 때, When Escape·Enter·글자 단축키를 누르면,
-/// Then 포커스를 가진 인스턴스만 반응한다.
+/// Given 두 surface에 변환 팝업이 보이고 한쪽만 포커스를 가졌을 때, When Enter·글자 단축키를 누르면,
+/// Then 포커스를 가진 인스턴스만 반응한다. Esc 는 본문이 읽지 않는다(아래 시험).
 #[test]
 fn only_the_focused_convert_instance_reads_keys() {
-    for key in [egui::Key::Escape, egui::Key::Enter, first_shortcut_key()] {
+    for key in [egui::Key::Enter, first_shortcut_key()] {
         assert_eq!(
             press_with_focus(key, [false, true]),
             [false, true],
@@ -175,11 +175,11 @@ fn only_the_focused_convert_instance_reads_keys() {
     }
 }
 
-/// When 포커스를 가진 변환 팝업에서 Escape를 누르면, Then 닫기 사유가 Escape다.
+/// When 포커스를 가진 변환 팝업에서 Escape를 누르면, Then 두 본문 모두 반응하지 않는다. 본문은 Esc 를 읽지 않는다. 닫기는 팝업 층 중앙 단계가 선언대로 정한다(T-4a3-25).
 #[test]
-fn escape_closes_the_convert_popup_with_the_escape_reason() {
+fn the_convert_body_leaves_escape_to_the_popup_layer() {
     assert_eq!(
         draw_with_key(egui::Key::Escape, [true, false]),
-        ["escape", "none"]
+        ["none", "none"]
     );
 }

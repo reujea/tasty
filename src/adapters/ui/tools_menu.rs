@@ -83,10 +83,6 @@ pub fn draw_tools_menu(
     engine: &EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;
-    }
-
     let th = theme::theme();
     *cx.payload = PopupPayload::ToolsMenu {
         inner_width: measure_inner_width(ui.ctx(), state),

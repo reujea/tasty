@@ -42,11 +42,6 @@ impl PopupManager {
             .any(|id| egui::LayerId::new(egui::Order::Foreground, id) == layer);
         inside.then_some(owner.instance)
     }
-
-    /// 이번 패스에 받은 별도 창 키 주인. 관리자 그리기보다 앞에서 키를 읽는 창 위젯 판정이 쓴다.
-    pub(crate) fn received_window_key_owner(&self) -> Option<PopupInstanceId> {
-        self.pass_key_host()
-    }
 }
 
 /// 시험이 `text`를 칠한 자리에 마지막 패스에 그린 포커스 받는 위젯(`order` 레이어)을 찾는다.

@@ -126,12 +126,31 @@ fn close_button_point(popup_pos: egui::Pos2, popup_size: egui::Vec2) -> egui::Po
     )
 }
 
+/// 창처럼 Esc 누름을 창의 Esc 판정(`window_escape`)에 먼저 거친다. 창이 처리한 Esc 는 egui 입력에서 빠지고 이번
+/// 프레임 키 주인에게 넘어가, 본문 뒤 중앙 단계가 그 선언으로 닫는다.
+fn through_the_window(
+    state: &mut crate::state::RequestContext,
+    mut raw: egui::RawInput,
+) -> egui::RawInput {
+    if raw
+        .events
+        .iter()
+        .any(crate::adapters::ui::popup::body_keys::is_escape_press)
+        && !state.window_escape(&mut raw.events, Some(0), false)
+    {
+        tracing::debug!("the window did not take the Escape press; it stays in the egui input");
+    }
+    state.popups.begin_key_pass(false);
+    raw
+}
+
 fn run_frame(
     raw: egui::RawInput,
     state: &mut crate::state::RequestContext,
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
 ) {
     let ctx = egui::Context::default();
+    let raw = through_the_window(state, raw);
     drop(ctx.run(raw, |ctx| {
         draw_popups(ctx, state, &engine.read(), &[], term_rect(), 1.0);
     }));
@@ -1249,6 +1268,7 @@ fn run_frames(
 ) -> egui::Context {
     let ctx = egui::Context::default();
     for raw in inputs {
+        let raw = through_the_window(state, raw);
         drop(ctx.run(raw, |ctx| {
             draw_popups(ctx, state, &engine.read(), &[], term_rect(), 1.0);
         }));

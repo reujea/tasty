@@ -388,10 +388,6 @@ pub fn draw_apply_preset_view(
     ui: &mut egui::Ui,
     props: &ApplyPresetProps<'_>,
 ) -> ApplyPresetAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return ApplyPresetAction::Cancel;
-    }
-
     let th = props.theme;
     let names = props.names;
 
@@ -577,11 +573,11 @@ mod tests {
     }
 
     #[test]
-    fn view_returns_cancel_on_escape() {
+    fn the_view_does_not_read_escape() {
         let mut raw = egui::RawInput::default();
         raw.events.push(key_event(egui::Key::Escape));
         let action = run_with_input(raw, &[], None);
-        assert_eq!(action, ApplyPresetAction::Cancel);
+        assert_eq!(action, ApplyPresetAction::None);
     }
 
     #[test]

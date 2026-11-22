@@ -606,8 +606,10 @@ fn a_passive_queue_popup_ignores_enter_and_escape() {
                 !closes_on_key(&mut state, &engine, id, draw, &mut payload, false, key),
                 "{id} {key:?}"
             );
-            assert!(
+            // 본문은 Esc 를 읽지 않는다. 닫기는 팝업 층 중앙 단계가 선언대로 정한다(T-4a3-25).
+            assert_eq!(
                 closes_on_key(&mut state, &engine, id, draw, &mut payload, true, key),
+                key == egui::Key::Enter,
                 "{id} {key:?} focused"
             );
         }

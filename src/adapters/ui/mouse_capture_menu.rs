@@ -217,10 +217,6 @@ pub fn draw_menu(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    // 키 입력은 포커스를 가진 인스턴스만 읽는다. 다른 surface의 메뉴는 같은 Esc에 닫히지 않는다.
-    if cx.keys.receives() && ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape);
-    }
     let Some(&MenuPayload {
         surface_id,
         unknown,
@@ -766,7 +762,7 @@ mod tests {
     /// 이름 미상 형태에서 화살표·Tab·Enter·Space 는 저장도 닫기도 하지 않고, Esc 만 평소처럼 닫는다.
     /// 비활성 행이 포커스를 받지 않는다는 근거는 위젯 시험 `the_disabled_rows_never_take_focus` 다.
     #[test]
-    fn unknown_form_keys_save_nothing_and_escape_closes() {
+    fn unknown_form_keys_save_nothing_and_escape_is_left_to_the_popup_layer() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let e = session.borrow_mut();
         push_banner(&mut state, 42);
@@ -785,7 +781,8 @@ mod tests {
         assert!(banner_shown(&state, 42));
         let (intents, closed) = run_menu(&mut state, &e.read(), 42, vec![key(egui::Key::Escape)]);
         assert!(intents.is_empty());
-        assert!(closed);
+        // 본문은 Esc 를 읽지 않는다. 닫기는 팝업 층 중앙 단계가 선언대로 정한다(T-4a3-25).
+        assert!(!closed);
     }
 
     /// Given 다른 surface의 메뉴가 포커스를 가졌을 때, When Escape를 누르면, Then 포커스 없는 이 메뉴는 열린 채다.
@@ -800,16 +797,16 @@ mod tests {
         assert!(!closed);
     }
 
-    /// When 포커스를 가진 메뉴에서 Escape를 누르면, Then 닫기 사유가 Escape다.
+    /// When 포커스를 가진 메뉴에서 Escape를 누르면, Then 본문은 닫지 않는다. 본문은 Esc 를 읽지 않는다. 닫기는 팝업 층 중앙 단계가 선언대로 정한다(T-4a3-25).
     #[test]
-    fn escape_closes_the_menu_with_the_escape_reason() {
+    fn the_menu_body_leaves_escape_to_the_popup_layer() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let e = session.borrow_mut();
         push_banner(&mut state, 42);
         open_menu(&mut state, &e.read(), 42);
         let escape = vec![key(egui::Key::Escape)];
         let (_, closed, escaped) = run_menu_focused(&mut state, &e.read(), 42, escape, true);
-        assert!(closed && escaped);
+        assert!(!closed && !escaped);
     }
 
     /// ja 처럼 고정 문구가 상한 폭을 넘는 행이 있으면 메뉴는 288 에 머물고 셸이 그 행만큼 높아진다.

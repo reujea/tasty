@@ -41,9 +41,17 @@ fn run_window(
         ctx,
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
+    // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+    let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+        owner,
+        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+            &raw.events,
+            0,
+            tasty_key_match::KeyMods::default(),
+        ),
+    };
     drop(ctx.run(raw, |ctx| {
-        ui_state.folder_chooser.put_key_owner(owner);
-        draw_plugins_panel(ctx, snapshot, ui_state, actions);
+        draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
         esc_left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     }));
     esc_left
@@ -158,9 +166,17 @@ fn draw_window(
         ctx,
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
+    // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+    let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+        owner,
+        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+            &raw.events,
+            0,
+            tasty_key_match::KeyMods::default(),
+        ),
+    };
     ctx.run(raw, |ctx| {
-        ui_state.folder_chooser.put_key_owner(owner);
-        draw_plugins_panel(ctx, snapshot, ui_state, actions);
+        draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
     })
 }
 

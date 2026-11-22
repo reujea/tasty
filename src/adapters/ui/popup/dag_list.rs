@@ -266,16 +266,14 @@ pub fn draw_dag_list_popup(
     let dag: &mut DagListState = dag;
     let instance = cx.instance;
 
-    // 드롭다운이 열려 있으면 부모 닫기만 건너뛴다. 본문은 그려야 드롭다운이 Escape를 처리한다.
-    let esc = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
-    let esc_owned_by_dropdown =
-        esc && super::child_overlay_open(ui.ctx(), instance, STATUS_SELECT_OVERLAY_KEY);
-    if esc && !esc_owned_by_dropdown {
-        if dag.view.is_detail() {
-            back_to_list(dag);
-            return PopupAction::None;
-        }
-        return PopupAction::Close;
+    // 상세 화면의 Esc 는 목록으로 돌아간다. 상태 필터가 열려 있으면 읽지 않는다(그 Esc 는 필터가 닫는다). 목록의
+    // Esc 는 읽지 않는다. 중앙 단계가 선언대로 닫는다.
+    if dag.view.is_detail()
+        && !super::child_popup_open(ui.ctx(), instance)
+        && cx.keys.consume(super::keys::BasicKey::Escape)
+    {
+        back_to_list(dag);
+        return PopupAction::None;
     }
 
     dag.poll_list(&engine.as_ref());

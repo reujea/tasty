@@ -115,7 +115,8 @@ fn frame(ch: &mut LocalFileChooser, ctx: &egui::Context, key: egui::Key) {
     };
     drop(ctx.run(input, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ch.draw(ui, &crate::theme::theme(), true);
+            // 관리자 없이 그리므로 그 Esc 를 피커에 쓴 것은 시험이 정한다(관리자 통로가 소비한 경우와 같다).
+            ch.draw(ui, &crate::theme::theme(), true, key == egui::Key::Escape);
         });
     }));
 }

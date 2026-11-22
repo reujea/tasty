@@ -335,6 +335,7 @@ pub fn draw_plugins_panel(
     snapshot: &PluginsSnapshot,
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
+    keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
 ) {
     let th = theme::theme();
 
@@ -344,7 +345,7 @@ pub fn draw_plugins_panel(
     let remove_cancellable =
         ui_state.confirm_remove_folder.is_some() && ui_state.removing_folder.is_none();
     // 폴더 선택 창이 키 주인(W1)이면 Esc 는 그 창 것이다.
-    let window_takes_keys = ui_state.folder_chooser.received_key_owner().is_none();
+    let window_takes_keys = keys.owner.is_none();
     if window_takes_keys
         && (ui_state.confirm_uninstall_id.is_some() || remove_cancellable)
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
@@ -439,10 +440,10 @@ pub fn draw_plugins_panel(
         match ui_state.active_tab {
             PluginsTab::List => draw_list_tab(ctx, snapshot, ui_state, actions),
             PluginsTab::Attention => draw_attention_tab(ctx, snapshot, ui_state, actions),
-            PluginsTab::Add => draw_add_tab(ctx, snapshot, ui_state, actions),
+            PluginsTab::Add => draw_add_tab(ctx, snapshot, ui_state, actions, keys),
         }
     });
-    ui_state.folder_chooser.draw(ctx);
+    ui_state.folder_chooser.draw(ctx, keys);
     add::apply_folder_result(ui_state, snapshot);
 }
 

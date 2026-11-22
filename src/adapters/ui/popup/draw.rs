@@ -262,13 +262,21 @@ impl PopupManager {
         // 창이 묶은 주인이 그사이 닫혔으면 그 키는 처리한 노드에서 멈춘 것이므로 키 주인이 있는 프레임이다.
         let frame_has_key_owner = frame_keys.held();
         // 창이 처리한 Esc 는 egui 입력에 없다. 묶인 host 키 주인 본문이 읽도록 본문들을 그리는 동안만 원래 사건을
-        // 넣는다. plugin 키 주인 몫은 plugin 렌더가 꺼낸다.
-        let handed_escape = if frame_keys.host.is_some() {
+        // 넣는다. plugin 키 주인 몫은 plugin 렌더가 꺼낸다. 별도 창은 넘긴 Esc 대신 창이 넣은 표지를 쓴다.
+        let window_escape = self.take_window_escape();
+        let handed_escape = if frame_keys.host.is_some() && window_escape.is_none() {
             self.take_handed_escape()
         } else {
             super::body_keys::HandedEscape::default()
         };
         let handed_escape = super::body_keys::hand_escape(ctx, &handed_escape);
+        let mut pass_escape = match window_escape {
+            Some(marks) => super::escape_step::PassEscape::from_window(marks),
+            None => super::escape_step::PassEscape {
+                event: !handed_escape.is_empty(),
+                marks: super::body_keys::handed_marks(ctx, &handed_escape),
+            },
+        };
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
@@ -588,6 +596,18 @@ impl PopupManager {
                         expand_requested = Some(popup.instance);
                     }
                 }
+                // 보기 버튼은 Esc 를 쓰지 않는다.
+                if pass_escape.event
+                    && keys_at_start == Some(popup.instance)
+                    && let Some(close) = super::escape_step::central_close(
+                        popup.escape,
+                        &[],
+                        &PopupAction::None,
+                        false,
+                    )
+                {
+                    actions.push((popup.instance, close));
+                }
                 continue;
             }
             let clamp_rect =
@@ -851,14 +871,37 @@ impl PopupManager {
                                 // 키 주인이 아닌 본문은 키 입력을 보지 못한다(직접 읽기와 위젯 키 포커스 모두).
                                 let takes_keys = cx.focused
                                     || (!frame_has_key_owner && !popup.arrange.takes_focus);
-                                cx.keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits);
+                                let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits);
+                                // 키 주인 통로는 이번 패스 Esc 표지로 Esc 를 맞춘다. 본문 전에 자식 팝업 열림을 읽는다.
+                                cx.keys = if cx.focused {
+                                    keys.with_escape_marks(std::mem::take(&mut pass_escape.marks))
+                                } else {
+                                    keys
+                                };
+                                let escape_here = cx.focused && pass_escape.event;
+                                let child_open = escape_here
+                                    && super::child_popup_ids::child_popup_open(ctx, cx.instance);
                                 let action =
                                     super::body_keys::with_body_keys(ctx, takes_keys, || {
                                         content_fn(&mut cx, ui)
                                     });
+                                if let Some(marks) = cx.keys.take_escape_marks() {
+                                    pass_escape.marks = marks;
+                                }
+                                let close = if escape_here {
+                                    super::escape_step::central_close(
+                                        popup.escape,
+                                        cx.keys.consumed(),
+                                        &action,
+                                        child_open,
+                                    )
+                                } else {
+                                    None
+                                };
                                 if !matches!(action, PopupAction::None) {
                                     actions.push((cx.instance, action));
                                 }
+                                actions.extend(close.map(|c| (cx.instance, c)));
                             },
                         );
                         if let Some(grip) = grip_rect {
@@ -929,7 +972,7 @@ impl PopupManager {
         if let Some(iid) = bring_front {
             self.bring_to_front(iid);
         }
-        super::body_keys::withdraw_escape(ctx, &handed_escape);
+        super::body_keys::withdraw_escape(ctx, &handed_escape, &pass_escape.marks);
         if let Some(iid) = expand_requested {
             self.expand(iid);
         }

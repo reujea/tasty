@@ -204,7 +204,11 @@ fn escape_through_the_window(
     layout: &LayoutContext,
 ) -> bool {
     let mut events = escape();
-    let consumed = state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape)));
+    let consumed = state.window_escape(
+        &mut events,
+        Some(0),
+        ctx.input(|i| i.key_down(egui::Key::Escape)),
+    );
     frame(ctx, state, engine, mgr, layout, events);
     consumed
 }
@@ -303,15 +307,13 @@ fn escape_with(modifiers: egui::Modifiers) -> Event {
     }
 }
 
-/// Given 키 주인이 피커 H 일 때, When 창이 Esc 로 H 의 포커스를 풀고 그 Esc 를 H 본문에 넘기면, Then 넘긴 사건은
-/// 원래 수식키를 지닌다. Ctrl+Esc 는 피커 취소(수식키 없는 Esc)와 맞지 않아 H 가 열린 채이고, 일반 Esc 는 H 를
-/// 닫는다.
+/// Given 키 주인이 피커 H 일 때, When 창이 수식키 없는 Esc 로 H 의 포커스를 풀고 그 Esc 를 H 본문에 넘기면, Then 넘긴
+/// 사건은 원래 수식키(없음)를 지니고 H 를 닫는다. Ctrl+Esc 는 창 Esc 가 아니라 창이 처리하지 않고 그 사건이 egui 큐에
+/// 남는다.
 #[test]
 fn the_escape_handed_to_the_owner_keeps_its_modifiers() {
-    for (modifiers, cancels) in [
-        (egui::Modifiers::CTRL, false),
-        (egui::Modifiers::NONE, true),
-    ] {
+    {
+        use crate::adapters::ui::popup::window_input_test_support::WindowInput;
         let Scene {
             mut state,
             mut session,
@@ -329,20 +331,54 @@ fn the_escape_handed_to_the_owner_keeps_its_modifiers() {
             &layout(),
             Vec::new(),
         );
-        assert!(is_open(&state, h));
-        let mut events = vec![escape_with(modifiers)];
+        let mut input = WindowInput::default();
         assert!(
-            state.window_escape(&mut events, false),
-            "창이 H 의 포커스를 푼다"
+            !input.escape_with(
+                &ctx,
+                &mut state,
+                &engine.read(),
+                true,
+                egui::Modifiers::CTRL
+            ),
+            "Ctrl+Esc 는 창이 처리하지 않는다"
         );
-        assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
-        frame(&ctx, &mut state, &engine.read(), &mgr, &layout(), events);
+        assert!(input.escape_fed());
         assert_eq!(
-            !is_open(&state, h),
-            cancels,
-            "H 본문이 받은 Esc 의 수식키: {modifiers:?}"
+            input.queue_mut().as_slice(),
+            [escape_with(egui::Modifiers::CTRL)],
+            "그 사건이 egui 큐에 남는다"
         );
+        assert!(is_open(&state, h));
     }
+    let Scene {
+        mut state,
+        mut session,
+        mgr,
+        h,
+        g: _,
+    } = open_scene();
+    let engine = session.borrow_mut();
+    let ctx = Context::default();
+    frame(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mgr,
+        &layout(),
+        Vec::new(),
+    );
+    assert!(is_open(&state, h));
+    let mut events = vec![escape_with(egui::Modifiers::NONE)];
+    assert!(
+        state.window_escape(&mut events, Some(0), false),
+        "창이 H 의 포커스를 푼다"
+    );
+    assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
+    frame(&ctx, &mut state, &engine.read(), &mgr, &layout(), events);
+    assert!(
+        !is_open(&state, h),
+        "H 본문이 받은 수식키 없는 Esc 로 닫힌다"
+    );
 }
 
 /// 탐색기 찾기 입력란을 팝업 층보다 먼저 그리는 창의 한 프레임(`egui_bridge::run_egui_frame` 순서: 화면은
@@ -443,7 +479,7 @@ fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
 
     let mut events = escape();
     assert!(
-        state.window_escape(&mut events, false),
+        state.window_escape(&mut events, Some(0), false),
         "plugin 키 주인 갈래"
     );
     assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
@@ -495,7 +531,11 @@ fn sent_escape_keys(state: &mut RequestContext) -> Vec<(bool, bool)> {
 fn quick_escape(ctx: &Context, state: &mut RequestContext) -> Vec<Event> {
     let mut events = escape();
     assert!(
-        state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape))),
+        state.window_escape(
+            &mut events,
+            Some(0),
+            ctx.input(|i| i.key_down(egui::Key::Escape))
+        ),
         "plugin 키 주인 갈래"
     );
     events.push(escape_release());
@@ -599,7 +639,11 @@ fn a_held_escape_reaches_the_plugin_owner_as_a_repeat() {
     {
         let mut events = escape();
         assert!(
-            state.window_escape(&mut events, ctx.input(|i| i.key_down(egui::Key::Escape))),
+            state.window_escape(
+                &mut events,
+                Some(0),
+                ctx.input(|i| i.key_down(egui::Key::Escape))
+            ),
             "plugin 키 주인 갈래"
         );
         draw(&mut state, &mgr, events);

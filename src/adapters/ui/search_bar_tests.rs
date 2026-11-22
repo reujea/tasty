@@ -247,7 +247,7 @@ fn escape_closes_the_bar_after_the_winit_stage_released_its_popup_focus() {
         modifiers: egui::Modifiers::NONE,
     }];
     assert!(
-        state.window_escape(&mut events, false),
+        state.window_escape(&mut events, Some(0), false),
         "the window handles it"
     );
     assert!(
@@ -275,7 +275,10 @@ fn escape_closes_the_bar_while_its_popup_keeps_focus() {
     let engine = session.read();
     let ctx = egui::Context::default();
     open_with_query(&ctx, &mut state, &engine);
-    escape_frame(&ctx, &mut state, &engine, vec![escape_event()]);
+    // 창이 그 Esc 를 판정해 키 주인 바에 넘긴다. 바 본문은 Esc 를 읽지 않고 중앙 단계가 선언대로 닫는다.
+    let mut events = vec![escape_event()];
+    assert!(state.window_escape(&mut events, Some(0), false));
+    escape_frame(&ctx, &mut state, &engine, events);
     assert!(!state.popups.is_open(SEARCH_BAR_POPUP_ID));
     assert!(state.search.query.is_empty());
 }

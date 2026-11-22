@@ -237,6 +237,7 @@ impl View for PresetView {
         self.base.begin_frame();
 
         let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
+        let marks = self.base.gpu.take_window_escape_marks();
         let drafts = &mut self.drafts;
         if !drafts.is_pending() {
             self.pending_presentation = Some(PendingPresentation {
@@ -257,10 +258,13 @@ impl View for PresetView {
             .as_ref()
             .map(KindCatalog::from_registry)
             .unwrap_or_default();
-        // 키 주인은 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
-        let key_owner = self
-            .file_chooser
-            .key_owner(&self.base.gpu.egui_ctx, self.key_record);
+        // 키 주인과 Esc 표지는 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
+        let pass_keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+            owner: self
+                .file_chooser
+                .key_owner(&self.base.gpu.egui_ctx, self.key_record),
+            marks,
+        };
         let active_kind = &mut self.active_kind;
         let sel_ws = &mut self.selected_workspace;
         let sel_tab = &mut self.selected_tab;
@@ -275,9 +279,9 @@ impl View for PresetView {
 
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
             reconcile_browse(surface_cfg, chooser, pending_browse, &catalog);
-            chooser.put_key_owner(key_owner);
             // 파일 선택 창이 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다.
-            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, key_owner.is_none(), || {
+            let window_takes_keys = pass_keys.owner.is_none();
+            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
                 crate::preset_ui::draw_preset_panel(
                     ctx,
                     drafts,
@@ -300,7 +304,7 @@ impl View for PresetView {
             {
                 *pending_browse = Some(request);
             }
-            chooser.draw(ctx);
+            chooser.draw(ctx, &pass_keys);
             if let Some(outcome) = chooser.take_outcome("preset.field")
                 && let (Some(request), Some(cfg), Some(path)) = (
                     pending_browse.take(),

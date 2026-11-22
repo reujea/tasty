@@ -17,6 +17,7 @@ pub(crate) mod defs;
 pub(crate) mod display;
 pub(crate) mod download_run;
 mod draw;
+pub(crate) mod escape_step;
 pub(crate) mod explorer_conflict;
 pub(crate) mod explorer_properties;
 pub(crate) mod file_handler_picker;
@@ -55,9 +56,9 @@ pub(crate) mod window_input_test_support;
 mod window_key_gate_tests;
 pub(crate) mod window_keys;
 pub use arrange::NoticeColumn;
-pub(crate) use child_popup_ids::report_child_popup_id;
 #[cfg(test)]
 pub(crate) use child_popup_ids::{child_overlay_entry, child_popup_ids};
+pub(crate) use child_popup_ids::{child_popup_open, report_child_popup_id};
 pub use view_local::drawn_by_view;
 
 use crate::state::MainViewState;
@@ -505,20 +506,6 @@ pub fn report_dropdown_overlay(
         overlay_key,
         rect.map(|r| (dropdown_id, r)),
     );
-}
-
-/// 자식 드롭다운이 등록돼 있는지 확인한다. 부모의 Escape 처리가 본문보다 먼저 실행되므로
-/// 이 값이 true면 부모를 닫지 않고 드롭다운에 Escape 처리를 맡긴다.
-pub fn child_overlay_open(
-    ctx: &egui::Context,
-    instance: PopupInstanceId,
-    overlay_key: &'static str,
-) -> bool {
-    let id = child_overlay_registry_id();
-    ctx.memory(|m| {
-        let map: ChildOverlayMap = m.data.get_temp(id).unwrap_or_default();
-        map.contains_key(&(instance, overlay_key))
-    })
 }
 
 /// `instance` 소유의 열린 자식 오버레이 사각형.

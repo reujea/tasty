@@ -47,7 +47,14 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
         drop(ctx.run(raw, |ctx| {
             let chooser = &mut st.file_chooser;
             let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, owns_escape| {
-                cx.id == FILE_PICKER_POPUP_ID && chooser.draw(ui, &th, owns_escape).done
+                if cx.id != FILE_PICKER_POPUP_ID {
+                    return false;
+                }
+                let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
+                    && cx
+                        .keys
+                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+                chooser.draw(ui, &th, owns_escape, escape).done
             });
             if closed.contains(&FILE_PICKER_POPUP_ID) {
                 st.file_chooser.cancel();
@@ -84,7 +91,7 @@ fn the_settings_chooser_has_no_shell_title_bar() {
             ctx,
             &mut |id, ui| {
                 if id.id == FILE_PICKER_POPUP_ID {
-                    chooser.draw(ui, &th, true);
+                    chooser.draw(ui, &th, true, false);
                 }
             },
             None,
@@ -228,6 +235,7 @@ fn the_settings_escape_goes_to_the_focused_of_conflict_and_chooser() {
 // ── 별도 창 키 주인(W1). 시험은 창 `render`처럼 직전 패스 뒤 포커스 기록으로 값을 정해 패스마다 넣는다. ──
 
 use crate::adapters::ui::popup::PopupInstanceId;
+use crate::adapters::ui::popup::escape_step::WindowPassKeys;
 use crate::adapters::ui::popup::window_keys::{WindowFocusRecord, focusable_at_text};
 
 fn key_event(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
@@ -251,18 +259,23 @@ fn next_owner(ctx: &egui::Context, st: &SettingsUiState) -> Option<PopupInstance
     st.window_key_owner(ctx, WindowFocusRecord::read(ctx))
 }
 
-/// 설정 창 `render`처럼 W1 값을 `run` 전에 정해 패스마다 넣고 `draw`로 그린다.
+/// 설정 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 `run` 전에 정하고, 패스마다 `draw`에
+/// 같은 값을 넘긴다. 관리자에 넣는 일은 `draw`가 한다(제품의 관리자 그리기 함수와 같다).
 fn keyed_run(
     ctx: &egui::Context,
     st: &mut SettingsUiState,
     raw: egui::RawInput,
-    mut draw: impl FnMut(&egui::Context, &mut SettingsUiState),
+    mut draw: impl FnMut(&egui::Context, &mut SettingsUiState, &WindowPassKeys),
 ) -> egui::FullOutput {
-    let owner = next_owner(ctx, st);
-    ctx.run(raw, |ctx| {
-        st.put_window_key_owner(owner);
-        draw(ctx, st);
-    })
+    let keys = WindowPassKeys {
+        owner: next_owner(ctx, st),
+        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+            &raw.events,
+            0,
+            tasty_key_match::KeyMods::default(),
+        ),
+    };
+    ctx.run(raw, |ctx| draw(ctx, st, &keys))
 }
 
 /// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 팝업을 그린다. 충돌 팝업 본문은 `inside`가 그린다. 이 패스에
@@ -275,7 +288,8 @@ fn conflict_pass(
     inside: &mut dyn FnMut(&mut egui::Ui),
 ) -> (Vec<PopupId>, egui::FullOutput) {
     let mut owners = Vec::new();
-    let out = keyed_run(ctx, st, keys_input(events), |ctx, st| {
+    let out = keyed_run(ctx, st, keys_input(events), |ctx, st, keys| {
+        st.popups.put_window_pass_keys(ctx, keys);
         egui::CentralPanel::default().show(ctx, |ui| outside(ui));
         st.popups.draw_view_local(ctx, &mut |cx, ui, owns_keys| {
             if owns_keys {
@@ -733,7 +747,7 @@ fn panel_pass(
     st: &mut SettingsUiState,
     raw: egui::RawInput,
 ) -> egui::FullOutput {
-    keyed_run(ctx, st, raw, |ctx, st| {
+    keyed_run(ctx, st, raw, |ctx, st, keys| {
         let action = draw_settings_panel(
             ctx,
             SettingsPanelCtx {
@@ -742,6 +756,7 @@ fn panel_pass(
                 captured_double_tap: &mut p.tap,
                 file_format: &p.formats,
                 file_handler: &p.handlers,
+                pass_keys: keys,
             },
         );
         assert_eq!(action, None, "the panel was not saved or cancelled");
@@ -851,4 +866,551 @@ fn a_discarded_pass_keeps_the_explicit_no_owner() {
     drop(panel_pass(&ctx, &mut p, &mut st, raw()));
     assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
     assert!(st.pending_binding.is_some());
+}
+
+// ── 충돌 질문·설정 창 선택기의 Esc(중앙 단계). 패스마다 `draw_settings_panel`을 부르고, 표지는 창 `render`처럼
+// 입력 묶음마다 정한다. ──
+
+/// `panel_pass`와 같고 Esc 표지를 직접 준다. 그리기마다(다시 그리는 패스 포함) 같은 값을 넘긴다. 패스마다 그 패스
+/// `raw.events` 수를 돌려준다.
+fn marked_pass(
+    ctx: &egui::Context,
+    p: &mut Panel,
+    st: &mut SettingsUiState,
+    raw: egui::RawInput,
+    marks: Vec<tasty_key_match::KeyMods>,
+) -> (egui::FullOutput, Vec<usize>) {
+    let keys = WindowPassKeys {
+        owner: next_owner(ctx, st),
+        marks,
+    };
+    let mut raws = Vec::new();
+    let out = ctx.run(raw, |ctx| {
+        raws.push(ctx.input(|i| i.raw.events.len()));
+        let action = draw_settings_panel(
+            ctx,
+            SettingsPanelCtx {
+                settings: &mut p.settings,
+                ui_state: st,
+                captured_double_tap: &mut p.tap,
+                file_format: &p.formats,
+                file_handler: &p.handlers,
+                pass_keys: &keys,
+            },
+        );
+        assert_eq!(action, None, "the panel was not saved or cancelled");
+    });
+    (out, raws)
+}
+
+fn escape_key() -> egui::Event {
+    key_event(egui::Key::Escape, egui::Modifiers::NONE)
+}
+
+/// 충돌 질문을 열고 두 패스 그려(처음 나타난 영역은 크기만 잰다) 키 주인이 충돌 질문임을 단정한다. 녹화한 단축키와
+/// 마지막 출력을 돌려준다.
+fn conflict_shown(
+    ctx: &egui::Context,
+    p: &mut Panel,
+    st: &mut SettingsUiState,
+) -> (String, egui::FullOutput) {
+    let combo = st.pending_binding.as_ref().expect("pending").combo.clone();
+    drop(panel_pass(ctx, p, st, screen_input()));
+    let out = panel_pass(ctx, p, st, screen_input());
+    assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    assert_eq!(
+        next_owner(ctx, st),
+        Some(conflict_instance(st)),
+        "W1 키 주인이 충돌 질문이다"
+    );
+    (combo, out)
+}
+
+/// 녹화한 단축키가 대상 칸(`new_tab` 첫 칸)에 들어갔는지.
+fn applied(st: &SettingsUiState, combo: &String) -> bool {
+    st.draft
+        .as_ref()
+        .and_then(|d| d.keybindings.get_bindings("new_tab"))
+        .and_then(|b| b.first())
+        == Some(combo)
+}
+
+fn text_rect_in(out: &egui::FullOutput, wanted: &str) -> egui::Rect {
+    fn walk(shape: &egui::epaint::Shape, wanted: &str, found: &mut Option<egui::Rect>) {
+        match shape {
+            egui::epaint::Shape::Text(t) if t.galley.text() == wanted => {
+                *found = Some(egui::Rect::from_min_size(t.pos, t.galley.size()));
+            }
+            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, wanted, found)),
+            _ => {}
+        }
+    }
+    let mut found = None;
+    for c in &out.shapes {
+        walk(&c.shape, wanted, &mut found);
+    }
+    found.unwrap_or_else(|| panic!("{wanted} was painted"))
+}
+
+fn button_event(pos: egui::Pos2, pressed: bool) -> egui::Event {
+    egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// T-4a3-7: Given 키 주인 충돌 질문, When Esc 가 오면, Then 그 패스에 닫히고 대기 단축키가 비었다.
+#[test]
+fn conflict_escape_clears_the_pending_binding_in_the_same_pass() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    conflict_shown(&ctx, &mut p, &mut st);
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![escape_key()]),
+    ));
+    assert!(
+        !st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+        "그 패스에 닫힌다"
+    );
+    assert!(st.pending_binding.is_none(), "대기 단축키가 빈다");
+}
+
+/// T-4a3-K3c: Given 키 주인 충돌 질문, When 표지 [bare]인 Esc 패스를 Super 가 눌린 채 그리면, Then 그 패스에 닫히고
+/// 대기 단축키가 비었다(중앙 사건은 표지 수식키로 정한다).
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn a_bare_escape_closes_the_conflict_even_if_super_is_down_at_render() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    conflict_shown(&ctx, &mut p, &mut st);
+    tasty_key_match::note_modifiers(&ctx, winit::keyboard::ModifiersState::SUPER);
+    assert!(
+        tasty_key_match::super_held(&ctx),
+        "render 시점에 Super 가 눌려 있다"
+    );
+    drop(marked_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![escape_key()]),
+        vec![tasty_key_match::KeyMods::default()],
+    ));
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    assert!(st.pending_binding.is_none());
+}
+
+/// T-4a3-K3d: Given 키 주인 충돌 질문, When 표지 [Super]인 Esc 를 Super 를 뗀 뒤 그리면(그리기 시점 값으로는 bare 로
+/// 보인다), Then 첫 패스 뒤 거부 표지가 서지 않고 열린 채이며, 다음 프레임 뒤에도 열린 채 대기 단축키가 남는다.
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn a_super_escape_does_not_close_the_conflict_after_super_is_released() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    conflict_shown(&ctx, &mut p, &mut st);
+    tasty_key_match::note_modifiers(&ctx, winit::keyboard::ModifiersState::empty());
+    assert!(
+        !tasty_key_match::super_held(&ctx),
+        "render 시점에 Super 가 놓였다"
+    );
+    let super_mark = tasty_key_match::KeyMods {
+        super_: true,
+        ..Default::default()
+    };
+    drop(marked_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![escape_key()]),
+        vec![super_mark],
+    ));
+    assert!(!st.conflict_cancelled, "거부 표지가 서지 않는다");
+    assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    drop(marked_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        screen_input(),
+        Vec::new(),
+    ));
+    assert!(
+        st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+        "다음 프레임에도 열린 채다"
+    );
+    assert!(st.pending_binding.is_some());
+}
+
+/// T-4a3-K3e: Given 키 주인 충돌 질문, When 단축키 행 줄 쌓기가 바뀌어 같은 입력을 다시 그리는 프레임에 표지 [bare]인
+/// Esc 가 오면, Then 첫 패스 뒤 닫히고 대기 단축키가 비며, 다시 그린 패스는 다시 닫거나 적용하지 않는다.
+#[test]
+fn a_discarded_pass_does_not_close_or_apply_again() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    let screen = egui::vec2(560.0, 1500.0);
+    let raw = |events: Vec<egui::Event>| {
+        let mut raw = screen_input();
+        raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, screen));
+        raw.events = events;
+        raw
+    };
+    let combo = st.pending_binding.as_ref().expect("pending").combo.clone();
+    drop(panel_pass(&ctx, &mut p, &mut st, raw(Vec::new())));
+    drop(panel_pass(&ctx, &mut p, &mut st, raw(Vec::new())));
+    assert_eq!(next_owner(&ctx, &st), Some(conflict_instance(&st)));
+    let before = st.draft.as_ref().expect("draft").keybindings.clone();
+    st.active_tab = SettingsTab::Keybindings;
+    let mut closed_after_first = None;
+    let keys = WindowPassKeys {
+        owner: next_owner(&ctx, &st),
+        marks: vec![tasty_key_match::KeyMods::default()],
+    };
+    let mut raws = Vec::new();
+    let out = ctx.run(raw(vec![escape_key()]), |ctx| {
+        raws.push(ctx.input(|i| i.raw.events.len()));
+        if raws.len() == 2 {
+            closed_after_first = Some((
+                st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+                st.pending_binding.is_some(),
+            ));
+        }
+        let action = draw_settings_panel(
+            ctx,
+            SettingsPanelCtx {
+                settings: &mut p.settings,
+                ui_state: &mut st,
+                captured_double_tap: &mut p.tap,
+                file_format: &p.formats,
+                file_handler: &p.handlers,
+                pass_keys: &keys,
+            },
+        );
+        assert_eq!(action, None);
+    });
+    assert_eq!(out.platform_output.num_completed_passes, 2);
+    assert_eq!(raws, vec![1, 0], "둘째 패스 raw 입력은 비었다");
+    assert_eq!(
+        closed_after_first,
+        Some((false, false)),
+        "첫 패스 뒤 닫히고 대기가 빈다"
+    );
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    assert!(st.pending_binding.is_none());
+    assert_eq!(
+        st.draft.as_ref().expect("draft").keybindings,
+        before,
+        "적용하지 않았다"
+    );
+    assert!(!applied(&st, &combo));
+}
+
+/// T-4a3-K3h: Given 키 주인 충돌 질문, When 적용 버튼 누름 다음 패스에 [적용 버튼 위 뗌, bare Esc] 를 Super 가 눌린 채
+/// 그리면, Then 본문이 적용 표지를 세우고 Esc 를 소비해 그 패스에 닫히지 않으며, 다음 패스에 바인딩이 적용된다.
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn an_apply_click_and_a_bare_escape_apply_even_if_super_is_down_at_render() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    let (combo, out) = conflict_shown(&ctx, &mut p, &mut st);
+    let apply = text_rect_in(&out, t("settings.keybindings.conflict_apply")).center();
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![egui::Event::PointerMoved(apply)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(apply, true)]),
+    ));
+    tasty_key_match::note_modifiers(&ctx, winit::keyboard::ModifiersState::SUPER);
+    assert!(
+        tasty_key_match::super_held(&ctx),
+        "뗌 패스 render 시점에 Super 가 눌려 있다"
+    );
+    drop(marked_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(apply, false), escape_key()]),
+        vec![tasty_key_match::KeyMods::default()],
+    ));
+    assert!(st.conflict_accepted, "적용 표지가 섰다");
+    assert!(
+        st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+        "그 패스에 닫히지 않는다"
+    );
+    assert!(st.pending_binding.is_some());
+    tasty_key_match::note_modifiers(&ctx, winit::keyboard::ModifiersState::empty());
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    assert!(applied(&st, &combo), "다음 패스에 적용된다");
+}
+
+/// T-4a3-21y2: Given 키 주인 충돌 질문, When 한 패스 [적용 버튼 누름·뗌, bare Esc] 가 오면, Then 다음 패스에 바인딩이
+/// 적용되고 충돌 질문이 닫히며 대기 단축키는 적용 갈래가 비웠다.
+#[test]
+fn the_apply_button_wins_over_escape_in_the_same_pass() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    let (combo, out) = conflict_shown(&ctx, &mut p, &mut st);
+    let apply = text_rect_in(&out, t("settings.keybindings.conflict_apply")).center();
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![egui::Event::PointerMoved(apply)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![
+            button_event(apply, true),
+            button_event(apply, false),
+            escape_key(),
+        ]),
+    ));
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    assert!(applied(&st, &combo), "바인딩이 적용된다");
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    assert!(st.pending_binding.is_none());
+}
+
+/// T-4a3-21y3: Given 키 주인 충돌 질문, When 한 패스에 Y·Enter 와 bare Esc 가 함께 오면(순서 무관), Then 다음 패스에
+/// 바인딩이 적용되고 닫히며 Esc 패스에 대기 단축키가 비지 않는다. 연속 [Y], [Y] 는 한 번만 적용한다. 제목줄 닫기
+/// 버튼 누름과 Y 가 한 패스에 오면 닫히고 대기와 적용 표지가 모두 비며, 남은 표지가 새 대기를 적용하지 않는다.
+#[test]
+fn a_yes_key_and_escape_in_one_pass_apply_the_binding() {
+    let yes = || key_event(egui::Key::Y, egui::Modifiers::NONE);
+    let enter = || key_event(egui::Key::Enter, egui::Modifiers::NONE);
+    for (name, events) in [
+        ("Y, Esc", vec![yes(), escape_key()]),
+        ("Esc, Y", vec![escape_key(), yes()]),
+        ("Enter, Esc", vec![enter(), escape_key()]),
+    ] {
+        let (mut p, mut st) = conflicting_panel();
+        let ctx = egui::Context::default();
+        let (combo, _) = conflict_shown(&ctx, &mut p, &mut st);
+        drop(panel_pass(&ctx, &mut p, &mut st, keys_input(events)));
+        assert!(
+            st.pending_binding.is_some(),
+            "{name}: Esc 패스에 대기가 남는다"
+        );
+        drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+        assert!(applied(&st, &combo), "{name}: 다음 패스에 적용된다");
+        assert!(
+            !st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+            "{name}: 닫힌다"
+        );
+    }
+
+    // 연속 [Y], [Y]: 둘째 패스가 첫 표지를 적용하고 충돌 질문을 닫아 둘째 Y 는 읽히지 않는다.
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    let (combo, _) = conflict_shown(&ctx, &mut p, &mut st);
+    drop(panel_pass(&ctx, &mut p, &mut st, keys_input(vec![yes()])));
+    drop(panel_pass(&ctx, &mut p, &mut st, keys_input(vec![yes()])));
+    assert!(!st.conflict_accepted, "둘째 패스 뒤 적용 표지가 없다");
+    assert!(applied(&st, &combo));
+    let once = st.draft.as_ref().expect("draft").keybindings.clone();
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    assert_eq!(
+        st.draft.as_ref().expect("draft").keybindings,
+        once,
+        "한 번만 바뀐다"
+    );
+
+    // [제목줄 닫기 누름, Y]: 닫기가 대기와 표지를 지운다. 새 대기는 남은 표지로 적용되지 않는다.
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    let (combo, _) = conflict_shown(&ctx, &mut p, &mut st);
+    let pending = st.pending_binding.clone();
+    let close = st
+        .popups
+        .instance(conflict_instance(&st))
+        .expect("conflict")
+        .close_btn_rect()
+        .center();
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![egui::Event::PointerMoved(close)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(close, true), yes()]),
+    ));
+    assert!(
+        !st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+        "닫기 누름에 닫힌다"
+    );
+    assert!(st.pending_binding.is_none());
+    assert!(!st.conflict_accepted, "적용 표지가 남지 않는다");
+    let before = st.draft.as_ref().expect("draft").keybindings.clone();
+    st.pending_binding = pending;
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    assert!(
+        st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+        "다시 연 질문은 열린 채다"
+    );
+    assert_eq!(st.draft.as_ref().expect("draft").keybindings, before);
+    assert!(!applied(&st, &combo), "새 대기는 적용되지 않는다");
+}
+
+/// 대기 단축키가 없는 설정 창.
+fn plain_panel() -> (Panel, SettingsUiState) {
+    let (p, mut st) = conflicting_panel();
+    st.pending_binding = None;
+    (p, st)
+}
+
+fn chooser_instance(st: &SettingsUiState) -> PopupInstanceId {
+    st.popups
+        .instances_of(FILE_PICKER_POPUP_ID)
+        .next()
+        .expect("chooser")
+        .instance
+}
+
+/// 설정 창 선택기(폴더 모드)를 `start` 에서 열고 두 패스 그려 W1 키 주인임을 단정한다. 마지막 출력을 돌려준다.
+fn chooser_shown(
+    ctx: &egui::Context,
+    p: &mut Panel,
+    st: &mut SettingsUiState,
+    start: Option<std::path::PathBuf>,
+) -> egui::FullOutput {
+    st.open_file_chooser_at(
+        CONSUMER,
+        file_chooser::FileChooserMode::Folder,
+        Vec::new(),
+        None,
+        start,
+    );
+    drop(panel_pass(ctx, p, st, screen_input()));
+    let out = panel_pass(ctx, p, st, screen_input());
+    assert_eq!(
+        next_owner(ctx, st),
+        Some(chooser_instance(st)),
+        "W1 키 주인이 선택기다"
+    );
+    out
+}
+
+/// T-4a3-21w: Given 설정 창 선택기의 숨은 경로 메뉴가 열려 있을 때, When Esc 가 오면, Then 메뉴만 닫히고 선택기는 열린
+/// 채이며 취소 결과가 없다.
+#[test]
+fn escape_closes_only_the_hidden_crumbs_menu() {
+    let root = tempfile::tempdir().expect("임시 폴더");
+    let mut deep = root.path().to_path_buf();
+    for i in 0..40 {
+        deep.push(format!("d{i:02}"));
+    }
+    std::fs::create_dir_all(&deep).expect("깊은 폴더");
+    let (mut p, mut st) = plain_panel();
+    let ctx = egui::Context::default();
+    let out = chooser_shown(&ctx, &mut p, &mut st, Some(deep));
+    let crumbs = text_rect_in(&out, "…").center();
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![egui::Event::PointerMoved(crumbs)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(crumbs, true)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(crumbs, false)]),
+    ));
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    assert!(ctx.memory(|m| m.any_popup_open()), "경로 메뉴가 열렸다");
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![escape_key()]),
+    ));
+    assert!(!ctx.memory(|m| m.any_popup_open()), "메뉴가 닫힌다");
+    assert!(
+        st.popups.is_open(FILE_PICKER_POPUP_ID),
+        "선택기는 열린 채다"
+    );
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        None,
+        "취소하지 않았다"
+    );
+}
+
+/// T-4a3-21x: Given 설정 창 선택기가 W1 키 주인이고 선택기 자식이 아닌 egui 팝업 id 가 열려 있을 때(그 패스에 그리지
+/// 않는다), When Esc 가 오면, Then 그 id 는 열린 채이고 선택기는 자기 자식만 세어 닫히며 취소 결과를 남긴다.
+#[test]
+fn escape_with_another_window_dropdown_open() {
+    let (mut p, mut st) = plain_panel();
+    let ctx = egui::Context::default();
+    chooser_shown(&ctx, &mut p, &mut st, None);
+    let other = egui::Id::new("settings_other_dropdown_fixture");
+    ctx.memory_mut(|m| m.open_popup(other));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![escape_key()]),
+    ));
+    assert!(
+        ctx.memory(|m| m.is_popup_open(other)),
+        "픽스처 id 는 열린 채다"
+    );
+    assert!(!st.popups.is_open(FILE_PICKER_POPUP_ID), "선택기가 닫힌다");
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Cancelled)
+    );
+}
+
+/// T-4a3-21y1: Given 설정 창 선택기, When 확정 버튼 누름 다음 패스에 [확정 버튼 뗌, bare Esc] 가 오면, Then 결과는
+/// 취소다(보기의 Esc 갈래가 확정보다 먼저다).
+#[test]
+fn escape_and_a_confirm_click_in_one_pass_cancel_the_chooser() {
+    let (mut p, mut st) = plain_panel();
+    let ctx = egui::Context::default();
+    let out = chooser_shown(&ctx, &mut p, &mut st, None);
+    let confirm = text_rect_in(&out, t("picker.folder.confirm")).center();
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![egui::Event::PointerMoved(confirm)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(confirm, true)]),
+    ));
+    drop(panel_pass(
+        &ctx,
+        &mut p,
+        &mut st,
+        keys_input(vec![button_event(confirm, false), escape_key()]),
+    ));
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Cancelled)
+    );
 }

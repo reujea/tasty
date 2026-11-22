@@ -484,3 +484,33 @@ fn a_fresh_copy_keeps_the_declared_escape_and_keyboard() {
         (PopupKeyboard::Text, PopupEscape::Unfocus)
     );
 }
+
+/// T-4a3-J2: 덮지 않고 키를 받는 정의(`covers_scope` 거짓, `keyboard` 가 None 이 아님)는 알려진 일곱이다. 그 일곱은
+/// 내용이 Esc 를 쓰고 닫지 않는 갈래가 없어 사건 시점 해제 뒤 포커스를 되돌리지 않는다. 연결 팝업(remote_row)은 열 때
+/// 덮을지 정하고 선언은 덮지 않는 모양이다.
+#[test]
+fn non_covering_popups_are_the_known_seven() {
+    let mut ids: Vec<&str> = all_decls()
+        .into_iter()
+        .filter(|(_, d)| !d.covers_scope && d.keyboard != PopupKeyboard::None)
+        .map(|(id, _)| id)
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(
+        ids,
+        [
+            "approval",
+            "mouse_capture_banner_menu",
+            "notifications",
+            "rail_category",
+            "remote_row",
+            "search_bar",
+            "tools_menu",
+        ],
+        "덮지 않고 키를 받는 정의가 바뀌었다. 새 정의의 내용이 Esc 를 쓰고 닫지 않는 갈래가 있으면 Esc 뒤 포커스 되돌리기(J2)가 필요한지 판정한다"
+    );
+    assert!(
+        !super::super::remote_row::def().decl.covers_scope,
+        "연결 팝업의 선언은 덮지 않는 모양이다"
+    );
+}

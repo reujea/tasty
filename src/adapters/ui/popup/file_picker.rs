@@ -131,6 +131,9 @@ pub struct FilePickerProps<'a> {
     /// `false` 면 위에 다른 popup 이 있다는 뜻이라 Esc 를 무시한다 — 한 번의 Esc 로
     /// 스택 전체가 닫히는 것을 막는다. 판정은 관리자가 넘긴 키 통로(`PopupCx::keys`의 `receives()`)다.
     pub owns_escape: bool,
+    /// 호출자가 이 패스 Esc 를 이 보기에 썼다(본문 전에 자식 팝업이 닫혀 있고 키 통로가 Esc 를 소비했다). 참이면 보기는
+    /// 다른 것을 그리지 않고 취소한다.
+    pub escape: bool,
 
     // i18n — 호출처가 t() 로 미리 해상해서 전달(file_handler_picker.rs 관례).
     pub title_label: &'a str,
@@ -238,10 +241,7 @@ pub(crate) fn report_hidden_crumbs_menu(
 pub fn draw_file_picker_view(ui: &mut egui::Ui, props: &FilePickerProps<'_>) -> FilePickerViewOut {
     let ctx = ui.ctx().clone();
     let nested_popup_open = ctx.memory(|m| m.any_popup_open());
-    if props.owns_escape
-        && !nested_popup_open
-        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
-    {
+    if props.escape {
         return FilePickerViewOut {
             action: FilePickerAction::Escape,
             header_rect: egui::Rect::NOTHING,
@@ -659,6 +659,9 @@ pub fn draw_file_picker(
     // 키 입력은 관리자가 키를 준 인스턴스만 읽는다(`cx.keys.receives()`). 다른 범위의 피커는 같은 키에 취소·확정되지
     // 않는다.
     let owns_escape = cx.keys.receives();
+    // Esc 는 본문 전에 자식 팝업(경로 메뉴)이 닫혀 있을 때만 이 피커 것이다. 열려 있으면 egui 가 그 메뉴를 닫는다.
+    let escape = !super::child_popup_open(ui.ctx(), cx.instance)
+        && cx.keys.consume(super::keys::BasicKey::Escape);
 
     let is_remote = data.mirror_ws_id.is_some();
     let crumb_targets = path_ancestors(is_remote, &data.current_dir);
@@ -766,6 +769,7 @@ pub fn draw_file_picker(
             },
         },
         owns_escape,
+        escape,
         title_label,
         name_field_label,
         name_placeholder: t(if data.save_name.is_some() {

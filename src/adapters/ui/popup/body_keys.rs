@@ -112,8 +112,9 @@ pub(crate) fn with_handed_escape<R>(
     draw: impl FnOnce() -> R,
 ) -> R {
     let put = hand_escape(ctx, handed);
+    let marks = handed_marks(ctx, &put);
     let out = draw();
-    withdraw_escape(ctx, &put);
+    withdraw_escape(ctx, &put, &marks);
     out
 }
 
@@ -138,16 +139,69 @@ pub(crate) fn hand_escape(ctx: &egui::Context, handed: &HandedEscape) -> PutEsca
     })
 }
 
-/// [`hand_escape`]가 넣은 사건. [`withdraw_escape`]가 남은 것을 뺀다.
+/// [`hand_escape`]가 넣은 사건. [`withdraw_escape`]가 남은 것을 뺀다. 넣은 사건마다 그 목록 Esc 누름 가운데 순번과
+/// 넣은 값을 둔다.
 #[derive(Debug, Default)]
 pub(crate) struct PutEscape {
-    events: Vec<egui::Event>,
-    raw: Vec<egui::Event>,
+    events: Vec<(usize, egui::Event)>,
+    raw: Vec<(usize, egui::Event)>,
 }
 
-/// `list` 의 원래 자리에 넘긴 사건을 넣고 egui 패스 시작 규칙으로 Escape 반복 여부를 정한다. 넣은 사건과 끝의 Escape
-/// 눌림 상태를 돌려준다.
-fn place_escape(list: &mut Vec<egui::Event>, handed: &HandedEscape) -> (Vec<egui::Event>, bool) {
+impl PutEscape {
+    /// 넘긴 사건이 있는지.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.events.is_empty()
+    }
+}
+
+/// 넣은 뒤 `events` 의 Esc 누름마다 표지. 넘긴 누름은 수식키 없는 표지이고(창은 수식키 없는 Esc 만 넘긴다), 큐에 남은
+/// 다른 누름은 표지가 없다. 키 주인 본문의 키 통로가 이 표지로 Esc 를 맞추고, 소비한 누름의 표지를 지운다.
+pub(crate) fn handed_marks(ctx: &egui::Context, put: &PutEscape) -> EscapeMarks {
+    let presses = ctx.input(|i| i.events.iter().filter(|e| is_escape_press(e)).count());
+    let mut marks = vec![None; presses];
+    for (n, _) in &put.events {
+        if let Some(m) = marks.get_mut(*n) {
+            *m = Some(tasty_key_match::KeyMods::default());
+        }
+    }
+    marks
+}
+
+/// 패스 `events` 의 Esc 누름 순번마다 그 누름의 표지(창이 정한 사건 시점 수식키). 표지가 없는 누름은 창이 넘기지 않았거나
+/// 적재 자리를 모르는 누름이다.
+pub(crate) type EscapeMarks = Vec<Option<tasty_key_match::KeyMods>>;
+
+/// `events` 의 `from` 부터 끝까지(이번에 적재한 범위) Esc 누름마다 표지 하나(`mods`). 별도 창이 egui 입력에 사건을
+/// 적재한 직후 부른다.
+pub(crate) fn escape_marks_in(
+    events: &[egui::Event],
+    from: usize,
+    mods: tasty_key_match::KeyMods,
+) -> Vec<tasty_key_match::KeyMods> {
+    events
+        .get(from..)
+        .unwrap_or_default()
+        .iter()
+        .filter(|e| is_escape_press(e))
+        .map(|_| mods)
+        .collect()
+}
+
+/// `list` 에서 `n` 번째 Esc 누름의 자리.
+fn escape_press_at(list: &[egui::Event], n: usize) -> Option<usize> {
+    list.iter()
+        .enumerate()
+        .filter(|(_, e)| is_escape_press(e))
+        .nth(n)
+        .map(|(at, _)| at)
+}
+
+/// `list` 의 원래 자리에 넘긴 사건을 넣고 egui 패스 시작 규칙으로 Escape 반복 여부를 정한다. 넣은 사건(그 목록 Esc 누름
+/// 가운데 순번과 값)과 끝의 Escape 눌림 상태를 돌려준다.
+fn place_escape(
+    list: &mut Vec<egui::Event>,
+    handed: &HandedEscape,
+) -> (Vec<(usize, egui::Event)>, bool) {
     let mut handed_at = Vec::with_capacity(handed.events.len());
     for (n, (slot, event)) in handed.events.iter().enumerate() {
         let at = (slot + n).min(list.len());
@@ -173,24 +227,52 @@ fn place_escape(list: &mut Vec<egui::Event>, handed: &HandedEscape) -> (Vec<egui
             }
         }
     }
-    (handed_at.iter().map(|&at| list[at].clone()).collect(), down)
+    let put = handed_at
+        .iter()
+        .map(|&at| {
+            let n = list[..at].iter().filter(|e| is_escape_press(e)).count();
+            (n, list[at].clone())
+        })
+        .collect();
+    (put, down)
 }
 
-/// [`with_handed_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 `events`·`raw.events` 에서 뺀다. 눌린 키 상태는
+/// [`with_handed_escape`]의 뒤쪽. 키 주인이 읽지 않고 남긴 사건을 자리로 뺀다. `events` 에서는 표지(`marks`, 키 주인이
+/// 소비한 누름의 표지는 이미 지워졌다)가 남은 넘긴 누름을, `raw.events` 에서는 넣은 자리를 뺀다. 값으로 고르지 않는다.
+/// 넘기지 않은 같은 값의 누름(비-macOS 의 Super+Esc 는 egui 사건 값이 수식키 없는 Esc 와 같다)을 남긴다. 눌린 키 상태는
 /// 그대로 둔다(egui 가 이 Esc 를 처리했을 때처럼 다음 프레임 판정의 출발점이 된다).
-pub(crate) fn withdraw_escape(ctx: &egui::Context, put: &PutEscape) {
+pub(crate) fn withdraw_escape(ctx: &egui::Context, put: &PutEscape, marks: &EscapeMarks) {
     if put.events.is_empty() && put.raw.is_empty() {
         return;
     }
     ctx.input_mut(|i| {
-        for (list, put) in [(&mut i.events, &put.events), (&mut i.raw.events, &put.raw)] {
-            for event in put {
-                if let Some(at) = list.iter().position(|e| e == event) {
-                    list.remove(at);
-                }
-            }
-        }
+        let left: Vec<usize> = marks
+            .iter()
+            .enumerate()
+            .filter_map(|(n, m)| m.map(|_| n))
+            .collect();
+        remove_escape_presses(&mut i.events, &left, None);
+        let raw: Vec<usize> = put.raw.iter().map(|(n, _)| *n).collect();
+        remove_escape_presses(&mut i.raw.events, &raw, Some(&put.raw));
     });
+}
+
+/// `list` 에서 Esc 누름 순번 `ordinals` 의 누름을 뺀다. `put` 이 있으면 뺀 사건이 넣은 값과 같은지 본다.
+fn remove_escape_presses(
+    list: &mut Vec<egui::Event>,
+    ordinals: &[usize],
+    put: Option<&[(usize, egui::Event)]>,
+) {
+    let at: Vec<usize> = ordinals
+        .iter()
+        .filter_map(|n| escape_press_at(list, *n))
+        .collect();
+    for (k, &a) in at.iter().enumerate().rev() {
+        let event = list.remove(a);
+        if let Some(put) = put {
+            debug_assert_eq!(Some(&event), put.get(k).map(|(_, e)| e));
+        }
+    }
 }
 
 /// 창이 처리하면 egui 입력에서 빼는 Esc 누름인지.
@@ -367,5 +449,112 @@ mod tests {
                 |_| {},
             ));
         }
+    }
+
+    fn escape(pressed: bool, repeat: bool, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed,
+            repeat,
+            modifiers,
+        }
+    }
+
+    /// T-4a3-K3f: Given 앞 패스부터 Escape 가 눌린 상태에서 창이 넘기지 않은 Super+Esc 반복(egui 값은 수식키 없음)과
+    /// 포인터 이동이 있고 그 뒤 자리에 넘긴 bare Esc 반복을 넣었을 때(두 누름의 egui 값이 같다), When 키 주인이 넘긴
+    /// 누름을 소비하든 않든 거두면, Then `events`·`raw.events` 모두 포인터 이동 앞의 누름 하나만 남는다. 값이 아니라
+    /// 표지·넣은 자리로 뺀다. 눌린 키 상태는 넣은 뒤 값 그대로다.
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn withdraw_leaves_an_unhanded_press_of_the_same_value() {
+        use super::{escape_press_at, hand_escape, handed_marks, withdraw_escape};
+        let moved = egui::Event::PointerMoved(egui::pos2(3.0, 4.0));
+        for consume in [true, false] {
+            let ctx = egui::Context::default();
+            // 앞 패스: Escape 를 누른 채로 둔다.
+            drop(ctx.run(
+                egui::RawInput {
+                    events: vec![escape(true, false, egui::Modifiers::NONE)],
+                    ..Default::default()
+                },
+                |_| {},
+            ));
+            let unhanded = escape(true, true, egui::Modifiers::NONE);
+            drop(ctx.run(
+                egui::RawInput {
+                    events: vec![unhanded.clone(), moved.clone()],
+                    ..Default::default()
+                },
+                |ctx| {
+                    let mut handed = HandedEscape::default();
+                    handed.push(true, vec![(2, escape(true, false, egui::Modifiers::NONE))]);
+                    let put = hand_escape(ctx, &handed);
+                    let (events, raw) = ctx.input(|i| (i.events.clone(), i.raw.events.clone()));
+                    for list in [&events, &raw] {
+                        assert_eq!(list.len(), 3);
+                        assert_eq!(
+                            list[0], list[2],
+                            "넣은 누름과 넘기지 않은 누름의 egui 값이 같다"
+                        );
+                    }
+                    let down = ctx.input(|i| i.key_down(egui::Key::Escape));
+                    let mut marks = handed_marks(ctx, &put);
+                    assert_eq!(marks, vec![None, Some(tasty_key_match::KeyMods::default())]);
+                    if consume {
+                        let mut keys = crate::adapters::ui::popup::keys::PopupKeys::new(
+                            ctx,
+                            true,
+                            crate::adapters::ui::popup::PopupKeyboard::Keys,
+                            &Default::default(),
+                        )
+                        .with_escape_marks(marks);
+                        assert!(
+                            keys.consume(crate::adapters::ui::popup::keys::BasicKey::Escape),
+                            "키 주인이 넘긴 누름을 소비한다"
+                        );
+                        marks = keys.take_escape_marks().expect("표지 통로");
+                    }
+                    withdraw_escape(ctx, &put, &marks);
+                    let (events, raw) = ctx.input(|i| (i.events.clone(), i.raw.events.clone()));
+                    for (name, list) in [("events", &events), ("raw", &raw)] {
+                        assert_eq!(
+                            list.iter().filter(|e| super::is_escape_press(e)).count(),
+                            1,
+                            "{name}: 누름 하나 (consume={consume})"
+                        );
+                        assert_eq!(escape_press_at(list, 0), Some(0), "{name}: 포인터 이동 앞");
+                        assert_eq!(list[1], moved, "{name}: 그 뒤는 포인터 이동뿐");
+                    }
+                    assert_eq!(
+                        ctx.input(|i| i.key_down(egui::Key::Escape)),
+                        down,
+                        "눌린 키 상태는 그대로"
+                    );
+                },
+            ));
+        }
+    }
+
+    /// T-4a3-K3g: 표지는 이번에 적재한 범위(`from` 부터)의 Esc 누름에만 붙고 값은 준 수식키다. 범위 밖 누름·뗌·글자에는
+    /// 없다. 시작이 끝이면 0개다.
+    #[test]
+    fn escape_marks_cover_only_the_loaded_range() {
+        use super::escape_marks_in;
+        let shift = egui::Modifiers::SHIFT;
+        let events = vec![
+            escape(true, false, egui::Modifiers::NONE),
+            escape(false, false, egui::Modifiers::NONE),
+            egui::Event::Text("a".into()),
+            escape(true, false, shift),
+            escape(true, false, egui::Modifiers::NONE),
+        ];
+        let mods = tasty_key_match::KeyMods {
+            ctrl: true,
+            ..Default::default()
+        };
+        assert_eq!(escape_marks_in(&events, 1, mods), vec![mods, mods]);
+        assert_eq!(escape_marks_in(&events, 0, mods), vec![mods, mods, mods]);
+        assert!(escape_marks_in(&events, events.len(), mods).is_empty());
     }
 }

@@ -489,14 +489,6 @@ impl SettingsUiState {
         self.popups.window_key_owner(ctx, record)
     }
 
-    /// 이번 패스 관리자에 W1 값을 넣는다. 다시 그리는 패스도 같은 값을 받도록 패스마다 부른다.
-    pub(crate) fn put_window_key_owner(
-        &mut self,
-        owner: Option<crate::adapters::ui::popup::PopupInstanceId>,
-    ) {
-        self.popups.decide_frame_keys_for(owner);
-    }
-
     /// 설정 창 안에서 로컬 파일 선택 popup 을 연다. 결과는 `consumer` 키로
     /// `file_chooser.take_outcome` 해 가져간다. 이미 열려 있던 선택은 취소로 끝난다.
     ///
@@ -584,6 +576,8 @@ pub struct SettingsPanelCtx<'a> {
     pub captured_double_tap: &'a mut Option<String>,
     pub file_format: &'a FileFormatRegistry,
     pub file_handler: &'a FileHandlerRegistry,
+    /// 창 `render` 가 이번 프레임에 정한 키 값. 다시 그리는 패스에도 같은 값을 넣는다.
+    pub pass_keys: &'a crate::adapters::ui::popup::escape_step::WindowPassKeys,
 }
 
 /// 단축키 충돌 팝업에 표시할 안내 문자열을 구성한다. 팝업 draw 와 open 직전
@@ -651,7 +645,10 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         captured_double_tap,
         file_format,
         file_handler,
+        pass_keys,
     } = panel;
+    // 팝업을 그리기 전에 패스마다 이번 프레임 키 값을 관리자에 넣는다.
+    ui_state.popups.put_window_pass_keys(ctx, pass_keys);
     if ui_state.draft.is_none() {
         ui_state.draft = Some(settings.clone());
         // 새 오픈마다 Scripts 관리 창 상호작용 상태·changed 캐시 리셋(다음 draw 에서
@@ -675,7 +672,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     let sep = egui::Stroke::new(th.border_width.value(), th.border_strong().to_egui());
 
     // 팝업이 키 주인(W1)이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 팝업 그리기 전에 돌려놓는다.
-    let window_takes_keys = ui_state.popups.received_window_key_owner().is_none();
+    let window_takes_keys = pass_keys.owner.is_none();
     crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))
@@ -875,7 +872,13 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
             .popups
             .draw_view_local(ctx, &mut |cx, ui, owns_escape| {
                 if cx.id == FILE_PICKER_POPUP_ID {
-                    let drawn = chooser.draw(ui, &th, owns_escape);
+                    // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
+                    let escape =
+                        !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
+                            && cx
+                                .keys
+                                .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+                    let drawn = chooser.draw(ui, &th, owns_escape, escape);
                     crate::adapters::ui::popup::file_picker::report_hidden_crumbs_menu(
                         ui,
                         cx.instance,
@@ -902,6 +905,19 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                             *accepted = true;
                         }
                     });
+                    // 키보드 적용(Enter·Y)은 이 갈래가 불린 키 주인 패스에만 읽는다.
+                    if owns_escape
+                        && ui.input(|i| {
+                            i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Y)
+                        })
+                    {
+                        *accepted = true;
+                    }
+                    // 적용 표지를 세운 패스의 Esc 는 쓴 것이다. 다음 패스 표지 처리가 적용을 먼저 정한다.
+                    if *accepted {
+                        cx.keys
+                            .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+                    }
                 }
                 false
             })
@@ -917,16 +933,9 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     }
     apply_file_chooser_outcomes(ui_state);
 
-    // 키보드로 충돌 팝업 수락/거부 — 충돌 팝업이 이번 패스 키 주인일 때만 읽는다.
-    if conflict_owns_keys {
-        ctx.input(|i| {
-            if i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Y) {
-                ui_state.conflict_accepted = true;
-            }
-            if i.key_pressed(egui::Key::Escape) || i.key_pressed(egui::Key::N) {
-                ui_state.conflict_cancelled = true;
-            }
-        });
+    // 키보드로 충돌 팝업 거부(N) — 충돌 팝업이 이번 패스 키 주인일 때만 읽는다. Esc 는 중앙 단계가 닫는다.
+    if conflict_owns_keys && ctx.input(|i| i.key_pressed(egui::Key::N)) {
+        ui_state.conflict_cancelled = true;
     }
 
     result

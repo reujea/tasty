@@ -52,6 +52,7 @@ fn window_key(
         egui::Event::Key { key, pressed, .. } => (*key == egui::Key::Escape, *pressed),
         _ => (false, true),
     };
+    let loaded_from = pending.len();
     if state.window_feeds_egui(false, true).is_some() {
         pending.push(event.clone());
     } else if escape && !pressed {
@@ -60,7 +61,13 @@ fn window_key(
     if !pressed {
         return false;
     }
-    if escape && state.window_escape(pending, ctx.input(|i| i.key_down(egui::Key::Escape))) {
+    if escape
+        && state.window_escape(
+            pending,
+            Some(loaded_from),
+            ctx.input(|i| i.key_down(egui::Key::Escape)),
+        )
+    {
         return false;
     }
     !state.window_holds_terminal_keys()
@@ -282,14 +289,14 @@ fn a_key_in_the_frame_of_a_press_reaches_only_the_owner_before_the_press() {
 }
 
 /// Given 키 주인 X 가 바깥 클릭에 닫히는 팝업이고 포커스를 받지 않는 팝업 N(복원 안내 같은)이 함께 보일 때, When
-/// 창이 Esc 로 X 를 닫고 그 닫기가 그리기 전에 적용되면, Then 그 Esc 는 처리한 X 에서 멈춘다. 키 주인이 사라졌어도
+/// 창이 Esc 를 처리한 뒤 그리기 전에 X 가 닫히면, Then 그 Esc 는 처리한 X 에서 멈춘다. 키 주인이 사라졌어도
 /// 그 프레임은 키 주인이 있는 프레임이라 N 의 본문은 그 Esc 를 읽지 않는다.
 #[test]
 fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
     let mut n = None;
     let Scene {
         mut state,
-        mut session,
+        session: _session,
         ctx,
         g: _,
         x,
@@ -312,16 +319,14 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
         key(egui::Key::Escape)
     ));
     assert!(pending.is_empty(), "닫은 주인의 Esc 는 egui 입력에서 뺀다");
-    // 창의 닫기 요청은 그리기 전에 적용된다. 아래에서는 Esc 가 egui 에 남았다고 쳐도 N 이 읽지 않는지 본다.
-    {
-        let mut engine = session.borrow_mut();
-        for intent in state.take_pending_intents() {
-            crate::intent::popup::handle(&mut state, &mut engine, &intent);
-        }
-    }
+    // 창 Esc 는 닫기 의도를 만들지 않는다. 그 Esc 뒤·그리기 전에 X 를 따로 닫는다. 아래에서는 Esc 가 egui 에
+    // 남았다고 쳐도 N 이 읽지 않는지 본다.
+    state
+        .popups
+        .close_instance(x, super::PopupCloseReason::Command);
     assert!(
         !state.popups.instance(x).is_some_and(|p| p.open),
-        "창이 X 를 닫는다"
+        "X 가 닫혔다"
     );
     let (called, seen) = frame_calls(
         &ctx,
@@ -418,14 +423,15 @@ fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() 
     assert!(pending.is_empty(), "다음 키는 egui 로 가지 않는다");
 }
 
-/// Given 포커스된 host 팝업 X(Esc 선언 Close)가 키 주인일 때, When 창이 Shift+Esc 누름을 받으면, Then 창의 Esc
-/// 처리가 시험 입구와 메인 창이 함께 쓰는 공유 판정(`tasty_key_match::is_window_escape`)을 거쳐 그 누름을 처리하고
-/// egui 큐에서 뺀다. 판정은 지금 수식키를 보지 않는다.
-#[test]
-fn shift_escape_is_judged_by_the_shared_function() {
-    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+/// 포커스된 host 팝업 X(Esc 선언 Close)가 키 주인인 장면. X 가 키 주인임을 먼저 단정한다.
+fn focused_close_owner() -> (
+    RequestContext,
+    crate::runtime::engine_session::EngineSession,
+    egui::Context,
+    PopupInstanceId,
+) {
     crate::i18n::init("en");
-    let (mut state, mut session) = crate::state::tests::test_state();
+    let (mut state, session) = crate::state::tests::test_state();
     state.popups.register(
         PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
             .with_instances(PopupInstances::PerScopeTarget),
@@ -444,6 +450,58 @@ fn shift_escape_is_judged_by_the_shared_function() {
         Some(x),
         "X 가 키 주인이다"
     );
+    (state, session, ctx, x)
+}
+
+/// 수식키 Esc 는 창 Esc 가 아니다: 창이 처리하지 않고(Pass) 실린 그 사건이 egui 큐에 남으며, X 는 열린 채 포커스를
+/// 유지한다.
+fn modified_escape_is_not_a_window_escape(modifiers: egui::Modifiers) {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    let (mut state, mut session, ctx, x) = focused_close_owner();
+    let engine = session.borrow_mut();
+    let mut input = WindowInput::default();
+    let handled = input.escape_with(&ctx, &mut state, &engine.read(), true, modifiers);
+    assert!(input.escape_fed(), "그 누름이 egui 큐에 실렸다");
+    assert!(!handled, "창이 처리하지 않는다: {modifiers:?}");
+    assert_eq!(
+        input
+            .queue_mut()
+            .iter()
+            .filter(|e| super::body_keys::is_escape_press(e))
+            .count(),
+        1,
+        "그 누름이 egui 큐에 남는다: {modifiers:?}"
+    );
+    assert!(state.popups.instance(x).is_some_and(|p| p.open));
+    assert!(
+        state.popups.is_instance_focused(x),
+        "X 는 포커스를 유지한다"
+    );
+}
+
+/// T-4a3-15a: Shift+Esc 는 창 Esc 가 아니다(공유 판정 `tasty_key_match::is_window_escape` 는 정확 일치).
+#[test]
+fn shift_escape_is_not_a_window_escape() {
+    modified_escape_is_not_a_window_escape(egui::Modifiers::SHIFT);
+}
+
+/// T-4a3-15b: Ctrl+Esc 도 창 Esc 가 아니다.
+#[test]
+fn ctrl_escape_is_not_a_window_escape() {
+    modified_escape_is_not_a_window_escape(egui::Modifiers::CTRL);
+}
+
+/// T-4a3-15c: Alt+Esc 도 창 Esc 가 아니다.
+#[test]
+fn alt_escape_is_not_a_window_escape() {
+    modified_escape_is_not_a_window_escape(egui::Modifiers::ALT);
+}
+
+/// T-4a3-15d: 수식키 없는 Esc 는 창이 처리하고 이번에 실린 그 사건을 egui 큐에서 뺀다.
+#[test]
+fn bare_escape_is_a_window_escape() {
+    use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+    let (mut state, mut session, ctx, _x) = focused_close_owner();
     let engine = session.borrow_mut();
     let mut input = WindowInput::default();
     let handled = input.escape_with(
@@ -451,7 +509,7 @@ fn shift_escape_is_judged_by_the_shared_function() {
         &mut state,
         &engine.read(),
         true,
-        egui::Modifiers::SHIFT,
+        egui::Modifiers::NONE,
     );
     assert!(input.escape_fed(), "그 누름이 egui 큐에 실렸다");
     assert!(handled, "창이 처리한다");
@@ -461,6 +519,108 @@ fn shift_escape_is_judged_by_the_shared_function() {
             .iter()
             .any(super::body_keys::is_escape_press),
         "창이 처리한 누름은 egui 큐에서 빠졌다"
+    );
+}
+
+/// T-4a3-15e: 이번 사건이 큐에 실리지 않았으면(적재 범위가 비었다) 창은 앞 사건으로 남은 Esc 누름을 빼지 않는다.
+#[test]
+fn an_unloaded_escape_leaves_an_older_press_in_the_queue() {
+    let (mut state, _session, _ctx, _x) = focused_close_owner();
+    let mut pending = vec![key(egui::Key::Escape)];
+    let loaded_from = Some(pending.len());
+    assert!(
+        state.window_escape(&mut pending, loaded_from, false),
+        "키 주인이 있어 창이 처리한다"
+    );
+    assert_eq!(
+        pending
+            .iter()
+            .filter(|e| super::body_keys::is_escape_press(e))
+            .count(),
+        1,
+        "앞 사건으로 남은 누름은 그대로다"
+    );
+}
+
+/// T-4a3-8: Given 덮지 않는 검색 바가 키 주인일 때, When 한 창 사건 묶음 [Esc, 글자] 가 오면(창이 Esc 를 egui 입력에서
+/// 빼고 사건 시점에 포커스를 푼다), Then 다음 글자는 아래 surface(터미널)로 가고 egui 입력에 실리지 않는다.
+#[test]
+fn next_key_after_escape_on_a_non_covering_popup_goes_below() {
+    use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    state.popups.open_at_focused(
+        SEARCH_BAR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(100.0, 100.0),
+    );
+    let screen = crate::model::PhysicalRect {
+        x: crate::model::PhysicalPx(0.0),
+        y: crate::model::PhysicalPx(0.0),
+        width: crate::model::PhysicalPx(1280.0),
+        height: crate::model::PhysicalPx(720.0),
+    };
+    for _ in 0..3 {
+        drop(ctx.run(
+            egui::RawInput {
+                screen_rect: Some(rect(0.0, 0.0, 1280.0, 720.0)),
+                ..Default::default()
+            },
+            |ctx| {
+                drop(crate::adapters::ui::draw_popups(
+                    ctx,
+                    &mut state,
+                    &read,
+                    &[],
+                    screen,
+                    1.0,
+                ));
+            },
+        ));
+        state.close_input_pass(&ctx);
+    }
+    assert!(
+        state.popups.is_focused(SEARCH_BAR_POPUP_ID),
+        "검색 바가 키 주인이다"
+    );
+    assert!(
+        !state.popups.covers_scope(SEARCH_BAR_POPUP_ID),
+        "덮지 않는 팝업이다"
+    );
+    // 한 묶음: [Esc, 글자]. redraw 없이 창이 차례로 받는다(사건마다 끊기 → egui 게이트 → 창 판정).
+    let mut input = crate::adapters::ui::popup::window_input_test_support::WindowInput::default();
+    assert!(
+        input.escape(&ctx, &mut state, &read, true),
+        "창이 Esc 를 처리하고 사건 시점에 포커스를 푼다"
+    );
+    assert!(
+        input.queue_mut().is_empty(),
+        "창이 그 Esc 를 egui 입력에서 뺐다"
+    );
+    assert_eq!(input.cut_count(), 0, "Esc 까지는 한 몫이다");
+    assert_eq!(
+        input.key(&mut state, &read, false, key(egui::Key::A)),
+        None,
+        "다음 글자는 egui 로 가지 않는다"
+    );
+    // 끊은 자리는 글자 앞이다. 빈 준비 패스 자리가 하나 더 생길 수 있다.
+    assert!(
+        input.cut_count() >= 1,
+        "포커스 노드가 바뀌어 글자 앞에서 몫을 끊는다"
+    );
+    assert!(
+        !state.window_holds_terminal_keys(),
+        "다음 글자는 아래 surface(터미널)로 간다"
+    );
+    assert!(
+        !matches!(
+            state.focus_node(&read),
+            crate::state::focus_node::FocusNode::Popup(_)
+        ),
+        "포커스 노드가 팝업이 아니다"
     );
 }
 

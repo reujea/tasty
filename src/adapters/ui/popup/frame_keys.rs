@@ -99,6 +99,8 @@ pub(crate) struct KeySlots {
     escape_released: bool,
     /// 이번 패스 몫에 egui 로 보내지 않은 Esc 뗌이 왔다. 패스를 닫을 때 egui 의 Escape 눌림을 푼다.
     pass_escape_released: bool,
+    /// 별도 창이 이번 패스에 넣은 Esc 표지(`PopupManager::put_window_pass_keys`). 그리기가 꺼낸다.
+    pub(super) window_escape: Option<super::body_keys::EscapeMarks>,
 }
 
 impl PopupManager {

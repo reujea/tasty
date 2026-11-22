@@ -20,8 +20,6 @@ pub struct ScriptConfirmProps<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScriptConfirmAction {
     None,
-    /// Escape — 취소로 간주(실행 안 함).
-    Close,
     /// Cancel 버튼 — 실행 안 함.
     Cancel,
     /// Run 버튼 — 변경본을 실행하고 해시를 갱신.
@@ -34,10 +32,6 @@ pub fn draw_script_confirm_view(
     props: &ScriptConfirmProps<'_>,
 ) -> ScriptConfirmAction {
     let th = props.theme;
-
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return ScriptConfirmAction::Close;
-    }
 
     let out = script_confirm(
         ui,
@@ -160,7 +154,7 @@ pub fn draw_script_confirm_popup(
 
     match action {
         ScriptConfirmAction::None => PopupAction::None,
-        ScriptConfirmAction::Close | ScriptConfirmAction::Cancel => PopupAction::Close,
+        ScriptConfirmAction::Cancel => PopupAction::Close,
         ScriptConfirmAction::Run => {
             // 결정 기록 — 닫기 훅이 출력함에 옮기고 frame begin 의 `dispatch_pending_script_confirm` 이 갱신·실행.
             pending.result = Some(true);
@@ -194,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn escape_returns_close() {
+    fn the_view_does_not_read_escape() {
         let action = run_view_once(vec![egui::Event::Key {
             key: egui::Key::Escape,
             physical_key: None,
@@ -202,7 +196,7 @@ mod tests {
             repeat: false,
             modifiers: egui::Modifiers::NONE,
         }]);
-        assert_eq!(action, ScriptConfirmAction::Close);
+        assert_eq!(action, ScriptConfirmAction::None);
     }
 
     #[test]

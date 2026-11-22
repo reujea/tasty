@@ -232,6 +232,11 @@ impl<E: HeldEvent> EditKeyState<E> {
         self.modifiers = modifiers;
     }
 
+    /// The winit modifiers the last key was judged with.
+    pub(crate) fn modifiers(&self) -> ModifiersState {
+        self.modifiers
+    }
+
     /// A key is held, or its release still waits for the owner.
     pub(crate) fn busy(&self) -> bool {
         self.hold.is_some() || self.release.is_some()
@@ -709,7 +714,21 @@ impl super::GpuState {
                 window.request_redraw();
                 None
             }
-            EguiKey::Free | EguiKey::Pass(_) => Some(self.handle_egui_event(window, event)),
+            EguiKey::Free | EguiKey::Pass(_) => {
+                // 적재한 Esc 누름마다 사건 시점 수식키를 표지로 쌓는다(팝업 층 Esc 판정, `escape_step`).
+                let from = self.egui_state.egui_input().events.len();
+                let handled = self.handle_egui_event(window, event);
+                let mods =
+                    crate::adapters::ui::popup::keys::window_key_mods(self.edit_keys.modifiers());
+                self.loaded_escape_marks.extend(
+                    crate::adapters::ui::popup::body_keys::escape_marks_in(
+                        &self.egui_state.egui_input().events,
+                        from,
+                        mods,
+                    ),
+                );
+                Some(handled)
+            }
         }
     }
 

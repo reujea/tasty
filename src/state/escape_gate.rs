@@ -19,21 +19,27 @@ enum EscapeGate {
 }
 
 impl super::MainViewState {
-    /// 창이 받은 Esc 누름을 판정한다. 처리했으면 `pending`(이번 egui 입력)에서 그 누름(마지막 Esc 누름) 하나를 빼고,
-    /// 키 주인이 읽을 몫이면 그 원래 사건을 원래 자리와 함께 넘겨 둔다. Esc 뗌은 빼지 않는다. egui 입력에 남아 눌린 키
-    /// 상태를 푼다(넘긴 누름을 되넣을 때도 그 뗌이 뒤에 온다). `escape_held` 는 직전 egui 패스 끝의 Escape 눌림 상태다(키 주인에게
-    /// 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이다.
+    /// 창이 받은 Esc 누름을 판정한다. 처리했으면 `pending`(이번 egui 입력)에서 그 누름 하나를 빼고, 키 주인이 읽을
+    /// 몫이면 그 원래 사건을 원래 자리와 함께 넘겨 둔다. 고르는 누름은 이번 사건이 실은 범위(`loaded_from` 부터 끝까지)의
+    /// 마지막 Esc 누름이다. 적재가 없었으면(`None` 이거나 범위에 Esc 누름이 없음) 큐를 바꾸지 않고 넘기지도 않는다. Esc
+    /// 뗌은 빼지 않는다. egui 입력에 남아 눌린 키 상태를 푼다(넘긴 누름을 되넣을 때도 그 뗌이 뒤에 온다). `escape_held` 는
+    /// 직전 egui 패스 끝의 Escape 눌림 상태다(키 주인에게 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이다.
     pub(crate) fn window_escape(
         &mut self,
         pending: &mut Vec<egui::Event>,
+        loaded_from: Option<usize>,
         escape_held: bool,
     ) -> bool {
         let EscapeGate::Consumed { hand_to_owner } = self.escape_gate() else {
             return false;
         };
-        let press = pending
-            .iter()
-            .rposition(crate::adapters::ui::popup::body_keys::is_escape_press);
+        let press = loaded_from.and_then(|from| {
+            let from = from.min(pending.len());
+            pending[from..]
+                .iter()
+                .rposition(crate::adapters::ui::popup::body_keys::is_escape_press)
+                .map(|at| from + at)
+        });
         if let Some(at) = press {
             let event = pending.remove(at);
             if hand_to_owner {
@@ -44,8 +50,8 @@ impl super::MainViewState {
         true
     }
 
-    /// Escape로 설정 요청·알림을 처리하고 팝업 포커스를 해제한다.
-    /// 바깥 클릭으로 닫을 수 있는 팝업만 닫는다.
+    /// Escape로 설정 요청·알림을 처리하고, host 키 주인은 선언 `escape` 대로 포커스를 풀어 넘긴다(Ignore 는 넘기지
+    /// 않는다). 닫기는 팝업 층 중앙 단계가 정한다.
     fn escape_gate(&mut self) -> EscapeGate {
         if self.settings_open_requested {
             // 아직 처리하지 않은 설정 창 열기 요청을 취소한다.
@@ -105,24 +111,20 @@ impl super::MainViewState {
                 hand_to_owner: true,
             };
         }
-        // 설정 요청과 알림을 먼저 처리한 뒤, 포커스된 팝업 하나의 포커스를 해제한다.
-        // 바깥 클릭과 같이 close_on_outside_click인 팝업만 닫는다.
+        // 설정 요청과 알림을 먼저 처리한 뒤, host 키 주인의 Esc 를 선언대로 처리한다. Close·Unfocus 는 지금 인스턴스
+        // 포커스를 풀고 그 Esc 를 넘긴다. 입력 시점의 키 주인(위에서 묶은 이 인스턴스) 본문이 팝업 층에서 이 Esc 를
+        // 받고, 본문이 쓰지 않았으면 Close 는 그 패스 중앙 단계(`popup::escape_step`)가 닫는다. Ignore 는 넘기지 않는다.
         // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
-        if let Some((_, instance, closes)) = self.popups.focused_dismissal_target() {
-            self.popups.set_instance_focused(instance, false);
-            if closes {
-                self.dispatch_intent(
-                    crate::intent::UiIntent::CloseInstance {
-                        instance,
-                        reason: crate::adapters::ui::popup::PopupCloseReason::Escape,
-                    }
-                    .from_user_shortcut("escape_dismiss_focused_popup"),
-                );
+        if let Some((instance, escape)) = self.popups.host_key_owner_escape() {
+            use crate::adapters::ui::popup::PopupEscape;
+            if escape == PopupEscape::Ignore {
+                return EscapeGate::Consumed {
+                    hand_to_owner: false,
+                };
             }
-            // 포커스만 풀었으면 입력 시점의 키 주인(위에서 묶은 이 인스턴스) 본문이 팝업 층에서 이 Esc 를 받는다
-            // (하위 화면이면 목록으로 돌아간다). 닫았으면 받을 본문이 없다.
+            self.popups.set_instance_focused(instance, false);
             return EscapeGate::Consumed {
-                hand_to_owner: !closes,
+                hand_to_owner: true,
             };
         }
         EscapeGate::Pass

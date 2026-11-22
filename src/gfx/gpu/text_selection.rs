@@ -181,6 +181,7 @@ impl GpuState {
             self.egui_ctx.request_repaint();
         }
         self.edit_keys.input_taken(&raw_input.events);
+        self.pass_escape_marks = std::mem::take(&mut self.loaded_escape_marks);
         let focused = self.focus_tag();
         if self.plugin_paste_target.is_some()
             && self
@@ -196,6 +197,12 @@ impl GpuState {
             .events
             .extend(pastes.into_iter().map(egui::Event::Paste));
         raw_input
+    }
+
+    /// 마지막으로 꺼낸 입력이 적재한 Esc 누름마다 사건 시점 수식키. 관리자가 있는 별도 창 `render` 가 입력을 꺼낸 바로
+    /// 뒤 부른다.
+    pub fn take_window_escape_marks(&mut self) -> Vec<tasty_key_match::KeyMods> {
+        std::mem::take(&mut self.pass_escape_marks)
     }
 
     /// The Wayland selection needs polling: a paste is being read or copied text is being sent.

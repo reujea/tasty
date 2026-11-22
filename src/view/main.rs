@@ -66,6 +66,9 @@ pub struct MainView {
     /// The edit a replayed key was already judged as (`edit_keys.rs`). Set by App only while it
     /// replays that key.
     pub(crate) edit_replay: Option<crate::adapters::ui::input::edit_key::EditKey>,
+    /// 마지막 키 사건이 egui 입력 큐에 적재되기 전 큐 길이. 적재하지 않았으면 None 이다. 창의 Esc 처리가 이번
+    /// 사건으로 들어온 범위에서만 Esc 누름을 고른다(`try_consume_escape_key`).
+    pub(crate) escape_loaded_from: Option<usize>,
     /// An edit key a plugin popup's field should try (`plugin_popup_keys.rs`). App takes it right
     /// after the event and holds the original key until the plugin replies.
     pub(crate) plugin_edit_ask: Option<plugin_popup_keys::PluginEditAsk>,
@@ -248,6 +251,7 @@ impl MainView {
             clipboard,
             pending_terminal_paste: None,
             edit_replay: None,
+            escape_loaded_from: None,
             plugin_edit_ask: None,
             ime_preedit: None,
             #[cfg(target_os = "linux")]
@@ -468,6 +472,7 @@ impl MainView {
             event,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
+        self.escape_loaded_from = None;
         let Some(bound) = self.state.window_feeds_egui(egui_surface, binds) else {
             self.note_unfed_key(event);
             return (false, false);
@@ -479,6 +484,7 @@ impl MainView {
             .gpu
             .set_plugin_paste_target(self.state.plugin_popup_key_target());
         let from = self.base.gpu.egui_input_events_mut().len();
+        self.escape_loaded_from = Some(from);
         let result = self.base.gpu.handle_egui_event(&self.base.winit, event);
         self.remap_html_address_keys(engine, event, from, edit_judged);
         result

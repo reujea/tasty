@@ -131,3 +131,49 @@ fn the_address_band_hears_that_the_edit_key_passed() {
         );
     }
 }
+
+/// 별도 창 Esc 표지(팝업 층 Esc 판정): 판정을 지난 사건을 egui-winit 에 넘기기 전에 입력 큐 길이를 재고, 넘긴 뒤 새로
+/// 붙은 범위의 Esc 누름에만 표지를 쌓는다. 순서만 본다. 조건 분기와 범위 값은 `body_keys` 순수 함수 시험이 잰다.
+#[test]
+fn window_escape_marks_follow_the_egui_load() {
+    let signature = "fn handle_egui_event_for_window(";
+    let body = body("src/gfx/gpu/edit_keys.rs", signature);
+    let order = [
+        "judge_egui_key(",
+        "egui_input().events.len()",
+        EGUI_WINIT,
+        "escape_marks_in(",
+    ];
+    for pair in order.windows(2) {
+        assert_before(&body, pair[0], pair[1], signature);
+    }
+}
+
+/// 별도 창 키 값(W1 주인과 Esc 표지)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 넣는다. 창 `render` 는
+/// `run_egui` 전에 표지를 꺼내기만 하고 넣지 않는다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만
+/// 넣는 잘못은 잡지 못한다.
+#[test]
+fn window_pass_keys_are_put_in_every_pass() {
+    const PUT: &str = "put_window_pass_keys(";
+    for (rel, signature) in [
+        ("src/view/settings/ui.rs", "fn draw_settings_panel("),
+        ("src/view/file_chooser/window.rs", "fn draw("),
+    ] {
+        let body = body(rel, signature);
+        assert_before(&body, PUT, ".draw_view_local(", signature);
+    }
+    for rel in [
+        "src/view/settings.rs",
+        "src/view/preset.rs",
+        "src/view/plugins.rs",
+    ] {
+        let body = body(rel, "fn render(");
+        for put in [PUT, "decide_frame_keys_for("] {
+            assert!(
+                !body.contains(put),
+                "{rel}: `render` 가 `{put}` 를 부른다. 넣기는 관리자를 그리는 함수가 패스마다 한다."
+            );
+        }
+        assert_before(&body, "take_window_escape_marks(", "run_egui(", rel);
+    }
+}

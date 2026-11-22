@@ -103,7 +103,14 @@ impl WindowFileChooser {
     pub(crate) fn poll(&mut self, owner: &mut crate::app::local_reads::ReadRequests) -> bool {
         self.chooser.poll_local_reads(owner)
     }
-    pub(crate) fn draw(&mut self, ctx: &egui::Context) {
+    /// `keys` 는 창 `render` 가 이번 프레임에 정한 키 값이다. 다시 그리는 패스에도 같은 값을 넣도록 팝업을 그리기 전에
+    /// 패스마다 관리자에 넣는다.
+    pub(crate) fn draw(
+        &mut self,
+        ctx: &egui::Context,
+        keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
+    ) {
+        self.popups.put_window_pass_keys(ctx, keys);
         let chooser = &mut self.chooser;
         let closed = self
             .popups
@@ -111,7 +118,12 @@ impl WindowFileChooser {
                 if cx.id != FILE_PICKER_POPUP_ID {
                     return false;
                 }
-                let drawn = chooser.draw(ui, &crate::theme::theme(), owns_escape);
+                // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
+                let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
+                    && cx
+                        .keys
+                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+                let drawn = chooser.draw(ui, &crate::theme::theme(), owns_escape, escape);
                 report_hidden_crumbs_menu(ui, cx.instance, drawn.child_menu);
                 drawn.done
             });
@@ -130,14 +142,6 @@ impl WindowFileChooser {
         record: WindowFocusRecord,
     ) -> Option<PopupInstanceId> {
         self.popups.window_key_owner(ctx, record)
-    }
-    /// 이번 패스 관리자에 W1 값을 넣는다. 다시 그리는 패스도 같은 값을 받도록 패스마다 부른다.
-    pub(crate) fn put_key_owner(&mut self, owner: Option<PopupInstanceId>) {
-        self.popups.decide_frame_keys_for(owner);
-    }
-    /// 이번 패스에 받은 키 주인. chooser 그리기보다 앞에서 키를 읽는 창 위젯 판정이 쓴다.
-    pub(crate) fn received_key_owner(&self) -> Option<PopupInstanceId> {
-        self.popups.received_window_key_owner()
     }
 }
 

@@ -88,6 +88,11 @@ pub fn draw_rename_popup(
         .waiting
         .as_ref()
         .map(|w| crate::i18n::t_fmt("explorer.remote.renaming", &w.host));
+    // 확인을 기다리는 동안 Esc 는 무시한다. 그 Esc 를 쓴 것으로 남겨 중앙 단계가 닫지 않게 한다.
+    if waiting.is_some() {
+        cx.keys
+            .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+    }
 
     // 직전 프레임의 입력으로 카테고리 이름과 탐색기 항목 이름을 검사한다. 다른 대상에는 이 제한이 없다.
     let (validation_error, save_enabled) = match target {
@@ -127,9 +132,6 @@ pub fn draw_rename_popup(
     match drawn.inner {
         RenamePopupAction::None => PopupAction::None,
         RenamePopupAction::Cancel => PopupAction::Close,
-        RenamePopupAction::Escape => {
-            PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
-        }
         RenamePopupAction::Confirm(buffer) => {
             match request_remote_rename(state, engine, &rename.target, &buffer) {
                 Some(Some(waiting)) => {
@@ -657,11 +659,12 @@ mod tests {
         }]
     }
 
-    /// Given rename 둘이 보이고 한쪽만 포커스를 가졌을 때, When Escape를 누르면, Then 포커스를 가진 쪽만 닫힌다.
+    /// Given rename 둘이 보이고 한쪽만 포커스를 가졌을 때, When Escape를 누르면, Then 두 본문 모두 닫지 않는다.
+    /// 본문은 Esc 를 읽지 않는다. 닫기는 팝업 층 중앙 단계가 선언대로 정한다(T-4a3-25).
     #[test]
-    fn escape_closes_only_the_focused_rename() {
+    fn the_rename_bodies_leave_escape_to_the_popup_layer() {
         let (results, _) = draw_renames(&[false, true], vec![vec![], escape()]);
-        assert_eq!(results, ["none", "escape"]);
+        assert_eq!(results, ["none", "none"]);
     }
 
     /// Given 포커스 없는(agent가 연 passive 같은) rename 하나만 보일 때, Then 입력 포커스를 가져가지 않는다.

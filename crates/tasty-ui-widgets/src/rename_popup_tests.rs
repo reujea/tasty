@@ -281,7 +281,7 @@ fn a_long_name_scrolls_inside_the_padding() {
 }
 
 #[test]
-fn escape_cancels_and_enter_confirms_the_focused_field() {
+fn escape_is_left_to_the_caller_and_enter_confirms_the_focused_field() {
     let theme = mocha(1.0);
     let mut buffer = "hello".to_owned();
     let f = run(
@@ -290,7 +290,8 @@ fn escape_cancels_and_enter_confirms_the_focused_field() {
         &mut buffer,
         vec![vec![key(egui::Key::Escape)]],
     );
-    assert_eq!(*f.action(), RenamePopupAction::Escape);
+    // 위젯은 Esc 를 읽지 않는다. 호출자의 팝업 층이 선언대로 닫는다.
+    assert_eq!(*f.action(), RenamePopupAction::None);
 
     let mut buffer = "hello".to_owned();
     let f = run(

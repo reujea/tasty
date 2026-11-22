@@ -291,11 +291,6 @@ pub fn draw_remote_attach_popup(
         close = true;
     }
 
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        cleanup(&ctx, state);
-        return PopupAction::Close;
-    }
-
     let profiles = RemoteProfiles::load();
     let summaries = attach_summaries(&profiles);
 

@@ -158,7 +158,6 @@ pub fn draw_convert_popup(
         return PopupAction::None;
     };
     match draw_convert_content(ui, state, engine, target, cx.keys.receives()) {
-        Some(ConvertResult::Close) => PopupAction::CloseBy(popup::PopupCloseReason::Escape),
         Some(ConvertResult::Action(action)) => {
             apply_convert_action(state, engine, target.surface_id, action);
             PopupAction::Close
@@ -295,8 +294,6 @@ fn capitalize_ascii(s: &str) -> String {
 pub enum ConvertResult {
     /// User selected an action.
     Action(ConvertAction),
-    /// User pressed Escape.
-    Close,
 }
 
 /// 앱 상태 없이 그릴 수 있는 메뉴 항목. 현재 kind 는 이미 빠져 있다.
@@ -383,10 +380,6 @@ pub fn draw_convert_content(
     let count = internal_items.len();
 
     let ctx = ui.ctx().clone();
-
-    if keys && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        return Some(ConvertResult::Close);
-    }
 
     let selected = target.selected;
 

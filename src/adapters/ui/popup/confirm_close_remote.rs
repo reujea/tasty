@@ -145,9 +145,6 @@ pub fn draw_confirm_close_remote(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;
-    }
     let Some((name, profile, last)) = target(cx.payload, engine) else {
         return PopupAction::Close;
     };

@@ -107,10 +107,6 @@ pub fn draw_confirm_force_detach_workspace(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let ctx = ui.ctx().clone();
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        return PopupAction::Close;
-    }
     let (Some(ws_id), Some(target)) = (target_id(cx.payload), resolve_target(cx.payload, engine))
     else {
         return PopupAction::Close;

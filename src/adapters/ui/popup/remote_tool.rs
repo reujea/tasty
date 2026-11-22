@@ -284,8 +284,9 @@ pub fn draw_remote_tool_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    instance: super::PopupInstanceId,
+    cx: &mut super::PopupCx<'_>,
 ) -> PopupAction {
+    let instance = cx.instance;
     let th = theme::theme();
     let ctx = ui.ctx().clone();
     let mut st = read_ui(&ctx);
@@ -295,23 +296,17 @@ pub fn draw_remote_tool_popup(
     let mut profiles = RemoteProfiles::load();
     let passkeys = Passkeys::load();
 
-    // Escape: Form/Confirm 은 뒤로, List 면 닫기.
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        // 드롭다운이 열려 있으면 Escape로 드롭다운만 닫는다.
-        if ctx.memory(|m| m.is_popup_open(egui::Id::new(FILTER_POPUP_ID))) {
-            ctx.memory_mut(|m| m.close_popup());
-            write_ui(&ctx, st);
-            return PopupAction::None;
-        }
-        let sub = match st.tab {
-            Tab::Profiles => &mut st.profile_view,
-            Tab::Attach => &mut st.attach_view,
-            Tab::Passkeys => &mut st.passkey_view,
-        };
-        if *sub == Sub::List {
-            clear_ui(&ctx);
-            return PopupAction::Close;
-        }
+    // Escape: Form/Confirm 은 목록으로 돌아간다. 자식 드롭다운이 열려 있으면 읽지 않는다(그 Esc 는 드롭다운이 닫는다).
+    // 목록의 Esc 는 읽지 않는다. 중앙 단계가 선언대로 닫는다.
+    let sub = match st.tab {
+        Tab::Profiles => &mut st.profile_view,
+        Tab::Attach => &mut st.attach_view,
+        Tab::Passkeys => &mut st.passkey_view,
+    };
+    if *sub != Sub::List
+        && !super::child_popup_open(&ctx, instance)
+        && cx.keys.consume(super::keys::BasicKey::Escape)
+    {
         *sub = Sub::List;
         write_ui(&ctx, st);
         return PopupAction::None;
@@ -2648,5 +2643,180 @@ mod tests {
         assert!(!is_unknown_kind("ssh")); // builtin
         assert!(!is_unknown_kind("smb")); // builtin
         assert!(!is_unknown_kind("http")); // KNOWN_TYPES
+    }
+
+    // ---- 팝업 층 Esc(T-4a3-5b·22·23). 창의 Esc 판정을 거친 Esc 로 팝업 층을 그린다. ----
+
+    use crate::adapters::ui::popup::window_input_test_support::{
+        layer_click, layer_escape, layer_frame, painted_at,
+    };
+
+    /// remote_tool 을 키 주인으로 열고 프로필 추가 양식까지 들어간다.
+    fn remote_tool_form(
+        ctx: &egui::Context,
+        state: &mut MainViewState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+    ) -> super::super::PopupInstanceId {
+        crate::i18n::init("en");
+        for def in super::super::defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        let iid = state
+            .popups
+            .open_request(
+                &crate::intent::OpenRequest::new(
+                    REMOTE_TOOL_POPUP_ID,
+                    crate::model::popup_kind::PopupScope::Window,
+                )
+                .centered()
+                .focused(),
+                true,
+            )
+            .expect("remote_tool opens");
+        layer_frame(ctx, state, engine, Vec::new());
+        let texts = layer_frame(ctx, state, engine, Vec::new());
+        let add = painted_at(&texts, t("remote_tool.profile_add")).expect("추가 버튼");
+        layer_click(ctx, state, engine, add.center());
+        assert_eq!(read_ui(ctx).profile_view, Sub::Form, "양식이다");
+        iid
+    }
+
+    fn tool_open(state: &MainViewState, iid: super::super::PopupInstanceId) -> bool {
+        state.popups.instance(iid).is_some_and(|p| p.open)
+    }
+
+    /// T-4a3-5b: Given 프로필 양식을 보는 키 주인 remote_tool, When Esc 가 오면, Then 목록으로 돌아가고 열린 채다.
+    #[test]
+    fn escape_on_a_form_returns_to_the_list() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let ctx = egui::Context::default();
+        let iid = remote_tool_form(&ctx, &mut state, &read);
+        layer_escape(&ctx, &mut state, &read);
+        assert_eq!(read_ui(&ctx).profile_view, Sub::List, "목록으로 돌아간다");
+        assert!(tool_open(&state, iid), "열린 채다");
+    }
+
+    /// T-4a3-22: Given 양식의 패스키 ComboBox 가 열려 있을 때(egui 목록이 열렸다), When Esc 가 오면, Then ComboBox 만
+    /// 닫히고 양식은 그대로다.
+    #[test]
+    fn escape_closes_only_the_open_combo_on_a_form() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let ctx = egui::Context::default();
+        let iid = remote_tool_form(&ctx, &mut state, &read);
+        let texts = layer_frame(&ctx, &mut state, &read, Vec::new());
+        let combo = painted_at(&texts, t("remote_tool.passkey_none")).expect("패스키 ComboBox");
+        layer_click(&ctx, &mut state, &read, combo.center());
+        assert!(ctx.memory(|m| m.any_popup_open()), "egui 목록이 열렸다");
+        let texts = layer_escape(&ctx, &mut state, &read);
+        assert!(!ctx.memory(|m| m.any_popup_open()), "ComboBox 가 닫힌다");
+        assert!(
+            painted_at(&texts, t("remote_tool.field_passkey")).is_some(),
+            "그 패스에 양식이 그려졌다"
+        );
+        assert_eq!(read_ui(&ctx).profile_view, Sub::Form, "양식은 그대로다");
+        assert!(tool_open(&state, iid));
+    }
+
+    /// T-4a3-23: Given 프로토콜 두 개 이상인 목록의 프로토콜 필터가 열려 있을 때, When Esc 가 오면, Then 필터만 닫히고
+    /// 팝업은 열린 채다. 목록은 디스크의 프로필 대신 시험 프로필로 그린다(본문은 시험 정의 팝업이 `draw_profile_list`
+    /// 를 부른다).
+    #[test]
+    fn escape_closes_only_the_protocol_filter() {
+        use super::super::{PopupAction, PopupState};
+        const LIST: &str = "remote_tool_filter_test";
+        crate::i18n::init("en");
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        state.popups.register(PopupState::new(
+            LIST,
+            "test",
+            egui::vec2(560.0, 420.0),
+            crate::model::popup_kind::PopupScope::Window,
+        ));
+        let iid = state
+            .popups
+            .open_request(
+                &crate::intent::OpenRequest::new(
+                    LIST,
+                    crate::model::popup_kind::PopupScope::Window,
+                )
+                .centered()
+                .focused(),
+                true,
+            )
+            .expect("test popup opens");
+        let profiles = RemoteProfiles {
+            version: 1,
+            profiles: vec![prof("a", "ssh"), prof("b", "http")],
+        };
+        let passkeys = Passkeys::default();
+        let th = theme::theme();
+        let mut st = UiState::default();
+        let ctx = egui::Context::default();
+        let filter = egui::Id::new(FILTER_POPUP_ID);
+        let pass = |state: &mut MainViewState, st: &mut UiState, events: Vec<egui::Event>| {
+            state
+                .popups
+                .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 900.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            drop(ctx.run(raw, |ctx| {
+                let press = super::super::frame::frame_press(ctx, state, &read, None);
+                state.popups.prepare_frame_for_draw(ctx, None);
+                state.normalize_focus(&read);
+                state.decide_frame_key_owner(None);
+                let mut popups =
+                    std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+                let result = popups.draw_routed(
+                    ctx,
+                    &mut |cx, ui| {
+                        draw_profile_list(ui, &th, cx.instance, st, &profiles, &passkeys);
+                        PopupAction::None
+                    },
+                    None,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                    &[],
+                    press.as_ref(),
+                );
+                state.popups = popups;
+                for (i, a) in result.actions {
+                    if let PopupAction::CloseBy(r) = a {
+                        state.popups.close_instance(i, r);
+                    }
+                }
+            }));
+            state.close_input_pass(&ctx);
+        };
+        pass(&mut state, &mut st, Vec::new());
+        ctx.memory_mut(|m| m.open_popup(filter));
+        pass(&mut state, &mut st, Vec::new());
+        pass(&mut state, &mut st, Vec::new());
+        assert!(ctx.memory(|m| m.is_popup_open(filter)), "필터가 열려 있다");
+        assert!(
+            super::super::child_popup_open(&ctx, iid),
+            "필터가 그 인스턴스의 열린 자식이다"
+        );
+        let mut events = vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }];
+        assert!(state.window_escape(&mut events, Some(0), false));
+        pass(&mut state, &mut st, events);
+        assert!(!ctx.memory(|m| m.is_popup_open(filter)), "필터가 닫힌다");
+        assert!(tool_open(&state, iid), "팝업은 열린 채다");
     }
 }

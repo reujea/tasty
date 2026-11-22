@@ -98,8 +98,16 @@ fn escape_in_the_chooser_does_not_cancel_the_surface_settings() {
         }
         // 창 `render`처럼 직전 패스 뒤 포커스 기록으로 키 주인을 정하고, 주인이 있으면 설정 화면을 가린다.
         let owner = chooser.key_owner(&ctx, WindowFocusRecord::read(&ctx));
+        // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+        let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+            owner,
+            marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+                &raw.events,
+                0,
+                tasty_key_match::KeyMods::default(),
+            ),
+        };
         drop(ctx.run(raw, |ctx| {
-            chooser.put_key_owner(owner);
             with_body_keys(ctx, owner.is_none(), || {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     outcome = draw_surface_settings(
@@ -112,7 +120,7 @@ fn escape_in_the_chooser_does_not_cancel_the_surface_settings() {
                     );
                 });
             });
-            chooser.draw(ctx);
+            chooser.draw(ctx, &keys);
         }));
         assert!(matches!(outcome, CfgOutcome::None));
     }
@@ -157,8 +165,16 @@ fn preset_pass(
         events,
         ..Default::default()
     };
+    // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
+    let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+        owner,
+        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
+            &raw.events,
+            0,
+            tasty_key_match::KeyMods::default(),
+        ),
+    };
     let out = ctx.run(raw, |ctx| {
-        chooser.put_key_owner(owner);
         with_body_keys(ctx, owner.is_none(), || {
             egui::CentralPanel::default().show(ctx, |ui| {
                 outcome = draw_surface_settings(
@@ -176,7 +192,7 @@ fn preset_pass(
         {
             opened = true;
         }
-        chooser.draw(ctx);
+        chooser.draw(ctx, &keys);
     });
     PresetPass {
         outcome,

@@ -158,6 +158,9 @@ pub(crate) enum ConsumedKey {
 /// 모든 조회에서 빈 값을 받는다. 소비 집합 밖 키도 기본 조작·콘텐츠 고유 키 모두 빈 값이고 입력에 남는다.
 /// 키 누름은 사건 하나씩 그 사건의 수정키로 판정한다. 소비한 키는 기록해 관리자가 남은 키를
 /// 선언대로 처리하거나 조상으로 올릴 때 쓴다.
+///
+/// 이번 패스 키 주인의 통로는 Esc 표지(`escape_marks`)를 가진다. 그 통로의 `BasicKey::Escape`는 표지 수식키가 없는
+/// 누름만 맞고, 소비 집합도 표지 값으로 판정한다. 창이 사건 시점에 정한 판정을 그대로 쓴다.
 pub(crate) struct PopupKeys {
     ctx: egui::Context,
     receives: bool,
@@ -165,6 +168,30 @@ pub(crate) struct PopupKeys {
     super_held: bool,
     edits: EditBindings,
     consumed: Vec<ConsumedKey>,
+    escape_marks: Option<super::body_keys::EscapeMarks>,
+}
+
+/// 판정한 키 누름 하나와 그 판정에 쓴 수식키.
+#[derive(Clone, Copy)]
+struct Press {
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+    super_held: bool,
+}
+
+/// 창 판정 수식키의 egui 꼴. 비-macOS Win·Super 는 egui 수식키에 없으므로 `super_` 는 따로 쓴다.
+fn egui_modifiers(mods: tasty_key_match::KeyMods) -> egui::Modifiers {
+    egui::Modifiers {
+        alt: mods.alt,
+        ctrl: mods.ctrl,
+        shift: mods.shift,
+        mac_cmd: mods.command,
+        command: if cfg!(target_os = "macos") {
+            mods.command
+        } else {
+            mods.ctrl
+        },
+    }
 }
 
 impl PopupKeys {
@@ -183,7 +210,19 @@ impl PopupKeys {
             super_held: tasty_key_match::super_held(ctx),
             edits: edits.clone(),
             consumed: Vec::new(),
+            escape_marks: None,
         }
+    }
+
+    /// 이번 패스 키 주인 통로로 만든다. `marks`는 패스 `events` 의 Esc 누름마다 창이 정한 표지다.
+    pub(crate) fn with_escape_marks(mut self, marks: super::body_keys::EscapeMarks) -> Self {
+        self.escape_marks = Some(marks);
+        self
+    }
+
+    /// 남은 Esc 표지를 돌려준다(소비한 누름의 표지는 지웠다). 관리자가 넘긴 Esc 를 거둘 때 쓴다.
+    pub(crate) fn take_escape_marks(&mut self) -> Option<super::body_keys::EscapeMarks> {
+        self.escape_marks.take()
     }
 
     /// 아무 키도 주지 않는 통로.
@@ -201,12 +240,24 @@ impl PopupKeys {
         self.receives
     }
 
-    /// 사건이 기본 조작 `basic`의 누름이면 그 키와 사건의 수정키. 프레임 수정키는 보지 않는다.
+    /// 사건이 기본 조작 `basic`의 누름이면 그 키와 판정 수식키. 프레임 수정키는 보지 않는다. `escape` 는 그 사건이
+    /// Esc 누름일 때 패스 `events` 의 Esc 누름 가운데 순번이다. 표지가 있는 통로의 Esc 는 사건 값이 아니라 그 순번의
+    /// 표지로 판정한다.
     fn basic_press(
         &self,
         basic: BasicKey,
         event: &egui::Event,
-    ) -> Option<(egui::Key, egui::Modifiers)> {
+        escape: Option<usize>,
+    ) -> Option<Press> {
+        if let (Some(marks), Some(n)) = (&self.escape_marks, escape) {
+            let mark = marks.get(n).copied().flatten()?;
+            return (basic == BasicKey::Escape && tasty_key_match::is_window_escape(true, mark))
+                .then_some(Press {
+                    key: egui::Key::Escape,
+                    modifiers: egui_modifiers(mark),
+                    super_held: mark.super_,
+                });
+        }
         match event {
             egui::Event::Key {
                 key,
@@ -220,46 +271,69 @@ impl PopupKeys {
                 self.super_held,
             ) =>
             {
-                Some((*key, *modifiers))
+                Some(Press {
+                    key: *key,
+                    modifiers: *modifiers,
+                    super_held: self.super_held,
+                })
             }
             _ => None,
         }
     }
 
     /// 키 누름 하나가 이 통로 선언의 소비 집합에 드는지.
-    fn in_set(&self, (key, modifiers): (egui::Key, egui::Modifiers)) -> bool {
-        consumes_key(self.keyboard, key, modifiers, self.super_held, &self.edits)
+    fn in_set(&self, press: Press) -> bool {
+        consumes_key(
+            self.keyboard,
+            press.key,
+            press.modifiers,
+            press.super_held,
+            &self.edits,
+        )
     }
 
     /// 기본 조작이 이번 프레임에 눌렸는지. 소비 집합 안의 누름만 센다. 소비하지 않는다.
     pub(crate) fn pressed(&self, basic: BasicKey) -> bool {
         self.receives
             && self.ctx.input(|i| {
-                i.events
-                    .iter()
-                    .filter_map(|e| self.basic_press(basic, e))
-                    .any(|p| self.in_set(p))
+                let mut escapes = 0;
+                i.events.iter().any(|e| {
+                    let escape = super::body_keys::is_escape_press(e).then(|| {
+                        escapes += 1;
+                        escapes - 1
+                    });
+                    self.basic_press(basic, e, escape)
+                        .is_some_and(|p| self.in_set(p))
+                })
             })
     }
 
     /// 기본 조작 누름 가운데 소비 집합 안의 것을 소비한다. 소비했으면 기록하고 참이다. 지운 누름 바로 뒤의
-    /// 글자 사건도 지운다(`tasty_key_match::consume_binding_egui`와 같은 규칙).
+    /// 글자 사건도 지운다(`tasty_key_match::consume_binding_egui`와 같은 규칙). 지운 Esc 누름의 표지는 끝에 함께
+    /// 지운다(순번은 지우기 전 값이다).
     pub(crate) fn consume(&mut self, basic: BasicKey) -> bool {
         if !self.receives {
             return false;
         }
+        let mut removed_escapes = Vec::new();
         let hit = self.ctx.input_mut(|i| {
             let mut hit = false;
             let mut n = 0;
+            let mut escapes = 0;
             while n < i.events.len() {
+                let escape = super::body_keys::is_escape_press(&i.events[n]).then(|| {
+                    escapes += 1;
+                    escapes - 1
+                });
                 let take = self
-                    .basic_press(basic, &i.events[n])
+                    .basic_press(basic, &i.events[n], escape)
                     .is_some_and(|p| self.in_set(p));
                 if !take {
                     n += 1;
                     continue;
                 }
                 i.events.remove(n);
+                removed_escapes.extend(escape);
                 hit = true;
                 if matches!(i.events.get(n), Some(egui::Event::Text(_))) {
                     i.events.remove(n);
@@ -267,6 +341,13 @@ impl PopupKeys {
             }
             hit
         });
+        if let Some(marks) = &mut self.escape_marks {
+            for n in removed_escapes.into_iter().rev() {
+                if n < marks.len() {
+                    marks.remove(n);
+                }
+            }
+        }
         if hit {
             self.consumed.push(ConsumedKey::Basic(basic));
         }

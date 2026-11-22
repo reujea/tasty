@@ -159,6 +159,8 @@ impl WindowInput {
             repeat: false,
             modifiers,
         };
+        // 창 판정이 고를 범위는 이번 사건이 실린 자리부터다.
+        let loaded_from = self.queue.len();
         self.escape_fed = state.window_feeds_egui(false, true).is_some();
         if self.escape_fed {
             self.queue.push(event);
@@ -173,6 +175,7 @@ impl WindowInput {
             && tasty_key_match::is_window_escape(true, mods)
             && state.window_escape(
                 &mut self.queue,
+                Some(loaded_from),
                 ctx.input(|i| i.key_down(egui::Key::Escape)),
             )
     }
@@ -295,4 +298,97 @@ impl WindowInput {
     pub(crate) fn is_empty(&self) -> bool {
         self.queue.is_empty() && self.cuts.is_empty() && !self.split
     }
+}
+
+/// 시험 화면 1600x900 의 터미널 영역.
+fn layer_screen() -> crate::model::PhysicalRect {
+    crate::model::PhysicalRect {
+        x: crate::model::PhysicalPx(0.0),
+        y: crate::model::PhysicalPx(0.0),
+        width: crate::model::PhysicalPx(1600.0),
+        height: crate::model::PhysicalPx(900.0),
+    }
+}
+
+/// 팝업 층 한 프레임(`draw_popups`, 닫기 훅 포함)과 패스 닫기. 칠한 글자와 그 영역을 돌려준다.
+pub(crate) fn layer_frame(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    events: Vec<egui::Event>,
+) -> Vec<(String, egui::Rect)> {
+    fn walk(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
+        match shape {
+            egui::epaint::Shape::Text(t) => out.push((
+                t.galley.text().to_owned(),
+                egui::Rect::from_min_size(t.pos, t.galley.size()),
+            )),
+            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1600.0, 900.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    state
+        .popups
+        .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
+    let out = ctx.run(raw, |ctx| {
+        crate::adapters::ui::draw_popups(ctx, state, engine, &[], layer_screen(), 1.0);
+    });
+    state.close_input_pass(ctx);
+    let mut texts = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut texts);
+    }
+    texts
+}
+
+/// 칠한 글자 `wanted` 의 영역.
+pub(crate) fn painted_at(texts: &[(String, egui::Rect)], wanted: &str) -> Option<egui::Rect> {
+    texts.iter().find(|(s, _)| s == wanted).map(|(_, r)| *r)
+}
+
+/// `pos` 로 포인터를 옮기고 누르고 떼는 프레임을 그린 뒤 한 프레임 더 그린다. 마지막 프레임의 글자를 돌려준다.
+pub(crate) fn layer_click(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    pos: egui::Pos2,
+) -> Vec<(String, egui::Rect)> {
+    let button = |pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    layer_frame(ctx, state, engine, vec![egui::Event::PointerMoved(pos)]);
+    layer_frame(ctx, state, engine, vec![button(true)]);
+    layer_frame(ctx, state, engine, vec![button(false)]);
+    layer_frame(ctx, state, engine, Vec::new())
+}
+
+/// 창의 Esc 판정(`window_escape`)을 거친 수식키 없는 Esc 한 프레임. 창이 처리했는지 먼저 단정한다.
+pub(crate) fn layer_escape(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> Vec<(String, egui::Rect)> {
+    let mut events = vec![egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+    assert!(
+        state.window_escape(&mut events, Some(0), false),
+        "창이 Esc 를 처리한다"
+    );
+    layer_frame(ctx, state, engine, events)
 }

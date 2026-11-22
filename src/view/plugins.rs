@@ -110,19 +110,22 @@ impl View for PluginsView {
         self.base.begin_frame();
 
         let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
-        // 키 주인은 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
-        let key_owner = self
-            .ui_state
-            .folder_chooser
-            .key_owner(&self.base.gpu.egui_ctx, self.key_record);
+        let marks = self.base.gpu.take_window_escape_marks();
+        // 키 주인과 Esc 표지는 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
+        let pass_keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
+            owner: self
+                .ui_state
+                .folder_chooser
+                .key_owner(&self.base.gpu.egui_ctx, self.key_record),
+            marks,
+        };
         let snapshot = &self.snapshot;
         let ui_state = &mut self.ui_state;
         let actions = &mut self.pending_actions;
         let toasts = &mut self.toasts;
 
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
-            ui_state.folder_chooser.put_key_owner(key_owner);
-            plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions);
+            plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions, &pass_keys);
 
             let empty_layout = LayoutContext {
                 active_workspace: 0,

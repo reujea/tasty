@@ -959,3 +959,936 @@ fn the_hidden_crumbs_menu_is_a_child_of_its_picker() {
         "상자 밖 메뉴 영역은 포인터 상자가 아니다"
     );
 }
+
+// ---- 팝업 층 Esc(중앙 단계). 창 입력 큐(`WindowInput`)로 키를 넣고 팝업 층과 같은 순서로 그린다. ----
+
+use crate::adapters::ui::PopupAction;
+use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+use crate::adapters::ui::popup::{PopupCloseReason, PopupCx, PopupState};
+
+/// 시험 패스가 인스턴스마다 부르는 본문. `None` 이면 그 인스턴스 본문을 그리지 않는다.
+type Body<'a> = dyn FnMut(
+        &mut egui::Ui,
+        &mut RequestContext,
+        &EngineRead<'_>,
+        &mut PopupCx<'_>,
+    ) -> Option<PopupAction>
+    + 'a;
+
+/// 본문 함수의 이름.
+type BodyFn =
+    fn(&mut egui::Ui, &mut RequestContext, &EngineRead<'_>, &mut PopupCx<'_>) -> PopupAction;
+
+/// `iid` 하나만 본문 함수 `body` 를 이름으로 불러 그리는 시험 본문. 정의 본문(`draw_fn`)은 제품 팝업 층에서만
+/// 꺼내므로(본문 호출 가드) 결과 사유를 보는 시험은 본문을 이름으로 부른다.
+fn by_name(
+    iid: PopupInstanceId,
+    body: BodyFn,
+) -> impl FnMut(
+    &mut egui::Ui,
+    &mut RequestContext,
+    &EngineRead<'_>,
+    &mut PopupCx<'_>,
+) -> Option<PopupAction> {
+    move |ui, state, engine, cx| (cx.instance == iid).then(|| body(ui, state, engine, cx))
+}
+
+/// 창 입력 큐의 다음 패스로 host 팝업 층을 그린다. 순서는 `draw_popup_layer`와 같고(누름 → 범위·표시 → 포커스 정규화
+/// → 키 주인 → 그리기 → 결과 적용) 닫기 훅만 부르지 않는다. 본문·중앙 단계 결과를 돌려준다. `content` 가 값을
+/// 돌려주면 그 인스턴스는 정의 본문 대신 그 값을 쓴다.
+fn layer_pass(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+    input: &mut WindowInput,
+    content: &mut Body<'_>,
+) -> Vec<(PopupInstanceId, PopupAction)> {
+    layer_pass_in(ctx, state, engine, input, layout(), content)
+}
+
+/// [`layer_pass`]와 같고 레이아웃이 `draw_ctx` 다.
+fn layer_pass_in(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+    input: &mut WindowInput,
+    draw_ctx: crate::adapters::ui::LayoutContext,
+    content: &mut Body<'_>,
+) -> Vec<(PopupInstanceId, PopupAction)> {
+    let events = input.take_pass(state, ctx);
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    let mut actions = Vec::new();
+    drop(ctx.run(raw, |ctx| {
+        let press =
+            crate::adapters::ui::popup::frame::frame_press(ctx, state, engine, Some(&draw_ctx));
+        state.popups.prepare_frame_for_draw(ctx, Some(&draw_ctx));
+        state.normalize_focus(engine);
+        state.decide_frame_key_owner(Some(&draw_ctx));
+        let mut popups =
+            std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
+        let mut result = popups.draw_routed(
+            ctx,
+            // 정의 본문은 제품 팝업 층에서만 부른다(본문 호출 가드). 이 패스는 시험 본문만 그린다.
+            &mut |cx, ui| content(ui, state, engine, cx).unwrap_or(PopupAction::None),
+            Some(&draw_ctx),
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+            &[],
+            press.as_ref(),
+        );
+        state.popups = popups;
+        actions = std::mem::take(&mut result.actions);
+        for (iid, action) in &actions {
+            match action {
+                PopupAction::Close => state.popups.close_instance(*iid, PopupCloseReason::Content),
+                PopupAction::CloseBy(reason) => state.popups.close_instance(*iid, *reason),
+                PopupAction::ReleaseFocus => state.popups.set_instance_focused(*iid, false),
+                PopupAction::None => {}
+            }
+        }
+    }));
+    state.close_input_pass(ctx);
+    actions
+}
+
+/// 정의 본문을 그대로 그리는 패스. 제품 팝업 층(`frame::draw_popup_layer`)이 그리고 결과를 처리한다.
+fn body_pass(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+    input: &mut WindowInput,
+) {
+    body_pass_in(ctx, state, engine, input, layout());
+}
+
+/// [`body_pass`]와 같고 레이아웃이 `draw_ctx` 다.
+fn body_pass_in(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+    input: &mut WindowInput,
+    draw_ctx: crate::adapters::ui::LayoutContext,
+) {
+    let events = input.take_pass(state, ctx);
+    let raw = egui::RawInput {
+        screen_rect: Some(screen()),
+        events,
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        crate::adapters::ui::popup::frame::draw_popup_layer(ctx, state, engine, &draw_ctx);
+    }));
+    // 창은 프레임 끝에 누름 스냅샷을 지운다(`egui_bridge`).
+    state.press_snapshot = None;
+    state.close_input_pass(ctx);
+}
+
+/// 결과 하나의 이름(`PopupAction` 은 비교·출력을 구현하지 않는다).
+fn label(action: &PopupAction) -> String {
+    match action {
+        PopupAction::None => "None".into(),
+        PopupAction::Close => "Close".into(),
+        PopupAction::CloseBy(reason) => format!("CloseBy({reason:?})"),
+        PopupAction::ReleaseFocus => "ReleaseFocus".into(),
+    }
+}
+
+/// `iid` 가 받은 결과의 이름(None 은 뺀다).
+fn action_of(actions: &[(PopupInstanceId, PopupAction)], iid: PopupInstanceId) -> Vec<String> {
+    actions
+        .iter()
+        .filter(|(i, a)| *i == iid && !matches!(a, PopupAction::None))
+        .map(|(_, a)| label(a))
+        .collect()
+}
+
+fn is_open(state: &RequestContext, iid: PopupInstanceId) -> bool {
+    state.popups.instance(iid).is_some_and(|p| p.open)
+}
+
+fn open_palette(state: &mut RequestContext) -> PopupInstanceId {
+    state
+        .popups
+        .open_request(
+            &OpenRequest::new(COMMAND_PALETTE_POPUP_ID, PopupScope::Window)
+                .centered()
+                .focused(),
+            true,
+        )
+        .expect("palette opens")
+}
+
+/// 시험 정의 팝업 `id`(Esc 선언 `escape`)를 등록한다. 인스턴스는 범위·대상마다 하나다.
+fn register_test_popup(
+    state: &mut RequestContext,
+    id: crate::adapters::ui::popup::PopupId,
+    escape: crate::adapters::ui::popup::PopupEscape,
+) {
+    let mut p = PopupState::new(id, "test", egui::vec2(240.0, 160.0), PopupScope::Window)
+        .with_instances(crate::adapters::ui::popup::PopupInstances::PerScopeTarget);
+    p.escape = escape;
+    state.popups.register(p);
+}
+
+fn open_test_popup(
+    state: &mut RequestContext,
+    id: crate::adapters::ui::popup::PopupId,
+    scope: PopupScope,
+) -> PopupInstanceId {
+    state
+        .popups
+        .open_request(&OpenRequest::new(id, scope).centered().focused(), true)
+        .expect("test popup opens")
+}
+
+/// T-4a3-1: Given 원격 닫기 확인(Esc 선언 Close)이 실제로 있는 원격 행을 기다리며 키 주인일 때(본문은 그려지고 결과는
+/// None), When 수식키 없는 Esc 가 오면, Then 본문이 Esc 를 읽지 않아도 그 패스에 중앙 단계가 사유 Escape 로 닫는다.
+#[test]
+fn escape_closes_a_close_popup_whose_content_ignores_it() {
+    use crate::adapters::ui::popup::confirm_close_remote::{
+        CONFIRM_CLOSE_REMOTE_POPUP_ID, PendingCloseRemote,
+    };
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let row = 900_003;
+    {
+        let engine = session.borrow_mut();
+        let mut ws =
+            crate::model::Workspace::new_with_terminal_marker(row, "row".into(), row, row, row);
+        ws.mirror = true;
+        ws.remote_row = Some(crate::model::RemoteBinding {
+            profile: "gx10".into(),
+            remote_workspace: 4,
+        });
+        engine.core.push_mirror_workspace(ws);
+    }
+    let iid = state
+        .popups
+        .open_request(
+            &OpenRequest::new(CONFIRM_CLOSE_REMOTE_POPUP_ID, PopupScope::Window)
+                .centered()
+                .focused()
+                .with_payload(PopupPayload::ConfirmCloseRemote(Box::new(
+                    PendingCloseRemote::new(
+                        crate::app::attach_client::workspace_close::SavedRowClose {
+                            row,
+                            last: false,
+                        },
+                        crate::app::command::DomainIntent::CloseWorkspace { workspace_id: row },
+                    ),
+                ))),
+            true,
+        )
+        .expect("confirmation opens");
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    for _ in 0..2 {
+        let mut drawn = false;
+        let mut body = by_name(
+            iid,
+            crate::adapters::ui::popup::confirm_close_remote::draw_confirm_close_remote,
+        );
+        let actions = layer_pass(
+            &ctx,
+            &mut state,
+            &read,
+            &mut input,
+            &mut |ui, state, engine, cx| {
+                drawn |= cx.instance == iid;
+                body(ui, state, engine, cx)
+            },
+        );
+        assert!(drawn, "본문이 그려졌다");
+        assert!(action_of(&actions, iid).is_empty(), "본문 결과는 None 이다");
+    }
+    assert!(
+        input.escape(&ctx, &mut state, &read, true),
+        "창이 Esc 를 넘긴다"
+    );
+    let actions = layer_pass(
+        &ctx,
+        &mut state,
+        &read,
+        &mut input,
+        &mut by_name(
+            iid,
+            crate::adapters::ui::popup::confirm_close_remote::draw_confirm_close_remote,
+        ),
+    );
+    assert_eq!(
+        action_of(&actions, iid),
+        vec!["CloseBy(Escape)".to_string()],
+        "중앙 단계가 사유 Escape 로 닫는다"
+    );
+    assert!(!is_open(&state, iid));
+}
+
+/// T-4a3-2: Given 키 주인 승인 팝업(Esc 선언 Unfocus), When Esc 가 오면, Then 포커스만 풀리고 열린 채이며 닫는 결과가
+/// 없다.
+#[test]
+fn escape_only_unfocuses_an_unfocus_popup() {
+    use crate::adapters::ui::popup::approval::APPROVAL_POPUP_ID;
+    use tasty_approval::{
+        ApprovalChoice, ApprovalId, ApprovalRecord, ApprovalRequest, ApprovalState, Requester,
+        Severity,
+    };
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let record = ApprovalRecord {
+        request: ApprovalRequest {
+            id: ApprovalId("req-esc".into()),
+            requester: Requester::Plugin { id: "test".into() },
+            workspace_id: None,
+            surface_id: None,
+            title: "Test approval".into(),
+            body: None,
+            choices: vec![ApprovalChoice::approve(), ApprovalChoice::deny()],
+            default_choice: None,
+            timeout_ms: None,
+            severity: Severity::Info,
+            created_at: 1,
+            metadata: serde_json::Value::Null,
+            host_elevation: None,
+        },
+        state: ApprovalState::Pending,
+        history: vec![],
+    };
+    {
+        let read = session.read();
+        crate::adapters::ui::popup::approval::enqueue_approval(&mut state, &read, &record);
+    }
+    crate::intent::popup::apply_pending(&mut state, &mut session);
+    let iid = state
+        .popups
+        .instances_of(APPROVAL_POPUP_ID)
+        .next()
+        .expect("approval opens")
+        .instance;
+    state.popups.set_instance_focused(iid, true);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert_eq!(
+        state.focus_node(&read),
+        FocusNode::Popup(PopupNode::Host(iid)),
+        "승인 팝업이 키 주인이다"
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(is_open(&state, iid), "닫는 결과가 없어 열린 채다");
+    assert!(!state.popups.is_instance_focused(iid), "포커스가 풀렸다");
+    assert_ne!(
+        state.focus_node(&read),
+        FocusNode::Popup(PopupNode::Host(iid))
+    );
+}
+
+/// T-4a3-3: Given 키 주인 시험 팝업(Esc 선언 Ignore, 접히지 않음), When Esc 가 오면, Then 본문은 처리된 입력과 raw 입력
+/// 어디에서도 Esc 를 보지 못하고 포커스를 유지한다.
+#[test]
+fn an_ignore_popup_body_never_sees_escape() {
+    const IGNORE: &str = "scene_escape_ignore";
+    let (mut state, mut session) = scene(PANE_L);
+    register_test_popup(
+        &mut state,
+        IGNORE,
+        crate::adapters::ui::popup::PopupEscape::Ignore,
+    );
+    let iid = open_test_popup(&mut state, IGNORE, PopupScope::Window);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    let mut seen = Vec::new();
+    let mut called = 0;
+    let mut body =
+        |ui: &mut egui::Ui, _: &mut RequestContext, _: &EngineRead<'_>, cx: &mut PopupCx<'_>| {
+            (cx.id == IGNORE).then(|| {
+                called += 1;
+                seen.push(ui.input(|i| {
+                    i.events
+                        .iter()
+                        .any(crate::adapters::ui::popup::body_keys::is_escape_press)
+                        || i.raw
+                            .events
+                            .iter()
+                            .any(crate::adapters::ui::popup::body_keys::is_escape_press)
+                }));
+                PopupAction::None
+            })
+        };
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert!(
+        input.escape(&ctx, &mut state, &read, true),
+        "창이 Esc 를 처리한다"
+    );
+    layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert_eq!(called, 2, "본문이 두 패스 모두 불렸다");
+    assert_eq!(seen, vec![false, false], "본문은 Esc 를 보지 않는다");
+    assert!(is_open(&state, iid));
+    assert!(state.popups.is_instance_focused(iid), "포커스를 유지한다");
+}
+
+/// T-4a3-6: Given 키 주인 팔레트에 자식 사각형 등록만 남았고 그 egui 팝업은 닫혀 있을 때, When Esc 가 오면, Then 그
+/// 등록은 열린 자식으로 치지 않아 팔레트가 닫힌다.
+#[test]
+fn a_stale_child_rect_does_not_count_as_open() {
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let palette = open_palette(&mut state);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    let stale = egui::Id::new("scene_escape_stale_child");
+    crate::adapters::ui::popup::report_child_overlay_rect(
+        &ctx,
+        palette,
+        "stale",
+        Some((
+            stale,
+            egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(50.0, 50.0)),
+        )),
+    );
+    assert!(
+        !ctx.memory(|m| m.is_popup_open(stale)),
+        "egui 팝업은 닫혀 있다"
+    );
+    assert!(!crate::adapters::ui::popup::child_popup_open(&ctx, palette));
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    let actions = layer_pass(
+        &ctx,
+        &mut state,
+        &read,
+        &mut input,
+        &mut by_name(
+            palette,
+            crate::adapters::ui::popup::command_palette::draw_command_palette_popup,
+        ),
+    );
+    assert_eq!(
+        action_of(&actions, palette),
+        vec!["CloseBy(Escape)".to_string()]
+    );
+    assert!(!is_open(&state, palette), "팔레트가 닫힌다");
+}
+
+/// T-4a3-16: Given 키 주인 팔레트, When Shift+Esc 가 오면(창 Esc 가 아니다), Then 열린 채다.
+#[test]
+fn shift_escape_leaves_a_close_popup_open() {
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let palette = open_palette(&mut state);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(!input.escape_with(&ctx, &mut state, &read, true, egui::Modifiers::SHIFT));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(is_open(&state, palette), "닫는 결과가 없어 열린 채다");
+}
+
+/// T-4a3-17: Given 펼친 DAG 목록 팝업(키 주인), When Shift+Esc 가 오면, Then 다시 접히지 않고 펼친 채다.
+#[test]
+fn shift_escape_does_not_fold_an_expanded_popup() {
+    use crate::adapters::ui::popup::dag_list::DAG_LIST_POPUP_ID;
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let iid = state
+        .popups
+        .open_request(
+            &OpenRequest::new(DAG_LIST_POPUP_ID, PopupScope::Surface(SURFACE_L))
+                .centered()
+                .focused(),
+            true,
+        )
+        .expect("dag list opens");
+    if let Some(p) = state.popups.instance_mut(iid) {
+        p.arrange.fit = crate::adapters::ui::popup::PopupFit::Collapse;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(800.0, 800.0));
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(
+        state.popups.instance(iid).unwrap().collapsed(),
+        "좁아 접힌다"
+    );
+    state.popups.expand(iid);
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(state.popups.instance(iid).unwrap().expanded(), "펼쳤다");
+    assert!(!input.escape_with(&ctx, &mut state, &read, true, egui::Modifiers::SHIFT));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    let p = state.popups.instance(iid).unwrap();
+    assert!(p.open && p.expanded(), "펼친 채다");
+}
+
+/// T-4a3-19: Given 원격 이름 바꾸기 확인을 기다리는 이름 바꾸기(키 주인), When Esc 가 오면, Then 열린 채다.
+#[test]
+fn escape_on_a_waiting_rename_keeps_it_open() {
+    let (mut state, mut session, _convert, rename) = rename_beside_convert();
+    for r in crate::adapters::ui::rename_popup::instances_mut(&mut state) {
+        r.waiting = Some(crate::state::RenameWaiting {
+            request: 7,
+            host: "host".into(),
+            done: false,
+        });
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert_eq!(
+        state.focus_node(&read),
+        FocusNode::Popup(PopupNode::Host(rename)),
+        "이름 바꾸기가 키 주인이다"
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(
+        is_open(&state, rename),
+        "닫는 결과가 없어 대기 중에는 열린 채다"
+    );
+}
+
+/// T-4a3-20: Given Esc 선언 Close·바깥 누름 Unfocus 팝업이 좁은 범위에서 접혀 보기 버튼이 키 주인일 때, When Esc 가
+/// 오면, Then 닫힌다.
+#[test]
+fn escape_closes_a_collapsed_close_popup_from_its_button() {
+    const FOLD: &str = "scene_escape_collapsed_close";
+    let (mut state, mut session) = scene(PANE_L);
+    register_test_popup(
+        &mut state,
+        FOLD,
+        crate::adapters::ui::popup::PopupEscape::Close,
+    );
+    let iid = open_test_popup(&mut state, FOLD, PopupScope::Surface(SURFACE_L));
+    if let Some(p) = state.popups.instance_mut(iid) {
+        p.close_on_outside_click = false;
+        p.arrange.fit = crate::adapters::ui::popup::PopupFit::Collapse;
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(800.0, 800.0));
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    let p = state.popups.instance(iid).unwrap();
+    assert!(
+        p.collapsed() && state.popups.is_instance_focused(iid),
+        "접힌 채 키 주인이다"
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(!is_open(&state, iid), "닫힌다");
+}
+
+/// T-4a3-24: Given 같은 정의 인스턴스 둘(L·R 범위) 가운데 R 이 키 주인일 때, When Esc 가 오면, Then 키 주인만 닫힌다.
+#[test]
+fn escape_closes_only_the_owner_of_two_instances() {
+    const TWO: &str = "scene_escape_two_instances";
+    let (mut state, mut session) = scene(PANE_L);
+    register_test_popup(
+        &mut state,
+        TWO,
+        crate::adapters::ui::popup::PopupEscape::Close,
+    );
+    let left = open_test_popup(&mut state, TWO, PopupScope::Surface(SURFACE_L));
+    let right = open_test_popup(&mut state, TWO, PopupScope::Surface(SURFACE_R));
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert_eq!(
+        state.focus_node(&read),
+        FocusNode::Popup(PopupNode::Host(right)),
+        "R 인스턴스가 키 주인이다"
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(!is_open(&state, right), "키 주인은 닫힌다");
+    assert!(is_open(&state, left), "다른 인스턴스는 열린 채다");
+}
+
+/// T-4a3-30: Given 키 주인 팔레트, When Esc 가 오면, Then 그 패스에 닫히고 닫힌 뒤 두 패스 안에 egui 포커스가 풀린다.
+#[test]
+fn a_closed_palette_drops_its_egui_focus_within_two_passes() {
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let palette = open_palette(&mut state);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(
+        ctx.memory(|m| m.focused()).is_some(),
+        "팔레트 입력이 egui 포커스를 가졌다"
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(!is_open(&state, palette), "그 패스에 닫힌다");
+    body_pass(&ctx, &mut state, &read, &mut input);
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(
+        ctx.memory(|m| m.focused()).is_none(),
+        "두 패스 안에 egui 포커스가 풀린다"
+    );
+}
+
+/// T-4a3-12: Given 저장 원격 행의 연결 팝업(Esc 선언 Unfocus)이 키 주인일 때, When Esc 가 오면, Then 포커스만 풀리고
+/// 열린 채이며 닫는 결과가 없다.
+#[test]
+fn escape_on_a_remote_row_only_unfocuses_it() {
+    use crate::adapters::ui::popup::remote_row::REMOTE_ROW_POPUP_ID;
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let row = 900_004;
+    {
+        let engine = session.borrow_mut();
+        let mut ws =
+            crate::model::Workspace::new_with_terminal_marker(row, "row".into(), row, row, row);
+        ws.mirror = true;
+        ws.remote_row = Some(crate::model::RemoteBinding {
+            profile: "gx10".into(),
+            remote_workspace: 4,
+        });
+        engine.core.push_mirror_workspace(ws);
+        state.set_active_workspace_index(&engine.read(), engine.workspaces().len() - 1);
+    }
+    // 연결 팝업은 활성 workspace(원격 행) 범위다. 형상 없는 행이라 덮지 않는 모양이다(덮는 모양은 정규화가 포커스를
+    // 다시 준다).
+    let row_layout = || {
+        let mut l = layout();
+        l.active_workspace_id = row;
+        l
+    };
+    session.remote.row_states = std::collections::HashMap::from([(row, "not_connected")]);
+    {
+        let read = session.read();
+        crate::adapters::ui::popup::remote_row::sync(&mut state, &read, &row_layout());
+        crate::adapters::ui::popup::frame::sync_open_when(&mut state, &read);
+    }
+    let iid = state
+        .popups
+        .instances_of(REMOTE_ROW_POPUP_ID)
+        .next()
+        .expect("연결 팝업이 열린다")
+        .instance;
+    state.popups.set_instance_focused(iid, true);
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass_in(&ctx, &mut state, &read, &mut input, row_layout());
+    assert!(
+        state.popups.is_instance_focused(iid),
+        "연결 팝업이 키 주인이다"
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass_in(&ctx, &mut state, &read, &mut input, row_layout());
+    assert!(is_open(&state, iid), "닫는 결과가 없어 열린 채다");
+    assert!(!state.popups.is_instance_focused(iid), "포커스만 풀린다");
+}
+
+/// T-4a3-21: Given 메인 창 피커의 숨은 경로 메뉴가 열려 있을 때, When Esc 가 오면, Then 메뉴만 닫히고 피커는 열린 채다.
+#[test]
+fn escape_closes_only_the_hidden_crumbs_menu() {
+    use crate::adapters::ui::popup::child_popup_ids;
+    use crate::adapters::ui::popup::file_picker::HIDDEN_CRUMBS_MENU_KEY;
+    let (_root, deep) = deep_dir(40);
+    let (mut state, mut session) = scene(PANE_R);
+    let mut engine = session.borrow_mut();
+    registered(&mut state);
+    let picker = open_picker_at(&mut state, &mut engine, SURFACE_R, &deep);
+    // R 안에 들어가는 크기로 둔다. 펼친 팝업이면 창 Esc 가 다시 접기로 쓴다.
+    if let Some(p) = state.popups.instance_mut(picker) {
+        p.size_user_overridden = true;
+        p.set_needed_size(egui::vec2(400.0, 480.0));
+    }
+    let ctx = Context::default();
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert!(
+        !state.popups.instance(picker).unwrap().collapsed(),
+        "피커가 R 안에 그려진다"
+    );
+    click(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        text_rect(&texts, "…").center(),
+    );
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let menu = child_popup_ids(&ctx)
+        .into_iter()
+        .find(|(key, _)| *key == (picker, HIDDEN_CRUMBS_MENU_KEY))
+        .map(|(_, id)| id)
+        .expect("메뉴 id");
+    assert!(!state.popups.instance(picker).unwrap().expanded());
+    assert!(ctx.memory(|m| m.is_popup_open(menu)), "메뉴가 열렸다");
+    let read = engine.read();
+    let mut input = WindowInput::default();
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(!ctx.memory(|m| m.is_popup_open(menu)), "메뉴가 닫힌다");
+    assert!(is_open(&state, picker), "피커는 열린 채다");
+}
+
+/// 도구 메뉴를 열고 두 번 그린 뒤 명령 팔레트 행의 중심을 돌려준다.
+fn tools_menu_scene(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &EngineRead<'_>,
+) -> (PopupInstanceId, egui::Pos2) {
+    registered(state);
+    let tools = state
+        .popups
+        .open_request(
+            &OpenRequest::new("tools_menu", PopupScope::Window)
+                .centered()
+                .focused(),
+            true,
+        )
+        .expect("tools menu opens");
+    frame_rects(ctx, state, engine, Vec::new());
+    let texts = frame_rects(ctx, state, engine, Vec::new());
+    let row = text_rect(&texts, t("command_palette.tools_menu_item")).center();
+    // egui 는 직전 프레임 hover 로 누름 대상을 정한다.
+    frame_rects(ctx, state, engine, vec![Event::PointerMoved(row)]);
+    (tools, row)
+}
+
+/// 창이 사건 묶음을 받은 뒤 다음 그리기 전 단계(`about_to_wait`). 창 사건이 쌓은 Intent 를 그리기 전에 처리한다.
+fn about_to_wait(
+    state: &mut RequestContext,
+    engine: &mut crate::runtime::engine_access::EngineMut<'_>,
+) {
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(state, engine, &intent);
+    }
+}
+
+fn palette_requested(state: &mut RequestContext) -> bool {
+    state.take_pending_intents().iter().any(|d| {
+        matches!(
+            &d.body,
+            crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup(r))
+                if r.id == COMMAND_PALETTE_POPUP_ID
+        )
+    })
+}
+
+fn button(pos: egui::Pos2, pressed: bool) -> Event {
+    Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// T-4a3-31: Given 도구 메뉴, When 한 창 사건 묶음 [행 누름, 행 뗌, Esc] 가 오면(몫 둘, 경계는 Esc 바로 앞), Then 앞 몫
+/// 패스에서 행 동작(명령 팔레트 열기)이 일어나 도구 메뉴가 본문 결과로 닫히고 뒤 몫의 Esc 는 도구 메뉴에 닿지 않는다.
+#[test]
+fn a_click_and_escape_in_one_batch_run_the_tools_menu_row() {
+    let (mut state, mut session) = scene(PANE_L);
+    let mut engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let (tools, row) = tools_menu_scene(&ctx, &mut state, &read);
+    let mut input = WindowInput::default();
+    input.press(&mut state, &read, row);
+    input.queue_mut().push(button(row, false));
+    assert_eq!(input.cut_count(), 0, "누름까지는 끊긴 자리가 없다");
+    input.escape(&ctx, &mut state, &read, true);
+    assert_eq!(
+        input.cut_count(),
+        1,
+        "Esc 가 몫을 끊는다: {}",
+        input.cuts_text()
+    );
+    drop(read);
+    about_to_wait(&mut state, &mut engine);
+    let read = engine.read();
+    let first = layer_pass(
+        &ctx,
+        &mut state,
+        &read,
+        &mut input,
+        &mut by_name(tools, crate::adapters::ui::tools_menu::draw_tools_menu),
+    );
+    assert_eq!(
+        action_of(&first, tools),
+        vec!["Close".to_string()],
+        "앞 몫: 행 동작"
+    );
+    assert!(palette_requested(&mut state), "명령 팔레트를 연다");
+    let second = layer_pass(
+        &ctx,
+        &mut state,
+        &read,
+        &mut input,
+        &mut by_name(tools, crate::adapters::ui::tools_menu::draw_tools_menu),
+    );
+    assert!(
+        action_of(&second, tools).is_empty(),
+        "뒤 몫의 Esc 는 도구 메뉴에 닿지 않는다"
+    );
+    assert!(!is_open(&state, tools));
+}
+
+/// T-4a3-31b: Given 도구 메뉴에 행 누름을 그린 뒤, When 한 몫 [행 뗌, Esc] 가 오면, Then 그 패스에 행 동작이 일어나고
+/// 도구 메뉴는 본문 결과로 닫힌다(본문 결과가 있으면 Esc 를 쓴 것이다).
+#[test]
+fn a_release_and_escape_in_one_pass_run_the_tools_menu_row() {
+    let (mut state, mut session) = scene(PANE_L);
+    let mut engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let (tools, row) = tools_menu_scene(&ctx, &mut state, &read);
+    let mut input = WindowInput::default();
+    input.press(&mut state, &read, row);
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(is_open(&state, tools), "누름 패스 뒤 열린 채다");
+    input.queue_mut().push(button(row, false));
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    assert_eq!(input.cut_count(), 0, "한 몫이다: {}", input.cuts_text());
+    drop(read);
+    about_to_wait(&mut state, &mut engine);
+    let read = engine.read();
+    let actions = layer_pass(
+        &ctx,
+        &mut state,
+        &read,
+        &mut input,
+        &mut by_name(tools, crate::adapters::ui::tools_menu::draw_tools_menu),
+    );
+    assert_eq!(
+        action_of(&actions, tools),
+        vec!["Close".to_string()],
+        "본문 결과로 닫힌다"
+    );
+    assert!(palette_requested(&mut state), "명령 팔레트를 연다");
+}
+
+/// T-4a3-32: Given 진행 중 튜토리얼이 있을 때, When 제품 경로(`UiIntent::OpenPopup` 요청 처리기)로 주제 목록을 열고 첫
+/// 그리기 전에 Esc 가 오면, Then 열기 훅이 목록을 불러온 뒤 그 패스에 닫히고 닫기 훅이 불러옴 표시를 지운다.
+#[test]
+fn the_tutorial_catalog_is_loaded_by_the_open_hook_before_escape() {
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    state.tutorial.request_start(0);
+    state.tutorial.start_pending();
+    assert!(state.tutorial.active.is_some(), "튜토리얼이 진행 중이다");
+    state.dispatch_intent(
+        crate::intent::UiIntent::OpenPopup(
+            OpenRequest::new(TUTORIAL_TOPICS_POPUP_ID, PopupScope::Window)
+                .centered()
+                .focused(),
+        )
+        .from_user_menu("test"),
+    );
+    crate::intent::popup::apply_pending(&mut state, &mut session);
+    assert!(state.popups.is_open(TUTORIAL_TOPICS_POPUP_ID));
+    assert!(
+        state.tutorial.active.is_none(),
+        "진행 중 튜토리얼은 중단됐다"
+    );
+    assert!(state.tutorial.catalog_loaded, "열기 훅이 목록을 불러왔다");
+    assert!(state.tutorial.save_error, "저장 접수가 거절됐다");
+    assert!(
+        state.tutorial.progress[0].dirty,
+        "그 주제 진행이 저장 대기다"
+    );
+    assert!(state.tutorial.pending_progress_is_empty());
+    let mut engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    drop(read);
+    about_to_wait(&mut state, &mut engine);
+    let read = engine.read();
+    let events = input.take_pass(&mut state, &ctx);
+    frame(&ctx, &mut state, &read, events);
+    assert!(
+        !state.popups.is_open(TUTORIAL_TOPICS_POPUP_ID),
+        "그 패스에 닫힌다"
+    );
+    assert!(
+        !state.tutorial.catalog_loaded,
+        "닫기 훅이 불러옴 표시를 지운다"
+    );
+}
+
+/// T-4a3-33: Given 한 번 그린 주제 목록(선택 0, 진행 중 튜토리얼 없음), When 한 몫 [↓, Esc] 가 오면, Then 그 패스에 닫히고
+/// 선택은 1 이다. 다시 열어 그려도 선택은 1 이다.
+#[test]
+fn a_down_and_escape_in_one_share_move_the_tutorial_selection() {
+    let (mut state, mut session) = scene(PANE_L);
+    registered(&mut state);
+    let request = OpenRequest::new(TUTORIAL_TOPICS_POPUP_ID, PopupScope::Window)
+        .centered()
+        .focused();
+    let topics = state
+        .popups
+        .open_request(&request, true)
+        .expect("topics open");
+    let mut engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = Context::default();
+    let mut input = WindowInput::default();
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert_eq!(state.tutorial.popup_selected, 0);
+    assert!(state.tutorial.active.is_none());
+    assert!(
+        input
+            .key(&mut state, &read, false, press(Key::ArrowDown))
+            .is_some()
+    );
+    assert!(input.escape(&ctx, &mut state, &read, true));
+    assert_eq!(input.cut_count(), 0, "한 몫이다: {}", input.cuts_text());
+    drop(read);
+    about_to_wait(&mut state, &mut engine);
+    let read = engine.read();
+    let actions = layer_pass(
+        &ctx,
+        &mut state,
+        &read,
+        &mut input,
+        &mut by_name(
+            topics,
+            crate::adapters::ui::tutorial::topic_popup::draw_tutorial_topics_popup,
+        ),
+    );
+    assert_eq!(
+        action_of(&actions, topics),
+        vec!["CloseBy(Escape)".to_string()],
+        "그 패스에 닫힌다"
+    );
+    assert_eq!(state.tutorial.popup_selected, 1, "↓ 가 선택을 옮겼다");
+    let again = state.popups.open_request(&request, true).expect("reopen");
+    body_pass(&ctx, &mut state, &read, &mut input);
+    assert!(is_open(&state, again));
+    assert_eq!(
+        state.tutorial.popup_selected, 1,
+        "다시 열어도 1번 행이 선택이다"
+    );
+}
