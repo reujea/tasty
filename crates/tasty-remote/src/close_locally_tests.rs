@@ -80,11 +80,12 @@ enum Woken {
 /// `WSAEINTR` 10004 와 `ERROR_OPERATION_ABORTED` 995). std 는 10004 를 `Interrupted` 로 분류하지 않으므로
 /// `read_exact` 가 다시 읽지 않고 이 코드가 reader 의 끝 오류로 남는다.
 const CANCELLED_READ: &[i32] = &[10_004, 995];
-/// 판정할 수 없는 회차를 다시 도는 횟수.
-const RUNS: usize = 3;
+/// 판정할 수 없는 회차를 포함해 최초 회차부터 도는 최대 회차 수.
+const RUNS: usize = 5;
 
-/// 닫기 뒤 reader 가 계수를 올리고 실제 `recv` 를 부르기 전에 밀리면, 원래 `shutdown` 만 하는 회귀에서도
-/// 뒤늦은 읽기가 바로 EOF 로 끝나 판정을 통과한다. Windows 는 막혀 있던 읽기를 취소 코드로 깨우고 닫힌 뒤
+/// reader 가 준비 계수를 올린 뒤 밀려 닫기가 먼저 오고 실제 `recv` 가 그 뒤에 시작되면(준비 계수 증가 →
+/// reader 지연 → 닫기 → 실제 읽기), 원래 `shutdown` 만 하는 회귀에서도 뒤늦은 읽기가 바로 EOF 로 끝나
+/// 판정을 통과한다. Windows 는 막혀 있던 읽기를 취소 코드로 깨우고 닫힌 뒤
 /// 새로 건 읽기는 EOF 로 끝내므로, 취소 코드로 끝난 회차만 막힌 읽기를 깨운 것으로 본다. Linux·macOS 는 두
 /// 경우 모두 EOF 라 가르지 못한다. 그 OS 의 `shutdown` 은 막힌 읽기도 돌려보내 이 시험이 닫기 함수의 차이를
 /// 가르지 않으므로 끝난 회차를 모두 판정한 것으로 본다.
@@ -98,7 +99,10 @@ fn woken(probe: &crate::transport::ReaderProbe) -> Woken {
     }
 }
 
-/// 회차를 판정할 수 있을 때까지 [`RUNS`] 번까지 돈다. 회차 안의 단언은 매 회차 그대로 실패한다.
+/// 회차를 판정할 수 있을 때까지 최초 회차를 포함해 최대 [`RUNS`] 회차를 돈다. 회차 안의 단언은 매 회차
+/// 그대로 실패한다. Windows 에서 `recv` 에 막혀 있는지를 직접 볼 수단이 없어 남는 위험이 있다. 정상 구현도
+/// reader 가 매 회차 위 순서로 늦게 재개하면 모든 회차가 판정 불가로 끝나 실패한다(회귀 검출이 아니다).
+/// 반대로 회귀는 판정 불가 회차로 통과하지 못한다. 판정 불가 회차는 통과로 세지 않기 때문이다.
 fn until_decided(mut run: impl FnMut() -> (Woken, Option<Option<i32>>)) {
     let mut ends = Vec::new();
     for _ in 0..RUNS {
@@ -109,7 +113,9 @@ fn until_decided(mut run: impl FnMut() -> (Woken, Option<Option<i32>>)) {
         ends.push(end);
     }
     panic!(
-        "undecided: in {RUNS} runs the reader never read before the close (reader end errors {ends:?})"
+        "undecided, not a regression verdict: in {RUNS} runs no reader ended with an accepted \
+         cancellation code {CANCELLED_READ:?}; reader end errors {ends:?}. Each read may have \
+         started after the close (a scheduling delay or an environment issue)"
     );
 }
 
