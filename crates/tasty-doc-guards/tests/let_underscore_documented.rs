@@ -917,6 +917,56 @@ impl<'a> Code<'a> {
         (literal, false)
     }
 
+    /// 문장 그룹으로 읽은 `{` 그룹 `g` 가 소문자 이름의 구조체 리터럴(`s { a: 1 }`)일 수 있는가.
+    /// `group_kind` 는 대문자 이름만 리터럴로 보므로, 이런 그룹 안 요소는 끝을 정할 수 없다.
+    /// `{` 바로 앞이 소문자·`_` 로 시작하는 이름이고(라벨 블록 `'a: {` 은 앞이 `:` 라 해당하지 않는다), 클로저 반환 타입(`-> u8 {`)이 아니며,
+    /// 머리에 아이템·제어 키워드가 없을 때 그렇다고 본다.
+    fn maybe_lowercase_literal(&self, g: usize) -> bool {
+        if g == NONE || self.b[g] != b'{' || self.group_kind(g).0 {
+            return false;
+        }
+        let Some(p) = self.prev_non_ws(g) else {
+            return false;
+        };
+        if !is_ident_byte(self.b[p]) {
+            return false;
+        }
+        let mut s0 = p;
+        while s0 > 0 && is_ident_byte(self.b[s0 - 1]) {
+            s0 -= 1;
+        }
+        let lower = self.b[s0] == b'_' || self.b[s0].is_ascii_lowercase();
+        let ret_type = self
+            .prev_non_ws(s0)
+            .is_some_and(|q| self.b[q] == b'>' && q > 0 && self.b[q - 1] == b'-');
+        if !lower || ret_type {
+            return false;
+        }
+        let (words, _, _) = self.header(g);
+        ![
+            "impl",
+            "trait",
+            "mod",
+            "fn",
+            "if",
+            "while",
+            "for",
+            "loop",
+            "else",
+            "unsafe",
+            "where",
+            "match",
+            "extern",
+            "const",
+            "async",
+            "move",
+            "macro_rules",
+            "static",
+        ]
+        .iter()
+        .any(|w| words.contains(w))
+    }
+
     /// `k` 의 `|` 가 클로저 매개변수를 열 수 있는 자리인가(요소 처음, `move` 뒤, `(`·`,`·`=`·`=>` 뒤).
     fn closure_may_start(&self, body: usize, k: usize) -> bool {
         if k == body {
@@ -1208,9 +1258,11 @@ fn scopes(masked: &str, raw: &str) -> Scopes {
         // 매크로 입력 안에서 아이템이 아닌 요소(식·문장·팔)에 붙은 테스트 표식과 면제는 그 속성이 든 묶음의 시작부터 그 속성 끝까지만 덮는다
         // (범위를 좁히는 쪽). 아이템(`proptest! { #[test] fn .. }`)은 일반 규칙으로 읽는다. warn·deny·forbid 는
         // 범위를 좁히면 다시 켠 진단을 놓치므로 일반 규칙대로 읽는다.
+        // 소문자 이름의 구조체 리터럴일 수 있는 그룹 안 요소도 같은 규칙으로 좁힌다(필드가 쉼표에서 끝나지 않고
+        // 다음 필드를 덮지 않게).
         let macro_input = inner.is_none()
-            && code.in_macro_input(hash)
-            && !code.starts_item(code.attr_run(hash).1);
+            && ((code.in_macro_input(hash) && !code.starts_item(code.attr_run(hash).1))
+                || code.maybe_lowercase_literal(code.parent[hash]));
         let span = if inner.is_some() {
             let Some(span) = code.inner_attr_span(hash) else {
                 continue;
@@ -2911,5 +2963,40 @@ mod helper_tests {
                 "{head}"
             );
         }
+    }
+
+    #[test]
+    fn a_lowercase_struct_literal_field_covers_only_its_attributes() {
+        for name in ["s", "S"] {
+            assert_eq!(
+                both(&format!(
+                    "fn g() {{\n    let v = {name} {{\n        #[cfg(test)]\n        a: 1,\n        b: {{\n            {{IGNORE}}\n            2\n        }},\n    }};\n}}\n"
+                )),
+                (vec![6], vec![]),
+                "{name}"
+            );
+        }
+        // 라벨 블록과 반환 타입을 단 클로저 몸체는 문장 그룹이다.
+        assert_eq!(
+            both(
+                "fn g() {\n    'a: {\n        #[cfg(test)]\n        {\n            {IGNORE}\n        }\n    }\n}\n"
+            ),
+            (vec![], vec![5])
+        );
+        assert_eq!(
+            both(
+                "fn g() {\n    let c = |x: u8| -> u8 {\n        #[cfg(test)]\n        {\n            {IGNORE}\n        }\n        x\n    };\n}\n"
+            ),
+            (vec![], vec![5])
+        );
+        // 좁힘은 테스트 표식과 allow 에만 쓴다. 머리를 못 읽는 `if let` 몸체(후보 그룹) 안에서 다시 켠 warn 은
+        // 그 요소 전체를 덮는다.
+        let rewarn = with_ignore(
+            "#[cfg(test)]\n#[allow(clippy::let_underscore_must_use)]\nmod t {\n    fn g() {\n        if let s { a } = h {\n            #[warn(clippy::let_underscore_must_use)]\n            {\n                {IGNORE}\n            }\n        }\n    }\n}\n",
+        );
+        assert_eq!(
+            test_scope_sites(&rewarn, false),
+            vec![(7, Some(Level::Warn))]
+        );
     }
 }
