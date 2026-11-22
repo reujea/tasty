@@ -63,7 +63,11 @@ fn one_escape_on_the_detail_view_returns_to_the_list() {
             ..Default::default()
         }));
     }
-    assert_eq!(view(&state), Some(DrillDownView::Detail));
+    assert_eq!(
+        view(&state),
+        Some(DrillDownView::Detail),
+        "준비: 상세 화면이다"
+    );
 
     // 창의 Esc 판정(포커스 해제 갈래). 바깥 클릭 Unfocus 선언이라 닫지 않는다.
     let mut events = vec![egui::Event::Key {
@@ -74,12 +78,22 @@ fn one_escape_on_the_detail_view_returns_to_the_list() {
         modifiers: egui::Modifiers::NONE,
     }];
     assert!(state.window_escape(&mut events, Some(0), false));
-    assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
+    assert!(
+        state.popups.is_open(DAG_LIST_POPUP_ID),
+        "첫 Esc 뒤 팝업은 열려 있다"
+    );
     // 창은 그 Esc 를 egui 입력에서 뺐다. 팝업 층이 묶인 키 주인 본문에 넘긴다.
     assert!(events.is_empty());
     frame(&ctx, &mut state, &read, events);
-    assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
-    assert_eq!(view(&state), Some(DrillDownView::List));
+    assert!(
+        state.popups.is_open(DAG_LIST_POPUP_ID),
+        "Esc 뒤 팝업은 열려 있다"
+    );
+    assert_eq!(
+        view(&state),
+        Some(DrillDownView::List),
+        "Esc 뒤 목록으로 돌아간다"
+    );
 }
 
 /// 상세 화면을 보는 키 주인 DAG 목록 팝업 장면. 한 번 그린 뒤 상세로 바꾼다.
@@ -109,7 +123,11 @@ fn detail_scene() -> (
                 ..Default::default()
             }));
         }
-        assert_eq!(view(&state), Some(DrillDownView::Detail));
+        assert_eq!(
+            view(&state),
+            Some(DrillDownView::Detail),
+            "준비 장면: 상세 화면이다"
+        );
         (state, session, ctx)
     }
 }
@@ -157,8 +175,15 @@ fn a_bare_escape_returns_from_the_detail_even_if_super_is_down_at_draw() {
         "그리기 시점에 Super 가 눌려 있다"
     );
     window_frame(&ctx, &mut state, &read, &mut input);
-    assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
-    assert_eq!(view(&state), Some(DrillDownView::List));
+    assert!(
+        state.popups.is_open(DAG_LIST_POPUP_ID),
+        "Super Esc 뒤 팝업은 열려 있다"
+    );
+    assert_eq!(
+        view(&state),
+        Some(DrillDownView::List),
+        "Super 를 쥔 채 그린 Esc 도 목록으로 돌아간다"
+    );
 }
 
 /// T-4a3-K3b: Given 상세 화면, When Super 를 누른 채 Esc 를 누르고(창 Esc 가 아니다) 그리기 전에 Super 를 떼면,
@@ -182,8 +207,15 @@ fn a_super_escape_does_not_leave_the_detail_after_super_is_released() {
         "그리기 시점에 Super 가 놓였다"
     );
     window_frame(&ctx, &mut state, &read, &mut input);
-    assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
-    assert_eq!(view(&state), Some(DrillDownView::Detail));
+    assert!(
+        state.popups.is_open(DAG_LIST_POPUP_ID),
+        "Super Esc 뒤 팝업은 열려 있다(K3b)"
+    );
+    assert_eq!(
+        view(&state),
+        Some(DrillDownView::Detail),
+        "창 Esc 가 아닌 Super Esc 는 상세에 머문다"
+    );
 }
 
 /// T-4a3-9: Given 상세 화면, When Esc 로 목록으로 돌아오면, Then 키는 계속 DAG 목록이 받고(포커스 노드), 다음 Esc 에
@@ -199,7 +231,7 @@ fn the_list_keeps_the_keys_after_escape_leaves_the_detail() {
     let mut input = crate::adapters::ui::popup::window_input_test_support::WindowInput::default();
     assert!(input.escape(&ctx, &mut state, &read, true));
     window_frame(&ctx, &mut state, &read, &mut input);
-    assert_eq!(view(&state), Some(DrillDownView::List));
+    assert_eq!(view(&state), Some(DrillDownView::List), "목록으로 돌아간다");
     assert_eq!(
         state.focus_node(&read),
         FocusNode::Popup(PopupNode::Host(iid)),
@@ -301,7 +333,7 @@ fn shift_escape_over_the_graph_clears_only_the_selection() {
         "Shift+Esc 는 창 Esc 가 아니다"
     );
     window_frame(&ctx, &mut state, &read, &mut input);
-    assert!(state.popups.is_open(DAG_LIST_POPUP_ID));
+    assert!(state.popups.is_open(DAG_LIST_POPUP_ID), "팝업은 열려 있다");
     assert_eq!(view(&state), Some(DrillDownView::Detail), "상세에 머문다");
     assert_eq!(selected(&state), None, "그래프 선택이 풀린다");
 }

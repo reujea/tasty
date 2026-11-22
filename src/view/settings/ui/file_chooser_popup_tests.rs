@@ -1465,3 +1465,97 @@ fn modified_enter_y_and_n_are_ignored_by_the_conflict() {
         }
     }
 }
+
+/// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 chooser 를 그린다. 이 패스에 chooser 가 키 주인이었는지와 출력을
+/// 돌려준다.
+fn chooser_pass(
+    ctx: &egui::Context,
+    st: &mut SettingsUiState,
+    events: Vec<egui::Event>,
+    outside: &mut dyn FnMut(&mut egui::Ui),
+) -> (bool, egui::FullOutput) {
+    let th = crate::theme::theme();
+    let mut owned = false;
+    let out = keyed_run(ctx, st, keys_input(events), |ctx, st, keys| {
+        st.popups.put_window_pass_keys(ctx, keys);
+        egui::CentralPanel::default().show(ctx, |ui| outside(ui));
+        let chooser = &mut st.file_chooser;
+        let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, owns_keys| {
+            if cx.id != FILE_PICKER_POPUP_ID {
+                return false;
+            }
+            owned |= owns_keys;
+            let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
+                && cx
+                    .keys
+                    .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
+            chooser.draw(ui, &th, &mut cx.keys, escape).done
+        });
+        assert!(closed.is_empty(), "the chooser stays open: {closed:?}");
+    });
+    (owned, out)
+}
+
+/// T-F3-1: Given 설정 창 저장 모드 chooser 와 egui 포커스를 가진 창 위젯 입력칸(그 패스 W1 키 주인 없음), When 한
+/// 패스에 chooser 의 이름 입력칸을 누르면, Then 그 패스 chooser 는 키 주인이 아니고, 누른 위젯이 이름 입력칸이며,
+/// 패스 끝 egui 포커스가 그 입력칸에 남는다(이번 패스 누름 예외). 뗀 다음 패스부터 chooser 가 키 주인이다. 별도 창은
+/// 패스 전에 키 주인을 정하므로 누름 패스의 chooser 는 아직 주인이 아니다. 예외를 끄면(M-10b-3) 포커스가 풀린다.
+#[test]
+fn a_press_on_the_save_name_keeps_its_focus_in_the_non_owner_pass() {
+    use crate::adapters::ui::popup::window_input_test_support::click_widget_at;
+    let mut st = SettingsUiState::new();
+    st.open_file_chooser(
+        CONSUMER,
+        file_chooser::FileChooserMode::Save {
+            default_name: "kept-name.txt".into(),
+        },
+        Vec::new(),
+        None,
+    );
+    assert!(st.popups.is_open(FILE_PICKER_POPUP_ID));
+    let ctx = egui::Context::default();
+    let outside_id = egui::Id::new("f3-outside");
+    let mut outside = outside_edit(outside_id);
+    drop(chooser_pass(&ctx, &mut st, vec![], &mut outside));
+    let (_, out) = chooser_pass(&ctx, &mut st, vec![], &mut outside);
+    let name = text_rect_in(&out, "kept-name.txt").center();
+    let name_id = click_widget_at(&ctx, name).expect("이름 입력칸");
+    ctx.memory_mut(|m| m.request_focus(outside_id));
+    drop(chooser_pass(&ctx, &mut st, vec![], &mut outside));
+    assert_eq!(focused(&ctx), Some(outside_id), "창 위젯이 포커스를 가진다");
+    assert_eq!(
+        next_owner(&ctx, &st),
+        None,
+        "누르는 패스는 키 주인 없이 시작한다"
+    );
+
+    let (owned, _) = chooser_pass(
+        &ctx,
+        &mut st,
+        vec![egui::Event::PointerMoved(name), button_event(name, true)],
+        &mut outside,
+    );
+    assert!(!owned, "누른 패스에 chooser 는 키 주인이 아니다");
+    assert_eq!(
+        focused(&ctx),
+        Some(name_id),
+        "누른 이름 입력칸이 패스 끝 포커스를 가진다"
+    );
+    assert!(
+        egui::TextEdit::load_state(&ctx, name_id).is_some(),
+        "포커스 위젯은 텍스트 입력칸이다"
+    );
+    drop(chooser_pass(
+        &ctx,
+        &mut st,
+        vec![button_event(name, false)],
+        &mut outside,
+    ));
+    let (owned, _) = chooser_pass(&ctx, &mut st, vec![], &mut outside);
+    assert!(owned, "다음 패스부터 chooser 가 키 주인이다");
+    assert_eq!(
+        focused(&ctx),
+        Some(name_id),
+        "이름 입력칸이 포커스를 지킨다"
+    );
+}

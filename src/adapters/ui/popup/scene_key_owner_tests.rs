@@ -2236,9 +2236,11 @@ fn a_text_focus_in_a_keyboard_none_popup_is_kept() {
 }
 
 /// T-10b-4: Given 변환 팝업이 키 주인이고 포트 스캐너가 키 없이 보일 때, When 한 패스에 키와 스캐너 입력칸 클릭(누름과
-/// 뗌)이 함께 오면, Then 그 패스 뒤 누른 입력칸 포커스가 남는다. egui 입력칸은 뗌에서 포커스를 얻는다.
+/// 뗌)이 함께 오면, Then 그 패스에 스캐너가 키 주인이 되고 누른 입력칸 포커스가 남는다. 메인 창은 누름을 키 주인
+/// 판정보다 먼저 반영하고, egui 입력칸은 누름 패스에 포커스를 얻는다. 그래서 이 장면은 이번 패스 누름 예외를 거치지
+/// 않는다(그 예외는 별도 창 T-F3-1 이 본다).
 #[test]
-fn a_click_this_pass_keeps_the_new_text_focus() {
+fn a_click_this_pass_makes_the_pressed_popup_the_key_owner() {
     let (mut state, mut session) = scene(PANE_L);
     let engine = session.borrow_mut();
     registered(&mut state);
@@ -2265,6 +2267,11 @@ fn a_click_this_pass_keeps_the_new_text_focus() {
     events.extend(pointer(field.center(), true));
     events.extend(pointer(field.center(), false));
     frame_rects(&ctx, &mut state, &engine.read(), events);
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(scanner)),
+        "누른 스캐너가 그 패스에 키 주인이다"
+    );
     let focused = egui_focus(&ctx).expect("누른 입력칸이 이번 패스에 포커스를 얻는다");
     assert!(egui::TextEdit::load_state(&ctx, focused).is_some());
 }
