@@ -364,9 +364,10 @@ impl<'a> Code<'a> {
     }
 
     /// `body` 에서 아이템 선언(`fn`·`mod`·`impl`·`struct` 등)이 시작하는가. 가시성(`pub`, `pub(..)`)과
-    /// `async`·`unsafe`·`extern "..."`·`default` 를 건너뛴다. `const {` 는 블록 식이다.
+    /// `async`·`unsafe`·`extern "..."`·`default` 를 건너뛴다. `extern ".." {` 는 extern 블록이고 `const {` 는 블록 식이다.
     fn starts_item(&self, body: usize) -> bool {
         let mut k = body;
+        let mut after_extern = false;
         loop {
             let next = |w: &[u8]| self.skip_ws(k + w.len(), self.b.len());
             if self.word_at(k, b"pub") {
@@ -385,9 +386,16 @@ impl<'a> Code<'a> {
                     k += 1;
                 }
                 k = self.skip_ws(k, self.b.len());
+                after_extern = true;
+                continue;
             } else {
                 break;
             }
+            after_extern = false;
+        }
+        // `extern ".." {` 은 extern 블록 아이템이다(선언의 타입 안 상수 블록에 문장이 올 수 있다).
+        if after_extern && self.b.get(k) == Some(&b'{') {
+            return true;
         }
         if self.word_at(k, b"const") {
             return self.b.get(self.skip_ws(k + 5, self.b.len())) != Some(&b'{');
@@ -3126,5 +3134,18 @@ mod helper_tests {
             ),
             (vec![5], vec![])
         );
+    }
+
+    #[test]
+    fn an_extern_block_in_macro_input_is_an_item() {
+        for head in ["unsafe extern \"C\"", "extern \"C\"", "extern"] {
+            assert_eq!(
+                both(&format!(
+                    "m! {{\n    #[cfg(test)]\n    {head} {{\n        static X: [u8; {{\n            {{IGNORE}}\n            1\n        }}];\n    }}\n}}\n"
+                )),
+                (vec![], vec![5]),
+                "{head}"
+            );
+        }
     }
 }
