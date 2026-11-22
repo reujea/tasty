@@ -259,11 +259,14 @@ unsafe fn lookup_symbol(handle: *mut libc::c_void, symbol: &str) -> *mut libc::c
     //   Linux among the targets whose dlerror is thread-safe
     //   (libloading-0.7.4/src/os/unix/mod.rs, `Library::get`).
     unsafe { libc::dlerror() };
-    // SAFETY: the lookup only reads the symbol table of a library this module opened.
+    // SAFETY: looks a name up in a library this module opened; for a GNU IFUNC symbol the
+    // lookup also runs that library's resolver, and the pre-check looks up all six names
+    // before `app_indicator_new` creates any object.
     // - Pointer: the caller guarantees handle is a valid dlopen handle that has not been
     //   passed to dlclose (function-level Safety doc); c_symbol is a NUL-terminated string that lives
     //   until the call returns.
-    // - Resolver code: for a GNU IFUNC symbol dlsym runs the library's resolver. In
+    // - Resolver code: for a GNU IFUNC symbol dlsym runs the library's resolver
+    //   (libloading-0.7.4/src/os/unix/mod.rs notes that dlsym may return null for one). In
     //   the product call this runs in the same thread context as the dlopen above
     //   (after GTK init, on the GTK-owning winit main thread) but earlier than
     //   libappindicator-sys would look the symbols up: all six are looked up before
