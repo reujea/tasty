@@ -91,6 +91,10 @@ pub(crate) struct JournalApplication {
     next_ticket: u64,
     command_submissions: unowned::CommandSubmissions,
     halted: Option<String>,
+    /// 시험 전용 게이트. 이 PTY를 쥔 후보가 아직 private이면 펌프가 그 turn에 완료를 더 받지
+    /// 않는다. 시험이 설치 시작 전에 멈춘 상태를 경합 없이 관측한다.
+    #[cfg(test)]
+    hold_while_private: Option<tasty_terminal::ResourceGeneration>,
     /// 실행 중 halt를 알림으로 넘겼는지. 같은 halt를 다시 알리지 않는다.
     halt_reported: bool,
     /// 이 저널의 저장소 파일. halt 안내가 원본 위치로 보인다.
@@ -258,6 +262,8 @@ impl JournalApplication {
             next_ticket: 1,
             command_submissions: Default::default(),
             halted: None,
+            #[cfg(test)]
+            hold_while_private: None,
             halt_reported: false,
             database,
             notices: Vec::new(),

@@ -14,6 +14,11 @@ impl JournalApplication {
             if self.started {
                 self.drive_pending_work(sessions, plugins.as_deref_mut())?;
             }
+            // Installation starts only from a received Publish completion.
+            #[cfg(test)]
+            if self.holds_private_candidate(sessions) {
+                return Ok(());
+            }
             let completion = match self.worker.try_recv() {
                 Ok(value) => value,
                 Err(std::sync::mpsc::TryRecvError::Empty) => return Ok(()),
@@ -71,6 +76,21 @@ impl JournalApplication {
         // turn even if its earlier wake was coalesced while this bounded batch was consumed.
         (self.wake)();
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn holds_private_candidate(&self, sessions: &[&mut EngineSession]) -> bool {
+        let Some(generation) = self.hold_while_private else {
+            return false;
+        };
+        sessions.iter().any(|session| {
+            session.pending_materializations.values().any(|candidate| {
+                candidate
+                    .connection
+                    .as_ref()
+                    .is_some_and(|(_, pty)| pty.generation() == generation)
+            })
+        })
     }
 
     fn drive_pending_work(

@@ -519,6 +519,25 @@ impl EngineRelease {
         !self.spawns.is_empty()
     }
     #[cfg(all(test, unix))]
+    pub(crate) fn unreturned_pty_generations(&self) -> Vec<tasty_terminal::ResourceGeneration> {
+        self.unreturned
+            .iter()
+            .map(|kept| kept.pty.generation())
+            .collect()
+    }
+    #[cfg(all(test, unix))]
+    pub(crate) fn retained_pty_receipts(
+        &self,
+    ) -> Vec<(
+        tasty_terminal::ResourceGeneration,
+        tasty_terminal::PtyObservation,
+    )> {
+        self.ptys
+            .iter()
+            .map(|receipt| (receipt.generation(), receipt.observation()))
+            .collect()
+    }
+    #[cfg(all(test, unix))]
     pub(crate) fn retained_pty_generations(&self) -> Vec<tasty_terminal::ResourceGeneration> {
         self.ptys.iter().map(PtyRetirement::generation).collect()
     }

@@ -316,7 +316,7 @@ fn an_unacknowledged_plugin_destroy_neither_pauses_observation_nor_reports_succe
 
 /// A standalone PTY owned by an agent, as `pty.spawn` registers it.
 #[cfg(unix)]
-fn standalone_pty(session: &mut EngineSession) -> (u32, u32) {
+fn standalone_pty(session: &mut EngineSession) -> (u32, u32, tasty_terminal::ResourceGeneration) {
     let pty_id = session.runtime.terminals.reserve_pty_id().unwrap();
     let (terminal, mut pty) = tasty_terminal::spawn_terminal(
         tasty_terminal::TerminalConfig {
@@ -333,6 +333,7 @@ fn standalone_pty(session: &mut EngineSession) -> (u32, u32) {
     )
     .unwrap();
     let pid = pty.process_id().expect("standalone process");
+    let generation = pty.generation();
     let now = Instant::now();
     pty.set_standalone(tasty_terminal::StandalonePty {
         owner_agent_id: "agent".into(),
@@ -347,7 +348,7 @@ fn standalone_pty(session: &mut EngineSession) -> (u32, u32) {
         .runtime
         .terminals
         .insert(pty_id, terminal, Some(pty));
-    (pty_id, pid)
+    (pty_id, pid, generation)
 }
 
 #[cfg(unix)]
@@ -378,7 +379,7 @@ fn adopt(journal: &mut JournalApplication, session: &EngineSession, pty: u32, id
 fn a_failed_adoption_returns_the_standalone_process_alive() {
     let (mut session, mut journal) = boot();
     terminal_workspace(&mut journal, &mut session);
-    let (pty_id, pid) = standalone_pty(&mut session);
+    let (pty_id, pid, _) = standalone_pty(&mut session);
     inject(InstallFault::AfterSwap);
     let rx = adopt(&mut journal, &session, pty_id, 707);
     let response = reply(&mut journal, &mut session, &rx, |_, _| {});
@@ -429,19 +430,61 @@ fn occupy_after_claim(journal: &mut JournalApplication, session: &mut EngineSess
     }
 }
 
-/// The engine release must finish in bounded time while the unreturned process stays alive,
-/// including after the released session is dropped.
+/// Where the engine release holds this PTY generation: kept alive outside the engine, retired with
+/// its observation, or neither (another path ended the process).
 #[cfg(unix)]
-fn release_engine_keeping(mut session: EngineSession, pid: u32) {
+fn release_ownership(
+    session: &EngineSession,
+    generation: tasty_terminal::ResourceGeneration,
+) -> String {
+    let Some(release) = session.engine_release.as_ref() else {
+        return format!("{generation:?}: no engine release");
+    };
+    let kept = release.unreturned_pty_generations().contains(&generation);
+    let retired: Vec<_> = release
+        .retained_pty_receipts()
+        .into_iter()
+        .filter(|(retired, _)| *retired == generation)
+        .map(|(_, observation)| observation)
+        .collect();
+    let path = match (kept, retired.is_empty()) {
+        (true, true) => "kept",
+        (false, false) => "retired",
+        (true, false) => "kept and retired",
+        (false, true) => "neither",
+    };
+    format!("{generation:?} {path}; retired observations {retired:?}")
+}
+
+/// The engine release must finish in bounded time while the unreturned process stays alive,
+/// including after the released session is dropped. `kept` also requires that the release itself
+/// holds the process.
+#[cfg(unix)]
+fn release_engine_keeping(
+    mut session: EngineSession,
+    pid: u32,
+    generation: tasty_terminal::ResourceGeneration,
+    kept: bool,
+) {
     let until = Instant::now() + std::time::Duration::from_secs(10);
     while !crate::runtime::resource_retirement::poll_engine_release(&mut session, None) {
         assert!(
             Instant::now() < until,
-            "the engine release never finishes while an unreturned adoption exists"
+            "the engine release never finishes while an unreturned adoption exists: {}",
+            release_ownership(&session, generation)
         );
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    assert!(process_exists(pid), "the engine release never kills it");
+    assert!(
+        process_exists(pid),
+        "the engine release never kills it: {}",
+        release_ownership(&session, generation)
+    );
+    let ownership = release_ownership(&session, generation);
+    assert!(
+        !kept || ownership.contains(" kept;"),
+        "the engine release keeps the unreturned process: {ownership}"
+    );
     // Only the GUI releases an engine before the process ends.
     #[cfg(feature = "gui")]
     {
@@ -492,18 +535,51 @@ fn release_engine_keeping(mut session: EngineSession, pid: u32) {
 fn a_halt_keeps_a_pending_adoption_candidate_alive() {
     let (mut session, mut journal) = boot();
     terminal_workspace(&mut journal, &mut session);
-    let (pty_id, pid) = standalone_pty(&mut session);
+    let (pty_id, pid, generation) = standalone_pty(&mut session);
+    journal.hold_while_private = Some(generation);
     let _rx = adopt(&mut journal, &session, pty_id, 711);
     let mut stall = StallBudget::new(&journal);
-    while session.pending_materializations.is_empty() {
+    let private = |session: &EngineSession| {
+        session
+            .pending_materializations
+            .values()
+            .find_map(|candidate| {
+                let (_, pty) = candidate.connection.as_ref()?;
+                (pty.generation() == generation).then(|| candidate.surface_id())
+            })
+    };
+    let installed = |session: &EngineSession| {
+        session.runtime.terminals.iter().find_map(|(id, _)| {
+            let pty = session.runtime.terminals.pty(id)?;
+            (id != pty_id && pty.generation() == generation).then_some(id)
+        })
+    };
+    let surface = loop {
         turn(&mut journal, &mut session, None);
-        stall.nap("adoption claims the standalone owner");
-    }
+        if let Some(installed) = installed(&session) {
+            panic!("the installation moved {generation:?} to surface {installed} before the halt");
+        }
+        if let Some(surface) = private(&session) {
+            break surface;
+        }
+        stall.nap_with(|| {
+            format!(
+                "adoption claims the standalone owner ({} candidates, standalone {} present)",
+                session.pending_materializations.len(),
+                session.runtime.terminals.contains(pty_id)
+            )
+        });
+    };
+    let surface = surface.expect("prepared surface has a fixed ID");
     assert!(!session.runtime.terminals.contains(pty_id));
+    assert!(
+        !session.runtime.terminals.contains(surface),
+        "the private candidate {surface} still holds {generation:?} before the halt"
+    );
     journal.halted = Some("halted while the adoption candidate is private".into());
     assert!(journal.release_halted_resources(&mut session, None));
     assert!(session.pending_materializations.is_empty());
-    release_engine_keeping(session, pid);
+    release_engine_keeping(session, pid, generation, true);
 }
 
 /// A rejection before any owner changed discards the candidate. When the registration is taken
@@ -513,7 +589,7 @@ fn a_halt_keeps_a_pending_adoption_candidate_alive() {
 fn a_rejected_adoption_that_cannot_return_does_not_block_the_engine_release() {
     let (mut session, mut journal) = boot();
     terminal_workspace(&mut journal, &mut session);
-    let (pty_id, pid) = standalone_pty(&mut session);
+    let (pty_id, pid, generation) = standalone_pty(&mut session);
     inject(InstallFault::BeforeChange);
     let rx = adopt(&mut journal, &session, pty_id, 709);
     occupy_after_claim(&mut journal, &mut session, pty_id);
@@ -530,7 +606,7 @@ fn a_rejected_adoption_that_cannot_return_does_not_block_the_engine_release() {
     assert!(!journal.pauses_observation());
     assert!(session.pending_materializations.is_empty());
     assert!(process_exists(pid));
-    release_engine_keeping(session, pid);
+    release_engine_keeping(session, pid, generation, false);
 }
 
 /// After the swap the withdrawal cannot return the process either. The creation ends once its
@@ -540,7 +616,7 @@ fn a_rejected_adoption_that_cannot_return_does_not_block_the_engine_release() {
 fn a_failed_adoption_that_cannot_return_does_not_block_the_engine_release() {
     let (mut session, mut journal) = boot();
     terminal_workspace(&mut journal, &mut session);
-    let (pty_id, pid) = standalone_pty(&mut session);
+    let (pty_id, pid, generation) = standalone_pty(&mut session);
     inject(InstallFault::AfterSwap);
     let rx = adopt(&mut journal, &session, pty_id, 710);
     occupy_after_claim(&mut journal, &mut session, pty_id);
@@ -557,5 +633,5 @@ fn a_failed_adoption_that_cannot_return_does_not_block_the_engine_release() {
     #[cfg(feature = "gui")]
     assert!(!journal.has_pending_engine_effects(session.id));
     assert!(process_exists(pid));
-    release_engine_keeping(session, pid);
+    release_engine_keeping(session, pid, generation, false);
 }
