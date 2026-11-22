@@ -311,9 +311,11 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
     자기 실측(3회, 최대 25.8분)은 다른 배치의 값이라 쓰지 않는다. 이 대리값에는 release의 자산 업로드와
     측정 뒤 바뀐 패키징 비용이 들어 있지 않다. 현재 배치에서 첫 태그 실행이 끝나면 자기 실측으로 바꾼다.
   - test-linux-x64는 수동 실행 전용이고 수동 실행 기록이 없다. 이 행은 같은 명령을 실행하는 잡이라는 대리 조건의
-    예외다. 같은 x64 러너에서 headless workspace 시험, clippy 세 조합, gui 단위 시험을 함께 실행한 check-headless의
-    잡 전체 시간을 쓴다. 기본 feature 전체 시험을 실행하는 이 잡과 명령이 다르고, 위 표본의 36.9분에는 지금은
-    없는 관측 스텝도 들어 있다. 처음 수동 실행되면 자기 실측으로 바꾼다.
+    예외다. 같은 x64 러너에서 headless workspace 시험과 gui 단위 시험을 함께 실행한 check-headless의 잡 전체 시간을
+    쓰며, 기본 feature 전체 시험을 실행하는 이 잡과 명령이 다르다. 지금 워크플로의 check-headless는 clippy 세
+    조합(headless, linux gui, headless release)을 돌지만, 대리값 36.9분을 잰 run 44488326649의 check-headless는
+    clippy가 `cargo clippy (headless)` 한 스텝뿐이고 지금은 없는 WebView 레이아웃 관측 스텝이 있던 구성이다.
+    처음 수동 실행되면 자기 실측으로 바꾼다.
 - 공유 라벨 잡([Linux 러너 배치](#linux-러너-배치))은 두 러너 가운데 긴 쪽을 실측 최대로 쓰고, 표가 잡마다 한
   행이므로 그 칸에 러너별 값을 함께 적는다(예: `36.9 (x64) / 35.0 (arm64)`). 한 러너에서만 돈 잡은 그 러너를 적는다.
   check-file-size·script-gates·cargo-deny·version-bump는 표의 기존 x64 값과 측정 범위를 유지한 행이다.
