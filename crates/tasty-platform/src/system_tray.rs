@@ -456,12 +456,37 @@ mod tests {
     }
 
     /// The upstream versions `APPINDICATOR_LIBRARIES` and
-    /// `APPINDICATOR_REQUIRED_SYMBOLS` were last checked against.
-    const UPSTREAM_CHECKED: [(&str, &str); 3] = [
+    /// `APPINDICATOR_REQUIRED_SYMBOLS` were last checked against. For libloading
+    /// this is the version libappindicator-sys depends on (its load flags and
+    /// null handling); other libloading versions in the lock do not count.
+    const UPSTREAM_CHECKED: [(&str, &str); 4] = [
         ("tray-icon", "0.22.0"),
         ("libappindicator", "0.9.0"),
         ("libappindicator-sys", "0.9.0"),
+        ("libloading", "0.7.4"),
     ];
+
+    /// The versions of `name` that matter for the pre-check: libloading as
+    /// libappindicator-sys depends on it, every other package as locked.
+    fn upstream_versions<'a>(lock: &'a str, name: &str) -> Vec<&'a str> {
+        if name != "libloading" {
+            return lock_versions(lock, name);
+        }
+        let lines = lock
+            .lines()
+            .skip_while(|line| line.trim() != "name = \"libappindicator-sys\"")
+            .take_while(|line| !line.trim().is_empty());
+        let mut versions = Vec::new();
+        for line in lines {
+            let dep = line.trim().trim_end_matches(',').trim_matches('"');
+            if dep == "libloading" {
+                versions.extend(lock_versions(lock, "libloading"));
+            } else if let Some(v) = dep.strip_prefix("libloading ") {
+                versions.push(v);
+            }
+        }
+        versions
+    }
 
     /// Every version of package `name` in Cargo.lock text (a `name = "x"` line
     /// followed by its `version = "y"` line).
@@ -482,7 +507,7 @@ mod tests {
 
     fn check_upstream_versions(lock: &str) -> Result<(), String> {
         for (name, expected) in UPSTREAM_CHECKED {
-            let found = lock_versions(lock, name);
+            let found = upstream_versions(lock, name);
             if found != [expected] {
                 return Err(format!(
                     "Cargo.lock has {name} {found:?}, but the AppIndicator pre-check was checked \
@@ -522,18 +547,23 @@ mod tests {
             let entry = format!("name = \"{name}\"\nversion = \"{expected}\"");
             assert!(lock.contains(&entry), "Cargo.lock lacks {entry:?}");
 
-            let changed =
-                lock.replace(&entry, &format!("name = \"{name}\"\nversion = \"999.0.0\""));
+            // A dependency line names the version when the lock holds more than one.
+            let dep = format!("\"{name} {expected}\"");
+            let changed = lock
+                .replace(&entry, &format!("name = \"{name}\"\nversion = \"999.0.0\""))
+                .replace(&dep, &format!("\"{name} 999.0.0\""));
             let message =
                 check_upstream_versions(&changed).expect_err("a changed version must fail");
             for part in [name, expected, "999.0.0", "src/lib.rs"] {
                 assert!(message.contains(part), "{message:?} lacks {part:?}");
             }
 
-            let doubled = lock.replace(
-                &entry,
-                &format!("{entry}\n\n[[package]]\nname = \"{name}\"\nversion = \"999.0.0\""),
-            );
+            let doubled = lock
+                .replace(
+                    &entry,
+                    &format!("{entry}\n\n[[package]]\nname = \"{name}\"\nversion = \"999.0.0\""),
+                )
+                .replace(&dep, &format!("{dep},\n \"{name} 999.0.0\""));
             assert!(
                 check_upstream_versions(&doubled).is_err(),
                 "a second {name} version must fail"
