@@ -28,8 +28,8 @@ jobs:
 
   build-windows:
     runs-on: [self-hosted, Windows]
-    # release build-windows 대리 실측 최대 25.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 130
+    # 실측 최대 29.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -73,8 +73,8 @@ jobs:
   # PE 머신 타입으로 아키텍처를 확인한다.
   build-windows-arm64:
     runs-on: [win-arm64]
-    # release build-windows-arm64 대리 실측 최대 25.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 130
+    # 실측 최대 36.3분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 185
     steps:
       - uses: actions/checkout@v4
 
@@ -89,8 +89,8 @@ jobs:
 
   build-linux-x64:
     runs-on: [self-hosted, Linux, X64]
-    # release build-linux-x64 대리 실측 최대 9.3분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 50
+    # 실측 최대 17.6분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -108,8 +108,8 @@ jobs:
 
   build-linux-arm64:
     runs-on: [self-hosted, Linux, ARM64]
-    # release build-linux-arm64 대리 실측 최대 7.2분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 40
+    # 실측 최대 18.4분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
 

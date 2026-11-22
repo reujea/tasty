@@ -279,52 +279,69 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 - 실측: `gh run list --workflow=<파일>`로 실행을 고르고 `gh run view <run-id> --json jobs`의
   `startedAt`·`completedAt`으로 잡 시간을 잰다. 단계가 하나도 없는 취소 잡은 러너를 기다리다
   취소된 것이라 제외한다. 취소된 잡은 끝까지 실행되지 않았으므로 최대에 넣지 않는다.
-- 측정 범위: crossplatform-check·supply-chain-check·test는 2026-09-17~2026-10-08의 전체
-  실행, release는 2026-09-26의 1회(Windows 두 잡은 2026-09-26~2026-11-10의 전체 실행 5회),
-  나머지는 2026-10-07~2026-10-08의 최근 30회다.
-- build-check는 같은 기간 실행 기록이 없어 같은 빌드 스크립트를 같은 러너에서 실행하는
-  release 잡의 실측을 쓴다. build-check의 build-windows-arm64는 같은 스크립트를 같은 러너
-  (`win-arm64`)에서 실행하는 release build-windows-arm64의 실측을 쓴다. release build-windows-arm64의
-  실측은 전용 러너로 옮기기 전 x64 러너에서 x64 잡이 끝난 뒤 따로 실행한 값이다. 같은 호스트에서
-  두 Windows 빌드가 동시에 돌 때의 시간은 미측정이다. check-windows-arm64도
-  실행 기록이 없어 같은 호스트의 다른 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 x64 러너에서 workspace
-  시험을 실행한 check-headless의 실측을 쓴다. check-android도 실행 기록이 없어 같은 러너에서 `cargo check`를
-  실행하는 check-release의 실측을 쓴다. check-release는 X64에 고정돼 있지만 check-android는 두 Linux 러너가
-  나눠 받으므로, 이 대리값은 x64 러너의 시간이다.
-- 공유 라벨 잡([Linux 러너 배치](#linux-러너-배치))의 실측은 모두 x64 러너에서 잰 값이다. 이 잡들이 ARM64 러너에서
-  돈 시간은 아직 재지 않았다. ARM64 러너 실행이 쌓이면 두 러너 가운데 긴 쪽을 실측 최대로 쓰고, 표가 잡마다 한
-  행이므로 그 칸에 러너를 함께 적는다(예: `15.7 (x64) / 12.0 (arm64)`).
+  2026-11-22에 다시 잰 행은 run마다 최신 시도의 잡 결과를 하나씩 세고, 분은 소수 첫째 자리 아래를 버린다.
+- 측정 범위(2026-11-22에 다시 잰 행):
+  - crossplatform-check는 develop push 완료 run 최근 30회(44436328087~44977329827, 2026-11-19~2026-11-22),
+    test는 같은 조건의 30회(44444702379~44977329851)다. crossplatform-check의 30회는 스텝 구성이 run마다 다르다.
+    check-headless의 앞 20회에는 지금은 없는 WebView 레이아웃 관측 스텝이 있었고(최대 run 44488326649·44502227024 포함),
+    `check official plugin fixtures`는 마지막 10회, `cargo clippy (linux, gui)`는 마지막 7회,
+    `cargo clippy (headless, release)`와 check-windows의 `cargo clippy (headless)`는 마지막 2회에만 있다.
+    잡 전체 시간을 그대로 쓴다.
+  - build-check는 현재 Windows 러너 배치 뒤의 수동 실행 2회(42752143294·42784461025, 2026-11-10)다.
+    두 run 모두 같은 호스트의 두 Windows 빌드가 겹쳐 돌았다(42784461025에서 build-windows 28.7분은
+    build-windows-arm64 36.3분 안에 들어간다).
+  - release는 태그 실행 5회(36279099619~42742216381, v0.11.0~v0.14.0)다.
+  - build-check·release의 패키징 수치는 그 뒤 바뀐 패키징 스크립트 이전 값이다. 표본 run 이후
+    `scripts/build-windows.ps1`·`scripts/build-linux.sh`가 잠금 파일의 공식 플러그인 산출물 받기, PDB 동봉,
+    RPM Requires 생성 방식 등으로 바뀌었다.
+- 측정 범위(옛 값을 유지한 행): supply-chain-check는 2026-09-17~2026-10-08의 전체 실행, 나머지는
+  2026-10-07~2026-10-08의 최근 30회다. 이 행들은 2026-11-22에 develop push 최근 10회로 다시 계산해도
+  상한이 바뀌지 않아 표를 그대로 두었다.
+- 대리:
+  - release build-windows-arm64는 현재 배치(전용 러너 `win-arm64`)의 태그 실행이 없어 같은 스크립트를 같은
+    러너에서 실행하는 build-check build-windows-arm64의 실측을 쓴다. 전용 러너로 옮기기 전 x64 러너에서 잰
+    자기 실측(3회, 최대 25.8분)은 다른 배치의 값이라 쓰지 않는다. 이 대리값에는 release의 자산 업로드와
+    측정 뒤 바뀐 패키징 비용이 들어 있지 않다. 현재 배치에서 첫 태그 실행이 끝나면 자기 실측으로 바꾼다.
+  - test-linux-x64는 수동 실행 전용이고 수동 실행 기록이 없다. 이 행은 같은 명령을 실행하는 잡이라는 대리 조건의
+    예외다. 같은 x64 러너에서 headless workspace 시험, clippy 세 조합, gui 단위 시험을 함께 실행한 check-headless의
+    잡 전체 시간을 쓴다. 기본 feature 전체 시험을 실행하는 이 잡과 명령이 다르고, 위 표본의 36.9분에는 지금은
+    없는 관측 스텝도 들어 있다. 처음 수동 실행되면 자기 실측으로 바꾼다.
+- 공유 라벨 잡([Linux 러너 배치](#linux-러너-배치))은 두 러너 가운데 긴 쪽을 실측 최대로 쓰고, 표가 잡마다 한
+  행이므로 그 칸에 러너별 값을 함께 적는다(예: `36.9 (x64) / 35.0 (arm64)`). 한 러너에서만 돈 잡은 그 러너를 적는다.
+  check-file-size·script-gates·cargo-deny·version-bump는 표의 기존 x64 값과 측정 범위를 유지한 행이다.
+  2026-11-22 develop push 최근 10회에서는 두 러너 모두 표본이 있었고(x64/arm64 최대 32/24초, 38/36초, 30/34초,
+  25/20초), 그 값으로 계산한 상한도 지금 값과 같다.
 
 - macOS dist 빌드 잡(`build-macos`)은 다른 작업과 공유하지 않는 macOS 전용 러너에서 돈다. 전용 러너에서는 아직 이 잡의 GH 실행이 0회라 실측과 배수를 정하지 않았고, 이전 공유 러너에서 정한 180분을 그대로 둔다. 전용 러너에서 첫 GH 실행 뒤 같은 규칙(실측 최대 × 배수)으로 다시 정한다. 참고값으로 같은 러너의 화면 세션에서 `build-macos-dmg.sh`를 직접 실행하면 17분 23초, check-macos 잡(cold)은 14.9분이 걸렸다. 두 값은 규칙의 실측·대리로 쓰지 않는다.
 
 | 워크플로 | 잡 | 성공 | 실패 | 실측 최대(분) | 배수 | timeout-minutes |
 |---|---|---|---|---|---|---|
 | build-check.yml | build-macos | 0 | 0 | 미측정(전용 러너에서 GH 잡 실행 0회) | 미측정(전용 러너에서 GH 잡 실행 0회) | 180 |
-| build-check.yml | build-windows | 0 | 0 | 25.9 (release 대리) | 5 | 130 |
-| build-check.yml | build-windows-arm64 | 0 | 0 | 25.9 (release 대리) | 5 | 130 |
-| build-check.yml | build-linux-x64 | 0 | 0 | 9.3 (release 대리) | 5 | 50 |
-| build-check.yml | build-linux-arm64 | 0 | 0 | 7.2 (release 대리) | 5 | 40 |
+| build-check.yml | build-windows | 2 | 0 | 29.9 | 5 | 150 |
+| build-check.yml | build-windows-arm64 | 2 | 0 | 36.3 | 5 | 185 |
+| build-check.yml | build-linux-x64 | 2 | 0 | 17.6 | 5 | 90 |
+| build-check.yml | build-linux-arm64 | 2 | 0 | 18.4 | 5 | 95 |
 | complexity-check.yml | check-file-size | 24 | 0 | 0.3 | 3 | 10 |
 | crossplatform-check-macos.yml | check-macos | 6 | 86 | 12.4 | 3 | 40 |
-| crossplatform-check.yml | check-windows | 5 | 81 | 13.7 | 3 | 45 |
-| crossplatform-check.yml | check-windows-arm64 | 0 | 0 | 13.7 (check-windows 대리) | 5 | 70 |
-| crossplatform-check.yml | check-headless | 26 | 38 | 15.7 | 3 | 50 |
-| crossplatform-check.yml | check-release | 93 | 3 | 1.7 | 3 | 10 |
-| crossplatform-check.yml | check-android | 0 | 0 | 1.7 (check-release 대리) | 5 | 10 |
+| crossplatform-check.yml | check-windows | 28 | 2 | 26.9 | 3 | 85 |
+| crossplatform-check.yml | check-windows-arm64 | 30 | 0 | 20.1 | 3 | 65 |
+| crossplatform-check.yml | check-headless | 29 | 1 | 36.9 (x64) / 35.0 (arm64) | 3 | 115 |
+| crossplatform-check.yml | check-release | 30 | 0 | 2.9 (x64) | 3 | 10 |
+| crossplatform-check.yml | check-android | 30 | 0 | 1.7 (arm64) / 1.2 (x64) | 3 | 10 |
 | doc-guards.yml | doc-guards | 29 | 0 | 1.8 | 3 | 10 |
 | format-check.yml | fmt | 30 | 0 | 0.4 | 3 | 10 |
 | plugin-version-check.yml | version-bump | 25 | 0 | 0.4 | 3 | 10 |
-| release.yml | create-release | 1 | 0 | 0.2 | 5 | 10 |
+| release.yml | create-release | 5 | 0 | 0.2 (arm64) | 3 | 10 |
 | release.yml | build-macos | 0 | 0 | 미측정(전용 러너에서 GH 잡 실행 0회) | 미측정(전용 러너에서 GH 잡 실행 0회) | 180 |
 | release.yml | build-windows | 5 | 0 | 25.9 | 3 | 80 |
-| release.yml | build-windows-arm64 | 3 | 0 | 25.9 | 5 | 130 |
-| release.yml | build-linux-x64 | 1 | 0 | 9.3 | 5 | 50 |
-| release.yml | build-linux-arm64 | 1 | 0 | 7.2 | 5 | 40 |
-| release.yml | publish-release | 1 | 0 | 0.2 | 5 | 10 |
+| release.yml | build-windows-arm64 | 0 | 0 | 36.3 (build-check 대리) | 5 | 185 |
+| release.yml | build-linux-x64 | 5 | 0 | 18.1 | 3 | 55 |
+| release.yml | build-linux-arm64 | 5 | 0 | 15.2 | 3 | 50 |
+| release.yml | publish-release | 5 | 0 | 0.2 (arm64) | 3 | 10 |
 | script-gates.yml | script-gates | 22 | 0 | 1.0 | 3 | 10 |
 | supply-chain-check.yml | cargo-deny | 2 | 73 | 0.4 | 3 | 10 |
-| test.yml | semver-guards | 99 | 29 | 2.5 | 3 | 10 |
-| test.yml | test-linux-x64 | 0 | 0 | 15.7 (check-headless 대리) | 5 | 80 |
+| test.yml | semver-guards | 29 | 1 | 5.6 (x64) / 4.8 (arm64) | 3 | 20 |
+| test.yml | test-linux-x64 | 0 | 0 | 36.9 (check-headless x64 대리) | 5 | 185 |
 
 잡을 추가하거나 단계를 늘려 실행 시간이 크게 바뀌면 같은 방법으로 다시 재고 표와 워크플로를
 함께 고친다. 상한에 걸린 실행이 멈춤이 아니라 정상 실행이었다면 그 잡을 다시 잰다.
@@ -340,7 +357,7 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 `${{ github.event_name == 'pull_request' }}`라서 PR에서는 이전 실행을 취소하고, develop·release·main push와
 수동 실행에서는 실행 중인 run을 끝까지 둔다.
 
-- 이유: Windows·headless 잡은 13~16분 걸리고 develop push 간격은 그보다 짧은 경우가 많다.
+- 이유: Windows·headless 잡은 18~37분 걸리고 develop push 간격은 그보다 짧은 경우가 많다.
   모두 취소하면 끝까지 가는 run이 거의 남지 않는다.
 - 대기(GitHub Actions 문서 기준): 그룹마다 실행 중 run 하나와 대기 run 하나를 둔다. 새 push가 오면
   대기 run이 새 run으로 바뀌므로 대기열은 쌓이지 않는다. 그래서 끝난 run의 다음 실행은 그때의

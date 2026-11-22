@@ -18,8 +18,8 @@ concurrency:
 jobs:
   semver-guards:
     runs-on: [self-hosted, Linux]
-    # 실측 최대 2.5분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 10
+    # 실측 최대 5.6분(x64 러너, arm64 러너 4.8분) × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -41,8 +41,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     # X64 고정: 잡 이름과 의도가 x86_64 Linux 전체 시험이다.
     runs-on: [self-hosted, Linux, X64]
-    # crossplatform-check check-headless 대리 실측 최대 15.7분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 80
+    # crossplatform-check check-headless의 x64 대리 실측 최대 36.9분 × 5(명령이 다른 예외 대리). 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 185
     steps:
       - uses: actions/checkout@v4
 
