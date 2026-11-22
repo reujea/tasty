@@ -255,6 +255,8 @@ plugin 이 `[[contributes.ipc_namespace]]` 로 prefix 를 선언하면 `<prefix>
 
 CLI 는 위 IPC 를 감싼다(`tasty list workspaces`, `tasty send text`, `tasty memory put`, `tasty agent task-create`, `tasty approval request`, `tasty plugin list`, `tasty events follow`, `tasty screenshot --path …` …). debug 서브커맨드는 debug 빌드만. 환경별 접속/실행/종료 패턴은 [environments](environments.md).
 
+CLI 인자는 UTF-8이어야 한다. UTF-8이 아닌 인자가 있으면 몇 번째 인자인지(실행 이름 뒤를 1부터)만 알리고 종료 코드 2로 끝나며, 아무것도 실행하거나 보내지 않는다([인자 수신](../dev-guide/cli-structure.md#인자-수신-argvrs)).
+
 ## 관련
 
 - [event-catalog](event-catalog.md) — IPC 와 별개 채널인 Event Bus

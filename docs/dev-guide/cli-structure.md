@@ -153,6 +153,23 @@ debug 전용 명령은 release 빌드의 트리에 존재하지 않는다. 인�
 `help.rs`의 `every_option_usage_is_accepted_by_the_parser`가 모든 옵션의 표기로 만든 argv를
 실제 파서에 넣어 값 유무 표기가 맞는지 확인한다.
 
+## 인자 수신 (`argv.rs`)
+
+본체는 번역 초기화(`locale::init()`) 바로 뒤에 `process_args_or_exit`로 프로세스 인자를 `args_os`로 받는다.
+UTF-8이 아닌 인자가 있으면 첫 번째 것의 위치를 stderr에 한 줄로 알리고 종료 코드 2(파싱 오류와 같은 사용 오류)로
+끝낸다. 위치는 실행 이름 뒤 첫 인자를 1로 센다(셸의 `$1`과 같다). 실행 이름(argv[0])이 UTF-8이 아니면 번호 없는
+별도 문구를 쓴다. 문구 키는 `cli.argv.not_utf8`·`cli.argv.program_not_utf8`이다.
+
+- 손실 변환(U+FFFD 치환)을 하지 않는다. 모든 명령 인자는 `String`이고 IPC에는 JSON 문자열로 실리므로 UTF-8이 아닌
+  값을 받을 인자가 없다. ID·경로·옵션 값이 조용히 바뀌면 다른 대상에 작용할 수 있다.
+- 문구에 인자 원문을 넣지 않는다. 원문에 메시지 본문이나 토큰이 있을 수 있고, 깨진 바이트를 터미널에 쓰면 출력도
+  깨진다.
+- 검사는 전체 트리 단축(`-a`/`--all`), clap 해석, plugin 트리 재해석, 호스트 시작과 단일 인스턴스 전달보다 앞선다.
+  거절하면 아무것도 실행하거나 전송하지 않는다. 이 뒤의 경로는 검사를 통과한 argv 하나를 쓰고, 파싱 오류 출력
+  (`format_parse_error`)도 그 argv를 인자로 받는다.
+- Windows는 짝 없는 서로게이트가 든 인자가 같은 오류가 된다(`OsString::into_string` 실패). 이 경우는 `argv.rs`의
+  단위 시험이 덮고, 바이너리를 실제로 띄우는 시험은 Unix 전용 `tests/cli_rejects_non_utf8_argv.rs`다.
+
 ## 진입점 (`run.rs`)
 
 `run_client` 는 갈래를 묻고 `ClientDriven` 이면 넘긴 뒤, 나머지 단발 RPC 경로

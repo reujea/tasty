@@ -61,7 +61,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 | 문서 | 내용 |
 |------|------|
 | [api-conventions](api-conventions.md) | CLI/IPC 명명·버전 정책, 구조 요청의 영속 재시도와 응답 계약, CLI 진입점 검증 |
-| [cli-structure](cli-structure.md) | CLI 크레이트 내부 세 갈래(commands/ · request/ · local/), `Dispatch`, Codex 호출·실행 문맥 |
+| [cli-structure](cli-structure.md) | CLI 크레이트 내부 세 갈래(commands/ · request/ · local/), `Dispatch`, 인자 UTF-8 검사, Codex 호출·실행 문맥 |
 | [debug-ipc](debug-ipc.md) | debug 전용 IPC + 격리 |
 | [headless-ipc-surface](headless-ipc-surface.md) | 헤드리스 IPC의 단일 진입 검사·관측·PTY 종료 수명과 메서드별 제공 범위 |
 | [headless-build-boundaries](headless-build-boundaries.md) | GUI·헤드리스 컴파일 경계, 시험 helper의 OS 조건과 여덟 빌드 조합 검사 |
