@@ -126,10 +126,8 @@ impl HostIpcInjector {
         params: Value,
         timeout: Duration,
     ) -> Result<Value, LateDispatch> {
-        match self.send_and_wait(method, params, timeout, true) {
-            Waited::Done(r) => r.map_err(LateDispatch::Failed),
-            Waited::StartedPastBound(late) => Err(LateDispatch::Pending(late)),
-        }
+        self.send_and_wait(method, params, timeout, true)
+            .into_late()
     }
 
     /// 호출자가 대기를 끝내도 나중에 실행할 명령을 기한 없이 넣는다.
@@ -150,10 +148,8 @@ impl HostIpcInjector {
         timeout: Duration,
         with_deadline: bool,
     ) -> Result<Value, InjectError> {
-        match self.send_and_wait(method, params, timeout, with_deadline) {
-            Waited::Done(r) => r,
-            Waited::StartedPastBound(late) => Err(InjectError::Timeout(late.timeout)),
-        }
+        self.send_and_wait(method, params, timeout, with_deadline)
+            .into_inject()
     }
 
     fn send_and_wait(
@@ -163,10 +159,24 @@ impl HostIpcInjector {
         timeout: Duration,
         with_deadline: bool,
     ) -> Waited {
+        match self.send(method, params, with_deadline.then(|| deadline_ms(timeout))) {
+            Ok(sent) => sent.wait(timeout, with_deadline),
+            Err(e) => Waited::Done(Err(e)),
+        }
+    }
+
+    /// 명령을 큐에 넣고 루프를 깨운다. 응답 대기는 [`Sent::wait`] 가 따로 한다 — 시험은 그 사이에
+    /// 명령을 꺼내 시작시켜 대기 상한이 시작 뒤에야 흐르게 한다.
+    fn send(
+        &self,
+        method: &str,
+        params: Value,
+        response_timeout_ms: Option<u64>,
+    ) -> Result<Sent, InjectError> {
         let (resp_tx, resp_rx) = mpsc::sync_channel::<JsonRpcResponse>(1);
         let req = JsonRpcRequest {
             caller_agent_id: None,
-            response_timeout_ms: with_deadline.then(|| deadline_ms(timeout)),
+            response_timeout_ms,
             idempotency_key: None,
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
@@ -178,7 +188,7 @@ impl HostIpcInjector {
         if let Some(admission) = &self.admission
             && let Err(r) = cmd.admit(admission, Origin::Injected)
         {
-            return Waited::Done(Err(InjectError::Refused(r)));
+            return Err(InjectError::Refused(r));
         }
         // Queued-progress ownership stays on cmd: send failure/drop/dequeue or withdrawal ends it.
         // The waiter/late answer keeps flight ownership, not a main-loop queue obligation.
@@ -186,10 +196,32 @@ impl HostIpcInjector {
         let lifecycle = cmd.lifecycle();
         let request_seq = cmd.request_seq();
         if let Err(e) = self.sender.send(cmd) {
-            return Waited::Done(Err(InjectError::Send(e.to_string())));
+            return Err(InjectError::Send(e.to_string()));
         }
         lifecycle.mark_enqueued();
         (self.waker)();
+        Ok(Sent {
+            resp_rx,
+            lifecycle,
+            request_seq,
+        })
+    }
+}
+
+/// 큐에 들어간 주입. 응답 통로와 실행 상태 사본을 쥔다.
+struct Sent {
+    resp_rx: mpsc::Receiver<JsonRpcResponse>,
+    lifecycle: crate::server::LifecycleHandle,
+    request_seq: crate::server::RequestSeq,
+}
+
+impl Sent {
+    fn wait(self, timeout: Duration, with_deadline: bool) -> Waited {
+        let Sent {
+            resp_rx,
+            lifecycle,
+            request_seq,
+        } = self;
         // 실제 응답 또는 기한 만료의 결과를 기록한다. 기한 없는 대기 만료는 이후 실행될 수 있어 기록하지 않는다.
         Waited::Done(match resp_rx.recv_timeout(timeout) {
             Ok(resp) => {
@@ -226,6 +258,24 @@ impl HostIpcInjector {
 enum Waited {
     Done(Result<Value, InjectError>),
     StartedPastBound(LateAnswer),
+}
+
+impl Waited {
+    /// [`HostIpcInjector::dispatch`] 의 갈래 — 시작 뒤 만료는 Timeout 이다.
+    fn into_inject(self) -> Result<Value, InjectError> {
+        match self {
+            Waited::Done(r) => r,
+            Waited::StartedPastBound(late) => Err(InjectError::Timeout(late.timeout)),
+        }
+    }
+
+    /// [`HostIpcInjector::dispatch_keeping_late_answer`] 의 갈래 — 시작 뒤 만료는 응답 통로다.
+    fn into_late(self) -> Result<Value, LateDispatch> {
+        match self {
+            Waited::Done(r) => r.map_err(LateDispatch::Failed),
+            Waited::StartedPastBound(late) => Err(LateDispatch::Pending(late)),
+        }
+    }
 }
 
 /// [`HostIpcInjector::dispatch_keeping_late_answer`] 의 실패.
@@ -388,30 +438,74 @@ mod tests {
         );
     }
 
+    /// 보내기와 기다리기 사이에 같은 스레드에서 명령을 꺼내 시작시킨다. 요청에 기한을 싣지 않으므로
+    /// claim 은 큐 기한을 재지 않고, 응답 대기 상한은 claim 뒤에 흐르므로 만료 순간 명령은 반드시
+    /// 시작된 상태다. 기다리는 쪽의 철회·결과 불명 처리(`with_deadline`)는 켜 둔다.
+    fn send_started(
+        injector: &HostIpcInjector,
+        rx: &mpsc::Receiver<IpcCommand>,
+    ) -> (Sent, IpcCommand) {
+        let sent = injector
+            .send("noop", Value::Null, None)
+            .expect("the injection is queued");
+        let cmd = rx.try_recv().expect("the command reaches the queue");
+        assert_eq!(cmd.claim(&stats()), Claim::Run);
+        (sent, cmd)
+    }
+
     #[test]
     fn an_injection_that_started_before_its_bound_is_an_unknown_outcome() {
         let (tx, rx) = mpsc::channel::<IpcCommand>();
         let injector = HostIpcInjector::new(tx, noop_waker());
-        let (started_tx, started_rx) = mpsc::channel();
-        let h = thread::spawn(move || {
-            let cmd = rx.recv().expect("recv cmd");
-            assert_eq!(cmd.claim(&stats()), Claim::Run);
-            started_tx.send(()).expect("started");
-            // 답하지 않은 채 상한을 넘긴다 — 굳은 handler 다.
-            thread::sleep(Duration::from_millis(200));
-            cmd.outcome_cell().get()
-        });
-        let err = injector
-            .dispatch("noop", Value::Null, Duration::from_millis(50))
+        let (sent, cmd) = send_started(&injector, &rx);
+        // 답하지 않은 채 상한을 넘긴다 — 굳은 handler 다.
+        let err = sent
+            .wait(Duration::from_millis(50), true)
+            .into_inject()
             .expect_err("should time out");
-        started_rx.recv().expect("the command had started");
         assert_eq!(err, InjectError::Timeout(Duration::from_millis(50)));
         assert!(
             !err.nothing_ran(),
             "a started command's timeout is an unknown outcome, not a refusal"
         );
         assert_eq!(
-            h.join().unwrap(),
+            cmd.outcome_cell().get(),
+            Some(tasty_telemetry::slow_requests::HostOutcome::Error {
+                code: ERR_RESPONSE_TIMEOUT_OUTCOME_UNKNOWN
+            })
+        );
+    }
+
+    #[test]
+    fn a_public_dispatch_started_past_its_bound_is_a_timeout() {
+        let (tx, rx) = mpsc::channel::<IpcCommand>();
+        let (held_tx, held_rx) = mpsc::channel::<IpcCommand>();
+        let rx = std::sync::Mutex::new(rx);
+        // 보낸 스레드가 응답 대기 전에 부르는 waker 안에서 꺼내 시작시킨다. 남는 전제는 요청에
+        // 실린 큐 기한(1초)이 명령 생성부터 이 claim 까지의 몇 줄 사이에 지나지 않는 것이다.
+        let waker: IpcWaker = Arc::new(move || {
+            let cmd = rx
+                .lock()
+                .expect("waker lock")
+                .try_recv()
+                .expect("sent before the wake");
+            assert_eq!(cmd.claim(&stats()), Claim::Run);
+            held_tx.send(cmd).expect("the test holds the receiver");
+        });
+        let injector = HostIpcInjector::new(tx, waker);
+        let err = injector
+            .dispatch("noop", Value::Null, Duration::from_secs(1))
+            .expect_err("should time out");
+        assert_eq!(err, InjectError::Timeout(Duration::from_secs(1)));
+        assert!(!err.nothing_ran());
+        let cmd = held_rx.try_recv().expect("the started command is held");
+        assert_eq!(
+            cmd.request.response_timeout_ms,
+            Some(1000),
+            "the public call carries its bound as the deadline"
+        );
+        assert_eq!(
+            cmd.outcome_cell().get(),
             Some(tasty_telemetry::slow_requests::HostOutcome::Error {
                 code: ERR_RESPONSE_TIMEOUT_OUTCOME_UNKNOWN
             })
@@ -422,29 +516,18 @@ mod tests {
     fn a_started_injection_past_its_bound_can_still_deliver_its_late_answer() {
         let (tx, rx) = mpsc::channel::<IpcCommand>();
         let injector = HostIpcInjector::new(tx, noop_waker());
-        let (go_tx, go_rx) = mpsc::channel::<()>();
-        let h = thread::spawn(move || {
-            let cmd = rx.recv().expect("recv cmd");
-            assert_eq!(cmd.claim(&stats()), Claim::Run);
-            go_rx.recv().expect("answer after the bound");
-            let resp = JsonRpcResponse::success(
-                cmd.request.id.clone().unwrap_or(Value::Null),
-                serde_json::json!({"surface_id": 7}),
-            );
-            cmd.response_tx.send(resp).expect("send resp");
-        });
-        let late = match injector.dispatch_keeping_late_answer(
-            "noop",
-            Value::Null,
-            Duration::from_millis(50),
-        ) {
+        let (sent, cmd) = send_started(&injector, &rx);
+        let late = match sent.wait(Duration::from_millis(50), true).into_late() {
             Err(LateDispatch::Pending(late)) => late,
             other => panic!("expected a pending late answer, got {other:?}"),
         };
         assert_eq!(late.timeout(), Duration::from_millis(50));
         assert!(late.try_take().is_none(), "nothing answered yet");
-        go_tx.send(()).expect("go");
-        h.join().unwrap();
+        let resp = JsonRpcResponse::success(
+            cmd.request.id.clone().unwrap_or(Value::Null),
+            serde_json::json!({"surface_id": 7}),
+        );
+        cmd.response_tx.send(resp).expect("send resp");
         assert_eq!(
             late.try_take(),
             Some(Ok(serde_json::json!({"surface_id": 7}))),
@@ -456,20 +539,13 @@ mod tests {
     fn a_late_answer_whose_channel_closes_unanswered_is_disconnected() {
         let (tx, rx) = mpsc::channel::<IpcCommand>();
         let injector = HostIpcInjector::new(tx, noop_waker());
-        let (go_tx, go_rx) = mpsc::channel::<()>();
-        let h = thread::spawn(move || {
-            let cmd = rx.recv().expect("recv cmd");
-            assert_eq!(cmd.claim(&stats()), Claim::Run);
-            go_rx.recv().expect("drop after the bound");
-            drop(cmd);
-        });
+        let (sent, cmd) = send_started(&injector, &rx);
         let Err(LateDispatch::Pending(late)) =
-            injector.dispatch_keeping_late_answer("noop", Value::Null, Duration::from_millis(50))
+            sent.wait(Duration::from_millis(50), true).into_late()
         else {
             panic!("expected a pending late answer");
         };
-        go_tx.send(()).expect("go");
-        h.join().unwrap();
+        drop(cmd);
         assert_eq!(late.try_take(), Some(Err(InjectError::Disconnected)));
     }
 
@@ -487,6 +563,11 @@ mod tests {
             other => panic!("expected an expiry, got {other:?}"),
         }
         let stale = rx.recv().expect("the command was queued");
+        assert_eq!(
+            stale.request.response_timeout_ms,
+            Some(20),
+            "keeping the late answer still carries the deadline"
+        );
         assert_eq!(stale.claim(&stats()), Claim::Withdrawn);
     }
 
