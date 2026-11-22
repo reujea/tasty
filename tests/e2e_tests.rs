@@ -3661,102 +3661,104 @@ fn instance_id_at(port: u16) -> Option<String> {
     resp["result"]["instance_id"].as_str().map(str::to_string)
 }
 
-/// 같은 홈을 쓰는 헤드리스가 이미 실행 중이면 두 번째 헤드리스는 writer 잠금을 선점하지 못하고,
-/// 그 홈의 `notify/`·포트 파일·설정·플러그인·로그를 바꾸지 않은 채 종료 코드 1로 끝난다.
-/// 첫 호스트는 내내 기본 포트 파일로 찾을 수 있어야 한다. 첫 부팅의 `notify/` 정리는 그대로다.
+/// 첫 호스트를 띄우고 기본 포트 파일로 응답할 때까지 기다린다. (포트, instance_id)를 돌려준다.
 #[cfg(not(feature = "gui"))]
-#[test]
-fn a_second_headless_host_on_a_held_home_leaves_it_untouched() {
+fn start_first_host(
+    shared: &common::SharedHome,
+) -> (
+    common::spawn_diag::ChildReaper,
+    common::spawn_diag::StderrCapture,
+    u16,
+    String,
+) {
     use common::spawn_diag::{ChildReaper, STDERR_TAIL_LINES, StderrCapture, spawn_child};
 
-    let _lane = lane();
-    let shared = common::SharedHome::new();
-    let home = shared.tasty_home();
-    let notify = home.join("notify");
-
-    // 첫 부팅은 남아 있던 완료 로그를 지운다(회귀 확인).
-    std::fs::create_dir_all(&notify).unwrap();
-    std::fs::write(notify.join("7.log"), "stale line from a previous host\n").unwrap();
-
-    let mut first = ChildReaper::new(spawn_child(shared.host_command()).expect("spawn first host"));
-    let mut first_stderr = StderrCapture::start(first.child().stderr.take(), STDERR_TAIL_LINES);
+    let mut host = ChildReaper::new(spawn_child(shared.host_command()).expect("spawn first host"));
+    let mut stderr = StderrCapture::start(host.child().stderr.take(), STDERR_TAIL_LINES);
     let deadline = std::time::Instant::now() + common::spawn_diag::SPAWN_PORT_TIMEOUT;
-    let (port, first_id) = loop {
+    loop {
         if let Some(port) = shared.published_port()
             && let Some(id) = instance_id_at(port)
         {
-            break (port, id);
+            return (host, stderr, port, id);
         }
         assert!(
-            first.child().try_wait().unwrap().is_none(),
+            host.child().try_wait().unwrap().is_none(),
             "첫 호스트가 준비 전에 끝났다:\n{}",
-            first_stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET)
+            stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET)
         );
         assert!(
             std::time::Instant::now() < deadline,
             "첫 호스트가 기본 포트 파일을 공개하지 않았다:\n{}",
-            first_stderr.tail()
+            stderr.tail()
         );
         std::thread::sleep(Duration::from_millis(100));
-    };
-    assert!(
-        !notify.join("7.log").exists(),
-        "첫 부팅이 남은 완료 로그를 지우지 않았다"
-    );
+    }
+}
 
-    // WAL이 비어 있지 않아야 두 번째 호스트의 checkpoint 자취를 볼 수 있다.
-    let wal = home.join("memory.db-wal");
-    if std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0) == 0 {
-        let ws = common::exchange(
+/// 두 번째 호스트의 checkpoint 자취를 볼 수 있도록 WAL에 쓰기를 남긴다. 쓴 뒤의 WAL 크기를 돌려준다.
+#[cfg(not(feature = "gui"))]
+fn fill_memory_wal(port: u16, wal: &std::path::Path) -> u64 {
+    let len = || std::fs::metadata(wal).map(|m| m.len()).unwrap_or(0);
+    if len() == 0 {
+        let created = common::exchange(
             port,
             "workspace.create",
             &json!({"name": "held-home"}),
             common::RESPONSE_WAIT,
         )
-        .expect("workspace.create")["result"]["id"]
-            .as_u64()
-            .expect("workspace id");
-        let created = common::exchange(
+        .expect("workspace.create");
+        let ws = created["result"]["id"].as_u64().expect("workspace id");
+        let board = common::exchange(
             port,
             "memory.bb_create",
             &json!({"workspace_id": ws, "name": "held-home"}),
             common::RESPONSE_WAIT,
         )
         .expect("memory.bb_create");
-        assert!(created.get("error").is_none(), "{created}");
+        assert!(board.get("error").is_none(), "{board}");
     }
-    let wal_before = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
-    assert!(
-        wal_before > 0,
-        "시험 전제: B 직전 memory.db-wal 이 비어 있지 않아야 한다"
-    );
+    len()
+}
 
-    std::fs::write(notify.join("42.log"), "line one of a live host\n").unwrap();
-    std::fs::write(notify.join("42.log.meta"), "retention_start=0\n").unwrap();
-
-    // 첫 호스트의 비동기 부팅 쓰기(설정 저장 등)가 끝나 스냅숏이 멈출 때까지 기다린다.
-    let mut before = untouched_home_files(&home);
+/// 첫 호스트의 비동기 부팅 쓰기(설정 저장 등)가 끝나 스냅숏이 멈출 때까지 기다린다.
+#[cfg(not(feature = "gui"))]
+fn settled_home_files(home: &std::path::Path) -> HomeFiles {
+    let mut before = untouched_home_files(home);
     let settle = std::time::Instant::now() + Duration::from_secs(10);
     loop {
         std::thread::sleep(Duration::from_millis(500));
-        let again = untouched_home_files(&home);
-        if again == before || std::time::Instant::now() > settle {
-            assert_eq!(again, before, "첫 호스트의 홈 파일이 10초 동안 계속 바뀐다");
-            break;
+        let again = untouched_home_files(home);
+        if again == before {
+            return again;
         }
+        assert!(
+            std::time::Instant::now() < settle,
+            "첫 호스트의 홈 파일이 10초 동안 계속 바뀐다"
+        );
         before = again;
     }
-    let log_path = host_log(&home);
-    let log_before = std::fs::read_to_string(&log_path).expect("host log");
-    let log_first_line = log_before.lines().next().unwrap_or_default().to_string();
+}
 
-    let mut second =
-        ChildReaper::new(spawn_child(shared.host_command()).expect("spawn second host"));
-    let mut second_stderr = StderrCapture::start(second.child().stderr.take(), STDERR_TAIL_LINES);
+/// 두 번째 호스트를 끝날 때까지 돌린다. 도는 동안 기본 포트 파일이 첫 호스트를 가리키는지 계속 본다.
+/// (종료 상태, stderr)를 돌려준다.
+#[cfg(not(feature = "gui"))]
+fn run_second_host(
+    shared: &common::SharedHome,
+    port: u16,
+    first_id: &str,
+) -> (std::process::ExitStatus, String) {
+    use common::spawn_diag::{ChildReaper, STDERR_TAIL_LINES, StderrCapture, spawn_child};
+
+    let mut host = ChildReaper::new(spawn_child(shared.host_command()).expect("spawn second host"));
+    let mut stderr = StderrCapture::start(host.child().stderr.take(), STDERR_TAIL_LINES);
     let deadline = std::time::Instant::now() + Duration::from_secs(30);
-    let status = loop {
-        if let Some(status) = second.child().try_wait().unwrap() {
-            break status;
+    loop {
+        if let Some(status) = host.child().try_wait().unwrap() {
+            return (
+                status,
+                stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET),
+            );
         }
         assert_eq!(
             shared.published_port(),
@@ -3765,17 +3767,53 @@ fn a_second_headless_host_on_a_held_home_leaves_it_untouched() {
         );
         assert_eq!(
             instance_id_at(port).as_deref(),
-            Some(first_id.as_str()),
+            Some(first_id),
             "두 번째 호스트 실행 중 첫 호스트가 응답하지 않는다"
         );
         assert!(
             std::time::Instant::now() < deadline,
             "두 번째 호스트가 30초 안에 끝나지 않았다:\n{}",
-            second_stderr.tail()
+            stderr.tail()
         );
         std::thread::sleep(Duration::from_millis(50));
-    };
-    let stderr = second_stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET);
+    }
+}
+
+/// 같은 홈을 쓰는 헤드리스가 이미 실행 중이면 두 번째 헤드리스는 writer 잠금을 선점하지 못하고,
+/// 그 홈의 `notify/`·포트 파일·설정·플러그인·로그를 바꾸지 않은 채 종료 코드 1로 끝난다.
+/// 첫 호스트는 내내 기본 포트 파일로 찾을 수 있어야 한다. 첫 부팅의 `notify/` 정리는 그대로다.
+#[cfg(not(feature = "gui"))]
+#[test]
+fn a_second_headless_host_on_a_held_home_leaves_it_untouched() {
+    let _lane = lane();
+    let shared = common::SharedHome::new();
+    let home = shared.tasty_home();
+    let notify = home.join("notify");
+
+    // 첫 부팅은 남아 있던 완료 로그를 지운다(회귀 확인).
+    std::fs::create_dir_all(&notify).unwrap();
+    std::fs::write(notify.join("7.log"), "stale line from a previous host\n").unwrap();
+    let (first, mut first_stderr, port, first_id) = start_first_host(&shared);
+    assert!(
+        !notify.join("7.log").exists(),
+        "첫 부팅이 남은 완료 로그를 지우지 않았다"
+    );
+
+    let wal = home.join("memory.db-wal");
+    assert!(
+        fill_memory_wal(port, &wal) > 0,
+        "시험 전제: B 직전 memory.db-wal 이 비어 있지 않아야 한다"
+    );
+    // 첫 부팅이 `notify/`를 폴더째 지웠으므로 다시 만든다.
+    std::fs::create_dir_all(&notify).unwrap();
+    std::fs::write(notify.join("42.log"), "line one of a live host\n").unwrap();
+    std::fs::write(notify.join("42.log.meta"), "retention_start=0\n").unwrap();
+    let before = settled_home_files(&home);
+    let log_path = host_log(&home);
+    let log_before = std::fs::read_to_string(&log_path).expect("host log");
+    let log_first_line = log_before.lines().next().unwrap_or_default().to_string();
+
+    let (status, stderr) = run_second_host(&shared, port, &first_id);
     assert_eq!(status.code(), Some(1), "거절 종료 코드는 1이다:\n{stderr}");
     assert!(
         stderr.contains("Data folder already in use"),
