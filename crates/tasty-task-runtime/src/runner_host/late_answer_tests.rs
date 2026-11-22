@@ -1,10 +1,11 @@
 //! 호스트가 응답 대기 상한(5초) 안에 답하지 못할 때의 실행·poll 경계.
 //!
-//! 모의 IPC 는 명령을 꺼내(실행 시작) 상한을 넘긴 뒤 답하거나, 꺼내지 않아 큐 대기 중 만료되게 한다.
+//! 시작 뒤 만료는 [`scripted_ipc`](super::super::scripted_ipc) 가 보낸 스레드에서 명령을 시작시키고
+//! 시험 본체가 첫 호출이 반환한 뒤 답하거나 닫아 재현한다. 큐 대기 중 만료는 아무도 꺼내지 않아
+//! 재현한다.
 
 use std::collections::HashMap;
 use std::sync::mpsc;
-use std::time::Duration;
 
 use serde_json::{Value, json};
 use tasty_agent::runner::{DispatchHandle, DispatchOutcome, PollOutcome, TaskExecutor};
@@ -14,14 +15,10 @@ use tasty_ipc::host_call::HostIpcInjector;
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_ipc::server::{Claim, IpcCommand};
 
+use super::super::scripted_ipc::{self, Step};
 use super::super::tests::fresh_ctx;
-use super::super::{HOST_DISPATCH_TIMEOUT, HostExecutor, RunnerContext};
+use super::super::{HostExecutor, RunnerContext};
 use super::DISPATCH_OUTCOME_UNKNOWN;
-
-/// 상한을 확실히 넘기는 지연.
-fn past_bound() -> Duration {
-    HOST_DISPATCH_TIMEOUT + Duration::from_millis(500)
-}
 
 fn install(ctx: &RunnerContext) -> mpsc::Receiver<IpcCommand> {
     let (tx, rx) = mpsc::channel::<IpcCommand>();
@@ -104,16 +101,15 @@ fn spawn_task() -> Task {
 #[test]
 fn a_state_poll_that_started_but_answered_past_the_bound_asks_again() {
     let (_td, ctx) = fresh_ctx();
-    let rx = install(&ctx);
-    let worker = std::thread::spawn(move || {
-        let slow = rx.recv().expect("first poll");
-        assert_eq!(claim(&slow), Claim::Run);
-        std::thread::sleep(past_bound());
-        drop(slow);
-        let next = rx.recv().expect("second poll");
-        assert_eq!(claim(&next), Claim::Run);
-        reply(next, json!({ "state": "idle" }));
-    });
+    // 첫 조회는 시작한 채 답하지 않는다. 쥔 명령이 끝까지 살아 있어 채널 종료가 아니라 상한 만료다.
+    let ipc = scripted_ipc::install(
+        &ctx,
+        vec![
+            Step::Hold,
+            Step::Reply(Box::new(|_| json!({ "state": "idle" }))),
+        ],
+        false,
+    );
     let mut exec = HostExecutor::new(ctx);
     let handle = polled(None);
     match exec.poll(&handle) {
@@ -124,7 +120,8 @@ fn a_state_poll_that_started_but_answered_past_the_bound_asks_again() {
         PollOutcome::Done(r) => assert_eq!(r.output, Some(json!({ "state": "idle" }))),
         other => panic!("expected Done on the next poll, got {other:?}"),
     }
-    worker.join().unwrap();
+    ipc.assert_all_steps_used();
+    drop(ipc.rx.try_recv().expect("the slow poll was held"));
 }
 
 #[test]
@@ -159,22 +156,18 @@ fn a_slow_state_poll_past_the_poll_deadline_is_a_poll_timeout() {
 #[test]
 fn a_spawn_that_answers_past_the_bound_is_followed_without_sending_it_again() {
     let (_td, ctx) = fresh_ctx();
-    let rx = install(&ctx);
-    let (answer_tx, answer_rx) = mpsc::channel::<()>();
-    let worker = std::thread::spawn(move || {
-        let spawn = rx.recv().expect("spawn");
-        assert_eq!(spawn.request.method, "fake.spawn");
-        assert_eq!(claim(&spawn), Claim::Run);
-        answer_rx.recv().expect("answer late");
-        reply(spawn, json!({ "surface_id": 9 }));
-        let state = rx.recv().expect("state poll");
-        assert_eq!(state.request.method, "fake.state");
-        assert_eq!(state.request.params.get("surface_id"), Some(&json!(9)));
-        assert_eq!(claim(&state), Claim::Run);
-        reply(state, json!({ "state": "idle" }));
-        // 늦은 응답을 받은 뒤 spawn 이 다시 오지 않았다.
-        rx
-    });
+    let ipc = scripted_ipc::install(
+        &ctx,
+        vec![
+            Step::Hold,
+            Step::Reply(Box::new(|state| {
+                assert_eq!(state.request.method, "fake.state");
+                assert_eq!(state.request.params.get("surface_id"), Some(&json!(9)));
+                json!({ "state": "idle" })
+            })),
+        ],
+        false,
+    );
     let mut exec = HostExecutor::new(ctx);
     let task = spawn_task();
     let handle = match exec.dispatch(&task) {
@@ -186,19 +179,19 @@ fn a_spawn_that_answers_past_the_bound_is_followed_without_sending_it_again() {
         "{handle:?}"
     );
     assert!(matches!(exec.poll(&handle), PollOutcome::Active));
-    answer_tx.send(()).expect("go");
-    let outcome = loop {
-        match exec.poll(&handle) {
-            PollOutcome::Active => std::thread::sleep(Duration::from_millis(5)),
-            other => break other,
-        }
-    };
-    match outcome {
+    let spawn = ipc.rx.try_recv().expect("the spawn was held");
+    assert_eq!(spawn.request.method, "fake.spawn");
+    reply(spawn, json!({ "surface_id": 9 }));
+    // 늦은 응답은 이미 통로에 있다. 다음 poll 이 그것을 받아 state 를 조회한다.
+    match exec.poll(&handle) {
         PollOutcome::Done(r) => assert_eq!(r.output, Some(json!({ "state": "idle" }))),
         other => panic!("expected the spawn-wait poll to finish, got {other:?}"),
     }
-    let rx = worker.join().unwrap();
-    assert!(rx.try_recv().is_err(), "the spawn was sent exactly once");
+    ipc.assert_all_steps_used();
+    assert!(
+        ipc.rx.try_recv().is_err(),
+        "the spawn was sent exactly once"
+    );
 }
 
 #[test]
@@ -222,21 +215,14 @@ fn a_spawn_that_expired_in_the_queue_is_retried_on_a_later_tick() {
 #[test]
 fn a_spawn_whose_channel_closes_after_it_started_is_an_unknown_outcome() {
     let (_td, ctx) = fresh_ctx();
-    let rx = install(&ctx);
-    let (drop_tx, drop_rx) = mpsc::channel::<()>();
-    let worker = std::thread::spawn(move || {
-        let spawn = rx.recv().expect("spawn");
-        assert_eq!(claim(&spawn), Claim::Run);
-        drop_rx.recv().expect("drop late");
-        drop(spawn);
-    });
+    let ipc = scripted_ipc::install(&ctx, vec![Step::Hold], false);
     let mut exec = HostExecutor::new(ctx);
     let handle = match exec.dispatch(&spawn_task()) {
         DispatchOutcome::Started(h) => h,
         other => panic!("expected Started, got {other:?}"),
     };
-    drop_tx.send(()).expect("go");
-    worker.join().unwrap();
+    drop(ipc.rx.try_recv().expect("the spawn was held"));
+    ipc.assert_all_steps_used();
     match exec.poll(&handle) {
         PollOutcome::Lost(reason) => {
             assert!(reason.starts_with(DISPATCH_OUTCOME_UNKNOWN), "{reason}")

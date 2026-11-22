@@ -1,23 +1,21 @@
 //! 기존 세션에 보내는 `<provider>.tell` 이 응답 대기 상한(5초)을 넘길 때의 경계.
 //!
-//! 모의 IPC 는 `.state` 에 idle 로 바로 답하고 나머지 명령은 시험에 넘긴다. 시험은 명령을 꺼내
-//! (실행 시작) 늦게 답하거나, 꺼내지 않아 큐 대기 중 만료되게 한다.
-
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
+//! 모의 IPC([`scripted_ipc`](crate::runner_host::scripted_ipc))는 보낸 스레드에서 `.state` 에 idle 로
+//! 바로 답하고, 나머지 명령은 정한 단계대로 시작시켜 넘기거나(시험이 늦게 답하거나 닫는다) 시작시키지
+//! 않고 넘긴다(큐 대기 중 만료).
 
 use serde_json::{Value, json};
 use tasty_agent::runner::{DispatchHandle, PollOutcome, TaskExecutor};
 use tasty_agent::task::FailureCode;
 use tasty_agent::task::agent::report;
 use tasty_ipc::dispatch::DispatchStats;
-use tasty_ipc::host_call::HostIpcInjector;
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_ipc::server::{Claim, IpcCommand};
 
 use super::{create, dispatch, existing, ours, v2};
 use crate::agent_turns::{TurnEnd, TurnEvent};
 use crate::runner_host::late_answer::DISPATCH_OUTCOME_UNKNOWN;
+use crate::runner_host::scripted_ipc::{self, Step};
 use crate::runner_host::tests::fresh_ctx;
 use crate::runner_host::{HostExecutor, RunnerContext, load_dispatch_handle};
 
@@ -34,27 +32,6 @@ fn reply(cmd: IpcCommand, result: Value) {
         .expect("send resp");
 }
 
-/// `.state` 는 idle 로 답하고 나머지 명령은 돌려준 통로로 넘긴다.
-fn install(ctx: &RunnerContext) -> mpsc::Receiver<IpcCommand> {
-    let (tx, rx) = mpsc::channel::<IpcCommand>();
-    ctx.host_ipc
-        .set(HostIpcInjector::new(tx, std::sync::Arc::new(|| {})))
-        .ok()
-        .expect("set once");
-    let (fwd_tx, fwd_rx) = mpsc::channel::<IpcCommand>();
-    std::thread::spawn(move || {
-        while let Ok(cmd) = rx.recv() {
-            if cmd.request.method.ends_with(".state") {
-                assert_eq!(claim(&cmd), Claim::Run);
-                reply(cmd, json!({ "state": "idle" }));
-            } else if fwd_tx.send(cmd).is_err() {
-                break;
-            }
-        }
-    });
-    fwd_rx
-}
-
 fn stored(ctx: &RunnerContext, task_id: &str) -> Option<DispatchHandle> {
     load_dispatch_handle(ctx, 1, task_id)
 }
@@ -63,16 +40,7 @@ fn stored(ctx: &RunnerContext, task_id: &str) -> Option<DispatchHandle> {
 #[test]
 fn a_tell_that_answers_past_the_bound_is_not_sent_again() {
     let (_td, ctx) = fresh_ctx();
-    let fwd = install(&ctx);
-    let (go_tx, go_rx) = mpsc::channel::<()>();
-    let worker = std::thread::spawn(move || {
-        let tell = fwd.recv().expect("tell");
-        assert_eq!(tell.request.method, "claude.tell");
-        assert_eq!(claim(&tell), Claim::Run);
-        go_rx.recv().expect("answer late");
-        reply(tell, json!({ "ok": true }));
-        fwd
-    });
+    let ipc = scripted_ipc::install(&ctx, vec![Step::Hold], true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, existing(), v2());
     let h = dispatch(&mut exec, &ctx, &task);
@@ -89,17 +57,18 @@ fn a_tell_that_answers_past_the_bound_is_not_sent_again() {
         "a restart while waiting must see an unanswered request"
     );
     assert!(matches!(exec.poll(&h), PollOutcome::Active));
-    go_tx.send(()).expect("go");
-    let fwd = worker.join().unwrap();
-    let until = Instant::now() + Duration::from_secs(5);
-    while !matches!(
-        stored(&ctx, &task.id),
-        Some(DispatchHandle::AgentTurn { .. })
-    ) {
-        assert!(Instant::now() < until, "the late answer was never taken");
-        assert!(matches!(exec.poll(&h), PollOutcome::Active));
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    let tell = ipc.rx.try_recv().expect("the tell was held");
+    assert_eq!(tell.request.method, "claude.tell");
+    reply(tell, json!({ "ok": true }));
+    // 늦은 응답은 이미 통로에 있다. 다음 poll 이 그것을 받아 턴을 이어 간다.
+    assert!(matches!(exec.poll(&h), PollOutcome::Active));
+    assert!(
+        matches!(
+            stored(&ctx, &task.id),
+            Some(DispatchHandle::AgentTurn { .. })
+        ),
+        "the late answer was taken"
+    );
     ctx.agent_turns.report(7, "claude", ours(&ctx, 7));
     ctx.agent_turns.report(
         7,
@@ -110,14 +79,25 @@ fn a_tell_that_answers_past_the_bound_is_not_sent_again() {
         panic!("expected done");
     };
     assert_eq!(r.output.unwrap()[report::FINAL_ANSWER], "mine");
-    assert!(fwd.try_recv().is_err(), "the tell was sent exactly once");
+    ipc.assert_all_steps_used();
+    assert!(ipc.rx.try_recv().is_err(), "the tell was sent exactly once");
 }
 
 /// 큐에서 기다리다 만료된 지시는 실행되지 않았다. 묶음을 풀고 다음 poll 에서 다시 보낸다.
 #[test]
 fn a_tell_that_expired_in_the_queue_is_sent_again() {
     let (_td, ctx) = fresh_ctx();
-    let fwd = install(&ctx);
+    let ipc = scripted_ipc::install(
+        &ctx,
+        vec![
+            Step::Leave,
+            Step::Reply(Box::new(|tell| {
+                assert_eq!(tell.request.method, "claude.tell");
+                json!({ "ok": true })
+            })),
+        ],
+        true,
+    );
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, existing(), v2());
     let h = dispatch(&mut exec, &ctx, &task);
@@ -125,21 +105,14 @@ fn a_tell_that_expired_in_the_queue_is_sent_again() {
         PollOutcome::Active => {}
         other => panic!("a tell that never ran must not end the task, got {other:?}"),
     }
-    let stale = fwd.try_recv().expect("the expired tell was queued");
+    let stale = ipc.rx.try_recv().expect("the expired tell was queued");
     assert_eq!(
         claim(&stale),
         Claim::Withdrawn,
         "the expired tell never runs"
     );
     assert_eq!(ctx.agent_turns.holder(7), None, "the binding is released");
-    let worker = std::thread::spawn(move || {
-        let tell = fwd.recv().expect("second tell");
-        assert_eq!(claim(&tell), Claim::Run);
-        reply(tell, json!({ "ok": true }));
-        fwd
-    });
     assert!(matches!(exec.poll(&h), PollOutcome::Active));
-    let fwd = worker.join().unwrap();
     assert_eq!(ctx.agent_turns.holder(7), Some(task.id.clone()));
     ctx.agent_turns.report(7, "claude", ours(&ctx, 7));
     ctx.agent_turns.report(
@@ -151,27 +124,21 @@ fn a_tell_that_expired_in_the_queue_is_sent_again() {
         panic!("expected done");
     };
     assert_eq!(r.output.unwrap()[report::FINAL_ANSWER], "done");
-    assert!(fwd.try_recv().is_err(), "no third tell");
+    ipc.assert_all_steps_used();
+    assert!(ipc.rx.try_recv().is_err(), "no third tell");
 }
 
 /// 시작한 지시의 응답 통로가 답 없이 닫혔다. 전달됐는지 알 수 없어 결과 불명이다.
 #[test]
 fn a_tell_whose_channel_closes_after_it_started_is_an_unknown_outcome() {
     let (_td, ctx) = fresh_ctx();
-    let fwd = install(&ctx);
-    let (go_tx, go_rx) = mpsc::channel::<()>();
-    let worker = std::thread::spawn(move || {
-        let tell = fwd.recv().expect("tell");
-        assert_eq!(claim(&tell), Claim::Run);
-        go_rx.recv().expect("drop late");
-        drop(tell);
-    });
+    let ipc = scripted_ipc::install(&ctx, vec![Step::Hold], true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, existing(), v2());
     let h = dispatch(&mut exec, &ctx, &task);
     assert!(matches!(exec.poll(&h), PollOutcome::Active));
-    go_tx.send(()).expect("go");
-    worker.join().unwrap();
+    drop(ipc.rx.try_recv().expect("the tell was held"));
+    ipc.assert_all_steps_used();
     match exec.poll(&h) {
         PollOutcome::Lost(reason) => {
             assert!(reason.starts_with(DISPATCH_OUTCOME_UNKNOWN), "{reason}");
@@ -185,23 +152,17 @@ fn a_tell_whose_channel_closes_after_it_started_is_an_unknown_outcome() {
 #[test]
 fn a_tell_that_fails_late_fails_the_attempt() {
     let (_td, ctx) = fresh_ctx();
-    let fwd = install(&ctx);
-    let (go_tx, go_rx) = mpsc::channel::<()>();
-    let worker = std::thread::spawn(move || {
-        let tell = fwd.recv().expect("tell");
-        assert_eq!(claim(&tell), Claim::Run);
-        go_rx.recv().expect("answer late");
-        let id = tell.request.id.clone().unwrap_or(Value::Null);
-        tell.response_tx
-            .send(JsonRpcResponse::error(id, -32000, "no such session"))
-            .expect("send resp");
-    });
+    let ipc = scripted_ipc::install(&ctx, vec![Step::Hold], true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, existing(), v2());
     let h = dispatch(&mut exec, &ctx, &task);
     assert!(matches!(exec.poll(&h), PollOutcome::Active));
-    go_tx.send(()).expect("go");
-    worker.join().unwrap();
+    let tell = ipc.rx.try_recv().expect("the tell was held");
+    let id = tell.request.id.clone().unwrap_or(Value::Null);
+    tell.response_tx
+        .send(JsonRpcResponse::error(id, -32000, "no such session"))
+        .expect("send resp");
+    ipc.assert_all_steps_used();
     let PollOutcome::Failed(e) = exec.poll(&h) else {
         panic!("expected failure");
     };
