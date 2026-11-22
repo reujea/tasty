@@ -277,6 +277,7 @@ pub fn draw_remote_attach_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    keys: &mut super::keys::PopupKeys,
 ) -> PopupAction {
     let th = theme::theme();
     let ctx = ui.ctx().clone();
@@ -335,7 +336,7 @@ pub fn draw_remote_attach_popup(
     if let Some(name) = draw_left_pane(ui, &th, left_rect, &summaries, st.attach_sel.as_deref()) {
         connect(state, &mut st, name);
     }
-    let (scroll_to_sel, enter) = nav::handle_keys(&ctx, &mut st);
+    let (scroll_to_sel, enter) = nav::handle_keys(keys, &mut st);
     do_connect |= enter;
     match draw_right_pane(ui, &th, right_rect, &mut st, scroll_to_sel) {
         RightAction::RetryBrowse => {

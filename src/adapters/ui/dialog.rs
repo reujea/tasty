@@ -120,6 +120,10 @@ pub fn draw_rename_popup(
         // 키 입력과 입력 포커스는 포커스를 가진 인스턴스만 가져간다. agent가 연 passive 인스턴스는 빼앗지 않는다.
         autofocus: cx.keys.receives(),
         keys: cx.keys.receives(),
+        // 소비하지 않는다: 입력칸(TextEdit)도 지금처럼 같은 Enter 를 본다.
+        confirm: cx
+            .keys
+            .pressed(crate::adapters::ui::popup::keys::BasicKey::Confirm),
     };
     let drawn = ui.scope(|ui| rename_popup(ui, &th, &view, &mut rename.buffer));
     let measured = Some(LogicalPx(drawn.response.rect.height()));
@@ -598,6 +602,15 @@ mod tests {
     /// rename 인스턴스들을 한 프레임씩 그린다. 인스턴스마다 마지막 프레임의 결과와, 그린 뒤 egui 입력 포커스가
     /// 있는지를 돌려준다.
     fn draw_renames(focused: &[bool], frames: Vec<Vec<egui::Event>>) -> (Vec<&'static str>, bool) {
+        draw_renames_on(&egui::Context::default(), focused, frames)
+    }
+
+    /// [`draw_renames`] 를 `ctx` 로 그린다.
+    fn draw_renames_on(
+        ctx: &egui::Context,
+        focused: &[bool],
+        frames: Vec<Vec<egui::Event>>,
+    ) -> (Vec<&'static str>, bool) {
         crate::i18n::init("en");
         let (mut state, session) = engine_with_state();
         use crate::adapters::ui::popup::PopupPayload;
@@ -611,7 +624,6 @@ mod tests {
                 )))
             })
             .collect();
-        let ctx = egui::Context::default();
         let mut results = vec!["none"; focused.len()];
         for events in frames {
             let raw = egui::RawInput {
@@ -647,6 +659,34 @@ mod tests {
             }));
         }
         (results, ctx.memory(|m| m.focused()).is_some())
+    }
+
+    /// 포커스를 가진 rename 하나가 입력 포커스를 얻은 뒤 `held` 를 붙인 Enter 를 누른 프레임의 결과.
+    fn rename_on_enter(
+        held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+    ) -> &'static str {
+        let ctx = egui::Context::default();
+        let press = crate::adapters::ui::popup::window_input_test_support::held_press(
+            &ctx,
+            egui::Key::Enter,
+            held,
+        );
+        draw_renames_on(&ctx, &[true], vec![vec![], vec![], vec![press]]).0[0]
+    }
+
+    /// T-9a: Given 입력 포커스를 가진 rename, When 수식키 없는 Enter 를 누르면, Then 저장하고 닫는다.
+    #[test]
+    fn bare_enter_saves_the_rename() {
+        assert_eq!(rename_on_enter(None), "closed");
+    }
+
+    /// T-9a: Given 입력 포커스를 가진 rename, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+Enter 를 누르면, Then 저장하지
+    /// 않는다.
+    #[test]
+    fn modified_enter_is_ignored_by_the_rename() {
+        for held in crate::adapters::ui::popup::window_input_test_support::Held::ALL {
+            assert_eq!(rename_on_enter(Some(held)), "none", "{held:?}");
+        }
     }
 
     fn escape() -> Vec<egui::Event> {

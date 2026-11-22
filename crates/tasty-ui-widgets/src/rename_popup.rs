@@ -22,6 +22,7 @@ pub enum RenamePopupLayout {
 }
 
 /// 콘텐츠 입력값. 본체는 번역 문자열을, 갤러리는 예제 문자열을 넣는다.
+#[derive(Clone, Copy)]
 pub struct RenamePopupView<'a> {
     pub layout: RenamePopupLayout,
     pub save: &'a str,
@@ -38,6 +39,8 @@ pub struct RenamePopupView<'a> {
     /// Esc와 글자 입력을 읽는다. false이면 입력 포커스를 가지고 있어도 놓는다. 같은 화면에 여럿 보일 때
     /// 키보드 포커스를 가진 하나만 켠다.
     pub keys: bool,
+    /// 이번 프레임 확정 키(Enter) 판정값. 위젯은 키를 읽지 않고 호출자가 정한다. 입력 포커스가 있을 때만 확정한다.
+    pub confirm: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,7 +90,8 @@ pub fn rename_popup_base_height(theme: &Theme, layout: RenamePopupLayout) -> Log
 }
 
 /// 입력 → (오류 또는 대기 줄) → 우측 정렬 버튼 행을 그린다.
-/// Enter/Save 는 확정, Cancel 은 취소다. Esc 는 읽지 않는다(호출자의 팝업 층이 정한다). Enter 는 입력 포커스가 필요하다.
+/// Enter/Save 는 확정, Cancel 은 취소다. 키는 읽지 않는다: Enter 는 호출자가 넘긴 `confirm` 이고 입력 포커스가
+/// 필요하다. Esc 는 호출자의 팝업 층이 정한다.
 /// 같은 프레임에 둘 다 발생하면 확정을 우선한다.
 pub fn rename_popup(
     ui: &mut egui::Ui,
@@ -142,10 +146,7 @@ fn content(
         state.store(&ctx, resp.id);
     }
 
-    let mut confirm = !waiting
-        && view.save_enabled
-        && resp.has_focus()
-        && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    let mut confirm = !waiting && view.save_enabled && resp.has_focus() && view.confirm;
     let mut cancel = false;
 
     if let Some(text) = view.waiting {

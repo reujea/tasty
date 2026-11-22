@@ -161,7 +161,6 @@ pub fn draw_info_modal(
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     let th = theme::theme();
-    let ctx = ui.ctx().clone();
 
     let Some(current) = InfoModalQueue::of(cx.payload)
         .and_then(|q| q.items.front())
@@ -199,10 +198,9 @@ pub fn draw_info_modal(
     }
 
     let dismiss_idx = buttons.len() - 1;
-    // passive로 열린 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
-    let keys = cx.keys.receives();
-    let confirm = out.clicked == Some(dismiss_idx)
-        || (keys && ctx.input(|i| i.key_pressed(egui::Key::Enter)));
+    // passive로 열린 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다(통로가 키 주인에게만 준다).
+    let confirm =
+        out.clicked == Some(dismiss_idx) || cx.keys.consume(popup::keys::BasicKey::Confirm);
     let mut open_permission_settings = false;
     if let Some(i) = out.clicked
         && let Some(button) = current.extra_buttons.get(i)

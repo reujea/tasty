@@ -23,18 +23,19 @@ pub fn draw_tutorial_topics_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
     if !state.tutorial.catalog_loaded {
         crate::adapters::ui::tutorial::open_catalog(state);
     }
     let th = theme::theme();
     let mut action = PopupAction::None;
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowDown)) {
+    use crate::adapters::ui::popup::keys::BasicKey;
+    if cx.keys.consume(BasicKey::Down) {
         state.tutorial.popup_selected =
             (state.tutorial.popup_selected + 1).min(all_topics().len() - 1);
     }
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowUp)) {
+    if cx.keys.consume(BasicKey::Up) {
         state.tutorial.popup_selected = state.tutorial.popup_selected.saturating_sub(1);
     }
 
@@ -156,7 +157,7 @@ pub fn draw_tutorial_topics_popup(
             });
         });
 
-    if ui.ctx().input(|i| i.key_pressed(egui::Key::Enter)) {
+    if cx.keys.consume(BasicKey::Confirm) {
         state.tutorial.request_start(state.tutorial.popup_selected);
         action = PopupAction::Close;
     }
@@ -265,3 +266,7 @@ pub fn on_close(
 ) {
     state.tutorial.catalog_loaded = false;
 }
+
+#[cfg(test)]
+#[path = "topic_popup_tests.rs"]
+mod tests;

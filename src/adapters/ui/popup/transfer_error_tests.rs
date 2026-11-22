@@ -230,3 +230,45 @@ fn dismiss_shows_the_next_failure_in_the_same_scope() {
 fn retry_shows_the_next_failure_in_the_same_scope() {
     the_next_failure_stays_in_the_scope(retry_head_error);
 }
+
+/// 키 주인 실패 안내 본문을 `held` 를 붙인 Enter 한 프레임으로 그리고 닫는지 돌려준다.
+fn error_closes_on_enter(
+    held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+) -> bool {
+    use crate::adapters::ui::popup::window_input_test_support::{
+        OwnerBody, draw_owner_body, held_press,
+    };
+    crate::i18n::init("en");
+    let (mut state, session, _sid) = fixture();
+    let engine = session.read();
+    let ctx = egui::Context::default();
+    let mut payload = queue_of([failure(PopupScope::Window, None)]);
+    let press = held_press(&ctx, egui::Key::Enter, held);
+    let action = draw_owner_body(
+        &ctx,
+        &mut state,
+        &engine,
+        OwnerBody {
+            id: TRANSFER_ERROR_POPUP_ID,
+            draw: draw_transfer_error,
+            payload: &mut payload,
+            keyboard: crate::adapters::ui::popup::PopupKeyboard::Keys,
+        },
+        vec![press],
+    );
+    !matches!(action, PopupAction::None)
+}
+
+/// T-9a: Given 키 주인 실패 안내, When 수식키 없는 Enter 를 누르면, Then 닫는다.
+#[test]
+fn bare_enter_dismisses_the_transfer_error() {
+    assert!(error_closes_on_enter(None));
+}
+
+/// T-9a: Given 키 주인 실패 안내, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+Enter 를 누르면, Then 닫지 않는다.
+#[test]
+fn modified_enter_is_ignored_by_the_transfer_error() {
+    for held in crate::adapters::ui::popup::window_input_test_support::Held::ALL {
+        assert!(!error_closes_on_enter(Some(held)), "{held:?}");
+    }
+}

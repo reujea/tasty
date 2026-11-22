@@ -6,20 +6,22 @@ use super::{Conn, NewWsPhase, UiState, WsSel};
 
 /// 목록이 있을 때 방향키로 행을 옮기고 Enter 를 footer 확정으로 넘긴다. 생성 중에는 목록이 멈춘다.
 /// 반환값은 (옮긴 행으로 스크롤할지, Enter 로 확정할지)다.
-pub(super) fn handle_keys(ctx: &egui::Context, st: &mut UiState) -> (bool, bool) {
+pub(super) fn handle_keys(
+    keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
+    st: &mut UiState,
+) -> (bool, bool) {
+    use crate::adapters::ui::popup::keys::BasicKey;
     let Conn::Loaded(ws) = &st.conn else {
         return (false, false);
     };
     if st.creating() {
         return (false, false);
     }
-    let (up, down, enter) = ctx.input(|i| {
-        (
-            i.key_pressed(egui::Key::ArrowUp),
-            i.key_pressed(egui::Key::ArrowDown),
-            i.key_pressed(egui::Key::Enter),
-        )
-    });
+    let (up, down, enter) = (
+        keys.consume(BasicKey::Up),
+        keys.consume(BasicKey::Down),
+        keys.consume(BasicKey::Confirm),
+    );
     let mut moved = false;
     if up != down {
         let next = step_sel(&nav_order(ws), st.ws_sel, down);
@@ -119,5 +121,65 @@ mod tests {
             step_sel(&order, Some(WsSel::New), false),
             Some(WsSel::Existing(3))
         );
+    }
+
+    /// 목록 셋(새 행·ws1·ws2)에 새 행을 고른 상태로 `held` 를 붙인 `key` 를 키 주인 통로로 넣는다.
+    fn nav_key(
+        key: egui::Key,
+        held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+    ) -> (bool, bool, Option<WsSel>) {
+        let ctx = egui::Context::default();
+        let press =
+            crate::adapters::ui::popup::window_input_test_support::held_press(&ctx, key, held);
+        let mut st = UiState {
+            conn: Conn::Loaded(vec![ws(1, false), ws(2, false)]),
+            ws_sel: Some(WsSel::New),
+            ..Default::default()
+        };
+        let mut out = (false, false);
+        drop(ctx.run(
+            egui::RawInput {
+                events: vec![press],
+                ..Default::default()
+            },
+            |ctx| {
+                let mut keys = crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    true,
+                    crate::adapters::ui::popup::PopupKeyboard::Keys,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                );
+                out = handle_keys(&mut keys, &mut st);
+            },
+        ));
+        (out.0, out.1, st.ws_sel)
+    }
+
+    /// T-9a: Given 새 행을 고른 원격 목록, When 수식키 없는 ↓·Enter 를 누르면, Then 다음 행으로 옮기고 확정한다.
+    #[test]
+    fn bare_down_and_enter_act_on_the_remote_list() {
+        assert_eq!(
+            nav_key(egui::Key::ArrowDown, None),
+            (true, false, Some(WsSel::Existing(1)))
+        );
+        assert_eq!(
+            nav_key(egui::Key::Enter, None),
+            (false, true, Some(WsSel::New))
+        );
+    }
+
+    /// T-9a: Given 새 행을 고른 원격 목록, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+↑·↓·Enter 를 누르면, Then 아무
+    /// 동작도 없다.
+    #[test]
+    fn modified_arrows_and_enter_are_ignored_by_the_remote_list() {
+        for held in crate::adapters::ui::popup::window_input_test_support::Held::ALL {
+            for key in [egui::Key::ArrowUp, egui::Key::ArrowDown, egui::Key::Enter] {
+                assert_eq!(
+                    nav_key(key, Some(held)),
+                    (false, false, Some(WsSel::New)),
+                    "{held:?} {key:?}"
+                );
+            }
+        }
     }
 }

@@ -397,9 +397,9 @@ pub fn draw_transfer_error(
     let retry_button = retry_button_state(head, engine);
     let download_run = matches!(head.kind, TransferErrorKind::DownloadRun { .. });
 
-    // passive로 열린 실패 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다.
-    let keys = cx.keys.receives();
-    let mut dismiss = keys && ui.ctx().input(|i| i.key_pressed(egui::Key::Enter));
+    // passive로 열린 실패 안내는 다른 팝업·surface에서 누른 키로 닫히지 않는다(통로가 키 주인에게만 준다).
+    // 소비하지 않는다: 아래 버튼에 egui 포커스가 있으면 그 버튼도 지금처럼 같은 Enter를 받는다.
+    let mut dismiss = cx.keys.pressed(super::keys::BasicKey::Confirm);
     let mut retry = false;
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
     let drawn = ui.vertical(|ui| {

@@ -400,6 +400,45 @@ impl PopupKeys {
     pub(crate) fn consumed(&self) -> &[ConsumedKey] {
         &self.consumed
     }
+
+    /// 콘텐츠 고유 글자 단축키를 물리 키로 소비한다. 사건의 `physical_key` 가 `candidates` 에 드는 누름 가운데 소비
+    /// 집합 안의 것을 모두 지우고 사건 순서상 마지막 적중의 물리 키를 돌려준다. 후보와는 물리 키로 맞추고(배열·IME와
+    /// 무관하게 같은 자리), 집합 판정은 다른 통로 함수처럼 사건의 `key`·수식키·`super_held` 로 한다.
+    pub(crate) fn consume_physical(&mut self, candidates: &[egui::Key]) -> Option<egui::Key> {
+        if !self.receives {
+            return None;
+        }
+        let (keyboard, super_held, edits) = (self.keyboard, self.super_held, &self.edits);
+        let mut last = None;
+        let mut taken = Vec::new();
+        self.ctx.input_mut(|i| {
+            i.events.retain(|e| {
+                let egui::Event::Key {
+                    key,
+                    physical_key: Some(physical),
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = e
+                else {
+                    return true;
+                };
+                if !candidates.contains(physical)
+                    || !consumes_key(keyboard, *key, *modifiers, super_held, edits)
+                {
+                    return true;
+                }
+                last = Some(*physical);
+                taken.push(ConsumedKey::Key {
+                    key: *key,
+                    modifiers: *modifiers,
+                });
+                false
+            });
+        });
+        self.consumed.extend(taken);
+        last
+    }
 }
 
 #[cfg(test)]

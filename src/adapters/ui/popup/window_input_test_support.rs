@@ -317,16 +317,6 @@ pub(crate) fn layer_frame(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     events: Vec<egui::Event>,
 ) -> Vec<(String, egui::Rect)> {
-    fn walk(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
-        match shape {
-            egui::epaint::Shape::Text(t) => out.push((
-                t.galley.text().to_owned(),
-                egui::Rect::from_min_size(t.pos, t.galley.size()),
-            )),
-            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
-            _ => {}
-        }
-    }
     let raw = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
@@ -342,6 +332,21 @@ pub(crate) fn layer_frame(
         crate::adapters::ui::draw_popups(ctx, state, engine, &[], layer_screen(), 1.0);
     });
     state.close_input_pass(ctx);
+    painted_texts(&out)
+}
+
+/// 한 프레임 출력에 칠한 글자와 그 영역.
+pub(crate) fn painted_texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
+    fn walk(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
+        match shape {
+            egui::epaint::Shape::Text(t) => out.push((
+                t.galley.text().to_owned(),
+                egui::Rect::from_min_size(t.pos, t.galley.size()),
+            )),
+            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
     let mut texts = Vec::new();
     for clipped in &out.shapes {
         walk(&clipped.shape, &mut texts);
@@ -391,4 +396,97 @@ pub(crate) fn layer_escape(
         "창이 Esc 를 처리한다"
     );
     layer_frame(ctx, state, engine, events)
+}
+
+/// 본문 키 시험이 붙이는 수식키 하나. `Command` 는 macOS Cmd, 비-macOS Win·Super 다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Held {
+    Shift,
+    Ctrl,
+    Alt,
+    Command,
+}
+
+impl Held {
+    /// 네 수식키 모두.
+    pub(crate) const ALL: [Held; 4] = [Held::Shift, Held::Ctrl, Held::Alt, Held::Command];
+}
+
+/// `held` 를 붙인 `key` 누름 사건. 비-macOS Super 는 egui 사건 수식키에 실리지 않으므로 사건 수식키는 없고
+/// `ctx` 에 `note_modifiers` 로 남긴다(창이 `ModifiersChanged` 마다 하는 일). 그래서 그 문맥은 다음 누름에도
+/// Super 를 쥔 채다. 한 문맥으로 여러 수식키를 잴 때는 `Command` 를 마지막에 둔다.
+pub(crate) fn held_press(ctx: &egui::Context, key: egui::Key, held: Option<Held>) -> egui::Event {
+    let modifiers = match held {
+        None => egui::Modifiers::NONE,
+        Some(Held::Shift) => egui::Modifiers::SHIFT,
+        Some(Held::Ctrl) => egui::Modifiers::CTRL,
+        Some(Held::Alt) => egui::Modifiers::ALT,
+        #[cfg(target_os = "macos")]
+        Some(Held::Command) => egui::Modifiers::MAC_CMD | egui::Modifiers::COMMAND,
+        #[cfg(not(target_os = "macos"))]
+        Some(Held::Command) => {
+            tasty_key_match::note_modifiers(ctx, winit::keyboard::ModifiersState::SUPER);
+            egui::Modifiers::NONE
+        }
+    };
+    egui::Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers,
+    }
+}
+
+/// 팝업 정의의 그리기 함수 꼴.
+pub(crate) type BodyDraw = fn(
+    &mut egui::Ui,
+    &mut crate::state::MainViewState,
+    &crate::runtime::engine_read::EngineRead<'_>,
+    &mut crate::adapters::ui::popup::PopupCx<'_>,
+) -> crate::adapters::ui::popup::PopupAction;
+
+/// 키 주인으로 그릴 본문 하나.
+pub(crate) struct OwnerBody<'a> {
+    pub(crate) id: &'static str,
+    pub(crate) draw: BodyDraw,
+    pub(crate) payload: &'a mut crate::adapters::ui::popup::PopupPayload,
+    pub(crate) keyboard: crate::adapters::ui::popup::PopupKeyboard,
+}
+
+/// 키 주인 본문 하나를 `events` 한 프레임으로 그린다. 통로는 기본 편집 바인딩의 `keyboard` 통로다.
+pub(crate) fn draw_owner_body(
+    ctx: &egui::Context,
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    body: OwnerBody<'_>,
+    events: Vec<egui::Event>,
+) -> crate::adapters::ui::popup::PopupAction {
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1600.0, 900.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    let mut action = crate::adapters::ui::popup::PopupAction::None;
+    drop(ctx.run(raw, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut cx = crate::adapters::ui::popup::PopupCx {
+                id: body.id,
+                instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                focused: true,
+                keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    true,
+                    body.keyboard,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                ),
+                payload: &mut *body.payload,
+            };
+            action = (body.draw)(ui, state, engine, &mut cx);
+        });
+    }));
+    action
 }

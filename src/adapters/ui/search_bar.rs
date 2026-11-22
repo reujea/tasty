@@ -163,23 +163,24 @@ pub fn draw_search_bar(
                     run_search(state, &engine.as_ref());
                 }
 
-                let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
-                let shift_held = ui.input(|i| i.modifiers.shift);
-
-                if enter_pressed {
-                    if shift_held {
-                        state.search.prev_match();
-                    } else {
-                        state.search.next_match();
-                    }
+                // 방향은 그 누름 사건의 수식키로 정한다. 한 패스에 한 번만 움직이고 Shift+Enter가 이긴다.
+                use crate::adapters::ui::popup::keys::BasicKey;
+                if cx
+                    .keys
+                    .consume_key(egui::Modifiers::SHIFT, egui::Key::Enter)
+                {
+                    state.search.prev_match();
+                    scroll_to_current_match(state, engine);
+                } else if cx.keys.consume(BasicKey::Confirm) {
+                    state.search.next_match();
                     scroll_to_current_match(state, engine);
                 }
 
-                if ui.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
+                if cx.keys.consume(BasicKey::Up) {
                     state.search.prev_match();
                     scroll_to_current_match(state, engine);
                 }
-                if ui.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
+                if cx.keys.consume(BasicKey::Down) {
                     state.search.next_match();
                     scroll_to_current_match(state, engine);
                 }

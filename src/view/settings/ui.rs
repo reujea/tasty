@@ -862,7 +862,6 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     });
 
     // Esc와 충돌 팝업의 키는 이번 패스 키 주인(W1) 팝업 하나만 받는다.
-    let mut conflict_owns_keys = false;
     let closed = {
         let pending = ui_state.pending_binding.clone();
         let accepted = &mut ui_state.conflict_accepted;
@@ -889,7 +888,6 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                 if cx.id == KEYBINDING_CONFLICT_POPUP_ID
                     && let Some(pending) = &pending
                 {
-                    conflict_owns_keys = owns_escape;
                     // 안내 문자열은 open 직전 크기 산정과 동일 출처를 쓴다
                     // (quick-switch 슬롯 충돌 라벨 처리 포함 — conflict_message_text).
                     ui.label(conflict_message_text(pending, &settings.general));
@@ -905,13 +903,15 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                             *accepted = true;
                         }
                     });
-                    // 키보드 적용(Enter·Y)은 이 갈래가 불린 키 주인 패스에만 읽는다.
-                    if owns_escape
-                        && ui.input(|i| {
-                            i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Y)
-                        })
+                    // 키보드 적용(Enter·Y)과 거부(N)는 키 통로로 읽는다(이번 패스 키 주인만 받는다).
+                    use crate::adapters::ui::popup::keys::BasicKey;
+                    if cx.keys.consume(BasicKey::Confirm)
+                        || cx.keys.consume_key(egui::Modifiers::NONE, egui::Key::Y)
                     {
                         *accepted = true;
+                    }
+                    if cx.keys.consume_key(egui::Modifiers::NONE, egui::Key::N) {
+                        *cancelled = true;
                     }
                     // 적용 표지를 세운 패스의 Esc 는 쓴 것이다. 다음 패스 표지 처리가 적용을 먼저 정한다.
                     if *accepted {
@@ -932,11 +932,6 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         ui_state.file_chooser.cancel();
     }
     apply_file_chooser_outcomes(ui_state);
-
-    // 키보드로 충돌 팝업 거부(N) — 충돌 팝업이 이번 패스 키 주인일 때만 읽는다. Esc 는 중앙 단계가 닫는다.
-    if conflict_owns_keys && ctx.input(|i| i.key_pressed(egui::Key::N)) {
-        ui_state.conflict_cancelled = true;
-    }
 
     result
 }

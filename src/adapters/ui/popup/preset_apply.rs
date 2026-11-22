@@ -301,27 +301,27 @@ pub fn draw_apply_workspace_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    draw_apply_popup(ui, state, engine, PresetKind::Workspace)
+    draw_apply_popup(ui, state, engine, PresetKind::Workspace, &mut cx.keys)
 }
 
 pub fn draw_apply_tab_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    draw_apply_popup(ui, state, engine, PresetKind::Tab)
+    draw_apply_popup(ui, state, engine, PresetKind::Tab, &mut cx.keys)
 }
 
 pub fn draw_apply_pane_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
-    _cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
+    cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    draw_apply_popup(ui, state, engine, PresetKind::Pane)
+    draw_apply_popup(ui, state, engine, PresetKind::Pane, &mut cx.keys)
 }
 
 fn draw_apply_popup(
@@ -329,6 +329,7 @@ fn draw_apply_popup(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     kind: PresetKind,
+    keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
 ) -> PopupAction {
     let th = theme::theme();
     let names = state.preset_store.list(kind);
@@ -351,7 +352,7 @@ fn draw_apply_popup(
         selected: state.dialogs.preset_picker_selection.get(kind),
     };
 
-    let action = draw_apply_preset_view(ui, &props);
+    let action = draw_apply_preset_view(ui, &props, keys);
 
     match action {
         ApplyPresetAction::None => PopupAction::None,
@@ -383,19 +384,21 @@ fn draw_apply_popup(
     }
 }
 
-/// 앱 상태 없이 프리셋 목록과 적용·취소 버튼을 그린다.
-pub fn draw_apply_preset_view(
+/// 앱 상태 없이 프리셋 목록과 적용·취소 버튼을 그린다. 목록·확정 키는 팝업 키 통로 `keys` 로 읽는다.
+pub(crate) fn draw_apply_preset_view(
     ui: &mut egui::Ui,
     props: &ApplyPresetProps<'_>,
+    keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
 ) -> ApplyPresetAction {
+    use crate::adapters::ui::popup::keys::BasicKey;
     let th = props.theme;
     let names = props.names;
 
     let cur_index = props
         .selected
         .and_then(|s| names.iter().position(|n| n == s));
-    let up = ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowUp));
-    let down = ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowDown));
+    let up = keys.consume(BasicKey::Up);
+    let down = keys.consume(BasicKey::Down);
     let arrow_index = if (up || down) && !names.is_empty() {
         let cur = cur_index.unwrap_or(0);
         Some(if up {
@@ -410,7 +413,7 @@ pub fn draw_apply_preset_view(
     let effective_selected: Option<&str> =
         effective_index.and_then(|i| names.get(i).map(|s| s.as_str()));
 
-    let enter_pressed = ui.ctx().input(|i| i.key_pressed(egui::Key::Enter));
+    let enter_pressed = keys.consume(BasicKey::Confirm);
 
     let mut apply_clicked = false;
     let mut cancel_clicked = false;
@@ -528,6 +531,16 @@ mod tests {
     use super::*;
     use crate::adapters::ui::popup::{PopupId, PopupScope};
 
+    /// 이번 패스 키 주인인 프리셋 적용 팝업의 키 통로(선언 `keyboard` 는 Keys).
+    fn owner_keys(ctx: &egui::Context) -> crate::adapters::ui::popup::keys::PopupKeys {
+        crate::adapters::ui::popup::keys::PopupKeys::new(
+            ctx,
+            true,
+            crate::adapters::ui::popup::PopupKeyboard::Keys,
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+        )
+    }
+
     fn test_theme() -> Theme {
         tasty_themes::mocha_fallback()
     }
@@ -537,7 +550,15 @@ mod tests {
         names: &[String],
         selected: Option<&str>,
     ) -> ApplyPresetAction {
-        let ctx = egui::Context::default();
+        run_on(&egui::Context::default(), raw, names, selected)
+    }
+
+    fn run_on(
+        ctx: &egui::Context,
+        raw: egui::RawInput,
+        names: &[String],
+        selected: Option<&str>,
+    ) -> ApplyPresetAction {
         let mut out = ApplyPresetAction::None;
         let theme = test_theme();
         drop(ctx.run(raw, |ctx| {
@@ -550,7 +571,7 @@ mod tests {
                     names,
                     selected,
                 };
-                out = draw_apply_preset_view(ui, &props);
+                out = draw_apply_preset_view(ui, &props, &mut owner_keys(ctx));
             });
         }));
         out
@@ -605,6 +626,50 @@ mod tests {
         raw.events.push(key_event(egui::Key::ArrowUp));
         let action = run_with_input(raw, &names, Some("alpha"));
         assert_eq!(action, ApplyPresetAction::Select("beta".to_string()));
+    }
+
+    /// `held` 를 붙인 `key` 한 프레임. 선택은 alpha 다.
+    fn run_held(
+        key: egui::Key,
+        held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+    ) -> ApplyPresetAction {
+        let names = vec!["alpha".to_string(), "beta".to_string()];
+        let ctx = egui::Context::default();
+        let press =
+            crate::adapters::ui::popup::window_input_test_support::held_press(&ctx, key, held);
+        let raw = egui::RawInput {
+            events: vec![press],
+            ..Default::default()
+        };
+        run_on(&ctx, raw, &names, Some("alpha"))
+    }
+
+    /// T-9a: Given alpha 를 고른 프리셋 적용 보기, When 수식키 없는 Enter·↓ 를 누르면, Then 적용·다음 줄 선택이다.
+    #[test]
+    fn bare_enter_and_down_act_on_the_preset_list() {
+        assert_eq!(
+            run_held(egui::Key::Enter, None),
+            ApplyPresetAction::Apply("alpha".to_string())
+        );
+        assert_eq!(
+            run_held(egui::Key::ArrowDown, None),
+            ApplyPresetAction::Select("beta".to_string())
+        );
+    }
+
+    /// T-9a: Given alpha 를 고른 프리셋 적용 보기, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+Enter·↑·↓ 를 누르면,
+    /// Then 아무 동작도 없다.
+    #[test]
+    fn modified_enter_and_arrows_are_ignored_by_the_preset_list() {
+        for held in crate::adapters::ui::popup::window_input_test_support::Held::ALL {
+            for key in [egui::Key::Enter, egui::Key::ArrowUp, egui::Key::ArrowDown] {
+                assert_eq!(
+                    run_held(key, Some(held)),
+                    ApplyPresetAction::None,
+                    "{held:?} {key:?}"
+                );
+            }
+        }
     }
 
     #[test]

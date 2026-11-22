@@ -482,7 +482,9 @@ pub fn all_defs() -> &'static [PopupDef] {
                 sizer: None,
                 drag_region: None,
                 on_open: None,
-                draw_fn: |ui, state, engine, _| super::remote_attach::draw_remote_attach_popup(ui, state, engine),
+                draw_fn: |ui, state, engine, cx| {
+                    super::remote_attach::draw_remote_attach_popup(ui, state, engine, &mut cx.keys)
+                },
                 #[cfg(debug_assertions)]
                 debug_payload: None,
                 on_close: Some(|ctx, state, engine, _| {

@@ -157,7 +157,7 @@ pub fn draw_convert_popup(
     let popup::PopupPayload::Convert(target) = cx.payload else {
         return PopupAction::None;
     };
-    match draw_convert_content(ui, state, engine, target, cx.keys.receives()) {
+    match draw_convert_content(ui, state, engine, target, &mut cx.keys) {
         Some(ConvertResult::Action(action)) => {
             apply_convert_action(state, engine, target.surface_id, action);
             PopupAction::Close
@@ -374,16 +374,15 @@ pub fn draw_convert_content(
     state: &mut MainViewState,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     target: &mut ConvertPayload,
-    keys: bool,
+    keys: &mut popup::keys::PopupKeys,
 ) -> Option<ConvertResult> {
+    use popup::keys::BasicKey;
     let internal_items = listed_kinds(state, engine, Some(target.surface_id));
     let count = internal_items.len();
 
-    let ctx = ui.ctx().clone();
-
     let selected = target.selected;
 
-    if keys && ctx.input(|i| i.key_pressed(egui::Key::ArrowDown)) && count > 0 {
+    if count > 0 && keys.consume(BasicKey::Down) {
         let new_sel = match selected {
             Some(cur) if cur < count => (cur + 1) % count,
             _ => 0,
@@ -391,7 +390,7 @@ pub fn draw_convert_content(
         target.selected = Some(new_sel);
     }
 
-    if keys && ctx.input(|i| i.key_pressed(egui::Key::ArrowUp)) && count > 0 {
+    if count > 0 && keys.consume(BasicKey::Up) {
         let new_sel = match selected {
             Some(cur) if cur < count => (cur + count - 1) % count,
             _ => count - 1,
@@ -401,33 +400,29 @@ pub fn draw_convert_content(
 
     let mut action: Option<ConvertAction> = None;
 
-    if keys
-        && ctx.input(|i| i.key_pressed(egui::Key::Enter))
-        && let Some(sel) = target.selected
+    if let Some(sel) = target.selected
         && sel < count
+        && keys.consume(BasicKey::Confirm)
     {
         action = Some(action_for_kind(engine, internal_items[sel].kind));
     }
 
-    // 단축키: physical_key 사용 (한글 IME 활성 시에도 영문 매칭 보장).
+    // 단축키: physical_key 사용 (한글 IME 활성 시에도 영문 매칭 보장). 사건 순서상 마지막 단축키가 이긴다.
     // 팝업 open 시 set_ime_allowed(false)로 IME가 비활성화되어 있다.
-    ctx.input(|i| {
-        for event in i.events.iter().filter(|_| keys) {
-            if let egui::Event::Key {
-                physical_key,
-                pressed: true,
-                modifiers,
-                ..
-            } = event
-                && modifiers.is_none()
-                && let Some(key) = physical_key
-                && let Some(ch) = letter_key_to_char(key)
-                && let Some(item) = internal_items.iter().find(|it| it.shortcut == Some(ch))
-            {
-                action = Some(action_for_kind(engine, item.kind));
-            }
-        }
-    });
+    let shortcuts: Vec<egui::Key> = egui::Key::ALL
+        .iter()
+        .copied()
+        .filter(|k| {
+            letter_key_to_char(k)
+                .is_some_and(|ch| internal_items.iter().any(|it| it.shortcut == Some(ch)))
+        })
+        .collect();
+    if let Some(key) = keys.consume_physical(&shortcuts)
+        && let Some(ch) = letter_key_to_char(&key)
+        && let Some(item) = internal_items.iter().find(|it| it.shortcut == Some(ch))
+    {
+        action = Some(action_for_kind(engine, item.kind));
+    }
 
     let view_props = props_from_items(&internal_items, target.selected);
     let view_action = draw_convert_view(ui, &theme::theme(), &view_props);

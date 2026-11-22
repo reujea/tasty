@@ -644,3 +644,51 @@ fn info_modals_shown_while_one_is_open_wait_in_its_queue() {
         .unwrap_or_default();
     assert_eq!(bodies, ["a", "b", "c"]);
 }
+
+/// 키 주인 안내 본문을 `held` 를 붙인 Enter 한 프레임으로 그리고 닫는지 돌려준다.
+fn info_closes_on_enter(
+    held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+) -> bool {
+    use crate::adapters::ui::popup::window_input_test_support::{
+        OwnerBody, draw_owner_body, held_press,
+    };
+    crate::i18n::init("en");
+    let (mut state, session) = crate::state::tests::test_state();
+    let engine = session.read();
+    let ctx = egui::Context::default();
+    let mut payload = info_payload(
+        [Queued {
+            item: modal("a"),
+            origin: origin(true),
+        }]
+        .into(),
+    );
+    let press = held_press(&ctx, egui::Key::Enter, held);
+    let action = draw_owner_body(
+        &ctx,
+        &mut state,
+        &engine,
+        OwnerBody {
+            id: INFO_MODAL_ID,
+            draw: super::draw_info_modal,
+            payload: &mut payload,
+            keyboard: crate::adapters::ui::popup::PopupKeyboard::Keys,
+        },
+        vec![press],
+    );
+    !matches!(action, crate::adapters::ui::popup::PopupAction::None)
+}
+
+/// T-9a: Given 키 주인 안내, When 수식키 없는 Enter 를 누르면, Then 닫는다.
+#[test]
+fn bare_enter_closes_the_info_modal() {
+    assert!(info_closes_on_enter(None));
+}
+
+/// T-9a: Given 키 주인 안내, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+Enter 를 누르면, Then 닫지 않는다.
+#[test]
+fn modified_enter_is_ignored_by_the_info_modal() {
+    for held in crate::adapters::ui::popup::window_input_test_support::Held::ALL {
+        assert!(!info_closes_on_enter(Some(held)), "{held:?}");
+    }
+}

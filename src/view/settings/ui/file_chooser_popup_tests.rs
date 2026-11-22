@@ -1414,3 +1414,54 @@ fn escape_and_a_confirm_click_in_one_pass_cancel_the_chooser() {
         Some(file_chooser::FileChooserOutcome::Cancelled)
     );
 }
+
+/// 키 주인 충돌 질문에 `held` 를 붙인 `key` 한 패스와 빈 패스를 넣는다. (적용됐는지, 열린 채인지, 대기가 남았는지).
+fn conflict_after_key(
+    key: egui::Key,
+    held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+) -> (bool, bool, bool) {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    let (combo, _) = conflict_shown(&ctx, &mut p, &mut st);
+    let press = crate::adapters::ui::popup::window_input_test_support::held_press(&ctx, key, held);
+    drop(panel_pass(&ctx, &mut p, &mut st, keys_input(vec![press])));
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    (
+        applied(&st, &combo),
+        st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
+        st.pending_binding.is_some(),
+    )
+}
+
+/// T-9a: Given 키 주인 충돌 질문, When 수식키 없는 Enter·Y 를 누르면, Then 적용하고 닫는다. 수식키 없는 N 은 적용하지
+/// 않고 닫는다.
+#[test]
+fn bare_enter_y_and_n_answer_the_conflict() {
+    for key in [egui::Key::Enter, egui::Key::Y] {
+        assert_eq!(
+            conflict_after_key(key, None),
+            (true, false, false),
+            "{key:?}"
+        );
+    }
+    assert_eq!(
+        conflict_after_key(egui::Key::N, None),
+        (false, false, false)
+    );
+}
+
+/// T-9a: Given 키 주인 충돌 질문, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+Enter·Y·N 을 누르면, Then 질문과 대기가
+/// 그대로다.
+#[test]
+fn modified_enter_y_and_n_are_ignored_by_the_conflict() {
+    use crate::adapters::ui::popup::window_input_test_support::Held;
+    for held in Held::ALL {
+        for key in [egui::Key::Enter, egui::Key::Y, egui::Key::N] {
+            assert_eq!(
+                conflict_after_key(key, Some(held)),
+                (false, true, true),
+                "{held:?} {key:?}"
+            );
+        }
+    }
+}

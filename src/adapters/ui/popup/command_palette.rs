@@ -112,19 +112,19 @@ pub enum CommandPaletteAction {
     SelectionChanged(usize),
 }
 
-/// 키 입력과 검색 변경을 화면 동작으로 반환한다.
-pub fn draw_command_palette_view(
+/// 키 입력과 검색 변경을 화면 동작으로 반환한다. 목록·확정 키는 팝업 키 통로 `keys` 로 읽는다.
+pub(crate) fn draw_command_palette_view(
     ui: &mut egui::Ui,
     theme: &Theme,
     props: &mut CommandPaletteProps<'_>,
+    keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
 ) -> CommandPaletteAction {
-    let (up, down, enter) = ui.ctx().input(|i| {
-        (
-            i.key_pressed(egui::Key::ArrowUp),
-            i.key_pressed(egui::Key::ArrowDown),
-            i.key_pressed(egui::Key::Enter),
-        )
-    });
+    use crate::adapters::ui::popup::keys::BasicKey;
+    let (up, down, enter) = (
+        keys.consume(BasicKey::Up),
+        keys.consume(BasicKey::Down),
+        keys.consume(BasicKey::Confirm),
+    );
 
     let mut action = CommandPaletteAction::None;
 
@@ -454,7 +454,7 @@ pub fn draw_command_palette_popup(
         hint_close: t("command_palette.hint_close").to_string(),
     };
 
-    let view_action = draw_command_palette_view(ui, &theme::theme(), &mut props);
+    let view_action = draw_command_palette_view(ui, &theme::theme(), &mut props, &mut cx.keys);
 
     match view_action {
         CommandPaletteAction::None => PopupAction::None,
@@ -609,6 +609,16 @@ mod view_tests {
     use super::*;
     use tasty_themes::mocha_fallback;
 
+    /// 이번 패스 키 주인인 팔레트의 키 통로(선언 `keyboard` 는 Text).
+    fn owner_keys(ctx: &egui::Context) -> crate::adapters::ui::popup::keys::PopupKeys {
+        crate::adapters::ui::popup::keys::PopupKeys::new(
+            ctx,
+            true,
+            crate::adapters::ui::popup::PopupKeyboard::Text,
+            &crate::adapters::ui::input::edit_key::EditBindings::default(),
+        )
+    }
+
     fn make_items(count: usize) -> Vec<CommandItemView> {
         (0..count)
             .map(|i| CommandItemView {
@@ -627,20 +637,29 @@ mod view_tests {
         pressed_key: Option<egui::Key>,
     ) -> CommandPaletteAction {
         let ctx = egui::Context::default();
+        let events = pressed_key
+            .map(|key| {
+                crate::adapters::ui::popup::window_input_test_support::held_press(&ctx, key, None)
+            })
+            .into_iter()
+            .collect();
+        run_view_on(&ctx, items, selected_index, events)
+    }
+
+    /// `ctx` 로 `events` 한 프레임을 그린다.
+    fn run_view_on(
+        ctx: &egui::Context,
+        items: Vec<CommandItemView>,
+        selected_index: usize,
+        events: Vec<egui::Event>,
+    ) -> CommandPaletteAction {
         let mut action = CommandPaletteAction::None;
         let mut buf = String::new();
         let theme = mocha_fallback();
-
-        let mut raw_input = egui::RawInput::default();
-        if let Some(key) = pressed_key {
-            raw_input.events.push(egui::Event::Key {
-                key,
-                physical_key: Some(key),
-                pressed: true,
-                repeat: false,
-                modifiers: egui::Modifiers::NONE,
-            });
-        }
+        let raw_input = egui::RawInput {
+            events,
+            ..Default::default()
+        };
 
         let mut items_opt = Some(items);
         let _full = ctx.run(raw_input, |ctx| {
@@ -655,7 +674,7 @@ mod view_tests {
                     hint_run: "run".to_string(),
                     hint_close: "close".to_string(),
                 };
-                action = draw_command_palette_view(ui, &theme, &mut props);
+                action = draw_command_palette_view(ui, &theme, &mut props, &mut owner_keys(ctx));
             });
         });
         action
@@ -698,7 +717,7 @@ mod view_tests {
                     hint_run: "run".to_string(),
                     hint_close: "close".to_string(),
                 };
-                draw_command_palette_view(&mut child, &theme, &mut props);
+                draw_command_palette_view(&mut child, &theme, &mut props, &mut owner_keys(ctx));
             });
         });
         let mut texts = Vec::new();
@@ -821,7 +840,7 @@ mod view_tests {
                         hint_run: "run".to_string(),
                         hint_close: "close".to_string(),
                     };
-                    draw_command_palette_view(&mut child, &th, &mut props);
+                    draw_command_palette_view(&mut child, &th, &mut props, &mut owner_keys(ctx));
                 });
             });
             let mut texts = Vec::new();
@@ -873,6 +892,64 @@ mod view_tests {
         assert_eq!(action, CommandPaletteAction::None);
     }
 
+    /// 둘째 줄을 고른 세 줄 팔레트에 `held` 를 붙인 `key` 한 프레임.
+    fn run_held(
+        key: egui::Key,
+        held: Option<crate::adapters::ui::popup::window_input_test_support::Held>,
+    ) -> CommandPaletteAction {
+        let ctx = egui::Context::default();
+        let press =
+            crate::adapters::ui::popup::window_input_test_support::held_press(&ctx, key, held);
+        run_view_on(&ctx, make_items(3), 1, vec![press])
+    }
+
+    /// T-9a-p1: Given 둘째 줄을 고른 팔레트, When 수식키 없는 Enter 를 누르면, Then 그 줄을 실행한다.
+    #[test]
+    fn enter_runs_the_item() {
+        assert_eq!(
+            run_held(egui::Key::Enter, None),
+            CommandPaletteAction::Execute { index: 1 }
+        );
+    }
+
+    /// T-9a-p2: Given 둘째 줄을 고른 팔레트, When Ctrl+Enter 를 누르면, Then 실행하지 않는다.
+    #[test]
+    fn ctrl_enter_does_not_run_the_item() {
+        use crate::adapters::ui::popup::window_input_test_support::Held;
+        assert_eq!(
+            run_held(egui::Key::Enter, Some(Held::Ctrl)),
+            CommandPaletteAction::None
+        );
+    }
+
+    /// T-9a: Given 둘째 줄을 고른 팔레트, When 수식키 없는 ↑·↓ 를 누르면, Then 선택을 옮긴다.
+    #[test]
+    fn bare_arrows_move_the_palette_selection() {
+        assert_eq!(
+            run_held(egui::Key::ArrowUp, None),
+            CommandPaletteAction::SelectionChanged(0)
+        );
+        assert_eq!(
+            run_held(egui::Key::ArrowDown, None),
+            CommandPaletteAction::SelectionChanged(2)
+        );
+    }
+
+    /// T-9a: Given 둘째 줄을 고른 팔레트, When Shift·Ctrl·Alt·Cmd(비-macOS Super)+Enter·↑·↓ 를 누르면, Then 아무
+    /// 동작도 없다.
+    #[test]
+    fn modified_enter_and_arrows_are_ignored_by_the_palette() {
+        for held in crate::adapters::ui::popup::window_input_test_support::Held::ALL {
+            for key in [egui::Key::Enter, egui::Key::ArrowUp, egui::Key::ArrowDown] {
+                assert_eq!(
+                    run_held(key, Some(held)),
+                    CommandPaletteAction::None,
+                    "{held:?} {key:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn enter_key_executes_selected_item() {
         let action = run_view(make_items(3), 1, Some(egui::Key::Enter));
@@ -908,7 +985,8 @@ mod view_tests {
                         hint_run: "run".to_string(),
                         hint_close: "close".to_string(),
                     };
-                    action = draw_command_palette_view(ui, &theme, &mut props);
+                    action =
+                        draw_command_palette_view(ui, &theme, &mut props, &mut owner_keys(ctx));
                 });
             });
             (action, out)

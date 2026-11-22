@@ -63,6 +63,8 @@ pub(crate) fn card(ui: &mut egui::Ui, theme: &Theme, card: Card<'_>) {
                 waiting,
                 autofocus: false,
                 keys: true,
+                // 갤러리에는 팝업 키 통로가 없다. 예제는 Enter 를 그대로 확정 판정값으로 넘긴다.
+                confirm: ui.input(|i| i.key_pressed(egui::Key::Enter)),
             },
             &mut buffer,
         );

@@ -431,3 +431,165 @@ fn typing_searches_the_instance_target_not_the_focused_terminal() {
     assert_eq!(state.search.query, "needle");
     assert_eq!(state.search.surface_id, TARGET);
 }
+
+/// 검색어를 넣고 결과 셋 가운데 둘째를 현재로 둔 검색창.
+fn bar_on_the_second_of_three(
+    ctx: &egui::Context,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) {
+    open_with_query(ctx, state, engine);
+    let at = |row| tasty_terminal::search::SearchMatch {
+        row,
+        col_start: 0,
+        col_end: 6,
+    };
+    state.search.matches = vec![at(0), at(1), at(2)];
+    state.search.current_index = 1;
+}
+
+/// 패스 수식키 `modifiers` 로 `events` 한 프레임을 그리고 현재 결과 번호를 돌려준다.
+fn index_after(
+    ctx: &egui::Context,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    events: Vec<egui::Event>,
+    modifiers: egui::Modifiers,
+) -> usize {
+    drop(ctx.run(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 720.0),
+            )),
+            events,
+            modifiers,
+            ..Default::default()
+        },
+        |ctx| {
+            crate::adapters::ui::draw_popups(
+                ctx,
+                state,
+                engine,
+                &[],
+                PhysicalRect {
+                    x: PhysicalPx(0.0),
+                    y: PhysicalPx(0.0),
+                    width: PhysicalPx(1280.0),
+                    height: PhysicalPx(720.0),
+                },
+                1.0,
+            );
+        },
+    ));
+    state.search.current_index
+}
+
+/// 결과 셋 가운데 둘째에 선 검색창에 패스 수식키 `modifiers` 로 `events` 를 넣은 뒤 현재 결과 번호.
+fn search_step(
+    events: impl FnOnce(&egui::Context) -> Vec<egui::Event>,
+    modifiers: egui::Modifiers,
+) -> usize {
+    let (mut state, mut session) = test_state();
+    let session = session.borrow_mut();
+    let engine = session.read();
+    let ctx = egui::Context::default();
+    bar_on_the_second_of_three(&ctx, &mut state, &engine);
+    let events = events(&ctx);
+    index_after(&ctx, &mut state, &engine, events, modifiers)
+}
+
+use crate::adapters::ui::popup::window_input_test_support::{Held, held_press};
+
+/// T-9a-s1: Given 결과 셋 가운데 둘째, When Enter 를 누르면, Then 다음 결과로 간다.
+#[test]
+fn enter_goes_to_the_next_match() {
+    let at = search_step(
+        |ctx| vec![held_press(ctx, egui::Key::Enter, None)],
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(at, 2);
+}
+
+/// T-9a-s2: Given 결과 셋 가운데 둘째, When Shift+Enter 를 누르면, Then 이전 결과로 간다.
+#[test]
+fn shift_enter_goes_to_the_previous_match() {
+    let at = search_step(
+        |ctx| vec![held_press(ctx, egui::Key::Enter, Some(Held::Shift))],
+        egui::Modifiers::SHIFT,
+    );
+    assert_eq!(at, 0);
+}
+
+/// T-9a-s3: Given 결과 셋 가운데 둘째, When 한 배치에 Shift+Enter 누름과 Shift 뗌이 와서 패스 수식키가 없으면,
+/// Then 그 누름의 수식키로 이전 결과로 한 번 간다.
+#[test]
+fn shift_enter_uses_its_own_modifiers_after_shift_is_released() {
+    let at = search_step(
+        |ctx| vec![held_press(ctx, egui::Key::Enter, Some(Held::Shift))],
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(at, 0);
+}
+
+/// T-9a-s4: Given 결과 셋 가운데 둘째, When 한 배치에 Enter 둘이 오면, Then 다음 결과로 한 번 간다.
+#[test]
+fn two_enters_move_once() {
+    let at = search_step(
+        |ctx| {
+            vec![
+                held_press(ctx, egui::Key::Enter, None),
+                held_press(ctx, egui::Key::Enter, None),
+            ]
+        },
+        egui::Modifiers::NONE,
+    );
+    assert_eq!(at, 2);
+}
+
+/// T-9a-s5: Given 결과 셋 가운데 둘째, When 한 패스에 Enter 와 Shift+Enter 가 오면, Then 이전 결과로 한 번 간다.
+#[test]
+fn enter_and_shift_enter_in_one_pass_move_back_once() {
+    let at = search_step(
+        |ctx| {
+            vec![
+                held_press(ctx, egui::Key::Enter, None),
+                held_press(ctx, egui::Key::Enter, Some(Held::Shift)),
+            ]
+        },
+        egui::Modifiers::SHIFT,
+    );
+    assert_eq!(at, 0);
+}
+
+/// T-9a: Given 결과 셋 가운데 둘째, When 수식키 없는 ↑·↓ 를 누르면, Then 이전·다음 결과로 간다.
+#[test]
+fn bare_arrows_move_between_matches() {
+    let up = search_step(
+        |ctx| vec![held_press(ctx, egui::Key::ArrowUp, None)],
+        egui::Modifiers::NONE,
+    );
+    let down = search_step(
+        |ctx| vec![held_press(ctx, egui::Key::ArrowDown, None)],
+        egui::Modifiers::NONE,
+    );
+    assert_eq!((up, down), (0, 2));
+}
+
+/// T-9a: Given 결과 셋 가운데 둘째, When Ctrl·Alt·Cmd(비-macOS Super)+Enter 나 Shift·Ctrl·Alt·Cmd+↑·↓ 를 누르면,
+/// Then 결과가 그대로다.
+#[test]
+fn modified_enter_and_arrows_are_ignored_by_the_search_bar() {
+    for held in Held::ALL {
+        for key in [egui::Key::Enter, egui::Key::ArrowUp, egui::Key::ArrowDown] {
+            if key == egui::Key::Enter && held == Held::Shift {
+                continue;
+            }
+            let at = search_step(
+                |ctx| vec![held_press(ctx, key, Some(held))],
+                egui::Modifiers::NONE,
+            );
+            assert_eq!(at, 1, "{held:?} {key:?}");
+        }
+    }
+}

@@ -48,7 +48,24 @@ fn view_in<'a>(
         waiting,
         autofocus: true,
         keys: true,
+        confirm: false,
     }
+}
+
+/// 호출자처럼 그 프레임의 수식키 없는 Enter 누름을 확정 판정값으로 넘긴다.
+fn with_confirm<'a>(view: &RenamePopupView<'a>, events: &[egui::Event]) -> RenamePopupView<'a> {
+    let confirm = events.iter().any(|e| {
+        matches!(
+            e,
+            egui::Event::Key {
+                key: egui::Key::Enter,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+                ..
+            }
+        )
+    });
+    RenamePopupView { confirm, ..*view }
 }
 
 fn key(key: egui::Key) -> egui::Event {
@@ -90,6 +107,7 @@ fn run(
         output: egui::FullOutput::default(),
     };
     for events in frames {
+        let view = &with_confirm(view, &events);
         let raw = egui::RawInput {
             events,
             ..Default::default()
