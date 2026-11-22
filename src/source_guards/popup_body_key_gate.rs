@@ -464,7 +464,42 @@ const ROOTS: [(&str, Floor); 3] = [
 ];
 
 /// 폴더 뿌리 대신 하나씩 읽는 파일. 그 폴더의 다른 파일은 이 가드의 범위가 아니다.
-const FILES: [&str; 2] = ["src/view/file_chooser.rs", "src/view/settings/ui.rs"];
+const FILES: [&str; 3] = [
+    "src/plugin_bridge/popup_render.rs",
+    "src/view/file_chooser.rs",
+    "src/view/settings/ui.rs",
+];
+
+/// 본문을 가린 뒤 판정하는 함수(파일, 함수 이름, 이유). 모든 시험이 가린 본문을 본다.
+const KEY_READ_FNS: [(&str, &str, &str); 1] = [(
+    "src/plugin_bridge/popup_render.rs",
+    "collect_mesh_popup_input",
+    "plugin mesh 팝업 입력을 직렬화하는 경계다. 키 주인일 때(has_key_focus) 키·글자·IME·편집 사건을 plugin 에 넘긴다",
+)];
+
+/// `code` 에서 `fn name` 본문(`{ … }`)의 줄바꿈 아닌 글자를 공백으로 가린다. 줄 번호는 그대로다.
+fn blank_fn_body(code: &str, rel: &str, name: &str) -> String {
+    let sig = format!("fn {name}(");
+    let at = code
+        .find(&sig)
+        .unwrap_or_else(|| panic!("{rel} 에 fn {name} 이 없다. KEY_READ_FNS 를 고친다"));
+    let params = at + sig.len() - 1;
+    let close = matching_delim(code, params).unwrap_or_else(|| panic!("{rel}::{name} 매개변수"));
+    let open = close
+        + code[close..]
+            .find('{')
+            .unwrap_or_else(|| panic!("{rel}::{name} 본문"));
+    let end = matching_delim(code, open).unwrap_or_else(|| panic!("{rel}::{name} 본문 끝"));
+    code.char_indices()
+        .map(|(i, c)| {
+            if i > open && i < end && c != '\n' {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect()
+}
 
 fn is_test_file(rel: &str) -> bool {
     let name = rel.rsplit('/').next().unwrap_or_default();
@@ -506,6 +541,12 @@ fn scanned_sources() -> Vec<(String, String)> {
         .filter(|(rel, _)| !is_test_file(rel))
         .map(|(rel, text)| {
             let masked = tasty_doc_guards::source_text::mask_non_code_aligned(&text);
+            let masked = KEY_READ_FNS
+                .iter()
+                .filter(|(file, _, _)| *file == rel)
+                .fold(masked, |code, (_, name, _)| {
+                    blank_fn_body(&code, &rel, name)
+                });
             (rel, masked)
         })
         .collect()
@@ -659,21 +700,76 @@ const POPUP_BODIES_WITHOUT_KEY_READS: &[&str] = &[
     "src/adapters/ui/tutorial/topic_popup.rs",
 ];
 
-/// 팝업 층 파일이 부르는, 키를 읽는 공용 위젯 파일 짝.
-const WIDGET_CALLS: &[(&str, &str)] = &[
+/// 팝업 층 파일이 불러도 되는, 키를 읽는 공용 위젯 파일 짝(부른 쪽, 위젯, 이유). 이 밖의 짝은 없다.
+const WIDGET_CALLS: &[(&str, &str, &str)] = &[
     (
         "src/adapters/ui/dialog.rs",
         "crates/tasty-ui-widgets/src/explorer_name_edit.rs",
+        "이름만 같은 짝이다. dialog.rs 는 자기 파일의 explorer_name_error 를 부르고 이 위젯의 공개 함수는 부르지 않는다",
     ),
     (
         "src/adapters/ui/popup/dag_list.rs",
         "crates/tasty-ui-widgets/src/multi_select.rs",
+        "다중 선택 드롭다운이 열린 동안 자기 Esc 로 목록을 닫는다",
     ),
     (
         "src/adapters/ui/restore_notice.rs",
         "crates/tasty-ui-widgets/src/restore_notice.rs",
+        "복원 안내(keyboard None)는 카드 안쪽 포커스로 Esc 를 읽는다",
     ),
 ];
+
+/// 팝업 층 파일 가운데 키를 읽어도 되는 파일. 키 통로 자체, 창의 입력 끊기, 시험 지원이다.
+const KEY_READ_FILES: [&str; 4] = [
+    "src/adapters/ui/popup/body_keys.rs",
+    "src/adapters/ui/popup/keys.rs",
+    "src/adapters/ui/popup/frame_keys.rs",
+    "src/adapters/ui/popup/window_input_test_support.rs",
+];
+
+/// 파일의 직접 키 읽기 자리 `파일:줄:형태`. 읽기가 없으면 비어 있고, 줄을 넘어 나눠 쓴 형태만 있으면 줄 대신 `?`다.
+fn key_read_sites(rel: &str, code: &str) -> Vec<String> {
+    if !reads_keys(code) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (n, line) in shipped(code).lines().enumerate() {
+        let line = joined(line);
+        for r in KEY_READS {
+            if reads(&line, r)
+                || r.strip_suffix('(')
+                    .is_some_and(|name| path_ends_with(&line, name))
+            {
+                out.push(format!("{rel}:{}:{r}", n + 1));
+            }
+        }
+    }
+    if out.is_empty() {
+        out.push(format!("{rel}:?:여러 줄에 나눠 쓴 키 읽기"));
+    }
+    out
+}
+
+/// 팝업 층 파일(`is_popup_layer`)의 출하 줄은 egui 키 입력을 직접 읽지 않는다. 키 통로 파일(`KEY_READ_FILES`)과 가린
+/// 함수 본문(`KEY_READ_FNS`)만 예외다.
+#[test]
+fn popup_layer_reads_no_keys_directly() {
+    let violations: Vec<String> = scanned_sources()
+        .into_iter()
+        .filter(|(rel, _)| is_popup_layer(rel) && !KEY_READ_FILES.contains(&rel.as_str()))
+        .flat_map(|(rel, code)| key_read_sites(&rel, &code))
+        .collect();
+    assert!(
+        violations.is_empty(),
+        "팝업 층이 egui 키 입력을 직접 읽는다. 본문 키 통로(cx.keys)로 읽는다: {violations:?}"
+    );
+    for file in KEY_READ_FILES {
+        assert!(
+            is_popup_layer(file),
+            "{file} 은 팝업 층 파일이 아니다. 목록에서 뺀다"
+        );
+    }
+}
 
 fn is_popup_layer(rel: &str) -> bool {
     rel.starts_with("src/adapters/ui/popup/")
@@ -707,8 +803,9 @@ fn calls(code: &str, name: &str) -> bool {
     })
 }
 
+/// 팝업 층 파일이 부르는 공용 위젯은 키를 읽지 않는다. 예외는 `WIDGET_CALLS` 의 짝뿐이다.
 #[test]
-fn every_widget_call_from_a_popup_layer_is_pinned() {
+fn a_popup_layer_calls_no_key_reading_widget() {
     let sources = scanned_sources();
     let widgets: Vec<(String, Vec<String>)> = sources
         .iter()
@@ -729,12 +826,12 @@ fn every_widget_call_from_a_popup_layer_is_pinned() {
         .collect();
     let pinned: BTreeSet<(String, String)> = WIDGET_CALLS
         .iter()
-        .map(|(c, w)| (c.to_string(), w.to_string()))
+        .map(|(c, w, _)| (c.to_string(), w.to_string()))
         .collect();
     let new: Vec<_> = found.difference(&pinned).collect();
     assert!(
         new.is_empty(),
-        "팝업 층 파일이 키를 읽는 공용 위젯을 새로 부른다. 그 위젯이 부른 쪽의 키 문을 따르는지 확인하고 WIDGET_CALLS 에 넣는다: {new:?}"
+        "팝업 층 파일이 키를 읽는 공용 위젯을 부른다. 위젯의 키 읽기를 부른 쪽 키 통로로 옮긴다: {new:?}"
     );
     let gone: Vec<_> = pinned.difference(&found).collect();
     assert!(
