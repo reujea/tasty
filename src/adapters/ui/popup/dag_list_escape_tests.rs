@@ -103,7 +103,6 @@ fn detail_scene() -> (
         let mut session = session;
         let engine = session.borrow_mut();
         frame(&ctx, &mut state, &engine.read(), Vec::new());
-        drop(engine);
         for p in state.popups.entries_of_mut(DAG_LIST_POPUP_ID) {
             p.payload = PopupPayload::DagList(Box::new(DagListState {
                 view: DrillDownView::Detail,
