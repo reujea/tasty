@@ -215,7 +215,12 @@ fn probe(names: &[&'static str], symbols: &[&'static str]) -> Result<&'static st
     let (library, handle) = first_loadable(names).ok_or(ProbeFailure::NotLoadable)?;
     let missing = missing_symbols(symbols, |symbol| {
         // SAFETY: handle came from dlopen in `first_loadable` just above and is never
-        // passed to dlclose, so it stays valid for every lookup.
+        // passed to dlclose, so it stays valid for every lookup. The product path calls
+        // this check only after GTK is initialized, on the winit main thread, before
+        // app_indicator_new (docs/dev-guide/linux-appindicator-probe.md). Tests either
+        // never look a symbol up in a real library (fake lookup) or call this only on
+        // libraries the test itself opened, libc.so.6 and libm.so.6, which are already
+        // loaded.
         unsafe { lookup_symbol(handle, symbol) }
     });
     if missing.is_empty() {
@@ -247,8 +252,10 @@ fn missing_symbols(
 /// # Safety
 ///
 /// `handle` must be a non-null handle returned by `dlopen` that has not been
-/// passed to `dlclose`. The other invariants of this lookup are recorded in
-/// docs/dev-guide/linux-appindicator-probe.md.
+/// passed to `dlclose`. The lookup may run a GNU IFUNC resolver, so the caller
+/// must also guarantee that running that library's resolvers on the current
+/// thread and in the current initialization state is safe. The other invariants
+/// of this lookup are recorded in docs/dev-guide/linux-appindicator-probe.md.
 #[cfg(target_os = "linux")]
 unsafe fn lookup_symbol(handle: *mut libc::c_void, symbol: &str) -> *mut libc::c_void {
     let Ok(c_symbol) = std::ffi::CString::new(symbol) else {

@@ -12,9 +12,9 @@ Linux 트레이는 `tray-icon`이 `libappindicator-sys`로 AppIndicator 라이�
 
 - 제품 호출은 `create_tray_icon_inner` 안에서 `gtk_init::ensure()`가 성공한 뒤, GTK를 소유한 winit 메인 스레드에서 부팅을 시작할 때(`begin_boot`) 실행된다. `dlopen`이 실행하는 라이브러리 초기화 루틴은 `TrayIconBuilder::build`가 같은 라이브러리를 열 때와 같은 스레드 맥락에서 돈다.
 - 조회 시점은 상류와 다르다. 사전 검사는 아이콘 디코딩과 빌더 호출보다 먼저, `app_indicator_new`로 객체를 만들기 전에 필수 함수 여섯 개를 모두 조회한다. 상류는 `app_indicator_new`를 부른 뒤 다음 함수를 차례로 조회하고, Tasty가 title을 주지 않아 지금은 `app_indicator_set_label`을 조회하지 않는다.
-- GNU IFUNC 심볼이면 `dlsym`이 라이브러리의 resolver를 실행하고, resolver가 null을 돌려줄 수 있다(libloading-0.7.4/src/os/unix/mod.rs). 그래서 resolver가 있다면 상류보다 일찍, 또는 사전 검사에서만 실행될 수 있다. 이 검사는 AppIndicator가 객체를 만들기 전에도 함수를 조회할 수 있는 일반 공유 라이브러리라는 전제에 기댄다. aarch64 Ubuntu 24.04의 Ayatana 라이브러리는 여섯 함수를 모두 일반 FUNC 심볼로 내보낸다.
+- GNU IFUNC 심볼이면 `dlsym`이 라이브러리의 resolver를 실행하고, resolver가 null을 돌려줄 수 있다(libloading-0.7.4/src/os/unix/mod.rs). 그래서 resolver가 있다면 상류보다 일찍, 또는 사전 검사에서만 실행될 수 있다. 그래서 `lookup_symbol`의 호출자는 그 라이브러리의 resolver를 현재 스레드와 현재 초기화 상태에서 실행해도 안전함을 보장해야 하고, 제품 경로는 위 실행 맥락(GTK 초기화 뒤 메인 스레드, `app_indicator_new` 전)으로 이를 충족한다. 이 검사는 AppIndicator가 객체를 만들기 전에도 함수를 조회할 수 있는 일반 공유 라이브러리라는 전제에 기댄다. aarch64 Ubuntu 24.04의 Ayatana 라이브러리는 여섯 함수를 모두 일반 FUNC 심볼로 내보낸다.
 - 조회한 주소는 null과 비교만 하고 호출하거나 역참조하지 않는다. null이면 오류 여부와 관계없이 없는 함수로 센다. 상류는 받은 주소를 바로 호출하기 때문이다.
-- 단위 시험은 `libc.so.6`·`libm.so.6`(이미 적재돼 새 초기화 루틴이 돌지 않는다)과 없는 이름만 열고, `cos`와 필수 함수 이름만 조회한다. GTK 조건은 시험에 적용되지 않는다.
+- 단위 시험은 `libc.so.6`·`libm.so.6`(이미 적재돼 새 초기화 루틴이 돌지 않는다)과 없는 이름만 열고, `cos`와 필수 함수 이름만 조회한다. x86_64 glibc의 `cos`는 IFUNC라 시험에서도 resolver가 돈다. 나머지 시험은 가짜 조회 함수를 쓴다. GTK 조건은 시험에 적용되지 않는다.
 
 ## 상류가 바뀔 때
 
