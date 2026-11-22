@@ -328,17 +328,19 @@ if [ "$(cat "$top/fail" 2>/dev/null)" = early1 ]; then exit 1; fi
 if [ -z "$(ls -A "$top/$tree")" ]; then exit 1; fi
 if [ -n "$out" ]; then
     # 같은 --out에 함께 복사하면 GNU cp가 상대가 먼저 만든 항목에서 File exists로 실패하므로 산출물 단계만
-    # 호출 사이에 차례로 돈다. flock은 macOS에 기본으로 없어 mkdir 잠금을 쓴다. 잠금 문제는 인자 없는 wait가
-    # 삼키지 않도록 lock-error에 적고 하네스가 수집 뒤 실패로 낸다.
+    # 호출 사이에 차례로 돈다. flock은 macOS에 기본으로 없고, 일부 mkdir 구현(Ubuntu 26.04 기본 uutils)은 동시에
+    # 같은 디렉터리를 만들 때 진 쪽도 0으로 끝나 mkdir 잠금이 배타적이지 않다. 그래서 bash 자체의 noclobber
+    # 리다이렉션(없는 파일을 O_EXCL로 연다)으로 잠금 파일을 만든다. set -C는 뒤의 덮어쓰기에 번지지 않게 서브셸에
+    # 둔다. 잠금 문제는 인자 없는 wait가 삼키지 않도록 lock-error에 적고 하네스가 수집 뒤 실패로 낸다.
     lock="$top/out.lock"; waited=0
-    until mkdir "$lock" 2>/dev/null; do
+    until ( set -C; : > "$lock" ) 2>/dev/null; do
         waited=$((waited + 1))
         if [ "$waited" -ge 500 ]; then echo "산출물 잠금을 얻지 못했다: $lock" >> "$top/lock-error"; exit 97; fi
         sleep 0.01
     done
     made=0
     { mkdir -p "$out" && cp -R "$top/$tree/." "$out/" && : > "$out/.fetched"; } || made=$?
-    rmdir "$lock" || echo "산출물 잠금을 놓지 못했다: $lock" >> "$top/lock-error"
+    rm "$lock" || echo "산출물 잠금을 놓지 못했다: $lock" >> "$top/lock-error"
     [ "$made" -eq 0 ]
 fi
 case "$(cat "$top/fail" 2>/dev/null)" in late1) exit 1 ;; late23) exit 23 ;; esac
