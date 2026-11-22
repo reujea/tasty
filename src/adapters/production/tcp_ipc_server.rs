@@ -1237,6 +1237,9 @@ mod admission_tests {
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<IpcCommand>();
         let queue = test_queue(cmd_tx, QueueLimits::DEFAULT);
+        // 요청에는 기한을 싣지 않는다. 실으면 claim 도 큐 기한을 재므로 enqueue 와 claim 사이의
+        // 선점 시간이 결과를 바꾼다. 대기 기한은 dispatch_and_await 가 넘기는 것과 같은 자리에
+        // 직접 넘긴다.
         let request = JsonRpcRequest {
             caller_agent_id: None,
             jsonrpc: "2.0".to_string(),
@@ -1244,28 +1247,32 @@ mod admission_tests {
             params: serde_json::Value::Null,
             id: Some(serde_json::json!(7)),
             session_token: None,
-            response_timeout_ms: Some(50),
+            response_timeout_ms: None,
             idempotency_key: None,
         };
-        let (held_tx, held_rx) = mpsc::channel();
-        let taker = std::thread::spawn(move || {
-            let cmd = cmd_rx
-                .recv_timeout(Duration::from_secs(5))
-                .expect("the request reaches the queue");
-            let stats = Arc::new(tasty_ipc::dispatch::DispatchStats::default());
-            assert_eq!(cmd.claim(&stats), tasty_ipc::server::Claim::Run);
-            let cell = cmd.outcome_cell();
-            // 받는 쪽이 이미 실패해 사라졌을 수 있다 — 그때는 시험이 다른 실패문으로 끝난다.
-            let _ = held_tx.send(cmd);
-            cell
-        });
+        let rpc_id = request.id.clone().unwrap_or(serde_json::Value::Null);
+        let Ok((resp_rx, lifecycle)) = TcpIpcServer::enqueue_request(request, 0, &queue, &None)
+        else {
+            panic!("the request must be admitted to the queue");
+        };
+        let cmd = cmd_rx.try_recv().expect("the request reaches the queue");
+        let stats = Arc::new(tasty_ipc::dispatch::DispatchStats::default());
+        // 대기 기한은 claim 이 끝난 뒤에 시작하므로 만료 순간 명령은 반드시 시작된 상태다.
+        assert_eq!(cmd.claim(&stats), tasty_ipc::server::Claim::Run);
 
-        // 회귀가 무한 대기로 남지 않도록 시험 자체에도 완료 기한을 둔다.
+        // 명령을 쥔 채 기다려 응답 송신자가 살아 있게 한다. 회귀가 무한 대기로 남지 않도록
+        // 시험 자체에도 완료 기한을 둔다.
         let (done_tx, done_rx) = mpsc::channel();
         let waiter = std::thread::spawn(move || {
-            let kept =
-                TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None)
-                    .keeps_connection();
+            let kept = TcpIpcServer::await_dispatch_response(
+                &resp_rx,
+                Some(Duration::from_millis(50)),
+                &lifecycle,
+                rpc_id,
+                &mut server_side,
+                None,
+            )
+            .keeps_connection();
             // 받는 쪽이 이미 실패해 사라졌을 수 있다 — 그때는 시험이 다른 실패문으로
             // 끝나므로 이 전송의 실패에 대해 할 일이 없다.
             let _ = done_tx.send(kept);
@@ -1275,15 +1282,14 @@ mod admission_tests {
             .expect("호출자가 실은 상한이 안 걸렸다 — 기다림이 안 끝났다");
         assert!(kept, "만료는 연결을 끊는 사건이 아니다");
         waiter.join().expect("waiter");
-        let cell = taker.join().expect("taker");
-        drop(held_rx);
         assert_eq!(
-            cell.get(),
+            cmd.outcome_cell().get(),
             Some(tasty_telemetry::slow_requests::HostOutcome::Error {
                 code: crate::ipc::protocol::ERR_RESPONSE_TIMEOUT_OUTCOME_UNKNOWN
             }),
             "the slow-request row reads the answer the waiter sent (docs/architecture/ipc-server.md)"
         );
+        drop(cmd);
 
         let mut got = String::new();
         BufReader::new(client)
@@ -1301,6 +1307,11 @@ mod admission_tests {
         assert!(
             err.message.contains("unknown"),
             "문구가 결과 불명을 말하지 않는다: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("response timeout of 50 ms expired"),
+            "문구가 넘긴 대기 기한을 싣지 않는다: {}",
             err.message
         );
     }
