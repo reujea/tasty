@@ -185,6 +185,29 @@ fn rust_spaces_to_ascii(s: &str) -> String {
         .collect()
 }
 
+/// `hash` 의 `#` 로 시작하는 속성의 `[` 위치. 바깥 속성은 `#` 뒤, 안쪽 속성(`inner`)은 `#`·`!` 뒤의
+/// 공백을 건너뛴다(`# [..]`·`# ! [..]` 도 Rust 가 받는 속성이다). 속성 판정·묶음 역탐색·사유 주석 탐색이
+/// 같은 규칙을 쓰도록 이 함수 하나에 둔다.
+fn attr_bracket(b: &[u8], hash: usize, inner: bool) -> Option<usize> {
+    let skip = |mut i: usize| {
+        while b.get(i).is_some_and(|c| c.is_ascii_whitespace()) {
+            i += 1;
+        }
+        i
+    };
+    if b.get(hash) != Some(&b'#') {
+        return None;
+    }
+    let mut k = skip(hash + 1);
+    if inner {
+        if b.get(k) != Some(&b'!') {
+            return None;
+        }
+        k = skip(k + 1);
+    }
+    (b.get(k) == Some(&b'[')).then_some(k)
+}
+
 /// 바이트 구간(끝은 제외).
 type Span = std::ops::Range<usize>;
 
@@ -417,15 +440,9 @@ impl<'a> Code<'a> {
         (0..i).rev().find(|&k| !self.b[k].is_ascii_whitespace())
     }
 
-    /// `#[` 또는 `#![` 로 시작하는 속성이면 (`[` 위치, `]` 위치).
+    /// `hash` 에서 속성(`attr_bracket`)이 시작하면 (`[` 위치, `]` 위치).
     fn attr_at(&self, hash: usize, inner: bool) -> Option<(usize, usize)> {
-        let open = hash + if inner { 2 } else { 1 };
-        if self.b.get(hash) != Some(&b'#')
-            || (inner && self.b.get(hash + 1) != Some(&b'!'))
-            || self.b.get(open) != Some(&b'[')
-        {
-            return None;
-        }
+        let open = attr_bracket(self.b, hash, inner)?;
         let close = self.pair[open];
         (close != NONE).then_some((open, close))
     }
@@ -446,10 +463,13 @@ impl<'a> Code<'a> {
         let mut start = hash;
         while let Some(p) = self.prev_non_ws(start) {
             let open = self.pair[p];
-            if self.b[p] != b']' || open == NONE || open == 0 || self.b[open - 1] != b'#' {
+            if self.b[p] != b']' || open == NONE {
                 break;
             }
-            start = open - 1;
+            match self.prev_non_ws(open) {
+                Some(h) if attr_bracket(self.b, h, false) == Some(open) => start = h,
+                _ => break,
+            }
         }
         let mut k = hash;
         while let Some((_, close)) = self.attr_at(k, false) {
@@ -1363,13 +1383,14 @@ fn statement_end(lines: &[&str], start: usize) -> usize {
     start
 }
 
-/// 바로 앞의 유의미한 줄이 `//` 주석인가 — 빈 줄과 `#[..]` 속성은 건너뛴다.
+/// 바로 앞의 유의미한 줄이 `//` 주석인가 — 빈 줄과 속성(`attr_bracket`)으로 시작하는 줄은 건너뛴다.
 fn preceded_by_comment(lines: &[&str], start: usize) -> bool {
     let mut j = start;
     while j > 0 {
         j -= 1;
         let t = lines[j].trim();
-        if t.is_empty() || t.starts_with("#[") || t.starts_with("#![") {
+        let attr = |inner| attr_bracket(t.as_bytes(), 0, inner).is_some();
+        if t.is_empty() || attr(false) || attr(true) {
             continue;
         }
         return t.starts_with("//");
@@ -3065,6 +3086,31 @@ mod helper_tests {
         assert_eq!(
             test_scope_sites(&rewarn, false),
             vec![(7, Some(Level::Warn))]
+        );
+    }
+
+    #[test]
+    fn attributes_with_spaces_after_the_hash_are_attributes() {
+        assert_eq!(
+            both("# [cfg(test)]\nmod tests {\n    fn t() {\n        {IGNORE}\n    }\n}\n"),
+            (vec![], vec![4])
+        );
+        for head in ["# ! [cfg(test)]", "#! [cfg(test)]", "# ![cfg(test)]"] {
+            assert_eq!(
+                both(&format!("{head}\nfn t() {{\n    {{IGNORE}}\n}}\n")),
+                (vec![], vec![3]),
+                "{head}"
+            );
+        }
+        // 속성 묶음은 띄어 쓴 속성까지 거슬러 올라간다.
+        assert_eq!(
+            masked_lines("# [inline]\n#[cfg(test)]\nfn t() {}\nfn f() {}\n"),
+            vec![true, true, true, false]
+        );
+        // 사유 주석 탐색도 띄어 쓴 속성 줄을 건너뛴다.
+        assert_eq!(
+            fixture("fn f() {\n    // 이유\n    # [allow(unused)]\n    {IGNORE}\n}\n"),
+            Vec::<usize>::new()
         );
     }
 }
