@@ -169,9 +169,7 @@ fn append_line_to(path: &Path, line: &str, cap: u64) -> io::Result<()> {
     // 공유 잠금을 얻으면 정상 배타 비우기와 겹치지 않는다. 잠금 실패 때는 그대로 쓴다.
     let _shared = meta.as_ref().and_then(|m| MetaLock::shared(m, &meta_path));
     #[cfg(test)]
-    if _shared.is_none() {
-        unaccounted::record(path, unaccounted::Cause::UnlockedAppend);
-    }
+    let unlocked_from = _shared.is_none().then(|| unaccounted::peek(path));
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -179,7 +177,12 @@ fn append_line_to(path: &Path, line: &str, cap: u64) -> io::Result<()> {
     let mut record = String::with_capacity(line.len() + 1);
     record.push_str(line);
     record.push('\n');
-    file.write_all(record.as_bytes())
+    let written = file.write_all(record.as_bytes());
+    #[cfg(test)]
+    if let Some(from) = unlocked_from {
+        unaccounted::record_unlocked_append(path, &from, record.len() as u64);
+    }
+    written
 }
 
 /// 메타 파일을 연다. 실패해도 완료 알림 쓰기는 진행하지만 잠금과 누계 갱신은 생략한다.
@@ -316,16 +319,23 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
     #[cfg(test)]
     let lockless = exclusive.is_none();
     #[cfg(test)]
-    if lockless {
-        unaccounted::lockless_begin(path);
-    }
+    unaccounted::truncation_begin(path, lockless);
     let truncated = truncate_over_cap(path, cap);
+    // 잠금 없는 비우기는 끝 표지 전에 기록한다. reader는 끝 표지를 본 뒤의 계수로 unknown을
+    // 설명하므로, 끝난 비우기는 그 시점에 이미 세어져 있어야 한다.
     #[cfg(test)]
-    if lockless {
-        unaccounted::lockless_end(path);
+    if lockless && truncated.is_some() {
+        unaccounted::record(path, cause);
     }
+    #[cfg(test)]
+    unaccounted::truncation_end(path, lockless);
     let Some(discarded) = truncated else {
         return;
+    };
+    #[cfg(test)]
+    let meta_before = match (&exclusive, meta) {
+        (Some(_), Some(m)) => unaccounted::meta_text(m),
+        _ => None,
     };
     let retention_start = match (&exclusive, meta) {
         (Some(_), Some(m)) => advance_retention_start(m, discarded, meta_path),
@@ -339,8 +349,21 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
             path.display()
         ),
         None => {
+            // 배타 잠금 아래의 갱신 실패는 잠금을 놓기 전에 기록한다. 메타 내용이 그대로면 누계만
+            // 빠진 비우기이고, 바뀌었거나 읽지 못했으면 누계가 어느 쪽으로든 망가졌을 수 있다.
             #[cfg(test)]
-            unaccounted::record(path, cause);
+            if !lockless {
+                let unchanged =
+                    meta_before.is_some() && meta_before == meta.and_then(unaccounted::meta_text);
+                unaccounted::record(
+                    path,
+                    if unchanged {
+                        unaccounted::Cause::MetaUpdateUnchanged
+                    } else {
+                        unaccounted::Cause::MetaUpdate
+                    },
+                );
+            }
             tracing::warn!(
                 "notify log {} hit the {cap}-byte cap — discarded {discarded} bytes of completion \
                  lines, including anything a lagging reader had not read yet (retention_start NOT \
@@ -367,10 +390,10 @@ mod unaccounted {
         LockError,
         /// 메타를 열지 못해 잠금 없이 비웠다.
         MetaOpen,
-        /// 배타 잠금 아래 비웠으나 누계 갱신에 실패했다.
+        /// 배타 잠금 아래 비웠으나 누계 갱신에 실패했고 메타 내용이 바뀌었거나 확인하지 못했다.
         MetaUpdate,
-        /// 공유 잠금 없이 append 경로에 들어갔다.
-        UnlockedAppend,
+        /// 배타 잠금 아래 비웠으나 누계 갱신에 실패했고 메타 내용은 그대로다.
+        MetaUpdateUnchanged,
     }
 
     #[derive(Clone, Copy, Debug, Default)]
@@ -379,22 +402,31 @@ mod unaccounted {
         pub(super) lock_error: u64,
         pub(super) meta_open: u64,
         pub(super) meta_update: u64,
+        pub(super) meta_update_unchanged: u64,
+        /// 공유 잠금 없이 append 경로에 들어간 호출 수.
         pub(super) unlocked_append: u64,
+        /// 그중 배타 비우기의 `truncate_over_cap` 구간과 겹쳐 쓴 바이트가 누계 밖에서 지워졌을
+        /// 수 있는 호출 수와 그 바이트 합.
+        pub(super) unlocked_append_overlap: u64,
+        pub(super) unlocked_append_overlap_bytes: u64,
         /// 배타 잠금 없이 `truncate_over_cap`을 부른 횟수(시작·끝). reader가 자기 읽기와 겹친
         /// 잠금 없는 비우기 시도를 알아내는 데 쓴다.
         pub(super) lockless_started: u64,
         pub(super) lockless_finished: u64,
+        /// 배타 잠금 아래 `truncate_over_cap`을 부른 횟수(시작·끝). 공유 잠금 없는 append가
+        /// 그 구간과 겹쳤는지 판정하는 데 쓴다.
+        pub(super) locked_started: u64,
+        pub(super) locked_finished: u64,
     }
 
     impl Counts {
         /// 누계에 반영되지 않은 비우기 횟수.
         pub(super) fn truncations(&self) -> u64 {
-            self.lock_budget + self.lock_error + self.meta_open + self.meta_update
-        }
-
-        /// 누계 밖 비우기와 공유 잠금 없는 append를 합친 저하 횟수.
-        pub(super) fn degradations(&self) -> u64 {
-            self.truncations() + self.unlocked_append
+            self.lock_budget
+                + self.lock_error
+                + self.meta_open
+                + self.meta_update
+                + self.meta_update_unchanged
         }
     }
 
@@ -416,16 +448,52 @@ mod unaccounted {
             Cause::LockError => c.lock_error += 1,
             Cause::MetaOpen => c.meta_open += 1,
             Cause::MetaUpdate => c.meta_update += 1,
-            Cause::UnlockedAppend => c.unlocked_append += 1,
+            Cause::MetaUpdateUnchanged => c.meta_update_unchanged += 1,
         });
     }
 
-    pub(super) fn lockless_begin(path: &Path) {
-        update(path, |c| c.lockless_started += 1);
+    /// 공유 잠금 없는 append 한 건을 기록한다. `from`은 쓰기 전에 본 계수다. 그 사이 배타
+    /// 비우기 구간이 진행 중이었거나 시작됐으면 겹친 것으로 센다.
+    pub(super) fn record_unlocked_append(path: &Path, from: &Counts, bytes: u64) {
+        update(path, |c| {
+            c.unlocked_append += 1;
+            if from.locked_started != from.locked_finished
+                || c.locked_started != from.locked_started
+            {
+                c.unlocked_append_overlap += 1;
+                c.unlocked_append_overlap_bytes += bytes;
+            }
+        });
     }
 
-    pub(super) fn lockless_end(path: &Path) {
-        update(path, |c| c.lockless_finished += 1);
+    pub(super) fn truncation_begin(path: &Path, lockless: bool) {
+        update(path, |c| {
+            if lockless {
+                c.lockless_started += 1;
+            } else {
+                c.locked_started += 1;
+            }
+        });
+    }
+
+    pub(super) fn truncation_end(path: &Path, lockless: bool) {
+        update(path, |c| {
+            if lockless {
+                c.lockless_finished += 1;
+            } else {
+                c.locked_finished += 1;
+            }
+        });
+    }
+
+    /// 배타 잠금을 쥔 핸들로 메타 내용을 읽는다. 읽지 못하면 None.
+    pub(super) fn meta_text(meta: &std::fs::File) -> Option<String> {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut handle = meta;
+        handle.seek(SeekFrom::Start(0)).ok()?;
+        let mut text = String::new();
+        handle.read_to_string(&mut text).ok()?;
+        Some(text)
     }
 
     pub(super) fn peek(path: &Path) -> Counts {
@@ -982,7 +1050,7 @@ mod tests {
         const CAP: u64 = 512;
         const WRITERS: usize = 6;
         const ROUNDS: usize = 1_500;
-        const MAX_REJECTED_IN_A_ROW: usize = 1_000;
+        const MAX_REJECTED_AFTER_WRITERS: usize = 1_000;
         // writer보다 먼저 메타를 만들어 reader가 처음부터 공유 잠금 아래에서 읽게 한다.
         open_meta(&notify_meta_path(&log)).expect("메타 준비");
         let done = std::sync::atomic::AtomicUsize::new(0);
@@ -1001,7 +1069,10 @@ mod tests {
                 });
             }
             let mut offset = 0u64;
-            let mut rejected_in_a_row = 0usize;
+            let mut rejected_after_writers = 0usize;
+            // unknown마다 그 읽기 구간에 기록된 누계 밖 비우기를 하나씩 배정한다. `used`는 이미
+            // 배정한 비우기 수, `window_from`은 직전에 채택한 읽기를 시작할 때의 비우기 수다.
+            let (mut used, mut window_from) = (0u64, 0u64);
             loop {
                 let finished = done.load(std::sync::atomic::Ordering::SeqCst) == WRITERS;
                 let before = unaccounted::peek(&log);
@@ -1015,33 +1086,45 @@ mod tests {
                     Ok(r) if r.locked && !overlapped => r,
                     other => {
                         rejected += 1;
-                        rejected_in_a_row += 1;
-                        let why = match &other {
-                            Ok(r) => format!("locked={} overlapped={overlapped}", r.locked),
-                            Err(e) => format!("error {e}"),
-                        };
-                        assert!(
-                            rejected_in_a_row < MAX_REJECTED_IN_A_ROW,
-                            "재개 읽기를 {rejected_in_a_row} 번 연속 버렸다(마지막: {why}). \
-                             계수 {after:?}"
-                        );
+                        // writer가 도는 동안은 잠금 없는 비우기가 계속 겹칠 수 있다. 모두 끝난 뒤에는
+                        // 새 비우기가 없으므로 계속 버려지는 것은 읽기 오류뿐이다.
+                        if finished {
+                            rejected_after_writers += 1;
+                            let why = match &other {
+                                Ok(r) => format!("locked={} overlapped={overlapped}", r.locked),
+                                Err(e) => format!("error {e}"),
+                            };
+                            assert!(
+                                rejected_after_writers < MAX_REJECTED_AFTER_WRITERS,
+                                "writer가 끝난 뒤 재개 읽기를 {rejected_after_writers} 번 버렸다\
+                                 (마지막: {why}). 계수 {after:?}"
+                            );
+                        }
                         std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
                         continue;
                     }
                 };
-                rejected_in_a_row = 0;
                 for l in &r.lines {
                     read_bytes += l.len() as u64 + 1;
                     assert!(
                         seen.insert(l.clone()),
-                        "같은 줄을 두 번 받았다: {l} (계수 {:?})",
-                        unaccounted::peek(&log)
+                        "같은 줄을 두 번 받았다: {l} (계수 {after:?})"
                     );
                 }
                 match r.skipped {
                     Some(n) => skipped_bytes += n,
-                    None => unknown += 1,
+                    None => {
+                        unknown += 1;
+                        let floor = used.max(window_from);
+                        assert!(
+                            after.truncations() > floor,
+                            "unknown {unknown} 번째를 설명할 누계 밖 비우기가 직전 읽기 이후에 없다\
+                             (배정한 {used}, 구간 시작 {window_from}). 계수 {after:?}"
+                        );
+                        used = floor + 1;
+                    }
                 }
+                window_from = before.truncations();
                 offset = r.next_offset;
                 if finished {
                     break;
@@ -1061,14 +1144,16 @@ mod tests {
              {rejected}",
             c.truncations()
         );
-        // 누계 갱신 실패는 메타를 부분적으로 망가뜨려 누계를 올리거나 내릴 수 있어 바이트 합을
-        // 판정하지 않는다. 그 밖의 저하는 받은 + 잃은 을 쓴 값보다 작게만 만든다.
+        // 메타 내용이 바뀐 갱신 실패는 누계를 어느 쪽으로든 망가뜨렸을 수 있어 바이트 합을
+        // 판정하지 않는다. 누계 밖 비우기는 받은 + 잃은 을 쓴 값보다 작게만 만든다. 공유 잠금 없는
+        // append는 배타 비우기 구간과 겹친 것의 바이트만 누계 밖에서 지워질 수 있다.
         if c.meta_update == 0 {
-            if c.degradations() == 0 {
-                assert_eq!(
-                    received, written,
-                    "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 과 다르다. 버린 읽기 \
-                     {rejected}"
+            if c.truncations() == 0 {
+                let floor = written - c.unlocked_append_overlap_bytes;
+                assert!(
+                    (floor..=written).contains(&received),
+                    "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 과 다르다(허용 하한 \
+                     {floor}). 계수 {c:?}, 버린 읽기 {rejected}"
                 );
             } else {
                 assert!(
