@@ -3599,11 +3599,12 @@ fn typed_task_graphs_submit_atomically_and_pass_inputs_by_value() {
     tasty.call("workspace.close", json!({"id": ws}));
 }
 
-/// 같은 홈의 파일 상태. 상대 경로마다 (바이트, 수정 시각).
+/// 같은 홈의 파일 상태. 파일은 상대 경로마다 (바이트, 수정 시각), 디렉터리는 `경로/` 키에 (항목 이름 목록, 없음).
 #[cfg(not(feature = "gui"))]
-type HomeFiles = std::collections::BTreeMap<String, (Vec<u8>, std::time::SystemTime)>;
+type HomeFiles = std::collections::BTreeMap<String, (Vec<u8>, Option<std::time::SystemTime>)>;
 
-/// `rel`이 파일이면 그 파일을, 디렉터리면 아래 모든 파일을 모은다. 없으면 아무것도 넣지 않는다.
+/// `rel`이 파일이면 그 파일을, 디렉터리면 디렉터리 자체(존재와 항목 목록)와 아래 모든 항목을 모은다.
+/// 없으면 아무것도 넣지 않는다.
 #[cfg(not(feature = "gui"))]
 fn collect_home_files(home: &std::path::Path, rel: &str, out: &mut HomeFiles) {
     let path = home.join(rel);
@@ -3617,13 +3618,17 @@ fn collect_home_files(home: &std::path::Path, rel: &str, out: &mut HomeFiles) {
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .collect();
         names.sort();
+        out.insert(format!("{rel}/"), (names.join("\n").into_bytes(), None));
         for name in names {
             collect_home_files(home, &format!("{rel}/{name}"), out);
         }
         return;
     }
     let bytes = std::fs::read(&path).expect("read home file");
-    out.insert(rel.to_string(), (bytes, meta.modified().expect("mtime")));
+    out.insert(
+        rel.to_string(),
+        (bytes, Some(meta.modified().expect("mtime"))),
+    );
 }
 
 /// 두 번째 호스트가 바꾸면 안 되는 파일. 실행 중인 호스트가 계속 쓰는 SQLite 파일과 로그는 따로 본다.
@@ -3638,6 +3643,9 @@ fn untouched_home_files(home: &std::path::Path) -> HomeFiles {
         "plugins",
         "plugins-logs",
         "structure/journal.json",
+        "layout.json",
+        "layouts",
+        "scrollback",
     ] {
         collect_home_files(home, rel, &mut out);
     }
@@ -3745,12 +3753,13 @@ fn settled_home_files(home: &std::path::Path) -> HomeFiles {
 #[cfg(not(feature = "gui"))]
 fn run_second_host(
     shared: &common::SharedHome,
+    command: std::process::Command,
     port: u16,
     first_id: &str,
 ) -> (std::process::ExitStatus, String) {
     use common::spawn_diag::{ChildReaper, STDERR_TAIL_LINES, StderrCapture, spawn_child};
 
-    let mut host = ChildReaper::new(spawn_child(shared.host_command()).expect("spawn second host"));
+    let mut host = ChildReaper::new(spawn_child(command).expect("spawn second host"));
     let mut stderr = StderrCapture::start(host.child().stderr.take(), STDERR_TAIL_LINES);
     let deadline = std::time::Instant::now() + Duration::from_secs(30);
     loop {
@@ -3766,9 +3775,9 @@ fn run_second_host(
             "두 번째 호스트 실행 중 기본 포트 파일이 첫 호스트를 가리키지 않는다"
         );
         assert_eq!(
-            instance_id_at(port).as_deref(),
+            shared.cli_instance_id().as_deref(),
             Some(first_id),
-            "두 번째 호스트 실행 중 첫 호스트가 응답하지 않는다"
+            "두 번째 호스트 실행 중 기본 포트 파일로 부른 tasty list info 가 첫 호스트를 가리키지 않는다"
         );
         assert!(
             std::time::Instant::now() < deadline,
@@ -3813,7 +3822,14 @@ fn a_second_headless_host_on_a_held_home_leaves_it_untouched() {
     let log_before = std::fs::read_to_string(&log_path).expect("host log");
     let log_first_line = log_before.lines().next().unwrap_or_default().to_string();
 
-    let (status, stderr) = run_second_host(&shared, port, &first_id);
+    // 두 번째 호스트 명령을 만드는 것만으로는 홈이 바뀌지 않는다(번들 준비는 SharedHome 생성 때 한 번).
+    let second = shared.host_command();
+    assert_eq!(
+        untouched_home_files(&home),
+        before,
+        "B 를 띄우기 전, 명령을 만드는 것만으로 홈 파일이 바뀌었다"
+    );
+    let (status, stderr) = run_second_host(&shared, second, port, &first_id);
     assert_eq!(status.code(), Some(1), "거절 종료 코드는 1이다:\n{stderr}");
     assert!(
         stderr.contains("Data folder already in use"),
@@ -3840,9 +3856,9 @@ fn a_second_headless_host_on_a_held_home_leaves_it_untouched() {
         "두 번째 호스트가 memory.db-wal 을 checkpoint 했다"
     );
     assert_eq!(
-        shared.published_port().and_then(instance_id_at).as_deref(),
+        shared.cli_instance_id().as_deref(),
         Some(first_id.as_str()),
-        "두 번째 호스트 종료 뒤 기본 포트 파일로 첫 호스트를 찾지 못한다"
+        "두 번째 호스트 종료 뒤 기본 포트 파일로 부른 tasty list info 가 첫 호스트를 가리키지 않는다"
     );
 
     drop(first);

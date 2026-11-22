@@ -16,6 +16,8 @@ const DEDICATED_SPAWN_MARKERS: &[&str] = &[
     "TastyInstance::spawn_with_inherit_cwd(",
     "WebhookInstance::builder(",
     "WebhookInstance::builder_for_restart(",
+    // 같은 홈을 여러 호스트가 쓰는 프로세스 시험의 호스트 명령. 만들 때마다 전용 호스트 하나를 띄운다.
+    ".host_command()",
 ];
 
 /// 호출을 import할 수 있어 하네스 모듈 선언으로 사용 파일을 찾는다. 프로토콜 헬퍼인 attach_common은 제외한다.
@@ -26,7 +28,9 @@ const INSTANCE_HARNESS_MARKERS: &[&str] =
 /// soak_memory는 다른 시험의 활동 없이 RSS를 측정한다. attach_convert_cwd는 기동 시 inherit_cwd 설정이 필요하다.
 /// 웹훅 하네스는 HOME과 설정을 개별 준비하며, webhook_integration은 같은 HOME으로 재시작도 검사한다.
 /// remote_attach_token_caller는 mirror를 받는 쪽과 다른 프로세스의 서버가 필요하다.
+/// e2e_tests는 같은 홈의 writer 잠금 충돌을 재현하려고 같은 홈에 호스트 둘(실행 중인 A, 거절될 B)을 띄운다.
 const ALLOWLIST_FILES: &[(&str, usize)] = &[
+    ("tests/e2e_tests.rs", 2),
     ("tests/soak_memory.rs", 1),
     ("tests/attach_convert_cwd_loopback.rs", 1),
     ("tests/hook_env_integration.rs", 1),

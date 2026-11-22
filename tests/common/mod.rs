@@ -584,6 +584,9 @@ impl Drop for TastyInstance {
 /// 프로세스 수명은 호출자가 [`spawn_diag::ChildReaper`]로 관리하고, 루트는 이 값이 drop될 때 지운다.
 pub struct SharedHome {
     root: PathBuf,
+    /// 번들 준비가 정한 환경변수. 준비는 생성 때 한 번만 하고 호스트 명령마다 이 값만 다시 붙인다.
+    /// 호스트 명령을 만들 때마다 준비하면 실행 중인 호스트의 `plugins/`를 시험이 다시 채운다.
+    bundle_env: Vec<(std::ffi::OsString, Option<std::ffi::OsString>)>,
 }
 
 impl SharedHome {
@@ -599,7 +602,13 @@ impl SharedHome {
         std::fs::write(root.join(".zshrc"), "").ok();
         std::fs::write(root.join(".bashrc"), "").ok();
         write_isolated_config(&root, false, false);
-        Self { root }
+        let mut probe = Command::new("tasty-bundle-env-probe");
+        spawn_diag::apply_bundle_opt_in(&mut probe, &root.join(".tasty"));
+        let bundle_env = probe
+            .get_envs()
+            .map(|(k, v)| (k.to_owned(), v.map(|v| v.to_owned())))
+            .collect();
+        Self { root, bundle_env }
     }
 
     /// 호스트가 쓰는 데이터 홈(`TASTY_HOME`).
@@ -630,13 +639,36 @@ impl SharedHome {
             .env(spawn_diag::LOG_ENV, spawn_diag::LOG_FILTER)
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
+        for (key, value) in &self.bundle_env {
+            match value {
+                Some(value) => command.env(key, value),
+                None => command.env_remove(key),
+            };
+        }
         spawn_diag::apply_os_open_record(&mut command, &self.root);
-        spawn_diag::apply_bundle_opt_in(&mut command, &self.tasty_home());
         spawn_diag::apply_display_policy(&mut command);
         command
     }
-}
 
+    /// 실제 `tasty list info`를 이 홈으로 실행해 기본 포트 파일이 가리키는 인스턴스의 `instance_id`를 읽는다.
+    /// CLI가 실패하거나 JSON이 아니면 `None`.
+    pub fn cli_instance_id(&self) -> Option<String> {
+        let output = Command::new(spawn_diag::instance_bin())
+            .args(["list", "info"])
+            .env("HOME", &self.root)
+            .env("TASTY_HOME", self.tasty_home())
+            .env_remove("TASTY_SURFACE_ID")
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let info: Value = serde_json::from_slice(&output.stdout).ok()?;
+        info["instance_id"].as_str().map(str::to_string)
+    }
+}
 impl Drop for SharedHome {
     fn drop(&mut self) {
         // 이유: 정리 중 삭제 실패를 다시 보고할 곳이 없다. 남은 폴더는 시스템 임시 디렉터리에 있다.
