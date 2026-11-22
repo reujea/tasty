@@ -1180,6 +1180,10 @@ struct Scopes {
     levels: Vec<(Span, Level)>,
     /// 파일 머리 안쪽 속성이 정한 최종 수준(뒤의 속성이 이긴다). 크레이트 루트 판정에 쓴다.
     head_level: Option<Level>,
+    /// `expect(clippy::let_underscore_must_use)` 가 덮는 구간. 면제로 보지 않고 진단 안내에만 쓴다.
+    expects: Vec<Span>,
+    /// 파일 머리 안쪽 속성에 그 `expect` 가 있는가. 크레이트 루트의 안내에 쓴다.
+    head_expect: bool,
 }
 
 impl Scopes {
@@ -1284,6 +1288,30 @@ fn lint_level(content: &str) -> Option<Level> {
     None
 }
 
+/// 속성 내용(공백 제거)이 테스트 빌드에서 이 lint 의 `expect` 를 거는가. `cfg_attr(P, ..)` 는 `lint_level`
+/// 처럼 P 가 테스트 빌드에서 거짓으로 정해질 때만 무시한다. 가드는 `expect` 를 면제로 보지 않는다
+/// (테스트 범위의 모든 `let _` 에 면제를 요구하므로 lint 가 발동하지 않는 빌드에서 `expect` 가 실패할 수 있다).
+fn lint_expect(content: &str) -> bool {
+    if let Some(inner) = content
+        .strip_prefix("cfg_attr(")
+        .and_then(|r| r.strip_suffix(')'))
+    {
+        let args = cfg_args(inner);
+        return args
+            .first()
+            .is_some_and(|pred| eval_in_test(pred) != Some(false))
+            && args[1..].iter().any(|a| lint_expect(a.trim()));
+    }
+    content
+        .strip_prefix("expect(")
+        .and_then(|r| r.strip_suffix(')'))
+        .is_some_and(|names| {
+            cfg_args(names)
+                .iter()
+                .any(|n| n.trim() == "clippy::let_underscore_must_use")
+        })
+}
+
 /// 마스킹 사본 전체에서 테스트 구간(test 표식이 붙은 요소, test cfg 안쪽 속성이 덮는 블록·파일)과
 /// lint 수준 구간(면제·다시 켬 속성이 붙은 요소·블록·파일)을 모은다.
 fn scopes(masked: &str, raw: &str) -> Scopes {
@@ -1293,6 +1321,8 @@ fn scopes(masked: &str, raw: &str) -> Scopes {
         test: Vec::new(),
         levels: Vec::new(),
         head_level: None,
+        expects: Vec::new(),
+        head_expect: false,
     };
     for hash in memchr_all(code.b, b'#') {
         let inner = code.attr_at(hash, true);
@@ -1302,7 +1332,8 @@ fn scopes(masked: &str, raw: &str) -> Scopes {
         let text = content(&code, open, close);
         let marker = is_test_marker(&text);
         let level = lint_level(&text);
-        if !marker && level.is_none() {
+        let expect = lint_expect(&text);
+        if !marker && level.is_none() && !expect {
             continue;
         }
         // 끝을 텍스트로 정할 수 없는 요소에 붙은 테스트 표식과 면제는 그 속성이 든 묶음의 시작부터 그 속성 끝까지만
@@ -1324,12 +1355,22 @@ fn scopes(masked: &str, raw: &str) -> Scopes {
             if level.is_some() && span == (0..code.b.len()) && s.head_level != Some(Level::Forbid) {
                 s.head_level = level;
             }
+            if expect && span == (0..code.b.len()) {
+                s.head_expect = true;
+            }
             span
         } else {
             let (start, body) = code.attr_run(hash);
             start..code.element_end(body).max(body)
         };
         let narrow = code.attr_run(hash).0..close + 1;
+        if expect {
+            s.expects.push(if macro_input {
+                narrow.clone()
+            } else {
+                span.clone()
+            });
+        }
         if marker {
             s.test.push(if macro_input {
                 narrow.clone()
@@ -1514,9 +1555,20 @@ fn crate_roots(root: &Path, rel: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-/// 테스트 범위 `let _ =` 의 (줄 번호, 그 자리의 lint 수준). 제품 코드 검사와 같은 마스킹·범위 판정을 쓴다.
+/// 테스트 범위 `let _ =` 한 자리.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Site {
+    /// 줄 번호(0부터).
+    line: usize,
+    /// 그 자리의 lint 수준.
+    level: Option<Level>,
+    /// 그 자리를 `expect(clippy::let_underscore_must_use)` 가 덮는가(진단 안내용).
+    under_expect: bool,
+}
+
+/// 테스트 범위 `let _ =` 의 자리(`let` 위치마다 하나). 제품 코드 검사와 같은 마스킹·범위 판정을 쓴다.
 /// 통합 테스트는 #[test] 밖의 헬퍼도 테스트 코드이므로 whole_file로 포함한다.
-fn test_scope_sites(text: &str, whole_file: bool) -> Vec<(usize, Option<Level>)> {
+fn test_scope_site_info(text: &str, whole_file: bool) -> Vec<Site> {
     let code_src = tasty_doc_guards::source_text::mask_non_code(text);
     let s = scopes(&code_src, text);
     let starts = line_starts(&code_src);
@@ -1525,11 +1577,23 @@ fn test_scope_sites(text: &str, whole_file: bool) -> Vec<(usize, Option<Level>)>
         for col in let_underscores(line) {
             let pos = starts[i] + col;
             if whole_file || covers(&s.test, pos) {
-                out.push((i, s.level_at(pos)));
+                out.push(Site {
+                    line: i,
+                    level: s.level_at(pos),
+                    under_expect: covers(&s.expects, pos),
+                });
             }
         }
     }
     out
+}
+
+/// 테스트 범위 `let _ =` 의 (줄 번호, 그 자리의 lint 수준).
+fn test_scope_sites(text: &str, whole_file: bool) -> Vec<(usize, Option<Level>)> {
+    test_scope_site_info(text, whole_file)
+        .into_iter()
+        .map(|s| (s.line, s.level))
+        .collect()
 }
 
 /// 면제되지 않은 자리가 고쳐야 할 것.
@@ -1560,17 +1624,61 @@ enum Root {
 fn needs(sites: &[(usize, Option<Level>)], root: Root) -> Vec<(usize, Need)> {
     sites
         .iter()
-        .filter_map(|&(i, level)| match (root, level) {
-            (Root::Known(Some(Level::Forbid)), _) | (_, Some(Level::Forbid)) => {
-                Some((i, Need::Forbidden))
-            }
-            // 루트가 정해지지 않으면 안쪽 `allow` 를 다는 안내도 `forbid` 아래에서는 오류가 된다.
-            (Root::Conflict, _) => Some((i, Need::RootConflict)),
-            (_, Some(Level::Warn)) => Some((i, Need::Reenabled)),
-            (_, Some(Level::Allow)) | (Root::Known(Some(Level::Allow)), None) => None,
-            (Root::Known(_), None) => Some((i, Need::Exemption)),
-        })
+        .filter_map(|&(i, level)| need_of(level, root).map(|n| (i, n)))
         .collect()
+}
+
+/// 수준이 `level` 인 자리 하나가 고쳐야 할 것(`needs` 의 규칙).
+fn need_of(level: Option<Level>, root: Root) -> Option<Need> {
+    match (root, level) {
+        (Root::Known(Some(Level::Forbid)), _) | (_, Some(Level::Forbid)) => Some(Need::Forbidden),
+        // 루트가 정해지지 않으면 안쪽 `allow` 를 다는 안내도 `forbid` 아래에서는 오류가 된다.
+        (Root::Conflict, _) => Some(Need::RootConflict),
+        (_, Some(Level::Warn)) => Some(Need::Reenabled),
+        (_, Some(Level::Allow)) | (Root::Known(Some(Level::Allow)), None) => None,
+        (Root::Known(_), None) => Some(Need::Exemption),
+    }
+}
+
+/// `Need::Exemption` 으로 보고할 대표 자리(줄 번호)와 그 자리가 `expect` 아래인가. 파일 안 `expect` 가
+/// 덮거나 크레이트 루트 머리에 `expect` 가 있는(`root_expect`) 자리를 먼저 고른다.
+fn exemption_site(sites: &[Site], root: Root, root_expect: bool) -> Option<(usize, bool)> {
+    let mut found = sites
+        .iter()
+        .filter(|s| need_of(s.level, root) == Some(Need::Exemption))
+        .map(|s| (s.line, s.under_expect || root_expect));
+    let first = found.next()?;
+    Some(if first.1 {
+        first
+    } else {
+        found.find(|&(_, under)| under).unwrap_or(first)
+    })
+}
+
+/// `Need::Exemption` 의 안내. 테스트 타깃이면 파일 머리·감싸는 아이템, 아니면 크레이트 루트 `where_to` 에
+/// `allow` 를 달라고 한다. `under_expect` 면 `expect` 가 면제가 아닌 이유를 덧붙인다.
+fn exemption_fix(own_target: bool, where_to: &str, under_expect: bool) -> String {
+    let fix = if own_target {
+        format!(
+            "파일 머리에 `{TARGET_EXEMPTION}` 또는 감싸는 아이템에 `#[allow(clippy::let_underscore_must_use)]`"
+        )
+    } else {
+        format!("크레이트 루트 `{where_to}` 에 `{CRATE_EXEMPTION}`")
+    };
+    if under_expect {
+        format!(
+            "{fix}. 테스트 범위 면제는 `allow` 로 단다 — 이 자리를 덮은 `expect(clippy::let_underscore_must_use)` 는 면제로 보지 않는다(가드는 타입과 관계없이 테스트 범위의 모든 `let _` 에 면제를 요구하므로, lint 가 발동하지 않는 빌드에서는 `expect` 가 `unfulfilled_lint_expectations` 로 실패한다)"
+        )
+    } else {
+        fix
+    }
+}
+
+fn root_expect(roots: &[PathBuf]) -> bool {
+    roots
+        .iter()
+        .filter_map(|p| fs::read_to_string(p).ok())
+        .any(|t| scopes(&tasty_doc_guards::source_text::mask_non_code(&t), &t).head_expect)
 }
 
 /// 크레이트 루트 후보들의 머리 수준. 후보 중 하나라도 면제면 면제(어느 타깃이 이 파일을
@@ -1621,7 +1729,8 @@ fn test_scope_stays_out_of_the_lint_roster() {
             continue;
         };
         let own_target = is_own_target(&rel);
-        let sites = test_scope_sites(&text, own_target);
+        let info = test_scope_site_info(&text, own_target);
+        let sites: Vec<(usize, Option<Level>)> = info.iter().map(|s| (s.line, s.level)).collect();
         if sites.is_empty() {
             continue;
         }
@@ -1635,7 +1744,9 @@ fn test_scope_stays_out_of_the_lint_roster() {
         } else {
             crate_roots(root, &rel)
         };
-        let left = needs(&sites, root_level(&roots));
+        let root_lv = root_level(&roots);
+        let left = needs(&sites, root_lv);
+        let exemption = exemption_site(&info, root_lv, root_expect(&roots));
         for kind in [
             Need::Reenabled,
             Need::Forbidden,
@@ -1645,18 +1756,19 @@ fn test_scope_stays_out_of_the_lint_roster() {
             let Some(&(line, _)) = left.iter().find(|(_, n)| *n == kind) else {
                 continue;
             };
+            let (line, under_expect) = match (kind, exemption) {
+                (Need::Exemption, Some(e)) => e,
+                _ => (line, false),
+            };
             let fix = match kind {
                 Need::Reenabled => "감싸는 아이템·블록이 lint 를 다시 켰다(`warn`·`deny`). 다시 켠 속성보다 안쪽에 `#[allow(clippy::let_underscore_must_use)]` 를 단다".to_string(),
                 Need::Forbidden => "감싸는 `forbid(clippy::let_underscore_must_use)` 는 안쪽 `allow` 로 풀 수 없다(E0453). `forbid` 를 `deny` 로 바꾸고 안쪽에 `allow` 를 단다".to_string(),
-                Need::Exemption if own_target => format!(
-                    "파일 머리에 `{TARGET_EXEMPTION}` 또는 감싸는 아이템에 `#[allow(clippy::let_underscore_must_use)]`"
-                ),
                 Need::Exemption => {
                     let where_to = roots
                         .first()
                         .map(|p| rel_of(p, root))
                         .unwrap_or_else(|| "(크레이트 루트를 못 찾았다)".to_string());
-                    format!("크레이트 루트 `{where_to}` 에 `{CRATE_EXEMPTION}`")
+                    exemption_fix(own_target, &where_to, under_expect)
                 }
                 Need::RootConflict => {
                     let names: Vec<String> = roots.iter().map(|p| rel_of(p, root)).collect();
@@ -3165,5 +3277,142 @@ mod helper_tests {
             ),
             (vec![], vec![5])
         );
+    }
+
+    const EXPECT: &str = "#[expect(clippy::let_underscore_must_use)]";
+
+    /// (줄 번호 0부터, 그 자리의 판정, expect 아래인가). 같은 자리의 판정과 expect 를 함께 본다.
+    fn exemption_info(text: &str, root: Root) -> Vec<(usize, Option<Need>, bool)> {
+        test_scope_site_info(text, false)
+            .into_iter()
+            .map(|s| (s.line, need_of(s.level, root), s.under_expect))
+            .collect()
+    }
+
+    #[test]
+    fn an_expect_on_test_scope_is_not_an_exemption_but_is_told_apart() {
+        for (src, line) in [
+            (
+                format!("#[cfg(test)]\n{EXPECT}\nmod tests {{\n    fn t() {{\n        {{IGNORE}}\n    }}\n}}\n"),
+                4,
+            ),
+            (
+                "#![cfg(test)]\n#![expect(clippy::let_underscore_must_use)]\nfn t() {\n    {IGNORE}\n}\n"
+                    .to_string(),
+                3,
+            ),
+            (
+                "#[cfg(test)]\n#[cfg_attr(test, expect(clippy::let_underscore_must_use))]\nmod tests {\n    fn t() {\n        {IGNORE}\n    }\n}\n"
+                    .to_string(),
+                4,
+            ),
+        ] {
+            let text = with_ignore(&src);
+            assert_eq!(
+                needs(&test_scope_sites(&text, false), Root::Known(None)),
+                vec![(line, Need::Exemption)],
+                "{src}"
+            );
+            assert_eq!(
+                exemption_info(&text, Root::Known(None)),
+                vec![(line, Some(Need::Exemption), true)],
+                "{src}"
+            );
+        }
+        // 같은 줄의 expect 밖 자리는 따로 판정한다.
+        let shared = with_ignore(&format!(
+            "#[cfg(test)]\nmod m {{\n    fn t() {{\n        {EXPECT} {{IGNORE}} {{IGNORE}}\n    }}\n}}\n"
+        ));
+        assert_eq!(
+            exemption_info(&shared, Root::Known(None)),
+            vec![
+                (3, Some(Need::Exemption), true),
+                (3, Some(Need::Exemption), false)
+            ]
+        );
+        assert_eq!(
+            exemption_site(
+                &test_scope_site_info(&shared, false),
+                Root::Known(None),
+                false
+            ),
+            Some((3, true))
+        );
+        // 앞에 expect 밖 자리가 있어도 expect 아래 자리를 대표로 고른다.
+        let later = with_ignore(&format!(
+            "#[cfg(test)]\nmod m {{\n    fn t() {{\n        {{IGNORE}} {EXPECT} {{IGNORE}}\n    }}\n}}\n"
+        ));
+        assert_eq!(
+            exemption_info(&later, Root::Known(None)),
+            vec![
+                (3, Some(Need::Exemption), false),
+                (3, Some(Need::Exemption), true)
+            ]
+        );
+        assert_eq!(
+            exemption_site(
+                &test_scope_site_info(&later, false),
+                Root::Known(None),
+                false
+            ),
+            Some((3, true))
+        );
+        // 대조: allow 는 면제다. 테스트 빌드에서 꺼지는 expect 는 expect 로 보지 않는다.
+        let allow = with_ignore(&format!(
+            "#[cfg(test)]\n{EXEMPT}\nmod tests {{\n    fn t() {{\n        {{IGNORE}}\n    }}\n}}\n"
+        ));
+        assert_eq!(
+            exemption_info(&allow, Root::Known(None)),
+            vec![(4, None, false)]
+        );
+        let off = with_ignore(
+            "#[cfg(test)]\n#[cfg_attr(not(test), expect(clippy::let_underscore_must_use))]\nmod tests {\n    fn t() {\n        {IGNORE}\n    }\n}\n",
+        );
+        assert_eq!(
+            exemption_info(&off, Root::Known(None)),
+            vec![(4, Some(Need::Exemption), false)]
+        );
+    }
+
+    #[test]
+    fn a_crate_root_expect_reaches_the_exemption_guidance() {
+        let root = "#![cfg_attr(test, expect(clippy::let_underscore_must_use))]\nmod m;\n";
+        let head = scopes(&tasty_doc_guards::source_text::mask_non_code(root), root);
+        assert!(head.head_expect);
+        assert_eq!(head.head_level, None);
+        // 그 루트를 쓰는 별도 모듈 파일의 자리는 면제가 아니고 안내가 expect 를 다룬다.
+        let module =
+            with_ignore("#[cfg(test)]\nmod tests {\n    fn t() {\n        {IGNORE}\n    }\n}\n");
+        assert_eq!(
+            exemption_info(&module, Root::Known(None)),
+            vec![(3, Some(Need::Exemption), false)]
+        );
+        let info = test_scope_site_info(&module, false);
+        assert_eq!(
+            exemption_site(&info, Root::Known(None), true),
+            Some((3, true))
+        );
+        assert_eq!(
+            exemption_site(&info, Root::Known(None), false),
+            Some((3, false))
+        );
+        let fix = exemption_fix(false, "src/lib.rs", true);
+        assert!(fix.contains(CRATE_EXEMPTION), "{fix}");
+        assert!(fix.contains("unfulfilled_lint_expectations"), "{fix}");
+        assert!(fix.contains("expect("), "{fix}");
+        let plain = exemption_fix(false, "src/lib.rs", false);
+        assert!(plain.contains(CRATE_EXEMPTION), "{plain}");
+        assert!(!plain.contains("unfulfilled_lint_expectations"), "{plain}");
+        assert!(!plain.contains("expect("), "{plain}");
+        for under in [true, false] {
+            let own = exemption_fix(true, "", under);
+            assert!(own.contains(TARGET_EXEMPTION), "{own}");
+            assert!(own.contains(EXEMPT), "{own}");
+            assert_eq!(
+                own.contains("unfulfilled_lint_expectations"),
+                under,
+                "{own}"
+            );
+        }
     }
 }
