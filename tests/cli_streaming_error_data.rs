@@ -27,19 +27,29 @@ fn fake_host(
         .expect("nonblocking listener");
     std::thread::spawn(move || {
         let deadline = Instant::now() + HOST_DEADLINE;
-        let stream = loop {
+        let mut accepted = None;
+        // 기한 뒤 읽기도 이미 들어와 대기 중인 연결을 꺼내는 accept 하나뿐이다.
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| {
             match listener.accept() {
-                Ok((stream, _)) => break stream,
-                Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    if Instant::now() >= deadline {
-                        return Err(format!(
-                            "{label}: 가짜 호스트가 {HOST_DEADLINE:?} 동안 연결을 받지 못했다 \
-                             (CLI 가 포트 {port} 에 붙지 않았다)"
-                        ));
-                    }
-                    std::thread::sleep(Duration::from_millis(10));
+                Ok((stream, _)) => {
+                    accepted = Some(Ok(stream));
+                    true
                 }
-                Err(e) => return Err(format!("{label}: accept 실패: {e}")),
+                Err(e) if e.kind() == ErrorKind::WouldBlock => false,
+                Err(e) => {
+                    accepted = Some(Err(e));
+                    true
+                }
+            }
+        });
+        let stream = match accepted {
+            Some(Ok(stream)) => stream,
+            Some(Err(e)) => return Err(format!("{label}: accept 실패: {e}")),
+            None => {
+                return Err(format!(
+                    "{label}: 가짜 호스트가 {HOST_DEADLINE:?} 동안 연결을 받지 못했다 \
+                     (CLI 가 포트 {port} 에 붙지 않았다)"
+                ));
             }
         };
         // 플랫폼에 따라 리스너의 nonblocking이 상속될 수 있어 소켓을 명시적으로 blocking으로 바꾼다.

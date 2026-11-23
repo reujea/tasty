@@ -60,14 +60,10 @@ fn silent_disconnect_releases_occupancy_via_heartbeat_ttl() {
     let held_since = Instant::now();
 
     let deadline = Instant::now() + RELEASE_POLL_TIMEOUT;
-    let mut released = false;
-    while Instant::now() < deadline {
-        if !is_attached(server, sid) {
-            released = true;
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(500));
-    }
+    let released =
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(500), |_| {
+            !is_attached(server, sid)
+        });
     assert!(
         released,
         "occupancy lock was not released within {:?} of a silent disconnect \
@@ -102,17 +98,15 @@ const FREE_POLL_INTERVAL: Duration = Duration::from_millis(100);
 fn wait_until_free(server: &TastyInstance, surface_id: u64, within: Duration) -> Option<FreeWait> {
     let t0 = Instant::now();
     let mut polls = 0usize;
-    while t0.elapsed() < within {
+    let mut elapsed = Duration::ZERO;
+    // 폴 횟수 진단이 FREE_POLL_INTERVAL 간격을 전제하므로 그 간격으로 읽는다.
+    let freed = tasty_utils::test_wait::holds_by_every(t0 + within, FREE_POLL_INTERVAL, |_| {
         polls += 1;
-        if !is_attached(server, surface_id) {
-            return Some(FreeWait {
-                elapsed: t0.elapsed(),
-                polls,
-            });
-        }
-        std::thread::sleep(FREE_POLL_INTERVAL);
-    }
-    None
+        let free = !is_attached(server, surface_id);
+        elapsed = t0.elapsed();
+        free
+    });
+    freed.then_some(FreeWait { elapsed, polls })
 }
 
 /// 프로토콜 불일치 연결을 유지한 채 점유가 없는지 본다. 먼저 닫으면 EOF 정리가 점유를 회수해, 거절됐어야 할 연결이 점유를 얻은 오류를 놓칠 수 있다.

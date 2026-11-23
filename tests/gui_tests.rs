@@ -1153,14 +1153,14 @@ fn menu_answer_applies_to_terminal_link_right_click() {
             .to_string()
     };
     let deadline = Instant::now() + Duration::from_secs(5);
-    while screen().matches("t323-link-menu").count() < 10 {
-        assert!(
-            Instant::now() < deadline,
-            "link lines never appeared: {:?}",
-            screen()
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| screen()
+            .matches("t323-link-menu")
+            .count()
+            >= 10),
+        "link lines never appeared: {:?}",
+        screen()
+    );
     // 링크 hover는 기본 Ctrl 수식 키를 요구한다. 수식 키 주입 대신 조건을 끈다.
     inst.call(
         "debug.settings.apply",
@@ -1497,14 +1497,14 @@ fn test_palette_paste_records_user_typing() {
     let is_typing = || inst.call("surface.is_typing", json!({ "surface_id": sid }));
 
     let deadline = Instant::now() + Duration::from_secs(10);
-    loop {
-        let idle = is_typing()["idle_seconds"].as_f64().unwrap();
-        if !(0.0..=3.0).contains(&idle) {
-            break;
-        }
-        assert!(Instant::now() < deadline, "idle never exceeded 3s: {idle}");
-        std::thread::sleep(Duration::from_millis(200));
-    }
+    let mut idle = 0.0;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(200), |_| {
+            idle = is_typing()["idle_seconds"].as_f64().unwrap();
+            !(0.0..=3.0).contains(&idle)
+        }),
+        "idle never exceeded 3s: {idle}"
+    );
 
     let mark = "PALETTE_PASTE_MARK";
     inst.call("clipboard.set_text", json!({ "text": mark }));
@@ -1518,16 +1518,14 @@ fn test_palette_paste_records_user_typing() {
     inst.call("debug.inject_egui_key", json!({ "key": "Enter" }));
 
     let deadline = Instant::now() + Duration::from_secs(3);
-    let screen = loop {
-        let text = inst.call("surface.screen_text", json!({ "surface_id": sid }))["text"]
+    let mut screen = String::new();
+    tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+        screen = inst.call("surface.screen_text", json!({ "surface_id": sid }))["text"]
             .as_str()
             .unwrap_or_default()
             .to_string();
-        if text.contains(mark) || Instant::now() >= deadline {
-            break text;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    };
+        screen.contains(mark)
+    });
     assert!(
         screen.contains(mark),
         "palette paste did not reach the input: {screen:?}"
@@ -1550,18 +1548,20 @@ fn test_palette_paste_records_user_typing() {
 /// 창 종류별 window_id 를 debug.window.list 에서 찾는다. 설정 창은 열기 요청 뒤 예약되므로 기다린다.
 fn debug_window_id(inst: &gui_common::GuiTestInstance, kind: &str) -> u64 {
     let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        let list = inst.call("debug.window.list", json!({}));
-        let found = list["windows"]
-            .as_array()
-            .and_then(|ws| ws.iter().find(|w| w["kind"] == kind))
-            .and_then(|w| w["window_id"].as_u64());
-        if let Some(id) = found {
-            return id;
-        }
-        assert!(Instant::now() < deadline, "no {kind} window: {list}");
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let mut list = serde_json::Value::Null;
+    let mut found = None;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            list = inst.call("debug.window.list", json!({}));
+            found = list["windows"]
+                .as_array()
+                .and_then(|ws| ws.iter().find(|w| w["kind"] == kind))
+                .and_then(|w| w["window_id"].as_u64());
+            found.is_some()
+        }),
+        "no {kind} window: {list}"
+    );
+    found.expect("held implies a window id")
 }
 
 /// 창 하나에 붙여넣은 글자가 클립보드 값 그대로인지 Tasty 의 기존 경로만으로 읽는다.
@@ -1621,16 +1621,14 @@ fn assert_paste_carries_the_clipboard_text(
     settle();
     inst.call("debug.inject_egui_key", json!({ "key": "Enter" }));
     let deadline = Instant::now() + Duration::from_secs(3);
-    let screen = loop {
-        let text = inst.call("surface.screen_text", json!({ "surface_id": sid }))["text"]
+    let mut screen = String::new();
+    tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+        screen = inst.call("surface.screen_text", json!({ "surface_id": sid }))["text"]
             .as_str()
             .unwrap_or_default()
             .to_string();
-        if text.contains(mark) || Instant::now() >= deadline {
-            break text;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    };
+        screen.contains(mark)
+    });
     inst.call(
         "surface.send",
         json!({ "surface_id": sid, "text": "\u{15}" }),

@@ -61,27 +61,28 @@ mod gui {
     }
 
     fn wait_for_mirror(client: &TastyInstance, name: &str) {
-        let started = Instant::now();
-        while started.elapsed() < CONNECT_WAIT {
-            if mirrors(client).iter().any(|ws| ws["name"] == name) {
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-        panic!("no mirror named {name}: {:?}", mirrors(client));
+        let appeared = tasty_utils::test_wait::holds_by_every(
+            Instant::now() + CONNECT_WAIT,
+            Duration::from_millis(50),
+            |_| mirrors(client).iter().any(|ws| ws["name"] == name),
+        );
+        assert!(appeared, "no mirror named {name}: {:?}", mirrors(client));
     }
 
     fn wait_for_run(client: &TastyInstance, token: &str, run: &Value) -> Value {
-        let started = Instant::now();
-        loop {
-            let reply = call_as(client, token, "run.result", json!({ "run": run }));
-            let result = &reply["result"];
-            if result["done"] == true {
-                return result.clone();
-            }
-            assert!(started.elapsed() < CONNECT_WAIT, "{reply}");
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        let mut reply = Value::Null;
+        assert!(
+            tasty_utils::test_wait::holds_by_every(
+                Instant::now() + CONNECT_WAIT,
+                Duration::from_millis(50),
+                |_| {
+                    reply = call_as(client, token, "run.result", json!({ "run": run }));
+                    reply["result"]["done"] == true
+                }
+            ),
+            "{reply}"
+        );
+        reply["result"].clone()
     }
 
     /// 활성 workspace와 포커스 surface. 호출 전후가 같아야 한다.

@@ -264,14 +264,13 @@ fn an_osc7_cwd_becomes_the_tab_name() {
     let sid = ws.surface_id;
     // 아래 시간은 모두 폴링 기한이다. 호출마다의 응답 대기는 하네스 상한을 따른다.
     let deadline = std::time::Instant::now() + Duration::from_secs(30);
-    while !tasty.screen_text_of(sid).contains(READY) {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "래퍼 셸 프롬프트가 나오지 않았다: {}",
-            tasty.screen_text_of(sid)
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| tasty
+            .screen_text_of(sid)
+            .contains(READY)),
+        "래퍼 셸 프롬프트가 나오지 않았다: {}",
+        tasty.screen_text_of(sid)
+    );
 
     // 공유 트리 전체가 아니라 이 workspace의 이 탭 하나만 본다. tab.list는 원본 이름, tree는 표시 이름이다.
     let pid = tasty.first_pane_id_in_workspace(ws.id);
@@ -356,18 +355,15 @@ fn an_osc7_cwd_becomes_the_tab_name() {
         &format!("printf '\\033]7;file://localhost/tmp/{dir}\\007'\r"),
     );
     let deadline = std::time::Instant::now() + Duration::from_secs(15);
-    loop {
-        let name = shown();
-        if name == dir {
-            break;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "OSC 7 cwd({dir}) 가 탭 이름이 되지 않았다: {name:?} / 화면: {}",
-            tasty.screen_text_of(sid)
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let mut name = String::new();
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            name = shown();
+            name == dir
+        }),
+        "OSC 7 cwd({dir}) 가 탭 이름이 되지 않았다: {name:?} / 화면: {}",
+        tasty.screen_text_of(sid)
+    );
 }
 
 #[test]
@@ -480,19 +476,16 @@ fn terminal_scan_cursor_is_separate_from_the_agent_mark() {
     };
     // 커서가 전진하므로 출력이 나뉘어 오면 읽은 조각을 이어 붙인다.
     let wait_scan = |needle: &str| -> String {
-        let start = std::time::Instant::now();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
         let mut seen = String::new();
-        loop {
-            seen.push_str(&scan(true));
-            if seen.contains(needle) {
-                return seen;
-            }
-            assert!(
-                start.elapsed() < Duration::from_secs(10),
-                "scan 커서에서 '{needle}' 를 못 봤다. 본 것:\n{seen}"
-            );
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        // 커서가 전진하는 읽기지만 본 조각을 모두 누적하므로 기한 뒤 읽기 한 번도 관측이다.
+        let found =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
+                seen.push_str(&scan(true));
+                seen.contains(needle)
+            });
+        assert!(found, "scan 커서에서 '{needle}' 를 못 봤다. 본 것:\n{seen}");
+        seen
     };
     let echo = |marker: &str| {
         let cmd = if cfg!(windows) {
@@ -1193,26 +1186,28 @@ fn headless_pty_spawn_write_wait_kill() {
         "pty.write",
         json!({ "id": pty_id, "text": "echo PTY_E2E_MARK\n" }),
     );
-    let read_start = std::time::Instant::now();
-    loop {
-        let r = tasty.call("pty.read", json!({ "id": pty_id }));
-        if r["text"].as_str().unwrap_or("").contains("PTY_E2E_MARK") {
-            break;
-        }
-        if read_start.elapsed() > Duration::from_secs(5) {
-            panic!("pty.read 가 echo 출력을 반영하지 못함: {r:?}");
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    // pty.read 는 idle 시각도 갱신하지만 매 읽기가 같은 갱신이고 이 시험은 idle 을 판정하지 않는다.
+    let read_deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut r = serde_json::Value::Null;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(read_deadline, Duration::from_millis(50), |_| {
+            r = tasty.call("pty.read", json!({ "id": pty_id }));
+            r["text"].as_str().unwrap_or("").contains("PTY_E2E_MARK")
+        }),
+        "pty.read 가 echo 출력을 반영하지 못함: {r:?}"
+    );
 
     tasty.call("pty.write", json!({ "id": pty_id, "text": "exit 5\n" }));
-    let wait_start = std::time::Instant::now();
-    let exited = loop {
-        let w = tasty.call("pty.wait", json!({ "id": pty_id }));
-        if w["exited"].as_bool() == Some(true) {
-            break w;
-        }
-        if wait_start.elapsed() > Duration::from_secs(10) {
+    // pty.wait 는 기다리지 않고 종료를 관측(observe_exit)해 돌려준다. 종료 관측은 단조라 기한 뒤 읽기도 관측이다.
+    let wait_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut w = serde_json::Value::Null;
+    let done =
+        tasty_utils::test_wait::holds_by_every(wait_deadline, Duration::from_millis(50), |_| {
+            w = tasty.call("pty.wait", json!({ "id": pty_id }));
+            w["exited"].as_bool() == Some(true)
+        });
+    let exited = {
+        if !done {
             let r = tasty.call("pty.read", json!({ "id": pty_id }));
             let screen = r["text"].as_str().unwrap_or("<pty.read 실패>");
             let tail: String = screen
@@ -1236,7 +1231,7 @@ fn headless_pty_spawn_write_wait_kill() {
                 tail.escape_default(),
             );
         }
-        std::thread::sleep(Duration::from_millis(50));
+        w
     };
     assert_eq!(exited["exit_code"].as_i64(), Some(5), "진짜 exit-code 회수");
     assert_eq!(exited["success"], false);
@@ -1323,23 +1318,22 @@ fn x11_window_is_viewable(xid: u64) -> Result<Option<bool>, String> {
 /// 5초 안에 창이 보이는지 확인한다. Wayland로 조회를 생략하면 경고를 남긴다.
 #[cfg(all(target_os = "linux", feature = "gui"))]
 fn wait_x11_window_viewable(xid: u64) {
-    let start = std::time::Instant::now();
-    loop {
-        match x11_window_is_viewable(xid) {
-            Ok(None) => {
-                tracing::warn!("inherit + Wayland — skipping the agent window map state check");
-                return;
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let viewable =
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            match x11_window_is_viewable(xid) {
+                Ok(None) => {
+                    tracing::warn!("inherit + Wayland — skipping the agent window map state check");
+                    true
+                }
+                Ok(Some(v)) => v,
+                Err(e) => panic!("에이전트 창 0x{xid:x} 의 map state 를 못 읽었다: {e}"),
             }
-            Ok(Some(true)) => return,
-            Ok(Some(false)) if start.elapsed() < Duration::from_secs(5) => {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            Ok(Some(false)) => {
-                panic!("에이전트 창 0x{xid:x} 이 5 초 안에 보이지(IsViewable) 않았다")
-            }
-            Err(e) => panic!("에이전트 창 0x{xid:x} 의 map state 를 못 읽었다: {e}"),
-        }
-    }
+        });
+    assert!(
+        viewable,
+        "에이전트 창 0x{xid:x} 이 5 초 안에 보이지(IsViewable) 않았다"
+    );
 }
 
 /// 새 창의 첫 workspace가 셸을 시작하지 못하면 workspace 없는 창을 등록하지 않고 창 생성이
@@ -1434,30 +1428,32 @@ fn multi_window_owner_routing() {
             .expect("window.create 성공 응답에 window_id 가 있어야 한다"),
     );
 
-    let start = std::time::Instant::now();
-    let new_sid = loop {
-        let arr = tasty
-            .call("surface.list", json!({}))
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        let new_ids: Vec<u64> = arr
-            .iter()
-            .filter_map(|s| s["id"].as_u64())
-            .filter(|id| !ids_before.contains(id))
-            .collect();
-        if let Some(&id) = new_ids.first()
-            && arr
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut arr = Vec::new();
+    let mut found = None;
+    let appeared =
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            arr = tasty
+                .call("surface.list", json!({}))
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let new_ids: Vec<u64> = arr
                 .iter()
-                .any(|s| s["id"].as_u64() == Some(id) && s["pty_ready"].as_bool() == Some(true))
-        {
-            break id;
-        }
-        if start.elapsed() > Duration::from_secs(10) {
-            panic!("second window surface did not appear in 10s. surface.list = {arr:?}");
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    };
+                .filter_map(|s| s["id"].as_u64())
+                .filter(|id| !ids_before.contains(id))
+                .collect();
+            found = new_ids.first().copied().filter(|&id| {
+                arr.iter()
+                    .any(|s| s["id"].as_u64() == Some(id) && s["pty_ready"].as_bool() == Some(true))
+            });
+            found.is_some()
+        });
+    assert!(
+        appeared,
+        "second window surface did not appear in 10s. surface.list = {arr:?}"
+    );
+    let new_sid = found.expect("appeared implies a ready new surface");
 
     let surfaces = tasty
         .call("surface.list", json!({}))
@@ -1530,22 +1526,19 @@ fn multi_window_owner_routing() {
         close_resp.get("error").is_none(),
         "만든 창을 닫지 못하면 잔여가 남는다: {close_resp}"
     );
-    let closing = std::time::Instant::now();
-    loop {
-        let n = tasty
-            .call("window.list", json!({}))
-            .as_array()
-            .map(|a| a.len())
-            .unwrap_or(0);
-        if n <= 1 {
-            break;
-        }
-        assert!(
-            closing.elapsed() < Duration::from_secs(5),
-            "창을 닫으라고 했는데 5 초가 지나도 window.list 가 {n} 이다"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut n = 0;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            n = tasty
+                .call("window.list", json!({}))
+                .as_array()
+                .map(|a| a.len())
+                .unwrap_or(0);
+            n <= 1
+        }),
+        "창을 닫으라고 했는데 5 초가 지나도 window.list 가 {n} 이다"
+    );
 }
 
 /// 플러그인 매니저를 실제로 초기화한 인스턴스에서 목록 조회 응답을 확인한다.
@@ -1765,17 +1758,16 @@ fn a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored() {
     // 메인 루프 응답을 기다려 부팅 안내 이후에 검사한다. 이어지는 폴링은 stderr 수집 지연을 기다린다.
     tasty.call("system.info", json!({}));
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    let line = loop {
-        if let Some(line) = tasty.find_stderr(|l| l.contains("general.restore_layout is on")) {
-            break line;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "헤드리스 부팅 로그에서 restore_layout 미지원 안내를 찾지 못했다. 호출·로그 레벨·수집 상태를 확인한다:\n{}",
-            tasty.startup_diagnostics()
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    };
+    let mut found = None;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
+            found = tasty.find_stderr(|l| l.contains("general.restore_layout is on"));
+            found.is_some()
+        }),
+        "헤드리스 부팅 로그에서 restore_layout 미지원 안내를 찾지 못했다. 호출·로그 레벨·수집 상태를 확인한다:\n{}",
+        tasty.startup_diagnostics()
+    );
+    let line = found.expect("held implies a found line");
     // 파이프에도 ANSI 색이 들어올 수 있어 레벨 토큰 비교 전에 제거한다.
     let mut plain = String::with_capacity(line.len());
     let mut chars = line.chars();
@@ -1821,21 +1813,16 @@ fn directory_dispatch_is_recorded_instead_of_opened_under_the_harness() {
     let log = tasty.os_open_log();
     let needle = dir.to_str().unwrap().to_string();
     let deadline = std::time::Instant::now() + Duration::from_secs(15);
-    loop {
-        let text = std::fs::read_to_string(&log).unwrap_or_default();
-        if text
-            .lines()
-            .any(|l| l.starts_with("open_uri\t") && l.contains(&needle))
-        {
-            break;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "디렉토리 OS 열기가 {} 에 기록되지 않았다 — 기록 대신 실제로 띄웠을 수 있다. 기록 내용: {text:?}",
-            log.display()
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let mut text = String::new();
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            text = std::fs::read_to_string(&log).unwrap_or_default();
+            text.lines()
+                .any(|l| l.starts_with("open_uri\t") && l.contains(&needle))
+        }),
+        "디렉토리 OS 열기가 {} 에 기록되지 않았다 — 기록 대신 실제로 띄웠을 수 있다. 기록 내용: {text:?}",
+        log.display()
+    );
 }
 
 /// 공유 user 설정을 바꾸므로 단독 실행하고 파일 삭제·reload로 복구한다.
@@ -2037,18 +2024,19 @@ fn settled_plugin_round_trips(tasty: &TastyInstance) -> u64 {
     };
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     let mut last = read();
-    loop {
+    let mut now = last;
+    // 안정 판정은 두 표본 사이 500ms 간격 자체가 계약이다. 기한 뒤 읽기도 500ms 를 둔 표본으로 본다.
+    let settled = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |_| {
         std::thread::sleep(Duration::from_millis(500));
-        let now = read();
-        if now == last {
-            return now;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "plugin 왕복 수가 10초 동안 멈추지 않았다: {last} → {now}"
-        );
         last = now;
-    }
+        now = read();
+        now == last
+    });
+    assert!(
+        settled,
+        "plugin 왕복 수가 10초 동안 멈추지 않았다: {last} → {now}"
+    );
+    now
 }
 
 /// 실제 인스턴스에서 plugin namespace 메서드 IPC 하나가 plugin 에 정확히 한 번 전달되는지
@@ -2734,17 +2722,23 @@ fn webview_page_viewport_fills_its_native_window_under_gtk_scale_two() {
         .expect("window.list 에 창이 있어야 한다");
 
     // 페이지가 그려질 때까지 왼쪽 변의 파랑을 기다린다. 왼쪽 변은 배율과 무관하게 창 안에 있다.
-    let start = std::time::Instant::now();
-    let edges = loop {
-        match x11_capture_webview(&display, window).map(|c| c.map(|c| c.child_edges())) {
-            Ok(Some(e)) if e[0] == BLUE => break e,
-            Ok(_) if start.elapsed() < Duration::from_secs(30) => {
-                std::thread::sleep(Duration::from_millis(250));
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    let mut seen = None;
+    let painted =
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(250), |_| {
+            match x11_capture_webview(&display, window).map(|c| c.map(|c| c.child_edges())) {
+                Ok(edges) => {
+                    seen = edges;
+                    seen.is_some_and(|e| e[0] == BLUE)
+                }
+                Err(e) => panic!("WebView 창을 읽지 못했다: {e}"),
             }
-            Ok(other) => panic!("30 초 안에 WebView 창에 페이지가 그려지지 않았다: {other:?}"),
-            Err(e) => panic!("WebView 창을 읽지 못했다: {e}"),
-        }
-    };
+        });
+    assert!(
+        painted,
+        "30 초 안에 WebView 창에 페이지가 그려지지 않았다: {seen:?}"
+    );
+    let edges = seen.expect("painted implies captured edges");
     let names = ["left", "right", "top", "bottom"];
     let missing: Vec<_> = names
         .iter()
@@ -2941,17 +2935,24 @@ fn webview_fills_its_surface_and_leaves_host_input_bands_to_the_host() {
         .and_then(|ws| ws.first().and_then(|w| w["id"].as_u64()))
         .expect("window.list 에 창이 있어야 한다");
     let wait_for = |what: &str, pred: &dyn Fn(&X11WebViewCapture) -> bool| {
-        let start = std::time::Instant::now();
-        loop {
-            match x11_capture_webview(&display, window) {
-                Ok(Some(c)) if pred(&c) => break c,
-                Ok(_) if start.elapsed() < Duration::from_secs(30) => {
-                    std::thread::sleep(Duration::from_millis(250));
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        let mut seen = None;
+        let held =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(250), |_| {
+                match x11_capture_webview(&display, window) {
+                    Ok(c) => {
+                        seen = c;
+                        seen.as_ref().is_some_and(pred)
+                    }
+                    Err(e) => panic!("WebView 창을 읽지 못했다: {e}"),
                 }
-                Ok(c) => panic!("30 초 안에 {what}: {:?}", c.map(|c| c.child)),
-                Err(e) => panic!("WebView 창을 읽지 못했다: {e}"),
-            }
-        }
+            });
+        assert!(
+            held,
+            "30 초 안에 {what}: {:?}",
+            seen.as_ref().map(|c| c.child)
+        );
+        seen.expect("held implies a capture")
     };
 
     // 분할 배치
@@ -3082,17 +3083,24 @@ fn webview_lets_the_first_press_drag_the_pane_divider_below_it_at_scale_two() {
         .and_then(|ws| ws.first().and_then(|w| w["id"].as_u64()))
         .expect("window.list 에 창이 있어야 한다");
     let wait_for = |what: &str, pred: &dyn Fn(&X11WebViewCapture) -> bool| {
-        let start = std::time::Instant::now();
-        loop {
-            match x11_capture_webview(&display, window) {
-                Ok(Some(c)) if pred(&c) => break c,
-                Ok(_) if start.elapsed() < Duration::from_secs(30) => {
-                    std::thread::sleep(Duration::from_millis(250));
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        let mut seen = None;
+        let held =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(250), |_| {
+                match x11_capture_webview(&display, window) {
+                    Ok(c) => {
+                        seen = c;
+                        seen.as_ref().is_some_and(pred)
+                    }
+                    Err(e) => panic!("WebView 창을 읽지 못했다: {e}"),
                 }
-                Ok(c) => panic!("30 초 안에 {what}: {:?}", c.map(|c| c.child)),
-                Err(e) => panic!("WebView 창을 읽지 못했다: {e}"),
-            }
-        }
+            });
+        assert!(
+            held,
+            "30 초 안에 {what}: {:?}",
+            seen.as_ref().map(|c| c.child)
+        );
+        seen.expect("held implies a capture")
     };
     wait_for("페이지가 그려지지 않았다", &|c| {
         let (_, _, w, h) = c.child;
@@ -3382,18 +3390,16 @@ fn typed_int64_outputs_survive_javascript_through_ipc_and_cli() {
 #[cfg(unix)]
 fn await_task_state(tasty: &TastyInstance, ws: u64, id: &str) -> serde_json::Value {
     let deadline = std::time::Instant::now() + Duration::from_secs(30);
-    loop {
-        let t = tasty.call("agent.task_get", json!({"workspace_id": ws, "id": id}));
-        let kind = t["state"]["kind"].as_str().unwrap_or_default().to_string();
-        if ["succeeded", "failed", "cancelled", "skipped"].contains(&kind.as_str()) {
-            return t;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "task {id} did not finish: {t}"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    let mut t = serde_json::Value::Null;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
+            t = tasty.call("agent.task_get", json!({"workspace_id": ws, "id": id}));
+            let kind = t["state"]["kind"].as_str().unwrap_or_default();
+            ["succeeded", "failed", "cancelled", "skipped"].contains(&kind)
+        }),
+        "task {id} did not finish: {t}"
+    );
+    t
 }
 
 #[cfg(unix)]
@@ -3684,24 +3690,29 @@ fn start_first_host(
     let mut host = ChildReaper::new(spawn_child(shared.host_command()).expect("spawn first host"));
     let mut stderr = StderrCapture::start(host.child().stderr.take(), STDERR_TAIL_LINES);
     let deadline = std::time::Instant::now() + common::spawn_diag::SPAWN_PORT_TIMEOUT;
-    loop {
-        if let Some(port) = shared.published_port()
-            && let Some(id) = instance_id_at(port)
-        {
-            return (host, stderr, port, id);
-        }
-        assert!(
-            host.child().try_wait().unwrap().is_none(),
-            "첫 호스트가 준비 전에 끝났다:\n{}",
-            stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET)
-        );
-        assert!(
-            std::time::Instant::now() < deadline,
-            "첫 호스트가 기본 포트 파일을 공개하지 않았다:\n{}",
-            stderr.tail()
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let mut ready = None;
+    let published =
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+            if let Some(port) = shared.published_port()
+                && let Some(id) = instance_id_at(port)
+            {
+                ready = Some((port, id));
+                return true;
+            }
+            assert!(
+                host.child().try_wait().unwrap().is_none(),
+                "첫 호스트가 준비 전에 끝났다:\n{}",
+                stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET)
+            );
+            false
+        });
+    assert!(
+        published,
+        "첫 호스트가 기본 포트 파일을 공개하지 않았다:\n{}",
+        stderr.tail()
+    );
+    let (port, id) = ready.expect("published implies a ready host");
+    (host, stderr, port, id)
 }
 
 /// 두 번째 호스트의 checkpoint 자취를 볼 수 있도록 WAL에 쓰기를 남긴다. 쓴 뒤의 WAL 크기를 돌려준다.
@@ -3734,18 +3745,20 @@ fn fill_memory_wal(port: u16, wal: &std::path::Path) -> u64 {
 fn settled_home_files(home: &std::path::Path) -> HomeFiles {
     let mut before = untouched_home_files(home);
     let settle = std::time::Instant::now() + Duration::from_secs(10);
-    loop {
+    let mut again = None;
+    // 안정 판정은 두 표본 사이 500ms 간격 자체가 계약이다. 기한 뒤 읽기도 500ms 를 둔 표본으로 본다.
+    let settled = tasty_utils::test_wait::holds_by_every(settle, Duration::ZERO, |_| {
         std::thread::sleep(Duration::from_millis(500));
-        let again = untouched_home_files(home);
-        if again == before {
-            return again;
+        if let Some(previous) = again.take() {
+            before = previous;
         }
-        assert!(
-            std::time::Instant::now() < settle,
-            "첫 호스트의 홈 파일이 10초 동안 계속 바뀐다"
-        );
-        before = again;
-    }
+        let sample = untouched_home_files(home);
+        let same = sample == before;
+        again = Some(sample);
+        same
+    });
+    assert!(settled, "첫 호스트의 홈 파일이 10초 동안 계속 바뀐다");
+    again.expect("each read keeps its sample")
 }
 
 /// 두 번째 호스트를 끝날 때까지 돌린다. 도는 동안 기본 포트 파일이 첫 호스트를 가리키는지 계속 본다.
@@ -3762,12 +3775,11 @@ fn run_second_host(
     let mut host = ChildReaper::new(spawn_child(command).expect("spawn second host"));
     let mut stderr = StderrCapture::start(host.child().stderr.take(), STDERR_TAIL_LINES);
     let deadline = std::time::Instant::now() + Duration::from_secs(30);
-    loop {
-        if let Some(status) = host.child().try_wait().unwrap() {
-            return (
-                status,
-                stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET),
-            );
+    let mut exited = None;
+    let ended = tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
+        exited = host.child().try_wait().unwrap();
+        if exited.is_some() {
+            return true;
         }
         assert_eq!(
             shared.published_port(),
@@ -3779,13 +3791,18 @@ fn run_second_host(
             Some(first_id),
             "두 번째 호스트 실행 중 기본 포트 파일로 부른 tasty list info 가 첫 호스트를 가리키지 않는다"
         );
-        assert!(
-            std::time::Instant::now() < deadline,
-            "두 번째 호스트가 30초 안에 끝나지 않았다:\n{}",
-            stderr.tail()
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+        false
+    });
+    assert!(
+        ended,
+        "두 번째 호스트가 30초 안에 끝나지 않았다:\n{}",
+        stderr.tail()
+    );
+    let status = exited.expect("ended implies an exit status");
+    (
+        status,
+        stderr.tail_after_exit(common::spawn_diag::STDERR_SETTLE_BUDGET),
+    )
 }
 
 /// 같은 홈을 쓰는 헤드리스가 이미 실행 중이면 두 번째 헤드리스는 writer 잠금을 선점하지 못하고,

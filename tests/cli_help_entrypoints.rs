@@ -86,12 +86,13 @@ fn run(home: &Path, args: &[&str]) -> Output {
     let mut stdin = child.stdin.take().unwrap();
     stdin.write_all(b"{\"not\":\"consumed\"}").unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
-    while child.try_wait().unwrap().is_none() {
-        if Instant::now() > deadline {
-            child.kill().unwrap();
-            panic!("{args:?}: 도움말이 30초 안에 끝나지 않았다(stdin 대기 또는 GUI 실행 의심)");
-        }
-        std::thread::sleep(Duration::from_millis(20));
+    let exited =
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(20), |_| {
+            child.try_wait().unwrap().is_some()
+        });
+    if !exited {
+        child.kill().unwrap();
+        panic!("{args:?}: 도움말이 30초 안에 끝나지 않았다(stdin 대기 또는 GUI 실행 의심)");
     }
     drop(stdin);
     child.wait_with_output().unwrap()

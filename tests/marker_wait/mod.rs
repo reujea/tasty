@@ -21,23 +21,22 @@ pub fn wait_file_content_with_evidence(
 ) -> String {
     let start = Instant::now();
     let mut polls = 0usize;
-    loop {
+    let mut content = String::new();
+    // 확인 횟수 진단이 POLL 간격을 전제하므로 그 간격으로 읽는다. 기한 뒤 읽기도 파일 읽기뿐이다.
+    let found = tasty_utils::test_wait::holds_by_every(start + budget, POLL, |_| {
         polls += 1;
-        if let Ok(content) = std::fs::read_to_string(path) {
-            let trimmed = content.trim().to_string();
-            if !trimmed.is_empty() {
-                return trimmed;
-            }
-        }
-        let elapsed = start.elapsed();
-        if elapsed > budget {
-            panic!(
-                "{}",
-                timeout_message(path, budget, elapsed, polls, &evidence())
-            );
-        }
-        std::thread::sleep(POLL);
+        content = std::fs::read_to_string(path)
+            .map(|c| c.trim().to_string())
+            .unwrap_or_default();
+        !content.is_empty()
+    });
+    if !found {
+        panic!(
+            "{}",
+            timeout_message(path, budget, start.elapsed(), polls, &evidence())
+        );
     }
+    content
 }
 
 fn timeout_message(

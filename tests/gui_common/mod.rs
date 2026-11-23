@@ -161,39 +161,43 @@ impl GuiTestInstance {
         // 부팅 이후에도 stderr를 보관한다. 일반 Drop은 자식 종료 뒤 배출 스레드를 join하지만 static의 atexit 경로는 join하지 않는다.
         let mut stderr = StderrCapture::start(process.child().stderr.take(), STDERR_TAIL_LINES);
 
-        let start = Instant::now();
-        let port = loop {
-            if start.elapsed() > GUI_SPAWN_PORT_TIMEOUT {
-                // panic 전에 링 잠금을 해제하도록 last_line_age 메서드에서 값을 읽는다.
-                panic!(
-                    "{}",
-                    spawn_diag::spawn_timeout_message(
-                        "tasty GUI failed to write the port file",
-                        GUI_SPAWN_PORT_TIMEOUT,
-                        stderr.tail_lines(),
-                        &stderr.tail(),
-                        stderr.last_line_age(),
-                    )
-                );
-            }
-            if let Ok(content) = std::fs::read_to_string(&port_file)
-                && let Ok(port) = content.trim().parse::<u16>()
-            {
-                break port;
-            }
-            if let Ok(Some(status)) = process.child().try_wait() {
-                panic!(
-                    "{}",
-                    spawn_diag::early_exit_message(
-                        &status.to_string(),
-                        stderr.tail_lines(),
-                        // 자식 종료 확인이 stderr 배출보다 먼저 끝날 수 있어 배출 완료를 기다려 꼬리를 얻는다.
-                        &stderr.tail_after_exit(spawn_diag::STDERR_SETTLE_BUDGET),
-                    )
-                );
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        };
+        let deadline = Instant::now() + GUI_SPAWN_PORT_TIMEOUT;
+        let mut published = None;
+        let written =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+                if let Ok(content) = std::fs::read_to_string(&port_file)
+                    && let Ok(port) = content.trim().parse::<u16>()
+                {
+                    published = Some(port);
+                    return true;
+                }
+                if let Ok(Some(status)) = process.child().try_wait() {
+                    panic!(
+                        "{}",
+                        spawn_diag::early_exit_message(
+                            &status.to_string(),
+                            stderr.tail_lines(),
+                            // 자식 종료 확인이 stderr 배출보다 먼저 끝날 수 있어 배출 완료를 기다려 꼬리를 얻는다.
+                            &stderr.tail_after_exit(spawn_diag::STDERR_SETTLE_BUDGET),
+                        )
+                    );
+                }
+                false
+            });
+        if !written {
+            // panic 전에 링 잠금을 해제하도록 last_line_age 메서드에서 값을 읽는다.
+            panic!(
+                "{}",
+                spawn_diag::spawn_timeout_message(
+                    "tasty GUI failed to write the port file",
+                    GUI_SPAWN_PORT_TIMEOUT,
+                    stderr.tail_lines(),
+                    &stderr.tail(),
+                    stderr.last_line_age(),
+                )
+            );
+        }
+        let port = published.expect("written implies a parsed port");
 
         #[cfg(target_os = "windows")]
         let hwnd = Self::wait_for_window("Tasty", Duration::from_secs(15));
@@ -685,20 +689,25 @@ impl GuiTestInstance {
         timeout: Duration,
         condition: F,
     ) -> UiState {
-        let start = Instant::now();
-        loop {
-            let state = self.ui_state();
-            if condition(&state) {
-                return state;
-            }
-            if start.elapsed() > timeout {
-                self.fail(format_args!(
-                    "Timeout waiting for UI condition: {}. Current state: {:?}",
-                    description, state
-                ));
-            }
-            std::thread::sleep(Duration::from_millis(100));
+        let mut state = None;
+        let held = tasty_utils::test_wait::holds_by_every(
+            Instant::now() + timeout,
+            Duration::from_millis(100),
+            |_| {
+                let now = self.ui_state();
+                let hit = condition(&now);
+                state = Some(now);
+                hit
+            },
+        );
+        let state = state.expect("the wait reads the state at least once");
+        if !held {
+            self.fail(format_args!(
+                "Timeout waiting for UI condition: {}. Current state: {:?}",
+                description, state
+            ));
         }
+        state
     }
 
     #[allow(dead_code)]
@@ -709,20 +718,23 @@ impl GuiTestInstance {
     #[cfg(target_os = "windows")]
     fn wait_for_window(title: &str, timeout: Duration) -> HWND {
         let wide_title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
-        let start = Instant::now();
-        loop {
-            if start.elapsed() > timeout {
-                panic!("Window '{}' did not appear within {:?}", title, timeout);
-            }
-            // SAFETY: wide_title은 null-terminated UTF-16 local Vec, 호출 동안 살아있음.
-            let hwnd = unsafe { FindWindowW(None, windows::core::PCWSTR(wide_title.as_ptr())) };
-            match hwnd {
-                Ok(h) if !h.is_invalid() => return h,
-                _ => {
-                    std::thread::sleep(Duration::from_millis(200));
-                }
-            }
-        }
+        let mut found = None;
+        let appeared = tasty_utils::test_wait::holds_by_every(
+            Instant::now() + timeout,
+            Duration::from_millis(200),
+            |_| {
+                // SAFETY: wide_title은 null-terminated UTF-16 local Vec, 호출 동안 살아있음.
+                let hwnd = unsafe { FindWindowW(None, windows::core::PCWSTR(wide_title.as_ptr())) };
+                found = hwnd.ok().filter(|h| !h.is_invalid());
+                found.is_some()
+            },
+        );
+        assert!(
+            appeared,
+            "Window '{}' did not appear within {:?}",
+            title, timeout
+        );
+        found.expect("appeared implies a window handle")
     }
 }
 

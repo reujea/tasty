@@ -61,10 +61,12 @@ impl Fixture {
         assert_eq!(ack, "ack\n");
         // stdout ACK 는 stderr drain의 스케줄을 보장하지 않는다. 수집된 줄로 동기화한다.
         let deadline = Instant::now() + Duration::from_secs(5);
-        while self.instance.stderr.find(|line| line == text).is_none() {
-            assert!(Instant::now() < deadline, "stderr was not captured");
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(5), |_| {
+                self.instance.stderr.find(|line| line == text).is_some()
+            }),
+            "stderr was not captured"
+        );
     }
 
     fn reply_once(&mut self, response: &'static str) -> std::thread::JoinHandle<()> {

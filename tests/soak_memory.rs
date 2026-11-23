@@ -145,17 +145,14 @@ fn cycle_tab_churn(inst: &TastyInstance, pane_id: u64) {
         .and_then(|t| t["id"].as_u64())
         .expect("created tab not found in tab.list");
     // 생성 직후 닫지 않도록 화면에 출력이 나타날 때까지 기다린다. 프롬프트 종류까지 확인하지는 않는다.
-    let start = Instant::now();
-    loop {
-        if !inst.screen_text_of(surface_id).trim().is_empty() {
-            break;
-        }
-        assert!(
-            start.elapsed() < Duration::from_secs(20),
-            "S1: surface {surface_id} never became ready"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    let deadline = Instant::now() + Duration::from_secs(20);
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| !inst
+            .screen_text_of(surface_id)
+            .trim()
+            .is_empty()),
+        "S1: surface {surface_id} never became ready"
+    );
     inst.call("tab.close", json!({ "tab_id": tab_id }));
     std::thread::sleep(Duration::from_millis(100));
 }
@@ -168,17 +165,14 @@ fn cycle_split_churn(inst: &TastyInstance, surface0: u64) {
     let new_sid = r["new_surface_id"]
         .as_u64()
         .expect("split returned new_surface_id");
-    let start = Instant::now();
-    loop {
-        if !inst.screen_text_of(new_sid).trim().is_empty() {
-            break;
-        }
-        assert!(
-            start.elapsed() < Duration::from_secs(20),
-            "S2: surface {new_sid} never became ready"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    let deadline = Instant::now() + Duration::from_secs(20);
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| !inst
+            .screen_text_of(new_sid)
+            .trim()
+            .is_empty()),
+        "S2: surface {new_sid} never became ready"
+    );
     inst.call("surface.close", json!({ "surface_id": new_sid }));
     std::thread::sleep(Duration::from_millis(100));
 }
@@ -251,18 +245,19 @@ fn cycle_plugin_view_churn(inst: &TastyInstance, surface0: u64, kind: ViewKind) 
         .expect("split returned new_surface_id");
     match before {
         Some(before) => {
-            let start = Instant::now();
-            loop {
-                let now = rendered_count(inst, kind).unwrap_or(0);
-                if now > before {
-                    break;
-                }
-                assert!(
-                    start.elapsed() < Duration::from_secs(30),
-                    "S6: {kind:?} surface {new_sid} resource count did not increase (count {now}, before {before})"
-                );
-                std::thread::sleep(Duration::from_millis(100));
-            }
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let mut now = 0;
+            assert!(
+                tasty_utils::test_wait::holds_by_every(
+                    deadline,
+                    Duration::from_millis(100),
+                    |_| {
+                        now = rendered_count(inst, kind).unwrap_or(0);
+                        now > before
+                    }
+                ),
+                "S6: {kind:?} surface {new_sid} resource count did not increase (count {now}, before {before})"
+            );
         }
         None => std::thread::sleep(Duration::from_millis(700)),
     }
@@ -279,6 +274,7 @@ fn cycle_heavy_output(inst: &TastyInstance, surface_id: u64) {
         // mark 이후 출력이 보존 범위를 넘지 않도록 출력량을 격리 설정의 스크롤백 상한보다 작게 둔다.
         inst.send_text(surface_id, "seq 1 5000\n");
         let start = Instant::now();
+        let mut past = false;
         loop {
             let out = inst.read_since_mark(surface_id);
             // 명령 자체의 에코에는 없는 출력값으로 진행을 확인한다.
@@ -291,11 +287,12 @@ fn cycle_heavy_output(inst: &TastyInstance, surface_id: u64) {
                 std::thread::sleep(Duration::from_millis(500));
                 break; // 재시도
             }
-            assert!(
-                start.elapsed() < Duration::from_secs(60),
-                "S4: timeout waiting for output; got:\n{out}"
-            );
-            std::thread::sleep(Duration::from_millis(50));
+            // 기한이 지난 것을 본 뒤에도 한 번 더 읽고 판정한다. 기한 전 거짓 읽기만으로 실패하지 않는다.
+            assert!(!past, "S4: timeout waiting for output; got:\n{out}");
+            past = start.elapsed() >= Duration::from_secs(60);
+            if !past {
+                std::thread::sleep(Duration::from_millis(50));
+            }
         }
     }
     panic!("S4: command-not-found output persisted after 3 attempts");

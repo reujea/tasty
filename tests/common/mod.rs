@@ -285,46 +285,53 @@ impl TastyInstance {
         // 파이프가 차서 자식이 멈추지 않도록 별도 스레드에서 stderr를 계속 읽는다.
         let mut stderr = StderrCapture::start(process.child().stderr.take(), STDERR_TAIL_LINES);
 
-        let start = Instant::now();
-        let port = loop {
-            if start.elapsed() > SPAWN_PORT_TIMEOUT {
-                // Self 생성 전이므로 process 소유 객체가 panic 시 자식을 정리한다.
-                let _ = std::fs::remove_file(&port_file);
-                let _ = std::fs::remove_dir_all(&isolated_home);
-                // panic 인자에 MutexGuard를 남기면 unwind 중 락이 오염될 수 있어 메서드 안에서 락을 해제한 진단값만 받는다.
-                panic!(
-                    "{}",
-                    spawn_diag::spawn_timeout_message(
-                        "tasty failed to start",
-                        SPAWN_PORT_TIMEOUT,
-                        stderr.tail_lines(),
-                        &stderr.tail(),
-                        stderr.last_line_age(),
-                    )
-                );
-            }
-            if let Ok(content) = std::fs::read_to_string(&port_file)
-                && let Ok(port) = content.trim().parse::<u16>()
-            {
-                startup.port_found();
-                break port;
-            }
-            // 자식이 이미 끝났다면 전체 시작 제한 시간까지 기다리지 않는다.
-            if let Ok(Some(status)) = process.child().try_wait() {
-                let _ = std::fs::remove_file(&port_file);
-                let _ = std::fs::remove_dir_all(&isolated_home);
-                panic!(
-                    "{}",
-                    spawn_diag::early_exit_message(
-                        &status.to_string(),
-                        stderr.tail_lines(),
-                        // 자식 종료 직후에는 stderr 읽기가 덜 끝났을 수 있어 배출을 기다린 꼬리를 받는다.
-                        &stderr.tail_after_exit(spawn_diag::STDERR_SETTLE_BUDGET),
-                    )
-                );
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        };
+        let deadline = Instant::now() + SPAWN_PORT_TIMEOUT;
+        let mut published = None;
+        let written =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+                if let Ok(content) = std::fs::read_to_string(&port_file)
+                    && let Ok(port) = content.trim().parse::<u16>()
+                {
+                    published = Some(port);
+                    return true;
+                }
+                // 자식이 이미 끝났다면 전체 시작 제한 시간까지 기다리지 않는다.
+                if let Ok(Some(status)) = process.child().try_wait() {
+                    // 정리 실패는 아래 조기 종료 진단을 바꾸지 않아 무시한다.
+                    let _ = std::fs::remove_file(&port_file);
+                    // 격리 홈 정리도 같은 이유로 결과를 보지 않는다.
+                    let _ = std::fs::remove_dir_all(&isolated_home);
+                    panic!(
+                        "{}",
+                        spawn_diag::early_exit_message(
+                            &status.to_string(),
+                            stderr.tail_lines(),
+                            // 자식 종료 직후에는 stderr 읽기가 덜 끝났을 수 있어 배출을 기다린 꼬리를 받는다.
+                            &stderr.tail_after_exit(spawn_diag::STDERR_SETTLE_BUDGET),
+                        )
+                    );
+                }
+                false
+            });
+        if !written {
+            // Self 생성 전이므로 process 소유 객체가 panic 시 자식을 정리한다.
+            let _ = std::fs::remove_file(&port_file);
+            // 격리 홈 정리 실패도 아래 시간 초과 진단을 바꾸지 않아 무시한다.
+            let _ = std::fs::remove_dir_all(&isolated_home);
+            // panic 인자에 MutexGuard를 남기면 unwind 중 락이 오염될 수 있어 메서드 안에서 락을 해제한 진단값만 받는다.
+            panic!(
+                "{}",
+                spawn_diag::spawn_timeout_message(
+                    "tasty failed to start",
+                    SPAWN_PORT_TIMEOUT,
+                    stderr.tail_lines(),
+                    &stderr.tail(),
+                    stderr.last_line_age(),
+                )
+            );
+        }
+        startup.port_found();
+        let port = published.expect("written implies a parsed port");
 
         let instance = Self {
             process: process.release(),
@@ -343,25 +350,22 @@ impl TastyInstance {
 
     /// 새 surface를 사용하기 전에 PTY의 첫 출력을 기다린다.
     pub fn wait_for_shell(&self, surface_id: u64) {
-        let start = Instant::now();
-        loop {
-            let text = self.screen_text_of(surface_id);
-            if !text.trim().is_empty() {
-                return;
-            }
-            if start.elapsed() > SPAWN_SHELL_TIMEOUT {
-                panic!(
-                    "{}",
-                    spawn_diag::spawn_timeout_message(
-                        "shell did not produce output",
-                        SPAWN_SHELL_TIMEOUT,
-                        self.stderr.tail_lines(),
-                        &self.stderr.tail(),
-                        self.stderr.last_line_age(),
-                    )
-                );
-            }
-            std::thread::sleep(Duration::from_millis(50));
+        let deadline = Instant::now() + SPAWN_SHELL_TIMEOUT;
+        let produced =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
+                !self.screen_text_of(surface_id).trim().is_empty()
+            });
+        if !produced {
+            panic!(
+                "{}",
+                spawn_diag::spawn_timeout_message(
+                    "shell did not produce output",
+                    SPAWN_SHELL_TIMEOUT,
+                    self.stderr.tail_lines(),
+                    &self.stderr.tail(),
+                    self.stderr.last_line_age(),
+                )
+            );
         }
     }
 
@@ -477,20 +481,21 @@ impl TastyInstance {
     }
 
     pub fn wait_for_output(&self, surface_id: u64, expected: &str, timeout: Duration) -> String {
-        let start = Instant::now();
-        loop {
-            let output = self.read_since_mark(surface_id);
-            if output.contains(expected) {
-                return output;
-            }
-            if start.elapsed() > timeout {
-                panic!(
-                    "timeout waiting for '{}' in output. Got:\n{}",
-                    expected, output
-                );
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        let mut output = String::new();
+        let found = tasty_utils::test_wait::holds_by_every(
+            Instant::now() + timeout,
+            Duration::from_millis(50),
+            |_| {
+                output = self.read_since_mark(surface_id);
+                output.contains(expected)
+            },
+        );
+        assert!(
+            found,
+            "timeout waiting for '{}' in output. Got:\n{}",
+            expected, output
+        );
+        output
     }
 
     pub fn screen_text_of(&self, surface_id: u64) -> String {

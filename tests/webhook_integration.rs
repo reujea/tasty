@@ -60,16 +60,11 @@ fn has_notification(inst: &WebhookInstance, needle: &str) -> bool {
 }
 
 fn wait_notification(inst: &WebhookInstance, needle: &str, timeout: Duration) -> bool {
-    let start = Instant::now();
-    loop {
-        if has_notification(inst, needle) {
-            return true;
-        }
-        if start.elapsed() > timeout {
-            return false;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    tasty_utils::test_wait::holds_by_every(
+        Instant::now() + timeout,
+        Duration::from_millis(50),
+        |_| has_notification(inst, needle),
+    )
 }
 
 fn register_notify_webhook(inst: &WebhookInstance, params_extra: Value) -> (String, String) {

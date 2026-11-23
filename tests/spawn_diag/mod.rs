@@ -286,14 +286,15 @@ impl StderrCapture {
     /// 상한이 지나면 현재 꼬리와 수집이 끝나지 않았다는 진단을 반환한다.
     pub fn tail_after_exit(&mut self, budget: std::time::Duration) -> String {
         let deadline = std::time::Instant::now() + budget;
-        let settled = loop {
-            match self.drain.as_ref() {
-                None => break true,
-                Some(handle) if handle.is_finished() => break true,
-                Some(_) if std::time::Instant::now() >= deadline => break false,
-                Some(_) => std::thread::sleep(std::time::Duration::from_millis(5)),
-            }
-        };
+        let settled = tasty_utils::test_wait::holds_by_every(
+            deadline,
+            std::time::Duration::from_millis(5),
+            |_| {
+                self.drain
+                    .as_ref()
+                    .is_none_or(|handle| handle.is_finished())
+            },
+        );
         if settled {
             self.join();
             return self.tail();

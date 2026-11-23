@@ -82,18 +82,22 @@ fn help_and_parse_errors_follow_locale_while_wire_messages_stay_unchanged() {
         let server = std::thread::spawn(move || {
             listener.set_nonblocking(true).unwrap();
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-            let mut stream = loop {
-                match listener.accept() {
-                    Ok((stream, _)) => break stream,
-                    Err(e)
-                        if e.kind() == std::io::ErrorKind::WouldBlock
-                            && std::time::Instant::now() < deadline =>
-                    {
-                        std::thread::sleep(std::time::Duration::from_millis(10))
+            let mut accepted = None;
+            // 기한 뒤 읽기도 이미 들어와 대기 중인 연결을 꺼내는 accept 하나뿐이다.
+            let held = tasty_utils::test_wait::holds_by_every(
+                deadline,
+                std::time::Duration::from_millis(10),
+                |_| match listener.accept() {
+                    Ok((stream, _)) => {
+                        accepted = Some(stream);
+                        true
                     }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => false,
                     Err(e) => panic!("fixture accept failed: {e}"),
-                }
-            };
+                },
+            );
+            assert!(held, "fixture accept failed: no connection within 10s");
+            let mut stream = accepted.expect("held implies an accepted stream");
             stream.set_nonblocking(false).unwrap();
             stream
                 .set_read_timeout(Some(std::time::Duration::from_secs(10)))

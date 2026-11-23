@@ -298,39 +298,43 @@ impl WebhookInstance {
         // 파이프가 차서 자식이 멈추지 않도록 stderr를 계속 읽는다.
         let mut stderr = StderrCapture::start(process.child().stderr.take(), STDERR_TAIL_LINES);
 
-        let start = Instant::now();
-        let port = loop {
-            if start.elapsed() > SPAWN_PORT_TIMEOUT {
-                // panic 인자에 락 가드가 남지 않도록 메서드에서 시각을 읽는다.
-                panic!(
-                    "{}",
-                    spawn_diag::spawn_timeout_message(
-                        "tasty failed to start",
-                        SPAWN_PORT_TIMEOUT,
-                        stderr.tail_lines(),
-                        &stderr.tail(),
-                        stderr.last_line_age(),
-                    )
-                );
-            }
-            if let Ok(content) = std::fs::read_to_string(&port_file)
-                && let Ok(port) = content.trim().parse::<u16>()
-            {
-                break port;
-            }
-            if let Ok(Some(status)) = process.child().try_wait() {
-                panic!(
-                    "{}",
-                    spawn_diag::early_exit_message(
-                        &status.to_string(),
-                        stderr.tail_lines(),
-                        // 종료 확인이 배출보다 빠를 수 있어 남은 stderr 수집을 기다린다.
-                        &stderr.tail_after_exit(spawn_diag::STDERR_SETTLE_BUDGET),
-                    )
-                );
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        };
+        let deadline = Instant::now() + SPAWN_PORT_TIMEOUT;
+        let mut published = None;
+        let written =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(100), |_| {
+                if let Ok(content) = std::fs::read_to_string(&port_file)
+                    && let Ok(port) = content.trim().parse::<u16>()
+                {
+                    published = Some(port);
+                    return true;
+                }
+                if let Ok(Some(status)) = process.child().try_wait() {
+                    panic!(
+                        "{}",
+                        spawn_diag::early_exit_message(
+                            &status.to_string(),
+                            stderr.tail_lines(),
+                            // 종료 확인이 배출보다 빠를 수 있어 남은 stderr 수집을 기다린다.
+                            &stderr.tail_after_exit(spawn_diag::STDERR_SETTLE_BUDGET),
+                        )
+                    );
+                }
+                false
+            });
+        if !written {
+            // panic 인자에 락 가드가 남지 않도록 메서드에서 시각을 읽는다.
+            panic!(
+                "{}",
+                spawn_diag::spawn_timeout_message(
+                    "tasty failed to start",
+                    SPAWN_PORT_TIMEOUT,
+                    stderr.tail_lines(),
+                    &stderr.tail(),
+                    stderr.last_line_age(),
+                )
+            );
+        }
+        let port = published.expect("written implies a parsed port");
 
         let instance = Self {
             process: process.release(),
@@ -343,25 +347,25 @@ impl WebhookInstance {
             stderr,
         };
 
-        let start = Instant::now();
-        loop {
-            let text = instance.screen_text_of(instance.first_surface_id());
-            if !text.trim().is_empty() {
-                break;
-            }
-            if start.elapsed() > SPAWN_SHELL_TIMEOUT {
-                panic!(
-                    "{}",
-                    spawn_diag::spawn_timeout_message(
-                        "shell produced no output",
-                        SPAWN_SHELL_TIMEOUT,
-                        instance.stderr.tail_lines(),
-                        &instance.stderr.tail(),
-                        instance.stderr.last_line_age(),
-                    )
-                );
-            }
-            std::thread::sleep(Duration::from_millis(50));
+        let deadline = Instant::now() + SPAWN_SHELL_TIMEOUT;
+        let produced =
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
+                !instance
+                    .screen_text_of(instance.first_surface_id())
+                    .trim()
+                    .is_empty()
+            });
+        if !produced {
+            panic!(
+                "{}",
+                spawn_diag::spawn_timeout_message(
+                    "shell produced no output",
+                    SPAWN_SHELL_TIMEOUT,
+                    instance.stderr.tail_lines(),
+                    &instance.stderr.tail(),
+                    instance.stderr.last_line_age(),
+                )
+            );
         }
 
         (instance, seeded)
@@ -394,6 +398,8 @@ impl WebhookInstance {
 
     /// TCP 연결 성공, bind 실패 로그, 시간 제한 초과를 구별한다. 연결을 수락한 프로세스의 신원까지 확인하지는 않는다.
     fn wait_webhook_bound(&self) -> BindOutcome {
+        // 기한 뒤 읽기 하나로 바꾸지 않는다. Bound 의 근거는 TCP 연결 성공뿐이라 연결 시도 없이는 관측할 수 없고,
+        // 기한 뒤 연결을 시도하면 원래 루프가 허용하지 않던 새 연결을 만든다.
         let start = Instant::now();
         let addr = format!("127.0.0.1:{}", self.webhook_port);
         loop {
