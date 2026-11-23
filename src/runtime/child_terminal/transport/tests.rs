@@ -82,7 +82,7 @@ impl Fixture {
 const UNTIL_LIMIT: Duration = Duration::from_secs(5);
 /// holds_by 로 바꾸지 않는다. 호출자 조건(hub.ready, admission_drained, ticket.poll 등)이 안에서 hub.poll 로
 /// child cleanup 을 제출할 수 있어 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는
-/// 완료를 알 수 없다. 진행 없는 조건은 이 도우미 대신 holds_by 로 기다린다.
+/// 완료를 알 수 없다. 진행 없는 조건(gate_done 의 영수증 poll 등)은 이 도우미 대신 holds_by_every 로 기다린다.
 fn until(mut ready: impl FnMut() -> bool) {
     let end = Instant::now() + UNTIL_LIMIT;
     while !ready() {
