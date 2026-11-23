@@ -246,6 +246,38 @@ fn a_write_after_a_long_open_sequence_is_received() {
     assert!(!tracker_receiving(&input), "선택 인자가 긴 OSC 52");
 }
 
+/// Given ground·OSC 문자열 밖의 상태에서 리드 바이트나 0x9d가 머리 한도 근처에 온다, When 그 뒤 OSC 52 쓰기가
+/// 시작한다, Then 실제 파서대로 판정한다. 그런 상태의 리드 바이트는 글자를 시작하지 않아 바로 뒤 ESC가
+/// 기준점이고, 0x9d는 앞 시퀀스를 끝내고 새 OSC를 연다.
+#[test]
+fn lead_bytes_and_0x9d_outside_osc_strings_near_the_head_limit() {
+    const WRITE: &[u8] = b"\x1b]52;c;aGk=";
+    for n in 56..=64 {
+        for (name, intro) in [("CSI", b"\x1b[".as_slice()), ("SOS", b"\x1bX")] {
+            let input = [intro, &vec![b'1'; n], b"\xc2", WRITE].concat();
+            assert!(oracle_receiving(&input), "기준 {name} {n}");
+            assert!(tracker_receiving(&input), "{name} 리드 뒤 ESC {n}");
+        }
+        let input = [b"\x1b[".as_slice(), &vec![b'1'; n], b"\x9d52;c;aGk="].concat();
+        assert!(oracle_receiving(&input), "기준 0x9d {n}");
+        assert!(tracker_receiving(&input), "CSI를 끝낸 0x9d {n}");
+    }
+
+    // CSI 안 0xe4는 글자를 시작하지 않는다. 뒤의 제목 OSC 안 0x9d는 아무것도 하지 않으므로 쓰기가 아니다.
+    let input = [
+        b"\x1b[".as_slice(),
+        &[b'1'; 61],
+        b"\xe4\x1b]0;t\x9d52;c;aGk=",
+    ]
+    .concat();
+    assert!(!oracle_receiving(&input));
+    let mut progress = CopyProgress::default();
+    progress.feed(SID, &input, at(0));
+    assert!(waits(&progress).is_empty());
+    progress.break_stream(SID);
+    assert!(progress.take_failures().is_empty(), "없는 복사의 실패");
+}
+
 /// Given 쓰기 본문이 미완성 UTF-8로 끝난다, When 실제 종결이 온다, Then 접수는 실제 바이트가 정한 데이터를
 /// 따른다. C2 리드 뒤 0x9c는 UTF-8로 쓴 ST라 데이터 `?`의 질의가 된다.
 #[test]
@@ -400,13 +432,23 @@ fn mismatches(inputs: impl Iterator<Item = Vec<u8>>) -> Vec<String> {
 }
 
 /// 지적된 경계 입력과 기준이 정한 값. 차등 비교에도 같은 입력을 넣는다.
-const NAMED: [(&[u8], bool); 5] = [
+const NAMED: [(&[u8], bool); 13] = [
     (b"\x1b]\x9b1;\x1b]52;c;aGk=", true),
     (b"\x1b]0;t\x9b\x9d0;u\xe4\x1b]52;c;aGk=", false),
     // OSC 문자열 안의 0x9d는 vtparse에서 같은 상태로 가는 전이라 아무것도 하지 않는다. 새 OSC가 아니다.
     (b"\x1b]0;t\x9d52;c;aGk=", false),
     (b"\x1b]0;t\x9b1;\x1b]52;c;aGk=", true),
     (b"\x1b]0;t\xe4\x1b]52;c;aGk=", false),
+    // 리드마다 첫 연속 바이트의 범위가 다르다. 제목 OSC 안에서 범위 밖이면 글자가 끝나 다음 C2가 새 글자를
+    // 시작하고 ESC를 삼킨다. 범위 안이면 C2가 잘못된 바이트로 소비되고 ESC가 제목을 끝내며 쓰기를 연다.
+    (b"\x1b]0;t\xe0\x80\xc2\x1b]52;c;aGk=", false),
+    (b"\x1b]0;t\xe0\xa0\xc2\x1b]52;c;aGk=", true),
+    (b"\x1b]0;t\xed\xa0\xc2\x1b]52;c;aGk=", false),
+    (b"\x1b]0;t\xed\x80\xc2\x1b]52;c;aGk=", true),
+    (b"\x1b]0;t\xf0\x80\xc2\x1b]52;c;aGk=", false),
+    (b"\x1b]0;t\xf0\x90\xc2\x1b]52;c;aGk=", true),
+    (b"\x1b]0;t\xf4\x90\xc2\x1b]52;c;aGk=", false),
+    (b"\x1b]0;t\xf4\x80\xc2\x1b]52;c;aGk=", true),
 ];
 
 /// Given 경계 바이트로 만든 입력, When 추적기와 vtparse 기준(`oracle_receiving`)이 입력 끝에 쓰기 본문을
@@ -456,9 +498,9 @@ fn receiving_matches_vtparse_on_boundary_inputs() {
     assert_eq!(mismatches(random), Vec::<String>::new());
 
     // 머리 한도를 넘는 앞 시퀀스 뒤. 긴 조각은 앞 시퀀스 안에만 둔다(OSC 52 자신의 선택 인자가 한도를 넘는
-    // 경우는 문서의 남은 한계라 비교하지 않는다). 토큰 셋으로 쓰기가 생기도록 쓰기 머리 조각을 더한다.
-    let long_prefixes: Vec<Vec<u8>> = [
-        (b"\x1b[".as_slice(), b"".as_slice()),
+    // 경우는 문서의 남은 한계라 비교하지 않는다).
+    let intros: [(&[u8], &[u8]); 9] = [
+        (b"\x1b[", b""),
         (b"\x1b[:", b""),
         (b"\x1bX", b""),
         (b"\x1bP", b""),
@@ -467,15 +509,33 @@ fn receiving_matches_vtparse_on_boundary_inputs() {
         (b"\x1b]0;", b"\xe4"),
         (b"\x9b", b""),
         (b"\x98", b""),
-    ]
-    .iter()
-    .map(|(intro, tail)| [*intro, &[b'1'; 70], *tail].concat())
-    .collect();
-    let alphabet: Vec<&[u8]> = TOKENS
+    ];
+    // 한도 앞뒤 길이. 앞 시퀀스가 한도에 닿기 직전·직후에 기준점이 오는 경우를 함께 본다.
+    let long_prefixes: Vec<Vec<u8>> = intros
         .iter()
-        .copied()
-        .chain([b"\x1b]52;c;".as_slice(), b"\x9d52;c;"])
+        .flat_map(|(intro, tail)| {
+            [56, 58, 59, 60, 61, 62, 63, 66, 70].map(|n| [*intro, &vec![b'1'; n], *tail].concat())
+        })
         .collect();
+    // 토큰 셋으로 쓰기가 생기도록 쓰기 머리 조각을 더한 작은 알파벳.
+    let alphabet: [&[u8]; 16] = [
+        b"\x1b",
+        b"\x9d",
+        b"\x9c",
+        b"\x07",
+        b"\xc2",
+        b"\xe4",
+        b"\xe4\xb8",
+        b"a",
+        b"?",
+        b"52;",
+        b"c;",
+        b";",
+        b"\x00",
+        b"\x1b]52;c;",
+        b"\x9d52;c;",
+        b"\x1b]0;t",
+    ];
     let after_long = long_prefixes.iter().flat_map(|prefix| {
         let mut inputs = vec![prefix.clone()];
         for _ in 0..3 {

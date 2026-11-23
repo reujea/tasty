@@ -12,16 +12,21 @@
 //!
 //! 열린 시퀀스가 OSC 52 쓰기인지는 마지막 기준점 뒤의 바이트(머리)를 새 `vtparse`에 다시 먹여 정한다.
 //! 기준점마다 새 파서가 그 지점의 실제 파서와 같은 상태(OSC 버퍼 포함)에서 시작한다는 것이 근거다.
-//! - ground로 돌아간 바이트: 머리를 비우고 그 바이트는 버린다. ground의 새 파서와 같다. 잘못된 UTF-8이
-//!   삼킨 바이트도 마찬가지다(ground에서 `\xe4\x1b`의 ESC는 글자로 소비되고 파서는 ground다).
+//! - ground로 돌아간 바이트: 머리를 비우고 그 바이트는 버린다. ground의 새 파서와 같다. OSC가 끝나고 ground로
+//!   돌아갈 때 남은 OSC 버퍼는 다음 OSC 진입 동작(OscStart)이 비운다. 잘못된 UTF-8이 삼킨 바이트도
+//!   마찬가지다(ground에서 `\xe4\x1b`의 ESC는 글자로 소비되고 파서는 ground다).
 //! - ground가 아닌 곳에서 무언가를 dispatch한 바이트: 머리를 그 바이트부터 다시 시작한다. dispatch는 표가
 //!   그 바이트를 처리해 상태를 떠날 때만 나고, 그런 바이트는 ESC·C1(UTF-8로 쓴 C1 포함)이 아니면 ground로
 //!   간다. ESC·C1은 아래처럼 어느 상태에서나 같은 곳으로 간다.
 //! - dispatch가 없어도 ESC·CAN·SUB·C1 바이트: `vtparse` 전이표에서 이 바이트들은 모든 상태가 `anywhere_or`로
-//!   같은 (동작, 상태)로 보낸다. 들어간 상태의 진입 동작이 버퍼를 비우므로 머리를 그 바이트부터 다시
-//!   시작한다. 예외는 둘이다. UTF-8 글자 중간이면 바이트가 글자로 소비되므로 기준점이 아니다(리드 바이트
-//!   뒤의 연속 바이트 수를 넉넉히 세어 그럴 수 있는 동안은 쓰지 않는다). OSC 문자열 안의 0x9d는 같은 상태로
-//!   가는 전이라 아무것도 하지 않으므로, 파서가 OSC 문자열 밖임을 알 때만 기준점이다.
+//!   같은 (동작, 상태)로 보낸다. 다른 상태에서 들어가면 진입 동작이 버퍼를 비운다. 같은 상태로 가는
+//!   전이(Escape의 ESC, CsiEntry의 0x9b, DcsEntry의 0x90, SosPm의 0x98·0x9e·0x9f)는 진입 동작이 돌지 않지만
+//!   그 상태들에는 진입 뒤 모으는 OSC 판정 버퍼가 없다. 그래서 머리를 그 바이트부터 다시 시작한다. 예외는
+//!   둘이다. UTF-8 글자 중간이면 바이트가 글자로 소비되므로 기준점이 아니다. 글자 중간인지는 `utf8parse`
+//!   상태표대로 정확히 센다(`Utf8Tail`). OSC 문자열 안의 0x9d는 같은 상태로 가는 전이라 아무것도 하지
+//!   않으므로 OSC 문자열 밖일 때만 기준점이다. 리드 바이트가 글자를 시작하는지와 0x9d의 경우는 파서가 OSC
+//!   문자열 안인지에 달렸다. ground가 아니면 머리를 다시 파싱해 정하고, 머리를 닫은 뒤에는 닫을 때 기록한
+//!   값을 쓴다.
 //!
 //! 쓰기 판정은 실제로 받은 바이트로만 한다. 머리 끝의 미완성 UTF-8이 C2 리드면 다음 바이트가 UTF-8로 쓴
 //! C1 종결일 수 있으므로 0x9c로 먼저 끝내 본다. 다른 리드는 어떻게 끝나도 데이터에 글자 하나가 들어간다.
@@ -52,8 +57,8 @@ struct SurfaceScan {
     closed: Option<bool>,
     /// 사전 필터. 머리에서 `52;`를 어디까지 찾았는지(3이면 찾음), 4면 그 뒤 `;`도 찾았다.
     marks: u8,
-    /// 파서가 UTF-8 글자 중간일 수 있으면 남은 연속 바이트 수. 실제보다 작게 세지 않는다.
-    utf8_left: u8,
+    /// 파서가 UTF-8 글자 중간이면 남은 연속 바이트.
+    utf8: Utf8Tail,
     /// 본문을 받는 중인 쓰기의 접수 시각.
     receiving: Option<Instant>,
     /// 끝났고 client 기록 결과를 기다리는 쓰기의 접수 시각. 바이트 순서다.
@@ -80,7 +85,7 @@ impl Default for SurfaceScan {
             head: Vec::new(),
             closed: None,
             marks: 0,
-            utf8_left: 0,
+            utf8: Utf8Tail::default(),
             receiving: None,
             awaiting: VecDeque::new(),
         }
@@ -192,15 +197,40 @@ fn next_mark(marks: u8, byte: u8) -> u8 {
     }
 }
 
-/// 실제 파서가 UTF-8 글자 중간일 수 있는 남은 연속 바이트 수. 리드 바이트는 ground나 OSC 문자열에서만
-/// 글자를 시작하지만 그 밖일 수도 있으면(`may_start`) 시작한 것으로 센다. 연속 바이트 범위는 넓게 본다.
-fn next_utf8_left(left: u8, byte: u8, may_start: bool) -> u8 {
-    match byte {
-        0x80..=0xbf => left.saturating_sub(1),
-        0xc2..=0xdf if may_start => 1,
-        0xe0..=0xef if may_start => 2,
-        0xf0..=0xf4 if may_start => 3,
-        _ => 0,
+/// `vtparse`가 UTF-8 글자 중간일 때 남은 연속 바이트 수와 다음 바이트의 허용 범위. `utf8parse` 0.2의
+/// 상태표와 같다. 범위 밖 바이트는 잘못된 시퀀스로 소비되고 글자가 끝난다.
+#[derive(Clone, Copy, Default)]
+struct Utf8Tail {
+    left: u8,
+    next: (u8, u8),
+}
+
+impl Utf8Tail {
+    /// 이 바이트를 받은 뒤. `starts`는 파서가 글자를 시작할 수 있는 상태(ground·OSC 문자열)인지다.
+    fn after(self, byte: u8, starts: bool) -> Self {
+        let tail = |left, lo, hi| Self {
+            left,
+            next: (lo, hi),
+        };
+        if self.left > 0 {
+            return match (self.next.0..=self.next.1).contains(&byte) && self.left > 1 {
+                true => tail(self.left - 1, 0x80, 0xbf),
+                false => Self::default(),
+            };
+        }
+        if !starts {
+            return Self::default();
+        }
+        match byte {
+            0xc2..=0xdf => tail(1, 0x80, 0xbf),
+            0xe0 => tail(2, 0xa0, 0xbf),
+            0xe1..=0xec | 0xee..=0xef => tail(2, 0x80, 0xbf),
+            0xed => tail(2, 0x80, 0x9f),
+            0xf0 => tail(3, 0x90, 0xbf),
+            0xf1..=0xf3 => tail(3, 0x80, 0xbf),
+            0xf4 => tail(3, 0x80, 0x8f),
+            _ => Self::default(),
+        }
     }
 }
 
@@ -212,13 +242,13 @@ impl CopyProgress {
         let mut step = Dispatches::default();
         for &byte in bytes {
             let was_ground = scan.parser.is_ground();
-            // 직전까지 UTF-8 글자 중간일 수 있었으면 이 바이트는 글자로 소비됐을 수 있다.
-            let maybe_in_char = scan.utf8_left > 0;
-            scan.utf8_left = next_utf8_left(
-                scan.utf8_left,
-                byte,
-                was_ground || scan.closed != Some(false),
-            );
+            // UTF-8 글자 중간이면 이 바이트는 표를 거치지 않고 글자로 소비된다.
+            let in_char = scan.utf8.left > 0;
+            // 리드 바이트가 글자를 시작하는지와 0x9d가 새 OSC를 여는지는 파서가 OSC 문자열 안인지에 달렸다.
+            // ground가 아니고 머리를 보는 중이면 머리를 다시 파싱해 정한다. 이런 바이트 조합에서만 돈다.
+            let needs_osc = !in_char && !was_ground && matches!(byte, 0x9d | 0xc2..=0xf4);
+            let in_osc = needs_osc && scan.closed.unwrap_or_else(|| osc_head(&scan.head).0);
+            scan.utf8 = scan.utf8.after(byte, was_ground || in_osc);
             scan.parser.parse_byte(byte, &mut step);
             for end in step.ends.drain(..) {
                 let receiving = scan.receiving.take();
@@ -233,10 +263,10 @@ impl CopyProgress {
                 scan.restart(None);
                 continue;
             }
-            let anywhere = !maybe_in_char
+            let anywhere = !in_char
                 && match byte {
                     0x1b | 0x18 | 0x1a | 0x80..=0x9c | 0x9e | 0x9f => true,
-                    0x9d => scan.closed == Some(false),
+                    0x9d => !in_osc,
                     _ => false,
                 };
             if dispatched || anywhere {
@@ -295,7 +325,7 @@ impl CopyProgress {
             self.failures.push(surface);
         }
         scan.parser = vtparse::VTParser::new();
-        scan.utf8_left = 0;
+        scan.utf8 = Utf8Tail::default();
         scan.restart(None);
         self.forget_if_idle(surface);
     }
