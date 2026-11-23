@@ -106,7 +106,7 @@ egui_extras Table의 헤더 배경은 별도로 그린다. TableBuilder 전에 `
 
 문자 수로 폭을 제한할 때는 `glyph_width`나 한 글자의 galley 폭보다 한 글자 추가 시 늘어나는 폭을 사용한다. `"00"`의 폭에서 `"0"`의 폭을 빼면 레이아웃의 픽셀 반올림을 반영할 수 있다.
 
-D2Coding 11px, 배율 1에서 확인한 예에서는 공칭 advance가 5.5556px, 한 글자 galley가 5.5625px였지만 추가 글자의 폭은 6px였다. 헤더 390px의 예산은 65자이며 공칭값으로 계산한 70자는 419.56px가 되어 29.56px를 넘었다.
+D2Coding 11px, 배율 1에서 확인한 예(`crates/tasty-gallery/tests/mono_metrics.rs`의 `a_character_costs_the_advance_the_token_records`, 배율 1은 같은 파일의 시험이 확인한다)에서는 공칭 advance가 5.5556px, 한 글자 galley가 5.5625px였지만 추가 글자의 폭은 6px였다. 헤더 390px의 예산은 65자이며 공칭값으로 계산한 70자는 419.56px가 되어 29.56px를 넘었다.
 
 폰트 설치 경로도 확인한다. `GpuState::setup_egui_fonts`와 `font_registry::build_font_definitions` 모두 번들 고정폭 글꼴을 우선해야 한다. 첫 프레임의 `set_fonts`가 다른 글꼴로 덮어쓰면 앞서 측정한 폭을 사용할 수 없다.
 
