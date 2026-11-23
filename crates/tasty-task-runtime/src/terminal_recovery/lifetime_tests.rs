@@ -68,14 +68,15 @@ impl Fixture {
     }
     fn drain(&self) {
         let until = Instant::now() + WAIT;
-        while self.service.memory_access().detached_len() != 0 {
-            self.service.memory_access().reap_detached();
-            assert!(
-                Instant::now() < until,
-                "owned acknowledgement did not settle"
-            );
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        // reap_detached 는 끝난 ticket 만 거둔다. 마지막 읽기 앞에서도 그대로 돈다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(1), |_| {
+                let access = self.service.memory_access();
+                access.reap_detached();
+                access.detached_len() == 0
+            }),
+            "owned acknowledgement did not settle"
+        );
     }
     fn pending(&self) -> usize {
         terminal::pending(&*self.memory.lock().unwrap(), 1)
@@ -112,10 +113,12 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         self.writer.begin_shutdown();
         let until = Instant::now() + WAIT;
-        while self.writer.poll_shutdown() != 0 {
-            assert!(Instant::now() < until);
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        // poll 은 끝난 worker 를 join 하기만 한다. 마지막 읽기로 쓴다.
+        assert!(tasty_utils::test_wait::holds_by_every(
+            until,
+            Duration::from_millis(1),
+            |_| self.writer.poll_shutdown() == 0
+        ));
     }
 }
 
@@ -387,18 +390,20 @@ fn cached_settlement_after_retry(typed: bool) {
     let delayed = read();
     deliver(independent, f.service.memory_access());
     let until = Instant::now() + WAIT;
-    while f
-        .memory
-        .lock()
-        .unwrap()
-        .get(&Scope::Workspace(1), &handle_key("p"))
-        .unwrap()
-        .is_some()
-    {
-        f.service.memory_access().reap_detached();
-        assert!(Instant::now() < until);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // reap_detached 는 끝난 ticket 만 거둔다. 마지막 읽기 앞에서도 그대로 돈다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        until,
+        Duration::from_millis(1),
+        |_| {
+            f.service.memory_access().reap_detached();
+            f.memory
+                .lock()
+                .unwrap()
+                .get(&Scope::Workspace(1), &handle_key("p"))
+                .unwrap()
+                .is_none()
+        }
+    ));
     f.drain();
     assert_eq!(f.events(), 1);
     f.service

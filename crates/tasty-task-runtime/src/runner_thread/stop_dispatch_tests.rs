@@ -87,16 +87,20 @@ fn a_stop_during_a_held_dispatch_sends_none_of_the_remaining_ready_tasks() {
 
     release(held);
     let deadline = Instant::now() + Duration::from_secs(10);
-    while receipt.poll() == RunnerStopObservation::Waiting {
-        if let Ok(next) = rx.try_recv() {
-            panic!(
-                "runner dispatched {} after the stop request",
-                next.request.method
-            );
-        }
-        assert!(Instant::now() < deadline, "runner did not stop");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    // poll 과 try_recv 는 관측이다. 마지막 읽기에서도 같이 본다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| {
+            let stopped = receipt.poll() != RunnerStopObservation::Waiting;
+            if !stopped && let Ok(next) = rx.try_recv() {
+                panic!(
+                    "runner dispatched {} after the stop request",
+                    next.request.method
+                );
+            }
+            stopped
+        }),
+        "runner did not stop"
+    );
     let later: Vec<_> = rx.try_iter().collect();
     assert!(
         later.is_empty(),

@@ -370,17 +370,16 @@ fn nonblocking_participant_lock_uses_the_blocking_namespace_and_releases_on_drop
     // try_lock and the held-lock cleanup test must still return after a single attempt.
     let acquire_released = || {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-        loop {
-            let result = try_lock(&path).unwrap();
-            if result.is_some() {
-                return result;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "released lock stayed held"
-            );
-            std::thread::yield_now();
-        }
+        let mut result = None;
+        // 잠금 획득이 곧 기다리는 결과다. 기한 뒤 마지막 시도도 같은 획득이라 판정을 바꾸지 않는다.
+        assert!(
+            crate::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |_| {
+                result = try_lock(&path).unwrap();
+                result.is_some()
+            }),
+            "released lock stayed held"
+        );
+        result
     };
     let held = lock(&path).unwrap();
     assert!(try_lock(&path).unwrap().is_none());

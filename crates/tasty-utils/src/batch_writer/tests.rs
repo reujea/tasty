@@ -222,12 +222,12 @@ fn limits() -> Limits {
     }
 }
 
-fn eventually(what: &str, mut cond: impl FnMut() -> bool) {
+fn eventually(what: &str, cond: impl FnMut() -> bool) {
     let deadline = Instant::now() + WAIT;
-    while !cond() {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        crate::test_wait::holds_by(deadline, cond),
+        "timed out waiting for {what}"
+    );
 }
 
 /// 실제 시간을 조금 흘려도 상태가 그대로인지 본다(worker는 1ms마다 다시 확인한다).

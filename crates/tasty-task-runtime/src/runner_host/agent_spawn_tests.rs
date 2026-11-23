@@ -47,25 +47,28 @@ fn a_slow_spawn_does_not_hold_up_other_tasks() {
     assert!(matches!(exec.poll(&spawn_handle), PollOutcome::Active));
 
     let until = Instant::now() + Duration::from_secs(10);
-    while ctx.agent_turns.holder(42).is_none() {
-        assert!(Instant::now() < until, "the spawn never bound its session");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(10), |_| ctx
+            .agent_turns
+            .holder(42)
+            .is_some()),
+        "the spawn never bound its session"
+    );
     assert_eq!(ctx.agent_turns.holder(42), Some(spawning.id.clone()));
     ctx.agent_turns.report(
         42,
         "claude",
         TurnEvent::Ended(TurnEnd::Answer(Some("spawned".into()))),
     );
-    let outcome = loop {
-        match exec.poll(&spawn_handle) {
-            PollOutcome::Active => {
-                assert!(Instant::now() < until, "the spawn task never finished");
-                std::thread::sleep(Duration::from_millis(10));
-            }
-            other => break other,
-        }
-    };
+    // poll 은 끝난 spawn 의 결과를 거두기만 한다. 마지막 읽기로 쓴다.
+    let mut outcome = PollOutcome::Active;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(10), |_| {
+            outcome = exec.poll(&spawn_handle);
+            !matches!(outcome, PollOutcome::Active)
+        }),
+        "the spawn task never finished"
+    );
     let PollOutcome::Done(r) = outcome else {
         panic!("expected done, got {outcome:?}");
     };
@@ -143,10 +146,13 @@ fn a_bound_session_not_yet_taken_is_closed_on_cancel() {
     let task = create(&ctx, new_session(), v2());
     dispatch(&mut exec, &ctx, &task);
     let until = Instant::now() + Duration::from_secs(5);
-    while ctx.agent_turns.holder(42).is_none() {
-        assert!(Instant::now() < until, "the spawn never bound its session");
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(5), |_| ctx
+            .agent_turns
+            .holder(42)
+            .is_some()),
+        "the spawn never bound its session"
+    );
     exec.release_permit(&task.id);
     assert_eq!(ctx.agent_turns.holder(42), None);
     let closed = wait_closed(&fake);

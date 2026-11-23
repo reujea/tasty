@@ -832,13 +832,11 @@ mod tests {
 
     fn wait_until(what: &str, mut cond: impl FnMut() -> bool) {
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !cond() {
-            assert!(
-                Instant::now() < deadline,
-                "{what}: 10초 안에 일어나지 않았다"
-            );
-            thread::sleep(Duration::from_millis(10));
-        }
+        // 호출부의 조건은 저장된 값 읽기이거나 끝난 자식을 거두는 observe_exit·check_alive 뿐이다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| cond()),
+            "{what}: 10초 안에 일어나지 않았다"
+        );
     }
 
     /// Terminal 없이도 raw 출력·EOF·종료 관측이 계약대로 전달된다.
@@ -906,16 +904,13 @@ mod tests {
         // 상한은 자식의 `sleep 60` 보다 길다. 최종 kill 이 빠지면 자식이 먼저 끝나 아래 단언이 잡고,
         // 회수 결과가 기록되지 않으면 이 상한이 잡는다. 유예(200ms)와 거리가 멀어 부하로 넘지 않는다.
         let limit = Instant::now() + Duration::from_secs(120);
-        while !matches!(
-            retired.observation().phase,
-            PtyPhase::Reaped | PtyPhase::WaitFailed
-        ) {
-            assert!(
-                Instant::now() < limit,
-                "retire did not record an exit within 120s"
-            );
-            thread::sleep(Duration::from_millis(10));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by_every(limit, Duration::from_millis(10), |_| matches!(
+                retired.observation().phase,
+                PtyPhase::Reaped | PtyPhase::WaitFailed
+            )),
+            "retire did not record an exit within 120s"
+        );
         let observed = retired.observation();
         assert_eq!(observed.phase, PtyPhase::Reaped);
         let exit = observed.exit.expect("a reaped child has an exit");

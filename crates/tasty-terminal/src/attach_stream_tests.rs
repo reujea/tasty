@@ -143,13 +143,18 @@ fn empty_poll_racing_final_enqueue_and_overflow_never_overtakes_prefix() {
         start.wait();
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut prefix = Vec::new();
+        // 기한 뒤에도 쌓인 이벤트를 비울 때까지 한 번 더 읽는다. 경합을 겨냥한 yield 간격은 그대로 둔다.
+        let mut past = false;
         loop {
             match events.try_recv() {
                 Ok(AttachEvent::Output(bytes)) => prefix.extend(bytes),
                 Ok(AttachEvent::Loss) => break,
                 Err(mpsc::TryRecvError::Empty) => {
-                    assert!(Instant::now() < deadline, "producer stalled");
-                    std::thread::yield_now();
+                    assert!(!past, "producer stalled");
+                    past = Instant::now() >= deadline;
+                    if !past {
+                        std::thread::yield_now();
+                    }
                 }
                 other => panic!("unexpected event before loss: {other:?}"),
             }

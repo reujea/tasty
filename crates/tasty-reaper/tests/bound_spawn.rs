@@ -18,13 +18,16 @@ fn alive(pid: u32) -> bool {
 
 fn wait_gone(pid: u32) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline {
+    // 거짓을 읽은 뒤 기한이 지났으면 한 번 더 읽고 판정한다.
+    loop {
         if !alive(pid) {
             return true;
         }
+        if Instant::now() >= deadline {
+            return !alive(pid);
+        }
         std::thread::sleep(Duration::from_millis(50));
     }
-    false
 }
 
 fn act_as_host(pid_file: &std::ffi::OsStr) {
@@ -70,17 +73,25 @@ fn a_bound_child_ends_with_its_host() {
         .spawn()
         .expect("host process");
     let deadline = Instant::now() + Duration::from_secs(10);
+    let read_pid = || -> Option<u32> {
+        std::fs::read_to_string(&pid_file)
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
+    };
+    // 거짓을 읽은 뒤 기한이 지났으면 한 번 더 읽고 판정한다.
     let pid: u32 = loop {
-        if let Ok(text) = std::fs::read_to_string(&pid_file)
-            && let Ok(pid) = text.trim().parse()
-        {
+        if let Some(pid) = read_pid() {
             break pid;
         }
-        assert!(
-            Instant::now() < deadline,
-            "host never reported its child\nhost output:\n{}",
-            std::fs::read_to_string(&host_log).unwrap_or_default()
-        );
+        if Instant::now() >= deadline {
+            match read_pid() {
+                Some(pid) => break pid,
+                None => panic!(
+                    "host never reported its child\nhost output:\n{}",
+                    std::fs::read_to_string(&host_log).unwrap_or_default()
+                ),
+            }
+        }
         std::thread::sleep(Duration::from_millis(50));
     };
     std::fs::remove_file(&pid_file).expect("remove the pid file");

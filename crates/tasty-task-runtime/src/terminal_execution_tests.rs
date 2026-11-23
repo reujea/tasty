@@ -59,10 +59,21 @@ fn unknown_completion_does_not_execute_either_shell_or_downstream_twice() {
                 .list(1)
                 .unwrap()
         });
-        assert!(
-            Instant::now() < deadline,
-            "fixture did not finish: {tasks:?}"
-        );
+        if Instant::now() >= deadline {
+            // 기한 뒤에는 러너를 전진시키지 않고 저장된 상태를 한 번 더 읽어 판정한다.
+            let tasks = ctx.with_store(|mem| {
+                TaskStore::new(mem, HOST_OWNER, scope.agent_seq())
+                    .list(1)
+                    .unwrap()
+            });
+            assert!(
+                tasks
+                    .iter()
+                    .all(|task| matches!(task.state, TaskState::Succeeded)),
+                "fixture did not finish: {tasks:?}"
+            );
+            break;
+        }
         let for_set = ctx.clone();
         runner.tick(
             1,

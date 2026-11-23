@@ -8,6 +8,7 @@ use super::file_config::ConfigChange;
 use crate::process::PluginProcess;
 use crate::test_support::HomeEnvGuard;
 use tasty_terminal::waker_factory::NoopWakerFactory;
+use tasty_utils::test_wait::holds_by_every;
 
 const ID: &str = "com.example.test";
 
@@ -54,13 +55,19 @@ command = "unused"
 fn pump_until_retired(mgr: &mut PluginManager) -> Duration {
     let give_up = Instant::now() + Duration::from_secs(10);
     let mut longest = Duration::ZERO;
-    while mgr.retiring_count() > 0 {
-        assert!(Instant::now() < give_up, "회수가 10 초 안에 안 끝났다");
-        let t = Instant::now();
-        mgr.pump(Instant::now());
-        longest = longest.max(t.elapsed());
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let mut started = false;
+    assert!(
+        holds_by_every(give_up, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                let t = Instant::now();
+                mgr.pump(Instant::now());
+                longest = longest.max(t.elapsed());
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            mgr.retiring_count() == 0
+        }),
+        "회수가 10 초 안에 안 끝났다"
+    );
     longest
 }
 
@@ -161,10 +168,12 @@ fn an_explicit_enable_during_retirement_waits_and_starts_in_place() {
 
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+            .poll_shutdown_all()),
+        "종료가 10 초 안에 안 끝났다"
+    );
 }
 
 /// 회수 중의 기동 요청은 이전 프로세스와 겹치지 않도록 미뤄야 한다.
@@ -195,10 +204,12 @@ fn the_start_gate_defers_a_plugin_that_is_still_retiring() {
     assert!(mgr.is_running(ID), "회수 뒤에 미뤄 둔 기동이 안 됐다");
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+            .poll_shutdown_all()),
+        "종료가 10 초 안에 안 끝났다"
+    );
 }
 
 /// 무응답 재시작은 옛 프로세스를 뒤에서 회수하고, 새 프로세스를 **그 자리에서** 띄우지
@@ -244,10 +255,12 @@ fn exit_waits_for_a_retiring_plugin_and_does_not_respawn_it() {
     );
     assert_eq!(mgr.retiring_respawn(ID), Some(false));
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+            .poll_shutdown_all()),
+        "종료가 10 초 안에 안 끝났다"
+    );
     assert_eq!(mgr.retiring_count(), 0);
     assert!(!mgr.is_running(ID));
 }

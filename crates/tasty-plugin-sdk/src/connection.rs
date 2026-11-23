@@ -352,6 +352,8 @@ mod tests {
         let env = env_for(port);
         let mut conn = Connection::connect_and_authenticate(&env).expect("ok");
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        // holds_by 로 바꾸지 않는다. try_recv 는 소켓 읽기 기한을 새로 여는 수신이라 기한 뒤 호출은 관측이
+        // 아니라 새 대기가 된다. 지금 꼴은 모든 수신을 기한 전에 시작한다.
         let got = loop {
             assert!(
                 std::time::Instant::now() < deadline,

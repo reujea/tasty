@@ -65,6 +65,7 @@ tasty-test-support = { path = "../tasty-test-support" }
 # 메뉴 key equivalent 표가 키 매칭 규칙과 같은 이름 집합을 다루는지 시험에서 대조한다.
 tasty-key-match = { path = "../tasty-key-match" }
 tempfile = "3"
+tasty-utils = { path = "../tasty-utils", features = ["test-support"] }
 
 [features]
 default = []

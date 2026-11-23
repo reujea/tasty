@@ -32,7 +32,11 @@ fn wait_outcome(exec: &mut HostExecutor, handle: &DispatchHandle) -> PollOutcome
             other => return other,
         }
     }
-    panic!("run did not finish");
+    // 마지막 sleep 뒤 한 번 더 거둔다. poll 은 끝난 run 의 결과를 거두기만 한다.
+    match exec.poll(handle) {
+        PollOutcome::Active => panic!("run did not finish"),
+        other => other,
+    }
 }
 
 fn exit_seven() -> TaskCommand {

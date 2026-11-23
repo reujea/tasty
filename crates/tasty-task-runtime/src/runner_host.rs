@@ -734,6 +734,10 @@ mod tests {
                 }
             }
         }
+        // 마지막 sleep 뒤 한 번 더 거둔다. poll 은 끝난 watcher 의 결과를 거두기만 한다.
+        if final_outcome.is_none() {
+            final_outcome = Some(exec.poll(&handle)).filter(|o| !matches!(o, PollOutcome::Active));
+        }
         let outcome = final_outcome.expect("watcher should have completed");
         match outcome {
             PollOutcome::Done(r) => assert_eq!(r.exit_code, Some(0)),
@@ -847,6 +851,11 @@ mod tests {
                 PollOutcome::Active => std::thread::sleep(Duration::from_millis(50)),
                 other => return other,
             }
+        }
+        // 마지막 sleep 뒤 한 번 더 거둔다. poll 은 끝난 task 의 결과를 거두기만 한다.
+        let last = exec.poll(handle);
+        if !matches!(last, PollOutcome::Active) {
+            return last;
         }
         panic!(
             "task did not reach a terminal state; nominal polling sleep budget: {}ms",

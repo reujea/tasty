@@ -116,13 +116,12 @@ fn an_unknown_permit_acquire_spawns_nothing_and_the_next_tick_runs_once() {
 
     assert!(matches!(exec.dispatch(&task), DispatchOutcome::Started(_)));
     let deadline = Instant::now() + Duration::from_secs(10);
-    while runs(&marker) == 0 {
-        assert!(
-            Instant::now() < deadline,
-            "the confirmed attempt did not run"
-        );
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| runs(
+            &marker
+        ) > 0),
+        "the confirmed attempt did not run"
+    );
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(runs(&marker), 1, "one attempt runs once");
     assert_eq!(holders(&memory), 1);

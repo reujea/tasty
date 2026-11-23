@@ -12,6 +12,7 @@ use crate::process::PluginProcess;
 use crate::test_fake_plugin::{self as fake, ID};
 use crate::test_support::HomeEnvGuard;
 use tasty_terminal::waker_factory::NoopWakerFactory;
+use tasty_utils::test_wait::holds_by_every;
 
 /// 무응답 재시작을 걸어 회수 중으로 만든 manager 와, 번들(src)·설치본(dest) 경로.
 fn restarting(home: &HomeEnvGuard) -> (PluginManager, std::path::PathBuf, std::path::PathBuf) {
@@ -66,23 +67,28 @@ fn upgrade(
 
 fn pump_until_running(mgr: &mut PluginManager) {
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.is_running(ID) {
-        assert!(
-            Instant::now() < give_up,
-            "upgrade 뒤 재시작 중이던 plugin 이 다시 뜨지 않았다"
-        );
-        mgr.pump(Instant::now());
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let mut started = false;
+    assert!(
+        holds_by_every(give_up, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                mgr.pump(Instant::now());
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            mgr.is_running(ID)
+        }),
+        "upgrade 뒤 재시작 중이던 plugin 이 다시 뜨지 않았다"
+    );
 }
 
 fn shut_down(mgr: &mut PluginManager) {
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+            .poll_shutdown_all()),
+        "종료가 10 초 안에 안 끝났다"
+    );
 }
 
 /// (이름, 설치본 minor, 번들 minor, `--force`, 그 갈래를 탔는가).

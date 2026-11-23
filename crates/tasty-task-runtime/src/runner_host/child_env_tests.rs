@@ -42,24 +42,30 @@ fn run_task_env_helper() {
     store_op(&ctx, |s| s.submit_graph(1, spec, 0).unwrap());
     let mut runner = RunnerLoop::new(HostExecutor::new(ctx.clone()));
     let deadline = Instant::now() + Duration::from_secs(20);
-    loop {
-        let snapshot = store_op(&ctx, |s| s.list(1).unwrap());
-        let (a, b) = (ctx.clone(), ctx.clone());
-        runner.tick(
-            1,
-            now_ms(),
-            &snapshot,
-            move |ws, id, st, n| store_op(&a, |s| s.set_state(ws, id, st, n).map(|_| ())),
-            move |ws, id, c, n| store_op(&b, |s| s.complete(ws, id, c, n).map(|_| ())),
-        );
-        let task = store_op(&ctx, |s| s.get(1, &"dump".to_string()).unwrap().unwrap());
-        if task.state.is_terminal() {
-            assert_eq!(task.state, TaskState::Succeeded, "{:?}", task.result);
-            return;
-        }
-        assert!(Instant::now() < deadline, "Run task did not finish");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    let mut task = None;
+    // 마지막 읽기는 러너를 전진시키지 않고 저장된 상태만 읽는다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |last| {
+            if !last {
+                let snapshot = store_op(&ctx, |s| s.list(1).unwrap());
+                let (a, b) = (ctx.clone(), ctx.clone());
+                runner.tick(
+                    1,
+                    now_ms(),
+                    &snapshot,
+                    move |ws, id, st, n| store_op(&a, |s| s.set_state(ws, id, st, n).map(|_| ())),
+                    move |ws, id, c, n| store_op(&b, |s| s.complete(ws, id, c, n).map(|_| ())),
+                );
+            }
+            let t = store_op(&ctx, |s| s.get(1, &"dump".to_string()).unwrap().unwrap());
+            let done = t.state.is_terminal();
+            task = Some(t);
+            done
+        }),
+        "Run task did not finish"
+    );
+    let task = task.expect("read");
+    assert_eq!(task.state, TaskState::Succeeded, "{:?}", task.result);
 }
 
 #[test]

@@ -47,7 +47,9 @@ fn tick_until_terminal(ctx: &RunnerContext, runner: &mut RunnerLoop<HostExecutor
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    panic!("{id} did not finish: {:?}", get(ctx, id).state);
+    // 마지막 sleep 뒤 러너를 더 돌리지 않고 한 번 더 읽는다.
+    let state = get(ctx, id).state;
+    assert!(state.is_terminal(), "{id} did not finish: {state:?}");
 }
 
 fn finish(ctx: &RunnerContext, id: &str, output: Value) {

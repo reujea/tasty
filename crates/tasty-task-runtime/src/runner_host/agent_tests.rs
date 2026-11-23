@@ -168,16 +168,21 @@ fn wait_spawned(
     h: &DispatchHandle,
 ) -> DispatchHandle {
     let until = Instant::now() + Duration::from_secs(10);
-    loop {
-        if let Some(turn @ DispatchHandle::AgentTurn { .. }) =
-            load_dispatch_handle(ctx, task.workspace_id, &task.id)
-        {
-            return turn;
-        }
-        assert!(Instant::now() < until, "the spawn never bound its session");
-        assert!(matches!(exec.poll(h), PollOutcome::Active));
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    let mut turn = None;
+    let mut started = false;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                assert!(matches!(exec.poll(h), PollOutcome::Active));
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            turn = load_dispatch_handle(ctx, task.workspace_id, &task.id)
+                .filter(|d| matches!(d, DispatchHandle::AgentTurn { .. }));
+            turn.is_some()
+        }),
+        "the spawn never bound its session"
+    );
+    turn.expect("bound")
 }
 
 fn v2() -> TaskContract {

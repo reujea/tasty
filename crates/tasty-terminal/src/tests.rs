@@ -1832,7 +1832,9 @@ fn process_exited_eventually_emitted() {
     let deadline = started + BUDGET;
     let mut seen = false;
     let mut polls = 0usize;
-    while std::time::Instant::now() < deadline {
+    // 기한 뒤에는 기다리지 않고 이미 도착한 출력과 끝난 종료만 한 번 더 처리해 본다.
+    let mut last = false;
+    loop {
         process_pair(&mut t, &mut pty);
         polls += 1;
         if t.lock_state()
@@ -1843,10 +1845,17 @@ fn process_exited_eventually_emitted() {
             seen = true;
             break;
         }
+        if last {
+            break;
+        }
         // wake가 없어도 alive-check 주기마다 확인하며 전체 남은 시간을 넘겨 기다리지 않는다.
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            last = true;
+            continue;
+        }
         // wake 로 깼는지 상한으로 깼는지 구분할 필요가 없다 — 루프 상단의 process()+이벤트 검사와
-        // deadline 조건이 다음 반복에서 판정한다. 그래서 recv 결과는 무시한다.
+        // 기한 판정이 다음 반복에서 판정한다. 그래서 recv 결과는 무시한다.
         let _ = rx.recv_timeout(remaining.min(ALIVE_CHECK_INTERVAL));
     }
     if !seen {
@@ -1906,6 +1915,8 @@ fn process_exit_after_pty_eof_is_seen_by_wakes_alone() {
 
     const BUDGET: std::time::Duration = std::time::Duration::from_secs(15);
     let deadline = std::time::Instant::now() + BUDGET;
+    // holds_by 로 바꾸지 않는다. wake 수신 기한이 시험 계약이고, 기한 뒤 wake 없이 process_pair 를
+    // 돌리면 폴링이 종료를 찾아 "wake 만으로" 계약이 약해진다.
     let mut wakes = 0usize;
     let mut eof_seen_alive = false;
     loop {
@@ -1966,6 +1977,7 @@ fn eof_rewakes_stop_once_the_exit_is_settled() {
 
     const BUDGET: std::time::Duration = std::time::Duration::from_secs(15);
     let deadline = std::time::Instant::now() + BUDGET;
+    // holds_by 로 바꾸지 않는다. 종료 처리는 wake 를 받은 뒤에만 해야 뒤의 늦은 wake 관측 창이 뜻을 갖는다.
     loop {
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         rx.recv_timeout(remaining)

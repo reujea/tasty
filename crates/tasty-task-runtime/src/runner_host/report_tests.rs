@@ -119,7 +119,10 @@ mod run {
             }
             std::thread::sleep(Duration::from_millis(20));
         }
-        panic!("{id} did not finish");
+        // 마지막 sleep 뒤 러너를 더 돌리지 않고 한 번 더 읽는다.
+        let task = get(ctx, id);
+        assert!(task.state.is_terminal(), "{id} did not finish");
+        task
     }
 
     fn stream(t: &Task, name: &str) -> String {

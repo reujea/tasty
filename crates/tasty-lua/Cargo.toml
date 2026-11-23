@@ -12,5 +12,8 @@ thiserror = "2"
 tracing = "0.1"
 tasty-utils = { path = "../tasty-utils" }
 
+[dev-dependencies]
+tasty-utils = { path = "../tasty-utils", features = ["test-support"] }
+
 [lints]
 workspace = true

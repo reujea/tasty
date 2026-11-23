@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 use tasty_terminal::waker_factory::NoopWakerFactory;
+use tasty_utils::test_wait::holds_by_every;
 
 use super::{
     FailureKind, PluginManager, PluginTick, RESTART_FAILURE_LIMIT, RESTART_FAILURE_WINDOW,
@@ -70,10 +71,12 @@ fn due(mgr: &PluginManager) -> Option<Instant> {
 fn shut_down(mgr: &mut PluginManager) {
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+            .poll_shutdown_all()),
+        "종료가 10 초 안에 안 끝났다"
+    );
 }
 
 /// 자동 재시작의 연결 실패 뒤 실패 창만큼 지나면 다시 띄우고, 연결하면 남은 surface를 새 프로세스에 게시한다.
@@ -112,14 +115,17 @@ fn a_failed_automatic_restart_is_retried_and_reattaches_its_surface() {
     assert!(mgr.is_running(ID), "재시도 시각에 다시 띄우지 않았다");
 
     let give_up = Instant::now() + Duration::from_secs(10);
-    while mgr.is_connecting(ID) {
-        assert!(
-            Instant::now() < give_up,
-            "재시도한 plugin 이 연결하지 않았다"
-        );
-        mgr.pump(Instant::now());
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let mut started = false;
+    assert!(
+        holds_by_every(give_up, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                mgr.pump(Instant::now());
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            !mgr.is_connecting(ID)
+        }),
+        "재시도한 plugin 이 연결하지 않았다"
+    );
     assert!(mgr.is_running(ID), "재시도한 plugin 이 연결 뒤 내려갔다");
     assert!(
         !mgr.respawn_streaks.contains_key(ID),
@@ -306,14 +312,17 @@ fn a_file_swap_takes_over_a_pending_retry() {
         "교체를 마치고 띄우지 않았다"
     );
     let give_up = Instant::now() + Duration::from_secs(10);
-    while mgr.is_connecting(ID) {
-        assert!(
-            Instant::now() < give_up,
-            "교체 뒤 띄운 plugin 이 연결하지 않았다"
-        );
-        mgr.pump(Instant::now());
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let mut started = false;
+    assert!(
+        holds_by_every(give_up, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                mgr.pump(Instant::now());
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            !mgr.is_connecting(ID)
+        }),
+        "교체 뒤 띄운 plugin 이 연결하지 않았다"
+    );
     assert!(
         mgr.is_running(ID),
         "새 파일로 띄운 plugin 이 연결하지 않았다"
@@ -470,10 +479,12 @@ fn a_swap_during_an_unresponsive_retire_restores_the_restart_on_an_unchanged_fai
         let give_up = Instant::now() + Duration::from_secs(10);
         if !restore_while_retiring {
             // App 경로: 회수를 기다린 뒤 쓰기 결과로 되돌린다.
-            while !mgr.poll_file_retirement(ID) {
-                assert!(Instant::now() < give_up, "회수가 10 초 안에 안 끝났다");
-                std::thread::sleep(Duration::from_millis(20));
-            }
+            // poll 은 끝난 회수를 거두기만 한다. 마지막 읽기로 쓴다.
+            assert!(
+                holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+                    .poll_file_retirement(ID)),
+                "회수가 10 초 안에 안 끝났다"
+            );
         }
         mgr.restore_respawn_retry(ID, retry);
         let s = mgr
@@ -487,14 +498,17 @@ fn a_swap_during_an_unresponsive_retire_restores_the_restart_on_an_unchanged_fai
             "회수 중이면 회수 뒤 기동으로, 아니면 재시도 예약으로 되돌려야 한다"
         );
 
-        while !mgr.is_running(ID) {
-            assert!(
-                Instant::now() < give_up,
-                "미변경 실패 뒤 다시 띄우지 않았다 (회수 중 되돌림={restore_while_retiring})"
-            );
-            mgr.pump(Instant::now());
-            std::thread::sleep(Duration::from_millis(20));
-        }
+        let mut started = false;
+        assert!(
+            holds_by_every(give_up, Duration::ZERO, |last| {
+                if !last && std::mem::replace(&mut started, true) {
+                    mgr.pump(Instant::now());
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                mgr.is_running(ID)
+            }),
+            "미변경 실패 뒤 다시 띄우지 않았다 (회수 중 되돌림={restore_while_retiring})"
+        );
         assert!(
             mgr.respawn_streaks.contains_key(ID),
             "되돌린 기동이 자동 재시작의 연속 기록 밖에서 떴다"

@@ -69,11 +69,15 @@ fn spawn_child(test: &str, dir: &Path, role: &str) -> Child {
 
 fn wait_child(mut child: Child) -> ExitStatus {
     let deadline = Instant::now() + CHILD_TIMEOUT;
+    // 거짓을 읽은 뒤 기한이 지났으면 한 번 더 거두고 판정한다. try_wait 는 끝난 자식을 거두기만 한다.
     loop {
         if let Some(status) = child.try_wait().expect("wait child") {
             return status;
         }
         if Instant::now() >= deadline {
+            if let Some(status) = child.try_wait().expect("wait child") {
+                return status;
+            }
             child.kill().expect("kill stuck child");
             panic!("child did not finish within {CHILD_TIMEOUT:?}");
         }
@@ -406,8 +410,12 @@ const GO_FILE: &str = "go";
 
 fn wait_for_go(dir: &Path) {
     let deadline = Instant::now() + CHILD_TIMEOUT;
+    // 거짓을 읽은 뒤 기한이 지났으면 한 번 더 읽고 판정한다.
     while !dir.join(GO_FILE).exists() {
-        assert!(Instant::now() < deadline, "parent never said go");
+        if Instant::now() >= deadline {
+            assert!(dir.join(GO_FILE).exists(), "parent never said go");
+            break;
+        }
         std::thread::sleep(Duration::from_millis(1));
     }
 }

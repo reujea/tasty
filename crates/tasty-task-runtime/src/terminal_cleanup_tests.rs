@@ -141,16 +141,11 @@ impl Fixture {
 
     fn wait_for(&self, mut check: impl FnMut() -> bool) -> bool {
         let until = Instant::now() + WAIT;
-        loop {
+        // reap_detached 는 끝난 ticket 만 거둔다. 마지막 읽기 앞에서도 그대로 돈다.
+        tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(2), |_| {
             self.service.memory_access().reap_detached();
-            if check() {
-                return true;
-            }
-            if Instant::now() >= until {
-                return false;
-            }
-            std::thread::sleep(Duration::from_millis(2));
-        }
+            check()
+        })
     }
 }
 
@@ -159,10 +154,13 @@ impl Drop for Fixture {
         if let Some(writer) = &mut self.writer {
             writer.begin_shutdown();
             let until = Instant::now() + WAIT;
-            while writer.poll_shutdown() != 0 {
-                assert!(Instant::now() < until, "owned writer did not join");
-                std::thread::sleep(Duration::from_millis(2));
-            }
+            // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+            assert!(
+                tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(2), |_| writer
+                    .poll_shutdown()
+                    == 0),
+                "owned writer did not join"
+            );
         }
     }
 }

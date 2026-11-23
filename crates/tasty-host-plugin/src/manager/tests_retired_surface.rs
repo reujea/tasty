@@ -112,6 +112,8 @@ fn closing_while_retiring_settles_through_the_paused_publication_poll() {
         .enqueue_observed_remote_retirement(7, surface.binding())
         .unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    // holds_by 로 바꾸지 않는다. 퇴역 응답은 poll 이 처리해야 receipt 에 남으므로 기한 뒤 poll 없이 읽는
+    // 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·poll 앞에 있다.
     while receipt.observation().is_none() && std::time::Instant::now() < deadline {
         mgr.poll_publication_retirements().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -239,6 +241,8 @@ fn a_sent_destroy_settles_through_the_paused_poll_after_its_process_retired() {
     let (mut mgr, surface, _tap) = manager_with_listening_surface();
     let receipt = close_then_retire(&mut mgr, &surface);
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    // holds_by 로 바꾸지 않는다. 퇴역 응답은 poll 이 처리해야 receipt 에 남으므로 기한 뒤 poll 없이 읽는
+    // 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·poll 앞에 있다.
     while receipt.observation().is_none() && std::time::Instant::now() < deadline {
         mgr.poll_publication_retirements().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(5));

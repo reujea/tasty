@@ -8,6 +8,7 @@ use tasty_utils::batch_writer::{
 
 use super::*;
 use crate::{HOST_OWNER, PutOpts, Scope};
+use tasty_utils::test_wait::{holds_by, holds_by_every};
 
 const WAIT: Duration = Duration::from_secs(10);
 
@@ -70,10 +71,14 @@ impl Rig {
         self.release();
         self.writer.begin_shutdown();
         let deadline = Instant::now() + WAIT;
-        while self.writer.poll_shutdown() != 0 {
-            assert!(Instant::now() < deadline, "writer did not join");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+        assert!(
+            holds_by_every(deadline, Duration::from_millis(1), |_| self
+                .writer
+                .poll_shutdown()
+                == 0),
+            "writer did not join"
+        );
     }
 }
 
@@ -464,10 +469,7 @@ fn busy_is_retried_until_the_lock_frees_and_then_commits_once() {
         .submit(MemoryRequest::Write(put(HOST_OWNER, "k", "1", None)))
         .unwrap();
     let deadline = Instant::now() + WAIT;
-    while handle.stats().retries < 2 {
-        assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(holds_by(deadline, || handle.stats().retries >= 2));
     assert!(r.try_take().is_none());
     holder.execute_batch("ROLLBACK").unwrap();
     assert_eq!(version(r.wait_timeout(WAIT).unwrap()), 1);
@@ -627,10 +629,13 @@ fn both_routes_settle_the_same_way_and_feed_committed_changes() {
     );
     writer.begin_shutdown();
     let deadline = Instant::now() + WAIT;
-    while writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "writer did not join");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(1), |_| writer
+            .poll_shutdown()
+            == 0),
+        "writer did not join"
+    );
 }
 
 /// writer가 소유한 저장소는 writer와 함께 닫힌다. 다른 소비자 없이 접수한 쓰기가 남고, worker가
@@ -658,10 +663,13 @@ fn an_owned_store_closes_with_its_writer() {
     assert!(wal.exists(), "the open connection keeps its WAL");
     writer.begin_shutdown();
     let deadline = Instant::now() + WAIT;
-    while writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "writer did not join");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(1), |_| writer
+            .poll_shutdown()
+            == 0),
+        "writer did not join"
+    );
     drop(writer);
     assert!(!wal.exists(), "the store closed with its writer");
     let reopened = MemoryStore::open(&path).unwrap();
@@ -812,10 +820,13 @@ fn a_closed_writer_refuses_a_blocking_body_without_running_it() {
     let (mut writer, access) = queued_access(store, Limits::default());
     writer.begin_shutdown();
     let deadline = Instant::now() + WAIT;
-    while writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "writer did not join");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(1), |_| writer
+            .poll_shutdown()
+            == 0),
+        "writer did not join"
+    );
     let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag = ran.clone();
     let outcome = access.run_blocking(0, move |_| {
@@ -874,10 +885,11 @@ fn memory_writer_alias_exposes_nonconsuming_shutdown_observation() {
     );
     rig.writer.begin_shutdown();
     let deadline = Instant::now() + WAIT;
-    while rig.writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+    assert!(holds_by_every(deadline, Duration::from_millis(1), |_| rig
+        .writer
+        .poll_shutdown()
+        == 0));
     let observed = rig.writer.shutdown_observation();
     assert!(matches!(
         observed,

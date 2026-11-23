@@ -363,7 +363,8 @@ mod through_the_runner {
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        panic!("{what} did not happen");
+        // 마지막 sleep 뒤 러너를 더 돌리지 않고 한 번 더 읽는다.
+        assert!(done(ctx, runner), "{what} did not happen");
     }
 
     fn submit(ctx: &RunnerContext, graph: Value) {
@@ -645,16 +646,15 @@ fn the_postprocess_leader_gets_sigterm_when_the_host_dies() {
             .ok()
     };
     let deadline = Instant::now() + Duration::from_secs(20);
-    let leader = loop {
-        if let Some(pid) = read_pid("leader.pid") {
-            break pid;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the helper host never started the postprocess"
-        );
-        std::thread::sleep(Duration::from_millis(10));
-    };
+    let mut leader = None;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| {
+            leader = read_pid("leader.pid");
+            leader.is_some()
+        }),
+        "the helper host never started the postprocess"
+    );
+    let leader = leader.expect("leader pid");
     let grandchild = read_pid("grandchild.pid").expect("grandchild pid");
     let host_pid = i32::try_from(host.id()).expect("pid");
     // SAFETY: 이 시험이 띄운 helper 에만 보낸다.

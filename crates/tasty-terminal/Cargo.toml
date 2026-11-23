@@ -34,6 +34,7 @@ windows = { version = "0.61", features = [
 # 상속 환경변수 제거 시험이 공용 키 목록을 읽는다.
 tasty-test-support = { path = "../tasty-test-support" }
 tempfile = "3"
+tasty-utils = { path = "../tasty-utils", features = ["test-support"] }
 
 [lints]
 workspace = true

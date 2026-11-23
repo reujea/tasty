@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tasty_terminal::waker_factory::NoopWakerFactory;
+use tasty_utils::test_wait::holds_by_every;
 
 use super::{
     FailureKind, FailureReport, PluginManager, PluginTick, RESTART_FAILURE_LIMIT,
@@ -78,20 +79,28 @@ fn due(mgr: &PluginManager) -> Option<Instant> {
 
 fn pump_until(mgr: &mut PluginManager, what: &str, mut done: impl FnMut(&PluginManager) -> bool) {
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !done(mgr) {
-        assert!(Instant::now() < give_up, "10 초 안에 안 됐다: {what}");
-        mgr.pump(Instant::now());
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let mut started = false;
+    assert!(
+        holds_by_every(give_up, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                mgr.pump(Instant::now());
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            done(mgr)
+        }),
+        "10 초 안에 안 됐다: {what}"
+    );
 }
 
 fn shut_down(mgr: &mut PluginManager) {
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    while !mgr.poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
+            .poll_shutdown_all()),
+        "종료가 10 초 안에 안 끝났다"
+    );
 }
 
 /// 실패 하나 뒤 다음 재시도까지의 기다림을 잰다. 재시도는 실패 창 뒤라 10 초 창 집계와 겹치지

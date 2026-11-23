@@ -26,6 +26,8 @@ impl RawClient {
     fn connect(name: &str) -> Self {
         let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
         // spawn 직후 인스턴스가 아직 없을 수 있어 짧게 재시도.
+        // 루프 뒤 시도를 더하지 않는다. 시도마다 새 파이프 연결을 열고, 횟수 예산이라 검사 스레드가 밀려도
+        // 시도 수는 줄지 않는다.
         for _ in 0..50 {
             // SAFETY: Win32 CreateFileW. wide 는 NUL 종단 UTF-16.
             let h = unsafe {

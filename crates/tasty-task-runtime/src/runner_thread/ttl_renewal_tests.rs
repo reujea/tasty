@@ -158,6 +158,8 @@ fn a_running_task_keeps_its_ttl_lease_while_the_runner_watches_it() {
     // 끝나면(취소) 프로세스를 끝내고 반환한다. 그 뒤에는 갱신하지 않는다.
     exec.release_permit(&task.id);
     let deadline = Instant::now() + Duration::from_secs(10);
+    // holds_by 로 바꾸지 않는다. 점유 반환은 maintain 이 끝난 종료를 거둘 때만 저장되므로 기한 뒤 maintain
+    // 없이 읽는 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·maintain 앞에 있다.
     while db_holder(&ctx).is_some() && Instant::now() < deadline {
         exec.maintain();
         std::thread::sleep(Duration::from_millis(10));
@@ -295,6 +297,8 @@ fn a_running_task_keeps_its_ttl_permit_while_the_runner_watches_it() {
 
     exec.release_permit(&task.id);
     let deadline = Instant::now() + Duration::from_secs(10);
+    // holds_by 로 바꾸지 않는다. 점유 반환은 maintain 이 끝난 종료를 거둘 때만 저장되므로 기한 뒤 maintain
+    // 없이 읽는 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·maintain 앞에 있다.
     while !gpu_holder(&ctx).is_empty() && Instant::now() < deadline {
         exec.maintain();
         std::thread::sleep(Duration::from_millis(10));

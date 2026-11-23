@@ -134,7 +134,10 @@ fn restart_and_finish(ctx: &RunnerContext) -> Task {
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    panic!("judge did not finish: {:?}", judge(ctx).state);
+    // 마지막 sleep 뒤 러너를 더 돌리지 않고 저장된 상태를 한 번 더 읽는다.
+    let t = judge(ctx);
+    assert!(t.state.is_terminal(), "judge did not finish: {:?}", t.state);
+    t
 }
 
 fn runs(log: &std::path::Path) -> usize {
@@ -244,14 +247,15 @@ fn dropping_the_registry_waits_until_the_postprocess_is_stopped_and_recorded() {
     let registry = RunnerRegistry::new();
     assert!(registry.start(ctx.clone(), 1));
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while !pidfile.exists() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "postprocess did not start: {:?}",
-            judge(&ctx).state
-        );
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(
+            deadline,
+            std::time::Duration::from_millis(10),
+            |_| pidfile.exists()
+        ),
+        "postprocess did not start: {:?}",
+        judge(&ctx).state
+    );
     let child: i32 = std::fs::read_to_string(&pidfile)
         .unwrap()
         .trim()
@@ -394,15 +398,16 @@ fn tick_until(
     done: impl Fn() -> bool,
 ) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while !done() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "{what}: {:?}",
-            judge(ctx).state
-        );
-        tick(ctx, runner);
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    let mut started = false;
+    let held =
+        tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                tick(ctx, runner);
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            done()
+        });
+    assert!(held, "{what}: {:?}", judge(ctx).state);
 }
 
 /// 재시작 뒤에도 살아 있는 후처리는 끝날 때까지 permit 을 쥔다. 끝나면 결과를 받을 수 없어 결과
@@ -486,16 +491,21 @@ fn a_dead_leader_ends_unknown_even_while_its_group_member_lives() {
     let pid = leader.id();
     let started_at = tasty_agent::platform::process_start::start_time(pid).unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    let member: i32 = loop {
-        if let Some(p) = std::fs::read_to_string(&pidfile)
-            .ok()
-            .and_then(|s| s.trim().parse().ok())
-        {
-            break p;
-        }
-        assert!(std::time::Instant::now() < deadline, "member never started");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    };
+    let mut member = None;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(
+            deadline,
+            std::time::Duration::from_millis(10),
+            |_| {
+                member = std::fs::read_to_string(&pidfile)
+                    .ok()
+                    .and_then(|s| s.trim().parse::<i32>().ok());
+                member.is_some()
+            }
+        ),
+        "member never started"
+    );
+    let member: i32 = member.expect("member pid");
     // 비정상 종료 때 PDEATHSIG 가 리더에게만 보내는 신호를 흉내 낸다.
     // SAFETY: 이 시험이 띄운 리더에게만 보낸다.
     assert_eq!(unsafe { libc::kill(pid as i32, libc::SIGTERM) }, 0);

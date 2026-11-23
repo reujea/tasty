@@ -218,16 +218,17 @@ impl Report {
 
 fn wait(mut child: Child) -> ExitStatus {
     let deadline = Instant::now() + CHILD_TIMEOUT;
-    loop {
-        if let Some(status) = child.try_wait().expect("wait child") {
-            return status;
-        }
-        if Instant::now() >= deadline {
-            child.kill().expect("kill stuck child");
-            panic!("child did not finish within {CHILD_TIMEOUT:?}");
-        }
-        std::thread::sleep(Duration::from_millis(5));
+    // try_wait 는 끝난 자식을 거두기만 한다. 마지막 읽기로 쓴다.
+    let mut status = None;
+    if tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(5), |_| {
+        status = child.try_wait().expect("wait child");
+        status.is_some()
+    }) && let Some(status) = status
+    {
+        return status;
     }
+    child.kill().expect("kill stuck child");
+    panic!("child did not finish within {CHILD_TIMEOUT:?}");
 }
 
 fn messages(reports: &[Report]) -> Vec<&str> {
@@ -374,10 +375,11 @@ fn two_processes_panicking_together_both_keep_their_reports() {
         let a = run.spawn("process-panic", "a");
         let b = run.spawn("process-panic", "b");
         let deadline = Instant::now() + CHILD_TIMEOUT;
-        while !(marker(&run.work, "a").exists() && marker(&run.work, "b").exists()) {
-            assert!(Instant::now() < deadline, "children did not get ready");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || marker(&run.work, "a").exists()
+                && marker(&run.work, "b").exists()),
+            "children did not get ready"
+        );
         fs::write(run.work.join("go"), "").expect("release children");
         let (a_status, b_status) = (wait(a), wait(b));
         assert!(!a_status.success());

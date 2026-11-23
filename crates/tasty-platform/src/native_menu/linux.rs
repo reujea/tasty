@@ -543,6 +543,8 @@ mod tests {
         );
         assert!(handle.poll().is_none());
         let deadline = std::time::Instant::now() + Duration::from_secs(45);
+        // holds_by 로 바꾸지 않는다. poll 은 GTK 이벤트를 처리하는 진행이라 기한 뒤 관측만으로는 선택 결과를
+        // 읽을 수 없다(선택은 poll 이 처리해야 남는다).
         loop {
             if let Some(result) = handle.poll() {
                 assert_eq!(result, Some(7), "pointer must select enabled icon row");
@@ -603,6 +605,8 @@ mod tests {
         // 워치독이 걷어갈 때까지 폴링 — 각 폴링이 프레임 예산 안에 끝나야 한다.
         let mut polls = 0u32;
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        // holds_by 로 바꾸지 않는다. 기한 뒤 poll 은 GTK 메인 루프를 돌려 판정 대상인 watchdog 자체를
+        // 발화시킬 수 있고, poll 없이 닫힘을 관측할 길이 없다.
         let result = loop {
             let tick = std::time::Instant::now();
             let r = handle.poll();

@@ -640,8 +640,12 @@ mod tests {
             .spawn()
             .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        // 거짓을 읽은 뒤 기한이 지났으면 한 번 더 읽고 판정한다(검사 스레드 지연으로 거짓 실패하지 않게).
         while !exited_unreaped(&child).unwrap() {
-            assert!(std::time::Instant::now() < deadline, "리더가 끝나지 않았다");
+            if std::time::Instant::now() >= deadline {
+                assert!(exited_unreaped(&child).unwrap(), "리더가 끝나지 않았다");
+                break;
+            }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         let leader = std::path::PathBuf::from(format!("/proc/{}", child.id()));

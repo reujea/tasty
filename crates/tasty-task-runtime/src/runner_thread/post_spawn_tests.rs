@@ -154,12 +154,16 @@ fn state(f: &Fixture) -> TaskState {
 fn run_to_end(f: &mut Fixture, mut now: u64) {
     let none = AtomicU32::new(0);
     let deadline = Instant::now() + WAIT;
-    while !(state(f).is_terminal() && holders(f) == 0) {
-        assert!(Instant::now() < deadline, "끝나지 않았다: {:?}", state(f));
-        now += 100;
-        tick(f, now, &none);
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let mut started = false;
+    let done = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+        if !last && std::mem::replace(&mut started, true) {
+            now += 100;
+            tick(f, now, &none);
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        state(f).is_terminal() && holders(f) == 0
+    });
+    assert!(done, "끝나지 않았다: {:?}", state(f));
 }
 
 /// handle 저장이 실제로는 확정됐는데 결과 불명으로 끝나고(`units_after_writing` 은 본문 오류 뒤에도

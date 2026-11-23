@@ -1403,14 +1403,14 @@ mod tests {
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         let mut observed = 0;
-        while std::time::Instant::now() < deadline {
-            let st = registry.status(&ctx, 1);
-            if st.list_failures > 0 {
-                observed = st.list_failures;
-                break;
-            }
-            thread::sleep(std::time::Duration::from_millis(10));
-        }
+        tasty_utils::test_wait::holds_by_every(
+            deadline,
+            std::time::Duration::from_millis(10),
+            |_| {
+                observed = registry.status(&ctx, 1).list_failures;
+                observed > 0
+            },
+        );
         let final_status = registry.status(&ctx, 1);
         registry.stop(1);
 

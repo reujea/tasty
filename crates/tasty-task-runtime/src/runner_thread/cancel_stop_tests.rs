@@ -49,26 +49,22 @@ fn family_command(pid_file: &Path) -> Vec<String> {
 
 fn read_pid(pid_file: &Path) -> u32 {
     let deadline = Instant::now() + WAIT;
-    loop {
-        if let Ok(s) = std::fs::read_to_string(pid_file)
-            && let Ok(pid) = s.trim().parse()
-        {
-            return pid;
-        }
-        assert!(Instant::now() < deadline, "grandchild pid was not written");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    let mut pid = None;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| {
+            pid = std::fs::read_to_string(pid_file)
+                .ok()
+                .and_then(|s| s.trim().parse().ok());
+            pid.is_some()
+        }),
+        "grandchild pid was not written"
+    );
+    pid.expect("pid")
 }
 
 fn eventually_gone(pid: u32) -> bool {
     let deadline = Instant::now() + WAIT;
-    while Instant::now() < deadline {
-        if gone(pid) {
-            return true;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    false
+    tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| gone(pid))
 }
 
 /// 이전 호스트가 띄운 Run 처럼 새 프로세스 그룹으로 실행한다. 회수는 별도 스레드가 한다(재시작
@@ -180,6 +176,8 @@ fn a_watched_run_is_killed_with_its_children_before_its_permit_returns() {
         "종료 확인 전에 반환했다"
     );
     let deadline = Instant::now() + WAIT;
+    // holds_by 로 바꾸지 않는다. 점유 반환은 maintain 이 끝난 종료를 거둘 때만 저장되므로 기한 뒤 maintain
+    // 없이 읽는 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·maintain 앞에 있다.
     while !gpu_holders(&mem).is_empty() && Instant::now() < deadline {
         exec.maintain();
         std::thread::sleep(Duration::from_millis(10));
@@ -334,10 +332,12 @@ fn set_command(task: &mut Task, argv: Vec<String>) {
 /// 리더가 끝날 때까지 기다린다. watcher 가 회수하므로 PID 가 사라진다.
 fn wait_leader_reaped(pid: u32) {
     let deadline = Instant::now() + WAIT;
-    while process_start::start_time(pid).is_some() {
-        assert!(Instant::now() < deadline, "leader did not end");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| {
+            process_start::start_time(pid).is_none()
+        }),
+        "leader did not end"
+    );
 }
 
 /// 리더가 먼저 끝나고 구성원이 출력을 쥔 채 남은 Run 은 아직 Running 이다. 취소하면 리더 생존과
@@ -366,6 +366,8 @@ fn cancelling_a_run_whose_leader_ended_kills_the_members_still_holding_its_outpu
 
     exec.release_permit(&task.id);
     let deadline = Instant::now() + WAIT;
+    // holds_by 로 바꾸지 않는다. 점유 반환은 maintain 이 끝난 종료를 거둘 때만 저장되므로 기한 뒤 maintain
+    // 없이 읽는 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·maintain 앞에 있다.
     while !gpu_holders(&mem).is_empty() && Instant::now() < deadline {
         exec.maintain();
         std::thread::sleep(Duration::from_millis(10));
@@ -459,6 +461,8 @@ fn a_restored_run_returns_its_holdings_only_after_its_group_is_empty() {
     );
     member.wait().unwrap();
     let deadline = Instant::now() + WAIT;
+    // holds_by 로 바꾸지 않는다. 점유 반환은 maintain 이 끝난 종료를 거둘 때만 저장되므로 기한 뒤 maintain
+    // 없이 읽는 관측으로는 완료를 볼 수 없다. 기한 검사는 이미 읽기 뒤·maintain 앞에 있다.
     while !gpu_holders(&mem).is_empty() && Instant::now() < deadline {
         exec.maintain();
         std::thread::sleep(Duration::from_millis(10));
@@ -637,13 +641,13 @@ fn a_retry_waits_until_the_cancelled_attempts_group_is_confirmed_empty() {
     member.wait().unwrap();
     let new_child = read_pid(&pid_file);
     let deadline = Instant::now() + WAIT;
-    while !matches!(
-        state_of(&mem, scope.agent_seq(), &task.id),
-        TaskState::Running
-    ) {
-        assert!(Instant::now() < deadline, "새 회차가 시작하지 않았다");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(10), |_| matches!(
+            state_of(&mem, scope.agent_seq(), &task.id),
+            TaskState::Running
+        )),
+        "새 회차가 시작하지 않았다"
+    );
     // 옛 회차의 백그라운드·tick 정리가 끝날 시간을 준다.
     std::thread::sleep(Duration::from_millis(1500));
     let new = stored_pid(&mem, &task.id).expect("새 회차의 handle 이 지워졌다");

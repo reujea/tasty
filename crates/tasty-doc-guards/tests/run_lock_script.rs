@@ -313,8 +313,9 @@ fn signal_group(child: &Child, sig: &str) {
 /// `path`가 생길 때까지 기다린다. 시간이 지나면 셸 그룹을 끝내고 거둔 뒤 패닉한다.
 fn wait_for(child: &mut Child, path: &Path) {
     let end = Instant::now() + Duration::from_secs(10);
+    // 거짓을 읽은 뒤 기한이 지났으면 한 번 더 읽고 판정한다.
     while !path.exists() {
-        if Instant::now() >= end {
+        if Instant::now() >= end && !path.exists() {
             signal_group(child, "KILL");
             child.wait().expect("강제 종료한 셸 거두기");
             panic!("{} 를 기다리다 시간이 지났다", path.display());
@@ -331,6 +332,10 @@ fn finish(child: &mut Child, sig: Option<&str>) -> i32 {
             return status.code().unwrap_or(-1);
         }
         if Instant::now() > end {
+            // 기한 뒤에는 신호를 다시 보내지 않고 끝났는지 한 번 더 거둬 본 뒤 판정한다.
+            if let Some(status) = child.try_wait().expect("wait") {
+                return status.code().unwrap_or(-1);
+            }
             signal_group(child, "KILL");
             child.wait().expect("강제 종료한 셸 거두기");
             panic!("호출자 셸이 끝나지 않았다");

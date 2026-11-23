@@ -104,13 +104,10 @@ fn two_acquires_in_one_batch_grant_a_single_permit_once() {
         }))
         .unwrap();
     let deadline = Instant::now() + WAIT;
-    while !entered.load(Ordering::SeqCst) {
-        assert!(
-            Instant::now() < deadline,
-            "the blocking batch did not start"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || entered.load(Ordering::SeqCst)),
+        "the blocking batch did not start"
+    );
 
     let racers: Vec<_> = ["t-a", "t-b"]
         .into_iter()
@@ -122,10 +119,10 @@ fn two_acquires_in_one_batch_grant_a_single_permit_once() {
             })
         })
         .collect();
-    while handle.stats().admitted < 3 {
-        assert!(Instant::now() < deadline, "the acquires were not admitted");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || handle.stats().admitted >= 3),
+        "the acquires were not admitted"
+    );
     open(&gate);
     assert!(blocker.wait_timeout(WAIT).is_some());
     let got: Vec<Option<bool>> = racers
@@ -160,8 +157,13 @@ fn two_acquires_in_one_batch_grant_a_single_permit_once() {
     }
 
     writer.begin_shutdown();
-    while writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline + WAIT, "writer did not join");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll 은 끝난 worker 를 join 하기만 한다(종료는 앞에서 시작했다). 마지막 읽기로 쓴다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(
+            deadline + WAIT,
+            Duration::from_millis(1),
+            |_| writer.poll_shutdown() == 0
+        ),
+        "writer did not join"
+    );
 }
