@@ -299,7 +299,7 @@ fn plugin_shortcut_gate_knows_the_stage() {
         );
     }
     assert!(
-        nodes.contains("FocusNode::Stage => vec![KeyNode::Stage {"),
+        nodes.contains("FocusNode::Stage => KeyNode::Stage {"),
         "경로 키 게이트의 무대 출발 노드가 없다"
     );
 }
