@@ -254,13 +254,17 @@ impl App {
         let Some((workspace, epoch)) = &target.reconnect else {
             return;
         };
-        if let Some(session) = self.remote.sessions.iter_mut().find(|session| {
-            session.state.local_workspace == *workspace
-                && session.transport.frame_tx.epoch().same(epoch)
-        }) {
-            if let Some(end) = session.state.observed_end.as_mut() {
-                end.resync_discarded = true;
-            }
+        if let Some(end) = self
+            .remote
+            .sessions
+            .iter_mut()
+            .find(|session| {
+                session.state.local_workspace == *workspace
+                    && session.transport.frame_tx.epoch().same(epoch)
+            })
+            .and_then(|session| session.state.observed_end.as_mut())
+        {
+            end.resync_discarded = true;
         }
     }
 

@@ -501,7 +501,7 @@ impl App {
         key: &'static str,
         kind: crate::adapters::ui::ToastKind,
     ) {
-        #[cfg(test)]
+        #[cfg(all(test, target_os = "linux"))]
         notice_log::record(local_workspace, key);
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine
@@ -523,8 +523,8 @@ impl App {
 }
 
 /// 시험 전용: 이 스레드에서 `toast_mirror_window`가 받은 안내. App 시험 장치는 창 View가 없어 토스트를
-/// 직접 볼 수 없으므로 안내 경로의 호출을 센다.
-#[cfg(test)]
+/// 직접 볼 수 없으므로 안내 경로의 호출을 센다. 그 시험처럼 Linux 에서만 컴파일한다.
+#[cfg(all(test, target_os = "linux"))]
 pub(crate) mod notice_log {
     use std::cell::RefCell;
 
