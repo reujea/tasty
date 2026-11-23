@@ -253,8 +253,9 @@ fn set_modified(path: &Path, at: SystemTime) {
         .expect("set a test modified time");
 }
 
+/// 단계마다 한 시간씩 떨어진 수정 시각. 2초 단위로 저장하는 파일시스템에서도 서로 다르게 남는다.
 fn mtime_at(step: u64) -> SystemTime {
-    SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000 + step)
+    SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000 + step * 3600)
 }
 
 /// 이전 실행이 끝났는지를 mtime보다 먼저 본다. 판정 도중 이전 작업이 파일을 다시 고치고 끝나도
@@ -288,11 +289,14 @@ fn a_file_hook_reads_the_mtime_after_its_previous_run_is_seen_finished() {
 /// 건너뛴 회차는 그 틱의 시각을 기록하므로, 그 시각에서 한 주기가 지나기 전에는 다시 제출하지 않는다.
 #[test]
 fn a_skipped_interval_period_restarts_the_period_from_the_skipping_tick() {
-    const LONG: Duration = Duration::from_secs(1);
+    const LONG: Duration = Duration::from_secs(60);
     let mut mgr = GlobalHookManager::new();
     let id = mgr.add(HookCondition::Interval(LONG), "echo i".into(), None);
-    let added = mgr.last_fired[&id];
-    std::thread::sleep(LONG + Duration::from_millis(50));
+    // 기다리지 않고 주기가 두 번 지난 상태를 만든다. 시험이 판정 시각을 정해 스레드 지연과 무관하게 한다.
+    let stale = Instant::now()
+        .checked_sub(LONG * 2)
+        .expect("the monotonic clock is past two periods");
+    mgr.last_fired.insert(id, stale);
     let from = Instant::now();
     assert!(
         mgr.tick_with(|_, _| true).is_empty(),
@@ -302,17 +306,11 @@ fn a_skipped_interval_period_restarts_the_period_from_the_skipping_tick() {
     let recorded = mgr.last_fired[&id];
     assert!(
         from <= recorded && recorded <= until,
-        "the skipped tick recorded {:?} after registration, not its own time",
-        recorded.duration_since(added)
-    );
-    let next = Instant::now();
-    let fired = mgr.tick();
-    assert!(
-        next < recorded + LONG,
-        "precondition: the next tick ran within a period of the skip"
+        "the skipped tick recorded {:?} after the stale time, not its own time",
+        recorded.duration_since(stale)
     );
     assert!(
-        fired.is_empty(),
+        mgr.tick().is_empty(),
         "the hook ran again within a period of the skipped tick"
     );
 }
