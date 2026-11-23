@@ -14,6 +14,20 @@ pub(crate) struct Subscription {
     mux: bool,
     events: tasty_terminal::AttachEventReceiver,
 }
+impl Subscription {
+    /// 이 구독이 지금 출력을 보낼 수 있는지: 같은 holder의 ready grant, 같은 터미널 세대, 같은 연결.
+    fn is_current(
+        &self,
+        grant: Option<&crate::core::attach::AttachLock>,
+        terminals: &crate::runtime::terminal_store::TerminalStore,
+    ) -> bool {
+        grant.is_some_and(|grant| {
+            grant.ready && grant.holder == self.client && grant.granted_seq == self.grant
+        }) && terminals.matches_generation(self.surface, self.generation)
+            && self.hub.matches_client_binding(self.client, &self.binding)
+    }
+}
+
 impl EngineMut<'_> {
     pub(crate) fn subscribe_terminal(
         &mut self,
@@ -103,17 +117,8 @@ impl EngineMut<'_> {
         let mut byte_budget = 1024 * 1024usize;
         let mut needs_poll = false;
         for (key, mut subscription) in std::mem::take(&mut self.remote.attach_subscriptions) {
-            let current = grants.get(&subscription.surface).is_some_and(|grant| {
-                grant.ready
-                    && grant.holder == subscription.client
-                    && grant.granted_seq == subscription.grant
-            }) && self
-                .runtime
-                .terminals
-                .matches_generation(subscription.surface, subscription.generation)
-                && subscription
-                    .hub
-                    .matches_client_binding(subscription.client, &subscription.binding);
+            let current =
+                subscription.is_current(grants.get(&subscription.surface), &self.runtime.terminals);
             if !current {
                 continue;
             }
