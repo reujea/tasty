@@ -188,6 +188,12 @@ impl ToastManager {
         self.toasts.iter().map(|t| t.message.as_str()).collect()
     }
 
+    /// 테스트에서 생성 순서의 범위를 확인한다.
+    #[cfg(test)]
+    pub(crate) fn scopes(&self) -> Vec<ToastScope> {
+        self.toasts.iter().map(|t| t.scope.clone()).collect()
+    }
+
     /// 편의 헬퍼: Info 토스트.
     pub fn push_info(&mut self, message: impl Into<String>, scope: ToastScope) {
         self.push(message, ToastKind::Info, scope);

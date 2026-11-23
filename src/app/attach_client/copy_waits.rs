@@ -159,6 +159,10 @@ impl App {
     }
 }
 
+#[cfg(all(test, target_os = "linux"))]
+#[path = "copy_waits_app_tests.rs"]
+mod app_tests;
+
 #[cfg(test)]
 mod tests {
     use crate::state::attach_pending::waits::WaitKind;
