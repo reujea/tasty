@@ -213,7 +213,8 @@ fn route_session_end(
             }
         };
     // 결과 불명은 Connected 세션의 끝을 처리하는 이 자리에서 알리고 그 요청에 알렸다고 기록한다. 재연결
-    // 중인 세션의 멈춤과 그 뒤의 사용자 끊기는 기록을 보고 다시 알리지 않는다.
+    // 중인 세션의 멈춤은 여기서 알리지 않는다. 같은 epoch 에서 다시 처리되는 Connected 세션과 사용자 끊기는
+    // 기록을 보고 다시 알리지 않는다.
     let unknown = phase == SessionState::Connected
         && matches!(
             disposition,
