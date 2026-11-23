@@ -25,7 +25,7 @@ const CONFIRM_STAGE_H: LogicalPx = LogicalPx(300.0);
 const CONFIRM_LAST_STAGE_H: LogicalPx = LogicalPx(340.0);
 /// 예시 행 이름·프로필(시안 기본값).
 const ROW_NAME: &str = "tasty-core";
-const PROFILE: &str = "gx10";
+const PROFILE: &str = "host";
 
 enum Row {
     Item(String, bool),

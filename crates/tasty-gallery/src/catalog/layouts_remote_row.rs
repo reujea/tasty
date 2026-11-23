@@ -30,7 +30,7 @@ const RAIL_CELL_W: LogicalPx = LogicalPx(64.0);
 const POPUP_H_GUESS: LogicalPx = LogicalPx(160.0);
 
 const NAME: &str = "tasty-core";
-const PROFILE: &str = "gx10";
+const PROFILE: &str = "host";
 
 fn langs() -> impl Iterator<Item = &'static str> {
     std::iter::once("en").chain(translated_languages())
@@ -121,7 +121,7 @@ fn popup_content(ui: &mut egui::Ui, theme: &Theme, pop: Pop) {
         pop.reason
     };
     let profile = if reason == Some(RemoteRowReason::ProfileMissing) {
-        "gx10-old"
+        "host-old"
     } else {
         PROFILE
     };

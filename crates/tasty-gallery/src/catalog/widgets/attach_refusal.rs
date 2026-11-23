@@ -21,7 +21,7 @@ const ROW_GAP: LogicalPx = LogicalPx(1.0);
 
 /// 거절 표지와 레일 칩의 툴팁. 본체 저장 행처럼 무엇인지, 프로필 → 원격 workspace, 이유 순이다.
 fn refusal_tooltip() -> String {
-    const PROFILE: &str = "gx10";
+    const PROFILE: &str = "host";
     const REMOTE: &str = "3";
     format!(
         "{}\n{PROFILE} \u{2192} {REMOTE}\n{}",

@@ -19,14 +19,14 @@ const ROWS: [Row; 5] = [
         false,
     ),
     (
-        "mirror — profile gx10, tooltip says where it lives",
-        Some("gx10"),
+        "mirror — profile host, tooltip says where it lives",
+        Some("host"),
         "src/main.rs:42",
         true,
     ),
     (
-        "mirror — profile mac-company-attach",
-        Some("mac-company-attach"),
+        "mirror — profile work-laptop-attach",
+        Some("work-laptop-attach"),
         "src/main.rs:42",
         true,
     ),
@@ -38,7 +38,7 @@ const ROWS: [Row; 5] = [
     ),
     (
         "mirror — https link, no tooltip (opens in the local browser)",
-        Some("gx10"),
+        Some("host"),
         "https://docs.rs/tokio",
         false,
     ),

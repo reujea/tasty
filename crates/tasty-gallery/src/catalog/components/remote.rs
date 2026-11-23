@@ -73,7 +73,7 @@ const PROFILES: &[Profile] = &[
         name: "legacy-box",
         label: "",
         tag: "ssh",
-        target: "admin@192.168.1.40",
+        target: "admin@203.0.113.40",
         passkey: "old-rsa",
         shell: "sh",
         detecting: false,

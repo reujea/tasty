@@ -274,7 +274,7 @@ fn dialog_card(ui: &mut egui::Ui, theme: &Theme, path: &str, capable: bool) {
                     ui,
                     theme,
                     &tasty_ui_widgets::RemoteMark {
-                        host: "gx10",
+                        host: "host",
                         empty_label: t("attach.mirror_pill_label"),
                     },
                     path,

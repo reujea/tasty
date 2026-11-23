@@ -10,8 +10,8 @@ use tasty_ui_widgets::{StatusBarData, StatusBarRemote, draw_status_bar_view};
 use crate::catalog::spec::{StageVariant, TokenChip, dont, meta, note, stage, wrap_item};
 
 /// attach 프로필 이름 표본(결정된 호스트 글자).
-const HOST: &str = "gx10";
-const MID: &str = "mac-company-attach";
+const HOST: &str = "host";
+const MID: &str = "work-laptop-attach";
 const LONG: &str = "build-runner-eu-west-07-staging-attach";
 
 /// 디자인 표본(BAR_ROWS)의 바 폭. 축소 단계를 보이려고 고른 표본 폭이며 제품 치수가 아니다.
@@ -118,9 +118,9 @@ fn main_rows(theme: &Theme) -> Vec<(&'static str, LogicalPx, StatusBarData)> {
     let bar = |host: &str, reconnecting: bool| mirror_bar(theme, Some(remote(host, reconnecting)));
     vec![
         ("local surface — no remote item", BAR_W, local_bar(theme)),
-        ("mirror · connected — profile gx10", BAR_W, bar(HOST, false)),
+        ("mirror · connected — profile host", BAR_W, bar(HOST, false)),
         (
-            "mirror · connected — profile mac-company-attach",
+            "mirror · connected — profile work-laptop-attach",
             BAR_W,
             bar(MID, false),
         ),

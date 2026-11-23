@@ -235,16 +235,16 @@ const PATH_BUDGET: usize = tasty_ui_widgets::tokens::FH_TARGET_ELIDE_FALLBACK;
 /// 원격 경로 표본 — 디자인 Spec `file-handler-remote-path` 의 줄. 호스트 글자는 attach 프로필 이름이다.
 /// 넷째 칸은 이름으로 연 경로가 정한 형식이다(경로 링크는 None → `format unknown`).
 const REMOTE_PATH_ROWS: [(&str, &str, &str, Option<&str>); 4] = [
-    ("remote path — profile gx10", "gx10", "src/main.rs", None),
+    ("remote path — profile host", "host", "src/main.rs", None),
     (
         "remote path opened by name (plugin, mirror file open) — the format its name settled keeps the accent Tag",
-        "gx10",
+        "host",
         "docs/architecture.md",
         Some("markdown"),
     ),
     (
-        "93-char path beside mac-company-attach — whole segments drop, the filename stays",
-        "mac-company-attach",
+        "93-char path beside work-laptop-attach — whole segments drop, the filename stays",
+        "work-laptop-attach",
         PATH_SAMPLES[1],
         None,
     ),
@@ -331,7 +331,7 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
     spec::dont(
         ui,
         theme,
-        "Don't join host and path into one string (gx10:/src/main.rs). The path line elides at \
+        "Don't join host and path into one string (host:/src/main.rs). The path line elides at \
          the front, so the host would be the first thing cut.",
     );
 }
