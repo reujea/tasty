@@ -8,7 +8,7 @@ GUI 앱이 백그라운드로 들어가면 가능한 환경에서 트레이나 �
 
 - 부팅을 시작할 때(`begin_boot` 끝. 셸 설정 화면을 거치면 셸을 확인한 뒤) `tray_icon.is_none()`이면 생성을 시도하고, 만든 트레이는 앱 종료까지 유지한다. 같은 경로에 다시 들어와도 이미 있으면 만들지 않는다. macOS에서 창을 파기·재생성할 때도 트레이는 재사용한다. Windows 점프 목록도 같은 자리에서 등록한다.
 - 생성 실패 시 `create_tray_icon()`은 경고를 기록하고 `None`을 반환한다. 이후 백그라운드 진입은 플랫폼별 대체 동작을 따른다. Windows와 X11(XWayland 포함)은 창 최소화(X11에서는 창 관리자에 보내는 요청), 네이티브 Wayland는 트레이 유무와 관계없이 컴포지터에 보내는 최소화 요청이고 반영과 복귀 UI는 컴포지터가 정한다. macOS는 dock 복귀 경로다. `tray_icon`이 `None`이면 생성 실패와 생성 미시도를 모두 뜻한다.
-- 메뉴는 **Show Window · New Window · Quit**이다. 라벨과 툴팁은 `t("tray.*")`의 `show_window`·`new_window`·`quit`·`tooltip`을 사용해 `general.language`를 따른다([국제화](../../dev-guide/i18n.md)).
+- 메뉴는 **Show Window · New Window · Quit**이다. 라벨과 툴팁은 `t("tray.*")`의 `show_window`·`new_window`·`quit`·`tooltip`을 사용해 `general.language`를 따른다([국제화](../../dev-guide/i18n.md)). Linux에서는 툴팁이 표시되지 않는다([Linux 트레이 메뉴 확인](#linux-트레이-메뉴-확인)).
 - 아이콘은 포함된 PNG(`app_icon::tray_icon()`)를 사용한다. macOS의 `with_icon_as_template(true)`는 메뉴 바의 밝고 어두운 테마에 맞춰 OS가 색을 적용하게 한다. 다른 OS에서는 이 옵션이 동작하지 않는다.
 
 ## 백그라운드 진입 / 복귀 (OS별)
@@ -43,6 +43,16 @@ GUI 앱이 백그라운드로 들어가면 가능한 환경에서 트레이나 �
 - winit의 `about_to_wait`에서 `pump_gtk_events()`가 비차단 `gtk::main_iteration_do(false)`를 호출한다. 처리할 이벤트가 없으면 즉시 반환한다.
 - 빌드에는 GTK 3 개발 패키지(`libgtk-3-dev` 등)가 필요하다. 런타임에는 `libgtk-3`이 필요하다. 트레이에는 AppIndicator 라이브러리(`libayatana-appindicator3` 또는 `libappindicator3`)가 필요하고, 없으면 트레이 없이 동작한다. AppIndicator는 링크하지 않고 실행 중에 연다. 그래서 자동 의존성에 나오지 않고, rpm은 `libayatana-appindicator3.so.1()(64bit)` capability를 Recommends로 둔다(Fedora에서는 `libayatana-appindicator-gtk3`가 제공한다).
 - `tray-icon`의 기본 기능 `libxdo`는 끈다(본체와 `tasty-platform` 두 선언 모두). 그 기능은 Tasty가 쓰지 않는 muda 기본 메뉴 항목(복사·붙여넣기 등)의 키 입력에만 쓰이고, 켜면 배포본이 빌드 머신의 `libxdo` soname에 묶인다.
+
+### Linux 트레이 메뉴 확인
+
+세션 버스의 watcher에 SNI 항목이 등록된 경우 메뉴를 D-Bus로 확인할 수 있다. `org.kde.StatusNotifierWatcher`의 등록 항목에서 `tray_icon_tray_app_`로 시작하는 Tasty 항목을 찾고, 그 항목의 메뉴 경로에 dbusmenu 배치를 묻는다.
+
+```bash
+busctl --user call <bus> <path>/Menu com.canonical.dbusmenu GetLayout iias -- 0 -1 1 label
+```
+
+툴팁은 Linux에서 확인할 수 없다. Tasty는 `TrayIconBuilder::with_tooltip`으로 문구를 넘기지만(`crates/tasty-platform/src/system_tray.rs`), tray-icon의 Linux(GTK) 백엔드는 만들 때도 갱신할 때도 툴팁을 쓰지 않는다.
 
 ### DE 가용성 (best-effort 범위)
 
