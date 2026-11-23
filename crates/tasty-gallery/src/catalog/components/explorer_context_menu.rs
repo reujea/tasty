@@ -1,6 +1,6 @@
 //! 공용 메뉴 항목을 조합한 탐색기 우클릭 메뉴 예제.
 //! 빈 영역·파일·폴더·다중 선택·원격 칸에 따른 구성을 보여준다. OS 연계 행(시스템에서 열기·파일 관리자에서
-//! 보기)은 로컬 칸에서만 자기 묶음으로 오고, 모든 메뉴는 구분선 뒤 Properties 로 끝난다.
+//! 보기)은 휴지통 뒤 자기 묶음으로 오고, 모든 메뉴는 구분선 뒤 Properties 로 끝난다.
 //! 붙여넣을 목록이 없으면 Paste 행은 빠지지 않고 꺼진다. 대상이 사라진 링크의 들어 있는 폴더에서 보기도 꺼진다.
 //! 원격 칸에서 할 수 없는 행(OS 연계·새 탭으로 열기·Undo/Redo)과 출처가 다른 목록의 Paste 는 제자리에서
 //! 꺼지고 이유를 툴팁으로 단다(시안 remote-writes D6).
@@ -12,7 +12,7 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{MenuItemVariant, menu_item, menu_separator};
 
 use crate::catalog::icons::{
-    COPY, EDIT, FILE_PLUS, FOLDER_OPEN, FOLDER_PLUS, INFO, MockGlyph, STAR, TRASH,
+    COPY, EDIT, EXTERNAL, FILE_PLUS, FOLDER_OPEN, FOLDER_PLUS, INFO, MockGlyph, STAR, TRASH,
 };
 use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage};
 use crate::i18n::t;
@@ -23,8 +23,13 @@ pub(super) enum Mi {
     Item(Option<MockGlyph>, &'static str, bool),
     /// 작업 문구, 설정 키, 활성 여부와 비활성 이유.
     Row(String, &'static str, bool, Option<String>),
-    /// 꺼진 행 (leading glyph, label, 이유 툴팁).
-    Off(Option<MockGlyph>, &'static str, Option<String>),
+    /// 꺼진 행 (leading glyph, label, 단축키 설정 키, 이유 툴팁).
+    Off(
+        Option<MockGlyph>,
+        &'static str,
+        Option<&'static str>,
+        Option<String>,
+    ),
     Sep,
 }
 
@@ -68,8 +73,16 @@ fn file_menu() -> Vec<Mi> {
         Mi::Item(Some(TRASH), "Delete", true),
         Mi::Item(Some(EDIT), "Rename", false),
         Mi::Sep,
-        Mi::Item(None, t("explorer.context_menu.open_in_system"), false),
-        Mi::Item(None, t("explorer.context_menu.reveal_files"), false),
+        Mi::Item(
+            Some(EXTERNAL),
+            t("explorer.context_menu.open_in_system"),
+            false,
+        ),
+        Mi::Item(
+            Some(FOLDER_OPEN),
+            t("explorer.context_menu.reveal_files"),
+            false,
+        ),
         Mi::Sep,
         properties(),
     ]
@@ -96,8 +109,16 @@ fn folder_menu_with(paste: bool) -> Vec<Mi> {
         Mi::Item(Some(TRASH), "Delete", true),
         Mi::Item(Some(EDIT), "Rename", false),
         Mi::Sep,
-        Mi::Item(None, t("explorer.context_menu.open_in_system"), false),
-        Mi::Item(None, t("explorer.context_menu.reveal_files"), false),
+        Mi::Item(
+            Some(EXTERNAL),
+            t("explorer.context_menu.open_in_system"),
+            false,
+        ),
+        Mi::Item(
+            Some(FOLDER_OPEN),
+            t("explorer.context_menu.reveal_files"),
+            false,
+        ),
         Mi::Sep,
         properties(),
     ]
@@ -111,15 +132,31 @@ fn multi_menu() -> Vec<Mi> {
         Mi::Sep,
         Mi::Item(Some(TRASH), "Delete", true),
         Mi::Sep,
-        Mi::Item(None, t("explorer.context_menu.open_in_system"), false),
+        Mi::Item(
+            Some(EXTERNAL),
+            t("explorer.context_menu.open_in_system"),
+            false,
+        ),
         Mi::Sep,
         properties(),
     ]
 }
 
 /// 원격 칸에서 이유와 함께 꺼진 행.
-fn remote_off(label: &'static str, reason_key: &'static str) -> Mi {
-    Mi::Off(None, label, Some(t(reason_key).to_owned()))
+fn remote_off(glyph: Option<MockGlyph>, label: &'static str, reason_key: &'static str) -> Mi {
+    Mi::Off(glyph, label, None, Some(t(reason_key).to_owned()))
+}
+
+/// Windows 메뉴: 같은 행과 구분선, 이유 툴팁은 없다(라벨도 그대로).
+fn without_tooltips(items: Vec<Mi>) -> Vec<Mi> {
+    items
+        .into_iter()
+        .map(|i| match i {
+            Mi::Off(glyph, label, field, _) => Mi::Off(glyph, label, field, None),
+            Mi::Row(label, field, enabled, _) => Mi::Row(label, field, enabled, None),
+            other => other,
+        })
+        .collect()
 }
 
 /// 원격 칸의 파일 하나. OS 연계 행은 구분선과 함께 제자리에 남고 꺼진다.
@@ -133,10 +170,12 @@ fn remote_menu() -> Vec<Mi> {
         Mi::Item(Some(EDIT), "Rename", false),
         Mi::Sep,
         remote_off(
+            Some(EXTERNAL),
             t("explorer.context_menu.open_in_system"),
             "explorer.menu.local_only_reason",
         ),
         remote_off(
+            Some(FOLDER_OPEN),
             t("explorer.context_menu.reveal_files"),
             "explorer.menu.local_only_reason",
         ),
@@ -145,17 +184,53 @@ fn remote_menu() -> Vec<Mi> {
     ]
 }
 
-/// 원격 칸의 폴더 하나(메뉴 앞부분). 새 탭으로 열기가 제자리에서 꺼진다. 즐겨찾기 행 메뉴도 같다.
+/// 원격 칸에서 꺼진 새 탭으로 열기.
+fn remote_new_tab() -> Mi {
+    remote_off(
+        None,
+        t("explorer.context_menu.open_in_new_tab"),
+        "explorer.menu.new_tab_remote_reason",
+    )
+}
+
+/// 원격 칸의 폴더 하나(메뉴 앞부분). 새 탭으로 열기가 제자리에서 꺼진다.
 fn remote_folder_menu() -> Vec<Mi> {
     vec![
         Mi::Item(Some(COPY), "Copy path", false),
         Mi::Item(Some(STAR), "Add to favorites", false),
-        remote_off(
-            t("explorer.context_menu.open_in_new_tab"),
-            "explorer.menu.new_tab_remote_reason",
-        ),
+        remote_new_tab(),
         Mi::Item(None, t("explorer.context_menu.set_as_root"), false),
     ]
+}
+
+/// 원격 칸의 즐겨찾기 행 메뉴. 새 탭으로 열기가 제자리에서 꺼진다.
+fn remote_favorite_menu() -> Vec<Mi> {
+    vec![
+        remote_new_tab(),
+        Mi::Item(None, t("explorer.context_menu.set_as_root"), false),
+        Mi::Sep,
+        Mi::Item(
+            None,
+            t("explorer.context_menu.remove_from_favorites"),
+            false,
+        ),
+    ]
+}
+
+/// 원격 칸의 폴더 하나인데 로컬에서 복사한 목록을 들고 있다(메뉴 앞부분). Paste into 는 출처 이유와 함께 꺼진다.
+fn remote_folder_with_local_list_menu() -> Vec<Mi> {
+    let mut items = remote_folder_menu();
+    items.extend([
+        Mi::Item(Some(COPY), "Copy", false),
+        Mi::Item(None, "Cut", false),
+        Mi::Row(
+            "Paste (into)".into(),
+            "paste",
+            false,
+            Some(t("explorer.state.cross_computer_paste_unsupported").to_owned()),
+        ),
+    ]);
+    items
 }
 
 /// 원격 칸의 빈 영역. Undo · Redo 는 이력이 없는 맨 이름으로 꺼지고 이유를 단다.
@@ -164,13 +239,17 @@ fn remote_empty_menu() -> Vec<Mi> {
         Mi::Item(Some(COPY), "Copy path", false),
         paste_row("Paste", true),
         Mi::Sep,
-        remote_off(
+        Mi::Off(
+            None,
             t("explorer.menu.undo_none"),
-            "explorer.menu.undo_remote_reason",
+            Some("explorer_undo"),
+            Some(t("explorer.menu.undo_remote_reason").to_owned()),
         ),
-        remote_off(
+        Mi::Off(
+            None,
             t("explorer.menu.redo_none"),
-            "explorer.menu.undo_remote_reason",
+            Some("explorer_redo"),
+            Some(t("explorer.menu.undo_remote_reason").to_owned()),
         ),
         Mi::Sep,
         properties(),
@@ -202,25 +281,44 @@ fn search_result_menu() -> Vec<Mi> {
     ]
 }
 
-/// 대상이 사라진 링크 하나를 눌렀을 때. 들어 있는 폴더에서 보기는 꺼진 채 맨 앞에 남고
-/// 끊긴 링크 문구(대상 경로 포함)를 툴팁으로 단다.
+/// 대상이 사라진 링크 하나를 눌렀을 때(메뉴 앞부분). 들어 있는 폴더에서 보기는 아이콘 없이 꺼진 채
+/// 맨 앞에 남고 끊긴 링크 문구(대상 경로 포함)를 툴팁으로 단다. 그 뒤는 평소 파일 행이다.
 fn broken_link_menu() -> Vec<Mi> {
     vec![
         Mi::Off(
-            Some(FOLDER_OPEN),
+            None,
             t("explorer.menu.show_in_folder"),
+            None,
             Some(crate::i18n::t_fmt(
                 "explorer.state.broken_link",
-                "~/notes/old-plan.md",
+                "~/archive/config.toml",
             )),
         ),
         Mi::Sep,
         Mi::Item(None, "Copy path", false),
+        Mi::Item(None, "Copy", false),
+        Mi::Item(None, "Cut", false),
     ]
 }
 
 /// (caption, 항목 빌더) — 한 컨텍스트 메뉴 variant.
 type Variant = (&'static str, fn() -> Vec<Mi>);
+
+/// D6 메뉴의 Windows 변형.
+const WINDOWS_VARIANTS: [Variant; 6] = [
+    ("windows · remote cell · file", remote_menu),
+    ("windows · remote cell · folder", remote_folder_menu),
+    ("windows · remote cell · favorite row", remote_favorite_menu),
+    ("windows · remote cell · empty area", remote_empty_menu),
+    (
+        "windows · local · a remote's list held",
+        local_with_remote_list_menu,
+    ),
+    (
+        "windows · remote cell · folder · a local list held",
+        remote_folder_with_local_list_menu,
+    ),
+];
 
 /// 시안 메뉴 한 장의 바깥 폭(`width: 220`, border-box).
 const MENU_OUTER_W: LogicalPx = LogicalPx(220.0);
@@ -293,6 +391,27 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             "local · a remote's list held",
             &local_with_remote_list_menu(),
         );
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "remote cell · favorite row",
+            &remote_favorite_menu(),
+        );
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "remote cell · folder · a local list held",
+            &remote_folder_with_local_list_menu(),
+        );
+    });
+    // 같은 D6 메뉴의 Windows 모양: 행과 구분선은 같고 툴팁이 없다.
+    stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
+        for (caption, build) in WINDOWS_VARIANTS {
+            menu_column(ui, theme, menu_w, caption, &without_tooltips(build()));
+        }
     });
     history::draw(ui, theme);
 
@@ -306,11 +425,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("danger", "Delete = accent-danger label"),
             (
                 "targets",
-                "empty · file · folder · multi · remote cell (file · folder · empty area) · search result · link with its target gone · nothing to paste · a list from another computer",
+                "empty · file · folder · multi · remote cell (file · folder · favorite row · empty area · folder with a local list) · search result · link with its target gone · nothing to paste · a list from another computer · Windows look of the remote cell menus",
             ),
             (
                 "open in system · show in file manager",
-                "own group after Delete · Open in system opens every chosen item · Show in Finder / File Explorer / file manager selects one item in its folder · remote keeps both rows and their separator, disabled with the local-only reason · row icons wait for native menu icon support",
+                "own group after Delete · Open in system opens every chosen item · Show in Finder / File Explorer / file manager selects one item in its folder · remote keeps both rows and their separator, disabled with the local-only reason · external and folderOpen icons (native menu icons)",
             ),
             (
                 "show in folder",
@@ -326,7 +445,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "remote cell",
-                "rows a remote can't run stay in place, disabled · reason tooltip on Linux / macOS · Windows: same rows, no tooltip · Open in new tab (folder and favorite rows) · Undo / Redo with bare labels",
+                "rows a remote can't run stay in place, disabled · reason tooltip on Linux / macOS · Windows: same rows, no tooltip, labels kept · Open in new tab (folder and favorite rows) · Undo / Redo with bare labels, shortcut column kept",
             ),
             (
                 "stale step",
@@ -398,7 +517,8 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                 for it in items {
                     match it {
                         Mi::Sep => menu_separator(ui, theme),
-                        Mi::Off(glyph, label, reason) => {
+                        Mi::Off(glyph, label, field, reason) => {
+                            let keys = field.and_then(shortcut);
                             let paint = glyph.map(|g| {
                                 move |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
                                     g.image(rect.height(), c).paint_at(ui, rect)
@@ -411,7 +531,7 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                                     .as_ref()
                                     .map(|p| p as tasty_ui_widgets::IconPainter<'_>),
                                 label,
-                                None,
+                                keys.as_deref(),
                                 MenuItemVariant::Normal,
                                 false,
                                 false,
@@ -541,7 +661,7 @@ mod tests {
         let items = broken_link_menu();
         assert!(matches!(
             &items[0],
-            Mi::Off(Some(_), label, Some(_)) if *label == t("explorer.menu.show_in_folder")
+            Mi::Off(None, label, None, Some(_)) if *label == t("explorer.menu.show_in_folder")
         ));
         assert!(matches!(items[1], Mi::Sep));
         assert!(
@@ -558,7 +678,7 @@ mod tests {
         let off = |items: &[Mi], key: &'static str| {
             items
                 .iter()
-                .filter(|i| matches!(i, Mi::Off(None, _, Some(why)) if why == t(key)))
+                .filter(|i| matches!(i, Mi::Off(_, _, _, Some(why)) if why == t(key)))
                 .count()
         };
         assert_eq!(off(&remote_menu(), "explorer.menu.local_only_reason"), 2);
@@ -567,9 +687,36 @@ mod tests {
             1
         );
         assert_eq!(
+            off(
+                &remote_favorite_menu(),
+                "explorer.menu.new_tab_remote_reason"
+            ),
+            1
+        );
+        assert_eq!(
             off(&remote_empty_menu(), "explorer.menu.undo_remote_reason"),
             2
         );
+        // Undo · Redo 는 꺼져도 단축키 열을 지킨다.
+        assert!(
+            remote_empty_menu()
+                .iter()
+                .any(|i| matches!(i, Mi::Off(_, _, Some("explorer_undo"), _)))
+        );
+        assert!(matches!(
+            remote_folder_with_local_list_menu().last(),
+            Some(Mi::Row(_, "paste", false, Some(why)))
+                if why == t("explorer.state.cross_computer_paste_unsupported")
+        ));
+        // Windows 변형은 같은 행에서 툴팁만 뺀다.
+        for (_, build) in WINDOWS_VARIANTS {
+            let win = without_tooltips(build());
+            assert_eq!(win.len(), build().len());
+            assert!(
+                !win.iter()
+                    .any(|i| matches!(i, Mi::Off(_, _, _, Some(_)) | Mi::Row(_, _, _, Some(_))))
+            );
+        }
         assert!(matches!(
             &local_with_remote_list_menu()[3],
             Mi::Row(_, "paste", false, Some(why)) if why == t("explorer.state.remote_paste_unsupported")
