@@ -94,11 +94,21 @@ pub(crate) mod fault {
         Build(i32),
         /// Building the Tokio runtime panics, as Tokio does when it cannot spawn a thread.
         BuildPanic,
+        /// Building panics with a non-string payload whose destructor panics too.
+        BuildPanicDropPanics,
     }
     /// What the setup thread meets in place of building its runtime.
     pub(crate) enum BuildFault {
         Error(io::Error),
         Panic,
+        PanicDropPanics,
+    }
+    /// A panic payload whose destructor panics.
+    struct PanicsOnDrop;
+    impl Drop for PanicsOnDrop {
+        fn drop(&mut self) {
+            panic!("the build panic payload destructor panics on purpose");
+        }
     }
     /// The panic message an injected build panic carries.
     pub(crate) const BUILD_PANIC: &str = "injected runtime build panic";
@@ -107,6 +117,7 @@ pub(crate) mod fault {
             match self {
                 Self::Error(error) => Err(error),
                 Self::Panic => panic!("{BUILD_PANIC}"),
+                Self::PanicDropPanics => std::panic::panic_any(PanicsOnDrop),
             }
         }
     }
@@ -125,6 +136,7 @@ pub(crate) mod fault {
                 Some(BuildFault::Error(io::Error::from_raw_os_error(code))),
             ),
             Some(Fault::BuildPanic) => (None, Some(BuildFault::Panic)),
+            Some(Fault::BuildPanicDropPanics) => (None, Some(BuildFault::PanicDropPanics)),
             None => (None, None),
         }
     }

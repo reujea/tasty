@@ -121,3 +121,18 @@ fn a_runtime_build_that_panics_names_setup_panicked_and_warns_its_message() {
     assert_eq!(panicked.len(), 1, "{log}");
     assert!(panicked[0].contains(super::fault::BUILD_PANIC), "{log}");
 }
+
+#[test]
+fn a_build_panic_payload_whose_destructor_panics_still_delivers_setup_panicked_and_wakes() {
+    let _serial = serial();
+    inject(Fault::BuildPanicDropPanics);
+    let mut setup = start(Arc::new(|| true));
+    let message = panic_message(|| drop(ready(&mut setup)));
+    assert!(message.contains("SetupPanicked"), "{message}");
+    let published = setup.published.clone();
+    wait_for("setup wake after a build panic", || {
+        published.load(Ordering::Acquire)
+    });
+    drop(setup);
+    reaped();
+}

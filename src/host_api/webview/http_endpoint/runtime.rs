@@ -107,7 +107,7 @@ impl Setup {
                 build_runtime()
             })) {
                 Ok(built) => built.map_err(SetupFailure::Io),
-                Err(payload) => Err(SetupFailure::Panicked(panic_message(&*payload))),
+                Err(payload) => Err(SetupFailure::Panicked(payload)),
             };
             setup_worker(built, worker, tx, shutdown, wake);
         };
@@ -154,8 +154,8 @@ fn spawn_setup(body: impl FnOnce() + Send + 'static) -> std::io::Result<JoinHand
 /// Why the setup worker has no runtime.
 enum SetupFailure {
     Io(std::io::Error),
-    /// The panic message, when the payload is a string.
-    Panicked(Option<String>),
+    /// The caught payload, kept until the failure is delivered: its destructor may panic too.
+    Panicked(Box<dyn std::any::Any + Send>),
 }
 fn panic_message(payload: &(dyn std::any::Any + Send)) -> Option<String> {
     payload
@@ -207,20 +207,32 @@ fn setup_failed(
     tx: mpsc::SyncSender<Result<Parts, RuntimeError>>,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
-    let error = match failure {
+    let (error, payload) = match failure {
         SetupFailure::Io(error) => {
             tracing::warn!(%error, "native HTTP runtime setup failed");
-            RuntimeError::io(&error)
+            (RuntimeError::io(&error), None)
         }
-        SetupFailure::Panicked(message) => {
+        SetupFailure::Panicked(payload) => {
+            let message = panic_message(&*payload);
             tracing::warn!(panic = ?message, "native HTTP runtime setup panicked");
-            RuntimeError::SetupPanicked
+            (RuntimeError::SetupPanicked, Some(payload))
         }
     };
     if tx.send(Err(error)).is_err() {
         tracing::debug!("native runtime setup receiver retired");
     }
     wake();
+    // Dropped only after delivery, so a payload destructor that panics cannot cut it off.
+    if let Some(payload) = payload {
+        retire_panic_payload(payload);
+    }
+}
+fn retire_panic_payload(payload: Box<dyn std::any::Any + Send>) {
+    if let Err(again) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(payload))) {
+        // The second payload's destructor could panic as well, so it is leaked once.
+        std::mem::forget(again);
+        tracing::warn!("native HTTP runtime setup panic payload panicked on drop");
+    }
 }
 fn wait_for_shutdown(success: bool, delivered: bool, shutdown: mpsc::Receiver<()>) {
     if success && delivered && shutdown.recv().is_ok() {
