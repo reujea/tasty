@@ -4,7 +4,8 @@ mod matrix;
 mod surface;
 
 use crate::catalog::spec::{self, StageVariant, stage};
-use crate::i18n::{t, t_fmt};
+use crate::catalog::toast_card::{self, ToastKind};
+use crate::i18n::{t, t_fmt, t_lang};
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{LoadingPlacement, PendingIndicator, paint_loading_overlay};
@@ -19,6 +20,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     surface::together(ui, theme);
     matrix::labels(ui, theme);
     pending(ui, theme);
+    copy_wait(ui, theme);
 }
 
 /// 응답 대기 표시: 한 건·여러 건·좁은 폭·모션 감소.
@@ -30,7 +32,6 @@ fn pending(ui: &mut egui::Ui, theme: &Theme) {
             time: "0s",
             compact: false,
             details: &format!("{} · 0s", t("attach.pending.close_tab")),
-
             open: false,
         }
         .show(ui, theme);
@@ -67,11 +68,165 @@ fn pending(ui: &mut egui::Ui, theme: &Theme) {
             time: "1h 02m",
             compact: false,
             details: &format!("{} · 1h 02m", t("attach.pending.close_tab")),
-
             open: false,
         }
         .show(ui, &still);
     });
+}
+
+/// Languages of the design copy-wait table (attach_copy_wait_copy.js).
+const COPY_WAIT_LANGS: [&str; 4] = ["en", "ko", "ja", "zh-Hans"];
+
+/// `key` in `lang` with its first `{}` replaced by `arg`.
+fn lang_fmt(lang: &str, key: &'static str, arg: &str) -> String {
+    t_lang(lang, key).replacen("{}", arg, 1)
+}
+
+/// Design views pending-copy-only, pending-copy-mixed and pending-copy-result (loading-wait spec).
+fn copy_wait(ui: &mut egui::Ui, theme: &Theme) {
+    let mut still = theme.clone();
+    still.reduced_motion = true;
+    spec::spec(ui, theme, "Clipboard copy wait", None);
+    stage(ui, theme, StageVariant::Column, |ui| {
+        for lang in COPY_WAIT_LANGS {
+            let label = t_lang(lang, "attach.pending.copy");
+            let time = lang_fmt(lang, "attach.pending.seconds", "2");
+            PendingIndicator {
+                label,
+                time: &time,
+                compact: false,
+                details: &format!("{label} · {time}"),
+                open: false,
+            }
+            .show(ui, &still);
+        }
+        let label = t_lang("en", "attach.pending.copy");
+        let time = lang_fmt("en", "attach.pending.seconds", "2");
+        open_detail(
+            ui,
+            &still,
+            &PendingIndicator {
+                label,
+                time: &time,
+                compact: true,
+                details: &format!("{label} · {time}"),
+                open: true,
+            },
+        );
+    });
+    stage(ui, theme, StageVariant::Column, |ui| {
+        let oldest = lang_fmt("en", "attach.pending.seconds", "20");
+        let copy = lang_fmt("en", "attach.pending.seconds", "3");
+        open_detail(
+            ui,
+            &still,
+            &PendingIndicator {
+                label: &lang_fmt("en", "attach.pending.many", "2"),
+                time: &oldest,
+                compact: false,
+                details: &format!(
+                    "{} · {oldest}\n{} · {copy}",
+                    t_lang("en", "attach.pending.close_tab"),
+                    t_lang("en", "attach.pending.copy"),
+                ),
+                open: true,
+            },
+        );
+    });
+    stage(ui, theme, StageVariant::Column, |ui| {
+        copy_wait_in_window(ui, &still);
+    });
+    stage(ui, theme, StageVariant::Column, |ui| {
+        ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+        for (kind, key) in [
+            (ToastKind::Info, "toast.copied_osc52"),
+            (ToastKind::Error, "toast.clipboard_failed"),
+        ] {
+            for lang in COPY_WAIT_LANGS {
+                toast_card::draw_single_card(ui, theme, kind, t_lang(lang, key), &[], 1.0);
+            }
+        }
+    });
+    spec::meta(
+        ui,
+        theme,
+        &[
+            (
+                "label",
+                "attach.pending.copy · mixed with other waits: attach.pending.one / many",
+            ),
+            (
+                "show",
+                "at once, no delay or minimum time · response waits keep the 200 delay",
+            ),
+            (
+                "tooltip",
+                "detail lines in the design Tooltip below the chip, one per kind",
+            ),
+            (
+                "input",
+                "not a pointer target · clicks, drags and the wheel reach the terminal",
+            ),
+            (
+                "result",
+                "toast.copied_osc52 info · toast.clipboard_failed danger · once per write",
+            ),
+        ],
+        &[],
+    );
+}
+
+/// The chip with its detail Tooltip drawn open below it, with room left for the bubble.
+fn open_detail(ui: &mut egui::Ui, theme: &Theme, chip: &PendingIndicator<'_>) {
+    chip.show(ui, theme);
+    let bubble = chip.detail_tooltip().bubble_size(ui.ctx(), theme);
+    ui.add_space(theme.spacing_xs.value() + bubble.y);
+}
+
+/// Design view pending-copy-in-window: the copy chip in the notice column of a window frame.
+fn copy_wait_in_window(ui: &mut egui::Ui, theme: &Theme) {
+    let (frame, _) = ui.allocate_exact_size(
+        egui::vec2(
+            FRAME_WIDTH.min(LogicalPx(ui.available_width())).value(),
+            FRAME_HEIGHT.value(),
+        ),
+        egui::Sense::hover(),
+    );
+    let painter = ui.painter_at(frame);
+    painter.rect_filled(frame, 0.0, theme.bg_panel());
+    let tab_bar = egui::Rect::from_min_size(
+        frame.min,
+        egui::vec2(frame.width(), theme.tab_bar_height.value()),
+    );
+    painter.rect_filled(tab_bar, 0.0, theme.surface_raised());
+    painter.text(
+        frame.min
+            + egui::vec2(
+                theme.spacing_sm.value(),
+                tab_bar.height() + theme.spacing_sm.value(),
+            ),
+        egui::Align2::LEFT_TOP,
+        "$ vim",
+        egui::FontId::monospace(theme.font_size_caption.value()),
+        theme.text_secondary().to_egui(),
+    );
+    let column = tasty_ui_widgets::notice_column_rect(theme, frame, tab_bar.bottom());
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(column)
+            .layout(egui::Layout::right_to_left(egui::Align::Min)),
+    );
+    child.shrink_clip_rect(frame);
+    let label = t_lang("en", "attach.pending.copy");
+    let time = lang_fmt("en", "attach.pending.seconds", "2");
+    PendingIndicator {
+        label,
+        time: &time,
+        compact: false,
+        details: &format!("{label} · {time}"),
+        open: false,
+    }
+    .show(&mut child, theme);
 }
 
 // Design storyboard frames (layouts-loading-prelayout.jsx W=560/H=180), not product dimensions.
