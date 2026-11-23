@@ -87,13 +87,14 @@ kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 
 #### 최소 Tasty 버전
 
-매니페스트의 선택 키 `min_tasty_version`(`MAJOR.MINOR.PATCH`)은 그 플러그인을 받아들일 가장 낮은 Tasty 버전이다. 키가 없으면 제약이 없다. 형식이 틀리면 다른 매니페스트 오류와 같이 거절한다.
+매니페스트의 선택 키 `min_tasty_version`은 그 플러그인을 받아들일 가장 낮은 Tasty 버전이다. 키가 없는 매니페스트는 지금처럼 받아들인다. 형식과 비교 규칙의 정본은 `check_min_tasty_version_source`(`crates/tasty-plugin-manifest/src/host_version.rs`)와 그 시험(`min_tasty_version_tests.rs`)이다.
 
-- 실행 중인 Tasty 버전이 그 값보다 낮으면 플러그인을 받아들이지 않는다. 거절 사유는 요구 버전과 현재 버전을 담은 `requires Tasty <요구> or newer (this is Tasty <현재>)` 문장이다.
-- 부팅·재탐색은 그 폴더를 등록하지 않고 영어 사유를 로그에만 남긴다(번역하지 않는다). CLI는 플러그인 명령을 읽을 때 그 폴더를 건너뛴다는 경고(`plugin manifest at … skipped: …`)를, `plugin doctor`는 매니페스트를 읽지 못했다는 오류를 이 사유와 함께 현재 언어로 보인다.
-- 설치(Add 탭·`plugin install`·확인 필요 탭의 등록)는 폴더·신뢰 DB를 쓰기 전에 이 사유로 실패한다. Add 탭은 "tasty-plugin.toml is not valid" 상자 아래 줄에 이 사유를 보이고 미리보기·추가 버튼을 두지 않는다.
-- 번들 동기화(부팅·`plugin upgrade-builtins`)는 번들 원본이 더 높은 Tasty를 요구하면 설치본을 바꾸지 않는다. 부팅은 경고 로그를 남기고, `upgrade-builtins`는 그 항목을 같은 사유의 실패로 돌려준다. 설치본의 플러그인 버전을 읽을 때는 비교하지 않으므로 번들보다 높은 설치본은 지금처럼 남고, 실행 여부는 위 탐색이 정한다.
-- 공개된 v0.14.0 이하는 이 키를 모르고 무시한다. 이 거절과 사유는 키를 아는 판부터 나온다.
+- 실행 중인 Tasty가 요구보다 낮으면 release 빌드는 플러그인을 받아들이지 않는다. 사유에는 요구 버전과 현재 버전이 함께 있다.
+- 이 판정은 서명 판정과 다른 매니페스트 선언 검사보다 먼저 한다. 이 판이 모르는 선언을 쓰는 새 플러그인도 선언 오류가 아니라 "더 새 Tasty가 필요하다"로 알린다.
+- 부팅·재탐색은 그 폴더를 등록하지 않고 사유를 영어 로그에만 남긴다. CLI 플러그인 명령 적재의 경고, `plugin doctor`·`plugin install` 오류, Add 탭의 "tasty-plugin.toml is not valid" 상자, `plugin upgrade-builtins`의 실패 항목은 같은 사유를 현재 언어로 보인다. 설치는 폴더·신뢰 DB를 쓰기 전에 실패한다.
+- 번들 동기화(부팅·`plugin upgrade-builtins`)는 받아들일 수 없는 번들 원본(형식 오류 포함)으로 설치본을 바꾸지 않는다. 번들보다 높은 버전의 설치본은 지금처럼 남고, 실행 여부는 탐색이 정한다.
+- debug 빌드는 버전이 부족해도 요구 버전과 현재 버전을 담은 경고 로그만 남기고 받아들인다. develop의 본체 버전은 마지막 릴리스 값에 머물지만 잠금된 공식 플러그인은 다음 판의 계약을 요구하기 때문이다. 형식 오류는 debug에서도 거절한다.
+- 공개된 v0.14.0 이하는 이 키를 모르고 무시한다.
 
 ### 설정(configure)
 

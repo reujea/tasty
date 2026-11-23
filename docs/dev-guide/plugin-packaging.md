@@ -74,7 +74,7 @@ doc-guards 크레이트는 의존성을 두지 않으므로 이 도구는 잠금
 scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock <파일>] [--cache <폴더>]
 ```
 
-`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래, `--cache`를 주면 그 폴더)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. `--all`이 없는 배포 패키징 호출은 예제에 `--tasty-version <루트 Cargo.toml [package].version>`을 넘겨 매니페스트의 `min_tasty_version`도 비교한다. 패키징하는 판보다 높은 Tasty를 요구하는 플러그인은 받는 단계에서 실패한다. `--all` 호출(개발 스테이징, 픽스처 동기화)은 스키마만 본다. 스테이징 폴더(`--out`)는 매번 비우거나 새로 만든다. 이전에 푼 다른 플러그인이 남아 있으면 `unpack`이 실패한다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
+`target/official-plugins/<tag>/<platform>/`(`CARGO_TARGET_DIR`가 있으면 그 아래, `--cache`를 주면 그 폴더)에 `curl -fL`로 받는다. `verify`가 이름을 댄 파일만 받으므로 해시가 맞는 파일은 다시 받지 않는다. 그 뒤 `unpack`으로 `<out>/<id>/`에 풀고, 푼 매니페스트를 현재 호스트의 파서·검증기(`Manifest::load`, `tasty-plugin-manifest`의 `validate-plugin-dirs` 예제)로 읽는다. `--all`이 없는 배포 패키징 호출은 예제에 이 체크아웃의 본체 버전(`--tasty-version`)도 넘겨, 이 판의 release 빌드가 받아들이지 않을 플러그인([최소 Tasty 버전](../features/plugin-system/index.md#최소-tasty-버전))을 받는 단계에서 실패시킨다. `--all` 호출(개발 스테이징, 픽스처 동기화)은 스키마만 본다. 스테이징 폴더(`--out`)는 매번 비우거나 새로 만든다. 이전에 푼 다른 플러그인이 남아 있으면 `unpack`이 실패한다. bash 3.2(macOS 기본)와 Windows Git Bash에서 실행한다. cargo·curl·tar가 필요하다.
 
 ### 잠금 파일 갱신
 
@@ -117,7 +117,7 @@ scripts/fetch-official-plugins.sh --platform <p> --out <폴더> [--all] [--lock 
 | (d) | `epaint_version` | `Cargo.lock`의 epaint |
 | (e) | `epaint_patch_tree` | `git rev-parse HEAD:vendor/epaint` |
 
-같은 시험이 집합 두 가지도 본다. `BUILTINS`(두 cfg 벌)와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 mesh-demo를 더한 집합이어야 하고, 배포 패키지 스크립트(`scripts/lib/bundled-plugins.sh`, `scripts/build-windows.ps1`)는 `fetch-official-plugins.sh`를 `--all` 없이 불러 잠금 파일의 `bundle = true`만 받고, 개발 번들(`scripts/stage-dev-plugins.sh` 기본 경로)은 `--all`로 전부 받는지 호출 옵션을 본다. 잠금 항목과 매니페스트의 `bundle`이 같은지는 픽스처 가드가 본다([호스트 시험 픽스처](#호스트-시험-픽스처)). 받은 매니페스트는 받기 스크립트가 현재 검증기로 읽고, 배포 패키징 호출은 `min_tasty_version`을 이 판의 본체 버전과도 비교한다([받기 스크립트](#받기-스크립트)). 이 비교는 "이 판이 잠금된 플러그인을 받아들이는가"만 본다. 이 키를 아는 Tasty부터는 플러그인 쪽 `min_tasty_version` 값으로 "더 새 Tasty가 필요하다"는 거절 사유를 보인다. 이미 공개된 v0.14.0은 키를 모르고 무시하므로 그 판에는 이 안내가 닿지 않는다.
+같은 시험이 집합 두 가지도 본다. `BUILTINS`(두 cfg 벌)와 `OFFICIAL_PLUGIN_IDS`는 잠금 파일 전체 id에 mesh-demo를 더한 집합이어야 하고, 배포 패키지 스크립트(`scripts/lib/bundled-plugins.sh`, `scripts/build-windows.ps1`)는 `fetch-official-plugins.sh`를 `--all` 없이 불러 잠금 파일의 `bundle = true`만 받고, 개발 번들(`scripts/stage-dev-plugins.sh` 기본 경로)은 `--all`로 전부 받는지 호출 옵션을 본다. 잠금 항목과 매니페스트의 `bundle`이 같은지는 픽스처 가드가 본다([호스트 시험 픽스처](#호스트-시험-픽스처)). 받은 매니페스트는 받기 스크립트가 현재 검증기로 읽고, 배포 패키징 호출은 최소 Tasty 버전도 본다([받기 스크립트](#받기-스크립트)). 이 검사는 "이 판이 잠금된 플러그인을 받아들이는가"만 본다. 공개된 옛 Tasty가 새 플러그인을 읽는지는 보지 않는다. 그 안내는 플러그인 쪽 `min_tasty_version`이 키를 아는 판부터 한다.
 
 한계: 이 가드는 버전 값만 비교한다. protocol schema를 바꾸고 버전을 그대로 두면 지나간다. protocol 버전과 `CHANGELOG.md`는 tasty 릴리스 때 올리므로([릴리스 절차](release.md#1-버전--changelog)) 릴리스 사이의 develop에서는 버전이 그대로인 채 schema가 바뀌는 것이 정상 흐름이고, 그 변경은 가드가 보지 못한다. 실제로 v0.1.0의 `tasty_rev` 뒤에 편집 결과 회신(`PluginEvent::Hello`의 `capabilities`, `EditOutcome`)이 protocol 0.2.16 그대로 들어왔다. 추가 변형이라 옛 플러그인과 호환되지만 호환되지 않는 변경도 같은 길로 지나갈 수 있다. 그래서 protocol 변경은 [protocol CHANGELOG 정책](../../crates/tasty-plugin-protocol/CHANGELOG.md#정책)대로 `tasty_rev` 시점의 플러그인과 호환되게 만든다.
 
@@ -249,7 +249,7 @@ plugin 시스템의 작성 형식·배포·신뢰·호환성·hot reload 정책�
 | 작성 형식 | 별도 OS 프로세스. Rust SDK 제공. WASM 실험은 보류 | 다른 언어·강제 격리가 필요한 실제 소비자 |
 | 배포 | 로컬 경로 설치와 앱 동봉 번들. 공개 마켓플레이스 미지원 | 외부 플러그인의 배포·독립 업데이트 요구 |
 | 신뢰 | 매니페스트 서명 판정·미인증 설치 선택. 설치 뒤에는 권한 제한 없음 | OS 접근까지 제한해야 하는 요구 |
-| 호환 | HOST_API_VERSION 메이저 일치. 추가 필드는 optional+default. 매니페스트의 선택 키 `min_tasty_version`으로 받아들일 가장 낮은 Tasty 본체 버전을 적고, 실행 중인 본체가 낮으면 거절한다 | 기존 필드의 의미나 필수 조건 변경 |
+| 호환 | HOST_API_VERSION 메이저 일치. 추가 필드는 optional+default. 매니페스트의 선택 키 `min_tasty_version`으로 받아들일 가장 낮은 Tasty 버전을 적는다. 이 판정은 서명·선언 검사보다 먼저 하고, debug 빌드는 경고만 한다([최소 Tasty 버전](../features/plugin-system/index.md#최소-tasty-버전)) | 기존 필드의 의미나 필수 조건 변경 |
 | 재적재 | disable→enable 또는 아래 개발용 자동 reload | 상태를 잃지 않는 교체가 실제로 필요할 때 |
 
 플러그인의 직접 파일·네트워크 접근은 제한하지 않는다.
