@@ -149,6 +149,11 @@ impl GlobalHookManager {
     /// 시각을 기록하고, file은 mtime 기준을 그대로 둬 이전 실행이 끝난 뒤 다시 감지한다.
     /// 실제 명령 실행 실패를 자동 재시도하지는 않는다.
     pub fn tick(&mut self) -> Vec<(u32, String)> {
+        self.tick_with(Self::has_pending_run)
+    }
+
+    /// `is_pending`은 제품에서 [`Self::has_pending_run`]이다. 시험은 판정 도중 이전 작업이 끝나는 순간을 주입한다.
+    fn tick_with(&mut self, mut is_pending: impl FnMut(&Self, u32) -> bool) -> Vec<(u32, String)> {
         let now = Instant::now();
         let mut to_fire: Vec<(u32, String)> = Vec::new();
         let mut file_mtime_updates: Vec<(u32, Option<SystemTime>)> = Vec::new();
@@ -160,7 +165,7 @@ impl GlobalHookManager {
                     let last = self.last_fired.get(id).copied().unwrap_or(now);
                     if now.duration_since(last) >= *period {
                         interval_due.push(*id);
-                        if self.has_pending_run(*id) {
+                        if is_pending(self, *id) {
                             log_skipped(*id, &hook.command);
                         } else {
                             to_fire.push((*id, hook.command.clone()));
@@ -175,6 +180,9 @@ impl GlobalHookManager {
                     }
                 }
                 HookCondition::File(path) => {
+                    // 이전 실행이 끝났는지를 mtime보다 먼저 본다. 반대 순서면 mtime을 읽은 뒤 이전 실행이
+                    // 파일을 다시 고치고 끝났을 때 옛 mtime을 기준으로 삼아 그 변경을 한 번 더 제출한다.
+                    let pending = is_pending(self, *id);
                     // 크기 제한 없는 파일을 매번 전부 읽지 않도록 mtime만 본다.
                     // 같은 mtime으로 내용이 바뀌거나 시각이 복원되면 변경을 놓칠 수 있다.
                     let current = file_mtime(path);
@@ -182,7 +190,7 @@ impl GlobalHookManager {
                     if let Some(mtime) = current {
                         let last = self.last_mtime.get(id).copied().unwrap_or(None);
                         if last != Some(mtime) {
-                            if self.has_pending_run(*id) {
+                            if pending {
                                 log_skipped(*id, &hook.command);
                             } else {
                                 to_fire.push((*id, hook.command.clone()));

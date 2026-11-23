@@ -239,3 +239,44 @@ fn a_file_change_during_a_pending_run_is_submitted_once_after_it_ends() {
     wait_idle(&pool);
     assert_eq!(order(&dir), ["f", "f"], "one change ran twice");
 }
+
+/// 수정 시각을 직접 정한다. 연속 쓰기의 mtime이 파일시스템 해상도 때문에 같아질 수 있어서다.
+fn set_modified(path: &Path, at: SystemTime) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|f| f.set_modified(at))
+        .expect("set a test modified time");
+}
+
+fn mtime_at(step: u64) -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000 + step)
+}
+
+/// 이전 실행이 끝났는지를 mtime보다 먼저 본다. 판정 도중 이전 작업이 파일을 다시 고치고 끝나도
+/// 그 변경은 이번 제출에 합쳐져 한 번만 제출된다.
+#[test]
+fn a_file_hook_reads_the_mtime_after_its_previous_run_is_seen_finished() {
+    let (_tmp, dir) = setup();
+    let watched = dir.join("watched.txt");
+    std::fs::write(&watched, "v1").expect("v1");
+    set_modified(&watched, mtime_at(0));
+    let mut mgr = GlobalHookManager::new();
+    let id = mgr.add(HookCondition::File(watched.clone()), "echo f".into(), None);
+    set_modified(&watched, mtime_at(1));
+    // 판정하는 순간 이전 작업이 파일을 다시 고치고 끝난다.
+    let fired = mgr.tick_with(|_, _| {
+        set_modified(&watched, mtime_at(2));
+        false
+    });
+    assert_eq!(fired, vec![(id, "echo f".to_string())]);
+    assert_eq!(
+        mgr.last_mtime[&id],
+        Some(mtime_at(2)),
+        "the base is the mtime seen before the previous run finished"
+    );
+    assert!(
+        mgr.tick().is_empty(),
+        "the change made by the previous run fired twice"
+    );
+}
