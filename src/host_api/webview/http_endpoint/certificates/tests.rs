@@ -215,13 +215,22 @@ fn old_document_jobs_keep_shared_capacity_until_actual_job_drop() {
                     .await
             }));
         }
-        tokio::time::timeout(Duration::from_secs(2), async {
-            while budget.generators() != 8 {
-                tokio::task::yield_now().await;
+        let wait_until = std::time::Instant::now() + Duration::from_secs(2);
+        // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+        loop {
+            if budget.generators() == 8 {
+                break;
             }
-        })
-        .await
-        .unwrap();
+            if std::time::Instant::now() >= wait_until {
+                assert!(
+                    budget.generators() == 8,
+                    "not reached within {:?}: budget.generators() == 8",
+                    Duration::from_secs(2)
+                );
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
         assert_eq!(budget.reserved(), 8 * CERTIFICATE_BYTES);
         let next_document = document(2);
         let next = Certificates::new(current(&next_document), budget.clone(), Handle::current());

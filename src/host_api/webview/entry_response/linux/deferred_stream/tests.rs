@@ -9,13 +9,18 @@ use std::{
 
 fn drain_until(context: &glib::MainContext, mut done: impl FnMut() -> bool) {
     let end = Instant::now() + Duration::from_secs(5);
-    while !done() {
-        assert!(Instant::now() < end, "native task did not finish");
-        while context.pending() {
-            context.iteration(false);
+    let mut started = false;
+    // 원래 순서(읽기 → 기한 검사 → 대기 중인 GLib 일 처리 → 1ms) 그대로, 기한 뒤 읽기는 처리 없이 본다.
+    let finished = tasty_utils::test_wait::holds_by_every(end, Duration::ZERO, |last| {
+        if !last && std::mem::replace(&mut started, true) {
+            while context.pending() {
+                context.iteration(false);
+            }
+            std::thread::sleep(Duration::from_millis(1));
         }
-        std::thread::sleep(Duration::from_millis(1));
-    }
+        done()
+    });
+    assert!(finished, "native task did not finish");
 }
 type ReadResults = Rc<RefCell<Vec<Result<Vec<u8>, glib::Error>>>>;
 fn read(stream: &DeferredStream, cancel: &gio::Cancellable) -> ReadResults {

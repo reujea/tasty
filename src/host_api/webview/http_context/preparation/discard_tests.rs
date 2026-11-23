@@ -76,13 +76,10 @@ fn namespace(home: &Path) -> PathBuf {
 /// pass without any retry.
 fn first_busy(attempts: &DiscardAttempts, worker: &JoinHandle<()>) {
     let deadline = Instant::now() + HANG_LIMIT;
-    while attempts.busy() == 0 && !worker.is_finished() {
-        assert!(
-            Instant::now() < deadline,
-            "profile worker: hung, no cleanup attempt within {HANG_LIMIT:?}"
-        );
-        thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || attempts.busy() != 0 || worker.is_finished()),
+        "profile worker: hung, no cleanup attempt within {HANG_LIMIT:?}"
+    );
 }
 
 #[test]
@@ -191,6 +188,8 @@ fn a_refused_cleanup_is_not_tried_again() {
 #[test]
 fn an_expired_claim_wakes_its_receipt_before_the_cleanup_ends() {
     let deadline = Instant::now() + HANG_LIMIT;
+    // holds_by_every 로 바꾸지 않는다. 판정 대상은 매 시도가 새로 만드는 경합 결과라, 기한 뒤에 새 시도
+    // 없이 관측할 상태가 없다.
     loop {
         assert!(
             Instant::now() < deadline,

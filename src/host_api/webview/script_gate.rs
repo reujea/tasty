@@ -775,14 +775,15 @@ mod tests {
     /// 칸이 찰 때까지 기다려 결과를 꺼낸다. 결과는 한 번만 꺼낼 수 있다.
     fn wait_slot(slot: &ReadSlot) -> Option<ScriptScan> {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            if let Some(read) = slot.take() {
-                assert_eq!(slot.take(), None, "결과는 한 번만 꺼낸다");
-                return read;
-            }
-            assert!(std::time::Instant::now() < deadline, "the read finished");
-            std::thread::yield_now();
-        }
+        let mut read = None;
+        let held =
+            tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |_| {
+                read = slot.take();
+                read.is_some()
+            });
+        assert!(held, "the read finished");
+        assert_eq!(slot.take(), None, "결과는 한 번만 꺼낸다");
+        read.unwrap()
     }
 
     /// 결정을 미루고 다른 스레드에서 읽은 뒤 이 스레드에서 적용한다.

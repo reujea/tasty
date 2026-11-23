@@ -19,34 +19,35 @@ pub(super) fn private_home() -> tempfile::TempDir {
 /// Waits for the worker's wake. Slow storage has no deadline here: the worker wakes before it ends,
 /// so its end is read first, and an ended worker without a wake has lost it at once. Only work that
 /// never ends reaches `HANG_LIMIT`, and that says `hung`.
+/// The read after the deadline waits for nothing: it takes only a wake already sent.
 pub(super) fn woken(wake: &mpsc::Receiver<()>, worker: &JoinHandle<()>) {
     let deadline = Instant::now() + HANG_LIMIT;
-    loop {
+    let held = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
         let ended = worker.is_finished();
-        match wake.recv_timeout(Duration::from_millis(1)) {
-            Ok(()) => return,
+        let wait = if last {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(1)
+        };
+        match wake.recv_timeout(wait) {
+            Ok(()) => return true,
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 panic!("profile worker: lost, its wake is gone")
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
         assert!(!ended, "profile worker: lost, it ended without a wake");
-        assert!(
-            Instant::now() < deadline,
-            "profile worker: hung, no wake within {HANG_LIMIT:?}"
-        );
-    }
+        false
+    });
+    assert!(held, "profile worker: hung, no wake within {HANG_LIMIT:?}");
 }
 /// Joins a worker that must end, failing with `hung` instead of stopping the whole test run.
 pub(super) fn joined(worker: JoinHandle<()>) {
     let deadline = Instant::now() + HANG_LIMIT;
-    while !worker.is_finished() {
-        assert!(
-            Instant::now() < deadline,
-            "profile worker: hung, not finished within {HANG_LIMIT:?}"
-        );
-        thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || worker.is_finished()),
+        "profile worker: hung, not finished within {HANG_LIMIT:?}"
+    );
     worker.join().unwrap();
 }
 pub(super) fn roots(home: &Path) -> Vec<PathBuf> {
@@ -184,6 +185,8 @@ fn retired_or_unrun_work_never_creates_a_namespace_or_leaks_receiving() {
 #[test]
 fn abandoned_native_claim_times_out_and_cleans_only_unpublished_root() {
     let deadline = Instant::now() + HANG_LIMIT;
+    // holds_by_every 로 바꾸지 않는다. 판정 대상은 매 시도가 새로 만드는 답이라, 기한 뒤에 새 시도 없이
+    // 관측할 상태가 없다.
     loop {
         let home = private_home();
         let (receipt, work, wake) = request(

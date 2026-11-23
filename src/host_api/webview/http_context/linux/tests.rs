@@ -51,14 +51,19 @@ fn selected_clear_excludes_cookie_and_unrelated_storage() {
 }
 fn wait(mut condition: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(15);
-    while !condition() {
-        assert!(Instant::now() < deadline, "native fixture deadline");
-        let context = glib::MainContext::default();
-        while context.pending() {
-            context.iteration(false);
+    let mut started = false;
+    // 원래 순서(읽기 → 기한 검사 → 대기 중인 GLib 일 처리 → 5ms) 그대로, 기한 뒤 읽기는 처리 없이 본다.
+    let held = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+        if !last && std::mem::replace(&mut started, true) {
+            let context = glib::MainContext::default();
+            while context.pending() {
+                context.iteration(false);
+            }
+            std::thread::sleep(Duration::from_millis(5));
         }
-        std::thread::sleep(Duration::from_millis(5));
-    }
+        condition()
+    });
+    assert!(held, "native fixture deadline");
 }
 fn config(current: Arc<AtomicBool>) -> ContextConfig {
     let expected = std::env::var("DE_EXPECTED_LEAF").expect("owned fixture leaf");
@@ -116,16 +121,17 @@ fn data_store() -> DataStore {
     );
     let worker = std::thread::spawn(move || work.run());
     let deadline = Instant::now() + Duration::from_secs(15);
-    let profile = loop {
-        if let Some(result) = receipt.poll() {
-            break result.unwrap_or_else(|error| panic!("owned profile preparation: {error}"));
-        }
-        assert!(
-            Instant::now() < deadline,
-            "owned profile preparation deadline"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    };
+    let mut result = None;
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || {
+            result = receipt.poll();
+            result.is_some()
+        }),
+        "owned profile preparation deadline"
+    );
+    let profile = result
+        .unwrap()
+        .unwrap_or_else(|error| panic!("owned profile preparation: {error}"));
     worker.join().expect("owned profile fixture worker");
     DataStore::new(profile).unwrap_or_else(|error| panic!("native store: {error:?}"))
 }

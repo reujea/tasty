@@ -24,13 +24,13 @@ impl Drop for Doc {
 
 fn wait<T>(mut f: impl FnMut() -> Option<T>) -> T {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    loop {
-        if let Some(v) = f() {
-            return v;
-        }
-        assert!(std::time::Instant::now() < deadline, "timed out");
-        std::thread::yield_now();
-    }
+    let mut value = None;
+    let held = tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |_| {
+        value = f();
+        value.is_some()
+    });
+    assert!(held, "timed out");
+    value.unwrap()
 }
 
 /// 허용한 로컬 문서 하나를 화면에 둔 게이트.

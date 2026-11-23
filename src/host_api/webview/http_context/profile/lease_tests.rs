@@ -542,10 +542,11 @@ fn open_during_the_leases_alone() {
 }
 fn wait_until_broken(lease_file: &File) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while lease::get(lease_file).unwrap() == libc::F_WRLCK {
-        assert!(Instant::now() < deadline, "the lease never broke");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || lease::get(lease_file).unwrap()
+            != libc::F_WRLCK),
+        "the lease never broke"
+    );
 }
 // T11
 #[test]
@@ -584,10 +585,18 @@ fn alternating_holder_alone() {
         holder.send("read", this);
         // Its open stays blocked by this lease, if the lease is still held at all.
         let deadline = Instant::now() + Duration::from_secs(5);
-        while lease::get(file)? == libc::F_WRLCK {
-            assert!(Instant::now() < deadline, "the holder never tried the file");
-            std::thread::sleep(Duration::from_millis(1));
+        let mut failed = None;
+        let tried = tasty_utils::test_wait::holds_by(deadline, || match lease::get(file) {
+            Ok(kind) => kind != libc::F_WRLCK,
+            Err(error) => {
+                failed = Some(error);
+                true
+            }
+        });
+        if let Some(error) = failed {
+            return Err(error);
         }
+        assert!(tried, "the holder never tried the file");
         Ok(())
     };
     let ops = lease::LeaseOps {
@@ -700,15 +709,11 @@ fn release_after_retention_alone() {
         .spawn()
         .unwrap();
     let deadline = started + Duration::from_secs(5);
-    let status = loop {
-        if let Some(status) = opener.try_wait().unwrap() {
-            break Some(status);
-        }
-        if Instant::now() >= deadline {
-            break None;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    };
+    let mut status = None;
+    tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(5), |_| {
+        status = opener.try_wait().unwrap();
+        status.is_some()
+    });
     let released = status.is_some_and(|status| status.success());
     drop(kept);
     if status.is_none() {

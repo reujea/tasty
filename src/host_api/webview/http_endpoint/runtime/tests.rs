@@ -25,13 +25,12 @@ pub(super) fn serial() -> MutexGuard<'static, ()> {
 /// Waits for a state with no result to lose: only a hang can fail it.
 pub(super) fn wait_for(what: &str, mut condition: impl FnMut() -> bool) {
     let deadline = Instant::now() + HANG_LIMIT;
-    while !condition() {
-        assert!(
-            Instant::now() < deadline,
-            "{what}: hung, not finished within {HANG_LIMIT:?}"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // 기한 뒤 읽기도 condition 을 부른다. 비차단 flock 시도로 읽는 호출자는 실패한 시도가 상태를 바꾸지
+    // 않고 성공이 곧 기다린 결과다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |_| condition()),
+        "{what}: hung, not finished within {HANG_LIMIT:?}"
+    );
 }
 /// Waits for a result of work that reports `ended`. Work publishes before it ends, so `ended` is
 /// read first: if it was already true and there is still no result, the result was lost.

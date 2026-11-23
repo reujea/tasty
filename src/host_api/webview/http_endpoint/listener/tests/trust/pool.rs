@@ -19,19 +19,23 @@ async fn profile(home: &std::path::Path) -> NativeProfileLease {
         Arc::new(|| {}),
     );
     let worker = tokio::task::spawn_blocking(move || work.run());
-    let profile = tokio::time::timeout(HANG_LIMIT, async {
-        loop {
-            // The worker publishes before it ends, so read its end before the receipt.
-            let ended = worker.is_finished();
-            if let Some(result) = receipt.poll() {
-                return result.unwrap_or_else(|error| panic!("real prepared profile: {error}"));
-            }
-            assert!(!ended, "profile work: lost, it ended without a result");
-            tokio::time::sleep(Duration::from_millis(1)).await;
+    let wait_until = std::time::Instant::now() + HANG_LIMIT;
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    let profile = loop {
+        // The worker publishes before it ends, so read its end before the receipt.
+        let ended = worker.is_finished();
+        if let Some(result) = receipt.poll() {
+            break result.unwrap_or_else(|error| panic!("real prepared profile: {error}"));
         }
-    })
-    .await
-    .expect("profile work: hung, not finished within the limit");
+        assert!(!ended, "profile work: lost, it ended without a result");
+        if std::time::Instant::now() >= wait_until {
+            let result = receipt
+                .poll()
+                .expect("profile work: hung, not finished within the limit");
+            break result.unwrap_or_else(|error| panic!("real prepared profile: {error}"));
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    };
     let profile = profile.into_native();
     worker.await.unwrap();
     profile
@@ -45,25 +49,34 @@ fn roots(home: &std::path::Path) -> usize {
         .count()
 }
 async fn next<T>(pool: &mut ProbePool<T>, native: &NativeTrust) -> ProbeId {
-    tokio::time::timeout(Duration::from_secs(2), async {
-        loop {
-            if let Some(id) = pool.poll(native, || true) {
-                return id;
-            }
-            tokio::time::sleep(Duration::from_millis(1)).await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if let Some(id) = pool.poll(native, || true) {
+            return id;
         }
-    })
-    .await
-    .unwrap()
+        if std::time::Instant::now() >= wait_until {
+            return pool
+                .poll(native, || true)
+                .unwrap_or_else(|| panic!("no probe within {:?}", Duration::from_secs(2)));
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
 }
 async fn complete<T>(pool: &mut ProbePool<T>, id: ProbeId) {
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while !pool.complete(id) {
-            tokio::time::sleep(Duration::from_millis(1)).await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    while !pool.complete(id) {
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                pool.complete(id),
+                "probe not complete within {:?}",
+                Duration::from_secs(1)
+            );
+            break;
         }
-    })
-    .await
-    .unwrap();
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
 }
 #[cfg(target_os = "linux")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -161,17 +174,21 @@ async fn actual_native_owner_replacement_cancels_pool_ack_and_old_ticket_cannot_
     let (mut socket, _) = hello(&endpoint, "remote.example").await;
     let view = std::rc::Rc::new(std::cell::Cell::new(true));
     let mut pool = ProbePool::new("one fixed manager");
-    let id = tokio::time::timeout(Duration::from_secs(1), async {
-        loop {
-            let view = view.clone();
-            if let Some(id) = pool.poll(&native, move || view.get()) {
-                return id;
-            }
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    let id = loop {
+        let current = view.clone();
+        if let Some(id) = pool.poll(&native, move || current.get()) {
+            break id;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            let current = view.clone();
+            break pool
+                .poll(&native, move || current.get())
+                .unwrap_or_else(|| panic!("no probe within {:?}", Duration::from_secs(1)));
+        }
+        tokio::task::yield_now().await;
+    };
     probe(pool.request(id).unwrap(), false).await;
     let observed = observation(pool.request(id).unwrap());
     view.set(false);
@@ -206,13 +223,22 @@ async fn pool_cancellation_and_drop_keep_other_inbox_work_owned_until_actual_dro
     let mut pool = ProbePool::new(());
     let id = next(&mut pool, &native).await;
     let (mut second, _) = hello(&endpoint, "remote.example").await;
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while budget.active_trust() != 2 {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if budget.active_trust() == 2 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                budget.active_trust() == 2,
+                "not reached within {:?}: budget.active_trust() == 2",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     assert!(pool.poll(&native, || true).is_none());
     pool.retire();
     closed(&mut first).await;

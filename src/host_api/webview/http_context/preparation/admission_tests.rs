@@ -54,6 +54,8 @@ pub(super) fn hold(parent: &std::path::Path) -> File {
 // only typed Busy while seeding this positive fixture, never Capacity or a refusal control.
 fn setup_positive<T>(mut operation: impl FnMut() -> Result<T, ProfileError>) -> T {
     let deadline = Instant::now() + Duration::from_secs(2);
+    // holds_by_every 로 바꾸지 않는다. Busy 가 풀렸는지는 새 시도로만 알 수 있어, 기한 뒤에 시도 없이
+    // 관측할 상태가 없다.
     loop {
         match operation() {
             Ok(value) => return value,
@@ -115,23 +117,33 @@ impl HeldAdmission {
     }
     /// Slow storage has no deadline here: the worker sends every event before it ends, so its end
     /// is read first, and an ended worker with nothing left to read cannot send the one awaited.
+    /// The read after the deadline waits for nothing: it takes only an event already sent.
     fn event(&self) -> Event {
         let deadline = Instant::now() + HANG_LIMIT;
-        loop {
-            let ended = self.worker.as_ref().is_none_or(JoinHandle::is_finished);
-            match self.events.recv_timeout(Duration::from_millis(1)) {
-                Ok(event) => return event,
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    panic!("profile worker: lost, its events are gone")
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
+        let mut event = None;
+        let held = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            event = self.next_event(if last {
+                Duration::ZERO
+            } else {
+                Duration::from_millis(1)
+            });
+            event.is_some()
+        });
+        assert!(held, "profile worker: hung, no event within {HANG_LIMIT:?}");
+        event.unwrap()
+    }
+    /// One receive that waits at most `wait`. The worker's end is read before it, as in `event`.
+    fn next_event(&self, wait: Duration) -> Option<Event> {
+        let ended = self.worker.as_ref().is_none_or(JoinHandle::is_finished);
+        match self.events.recv_timeout(wait) {
+            Ok(event) => return Some(event),
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("profile worker: lost, its events are gone")
             }
-            assert!(!ended, "profile worker: lost, it ended without this event");
-            assert!(
-                Instant::now() < deadline,
-                "profile worker: hung, no event within {HANG_LIMIT:?}"
-            );
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
+        assert!(!ended, "profile worker: lost, it ended without this event");
+        None
     }
     fn contended(&self, phase: Phase) {
         assert!(self.contended_answer(phase).is_none());
@@ -161,14 +173,25 @@ impl HeldAdmission {
     fn release(&self) {
         drop(self.lock.lock().unwrap().take());
     }
+    /// The read after the deadline does not start a new `event` wait: it takes only the events
+    /// already sent, without waiting, until the wanted one or none is left.
     fn until(&self, wanted: Event) {
         let deadline = Instant::now() + HANG_LIMIT;
-        while self.event() != wanted {
-            assert!(
-                Instant::now() < deadline,
-                "profile worker: hung, the awaited event did not come within {HANG_LIMIT:?}"
-            );
-        }
+        let held = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            if !last {
+                return self.event() == wanted;
+            }
+            while let Some(event) = self.next_event(Duration::ZERO) {
+                if event == wanted {
+                    return true;
+                }
+            }
+            false
+        });
+        assert!(
+            held,
+            "profile worker: hung, the awaited event did not come within {HANG_LIMIT:?}"
+        );
     }
     fn roots(&self) -> usize {
         fs::read_dir(self.home.path().join("native-http-profiles"))

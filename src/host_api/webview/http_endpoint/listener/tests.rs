@@ -261,13 +261,22 @@ async fn socket_capacity_precedes_authentication_and_retirement_releases_only_af
                 .unwrap(),
         );
     }
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while budget.active_connections() != 8 {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if budget.active_connections() == 8 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                budget.active_connections() == 8,
+                "not reached within {:?}: budget.active_connections() == 8",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     let mut excess = TcpStream::connect(("127.0.0.1", proxy.port().unwrap()))
         .await
         .unwrap();
@@ -318,13 +327,22 @@ async fn body_question_wait_does_not_consume_io_deadline_and_close_drops_the_own
         .write_all(b"GET /doc HTTP/1.1\r\nHost: remote.example:8080\r\n\r\n")
         .await
         .unwrap();
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while !started.load(Ordering::Acquire) {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if started.load(Ordering::Acquire) {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                started.load(Ordering::Acquire),
+                "not reached within {:?}: started.load(Ordering::Acquire)",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     tokio::time::sleep(Duration::from_millis(60)).await;
     assert_eq!(budget.active_connections(), 1);
     assert!(native.used() > 0);

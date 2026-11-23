@@ -46,16 +46,19 @@ async fn start(
     .unwrap_or_else(|_| panic!("trust endpoint"))
 }
 async fn request(native: &NativeTrust) -> TrustRequest {
-    tokio::time::timeout(Duration::from_secs(2), async {
-        loop {
-            if let Some(request) = native.poll() {
-                return request;
-            }
-            tokio::time::sleep(Duration::from_millis(1)).await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if let Some(request) = native.poll() {
+            return request;
         }
-    })
-    .await
-    .unwrap()
+        if std::time::Instant::now() >= wait_until {
+            return native
+                .poll()
+                .unwrap_or_else(|| panic!("no trust request within {:?}", Duration::from_secs(2)));
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
 }
 async fn hello(endpoint: &Endpoint, sni: &'static str) -> (TcpStream, rustls::ClientConnection) {
     let mut socket = authenticated(endpoint, None).await;
@@ -147,6 +150,8 @@ async fn closed(socket: &mut TcpStream) {
 async fn finish(mut socket: TcpStream, mut client: rustls::ClientConnection) -> Vec<u8> {
     let mut response = Vec::new();
     let mut posted = false;
+    // 기한 뒤 재읽기를 두지 않는다. 상태 조회가 아니라 TLS 송수신 진행이라, 기한 뒤에 새 쓰기·읽기 없이
+    // 관측할 상태가 없다.
     tokio::time::timeout(Duration::from_secs(2),async {
         loop {
             if !client.is_handshaking() && !posted { use std::io::Write;client.writer().write_all(b"POST /doc HTTP/1.1\r\nHost: remote.example:8443\r\nContent-Length: 3\r\n\r\n\0\xffx").unwrap();posted=true; }
@@ -437,13 +442,22 @@ async fn probe_preauth_cap_is_separate_and_old_original_sni_cannot_enqueue() {
                 .unwrap(),
         );
     }
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while budget.active_probes() != 8 {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if budget.active_probes() == 8 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                budget.active_probes() == 8,
+                "not reached within {:?}: budget.active_probes() == 8",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     assert_eq!(budget.active_connections(), 1);
     let mut ninth = TcpStream::connect(("127.0.0.1", uri.port().unwrap()))
         .await

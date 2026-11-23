@@ -638,6 +638,8 @@ pub(super) fn admitted<T>(
     mut operation: impl FnMut() -> Result<T, ProfileError>,
 ) -> Result<T, ProfileError> {
     let deadline = std::time::Instant::now() + SWEEP_LIMIT;
+    // holds_by_every 로 바꾸지 않는다. Busy 가 풀렸는지는 새 시도로만 알 수 있어, 기한 뒤에 시도 없이
+    // 관측할 상태가 없다.
     loop {
         match operation() {
             Err(ProfileError::Busy) if std::time::Instant::now() < deadline => {
@@ -673,6 +675,8 @@ pub(super) fn until_removed(
 ) -> CleanupReport {
     let started = std::time::Instant::now();
     let mut sweeps = 0;
+    // holds_by_every 로 바꾸지 않는다. 지워졌는지는 sweep 의 보고로만 보이고 sweep 은 지우는 진행이라,
+    // 기한 뒤에 진행 없이 관측할 상태가 없다.
     loop {
         let report = sweep();
         sweeps += 1;

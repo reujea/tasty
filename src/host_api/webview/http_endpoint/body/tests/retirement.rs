@@ -31,13 +31,22 @@ async fn retirement_wakes_pending_native_handler_and_drops_waiter_without_alloca
     let (request, budget) = request().await;
     let handler = source.handler();
     let pending = tokio::spawn(handler(request.clone()));
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while !bridge.snapshot().receiving {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if bridge.snapshot().receiving {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                bridge.snapshot().receiving,
+                "not reached within {:?}: bridge.snapshot().receiving",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     source.retire();
     let result = tokio::time::timeout(Duration::from_secs(1), pending)
         .await
@@ -63,13 +72,22 @@ async fn poisoned_replay_state_wakes_an_existing_native_waiter_without_allocatin
     let (request, budget) = request().await;
     let handler = source.handler();
     let pending = tokio::spawn(handler(request.clone()));
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while !bridge.snapshot().receiving {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if bridge.snapshot().receiving {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                bridge.snapshot().receiving,
+                "not reached within {:?}: bridge.snapshot().receiving",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     let poison = source.clone();
     assert!(
         std::thread::spawn(move || {

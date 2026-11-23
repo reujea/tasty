@@ -324,13 +324,22 @@ async fn reentrant_retirement(
     );
     assert!(!source.current());
     assert!(source.delivery.lock().unwrap().is_none());
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while budget.used() != 0 {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(5);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if budget.used() == 0 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                budget.used() == 0,
+                "not reached within {:?}: budget.used() == 0",
+                Duration::from_secs(5)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
 }
 
 fn reentrant_source(

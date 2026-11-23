@@ -76,13 +76,22 @@ async fn roundtrip(runtime: NativeRuntime) {
         Err(EndpointError::Retired)
     );
     bridge.close();
-    tokio::time::timeout(Duration::from_secs(2), async {
-        while counts.closes.load(Ordering::Acquire) != 1 {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if counts.closes.load(Ordering::Acquire) == 1 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                counts.closes.load(Ordering::Acquire) == 1,
+                "not reached within {:?}: counts.closes.load(Ordering::Acquire) == 1",
+                Duration::from_secs(2)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
     endpoint.join().await.unwrap();
     assert_eq!(budget.active_connections(), 0);
     assert_eq!(budget.active_owners(), 0);
