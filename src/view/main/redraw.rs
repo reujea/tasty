@@ -1046,13 +1046,9 @@ impl MainView {
             items.push(menu_row(100, "workspace_category.new_category"));
         }
 
-        // 강제 끊기는 구분선과 함께 늘 둔다. 사이드바 점유 표시와 같은 기준으로 점유가 있을 때만 켠다.
         if let Some(ws) = engine.workspace_at(ws_idx) {
-            items.push(MenuItem::separator());
-            items.push(MenuItem {
-                enabled: engine.live.occupancy.workspace_holder(ws.id).is_some(),
-                ..MenuItem::new(7, crate::i18n::t("attach.force_detach"))
-            });
+            let held = engine.live.occupancy.workspace_holder(ws.id).is_some();
+            items.extend(force_detach_items(ws.mirror, held));
         }
 
         // 카테고리 토글 상태와 무관하게 "닫기"는 항상 최하단.
@@ -1977,6 +1973,20 @@ fn category_header_menu_items(is_normal: bool) -> Vec<crate::platform::native_me
     items
 }
 
+/// 강제 끊기 묶음(구분선 + 항목 7). 다른 client가 점유할 수 있는 로컬 workspace에만 두고, 사이드바 점유
+/// 표시와 같은 기준으로 점유가 있을 때만 켠다. mirror(저장 원격 행·에이전트 mirror)는 서버가 다시 붙이기를
+/// 거절해 점유될 수 없으므로 종류상 없는 액션이다.
+fn force_detach_items(mirror: bool, held: bool) -> Vec<crate::platform::native_menu::MenuItem> {
+    if mirror {
+        return Vec::new();
+    }
+    let item = crate::platform::native_menu::MenuItem {
+        enabled: held,
+        ..menu_row(7, "attach.force_detach")
+    };
+    vec![crate::platform::native_menu::MenuItem::separator(), item]
+}
+
 /// 경로 열기의 대상 선택: 비지 않았고 우클릭한 surface 의 선택일 때만.
 fn selection_on_surface(
     selection: Option<&crate::selection::TextSelection>,
@@ -2035,6 +2045,20 @@ fn local_only_row(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn force_detach_is_only_on_local_workspaces_and_enabled_while_held() {
+        let shape = |mirror, held| -> Vec<Option<(u32, bool)>> {
+            super::force_detach_items(mirror, held)
+                .iter()
+                .map(|i| (!i.is_separator()).then_some((i.id, i.enabled)))
+                .collect()
+        };
+        assert_eq!(shape(false, true), vec![None, Some((7, true))]);
+        assert_eq!(shape(false, false), vec![None, Some((7, false))]);
+        assert_eq!(shape(true, false), vec![]);
+        assert_eq!(shape(true, true), vec![]);
+    }
     use super::{MAX_WEBVIEW_CREATE_ATTEMPTS, next_webview_attempts, should_attempt_webview};
     use super::{category_header_menu_items, workspace_close_menu_items};
     use super::{

@@ -33,14 +33,8 @@ enum Row {
 }
 
 /// 저장 행 메뉴의 항목. 순서는 본체 workspace 메뉴와 `saved_row_menu_items`와 같다.
-/// 강제 끊기는 구분선과 함께 늘 있고 이 Tasty 가 그 workspace 를 내보이는 중(`served`)일 때만 켜진다.
-fn rows(
-    lang: &str,
-    state: RemoteRowState,
-    closed: bool,
-    categories: &[&str],
-    served: bool,
-) -> Vec<Row> {
+/// 강제 끊기는 없다. mirror 는 다른 client 가 점유할 수 없어 종류상 없는 액션이다.
+fn rows(lang: &str, state: RemoteRowState, closed: bool, categories: &[&str]) -> Vec<Row> {
     let on = remote_row_menu(state, closed);
     let tx = |key: &'static str| t_lang(lang, key).to_owned();
     let mut rows = vec![
@@ -60,8 +54,6 @@ fn rows(
         rows.push(Row::Item(tx("workspace_category.new_category"), true));
     }
     rows.extend([
-        Row::Sep,
-        Row::Item(tx("attach.force_detach"), served),
         Row::Sep,
         Row::Item(tx(on.connect_key), on.connect),
         Row::Item(tx(REMOTE_ROW_DISCONNECT_KEY), on.disconnect),
@@ -163,23 +155,16 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
                         RemoteRowState::Connected,
                         false,
                         &["Workspaces", "Services"],
-                        false,
                     ),
                 );
                 for (caption, state) in &STATES[..4] {
-                    menu(ui, theme, caption, &rows("en", *state, false, &[], false));
+                    menu(ui, theme, caption, &rows("en", *state, false, &[]));
                 }
                 menu(
                     ui,
                     theme,
                     "closed elsewhere (remote workspace gone)",
-                    &rows("en", RemoteRowState::Disconnected, true, &[], false),
-                );
-                menu(
-                    ui,
-                    theme,
-                    "connected · served to another client · Force detach enabled",
-                    &rows("en", RemoteRowState::Connected, false, &[], true),
+                    &rows("en", RemoteRowState::Disconnected, true, &[]),
                 );
             },
         );
@@ -198,7 +183,7 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
                             ui,
                             theme,
                             &format!("{lang} · {word}"),
-                            &rows(lang, state, false, &[], false),
+                            &rows(lang, state, false, &[]),
                         );
                     }
                 }
@@ -211,7 +196,7 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
         &[
             (
                 "order",
-                "Rename · Change Subtitle | Move Up · Move Down | Save as workspace preset | (categories) | Force detach | Connect or Reconnect · Disconnect | Close locally · Close remote workspace…",
+                "Rename · Change Subtitle | Move Up · Move Down | Save as workspace preset | (categories) | Connect or Reconnect · Disconnect | Close locally · Close remote workspace…",
             ),
             (
                 "Connect / Reconnect",
@@ -235,7 +220,7 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "Force detach",
-                "always there with its separator, on every workspace menu · enabled only while this Tasty serves the workspace to another client · otherwise disabled, keeps its place and label, no reason (as Disconnect)",
+                "not on a saved remote row or an agent mirror · a mirror can't be held by another client, so the action doesn't exist for it (hidden by kind) · local workspaces keep it, enabled only while held",
             ),
             ("agent mirror", "today's menu, unchanged"),
         ],
@@ -377,17 +362,16 @@ pub fn draw_close_remote(ui: &mut egui::Ui, theme: &Theme) {
 mod tests {
     use super::*;
 
-    /// 강제 끊기는 구분선과 함께 늘 있고 내보이는 중일 때만 켜진다.
+    /// 저장된 원격 행(mirror)에는 강제 끊기가 없다.
     #[test]
-    fn force_detach_is_always_there_and_enabled_only_while_served() {
-        for served in [false, true] {
-            let rows = rows("en", RemoteRowState::Connected, false, &[], served);
-            let at = rows
-                .iter()
-                .position(|r| matches!(r, Row::Item(label, _) if label == "Force detach"))
-                .expect("Force detach is always there");
-            assert!(matches!(rows[at - 1], Row::Sep));
-            assert!(matches!(&rows[at], Row::Item(_, enabled) if *enabled == served));
+    fn a_saved_remote_row_has_no_force_detach() {
+        for state in [RemoteRowState::Connected, RemoteRowState::Disconnected] {
+            let rows = rows("en", state, false, &["Workspaces"]);
+            assert!(
+                !rows
+                    .iter()
+                    .any(|r| matches!(r, Row::Item(label, _) if label == "Force detach"))
+            );
         }
     }
 }
