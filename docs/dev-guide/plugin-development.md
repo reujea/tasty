@@ -42,6 +42,8 @@ my-plugin/
 
 매니페스트 필수 필드: `manifest_version` · `id`(reverse-DNS, 전역 유일) · `name` · `version`(semver) · `api_version` · `[entry]`. 실제 contribute 하는 항목만 추가 선언한다.
 
+플러그인이 특정 Tasty 판 이후의 계약에 기대면 선택 키 `min_tasty_version = "MAJOR.MINOR.PATCH"`(예 `"0.15.0"`)로 받아들일 가장 낮은 Tasty 버전을 적는다. 실행 중인 Tasty가 그보다 낮으면 탐색·설치·CLI 명령 적재가 "Tasty X 이상 필요" 사유로 거절한다. prerelease·build 꼬리가 붙은 값은 형식 오류다. 동작은 [플러그인 관리](../features/plugin-system/index.md#최소-tasty-버전), 비교 구현은 `crates/tasty-plugin-manifest/src/host_version.rs`에 있다.
+
 `com.tasty.`로 시작하는 id는 Tasty 공식 플러그인 전용이다. 공식 id 목록에 없는 `com.tasty.*` 플러그인은 debug·release 모두 설치·등록되지 않는다([플러그인 관리](../features/plugin-system/index.md#예약-id-comtasty)). 새 공식 플러그인은 [공식 id 목록](plugin-packaging.md#공식-id-목록)에 id를 먼저 넣는다.
 
 ```toml
