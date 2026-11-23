@@ -23,7 +23,7 @@ pub struct Tooltip<'a> {
     /// 본문 아래 muted 둘째 줄. 로딩 중인 탭·카드·아바타의 상태 문구 등.
     second_line: Option<&'a str>,
     placement: TooltipPlacement,
-    /// 버블 `Area` 의 고유 id — 한 프레임에 여러 버블(specimen 4 placement)을 그릴 때
+    /// 버블을 그리는 Tooltip 레이어의 id — 한 프레임에 여러 버블(specimen 4 placement)을 그릴 때
     /// 충돌을 막는다. 기본값은 단일 사용을 가정한 고정 id.
     id: egui::Id,
     /// [`Tooltip::placement_clear_of_native`]가 정한 버블 사각형. 있으면 그 자리에 그린다.
@@ -62,7 +62,7 @@ impl<'a> Tooltip<'a> {
         self
     }
 
-    /// 버블 `Area` id 의 출처 — 한 페이지에 여러 버블을 동시에 그릴 때 고유화한다.
+    /// 버블 레이어 id 의 출처 — 한 페이지에 여러 버블을 동시에 그릴 때 고유화한다.
     pub fn id_source(mut self, source: impl std::hash::Hash) -> Self {
         self.id = egui::Id::new(source);
         self
@@ -163,32 +163,28 @@ impl<'a> Tooltip<'a> {
     }
 
     fn paint(self, ctx: &egui::Context, theme: &Theme, pos: egui::Pos2, pivot: egui::Align2) {
-        let pad_x = theme.spacing_sm.value();
-        let pad_y = theme.spacing_xs.value();
-        let job = self.layout_job(theme);
-
-        egui::Area::new(self.id)
-            .order(egui::Order::Tooltip)
-            .fixed_pos(pos)
-            .pivot(pivot)
-            .constrain(true) // 화면/모달 밖으로 나가면 egui 기본 constrain 이 안으로 당김.
-            .interactable(false)
-            .show(ctx, |ui| {
-                egui::Frame::new()
-                    .fill(theme.surface_raised().to_egui())
-                    .stroke(egui::Stroke::new(
-                        theme.border_width.value(),
-                        theme.border_strong().to_egui(),
-                    ))
-                    .corner_radius(theme.corner_radius.value())
-                    .shadow(theme.shadow_popover().to_egui())
-                    .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
-                    .show(ui, |ui| {
-                        ui.set_max_width(theme.tooltip_max_width.value());
-                        // The bubble is not a pointer target: no text selection on it.
-                        ui.add(egui::Label::new(job).selectable(false));
-                    });
-            });
+        let border = theme.border_width.value();
+        let inset = egui::vec2(
+            theme.spacing_sm.value() + border,
+            theme.spacing_xs.value() + border,
+        );
+        let galley = ctx.fonts(|f| f.layout_job(self.layout_job(theme)));
+        let size = galley.size() + inset * 2.0;
+        let rect = inside(pivot.anchor_size(pos, size), ctx.screen_rect());
+        // The bubble is painted on its layer, not shown in an `egui::Area`: an area registers
+        // a hover widget, and egui's hit test then drops every layer under it, so a click on
+        // the bubble would never reach the widget it covers.
+        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, self.id));
+        let radius = theme.corner_radius.value();
+        painter.add(theme.shadow_popover().to_egui().as_shape(rect, radius));
+        painter.rect(
+            rect,
+            radius,
+            theme.surface_raised().to_egui(),
+            egui::Stroke::new(border, theme.border_strong().to_egui()),
+            egui::StrokeKind::Inside,
+        );
+        painter.galley(rect.min + inset, galley, theme.tooltip_fg().to_egui());
     }
 
     fn layout_job(&self, theme: &Theme) -> egui::text::LayoutJob {
@@ -246,6 +242,18 @@ impl<'a> Tooltip<'a> {
             text.y + theme.spacing_xs.scaled(2.0).value() + border,
         )
     }
+}
+
+/// `rect` moved into `bounds` (left and top win when it is larger), as an `egui::Area`
+/// with `constrain(true)` places itself.
+fn inside(rect: egui::Rect, bounds: egui::Rect) -> egui::Rect {
+    let dx = (bounds.right() - rect.right()).min(0.0);
+    let dy = (bounds.bottom() - rect.bottom()).min(0.0);
+    let moved = rect.translate(egui::vec2(dx, dy));
+    moved.translate(egui::vec2(
+        (bounds.left() - moved.left()).max(0.0),
+        (bounds.top() - moved.top()).max(0.0),
+    ))
 }
 
 /// 위·아래 후보 버블의 사각형. 가로는 창 가장자리에서 `tooltip-offset`만큼 안쪽으로 당긴다.
@@ -704,8 +712,8 @@ mod tests {
         });
     }
 
-    /// Pressing and dragging on an open bubble starts no egui interaction: the bubble text is
-    /// not selectable, so the pointer stays with what is under the bubble.
+    /// Pressing and dragging on an open bubble starts no egui interaction: the bubble holds no
+    /// widget, so the pointer stays with what is under the bubble.
     #[test]
     fn a_drag_on_the_bubble_is_not_taken_by_its_text() {
         let theme = theme();
@@ -742,5 +750,54 @@ mod tests {
             used |= ctx.is_using_pointer() || ctx.dragged_id().is_some();
         }
         assert!(!used);
+    }
+
+    /// A click on an open bubble reaches the widget under it: the bubble covers a
+    /// neighbouring widget (a loading tab tooltip over the next tab) without taking its click.
+    #[test]
+    fn a_click_on_the_bubble_reaches_the_widget_under_it() {
+        let theme = theme();
+        let ctx = egui::Context::default();
+        let anchor = egui::Rect::from_min_size(egui::pos2(100.0, 100.0), egui::vec2(80.0, 24.0));
+        let under = egui::Rect::from_min_size(egui::pos2(60.0, 124.0), egui::vec2(240.0, 60.0));
+        let on_bubble = egui::pos2(140.0, 140.0);
+        let press = |pressed| egui::Event::PointerButton {
+            pos: on_bubble,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let steps = [
+            vec![],
+            vec![egui::Event::PointerMoved(on_bubble)],
+            vec![press(true)],
+            vec![press(false)],
+            vec![],
+        ];
+        let mut clicked = false;
+        let mut bubble = None;
+        for (i, events) in steps.into_iter().enumerate() {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                time: Some(i as f64 * 0.1),
+                events,
+                ..Default::default()
+            };
+            let _output = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    clicked |= ui.put(under, egui::Button::new("next tab")).clicked();
+                });
+                let tooltip = Tooltip::new("Close tab · 20s\nCopying to clipboard · 3s")
+                    .placement(TooltipPlacement::Bottom);
+                bubble = Some(tooltip.bubble_size(ctx, &theme));
+                tooltip.show_in(ctx, &theme, anchor);
+            });
+        }
+        let size = bubble.expect("the bubble was laid out");
+        assert!(size.x > 40.0 && size.y > 20.0, "bubble size {size:?}");
+        assert!(clicked, "the widget under the bubble did not get the click");
     }
 }
