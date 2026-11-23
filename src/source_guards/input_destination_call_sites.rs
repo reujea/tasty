@@ -18,13 +18,14 @@ fn squeeze(s: &str) -> String {
     s.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
-/// 키: 터미널 게이트(`window_holds_terminal_keys`)를 넘긴 판정으로 갈래를 고르고, 터미널 갈래만 PTY 로 보낸다.
+/// 키: 터미널 게이트(경로 키는 단계 4 수신자, 그 밖은 `window_holds_terminal_keys`)를 넘긴 판정으로 갈래를 고르고,
+/// 터미널 갈래만 PTY 로 보낸다.
 #[test]
 fn the_window_key_path_picks_its_branch_through_the_input_destination() {
     let src = read("src/view/main/keyboard.rs");
     let body = squeeze(&fn_body(&src, "fn handle_keyboard_input(").expect("handle_keyboard_input"));
     assert_eq!(
-        body.matches("letoverlay_open=self.state.window_holds_terminal_keys();")
+        body.matches("letoverlay_open=self.state.window_key_holds_terminal(self.key_decision);")
             .count(),
         1,
         "터미널 게이트"

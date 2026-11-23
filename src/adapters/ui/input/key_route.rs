@@ -39,13 +39,6 @@ impl RouteKey {
 }
 
 /// 팝업의 표시 상태. 접힌 대표 버튼은 펼치기 키를, 펼친 팝업은 다시 접는 Esc를 받는다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path builds it from the receiver commit on"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PopupFold {
     Fits,
@@ -66,13 +59,6 @@ pub(crate) struct PopupKeyNode {
 }
 
 /// 범위 노드(surface·Tab·Pane·Workspace·Window)의 내용.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path builds it from the receiver commit on"
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ScopeContent {
     None,
@@ -101,13 +87,6 @@ pub(crate) struct ScopeKeyNode {
 }
 
 /// 경로의 노드 하나. 목록의 첫 노드가 출발점이다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path builds it from the receiver commit on"
-    )
-)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum KeyNode {
     Popup(PopupKeyNode),
@@ -153,13 +132,6 @@ pub(crate) enum KeyReceiver {
 
 impl KeyReceiver {
     /// egui 큐에 싣는 수신자.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the window key path reads it from the receiver commit on"
-        )
-    )]
     pub(crate) fn is_egui(self) -> bool {
         matches!(
             self,
@@ -191,13 +163,6 @@ pub(crate) struct Routed {
 
 /// 키 하나의 수신자. `path`는 출발 노드부터 engine 앞까지의 노드, `matching`은 이 키에 맞는 host 단축키
 /// 후보의 level(필터 전)이다. 경로 level 밖의 후보는 보지 않는다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path calls it from the receiver commit on"
-    )
-)]
 pub(crate) fn route_key(
     path: &[KeyNode],
     key: RouteKey,
@@ -237,75 +202,105 @@ pub(crate) fn route_key(
     } else {
         match path.first() {
             None => up(),
-            Some(KeyNode::Popup(p)) => {
-                let content = p.keymap
-                    || (p.fold == PopupFold::Collapsed && key.is(BasicKey::Expand))
-                    || consumes_key(p.keyboard, key.key, key.modifiers, key.super_held, edits);
-                text_or_up(content, p.keyboard, key, KeyReceiver::popup(p.node), &up)
-            }
-            Some(KeyNode::Notice) => {
-                // 안내 위젯은 수식키와 무관하게 이 키들을 읽는다.
-                let widget = matches!(
-                    key.key,
-                    egui::Key::Escape
-                        | egui::Key::Enter
-                        | egui::Key::Space
-                        | egui::Key::Tab
-                        | egui::Key::ArrowUp
-                        | egui::Key::ArrowDown
-                        | egui::Key::ArrowLeft
-                        | egui::Key::ArrowRight
-                );
-                if widget { KeyReceiver::Notice } else { up() }
-            }
-            Some(KeyNode::Tutorial) => {
-                let widget = key.is(BasicKey::Confirm) || key.is(BasicKey::Expand);
-                if widget { KeyReceiver::Tutorial } else { up() }
-            }
-            Some(KeyNode::HtmlAddress { sid, keymap }) => {
-                let content = *keymap
-                    || consumes_key(
-                        PopupKeyboard::Text,
-                        key.key,
-                        key.modifiers,
-                        key.super_held,
-                        edits,
-                    );
-                text_or_up(
-                    content,
-                    PopupKeyboard::Text,
-                    key,
-                    KeyReceiver::HtmlAddress(*sid),
-                    &up,
-                )
-            }
-            Some(KeyNode::Stage { exit }) => {
-                // 무대 종료 바인딩이 무대 내용보다 먼저다.
-                let content = *exit
-                    || consumes_key(
-                        PopupKeyboard::Text,
-                        key.key,
-                        key.modifiers,
-                        key.super_held,
-                        edits,
-                    );
-                text_or_up(content, PopupKeyboard::Text, key, KeyReceiver::Stage, &up)
-            }
-            Some(KeyNode::Scope(scope)) => match scope.content {
-                ScopeContent::None | ScopeContent::Yielding(_) => up(),
-                ScopeContent::Egui { sid, takes } => {
-                    if takes && !EGUI_SURFACE_YIELDS_TO_ANCESTOR_BINDINGS {
-                        KeyReceiver::EguiSurface(sid)
-                    } else if shortcut(None) {
-                        KeyReceiver::Shortcut { end }
-                    } else {
-                        KeyReceiver::EguiSurface(sid)
+            Some(node) => {
+                let content = start_takes(node, key, edits);
+                match node {
+                    KeyNode::Popup(p) => {
+                        text_or_up(content, p.keyboard, key, KeyReceiver::popup(p.node), &up)
                     }
+                    KeyNode::Notice if content => KeyReceiver::Notice,
+                    KeyNode::Tutorial if content => KeyReceiver::Tutorial,
+                    KeyNode::Notice | KeyNode::Tutorial => up(),
+                    KeyNode::HtmlAddress { sid, .. } => text_or_up(
+                        content,
+                        PopupKeyboard::Text,
+                        key,
+                        KeyReceiver::HtmlAddress(*sid),
+                        &up,
+                    ),
+                    KeyNode::Stage { .. } => {
+                        text_or_up(content, PopupKeyboard::Text, key, KeyReceiver::Stage, &up)
+                    }
+                    KeyNode::Scope(scope) => match scope.content {
+                        ScopeContent::None | ScopeContent::Yielding(_) => up(),
+                        ScopeContent::Egui { sid, .. } => {
+                            if content && !EGUI_SURFACE_YIELDS_TO_ANCESTOR_BINDINGS {
+                                KeyReceiver::EguiSurface(sid)
+                            } else if shortcut(None) {
+                                KeyReceiver::Shortcut { end }
+                            } else {
+                                KeyReceiver::EguiSurface(sid)
+                            }
+                        }
+                    },
                 }
-            },
+            }
         }
     };
     Routed { receiver, levels }
+}
+
+/// 출발 노드의 내용·표시 단계·선언(노드 키맵, 소비 집합, 무대 종료 키)이 이 키를 쓰는지. `Text` 명령 키의
+/// 양보 규칙은 보지 않는다.
+fn start_takes(node: &KeyNode, key: RouteKey, edits: &EditBindings) -> bool {
+    let text = || {
+        consumes_key(
+            PopupKeyboard::Text,
+            key.key,
+            key.modifiers,
+            key.super_held,
+            edits,
+        )
+    };
+    match node {
+        KeyNode::Popup(p) => {
+            p.keymap
+                || (p.fold == PopupFold::Collapsed && key.is(BasicKey::Expand))
+                || consumes_key(p.keyboard, key.key, key.modifiers, key.super_held, edits)
+        }
+        // 안내 위젯은 수식키와 무관하게 이 키들을 읽는다.
+        KeyNode::Notice => matches!(
+            key.key,
+            egui::Key::Escape
+                | egui::Key::Enter
+                | egui::Key::Space
+                | egui::Key::Tab
+                | egui::Key::ArrowUp
+                | egui::Key::ArrowDown
+                | egui::Key::ArrowLeft
+                | egui::Key::ArrowRight
+        ),
+        KeyNode::Tutorial => key.is(BasicKey::Confirm) || key.is(BasicKey::Expand),
+        KeyNode::HtmlAddress { keymap, .. } => *keymap || text(),
+        // 무대 종료 바인딩이 무대 내용보다 먼저다.
+        KeyNode::Stage { exit } => *exit || text(),
+        KeyNode::Scope(scope) => matches!(scope.content, ScopeContent::Egui { takes: true, .. }),
+    }
+}
+
+/// App plugin 판정 게이트: 포커스 노드에서 시작한 경로가 출발 노드에서 이 키를 끝내는지(소비 집합·노드 키맵·
+/// 선언). 출발 노드가 범위 노드(surface)면 끝내지 않는다. plugin 명령은 surface 내용보다 먼저다.
+pub(crate) fn start_node_ends_key(path: &[KeyNode], key: RouteKey, edits: &EditBindings) -> bool {
+    match path.first() {
+        None | Some(KeyNode::Scope(_)) => false,
+        Some(node) => start_takes(node, key, edits),
+    }
+}
+
+/// egui 입력칸이 스스로 읽는 명령 조합(egui 0.31.1 `TextEdit`·`CCursorRange`): 전체 선택, 실행 취소·다시 실행,
+/// 단어·줄 이동(Shift 포함), 단어 지우기, Ctrl+H·K·U·W 지우기. command 는 Linux·Windows Ctrl, macOS Cmd 다.
+pub(crate) fn text_edit_builtin(key: egui::Key, m: egui::Modifiers) -> bool {
+    use egui::Key;
+    let command = m.command && !m.alt;
+    let word = m.alt && !m.command && !m.ctrl;
+    match key {
+        Key::A | Key::Y | Key::Backspace | Key::Delete | Key::H | Key::K | Key::U | Key::W => {
+            command && !m.shift
+        }
+        Key::Z | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => command,
+        Key::ArrowLeft | Key::ArrowRight => command || word,
+        _ => false,
+    }
 }
 
 /// 노드 내용이 쓰는 키면 그 노드, `Text` 노드의 소비 집합 밖 명령 키는 경로에 맞는 후보가 있을 때만 위로,

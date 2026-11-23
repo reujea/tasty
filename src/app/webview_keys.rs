@@ -301,6 +301,7 @@ fn forwarded_gate_and_plugin_steps(
         &ev.key,
         ev.mods,
         Some(ev.surface_id),
+        None,
     ) {
         return Some(ForwardedKeyOutcome::Handled);
     }

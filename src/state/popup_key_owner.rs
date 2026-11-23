@@ -87,6 +87,40 @@ impl super::MainViewState {
         Some(binds && self.bind_window_key_owner())
     }
 
+    /// 창 키 사건 처리가 그 키를 터미널(PTY)·단축키로 보내지 않는지. 경로 키는 단계 4 수신자가 egui 수신자인지,
+    /// 지금 경로로 남는 사건은 지금 게이트(`window_holds_terminal_keys`)다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn window_key_holds_terminal(
+        &self,
+        decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+    ) -> bool {
+        use crate::adapters::ui::input::key_nodes::KeyDecision;
+        match decision {
+            KeyDecision::Path(routed) => routed.receiver.is_egui(),
+            KeyDecision::Current => self.window_holds_terminal_keys(),
+        }
+    }
+
+    /// 창이 받은 키 사건을 egui 로 보낼지(K9). 경로 키는 단계 4 수신자가 egui 수신자일 때만 보내고, 보내면 지금
+    /// 게이트처럼 그 키를 실은 그리기의 키 주인을 묶는다. 지금 경로로 남는 사건(bare Esc·뗌·래치 중 키·egui 키 없는
+    /// 누름·클립보드 조합·편집 바인딩 키)은 지금 게이트(`window_feeds_egui`)다. 반환은 `window_feeds_egui` 와 같다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn window_feeds_key(
+        &mut self,
+        decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+        egui_surface: bool,
+        binds: bool,
+    ) -> Option<bool> {
+        use crate::adapters::ui::input::key_nodes::KeyDecision;
+        match decision {
+            KeyDecision::Current => self.window_feeds_egui(egui_surface, binds),
+            KeyDecision::Path(routed) if routed.receiver.is_egui() => {
+                Some(binds && self.bind_window_key_owner())
+            }
+            KeyDecision::Path(_) => None,
+        }
+    }
+
     /// 창이 키를 터미널(PTY)·단축키로 보내지 않는지(`view::main::keyboard` 의 게이트). 팝업 키 주인이 있거나 창이
     /// 이번 프레임 키를 팝업에 묶었으면 참이다.
     pub(crate) fn window_holds_terminal_keys(&self) -> bool {

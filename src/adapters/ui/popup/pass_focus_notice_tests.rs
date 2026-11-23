@@ -94,7 +94,10 @@ fn notice_focused_scene() -> (Scene, Explorer, Explorer, WindowInput) {
 fn a_letter_typed_into_a_focused_notice_skips_the_explorer_type_ahead() {
     let (mut s, mut l, mut r, mut input) = notice_focused_scene();
     let mut bodies = Bodies::Explorers(&mut l, &mut r);
-    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    assert!(
+        type_text(&mut s, &mut input, true, "b").is_none(),
+        "안내가 읽지 않는 글자는 키 경로를 올라가 egui 큐에 실리지 않는다"
+    );
     drain(&mut s, &mut input, &mut bodies);
     let Bodies::Explorers(l, _) = &bodies else {
         unreachable!()
@@ -123,7 +126,10 @@ fn a_letter_after_a_press_that_unfocuses_the_notice_still_skips_the_type_ahead()
         input.press(&mut s.state, &engine.read(), empty);
     }
     input.queue_mut().push(release_at(empty));
-    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    assert!(
+        type_text(&mut s, &mut input, true, "b").is_none(),
+        "안내가 읽지 않는 글자는 키 경로를 올라가 egui 큐에 실리지 않는다"
+    );
     pass(&mut s, &mut input, &mut bodies);
     assert!(
         !has_keyboard_focus(&s.state.popups),
@@ -158,7 +164,10 @@ fn a_letter_after_the_notice_closes_reaches_the_type_ahead() {
         .chain(std::iter::once(cherry))
         .collect();
     let mut bodies = Bodies::Explorers(&mut l, &mut r);
-    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    assert!(
+        type_text(&mut s, &mut input, true, "b").is_none(),
+        "안내가 읽지 않는 글자는 키 경로를 올라가 egui 큐에 실리지 않는다"
+    );
     s.state.popups.close(RESTORE_NOTICE_POPUP_ID);
     assert!(!has_keyboard_focus(&s.state.popups));
     assert!(type_text(&mut s, &mut input, true, "c").is_some());
@@ -198,7 +207,10 @@ fn each_segment_keeps_the_notice_focus_of_its_own_keys() {
     let (mut s, mut l, mut r, mut input) = notice_focused_scene();
     let mut bodies = Bodies::Explorers(&mut l, &mut r);
     assert_eq!(s.state.pass_notice_focus(), None, "글자가 없는 몫");
-    assert!(type_text(&mut s, &mut input, true, "b").is_some());
+    assert!(
+        type_text(&mut s, &mut input, true, "b").is_none(),
+        "안내가 읽지 않는 글자는 키 경로를 올라가 egui 큐에 실리지 않는다"
+    );
     s.state.popups.close(RESTORE_NOTICE_POPUP_ID);
     assert!(type_text(&mut s, &mut input, true, "c").is_some());
     assert_eq!(s.state.pass_notice_focus(), Some(true), "b 의 몫");
@@ -221,13 +233,19 @@ fn seal_after_a_notice_letter(tail: bool) -> Scene {
         input.press(&mut s.state, &engine.read(), empty);
     }
     input.queue_mut().push(release_at(empty));
-    assert!(type_text(&mut s, &mut input, true, "a").is_some());
+    assert!(
+        type_text(&mut s, &mut input, true, "a").is_none(),
+        "안내 포커스 때 친 글자는 egui 큐에 실리지 않는다"
+    );
     if tail {
         {
             let engine = s.session.borrow_mut();
             input.press(&mut s.state, &engine.read(), empty);
         }
-        assert!(type_text(&mut s, &mut input, true, "b").is_some());
+        assert!(
+            type_text(&mut s, &mut input, true, "b").is_none(),
+            "안내 포커스 때 친 글자는 egui 큐에 실리지 않는다"
+        );
     }
     let (stage, _) = stage_or_window_pass_with(&mut s, &mut input, &mut l, &mut r, &mut |st| {
         assert!(st.open_fullscreen_stage("blank"));
@@ -249,15 +267,15 @@ fn a_seal_of_the_inherited_segment_keeps_its_notice_focus() {
 }
 
 /// Given 안내 안쪽 포커스, When [L 클릭, 글자 a, L 누름, 글자 b] 의 클릭 패스가 무대를 열어 뒤 큐 꼬리(b 의 몫)가
-/// 봉인되면, Then 그 몫의 안내 값은 그대로 참이고 봉인이 연 새 몫의 값은 없다.
+/// 봉인되면, Then 그 몫의 안내 값은 그대로 참이고 봉인이 연 새 몫의 값은 없다. 안내가 읽지 않는 글자 a 는 egui 큐에
+/// 실리지 않아(K9) 같은 노드의 두 번째 누름은 a 의 몫을 끊지 않고 그 몫에 든다.
 #[test]
 fn a_seal_of_the_queue_tail_keeps_its_notice_focus() {
     let s = seal_after_a_notice_letter(true);
     let slots = s.state.segment_slots();
-    assert_eq!(slots.len(), 4, "{slots:?}");
-    assert_eq!(slots[0].notice, Some(true), "a 의 몫");
-    assert_eq!(slots[1].notice, None, "누름만 든 몫");
-    assert_eq!(slots[2].notice, Some(true), "b 의 몫");
-    assert!(slots[2].marked && !slots[3].marked);
-    assert_eq!(slots[3].notice, None, "봉인한 새 몫");
+    assert_eq!(slots.len(), 3, "{slots:?}");
+    assert_eq!(slots[0].notice, Some(true), "a 와 두 번째 누름의 몫");
+    assert_eq!(slots[1].notice, Some(true), "b 의 몫");
+    assert!(slots[1].marked && !slots[2].marked);
+    assert_eq!(slots[2].notice, None, "봉인한 새 몫");
 }

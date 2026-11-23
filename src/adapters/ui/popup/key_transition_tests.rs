@@ -75,8 +75,16 @@ fn k_find_w(s: &mut Scene, input: &mut WindowInput, sid: u32) {
     {
         let engine = s.session.borrow_mut();
         assert_eq!(
-            s.state
-                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            s.state.input_destination(
+                &engine.read(),
+                s.state.window_key_holds_terminal(
+                    crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                        &s.state,
+                        &engine.read(),
+                        "k"
+                    )
+                )
+            ),
             InputDestination::Terminal(sid),
             "k 의 갈래는 터미널(PTY)이다"
         );
@@ -257,8 +265,16 @@ fn k_then_plugin_popup_takes_w(
     {
         let engine = s.session.borrow_mut();
         assert_eq!(
-            s.state
-                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            s.state.input_destination(
+                &engine.read(),
+                s.state.window_key_holds_terminal(
+                    crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                        &s.state,
+                        &engine.read(),
+                        "k"
+                    )
+                )
+            ),
             InputDestination::Terminal(SURFACE_R),
             "k 의 갈래는 터미널(PTY)이다"
         );
@@ -282,8 +298,16 @@ fn k_then_plugin_popup_takes_w(
         "w 의 입력 몫은 연 plugin 팝업에 묶였다(지금 포커스로 대신 고르지 않는다)"
     );
     assert_eq!(
-        s.state
-            .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+        s.state.input_destination(
+            &engine.read(),
+            s.state.window_key_holds_terminal(
+                crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                    &s.state,
+                    &engine.read(),
+                    "w"
+                )
+            )
+        ),
         InputDestination::Overlay,
         "w 는 터미널(PTY)로 가지 않는다"
     );
@@ -364,8 +388,16 @@ fn the_failed_open_leaves_the_terminal_focused(s: &mut Scene, input: &mut Window
     );
     let engine = s.session.borrow_mut();
     assert_eq!(
-        s.state
-            .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+        s.state.input_destination(
+            &engine.read(),
+            s.state.window_key_holds_terminal(
+                crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                    &s.state,
+                    &engine.read(),
+                    "w"
+                )
+            )
+        ),
         InputDestination::Terminal(SURFACE_R),
         "w 는 R 터미널 몫이다"
     );

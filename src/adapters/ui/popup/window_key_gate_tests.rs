@@ -1,5 +1,5 @@
-//! 창의 키 처리(egui 전달 게이트 `window_feeds_egui`, Esc 처리 `window_escape`, 터미널 게이트
-//! `window_holds_terminal_keys`)를 거친 키를 실은 프레임은 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌
+//! 창의 키 처리(egui 전달 게이트 `window_feeds_key`, Esc 처리 `window_escape`, 터미널 게이트
+//! `window_key_holds_terminal`)를 거친 키를 실은 프레임은 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌
 //! 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다.
 //!
 //! 이 시험들은 창(winit·GPU)을 띄우지 않고 창과 같은 판정 함수로 키를 보낸다. 판정 함수 안의 변이는 이 장면 시험이
@@ -37,13 +37,14 @@ fn layout() -> LayoutContext {
 }
 
 /// 창이 키 사건 하나를 받는 경로(`view::main::feed_egui_keyboard` → `keyboard::handle_keyboard_input`)를 창과 같은
-/// 판정 함수로 밟는다. egui 로 보낼 키만 `pending`(그 키를 실은 프레임의 egui 입력)에 싣는다. egui 로 보내지 않은 Esc
+/// 판정 함수(단계 4 판정, K9 게이트 `window_feeds_key`, 터미널 게이트 `window_key_holds_terminal`)로 밟는다. egui 로 보낼 키만 `pending`(그 키를 실은 프레임의 egui 입력)에 싣는다. egui 로 보내지 않은 Esc
 /// 뗌은 그 몫의 패스를 닫을 때 egui 의 Escape 눌림 기록을 풀도록 남긴다(`MainView::note_unfed_key`). 뗌은 처리하지 않고, Esc 누름은 창의 Esc 처리를
 /// 거친다(`ctx` 의 직전 패스 Escape 눌림을 넘긴다). 터미널(PTY)로 가면 참이다. 창 호출부를 부르지 않으므로 호출부
 /// 우회는 소스 가드 몫이다.
 fn window_key(
     ctx: &egui::Context,
     state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
     pending: &mut Vec<egui::Event>,
     event: egui::Event,
 ) -> bool {
@@ -53,7 +54,9 @@ fn window_key(
         _ => (false, true),
     };
     let loaded_from = pending.len();
-    if state.window_feeds_egui(false, true).is_some() {
+    let decision =
+        super::window_input_test_support::window_key_decision_of(state, engine, &event, false);
+    if state.window_feeds_key(decision, false, true).is_some() {
         pending.push(event.clone());
     } else if escape && !pressed {
         state.popups.note_unfed_escape_release();
@@ -70,7 +73,7 @@ fn window_key(
     {
         return false;
     }
-    !state.window_holds_terminal_keys()
+    !state.window_key_holds_terminal(decision)
 }
 
 fn enter() -> egui::Event {
@@ -213,7 +216,7 @@ fn open_scene(extra: impl FnOnce(&mut RequestContext)) -> Scene {
 fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
     let Scene {
         mut state,
-        session: _session,
+        mut session,
         ctx,
         g,
         x,
@@ -222,6 +225,7 @@ fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -230,7 +234,13 @@ fn a_key_after_the_window_released_the_owner_reaches_only_that_owner() {
         "창이 X 의 포커스를 푼다"
     );
     assert!(
-        !window_key(&ctx, &mut state, &mut pending, enter()),
+        !window_key(
+            &ctx,
+            &mut state,
+            &session.borrow_mut().read(),
+            &mut pending,
+            enter()
+        ),
         "같은 프레임의 Enter 는 터미널로 가지 않는다"
     );
     // 창은 그 Esc 를 egui 입력에서 뺐다. 같은 프레임의 Enter 만 egui 로 간다.
@@ -296,7 +306,7 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
     let mut n = None;
     let Scene {
         mut state,
-        session: _session,
+        mut session,
         ctx,
         g: _,
         x,
@@ -315,6 +325,7 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -349,7 +360,7 @@ fn an_escape_bound_to_an_owner_that_closed_does_not_reach_a_popup_below() {
 fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
     let Scene {
         mut state,
-        session: _session,
+        mut session,
         ctx,
         g,
         x,
@@ -359,12 +370,19 @@ fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
     assert!(!state.popups.is_instance_focused(x));
     assert!(
-        !window_key(&ctx, &mut state, &mut pending, key(egui::Key::Escape)),
+        !window_key(
+            &ctx,
+            &mut state,
+            &session.borrow_mut().read(),
+            &mut pending,
+            key(egui::Key::Escape)
+        ),
         "두 번째 Esc 도 X 것이다"
     );
     assert!(state.take_pending_intents().is_empty(), "G 를 닫지 않는다");
@@ -373,20 +391,26 @@ fn a_second_escape_before_the_draw_stays_with_the_bound_owner() {
         gp.open && !state.popups.is_instance_focused(g),
         "G 는 열린 채고 포커스를 얻지 않는다"
     );
-    assert!(!window_key(&ctx, &mut state, &mut pending, enter()));
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        &session.borrow_mut().read(),
+        &mut pending,
+        enter()
+    ));
     assert_eq!(pending, [enter()], "두 Esc 는 egui 입력에서 빠진다");
     let seen = frame(&ctx, &mut state, pending);
     assert_eq!(seen, [x], "그 프레임 키는 X 본문만 읽는다");
 }
 
 /// Given 팝업이 X 하나뿐일 때, When 창이 Esc 로 X 의 포커스를 푼 뒤 같은 프레임에 Enter 가 오면, Then 창의 터미널
-/// 게이트(`window_holds_terminal_keys`)는 그 프레임 동안 닫혀 있어 Enter 가 터미널로 가지 않는다. 그 프레임을 그린
-/// 뒤에는 열린다. 판정 함수(`window_feeds_egui`·`window_holds_terminal_keys`)의 변이는 이 시험이 잡고, 창 호출부가
+/// 게이트(`window_key_holds_terminal`)는 그 프레임 동안 닫혀 있어 Enter 가 터미널로 가지 않는다. 그 프레임을 그린
+/// 뒤에는 열린다. 판정 함수(`window_feeds_key`·`window_key_holds_terminal`)의 변이는 이 시험이 잡고, 창 호출부가
 /// 그 함수를 우회하는 변이는 `source_guards::window_key_gate_call_sites` 가 잡는다.
 #[test]
 fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() {
     crate::i18n::init("en");
-    let (mut state, _session) = crate::state::tests::test_state();
+    let (mut state, mut session) = crate::state::tests::test_state();
     state.popups.register(
         PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
             .with_instances(PopupInstances::PerScopeTarget),
@@ -404,12 +428,19 @@ fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() 
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
     assert!(!state.popups.has_focused(), "X 의 포커스가 풀렸다");
     assert!(
-        !window_key(&ctx, &mut state, &mut pending, enter()),
+        !window_key(
+            &ctx,
+            &mut state,
+            &session.borrow_mut().read(),
+            &mut pending,
+            enter()
+        ),
         "같은 프레임의 Enter 는 터미널로 가지 않는다"
     );
     assert_eq!(pending, [enter()], "그 Enter 는 egui 로 간다");
@@ -417,7 +448,13 @@ fn a_key_after_the_window_released_the_only_popup_does_not_reach_the_terminal() 
     assert_eq!(seen, [x], "그 Enter 는 X 본문이 읽는다");
     let mut pending = Vec::new();
     assert!(
-        window_key(&ctx, &mut state, &mut pending, enter()),
+        window_key(
+            &ctx,
+            &mut state,
+            &session.borrow_mut().read(),
+            &mut pending,
+            enter()
+        ),
         "다음 키부터 터미널로 간다"
     );
     assert!(pending.is_empty(), "다음 키는 egui 로 가지 않는다");
@@ -453,24 +490,25 @@ fn focused_close_owner() -> (
     (state, session, ctx, x)
 }
 
-/// 수식키 Esc 는 창 Esc 가 아니다: 창이 처리하지 않고(Pass) 실린 그 사건이 egui 큐에 남으며, X 는 열린 채 포커스를
-/// 유지한다.
+/// 수식키 Esc 는 창 Esc 가 아니다: 창이 처리하지 않고(Pass), X(`Keys`)가 소비하지 않는 수식키 조합이라 키 경로를
+/// 올라가 egui 큐에 실리지 않는다. X 는 열린 채 포커스를 유지한다.
 fn modified_escape_is_not_a_window_escape(modifiers: egui::Modifiers) {
     use crate::adapters::ui::popup::window_input_test_support::WindowInput;
     let (mut state, mut session, ctx, x) = focused_close_owner();
     let engine = session.borrow_mut();
     let mut input = WindowInput::default();
     let handled = input.escape_with(&ctx, &mut state, &engine.read(), true, modifiers);
-    assert!(input.escape_fed(), "그 누름이 egui 큐에 실렸다");
+    assert!(
+        !input.escape_fed(),
+        "그 누름은 egui 큐에 실리지 않는다: {modifiers:?}"
+    );
     assert!(!handled, "창이 처리하지 않는다: {modifiers:?}");
-    assert_eq!(
-        input
+    assert!(
+        !input
             .queue_mut()
             .iter()
-            .filter(|e| super::body_keys::is_escape_press(e))
-            .count(),
-        1,
-        "그 누름이 egui 큐에 남는다: {modifiers:?}"
+            .any(super::body_keys::is_escape_press),
+        "egui 큐에 Esc 누름이 없다: {modifiers:?}"
     );
     assert!(state.popups.instance(x).is_some_and(|p| p.open));
     assert!(
@@ -611,8 +649,14 @@ fn next_key_after_escape_on_a_non_covering_popup_goes_below() {
         input.cut_count() >= 1,
         "포커스 노드가 바뀌어 글자 앞에서 몫을 끊는다"
     );
+    let next = super::window_input_test_support::window_key_decision_of(
+        &state,
+        &read,
+        &key(egui::Key::A),
+        false,
+    );
     assert!(
-        !state.window_holds_terminal_keys(),
+        !state.window_key_holds_terminal(next),
         "다음 글자는 아래 surface(터미널)로 간다"
     );
     assert!(
@@ -797,6 +841,7 @@ fn an_escape_the_popup_handled_does_not_reach_a_surface_field() {
         assert!(!window_key(
             &ctx,
             &mut state,
+            &session.borrow_mut().read(),
             &mut events,
             key(egui::Key::Escape)
         ));
@@ -810,6 +855,7 @@ fn an_escape_the_popup_handled_does_not_reach_a_surface_field() {
         assert!(!window_key(
             &ctx,
             &mut state,
+            &session.borrow_mut().read(),
             &mut events,
             egui::Event::Text("z".into())
         ));
@@ -888,7 +934,7 @@ fn frame_escapes(
 fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
     let Scene {
         mut state,
-        session: _session,
+        mut session,
         ctx,
         g,
         x,
@@ -897,6 +943,7 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -904,12 +951,14 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         escape_release()
     ));
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -938,7 +987,7 @@ fn a_release_between_two_escapes_reaches_the_owner_after_the_first_press() {
 #[test]
 fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_repeat() {
     crate::i18n::init("en");
-    let (mut state, _session) = crate::state::tests::test_state();
+    let (mut state, mut session) = crate::state::tests::test_state();
     state.popups.register(
         PopupState::new(ID, "test", egui::vec2(200.0, 100.0), PopupScope::Window)
             .with_instances(PopupInstances::PerScopeTarget),
@@ -956,6 +1005,7 @@ fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_re
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -968,7 +1018,13 @@ fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_re
 
     let mut pending = Vec::new();
     assert!(!state.popups.has_focused(), "키 오버레이가 없다");
-    window_key(&ctx, &mut state, &mut pending, escape_release());
+    window_key(
+        &ctx,
+        &mut state,
+        &session.borrow_mut().read(),
+        &mut pending,
+        escape_release(),
+    );
     assert!(pending.is_empty(), "그 뗌은 egui 로 가지 않는다");
     assert!(frame_escapes(&ctx, &mut state, pending).is_empty());
     assert!(
@@ -981,6 +1037,7 @@ fn an_escape_release_that_went_to_the_terminal_does_not_make_the_next_press_a_re
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -1036,6 +1093,7 @@ fn a_covering_window_popup_takes_the_first_escape_before_an_open_notification_li
     assert!(!window_key(
         &ctx,
         &mut state,
+        &engine.read(),
         &mut pending,
         egui::Event::Text("a".into())
     ));
@@ -1071,6 +1129,7 @@ fn a_covering_window_popup_takes_the_first_escape_before_an_open_notification_li
     assert!(!window_key(
         &ctx,
         &mut state,
+        &engine.read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -1167,6 +1226,7 @@ fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         &mut pending,
         key(egui::Key::Escape)
     ));
@@ -1191,6 +1251,7 @@ fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         input.queue_mut(),
         escape_release()
     ));
@@ -1210,6 +1271,7 @@ fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
     assert!(!window_key(
         &ctx,
         &mut state,
+        &session.borrow_mut().read(),
         input.queue_mut(),
         key(egui::Key::Escape)
     ));

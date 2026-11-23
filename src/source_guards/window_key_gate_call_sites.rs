@@ -1,6 +1,6 @@
 //! 창이 키를 egui·터미널로 보내는 두 게이트가 시험이 밟는 판정 함수를 그대로 쓰는지 확인한다. 팝업 시험
-//! (`adapters::ui::popup::window_key_gate_tests`)은 창 없이 같은 함수(`window_feeds_egui`, `window_escape`,
-//! `window_holds_terminal_keys`)로 키를 보낸다. 판정 함수 안의 변이는 그 장면 시험이 잡는다. 호출부가 그 함수를
+//! (`adapters::ui::popup::window_key_gate_tests`)은 창 없이 같은 함수(단계 4 `key_nodes::window_key_decision` 뒤
+//! `window_feeds_key`, `window_escape`, `window_holds_terminal_keys`)로 키를 보낸다. 판정 함수 안의 변이는 그 장면 시험이 잡는다. 호출부가 그 함수를
 //! 거치지 않고 키를 보내는 우회는 장면 시험이 보지 못하므로 호출부의 모양을 여기서 고정한다.
 //!
 //! 잡지 못하는 것: 호출부 앞에 같은 키를 다른 길로 egui·PTY 에 보내는 코드를 더하는 것(첫 게이트만 본다).
@@ -28,14 +28,15 @@ fn at(body: &str, needle: &str, what: &str) -> usize {
     body.find(needle).unwrap_or_default()
 }
 
-/// egui 전달 게이트: `feed_egui_keyboard` 는 egui 로 보내기 전에 `window_feeds_egui` 의 결과로만 돌아간다.
+/// egui 전달 게이트: `feed_egui_keyboard` 는 egui 로 보내기 전에 `window_feeds_key`(단계 4 판정을 받은 K9 게이트)의
+/// 결과로만 돌아간다.
 #[test]
 fn the_egui_feed_goes_through_the_window_feed_gate() {
     let src = read("src/view/main.rs");
     let body = squeeze(&fn_body(&src, "fn feed_egui_keyboard(").expect("feed_egui_keyboard"));
     let gate = at(
         &body,
-        "letSome(bound)=self.state.window_feeds_egui(egui_surface,binds)else{self.note_unfed_key(event);return(false,false);};",
+        "letSome(bound)=self.state.window_feeds_key(self.key_decision,egui_surface,binds)else{self.note_unfed_key(event);return(false,false);};",
         "egui 전달 게이트",
     );
     let feed = at(
@@ -56,8 +57,8 @@ fn the_egui_feed_goes_through_the_window_feed_gate() {
     );
 }
 
-/// 터미널 게이트: `handle_keyboard_input` 은 Esc 를 창의 Esc 처리로 보낸 뒤 `window_holds_terminal_keys` 가 참이면
-/// 터미널로 보내지 않는다.
+/// 터미널 게이트: `handle_keyboard_input` 은 Esc 를 창의 Esc 처리로 보낸 뒤 경로 키면 단계 4 수신자가 egui 수신자일
+/// 때, 지금 경로로 남는 사건이면 `window_holds_terminal_keys` 가 참일 때 터미널로 보내지 않는다.
 #[test]
 fn the_terminal_goes_through_the_window_hold_gate() {
     let src = read("src/view/main/keyboard.rs");
@@ -69,7 +70,7 @@ fn the_terminal_goes_through_the_window_hold_gate() {
     );
     let hold = at(
         &body,
-        "letoverlay_open=self.state.window_holds_terminal_keys();",
+        "letoverlay_open=self.state.window_key_holds_terminal(self.key_decision);",
         "터미널 게이트",
     );
     // 게이트가 참이면 갈래 판정(`input_destination`)이 오버레이 갈래로 멈춘다. 갈래 모양은

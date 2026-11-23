@@ -298,6 +298,13 @@ pub(crate) fn sync_plugin_popup_scopes<'a>(
             })
             .collect(),
     );
+    state.plugin_popup_key_decls = instances
+        .iter()
+        .map(|(id, inst)| {
+            let decl = inst.contribute.to_decl();
+            (*id, (decl.keyboard, decl.escape))
+        })
+        .collect();
     state.plugin_popup_bound_scopes = bound_popup_scopes(instances.into_iter());
     let bound = &state.plugin_popup_bound_scopes;
     for popup in state.popups.entries_of_mut(FILE_PICKER_POPUP_ID) {

@@ -187,7 +187,13 @@ impl App {
         };
         let mods = main.base.state.modifiers;
         let shortcut_key = shortcuts::shortcut_lookup_key(&ke.logical_key, &ke.physical_key, mods);
-        self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, None)
+        let value = crate::adapters::ui::input::key_class::KeyEventValue {
+            logical: &ke.logical_key,
+            physical: ke.physical_key,
+            pressed: true,
+            mods,
+        };
+        self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, None, Some(&value))
     }
 
     /// winit과 native webview 입력이 같은 차단 조건·우선순위를 사용한다. 창의 판정·실행은
@@ -198,6 +204,7 @@ impl App {
         shortcut_key: &winit::keyboard::Key,
         mods: winit::keyboard::ModifiersState,
         received_by: Option<u32>,
+        winit_key: Option<&crate::adapters::ui::input::key_class::KeyEventValue<'_>>,
     ) -> bool {
         if self.view.is_modal_active() {
             return false;
@@ -214,6 +221,7 @@ impl App {
             shortcut_key,
             mods,
             received_by,
+            winit_key,
         )
     }
 }
@@ -228,11 +236,22 @@ pub(crate) fn plugin_shortcut_in_window(
     shortcut_key: &winit::keyboard::Key,
     mods: winit::keyboard::ModifiersState,
     received_by: Option<u32>,
+    winit_key: Option<&crate::adapters::ui::input::key_class::KeyEventValue<'_>>,
 ) -> bool {
     // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 키는 창의
-    // 포커스 노드에서 시작하므로 그 값을 먼저 정규화한다.
+    // 포커스 노드에서 시작하므로 그 값을 먼저 정규화한다. winit 키(`received_by` 없음)는 포커스 노드에서 시작한
+    // 경로가 출발 노드에서 그 키를 끝내면 닫는다(지금 경로로 남는 사건은 지금 게이트). native WebView 가 넘긴
+    // 키는 지금 게이트다.
     state.normalize_focus(engine);
-    if state.window_keys_to_overlay() {
+    let gate_open = match (received_by, winit_key) {
+        (None, Some(value)) => crate::adapters::ui::input::key_nodes::plugin_key_gate_open(
+            state,
+            &engine.read(),
+            value,
+        ),
+        _ => !state.window_keys_to_overlay(),
+    };
+    if !gate_open {
         return false;
     }
     // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이고 키 경로는 그 surface 에서 시작한다.

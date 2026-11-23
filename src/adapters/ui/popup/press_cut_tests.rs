@@ -185,7 +185,26 @@ fn a_key_before_a_press_reaches_the_popup_and_the_letter_after_reaches_the_left_
         Some(false),
         "누름 뒤 글자에는 팝업 키 주인이 없다"
     );
-    assert!(!s.state.window_holds_terminal_keys());
+    {
+        let engine = s.session.borrow_mut();
+        assert!(
+            !matches!(
+                crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                    &s.state,
+                    &engine.read(),
+                    "a"
+                ),
+                crate::adapters::ui::input::key_nodes::KeyDecision::Path(
+                    crate::adapters::ui::input::key_route::Routed {
+                        receiver: crate::adapters::ui::input::key_route::KeyReceiver::Popup(_)
+                            | crate::adapters::ui::input::key_route::KeyReceiver::PluginPopup(_),
+                        ..
+                    }
+                )
+            ),
+            "누름 뒤 글자는 팝업이 받지 않는다"
+        );
+    }
 
     pass(&mut s, &mut input);
     assert_eq!(
@@ -411,8 +430,16 @@ fn every_press_after_a_key_cuts_and_the_last_letter_reaches_the_terminal() {
     {
         let engine = s.session.borrow_mut();
         assert_eq!(
-            s.state
-                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            s.state.input_destination(
+                &engine.read(),
+                s.state.window_key_holds_terminal(
+                    crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                        &s.state,
+                        &engine.read(),
+                        "z"
+                    )
+                )
+            ),
             crate::state::input_destination::InputDestination::Terminal(SURFACE_R),
             "마지막 글자는 창의 키 갈래가 R 터미널(PTY)로 보낸다"
         );
@@ -510,7 +537,16 @@ fn a_press_on_the_left_terminal_after_a_plugin_popup_key_sends_the_next_letter_t
         "누름 뒤 글자는 egui 로 가지 않는다"
     );
     assert_eq!(
-        state.input_destination(&engine.read(), state.window_holds_terminal_keys()),
+        state.input_destination(
+            &engine.read(),
+            state.window_key_holds_terminal(
+                crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                    &state,
+                    &engine.read(),
+                    "a"
+                )
+            )
+        ),
         InputDestination::Terminal(SURFACE_L),
         "키 갈래는 L 터미널(PTY)이다"
     );

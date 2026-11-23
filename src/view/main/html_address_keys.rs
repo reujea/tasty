@@ -46,14 +46,7 @@ pub(super) fn address_key_action(
 
 /// 주소 띠 노드 키맵 수신 판정: 공통 편집 판정 전후 두 값 가운데 하나라도 동작이 있으면 주소 띠에서 끝나는
 /// 키다. 동작은 지금처럼 편집 판정 뒤 `address_key_action`이 정한다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path calls it from the receiver commit on"
-    )
-)]
-pub(super) fn address_keymap_receives(
+pub(crate) fn address_keymap_receives(
     kb: &crate::settings::KeybindingSettings,
     key: &winit::keyboard::Key,
     mods: winit::keyboard::ModifiersState,

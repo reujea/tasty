@@ -37,6 +37,7 @@ pub(crate) mod vi_copy;
 pub(crate) mod ime;
 
 pub(crate) use divider_drag::DividerDrag;
+pub(crate) use html_address_keys::address_keymap_receives;
 
 use crate::runtime::engine_read::EngineRead;
 use std::sync::Arc;
@@ -70,6 +71,9 @@ pub struct MainView {
     /// 마지막 키 사건이 egui 입력 큐에 적재되기 전 큐 길이. 적재하지 않았으면 None 이다. 창의 Esc 처리가 이번
     /// 사건으로 들어온 범위에서만 Esc 누름을 고른다(`try_consume_escape_key`).
     pub(crate) escape_loaded_from: Option<usize>,
+    /// 지금 키 사건의 단계 4 결과(경로 키의 수신자). 사건마다 포커스 정규화 뒤에 정하고 egui 적재(K9)와 단축키·
+    /// 끝 목적지 단계가 읽는다.
+    pub(crate) key_decision: crate::adapters::ui::input::key_nodes::KeyDecision,
     /// An edit key a plugin popup's field should try (`plugin_popup_keys.rs`). App takes it right
     /// after the event and holds the original key until the plugin replies.
     pub(crate) plugin_edit_ask: Option<plugin_popup_keys::PluginEditAsk>,
@@ -253,6 +257,7 @@ impl MainView {
             pending_terminal_paste: None,
             edit_replay: None,
             escape_loaded_from: None,
+            key_decision: Default::default(),
             plugin_edit_ask: None,
             ime_preedit: None,
             #[cfg(target_os = "linux")]
@@ -463,10 +468,8 @@ impl MainView {
         // 무대 입력은 egui에 전달하며 배경으로 보내지 않는 검사는 keyboard.rs에서 한다.
         // registry의 consumes_egui_input인 host 위젯만 egui에 직접 보낸다.
         // plugin mesh 입력은 별도 전달 경로를 사용해 host가 먼저 소비하지 않게 한다.
-        let egui_surface = self
-            .state
-            .focused_surface_type(engine)
-            .kind_capability(engine, |d| d.consumes_egui_input);
+        let egui_surface =
+            crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(&self.state, engine);
         // 이 키를 실은 그리기의 키 주인을 입력 시점에 묶는다. 붙여넣기 대상도 같은 값이다. 묶은 값은 다음
         // 그리기가 꺼내므로 그 그리기를 요청한다.
         let binds = matches!(
@@ -474,7 +477,10 @@ impl MainView {
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
         self.escape_loaded_from = None;
-        let Some(bound) = self.state.window_feeds_egui(egui_surface, binds) else {
+        let Some(bound) = self
+            .state
+            .window_feeds_key(self.key_decision, egui_surface, binds)
+        else {
             self.note_unfed_key(event);
             return (false, false);
         };
@@ -512,6 +518,31 @@ impl MainView {
         ) {
             self.state.normalize_focus(engine);
         }
+    }
+
+    /// 단계 4: 키 사건의 수신자를 포커스 노드에서 정한다. 경로 키가 아니면(지금 경로로 남는 사건) `Current` 다.
+    /// 재생하는 원래 키는 보류 때 붙은 편집 표시로 편집 바인딩 키를 가른다(표시는 단계 6 이 소비한다).
+    fn decide_key_receiver(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
+        self.key_decision = match event {
+            WindowEvent::KeyboardInput { event: key, .. } => {
+                crate::adapters::ui::input::key_nodes::window_key_decision(
+                    &self.state,
+                    engine,
+                    &crate::adapters::ui::input::key_class::KeyEventValue {
+                        logical: &key.logical_key,
+                        physical: key.physical_key,
+                        pressed: key.state == winit::event::ElementState::Pressed,
+                        mods: self.base.state.modifiers,
+                    },
+                    self.edit_replay.is_some(),
+                    crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(
+                        &self.state,
+                        engine,
+                    ),
+                )
+            }
+            _ => Default::default(),
+        };
     }
 
     /// 키·modifier 가 아닌 창 사건을 egui 에 보낸다.

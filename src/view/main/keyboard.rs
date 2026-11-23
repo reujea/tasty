@@ -96,10 +96,11 @@ impl MainView {
             return;
         }
 
-        // Modals, dialogs, focused host popups, plugin egui-mesh popups block
-        // keyboard input to the terminal. 판정은 egui feed 게이트(`MainViewState::window_feeds_egui`)와
-        // 같은 `MainViewState::keyboard_overlay_open` 을 쓴다.
-        let overlay_open = self.state.window_holds_terminal_keys();
+        // 경로 키는 단계 4 수신자가 egui 수신자면 egui 에 실은 것으로 끝나고, 아니면 단축키·끝 목적지로 간다.
+        // 지금 경로로 남는 사건은 egui feed 게이트(`MainViewState::window_feeds_egui`)와 같은
+        // `MainViewState::keyboard_overlay_open` 으로 정한다.
+        let receiver = self.path_receiver();
+        let overlay_open = self.state.window_key_holds_terminal(self.key_decision);
 
         // 편집 판정을 마친 키(넘긴 키)는 뒤 단계가 편집 바인딩으로 다시 고르지 않는다.
         if !overlay_open && self.try_consume_shortcut_key(engine, event, edit_judged.is_some()) {
@@ -116,6 +117,18 @@ impl MainView {
             return;
         }
 
+        // 경로 키의 끝 목적지는 출발 surface(`Surface`, 끝이 surface 인 `Shortcut`)뿐이다.
+        if let Some(receiver) = receiver {
+            use crate::adapters::ui::input::key_route::{KeyEnd, KeyReceiver};
+            match receiver {
+                KeyReceiver::Surface(_)
+                | KeyReceiver::Shortcut {
+                    end: KeyEnd::Surface(_),
+                } => {}
+                _ => return,
+            }
+        }
+
         let typing_surface_id = self.state.focused_surface_id(engine);
 
         // markdown/image 등 egui-mesh surface 면 plugin 으로, attach mesh mirror 면 원격 plugin 으로 Key/Text 를
@@ -130,6 +143,16 @@ impl MainView {
 
         if let Some(sid) = typing_surface_id {
             self.record_typing_intent(engine, sid);
+        }
+    }
+
+    /// 이 키 사건이 경로 키면 단계 4 수신자.
+    fn path_receiver(&self) -> Option<crate::adapters::ui::input::key_route::KeyReceiver> {
+        match self.key_decision {
+            crate::adapters::ui::input::key_nodes::KeyDecision::Path(routed) => {
+                Some(routed.receiver)
+            }
+            crate::adapters::ui::input::key_nodes::KeyDecision::Current => None,
         }
     }
 
@@ -157,6 +180,14 @@ impl MainView {
             &key,
             self.base.state.modifiers,
         );
+        // 경로 키는 무대가 쓰지 않고 경로에 engine 후보가 있으면(수신자 `Shortcut`) 그 후보로 넘긴다.
+        let decision = match (decision, self.path_receiver()) {
+            (
+                StageKeyDecision::ConsumeForStage,
+                Some(crate::adapters::ui::input::key_route::KeyReceiver::Shortcut { .. }),
+            ) => StageKeyDecision::PassThrough,
+            (decision, _) => decision,
+        };
         match decision {
             StageKeyDecision::PassThrough => false,
             StageKeyDecision::ExitStage => {

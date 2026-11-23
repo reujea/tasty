@@ -321,6 +321,16 @@ impl PopupState {
         self.look.covers_scope || self.expanded()
     }
 
+    /// 선언의 키 소비 집합.
+    pub(crate) fn keyboard(&self) -> super::PopupKeyboard {
+        self.keyboard
+    }
+
+    /// 선언의 Esc 동작.
+    pub(crate) fn escape_decl(&self) -> super::PopupEscape {
+        self.escape
+    }
+
     /// 창 위로 펼쳤는지.
     pub(crate) fn expanded(&self) -> bool {
         matches!(self.display, PopupDisplay::Expanded { .. })

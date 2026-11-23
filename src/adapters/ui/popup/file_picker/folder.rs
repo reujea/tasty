@@ -43,13 +43,6 @@ const FOLDER_KEYMAP: [(egui::Modifiers, egui::Key); 5] = [
 
 /// 키 누름 하나가 폴더 모드 노드 키맵에 맞는지. 본문 읽기(`PopupKeys::consume_keymap_key`, egui `consume_key`)와
 /// 같은 규칙으로 패턴에 없는 Shift·Alt 가 붙은 누름도 맞는다. 폴더 모드인지는 부르는 쪽이 본다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path calls it from the receiver commit on"
-    )
-)]
 pub(crate) fn folder_keymap_receives(modifiers: egui::Modifiers, key: egui::Key) -> bool {
     FOLDER_KEYMAP
         .iter()

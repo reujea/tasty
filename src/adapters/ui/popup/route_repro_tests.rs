@@ -351,8 +351,13 @@ fn keys_reach_the_focused_left_surface_while_a_right_picker_is_open() {
         crate::state::focus_node::FocusNode::Surface(Some(SURFACE_L)),
         "포커스는 L 인데 키가 오버레이로 간다"
     );
+    let typed = crate::adapters::ui::popup::window_input_test_support::typed_decision(
+        &state,
+        &engine.read(),
+        "a",
+    );
     assert!(
-        state.window_feeds_egui(false, false).is_none(),
+        state.window_feeds_key(typed, false, false).is_none(),
         "창의 키 게이트가 L 의 키를 오버레이로 돌린다"
     );
     let picker = state
@@ -498,12 +503,30 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
         state.focus_node(&engine.read()),
         FocusNode::Surface(Some(SURFACE_L))
     );
+    // L 은 egui 화면으로 본다(창의 `egui_surface` 값).
+    let typed = crate::adapters::ui::popup::window_input_test_support::window_key_decision_of(
+        &state,
+        &engine.read(),
+        &Event::Text("a".into()),
+        true,
+    );
     assert_eq!(
-        state.window_feeds_egui(true, true),
+        state.window_feeds_key(typed, true, true),
         Some(false),
         "글자는 L 입력란(egui 화면)으로 가고 팝업 키 주인은 없다"
     );
-    assert!(!state.window_holds_terminal_keys());
+    assert_eq!(
+        typed,
+        crate::adapters::ui::input::key_nodes::KeyDecision::Path(
+            crate::adapters::ui::input::key_route::Routed {
+                receiver: crate::adapters::ui::input::key_route::KeyReceiver::EguiSurface(
+                    SURFACE_L
+                ),
+                levels: crate::adapters::ui::input::key_level::PathLevels::all(),
+            }
+        ),
+        "글자의 수신자는 L egui 화면이다(터미널로 가지 않는다)"
+    );
     let (after, _) = window_frame_with_find(
         &ctx,
         &mut state,
@@ -597,7 +620,13 @@ fn a_covering_passive_popup_is_the_focus_node() {
     );
     assert!(state.popups.instance_is_visible_passive(iid));
     assert!(
-        state.window_holds_terminal_keys(),
+        state.window_key_holds_terminal(
+            crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                &state,
+                &engine.read(),
+                "a"
+            )
+        ),
         "키는 터미널로 가지 않는다"
     );
 }
@@ -643,7 +672,13 @@ fn a_press_on_the_surface_under_its_own_popup_takes_the_focus_from_the_popup() {
         FocusNode::Surface(Some(SURFACE_L))
     );
     assert!(
-        !state.window_holds_terminal_keys(),
+        !state.window_key_holds_terminal(
+            crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                &state,
+                &engine.read(),
+                "a"
+            )
+        ),
         "다음 키는 터미널로 간다"
     );
     assert!(state.popups.instance(search).is_some_and(|p| p.open));
@@ -670,7 +705,13 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         )
         .unwrap();
     assert!(state.input_dialog_owns_keys());
-    assert!(state.window_holds_terminal_keys());
+    assert!(state.window_key_holds_terminal(
+        crate::adapters::ui::popup::window_input_test_support::typed_decision(
+            &state,
+            &engine.read(),
+            "a"
+        )
+    ));
 
     let at = surface_rect_l().center();
     let snapshot = state.take_press_snapshot(&engine.read(), at, egui::PointerButton::Primary);
@@ -698,18 +739,27 @@ fn a_rename_dialog_that_lost_the_focus_node_does_not_hold_the_terminal_keys() {
         !state.input_dialog_owns_keys(),
         "keyboard: 입력 대화상자가 키를 갖지 않는다"
     );
+    let typed = crate::adapters::ui::popup::window_input_test_support::typed_decision(
+        &state,
+        &engine.read(),
+        "a",
+    );
     assert!(
-        !state.window_holds_terminal_keys(),
+        !state.window_key_holds_terminal(typed),
         "keyboard: 터미널 게이트(`overlay_open`)가 열려 L 의 글자가 PTY 로 간다"
     );
     assert!(
+        state.window_feeds_key(typed, false, false).is_none(),
+        "창 egui 게이트: L 의 글자가 egui 로 가지 않는다"
+    );
+    assert!(
         state.window_feeds_egui(false, false).is_none(),
-        "ime·창 egui 게이트: `window_keys_to_overlay` 가 거짓이라 IME 조합과 키가 egui 로 가지 않는다"
+        "ime 게이트: `window_keys_to_overlay` 가 거짓이라 IME 조합이 egui 로 가지 않는다"
     );
     {
         use crate::state::input_destination::InputDestination;
         assert_eq!(
-            state.input_destination(&engine.read(), state.window_holds_terminal_keys()),
+            state.input_destination(&engine.read(), state.window_key_holds_terminal(typed)),
             InputDestination::Terminal(SURFACE_L),
             "keyboard: L 의 글자는 L 터미널(PTY) 갈래로 간다"
         );

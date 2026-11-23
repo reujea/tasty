@@ -49,6 +49,7 @@ impl KeyEventSteps<WindowEvent> for MainKeySteps<'_, '_> {
 
     fn settle_key_node(&mut self, event: &WindowEvent) {
         self.view.normalize_focus_on_key(self.engine, event);
+        self.view.decide_key_receiver(self.engine, event);
         self.view.cut_input_segment(self.engine, event);
     }
 

@@ -240,6 +240,16 @@ pub struct MainViewState {
     /// 배치 결과가 아니라 선언과 결속 대상으로 정한 값이며, 파일 피커의 owner 범위를 정할 때 쓴다.
     #[cfg(feature = "gui")]
     pub(crate) plugin_popup_bound_scopes: crate::plugin_bridge::popup_scope::BoundPopupScopes,
+    /// 열린 플러그인 팝업의 선언 키 소비 집합과 Esc 동작. 결속 범위와 함께 매 프레임 다시 만들고, 키 사건 시점의
+    /// 키 경로 노드가 읽는다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_key_decls: std::collections::HashMap<
+        u64,
+        (
+            crate::adapters::ui::popup::PopupKeyboard,
+            crate::adapters::ui::popup::PopupEscape,
+        ),
+    >,
     /// 현재 프레임 배너 Area의 레이어. 오버레이 그리기 순서를 정할 때 쓴다.
     #[cfg(feature = "gui")]
     pub(crate) banner_layer: Option<egui::LayerId>,

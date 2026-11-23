@@ -285,6 +285,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             plugin_popup_bound_scopes: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
+            plugin_popup_key_decls: std::collections::HashMap::new(),
+            #[cfg(feature = "gui")]
             plugin_popup_key_candidates: Vec::new(),
             #[cfg(feature = "gui")]
             plugin_popup_hidden: Default::default(),

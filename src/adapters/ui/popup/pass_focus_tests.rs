@@ -863,8 +863,16 @@ fn a_letter_after_a_popup_press_and_a_terminal_press_goes_to_the_terminal() {
     {
         let engine = s.session.borrow_mut();
         assert_eq!(
-            s.state
-                .input_destination(&engine.read(), s.state.window_holds_terminal_keys()),
+            s.state.input_destination(
+                &engine.read(),
+                s.state.window_key_holds_terminal(
+                    crate::adapters::ui::popup::window_input_test_support::typed_decision(
+                        &s.state,
+                        &engine.read(),
+                        "z"
+                    )
+                )
+            ),
             InputDestination::Terminal(SURFACE_R),
             "뒤 글자 갈래는 R 터미널(PTY)이다"
         );

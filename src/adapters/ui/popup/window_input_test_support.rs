@@ -141,11 +141,11 @@ impl WindowInput {
     pub(crate) fn key(
         &mut self,
         state: &mut RequestContext,
-        core: &crate::core::CoreState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
         egui_surface: bool,
         event: egui::Event,
     ) -> Option<bool> {
-        self.key_events(state, core, egui_surface, vec![event])
+        self.key_events(state, engine, egui_surface, vec![event])
     }
 
     /// 수식키 없는 Esc 누름·뗌 하나(`escape_with`).
@@ -153,14 +153,15 @@ impl WindowInput {
         &mut self,
         ctx: &egui::Context,
         state: &mut RequestContext,
-        core: &crate::core::CoreState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
         pressed: bool,
     ) -> bool {
-        self.escape_with(ctx, state, core, pressed, egui::Modifiers::NONE)
+        self.escape_with(ctx, state, engine, pressed, egui::Modifiers::NONE)
     }
 
     /// 창이 받은 Esc 누름·뗌 하나(`feed_egui_keyboard` → `keyboard::handle_keyboard_input`). 끊기 → egui 게이트를
-    /// 거쳐, egui 로 가면 `modifiers` 를 실은 사건을 큐에 싣고 가지 않는 뗌은 그 몫에 남긴다
+    /// 거쳐(bare Esc 는 지금 게이트, 수식키 Esc 누름은 창과 같은 단계 4·K9 판정 `window_feeds_key`), egui 로 가면
+    /// `modifiers` 를 실은 사건을 큐에 싣고 가지 않는 뗌은 그 몫에 남긴다
     /// (`MainView::note_unfed_key`). 누름은 창과 같은 공유 판정(`tasty_key_match::is_window_escape`, 같은 수식키.
     /// 비-macOS Win·Super 는 `tasty_key_match::super_held`)을 거쳐 창의 Esc 처리(`window_escape`, 직전 패스의
     /// Escape 눌림)로 간다. 창이 처리했으면 참이다.
@@ -168,11 +169,11 @@ impl WindowInput {
         &mut self,
         ctx: &egui::Context,
         state: &mut RequestContext,
-        core: &crate::core::CoreState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
         pressed: bool,
         modifiers: egui::Modifiers,
     ) -> bool {
-        key_focus(state, core, self);
+        key_focus(state, engine, self);
         let event = egui::Event::Key {
             key: egui::Key::Escape,
             physical_key: Some(egui::Key::Escape),
@@ -182,7 +183,8 @@ impl WindowInput {
         };
         // 창 판정이 고를 범위는 이번 사건이 실린 자리부터다.
         let loaded_from = self.queue.len();
-        self.escape_fed = state.window_feeds_egui(false, true).is_some();
+        let decision = window_key_decision_held(state, engine, &event, false, self.held_super());
+        self.escape_fed = state.window_feeds_key(decision, false, true).is_some();
         if self.escape_fed {
             self.queue.push(event);
         } else if !pressed {
@@ -277,21 +279,33 @@ impl WindowInput {
     }
 
     /// 창이 받은 키 사건 하나와 그 사건이 egui 에 남기는 원시 사건들(수식 키 뗌은 0개). 창처럼 끊기(`key_focus`) →
-    /// egui 게이트(`window_feeds_egui`, 키 사건이라 키 주인을 묶는다) → egui 큐 순서로 밟는다
-    /// (`MainView::feed_egui_keyboard`). 게이트 결과를 돌려준다.
+    /// 단계 4 수신자 판정(`key_nodes::window_key_decision`) → egui 게이트(`window_feeds_key`, 키 사건이라 키 주인을
+    /// 묶는다) → egui 큐 순서로 밟는다(`MainView::feed_egui_keyboard`). 판정할 키는 첫 사건이다. 게이트 결과를
+    /// 돌려준다.
     pub(crate) fn key_events(
         &mut self,
         state: &mut RequestContext,
-        core: &crate::core::CoreState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
         egui_surface: bool,
         events: Vec<egui::Event>,
     ) -> Option<bool> {
-        key_focus(state, core, self);
-        let fed = state.window_feeds_egui(egui_surface, true);
+        key_focus(state, engine, self);
+        let decision = events.first().map_or_else(Default::default, |e| {
+            window_key_decision_held(state, engine, e, egui_surface, self.held_super())
+        });
+        let fed = state.window_feeds_key(decision, egui_surface, true);
         if fed.is_some() {
             self.queue.extend(events);
         }
         fed
+    }
+
+    /// 창이 실물 Win·Super 를 누른 것으로 보는지(debug 주입이 유지하는 값).
+    fn held_super(&self) -> bool {
+        #[cfg(debug_assertions)]
+        return self.debug_super;
+        #[cfg(not(debug_assertions))]
+        false
     }
 
     /// egui 게이트 앞에서 멈춘 창 키 하나(편집 판정이 붙잡은 키, `MainView::edit_key_gate`). 창처럼 키 분류와
@@ -529,4 +543,85 @@ pub(crate) fn draw_owner_body(
         });
     }));
     action
+}
+
+/// 창이 이 egui 키 사건에 내릴 단계 4 판정(`key_nodes::window_key_decision`). 창은 winit 사건 값으로 판정하므로 egui
+/// 키·수식키를 그 값으로 되돌린다(`key_class::winit_value_of`·`winit_mods_of`, 실물 Super 는 누르지 않은 것으로 본다).
+/// 키 사건이 아니거나 되돌릴 수 없는 키는 지금 경로다. `egui_surface` 는 포커스 surface 가 egui 로 입력을 받는지다.
+pub(crate) fn window_key_decision_of(
+    state: &RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    event: &egui::Event,
+    egui_surface: bool,
+) -> crate::adapters::ui::input::key_nodes::KeyDecision {
+    window_key_decision_held(state, engine, event, egui_surface, false)
+}
+
+/// [`window_key_decision_of`]와 같고, `super_held` 면 비-macOS 실물 Win·Super 를 누른 것으로 본다.
+fn window_key_decision_held(
+    state: &RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    event: &egui::Event,
+    egui_surface: bool,
+    super_held: bool,
+) -> crate::adapters::ui::input::key_nodes::KeyDecision {
+    use crate::adapters::ui::input::key_class::{KeyEventValue, winit_mods_of, winit_value_of};
+    // 창은 글자 사건을 그 키 누름 하나로 받는다(egui-winit 이 그 누름에서 키·글자 사건을 함께 만든다).
+    let typed;
+    let (key, pressed, modifiers) = match event {
+        egui::Event::Key {
+            key,
+            pressed,
+            modifiers,
+            ..
+        } => (key, pressed, modifiers),
+        egui::Event::Text(text) => {
+            let Some(key) = typed_key(text) else {
+                return Default::default();
+            };
+            typed = (key, true, egui::Modifiers::NONE);
+            (&typed.0, &typed.1, &typed.2)
+        }
+        _ => return Default::default(),
+    };
+    let Some((logical, physical)) = winit_value_of(*key) else {
+        return Default::default();
+    };
+    crate::adapters::ui::input::key_nodes::window_key_decision(
+        state,
+        engine,
+        &KeyEventValue {
+            logical: &logical,
+            physical,
+            pressed: *pressed,
+            mods: winit_mods_of(*modifiers, super_held),
+        },
+        false,
+        egui_surface,
+    )
+}
+
+/// 수식키 없이 친 소문자·숫자 한 글자의 키. 그 밖의 글자는 `None`(지금 경로로 본다).
+fn typed_key(text: &str) -> Option<egui::Key> {
+    let mut chars = text.chars();
+    let c = chars.next()?;
+    if chars.next().is_some() || !(c.is_ascii_lowercase() || c.is_ascii_digit()) {
+        return None;
+    }
+    egui::Key::from_name(&c.to_ascii_uppercase().to_string())
+}
+
+/// 창이 수식키 없는 글자 `text` 의 누름에 내릴 단계 4 판정. 포커스 surface 가 egui 로 입력을 받는지는 창과 같은
+/// 판정(`key_nodes::focused_surface_takes_egui`)으로 정한다.
+pub(crate) fn typed_decision(
+    state: &RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    text: &str,
+) -> crate::adapters::ui::input::key_nodes::KeyDecision {
+    window_key_decision_of(
+        state,
+        engine,
+        &egui::Event::Text(text.into()),
+        crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(state, engine),
+    )
 }

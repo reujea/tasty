@@ -70,10 +70,24 @@ fn popup_path_levels(state: &MainViewState, node: PopupNode) -> PathLevels {
     from_level(scope_level(&scope), !covers)
 }
 
-/// 포커스 노드에서 시작한 키 경로의 level. 설정 열기 요청 래치 중이면 `None`(거르지 않는다).
+/// 키 사건의 출발 노드. 포커스 노드이고, 창이 지금 받는 키를 팝업 키 주인에 묶었으면(입력 시점 결속) 그 팝업이다.
+/// 결속은 그 주인의 포커스를 풀었거나 닫았어도 그 몫을 그리기 전까지 남는다(`keyboard_overlay_open_besides_html_address`
+/// 와 같은 규칙). 설정 열기 요청 래치가 먼저다.
+pub(crate) fn key_start_node(state: &MainViewState, core: &CoreState) -> FocusNode {
+    let node = state.focus_node(core);
+    if node == FocusNode::SettingsRequest {
+        return node;
+    }
+    match state.popups.bound_input_key_owner() {
+        Some(owner) => FocusNode::Popup(owner),
+        None => node,
+    }
+}
+
+/// 출발 노드에서 시작한 키 경로의 level. 설정 열기 요청 래치 중이면 `None`(거르지 않는다).
 pub(crate) fn focus_path_levels(state: &MainViewState, core: &CoreState) -> Option<PathLevels> {
     let notice = || crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
-    Some(match state.focus_node(core) {
+    Some(match key_start_node(state, core) {
         FocusNode::SettingsRequest => return None,
         FocusNode::Stage => PathLevels::engine_only(),
         FocusNode::Popup(node) => popup_path_levels(state, node),

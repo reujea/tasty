@@ -266,13 +266,6 @@ pub fn draw_search_bar(
 /// 카운터가 바뀌어도 옆 버튼을 밀지 않도록 고정 폭에 가운데 정렬한다.
 /// 키 누름 하나가 검색 띠 노드 키맵(find 바인딩)에 맞는지. 본문 읽기(`PopupKeys::consume_keymap_binding`)의
 /// 매처(`consume_binding_egui`)가 지울 사건을 고르는 판정과 같다. 검색 띠가 포커스 노드인지는 부르는 쪽이 본다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the window key path calls it from the receiver commit on"
-    )
-)]
 pub(crate) fn find_keymap_receives(
     find: &[String],
     key: egui::Key,
