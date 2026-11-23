@@ -68,6 +68,25 @@ impl DiscardAttempts {
         )
     }
 }
+impl Preparation {
+    /// Whether the published result is a prepared profile, read without taking it: a poll would
+    /// claim the profile and leave no unpublished cleanup to observe. The error names what was
+    /// published instead.
+    pub(crate) fn prepared(&self) -> Result<(), String> {
+        let state = self
+            .shared
+            .state
+            .lock()
+            .map_err(|_| "poisoned state".to_owned())?;
+        match &*state {
+            State::Ready(Ok(_)) => Ok(()),
+            State::Ready(Err(error)) => Err(error.to_string()),
+            State::Pending => Err("nothing published".into()),
+            State::Taken => Err("already taken".into()),
+            State::Cancelled => Err("cancelled".into()),
+        }
+    }
+}
 
 fn namespace(home: &Path) -> PathBuf {
     home.join("native-http-profiles")

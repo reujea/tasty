@@ -107,6 +107,7 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
         Arc::new(move || wake.store(true, Ordering::Release)),
     );
     let attempts = work.discard_attempts();
+    let (work, gate) = work.with_claim_gate();
     let jobs = runtime.parts.jobs.clone();
     assert!(runtime.spawn_profile(work).is_ok());
     // The only job holds its permit from publication until the claim settles, so all permits back
@@ -116,6 +117,11 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
         || jobs.available_permits() == 8,
         || published.load(Ordering::Acquire).then_some(()),
     );
+    // The gate holds the claim deadline, so anything but a prepared profile here is a failed
+    // preparation.
+    if let Err(published) = receipt.prepared() {
+        panic!("the preparation published no prepared profile: {published}");
+    }
     let namespace = home.path().join("native-http-profiles");
     let lock = OpenOptions::new()
         .read(true)
@@ -132,43 +138,36 @@ fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
         false
     });
     drop(receipt);
+    drop(gate);
     // A cleanup that ends without a Busy returns the permit: waiting only for a Busy would then
     // spend the whole hang limit on an outcome that is already final.
     wait_for("the cleanup's first Busy", || {
         attempts.busy() > 0 || jobs.available_permits() == 8
     });
-    let refusals = || {
-        format!(
-            "{} refused attempt(s), first: {:?}",
-            attempts.refused(),
-            attempts.first_refusal()
-        )
-    };
     assert!(
         attempts.busy() > 0,
-        "the job ended with no Busy seen: {}; with none refused, one possible cause is a \
-         preparation that failed or a claim that expired before the lock was taken",
-        refusals()
+        "the job ended with no Busy seen: {}",
+        attempts.refusals()
     );
-    assert_eq!(jobs.available_permits(), 7, "{}", refusals());
+    assert_eq!(jobs.available_permits(), 7, "{}", attempts.refusals());
     assert_eq!(retirement::owners(), 1);
     drop(runtime);
     drop(setup);
-    assert_eq!(jobs.available_permits(), 7, "{}", refusals());
+    assert_eq!(jobs.available_permits(), 7, "{}", attempts.refusals());
     assert_eq!(retirement::owners(), 1);
     assert_eq!(
         fs::read_dir(&namespace).unwrap().count(),
         2,
         "{}",
-        refusals()
+        attempts.refusals()
     );
     drop(lock);
     reaped();
-    assert_eq!(jobs.available_permits(), 8, "{}", refusals());
+    assert_eq!(jobs.available_permits(), 8, "{}", attempts.refusals());
     assert_eq!(
         fs::read_dir(&namespace).unwrap().count(),
         1,
         "{}",
-        refusals()
+        attempts.refusals()
     );
 }
