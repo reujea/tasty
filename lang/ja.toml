@@ -1423,6 +1423,7 @@ handler_refused = "ハンドラー '{}' はフックから実行できません:
 not_queued = "'{}' を実行できませんでした: {}"
 no_injector = "Tasty のコマンド経路の準備ができていなかったため、'{}' を実行できませんでした。"
 spawn_failed = "'{}' を起動できませんでした: {}"
+shell_not_queued = "'{}' は、すでに {} 件のフックコマンドが起動待ちだったため、実行できませんでした。"
 sequence = "'{}': {}"
 step_failed = "ステップ {} が失敗: {}"
 step_not_run = "ステップ {} は実行されず: {}"
@@ -6589,7 +6590,7 @@ about = "`~/.tasty/hook-handlers.toml` を再読み込み（ユーザー項目�
 
 [cli.help._root.hook-handler.dispatch]
 about = "登録済みフックハンドラーをIDで手動実行（テスト・自動化の入口）"
-long = "登録済みフックハンドラーをIDで手動実行します（テスト・自動化の入口）。IpcSequenceハンドラーでは `--body`/`--header`/`--query` で `${body.x}`/`${header.x}`/`${query.x}` の値を埋めます。1行目に受付応答（`run` 番号付き）を出力し、最終結果を待って2行目に出力します。`state` は `succeeded`・`partial`・`failed`・`unknown` のいずれかで、`result` は何が起きたか、`steps` はステップごとの結果です。シェルコマンドハンドラーはプロセスが起動すれば成功で、`exit_code` は終了後に入り、判定には使いません。最終状態が `succeeded` でなければ終了コード 1 で終わります。"
+long = "登録済みフックハンドラーをIDで手動実行します（テスト・自動化の入口）。IpcSequenceハンドラーでは `--body`/`--header`/`--query` で `${body.x}`/`${header.x}`/`${query.x}` の値を埋めます。1行目に受付応答（`run` 番号付き）を出力し、最終結果を待って2行目に出力します。`state` は `succeeded`・`partial`・`failed`・`unknown` のいずれかで、`result` は何が起きたか、`steps` はステップごとの結果です。シェルコマンドハンドラーはプロセスが起動すれば成功で、`exit_code` は終了後に入り、判定には使いません。最終状態が `succeeded` でなければ終了コード 1 で終わります。ハンドラーのキューがすでにいっぱいの場合は、実行要求がエラーで拒否され、何も実行されません。"
 
 [cli.help._root.hook-handler.dispatch.arg.id]
 help = "実行するフックハンドラーID（例：`host/notify`、`user/wh-...`）"

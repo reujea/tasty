@@ -64,6 +64,34 @@ pub(crate) fn not_run(origin: AutoOrigin, body: String) {
     post(origin.notice(Verdict::Failed, body));
 }
 
+/// 셸 작업을 실행기에 넣지 못했다. 대기열이 찼으면 새 문구, 실행기 스레드를 못 만들었으면 기존 시작 실패 문구다.
+pub(crate) fn shell_not_queued(
+    origin: AutoOrigin,
+    command: &str,
+    reason: &super::shell_pool::ShellNotQueued,
+) {
+    post(shell_not_queued_notice(origin, command, reason));
+}
+
+fn shell_not_queued_notice(
+    origin: AutoOrigin,
+    command: &str,
+    reason: &super::shell_pool::ShellNotQueued,
+) -> SystemNotice {
+    use super::shell_pool::{ShellNotQueued, WAITING_LIMIT};
+    let body = match reason {
+        ShellNotQueued::Full => crate::i18n::t_fmt2(
+            "hook_notice.shell_not_queued",
+            command,
+            &WAITING_LIMIT.to_string(),
+        ),
+        ShellNotQueued::WorkerUnavailable(e) => {
+            crate::i18n::t_fmt2("hook_notice.spawn_failed", command, e)
+        }
+    };
+    origin.notice(Verdict::Failed, body)
+}
+
 /// 시퀀스를 실행했지만 성공하지 못한 스텝이 있으면 남긴다. 모두 성공했으면 아무것도 남기지 않는다.
 pub(crate) fn sequence(origin: AutoOrigin, label: &str, outcome: &SequenceOutcome) {
     if let Some(notice) = sequence_notice(origin, label, outcome) {
@@ -131,5 +159,40 @@ mod tests {
         assert_eq!(some.surface_id, 0);
         assert_eq!(some.source, "webhook");
         assert!(some.body.contains("m1"), "{}", some.body);
+    }
+
+    /// 대기열이 차서 실행하지 않은 셸 작업은 surface 훅이면 그 surface에, 전역 훅이면 활성 workspace에
+    /// 오류로 남고, 본문은 대기열 문구다.
+    #[test]
+    fn a_refused_shell_job_is_an_error_from_its_origin() {
+        use crate::hook_runtime::shell_pool::{ShellNotQueued, WAITING_LIMIT};
+        let expected = crate::i18n::t_fmt2(
+            "hook_notice.shell_not_queued",
+            "echo hi",
+            &WAITING_LIMIT.to_string(),
+        );
+        let surface = shell_not_queued_notice(
+            AutoOrigin::SurfaceHook { surface_id: 9 },
+            "echo hi",
+            &ShellNotQueued::Full,
+        );
+        assert_eq!(surface.level, NotificationLevel::Error);
+        assert_eq!((surface.source, surface.surface_id), ("hook", 9));
+        assert_eq!(surface.title, crate::i18n::t("hook_notice.hook_failed"));
+        assert_eq!(surface.body, expected);
+        let global =
+            shell_not_queued_notice(AutoOrigin::GlobalHook, "echo hi", &ShellNotQueued::Full);
+        assert_eq!((global.source, global.surface_id), ("global_hook", 0));
+        assert_eq!(global.title, crate::i18n::t("hook_notice.global_failed"));
+        assert_eq!(global.body, expected);
+        let thread = shell_not_queued_notice(
+            AutoOrigin::GlobalHook,
+            "echo hi",
+            &ShellNotQueued::WorkerUnavailable("boom".into()),
+        );
+        assert_eq!(
+            thread.body,
+            crate::i18n::t_fmt2("hook_notice.spawn_failed", "echo hi", "boom")
+        );
     }
 }

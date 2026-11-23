@@ -71,7 +71,9 @@ pub enum HookHandlerCommands {
     /// `partial`, `failed` or `unknown`, `result` says what happened and
     /// `steps` lists each step. A shell command handler succeeds once its
     /// process starts; `exit_code` is filled once it exits and is not judged.
-    /// Exits with code 1 unless the final state is `succeeded`.
+    /// Exits with code 1 unless the final state is `succeeded`. If the
+    /// handler's queue is already full, the dispatch is refused with an error
+    /// and nothing runs.
     Dispatch {
         /// Hook handler id to fire (e.g. `host/notify`, `user/wh-...`).
         #[arg(long)]

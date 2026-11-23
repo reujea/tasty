@@ -1,12 +1,13 @@
 //! 엔진별 훅 등록·감시 상태와 발화한 훅의 실행을 소유한다.
 //! 여러 엔진이 공유하는 handler 정의 registry는 `hook_handler`에 있고, 여기에는 엔진마다 따로 두는 상태와
-//! 바인딩 실행·전역 훅 셸 실행·IpcSequence worker를 둔다. worker와 OS 프로세스는 이 모듈의 private 자원이다.
+//! 바인딩 실행·셸 명령 공유 실행기(`shell_pool`)·IpcSequence worker를 둔다. 실행기·worker와 OS 프로세스는 이 모듈의 private 자원이다.
 //! 이름에 global이 붙은 전역 훅도 엔진별 등록이며 프로세스 전역 원본으로 합치지 않는다([Agent task runner](../../docs/dev-guide/agent-runner.md)).
 
 mod engine;
 pub(crate) mod global;
 pub(crate) mod notice;
 pub(crate) mod runs;
+pub(crate) mod shell_pool;
 mod trigger;
 mod worker;
 
@@ -30,7 +31,7 @@ impl HookExecutor {
         Self { injector }
     }
 
-    /// 바인딩 실행을 시작만 하고 셸 작업의 완료는 기다리지 않는다.
+    /// 바인딩 실행을 시작만 하고 셸 작업의 완료는 기다리지 않는다(셸 작업은 공유 실행기에 넣는다).
     fn run(&self, fired: &FiredHook, surface_id: u32) {
         trigger::execute_binding(
             &fired.binding,
@@ -217,10 +218,11 @@ impl HookRuntimeState {
             .collect()
     }
 
-    /// 조건을 만족한 전역 훅의 셸 명령을 실행한다. 자식의 완료는 기다리지 않는다.
+    /// 조건을 만족한 전역 훅의 셸 명령을 셸 명령 훅과 같은 실행기에 넣는다. 호출 스레드는 기다리지 않는다.
+    /// 실행기가 받지 않아도 once 소진과 interval·mtime 기록은 이미 갱신된 상태다.
     pub(crate) fn run_due_global_hooks(&mut self) {
         for (_, command) in self.global.tick() {
-            global::spawn_command(&command);
+            global::submit_command(&command);
         }
     }
 }

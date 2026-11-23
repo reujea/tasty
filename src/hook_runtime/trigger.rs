@@ -4,9 +4,10 @@
 use tasty_hooks::{HookBinding, HookEvent};
 
 use super::notice::{self, AutoOrigin};
+use super::shell_pool::{self, ShellJob};
 use super::worker::{Delivery, enqueue_sequence};
 use crate::hook_handler::env::{HookShellEnv, build_env};
-use crate::hook_handler::exec::{SequenceOrigin, SubstitutionContext};
+use crate::hook_handler::exec::{SequenceOrigin, ShellEvent, SubstitutionContext};
 use crate::hook_handler::registry::global;
 use crate::hook_handler::types::{
     HookHandlerAction, HookHandlerId, IpcCall, TriggerSource, validate_binding,
@@ -34,8 +35,7 @@ pub(super) fn execute_binding(
     let origin = AutoOrigin::SurfaceHook { surface_id };
     match binding {
         HookBinding::InlineShell(command) => {
-            // 자식 완료를 기다리지 않도록 JoinHandle을 버린다. 스레드는 계속 실행된다.
-            let _ = spawn_shell(command.clone(), Vec::new(), shell_env(), origin);
+            spawn_shell(command.clone(), Vec::new(), shell_env(), origin)
         }
         HookBinding::Handler(id) => {
             execute_handler_binding(id, injector, &payload, shell_env, origin)
@@ -68,8 +68,7 @@ fn execute_handler_binding(
     }
     match handler.action {
         HookHandlerAction::ShellCommand { command, args } => {
-            // 자식 완료를 기다리지 않도록 JoinHandle을 버린다.
-            let _ = spawn_shell(command, args, shell_env(), origin);
+            spawn_shell(command, args, shell_env(), origin)
         }
         HookHandlerAction::IpcSequence { calls } => {
             execute_ipc_sequence_handler(id, injector, payload, &calls, origin)
@@ -138,33 +137,50 @@ fn trigger_payload(received: &HookEvent, surface_id: u32) -> serde_json::Value {
     serde_json::Value::Object(obj)
 }
 
-/// command와 args를 공백으로 합쳐 sh/cmd로 실행한다. args를 인자별로 escape하지 않는다.
-/// 셸을 띄우지 못하면 알림을 남기며 종료 코드의 성공 여부는 검사하지 않는다.
-fn spawn_shell(
+/// command와 args를 공백으로 합쳐 sh/cmd로 실행하도록 공유 실행기에 넣는다. args를 인자별로 escape하지 않는다.
+/// 실행기가 받지 않았거나 셸을 띄우지 못하면 알림을 남기며 종료 코드의 성공 여부는 검사하지 않는다.
+fn spawn_shell(command: String, args: Vec<String>, env: Vec<(String, String)>, origin: AutoOrigin) {
+    submit_hook_shell(shell_pool::shared(), command, args, env, origin);
+}
+
+pub(super) fn submit_hook_shell(
+    pool: &std::sync::Arc<shell_pool::ShellPool>,
     command: String,
     args: Vec<String>,
     env: Vec<(String, String)>,
     origin: AutoOrigin,
-) -> std::thread::JoinHandle<()> {
-    std::thread::spawn(move || {
-        let full = if args.is_empty() {
-            command
-        } else {
-            format!("{command} {}", args.join(" "))
-        };
-        let mut process = hook_shell_command(
-            &full,
-            env,
-            tasty_utils::process::process_env_keys_to_strip(),
-        );
-        if let Err(e) = tasty_utils::process::hide_console(&mut process).output() {
-            tracing::warn!("hook shell command spawn failed: {e}; cmd: {full}");
-            notice::not_run(
-                origin,
-                crate::i18n::t_fmt2("hook_notice.spawn_failed", &full, &e.to_string()),
-            );
-        }
-    })
+) {
+    let full = if args.is_empty() {
+        command
+    } else {
+        format!("{command} {}", args.join(" "))
+    };
+    let label = full.clone();
+    let submitted = pool.submit(|| {
+        let reported = full.clone();
+        ShellJob::new(
+            full.clone(),
+            move || {
+                hook_shell_command(
+                    &full,
+                    env,
+                    tasty_utils::process::process_env_keys_to_strip(),
+                )
+            },
+            move |event| {
+                if let ShellEvent::NotStarted(e) = event {
+                    notice::not_run(
+                        origin,
+                        crate::i18n::t_fmt2("hook_notice.spawn_failed", &reported, &e),
+                    );
+                }
+            },
+        )
+    });
+    if let Err(reason) = submitted {
+        tracing::warn!("hook shell command not run: {reason}; cmd: {label}");
+        notice::shell_not_queued(origin, &label, &reason);
+    }
 }
 
 /// 훅 명령을 sh/cmd로 감싼 Command를 만든다. `strip` 키는 상속 환경에서 지운다. 터미널 셸과 같은
@@ -184,6 +200,11 @@ fn hook_shell_command(
         c
     };
     process.envs(env);
+    // 호스트 입력을 읽거나 호스트 stdout·stderr에 쓰지 않는다. 한 건의 끝은 셸의 종료다.
+    process
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
     for key in strip {
         process.env_remove(key);
     }
@@ -278,23 +299,55 @@ mod tests {
             )
         };
 
-        // 직접 spawn_shell을 호출해 스레드를 join한다. execute_binding 전체가 아니라 환경변수 전달을 검사한다.
+        // 실행기 보고(Exited)를 기다려 벽시계 없이 끝을 안다. execute_binding 전체가 아니라 환경변수 전달을 검사한다.
         let env = build_env(&HookShellEnv {
             event: HookEvent::Bell.to_display_string(),
             source: "hook",
             surface_id: Some(42),
             payload: trigger_payload(&HookEvent::Bell, 42),
         });
-        spawn_shell(
-            cmd,
-            Vec::new(),
-            env,
-            AutoOrigin::SurfaceHook { surface_id: 42 },
-        )
-        .join()
-        .expect("shell thread joined");
+        run_hook_shell_and_wait(cmd, env);
         let content = std::fs::read_to_string(&marker).expect("marker written");
         assert_eq!(content.trim(), "bell/hook/42");
+    }
+
+    /// 훅 셸 명령을 시험 전용 실행기에서 돌리고 셸이 끝날 때까지 기다린다.
+    fn run_hook_shell_and_wait(cmd: String, env: Vec<(String, String)>) {
+        let pool = shell_pool::ShellPool::new(1, 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        pool.submit(|| {
+            ShellJob::new(
+                "test",
+                move || hook_shell_command(&cmd, env, Vec::new()),
+                move |event| {
+                    if let ShellEvent::Exited(_) | ShellEvent::NotStarted(_) = event {
+                        tx.send(event).expect("report the end");
+                    }
+                },
+            )
+        })
+        .expect("accepted");
+        let end = rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the shell ends");
+        assert!(matches!(end, ShellEvent::Exited(_)), "{end:?}");
+    }
+
+    /// surface 훅 셸은 호스트 stdio를 물려받지 않고 출력을 모으는 pipe도 쓰지 않는다.
+    /// 셸의 fd 0·1·2가 모두 null 장치다. `$$`는 명령 치환 안에서도 셸 자신의 pid다.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn hook_shell_stdio_is_null() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let marker = dir.path().join("fds");
+        let cmd = format!(
+            "a=$(readlink /proc/$$/fd/0); b=$(readlink /proc/$$/fd/1); c=$(readlink /proc/$$/fd/2); \
+             echo \"$a $b $c\" > {}",
+            marker.display()
+        );
+        run_hook_shell_and_wait(cmd, Vec::new());
+        let fds = std::fs::read_to_string(&marker).expect("marker written");
+        assert_eq!(fds.trim(), "/dev/null /dev/null /dev/null");
     }
 
     /// 테스트 바이너리를 PATH로 찾아 --list 출력까지 얻는지 확인한다.

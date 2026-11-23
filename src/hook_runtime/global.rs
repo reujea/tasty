@@ -183,16 +183,36 @@ impl GlobalHookManager {
     }
 }
 
-/// 전역 훅 명령의 셸 프로세스 생성을 요청한다. 실패는 로그와 오류 알림으로 남기며 자식 완료·종료 코드는 기다리지 않는다.
-pub(super) fn spawn_command(command: &str) {
-    let mut cmd = global_hook_command(command, tasty_utils::process::process_env_keys_to_strip());
-    let result = tasty_utils::process::hide_console(&mut cmd).spawn();
-    if let Err(e) = result {
-        tracing::warn!("global hook command spawn failed: {e}; cmd: {command}");
-        super::notice::not_run(
-            super::notice::AutoOrigin::GlobalHook,
-            crate::i18n::t_fmt2("hook_notice.spawn_failed", command, &e.to_string()),
-        );
+/// 전역 훅 명령을 공유 실행기에 넣는다. 실행기는 셸이 끝날 때까지 기다리며 종료 코드는 판정하지 않는다.
+/// 실행기가 받지 않았거나 셸을 띄우지 못하면 로그와 오류 알림을 남긴다. stdio는 호스트의 것을 물려받는다.
+pub(super) fn submit_command(command: &str) {
+    submit_command_in(super::shell_pool::shared(), command);
+}
+
+pub(super) fn submit_command_in(
+    pool: &std::sync::Arc<super::shell_pool::ShellPool>,
+    command: &str,
+) {
+    use super::notice::{self, AutoOrigin};
+    let submitted = pool.submit(|| {
+        let built = command.to_string();
+        let reported = command.to_string();
+        super::shell_pool::ShellJob::new(
+            command,
+            move || global_hook_command(&built, tasty_utils::process::process_env_keys_to_strip()),
+            move |event| {
+                if let crate::hook_handler::exec::ShellEvent::NotStarted(e) = event {
+                    notice::not_run(
+                        AutoOrigin::GlobalHook,
+                        crate::i18n::t_fmt2("hook_notice.spawn_failed", &reported, &e),
+                    );
+                }
+            },
+        )
+    });
+    if let Err(reason) = submitted {
+        tracing::warn!("global hook command not run: {reason}; cmd: {command}");
+        notice::shell_not_queued(AutoOrigin::GlobalHook, command, &reason);
     }
 }
 

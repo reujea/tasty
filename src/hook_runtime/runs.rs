@@ -24,6 +24,24 @@ pub(crate) fn begin(handler: &str, action: &'static str) -> u64 {
     request_runs::begin(METHOD, None, fields)
 }
 
+/// 셸 핸들러를 실행기에 넣고 run 값을 돌려준다. run은 실행기가 받기로 확정한 뒤에만 만든다.
+/// 거절된 요청은 run을 만들지 않으므로 보관 수 안의 기존 run을 밀어내지 않는다.
+pub(crate) fn submit_shell(
+    pool: &std::sync::Arc<super::shell_pool::ShellPool>,
+    handler: &str,
+    build: impl FnOnce() -> std::process::Command + Send + 'static,
+) -> Result<u64, super::shell_pool::ShellNotQueued> {
+    let mut run = None;
+    pool.submit(|| {
+        let id = begin(handler, ACTION_SHELL);
+        run = Some(id);
+        super::shell_pool::ShellJob::new(handler, build, move |event| shell_event(id, event))
+    })?;
+    run.ok_or_else(|| {
+        super::shell_pool::ShellNotQueued::WorkerUnavailable("no run was recorded".into())
+    })
+}
+
 /// 실행기 대기열에 넣지 못해 동기 오류로 답한 실행은 조회 대상에서 지운다.
 pub(crate) fn forget(id: u64) {
     request_runs::forget(id);

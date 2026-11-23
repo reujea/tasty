@@ -165,82 +165,26 @@ fn log_step_failure(origin: SequenceOrigin, i: usize, method: &str, e: &InjectEr
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShellEvent {
     Started,
-    /// 프로세스나 작업 스레드를 띄우지 못했다.
+    /// 프로세스를 띄우지 못했다.
     NotStarted(String),
     /// 종료 코드. 시그널 종료처럼 코드가 없으면 None이다.
     Exited(Option<i32>),
 }
 
-/// command·args로 직접 프로세스를 실행하고 작업 스레드에서 종료를 기다린다.
-/// 셸을 자동으로 거치지 않는다. 시작·시작 실패·종료를 `report`에 차례로 알린다.
-pub fn spawn_shell(
-    command: String,
-    args: Vec<String>,
-    env: Vec<(String, String)>,
-    report: impl FnMut(ShellEvent) + Send + 'static,
-) {
-    let report: SharedReport = std::sync::Arc::new(std::sync::Mutex::new(Box::new(report)));
-    let in_thread = report.clone();
-    let spawned = std::thread::Builder::new()
-        .name("hook-shell".into())
-        .spawn(move || run_shell(&command, &args, env, &in_thread));
-    if let Err(e) = spawned {
-        tracing::warn!("hook shell thread spawn failed: {e}");
-        send(&report, ShellEvent::NotStarted(e.to_string()));
-    }
-}
-
-type SharedReport = std::sync::Arc<std::sync::Mutex<Box<dyn FnMut(ShellEvent) + Send>>>;
-
-fn send(report: &SharedReport, event: ShellEvent) {
-    let mut report =
-        crate::poison::recover_mutex(report.lock(), "hook shell report", &REPORT_POISONED);
-    (*report)(event);
-}
-
-fn run_shell(command: &str, args: &[String], env: Vec<(String, String)>, report: &SharedReport) {
-    match start_child(command, args, env) {
-        Ok(child) => {
-            send(report, ShellEvent::Started);
-            send(report, ShellEvent::Exited(wait_code(command, child)));
-        }
-        Err(e) => send(report, ShellEvent::NotStarted(e)),
-    }
-}
-
-fn start_child(
+/// 수동 dispatch의 셸 핸들러 Command. 셸을 자동으로 거치지 않고 command·args로 직접 실행한다.
+/// 상속 환경 제거 키는 부르는 시점(공유 실행기가 실행 직전에 부른다)의 규칙을 쓴다.
+pub fn dispatch_command(
     command: &str,
     args: &[String],
     env: Vec<(String, String)>,
-) -> Result<std::process::Child, String> {
-    let mut cmd = hook_exec_command(
+) -> std::process::Command {
+    hook_exec_command(
         command,
         args,
         env,
         tasty_utils::process::process_env_keys_to_strip(),
-    );
-    tasty_utils::process::hide_console(&mut cmd)
-        .spawn()
-        .map_err(|e| {
-            tracing::warn!("hook shell '{command}' spawn failed: {e}");
-            e.to_string()
-        })
+    )
 }
-
-fn wait_code(command: &str, mut child: std::process::Child) -> Option<i32> {
-    match child.wait() {
-        Ok(status) => {
-            tracing::debug!("hook shell '{command}' ran");
-            status.code()
-        }
-        Err(e) => {
-            tracing::warn!("hook shell '{command}' wait failed: {e}");
-            None
-        }
-    }
-}
-
-static REPORT_POISONED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// 셸을 거치지 않는 훅 Command를 만든다. `strip` 키는 상속 환경에서 지운다. 터미널 셸과 같은
 /// 판정에 바깥 인스턴스의 호출자 신원을 더한 목록이다(`tasty_utils::process::hook_env_keys_to_strip`).
@@ -267,6 +211,30 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// 수동 dispatch Command를 시험 전용 실행기에서 돌리고 끝날 때까지 기다린다.
+    fn run_and_wait(command: &str, args: Vec<String>, env: Vec<(String, String)>) {
+        use crate::hook_runtime::shell_pool::{ShellJob, ShellPool};
+        let pool = ShellPool::new(1, 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let command = command.to_string();
+        pool.submit(|| {
+            ShellJob::new(
+                "test",
+                move || dispatch_command(&command, &args, env),
+                move |event| {
+                    if let ShellEvent::Exited(_) | ShellEvent::NotStarted(_) = event {
+                        tx.send(event).expect("report the end");
+                    }
+                },
+            )
+        })
+        .expect("accepted");
+        let end = rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the command ends");
+        assert!(matches!(end, ShellEvent::Exited(_)), "{end:?}");
+    }
+
     /// 직접 실행 훅은 호스트의 stdin·stdout·stderr를 물려받지 않는다.
     #[cfg(target_os = "linux")]
     #[test]
@@ -278,19 +246,7 @@ mod tests {
             "for n in 0 2; do readlink /proc/$$/fd/$n; done > {}",
             marker.display()
         );
-        let (tx, rx) = std::sync::mpsc::channel();
-        spawn_shell(
-            "sh".into(),
-            vec!["-c".into(), script],
-            Vec::new(),
-            move |event| {
-                if let ShellEvent::Exited(_) = event {
-                    tx.send(()).expect("report exit");
-                }
-            },
-        );
-        rx.recv_timeout(Duration::from_secs(5))
-            .expect("the shell exits");
+        run_and_wait("sh", vec!["-c".into(), script], Vec::new());
         let fds = std::fs::read_to_string(&marker).expect("marker written");
         assert_eq!(fds.lines().collect::<Vec<_>>(), ["/dev/null", "/dev/null"]);
     }
@@ -506,7 +462,7 @@ mod tests {
 
     /// 직접 프로세스 실행 경로에서 환경변수가 전달되는지 확인한다.
     #[test]
-    fn spawn_shell_exposes_env_to_child() {
+    fn dispatch_command_exposes_env_to_child() {
         use std::time::{Duration, Instant};
         let dir = tempfile::tempdir().expect("tempdir");
         let marker = dir.path().join("env.txt");
@@ -528,11 +484,10 @@ mod tests {
                 ],
             )
         };
-        spawn_shell(
-            command,
+        run_and_wait(
+            &command,
             args,
             vec![("TASTY_HOOK_EVENT".to_string(), "user/envtest".to_string())],
-            |_| {},
         );
         // 리다이렉트는 쓰기 전에 파일을 만들 수 있으므로 존재가 아닌 내용을 기다린다.
         let deadline = Instant::now() + Duration::from_secs(5);

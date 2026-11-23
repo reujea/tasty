@@ -1423,6 +1423,7 @@ handler_refused = "핸들러 '{}'은(는) 훅에서 실행할 수 없습니다: 
 not_queued = "'{}'을(를) 실행하지 못했습니다: {}"
 no_injector = "Tasty 명령 통로가 준비되지 않아 '{}'을(를) 실행하지 못했습니다."
 spawn_failed = "'{}'을(를) 시작하지 못했습니다: {}"
+shell_not_queued = "'{}'을(를) 실행하지 못했습니다. 이미 훅 명령 {}개가 실행 대기 중입니다."
 sequence = "'{}': {}"
 step_failed = "{}단계 실패: {}"
 step_not_run = "{}단계 실행 안 됨: {}"
@@ -6589,7 +6590,7 @@ about = "`~/.tasty/hook-handlers.toml` 다시 읽기(사용자 항목만, host/p
 
 [cli.help._root.hook-handler.dispatch]
 about = "등록된 훅 핸들러를 ID로 수동 실행(테스트·자동화 진입점)"
-long = "등록된 훅 핸들러를 ID로 수동 실행합니다(테스트·자동화 진입점). IpcSequence 핸들러에서는 `--body`/`--header`/`--query`로 `${body.x}`/`${header.x}`/`${query.x}` 값을 채웁니다. 첫 줄에 접수 응답(`run` 번호 포함)을 출력한 뒤 최종 결과를 기다려 둘째 줄에 출력합니다. `state`는 `succeeded`·`partial`·`failed`·`unknown` 중 하나이고, `result`는 무슨 일이 있었는지, `steps`는 단계별 결과입니다. 셸 명령 핸들러는 프로세스가 시작되면 성공이며, `exit_code`는 프로세스가 끝난 뒤 채워지고 판정에 쓰지 않습니다. 최종 상태가 `succeeded`가 아니면 종료 코드 1로 끝납니다."
+long = "등록된 훅 핸들러를 ID로 수동 실행합니다(테스트·자동화 진입점). IpcSequence 핸들러에서는 `--body`/`--header`/`--query`로 `${body.x}`/`${header.x}`/`${query.x}` 값을 채웁니다. 첫 줄에 접수 응답(`run` 번호 포함)을 출력한 뒤 최종 결과를 기다려 둘째 줄에 출력합니다. `state`는 `succeeded`·`partial`·`failed`·`unknown` 중 하나이고, `result`는 무슨 일이 있었는지, `steps`는 단계별 결과입니다. 셸 명령 핸들러는 프로세스가 시작되면 성공이며, `exit_code`는 프로세스가 끝난 뒤 채워지고 판정에 쓰지 않습니다. 최종 상태가 `succeeded`가 아니면 종료 코드 1로 끝납니다. 핸들러의 대기열이 이미 가득 차 있으면 실행 요청이 오류와 함께 거부되고 아무것도 실행되지 않습니다."
 
 [cli.help._root.hook-handler.dispatch.arg.id]
 help = "실행할 훅 핸들러 ID(예: `host/notify`, `user/wh-...`)"

@@ -14,7 +14,7 @@ use crate::app::services::AppServices;
 use crate::hook_handler::{
     self, HookHandlerAction, HookHandlerId, HookShellEnv, HookSource, IpcCall, SequenceOrigin,
     SubstitutionContext, UserHookHandlerActionDecl, UserHookHandlerUpsertDecl, build_env,
-    spawn_shell,
+    dispatch_command,
 };
 use crate::hook_runtime::{Delivery, SequenceNotQueued, enqueue_sequence, runs};
 use tasty_ipc::host_call::HostIpcInjector;
@@ -114,10 +114,18 @@ pub fn handle_dispatch(
                     .cloned()
                     .unwrap_or(serde_json::Value::Null),
             });
-            let run = runs::begin(&hid.0, runs::ACTION_SHELL);
-            spawn_shell(command, args, env, move |event| {
-                runs::shell_event(run, event)
-            });
+            let shared = crate::hook_runtime::shell_pool::shared();
+            let run = match runs::submit_shell(shared, &hid.0, move || {
+                dispatch_command(&command, &args, env)
+            }) {
+                Ok(run) => run,
+                Err(e) => {
+                    return JsonRpcResponse::internal_error(
+                        id,
+                        format!("hook handler '{hid}' not run — {e}"),
+                    );
+                }
+            };
             JsonRpcResponse::success(
                 id,
                 json!({ "accepted": true, "id": hid.0, "action": "shell_command", "run": run }),
