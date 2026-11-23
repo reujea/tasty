@@ -188,8 +188,8 @@ impl ToastManager {
         self.toasts.iter().map(|t| t.message.as_str()).collect()
     }
 
-    /// 테스트에서 생성 순서의 범위를 확인한다.
-    #[cfg(test)]
+    /// 테스트에서 생성 순서의 범위를 확인한다. 쓰는 App 시험이 Linux 전용이다.
+    #[cfg(all(test, target_os = "linux"))]
     pub(crate) fn scopes(&self) -> Vec<ToastScope> {
         self.toasts.iter().map(|t| t.scope.clone()).collect()
     }
