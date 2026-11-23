@@ -140,9 +140,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     ("target: background (cwd)", BACKGROUND),
                     ("target: category header", CATEGORY),
                     ("target: reserved (normal)", RESERVED),
-                    ("target: workspace row", WORKSPACE),
+                    ("target: local workspace row", WORKSPACE),
                     (
-                        "target: workspace row · served to another client",
+                        "target: local workspace row · served to another client",
                         WORKSPACE_SERVED,
                     ),
                 ] {
@@ -175,6 +175,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "workspace",
                 "Move to category (inert header) · targets · New | Force detach (enabled only while this Tasty serves the workspace to another client, otherwise disabled, no reason)",
+            ),
+            (
+                "Force detach",
+                "local workspace menus only · not on a mirror (a saved remote row or an agent mirror): no other client can hold one, so the item and its separator are left out, not disabled",
             ),
             (
                 "targets",
