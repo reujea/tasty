@@ -50,6 +50,9 @@ impl AppServices {
                 TerminalEventKind::PromptBoundary { phase, payload } => {
                     self.handle_prompt_boundary(engine, sid, generation, phase, &payload, &mut out);
                 }
+                // attach client가 이 출력을 받는 동안에는 client가 같은 바이트로 자기 클립보드에
+                // 쓰고 결과를 알린다. 서버 OS 클립보드와 서버 토스트는 건드리지 않는다.
+                TerminalEventKind::ClipboardSet(_) if engine.attach_output_delivered(sid) => {}
                 TerminalEventKind::ClipboardSet(text) => {
                     let result = self.clipboard.write_text(&text).map_err(|error| {
                         // Keep clipboard contents out of diagnostics, including custom adapter errors.

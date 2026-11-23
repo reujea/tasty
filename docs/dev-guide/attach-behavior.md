@@ -459,6 +459,14 @@ raise에는 mirror 차단이 있고 clear에는 서버로 전달할 메시지 �
 손실은 이 문서의 Loss·재attach 규칙으로 처리한다. 새 surface의 null 초기값이 매핑보다 먼저 도착해
 버려져도 양쪽에 레코드가 없으므로 결과는 같다. 신규 attach는 매핑을 동기 구성한 뒤 reader를 시작한다.
 
+## raw 출력 효과의 처리자
+
+서버와 client mirror 는 같은 raw 바이트를 각자 파싱하므로, 바이트에서 생기는 사용자 쪽 효과는 한쪽만 실행해야 한다. 판정은 `EngineMut::attach_output_delivered(surface)`(`src/remote/subscription.rs`) 하나다. 그 surface 의 hard lock holder 에게 출력 구독이 있고 그 구독이 현재(준비된 같은 grant·같은 터미널 세대·같은 hub binding, `poll_attach_subscriptions` 와 같은 `Subscription::is_current`)이면 참이다. 참이면 client 가 처리하고 서버는 그 효과를 내지 않는다. 거짓이면(구독 전 점유 준비 구간, 구독이 끊긴 뒤, CLI 로만 보는 경우 포함) 서버가 처리한다. 그래서 어느 시점에도 처리자는 하나다.
+
+- **OSC 52 쓰기**: 참이면 서버는 OS 클립보드에 쓰지 않고 `TerminalClipboardSet` 도 내지 않는다(`src/app/services/impl_pty.rs`). client 가 자기 클립보드에 쓰고 결과 토스트를 낸다.
+- **OSC 52 읽기**: 참이면 서버는 읽지도 답하지도 않는다. 서버가 그 전에 시작한 비동기 읽기의 결과도 답하기 직전 같은 판정으로 버린다(`src/app/services/impl_clipboard.rs`). client 는 자기 `allow_clipboard_read` 와 클립보드로 답하고, 응답은 mirror 입력 sink 로 서버 PTY 에 간다. 재연결은 mirror 의 입력 연결 세대를 바꾸므로(`Terminal::bind_external_input`) 옛 연결의 늦은 결과는 `send_response_for` 가 버린다.
+- 서버 사용자의 직접 선택 복사, IPC `clipboard.set_text`, 원격 캡처 게시는 raw 바이트 효과가 아니라 이 판정을 쓰지 않는다.
+
 ## mesh mirror 채널
 
 egui-mesh surface(번들 image/mesh_demo 와 커스텀 plugin 의 egui-mesh kind — 서버 등록부에서 같은 plugin 소유의 egui-mesh 로 확인된 것. markdown 은 WebView 본문을 사용해 대상이 아니다 — attach 시 mesh 가 아니라 아래 "markdown content 채널" 로 mirror 된다)가 mirror pane 에 뜨면, 원격의 실제 plugin 프로세스가 그리는 GPU mesh 프레임을 client 로 스트리밍해 렌더하고 client 입력을 원격으로 forward 한다. 개념·기능 범위는 [features/remote-attach](../features/remote-attach/index.md#surface-단위-vs-workspace-단위), 헤드리스 부트스트랩·로컬 egui-mesh 파이프라인 자체는 [egui-mesh-channel.md](egui-mesh-channel.md#attach-mesh-mirror-소비-경로), 여기엔 attach 프로토콜 전송 경로만 설명한다.

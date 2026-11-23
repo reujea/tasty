@@ -352,3 +352,64 @@ fn a_global_drain_reports_changed_surfaces_for_the_visibility_check() {
     );
     assert!(!state.shows_any_surface(&engine.read(), &[]));
 }
+
+/// 쓰기·읽기 호출 수를 센다. 내용은 고정값이다.
+#[derive(Default)]
+struct CountingClipboard {
+    writes: std::sync::atomic::AtomicUsize,
+    reads: std::sync::atomic::AtomicUsize,
+}
+
+impl crate::ports::clipboard::ClipboardSystem for CountingClipboard {
+    fn read_text(&self) -> anyhow::Result<String> {
+        self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok("SERVER_ONLY".to_string())
+    }
+    fn write_text(&self, _: &str) -> anyhow::Result<()> {
+        self.writes
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+/// Given attach client가 출력을 받는 터미널, When 프로그램이 OSC 52로 쓰거나 읽는다,
+/// Then 서버 클립보드는 쓰지도 읽지도 않고 서버 쪽 결과 사건도 없다. 점유가 풀리면 서버가 다시 처리한다.
+#[test]
+fn osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard_alone() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let clipboard = std::sync::Arc::new(CountingClipboard::default());
+    let mut core = crate::adapters::ipc::handler::cli_entry_tests::test_core_builder()
+        .with_clipboard(clipboard.clone())
+        .build()
+        .expect("core");
+    let (_state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    engine.runtime.settings.general.allow_clipboard_read = true;
+    let sid = engine.read().workspace_at(0).unwrap().all_surface_ids()[0];
+    let hub = tasty_ipc::stream_hub::StreamHub::new();
+    let client = hub.alloc_id();
+    let _rx = hub.register(client);
+    engine.attach_surface_for_stream(sid, client, &hub);
+    assert!(engine.attach_output_delivered(sid), "구독이 만들어졌다");
+
+    let mut run = |engine: &mut crate::runtime::engine_access::EngineMut<'_>| {
+        engine
+            .find_terminal_by_id_mut(sid)
+            .unwrap()
+            .feed_bytes(b"\x1b]52;c;Zml4dHVyZQ==\x07\x1b]52;c;?\x07");
+        core.process_all_pty_output(engine)
+            .events
+            .iter()
+            .filter(|e| matches!(e, CoreEvent::TerminalClipboardSet { .. }))
+            .count()
+    };
+    assert_eq!(run(&mut engine), 0, "서버 토스트 사건");
+    assert_eq!(clipboard.writes.load(SeqCst), 0, "서버 클립보드 쓰기");
+    assert_eq!(clipboard.reads.load(SeqCst), 0, "서버 클립보드 읽기");
+
+    engine.live.occupancy.release(sid, client).expect("holder");
+    assert!(!engine.attach_output_delivered(sid));
+    assert_eq!(run(&mut engine), 1);
+    assert_eq!(clipboard.writes.load(SeqCst), 1);
+    assert_eq!(clipboard.reads.load(SeqCst), 1);
+}

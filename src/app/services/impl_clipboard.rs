@@ -20,7 +20,11 @@ impl AppServices {
         sid: u32,
         generation: tasty_terminal::ResourceGeneration,
     ) {
-        if !engine.runtime.settings.general.allow_clipboard_read {
+        // attach client가 이 출력을 받으면 client가 자기 설정과 클립보드로 답한다. 서버 클립보드를
+        // 읽어 답하면 접속 사용자의 것이 아닌 내용이 나가고 응답도 둘이 된다.
+        if !engine.runtime.settings.general.allow_clipboard_read
+            || engine.attach_output_delivered(sid)
+        {
             return;
         }
         match self.clipboard.begin_read_text() {
@@ -63,7 +67,8 @@ impl AppServices {
         finished
     }
 
-    /// 질의한 터미널이 같은 세대이고 설정이 아직 허용할 때만 답한다. 읽기 실패는 무응답이다.
+    /// 질의한 터미널이 같은 세대이고 설정이 아직 허용하며 attach client가 출력을 받지 않을 때만 답한다.
+    /// 읽기 실패는 무응답이다.
     pub(crate) fn reply_clipboard_query(
         engine: &mut EngineMut<'_>,
         sid: u32,
@@ -78,7 +83,9 @@ impl AppServices {
                 None
             }
         };
+        // 읽는 동안 attach client가 붙었으면 이 응답은 client 몫이라 버린다.
         if engine.runtime.terminals.matches_generation(sid, generation)
+            && !engine.attach_output_delivered(sid)
             && let Some(reply) = osc52_clipboard_read_reply(allow, clip.as_deref())
             && let Some(terminal) = engine.find_terminal_by_id_mut(sid)
         {

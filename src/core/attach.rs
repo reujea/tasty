@@ -163,6 +163,11 @@ impl OccupancyRegistry {
         self.surface_locks.get(&surface_id).map(|l| l.holder)
     }
 
+    /// surface의 hard lock 전체(holder·grant·준비 여부).
+    pub fn surface_lock(&self, surface_id: SurfaceId) -> Option<AttachLock> {
+        self.surface_locks.get(&surface_id).copied()
+    }
+
     /// 같은 client면 기존 lock을 반환한다. 다른 holder가 있으면 끊김 표시를 확인해 회수하거나 거절한다.
     pub fn acquire(
         &mut self,
