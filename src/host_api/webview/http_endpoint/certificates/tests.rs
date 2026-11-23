@@ -328,6 +328,8 @@ async fn actual_owned_tls_stream_keeps_key_lease_and_stops_raw_writes_after_reti
     let writes = after.clone();
     let tls = leaf.clone();
     let (resume, wait) = tokio::sync::oneshot::channel();
+    // The [7] record can reach the client before flush runs, so retirement waits for flushed.
+    let (flushed, written) = tokio::sync::oneshot::channel();
     let server = tokio::spawn(async move {
         let (stream, _) = listener.accept().await.unwrap();
         let mut stream = tls
@@ -344,6 +346,7 @@ async fn actual_owned_tls_stream_keeps_key_lease_and_stops_raw_writes_after_reti
         drop(tls);
         stream.write_all(&[7]).await.unwrap();
         stream.flush().await.unwrap();
+        flushed.send(()).unwrap();
         wait.await.unwrap();
         let error = stream.write_all(&[99]).await.unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::ConnectionAborted);
@@ -372,6 +375,7 @@ async fn actual_owned_tls_stream_keeps_key_lease_and_stops_raw_writes_after_reti
     let mut byte = [0];
     socket.read_exact(&mut byte).await.unwrap();
     assert_eq!(byte, [7]);
+    written.await.unwrap();
     drop(leaf);
     map.retire();
     map.settled().await;
