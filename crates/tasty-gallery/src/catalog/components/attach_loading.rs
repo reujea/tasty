@@ -88,6 +88,7 @@ fn copy_wait(ui: &mut egui::Ui, theme: &Theme) {
     still.reduced_motion = true;
     spec::spec(ui, theme, "Clipboard copy wait", None);
     stage(ui, theme, StageVariant::Column, |ui| {
+        ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
         for lang in COPY_WAIT_LANGS {
             let label = t_lang(lang, "attach.pending.copy");
             let time = lang_fmt(lang, "attach.pending.seconds", "2");
