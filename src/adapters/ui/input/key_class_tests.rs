@@ -90,6 +90,7 @@ fn value(logical: &Key, code: KeyCode, mods: ModifiersState) -> KeyEventValue<'_
         physical: PhysicalKey::Code(code),
         pressed: true,
         mods,
+        egui_mods: egui_modifiers(mods),
     }
 }
 
@@ -214,4 +215,32 @@ fn command_c_x_v_are_clipboard_combos() {
             KeyClass::Path(_)
         ));
     }
+}
+
+/// 클립보드 조합은 egui-winit 이 그 창에 가진 수식키로 가른다. 창 값(`mods`)이 비었어도 egui-winit 에 command 가 남아
+/// 있으면 egui-winit 은 그 누름을 `Copy` 로 바꾸므로 지금 경로다. 반대로 egui-winit 에 수식키가 없으면 경로 키다.
+#[test]
+fn the_clipboard_combo_reads_the_egui_winit_modifiers() {
+    let c = Key::Character("c".into());
+    let command = if cfg!(target_os = "macos") {
+        ModifiersState::SUPER
+    } else {
+        ModifiersState::CONTROL
+    };
+    let stale = KeyEventValue {
+        egui_mods: egui_modifiers(command),
+        ..value(&c, KeyCode::KeyC, ModifiersState::empty())
+    };
+    assert_eq!(
+        classify_key(&stale, false, false),
+        KeyClass::Current(CurrentReason::Clipboard)
+    );
+    let cleared = KeyEventValue {
+        egui_mods: egui::Modifiers::NONE,
+        ..value(&c, KeyCode::KeyC, command)
+    };
+    assert!(matches!(
+        classify_key(&cleared, false, false),
+        KeyClass::Path(_)
+    ));
 }

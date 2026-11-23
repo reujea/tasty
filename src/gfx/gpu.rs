@@ -960,6 +960,11 @@ impl GpuState {
         self.egui_state.egui_input_mut().modifiers = modifiers;
     }
 
+    /// egui-winit 이 이 창에 가진 수식 키. 키 누름을 egui 사건(복사·잘라내기·붙여넣기 포함)으로 바꿀 때 이 값을 쓴다.
+    pub fn egui_modifiers(&self) -> egui::Modifiers {
+        self.egui_state.egui_input().modifiers
+    }
+
     /// debug 전용: egui 가 지금 누른 것으로 보는 수식 키. 실제 키 이벤트는 이 값을 싣는다.
     #[cfg(debug_assertions)]
     pub fn debug_egui_modifiers(&self) -> egui::Modifiers {

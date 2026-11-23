@@ -110,6 +110,7 @@ pub(crate) fn forwarded_key_class(
         ),
         pressed: true,
         mods,
+        egui_mods: super::key_class::egui_modifiers(mods),
     };
     match classify_key(&value, false, edit_binding(kb, key, mods).is_some()) {
         KeyClass::Path(_) => ForwardedKey::Path,

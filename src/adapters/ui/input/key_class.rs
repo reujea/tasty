@@ -8,13 +8,16 @@ use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, PhysicalKey};
 
 use super::key_route::RouteKey;
 
-/// 키 사건 하나의 값. 수식키는 사건 시점 창의 값이다.
+/// 키 사건 하나의 값. `mods`는 사건 시점 창의 winit 수식키, `egui_mods`는 그 사건을 egui 사건으로 바꿀 egui-winit 이
+/// 그 창에 가진 수식키다(클립보드 조합 판정의 입력). 둘은 출처가 달라 갈릴 수 있다(창 포커스를 잃을 때 창 값만
+/// 비운다).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct KeyEventValue<'a> {
     pub(crate) logical: &'a Key,
     pub(crate) physical: PhysicalKey,
     pub(crate) pressed: bool,
     pub(crate) mods: ModifiersState,
+    pub(crate) egui_mods: egui::Modifiers,
 }
 
 /// 지금 경로로 남는 사건의 종류.
@@ -64,7 +67,7 @@ pub(crate) fn classify_key(
         return current(CurrentReason::NoEguiKey);
     };
     let modifiers = egui_modifiers(value.mods);
-    if is_clipboard_combo(key, modifiers) {
+    if is_clipboard_combo(key, value.egui_mods) {
         return current(CurrentReason::Clipboard);
     }
     if edit_binding {

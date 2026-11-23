@@ -622,6 +622,7 @@ fn window_key_decision_held(
             physical,
             pressed: *pressed,
             mods: winit_mods_of(*modifiers, super_held),
+            egui_mods: *modifiers,
         },
         false,
         egui_surface,

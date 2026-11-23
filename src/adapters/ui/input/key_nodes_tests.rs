@@ -69,6 +69,7 @@ fn decide(
             physical: PhysicalKey::Code(code),
             pressed: true,
             mods,
+            egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(mods),
         },
         false,
         false,
@@ -96,6 +97,7 @@ fn gate(
             physical: PhysicalKey::Code(code),
             pressed: true,
             mods,
+            egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(mods),
         },
     )
 }
@@ -414,6 +416,7 @@ fn edit_clipboard_and_non_egui_keys_stay_on_the_current_path() {
         physical: PhysicalKey::Code(code),
         pressed: true,
         mods: CTRL,
+        egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(CTRL),
     };
     assert!(matches!(
         window_key_decision(&state, &read, &value, false, false),

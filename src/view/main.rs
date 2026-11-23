@@ -533,6 +533,7 @@ impl MainView {
                         physical: key.physical_key,
                         pressed: key.state == winit::event::ElementState::Pressed,
                         mods: self.base.state.modifiers,
+                        egui_mods: self.base.gpu.egui_modifiers(),
                     },
                     self.edit_replay.is_some(),
                     crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(

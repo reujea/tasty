@@ -192,6 +192,7 @@ impl App {
             physical: ke.physical_key,
             pressed: true,
             mods,
+            egui_mods: main.base.gpu.egui_modifiers(),
         };
         self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, PluginKeyGate::Winit(&value))
     }
