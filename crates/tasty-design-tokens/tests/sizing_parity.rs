@@ -16,6 +16,7 @@ fn sizing_value(field: &str) -> f32 {
         "spacing_xl" => SIZING.spacing_xl.0,
         "border_width" => SIZING.border_width.0,
         "focus_ring_width" => SIZING.focus_ring_width.0,
+        "focus_ring_offset" => SIZING.focus_ring_offset.0,
         "corner_radius" => SIZING.corner_radius.0,
         "corner_radius_sm" => SIZING.corner_radius_sm.0,
         "item_height_tree" => SIZING.item_height_tree.0,

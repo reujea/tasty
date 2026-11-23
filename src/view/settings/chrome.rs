@@ -222,7 +222,9 @@ impl SettingsChrome {
         let drag_area = egui::Id::new(titlebar::DRAG_AREA_ID);
         let ppp = ctx.pixels_per_point();
         let screen = ctx.screen_rect();
-        let band = RESIZE_EDGE_MARGIN as f32 / ppp;
+        let band = PhysicalPx(RESIZE_EDGE_MARGIN as f32)
+            .to_logical(ppp)
+            .value();
         let inner = screen.shrink(band);
         self.edge_widgets = ctx.viewport(|vp| {
             vp.this_pass
@@ -317,26 +319,15 @@ fn edge_direction(
     resize_direction_at(pos.x, pos.y, w, h, RESIZE_EDGE_MARGIN)
 }
 
-/// 설정창의 inner·최소 높이(논리). 앱이 제목 줄을 그리면 settings-window-csd-height(settings-window-height +
-/// titlebar-height), 서버 장식이면 settings-window-height다. 제목 줄 아래 1100 × 700은 어느 쪽이든 같다.
-/// 창 크기 토큰처럼 UI 배율 밖이다.
-pub(crate) fn window_height(server_decorated: bool) -> f32 {
-    use tasty_design_tokens::generated::component::settings::WINDOW_HEIGHT;
-    use tasty_design_tokens::generated::semantic::TITLEBAR_HEIGHT;
-    if server_decorated {
-        WINDOW_HEIGHT.value()
-    } else {
-        WINDOW_HEIGHT.value() + TITLEBAR_HEIGHT.value()
-    }
-}
-
-/// 장식 모드가 정해지거나 바뀌면 최소 높이를 그 모드의 값으로 바꾸고 현재 높이를 제목 줄만큼 늘이거나 줄인다.
+/// 장식 모드가 정해지거나 바뀌면 최소 크기를 그 모드의 값(`settings_window_size`)으로 바꾸고 현재 높이를
+/// 제목 줄만큼 늘이거나 줄인다. 서버 장식이면 앱 제목 줄이 없다.
 pub(crate) fn fit_window_height(window: &Window, server_decorated: bool) {
-    use tasty_design_tokens::generated::component::settings::WINDOW_WIDTH;
-    let height = window_height(server_decorated);
-    window.set_min_inner_size(Some(LogicalSize::new(WINDOW_WIDTH.value(), height)));
+    use crate::app::modal::settings::settings_window_size;
+    let min = settings_window_size(!server_decorated);
+    let height = min.height;
+    window.set_min_inner_size(Some(min));
     let current: LogicalSize<f32> = window.inner_size().to_logical(window.scale_factor());
-    let delta = height - window_height(!server_decorated);
+    let delta = height - settings_window_size(server_decorated).height;
     let target = LogicalSize::new(current.width, (current.height + delta).max(height));
     if window.request_inner_size(target).is_none() {
         tracing::debug!("settings window height {height} is applied when the compositor answers");
@@ -384,11 +375,13 @@ mod tests {
         Some(PhysicalPosition::new(x, y))
     }
 
-    /// Given 앱이 제목 줄을 그리는 설정창 Then 높이는 제목 줄만큼 큰 736이고, When 서버 장식이면 Then 700이다.
+    /// Given 앱이 제목 줄을 그리는 설정창 Then 크기는 제목 줄만큼 높은 1100 × 736이고, When 제목 줄이 없으면(서버
+    /// 장식, macOS·Windows) Then 1100 × 700이다.
     #[test]
     fn the_window_grows_by_the_titlebar_only_when_the_app_draws_it() {
-        assert_eq!(window_height(false), 736.0);
-        assert_eq!(window_height(true), 700.0);
+        use crate::app::modal::settings::settings_window_size;
+        assert_eq!(settings_window_size(true), LogicalSize::new(1100.0, 736.0));
+        assert_eq!(settings_window_size(false), LogicalSize::new(1100.0, 700.0));
     }
 
     /// Given 제목 줄의 닫기 버튼을 눌렀을 때, When 동작을 나누면, Then 이동 없이 닫기만 남는다.
@@ -552,50 +545,74 @@ mod tests {
     /// 밖에서 누르거나, 창을 벗어나 누름이 취소되거나, 서버 장식 창(앱 제목 줄이 없다)이면 닫지 않는다.
     #[test]
     fn a_halted_click_closes_only_on_the_close_button() {
-        let mut c = chrome(false);
-        let w = SIZE.width;
-        assert!(!c.halted_close_click(&moved(1080.0, 10.0), w));
-        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
-        assert!(c.halted_close_click(&left(ElementState::Released), w));
-
-        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
-        assert!(!c.halted_close_click(&moved(500.0, 10.0), w));
-        assert!(
-            !c.halted_close_click(&left(ElementState::Released), w),
-            "released outside"
-        );
-
-        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
-        assert!(!c.halted_close_click(&moved(1080.0, 10.0), w));
-        assert!(
-            !c.halted_close_click(&left(ElementState::Released), w),
-            "pressed outside"
-        );
-
-        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
-        assert!(!c.halted_close_click(
-            &WindowEvent::CursorLeft {
-                device_id: winit::event::DeviceId::dummy()
-            },
-            w
-        ));
-        assert!(!c.halted_close_click(&moved(1080.0, 10.0), w));
-        assert!(
-            !c.halted_close_click(&left(ElementState::Released), w),
-            "left the window"
-        );
-
-        assert!(!c.halted_close_click(&moved(1080.0, 10.0), w));
-        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
-        assert!(!c.halted_close_click(&WindowEvent::Resized(PhysicalSize::new(1200, 700)), w));
-        assert!(
-            !c.halted_close_click(&left(ElementState::Released), w),
-            "window resized"
-        );
-
-        let mut c = chrome(true);
-        assert!(!c.halted_close_click(&moved(1080.0, 10.0), w));
-        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
-        assert!(!c.halted_close_click(&left(ElementState::Released), w));
+        use ElementState::{Pressed, Released};
+        let left_window = WindowEvent::CursorLeft {
+            device_id: winit::event::DeviceId::dummy(),
+        };
+        let resized = WindowEvent::Resized(PhysicalSize::new(1200, 700));
+        let cases: [(&str, bool, Vec<WindowEvent>, bool); 6] = [
+            (
+                "press and release on close",
+                false,
+                vec![moved(1080.0, 10.0), left(Pressed), left(Released)],
+                true,
+            ),
+            (
+                "released outside",
+                false,
+                vec![
+                    moved(1080.0, 10.0),
+                    left(Pressed),
+                    moved(500.0, 10.0),
+                    left(Released),
+                ],
+                false,
+            ),
+            (
+                "pressed outside",
+                false,
+                vec![
+                    moved(500.0, 10.0),
+                    left(Pressed),
+                    moved(1080.0, 10.0),
+                    left(Released),
+                ],
+                false,
+            ),
+            (
+                "left the window",
+                false,
+                vec![
+                    moved(1080.0, 10.0),
+                    left(Pressed),
+                    left_window,
+                    moved(1080.0, 10.0),
+                    left(Released),
+                ],
+                false,
+            ),
+            (
+                "window resized",
+                false,
+                vec![moved(1080.0, 10.0), left(Pressed), resized, left(Released)],
+                false,
+            ),
+            (
+                "server decorated",
+                true,
+                vec![moved(1080.0, 10.0), left(Pressed), left(Released)],
+                false,
+            ),
+        ];
+        for (name, server_decorated, events, closes) in cases {
+            let mut c = chrome(server_decorated);
+            let got: Vec<bool> = events
+                .iter()
+                .map(|e| c.halted_close_click(e, SIZE.width))
+                .collect();
+            let (last, before) = got.split_last().expect("events");
+            assert!(before.iter().all(|b| !b), "{name}: closed early");
+            assert_eq!(*last, closes, "{name}");
+        }
     }
 }

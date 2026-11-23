@@ -3,7 +3,7 @@ mod chrome;
 pub mod ui;
 
 #[cfg(target_os = "linux")]
-pub(crate) use chrome::{fit_window_height, window_height};
+pub(crate) use chrome::fit_window_height;
 
 use std::sync::Arc;
 

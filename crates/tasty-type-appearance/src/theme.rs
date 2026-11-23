@@ -271,6 +271,8 @@ pub struct ThemeSizing {
     /// 대상을 둘러싸는 포커스·선택 링의 굵기. 색상은 용도별로 고른다.
     /// 한쪽 변에만 붙는 선택 표시에는 selection_edge_width를 사용한다.
     pub focus_ring_width: LogicalPx,
+    /// 포커스 링과 대상 사이의 간격.
+    pub focus_ring_offset: LogicalPx,
     /// painter로 직접 그리는 창 버튼 글리프의 선 굵기. 대응하는 DTCG 치수 토큰은 없다.
     pub icon_stroke_width: LogicalPx,
     pub corner_radius: LogicalPx,
@@ -398,6 +400,7 @@ pub const SIZING: ThemeSizing = ThemeSizing {
     font_size_term_lg: LogicalPx(16.0),
     border_width: LogicalPx(1.0),
     focus_ring_width: LogicalPx(2.0),
+    focus_ring_offset: LogicalPx(1.0),
     icon_stroke_width: LogicalPx(1.5),
     corner_radius: LogicalPx(4.0),
     corner_radius_sm: LogicalPx(2.0),
@@ -897,6 +900,8 @@ pub struct Theme {
     pub border_width: LogicalPx,
     /// 대상을 둘러싸는 포커스·선택 링의 굵기. 한쪽 변의 선택 표시는 selection_edge_width를 사용한다.
     pub focus_ring_width: LogicalPx,
+    /// 포커스 링과 대상 사이의 1px 간격. hairline 보더처럼 UI zoom 제외.
+    pub focus_ring_offset: LogicalPx,
     /// 창 버튼 글리프의 hairline 굵기. 버튼의 고정 치수에 맞춰 UI zoom 제외.
     pub icon_stroke_width: LogicalPx,
     pub corner_radius: LogicalPx,
@@ -1107,6 +1112,7 @@ impl Theme {
             font_size_term_lg: SIZING.font_size_term_lg,
             border_width: SIZING.border_width,
             focus_ring_width: zoomed(SIZING.focus_ring_width),
+            focus_ring_offset: SIZING.focus_ring_offset,
             // 창 버튼의 고정 기하와 선 굵기를 함께 유지한다.
             icon_stroke_width: SIZING.icon_stroke_width,
             corner_radius: zoomed(SIZING.corner_radius),
@@ -2196,6 +2202,7 @@ mod tests {
         assert_eq!(base.font_size_max, zoomed.font_size_max);
         assert_eq!(base.border_width, zoomed.border_width);
         assert_eq!(base.focus_ring_width, zoomed.focus_ring_width);
+        assert_eq!(base.focus_ring_offset, zoomed.focus_ring_offset);
         assert_eq!(base.corner_radius, zoomed.corner_radius);
         assert_eq!(base.item_height_tree, zoomed.item_height_tree);
         assert_eq!(base.item_height_interactive, zoomed.item_height_interactive);

@@ -12,6 +12,20 @@ struct SettingsInitData {
     plugin_pages: Vec<tasty_host_plugin::SettingsPageEntry>,
 }
 
+/// 설정창의 inner·최소 크기(논리). settings-window-width × settings-window-height이고, 앱이 제목 줄을 그리면
+/// 높이가 settings-window-csd-height(제목 줄 titlebar-height만큼 더 높다)라 제목 줄 아래 1100 × 700은 같다.
+/// 창 생성 시점의 크기라 UI 배율을 곱하지 않는다.
+pub(crate) fn settings_window_size(app_titlebar: bool) -> winit::dpi::LogicalSize<f32> {
+    use tasty_design_tokens::generated::component::settings::{WINDOW_HEIGHT, WINDOW_WIDTH};
+    use tasty_design_tokens::generated::semantic::TITLEBAR_HEIGHT;
+    let titlebar = if app_titlebar {
+        TITLEBAR_HEIGHT.value()
+    } else {
+        0.0
+    };
+    winit::dpi::LogicalSize::new(WINDOW_WIDTH.value(), WINDOW_HEIGHT.value() + titlebar)
+}
+
 impl App {
     pub(crate) fn open_settings_modal(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         if self.view.is_modal_active() {
@@ -20,14 +34,8 @@ impl App {
 
         use winit::window::WindowAttributes;
 
-        // 창 크기는 settings-window-width/height 토큰이다. 창 생성 시점의 크기라 UI 배율을 곱하지 않는다.
         // Linux는 앱이 제목 줄을 그리므로 그만큼 높은 settings-window-csd-height로 만든다.
-        use tasty_design_tokens::generated::component::settings::WINDOW_WIDTH;
-        #[cfg(target_os = "linux")]
-        let height = view::settings::window_height(false);
-        #[cfg(not(target_os = "linux"))]
-        let height = tasty_design_tokens::generated::component::settings::WINDOW_HEIGHT.value();
-        let size = winit::dpi::LogicalSize::new(WINDOW_WIDTH.value(), height);
+        let size = settings_window_size(cfg!(target_os = "linux"));
         let mut attrs = WindowAttributes::default()
             .with_title("Tasty Settings")
             .with_inner_size(size)

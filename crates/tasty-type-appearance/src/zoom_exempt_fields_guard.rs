@@ -59,6 +59,7 @@ const EXEMPT: &[(&str, Reason)] = &[
     ("border_dash", Reason::Hairline),
     ("border_dash_gap", Reason::Hairline),
     ("status_dot_ring_width", Reason::Hairline),
+    ("focus_ring_offset", Reason::Hairline),
     ("tab_width", Reason::TabBar),
     ("tab_bar_height", Reason::TabBar),
     ("tab_bar_label_font_size", Reason::TabBar),
@@ -433,7 +434,12 @@ mod tests {
     const SUPPORTED_ZOOMS: [f32; 3] = [0.85, 1.0, 1.2];
 
     /// 지원 배율을 곱해도 반올림 결과가 같아 값만으로 적용 여부를 구분할 수 없는 필드.
-    const UNOBSERVABLE: &[&str] = &["border_width", "selection_edge_width", "tint_edge_width"];
+    const UNOBSERVABLE: &[&str] = &[
+        "border_width",
+        "focus_ring_offset",
+        "selection_edge_width",
+        "tint_edge_width",
+    ];
 
     /// 배율 적용 여부에 따라 값이 달라지지 않는 필드 집합을 대조한다.
     /// 토큰 값이나 지원 배율이 바뀌면 이 구분도 다시 확인해야 한다.

@@ -59,7 +59,7 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
     // epaint 원 획은 반지름 바깥으로 그리므로 반지름은 링의 안쪽 변이다.
     if close == Close::Focus {
         let ring = th.focus_ring_width.value();
-        let offset = tasty_design_tokens::generated::semantic::FOCUS_RING_OFFSET.value();
+        let offset = th.focus_ring_offset.value();
         ui.painter().circle_stroke(
             center,
             d * 0.5 + offset,

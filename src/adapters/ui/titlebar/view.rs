@@ -236,7 +236,7 @@ fn draw_window_buttons(
                 resp.hovered(),
             ) || resp.has_focus();
             if shown {
-                tasty_ui_widgets::Tooltip::new(&label)
+                tasty_ui_widgets::Tooltip::new(label)
                     .id_source(("tasty_titlebar_btn_tooltip", resp.id))
                     .below_end(ui.ctx(), th, btn_rect)
                     .show(ui, th, btn_rect);
@@ -289,7 +289,7 @@ fn draw_window_buttons(
             // 버튼 둘레에서 focus-ring-offset만큼 띄운 focus-ring-width 링. 버튼처럼 UI 배율 밖이다.
             // epaint 원 획은 반지름 바깥으로 그리므로 반지름은 링의 안쪽 변이다.
             let ring = th.focus_ring_width.value();
-            let offset = tasty_design_tokens::generated::semantic::FOCUS_RING_OFFSET.value();
+            let offset = th.focus_ring_offset.value();
             ui.painter().circle_stroke(
                 center,
                 d * 0.5 + offset,

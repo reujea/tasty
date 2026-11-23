@@ -20,6 +20,7 @@ pub const SEMANTIC_DIM_TO_THEME_FIELD: &[(&str, &str)] = &[
     // 보더/라운드
     ("semantic.border-width", "border_width"),
     ("semantic.focus-ring-width", "focus_ring_width"),
+    ("semantic.focus-ring-offset", "focus_ring_offset"),
     ("semantic.radius", "corner_radius"),
     ("semantic.radius-sm", "corner_radius_sm"),
     // 컨트롤 높이 / 탭
