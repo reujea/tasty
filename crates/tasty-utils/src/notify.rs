@@ -882,6 +882,8 @@ mod tests {
     struct Resume {
         lines: Vec<String>,
         next_offset: u64,
+        /// 이 읽기가 공유 잠금 아래 읽은 누계.
+        retention_start: u64,
         truncated: bool,
         /// None은 논리 위치가 현재 끝보다 커서 집계되지 않은 비우기를 감지한 경우다.
         skipped: Option<u64>,
@@ -946,6 +948,7 @@ mod tests {
         Ok(Resume {
             lines,
             next_offset: base + physical + consumed as u64,
+            retention_start: base,
             truncated,
             skipped,
             locked: guard.is_some(),
@@ -1180,6 +1183,161 @@ mod tests {
         }
     }
 
+    /// writer가 모두 끝난 뒤 재개 읽기를 이만큼 버리면 읽기 오류로 본다. writer가 끝나면 새
+    /// 비우기가 없으므로 계속 버려지는 것은 읽기 오류뿐이다.
+    const MAX_REJECTED_AFTER_WRITERS: usize = 1_000;
+
+    /// 동시 writer 시험의 reader와 판정. 동시 writer 시험들이 같은 판정을 쓴다.
+    /// 읽을 때마다 같은 줄을 두 번 받지 않았는지와 unknown 배정을 단언하고, `finish`가 받은
+    /// 바이트 + 잃은 바이트를 쓴 바이트와 대조한다.
+    struct ResumeJudge<'a> {
+        log: &'a Path,
+        offset: u64,
+        /// 직전 채택 읽기의 next_offset - retention_start(파일 안 위치).
+        position: u64,
+        read_bytes: u64,
+        skipped_bytes: u64,
+        unknown: u64,
+        rejected: usize,
+        seen: std::collections::HashSet<String>,
+        /// 직전에 채택한 읽기가 공유 잠금 아래에서 본 누계 밖 비우기 수. unknown은 그 뒤로 이번
+        /// 읽기까지 사이에 기록된 비우기가 있어야 설명된다. 연속한 채택 읽기의 구간은 겹치지
+        /// 않으므로 한 비우기가 두 unknown을 설명하는 일은 없다.
+        seen_truncations: u64,
+    }
+
+    impl<'a> ResumeJudge<'a> {
+        fn new(log: &'a Path) -> Self {
+            Self {
+                log,
+                offset: 0,
+                position: 0,
+                read_bytes: 0,
+                skipped_bytes: 0,
+                unknown: 0,
+                rejected: 0,
+                seen: Default::default(),
+                seen_truncations: 0,
+            }
+        }
+
+        /// 재개 읽기를 한 번 한다. 채택하면 받은 줄과 손실을 반영하고, 버리면 그 사유를 돌려준다.
+        fn read_once(&mut self) -> Result<(), String> {
+            let before = unaccounted::peek(self.log);
+            let attempt = try_resume(self.log, self.offset);
+            let after = unaccounted::peek(self.log);
+            // 잠금 없는 비우기는 공유 잠금으로 막을 수 없다. 그 시도와 겹쳤을 수 있는 읽기,
+            // 실패한 읽기, 잠금 없이 읽은 결과는 소비하지 않고 같은 위치에서 다시 읽는다.
+            let overlapped = before.lockless_started != before.lockless_finished
+                || after.lockless_started != before.lockless_started;
+            let r = match attempt {
+                Ok(r) if r.locked && !overlapped => r,
+                other => {
+                    self.rejected += 1;
+                    return Err(match &other {
+                        Ok(r) => {
+                            format!(
+                                "locked={} overlapped={overlapped}. 계수 {after:?}",
+                                r.locked
+                            )
+                        }
+                        Err(e) => format!("error {e}. 계수 {after:?}"),
+                    });
+                }
+            };
+            for l in &r.lines {
+                self.read_bytes += l.len() as u64 + 1;
+                assert!(
+                    self.seen.insert(l.clone()),
+                    "같은 줄을 두 번 받았다: {l} (계수 {after:?})"
+                );
+            }
+            match r.skipped {
+                Some(n) => self.skipped_bytes += n,
+                None => {
+                    self.unknown += 1;
+                    assert!(
+                        r.counts.truncations() > self.seen_truncations,
+                        "unknown {} 번째를 설명할 누계 밖 비우기가 직전 읽기 이후에 없다\
+                         (직전 읽기까지 {} 건). 계수 {:?}",
+                        self.unknown,
+                        self.seen_truncations,
+                        r.counts
+                    );
+                }
+            }
+            self.seen_truncations = r.counts.truncations();
+            self.offset = r.next_offset;
+            self.position = r.next_offset - r.retention_start;
+            Ok(())
+        }
+
+        /// `finished`가 참이 될 때까지 따라 읽고, 참을 본 뒤의 채택 읽기 한 번으로 끝낸다.
+        fn read_until(&mut self, finished: impl Fn() -> bool) {
+            let mut rejected_after_writers = 0usize;
+            loop {
+                let finished = finished();
+                if let Err(why) = self.read_once() {
+                    // writer가 도는 동안은 잠금 없는 비우기가 계속 겹칠 수 있다.
+                    if finished {
+                        rejected_after_writers += 1;
+                        assert!(
+                            rejected_after_writers < MAX_REJECTED_AFTER_WRITERS,
+                            "writer가 끝난 뒤 재개 읽기를 {rejected_after_writers} 번 버렸다\
+                             (마지막: {why})"
+                        );
+                    }
+                    std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
+                    continue;
+                }
+                if finished {
+                    break;
+                }
+                // reader가 공유 잠금을 계속 차지해 배타 획득을 막지 않도록 사이에 쉰다.
+                std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
+            }
+        }
+
+        /// 모든 writer가 끝난 뒤 쓴 바이트와 대조한다. 계수를 꺼내 돌려준다.
+        fn finish(self, written: u64) -> unaccounted::Counts {
+            let c = unaccounted::take(self.log);
+            let (read_bytes, skipped_bytes, unknown, rejected) = (
+                self.read_bytes,
+                self.skipped_bytes,
+                self.unknown,
+                self.rejected,
+            );
+            let received = read_bytes + skipped_bytes;
+            assert!(
+                unknown <= c.truncations(),
+                "누계 밖 비우기 {} 번으로 설명되지 않는 unknown {unknown} 번. 계수 {c:?}, 버린 읽기 \
+                 {rejected}",
+                c.truncations()
+            );
+            // 메타 내용이 바뀌었거나 갱신 전후 내용을 읽지 못해 변경 여부를 모르는 갱신 실패는 누계를
+            // 어느 쪽으로든 망가뜨렸을 수 있어 바이트 합을 판정하지 않는다. 누계 밖 비우기는 받은 +
+            // 잃은 을 쓴 값보다 작게만 만든다. 공유 잠금 없는 append는 비우기에 성공한 배타 시도와
+            // 겹친 것의 바이트만 누계 밖에서 지워질 수 있다(겹침 판정의 한계는 `record_unlocked_append`).
+            if c.meta_update == 0 {
+                if c.truncations() == 0 {
+                    let floor = written - c.unlocked_append_overlap_bytes;
+                    assert!(
+                        (floor..=written).contains(&received),
+                        "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 과 다르다(허용 하한 \
+                         {floor}). 계수 {c:?}, 버린 읽기 {rejected}"
+                    );
+                } else {
+                    assert!(
+                        received <= written,
+                        "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 보다 크다. 계수 \
+                         {c:?}, 버린 읽기 {rejected}"
+                    );
+                }
+            }
+            c
+        }
+    }
+
     // 동시 쓰기와 재개 읽기에서 받은 바이트 + 기록된 손실 = 쓴 바이트인지 확인한다.
     // 이 부하에서 계약이 허용한 저하(배타 잠금 예산 초과 등)가 0번이라고 가정하지 않는다.
     // 저하는 `unaccounted` 계수로 설명돼야 한다. 줄마다 9바이트인 append가 write 호출 한 번으로
@@ -1191,13 +1349,10 @@ mod tests {
         const CAP: u64 = 512;
         const WRITERS: usize = 6;
         const ROUNDS: usize = 1_500;
-        const MAX_REJECTED_AFTER_WRITERS: usize = 1_000;
         // writer보다 먼저 메타를 만들어 reader가 처음부터 공유 잠금 아래에서 읽게 한다.
         open_meta(&notify_meta_path(&log)).expect("메타 준비");
         let done = std::sync::atomic::AtomicUsize::new(0);
-        let (mut read_bytes, mut skipped_bytes, mut unknown) = (0u64, 0u64, 0u64);
-        let mut rejected = 0usize;
-        let mut seen = std::collections::HashSet::new();
+        let mut judge = ResumeJudge::new(&log);
         std::thread::scope(|scope| {
             for w in 0..WRITERS {
                 let log = &log;
@@ -1211,102 +1366,128 @@ mod tests {
                     }
                 });
             }
-            let mut offset = 0u64;
-            let mut rejected_after_writers = 0usize;
-            // 직전에 채택한 읽기가 공유 잠금 아래에서 본 누계 밖 비우기 수. unknown은 그 뒤로 이번
-            // 읽기까지 사이에 기록된 비우기가 있어야 설명된다. 연속한 채택 읽기의 구간은 겹치지
-            // 않으므로 한 비우기가 두 unknown을 설명하는 일은 없다.
-            let mut seen_truncations = 0u64;
-            loop {
-                let finished = done.load(std::sync::atomic::Ordering::SeqCst) == WRITERS;
-                let before = unaccounted::peek(&log);
-                let attempt = try_resume(&log, offset);
-                let after = unaccounted::peek(&log);
-                // 잠금 없는 비우기는 공유 잠금으로 막을 수 없다. 그 시도와 겹쳤을 수 있는 읽기,
-                // 실패한 읽기, 잠금 없이 읽은 결과는 소비하지 않고 같은 위치에서 다시 읽는다.
-                let overlapped = before.lockless_started != before.lockless_finished
-                    || after.lockless_started != before.lockless_started;
-                let r = match attempt {
-                    Ok(r) if r.locked && !overlapped => r,
-                    other => {
-                        rejected += 1;
-                        // writer가 도는 동안은 잠금 없는 비우기가 계속 겹칠 수 있다. 모두 끝난 뒤에는
-                        // 새 비우기가 없으므로 계속 버려지는 것은 읽기 오류뿐이다.
-                        if finished {
-                            rejected_after_writers += 1;
-                            let why = match &other {
-                                Ok(r) => format!("locked={} overlapped={overlapped}", r.locked),
-                                Err(e) => format!("error {e}"),
-                            };
-                            assert!(
-                                rejected_after_writers < MAX_REJECTED_AFTER_WRITERS,
-                                "writer가 끝난 뒤 재개 읽기를 {rejected_after_writers} 번 버렸다\
-                                 (마지막: {why}). 계수 {after:?}"
-                            );
-                        }
-                        std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
-                        continue;
-                    }
-                };
-                for l in &r.lines {
-                    read_bytes += l.len() as u64 + 1;
-                    assert!(
-                        seen.insert(l.clone()),
-                        "같은 줄을 두 번 받았다: {l} (계수 {after:?})"
-                    );
-                }
-                match r.skipped {
-                    Some(n) => skipped_bytes += n,
-                    None => {
-                        unknown += 1;
-                        assert!(
-                            r.counts.truncations() > seen_truncations,
-                            "unknown {unknown} 번째를 설명할 누계 밖 비우기가 직전 읽기 이후에 없다\
-                             (직전 읽기까지 {seen_truncations} 건). 계수 {:?}",
-                            r.counts
-                        );
-                    }
-                }
-                seen_truncations = r.counts.truncations();
-                offset = r.next_offset;
-                if finished {
-                    break;
-                }
-                // reader가 공유 잠금을 계속 차지해 배타 획득을 막지 않도록 사이에 쉰다.
-                std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
-            }
+            judge.read_until(|| done.load(std::sync::atomic::Ordering::SeqCst) == WRITERS);
         });
         let written: u64 = (0..WRITERS)
             .flat_map(|w| (0..ROUNDS).map(move |i| format!("w{w}-{i:05}").len() as u64 + 1))
             .sum();
-        let c = unaccounted::take(&log);
-        let received = read_bytes + skipped_bytes;
-        assert!(
-            unknown <= c.truncations(),
-            "누계 밖 비우기 {} 번으로 설명되지 않는 unknown {unknown} 번. 계수 {c:?}, 버린 읽기 \
-             {rejected}",
-            c.truncations()
-        );
-        // 메타 내용이 바뀌었거나 갱신 전후 내용을 읽지 못해 변경 여부를 모르는 갱신 실패는 누계를
-        // 어느 쪽으로든 망가뜨렸을 수 있어 바이트 합을 판정하지 않는다. 누계 밖 비우기는 받은 +
-        // 잃은 을 쓴 값보다 작게만 만든다. 공유 잠금 없는 append는 배타 비우기 구간과 겹친 것의
-        // 바이트만 누계 밖에서 지워질 수 있다(겹침 판정이 넓은 한계는 `record_unlocked_append`).
-        if c.meta_update == 0 {
-            if c.truncations() == 0 {
-                let floor = written - c.unlocked_append_overlap_bytes;
-                assert!(
-                    (floor..=written).contains(&received),
-                    "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 과 다르다(허용 하한 \
-                     {floor}). 계수 {c:?}, 버린 읽기 {rejected}"
-                );
-            } else {
-                assert!(
-                    received <= written,
-                    "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 보다 크다. 계수 \
-                     {c:?}, 버린 읽기 {rejected}"
-                );
+        judge.finish(written);
+    }
+
+    /// 강제 writer의 완료를 기다리는 상한. 무한 대기를 막을 뿐이다. writer는 배타 잠금 예산
+    /// (200ms)만 기다린 뒤 잠금 없이 비우고 끝난다.
+    const FORCED_WRITER_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+    // 동시 writer 사이에서 배타 잠금 예산 초과로 잠금 없이 비우는 저하를 순서로 만들고, 그 비우기가
+    // reader의 unknown을 매번 설명하는지 동시 writer 시험과 같은 판정으로 확인한다. 저하를 자연
+    // 경합에 맡기면 그 판정이 저하가 섞인 실행에서 도는 일이 드물다.
+    #[test]
+    fn a_forced_lock_budget_truncation_among_concurrent_writers_is_explained() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log = tmp.path().join("forced.log");
+        let meta_path = notify_meta_path(&log);
+        const CAP: u64 = 512;
+        const WRITERS: usize = 4;
+        const ROUNDS: usize = 300;
+        const CYCLES: u64 = 3;
+        open_meta(&meta_path).expect("메타 준비");
+        let mut judge = ResumeJudge::new(&log);
+        let mut written = 0u64;
+        for cycle in 0..CYCLES {
+            // 1. 동시 단계. 정상 배타 비우기가 섞인다.
+            let done = std::sync::atomic::AtomicUsize::new(0);
+            std::thread::scope(|scope| {
+                for w in 0..WRITERS {
+                    let log = &log;
+                    let done = &done;
+                    scope.spawn(move || {
+                        let _finished = WriterDone(done);
+                        for i in 0..ROUNDS {
+                            append_line_to(log, &format!("c{cycle}-w{w}-{i:04}"), CAP).unwrap();
+                        }
+                    });
+                }
+                judge.read_until(|| done.load(std::sync::atomic::Ordering::SeqCst) == WRITERS);
+            });
+            written += (0..WRITERS)
+                .flat_map(|w| {
+                    (0..ROUNDS).map(move |i| format!("c{cycle}-w{w}-{i:04}").len() as u64 + 1)
+                })
+                .sum::<u64>();
+
+            // 2. 기준 이상까지 채운다. 크기 검사가 append 앞이라 이 단계에서는 비우기가 없다.
+            let mut fill = 0;
+            while std::fs::metadata(&log).unwrap().len() < CAP {
+                let line = format!("c{cycle}-fill-{fill:04}");
+                append_line_to(&log, &line, CAP).unwrap();
+                written += line.len() as u64 + 1;
+                fill += 1;
             }
+            judge.read_until(|| true);
+            let forced = format!("c{cycle}-forced");
+            let forced_bytes = forced.len() as u64 + 1;
+            // 비운 뒤 남는 한 줄이 직전 읽기 위치보다 짧아야 재개가 unknown으로 간다. 같거나 길면
+            // 정상 재개로 처리된다.
+            assert!(
+                judge.position > forced_bytes,
+                "전제: 직전 읽기 위치 {} 가 강제 writer의 줄 {forced_bytes} 보다 커야 한다",
+                judge.position
+            );
+
+            // 3. reader처럼 공유 잠금을 쥔 채, 강제 writer가 배타 잠금 예산을 넘겨 잠금 없이 비우고
+            // 끝날 때까지 놓지 않는다. 다른 writer가 없으므로 기다리는 동안 크기가 줄지 않아
+            // NotNeeded가 되지 않고, 공유 잠금 때문에 정상 비우기도 끼지 못한다.
+            let before = unaccounted::peek(&log);
+            let holder = std::fs::File::open(&meta_path).unwrap();
+            holder.lock_shared().unwrap();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let writer_log = log.clone();
+            let writer_line = forced.clone();
+            // 떼어 낸 스레드다 — 되돌린 코드에서 writer가 막혀도 시험이 join 하느라 멈추지 않게 한다.
+            std::thread::spawn(move || {
+                let r = append_line_to(&writer_log, &writer_line, CAP);
+                // 수신 쪽이 이미 시간 초과로 떠났으면 보낼 곳이 없다 — 그 결과는 버린다.
+                tx.send(r.is_ok()).ok();
+            });
+            let finished = rx.recv_timeout(FORCED_WRITER_LIMIT);
+            holder.unlock().unwrap();
+            assert_eq!(
+                finished,
+                Ok(true),
+                "공유 잠금을 쥔 동안 cap 을 넘긴 append 가 끝나지 않았다"
+            );
+            written += forced_bytes;
+            // 4. 누계는 2와 같고 파일은 한 줄이라 재개가 unknown이며, 3의 비우기가 그것을 설명한다.
+            let unknown_before = judge.unknown;
+            judge.read_until(|| true);
+            assert_eq!(
+                judge.unknown,
+                unknown_before + 1,
+                "회차 {cycle}: 강제 비우기 뒤 재개가 unknown이 아니다"
+            );
+            // 배정 판정을 먼저 거친다. 잠금 없는 비우기의 기록이 빠지면 위 읽기가 unknown을 설명할
+            // 비우기가 없다는 실패로 먼저 드러난다.
+            let after = unaccounted::peek(&log);
+            assert_eq!(
+                (
+                    after.lock_budget,
+                    after.lockless_started,
+                    after.lockless_finished
+                ),
+                (
+                    before.lock_budget + 1,
+                    before.lockless_started + 1,
+                    before.lockless_finished + 1
+                ),
+                "회차 {cycle}: 예산 초과로 잠금 없이 비운 한 번이 기록돼야 한다. 전 {before:?} 후 {after:?}"
+            );
         }
+        let unknown = judge.unknown;
+        let c = judge.finish(written);
+        assert!(
+            c.lock_budget >= CYCLES && unknown >= CYCLES,
+            "강제한 저하 {CYCLES} 회가 모두 판정을 거쳐야 한다: unknown {unknown}, 계수 {c:?}"
+        );
     }
 
     // 공유 잠금 없는 append는 비우기에 성공한 배타 시도와 겹쳤을 때만 동등식 하한에서 빠진다.
