@@ -11,6 +11,8 @@ Tasty를 개발하는 에이전트가 UI·렌더링·입력을 직접 재현하�
 | [IME](ime-testing.md) | debug의 surface.ime_*로 한글·CJK 입력을 재현하는 방법과 한계 |
 | [macOS 키 주입 권한](macos-key-injection.md) | OS 합성 키로 측정할 때 손쉬운 사용 권한을 받는 앱, 확인·요청 절차, 키 입력 도우미 경로 |
 
+Linux 트레이 메뉴를 D-Bus로 확인하는 절차는 [시스템 트레이 정책](../design/policies/system-tray.md#linux-트레이-메뉴-확인)에 있다.
+
 검증은 커밋 전에 직접 수행한다. 실행 환경은 [자체 검증 가이드](../dev-guide/self-verification.md)와 [격리 절차](../dev-guide/self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다)를 따른다.
 
 <a id="이-문서군의-절차-중-무엇이-자동화-대상인가"></a>
