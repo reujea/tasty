@@ -35,6 +35,8 @@ mod titlebar_press;
 pub(crate) mod vi_copy;
 
 pub(crate) mod ime;
+#[cfg(target_os = "linux")]
+pub(crate) use fullscreen_window::window_size_is_locked;
 
 pub(crate) use divider_drag::DividerDrag;
 pub(crate) use html_address_keys::address_keymap_receives;

@@ -41,6 +41,16 @@ fn os_controls() -> Option<TitlebarControls> {
     })
 }
 
+/// Linux 설정창 제목 줄의 버튼. 닫기 하나를 오른쪽에 둔다.
+#[cfg(target_os = "linux")]
+pub(crate) fn close_only_controls() -> TitlebarControls {
+    use view::{ControlSide, WindowButton};
+    TitlebarControls {
+        buttons: vec![WindowButton::Close],
+        side: ControlSide::Right,
+    }
+}
+
 #[cfg(not(target_os = "linux"))]
 fn os_controls() -> Option<TitlebarControls> {
     None
@@ -97,7 +107,10 @@ pub fn draw_titlebar(
 }
 
 /// 패널 배치 영역을 그 패스의 배율로 물리 좌표에 옮긴다. 포인터 사건 좌표(물리)와 비교하는 데 쓴다.
-fn physical_panel_rect(rect: egui::Rect, pixels_per_point: f32) -> crate::model::PhysicalRect {
+pub(crate) fn physical_panel_rect(
+    rect: egui::Rect,
+    pixels_per_point: f32,
+) -> crate::model::PhysicalRect {
     crate::model::LogicalRect {
         x: crate::model::LogicalPx(rect.min.x),
         y: crate::model::LogicalPx(rect.min.y),

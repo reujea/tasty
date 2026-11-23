@@ -31,6 +31,12 @@ impl App {
         if let Some(icon) = crate::app_icon::winit_window_icon() {
             attrs = attrs.with_window_icon(Some(icon));
         }
+        // Linux는 OS 장식이 Tasty 테마를 따르지 않으므로 끄고 제목 줄을 앱이 그린다(`SettingsChrome`).
+        // macOS·Windows는 OS 장식을 그대로 쓴다.
+        #[cfg(target_os = "linux")]
+        {
+            attrs = crate::platform::window_chrome::apply_csd_attributes(attrs);
+        }
 
         // 생성 실패 시 기존 창은 유지하며 설정 모달 열기만 취소한다.
         let window = match event_loop.create_window(attrs) {

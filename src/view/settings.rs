@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+mod chrome;
 pub mod ui;
 
 use std::sync::Arc;
@@ -37,6 +39,9 @@ pub struct SettingsView {
     pub(crate) toasts: ToastManager,
     /// This window's clipboard: egui widget copies go through the copy door with it.
     clipboard: crate::clipboard::terminal::TerminalClipboard,
+    /// Linux는 OS 장식을 끄고 제목 줄·창 가장자리를 앱이 맡는다.
+    #[cfg(target_os = "linux")]
+    chrome: chrome::SettingsChrome,
 }
 
 impl SettingsView {
@@ -64,6 +69,8 @@ impl SettingsView {
     ) -> Self {
         settings_ui::install_monitor_probe(&gpu.egui_ctx, &winit);
         Self {
+            #[cfg(target_os = "linux")]
+            chrome: chrome::SettingsChrome::new(&winit),
             base: ViewBase::new(gpu, winit),
             clipboard,
             original_restore_content: settings.general.restore_surface_content,
@@ -80,6 +87,12 @@ impl SettingsView {
             committed: false,
             toasts: ToastManager::for_settings_window(),
         }
+    }
+
+    /// halt 중 제목 줄 닫기 버튼 누름인지. 참이면 호출자가 모달을 닫는다(초안 폐기).
+    #[cfg(target_os = "linux")]
+    pub(crate) fn halted_close_press(&mut self, event: &WindowEvent) -> bool {
+        self.chrome.halted_close_press(event)
     }
 
     /// 창을 열 때의 설정.
@@ -189,6 +202,15 @@ impl View for SettingsView {
         {
             return action;
         }
+        #[cfg(target_os = "linux")]
+        if self.chrome.take_live_event(
+            &event,
+            &self.base.winit,
+            self.base.gpu.size(),
+            self.base.gpu.edit_keys_busy(),
+        ) {
+            return ViewAction::None;
+        }
         self.handle_judged_event(event, None)
     }
 
@@ -216,7 +238,17 @@ impl View for SettingsView {
 
         let file_format = self.file_format.clone();
         let file_handler = self.file_handler.clone();
+        #[cfg(target_os = "linux")]
+        let (chrome, winit) = (&mut self.chrome, self.base.winit.clone());
+        // 한 프레임의 패스가 여럿이어도 앞 패스의 닫기 누름을 잃지 않도록 모은다.
+        // 이유: 제목 줄을 그리는 곳이 Linux뿐이라 다른 OS에서는 값이 바뀌지 않는다.
+        #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
+        let mut titlebar_close = false;
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
+            #[cfg(target_os = "linux")]
+            {
+                titlebar_close |= chrome.draw_titlebar(ctx, &winit);
+            }
             action = settings_ui::draw_settings_panel(
                 ctx,
                 settings_ui::SettingsPanelCtx {
@@ -241,6 +273,8 @@ impl View for SettingsView {
                 tab_content_rects: Vec::new(),
             };
             toasts.draw(ctx, &empty_layout, reduced_motion);
+            #[cfg(target_os = "linux")]
+            chrome.apply_resize_cursor(ctx, &winit);
         });
         self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
             &self.base.gpu.egui_ctx,
@@ -251,6 +285,9 @@ impl View for SettingsView {
         if action.is_some() {
             self.should_close = true;
             self.committed = action == Some(true);
+        } else if titlebar_close {
+            // 제목 줄 닫기는 OS 닫기와 같다. 초안을 버린다.
+            self.should_close = true;
         }
         if let Some(msg) = self.settings_ui_state.take_import_export_toast() {
             self.toasts.push(
@@ -327,6 +364,10 @@ impl SettingsView {
                 self.mark_dirty();
             }
             WindowEvent::RedrawRequested => {
+                #[cfg(target_os = "linux")]
+                if self.chrome.sync_decorations(&self.base.winit) {
+                    self.mark_dirty();
+                }
                 self.render();
             }
             WindowEvent::CursorMoved { .. } => {
