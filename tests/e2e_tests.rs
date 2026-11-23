@@ -2023,20 +2023,21 @@ fn settled_plugin_round_trips(tasty: &TastyInstance) -> u64 {
             .expect("system.pressure 에 plugin_round_trip.matched 가 있어야 한다")
     };
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    // 기한 뒤 읽기 하나로 바꾸지 않는다. 안정 판정은 표본 사이 간격이 계약이라 기한 뒤 표본은 새 간격 대기와
+    // 새 조회를 열어야 하고, 이미 뜬 표본만으로는 안정을 관측할 수 없다.
     let mut last = read();
-    let mut now = last;
-    // 안정 판정은 두 표본 사이 500ms 간격 자체가 계약이다. 기한 뒤 읽기도 500ms 를 둔 표본으로 본다.
-    let settled = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |_| {
+    loop {
         std::thread::sleep(Duration::from_millis(500));
+        let now = read();
+        if now == last {
+            return now;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "plugin 왕복 수가 10초 동안 멈추지 않았다: {last} → {now}"
+        );
         last = now;
-        now = read();
-        now == last
-    });
-    assert!(
-        settled,
-        "plugin 왕복 수가 10초 동안 멈추지 않았다: {last} → {now}"
-    );
-    now
+    }
 }
 
 /// 실제 인스턴스에서 plugin namespace 메서드 IPC 하나가 plugin 에 정확히 한 번 전달되는지
@@ -3743,22 +3744,22 @@ fn fill_memory_wal(port: u16, wal: &std::path::Path) -> u64 {
 /// 첫 호스트의 비동기 부팅 쓰기(설정 저장 등)가 끝나 스냅숏이 멈출 때까지 기다린다.
 #[cfg(not(feature = "gui"))]
 fn settled_home_files(home: &std::path::Path) -> HomeFiles {
+    // 기한 뒤 읽기 하나로 바꾸지 않는다. 안정 판정은 표본 사이 간격이 계약이라 기한 뒤 표본은 새 간격 대기를
+    // 열어야 하고, 이미 뜬 표본만으로는 안정을 관측할 수 없다.
     let mut before = untouched_home_files(home);
     let settle = std::time::Instant::now() + Duration::from_secs(10);
-    let mut again = None;
-    // 안정 판정은 두 표본 사이 500ms 간격 자체가 계약이다. 기한 뒤 읽기도 500ms 를 둔 표본으로 본다.
-    let settled = tasty_utils::test_wait::holds_by_every(settle, Duration::ZERO, |_| {
+    loop {
         std::thread::sleep(Duration::from_millis(500));
-        if let Some(previous) = again.take() {
-            before = previous;
+        let again = untouched_home_files(home);
+        if again == before {
+            return again;
         }
-        let sample = untouched_home_files(home);
-        let same = sample == before;
-        again = Some(sample);
-        same
-    });
-    assert!(settled, "첫 호스트의 홈 파일이 10초 동안 계속 바뀐다");
-    again.expect("each read keeps its sample")
+        assert!(
+            std::time::Instant::now() < settle,
+            "첫 호스트의 홈 파일이 10초 동안 계속 바뀐다"
+        );
+        before = again;
+    }
 }
 
 /// 두 번째 호스트를 끝날 때까지 돌린다. 도는 동안 기본 포트 파일이 첫 호스트를 가리키는지 계속 본다.
