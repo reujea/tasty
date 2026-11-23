@@ -474,18 +474,23 @@ fn terminal_scan_cursor_is_separate_from_the_agent_mark() {
             .unwrap_or_default()
             .to_string()
     };
+    // 기한 뒤 읽기 하나로 바꾸지 않는다. read_since_scan_mark 는 scan 커서를 전진시키는 쓰기라
+    // 기한 뒤 읽기가 상태를 바꾸게 된다.
     // 커서가 전진하므로 출력이 나뉘어 오면 읽은 조각을 이어 붙인다.
     let wait_scan = |needle: &str| -> String {
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let start = std::time::Instant::now();
         let mut seen = String::new();
-        // 커서가 전진하는 읽기지만 본 조각을 모두 누적하므로 기한 뒤 읽기 한 번도 관측이다.
-        let found =
-            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(50), |_| {
-                seen.push_str(&scan(true));
-                seen.contains(needle)
-            });
-        assert!(found, "scan 커서에서 '{needle}' 를 못 봤다. 본 것:\n{seen}");
-        seen
+        loop {
+            seen.push_str(&scan(true));
+            if seen.contains(needle) {
+                return seen;
+            }
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "scan 커서에서 '{needle}' 를 못 봤다. 본 것:\n{seen}"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
     };
     let echo = |marker: &str| {
         let cmd = if cfg!(windows) {
@@ -1186,28 +1191,28 @@ fn headless_pty_spawn_write_wait_kill() {
         "pty.write",
         json!({ "id": pty_id, "text": "echo PTY_E2E_MARK\n" }),
     );
-    // pty.read 는 idle 시각도 갱신하지만 매 읽기가 같은 갱신이고 이 시험은 idle 을 판정하지 않는다.
-    let read_deadline = std::time::Instant::now() + Duration::from_secs(5);
-    let mut r = serde_json::Value::Null;
-    assert!(
-        tasty_utils::test_wait::holds_by_every(read_deadline, Duration::from_millis(50), |_| {
-            r = tasty.call("pty.read", json!({ "id": pty_id }));
-            r["text"].as_str().unwrap_or("").contains("PTY_E2E_MARK")
-        }),
-        "pty.read 가 echo 출력을 반영하지 못함: {r:?}"
-    );
+    // 기한 뒤 읽기 하나로 바꾸지 않는다. pty.read 와 pty.wait 는 조회지만 standalone pty 의 idle 시각을
+    // 갱신하는 쓰기를 함께 하므로, 기한 뒤 읽기가 상태를 바꾸게 된다.
+    let read_start = std::time::Instant::now();
+    loop {
+        let r = tasty.call("pty.read", json!({ "id": pty_id }));
+        if r["text"].as_str().unwrap_or("").contains("PTY_E2E_MARK") {
+            break;
+        }
+        if read_start.elapsed() > Duration::from_secs(5) {
+            panic!("pty.read 가 echo 출력을 반영하지 못함: {r:?}");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
 
     tasty.call("pty.write", json!({ "id": pty_id, "text": "exit 5\n" }));
-    // pty.wait 는 기다리지 않고 종료를 관측(observe_exit)해 돌려준다. 종료 관측은 단조라 기한 뒤 읽기도 관측이다.
-    let wait_deadline = std::time::Instant::now() + Duration::from_secs(10);
-    let mut w = serde_json::Value::Null;
-    let done =
-        tasty_utils::test_wait::holds_by_every(wait_deadline, Duration::from_millis(50), |_| {
-            w = tasty.call("pty.wait", json!({ "id": pty_id }));
-            w["exited"].as_bool() == Some(true)
-        });
-    let exited = {
-        if !done {
+    let wait_start = std::time::Instant::now();
+    let exited = loop {
+        let w = tasty.call("pty.wait", json!({ "id": pty_id }));
+        if w["exited"].as_bool() == Some(true) {
+            break w;
+        }
+        if wait_start.elapsed() > Duration::from_secs(10) {
             let r = tasty.call("pty.read", json!({ "id": pty_id }));
             let screen = r["text"].as_str().unwrap_or("<pty.read 실패>");
             let tail: String = screen
@@ -1231,7 +1236,7 @@ fn headless_pty_spawn_write_wait_kill() {
                 tail.escape_default(),
             );
         }
-        w
+        std::thread::sleep(Duration::from_millis(50));
     };
     assert_eq!(exited["exit_code"].as_i64(), Some(5), "진짜 exit-code 회수");
     assert_eq!(exited["success"], false);
