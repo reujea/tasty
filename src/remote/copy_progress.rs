@@ -55,6 +55,9 @@ struct SurfaceScan {
     head: Vec<u8>,
     /// 쓰기로 정했거나 한도를 넘어 다음 기준점까지 머리를 보지 않는 동안, 파서가 OSC 문자열 안인지.
     closed: Option<bool>,
+    /// 이 머리를 다시 파싱해 파서가 OSC 문자열 안임을 알았다. 머리 안에서 OSC 문자열을 떠나는 바이트는 모두
+    /// 기준점이라 다음 기준점까지 그대로다.
+    in_osc_head: bool,
     /// 사전 필터. 머리에서 `52;`를 어디까지 찾았는지(3이면 찾음), 4면 그 뒤 `;`도 찾았다.
     marks: u8,
     /// 파서가 UTF-8 글자 중간이면 남은 연속 바이트.
@@ -70,6 +73,7 @@ impl SurfaceScan {
     fn restart(&mut self, byte: Option<u8>) {
         self.head.clear();
         self.closed = None;
+        self.in_osc_head = false;
         self.marks = 0;
         if let Some(byte) = byte {
             self.head.push(byte);
@@ -84,6 +88,7 @@ impl Default for SurfaceScan {
             parser: vtparse::VTParser::new(),
             head: Vec::new(),
             closed: None,
+            in_osc_head: false,
             marks: 0,
             utf8: Utf8Tail::default(),
             receiving: None,
@@ -247,7 +252,11 @@ impl CopyProgress {
             // 리드 바이트가 글자를 시작하는지와 0x9d가 새 OSC를 여는지는 파서가 OSC 문자열 안인지에 달렸다.
             // ground가 아니고 머리를 보는 중이면 머리를 다시 파싱해 정한다. 이런 바이트 조합에서만 돈다.
             let needs_osc = !in_char && !was_ground && matches!(byte, 0x9d | 0xc2..=0xf4);
-            let in_osc = needs_osc && scan.closed.unwrap_or_else(|| osc_head(&scan.head).0);
+            let in_osc = needs_osc
+                && scan.closed.unwrap_or_else(|| {
+                    scan.in_osc_head = scan.in_osc_head || osc_head(&scan.head).0;
+                    scan.in_osc_head
+                });
             scan.utf8 = scan.utf8.after(byte, was_ground || in_osc);
             scan.parser.parse_byte(byte, &mut step);
             for end in step.ends.drain(..) {
