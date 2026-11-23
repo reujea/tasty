@@ -355,6 +355,30 @@ fn an_ignoring_popup_keeps_a_bare_escape_from_a_plugin_command() {
     assert!(names(&mut state).is_empty());
 }
 
+/// T-Esc-1: 튜토리얼 말풍선이 키보드를 가지면 bare Esc 는 지금 게이트가 닫아 plugin 의 Esc 명령이 돌지 않는다.
+/// 말풍선 노드는 Esc 를 끝내지 않으므로(`key_route::start_node_ends_key`) bare Esc 에 경로 게이트를 쓰면 갈리는
+/// 장면이다. 포커스할 수 있는 `Ignore` 팝업(explorer_conflict)은 `Text`라 경로 게이트도 Esc 를 끝내 갈리지 않는다.
+#[test]
+fn a_tutorial_keeps_a_bare_escape_from_a_plugin_command() {
+    let (mut state, mut session) = scene(B);
+    let mut mgr = manager();
+    state.tutorial.request_start(0);
+    state.tutorial.start_pending();
+    assert!(state.tutorial.keyboard_focus);
+    assert_eq!(
+        state.focus_node(&session.read()),
+        crate::state::focus_node::FocusNode::Tutorial
+    );
+    assert!(!winit_key(
+        &mut state,
+        &mut session,
+        &mut mgr,
+        escape(),
+        NONE
+    ));
+    assert!(names(&mut state).is_empty());
+}
+
 /// T-Esc-1 대조: 터미널 포커스에서 plugin Esc 명령은 돈다.
 #[test]
 fn a_terminal_focus_lets_a_plugin_escape_command_run() {
