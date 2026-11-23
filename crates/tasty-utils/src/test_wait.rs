@@ -29,22 +29,43 @@ pub fn holds_by(deadline: Instant, mut holds: impl FnMut() -> bool) -> bool {
 pub fn holds_by_every(
     deadline: Instant,
     interval: Duration,
+    read: impl FnMut(bool) -> bool,
+) -> bool {
+    wait_with(deadline, interval, read, Instant::now, pause)
+}
+
+/// 간격이 0 이면 그 회차에 스레드를 양보만 하고, 아니면 그만큼 잔다. 0 간격 대기가 바쁜 폴링이 되지 않게 한다.
+fn pause(interval: Duration) {
+    if interval.is_zero() {
+        std::thread::yield_now();
+    } else {
+        std::thread::sleep(interval);
+    }
+}
+
+/// `holds_by_every` 의 본체. 시험이 시각과 멈춤을 주입해 읽기·시각 검사·멈춤의 순서를 직접 가른다.
+fn wait_with(
+    deadline: Instant,
+    interval: Duration,
     mut read: impl FnMut(bool) -> bool,
+    mut now: impl FnMut() -> Instant,
+    mut pause: impl FnMut(Duration),
 ) -> bool {
     loop {
         if read(false) {
             return true;
         }
-        if Instant::now() >= deadline {
+        if now() >= deadline {
             return read(true);
         }
-        std::thread::sleep(interval);
+        pause(interval);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{holds_by, holds_by_every};
+    use super::{holds_by, holds_by_every, wait_with};
+    use std::cell::{Cell, RefCell};
     use std::time::{Duration, Instant};
 
     /// 기한이 지난 뒤 첫 재읽기에서 참이 되면 참이다.
@@ -70,85 +91,123 @@ mod tests {
         assert!(reads >= 2, "read {reads} times");
     }
 
-    /// 이미 지난 기한이어도 정규 읽기를 먼저 하고, 그것이 참이면 `last` 읽기 없이 참이다.
-    #[test]
-    fn a_true_regular_read_holds_without_a_last_read() {
-        let mut calls = Vec::new();
-        assert!(holds_by_every(
-            Instant::now(),
-            Duration::from_millis(1),
-            |last| {
-                calls.push(last);
-                true
-            }
-        ));
-        assert_eq!(calls, vec![false]);
+    #[derive(Debug, PartialEq, Eq)]
+    enum Step {
+        Read { last: bool },
+        Clock,
+        Pause(Duration),
     }
 
-    /// 정규 읽기가 거짓인 사이 기한이 지나면 `last` 읽기 한 번을 하고 그 값을 돌려준다.
+    /// 주입한 시각과 멈춤으로 `wait_with` 를 돌려 단계 순서를 돌려준다. `read` 는 몇 번째 정규 읽기인지
+    /// 받아 (그 읽기 동안 기한을 넘기는지, 정규 읽기 값) 을 정한다. 마지막 읽기는 `last_value` 를 돌려준다.
+    fn run(
+        interval: Duration,
+        regular: impl Fn(usize) -> (bool, bool),
+        last_value: bool,
+    ) -> (bool, Vec<Step>) {
+        let start = Instant::now();
+        let deadline = start + Duration::from_secs(1);
+        let past = Cell::new(false);
+        let steps = RefCell::new(Vec::new());
+        let mut regular_reads = 0;
+        let held = wait_with(
+            deadline,
+            interval,
+            |last| {
+                steps.borrow_mut().push(Step::Read { last });
+                if last {
+                    return last_value;
+                }
+                let (passes_deadline, value) = regular(regular_reads);
+                regular_reads += 1;
+                if passes_deadline {
+                    past.set(true);
+                }
+                value
+            },
+            || {
+                steps.borrow_mut().push(Step::Clock);
+                if past.get() { deadline } else { start }
+            },
+            |paused| steps.borrow_mut().push(Step::Pause(paused)),
+        );
+        (held, steps.into_inner())
+    }
+
+    const IV: Duration = Duration::from_millis(7);
+
+    /// 정규 읽기가 참이면 시각도 보지 않고 바로 참이다.
     #[test]
-    fn a_false_regular_read_past_the_deadline_is_followed_by_one_last_read() {
-        for value in [true, false] {
-            let mut calls = Vec::new();
-            let held = holds_by_every(Instant::now(), Duration::from_millis(1), |last| {
-                calls.push(last);
-                last && value
-            });
-            assert_eq!(held, value);
-            assert_eq!(calls, vec![false, true]);
+    fn a_true_regular_read_holds_without_a_clock_check_or_a_last_read() {
+        let (held, steps) = run(IV, |_| (false, true), false);
+        assert!(held);
+        assert_eq!(steps, vec![Step::Read { last: false }]);
+    }
+
+    /// 정규 읽기 동안 기한이 지나 거짓이면, 멈추지 않고 곧바로 시각을 본 뒤 마지막 읽기 한 번으로 판정한다.
+    /// 거짓 읽기 뒤 한 번 더 멈춘 다음 시각을 보는 구현은 여기서 Pause 가 끼어 실패한다.
+    #[test]
+    fn a_deadline_passed_during_a_regular_read_is_checked_before_any_pause() {
+        for last_value in [true, false] {
+            let (held, steps) = run(IV, |_| (true, false), last_value);
+            assert_eq!(held, last_value);
+            assert_eq!(
+                steps,
+                vec![
+                    Step::Read { last: false },
+                    Step::Clock,
+                    Step::Read { last: true }
+                ]
+            );
         }
     }
 
-    /// 정규 읽기 안의 진행 중에 기한이 지나 거짓이면 정규 읽기를 다시 하지 않고 `last` 읽기로 끝난다.
+    /// 기한 전 정규 읽기는 매번 시각 검사를 통과한 뒤 interval 만큼 멈추고 다음 정규 읽기로 간다.
+    /// 마지막 읽기는 한 번뿐이고 그 뒤에는 아무것도 없다.
     #[test]
-    fn a_deadline_passed_during_a_regular_read_ends_with_one_last_read() {
-        let deadline = Instant::now() + Duration::from_millis(30);
-        let mut calls = Vec::new();
-        assert!(!holds_by_every(
-            deadline,
-            Duration::from_millis(1),
-            |last| {
-                if !last {
-                    std::thread::sleep(Duration::from_millis(40));
-                }
-                calls.push(last);
-                false
-            }
-        ));
-        assert_eq!(calls, vec![false, true]);
+    fn regular_reads_run_only_after_a_passed_clock_check_and_one_pause() {
+        let (held, steps) = run(IV, |n| (n == 2, false), false);
+        assert!(!held);
+        assert_eq!(
+            steps,
+            vec![
+                Step::Read { last: false },
+                Step::Clock,
+                Step::Pause(IV),
+                Step::Read { last: false },
+                Step::Clock,
+                Step::Pause(IV),
+                Step::Read { last: false },
+                Step::Clock,
+                Step::Read { last: true },
+            ]
+        );
     }
 
-    /// 끝까지 거짓이면 거짓이고, `last` 읽기는 한 번뿐이며 마지막이다.
+    /// 간격이 0 이어도 회차마다 멈춤을 부른다. 기본 멈춤은 그때 스레드를 양보한다.
     #[test]
-    fn a_read_that_stays_false_fails_after_exactly_one_last_read() {
+    fn a_zero_interval_still_pauses_every_round() {
+        let (_, steps) = run(Duration::ZERO, |n| (n == 1, false), false);
+        assert_eq!(
+            steps
+                .iter()
+                .filter(|step| **step == Step::Pause(Duration::ZERO))
+                .count(),
+            1
+        );
+        assert_eq!(steps[2], Step::Pause(Duration::ZERO));
+    }
+
+    /// 실제 시각으로도 끝까지 거짓이면 거짓이고, 마지막 읽기는 한 번뿐이며 맨 끝이다.
+    #[test]
+    fn with_the_real_clock_a_read_that_stays_false_ends_with_one_last_read() {
         let deadline = Instant::now() + Duration::from_millis(10);
         let mut calls = Vec::new();
-        assert!(!holds_by_every(
-            deadline,
-            Duration::from_millis(1),
-            |last| {
-                calls.push(last);
-                false
-            }
-        ));
-        assert_eq!(calls.iter().filter(|last| **last).count(), 1);
-        assert!(calls.last() == Some(&true));
-        assert!(calls.len() >= 3, "read {} times", calls.len());
-    }
-
-    /// 읽기 사이 간격은 `interval` 이상이다.
-    #[test]
-    fn reads_are_at_least_interval_apart() {
-        let interval = Duration::from_millis(15);
-        let deadline = Instant::now() + Duration::from_millis(100);
-        let mut stamps = Vec::new();
-        assert!(!holds_by_every(deadline, interval, |_| {
-            stamps.push(Instant::now());
+        assert!(!holds_by_every(deadline, Duration::ZERO, |last| {
+            calls.push(last);
             false
         }));
-        assert!(stamps.len() >= 3, "read {} times", stamps.len());
-        for pair in stamps[..stamps.len() - 1].windows(2) {
-            assert!(pair[1] - pair[0] >= interval, "{:?}", pair[1] - pair[0]);
-        }
+        assert_eq!(calls.iter().filter(|last| **last).count(), 1);
+        assert_eq!(calls.last(), Some(&true));
     }
 }
