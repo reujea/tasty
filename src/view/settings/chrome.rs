@@ -15,9 +15,9 @@ pub(crate) struct SettingsChrome {
     cursor: Option<PhysicalPosition<f64>>,
     /// 직전 패스에 그린 닫기 버튼 영역(물리)과 그때의 창 너비. 버튼은 오른쪽에 붙으므로 너비가 바뀌면 그만큼 옮겨 본다.
     close: Option<(PhysicalRect, u32)>,
-    /// 직전 패스에서 포인터 아래 있던 egui 위젯(클릭·드래그를 받는 것)의 영역(물리). 가장자리 밴드와 겹치는
-    /// 스크롤바 같은 위젯 위에서는 리사이즈가 양보한다. 제목 줄의 빈 드래그 영역은 넣지 않는다.
-    hovered_widget: Option<PhysicalRect>,
+    /// 직전 패스에서 가장자리 밴드와 겹친 egui 위젯(클릭·드래그를 받는 것)의 영역(물리). 누르는 순간의 포인터가
+    /// 이 안이면 리사이즈가 양보해 스크롤바 같은 위젯이 누름을 받는다. 제목 줄의 빈 드래그 영역은 넣지 않는다.
+    edge_widgets: Vec<PhysicalRect>,
     /// 창 크기·배율·장식이 바뀐 뒤 아직 새 패스가 영역을 다시 적지 않았다. 그동안은 리사이즈를 시작하지 않는다.
     areas_stale: bool,
     /// OS 테두리 리사이즈가 가져간 누름의 버튼. 그 뗌도 egui에 넣지 않는다.
@@ -52,7 +52,7 @@ impl SettingsChrome {
         Self {
             cursor: None,
             close: None,
-            hovered_widget: None,
+            edge_widgets: Vec::new(),
             areas_stale: true,
             resize_buttons: Vec::new(),
             drawn_server_decorated: window.is_decorated(),
@@ -90,15 +90,17 @@ impl SettingsChrome {
                 self.cursor = None;
                 false
             }
-            WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
-                self.hovered_widget = None;
+            WindowEvent::Resized(_) => {
+                self.areas_stale = true;
+                false
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                // 저장한 포인터 좌표는 옛 배율의 물리 좌표라 다음 이동까지 쓰지 않는다.
+                self.cursor = None;
                 self.areas_stale = true;
                 false
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if *state == ElementState::Pressed {
-                    self.replayed_press = input.replayed;
-                }
                 let can_start = !input.edit_keys_busy
                     && !input.replayed
                     && *state == ElementState::Pressed
@@ -148,11 +150,20 @@ impl SettingsChrome {
         if self.areas_stale || self.drawn_server_decorated {
             return None;
         }
-        edge_direction(
-            self.cursor,
-            &[self.close_rect(size.width), self.hovered_widget],
-            size,
-        )
+        edge_direction(self.cursor, &self.yield_rects(size.width), size)
+    }
+
+    /// 리사이즈가 양보할 영역: 닫기 버튼과 가장자리 위젯.
+    fn yield_rects(&self, width: u32) -> Vec<Option<PhysicalRect>> {
+        std::iter::once(self.close_rect(width))
+            .chain(self.edge_widgets.iter().copied().map(Some))
+            .collect()
+    }
+
+    /// 좌버튼 누름의 출처를 적는다. 저널이나 편집 키가 재생한 누름이면 그 누름이 시작한 제목 줄 드래그로 OS 이동을
+    /// 시작하지 않는다. 다른 버튼의 누름은 egui의 드래그 후보를 바꾸지 않으므로 적지 않는다.
+    pub(crate) fn note_left_press(&mut self, replayed: bool) {
+        self.replayed_press = replayed;
     }
 
     /// 지금 창 너비에 맞춘 닫기 버튼 영역.
@@ -219,15 +230,25 @@ impl SettingsChrome {
         size: PhysicalSize<u32>,
     ) {
         let drag_area = egui::Id::new(titlebar::DRAG_AREA_ID);
-        let hovered = ctx.viewport(|vp| {
-            [vp.hits.click, vp.hits.drag]
-                .into_iter()
-                .flatten()
-                .find(|w| w.id != drag_area)
-                .map(|w| w.interact_rect)
-        });
         let ppp = ctx.pixels_per_point();
-        self.hovered_widget = hovered.map(|rect| titlebar::physical_panel_rect(rect, ppp));
+        let screen = ctx.screen_rect();
+        let band = RESIZE_EDGE_MARGIN as f32 / ppp;
+        let inner = screen.shrink(band);
+        self.edge_widgets = ctx.viewport(|vp| {
+            vp.this_pass
+                .widgets
+                .layers()
+                .flat_map(|(_, widgets)| widgets.iter())
+                .filter(|w| {
+                    w.id != drag_area
+                        && w.enabled
+                        && (w.sense.senses_click() || w.sense.senses_drag())
+                        && w.interact_rect.intersects(screen)
+                        && !inner.contains_rect(w.interact_rect)
+                })
+                .map(|w| titlebar::physical_panel_rect(w.interact_rect, ppp))
+                .collect()
+        });
         self.areas_stale = false;
         if !size_is_locked(window)
             && let Some(dir) = self.edge_direction(size)
@@ -249,6 +270,17 @@ impl SettingsChrome {
             WindowEvent::CursorLeft { .. } => {
                 self.cursor = None;
                 self.halted_press = false;
+                false
+            }
+            // 다시 그리지 않으므로 보이는 버튼과 저장한 영역이 어긋날 수 있다. 진행 중인 누름을 취소한다.
+            WindowEvent::Resized(_) => {
+                self.halted_press = false;
+                false
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                self.halted_press = false;
+                self.close = None;
+                self.cursor = None;
                 false
             }
             WindowEvent::MouseInput {
@@ -393,7 +425,7 @@ mod tests {
         SettingsChrome {
             cursor: None,
             close: close_rect().map(|r| (r, SIZE.width)),
-            hovered_widget: None,
+            edge_widgets: Vec::new(),
             areas_stale: false,
             resize_buttons: Vec::new(),
             drawn_server_decorated: server_decorated,
@@ -519,6 +551,14 @@ mod tests {
         assert!(
             !c.halted_close_click(&left(ElementState::Released), w),
             "left the window"
+        );
+
+        assert!(!c.halted_close_click(&moved(1080.0, 10.0), w));
+        assert!(!c.halted_close_click(&left(ElementState::Pressed), w));
+        assert!(!c.halted_close_click(&WindowEvent::Resized(PhysicalSize::new(1200, 700)), w));
+        assert!(
+            !c.halted_close_click(&left(ElementState::Released), w),
+            "window resized"
         );
 
         let mut c = chrome(true);

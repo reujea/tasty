@@ -97,7 +97,8 @@ impl SettingsView {
     /// halt 중 제목 줄 닫기 버튼 클릭인지. 참이면 호출자가 모달을 닫는다(초안 폐기).
     #[cfg(target_os = "linux")]
     pub(crate) fn halted_close_click(&mut self, event: &WindowEvent) -> bool {
-        let width = self.base.gpu.size().width;
+        // halt 동안 이 창의 Resized는 처리하지 않아 GPU 크기가 낡을 수 있다. 실제 창 크기를 읽는다.
+        let width = self.base.winit.inner_size().width;
         self.chrome.halted_close_click(event, width)
     }
 
@@ -210,7 +211,8 @@ impl View for SettingsView {
 
     fn handle_event(&mut self, event: WindowEvent, _ctx: &mut ViewCtx<'_>) -> ViewAction {
         if matches!(event, WindowEvent::RedrawRequested)
-            && let Some(action) = crate::view::replay_edit_keys(self, Self::handle_judged_event)
+            && let Some(action) =
+                crate::view::replay_edit_keys(self, Self::handle_replayed_edit_event)
         {
             return action;
         }
@@ -225,6 +227,10 @@ impl View for SettingsView {
             },
         ) {
             return ViewAction::None;
+        }
+        #[cfg(target_os = "linux")]
+        if is_left_press(&event) {
+            self.chrome.note_left_press(self.input_replayed);
         }
         self.handle_judged_event(event, None)
     }
@@ -345,7 +351,33 @@ impl ModalView for SettingsView {
 
 impl sealed::Sealed for SettingsView {}
 
+/// 좌버튼 누름인지.
+#[cfg(target_os = "linux")]
+fn is_left_press(event: &WindowEvent) -> bool {
+    matches!(
+        event,
+        WindowEvent::MouseInput {
+            state: winit::event::ElementState::Pressed,
+            button: winit::event::MouseButton::Left,
+            ..
+        }
+    )
+}
+
 impl SettingsView {
+    /// 편집 키 보류가 풀려 다시 온 사건. 재생된 좌버튼 누름은 OS 창 이동을 시작하지 않도록 출처를 적는다.
+    fn handle_replayed_edit_event(
+        &mut self,
+        event: WindowEvent,
+        judged: Option<crate::adapters::ui::input::edit_key::EditKey>,
+    ) -> ViewAction {
+        #[cfg(target_os = "linux")]
+        if is_left_press(&event) {
+            self.chrome.note_left_press(true);
+        }
+        self.handle_judged_event(event, judged)
+    }
+
     /// 창 이벤트 하나. 편집 키 판정이 가져간 이벤트는 egui와 창 자체 처리 모두 건너뛰고, 보류가 풀리면
     /// `replay_edit_keys`로 다시 온다. `judged`는 그때 원래 키가 판정받은 편집이다.
     fn handle_judged_event(
