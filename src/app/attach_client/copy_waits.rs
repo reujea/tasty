@@ -85,7 +85,8 @@ impl App {
     }
 
     /// 복사 결과 토스트의 범위. attach 복사의 결과는 창이 지금 그 surface를 그리면 Surface, 다른 탭이나
-    /// workspace에 있으면 창 범위다(Surface 범위 토스트는 그 surface가 화면에 없으면 바로 사라진다).
+    /// workspace에 있거나 새 탭 대기 화면이 덮으면 창 범위다(Surface 범위 토스트는 그 surface가 화면에
+    /// 없으면 바로 사라진다).
     pub(crate) fn copy_result_scope(
         attach: bool,
         state: &crate::state::MainViewState,
@@ -97,7 +98,10 @@ impl App {
             layout
                 .find_pane(pane_id)
                 .and_then(|pane| pane.tabs.get(state.navigation.tab_index(pane)))
-                .is_some_and(|tab| tab.layout().find_surface(surface).is_some())
+                .is_some_and(|tab| {
+                    tab.layout().find_surface(surface).is_some()
+                        && !state.pending_tab_covers(core, tab)
+                })
         });
         if attach && !shown {
             crate::adapters::ui::ToastScope::Window
@@ -152,20 +156,69 @@ mod tests {
         assert!(crate::app::App::attach_copy_waits(&copies, &engine).is_empty());
     }
 
-    /// Given 창이 지금 그리는 surface와 그리지 않는 surface, When 복사 결과 토스트의 범위를 정한다, Then
-    /// attach 복사의 결과만 그리지 않는 surface에서 창 범위로 바뀐다.
+    /// Given 같은 pane에 탭 두 개가 있다, When 복사 결과 토스트의 범위를 정한다, Then attach 복사의 결과만
+    /// 선택되지 않은 탭의 surface에서 창 범위로 바뀐다.
     #[test]
     fn an_attach_copy_result_for_a_surface_off_screen_goes_to_the_window() {
         use crate::adapters::ui::ToastScope;
-        let (state, mut session) = crate::state::tests::test_state();
-        let engine = session.borrow_mut();
-        let shown = engine.read().workspace_at(0).unwrap().all_surface_ids()[0];
-        let hidden = shown + 10_000;
-        let scope = |attach, surface| {
-            crate::app::App::copy_result_scope(attach, &state, &*engine.core, surface)
+        use tasty_core::{DomainEvent, SurfaceSpec};
+        let tab = |id: u32, index| DomainEvent::TabCreated {
+            id,
+            pane: 70_001,
+            index,
+            name: "Terminal".into(),
+            surface: SurfaceSpec {
+                id,
+                kind: "terminal".into(),
+                data: None,
+            },
         };
+        let model = crate::state::tests::test_model(vec![
+            DomainEvent::CategoryCreated {
+                id: 0,
+                name: "normal".into(),
+                index: 0,
+            },
+            DomainEvent::WorkspaceCreated {
+                id: 70_001,
+                name: "Workspace 1".into(),
+                category: 0,
+                index: 0,
+                pane: 70_001,
+            },
+            tab(70_001, 0),
+            tab(70_002, 1),
+        ]);
+        let (state, mut session) = crate::state::tests::test_state_from_model(model);
+        let engine = session.borrow_mut();
+        let core = &*engine.core;
+        let shown = state.focused_surface_id(core).expect("selected tab");
+        let hidden = if shown == 70_001 { 70_002 } else { 70_001 };
+        assert!(
+            core.find_tab_for_surface(hidden).is_some(),
+            "트리에 있는 surface"
+        );
+        let scope =
+            |attach, surface| crate::app::App::copy_result_scope(attach, &state, core, surface);
         assert_eq!(scope(true, shown), ToastScope::Surface(shown));
         assert_eq!(scope(true, hidden), ToastScope::Window);
         assert_eq!(scope(false, hidden), ToastScope::Surface(hidden));
+    }
+
+    /// Given mirror surface를 보는 창, When 같은 pane에 원격 새 탭 대기 화면이 선택된다, Then 그 surface의
+    /// 결과는 창 범위다.
+    #[test]
+    fn a_pending_new_tab_screen_hides_the_surface_of_its_pane() {
+        use crate::adapters::ui::ToastScope;
+        let (mut state, mut session) = crate::state::tests::test_mirror_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let anchor = state.focused_surface_id(&read).expect("anchor");
+        let scope = |state: &crate::state::MainViewState| {
+            crate::app::App::copy_result_scope(true, state, &read, anchor)
+        };
+        assert_eq!(scope(&state), ToastScope::Surface(anchor));
+        let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+        assert_eq!(scope(&state), ToastScope::Window);
     }
 }
