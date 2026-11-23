@@ -344,7 +344,7 @@ Tasty가 소비한다. 설정되지 않았거나 동작하지 못했으면 원�
 - 바인딩은 고정 값이다(`escape`, `enter`, 펼침은 `enter`·`space`, `up`·`down`·`left`·`right`, `tab`, `shift+tab`). ESC·Enter 같은 기본 조작이라 설정 단축키 탭에 노출하지 않는다.
 - 수식키는 정확히 같아야 맞는다. Ctrl+Enter·Alt+↓·Shift+Esc 는 기본 조작이 아니다. 창의 Esc 판정도 수식키 없는 Escape 만 받는다(`tasty_key_match::is_window_escape`). 수식키가 붙은 조합을 쓰는 팝업(검색 바의 Shift+Enter 같은 이전 결과)은 그 조합을 따로 읽는다.
 - 숫자·글자 단축키(승인 선택지, 변환 팝업 글자)는 콘텐츠 고유 키라 이 표에 두지 않는다. 승인 선택지는 수식키 없는 숫자와 Shift+숫자만, 변환 팝업 글자는 물리 키 위치로 고른다.
-- 팝업은 그 팝업이 이번 프레임 키 주인일 때만 이 키를 받는다. 받는 통로와 소비 집합은 [팝업 구현](../../dev-guide/popup-implementation.md#본문의-키)에 있다.
+- 팝업은 그 팝업이 이번 프레임 키 주인일 때만 이 키를 받는다. 팝업이 쓰지 않는 키는 키 경로를 따라 붙은 범위와 그 위 level의 단축키로 오른다([입력 계층의 키 입력 경로](../../architecture/input-layer.md#키-입력-경로)). 받는 통로와 소비 집합은 [팝업 구현](../../dev-guide/popup-implementation.md#본문의-키)에 있다.
 
 ## OS 고유 키 이름 혼용 금지
 
@@ -400,9 +400,15 @@ NSMenuItem 은 key equivalent 를 하나만 가진다. 그래서 Window 메뉴�
 
 **라벨은 `t()` 다** — key equivalent 와 독립으로, OS 메뉴 항목의 **제목**은 `lang/*.toml` 번역 키에서 온다: macOS NSMenu `menu.macos.*`(앱 이름을 결합하는 About / Hide / Quit 은 `{}` placeholder + `t_fmt` 로 언어별 어순 대응), 시스템 트레이 메뉴·툴팁 `tray.*`, Windows Jump List `jump_list.*`. OS 네이티브 표면도 [i18n](../../dev-guide/i18n.md) 예외가 아니다. macOS 메뉴는 `KeybindingSettings` 변경 시 통째로 rebuild 되면서 라벨도 다시 조회하므로 키바인딩 변경 후에도 현재 언어가 유지된다.
 
+## 단축키 level
+
+단축키 필드마다 level(Engine·Window·Workspace·Pane·Tab·Surface)이 있다(`src/adapters/ui/input/key_level.rs`의 `KEYBINDING_LEVELS`). 메인 창 키는 포커스 노드에서 시작한 키 경로에 있는 level의 단축키만 후보로 매칭한다. 덮는 팝업이 포커스면 덮인 범위와 그 아래 level의 단축키는 매칭하지 않고, 펼친 팝업과 전체화면 무대에서는 Engine level만 매칭한다. 창 단축키, 더블탭, plugin 명령(`Surface` 명령은 그 plugin surface level, `Global` 명령은 Engine level)이 같은 경로 값으로 거른다. 설정 열기 요청 래치 중에는 거르지 않는다. 경로와 수신자 규칙은 [입력 계층의 키 입력 경로](../../architecture/input-layer.md#키-입력-경로)에 있다.
+
 ## Plugin 커맨드 단축키 우선순위
 
 plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSettings`보다 먼저 매칭한다. `App::try_plugin_shortcut`이 `dispatch_window_event_to_view`보다 먼저 실행되며, plugin 명령을 찾으면 이벤트를 소비해 호스트로 넘기지 않는다. 사용자가 활성화하고 설정한 plugin의 단축키 선택을 우선하는 정책이다.
+
+판정 자리와 순위는 그대로이고, 판정을 열지는 키 경로로 정한다. winit 경로 키는 포커스 노드에서 시작한 경로의 출발 노드(팝업·무대·주소 띠 등)가 그 키를 쓰지 않을 때 판정한다. 출발 노드가 surface면 surface 내용보다 plugin 명령이 먼저다. native WebView가 넘긴 경로 키는 받은 surface에서 시작한 경로로 판정해, 그 surface를 덮는 팝업이 있을 때만 막는다. 경로 키가 아닌 키(클립보드 조합, 편집 바인딩 키, 설정 열기 요청 래치 중 키, egui 키가 없는 누름)는 창의 키 게이트(`window_keys_to_overlay`)로 정한다. WebView가 넘긴 키는 modal, 전체화면 무대, 설정 열기 요청이면 경로와 관계없이 막는다. winit 키는 modal이면 판정하지 않는다.
 
 매칭 대상은 포커스에 따라 다르다. native WebView가 넘긴 키는 모델 포커스가 아니라 그 키를 받은 WebView의 surface를 포커스로 보고, 명령 대상도 그 surface로 정한다. attach 생성 대기 초안이 선택돼 있으면 포커스 surface가 없으므로 초안 뒤의 기존 plugin surface가 아니라 global 명령만 후보다.
 

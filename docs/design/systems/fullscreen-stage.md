@@ -236,8 +236,13 @@ wgpu 렌더 표면 **위**에 있다. 그리지 않아도 화면에 남으므로
 - **종료 키(기본 ESC)는 무대만 닫는다.** 4단계(`try_consume_escape_key`, settings 모달·
   notifications 팝업 닫기)에 **도달하지 않는다** — 사용자 확정 계약이자 브라우저 Fullscreen
   API 와 같은 동작(UA 가 ESC 를 처리하고 페이지 `keydown` 으로 전파하지 않는다).
-- 그 외 키는 전부 무대가 소비한다 — 단축키(6단계)·vi copy-mode(7단계)·터미널
-  forward(9단계) 어디로도 내려가지 않는다.
+- 그 외 키는 무대가 소비한다 — 뒤 화면의 단축키(6단계)·vi copy-mode(7단계)·터미널
+  forward(9단계) 어디로도 내려가지 않는다. 예외는 무대가 쓰지 않는 명령 키(Ctrl·Alt·Cmd·Super 조합)
+  가운데 Engine level 단축키(`toggle_settings`·`open_preset_window`·`quit`·`quit_immediate`·`new_window`,
+  plugin `Global` 명령)에 맞는 키다. 무대 노드의 키 경로는 engine 으로 바로 이어지므로
+  ([입력 계층의 키 입력 경로](../../architecture/input-layer.md#키-입력-경로)) 그 키는 0단계에서 끝내지 않고
+  단축키 단계로 넘기며, 단축키 단계는 Engine level 후보만 매칭한다. 뒤 화면 범위(Window 이하) level의
+  단축키는 매칭하지 않는다. 경로 키가 아닌 키(클립보드 조합, 편집 바인딩 키 등)는 무대가 소비한다.
 - `record_typing` 도 돌지 않는다. 뒤 surface 에 타이핑이 기록되면 `tasty is-typing`
   판정이 오염된다.
 - 종료 키 판정은 `stage_exit_key_matches` **한 곳**에만 있고, 값은

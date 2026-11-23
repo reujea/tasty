@@ -4,6 +4,8 @@
 입력을 받은 요소가 커서 아이콘도 결정한다. 아래에는 비활성 surface를 활성화하는 첫 클릭 등
 이 원칙의 구체적인 조건을 정리한다.
 
+키보드 입력은 좌표가 아니라 포커스 노드에서 시작한다. 그 규칙은 아래 [키 입력 경로](#키-입력-경로)에 있다.
+
 ## 기본 동작: 소비 (Consume)
 
 z-order 최상위부터 hit-test 한다. 좌표가 어떤 레이어 영역 안이면 그 레이어가 이벤트를 **소비**하고, 하위로 전달하지 않는다. 투과(pass-through)는 기본이 아니다.
@@ -193,7 +195,7 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 
 | 정의 | 조합 | 묻는 질문 |
 |------|------|-----------|
-| `MainViewState::keyboard_overlay_open()` (`src/state.rs`, 순수 술어는 같은 파일 하단) | settings + 포커스 노드인 input dialog + focused host popup + 키 주인 plugin popup | 키/IME 를 host egui 로 들여보낼지(= 터미널 포워딩을 막을지) |
+| `MainViewState::keyboard_overlay_open()` (`src/state.rs`, 순수 술어는 같은 파일 하단) | settings + 포커스 노드인 input dialog + focused host popup + 키 주인 plugin popup | 키/IME 를 host egui 로 들여보낼지(= 터미널 포워딩을 막을지). 경로 키는 이 값 대신 [키 경로의 수신자](#키-경로와-수신자)로 정한다 |
 | `MainView::mouse_overlay_open()` (`src/view/main/mouse.rs`) | settings + **무대** | 메인 화면의 좌표로 마우스를 처리할지 |
 | `MainViewState::has_egui_overlay_open()` (`src/state.rs`) | dialog + plugin popup + popup(visible) + **무대** + tutorial | WebView(OS 네이티브 자식 뷰) 위에 대상 오버레이가 있는지. 숨길지는 이 값과 별도의 오버레이 모드(`state::webview_overlay`)가 정한다. 모드가 숨김이면 모두 숨기고, 아니면 보인 채 대상 영역을 backend 에 넘긴다([WebView](../design/systems/webview.md#모드-결정)). 토스트는 여기에 들어가지 않고 카드와 겹치는 WebView 중 키를 받지 않는 것만 숨긴다([토스트](../design/systems/toast.md#native-webview-위의-토스트)) |
 
@@ -215,8 +217,8 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 | # | 지점 | 무대 | 근거 |
 |---|------|--------|------|
 | 1 | `window_keys_to_overlay` 정의(`src/state.rs`) | 정의에 포함 | 아래 3의 지점이 모두 이 함수를 부른다 |
-| 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(터미널 포워딩 게이트, 호출부 `src/view/main/keyboard.rs`) | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
-| 3 | 정면 함수를 부르는 곳: `window_feeds_egui`(egui feed 게이트, `src/state/popup_key_owner.rs`), IME(`src/view/main/ime.rs`), plugin 단축키(`src/app/plugin_glue/shortcut.rs`), native webview 포워딩 키(`src/app/webview_keys.rs`), `ui.state` 의 `keyboard_shortcuts_gated`(`src/adapters/ipc/handler/debug_state.rs`), 외부 끌어내기(`src/view/main/file_drag.rs` `poll_outbound_drag`), X11 조합 종료 키 소유권(`src/adapters/ui/input/explorer_ime.rs`), native 편집 키 차단 상태(`src/app/webview_sync.rs`), 편집 키 판정(`src/view/main/edit_keys.rs`), 플러그인 surface 편집 키(`src/view/main/plugin_surface_keys.rs`) | 정면 함수 | egui feed 는 방향이 반대다(무대 콘텐츠는 egui 위젯이라 키가 egui 로 가야 한다). IME 는 무대만 떠 있으면 조합 Commit 이 터미널로 샌다. plugin 단축키·webview 키·native 편집 키는 `dispatch_window_event_to_view` 이전이나 밖에서 돌아 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)). 편집 키·플러그인 surface 편집 키는 무대에 들어간 키가 뒤쪽 화면에서 다시 쓰이지 않게 한다. 끌어내기는 OS 드래그라 렌더한 오버레이로 덮을 수 없어 취소한다. 보고 값은 무대 중에 "막히지 않았다"고 보고하지 않게 한다 |
+| 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(경로 키가 아닌 사건의 터미널 포워딩 게이트). 호출부는 같은 파일의 `window_key_holds_terminal` 이고, 그 함수를 `handle_keyboard_input`(`src/view/main/keyboard.rs`)이 부른다 | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
+| 3 | 정면 함수를 부르는 곳: `window_feeds_egui`(egui feed 게이트, `src/state/popup_key_owner.rs`), IME(`src/view/main/ime.rs`), plugin 단축키(`src/app/plugin_glue/shortcut.rs`), 경로 키가 아닌 사건의 plugin 명령·native webview 포워딩 키 게이트(`src/adapters/ui/input/key_nodes.rs`), `ui.state` 의 `keyboard_shortcuts_gated`(`src/adapters/ipc/handler/debug_state.rs`), 외부 끌어내기(`src/view/main/file_drag.rs` `poll_outbound_drag`), X11 조합 종료 키 소유권(`src/adapters/ui/input/explorer_ime.rs`), native 편집 키 차단 상태(`src/app/webview_sync.rs`), 편집 키 판정(`src/view/main/edit_keys.rs`), 플러그인 surface 편집 키(`src/view/main/plugin_surface_keys.rs`) | 정면 함수 | egui feed 는 방향이 반대다(무대 콘텐츠는 egui 위젯이라 키가 egui 로 가야 한다). IME 는 무대만 떠 있으면 조합 Commit 이 터미널로 샌다. plugin 단축키·webview 키·native 편집 키는 `dispatch_window_event_to_view` 이전이나 밖에서 돌아 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)). 편집 키·플러그인 surface 편집 키는 무대에 들어간 키가 뒤쪽 화면에서 다시 쓰이지 않게 한다. 끌어내기는 OS 드래그라 렌더한 오버레이로 덮을 수 없어 취소한다. 보고 값은 무대 중에 "막히지 않았다"고 보고하지 않게 한다 |
 | 4 | `mouse_overlay_open()` 정의 | 정의에 포함 | 마우스 다섯 호출부 전부가 이 하나를 본다 |
 | 5 | `has_egui_overlay_open()` 정의 | 정의에 포함 | WebView 가 무대 위로 뚫고 나오지 못하게 |
 
@@ -248,6 +250,93 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안에서 순서를 다툴 상대가 없기
 때문이다. 3 번(Area 미등록으로 최상단을 얻는 예외)에 기대지 않은 것도 같은 이유다. 상세
 [`design/systems/fullscreen-stage.md`](../design/systems/fullscreen-stage.md).
+
+## 키 입력 경로
+
+키보드 입력은 좌표가 아니라 창의 포커스 노드에서 시작한다. 키 하나는 포커스 노드에서 engine 쪽으로 오르는
+노드 목록(키 경로)을 따라가고, 그 키를 처음 쓰는 노드가 받는다. 팝업이 쓰지 않는 키는 그 팝업이 붙은 노드와
+그 위 level의 단축키로 올라간다. 메인 창에 적용하고, 설정·plugins·preset·quit 같은 별도 창은 지금 그 창의
+입구(`judged_window_event`)대로 처리한다.
+
+### 키 사건 순서
+
+메인 창 키 사건 하나는 App 입구(`App::route_window_input`)와 MainView 입구(`MainView::handle_engine_event`)를
+차례로 지난다. App 입구는 plugin 편집 보류 줄 → plugin 명령 판정(`try_plugin_shortcut`) → view 순서다. view
+안의 순서는 다음과 같다.
+
+1. 끌어 내보내기, modal 차단, 포커스 정규화(`normalize_focus_on_key`)
+2. 수신자 판정(`decide_key_receiver`): 경로 키면 아래 "키 경로와 수신자"로 수신자를 정해 `MainView::key_decision`에
+   둔다. 경로 키가 아니면 `KeyDecision::Current`다.
+3. 입력 몫 끊기(`cut_input_segment`), 편집 판정(`edit_key_gate`), explorer IME(Linux), 튜토리얼 Esc
+4. egui 적재(`feed_egui_keyboard`): `MainViewState::window_feeds_key`가 정한다. 경로 키는 수신자가 egui 노드
+   (팝업·안내·튜토리얼·주소 띠·egui surface·무대)일 때만 실리고, 그 수신자를 이번 패스의 키 주인으로 묶는다.
+5. `handle_keyboard_input`: 더블탭 → 무대 종료·무대 소비 → bare Esc(`try_consume_escape_key`) → 단축키 →
+   주소 띠 새로고침 → vi 복사 모드 → 끝 목적지(PTY·plugin surface)
+
+단계 2의 값은 단계 4와 5가 함께 읽는다. 터미널로 보낼지 막을지는 `MainViewState::window_key_holds_terminal`
+(경로 키면 수신자가 egui 노드인지, 아니면 지금 게이트 `window_holds_terminal_keys`)로 정한다. 경로 키의 수신자가
+surface 내용이나 끝 목적지를 가진 단축키 단계가 아니면 vi 단계 뒤에서 끝난다. 무대가 쓰지 않은 명령 키는
+무대 단계에서 끝내지 않고 단축키 단계로 넘긴다.
+
+vi 복사 모드는 지금 자리 그대로다. 앞 단계에서 끝나지 않은 누름은 포커스와 관계없이 vi가 먼저 받는다.
+
+### 경로 키
+
+키 경로를 지나는 사건은 경로 키뿐이다(`key_class::classify_key`). 경로 키는 egui-winit이 egui 키 사건으로 바꾸는
+누름(반복 포함)이고 아래 어느 것도 아닌 것이다. egui 키와 클립보드 조합 판정은 egui-winit의 변환 규칙과 같다.
+
+- 수식키 없는 Esc(bare Esc). 수식키 Esc는 경로 키다.
+- 설정 열기 요청 래치 중의 키
+- 클립보드 조합(egui `command`+C·X·V)
+- 편집 바인딩 키. 편집 보류 뒤 재생하는 원래 키는 보류 때 붙은 편집 표시로 정한다.
+
+경로 키가 아닌 사건(위 넷과 뗌, egui 키가 없는 누름)은 키 경로 이전의 게이트를 그대로 지난다. egui 적재는
+`window_feeds_egui`, 터미널 차단은 `window_holds_terminal_keys`, plugin 명령은 `window_keys_to_overlay`다.
+bare Esc의 처리는 [popup.md의 Esc 소유권](../design/systems/popup.md#plugin-popup--host-popup-부모-자식)을 따른다.
+
+### 키 경로와 수신자
+
+출발 노드는 `key_path::key_start_node`가 정한다. 창의 포커스 노드(`MainViewState::focus_node`)이고, 이번 패스의
+키를 팝업 키 주인에 묶었으면 그 팝업이다(입력 시점 결속). 경로(`key_nodes::window_key_path`)는 출발 노드에서
+engine 앞까지다.
+
+- 덮는 팝업은 덮은 범위의 부모로 잇는다. 덮인 범위와 그 아래 level은 경로에 없다.
+- 덮지 않는 팝업은 붙은 범위부터 잇는다.
+- 펼친 팝업과 전체화면 무대는 engine으로 바로 잇는다.
+- surface 노드는 Surface → Tab → Pane → Workspace → Window 순서로 오른다.
+
+수신자(`key_route::route_key`)는 출발 노드에서 정한다.
+
+| 출발 노드 | 그 노드가 받는 키 | 받지 않는 키 |
+|---|---|---|
+| 팝업 | 노드 키맵(폴더 Alt+↑, 검색 띠 find), 접힌 팝업의 펼치기, 선언 `keyboard`의 소비 집합 | 경로의 단축키 단계로 오른다. `Text` 팝업의 명령 키는 경로에 맞는 단축키가 없으면 그 팝업이 받는다(egui 입력칸 내장 조합) |
+| 복원 안내 | Esc·Enter·Space·Tab·화살표(수식키와 무관) | 경로의 단축키 단계 |
+| 튜토리얼 | 확인·펼치기 키 | 경로의 단축키 단계 |
+| 주소 띠 | 주소 띠 키맵과 `Text` 소비 집합 | 팝업 `Text`와 같다 |
+| 무대 | 무대 종료 바인딩, `Text` 소비 집합 | 팝업 `Text`와 같다 |
+| egui surface(explorer·dag graph) | 입력칸이 활성일 때 그 입력칸이 쓰는 키(단축키보다 먼저) | 경로에 맞는 단축키가 있으면 단축키, 없으면 그 surface |
+| 그 밖의 surface(터미널·mesh·WebView) | — | 경로에 맞는 단축키가 있으면 단축키, 없으면 그 surface가 끝 목적지다 |
+
+단축키 단계(`KeyReceiver::Shortcut`)는 경로 level의 후보를 지금 실행 순서대로 시도한다. 맞은 후보가 실행을
+거절하면 끝 목적지(출발 surface, 없으면 버림)로 간다.
+
+### 단축키 level
+
+단축키 필드마다 level(Engine·Window·Workspace·Pane·Tab·Surface)이 있다(`key_level::KEYBINDING_LEVELS`). 키 경로의
+level 집합(`key_path::focus_path_levels`)에 없는 level의 후보는 매칭 전에 비운다(`key_path::path_keybindings`).
+창 단축키, 더블탭, plugin 명령이 같은 값으로 거른다. 덮는 팝업이 포커스면 덮인 범위 level의 단축키는 돌지
+않고, 펼친 팝업과 무대에서는 engine level만 돈다. 설정 열기 요청 래치 중에는 거르지 않는다.
+
+### plugin 명령과 WebView 전달 키
+
+plugin 명령 판정은 지금처럼 App 입구에서 view보다 먼저다. 게이트(`PluginKeyGate`)만 키 경로를 쓴다.
+
+- winit 경로 키는 출발 노드가 그 키를 끝내지 않을 때 연다(`key_nodes::plugin_key_gate_open`). 출발 노드가
+  surface면 surface 내용보다 plugin 명령이 먼저다.
+- native WebView가 넘긴 키는 받은 surface에서 시작한 경로로 판정한다(`key_nodes::forwarded_key_class`,
+  `received_key_blocked`). 경로 키는 받은 surface를 덮는 팝업이 있을 때만 막힌다. 다른 곳의 덮지 않는 팝업에
+  포커스가 있어도 막히지 않는다. 경로 키가 아니면 지금 게이트(`window_keys_to_overlay`)다.
+- WebView 전달 키는 창 전체 차단(modal, 전체화면 무대, 설정 열기 요청)을 경로와 관계없이 먼저 본다.
 
 ## 관련
 

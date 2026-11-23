@@ -344,7 +344,8 @@ early-return 경로도 포함: 이 경로에 진입한 이벤트는 mesh 판정 
 
 키/IME 는 **포커스된 egui-mesh surface 에만** 간다(`MainViewState::input_destination`
 의 `EguiMesh` 갈래. 키 처리와 IME 처리가 같은 판정으로 터미널·egui-mesh·attach mesh 갈래를 고른다). 중앙 키 디스패처(`keyboard.rs handle_keyboard_input`)가 단축키·vi·
-escape 소비를 **먼저** 처리한 뒤, 소비되지 않은 키를 이 forward 로 넘긴다 — 단축키
+escape 소비를 **먼저** 처리한 뒤, 소비되지 않은 키를 이 forward 로 넘긴다. bare Esc 가 아닌 경로 키는 키 경로의 끝
+목적지가 그 surface 일 때만 넘긴다([입력 계층의 키 입력 경로](../architecture/input-layer.md#키-입력-경로)) — 단축키
 선점 순서는 터미널 forward 와 동일하다. IME 는 조합 중 preedit 문자열까지 나르므로
 (commit-only 아님) plugin 의 egui `TextEdit` 이 조합 중간 상태를 인라인 표시한다.
 image/mesh_demo의 키·IME 입력은 이 경로로 전달하며, 호스트 egui에는 넣지 않는다

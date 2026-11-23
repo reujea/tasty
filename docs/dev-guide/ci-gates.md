@@ -828,7 +828,8 @@ env -u DISPLAY -u WAYLAND_DISPLAY TASTY_HOME="$VERIFY_HOME" \
 
 Linux의 WM 없는 Xvfb에서는 직접 창 포커스를 설정해야 한다. enigo는 현재 OS 포커스에
 입력하므로 창 존재만으로 입력 도착을 보장할 수 없다. `popups.has_focused()` 등
-`keyboard_overlay_open`의 조건도 확인한다. 입력은 도착했지만 팝업이 단축키 처리를 막을 수 있다.
+포커스 노드와 `keyboard_overlay_open`의 조건도 확인한다. 입력은 도착했지만 포커스된 팝업이 그 키를 쓰거나 덮인 범위의
+단축키를 걸러 단축키가 돌지 않을 수 있다([입력 계층의 키 입력 경로](../architecture/input-layer.md#키-입력-경로)).
 각 조건을 참/거짓으로 기록해 미보고와 false를 구분한다. 시험이 남긴 데이터뿐 아니라
 팝업·포커스 상태도 정리하고, 정리용 단축키가 그 상태에 막히지 않는지 확인한다.
 
