@@ -695,8 +695,13 @@ fn a_held_private_candidate_keeps_its_sent_installation_waiting() {
             .contains(&operation)
     };
     let mut stall = StallBudget::new(&journal);
-    while !sent(&journal) {
+    loop {
         turn(&mut journal, &mut session, None);
+        // Read after the pump and right before the stall verdict, with nothing in between: a send
+        // recorded while that pump ran must end the wait instead of failing it as a stall.
+        if sent(&journal) {
+            break;
+        }
         stall.nap("the worker sends the adoption's installation");
     }
     // The send may have landed after this turn's last receive, so one more turn could take it.
