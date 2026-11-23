@@ -20,6 +20,9 @@ pub(crate) enum RuntimeError {
     /// The I/O cause when a thread or runtime could not be created; a lost setup channel or a
     /// poisoned retirement has none.
     Worker(Option<IoCause>),
+    /// Building the Tokio runtime panicked and the panic unwound. The setup warning names the
+    /// panic message; the process panic hook still runs before the unwind is caught.
+    SetupPanicked,
 }
 /// What an I/O failure was, kept in `Debug` output so a refused setup names its cause.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,11 +95,20 @@ impl Setup {
         let (stop, shutdown) = mpsc::channel();
         let body = move || {
             let _permit = permit;
-            // An injected error stands in for build()'s own result, so both take one branch.
-            #[cfg(test)]
-            let built = build_fault.map_or_else(build_runtime, Err);
-            #[cfg(not(test))]
-            let built = build_runtime();
+            // Tokio panics instead of returning an error when it cannot spawn a runtime thread, so
+            // only this one call is guarded. A panic that never finishes unwinding, such as one
+            // whose blocking pool Drop waits for an already started worker, is not caught here.
+            let built = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                // An injected fault stands in for build() itself, so it takes the same branches.
+                #[cfg(test)]
+                if let Some(fault) = build_fault {
+                    return fault.build();
+                }
+                build_runtime()
+            })) {
+                Ok(built) => built.map_err(SetupFailure::Io),
+                Err(payload) => Err(SetupFailure::Panicked(panic_message(&*payload))),
+            };
             setup_worker(built, worker, tx, shutdown, wake);
         };
         #[cfg(test)]
@@ -139,6 +151,18 @@ fn spawn_setup(body: impl FnOnce() + Send + 'static) -> std::io::Result<JoinHand
         .name("html-native-setup".into())
         .spawn(body)
 }
+/// Why the setup worker has no runtime.
+enum SetupFailure {
+    Io(std::io::Error),
+    Panicked(String),
+}
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|message| (*message).to_owned())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "non-string panic payload".to_owned())
+}
 fn build_runtime() -> std::io::Result<tokio::runtime::Runtime> {
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -147,7 +171,7 @@ fn build_runtime() -> std::io::Result<tokio::runtime::Runtime> {
         .build()
 }
 fn setup_worker(
-    built: std::io::Result<tokio::runtime::Runtime>,
+    built: Result<tokio::runtime::Runtime, SetupFailure>,
     worker: Arc<State>,
     tx: mpsc::SyncSender<Result<Parts, RuntimeError>>,
     shutdown: mpsc::Receiver<()>,
@@ -179,12 +203,21 @@ fn setup_worker(
     drop(runtime);
 }
 fn setup_failed(
-    error: std::io::Error,
+    failure: SetupFailure,
     tx: mpsc::SyncSender<Result<Parts, RuntimeError>>,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
-    tracing::warn!(%error, "native HTTP runtime setup failed");
-    if tx.send(Err(RuntimeError::io(&error))).is_err() {
+    let error = match failure {
+        SetupFailure::Io(error) => {
+            tracing::warn!(%error, "native HTTP runtime setup failed");
+            RuntimeError::io(&error)
+        }
+        SetupFailure::Panicked(message) => {
+            tracing::warn!(panic = %message, "native HTTP runtime setup panicked");
+            RuntimeError::SetupPanicked
+        }
+    };
+    if tx.send(Err(error)).is_err() {
         tracing::debug!("native runtime setup receiver retired");
     }
     wake();

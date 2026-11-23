@@ -92,6 +92,23 @@ pub(crate) mod fault {
         Spawn(i32),
         /// The setup thread cannot build its Tokio runtime.
         Build(i32),
+        /// Building the Tokio runtime panics, as Tokio does when it cannot spawn a thread.
+        BuildPanic,
+    }
+    /// What the setup thread meets in place of building its runtime.
+    pub(crate) enum BuildFault {
+        Error(io::Error),
+        Panic,
+    }
+    /// The panic message an injected build panic carries.
+    pub(crate) const BUILD_PANIC: &str = "injected runtime build panic";
+    impl BuildFault {
+        pub(crate) fn build(self) -> io::Result<tokio::runtime::Runtime> {
+            match self {
+                Self::Error(error) => Err(error),
+                Self::Panic => panic!("{BUILD_PANIC}"),
+            }
+        }
     }
     thread_local! {
         static NEXT: Cell<Option<Fault>> = const { Cell::new(None) };
@@ -99,11 +116,15 @@ pub(crate) mod fault {
     pub(crate) fn inject(fault: Fault) {
         NEXT.with(|next| next.set(Some(fault)));
     }
-    /// The spawn and build errors the injection stands for, as raw OS errors.
-    pub(crate) fn take() -> (Option<io::Error>, Option<io::Error>) {
+    /// The spawn error and build fault the injection stands for, errors as raw OS errors.
+    pub(crate) fn take() -> (Option<io::Error>, Option<BuildFault>) {
         match NEXT.with(Cell::take) {
             Some(Fault::Spawn(code)) => (Some(io::Error::from_raw_os_error(code)), None),
-            Some(Fault::Build(code)) => (None, Some(io::Error::from_raw_os_error(code))),
+            Some(Fault::Build(code)) => (
+                None,
+                Some(BuildFault::Error(io::Error::from_raw_os_error(code))),
+            ),
+            Some(Fault::BuildPanic) => (None, Some(BuildFault::Panic)),
             None => (None, None),
         }
     }
