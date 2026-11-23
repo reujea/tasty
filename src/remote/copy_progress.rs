@@ -11,12 +11,23 @@
 //! 지우기나 다른 OSC로 끝나면(앞머리 관측이 쓰기로 잘못 본 경우) 실패 없이 접수만 거둔다.
 //!
 //! 열린 시퀀스가 OSC 52 쓰기인지는 마지막 기준점 뒤의 바이트(머리)를 새 `vtparse`에 다시 먹여 정한다.
-//! 기준점은 파서가 ground로 돌아간 바이트와 무언가를 dispatch한 바이트다. 기준점에서 파서가 가는 상태는
-//! ground의 새 파서가 그 바이트를 받은 상태와 같다(그 바이트는 ground이거나 어느 상태에서나 같은 전이를
-//! 하는 ESC·C1이다). 그래서 머리 판정은 파서 상태를 바이트별로 흉내 내지 않고 파서 자체의 판정이 된다.
-//! 머리가 `HEAD_LIMIT`을 넘도록 정하지 못하면 다음 기준점까지 보지 않는다(긴 SOS·PM·DCS 문자열 뒤 dispatch
-//! 없이 시작한 쓰기는 진행 표시만 빠지고 기록·토스트는 그대로다). vtparse의 OSC 버퍼는 본문 크기만큼 자라고
-//! surface 상태를 지울 때 해제된다.
+//! 기준점마다 새 파서가 그 지점의 실제 파서와 같은 상태(OSC 버퍼 포함)에서 시작한다는 것이 근거다.
+//! - ground로 돌아간 바이트: 머리를 비우고 그 바이트는 버린다. ground의 새 파서와 같다. 잘못된 UTF-8이
+//!   삼킨 바이트도 마찬가지다(ground에서 `\xe4\x1b`의 ESC는 글자로 소비되고 파서는 ground다).
+//! - ground가 아닌 곳에서 무언가를 dispatch한 바이트: 머리를 그 바이트부터 다시 시작한다. dispatch는 표가
+//!   그 바이트를 처리해 상태를 떠날 때만 나고, 그런 바이트는 ESC·C1(UTF-8로 쓴 C1 포함)이 아니면 ground로
+//!   간다. ESC·C1은 아래처럼 어느 상태에서나 같은 곳으로 간다.
+//! - dispatch가 없어도 ESC·CAN·SUB·C1 바이트: `vtparse` 전이표에서 이 바이트들은 모든 상태가 `anywhere_or`로
+//!   같은 (동작, 상태)로 보낸다. 들어간 상태의 진입 동작이 버퍼를 비우므로 머리를 그 바이트부터 다시
+//!   시작한다. 예외는 둘이다. UTF-8 글자 중간이면 바이트가 글자로 소비되므로 기준점이 아니다(리드 바이트
+//!   뒤의 연속 바이트 수를 넉넉히 세어 그럴 수 있는 동안은 쓰지 않는다). OSC 문자열 안의 0x9d는 같은 상태로
+//!   가는 전이라 아무것도 하지 않으므로, 파서가 OSC 문자열 밖임을 알 때만 기준점이다.
+//!
+//! 쓰기 판정은 실제로 받은 바이트로만 한다. 머리 끝의 미완성 UTF-8이 C2 리드면 다음 바이트가 UTF-8로 쓴
+//! C1 종결일 수 있으므로 0x9c로 먼저 끝내 본다. 다른 리드는 어떻게 끝나도 데이터에 글자 하나가 들어간다.
+//! 머리가 `HEAD_LIMIT`을 넘도록 정하지 못하면 다음 기준점까지 보지 않는다. 그런 경우는 OSC 52 자신의
+//! 선택 인자와 데이터 머리가 한도를 넘을 때다(진행 표시만 빠지고 기록·토스트는 그대로다). vtparse의 OSC
+//! 버퍼는 본문 크기만큼 자라고 surface 상태를 지울 때 해제된다.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
@@ -34,19 +45,34 @@ pub(crate) struct CopyProgress {
 
 struct SurfaceScan {
     parser: vtparse::VTParser,
-    /// 마지막 기준점 뒤의 바이트. 쓰기로 정했거나 한도를 넘으면 다음 기준점까지 `None`이다.
-    head: Option<Vec<u8>>,
+    /// 마지막 기준점 뒤의 바이트.
+    head: Vec<u8>,
+    /// 쓰기로 정했거나 한도를 넘어 다음 기준점까지 머리를 보지 않는 동안, 파서가 OSC 문자열 안인지.
+    closed: Option<bool>,
+    /// 파서가 UTF-8 글자 중간일 수 있으면 남은 연속 바이트 수. 실제보다 작게 세지 않는다.
+    utf8_left: u8,
     /// 본문을 받는 중인 쓰기의 접수 시각.
     receiving: Option<Instant>,
     /// 끝났고 client 기록 결과를 기다리는 쓰기의 접수 시각. 바이트 순서다.
     awaiting: VecDeque<Instant>,
 }
 
+impl SurfaceScan {
+    /// 기준점에서 머리를 비우고, ground가 아니면 그 바이트부터 다시 시작한다.
+    fn restart(&mut self, byte: Option<u8>) {
+        self.head.clear();
+        self.closed = None;
+        self.head.extend(byte);
+    }
+}
+
 impl Default for SurfaceScan {
     fn default() -> Self {
         Self {
             parser: vtparse::VTParser::new(),
-            head: Some(Vec::new()),
+            head: Vec::new(),
+            closed: None,
+            utf8_left: 0,
             receiving: None,
             awaiting: VecDeque::new(),
         }
@@ -107,10 +133,11 @@ fn ended_osc(params: &[&[u8]]) -> Ended {
     }
 }
 
-/// 기준점 뒤 `head`로 열린 시퀀스가 OSC 52 쓰기 본문을 받는 중인지. 새 파서에 `head`와 BEL 둘을 먹여 끝난
-/// OSC가 `52;<선택>;<데이터>`이고 데이터가 비지 않았으며 질의 `?`가 아닌지 본다. BEL이 둘인 것은 머리 끝의
-/// 미완성 UTF-8이 첫 BEL을 삼켜도 OSC를 끝내기 위해서다.
-fn opens_write(head: &[u8]) -> bool {
+/// 기준점 뒤 `head`를 새 파서에 먹인 뒤 열린 시퀀스가 OSC 문자열인지와, OSC 52 쓰기 본문을 받는 중인지.
+/// 0x9c와 BEL 둘을 덧붙여 처음 끝난 OSC를 본다. 0x9c는 OSC를 끝내거나, 머리 끝이 C2 리드면 그것과 함께
+/// UTF-8 ST가 된다. 다른 미완성 UTF-8은 어떻게 끝나도 글자 하나를 데이터에 남기므로 BEL로 끝낸다.
+/// 쓰기는 `52;<선택>;<데이터>`이고 데이터가 비지 않았으며 질의 `?`가 아닌 것이다.
+fn osc_head(head: &[u8]) -> (bool, bool) {
     #[derive(Default)]
     struct Write(Option<bool>);
     impl vtparse::VTActor for Write {
@@ -134,8 +161,20 @@ fn opens_write(head: &[u8]) -> bool {
     // 머리 안에서 끝난 OSC는 없다(끝난 바이트가 기준점이다). 그래도 덧붙인 바이트의 첫 OSC만 본다.
     parser.parse(head, &mut Write::default());
     let mut write = Write::default();
-    parser.parse(b"\x07\x07", &mut write);
-    write.0 == Some(true)
+    parser.parse(b"\x9c\x07\x07", &mut write);
+    (write.0.is_some(), write.0 == Some(true))
+}
+
+/// 실제 파서가 UTF-8 글자 중간일 수 있는 남은 연속 바이트 수. 리드 바이트는 ground나 OSC 문자열에서만
+/// 글자를 시작하지만 그 밖일 수도 있으면(`may_start`) 시작한 것으로 센다. 연속 바이트 범위는 넓게 본다.
+fn next_utf8_left(left: u8, byte: u8, may_start: bool) -> u8 {
+    match byte {
+        0x80..=0xbf => left.saturating_sub(1),
+        0xc2..=0xdf if may_start => 1,
+        0xe0..=0xef if may_start => 2,
+        0xf0..=0xf4 if may_start => 3,
+        _ => 0,
+    }
 }
 
 impl CopyProgress {
@@ -145,6 +184,14 @@ impl CopyProgress {
         let scan = surfaces.entry(surface).or_default();
         let mut step = Dispatches::default();
         for &byte in bytes {
+            let was_ground = scan.parser.is_ground();
+            // 직전까지 UTF-8 글자 중간일 수 있었으면 이 바이트는 글자로 소비됐을 수 있다.
+            let maybe_in_char = scan.utf8_left > 0;
+            scan.utf8_left = next_utf8_left(
+                scan.utf8_left,
+                byte,
+                was_ground || scan.closed != Some(false),
+            );
             scan.parser.parse_byte(byte, &mut step);
             for end in step.ends.drain(..) {
                 let receiving = scan.receiving.take();
@@ -156,22 +203,28 @@ impl CopyProgress {
             }
             let dispatched = std::mem::take(&mut step.dispatched);
             if scan.parser.is_ground() {
-                scan.head = Some(Vec::new());
+                scan.restart(None);
                 continue;
             }
-            if dispatched {
-                scan.head = Some(vec![byte]);
-            } else if let Some(head) = &mut scan.head {
-                head.push(byte);
-            }
-            let Some(head) = &scan.head else {
+            let anywhere = !maybe_in_char
+                && match byte {
+                    0x1b | 0x18 | 0x1a | 0x80..=0x9c | 0x9e | 0x9f => true,
+                    0x9d => scan.closed == Some(false),
+                    _ => false,
+                };
+            if dispatched || anywhere {
+                scan.restart(Some(byte));
+            } else if scan.closed.is_none() {
+                scan.head.push(byte);
+            } else {
                 continue;
-            };
-            if opens_write(head) {
+            }
+            let (in_osc, write) = osc_head(&scan.head);
+            if write {
                 scan.receiving.get_or_insert(now);
-                scan.head = None;
-            } else if head.len() >= HEAD_LIMIT {
-                scan.head = None;
+                scan.closed = Some(in_osc);
+            } else if scan.head.len() >= HEAD_LIMIT {
+                scan.closed = Some(in_osc);
             }
         }
         if scan.receiving.is_none() && scan.awaiting.is_empty() && scan.parser.is_ground() {
@@ -210,7 +263,8 @@ impl CopyProgress {
             self.failures.push(surface);
         }
         scan.parser = vtparse::VTParser::new();
-        scan.head = Some(Vec::new());
+        scan.utf8_left = 0;
+        scan.restart(None);
         self.forget_if_idle(surface);
     }
 

@@ -198,10 +198,118 @@ fn unanswered_and_broken_writes_fail_once() {
     );
 }
 
-/// 기준(oracle): 입력 뒤에 BEL 둘을 붙여 vtparse 0.6.2에 먹였을 때, 붙인 바이트에서 나온 첫 OSC dispatch가
-/// OSC 52 쓰기다(첫 파라미터가 `52`이고 셋째 파라미터부터의 데이터가 비지 않았고 질의 `?`가 아니다). 곧 입력이
-/// 끝난 시점에 열려 있는 시퀀스가 OSC 52 쓰기 본문을 받는 중이다. BEL이 둘인 것은 입력 끝의 미완성 UTF-8이
-/// 첫 BEL을 잘못된 문자로 삼켜도 열린 OSC를 끝내기 위해서다.
+fn repeat(chunk: &[u8], times: usize) -> Vec<u8> {
+    chunk.repeat(times)
+}
+
+/// Given 머리 한도(64바이트)보다 긴 앞 시퀀스가 dispatch 없이 열려 있다, When 그 뒤 ESC나 C1로 OSC 52 쓰기가
+/// 시작해 본문이 온다, Then 본문을 받는 중으로 접수한다. ESC·C1이 dispatch 없이도 기준점이기 때문이다.
+#[test]
+fn a_write_after_a_long_open_sequence_is_received() {
+    const WRITE: &[u8] = b"\x1b]52;c;aGk=";
+    let cases: [(&str, Vec<u8>); 9] = [
+        (
+            "끝나지 않은 CSI",
+            [b"\x1b[".as_slice(), &[b'1'; 62]].concat(),
+        ),
+        (
+            "파라미터가 긴 CSI",
+            [b"\x1b[".to_vec(), repeat(b"1;", 40)].concat(),
+        ),
+        ("CSI 무시", [b"\x1b[:".as_slice(), &[b'1'; 70]].concat()),
+        ("SOS", [b"\x1bX".as_slice(), &[b'a'; 70]].concat()),
+        ("PM", [b"\x1b^".as_slice(), &[b'a'; 70]].concat()),
+        (
+            "DCS 파라미터",
+            [b"\x1bP".to_vec(), repeat(b"1;", 40)].concat(),
+        ),
+        ("DCS 무시", [b"\x1bP:".as_slice(), &[b'1'; 70]].concat()),
+        ("C1 SOS", [b"\x98".as_slice(), &[b'a'; 70]].concat()),
+        ("C1 CSI", [b"\x9b".as_slice(), &[b'1'; 70]].concat()),
+    ];
+    for (name, before) in cases {
+        let input = [before.as_slice(), WRITE].concat();
+        assert!(oracle_receiving(&input), "기준 {name}");
+        assert!(tracker_receiving(&input), "{name}");
+    }
+    // OSC 문자열 밖이면 C1 OSC 도입자 0x9d도 기준점이다.
+    let input = [b"\x98".as_slice(), &[b'a'; 70], b"\x9d52;c;aGk="].concat();
+    assert!(oracle_receiving(&input));
+    assert!(tracker_receiving(&input), "SOS 뒤 0x9d");
+    // 긴 OSC 문자열 안 미완성 UTF-8이 삼킨 ESC는 기준점이 아니다.
+    let input = [b"\x1b]0;".as_slice(), &[b'a'; 70], b"\xe4", WRITE].concat();
+    assert!(!oracle_receiving(&input));
+    assert!(!tracker_receiving(&input), "글자에 먹힌 ESC");
+    // 남는 한계: OSC 52 자신의 선택 인자가 한도를 넘으면 진행 표시를 놓친다.
+    let input = [b"\x1b]52;".as_slice(), &[b'c'; 70], b";aGk="].concat();
+    assert!(oracle_receiving(&input));
+    assert!(!tracker_receiving(&input), "선택 인자가 긴 OSC 52");
+}
+
+/// Given 쓰기 본문이 미완성 UTF-8로 끝난다, When 실제 종결이 온다, Then 접수는 실제 바이트가 정한 데이터를
+/// 따른다. C2 리드 뒤 0x9c는 UTF-8로 쓴 ST라 데이터 `?`의 질의가 된다.
+#[test]
+fn an_unfinished_utf8_tail_is_judged_by_real_terminators() {
+    let cases: [(&[u8], bool); 6] = [
+        (b"\x1b]52;c;?\xc2", false),
+        (b"\x1b]52;c;\xc2", false),
+        (b"\x1b]52;c;a\xc2", true),
+        // C2가 아닌 리드는 어떻게 끝나도 데이터에 글자 하나가 들어간다.
+        (b"\x1b]52;c;\xe4", true),
+        (b"\x1b]52;c;?\xe4\xb8", true),
+        (b"\x1b]52;c;?\xc2\x07", true),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(oracle_receiving(input), expected, "기준 {input:02x?}");
+        assert_eq!(tracker_receiving(input), expected, "{input:02x?}");
+    }
+
+    let mut progress = CopyProgress::default();
+    progress.feed(SID, b"\x1b]52;c;?\xc2", at(0));
+    assert!(waits(&progress).is_empty());
+    progress.feed(SID, b"\x9c", at(1));
+    assert!(waits(&progress).is_empty(), "UTF-8 ST로 끝난 질의");
+    assert!(progress.take_failures().is_empty());
+
+    for terminator in [b"\x07".as_slice(), b"\x1b\\", b"\x9c", b"\xc2\x9c"] {
+        let mut progress = CopyProgress::default();
+        progress.feed(SID, b"\x1b]52;c;aG", at(0));
+        progress.feed(SID, &[b"k=".as_slice(), terminator].concat(), at(1));
+        assert_eq!(waits(&progress), vec![at(0)], "{terminator:02x?}");
+        assert!(progress.settle_write(SID));
+    }
+}
+
+/// Given 쓰기가 머리 한도(64바이트) 근처에서 여러 조각으로 나뉘어 온다, When 본문 첫 바이트가 도착한다,
+/// Then 그 조각에서 접수하고 종결 뒤 결과 대기로 넘긴다.
+#[test]
+fn a_write_split_across_the_head_limit_is_received() {
+    let before = [b"\x1b[".as_slice(), &[b'1'; 58]].concat();
+    let mut progress = CopyProgress::default();
+    progress.feed(SID, &[before.as_slice(), b"\x1b]5"].concat(), at(0));
+    progress.feed(SID, b"2;c;", at(1));
+    assert!(waits(&progress).is_empty());
+    progress.feed(SID, b"aG", at(2));
+    assert_eq!(waits(&progress), vec![at(2)]);
+    progress.feed(SID, b"k=\x07", at(3));
+    assert_eq!(waits(&progress), vec![at(2)]);
+    assert!(progress.settle_write(SID));
+
+    // 데이터가 한도를 넘어 길어져도 접수는 그대로다.
+    let mut progress = CopyProgress::default();
+    progress.feed(SID, b"\x1b]52;c;", at(0));
+    for step in 1..=10 {
+        progress.feed(SID, &[b'Q'; 10], at(step));
+    }
+    progress.feed(SID, b"\x07", at(11));
+    assert_eq!(waits(&progress), vec![at(1)]);
+}
+
+/// 기준(oracle): 입력 뒤에 실제 종결 하나(BEL, ESC \\, 0x9c, UTF-8로 쓴 ST `C2 9C`)를 OSC가 끝날 때까지(최대
+/// 네 번) 이어 붙여 vtparse 0.6.2에 먹인다. 네 종결 모두에서 붙인 바이트의 첫 OSC dispatch가 OSC 52 쓰기면(첫
+/// 파라미터가 `52`이고 셋째 파라미터부터의 데이터가 비지 않았고 질의 `?`가 아니다) 입력 끝에 열린 시퀀스가 쓰기
+/// 본문을 받는 중이다. 곧 실제 바이트가 어떻게 이 OSC를 끝내도 쓰기다. 입력 끝의 미완성 UTF-8을 대체 문자 같은
+/// 합성 값으로 바꿔 데이터로 세지 않는다. 종결이 그 글자에 먹히면 OSC가 끝날 때까지 같은 종결을 더 붙인다.
 fn oracle_receiving(input: &[u8]) -> bool {
     #[derive(Default)]
     struct Oscs(Vec<Vec<Vec<u8>>>);
@@ -218,19 +326,29 @@ fn oracle_receiving(input: &[u8]) -> bool {
         }
         fn apc_dispatch(&mut self, _: Vec<u8>) {}
     }
-    let mut parser = vtparse::VTParser::new();
-    let mut oscs = Oscs::default();
-    parser.parse(input, &mut oscs);
-    let before = oscs.0.len();
-    parser.parse(b"\x07\x07", &mut oscs);
-    let Some(params) = oscs.0.get(before) else {
-        return false;
+    let ends_as_write = |terminator: &[u8]| {
+        let mut parser = vtparse::VTParser::new();
+        let mut oscs = Oscs::default();
+        parser.parse(input, &mut oscs);
+        let before = oscs.0.len();
+        for _ in 0..4 {
+            parser.parse(terminator, &mut oscs);
+            if oscs.0.len() > before {
+                break;
+            }
+        }
+        let Some(params) = oscs.0.get(before) else {
+            return false;
+        };
+        if params.len() < 3 || params[0] != b"52" {
+            return false;
+        }
+        let data = params[2..].join(&b';');
+        !data.is_empty() && data != b"?"
     };
-    if params.len() < 3 || params[0] != b"52" {
-        return false;
-    }
-    let data = params[2..].join(&b';');
-    !data.is_empty() && data != b"?"
+    [b"\x07".as_slice(), b"\x1b\\", b"\x9c", b"\xc2\x9c"]
+        .into_iter()
+        .all(ends_as_write)
 }
 
 fn tracker_receiving(input: &[u8]) -> bool {
@@ -243,9 +361,28 @@ fn tracker_receiving(input: &[u8]) -> bool {
 }
 
 /// 경계 바이트와 짧은 조각. `52;`·`c;`처럼 묶은 것은 짧은 길이로도 쓰기의 머리가 생기게 하려는 것이다.
-const TOKENS: [&[u8]; 14] = [
-    b"\x1b", b"\x1b]", b"]", b"\x9b", b"\x9d", b"\x9c", b"\x07", b"\\", b"52;", b"c;", b"0;",
-    b"1;", b"\xe4", b"a",
+/// `?`·`\xc2`·UTF-8 ST·ESC \\는 입력 안의 실제 종결과 미완성 UTF-8을 만든다.
+const TOKENS: [&[u8]; 20] = [
+    b"\x1b",
+    b"\x1b]",
+    b"]",
+    b"\x9b",
+    b"\x9d",
+    b"\x9c",
+    b"\x07",
+    b"\\",
+    b"52;",
+    b"c;",
+    b"0;",
+    b"1;",
+    b"\xe4",
+    b"a",
+    b"?",
+    b"\xc2",
+    b"\xc2\x9c",
+    b"\x1b\\",
+    b"\x1bP",
+    b"\x1bX",
 ];
 
 fn mismatches(inputs: impl Iterator<Item = Vec<u8>>) -> Vec<String> {
@@ -273,7 +410,7 @@ const NAMED: [(&[u8], bool); 5] = [
 ];
 
 /// Given 경계 바이트로 만든 입력, When 추적기와 vtparse 기준(`oracle_receiving`)이 입력 끝에 쓰기 본문을
-/// 받는 중인지 판정한다, Then 모든 입력에서 같다. 토큰 5개까지는 전수, 6~12개는 고정 시드 무작위다.
+/// 받는 중인지 판정한다, Then 모든 입력에서 같다. 토큰 4개까지는 전수, 5~12개는 고정 시드 무작위다.
 #[test]
 fn receiving_matches_vtparse_on_boundary_inputs() {
     for (input, expected) in NAMED {
@@ -284,7 +421,7 @@ fn receiving_matches_vtparse_on_boundary_inputs() {
 
     let mut exhaustive = Vec::new();
     let mut frontier = vec![Vec::<u8>::new()];
-    for _ in 0..5 {
+    for _ in 0..4 {
         frontier = frontier
             .iter()
             .flat_map(|prefix| {
@@ -306,8 +443,8 @@ fn receiving_matches_vtparse_on_boundary_inputs() {
         state ^= state << 17;
         state
     };
-    let random = (0..200_000).map(|_| {
-        let len = 6 + (next() % 7) as usize;
+    let random = (0..400_000).map(|_| {
+        let len = 5 + (next() % 8) as usize;
         (0..len)
             .flat_map(|_| {
                 TOKENS[(next() % TOKENS.len() as u64) as usize]
@@ -317,4 +454,41 @@ fn receiving_matches_vtparse_on_boundary_inputs() {
             .collect::<Vec<u8>>()
     });
     assert_eq!(mismatches(random), Vec::<String>::new());
+
+    // 머리 한도를 넘는 앞 시퀀스 뒤. 긴 조각은 앞 시퀀스 안에만 둔다(OSC 52 자신의 선택 인자가 한도를 넘는
+    // 경우는 문서의 남은 한계라 비교하지 않는다). 토큰 셋으로 쓰기가 생기도록 쓰기 머리 조각을 더한다.
+    let long_prefixes: Vec<Vec<u8>> = [
+        (b"\x1b[".as_slice(), b"".as_slice()),
+        (b"\x1b[:", b""),
+        (b"\x1bX", b""),
+        (b"\x1bP", b""),
+        (b"\x1bP:", b""),
+        (b"\x1b]0;", b""),
+        (b"\x1b]0;", b"\xe4"),
+        (b"\x9b", b""),
+        (b"\x98", b""),
+    ]
+    .iter()
+    .map(|(intro, tail)| [*intro, &[b'1'; 70], *tail].concat())
+    .collect();
+    let alphabet: Vec<&[u8]> = TOKENS
+        .iter()
+        .copied()
+        .chain([b"\x1b]52;c;".as_slice(), b"\x9d52;c;"])
+        .collect();
+    let after_long = long_prefixes.iter().flat_map(|prefix| {
+        let mut inputs = vec![prefix.clone()];
+        for _ in 0..3 {
+            inputs = inputs
+                .iter()
+                .flat_map(|input| {
+                    alphabet
+                        .iter()
+                        .map(move |token| [input.as_slice(), token].concat())
+                })
+                .collect();
+        }
+        inputs
+    });
+    assert_eq!(mismatches(after_long), Vec::<String>::new());
 }
