@@ -66,6 +66,8 @@ fn attach_when_descriptor_has_file(
 ) -> (AttachStream, Value) {
     let deadline = Instant::now() + Duration::from_secs(20);
     let mut last = None;
+    // 읽기마다 새 연결 handshake 로 점유를 얻는다. 기한 뒤 읽기는 원래 루프가 만들지 않던 새 연결이 되고,
+    // descriptor 는 handshake 로만 보이므로 연결 없이 관측할 길이 없어 원래 루프를 둔다.
     while Instant::now() < deadline {
         if let Some((stream, descriptor)) =
             try_open_workspace_attach_stream(server.port(), workspace_id)
@@ -288,6 +290,7 @@ fn markdown_content_request_is_authorized_engine_wide_not_per_workspace() {
     drop(probe);
 
     let deadline = Instant::now() + Duration::from_secs(20);
+    // 읽기마다 새 연결 handshake 로 점유를 얻는다. 기한 뒤 읽기를 관측만으로 할 길이 없어 원래 루프를 둔다.
     let mut stream = loop {
         if let Some((s, _)) = try_open_workspace_attach_stream(server.port(), held_ws.id) {
             break s;

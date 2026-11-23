@@ -151,6 +151,8 @@ fn scenario_driver() {
 }
 
 fn wait_for_event(events: &std::sync::mpsc::Receiver<String>, expected: &str) {
+    // 전체 기한 없이 수신마다 대기 예산이 새로 시작된다. 기한 뒤 재읽기 꼴로 바꾸면 수신 계약이 달라지므로
+    // 원래 루프를 둔다.
     loop {
         let line = events
             .recv_timeout(common::spawn_diag::SPAWN_PORT_TIMEOUT)

@@ -33,6 +33,8 @@ fn try_read_frame(stream: &mut TcpStream) -> Option<(u8, Vec<u8>)> {
 
 /// 점유 직후 kind:null baseline이 올 수 있어 실제 attention이 담긴 첫 프레임을 기다린다.
 fn wait_for_raised_attention(stream: &mut TcpStream) -> Value {
+    // 전체 기한 없이 프레임마다 소켓 읽기 timeout 이 새로 시작된다. 기한 뒤 재읽기 꼴로 바꾸면 프레임 소비와
+    // 소켓 대기 계약이 달라지므로 원래 루프를 둔다.
     loop {
         let (tag, payload) = attach_common::read_frame(stream);
         if tag != TAG_CONTROL {
@@ -51,6 +53,7 @@ fn wait_for_raised_attention(stream: &mut TcpStream) -> Value {
 
 /// kind와 무관하게 다음 attention 프레임을 반환한다.
 fn wait_for_attention_frame(stream: &mut TcpStream) -> Value {
+    // 전체 기한 없이 프레임마다 소켓 읽기 timeout 이 새로 시작된다. 위 대기와 같은 이유로 원래 루프를 둔다.
     loop {
         let (tag, payload) = attach_common::read_frame(stream);
         if tag != TAG_CONTROL {
@@ -309,6 +312,8 @@ fn wait_for_cwd(
 ) -> Vec<Value> {
     let start = Instant::now();
     let mut seen = Vec::new();
+    // 기한 검사가 프레임 소비 앞에 있다. 기한 뒤 재읽기는 소켓 timeout 까지 막히는 읽기로 프레임을 하나 더
+    // 소비하게 되어 읽기 계약이 달라지므로 원래 루프를 둔다.
     while start.elapsed() < limit {
         let (tag, payload) = read_frame(stream);
         if tag != TAG_CONTROL {

@@ -542,6 +542,8 @@ fn html_nested_navigation_and_fresh_reload_preserve_root_and_provenance() {
 /// Waits past the server's 30-second credit timeout; heartbeats keep the attach connection alive.
 fn event_after_credit_timeout(stream: &mut AttachStream, name: &str) -> Value {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    // 60초 검사는 소켓 timeout 분기에만 있다. 무관한 프레임 소비와 소켓 대기 계약이 이 시험의 내용이라
+    // 기한 뒤 재읽기 꼴로 바꾸지 않고 원래 루프를 둔다.
     loop {
         match attach_common::read_frame_result(stream) {
             Ok((attach_common::TAG_CONTROL, payload)) => {

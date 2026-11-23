@@ -37,6 +37,8 @@ const STRUCTURAL_WAIT: Duration = common::RESPONSE_WAIT;
 /// 예상한 구조 프레임을 기다린다. 성공한 structural_result는 delta 앞에서 건너뛰고 다른 순서는 실패시킨다.
 fn next_structural(stream: &mut TcpStream, event: &str) -> Value {
     let deadline = Instant::now() + STRUCTURAL_WAIT;
+    // 기한 검사가 프레임 소비 앞에 있다. 기한 뒤 재읽기는 소켓 timeout 까지 막히는 읽기로 프레임을 하나 더
+    // 소비하게 되어 읽기 계약이 달라지므로 원래 루프를 둔다.
     loop {
         assert!(
             Instant::now() < deadline,
@@ -94,6 +96,8 @@ fn a_shell_exit_on_the_server_reaches_the_holder_as_a_delta() {
 
     // 셸이 아직 입력을 못 받을 수 있어 delta가 올 때까지 exit를 반복한다. 종료된 surface의 입력은 서버가 버린다.
     let deadline = Instant::now() + STRUCTURAL_WAIT;
+    // 기한 검사가 exit 재전송 앞에 있다. 기한 뒤 읽기는 exit 를 다시 써서 기다리던 delta 를 새로 만들 수 있고,
+    // 재전송 없이 delta 를 관측할 길이 없어 원래 루프를 둔다.
     let delta = loop {
         assert!(
             Instant::now() < deadline,

@@ -77,6 +77,8 @@ fn disabling_a_plugin_withdraws_its_surface_kinds_and_keeps_open_surfaces() {
 
     server.call("plugin.enable", json!({ "id": MARKDOWN_PLUGIN }));
     let deadline = Instant::now() + Duration::from_secs(20);
+    // 읽기가 실제 tab.create 요청이다. 그 kind 로 만들 수 있는지는 생성 시도로만 보여 기한 뒤 관측 읽기를
+    // 따로 둘 수 없으므로 원래 루프를 둔다.
     loop {
         let again = create_markdown_tab(server, pane_id, &file);
         if again["result"]["surface_id"].as_u64().is_some() {
