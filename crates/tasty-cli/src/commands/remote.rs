@@ -33,7 +33,7 @@ pub enum RemoteCommands {
         /// Raw bridge mode: stdin/stdout passthrough (detach with Ctrl+\).
         #[arg(long)]
         raw: bool,
-        /// Remote SSH target, e.g. --ssh user@host or --ssh gx10. Mutually
+        /// Remote SSH target, e.g. --ssh user@host or --ssh host. Mutually
         /// exclusive with `--profile`.
         #[arg(long)]
         ssh: Option<String>,
@@ -92,7 +92,7 @@ pub enum RemoteCommands {
     /// or error response means the check failed; it does not by itself show that
     /// the server stopped. Argument names match `remote attach`.
     Check {
-        /// Remote SSH target, e.g. --ssh user@host or --ssh gx10. Mutually
+        /// Remote SSH target, e.g. --ssh user@host or --ssh host. Mutually
         /// exclusive with `--profile`.
         #[arg(long)]
         ssh: Option<String>,
@@ -125,7 +125,7 @@ pub enum RemoteCommands {
     ///
     /// The local IPC method `remote.workspaces` exposes the same capability.
     Workspaces {
-        /// Remote SSH target, e.g. --ssh user@host, --ssh gx10, or
+        /// Remote SSH target, e.g. --ssh user@host, --ssh host, or
         /// --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`.
         #[arg(long)]
         ssh: Option<String>,
@@ -155,7 +155,7 @@ pub enum RemoteCommands {
     /// change. To also mirror it in the local GUI, use
     /// `tasty remote attach --into-gui --new-workspace`.
     NewWorkspace {
-        /// Remote SSH target, e.g. --ssh user@host, --ssh gx10, or
+        /// Remote SSH target, e.g. --ssh user@host, --ssh host, or
         /// --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`.
         #[arg(long)]
         ssh: Option<String>,

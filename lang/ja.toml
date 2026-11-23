@@ -2954,7 +2954,7 @@ help = "ワークスペースモードで `--send` の入力を受け取るリ�
 help = "生のブリッジモード：stdin/stdoutをそのまま転送（Ctrl+\\\\でdetach）"
 
 [cli.help._root.remote.attach.arg.ssh]
-help = "リモートSSH接続先（例：--ssh user@host、--ssh gx10）。`--profile` と併用不可"
+help = "リモートSSH接続先（例：--ssh user@host、--ssh host）。`--profile` と併用不可"
 
 [cli.help._root.remote.attach.arg.profile]
 help = "保存済みの tasty-attach プロファイルで接続します。`~/.tasty/remote-profiles.toml` からユーザー、ポート、認証鍵、追加オプションを読み取ります。`--ssh` とは併用できません。`--remote-tasty` と `--remote-port-mode` の代わりにプロファイルの値を使います。"
@@ -2988,7 +2988,7 @@ about = "SSH経由でリモートtastyインスタンスの稼働を確認"
 long = "SSH 経由でリモートの tasty インスタンスに接続できるか確認します。\n\n`tasty port` またはポートファイルでリモートポートを探し、`ssh -L` トンネルを開いて `system.info` を要求します。成功応答を受け取ると接続可能と判断します。接続失敗、タイムアウト、不正な応答、エラー応答は確認に失敗したことを示しますが、それだけでサーバーの終了を意味するわけではありません。引数名は `remote attach` と同じです。"
 
 [cli.help._root.remote.check.arg.ssh]
-help = "リモートSSH接続先（例：--ssh user@host、--ssh gx10）。`--profile` と併用不可"
+help = "リモートSSH接続先（例：--ssh user@host、--ssh host）。`--profile` と併用不可"
 
 [cli.help._root.remote.check.arg.profile]
 help = "保存済みの tasty-attach プロファイルで確認します。`~/.tasty/remote-profiles.toml` からユーザー、ポート、認証鍵、追加オプションを読み取ります。`--ssh` とは併用できません。`--remote-tasty` と `--remote-port-mode` の代わりにプロファイルの値を使います。"
@@ -3004,7 +3004,7 @@ about = "SSH経由でリモートtastyインスタンスのワークスペース
 long = "SSH経由でリモートtastyインスタンスのワークスペースを一覧表示します。SSH接続先またはattachプロファイルに接続し、リモートの `workspace.list` と `attach.list` を統合します。各ワークスペースのID、名前、ペイン数、処理中フラグ、他クライアントのattach状態を表示します。`remote attach --workspace` のIDを探す際に使います。読み取り専用でローカルユーザーの状態（フォーカスなど）を変更しません。`--ssh 127.0.0.1:<port>` はトンネルなしでループバックへ直接接続します（ローカルのエンドツーエンド検証）。ローカルIPC `remote.workspaces` も同じ機能を提供します。"
 
 [cli.help._root.remote.workspaces.arg.ssh]
-help = "リモートSSH接続先（例：--ssh user@host、--ssh gx10、--ssh 127.0.0.1:45123）。`--profile` と併用不可"
+help = "リモートSSH接続先（例：--ssh user@host、--ssh host、--ssh 127.0.0.1:45123）。`--profile` と併用不可"
 
 [cli.help._root.remote.workspaces.arg.profile]
 help = "保存済みtasty-attachプロファイル名で一覧表示。`--ssh` と併用不可。プロファイルの値が `--remote-tasty` と `--remote-port-mode` を置き換えます"
@@ -3023,7 +3023,7 @@ about = "SSH経由でリモートtastyインスタンスに新しいワークス
 long = "SSH経由でリモートtastyインスタンスに新しいワークスペースを作成します。`remote workspaces` に対応する書き込みコマンドです。出力されたIDを `tasty remote attach --workspace <id>` に渡すと、リモートで作成後にattachできます。リモートのアクティブワークスペースは変わりません。ローカルGUIにミラーするには `tasty remote attach --into-gui --new-workspace` を使います。"
 
 [cli.help._root.remote.new-workspace.arg.ssh]
-help = "リモートSSH接続先（例：--ssh user@host、--ssh gx10、--ssh 127.0.0.1:45123）。`--profile` と併用不可"
+help = "リモートSSH接続先（例：--ssh user@host、--ssh host、--ssh 127.0.0.1:45123）。`--profile` と併用不可"
 
 [cli.help._root.remote.new-workspace.arg.profile]
 help = "保存済みtasty-attachプロファイル名で作成。`--ssh` と併用不可。プロファイルの値が `--remote-tasty` と `--remote-port-mode` を置き換えます"
@@ -4388,7 +4388,7 @@ about = "保存済み SSH プロファイルの認証鍵とポートを使って
 help = "接続に使う ssh プロファイル名"
 
 [cli.help._root.tool.ssh.arg.command]
-help = "リモートホストで一度だけ実行するコマンド (省略すると対話シェル)。例: `tasty tool ssh gb10 --command hostname`"
+help = "リモートホストで一度だけ実行するコマンド (省略すると対話シェル)。例: `tasty tool ssh host --command hostname`"
 
 [cli.help._root.tool.remote-profile]
 about = "ssh と tasty-attach の 2 種類のリモート接続プロファイルを管理します。ローカルファイルを使い、IPC は呼び出しません。"

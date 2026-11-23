@@ -3028,7 +3028,7 @@ help = "Remote surface id that receives the `--send` input in workspace mode"
 help = "Raw bridge mode: stdin/stdout passthrough (detach with Ctrl+\\)"
 
 [cli.help._root.remote.attach.arg.ssh]
-help = "Remote SSH target, e.g. --ssh user@host or --ssh gx10. Mutually exclusive with `--profile`"
+help = "Remote SSH target, e.g. --ssh user@host or --ssh host. Mutually exclusive with `--profile`"
 
 [cli.help._root.remote.attach.arg.profile]
 help = "Attach using a saved tasty-attach profile name. The profile is resolved from `~/.tasty/remote-profiles.toml` to supply user/port/identity/extra options. Mutually exclusive with `--ssh`. The profile's values replace `--remote-tasty` and `--remote-port-mode`"
@@ -3062,7 +3062,7 @@ about = "Check whether a remote tasty instance is alive over SSH"
 long = "Check whether a remote tasty instance is alive over SSH.\n\nFind the remote port using `tasty port` or the port file, open an `ssh -L` tunnel, and send a `system.info` request. A successful response confirms that the instance is reachable. A connection failure, timeout, invalid response, or error response means the check failed; it does not by itself show that the server stopped. Argument names match `remote attach`."
 
 [cli.help._root.remote.check.arg.ssh]
-help = "Remote SSH target, e.g. --ssh user@host or --ssh gx10. Mutually exclusive with `--profile`"
+help = "Remote SSH target, e.g. --ssh user@host or --ssh host. Mutually exclusive with `--profile`"
 
 [cli.help._root.remote.check.arg.profile]
 help = "Check using a saved tasty-attach profile name. The profile is resolved from `~/.tasty/remote-profiles.toml` to supply user/port/identity/extra options. Mutually exclusive with `--ssh`. The profile's values replace `--remote-tasty` and `--remote-port-mode`"
@@ -3078,7 +3078,7 @@ about = "List the workspaces of a remote tasty instance over SSH"
 long = "List the workspaces of a remote tasty instance over SSH.\n\nConnects to the ssh target or attach profile, fetches the remote `workspace.list` and `attach.list`, and merges them: each workspace is reported with its id, name, pane count, busy flag, and whether another client has it attached. Use this to discover the workspace id that `remote attach --workspace` expects. Read-only; the local user's state (focus etc.) is untouched. `--ssh 127.0.0.1:<port>` connects directly over loopback without a tunnel (local end-to-end checks).\n\nThe local IPC method `remote.workspaces` exposes the same capability."
 
 [cli.help._root.remote.workspaces.arg.ssh]
-help = "Remote SSH target, e.g. --ssh user@host, --ssh gx10, or --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`"
+help = "Remote SSH target, e.g. --ssh user@host, --ssh host, or --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`"
 
 [cli.help._root.remote.workspaces.arg.profile]
 help = "List using a saved tasty-attach profile name. Mutually exclusive with `--ssh`. The profile's values replace `--remote-tasty` and `--remote-port-mode`"
@@ -3097,7 +3097,7 @@ about = "Create a new workspace on a remote tasty instance over SSH"
 long = "Create a new workspace on a remote tasty instance over SSH.\n\nThe write-side counterpart of `remote workspaces`. Pass the printed id to `tasty remote attach --workspace <id>` to create a workspace remotely and attach to it in one go. The remote's active workspace does not change. To also mirror it in the local GUI, use `tasty remote attach --into-gui --new-workspace`."
 
 [cli.help._root.remote.new-workspace.arg.ssh]
-help = "Remote SSH target, e.g. --ssh user@host, --ssh gx10, or --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`"
+help = "Remote SSH target, e.g. --ssh user@host, --ssh host, or --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`"
 
 [cli.help._root.remote.new-workspace.arg.profile]
 help = "Create using a saved tasty-attach profile name. Mutually exclusive with `--ssh`. The profile's values replace `--remote-tasty` and `--remote-port-mode`"
@@ -4462,7 +4462,7 @@ about = "Open an interactive ssh session using a saved ssh profile (identity and
 help = "Name of the ssh profile to connect with"
 
 [cli.help._root.tool.ssh.arg.command]
-help = "Command to run once on the remote host (interactive shell if omitted), e.g. `tasty tool ssh gb10 --command hostname`"
+help = "Command to run once on the remote host (interactive shell if omitted), e.g. `tasty tool ssh host --command hostname`"
 
 [cli.help._root.tool.remote-profile]
 about = "Manage remote connection profiles (ssh and tasty-attach kinds). Local file, no IPC"

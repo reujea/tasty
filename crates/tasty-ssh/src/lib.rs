@@ -217,7 +217,7 @@ pub fn resolve_attach_target(
 ///
 /// 프로필의 identity/port/user/extra_options 를 조립해 시스템 ssh 를 그대로 spawn 한다
 /// (stdio 상속 = 대화형). `command` 가 비어있지 않으면 원격에서 그 명령을 1회 실행한다
-/// (`tasty tool ssh gb10 --command hostname`). ssh 종료코드를 그대로 전파한다.
+/// (`tasty tool ssh host --command hostname`). ssh 종료코드를 그대로 전파한다.
 /// **공개 계약 아님** — `tasty-cli` 의 커맨드 구현만 쓴다. 크레이트 밖 소비자가
 /// 하나뿐이라 `pub(crate)` 로 못 내릴 뿐이며, 새 소비자가 이걸 쓰기 시작하면
 /// 그건 계약 확장이므로 `#[doc(hidden)]` 을 떼고 문서화하는 결정을 먼저 한다.

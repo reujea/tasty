@@ -249,7 +249,7 @@ pub enum ToolCommands {
         /// Name of the ssh profile to connect with.
         profile: String,
         /// Command to run once on the remote host (interactive shell if omitted),
-        /// e.g. `tasty tool ssh gb10 --command hostname`.
+        /// e.g. `tasty tool ssh host --command hostname`.
         #[arg(long = "command", num_args = 1.., allow_hyphen_values = true)]
         command: Vec<String>,
     },

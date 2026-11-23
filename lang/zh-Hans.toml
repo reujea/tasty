@@ -3018,7 +3018,7 @@ help = "在工作区模式下接收 `--send` 输入的远程 Surface ID"
 help = "原始桥接模式：透传 stdin/stdout（按 Ctrl+\\ 分离）"
 
 [cli.help._root.remote.attach.arg.ssh]
-help = "远程 SSH 目标，例如 --ssh user@host 或 --ssh gx10。与 `--profile` 互斥"
+help = "远程 SSH 目标，例如 --ssh user@host 或 --ssh host。与 `--profile` 互斥"
 
 [cli.help._root.remote.attach.arg.profile]
 help = "使用已保存的 tasty-attach 配置档名称附加。从 `~/.tasty/remote-profiles.toml` 解析配置档，提供用户、端口、身份密钥及额外选项。与 `--ssh` 互斥。配置档中的值替代 `--remote-tasty` 和 `--remote-port-mode`"
@@ -3055,7 +3055,7 @@ long = """
 使用 `tasty port` 或端口文件查找远程端口，打开 `ssh -L` 隧道，然后发送 `system.info` 请求。成功响应表示实例可达。连接失败、超时、无效响应或错误响应表示检查失败；仅凭这些不能判断服务器已停止。参数名称与 `remote attach` 相同。"""
 
 [cli.help._root.remote.check.arg.ssh]
-help = "远程 SSH 目标，例如 --ssh user@host 或 --ssh gx10。与 `--profile` 互斥"
+help = "远程 SSH 目标，例如 --ssh user@host 或 --ssh host。与 `--profile` 互斥"
 
 [cli.help._root.remote.check.arg.profile]
 help = "使用已保存的 tasty-attach 配置档名称检查。从 `~/.tasty/remote-profiles.toml` 解析配置档，提供用户、端口、身份密钥及额外选项。与 `--ssh` 互斥。配置档中的值替代 `--remote-tasty` 和 `--remote-port-mode`"
@@ -3076,7 +3076,7 @@ long = """
 本地 IPC 方法 `remote.workspaces` 提供相同功能。"""
 
 [cli.help._root.remote.workspaces.arg.ssh]
-help = "远程 SSH 目标，例如 --ssh user@host、--ssh gx10 或 --ssh 127.0.0.1:45123。与 `--profile` 互斥"
+help = "远程 SSH 目标，例如 --ssh user@host、--ssh host 或 --ssh 127.0.0.1:45123。与 `--profile` 互斥"
 
 [cli.help._root.remote.workspaces.arg.profile]
 help = "使用已保存的 tasty-attach 配置档名称列出。与 `--ssh` 互斥。配置档中的值替代 `--remote-tasty` 和 `--remote-port-mode`"
@@ -3098,7 +3098,7 @@ long = """
 与 `remote workspaces` 对应的写入命令。将输出的 ID 传给 `tasty remote attach --workspace <id>`，即可在远程创建工作区并附加。远程的活动工作区不变。若还需在本地 GUI 中镜像，使用 `tasty remote attach --into-gui --new-workspace`。"""
 
 [cli.help._root.remote.new-workspace.arg.ssh]
-help = "远程 SSH 目标，例如 --ssh user@host、--ssh gx10 或 --ssh 127.0.0.1:45123。与 `--profile` 互斥"
+help = "远程 SSH 目标，例如 --ssh user@host、--ssh host 或 --ssh 127.0.0.1:45123。与 `--profile` 互斥"
 
 [cli.help._root.remote.new-workspace.arg.profile]
 help = "使用已保存的 tasty-attach 配置档名称创建。与 `--ssh` 互斥。配置档中的值替代 `--remote-tasty` 和 `--remote-port-mode`"
@@ -4550,7 +4550,7 @@ about = "使用已保存的 SSH 配置档打开交互式 SSH 会话（自动注�
 help = "用于连接的 SSH 配置档名称"
 
 [cli.help._root.tool.ssh.arg.command]
-help = "在远程主机上执行一次的命令（省略则启动交互式 Shell），如 `tasty tool ssh gb10 --command hostname`"
+help = "在远程主机上执行一次的命令（省略则启动交互式 Shell），如 `tasty tool ssh host --command hostname`"
 
 [cli.help._root.tool.remote-profile]
 about = "管理远程连接配置档（ssh 和 tasty-attach 种类）。使用本地文件，不使用 IPC"

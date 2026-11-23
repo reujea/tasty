@@ -2954,7 +2954,7 @@ help = "워크스페이스 모드에서 `--send` 입력을 받을 원격 서피�
 help = "원시 브리지 모드: stdin/stdout 그대로 전달(Ctrl+\\\\로 detach)"
 
 [cli.help._root.remote.attach.arg.ssh]
-help = "원격 SSH 대상(예: --ssh user@host, --ssh gx10). `--profile`과 함께 사용 불가"
+help = "원격 SSH 대상(예: --ssh user@host, --ssh host). `--profile`과 함께 사용 불가"
 
 [cli.help._root.remote.attach.arg.profile]
 help = "저장된 tasty-attach 프로필로 연결합니다. `~/.tasty/remote-profiles.toml`에서 사용자, 포트, 인증 키, 추가 옵션을 읽습니다. `--ssh`와 함께 사용할 수 없습니다. `--remote-tasty`와 `--remote-port-mode` 대신 프로필의 값을 사용합니다."
@@ -2988,7 +2988,7 @@ about = "SSH로 원격 tasty 인스턴스의 생존 여부 확인"
 long = "SSH로 원격 tasty 인스턴스에 연결할 수 있는지 확인합니다.\n\n`tasty port` 또는 포트 파일로 원격 포트를 찾고 `ssh -L` 터널을 연 뒤 `system.info` 요청을 보냅니다. 성공 응답을 받아야 연결 가능하다고 판단합니다. 연결 실패, 시간 초과, 잘못된 응답, 오류 응답은 검사가 실패했다는 뜻이며 서버가 종료됐다는 증거는 아닙니다. 인자 이름은 `remote attach`와 같습니다."
 
 [cli.help._root.remote.check.arg.ssh]
-help = "원격 SSH 대상(예: --ssh user@host, --ssh gx10). `--profile`과 함께 사용 불가"
+help = "원격 SSH 대상(예: --ssh user@host, --ssh host). `--profile`과 함께 사용 불가"
 
 [cli.help._root.remote.check.arg.profile]
 help = "저장된 tasty-attach 프로필로 확인합니다. `~/.tasty/remote-profiles.toml`에서 사용자, 포트, 인증 키, 추가 옵션을 읽습니다. `--ssh`와 함께 사용할 수 없습니다. `--remote-tasty`와 `--remote-port-mode` 대신 프로필의 값을 사용합니다."
@@ -3004,7 +3004,7 @@ about = "SSH로 원격 tasty 인스턴스의 워크스페이스 나열"
 long = "SSH로 원격 tasty 인스턴스의 워크스페이스를 나열합니다. SSH 대상이나 attach 프로필로 연결하여 원격 `workspace.list`와 `attach.list`를 합칩니다. 워크스페이스별 ID, 이름, 페인 수, 실행 중 여부, 다른 클라이언트의 attach 여부를 표시합니다. `remote attach --workspace`에 필요한 ID를 찾을 때 사용합니다. 읽기 전용이며 로컬 사용자 상태(포커스 등)를 바꾸지 않습니다. `--ssh 127.0.0.1:<port>`는 터널 없이 루프백으로 직접 연결합니다(로컬 종단 간 검증). 로컬 IPC `remote.workspaces`도 같은 기능을 제공합니다."
 
 [cli.help._root.remote.workspaces.arg.ssh]
-help = "원격 SSH 대상(예: --ssh user@host, --ssh gx10, --ssh 127.0.0.1:45123). `--profile`과 함께 사용 불가"
+help = "원격 SSH 대상(예: --ssh user@host, --ssh host, --ssh 127.0.0.1:45123). `--profile`과 함께 사용 불가"
 
 [cli.help._root.remote.workspaces.arg.profile]
 help = "저장된 tasty-attach 프로필 이름으로 나열. `--ssh`와 함께 사용 불가. 프로필 값이 `--remote-tasty`와 `--remote-port-mode`를 대체"
@@ -3023,7 +3023,7 @@ about = "SSH로 원격 tasty 인스턴스에 새 워크스페이스 생성"
 long = "SSH로 원격 tasty 인스턴스에 새 워크스페이스를 만듭니다. `remote workspaces`로 목록을 조회하는 대신 새 항목을 생성하는 명령입니다. 출력된 ID를 `tasty remote attach --workspace <id>`에 지정하면 생성한 워크스페이스에 연결할 수 있습니다. 원격의 활성 워크스페이스는 바뀌지 않습니다. 로컬 GUI에 미러까지 하려면 `tasty remote attach --into-gui --new-workspace`를 사용합니다."
 
 [cli.help._root.remote.new-workspace.arg.ssh]
-help = "원격 SSH 대상(예: --ssh user@host, --ssh gx10, --ssh 127.0.0.1:45123). `--profile`과 함께 사용 불가"
+help = "원격 SSH 대상(예: --ssh user@host, --ssh host, --ssh 127.0.0.1:45123). `--profile`과 함께 사용 불가"
 
 [cli.help._root.remote.new-workspace.arg.profile]
 help = "저장된 tasty-attach 프로필 이름으로 생성. `--ssh`와 함께 사용 불가. 프로필 값이 `--remote-tasty`와 `--remote-port-mode`를 대체"
@@ -4388,7 +4388,7 @@ about = "저장된 SSH 프로필의 인증 키와 포트로 대화형 SSH 세션
 help = "접속에 쓸 ssh 프로필 이름"
 
 [cli.help._root.tool.ssh.arg.command]
-help = "원격 호스트에서 한 번 실행할 명령 (생략하면 대화형 셸). 예: `tasty tool ssh gb10 --command hostname`"
+help = "원격 호스트에서 한 번 실행할 명령 (생략하면 대화형 셸). 예: `tasty tool ssh host --command hostname`"
 
 [cli.help._root.tool.remote-profile]
 about = "ssh와 tasty-attach 원격 접속 프로필을 관리합니다. 로컬 파일을 사용하며 IPC는 호출하지 않습니다."
