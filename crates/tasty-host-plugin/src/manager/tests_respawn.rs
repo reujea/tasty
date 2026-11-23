@@ -71,12 +71,12 @@ fn due(mgr: &PluginManager) -> Option<Instant> {
 fn shut_down(mgr: &mut PluginManager) {
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
-    assert!(
-        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
-            .poll_shutdown_all()),
-        "종료가 10 초 안에 안 끝났다"
-    );
+    // holds_by 로 바꾸지 않는다. poll_shutdown_all 은 내부 기한이 지난 살아 있는 자식을 kill 하고 기다리므로
+    // 기한 뒤 읽기로 쓰면 관측이 아니라 새 종료가 된다. 끝난 자식만 거두는 관측 경로가 없다.
+    while !mgr.poll_shutdown_all() {
+        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// 자동 재시작의 연결 실패 뒤 실패 창만큼 지나면 다시 띄우고, 연결하면 남은 surface를 새 프로세스에 게시한다.

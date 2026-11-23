@@ -168,12 +168,12 @@ fn an_explicit_enable_during_retirement_waits_and_starts_in_place() {
 
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
-    assert!(
-        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
-            .poll_shutdown_all()),
-        "종료가 10 초 안에 안 끝났다"
-    );
+    // holds_by 로 바꾸지 않는다. poll_shutdown_all 은 내부 기한이 지난 살아 있는 자식을 kill 하고 기다리므로
+    // 기한 뒤 읽기로 쓰면 관측이 아니라 새 종료가 된다. 끝난 자식만 거두는 관측 경로가 없다.
+    while !mgr.poll_shutdown_all() {
+        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// 회수 중의 기동 요청은 이전 프로세스와 겹치지 않도록 미뤄야 한다.
@@ -204,12 +204,12 @@ fn the_start_gate_defers_a_plugin_that_is_still_retiring() {
     assert!(mgr.is_running(ID), "회수 뒤에 미뤄 둔 기동이 안 됐다");
     mgr.begin_shutdown_all();
     let give_up = Instant::now() + Duration::from_secs(10);
-    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
-    assert!(
-        holds_by_every(give_up, Duration::from_millis(20), |_| mgr
-            .poll_shutdown_all()),
-        "종료가 10 초 안에 안 끝났다"
-    );
+    // holds_by 로 바꾸지 않는다. poll_shutdown_all 은 내부 기한이 지난 살아 있는 자식을 kill 하고 기다리므로
+    // 기한 뒤 읽기로 쓰면 관측이 아니라 새 종료가 된다. 끝난 자식만 거두는 관측 경로가 없다.
+    while !mgr.poll_shutdown_all() {
+        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// 무응답 재시작은 옛 프로세스를 뒤에서 회수하고, 새 프로세스를 **그 자리에서** 띄우지
@@ -255,7 +255,7 @@ fn exit_waits_for_a_retiring_plugin_and_does_not_respawn_it() {
     );
     assert_eq!(mgr.retiring_respawn(ID), Some(false));
     let give_up = Instant::now() + Duration::from_secs(10);
-    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    // 단건 회수로 옮긴 자식만 남아 종료 배치가 비었다. poll 은 끝난 회수 스레드만 거두므로 마지막 읽기로 쓴다.
     assert!(
         holds_by_every(give_up, Duration::from_millis(20), |_| mgr
             .poll_shutdown_all()),

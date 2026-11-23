@@ -90,8 +90,8 @@ impl<T: PartialEq + Debug> ProgressWait<T> {
             self.last,
             self.idle
         );
-        // 기한 뒤 재읽기를 넣지 않는다. 판정은 관측한 진행 유무(IDLE_LIMIT)로 하고, CEILING 은 끝없이 도는
-        // 스레드를 잡는 300초 벽시계 상한이라 거짓 읽기 하나로 넘을 거리가 아니다.
+        // 기한 뒤 재읽기를 넣지 않는다. CEILING 은 감시 시작부터의 벽시계 경과 자체를 판정하는 계약이고,
+        // 끝 판정(호출자의 cut 읽기)은 이 함수 밖에 있어 여기서 다시 읽을 관측 경로가 없다.
         assert!(
             self.started.elapsed() < Self::CEILING,
             "stalled at {:?}: still waiting after {:?} (progress too slow or the watched thread never slept)",
