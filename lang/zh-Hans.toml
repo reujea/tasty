@@ -6856,7 +6856,7 @@ about = "按 ID 手动触发已注册的钩子处理器（测试及自动化入�
 long = """
 按 ID 手动触发已注册的钩子处理器（测试 / 自动化入口）。
 
-对于 IpcSequence 处理器，`--body`/`--header`/`--query` 填充其 `${body.x}`/`${header.x}`/`${query.x}` 值槽。在一行中输出受理响应（含 `run` 编号），然后等待最终结果并在第二行输出：`state` 为 `succeeded`、`partial`、`failed` 或 `unknown`，`result` 说明发生了什么，`steps` 列出各个步骤。Shell 命令处理器在进程启动后即视为成功；`exit_code` 在进程退出后填充，不参与判定。除非最终状态为 `succeeded`，否则以退出码 1 退出。如果处理器的队列已满，触发请求将被拒绝并返回错误，也不会执行任何操作。"""
+对于 IpcSequence 处理器，`--body`/`--header`/`--query` 填充其 `${body.x}`/`${header.x}`/`${query.x}` 值槽。在一行中输出受理响应（含 `run` 编号），然后等待最终结果并在第二行输出：`state` 为 `succeeded`、`partial`、`failed` 或 `unknown`，`result` 说明发生了什么，`steps` 列出各个步骤。Shell 命令处理器在进程启动后即视为成功；`exit_code` 在进程退出后填充，不参与判定。除非最终状态为 `succeeded`，否则以退出码 1 退出。如果运行处理器的队列已满（Shell 命令与 Surface 钩子及全局钩子共用同一个执行队列），或该队列的工作线程无法启动，触发请求将被拒绝并返回错误，也不会执行任何操作。"""
 
 [cli.help._root.hook-handler.dispatch.arg.id]
 help = "要触发的钩子处理器 ID（例如 `host/notify`、`user/wh-...`）"
