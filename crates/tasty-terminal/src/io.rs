@@ -194,6 +194,7 @@ impl Terminal {
         state.sink = Some(OutputSink::external(sink).bind(state.connection.clone()));
         state.enqueued_count = 0;
         state.events.clear();
+        state.responses_retired = false;
     }
 
     /// A nonblocking external endpoint. Remote applies its own bounded admission synchronously;
@@ -205,8 +206,18 @@ impl Terminal {
             state.connection = crate::binding::ConnectionLease::new();
             state.enqueued_count = 0;
             state.events.clear();
+            state.responses_retired = false;
         }
         state.sink = Some(OutputSink::callback(send).bind(state.connection.clone()));
+    }
+
+    /// The mirror's stream broke: the bytes after this point are not a continuation of what the
+    /// parser saw. Drop an unfinished escape sequence so the next snapshot's first ESC cannot end
+    /// it, and refuse delayed responses until a new connection is bound.
+    pub fn break_stream(&mut self) {
+        let mut state = self.lock_state();
+        state.parser = termwiz::escape::parser::Parser::new();
+        state.responses_retired = true;
     }
 
     /// Plumb the host's resolved theme palette so OSC 10/11/12/4 color *queries*
@@ -224,7 +235,10 @@ impl Terminal {
         bytes: &[u8],
     ) -> bool {
         let mut state = self.lock_state();
-        if state.connection.generation() != generation || !state.connection.is_active() {
+        if state.responses_retired
+            || state.connection.generation() != generation
+            || !state.connection.is_active()
+        {
             return false;
         }
         state.enqueue_to_pty(bytes.to_vec());

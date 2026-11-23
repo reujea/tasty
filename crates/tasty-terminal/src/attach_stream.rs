@@ -115,6 +115,12 @@ impl AttachStreamTap {
         !self.state.receiver_closed.load(Ordering::Acquire)
     }
 
+    /// A lost subscription still holds the effects of the bytes it missed until its receiver
+    /// closes, so a split sequence finishing in a later chunk does not fall back to the server.
+    fn keeps_effects(&self) -> bool {
+        self.state.lost.load(Ordering::Acquire) && self.owns_effects()
+    }
+
     fn owns_effects(&self) -> bool {
         self.is_live() && self.state.effects_owner.load(Ordering::Acquire)
     }
@@ -122,7 +128,7 @@ impl AttachStreamTap {
     /// Called only under the terminal's parser lock. There is one producer per subscription;
     /// the consumer can release bytes concurrently, but cannot insert events or resume a loss.
     fn send(&self, output: Option<&[u8]>, cols: usize, rows: usize) -> bool {
-        if !self.is_live() {
+        if !self.is_live() || self.state.lost.load(Ordering::Acquire) {
             return false;
         }
         let Some(weight) = output.map_or(Some(EVENT_CHARGE), |bytes| {
@@ -167,7 +173,7 @@ impl TerminalState {
     pub(crate) fn fan_out_attach_output(&mut self, bytes: &[u8]) -> bool {
         let owned = self.has_effects_owner_stream();
         self.attach_streams
-            .retain(|tap| tap.send(Some(bytes), 0, 0));
+            .retain(|tap| tap.send(Some(bytes), 0, 0) || tap.keeps_effects());
         owned
     }
     pub(crate) fn has_effects_owner_stream(&self) -> bool {
@@ -176,7 +182,8 @@ impl TerminalState {
             .any(AttachStreamTap::owns_effects)
     }
     pub(crate) fn fan_out_attach_resize(&mut self, cols: usize, rows: usize) {
-        self.attach_streams.retain(|tap| tap.send(None, cols, rows));
+        self.attach_streams
+            .retain(|tap| tap.send(None, cols, rows) || tap.keeps_effects());
     }
     fn snapshot_and_stream(&mut self) -> AttachStreamSubscription {
         self.attach_streams.retain(AttachStreamTap::is_live);

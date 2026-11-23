@@ -137,15 +137,6 @@ impl App {
                 DisconnectDisposition::None => {}
             }
         }
-        // 손실로 재동기화하는 mirror의 옛 스트림 질의에는 늦게 답하지 않는다.
-        let resync_surfaces: Vec<u32> = self
-            .remote
-            .sessions
-            .iter()
-            .filter(|sess| sess.state.resync_pending.is_some())
-            .flat_map(|sess| sess.state.remote_to_local.values().copied())
-            .collect();
-        self.services.discard_clipboard_reads(&resync_surfaces);
         for &idx in &resyncing {
             if !self.resync_session(idx) {
                 if self.remote.sessions[idx].state.saved_row.is_some() {
@@ -502,6 +493,8 @@ fn begin_resync(sess: &mut AttachClientSession, host: &mut MirrorHost<'_, '_>, f
     for &local in sess.state.remote_to_local.values() {
         if let Some(t) = host.engine.runtime.terminals.get_mut(local) {
             t.renew_output_stream();
+            // 끊긴 뒤의 바이트는 이어지지 않는다. 미완성 시퀀스와 옛 스트림 질의의 늦은 응답을 버린다.
+            t.break_stream();
         }
     }
     if let Some(total) = sess.state.resync_pending.as_mut() {

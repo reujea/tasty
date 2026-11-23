@@ -273,3 +273,25 @@ fn only_events_from_bytes_an_effects_owner_stream_carried_are_marked() {
     assert!(!bell(&mut terminal), "수신자가 닫힌 뒤");
     assert!(!terminal.has_effects_owner_stream());
 }
+
+/// Given 끝나지 않은 OSC 52 쓰기, When mirror 스트림이 끊긴다, Then 다음 바이트의 ESC가 옛 시퀀스를
+/// 끝내 클립보드 쓰기를 만들지 않는다. 끊기지 않았으면 같은 바이트가 쓰기를 끝낸다.
+#[test]
+fn a_broken_stream_drops_the_unfinished_sequence() {
+    let writes = |broken: bool| {
+        let mut terminal = Terminal::new_detached(80, 24);
+        terminal.feed_bytes(b"\x1b]52;c;aGk=");
+        if broken {
+            terminal.break_stream();
+        }
+        terminal.feed_bytes(b"\x1b\\");
+        terminal
+            .try_take_events()
+            .expect("unlocked")
+            .iter()
+            .filter(|event| matches!(event.kind, crate::TerminalEventKind::ClipboardSet(_)))
+            .count()
+    };
+    assert_eq!(writes(false), 1);
+    assert_eq!(writes(true), 0);
+}

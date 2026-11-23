@@ -41,17 +41,6 @@ impl AppServices {
         }
     }
 
-    /// 이 surface들의 기다리는 읽기를 버린다. attach mirror가 손실로 재동기화하면 옛 스트림의
-    /// 질의에 늦게 답하지 않는다.
-    #[cfg(feature = "gui")]
-    pub(crate) fn discard_clipboard_reads(&mut self, surfaces: &[u32]) {
-        if surfaces.is_empty() {
-            return;
-        }
-        self.pending_clipboard_reads
-            .retain(|read| !surfaces.contains(&read.surface_id));
-    }
-
     /// 끝난 읽기를 `(surface, 세대, 결과)`로 꺼낸다. 기다리는 읽기는 남긴다.
     #[cfg(feature = "gui")]
     pub(crate) fn take_finished_clipboard_reads(

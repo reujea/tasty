@@ -118,6 +118,9 @@ const RESIZE_TAP_CAP: usize = 8;
 /// 렌더·IPC·리사이즈도 같은 락을 사용하므로 경합할 수 있다.
 pub(crate) struct TerminalState {
     connection: binding::ConnectionLease,
+    /// A mirror lost part of its stream. Delayed responses wait for the next connection,
+    /// which clears this; user input still flows to the current one.
+    responses_retired: bool,
     content_revision: u64,
     alternate_epoch: ContentEpoch,
     /// Primary screen buffer.
@@ -404,6 +407,7 @@ impl TerminalState {
     fn new(cols: usize, rows: usize) -> Self {
         Self {
             connection: binding::ConnectionLease::new(),
+            responses_retired: false,
             content_revision: 0,
             primary_surface: Surface::new(cols, rows),
             alternate_surface: None,
