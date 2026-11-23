@@ -33,4 +33,33 @@ impl App {
         }
         drawn
     }
+
+    /// 보낼 resize 요청을 큐에서 꺼낸다. 큐에 넣은 뒤 같은 프레임에서 숨겨진 mirror와
+    /// grid가 이미 목표인 항목은 버린다. 다시 보이면 레이아웃 스윕이 큐에 다시 넣는다.
+    pub(super) fn take_resize_forwards(&mut self) -> Vec<(u32, usize, usize)> {
+        let drawn = self.drawn_mirror_surfaces();
+        let mut pending = Vec::new();
+        for engine in self.engines_mut().windows_and_pending() {
+            for (sid, (cols, rows)) in engine.remote.pending_resize_forward.drain() {
+                let settled = engine
+                    .runtime
+                    .terminals
+                    .get(sid)
+                    .is_some_and(|t| t.dimensions() == (cols, rows));
+                if drawn.contains(&sid) && !settled {
+                    pending.push((sid, cols, rows));
+                }
+            }
+        }
+        pending
+    }
+
+    /// 숨김·최소화 요청은 다음 창 이벤트보다 먼저 레이아웃 스윕을 만날 수 있다. 숨긴 것으로 둔다.
+    pub(crate) fn mark_main_windows_hidden(&mut self) {
+        for view in self.view.views.values_mut() {
+            if let Some(main) = view.as_main_mut() {
+                main.state.window_drawn = false;
+            }
+        }
+    }
 }

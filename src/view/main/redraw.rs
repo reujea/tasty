@@ -334,10 +334,7 @@ impl MainView {
                 self.base.surface_presented();
                 // 실제 present에 성공한 첫 시각만 부팅 계측에 기록한다.
                 crate::boot::trace::mark_first_paint();
-                if self.base.gpu.take_terminal_cursor_restore_pending() {
-                    self.base.state.dirty = true;
-                }
-                if self.base.gpu.take_layout_resweep_pending() && self.state.window_drawn {
+                if self.base.gpu.take_redraw_requests(self.state.window_drawn) {
                     self.base.state.dirty = true;
                 }
             }

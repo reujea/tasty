@@ -438,15 +438,13 @@ impl GpuState {
         std::mem::take(&mut self.attach_mesh_full_requests)
     }
 
-    /// Whether the last render hid a terminal cursor and needs one follow-up
-    /// frame to restore it after the output burst quiets down.
-    pub fn take_terminal_cursor_restore_pending(&mut self) -> bool {
-        std::mem::take(&mut self.terminal_cursor_restore_pending)
-    }
-
-    /// 다음 redraw가 레이아웃 스윕을 다시 해야 하는지 꺼낸다.
-    pub fn take_layout_resweep_pending(&mut self) -> bool {
-        std::mem::take(&mut self.layout_resweep_pending)
+    /// 지난 렌더가 다음 프레임을 요청했는지 꺼낸다. 출력이 잦아든 뒤 숨긴 터미널 커서를
+    /// 되살리는 프레임, 그리고 창이 그려지는 동안(`window_drawn`) 이번 스윕이 처리하지 않은
+    /// 터미널을 그렸을 때 레이아웃 스윕을 다시 하는 프레임이다. 두 요청을 모두 비운다.
+    pub fn take_redraw_requests(&mut self, window_drawn: bool) -> bool {
+        let cursor = std::mem::take(&mut self.terminal_cursor_restore_pending);
+        let resweep = std::mem::take(&mut self.layout_resweep_pending);
+        cursor || (resweep && window_drawn)
     }
 
     /// Render the full frame: egui UI + terminal surfaces.

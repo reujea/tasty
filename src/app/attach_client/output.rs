@@ -335,15 +335,6 @@ struct MirrorHost<'a, 'engine> {
 }
 
 impl<'a, 'engine> MirrorHost<'a, 'engine> {
-    /// 이 mirror를 창이 지금 그리는가. parked engine은 창이 없어 숨은 것이다.
-    /// 창 상태는 View가 마지막으로 읽은 값(`window_drawn`)을 쓴다.
-    fn draws_mirror(&self, local: u32) -> bool {
-        self.windowed
-            && self.state.window_drawn
-            && !self.state.fullscreen_stage_active()
-            && self.state.draws_surface(self.engine.core, local)
-    }
-
     fn focus_surface(&mut self, workspace: u32, surface: Option<u32>) {
         if let Some(surface) = surface
             && let Some(index) = self.engine.find_workspace_index_for_id(workspace)

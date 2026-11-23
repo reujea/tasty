@@ -313,3 +313,14 @@ pub(super) fn apply_one_mirror_event(
         }
     }
 }
+
+impl MirrorHost<'_, '_> {
+    /// 이 mirror를 창이 지금 그리는가. parked engine은 창이 없어 숨은 것이다.
+    /// 창 상태는 View가 마지막으로 읽은 값(`window_drawn`)을 쓴다.
+    fn draws_mirror(&self, local: u32) -> bool {
+        self.windowed
+            && self.state.window_drawn
+            && !self.state.fullscreen_stage_active()
+            && self.state.draws_surface(self.engine.core, local)
+    }
+}

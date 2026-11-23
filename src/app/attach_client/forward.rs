@@ -17,24 +17,8 @@ use tasty_remote::client_session::{AttachClientSession, SessionState, SharedFram
 impl App {
     /// 로컬 구조 변경 큐를 원격으로 보내며 결과는 회신과 delta로 적용한다.
     /// resize 요청만 전송한다. 로컬 mirror grid는 서버의 Resize 회신으로 갱신한다.
-    /// 큐에 넣은 뒤 같은 프레임에서 숨겨진 mirror와 grid가 이미 목표인 항목은 보내지 않는다.
-    /// 다시 보이면 레이아웃 스윕이 큐에 다시 넣는다.
     pub(crate) fn dispatch_pending_resize_forwards(&mut self) {
-        let drawn = self.drawn_mirror_surfaces();
-        let mut pending: Vec<(u32, usize, usize)> = Vec::new();
-        for engine in self.engines_mut().windows_and_pending() {
-            for (sid, (cols, rows)) in engine.remote.pending_resize_forward.drain() {
-                let settled = engine
-                    .runtime
-                    .terminals
-                    .get(sid)
-                    .is_some_and(|t| t.dimensions() == (cols, rows));
-                if drawn.contains(&sid) && !settled {
-                    pending.push((sid, cols, rows));
-                }
-            }
-        }
-        for (local_sid, cols, rows) in pending {
+        for (local_sid, cols, rows) in self.take_resize_forwards() {
             self.forward_one_resize(local_sid, cols, rows);
         }
     }
