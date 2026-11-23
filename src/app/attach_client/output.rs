@@ -1,6 +1,7 @@
 //! Apply ordered incoming events to windowed or parked mirror engines.
 
 mod apply_event;
+mod copies;
 
 #[cfg(test)]
 mod capture_tests;
@@ -151,16 +152,7 @@ impl App {
                 }
             }
         }
-        // 서버가 넘긴 알림음은 세션이 정리되기 전에 재생한다.
-        let sounds: u32 = self
-            .remote
-            .sessions
-            .iter_mut()
-            .map(|sess| std::mem::take(&mut sess.state.notification_sounds))
-            .sum();
-        for _ in 0..sounds {
-            self.services.sound_player().play();
-        }
+        self.play_attach_notification_sounds();
         // 이번 묶음에서 받은 원격 자식 통지·결과를 세션이 정리되기 전에 적용한다.
         self.pump_agent_children();
         self.pump_terminal_reads();
@@ -178,13 +170,6 @@ impl App {
         for row in restart {
             self.connect_after_stop(row);
         }
-    }
-
-    /// 이 mirror workspace의 서버가 터미널 유래 알림을 직접 만들어 그 소리를 넘겨주는지.
-    pub(crate) fn mirror_receives_notification_sounds(&self, workspace: u32) -> bool {
-        self.remote.sessions.iter().any(|session| {
-            session.state.local_workspace == workspace && session.transport.notification_sounds
-        })
     }
 }
 
@@ -401,11 +386,6 @@ impl<'a, 'engine> MirrorHost<'a, 'engine> {
         }
     }
 
-    fn with_copies(mut self, copies: &'a mut crate::remote::copy_progress::CopyProgress) -> Self {
-        self.copies = Some(copies);
-        self
-    }
-
     fn parked(
         state: &'a mut crate::state::MainViewState,
         engine: &'a mut EngineMut<'engine>,
@@ -510,9 +490,7 @@ fn begin_resync(sess: &mut AttachClientSession, host: &mut MirrorHost<'_, '_>, f
             // 끊긴 뒤의 바이트는 이어지지 않는다. 미완성 시퀀스와 옛 스트림 질의의 늦은 응답을 버린다.
             t.break_stream();
         }
-        if let Some(copies) = host.copies.as_deref_mut() {
-            copies.break_stream(local);
-        }
+        host.break_copies(local);
     }
     if let Some(total) = sess.state.resync_pending.as_mut() {
         *total += frames;

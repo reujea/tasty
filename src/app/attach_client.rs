@@ -14,6 +14,7 @@ mod html;
 pub(crate) mod into_gui;
 mod location;
 mod navigation;
+mod notification_sounds;
 pub(crate) mod op_runs;
 mod output;
 pub(crate) mod pending;
