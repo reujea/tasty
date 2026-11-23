@@ -71,6 +71,7 @@ pub(super) fn run(
     wake: Arc<dyn Fn() + Send + Sync>,
     #[cfg(test)] fail_next_publication: Arc<AtomicBool>,
     #[cfg(test)] muted: Arc<AtomicBool>,
+    #[cfg(all(test, unix))] installs_sent: Arc<std::sync::Mutex<Vec<tasty_core::OperationId>>>,
 ) {
     let _observation_scope = super::observability::WorkerScope(observed.clone());
     let send = completion_sender(
@@ -78,6 +79,8 @@ pub(super) fn run(
         wake,
         #[cfg(test)]
         muted,
+        #[cfg(all(test, unix))]
+        installs_sent,
     );
     let Some((executor, mut published)) =
         open_published_executor(&home, writer_lock, &acknowledgements, &send, &observed)
@@ -1001,6 +1004,7 @@ fn completion_sender(
     completions: mpsc::SyncSender<Completion>,
     wake: Arc<dyn Fn() + Send + Sync>,
     #[cfg(test)] muted: Arc<AtomicBool>,
+    #[cfg(all(test, unix))] installs_sent: Arc<std::sync::Mutex<Vec<tasty_core::OperationId>>>,
 ) -> impl Fn(Completion) -> bool {
     move |completion| {
         #[cfg(test)]
@@ -1008,10 +1012,37 @@ fn completion_sender(
             drop(completion);
             return true;
         }
+        #[cfg(all(test, unix))]
+        let installs = installations(&completion);
         if completions.send(completion).is_err() {
             return false;
+        }
+        #[cfg(all(test, unix))]
+        if !installs.is_empty() {
+            *installs_sent.lock().unwrap() = installs;
         }
         wake();
         true
     }
+}
+
+/// 설치 이벤트가 든 Publish의 설치 operation들.
+#[cfg(all(test, unix))]
+fn installations(completion: &Completion) -> Vec<tasty_core::OperationId> {
+    let Completion::Publish { batch, .. } = completion else {
+        return Vec::new();
+    };
+    batch
+        .streams
+        .values()
+        .flatten()
+        .filter_map(|recorded| match &recorded.event {
+            tasty_core::DomainEvent::OperationAwaitingCleanup {
+                id,
+                cleanup: tasty_core::CleanupPlan::InstallPrepared { .. },
+                ..
+            } => Some(id.clone()),
+            _ => None,
+        })
+        .collect()
 }

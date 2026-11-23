@@ -92,7 +92,8 @@ pub(crate) struct JournalApplication {
     command_submissions: unowned::CommandSubmissions,
     halted: Option<String>,
     /// 시험 전용 게이트. 이 PTY를 쥔 후보가 아직 private이면 펌프가 그 turn에 완료를 더 받지
-    /// 않는다. 시험이 설치 시작 전에 멈춘 상태를 경합 없이 관측한다.
+    /// 않는다. 시험이 설치 시작 전에 멈춘 상태를 경합 없이 관측하거나, 그 사이에 저장소를 바꾼 뒤
+    /// 게이트를 풀어 설치를 진행시킨다.
     #[cfg(test)]
     hold_while_private: Option<tasty_terminal::ResourceGeneration>,
     /// 실행 중 halt를 알림으로 넘겼는지. 같은 halt를 다시 알리지 않는다.

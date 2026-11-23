@@ -407,27 +407,88 @@ fn a_failed_adoption_returns_the_standalone_process_alive() {
     assert!(!journal.is_halted());
 }
 
-/// Runs the adoption until its installation is about to run, then lets another owner take the
-/// standalone ID so the withdrawal or discard cannot return the process.
+/// The prepared candidate that holds `generation` before its installation: its operation and the
+/// surface it will install to.
 #[cfg(unix)]
-fn occupy_after_claim(journal: &mut JournalApplication, session: &mut EngineSession, pty_id: u32) {
+fn private_candidate(
+    session: &EngineSession,
+    generation: tasty_terminal::ResourceGeneration,
+) -> Option<(tasty_core::OperationId, Option<u32>)> {
+    session
+        .pending_materializations
+        .iter()
+        .find_map(|(operation, candidate)| {
+            let (_, pty) = candidate.connection.as_ref()?;
+            (pty.generation() == generation).then(|| (operation.clone(), candidate.surface_id()))
+        })
+}
+
+/// The terminal ID other than `pty_id` that holds `generation`, once an installation moved it.
+#[cfg(unix)]
+fn installed_elsewhere(
+    session: &EngineSession,
+    pty_id: u32,
+    generation: tasty_terminal::ResourceGeneration,
+) -> Option<u32> {
+    session.runtime.terminals.iter().find_map(|(id, _)| {
+        let pty = session.runtime.terminals.pty(id)?;
+        (id != pty_id && pty.generation() == generation).then_some(id)
+    })
+}
+
+/// Pumps until the adoption candidate holding `generation` is private and returns its operation and
+/// surface. With `hold_while_private` set to that generation, the pump then stops taking
+/// completions, so no installation can start while the test works on that state.
+#[cfg(unix)]
+fn claim_privately(
+    journal: &mut JournalApplication,
+    session: &mut EngineSession,
+    pty_id: u32,
+    generation: tasty_terminal::ResourceGeneration,
+) -> (tasty_core::OperationId, u32) {
     let mut stall = StallBudget::new(journal);
     loop {
         turn(journal, session, None);
-        if !session.runtime.terminals.contains(pty_id) {
-            assert!(
-                injected().is_some(),
-                "the occupant must be in place before the installation runs"
+        if let Some(installed) = installed_elsewhere(session, pty_id, generation) {
+            panic!(
+                "the installation moved {generation:?} to surface {installed} before its candidate \
+                 was seen private"
             );
-            session.runtime.terminals.insert(
-                pty_id,
-                tasty_terminal::Terminal::new_detached(80, 24),
-                None,
-            );
-            return;
         }
-        stall.nap("adoption claims the standalone owner");
+        if let Some((operation, surface)) = private_candidate(session, generation) {
+            return (operation, surface.expect("prepared surface has a fixed ID"));
+        }
+        stall.nap_with(|| {
+            format!(
+                "adoption claims the standalone owner ({} candidates, standalone {} present)",
+                session.pending_materializations.len(),
+                session.runtime.terminals.contains(pty_id)
+            )
+        });
     }
+}
+
+/// Holds the adoption while its candidate is private, lets another owner take the standalone ID so
+/// the withdrawal or discard cannot return the process, and only then lets the installation run.
+#[cfg(unix)]
+fn occupy_after_claim(
+    journal: &mut JournalApplication,
+    session: &mut EngineSession,
+    pty_id: u32,
+    generation: tasty_terminal::ResourceGeneration,
+) {
+    assert_eq!(journal.hold_while_private, Some(generation));
+    claim_privately(journal, session, pty_id, generation);
+    assert!(!session.runtime.terminals.contains(pty_id));
+    assert!(
+        injected().is_some(),
+        "the occupant must be in place before the installation runs"
+    );
+    session
+        .runtime
+        .terminals
+        .insert(pty_id, tasty_terminal::Terminal::new_detached(80, 24), None);
+    journal.hold_while_private = None;
 }
 
 /// Where the engine release holds this PTY generation: kept alive outside the engine, retired with
@@ -545,39 +606,7 @@ fn a_halt_keeps_a_pending_adoption_candidate_alive() {
     let (pty_id, pid, generation) = standalone_pty(&mut session);
     journal.hold_while_private = Some(generation);
     let _rx = adopt(&mut journal, &session, pty_id, 711);
-    let mut stall = StallBudget::new(&journal);
-    let private = |session: &EngineSession| {
-        session
-            .pending_materializations
-            .values()
-            .find_map(|candidate| {
-                let (_, pty) = candidate.connection.as_ref()?;
-                (pty.generation() == generation).then(|| candidate.surface_id())
-            })
-    };
-    let installed = |session: &EngineSession| {
-        session.runtime.terminals.iter().find_map(|(id, _)| {
-            let pty = session.runtime.terminals.pty(id)?;
-            (id != pty_id && pty.generation() == generation).then_some(id)
-        })
-    };
-    let surface = loop {
-        turn(&mut journal, &mut session, None);
-        if let Some(installed) = installed(&session) {
-            panic!("the installation moved {generation:?} to surface {installed} before the halt");
-        }
-        if let Some(surface) = private(&session) {
-            break surface;
-        }
-        stall.nap_with(|| {
-            format!(
-                "adoption claims the standalone owner ({} candidates, standalone {} present)",
-                session.pending_materializations.len(),
-                session.runtime.terminals.contains(pty_id)
-            )
-        });
-    };
-    let surface = surface.expect("prepared surface has a fixed ID");
+    let (_, surface) = claim_privately(&mut journal, &mut session, pty_id, generation);
     assert!(!session.runtime.terminals.contains(pty_id));
     assert!(
         !session.runtime.terminals.contains(surface),
@@ -598,8 +627,9 @@ fn a_rejected_adoption_that_cannot_return_does_not_block_the_engine_release() {
     terminal_workspace(&mut journal, &mut session);
     let (pty_id, pid, generation) = standalone_pty(&mut session);
     inject(InstallFault::BeforeChange);
+    journal.hold_while_private = Some(generation);
     let rx = adopt(&mut journal, &session, pty_id, 709);
-    occupy_after_claim(&mut journal, &mut session, pty_id);
+    occupy_after_claim(&mut journal, &mut session, pty_id, generation);
     let response = reply(&mut journal, &mut session, &rx, |_, _| {});
     assert_eq!(injected(), None, "the installation reached the fault");
     let error = response
@@ -625,8 +655,9 @@ fn a_failed_adoption_that_cannot_return_does_not_block_the_engine_release() {
     terminal_workspace(&mut journal, &mut session);
     let (pty_id, pid, generation) = standalone_pty(&mut session);
     inject(InstallFault::AfterSwap);
+    journal.hold_while_private = Some(generation);
     let rx = adopt(&mut journal, &session, pty_id, 710);
-    occupy_after_claim(&mut journal, &mut session, pty_id);
+    occupy_after_claim(&mut journal, &mut session, pty_id, generation);
     let response = reply(&mut journal, &mut session, &rx, |_, _| {});
     assert_eq!(injected(), None, "the installation reached the fault");
     let error = response
@@ -641,4 +672,55 @@ fn a_failed_adoption_that_cannot_return_does_not_block_the_engine_release() {
     assert!(!journal.has_pending_engine_effects(session.id));
     assert!(process_exists(pid));
     release_engine_keeping(session, pid, generation, false);
+}
+
+/// The gate that holds a private candidate keeps its installation from starting even after the
+/// worker has sent that installation's Publish, and releasing the gate lets the same installation
+/// finish. Without the gate the turn after the send takes the Publish and installs.
+#[cfg(unix)]
+#[test]
+fn a_held_private_candidate_keeps_its_sent_installation_waiting() {
+    let (mut session, mut journal) = boot();
+    terminal_workspace(&mut journal, &mut session);
+    let (pty_id, _, generation) = standalone_pty(&mut session);
+    journal.hold_while_private = Some(generation);
+    let rx = adopt(&mut journal, &session, pty_id, 712);
+    let (operation, surface) = claim_privately(&mut journal, &mut session, pty_id, generation);
+    let sent = |journal: &JournalApplication| {
+        journal
+            .worker
+            .installs_sent
+            .lock()
+            .unwrap()
+            .contains(&operation)
+    };
+    let mut stall = StallBudget::new(&journal);
+    while !sent(&journal) {
+        turn(&mut journal, &mut session, None);
+        stall.nap("the worker sends the adoption's installation");
+    }
+    // The send may have landed after this turn's last receive, so one more turn could take it.
+    turn(&mut journal, &mut session, None);
+    assert_eq!(
+        installed_elsewhere(&session, pty_id, generation),
+        None,
+        "the installation ran while its candidate was held"
+    );
+    assert_eq!(
+        private_candidate(&session, generation).map(|(held, _)| held),
+        Some(operation),
+        "the candidate left its private state while held"
+    );
+    journal.hold_while_private = None;
+    let response = reply(&mut journal, &mut session, &rx, |_, _| {});
+    assert!(response.error.is_none(), "{:?}", response.error);
+    let installed = response
+        .result
+        .as_ref()
+        .and_then(|result| result["surface_id"].as_u64());
+    assert_eq!(installed, Some(u64::from(surface)));
+    assert_eq!(
+        installed_elsewhere(&session, pty_id, generation),
+        Some(surface)
+    );
 }

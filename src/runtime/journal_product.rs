@@ -394,6 +394,11 @@ pub(crate) struct JournalWorker {
     /// 시험에서 응답하지 않는 worker를 흉내 낸다. 켜진 동안의 완료는 App에 보내지 않고 버린다.
     #[cfg(all(test, feature = "gui"))]
     pub(crate) mute_replies: Arc<AtomicBool>,
+    /// 시험이 설치 Publish의 전송을 확인한다. worker가 설치 이벤트가 든 Publish를 App 채널에 보내는
+    /// 데 성공할 때마다 그 batch의 설치 operation들로 바뀐다. 전송 성공만 말하고 아직 받지 않았다는
+    /// 뜻은 아니다.
+    #[cfg(all(test, unix))]
+    pub(crate) installs_sent: Arc<std::sync::Mutex<Vec<tasty_core::OperationId>>>,
     /// 시험의 정체 감지가 worker 스레드의 상태를 읽는다.
     #[cfg(test)]
     pub(crate) thread_probe: thread_probe::ThreadProbe,
@@ -433,6 +438,10 @@ impl JournalWorker {
         let mute_replies = Arc::new(AtomicBool::new(false));
         #[cfg(test)]
         let muted = Arc::clone(&mute_replies);
+        #[cfg(all(test, unix))]
+        let installs_sent = Arc::new(std::sync::Mutex::new(Vec::new()));
+        #[cfg(all(test, unix))]
+        let sent_installs = Arc::clone(&installs_sent);
         #[cfg(test)]
         let thread_probe = thread_probe::ThreadProbe::default();
         #[cfg(test)]
@@ -457,6 +466,8 @@ impl JournalWorker {
                     publication_fault,
                     #[cfg(test)]
                     muted,
+                    #[cfg(all(test, unix))]
+                    sent_installs,
                 );
             })
             .map_err(|e| e.to_string())?;
@@ -476,6 +487,8 @@ impl JournalWorker {
             fail_next_publication,
             #[cfg(all(test, feature = "gui"))]
             mute_replies,
+            #[cfg(all(test, unix))]
+            installs_sent,
             #[cfg(test)]
             thread_probe,
         })
