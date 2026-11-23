@@ -697,10 +697,21 @@ fn find_bindings_keep_their_meaning() {
         repeat: false,
         modifiers,
     };
+    // 저장 토큰 alt 는 macOS 에서 Command(egui mac_cmd)이고 다른 OS 에서 Alt 다(tasty_key_match::token_axes_egui).
+    // egui Alt 는 macOS 에서 Option 이라 "alt+f" 에 맞지 않는다.
+    let alt_token = if cfg!(target_os = "macos") {
+        egui::Modifiers {
+            mac_cmd: true,
+            command: true,
+            ..egui::Modifiers::NONE
+        }
+    } else {
+        egui::Modifiers::ALT
+    };
     let combos = [
         (egui::Key::F2, egui::Modifiers::NONE),
         (egui::Key::F, egui::Modifiers::CTRL),
-        (egui::Key::F, egui::Modifiers::ALT),
+        (egui::Key::F, alt_token),
     ];
     for (key, modifiers) in combos {
         for case in ["none", "focused", "other"] {
