@@ -59,7 +59,7 @@ plugin 도구의 단축키는 `[[contributes.commands]]`로 선언하고 Plugins
 - **탐색기 전용 키와의 공존**: `explorer_refresh` 는 그대로 남는다. 공통 키 검사가 탐색기 전용 키보다 먼저라, 두 필드가 같은 조합(기본 `f5`)이어도 탐색기에서는 한 번만 새로고침한다. 두 필드는 `SHARED_COMBO_PAIRS` 로 같은 조합을 충돌 없이 공유한다. 기존 설정 파일에 `refresh` 가 없고 `explorer_refresh = ["f5"]` 가 있어도 기본 `f5` 는 지워지지 않는다. 다른 동작에 사용자가 `f5` 를 줬다면 기존 규칙대로 기본값에서 걷어 낸다. 탐색기 이름 변경·주소 입력 중에는 입력이 우선이라 두 키 모두 처리하지 않는다.
 - **바인딩 변경·해제**: 키를 바꾸면 새 키만 신호를 내고 이전 키는 원래 경로(터미널이면 PTY 입력)로 돌아간다. 빈 목록이면 신호를 내지 않는다.
 - **중복 방지와 우선순위**: 한 번의 press 는 한 경로에서만 처리된다. 순서는 페이지 예약 편집 동작(`find`·`copy`·`cut`·`paste`·`select_all`·`page_undo`·`page_redo`) > plugin 명령 > 공통 새로고침·다른 host 동작이다. 설정의 충돌 검사가 예약 동작과 같은 조합을 막고, WebView 정책도 예약 조합과 같은 새로고침 조합은 가져가지 않는다. 그 자리에서 실행 범위에 드는 plugin 명령(포커스가 plugin surface 면 그 plugin 의 명령, 아니면 global 명령)이 같은 키를 쓰면 plugin 명령이 먼저 가져가고 공통 신호는 내지 않는다. 다른 plugin 의 global 명령은 plugin surface 가 포커스인 동안 실행 범위가 아니므로, 그 surface 에서는 같은 키여도 공통 새로고침이 처리된다. native WebView 가 가져간 새로고침 키의 대상 페이지를 잡지 못하면 모델 포커스 surface 로 보내지 않는다. 키를 받은 WebView 가 남아 있는데 그 surface 를 새로고침 대상으로 잡지 못했다면 동작하지 않은 키이므로 그 키를 WebView 에 다시 넣어 페이지·엔진으로 보낸다(Linux·Windows·macOS). 키를 받은 WebView 가 이미 사라졌으면 다시 넣을 곳이 없어 버린다([동작하지 않은 키](../../design/systems/webview.md#편집-액션)). WebView 에서 host 가 가져간 키는 페이지에 전달되지 않으므로 엔진 기본 reload 와 겹치지 않는다. 명령 팔레트의 **refresh** 는 같은 함수를 호출하며 payload 의 `trigger` 만 `palette` 다. OS 메뉴에는 이 항목이 없다. 키를 누르고 있을 때의 반복(auto-repeat)은 경로마다 다르다. host 키 입력(winit — 터미널·탐색기·html 주소 띠)과 Linux native WebView(WebKitGTK)는 반복 이벤트도 각각 하나의 press 로 처리해 반복 수만큼 신호가 난다. Windows(`WasKeyDown`)·macOS(`isARepeat`) native WebView 는 첫 press 만 신호가 되고, host가 가져가는 키의 반복은 다시 실행하지 않는다. Windows·macOS 는 첫 press 가 동작하지 않아 페이지로 넘어갔으면 반복도 페이지로 보내고, 동작했으면 소비한다(아래 auto-repeat 필터 항목). 처리 중 재요청은 처리자가 정리한다(Markdown mirror 는 새 요청이 이전 요청의 회신을 대신한다).
-- **입력 게이트**: 다른 단축키와 같은 [키 경로](../../architecture/input-layer.md#키-입력-경로) 규칙을 따른다. 새로고침은 Surface level 단축키라 키 경로가 그 단축키 단계에 닿고 경로에 Surface level 이 있을 때 돈다(수신자 `key_route::route_key`, level `key_path::focus_path_levels`). native WebView 가 넘긴 키는 받은 surface 에서 시작한 경로로 판정한다(`app::webview_keys::forwarded_key_gate_open`). 설정·플러그인 창 같은 modal 창이 열려 있는 동안에는 main 창의 native WebView 가 키를 받아도 신호를 내지 않는다(아래 native 키 큐의 게이트). Markdown 의 주소칸·검색칸은 WebView 안의 DOM 입력이라 native 키 계층이 먼저 가져가므로 그 Surface 로 전달된다. 단 Markdown 의 갱신은 문서 HTML 을 통째로 다시 싣는다(`load_html`). 그래서 주소칸에 입력하던 draft, 열린 검색 바와 검색어, 선택, 진행 중이던 IME 조합은 초기화되고 스크롤 위치만 best-effort 로 복원된다. 문서 안 Reload 버튼·파일 감시 갱신·`markdown.reload` 와 같은 결과다. html 의 host 주소 띠(egui)가 포커스면 띠가 받는 키(`key_route::start_takes`, 띠 키맵 `address_keymap_receives`)는 다른 단축키로 가지 않는다. 그중 공통 새로고침 키는 그 띠의 surface 로 보내고(`try_consume_address_refresh_key`) 원래 키 사건은 띠 입력에 그대로 둔다(`remap_html_address_keys`). 띠의 입력 draft·커서·선택은 바꾸지 않는다. 탐색기의 이름 변경·주소 입력 중에는 기존 탐색기 새로고침과 같이 입력이 우선이라 처리하지 않는다. host 가 가져간 새로고침 키는 문자를 만들지 않는다(WebView 위의 보조키 없는 키는 아래 항목). 입력이 초기화되는지는 처리자의 갱신 방식이 정한다.
+- **입력 게이트**: 다른 단축키와 같은 [키 경로](../../architecture/input-layer.md#키-입력-경로) 규칙을 따르는 Surface level 단축키다. 받는 노드와 경로는 `key_route::route_key`·`key_path::focus_path_levels`, native WebView 가 넘긴 키는 `app::webview_keys::forwarded_key_gate_open` 이 정본이다. 설정·플러그인 같은 modal 창이 열려 있는 동안에는 신호를 내지 않는다(아래 native 키 큐의 게이트). Markdown 의 주소칸·검색칸은 WebView 안의 DOM 입력이라 그 Surface 로 전달된다. 단 Markdown 의 갱신은 문서 HTML 을 통째로 다시 싣는다(`load_html`). 그래서 주소칸에 입력하던 draft, 열린 검색 바와 검색어, 선택, 진행 중이던 IME 조합은 초기화되고 스크롤 위치만 best-effort 로 복원된다. 문서 안 Reload 버튼·파일 감시 갱신·`markdown.reload` 와 같은 결과다. html 의 host 주소 띠가 포커스면 새로고침 키는 그 띠의 surface 를 새로고침하고 띠의 입력 draft·커서·선택은 그대로 둔다(`try_consume_address_refresh_key`·`remap_html_address_keys`, 시험 `pass_focus::a_refresh_key_on_the_address_band_stays_in_the_egui_queue_once`). 탐색기의 이름 변경·주소 입력 중에는 기존 탐색기 새로고침과 같이 입력이 우선이라 처리하지 않는다. host 가 가져간 새로고침 키는 문자를 만들지 않는다(WebView 위의 보조키 없는 키는 아래 항목). 입력이 초기화되는지는 처리자의 갱신 방식이 정한다.
 - **WebView 위의 보조키 없는 키**: 다른 host 동작과 같이 보조키가 없어도 host 가 가져간다. 보조키 없는 문자 키(`r` 등)로 바꾸면 WebView 위에서는 그 글자 입력 대신 새로고침이 된다.
 - **외부 자동화**: 이 신호는 사용자 입력에서만 만든다. 에이전트용 IPC·CLI 는 없다(Markdown 은 기존 `markdown.reload` 가 있다).
 
@@ -282,34 +282,26 @@ Option 시퀀스·튜플 원소와 중첩 Option의 Some(None)은 표현을 다�
 
 ### 팝업·입력칸에 포커스가 있을 때 — 쓰지 않는 키는 위로 오른다
 
-키는 창의 포커스 노드(포커스된 host popup·plugin popup·입력 dialog·HTML 주소 띠·전체화면 무대·surface)에서
-시작한다. 포커스 노드가 쓰는 키는 그 노드가 받고, 쓰지 않는 키는 그 노드가 붙은 범위와 그 위 범위의 단축키로
-간다([입력 계층의 키 입력 경로](../../architecture/input-layer.md#키-입력-경로)).
+키는 창의 포커스 노드(포커스된 팝업·입력 dialog·HTML 주소 띠·전체화면 무대·surface)에서 시작한다. 포커스 노드가 쓰는
+키는 그 노드가 받고, 쓰지 않는 키는 경로의 단축키로 오른다. 순서와 조건은 [입력 계층의 키 입력
+경로](../../architecture/input-layer.md#키-입력-경로)와 그 문서가 가리키는 함수(`key_route::route_key`,
+`key_path::focus_path_levels`·`popup_scope_levels`, `popup::keys::consumes_key`)가 정본이다. 사용자에게 보이는 결과는
+아래와 같다.
 
-- 글자를 편집하는 입력칸이 있는 팝업(검색 띠·명령 팔레트·이름 바꾸기 등)과 주소 띠는 글자 입력에 쓰는 키를
-  받는다. 그래서 검색창에 글자를 치는 동안 글자 단축키는 돌지 않는다. 명령 조합은 맞는 단축키가 있으면 단축키가
-  동작하고, 없으면 입력칸이 받는다(입력칸 내장 조합).
-- 키만 받는 팝업(목록·버튼)은 선언한 키만 받고 나머지는 위로 보낸다. 받는 키는 `popup::keys::consumes_key`, 오르는
-  경로는 `key_route::route_key`, Esc 는 [popup.md의 Esc 소유권](../../design/systems/popup.md#plugin-popup--host-popup-부모-자식)이 정본이다.
-- 창이나 범위를 덮는 팝업(명령 팔레트 등)이 포커스면 덮인 범위의 단축키는 돌지 않는다. 창을 덮으면 앱 전체
-  단축키(설정·새 창·종료 등)만 돈다. 펼친 팝업과 전체화면 무대도 앱 전체 단축키만 돈다.
-- 덮지 않는 팝업(검색 띠·알림·도구 메뉴 등)이 포커스면 그 팝업이 붙은 범위와 그 위 범위의 단축키가 돈다.
-- 키 경로를 지나지 않는 키(정본 `key_class::classify_key`)는 설정 창 열기 요청이나 포커스된 팝업·입력 dialog·주소 띠가 있으면
-  단축키 매처에 진입하지 않는다(`MainViewState::window_holds_terminal_keys`). Escape 는 아래 순서로 처리한다.
-- double-tap 도 같은 범위 규칙으로 거른다. 전체화면 무대의 종료 키는 단축키보다 먼저다.
+- 검색 띠·명령 팔레트·이름 바꾸기 같은 입력칸과 주소 띠에 글자를 치는 동안 글자 단축키는 돌지 않는다. 명령 조합은
+  맞는 단축키가 있으면 단축키가, 없으면 입력칸이 받는다.
+- 목록·버튼만 있는 팝업은 선언한 키만 받고 나머지 키는 단축키로 간다.
+- 범위를 덮는 팝업(명령 팔레트 등)이 포커스면 덮인 범위의 단축키는 돌지 않는다. 덮지 않는 팝업(검색 띠·알림·도구
+  메뉴 등)이 포커스면 그 팝업 위의 범위 가운데 단축키 대상과 같은 범위의 단축키만 돈다(`popup_scope_levels`).
+- 펼친 팝업과 전체화면 무대에서는 앱 전체 단축키만 돈다. 무대 종료 키는 단축키보다 먼저다
+  (`try_consume_fullscreen_stage_key`). double-tap 도 같은 범위 규칙으로 거른다.
+- 키 경로를 지나지 않는 키(`key_class::classify_key`)는 지금 게이트(`MainViewState::window_holds_terminal_keys`)를 따른다.
 
 게이트에 막힌 단축키는 접수되지 않은 것이므로 그 액션의 거절 안내도 내지 않는다. 예를 들어 `enter_copy_mode`는 접수된 뒤에만 진입·거절 결과를 토스트로 알린다([복사 모드 진입 결과](../clipboard/index.md#복사-모드-진입-결과)).
 
-Escape 는 순서대로 세 가지를 본다.
-
-1. 설정 창이 열려 있으면 닫는다.
-2. 알림 패널이 열려 있으면 닫는다.
-3. **포커스된 host popup 이 있으면 푼다** — 포커스를 놓고, `close_on_outside_click` 인
-   popup 만 닫는다.
-
-Escape는 포커스된 popup 하나에만 바깥 클릭과 같은 처리를 적용한다. 포커스 없는 popup은
-그대로 남긴다. 좌표가 있는 바깥 클릭과 달리 여러 popup을 대상으로 삼을 근거가 없기 때문이다.
-설정 창과 알림 패널을 먼저 확인하므로 다른 popup에 포커스가 있어도 이 두 화면부터 닫힌다.
+Escape 는 설정 창 열기 요청과 알림 패널을 먼저 처리하고, 그다음 포커스된 팝업 하나를 그 팝업의 Esc 선언과 펼침 상태대로
+처리한다(포커스를 풀거나 닫거나 다시 접는다). 포커스 없는 팝업은 그대로 남는다. 정본은 `MainViewState::window_escape`,
+팝업 층의 `popup::escape_step`, [popup.md의 Esc 소유권](../../design/systems/popup.md#plugin-popup--host-popup-부모-자식)이다.
 
 ### 편집 — 녹화 + 충돌
 
