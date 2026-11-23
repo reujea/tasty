@@ -1049,21 +1049,13 @@ impl MainView {
             ));
         }
 
-        // 사이드바 점유 표시와 같은 기준으로 강제 끊기 항목을 추가한다.
-        if ws_idx < engine.workspaces().len()
-            && engine
-                .live
-                .occupancy
-                .workspace_holder(
-                    engine
-                        .workspace_at(ws_idx)
-                        .expect("workspace index is valid")
-                        .id,
-                )
-                .is_some()
-        {
+        // 강제 끊기는 구분선과 함께 늘 둔다. 사이드바 점유 표시와 같은 기준으로 점유가 있을 때만 켠다.
+        if let Some(ws) = engine.workspace_at(ws_idx) {
             items.push(MenuItem::separator());
-            items.push(MenuItem::new(7, crate::i18n::t("attach.force_detach")));
+            items.push(MenuItem {
+                enabled: engine.live.occupancy.workspace_holder(ws.id).is_some(),
+                ..MenuItem::new(7, crate::i18n::t("attach.force_detach"))
+            });
         }
 
         // 카테고리 토글 상태와 무관하게 "닫기"는 항상 최하단.
