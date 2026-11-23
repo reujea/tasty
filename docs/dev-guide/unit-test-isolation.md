@@ -397,9 +397,9 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 - 같은 프로세스 안: `process_exited_eventually_emitted` 는 `recv_timeout` 상한을 제품의
   alive-check 주기(`ALIVE_CHECK_INTERVAL`)로 잘라, waker 가 안 와도 그 주기마다 `process()` 가
   `try_wait` 폴백을 돈다. 자식 사망은 확정이므로 다음 주기에서 잡힌다.
-- 별도 프로세스(자식 셸): `spawn_shell` 이 `JoinHandle` 을 반환하게 하고 테스트가 `join` 한다 —
-  벽시계 없이 자식 `output()` 완료를 기다린다. 프로덕션은 그 핸들을 `let _` 로 drop 해
-  fire-and-forget 을 유지한다(핸들을 버려도 스레드는 detach 되어 계속 돈다).
+- 별도 프로세스(자식 셸): 테스트가 시험 전용 셸 실행기(`hook_runtime::shell_pool::ShellPool`)에 작업을 넣고
+  보고 콜백의 `Exited`를 채널로 받는다 — 벽시계 없이 자식 종료를 기다린다. 프로덕션은 같은 작업을
+  공유 실행기에 넣고 기다리지 않는다.
 - 조용한 구간을 "끝" 으로 읽지 않는다: `admissions_beyond_the_disk_credit_wait_for_a_released_credit_instead_of_failing`
   은 완료를 `recv_timeout(1초)` 가 실패할 때까지 모아 "남은 것은 credit 대기 중" 으로 판정했다.
   worker 처리가 부하로 1초 넘게 늦으면 루프가 일찍 끝나고, 늦게 온 완료를 다음 단정이 받는다.

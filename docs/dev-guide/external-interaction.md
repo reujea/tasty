@@ -291,8 +291,8 @@ Monitor의 전달은 외부 도구 동작에 의존한다. 기존 관측에는 i
 `tasty-official-plugins/crates/tasty-plugin-claude/src/notifications.rs`, codex 는
 `tasty-official-plugins/crates/tasty-plugin-codex/src/handlers.rs`)이
 등록하는 `command` 는 `tasty claude notify-done ...` / `tasty codex notify-caller ...` 형태로,
-**`tasty` 자기 자신을 PATH 로 재호출**한다. 이 셸 커맨드는 `src/hook_runtime/trigger.rs::spawn_shell`
-이 `sh -c`(windows `cmd /C`)로 실행하며 **부모(host 앱) 프로세스의 환경을 상속**한다.
+**`tasty` 자기 자신을 PATH 로 재호출**한다. 이 셸 커맨드는 `src/hook_runtime/trigger.rs::hook_shell_command`
+가 `sh -c`(windows `cmd /C`)로 감싸고 공유 셸 실행기가 실행하며 **부모(host 앱) 프로세스의 환경을 상속**한다.
 
 - **함정**: 패키징된 `.app` 을 macOS LaunchServices(Dock/Finder 더블클릭/`open Tasty.app`)로 띄우면
   host 프로세스의 PATH 가 `/usr/bin:/bin:/usr/sbin:/sbin` 로 제한된다. `tasty` 바이너리가 있는
@@ -300,13 +300,13 @@ Monitor의 전달은 외부 도구 동작에 의존한다. 기존 관측에는 i
   `command not found`(exit 127)로 **조용히 실패**한다 — completion-log append 가 도착하지 않는다.
 - **dev 에서 안 보이는 이유**: `cargo run` / 터미널에서 직접 띄운 바이너리는 그 터미널의 풍부한 PATH를
   상속하므로 재현되지 않는다. LaunchServices 로 띄운 `.app` 에서만 드러난다.
-- **처방**: `spawn_shell` 이 자식 프로세스의 PATH 를 보강한다 — `std::env::current_exe()` 의 부모
+- **처방**: `hook_shell_command` 가 자식 프로세스의 PATH 를 보강한다 — `std::env::current_exe()` 의 부모
   디렉토리(=실행 중인 `tasty` 바이너리가 있는 곳)를 PATH 맨 앞에 붙여, 최소 PATH 환경에서도 자기 바이너리를 찾을 수 있게 한다. `current_exe()` 실패는 상속 PATH 그대로 두는 fallback(패닉 없음).
-  이 보강은 `InlineShell`/`ShellCommand`(레지스트리) 양쪽이 공유하는 `spawn_shell` 한 곳에서 처리돼
+  이 보강은 `InlineShell`/`ShellCommand`(레지스트리) 양쪽이 공유하는 `hook_shell_command` 한 곳에서 처리돼
   모든 hook 셸 커맨드에 적용된다. **스코프**: self-binary 디렉토리 하나만 추가하며, 로그인쉘(`$SHELL -lc`)
   이나 사용자 커스텀 PATH(nvm/rbenv/cargo bin 등)를 복제하지는 않는다.
 - **공유 헬퍼**: 실제 PATH 계산은 `tasty_utils::process::path_prepending_self_dir` 하나로 통일돼,
-  hook 셸(`spawn_shell`)과 PTY 셸(`crates/tasty-terminal/src/pty.rs::build_shell_command`, conductor 자신의
+  hook 셸(`hook_shell_command`)과 PTY 셸(`crates/tasty-terminal/src/pty.rs::build_shell_command`, conductor 자신의
   인터랙티브 터미널이 `tasty` CLI 를 찾는 것도 이 경로 덕분)이 **동일 로직**을 쓴다. 구분자(`:`/`;`)는
   `std::env::{split_paths,join_paths}` 로 크로스플랫폼 처리.
 - **회귀 방어**: `crates/tasty-utils/src/process.rs` 의 `prepends_self_binary_dir_to_minimal_path`
