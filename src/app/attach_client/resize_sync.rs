@@ -23,12 +23,14 @@ impl App {
                 continue;
             }
             let failed_before: Vec<u32> = sess.state.resize_sync.failed().collect();
-            // 숨은 mirror와 목표가 바뀐 요청의 마감은 재전송도 실패도 아니다. 보이는 목표는 스윕이 다시 요청한다.
-            let remote_to_local = &sess.state.remote_to_local;
-            let stale = |remote: u32, target: (usize, usize)| {
-                view.abandons_request(remote_to_local.get(&remote).copied(), target)
-            };
-            sess.state.resize_sync.abandon_due(now, stale);
+            // 숨은 mirror와 목표가 바뀐 자동 요청의 마감은 재전송도 실패도 아니다. 보이는 목표는 스윕이 다시
+            // 요청한다. 배너의 다시 시도는 목표가 바뀌어도 판정한다.
+            let local = |remote: u32| sess.state.remote_to_local.get(&remote).copied();
+            sess.state.resize_sync.abandon_due(
+                now,
+                |remote| view.hides(local(remote)),
+                |remote, target| view.retargets(local(remote), target),
+            );
             for resend in sess.state.resize_sync.take_due(now) {
                 if send_resize(sess, resend) {
                     sess.state.resize_sync.note_resent(resend, now);

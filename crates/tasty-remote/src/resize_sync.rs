@@ -175,19 +175,25 @@ impl ResizeSync {
         resend
     }
 
-    /// 마감이 지난 대기 중 `stale(surface, 요청 크기)`가 참인 것을 재전송·실패 이동 없이 버린다.
-    /// 숨은 mirror나 최신 레이아웃 목표와 다른 요청이 그렇다. 숨은 mirror는 보이게 될 때 새 요청을 받고,
-    /// 목표가 바뀐 요청은 다시 보내면 맞춰 둔 grid를 옛 크기로 되돌린다.
+    /// 마감이 지난 대기를 재전송·실패 이동 없이 버린다. `hidden(surface)`가 참이면 시도 종류와 관계없이,
+    /// `retargeted(surface, 요청 크기)`가 참이면 자동 시도(첫 요청·자동 재전송)만 버린다. 숨은 mirror는
+    /// 보이게 될 때 새 요청을 받고, 목표가 바뀐 자동 요청은 다시 보내면 맞춰 둔 grid를 옛 크기로 되돌린다.
+    /// 배너의 다시 시도는 사용자가 고른 요청이라 목표가 바뀌어도 기존대로 판정한다.
     /// 마감 전 대기와 이미 확정된 실패는 그대로 둔다. [`ResizeSync::take_due`]보다 먼저 부른다.
     pub fn abandon_due(
         &mut self,
         now: Instant,
-        mut stale: impl FnMut(u32, (usize, usize)) -> bool,
+        mut hidden: impl FnMut(u32) -> bool,
+        mut retargeted: impl FnMut(u32, (usize, usize)) -> bool,
     ) {
         let due: Vec<u32> = self
             .pending
             .iter()
-            .filter(|(id, p)| p.deadline <= now && stale(**id, p.target))
+            .filter(|(id, p)| {
+                p.deadline <= now
+                    && (hidden(**id)
+                        || (p.attempt != Attempt::Manual && retargeted(**id, p.target)))
+            })
             .map(|(&id, _)| id)
             .collect();
         for id in due {

@@ -86,13 +86,17 @@ pub(super) struct MirrorView {
 }
 
 impl MirrorView {
-    /// 마감이 지난 크기 요청을 다시 보내지 않고 버릴까. 숨은 mirror의 요청이거나 최신 레이아웃 목표와
-    /// 다른 요청이면 버린다. 목표가 바뀐 요청을 다시 보내면 이미 맞춘 grid를 옛 크기로 되돌린다.
-    pub(super) fn abandons_request(&self, local: Option<u32>, target: (usize, usize)) -> bool {
-        let Some(local) = local else {
-            return true;
-        };
-        !self.drawn.contains(&local) || self.targets.get(&local).is_some_and(|t| *t != target)
+    /// 이 요청의 mirror가 숨었는가(모르는 surface 포함). 숨은 mirror의 마감 요청은 시도 종류와 관계없이 버린다.
+    pub(super) fn hides(&self, local: Option<u32>) -> bool {
+        local.is_none_or(|local| !self.drawn.contains(&local))
+    }
+
+    /// 그려지는 mirror의 최신 레이아웃 목표가 이 요청과 다른가. 자동 재전송만 이 조건으로 버린다.
+    /// 목표가 바뀐 요청을 다시 보내면 이미 맞춘 grid를 옛 크기로 되돌린다.
+    pub(super) fn retargets(&self, local: Option<u32>, target: (usize, usize)) -> bool {
+        local
+            .and_then(|local| self.targets.get(&local))
+            .is_some_and(|t| *t != target)
     }
 }
 
@@ -101,20 +105,19 @@ mod tests {
     use super::*;
 
     /// Given grid A인 mirror가 B를 요청한 뒤 숨었다가 목표 A로 다시 보일 때, When B의 마감이 오면,
-    /// Then B를 다시 보내지 않는다. 목표와 같은 요청은 다시 보내고, 숨은 mirror와 모르는 surface는 버린다.
+    /// Then 목표가 바뀐 요청이다. 목표와 같은 요청과 목표 기록이 없는 요청은 아니고, 숨은 mirror와 모르는
+    /// surface는 숨은 것이다.
     #[test]
     fn a_due_request_is_resent_only_for_a_drawn_mirror_whose_target_still_matches() {
         let view = MirrorView {
             drawn: HashSet::from([1, 2]),
             targets: HashMap::from([(1, (80, 24))]),
         };
-        assert!(
-            view.abandons_request(Some(1), (100, 30)),
-            "목표가 바뀐 요청"
-        );
-        assert!(!view.abandons_request(Some(1), (80, 24)));
-        assert!(!view.abandons_request(Some(2), (100, 30)), "목표 기록 없음");
-        assert!(view.abandons_request(Some(3), (80, 24)), "숨은 mirror");
-        assert!(view.abandons_request(None, (80, 24)));
+        assert!(view.retargets(Some(1), (100, 30)), "목표가 바뀐 요청");
+        assert!(!view.retargets(Some(1), (80, 24)));
+        assert!(!view.retargets(Some(2), (100, 30)), "목표 기록 없음");
+        assert!(!view.hides(Some(1)));
+        assert!(view.hides(Some(3)), "숨은 mirror");
+        assert!(view.hides(None));
     }
 }

@@ -270,14 +270,14 @@ fn a_hidden_mirror_deadline_is_abandoned_without_resend_or_failure() {
 
     let t1 = t0 + RESIZE_ACK_TIMEOUT * 4;
     sync.note_sent(S, 80, 24, t1);
-    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT / 2, |_, _| true);
+    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT / 2, |_| true, |_, _| true);
     assert_eq!(
         sync.next_deadline(),
         Some(t1 + RESIZE_ACK_TIMEOUT),
         "마감 전 대기는 남는다"
     );
 
-    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT, |id, _| id == S);
+    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT, |id| id == S, |_, _| false);
     assert!(sync.take_due(t1 + RESIZE_ACK_TIMEOUT * 3).is_empty());
     assert_eq!(
         failed(&sync),
@@ -314,9 +314,45 @@ fn a_hidden_late_rejection_of_an_earlier_size_keeps_the_latest_wait() {
 fn the_abandon_predicate_sees_the_requested_size() {
     let (mut sync, t0) = acked();
     sync.note_sent(S, 100, 30, t0);
-    sync.abandon_due(t0 + RESIZE_ACK_TIMEOUT, |_, target| target == (80, 24));
+    sync.abandon_due(
+        t0 + RESIZE_ACK_TIMEOUT,
+        |_| false,
+        |_, target| target == (80, 24),
+    );
     assert_eq!(sync.next_deadline(), Some(t0 + RESIZE_ACK_TIMEOUT));
-    sync.abandon_due(t0 + RESIZE_ACK_TIMEOUT, |_, target| target == (100, 30));
+    sync.abandon_due(
+        t0 + RESIZE_ACK_TIMEOUT,
+        |_| false,
+        |_, target| target == (100, 30),
+    );
     assert_eq!(sync.next_deadline(), None);
     assert!(sync.take_due(t0 + RESIZE_ACK_TIMEOUT * 3).is_empty());
+}
+
+/// Given 보이는 mirror의 요청이 실패한 뒤 레이아웃 목표가 바뀌었고, When 배너의 다시 시도가 마감을 넘기면,
+/// Then 수동 재시도 대기는 목표 대조로 버리지 않고 실패로 다시 올린다(배너가 남는다).
+#[test]
+fn a_manual_retry_is_not_dropped_by_the_target_check() {
+    let (mut sync, t0) = acked();
+    sync.note_sent(S, 100, 30, t0);
+    for r in sync.take_due(t0 + RESIZE_ACK_TIMEOUT) {
+        sync.note_resent(r, t0 + RESIZE_ACK_TIMEOUT);
+    }
+    assert!(sync.take_due(t0 + RESIZE_ACK_TIMEOUT * 2).is_empty());
+    assert_eq!(failed(&sync), vec![S]);
+
+    let t1 = t0 + RESIZE_ACK_TIMEOUT * 3;
+    assert_eq!(sync.retry_failed(t1).len(), 1);
+    assert!(sync.retrying());
+    let due = t1 + RESIZE_ACK_TIMEOUT;
+    sync.abandon_due(due, |_| false, |_, target| target != (80, 24));
+    assert!(sync.take_due(due).is_empty());
+    assert_eq!(failed(&sync), vec![S], "수동 재시도는 배너에 다시 오른다");
+
+    // 같은 상황의 숨은 mirror는 수동 재시도도 버린다(기존 규칙).
+    let t2 = due + RESIZE_ACK_TIMEOUT;
+    assert_eq!(sync.retry_failed(t2).len(), 1);
+    sync.abandon_due(t2 + RESIZE_ACK_TIMEOUT, |_| true, |_, _| false);
+    assert!(sync.take_due(t2 + RESIZE_ACK_TIMEOUT).is_empty());
+    assert!(failed(&sync).is_empty());
 }
