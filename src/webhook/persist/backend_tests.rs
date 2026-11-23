@@ -27,7 +27,7 @@ impl Drop for Owned {
         }
     }
 }
-fn wait_for(mut condition: impl FnMut() -> bool) {
+fn wait_for(condition: impl FnMut() -> bool) {
     let until = Instant::now() + WAIT;
     assert!(
         tasty_utils::test_wait::holds_by(until, condition),
