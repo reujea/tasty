@@ -203,7 +203,7 @@ release IPC/CLI 에 창 전환 API 를 노출하지 않는다 — 전환은 무�
 
 | 대상 | 무대 중 |
 |------|---------|
-| PTY grid(cols/rows) | **동결** — `handle_redraw` 의 `resize_all_terminals` 스킵. 창 크기가 바뀌어도 진입 시점 값 유지 |
+| PTY grid(cols/rows) | **동결** — `MainView::prepare_redraw` 의 `resize_all` 스킵. 창 크기가 바뀌어도 진입 시점 값 유지 |
 | 신규 터미널 기본 grid | DPI 변경 시 갱신을 **보류**했다가 무대를 나온 첫 프레임에 1 회 적용 |
 | swapchain 크기 | 따라간다(창을 안 따라가면 렌더가 깨진다) |
 | PTY 출력 처리 | 계속 |

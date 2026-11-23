@@ -32,18 +32,20 @@
 
 ## 숨은 동안 보고하는 값
 
-IPC·CLI는 대상의 실제 상태를 보고한다. 숨은 터미널이라면 `read screen`, `tree`, `surface.list`가 지금 grid의 크기와 내용을 돌려준다. `surface.list`의 `cols`·`rows`는 터미널의 현재 grid 값이다(`src/adapters/ipc/handler/surface/list.rs`). 기록만 해 둔 대기 값을 실제 값처럼 섞어 보고하지 않는다. 대기 값을 보여 줘야 하는 소비자가 생기면 실제 값과 구분되는 별도 필드로 낸다. 현재 대기 값을 보고하는 필드는 없다.
+IPC·CLI는 대상의 실제 상태를 보고한다. 숨은 터미널이라면 `read screen`은 지금 grid의 내용을, `surface.list`의 `cols`·`rows`는 지금 grid의 크기를 돌려준다(`src/adapters/ipc/handler/surface/list.rs`). `tree`의 터미널 노드는 크기를 채우지 않는다(`cols`·`rows`가 0). 기록만 해 둔 대기 값은 실제 값과 섞지 않고 `surface.list`의 별도 필드 `pending_cols`·`pending_rows`로 낸다. 기록이 없거나 attach client가 크기를 정하는 hard 점유 surface면 두 키가 없다. 보이게 되면 기록이 적용되고 키가 사라진다.
 
 ## 적용 사례: 숨은 터미널의 창 크기
 
-창 크기가 바뀌었을 때 숨은 터미널은 다음 규칙을 따른다. 이 규칙은 아직 구현되지 않았다.
+창 크기·배율·글꼴·분할 비율·사이드바 너비가 바뀌어 터미널 목표 크기가 달라졌을 때 숨은 터미널은 다음 규칙을 따른다.
 
 - 숨은 터미널은 새 목표 크기를 기록하고 dirty 표시를 켠다. grid reflow와 OS PTY resize는 하지 않는다.
 - 화면에 보이게 되는 순간 grid reflow와 PTY 크기 통지를 한 번에 적용한다.
 - 숨은 동안 `read screen`·`tree`·`surface.list`는 옛 크기의 실제 grid를 보고한다.
-- attach client의 숨은 mirror도 같다. 목표 크기를 기록만 하고 `StreamControl::ClientResize`를 보내지 않는다. 보이게 될 때 한 번 보낸다.
+- attach client의 숨은 mirror도 같다. 목표 크기를 기록만 하고 `StreamControl::ClientResize`를 보내지 않는다. 보이게 될 때 한 번 보낸다. 보이는 동안 보낸 요청의 응답 마감이 숨은 동안 지나면 다시 보내지도 실패로 올리지도 않는다([Attach 메커니즘](../../dev-guide/attach-behavior.md#리사이즈-전파-mirror-geometry)).
 
-현재 구현은 이 규칙과 다르다. GUI의 레이아웃 리사이즈 스윕 `MainViewState::resize_all`(`src/state/layout.rs`)은 모든 workspace의 초기화된 모든 탭을 돌며 surface마다 목표 grid를 모아 `GeometryEffect::Resize`로 넘긴다. 그래서 숨은 터미널도 창 크기가 바뀌면 바로 reflow되고 PTY 크기 통지가 예약된다. 숨은 mirror도 목표 grid를 forward 큐에 넣어 원격에 크기를 요청한다([Attach 메커니즘](../../dev-guide/attach-behavior.md#리사이즈-전파-mirror-geometry)).
+구현은 레이아웃 리사이즈 스윕 하나에 있다. `MainViewState::resize_all`(`src/state/layout.rs`)은 모든 workspace의 초기화된 탭을 돌며 target마다 그 창이 지금 그리는지(`drawn`)를 싣는다. 그리는 판정은 그리는 영역 계산과 같은 탭 선택(`drawn_tab`)과 attach 임시 탭 조건(`attach_tab_preview_hides`)을 쓰고, 최소화·트레이로 숨긴 창(`frames_stopped`)이면 모든 target이 숨는다. 적용은 `TerminalStore::apply_layout_size`(`src/runtime/terminal_store.rs`)가 한다. 숨은 target은 항목의 목표 크기 기록만 바꾸고, 보이는 target은 기록을 지우고 grid reflow·resize tap·OS 크기 예약(mirror는 서버 요청)을 한 번 한다. 숨은 동안 여러 번 바뀌어도 마지막 목표 하나만 남는다. 동작은 `src/runtime/terminal_store/layout_tests.rs`와 `src/state/layout_sweep_tests.rs`가 확인한다.
+
+보이게 되는 순간은 그 터미널을 처음 그리는 프레임이다. 일반 프레임은 그리기 전에 스윕하므로 그 프레임에 적용된다. 사이드바·탭 바 클릭처럼 그리기 단계(egui) 안에서 workspace나 탭이 바뀌면 그 프레임의 스윕은 이미 끝나 새로 보인 터미널이 옛 크기로 한 장 그려진다. 그리기가 마지막 스윕이 처리하지 않은 터미널을 그렸거나(`MainViewState::draws_unswept_terminal`) 그 프레임에 터미널 글꼴이 바뀌었으면 다음 redraw를 요청해 바로 다음 프레임에 맞춘다.
 
 ## 적용이 일으킨 출력
 
@@ -64,6 +66,10 @@ dirty를 적용하는 시점(보이게 될 때의 grid reflow와 PTY 크기 통�
 지금 값이 필요한 계약은 그릴 때까지 미루지 않는다.
 
 - **attach 서버의 크기 요청 적용**: 서버는 holder client의 `StreamControl::ClientResize`를 받으면 서버 화면에 그 surface가 보이는지와 관계없이 바로 grid를 그 크기로 바꾸거나 같은 크기임을 확인하고 응답한다(`EngineMut::apply_attached_workspace_resize`, `src/remote/server/attach_resize.rs` → `TerminalStore::resize_for_attach`, `src/runtime/terminal_store.rs`). OS PTY 크기 통지는 이때 `Pty::schedule_resize`로 예약만 하고, 실제 통지는 `crates/tasty-terminal/src/pty.rs`의 flush와 throttle을 거친다. 응답은 grid 확정을 뜻하며 OS 적용 확인이 아니다. 그 surface를 그리는 쪽은 client이고, 요청은 client가 그리는 크기에서 나온다. client는 `ipc.stream.resize-ack` 계약에 따라 `Resize`·`ResizeRejected` 응답을 기다리고, 마감이 지나면 다시 보낸 뒤 실패 배너를 띄운다(`src/app/attach_client/resize_sync.rs`). 서버가 적용을 미루면 이 응답이 늦어 거짓 실패가 난다. 협상 규칙은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#크기-요청의-응답과-재시도)에 있다.
+- **첫 배치**: PTY를 만든 뒤 처음 받는 레이아웃 목표(숨은 workspace에 띄운 새 child, 부팅 복원, 닫기 되돌리기로 살린 터미널)는 숨어 있어도 한 번 적용한다. 그러지 않으면 보기 전까지 창 전체 터미널 영역 크기로 실행된다. 그 뒤의 변경부터 위 규칙을 따른다.
+- **서버가 정한 mirror 크기**: attach client의 mirror grid는 서버의 `Resize` 응답과 재연결 descriptor로 바뀐다. 서버가 정한 값이라 숨은 mirror에서도 바로 바뀐다. 바뀐 크기가 기록한 목표와 같아지면 기록을 지운다.
+- **서버 GUI의 detach 뒤 원복**: 서버 창에서 숨은 workspace를 client가 점유했다가 detach하면 그 터미널은 client 크기로 남고, 서버 창에서 보이게 될 때 서버 레이아웃 크기로 한 번 돌아간다.
+- **journal halt 프레임**: halt 중에는 엔진을 읽기만 하므로 스윕하지 않고 동결된 grid를 그린다. halt는 같은 인스턴스에서 풀리지 않으므로 그 grid는 인스턴스가 끝날 때까지 유지된다.
 - **headless**: 화면이 없어 그릴 때가 오지 않는다. 레이아웃 리사이즈 스윕 `MainViewState::resize_all`은 `gui` 기능에서만 컴파일되므로 headless에는 미룰 창 크기 계산이 없다. headless 터미널의 크기는 만들 때의 기본 크기(`EngineRuntime`의 `default_cols`·`default_rows`)이거나 위 attach 크기 요청으로 정해진 값이다.
 
 에이전트가 surface나 터미널 크기를 직접 지정하는 IPC는 없다. surface 없이 셸을 만드는 `pty.spawn`은 엔진 기본 크기로 시작한다(`src/adapters/ipc/handler/pty.rs`).
