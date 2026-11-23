@@ -73,7 +73,7 @@ attach mirror surface(자식 PTY 없음 — `process_id().is_none()` 으로 판�
 hover+수식키 클릭과는 별개 입력 경로 — 사용자가 드래그(또는 더블/트리플클릭)로 이미 확정한 selection 텍스트가 대상이다. 선택 모드(문자/단어/줄/블록) 구분 없이 `extract_selected_text` 가 뽑아준 문자열을 그대로 1차 후보로 쓴다(hover 경로의 `path_regex()` 는 재사용하지 않음 — 비-ASCII 후행 문자가 매치 단계에서 잘려나가면 아래 축약 재검사 자체가 무의미해지기 때문).
 
 - **판별**: `longest_existing_selection_path`(`terminal_link.rs`). 1차 후보(선택 문자열 trim + `trim_trailing_punct`)가 (cwd 결합 후) 존재하지 않으면 마지막 `/` 앞까지 잘라 재검사하고, 실패하면 그 앞 `/`로 계속 반복 — 실재하는 가장 긴 접두사를 채택한다. 예: 실제 경로 뒤로 슬래시 없이 문자(한글 조사 등)가 붙어 선택돼도, 그 앞 경로 접두사가 실재하면 그 경로로 채택.
-- **노출 조건**: 우클릭한 surface 와 `text_selection.surface_id` 가 같을 때만 "경로 열기" 항목을 추가한다 — surface 별로 독립적인 드래그 상태를 가질 수 있어, 다르면 노출하지 않는다(기존 복사 메뉴는 surface 무관 전역 selection 관례 그대로 유지).
+- **노출 조건**: 우클릭한 surface 와 `text_selection.surface_id` 가 같을 때만 "경로 열기" 항목을 추가한다 — surface 별로 독립적인 드래그 상태를 가질 수 있어, 다르면 노출하지 않는다(기존 복사 메뉴는 surface 무관 전역 selection 관례 그대로 유지). 복사·줄바꿈 없이 복사 두 행은 선택이 비어도 빠지지 않고 꺼진 채 메뉴 맨 앞에 남는다(`terminal_selection_items`, `src/view/main/redraw.rs`).
 - **라벨**: `Path::is_dir()` 로 파일/폴더를 구분해 다른 라벨을 표시(`terminal_context_menu.open_file`/`open_folder`).
 - **열기**: `crate::platform::reveal::open_path`(explorer 컨텍스트 메뉴의 "시스템에서 열기"와 동일 함수).
 - **mirror(원격 attach) surface**: 로컬 파일 관리자로 원격 경로를 여는 기능이 없어 제외(`terminal.process_id().is_none()`이면 항목 자체를 노출하지 않음). 이 기능을 지원하면 재검토.

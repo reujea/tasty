@@ -1234,40 +1234,15 @@ impl MainView {
         y: f32,
     ) {
         use crate::platform::native_menu::MenuItem;
-        // Show copy items only when there is an active (non-empty) selection.
+        // 복사 항목은 surface와 관계없이 전역 선택을 사용한다. 선택이 비면 꺼진 채 남는다.
         let has_selection = self.text_selection.as_ref().is_some_and(|s| !s.is_empty());
         // 경로 열기는 선택과 우클릭 surface가 같을 때만 표시한다.
-        // 복사 항목은 surface와 관계없이 전역 선택을 사용한다.
-        let selection_open_path = if has_selection {
-            self.text_selection
-                .as_ref()
-                .filter(|s| s.surface_id == surface_id)
-                .and_then(|s| Self::resolve_selection_open_path(&engine.as_ref(), s))
-        } else {
-            None
-        };
-        let mut items = Vec::new();
-        if has_selection {
-            items.push(MenuItem::new(
-                2,
-                crate::i18n::t("terminal_context_menu.copy"),
-            ));
-            items.push(MenuItem::new(
-                3,
-                crate::i18n::t("terminal_context_menu.copy_no_newline"),
-            ));
-            if let Some(target) = &selection_open_path {
-                items.push(MenuItem::new(
-                    20,
-                    if target.is_dir() {
-                        crate::i18n::t("terminal_context_menu.open_folder")
-                    } else {
-                        crate::i18n::t("terminal_context_menu.open_file")
-                    },
-                ));
-            }
-            items.push(MenuItem::separator());
-        }
+        let selection_open_path = selection_on_surface(self.text_selection.as_ref(), surface_id)
+            .and_then(|s| Self::resolve_selection_open_path(&engine.as_ref(), s));
+        let mut items = terminal_selection_items(
+            has_selection,
+            selection_open_path.as_deref().map(std::path::Path::is_dir),
+        );
         items.push(MenuItem::new(
             1,
             crate::i18n::t("terminal_context_menu.copy_surface_id"),
@@ -2034,6 +2009,44 @@ fn category_header_menu_items(is_normal: bool) -> Vec<crate::platform::native_me
     items
 }
 
+/// 경로 열기의 대상 선택: 비지 않았고 우클릭한 surface 의 선택일 때만.
+fn selection_on_surface(
+    selection: Option<&crate::selection::TextSelection>,
+    surface_id: u32,
+) -> Option<&crate::selection::TextSelection> {
+    selection.filter(|s| !s.is_empty() && s.surface_id == surface_id)
+}
+
+/// 터미널 메뉴의 선택 묶음: 복사 · 줄바꿈 없이 복사 · (경로 열기) · 구분선.
+/// 복사 두 행은 선택이 없으면 꺼진 채 남는다. 경로 열기는 선택이 경로로 풀릴 때만 붙고
+/// `open_path_is_dir` 로 파일·폴더 라벨을 고른다.
+fn terminal_selection_items(
+    has_selection: bool,
+    open_path_is_dir: Option<bool>,
+) -> Vec<crate::platform::native_menu::MenuItem> {
+    use crate::platform::native_menu::MenuItem;
+    let copy = |id: u32, key: &str| MenuItem {
+        enabled: has_selection,
+        ..MenuItem::new(id, crate::i18n::t(key))
+    };
+    let mut items = vec![
+        copy(2, "terminal_context_menu.copy"),
+        copy(3, "terminal_context_menu.copy_no_newline"),
+    ];
+    if let Some(is_dir) = open_path_is_dir {
+        items.push(MenuItem::new(
+            20,
+            if is_dir {
+                crate::i18n::t("terminal_context_menu.open_folder")
+            } else {
+                crate::i18n::t("terminal_context_menu.open_file")
+            },
+        ));
+    }
+    items.push(MenuItem::separator());
+    items
+}
+
 #[cfg(test)]
 mod tests {
     use super::{MAX_WEBVIEW_CREATE_ATTEMPTS, next_webview_attempts, should_attempt_webview};
@@ -2288,6 +2301,65 @@ mod tests {
             ]
         );
         assert_ne!(labels[0], labels[1]);
+    }
+
+    /// (id, 활성). 구분선은 None.
+    fn shape_enabled(items: &[crate::platform::native_menu::MenuItem]) -> Vec<Option<(u32, bool)>> {
+        items
+            .iter()
+            .map(|i| (!i.is_separator()).then_some((i.id, i.enabled)))
+            .collect()
+    }
+
+    #[test]
+    fn terminal_copy_rows_stay_disabled_without_a_selection() {
+        assert_eq!(
+            shape_enabled(&super::terminal_selection_items(false, None)),
+            vec![Some((2, false)), Some((3, false)), None]
+        );
+        assert_eq!(
+            shape_enabled(&super::terminal_selection_items(true, None)),
+            vec![Some((2, true)), Some((3, true)), None]
+        );
+        for (is_dir, key) in [
+            (false, "terminal_context_menu.open_file"),
+            (true, "terminal_context_menu.open_folder"),
+        ] {
+            let items = super::terminal_selection_items(true, Some(is_dir));
+            assert_eq!(
+                shape_enabled(&items),
+                vec![Some((2, true)), Some((3, true)), Some((20, true)), None]
+            );
+            assert_eq!(items[2].label, crate::i18n::t(key));
+        }
+    }
+
+    #[test]
+    fn the_open_path_row_reads_only_a_selection_on_the_clicked_surface() {
+        let pt = |col| crate::selection::SelectionPoint {
+            epoch: Default::default(),
+            col,
+            absolute_row: 0,
+        };
+        let sel = |surface_id, end| crate::selection::TextSelection {
+            anchor: pt(0),
+            cursor: pt(end),
+            mode: crate::selection::SelectionMode::Normal,
+            surface_id,
+            dragging: false,
+        };
+        let other = sel(9, 4);
+        // 다른 surface 의 선택: 복사 두 행은 켜지지만(전역 선택) 경로 열기 대상은 없다.
+        assert!(super::selection_on_surface(Some(&other), 1).is_none());
+        assert_eq!(
+            shape_enabled(&super::terminal_selection_items(!other.is_empty(), None)),
+            vec![Some((2, true)), Some((3, true)), None]
+        );
+        let here = sel(1, 4);
+        assert!(super::selection_on_surface(Some(&here), 1).is_some());
+        let empty = sel(1, 0);
+        assert!(super::selection_on_surface(Some(&empty), 1).is_none());
+        assert!(super::selection_on_surface(None, 1).is_none());
     }
 
     #[test]
