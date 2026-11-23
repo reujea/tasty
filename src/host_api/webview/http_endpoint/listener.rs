@@ -47,9 +47,14 @@ pub(crate) enum EndpointError {
     Destination,
     Tls,
     Io,
-    /// Binding the loopback listener failed; keeps the OS cause, e.g. `AddrInUse` when another
-    /// socket took the port a retained Reload inherits.
+    /// Binding a loopback listener (the endpoint or a native trust probe) failed; keeps the OS
+    /// cause, e.g. `AddrInUse` when another socket took the port a retained Reload inherits.
     Bind {
+        kind: std::io::ErrorKind,
+        os_error: Option<i32>,
+    },
+    /// A bound loopback listener could not report its local address; keeps the OS cause.
+    LocalAddr {
         kind: std::io::ErrorKind,
         os_error: Option<i32>,
     },
@@ -57,8 +62,15 @@ pub(crate) enum EndpointError {
     Identity,
     Worker,
 }
-fn bind_error(port: u16, error: &std::io::Error) -> EndpointError {
+/// Which loopback listener an open failure belongs to, named in its warning.
+#[derive(Clone, Copy, Debug)]
+enum ListenerRole {
+    Endpoint,
+    TrustProbe,
+}
+fn bind_error(role: ListenerRole, port: u16, error: &std::io::Error) -> EndpointError {
     tracing::warn!(
+        listener = ?role,
         port,
         kind = ?error.kind(),
         os_error = ?error.raw_os_error(),
@@ -69,6 +81,24 @@ fn bind_error(port: u16, error: &std::io::Error) -> EndpointError {
         kind: error.kind(),
         os_error: error.raw_os_error(),
     }
+}
+fn local_port(
+    role: ListenerRole,
+    address: std::io::Result<std::net::SocketAddr>,
+) -> Result<u16, EndpointError> {
+    address.map(|address| address.port()).map_err(|error| {
+        tracing::warn!(
+            listener = ?role,
+            kind = ?error.kind(),
+            os_error = ?error.raw_os_error(),
+            %error,
+            "HTTP endpoint listener address unavailable"
+        );
+        EndpointError::LocalAddr {
+            kind: error.kind(),
+            os_error: error.raw_os_error(),
+        }
+    })
 }
 pub(crate) trait ResponseOwner: Send {
     fn body(&self) -> &Arc<VerifiedBody>;
@@ -207,6 +237,9 @@ impl Endpoint {
         budget: EndpointBudget,
         trust: Option<trust::TrustConfig>,
     ) -> Result<Self, EndpointError> {
+        // Taken by the thread that first polls this future, before anything can return early.
+        #[cfg(test)]
+        let fault = tests::fault::take();
         let identity = config.identity;
         if [
             identity.epoch,
@@ -246,8 +279,11 @@ impl Endpoint {
         let realm = ProxyRealm::from_random_bytes(entropy);
         let listener = TcpListener::bind(("127.0.0.1", config.port))
             .await
-            .map_err(|error| bind_error(config.port, &error))?;
-        let port = listener.local_addr().map_err(|_| EndpointError::Io)?.port();
+            .map_err(|error| bind_error(ListenerRole::Endpoint, config.port, &error))?;
+        let address = listener.local_addr();
+        #[cfg(test)]
+        let address = fault.endpoint_addr(address);
+        let port = local_port(ListenerRole::Endpoint, address)?;
         let proxy_uri = match config.transport {
             Transport::Socks => token.proxy_uri(port),
             Transport::HttpProxy => format!("http://127.0.0.1:{port}"),
@@ -259,7 +295,14 @@ impl Endpoint {
             Certificates::new(current.clone(), budget.certificates(), runtime.clone());
         let trust = trust
             .map(|config| {
-                trust::Gate::new(runtime.clone(), current.clone(), budget.clone(), config)
+                trust::Gate::new(
+                    runtime.clone(),
+                    current.clone(),
+                    budget.clone(),
+                    config,
+                    #[cfg(test)]
+                    fault,
+                )
             })
             .transpose()?;
         let state = Arc::new(State {

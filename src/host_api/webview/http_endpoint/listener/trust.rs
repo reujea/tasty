@@ -24,6 +24,9 @@ pub(super) struct Gate {
     config: TrustConfig,
     closed: AtomicBool,
     inner: Mutex<Inner>,
+    /// Installed once at endpoint start and applied to every probe of this gate.
+    #[cfg(test)]
+    fault: super::tests::fault::Injected,
 }
 pub(crate) struct NativeTrust(Arc<Gate>);
 impl NativeTrust {
@@ -62,6 +65,7 @@ impl Gate {
         current: Current,
         budget: EndpointBudget,
         config: TrustConfig,
+        #[cfg(test)] fault: super::tests::fault::Injected,
     ) -> Result<Arc<Self>, EndpointError> {
         if config.timeout.is_zero() || config.timeout > Duration::from_secs(30) {
             return Err(EndpointError::Invalid);
@@ -77,6 +81,8 @@ impl Gate {
                 slots: Vec::new(),
                 tasks: JoinSet::new(),
             }),
+            #[cfg(test)]
+            fault,
         }))
     }
     fn current(&self) -> bool {
@@ -99,10 +105,14 @@ impl Gate {
             return Err(EndpointError::Retired);
         }
         let permit = self.budget.trust()?;
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .map_err(|_| EndpointError::Io)?;
-        let port = listener.local_addr().map_err(|_| EndpointError::Io)?.port();
+        let listener = TcpListener::bind("127.0.0.1:0").await;
+        #[cfg(test)]
+        let listener = self.fault.probe_bind(listener);
+        let listener = listener.map_err(|error| bind_error(ListenerRole::TrustProbe, 0, &error))?;
+        let address = listener.local_addr();
+        #[cfg(test)]
+        let address = self.fault.probe_addr(address);
+        let port = local_port(ListenerRole::TrustProbe, address)?;
         let slot = Slot::new(
             self,
             state,

@@ -405,6 +405,8 @@ async fn verified_body_from_a_different_source_generation_is_rejected_before_sta
     assert_eq!(budget.active_owners(), 0);
 }
 
+pub(super) mod fault;
+
 mod http_proxy;
 
 mod tls;
