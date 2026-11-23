@@ -136,13 +136,13 @@ impl ShellPool {
 
     /// 작업을 맡은 슬롯 수. 시험이 슬롯 반납을 관측할 때 쓴다.
     #[cfg(all(test, unix))]
-    fn running(&self) -> usize {
+    pub(super) fn running(&self) -> usize {
         self.lock().running
     }
 
     /// 대기열의 작업 수. 시험이 미실행을 관측할 때 쓴다.
     #[cfg(all(test, unix))]
-    fn waiting(&self) -> usize {
+    pub(super) fn waiting(&self) -> usize {
         self.lock().waiting.len()
     }
 }
@@ -654,6 +654,28 @@ mod tests {
         );
     }
 
+    /// 전역 훅 작업이 빌더 패닉이나 시작 실패로 끝나도 실행 토큰을 놓는다. 놓지 않으면 그 훅은 다시 제출되지 않는다.
+    #[test]
+    fn a_global_hook_job_releases_its_run_token_when_it_panics_or_fails_to_start() {
+        let pool = ShellPool::new(1, 0);
+        let builders: [Box<dyn FnOnce() -> std::process::Command + Send>; 2] = [
+            Box::new(|| panic!("test builder panic")),
+            Box::new(|| std::process::Command::new("/nonexistent/tasty-test-no-such-program")),
+        ];
+        for build in builders {
+            let token = Arc::new(());
+            let mut job = super::super::global::global_job("test", Some(Arc::clone(&token)));
+            job.build = build;
+            pool.submit(|| job).expect("accepted");
+            wait_idle(&pool, Duration::from_secs(20));
+            assert_eq!(
+                Arc::strong_count(&token),
+                1,
+                "the ended job kept its run token"
+            );
+        }
+    }
+
     /// Started 보고가 패닉하면 이미 띄운 자식을 끝내고 회수한 뒤 슬롯을 돌려준다.
     /// 자식은 30초를 자므로, 끝내지 않았다면 슬롯이 10초 안에 돌아오지 않거나 그 pid가 살아 있다.
     #[test]
@@ -867,7 +889,7 @@ mod tests {
             .expect("accepted");
         wait_lines(&dir.join("order"), 1);
         let mark = |name: &str| format!("touch {}", dir.join(name).display());
-        super::super::global::submit_command_in(&pool, &mark("global"));
+        super::super::global::submit_command_in(&pool, &mark("global"), None);
         assert_eq!(pool.waiting(), 1, "the global hook takes the queue place");
         super::super::trigger::submit_hook_shell(
             &pool,

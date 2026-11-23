@@ -219,11 +219,10 @@ impl HookRuntimeState {
     }
 
     /// 조건을 만족한 전역 훅의 셸 명령을 셸 명령 훅과 같은 실행기에 넣는다. 호출 스레드는 기다리지 않는다.
-    /// 실행기가 받지 않아도 once 소진과 interval·mtime 기록은 이미 갱신된 상태다.
+    /// 실행기가 받지 않아도 once 소진과 interval·mtime 기록은 이미 갱신된 상태다. 이전 실행이 남아 있어
+    /// 건너뛴 훅의 기록은 `GlobalHookManager::tick`을 따른다.
     pub(crate) fn run_due_global_hooks(&mut self) {
-        for (_, command) in self.global.tick() {
-            global::submit_command(&command);
-        }
+        global::run_due(&mut self.global, shell_pool::shared());
     }
 }
 

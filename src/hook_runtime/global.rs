@@ -59,6 +59,9 @@ pub struct GlobalHookManager {
     fired_once: Vec<u32>,
     /// 마지막 mtime. None은 부재뿐 아니라 metadata·수정 시각 조회 실패도 포함한다.
     last_mtime: HashMap<u32, Option<SystemTime>>,
+    /// interval·file 훅의 실행 토큰. 접수된 작업이 복제본을 쥐고 있다가 drop될 때 놓는다.
+    /// 복제본이 남아 있으면 그 훅의 이전 실행이 아직 끝나지 않은 것이다([`Self::has_pending_run`]).
+    run_tokens: HashMap<u32, Arc<()>>,
 }
 
 impl GlobalHookManager {
@@ -77,6 +80,7 @@ impl GlobalHookManager {
             created_at: HashMap::new(),
             fired_once: Vec::new(),
             last_mtime: HashMap::new(),
+            run_tokens: HashMap::new(),
         }
     }
 
@@ -87,12 +91,14 @@ impl GlobalHookManager {
         match &condition {
             HookCondition::Interval(_) => {
                 self.last_fired.insert(id, now);
+                self.run_tokens.insert(id, Arc::new(()));
             }
             HookCondition::Once(_) => {
                 self.created_at.insert(id, now);
             }
             HookCondition::File(path) => {
                 self.last_mtime.insert(id, file_mtime(path));
+                self.run_tokens.insert(id, Arc::new(()));
             }
         }
 
@@ -112,7 +118,21 @@ impl GlobalHookManager {
         self.last_fired.remove(&id);
         self.created_at.remove(&id);
         self.last_mtime.remove(&id);
+        self.run_tokens.remove(&id);
         self.hooks.remove(&id).is_some()
+    }
+
+    /// 이 훅이 제출한 작업이 실행기에 남아 있는지(아직 drop되지 않았는지). 슬롯·대기열에 있는 동안과
+    /// 그 작업의 마지막 보고가 끝날 때까지 참이다. once 훅과 없는 id는 거짓이다.
+    pub(super) fn has_pending_run(&self, id: u32) -> bool {
+        self.run_tokens
+            .get(&id)
+            .is_some_and(|token| Arc::strong_count(token) > 1)
+    }
+
+    /// 제출할 작업에 복제해 넣을 실행 토큰. once 훅과 없는 id는 None이다.
+    fn run_token(&self, id: u32) -> Option<&Arc<()>> {
+        self.run_tokens.get(&id)
     }
 
     pub fn list(&self) -> Vec<&GlobalHook> {
@@ -125,18 +145,26 @@ impl GlobalHookManager {
     }
 
     /// 지금 조건을 만족한 요청 목록을 만든다. 실행 전에 시간·once·mtime 기록을 갱신한다.
+    /// interval·file 훅은 이전 실행이 남아 있으면([`Self::has_pending_run`]) 목록에서 뺀다. interval은 그 회차의
+    /// 시각을 기록하고, file은 mtime 기준을 그대로 둬 이전 실행이 끝난 뒤 다시 감지한다.
     /// 실제 명령 실행 실패를 자동 재시도하지는 않는다.
     pub fn tick(&mut self) -> Vec<(u32, String)> {
         let now = Instant::now();
         let mut to_fire: Vec<(u32, String)> = Vec::new();
         let mut file_mtime_updates: Vec<(u32, Option<SystemTime>)> = Vec::new();
+        let mut interval_due: Vec<u32> = Vec::new();
 
         for (id, hook) in &self.hooks {
             match &hook.condition {
                 HookCondition::Interval(period) => {
                     let last = self.last_fired.get(id).copied().unwrap_or(now);
                     if now.duration_since(last) >= *period {
-                        to_fire.push((*id, hook.command.clone()));
+                        interval_due.push(*id);
+                        if self.has_pending_run(*id) {
+                            log_skipped(*id, &hook.command);
+                        } else {
+                            to_fire.push((*id, hook.command.clone()));
+                        }
                     }
                 }
                 HookCondition::Once(delay) => {
@@ -154,20 +182,20 @@ impl GlobalHookManager {
                     if let Some(mtime) = current {
                         let last = self.last_mtime.get(id).copied().unwrap_or(None);
                         if last != Some(mtime) {
-                            to_fire.push((*id, hook.command.clone()));
-                            file_mtime_updates.push((*id, Some(mtime)));
+                            if self.has_pending_run(*id) {
+                                log_skipped(*id, &hook.command);
+                            } else {
+                                to_fire.push((*id, hook.command.clone()));
+                                file_mtime_updates.push((*id, Some(mtime)));
+                            }
                         }
                     }
                 }
             }
         }
 
-        for (id, _) in &to_fire {
-            if let Some(hook) = self.hooks.get(id)
-                && matches!(hook.condition, HookCondition::Interval(_))
-            {
-                self.last_fired.insert(*id, now);
-            }
+        for id in interval_due {
+            self.last_fired.insert(id, now);
         }
 
         let to_remove: Vec<u32> = self.fired_once.drain(..).collect();
@@ -183,37 +211,53 @@ impl GlobalHookManager {
     }
 }
 
-/// 전역 훅 명령을 공유 실행기에 넣는다. 실행기는 셸이 끝날 때까지 기다리며 종료 코드는 판정하지 않는다.
-/// 실행기가 받지 않았거나 셸을 띄우지 못하면 로그와 오류 알림을 남긴다. stdio는 호스트의 것을 물려받는다.
-pub(super) fn submit_command(command: &str) {
-    submit_command_in(super::shell_pool::shared(), command);
+/// 건너뜀은 결정한 동작이라 알림 없이 로그만 남긴다.
+fn log_skipped(id: u32, command: &str) {
+    tracing::debug!("global hook {id} skipped: its previous run has not finished; cmd: {command}");
 }
 
+/// 조건을 만족한 전역 훅을 `pool`에 제출한다. 제품은 공유 실행기를 넘긴다.
+pub(super) fn run_due(mgr: &mut GlobalHookManager, pool: &Arc<super::shell_pool::ShellPool>) {
+    for (id, command) in mgr.tick() {
+        submit_command_in(pool, &command, mgr.run_token(id));
+    }
+}
+
+/// 전역 훅 명령을 실행기에 넣는다. 실행기는 셸이 끝날 때까지 기다리며 종료 코드는 판정하지 않는다.
+/// 실행기가 받지 않았거나 셸을 띄우지 못하면 로그와 오류 알림을 남긴다. stdio는 호스트의 것을 물려받는다.
+/// 토큰은 접수될 때만(`make` 안에서) 복제한다.
 pub(super) fn submit_command_in(
-    pool: &std::sync::Arc<super::shell_pool::ShellPool>,
+    pool: &Arc<super::shell_pool::ShellPool>,
     command: &str,
+    token: Option<&Arc<()>>,
 ) {
     use super::notice::{self, AutoOrigin};
-    let submitted = pool.submit(|| {
-        let built = command.to_string();
-        let reported = command.to_string();
-        super::shell_pool::ShellJob::new(
-            command,
-            move || global_hook_command(&built, tasty_utils::process::process_env_keys_to_strip()),
-            move |event| {
-                if let crate::hook_handler::exec::ShellEvent::NotStarted(e) = event {
-                    notice::not_run(
-                        AutoOrigin::GlobalHook,
-                        crate::i18n::t_fmt2("hook_notice.spawn_failed", &reported, &e),
-                    );
-                }
-            },
-        )
-    });
-    if let Err(reason) = submitted {
+    if let Err(reason) = pool.submit(|| global_job(command, token.cloned())) {
         tracing::warn!("global hook command not run: {reason}; cmd: {command}");
         notice::shell_not_queued(AutoOrigin::GlobalHook, command, &reason);
     }
+}
+
+/// 전역 훅 명령의 실행기 작업. `pending` 토큰은 보고 클로저가 쥔다. build 클로저는 실행 직전에 소비되므로
+/// 담지 않는다. 작업이 어느 경로로 끝나든(정상·시작 실패·패닉·고아 보고·전달 실패) drop될 때 토큰이 풀린다.
+pub(super) fn global_job(command: &str, pending: Option<Arc<()>>) -> super::shell_pool::ShellJob {
+    use super::notice::{self, AutoOrigin};
+    let built = command.to_string();
+    let reported = command.to_string();
+    super::shell_pool::ShellJob::new(
+        command,
+        move || global_hook_command(&built, tasty_utils::process::process_env_keys_to_strip()),
+        move |event| {
+            // 이 클로저가 토큰을 쥐게 한다(클로저는 본문에서 쓰는 값만 잡는다).
+            let _pending = &pending;
+            if let crate::hook_handler::exec::ShellEvent::NotStarted(e) = event {
+                notice::not_run(
+                    AutoOrigin::GlobalHook,
+                    crate::i18n::t_fmt2("hook_notice.spawn_failed", &reported, &e),
+                );
+            }
+        },
+    )
 }
 
 /// 심볼릭 링크를 따라 metadata의 수정 시각을 읽는다. 실패는 None이다.
@@ -242,6 +286,10 @@ fn global_hook_command(command: &str, strip: Vec<std::ffi::OsString>) -> std::pr
     }
     cmd
 }
+
+#[cfg(all(test, unix))]
+#[path = "global_pending_tests.rs"]
+mod pending_tests;
 
 #[cfg(test)]
 mod tests {
