@@ -526,18 +526,38 @@ mod tests {
         release(&dir);
         let pool = ShellPool::new(1, 1);
         let (tx, rx) = mpsc::channel();
+        let threads = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&threads);
         pool.submit(|| {
             ShellJob::new(
                 "boom",
-                || panic!("test builder panic"),
+                move || {
+                    seen.lock().unwrap().push(std::thread::current().id());
+                    panic!("test builder panic")
+                },
                 reporter("boom", tx.clone()),
             )
         })
         .expect("accepted");
-        pool.submit(|| held_job(&dir, "after", tx.clone()))
-            .expect("accepted");
+        let seen = Arc::clone(&threads);
+        pool.submit(|| {
+            let mut job = held_job(&dir, "after", tx.clone());
+            let mut forward = std::mem::replace(&mut job.report, Box::new(|_| {}));
+            job.report = Box::new(move |event| {
+                seen.lock().unwrap().push(std::thread::current().id());
+                forward(event);
+            });
+            job
+        })
+        .expect("accepted");
         wait_idle(&pool, Duration::from_secs(20));
         assert_eq!(reports(&rx), started_and_exited(&["after"]));
+        let threads = threads.lock().unwrap();
+        assert_eq!(threads.len(), 3, "{threads:?}");
+        assert!(
+            threads.iter().all(|t| *t == threads[0]),
+            "the queued job ran on a replacement thread: {threads:?}"
+        );
     }
 
     /// Started 보고가 패닉하면 이미 띄운 자식을 끝내고 회수한 뒤 슬롯을 돌려준다.
