@@ -186,8 +186,8 @@ fn copy_wait(ui: &mut egui::Ui, theme: &Theme) {
 /// The chip with its detail Tooltip drawn open below it, with room left for the bubble.
 fn open_detail(ui: &mut egui::Ui, theme: &Theme, chip: &PendingIndicator<'_>) {
     chip.show(ui, theme);
-    let bubble = chip.detail_tooltip().bubble_size(ui.ctx(), theme);
-    ui.add_space(theme.spacing_xs.value() + bubble.y);
+    let bubble = LogicalPx(chip.detail_tooltip().bubble_size(ui.ctx(), theme).y);
+    ui.add_space((theme.spacing_xs + bubble).value());
 }
 
 /// Design view pending-copy-in-window: the copy chip in the notice column of a window frame.

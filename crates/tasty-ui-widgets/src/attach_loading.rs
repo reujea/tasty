@@ -181,13 +181,9 @@ impl PendingIndicator<'_> {
     /// Where the open detail bubble lands below `chip` (Tooltip::show bottom placement).
     fn open_bubble_rect(&self, ui: &egui::Ui, theme: &Theme, chip: egui::Rect) -> egui::Rect {
         let size = self.detail_tooltip().bubble_size(ui.ctx(), theme);
-        egui::Rect::from_min_size(
-            egui::pos2(
-                chip.center().x - size.x * 0.5,
-                (LogicalPx(chip.bottom()) + theme.spacing_xs).value(),
-            ),
-            size,
-        )
+        let left = LogicalPx(chip.center().x) - LogicalPx(size.x) * 0.5;
+        let top = LogicalPx(chip.bottom()) + theme.spacing_xs;
+        egui::Rect::from_min_size(egui::pos2(left.value(), top.value()), size)
     }
 
     /// The detail lines as the design Tooltip below the chip.
