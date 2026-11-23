@@ -167,18 +167,32 @@ impl AttachStreamTap {
     }
 }
 
-/// 시퀀스 경계만 보려고 파서 상태를 돌린다. 동작은 termwiz 파서가 맡는다.
-struct StateOnly;
-impl vtparse::VTActor for StateOnly {
+/// 시퀀스 경계만 보려고 파서 상태를 돌린다. 동작은 termwiz 파서가 맡는다. `ended`는 시퀀스를 끝낸
+/// 바이트에서 선다. 문자열을 끝내는 ESC도 그 문자열의 dispatch를 부르므로 여기서 끝이다.
+#[derive(Default)]
+struct SequenceEnd {
+    ended: bool,
+}
+impl vtparse::VTActor for SequenceEnd {
     fn print(&mut self, _: char) {}
     fn execute_c0_or_c1(&mut self, _: u8) {}
     fn dcs_hook(&mut self, _: u8, _: &[i64], _: &[u8], _: bool) {}
     fn dcs_put(&mut self, _: u8) {}
-    fn dcs_unhook(&mut self) {}
-    fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {}
-    fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {}
-    fn osc_dispatch(&mut self, _: &[&[u8]]) {}
-    fn apc_dispatch(&mut self, _: Vec<u8>) {}
+    fn dcs_unhook(&mut self) {
+        self.ended = true;
+    }
+    fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {
+        self.ended = true;
+    }
+    fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {
+        self.ended = true;
+    }
+    fn osc_dispatch(&mut self, _: &[&[u8]]) {
+        self.ended = true;
+    }
+    fn apc_dispatch(&mut self, _: Vec<u8>) {
+        self.ended = true;
+    }
 }
 
 impl TerminalState {
@@ -189,31 +203,30 @@ impl TerminalState {
             .retain(|tap| tap.send(Some(bytes), 0, 0) || tap.keeps_effects());
     }
     /// 앞에서부터 효과 소유자 몫인 바이트 수. 소유자가 있으면 전부다. 소유자가 떠났으면 그가 받은
-    /// 바이트로 시작해 아직 끝나지 않은 시퀀스의 끝(그 바이트 포함)까지다. 그래서 앞부분을 client에
-    /// 넘긴 시퀀스를 서버가 이어 받아 효과를 내지 않는다.
+    /// 바이트로 시작해 아직 끝나지 않은 시퀀스를 끝내는 바이트까지다. 그래서 앞부분을 client에 넘긴
+    /// 시퀀스를 서버가 이어 받아 효과를 내지 않고, 그 끝 ESC로 시작한 다음 시퀀스는 서버 몫이다.
     pub(crate) fn effects_held_prefix(&mut self, bytes: &[u8], owned: bool) -> usize {
         if owned {
             let scan = self.effects_scan.get_or_insert_with(vtparse::VTParser::new);
-            scan.parse(bytes, &mut StateOnly);
+            scan.parse(bytes, &mut SequenceEnd::default());
             return bytes.len();
         }
         let Some(scan) = self.effects_scan.as_mut() else {
             return 0;
         };
-        let held = bytes
-            .iter()
-            .position(|&byte| {
-                let ended = scan.is_ground();
-                if !ended {
-                    scan.parse_byte(byte, &mut StateOnly);
-                }
-                ended
-            })
-            .unwrap_or(bytes.len());
         if scan.is_ground() {
             self.effects_scan = None;
+            return 0;
         }
-        held
+        let mut end = SequenceEnd::default();
+        let Some(last) = bytes.iter().position(|&byte| {
+            scan.parse_byte(byte, &mut end);
+            end.ended || scan.is_ground()
+        }) else {
+            return bytes.len();
+        };
+        self.effects_scan = None;
+        last + 1
     }
     pub(crate) fn has_effects_owner_stream(&self) -> bool {
         self.attach_streams

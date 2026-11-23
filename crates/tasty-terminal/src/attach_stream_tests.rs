@@ -274,8 +274,9 @@ fn only_events_from_bytes_an_effects_owner_stream_carried_are_marked() {
     assert!(!terminal.has_effects_owner_stream());
 }
 
-/// Given 효과를 맡은 구독이 OSC 52 쓰기의 앞부분만 받았다, When 수신자가 닫힌 뒤 끝 바이트와 새 쓰기가 한
-/// 청크로 온다, Then 앞부분을 넘긴 쓰기는 client 몫(표지)으로 남고 그 뒤의 새 쓰기만 서버 몫이다.
+/// Given 효과를 맡은 구독이 OSC 52 쓰기의 앞부분만 받았다, When 수신자가 닫힌 뒤 끝 바이트(BEL 또는 다음
+/// 시퀀스를 시작하는 ESC)와 새 쓰기가 한 청크로 온다, Then 앞부분을 넘긴 쓰기는 client 몫(표지)으로
+/// 남고 그 뒤의 새 쓰기만 서버 몫이다.
 #[test]
 fn a_sequence_begun_for_an_effects_owner_stays_its_effect_after_the_receiver_closes() {
     let marks = |terminal: &mut Terminal| -> Vec<bool> {
@@ -297,6 +298,15 @@ fn a_sequence_begun_for_an_effects_owner_stays_its_effect_after_the_receiver_clo
     assert_eq!(marks(&mut terminal), vec![true, false]);
     terminal.feed_bytes(b"\x1b]52;c;Ymll\x07");
     assert_eq!(marks(&mut terminal), vec![false], "끝난 뒤에는 서버 몫이다");
+
+    // 앞부분을 넘긴 쓰기를 ESC가 끝내며 새 쓰기를 시작하면 새 쓰기는 서버 몫이다.
+    let subscription = terminal.snapshot_and_stream();
+    subscription.events.set_effects_owner(true);
+    terminal.feed_bytes(b"\x1b]52;c;aGk");
+    assert!(marks(&mut terminal).is_empty());
+    drop(subscription);
+    terminal.feed_bytes(b"=\x1b]52;c;Ymll\x07");
+    assert_eq!(marks(&mut terminal), vec![true, false], "ESC 경계");
 }
 
 /// Given 끝나지 않은 OSC 52 쓰기, When mirror 스트림이 끊긴다, Then 다음 바이트의 ESC가 옛 시퀀스를
