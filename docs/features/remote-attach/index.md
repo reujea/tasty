@@ -689,7 +689,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given stale 포트 파일만 있는 죽은 인스턴스 When `tasty remote check` Then dead(exit≠0)로 판정한다.
 - Given 원격에 `tasty.port` 와 `tasty.instance` 가 남았고 그 PID 가 없거나 다른 프로세스다 When 원격에서 `tasty port` Then 포트를 출력하지 않고 종료 코드 3으로 끝나며 포트 파일이 남은 것이라고 알린다(`crates/tasty-cli/src/port_file.rs`, `crates/tasty-ipc/src/instance_file.rs` 시험. 실측: 격리 홈 debug GUI 를 `kill -9` 한 뒤 rc 3). 인스턴스가 실행 중이면 지금처럼 포트를 출력하고 0으로 끝난다(실측).
 - Given 같은 상태 When auto 모드 포트 발견 Then 파일 모드로 넘어가지 않고 원격 인스턴스 종료 확정으로 실패한다(`crates/tasty-ssh/src/lib.rs` 의 ssh 대역 시험).
-- Given 원격 포트 파일이 가리키는 포트에 리스너가 없다 When `tasty remote check`·`remote workspaces`·`remote new-workspace`·`tool attach` Then 오류가 원격 tasty 미실행 또는 오래된 포트 파일을 원인으로 적고 "터널을 연결했지만" 문장을 쓰지 않는다. 원격 포트에 다른 서비스가 리스닝 중이면 기존 IPC 실패 안내가 나온다(실측: 8945hs 의 빈 포트와 sshd 포트).
+- Given 원격 포트 파일이 가리키는 포트에 리스너가 없다 When `tasty remote check`·`remote workspaces`·`remote new-workspace`·`tool attach` Then 오류가 원격 tasty 미실행 또는 오래된 포트 파일을 원인으로 적고 "터널을 연결했지만" 문장을 쓰지 않는다. 원격 포트에 다른 서비스가 리스닝 중이면 기존 IPC 실패 안내가 나온다(실측: Linux 측정 머신의 빈 포트와 sshd 포트).
 - Given 같은 원격 When GUI 에서 `tasty remote attach --into-gui --workspace <id>`·`--into-gui --new-workspace` 또는 저장된 원격 행을 연결한다 Then 실패 결과가 같은 리스너 없음 안내다(`src/app/ipc/app_methods/remote.rs`·`src/app/auto_attach.rs` 시험, 실측: 저장 행이 없는 두 IPC 경로). 채널 연결 실패 줄 없이 끊긴 경우는 원래 오류를 남긴다.
 - Given 같은 원격 When 원격 연결 팝업이 그 프로필의 workspace 목록을 받는다 Then 팝업 문구에 리스너 없음 안내와 끊긴 원인이 함께 나온다. 채널 연결 실패 줄 없이 끊긴 경우는 원래 문구다(`crates/tasty-remote/src/browser.rs` 시험).
 - Given 부모 Tasty의 `TASTY_SESSION_TOKEN`을 상속한 GUI·CLI When 다른 인스턴스로 원격 브라우징·생성·생존 확인 요청을 보낸다 Then 요청에 세션 토큰이 없고, 원격은 `session_token unknown` 없이 응답한다.

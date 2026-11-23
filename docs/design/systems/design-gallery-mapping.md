@@ -1309,7 +1309,7 @@ Section `#downloadrun` ↔ 본체 `src/adapters/ui/popup/download_run.rs`(PopupD
 | 디자인 jsx | 본체 함수 | 갤러리 함수 (`components/download_run.rs`) |
 |---|---|---|
 | `DownloadRunFrame`(container) | `draw_download_run` | `dialog_card` |
-| 헤더(제목 font-size-max semibold · `FhRemoteMark` · space-sm · 경로 mono caption muted) | `draw_download_run` 머리 Frame, 경로 줄은 `remote_path_line`(공용 `tasty_ui_widgets::paint_fh_remote_mark` + 남은 폭에서 `elide_front_mono`) | `dialog_card` 머리, 같은 형상의 `remote_path_line`(같은 공용 위젯, 표본 호스트 `gx10`) |
+| 헤더(제목 font-size-max semibold · `FhRemoteMark` · space-sm · 경로 mono caption muted) | `draw_download_run` 머리 Frame, 경로 줄은 `remote_path_line`(공용 `tasty_ui_widgets::paint_fh_remote_mark` + 남은 폭에서 `elide_front_mono`) | `dialog_card` 머리, 같은 형상의 `remote_path_line`(같은 공용 위젯, 표본 호스트 `host`) |
 | 본문(설명 body secondary · 한 파일 caption muted) | `wrapped` | `wrapped` |
 | 옛 서버 well(surface-raised · info glyph accent-info-raised · caption secondary) | `old_server_well` | `dialog_card` 안 |
 | footer ghost Cancel · primary Download and run(download glyph, 옛 서버면 비활성) | `footer_buttons` | `dialog_footer` |

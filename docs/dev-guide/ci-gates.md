@@ -628,7 +628,7 @@ cargo check -p tasty-doc-guards --all-targets --target x86_64-pc-windows-msvc
 2026-09-06 run 33994212447에서 macOS soft 상한은 10240이었다.
 
 Linux 루트 lib 시험(`cargo test -p tasty --lib`, 기본 feature, 기본 병렬도 16)의 최고 fd는
-2026-11-22 8945hs(x86_64 Ubuntu, 커밋 7af61292d2, soft 8192)에서 다음과 같았다.
+2026-11-22 측정 머신(x86_64 Ubuntu, 커밋 7af61292d2, soft 8192)에서 다음과 같았다.
 무부하는 50ms 표본 20회에서 151~314, 5ms 표본 3회에서 224~840이었다.
 CPU를 모두 쓰는 바쁜 루프 16개를 함께 돌리면 50ms 표본 20회에서 1258~1618, 5ms 표본 11회에서 1376~1629였다.
 soft 8192에서 돌린 54회 모두 통과했고 `os error 24`는 없었다. 같은 부하에서 soft를 1024로 낮추면 3회 모두 EMFILE로 실패했다.

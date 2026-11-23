@@ -195,11 +195,11 @@ Windows 빌드 스크립트는 태그 없는 `workflow_dispatch`에서도 cleanu
 
 | 항목 | x86_64 | aarch64 |
 |------|--------|---------|
-| 호스트 | `8945hs` (192.168.0.11) | `gx10` (192.168.0.4) |
+| 호스트 | x86_64 Linux 머신 | aarch64 Linux 머신 |
 | Runner 이름 | `tasty-server-x64` | `tasty-gx10-arm64` |
 | 라벨 | `self-hosted, Linux, X64` | `self-hosted, Linux, ARM64` |
-| 설치 경로 | `/home/zilhak/actions-runner/` | 〃 |
-| systemd 서비스 | `actions.runner.zilhak-tasty.tasty-server-x64.service` | `…tasty-gx10-arm64.service` |
+| 설치 경로 | 러너 실행 사용자의 `~/actions-runner/` | 〃 |
+| systemd 서비스 | `actions.runner.<owner>-<repo>.<Runner 이름>.service` | 〃 |
 | 자동 시작 | enabled | enabled |
 
 아키텍처별 배포 패키지를 만드는 잡(`build-linux-x64`, `build-linux-arm64`)과 `check-release`·`test-linux-x64`는 아키텍처 라벨로 한 러너에 고정한다. 나머지 Linux 잡은 `[self-hosted, Linux]`라 두 러너 가운데 비어 있는 쪽이 받는다. 잡별 배치와 이유는 [Linux 러너 배치](ci-gates.md#linux-러너-배치)에 있다. 각 머신의 tasty·plugins 러너는 러너 작업 훅의 잠금으로 동시에 한 잡만 돈다.
@@ -213,7 +213,7 @@ Windows 호스트(x64)에는 러너가 둘 있다.
 | Runner 이름 | `tasty-win-runner` | `tasty-win-arm64` |
 | 라벨 | `self-hosted, X64, Windows` | `win-arm64` 하나(기본 라벨 없이 등록) |
 | 맡는 잡 | `runs-on: [self-hosted, Windows]` 잡(x64 빌드, `check-windows`) | `runs-on: [win-arm64]` 잡 세 개: release·build-check 의 `build-windows-arm64`, crossplatform-check 의 `check-windows-arm64` |
-| 실행 방식 | 서비스 | 서비스가 아니라 로그온 시 실행되는 예약 작업 `tasty-runner-arm64` |
+| 실행 방식 | 서비스 | 서비스가 아니라 로그온 시 실행되는 예약 작업 |
 
 전용 러너는 같은 호스트에서 같은 계정·Rust·MSVC·WiX 환경을 쓰고 ARM64 산출물을 교차 빌드한다([Windows ARM64](#windows-arm64)). 라벨이 `win-arm64` 하나라 일반 `[self-hosted, Windows]` 잡은 이 러너로 오지 않고, arm64 잡도 일반 러너로 가지 않는다. 그래서 두 Windows 릴리스 빌드는 서로 다른 러너에서 병렬로 돌 수 있다. 같은 스크립트를 쓰는 수동 build-check 실행(42752143294·42784461025)에서는 두 빌드가 겹쳐 돌았고 그때 잡 시간은 build-windows 최대 29.9분, build-windows-arm64 최대 36.3분이었다. 태그 release 의 현재 배치에서 두 빌드가 겹친 실행은 아직 없어 그 시간은 미측정이다. 잡 시간 상한은 build-check 의 이 실측을 대리로 쓴다([잡 시간 상한](ci-gates.md#잡-시간-상한)).
 
@@ -287,9 +287,16 @@ cargo install 도구는 PATH 변경 불필요. 별도 다운로드 도구는 `~/
 ### 운영 명령
 
 ```bash
-ssh 8945hs 'systemctl status actions.runner.zilhak-tasty.tasty-server-x64.service'
-sudo systemctl {restart|stop|start} <service-name>
-sudo journalctl -u <service-name> -f
+# 러너 머신에서 실행한다. RUNNER_SERVICE는 위 표의 systemd 서비스 이름이다.
+RUNNER_SERVICE=...
+systemctl status "$RUNNER_SERVICE"
+sudo systemctl restart "$RUNNER_SERVICE"   # stop·start도 같은 꼴
+sudo journalctl -u "$RUNNER_SERVICE" -f
+```
+
+GitHub 측 등록 상태는 `gh`가 인증된 작업 환경에서 조회한다.
+
+```bash
 gh api repos/zilhak/tasty/actions/runners        # GitHub 측 등록 상태
 gh api repos/zilhak/tasty/actions/runners --jq '.runners[] | select(.name=="tasty-win-arm64") | {status, busy}'   # Windows arm64 전용 러너
 ```
@@ -297,7 +304,8 @@ gh api repos/zilhak/tasty/actions/runners --jq '.runners[] | select(.name=="tast
 Windows arm64 전용 러너는 서비스가 아니다. offline 이면 Windows 호스트에 로그온한 세션에서 예약 작업을 실행한다.
 
 ```powershell
-schtasks /Run /TN tasty-runner-arm64
+$RunnerTask = '...'   # 러너를 띄우는 예약 작업 이름
+schtasks /Run /TN $RunnerTask
 ```
 
 ```bash
@@ -315,7 +323,7 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 | `cmake`/`freetype`/`fontconfig` 빠짐 | `build-linux.sh` 안내대로 `apt install` |
 | `could not fetch the locked official plugins`, `fetch-official-plugins.sh failed` | 받기 단계의 앞 줄에서 원인(`missing`·`sha256 mismatch`·curl 오류)을 본다. 해시가 다르면 잠금 파일과 공식 플러그인 릴리스가 어긋난 것이라 [잠금 파일 갱신](plugin-packaging.md#잠금-파일-갱신)으로 다시 만든다. 러너에서 GitHub Releases에 접근할 수 있는지 확인한다 |
 | 러너 offline | `systemctl status` → `restart` |
-| Windows arm64 잡(release·build-check 의 `build-windows-arm64`, `check-windows-arm64`)이 Queued 에 머묾, 또는 24시간 뒤 취소됨 | 전용 러너 `tasty-win-arm64` 가 offline 이다. `timeout-minutes` 는 러너를 기다린 시간을 세지 않아 러너가 돌아올 때까지 Queued 로 머물고, 24시간이 지나면 GitHub 가 잡을 취소한다. 호스트가 로그온 상태인지 확인하고 예약 작업 `tasty-runner-arm64` 를 실행한다([운영 명령](#운영-명령)). 잡이 이미 취소됐으면 `gh run rerun <run-id> --failed` 로 다시 실행한다. release 실행이면 `publish-release` 도 건너뛴 상태라 함께 확인한다 |
+| Windows arm64 잡(release·build-check 의 `build-windows-arm64`, `check-windows-arm64`)이 Queued 에 머묾, 또는 24시간 뒤 취소됨 | 전용 러너 `tasty-win-arm64` 가 offline 이다. `timeout-minutes` 는 러너를 기다린 시간을 세지 않아 러너가 돌아올 때까지 Queued 로 머물고, 24시간이 지나면 GitHub 가 잡을 취소한다. 호스트가 로그온 상태인지 확인하고 러너를 띄우는 예약 작업을 실행한다([운영 명령](#운영-명령)). 잡이 이미 취소됐으면 `gh run rerun <run-id> --failed` 로 다시 실행한다. release 실행이면 `publish-release` 도 건너뛴 상태라 함께 확인한다 |
 | release upload 실패 | `GH_TOKEN` 권한/tag 이름 확인 (`--clobber` 재업로드) |
 | Windows `candle could not be found` | WiX 3.x 미설치/`WIX` env 누락 → `winget install` 후 서비스 재시작 |
 | Windows ARM64 `MSVC ARM64 build tools not found` | Visual Studio Installer 에서 `Microsoft.VisualStudio.Component.VC.Tools.ARM64` 추가 |
