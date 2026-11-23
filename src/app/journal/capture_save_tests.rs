@@ -56,12 +56,18 @@ fn journal_capture_handoff_waits_for_file_receipt_before_original_response() {
     assert!(cache.lock().unwrap().get_workspace("captured").is_none());
     drop(held);
     let deadline = Instant::now() + Duration::from_secs(5);
-    while !pending.is_finished() {
-        core.poll_file_writer();
-        assert!(pending.poll().is_none());
-        assert!(Instant::now() < deadline, "capture save did not finish");
-        std::thread::yield_now();
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            pending.is_finished() || {
+                if !last {
+                    core.poll_file_writer();
+                    assert!(pending.poll().is_none());
+                }
+                false
+            }
+        }),
+        "capture save did not finish"
+    );
     let response = receiver.try_recv().unwrap();
     assert_eq!(response.id, serde_json::json!(47));
     assert_eq!(
@@ -80,6 +86,8 @@ fn journal_capture_handoff_waits_for_file_receipt_before_original_response() {
     assert!(path.is_file());
     assert!(pending.poll().is_none());
     assert!(receiver.try_recv().is_err());
+    // holds_by_every 로 바꾸지 않는다. 완료는 이 poll 의 반환값으로만 보이고 poll 은 종료 진행(재제출·회수)을
+    // 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while core.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < deadline);
         std::thread::yield_now();

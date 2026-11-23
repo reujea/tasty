@@ -34,6 +34,8 @@ fn response(
 }
 fn join_file(app: &mut App) {
     let end = Instant::now() + Duration::from_secs(5);
+    // holds_by_every 로 바꾸지 않는다. 완료는 이 poll 의 반환값으로만 보이고 poll 은 종료 진행(재제출·회수)을
+    // 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while app.services.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < end);
         std::thread::yield_now();
@@ -308,19 +310,20 @@ pub(super) fn cleanup(app: &mut App) {
     app.stop_plugin_file_producers();
     join_file(app);
     let end = Instant::now() + Duration::from_secs(5);
-    loop {
+    // 원래 순서(종료 poll → 수집 → 읽기 → 기한 검사 → 1ms) 그대로. 두 writer 종료 poll 은 끝난 worker 를
+    // join 만 하므로 기한 뒤 읽기에도 두고, 다음 단계를 제출하는 수집은 뺀다.
+    let joined = tasty_utils::test_wait::holds_by_every(end, Duration::from_millis(1), |last| {
         let memory = app.services.poll_memory_writer_shutdown();
         #[cfg(feature = "gui")]
         let state = app.services.poll_state_writer_shutdown();
         #[cfg(not(feature = "gui"))]
         let state = 0;
-        app.collect_plugin_file_shutdown();
-        if memory == 0 && state == 0 {
-            break;
+        if !last {
+            app.collect_plugin_file_shutdown();
         }
-        assert!(Instant::now() < end, "owned App test writer not joined");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+        memory == 0 && state == 0
+    });
+    assert!(joined, "owned App test writer not joined");
 }
 
 pub(crate) fn retirement_has_an_independent_poll_wake(make: impl FnOnce() -> App) {
@@ -462,10 +465,9 @@ pub(crate) fn ready_receipts_precede_l1_continuation(
     let later = command::submit(Some(&queue), 1, || (), |_| 1).unwrap();
     release.send(()).unwrap();
     let end = Instant::now() + Duration::from_secs(5);
-    while later.poll().is_none() {
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by(end, || later
+        .poll()
+        .is_some()));
     assert!(held.poll().unwrap().is_ok());
     assert!(rx.try_recv().is_err());
     drain(&mut app, engine);

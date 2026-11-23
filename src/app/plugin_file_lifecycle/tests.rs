@@ -20,15 +20,18 @@ fn app() -> App {
 }
 fn pump(app: &mut App, reply: &Reply) -> Result<Value, Failure> {
     let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        app.services.poll_file_writer();
-        app.finish_plugin_files();
-        if let Some(result) = reply.poll() {
-            return result;
+    let mut result = None;
+    // 원래 순서(진행 → 읽기 → 기한 검사 → 1ms) 그대로. 기한 뒤 읽기는 다음 단계를 제출하는 진행 없이 답만 본다.
+    let held = tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
+        if !last {
+            app.services.poll_file_writer();
+            app.finish_plugin_files();
         }
-        assert!(Instant::now() < deadline, "plugin file reply pending");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+        result = reply.poll();
+        result.is_some()
+    });
+    assert!(held, "plugin file reply pending");
+    result.unwrap()
 }
 fn disable() -> ConfigChange {
     ConfigChange::Enabled {
@@ -67,17 +70,23 @@ fn held_file_lock_keeps_runtime_and_original_reply_pending_until_receipt() {
     assert!(!mgr.config.is_disabled(ID));
     drop(lock);
     let deadline = Instant::now() + Duration::from_secs(5);
-    let response = loop {
-        app.services.poll_file_writer();
-        app.finish_plugin_files();
-        app.services
-            .poll_memory_replies(app.plugin_manager.as_mut());
-        if let Ok(response) = rx.try_recv() {
-            break response;
+    let mut response = None;
+    // 원래 순서(진행 → 읽기 → 기한 검사 → 1ms) 그대로, 기한 뒤 읽기는 진행 없이 응답만 본다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        deadline,
+        Duration::from_millis(1),
+        |last| {
+            if !last {
+                app.services.poll_file_writer();
+                app.finish_plugin_files();
+                app.services
+                    .poll_memory_replies(app.plugin_manager.as_mut());
+            }
+            response = rx.try_recv().ok();
+            response.is_some()
         }
-        assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(1));
-    };
+    ));
+    let response = response.unwrap();
     assert_eq!(response.id, serde_json::json!(73));
     assert!(response.error.is_none());
     assert_eq!(response.result.unwrap()["disabled"], ID);
@@ -295,16 +304,22 @@ fn post_commit_reply(removed: bool, config_saved: bool) {
     );
     assert!(rx.try_recv().is_err());
     let deadline = Instant::now() + Duration::from_secs(5);
-    let response = loop {
-        app.services.poll_file_writer();
-        app.finish_plugin_files();
-        app.services.poll_memory_replies(None);
-        if let Ok(response) = rx.try_recv() {
-            break response;
+    let mut response = None;
+    // 원래 순서(진행 → 읽기 → 기한 검사 → 1ms) 그대로, 기한 뒤 읽기는 진행 없이 응답만 본다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        deadline,
+        Duration::from_millis(1),
+        |last| {
+            if !last {
+                app.services.poll_file_writer();
+                app.finish_plugin_files();
+                app.services.poll_memory_replies(None);
+            }
+            response = rx.try_recv().ok();
+            response.is_some()
         }
-        assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(1));
-    };
+    ));
+    let response = response.unwrap();
     assert_eq!(response.id, original_id);
     let error = response.error.unwrap();
     assert_eq!(error.code, -32000);

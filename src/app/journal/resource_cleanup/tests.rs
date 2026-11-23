@@ -243,16 +243,20 @@ fn a_pending_scope_purge_keeps_the_retirement_running_until_its_result() {
 
     engine.put_after("new.owner", "after close");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while matches!(only_entry(&journal).phase, Phase::Running) {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "정리 결과를 거두지 못했다"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        journal
-            .poll_resource_cleanup(&mut [&mut engine.session], None)
-            .expect("poll");
-    }
+    let mut started = false;
+    // 원래 순서(읽기 → 기한 검사 → 5ms → poll → 읽기) 그대로, 기한 뒤 읽기는 poll 없이 단계만 본다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                journal
+                    .poll_resource_cleanup(&mut [&mut engine.session], None)
+                    .expect("poll");
+            }
+            !matches!(only_entry(&journal).phase, Phase::Running)
+        }),
+        "정리 결과를 거두지 못했다"
+    );
     // 끝난 작업은 바로 journal worker로 넘어가므로 단계로 결과를 본다.
     assert!(matches!(
         only_entry(&journal).phase,
@@ -284,19 +288,23 @@ fn a_reconciling_retirement_waits_for_its_resubmitted_purge() {
     assert!(engine.has("old.owner"));
 
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while matches!(only_entry(&journal).phase, Phase::Reconcile) {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "정리 결과를 거두지 못했다"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        for entry in journal.resource_cleanups.values_mut() {
-            entry.next_reconcile = std::time::Instant::now();
-        }
-        journal
-            .poll_resource_cleanup(&mut [&mut engine.session], None)
-            .expect("poll");
-    }
+    let mut started = false;
+    // 원래 순서(읽기 → 기한 검사 → 5ms → 재제출 poll → 읽기) 그대로, 기한 뒤 읽기는 재제출 없이 단계만 본다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                for entry in journal.resource_cleanups.values_mut() {
+                    entry.next_reconcile = std::time::Instant::now();
+                }
+                journal
+                    .poll_resource_cleanup(&mut [&mut engine.session], None)
+                    .expect("poll");
+            }
+            !matches!(only_entry(&journal).phase, Phase::Reconcile)
+        }),
+        "정리 결과를 거두지 못했다"
+    );
     assert!(matches!(only_entry(&journal).phase, Phase::Reconciled));
     assert!(!engine.has("old.owner"));
     engine.shutdown();

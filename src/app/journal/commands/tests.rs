@@ -100,6 +100,8 @@ fn category_wire_results_and_rejections_survive_deletion_and_worker_restart() {
     assert_eq!(session.core_state.categories().len(), 1);
     drop(journal);
     let release_deadline = Instant::now() + Duration::from_secs(5);
+    // holds_by_every 로 바꾸지 않는다. 완료는 이 poll 의 반환값으로만 보이고 poll 은 종료 진행(재제출·회수)을
+    // 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while !crate::runtime::resource_retirement::poll_engine_release(&mut session, None) {
         assert!(
             Instant::now() < release_deadline,

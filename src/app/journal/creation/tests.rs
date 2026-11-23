@@ -72,6 +72,8 @@ fn uncertain_discard_release_retains_the_exact_pty_generation() {
     assert_eq!(release.retained_pty_generations(), vec![generation]);
     let mut session = EngineSession::new(80, 24, Arc::new(|| {})).unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    // holds_by_every 로 바꾸지 않는다. 완료는 이 poll 의 반환값으로만 보이고 poll 은 종료 진행(재제출·회수)을
+    // 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while !release.poll(&mut session, None) {
         assert!(
             std::time::Instant::now() < deadline,

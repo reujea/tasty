@@ -405,23 +405,30 @@ fn a_held_relationship_receipt_keeps_command_and_original_reply_pending_after_pu
     });
     // Nothing is pumped here: the holder only waits for the writer's lock. It has no result to
     // lose except by ending, so read its end first and bound only a wait that never ends.
-    let started = std::time::Instant::now();
-    loop {
+    // The read after the deadline waits for nothing: it takes only an entry already sent.
+    let deadline = std::time::Instant::now() + StallBudget::CEILING;
+    let entered = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
         let ended = holder.is_finished();
-        match ready.recv_timeout(Duration::from_millis(10)) {
-            Ok(()) => break,
+        let wait = if last {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(10)
+        };
+        match ready.recv_timeout(wait) {
+            Ok(()) => return true,
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 panic!("the lock holder ended before it entered")
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
         }
         assert!(!ended, "the lock holder ended before it entered");
-        assert!(
-            started.elapsed() < StallBudget::CEILING,
-            "the lock holder did not enter within {:?}",
-            StallBudget::CEILING
-        );
-    }
+        false
+    });
+    assert!(
+        entered,
+        "the lock holder did not enter within {:?}",
+        StallBudget::CEILING
+    );
     let child = published_counting(&mut journal, &mut session, &turns);
     let waited = || {
         format!(

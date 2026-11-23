@@ -468,6 +468,8 @@ fn release_engine_keeping(
     kept: bool,
 ) {
     let until = Instant::now() + std::time::Duration::from_secs(10);
+    // holds_by_every 로 바꾸지 않는다. 완료는 poll_engine_release 의 반환값으로만 보이고 그 poll 은 소유자
+    // 회수를 함께 진행해, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while !crate::runtime::resource_retirement::poll_engine_release(&mut session, None) {
         assert!(
             Instant::now() < until,
@@ -505,27 +507,31 @@ fn release_engine_keeping(
         // SAFETY: the test owns this child process; SIGKILL only ends it.
         assert_eq!(unsafe { libc::kill(pid as i32, libc::SIGKILL) }, 0);
         let until = Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            let mut later =
-                EngineSession::new(80, 24, std::sync::Arc::new(|| {})).expect("later engine");
-            later.engine_release = Some(Default::default());
-            let id = engines
-                .insert_pending(later)
-                .unwrap_or_else(|_| panic!("the registry has no other pending engine"));
-            assert!(engines.begin_retiring_pending(id));
-            engines.mark_retiring_release(id);
-            drop(engines.finish_retiring(id).expect("released owner"));
-            if engines.unreturned_process_ids().is_empty() && !process_exists(pid) {
-                break;
-            }
-            assert!(
-                Instant::now() < until,
-                "an exited kept process is never observed: kept {:?}, zombie {}",
-                engines.unreturned_process_ids(),
-                process_exists(pid)
-            );
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
+        // 기한 뒤 읽기는 새 엔진을 만들지 않고 직전 회수 결과와 프로세스만 본다.
+        let observed = tasty_utils::test_wait::holds_by_every(
+            until,
+            std::time::Duration::from_millis(50),
+            |last| {
+                if !last {
+                    let mut later = EngineSession::new(80, 24, std::sync::Arc::new(|| {}))
+                        .expect("later engine");
+                    later.engine_release = Some(Default::default());
+                    let id = engines
+                        .insert_pending(later)
+                        .unwrap_or_else(|_| panic!("the registry has no other pending engine"));
+                    assert!(engines.begin_retiring_pending(id));
+                    engines.mark_retiring_release(id);
+                    drop(engines.finish_retiring(id).expect("released owner"));
+                }
+                engines.unreturned_process_ids().is_empty() && !process_exists(pid)
+            },
+        );
+        assert!(
+            observed,
+            "an exited kept process is never observed: kept {:?}, zombie {}",
+            engines.unreturned_process_ids(),
+            process_exists(pid)
+        );
     }
 }
 

@@ -58,14 +58,19 @@ fn tick(app: &mut App) {
 }
 fn wait(app: &mut App, reply: &Reply) -> Value {
     let end = Instant::now() + Duration::from_secs(8);
-    loop {
-        tick(app);
-        if let Some(result) = reply.poll() {
-            return result.unwrap_or_else(|error| panic!("native App callback: {error:?}"));
+    let mut result = None;
+    // 원래 순서(tick → 읽기 → 기한 검사 → 1ms) 그대로, 기한 뒤 읽기는 tick 없이 답만 본다.
+    let held = tasty_utils::test_wait::holds_by_every(end, Duration::from_millis(1), |last| {
+        if !last {
+            tick(app);
         }
-        assert!(Instant::now() < end);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+        result = reply.poll();
+        result.is_some()
+    });
+    assert!(held);
+    result
+        .unwrap()
+        .unwrap_or_else(|error| panic!("native App callback: {error:?}"))
 }
 fn disable(app: &mut App, home: &Path) {
     let done = Reply::default();
@@ -80,6 +85,8 @@ fn disable(app: &mut App, home: &Path) {
     .unwrap();
     wait(app, &done);
     let end = Instant::now() + Duration::from_secs(5);
+    // holds_by_every 로 바꾸지 않는다. 완료는 poll_file_retirement 의 반환값으로만 보이고 그 poll 이 회수
+    // 정리를 함께 진행해, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while !app
         .plugin_manager
         .as_mut()
@@ -137,11 +144,17 @@ fn register(app: &mut App, home: &Path, dir: &Path) {
     .unwrap();
     wait(app, &done);
     let end = Instant::now() + Duration::from_secs(5);
-    while pids(home).is_empty() {
-        tick(app);
-        assert!(Instant::now() < end);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // 원래 순서(읽기 → tick → 기한 검사 → 1ms) 그대로, 기한 뒤 읽기는 tick 없이 pid 파일만 본다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        end,
+        Duration::from_millis(1),
+        |last| !pids(home).is_empty() || {
+            if !last {
+                tick(app);
+            }
+            false
+        }
+    ));
     assert_eq!(pids(home).len(), 1);
     disable(app, home);
 }
@@ -169,11 +182,17 @@ fn shortcuts(app: &mut App, home: &Path) {
     assert_ne!(app.plugin_files_pending(), 0);
     drop(held);
     let end = Instant::now() + Duration::from_secs(5);
-    while app.plugin_files_pending() != 0 {
-        tick(app);
-        assert!(Instant::now() < end);
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // 원래 순서(읽기 → tick → 기한 검사 → 1ms) 그대로, 기한 뒤 읽기는 tick 없이 남은 수만 본다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        end,
+        Duration::from_millis(1),
+        |last| app.plugin_files_pending() == 0 || {
+            if !last {
+                tick(app);
+            }
+            false
+        }
+    ));
     assert_eq!(
         app.plugin_manager
             .as_ref()

@@ -24,6 +24,8 @@ fn start(app: &mut App, file_drain: crate::app::writer_drain::WriterDrain) {
 fn drain(app: &mut App, file_drain: crate::app::writer_drain::WriterDrain) {
     start(app, file_drain);
     let end = Instant::now() + Duration::from_secs(8);
+    // holds_by_every 로 바꾸지 않는다. 완료는 wait_for_file_writer_shutdown 의 반환값으로만 보이고 그 호출이
+    // 다음 단계 제출과 종료 poll 을 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     loop {
         app.reject_pending_ipc();
         if !app.wait_for_file_writer_shutdown() {

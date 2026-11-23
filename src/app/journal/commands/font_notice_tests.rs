@@ -192,12 +192,17 @@ fn a_failed_save_and_a_rejected_font_are_two_cards() {
     logs.capture(|| {
         app.cascade_settings_updated(next, &save(), None);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while logs.cards() < 2 {
-            assert!(Instant::now() < deadline, "{}", logs.text());
-            app.services.poll_file_writer();
-            app.settle_settings_saves();
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        let mut started = false;
+        // 원래 순서(읽기 → 기한 검사 → 진행 → 1ms) 그대로, 기한 뒤 읽기는 진행 없이 카드 수만 본다.
+        let held = tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            if !last && std::mem::replace(&mut started, true) {
+                app.services.poll_file_writer();
+                app.settle_settings_saves();
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            logs.cards() >= 2
+        });
+        assert!(held, "{}", logs.text());
     });
     assert_eq!(logs.cards_of(&font.card()), 1, "{}", logs.text());
     assert_eq!(logs.cards(), 2, "{}", logs.text());
