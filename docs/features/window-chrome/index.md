@@ -53,7 +53,7 @@ Linux 설정창(`SettingsView`)은 OS 장식이 Tasty 테마를 따르지 않으
 
 - **모양**: 메인 타이틀바와 같은 테마 토큰으로 활성·비활성 배경과 버튼 색을 그린다. 버튼은 닫기 하나다. 설정창 제목 줄의 디자인은 아직 디자인 정본에 없어 지금 값은 임시다.
 - **닫기**: 제목 줄의 닫기는 설정 모달만 닫고 초안을 버린다(OS 닫기와 같다, [설정 화면](../settings/screens/settings.md)). 메인 창의 `AppEvent::CloseWindow`로 가지 않는다. 저널이 halt 된 동안에도 이 버튼의 클릭만 받는다.
-- **이동·크기**: 빈 제목 줄 드래그는 `drag_window`, 더블클릭은 최대화 토글이다. 창 가장자리 누름은 `drag_resize_window`로 OS 리사이즈를 시작하고 최소 크기는 창 속성 그대로다. 닫기 버튼이나 가장자리 밴드와 겹치는 egui 위젯(본문 스크롤바 등) 위의 누름은 위젯이 받는다. 저널이나 편집 키 보류 뒤 재생된 누름으로는 OS 이동·리사이즈를 시작하지 않는다. 판정 조건은 `src/view/settings/chrome.rs`의 `SettingsChrome`과 그 시험이 정본이다.
+- **이동·크기**: 빈 제목 줄 드래그는 `drag_window`다. 최소화·최대화 버튼이 없고 빈 영역 더블클릭도 최대화하지 않는다. 창 가장자리 누름은 `drag_resize_window`로 OS 리사이즈를 시작하고 최소 크기는 창 속성 그대로다. 닫기 버튼이나 가장자리 밴드와 겹치는 egui 위젯(본문 스크롤바 등) 위의 누름은 위젯이 받는다. 저널이나 편집 키 보류 뒤 재생된 누름으로는 OS 이동·리사이즈를 시작하지 않는다. 판정 조건은 `src/view/settings/chrome.rs`의 `SettingsChrome`과 그 시험이 정본이다.
 - **Wayland 서버 장식**: 컴포지터가 서버 장식을 고르면(xdg-decoration 협상, winit `Window::is_decorated`) 앱 제목 줄을 그리지 않고 가장자리 입력도 OS에 맡긴다. 그때 닫기는 OS 제목 줄의 닫기다. 장식 모드가 바뀌면 다음 그리기에 반영한다. 컴포지터에 subcompositor가 없거나 winit 프레임 생성이 실패한 Client 모드도 winit이 서버 장식과 같은 값을 돌려주므로 그때는 제목 줄이 없다(닫기는 Cancel·설정 단축키). MainView 는 이 값을 보지 않는다.
 
 ## 인터페이스
@@ -78,6 +78,7 @@ Linux 설정창(`SettingsView`)은 OS 장식이 Tasty 테마를 따르지 않으
 - Given 창 가장자리 When 드래그 Then 해당 방향으로 리사이즈된다.
 - Given Linux 설정창 When 창을 연다 Then OS 장식 없이 앱 제목 줄 하나가 선택한 Tasty 테마로 그려지고, 시스템 테마만 바꿔도 따라가지 않는다.
 - Given Linux 설정창 제목 줄 When 닫기 버튼을 누른다 Then 설정 모달만 닫히고 편집 중인 초안은 버려진다.
+- Given Linux 설정창 제목 줄 When 빈 영역을 더블클릭한다 Then 창 크기는 바뀌지 않는다.
 - Given 서버 장식을 고른 Wayland 컴포지터 When Linux 설정창을 연다 Then 앱 제목 줄은 그려지지 않는다.
 
 > OS별 시각·동작이라 각 플랫폼 스크린샷 + 수동 윈도우 조작으로 검증. `resize_direction_at` 은 단위 테스트(OS 무관).

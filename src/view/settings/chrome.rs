@@ -30,14 +30,6 @@ pub(crate) struct SettingsChrome {
     halted_press: bool,
 }
 
-/// 제목 줄 동작 가운데 창에 요청할 것.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WindowRequest {
-    Drag,
-    ToggleMaximize,
-    Minimize,
-}
-
 /// 살아 있는 창 사건 하나를 볼 때의 창 상태.
 pub(crate) struct LiveInput {
     pub(crate) size: PhysicalSize<u32>,
@@ -174,7 +166,7 @@ impl SettingsChrome {
         })
     }
 
-    /// 설정 패널보다 먼저 제목 줄을 그리고 이동·최대화 요청을 창에 보낸다. 닫기 버튼을 눌렀으면 참이다.
+    /// 설정 패널보다 먼저 제목 줄을 그리고 이동 요청을 창에 보낸다. 닫기 버튼을 눌렀으면 참이다.
     /// 컴포지터가 서버 장식을 골랐으면 그리지 않는다.
     pub(crate) fn draw_titlebar(
         &mut self,
@@ -203,22 +195,15 @@ impl SettingsChrome {
                 size.width,
             )
         });
-        let (requests, close) = route_actions(&result.actions);
-        for request in requests {
-            match request {
-                // 재생된 누름이면 버튼이 이미 떨어졌을 수 있어 OS 이동을 시작하지 않는다.
-                WindowRequest::Drag if self.replayed_press => {}
-                WindowRequest::Drag => {
-                    // 창 이동은 마우스를 누른 상태에서 시작해야 한다. 실패하면 로그를 남긴다.
-                    if let Err(e) = window.drag_window() {
-                        tracing::warn!("settings titlebar drag_window failed: {e}");
-                    }
-                }
-                WindowRequest::ToggleMaximize => window.set_maximized(!window.is_maximized()),
-                WindowRequest::Minimize => window.set_minimized(true),
+        let routed = route_actions(&result.actions);
+        // 재생된 누름이면 버튼이 이미 떨어졌을 수 있어 OS 이동을 시작하지 않는다.
+        if routed.drag && !self.replayed_press {
+            // 창 이동은 마우스를 누른 상태에서 시작해야 한다. 실패하면 로그를 남긴다.
+            if let Err(e) = window.drag_window() {
+                tracing::warn!("settings titlebar drag_window failed: {e}");
             }
         }
-        close
+        routed.close
     }
 
     /// 패스 끝에 포인터 아래 위젯을 적고 가장자리 리사이즈 커서를 덮는다. egui 위젯이 그 패스에 정한 커서보다
@@ -327,19 +312,26 @@ fn edge_direction(
     resize_direction_at(pos.x, pos.y, w, h, RESIZE_EDGE_MARGIN)
 }
 
-/// 제목 줄 동작을 창 요청과 닫기 여부로 나눈다. 닫기는 메인 창 닫기가 아니라 설정 모달 닫기다.
-fn route_actions(actions: &[TitlebarAction]) -> (Vec<WindowRequest>, bool) {
-    let mut requests = Vec::new();
-    let mut close = false;
+/// 제목 줄 동작 가운데 설정창이 받는 것.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Routed {
+    drag: bool,
+    /// 메인 창 닫기가 아니라 설정 모달 닫기다.
+    close: bool,
+}
+
+/// 제목 줄 동작을 이동과 닫기로 나눈다. 설정창 제목 줄은 닫기 버튼만 두므로 빈 영역 더블클릭의 최대화 토글과
+/// 최소화는 받지 않는다.
+fn route_actions(actions: &[TitlebarAction]) -> Routed {
+    let mut routed = Routed::default();
     for action in actions {
         match action {
-            TitlebarAction::StartDrag => requests.push(WindowRequest::Drag),
-            TitlebarAction::ToggleMaximize => requests.push(WindowRequest::ToggleMaximize),
-            TitlebarAction::Minimize => requests.push(WindowRequest::Minimize),
-            TitlebarAction::Close => close = true,
+            TitlebarAction::StartDrag => routed.drag = true,
+            TitlebarAction::Close => routed.close = true,
+            TitlebarAction::ToggleMaximize | TitlebarAction::Minimize => {}
         }
     }
-    (requests, close)
+    routed
 }
 
 #[cfg(test)]
@@ -361,25 +353,27 @@ mod tests {
         Some(PhysicalPosition::new(x, y))
     }
 
-    /// Given 제목 줄의 닫기 버튼을 눌렀을 때, When 동작을 나누면, Then 창 요청 없이 닫기만 남는다.
-    /// 이동·최대화·최소화는 창 요청으로 가고 닫기가 아니다.
+    /// Given 제목 줄의 닫기 버튼을 눌렀을 때, When 동작을 나누면, Then 이동 없이 닫기만 남는다.
+    /// 빈 영역 드래그는 이동이고, 더블클릭 최대화 토글과 최소화는 아무것도 하지 않는다.
     #[test]
     fn the_close_button_only_closes_the_settings_modal() {
-        assert_eq!(route_actions(&[TitlebarAction::Close]), (vec![], true));
         assert_eq!(
-            route_actions(&[
-                TitlebarAction::StartDrag,
-                TitlebarAction::ToggleMaximize,
-                TitlebarAction::Minimize,
-            ]),
-            (
-                vec![
-                    WindowRequest::Drag,
-                    WindowRequest::ToggleMaximize,
-                    WindowRequest::Minimize
-                ],
-                false
-            )
+            route_actions(&[TitlebarAction::Close]),
+            Routed {
+                drag: false,
+                close: true
+            }
+        );
+        assert_eq!(
+            route_actions(&[TitlebarAction::StartDrag]),
+            Routed {
+                drag: true,
+                close: false
+            }
+        );
+        assert_eq!(
+            route_actions(&[TitlebarAction::ToggleMaximize, TitlebarAction::Minimize]),
+            Routed::default()
         );
     }
 
