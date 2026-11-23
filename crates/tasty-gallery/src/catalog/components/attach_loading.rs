@@ -103,17 +103,22 @@ fn copy_wait(ui: &mut egui::Ui, theme: &Theme) {
         }
         let label = t_lang("en", "attach.pending.copy");
         let time = lang_fmt("en", "attach.pending.seconds", "2");
-        open_detail(
-            ui,
-            &still,
-            &PendingIndicator {
-                label,
-                time: &time,
-                compact: true,
-                details: &format!("{label} · {time}"),
-                open: true,
-            },
-        );
+        // The compact row spans the column (its widest chip) and centres the chip, so the
+        // bubble stays on the card.
+        let column = egui::vec2(ui.min_rect().width(), 0.0);
+        ui.allocate_ui_with_layout(column, egui::Layout::top_down(egui::Align::Center), |ui| {
+            open_detail(
+                ui,
+                &still,
+                &PendingIndicator {
+                    label,
+                    time: &time,
+                    compact: true,
+                    details: &format!("{label} · {time}"),
+                    open: true,
+                },
+            );
+        });
     });
     stage(ui, theme, StageVariant::Column, |ui| {
         let oldest = lang_fmt("en", "attach.pending.seconds", "20");
