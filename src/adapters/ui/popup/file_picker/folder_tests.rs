@@ -294,7 +294,8 @@ fn alt_up_with_a_dropdown_open_does_nothing() {
 /// T-12b-14 [폴더 피커 + Alt+↑]: Given 폴더 피커가 포커스이고 Alt+↑ 가 탐색기 상위 폴더 단축키(`explorer_go_up`)이면서
 /// 경로에 있는 창 단축키(`toggle_sidebar`)이기도 할 때, When 창이 Alt+↑ 를 받으면, Then 피커 노드 키맵이 그 키를 받아
 /// 창 키 경로가 그 키를 피커에 싣고 그 몫을 그린 피커가 상위 폴더로 간다. 창 단축키는 노드 키맵이 없으면 `Text`
-/// 명령 키가 위로 양보할 후보다.
+/// 명령 키가 위로 양보할 후보다. 경쟁 창 단축키는 물리 Alt+↑ 의 저장 토큰으로 둔다(`tasty_key_match::token_axes`: macOS 는
+/// `option`, 다른 OS 는 `alt`). 그 바인딩이 이 사건에 실제로 맞는지 시험이 먼저 확인한다.
 #[test]
 fn a_window_alt_up_on_the_folder_picker_goes_to_the_parent_folder() {
     use crate::adapters::ui::popup::window_input_test_support::{WindowInput, layer_frame};
@@ -303,6 +304,20 @@ fn a_window_alt_up_on_the_folder_picker_goes_to_the_parent_folder() {
     for def in crate::adapters::ui::popup::defs::all_defs() {
         state.popups.register_def(def, 1.0);
     }
+    let competitor = if cfg!(target_os = "macos") {
+        "option+up"
+    } else {
+        "alt+up"
+    };
+    assert!(
+        tasty_key_match::binding_matches_egui(
+            &[competitor.to_string()],
+            egui::Key::ArrowUp,
+            egui::Modifiers::ALT,
+            false,
+        ),
+        "경쟁 창 단축키 `{competitor}` 가 물리 Alt+↑ 에 맞는다"
+    );
     let dir = tempfile::tempdir().unwrap();
     let child = dir.path().join("child");
     std::fs::create_dir(&child).unwrap();
@@ -317,7 +332,7 @@ fn a_window_alt_up_on_the_folder_picker_goes_to_the_parent_folder() {
                 .iter()
                 .any(|b| b == "alt+up")
         );
-        engine.runtime.settings.keybindings.toggle_sidebar = vec!["alt+up".into()];
+        engine.runtime.settings.keybindings.toggle_sidebar = vec![competitor.into()];
         open_folder_picker(&mut state, &mut engine, &child);
     }
     let engine = session.borrow_mut();

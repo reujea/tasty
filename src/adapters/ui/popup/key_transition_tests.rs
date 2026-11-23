@@ -153,6 +153,56 @@ fn a_letter_after_the_find_shortcut_reaches_the_newly_opened_search_field() {
     k_find_w(&mut s, &mut input, SURFACE_R);
 }
 
+/// T-12b-14 [Find 뒤 그리기 전 Find]: Given 검색창이 열려 있지 않고 포커스 노드가 R 터미널일 때, When 한 묶음에 [첫 find
+/// 키, 둘째 find 키]가 오면, Then 첫 키의 단축키가 검색창을 R 범위(`PopupScope::Surface`)에 포커스로 열고, 둘째 키는 그리기
+/// 전이어도 창 키 경로가 검색창의 노드 키맵에 싣는다(Surface level 의 find 단축키로 다시 올라가지 않는다). 그 몫을 그린 뒤
+/// 포커스는 R 터미널로 돌아간다.
+#[test]
+fn a_second_find_before_drawing_returns_focus_to_the_terminal() {
+    let mut s = open_scene(|_| {});
+    let mut input = WindowInput::default();
+    let point = terminal_point_r(&s);
+    s.state.popups.close(SEARCH_BAR_POPUP_ID);
+    focus_terminal(&mut s, &mut input, PANE_R, point);
+    assert!(!s.state.popups.is_open(SEARCH_BAR_POPUP_ID));
+    s.session.borrow_mut().runtime.settings.keybindings.find = vec!["ctrl+f".into()];
+    find_shortcut(&mut s, &mut input, SURFACE_R);
+    assert_eq!(
+        s.state.popups.open_scope(SEARCH_BAR_POPUP_ID),
+        Some(&crate::adapters::ui::popup::PopupScope::Surface(SURFACE_R)),
+        "첫 find 가 검색창을 R 범위에 연다"
+    );
+    let find = egui::Event::Key {
+        key: egui::Key::F,
+        physical_key: Some(egui::Key::F),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::CTRL,
+    };
+    {
+        let engine = s.session.borrow_mut();
+        assert!(
+            input
+                .key(&mut s.state, &engine.read(), false, find)
+                .is_some(),
+            "둘째 find 는 검색창에 실린다"
+        );
+    }
+    drain(&mut s, &mut input);
+    pass(&mut s, &mut input);
+    let engine = s.session.borrow_mut();
+    s.state.normalize_focus(&engine.read());
+    assert!(
+        s.state.popups.is_open(SEARCH_BAR_POPUP_ID),
+        "검색창은 남는다"
+    );
+    assert_eq!(
+        s.state.focus_node(&engine.read()),
+        FocusNode::Surface(Some(SURFACE_R)),
+        "포커스가 R 터미널로 돌아간다"
+    );
+}
+
 /// Given L 찾기 입력란에 포커스가 없을 때, When 한 묶음에 [L 찾기 입력란 누름, debug 붙여넣기 주입]이 오면, Then 붙여넣기는
 /// 키 주입과 같이 누름 뒤에서 끊겨(`debug_input::inject_clipboard`) 누름 패스 다음 패스로 그려지고 입력란에 들어간다.
 #[cfg(debug_assertions)]
