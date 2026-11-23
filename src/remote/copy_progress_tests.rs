@@ -278,6 +278,23 @@ fn lead_bytes_and_0x9d_outside_osc_strings_near_the_head_limit() {
     assert!(progress.take_failures().is_empty(), "없는 복사의 실패");
 }
 
+/// Given OSC 52 머리의 `5`·`2`·`;` 사이에 OSC 문자열이 무시하는 바이트가 끼어 있다, When 나뉘어 도착한다,
+/// Then 무시된 바이트 없이 온 쓰기처럼 본문 첫 바이트에서 접수한다.
+#[test]
+fn ignored_bytes_inside_the_52_parameter_do_not_hide_a_write() {
+    for ignored in [0x00u8, 0x9d, 0xa0, 0xff] {
+        let mut progress = CopyProgress::default();
+        progress.feed(SID, b"\x1b]5", at(0));
+        progress.feed(SID, &[ignored], at(1));
+        progress.feed(SID, b"2;c;", at(2));
+        assert!(waits(&progress).is_empty(), "{ignored:02x}");
+        progress.feed(SID, b"aGk=", at(3));
+        assert_eq!(waits(&progress), vec![at(3)], "{ignored:02x}");
+        let input = [b"\x1b]5".as_slice(), &[ignored], b"2;c;aGk="].concat();
+        assert!(oracle_receiving(&input), "기준 {ignored:02x}");
+    }
+}
+
 /// Given 쓰기 본문이 미완성 UTF-8로 끝난다, When 실제 종결이 온다, Then 접수는 실제 바이트가 정한 데이터를
 /// 따른다. C2 리드 뒤 0x9c는 UTF-8로 쓴 ST라 데이터 `?`의 질의가 된다.
 #[test]
@@ -340,8 +357,10 @@ fn a_write_split_across_the_head_limit_is_received() {
 /// 기준(oracle): 입력 뒤에 실제 종결 하나(BEL, ESC \\, 0x9c, UTF-8로 쓴 ST `C2 9C`)를 OSC가 끝날 때까지(최대
 /// 네 번) 이어 붙여 vtparse 0.6.2에 먹인다. 네 종결 모두에서 붙인 바이트의 첫 OSC dispatch가 OSC 52 쓰기면(첫
 /// 파라미터가 `52`이고 셋째 파라미터부터의 데이터가 비지 않았고 질의 `?`가 아니다) 입력 끝에 열린 시퀀스가 쓰기
-/// 본문을 받는 중이다. 곧 실제 바이트가 어떻게 이 OSC를 끝내도 쓰기다. 입력 끝의 미완성 UTF-8을 대체 문자 같은
-/// 합성 값으로 바꿔 데이터로 세지 않는다. 종결이 그 글자에 먹히면 OSC가 끝날 때까지 같은 종결을 더 붙인다.
+/// 본문을 받는 중이다. 곧 실제 바이트가 어떻게 이 OSC를 끝내도 쓰기다. 종결이 입력 끝의 미완성 UTF-8에 먹히면
+/// OSC가 끝날 때까지 같은 종결을 더 붙인다. 그래서 C2 리드는 0x9c와 함께 UTF-8 ST가 되어 데이터를 바꾸지 않고
+/// 끝날 수 있다. 다른 미완성 리드는 어느 실제 종결로도 글자(잘못된 시퀀스면 대체 문자)가 데이터에 남아 쓰기
+/// 시도로 센다. 그런 데이터는 termwiz가 base64로 받지 않아 `Ended::Invalid`(실패)로 끝난다.
 fn oracle_receiving(input: &[u8]) -> bool {
     #[derive(Default)]
     struct Oscs(Vec<Vec<Vec<u8>>>);
@@ -394,7 +413,7 @@ fn tracker_receiving(input: &[u8]) -> bool {
 
 /// 경계 바이트와 짧은 조각. `52;`·`c;`처럼 묶은 것은 짧은 길이로도 쓰기의 머리가 생기게 하려는 것이다.
 /// `?`·`\xc2`·UTF-8 ST·ESC \\는 입력 안의 실제 종결과 미완성 UTF-8을 만든다.
-const TOKENS: [&[u8]; 20] = [
+const TOKENS: [&[u8]; 27] = [
     b"\x1b",
     b"\x1b]",
     b"]",
@@ -415,6 +434,13 @@ const TOKENS: [&[u8]; 20] = [
     b"\x1b\\",
     b"\x1bP",
     b"\x1bX",
+    b"5",
+    b"2",
+    b";",
+    b"\x00",
+    b"\xa0",
+    b"\xff",
+    b"\xe4\xb8",
 ];
 
 fn mismatches(inputs: impl Iterator<Item = Vec<u8>>) -> Vec<String> {
