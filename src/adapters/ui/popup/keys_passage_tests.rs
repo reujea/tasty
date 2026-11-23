@@ -54,18 +54,21 @@ fn a_popup_that_does_not_receive_keys_sees_nothing() {
             let mut keys = PopupKeys::new(ctx, false, keyboard, &EditBindings::default());
             (
                 keys.receives(),
-                BasicKey::ALL.iter().any(|b| keys.pressed(*b)),
+                [
+                    BasicKey::Escape,
+                    BasicKey::Confirm,
+                    BasicKey::Expand,
+                    BasicKey::Up,
+                    BasicKey::Down,
+                ]
+                .iter()
+                .any(|b| keys.pressed(*b)),
                 keys.consume(BasicKey::Escape),
                 keys.consume_key(egui::Modifiers::NONE, egui::Key::Y),
-                keys.text(),
                 keys.consumed().len(),
             )
         });
-        assert_eq!(
-            seen,
-            (false, false, false, false, String::new(), 0),
-            "{keyboard:?}"
-        );
+        assert_eq!(seen, (false, false, false, false, 0), "{keyboard:?}");
     }
 }
 
@@ -73,9 +76,13 @@ fn a_popup_that_does_not_receive_keys_sees_nothing() {
 fn a_none_declaration_receives_nothing_even_as_owner() {
     let seen = frame(mixed_input(), |ctx| {
         let keys = PopupKeys::new(ctx, true, PopupKeyboard::None, &EditBindings::default());
-        (keys.receives(), keys.pressed(BasicKey::Escape), keys.text())
+        (
+            keys.receives(),
+            keys.pressed(BasicKey::Escape),
+            keys.pressed(BasicKey::Confirm),
+        )
     });
-    assert_eq!(seen, (false, false, String::new()));
+    assert_eq!(seen, (false, false, false));
 }
 
 #[test]
@@ -120,14 +127,34 @@ fn consuming_records_the_key_and_hides_it_from_a_second_read() {
 
 #[test]
 fn text_reaches_only_a_text_declaration() {
-    let (keys_text, text_text) = frame(mixed_input(), |ctx| {
-        (
-            PopupKeys::new(ctx, true, PopupKeyboard::Keys, &EditBindings::default()).text(),
-            PopupKeys::new(ctx, true, PopupKeyboard::Text, &EditBindings::default()).text(),
-        )
-    });
-    assert_eq!(keys_text, "");
-    assert_eq!(text_text, "y");
+    // 글자를 내는 누름(수정키 없는 키·Shift+키)을 소비 집합에 두는 선언은 `Text`뿐이다.
+    let edits = EditBindings::default();
+    for (key, modifiers) in [
+        (egui::Key::Y, egui::Modifiers::NONE),
+        (egui::Key::Y, egui::Modifiers::SHIFT),
+    ] {
+        assert!(consumes_key(
+            PopupKeyboard::Text,
+            key,
+            modifiers,
+            false,
+            &edits
+        ));
+        assert!(!consumes_key(
+            PopupKeyboard::None,
+            key,
+            modifiers,
+            false,
+            &edits
+        ));
+    }
+    assert!(!consumes_key(
+        PopupKeyboard::Keys,
+        egui::Key::Y,
+        egui::Modifiers::SHIFT,
+        false,
+        &edits
+    ));
 }
 
 /// Ctrl·Alt 조합은 팝업이 쓰지 않으므로 소비하지 않고 남긴다(조상으로 올라간다).
@@ -188,9 +215,6 @@ fn the_consumption_sets_follow_the_declaration() {
         true,
         &EditBindings::default()
     ));
-    assert!(consumes_text(PopupKeyboard::Text));
-    assert!(!consumes_text(PopupKeyboard::Keys));
-    assert!(!consumes_text(PopupKeyboard::None));
 }
 
 #[test]

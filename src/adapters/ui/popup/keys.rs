@@ -63,18 +63,6 @@ pub(crate) enum BasicKey {
 }
 
 impl BasicKey {
-    pub(crate) const ALL: [BasicKey; 9] = [
-        BasicKey::Escape,
-        BasicKey::Confirm,
-        BasicKey::Expand,
-        BasicKey::Up,
-        BasicKey::Down,
-        BasicKey::Left,
-        BasicKey::Right,
-        BasicKey::Tab,
-        BasicKey::BackTab,
-    ];
-
     /// 고정 바인딩. 문법은 `KeybindingSettings`와 같다.
     pub(crate) fn bindings(self) -> &'static [&'static str] {
         match self {
@@ -94,15 +82,6 @@ impl BasicKey {
         self.bindings().iter().map(|b| (*b).to_string()).collect()
     }
 
-    /// winit 키 사건이 이 조작인지. 키 경로(단축키 판정 앞)가 쓴다.
-    pub(crate) fn matches(
-        self,
-        key: &winit::keyboard::Key,
-        mods: winit::keyboard::ModifiersState,
-    ) -> bool {
-        tasty_key_match::matches_any_binding(&self.owned_bindings(), key, mods)
-    }
-
     /// egui 키 누름 하나가 이 조작인지. 입력을 바꾸지 않는다. 키 경로(`route_key`)가 쓴다.
     pub(crate) fn matches_egui(
         self,
@@ -111,16 +90,6 @@ impl BasicKey {
         super_held: bool,
     ) -> bool {
         tasty_key_match::binding_matches_egui(&self.owned_bindings(), key, modifiers, super_held)
-    }
-
-    /// 이번 egui 프레임에 이 조작이 눌렸는지. `super_held`는 [`tasty_key_match::super_held`]로 구한다.
-    pub(crate) fn pressed(self, input: &egui::InputState, super_held: bool) -> bool {
-        tasty_key_match::any_binding_pressed_egui(&self.owned_bindings(), input, super_held)
-    }
-
-    /// 이번 egui 프레임의 이 조작 누름을 입력에서 지우고, 있었는지 돌려준다.
-    pub(crate) fn consume(self, input: &mut egui::InputState, super_held: bool) -> bool {
-        tasty_key_match::consume_binding_egui(&self.owned_bindings(), input, super_held)
     }
 }
 
@@ -146,12 +115,6 @@ pub(crate) fn consumes_key(
         PopupKeyboard::Keys => !edit && !command && (!modifiers.shift || key == egui::Key::Tab),
         PopupKeyboard::Text => edit || !command,
     }
-}
-
-/// 글자·IME 조합과 egui 편집 사건(`Event::Paste`·`Copy`·`Cut`)을 소비하는지. `Text`만 소비한다. 키 누름으로
-/// 오는 편집 바인딩은 [`consumes_key`]가 판정한다.
-pub(crate) fn consumes_text(keyboard: super::PopupKeyboard) -> bool {
-    keyboard == super::PopupKeyboard::Text
 }
 
 /// 팝업이 소비한 키 하나.
@@ -403,22 +366,6 @@ impl PopupKeys {
             self.consumed.push(ConsumedKey::Key { key, modifiers });
         }
         hit
-    }
-
-    /// 이번 프레임에 들어온 글자. 글자를 소비하는 선언(`Text`)이 아니면 비어 있다.
-    pub(crate) fn text(&self) -> String {
-        if !self.receives || !consumes_text(self.keyboard) {
-            return String::new();
-        }
-        self.ctx.input(|i| {
-            i.events
-                .iter()
-                .filter_map(|e| match e {
-                    egui::Event::Text(t) => Some(t.as_str()),
-                    _ => None,
-                })
-                .collect()
-        })
     }
 
     /// 이번 프레임에 소비한 키. 소비한 순서다.
