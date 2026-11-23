@@ -56,12 +56,13 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
         egui::Stroke::new(th.border_width.value(), fg.to_egui()),
     );
     // 본체 렌더러와 같이 버튼 둘레에서 focus-ring-offset만큼 띄운 focus-ring-width 링.
+    // epaint 원 획은 반지름 바깥으로 그리므로 반지름은 링의 안쪽 변이다.
     if close == Close::Focus {
         let ring = th.focus_ring_width.value();
         let offset = tasty_design_tokens::generated::semantic::FOCUS_RING_OFFSET.value();
         ui.painter().circle_stroke(
             center,
-            d * 0.5 + offset + ring * 0.5,
+            d * 0.5 + offset,
             egui::Stroke::new(ring, th.border_focus().to_egui()),
         );
     }

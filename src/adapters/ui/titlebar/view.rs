@@ -287,11 +287,12 @@ fn draw_window_buttons(
         );
         if props.keyboard_focus && resp.has_focus() {
             // 버튼 둘레에서 focus-ring-offset만큼 띄운 focus-ring-width 링. 버튼처럼 UI 배율 밖이다.
+            // epaint 원 획은 반지름 바깥으로 그리므로 반지름은 링의 안쪽 변이다.
             let ring = th.focus_ring_width.value();
             let offset = tasty_design_tokens::generated::semantic::FOCUS_RING_OFFSET.value();
             ui.painter().circle_stroke(
                 center,
-                d * 0.5 + offset + ring * 0.5,
+                d * 0.5 + offset,
                 egui::Stroke::new(ring, th.border_focus().to_egui()),
             );
         }
