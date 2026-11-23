@@ -62,16 +62,21 @@ fn handle(s: &mut Server, t: &OwnerToken, r: wire::HttpRequest) -> core::Result<
     s.handle(t, |_| true, r)
 }
 async fn reply(s: &mut Server, t: &OwnerToken) -> wire::HttpReply {
-    tokio::time::timeout(Duration::from_secs(3), async {
-        loop {
-            if let Some(f) = s.poll(t, |_| true, MAX_FRAME_LEN as usize + 5).unwrap() {
-                return serde_json::from_slice(&f.payload).unwrap();
-            }
-            tokio::time::sleep(Duration::from_millis(1)).await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(3);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if let Some(f) = s.poll(t, |_| true, MAX_FRAME_LEN as usize + 5).unwrap() {
+            return serde_json::from_slice(&f.payload).unwrap();
         }
-    })
-    .await
-    .unwrap()
+        if std::time::Instant::now() >= wait_until {
+            let f = s
+                .poll(t, |_| true, MAX_FRAME_LEN as usize + 5)
+                .unwrap()
+                .unwrap_or_else(|| panic!("no reply frame within {:?}", Duration::from_secs(3)));
+            return serde_json::from_slice(&f.payload).unwrap();
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
 }
 async fn start(s: &mut Server, t: &OwnerToken, n: u64, url: &str, body: &[u8]) {
     handle(s, t, begin(n, url, body)).unwrap();
@@ -338,11 +343,20 @@ async fn unknown_threshold_and_known_large_allowance_resume_exact_identity() {
     }
 }
 async fn wait_workers(b: &core::Backend) {
-    tokio::time::timeout(Duration::from_secs(2), async {
-        while b.available_workers() != 2 {
-            tokio::task::yield_now().await;
+    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if b.available_workers() == 2 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                b.available_workers() == 2,
+                "not reached within {:?}: b.available_workers() == 2",
+                Duration::from_secs(2)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
 }

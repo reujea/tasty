@@ -29,13 +29,10 @@ impl Drop for Owned {
 }
 fn wait_for(mut condition: impl FnMut() -> bool) {
     let until = Instant::now() + WAIT;
-    while !condition() {
-        assert!(
-            Instant::now() < until,
-            "owned file participant did not finish"
-        );
-        std::thread::sleep(Duration::from_millis(2));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(until, condition),
+        "owned file participant did not finish"
+    );
 }
 
 #[test]

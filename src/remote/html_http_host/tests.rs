@@ -133,14 +133,18 @@ impl Host {
     #[track_caller]
     fn receive(&mut self) -> HttpReply {
         let until = std::time::Instant::now() + Duration::from_secs(10);
-        loop {
-            self.tick();
-            if let Ok(frame) = self.rx.try_recv() {
-                return serde_json::from_slice(&frame.payload).unwrap();
-            }
-            assert!(std::time::Instant::now() < until, "host reply timeout");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        let mut frame = None;
+        // 원래 순서(tick → 읽기 → 기한 검사 → 1ms) 그대로, 기한 뒤 읽기는 tick 없이 이미 온 답만 꺼낸다.
+        let held =
+            tasty_utils::test_wait::holds_by_every(until, Duration::from_millis(1), |last| {
+                if !last {
+                    self.tick();
+                }
+                frame = self.rx.try_recv().ok();
+                frame.is_some()
+            });
+        assert!(held, "host reply timeout");
+        serde_json::from_slice(&frame.unwrap().payload).unwrap()
     }
     fn commit(&mut self, url: &str, upload: &[u8]) -> wire::ResponseId {
         self.send(self.begin(url, upload));
@@ -171,13 +175,10 @@ impl Drop for Host {
     fn drop(&mut self) {
         drop(self.session.take());
         let until = std::time::Instant::now() + Duration::from_secs(10);
-        while !setup::reaped_for_tests() {
-            assert!(
-                std::time::Instant::now() < until,
-                "owned runtime retirement"
-            );
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(until, setup::reaped_for_tests),
+            "owned runtime retirement"
+        );
     }
 }
 #[test]
@@ -200,13 +201,13 @@ fn actual_host_preserves_binary_post_credit_rejection_and_exact_reuse() {
     let baseline = host.wake.load(std::sync::atomic::Ordering::Acquire);
     fixture.release();
     let until = std::time::Instant::now() + Duration::from_secs(5);
-    while host.wake.load(std::sync::atomic::Ordering::Acquire) == baseline {
-        assert!(
-            std::time::Instant::now() < until,
-            "backend event must wake the actual engine callback"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(until, || host
+            .wake
+            .load(std::sync::atomic::Ordering::Acquire)
+            != baseline),
+        "backend event must wake the actual engine callback"
+    );
     let HttpReply::Chunk {
         response: r,
         offset: 0,
@@ -338,13 +339,23 @@ fn queued_positive_response_loses_actual_grant_membership_or_source_before_write
             source_generation: 1,
         });
         let until = std::time::Instant::now() + Duration::from_secs(10);
-        let frame = loop {
-            host.tick();
-            if let Ok(frame) = host.rx.recv_held_timeout(Duration::from_millis(1)) {
-                break frame;
+        let mut frame = None;
+        // 원래 순서(tick → 1ms 수신 → 기한 검사) 그대로, 기한 뒤 읽기는 tick 없이 이미 온 프레임만 꺼낸다.
+        assert!(tasty_utils::test_wait::holds_by_every(
+            until,
+            Duration::ZERO,
+            |last| {
+                let wait = if last {
+                    Duration::ZERO
+                } else {
+                    host.tick();
+                    Duration::from_millis(1)
+                };
+                frame = host.rx.recv_held_timeout(wait).ok();
+                frame.is_some()
             }
-            assert!(std::time::Instant::now() < until);
-        };
+        ));
+        let frame = frame.unwrap();
         assert!(frame.is_current());
         let reply: HttpReply = serde_json::from_slice(&frame.payload).unwrap();
         assert!(

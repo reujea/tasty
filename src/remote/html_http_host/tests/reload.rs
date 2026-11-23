@@ -79,6 +79,8 @@ async fn execute(
 ) -> NativeResponse {
     let until = std::time::Instant::now() + Duration::from_secs(10);
     let mut failures = Vec::new();
+    // 기한 뒤 재읽기를 두지 않는다. wait 의 완료는 drive·중계·bridge.receive 뒤 settle 을 거쳐야 보이고
+    // 그 단계들이 host 에 새 일을 보내므로, 기한 뒤에 진행 없이 관측할 저장 상태가 없다.
     loop {
         bridge.drive(
             || {

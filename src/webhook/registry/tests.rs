@@ -17,14 +17,17 @@ fn registry() -> Registry {
 }
 fn await_result(r: &Registry, mut receipt: Receipt) -> Result<Completed, Failure> {
     let until = Instant::now() + Duration::from_secs(5);
-    loop {
-        r.poll();
-        if let Some(value) = receipt.poll() {
-            return value;
+    let mut value = None;
+    // 원래 순서(r.poll → 읽기 → 기한 검사 → yield) 그대로, 기한 뒤 읽기는 r.poll 없이 영수증만 본다.
+    let held = tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |last| {
+        if !last {
+            r.poll();
         }
-        assert!(Instant::now() < until, "webhook receipt deadline");
-        std::thread::yield_now();
-    }
+        value = receipt.poll();
+        value.is_some()
+    });
+    assert!(held, "webhook receipt deadline");
+    value.unwrap()
 }
 fn register(r: &Registry, lt: Lifetime) -> RegisterOutcome {
     let result = await_result(r, r.register(vec!["POST".into()], None, vec![], lt, None)).unwrap();
@@ -76,14 +79,21 @@ impl Fixture {
     }
     fn drain(&mut self) {
         let until = Instant::now() + Duration::from_secs(5);
+        // holds_by_every 로 바꾸지 않는다. 완료는 poll_shutdown 의 반환값으로만 보이고 그 poll 이 등록부 일을
+        // 함께 처리해, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
         while self.registry.poll_shutdown() != 0 {
             assert!(Instant::now() < until, "registry producer drain");
             std::thread::yield_now();
         }
-        while self.writer.writer.poll_shutdown() != 0 {
-            assert!(Instant::now() < until, "file writer drain");
-            std::thread::yield_now();
-        }
+        // writer 의 poll_shutdown 은 끝난 worker 를 join 만 하므로 기한 뒤 읽기에도 그대로 부른다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |_| self
+                .writer
+                .writer
+                .poll_shutdown()
+                == 0),
+            "file writer drain"
+        );
     }
 }
 #[test]
@@ -229,10 +239,14 @@ fn next_section_is_prepared_after_failure_and_never_republishes_failed_register(
     std::fs::set_permissions(&f.path, std::fs::Permissions::from_mode(0o400)).unwrap();
     drop(held);
     let until = Instant::now() + Duration::from_secs(5);
-    while f.writer.stats.snapshot().operations.replace.failed == 0 {
-        assert!(Instant::now() < until);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by(until, || f
+        .writer
+        .stats
+        .snapshot()
+        .operations
+        .replace
+        .failed
+        != 0));
     // Repair before collector constructs the second section. It must exclude the first intent.
     std::fs::set_permissions(&f.path, std::fs::Permissions::from_mode(0o600)).unwrap();
     assert!(await_result(&f.registry, first).is_err());
@@ -337,11 +351,17 @@ fn collect_http(
     job: std::thread::JoinHandle<(MatchResult, Option<Lease>)>,
 ) -> (MatchResult, Option<Lease>) {
     let until = Instant::now() + Duration::from_secs(5);
-    while !job.is_finished() {
-        r.poll();
-        assert!(Instant::now() < until, "HTTP receipt did not settle");
-        std::thread::yield_now();
-    }
+    // 원래 순서(읽기 → r.poll → 기한 검사 → yield) 그대로, 기한 뒤 읽기는 r.poll 없이 본다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |last| job.is_finished()
+            || {
+                if !last {
+                    r.poll();
+                }
+                false
+            }),
+        "HTTP receipt did not settle"
+    );
     job.join().unwrap()
 }
 #[test]
@@ -399,10 +419,12 @@ fn held_write_leaves_reads_free_and_shutdown_retains_accepted_http_until_its_lea
     let id = kept.id.clone();
     let job = std::thread::spawn(move || r.match_request(&id, "POST", 1024, |_| true));
     let until = Instant::now() + Duration::from_secs(5);
-    while f.registry.budget.usage().0 == 0 {
-        assert!(Instant::now() < until);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by(until, || f
+        .registry
+        .budget
+        .usage()
+        .0
+        != 0));
     assert!(!job.is_finished());
     assert_eq!(f.registry.list().len(), 1);
     assert!(f.registry.poll_shutdown() > 0);
@@ -456,14 +478,12 @@ fn a_shared_queue_refusal_keeps_http_count_and_returns_unavailable_without_disk_
     assert_eq!(std::fs::read(&f.path).unwrap(), before);
     release.send(()).unwrap();
     let until = Instant::now() + Duration::from_secs(5);
-    loop {
-        if let Some(result) = gate.poll() {
-            result.unwrap();
-            break;
-        }
-        assert!(Instant::now() < until);
-        std::thread::yield_now();
-    }
+    let mut result = None;
+    assert!(tasty_utils::test_wait::holds_by(until, || {
+        result = gate.poll();
+        result.is_some()
+    }));
+    result.unwrap().unwrap();
     f.drain();
 }
 #[test]
@@ -489,11 +509,17 @@ fn restore_cleanup_is_a_receipt_barrier_before_admission_opens() {
     ));
     drop(held);
     let until = Instant::now() + Duration::from_secs(5);
-    while !opened.load(std::sync::atomic::Ordering::Acquire) {
-        f.registry.poll();
-        assert!(Instant::now() < until);
-        std::thread::yield_now();
-    }
+    // 원래 순서(읽기 → poll → 기한 검사 → yield) 그대로, 기한 뒤 읽기는 poll 없이 본다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        until,
+        Duration::ZERO,
+        |last| opened.load(std::sync::atomic::Ordering::Acquire) || {
+            if !last {
+                f.registry.poll();
+            }
+            false
+        }
+    ));
     let table = tasty_settings::webhook_port_file::read_table(&f.path).unwrap();
     assert_eq!(table["webhook"].as_array().unwrap().len(), 1);
     assert_eq!(table["webhook"][0]["id"].as_str(), Some("live"));
@@ -645,25 +671,26 @@ fn webhook_producer_retirement_keeps_the_existing_preset_collector_progressing()
         crate::app::preset_commands::tests::value("owned"),
     );
     let until = Instant::now() + Duration::from_secs(5);
-    loop {
-        assert!(
-            core.poll_file_writer_shutdown() > 0,
-            "HTTP producer lease still retains ownership"
-        );
-        if let Some(result) = preset.poll() {
-            assert!(matches!(
-                result,
-                Ok(crate::intent::preset::SaveOutcome::Saved(_))
-            ));
-            break;
+    let mut result = None;
+    // 원래 순서(종료 poll → 읽기 → 기한 검사 → yield) 그대로, 기한 뒤 읽기는 종료 poll 없이 영수증만 본다.
+    let held = tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |last| {
+        if !last {
+            assert!(
+                core.poll_file_writer_shutdown() > 0,
+                "HTTP producer lease still retains ownership"
+            );
         }
-        assert!(
-            Instant::now() < until,
-            "webhook wait starved the preset collector"
-        );
-        std::thread::yield_now();
-    }
+        result = preset.poll();
+        result.is_some()
+    });
+    assert!(held, "webhook wait starved the preset collector");
+    assert!(matches!(
+        result,
+        Some(Ok(crate::intent::preset::SaveOutcome::Saved(_)))
+    ));
     drop(lease);
+    // holds_by_every 로 바꾸지 않는다. 완료는 이 poll 의 반환값으로만 보이고 poll 은 종료 진행(재제출·회수)을
+    // 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
     while core.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < until);
         std::thread::yield_now();

@@ -624,13 +624,22 @@ async fn cancelled_join_future_cancels_instead_of_detaching_worker() {
             .await
             .is_err()
     );
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while b.available_workers() != 2 {
-            tokio::task::yield_now().await
+    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
+    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+    loop {
+        if b.available_workers() == 2 {
+            break;
         }
-    })
-    .await
-    .unwrap();
+        if std::time::Instant::now() >= wait_until {
+            assert!(
+                b.available_workers() == 2,
+                "not reached within {:?}: b.available_workers() == 2",
+                Duration::from_secs(1)
+            );
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
 }
 
 #[tokio::test]
@@ -773,7 +782,12 @@ async fn await_credit_consumed(op: &Operation) {
         }
         tokio::task::yield_now().await;
     }
-    panic!("exact EOF credit was not consumed");
+    // 마지막 yield 뒤에 한 번 더 본다. 횟수 한도는 가상 시계 자동 전진을 막는 장치라 그대로 둔다.
+    assert_eq!(
+        op.credits.capacity(),
+        op.credits.max_capacity(),
+        "exact EOF credit was not consumed"
+    );
 }
 
 async fn finite_network_timeout(s: &Server) {
@@ -833,5 +847,12 @@ async fn ready_clock_event(op: &mut Operation) -> Event {
             Err(error) => panic!("network timeout event channel: {error}"),
         }
     }
-    panic!("network budget produced no event at the explicitly advanced clock");
+    // 마지막 yield 뒤에 한 번 더 본다. 횟수 한도는 가상 시계 자동 전진을 막는 장치라 그대로 둔다.
+    match op.events.try_recv() {
+        Ok(event) => event,
+        Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+            panic!("network budget produced no event at the explicitly advanced clock")
+        }
+        Err(error) => panic!("network timeout event channel: {error}"),
+    }
 }

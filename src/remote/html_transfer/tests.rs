@@ -331,10 +331,15 @@ fn process_worker_budget_survives_engine_retirement_until_actual_join() {
     assert!(WorkerPermit::acquire().is_none());
     tx.send(()).unwrap();
     let deadline = Instant::now() + Duration::from_secs(3);
-    while WORKER_COUNT.load(Ordering::Acquire) == 8 && Instant::now() < deadline {
+    // 기한 뒤 읽기도 reap 뒤에 센다. reap_retired 는 이미 끝난 thread 만 join 하고 그 permit 을 놓을 뿐 새
+    // 일을 만들지 않으므로, 끝난 worker 의 permit 이 카운터에 남은 채 판정하지 않는다.
+    tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+        if WORKER_COUNT.load(Ordering::Acquire) != 8 {
+            return true;
+        }
         reap_retired();
-        std::thread::yield_now();
-    }
+        last && WORKER_COUNT.load(Ordering::Acquire) != 8
+    });
     assert_eq!(WORKER_COUNT.load(Ordering::Acquire), 7);
     let extra = WorkerPermit::acquire().unwrap();
     drop(extra);

@@ -195,6 +195,8 @@ fn assert_rejection_closes(
 
     // 수신 측이 닫혀 추가 body를 더는 받지 않는지도 확인한다.
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    // holds_by_every 로 바꾸지 않는다. 닫혔는지는 새 쓰기로만 알 수 있어, 기한 뒤에 쓰기 없이 관측할
+    // 상태가 없다.
     loop {
         if client.write(b"x").is_err() {
             break;
