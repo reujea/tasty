@@ -30,6 +30,8 @@ use tasty_doc_guards::official_plugins::{
 #[cfg(unix)]
 use tasty_doc_guards::plugin_manifest_scan::{scan_text, top_level};
 use tasty_doc_guards::repo_root;
+#[cfg(unix)]
+use tasty_doc_guards::temp_scratch::Scratch;
 
 /// 공식 플러그인 레포로 옮기지 않고 tasty에 남는 시범 플러그인.
 const STAYS_IN_TASTY: &str = "com.tasty.mesh-demo";
@@ -225,10 +227,11 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 남긴 뒤 `early1`(산출물 없이 종료 1), `late1`(산출물을 남기고 종료 1), `late23`(산출물을 남기고 종료 23)이다.
 /// 실패 주입에서 대상의 원래 종료값이 0이면 fetch 실패가 운영 흐름을 멈추지 않는다는 뜻이므로(`&`로 띄운 호출,
 /// `|| true`, `|| exit 0`, 인자 없는 `wait` 등 표기와 관계없이) 실패로 본다.
-/// 하네스 검사에서 `.fetched`가 없으면 하네스 루트에 `.missing-fetched` 표지를 남기고 1로 끝난다. `package`는 루트로
-/// 들어간 뒤의 `$PWD`를 넘기므로 헬퍼가 작업 폴더를 바꿔도 표지 경로가 절대 경로다. `staging`은 `mktemp -d` 결과를
-/// 그대로 넘기므로 `TMPDIR`이 상대 경로면 표지 경로도 상대 경로다(그때는 스텁 경로 등 하네스 전체가 이미 깨지는
-/// 기존 한계다).
+/// 하네스 검사에서 `.fetched`가 없으면 하네스 루트에 `.missing-fetched` 표지를 남기고 1로 끝난다. 하네스 루트는
+/// `TMPDIR`이 상대 경로여도 절대 경로로 바꿔 쓰므로 `.missing-fetched`는 두 모드 모두, `.reached`는 `staging`에서
+/// 대상이 작업 폴더를 바꿔도 하네스 루트에 남는다. `package`의 `.fetched` 검사와 `.reached`만 일부러 작업 폴더 기준
+/// 상대 경로이고 바깥 하네스는 하네스 루트에서 `.reached`를 찾는다. 운영 계약(저장소 루트를 작업 폴더로 두고
+/// source한다)을 함께 검사해 헬퍼가 작업 폴더를 바꾼 채 끝나면 거부한다.
 /// 실패 주입 실행에 이 표지가 있으면 대상이 fetch 실패에서 멈추지 않고 하네스 검사까지 간 것이므로 종료값이 1이어도
 /// 실패로 본다. 기다리지 않은 백그라운드 호출은 검사와 스텁의 `.fetched` 생성 중 어느 쪽이 먼저냐에 따라 종료값이
 /// 0이나 1이 되는데, 두 경우 모두 이 판정이나 위의 종료값 0 판정에 걸리므로 실행 순서와 관계없이 거부된다.
@@ -245,7 +248,7 @@ fn really_fetches(p: &FetchArgs) -> bool {
 /// 늦게 시작하는 자손)은 범위 밖이며 잡지 못한다. 백그라운드로 띄운 뒤 하네스 검사에 닿기 전에 대상이 스스로
 /// 산출물을 읽다 실패하는 꼴(직접 `.fetched`를 검사하거나 없는 폴더를 `find`하다 pipefail로 멈추기)도 종료값이
 /// 실행 순서에 달려 있어 잡지 못할 수 있다.
-/// 임시 루트는 bash의 `mktemp -d`로 만들고 끝나면 지운다.
+/// 임시 루트는 bash의 `mktemp -d`로 만들어 절대 경로로 바꾸고 끝나면 지운다.
 /// - `package`: `scripts/lib/bundled-plugins.sh`(원문을 넘기면 그 원문)를 source하고 `fetch_bundled_plugins <platform>`을
 ///   부른다.
 /// - `staging`: 넘긴 원문(스테이징 기본 분기)을 `root`·`platform`·`stage` 변수와 함께 실행한다.
@@ -331,10 +334,30 @@ fn fetch_harness(
     all: &[String],
     bundled: &[String],
 ) -> std::process::Output {
+    harness_command(mode, platform, branch, fail, all, bundled)
+        .output()
+        .expect("bash 하네스를 실행하지 못했다")
+}
+
+/// `fetch_harness`가 실행할 명령만 만든다. 작업 폴더와 `TMPDIR`을 그 호출에만 바꿔 보는 시험이 쓴다.
+#[cfg(unix)]
+fn harness_command(
+    mode: &str,
+    platform: &str,
+    branch: &str,
+    fail: &str,
+    all: &[String],
+    bundled: &[String],
+) -> std::process::Command {
     const HARNESS: &str = r#"set -eu
 repo="$1"; mode="$2"; platform="$3"; branch="$4"; fail="$5"; bundled="$6"; all="$7"
 root="$(mktemp -d)"
-trap 'rm -rf "$root"' EXIT
+trap 'rm -rf -- "$root"' EXIT
+# TMPDIR이 상대 경로면 mktemp도 상대 경로를 낸다. 대상은 루트로 cd한 뒤 $root를 다시 풀므로 바로 절대 경로로
+# 바꾼다. 실패하면 set -e로 끝나고 trap이 원래 경로를 지운다. CDPATH를 비워 cd의 경로 출력이 섞이지 않게 하고,
+# 심볼릭 링크 뒤의 ..를 논리 경로로 풀다 실패하지 않게 -P로 옮긴다.
+abs="$(CDPATH= cd -P -- "$root" && pwd -P)"
+root="$abs"
 mkdir -p "$root/scripts/lib" "$root/calls"
 # 스텁은 잠금 문제와 산출물 단계 실패를 이 파일들에 덧붙인다. 미리 만들어 두면 루트에 새 항목을 못 만드는 경우에도
 # 기록이 남는다. 산출물 실패는 파일에 쓰지 못해도 드러나도록 fd 9(제어 파이프)에도 표지로 알린다.
@@ -477,19 +500,16 @@ for f in "$root/calls"/*; do
     printf '\n'
 done
 "#;
-    std::process::Command::new("bash")
-        .args(["-c", HARNESS, "harness"])
-        .arg(repo_root())
-        .args([
-            mode,
-            platform,
-            branch,
-            fail,
-            &bundled.join(" "),
-            &all.join(" "),
-        ])
-        .output()
-        .expect("bash 하네스를 실행하지 못했다")
+    let mut cmd = std::process::Command::new("bash");
+    cmd.args(["-c", HARNESS, "harness"]).arg(repo_root()).args([
+        mode,
+        platform,
+        branch,
+        fail,
+        &bundled.join(" "),
+        &all.join(" "),
+    ]);
+    cmd
 }
 
 /// 하네스 표준출력을 대상의 종료 상태와 스텁 호출 기록으로 나눈다.
@@ -1050,6 +1070,91 @@ fn the_package_harness_stops_on_a_failing_helper() {
         .is_ok(),
         "배포 항목이 없을 때 --all 이 모든 항목을 내놓지 않았다"
     );
+}
+
+/// 하네스를 `dir`을 작업 폴더로, `tmpdir`을 `TMPDIR`로 두고 한 번 돌려 대상의 RC와 호출마다 `--all` 여부를 돌려준다.
+/// 시험 프로세스 전역 환경은 바꾸지 않고 이 호출에만 준다.
+#[cfg(unix)]
+fn harness_rc_in(
+    dir: &std::path::Path,
+    tmpdir: &std::path::Path,
+    mode: &str,
+    branch: &str,
+    fail: &str,
+) -> (String, Vec<bool>) {
+    let locked: Vec<String> = locked_ids(&lock()).into_iter().collect();
+    let out = harness_command(mode, "linux-x64", branch, fail, &locked, &bundled_ids())
+        .current_dir(dir)
+        .env("TMPDIR", tmpdir)
+        .output()
+        .expect("bash 하네스를 실행하지 못했다");
+    assert!(
+        out.status.success(),
+        "{mode} ({fail:?}, TMPDIR={}) 하네스가 실패했다: {}",
+        tmpdir.display(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let (rc, calls) = parse_harness(out.stdout);
+    (rc, calls.iter().map(|c| parse_fetch(c).all).collect())
+}
+
+/// `TMPDIR`이 상대 경로여도 하네스 판정은 절대 경로일 때와 같다. 하네스 루트를 절대 경로로 바꾸지 않으면
+/// `staging` 대상이 루트로 들어간 뒤 `$root`를 다시 풀어 스텁을 찾지 못한다(RC 127).
+#[cfg(unix)]
+#[test]
+fn the_harness_runs_the_same_under_a_relative_tmpdir() {
+    let dir = Scratch::new("lock-harness-relative-tmpdir");
+    let base = std::path::absolute(dir.path()).expect("임시 폴더의 절대 경로");
+    let rel = std::path::Path::new("rel");
+    std::fs::create_dir(base.join(rel)).expect("상대 TMPDIR 폴더");
+    let real = "bash \"$root/scripts/fetch-official-plugins.sh\" --platform \"$platform\" --out \"$stage\" --all";
+    // 실패 주입의 RC는 대상의 원래 종료값이다. 배포 헬퍼는 fetch 실패를 return 1로 바꾼다.
+    for (mode, branch, wants) in [
+        ("staging", real, ["0", "1", "1", "23"]),
+        ("package", "", ["0", "1", "1", "1"]),
+    ] {
+        for (fail, want) in ["", "early1", "late1", "late23"].into_iter().zip(wants) {
+            let absolute = harness_rc_in(&base, &base, mode, branch, fail);
+            let relative = harness_rc_in(&base, rel, mode, branch, fail);
+            assert_eq!(absolute.0, want, "{mode} ({fail:?}) 절대 TMPDIR의 RC");
+            assert_eq!(
+                relative, absolute,
+                "{mode} ({fail:?}) 상대 TMPDIR에서 판정이 달라졌다"
+            );
+        }
+    }
+    let left: Vec<_> = std::fs::read_dir(base.join(rel))
+        .expect("상대 TMPDIR 폴더 읽기")
+        .collect();
+    assert!(left.is_empty(), "하네스가 임시 루트를 남겼다: {left:?}");
+}
+
+/// `package` 대상이 정상 fetch 뒤 작업 폴더를 바꾼 채 끝나면 `TMPDIR`과 관계없이 거부한다. 운영 흐름은 헬퍼를
+/// source한 저장소 루트에서 상대 경로로 빌드·서명·스테이징을 잇기 때문이다.
+#[cfg(unix)]
+#[test]
+fn a_package_target_that_leaves_the_repo_root_is_rejected() {
+    let helper = read("scripts/lib/bundled-plugins.sh");
+    let target = format!(
+        "{helper}\neval \"orig_$(declare -f fetch_bundled_plugins)\"\nfetch_bundled_plugins() {{ orig_fetch_bundled_plugins \"$@\"; cd scripts; }}"
+    );
+    assert!(
+        fetch_run("package", "linux-x64", &target).is_err(),
+        "작업 폴더를 바꾼 채 끝나는 배포 대상을 통과시켰다"
+    );
+    let dir = Scratch::new("lock-harness-package-cwd");
+    let base = std::path::absolute(dir.path()).expect("임시 폴더의 절대 경로");
+    let rel = std::path::Path::new("rel");
+    std::fs::create_dir(base.join(rel)).expect("상대 TMPDIR 폴더");
+    for tmpdir in [base.as_path(), rel] {
+        let (rc, _) = harness_rc_in(&base, tmpdir, "package", &target, "");
+        assert_eq!(
+            rc,
+            "1-missing-fetched",
+            "TMPDIR={}: 작업 폴더를 바꾼 배포 대상의 성공 실행 판정",
+            tmpdir.display()
+        );
+    }
 }
 
 /// 기본 분기 추출기는 `--from-checkout` 분기의 호출을 기본 분기 판정에 넣지 않는다.
