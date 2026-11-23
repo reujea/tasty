@@ -96,7 +96,9 @@ metadata·scrollback 보존 ID)으로 돌려놓는다. 설치 전 거절로 후�
 정리한다. 그 사이에 스스로 끝난 프로세스는 reap되지 않은 채(zombie) 남고, 그 PTY reader는 종료가 관측될
 때까지 늘어나는 간격(최대 500ms)으로 깨움을 반복한다. 보관 중인 프로세스는 `pty.list`와 surface 조회에
 나타나지 않는다. 중단(halt) 경로가 owner를 `EngineRelease`에 모을 때도 같다. 중단 시점에 아직 설치 전인
-채택 후보(`pending_materializations`)도 원 프로세스를 retire하지 않고 같은 방법으로 보관한다. 이 처리는 사용자 프로세스를 종료하지 않으면서
+채택 후보(`pending_materializations`)도 원 프로세스를 retire하지 않고 같은 방법으로 보관한다. 설치가
+시작돼 PTY가 후보의 연결에서 surface 터미널 저장소로 옮겨진 뒤에는 아직 공개 전이어도 그 PTY의 소유가 surface로
+바뀐 것으로 보므로, 중단 경로는 그 PTY를 보관하지 않고 엔진 해제 때 다른 surface 터미널과 함께 retire한다. 이 처리는 사용자 프로세스를 종료하지 않으면서
 엔진 해제를 끝내기 위한 것이며, 그 엔진의 다른 standalone PTY가 엔진 해제 때 retire되는 것과 다르다.
 
 생성이 불명이 되는 순간(child가 생겼을 수 있는 준비 오류·폐기 실패·폐기 reap 기한 경과·설치 실패)
@@ -183,7 +185,9 @@ retirement를 기다리던 중 기한이 지나면 그 slot은 은퇴하지 않�
 닫힌 View나 실패한 View 생성의 EngineSession도 필수 의무를 먼저 배출한다.
 `EngineRelease`는 남은 kind 인스턴스, standalone을 포함한 PTY, 기존 installation 및
 private candidate의 회수 receipt를 보관한다. 원 등록 밖에 있는 채택 프로세스(반납 실패, 중단 시점의 설치 전 후보)는 예외로 retire하지
-않고 해제 완료를 기다리게 하지도 않는다(위 생성의 완료 조건 참조). 실제 reap·plugin 응답이 끝나기 전에는
+않고 해제 완료를 기다리게 하지도 않는다(위 생성의 완료 조건 참조). 설치가 시작돼 PTY가 surface 터미널 저장소로
+옮겨진 후보는 공개 전이어도 이 예외에 들지 않고 다른 surface 터미널처럼 retire된다. 설치가 실패해 원 등록으로
+돌려놓지 못한 프로세스는 반납 실패에 든다. 실제 reap·plugin 응답이 끝나기 전에는
 registry owner를 버리지 않는다. stream 보존 close는 구조·metadata를 지우지 않는다.
 private candidate가 아직 publication closure를 보유하면 그 closure를 실행하지 않고
 폐기했다는 원 binding의 완료 receipt를 전달한다. closure가 Installation으로 이동한
