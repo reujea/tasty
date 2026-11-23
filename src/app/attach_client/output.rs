@@ -64,7 +64,6 @@ impl App {
         let mut reconnecting: Vec<usize> = Vec::new();
         let mut resyncing: Vec<usize> = Vec::new();
         let mut stopped: Vec<(usize, bool)> = Vec::new();
-        let mut discarded: Vec<usize> = Vec::new();
         for idx in 0..self.remote.sessions.len() {
             let (local_ws, phase, saved_row) = {
                 let sess = &self.remote.sessions[idx];
@@ -135,15 +134,6 @@ impl App {
                 }
                 DisconnectDisposition::Cleanup => dead.push(idx),
                 DisconnectDisposition::ServerClosed => closed.push(idx),
-                DisconnectDisposition::None
-                    if discarded_resync_due(sess, phase, events_deferred) =>
-                {
-                    if saved_row.is_some() {
-                        discarded.push(idx);
-                    } else {
-                        dead.push(idx);
-                    }
-                }
                 DisconnectDisposition::None => {}
             }
         }
@@ -162,10 +152,7 @@ impl App {
         self.pump_file_downloads();
         self.notify_unknown_closes(unknown_close);
         for &idx in &reconnecting {
-            self.enter_reconnecting(idx);
-        }
-        for &idx in &discarded {
-            self.end_discarded_resync(idx);
+            self.reconnect_ended_session(idx);
         }
         let restart: Vec<u32> = stopped
             .iter()
@@ -222,7 +209,7 @@ fn route_session_end(
                     DisconnectDisposition::None
                 }
                 DisconnectDisposition::Resync if blocked => DisconnectDisposition::Stop,
-                observed => observed,
+                observed => observed.after_discard(sess, phase, events_deferred),
             }
         };
     // 결과 불명은 Connected 세션의 끝을 처리하는 이 자리에서 알리고 그 요청에 알렸다고 기록한다. 재연결
@@ -238,31 +225,6 @@ fn route_session_end(
         )
         && super::workspace_close::take_unknown_close_notice(sess);
     (disposition, unknown)
-}
-
-/// 설치 단계가 이 전송의 재동기화 시도를 낡음으로 버렸고, 이벤트를 적용한 지금 끝낼 차례인지. `phase`는
-/// 이벤트 적용 전에 읽은 값이다. 서버 닫기 회신이나 정한 멈춤처럼 끝을 정한 경로가 있으면 그쪽이 먼저다(호출자가
-/// 처리 결과 None일 때만 묻는다). 닫기 회신이 있을 수 있는 이벤트가 남았으면 다음 회차로 넘기고, 다른 시도의
-/// 실패가 이미 재동기화를 끝냈으면(`resync_pending` 없음) 끝내지 않는다.
-fn discarded_resync_due(
-    sess: &AttachClientSession,
-    phase: SessionState,
-    events_deferred: bool,
-) -> bool {
-    let current = sess.transport.frame_tx.epoch();
-    phase == SessionState::Connected
-        && !events_deferred
-        && sess.state.resync_pending.is_some()
-        && sess
-            .state
-            .discarded_resync
-            .as_ref()
-            .is_some_and(|epoch| epoch.same(&current))
-        && !sess
-            .state
-            .stop_after_events
-            .as_ref()
-            .is_some_and(|stop| stop.is_for(&current))
 }
 
 /// 관측 단계가 기록한 끝을 한 번만 분류한다. 지금 전송의 끝이 아니거나 이미 분류한 끝은 None이다.
@@ -321,7 +283,7 @@ fn mirror_output_host<'a>(
 /// 출력 적용·정리·고아 판정이 공유하는 parked engine 검색. 여러 항목 모두 확인한다.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DisconnectDisposition {
+pub(super) enum DisconnectDisposition {
     None,
     Resync,
     Reconnect,

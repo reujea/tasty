@@ -12,6 +12,7 @@ fn observe_end(sess: &mut AttachClientSession, reason: EndReason, routed: bool) 
         epoch: sess.transport.frame_tx.epoch(),
         reason,
         routed,
+        resync_discarded: false,
     });
 }
 

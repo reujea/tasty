@@ -49,6 +49,7 @@ impl App {
                 epoch,
                 reason,
                 routed: false,
+                resync_discarded: false,
             });
             if reason == EndReason::Forced
                 && session.state.phase == SessionState::Connected

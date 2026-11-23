@@ -91,11 +91,19 @@ fn hold_output(app: &mut App, event: MirrorEvent) {
     assert!(app.remote.sessions[index].transport.output.push(event));
 }
 
+/// 설치 단계가 남긴 낡음 기록.
+fn recorded(state: &tasty_remote::client_session::ClientSessionState) -> bool {
+    state
+        .observed_end
+        .as_ref()
+        .is_some_and(|end| end.resync_discarded)
+}
+
 fn assert_reconnecting_with_a_slot(app: &App) {
     let state = &row_session(app).expect("the row session").state;
     assert_eq!(state.phase, SessionState::Reconnecting);
     assert_eq!(state.resync_pending, None);
-    assert!(state.discarded_resync.is_none());
+    assert!(!recorded(state));
     assert!(app.remote.reconnect.contains_key(&ROW), "a reconnect slot");
 }
 
@@ -169,7 +177,7 @@ fn a_discarded_plain_reconnect_keeps_the_session_and_slot() {
     assert!(ticket_of(&app, ROW).is_none(), "discarded");
     let state = &row_session(&app).unwrap().state;
     assert_eq!(state.phase, SessionState::Reconnecting);
-    assert!(state.discarded_resync.is_none());
+    assert!(!recorded(state));
     assert_eq!(app.remote.reconnect[&ROW].started, started, "the same slot");
 }
 
@@ -208,7 +216,7 @@ fn a_discard_waits_for_held_events_then_reconnects() {
     assert!(!ticket_registered(&app, ticket), "discarded");
     let state = &row_session(&app).unwrap().state;
     assert_eq!(state.phase, SessionState::Connected, "waits for the events");
-    assert!(state.discarded_resync.is_some(), "the record stays");
+    assert!(recorded(state), "the record stays");
     assert!(state.resync_pending.is_some());
 
     park_the_row(&mut app);
@@ -252,7 +260,7 @@ fn a_user_disconnect_ends_a_held_discard() {
     rotate_row_token(&mut app, ROW);
     hold_output(&mut app, MirrorEvent::StructuralSucceeded(99, None, 0));
     app.apply_attach_client_output();
-    assert!(row_session(&app).unwrap().state.discarded_resync.is_some());
+    assert!(recorded(&row_session(&app).unwrap().state));
 
     app.disconnect_mirror_workspace(ROW);
     park_the_row(&mut app);
@@ -260,7 +268,7 @@ fn a_user_disconnect_ends_a_held_discard() {
 
     let state = &row_session(&app).unwrap().state;
     assert_eq!(state.phase, SessionState::Disconnected);
-    assert!(state.discarded_resync.is_none());
+    assert!(!recorded(state));
     assert!(app.remote.reconnect[&ROW].given_up, "still given up");
 }
 

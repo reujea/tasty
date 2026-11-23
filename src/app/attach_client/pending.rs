@@ -258,7 +258,9 @@ impl App {
             session.state.local_workspace == *workspace
                 && session.transport.frame_tx.epoch().same(epoch)
         }) {
-            session.state.discarded_resync = Some(epoch.clone());
+            if let Some(end) = session.state.observed_end.as_mut() {
+                end.resync_discarded = true;
+            }
         }
     }
 
@@ -543,6 +545,41 @@ pub(super) fn queue_on(
         })?;
     attempts.register_connection(ticket, target);
     Ok(())
+}
+
+/// 설치 단계가 지금 전송의 재동기화 시도를 낡음으로 버렸다고 기록했는지.
+pub(super) fn resync_discard_recorded(
+    sess: &tasty_remote::client_session::AttachClientSession,
+) -> bool {
+    let current = sess.transport.frame_tx.epoch();
+    sess.state
+        .observed_end
+        .as_ref()
+        .is_some_and(|end| end.resync_discarded && end.epoch.same(&current))
+}
+
+impl super::output::DisconnectDisposition {
+    /// 처리 단계가 정한 끝이 없을 때(`None`) 낡음으로 버린 재동기화를 지금 끝낼지 본다. 서버 닫기 회신과 지금
+    /// 전송의 멈춤은 그보다 앞서 정해진다. `phase`는 이벤트 적용 전의 값이다. 닫기 회신이 있을 수 있는 이벤트가
+    /// 남았으면 다음 회차로 넘기고, 다른 시도의 실패가 이미 재동기화를 끝냈으면(`resync_pending` 없음) 끝내지
+    /// 않는다. 저장 행은 재연결(`App::reconnect_ended_session`), 에이전트 mirror는 정리로 간다.
+    pub(super) fn after_discard(
+        self,
+        sess: &tasty_remote::client_session::AttachClientSession,
+        phase: tasty_remote::client_session::SessionState,
+        events_deferred: bool,
+    ) -> Self {
+        let due = self == Self::None
+            && phase == tasty_remote::client_session::SessionState::Connected
+            && !events_deferred
+            && sess.state.resync_pending.is_some()
+            && resync_discard_recorded(sess);
+        match (due, sess.state.saved_row) {
+            (false, _) => self,
+            (true, Some(_)) => Self::Reconnect,
+            (true, None) => Self::Cleanup,
+        }
+    }
 }
 
 // X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).

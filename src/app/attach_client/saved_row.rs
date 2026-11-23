@@ -124,6 +124,55 @@ impl App {
         }
     }
 
+    /// 처리 단계가 재연결로 보낸 저장 행의 세션. 낡음으로 버린 재동기화의 끝이면 그 행의 시도와 재연결 구간을
+    /// 지키는 `end_discarded_resync`로, 아니면 `enter_reconnecting`으로 간다.
+    pub(super) fn reconnect_ended_session(&mut self, idx: usize) {
+        if super::pending::resync_discard_recorded(&self.remote.sessions[idx]) {
+            self.end_discarded_resync(idx);
+        } else {
+            self.enter_reconnecting(idx);
+        }
+    }
+
+    /// 설치 단계가 재동기화 연결 시도를 낡음으로 버린 저장 행의 세션을 끝낸다. 재동기화 실패의 자체 완료
+    /// (`fail_pending_mirror`)처럼 재연결 중이 되되 그 행의 지금 시도와 재연결 구간을 지킨다. 그 행에 살아 있는
+    /// 유효한 다른 시도가 있으면 세션만 재연결 중으로 두고 그 시도가 재연결 구간 안에서 스케줄러에 대체되지
+    /// 않게 진행 표지와 슬롯을 갖춘다. 다른 시도가 끝나며 정한 슬롯(백오프)이 있으면 그대로 이어 간다.
+    fn end_discarded_resync(&mut self, idx: usize) {
+        let state = &mut self.remote.sessions[idx].state;
+        state.resync_pending = None;
+        state.resync_awaiting_window = false;
+        if let Some(end) = state.observed_end.as_mut() {
+            end.resync_discarded = false;
+        }
+        let Some(row) = state.saved_row else {
+            return;
+        };
+        let live = self.row_has_live_attempt(row);
+        if !live && !self.remote.reconnect.contains_key(&row) {
+            self.enter_reconnecting(idx);
+            return;
+        }
+        let (_, local_workspace) = self.release_session_connection(
+            idx,
+            tasty_remote::client_session::SessionState::Reconnecting,
+        );
+        if live {
+            self.remote.reconnect.entry(row).or_default();
+            self.remote.active.insert(row);
+        } else {
+            self.remote.active.remove(&row);
+            if self.reconnect_window().is_zero() {
+                self.enter_disconnected(row);
+                return;
+            }
+        }
+        self.mark_row_window_dirty(row);
+        tracing::info!(
+            "gui attach: mirror workspace {local_workspace} 재동기화 시도 폐기 뒤 재연결 대기(Reconnecting) 진입 (row {row}, live attempt {live})"
+        );
+    }
+
     /// 저장된 원격 행을 형상을 남긴 끊긴 행으로 둔다. 연결이 남아 있으면 먼저 놓는다.
     /// 자동 재연결은 멈추고, 그 행을 다시 열거나 연결 버튼으로 다시 붙는다.
     pub(crate) fn enter_disconnected(&mut self, row: u32) {
@@ -195,7 +244,7 @@ impl App {
         true
     }
 
-    pub(super) fn mark_row_window_dirty(&mut self, row: u32) {
+    fn mark_row_window_dirty(&mut self, row: u32) {
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine.workspaces().into_iter().any(|ws| ws.id == row) {
                 main.mark_dirty();

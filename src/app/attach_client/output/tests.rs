@@ -1016,6 +1016,7 @@ fn force_detach_turns_reconnect_and_resync_into_a_final_stop() {
             epoch: sess.transport.frame_tx.epoch(),
             reason,
             routed: false,
+            resync_discarded: false,
         });
         let first = route_session_end(&mut sess, SessionState::Connected, false, false).0;
         let again = route_session_end(&mut sess, SessionState::Connected, false, false).0;
