@@ -542,8 +542,10 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                                 false,
                                 false,
                             );
+                            // menu_item 은 꺼진 행도 활성 응답(Sense::hover)으로 돌려주므로
+                            // on_disabled_hover_text 로는 사유가 뜨지 않는다.
                             if let Some(why) = reason {
-                                row.on_disabled_hover_text(why);
+                                row.on_hover_text(why);
                             }
                         }
                         Mi::Row(label, field, enabled, tooltip) => {
@@ -559,7 +561,7 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                                 *enabled,
                             );
                             if let Some(why) = tooltip {
-                                row.on_disabled_hover_text(why);
+                                row.on_hover_text(why);
                             }
                         }
                         Mi::Item(glyph, label, danger) => {
