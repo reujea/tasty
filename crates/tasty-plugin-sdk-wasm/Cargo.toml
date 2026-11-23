@@ -21,9 +21,11 @@ publish = false
 # 영향 범위 밖이다).
 # 50.x는 rust-toolchain.toml의 1.96.0보다 높은 Rust 1.97을 요구한다.
 # 새 공지가 나오면 그 패키지의 Cargo.lock 판을 unaffected·patched에 대조한다.
-# 둘 어디에도 들지 않으면 49 계열 수정판으로 올린다. 수정판이 없으면 새 공지와
-# 기존 공지를 모두 피하는 판을 찾아, 필요하면 툴체인을 올려 새 줄로 가거나
-# API를 되돌려 36.x로 돌아간다.
+# 둘 어디에도 들지 않으면 새 판으로 옮긴다. 후보는 갱신 뒤 잠기는 wasmtime과
+# wasmtime-wasi 두 패키지가 모두 새 공지와 기존 공지를 피하는 판이어야 한다
+# (예: 49.0.6은 0567·0573을 고쳤지만 wasmtime-wasi가 RUSTSEC-2026-0587에 걸린다).
+# 이 조건을 만족하는 49 계열 판을 먼저 고른다. 없으면 필요에 따라 툴체인을 올려
+# 새 줄로 가거나 API를 되돌려 36.x로 돌아간다.
 # 정식 지원은 보류 상태다.
 # 현재 정책: docs/dev-guide/plugin-packaging.md#정책-현행.
 wasmtime = { version = "49", default-features = false, features = [
