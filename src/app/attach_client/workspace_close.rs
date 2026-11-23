@@ -432,6 +432,7 @@ impl App {
     /// 서버 닫기 성공이나 사용자 연결 끊기로 끝난 mirror를 정리한다. 원격발 끊김과 달리 재연결하지 않는다.
     /// 정리로 바뀐 선택을 전환으로 읽지 않도록 직전 활성 workspace를 맞춘다.
     pub(super) fn end_mirror_locally(&mut self, session: AttachClientSession) {
+        self.fail_copies_of_ending_session(&session);
         cancel_mirror_attempts(
             &mut self.state.mirror_attempts,
             &mut self.remote,

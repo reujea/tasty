@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 impl App {
     /// 사건 처리가 끝난 mirror 터미널의 남은 결과 대기 건을 실패로 닫는다. 연결이 끝났거나(끊김·서버
-    /// 닫기·재연결 대기) 재동기화 중이면 본문을 받던 건도 실패다. 사용자가 mirror를 닫았거나 구조 변경으로
-    /// surface가 사라졌으면 알리지 않고 버린다.
+    /// 닫기·재연결 대기) 재동기화 중이면 본문을 받던 건도 실패다. 구조 변경으로 surface가 사라졌으면 알리지
+    /// 않고 버린다. 이 Tasty가 끝내는 mirror는 정리 전에 `fail_copies_of_ending_session`이 알린다.
     pub(super) fn settle_attach_copies(&mut self) {
         for surface in self.attach_copies.surfaces() {
             let pending = self.engines().all().find_map(|engine| {
@@ -45,11 +45,25 @@ impl App {
             .filter_map(|&index| self.remote.sessions.get(index))
             .flat_map(|session| session.state.remote_to_local.values().copied())
             .collect();
-        for &local in &locals {
+        self.fail_copies_of_ending_surfaces(&locals);
+    }
+
+    /// 이 Tasty가 끝내는 mirror(사용자 끊기·로컬 닫기·서버 닫기 성공)의 진행 중 복사를 정리 전에 창 범위
+    /// 실패로 알린다. 정리 뒤에는 정산이 surface를 찾지 못해 알림 없이 버린다.
+    pub(super) fn fail_copies_of_ending_session(
+        &mut self,
+        session: &tasty_remote::client_session::AttachClientSession,
+    ) {
+        let locals: Vec<u32> = session.state.remote_to_local.values().copied().collect();
+        self.fail_copies_of_ending_surfaces(&locals);
+    }
+
+    fn fail_copies_of_ending_surfaces(&mut self, locals: &[u32]) {
+        for &local in locals {
             self.attach_copies.break_stream(local);
             self.attach_copies.fail_unanswered(local);
         }
-        self.announce_copy_failures(&locals);
+        self.announce_copy_failures(locals);
     }
 
     /// 실패한 복사를 그 surface가 있는 창(parked 포함)에 한 건마다 알린다. `ending`은 이번에 끝나는

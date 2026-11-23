@@ -119,3 +119,22 @@ fn only_the_ending_session_failure_goes_to_the_window() {
         vec![ToastScope::Surface(LIVING), ToastScope::Window]
     );
 }
+
+/// Given 끝나는 세션의 surface가 보이고 쓰기 본문을 받는 중이다, When 사용자 끊기·로컬 닫기처럼 이 Tasty가
+/// mirror를 정리한다, Then 정리 전에 그 쓰기가 창 범위 실패로 알려지고 살아 있는 세션의 쓰기는 남는다.
+#[test]
+fn a_mirror_ended_locally_fails_its_copy_to_the_window() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_mirror_ended_locally_fails_its_copy_to_the_window",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = crate::x11_test_loop::x11_event_loop();
+    let mut app = app_on(&event_loop);
+    let session = app.remote.sessions.remove(0);
+    app.end_mirror_locally(session);
+    assert_eq!(scopes(&mut app), vec![ToastScope::Window]);
+    assert_eq!(app.attach_copies.waits().count(), 1);
+}
