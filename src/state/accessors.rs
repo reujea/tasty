@@ -91,7 +91,8 @@ impl RequestContext {
     }
 
     /// pane에서 이 탭을 그리는가. pane이 고른 탭이고 attach 임시 탭이 그 pane을 가리지 않아야 한다.
-    /// 레이아웃 스윕(`resize_all`)과 가시성 판정(`draws_surface`)이 이 판정 하나를 쓴다.
+    /// 레이아웃 스윕(`resize_all`), 그리는 영역(`surface_regions`), 가시성 판정(`draws_surface`)이 이 판정
+    /// 하나를 쓴다.
     #[cfg(feature = "gui")]
     pub(crate) fn draws_tab(
         &self,

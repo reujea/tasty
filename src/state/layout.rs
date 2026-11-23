@@ -24,9 +24,12 @@ impl RequestContext {
         for (pane_id, pane_rect) in pane_rects {
             if let Some(pane) = ws.pane_layout().find_pane(pane_id) {
                 let content_rect = self.tab_content_rect(pane_rect);
+                // 스윕·가시성 판정과 같은 `draws_tab`으로 그릴 탭을 고른다.
                 let regions = match self.drawn_tab(pane) {
-                    Some(tab) => self.tab_surface_regions(engine, tab, content_rect, scale_factor),
-                    None => Vec::new(),
+                    Some(tab) if self.draws_tab(engine, pane, tab) => {
+                        self.tab_layout_regions(engine, tab, content_rect, scale_factor)
+                    }
+                    _ => Vec::new(),
                 };
                 result.push((pane_id, pane_rect, regions));
             }

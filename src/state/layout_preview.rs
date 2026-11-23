@@ -293,8 +293,9 @@ impl super::MainViewState {
         }
     }
 
-    /// 선택된 attach 임시 탭이 이 탭의 pane을 차지해 이 탭이 그려지지 않는가.
-    /// 그리는 영역(`tab_surface_regions`)과 가시성 판정(`draws_tab`)이 같은 조건을 쓴다.
+    /// 선택된 attach 임시 탭이 이 탭의 pane을 차지해 이 탭이 그려지지 않는가. 창의 그리기·스윕·가시성은
+    /// [`Self::draws_tab`]으로 이 조건을 보고, pane 없이 탭 하나의 영역을 묻는 호출(`tab_surface_regions`)도
+    /// 같은 조건을 쓴다.
     pub(crate) fn attach_tab_preview_hides(
         &self,
         core: &CoreState,

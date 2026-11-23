@@ -104,7 +104,8 @@ fn drawing_an_unswept_terminal_asks_for_another_sweep() {
 }
 
 /// Given attach 임시 탭이 실제 탭의 pane을 덮은 장면, When 스윕하면, Then 가려진 실제 탭의 터미널도
-/// 목표를 받되 숨은 것으로 받는다(`surface.list`의 `pending_*`가 이 목표다). 가시성 판정도 숨었다고 본다.
+/// 목표를 받되 숨은 것으로 받는다(`surface.list`의 `pending_*`가 이 목표다). 가시성 판정도 숨었다고 보고
+/// 그리는 영역(`surface_regions`)에도 없다.
 #[test]
 fn a_tab_covered_by_an_attach_draft_tab_gets_a_hidden_target() {
     let (mut state, mut session) = test_state();
@@ -125,4 +126,19 @@ fn a_tab_covered_by_an_attach_draft_tab_gets_a_hidden_target() {
     assert!(!state.swept_drawn.contains(&local));
     assert!(!state.draws_surface(&engine.read(), local));
     assert!(!state.shows_any_surface(&engine.read(), &[local]));
+    let rect = PhysicalRect {
+        x: PhysicalPx(0.0),
+        y: PhysicalPx(0.0),
+        width: PhysicalPx(800.0),
+        height: PhysicalPx(600.0),
+    };
+    let read = engine.read();
+    let regions = state.surface_regions(&read, rect, 1.0);
+    assert!(
+        !regions
+            .iter()
+            .flat_map(|(_, _, r)| r)
+            .any(|r| r.id == local),
+        "가려진 탭은 그리지 않는다"
+    );
 }
