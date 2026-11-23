@@ -5,5 +5,7 @@ pub mod double_tap;
 pub(crate) mod edit_key;
 #[cfg(target_os = "linux")]
 pub(crate) mod explorer_ime;
+pub(crate) mod key_level;
+pub(crate) mod key_route;
 pub mod shortcuts;
 pub mod synthetic;

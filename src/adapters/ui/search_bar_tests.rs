@@ -752,3 +752,43 @@ fn find_bindings_keep_their_meaning() {
         }
     }
 }
+
+/// 검색 띠 키맵 수신 판정은 본문 읽기(`consume_binding_egui`)가 지우는 누름과 같다.
+#[test]
+fn the_find_keymap_receives_what_the_body_consumes() {
+    let find = vec!["ctrl+f".to_string(), "alt+f".to_string(), "f3".to_string()];
+    let mods = [
+        egui::Modifiers::NONE,
+        egui::Modifiers::SHIFT,
+        egui::Modifiers::ALT,
+        egui::Modifiers::CTRL,
+        egui::Modifiers::CTRL | egui::Modifiers::SHIFT,
+    ];
+    let mut hits = 0;
+    for key in egui::Key::ALL {
+        for m in mods {
+            let ctx = egui::Context::default();
+            let raw = egui::RawInput {
+                modifiers: m,
+                events: vec![egui::Event::Key {
+                    key: *key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: m,
+                }],
+                ..Default::default()
+            };
+            ctx.begin_pass(raw);
+            let body = ctx.input_mut(|i| tasty_key_match::consume_binding_egui(&find, i, false));
+            let _output = ctx.end_pass();
+            assert_eq!(
+                find_keymap_receives(&find, *key, m, false),
+                body,
+                "{m:?}+{key:?}"
+            );
+            hits += usize::from(body);
+        }
+    }
+    assert_eq!(hits, 3);
+}

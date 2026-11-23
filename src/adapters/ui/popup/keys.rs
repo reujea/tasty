@@ -103,6 +103,16 @@ impl BasicKey {
         tasty_key_match::matches_any_binding(&self.owned_bindings(), key, mods)
     }
 
+    /// egui 키 누름 하나가 이 조작인지. 입력을 바꾸지 않는다. 키 경로(`route_key`)가 쓴다.
+    pub(crate) fn matches_egui(
+        self,
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+        super_held: bool,
+    ) -> bool {
+        tasty_key_match::binding_matches_egui(&self.owned_bindings(), key, modifiers, super_held)
+    }
+
     /// 이번 egui 프레임에 이 조작이 눌렸는지. `super_held`는 [`tasty_key_match::super_held`]로 구한다.
     pub(crate) fn pressed(self, input: &egui::InputState, super_held: bool) -> bool {
         tasty_key_match::any_binding_pressed_egui(&self.owned_bindings(), input, super_held)

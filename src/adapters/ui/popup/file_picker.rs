@@ -11,7 +11,7 @@
 mod admission_tests;
 #[cfg(test)]
 mod fold_tests;
-mod folder;
+pub(crate) mod folder;
 #[cfg(test)]
 mod folder_tests;
 mod footer;

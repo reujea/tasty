@@ -44,6 +44,25 @@ pub(super) fn address_key_action(
         })
 }
 
+/// 주소 띠 노드 키맵 수신 판정: 공통 편집 판정 전후 두 값 가운데 하나라도 동작이 있으면 주소 띠에서 끝나는
+/// 키다. 동작은 지금처럼 편집 판정 뒤 `address_key_action`이 정한다.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the window key path calls it from the receiver commit on"
+    )
+)]
+pub(super) fn address_keymap_receives(
+    kb: &crate::settings::KeybindingSettings,
+    key: &winit::keyboard::Key,
+    mods: winit::keyboard::ModifiersState,
+) -> bool {
+    [false, true]
+        .into_iter()
+        .any(|judged| address_key_action(kb, key, mods, judged).is_some())
+}
+
 impl MainView {
     /// egui에 키를 넘긴 뒤 부른다. `from`은 넘기기 전 egui 이벤트 수다. `clipboard_judged`는
     /// [`address_key_action`]의 같은 인자다.
@@ -128,6 +147,24 @@ fn remap_events(events: &mut Vec<egui::Event>, from: usize, action: AddressKeyAc
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 주소 띠 키맵 수신 판정: 편집 판정 전후 어느 쪽이든 동작이 있는 키(새로고침, 편집)는 받고, 바인딩이 없는
+    /// 키는 받지 않는다.
+    #[test]
+    fn the_address_keymap_receives_keys_with_an_action_either_side_of_edit_judgment() {
+        use winit::keyboard::{Key, ModifiersState, NamedKey};
+        let kb = crate::settings::KeybindingSettings::default();
+        let f5 = Key::Named(NamedKey::F5);
+        assert!(address_keymap_receives(&kb, &f5, ModifiersState::empty()));
+        let a = Key::Character("a".into());
+        assert!(!address_keymap_receives(&kb, &a, ModifiersState::empty()));
+        for judged in [false, true] {
+            assert_eq!(
+                address_key_action(&kb, &f5, ModifiersState::empty(), judged).is_some(),
+                address_keymap_receives(&kb, &f5, ModifiersState::empty())
+            );
+        }
+    }
 
     fn key(k: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
         egui::Event::Key {
