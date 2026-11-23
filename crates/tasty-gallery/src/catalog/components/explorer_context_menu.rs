@@ -391,6 +391,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             "local · a remote's list held",
             &local_with_remote_list_menu(),
         );
+    });
+    // 문서 칸 폭에 맞추려고 D6 의 나머지 두 메뉴는 다음 줄에 둔다.
+    stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
         menu_column(
             ui,
             theme,
@@ -406,13 +410,15 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             &remote_folder_with_local_list_menu(),
         );
     });
-    // 같은 D6 메뉴의 Windows 모양: 행과 구분선은 같고 툴팁이 없다.
-    stage(ui, theme, StageVariant::Wrap, |ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
-        for (caption, build) in WINDOWS_VARIANTS {
-            menu_column(ui, theme, menu_w, caption, &without_tooltips(build()));
-        }
-    });
+    // 같은 D6 메뉴의 Windows 모양: 행과 구분선은 같고 툴팁이 없다. 문서 칸 폭에 맞춰 세 장씩 둔다.
+    for row in WINDOWS_VARIANTS.chunks(3) {
+        stage(ui, theme, StageVariant::Wrap, |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
+            for (caption, build) in row {
+                menu_column(ui, theme, menu_w, caption, &without_tooltips(build()));
+            }
+        });
+    }
     history::draw(ui, theme);
 
     meta(
