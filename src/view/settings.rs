@@ -42,6 +42,9 @@ pub struct SettingsView {
     /// Linux는 OS 장식을 끄고 제목 줄·창 가장자리를 앱이 맡는다.
     #[cfg(target_os = "linux")]
     chrome: chrome::SettingsChrome,
+    /// 지금 처리하는 창 사건이 저널 보류 뒤 재생된 것인지(`set_input_replayed`).
+    #[cfg(target_os = "linux")]
+    input_replayed: bool,
 }
 
 impl SettingsView {
@@ -71,6 +74,8 @@ impl SettingsView {
         Self {
             #[cfg(target_os = "linux")]
             chrome: chrome::SettingsChrome::new(&winit),
+            #[cfg(target_os = "linux")]
+            input_replayed: false,
             base: ViewBase::new(gpu, winit),
             clipboard,
             original_restore_content: settings.general.restore_surface_content,
@@ -89,10 +94,17 @@ impl SettingsView {
         }
     }
 
-    /// halt 중 제목 줄 닫기 버튼 누름인지. 참이면 호출자가 모달을 닫는다(초안 폐기).
+    /// halt 중 제목 줄 닫기 버튼 클릭인지. 참이면 호출자가 모달을 닫는다(초안 폐기).
     #[cfg(target_os = "linux")]
-    pub(crate) fn halted_close_press(&mut self, event: &WindowEvent) -> bool {
-        self.chrome.halted_close_press(event)
+    pub(crate) fn halted_close_click(&mut self, event: &WindowEvent) -> bool {
+        let width = self.base.gpu.size().width;
+        self.chrome.halted_close_click(event, width)
+    }
+
+    /// 다음에 넘길 창 사건이 저널 보류 뒤 재생된 것인지 알린다. 재생된 누름으로는 OS 이동·리사이즈를 시작하지 않는다.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn set_input_replayed(&mut self, replayed: bool) {
+        self.input_replayed = replayed;
     }
 
     /// 창을 열 때의 설정.
@@ -203,11 +215,14 @@ impl View for SettingsView {
             return action;
         }
         #[cfg(target_os = "linux")]
-        if self.chrome.take_live_event(
+        if self.chrome.take_event(
             &event,
             &self.base.winit,
-            self.base.gpu.size(),
-            self.base.gpu.edit_keys_busy(),
+            chrome::LiveInput {
+                size: self.base.gpu.size(),
+                edit_keys_busy: self.base.gpu.edit_keys_busy(),
+                replayed: self.input_replayed,
+            },
         ) {
             return ViewAction::None;
         }
@@ -239,7 +254,11 @@ impl View for SettingsView {
         let file_format = self.file_format.clone();
         let file_handler = self.file_handler.clone();
         #[cfg(target_os = "linux")]
-        let (chrome, winit) = (&mut self.chrome, self.base.winit.clone());
+        let (chrome, winit, size) = (
+            &mut self.chrome,
+            self.base.winit.clone(),
+            self.base.gpu.size(),
+        );
         // 한 프레임의 패스가 여럿이어도 앞 패스의 닫기 누름을 잃지 않도록 모은다.
         // 이유: 제목 줄을 그리는 곳이 Linux뿐이라 다른 OS에서는 값이 바뀌지 않는다.
         #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
@@ -247,7 +266,7 @@ impl View for SettingsView {
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
             #[cfg(target_os = "linux")]
             {
-                titlebar_close |= chrome.draw_titlebar(ctx, &winit);
+                titlebar_close |= chrome.draw_titlebar(ctx, &winit, size);
             }
             action = settings_ui::draw_settings_panel(
                 ctx,
@@ -274,7 +293,7 @@ impl View for SettingsView {
             };
             toasts.draw(ctx, &empty_layout, reduced_motion);
             #[cfg(target_os = "linux")]
-            chrome.finish_pass(ctx, &winit);
+            chrome.finish_pass(ctx, &winit, size);
         });
         self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
             &self.base.gpu.egui_ctx,
@@ -365,7 +384,7 @@ impl SettingsView {
             }
             WindowEvent::RedrawRequested => {
                 #[cfg(target_os = "linux")]
-                if self.chrome.sync_decorations(&self.base.winit) {
+                if self.chrome.decorations_changed(&self.base.winit) {
                     self.mark_dirty();
                 }
                 self.render();

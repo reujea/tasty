@@ -94,13 +94,13 @@ impl App {
 
     /// halt 중 창 이벤트. `CloseRequested`는 호출자가 일반 경로로 보낸다.
     pub(crate) fn handle_halted_window_event(&mut self, id: WindowId, event: WindowEvent) {
-        // Linux 설정창은 OS 닫기 버튼 대신 앱 제목 줄의 닫기를 쓴다. halt 중에도 그 버튼만 받아 OS 닫기와 같이 닫는다.
+        // Linux 설정창은 OS 닫기 버튼 대신 앱 제목 줄의 닫기를 쓴다. halt 중에도 그 버튼의 클릭만 받아 OS 닫기와 같이 닫는다.
         #[cfg(target_os = "linux")]
         if let Some(settings) = self.view.views.get_mut(&id).and_then(|view| {
             view.as_any_mut()
                 .downcast_mut::<crate::view::SettingsView>()
         }) {
-            if settings.halted_close_press(&event) {
+            if settings.halted_close_click(&event) {
                 self.close_active_modal();
             }
             return;

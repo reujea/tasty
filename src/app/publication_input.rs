@@ -39,6 +39,10 @@ pub(crate) struct PublicationInputs {
     rejected_windows: std::collections::HashSet<winit::window::WindowId>,
     #[cfg(feature = "gui")]
     reset_all_gestures: bool,
+    /// 보류했던 창 사건을 다시 넘기는 중이다. 버튼이 이미 떨어졌을 수 있어 그 사건으로 OS 창 이동·리사이즈를
+    /// 시작하지 않게 한다(Linux 설정창).
+    #[cfg(all(feature = "gui", target_os = "linux"))]
+    pub replaying: bool,
 }
 
 impl PublicationInputs {
@@ -333,7 +337,15 @@ impl crate::app::App {
                     if target.as_ref().is_none_or(|target| {
                         self.publication_input_is_current(window, &event, target)
                     }) {
+                        #[cfg(target_os = "linux")]
+                        {
+                            self.publication_inputs.replaying = true;
+                        }
                         self.window_event(event_loop, window, event);
+                        #[cfg(target_os = "linux")]
+                        {
+                            self.publication_inputs.replaying = false;
+                        }
                     } else {
                         self.cancel_publication_gesture(window);
                         tracing::debug!(

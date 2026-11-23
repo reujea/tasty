@@ -1209,6 +1209,13 @@ impl App {
         self.sync_auxiliary_toast_lifetime(id);
         self.sync_auxiliary_edit_bindings(id);
         let action = if let Some(modal) = self.view.views.get_mut(&id) {
+            #[cfg(target_os = "linux")]
+            if let Some(settings) = modal
+                .as_any_mut()
+                .downcast_mut::<crate::view::SettingsView>()
+            {
+                settings.set_input_replayed(self.publication_inputs.replaying);
+            }
             let mut ctx = ViewCtx {
                 modal_active: false,
                 engine: None,
