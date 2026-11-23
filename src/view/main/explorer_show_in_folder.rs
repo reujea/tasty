@@ -1,5 +1,6 @@
 //! explorer 컨텍스트 메뉴의 "들어 있는 폴더에서 보기" 행. 하위 폴더 검색 결과나 링크 하나를 눌렀을 때
 //! 메뉴 맨 앞에 둔다. 고르면 항목이 실제로 든 폴더로 옮기고 목록이 들어오면 그 항목을 고른다.
+//! 대상이 사라진 링크에는 행을 끈 채 둔다(대상이 다시 생기면 쓸 수 있는 상태 조건이다).
 //! 검색 결과에는 그 앞에 "열기" 행을 더 둔다. 고르면 더블클릭처럼 폴더는 들어가고 파일은 연다.
 //! 컨텍스트 메뉴의 생성 행처럼 메뉴 구성(`redraw.rs`)과 따로 둔다.
 
@@ -10,41 +11,73 @@ use crate::runtime::engine_read::EngineRead;
 const SHOW_IN_FOLDER: u32 = 90;
 const OPEN_RESULT: u32 = 91;
 
+/// 들어 있는 폴더에서 보기 행의 모양.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShowInFolder {
+    /// 행이 없다.
+    Absent,
+    /// 켠 행. 검색 결과면 그 앞에 열기 행을 둔다.
+    Enabled { open: bool },
+    /// 대상이 사라진 링크. 이유 없이 꺼진 행만 두고 열기 행은 두지 않는다.
+    Disabled,
+}
+
 /// 메뉴 맨 앞에 붙일 행. 시안 검색 결과 메뉴처럼 열기 → 들어 있는 폴더에서 보기 → 구분선 순서다.
-/// 들어 있는 폴더가 없으면 아무것도 붙이지 않는다.
-fn enclosing_head(open: bool, show_in_folder: bool) -> Vec<MenuItem> {
-    if !show_in_folder {
-        return Vec::new();
-    }
+fn enclosing_head(row: ShowInFolder) -> Vec<MenuItem> {
+    let label = crate::i18n::t("explorer.menu.show_in_folder");
     let mut head = Vec::with_capacity(3);
-    if open {
-        head.push(MenuItem::new(OPEN_RESULT, crate::i18n::t("button.open")));
+    match row {
+        ShowInFolder::Absent => return head,
+        ShowInFolder::Enabled { open } => {
+            if open {
+                head.push(MenuItem::new(OPEN_RESULT, crate::i18n::t("button.open")));
+            }
+            head.push(MenuItem::new(SHOW_IN_FOLDER, label));
+        }
+        ShowInFolder::Disabled => head.push(MenuItem::disabled(SHOW_IN_FOLDER, label)),
     }
-    head.push(MenuItem::new(
-        SHOW_IN_FOLDER,
-        crate::i18n::t("explorer.menu.show_in_folder"),
-    ));
     head.push(MenuItem::separator());
     head
 }
 
+/// 로컬 explorer 에서 대상 하나의 행 모양. 원격 칸과 대상이 여럿이면 행이 없다.
+fn show_in_folder_row(
+    view: Option<&crate::adapters::ui::surface::explorer::view::ExplorerView>,
+    paths: &[std::path::PathBuf],
+) -> ShowInFolder {
+    match (paths, view) {
+        ([path], Some(v)) if !v.is_remote() => {
+            row_shape(v.enclosing_row(path), v.is_search_result())
+        }
+        _ => ShowInFolder::Absent,
+    }
+}
+
+fn row_shape(
+    row: crate::adapters::ui::surface::explorer::EnclosingRow,
+    search_result: bool,
+) -> ShowInFolder {
+    use crate::adapters::ui::surface::explorer::EnclosingRow;
+    match row {
+        EnclosingRow::Target(..) => ShowInFolder::Enabled {
+            open: search_result,
+        },
+        EnclosingRow::TargetGone => ShowInFolder::Disabled,
+        EnclosingRow::None => ShowInFolder::Absent,
+    }
+}
+
 impl MainView {
     /// 대상이 하나이고 들어 있는 폴더가 있으면 메뉴 맨 앞에 행과 구분선을 둔다.
-    /// 검색 결과면 그 앞에 열기 행도 둔다.
+    /// 검색 결과면 그 앞에 열기 행도 둔다. 대상이 사라진 링크면 꺼진 행과 구분선만 둔다.
     pub(super) fn with_show_in_folder(
         &self,
         surface_id: u32,
         paths: &[std::path::PathBuf],
         mut items: Vec<MenuItem>,
     ) -> Vec<MenuItem> {
-        let view = self.state.explorer_views.get(surface_id);
-        let (open, show) = match (paths, view) {
-            ([path], Some(v)) if !v.is_remote() && v.enclosing_target(path).is_some() => {
-                (v.is_search_result(), true)
-            }
-            _ => (false, false),
-        };
-        items.splice(0..0, enclosing_head(open, show));
+        let row = show_in_folder_row(self.state.explorer_views.get(surface_id), paths);
+        items.splice(0..0, enclosing_head(row));
         items
     }
 
@@ -130,27 +163,84 @@ fn open_result(
 mod tests {
     use super::*;
 
-    fn ids(items: &[MenuItem]) -> Vec<Option<u32>> {
+    /// (id, 활성). 구분선은 None.
+    fn ids(items: &[MenuItem]) -> Vec<Option<(u32, bool)>> {
         items
             .iter()
-            .map(|i| (!i.is_separator()).then_some(i.id))
+            .map(|i| (!i.is_separator()).then_some((i.id, i.enabled)))
             .collect()
     }
 
     #[test]
     fn a_search_result_opens_first_then_shows_its_folder() {
         assert_eq!(
-            ids(&enclosing_head(true, true)),
-            vec![Some(OPEN_RESULT), Some(SHOW_IN_FOLDER), None]
+            ids(&enclosing_head(ShowInFolder::Enabled { open: true })),
+            vec![
+                Some((OPEN_RESULT, true)),
+                Some((SHOW_IN_FOLDER, true)),
+                None
+            ]
         );
     }
 
     #[test]
     fn a_link_only_gets_the_folder_row() {
         assert_eq!(
-            ids(&enclosing_head(false, true)),
-            vec![Some(SHOW_IN_FOLDER), None]
+            ids(&enclosing_head(ShowInFolder::Enabled { open: false })),
+            vec![Some((SHOW_IN_FOLDER, true)), None]
         );
+    }
+
+    #[test]
+    fn a_link_whose_target_is_gone_keeps_a_disabled_row_without_open() {
+        assert_eq!(
+            ids(&enclosing_head(ShowInFolder::Disabled)),
+            vec![Some((SHOW_IN_FOLDER, false)), None]
+        );
+    }
+
+    /// 메뉴 조립 경로: 일반 목록·검색 결과에서 깨진 링크, 살아 있는 링크, 일반 파일, 원격 칸.
+    #[cfg(unix)]
+    #[test]
+    fn the_row_follows_the_link_target_and_the_listing() {
+        use crate::adapters::ui::surface::explorer::view::ExplorerView;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("plain.md");
+        std::fs::write(&file, b"p").expect("write");
+        let live = tmp.path().join("live.md");
+        std::os::unix::fs::symlink(&file, &live).expect("symlink");
+        let broken = tmp.path().join("broken.md");
+        std::os::unix::fs::symlink(tmp.path().join("gone"), &broken).expect("symlink");
+
+        let listing = ExplorerView::default();
+        let row =
+            |v: &ExplorerView, p: &std::path::Path| show_in_folder_row(Some(v), &[p.to_path_buf()]);
+        assert_eq!(row(&listing, &broken), ShowInFolder::Disabled);
+        assert_eq!(row(&listing, &live), ShowInFolder::Enabled { open: false });
+        assert_eq!(row(&listing, &file), ShowInFolder::Absent);
+        assert_eq!(
+            show_in_folder_row(Some(&listing), &[broken.clone(), file.clone()]),
+            ShowInFolder::Absent,
+            "several targets"
+        );
+
+        // 검색 결과: 대상이 사라진 링크는 열기 없이 꺼진 행, 들어 있는 폴더가 있으면 열기와 켠 행.
+        use crate::adapters::ui::surface::explorer::EnclosingRow;
+        assert_eq!(
+            row_shape(EnclosingRow::TargetGone, true),
+            ShowInFolder::Disabled
+        );
+        assert_eq!(
+            row_shape(EnclosingRow::Target(tmp.path().into(), file.clone()), true),
+            ShowInFolder::Enabled { open: true }
+        );
+        assert_eq!(row_shape(EnclosingRow::None, true), ShowInFolder::Absent);
+
+        let mut remote = ExplorerView::default();
+        let mut panel = tasty_model::ExplorerPanel::new(1, std::path::PathBuf::from("/srv"));
+        panel.active_tab_mut().navigate_to(tmp.path().to_path_buf());
+        remote.sync(&panel, Some(7));
+        assert_eq!(row(&remote, &broken), ShowInFolder::Absent);
     }
 
     /// 파일 결과의 열기는 더블클릭처럼 파일 dispatch가 되고, 폴더 결과는 그 폴더로 들어간다.
@@ -198,7 +288,6 @@ mod tests {
 
     #[test]
     fn no_enclosing_folder_adds_nothing() {
-        assert!(enclosing_head(true, false).is_empty());
-        assert!(enclosing_head(false, false).is_empty());
+        assert!(enclosing_head(ShowInFolder::Absent).is_empty());
     }
 }

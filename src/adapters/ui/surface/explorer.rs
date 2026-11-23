@@ -32,6 +32,7 @@ pub(crate) use crate::core::file_kind::is_image_ext;
 use crate::i18n::{t, t_fmt};
 use crate::settings::EffectiveFont;
 use crate::theme;
+pub(crate) use enclosing::EnclosingRow;
 pub(crate) use kind::{file_kind_word, kind_word};
 use view::{DirEntryInfo, ExplorerView, LoadState, human_size};
 use visible_rows::{GridMetrics, grid_metrics, open_span, scroll_target};

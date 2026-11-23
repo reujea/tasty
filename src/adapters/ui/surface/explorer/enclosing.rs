@@ -5,6 +5,17 @@ use std::path::{Component, Path, PathBuf};
 
 use super::view::{ExplorerView, LoadState};
 
+/// 컨텍스트 메뉴의 들어 있는 폴더에서 보기 행 상태.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum EnclosingRow {
+    /// 행을 켠다: (열 폴더, 고를 항목).
+    Target(PathBuf, PathBuf),
+    /// 링크의 대상이 사라졌다. 대상이 다시 생기면 쓸 수 있으므로 행을 끈 채 둔다.
+    TargetGone,
+    /// 행이 없다: 링크도 검색 결과도 아니거나, 대상을 풀 수 없는 링크(권한·순환·부모 없는 대상).
+    None,
+}
+
 impl ExplorerView {
     /// 지금 목록이 하위 폴더 검색 결과인가. 컨텍스트 메뉴가 결과에 열기 행을 붙일 때 쓴다.
     pub(crate) fn is_search_result(&self) -> bool {
@@ -14,15 +25,32 @@ impl ExplorerView {
     /// 메뉴 행의 대상: (열 폴더, 고를 항목). 링크는 대상이 든 폴더를, 하위 폴더 검색 결과는 결과가 든
     /// 폴더를 연다. 그 밖의 항목과 대상이 없는 링크는 `None` 이다.
     pub(crate) fn enclosing_target(&self, path: &Path) -> Option<(PathBuf, PathBuf)> {
+        match self.enclosing_row(path) {
+            EnclosingRow::Target(folder, item) => Some((folder, item)),
+            EnclosingRow::TargetGone | EnclosingRow::None => None,
+        }
+    }
+
+    /// 들어 있는 폴더에서 보기 행의 상태. 대상이 사라진 링크(`metadata` 가 `NotFound`)만 꺼진 행이다.
+    pub(crate) fn enclosing_row(&self, path: &Path) -> EnclosingRow {
         let is_link = std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink());
         let item = if is_link {
-            path.exists().then(|| link_target(path)).flatten()?
+            match std::fs::metadata(path) {
+                Ok(_) => link_target(path),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    return EnclosingRow::TargetGone;
+                }
+                Err(_) => None,
+            }
         } else if self.search_root().is_some() {
-            path.to_path_buf()
+            Some(path.to_path_buf())
         } else {
-            return None;
+            None
         };
-        Some((item.parent()?.to_path_buf(), item))
+        match item.and_then(|item| Some((item.parent()?.to_path_buf(), item))) {
+            Some((folder, item)) => EnclosingRow::Target(folder, item),
+            None => EnclosingRow::None,
+        }
     }
 
     /// 폴더 `dir` 로 옮길 때 부른다. Find 를 닫아 그 폴더의 전체 목록을 보이고, 목록에 `item` 이 나타나면
@@ -118,7 +146,25 @@ mod tests {
             let broken = tmp.path().join("broken.md");
             std::os::unix::fs::symlink(tmp.path().join("gone"), &broken).expect("symlink");
             assert_eq!(view.enclosing_target(&broken), None);
+            assert_eq!(view.enclosing_row(&broken), EnclosingRow::TargetGone);
         }
+        assert_eq!(view.enclosing_row(&plain), EnclosingRow::None);
+    }
+
+    /// 대상을 풀 수 없지만 사라진 것은 아닌 링크(순환, 부모 없는 대상)는 행이 없다.
+    #[cfg(unix)]
+    #[test]
+    fn only_a_link_whose_target_is_gone_gets_a_disabled_row() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let view = ExplorerView::default();
+        let a = tmp.path().join("a");
+        let b = tmp.path().join("b");
+        std::os::unix::fs::symlink(&b, &a).expect("symlink");
+        std::os::unix::fs::symlink(&a, &b).expect("symlink");
+        assert_eq!(view.enclosing_row(&a), EnclosingRow::None, "a loop");
+        let root = tmp.path().join("root");
+        std::os::unix::fs::symlink("/", &root).expect("symlink");
+        assert_eq!(view.enclosing_row(&root), EnclosingRow::None, "no parent");
     }
 
     /// 링크를 만든 뒤 `enclosing_target` 이 돌려준 (폴더, 항목).
