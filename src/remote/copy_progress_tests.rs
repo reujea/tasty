@@ -261,6 +261,14 @@ fn lead_bytes_and_0x9d_outside_osc_strings_near_the_head_limit() {
         let input = [b"\x1b[".as_slice(), &vec![b'1'; n], b"\x9d52;c;aGk="].concat();
         assert!(oracle_receiving(&input), "기준 0x9d {n}");
         assert!(tracker_receiving(&input), "CSI를 끝낸 0x9d {n}");
+        // 앞의 CJK 제목 OSC에서 알아낸 'OSC 문자열 안'은 제목을 끝낸 기준점에서 버려야 한다.
+        let title = "\x1b]0;제목".as_bytes();
+        let input = [title, b"\x1b[", &vec![b'1'; n], b"\xc2", WRITE].concat();
+        assert!(oracle_receiving(&input), "기준 제목 뒤 {n}");
+        assert!(tracker_receiving(&input), "CJK 제목 뒤 CSI 리드 {n}");
+        let input = [title, b"\x1b[", &vec![b'1'; n], b"\x9d52;c;aGk="].concat();
+        assert!(oracle_receiving(&input), "기준 제목 뒤 0x9d {n}");
+        assert!(tracker_receiving(&input), "CJK 제목 뒤 CSI를 끝낸 0x9d {n}");
     }
 
     // CSI 안 0xe4는 글자를 시작하지 않는다. 뒤의 제목 OSC 안 0x9d는 아무것도 하지 않으므로 쓰기가 아니다.
