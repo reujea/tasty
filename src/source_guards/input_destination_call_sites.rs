@@ -31,7 +31,10 @@ fn the_window_key_path_picks_its_branch_through_the_input_destination() {
         "터미널 게이트"
     );
     for arm in [
-        "matchself.state.input_destination(engine,overlay_open){",
+        "Some(KeyReceiver::Surface(sid)|KeyReceiver::Shortcut{end:KeyEnd::Surface(sid),},)=>(self.state.surface_input_destination(engine,sid),Some(sid)),",
+        "Some(_)=>return,",
+        "None=>(self.state.input_destination(engine,overlay_open),self.state.focused_surface_id(engine),),",
+        "matchdestination{",
         "InputDestination::Overlay=>return,",
         "InputDestination::Terminal(_)=>self.forward_key_to_terminal(engine,event),",
         "InputDestination::EguiMesh(sid)=>self.forward_key_to_egui_mesh(sid,event),",

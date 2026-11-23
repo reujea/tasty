@@ -388,8 +388,9 @@ fn close_stage_with_f8(s: &mut FindScene) {
 }
 
 /// 장면의 한 판: 응답이 `arrive` 번째 패스(0 이 A) 앞에 도착한다. 패스 순서는 A(키 받음) → B1·B2(수식 키 뗌이 끊은
-/// 두 몫) → F8 몫 → X 이고, B1·B2·F8 은 알림 팝업이 키를 묶어 surface 본문이 키를 받지 않는다. 패스마다 (키 받음,
-/// 무대, 붙여넣기 있음) 을 돌려준다.
+/// 두 몫) → F8 몫 → X 이고, B1·B2 는 알림 팝업이 키를 묶어 surface 본문이 키를 받지 않는다. F8 몫은 무대가 받은
+/// 경로 키의 몫이라 팝업을 묶지 않는다(K9 결속은 단계 4 수신자, `window_feeds_key`). 패스마다 (키 받음, 무대,
+/// 붙여넣기 있음) 을 돌려준다.
 fn run_with_arrival(s: &mut FindScene, arrive: usize) -> Vec<(bool, bool, bool)> {
     press_then_touch_and_release(s);
     assert_eq!(
@@ -430,7 +431,7 @@ fn run_with_arrival(s: &mut FindScene, arrive: usize) -> Vec<(bool, bool, bool)>
             );
         }
         seen.push((p.take, p.stage, has_paste(&p.events)));
-        if i < 4 {
+        if i < FIRST_OPEN_PASS {
             assert_eq!(
                 shown(s),
                 ["apple.txt", "banana.txt", "cherry.txt"],
@@ -442,31 +443,30 @@ fn run_with_arrival(s: &mut FindScene, arrive: usize) -> Vec<(bool, bool, bool)>
     seen
 }
 
+/// 팝업이 키를 묶지 않은 첫 패스(F8 몫). 그 앞 B1·B2 는 알림 팝업이 키를 묶었다.
+const FIRST_OPEN_PASS: usize = 3;
+
 /// Given 일반 화면의 탐색기 Find 입력칸이 egui 포커스를 가지고 알림 팝업이 passive 로 열려 있을 때(R2-12r), When 위
 /// 제품 순서의 응답이 A 앞, A·B1 사이, B1·B2 사이, B2·F8 사이, F8·X 사이 어디에 도착해도, Then 붙여넣기는 알림 팝업이
-/// 키를 묶은 B1·B2·F8 패스에서 꺼내져 사라지지 않고 키를 묶지 않은 X 패스에서 Find 에 한 번 들어간다. 그 뒤 패스는 다시
-/// 넣지 않는다.
+/// 키를 묶은 B1·B2 패스에서 꺼내져 사라지지 않고, 키를 묶지 않은 패스(F8 몫, 응답이 그 뒤에 왔으면 X)에서 Find 에 한
+/// 번 들어간다. 그 뒤 패스는 다시 넣지 않는다.
 #[test]
 fn a_find_paste_arriving_before_the_passes_whose_keys_a_popup_holds_reaches_the_find_once() {
     for arrive in 0..5 {
         let mut s = find_scene();
         let seen = run_with_arrival(&mut s, arrive);
+        let paste_at = arrive.max(FIRST_OPEN_PASS);
+        let expected = (0..6)
+            .map(|i| (i == 0 || i >= FIRST_OPEN_PASS, false, i == paste_at))
+            .collect::<Vec<_>>();
         assert_eq!(
-            seen,
-            [
-                (true, false, false),
-                (false, false, false),
-                (false, false, false),
-                (false, false, false),
-                (true, false, true),
-                (true, false, false),
-            ],
+            seen, expected,
             "도착 {arrive}: (키 받음, 무대, 붙여넣기) 패스 순서"
         );
         assert_eq!(
             shown(&s),
             ["banana.txt"],
-            "도착 {arrive}: 결속 없는 X 패스에서 Find 에 한 번 들어간다"
+            "도착 {arrive}: 결속 없는 패스에서 Find 에 한 번 들어간다"
         );
         assert!(s.held.is_empty());
         assert!(s.input.is_empty());

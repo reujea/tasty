@@ -73,13 +73,14 @@ fn the_terminal_goes_through_the_window_hold_gate() {
         "letoverlay_open=self.state.window_key_holds_terminal(self.key_decision);",
         "터미널 게이트",
     );
-    // 게이트가 참이면 갈래 판정(`input_destination`)이 오버레이 갈래로 멈춘다. 갈래 모양은
-    // `source_guards::input_destination_call_sites` 가 본다.
+    // 지금 경로로 남는 사건은 게이트가 참이면 갈래 판정(`input_destination`)이 오버레이 갈래로 멈춘다. 경로 키는 단계 4
+    // 수신자의 surface 갈래다. 갈래 모양은 `source_guards::input_destination_call_sites` 가 본다.
     let stop = at(
         &body,
-        "matchself.state.input_destination(engine,overlay_open){InputDestination::Overlay=>return,",
+        "None=>(self.state.input_destination(engine,overlay_open),",
         "터미널 게이트의 멈춤",
     );
+    at(&body, "InputDestination::Overlay=>return,", "오버레이 갈래");
     let pty = at(
         &body,
         "InputDestination::Terminal(_)=>self.forward_key_to_terminal(engine,event)",

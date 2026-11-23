@@ -117,23 +117,26 @@ impl MainView {
             return;
         }
 
-        // 경로 키의 끝 목적지는 출발 surface(`Surface`, 끝이 surface 인 `Shortcut`)뿐이다.
-        if let Some(receiver) = receiver {
-            use crate::adapters::ui::input::key_route::{KeyEnd, KeyReceiver};
-            match receiver {
-                KeyReceiver::Surface(_)
+        // 경로 키의 끝 목적지는 단계 4 수신자의 출발 surface(`Surface`, 끝이 surface 인 `Shortcut`)뿐이고 그 surface 의
+        // 갈래로 간다. 지금 경로로 남는 사건은 지금 포커스 surface 의 갈래다.
+        use crate::adapters::ui::input::key_route::{KeyEnd, KeyReceiver};
+        let (destination, typing_surface_id) = match receiver {
+            Some(
+                KeyReceiver::Surface(sid)
                 | KeyReceiver::Shortcut {
-                    end: KeyEnd::Surface(_),
-                } => {}
-                _ => return,
-            }
-        }
-
-        let typing_surface_id = self.state.focused_surface_id(engine);
+                    end: KeyEnd::Surface(sid),
+                },
+            ) => (self.state.surface_input_destination(engine, sid), Some(sid)),
+            Some(_) => return,
+            None => (
+                self.state.input_destination(engine, overlay_open),
+                self.state.focused_surface_id(engine),
+            ),
+        };
 
         // markdown/image 등 egui-mesh surface 면 plugin 으로, attach mesh mirror 면 원격 plugin 으로 Key/Text 를
         // 보낸다. html/empty/None 등 입력을 받지 않는 surface 는 no-op 이다.
-        match self.state.input_destination(engine, overlay_open) {
+        match destination {
             InputDestination::Overlay => return,
             InputDestination::Terminal(_) => self.forward_key_to_terminal(engine, event),
             InputDestination::EguiMesh(sid) => self.forward_key_to_egui_mesh(sid, event),

@@ -101,9 +101,11 @@ impl super::MainViewState {
         }
     }
 
-    /// 창이 받은 키 사건을 egui 로 보낼지(K9). 경로 키는 단계 4 수신자가 egui 수신자일 때만 보내고, 보내면 지금
-    /// 게이트처럼 그 키를 실은 그리기의 키 주인을 묶는다. 지금 경로로 남는 사건(bare Esc·뗌·래치 중 키·egui 키 없는
-    /// 누름·클립보드 조합·편집 바인딩 키)은 지금 게이트(`window_feeds_egui`)다. 반환은 `window_feeds_egui` 와 같다.
+    /// 창이 받은 키 사건을 egui 로 보낼지(K9). 경로 키는 단계 4 수신자가 egui 수신자일 때만 보내고, 보내면 그 몫의
+    /// 결속에 수신자를 적는다(`bind_key_receiver`). 그리기 독자(`surfaces_take_keys`·`pass_key_node`·팝업 층)는 그
+    /// 결속을 읽으므로 경로 키 몫의 그리기 자격은 단계 4 수신자가 정한다. 지금 경로로 남는 사건(bare Esc·뗌·래치 중
+    /// 키·egui 키 없는 누름·클립보드 조합·편집 바인딩 키)은 지금 게이트(`window_feeds_egui`)다. 반환은
+    /// `window_feeds_egui` 와 같다.
     #[cfg(feature = "gui")]
     pub(crate) fn window_feeds_key(
         &mut self,
@@ -115,10 +117,27 @@ impl super::MainViewState {
         match decision {
             KeyDecision::Current => self.window_feeds_egui(egui_surface, binds),
             KeyDecision::Path(routed) if routed.receiver.is_egui() => {
-                Some(binds && self.bind_window_key_owner())
+                Some(binds && self.bind_key_receiver(routed.receiver))
             }
             KeyDecision::Path(_) => None,
         }
+    }
+
+    /// 경로 키의 egui 수신자를 그 몫의 결속에 적는다. 수신자가 팝업이면 그 팝업을 묶고, 그 밖의 수신자(egui
+    /// surface·주소 띠·안내·튜토리얼·무대)면 묶지 않는다. 묶었으면 참이다.
+    #[cfg(feature = "gui")]
+    fn bind_key_receiver(
+        &mut self,
+        receiver: crate::adapters::ui::input::key_route::KeyReceiver,
+    ) -> bool {
+        use crate::adapters::ui::input::key_route::KeyReceiver;
+        let node = match receiver {
+            KeyReceiver::Popup(iid) => PopupNode::Host(iid),
+            KeyReceiver::PluginPopup(id) => PopupNode::Plugin(id),
+            _ => return false,
+        };
+        self.popups.bind_input_key_owner(node);
+        true
     }
 
     /// 창이 키를 터미널(PTY)·단축키로 보내지 않는지(`view::main::keyboard` 의 게이트). 팝업 키 주인이 있거나 창이
@@ -129,6 +148,7 @@ impl super::MainViewState {
 
     /// 팝업 층 아래 egui 화면(surface UI·사이드바 등)이 이번 프레임 키 입력을 볼지. 창이 이번 프레임 키를 팝업
     /// 키 주인에 묶었으면 그 키는 팝업 것이라 아래 화면은 보지 않는다(팝업 층보다 먼저 그리므로 이 값으로 막는다).
+    /// 경로 키 몫의 결속은 단계 4 수신자다(`window_feeds_key`).
     pub(crate) fn surfaces_take_keys(&self) -> bool {
         self.popups.frame_bound_key_owner().is_none()
     }

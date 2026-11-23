@@ -30,16 +30,29 @@ impl super::MainViewState {
         if overlay_open {
             return InputDestination::Overlay;
         }
-        let sid = self.focused_surface_id(engine);
-        if let (FocusedSurfaceType::Terminal, Some(sid)) = (self.focused_surface_type(engine), sid)
-        {
-            return InputDestination::Terminal(sid);
+        match self.focused_surface_id(engine) {
+            Some(sid) => self.surface_input_destination(engine, sid),
+            None => InputDestination::Other(None),
         }
-        let surface = sid.and_then(|sid| engine.find_surface_by_id(sid).map(|s| (sid, s)));
-        match surface {
-            Some((sid, s)) if s.mesh().is_some() => InputDestination::EguiMesh(sid),
-            Some((sid, s)) if s.attach_mesh().is_some() => InputDestination::AttachMesh(sid),
-            _ => InputDestination::Other(sid),
+    }
+
+    /// surface `sid` 가 키 사건을 받는 갈래. 경로 키는 단계 4 수신자의 surface 로 이 값을 고른다.
+    pub(crate) fn surface_input_destination(
+        &self,
+        engine: &EngineRead<'_>,
+        sid: u32,
+    ) -> InputDestination {
+        let Some(surface) = engine.find_surface_by_id(sid) else {
+            return InputDestination::Other(Some(sid));
+        };
+        if self.surface_type_of(engine, sid) == FocusedSurfaceType::Terminal {
+            InputDestination::Terminal(sid)
+        } else if surface.mesh().is_some() {
+            InputDestination::EguiMesh(sid)
+        } else if surface.attach_mesh().is_some() {
+            InputDestination::AttachMesh(sid)
+        } else {
+            InputDestination::Other(Some(sid))
         }
     }
 }

@@ -542,3 +542,44 @@ fn a_stage_opened_over_a_bound_popup_is_the_start_node() {
         KeyReceiver::Stage
     );
 }
+
+/// K9 결속은 단계 4 수신자다: 무대가 받은 키는 뒤에 열린 팝업(포커스 노드 순위가 무대보다 아래)을 그 몫에 묶지
+/// 않는다. 팝업이 받은 키는 그 팝업을 묶는다.
+#[test]
+fn the_key_feed_binds_the_receiver_not_the_live_popup() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let (iid, _) = open_search(&mut state, &read);
+    assert!(state.open_fullscreen_stage("blank"));
+    let a = decide(&state, &read, letter("a", KeyCode::KeyA), NONE);
+    assert_eq!(routed(a).receiver, KeyReceiver::Stage);
+    assert_eq!(state.window_feeds_key(a, false, true), Some(false));
+    assert_eq!(state.popups.bound_input_key_owner(), None);
+    assert!(state.close_fullscreen_stage());
+    state.normalize_focus(&read);
+    let b = decide(&state, &read, letter("b", KeyCode::KeyB), NONE);
+    assert_eq!(routed(b).receiver, KeyReceiver::Popup(iid));
+    assert_eq!(state.window_feeds_key(b, false, true), Some(true));
+    assert_eq!(
+        state.popups.bound_input_key_owner(),
+        Some(crate::adapters::ui::popup::focus::PopupNode::Host(iid))
+    );
+}
+
+/// 경로 키 끝 목적지의 갈래는 수신자 surface 로 고른다. 포커스 터미널이면 지금 포커스 갈래와 같다.
+#[test]
+fn a_receiver_surface_picks_its_own_input_branch() {
+    let (state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let sid = state.focused_surface_id(&read).expect("포커스 surface");
+    assert_eq!(
+        state.surface_input_destination(&read, sid),
+        crate::state::input_destination::InputDestination::Terminal(sid)
+    );
+    assert_eq!(
+        state.surface_input_destination(&read, sid),
+        state.input_destination(&read, false)
+    );
+}
