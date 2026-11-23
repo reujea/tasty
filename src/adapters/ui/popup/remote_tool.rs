@@ -1493,7 +1493,7 @@ fn draw_attach_form(
                 th,
                 t("remote_tool.field_name"),
                 &mut f.name,
-                "gb10",
+                "host",
                 false,
             );
             text_row(

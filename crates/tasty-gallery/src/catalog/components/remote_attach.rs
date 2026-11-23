@@ -92,7 +92,7 @@ const PROFILES: &[Prof] = &[
         inactive: false,
     },
     Prof {
-        name: "gb10",
+        name: "host",
         label: "",
         target: "→ prod-web",
         inactive: false,

@@ -113,8 +113,8 @@ const KNOWN_PROFILE_TYPES: &[&str] = &["ssh", "smb", "http"];
 /// 이미 가져온 alias 는 액션 대신 Tag 로 상태만 보인다.
 const LOCAL_HOSTS: &[LocalSshHost<'static>] = &[
     LocalSshHost {
-        alias: "gb10",
-        target: "maya@gb10.local:22",
+        alias: "host",
+        target: "maya@host.local:22",
         in_profiles: false,
     },
     LocalSshHost {
@@ -310,7 +310,7 @@ struct Attach {
 
 const ATTACHES: &[Attach] = &[
     Attach {
-        name: "gb10",
+        name: "host",
         label: "us-east",
         mode: "profile",
         target: "→ prod-web",
@@ -546,7 +546,7 @@ fn attach_form_card(ui: &mut egui::Ui, theme: &Theme, inline: bool) {
                     .color(theme.text_primary().to_egui()),
             );
             form_row(ui, theme, "Name", |ui| {
-                kit::field(ui, theme, None, "gb10", false, false);
+                kit::field(ui, theme, None, "host", false, false);
             });
             form_row(ui, theme, "Label", |ui| {
                 if inline {

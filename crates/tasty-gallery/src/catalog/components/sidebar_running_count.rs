@@ -513,7 +513,7 @@ fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
                         "mirror · subtitle · description · value 0",
                         CountRow {
                             mirror: true,
-                            subtitle: Some("mirror → gb10"),
+                            subtitle: Some("mirror → host"),
                             description: Some("nightly ETL across the warehouse, last run 18m ago"),
                             ..row("data-pipeline", 0)
                         },
@@ -522,7 +522,7 @@ fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
                         "mirror · subtitle · description",
                         CountRow {
                             mirror: true,
-                            subtitle: Some("mirror → gb10"),
+                            subtitle: Some("mirror → host"),
                             description: Some("nightly ETL across the warehouse, last run 18m ago"),
                             ..row("data-pipeline", 3)
                         },
@@ -531,7 +531,7 @@ fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
                         "99+ moves every body line together",
                         CountRow {
                             mirror: true,
-                            subtitle: Some("mirror → gb10"),
+                            subtitle: Some("mirror → host"),
                             description: Some("nightly ETL across the warehouse, last run 18m ago"),
                             ..row("data-pipeline", 128)
                         },

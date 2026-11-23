@@ -39,7 +39,7 @@ pub(super) fn left_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, stat
     );
     let sel_name = match state {
         RaState::Error => "legacy-attach",
-        RaState::Connecting => "gb10",
+        RaState::Connecting => "host",
         RaState::Empty | RaState::EmptyPlanA => "media-nas",
         _ => "prod-web",
     };
@@ -75,7 +75,7 @@ pub(super) fn right_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, sta
         RaState::Connecting => {
             CenterState::loading("Connecting…")
                 .sub_line(Some(
-                    "Establishing the SSH tunnel to gb10 and listing workspaces. If the host does not \
+                    "Establishing the SSH tunnel to host and listing workspaces. If the host does not \
                      respond, the lookup stops on its own after 20s.",
                 ))
                 .show_in(ui, theme, rect);
