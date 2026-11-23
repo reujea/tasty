@@ -56,11 +56,13 @@ fn no_path_keeps_every_field() {
 /// 경로에 없는 숫자 전환 축은 두 모드(수식키·개별 키)가 함께 꺼진다. 경로에 있는 축은 그대로다.
 #[test]
 fn a_numeric_axis_off_the_path_turns_both_modes_off() {
-    let mut kb = KeybindingSettings::default();
-    kb.tab_switch_modifier = "ctrl".to_string();
-    kb.workspace_switch_modifier = "alt".to_string();
-    kb.tab_switch_next_key = "ctrl+f9".to_string();
-    kb.workspace_switch_next_key = "ctrl+f10".to_string();
+    let kb = KeybindingSettings {
+        tab_switch_modifier: "ctrl".to_string(),
+        workspace_switch_modifier: "alt".to_string(),
+        tab_switch_next_key: "ctrl+f9".to_string(),
+        workspace_switch_next_key: "ctrl+f10".to_string(),
+        ..Default::default()
+    };
     let path = PathLevels::engine_only()
         .with(KeyLevel::Window)
         .with(KeyLevel::Workspace);

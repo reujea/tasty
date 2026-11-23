@@ -294,7 +294,6 @@ fn a_stage_takes_its_exit_key_and_passes_engine_shortcuts() {
     let exit = routed(decide(&state, &read, f_key(8), CTRL));
     assert_eq!(exit.receiver, KeyReceiver::Stage);
     assert_eq!(exit.levels, PathLevels::engine_only());
-    drop(engine);
     bind(&mut session, "toggle_settings", "ctrl+f5");
     let engine = session.borrow_mut();
     let read = engine.read();
@@ -368,7 +367,6 @@ fn a_text_popup_takes_a_command_key_only_when_no_shortcut_on_the_path_uses_it() 
         routed(decide(&state, &read, select_all.clone(), CTRL)).receiver,
         KeyReceiver::Popup(palette)
     );
-    drop(engine);
     bind(&mut session, "toggle_settings", "ctrl+a");
     let engine = session.borrow_mut();
     let read = engine.read();
