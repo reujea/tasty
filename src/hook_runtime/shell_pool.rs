@@ -111,13 +111,13 @@ impl ShellPool {
     }
 
     /// 작업을 맡은 슬롯 수. 시험이 슬롯 반납을 관측할 때 쓴다.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     fn running(&self) -> usize {
         self.lock().running
     }
 
     /// 대기열의 작업 수. 시험이 미실행을 관측할 때 쓴다.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     fn waiting(&self) -> usize {
         self.lock().waiting.len()
     }
