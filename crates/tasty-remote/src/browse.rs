@@ -280,9 +280,9 @@ mod tests {
 
     #[test]
     fn non_loopback_is_none() {
-        assert_eq!(parse_loopback_port("gx10"), None);
+        assert_eq!(parse_loopback_port("host"), None);
         assert_eq!(parse_loopback_port("user@host"), None);
-        assert_eq!(parse_loopback_port("192.168.0.10:45123"), None);
+        assert_eq!(parse_loopback_port("10.0.0.10:45123"), None);
         assert_eq!(parse_loopback_port("example.com:22"), None);
     }
 

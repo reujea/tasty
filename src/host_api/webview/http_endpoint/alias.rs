@@ -114,7 +114,7 @@ mod tests {
     fn other_hosts_and_schemes_keep_their_address() {
         for url in [
             "http://example.test/",
-            "http://192.168.0.5:8080/",
+            "http://10.0.0.5:8080/",
             "http://[2001:db8::1]/",
             "http://app.localhost/",
             "http://[::ffff:127.0.0.1]/",

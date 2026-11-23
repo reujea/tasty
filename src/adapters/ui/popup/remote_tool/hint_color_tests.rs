@@ -65,7 +65,7 @@ fn an_empty_text_row_paints_its_hint_with_the_placeholder_token() {
         placeholder, body,
         "두 색이 같으면 이 시험은 아무것도 가르지 못한다"
     );
-    let colors = glyph_colors(&th, "", "gb10", "gb10");
+    let colors = glyph_colors(&th, "", "devbox", "devbox");
     assert!(!colors.is_empty(), "hint 글자를 찾지 못했다");
     assert!(
         colors.iter().all(|c| *c == placeholder),
@@ -77,7 +77,7 @@ fn an_empty_text_row_paints_its_hint_with_the_placeholder_token() {
 fn a_filled_text_row_keeps_the_body_color_for_its_value() {
     let th = mocha();
     let body: Color32 = th.text_primary().to_egui();
-    let colors = glyph_colors(&th, "gx10", "gb10", "gx10");
+    let colors = glyph_colors(&th, "host", "devbox", "host");
     assert!(!colors.is_empty(), "값 글자를 찾지 못했다");
     assert!(
         colors.iter().all(|c| *c == body),

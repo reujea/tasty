@@ -55,12 +55,12 @@ mod tests {
     #[test]
     fn a_profile_mirror_shows_the_profile_name_and_a_lost_link_is_reconnecting() {
         let mut session = crate::app::attach_client::tests::test_session(10, HashMap::new());
-        session.state.profile = Some("mac-company-attach".into());
+        session.state.profile = Some("work-laptop-attach".into());
         let live = locations_of(std::slice::from_ref(&session));
         assert_eq!(
             live[&10],
             MirrorLocation {
-                host: "mac-company-attach".into(),
+                host: "work-laptop-attach".into(),
                 reconnecting: false
             }
         );

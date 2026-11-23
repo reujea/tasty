@@ -151,7 +151,7 @@ fn saved_row_workspace(id: u32, saved: bool) -> crate::model::Workspace {
     workspace.mirror = true;
     if saved {
         workspace.remote_row = Some(crate::model::RemoteBinding {
-            profile: "gx10".into(),
+            profile: "host".into(),
             remote_workspace: 4,
         });
     }

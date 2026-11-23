@@ -430,9 +430,9 @@ mod tests {
 
     /// Host·Match·Include를 함께 가진 열거 시험 입력.
     const MAIN: &str = r#"
-Host gx10
+Host devbox
     HostName 10.0.0.5
-    User zilhak
+    User maya
     Port 2200
 
 Host *
@@ -450,7 +450,7 @@ Include extra.conf
     const EXTRA: &str = r#"
 Host work
     HostName work.internal
-Host gx10
+Host devbox
     Port 2201
 "#;
 
@@ -480,7 +480,7 @@ Host gx10
             .into_iter()
             .map(|h| h.alias)
             .collect();
-        assert_eq!(names, vec!["gx10", "bastion", "after-match-host", "work"]);
+        assert_eq!(names, vec!["devbox", "bastion", "after-match-host", "work"]);
     }
 
     /// Match에서 표시용 정보의 수집을 끊고 다음 Host에서 다시 시작한다.
@@ -555,9 +555,9 @@ Host gx10
         let main = write(
             dir.path(),
             "config",
-            "Host gx10\n  Port 2200\nInclude extra.conf\n",
+            "Host devbox\n  Port 2200\nInclude extra.conf\n",
         );
-        write(dir.path(), "extra.conf", "Host gx10\n  Port 2201\n");
+        write(dir.path(), "extra.conf", "Host devbox\n  Port 2201\n");
         let hosts = enumerate_hosts_at(&main);
         assert_eq!(hosts.len(), 1);
         assert_eq!(hosts[0].port, Some(2200));
@@ -570,11 +570,11 @@ Host gx10
         let main = write(
             dir.path(),
             "config",
-            "host=gx10\n  hostname = 10.0.0.5\nHOST bastion\n  PORT\t2222\n",
+            "host=devbox\n  hostname = 10.0.0.5\nHOST bastion\n  PORT\t2222\n",
         );
         let hosts = enumerate_hosts_at(&main);
         assert_eq!(hosts.len(), 2);
-        assert_eq!(hosts[0].alias, "gx10");
+        assert_eq!(hosts[0].alias, "devbox");
         assert_eq!(hosts[0].hostname.as_deref(), Some("10.0.0.5"));
         assert_eq!(hosts[1].alias, "bastion");
         assert_eq!(hosts[1].port, Some(2222));
@@ -586,11 +586,11 @@ Host gx10
         let main = write(
             dir.path(),
             "config",
-            "# 전체 주석\nHost gx10 # 줄 끝 주석\n  User \"space name\"\n",
+            "# 전체 주석\nHost devbox # 줄 끝 주석\n  User \"space name\"\n",
         );
         let hosts = enumerate_hosts_at(&main);
         assert_eq!(hosts.len(), 1);
-        assert_eq!(hosts[0].alias, "gx10");
+        assert_eq!(hosts[0].alias, "devbox");
         assert_eq!(hosts[0].user.as_deref(), Some("space name"));
     }
 
@@ -600,10 +600,10 @@ Host gx10
         let main = write(dir.path(), "config", MAIN);
         write(dir.path(), "extra.conf", EXTRA);
         let hosts = enumerate_hosts_at(&main);
-        let gx10 = &hosts[0];
-        assert_eq!(gx10.hostname.as_deref(), Some("10.0.0.5"));
-        assert_eq!(gx10.user.as_deref(), Some("zilhak"));
-        assert_eq!(gx10.port, Some(2200));
+        let devbox = &hosts[0];
+        assert_eq!(devbox.hostname.as_deref(), Some("10.0.0.5"));
+        assert_eq!(devbox.user.as_deref(), Some("maya"));
+        assert_eq!(devbox.port, Some(2200));
         let bastion = &hosts[1];
         assert_eq!(bastion.hostname.as_deref(), Some("jump.example.com"));
         assert_eq!(bastion.user, None);
@@ -613,7 +613,7 @@ Host gx10
     #[test]
     fn unparsable_port_leaves_hint_empty() {
         let dir = tmpdir("port");
-        let main = write(dir.path(), "config", "Host gx10\n  Port not-a-number\n");
+        let main = write(dir.path(), "config", "Host devbox\n  Port not-a-number\n");
         let hosts = enumerate_hosts_at(&main);
         assert_eq!(hosts.len(), 1);
         assert_eq!(hosts[0].port, None);
@@ -630,11 +630,11 @@ Host gx10
     #[test]
     fn import_stores_alias_in_host_field_only() {
         let hosts = fixture_hosts("import-fields");
-        let p = prepare_import(&RemoteProfiles::default(), &hosts, "gx10", "my-gpu", None)
+        let p = prepare_import(&RemoteProfiles::default(), &hosts, "devbox", "my-gpu", None)
             .expect("import prepared");
         assert_eq!(p.kind, "ssh");
         let ssh = p.as_ssh().expect("ssh view");
-        assert_eq!(ssh.host(), Some("gx10"));
+        assert_eq!(ssh.host(), Some("devbox"));
         assert_eq!(ssh.shell(), "auto");
         assert!(!p.fields.contains_key("user"));
         assert!(!p.fields.contains_key("port"));
@@ -649,7 +649,7 @@ Host gx10
         let p = prepare_import(
             &RemoteProfiles::default(),
             &hosts,
-            "gx10",
+            "devbox",
             "my-gpu",
             Some("GPU box".into()),
         )
@@ -670,7 +670,7 @@ Host gx10
         let hosts = fixture_hosts("import-conflict");
         let mut profiles = RemoteProfiles::default();
         profiles.upsert(RemoteProfile::new("my-gpu", "ssh").with_field("host", "other"));
-        let err = prepare_import(&profiles, &hosts, "gx10", "my-gpu", None)
+        let err = prepare_import(&profiles, &hosts, "devbox", "my-gpu", None)
             .expect_err("name conflict rejected");
         assert_eq!(err, ImportError::NameTaken("my-gpu".into()));
         assert_eq!(
@@ -686,9 +686,9 @@ Host gx10
     #[test]
     fn imported_as_matches_host_field_literally() {
         let mut profiles = RemoteProfiles::default();
-        profiles.upsert(RemoteProfile::new("gpu", "ssh").with_field("host", "gx10"));
-        profiles.upsert(RemoteProfile::new("other", "ssh").with_field("host", "zilhak@gx10"));
-        assert_eq!(imported_as(&profiles, "gx10"), Some("gpu"));
+        profiles.upsert(RemoteProfile::new("gpu", "ssh").with_field("host", "devbox"));
+        profiles.upsert(RemoteProfile::new("other", "ssh").with_field("host", "maya@devbox"));
+        assert_eq!(imported_as(&profiles, "devbox"), Some("gpu"));
         assert_eq!(imported_as(&profiles, "bastion"), None);
     }
 

@@ -2186,7 +2186,7 @@ mod tests {
             alias: alias.into(),
             source: std::path::PathBuf::from("/home/u/.ssh/config"),
             hostname: hostname.map(str::to_string),
-            user: Some("zilhak".into()),
+            user: Some("maya".into()),
             port,
         }
     }
@@ -2328,10 +2328,10 @@ mod tests {
 
     #[test]
     fn import_prefill_puts_alias_in_host_and_leaves_user_port_empty() {
-        let f = import_prefill("gx10");
+        let f = import_prefill("devbox");
         assert_eq!(f.kind, "ssh");
-        assert_eq!(f.name, "gx10"); // 기본값 = alias (폼에서 바꿀 수 있다)
-        assert_eq!(f.host, "gx10"); // alias 그대로 — 값 펼치기 없음
+        assert_eq!(f.name, "devbox"); // 기본값 = alias (폼에서 바꿀 수 있다)
+        assert_eq!(f.host, "devbox"); // alias 그대로 — 값 펼치기 없음
         assert_eq!(f.shell, "auto");
         assert!(f.user.is_empty());
         assert!(f.port.is_empty());
@@ -2343,9 +2343,9 @@ mod tests {
     #[test]
     fn already_imported_alias_is_detected_by_host_field() {
         let mut profiles = RemoteProfiles::default();
-        profiles.upsert(RemoteProfile::new("my-gpu", "ssh").with_field("host", "gx10"));
+        profiles.upsert(RemoteProfile::new("my-gpu", "ssh").with_field("host", "devbox"));
         profiles.upsert(RemoteProfile::new("other", "smb").with_field("host", "bastion"));
-        assert_eq!(imported_as(&profiles, "gx10"), Some("my-gpu"));
+        assert_eq!(imported_as(&profiles, "devbox"), Some("my-gpu"));
         assert_eq!(imported_as(&profiles, "bastion"), None);
     }
 
@@ -2353,7 +2353,7 @@ mod tests {
     fn local_target_hint_falls_back_to_alias_and_dash() {
         let hint = |hostname: Option<&str>, user: Option<&str>, port: Option<u16>| {
             local_target_hint(&SshConfigHost {
-                alias: "gx10".into(),
+                alias: "devbox".into(),
                 source: std::path::PathBuf::from("/home/u/.ssh/config"),
                 hostname: hostname.map(str::to_string),
                 user: user.map(str::to_string),
@@ -2367,9 +2367,9 @@ mod tests {
         assert_eq!(hint(Some("10.0.0.5"), None, Some(2200)), "10.0.0.5:2200");
         assert_eq!(hint(Some("10.0.0.5"), Some("maya"), None), "maya@10.0.0.5");
         assert_eq!(hint(Some("10.0.0.5"), None, None), "10.0.0.5");
-        assert_eq!(hint(None, Some("maya"), Some(22)), "maya@gx10:22");
-        assert_eq!(hint(None, None, Some(22)), "gx10:22");
-        assert_eq!(hint(None, Some("maya"), None), "maya@gx10");
+        assert_eq!(hint(None, Some("maya"), Some(22)), "maya@devbox:22");
+        assert_eq!(hint(None, None, Some(22)), "devbox:22");
+        assert_eq!(hint(None, Some("maya"), None), "maya@devbox");
         assert_eq!(hint(None, None, None), "—");
     }
 
@@ -2393,12 +2393,12 @@ mod tests {
         let mut profiles = RemoteProfiles::default();
         profiles.upsert(RemoteProfile::new("my-gpu", "ssh").with_field("host", "other"));
         let mut st = UiState {
-            local: Some(cache(vec![host("gx10", Some("10.0.0.5"), Some(2200))])),
+            local: Some(cache(vec![host("devbox", Some("10.0.0.5"), Some(2200))])),
             ..Default::default()
         };
         let texts = painted_text(&profiles, &mut st, &["ssh"]);
         assert!(
-            texts.iter().any(|s| s.contains("gx10")),
+            texts.iter().any(|s| s.contains("devbox")),
             "필터가 로컬 섹션까지 가렸다: {texts:?}"
         );
         assert!(
@@ -2415,12 +2415,12 @@ mod tests {
         crate::i18n::init("en");
         let profiles = RemoteProfiles::default();
         let mut st = UiState {
-            local: Some(cache(vec![host("gx10", Some("10.0.0.5"), Some(2200))])),
+            local: Some(cache(vec![host("devbox", Some("10.0.0.5"), Some(2200))])),
             ..Default::default()
         };
         let texts = painted_text(&profiles, &mut st, &[]);
         assert!(
-            texts.iter().any(|s| s.contains("gx10")),
+            texts.iter().any(|s| s.contains("devbox")),
             "프로필 0 건에서 early return 해 로컬 섹션이 사라졌다: {texts:?}"
         );
         assert!(

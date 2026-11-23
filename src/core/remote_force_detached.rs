@@ -57,15 +57,15 @@ mod tests {
     #[test]
     fn a_mark_is_kept_once_and_survives_a_toml_roundtrip() {
         let mut rows = ForceDetachedRows::default();
-        rows.insert(binding("gx10", 7));
-        rows.insert(binding("gx10", 7));
+        rows.insert(binding("host", 7));
+        rows.insert(binding("host", 7));
         rows.insert(binding("mac", 3));
         assert_eq!(rows.items.len(), 2);
         let text = toml::to_string_pretty(&rows).unwrap();
         let back: ForceDetachedRows = toml::from_str(&text).unwrap();
         assert_eq!(back, rows);
-        rows.remove(&binding("gx10", 7));
-        assert!(!rows.contains(&binding("gx10", 7)));
+        rows.remove(&binding("host", 7));
+        assert!(!rows.contains(&binding("host", 7)));
         assert!(rows.contains(&binding("mac", 3)));
     }
 

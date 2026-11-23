@@ -19,7 +19,7 @@ mod tests {
     #[test]
     fn a_binding_survives_a_json_roundtrip() {
         let binding = RemoteBinding {
-            profile: "gx10".into(),
+            profile: "host".into(),
             remote_workspace: 7,
         };
         let json = serde_json::to_string(&binding).unwrap();

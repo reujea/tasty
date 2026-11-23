@@ -151,15 +151,15 @@ mod tests {
         let mark = |host_px: f32| LogicalPx(12.0 + 4.0 + host_px);
         let budget =
             |host_px| target_budget_chars_beside(LogicalPx(6.0), mark(host_px), LogicalPx(8.0));
-        assert_eq!(budget(24.0), 57, "gx10");
-        assert_eq!(budget(108.0), 43, "mac-company-attach");
+        assert_eq!(budget(24.0), 57, "host");
+        assert_eq!(budget(108.0), 43, "work-laptop-attach");
         assert_eq!(budget(90.0), 46, "127.0.0.1:54321");
         assert_eq!(budget(160.0), 34, "host at the cap");
         assert_eq!(
             target_budget_chars_beside(LogicalPx(0.0), mark(24.0), LogicalPx(8.0)),
             FH_TARGET_ELIDE_FALLBACK_REMOTE
         );
-        // 93자 표본은 mac-company-attach 옆에서 조각 경계로, 상한에서는 한 조각 안에서 잘린다.
+        // 93자 표본은 work-laptop-attach 옆에서 조각 경계로, 상한에서는 한 조각 안에서 잘린다.
         assert_eq!(
             elide_target_front(B_SEGMENT, budget(108.0)),
             "…/SidebarCategoryHeaderContrast.tsx"

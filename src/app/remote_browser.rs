@@ -304,12 +304,12 @@ mod tests {
             [
                 (Some("other"), &other),
                 (None, &unnamed),
-                (Some("gx10"), &same),
+                (Some("host"), &same),
             ]
         };
-        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 3), Some(40));
-        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 4), None);
-        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 5), None);
-        assert_eq!(remote_surface_of_profile(sessions(), "gx10", 9), None);
+        assert_eq!(remote_surface_of_profile(sessions(), "host", 3), Some(40));
+        assert_eq!(remote_surface_of_profile(sessions(), "host", 4), None);
+        assert_eq!(remote_surface_of_profile(sessions(), "host", 5), None);
+        assert_eq!(remote_surface_of_profile(sessions(), "host", 9), None);
     }
 }

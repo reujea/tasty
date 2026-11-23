@@ -1177,7 +1177,7 @@ mod tests {
         with_ctx(|ctx| {
             let font = egui::FontId::proportional(SIZING.font_size_max.value());
             let text =
-                "파일 핸들러 선택: /Users/ljh/workspace/etc/teams-mcp-very-long-path/Cargo.toml";
+                "파일 핸들러 선택: /Users/dev/workspace/etc/teams-mcp-very-long-path/Cargo.toml";
             let result = elide_for_width(ctx, text, font, 40.0);
             assert!(result.chars().count() < text.chars().count());
             assert!(result.ends_with('…'));

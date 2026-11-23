@@ -169,7 +169,7 @@ mod tests {
     fn only_a_mirror_surface_gets_the_remote_item() {
         crate::i18n::init("en");
         let location = MirrorLocation {
-            host: "mac-company-attach".into(),
+            host: "work-laptop-attach".into(),
             reconnecting: false,
         };
         let (_state, mut local, sid, _root) = crate::state::tests::explorer_fixture(false);
@@ -182,7 +182,7 @@ mod tests {
         assert!(remote_of(&mirror.read(), Some(sid)).is_none());
         mirror.remote.mirror_locations.insert(sid, location);
         let item = remote_of(&mirror.read(), Some(sid)).expect("mirror surface");
-        assert_eq!(item.host, "mac-company-attach");
+        assert_eq!(item.host, "work-laptop-attach");
         assert!(remote_of(&mirror.read(), None).is_none());
     }
 
@@ -191,17 +191,18 @@ mod tests {
     fn a_mirror_location_becomes_the_remote_item() {
         crate::i18n::init("en");
         let live = remote_item(&MirrorLocation {
-            host: "gx10".into(),
+            host: "host".into(),
             reconnecting: false,
         });
-        assert_eq!(live.host, "gx10");
+        assert_eq!(live.host, "host");
         assert!(!live.reconnecting);
         assert_eq!(live.tooltip, crate::i18n::t("attach.mirror_workspace"));
         assert_eq!(live.empty_label, crate::i18n::t("attach.mirror_pill_label"));
         let lost = remote_item(&MirrorLocation {
-            host: "gx10".into(),
+            host: "work-laptop-attach".into(),
             reconnecting: true,
         });
+        assert_eq!(lost.host, "work-laptop-attach");
         assert!(lost.reconnecting);
         assert_eq!(lost.reconnecting_label, "reconnecting");
         assert_eq!(

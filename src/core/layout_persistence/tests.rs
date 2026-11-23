@@ -107,7 +107,7 @@ fn saved_workspace_old_attach_mapping_is_read_and_not_written_back() {
               "surface": { "Leaf": { "Terminal": {} } } }
         ], "active_tab": 0 } },
         "focused_pane_index": 0,
-        "attach_mapping": { "target": { "Profile": { "name": "gx10" } }, "remote_workspace": 1 }
+        "attach_mapping": { "target": { "Profile": { "name": "host" } }, "remote_workspace": 1 }
     }"#;
     let ws: SavedWorkspace = serde_json::from_str(legacy).unwrap();
     let json = serde_json::to_string(&ws).unwrap();

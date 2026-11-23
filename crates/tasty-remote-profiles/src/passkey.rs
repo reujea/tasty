@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn valid_name_whitelist() {
-        assert!(is_valid_passkey_name("gx10-key"));
+        assert!(is_valid_passkey_name("host-key"));
         assert!(is_valid_passkey_name("my_key_1"));
         assert!(!is_valid_passkey_name("")); // 빈 값
         assert!(!is_valid_passkey_name("my key")); // 공백
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn sanitize_replaces_and_never_empty() {
-        assert_eq!(sanitize_passkey_name("gx10-key"), "gx10-key");
+        assert_eq!(sanitize_passkey_name("host-key"), "host-key");
         assert_eq!(sanitize_passkey_name("my key"), "my_key");
         assert_eq!(sanitize_passkey_name("../etc"), "___etc");
         assert_eq!(sanitize_passkey_name("키"), "_"); // 전부 치환되어도 비지 않음

@@ -165,9 +165,9 @@ mod tests {
     fn parse_lsof_full_output() {
         let sample = "\
 COMMAND   PID  USER  FD   TYPE             DEVICE SIZE/OFF NODE NAME
-node    12345  ljh   22u  IPv4 0x1234567890abcdef      0t0  TCP *:3000 (LISTEN)
-node    12345  ljh   23u  IPv6 0x1234567890abcdef      0t0  TCP [::1]:8080 (LISTEN)
-ssh     54321  ljh   3u   IPv4 0x1234                  0t0  TCP 1.2.3.4:22->5.6.7.8:55 (ESTABLISHED)
+node    12345  dev   22u  IPv4 0x1234567890abcdef      0t0  TCP *:3000 (LISTEN)
+node    12345  dev   23u  IPv6 0x1234567890abcdef      0t0  TCP [::1]:8080 (LISTEN)
+ssh     54321  dev   3u   IPv4 0x1234                  0t0  TCP 1.2.3.4:22->5.6.7.8:55 (ESTABLISHED)
 ";
         let results = parse_lsof(sample);
         assert_eq!(results.len(), 3);
@@ -197,7 +197,7 @@ ssh     54321  ljh   3u   IPv4 0x1234                  0t0  TCP 1.2.3.4:22->5.6.
     fn parse_lsof_fills_process_name() {
         let sample = "\
 COMMAND   PID  USER  FD   TYPE             DEVICE SIZE/OFF NODE NAME
-python3 12345 ljh   22u  IPv4 0x1                  0t0 TCP *:3000 (LISTEN)
+python3 12345 dev   22u  IPv4 0x1                  0t0 TCP *:3000 (LISTEN)
 ";
         let results = parse_lsof(sample);
         assert_eq!(results.len(), 1);

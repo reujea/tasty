@@ -435,7 +435,7 @@ mod tests {
             crate::model::Workspace::new_with_terminal_marker(id, "row".into(), id, id, id);
         workspace.mirror = true;
         workspace.remote_row = Some(crate::model::RemoteBinding {
-            profile: "gx10".into(),
+            profile: "host".into(),
             remote_workspace: 4,
         });
         engine.core.push_mirror_workspace(workspace);

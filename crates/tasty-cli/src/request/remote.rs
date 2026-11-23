@@ -63,13 +63,13 @@ mod tests {
             "--workspace",
             "2",
             "--profile",
-            "gx10",
+            "host",
         ]);
         assert_eq!(method, "remote.attach");
         assert_eq!(
             params,
             json!({
-                "profile": "gx10",
+                "profile": "host",
                 "remote_workspace": 2,
                 "remote_tasty": "tasty",
                 "remote_port_mode": "auto",
@@ -109,7 +109,7 @@ mod tests {
     /// 기존 호출 형태는 그대로다. `--profile`을 함께 줘도 포트가 있으면 터널을 열지 않는다.
     #[test]
     fn a_target_port_keeps_attach_into_gui() {
-        for extra in [&[][..], &["--profile", "gx10"][..]] {
+        for extra in [&[][..], &["--profile", "host"][..]] {
             let mut args = vec![
                 "tasty",
                 "remote",

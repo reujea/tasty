@@ -9,8 +9,8 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{TextWrap, remote_row_title, selectable_text};
 
-const TEXT: &str = "gx10 deploy@10.0.4.12";
-const NAME: &str = "gx10";
+const TEXT: &str = "host deploy@10.0.4.12";
+const NAME: &str = "host";
 const LABEL: &str = "lab";
 /// 캐럿 막대만 칠하는 색. 다른 도형과 섞이지 않게 테마에 없는 egui 상수를 쓴다.
 const CARET: Color32 = Color32::GOLD;

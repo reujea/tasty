@@ -428,8 +428,8 @@ mod tests {
 
     #[test]
     fn field_value_toml_roundtrip_scalar_and_list() {
-        let mut p = RemoteProfile::new("gx10", "ssh")
-            .with_field("host", "gx10")
+        let mut p = RemoteProfile::new("devbox", "ssh")
+            .with_field("host", "devbox")
             .with_field("port", "2222")
             .with_field(
                 "extra_options",
@@ -438,16 +438,16 @@ mod tests {
                     "Compression=yes".to_string(),
                 ],
             );
-        p.passkey_ref = Some("gx10-key".into());
+        p.passkey_ref = Some("devbox-key".into());
         let mut ps = RemoteProfiles::default();
         ps.upsert(p);
 
         let toml_str = toml::to_string_pretty(&ps).unwrap();
         assert!(toml_str.contains("extra_options = ["));
         let back: RemoteProfiles = toml::from_str(&toml_str).unwrap();
-        let bp = back.get("gx10").unwrap();
+        let bp = back.get("devbox").unwrap();
         assert_eq!(bp.kind, "ssh");
-        assert_eq!(bp.passkey_ref.as_deref(), Some("gx10-key"));
+        assert_eq!(bp.passkey_ref.as_deref(), Some("devbox-key"));
         assert_eq!(
             bp.fields.get("extra_options").unwrap().as_list().unwrap(),
             &[
@@ -455,20 +455,20 @@ mod tests {
                 "Compression=yes".to_string()
             ]
         );
-        assert_eq!(bp.fields.get("host").unwrap().as_str(), Some("gx10"));
+        assert_eq!(bp.fields.get("host").unwrap().as_str(), Some("devbox"));
     }
 
     #[test]
     fn ssh_view_reads_fields_with_defaults() {
         let p = RemoteProfile::new("gx", "ssh")
             .with_field("host", "box")
-            .with_field("user", "zilhak")
+            .with_field("user", "maya")
             .with_field("port", "2222");
         let v = p.as_ssh().unwrap();
         assert_eq!(v.host(), Some("box"));
-        assert_eq!(v.user(), Some("zilhak"));
+        assert_eq!(v.user(), Some("maya"));
         assert_eq!(v.port(), Some(2222));
-        assert_eq!(v.ssh_destination(), "zilhak@box");
+        assert_eq!(v.ssh_destination(), "maya@box");
         assert_eq!(v.shell(), "auto");
         assert!(v.use_agent()); // 필드 없으면 위임
         assert!(!v.is_disabled());
@@ -546,12 +546,12 @@ mod tests {
 
     #[test]
     fn attach_view_ref_mode() {
-        let p = RemoteProfile::new("gb10-attach", "tasty-attach")
-            .with_field("ssh_ref", "gb10")
+        let p = RemoteProfile::new("devbox-attach", "tasty-attach")
+            .with_field("ssh_ref", "devbox")
             .with_field("remote_tasty", "/opt/tasty/tasty")
             .with_field("port_file", "/home/z/.tasty/tasty.port");
         let v = p.as_attach().unwrap();
-        assert_eq!(v.ssh_ref(), Some("gb10"));
+        assert_eq!(v.ssh_ref(), Some("devbox"));
         assert_eq!(v.remote_tasty(), "/opt/tasty/tasty");
         assert_eq!(v.port_file(), Some("/home/z/.tasty/tasty.port"));
         assert_eq!(v.host(), None); // ref 모드 — 인라인 host 없음
@@ -576,7 +576,7 @@ mod tests {
     #[test]
     fn attach_view_ref_ignores_inline_ssh_fields() {
         let p = RemoteProfile::new("mix", "tasty-attach")
-            .with_field("ssh_ref", "gb10")
+            .with_field("ssh_ref", "devbox")
             .with_field("host", "leftover");
         let v = p.as_attach().unwrap();
         assert_eq!(v.host(), None);
@@ -586,9 +586,9 @@ mod tests {
 
     #[test]
     fn ssh_kind_has_no_attach_view() {
-        let p = RemoteProfile::new("gb10", "ssh").with_field("host", "box");
+        let p = RemoteProfile::new("devbox", "ssh").with_field("host", "box");
         assert!(p.as_attach().is_none());
-        let a = RemoteProfile::new("gb10-attach", "tasty-attach");
+        let a = RemoteProfile::new("devbox-attach", "tasty-attach");
         assert!(a.as_ssh().is_none());
     }
 }

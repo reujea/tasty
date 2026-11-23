@@ -856,7 +856,7 @@ fn the_download_dialog_carries_the_mirror_host() {
     engine.remote.mirror_locations.insert(
         ws,
         crate::remote::state::MirrorLocation {
-            host: "gx10".into(),
+            host: "host".into(),
             reconnecting: false,
         },
     );
@@ -869,7 +869,7 @@ fn the_download_dialog_carries_the_mirror_host() {
     let ask = state.dialogs.download_run.ask.as_ref().unwrap();
     assert_eq!(
         (ask.path.as_str(), ask.host.as_str()),
-        ("/remote/b.bin", "gx10")
+        ("/remote/b.bin", "host")
     );
 }
 

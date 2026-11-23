@@ -1168,7 +1168,7 @@ fn escape_closes_a_close_popup_whose_content_ignores_it() {
             crate::model::Workspace::new_with_terminal_marker(row, "row".into(), row, row, row);
         ws.mirror = true;
         ws.remote_row = Some(crate::model::RemoteBinding {
-            profile: "gx10".into(),
+            profile: "host".into(),
             remote_workspace: 4,
         });
         engine.core.push_mirror_workspace(ws);
@@ -1637,7 +1637,7 @@ fn escape_on_a_remote_row_only_unfocuses_it() {
             crate::model::Workspace::new_with_terminal_marker(row, "row".into(), row, row, row);
         ws.mirror = true;
         ws.remote_row = Some(crate::model::RemoteBinding {
-            profile: "gx10".into(),
+            profile: "host".into(),
             remote_workspace: 4,
         });
         engine.core.push_mirror_workspace(ws);

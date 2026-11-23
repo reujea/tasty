@@ -416,7 +416,7 @@ mod attach_surface_tests {
             "remote",
             "attach",
             "--profile",
-            "gx10",
+            "host",
             "--workspace",
             "2",
             "--into-gui",
@@ -437,7 +437,7 @@ mod attach_surface_tests {
         else {
             panic!("expected remote attach");
         };
-        assert_eq!(profile.as_deref(), Some("gx10"));
+        assert_eq!(profile.as_deref(), Some("host"));
         assert_eq!(workspace, Some(2));
         assert!(into_gui);
         assert_eq!(target_port, Some(45123));
@@ -452,7 +452,7 @@ mod attach_surface_tests {
             "--into-gui",
             "--new-workspace",
             "--profile",
-            "gx10",
+            "host",
             "--name",
             "build",
             "--cwd",
@@ -499,7 +499,7 @@ mod attach_surface_tests {
             "remote",
             "new-workspace",
             "--profile",
-            "gx10",
+            "host",
             "--name",
             "build",
             "--cwd",
@@ -522,7 +522,7 @@ mod attach_surface_tests {
         else {
             panic!("expected remote new-workspace");
         };
-        assert_eq!(profile.as_deref(), Some("gx10"));
+        assert_eq!(profile.as_deref(), Some("host"));
         assert_eq!(ssh, None);
         assert_eq!(name.as_deref(), Some("build"));
         assert_eq!(cwd.as_deref(), Some("/srv/app"));
@@ -687,7 +687,7 @@ mod attach_surface_tests {
             "remote",
             "check",
             "--profile",
-            "gx10",
+            "host",
             "--remote-port-mode",
             "file-unix",
         ])
@@ -703,7 +703,7 @@ mod attach_surface_tests {
         else {
             panic!("expected remote check");
         };
-        assert_eq!(profile.as_deref(), Some("gx10"));
+        assert_eq!(profile.as_deref(), Some("host"));
         assert_eq!(remote_port_mode, "file-unix");
     }
 

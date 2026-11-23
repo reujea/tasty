@@ -1162,26 +1162,27 @@ mod tests {
     #[test]
     fn ssh_target_parse_keeps_destination() {
         assert_eq!(SshTarget::parse("user@host").destination, "user@host");
-        assert_eq!(SshTarget::parse("gx10").destination, "gx10");
+        assert_eq!(SshTarget::parse("host").destination, "host");
+        assert_eq!(SshTarget::parse("devbox").destination, "devbox");
         assert!(SshTarget::parse("user@host").ssh_port.is_none());
         // 1회성 경로는 identity/extra 가 비어 동작 불변.
-        assert!(SshTarget::parse("gx10").identity_file.is_none());
-        assert!(SshTarget::parse("gx10").extra_options.is_empty());
+        assert!(SshTarget::parse("host").identity_file.is_none());
+        assert!(SshTarget::parse("host").extra_options.is_empty());
     }
 
     #[test]
     fn from_remote_profile_threads_user_port_identity_options() {
         // identity_file 은 이제 passkey_ref → Passkey.path 로 resolve.
         let mut pk = Passkeys::default();
-        pk.upsert_path("gx10-key", "~/.ssh/id_ed25519").unwrap();
-        let mut p = RemoteProfile::new("gx10", "ssh")
-            .with_field("host", "gx10")
-            .with_field("user", "zilhak")
+        pk.upsert_path("devbox-key", "~/.ssh/id_ed25519").unwrap();
+        let mut p = RemoteProfile::new("devbox", "ssh")
+            .with_field("host", "devbox")
+            .with_field("user", "maya")
             .with_field("port", "2222")
             .with_field("extra_options", vec!["ServerAliveInterval=30".to_string()]);
-        p.passkey_ref = Some("gx10-key".into());
+        p.passkey_ref = Some("devbox-key".into());
         let t = SshTarget::from_remote_profile(&p, &pk).unwrap();
-        assert_eq!(t.destination, "zilhak@gx10");
+        assert_eq!(t.destination, "maya@devbox");
         assert_eq!(t.ssh_port, Some(2222));
         assert_eq!(t.identity_file.as_deref(), Some("~/.ssh/id_ed25519"));
         assert_eq!(t.extra_options, vec!["ServerAliveInterval=30".to_string()]);
@@ -1200,7 +1201,7 @@ mod tests {
         let pk = Passkeys::default();
         let profiles = RemoteProfiles::default();
         // ssh kind 를 attach 대상으로 주면 거부(tasty-attach 만 지원).
-        let ssh = RemoteProfile::new("gb10", "ssh").with_field("host", "h");
+        let ssh = RemoteProfile::new("devbox", "ssh").with_field("host", "h");
         assert!(resolve_attach_target(&ssh, &profiles, &pk).is_err());
     }
 
@@ -1236,12 +1237,12 @@ mod tests {
         let pk = Passkeys::default();
         let mut profiles = RemoteProfiles::default();
         profiles.upsert(
-            RemoteProfile::new("gb10", "ssh")
+            RemoteProfile::new("devbox", "ssh")
                 .with_field("host", "gbhost")
                 .with_field("port", "10209"),
         );
-        let attach = RemoteProfile::new("gb10-a", "tasty-attach")
-            .with_field("ssh_ref", "gb10")
+        let attach = RemoteProfile::new("devbox-a", "tasty-attach")
+            .with_field("ssh_ref", "devbox")
             .with_field("port_file", "/data/tasty.port");
         profiles.upsert(attach.clone());
 
@@ -1252,7 +1253,7 @@ mod tests {
 
         // 라이브 팔로우: 참조 ssh 프로필 port 를 바꾸면 resolve 도 따라간다.
         profiles.upsert(
-            RemoteProfile::new("gb10", "ssh")
+            RemoteProfile::new("devbox", "ssh")
                 .with_field("host", "gbhost")
                 .with_field("port", "10210"),
         );
@@ -1264,7 +1265,8 @@ mod tests {
     fn resolve_attach_ref_dangling_errors() {
         let pk = Passkeys::default();
         let profiles = RemoteProfiles::default(); // 참조 대상 없음
-        let attach = RemoteProfile::new("gb10-a", "tasty-attach").with_field("ssh_ref", "missing");
+        let attach =
+            RemoteProfile::new("devbox-a", "tasty-attach").with_field("ssh_ref", "missing");
         assert!(resolve_attach_target(&attach, &profiles, &pk).is_err());
     }
 
@@ -1273,17 +1275,17 @@ mod tests {
         let pk = Passkeys::default();
         let mut profiles = RemoteProfiles::default();
         profiles.upsert(
-            RemoteProfile::new("gb10", "ssh")
+            RemoteProfile::new("devbox", "ssh")
                 .with_field("host", "h")
                 .with_field("detect_failed", "true"),
         );
-        let attach = RemoteProfile::new("gb10-a", "tasty-attach").with_field("ssh_ref", "gb10");
+        let attach = RemoteProfile::new("devbox-a", "tasty-attach").with_field("ssh_ref", "devbox");
         assert!(resolve_attach_target(&attach, &profiles, &pk).is_err());
     }
 
     #[test]
     fn push_common_opts_emits_identity_and_extra_options() {
-        let mut t = SshTarget::parse("gx10");
+        let mut t = SshTarget::parse("host");
         t.ssh_port = Some(2200);
         t.identity_file = Some("/home/me/.ssh/key".into());
         t.extra_options = vec!["ProxyJump=bastion".into()];
@@ -1306,7 +1308,7 @@ mod tests {
     fn push_common_opts_appends_default_connect_timeout() {
         // 연결 수립 상한이 없으면 OS SYN 재시도(리눅스 ~127초)에 맡겨진다 — 기본값 회귀 고정.
         let mut args: Vec<String> = Vec::new();
-        push_common_opts(&mut args, &SshTarget::parse("gx10"), false);
+        push_common_opts(&mut args, &SshTarget::parse("host"), false);
         let expected = format!("ConnectTimeout={}", SSH_CONNECT_TIMEOUT.as_secs());
         assert!(args.windows(2).any(|w| w[0] == "-o" && w[1] == expected));
     }
@@ -1315,7 +1317,7 @@ mod tests {
     fn user_connect_timeout_wins_over_default() {
         // ssh(1) 은 같은 키의 **먼저 나온 값**을 쓴다 — 사용자 extra_options 가 기본값보다
         // 앞에 와야 프로필 지정이 유효하다(느린 회선/다단 ProxyJump 대응).
-        let mut t = SshTarget::parse("gx10");
+        let mut t = SshTarget::parse("host");
         t.extra_options = vec!["ConnectTimeout=60".into()];
         let mut args: Vec<String> = Vec::new();
         push_common_opts(&mut args, &t, false);
@@ -1568,7 +1570,7 @@ mod tests {
     #[test]
     fn port_discovery_error_display_never_contains_raw_detail() {
         // raw stderr(내부 명령·경로 포함)가 Display 로 새어나가지 않는지 회귀 고정.
-        let raw = "cat: /home/zilhak/.tasty/tasty.port: 그런 파일이나 디렉터리가 없습니다";
+        let raw = "cat: /home/user/.tasty/tasty.port: 그런 파일이나 디렉터리가 없습니다";
         let err = PortDiscoveryError::new(PortDiscoveryFailureKind::RemoteInstanceNotRunning, raw);
         assert_eq!(err.detail(), raw);
         assert!(!err.to_string().contains("tasty.port"));

@@ -155,7 +155,7 @@ mod tests {
             &surface(),
             PhysicalPx(10.0),
             PhysicalPx(20.0),
-            "gx10".into(),
+            "host".into(),
         )
         .expect("visible");
         assert_eq!(a.anchor.x.value(), 100.0);
@@ -170,7 +170,7 @@ mod tests {
                 &surface(),
                 PhysicalPx(10.0),
                 PhysicalPx(20.0),
-                "gx10".into()
+                "host".into()
             )
             .is_none()
         );
@@ -188,7 +188,7 @@ mod tests {
             &surface(),
             PhysicalPx(10.0),
             PhysicalPx(20.0),
-            "gx10".into(),
+            "host".into(),
         )
         .unwrap();
         let t0 = Instant::now();
