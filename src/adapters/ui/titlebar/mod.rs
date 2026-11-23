@@ -78,6 +78,7 @@ pub fn draw_titlebar(
         left_inset,
         controls: os_controls(),
         maximized: window.is_maximized(),
+        keyboard_focus: false,
     };
 
     let result = draw_titlebar_view(ctx, &props);

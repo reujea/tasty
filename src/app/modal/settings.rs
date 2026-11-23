@@ -21,8 +21,13 @@ impl App {
         use winit::window::WindowAttributes;
 
         // 창 크기는 settings-window-width/height 토큰이다. 창 생성 시점의 크기라 UI 배율을 곱하지 않는다.
-        use tasty_design_tokens::generated::component::settings::{WINDOW_HEIGHT, WINDOW_WIDTH};
-        let size = winit::dpi::LogicalSize::new(WINDOW_WIDTH.value(), WINDOW_HEIGHT.value());
+        // Linux는 앱이 제목 줄을 그리므로 그만큼 높은 settings-window-csd-height로 만든다.
+        use tasty_design_tokens::generated::component::settings::WINDOW_WIDTH;
+        #[cfg(target_os = "linux")]
+        let height = view::settings::window_height(false);
+        #[cfg(not(target_os = "linux"))]
+        let height = tasty_design_tokens::generated::component::settings::WINDOW_HEIGHT.value();
+        let size = winit::dpi::LogicalSize::new(WINDOW_WIDTH.value(), height);
         let mut attrs = WindowAttributes::default()
             .with_title("Tasty Settings")
             .with_inner_size(size)
@@ -51,6 +56,12 @@ impl App {
                 return;
             }
         };
+
+        // Wayland 컴포지터가 서버 장식을 골랐으면(첫 configure를 받은 뒤 정해진다) 제목 줄이 없으므로 700으로 줄인다.
+        #[cfg(target_os = "linux")]
+        if window.is_decorated() {
+            view::settings::fit_window_height(&window, true);
+        }
 
         let init = self.resolve_settings_init_data();
 

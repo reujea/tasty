@@ -52,6 +52,12 @@ pub struct TitlebarProps<'a> {
     // 이유: 이 필드를 읽는 곳이 Windows 캡션 버튼의 글리프 토글뿐이다(위).
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     pub maximized: bool,
+    /// 창 버튼이 키보드 포커스 표시를 갖는 창이다(Linux 설정창). 참이면 포커스를 받은 버튼에 포커스 링을 그리고,
+    /// 이름 툴팁을 디자인 시스템 Tooltip으로 버튼 아래 오른쪽 끝 맞춤에 hover와 포커스 때 띄운다.
+    /// 메인 창은 키 입력이 터미널로 가서 버튼이 포커스를 받지 않으므로 거짓이다.
+    // 이유: 참으로 넘기는 곳이 Linux 설정창뿐이고, 이 값을 읽는 Linux DE 버튼도 Linux 빌드에만 그려진다.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub keyboard_focus: bool,
 }
 
 /// titlebar view 가 보고하는 사용자 의도. wrapper 가 winit window 조작 / app 이벤트로 변환.
@@ -221,9 +227,24 @@ fn draw_window_buttons(
             WindowButton::Maximize => crate::i18n::t("titlebar.maximize"),
             WindowButton::Close => crate::i18n::t("titlebar.close"),
         };
-        let resp = ui
-            .interact(btn_rect, id, egui::Sense::click())
-            .on_hover_text(label);
+        let resp = ui.interact(btn_rect, id, egui::Sense::click());
+        let resp = if props.keyboard_focus {
+            let shown = tasty_ui_widgets::tooltip_hover_delay_elapsed(
+                ui.ctx(),
+                th,
+                resp.id,
+                resp.hovered(),
+            ) || resp.has_focus();
+            if shown {
+                tasty_ui_widgets::Tooltip::new(&label)
+                    .id_source(("tasty_titlebar_btn_tooltip", resp.id))
+                    .below_end(ui.ctx(), th, btn_rect)
+                    .show(ui, th, btn_rect);
+            }
+            resp
+        } else {
+            resp.on_hover_text(label)
+        };
         *hovered |= resp.hovered();
 
         let is_close = matches!(button, WindowButton::Close);
@@ -257,7 +278,23 @@ fn draw_window_buttons(
             th.titlebar_fg_inactive()
         };
         let stroke = egui::Stroke::new(th.border_width.value(), fg.to_egui());
-        draw_button_glyph(ui.painter(), center, d, &button, stroke);
+        draw_button_glyph(
+            ui.painter(),
+            center,
+            th.titlebar_window_glyph_size().value() * 0.5,
+            &button,
+            stroke,
+        );
+        if props.keyboard_focus && resp.has_focus() {
+            // 버튼 둘레에서 focus-ring-offset만큼 띄운 focus-ring-width 링. 버튼처럼 UI 배율 밖이다.
+            let ring = th.focus_ring_width.value();
+            let offset = tasty_design_tokens::generated::semantic::FOCUS_RING_OFFSET.value();
+            ui.painter().circle_stroke(
+                center,
+                d * 0.5 + offset + ring * 0.5,
+                egui::Stroke::new(ring, th.border_focus().to_egui()),
+            );
+        }
 
         if resp.clicked() {
             actions.push(match button {
@@ -273,15 +310,15 @@ fn draw_window_buttons(
     strip_w
 }
 
-/// 버튼 글리프(min=가로선, max=사각형, close=×)를 중심 기준으로 그린다.
+/// 버튼 글리프(min=가로선, max=사각형, close=×)를 중심 기준으로 그린다. `g`는 중심에서 각 변까지의 거리로
+/// titlebar-window-glyph-size의 절반이다.
 fn draw_button_glyph(
     painter: &egui::Painter,
     center: egui::Pos2,
-    d: f32,
+    g: f32,
     button: &WindowButton,
     stroke: egui::Stroke,
 ) {
-    let g = d * 0.22; // 글리프 반경(중심에서의 extent)
     match button {
         WindowButton::Minimize => {
             painter.line_segment(
