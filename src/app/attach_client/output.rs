@@ -165,6 +165,7 @@ impl App {
             .iter()
             .filter_map(|&(idx, connect_after)| self.stop_saved_row(idx, connect_after))
             .collect();
+        self.fail_copies_of_ending_sessions(&[dead.as_slice(), &closed].concat());
         self.end_sessions(&dead, &closed);
         // 멈춤 뒤에 미룬 명시 연결을 지금 시작한다. 세션 인덱스가 바뀐 뒤라 행으로 찾는다.
         for row in restart {

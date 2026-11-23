@@ -37,6 +37,21 @@ impl App {
         self.announce_copy_failures();
     }
 
+    /// 끝나는 세션의 mirror surface에서 진행 중인 복사를 지금 실패로 알린다. 종료 처리가 surface를 없앤
+    /// 뒤에는 정산이 그 surface를 찾지 못해 안내가 빠진다.
+    pub(super) fn fail_copies_of_ending_sessions(&mut self, ending: &[usize]) {
+        let locals: Vec<u32> = ending
+            .iter()
+            .filter_map(|&index| self.remote.sessions.get(index))
+            .flat_map(|session| session.state.remote_to_local.values().copied())
+            .collect();
+        for local in locals {
+            self.attach_copies.break_stream(local);
+            self.attach_copies.fail_unanswered(local);
+        }
+        self.announce_copy_failures();
+    }
+
     /// 실패한 복사를 그 surface가 있는 창(parked 포함)에 한 건마다 알린다.
     fn announce_copy_failures(&mut self) {
         use crate::view::ui::View as _;
