@@ -149,12 +149,16 @@ impl GlobalHookManager {
     /// 시각을 기록하고, file은 mtime 기준을 그대로 둬 이전 실행이 끝난 뒤 다시 감지한다.
     /// 실제 명령 실행 실패를 자동 재시도하지는 않는다.
     pub fn tick(&mut self) -> Vec<(u32, String)> {
-        self.tick_with(Self::has_pending_run)
+        self.tick_with(Instant::now(), Self::has_pending_run)
     }
 
-    /// `is_pending`은 제품에서 [`Self::has_pending_run`]이다. 시험은 판정 도중 이전 작업이 끝나는 순간을 주입한다.
-    fn tick_with(&mut self, mut is_pending: impl FnMut(&Self, u32) -> bool) -> Vec<(u32, String)> {
-        let now = Instant::now();
+    /// `now`는 판정 시각이고 `is_pending`은 제품에서 [`Self::has_pending_run`]이다. 시험은 판정 시각과
+    /// 판정 도중 이전 작업이 끝나는 순간을 주입한다.
+    fn tick_with(
+        &mut self,
+        now: Instant,
+        mut is_pending: impl FnMut(&Self, u32) -> bool,
+    ) -> Vec<(u32, String)> {
         let mut to_fire: Vec<(u32, String)> = Vec::new();
         let mut file_mtime_updates: Vec<(u32, Option<SystemTime>)> = Vec::new();
         let mut interval_due: Vec<u32> = Vec::new();

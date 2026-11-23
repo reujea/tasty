@@ -270,7 +270,7 @@ fn a_file_hook_reads_the_mtime_after_its_previous_run_is_seen_finished() {
     let id = mgr.add(HookCondition::File(watched.clone()), "echo f".into(), None);
     set_modified(&watched, mtime_at(1));
     // 판정하는 순간 이전 작업이 파일을 다시 고치고 끝난다.
-    let fired = mgr.tick_with(|_, _| {
+    let fired = mgr.tick_with(Instant::now(), |_, _| {
         set_modified(&watched, mtime_at(2));
         false
     });
@@ -292,25 +292,24 @@ fn a_skipped_interval_period_restarts_the_period_from_the_skipping_tick() {
     const LONG: Duration = Duration::from_secs(60);
     let mut mgr = GlobalHookManager::new();
     let id = mgr.add(HookCondition::Interval(LONG), "echo i".into(), None);
-    // 기다리지 않고 주기가 두 번 지난 상태를 만든다. 시험이 판정 시각을 정해 스레드 지연과 무관하게 한다.
-    let stale = Instant::now()
-        .checked_sub(LONG * 2)
-        .expect("the monotonic clock is past two periods");
-    mgr.last_fired.insert(id, stale);
-    let from = Instant::now();
+    // 판정 시각을 시험이 정한다. 등록 뒤 두 주기가 지난 시각에 건너뛰고, 같은 시각에 다시 판정한다.
+    let registered = mgr.last_fired[&id];
+    let skipped_at = registered + LONG * 2;
     assert!(
-        mgr.tick_with(|_, _| true).is_empty(),
+        mgr.tick_with(skipped_at, |_, _| true).is_empty(),
         "a pending hook was submitted"
     );
-    let until = Instant::now();
-    let recorded = mgr.last_fired[&id];
-    assert!(
-        from <= recorded && recorded <= until,
-        "the skipped tick recorded {:?} after the stale time, not its own time",
-        recorded.duration_since(stale)
+    assert_eq!(
+        mgr.last_fired[&id], skipped_at,
+        "the skipped tick did not record its own time"
     );
     assert!(
-        mgr.tick().is_empty(),
+        mgr.tick_with(skipped_at, |_, _| false).is_empty(),
         "the hook ran again within a period of the skipped tick"
+    );
+    assert_eq!(
+        mgr.tick_with(skipped_at + LONG, |_, _| false),
+        vec![(id, "echo i".to_string())],
+        "the hook did not run a period after the skipped tick"
     );
 }
