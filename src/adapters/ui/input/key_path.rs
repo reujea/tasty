@@ -132,6 +132,10 @@ pub(crate) fn start_scope_levels(
         FocusNode::Surface(None) if core.workspaces().is_empty() => {
             levels_from(KeyLevel::Window, true)
         }
+        // 선택된 초안은 키 입력 surface 가 없어도 명령 대상의 pane·탭·surface 가 있다.
+        FocusNode::Surface(None) if state.draft_selected(core) => {
+            levels_from(KeyLevel::Surface, true)
+        }
         FocusNode::Surface(None) => levels_from(KeyLevel::Workspace, true),
     }
 }

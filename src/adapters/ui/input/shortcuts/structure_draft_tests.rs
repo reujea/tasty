@@ -492,3 +492,48 @@ fn a_palette_open_surface_for_a_draft_keeps_the_cwd_source_chosen_at_enter() {
         intents[0].body
     );
 }
+
+/// 생성 대기 초안이 선택돼 있으면 키 입력 surface 는 없지만 명령 대상은 초안의 pane·탭·surface 다. 그래서 경로는
+/// 그 level 을 갖고, 초안 pane 에 보내는 새 탭 단축키와 초안에 걸어 두는 Surface 단축키가 매칭된다. 단축키 단계
+/// (`handle_shortcut_after_edit_judgment` → `run_target_shortcuts`)가 쓰는 값(`focus_path_levels` →
+/// `path_keybindings` → 명령 대상)을 같은 순서로 부른다.
+#[test]
+fn a_selected_draft_keeps_its_pane_tab_and_surface_shortcuts() {
+    use crate::adapters::ui::input::key_level::KeyLevel;
+    use crate::adapters::ui::input::key_path::{allows, focus_path_levels, path_keybindings};
+    use crate::state::focus_node::FocusNode;
+    use winit::keyboard::{Key, ModifiersState, SmolStr};
+    let (mut state, engine) = crate::state::tests::test_mirror_state();
+    let read = engine.read();
+    let anchor = state.focused_surface_id(&read).expect("focused surface");
+    let pane = read.find_pane_for_surface(anchor).expect("anchor pane");
+    let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
+    assert_eq!(state.focus_node(&read), FocusNode::Surface(None));
+    let path = focus_path_levels(&state, &read);
+    for level in [KeyLevel::Surface, KeyLevel::Tab, KeyLevel::Pane] {
+        assert!(allows(path, level), "{level:?} is on the draft path");
+    }
+    let kb = crate::settings::KeybindingSettings {
+        new_tab: vec!["ctrl+t".into()],
+        refresh: vec!["f5".into()],
+        ..Default::default()
+    };
+    let filtered = path_keybindings(&kb, path);
+    assert_eq!(filtered.refresh, kb.refresh);
+    let target = state.command_target(&read);
+    assert!(crate::view::main::MainView::match_create_bindings(
+        &mut state,
+        &read,
+        &target,
+        &filtered,
+        &Key::Character(SmolStr::new("t")),
+        ModifiersState::CONTROL,
+    ));
+    assert!(state.take_pending_intents().iter().any(|i| matches!(
+        i.body,
+        crate::intent::Intent::NewTab {
+            target: crate::intent::StructureTarget { pane: Some(p), .. },
+            ..
+        } if p == pane
+    )));
+}

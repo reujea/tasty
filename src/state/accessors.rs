@@ -148,6 +148,15 @@ impl RequestContext {
             .or_else(|| layout.first_pane())
     }
 
+    /// 생성 대기 초안이 선택돼 있는지. 선택된 초안에는 키 입력 surface 가 없지만(`focused_surface_id`) 명령 대상은
+    /// 초안의 pane·탭·surface 다(`command_target`).
+    #[cfg(feature = "gui")]
+    pub(crate) fn draft_selected(&self, engine: &CoreState) -> bool {
+        self.attach_pending
+            .selected(engine, &self.navigation)
+            .is_some()
+    }
+
     pub fn focused_surface_id(&self, engine: &CoreState) -> Option<u32> {
         #[cfg(feature = "gui")]
         if self
