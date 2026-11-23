@@ -7,6 +7,7 @@ pub(crate) mod judged_event;
 pub(crate) mod key_event;
 pub(crate) mod main;
 pub(crate) mod modal;
+pub(crate) mod os_resize_press;
 pub(crate) mod plugins;
 pub(crate) mod preset;
 pub(crate) mod quit;
