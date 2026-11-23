@@ -109,15 +109,10 @@ impl App {
                     let (state, mut engine) = engines_mut!(self)
                         .parked_session(id)
                         .expect("mirror_output_host가 방금 찾은 parked engine");
-                    apply_pending_mirror_output(
-                        sess,
-                        Some(
-                            MirrorHost::parked(state, &mut engine)
-                                .row_blocked(blocked)
-                                .with_copies(&mut self.attach_copies),
-                        ),
-                        &mut self.plugin_manager,
-                    );
+                    let host = MirrorHost::parked(state, &mut engine)
+                        .row_blocked(blocked)
+                        .with_copies(&mut self.attach_copies);
+                    apply_pending_mirror_output(sess, Some(host), &mut self.plugin_manager);
                 }
                 None => {}
             }
@@ -487,8 +482,8 @@ fn apply_mirror_events(
 fn begin_resync(sess: &mut AttachClientSession, host: &mut MirrorHost<'_, '_>, frames: u64) {
     for &local in sess.state.remote_to_local.values() {
         if let Some(t) = host.engine.runtime.terminals.get_mut(local) {
-            t.renew_output_stream();
-            // 끊긴 뒤의 바이트는 이어지지 않는다. 미완성 시퀀스와 옛 스트림 질의의 늦은 응답을 버린다.
+            // 끊긴 뒤의 바이트는 이어지지 않는다. 스트림 표지를 바꾸고 미완성 시퀀스와 옛 스트림 질의의
+            // 늦은 응답을 버린다.
             t.break_stream();
         }
         host.break_copies(local);

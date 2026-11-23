@@ -212,10 +212,12 @@ impl Terminal {
     }
 
     /// The mirror's stream broke: the bytes after this point are not a continuation of what the
-    /// parser saw. Drop an unfinished escape sequence so the next snapshot's first ESC cannot end
-    /// it, and refuse delayed responses until a new connection is bound.
+    /// parser saw. Start a new output stream identity, drop an unfinished escape sequence so the
+    /// next snapshot's first ESC cannot end it, and refuse delayed responses until a new
+    /// connection is bound.
     pub fn break_stream(&mut self) {
         let mut state = self.lock_state();
+        state.renew_output_stream();
         state.parser = termwiz::escape::parser::Parser::new();
         state.responses_retired = true;
     }
