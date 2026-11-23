@@ -873,6 +873,7 @@ fn a_discarded_pass_keeps_the_explicit_no_owner() {
 
 /// `panel_pass`와 같고 Esc 표지를 직접 준다. 그리기마다(다시 그리는 패스 포함) 같은 값을 넘긴다. 패스마다 그 패스
 /// `raw.events` 수를 돌려준다.
+#[cfg(not(target_os = "macos"))]
 fn marked_pass(
     ctx: &egui::Context,
     p: &mut Panel,
