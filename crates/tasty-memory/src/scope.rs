@@ -114,7 +114,7 @@ mod tests {
     fn scope_roundtrip() {
         let cases = [
             Scope::Global,
-            Scope::Account("zilhak".into()),
+            Scope::Account("user".into()),
             Scope::Window(42),
             Scope::Workspace(7),
             Scope::Surface(123),

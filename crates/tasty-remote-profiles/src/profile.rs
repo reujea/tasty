@@ -546,7 +546,7 @@ mod tests {
 
     #[test]
     fn attach_view_ref_mode() {
-        let p = RemoteProfile::new("devbox-attach", "tasty-attach")
+        let p = RemoteProfile::new("host-attach", "tasty-attach")
             .with_field("ssh_ref", "devbox")
             .with_field("remote_tasty", "/opt/tasty/tasty")
             .with_field("port_file", "/home/z/.tasty/tasty.port");
@@ -588,7 +588,7 @@ mod tests {
     fn ssh_kind_has_no_attach_view() {
         let p = RemoteProfile::new("devbox", "ssh").with_field("host", "box");
         assert!(p.as_attach().is_none());
-        let a = RemoteProfile::new("devbox-attach", "tasty-attach");
+        let a = RemoteProfile::new("host-attach", "tasty-attach");
         assert!(a.as_ssh().is_none());
     }
 }

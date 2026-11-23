@@ -2084,7 +2084,7 @@ mod tests {
 
     #[test]
     fn task_output_substitution_interpolates_within_string() {
-        let outputs = outputs_of(&[("t-a", json!({ "pr_number": 42, "who": "zilhak" }))]);
+        let outputs = outputs_of(&[("t-a", json!({ "pr_number": 42, "who": "user" }))]);
         let mut cmd = custom_params(json!({
             "prompt": "review PR ${task.t-a.output/pr_number}",
             "two": "${task.t-a.output/who} opened #${task.t-a.output/pr_number}",
@@ -2095,7 +2095,7 @@ mod tests {
             panic!("expected Custom");
         };
         assert_eq!(params["prompt"], json!("review PR 42"));
-        assert_eq!(params["two"], json!("zilhak opened #42"));
+        assert_eq!(params["two"], json!("user opened #42"));
     }
 
     #[test]
