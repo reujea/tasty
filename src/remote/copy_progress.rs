@@ -25,9 +25,10 @@
 //!
 //! 쓰기 판정은 실제로 받은 바이트로만 한다. 머리 끝의 미완성 UTF-8이 C2 리드면 다음 바이트가 UTF-8로 쓴
 //! C1 종결일 수 있으므로 0x9c로 먼저 끝내 본다. 다른 리드는 어떻게 끝나도 데이터에 글자 하나가 들어간다.
-//! 머리가 `HEAD_LIMIT`을 넘도록 정하지 못하면 다음 기준점까지 보지 않는다. 그런 경우는 OSC 52 자신의
-//! 선택 인자와 데이터 머리가 한도를 넘을 때다(진행 표시만 빠지고 기록·토스트는 그대로다). vtparse의 OSC
-//! 버퍼는 본문 크기만큼 자라고 surface 상태를 지울 때 해제된다.
+//! 사전 필터로 머리에 `52;`와 그 뒤 `;`가 나온 뒤에만 다시 파싱한다. 머리가 `HEAD_LIMIT`을 넘도록 정하지
+//! 못하면 다음 기준점까지 보지 않는다. 그런 경우는 OSC 52 자신의 선택 인자와 데이터 머리가 한도를 넘을
+//! 때다(진행 표시만 빠지고 기록·토스트는 그대로다). vtparse의 OSC 버퍼는 본문 크기만큼 자라고 surface 상태를
+//! 지울 때 해제된다.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
@@ -49,6 +50,8 @@ struct SurfaceScan {
     head: Vec<u8>,
     /// 쓰기로 정했거나 한도를 넘어 다음 기준점까지 머리를 보지 않는 동안, 파서가 OSC 문자열 안인지.
     closed: Option<bool>,
+    /// 사전 필터. 머리에서 `52;`를 어디까지 찾았는지(3이면 찾음), 4면 그 뒤 `;`도 찾았다.
+    marks: u8,
     /// 파서가 UTF-8 글자 중간일 수 있으면 남은 연속 바이트 수. 실제보다 작게 세지 않는다.
     utf8_left: u8,
     /// 본문을 받는 중인 쓰기의 접수 시각.
@@ -62,7 +65,11 @@ impl SurfaceScan {
     fn restart(&mut self, byte: Option<u8>) {
         self.head.clear();
         self.closed = None;
-        self.head.extend(byte);
+        self.marks = 0;
+        if let Some(byte) = byte {
+            self.head.push(byte);
+            self.marks = next_mark(0, byte);
+        }
     }
 }
 
@@ -72,6 +79,7 @@ impl Default for SurfaceScan {
             parser: vtparse::VTParser::new(),
             head: Vec::new(),
             closed: None,
+            marks: 0,
             utf8_left: 0,
             receiving: None,
             awaiting: VecDeque::new(),
@@ -165,6 +173,25 @@ fn osc_head(head: &[u8]) -> (bool, bool) {
     (write.0.is_some(), write.0 == Some(true))
 }
 
+/// 사전 필터의 다음 값. OSC 52 쓰기라면 OSC 버퍼가 `52;`로 시작하고 그 뒤 `;`가 있다. 버퍼의 ASCII는 머리의
+/// 같은 바이트에서만 오고, 그 사이에는 OSC 문자열이 무시하는 바이트만 올 수 있다. 그래서 무시되는 바이트를
+/// 건너뛰며 `52;`를 찾고, 찾은 뒤에는 `;`만 기다린다. 이 필터를 통과하지 못하면 `osc_head`도 쓰기가 아니다.
+fn next_mark(marks: u8, byte: u8) -> u8 {
+    let ignored = matches!(
+        byte,
+        0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f | 0x9d | 0xa0..=0xc1 | 0xf5..=0xff
+    );
+    match (marks, byte) {
+        (3, b';') => 4,
+        (3.., _) => marks,
+        (_, _) if ignored => marks,
+        (0 | 1 | 2, b'5') => 1,
+        (1, b'2') => 2,
+        (2, b';') => 3,
+        _ => 0,
+    }
+}
+
 /// 실제 파서가 UTF-8 글자 중간일 수 있는 남은 연속 바이트 수. 리드 바이트는 ground나 OSC 문자열에서만
 /// 글자를 시작하지만 그 밖일 수도 있으면(`may_start`) 시작한 것으로 센다. 연속 바이트 범위는 넓게 본다.
 fn next_utf8_left(left: u8, byte: u8, may_start: bool) -> u8 {
@@ -216,15 +243,20 @@ impl CopyProgress {
                 scan.restart(Some(byte));
             } else if scan.closed.is_none() {
                 scan.head.push(byte);
+                scan.marks = next_mark(scan.marks, byte);
             } else {
                 continue;
             }
-            let (in_osc, write) = osc_head(&scan.head);
-            if write {
-                scan.receiving.get_or_insert(now);
-                scan.closed = Some(in_osc);
-            } else if scan.head.len() >= HEAD_LIMIT {
-                scan.closed = Some(in_osc);
+            if scan.marks == 4 {
+                let (in_osc, write) = osc_head(&scan.head);
+                if write {
+                    scan.receiving.get_or_insert(now);
+                    scan.closed = Some(in_osc);
+                    continue;
+                }
+            }
+            if scan.head.len() >= HEAD_LIMIT {
+                scan.closed = Some(osc_head(&scan.head).0);
             }
         }
         if scan.receiving.is_none() && scan.awaiting.is_empty() && scan.parser.is_ground() {
