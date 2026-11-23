@@ -20,6 +20,8 @@ use termwiz::escape::osc::OperatingSystemCommand;
 
 /// OSC 52 머리(도입자·`52;`·선택 인자·`;`·데이터 첫 두 바이트)를 판정하기에 충분한 길이.
 const HEAD_LIMIT: usize = 64;
+/// OSC 도입자. ESC `]`, C1, UTF-8로 쓴 C1.
+const OSC_INTRODUCERS: [&[u8]; 3] = [b"\x1b]", b"\x9d", b"\xc2\x9d"];
 
 #[derive(Default)]
 pub(crate) struct CopyProgress {
@@ -33,6 +35,9 @@ struct SurfaceScan {
     head: Head,
     /// 본문을 받는 중인 쓰기의 접수 시각.
     receiving: Option<Instant>,
+    /// 지금 시퀀스가 OSC 문자열이다. 이 안의 ESC는 OSC를 끝낼 때만(그 바이트에서 dispatch가 온다)
+    /// 새 시퀀스의 머리다. dispatch 없이 지나간 ESC는 파서가 잘못된 UTF-8로 삼킨 것이다.
+    in_osc: bool,
     /// 끝났고 client 기록 결과를 기다리는 쓰기의 접수 시각. 바이트 순서다.
     awaiting: VecDeque<Instant>,
 }
@@ -43,6 +48,7 @@ impl Default for SurfaceScan {
             parser: vtparse::VTParser::new(),
             head: Head::Idle,
             receiving: None,
+            in_osc: false,
             awaiting: VecDeque::new(),
         }
     }
@@ -79,12 +85,11 @@ fn classify(raw: &[u8]) -> Verdict {
         head.push(byte);
     }
     let head = head.as_slice();
-    const INTRODUCERS: [&[u8]; 3] = [b"\x1b]", b"\x9d", b"\xc2\x9d"];
-    let Some(rest) = INTRODUCERS
+    let Some(rest) = OSC_INTRODUCERS
         .iter()
         .find_map(|intro| head.strip_prefix(*intro))
     else {
-        return if INTRODUCERS.iter().any(|intro| intro.starts_with(head)) {
+        return if OSC_INTRODUCERS.iter().any(|intro| intro.starts_with(head)) {
             Verdict::Undecided
         } else {
             Verdict::Other
@@ -158,9 +163,9 @@ impl CopyProgress {
         for &byte in bytes {
             let was_ground = scan.parser.is_ground();
             scan.parser.parse_byte(byte, &mut ended);
-            // ESC는 어느 상태에서든 새 이스케이프를 시작한다. 앞 시퀀스(OSC 52가 아니어도)를 끝낸 ESC도
-            // 다음 시퀀스의 머리다.
-            let restarted = byte == 0x1b;
+            // ESC는 새 이스케이프를 시작하고, 앞 시퀀스(OSC 52가 아니어도)를 끝낸 ESC도 다음 시퀀스의
+            // 머리다. OSC 문자열 안에서는 OSC를 끝낸 ESC만 그렇다.
+            let restarted = byte == 0x1b && (!scan.in_osc || !ended.0.is_empty());
             for end in ended.0.drain(..) {
                 let receiving = scan.receiving.take();
                 match end {
@@ -171,17 +176,23 @@ impl CopyProgress {
             }
             if scan.parser.is_ground() {
                 scan.head = Head::Idle;
+                scan.in_osc = false;
                 continue;
             }
             if restarted {
                 scan.head = Head::Collect(vec![byte]);
+                scan.in_osc = false;
                 continue;
             }
             match &mut scan.head {
-                Head::Idle if was_ground => scan.head = Head::Collect(vec![byte]),
+                Head::Idle if was_ground => {
+                    scan.in_osc = byte == 0x9d;
+                    scan.head = Head::Collect(vec![byte]);
+                }
                 Head::Idle => scan.head = Head::Decided,
                 Head::Collect(head) => {
                     head.push(byte);
+                    scan.in_osc |= OSC_INTRODUCERS.iter().any(|intro| head.starts_with(intro));
                     match classify(head) {
                         Verdict::Copy => {
                             scan.receiving.get_or_insert(now);
@@ -234,6 +245,7 @@ impl CopyProgress {
         }
         scan.parser = vtparse::VTParser::new();
         scan.head = Head::Idle;
+        scan.in_osc = false;
         self.forget_if_idle(surface);
     }
 

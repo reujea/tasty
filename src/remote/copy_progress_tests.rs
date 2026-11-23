@@ -130,11 +130,16 @@ fn a_write_started_by_the_esc_that_ends_another_sequence_is_received() {
 }
 
 /// Given 다른 OSC의 UTF-8 첫 바이트 뒤에 ESC가 온다, When 파서가 그 ESC를 잘못된 UTF-8로 삼키고 OSC 52처럼
-/// 보이는 바이트가 그 OSC의 본문으로 끝난다, Then 진행 표시도 실패도 남지 않는다.
+/// 보이는 바이트가 그 OSC의 본문으로 온다, Then 끝나기 전에도 접수하지 않아 끊겨도 실패가 없고, 끝나도
+/// 진행 표시·실패가 남지 않는다.
 #[test]
 fn an_esc_swallowed_inside_another_osc_leaves_no_copy() {
     let mut progress = CopyProgress::default();
-    progress.feed(SID, b"\x1b]0;t\xe4\x1b]52;c;aGk=\x07", at(0));
+    progress.feed(SID, b"\x1b]0;t\xe4\x1b]52;c;aGk=", at(0));
+    assert!(waits(&progress).is_empty(), "끝나기 전");
+    progress.break_stream(SID);
+    assert!(progress.take_failures().is_empty(), "끊김");
+    progress.feed(SID, b"\x1b]0;t\xe4\x1b]52;c;aGk=\x07", at(1));
     assert!(waits(&progress).is_empty());
     assert!(progress.take_failures().is_empty());
     assert!(progress.surfaces().is_empty());
