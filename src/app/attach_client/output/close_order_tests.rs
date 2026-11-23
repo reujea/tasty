@@ -193,22 +193,27 @@ fn a_stop_decided_for_the_old_transport_does_not_stop_the_new_one() {
     assert!(sess.state.stop_after_events.is_none(), "the old stop ends");
 }
 
-/// ifix1-2: Given 닫기 회신을 기다리던 연결이 끊겨 재연결 진입 때 결과 불명을 이미 알렸다, When 그 재연결
-/// 중인 세션에 정한 멈춤이 적용되면, Then 멈추기만 하고 결과 불명을 다시 알리지 않는다.
+/// Given 닫기 회신을 기다리는(`Pending`) 재연결 중인 세션, When 그 세션에 정한 멈춤이 적용되면, Then 멈추기만
+/// 하고 결과 불명은 Connected 세션의 끝이 아니라 알리지 않으며 기록도 바꾸지 않는다. 이미 알린(`Unanswered`)
+/// 세션도 같다.
 #[test]
-fn a_stop_of_a_reconnecting_session_does_not_repeat_the_unknown_close() {
-    let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
-    sess.state.saved_row = Some(5);
-    sess.state.workspace_close = WorkspaceClose::Pending(3);
-    sess.state.phase = SessionState::Reconnecting;
-    sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
-        sess.transport.frame_tx.epoch(),
-    ));
+fn a_stop_of_a_reconnecting_session_does_not_tell_the_unknown_close() {
+    for close in [WorkspaceClose::Pending(3), WorkspaceClose::Unanswered(3)] {
+        let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+        sess.state.saved_row = Some(5);
+        sess.state.workspace_close = close;
+        sess.state.phase = SessionState::Reconnecting;
+        sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+            sess.transport.frame_tx.epoch(),
+        ));
 
-    assert_eq!(
-        route_session_end(&mut sess, SessionState::Reconnecting, false, false),
-        (DisconnectDisposition::Stop, false)
-    );
+        assert_eq!(
+            route_session_end(&mut sess, SessionState::Reconnecting, false, false),
+            (DisconnectDisposition::Stop, false),
+            "{close:?}"
+        );
+        assert_eq!(sess.state.workspace_close, close, "the record is untouched");
+    }
 }
 
 /// Given 미룬 멈춤에 명시적 연결 의사가 남았다, When 이벤트가 풀린 뒤 처리하면, Then 의사를 실은 멈춤
