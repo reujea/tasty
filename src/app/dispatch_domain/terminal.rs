@@ -260,22 +260,18 @@ impl App {
         result: Result<(), crate::clipboard::error::ClipboardError>,
     ) {
         // attach mirror가 진행 표시하던 원격 복사라면 가장 오래된 건이 이 결과로 끝난다.
-        self.attach_copies.settle_write(surface_id);
+        let attach = self.attach_copies.settle_write(surface_id);
         let Some(DispatchCtx {
             state,
-            engine: _,
+            engine,
             view: _,
             ..
         }) = engines_mut!(self).resolve(source.engine())
         else {
             return;
         };
-        state.clipboard_copy_feedback(
-            result,
-            "toast.copied_osc52",
-            Vec::new(),
-            crate::adapters::ui::ToastScope::Surface(surface_id),
-        );
+        let scope = Self::copy_result_scope(attach, state, engine.core, surface_id);
+        state.clipboard_copy_feedback(result, "toast.copied_osc52", Vec::new(), scope);
     }
 
     /// 종료 후 자원 정리·훅·알림은 공용 process_exit 처리로 전달한다.

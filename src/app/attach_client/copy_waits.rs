@@ -8,7 +8,6 @@ impl App {
     /// 닫기·재연결 대기) 재동기화 중이면 본문을 받던 건도 실패다. 사용자가 mirror를 닫았거나 구조 변경으로
     /// surface가 사라졌으면 알리지 않고 버린다.
     pub(super) fn settle_attach_copies(&mut self) {
-        use crate::view::ui::View as _;
         for surface in self.attach_copies.surfaces() {
             let pending = self.engines().all().find_map(|engine| {
                 engine
@@ -35,21 +34,60 @@ impl App {
                 self.attach_copies.fail_unanswered(surface);
             }
         }
+        self.announce_copy_failures();
+    }
+
+    /// 실패한 복사를 그 surface가 있는 창(parked 포함)에 한 건마다 알린다.
+    fn announce_copy_failures(&mut self) {
+        use crate::view::ui::View as _;
         let failures = self.attach_copies.take_failures();
         if failures.is_empty() {
             return;
         }
+        let toast =
+            |state: &mut crate::state::MainViewState, core: &crate::core::CoreState, surface| {
+                state.toasts.push(
+                    crate::i18n::t("toast.clipboard_failed"),
+                    crate::adapters::ui::ToastKind::Error,
+                    Self::copy_result_scope(true, state, core, surface),
+                );
+            };
         for (_, main, engine) in self.engines_mut().window_pairs() {
             for &surface in &failures {
                 if engine.find_terminal_by_id(surface).is_some() {
-                    main.state.toasts.push(
-                        crate::i18n::t("toast.clipboard_failed"),
-                        crate::adapters::ui::ToastKind::Error,
-                        crate::adapters::ui::ToastScope::Surface(surface),
-                    );
+                    toast(&mut main.state, engine.core, surface);
                     main.mark_dirty();
                 }
             }
+        }
+        for (_, state, engine) in self.engines_mut().parked_sessions_with_ids() {
+            for &surface in &failures {
+                if engine.find_terminal_by_id(surface).is_some() {
+                    toast(state, engine.core, surface);
+                }
+            }
+        }
+    }
+
+    /// 복사 결과 토스트의 범위. attach 복사의 결과는 창이 지금 그 surface를 그리면 Surface, 다른 탭이나
+    /// workspace에 있으면 창 범위다(Surface 범위 토스트는 그 surface가 화면에 없으면 바로 사라진다).
+    pub(crate) fn copy_result_scope(
+        attach: bool,
+        state: &crate::state::MainViewState,
+        core: &crate::core::CoreState,
+        surface: u32,
+    ) -> crate::adapters::ui::ToastScope {
+        let layout = state.active_workspace(core).pane_layout();
+        let shown = layout.all_pane_ids().iter().any(|&pane_id| {
+            layout
+                .find_pane(pane_id)
+                .and_then(|pane| pane.tabs.get(state.navigation.tab_index(pane)))
+                .is_some_and(|tab| tab.layout().find_surface(surface).is_some())
+        });
+        if attach && !shown {
+            crate::adapters::ui::ToastScope::Window
+        } else {
+            crate::adapters::ui::ToastScope::Surface(surface)
         }
     }
 
@@ -97,5 +135,22 @@ mod tests {
         copies.feed(sid, b"=\x07", std::time::Instant::now());
         assert!(copies.settle_write(sid));
         assert!(crate::app::App::attach_copy_waits(&copies, &engine).is_empty());
+    }
+
+    /// Given 창이 지금 그리는 surface와 그리지 않는 surface, When 복사 결과 토스트의 범위를 정한다, Then
+    /// attach 복사의 결과만 그리지 않는 surface에서 창 범위로 바뀐다.
+    #[test]
+    fn an_attach_copy_result_for_a_surface_off_screen_goes_to_the_window() {
+        use crate::adapters::ui::ToastScope;
+        let (state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let shown = engine.read().workspace_at(0).unwrap().all_surface_ids()[0];
+        let hidden = shown + 10_000;
+        let scope = |attach, surface| {
+            crate::app::App::copy_result_scope(attach, &state, &*engine.core, surface)
+        };
+        assert_eq!(scope(true, shown), ToastScope::Surface(shown));
+        assert_eq!(scope(true, hidden), ToastScope::Window);
+        assert_eq!(scope(false, hidden), ToastScope::Surface(hidden));
     }
 }
