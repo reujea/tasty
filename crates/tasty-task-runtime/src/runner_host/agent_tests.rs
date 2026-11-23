@@ -1,7 +1,6 @@
 //! agent task 실행을 가짜 provider 로 결정적으로 시험한다. provider 는 `<p>.state` 에 정해 둔
 //! 상태로 답하고 `<p>.tell`·`<p>.spawn` 호출을 기록한다. 턴 보고는 표에 직접 넣는다.
 
-use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -11,74 +10,77 @@ use tasty_agent::task::agent::{AgentSession, report};
 use tasty_agent::task::contract::TaskContract;
 use tasty_agent::task::{FailureCode, TaskCreateOpts};
 use tasty_agent::{OnFailure, Task, TaskCommand, TaskState, TaskStore};
-use tasty_ipc::host_call::HostIpcInjector;
-use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_ipc::server::IpcCommand;
 use tasty_memory::HOST_OWNER;
 
 use super::HostExecutor;
 use crate::agent_turns::{StartPrompt, TurnEnd, TurnEvent};
+use crate::runner_host::scripted_ipc::{self, Scripted, Step};
 use crate::runner_host::tests::fresh_ctx;
 use crate::runner_host::{RunnerContext, load_dispatch_handle};
 
-/// 가짜 provider. 상태를 바꾸며 호출을 기록한다.
+/// 가짜 provider. 상태를 바꾸며 호출을 기록한다. 명령은 보낸 쪽의 waker 안에서 답한다
+/// ([`scripted_ipc`](crate::runner_host::scripted_ipc)).
 struct FakeProvider {
     state: Arc<Mutex<String>>,
     calls: Arc<Mutex<Vec<(String, Value)>>>,
+    ipc: Scripted,
 }
 
 impl FakeProvider {
     fn install(ctx: &RunnerContext, initial: &str) -> Self {
-        Self::install_with(ctx, initial, Duration::ZERO)
+        Self::install_with(ctx, initial, false)
     }
 
-    /// `spawn_delay` 만큼 늦게 spawn 에 답한다.
-    fn install_with(ctx: &RunnerContext, initial: &str, spawn_delay: Duration) -> Self {
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, Arc::new(|| {})))
-            .ok()
-            .expect("set once");
+    /// `hold_spawn` 이면 spawn 을 시작시킨 채 답하지 않고 시험에 넘긴다. 시험이 [`Self::held_spawn`] 으로
+    /// 받아 [`Self::answer_spawn`] 으로 답한다.
+    fn install_with(ctx: &RunnerContext, initial: &str, hold_spawn: bool) -> Self {
         let state = Arc::new(Mutex::new(initial.to_string()));
         let calls = Arc::new(Mutex::new(Vec::new()));
         let (s, c) = (state.clone(), calls.clone());
-        std::thread::spawn(move || {
-            while let Ok(cmd) = rx.recv_timeout(Duration::from_secs(30)) {
-                let method = cmd.request.method.clone();
-                c.lock()
-                    .unwrap()
-                    .push((method.clone(), cmd.request.params.clone()));
-                let body = if method.ends_with(".state") {
-                    json!({ "state": s.lock().unwrap().clone() })
-                } else if method.ends_with(".spawn") {
-                    // 늦은 spawn 이 다른 명령의 응답을 막지 않게 따로 답한다.
-                    std::thread::spawn(move || {
-                        std::thread::sleep(spawn_delay);
-                        let id = cmd.request.id.clone().unwrap_or(Value::Null);
-                        let body = json!({ "child_surface_id": 42 });
-                        if cmd
-                            .response_tx
-                            .send(JsonRpcResponse::success(id, body))
-                            .is_err()
-                        {
-                            tracing::warn!("spawn reply: the caller is gone");
-                        }
-                    });
-                    continue;
+        let ipc = scripted_ipc::install_responder(ctx, move |cmd| {
+            let method = cmd.request.method.clone();
+            c.lock()
+                .unwrap()
+                .push((method.clone(), cmd.request.params.clone()));
+            if method.ends_with(".state") {
+                Step::answer(json!({ "state": s.lock().unwrap().clone() }))
+            } else if method.ends_with(".spawn") {
+                if hold_spawn {
+                    Step::Hold
                 } else {
-                    json!({ "ok": true })
-                };
-                let id = cmd.request.id.clone().unwrap_or(Value::Null);
-                if cmd
-                    .response_tx
-                    .send(JsonRpcResponse::success(id, body))
-                    .is_err()
-                {
-                    break;
+                    Step::answer(spawn_answer())
                 }
+            } else {
+                Step::answer(json!({ "ok": true }))
             }
         });
-        Self { state, calls }
+        Self { state, calls, ipc }
+    }
+
+    /// 쥐고 있는 spawn 명령을 받는다. spawn 은 제품 스레드가 보내므로 dispatch 가 먼저 돌아올 수 있다.
+    fn held_spawn(&self) -> IpcCommand {
+        let until = Instant::now() + Duration::from_secs(10);
+        let mut held = None;
+        assert!(
+            tasty_utils::test_wait::holds_by(until, || {
+                held = held.take().or_else(|| self.ipc.rx.try_recv().ok());
+                held.is_some()
+            }),
+            "the spawn never arrived"
+        );
+        let cmd = held.expect("held spawn");
+        assert!(
+            cmd.request.method.ends_with(".spawn"),
+            "{}",
+            cmd.request.method
+        );
+        cmd
+    }
+
+    /// 쥔 spawn 에 새 세션 42 로 답한다.
+    fn answer_spawn(cmd: IpcCommand) {
+        scripted_ipc::reply(cmd, spawn_answer());
     }
 
     fn set(&self, s: &str) {
@@ -94,6 +96,10 @@ impl FakeProvider {
             .map(|(_, p)| p.clone())
             .collect()
     }
+}
+
+fn spawn_answer() -> Value {
+    json!({ "child_surface_id": 42 })
 }
 
 /// surface 에 묶인 회차의 지시로 시작한 턴. 프롬프트의 표지가 그 회차 토큰이다.
@@ -388,7 +394,6 @@ fn a_structured_output_needs_a_submission_and_the_new_session_is_told_how() {
     assert_eq!(out[report::FINAL_ANSWER], "I think revise");
 }
 
-/// spawn 은 일반 호출의 응답 대기(5초)보다 늦게 답할 수 있다. 그래도 회차에 묶는다.
 /// 같은 이름의 task 가 두 workspace 에서 돈다. 한쪽이 끝나 풀려도 다른 쪽의 턴은 이어지고,
 /// 각자 자기 세션의 턴으로 끝난다.
 #[test]
@@ -476,10 +481,11 @@ fn a_session_in_another_workspace_submits_to_the_task_workspace() {
     assert_eq!(link.surface_id, 42);
 }
 
+/// spawn 은 일반 호출의 응답 대기(5초)보다 늦게 답할 수 있다. 그래도 회차에 묶는다.
 #[test]
 fn a_slow_spawn_still_binds_the_new_session() {
     let (_td, ctx) = fresh_ctx();
-    let _fake = FakeProvider::install_with(&ctx, "active", Duration::from_millis(5500));
+    let fake = FakeProvider::install_with(&ctx, "active", true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(
         &ctx,
@@ -490,6 +496,30 @@ fn a_slow_spawn_still_binds_the_new_session() {
         v2(),
     );
     let h = dispatch(&mut exec, &ctx, &task);
+    let spawn = fake.held_spawn();
+    let general = crate::runner_host::HOST_DISPATCH_TIMEOUT;
+    let bound = spawn
+        .request
+        .response_timeout_ms
+        .expect("spawn carries its bound");
+    assert!(
+        u128::from(bound) > general.as_millis(),
+        "spawn waits {bound}ms, no longer than a general call"
+    );
+    assert!(matches!(exec.poll(&h), PollOutcome::Active));
+    assert_eq!(
+        ctx.agent_turns.holder(42),
+        None,
+        "bound before the spawn answered"
+    );
+    assert!(
+        load_dispatch_handle(&ctx, task.workspace_id, &task.id)
+            .is_some_and(|d| !matches!(d, DispatchHandle::AgentTurn { .. })),
+        "bound before the spawn answered"
+    );
+    // 일반 호출의 상한보다 오래 지난 뒤 답한다.
+    std::thread::sleep(general + Duration::from_millis(500));
+    FakeProvider::answer_spawn(spawn);
     wait_spawned(&mut exec, &ctx, &task, &h);
     assert_eq!(ctx.agent_turns.holder(42), Some(task.id.clone()));
 }

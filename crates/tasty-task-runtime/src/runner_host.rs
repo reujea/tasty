@@ -1001,33 +1001,16 @@ mod tests {
         }
     }
 
-    /// 지정한 응답을 요청 순서대로 보내는 모의 IPC. 호출자는 반환한 워커를 join한다.
-    fn spawn_fake_injector(
+    /// 지정한 응답을 요청 순서대로 보내는 모의 IPC. 호출자는 끝에서 단계 소진을 확인한다.
+    fn script_replies(
         ctx: &RunnerContext,
         responses: Vec<serde_json::Value>,
-    ) -> std::thread::JoinHandle<()> {
-        use std::sync::mpsc;
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
-
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        std::thread::spawn(move || {
-            for resp in responses {
-                let cmd = rx.recv().expect("recv poll request");
-                cmd.response_tx
-                    .send(JsonRpcResponse::success(
-                        cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                        resp,
-                    ))
-                    .expect("send poll response");
-            }
-        })
+    ) -> scripted_ipc::Scripted {
+        let steps = responses
+            .into_iter()
+            .map(scripted_ipc::Step::answer)
+            .collect();
+        scripted_ipc::install(ctx, steps, false)
     }
 
     fn mk_polled_with_states(method: &str, terminal: &[&str], failure: &[&str]) -> DispatchHandle {
@@ -1046,7 +1029,7 @@ mod tests {
     #[test]
     fn polled_dispatch_failure_state_yields_failed_not_done() {
         let (_td, ctx) = fresh_ctx();
-        let worker = spawn_fake_injector(&ctx, vec![json!({ "state": "exited", "why": "killed" })]);
+        let ipc = script_replies(&ctx, vec![json!({ "state": "exited", "why": "killed" })]);
         let mut exec = HostExecutor::new(ctx);
         let handle = mk_polled_with_states("fake.poll", &["idle"], &["exited"]);
         match exec.poll(&handle) {
@@ -1056,28 +1039,28 @@ mod tests {
             }
             other => panic!("expected Failed, got {other:?}"),
         }
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     /// 성공·실패 목록이 겹치면 실패를 우선한다.
     #[test]
     fn polled_dispatch_failure_states_take_precedence_over_terminal() {
         let (_td, ctx) = fresh_ctx();
-        let worker = spawn_fake_injector(&ctx, vec![json!({ "state": "exited" })]);
+        let ipc = script_replies(&ctx, vec![json!({ "state": "exited" })]);
         let mut exec = HostExecutor::new(ctx);
         let handle = mk_polled_with_states("fake.poll", &["idle", "exited"], &["exited"]);
         assert!(matches!(exec.poll(&handle), PollOutcome::Failed(_)));
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     #[test]
     fn polled_dispatch_without_failure_states_still_succeeds_on_terminal() {
         let (_td, ctx) = fresh_ctx();
-        let worker = spawn_fake_injector(&ctx, vec![json!({ "state": "exited" })]);
+        let ipc = script_replies(&ctx, vec![json!({ "state": "exited" })]);
         let mut exec = HostExecutor::new(ctx);
         let handle = mk_polled_with_states("fake.poll", &["idle", "exited"], &[]);
         assert!(matches!(exec.poll(&handle), PollOutcome::Done(_)));
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     #[test]
@@ -1135,11 +1118,6 @@ mod tests {
 
     #[test]
     fn polled_dispatch_recovers_after_injector_ready() {
-        use std::sync::mpsc;
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
-
         let (_td, ctx) = fresh_ctx();
         let mut exec = HostExecutor::new(ctx.clone());
         let handle = mk_polled("fake.poll");
@@ -1147,21 +1125,16 @@ mod tests {
         assert!(matches!(outcome1, PollOutcome::Active));
         assert!(exec.injector_grace_deadline_ms.is_some());
 
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        let injector = HostIpcInjector::new(tx, waker);
-        ctx.host_ipc.set(injector).ok().expect("set once");
-        let worker = std::thread::spawn(move || {
-            let cmd = rx.recv().expect("recv fake.poll");
-            assert_eq!(cmd.request.method, "fake.poll");
-            let resp = JsonRpcResponse::success(
-                cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                serde_json::json!({ "state": "done" }),
-            );
-            cmd.response_tx.send(resp).expect("send resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![scripted_ipc::Step::Reply(Box::new(|cmd| {
+                assert_eq!(cmd.request.method, "fake.poll");
+                json!({ "state": "done" })
+            }))],
+            false,
+        );
         let outcome2 = exec.poll(&handle);
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
         match outcome2 {
             PollOutcome::Done(_) => {}
             other => panic!("expected Done, got {other:?}"),
@@ -1208,53 +1181,28 @@ mod tests {
     #[test]
     fn custom_with_poll_maps_params_and_polls_to_done() {
         use std::collections::HashMap;
-        use std::sync::mpsc;
         use tasty_agent::{OnFailure, PollSpec, PollSpecRef};
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, ctx) = fresh_ctx();
         let mut exec = HostExecutor::new(ctx.clone());
 
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let start = rx.recv().expect("recv fake.start");
-            assert_eq!(start.request.method, "fake.start");
-            start
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    start.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "job": "J1" }),
-                ))
-                .expect("send start resp");
-
-            let poll1 = rx.recv().expect("recv fake.poll 1");
-            assert_eq!(poll1.request.method, "fake.poll");
-            assert_eq!(poll1.request.params.get("surface_id"), Some(&json!(7)));
-            assert_eq!(poll1.request.params.get("job"), Some(&json!("J1")));
-            poll1
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    poll1.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "state": "running" }),
-                ))
-                .expect("send poll1 resp");
-
-            let poll2 = rx.recv().expect("recv fake.poll 2");
-            poll2
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    poll2.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "state": "done" }),
-                ))
-                .expect("send poll2 resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![
+                scripted_ipc::Step::Reply(Box::new(|start| {
+                    assert_eq!(start.request.method, "fake.start");
+                    json!({ "job": "J1" })
+                })),
+                scripted_ipc::Step::Reply(Box::new(|poll1| {
+                    assert_eq!(poll1.request.method, "fake.poll");
+                    assert_eq!(poll1.request.params.get("surface_id"), Some(&json!(7)));
+                    assert_eq!(poll1.request.params.get("job"), Some(&json!("J1")));
+                    json!({ "state": "running" })
+                })),
+                scripted_ipc::Step::answer(json!({ "state": "done" })),
+            ],
+            false,
+        );
 
         let mut map_from_request = HashMap::new();
         map_from_request.insert("surface_id".to_string(), "surface_id".to_string());
@@ -1321,34 +1269,20 @@ mod tests {
             }
             other => panic!("expected Done, got {other:?}"),
         }
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     #[test]
     fn custom_without_poll_is_immediate() {
-        use std::sync::mpsc;
         use tasty_agent::OnFailure;
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, ctx) = fresh_ctx();
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let cmd = rx.recv().expect("recv fake.do");
-            cmd.response_tx
-                .send(JsonRpcResponse::success(
-                    cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "ok": true }),
-                ))
-                .expect("send resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![scripted_ipc::Step::answer(json!({ "ok": true }))],
+            false,
+        );
         let task = Task {
             id: "t-imm".to_string(),
             workspace_id: 1,
@@ -1381,7 +1315,7 @@ mod tests {
             DispatchOutcome::Started(h) => h,
             other => panic!("expected Started, got {other:?}"),
         };
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
         match handle {
             DispatchHandle::CustomImmediate(r) => {
                 assert_eq!(r.output, Some(json!({ "ok": true })));
@@ -1392,11 +1326,7 @@ mod tests {
 
     #[test]
     fn custom_with_named_poll_strategy_resolves_and_polls() {
-        use std::sync::mpsc;
         use tasty_agent::{OnFailure, PollSpecRef};
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, mut ctx) = fresh_ctx();
         ctx.completion = Arc::new(crate::completion::fixture::Resolver {
@@ -1415,29 +1345,14 @@ mod tests {
             default_method: None,
         });
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let start = rx.recv().expect("recv rhtest1.start");
-            start
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    start.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({}),
-                ))
-                .expect("send start resp");
-            let poll = rx.recv().expect("recv rhtest1.poll");
-            poll.response_tx
-                .send(JsonRpcResponse::success(
-                    poll.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "state": "done" }),
-                ))
-                .expect("send poll resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![
+                scripted_ipc::Step::answer(json!({})),
+                scripted_ipc::Step::answer(json!({ "state": "done" })),
+            ],
+            false,
+        );
         let task = Task {
             id: "t-named".to_string(),
             workspace_id: 1,
@@ -1476,16 +1391,12 @@ mod tests {
             PollOutcome::Done(r) => assert_eq!(r.output, Some(json!({ "state": "done" }))),
             other => panic!("expected Done, got {other:?}"),
         }
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     #[test]
     fn custom_with_named_push_strategy_registers_hook_and_awaits_external() {
-        use std::sync::mpsc;
         use tasty_agent::{OnFailure, PollSpecRef};
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, mut ctx) = fresh_ctx();
         ctx.completion = Arc::new(crate::completion::fixture::Resolver {
@@ -1499,45 +1410,27 @@ mod tests {
             default_method: None,
         });
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let start = rx.recv().expect("recv rhtest-push.start");
-            start
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    start.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({}),
-                ))
-                .expect("send start resp");
-            let hook_set = rx.recv().expect("recv hook.set");
-            assert_eq!(hook_set.request.method, "hook.set");
-            assert_eq!(hook_set.request.params.get("surface_id"), Some(&json!(7)));
-            assert_eq!(
-                hook_set.request.params.get("event"),
-                Some(&json!("command-completed"))
-            );
-            assert_eq!(
-                hook_set.request.params.get("handler"),
-                Some(&json!("rhtest-push/notify"))
-            );
-            assert_eq!(hook_set.request.params.get("once"), Some(&json!(true)));
-            hook_set
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    hook_set
-                        .request
-                        .id
-                        .clone()
-                        .unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "hook_id": 999 }),
-                ))
-                .expect("send hook.set resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![
+                scripted_ipc::Step::answer(json!({})),
+                scripted_ipc::Step::Reply(Box::new(|hook_set| {
+                    assert_eq!(hook_set.request.method, "hook.set");
+                    assert_eq!(hook_set.request.params.get("surface_id"), Some(&json!(7)));
+                    assert_eq!(
+                        hook_set.request.params.get("event"),
+                        Some(&json!("command-completed"))
+                    );
+                    assert_eq!(
+                        hook_set.request.params.get("handler"),
+                        Some(&json!("rhtest-push/notify"))
+                    );
+                    assert_eq!(hook_set.request.params.get("once"), Some(&json!(true)));
+                    json!({ "hook_id": 999 })
+                })),
+            ],
+            false,
+        );
         let task = Task {
             id: "t-push".to_string(),
             workspace_id: 1,
@@ -1572,7 +1465,7 @@ mod tests {
             DispatchOutcome::Started(h) => h,
             other => panic!("expected Started, got {other:?}"),
         };
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
         match &handle {
             DispatchHandle::AwaitExternal {
                 wait_key,
@@ -1595,11 +1488,7 @@ mod tests {
 
     #[test]
     fn custom_with_push_strategy_missing_surface_id_fails_dispatch() {
-        use std::sync::mpsc;
         use tasty_agent::{OnFailure, PollSpecRef};
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, mut ctx) = fresh_ctx();
         ctx.completion = Arc::new(crate::completion::fixture::Resolver {
@@ -1613,22 +1502,7 @@ mod tests {
             default_method: None,
         });
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let start = rx.recv().expect("recv rhtest-push2.start");
-            start
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    start.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({}),
-                ))
-                .expect("send start resp");
-        });
+        let ipc = scripted_ipc::install(&ctx, vec![scripted_ipc::Step::answer(json!({}))], false);
         let task = Task {
             id: "t-push-no-surface".to_string(),
             workspace_id: 1,
@@ -1663,36 +1537,17 @@ mod tests {
             DispatchOutcome::PermanentFail(e) => assert!(e.contains("surface_id")),
             other => panic!("expected PermanentFail, got {other:?}"),
         }
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     /// 미등록 전략 오류 전에 원래 IPC는 이미 실행된다. 응답 뒤 전략 해석에서 실패하는 순서를 확인한다.
     #[test]
     fn custom_with_unknown_named_poll_strategy_fails_dispatch() {
-        use std::sync::mpsc;
         use tasty_agent::{OnFailure, PollSpecRef};
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, ctx) = fresh_ctx();
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let start = rx.recv().expect("recv rhtest2.start");
-            start
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    start.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({}),
-                ))
-                .expect("send start resp");
-        });
+        let ipc = scripted_ipc::install(&ctx, vec![scripted_ipc::Step::answer(json!({}))], false);
         let task = Task {
             id: "t-named-missing".to_string(),
             workspace_id: 1,
@@ -1727,16 +1582,12 @@ mod tests {
             DispatchOutcome::PermanentFail(e) => assert!(e.contains("rhtest2/does-not-exist")),
             other => panic!("expected PermanentFail, got {other:?}"),
         }
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     #[test]
     fn custom_without_poll_uses_default_for_method_strategy() {
-        use std::sync::mpsc;
         use tasty_agent::OnFailure;
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, mut ctx) = fresh_ctx();
         ctx.completion = Arc::new(crate::completion::fixture::Resolver {
@@ -1755,29 +1606,14 @@ mod tests {
             default_method: Some("rhtest3.start".into()),
         });
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let start = rx.recv().expect("recv rhtest3.start");
-            start
-                .response_tx
-                .send(JsonRpcResponse::success(
-                    start.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({}),
-                ))
-                .expect("send start resp");
-            let poll = rx.recv().expect("recv rhtest3.poll");
-            poll.response_tx
-                .send(JsonRpcResponse::success(
-                    poll.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    serde_json::json!({ "state": "done" }),
-                ))
-                .expect("send poll resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![
+                scripted_ipc::Step::answer(json!({})),
+                scripted_ipc::Step::answer(json!({ "state": "done" })),
+            ],
+            false,
+        );
         let task = Task {
             id: "t-default".to_string(),
             workspace_id: 1,
@@ -1815,7 +1651,7 @@ mod tests {
             PollOutcome::Done(r) => assert_eq!(r.output, Some(json!({ "state": "done" }))),
             other => panic!("expected Done, got {other:?}"),
         }
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
     }
 
     #[test]
@@ -2326,30 +2162,18 @@ mod tests {
 
     #[test]
     fn dispatch_substitutes_lease_placeholder_in_custom_params() {
-        use std::sync::mpsc;
         use tasty_agent::OnFailure;
-        use tasty_ipc::host_call::HostIpcInjector;
-        use tasty_ipc::protocol::JsonRpcResponse;
-        use tasty_ipc::server::IpcCommand;
 
         let (_td, ctx) = fresh_ctx();
         let mut exec = HostExecutor::new(ctx.clone());
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        let waker = std::sync::Arc::new(|| {});
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, waker))
-            .ok()
-            .expect("set once");
-        let worker = std::thread::spawn(move || {
-            let cmd = rx.recv().expect("recv fake.spawn");
-            assert_eq!(cmd.request.params.get("cwd"), Some(&json!("wt-1")));
-            cmd.response_tx
-                .send(JsonRpcResponse::success(
-                    cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                    json!({ "ok": true }),
-                ))
-                .expect("send resp");
-        });
+        let ipc = scripted_ipc::install(
+            &ctx,
+            vec![scripted_ipc::Step::Reply(Box::new(|cmd| {
+                assert_eq!(cmd.request.params.get("cwd"), Some(&json!("wt-1")));
+                json!({ "ok": true })
+            }))],
+            false,
+        );
         let task = Task {
             id: "t-custom-lease".to_string(),
             workspace_id: 1,
@@ -2382,7 +2206,7 @@ mod tests {
             DispatchOutcome::Started(h) => h,
             other => panic!("expected Started, got {other:?}"),
         };
-        worker.join().unwrap();
+        ipc.assert_all_steps_used();
         assert!(matches!(handle, DispatchHandle::CustomImmediate(_)));
     }
 

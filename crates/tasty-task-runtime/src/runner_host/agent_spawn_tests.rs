@@ -22,18 +22,14 @@ fn new_session() -> AgentSession {
 #[test]
 fn a_slow_spawn_does_not_hold_up_other_tasks() {
     let (_td, ctx) = fresh_ctx();
-    let fake = FakeProvider::install_with(&ctx, "idle", Duration::from_secs(2));
+    let fake = FakeProvider::install_with(&ctx, "idle", true);
     let mut exec = HostExecutor::new(ctx.clone());
     let spawning = create(&ctx, new_session(), v2());
-    let started = Instant::now();
+    // spawn 은 시험이 답할 때까지 답이 없으므로 dispatch 가 돌아온 것이 기다리지 않았다는 뜻이다.
     let DispatchOutcome::Started(spawn_handle) = exec.dispatch(&spawning) else {
         panic!("dispatch did not start");
     };
-    assert!(
-        started.elapsed() < Duration::from_millis(1000),
-        "dispatch waited {:?} for the spawn",
-        started.elapsed()
-    );
+    let spawn = fake.held_spawn();
     // 다른 task 는 spawn 의 응답을 기다리지 않고 지시를 보낸다.
     let other = create(&ctx, existing(), v2());
     let other_handle = dispatch(&mut exec, &ctx, &other);
@@ -45,6 +41,7 @@ fn a_slow_spawn_does_not_hold_up_other_tasks() {
         "the spawn has not answered"
     );
     assert!(matches!(exec.poll(&spawn_handle), PollOutcome::Active));
+    FakeProvider::answer_spawn(spawn);
 
     let until = Instant::now() + Duration::from_secs(10);
     assert!(
@@ -87,11 +84,10 @@ fn a_slow_spawn_does_not_hold_up_other_tasks() {
     assert_eq!(r.output.unwrap()[report::FINAL_ANSWER], "told");
 }
 
+/// 늦게 뜬 세션을 닫는 `surface.close` 는 제품 스레드가 보낸다.
 fn wait_closed(fake: &FakeProvider) -> Vec<serde_json::Value> {
     let until = Instant::now() + Duration::from_secs(5);
-    while fake.sent("surface.close").is_empty() && Instant::now() < until {
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    tasty_utils::test_wait::holds_by(until, || !fake.sent("surface.close").is_empty());
     fake.sent("surface.close")
 }
 
@@ -99,10 +95,11 @@ fn wait_closed(fake: &FakeProvider) -> Vec<serde_json::Value> {
 #[test]
 fn a_session_that_starts_after_the_task_gave_up_is_closed() {
     let (_td, ctx) = fresh_ctx();
-    let fake = FakeProvider::install_with(&ctx, "idle", Duration::from_millis(300));
+    let fake = FakeProvider::install_with(&ctx, "idle", true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, new_session(), v2());
     let h = dispatch(&mut exec, &ctx, &task);
+    let spawn = fake.held_spawn();
     exec.late
         .spawns
         .get_mut(&task.id)
@@ -116,6 +113,7 @@ fn a_session_that_starts_after_the_task_gave_up_is_closed() {
         Some(FailureCode::AgentUnavailable)
     );
     assert!(e.contains("no reply within 30s"), "{e}");
+    FakeProvider::answer_spawn(spawn);
     let closed = wait_closed(&fake);
     assert_eq!(closed.len(), 1);
     assert_eq!(closed[0]["surface_id"], 42);
@@ -126,11 +124,13 @@ fn a_session_that_starts_after_the_task_gave_up_is_closed() {
 #[test]
 fn a_session_that_starts_after_the_task_was_cancelled_is_closed() {
     let (_td, ctx) = fresh_ctx();
-    let fake = FakeProvider::install_with(&ctx, "idle", Duration::from_millis(300));
+    let fake = FakeProvider::install_with(&ctx, "idle", true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, new_session(), v2());
     dispatch(&mut exec, &ctx, &task);
+    let spawn = fake.held_spawn();
     exec.release_permit(&task.id);
+    FakeProvider::answer_spawn(spawn);
     let closed = wait_closed(&fake);
     assert_eq!(closed.len(), 1);
     assert_eq!(closed[0]["surface_id"], 42);
@@ -164,27 +164,32 @@ fn a_bound_session_not_yet_taken_is_closed_on_cancel() {
 #[test]
 fn a_restart_while_the_spawn_is_waiting_sees_an_unanswered_request() {
     let (_td, ctx) = fresh_ctx();
-    let _fake = FakeProvider::install_with(&ctx, "idle", Duration::from_secs(2));
+    let fake = FakeProvider::install_with(&ctx, "idle", true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, new_session(), v2());
     dispatch(&mut exec, &ctx, &task);
+    let spawn = fake.held_spawn();
+    assert_eq!(spawn.request.method, "claude.spawn");
     match load_dispatch_handle(&ctx, 1, &task.id) {
         Some(DispatchHandle::AwaitDispatchAnswer { ipc_method, .. }) => {
-            assert_eq!(ipc_method, "claude.spawn")
+            assert_eq!(ipc_method, spawn.request.method)
         }
         other => panic!("expected a stored answer wait, got {other:?}"),
     }
+    drop(spawn);
 }
 
 /// 러너가 멈춰 executor 가 사라져도 뒤에 뜬 세션을 닫는다.
 #[test]
 fn a_session_that_starts_after_the_runner_stopped_is_closed() {
     let (_td, ctx) = fresh_ctx();
-    let fake = FakeProvider::install_with(&ctx, "idle", Duration::from_millis(300));
+    let fake = FakeProvider::install_with(&ctx, "idle", true);
     let mut exec = HostExecutor::new(ctx.clone());
     let task = create(&ctx, new_session(), v2());
     dispatch(&mut exec, &ctx, &task);
+    let spawn = fake.held_spawn();
     drop(exec);
+    FakeProvider::answer_spawn(spawn);
     let closed = wait_closed(&fake);
     assert_eq!(closed.len(), 1);
     assert_eq!(closed[0]["surface_id"], 42);
