@@ -510,10 +510,7 @@ impl App {
         }
         let (_, local_workspace) = self.release_session_connection(idx, SessionState::Reconnecting);
         if live {
-            self.remote
-                .reconnect
-                .entry(row)
-                .or_insert_with(tasty_remote::outbound::ReconnectSlot::new);
+            self.remote.reconnect.entry(row).or_default();
             self.remote.active.insert(row);
         } else {
             self.remote.active.remove(&row);
