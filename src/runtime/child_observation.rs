@@ -53,3 +53,30 @@ impl EngineMut<'_> {
         self.as_ref().child_liveness(child_surface)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::time::{Duration, Instant};
+
+    /// Given 2초 전에 마지막으로 출력한 자식, When OS 크기 통지 뒤 재그리기 출력이 오면, Then 관측한 출력
+    /// 침묵은 재그리기 전 출력부터 센다. 마지막 출력 시각으로 세면 0에 가깝다.
+    #[test]
+    fn output_silence_counts_from_the_output_before_a_resize_redraw() {
+        let (_state, mut session) = crate::state::tests::test_state();
+        let sid = 7_701;
+        let mut terminal = tasty_terminal::Terminal::new_detached(80, 24);
+        terminal.feed_bytes_at(b"work", Instant::now() - Duration::from_secs(2));
+        terminal.note_resize_redraw_at(Instant::now());
+        terminal.feed_bytes(b"\x1b[Hredraw");
+        session.runtime.terminals.insert(sid, terminal, None);
+        let observed = session.as_ref().observe_child(sid, &HashSet::new());
+        assert!(
+            observed
+                .output_silence
+                .is_some_and(|silence| silence >= Duration::from_secs(1)),
+            "{:?}",
+            observed.output_silence
+        );
+    }
+}
