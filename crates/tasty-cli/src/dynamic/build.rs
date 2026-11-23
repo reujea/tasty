@@ -39,7 +39,7 @@ pub fn discover_plugins(plugins_root: &Path) -> DiscoveredPlugins {
     dirs.sort();
     let mut manifests = Vec::new();
     for dir in dirs {
-        match Manifest::load(&dir).and_then(|m| m.require_host_tasty().map(|()| m)) {
+        match Manifest::load_for_host(&dir) {
             Ok(manifest) => manifests.push((dir, manifest)),
             Err(e) => {
                 crate::out::errln!(

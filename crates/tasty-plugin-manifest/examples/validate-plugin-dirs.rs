@@ -25,7 +25,10 @@ fn run(tasty_version: Option<&std::ffi::OsStr>, dirs: &[PathBuf]) -> std::io::Re
     let mut out = std::io::stdout().lock();
     let mut err = std::io::stderr().lock();
     if let Some(version) = tasty_version {
-        let set = tasty_plugin_manifest::set_host_tasty_version(&version.to_string_lossy());
+        let set = tasty_plugin_manifest::set_host_tasty_version(
+            &version.to_string_lossy(),
+            tasty_plugin_manifest::VersionShortfall::Refuse,
+        );
         if let Err(e) = set {
             writeln!(err, "{e}")?;
             return Ok(ExitCode::from(2));
@@ -40,7 +43,7 @@ fn run(tasty_version: Option<&std::ffi::OsStr>, dirs: &[PathBuf]) -> std::io::Re
     }
     let mut failed = 0usize;
     for dir in dirs {
-        match Manifest::load(dir).and_then(|m| m.require_host_tasty().map(|()| m)) {
+        match Manifest::load_for_host(dir) {
             Ok(m) => writeln!(out, "valid\t{}\t{}\t{}", m.id, m.version, dir.display())?,
             Err(e) => {
                 writeln!(err, "invalid\t{}\t{e:#}", dir.display())?;

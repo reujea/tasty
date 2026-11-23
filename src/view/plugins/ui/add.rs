@@ -311,11 +311,15 @@ fn try_validate_path(ui_state: &mut PluginsUiState, snapshot: &PluginsSnapshot) 
     let manifest_sha256 =
         tasty_host_plugin::trust_verdict::manifest_sha256(&path).unwrap_or_default();
     // 읽기·파싱 실패와 선언 검사 실패는 상자 제목이 다르다.
-    let checked = match crate::plugin::Manifest::read(&path) {
-        Err(e) => Err(AddError::Read(e.to_string())),
+    // 최소 Tasty 버전은 이 판이 모르는 선언보다 먼저 판정한다(읽기 오류는 아래 read가 알린다).
+    let admitted = crate::plugin::Manifest::admit_host_tasty(&path)
+        .map_err(|e| AddError::Invalid(tasty_host_plugin::manifest_error::describe(&e)));
+    let checked = match admitted.and_then(|()| {
+        crate::plugin::Manifest::read(&path).map_err(|e| AddError::Read(e.to_string()))
+    }) {
+        Err(e) => Err(e),
         Ok(m) => m
             .validate()
-            .and_then(|()| m.require_host_tasty())
             .and_then(|()| crate::plugin_bridge::manifest_validate::validate_bin_extras(&m))
             .map(|()| m)
             .map_err(|e| AddError::Invalid(tasty_host_plugin::manifest_error::describe(&e))),

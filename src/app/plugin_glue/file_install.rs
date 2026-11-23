@@ -108,12 +108,11 @@ impl InstallRequest {
                 "the manifest changed after it was reviewed; verify the folder again. Nothing was installed"
             );
         }
+        // 최소 Tasty 버전은 선언 검사·서명 판정보다 먼저 보고, 폴더·신뢰 DB를 쓰기 전에 거절한다.
+        Manifest::admit_host_tasty(&self.source)
+            .map_err(|e| anyhow::anyhow!("{}", tasty_host_plugin::manifest_error::describe(&e)))?;
         let manifest =
             Manifest::load(&self.source).map_err(|_| anyhow::anyhow!("invalid plugin manifest"))?;
-        // 폴더·신뢰 DB를 쓰기 전에 거절한다. 사유에 요구 버전과 현재 버전을 담는다.
-        manifest
-            .require_host_tasty()
-            .map_err(|e| anyhow::anyhow!("{}", tasty_host_plugin::manifest_error::describe(&e)))?;
         crate::plugin_bridge::manifest_validate::validate_bin_extras(&manifest)?;
         let dir = if self.copy {
             self.root.join(&manifest.id)
@@ -346,6 +345,40 @@ command="unused"
         assert!(!home.path().join("plugins").exists());
         assert!(!home.path().join("known-plugins.toml").exists());
         assert!(!home.path().join("plugins.toml").exists());
+    }
+    /// 서명 없는 폴더(VerifiedOnly)여도 버전 사유가 서명·선언 검사보다 먼저 나오고 아무것도 쓰지 않는다.
+    #[test]
+    fn a_plugin_requiring_a_newer_tasty_is_refused_with_both_versions_before_anything_is_written() {
+        tasty_plugin_manifest::set_host_tasty_version(
+            "1.0.0",
+            tasty_plugin_manifest::VersionShortfall::Refuse,
+        )
+        .expect("every test in this binary sets the same host version");
+        let home = tempfile::tempdir().unwrap();
+        let request = request(home.path(), InstallChoice::VerifiedOnly);
+        let manifest = request.source.join("tasty-plugin.toml");
+        let text = std::fs::read_to_string(&manifest).unwrap();
+        // 이 판이 모르는 entry type도 함께 넣는다. 버전 사유가 먼저여야 한다.
+        let text = text.replace(
+            "api_version=\"1\"",
+            "api_version=\"1\"\nmin_tasty_version=\"1.0.1\"",
+        );
+        std::fs::write(&manifest, text.replace("type=\"process\"", "type=\"wasm\"")).unwrap();
+        let error = request.execute().err().unwrap();
+        assert!(
+            error.message.contains("1.0.1") && error.message.contains("1.0.0"),
+            "{}",
+            error.message
+        );
+        assert!(
+            error.details.get("unverified").is_none(),
+            "{:?}",
+            error.details
+        );
+        assert_eq!(error.saved, Some(false));
+        assert!(!error.applied);
+        assert!(!home.path().join("plugins").exists());
+        assert!(!home.path().join("known-plugins.toml").exists());
     }
     #[test]
     fn the_registration_guard_reports_committed_files_and_the_reserved_id() {

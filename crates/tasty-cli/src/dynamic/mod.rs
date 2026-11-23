@@ -47,4 +47,6 @@ pub struct PluginCliEntry {
 }
 
 #[cfg(test)]
+mod min_version_tests;
+#[cfg(test)]
 mod tests;

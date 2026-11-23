@@ -21,7 +21,10 @@ mod tests;
 
 pub use caller_context::{CallerContextDecl, CallerIdFormat, CallerPathEnvDecl};
 pub use host_actions::{INHERITABLE_HOST_ACTIONS, is_inheritable};
-pub use host_version::{TastyVersionTooOld, host_tasty_version, set_host_tasty_version};
+pub use host_version::{
+    TastyVersionTooOld, VersionShortfall, check_min_tasty_version_source, host_tasty_version,
+    set_host_tasty_version,
+};
 pub use kind_capabilities::SurfaceKindCapabilityDecl;
 pub use package::PluginPackage;
 pub use popup::{DEFAULT_POPUP_SIZE, PopupLayout, is_valid_popup_id, validate_popup_decl};

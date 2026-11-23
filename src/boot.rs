@@ -94,6 +94,17 @@ fn maintain_memory_at_boot(arc: &std::sync::Arc<std::sync::Mutex<tasty_memory::M
     truncate_wal(&mut store);
 }
 
+/// 플러그인 최소 버전 비교에 쓸 본체 버전과 부족 처리.
+/// release는 거절한다. debug(develop 개발 빌드)는 경고만 한다. develop의 루트 버전은 마지막
+/// 릴리스 값에 머물지만 잠금된 공식 플러그인은 다음 판의 계약을 요구하기 때문이다.
+fn plugin_host_version() -> (&'static str, tasty_plugin_manifest::VersionShortfall) {
+    #[cfg(debug_assertions)]
+    let shortfall = tasty_plugin_manifest::VersionShortfall::Warn;
+    #[cfg(not(debug_assertions))]
+    let shortfall = tasty_plugin_manifest::VersionShortfall::Refuse;
+    (env!("CARGO_PKG_VERSION"), shortfall)
+}
+
 /// main에서 호출하는 프로세스 진입점.
 pub fn run() -> anyhow::Result<std::process::ExitCode> {
     // 상대 경로의 기준(실행 폴더)과 `~`의 홈을 다른 초기화보다 먼저 한 번 읽어 고정한다.
@@ -104,7 +115,11 @@ pub fn run() -> anyhow::Result<std::process::ExitCode> {
     os::attach_windows_console_if_needed();
     os::init_crash_report();
     // 플러그인 매니페스트의 min_tasty_version을 비교할 본체 버전. CLI 라우팅이 매니페스트를 읽기 전에 정한다.
-    tasty_plugin_manifest::set_host_tasty_version(env!("CARGO_PKG_VERSION"))?;
+    // 실패해도 시작은 막지 않는다(비교만 빠진다). Cargo 패키지 버전은 늘 semver라 실제로는 성공한다.
+    let (version, shortfall) = plugin_host_version();
+    if let Err(e) = tasty_plugin_manifest::set_host_tasty_version(version, shortfall) {
+        tracing::warn!("plugin minimum Tasty version check disabled: {e}");
+    }
 
     match cli_routing::parse_or_route()? {
         cli_routing::Routed::AlreadyHandled => Ok(()),
@@ -1255,5 +1270,29 @@ mod journal_event_tests {
         assert_eq!(session.core_state.local_workspaces().len(), 2);
         assert!(!app.journal.pauses_observation());
         assert!(!app.journal.is_halted());
+    }
+}
+
+#[cfg(test)]
+mod plugin_host_version_tests {
+    use tasty_plugin_manifest::VersionShortfall;
+
+    #[test]
+    fn the_plugin_host_version_is_the_tasty_package_version() {
+        // 이 시험은 루트 패키지에서 돈다. 라이브러리 크레이트의 버전이 아니다.
+        assert_eq!(super::plugin_host_version().0, env!("CARGO_PKG_VERSION"));
+    }
+
+    /// release 분기 배선은 `cargo test --release`로 이 시험을 돌려 지킨다.
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn a_release_build_refuses_a_plugin_requiring_a_newer_tasty() {
+        assert_eq!(super::plugin_host_version().1, VersionShortfall::Refuse);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_debug_build_only_warns_about_a_plugin_requiring_a_newer_tasty() {
+        assert_eq!(super::plugin_host_version().1, VersionShortfall::Warn);
     }
 }

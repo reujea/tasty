@@ -75,7 +75,7 @@ fn classify_discovery_entry(dir: PathBuf, found: &mut Discovered) {
     let manifest_sha256 = crate::trust_verdict::manifest_sha256(&dir).unwrap_or_default();
     // 여기서는 매니페스트 스키마를 확인한다. detector/handler 등록 검증은 호스트가 처리한다.
     // 최소 Tasty 버전은 여기서 비교한다. 번들 버전 읽기 등 읽기만 하는 경로는 비교하지 않는다.
-    let manifest = match Manifest::load(&dir).and_then(|m| m.require_host_tasty().map(|()| m)) {
+    let manifest = match Manifest::load_for_host(&dir) {
         Ok(manifest) => manifest,
         Err(e) => {
             tracing::warn!("plugin '{}' rejected: {}", dir.display(), e);

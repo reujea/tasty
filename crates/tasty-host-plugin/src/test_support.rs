@@ -339,3 +339,13 @@ mod tests {
         );
     }
 }
+
+/// 이 시험 바이너리의 본체 버전을 1.0.0·거절로 정한다. 같은 값이면 여러 시험이 불러도 된다.
+/// 다른 시험의 매니페스트에는 `min_tasty_version`이 없어 결과가 바뀌지 않는다.
+pub(crate) fn host_tasty_1_0_0() {
+    tasty_plugin_manifest::set_host_tasty_version(
+        "1.0.0",
+        tasty_plugin_manifest::VersionShortfall::Refuse,
+    )
+    .expect("every test in this binary sets the same host version");
+}
