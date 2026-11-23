@@ -135,6 +135,13 @@ mod outbox {
     struct Pending {
         events: Vec<MirrorEvent>,
         bytes: usize,
+        /// `events` 가운데 알림음 수. 알림음은 한도와 재동기화에 들지 않는다.
+        sounds: usize,
+    }
+    /// 쌓아 둘 알림음의 최대 수. 넘친 알림음은 화면 재동기화 없이 버린다.
+    const MAX_PENDING_SOUNDS: usize = 64;
+    fn is_sound(event: &MirrorEvent) -> bool {
+        matches!(event, MirrorEvent::NotificationSound(_))
     }
     #[derive(Clone)]
     pub struct MirrorOutbox {
@@ -163,12 +170,21 @@ mod outbox {
             if !self.epoch.is_active() {
                 return false;
             }
+            // 알림음은 버려도 되는 프레임이다. 다른 이벤트의 자리를 쓰지 않고, 넘치면 그것만 버린다.
+            if is_sound(&event) {
+                if pending.sounds < MAX_PENDING_SOUNDS {
+                    pending.sounds += 1;
+                    pending.events.push(event);
+                }
+                return true;
+            }
             let bytes = event.retained_bytes();
-            if pending.events.len() >= 1024
+            if pending.events.len() - pending.sounds >= 1024
                 || pending.bytes.saturating_add(bytes) > tasty_ipc::admission::QUEUED_BYTES_LIMIT
             {
-                let frames = pending.events.len() as u64 + 1;
+                let frames = (pending.events.len() - pending.sounds) as u64 + 1;
                 pending.events.clear();
+                pending.sounds = 0;
                 pending.bytes = std::mem::size_of::<MirrorEvent>();
                 pending.events.push(MirrorEvent::Desynced { frames });
             } else {
@@ -188,19 +204,27 @@ mod outbox {
                 super::MIRROR_OUTBOX_WHAT,
                 &super::MIRROR_OUTBOX_POISONED,
             );
-            let bytes = events.iter().fold(0usize, |sum, event| {
-                sum.saturating_add(event.retained_bytes())
-            });
-            if events.len().saturating_add(pending.events.len()) > 1024
+            let sounds = events.iter().filter(|event| is_sound(event)).count();
+            let bytes = events
+                .iter()
+                .filter(|event| !is_sound(event))
+                .fold(0usize, |sum, event| {
+                    sum.saturating_add(event.retained_bytes())
+                });
+            let counted = (events.len() - sounds) + (pending.events.len() - pending.sounds);
+            if counted > 1024
                 || bytes.saturating_add(pending.bytes) > tasty_ipc::admission::QUEUED_BYTES_LIMIT
             {
-                let frames = events.len().saturating_add(pending.events.len()) as u64;
                 pending.events.clear();
-                pending.events.push(MirrorEvent::Desynced { frames });
+                pending.events.push(MirrorEvent::Desynced {
+                    frames: counted as u64,
+                });
+                pending.sounds = 0;
                 pending.bytes = std::mem::size_of::<MirrorEvent>();
             } else {
                 events.append(&mut pending.events);
                 pending.events = events;
+                pending.sounds += sounds;
                 pending.bytes += bytes;
             }
         }
@@ -221,6 +245,7 @@ mod outbox {
                 &super::MIRROR_OUTBOX_POISONED,
             );
             pending.bytes = 0;
+            pending.sounds = 0;
             if !self.epoch.is_active() {
                 pending.events.clear();
                 return Vec::new();
@@ -715,6 +740,34 @@ mod retained_bytes_tests {
         assert_eq!(
             MirrorEvent::Foreground(1, Some(name)).retained_bytes(),
             base + capacity
+        );
+    }
+}
+
+#[cfg(test)]
+mod outbox_tests {
+    use super::{MirrorEvent, MirrorOutbox};
+
+    /// Given 서버가 넘긴 알림음과 출력, When 수신 큐가 한도까지 찬다, Then 알림음은 출력의 자리를 쓰지 않고
+    /// 재동기화를 만들지 않으며 넘치면 그것만 버린다.
+    #[test]
+    fn notification_sounds_neither_take_output_room_nor_desync() {
+        let (sender, _queue) = crate::connection::channel();
+        let outbox = MirrorOutbox::new(sender.epoch());
+        for _ in 0..1024 {
+            assert!(outbox.push(MirrorEvent::NotificationSound(1)));
+        }
+        for _ in 0..1024 {
+            assert!(outbox.push(MirrorEvent::Data(1, vec![b'x'])));
+        }
+        assert!(outbox.push(MirrorEvent::NotificationSound(1)));
+        let drained = outbox.drain();
+        let count = |pick: fn(&MirrorEvent) -> bool| drained.iter().filter(|e| pick(e)).count();
+        assert_eq!(count(|e| matches!(e, MirrorEvent::Desynced { .. })), 0);
+        assert_eq!(count(|e| matches!(e, MirrorEvent::Data(..))), 1024);
+        assert_eq!(
+            count(|e| matches!(e, MirrorEvent::NotificationSound(_))),
+            64
         );
     }
 }
