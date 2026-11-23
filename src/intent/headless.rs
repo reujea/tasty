@@ -249,13 +249,13 @@ fn handle_core_event(core: &mut AppServices, engine: &mut EngineMut<'_>, event: 
             surface_id,
             title,
             body,
-            // 헤드리스에서는 알림음을 재생하지 않는다. attach client 몫이면 client에 넘긴다.
+            // 헤드리스에서는 알림음을 재생하지 않는다. 대상을 점유한 attach client가 있으면 넘긴다.
             source: _,
             merge,
-            stream_echo,
+            terminal_event: _,
         } => {
             if push_notification(engine, ws_id, surface_id, title, body, level, merge) {
-                engine.hand_notification_sound_to_attach_client(ws_id, surface_id, stream_echo);
+                engine.hand_notification_sound_to_attach_client(ws_id, surface_id);
             }
         }
         CoreEvent::TerminalMarkSet { surface_id } => {
@@ -345,7 +345,7 @@ pub(crate) fn queue_system_notices(state: &mut RequestContext, engine: &EngineMu
                 body: notice.body,
                 source: notice.source.to_string(),
                 merge: crate::app::command::NotificationMerge::Separate,
-                stream_echo: false,
+                terminal_event: false,
             }
             .from_system(),
         );
@@ -570,7 +570,7 @@ mod tests {
                     body: format!("{title} cause"),
                     source: "test".into(),
                     merge,
-                    stream_echo: false,
+                    terminal_event: false,
                 }
                 .from_system(),
             );

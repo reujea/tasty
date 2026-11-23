@@ -257,24 +257,28 @@ mod tests {
             ws_id,
             &crate::model::AttachSurfaceClass::default(),
         );
+        let mut expected = vec![
+            tasty_ipc::stream::RESIZE_ACK_CAPABILITY,
+            tasty_ipc::stream::INPUT_ACK_CAPABILITY,
+            tasty_ipc::stream::WORKSPACE_CLOSE_CAPABILITY,
+            tasty_ipc::stream::INHERIT_CWD_CAPABILITY,
+            tasty_ipc::explorer_op::CAPABILITY,
+            tasty_ipc::agent_child::CAPABILITY,
+            tasty_ipc::terminal_read::CAPABILITY,
+            tasty_ipc::file_download::CAPABILITY,
+            tasty_ipc::html_transfer::CAPABILITY,
+            tasty_ipc::html_transfer::VIEWER_CAPABILITY,
+            tasty_ipc::html_transfer::RESOURCE_CAPABILITY,
+            tasty_ipc::html_http::CAPABILITY,
+            tasty_ipc::html_http::HTTPS_CAPABILITY,
+            tasty_ipc::html_http::RELOAD_CAPABILITY,
+        ];
+        if cfg!(feature = "gui") {
+            expected.push(tasty_ipc::stream::NOTIFICATION_SOUND_CAPABILITY);
+        }
         assert_eq!(
             descriptor[tasty_ipc::stream::DESCRIPTOR_CAPABILITIES],
-            serde_json::json!([
-                tasty_ipc::stream::RESIZE_ACK_CAPABILITY,
-                tasty_ipc::stream::INPUT_ACK_CAPABILITY,
-                tasty_ipc::stream::WORKSPACE_CLOSE_CAPABILITY,
-                tasty_ipc::stream::INHERIT_CWD_CAPABILITY,
-                tasty_ipc::explorer_op::CAPABILITY,
-                tasty_ipc::agent_child::CAPABILITY,
-                tasty_ipc::terminal_read::CAPABILITY,
-                tasty_ipc::file_download::CAPABILITY,
-                tasty_ipc::html_transfer::CAPABILITY,
-                tasty_ipc::html_transfer::VIEWER_CAPABILITY,
-                tasty_ipc::html_transfer::RESOURCE_CAPABILITY,
-                tasty_ipc::html_http::CAPABILITY,
-                tasty_ipc::html_http::HTTPS_CAPABILITY,
-                tasty_ipc::html_http::RELOAD_CAPABILITY
-            ])
+            serde_json::json!(expected)
         );
         // client는 이 값으로 mirror 키 인코딩을 정한다. 클라이언트 OS가 아니다.
         assert_eq!(

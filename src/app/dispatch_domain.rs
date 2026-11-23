@@ -291,7 +291,7 @@ impl App {
                 body,
                 source,
                 merge,
-                stream_echo,
+                terminal_event,
             } => {
                 self.cascade_notification_pushed(crate::app::command::NotificationPush {
                     level,
@@ -301,7 +301,7 @@ impl App {
                     body,
                     source,
                     merge,
-                    stream_echo,
+                    terminal_event,
                 });
             }
             CoreEvent::NotificationReadRequested { id } => {
@@ -327,17 +327,12 @@ impl App {
                 surface_id,
                 title,
                 body,
-                stream_echo,
                 ..
             } => {
-                self.cascade_terminal_notification(source, surface_id, title, body, stream_echo);
+                self.cascade_terminal_notification(source, surface_id, title, body);
             }
-            CoreEvent::TerminalBellRing {
-                surface_id,
-                stream_echo,
-                ..
-            } => {
-                self.cascade_terminal_bell_ring(source, surface_id, stream_echo);
+            CoreEvent::TerminalBellRing { surface_id, .. } => {
+                self.cascade_terminal_bell_ring(source, surface_id);
             }
             CoreEvent::TerminalOutputMatch {
                 surface_id, text, ..
@@ -758,8 +753,10 @@ impl App {
             body,
             source,
             merge,
-            stream_echo,
+            terminal_event,
         } = push;
+        // mirror가 같은 바이트로 만든 터미널 유래 알림은 서버가 원본을 만들고 소리를 넘겨준다.
+        let server_sounds = terminal_event && self.mirror_receives_notification_sounds(ws_id);
         let Some((_, mut engine)) = engines_mut!(self)
             .sessions()
             .find(|(_, engine)| engine.has_workspace(ws_id))
@@ -781,10 +778,10 @@ impl App {
         if let Some(nid) = created_id {
             engine.raise_attention(surface_id, AttentionKind::Completion);
             // attach client 몫의 소리는 client가 낸다. 저장·attention·훅은 서버에 그대로 남는다.
-            let client_plays =
-                engine.hand_notification_sound_to_attach_client(ws_id, surface_id, stream_echo);
+            let client_plays = engine.hand_notification_sound_to_attach_client(ws_id, surface_id);
             // OS 벨과의 중복을 피하려는 TerminalBellRing 표지는 사운드에서 제외한다.
             if !client_plays
+                && !server_sounds
                 && engine.runtime.settings.notification.sound
                 && source != "TerminalBellRing"
             {

@@ -1031,3 +1031,37 @@ fn force_detach_turns_reconnect_and_resync_into_a_final_stop() {
     assert_eq!(routed(true, true, EndReason::Lost), Resync);
     assert_eq!(routed(false, false, EndReason::Lost), Cleanup);
 }
+
+/// Given 서버가 넘긴 알림음, When 같은 묶음에서 손실 표지 앞뒤로 온다, Then 표지 앞의 것만 센다.
+/// 표지 뒤의 소리는 버린 스트림의 것이다.
+#[test]
+fn notification_sounds_after_a_loss_marker_are_dropped() {
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let (mut state, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    engine.runtime.settings.notification.sound = true;
+    supply_ids(&engine);
+    let (remote_surface, local_surface) = (42u32, 9_003u32);
+    engine
+        .runtime
+        .terminals
+        .insert(local_surface, Terminal::new_detached(80, 24), None);
+    let mut sess = test_session(9_000, HashMap::from([(remote_surface, local_surface)]));
+    let (tx, _frames_out) = tasty_remote::connection::channel();
+    sess.transport.frame_tx = tx;
+    let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+    {
+        let mut host = MirrorHost::parked(&mut state, &mut engine);
+        apply_mirror_events(
+            &mut sess,
+            &mut host,
+            &mut plugin_manager,
+            vec![
+                MirrorEvent::NotificationSound(remote_surface),
+                MirrorEvent::Desynced { frames: 1 },
+                MirrorEvent::NotificationSound(remote_surface),
+            ],
+        );
+    }
+    assert_eq!(sess.state.notification_sounds, 1);
+}

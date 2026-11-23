@@ -577,6 +577,25 @@ impl StreamHub {
         self.push_to(id, None, frame, None)
     }
 
+    /// Push a frame whose loss leaves the stream consistent (a notification sound). A full sink
+    /// drops it without counting a loss or a lag, so it never forces a resync or a disconnect.
+    pub fn push_droppable(&self, id: StreamClientId, frame: StreamFrame) -> PushResult {
+        let mut sinks =
+            tasty_utils::poison::recover_mutex(self.sinks.lock(), SINKS_WHAT, &SINKS_POISONED);
+        let Some(sink) = sinks.get_mut(&id) else {
+            return PushResult::Unknown;
+        };
+        Self::repay_pending_loss(sink);
+        match Self::try_enqueue(sink, frame) {
+            Ok(()) => PushResult::Sent,
+            Err(TrySendError::Full(_)) => PushResult::Dropped,
+            Err(TrySendError::Disconnected(_)) => {
+                sinks.remove(&id);
+                PushResult::Unknown
+            }
+        }
+    }
+
     /// Registration comparison and enqueue share the same sink lock.
     pub fn push_bound(
         &self,
@@ -1074,6 +1093,38 @@ mod tests {
         }
         assert!(saw_disconnect);
         assert_eq!(hub.client_count(), 0);
+    }
+
+    /// Given 가득 찬 연결, When 손실 없는 push 를 반복한다, Then 버려지기만 하고 손실·lag 으로 세지 않아
+    /// 연결이 끊기지도, Loss 가 생기지도 않는다.
+    #[test]
+    fn a_droppable_frame_is_dropped_without_a_loss() {
+        let hub = StreamHub::new();
+        let id = hub.alloc_id();
+        let rx = hub.register(id);
+        hub.enable_loss_notify(id);
+        for _ in 0..SINK_CAP {
+            assert_eq!(hub.push(id, frame(StreamTag::Data, b"x")), PushResult::Sent);
+        }
+        for _ in 0..LAG_LIMIT + 1 {
+            assert_eq!(
+                hub.push_droppable(id, frame(StreamTag::Control, b"sound")),
+                PushResult::Dropped
+            );
+        }
+        assert_eq!(hub.loss(), StreamLossSnapshot::default());
+        assert_eq!(hub.client_count(), 1);
+        rx.recv().expect("queued");
+        assert_eq!(
+            hub.push_droppable(id, frame(StreamTag::Control, b"sound")),
+            PushResult::Sent
+        );
+        let tail: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert_eq!(tail.len(), SINK_CAP);
+        assert!(
+            tail.iter()
+                .all(|frame| !String::from_utf8_lossy(&frame.payload).contains("loss"))
+        );
     }
 
     #[test]

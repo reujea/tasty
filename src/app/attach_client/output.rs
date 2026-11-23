@@ -183,6 +183,13 @@ impl App {
             self.connect_after_stop(row);
         }
     }
+
+    /// 이 mirror workspace의 서버가 터미널 유래 알림을 직접 만들어 그 소리를 넘겨주는지.
+    pub(crate) fn mirror_receives_notification_sounds(&self, workspace: u32) -> bool {
+        self.remote.sessions.iter().any(|session| {
+            session.state.local_workspace == workspace && session.transport.notification_sounds
+        })
+    }
 }
 
 /// 이벤트를 적용한 뒤 세션의 끝을 정한다. `phase`는 이벤트 적용 전에 읽은 값이다.

@@ -531,7 +531,7 @@ pub fn enqueue_approval(
             body,
             source: "host".to_string(),
             merge: crate::app::command::NotificationMerge::Coalesce,
-            stream_echo: false,
+            terminal_event: false,
         }
         .from_agent_ipc(),
     );

@@ -78,9 +78,9 @@ pub(crate) struct NotificationPush {
     pub body: String,
     pub source: String,
     pub merge: NotificationMerge,
-    /// attach client가 같은 터미널 바이트를 파싱해 스스로 같은 알림을 만든다(OSC 알림·Bell).
-    /// 그 터미널 출력을 client가 받는 동안 서버는 이 알림의 소리를 내지 않는다.
-    pub stream_echo: bool,
+    /// 터미널 바이트에서 생긴 알림(OSC 알림·Bell·명령 기록 한도). attach mirror에서는 같은 알림을
+    /// 서버가 만들어 소리를 넘겨주므로 client는 이 알림의 소리를 내지 않는다.
+    pub terminal_event: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -333,9 +333,9 @@ pub(crate) enum DomainIntent {
         body: String,
         source: String,
         merge: NotificationMerge,
-        /// attach client가 같은 터미널 바이트를 파싱해 스스로 같은 알림을 만든다(OSC 알림·Bell).
-        /// 그 터미널 출력을 client가 받는 동안 서버는 이 알림의 소리를 내지 않는다.
-        stream_echo: bool,
+        /// 터미널 바이트에서 생긴 알림(OSC 알림·Bell·명령 기록 한도). attach mirror에서는 같은 알림을
+        /// 서버가 만들어 소리를 넘겨주므로 client는 이 알림의 소리를 내지 않는다.
+        terminal_event: bool,
     },
     #[cfg(feature = "gui")]
     MarkNotificationRead {
@@ -433,9 +433,9 @@ pub(crate) enum CoreEvent {
         body: String,
         source: String,
         merge: NotificationMerge,
-        /// attach client가 같은 터미널 바이트를 파싱해 스스로 같은 알림을 만든다(OSC 알림·Bell).
-        /// 그 터미널 출력을 client가 받는 동안 서버는 이 알림의 소리를 내지 않는다.
-        stream_echo: bool,
+        /// 터미널 바이트에서 생긴 알림(OSC 알림·Bell·명령 기록 한도). attach mirror에서는 같은 알림을
+        /// 서버가 만들어 소리를 넘겨주므로 client는 이 알림의 소리를 내지 않는다.
+        terminal_event: bool,
     },
     #[cfg(feature = "gui")]
     NotificationReadRequested {
@@ -505,17 +505,11 @@ pub(crate) enum CoreEvent {
         generation: tasty_terminal::ResourceGeneration,
         title: String,
         body: String,
-        /// attach client가 이 사건의 바이트를 받아 같은 알림을 스스로 만든다. 서버는 소리를 내지 않는다.
-        stream_echo: bool,
     },
 
     TerminalBellRing {
         surface_id: u32,
         generation: tasty_terminal::ResourceGeneration,
-        /// attach client가 이 사건의 바이트를 받아 같은 알림을 스스로 만든다. 서버는 소리를 내지 않는다.
-        // reason: Bell 알림은 GUI cascade만 만든다. 헤드리스는 Bell 사건에서 알림을 만들지 않는다.
-        #[cfg_attr(not(feature = "gui"), allow(dead_code))]
-        stream_echo: bool,
     },
 
     /// 완성된 출력 줄. 해당 surface에 OutputMatch hook이 있을 때만 만들어진다.

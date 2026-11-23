@@ -6,19 +6,16 @@ use tasty_ipc::stream_hub::PushResult;
 
 impl EngineMut<'_> {
     /// 새 알림 한 건의 소리를 attach client가 맡으면 true다. 이때 서버는 소리를 내지 않는다.
-    /// `stream_echo` 알림은 그 바이트를 받은 attach client가 같은 알림을 스스로 만들고 소리도 낸다.
-    /// 그 밖의 알림은 대상 surface(없으면 workspace)를 준비된 점유로 가진 holder가 알림음을 받겠다고
-    /// 선언했으면 `NotificationSound`를 한 번 보낸다. 선언하지 않은 구 client면 서버가 지금처럼 낸다.
-    /// 보낸 뒤 큐에서 버려져도 서버에서 대신 재생하지 않는다.
+    /// 기준은 이 서버의 새 알림 id다. 출처(터미널 바이트·IPC·명령 기록 한도)와 무관하게 대상 surface
+    /// (없으면 workspace)를 준비된 점유로 가진 holder가 `ClientTerminalEffects`를 선언했으면
+    /// `NotificationSound`를 한 번 보낸다. 선언하지 않은 client(CLI attach, 구 client)나 선언 처리
+    /// 전이면 서버가 지금처럼 낸다. 큐가 가득 차 버려져도 화면 재동기화를 만들지 않고, 서버가 대신
+    /// 재생하지도 않는다.
     pub(crate) fn hand_notification_sound_to_attach_client(
         &mut self,
         ws_id: u32,
         surface_id: u32,
-        stream_echo: bool,
     ) -> bool {
-        if stream_echo {
-            return true;
-        }
         let Some(holder) = self.notification_sound_holder(ws_id, surface_id) else {
             return false;
         };
@@ -33,7 +30,7 @@ impl EngineMut<'_> {
             serde_json::to_vec(&StreamControl::NotificationSound { surface_id })
                 .unwrap_or_default(),
         );
-        let result = hub.push(holder, frame);
+        let result = hub.push_droppable(holder, frame);
         if result != PushResult::Sent {
             tracing::warn!(
                 surface_id,
@@ -76,9 +73,9 @@ mod tests {
             .count()
     }
 
-    /// Given surface를 점유한 attach client, When 그 surface에 새 알림이 생긴다, Then client가 바이트로
-    /// 스스로 만드는 알림은 전송 없이 서버만 비키고, 서버만 아는 알림은 알림음을 받겠다고 선언한 holder에게
-    /// 한 번 보낸다. 선언 전이거나 점유가 없으면 서버가 낸다.
+    /// Given surface를 점유한 attach client, When 그 surface에 새 알림이 생긴다, Then 터미널 효과를
+    /// 넘겨받겠다고 선언한 holder에게 알림음을 한 번 보내고 서버는 비킨다. 선언 전이거나 점유가 없으면
+    /// 서버가 낸다.
     #[test]
     fn a_new_notification_sound_goes_to_the_attach_client_that_holds_its_surface() {
         let (_state, mut session) = crate::state::tests::test_state();
@@ -90,21 +87,19 @@ mod tests {
         let rx = hub.register(client);
         engine.remote.set_notifier(hub.clone());
 
-        assert!(!engine.hand_notification_sound_to_attach_client(ws, sid, false));
+        assert!(!engine.hand_notification_sound_to_attach_client(ws, sid));
         engine.attach_surface_for_stream(sid, client, &hub);
         sounds(&rx); // 연결 안내와 snapshot 프레임을 비운다.
         assert!(
-            !engine.hand_notification_sound_to_attach_client(ws, sid, false),
-            "선언하지 않은 구 client"
+            !engine.hand_notification_sound_to_attach_client(ws, sid),
+            "선언하지 않은 client"
         );
         assert_eq!(sounds(&rx), 0);
         hub.enable_terminal_effects(client);
-        assert!(engine.hand_notification_sound_to_attach_client(ws, sid, true));
-        assert_eq!(sounds(&rx), 0, "client가 바이트로 스스로 내는 알림");
-        assert!(engine.hand_notification_sound_to_attach_client(ws, sid, false));
-        assert_eq!(sounds(&rx), 1, "서버만 아는 알림");
+        assert!(engine.hand_notification_sound_to_attach_client(ws, sid));
+        assert_eq!(sounds(&rx), 1);
         // surface만 점유했으면 workspace 알림은 서버 몫이다.
-        assert!(!engine.hand_notification_sound_to_attach_client(ws, 0, false));
+        assert!(!engine.hand_notification_sound_to_attach_client(ws, 0));
         assert_eq!(sounds(&rx), 0);
     }
 }

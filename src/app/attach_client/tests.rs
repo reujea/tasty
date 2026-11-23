@@ -102,6 +102,7 @@ pub(crate) fn test_session_with_frames(
             terminal_read: true,
             file_download: true,
             inherit_cwd: true,
+            notification_sounds: false,
             agent_hello_sent: false,
             explorer_inbox: Vec::new(),
             html: Default::default(),

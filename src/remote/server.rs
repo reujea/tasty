@@ -1409,7 +1409,9 @@ mod capture_result_tests {
 
 fn descriptor_capabilities() -> Vec<&'static str> {
     // These describe the server protocol, including headless hosts, not its local renderer.
-    vec![
+    // The notification sound one is GUI-only: only GUI dispatch turns terminal events into
+    // notifications, so a headless server leaves those sounds to the mirror.
+    let mut capabilities = vec![
         tasty_ipc::stream::RESIZE_ACK_CAPABILITY,
         tasty_ipc::stream::INPUT_ACK_CAPABILITY,
         tasty_ipc::stream::WORKSPACE_CLOSE_CAPABILITY,
@@ -1424,5 +1426,9 @@ fn descriptor_capabilities() -> Vec<&'static str> {
         tasty_ipc::html_http::CAPABILITY,
         tasty_ipc::html_http::HTTPS_CAPABILITY,
         tasty_ipc::html_http::RELOAD_CAPABILITY,
-    ]
+    ];
+    if cfg!(feature = "gui") {
+        capabilities.push(tasty_ipc::stream::NOTIFICATION_SOUND_CAPABILITY);
+    }
+    capabilities
 }

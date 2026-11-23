@@ -86,14 +86,12 @@ impl AppServices {
                         surface_id: sid,
                         title,
                         body,
-                        stream_echo: streamed,
                     });
                 }
                 TerminalEventKind::BellRing => {
                     out.push(CoreEvent::TerminalBellRing {
                         generation,
                         surface_id: sid,
-                        stream_echo: streamed,
                     });
                 }
                 TerminalEventKind::TitleChanged(title) => {
@@ -167,10 +165,6 @@ impl AppServices {
                 surface_id: sid,
                 title,
                 body,
-                // client도 같은 OSC 133으로 자기 명령 기록과 한도 알림을 만든다.
-                stream_echo: engine
-                    .find_terminal_by_id(sid)
-                    .is_some_and(|t| t.has_effects_owner_stream()),
             });
         }
     }

@@ -77,6 +77,10 @@ pub fn attach_handshake(
         terminal_read: descriptor_has_capability(&ctrl, tasty_ipc::terminal_read::CAPABILITY),
         file_download: descriptor_has_capability(&ctrl, tasty_ipc::file_download::CAPABILITY),
         inherit_cwd: descriptor_has_capability(&ctrl, stream::INHERIT_CWD_CAPABILITY),
+        notification_sounds: descriptor_has_capability(
+            &ctrl,
+            stream::NOTIFICATION_SOUND_CAPABILITY,
+        ),
         win32_console_input: stream::descriptor_wants_win32_console_input(&ctrl),
         conn,
         client_id,
@@ -110,6 +114,8 @@ pub struct AttachHandshake {
     pub file_download: bool,
     /// 서버가 생성 요청의 cwd 상속 원본을 따른다.
     pub inherit_cwd: bool,
+    /// 서버가 터미널 유래 알림의 소리를 holder에게 넘긴다.
+    pub notification_sounds: bool,
     /// 서버 PTY가 Windows 콘솔 입력을 받는다. 구 서버는 false(VT)다.
     pub win32_console_input: bool,
     pub html: super::html_document::HtmlSession,
@@ -984,6 +990,7 @@ impl PreparedConnection {
             terminal_read,
             file_download,
             inherit_cwd,
+            notification_sounds,
             win32_console_input,
             html,
         } = attach_handshake(
@@ -1064,6 +1071,7 @@ impl PreparedConnection {
                 terminal_read,
                 file_download,
                 inherit_cwd,
+                notification_sounds,
                 agent_hello_sent: false,
                 explorer_inbox: Vec::new(),
                 html,

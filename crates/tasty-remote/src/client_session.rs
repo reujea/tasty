@@ -350,6 +350,9 @@ pub struct ClientTransport {
     /// 서버가 생성 요청의 cwd 상속 원본(`inherit_cwd`)을 따른다. 구 서버는 필드를 무시하므로 "상속 안 함"이
     /// 지켜지지 않는다. client 는 이 값과 관계없이 원본을 싣는다.
     pub inherit_cwd: bool,
+    /// 서버가 터미널 유래 알림을 직접 만들어 그 소리를 넘긴다(`NOTIFICATION_SOUND_CAPABILITY`). 참이면
+    /// mirror가 같은 바이트로 만든 터미널 유래 알림은 소리 없이 기록한다.
+    pub notification_sounds: bool,
     /// 이 연결로 출처 hello 를 보냈다. 재연결하면 새 transport 라 다시 보낸다.
     pub agent_hello_sent: bool,
     /// 받은 원격 explorer 작업 통지. 작업 상태를 가진 App 이 도착 순서대로 꺼낸다.

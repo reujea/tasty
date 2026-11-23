@@ -48,7 +48,7 @@ impl App {
                 source: SOURCE.into(),
                 level: notice.level,
                 merge: crate::app::command::NotificationMerge::Separate,
-                stream_echo: false,
+                terminal_event: false,
             });
         }
     }

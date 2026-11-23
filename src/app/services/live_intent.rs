@@ -48,7 +48,7 @@ impl AppServices {
                 body,
                 source,
                 merge,
-                stream_echo,
+                terminal_event,
             } => Ok(vec![CoreEvent::NotificationPushRequested {
                 level,
                 ws_id,
@@ -57,7 +57,7 @@ impl AppServices {
                 body,
                 source,
                 merge,
-                stream_echo,
+                terminal_event,
             }]),
             #[cfg(feature = "gui")]
             DomainIntent::MarkNotificationRead { id } => {

@@ -38,6 +38,11 @@ pub const WORKSPACE_CLOSE_CAPABILITY: &str = "ipc.stream.workspace-close";
 /// 이 기능이 없는 구 서버는 필드를 무시하고 자기 View 선택과 자기 설정으로 상속한다. client는 그래도
 /// 요청을 보낸다. 결과는 필드가 없을 때의 규칙과 같지만 "상속 안 함"은 지켜지지 않는다.
 pub const INHERIT_CWD_CAPABILITY: &str = "ipc.stream.inherit-cwd";
+/// 서버가 터미널 바이트에서 알림을 직접 만들고, 그 새 알림의 소리를 `ClientTerminalEffects`를 선언한
+/// holder에게 [`StreamControl::NotificationSound`]로 넘긴다는 capability 이름. GUI 서버만 싣는다.
+/// 이 기능이 있는 연결의 mirror는 자기가 같은 바이트로 만든 터미널 유래 알림의 소리를 내지 않는다.
+/// 없는 서버(headless, 구 서버)면 mirror가 자기 알림으로 소리를 낸다.
+pub const NOTIFICATION_SOUND_CAPABILITY: &str = "ipc.stream.notification-sound";
 /// workspace attach descriptor에서 이 연결의 서버 기능 이름 목록을 담는 키.
 /// 구 서버는 이 키를 보내지 않으므로 없으면 빈 목록으로 읽는다.
 pub const DESCRIPTOR_CAPABILITIES: &str = "stream_capabilities";

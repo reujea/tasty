@@ -57,8 +57,11 @@ pub(super) fn apply_one_mirror_event(
             }
         }
         MirrorEvent::NotificationSound(_) => {
-            // 서버는 알림을 만든 순간 한 번 보낸다. 받는 쪽의 소리 설정을 따른다.
-            if host.engine.runtime.settings.notification.sound {
+            // 서버는 알림을 만든 순간 한 번 보낸다. 받는 쪽의 소리 설정을 따른다. 손실 표지 뒤에 온
+            // 것은 버린 스트림의 소리라 재동기화가 끝날 때까지 내지 않는다.
+            if sess.state.resync_pending.is_none()
+                && host.engine.runtime.settings.notification.sound
+            {
                 sess.state.notification_sounds += 1;
             }
         }
