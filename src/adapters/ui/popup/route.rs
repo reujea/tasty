@@ -27,6 +27,23 @@ impl ScopePath {
         surface: None,
     };
 
+    /// `level` 의 범위 노드가 두 경로에서 같은 노드인지. `Window`·engine 은 늘 같다.
+    pub(crate) fn same_at(
+        &self,
+        other: &ScopePath,
+        level: crate::adapters::ui::input::key_level::KeyLevel,
+    ) -> bool {
+        use crate::adapters::ui::input::key_level::KeyLevel;
+        let same = |a: Option<u32>, b: Option<u32>| a.is_some() && a == b;
+        match level {
+            KeyLevel::Engine | KeyLevel::Window => true,
+            KeyLevel::Workspace => same(self.workspace, other.workspace),
+            KeyLevel::Pane => same(self.pane, other.pane),
+            KeyLevel::Tab => same(self.tab, other.tab),
+            KeyLevel::Surface => same(self.surface, other.surface),
+        }
+    }
+
     /// `scope` 가 이 경로 위에 있는지. `Window` 는 모든 경로의 뿌리라 항상 참이다.
     pub(crate) fn contains(&self, scope: &PopupScope) -> bool {
         match scope {
@@ -124,6 +141,26 @@ pub(crate) fn path_of_focus(state: &MainViewState, core: &CoreState) -> ScopePat
         tab: core.find_tab_for_surface(surface),
         surface: Some(surface),
     }
+}
+
+/// 단축키가 실행되는 명령 대상(`command_target`)의 범위 경로. 생성 대기 초안이 선택돼 있으면 초안의
+/// workspace·pane·탭이다.
+pub(crate) fn path_of_command_target(state: &MainViewState, core: &CoreState) -> ScopePath {
+    #[cfg(feature = "gui")]
+    {
+        if core.workspaces().is_empty() {
+            return ScopePath::WINDOW;
+        }
+        let target = state.command_target(core);
+        ScopePath {
+            workspace: target.workspace,
+            pane: target.pane,
+            tab: target.tab,
+            surface: target.surface_id(),
+        }
+    }
+    #[cfg(not(feature = "gui"))]
+    path_of_focus(state, core)
 }
 
 /// 범위 노드 `scope`와 그 조상의 경로. 범위 대상이 엔진에 없으면 아는 단계까지만 담는다.

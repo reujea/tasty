@@ -91,10 +91,19 @@ pub(crate) fn popup_place(state: &MainViewState, node: PopupNode) -> Option<Popu
 }
 
 /// 팝업 노드 뒤 범위 노드의 level. 펼친 팝업은 없고(engine으로 잇는다), 덮는 팝업은 덮은 범위의 부모부터, 덮지 않는
-/// 팝업은 붙은 범위부터다.
-fn popup_scope_levels(state: &MainViewState, node: PopupNode) -> Vec<KeyLevel> {
+/// 팝업은 붙은 범위부터다. 단축키는 명령 대상(`command_target`)에서 실행되므로, 팝업이 붙은 범위의 조상 가운데 명령
+/// 대상의 같은 level 노드와 다른 노드(다른 surface 의 검색 띠를 누른 경우 등)는 경로에 넣지 않는다.
+fn popup_scope_levels(state: &MainViewState, core: &CoreState, node: PopupNode) -> Vec<KeyLevel> {
+    use crate::adapters::ui::popup::route::{path_of_command_target, path_of_scope};
     match popup_place(state, node) {
-        Some(place) if !place.expanded => levels_from(scope_level(&place.scope), !place.covers),
+        Some(place) if !place.expanded => {
+            let anchor = path_of_scope(core, &place.scope);
+            let target = path_of_command_target(state, core);
+            levels_from(scope_level(&place.scope), !place.covers)
+                .into_iter()
+                .filter(|level| anchor.same_at(&target, *level))
+                .collect()
+        }
         _ => Vec::new(),
     }
 }
@@ -124,7 +133,7 @@ pub(crate) fn start_scope_levels(
     let notice = || crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
     match start {
         FocusNode::SettingsRequest | FocusNode::Stage => Vec::new(),
-        FocusNode::Popup(node) => popup_scope_levels(state, node),
+        FocusNode::Popup(node) => popup_scope_levels(state, core, node),
         _ if notice() => levels_from(KeyLevel::Window, true),
         FocusNode::Tutorial => levels_from(KeyLevel::Window, true),
         FocusNode::HtmlAddress(_) | FocusNode::Surface(Some(_)) => {

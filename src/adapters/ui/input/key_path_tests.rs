@@ -146,3 +146,43 @@ fn a_surface_focus_path_has_every_level_and_the_latch_has_none() {
     assert_eq!(state.focus_node(&read), FocusNode::SettingsRequest);
     assert_eq!(focus_path_levels(&state, &read), None);
 }
+
+/// 다른 surface 의 검색 띠: 명령 대상은 모델 포커스 surface(pane 20 의 201)이고 포커스 팝업은 pane 10 의 surface 101
+/// 에 붙어 있다. 경로는 두 자리가 함께 가진 노드(Workspace·Window)뿐이라, 명령 대상에서 실행될 Surface·Tab·Pane
+/// 단축키(`close_surface` 등)는 걸러진다.
+#[cfg(feature = "gui")]
+#[test]
+fn a_popup_on_another_surface_keeps_only_the_shared_levels() {
+    use crate::adapters::ui::popup::PopupScope;
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    assert_eq!(state.focused_surface_id(&read), Some(201));
+    let iid = state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, PopupScope::Surface(101))
+                .focused(),
+            true,
+        )
+        .expect("검색 띠가 열린다");
+    state.normalize_focus(&read);
+    assert_eq!(state.focused_surface_id(&read), Some(201));
+    assert_eq!(
+        state.focus_node(&read),
+        FocusNode::Popup(PopupNode::Host(iid))
+    );
+    let path = focus_path_levels(&state, &read).expect("경로");
+    for level in [KeyLevel::Surface, KeyLevel::Tab, KeyLevel::Pane] {
+        assert!(!path.contains(level), "{level:?}");
+    }
+    assert!(path.contains(KeyLevel::Workspace));
+    let kb = KeybindingSettings {
+        close_surface: vec!["ctrl+f9".into()],
+        ..Default::default()
+    };
+    assert!(path_keybindings(&kb, Some(path)).close_surface.is_empty());
+}
