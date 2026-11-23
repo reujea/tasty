@@ -114,10 +114,26 @@ fn publish_wait_failure(cell: &ExitCell) {
     });
 }
 
+/// 적용하려고 꺼낸 OS 크기 예약. `changes_size`는 마지막으로 적용한 크기와 다른지다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlannedResize {
+    size: (usize, usize),
+    changes_size: bool,
+}
+
+impl PlannedResize {
+    pub fn changes_size(&self) -> bool {
+        self.changes_size
+    }
+}
+
 /// Runtime state for one OS resource; it never contains VT grid/content state.
 pub struct PtyState {
     pub(crate) pending_resize: Option<(usize, usize)>,
     pub(crate) last_resize_flush: Instant,
+    /// 마지막으로 OS에 성공적으로 적용한 크기. spawn 크기로 시작한다. 같은 크기 재적용은 앱이 다시
+    /// 그릴 이유가 없어 재그리기 구간을 열지 않는다.
+    pub(crate) os_applied: Option<(usize, usize)>,
     pub(crate) last_alive_check: Instant,
     pub(crate) exit_observed: bool,
     pub(crate) reader_eof: Arc<AtomicBool>,
@@ -132,6 +148,7 @@ impl PtyState {
         Self {
             pending_resize: None,
             last_resize_flush: Instant::now(),
+            os_applied: None,
             last_alive_check: Instant::now() - ALIVE_CHECK_INTERVAL,
             exit_observed: false,
             reader_eof: Arc::new(AtomicBool::new(false)),
@@ -267,8 +284,10 @@ impl Pty {
 
         // From this point every fallible setup operation is protected by Pty::drop.
         tasty_reaper::adopt_pid(child.process_id());
+        let mut state = PtyState::new();
+        state.os_applied = Some((config.cols, config.rows));
         let mut pty = Self {
-            state: PtyState::new(),
+            state,
             _writer_thread: None,
             writer_wake: None,
             master: Some(pair.master),
@@ -367,35 +386,52 @@ impl Pty {
         self.state.pending_resize.is_some()
     }
 
-    /// 예약된 OS resize를 throttle에 맞춰 적용한다. 적용했으면 true, 예약이 없거나
-    /// throttle에 걸렸으면 false다(throttle이면 예약은 유지된다).
+    /// 예약된 OS resize를 throttle에 맞춰 적용한다. OS 크기를 바꿨으면 true, 예약이 없거나
+    /// throttle에 걸렸거나(예약 유지) 같은 크기 재적용이거나 실패했으면 false다.
     pub fn flush_resize(&mut self) -> bool {
-        if self.state.pending_resize.is_none() {
-            return false;
-        }
-        if self.state.last_resize_flush.elapsed() < RESIZE_THROTTLE {
-            return false;
-        }
-        self.force_flush_resize();
-        true
+        self.take_os_resize(true)
+            .is_some_and(|plan| self.apply_planned(plan))
     }
 
-    /// throttle과 무관하게 예약된 OS resize를 적용한다.
-    pub fn force_flush_resize(&mut self) {
+    /// throttle과 무관하게 예약된 OS resize를 적용한다. 반환은 [`Pty::flush_resize`]와 같다.
+    pub fn force_flush_resize(&mut self) -> bool {
+        self.take_os_resize(false)
+            .is_some_and(|plan| self.apply_planned(plan))
+    }
+
+    /// 지금 적용할 예약을 한 번 판정해 꺼낸다. 연결이 끊겼으면 예약을 버린다. `throttled`면
+    /// throttle 간격이 지나지 않았을 때 예약을 남기고 `None`이다.
+    pub fn take_os_resize(&mut self, throttled: bool) -> Option<PlannedResize> {
         if !self.state.connection.is_active() {
             self.state.pending_resize = None;
-            return;
+            return None;
         }
-        if let Some((cols, rows)) = self.state.pending_resize.take() {
-            if let Err(e) = self.apply_os_resize(cols, rows) {
+        self.state.pending_resize?;
+        if throttled && self.state.last_resize_flush.elapsed() < RESIZE_THROTTLE {
+            return None;
+        }
+        let size = self.state.pending_resize.take()?;
+        Some(PlannedResize {
+            size,
+            changes_size: self.state.os_applied != Some(size),
+        })
+    }
+
+    /// [`Pty::take_os_resize`]가 꺼낸 예약을 OS에 적용한다. 성공했고 크기가 바뀌었으면 true다.
+    pub fn apply_planned(&mut self, plan: PlannedResize) -> bool {
+        let applied = match self.apply_os_resize(plan.size.0, plan.size.1) {
+            Ok(()) => true,
+            Err(e) => {
                 tracing::warn!("PTY resize failed: {e}");
+                false
             }
-            self.state.last_resize_flush = Instant::now();
-        }
+        };
+        self.state.last_resize_flush = Instant::now();
+        applied && plan.changes_size
     }
 
     /// OS PTY에 크기를 바로 알린다. master가 없으면 아무 일도 하지 않는다.
-    pub fn apply_os_resize(&self, cols: usize, rows: usize) -> Result<()> {
+    pub fn apply_os_resize(&mut self, cols: usize, rows: usize) -> Result<()> {
         anyhow::ensure!(
             self.state.connection.is_active(),
             "PTY connection is retired"
@@ -403,6 +439,7 @@ impl Pty {
         if let Some(master) = self.master.as_ref() {
             master.resize(pty_size(cols, rows))?;
         }
+        self.state.os_applied = Some((cols, rows));
         Ok(())
     }
 

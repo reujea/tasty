@@ -12,6 +12,7 @@ mod mouse_report;
 mod output_buffer;
 mod pty;
 mod resize;
+mod resize_redraw;
 mod screen;
 mod scrollback;
 mod sink;
@@ -49,8 +50,10 @@ pub use output_buffer::{
     OUTPUT_RETENTION_MAX_BYTES, OutputCursor, OutputRead, OutputReadError, OutputReadRequest,
 };
 pub use pty::{
-    Pty, PtyExit, PtyObservation, PtyPhase, PtyRetirement, PtyState, StandalonePty, pty_drop_totals,
+    PlannedResize, Pty, PtyExit, PtyObservation, PtyPhase, PtyRetirement, PtyState, StandalonePty,
+    pty_drop_totals,
 };
+pub use resize_redraw::{ResizeWindowToken, flush_os_resize};
 pub use scrollback::ScrollbackLine;
 pub use spawn_error::{SpawnError, SpawnStage};
 pub use viewport::{ContentCut, ContentEpoch, TerminalViewport, ViewportInfo};
@@ -211,6 +214,11 @@ pub(crate) struct TerminalState {
     first_output_at: Option<std::time::Instant>,
     /// busy 판정이 쓰는 마지막 활동 출력 시각. 제목만 바꾸는 action 뿐인 출력은 갱신하지 않는다.
     last_activity_at: std::time::Instant,
+    /// 마지막 활동 청크를 받은 시각(청크마다 한 번 잡아 `last_output_at`과 같은 값). OS 크기 통지 뒤
+    /// 재그리기 구간 판정은 이 값을 써서 침묵 판정과 같은 청크를 같은 쪽으로 가른다.
+    last_activity_chunk_at: std::time::Instant,
+    /// OS 크기 통지 뒤 재그리기 구간(`resize_redraw.rs`). 없으면 모든 출력이 일반 출력이다.
+    resize_redraw: Option<resize_redraw::ResizeRedraw>,
     /// Timestamp of the most recent user input sent to the PTY.
     last_input_at: std::time::Instant,
     /// Timestamp of the most recent output action that repositioned the cursor
@@ -448,6 +456,8 @@ impl TerminalState {
             last_output_at: std::time::Instant::now(),
             first_output_at: None,
             last_activity_at: std::time::Instant::now(),
+            last_activity_chunk_at: std::time::Instant::now(),
+            resize_redraw: None,
             // Start in the past so the first PTY output is never mistaken for echo.
             last_input_at: std::time::Instant::now() - INPUT_ECHO_WINDOW,
             last_screen_control_at: None,
@@ -479,7 +489,8 @@ impl TerminalState {
             return false;
         }
         self.output.append(data);
-        self.last_output_at = std::time::Instant::now();
+        let chunk_at = std::time::Instant::now();
+        self.last_output_at = chunk_at;
         self.first_output_at.get_or_insert(self.last_output_at);
         self.fan_out_to_taps(data);
 
@@ -488,11 +499,11 @@ impl TerminalState {
         let owned = self.has_effects_owner_stream();
         let held = self.effects_held_prefix(data, owned);
         let first_event = self.events.len();
-        let mut changed = self.apply_bytes(&data[..held]);
+        let mut changed = self.apply_bytes(&data[..held], chunk_at);
         for event in &mut self.events[first_event..] {
             event.attach_streamed = true;
         }
-        changed |= self.apply_bytes(&data[held..]);
+        changed |= self.apply_bytes(&data[held..], chunk_at);
         if changed {
             self.flush_surface_change_logs();
         }
@@ -501,13 +512,14 @@ impl TerminalState {
     }
 
     /// Parse raw VT bytes and apply them to the surface. Returns true if the surface changed.
-    fn apply_bytes(&mut self, data: &[u8]) -> bool {
+    fn apply_bytes(&mut self, data: &[u8], chunk_at: std::time::Instant) -> bool {
         let mut changed = false;
         let actions = self.parser.parse_as_vec(data);
         for action in actions {
             // Mode 분기의 continue 보다 앞에서 판정해야 동기화 출력 같은 Mode action 도 활동이 된다.
             if !is_busy_neutral_action(&action) {
                 self.last_activity_at = std::time::Instant::now();
+                self.last_activity_chunk_at = chunk_at;
             }
             if is_screen_repaint_action(&action) {
                 self.last_screen_control_at = Some(std::time::Instant::now());

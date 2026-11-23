@@ -118,7 +118,10 @@ impl Terminal {
             return false;
         }
         let latch = u64::from(info.pid);
-        if self.busy_latch.load(Ordering::Relaxed) != latch && is_input_echo(&st) {
+        // 입력 에코와 OS 크기 통지 뒤 재그리기는 새 busy를 켜지 않는다. 이미 busy(latch)면 유지한다.
+        if self.busy_latch.load(Ordering::Relaxed) != latch
+            && (is_input_echo(&st) || st.last_activity_is_resize_redraw())
+        {
             self.clear_busy_latch();
             return false;
         }

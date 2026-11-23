@@ -15,7 +15,7 @@ impl EngineRef<'_> {
                 .map(tasty_terminal::foreground_process::is_known_shell_name),
             output_silence: self
                 .find_terminal_by_id(child_surface)
-                .map(|t| t.last_output_at().elapsed()),
+                .map(|t| t.silence_since().elapsed()),
             hook_silence: self.runtime.child_terminals.hook_silence(
                 child_surface,
                 crate::runtime::child_terminal::now_epoch_ms(),

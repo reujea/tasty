@@ -39,7 +39,7 @@ fn test_pty_terminal(cols: usize, rows: usize) -> (Terminal, Pty) {
 }
 
 fn process_pair(terminal: &mut Terminal, pty: &mut Pty) -> bool {
-    pty.force_flush_resize();
+    flush_os_resize(terminal, pty, false);
     if pty.observe_exit() {
         terminal.record_exit(pty.generation());
     }

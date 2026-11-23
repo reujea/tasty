@@ -202,6 +202,7 @@ impl Terminal {
     pub fn bind_external_input(&mut self, send: crate::ExternalInput, reconnect: bool) {
         let mut state = self.lock_state();
         if reconnect {
+            state.close_resize_window_at(std::time::Instant::now());
             state.connection.revoke();
             state.connection = crate::binding::ConnectionLease::new();
             state.enqueued_count = 0;

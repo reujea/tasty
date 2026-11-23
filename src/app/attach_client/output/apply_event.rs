@@ -69,8 +69,11 @@ pub(super) fn apply_one_mirror_event(
             if let Some(&local) = sess.state.remote_to_local.get(&remote_id)
                 && let Some(t) = host.engine.runtime.terminals.get_mut(local)
             {
-                // 서버가 정한 크기라 숨은 mirror에서도 grid를 바꾼다.
-                t.resize(cols, rows);
+                // 서버가 정한 크기라 숨은 mirror에서도 grid를 바꾼다. 서버가 OS 크기를 바꿨으므로 뒤따르는
+                // 재그리기 출력이 자식 상태·idle-timeout의 침묵을 깨지 않게 한다(busy는 서버 판정).
+                if t.resize(cols, rows) {
+                    t.note_resize_redraw();
+                }
                 host.engine.runtime.terminals.settle_deferred_size(local);
             }
         }

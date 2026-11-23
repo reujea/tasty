@@ -132,9 +132,10 @@ impl EngineMut<'_> {
             if !pty.check_alive() {
                 continue; // 죽음 — process_all 의 ProcessExited cascade 가 정리.
             }
-            if let Err(error) = pty.apply_os_resize(cols, rows) {
+            if let Err(error) = self.runtime.terminals.nudge_os_size(sid, cols, rows) {
                 tracing::warn!("wake_nudge PTY resize failed: {error}");
             }
+            let pty = self.runtime.terminals.pty_mut(sid).expect("checked above");
             let shell_pid = pty.process_id();
             if let Some(info) = pty.foreground_process_info()
                 && Some(info.pid) != shell_pid

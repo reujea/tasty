@@ -13,6 +13,6 @@ impl EngineMut<'_> {
     ) -> Vec<PendingHostEvent> {
         let terminals = &self.runtime.terminals;
         self.hooks
-            .fire_idle_timeouts(exec, |sid| terminals.get(sid).map(|t| t.last_output_at()))
+            .fire_idle_timeouts(exec, |sid| terminals.get(sid).map(|t| t.silence_since()))
     }
 }

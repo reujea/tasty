@@ -283,6 +283,34 @@ impl TerminalStore {
         true
     }
 
+    /// 절전 복귀 깨우기: 현재 grid 크기를 OS에 바로 다시 알린다. 같은 크기여도 앱이 다시 그리므로
+    /// 재그리기 구간을 열고, 적용이 실패하면 되돌린다.
+    #[cfg(all(windows, feature = "gui"))]
+    pub(crate) fn nudge_os_size(
+        &mut self,
+        id: u32,
+        cols: usize,
+        rows: usize,
+    ) -> anyhow::Result<()> {
+        let Some(entry) = self.terminals.get_mut(&id) else {
+            return Ok(());
+        };
+        let Some(pty) = entry.pty.as_mut() else {
+            return Ok(());
+        };
+        let token = entry.terminal.open_resize_window();
+        match pty.apply_os_resize(cols, rows) {
+            Ok(()) => {
+                entry.terminal.confirm_resize_window();
+                Ok(())
+            }
+            Err(error) => {
+                entry.terminal.restore_resize_window(token);
+                Err(error)
+            }
+        }
+    }
+
     #[cfg(feature = "gui")]
     pub(crate) fn resync_palettes(&mut self) {
         let palette = current_terminal_palette();
@@ -339,7 +367,8 @@ impl TerminalStore {
     }
     fn process_pair(terminal: &mut Terminal, pty: Option<&mut Pty>) -> bool {
         if let Some(pty) = pty {
-            pty.force_flush_resize();
+            // OS 크기를 바꾸면 그 재그리기 출력이 실행 중 신호를 켜지 않도록 구간을 연다.
+            tasty_terminal::flush_os_resize(terminal, pty, false);
             if pty.observe_exit() && pty.state().standalone().is_none() {
                 terminal.record_exit(pty.generation());
             }
@@ -351,7 +380,7 @@ impl TerminalStore {
         let mut pending = false;
         for entry in self.terminals.values_mut() {
             if let Some(pty) = entry.pty.as_mut() {
-                pty.flush_resize();
+                tasty_terminal::flush_os_resize(&entry.terminal, pty, true);
                 pending |= pty.has_pending_resize();
             }
         }
