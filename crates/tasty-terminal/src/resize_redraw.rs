@@ -83,10 +83,11 @@ impl TerminalState {
         }
     }
 
-    /// 새 연결의 출력은 옛 구간으로 분류하지 않는다. 이미 억제한 출력의 침묵 기준은 남긴다.
-    pub(crate) fn close_resize_window_at(&mut self, now: Instant) {
+    /// 새 연결의 출력은 옛 구간으로 분류하지 않는다. `began`은 새 연결의 reader가 출력을 받기 전 시각이라
+    /// 설치가 늦어도 새 연결이 받은 출력은 구간 밖이다. 이미 억제한 출력의 침묵 기준은 남긴다.
+    pub(crate) fn close_resize_window_at(&mut self, began: Instant) {
         if let Some(r) = self.resize_redraw.as_mut() {
-            r.end = r.end.min(now);
+            r.end = r.end.min(began);
         }
     }
 }

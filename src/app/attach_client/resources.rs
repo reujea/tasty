@@ -107,7 +107,7 @@ pub(super) fn bind_mirror_input(
             }
             Ok(())
         }),
-        reconnect,
+        reconnect.then(|| frame_tx.began_at()),
     );
 }
 impl crate::runtime::engine_access::EngineMut<'_> {
@@ -172,5 +172,20 @@ mod key_encoding_tests {
             bind_mirror_input(&mut mirror, 7, &tx, false);
             assert_eq!(mirror.win32_console_input(), server_is_windows);
         }
+    }
+
+    /// Given 옛 연결의 재그리기 구간 안에 새 연결이 준비돼 reader가 출력을 받았고, When 설치가 그보다 늦게
+    /// 재연결로 묶으면, Then 새 연결이 받은 출력은 받은 시각이 설치보다 이르더라도 재그리기가 아니다.
+    #[test]
+    fn a_reconnect_closes_the_old_window_when_the_new_connection_began() {
+        let (tx, _rx) = tasty_remote::connection::channel();
+        let began = tx.began_at();
+        let mut mirror = Terminal::new_detached(80, 24);
+        mirror.note_resize_redraw_at(began - std::time::Duration::from_millis(50));
+        let received = began + std::time::Duration::from_millis(1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        bind_mirror_input(&mut mirror, 7, &tx, true);
+        mirror.feed_bytes_at(b"new connection", received);
+        assert_eq!(mirror.silence_since(), received);
     }
 }

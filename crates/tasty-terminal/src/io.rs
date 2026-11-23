@@ -199,10 +199,16 @@ impl Terminal {
 
     /// A nonblocking external endpoint. Remote applies its own bounded admission synchronously;
     /// Terminal owns neither a second unbounded byte queue nor a forwarding worker.
-    pub fn bind_external_input(&mut self, send: crate::ExternalInput, reconnect: bool) {
+    /// `reconnect` is the instant the new connection began, before its reader could receive output;
+    /// the previous resize-redraw window closes there so none of the new connection's output joins it.
+    pub fn bind_external_input(
+        &mut self,
+        send: crate::ExternalInput,
+        reconnect: Option<std::time::Instant>,
+    ) {
         let mut state = self.lock_state();
-        if reconnect {
-            state.close_resize_window_at(std::time::Instant::now());
+        if let Some(began) = reconnect {
+            state.close_resize_window_at(began);
             state.connection.revoke();
             state.connection = crate::binding::ConnectionLease::new();
             state.enqueued_count = 0;
