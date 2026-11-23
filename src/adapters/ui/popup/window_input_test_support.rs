@@ -450,7 +450,12 @@ impl Held {
 /// `held` 를 붙인 `key` 누름 사건. 비-macOS Super 는 egui 사건 수식키에 실리지 않으므로 사건 수식키는 없고
 /// `ctx` 에 `note_modifiers` 로 남긴다(창이 `ModifiersChanged` 마다 하는 일). 그래서 그 문맥은 다음 누름에도
 /// Super 를 쥔 채다. 한 문맥으로 여러 수식키를 잴 때는 `Command` 를 마지막에 둔다.
-pub(crate) fn held_press(ctx: &egui::Context, key: egui::Key, held: Option<Held>) -> egui::Event {
+pub(crate) fn held_press(
+    // macOS Cmd 는 사건 수식키에 실려 문맥에 남기지 않는다.
+    #[cfg_attr(target_os = "macos", expect(unused_variables))] ctx: &egui::Context,
+    key: egui::Key,
+    held: Option<Held>,
+) -> egui::Event {
     let modifiers = match held {
         None => egui::Modifiers::NONE,
         Some(Held::Shift) => egui::Modifiers::SHIFT,
