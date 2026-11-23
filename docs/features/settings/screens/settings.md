@@ -41,7 +41,9 @@
   - Notifications → [`features/notifications/`](../../notifications/index.md) · FileHandler(파일 서브탭) → [`features/file-handler/`](../../file-handler/index.md) · Hook Handlers → [`features/webhook/`](../../webhook/index.md)·[`features/hooks/`](../../hooks/index.md)
   - Plugins → [`features/plugin-system/`](../../plugin-system/index.md)
 - **Save / Cancel** (하단): draft 커밋 / 폐기. plugin 단축키 draft(Plugins 서브탭 편집 · 가져오기 Apply)도 같은 규칙이다 — Save 로 닫혔을 때만 적용되고, Cancel · 타이틀바 close · `toggle_settings` 로 닫히면 버린다. 헤더 밴드에 close ✕ 는 없다 — 닫기/취소 진입점은
-  footer **Cancel** · OS 타이틀바 close · `toggle_settings` 바인딩(기본 `Ctrl+,`) 셋이다. 마지막 것은
+  footer **Cancel** · 타이틀바 close · `toggle_settings` 바인딩(기본 `Ctrl+,`) 셋이다. 타이틀바는 macOS·Windows와
+  서버 장식을 고른 Wayland 에서는 OS 제목 줄이고, 그 밖의 Linux 에서는 앱이 그린 제목 줄이다([윈도우 크롬](../../window-chrome/index.md#linux-설정창-제목-줄)).
+  어느 쪽이든 draft 를 버린다. `toggle_settings` 는
   타이틀바 close 와 같은 경로(`ViewAction::Close`)로 닫으므로 draft 처리가 같다. 바인딩 녹화 중에는
   닫지 않는다 — 그때 키는 캡처로 가야 한다. **Escape 는 넷째 진입점이 아니다** — 대응 바인딩
   필드가 없고, 이 화면에는 편집 가능한 텍스트 필드가 여러 탭에 있어 편집 중 Escape 가 "편집 취소"

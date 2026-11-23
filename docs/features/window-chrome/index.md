@@ -3,12 +3,12 @@
 - **Status**: Implemented
 - **주체**: 로컬 사용자 (GUI 전용 — 윈도우 조작)
 - **설계**: [창의 OS 통합과 종료](../../architecture/shutdown-sequence.md)
-- **코드**: `crates/tasty-platform/src/window_chrome.rs` (CSD 속성·`resize_direction_at`), `src/adapters/ui/titlebar/` (`mod.rs`/`view.rs`/`caption.rs`), `src/adapters/ui/sidebar/` (`view.rs`/`full.rs`/`collapsed.rs`, 리사이즈 위젯 우선권 적재), `src/view/main/mouse.rs` (통합 리사이즈 hit-test)
+- **코드**: `crates/tasty-platform/src/window_chrome.rs` (CSD 속성·`resize_direction_at`), `src/adapters/ui/titlebar/` (`mod.rs`/`view.rs`/`caption.rs`), `src/adapters/ui/sidebar/` (`view.rs`/`full.rs`/`collapsed.rs`, 리사이즈 위젯 우선권 적재), `src/view/main/mouse.rs` (통합 리사이즈 hit-test), `src/view/os_resize_press.rs` (테두리 리사이즈가 가져간 버튼 기록), `src/view/settings/chrome.rs` (Linux 설정창 제목 줄·가장자리)
 - **화면**: [아래 절](#화면)
 
 ## 목적
 
-[MainView](../main-view/index.md) 윈도우의 **CSD(Client-Side Decorations) 타이틀바**와 OS별 데코레이션 전략. winit `with_default_menu(false)` 로 tasty 가 창틀을 직접 소유하므로, 타이틀바·캡션 버튼·리사이즈 보더를 OS별로 직접 처리한다. Windows·macOS·Linux의 창 동작을 각각 지원한다.
+[MainView](../main-view/index.md) 윈도우의 **CSD(Client-Side Decorations) 타이틀바**와 OS별 데코레이션 전략. 창을 만들 때 OS 장식을 끄거나(Windows·Linux) 콘텐츠를 타이틀바까지 넓혀(macOS) 타이틀바·캡션 버튼·리사이즈 보더를 OS별로 직접 처리한다(`apply_csd_attributes`, macOS 이벤트 루프의 `with_default_menu(false)`는 메뉴 설정이라 별개다). Windows·macOS·Linux의 창 동작을 각각 지원한다. Linux 설정창도 같은 방식으로 앱이 제목 줄을 그린다([아래 절](#linux-설정창-제목-줄)).
 
 ## 내부 동작 (headless-valid)
 
@@ -27,17 +27,17 @@
 - **드래그 이동** (`StartDrag` → `drag_window`) — 빈 타이틀바 영역 드래그.
 - **더블클릭 maximize** (`ToggleMaximize` → `set_maximized`).
 - **캡션 버튼** (Linux/Windows, tasty 가 그림): `Minimize`/`ToggleMaximize`/`Close`. macOS 는 OS 신호등이라 tasty 가 안 그림(`controls=None`).
-- **Close** 는 네이티브 `CloseRequested` 와 동일 라이프사이클(`AppEvent::CloseWindow`)로 라우팅 — 캡션 클릭 자체는 사용자 입력이며, 에이전트의 창 닫기는 별도 window.close 요청으로 처리한다.
+- MainView 의 **Close** 는 네이티브 `CloseRequested` 와 동일 라이프사이클(`AppEvent::CloseWindow`)로 라우팅 — 캡션 클릭 자체는 사용자 입력이며, 에이전트의 창 닫기는 별도 window.close 요청으로 처리한다.
 - macOS 만 좌측 신호등 폭(`MACOS_TRAFFIC_LIGHT_INSET`)만큼 드래그 hit 영역을 제외.
 - 타이틀바 위 좌클릭은 터미널로 내려가지 않는다. 포인터를 옮기자마자 누른 클릭도 그렇다(egui 판정이 직전 패스 위치를 보는 시간차를 사건 좌표로 막는다, [입력 계층](../../architecture/input-layer.md)).
 
 ### 상단 inset
 
-타이틀바는 항상 그려지며 `top_inset`(= `titlebar_height` 토큰)을 반환한다 — `compute_terminal_rect` 가 작업 영역을 그만큼 아래에서 시작시킨다(상태바 `bottom_inset` 과 대칭).
+MainView 타이틀바는 항상 그려지며 `top_inset`(= `titlebar_height` 토큰)을 반환한다 — `compute_terminal_rect` 가 작업 영역을 그만큼 아래에서 시작시킨다(상태바 `bottom_inset` 과 대칭).
 
 ### 리사이즈 엣지 (위젯 우선순위 단일 모델)
 
-데코 없는 Windows/Linux 창의 가장자리 리사이즈는 **단일 MainView 경로**로 통일된다(`src/view/main/mouse.rs`). 리사이즈는 **가장자리 실제 인터랙티브 위젯 위가 아님 AND 커서가 가장자리 margin 안 AND 비최대화 AND 오버레이/팝업/배너 없음**일 때만 발동한다.
+데코 없는 Windows/Linux 창의 가장자리 리사이즈는 **단일 MainView 경로**로 통일된다(`src/view/main/mouse.rs`). 누름은 **가장자리 실제 인터랙티브 위젯 위가 아님 AND 커서가 가장자리 margin 안 AND 비최대화·비전체화면 AND 설정 열기 요청·전체화면 무대·배너 hover 없음**일 때만 리사이즈를 시작한다(`resize_should_yield_to_content`). 일반 팝업은 누름을 양보하는 조건이 아니다(OS 창 테두리는 팝업 범위 밖이다). 커서 표시는 크기 고정과 팝업을 따로 본다(`handle_cursor_moved`).
 
 - `egui_consumed`(egui-winit `wants_pointer_input()`)는 **패널/Area 전체의 bounding rect** 단위라 리사이즈 게이트에 쓰지 않는다 — 상시 렌더되는 타이틀바(36px)/상태바(24px) 스트립 전체가 `RESIZE_EDGE_MARGIN`(8px)보다 두꺼워, 그 값을 그대로 쓰면 버튼 없는 빈 여백에서도 리사이즈가 막힌다.
 - 대신 `MainViewState.resize_edge_widget_hovered`(**위젯 단위**)로 게이트한다. 타이틀바 창 버튼(`titlebar/view.rs::draw_window_buttons`)·Windows 캡션 버튼(`titlebar/caption.rs`)·상태바 클릭 요소(`status_bar.rs`)·사이드바 클릭 요소(`sidebar/view.rs` — 헤더 접기 버튼, Tools/Plugins/Settings/New Workspace, 카테고리 헤더, 워크스페이스 행/아바타, rail 카테고리 버튼 전부)가 각자 `Response::hovered()` 를 매 프레임 이 필드에 적재(타이틀바가 프레임당 첫 draw 라 리셋, 이후는 OR 누적) — 실제 버튼/행 위에서만 리사이즈가 양보되고, 빈 여백은 항상 리사이즈로 동작한다. 사이드바의 배경 우클릭 캐처(`bg_resp`, 빈 영역에서 컨텍스트 메뉴만 여는 캐처)는 타이틀바 드래그 rect 와 동일한 이유로 의도적으로 미적재 — 빈 시각 공간은 리사이즈에 양보해야 한다.
@@ -46,6 +46,15 @@
 - `handle_cursor_moved` 가 hover 방향을 `MainViewState.pending_resize_cursor` 에 저장하고, egui 프레임(`run_egui_frame`)이 `set_cursor_icon` 으로 ↔ 커서를 적용한다(egui 가 매 프레임 winit 커서를 덮으므로 프레임 내 적용 필수). 이 경로는 `egui_consumed` 대신 `is_using_pointer()` 기반 hover 판정을 쓰므로(egui-winit `CursorMoved` 처리) 애초에 빈 여백에서 리사이즈 커서가 정상적으로 뜬다 — 클릭에서도 같은 위젯 우선순위를 사용한다.
 - **커서 우선순위**: 보더 호버 중(`pending_resize_cursor` 가 `Some`)에는 리사이즈 커서(↔ 등)가 surface 커서(터미널 I-beam)·링크 hover(PointingHand)보다 **우선**한다. terminal surface 가 윈도우 우측 끝까지 full-bleed 로 닿아 8px 보더 픽셀을 자기 영역으로 포함하므로(`compute_terminal_rect` 우측 inset 없음), 프레임 직후 커서 덮어쓰기(`src/gfx/gpu.rs`)를 `pending_resize_cursor.is_none()` 으로 게이트해 보더 위에서만 리사이즈 커서를 보존한다. 보더 밖에선 `None` 이라 surface/링크 커서 동작 무변경, macOS 는 이 필드가 항상 `None` 이라 무영향.
 - **macOS 는 데코 있는 창**이라 OS 가 네이티브 보더에서 리사이즈를 처리한다 → 위 hit-test/커서 저장 블록은 `#[cfg(not(target_os = "macos"))]` 가드로 macOS 에서 컴파일·실행되지 않는다.
+
+### Linux 설정창 제목 줄
+
+Linux 설정창(`SettingsView`)은 OS 장식이 Tasty 테마를 따르지 않으므로 창을 만들 때 `apply_csd_attributes`로 장식을 끄고, 같은 렌더러(`draw_titlebar_view`)로 제목 줄을 그린다. macOS·Windows 설정창은 OS 장식을 그대로 쓴다.
+
+- **모양**: 메인 타이틀바와 같은 테마 토큰으로 활성·비활성 배경과 버튼 색을 그린다. 버튼은 닫기 하나다. 설정창 제목 줄의 디자인은 아직 디자인 정본에 없어 지금 값은 임시다.
+- **닫기**: 제목 줄의 닫기는 설정 모달만 닫고 초안을 버린다(OS 닫기와 같다, [설정 화면](../settings/screens/settings.md)). 메인 창의 `AppEvent::CloseWindow`로 가지 않는다. 저널이 halt 된 동안에도 이 버튼의 클릭만 받는다.
+- **이동·크기**: 빈 제목 줄 드래그는 `drag_window`, 더블클릭은 최대화 토글이다. 창 가장자리 누름은 `drag_resize_window`로 OS 리사이즈를 시작하고 최소 크기는 창 속성 그대로다. 닫기 버튼이나 가장자리 밴드와 겹치는 egui 위젯(본문 스크롤바 등) 위의 누름은 위젯이 받는다. 저널이나 편집 키 보류 뒤 재생된 누름으로는 OS 이동·리사이즈를 시작하지 않는다. 판정 조건은 `src/view/settings/chrome.rs`의 `SettingsChrome`과 그 시험이 정본이다.
+- **Wayland 서버 장식**: 컴포지터가 서버 장식을 고르면(xdg-decoration 협상, winit `Window::is_decorated`) 앱 제목 줄을 그리지 않고 가장자리 입력도 OS에 맡긴다. 그때 닫기는 OS 제목 줄의 닫기다. 장식 모드가 바뀌면 다음 그리기에 반영한다. 컴포지터에 subcompositor가 없거나 winit 프레임 생성이 실패한 Client 모드도 winit이 서버 장식과 같은 값을 돌려주므로 그때는 제목 줄이 없다(닫기는 Cancel·설정 단축키). MainView 는 이 값을 보지 않는다.
 
 ## 인터페이스
 
@@ -67,6 +76,9 @@
 - Given 캡션 close 버튼 When 클릭 Then 네이티브 닫기와 동일 경로로 윈도우가 닫힌다.
 - Given 터미널 위에 있던 포인터 When 캡션 버튼으로 옮기자마자 누르면 Then 버튼 동작만 일어나고 터미널에 선택·커서 이동 입력이 가지 않는다. 단 최대화·전체화면이 아닌 Windows 창에서 닫기 버튼 오른쪽 끝(창 가장자리 리사이즈 띠 `RESIZE_EDGE_MARGIN` 8 물리 px)은 직전 hover 가 버튼이 아니면 OS 리사이즈가 먼저 누름을 가져간다(egui 에도 전달하지 않는다, [입력 계층](../../architecture/input-layer.md)의 타이틀바 단락).
 - Given 창 가장자리 When 드래그 Then 해당 방향으로 리사이즈된다.
+- Given Linux 설정창 When 창을 연다 Then OS 장식 없이 앱 제목 줄 하나가 선택한 Tasty 테마로 그려지고, 시스템 테마만 바꿔도 따라가지 않는다.
+- Given Linux 설정창 제목 줄 When 닫기 버튼을 누른다 Then 설정 모달만 닫히고 편집 중인 초안은 버려진다.
+- Given 서버 장식을 고른 Wayland 컴포지터 When Linux 설정창을 연다 Then 앱 제목 줄은 그려지지 않는다.
 
 > OS별 시각·동작이라 각 플랫폼 스크린샷 + 수동 윈도우 조작으로 검증. `resize_direction_at` 은 단위 테스트(OS 무관).
 
