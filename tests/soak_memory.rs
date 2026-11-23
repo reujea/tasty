@@ -268,30 +268,46 @@ fn cycle_plugin_view_churn(inst: &TastyInstance, surface0: u64, kind: ViewKind) 
 /// not found 출력이 나온 재시도 횟수다. 입력 유실의 단서로 기록하지만 이 문자열만으로 첫 바이트 유실을 확정하지는 않는다.
 static INPUT_INCIDENTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// 한 시도의 출력 대기 결과.
+#[derive(Debug)]
+enum HeavyOutput {
+    Done,
+    InputLost,
+}
+
+/// 한 시도의 출력을 기다린다. 명령 자체의 에코에는 없는 출력값(4999)으로 진행을 확인한다.
+/// 기한이 지난 것을 본 뒤의 마지막 읽기는 이 시도의 4999 관측만 판정한다. not found 를 보고 다음 시도를
+/// 시작하면 시도마다 대기 예산을 새로 얻으므로, 그 처리는 기한 검사를 통과한 읽기에서만 한다.
+fn wait_heavy_output(limit: Duration, mut read: impl FnMut() -> String) -> HeavyOutput {
+    let start = Instant::now();
+    let mut past = false;
+    loop {
+        let out = read();
+        if out.contains("4999") {
+            return HeavyOutput::Done;
+        }
+        assert!(!past, "S4: timeout waiting for output; got:\n{out}");
+        if out.contains("not found") {
+            return HeavyOutput::InputLost;
+        }
+        past = start.elapsed() >= limit;
+        if !past {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+}
+
 fn cycle_heavy_output(inst: &TastyInstance, surface_id: u64) {
     for attempt in 0..3 {
         inst.set_mark(surface_id);
         // mark 이후 출력이 보존 범위를 넘지 않도록 출력량을 격리 설정의 스크롤백 상한보다 작게 둔다.
         inst.send_text(surface_id, "seq 1 5000\n");
-        let start = Instant::now();
-        let mut past = false;
-        loop {
-            let out = inst.read_since_mark(surface_id);
-            // 명령 자체의 에코에는 없는 출력값으로 진행을 확인한다.
-            if out.contains("4999") {
-                return;
-            }
-            if out.contains("not found") {
+        match wait_heavy_output(Duration::from_secs(60), || inst.read_since_mark(surface_id)) {
+            HeavyOutput::Done => return,
+            HeavyOutput::InputLost => {
                 INPUT_INCIDENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 eprintln!("S4: input-loss incident (attempt {attempt}) — first byte dropped");
                 std::thread::sleep(Duration::from_millis(500));
-                break; // 재시도
-            }
-            // 기한이 지난 것을 본 뒤에도 한 번 더 읽고 판정한다. 기한 전 거짓 읽기만으로 실패하지 않는다.
-            assert!(!past, "S4: timeout waiting for output; got:\n{out}");
-            past = start.elapsed() >= Duration::from_secs(60);
-            if !past {
-                std::thread::sleep(Duration::from_millis(50));
             }
         }
     }
