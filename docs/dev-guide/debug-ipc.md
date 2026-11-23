@@ -252,9 +252,10 @@ for _ in $(seq 1 20); do
   sleep 0.1
 done
 [ -n "$S" ] || { echo "settings window did not appear in debug windows" >&2; exit 1; }
-# Filter sections 입력칸(1100x700 창의 100,66 → 창 정규화 0.0909,0.0943)을 클릭해 egui 포커스를 준다
+# Filter sections 입력칸을 클릭해 egui 포커스를 준다. Linux 설정창은 앱 제목 줄(36)만큼 높은 1100x736이라
+# 100,102 → 창 정규화 0.0909,0.1386이다. macOS·Windows(1100x700)에서는 100,66 → 0.0909,0.0943이다.
 for e in move press release; do
-  tasty debug inject egui-mouse --window-id $S --fx 0.0909 --fy 0.0943 --event-type $e
+  tasty debug inject egui-mouse --window-id $S --fx 0.0909 --fy 0.1386 --event-type $e
 done
 tasty debug inject egui-text --text notif --window-id $S   # {"injected":true,"window_id":<S>}
 tasty debug inject egui-key --key Backspace --window-id $S # 마지막 글자를 지운다
