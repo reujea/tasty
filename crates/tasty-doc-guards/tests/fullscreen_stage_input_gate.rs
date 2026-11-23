@@ -282,7 +282,7 @@ fn ime_overlay_gate_knows_the_stage() {
 #[test]
 fn plugin_shortcut_gate_knows_the_stage() {
     let src = read("src/app/plugin_glue/shortcut.rs");
-    let expected = "PluginKeyGate::Winit(value) => {\n            crate::adapters::ui::input::key_nodes::plugin_key_gate_open(";
+    let expected = "PluginKeyGate::Winit(value) => crate::adapters::ui::input::key_nodes::plugin_key_gate_open(";
     assert!(
         src.contains(expected),
         "플러그인 단축키 경로에 무대 차단 조건이 없다(`{expected}`). 일반 키보드 처리보다 먼저 실행되므로 여기서 \
@@ -374,7 +374,6 @@ fn every_overlay_open_composite_is_stage_aware() {
             "src/adapters/ipc/handler/debug_state.rs".to_string(),
             "src/adapters/ui/input/explorer_ime.rs".to_string(),
             "src/adapters/ui/input/key_nodes.rs".to_string(),
-            "src/app/plugin_glue/shortcut.rs".to_string(),
             "src/app/webview_sync.rs".to_string(),
             "src/state/popup_key_owner.rs".to_string(),
             "src/view/main/edit_keys.rs".to_string(),
