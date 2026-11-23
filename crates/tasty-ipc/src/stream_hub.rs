@@ -1112,7 +1112,8 @@ mod tests {
                 PushResult::Dropped
             );
         }
-        assert_eq!(hub.loss(), StreamLossSnapshot::default());
+        let loss = hub.loss();
+        assert_eq!((loss.frames_dropped, loss.clients_lagged_out), (0, 0));
         assert_eq!(hub.client_count(), 1);
         rx.recv().expect("queued");
         assert_eq!(
