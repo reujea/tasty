@@ -235,15 +235,22 @@ impl GpuState {
                     terminal_rect,
                     scale_factor,
                 );
-                // attach 대기는 팝업 관리자가 이번 프레임에 쌓은 안내 열 아래에 잇는다.
-                let notice_column_occupied = state.restore_notices.column;
+                // attach 대기는 팝업 관리자가 이번 프레임에 정한 안내 열(배너·검색 막대 아래)에서,
+                // 그 열에 쌓인 안내 아래에 잇는다.
+                let notice_column = ui::attach_loading::NoticeColumnPlace {
+                    top: state
+                        .popups
+                        .notice_column()
+                        .map(|column| crate::model::LogicalPx(column.rect.top())),
+                    occupied: state.restore_notices.column,
+                };
                 ui::attach_loading::draw(
                     ctx,
                     state,
                     engine,
                     terminal_rect,
                     scale_factor,
-                    notice_column_occupied,
+                    notice_column,
                 );
 
                 crate::state::webview_overlay::end_frame(ctx, &mut state.webview_overlay);

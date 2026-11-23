@@ -11,7 +11,7 @@ pub(crate) fn draw(
     engine: &EngineRead<'_>,
     rect: PhysicalRect,
     scale: f32,
-    notice_column_occupied: Option<egui::Rect>,
+    notice_column: NoticeColumnPlace,
 ) {
     let theme = crate::theme::theme();
     let now = Instant::now();
@@ -151,10 +151,8 @@ pub(crate) fn draw(
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let base_top = LogicalPx(bounds.top()) + state.tab_bar_height.to_logical(scale) + inset;
-    let top = notice_column_occupied.map_or(base_top, |occupied| {
-        base_top.max(LogicalPx(occupied.bottom()) + theme.notice_column_gap())
-    });
+    let fallback = LogicalPx(bounds.top()) + state.tab_bar_height.to_logical(scale) + inset;
+    let top = notice_column.chip_top(fallback, theme.notice_column_gap());
     // Does not hide native child windows or register a keyboard/pointer target.
     egui::Area::new(egui::Id::new("attach_response_wait"))
         .order(egui::Order::Foreground)
@@ -177,6 +175,25 @@ pub(crate) fn draw(
             });
         });
 }
+/// Where the window's notice column is this frame, as the popup manager placed it.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct NoticeColumnPlace {
+    /// Top of the column: under the tab strip, a window-scope banner and an open search bar.
+    pub(crate) top: Option<LogicalPx>,
+    /// What the restore / halt notices stacked in the column take.
+    pub(crate) occupied: Option<egui::Rect>,
+}
+
+impl NoticeColumnPlace {
+    /// The chip goes at the column top, under any notice already in it. `fallback` is the top
+    /// under the tab strip, for a frame where the column was not placed.
+    fn chip_top(self, fallback: LogicalPx, gap: LogicalPx) -> LogicalPx {
+        let top = self.top.unwrap_or(fallback);
+        self.occupied
+            .map_or(top, |occupied| top.max(LogicalPx(occupied.bottom()) + gap))
+    }
+}
+
 fn elapsed_label(seconds: u64) -> String {
     let part = |key, n: u64| crate::i18n::t_fmt(key, &n.to_string());
     let padded = |key, n: u64| crate::i18n::t_fmt(key, &format!("{n:02}"));
@@ -235,6 +252,49 @@ fn loading_visible(
         false
     } else {
         true
+    }
+}
+
+#[cfg(test)]
+mod chip_top_tests {
+    use super::NoticeColumnPlace;
+    use crate::model::LogicalPx;
+
+    const GAP: LogicalPx = LogicalPx(8.0);
+    const UNDER_TABS: LogicalPx = LogicalPx(44.0);
+
+    /// Given a window banner or an open search bar pushed the notice column down and no notice is in
+    /// it, When the chip is placed, Then it starts at the column top, not under the tab strip.
+    #[test]
+    fn the_chip_starts_at_the_column_top_below_banners_and_the_search_bar() {
+        let place = NoticeColumnPlace {
+            top: Some(LogicalPx(96.0)),
+            occupied: None,
+        };
+        assert_eq!(place.chip_top(UNDER_TABS, GAP), LogicalPx(96.0));
+    }
+
+    /// Given a restore notice is stacked in the column, When the chip is placed, Then it sits a gap
+    /// under the notice.
+    #[test]
+    fn the_chip_goes_under_the_notices_in_the_column() {
+        let place = NoticeColumnPlace {
+            top: Some(LogicalPx(96.0)),
+            occupied: Some(egui::Rect::from_min_max(
+                egui::pos2(600.0, 96.0),
+                egui::pos2(960.0, 200.0),
+            )),
+        };
+        assert_eq!(place.chip_top(UNDER_TABS, GAP), LogicalPx(208.0));
+    }
+
+    /// Given the column was not placed this frame, When the chip is placed, Then it goes under the tabs.
+    #[test]
+    fn without_a_column_the_chip_goes_under_the_tab_strip() {
+        assert_eq!(
+            NoticeColumnPlace::default().chip_top(UNDER_TABS, GAP),
+            UNDER_TABS
+        );
     }
 }
 
