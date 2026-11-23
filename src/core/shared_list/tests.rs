@@ -13,7 +13,7 @@ fn writer() -> file_writer::FileWriterParts {
     )
     .unwrap()
 }
-fn wait(mut ready: impl FnMut() -> bool) {
+fn wait(ready: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
     assert!(
         tasty_utils::test_wait::holds_by(deadline, ready),

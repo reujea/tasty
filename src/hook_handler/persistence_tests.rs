@@ -18,7 +18,7 @@ fn writer(items: usize) -> file_writer::FileWriterParts {
     )
     .unwrap()
 }
-fn wait(mut ready: impl FnMut() -> bool) {
+fn wait(ready: impl FnMut() -> bool) {
     let end = Instant::now() + Duration::from_secs(5);
     assert!(tasty_utils::test_wait::holds_by(end, ready));
 }
