@@ -275,8 +275,10 @@ fn a_slow_consumer_gets_every_event_in_order_under_backpressure() {
     };
     let mut seen = Vec::new();
     let deadline = Instant::now() + Duration::from_secs(3);
-    // 용량 0 요청 상자로 poll 하므로 이미 보낸 사건만 꺼낸다. 기한 뒤 관측에서도 꺼낸 뒤 읽는다.
-    let mut collect = |receipt: &mut SearchQuery| {
+    // 원래 루프를 둔다. 완료(terminal_seen)를 볼 관측 전용 경로가 없다. poll 이 채널을 비우면
+    // Full 에서 재시도 중인 검색 생산자가 진행하므로, 기한 뒤 읽기도 관측만 하는 읽기가 될 수 없다.
+    while !receipt.terminal_seen {
+        assert!(Instant::now() < deadline);
         let batch = receipt.poll(&mut requests);
         assert!(batch.len() <= SEARCH_EVENT_CAPACITY);
         for event in batch {
@@ -284,23 +286,8 @@ fn a_slow_consumer_gets_every_event_in_order_under_backpressure() {
                 seen.push(path);
             }
         }
-    };
-    // 원래 순서는 읽기 → 기한 검사 → 큐 소비 → 쉼이다. 소비는 backpressure 를 풀므로 검사를 통과한
-    // 뒤에만 돌리고, 기한 뒤 관측 읽기에서는 이미 큐에 든 사건만 꺼낸 뒤 한 번 더 읽는다.
-    let mut started = false;
-    assert!(tasty_utils::test_wait::holds_by_every(
-        deadline,
-        Duration::ZERO,
-        |last| {
-            if last || std::mem::replace(&mut started, true) {
-                collect(&mut receipt);
-                if !last {
-                    std::thread::sleep(Duration::from_millis(1));
-                }
-            }
-            receipt.terminal_seen
-        }
-    ));
+        std::thread::sleep(Duration::from_millis(1));
+    }
     worker.join().unwrap();
     assert_eq!(
         seen,
