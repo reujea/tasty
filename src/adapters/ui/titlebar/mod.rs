@@ -11,6 +11,8 @@ use crate::state::MainViewState;
 use crate::theme;
 use tasty_type_geometry::length::PhysicalPx;
 
+#[cfg(target_os = "linux")]
+pub use view::DRAG_AREA_ID;
 pub use view::{TitlebarAction, TitlebarControls, TitlebarProps, draw_titlebar_view};
 
 /// macOS 네이티브 신호등(standardWindowButton) 클러스터가 차지하는 좌측 폭

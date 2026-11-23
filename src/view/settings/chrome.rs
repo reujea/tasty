@@ -15,6 +15,9 @@ pub(crate) struct SettingsChrome {
     cursor: Option<PhysicalPosition<f64>>,
     /// 직전 패스에 그린 닫기 버튼 영역(물리). 창 크기·배율이 바뀌면 다음 패스가 다시 적을 때까지 없다.
     close_rect: Option<PhysicalRect>,
+    /// 직전 패스에서 포인터 아래 있던 egui 위젯(클릭·드래그를 받는 것)의 영역(물리). 가장자리 밴드와 겹치는
+    /// 스크롤바 같은 위젯 위에서는 리사이즈가 양보한다. 제목 줄의 빈 드래그 영역은 넣지 않는다.
+    hovered_widget: Option<PhysicalRect>,
     /// OS 테두리 리사이즈가 가져간 누름의 버튼. 그 뗌도 egui에 넣지 않는다.
     resize_buttons: Vec<MouseButton>,
     /// 컴포지터가 서버 장식을 골랐는지(`Window::is_decorated`). X11은 요청값이라 늘 거짓이다.
@@ -34,6 +37,7 @@ impl SettingsChrome {
         Self {
             cursor: None,
             close_rect: None,
+            hovered_widget: None,
             resize_buttons: Vec::new(),
             server_decorated: window.is_decorated(),
         }
@@ -47,6 +51,7 @@ impl SettingsChrome {
         self.server_decorated = now;
         if changed {
             self.close_rect = None;
+            self.hovered_widget = None;
         }
         changed
     }
@@ -72,6 +77,7 @@ impl SettingsChrome {
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 self.close_rect = None;
+                self.hovered_widget = None;
                 false
             }
             WindowEvent::MouseInput { state, button, .. } => self.owns_button(
@@ -120,11 +126,11 @@ impl SettingsChrome {
         )
     }
 
-    /// 지금 포인터 위치의 테두리 리사이즈 방향. 서버 장식·최대화·전체화면이거나 닫기 버튼 위면 없다.
+    /// 지금 포인터 위치의 테두리 리사이즈 방향. 서버 장식·최대화·전체화면이거나 닫기 버튼·위젯 위면 없다.
     fn edge_direction(&self, size: PhysicalSize<u32>, locked: bool) -> Option<ResizeDirection> {
         edge_direction(
             self.cursor,
-            self.close_rect,
+            &[self.close_rect, self.hovered_widget],
             self.server_decorated || locked,
             size,
         )
@@ -165,8 +171,19 @@ impl SettingsChrome {
         close
     }
 
-    /// 패스 끝에 가장자리 리사이즈 커서를 덮는다. egui 위젯이 그 패스에 정한 커서보다 나중이어야 한다.
-    pub(crate) fn apply_resize_cursor(&self, ctx: &egui::Context, window: &Window) {
+    /// 패스 끝에 포인터 아래 위젯을 적고 가장자리 리사이즈 커서를 덮는다. egui 위젯이 그 패스에 정한 커서보다
+    /// 나중이어야 한다.
+    pub(crate) fn finish_pass(&mut self, ctx: &egui::Context, window: &Window) {
+        let titlebar_drag = titlebar::DRAG_AREA_ID;
+        let hovered = ctx.viewport(|vp| {
+            [vp.hits.click, vp.hits.drag]
+                .into_iter()
+                .flatten()
+                .find(|w| w.id != egui::Id::new(titlebar_drag))
+                .map(|w| w.interact_rect)
+        });
+        let ppp = ctx.pixels_per_point();
+        self.hovered_widget = hovered.map(|rect| titlebar::physical_panel_rect(rect, ppp));
         let size = window.inner_size();
         if let Some(dir) = self.edge_direction(size, size_is_locked(window)) {
             ctx.set_cursor_icon(titlebar::resize_cursor(dir));
@@ -208,14 +225,14 @@ fn cursor_in(cursor: Option<PhysicalPosition<f64>>, rect: Option<PhysicalRect>) 
     }
 }
 
-/// 테두리 리사이즈 방향. 크기를 바꿀 수 없거나(`blocked`) 닫기 버튼 위면 없다.
+/// 테두리 리사이즈 방향. 크기를 바꿀 수 없거나(`blocked`) 양보할 영역(`yield_to`) 위면 없다.
 fn edge_direction(
     cursor: Option<PhysicalPosition<f64>>,
-    close_rect: Option<PhysicalRect>,
+    yield_to: &[Option<PhysicalRect>],
     blocked: bool,
     size: PhysicalSize<u32>,
 ) -> Option<ResizeDirection> {
-    if blocked || cursor_in(cursor, close_rect) {
+    if blocked || yield_to.iter().any(|rect| cursor_in(cursor, *rect)) {
         return None;
     }
     let pos = cursor?;
@@ -289,29 +306,41 @@ mod tests {
     #[test]
     fn the_edge_yields_to_the_close_button_and_to_a_locked_window() {
         assert_eq!(
-            edge_direction(at(1099.0, 300.0), close_rect(), false, SIZE),
+            edge_direction(at(1099.0, 300.0), &[close_rect()], false, SIZE),
             Some(ResizeDirection::East)
         );
         assert_eq!(
-            edge_direction(at(1099.0, 1.0), None, false, SIZE),
+            edge_direction(at(1099.0, 1.0), &[None], false, SIZE),
             Some(ResizeDirection::NorthEast)
         );
         assert_eq!(
-            edge_direction(at(1099.0, 1.0), close_rect(), false, SIZE),
+            edge_direction(at(1099.0, 1.0), &[close_rect()], false, SIZE),
             None
         );
         assert_eq!(
-            edge_direction(at(1099.0, 300.0), close_rect(), true, SIZE),
+            edge_direction(at(1099.0, 300.0), &[close_rect()], true, SIZE),
             None
         );
-        assert_eq!(edge_direction(at(500.0, 300.0), None, false, SIZE), None);
-        assert_eq!(edge_direction(None, None, false, SIZE), None);
+        assert_eq!(edge_direction(at(500.0, 300.0), &[None], false, SIZE), None);
+        assert_eq!(edge_direction(None, &[None], false, SIZE), None);
+        let scrollbar = Some(PhysicalRect {
+            x: PhysicalPx(1090.0),
+            y: PhysicalPx(80.0),
+            width: PhysicalPx(10.0),
+            height: PhysicalPx(500.0),
+        });
+        assert_eq!(
+            edge_direction(at(1099.0, 300.0), &[close_rect(), scrollbar], false, SIZE),
+            None,
+            "a widget under the pointer keeps the press"
+        );
     }
 
     fn chrome(server_decorated: bool) -> SettingsChrome {
         SettingsChrome {
             cursor: None,
             close_rect: close_rect(),
+            hovered_widget: None,
             resize_buttons: Vec::new(),
             server_decorated,
         }

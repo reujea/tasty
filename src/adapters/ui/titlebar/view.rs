@@ -85,6 +85,9 @@ pub struct TitlebarDrawResult {
     pub panel_rect: egui::Rect,
 }
 
+/// 제목 줄 빈 영역(창 이동)의 egui id 이름. 창 가장자리 판정이 이 영역을 위젯으로 보지 않게 한다.
+pub const DRAG_AREA_ID: &str = "tasty_titlebar_drag";
+
 /// 상단 바와 창 버튼을 그린다. 버튼·macOS 네이티브 버튼 영역은 드래그에서 제외한다.
 pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> TitlebarDrawResult {
     let th = props.theme;
@@ -150,7 +153,7 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
                 );
                 let resp = ui.interact(
                     drag_rect,
-                    egui::Id::new("tasty_titlebar_drag"),
+                    egui::Id::new(DRAG_AREA_ID),
                     egui::Sense::click_and_drag(),
                 );
                 if resp.double_clicked() {

@@ -274,7 +274,7 @@ impl View for SettingsView {
             };
             toasts.draw(ctx, &empty_layout, reduced_motion);
             #[cfg(target_os = "linux")]
-            chrome.apply_resize_cursor(ctx, &winit);
+            chrome.finish_pass(ctx, &winit);
         });
         self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
             &self.base.gpu.egui_ctx,
