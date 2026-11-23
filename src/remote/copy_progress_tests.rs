@@ -240,7 +240,7 @@ fn a_write_after_a_long_open_sequence_is_received() {
     let input = [b"\x1b]0;".as_slice(), &[b'a'; 70], b"\xe4", WRITE].concat();
     assert!(!oracle_receiving(&input));
     assert!(!tracker_receiving(&input), "글자에 먹힌 ESC");
-    // 남는 한계: OSC 52 자신의 선택 인자가 한도를 넘으면 진행 표시를 놓친다.
+    // 남는 한계의 한 예: 선택 인자가 길어 도입자부터 데이터 첫 바이트까지가 한도를 넘으면 진행 표시를 놓친다.
     let input = [b"\x1b]52;".as_slice(), &[b'c'; 70], b";aGk="].concat();
     assert!(oracle_receiving(&input));
     assert!(!tracker_receiving(&input), "선택 인자가 긴 OSC 52");
@@ -531,8 +531,8 @@ fn receiving_matches_vtparse_on_boundary_inputs() {
     });
     assert_eq!(mismatches(random), Vec::<String>::new());
 
-    // 머리 한도를 넘는 앞 시퀀스 뒤. 긴 조각은 앞 시퀀스 안에만 둔다(OSC 52 자신의 선택 인자가 한도를 넘는
-    // 경우는 문서의 남은 한계라 비교하지 않는다).
+    // 머리 한도를 넘는 앞 시퀀스 뒤. 긴 조각은 앞 시퀀스 안에만 둔다(OSC 52의 도입자부터 데이터 첫 바이트까지의
+    // 원시 바이트가 한도를 넘는 경우는 문서의 남은 한계라 비교하지 않는다).
     let intros: [(&[u8], &[u8]); 9] = [
         (b"\x1b[", b""),
         (b"\x1b[:", b""),
