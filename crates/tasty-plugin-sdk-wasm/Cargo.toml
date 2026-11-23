@@ -20,9 +20,10 @@ publish = false
 # 공지로는 36.x 줄도 36.0.22 이상이면 모두 피한다(RUSTSEC-2026-0567·0573은 36.x가
 # 영향 범위 밖이다).
 # 50.x는 rust-toolchain.toml의 1.96.0보다 높은 Rust 1.97을 요구한다.
-# 새 공지가 나오면 잠긴 49판이 영향 범위(unaffected·patched 어디에도 들지 않음)에
-# 드는지 보고, 들면 49 계열 수정판으로 올린다. 수정판이 없으면 툴체인을 올려
-# 새 줄로 가거나 36.x로 돌아간다.
+# 새 공지가 나오면 그 패키지의 Cargo.lock 판을 unaffected·patched에 대조한다.
+# 둘 어디에도 들지 않으면 49 계열 수정판으로 올린다. 수정판이 없으면 새 공지와
+# 기존 공지를 모두 피하는 판을 찾아, 필요하면 툴체인을 올려 새 줄로 가거나
+# API를 되돌려 36.x로 돌아간다.
 # 정식 지원은 보류 상태다.
 # 현재 정책: docs/dev-guide/plugin-packaging.md#정책-현행.
 wasmtime = { version = "49", default-features = false, features = [
