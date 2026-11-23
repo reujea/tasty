@@ -402,13 +402,13 @@ NSMenuItem 은 key equivalent 를 하나만 가진다. 그래서 Window 메뉴�
 
 ## 단축키 level
 
-단축키 필드마다 level(Engine·Window·Workspace·Pane·Tab·Surface)이 있다(`src/adapters/ui/input/key_level.rs`의 `KEYBINDING_LEVELS`). 메인 창 키는 포커스 노드에서 시작한 키 경로에 있는 level의 단축키만 후보로 매칭한다. 덮는 팝업이 포커스면 덮인 범위와 그 아래 level의 단축키는 매칭하지 않고, 펼친 팝업과 전체화면 무대에서는 Engine level만 매칭한다. 창 단축키, 더블탭, plugin 명령(`Surface` 명령은 그 plugin surface level, `Global` 명령은 Engine level)이 같은 경로 값으로 거른다. 설정 열기 요청 래치 중에는 거르지 않는다. 경로와 수신자 규칙은 [입력 계층의 키 입력 경로](../../architecture/input-layer.md#키-입력-경로)에 있다.
+단축키 필드마다 level(Engine·Window·Workspace·Pane·Tab·Surface)이 있다(`src/adapters/ui/input/key_level.rs`의 `KEYBINDING_LEVELS`). 메인 창 키는 키 경로에 있는 level의 단축키만 후보로 매칭한다(`key_path::focus_path_levels`, `key_path::path_keybindings`). 창 단축키, 더블탭, plugin 명령(명령 범위의 level은 `key_level::command_scope_level`)이 같은 경로 값으로 거른다. 경로와 수신자 규칙은 [입력 계층의 키 입력 경로](../../architecture/input-layer.md#키-입력-경로)에 있다.
 
 ## Plugin 커맨드 단축키 우선순위
 
 plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSettings`보다 먼저 매칭한다. `App::try_plugin_shortcut`이 `dispatch_window_event_to_view`보다 먼저 실행되며, plugin 명령을 찾으면 이벤트를 소비해 호스트로 넘기지 않는다. 사용자가 활성화하고 설정한 plugin의 단축키 선택을 우선하는 정책이다.
 
-판정 자리와 순위는 그대로이고, 판정을 열지는 키 경로로 정한다. winit 경로 키는 포커스 노드에서 시작한 경로의 출발 노드(팝업·무대·주소 띠 등)가 그 키를 쓰지 않을 때 판정한다. 출발 노드가 surface면 surface 내용보다 plugin 명령이 먼저다. native WebView가 넘긴 경로 키는 받은 surface에서 시작한 경로로 판정해, 그 surface를 덮는 팝업이 있을 때만 막는다. 경로 키가 아닌 키(`key_class::classify_key`)는 창의 키 게이트(`window_keys_to_overlay`)로 정한다. WebView가 넘긴 키는 modal, 전체화면 무대, 설정 열기 요청이면 경로와 관계없이 막는다. winit 키는 modal이면 판정하지 않는다.
+판정 자리와 순위는 그대로이고, 판정을 열지는 키 경로로 정한다. winit 키는 포커스 노드에서, native WebView가 넘긴 키는 받은 surface에서 시작한 경로로 판정한다. 조건의 정본은 `key_nodes::plugin_key_gate_open`·`key_nodes::received_key_blocked`와 `app::webview_keys`의 `forwarded_key_gate_open`이고, 장면별 기대는 `app/plugin_glue/shortcut_state_tests.rs`가 정본이다. winit 키는 modal이면 판정하지 않는다.
 
 매칭 대상은 포커스에 따라 다르다. native WebView가 넘긴 키는 모델 포커스가 아니라 그 키를 받은 WebView의 surface를 포커스로 보고, 명령 대상도 그 surface로 정한다. attach 생성 대기 초안이 선택돼 있으면 포커스 surface가 없으므로 초안 뒤의 기존 plugin surface가 아니라 global 명령만 후보다.
 

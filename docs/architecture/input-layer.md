@@ -217,7 +217,7 @@ host popup을 위에 배치한다. 이 호출은 parent와 child를 모두 `Area
 | # | 지점 | 무대 | 근거 |
 |---|------|--------|------|
 | 1 | `window_keys_to_overlay` 정의(`src/state.rs`) | 정의에 포함 | 아래 3의 지점이 모두 이 함수를 부른다 |
-| 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(경로 키가 아닌 사건의 터미널 포워딩 게이트). 호출부는 같은 파일의 `window_key_holds_terminal` 이고, 그 함수를 `handle_keyboard_input`(`src/view/main/keyboard.rs`)이 부른다 | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 무대 키를 전부 소비하고 return 하므로 여기까지 오지 않는다. 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
+| 2 | `src/state/popup_key_owner.rs` `window_holds_terminal_keys`(경로 키가 아닌 사건의 터미널 포워딩 게이트). 호출부는 같은 파일의 `window_key_holds_terminal` 이고, 그 함수를 `handle_keyboard_input`(`src/view/main/keyboard.rs`)이 부른다 | **없음** | 호출부 함수 **앞**의 0단계 게이트(`try_consume_fullscreen_stage_key`)가 경로 키가 아닌 무대 사건을 소비하고 return 하므로 여기까지 오지 않는다(그 게이트는 무대가 쓰지 않는 경로 키 가운데 경로의 단축키로 가는 키만 넘긴다). 그 게이트가 사라지면 이 식도 무대 항이 필요해진다 |
 | 3 | 정면 함수를 부르는 곳: `window_feeds_egui`(egui feed 게이트, `src/state/popup_key_owner.rs`), IME(`src/view/main/ime.rs`), 경로 키가 아닌 사건의 plugin 명령 게이트(winit·native webview 포워딩 키 모두, `src/adapters/ui/input/key_nodes.rs`), `ui.state` 의 `keyboard_shortcuts_gated`(`src/adapters/ipc/handler/debug_state.rs`), 외부 끌어내기(`src/view/main/file_drag.rs` `poll_outbound_drag`), X11 조합 종료 키 소유권(`src/adapters/ui/input/explorer_ime.rs`), native 편집 키 차단 상태(`src/app/webview_sync.rs`), 편집 키 판정(`src/view/main/edit_keys.rs`), 플러그인 surface 편집 키(`src/view/main/plugin_surface_keys.rs`) | 정면 함수 | egui feed 는 방향이 반대다(무대 콘텐츠는 egui 위젯이라 키가 egui 로 가야 한다). IME 는 무대만 떠 있으면 조합 Commit 이 터미널로 샌다. plugin 단축키·webview 키·native 편집 키는 `dispatch_window_event_to_view` 이전이나 밖에서 돌아 0단계 게이트를 거치지 않는다([WebView 호스트 계약](../design/systems/webview.md)). 편집 키·플러그인 surface 편집 키는 무대에 들어간 키가 뒤쪽 화면에서 다시 쓰이지 않게 한다. 끌어내기는 OS 드래그라 렌더한 오버레이로 덮을 수 없어 취소한다. 보고 값은 무대 중에 "막히지 않았다"고 보고하지 않게 한다 |
 | 4 | `mouse_overlay_open()` 정의 | 정의에 포함 | 마우스 다섯 호출부 전부가 이 하나를 본다 |
 | 5 | `has_egui_overlay_open()` 정의 | 정의에 포함 | WebView 가 무대 위로 뚫고 나오지 못하게 |
@@ -263,28 +263,31 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 메인 창 키 사건 하나는 App 입구(`App::route_window_input`)에서 plugin 명령 판정(`try_plugin_shortcut`)을 거친 뒤
 MainView 입구(`MainView::handle_engine_event`)로 간다. view 안에서는 사건 앞 처리 뒤에 수신자를 한 번 정하고
 (`decide_key_receiver`, 결과는 `MainView::key_decision`), egui 적재(`feed_egui_keyboard`)와 키 처리
-(`handle_keyboard_input`)가 그 값을 함께 읽는다. 단계 순서의 정본은 `MainKeySteps`(`src/view/main/key_event_steps.rs`)이고
-`source_guards::edit_key_judgment_order`가 고정한다. egui 적재는 `MainViewState::window_feeds_key`, 터미널로 보낼지는
+(`handle_keyboard_input`)가 그 값을 함께 읽는다. 단계 순서의 정본은 `run_key_event`(`src/view/key_event.rs`)와 메인 창 단계 구현 `MainKeySteps`
+(`src/view/main/key_event_steps.rs`)이고 `source_guards::edit_key_judgment_order`가 고정한다. 사건이 새 입력 몫을 열면
+수신자를 다시 정한다(`MainKeySteps::settle_key_node`). egui 적재는 `MainViewState::window_feeds_key`, 터미널로 보낼지는
 `MainViewState::window_key_holds_terminal`이 정한다. vi 복사 모드는 지금 자리 그대로다.
 
 ### 경로 키
 
-키 경로를 지나는 사건은 경로 키뿐이다. 경로 키는 egui 키 사건이 되는 누름 가운데 지금 경로에 남는 예외(bare Esc,
-설정 열기 요청 래치 중 키, 클립보드 조합, 편집 바인딩 키)를 뺀 것이다. 판정의 정본은 `key_class::classify_key`이고
-egui-winit 변환과 같은지는 `key_class_tests.rs`가 잠금 버전 소스와 대조한다. 경로 키가 아닌 사건은 키 경로 이전의
+키 경로를 지나는 사건은 경로 키뿐이다. 경로 키인지와 지금 경로로 남는 사유는 `key_class::classify_key`가 정한다.
+클립보드 조합은 그 창의 egui-winit 수식키로 본다(`KeyEventValue::egui_mods`). egui-winit 변환과 같은지는
+`key_class_tests.rs`가 잠금 버전 소스와 대조한다. 경로 키가 아닌 사건은 키 경로 이전의
 게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. bare Esc의 처리는
 [popup.md의 Esc 소유권](../design/systems/popup.md#plugin-popup--host-popup-부모-자식)을 따른다.
 
 ### 키 경로와 수신자
 
-출발 노드(`key_path::key_start_node`)는 창의 포커스 노드이고, 이번 패스의 키를 팝업에 묶었으면 그 팝업이다. 경로
-(`key_nodes::window_key_path`)는 출발 노드에서 engine 쪽으로 오른다. 덮는 팝업은 덮인 범위를 건너뛰고, 펼친 팝업과
-전체화면 무대는 engine으로 바로 잇는다.
+출발 노드는 `key_path::key_start_node`가 정한다(창의 포커스 노드가 기본이고, 이번 몫을 팝업에 묶었으면 그 팝업).
+경로의 노드(`key_nodes::window_key_path`)와 level(`key_path::focus_path_levels`)은 같은 범위 목록
+(`key_path::start_scope_levels`)으로 만든다. 팝업이 붙은 범위와 덮음·펼침은 `key_path::popup_place`가, 팝업이 포커스일
+때 남는 level은 `key_path::popup_scope_levels`가 정한다.
 
 수신자(`key_route::route_key`)는 출발 노드가 그 키를 쓰면 그 노드이고, 쓰지 않으면 경로의 단축키 단계
 (`KeyReceiver::Shortcut`)다. 맞는 단축키가 없으면 출발 surface(끝 목적지)가 받는다. 노드마다 쓰는 키는
-`key_route::start_takes`에, 입력칸 팝업의 명령 키 규칙은 `key_route::text_or_up`에 있다. 장면별 기대는
-`key_route_tests.rs`와 `key_nodes_tests.rs`가 정본이다.
+`key_route::start_takes`에, 입력칸 팝업의 명령 키 규칙은 `key_route::text_or_up`에 있다. egui 수신자가 팝업이면 그
+몫을 그 팝업에 묶고(`MainViewState::window_feeds_key`), 터미널·egui-mesh로 갈 경로 키는 수신자 surface의 갈래로
+보낸다(`surface_input_destination`). 장면별 기대는 `key_route_tests.rs`와 `key_nodes_tests.rs`가 정본이다.
 
 ### 단축키 level
 
@@ -297,8 +300,10 @@ egui-winit 변환과 같은지는 `key_class_tests.rs`가 잠금 버전 소스�
 plugin 명령 판정은 지금처럼 App 입구에서 view보다 먼저다. 게이트(`PluginKeyGate`)만 키 경로를 쓴다.
 
 winit 키는 포커스 노드에서, native WebView가 넘긴 키는 그 키를 받은 surface에서 시작한 경로로 판정한다. 그래서
-WebView 키는 받은 surface를 덮는 팝업에만 막힌다. 조건의 정본은 `key_nodes::plugin_key_gate_open`,
-`key_nodes::received_key_blocked`, WebView 쪽 창 전체 차단은 `app::webview_keys`의 `forwarded_key_gate_open`이다.
+WebView 키도 창 전체 차단과 경로 키가 아닌 분류(`key_nodes::forwarded_key_class`)의 지금 게이트를 먼저 거친다. 조건의
+정본은 `key_nodes::plugin_key_gate_open`, `key_nodes::received_key_blocked`, `app::webview_keys`의
+`forwarded_key_gate_open`이고, 장면별 기대는 `app/plugin_glue/shortcut_state_tests.rs`와
+`app/webview_keys_state_tests.rs`가 정본이다.
 
 ## 관련
 
