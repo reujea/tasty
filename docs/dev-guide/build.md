@@ -76,6 +76,8 @@ cargo build --release       # thin LTO 검증
 cargo build --profile dist  # 배포용
 ```
 
+일상 개발은 `cargo build` 또는 `cargo build --release`를 쓴다. 배포 산출물(DMG / MSI / AppImage 등)은 `cargo build --profile dist`로 빌드하고 일상 빌드에는 쓰지 않는다.
+
 ### headless(`--no-default-features`) 빌드
 
 `gui` 는 default feature 라 `cargo build` 는 winit/wgpu/egui 를 켠다. gui 없는 headless/CLI 인스턴스(로컬 GUI 사용자 없이 IPC/CLI + 원격 attach 만 쓰는 인스턴스, [헤드리스 정의 경계](headless-build-boundaries.md))는 `--no-default-features` 로 빌드한다.
@@ -261,6 +263,50 @@ append 하게 해서 **실행 횟수**를 세야 갈린다. 저장소 밖 임시
 
 `tasty-i18n` 은 루프에서 파일마다 한 줄씩 내보내므로 **소스의 `println!` 수(1)와 실제로 나가는
 줄 수가 다르다.** 두 값을 섞어 세지 마라.
+
+## 도구
+
+언어는 Rust이고 edition은 루트 `Cargo.toml`의 `edition` 값이다. 빌드는 cargo, 포맷은 rustfmt, 린트는 clippy를 쓴다.
+
+## 검증 명령
+
+변경에 맞는 검사를 직접 실행한다. 자동 실행 범위와 빌드 조합은
+[CI 가이드](ci-gates.md)에서 확인한다.
+워크플로 파일에 명령이 있다는 사실만으로 해당 커밋에서 실행됐다고 보고하지 않는다.
+
+| 목적 | 명령 |
+|---|---|
+| 개발 빌드 | `cargo build` |
+| workspace 전체 개발 빌드 | `cargo build --workspace` |
+| 개발 번들 준비(아래 "개발 번들") | `PROFILE=debug just build-plugins` |
+| release 컴파일·빌드 확인 | `cargo build --release` |
+| lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
+| 포맷 | `cargo fmt --check` |
+| 문서 검사 | `export TASTY_PAGE_DIR="$(bash scripts/fetch-design-source.sh)"` 뒤 `cargo test -p tasty-doc-guards --locked`. 디자인 정본 대조 시험이 `dtcg/SOURCE` 커밋의 tasty-page를 읽는다 |
+| 전체 테스트 | `cargo test --workspace --locked` |
+| 파일 크기·예외 총합 | `bash scripts/check-file-size.sh`와 `bash scripts/check-frozen-sum-ratchet.sh` |
+
+셸 검사는 `check-intent-discipline.sh`, `check-allow-reason.sh`,
+`check-shared-walk-ratchet.sh`, `check-core-writer-ratchet.sh`, `check-shell-assets.sh`를 사용한다.
+필요한 보조 도구가 없거나 오래됐으면 먼저 준비한다. 실제 위반인지 확인하기 전에
+상한이나 예외를 바꿔 검사를 통과시키지 않는다.
+
+workspace에서 제외된 `tasty-plugin-sdk-wasm`은 `--manifest-path`로 따로 검사한다.
+홈페이지와 디자인 정본은 이 레포에 없다. 그 검사는 [tasty-page](https://github.com/zilhak/tasty-page) 레포의 절차를 따른다.
+Cargo에는 별도 의존성 설치 단계가 없고 build/test 때 필요한 것을 가져온다.
+일반적인 소스 변경 검증에 무조건 전체 캐시를 지우지는 않는다.
+
+빌드·테스트 통과와 실제 실행 확인은 구분한다.
+[자체 검증](self-verification.md)에 따라 격리된 debug 인스턴스로 시나리오를 재현한다.
+
+## 개발 번들
+
+루트의 `cargo build`만으로 개발 번들은 준비되지 않는다.
+`PROFILE=debug just build-plugins`가 공식 플러그인(잠금 파일의 릴리스 산출물)과 mesh-demo를 스테이징한다(아래 "Plugin 빌드 / 스테이징").
+공식 플러그인 코드를 바꾼 검증은 `--from-checkout`(계약도 바꿨다면 `--with-local-tasty`)으로 옆 체크아웃에서 빌드하고,
+검증할 실행 파일과 번들 사본이 새 코드인지 확인한다.
+공개키와 번들 준비는 빌드 전에 수행한다.
+`cp -p` 등으로 오래된 시각을 복원했다면 내용이 바뀌었어도 갱신이 생략될 수 있다.
 
 ## Plugin 빌드 / 스테이징
 

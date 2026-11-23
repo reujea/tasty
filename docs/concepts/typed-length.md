@@ -4,6 +4,14 @@
 
 정의는 `crates/tasty-type-geometry/src/length.rs`, 프로젝트 규칙은 [CLAUDE.md](../../CLAUDE.md)의 길이 타입 절에 있다.
 
+## 규칙 (필수)
+
+- 내부 소스에서 길이 값을 단순 `f32`로 다루지 않는다. 반드시 `PhysicalPx` 또는 `LogicalPx` 타입을 사용한다.
+- `PhysicalPx`: GPU, wgpu, winit 마우스 좌표, `Rect` 필드.
+- `LogicalPx`: egui UI, Theme 상수, 사이드바 너비.
+- 두 타입 간 직접 대입은 할 수 없다. `to_physical(sf)` / `to_logical(sf)` 변환을 거친다. 사각형은 `PhysicalRect` / `LogicalRect` 짝으로 네 변을 한 번에 변환한다.
+- 두 좌표계의 타입을 섞어 쓰면 컴파일 오류가 난다. `.value()`로 숫자를 꺼낸 뒤 필요한 `× ppp` 또는 `÷ scale_factor` 변환을 빠뜨리는 경우는 `src/dpi_conversion_guard.rs`에서 검사한다. 타입 검사만으로는 이 누락을 찾을 수 없다.
+
 ## 두 타입
 
 | 타입 | 단위 | 사용하는 곳 |

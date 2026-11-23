@@ -225,6 +225,8 @@ DTCG component tier(치수+색) 토큰은 `crates/tasty-type-appearance/src/gene
 
 ## UI 디자인 규칙 (필수)
 
+모든 색상·폰트 크기·선 굵기·간격은 `Theme`에서 가져온다. `from_rgb(...)` 등으로 하드코딩하지 않는다. 핵심 정책은 4px 그리드, 14px 폰트 상한, 1px 보더, 호버/액티브 오버레이 자동 도출, 4.5:1 대비, 터미널 콘텐츠 애니메이션 0ms이며 값과 예외는 아래 표와 "애니메이션과 스크롤" 절에 있다.
+
 새 UI는 아래 토큰과 역할을 따른다. 시안을 구현할 때는 값뿐 아니라 [컴포넌트 구조](design-parity-notes.md)와 [갤러리 매핑](design-gallery-mapping.md)도 확인한다. 같은 색을 썼다고 같은 레이아웃이 되는 것은 아니다.
 
 | 항목 | 기본 규칙 |

@@ -6,6 +6,36 @@
 
 릴리스는 `main`에 붙인 **Git 태그 push** 로 트리거된다(`.github/workflows/release.yml`). `develop`·`release`·`main`의 뜻과 승격·hotfix 순서는 [브랜치 전략](branching.md)이 정본이다. 버전 형식은 `MAJOR.MINOR.PATCH`. 버전 정책은 [`../../CLAUDE.md`](../../CLAUDE.md) "버전 정책" — 이 문서는 절차다.
 
+## 버전 정책
+
+버전 형식은 `MAJOR.MINOR.PATCH`.
+
+### 본체 (`Cargo.toml` 루트)
+
+- **패치 버전**: 사용자가 빌드를 요청했을 때, 마지막 빌드 이후 새 커밋이 있고 사용자가 막지 않았다면 AI가 자동으로 +1 한다. 올리는 커밋은 `release` 브랜치에 넣고 `develop`은 역병합으로 따라간다. 예외로 hotfix의 patch는 `main`에서 올리고, `release`와 `develop`은 역병합으로 따라간다. 브랜치 규칙은 [브랜치 전략](branching.md)에 있다.
+- **README 버전 배지 동기화 (필수)**: 본체 patch를 올리면 `README.md`와 `README.ko.md`의 `badge/version-X.Y.Z-blue`도 같은 값으로 바꿔 같은 커밋에 넣는다. `crates/tasty-doc-guards/tests/readme_badge_parity.rs`가 Cargo.toml과 배지의 일치를 확인한다. 이 시험은 `cargo test -p tasty-doc-guards`에 들어 있고, 그 명령을 돌리는 `.github/workflows/doc-guards.yml`은 경로 필터 없이 develop·release·main push와 PR에서 실행된다([CI 가이드](ci-gates.md)). push 전에는 CI가 돌지 않으므로 커밋 전에도 직접 검사한다.
+- **마이너 / 메이저**: 사용자가 직접 지정한다. 임의로 올리지 않는다.
+- **자체 검증용 빌드** (`cargo build` / `cargo test`): 버전을 올리지 않는다.
+
+### Plugin (`crates/tasty-plugin-*/Cargo.toml`)
+
+매니페스트가 있는 번들 플러그인의 제품 내용이 달라지면 패치 버전을 올린다.
+매니페스트 id가 `official-plugins.lock.toml`에 있는 공식 플러그인은 공식 플러그인 레포가 버전을 관리하므로 대상이 아니다.
+해당 디렉터리뿐 아니라 normal/build 의존성의 변경도 포함한다.
+저장소 안 path 의존성은 workspace 밖에 있어도 검사한다.
+
+- Rust는 rustfmt 정규화 후 비교하고 테스트 전용 내용은 제외한다.
+- 버전 선언 자체는 내용 변경 증거에서 제외한다. 파일 수나 커밋 type으로 면제하지 않는다.
+- 주석만 바뀐 경우에도 보수적으로 버전 증가를 요구할 수 있다. 사유를 확인하고 처리한다.
+- Cargo.toml, 매니페스트, Cargo.lock을 함께 갱신해 같은 커밋에 넣는다.
+- 여러 플러그인이 영향을 받으면 각각 적용한다. minor/major는 사용자가 정한다.
+- `tasty.pluginBump=deferred`(worktree 범위)인 lane 작업 트리에서는 lane이 버전 줄을 건드리지 않는다. 병합 단계가 `scripts/plugin-bump-fixup.sh`로 커밋마다 붙인다. 절차는 [Git 훅](git-hooks.md) "lane 작업 트리의 P.1 보류"에 있다.
+- 서명 파일은 빌드 산출물이며 커밋하지 않는다.
+- 나누어 push할 때는(배포 여부와 관계없이 develop push 포함) 이미 원격에 발행된 버전과 현재 내용을 다시 비교한다. pre-commit 통과가 최종 배포 버전 검사를 대신하지 않는다.
+
+내용 비교, 보조 도구 준비, 비교할 원격 커밋을 읽지 못했을 때의 처리는 아래 "플러그인 버전 비교"를 따른다.
+설치된 플러그인을 실행 중인 앱에 반영하는 절차는 [플러그인 개발](plugin-development.md)의 §9.1을 따른다.
+
 ## 버전 자동 bump 규칙 (요약)
 
 CLAUDE.md 정책의 운영 형태:

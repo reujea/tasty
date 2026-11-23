@@ -21,6 +21,17 @@
 
 <a id="이미-본체에만-있는-view-를-갤러리로-끌어올릴-때"></a>
 
+## 디자인에 맞출 때
+
+디자인은 구현 세션이 정하지 않는다. 디자인 정본, 디자이너 세션의 역할, 앱이 따르는 디자인 판(`crates/tasty-design-tokens/dtcg/SOURCE`)은 [디자인 변경 워크플로](design-change-workflow.md)에 있다. 갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 갤러리 단계에서 본체에도 반영된다.
+
+UI를 디자인에 맞출 때는 구조와 토큰을 모두 확인한다.
+
+1. **레이아웃 구조**: [디자인 정합 지침](../design/systems/design-parity-notes.md)과 [디자인·갤러리 매핑](../design/systems/design-gallery-mapping.md)을 읽는다. 디자인의 grid·컬럼·패딩·정렬 구조를 컴포넌트와 코드에 그대로 옮긴다.
+2. **토큰**: [theme.md](../design/systems/theme.md) "UI 디자인 규칙"의 토큰 규칙을 적용한다.
+
+레이아웃 구조가 맞아도 토큰이 다를 수 있으므로 두 항목을 따로 확인한다.
+
 ## 이미 본체에만 있는 view 를 갤러리로 옮길 때
 
 gallery-first 이전에 만들어져 본체 binary 에만 있는 view 는 갤러리가 복제할 수밖에 없다. 복제를 없애려면 **view 함수를 `crates/tasty-ui-widgets` 로 옮겨** 본체 wrapper 와 갤러리 specimen 이 같은 함수를 호출하게 한다. 이때 crate 로 **넘기지 않는 것**이 정해져 있다:

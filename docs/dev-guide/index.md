@@ -8,6 +8,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 
 | 문서 | 내용 |
 |------|------|
+| [working-rules](working-rules.md) | 기여자·에이전트 작업 규칙 — 핵심 원칙, 시작할 때 읽을 문서, 상황별로 읽을 가이드 표, 임시 파일, 1.0 전 저장 형식 |
 | [branching](branching.md) | `develop`·`release`·`main` 브랜치의 뜻, 작업 브랜치 반영·release 승격·태그·hotfix 역병합, merge 커밋 허용 범위 |
 | [git-hooks](git-hooks.md) | Git 훅 설치, Clippy로 통합한 개발 컴파일 검사, 검사 이름별 진행·시간 표시와 오류 로그 확인 |
 | [shell-scripts](shell-scripts.md) | `scripts/`·`.githooks/`·`Justfile`·워크플로 `run:` 규약 — 조기에 끝나는 소비자를 파이프 오른쪽에 두지 않는다(SIGPIPE) |

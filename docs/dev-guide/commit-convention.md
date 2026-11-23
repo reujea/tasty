@@ -2,6 +2,12 @@
 
 tasty 는 [Conventional Commits](https://www.conventionalcommits.org/) 를 따른다. 강제 정책은 [`../../CLAUDE.md`](../../CLAUDE.md) "커밋 정책" — 이 문서는 형식·type·단위 기준의 상세다.
 
+## 커밋 정책
+
+기능 하나의 수정이나 추가가 끝나면 사용자에게 다시 묻지 않고 커밋한다. 서로 다른 기능을 한 커밋에 묶지 않는다.
+
+Conventional Commits 형식을 따른다(예: `feat(themes): add latte theme`). 커밋 제목과 본문은 모두 영어 평문으로 작성한다. 제목과 본문 각각에 Markdown 서식(강조, 백틱, 제목, 목록, 링크, 코드 블록 등)을 사용하지 않는다. 형식·type 목록·body 작성 기준은 아래 절에 있다.
+
 ## 형식
 
 ```

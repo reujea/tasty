@@ -2,6 +2,13 @@
 
 ESC·Enter처럼 당연하게 쓰이는 기본 조작을 제외한 Tasty 자체 단축키는 [`KeybindingSettings`](../../features/settings/index.md) 로 노출되며 코드에 하드코딩되지 않는다. 본 문서는 바인딩 문자열의 OS별 키 매핑과 위치 기반 추상화를 기술한다.
 
+## 규칙 (필수)
+
+- ESC·Enter 같은 기본 조작을 제외한 Tasty 자체 단축키는 설정의 단축키 탭에서 변경할 수 있어야 한다. 설정 대상은 `KeybindingSettings`로 노출하고 하드코딩하지 않는다.
+- 예외는 OS가 관리하며 Tasty가 변경·해제·가로채기할 수 없는 단축키다. macOS Spotlight의 `Cmd+Space`나 OS 전역 윈도우 전환 등이 해당한다. Tasty가 제어할 수 없는 단축키는 설정에 노출하는 대상에서 제외한다.
+- Tasty가 직접 등록하는 OS 메뉴(macOS NSMenu·Windows AcceleratorTable·Linux Wayland. `tastyQuit:`·`tastyNewWindow:`·split·convert 같은 Tasty 특화 액션 포함)의 key equivalent는 `KeybindingSettings`의 대응 binding을 사용한다. binding이 없거나 빈 vec이면 비워 둬서 단축키 없는 항목으로 표시한다. `cut:`·`performClose:`·`miniaturize:`·`hide:`처럼 OS 표준 selector를 사용해도 단축키를 상수로 지정할 수는 없다. `with_default_menu(false)`로 만든 메뉴의 단축키는 Tasty가 관리한다. 상세는 아래 "OS 메뉴 key equivalent".
+- modifier 매핑 규칙과 위치 기반 추상화는 아래 절에 있다.
+
 ## 핵심 원칙: 물리적 키 위치 일관성
 
 Windows/macOS/Linux 에서 **같은 물리적 키 조합 → 같은 기능**. 표준 키보드 하단 수정자 배치:
