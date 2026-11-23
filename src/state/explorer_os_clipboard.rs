@@ -177,15 +177,31 @@ impl MainViewState {
 
     /// 경로 출처가 `target` 인 칸에서 붙여넣기 메뉴를 켤 것인가. 붙여넣기가 쓸 목록(나중에 복사한 쪽)이
     /// 같은 컴퓨터의 경로일 때만 참이다. OS 클립보드 쪽은 늘 로컬 파일이다.
+    #[cfg(test)]
     pub(crate) fn explorer_can_paste_into(&self, target: ExplorerPathSource) -> bool {
+        self.explorer_paste_row(target) == PasteRow::Enabled
+    }
+
+    /// 경로 출처가 `target` 인 칸의 붙여넣기 메뉴 행. 다른 컴퓨터의 목록이면 붙여넣기 단축키가 띄우는
+    /// 토스트와 같은 이유(`explorer_paste`)를 단다. 붙여넣을 것이 없거나 읽지 못하면 이유 없이 끈다.
+    pub(crate) fn explorer_paste_row(&self, target: ExplorerPathSource) -> PasteRow {
         let tasty = self.explorer_clipboard.get();
         match paste_from(tasty.as_ref(), self.file_clipboard.read()) {
-            PasteFrom::Tasty | PasteFrom::TastyUnavailable(_) => {
-                tasty.is_some_and(|c| !c.paths.is_empty() && c.source == target)
+            PasteFrom::Tasty | PasteFrom::TastyUnavailable(_) => match tasty {
+                Some(c) if !c.paths.is_empty() && c.source == target => PasteRow::Enabled,
+                Some(c) if !c.paths.is_empty() => PasteRow::Disabled(Some(source_reason(&c))),
+                _ => PasteRow::Disabled(None),
+            },
+            PasteFrom::Unavailable(_) if target == ExplorerPathSource::Local => PasteRow::Enabled,
+            PasteFrom::Unavailable(_) => PasteRow::Disabled(None),
+            // OS 클립보드의 파일은 이 컴퓨터의 파일이다.
+            PasteFrom::Os(_) if target == ExplorerPathSource::Local => PasteRow::Enabled,
+            PasteFrom::Os(_) => {
+                PasteRow::Disabled(Some("explorer.state.cross_computer_paste_unsupported"))
             }
-            PasteFrom::Unavailable(_) => target == ExplorerPathSource::Local,
-            PasteFrom::Os(_) => target == ExplorerPathSource::Local,
-            PasteFrom::NotLocal | PasteFrom::Unreadable | PasteFrom::Nothing => false,
+            PasteFrom::NotLocal | PasteFrom::Unreadable | PasteFrom::Nothing => {
+                PasteRow::Disabled(None)
+            }
         }
     }
 
@@ -193,6 +209,22 @@ impl MainViewState {
     #[cfg(test)]
     pub(crate) fn explorer_can_paste(&self) -> bool {
         self.explorer_can_paste_into(ExplorerPathSource::Local)
+    }
+}
+
+/// 붙여넣기 메뉴 행의 상태. 꺼진 행은 이유 문구 키를 가질 수 있다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PasteRow {
+    Enabled,
+    Disabled(Option<&'static str>),
+}
+
+/// 다른 컴퓨터의 목록을 붙여넣지 못하는 이유. 붙여넣기 단축키의 토스트와 같은 키다.
+pub(crate) fn source_reason(clip: &ExplorerClipboard) -> &'static str {
+    if clip.is_local() {
+        "explorer.state.cross_computer_paste_unsupported"
+    } else {
+        "explorer.state.remote_paste_unsupported"
     }
 }
 
@@ -385,6 +417,40 @@ mod tests {
         // 원격 경로는 OS 에 올리지 않는다. Tasty 목록도 로컬에 붙여넣을 수 없다.
         assert_eq!(memory.get(), OsClip::Other);
         assert!(!state.explorer_can_paste());
+    }
+
+    /// 메뉴 행의 이유는 붙여넣기 단축키의 토스트와 같은 키다. 빈 목록은 이유 없이 꺼진다.
+    #[test]
+    fn the_paste_row_names_the_source_reason_and_stays_bare_when_empty() {
+        let (mut state, _engine) = crate::state::tests::test_state();
+        let (handle, memory) = crate::clipboard::files::Handle::memory();
+        state.file_clipboard = handle;
+        let remote = ExplorerPathSource::Remote { workspace: 3 };
+        memory.set(OsClip::Other);
+        assert_eq!(
+            state.explorer_paste_row(ExplorerPathSource::Local),
+            PasteRow::Disabled(None)
+        );
+        let paths = files(false).paths;
+        state.explorer_set_clipboard(paths.clone(), false, remote);
+        assert_eq!(state.explorer_paste_row(remote), PasteRow::Enabled);
+        assert_eq!(
+            state.explorer_paste_row(ExplorerPathSource::Local),
+            PasteRow::Disabled(Some("explorer.state.remote_paste_unsupported"))
+        );
+        assert_eq!(
+            state.explorer_paste_row(ExplorerPathSource::Remote { workspace: 4 }),
+            PasteRow::Disabled(Some("explorer.state.remote_paste_unsupported"))
+        );
+        state.explorer_set_clipboard(paths, false, ExplorerPathSource::Local);
+        assert_eq!(
+            state.explorer_paste_row(ExplorerPathSource::Local),
+            PasteRow::Enabled
+        );
+        assert_eq!(
+            state.explorer_paste_row(remote),
+            PasteRow::Disabled(Some("explorer.state.cross_computer_paste_unsupported"))
+        );
     }
 
     #[test]

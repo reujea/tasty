@@ -80,6 +80,15 @@ fn history_items_for_platform(
         .collect()
 }
 
+/// 원격 칸의 Undo · Redo. 원격 작업은 이력에 쌓지 않으므로 이력이 없는 맨 이름으로 끄고 그 이유를 단다.
+fn remote_history_items() -> Vec<MenuItem> {
+    let why = crate::i18n::t("explorer.menu.undo_remote_reason");
+    vec![
+        MenuItem::disabled(UNDO, crate::i18n::t("explorer.menu.undo_none")).with_tooltip(why),
+        MenuItem::disabled(REDO, crate::i18n::t("explorer.menu.redo_none")).with_tooltip(why),
+    ]
+}
+
 /// 칸 이력으로 메뉴 행을 만들고, 고른 행이 이 이력을 실행하도록 지금 이력을 적어 둔다.
 pub(super) fn history_rows(state: &mut crate::state::MainViewState, sid: u32) -> Vec<MenuItem> {
     let busy = state.explorer_history_busy(sid);
@@ -105,17 +114,20 @@ fn insert_rows(items: &mut Vec<MenuItem>, rows: Vec<MenuItem>) {
 }
 
 impl MainView {
-    /// 빈 영역 메뉴의 Properties 묶음 앞에 Undo · Redo 묶음을 넣는다. `shown` 이 거짓이면
-    /// (항목 메뉴, mirror explorer) 넣지 않는다.
+    /// 빈 영역 메뉴의 Properties 묶음 앞에 Undo · Redo 묶음을 넣는다. mirror explorer 는 이력이 없어
+    /// 두 행을 이유와 함께 끈다.
     pub(super) fn push_explorer_history_items(
         &mut self,
         surface_id: u32,
-        shown: bool,
+        is_mirror: bool,
         items: &mut Vec<MenuItem>,
     ) {
-        if shown {
-            insert_rows(items, history_rows(&mut self.state, surface_id));
-        }
+        let rows = if is_mirror {
+            remote_history_items()
+        } else {
+            history_rows(&mut self.state, surface_id)
+        };
+        insert_rows(items, rows);
     }
 
     /// 생성 행과 이력 행을 처리한다. 둘 다 아니면 아무것도 하지 않는다.

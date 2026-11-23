@@ -10,8 +10,8 @@ use super::view::{ExplorerView, LoadState};
 pub(crate) enum EnclosingRow {
     /// 행을 켠다: (열 폴더, 고를 항목).
     Target(PathBuf, PathBuf),
-    /// 링크의 대상이 사라졌다. 대상이 다시 생기면 쓸 수 있으므로 행을 끈 채 둔다.
-    TargetGone,
+    /// 링크의 대상이 사라졌다. 대상이 다시 생기면 쓸 수 있으므로 행을 끈 채 둔다. 값은 없는 대상 경로다.
+    TargetGone(PathBuf),
     /// 행이 없다: 링크도 검색 결과도 아니거나, 대상을 풀 수 없는 링크(권한·순환·부모 없는 대상).
     None,
 }
@@ -27,7 +27,7 @@ impl ExplorerView {
     pub(crate) fn enclosing_target(&self, path: &Path) -> Option<(PathBuf, PathBuf)> {
         match self.enclosing_row(path) {
             EnclosingRow::Target(folder, item) => Some((folder, item)),
-            EnclosingRow::TargetGone | EnclosingRow::None => None,
+            EnclosingRow::TargetGone(_) | EnclosingRow::None => None,
         }
     }
 
@@ -38,7 +38,10 @@ impl ExplorerView {
             match std::fs::metadata(path) {
                 Ok(_) => link_target(path),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    return EnclosingRow::TargetGone;
+                    let target = link_target(path)
+                        .or_else(|| std::fs::read_link(path).ok())
+                        .unwrap_or_else(|| path.to_path_buf());
+                    return EnclosingRow::TargetGone(target);
                 }
                 Err(_) => None,
             }
@@ -146,7 +149,10 @@ mod tests {
             let broken = tmp.path().join("broken.md");
             std::os::unix::fs::symlink(tmp.path().join("gone"), &broken).expect("symlink");
             assert_eq!(view.enclosing_target(&broken), None);
-            assert_eq!(view.enclosing_row(&broken), EnclosingRow::TargetGone);
+            assert_eq!(
+                view.enclosing_row(&broken),
+                EnclosingRow::TargetGone(tmp.path().join("gone"))
+            );
         }
         assert_eq!(view.enclosing_row(&plain), EnclosingRow::None);
     }

@@ -378,3 +378,31 @@ fn windows_disabled_rows_show_reasons_and_keep_their_shortcuts() {
         assert_eq!(rows[1].label, crate::i18n::t("explorer.menu.redo_none"));
     }
 }
+
+/// 원격 칸의 Undo · Redo 는 맨 이름으로 꺼지고 원격 이력 없음 이유를 단다.
+#[test]
+fn a_remote_cell_keeps_bare_undo_and_redo_disabled_with_a_reason() {
+    let items = super::remote_history_items();
+    let why = crate::i18n::t("explorer.menu.undo_remote_reason");
+    let rows: Vec<_> = items
+        .iter()
+        .map(|i| (i.id, i.label.as_str(), i.enabled, i.tooltip.as_deref()))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            (
+                super::UNDO,
+                crate::i18n::t("explorer.menu.undo_none"),
+                false,
+                Some(why)
+            ),
+            (
+                super::REDO,
+                crate::i18n::t("explorer.menu.redo_none"),
+                false,
+                Some(why)
+            ),
+        ]
+    );
+}

@@ -1384,12 +1384,18 @@ impl MainView {
                 multi,
                 is_empty_target,
                 is_folder,
-                // 쓸 수 없는 칸은 붙여넣기 행이 이유와 함께 꺼지므로 클립보드를 읽지 않는다.
-                refusal.is_none() && self.explorer_menu_has_clip(engine, surface_id),
+                // 쓸 수 없는 칸은 붙여넣기 행이 쓰기 거절 이유와 함께 꺼지므로 클립보드를 읽지 않는다.
+                if refusal.is_none() {
+                    self.explorer_menu_paste_row(engine, surface_id)
+                } else {
+                    crate::state::explorer_os_clipboard::PasteRow::Disabled(None)
+                },
                 (is_mirror, refusal.as_deref()),
             ),
         );
-        self.push_explorer_history_items(surface_id, is_empty_target && !is_mirror, &mut items);
+        if is_empty_target {
+            self.push_explorer_history_items(surface_id, is_mirror, &mut items);
+        }
         crate::state::explorer_menu::attach_shortcut_hints(&mut items, engine.settings);
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
             // 경로 복사·복사·루트 설정은 파일시스템을 바꾸지 않아 같은 explorer 인지만 본다.
@@ -1454,15 +1460,16 @@ impl MainView {
     }
 
     /// explorer 컨텍스트 메뉴 아이템 목록 구성 (design §3.3). 원격 쓰기를 받지 않는 칸(`refusal`)은
-    /// 쓰기 행(붙여넣기/잘라내기/새 항목/이름변경/삭제)을 이유 툴팁과 함께 끈다. 붙여넣을 목록이
-    /// 없으면(`has_clip` 거짓) 붙여넣기 행은 이유 없이 꺼진다. `is_mirror` 면 로컬 전용 행(시스템에서
-    /// 열기/파일 관리자에서 보기/새탭으로 열기)을 숨긴다 — copy_path/복사/즐겨찾기 추가/이 폴더로 루트
-    /// 설정은 fs 를 쓰지 않거나(즐겨찾기 추가는 클릭 시 별도 가드) 안전해 그대로 노출한다.
+    /// 쓰기 행(붙여넣기/잘라내기/새 항목/이름변경/삭제)을 이유 툴팁과 함께 끈다. 그 밖의 붙여넣기 행은
+    /// `paste` 대로 켜거나 끈다(다른 컴퓨터의 목록은 출처 이유, 빈 목록은 이유 없음). `is_mirror` 면
+    /// 로컬 전용 행(시스템에서 열기/파일 관리자에서 보기/새탭으로 열기)을 제자리에서 이유와 함께 끈다 —
+    /// copy_path/복사/즐겨찾기 추가/이 폴더로 루트 설정은 fs 를 쓰지 않거나(즐겨찾기 추가는 클릭 시 별도
+    /// 가드) 안전해 그대로 노출한다. 이유 툴팁은 Windows 메뉴에 나타나지 않는다.
     fn build_explorer_context_menu(
         multi: bool,
         is_empty_target: bool,
         is_folder: bool,
-        has_clip: bool,
+        paste: crate::state::explorer_os_clipboard::PasteRow,
         (is_mirror, refusal): (bool, Option<&str>),
     ) -> Vec<crate::platform::native_menu::MenuItem> {
         use crate::platform::native_menu::MenuItem;
@@ -1471,10 +1478,24 @@ impl MainView {
             None => MenuItem::new(id, crate::i18n::t(key)),
             Some(reason) => MenuItem::disabled(id, crate::i18n::t(key)).with_tooltip(reason),
         };
-        // 붙여넣기 행. 쓰기 거절이 먼저이고, 그 밖에는 붙여넣을 목록이 없으면 이유 없이 꺼진다.
-        let paste_row = |key: &str| match refusal {
-            None if !has_clip => MenuItem::disabled(12, crate::i18n::t(key)),
-            _ => write_row(12, key),
+        // 붙여넣기 행. 쓰기 거절 이유가 먼저이고, 그다음 출처 이유, 빈 목록은 이유 없이 꺼진다.
+        let paste_row = |key: &str| {
+            use crate::state::explorer_os_clipboard::PasteRow;
+            match (refusal, paste) {
+                (Some(_), _) | (None, PasteRow::Enabled) => write_row(12, key),
+                (None, PasteRow::Disabled(None)) => MenuItem::disabled(12, crate::i18n::t(key)),
+                (None, PasteRow::Disabled(Some(why))) => {
+                    MenuItem::disabled(12, crate::i18n::t(key)).with_tooltip(crate::i18n::t(why))
+                }
+            }
+        };
+        // 로컬 칸에서만 할 수 있는 행. 원격 칸에서는 제자리에서 이유와 함께 꺼진다.
+        let local_row = |id: u32, key: &str, reason: &str| {
+            if is_mirror {
+                MenuItem::disabled(id, crate::i18n::t(key)).with_tooltip(crate::i18n::t(reason))
+            } else {
+                MenuItem::new(id, crate::i18n::t(key))
+            }
         };
         let copy_path_label = if multi {
             crate::i18n::t("explorer.context_menu.copy_path_multi")
@@ -1494,15 +1515,14 @@ impl MainView {
             ));
         }
         // 단일 폴더: 새 탭으로 열기 / 이 폴더로 루트 설정 (빈 영역=cwd 자기
-        // 자신엔 무의미 → 제외). 새 탭으로 열기는 mirror 에서 숨김(로컬 전용
+        // 자신엔 무의미 → 제외). 새 탭으로 열기는 mirror 에서 꺼짐(로컬 전용
         // 유령 tab 생성 방지). 이 폴더로 루트 설정은 순수 로컬 뷰 이동이라 mirror 에서도 노출.
         if is_folder {
-            if !is_mirror {
-                items.push(MenuItem::new(
-                    60,
-                    crate::i18n::t("explorer.context_menu.open_in_new_tab"),
-                ));
-            }
+            items.push(local_row(
+                60,
+                "explorer.context_menu.open_in_new_tab",
+                "explorer.menu.new_tab_remote_reason",
+            ));
             items.push(MenuItem::new(
                 61,
                 crate::i18n::t("explorer.context_menu.set_as_root"),
@@ -1533,11 +1553,13 @@ impl MainView {
             // 휴지통으로 이동 (파일/폴더/다중 공통).
             items.push(MenuItem::separator());
             items.push(write_row(30, "explorer.context_menu.delete"));
-            // OS 연계 행은 로컬 칸에서만 자기 묶음으로 둔다. 원격 칸은 두 행과 구분선을 함께 숨긴다.
-            if !is_mirror {
-                items.push(MenuItem::separator());
-                Self::push_explorer_os_items(&mut items, multi);
-            }
+            // OS 연계 행은 자기 묶음으로 둔다. 원격 칸에서는 두 행이 이유와 함께 꺼진다.
+            items.push(MenuItem::separator());
+            Self::push_explorer_os_items(
+                &mut items,
+                multi,
+                is_mirror.then(|| crate::i18n::t("explorer.menu.local_only_reason")),
+            );
         }
         // 모든 모양의 메뉴는 Properties 로 끝난다. 빈 영역이면 현재 폴더가 대상이다.
         items.push(MenuItem::separator());
@@ -1788,16 +1810,20 @@ impl MainView {
         use crate::platform::native_menu::MenuItem;
         // 즐겨찾기 행의 "새 탭으로 열기" 도 `add_kind_tab_by_owner` 를 공유하는
         // 동일 mirror 문제(`explorer_menu_open_in_new_tab` 주석 참고) — mirror 에서는
-        // 메뉴에서부터 숨긴다. "이 폴더로 루트 설정"/"즐겨찾기에서 제거"는 로컬 뷰
+        // 제자리에서 이유와 함께 끈다. "이 폴더로 루트 설정"/"즐겨찾기에서 제거"는 로컬 뷰
         // 상태만 바꾸는 안전한 동작이라 그대로 노출.
         let is_mirror = engine.is_mirror_surface(surface_id);
-        let mut items = Vec::new();
-        if !is_mirror {
-            items.push(MenuItem::new(
-                60,
-                crate::i18n::t("explorer.context_menu.open_in_new_tab"),
-            ));
-        }
+        let open_in_new_tab =
+            MenuItem::new(60, crate::i18n::t("explorer.context_menu.open_in_new_tab"));
+        let mut items = vec![if is_mirror {
+            MenuItem {
+                enabled: false,
+                ..open_in_new_tab
+            }
+            .with_tooltip(crate::i18n::t("explorer.menu.new_tab_remote_reason"))
+        } else {
+            open_in_new_tab
+        }];
         items.push(MenuItem::new(
             61,
             crate::i18n::t("explorer.context_menu.set_as_root"),
@@ -2405,24 +2431,33 @@ mod tests {
             multi,
             is_empty_target,
             is_folder,
-            has_clip,
+            paste_of(has_clip),
             (is_mirror, is_mirror.then_some("reason")),
         ));
         assert_eq!(items.split_off(items.len() - 2), vec![None, Some(70)]);
         items
     }
 
+    fn paste_of(has_clip: bool) -> crate::state::explorer_os_clipboard::PasteRow {
+        use crate::state::explorer_os_clipboard::PasteRow;
+        if has_clip {
+            PasteRow::Enabled
+        } else {
+            PasteRow::Disabled(None)
+        }
+    }
+
     /// 붙여넣기 행(12)의 (활성, 툴팁).
     fn explorer_menu_paste_row(
         is_empty_target: bool,
-        has_clip: bool,
+        paste: crate::state::explorer_os_clipboard::PasteRow,
         refusal: Option<&str>,
     ) -> (bool, Option<String>) {
         let items = super::MainView::build_explorer_context_menu(
             false,
             is_empty_target,
             !is_empty_target,
-            has_clip,
+            paste,
             (refusal.is_some(), refusal),
         );
         let paste = items
@@ -2455,17 +2490,31 @@ mod tests {
         for is_empty_target in [true, false] {
             // 로컬: 붙여넣을 목록이 없으면 이유 없이 꺼지고, 있으면 켜진다.
             assert_eq!(
-                explorer_menu_paste_row(is_empty_target, false, None),
+                explorer_menu_paste_row(is_empty_target, paste_of(false), None),
                 (false, None)
             );
             assert_eq!(
-                explorer_menu_paste_row(is_empty_target, true, None),
+                explorer_menu_paste_row(is_empty_target, paste_of(true), None),
                 (true, None)
             );
-            // 쓸 수 없는 원격: 목록과 관계없이 거절 이유를 단 꺼진 행이다.
-            for has_clip in [false, true] {
+            // 다른 출처의 목록: 출처 이유를 단 꺼진 행이다.
+            let why = "explorer.state.cross_computer_paste_unsupported";
+            assert_eq!(
+                explorer_menu_paste_row(
+                    is_empty_target,
+                    crate::state::explorer_os_clipboard::PasteRow::Disabled(Some(why)),
+                    None
+                ),
+                (false, Some(crate::i18n::t(why).to_string()))
+            );
+            // 쓸 수 없는 원격: 목록·출처와 관계없이 거절 이유가 먼저다.
+            for paste in [
+                paste_of(false),
+                paste_of(true),
+                crate::state::explorer_os_clipboard::PasteRow::Disabled(Some(why)),
+            ] {
                 assert_eq!(
-                    explorer_menu_paste_row(is_empty_target, has_clip, Some("reason")),
+                    explorer_menu_paste_row(is_empty_target, paste, Some("reason")),
                     (false, Some("reason".to_owned()))
                 );
             }
@@ -2561,10 +2610,11 @@ mod tests {
     }
 
     // 쓸 수 없는 mirror explorer 는 파일을 바꾸는 행(붙여넣기/잘라내기/새 폴더/새 파일/이름변경/
-    // 휴지통)을 숨기지 않고 꺼 두며 이유를 툴팁으로 단다(붙여넣을 목록 유무와 관계없다). 로컬 전용 행(새탭으로 열기/시스템에서
-    // 열기)은 mirror 에서 숨는다. copy_path/복사/즐겨찾기 추가/이 폴더로 루트 설정은 그대로 켜져 있다.
+    // 휴지통)을 숨기지 않고 꺼 두며 쓰기 거절 이유를 툴팁으로 단다(붙여넣을 목록 유무와 관계없다).
+    // 로컬 전용 행(새 탭으로 열기/시스템에서 열기/파일 관리자에서 보기)도 제자리에서 꺼지고 자기 이유를 단다.
+    // copy_path/복사/즐겨찾기 추가/이 폴더로 루트 설정은 그대로 켜져 있다.
 
-    /// mirror 메뉴에서 꺼진 행의 id. 꺼진 행은 모두 같은 이유 툴팁을 단다.
+    /// mirror 메뉴에서 꺼진 행의 id. 쓰기 행은 거절 이유("reason")를, 로컬 전용 행은 자기 이유 키를 단다.
     fn explorer_menu_mirror_disabled(
         multi: bool,
         is_empty_target: bool,
@@ -2575,13 +2625,20 @@ mod tests {
             multi,
             is_empty_target,
             is_folder,
-            has_clip,
+            paste_of(has_clip),
             (true, Some("reason")),
         );
         items
             .iter()
             .filter(|i| !i.is_separator() && !i.enabled)
-            .inspect(|i| assert_eq!(i.tooltip.as_deref(), Some("reason"), "row {}", i.id))
+            .inspect(|i| {
+                let want = match i.id {
+                    60 => crate::i18n::t("explorer.menu.new_tab_remote_reason").to_string(),
+                    20 | 21 => crate::i18n::t("explorer.menu.local_only_reason").to_string(),
+                    _ => "reason".to_owned(),
+                };
+                assert_eq!(i.tooltip.as_deref(), Some(want.as_str()), "row {}", i.id)
+            })
             .map(|i| i.id)
             .collect()
     }
@@ -2604,23 +2661,34 @@ mod tests {
         // 단일 파일 + mirror: 로컬과 같은 모양에서 잘라내기(11)/이름변경(40)/휴지통(30)이 꺼진다.
         assert_eq!(
             explorer_menu_shape_mirror(false, false, false, false, true),
-            vec![Some(1), Some(10), Some(11), Some(40), None, Some(30)]
+            vec![
+                Some(1),
+                Some(10),
+                Some(11),
+                Some(40),
+                None,
+                Some(30),
+                None,
+                Some(20),
+                Some(21)
+            ]
         );
         assert_eq!(
             explorer_menu_mirror_disabled(false, false, false, false),
-            vec![11, 40, 30]
+            vec![11, 40, 30, 20, 21]
         );
     }
 
     #[test]
     fn explorer_menu_mirror_single_folder_disables_write_ops() {
-        // 단일 폴더 + 클립보드 있음 + mirror: 새탭(60)/시스템열기(20)/파일 관리자에서 보기(21)는
-        // 사라지고, 쓰기 행은 꺼진다.
+        // 단일 폴더 + 클립보드 있음 + mirror: 로컬과 같은 모양에서 새 탭(60)/시스템열기(20)/
+        // 파일 관리자에서 보기(21)와 쓰기 행이 꺼진다.
         assert_eq!(
             explorer_menu_shape_mirror(false, false, true, true, true),
             vec![
                 Some(1),
                 Some(50),
+                Some(60),
                 Some(61),
                 Some(10),
                 Some(11),
@@ -2630,12 +2698,15 @@ mod tests {
                 Some(81),
                 Some(40),
                 None,
-                Some(30)
+                Some(30),
+                None,
+                Some(20),
+                Some(21)
             ]
         );
         assert_eq!(
             explorer_menu_mirror_disabled(false, false, true, true),
-            vec![11, 12, 80, 81, 40, 30]
+            vec![60, 11, 12, 80, 81, 40, 30, 20, 21]
         );
     }
 
@@ -2644,11 +2715,11 @@ mod tests {
         // 다중 선택 + mirror: 로컬과 같은 모양에서 잘라내기(11)/휴지통(30)이 꺼진다.
         assert_eq!(
             explorer_menu_shape_mirror(true, false, false, false, true),
-            vec![Some(1), Some(10), Some(11), None, Some(30)]
+            vec![Some(1), Some(10), Some(11), None, Some(30), None, Some(20)]
         );
         assert_eq!(
             explorer_menu_mirror_disabled(true, false, false, false),
-            vec![11, 30]
+            vec![11, 30, 20]
         );
     }
 }

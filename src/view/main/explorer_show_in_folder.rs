@@ -12,14 +12,14 @@ const SHOW_IN_FOLDER: u32 = 90;
 const OPEN_RESULT: u32 = 91;
 
 /// 들어 있는 폴더에서 보기 행의 모양.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum ShowInFolder {
     /// 행이 없다.
     Absent,
     /// 켠 행. 검색 결과면 그 앞에 열기 행을 둔다.
     Enabled { open: bool },
-    /// 대상이 사라진 링크. 이유 없이 꺼진 행만 두고 열기 행은 두지 않는다.
-    Disabled,
+    /// 대상이 사라진 링크. 끊긴 링크 문구(없는 대상 경로)를 툴팁으로 단 꺼진 행만 두고 열기 행은 두지 않는다.
+    Disabled(String),
 }
 
 /// 메뉴 맨 앞에 붙일 행. 시안 검색 결과 메뉴처럼 열기 → 들어 있는 폴더에서 보기 → 구분선 순서다.
@@ -34,7 +34,9 @@ fn enclosing_head(row: ShowInFolder) -> Vec<MenuItem> {
             }
             head.push(MenuItem::new(SHOW_IN_FOLDER, label));
         }
-        ShowInFolder::Disabled => head.push(MenuItem::disabled(SHOW_IN_FOLDER, label)),
+        ShowInFolder::Disabled(why) => {
+            head.push(MenuItem::disabled(SHOW_IN_FOLDER, label).with_tooltip(why));
+        }
     }
     head.push(MenuItem::separator());
     head
@@ -62,7 +64,10 @@ fn row_shape(
         EnclosingRow::Target(..) => ShowInFolder::Enabled {
             open: search_result,
         },
-        EnclosingRow::TargetGone => ShowInFolder::Disabled,
+        EnclosingRow::TargetGone(target) => ShowInFolder::Disabled(crate::i18n::t_fmt(
+            "explorer.state.broken_link",
+            &target.display().to_string(),
+        )),
         EnclosingRow::None => ShowInFolder::Absent,
     }
 }
@@ -81,10 +86,16 @@ impl MainView {
         items
     }
 
-    /// 이 칸에 붙여넣을 수 있는 목록이 있는가. 다른 컴퓨터의 경로는 붙여넣지 않는다.
-    pub(super) fn explorer_menu_has_clip(&self, engine: &EngineRead<'_>, surface_id: u32) -> bool {
-        crate::state::ExplorerPathSource::of_surface(engine, surface_id)
-            .is_some_and(|target| self.state.explorer_can_paste_into(target))
+    /// 이 칸의 붙여넣기 행. 다른 컴퓨터의 경로는 붙여넣지 않고 그 이유를 단다.
+    pub(super) fn explorer_menu_paste_row(
+        &self,
+        engine: &EngineRead<'_>,
+        surface_id: u32,
+    ) -> crate::state::explorer_os_clipboard::PasteRow {
+        crate::state::ExplorerPathSource::of_surface(engine, surface_id).map_or(
+            crate::state::explorer_os_clipboard::PasteRow::Disabled(None),
+            |target| self.state.explorer_paste_row(target),
+        )
     }
 
     /// 다른 행이 처리하지 않은 메뉴 결과. 들어 있는 폴더에서 보기가 아니면 생성 행이나 이력 행이다.
@@ -194,9 +205,11 @@ mod tests {
     #[test]
     fn a_link_whose_target_is_gone_keeps_a_disabled_row_without_open() {
         assert_eq!(
-            ids(&enclosing_head(ShowInFolder::Disabled)),
+            ids(&enclosing_head(ShowInFolder::Disabled("why".into()))),
             vec![Some((SHOW_IN_FOLDER, false)), None]
         );
+        let head = enclosing_head(ShowInFolder::Disabled("why".into()));
+        assert_eq!(head[0].tooltip.as_deref(), Some("why"));
     }
 
     /// 메뉴 조립 경로: 일반 목록·검색 결과에서 깨진 링크, 살아 있는 링크, 일반 파일, 원격 칸.
@@ -215,7 +228,11 @@ mod tests {
         let listing = ExplorerView::default();
         let row =
             |v: &ExplorerView, p: &std::path::Path| show_in_folder_row(Some(v), &[p.to_path_buf()]);
-        assert_eq!(row(&listing, &broken), ShowInFolder::Disabled);
+        let gone = ShowInFolder::Disabled(crate::i18n::t_fmt(
+            "explorer.state.broken_link",
+            &tmp.path().join("gone").display().to_string(),
+        ));
+        assert_eq!(row(&listing, &broken), gone);
         assert_eq!(row(&listing, &live), ShowInFolder::Enabled { open: false });
         assert_eq!(row(&listing, &file), ShowInFolder::Absent);
         assert_eq!(
@@ -227,8 +244,8 @@ mod tests {
         // 검색 결과: 대상이 사라진 링크는 열기 없이 꺼진 행, 들어 있는 폴더가 있으면 열기와 켠 행.
         use crate::adapters::ui::surface::explorer::EnclosingRow;
         assert_eq!(
-            row_shape(EnclosingRow::TargetGone, true),
-            ShowInFolder::Disabled
+            row_shape(EnclosingRow::TargetGone(tmp.path().join("gone")), true),
+            gone
         );
         assert_eq!(
             row_shape(EnclosingRow::Target(tmp.path().into(), file.clone()), true),

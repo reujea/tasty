@@ -105,11 +105,7 @@ impl super::MainViewState {
         };
         // 다른 컴퓨터의 경로를 같은 문자열의 이 컴퓨터 파일로 읽지 않는다.
         if !clip.pastes_into(engine, surface_id) {
-            let key = if clip.is_local() {
-                "explorer.state.cross_computer_paste_unsupported"
-            } else {
-                "explorer.state.remote_paste_unsupported"
-            };
+            let key = super::explorer_os_clipboard::source_reason(&clip);
             self.toasts.push(
                 crate::i18n::t(key).to_string(),
                 crate::adapters::ui::ToastKind::Info,
