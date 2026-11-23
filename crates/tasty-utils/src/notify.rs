@@ -343,11 +343,14 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
         (Some(_), Some(m)) => advance_retention_start(m, discarded, meta_path),
         _ => None,
     };
-    // 완료 로그에 메타 줄을 섞지 않고 진단 로그에 비운 양을 남긴다.
+    // 알림 로그에 메타 줄을 섞지 않고 진단 로그에 비우기 직전에 관측한 길이를 남긴다. 실제로 지운
+    // 양은 길이 측정과 set_len(0) 사이에 끼어든 쓰기·비우기만큼 다를 수 있다(`truncate_over_cap`).
     match retention_start {
         Some(start) => tracing::warn!(
-            "notify log {} hit the {cap}-byte cap — discarded {discarded} bytes of completion lines, \
-             including anything a lagging reader had not read yet (retention_start is now {start})",
+            "notify log {} hit the {cap}-byte cap — emptied it after observing {discarded} bytes of \
+             notify lines, including anything a lagging reader had not read yet; retention_start is \
+             now {start}. The bytes actually removed can differ if another writer appended or \
+             truncated without the metadata lock in the meantime",
             path.display()
         ),
         None => {
@@ -366,10 +369,27 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
                     },
                 );
             }
+            // 비-test 빌드에서는 갱신 실패 뒤 메타가 그대로인지 읽지 않는다. 실패 원인은
+            // advance_retention_start가 따로 경고로 남긴다.
+            let (state, caveat) = if exclusive.is_some() {
+                (
+                    "the retention_start update failed, so its final value is uncertain — a \
+                     resuming reader may miss this truncation or misjudge its loss",
+                    "if another writer appended or truncated without the metadata lock in the \
+                     meantime",
+                )
+            } else {
+                (
+                    "it was emptied without the exclusive metadata lock, so retention_start was not \
+                     advanced — a resuming reader may miss this truncation",
+                    "because any other writer could append or truncate between the length check and \
+                     the truncation",
+                )
+            };
             tracing::warn!(
-                "notify log {} hit the {cap}-byte cap — discarded {discarded} bytes of completion \
-                 lines, including anything a lagging reader had not read yet (retention_start NOT \
-                 advanced — this truncation may be missed by a resuming reader)",
+                "notify log {} hit the {cap}-byte cap — emptied it after observing {discarded} bytes \
+                 of notify lines, including anything a lagging reader had not read yet; {state}. The \
+                 bytes actually removed can differ {caveat}",
                 path.display()
             )
         }
