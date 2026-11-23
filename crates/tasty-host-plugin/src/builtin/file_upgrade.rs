@@ -1,4 +1,5 @@
 //! Owned file half of runtime builtin upgrades. Live generations remain on the host loop.
+pub(crate) mod min_version;
 mod source;
 
 use super::*;
@@ -137,10 +138,6 @@ fn plan_entry(
         }
     };
     if let Err(item) = verify_trust(spec, &source, &dest, known) {
-        return Entry::Done(item);
-    }
-    // 파일 교체·프로세스 종료 전에 거절한다.
-    if let Some(item) = super::min_version::refused_item(spec.id, &source) {
         return Entry::Done(item);
     }
     let installed = read_installed_version(&dest);
@@ -298,9 +295,6 @@ fn validate_prepared(write: &Write, copied: &Path) -> std::io::Result<Manifest> 
         .ok_or_else(|| std::io::Error::other("prepared builtin identity unavailable"))?;
     let manifest = Manifest::load(copied)
         .map_err(|_| std::io::Error::other("prepared builtin manifest unavailable"))?;
-    manifest
-        .require_host_tasty()
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
     if manifest.id != write.id {
         return Err(std::io::Error::other("prepared builtin identity changed"));
     }
@@ -321,6 +315,10 @@ pub(super) fn verify_trust(
             id: spec.id.into(),
             action: BuiltinUpgradeAction::Failed { reason },
         });
+    }
+    // 이 Tasty가 받아들이지 못할 번들로 파일을 바꾸거나 실행 중인 플러그인을 멈추지 않는다.
+    if let Some(item) = min_version::refused_item(spec.id, src) {
+        return Err(item);
     }
     #[cfg(not(debug_assertions))]
     {

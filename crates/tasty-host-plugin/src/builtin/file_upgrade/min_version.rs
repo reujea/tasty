@@ -19,21 +19,18 @@ pub(crate) fn refusal_reason(src: &Path) -> Option<String> {
     bundle_requires_newer_tasty(src).map(|e| crate::manifest_error::describe(&e))
 }
 
-/// 부팅 번들 동기화: 이 Tasty가 받아들이지 못할 번들로 설치본을 바꾸지 않는다.
-/// 거절하면 경고를 남기고 `true`(그 항목 실패)다.
-pub(super) fn refuse_boot_copy(id: &str, src: &Path) -> bool {
-    let Some(error) = bundle_requires_newer_tasty(src) else {
-        return false;
-    };
+/// 부팅 번들 동기화([`crate::official::bundle_source`]): 거절하면 경고를 남기고 사유를 돌려준다.
+pub(crate) fn refuse_boot_copy(id: &str, src: &Path) -> Option<String> {
+    let error = bundle_requires_newer_tasty(src)?;
     tracing::warn!("install_builtins: bundle '{id}' not applied: {error}");
-    true
+    Some(error.to_string())
 }
 
-/// upgrade-builtins: 파일 교체·프로세스 종료 전에 그 항목을 실패로 돌려준다.
-pub(super) fn refused_item(id: &str, src: &Path) -> Option<super::BuiltinUpgradeItem> {
-    refusal_reason(src).map(|reason| super::BuiltinUpgradeItem {
+/// upgrade-builtins([`super::verify_trust`]): 파일 교체·프로세스 종료 전에 그 항목을 실패로 돌려준다.
+pub(crate) fn refused_item(id: &str, src: &Path) -> Option<crate::builtin::BuiltinUpgradeItem> {
+    refusal_reason(src).map(|reason| crate::builtin::BuiltinUpgradeItem {
         id: id.into(),
-        action: super::BuiltinUpgradeAction::Failed { reason },
+        action: crate::builtin::BuiltinUpgradeAction::Failed { reason },
     })
 }
 

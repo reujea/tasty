@@ -6,7 +6,6 @@
 //! 설치 절차: docs/dev-guide/plugin-development.md#91-실행-중인-tasty-에-번들-플러그인만-반복-갱신-호스트-재빌드재시작-불필요.
 
 pub mod file_upgrade;
-mod min_version;
 
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -594,9 +593,6 @@ fn install_builtin_bundle_step(
         Ok(None) => return false,
         Err(_) => return true,
     };
-    if min_version::refuse_boot_copy(spec.id, &src) {
-        return true;
-    }
     if let Err(e) = std::fs::create_dir_all(dest_root) {
         tracing::warn!(
             "install_builtins: mkdir {} failed: {e}",
@@ -1152,12 +1148,6 @@ fn process_builtin_upgrade(
     }
 
     if let Err(item) = verify_builtin_bundle_trust(spec, &src, &dest) {
-        return SpecUpgrade {
-            item,
-            changed: false,
-        };
-    }
-    if let Some(item) = min_version::refused_item(spec.id, &src) {
         return SpecUpgrade {
             item,
             changed: false,
