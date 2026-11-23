@@ -154,14 +154,14 @@ fn spawn_setup(body: impl FnOnce() + Send + 'static) -> std::io::Result<JoinHand
 /// Why the setup worker has no runtime.
 enum SetupFailure {
     Io(std::io::Error),
-    Panicked(String),
+    /// The panic message, when the payload is a string.
+    Panicked(Option<String>),
 }
-fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> Option<String> {
     payload
         .downcast_ref::<&str>()
         .map(|message| (*message).to_owned())
         .or_else(|| payload.downcast_ref::<String>().cloned())
-        .unwrap_or_else(|| "non-string panic payload".to_owned())
 }
 fn build_runtime() -> std::io::Result<tokio::runtime::Runtime> {
     tokio::runtime::Builder::new_multi_thread()
@@ -213,7 +213,7 @@ fn setup_failed(
             RuntimeError::io(&error)
         }
         SetupFailure::Panicked(message) => {
-            tracing::warn!(panic = %message, "native HTTP runtime setup panicked");
+            tracing::warn!(panic = ?message, "native HTTP runtime setup panicked");
             RuntimeError::SetupPanicked
         }
     };
