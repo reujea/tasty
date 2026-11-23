@@ -277,22 +277,27 @@ fn ime_overlay_gate_knows_the_stage() {
 }
 
 /// 플러그인 단축키는 일반 키보드 처리 전에 실행되므로 따로 막는다. winit 경로 키는 포커스 노드(무대 중에는 무대
-/// 노드)에서 시작한 경로로 판정하고(`plugin_key_gate_open`, 무대가 쓰는 키와 종료 키는 닫힘), 나머지 키는 무대를 아는
-/// 정면 함수(`window_keys_to_overlay`)로 막는다.
+/// 노드)에서 시작한 경로로 판정하고(`plugin_key_gate_open`, 무대가 쓰는 키와 종료 키는 닫힘), 나머지 키는 winit·WebView
+/// 입구 모두 무대를 아는 정면 함수(`window_keys_to_overlay`)로 막는다.
 #[test]
 fn plugin_shortcut_gate_knows_the_stage() {
     let src = read("src/app/plugin_glue/shortcut.rs");
+    let expected = "PluginKeyGate::Winit(value) => {\n            crate::adapters::ui::input::key_nodes::plugin_key_gate_open(";
+    assert!(
+        src.contains(expected),
+        "플러그인 단축키 경로에 무대 차단 조건이 없다(`{expected}`). 일반 키보드 처리보다 먼저 실행되므로 여기서 \
+         별도로 막아야 한다."
+    );
+    let nodes = read("src/adapters/ui/input/key_nodes.rs");
     for expected in [
-        "        _ => !state.window_keys_to_overlay(),",
-        "(None, PluginKeyGate::Winit(value)) => {\n            crate::adapters::ui::input::key_nodes::plugin_key_gate_open(",
+        "        None => !state.window_keys_to_overlay(),",
+        "        ForwardedKey::Current => state.window_keys_to_overlay(),",
     ] {
         assert!(
-            src.contains(expected),
-            "플러그인 단축키 경로에 무대 차단 조건이 없다(`{expected}`). 일반 키보드 처리보다 먼저 실행되므로 여기서 \
-             별도로 막아야 한다."
+            nodes.contains(expected),
+            "경로 키가 아닌 키의 plugin 게이트가 무대를 아는 정면 함수를 쓰지 않는다(`{expected}`)"
         );
     }
-    let nodes = read("src/adapters/ui/input/key_nodes.rs");
     assert!(
         nodes.contains("FocusNode::Stage => vec![KeyNode::Stage {"),
         "경로 키 게이트의 무대 출발 노드가 없다"

@@ -302,7 +302,7 @@ fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
     );
     at(
         &steps,
-        "Some(ev.surface_id),crate::app::plugin_glue::shortcut::PluginKeyGate::Forwarded(class),)",
+        "crate::app::plugin_glue::shortcut::PluginKeyGate::Forwarded(class,ev.surface_id),)",
         "plugin 게이트가 받는 분류",
     );
     assert!(gate < shortcut, "게이트 → plugin 단축키 순서가 아니다");

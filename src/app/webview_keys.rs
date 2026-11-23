@@ -306,8 +306,7 @@ fn forwarded_gate_and_plugin_steps(
         has_webview,
         &ev.key,
         ev.mods,
-        Some(ev.surface_id),
-        crate::app::plugin_glue::shortcut::PluginKeyGate::Forwarded(class),
+        crate::app::plugin_glue::shortcut::PluginKeyGate::Forwarded(class, ev.surface_id),
     ) {
         return Some(ForwardedKeyOutcome::Handled);
     }
