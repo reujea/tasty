@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 잠금 파일(official-plugins.lock.toml)이 가리키는 공식 플러그인 릴리스 산출물을 받아
 # SHA-256을 대조하고 <out>/<id>/에 푼다. 푼 매니페스트는 현재 호스트의 파서·검증기로 읽어 본다.
+# --all이 없는 배포 패키징 호출은 매니페스트의 min_tasty_version도 이 체크아웃의 본체 버전과 비교한다.
 # 사용: scripts/fetch-official-plugins.sh --platform <p> --out <dir> [--all] [--lock <path>] [--cache <dir>]
 #   <p>: macos-arm64 | windows-x64 | windows-arm64 | linux-x64 | linux-arm64
 #   --all: bundle = false 플러그인까지 받는다(개발 경로용). 없으면 배포 대상만.
@@ -138,6 +139,19 @@ declare -a staged=()
 while IFS=$'\t' read -r id _rest; do
     staged+=("$out/$id")
 done < "$plan_file"
+# 배포 패키징(--all 없음)은 이 판이 읽지 못할 플러그인을 받지 않는다. 개발 스테이징·픽스처 동기화는 스키마만 본다.
+declare -a version_args=()
+if [[ -z "$all" ]]; then
+    tasty_version=$(awk -f "$root/scripts/lib/toml-scan.awk" "$root/Cargo.toml" | awk -F'\t' '
+        $1 == "H" { in_pkg = ($2 == "[package]") }
+        in_pkg && $1 == "K" && $3 == "version" && $4 == "basic" && v == "" { v = $5 }
+        END { print v }')
+    if [[ -z "$tasty_version" ]]; then
+        echo "Error: cannot read [package].version from $root/Cargo.toml" >&2
+        exit 1
+    fi
+    version_args=(--tasty-version "$tasty_version")
+fi
 cargo run -q --locked --manifest-path "$root/Cargo.toml" \
-    -p tasty-plugin-manifest --example validate-plugin-dirs -- "${staged[@]}"
+    -p tasty-plugin-manifest --example validate-plugin-dirs -- ${version_args[@]+"${version_args[@]}"} "${staged[@]}"
 echo "==> Staged ${#staged[@]} official plugin(s) into $out"
