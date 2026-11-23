@@ -664,7 +664,8 @@ impl MainView {
     }
 
     /// tab 우클릭 컨텍스트 메뉴 항목 구성. move left/right 는 인접 위치
-    /// 존재 여부로 활성/비활성을 미리 계산하고, 이동 항목은 대기 슬롯에 따라 붙인다.
+    /// 존재 여부로 활성/비활성을 미리 계산하고, 이곳으로 이동 항목은 대기 슬롯에 따라 켜고 끈다.
+    /// 탭 ID 를 잡지 못하면(`tab_id` None) 이동 묶음을 붙이지 않는다.
     fn build_tab_context_menu_items(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -701,7 +702,12 @@ impl MainView {
             MenuItem::new(6, crate::i18n::t("preset.context.save_as_pane_preset")),
         ];
         if let Some(tab_id) = tab_id {
-            self.push_tab_move_items(engine, &mut items, tab_id);
+            Self::push_tab_move_items(
+                self.state.pending_move,
+                &mut items,
+                tab_id,
+                engine.find_pane_for_tab(tab_id),
+            );
         }
         items
     }
@@ -1248,7 +1254,7 @@ impl MainView {
             crate::i18n::t("terminal_context_menu.copy_surface_id"),
         ));
         items.push(MenuItem::separator());
-        self.push_surface_move_items(&mut items);
+        Self::push_surface_move_items(self.state.pending_move, &mut items);
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
             // 메뉴가 열려 있는 동안 대상 surface 가 닫혔을 수 있다.
             if !engine.has_surface(surface_id) {
@@ -1319,13 +1325,13 @@ impl MainView {
     ) {
         use crate::platform::native_menu::MenuItem;
         // 비-terminal surface: 전용 항목(copy surface id) + 구분선 +
-        // 서피스 이동 / (서피스가 대기 중일 때) 서피스를 이곳으로 이동.
+        // 서피스 이동 / 서피스를 이곳으로 이동(서피스가 대기 중일 때만 켜짐).
         let mut items = vec![MenuItem::new(
             1,
             crate::i18n::t("terminal_context_menu.copy_surface_id"),
         )];
         items.push(MenuItem::separator());
-        self.push_surface_move_items(&mut items);
+        Self::push_surface_move_items(self.state.pending_move, &mut items);
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
             // 메뉴가 열려 있는 동안 대상 surface 가 닫혔을 수 있다.
             if !engine.has_surface(surface_id) {

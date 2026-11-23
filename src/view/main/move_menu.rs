@@ -16,18 +16,20 @@ const ITEM_MOVE_PANE: u32 = 9;
 const ITEM_MOVE_PANE_HERE: u32 = 10;
 
 impl MainView {
-    /// "서피스 이동"과, 서피스가 대기 중일 때만 "서피스를 이곳으로 이동"을 붙인다.
-    pub(super) fn push_surface_move_items(&self, items: &mut Vec<MenuItem>) {
+    /// "서피스 이동"과 "서피스를 이곳으로 이동"을 붙인다. 뒤의 것은 서피스가 대기 중일 때만 켜진다.
+    /// 자기 자신이 대기 중이어도 켠다(고르면 슬롯만 비운다).
+    pub(super) fn push_surface_move_items(pending: Option<PendingMove>, items: &mut Vec<MenuItem>) {
         items.push(MenuItem::new(
             ITEM_MOVE_SURFACE,
             crate::i18n::t("surface_context_menu.move"),
         ));
-        if matches!(self.state.pending_move, Some(PendingMove::Surface(_))) {
-            items.push(MenuItem::new(
+        items.push(MenuItem {
+            enabled: matches!(pending, Some(PendingMove::Surface(_))),
+            ..MenuItem::new(
                 ITEM_MOVE_SURFACE_HERE,
                 crate::i18n::t("surface_context_menu.move_here"),
-            ));
-        }
+            )
+        });
     }
 
     /// surface 메뉴의 이동 항목을 처리한다. 이동 항목이 아니면 false를 반환한다.
@@ -59,26 +61,28 @@ impl MainView {
         }
     }
 
-    /// 탭 메뉴 끝에 구분선과 "탭 이동"을 붙인다. 다른 탭이 대기 중일 때만 "탭을 이곳으로 이동"도 붙인다.
-    /// 이어서 구분선과 그 탭이 속한 페인의 "페인 이동"을, 다른 페인이 대기 중일 때만 "페인을 이곳으로 이동"을 붙인다.
+    /// 탭 메뉴 끝에 구분선과 "탭 이동"·"탭을 이곳으로 이동"을 붙인다. 뒤의 것은 다른 탭이 대기 중일 때만 켜진다.
+    /// 그 탭이 속한 페인(`pane_id`)이 있으면 이어서 구분선과 "페인 이동"·"페인을 이곳으로 이동"을 붙이고,
+    /// 뒤의 것은 다른 페인이 대기 중일 때만 켜진다.
     pub(super) fn push_tab_move_items(
-        &self,
-        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        pending: Option<PendingMove>,
         items: &mut Vec<MenuItem>,
         tab_id: u32,
+        pane_id: Option<u32>,
     ) {
         items.push(MenuItem::separator());
         items.push(MenuItem::new(
             ITEM_MOVE_TAB,
             crate::i18n::t("tab_context_menu.move_tab"),
         ));
-        if matches!(self.state.pending_move, Some(PendingMove::Tab(id)) if id != tab_id) {
-            items.push(MenuItem::new(
+        items.push(MenuItem {
+            enabled: matches!(pending, Some(PendingMove::Tab(id)) if id != tab_id),
+            ..MenuItem::new(
                 ITEM_MOVE_TAB_HERE,
                 crate::i18n::t("tab_context_menu.move_tab_here"),
-            ));
-        }
-        let Some(pane_id) = engine.find_pane_for_tab(tab_id) else {
+            )
+        });
+        let Some(pane_id) = pane_id else {
             return;
         };
         items.push(MenuItem::separator());
@@ -86,12 +90,13 @@ impl MainView {
             ITEM_MOVE_PANE,
             crate::i18n::t("tab_context_menu.move_pane"),
         ));
-        if matches!(self.state.pending_move, Some(PendingMove::Pane(id)) if id != pane_id) {
-            items.push(MenuItem::new(
+        items.push(MenuItem {
+            enabled: matches!(pending, Some(PendingMove::Pane(id)) if id != pane_id),
+            ..MenuItem::new(
                 ITEM_MOVE_PANE_HERE,
                 crate::i18n::t("tab_context_menu.move_pane_here"),
-            ));
-        }
+            )
+        });
     }
 
     /// 탭 메뉴의 탭·페인 이동 항목을 처리한다. 이동 항목이 아니면 false를 반환한다.
@@ -155,5 +160,94 @@ impl MainView {
             }
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// (id, 활성). 구분선은 None.
+    fn shape(items: &[MenuItem]) -> Vec<Option<(u32, bool)>> {
+        items
+            .iter()
+            .map(|i| (!i.is_separator()).then_some((i.id, i.enabled)))
+            .collect()
+    }
+
+    fn surface_items(pending: Option<PendingMove>) -> Vec<Option<(u32, bool)>> {
+        let mut items = Vec::new();
+        MainView::push_surface_move_items(pending, &mut items);
+        shape(&items)
+    }
+
+    fn tab_items(pending: Option<PendingMove>, pane_id: Option<u32>) -> Vec<Option<(u32, bool)>> {
+        let mut items = Vec::new();
+        MainView::push_tab_move_items(pending, &mut items, 5, pane_id);
+        shape(&items)
+    }
+
+    #[test]
+    fn move_surface_here_stays_and_is_enabled_only_for_a_waiting_surface() {
+        let here = |enabled| {
+            vec![
+                Some((ITEM_MOVE_SURFACE, true)),
+                Some((ITEM_MOVE_SURFACE_HERE, enabled)),
+            ]
+        };
+        assert_eq!(surface_items(None), here(false));
+        assert_eq!(surface_items(Some(PendingMove::Tab(1))), here(false));
+        assert_eq!(surface_items(Some(PendingMove::Pane(1))), here(false));
+        assert_eq!(surface_items(Some(PendingMove::Surface(3))), here(true));
+    }
+
+    #[test]
+    fn move_tab_and_pane_here_stay_and_are_enabled_only_for_another_waiting_target() {
+        let both = |tab: bool, pane: bool| {
+            vec![
+                None,
+                Some((ITEM_MOVE_TAB, true)),
+                Some((ITEM_MOVE_TAB_HERE, tab)),
+                None,
+                Some((ITEM_MOVE_PANE, true)),
+                Some((ITEM_MOVE_PANE_HERE, pane)),
+            ]
+        };
+        // 탭 5, 페인 8 을 우클릭했다.
+        assert_eq!(tab_items(None, Some(8)), both(false, false));
+        assert_eq!(
+            tab_items(Some(PendingMove::Surface(1)), Some(8)),
+            both(false, false)
+        );
+        assert_eq!(
+            tab_items(Some(PendingMove::Tab(5)), Some(8)),
+            both(false, false),
+            "itself"
+        );
+        assert_eq!(
+            tab_items(Some(PendingMove::Tab(6)), Some(8)),
+            both(true, false)
+        );
+        assert_eq!(
+            tab_items(Some(PendingMove::Pane(8)), Some(8)),
+            both(false, false),
+            "its pane"
+        );
+        assert_eq!(
+            tab_items(Some(PendingMove::Pane(9)), Some(8)),
+            both(false, true)
+        );
+    }
+
+    #[test]
+    fn a_tab_without_a_pane_gets_only_the_tab_group() {
+        assert_eq!(
+            tab_items(Some(PendingMove::Tab(6)), None),
+            vec![
+                None,
+                Some((ITEM_MOVE_TAB, true)),
+                Some((ITEM_MOVE_TAB_HERE, true))
+            ]
+        );
     }
 }

@@ -1,6 +1,6 @@
 //! Main View presentation and application request state.
 
-/// 이동 대기 중인 대상의 종류와 ID. "이곳으로 이동"은 메뉴 대상과 종류가 같을 때만 연다.
+/// 이동 대기 중인 대상의 종류와 ID. "이곳으로 이동"은 메뉴 대상과 종류가 같을 때만 켠다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PendingMove {
     Surface(crate::model::SurfaceId),

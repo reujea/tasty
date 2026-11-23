@@ -14,9 +14,9 @@
 
 ### 사용자 트리거 (두 단계)
 
-- 어떤 surface 든 "빈 공간"(특정 대상이 없는 영역)을 우클릭하면 `[surface 전용 항목] + 구분선 + [서피스 이동] + [서피스를 이곳으로 이동]` OS 메뉴가 뜬다. `서피스를 이곳으로 이동` 은 **대기 슬롯에 surface 가 있을 때만** 나타난다. 대기 중인 것이 없거나 다른 종류면 숨긴다.
+- 어떤 surface 든 "빈 공간"(특정 대상이 없는 영역)을 우클릭하면 `[surface 전용 항목] + 구분선 + [서피스 이동] + [서피스를 이곳으로 이동]` OS 메뉴가 뜬다. `서피스를 이곳으로 이동` 은 늘 있고 **대기 슬롯에 surface 가 있을 때만** 켜진다. 대기 중인 것이 없거나 다른 종류면 꺼진 채 보인다([지금 할 수 없는 액션](../../design/policies/unavailable-actions.md)). 자기 자신이 대기 중이어도 켜진다(아래 가드대로 슬롯만 비운다). 이 메뉴는 `TerminalSurface`·`Surface` 두 메뉴다. explorer 는 아래처럼 위치별 전용 메뉴를 띄운다.
 - **서피스 이동**: 그 surface 의 id 를 단일 대기 슬롯 `pending_move` 에 `PendingMove::Surface(id)` 로 넣고, 그 surface 영역(`ToastScope::Surface`)에 "서피스를 잘라냈습니다…" Info 토스트(`toast.surface_cut`)를 띄운다. 도메인 변경이 아니라 UI 핸들러에서 슬롯만 설정 — 사용자 조작이므로 release 경로다.
-- **대기 슬롯**: 종류(`PendingMove::Surface`/`Tab`/`Pane`)와 ID 를 함께 담는 슬롯 하나뿐이다. 새로 이동을 지정하면 종류와 관계없이 이전 대기를 덮어쓴다. 저장하지 않으며, 이동 요청을 실행하면(성공 여부와 무관) 비운다. 대상이 닫혀 어느 워크스페이스에서도 찾을 수 없으면 다음 GUI 프레임에서 비운다(`move_source::clear_if_target_closed`) — 닫힌 대상의 표시와 "이곳으로 이동" 항목이 남지 않는다. 대기 해제 조작은 없다. `CoreState` 가 윈도우마다 있으므로 슬롯도 윈도우별이며, 윈도우를 넘는 이동은 지원하지 않는다.
+- **대기 슬롯**: 종류(`PendingMove::Surface`/`Tab`/`Pane`)와 ID 를 함께 담는 슬롯 하나뿐이다. 새로 이동을 지정하면 종류와 관계없이 이전 대기를 덮어쓴다. 저장하지 않으며, 이동 요청을 실행하면(성공 여부와 무관) 비운다. 대상이 닫혀 어느 워크스페이스에서도 찾을 수 없으면 다음 GUI 프레임에서 비운다(`move_source::clear_if_target_closed`) — 닫힌 대상의 표시가 남지 않고 "이곳으로 이동" 항목은 꺼진다. 대기 해제 조작은 없다. `CoreState` 가 윈도우마다 있으므로 슬롯도 윈도우별이며, 윈도우를 넘는 이동은 지원하지 않는다.
 - **서피스를 이곳으로 이동**: 슬롯의 source(A) 를 우클릭한 위치의 target(B) 로 이동시키는 `DomainIntent::MoveSurface { source_surface_id, target_surface_id }` 를 `from_user_context_menu` origin 으로 발행한다.
 - surface 종류에 따라 두 생산 경로가 있다 — 타입은 `PendingNativeMenu::TerminalSurface`(terminal, selection-copy 항목이 있어 별도 variant) / `Surface`(비-terminal)로 나뉘지만, "서피스 이동"/"서피스를 이곳으로 이동" 두 항목은 두 variant 모두에 동일하게 뜬다:
   - **terminal**(winit, `src/view/main/mouse.rs`) — winit 경로는 **terminal 전용**이다. mouse-tracking 위임(docs/surfaces/terminal/index.md) 미해당 시 terminal surface 메뉴를 낸다. 비-terminal 은 winit 이 메뉴를 만들지 않고 egui 프레임에 위임(`return`)한다.
@@ -39,7 +39,7 @@
 
 ## 탭 이동
 
-탭 헤더 우클릭 메뉴 끝에 구분선과 `탭 이동` 이 항상 붙는다. `탭을 이곳으로 이동` 은 대기 슬롯이 `PendingMove::Tab(id)` 이고 그 id 가 우클릭한 탭이 아닐 때만 붙는다. 메뉴를 여는 순간 우클릭한 탭의 `Tab::id` 를 잡아 두고, 메뉴가 닫힌 뒤에도 인덱스가 아니라 이 ID 로 대상을 찾는다. 그 사이 탭이 닫혔으면 아무것도 하지 않는다.
+탭 헤더 우클릭 메뉴 끝에 구분선과 `탭 이동` 이 항상 붙는다. `탭을 이곳으로 이동` 도 그 뒤에 늘 붙고, 대기 슬롯이 `PendingMove::Tab(id)` 이고 그 id 가 우클릭한 탭이 아닐 때만 켜진다(그 밖에는 꺼진 채 보인다). 메뉴를 여는 순간 우클릭한 탭의 `Tab::id` 를 잡아 두고, 메뉴가 닫힌 뒤에도 인덱스가 아니라 이 ID 로 대상을 찾는다. 그 사이 탭이 닫혔으면 아무것도 하지 않는다.
 
 - **탭 이동**: 슬롯에 `PendingMove::Tab(tab_id)` 를 넣고 그 탭의 페인 영역(`ToastScope::Pane`)에 "탭을 잘라냈습니다…" Info 토스트(`toast.tab_cut`)를 띄운다.
 - **탭을 이곳으로 이동**: 슬롯을 비우고 `DomainIntent::ReplaceTabWithTab { source_tab_id, target_tab_id }` 를 `from_user_context_menu` origin 으로 발행한다.
@@ -55,7 +55,7 @@ source 또는 target 워크스페이스가 mirror 면 로컬 실행을 막는다
 
 ## 페인 이동
 
-탭 헤더 우클릭 메뉴의 탭 이동 항목 뒤에 구분선과 `페인 이동` 이 붙는다. 대상은 우클릭한 탭이 지금 속한 페인이다(메뉴를 열 때 잡은 `Tab::id` 로 찾는다). `페인을 이곳으로 이동` 은 대기 슬롯이 `PendingMove::Pane(id)` 이고 그 id 가 우클릭한 탭의 페인이 아닐 때만 붙는다. 페인 이동 메뉴는 탭 헤더에서만 연다.
+탭 헤더 우클릭 메뉴의 탭 이동 항목 뒤에 구분선과 `페인 이동` 이 붙는다. 대상은 우클릭한 탭이 지금 속한 페인이다(메뉴를 열 때 잡은 `Tab::id` 로 찾는다). `페인을 이곳으로 이동` 도 그 뒤에 늘 붙고, 대기 슬롯이 `PendingMove::Pane(id)` 이고 그 id 가 우클릭한 탭의 페인이 아닐 때만 켜진다(그 밖에는 꺼진 채 보인다). 페인 이동 메뉴는 탭 헤더에서만 연다.
 
 - **페인 이동**: 슬롯에 `PendingMove::Pane(pane_id)` 를 넣고 그 페인 영역에 "페인을 잘라냈습니다…" Info 토스트(`toast.pane_cut`)를 띄운다.
 - **페인을 이곳으로 이동**: 슬롯을 비우고 `DomainIntent::ReplacePaneWithPane { source_pane_id, target_pane_id }` 를 `from_user_context_menu` origin 으로 발행한다.
