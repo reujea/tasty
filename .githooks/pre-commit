@@ -464,18 +464,29 @@ check_todo_citation() {
 # ─
 # L.1  로컬 확장 훅
 # 저장소에 두지 않는 이 컴퓨터 전용 검사를 부르는 확장점이다. 공용 git 디렉터리의
-# hooks/pre-commit.local이 실행 가능할 때만 실행하고, 없으면 아무것도 하지 않는다.
+# hooks/pre-commit.local이 실행 가능한 파일일 때만 실행하고, 없으면 아무것도 하지 않는다.
+# 위 검사들이 본 스테이징과 실제 커밋 내용이 같도록, 확장이 인덱스를 바꾸면 커밋을 막는다.
 check_local_extension() {
-    local common hook rc
+    local common hook rc before after
     common=$(git rev-parse --git-common-dir 2>/dev/null) || return 0
     hook="$common/hooks/pre-commit.local"
-    [ -x "$hook" ] || return 0
+    [ -f "$hook" ] && [ -x "$hook" ] || return 0
+    if ! before=$(git write-tree 2>/dev/null); then
+        red "▸ [L.1] 인덱스를 읽지 못해 로컬 확장 훅을 실행하지 않았습니다."
+        FAIL=1
+        return
+    fi
     set +e
     "$hook"
     rc=$?
     set -e
     if [ "$rc" -ne 0 ]; then
         red "▸ [L.1] 로컬 확장 훅이 커밋을 막았습니다 (종료 코드 $rc): $hook"
+        FAIL=1
+    fi
+    after=$(git write-tree 2>/dev/null) || after=""
+    if [ "$after" != "$before" ]; then
+        red "▸ [L.1] 로컬 확장 훅이 스테이징을 바꿨습니다. 확장은 인덱스를 바꾸면 안 됩니다: $hook"
         FAIL=1
     fi
 }
