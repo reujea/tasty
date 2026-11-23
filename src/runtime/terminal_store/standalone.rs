@@ -152,6 +152,8 @@ impl TerminalStore {
 mod tests {
     use super::*;
     use std::sync::{Arc, atomic::AtomicU32};
+    #[cfg(unix)]
+    use tasty_utils::test_wait::holds_by_every;
 
     #[test]
     fn shared_ids_keep_the_standalone_range_and_refuse_wraparound() {
@@ -216,11 +218,10 @@ mod tests {
         let exited: Vec<u32> = (0..3).map(|_| add(&mut store, now, "exit 7")).collect();
         let deadline = Instant::now() + Duration::from_secs(10);
         for &id in &exited {
-            while store.standalone(id).unwrap().state().exit().is_none() {
-                store.process_surface(id);
-                assert!(Instant::now() < deadline, "actual child exit not observed");
-                std::thread::sleep(Duration::from_millis(5));
-            }
+            assert!(
+                exit_observed_by(&mut store, id, deadline),
+                "actual child exit not observed"
+            );
             let pty = store.standalone(id).unwrap();
             assert_eq!(pty.state().exit().unwrap().code, Some(7));
             assert_eq!(pty.state().standalone().unwrap().owner_agent_id, "owner");
@@ -291,11 +292,29 @@ mod tests {
     #[cfg(unix)]
     fn wait_exit(store: &mut TerminalStore, id: u32) {
         let deadline = Instant::now() + Duration::from_secs(10);
-        while store.standalone(id).unwrap().state().exit().is_none() {
-            store.process_surface(id);
-            assert!(Instant::now() < deadline, "actual child exit not observed");
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        assert!(
+            exit_observed_by(store, id, deadline),
+            "actual child exit not observed"
+        );
+    }
+
+    /// 원래 순서(종료 읽기 → process_surface → 기한 검사 → 쉼)를 지킨다. process_surface 는 출력 처리와
+    /// resize 반영까지 하는 진행이라 기한 뒤 관측 읽기에서는 부르지 않고, 끝난 자식 종료만 거두는
+    /// observe_exit 뒤에 종료를 읽는다.
+    #[cfg(unix)]
+    fn exit_observed_by(store: &mut TerminalStore, id: u32, deadline: Instant) -> bool {
+        holds_by_every(deadline, Duration::from_millis(5), |last| {
+            if last && let Some(pty) = store.pty_mut(id) {
+                pty.observe_exit();
+            }
+            if store.standalone(id).unwrap().state().exit().is_some() {
+                return true;
+            }
+            if !last {
+                store.process_surface(id);
+            }
+            false
+        })
     }
 
     #[cfg(unix)]

@@ -93,21 +93,27 @@ fn review_fifo_latest_read_does_not_block() {
             .stderr(std::process::Stdio::piped())
             .spawn()
             .unwrap();
+        // try_wait 는 끝난 자식만 거두므로 기한 뒤 관측 읽기에서도 부른다.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-        while std::time::Instant::now() < deadline {
-            if let Some(status) = child.try_wait().unwrap() {
-                assert!(
-                    status.success(),
-                    "nonregular target must return error cleanly"
-                );
-                let output = child.wait_with_output().unwrap();
-                assert!(
-                    String::from_utf8_lossy(&output.stdout).contains("1 passed"),
-                    "FIFO subprocess must execute its exact test"
-                );
-                return;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+        let mut status = None;
+        if tasty_utils::test_wait::holds_by_every(
+            deadline,
+            std::time::Duration::from_millis(10),
+            |_| {
+                status = child.try_wait().unwrap();
+                status.is_some()
+            },
+        ) {
+            assert!(
+                status.expect("checked above").success(),
+                "nonregular target must return error cleanly"
+            );
+            let output = child.wait_with_output().unwrap();
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                "FIFO subprocess must execute its exact test"
+            );
+            return;
         }
         use std::os::unix::fs::FileTypeExt;
         let is_fifo = std::fs::metadata(&p)
@@ -292,24 +298,27 @@ fn initial_fifo_is_protected_without_reading_contents() {
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap();
+    // try_wait 는 끝난 자식만 거두므로 기한 뒤 관측 읽기에서도 부른다.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-    loop {
-        if let Some(status) = child.try_wait().unwrap() {
-            assert!(status.success());
-            let output = child.wait_with_output().unwrap();
-            assert!(
-                String::from_utf8_lossy(&output.stdout).contains("1 passed"),
-                "initial FIFO subprocess must execute its exact test"
-            );
-            break;
-        }
-        if std::time::Instant::now() >= deadline {
-            child.kill().unwrap();
-            child.wait().unwrap();
-            panic!("initial FIFO read blocked");
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    let mut status = None;
+    if !tasty_utils::test_wait::holds_by_every(
+        deadline,
+        std::time::Duration::from_millis(10),
+        |_| {
+            status = child.try_wait().unwrap();
+            status.is_some()
+        },
+    ) {
+        child.kill().unwrap();
+        child.wait().unwrap();
+        panic!("initial FIFO read blocked");
     }
+    assert!(status.expect("checked above").success());
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+        "initial FIFO subprocess must execute its exact test"
+    );
 }
 
 #[cfg(unix)]

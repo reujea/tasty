@@ -262,13 +262,10 @@ mod tests {
         assert!(probe.is_working(), "spinning thread is R");
         stop.store(true, std::sync::atomic::Ordering::Relaxed);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while probe.is_working() {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "parked thread never read as sleeping"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || !probe.is_working()),
+            "parked thread never read as sleeping"
+        );
         drop(park_tx);
         handle.join().unwrap();
         assert!(!probe.is_working(), "an exited thread is not working");
@@ -386,12 +383,12 @@ mod tests {
 
     /// 조건이 설 때까지 기다린다. 시간은 실패할 때의 상한일 뿐이다.
     #[cfg(target_os = "linux")]
-    fn until(what: &str, mut condition: impl FnMut() -> bool) {
+    fn until(what: &str, condition: impl FnMut() -> bool) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while !condition() {
-            assert!(std::time::Instant::now() < deadline, "never: {what}");
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, condition),
+            "never: {what}"
+        );
     }
 
     #[cfg(target_os = "linux")]
@@ -437,13 +434,11 @@ mod tests {
         let sleeping_probe = ThreadProbe::process(sleeping.id());
         // 바쁜 자식은 CPU를 기다리는 동안에도 R이다. 잠든 자식은 곧 S가 된다.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while !busy_probe.is_working() || sleeping_probe.is_working() {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "busy child never read as working or sleeping child never read as idle"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || busy_probe.is_working()
+                && !sleeping_probe.is_working()),
+            "busy child never read as working or sleeping child never read as idle"
+        );
         busy.kill().unwrap();
         busy.wait().unwrap();
         sleeping.kill().unwrap();

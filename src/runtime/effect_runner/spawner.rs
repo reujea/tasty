@@ -456,13 +456,10 @@ mod tests {
             .submit(test_job(lease()))
             .unwrap_or_else(|(_, reason)| panic!("{reason}"));
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        while !spawner.parked() {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the worker takes a job"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || spawner.parked()),
+            "the worker takes a job"
+        );
         let second = spawner
             .submit(test_job(lease()))
             .unwrap_or_else(|(_, reason)| panic!("{reason}"));

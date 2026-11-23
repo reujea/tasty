@@ -125,16 +125,17 @@ pub(crate) fn prepare_and_wait(
     let (job, candidate) = (*request).split();
     let pending = spawner.submit(job).map_err(|(_, reason)| reason)?;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    let spawned = loop {
-        if let Some(outcome) = pending.try_take() {
-            break outcome.map_err(|failure| failure.reason)?;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "terminal spawn stalled"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(2));
-    };
+    let mut outcome = None;
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || {
+            outcome = pending.try_take();
+            outcome.is_some()
+        }),
+        "terminal spawn stalled"
+    );
+    let spawned = outcome
+        .expect("checked above")
+        .map_err(|failure| failure.reason)?;
     match candidate.complete(engine, spawned) {
         SpawnCompletion::Ready(prepared) => Ok(*prepared),
         SpawnCompletion::Stale { reason, .. } => Err(reason),

@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tasty_utils::batch_writer::SystemClock;
+use tasty_utils::test_wait::{holds_by, holds_by_every};
 
 struct Fixture {
     root: tempfile::TempDir,
@@ -63,15 +64,27 @@ impl Fixture {
             self.hub.poll();
             self.hub.admission_drained()
         });
-        until(|| {
-            let remaining = self.parts.writer.poll_shutdown();
-            self.hub.poll();
-            remaining == 0
-        });
+        // writer.poll_shutdown 은 끝난 worker 를 join 만 해 기한 뒤 관측 읽기에서도 부른다. 그 뒤의 hub.poll 은
+        // child cleanup 을 제출할 수 있어 관측 읽기에서는 부르지 않는다.
+        let end = Instant::now() + UNTIL_LIMIT;
+        assert!(
+            holds_by_every(end, Duration::ZERO, |last| {
+                let remaining = self.parts.writer.poll_shutdown();
+                if !last {
+                    self.hub.poll();
+                }
+                remaining == 0
+            }),
+            "receipt deadline"
+        );
     }
 }
+const UNTIL_LIMIT: Duration = Duration::from_secs(5);
+/// holds_by 로 바꾸지 않는다. 호출자 조건(hub.ready, admission_drained, ticket.poll 등)이 안에서 hub.poll 로
+/// child cleanup 을 제출할 수 있어 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는
+/// 완료를 알 수 없다. 진행 없는 조건은 이 도우미 대신 holds_by 로 기다린다.
 fn until(mut ready: impl FnMut() -> bool) {
-    let end = Instant::now() + Duration::from_secs(5);
+    let end = Instant::now() + UNTIL_LIMIT;
     while !ready() {
         assert!(Instant::now() < end, "receipt deadline");
         std::thread::yield_now();
@@ -96,7 +109,11 @@ fn entry(child: u32, index: u32) -> super::super::ChildEntry {
 }
 fn gate_done(release: mpsc::SyncSender<()>, receipt: command::Ticket<()>) {
     release.send(()).unwrap();
-    until(|| receipt.poll().is_some());
+    // writer 명령 영수증의 poll 은 이미 나온 결과만 꺼낸다.
+    assert!(
+        holds_by(Instant::now() + UNTIL_LIMIT, || receipt.poll().is_some()),
+        "receipt deadline"
+    );
 }
 #[test]
 fn reservation_and_register_publish_only_after_real_file_receipts() {

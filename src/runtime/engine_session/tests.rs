@@ -259,40 +259,36 @@ fn a_physical_pty_keeps_its_pid_generation_and_io_while_parked() {
     let engine_id = registry.park_for_test(state, owner);
     let engine = registry.get_mut(engine_id).unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
-    while !engine
-        .runtime
-        .terminals
-        .get(sid)
-        .unwrap()
-        .screen_text(false)
-        .contains("READY")
-    {
-        assert!(
-            Instant::now() < deadline,
-            "parked reader did not ingest actual PTY output"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(5), |_| {
+            engine
+                .runtime
+                .terminals
+                .get(sid)
+                .unwrap()
+                .screen_text(false)
+                .contains("READY")
+        }),
+        "parked reader did not ingest actual PTY output"
+    );
     engine
         .runtime
         .terminals
         .get_mut(sid)
         .unwrap()
         .send_bytes(b"parked-input\n");
-    while !engine
-        .runtime
-        .terminals
-        .get(sid)
-        .unwrap()
-        .screen_text(false)
-        .contains("RESULT:parked-input")
-    {
-        assert!(
-            Instant::now() < deadline,
-            "parked writer/reader did not complete actual I/O"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(5), |_| {
+            engine
+                .runtime
+                .terminals
+                .get(sid)
+                .unwrap()
+                .screen_text(false)
+                .contains("RESULT:parked-input")
+        }),
+        "parked writer/reader did not complete actual I/O"
+    );
     assert_eq!(registry.unpark_first().unwrap().0, engine_id);
     let engine = registry.get_mut(engine_id).unwrap();
     let pty = engine.runtime.terminals.pty_mut(sid).unwrap();

@@ -1,6 +1,7 @@
 use super::*;
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
+use tasty_utils::test_wait::{holds_by, holds_by_every};
 
 fn delayed() -> (ObserverRouter, mpsc::Sender<()>, mpsc::Receiver<()>) {
     let (release, wait) = mpsc::channel();
@@ -20,15 +21,19 @@ fn delayed() -> (ObserverRouter, mpsc::Sender<()>, mpsc::Receiver<()>) {
 }
 
 fn joined(router: &mut ObserverRouter) -> ShutdownProgress {
+    // poll_shutdown 은 이미 끝난 sink worker 만 join 하므로 기한 뒤 관측 읽기에서도 부른다.
     let deadline = Instant::now() + Duration::from_secs(3);
-    loop {
-        let progress = router.poll_shutdown();
-        if progress.pending == 0 {
-            return progress;
-        }
-        assert!(Instant::now() < deadline, "worker never joined");
-        thread::sleep(Duration::from_millis(1));
-    }
+    let mut progress = None;
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(1), |_| {
+            let polled = router.poll_shutdown();
+            let joined = polled.pending == 0;
+            progress = Some(polled);
+            joined
+        }),
+        "worker never joined"
+    );
+    progress.expect("checked above")
 }
 
 #[test]
@@ -185,10 +190,7 @@ fn normal_retirement_keeps_accepted_memory_and_retention_work_owned_until_comple
         .unwrap();
     router.dispatch_text(3, "/owned/first.rs\n/owned/second.rs\n");
     let deadline = Instant::now() + Duration::from_secs(3);
-    while writer.stats().admitted == 0 {
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(1));
-    }
+    assert!(holds_by(deadline, || writer.stats().admitted != 0));
     router.drop_surface(3);
     let (started, seen_start) = mpsc::channel();
     let (dropped, seen_drop) = mpsc::channel();
@@ -222,9 +224,9 @@ fn normal_retirement_keeps_accepted_memory_and_retention_work_owned_until_comple
         "post-commit retention delete must also finish"
     );
     writer.begin_shutdown();
+    // writer 종료 poll 은 끝난 worker 를 join 만 해 기한 뒤 관측 읽기에서도 부른다.
     let deadline = Instant::now() + Duration::from_secs(3);
-    while writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(1));
-    }
+    assert!(holds_by_every(deadline, Duration::from_millis(1), |_| {
+        writer.poll_shutdown() == 0
+    }));
 }

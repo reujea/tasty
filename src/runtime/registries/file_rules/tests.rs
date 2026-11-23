@@ -24,12 +24,15 @@ fn writer() -> file_writer::FileWriterParts {
     )
     .unwrap()
 }
+/// 호출자 조건은 writer join, 통계 읽기, 끝난 저장 영수증만 거두는 rules.poll 이다. 새 작업을 만들지 않아
+/// 기한 뒤 관측 읽기에서도 그대로 부른다.
 fn wait(mut ready: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while !ready() {
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by_every(
+        deadline,
+        Duration::ZERO,
+        |_| ready()
+    ));
 }
 fn drain(parts: &mut file_writer::FileWriterParts) {
     wait(|| parts.writer.poll_shutdown() == 0);
