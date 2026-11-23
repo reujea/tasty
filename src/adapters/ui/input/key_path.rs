@@ -14,7 +14,7 @@ use crate::state::MainViewState;
 use crate::state::focus_node::FocusNode;
 
 /// 범위 노드의 level.
-fn scope_level(scope: &PopupScope) -> KeyLevel {
+pub(crate) fn scope_level(scope: &PopupScope) -> KeyLevel {
     match scope {
         PopupScope::Window => KeyLevel::Window,
         PopupScope::Workspace(_) => KeyLevel::Workspace,
@@ -24,8 +24,8 @@ fn scope_level(scope: &PopupScope) -> KeyLevel {
     }
 }
 
-/// `level`과 그 위(engine 쪽) level. `inclusive`가 거짓이면 `level`은 뺀다.
-fn from_level(level: KeyLevel, inclusive: bool) -> PathLevels {
+/// `level`과 그 위(engine 쪽) 범위 level을 경로 순서로. `inclusive`가 거짓이면 `level`은 뺀다.
+pub(crate) fn levels_from(level: KeyLevel, inclusive: bool) -> Vec<KeyLevel> {
     let chain = [
         KeyLevel::Surface,
         KeyLevel::Tab,
@@ -34,40 +34,69 @@ fn from_level(level: KeyLevel, inclusive: bool) -> PathLevels {
         KeyLevel::Window,
     ];
     let start = chain.iter().position(|l| *l == level).unwrap_or(0);
-    let skip = usize::from(!inclusive);
     chain[start..]
         .iter()
-        .skip(skip)
-        .fold(PathLevels::engine_only(), |levels, l| levels.with(*l))
+        .skip(usize::from(!inclusive))
+        .copied()
+        .collect()
 }
 
-/// 팝업 노드 출발 경로의 level. 펼친 팝업은 engine만, 덮는 팝업은 덮은 범위의 부모부터, 덮지 않는 팝업은 붙은
-/// 범위부터다.
-fn popup_path_levels(state: &MainViewState, node: PopupNode) -> PathLevels {
-    let (scope, covers, expanded) = match node {
-        PopupNode::Host(iid) => match state.popups.instance(iid) {
-            Some(p) => (p.scope.clone(), p.covers(), p.expanded()),
-            None => return PathLevels::engine_only(),
-        },
+/// `levels`와 engine의 level 집합.
+fn path_of(levels: &[KeyLevel]) -> PathLevels {
+    levels
+        .iter()
+        .fold(PathLevels::engine_only(), |path, l| path.with(*l))
+}
+
+#[cfg(test)]
+fn from_level(level: KeyLevel, inclusive: bool) -> PathLevels {
+    path_of(&levels_from(level, inclusive))
+}
+
+/// 팝업 노드가 놓인 자리: 붙은 범위, 그 범위를 덮는지(plugin 은 펼침도 덮음이다), 펼쳤는지.
+pub(crate) struct PopupPlace {
+    pub(crate) scope: PopupScope,
+    pub(crate) covers: bool,
+    pub(crate) expanded: bool,
+}
+
+/// 팝업 노드의 자리. host 인스턴스가 없으면 `None`.
+pub(crate) fn popup_place(state: &MainViewState, node: PopupNode) -> Option<PopupPlace> {
+    match node {
+        PopupNode::Host(iid) => state.popups.instance(iid).map(|p| PopupPlace {
+            scope: p.scope.clone(),
+            covers: p.covers(),
+            expanded: p.expanded(),
+        }),
         PopupNode::Plugin(id) => {
             let scope = state
                 .plugin_popup_bound_scopes
                 .get(&id)
                 .and_then(|(_, scope)| scope.clone())
                 .unwrap_or(PopupScope::Window);
-            let covers = state
-                .plugin_popup_key_candidates
-                .iter()
-                .find(|(pid, _)| *pid == id)
-                .is_some_and(|(_, z)| state.plugin_popup_covers.iter().any(|c| c.z_seq == *z));
             let expanded = state.popups.plugin_expanded().contains(&id);
-            (scope, covers || expanded, expanded)
+            let covers = expanded
+                || state
+                    .plugin_popup_key_candidates
+                    .iter()
+                    .find(|(pid, _)| *pid == id)
+                    .is_some_and(|(_, z)| state.plugin_popup_covers.iter().any(|c| c.z_seq == *z));
+            Some(PopupPlace {
+                scope,
+                covers,
+                expanded,
+            })
         }
-    };
-    if expanded {
-        return PathLevels::engine_only();
     }
-    from_level(scope_level(&scope), !covers)
+}
+
+/// 팝업 노드 뒤 범위 노드의 level. 펼친 팝업은 없고(engine으로 잇는다), 덮는 팝업은 덮은 범위의 부모부터, 덮지 않는
+/// 팝업은 붙은 범위부터다.
+fn popup_scope_levels(state: &MainViewState, node: PopupNode) -> Vec<KeyLevel> {
+    match popup_place(state, node) {
+        Some(place) if !place.expanded => levels_from(scope_level(&place.scope), !place.covers),
+        _ => Vec::new(),
+    }
 }
 
 /// 키 사건의 출발 노드. 포커스 노드이고, 창이 지금 받는 키를 팝업 키 주인에 묶었으면(입력 시점 결속) 그 팝업이다.
@@ -84,21 +113,35 @@ pub(crate) fn key_start_node(state: &MainViewState, core: &CoreState) -> FocusNo
     }
 }
 
+/// 출발 노드 `start` 뒤에 오는 범위 노드의 level(engine 쪽 순서). 경로 level 집합과 노드 목록
+/// (`key_nodes::window_key_path`)이 이 값 하나로 범위 노드를 만든다.
+pub(crate) fn start_scope_levels(
+    state: &MainViewState,
+    core: &CoreState,
+    start: FocusNode,
+) -> Vec<KeyLevel> {
+    let notice = || crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
+    match start {
+        FocusNode::SettingsRequest | FocusNode::Stage => Vec::new(),
+        FocusNode::Popup(node) => popup_scope_levels(state, node),
+        _ if notice() => levels_from(KeyLevel::Window, true),
+        FocusNode::Tutorial => levels_from(KeyLevel::Window, true),
+        FocusNode::HtmlAddress(_) | FocusNode::Surface(Some(_)) => {
+            levels_from(KeyLevel::Surface, true)
+        }
+        FocusNode::Surface(None) if core.workspaces().is_empty() => {
+            levels_from(KeyLevel::Window, true)
+        }
+        FocusNode::Surface(None) => levels_from(KeyLevel::Workspace, true),
+    }
+}
+
 /// 출발 노드에서 시작한 키 경로의 level. 설정 열기 요청 래치 중이면 `None`(거르지 않는다).
 pub(crate) fn focus_path_levels(state: &MainViewState, core: &CoreState) -> Option<PathLevels> {
-    let notice = || crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
-    Some(match key_start_node(state, core) {
-        FocusNode::SettingsRequest => return None,
-        FocusNode::Stage => PathLevels::engine_only(),
-        FocusNode::Popup(node) => popup_path_levels(state, node),
-        _ if notice() => from_level(KeyLevel::Window, true),
-        FocusNode::Tutorial => from_level(KeyLevel::Window, true),
-        FocusNode::HtmlAddress(_) | FocusNode::Surface(Some(_)) => PathLevels::all(),
-        FocusNode::Surface(None) if core.workspaces().is_empty() => {
-            from_level(KeyLevel::Window, true)
-        }
-        FocusNode::Surface(None) => from_level(KeyLevel::Workspace, true),
-    })
+    match key_start_node(state, core) {
+        FocusNode::SettingsRequest => None,
+        start => Some(path_of(&start_scope_levels(state, core, start))),
+    }
 }
 
 /// 이 level의 후보를 이 경로에서 판정해도 되는지. 경로가 없으면(래치 중) 거르지 않는다.

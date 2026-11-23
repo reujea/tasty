@@ -13,7 +13,7 @@ use super::key_route::{
     start_node_ends_key, text_edit_builtin,
 };
 use crate::adapters::ui::popup::focus::PopupNode;
-use crate::adapters::ui::popup::{PopupEscape, PopupKeyboard, PopupScope};
+use crate::adapters::ui::popup::{PopupEscape, PopupKeyboard};
 use crate::runtime::engine_read::EngineRead;
 use crate::settings::KeybindingSettings;
 use crate::state::MainViewState;
@@ -152,7 +152,8 @@ fn window_path_key(
     }
 }
 
-/// 포커스 노드에서 engine 앞까지의 노드. 덮는 팝업은 덮은 범위의 부모로, 펼친 팝업과 무대는 engine 으로 잇는다.
+/// 포커스 노드에서 engine 앞까지의 노드. 범위 노드는 경로 level과 같은 값(`key_path::start_scope_levels`)으로
+/// 만든다. 덮는 팝업은 덮은 범위의 부모로, 펼친 팝업과 무대는 engine 으로 잇는다.
 pub(crate) fn window_key_path(
     state: &MainViewState,
     engine: &EngineRead<'_>,
@@ -161,159 +162,92 @@ pub(crate) fn window_key_path(
     mods: ModifiersState,
     egui_surface: bool,
 ) -> Vec<KeyNode> {
+    use crate::adapters::ui::input::key_path::{key_start_node, start_scope_levels};
     let kb = &engine.settings.keybindings;
     let notice = crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
-    match crate::adapters::ui::input::key_path::key_start_node(state, engine) {
-        FocusNode::SettingsRequest => Vec::new(),
-        FocusNode::Stage => vec![KeyNode::Stage {
-            exit: crate::shortcuts::matches_any_binding(&kb.fullscreen_stage_exit, lookup, mods),
-        }],
-        FocusNode::Popup(node) => popup_path(state, node, key, kb),
-        _ if notice => with_scopes(KeyNode::Notice, KeyLevel::Window, true),
-        FocusNode::Tutorial => with_scopes(KeyNode::Tutorial, KeyLevel::Window, true),
-        FocusNode::HtmlAddress(sid) => with_scopes(
-            KeyNode::HtmlAddress {
-                sid,
-                keymap: crate::view::main::address_keymap_receives(kb, lookup, mods),
-            },
-            KeyLevel::Surface,
-            true,
-        ),
-        FocusNode::Surface(Some(sid)) => {
-            let mut path = vec![KeyNode::Scope(ScopeKeyNode {
-                level: KeyLevel::Surface,
-                content: surface_content(state, engine, sid, key, egui_surface),
-                attached: Vec::new(),
-            })];
-            path.extend(scopes(KeyLevel::Tab, true));
-            path
-        }
-        FocusNode::Surface(None) if engine.workspaces().is_empty() => {
-            scopes(KeyLevel::Window, true)
-        }
-        FocusNode::Surface(None) => scopes(KeyLevel::Workspace, true),
-    }
-}
-
-/// 출발 노드 뒤에 범위 노드를 잇는다.
-fn with_scopes(start: KeyNode, level: KeyLevel, inclusive: bool) -> Vec<KeyNode> {
-    std::iter::once(start)
-        .chain(scopes(level, inclusive))
-        .collect()
-}
-
-/// `level`(`inclusive`가 거짓이면 그 부모)부터 Window 까지의 범위 노드. 경로 위 조상 노드의 내용은 붙은
-/// 팝업·하위 노드에서 올라온 키에 쓰이지 않는다(J-6).
-fn scopes(level: KeyLevel, inclusive: bool) -> Vec<KeyNode> {
-    let chain = [
-        KeyLevel::Surface,
-        KeyLevel::Tab,
-        KeyLevel::Pane,
-        KeyLevel::Workspace,
-        KeyLevel::Window,
-    ];
-    let start = chain.iter().position(|l| *l == level).unwrap_or(0);
-    chain[start..]
-        .iter()
-        .skip(usize::from(!inclusive))
+    let start = key_start_node(state, engine);
+    let mut scopes = start_scope_levels(state, engine, start)
+        .into_iter()
         .map(|level| {
             KeyNode::Scope(ScopeKeyNode {
-                level: *level,
+                level,
                 content: ScopeContent::None,
                 attached: Vec::new(),
             })
         })
-        .collect()
-}
-
-fn scope_level(scope: &PopupScope) -> KeyLevel {
-    match scope {
-        PopupScope::Window => KeyLevel::Window,
-        PopupScope::Workspace(_) => KeyLevel::Workspace,
-        PopupScope::Pane(_) => KeyLevel::Pane,
-        PopupScope::Tab(_) => KeyLevel::Tab,
-        PopupScope::Surface(_) => KeyLevel::Surface,
-    }
-}
-
-/// 팝업 출발 경로. 펼친 팝업은 팝업 노드 하나, 덮는 팝업은 덮은 범위의 부모부터, 덮지 않는 팝업은 붙은 범위부터다.
-fn popup_path(
-    state: &MainViewState,
-    node: PopupNode,
-    key: RouteKey,
-    kb: &KeybindingSettings,
-) -> Vec<KeyNode> {
-    let Some((popup, scope)) = popup_key_node(state, node, key, kb) else {
-        return Vec::new();
+        .collect::<Vec<_>>();
+    let first = match start {
+        FocusNode::SettingsRequest => return Vec::new(),
+        FocusNode::Stage => KeyNode::Stage {
+            exit: crate::shortcuts::matches_any_binding(&kb.fullscreen_stage_exit, lookup, mods),
+        },
+        FocusNode::Popup(node) => match popup_key_node(state, node, key, kb) {
+            Some(popup) => KeyNode::Popup(popup),
+            None => return Vec::new(),
+        },
+        _ if notice => KeyNode::Notice,
+        FocusNode::Tutorial => KeyNode::Tutorial,
+        FocusNode::HtmlAddress(sid) => KeyNode::HtmlAddress {
+            sid,
+            keymap: crate::view::main::address_keymap_receives(kb, lookup, mods),
+        },
+        FocusNode::Surface(Some(sid)) => {
+            if let Some(KeyNode::Scope(surface)) = scopes.first_mut() {
+                surface.content = surface_content(state, engine, sid, key, egui_surface);
+            }
+            return scopes;
+        }
+        FocusNode::Surface(None) => return scopes,
     };
-    if popup.fold == PopupFold::Expanded {
-        return vec![KeyNode::Popup(popup)];
-    }
-    with_scopes(KeyNode::Popup(popup), scope_level(&scope), !popup.covers)
+    scopes.insert(0, first);
+    scopes
 }
 
-/// 팝업 노드의 선언·표시 상태와 노드 키맵 수신 판정, 붙은 범위.
+/// 팝업 노드의 선언·표시 상태와 노드 키맵 수신 판정.
 fn popup_key_node(
     state: &MainViewState,
     node: PopupNode,
     key: RouteKey,
     kb: &KeybindingSettings,
-) -> Option<(PopupKeyNode, PopupScope)> {
+) -> Option<PopupKeyNode> {
+    let place = crate::adapters::ui::input::key_path::popup_place(state, node)?;
     match node {
         PopupNode::Host(iid) => {
             let p = state.popups.instance(iid)?;
-            let fold = if p.expanded() {
+            let fold = if place.expanded {
                 PopupFold::Expanded
             } else if p.collapsed() {
                 PopupFold::Collapsed
             } else {
                 PopupFold::Fits
             };
-            Some((
-                PopupKeyNode {
-                    node,
-                    keyboard: p.keyboard(),
-                    escape: p.escape_decl(),
-                    fold,
-                    keymap: host_keymap_receives(p, key, kb),
-                    covers: p.covers(),
-                },
-                p.scope.clone(),
-            ))
+            Some(PopupKeyNode {
+                node,
+                keyboard: p.keyboard(),
+                escape: p.escape_decl(),
+                fold,
+                keymap: host_keymap_receives(p, key, kb),
+                covers: place.covers,
+            })
         }
         PopupNode::Plugin(id) => {
-            let scope = state
-                .plugin_popup_bound_scopes
-                .get(&id)
-                .and_then(|(_, scope)| scope.clone())
-                .unwrap_or(PopupScope::Window);
-            let expanded = state.popups.plugin_expanded().contains(&id);
-            let covers = expanded
-                || state
-                    .plugin_popup_key_candidates
-                    .iter()
-                    .find(|(pid, _)| *pid == id)
-                    .is_some_and(|(_, z)| state.plugin_popup_covers.iter().any(|c| c.z_seq == *z));
             let (keyboard, escape) = state
                 .plugin_popup_key_decls
                 .get(&id)
                 .copied()
                 .unwrap_or((PopupKeyboard::Text, PopupEscape::Close));
-            Some((
-                PopupKeyNode {
-                    node,
-                    keyboard,
-                    escape,
-                    fold: if expanded {
-                        PopupFold::Expanded
-                    } else {
-                        PopupFold::Fits
-                    },
-                    keymap: false,
-                    covers,
+            Some(PopupKeyNode {
+                node,
+                keyboard,
+                escape,
+                fold: if place.expanded {
+                    PopupFold::Expanded
+                } else {
+                    PopupFold::Fits
                 },
-                scope,
-            ))
+                keymap: false,
+                covers: place.covers,
+            })
         }
     }
 }
