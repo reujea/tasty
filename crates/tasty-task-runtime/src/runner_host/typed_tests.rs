@@ -411,26 +411,17 @@ fn v1_reduce_cannot_take_typed_inputs() {
 /// `raw.execution` 에 둔다. 너무 큰 접수 응답은 앞부분만 남기고 잘렸다고 표시한다.
 #[test]
 fn an_async_custom_keeps_its_accepted_response_apart_from_the_final_one() {
-    use std::sync::mpsc;
+    use super::scripted_ipc::{self, Step};
     use tasty_agent::runner::RunnerLoop;
     use tasty_agent::task::TaskGraphSpec;
     use tasty_agent::task::contract::ACCEPTED_RESPONSE_CAP;
-    use tasty_ipc::host_call::HostIpcInjector;
-    use tasty_ipc::protocol::JsonRpcResponse;
-    use tasty_ipc::server::IpcCommand;
 
     let (_td, ctx) = fresh_ctx();
-    let (tx, rx) = mpsc::channel::<IpcCommand>();
-    ctx.host_ipc
-        .set(HostIpcInjector::new(tx, std::sync::Arc::new(|| {})))
-        .ok()
-        .expect("set once");
     let big = "가".repeat(ACCEPTED_RESPONSE_CAP);
     let big_reply = big.clone();
-    let worker = std::thread::spawn(move || {
-        while let Ok(cmd) = rx.recv_timeout(Duration::from_secs(10)) {
-            let id = cmd.request.id.clone().unwrap_or(Value::Null);
-            let reply = match (cmd.request.method.as_str(), cmd.request.params.get("job")) {
+    let _ipc = scripted_ipc::install_responder(&ctx, move |cmd| {
+        Step::answer(
+            match (cmd.request.method.as_str(), cmd.request.params.get("job")) {
                 ("fake.start", _) => match cmd.request.params.get("big") {
                     Some(_) => json!({"job": "J2", "blob": big_reply}),
                     None => json!({"job": "J1"}),
@@ -438,11 +429,8 @@ fn an_async_custom_keeps_its_accepted_response_apart_from_the_final_one() {
                 ("fake.poll", Some(job)) => json!({"state": "done", "job": job}),
                 ("system.ping", _) => json!({"pong": true}),
                 other => panic!("unexpected call {other:?}"),
-            };
-            cmd.response_tx
-                .send(JsonRpcResponse::success(id, reply))
-                .expect("reply");
-        }
+            },
+        )
     });
     let poll = json!({"poll_method": "fake.poll", "map_from_response": {"job": "job"},
         "state_field": "state", "terminal_states": ["done"], "interval_ms": 1});
@@ -534,7 +522,4 @@ fn an_async_custom_keeps_its_accepted_response_apart_from_the_final_one() {
     let raw = now.typed_result.unwrap().raw;
     assert!(raw.accepted.is_none());
     assert_eq!(raw.execution, Some(json!({"pong": true})));
-    drop(runner);
-    drop(ctx);
-    worker.join().unwrap();
 }

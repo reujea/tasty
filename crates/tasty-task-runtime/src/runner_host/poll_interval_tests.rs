@@ -1,62 +1,48 @@
 //! Task-local polling cadence through the actual runner executor entry point.
+use super::scripted_ipc::{self, Scripted, Step};
 use super::{HoldingClock, HostExecutor, tests::fresh_ctx};
 use serde_json::json;
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
-    mpsc,
+    atomic::{AtomicU64, Ordering},
 };
-use std::time::Duration;
 use tasty_agent::runner::{DispatchHandle, PollOutcome, TaskExecutor};
-use tasty_ipc::{host_call::HostIpcInjector, protocol::JsonRpcResponse, server::IpcCommand};
+use tasty_ipc::protocol::ERR_EXPIRED_BEFORE_RUN;
 
 struct Fixture {
     exec: HostExecutor,
     time: Arc<AtomicU64>,
     calls: Arc<AtomicU64>,
-    stop: Arc<AtomicBool>,
-    worker: Option<std::thread::JoinHandle<()>>,
+    _ipc: Scripted,
     _dir: tempfile::TempDir,
 }
 impl Fixture {
     fn new() -> Self {
         let (dir, ctx) = fresh_ctx();
         let (clock, time) = HoldingClock::manual(1000);
-        let (tx, rx) = mpsc::channel::<IpcCommand>();
-        ctx.host_ipc
-            .set(HostIpcInjector::new(tx, Arc::new(|| {})))
-            .ok()
-            .expect("injector");
         let calls = Arc::new(AtomicU64::new(0));
-        let stop = Arc::new(AtomicBool::new(false));
-        let (count, stopping, clock_time) = (calls.clone(), stop.clone(), time.clone());
-        let worker = std::thread::spawn(move || {
-            while !stopping.load(Ordering::SeqCst) {
-                let cmd = match rx.recv_timeout(Duration::from_millis(10)) {
-                    Ok(cmd) => cmd,
-                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                };
-                count.fetch_add(1, Ordering::SeqCst);
-                clock_time.fetch_add(
-                    cmd.request.params["duration"].as_u64().unwrap_or(0),
-                    Ordering::SeqCst,
-                );
-                let state = cmd.request.params["state"].as_str().unwrap_or("running");
-                let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
-                let response = match cmd.request.params["error_code"].as_i64() {
-                    Some(code) => JsonRpcResponse::error(id, code as i32, "controlled poll error"),
-                    None => JsonRpcResponse::success(id, json!({"state": state})),
-                };
-                cmd.response_tx.send(response).expect("poll reply");
+        let (count, clock_time) = (calls.clone(), time.clone());
+        // 호출 수와 가짜 시계는 응답 종류를 고르기 전에 갱신한다. 성공·오류 응답 모두에 적용된다.
+        let ipc = scripted_ipc::install_responder(&ctx, move |cmd| {
+            count.fetch_add(1, Ordering::SeqCst);
+            clock_time.fetch_add(
+                cmd.request.params["duration"].as_u64().unwrap_or(0),
+                Ordering::SeqCst,
+            );
+            match cmd.request.params["error_code"].as_i64() {
+                Some(code) if code == i64::from(ERR_EXPIRED_BEFORE_RUN) => Step::ExpiredBeforeRun,
+                Some(code) => Step::Error(code as i32, "controlled poll error".into()),
+                None => {
+                    let state = cmd.request.params["state"].as_str().unwrap_or("running");
+                    Step::answer(json!({ "state": state }))
+                }
             }
         });
         Self {
             exec: HostExecutor::new(ctx).with_holding_clock(clock),
             time,
             calls,
-            stop,
-            worker: Some(worker),
+            _ipc: ipc,
             _dir: dir,
         }
     }
@@ -68,12 +54,6 @@ impl Fixture {
     }
     fn poll(&mut self, task: &str, h: &DispatchHandle) -> PollOutcome {
         self.exec.poll_task(&task.to_string(), h)
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::SeqCst);
-        self.worker.take().unwrap().join().unwrap();
     }
 }
 fn handle(interval_ms: u64) -> DispatchHandle {

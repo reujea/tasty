@@ -27,6 +27,13 @@ pub(crate) enum Step {
     Hold,
     /// 시작시키고 그 자리에서 이 값으로 답한다. 함수 안에서 요청을 단언할 수 있다.
     Reply(Box<dyn Fn(&IpcCommand) -> Value + Send>),
+    /// 시작시키고 그 자리에서 이 RPC 오류로 답한다. 쓰는 시험(poll_interval_tests)이 unix 전용이다.
+    #[cfg(unix)]
+    Error(i32, String),
+    /// 시작 전에 철회하고 시작 전 만료 오류로 답한다. 호스트가 큐에서 만료된 명령을 철회한 뒤 실행 없이
+    /// 보내는 답이다.
+    #[cfg(unix)]
+    ExpiredBeforeRun,
 }
 
 impl Step {
@@ -62,6 +69,17 @@ pub(crate) fn reply(cmd: IpcCommand, result: Value) {
             result,
         ))
         .expect("send resp");
+}
+
+#[cfg(unix)]
+fn respond_with(cmd: IpcCommand, code: i32, message: &str) {
+    cmd.response_tx
+        .send(JsonRpcResponse::error(
+            cmd.request.id.clone().unwrap_or(Value::Null),
+            code,
+            message,
+        ))
+        .expect("send error resp");
 }
 
 /// `answer_state_idle` 이면 `.state` 로 끝나는 명령은 단계를 쓰지 않고 idle 로 바로 답한다.
@@ -115,6 +133,21 @@ fn attach(
                     assert_eq!(claim(&cmd), Claim::Run);
                     let result = answer(&cmd);
                     reply(cmd, result);
+                }
+                #[cfg(unix)]
+                Step::Error(code, message) => {
+                    assert_eq!(claim(&cmd), Claim::Run);
+                    respond_with(cmd, code, &message);
+                }
+                #[cfg(unix)]
+                Step::ExpiredBeforeRun => {
+                    use tasty_ipc::server::Withdraw;
+                    assert_eq!(cmd.lifecycle().withdraw(), Withdraw::NotRun);
+                    respond_with(
+                        cmd,
+                        tasty_ipc::protocol::ERR_EXPIRED_BEFORE_RUN,
+                        "expired before run",
+                    );
                 }
             }
         }
