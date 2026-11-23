@@ -649,14 +649,9 @@ fn next_key_after_escape_on_a_non_covering_popup_goes_below() {
         input.cut_count() >= 1,
         "포커스 노드가 바뀌어 글자 앞에서 몫을 끊는다"
     );
-    let next = super::window_input_test_support::window_key_decision_of(
-        &state,
-        &read,
-        &key(egui::Key::A),
-        false,
-    );
+    // 창의 뒤 단계는 그 사건에 내린 판정을 읽는다(다시 계산하지 않는다).
     assert!(
-        !state.window_key_holds_terminal(next),
+        !state.window_key_holds_terminal(input.last_decision()),
         "다음 글자는 아래 surface(터미널)로 간다"
     );
     assert!(

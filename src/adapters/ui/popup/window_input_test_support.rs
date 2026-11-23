@@ -20,6 +20,8 @@ pub(crate) struct WindowInput {
     split: bool,
     /// 마지막 `escape_with` 가 그 사건을 egui 큐에 실었는지. 창 판정이 그 사건을 빼기 전 관측이다.
     escape_fed: bool,
+    /// 마지막 `key_events` 의 단계 4 판정.
+    last_decision: crate::adapters::ui::input::key_nodes::KeyDecision,
     /// debug 키 주입이 유지하는 수식 키(`EguiKeySink::hold_modifiers`).
     #[cfg(debug_assertions)]
     debug_held: egui::Modifiers,
@@ -173,7 +175,6 @@ impl WindowInput {
         pressed: bool,
         modifiers: egui::Modifiers,
     ) -> bool {
-        key_focus(state, engine, self);
         let event = egui::Event::Key {
             key: egui::Key::Escape,
             physical_key: Some(egui::Key::Escape),
@@ -181,9 +182,9 @@ impl WindowInput {
             repeat: false,
             modifiers,
         };
+        let decision = self.settle(state, engine, &event, false);
         // 창 판정이 고를 범위는 이번 사건이 실린 자리부터다.
         let loaded_from = self.queue.len();
-        let decision = window_key_decision_held(state, engine, &event, false, self.held_super());
         self.escape_fed = state.window_feeds_key(decision, false, true).is_some();
         if self.escape_fed {
             self.queue.push(event);
@@ -278,10 +279,10 @@ impl WindowInput {
         (drawn, output)
     }
 
-    /// 창이 받은 키 사건 하나와 그 사건이 egui 에 남기는 원시 사건들(수식 키 뗌은 0개). 창처럼 끊기(`key_focus`) →
-    /// 단계 4 수신자 판정(`key_nodes::window_key_decision`) → egui 게이트(`window_feeds_key`, 키 사건이라 키 주인을
-    /// 묶는다) → egui 큐 순서로 밟는다(`MainView::feed_egui_keyboard`). 판정할 키는 첫 사건이다. 게이트 결과를
-    /// 돌려준다.
+    /// 창이 받은 키 사건 하나와 그 사건이 egui 에 남기는 원시 사건들(수식 키 뗌은 0개). 창처럼 단계 4 수신자 판정과
+    /// 끊기(`settle`) → egui 게이트(`window_feeds_key`, 키 사건이라 키 주인을 묶는다) → egui 큐 순서로 밟는다
+    /// (`MainView::feed_egui_keyboard`). 판정할 키는 첫 사건이다. 게이트 결과를 돌려주고, 판정은 `last_decision` 에
+    /// 남긴다.
     pub(crate) fn key_events(
         &mut self,
         state: &mut RequestContext,
@@ -289,15 +290,41 @@ impl WindowInput {
         egui_surface: bool,
         events: Vec<egui::Event>,
     ) -> Option<bool> {
-        key_focus(state, engine, self);
-        let decision = events.first().map_or_else(Default::default, |e| {
-            window_key_decision_held(state, engine, e, egui_surface, self.held_super())
-        });
+        let decision = match events.first() {
+            Some(e) => self.settle(state, engine, e, egui_surface),
+            None => {
+                key_focus(state, engine, self);
+                Default::default()
+            }
+        };
+        self.last_decision = decision;
         let fed = state.window_feeds_key(decision, egui_surface, true);
         if fed.is_some() {
             self.queue.extend(events);
         }
         fed
+    }
+
+    /// 창의 단계 3~5(`MainKeySteps::settle_key_node`)와 같은 순서: 단계 4 수신자 판정 → 끊기. 끊었으면 새 몫에서 다시
+    /// 정한다(끊은 몫의 결속은 새 몫의 판정에 쓰지 않는다).
+    fn settle(
+        &mut self,
+        state: &mut RequestContext,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        event: &egui::Event,
+        egui_surface: bool,
+    ) -> crate::adapters::ui::input::key_nodes::KeyDecision {
+        let decision =
+            window_key_decision_held(state, engine, event, egui_surface, self.held_super());
+        if key_focus(state, engine, self) > 0 {
+            return window_key_decision_held(state, engine, event, egui_surface, self.held_super());
+        }
+        decision
+    }
+
+    /// 마지막 `key_events` 가 그 키에 내린 단계 4 판정. 창의 뒤 단계(터미널 게이트·단축키·끝 목적지)가 읽는 값이다.
+    pub(crate) fn last_decision(&self) -> crate::adapters::ui::input::key_nodes::KeyDecision {
+        self.last_decision
     }
 
     /// 창이 실물 Win·Super 를 누른 것으로 보는지(debug 주입이 유지하는 값).

@@ -50,7 +50,10 @@ impl KeyEventSteps<WindowEvent> for MainKeySteps<'_, '_> {
     fn settle_key_node(&mut self, event: &WindowEvent) {
         self.view.normalize_focus_on_key(self.engine, event);
         self.view.decide_key_receiver(self.engine, event);
-        self.view.cut_input_segment(self.engine, event);
+        // 끊었으면 이 사건은 새 몫의 첫 사건이다. 끊은 몫의 결속은 새 몫의 판정에 쓰지 않으므로 새 몫에서 다시 정한다.
+        if self.view.cut_input_segment(self.engine, event) > 0 {
+            self.view.decide_key_receiver(self.engine, event);
+        }
     }
 
     // 편집 바인딩 판정은 egui-winit과 단축키 디스패치보다 먼저 한 번 한다.

@@ -36,12 +36,12 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     let cut = squeeze(&fn_body(&src, "fn cut_input_segment(").expect("cut_input_segment"));
     at(
         &cut,
-        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return,",
+        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return0,",
         "끊을 사건",
     );
     at(
         &cut,
-        "for_in0..self.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming){self.base.gpu.cut_egui_input_here();}",
+        "letcuts=self.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming);for_in0..cuts{self.base.gpu.cut_egui_input_here();}cuts",
         "입력 끊기",
     );
     // 단계 순서는 E0 함수(`run_key_event`)가 정하고, 단계마다 메인 창이 부르는 함수는 `MainKeySteps`에 있다.
@@ -75,8 +75,8 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     );
     let cut_at = at(
         &settle,
-        "self.view.cut_input_segment(self.engine,event);",
-        "입력 끊기 호출",
+        "ifself.view.cut_input_segment(self.engine,event)>0{self.view.decide_key_receiver(self.engine,event);}",
+        "입력 끊기 호출과 새 몫의 수신자 다시 정하기",
     );
     at(
         &step("fn intercepts_after_edit_judgment("),

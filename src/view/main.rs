@@ -553,23 +553,27 @@ impl MainView {
     /// 누름·키·IME 사건을 처리하기 전에 부른다. 그 사건 시점의 포커스 노드가 지금 그리기 몫의 노드와 다르거나 다를
     /// 수 있으면 그 사건부터의 egui 입력을 뒤 그리기 몫으로 넘긴다(`MainViewState::cut_key_frame`). 누름·무대 종료 키
     /// 같은 사건이 바꾼 포커스 노드는 즉시 적용되고, 다음 사건이 그 차이로 끊는다. 누름이 포커스를 옮기기 전(튜토리얼
-    /// 말풍선의 키보드 몫을 놓기 전)에 부른다.
-    pub(super) fn cut_input_segment(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
+    /// 말풍선의 키보드 몫을 놓기 전)에 부른다. 끊은 수를 돌려준다.
+    pub(super) fn cut_input_segment(
+        &mut self,
+        engine: &EngineRead<'_>,
+        event: &WindowEvent,
+    ) -> usize {
         let incoming = match event {
             WindowEvent::MouseInput {
                 state: winit::event::ElementState::Pressed,
                 ..
             } => Incoming::Press,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => Incoming::Key,
-            _ => return,
+            _ => return 0,
         };
-        for _ in
-            0..self
-                .state
-                .cut_key_frame(engine, self.base.gpu.egui_input_events_mut(), incoming)
-        {
+        let cuts =
+            self.state
+                .cut_key_frame(engine, self.base.gpu.egui_input_events_mut(), incoming);
+        for _ in 0..cuts {
             self.base.gpu.cut_egui_input_here();
         }
+        cuts
     }
 
     /// 이 버튼 사건이 OS 창 테두리 리사이즈의 누름이나 그 짝인 뗌인지(`begin_os_resize_press`). 메뉴를 닫는
