@@ -55,7 +55,7 @@ native WebView 위에 egui 대상 팝업을 합성할 때의 두 번째 pass다.
 
 winit `ApplicationHandler` 콜백은 전부 **하나의 스레드**에서 동기 실행되고, GPU 렌더는 그중 `WindowEvent::RedrawRequested` 처리 안에서 돈다. IPC 도 같은 스레드다 — IPC 서버 스레드는 요청을 메인 스레드로 넘기고 응답을 기다린다(`TcpIpcServer::dispatch_and_await` → `AppEvent::IpcReady` → `process_ipc`).
 
-따라서 **GPU 호출 하나가 반환하지 않으면 키·마우스·IPC 가 전부 함께 멎는다.** 이건 렌더만 느려지는 게 아니라 창이 통째로 무응답이 되는 것이고, panic 이 아니므로 crash report 도 남지 않는다.
+따라서 **GPU 호출 하나가 반환하지 않으면 키·마우스·IPC 가 전부 함께 멎는다.** 이건 렌더만 느려지는 게 아니라 창이 통째로 무응답이 되는 것이고, panic 이 아니므로 panic 보고서(`crash-*.log`)도 남지 않는다.
 
 wgpu 24 기준으로 호출별 상한은 다음과 같다:
 
@@ -66,9 +66,25 @@ wgpu 24 기준으로 호출별 상한은 다음과 같다:
 | `queue.submit(...)` | **없음** |
 | `SurfaceTexture::present()` | **없음** |
 
-상한이 없는 호출에는 wgpu 가 취소·타임아웃 API 를 제공하지 않는다. 그래서 tasty 는 이 상황을 *막지* 못하고 **관측만** 한다 — 아래 "진단" 의 stall 워치독. 렌더 스레드 분리를 채택하지 않은 근거와 재검토 조건은 [종료 시퀀스 — 종료 cascade + Drop tail](../architecture/shutdown-sequence.md).
+상한이 없는 호출에는 wgpu 가 취소·타임아웃 API 를 제공하지 않는다. 그래서 tasty 는 이 상황을 *막지* 못하고 **관측만** 한다 — 아래 "진단" 의 stall 워치독. 렌더 스레드 분리를 채택하지 않은 근거와 재검토 조건은 [렌더 스레드를 나누지 않는 이유](#렌더-스레드를-나누지-않는-이유).
 
 `redraw.rs` 의 `SurfaceError` 분기(`Lost`/`Outdated` 재시도 등)는 전부 **호출이 반환됐을 때만** 도는 경로다. 반환하지 않는 상황은 그 분기가 다루지 못한다.
+
+### 렌더 스레드를 나누지 않는 이유
+
+GPU 호출이 돌아오지 않을 때 창 전체가 멎는 문제를 렌더 스레드 분리나 자동 종료로 풀지 않는다.
+
+- **분리 경계가 렌더러 전체다.** `acquire → 렌더 패스 기록 → submit → present` 는 한 덩어리라 나눌 수 없다. egui 는 `take_egui_input(window)`·`handle_platform_output(window, …)` 로 창과 직접 결합돼 있어 프레임 준비 단계도 함께 옮겨야 한다.
+- **macOS 에서 결합이 되살아난다.** winit `Window` 는 `Send + Sync` 이지만 macOS 에서는 메인 스레드가 아닌 곳의 창 호출이 메인 스레드로 넘겨지고, 호출한 스레드는 그동안 기다린다. 렌더 스레드가 창을 만지면 메인 스레드와 다시 묶인다.
+- **얻는 것이 적다.** 스레드를 나눠도 마지막 프레임이 화면에 남으므로 사용자에게는 여전히 멈춘 창이다. 종료 화면도 렌더가 필요하다([종료 화면](../architecture/shutdown-sequence.md#종료-화면)).
+- **시간 제한을 걸 수 없다.** 위 표대로 상한 없는 호출에는 wgpu 의 취소·시간 제한 API 가 없다. 다른 스레드에서 부르고 호출자만 시간 제한을 두는 방식은 결국 렌더 스레드 분리이고, 그 스레드는 돌아오지 않은 채 남는다.
+- **자동 종료하지 않는다.** 워치독이 임계를 넘을 때 프로세스를 끝내면 살아 있는 PTY 세션이 모두 사라진다. 절전 복귀나 디버거 정지 같은 오탐 한 번이면 사용자 작업을 잃는다.
+
+다음 경우에는 이 선택을 다시 검토한다.
+
+- GPU 호출에서 멈춘 hang 보고(`hang-*.log` 의 `Render phase` 가 GPU 단계)가 실사용에서 쌓인다.
+- wgpu 가 상한 없는 호출(`configure`·`submit`·`present`)에 취소나 시간 제한 API 를 제공한다.
+- 반환된 surface 오류가 아래 "반환된 surface 오류의 재시도" 로도 회복하지 않고 반복된다.
 
 ## 터미널 렌더 = 누적 후 1회 flush, 단일 패스 (필수 모델)
 
@@ -414,7 +430,7 @@ RSS/GPU 메모리 profile, flamegraph, scrollback viewport scroll 부하(release
 - `draw_call_count()` / `active_surface_count()` — 프레임의 bg/glyph draw 수, 활성 surface 수.
 - 프레임 타이밍 계측은 `src/gfx/gpu/frame_timing.rs`(구간 분해·느린 프레임 경고)와 `src/gfx/perf.rs`(perf 집계). `tracing::warn!` 은 위 "회귀 임계값"의 구간 요약과 즉시 경고만 낸다.
 - 셀 색이 의심되면 debug 의 `debug.glyph_color`(렌더러가 push 하는 실제 RGBA) — [debug-ipc.md](debug-ipc.md).
-- **이벤트 루프 stall 워치독** (`crates/tasty-platform/src/stall_watchdog.rs`, 전 빌드) — 콜백 안의 5초 지연과, 처리할 IPC 명령이 큐에 남은 채 콜백 바깥에서 진행이 없는 5초 구간을 구별해 보고한다. 정상 idle과 의도적 대기는 제외한다. 콜백 바깥의 기준점은 마지막 콜백 진행과 연속 pending 시작 중 더 늦은 시각이다. 현재 단계와 나이가 있는 과거 GPU 단계를 구분하며 GPU/IME 원인을 확정하거나 복구하지 않는다. 첫 hang 파일에는 워치독 폴링 지연·부하·CPU·메인 스레드 상태·창 상태를 함께 적는다. 메인 스레드만 막혔는지 프로세스 전체가 CPU를 못 받았는지는 이 값들을 대조해 판단하며, 읽는 법은 크래시 진단 문서에 있다. 첫 hang 파일과 30초 재보고 제한을 유지하고 main-loop probe를 추가하지 않는다. 필드·한계는 [크래시 진단](crash-diagnostics.md)을 따른다. debug 재현은 `tasty debug gpu-stall --ms N`이다([debug-ipc.md](debug-ipc.md)).
+- **이벤트 루프 stall 워치독** (`crates/tasty-platform/src/stall_watchdog.rs`, 전 빌드) — 콜백 안의 5초 지연, `about_to_wait` 에 닿지 못한 iteration(`starved_iteration`)과, 처리할 IPC 명령이 큐에 남은 채 콜백 바깥에서 진행이 없는 5초 구간을 구별해 보고한다. 정상 idle과 의도적 대기는 제외한다. 콜백 바깥의 기준점은 마지막 콜백 진행과 연속 pending 시작 중 더 늦은 시각이다. 현재 단계와 나이가 있는 과거 GPU 단계를 구분하며 GPU/IME 원인을 확정하거나 복구하지 않는다. 첫 hang 파일에는 워치독 폴링 지연·부하·CPU·메인 스레드 상태·창 상태를 함께 적는다. 메인 스레드만 막혔는지 프로세스 전체가 CPU를 못 받았는지는 이 값들을 대조해 판단하며, 읽는 법은 크래시 진단 문서에 있다. 첫 hang 파일과 30초 재보고 제한을 유지하고 main-loop probe를 추가하지 않는다. 필드·한계는 [크래시 진단](crash-diagnostics.md)을 따른다. debug 재현은 `tasty debug gpu-stall --ms N`이다([debug-ipc.md](debug-ipc.md)).
   - **메인 스레드를 의도적으로 막는 동기 호출은 `stall_watchdog::without_stall_watch(..)` 로 감싼다.** 두 번째 실행 실패를 알리는 OS `MessageDialog`처럼 "돌아오지 않는 것이 정상" 인 구간을 감싸지 않으면, 사용자가 선택에 5 초만 써도 `crash-reports/` 에 오탐 리포트가 남아 그 디렉토리가 신호를 잃는다.
 - 리페인트 유발원별 요청 수 / 지연 수 / 실제 present 수는 1 초 창 dump: `TASTY_LOG=tasty::view::repaint=info`. 줄에는 모니터 간격(`cap`), 적용 중인 출력·입력 간격을 fps 로 환산한 값(`out_cap`·`in_cap`, 무제한이면 모니터 주사율), 유발원별 `통과+지연d`(`interactive`·`output`·`echo`·`egui`·`mirror`)가 있다(dev 빌드는 `~/.tasty-debug/debug-dev.log` 에 그냥 남는다). 요청이 많아도 실제 렌더가 합쳐졌는지를 이 한 줄로 구분한다. 줄 끝의 `drawn interactive=… output=… echo=… egui=… mirror=… none=…`은 그 창에서 그린 프레임을 연 유발원별 수다. 직전 present 뒤에 들어온 요청(통과·상한으로 지연·DEC 2026 동기화 보류 모두)의 유발원을 모아 두었다가 present 때 그 유발원마다 한 프레임을 센다(`src/view/repaint/attribution.rs`). 보류된 출력은 상한 판정을 거치지 않아 `통과+지연d`에는 없고 `drawn`과 `gpu_stats` 누계에만 들어간다. 메인 창과 보조 창(설정·종료·플러그인·프리셋) 모두 present에 성공한 뒤에 센다. surface를 얻지 못해 present하지 않은 시도는 `present`와 유발원별 수에 들어가지 않고, 모아 둔 유발원은 다음 present에 센다. 여러 유발원이 한 프레임을 함께 열면 각각 세므로 합이 `present`보다 클 수 있고, 요청 없이 그린 프레임(OS redraw)은 `none`이다. 실패한 프레임의 유발원은 남아 있다가 재시도 present에 귀속되고, 재시도를 기다리는 동안 들어온 요청도 그 present에 귀속된다.
   - 이 줄은 요청이나 present가 있을 때만 확인하므로 아무 일도 없는 동안에는 `present=0` 줄이 나오지 않는다. 유휴 판정에는 `system.gpu_stats`(CLI `tasty list gpu-stats`)의 창별 `repaint` 누계를 두 번 읽어 차이를 본다. 조회 자체가 IPC 처리라 창을 다시 그리게 할 수 있으므로 두 조회 사이의 차이에서 조회가 만든 프레임을 구분해야 한다.

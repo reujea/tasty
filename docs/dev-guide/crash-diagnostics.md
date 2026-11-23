@@ -216,7 +216,7 @@ Stack sample: unavailable (not supported on this OS)
 - probe는 고정 메타데이터만 읽고 요청을 소비하거나 저장소를 조회하지 않는다. 요청 본문·URL·인증 정보는 보고하지 않는다. 호스트 주입 대기 상한은 `tasty::ipc_wait`의 숫자 request_seq·timeout_ms 및 기존 slow-request 결과와 함께 대조한다. 대기 상한은 실행 취소나 완료 확인을 뜻하지 않는다. 소켓·호스트 주입의 기존 미실행/결과 불명/늦은 응답 계약은 유지한다.
 - **보고 비용**: `hang report written` 줄의 `write_ms`는 워치독 스레드 한 개가 관측값을 모으고 파일을 쓰는 데 걸린 시간이다. 이 스레드의 `/proc` 읽기나 파일 I/O만 늦어도 커지며, 그동안 다른 스레드는 계속 실행될 수 있다. 재보고 줄(`event loop stalled`)에는 `poll_latest_ms`·`poll_max_ms`가 실린다. 재보고는 30초가 지난 뒤 다음 폴링에서 허용되므로 실제 간격은 1초 폴링 오차와 직전 폴링의 수집·로그·I/O 비용만큼 30초를 넘는다. 두 값 모두 이런 비용이 들어간 관측값이라 그것만으로 프로세스 전체가 CPU를 받지 못했다고 볼 수 없다. 프로세스 전체 CPU 미할당은 `Process CPU` 증가량, `Main thread state`, `write_ms`를 함께 대조해 판단한다.
 - **파일은 stall 당 1 개**이고 `Stuck for` 는 최초 탐지 시점(≈5~6 초)의 값이다. 총 지속 시간이 실린 30 초 주기 재보고는 `tracing` 으로만 나가는데(`target: "tasty::stall"`), 그 로그 파일은 host 가 뜰 때마다 truncate 되므로 행을 겪고 강제 종료 후 다시 띄우면 사라진다. 즉 **재시작을 넘겨 남는 증거는 "어디서 멎었나" 까지이고 "얼마나 오래 멎었나" 는 아니다**(행이 진행되는 동안에는 파일에서 읽을 수 있다 — CLI 실행이 지우지는 않는다).
-- **워치독은 복구하지 않는다.** 기록만 남기며 프로세스를 종료하지도, 응답성을 되돌리지도 않는다 — 사용자는 여전히 강제 종료해야 한다. 근거·대안(렌더 스레드 분리 / 자동 종료)의 기각 사유는 [종료 시퀀스 — 종료 cascade + Drop tail](../architecture/shutdown-sequence.md).
+- **워치독은 복구하지 않는다.** 기록만 남기며 프로세스를 종료하지도, 응답성을 되돌리지도 않는다 — 사용자는 여전히 강제 종료해야 한다. 근거·대안(렌더 스레드 분리 / 자동 종료)의 기각 사유는 [GPU 렌더링 — 렌더 스레드를 나누지 않는 이유](gpu-rendering.md#렌더-스레드를-나누지-않는-이유). 관측 전용 기록 방식은 절전 복귀 같은 오탐 보고가 `crash-reports/` 에 쌓이거나, 행 중에 보고 파일을 만들지 못하거나 본문이 비거나 잘린 사례가 나오면 다시 검토한다(임계값·절전 보정, 기록 방식).
 - native 파일 다이얼로그처럼 **의도적으로** 메인 스레드를 막는 구간은 pending 여부와 관계없이 보고 대상에서 빠지고, 구간 종료 뒤부터 다시 잰다(`stall_watchdog::without_stall_watch`) — 그런 리포트가 섞이면 이 디렉토리가 신호를 잃기 때문이다.
 - debug 빌드에서는 `tasty debug gpu-stall --ms N` 으로 재현할 수 있다(다음 프레임의 `present` 직전을 1 회 블로킹).
 
@@ -257,5 +257,5 @@ strace -p <PID> -f -e trace=write,read 2>/tmp/tasty-strace.log
 - [release.md](release.md#릴리스-자산) — Release 자산과 Windows 패키지 안의 `tasty.pdb`
 - [error-handling.md](error-handling.md) — `Result` 처리·로그 레벨 정책 (애초에 crash 를 줄이는 쪽)
 - [self-verification.md](self-verification.md) · [e2e-tests.md](e2e-tests.md) — 재현·검증
-- [종료 시퀀스 — 종료 cascade + Drop tail](../architecture/shutdown-sequence.md) · [gpu-rendering.md](gpu-rendering.md) — 이벤트 루프 stall 워치독의 결정 근거와 렌더 구조
+- [gpu-rendering.md](gpu-rendering.md#렌더-스레드를-나누지-않는-이유) — 이벤트 루프 stall 워치독의 결정 근거와 렌더 구조
 - [memory-leak-soak.md](memory-leak-soak.md) — 죽음/멈춤이 아니라 **메모리가 새는** 증상일 때 (soak 테스트 + 계층별 판정)
