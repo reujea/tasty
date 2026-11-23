@@ -97,6 +97,7 @@ impl TerminalState {
             generation: self.connection.generation(),
             surface_id: 0,
             kind: TerminalEventKind::OutputAppended { text },
+            attach_streamed: false,
         });
     }
 

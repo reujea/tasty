@@ -149,9 +149,15 @@ impl AttachStreamTap {
 }
 
 impl TerminalState {
-    pub(crate) fn fan_out_attach_output(&mut self, bytes: &[u8]) {
-        self.attach_streams
-            .retain(|tap| tap.send(Some(bytes), 0, 0));
+    /// 살아 있는 스트림 하나라도 바이트를 받았으면 true다.
+    pub(crate) fn fan_out_attach_output(&mut self, bytes: &[u8]) -> bool {
+        let mut delivered = false;
+        self.attach_streams.retain(|tap| {
+            let sent = tap.send(Some(bytes), 0, 0);
+            delivered |= sent;
+            sent
+        });
+        delivered
     }
     pub(crate) fn fan_out_attach_resize(&mut self, cols: usize, rows: usize) {
         self.attach_streams.retain(|tap| tap.send(None, cols, rows));

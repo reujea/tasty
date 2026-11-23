@@ -20,11 +20,7 @@ impl AppServices {
         sid: u32,
         generation: tasty_terminal::ResourceGeneration,
     ) {
-        // attach client가 이 출력을 받으면 client가 자기 설정과 클립보드로 답한다. 서버 클립보드를
-        // 읽어 답하면 접속 사용자의 것이 아닌 내용이 나가고 응답도 둘이 된다.
-        if !engine.runtime.settings.general.allow_clipboard_read
-            || engine.attach_output_delivered(sid)
-        {
+        if !engine.runtime.settings.general.allow_clipboard_read {
             return;
         }
         match self.clipboard.begin_read_text() {

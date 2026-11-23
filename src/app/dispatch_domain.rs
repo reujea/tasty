@@ -327,12 +327,17 @@ impl App {
                 surface_id,
                 title,
                 body,
+                stream_echo,
                 ..
             } => {
-                self.cascade_terminal_notification(source, surface_id, title, body);
+                self.cascade_terminal_notification(source, surface_id, title, body, stream_echo);
             }
-            CoreEvent::TerminalBellRing { surface_id, .. } => {
-                self.cascade_terminal_bell_ring(source, surface_id);
+            CoreEvent::TerminalBellRing {
+                surface_id,
+                stream_echo,
+                ..
+            } => {
+                self.cascade_terminal_bell_ring(source, surface_id, stream_echo);
             }
             CoreEvent::TerminalOutputMatch {
                 surface_id, text, ..

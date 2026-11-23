@@ -53,6 +53,12 @@ pub fn attach_handshake(
     if let Err(e) = conn.send(StreamTag::Control, &declare) {
         tracing::warn!("{log_prefix}: 손실 통지 요청을 보내지 못했다: {e}");
     }
+    // 서버 알림음을 넘겨받아 이 client 설정대로 낸다. 구 서버는 이 선언을 무시하고 자기가 낸다.
+    let declare =
+        serde_json::to_vec(&StreamControl::ClientNotificationSound {}).unwrap_or_default();
+    if let Err(e) = conn.send(StreamTag::Control, &declare) {
+        tracing::warn!("{log_prefix}: 알림음 넘겨받기 선언을 보내지 못했다: {e}");
+    }
     let html = super::html_document::HtmlSession::from_descriptor(&ctrl);
     if html.server_transfer {
         let declare = tasty_ipc::html_transfer::HtmlRequest::HtmlCapabilities {

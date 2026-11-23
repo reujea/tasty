@@ -372,8 +372,8 @@ impl crate::ports::clipboard::ClipboardSystem for CountingClipboard {
     }
 }
 
-/// Given attach client가 출력을 받는 터미널, When 프로그램이 OSC 52로 쓰거나 읽는다,
-/// Then 서버 클립보드는 쓰지도 읽지도 않고 서버 쪽 결과 사건도 없다. 점유가 풀리면 서버가 다시 처리한다.
+/// Given attach 스트림이 바이트를 받는 터미널, When 프로그램이 OSC 52로 쓰거나 읽는다,
+/// Then 서버 클립보드는 쓰지도 읽지도 않고 서버 쪽 결과 사건도 없다. 구독이 끝나면 서버가 다시 처리한다.
 #[test]
 fn osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard_alone() {
     use std::sync::atomic::Ordering::SeqCst;
@@ -407,7 +407,9 @@ fn osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard
     assert_eq!(clipboard.writes.load(SeqCst), 0, "서버 클립보드 쓰기");
     assert_eq!(clipboard.reads.load(SeqCst), 0, "서버 클립보드 읽기");
 
+    // 점유를 풀면 다음 구독 점검이 수신자를 닫아 이후 바이트는 client에 가지 않는다.
     engine.live.occupancy.release(sid, client).expect("holder");
+    engine.poll_attach_subscriptions();
     assert!(!engine.attach_output_delivered(sid));
     assert_eq!(run(&mut engine), 1);
     assert_eq!(clipboard.writes.load(SeqCst), 1);

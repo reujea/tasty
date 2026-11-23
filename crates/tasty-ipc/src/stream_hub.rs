@@ -235,6 +235,8 @@ struct StreamSink {
     lag: u32,
     /// ClientLossNotify를 받아 손실 통지를 활성화했는지. 선언 전에는 조용히 버린다.
     loss_notify: bool,
+    /// ClientNotificationSound를 받아 서버 알림음을 넘겨받겠다고 선언했는지.
+    notification_sound: bool,
     /// 마지막 Loss 이후 유실한 프레임 수. 선언 전에도 세며 통지를 큐에 넣은 뒤에만 초기화한다.
     pending_loss: u64,
     /// loss_notify && pending_loss > 0의 캐시. 대기 중인 통지가 없으면
@@ -409,6 +411,7 @@ impl StreamHub {
                 bytes: Arc::new(AtomicUsize::new(0)),
                 lag: 0,
                 loss_notify: false,
+                notification_sound: false,
                 pending_loss: 0,
                 owes_notice: owes_notice.clone(),
                 queued: queued.clone(),
@@ -480,6 +483,23 @@ impl StreamHub {
             sink.loss_notify = true;
             Self::sync_owed(sink);
         }
+    }
+
+    /// ClientNotificationSound 선언을 기록한다. 반복 호출은 같으며 이미 끊긴 연결은 무시한다.
+    pub fn enable_notification_sound(&self, id: StreamClientId) {
+        if let Some(sink) =
+            tasty_utils::poison::recover_mutex(self.sinks.lock(), SINKS_WHAT, &SINKS_POISONED)
+                .get_mut(&id)
+        {
+            sink.notification_sound = true;
+        }
+    }
+
+    /// 이 연결이 알림음을 넘겨받겠다고 선언했는지. 끊긴 연결은 false다.
+    pub fn accepts_notification_sound(&self, id: StreamClientId) -> bool {
+        tasty_utils::poison::recover_mutex(self.sinks.lock(), SINKS_WHAT, &SINKS_POISONED)
+            .get(&id)
+            .is_some_and(|sink| sink.notification_sound)
     }
 
     /// Drop a client's sink (its write thread then exits when the sender drops).
@@ -851,6 +871,9 @@ impl StreamHub {
                                 // 연결별 선언이므로 허브에서 바로 기록한다.
                                 Ok(crate::stream::StreamControl::ClientLossNotify {}) => {
                                     self.enable_loss_notify(client_id);
+                                }
+                                Ok(crate::stream::StreamControl::ClientNotificationSound {}) => {
+                                    self.enable_notification_sound(client_id);
                                 }
                                 Ok(_) => {}
                                 Err(_) => {

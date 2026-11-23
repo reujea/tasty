@@ -505,11 +505,17 @@ pub(crate) enum CoreEvent {
         generation: tasty_terminal::ResourceGeneration,
         title: String,
         body: String,
+        /// attach client가 이 사건의 바이트를 받아 같은 알림을 스스로 만든다. 서버는 소리를 내지 않는다.
+        stream_echo: bool,
     },
 
     TerminalBellRing {
         surface_id: u32,
         generation: tasty_terminal::ResourceGeneration,
+        /// attach client가 이 사건의 바이트를 받아 같은 알림을 스스로 만든다. 서버는 소리를 내지 않는다.
+        // reason: Bell 알림은 GUI cascade만 만든다. 헤드리스는 Bell 사건에서 알림을 만들지 않는다.
+        #[cfg_attr(not(feature = "gui"), allow(dead_code))]
+        stream_echo: bool,
     },
 
     /// 완성된 출력 줄. 해당 surface에 OutputMatch hook이 있을 때만 만들어진다.

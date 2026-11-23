@@ -40,6 +40,8 @@ impl AppServices {
         for ev in raw {
             let sid = ev.surface_id;
             let generation = ev.generation;
+            // 이 사건의 바이트를 attach client가 받았다. 그 사용자 쪽 효과는 client 몫이다.
+            let streamed = ev.attach_streamed;
             if !engine.runtime.terminals.matches_generation(sid, generation) {
                 continue;
             }
@@ -50,9 +52,9 @@ impl AppServices {
                 TerminalEventKind::PromptBoundary { phase, payload } => {
                     self.handle_prompt_boundary(engine, sid, generation, phase, &payload, &mut out);
                 }
-                // attach client가 이 출력을 받는 동안에는 client가 같은 바이트로 자기 클립보드에
-                // 쓰고 결과를 알린다. 서버 OS 클립보드와 서버 토스트는 건드리지 않는다.
-                TerminalEventKind::ClipboardSet(_) if engine.attach_output_delivered(sid) => {}
+                // client가 같은 바이트로 자기 클립보드에 쓰고 결과를 알린다. 서버 OS 클립보드와
+                // 서버 토스트는 건드리지 않으며 client가 바이트를 잃어도 서버가 대신 쓰지 않는다.
+                TerminalEventKind::ClipboardSet(_) if streamed => {}
                 TerminalEventKind::ClipboardSet(text) => {
                     let result = self.clipboard.write_text(&text).map_err(|error| {
                         // Keep clipboard contents out of diagnostics, including custom adapter errors.
@@ -72,6 +74,9 @@ impl AppServices {
                         surface_id: sid,
                     });
                 }
+                // client가 자기 설정과 클립보드로 답한다. 서버 클립보드를 읽어 답하면 접속 사용자의 것이
+                // 아닌 내용이 나가고 응답도 둘이 된다.
+                TerminalEventKind::ClipboardQuery if streamed => {}
                 TerminalEventKind::ClipboardQuery => {
                     self.handle_clipboard_query(engine, sid, generation);
                 }
@@ -81,12 +86,14 @@ impl AppServices {
                         surface_id: sid,
                         title,
                         body,
+                        stream_echo: streamed,
                     });
                 }
                 TerminalEventKind::BellRing => {
                     out.push(CoreEvent::TerminalBellRing {
                         generation,
                         surface_id: sid,
+                        stream_echo: streamed,
                     });
                 }
                 TerminalEventKind::TitleChanged(title) => {
@@ -160,6 +167,8 @@ impl AppServices {
                 surface_id: sid,
                 title,
                 body,
+                // client도 같은 OSC 133으로 자기 명령 기록과 한도 알림을 만든다.
+                stream_echo: engine.attach_output_delivered(sid),
             });
         }
     }

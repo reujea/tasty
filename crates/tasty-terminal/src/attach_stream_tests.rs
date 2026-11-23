@@ -244,3 +244,21 @@ fn a_mirror_matches_the_visible_screen_but_not_the_output_ring_or_scrollback() {
     );
     assert_ne!(src.stream, mir.stream);
 }
+
+/// Given 같은 터미널, When 바이트가 attach 스트림에 넘어가기 전·넘어가는 동안·수신자가 닫힌 뒤
+/// 사건을 만든다, Then 그 바이트를 받은 스트림이 있을 때만 사건에 attach 표지가 붙는다.
+#[test]
+fn only_events_from_bytes_an_attach_stream_received_are_marked() {
+    let bell = |terminal: &mut Terminal| {
+        terminal.feed_bytes(b"\x07");
+        let events = terminal.try_take_events().expect("unlocked");
+        assert_eq!(events.len(), 1);
+        events[0].attach_streamed
+    };
+    let mut terminal = Terminal::new_detached(80, 24);
+    assert!(!bell(&mut terminal), "구독 전");
+    let subscription = terminal.snapshot_and_stream();
+    assert!(bell(&mut terminal), "구독 중");
+    drop(subscription);
+    assert!(!bell(&mut terminal), "수신자가 닫힌 뒤");
+}

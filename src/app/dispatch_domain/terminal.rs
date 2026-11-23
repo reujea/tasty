@@ -9,6 +9,7 @@ impl App {
         surface_id: u32,
         title: String,
         body: String,
+        stream_echo: bool,
     ) {
         let Some(DispatchCtx {
             state,
@@ -37,7 +38,7 @@ impl App {
                     body,
                     source: "host".to_string(),
                     merge: crate::app::command::NotificationMerge::Coalesce,
-                    stream_echo: true,
+                    stream_echo,
                 }
                 .from_system(),
             );
@@ -54,7 +55,12 @@ impl App {
         }
     }
 
-    pub(super) fn cascade_terminal_bell_ring(&mut self, source: DispatchSource, surface_id: u32) {
+    pub(super) fn cascade_terminal_bell_ring(
+        &mut self,
+        source: DispatchSource,
+        surface_id: u32,
+        stream_echo: bool,
+    ) {
         let Some(DispatchCtx {
             state,
             mut engine,
@@ -85,7 +91,7 @@ impl App {
                     body: String::new(),
                     source: "host".to_string(),
                     merge: crate::app::command::NotificationMerge::Coalesce,
-                    stream_echo: true,
+                    stream_echo,
                 }
                 .from_system(),
             );

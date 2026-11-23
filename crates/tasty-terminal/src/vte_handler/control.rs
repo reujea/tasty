@@ -45,6 +45,7 @@ impl TerminalState {
                     generation: self.connection.generation(),
                     surface_id: 0,
                     kind: TerminalEventKind::BellRing,
+                    attach_streamed: false,
                 });
                 vec![]
             }

@@ -476,6 +476,7 @@ impl TerminalState {
         self.fan_out_to_taps(data);
 
         let mut changed = false;
+        let first_event = self.events.len();
         let actions = self.parser.parse_as_vec(data);
         for action in actions {
             // Mode 분기의 continue 보다 앞에서 판정해야 동기화 출력 같은 Mode action 도 활동이 된다.
@@ -504,7 +505,11 @@ impl TerminalState {
         if changed {
             self.flush_surface_change_logs();
         }
-        self.fan_out_attach_output(data);
+        if self.fan_out_attach_output(data) {
+            for event in &mut self.events[first_event..] {
+                event.attach_streamed = true;
+            }
+        }
         changed
     }
 
@@ -680,6 +685,7 @@ impl Terminal {
             surface_id: 0,
             generation,
             kind: TerminalEventKind::ProcessExited,
+            attach_streamed: false,
         });
         true
     }

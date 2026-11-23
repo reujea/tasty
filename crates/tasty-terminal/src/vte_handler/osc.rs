@@ -33,6 +33,7 @@ impl TerminalState {
             generation: self.connection.generation(),
             surface_id: 0,
             kind: TerminalEventKind::TitleChanged(title),
+            attach_streamed: false,
         });
     }
 
@@ -76,6 +77,7 @@ impl TerminalState {
                     generation: self.connection.generation(),
                     surface_id: 0,
                     kind: TerminalEventKind::CwdChanged(path),
+                    attach_streamed: false,
                 });
             }
             OperatingSystemCommand::SystemNotification(body) => {
@@ -86,6 +88,7 @@ impl TerminalState {
                         title: "Terminal".to_string(),
                         body,
                     },
+                    attach_streamed: false,
                 });
             }
             OperatingSystemCommand::RxvtExtension(parts) => {
@@ -96,6 +99,7 @@ impl TerminalState {
                         generation: self.connection.generation(),
                         surface_id: 0,
                         kind: TerminalEventKind::Notification { title, body },
+                        attach_streamed: false,
                     });
                 }
             }
@@ -151,6 +155,7 @@ impl TerminalState {
                     generation: self.connection.generation(),
                     surface_id: 0,
                     kind: TerminalEventKind::ClipboardSet(data),
+                    attach_streamed: false,
                 });
             }
             // OSC 52 read query (`OSC 52 ; c ; ? ST`). Emit an event only — the
@@ -163,6 +168,7 @@ impl TerminalState {
                     generation: self.connection.generation(),
                     surface_id: 0,
                     kind: TerminalEventKind::ClipboardQuery,
+                    attach_streamed: false,
                 });
             }
             // termwiz handles standard OSC 133 markers here. Additional tokens can
@@ -183,6 +189,7 @@ impl TerminalState {
                     generation: self.connection.generation(),
                     surface_id: 0,
                     kind: TerminalEventKind::PromptBoundary { phase, payload },
+                    attach_streamed: false,
                 });
             }
             OperatingSystemCommand::Unspecified(params) => {
@@ -215,6 +222,7 @@ impl TerminalState {
                                 generation: self.connection.generation(),
                                 surface_id: 0,
                                 kind: TerminalEventKind::PromptBoundary { phase, payload },
+                                attach_streamed: false,
                             });
                         }
                         return;
@@ -241,6 +249,7 @@ impl TerminalState {
                             generation: self.connection.generation(),
                             surface_id: 0,
                             kind: TerminalEventKind::Notification { title, body },
+                            attach_streamed: false,
                         });
                     }
                 }
@@ -292,6 +301,7 @@ impl TerminalState {
                             generation: self.connection.generation(),
                             surface_id: 0,
                             kind: TerminalEventKind::TitleChanged(title),
+                            attach_streamed: false,
                         });
                     }
                 }
