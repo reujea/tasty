@@ -266,7 +266,6 @@ pub fn draw_search_bar(
     action
 }
 
-/// 카운터가 바뀌어도 옆 버튼을 밀지 않도록 고정 폭에 가운데 정렬한다.
 /// 키 누름 하나가 검색 띠 노드 키맵(find 바인딩)에 맞는지. 본문 읽기(`PopupKeys::consume_keymap_binding`)의
 /// 매처(`consume_binding_egui`)가 지울 사건을 고르는 판정과 같다. 검색 띠가 포커스 노드인지는 부르는 쪽이 본다.
 pub(crate) fn find_keymap_receives(
@@ -278,6 +277,7 @@ pub(crate) fn find_keymap_receives(
     tasty_key_match::binding_matches_egui(find, key, modifiers, super_held)
 }
 
+/// 카운터가 바뀌어도 옆 버튼을 밀지 않도록 고정 폭에 가운데 정렬한다.
 fn draw_counter(ui: &mut egui::Ui, text: &str, color: egui::Color32) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(40.0, ui.available_height()),
