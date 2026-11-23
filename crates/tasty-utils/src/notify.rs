@@ -176,12 +176,13 @@ fn append_line_to(path: &Path, line: &str, cap: u64) -> io::Result<()> {
     record.push_str(line);
     record.push('\n');
     #[cfg(test)]
-    let unlocked_from = _shared.is_none().then(|| unaccounted::peek(path));
+    let unlocked_from = _shared
+        .is_none()
+        .then(|| unaccounted::append_window_open(path));
     let written = file.write_all(record.as_bytes());
     #[cfg(test)]
     if let Some(from) = unlocked_from {
-        let to = unaccounted::peek(path);
-        unaccounted::record_unlocked_append(path, &from, &to, record.len() as u64);
+        unaccounted::record_unlocked_append(path, from, record.len() as u64);
     }
     written
 }
@@ -379,7 +380,8 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
 /// 센다. 동시에 도는 시험은 서로 다른 임시 폴더를 쓰므로 경로로 나누면 섞이지 않는다.
 #[cfg(test)]
 mod unaccounted {
-    use std::collections::HashMap;
+    use std::cell::Cell;
+    use std::collections::{BTreeSet, HashMap};
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, MutexGuard, OnceLock};
 
@@ -406,18 +408,17 @@ mod unaccounted {
         pub(super) meta_update_unchanged: u64,
         /// 공유 잠금 없이 append 경로에 들어간 호출 수.
         pub(super) unlocked_append: u64,
-        /// 그중 배타 비우기의 `truncate_over_cap` 구간과 겹쳐 쓴 바이트가 누계 밖에서 지워졌을
-        /// 수 있는 호출 수와 그 바이트 합.
+        /// 그중 배타 비우기 시도의 손실 구간(`truncate_over_cap`의 길이 측정 ~ 끝)과 시간이 겹친
+        /// 호출 수. 그 시도가 비우기에 성공했는지는 보지 않는다. `take`에서만 채운다.
+        pub(super) unlocked_append_in_window: u64,
+        /// 그중 비우기에 성공한 배타 시도와 겹쳐 쓴 바이트가 누계 밖에서 지워졌을 수 있는 호출
+        /// 수와 그 바이트 합. `take`에서만 채운다.
         pub(super) unlocked_append_overlap: u64,
         pub(super) unlocked_append_overlap_bytes: u64,
         /// 배타 잠금 없이 `truncate_over_cap`을 부른 횟수(시작·끝). reader가 자기 읽기와 겹친
         /// 잠금 없는 비우기 시도를 알아내는 데 쓴다.
         pub(super) lockless_started: u64,
         pub(super) lockless_finished: u64,
-        /// 배타 잠금 아래 `truncate_over_cap`을 부른 횟수(시작·끝). 공유 잠금 없는 append가
-        /// 그 구간과 겹쳤는지 판정하는 데 쓴다.
-        pub(super) locked_started: u64,
-        pub(super) locked_finished: u64,
     }
 
     impl Counts {
@@ -431,67 +432,148 @@ mod unaccounted {
         }
     }
 
-    fn table() -> MutexGuard<'static, HashMap<PathBuf, Counts>> {
-        static TABLE: OnceLock<Mutex<HashMap<PathBuf, Counts>>> = OnceLock::new();
+    /// 공유 잠금 없는 append 한 건. 쓰는 동안 열려 있었거나 시작된 배타 시도의 순번을 담는다.
+    struct UnlockedAppend {
+        bytes: u64,
+        attempts: Vec<usize>,
+    }
+
+    #[derive(Default)]
+    struct State {
+        counts: Counts,
+        /// 배타 비우기 시도마다 비우기에 성공했는가. 순번은 이 목록의 위치다.
+        attempts: Vec<bool>,
+        open: BTreeSet<usize>,
+        appends: Vec<UnlockedAppend>,
+    }
+
+    /// 쓰기 직전에 뜬 배타 시도 상태. `record_unlocked_append`가 쓰기 뒤 상태와 합친다.
+    pub(super) struct AppendWindow {
+        open: Vec<usize>,
+        started: usize,
+    }
+
+    type Hook = Box<dyn FnOnce() + Send>;
+
+    fn table() -> MutexGuard<'static, HashMap<PathBuf, State>> {
+        static TABLE: OnceLock<Mutex<HashMap<PathBuf, State>>> = OnceLock::new();
         TABLE
             .get_or_init(Default::default)
             .lock()
             .expect("시험 계수 잠금")
     }
 
-    fn update(path: &Path, f: impl FnOnce(&mut Counts)) {
-        f(table().entry(path.to_path_buf()).or_default());
+    fn hooks() -> MutexGuard<'static, HashMap<PathBuf, Hook>> {
+        static HOOKS: OnceLock<Mutex<HashMap<PathBuf, Hook>>> = OnceLock::new();
+        HOOKS
+            .get_or_init(Default::default)
+            .lock()
+            .expect("시험 훅 잠금")
+    }
+
+    thread_local! {
+        /// 이 스레드가 지금 배타 잠금 아래 `truncate_over_cap`을 부르는 중인가.
+        /// `truncate_over_cap`은 잠금 여부를 받지 않으므로 바로 앞의 `truncation_begin`이 세운다.
+        static UNDER_EXCLUSIVE: Cell<bool> = const { Cell::new(false) };
+    }
+
+    fn update<T>(path: &Path, f: impl FnOnce(&mut State) -> T) -> T {
+        f(table().entry(path.to_path_buf()).or_default())
     }
 
     pub(super) fn record(path: &Path, cause: Cause) {
-        update(path, |c| match cause {
-            Cause::LockBudget => c.lock_budget += 1,
-            Cause::LockError => c.lock_error += 1,
-            Cause::MetaOpen => c.meta_open += 1,
-            Cause::MetaUpdate => c.meta_update += 1,
-            Cause::MetaUpdateUnchanged => c.meta_update_unchanged += 1,
+        update(path, |s| {
+            let c = &mut s.counts;
+            match cause {
+                Cause::LockBudget => c.lock_budget += 1,
+                Cause::LockError => c.lock_error += 1,
+                Cause::MetaOpen => c.meta_open += 1,
+                Cause::MetaUpdate => c.meta_update += 1,
+                Cause::MetaUpdateUnchanged => c.meta_update_unchanged += 1,
+            }
         });
     }
 
-    /// 공유 잠금 없는 append 한 건을 기록한다. `from`·`to`는 쓰기 호출 직전·직후에 본 계수다.
-    /// 그 사이 배타 비우기 구간이 진행 중이었거나 시작됐으면 겹친 것으로 센다.
+    /// 공유 잠금 없는 쓰기 직전에 부른다.
+    pub(super) fn append_window_open(path: &Path) -> AppendWindow {
+        update(path, |s| AppendWindow {
+            open: s.open.iter().copied().collect(),
+            started: s.attempts.len(),
+        })
+    }
+
+    /// 공유 잠금 없는 append 한 건을 기록한다. `from`은 쓰기 직전에 뜬 상태다. 그때 열려 있던
+    /// 배타 시도와 그 뒤 쓰기 완료까지 시작된 배타 시도를 이 append와 겹친 시도로 남긴다.
+    /// 겹친 시도 중 비우기에 성공한 것이 있는지는 모든 시도가 끝난 뒤 `take`가 판정한다.
     ///
-    /// 겹침 판정은 실제 손실 가능 구간보다 넓다. 배타 쪽 구간은 `truncate_over_cap` 호출 전체라
-    /// 파일 열기와 크기 미달로 끝난 시도까지 들어가고, append 쪽도 `from`을 뜬 뒤 `write_all`을
-    /// 시작하기 전과 쓰기 완료 뒤 `to`를 뜨기 전의 틈이 있다. 그 틈에 끝난 정상 비우기와 시간만
-    /// 겹친 append도 겹친 것으로 세어 하한에서 그 바이트를 뺀다. 이를 길이 측정~`set_len(0)`으로 좁히려면 제품 함수 안에 시험 표지를 더 넣어야
-    /// 해서 넣지 않았다. 그래서 겹친 것으로 센 append의 바이트만큼은, 그것과 무관한 다른 누계 밖
-    /// 손실이 있어도 동등식 하한이 통과시킬 수 있다.
-    pub(super) fn record_unlocked_append(path: &Path, from: &Counts, to: &Counts, bytes: u64) {
-        update(path, |c| {
-            c.unlocked_append += 1;
-            if from.locked_started != from.locked_finished
-                || to.locked_started != from.locked_started
-            {
-                c.unlocked_append_overlap += 1;
-                c.unlocked_append_overlap_bytes += bytes;
-            }
+    /// 겹침 판정은 실제 손실보다 넓다. append 쪽 창은 `from`을 뜬 뒤 `write_all`을 시작하기 전과
+    /// 쓰기 완료 뒤 이 기록 전의 틈을 포함한다. 그래서 성공한 시도와 시간만 겹치고 실제로는 그
+    /// 시도의 길이 측정 전에 끝난 append도 센다. 그 바이트는 `set_len(0)`으로 지워지지만 측정
+    /// 길이에 들어가 누계 갱신이 성공하면 누계 밖 손실이 아니다. 겹친 것으로 센 그런 append의
+    /// 바이트만큼은, 무관한 다른 누계 밖 손실이 있어도 동등식 하한이 통과시킬 수 있다.
+    /// 기준 미달이나 `set_len` 실패로 끝난 시도와만 겹친 append는 세지 않는다.
+    pub(super) fn record_unlocked_append(path: &Path, from: AppendWindow, bytes: u64) {
+        update(path, |s| {
+            s.counts.unlocked_append += 1;
+            let mut attempts = from.open;
+            attempts.extend(from.started..s.attempts.len());
+            s.appends.push(UnlockedAppend { bytes, attempts });
         });
     }
 
     pub(super) fn truncation_begin(path: &Path, lockless: bool) {
-        update(path, |c| {
-            if lockless {
-                c.lockless_started += 1;
-            } else {
-                c.locked_started += 1;
-            }
-        });
+        if lockless {
+            update(path, |s| s.counts.lockless_started += 1);
+        } else {
+            UNDER_EXCLUSIVE.with(|u| u.set(true));
+        }
     }
 
     pub(super) fn truncation_end(path: &Path, lockless: bool) {
-        update(path, |c| {
-            if lockless {
-                c.lockless_finished += 1;
-            } else {
-                c.locked_finished += 1;
-            }
+        if lockless {
+            update(path, |s| s.counts.lockless_finished += 1);
+        } else {
+            UNDER_EXCLUSIVE.with(|u| u.set(false));
+        }
+    }
+
+    /// `truncate_over_cap`이 길이를 재기 직전에 부른다. 배타 잠금 아래 호출이면 시도를 열고
+    /// 순번을 돌려준다. 잠금 없는 호출(과 직접 부른 단위 시험)은 기록하지 않는다.
+    pub(super) fn attempt_begin(path: &Path) -> Option<usize> {
+        if !UNDER_EXCLUSIVE.with(Cell::get) {
+            return None;
+        }
+        Some(update(path, |s| {
+            let seq = s.attempts.len();
+            s.attempts.push(false);
+            s.open.insert(seq);
+            seq
+        }))
+    }
+
+    /// 시도가 끝난 자리(기준 미달, `set_len` 실패, 성공)에서 부른다.
+    pub(super) fn attempt_end(path: &Path, attempt: Option<usize>, succeeded: bool) {
+        let Some(seq) = attempt else {
+            return;
+        };
+        update(path, |s| {
+            s.open.remove(&seq);
+            s.attempts[seq] = succeeded;
         });
+    }
+
+    /// 다음 `truncate_over_cap`이 이 경로의 길이를 잰 직후 `hook`을 한 번 부르게 한다.
+    /// 시험이 손실 구간 안에 다른 쓰기를 끼워 넣는 순서 제어에 쓴다.
+    pub(super) fn on_length_measured(path: &Path, hook: impl FnOnce() + Send + 'static) {
+        hooks().insert(path.to_path_buf(), Box::new(hook));
+    }
+
+    /// 걸어 둔 훅이 있으면 표 잠금 밖에서 부른다.
+    pub(super) fn after_length_measured(path: &Path) {
+        let hook = hooks().remove(path);
+        if let Some(hook) = hook {
+            hook();
+        }
     }
 
     /// 배타 잠금을 쥔 핸들로 메타 내용을 읽는다. 읽지 못하면 None.
@@ -504,12 +586,35 @@ mod unaccounted {
         Some(text)
     }
 
+    /// 지금까지의 계수. 겹침 필드(`unlocked_append_in_window`·`_overlap`·`_overlap_bytes`)는
+    /// 채우지 않는다.
     pub(super) fn peek(path: &Path) -> Counts {
-        table().get(path).copied().unwrap_or_default()
+        table().get(path).map(|s| s.counts).unwrap_or_default()
     }
 
+    /// 계수를 꺼내고 지운다. 모든 writer가 끝난 뒤에 부른다. 그때 열린 배타 시도가 남아 있으면
+    /// 끝 표지가 빠진 것이라 실패한다.
     pub(super) fn take(path: &Path) -> Counts {
-        table().remove(path).unwrap_or_default()
+        let Some(s) = table().remove(path) else {
+            return Counts::default();
+        };
+        assert!(
+            s.open.is_empty(),
+            "끝나지 않은 배타 비우기 시도 {:?} — attempt_end 누락",
+            s.open
+        );
+        let mut c = s.counts;
+        for append in &s.appends {
+            if append.attempts.is_empty() {
+                continue;
+            }
+            c.unlocked_append_in_window += 1;
+            if append.attempts.iter().any(|&seq| s.attempts[seq]) {
+                c.unlocked_append_overlap += 1;
+                c.unlocked_append_overlap_bytes += append.bytes;
+            }
+        }
+        c
     }
 }
 
@@ -549,15 +654,25 @@ fn truncate_over_cap(path: &Path, cap: u64) -> Option<u64> {
     let opened = std::fs::OpenOptions::new().write(true).open(path);
     // 이후 append가 I/O 오류를 반환할 수 있으므로 여기서는 중복 보고하지 않는다.
     let file = opened.ok()?;
+    #[cfg(test)]
+    let attempt = unaccounted::attempt_begin(path);
     let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    #[cfg(test)]
+    unaccounted::after_length_measured(path);
     if len < cap {
+        #[cfg(test)]
+        unaccounted::attempt_end(path, attempt, false);
         return None;
     }
     if let Err(e) = file.set_len(0) {
+        #[cfg(test)]
+        unaccounted::attempt_end(path, attempt, false);
         // 비우기 실패를 기록하되 append는 계속한다. 파일이 기준보다 커질 수 있다.
         tracing::warn!("notify log truncate failed for {}: {e}", path.display());
         return None;
     }
+    #[cfg(test)]
+    unaccounted::attempt_end(path, attempt, true);
     Some(len)
 }
 
@@ -1190,6 +1305,62 @@ mod tests {
                     "받은 {read_bytes} + 잃은 {skipped_bytes} 가 쓴 {written} 보다 크다. 계수 \
                      {c:?}, 버린 읽기 {rejected}"
                 );
+            }
+        }
+    }
+
+    // 공유 잠금 없는 append는 비우기에 성공한 배타 시도와 겹쳤을 때만 동등식 하한에서 빠진다.
+    // 기준 미달로 끝난 시도와만 겹친 append는 시간이 겹쳐도 세지 않는다.
+    #[test]
+    fn an_unlocked_append_counts_as_overlap_only_with_a_truncation_that_succeeded() {
+        const CAP: u64 = 64;
+        let inner = "inner-line";
+        let inner_bytes = inner.len() as u64 + 1;
+        for succeeds in [false, true] {
+            let tmp = tempfile::tempdir().unwrap();
+            let log = tmp.path().join("overlap.log");
+            // 로그 옆 메타 자리를 폴더로 막아 이 로그의 append가 메타를 열지 못해 공유 잠금 없이
+            // 쓰게 한다.
+            std::fs::create_dir(notify_meta_path(&log)).unwrap();
+            // 바깥 비우기는 별도 메타 파일의 배타 잠금 아래 기존 표지를 거친다.
+            let outer_meta_path = tmp.path().join("outer.meta");
+            let outer_meta = open_meta(&outer_meta_path).unwrap();
+            let initial = if succeeds { CAP } else { CAP - 1 };
+            std::fs::write(&log, vec![b'x'; initial as usize]).unwrap();
+            let hook_log = log.clone();
+            unaccounted::on_length_measured(&log, move || {
+                // 바깥 기준보다 큰 기준이라 이 append는 스스로 비우지 않는다.
+                append_line_to(&hook_log, inner, 1 << 20).unwrap();
+            });
+            truncate_and_account(&log, CAP, Some(&outer_meta), &outer_meta_path);
+            let c = unaccounted::take(&log);
+            assert_eq!(
+                (
+                    c.unlocked_append,
+                    c.unlocked_append_in_window,
+                    c.truncations()
+                ),
+                (1, 1, 0),
+                "succeeds={succeeds}: 배타 시도 구간 안의 잠금 없는 append 한 건이어야 한다: {c:?}"
+            );
+            let retention =
+                parse_retention_start(&std::fs::read_to_string(&outer_meta_path).unwrap());
+            let len = std::fs::metadata(&log).unwrap().len();
+            if succeeds {
+                assert_eq!(
+                    (c.unlocked_append_overlap, c.unlocked_append_overlap_bytes),
+                    (1, inner_bytes),
+                    "{c:?}"
+                );
+                // 길이를 잰 뒤에 쓴 줄은 비우기로 사라졌고 누계에는 들지 않았다.
+                assert_eq!((len, retention), (0, CAP));
+            } else {
+                assert_eq!(
+                    (c.unlocked_append_overlap, c.unlocked_append_overlap_bytes),
+                    (0, 0),
+                    "기준 미달로 끝난 시도와만 겹친 append를 셌다: {c:?}"
+                );
+                assert_eq!((len, retention), (initial + inner_bytes, 0));
             }
         }
     }
