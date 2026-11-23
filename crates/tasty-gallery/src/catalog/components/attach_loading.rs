@@ -153,6 +153,10 @@ fn copy_wait(ui: &mut egui::Ui, theme: &Theme) {
             }
         }
     });
+    let show = format!(
+        "at once, no delay or minimum time · response waits keep the {}ms delay",
+        theme.pending_indicator_delay().0
+    );
     spec::meta(
         ui,
         theme,
@@ -161,10 +165,7 @@ fn copy_wait(ui: &mut egui::Ui, theme: &Theme) {
                 "label",
                 "attach.pending.copy · mixed with other waits: attach.pending.one / many",
             ),
-            (
-                "show",
-                "at once, no delay or minimum time · response waits keep the 200 delay",
-            ),
+            ("show", &show),
             (
                 "tooltip",
                 "detail lines in the design Tooltip below the chip, one per kind",
