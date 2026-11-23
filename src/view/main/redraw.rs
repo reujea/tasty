@@ -1403,7 +1403,8 @@ impl MainView {
                 multi,
                 is_empty_target,
                 is_folder,
-                self.explorer_menu_has_clip(engine, surface_id),
+                // 쓸 수 없는 칸은 붙여넣기 행이 이유와 함께 꺼지므로 클립보드를 읽지 않는다.
+                refusal.is_none() && self.explorer_menu_has_clip(engine, surface_id),
                 (is_mirror, refusal.as_deref()),
             ),
         );
@@ -1471,10 +1472,11 @@ impl MainView {
         });
     }
 
-    /// explorer 컨텍스트 메뉴 아이템 목록 구성 (design §3.3). `is_mirror` 면 로컬 fs
-    /// 쓰기 항목(붙여넣기/잘라내기/이름변경/삭제/시스템에서 열기/새탭으로 열기)을
-    /// 숨긴다 — copy_path/복사/즐겨찾기 추가/이 폴더로 루트 설정은 fs 를 쓰지
-    /// 않거나(즐겨찾기 추가는 클릭 시 별도 가드) 안전해 그대로 노출한다.
+    /// explorer 컨텍스트 메뉴 아이템 목록 구성 (design §3.3). 원격 쓰기를 받지 않는 칸(`refusal`)은
+    /// 쓰기 행(붙여넣기/잘라내기/새 항목/이름변경/삭제)을 이유 툴팁과 함께 끈다. 붙여넣을 목록이
+    /// 없으면(`has_clip` 거짓) 붙여넣기 행은 이유 없이 꺼진다. `is_mirror` 면 로컬 전용 행(시스템에서
+    /// 열기/파일 관리자에서 보기/새탭으로 열기)을 숨긴다 — copy_path/복사/즐겨찾기 추가/이 폴더로 루트
+    /// 설정은 fs 를 쓰지 않거나(즐겨찾기 추가는 클릭 시 별도 가드) 안전해 그대로 노출한다.
     fn build_explorer_context_menu(
         multi: bool,
         is_empty_target: bool,
@@ -1487,6 +1489,11 @@ impl MainView {
         let write_row = |id: u32, key: &str| match refusal {
             None => MenuItem::new(id, crate::i18n::t(key)),
             Some(reason) => MenuItem::disabled(id, crate::i18n::t(key)).with_tooltip(reason),
+        };
+        // 붙여넣기 행. 쓰기 거절이 먼저이고, 그 밖에는 붙여넣을 목록이 없으면 이유 없이 꺼진다.
+        let paste_row = |key: &str| match refusal {
+            None if !has_clip => MenuItem::disabled(12, crate::i18n::t(key)),
+            _ => write_row(12, key),
         };
         let copy_path_label = if multi {
             crate::i18n::t("explorer.context_menu.copy_path_multi")
@@ -1521,11 +1528,9 @@ impl MainView {
             ));
         }
         if is_empty_target {
-            // 빈 영역(cwd): 붙여넣기만 (붙여넣을 수 있는 클립보드가 있을 때).
-            if has_clip {
-                items.push(MenuItem::separator());
-                items.push(write_row(12, "explorer.context_menu.paste"));
-            }
+            // 빈 영역(cwd): 붙여넣기. 붙여넣을 수 없어도 행은 남는다.
+            items.push(MenuItem::separator());
+            items.push(paste_row("explorer.context_menu.paste"));
         } else {
             // 파일/폴더/다중: 복사 · 잘라내기. 잘라내기는 쓸 수 없는 원격에서 꺼진다.
             // 원격 클립보드는 출처 workspace 를 함께 적어 다른 곳에 붙여넣지 않는다.
@@ -1534,8 +1539,8 @@ impl MainView {
                 crate::i18n::t("explorer.context_menu.copy_files"),
             ));
             items.push(write_row(11, "explorer.context_menu.cut"));
-            if is_folder && has_clip {
-                items.push(write_row(12, "explorer.context_menu.paste_into"));
+            if is_folder {
+                items.push(paste_row("explorer.context_menu.paste_into"));
             }
             if is_folder {
                 Self::push_explorer_create_items(&mut items, false, refusal);
@@ -2329,22 +2334,64 @@ mod tests {
         items
     }
 
+    /// 붙여넣기 행(12)의 (활성, 툴팁).
+    fn explorer_menu_paste_row(
+        is_empty_target: bool,
+        has_clip: bool,
+        refusal: Option<&str>,
+    ) -> (bool, Option<String>) {
+        let items = super::MainView::build_explorer_context_menu(
+            false,
+            is_empty_target,
+            !is_empty_target,
+            has_clip,
+            (refusal.is_some(), refusal),
+        );
+        let paste = items
+            .iter()
+            .find(|i| i.id == 12)
+            .expect("paste row is kept");
+        (paste.enabled, paste.tooltip.clone())
+    }
+
     #[test]
     fn explorer_menu_empty_no_clip() {
-        // 빈 영역, 클립보드 없음: 새 폴더 · 새 파일 · ─ · 경로복사 · 즐겨찾기추가.
+        // 빈 영역, 붙여넣을 목록 없음: 새 폴더 · 새 파일 · ─ · 경로복사 · 즐겨찾기추가 · ─ · 붙여넣기(꺼짐).
         assert_eq!(
             explorer_menu_shape(false, true, false, false),
-            vec![Some(80), Some(81), None, Some(1), Some(50)]
+            vec![Some(80), Some(81), None, Some(1), Some(50), None, Some(12)]
         );
     }
 
     #[test]
     fn explorer_menu_empty_with_clip() {
-        // 빈 영역, 클립보드 있음: + ─ · 붙여넣기.
+        // 빈 영역, 클립보드 있음: 같은 모양에서 붙여넣기가 켜진다.
         assert_eq!(
             explorer_menu_shape(false, true, false, true),
             vec![Some(80), Some(81), None, Some(1), Some(50), None, Some(12)]
         );
+    }
+
+    #[test]
+    fn explorer_menu_paste_is_disabled_without_a_list_and_explains_a_refused_write() {
+        for is_empty_target in [true, false] {
+            // 로컬: 붙여넣을 목록이 없으면 이유 없이 꺼지고, 있으면 켜진다.
+            assert_eq!(
+                explorer_menu_paste_row(is_empty_target, false, None),
+                (false, None)
+            );
+            assert_eq!(
+                explorer_menu_paste_row(is_empty_target, true, None),
+                (true, None)
+            );
+            // 쓸 수 없는 원격: 목록과 관계없이 거절 이유를 단 꺼진 행이다.
+            for has_clip in [false, true] {
+                assert_eq!(
+                    explorer_menu_paste_row(is_empty_target, has_clip, Some("reason")),
+                    (false, Some("reason".to_owned()))
+                );
+            }
+        }
     }
 
     #[test]
@@ -2369,8 +2416,9 @@ mod tests {
 
     #[test]
     fn explorer_menu_single_folder_no_clip() {
-        // 단일 폴더, 클립보드 없음: 경로복사 · 즐겨찾기 · 새탭 · 루트설정 · 복사 ·
-        // 잘라내기 · ─ · 새 폴더 · 새 파일 · 이름변경 · ─ · 휴지통 · ─ · 시스템열기 · 파일 관리자에서 보기.
+        // 단일 폴더, 붙여넣을 목록 없음: 경로복사 · 즐겨찾기 · 새탭 · 루트설정 · 복사 ·
+        // 잘라내기 · 붙여넣기(꺼짐) · ─ · 새 폴더 · 새 파일 · 이름변경 · ─ · 휴지통 · ─ · 시스템열기 ·
+        // 파일 관리자에서 보기.
         assert_eq!(
             explorer_menu_shape(false, false, true, false),
             vec![
@@ -2380,6 +2428,7 @@ mod tests {
                 Some(61),
                 Some(10),
                 Some(11),
+                Some(12),
                 None,
                 Some(80),
                 Some(81),
@@ -2395,7 +2444,7 @@ mod tests {
 
     #[test]
     fn explorer_menu_single_folder_with_clip() {
-        // 단일 폴더, 클립보드 있음: 위 + 붙여넣기(12, cut/paste 그룹 안).
+        // 단일 폴더, 클립보드 있음: 같은 모양에서 붙여넣기(12, cut/paste 그룹 안)가 켜진다.
         assert_eq!(
             explorer_menu_shape(false, false, true, true),
             vec![
@@ -2434,7 +2483,7 @@ mod tests {
     }
 
     // 쓸 수 없는 mirror explorer 는 파일을 바꾸는 행(붙여넣기/잘라내기/새 폴더/새 파일/이름변경/
-    // 휴지통)을 숨기지 않고 꺼 두며 이유를 툴팁으로 단다. 로컬 전용 행(새탭으로 열기/시스템에서
+    // 휴지통)을 숨기지 않고 꺼 두며 이유를 툴팁으로 단다(붙여넣을 목록 유무와 관계없다). 로컬 전용 행(새탭으로 열기/시스템에서
     // 열기)은 mirror 에서 숨는다. copy_path/복사/즐겨찾기 추가/이 폴더로 루트 설정은 그대로 켜져 있다.
 
     /// mirror 메뉴에서 꺼진 행의 id. 꺼진 행은 모두 같은 이유 툴팁을 단다.

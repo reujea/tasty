@@ -137,7 +137,7 @@ mod tests {
         without_os(&mut b);
         let remote = ExplorerPathSource::Remote { workspace: 7 };
         a.explorer_set_clipboard(vec!["/same/on/both".into()], false, remote);
-        // 다른 창도 원격 출처로 받는다. 로컬 붙여넣기 메뉴는 열리지 않는다.
+        // 다른 창도 원격 출처로 받는다. 로컬 칸의 붙여넣기 행은 꺼진다.
         assert_eq!(b.explorer_clipboard.get().map(|c| c.source), Some(remote));
         assert!(!b.explorer_can_paste());
         // 복사는 흐리게 그리지 않는다.
