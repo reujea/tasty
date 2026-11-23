@@ -222,7 +222,10 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
                 "Force detach",
                 "not on this menu · a saved remote row is a mirror and no other client can hold one, so the item and its separator are left out, not disabled (local workspace menus only)",
             ),
-            ("agent mirror", "today's menu, unchanged"),
+            (
+                "agent mirror",
+                "today's menu, unchanged · no Force detach either",
+            ),
         ],
         &[],
     );
