@@ -73,23 +73,12 @@ impl RequestContext {
             .retain(|id, _| engine.find_pane_by_id(*id).is_some());
     }
 
-    /// 활성 워크스페이스의 각 패널에서 활성 탭에 속한 surface가 목록에 있는지 확인한다.
-    /// 분할된 탭은 모든 leaf가 보인다.
+    /// 목록의 surface 중 하나라도 이 창이 그리는가([`Self::draws_surface`]). 분할된 탭은 모든 leaf가 보인다.
     #[cfg(feature = "gui")]
     pub(crate) fn shows_any_surface(&self, engine: &CoreState, surface_ids: &[u32]) -> bool {
-        if surface_ids.is_empty() {
-            return false;
-        }
-        let Some(ws) = engine.workspace_at(self.active_workspace_index(engine)) else {
-            return false;
-        };
-        let layout = ws.pane_layout();
-        layout.all_pane_ids().into_iter().any(|pane_id| {
-            layout
-                .find_pane(pane_id)
-                .and_then(|pane| self.drawn_tab(pane))
-                .is_some_and(|tab| surface_ids.iter().any(|&sid| tab.contains_surface(sid)))
-        })
+        surface_ids
+            .iter()
+            .any(|&sid| self.draws_surface(engine, sid))
     }
 
     /// pane에서 그리는 탭. 그리는 영역(`surface_regions`), 보이는지 판정, 레이아웃 스윕이 같은 탭을 고른다.
@@ -101,8 +90,21 @@ impl RequestContext {
         pane.tabs.get(self.navigation.tab_index(pane))
     }
 
-    /// 지금 이 창의 레이아웃이 그 surface를 그리는 탭에 두는가. 활성 workspace의 그리는 탭에 있고
-    /// attach 임시 탭이 그 pane을 가리지 않아야 한다. 창의 최소화·무대 여부는 호출자가 따로 본다.
+    /// pane에서 이 탭을 그리는가. pane이 고른 탭이고 attach 임시 탭이 그 pane을 가리지 않아야 한다.
+    /// 레이아웃 스윕(`resize_all`)과 가시성 판정(`draws_surface`)이 이 판정 하나를 쓴다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn draws_tab(
+        &self,
+        engine: &CoreState,
+        pane: &crate::model::Pane,
+        tab: &crate::model::Tab,
+    ) -> bool {
+        self.drawn_tab(pane).is_some_and(|drawn| drawn.id == tab.id)
+            && !self.attach_tab_preview_hides(engine, tab)
+    }
+
+    /// 지금 이 창의 레이아웃이 그 surface를 그리는 탭에 두는가. 활성 workspace에서 [`Self::draws_tab`]인
+    /// 탭에 있어야 한다. 창의 최소화·무대 여부는 호출자가 따로 본다.
     #[cfg(feature = "gui")]
     pub(crate) fn draws_surface(&self, engine: &CoreState, surface_id: u32) -> bool {
         if engine.workspaces().is_empty() {
@@ -110,12 +112,11 @@ impl RequestContext {
         }
         let layout = self.active_workspace(engine).pane_layout();
         layout.all_pane_ids().into_iter().any(|pane_id| {
-            layout
-                .find_pane(pane_id)
-                .and_then(|pane| self.drawn_tab(pane))
-                .is_some_and(|tab| {
-                    tab.contains_surface(surface_id) && !self.attach_tab_preview_hides(engine, tab)
+            layout.find_pane(pane_id).is_some_and(|pane| {
+                pane.tabs.iter().any(|tab| {
+                    tab.contains_surface(surface_id) && self.draws_tab(engine, pane, tab)
                 })
+            })
         })
     }
 

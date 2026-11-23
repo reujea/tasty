@@ -242,13 +242,12 @@ impl RequestContext {
                     width: pane_rect.width,
                     height: (pane_rect.height - self.tab_bar_height).max(PhysicalPx(1.0)),
                 };
-                let drawn_tab = self.drawn_tab(pane).map(|tab| tab.id);
                 for tab in &pane.tabs {
                     if tab.layout_if_initialized().is_none() {
                         continue;
                     }
-                    let drawn = workspace_drawn && drawn_tab == Some(tab.id);
-                    for region in self.tab_surface_regions(engine, tab, content, scale_factor) {
+                    let drawn = workspace_drawn && self.draws_tab(engine, pane, tab);
+                    for region in self.tab_layout_regions(engine, tab, content, scale_factor) {
                         // A draft clips the old grid. Only the committed Delta may resize it.
                         if self.attach_pending.clips_surface(engine, region.id) {
                             continue;

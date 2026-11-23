@@ -294,7 +294,7 @@ impl super::MainViewState {
     }
 
     /// 선택된 attach 임시 탭이 이 탭의 pane을 차지해 이 탭이 그려지지 않는가.
-    /// 그리는 영역(`tab_surface_regions`)과 가시성 판정(`draws_surface`)이 같은 조건을 쓴다.
+    /// 그리는 영역(`tab_surface_regions`)과 가시성 판정(`draws_tab`)이 같은 조건을 쓴다.
     pub(crate) fn attach_tab_preview_hides(
         &self,
         core: &CoreState,
@@ -309,6 +309,7 @@ impl super::MainViewState {
             })
     }
 
+    /// 그리는 영역. attach 임시 탭이 가린 탭은 그리지 않는다.
     pub(crate) fn tab_surface_regions<'a>(
         &self,
         core: &CoreState,
@@ -319,6 +320,17 @@ impl super::MainViewState {
         if self.attach_tab_preview_hides(core, tab) {
             return Vec::new();
         }
+        self.tab_layout_regions(core, tab, rect, scale)
+    }
+
+    /// 탭이 보일 때 차지할 영역. 가려진 탭도 레이아웃 스윕이 목표 크기를 정하도록 영역을 낸다.
+    pub(crate) fn tab_layout_regions<'a>(
+        &self,
+        core: &CoreState,
+        tab: &'a crate::model::Tab,
+        rect: PhysicalRect,
+        scale: f32,
+    ) -> Vec<crate::model::SurfaceRegion<'a>> {
         let mut regions = surface_regions(Some(&self.layout_previews), core, tab, rect, scale);
         let (geometry, _) = self.attach_pending.surface_geometry(
             core,
