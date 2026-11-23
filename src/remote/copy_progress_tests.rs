@@ -197,3 +197,124 @@ fn unanswered_and_broken_writes_fail_once() {
         "사라진 surface는 알리지 않는다"
     );
 }
+
+/// 기준(oracle): 입력 뒤에 BEL 둘을 붙여 vtparse 0.6.2에 먹였을 때, 붙인 바이트에서 나온 첫 OSC dispatch가
+/// OSC 52 쓰기다(첫 파라미터가 `52`이고 셋째 파라미터부터의 데이터가 비지 않았고 질의 `?`가 아니다). 곧 입력이
+/// 끝난 시점에 열려 있는 시퀀스가 OSC 52 쓰기 본문을 받는 중이다. BEL이 둘인 것은 입력 끝의 미완성 UTF-8이
+/// 첫 BEL을 잘못된 문자로 삼켜도 열린 OSC를 끝내기 위해서다.
+fn oracle_receiving(input: &[u8]) -> bool {
+    #[derive(Default)]
+    struct Oscs(Vec<Vec<Vec<u8>>>);
+    impl vtparse::VTActor for Oscs {
+        fn print(&mut self, _: char) {}
+        fn execute_c0_or_c1(&mut self, _: u8) {}
+        fn dcs_hook(&mut self, _: u8, _: &[i64], _: &[u8], _: bool) {}
+        fn dcs_put(&mut self, _: u8) {}
+        fn dcs_unhook(&mut self) {}
+        fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {}
+        fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {}
+        fn osc_dispatch(&mut self, params: &[&[u8]]) {
+            self.0.push(params.iter().map(|p| p.to_vec()).collect());
+        }
+        fn apc_dispatch(&mut self, _: Vec<u8>) {}
+    }
+    let mut parser = vtparse::VTParser::new();
+    let mut oscs = Oscs::default();
+    parser.parse(input, &mut oscs);
+    let before = oscs.0.len();
+    parser.parse(b"\x07\x07", &mut oscs);
+    let Some(params) = oscs.0.get(before) else {
+        return false;
+    };
+    if params.len() < 3 || params[0] != b"52" {
+        return false;
+    }
+    let data = params[2..].join(&b';');
+    !data.is_empty() && data != b"?"
+}
+
+fn tracker_receiving(input: &[u8]) -> bool {
+    let mut progress = CopyProgress::default();
+    progress.feed(SID, input, at(0));
+    progress
+        .surfaces
+        .get(&SID)
+        .is_some_and(|scan| scan.receiving.is_some())
+}
+
+/// 경계 바이트와 짧은 조각. `52;`·`c;`처럼 묶은 것은 짧은 길이로도 쓰기의 머리가 생기게 하려는 것이다.
+const TOKENS: [&[u8]; 14] = [
+    b"\x1b", b"\x1b]", b"]", b"\x9b", b"\x9d", b"\x9c", b"\x07", b"\\", b"52;", b"c;", b"0;",
+    b"1;", b"\xe4", b"a",
+];
+
+fn mismatches(inputs: impl Iterator<Item = Vec<u8>>) -> Vec<String> {
+    inputs
+        .filter(|input| oracle_receiving(input) != tracker_receiving(input))
+        .take(8)
+        .map(|input| {
+            format!(
+                "{input:02x?} 기준={} 추적기={}",
+                oracle_receiving(&input),
+                tracker_receiving(&input)
+            )
+        })
+        .collect()
+}
+
+/// 지적된 경계 입력과 기준이 정한 값. 차등 비교에도 같은 입력을 넣는다.
+const NAMED: [(&[u8], bool); 5] = [
+    (b"\x1b]\x9b1;\x1b]52;c;aGk=", true),
+    (b"\x1b]0;t\x9b\x9d0;u\xe4\x1b]52;c;aGk=", false),
+    // OSC 문자열 안의 0x9d는 vtparse에서 같은 상태로 가는 전이라 아무것도 하지 않는다. 새 OSC가 아니다.
+    (b"\x1b]0;t\x9d52;c;aGk=", false),
+    (b"\x1b]0;t\x9b1;\x1b]52;c;aGk=", true),
+    (b"\x1b]0;t\xe4\x1b]52;c;aGk=", false),
+];
+
+/// Given 경계 바이트로 만든 입력, When 추적기와 vtparse 기준(`oracle_receiving`)이 입력 끝에 쓰기 본문을
+/// 받는 중인지 판정한다, Then 모든 입력에서 같다. 토큰 5개까지는 전수, 6~12개는 고정 시드 무작위다.
+#[test]
+fn receiving_matches_vtparse_on_boundary_inputs() {
+    for (input, expected) in NAMED {
+        assert_eq!(oracle_receiving(input), expected, "기준 {input:02x?}");
+    }
+    let named = NAMED.iter().map(|(input, _)| input.to_vec());
+    assert_eq!(mismatches(named), Vec::<String>::new());
+
+    let mut exhaustive = Vec::new();
+    let mut frontier = vec![Vec::<u8>::new()];
+    for _ in 0..5 {
+        frontier = frontier
+            .iter()
+            .flat_map(|prefix| {
+                TOKENS.iter().map(move |token| {
+                    let mut next = prefix.clone();
+                    next.extend_from_slice(token);
+                    next
+                })
+            })
+            .collect();
+        exhaustive.extend(frontier.iter().cloned());
+    }
+    assert_eq!(mismatches(exhaustive.into_iter()), Vec::<String>::new());
+
+    let mut state: u64 = 0x5eed_c0de;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    let random = (0..200_000).map(|_| {
+        let len = 6 + (next() % 7) as usize;
+        (0..len)
+            .flat_map(|_| {
+                TOKENS[(next() % TOKENS.len() as u64) as usize]
+                    .iter()
+                    .copied()
+            })
+            .collect::<Vec<u8>>()
+    });
+    assert_eq!(mismatches(random), Vec::<String>::new());
+}

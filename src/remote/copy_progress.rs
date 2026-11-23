@@ -10,9 +10,13 @@
 //! 것부터 하나씩 닫힌다. termwiz가 받지 않은 시퀀스(잘못된 base64 등)는 끝나는 즉시 실패다. 질의·
 //! 지우기나 다른 OSC로 끝나면(앞머리 관측이 쓰기로 잘못 본 경우) 실패 없이 접수만 거둔다.
 //!
-//! 앞머리 판정은 원시 바이트를 본다. vtparse가 OSC 안에서 무시하는 C0 바이트는 건너뛰지만 그 밖의
-//! 정규화 차이로 접수를 놓치면 진행 표시만 빠지고 기록·토스트는 그대로다. vtparse의 OSC 버퍼는 본문
-//! 크기만큼 자라고 surface 상태를 지울 때 해제된다.
+//! 열린 시퀀스가 OSC 52 쓰기인지는 마지막 기준점 뒤의 바이트(머리)를 새 `vtparse`에 다시 먹여 정한다.
+//! 기준점은 파서가 ground로 돌아간 바이트와 무언가를 dispatch한 바이트다. 기준점에서 파서가 가는 상태는
+//! ground의 새 파서가 그 바이트를 받은 상태와 같다(그 바이트는 ground이거나 어느 상태에서나 같은 전이를
+//! 하는 ESC·C1이다). 그래서 머리 판정은 파서 상태를 바이트별로 흉내 내지 않고 파서 자체의 판정이 된다.
+//! 머리가 `HEAD_LIMIT`을 넘도록 정하지 못하면 다음 기준점까지 보지 않는다(긴 SOS·PM·DCS 문자열 뒤 dispatch
+//! 없이 시작한 쓰기는 진행 표시만 빠지고 기록·토스트는 그대로다). vtparse의 OSC 버퍼는 본문 크기만큼 자라고
+//! surface 상태를 지울 때 해제된다.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
@@ -20,8 +24,6 @@ use termwiz::escape::osc::OperatingSystemCommand;
 
 /// OSC 52 머리(도입자·`52;`·선택 인자·`;`·데이터 첫 두 바이트)를 판정하기에 충분한 길이.
 const HEAD_LIMIT: usize = 64;
-/// OSC 도입자. ESC `]`, C1, UTF-8로 쓴 C1.
-const OSC_INTRODUCERS: [&[u8]; 3] = [b"\x1b]", b"\x9d", b"\xc2\x9d"];
 
 #[derive(Default)]
 pub(crate) struct CopyProgress {
@@ -32,12 +34,10 @@ pub(crate) struct CopyProgress {
 
 struct SurfaceScan {
     parser: vtparse::VTParser,
-    head: Head,
+    /// 마지막 기준점 뒤의 바이트. 쓰기로 정했거나 한도를 넘으면 다음 기준점까지 `None`이다.
+    head: Option<Vec<u8>>,
     /// 본문을 받는 중인 쓰기의 접수 시각.
     receiving: Option<Instant>,
-    /// 지금 시퀀스가 OSC 문자열이다. 이 안의 ESC는 OSC를 끝낼 때만(그 바이트에서 dispatch가 온다)
-    /// 새 시퀀스의 머리다. dispatch 없이 지나간 ESC는 파서가 잘못된 UTF-8로 삼킨 것이다.
-    in_osc: bool,
     /// 끝났고 client 기록 결과를 기다리는 쓰기의 접수 시각. 바이트 순서다.
     awaiting: VecDeque<Instant>,
 }
@@ -46,73 +46,10 @@ impl Default for SurfaceScan {
     fn default() -> Self {
         Self {
             parser: vtparse::VTParser::new(),
-            head: Head::Idle,
+            head: Some(Vec::new()),
             receiving: None,
-            in_osc: false,
             awaiting: VecDeque::new(),
         }
-    }
-}
-
-enum Head {
-    /// 파서가 ground에 있다.
-    Idle,
-    /// ground를 떠난 뒤의 바이트. 아직 OSC 52 쓰기인지 모른다.
-    Collect(Vec<u8>),
-    /// OSC 52 쓰기 본문을 받는 중이거나, 다른 시퀀스라 끝날 때까지 볼 것이 없다.
-    Decided,
-}
-
-enum Verdict {
-    Undecided,
-    Copy,
-    Other,
-}
-
-/// vtparse가 OSC 문자열 안에서 버리는 C0. BEL·CAN·SUB·ESC는 시퀀스를 끝내므로 남긴다.
-fn ignored_in_osc(byte: u8) -> bool {
-    byte < 0x20 && !matches!(byte, 0x07 | 0x18 | 0x1a | 0x1b)
-}
-
-/// 도입자 뒤가 `52;<선택>;<데이터>`이고 데이터가 질의 `?` 하나가 아님이 확정됐는지.
-fn classify(raw: &[u8]) -> Verdict {
-    let mut head = Vec::with_capacity(raw.len());
-    for (index, &byte) in raw.iter().enumerate() {
-        // 도입자의 ESC는 남기고 그 뒤 OSC 안의 무시 바이트만 버린다.
-        if index > 0 && ignored_in_osc(byte) {
-            continue;
-        }
-        head.push(byte);
-    }
-    let head = head.as_slice();
-    let Some(rest) = OSC_INTRODUCERS
-        .iter()
-        .find_map(|intro| head.strip_prefix(*intro))
-    else {
-        return if OSC_INTRODUCERS.iter().any(|intro| intro.starts_with(head)) {
-            Verdict::Undecided
-        } else {
-            Verdict::Other
-        };
-    };
-    let command = b"52;";
-    if rest.len() < command.len() {
-        return if command.starts_with(rest) {
-            Verdict::Undecided
-        } else {
-            Verdict::Other
-        };
-    }
-    if !rest.starts_with(command) {
-        return Verdict::Other;
-    }
-    let after = &rest[command.len()..];
-    let Some(split) = after.iter().position(|&b| b == b';') else {
-        return Verdict::Undecided;
-    };
-    match &after[split + 1..] {
-        [] | [b'?'] => Verdict::Undecided,
-        _ => Verdict::Copy,
     }
 }
 
@@ -123,35 +60,82 @@ enum Ended {
     NotWrite,
     /// termwiz가 받지 않았다(잘못된 base64 등).
     Invalid,
-    /// OSC 52가 아닌 OSC. 머리 판정이 이것을 쓰기로 봤다면(파서가 ESC를 문자열 바이트로 삼킨 경우 등)
-    /// 실패 없이 접수만 거둔다.
+    /// OSC 52가 아닌 OSC.
     Other,
 }
 
+/// 파서가 낸 OSC 끝과, 이 바이트가 기준점인지(무언가를 dispatch했는지).
 #[derive(Default)]
-struct Dispatches(Vec<Ended>);
+struct Dispatches {
+    ends: Vec<Ended>,
+    dispatched: bool,
+}
 
 impl vtparse::VTActor for Dispatches {
     fn print(&mut self, _: char) {}
     fn execute_c0_or_c1(&mut self, _: u8) {}
     fn dcs_hook(&mut self, _: u8, _: &[i64], _: &[u8], _: bool) {}
     fn dcs_put(&mut self, _: u8) {}
-    fn dcs_unhook(&mut self) {}
-    fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {}
-    fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {}
-    fn osc_dispatch(&mut self, params: &[&[u8]]) {
-        if params.first() != Some(&b"52".as_slice()) {
-            self.0.push(Ended::Other);
-            return;
-        }
-        self.0.push(match OperatingSystemCommand::parse(params) {
-            OperatingSystemCommand::SetSelection(..) => Ended::Write,
-            OperatingSystemCommand::QuerySelection(..)
-            | OperatingSystemCommand::ClearSelection(..) => Ended::NotWrite,
-            _ => Ended::Invalid,
-        });
+    fn dcs_unhook(&mut self) {
+        self.dispatched = true;
     }
-    fn apc_dispatch(&mut self, _: Vec<u8>) {}
+    fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {
+        self.dispatched = true;
+    }
+    fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {
+        self.dispatched = true;
+    }
+    fn osc_dispatch(&mut self, params: &[&[u8]]) {
+        self.dispatched = true;
+        self.ends.push(ended_osc(params));
+    }
+    fn apc_dispatch(&mut self, _: Vec<u8>) {
+        self.dispatched = true;
+    }
+}
+
+fn ended_osc(params: &[&[u8]]) -> Ended {
+    if params.first() != Some(&b"52".as_slice()) {
+        return Ended::Other;
+    }
+    match OperatingSystemCommand::parse(params) {
+        OperatingSystemCommand::SetSelection(..) => Ended::Write,
+        OperatingSystemCommand::QuerySelection(..) | OperatingSystemCommand::ClearSelection(..) => {
+            Ended::NotWrite
+        }
+        _ => Ended::Invalid,
+    }
+}
+
+/// 기준점 뒤 `head`로 열린 시퀀스가 OSC 52 쓰기 본문을 받는 중인지. 새 파서에 `head`와 BEL 둘을 먹여 끝난
+/// OSC가 `52;<선택>;<데이터>`이고 데이터가 비지 않았으며 질의 `?`가 아닌지 본다. BEL이 둘인 것은 머리 끝의
+/// 미완성 UTF-8이 첫 BEL을 삼켜도 OSC를 끝내기 위해서다.
+fn opens_write(head: &[u8]) -> bool {
+    #[derive(Default)]
+    struct Write(Option<bool>);
+    impl vtparse::VTActor for Write {
+        fn print(&mut self, _: char) {}
+        fn execute_c0_or_c1(&mut self, _: u8) {}
+        fn dcs_hook(&mut self, _: u8, _: &[i64], _: &[u8], _: bool) {}
+        fn dcs_put(&mut self, _: u8) {}
+        fn dcs_unhook(&mut self) {}
+        fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {}
+        fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {}
+        fn osc_dispatch(&mut self, params: &[&[u8]]) {
+            let data = params.get(2..).map(|data| data.join(&b';'));
+            self.0.get_or_insert(
+                params.first() == Some(&b"52".as_slice())
+                    && data.is_some_and(|data| !data.is_empty() && data != b"?"),
+            );
+        }
+        fn apc_dispatch(&mut self, _: Vec<u8>) {}
+    }
+    let mut parser = vtparse::VTParser::new();
+    // 머리 안에서 끝난 OSC는 없다(끝난 바이트가 기준점이다). 그래도 덧붙인 바이트의 첫 OSC만 본다.
+    parser.parse(head, &mut Write::default());
+    let mut write = Write::default();
+    parser.parse(b"\x07\x07", &mut write);
+    write.0 == Some(true)
 }
 
 impl CopyProgress {
@@ -159,18 +143,10 @@ impl CopyProgress {
     pub(crate) fn feed(&mut self, surface: u32, bytes: &[u8], now: Instant) {
         let Self { surfaces, failures } = self;
         let scan = surfaces.entry(surface).or_default();
-        let mut ended = Dispatches::default();
+        let mut step = Dispatches::default();
         for &byte in bytes {
-            let was_ground = scan.parser.is_ground();
-            scan.parser.parse_byte(byte, &mut ended);
-            // ESC는 새 이스케이프를 시작하고, 앞 시퀀스(OSC 52가 아니어도)를 끝낸 ESC도 다음 시퀀스의
-            // 머리다. OSC 문자열 안에서는 OSC를 끝낸 ESC만 그렇다. OSC는 dispatch된 바이트(C1 CSI
-            // 같은 다른 도입자 포함)에서 끝난다.
-            let restarted = byte == 0x1b && (!scan.in_osc || !ended.0.is_empty());
-            if !ended.0.is_empty() {
-                scan.in_osc = false;
-            }
-            for end in ended.0.drain(..) {
+            scan.parser.parse_byte(byte, &mut step);
+            for end in step.ends.drain(..) {
                 let receiving = scan.receiving.take();
                 match end {
                     Ended::Write => scan.awaiting.push_back(receiving.unwrap_or(now)),
@@ -178,35 +154,24 @@ impl CopyProgress {
                     Ended::Invalid | Ended::NotWrite | Ended::Other => {}
                 }
             }
+            let dispatched = std::mem::take(&mut step.dispatched);
             if scan.parser.is_ground() {
-                scan.head = Head::Idle;
-                scan.in_osc = false;
+                scan.head = Some(Vec::new());
                 continue;
             }
-            if restarted {
-                scan.head = Head::Collect(vec![byte]);
-                scan.in_osc = false;
-                continue;
+            if dispatched {
+                scan.head = Some(vec![byte]);
+            } else if let Some(head) = &mut scan.head {
+                head.push(byte);
             }
-            match &mut scan.head {
-                Head::Idle if was_ground => scan.head = Head::Collect(vec![byte]),
-                Head::Idle => scan.head = Head::Decided,
-                Head::Collect(head) => {
-                    head.push(byte);
-                    scan.in_osc |= OSC_INTRODUCERS.iter().any(|intro| head.starts_with(intro));
-                    match classify(head) {
-                        Verdict::Copy => {
-                            scan.receiving.get_or_insert(now);
-                            scan.head = Head::Decided;
-                        }
-                        Verdict::Other => scan.head = Head::Decided,
-                        Verdict::Undecided if head.len() >= HEAD_LIMIT => {
-                            scan.head = Head::Decided;
-                        }
-                        Verdict::Undecided => {}
-                    }
-                }
-                Head::Decided => {}
+            let Some(head) = &scan.head else {
+                continue;
+            };
+            if opens_write(head) {
+                scan.receiving.get_or_insert(now);
+                scan.head = None;
+            } else if head.len() >= HEAD_LIMIT {
+                scan.head = None;
             }
         }
         if scan.receiving.is_none() && scan.awaiting.is_empty() && scan.parser.is_ground() {
@@ -245,8 +210,7 @@ impl CopyProgress {
             self.failures.push(surface);
         }
         scan.parser = vtparse::VTParser::new();
-        scan.head = Head::Idle;
-        scan.in_osc = false;
+        scan.head = Some(Vec::new());
         self.forget_if_idle(surface);
     }
 
