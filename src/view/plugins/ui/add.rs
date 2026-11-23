@@ -315,9 +315,10 @@ fn try_validate_path(ui_state: &mut PluginsUiState, snapshot: &PluginsSnapshot) 
         Err(e) => Err(AddError::Read(e.to_string())),
         Ok(m) => m
             .validate()
+            .and_then(|()| m.require_host_tasty())
             .and_then(|()| crate::plugin_bridge::manifest_validate::validate_bin_extras(&m))
             .map(|()| m)
-            .map_err(|e| AddError::Invalid(e.to_string())),
+            .map_err(|e| AddError::Invalid(tasty_host_plugin::manifest_error::describe(&e))),
     };
     match checked {
         Ok(manifest) => {

@@ -39,7 +39,7 @@ pub fn discover_plugins(plugins_root: &Path) -> DiscoveredPlugins {
     dirs.sort();
     let mut manifests = Vec::new();
     for dir in dirs {
-        match Manifest::load(&dir) {
+        match Manifest::load(&dir).and_then(|m| m.require_host_tasty().map(|()| m)) {
             Ok(manifest) => manifests.push((dir, manifest)),
             Err(e) => {
                 crate::out::errln!(
@@ -47,7 +47,7 @@ pub fn discover_plugins(plugins_root: &Path) -> DiscoveredPlugins {
                     tasty_i18n::t_fmt2(
                         "cli.plugin_cli.manifest_skipped",
                         &dir.display().to_string(),
-                        &e.to_string()
+                        &tasty_host_plugin::manifest_error::describe(&e)
                     )
                 );
             }

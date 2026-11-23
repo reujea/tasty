@@ -110,6 +110,10 @@ impl InstallRequest {
         }
         let manifest =
             Manifest::load(&self.source).map_err(|_| anyhow::anyhow!("invalid plugin manifest"))?;
+        // 폴더·신뢰 DB를 쓰기 전에 거절한다. 사유에 요구 버전과 현재 버전을 담는다.
+        manifest
+            .require_host_tasty()
+            .map_err(|e| anyhow::anyhow!("{}", tasty_host_plugin::manifest_error::describe(&e)))?;
         crate::plugin_bridge::manifest_validate::validate_bin_extras(&manifest)?;
         let dir = if self.copy {
             self.root.join(&manifest.id)

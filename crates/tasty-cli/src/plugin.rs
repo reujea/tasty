@@ -118,12 +118,18 @@ pub fn run_plugin_doctor(plugin_id: &str) -> Result<()> {
     }
     // Manifest::load의 공용 스키마 검사만 수행한다. 호스트의 bin extras 검증은
     // 설치·제거 IPC 경로가 담당하므로 이 명령의 성공이 그 검증까지 보장하지 않는다.
-    let manifest = Manifest::load(&plugin_dir).map_err(|e| {
-        anyhow::anyhow!(
-            "{}",
-            tasty_i18n::t_fmt2("cli.plugin.manifest_load_failed", plugin_id, &e.to_string())
-        )
-    })?;
+    let manifest = Manifest::load(&plugin_dir)
+        .and_then(|m| m.require_host_tasty().map(|()| m))
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "{}",
+                tasty_i18n::t_fmt2(
+                    "cli.plugin.manifest_load_failed",
+                    plugin_id,
+                    &tasty_host_plugin::manifest_error::describe(&e)
+                )
+            )
+        })?;
 
     outln!(
         "{}",

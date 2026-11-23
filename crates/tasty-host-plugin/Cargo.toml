@@ -15,6 +15,8 @@ tracing = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "io-util"] }
 tasty-ipc = { path = "../tasty-ipc" }
 tasty-plugin-manifest = { path = "../tasty-plugin-manifest" }
+# 매니페스트 거절 사유를 현재 언어로 보인다(manifest_error).
+tasty-i18n = { path = "../tasty-i18n" }
 tasty-plugin-protocol = { path = "../tasty-plugin-protocol" }
 tasty-shm = { path = "../tasty-shm" }
 tasty-utils = { path = "../tasty-utils" }
@@ -48,7 +50,6 @@ wasm-poc = []
 test-support = []
 
 [dev-dependencies]
-tasty-i18n = { path = "../tasty-i18n" }
 tasty-plugin-sdk = { path = "../tasty-plugin-sdk" }
 tempfile = "3"
 # 번들 동기화 로그의 레벨을 검사한다.

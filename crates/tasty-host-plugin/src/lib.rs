@@ -18,6 +18,7 @@ pub mod keybinding_bundle;
 pub mod known_plugins;
 pub mod listener;
 pub mod manager;
+pub mod manifest_error;
 pub mod official;
 pub mod process;
 pub mod protocol;

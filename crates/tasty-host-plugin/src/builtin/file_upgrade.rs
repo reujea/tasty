@@ -139,6 +139,13 @@ fn plan_entry(
     if let Err(item) = verify_trust(spec, &source, &dest, known) {
         return Entry::Done(item);
     }
+    // 파일 교체·프로세스 종료 전에 거절한다.
+    if let Some(reason) = super::min_version::refusal_reason(&source) {
+        return Entry::Done(BuiltinUpgradeItem {
+            id: spec.id.into(),
+            action: BuiltinUpgradeAction::Failed { reason },
+        });
+    }
     let installed = read_installed_version(&dest);
     let version = read_bundle_version(&source);
     let new_version = version.as_ref().map(|v| v.to_string()).unwrap_or_default();
@@ -294,6 +301,9 @@ fn validate_prepared(write: &Write, copied: &Path) -> std::io::Result<Manifest> 
         .ok_or_else(|| std::io::Error::other("prepared builtin identity unavailable"))?;
     let manifest = Manifest::load(copied)
         .map_err(|_| std::io::Error::other("prepared builtin manifest unavailable"))?;
+    manifest
+        .require_host_tasty()
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     if manifest.id != write.id {
         return Err(std::io::Error::other("prepared builtin identity changed"));
     }
