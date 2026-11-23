@@ -36,12 +36,12 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     let cut = squeeze(&fn_body(&src, "fn cut_input_segment(").expect("cut_input_segment"));
     at(
         &cut,
-        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return0,",
+        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return,",
         "끊을 사건",
     );
     at(
         &cut,
-        "letcuts=self.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming);for_in0..cuts{self.base.gpu.cut_egui_input_here();}cuts",
+        "letcuts=self.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming);for_in0..cuts{self.base.gpu.cut_egui_input_here();}",
         "입력 끊기",
     );
     // 단계 순서는 E0 함수(`run_key_event`)가 정하고, 단계마다 메인 창이 부르는 함수는 `MainKeySteps`에 있다.
@@ -67,17 +67,30 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     );
     let steps = read("src/view/main/key_event_steps.rs");
     let step = |name: &str| squeeze(&fn_body(&steps, name).unwrap_or_else(|| panic!("{name}")));
-    let settle = step("fn settle_key_node(");
+    // 단계 3~5 는 사건마다 한 번이다. App 이 plugin 단축키 단계 앞에서 정했으면(`ViewCtx::key_settled`) 창은 그 결과를
+    // 읽고, 아니면 같은 함수(`MainView::settle_key_event`)로 정한다. 그 함수는 정규화 → 끊기 → 수신자 순서다.
+    at(
+        &step("fn settle_key_node("),
+        "if!self.key_settled{self.view.settle_key_event(self.engine,event);}",
+        "단계 3~5 한 번",
+    );
+    let settle = squeeze(&fn_body(&src, "fn settle_key_event(").expect("settle_key_event"));
     let normalize = at(
         &settle,
-        "self.view.normalize_focus_on_key(self.engine,event);",
+        "self.normalize_focus_on_key(engine,event);",
         "키의 정규화",
     );
     let cut_at = at(
         &settle,
-        "ifself.view.cut_input_segment(self.engine,event)>0{self.view.decide_key_receiver(self.engine,event);}",
-        "입력 끊기 호출과 새 몫의 수신자 다시 정하기",
+        "self.cut_input_segment(engine,event);",
+        "입력 끊기",
     );
+    let decide = at(
+        &settle,
+        "self.decide_key_receiver(engine,event);",
+        "끊긴 몫의 수신자",
+    );
+    assert!(cut_at < decide, "끊기 → 수신자 순서가 아니다");
     at(
         &step("fn intercepts_after_edit_judgment("),
         "self.view.route_tutorial_input(event)",
@@ -545,13 +558,43 @@ fn a_debug_clipboard_injection_into_a_main_window_cuts_the_segment_first() {
 fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     let src = read("src/app/edit_key_replay.rs");
     let route = squeeze(&fn_body(&src, "fn route_window_input(").expect("route_window_input"));
+    // 키 사건의 출발 노드는 plugin 단축키 단계 앞에서 한 번 정하고(`settle_window_key` → `MainView::settle_key_event`),
+    // 창 view 는 그 사실을 받아 다시 정하지 않는다. 동작은 `app::plugin_glue::shortcut::state_tests` 의
+    // `a_key_after_a_bare_escape_on_the_search_bar_runs_its_plugin_global_command` 가 App 입구 순서로 잰다.
+    let settle = at(
+        &route,
+        "letsettled=self.settle_window_key(id,&event);",
+        "plugin 단계 앞 출발 노드",
+    );
     let plugin = at(
         &route,
         "&&self.try_plugin_shortcut(id,ke){self.apply_user_focus_opens(id);return;}",
         "plugin 단축키 뒤 즉시 처리",
     );
-    let view = at(&route, "self.dispatch_key_to_view(id,event);", "view 처리");
-    assert!(plugin < view, "plugin 단축키 → view 순서가 아니다");
+    let view = at(
+        &route,
+        "self.dispatch_key_to_view(id,event,settled);",
+        "view 처리",
+    );
+    assert!(
+        settle < plugin && plugin < view,
+        "출발 노드 → plugin 단축키 → view 순서가 아니다"
+    );
+    at(
+        &squeeze(&fn_body(&src, "fn settle_window_key(").expect("settle_window_key")),
+        "main.settle_key_event(&engine.read(),event);true",
+        "메인 창의 단계 3~5",
+    );
+    // plugin 단계는 출발 노드를 다시 정하지 않는다(정규화는 호출자 몫).
+    assert!(
+        !fn_body(
+            &read("src/app/plugin_glue/shortcut.rs"),
+            "fn plugin_shortcut_in_window("
+        )
+        .expect("plugin_shortcut_in_window")
+        .contains("normalize_focus"),
+        "plugin 단계가 출발 노드를 다시 정한다"
+    );
     let to_view =
         squeeze(&fn_body(&src, "fn dispatch_key_to_view(").expect("dispatch_key_to_view"));
     let key = at(
@@ -561,7 +604,7 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     );
     let dispatch = at(
         &to_view,
-        "self.dispatch_window_event_to_view(id,event);",
+        "self.dispatch_window_event_to_view(id,event,key_settled);",
         "view 넘김",
     );
     let apply = at(
@@ -576,7 +619,7 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     let replay = squeeze(&fn_body(&src, "fn replay_edit_steps(").expect("replay_edit_steps"));
     assert_eq!(
         replay
-            .matches("self.dispatch_key_to_view(id,event);")
+            .matches("self.dispatch_key_to_view(id,event,false);")
             .count(),
         2,
         "편집 보류 재생의 원래 키·view 갈래가 즉시 처리를 거치지 않는다"

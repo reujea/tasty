@@ -95,7 +95,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
     );
     let view = only_at(
         body,
-        "self.dispatch_key_to_view(id, event);",
+        "self.dispatch_key_to_view(id, event, settled);",
         "View 이벤트 전달",
     );
     assert!(
@@ -110,7 +110,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
         .expect("dispatch_key_to_view body end")];
     only_at(
         to_view_body,
-        "self.dispatch_window_event_to_view(id, event);",
+        "self.dispatch_window_event_to_view(id, event, key_settled);",
         "View 전달 함수의 View 이벤트 전달",
     );
 
@@ -126,7 +126,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
     );
     assert_eq!(
         route_src
-            .matches("self.dispatch_key_to_view(id, event);")
+            .matches("self.dispatch_key_to_view(id, event")
             .count(),
         3,
         "dispatch_key_to_view 호출이 route_window_input 의 View 전달과 재생 두 갈래가 아니다"
@@ -142,7 +142,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
         .expect("replay_edit_steps body end")];
     assert_eq!(
         replay_body
-            .matches("self.dispatch_key_to_view(id, event);")
+            .matches("self.dispatch_key_to_view(id, event, false);")
             .count(),
         2,
         "재생의 Original·View 갈래가 dispatch_key_to_view 로 넘기지 않는다"

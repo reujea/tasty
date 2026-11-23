@@ -14,6 +14,8 @@ pub(super) struct MainKeySteps<'a, 'e> {
     view: &'a mut MainView,
     engine: &'a EngineRead<'e>,
     modal_active: bool,
+    /// App 이 이 사건의 출발 노드를 이미 정했는지(`ViewCtx::key_settled`).
+    key_settled: bool,
     menu_dismiss_swallow: bool,
     os_resize_press: bool,
 }
@@ -23,11 +25,13 @@ impl<'a, 'e> MainKeySteps<'a, 'e> {
         view: &'a mut MainView,
         engine: &'a EngineRead<'e>,
         modal_active: bool,
+        key_settled: bool,
     ) -> Self {
         Self {
             view,
             engine,
             modal_active,
+            key_settled,
             menu_dismiss_swallow: false,
             os_resize_press: false,
         }
@@ -48,11 +52,8 @@ impl KeyEventSteps<WindowEvent> for MainKeySteps<'_, '_> {
     }
 
     fn settle_key_node(&mut self, event: &WindowEvent) {
-        self.view.normalize_focus_on_key(self.engine, event);
-        self.view.decide_key_receiver(self.engine, event);
-        // 끊었으면 이 사건은 새 몫의 첫 사건이다. 끊은 몫의 결속은 새 몫의 판정에 쓰지 않으므로 새 몫에서 다시 정한다.
-        if self.view.cut_input_segment(self.engine, event) > 0 {
-            self.view.decide_key_receiver(self.engine, event);
+        if !self.key_settled {
+            self.view.settle_key_event(self.engine, event);
         }
     }
 

@@ -254,11 +254,11 @@ pub(crate) fn plugin_shortcut_in_window(
     mods: winit::keyboard::ModifiersState,
     gate: PluginKeyGate<'_>,
 ) -> bool {
-    // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 키는 창의
-    // 포커스 노드에서 시작하므로 그 값을 먼저 정규화한다. winit 키는 포커스 노드에서 시작한
-    // 경로가 출발 노드에서 그 키를 끝내면 닫는다. native WebView 가 넘긴 키는 받은 surface 에서 시작한 경로가
-    // 덮였으면 닫는다. 지금 경로로 남는 사건은 어느 입구든 지금 게이트다.
-    state.normalize_focus(engine);
+    // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 호출자가 그 사건의 출발
+    // 노드를 먼저 정한다(winit 키는 `MainView::settle_key_event`, native WebView 가 넘긴 키는
+    // `forwarded_key_gate_open` 의 정규화). winit 키는 포커스 노드에서 시작한 경로가 출발 노드에서 그 키를 끝내면
+    // 닫는다. native WebView 가 넘긴 키는 받은 surface 에서 시작한 경로가 덮였으면 닫는다. 지금 경로로 남는 사건은
+    // 어느 입구든 지금 게이트다.
     let received_by = gate.received_by();
     let gate_open = match gate {
         PluginKeyGate::Winit(value) => crate::adapters::ui::input::key_nodes::plugin_key_gate_open(

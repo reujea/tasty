@@ -8,6 +8,7 @@ use winit::window::WindowId;
 
 use crate::adapters::ui::input::edit_key::{EditBindings, EditKey, Release};
 use crate::app::App;
+use crate::app::window_access::engines_mut;
 
 /// 보류가 입력을 붙잡은 단계. 재생할 입력이 그 앞 단계를 이미 거쳤는지 정한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,13 +82,13 @@ impl App {
             match step {
                 ReplayStep::Original(event, edit) => {
                     self.set_edit_replay(id, Some(edit));
-                    self.dispatch_key_to_view(id, event);
+                    self.dispatch_key_to_view(id, event, false);
                     // 창이 키를 받지 않고 돌아갔으면 남은 표시가 다음 키에 붙지 않게 지운다.
                     self.set_edit_replay(id, None);
                 }
                 ReplayStep::View(event) => {
                     if !self.queue_behind_plugin_edit(id, &event) {
-                        self.dispatch_key_to_view(id, event);
+                        self.dispatch_key_to_view(id, event, false);
                     }
                 }
                 ReplayStep::Input(event) => self.route_window_input(id, event),
@@ -95,12 +96,15 @@ impl App {
         }
     }
 
-    /// 창 입력의 마지막 단계: 플러그인 편집 보류 줄, 포커스된 plugin 의 단축키, 창 view 순서다. 보류가 없을 때의
-    /// 창 이벤트와 플러그인 보류 뒤에 줄 섰던 입력이 같은 단계를 거친다.
+    /// 창 입력의 마지막 단계: 플러그인 편집 보류 줄, 키 사건의 출발 노드, 포커스된 plugin 의 단축키, 창 view 순서다.
+    /// 보류가 없을 때의 창 이벤트와 플러그인 보류 뒤에 줄 섰던 입력이 같은 단계를 거친다.
     pub(super) fn route_window_input(&mut self, id: WindowId, event: WindowEvent) {
         if self.queue_behind_plugin_edit(id, &event) {
             return;
         }
+        // 키 사건의 출발 노드(정규화 → 끊기 → 수신자)를 plugin 단축키 단계 앞에서 한 번 정한다. plugin 단계와 창 view
+        // 가 같은 사건 시점의 노드를 읽는다.
+        let settled = self.settle_window_key(id, &event);
         // 포커스된 plugin surface의 단축키를 호스트 action보다 먼저 처리한다.
         // 단축키가 연 plugin 팝업도 창 view 로 간 키처럼 그 자리에서 적용한다.
         if let WindowEvent::KeyboardInput { event: ke, .. } = &event
@@ -109,17 +113,32 @@ impl App {
             self.apply_user_focus_opens(id);
             return;
         }
-        self.dispatch_key_to_view(id, event);
+        self.dispatch_key_to_view(id, event, settled);
+    }
+
+    /// winit 키 사건의 출발 노드를 메인 창에서 정한다(`MainView::settle_key_event`). 정했으면 참이고, 창 view 는 같은
+    /// 사건에서 다시 정하지 않는다. 키가 아닌 사건과 보조 창은 창 view 가 정한다. modal 이 열렸으면 창 view 가 정하기
+    /// 전 단계(modal 차단)에서 끝내므로 정하지 않는다.
+    fn settle_window_key(&mut self, id: WindowId, event: &WindowEvent) -> bool {
+        if !matches!(event, WindowEvent::KeyboardInput { .. }) || self.view.is_modal_active() {
+            return false;
+        }
+        let Some((main, engine)) = engines_mut!(self).window_pair(id) else {
+            return false;
+        };
+        main.settle_key_event(&engine.read(), event);
+        true
     }
 
     /// 사건을 창 view 로 넘기고, 키·IME 사건이면 그 사건이 포커스를 주며 연 팝업을 그 자리에서 적용한다. 창 입력과
-    /// 편집 보류 재생(원래 키·view 로 가는 줄 선 입력)이 이 길을 함께 쓴다.
-    fn dispatch_key_to_view(&mut self, id: WindowId, event: WindowEvent) {
+    /// 편집 보류 재생(원래 키·view 로 가는 줄 선 입력)이 이 길을 함께 쓴다. `key_settled` 는 App 이 그 사건의 출발
+    /// 노드를 이미 정했는지다(`settle_window_key`).
+    fn dispatch_key_to_view(&mut self, id: WindowId, event: WindowEvent, key_settled: bool) {
         let key = matches!(
             event,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
-        self.dispatch_window_event_to_view(id, event);
+        self.dispatch_window_event_to_view(id, event, key_settled);
         if key {
             self.apply_user_focus_opens(id);
         }

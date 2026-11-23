@@ -510,6 +510,16 @@ impl MainView {
         }
     }
 
+    /// 단계 3~5: 사건 하나의 출발 노드를 한 번 정한다. 포커스를 정규화하고, 사건 시점의 노드로 입력 몫을 끊은 뒤, 끊긴
+    /// 새 몫에서 단계 4 수신자를 정한다. winit 키는 App 이 plugin 단축키 단계 앞에서 부르고
+    /// (`App::route_window_input`), 그 밖의 사건과 편집 보류 재생은 창의 단계 3~5(`MainKeySteps::settle_key_node`)가
+    /// 부른다. 두 단계는 같은 결과(포커스 노드·끊긴 몫·`key_decision`)를 읽는다.
+    pub(crate) fn settle_key_event(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
+        self.normalize_focus_on_key(engine, event);
+        self.cut_input_segment(engine, event);
+        self.decide_key_receiver(engine, event);
+    }
+
     /// 키는 창의 포커스 노드에서 시작한다. 판정마다 같은 값을 읽도록 키 사건을 처음 받을 때 정규화한다.
     fn normalize_focus_on_key(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         if matches!(
@@ -554,19 +564,15 @@ impl MainView {
     /// 누름·키·IME 사건을 처리하기 전에 부른다. 그 사건 시점의 포커스 노드가 지금 그리기 몫의 노드와 다르거나 다를
     /// 수 있으면 그 사건부터의 egui 입력을 뒤 그리기 몫으로 넘긴다(`MainViewState::cut_key_frame`). 누름·무대 종료 키
     /// 같은 사건이 바꾼 포커스 노드는 즉시 적용되고, 다음 사건이 그 차이로 끊는다. 누름이 포커스를 옮기기 전(튜토리얼
-    /// 말풍선의 키보드 몫을 놓기 전)에 부른다. 끊은 수를 돌려준다.
-    pub(super) fn cut_input_segment(
-        &mut self,
-        engine: &EngineRead<'_>,
-        event: &WindowEvent,
-    ) -> usize {
+    /// 말풍선의 키보드 몫을 놓기 전)에 부른다.
+    fn cut_input_segment(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         let incoming = match event {
             WindowEvent::MouseInput {
                 state: winit::event::ElementState::Pressed,
                 ..
             } => Incoming::Press,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => Incoming::Key,
-            _ => return 0,
+            _ => return,
         };
         let cuts =
             self.state
@@ -574,7 +580,6 @@ impl MainView {
         for _ in 0..cuts {
             self.base.gpu.cut_egui_input_here();
         }
-        cuts
     }
 
     /// 이 버튼 사건이 OS 창 테두리 리사이즈의 누름이나 그 짝인 뗌인지(`begin_os_resize_press`). 메뉴를 닫는
@@ -604,7 +609,8 @@ impl MainView {
         ctx: &mut ViewCtx<'_>,
     ) -> ViewAction {
         self.sync_window_drawn();
-        let mut steps = key_event_steps::MainKeySteps::new(self, engine, ctx.modal_active);
+        let mut steps =
+            key_event_steps::MainKeySteps::new(self, engine, ctx.modal_active, ctx.key_settled);
         crate::view::key_event::run_key_event(&mut steps, event)
     }
 

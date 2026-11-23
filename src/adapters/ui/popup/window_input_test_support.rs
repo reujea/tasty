@@ -305,8 +305,8 @@ impl WindowInput {
         fed
     }
 
-    /// 창의 단계 3~5(`MainKeySteps::settle_key_node`)와 같은 순서: 단계 4 수신자 판정 → 끊기. 끊었으면 새 몫에서 다시
-    /// 정한다(끊은 몫의 결속은 새 몫의 판정에 쓰지 않는다).
+    /// 창의 단계 3~5(`MainView::settle_key_event`)와 같은 순서: 끊기 → 단계 4 수신자 판정. 끊었으면 새 몫에서 정한다
+    /// (끊은 몫의 결속은 새 몫의 판정에 쓰지 않는다). 정규화는 시험이 장면을 만들 때 한다.
     fn settle(
         &mut self,
         state: &mut RequestContext,
@@ -314,12 +314,8 @@ impl WindowInput {
         event: &egui::Event,
         egui_surface: bool,
     ) -> crate::adapters::ui::input::key_nodes::KeyDecision {
-        let decision =
-            window_key_decision_held(state, engine, event, egui_surface, self.held_super());
-        if key_focus(state, engine, self) > 0 {
-            return window_key_decision_held(state, engine, event, egui_surface, self.held_super());
-        }
-        decision
+        key_focus(state, engine, self);
+        window_key_decision_held(state, engine, event, egui_surface, self.held_super())
     }
 
     /// 마지막 `key_events` 가 그 키에 내린 단계 4 판정. 창의 뒤 단계(터미널 게이트·단축키·끝 목적지)가 읽는 값이다.

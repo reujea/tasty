@@ -26,12 +26,13 @@ const B: u32 = 2;
 
 /// 명령과 조합. 같은 조합 `ctrl+f9`에 Surface → Global 순서(매니페스트 순서)로 둘을 묶는다. 기본 프리셋의 host
 /// 바인딩과 겹치지 않는다. 명령마다 action 이 `PLUGIN/<명령>` 팝업을 연다.
-const COMMANDS: [(&str, &str, &str); 5] = [
+const COMMANDS: [(&str, &str, &str); 6] = [
     ("surf", "surface", "ctrl+f9"),
     ("glob", "global", "ctrl+f9"),
     ("glob_only", "global", "ctrl+f10"),
     ("surf_only", "surface", "ctrl+f11"),
     ("esc", "global", "escape"),
+    ("letter", "global", "a"),
 ];
 
 /// 같은 pane 에 plugin surface A(첫 탭)와 터미널 B(둘째 탭)가 있는 창. `focus` 탭을 고른다.
@@ -123,7 +124,13 @@ fn escape() -> (Key, KeyCode) {
     (Key::Named(NamedKey::Escape), KeyCode::Escape)
 }
 
-/// winit 키 하나를 App plugin 단축키 단계로 처리한다. 처리했으면 참이다.
+fn letter_a() -> (Key, KeyCode) {
+    (Key::Character("a".into()), KeyCode::KeyA)
+}
+
+/// winit 키 하나를 App 입구 순서로 처리한다. 처리했으면 참이다. App 은 plugin 단축키 단계 앞에서 그 사건의 출발 노드를
+/// 정한다(`App::route_window_input` → `MainView::settle_key_event`의 정규화·끊기). 끊기는 창과 같은 함수
+/// (`input_segment::key_focus`)를 빈 egui 큐로 부른다. 순서는 `press_focus_call_sites`가 고정한다.
 fn winit_key(
     state: &mut MainViewState,
     session: &mut crate::runtime::engine_session::EngineSession,
@@ -132,6 +139,12 @@ fn winit_key(
     mods: ModifiersState,
 ) -> bool {
     let engine = session.borrow_mut();
+    state.normalize_focus(&engine.read());
+    crate::view::main::input_segment::key_focus(
+        state,
+        &engine.read(),
+        &mut crate::adapters::ui::popup::window_input_test_support::WindowInput::default(),
+    );
     let value = KeyEventValue {
         logical: &logical,
         physical: PhysicalKey::Code(code),
@@ -151,7 +164,8 @@ fn winit_key(
     )
 }
 
-/// `sid` 가 넘긴 키 하나를 그 입구의 분류 `class` 로 App plugin 단축키 단계에 넣는다. 처리했으면 참이다.
+/// `sid` 가 넘긴 키 하나를 그 입구의 분류 `class` 로 App plugin 단축키 단계에 넣는다. 처리했으면 참이다. 입구처럼
+/// 포커스를 먼저 정규화한다(`forwarded_key_gate_open`).
 fn forwarded_key(
     state: &mut MainViewState,
     session: &mut crate::runtime::engine_session::EngineSession,
@@ -162,6 +176,7 @@ fn forwarded_key(
     sid: u32,
 ) -> bool {
     let engine = session.borrow_mut();
+    state.normalize_focus(&engine.read());
     plugin_shortcut_in_window(
         state,
         &engine,
@@ -295,6 +310,34 @@ fn a_search_bar_focus_lets_an_unused_plugin_global_command_run() {
         CTRL
     ));
     assert_eq!(names(&mut state), ["glob_only"]);
+}
+
+/// Esc 뒤 그리기 전의 첫 키: 검색 띠(덮지 않는 `Text`)에서 bare Esc 로 그 몫이 띠에 묶이고 포커스가 풀린 뒤, 그리기
+/// 전에 온 글자 키는 사건 시점의 포커스 노드(터미널)에서 시작한다. 그 키에 묶인 plugin Global 명령이 돈다(띠의 묶인 몫이
+/// 글자를 가져가지 않는다).
+#[test]
+fn a_key_after_a_bare_escape_on_the_search_bar_runs_its_plugin_global_command() {
+    let (mut state, mut session) = scene(B);
+    let mut mgr = manager();
+    open_search(&mut state, &session, B);
+    let ctx = egui::Context::default();
+    let mut input = crate::adapters::ui::popup::window_input_test_support::WindowInput::default();
+    assert!(
+        input.escape(&ctx, &mut state, &session.read(), true),
+        "창이 Esc 를 처리하고 사건 시점에 포커스를 푼다"
+    );
+    assert!(
+        state.popups.bound_input_key_owner().is_some(),
+        "Esc 의 몫은 검색 띠에 묶였다"
+    );
+    assert!(winit_key(
+        &mut state,
+        &mut session,
+        &mut mgr,
+        letter_a(),
+        NONE
+    ));
+    assert_eq!(names(&mut state), ["letter"]);
 }
 
 /// T-12b-6 (라): 무대에서 무대 종료 키와 같은 조합의 plugin Global 은 돌지 않는다(무대 종료 단계로 간다). 다른
