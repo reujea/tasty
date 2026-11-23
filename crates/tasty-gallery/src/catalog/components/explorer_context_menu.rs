@@ -231,10 +231,10 @@ fn remote_favorite_menu() -> Vec<Mi> {
 fn remote_folder_with_local_list_menu() -> Vec<Mi> {
     let mut items = remote_folder_menu();
     items.extend([
-        Mi::Item(Some(COPY), "Copy", false),
-        Mi::Item(None, "Cut", false),
+        Mi::Item(Some(COPY), t("explorer.context_menu.copy_files"), false),
+        Mi::Item(None, t("explorer.context_menu.cut"), false),
         Mi::Row(
-            "Paste (into)".into(),
+            t("explorer.context_menu.paste_into").into(),
             "paste",
             false,
             Some(t("explorer.state.cross_computer_paste_unsupported").to_owned()),
@@ -306,8 +306,8 @@ fn broken_link_menu() -> Vec<Mi> {
         ),
         Mi::Sep,
         Mi::Item(None, "Copy path", false),
-        Mi::Item(None, "Copy", false),
-        Mi::Item(None, "Cut", false),
+        Mi::Item(None, t("explorer.context_menu.copy_files"), false),
+        Mi::Item(None, t("explorer.context_menu.cut"), false),
     ]
 }
 
