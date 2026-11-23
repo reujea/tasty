@@ -446,7 +446,7 @@ pub enum StreamControl {
         kind: Option<AttentionKindWire>,
     },
     /// 서버→클라이언트: 점유한 대상에 새 알림이 생겼으니 client 설정대로 알림음을 한 번 낸다.
-    /// client가 같은 터미널 바이트로 스스로 만드는 알림(OSC 알림·Bell)에는 보내지 않는다.
+    /// 출처와 무관하게 서버가 새로 저장한 알림마다 보낸다(GUI 서버는 터미널 유래 알림 포함).
     /// 알림을 만든 때 한 번만 보내며 재연결·유실 프레임을 다시 보내지 않는다.
     /// 구 client는 이 variant를 모르므로 역직렬화에 실패해 무시한다.
     NotificationSound {

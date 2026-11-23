@@ -151,7 +151,7 @@ DECOM(6)은 절대 커서 위치를 스크롤 영역 기준으로 해석하고, 
 | XtGetTcap | 요청별로 `DCS 0+r <hexcap> ST`. 능력 DB가 없어 현재 미지원임을 알리고 요청 hex를 그대로 돌려준다. |
 | XTWINOPS | 셀 크기 `18 t`→`CSI 8;rows;cols t`, `19 t`→`CSI 9;rows;cols t`. 제목 push/pop `22/23 t`는 단일 제목과 최대 64개 항목을 사용한다. |
 | OSC 8 | 이후 출력 셀에 하이퍼링크 URI를 붙이고 빈 URI로 해제한다. DECSTR/RIS도 속성을 초기화한다. |
-| OSC 52 읽기 | host가 `general.allow_clipboard_read`를 확인한 뒤 응답한다. 기본 off이면 응답하지 않는다. attach client가 출력을 받는 터미널은 서버가 답하지 않고 client가 자기 설정과 클립보드로 답한다. [클립보드](../../features/clipboard/index.md) 참조. |
+| OSC 52 읽기 | host가 `general.allow_clipboard_read`를 확인한 뒤 응답한다. 기본 off이면 응답하지 않는다. 터미널 효과를 맡겠다고 선언한 attach client의 연결로 출력이 넘어가는 터미널은 서버가 답하지 않고 client가 자기 설정과 클립보드로 답한다. [클립보드](../../features/clipboard/index.md) 참조. |
 | OSC 10/11/12, OSC 4 질의 | 현재 테마의 전경·배경·커서·ANSI 색을 `rgb:RRRR/GGGG/BBBB`와 ST로 응답한다. host가 생성·테마 변경 시 팔레트를 전달한다. 커서는 전경색이며, 팔레트가 없으면 응답하지 않는다. 색 설정 시퀀스는 무시한다. |
 
 창 이동·크기 변경·최대화·최소화·전체화면·앞뒤 순서 변경은 지원하지 않는다.

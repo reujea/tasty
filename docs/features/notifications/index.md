@@ -79,12 +79,11 @@ headless는 소리를 내지 않는다. 기존 항목에 합쳐진 알림은 소
 켜져 있으면 그 알림이 새 항목일 때 위 소리를 한 번 낸다.
 현재 OS 알림 센터로 보내는 기능은 없다.
 
-**원격 attach 대상의 알림 소리**는 접속한 client 에서 난다. 알림 저장·attention·`NotificationCreated`·훅은 서버에 그대로 남고 소리만 옮긴다.
+**원격 attach 대상의 알림 소리**는 터미널 효과를 맡겠다고 선언한 GUI client 가 그 대상을 점유했을 때 client 에서 난다. 서버는 새 알림을 저장할 때 소리를 내지 않고 그 client 에 한 번 넘기며, client 는 자기 `notification.sound` 로 재생한다. 알림 저장·attention·`NotificationCreated`·훅은 서버에 그대로 남는다. CLI attach 와 이전 버전 client 가 점유한 대상은 서버가 소리를 낸다.
 
-- 기준은 서버에 저장된 새 알림이다. 출처(IPC `notification.create`, 플러그인·시스템 안내, 터미널 바이트의 OSC 9/99/777·Bell·명령 기록 한도)와 무관하게, 대상 surface 를 GUI client 가 준비된 hard 점유로 가졌거나 surface 가 없거나 점유되지 않은 surface 이고 그 workspace 를 점유했으면, 서버는 소리를 내지 않고 그 client 에 `NotificationSound` 를 한 번 보낸다. client 는 자기 `notification.sound` 가 켜져 있으면 한 번 재생한다. 서버의 `notification.sound` 값은 여기에 영향이 없다. headless 서버도 같은 조건이면 보낸다.
-- GUI client 의 mirror 도 같은 터미널 바이트로 자기 알림을 만든다. GUI 서버에 붙은 동안 이 터미널 유래 알림은 client 패널에 기록만 하고 소리를 내지 않는다(소리는 서버 알림에서 온다). 그래서 GUI 서버에 붙은 동안 터미널 유래 알림의 소리가 나는지는 서버가 그 알림을 만드는지(서버의 `notification.enabled`, Bell 은 서버의 `general.bell_notification`)와 client 의 `notification.sound` 를 함께 따른다. headless 서버는 터미널 바이트에서 알림을 만들지 않으므로, headless 서버에 붙은 mirror 는 자기 터미널 유래 알림으로 소리를 낸다.
-- CLI attach 와 이전 버전 client 가 점유한 대상은 서버가 지금처럼 소리를 낸다.
-- 합쳐진 항목은 어느 쪽에서도 소리를 내지 않는다. 알림을 만든 순간에만 보내므로 재연결·초기 상태 복원은 과거 소리를 재생하지 않는다. 보내지 못한 소리(연결 큐가 가득 참)는 화면 재동기화 없이 버리고 다시 보내거나 서버에서 대신 내지 않는다. client 가 출력 손실을 알게 된 뒤 재동기화가 끝날 때까지 도착한 소리도 버린다. client 가 연결 직후 선언을 보내기 전 잠깐은 서버가 낸다.
+- GUI 서버에 붙은 mirror 는 같은 터미널 바이트로 만든 자기 알림을 기록만 하고 소리는 서버 알림에서 받는다. 그래서 터미널 유래 알림의 소리는 서버가 그 알림을 만드는지(서버의 알림 설정)도 따른다. headless 서버는 터미널 바이트에서 알림을 만들지 않으므로, 거기에 붙은 mirror 는 자기 터미널 유래 알림으로 소리를 낸다.
+- 합쳐진 항목, 재연결·초기 상태 복원, 연결 큐가 가득 차 넘기지 못한 소리, 출력 손실 뒤 재동기화 전의 소리는 어느 쪽에서도 재생하지 않는다.
+- 정확한 조건은 [attach 동작](../../dev-guide/attach-behavior.md#raw-출력-효과의-처리자)의 정본 표에 있다.
 - 점유되지 않은 서버 workspace 의 알림은 위 서버 설정대로 동작한다.
 
 ### 시각 표시

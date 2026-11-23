@@ -94,15 +94,13 @@ surface로 선택을 옮기지 않는다.
 attach 입력을 유지하며 지원하지 않는 ACK를 기다리지 않는다. 내부 원격 홈 조회도
 사용자 대기로 세지 않는다. 단절은 기존 재연결 안내로 처리하며 지연만으로 재전송하지 않는다.
 
-원격 프로그램이 OSC 52로 클립보드 쓰기를 보내면 같은 응답 대기 표시에 복사 대기가 들어간다.
-접수는 쓰기 본문의 첫 바이트가 client에 도착한 때이고, 표시 지연 없이 바로 보인다. 복사 대기만
-있으면 칩 본문은 `attach.pending.copy` 문구이고, 다른 대기와 섞이면 건수 문구에 복사 줄이
-더해진다. 다른 대기는 기존 지연 규칙을 그대로 따른다. 복사 대기는 탭·LNB 로딩 표시에는 넣지
-않는다. client가 자기 클립보드에 기록하면 대기가 끝나고 기존 성공 토스트가 한 번 나온다.
-termwiz가 받지 않는 본문(잘못된 base64 등), 결과 없이 끝난 처리, 본문을 받는 도중의 연결 끊김·
-재동기화는 그 surface에 `toast.clipboard_failed` 실패 토스트를 낸다. 사용자가 mirror를 닫았거나
-서버가 그 surface를 닫았으면 알리지 않는다. 시작과 끝이 같은 수신 묶음에 있으면 표시가 보이기
-전에 끝날 수 있고, 원격 프로그램이 시퀀스를 보내기 전 구간은 관측할 수 없다.
+원격 프로그램이 OSC 52로 클립보드 쓰기를 보내면 client가 쓰기 본문을 처음 식별한 때부터 같은 응답
+대기 표시에 복사 대기가 들어간다. 다른 대기와 달리 지연 없이 보이고, 탭·LNB 로딩 표시에는 넣지 않는다.
+client가 자기 클립보드에 기록하면 기존 성공 토스트가 한 번 나온다. 받지 않는 본문, 결과 없이 끝난 처리,
+본문을 받는 도중의 연결 끊김·재동기화는 실패 토스트로 알린다. 결과 토스트는 그 surface가 화면에 있으면
+surface에, 다른 탭·workspace에 있으면 창에 나온다. 시작과 끝이 한 수신 묶음에 있으면 표시가 보이기 전에
+끝날 수 있다. 정확한 조건은 [attach 동작](../../dev-guide/attach-behavior.md#raw-출력-효과의-처리자)의
+정본 표에 있다.
 
 native WebView는 대기 표시를 위해 숨기거나 크기를 줄이지 않는다. 네이티브 콘텐츠 위의
 별도 overlay 층이 없는 경우 생성 중 표지는 탭과 LNB에서 유지한다.
@@ -235,7 +233,7 @@ attention 의 관리 주체는 **surface 를 소유한 인스턴스**다: produc
 미러 사용자의 행동은 서버의 해제 경로를 발동시킬 수 없어, 이 전달이 없으면 서버 배지에 해제 주체가 아예 없다.
 메커니즘 상세는 [dev-guide/attach-behavior "주의 환기(attention) 전파"](../../dev-guide/attach-behavior.md#주의-환기attention-전파), 기능 문서는 [features/surface-highlight](../surface-highlight/index.md#원격-attach-mirror-로의-전파-serverclient).
 
-**client 가 처리하는 터미널 효과**: GUI client 가 터미널 출력을 받는 동안 그 출력의 OSC 52 쓰기·읽기는 client 클립보드와 client 설정으로 처리하고 서버 클립보드는 쓰지도 읽지도 않는다. 그 대상의 새 알림 소리도 client 에서 난다(서버의 새 알림마다 `StreamControl::NotificationSound` 로 넘긴다). CLI attach 는 이 효과를 맡지 않으므로 서버가 처리한다. 알림 기록·attention·훅은 서버에 남는다. 규칙은 [클립보드](../clipboard/index.md#osc-52), [알림 소리](../notifications/index.md#알림-소리), [dev-guide/attach-behavior "raw 출력 효과의 처리자"](../../dev-guide/attach-behavior.md#raw-출력-효과의-처리자)에 있다.
+**client 가 처리하는 터미널 효과**: GUI client 는 연결 직후 터미널 효과를 맡겠다고 선언한다. 그 뒤 그 연결로 넘어간 출력의 OSC 52 쓰기·읽기는 client 클립보드와 client 설정으로 처리하고 서버 클립보드는 쓰지도 읽지도 않는다. client 가 점유한 대상의 새 알림 소리도 client 에서 난다. CLI attach 는 선언하지 않으므로 서버가 처리한다. 알림 기록·attention·훅은 서버에 남는다. 요약은 [클립보드](../clipboard/index.md#osc-52)와 [알림 소리](../notifications/index.md#알림-소리)에, 정확한 조건은 [dev-guide/attach-behavior "raw 출력 효과의 처리자"](../../dev-guide/attach-behavior.md#raw-출력-효과의-처리자)의 정본 표에 있다.
 
 **surface 의 현재 폴더(cwd)도 같은 방향의 채널이다** — 원격이 점유 surface 의 cwd 를 같은 1Hz tick 에 `StreamControl::Cwd{surface_id, cwd}` 로 보낸다.
 mirror 터미널은 로컬 셸이 없어 원격 셸이 OSC 7 을 쏠 때만 cwd 를 알 수 있었는데, 원격은 셸 프로세스를 직접 조회할 수 있어 어떤 셸이든 값이 온다.
