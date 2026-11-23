@@ -492,7 +492,7 @@ fn a_new_transport_tells_the_same_op_number_again() {
     sess.state.workspace_close = WorkspaceClose::Unanswered(1);
     let fresh = test_session(9_000, HashMap::new()).transport;
 
-    crate::app::attach_client::adopt_reconnected_transport(
+    crate::app::attach_client::connection::adopt_reconnected_transport(
         &mut sess,
         tasty_remote::client_session::InstallGuard::new(fresh),
     );
