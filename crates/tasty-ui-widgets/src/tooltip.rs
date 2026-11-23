@@ -185,7 +185,8 @@ impl<'a> Tooltip<'a> {
                     .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
                     .show(ui, |ui| {
                         ui.set_max_width(theme.tooltip_max_width.value());
-                        ui.label(job);
+                        // The bubble is not a pointer target: no text selection on it.
+                        ui.add(egui::Label::new(job).selectable(false));
                     });
             });
     }
@@ -701,5 +702,45 @@ mod tests {
             );
             assert_eq!(t.placement, TooltipPlacement::Top);
         });
+    }
+
+    /// Pressing and dragging on an open bubble starts no egui interaction: the bubble text is
+    /// not selectable, so the pointer stays with what is under the bubble.
+    #[test]
+    fn a_drag_on_the_bubble_is_not_taken_by_its_text() {
+        let theme = theme();
+        let ctx = egui::Context::default();
+        let anchor = egui::Rect::from_min_size(egui::pos2(100.0, 100.0), egui::vec2(80.0, 24.0));
+        let on_text = egui::pos2(140.0, 140.0);
+        let steps = [
+            vec![],
+            vec![egui::Event::PointerMoved(on_text)],
+            vec![egui::Event::PointerButton {
+                pos: on_text,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            vec![egui::Event::PointerMoved(on_text + egui::vec2(30.0, 0.0))],
+        ];
+        let mut used = false;
+        for (i, events) in steps.into_iter().enumerate() {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                time: Some(i as f64 * 0.1),
+                events,
+                ..Default::default()
+            };
+            let _output = ctx.run(input, |ctx| {
+                Tooltip::new("Close tab · 20s\nCopying to clipboard · 3s")
+                    .placement(TooltipPlacement::Bottom)
+                    .show_in(ctx, &theme, anchor);
+            });
+            used |= ctx.is_using_pointer() || ctx.dragged_id().is_some();
+        }
+        assert!(!used);
     }
 }
