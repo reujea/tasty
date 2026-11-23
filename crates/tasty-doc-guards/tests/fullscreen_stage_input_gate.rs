@@ -276,14 +276,26 @@ fn ime_overlay_gate_knows_the_stage() {
     );
 }
 
-/// 플러그인 단축키는 일반 키보드 처리 전에 실행되므로 무대를 아는 정면 함수로 따로 막는다.
+/// 플러그인 단축키는 일반 키보드 처리 전에 실행되므로 따로 막는다. winit 경로 키는 포커스 노드(무대 중에는 무대
+/// 노드)에서 시작한 경로로 판정하고(`plugin_key_gate_open`, 무대가 쓰는 키와 종료 키는 닫힘), 나머지 키는 무대를 아는
+/// 정면 함수(`window_keys_to_overlay`)로 막는다.
 #[test]
 fn plugin_shortcut_gate_knows_the_stage() {
     let src = read("src/app/plugin_glue/shortcut.rs");
-    let expected = "    if state.window_keys_to_overlay() {";
+    for expected in [
+        "        _ => !state.window_keys_to_overlay(),",
+        "(None, PluginKeyGate::Winit(value)) => {\n            crate::adapters::ui::input::key_nodes::plugin_key_gate_open(",
+    ] {
+        assert!(
+            src.contains(expected),
+            "플러그인 단축키 경로에 무대 차단 조건이 없다(`{expected}`). 일반 키보드 처리보다 먼저 실행되므로 여기서 \
+             별도로 막아야 한다."
+        );
+    }
+    let nodes = read("src/adapters/ui/input/key_nodes.rs");
     assert!(
-        src.contains(expected),
-        "플러그인 단축키 경로에 무대 차단 조건이 없다. 일반 키보드 처리보다 먼저 실행되므로 여기서 별도로 막아야 한다."
+        nodes.contains("FocusNode::Stage => vec![KeyNode::Stage {"),
+        "경로 키 게이트의 무대 출발 노드가 없다"
     );
 }
 
@@ -326,8 +338,10 @@ fn every_overlay_open_composite_is_stage_aware() {
                 assert!(
                     keyboard.contains("self.try_consume_fullscreen_stage_key(engine, event)")
                         && keyboard.contains(
-                            "let overlay_open = self.state.window_holds_terminal_keys();"
-                        ),
+                            "let overlay_open = self.state.window_key_holds_terminal(self.key_decision);"
+                        )
+                        && read("src/state/popup_key_owner.rs")
+                            .contains("KeyDecision::Current => self.window_holds_terminal_keys(),"),
                     "{rel}: 무대 항 없이 예외로 허용되던 근거(keyboard.rs 의 0단계 무대 게이트와 그 뒤 터미널 게이트)가 사라졌다."
                 );
                 direct.push(format!("{rel} terminal"));
@@ -354,8 +368,8 @@ fn every_overlay_open_composite_is_stage_aware() {
         vec![
             "src/adapters/ipc/handler/debug_state.rs".to_string(),
             "src/adapters/ui/input/explorer_ime.rs".to_string(),
+            "src/adapters/ui/input/key_nodes.rs".to_string(),
             "src/app/plugin_glue/shortcut.rs".to_string(),
-            "src/app/webview_keys.rs".to_string(),
             "src/app/webview_sync.rs".to_string(),
             "src/state/popup_key_owner.rs".to_string(),
             "src/view/main/edit_keys.rs".to_string(),
