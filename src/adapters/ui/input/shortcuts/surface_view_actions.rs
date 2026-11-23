@@ -110,7 +110,14 @@ impl MainView {
         match surface_actions::run_received_key(&mut self.state, engine, kb, key, mods, sid) {
             Received::Unbound => None,
             Received::Pass => Some(false),
-            Received::Global => Some(self.run_target_shortcuts(engine, key, mods, target, false)),
+            Received::Global => Some(self.run_target_shortcuts(
+                engine,
+                key,
+                mods,
+                target,
+                false,
+                Some(crate::adapters::ui::input::key_level::PathLevels::all()),
+            )),
             Received::Done => Some(true),
             Received::View(id) => Some(self.run_view_surface_action(engine, id, sid)),
         }

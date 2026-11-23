@@ -690,7 +690,10 @@ fn the_webview_key_entry_binds_the_receiving_surface() {
         .map(|b| dispatch.code[b.clone()].to_string())
         .expect("handle_received_shortcut");
     assert!(handled.contains("self.run_webview_edit_on(sid, action)"));
-    assert!(handled.contains("self.run_target_shortcuts(engine, key, mods, target, false)"));
+    // 받은 surface 가 출발 노드라 경로는 모든 level 이다(포커스 노드를 읽지 않는다).
+    assert!(handled.contains(
+        "self.run_target_shortcuts(engine, key, mods, target, false, Some(PathLevels::all()))"
+    ));
     for focus_read in [
         ".command_target(",
         "focused_",

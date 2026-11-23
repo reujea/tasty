@@ -61,13 +61,6 @@ pub(crate) enum FieldLevel {
 
 impl FieldLevel {
     /// 이 필드 후보의 level. 단축키가 아니면 `None`.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the level filter and the key path read it from the level filter commit on"
-        )
-    )]
     pub(crate) fn level(self) -> Option<KeyLevel> {
         match self {
             FieldLevel::Level(level) => Some(level),
@@ -212,13 +205,6 @@ pub(crate) fn keybinding_level(field: &str) -> Option<FieldLevel> {
 }
 
 /// plugin 명령의 level. Surface 명령은 그 plugin surface의 Surface level, Global 명령은 engine level이다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the plugin gate reads it from the level filter commit on"
-    )
-)]
 pub(crate) fn command_scope_level(scope: CommandScope) -> KeyLevel {
     match scope {
         CommandScope::Surface => KeyLevel::Surface,
@@ -237,13 +223,6 @@ impl PathLevels {
     }
 
     /// 덮인 노드가 없는 경로(모든 level).
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the key path builder uses it from the level filter commit on"
-        )
-    )]
     pub(crate) fn all() -> Self {
         Self(KeyLevel::ALL.iter().fold(0, |bits, l| bits | l.bit()))
     }
@@ -259,13 +238,6 @@ impl PathLevels {
 
 /// 공용 판정: 이 level의 후보를 이 경로에서 판정해도 되는지. 단축키를 실행하는 갈래는 후보 매칭 전에 이
 /// 함수로 고른다.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the shortcut branches call it from the level filter commit on"
-    )
-)]
 pub(crate) fn shortcut_allowed(path: PathLevels, level: KeyLevel) -> bool {
     path.contains(level)
 }

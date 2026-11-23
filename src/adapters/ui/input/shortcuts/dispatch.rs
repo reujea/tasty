@@ -1,5 +1,7 @@
 //! 단축키와 명령 팔레트의 액션 실행.
 
+use crate::adapters::ui::input::key_level::{KeyLevel, PathLevels};
+use crate::adapters::ui::input::key_path::{allows, focus_path_levels, path_keybindings};
 use crate::runtime::engine_read::EngineRead;
 use winit::keyboard::{Key, ModifiersState};
 
@@ -579,27 +581,31 @@ impl MainView {
         mods: ModifiersState,
         edit_judged: bool,
     ) -> bool {
-        if !edit_judged && self.handle_webview_edit_shortcut(engine, key, mods) {
+        // 앞 네 단계(편집·복사·링크 복사·탐색기 목록 키)는 포커스 surface의 Surface level 후보다.
+        let path = focus_path_levels(&self.state, engine);
+        let surface = allows(path, KeyLevel::Surface);
+        if surface && !edit_judged && self.handle_webview_edit_shortcut(engine, key, mods) {
             return true;
         }
 
-        if !edit_judged && self.handle_copy_shortcut(engine, key, mods) {
+        if surface && !edit_judged && self.handle_copy_shortcut(engine, key, mods) {
             return true;
         }
 
-        if matches_any_binding(&engine.settings.keybindings.copy_link, key, mods)
+        if surface
+            && matches_any_binding(&engine.settings.keybindings.copy_link, key, mods)
             && self.run_copy_link(engine)
         {
             return true;
         }
 
-        if self.handle_explorer_shortcut(engine, key, mods, edit_judged) {
+        if surface && self.handle_explorer_shortcut(engine, key, mods, edit_judged) {
             self.base.state.dirty = true;
             return true;
         }
 
         let target = self.state.command_target(engine);
-        self.run_target_shortcuts(engine, key, mods, &target, !edit_judged)
+        self.run_target_shortcuts(engine, key, mods, &target, !edit_judged, path)
     }
 
     /// native WebView 가 받은 키를 그 surface 의 `target` 으로 처리한다. 편집 바인딩은 받은 WebView 에
@@ -618,11 +624,12 @@ impl MainView {
         {
             return true;
         }
-        self.run_target_shortcuts(engine, key, mods, target, false)
+        self.run_target_shortcuts(engine, key, mods, target, false, Some(PathLevels::all()))
     }
 
     /// `target` 을 대상으로 하는 단축키 단계: 창 제어, 내장 단축키, 스크립트, 숫자 전환, zoom. `paste` 면
-    /// 숫자 전환 뒤에 포커스 surface 의 붙여넣기도 판정한다.
+    /// 숫자 전환 뒤에 포커스 surface 의 붙여넣기도 판정한다. `path` 에 없는 level 의 후보는 매칭 전에 거른다
+    /// (`None` 이면 거르지 않는다).
     pub(crate) fn run_target_shortcuts(
         &mut self,
         engine: &EngineRead<'_>,
@@ -630,12 +637,13 @@ impl MainView {
         mods: ModifiersState,
         target: &CommandTarget,
         paste: bool,
+        path: Option<PathLevels>,
     ) -> bool {
         let ctrl = mods.control_key();
         let shift = mods.shift_key();
         // alt는 macOS의 Command, 다른 OS의 Alt다. option은 macOS의 Option, 다른 OS의 Win·Super다.
         let (alt, option) = tasty_key_match::token_axes(mods);
-        let kb = engine.settings.keybindings.clone();
+        let kb = path_keybindings(&engine.settings.keybindings, path);
 
         if self.handle_window_control_shortcuts(engine, key, mods, &kb, target) {
             return true;
@@ -645,7 +653,7 @@ impl MainView {
             return true;
         }
 
-        if self.try_dispatch_script_shortcut(engine, key, mods) {
+        if allows(path, KeyLevel::Window) && self.try_dispatch_script_shortcut(engine, key, mods) {
             self.base.state.dirty = true;
             return true;
         }
@@ -669,11 +677,14 @@ impl MainView {
             return true;
         }
 
-        if paste && self.handle_paste_shortcut(engine, key, mods) {
+        if paste && allows(path, KeyLevel::Surface) && self.handle_paste_shortcut(engine, key, mods)
+        {
             return true;
         }
 
-        if Self::handle_zoom_shortcut(&mut self.state, engine, key, mods, target) {
+        if allows(path, KeyLevel::Surface)
+            && Self::handle_zoom_shortcut(&mut self.state, engine, key, mods, target)
+        {
             self.base.state.dirty = true;
             return true;
         }

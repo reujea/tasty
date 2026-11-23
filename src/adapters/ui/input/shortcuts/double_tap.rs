@@ -1,8 +1,11 @@
 //! Double-tap modifier (Shift+Shift / Ctrl+Ctrl / Alt+Alt) 단축키 처리.
 
+use crate::adapters::ui::input::key_level::PathLevels;
+use crate::adapters::ui::input::key_path::{focus_path_levels, path_keybindings};
 use crate::intent::{Intent, UiIntent};
 use crate::model::{PhysicalRect, SplitDirection};
 use crate::runtime::engine_read::EngineRead;
+use crate::settings::KeybindingSettings;
 use crate::view::main::MainView;
 
 use super::{focused_workspace_category, send_app_event};
@@ -30,38 +33,28 @@ impl MainView {
         engine: &EngineRead<'_>,
         dt: crate::double_tap::DoubleTapKey,
     ) -> bool {
-        let kb = engine.settings.keybindings.clone();
-        let dt_str = dt.binding_str();
-
-        let has_dt = |bindings: &[String]| bindings.iter().any(|b| b == dt_str);
-        if has_dt(&kb.toggle_settings) {
-            send_app_event(&self.proxy, crate::AppEvent::OpenSettings);
-            return true;
-        }
-        if has_dt(&kb.toggle_notifications) {
-            self.state.dispatch_intent(
-                UiIntent::TogglePopup(crate::intent::OpenRequest::new(
-                    "notifications",
-                    crate::model::popup_kind::PopupScope::Window,
-                ))
-                .from_user_shortcut("toggle_notifications_double_tap"),
-            );
-            return true;
-        }
-
-        // 받는 칸의 집합은 설정 녹화와 같은 `DOUBLE_TAP_FIELDS` 하나다. 위의 두 동작은 먼저 처리했다.
-        // 매칭뿐 아니라 실제 실행한 경우에만 입력을 소비한다.
-        for action in crate::settings::KeybindingSettings::DOUBLE_TAP_FIELDS
-            .iter()
-            .filter(|f| !matches!(**f, "toggle_settings" | "toggle_notifications"))
-        {
-            if has_dt(kb.get_bindings(action).unwrap_or(&[]))
-                && self.run_double_tap_action(engine, action)
-            {
-                return true;
+        let path = focus_path_levels(&self.state, engine);
+        for action in double_tap_actions(&engine.settings.keybindings, path, dt.binding_str()) {
+            match action {
+                "toggle_settings" => {
+                    send_app_event(&self.proxy, crate::AppEvent::OpenSettings);
+                    return true;
+                }
+                "toggle_notifications" => {
+                    self.state.dispatch_intent(
+                        UiIntent::TogglePopup(crate::intent::OpenRequest::new(
+                            "notifications",
+                            crate::model::popup_kind::PopupScope::Window,
+                        ))
+                        .from_user_shortcut("toggle_notifications_double_tap"),
+                    );
+                    return true;
+                }
+                // 매칭뿐 아니라 실제 실행한 경우에만 입력을 소비한다.
+                _ if self.run_double_tap_action(engine, action) => return true,
+                _ => {}
             }
         }
-
         false
     }
 
@@ -299,4 +292,31 @@ impl MainView {
         }
         true
     }
+}
+
+/// 이 더블탭이 고르는 동작 후보(실행을 시도할 순서). 후보는 키 경로에 있는 level의 필드만이다. 거르기는 매칭
+/// 전이라 덮인 level의 필드는 같은 더블탭에 묶여 있어도 후보가 아니다.
+pub(crate) fn double_tap_actions(
+    kb: &KeybindingSettings,
+    path: Option<PathLevels>,
+    dt_str: &str,
+) -> Vec<&'static str> {
+    let kb = path_keybindings(kb, path);
+    let has_dt = |bindings: &[String]| bindings.iter().any(|b| b == dt_str);
+    let mut actions = Vec::new();
+    if has_dt(&kb.toggle_settings) {
+        actions.push("toggle_settings");
+    }
+    if has_dt(&kb.toggle_notifications) {
+        actions.push("toggle_notifications");
+    }
+    // 받는 칸의 집합은 설정 녹화와 같은 `DOUBLE_TAP_FIELDS` 하나다. 위의 두 동작은 먼저 넣었다.
+    actions.extend(
+        KeybindingSettings::DOUBLE_TAP_FIELDS
+            .iter()
+            .filter(|f| !matches!(**f, "toggle_settings" | "toggle_notifications"))
+            .filter(|f| has_dt(kb.get_bindings(f).unwrap_or(&[])))
+            .copied(),
+    );
+    actions
 }

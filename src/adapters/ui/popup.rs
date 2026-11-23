@@ -30,6 +30,9 @@ pub(crate) mod frame;
 pub(crate) mod frame_keys;
 pub(crate) mod header_drag;
 pub(crate) mod keys;
+#[cfg(test)]
+#[path = "popup/level_filter_tests.rs"]
+mod level_filter_tests;
 pub(crate) mod occlusion;
 pub(crate) mod open_when;
 mod payload;

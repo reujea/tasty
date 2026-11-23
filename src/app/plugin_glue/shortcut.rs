@@ -235,7 +235,12 @@ pub(crate) fn plugin_shortcut_in_window(
     if state.window_keys_to_overlay() {
         return false;
     }
-    // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이다. winit 키는 지금의 대상이다.
+    // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이고 키 경로는 그 surface 에서 시작한다.
+    // winit 키는 지금의 대상이고 경로는 포커스 노드에서 시작한다.
+    let path = match received_by {
+        Some(_) => Some(crate::adapters::ui::input::key_level::PathLevels::all()),
+        None => crate::adapters::ui::input::key_path::focus_path_levels(state, &engine.read()),
+    };
     let (focused, target) = match received_by {
         Some(sid) => (
             crate::plugin_bridge::key_dispatch::plugin_surface(&engine.as_ref(), sid),
@@ -279,6 +284,7 @@ pub(crate) fn plugin_shortcut_in_window(
                     shortcut_key,
                     mods,
                     &host_kb,
+                    path,
                 )
                 .map(|cmd_id| (plugin_id.clone(), cmd_id, Some(*surface_id)))
             }
@@ -287,6 +293,7 @@ pub(crate) fn plugin_shortcut_in_window(
                 shortcut_key,
                 mods,
                 &host_kb,
+                path,
             )
             .map(|(plugin_id, cmd_id)| (plugin_id, cmd_id, None)),
         }

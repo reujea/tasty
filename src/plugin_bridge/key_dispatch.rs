@@ -6,6 +6,8 @@ use winit::keyboard::{Key, ModifiersState};
 
 use tasty_settings::KeybindingSettings;
 
+use crate::adapters::ui::input::key_level::{PathLevels, command_scope_level};
+use crate::adapters::ui::input::key_path::allows;
 use crate::plugin::PluginManager;
 use crate::plugin::command_registry::{EffectiveBinding, effective_binding};
 use crate::shortcuts::matches_any_binding;
@@ -31,15 +33,20 @@ pub fn plugin_surface(
 }
 
 /// 지정한 플러그인의 단축키를 사용자 설정·매니페스트·호스트 설정으로 계산한다.
-/// 해당 플러그인의 surface에 포커스가 있을 때 호출하므로 Global과 Surface 모두 검사한다.
+/// 해당 플러그인의 surface에 포커스가 있을 때 호출하므로 Global과 Surface 모두 검사한다. `path`에 없는 level의
+/// 명령(`command_scope_level`)은 매칭 전에 거른다.
 pub fn match_plugin_shortcut(
     mgr: &PluginManager,
     plugin_id: &str,
     key: &Key,
     mods: ModifiersState,
     host_kb: &KeybindingSettings,
+    path: Option<PathLevels>,
 ) -> Option<String> {
     for entry in mgr.command_registry.commands_for(plugin_id) {
+        if !allows(path, command_scope_level(entry.scope)) {
+            continue;
+        }
         let ov = mgr.config.shortcut_override(plugin_id, &entry.command_id);
         let bindings: Vec<String> = match effective_binding(entry, ov, host_kb) {
             EffectiveBinding::Keys(k) => k,
@@ -56,14 +63,19 @@ pub fn match_plugin_shortcut(
     None
 }
 
-/// 모든 플러그인의 Global 명령에서 단축키를 찾는다. Surface 명령은 제외한다.
+/// 모든 플러그인의 Global 명령에서 단축키를 찾는다. Surface 명령은 제외한다. `path`에 없는 level의 명령은
+/// 매칭 전에 거른다.
 pub fn match_global_shortcut(
     mgr: &PluginManager,
     key: &Key,
     mods: ModifiersState,
     host_kb: &KeybindingSettings,
+    path: Option<PathLevels>,
 ) -> Option<(String, String)> {
     for entry in mgr.command_registry.iter_global() {
+        if !allows(path, command_scope_level(entry.scope)) {
+            continue;
+        }
         let ov = mgr
             .config
             .shortcut_override(&entry.plugin_id, &entry.command_id);
@@ -276,7 +288,7 @@ mod tests {
         ));
         let kb = KeybindingSettings::preset_tasty();
         let (key, mods) = ctrl_shift_r();
-        let matched = match_global_shortcut(&m, &key, mods, &kb);
+        let matched = match_global_shortcut(&m, &key, mods, &kb, None);
         assert_eq!(
             matched,
             Some(("com.example.b".to_string(), "b.open".to_string()))
@@ -296,7 +308,7 @@ mod tests {
         ));
         let kb = KeybindingSettings::preset_tasty();
         let (key, mods) = ctrl_shift_r();
-        assert_eq!(match_global_shortcut(&m, &key, mods, &kb), None);
+        assert_eq!(match_global_shortcut(&m, &key, mods, &kb, None), None);
     }
 
     #[test]
@@ -312,7 +324,7 @@ mod tests {
         ));
         let kb = KeybindingSettings::preset_tasty();
         let (key, mods) = ctrl_shift_r();
-        assert_eq!(match_global_shortcut(&m, &key, mods, &kb), None);
+        assert_eq!(match_global_shortcut(&m, &key, mods, &kb, None), None);
     }
 
     #[test]
@@ -336,7 +348,7 @@ mod tests {
         let kb = KeybindingSettings::preset_tasty();
         let (key, mods) = ctrl_shift_r();
         assert_eq!(
-            match_global_shortcut(&m, &key, mods, &kb),
+            match_global_shortcut(&m, &key, mods, &kb, None),
             Some(("com.example.a".to_string(), "a.open".to_string()))
         );
     }
@@ -363,12 +375,116 @@ mod tests {
         let kb = KeybindingSettings::preset_tasty();
         let (key, mods) = ctrl_shift_r();
         assert_eq!(
-            match_plugin_shortcut(&m, "com.example.a", &key, mods, &kb),
+            match_plugin_shortcut(&m, "com.example.a", &key, mods, &kb, None),
             Some("a.open".to_string())
         );
         assert_eq!(
-            match_plugin_shortcut(&m, "com.example.ghost", &key, mods, &kb),
+            match_plugin_shortcut(&m, "com.example.ghost", &key, mods, &kb, None),
             None
+        );
+    }
+
+    /// 같은 plugin의 같은 키(ctrl+shift+r)에 Surface 명령을 먼저, Global 명령을 뒤에 묶은 매니저.
+    fn surface_then_global() -> (crate::test_support::IsolatedHome, PluginManager) {
+        let (home, mut m) = mgr();
+        m.command_registry.register_plugin(&manifest_with_commands(
+            "com.example.a",
+            vec![
+                cmd(
+                    "a.surface",
+                    "ctrl+shift+r",
+                    tasty_plugin_manifest::CommandScope::Surface,
+                ),
+                cmd(
+                    "a.global",
+                    "ctrl+shift+r",
+                    tasty_plugin_manifest::CommandScope::Global,
+                ),
+                cmd(
+                    "a.global_only",
+                    "ctrl+alt+z",
+                    tasty_plugin_manifest::CommandScope::Global,
+                ),
+            ],
+        ));
+        (home, m)
+    }
+
+    /// 덮는 팝업(Window 범위)에서 시작한 경로: Window와 engine만 있다.
+    fn covering_path() -> PathLevels {
+        PathLevels::engine_only().with(crate::adapters::ui::input::key_level::KeyLevel::Window)
+    }
+
+    /// T-12a-3: 필터는 매칭 전이다. 걸러질 후보(Surface)와 허용 후보(Global)가 같은 키면 허용 후보가 돈다.
+    #[test]
+    fn the_filter_runs_before_matching_so_the_allowed_candidate_wins() {
+        let (_home, m) = surface_then_global();
+        let kb = KeybindingSettings::preset_tasty();
+        let (key, mods) = ctrl_shift_r();
+        assert_eq!(
+            match_plugin_shortcut(
+                &m,
+                "com.example.a",
+                &key,
+                mods,
+                &kb,
+                Some(PathLevels::engine_only())
+            ),
+            Some("a.global".to_string())
+        );
+    }
+
+    /// T-12a-3 대조: 후보 하나인 키는 걸러지는 후보가 없어 그대로 돈다.
+    #[test]
+    fn a_key_with_one_allowed_candidate_runs_it() {
+        let (_home, m) = surface_then_global();
+        let kb = KeybindingSettings::preset_tasty();
+        let mods = ModifiersState::CONTROL | ModifiersState::ALT;
+        assert_eq!(
+            match_plugin_shortcut(
+                &m,
+                "com.example.a",
+                &k_char("z"),
+                mods,
+                &kb,
+                Some(PathLevels::engine_only())
+            ),
+            Some("a.global_only".to_string())
+        );
+    }
+
+    /// T-12a-4: 덮는 팝업 경로에서 같은 키의 Surface 명령은 걸러지고 Global 명령이 남는다.
+    #[test]
+    fn a_covering_path_filters_the_surface_command_and_keeps_the_global_one() {
+        let (_home, m) = surface_then_global();
+        let kb = KeybindingSettings::preset_tasty();
+        let (key, mods) = ctrl_shift_r();
+        assert_eq!(
+            match_plugin_shortcut(&m, "com.example.a", &key, mods, &kb, Some(covering_path())),
+            Some("a.global".to_string())
+        );
+        assert_eq!(
+            match_global_shortcut(&m, &key, mods, &kb, Some(covering_path())),
+            Some(("com.example.a".to_string(), "a.global".to_string()))
+        );
+    }
+
+    /// T-12a-4 대조: 덮지 않는 경로에서는 둘 다 후보라 등록 순서대로 Surface 명령이 먼저 맞는다.
+    #[test]
+    fn an_uncovered_path_keeps_both_commands_as_candidates() {
+        let (_home, m) = surface_then_global();
+        let kb = KeybindingSettings::preset_tasty();
+        let (key, mods) = ctrl_shift_r();
+        assert_eq!(
+            match_plugin_shortcut(
+                &m,
+                "com.example.a",
+                &key,
+                mods,
+                &kb,
+                Some(PathLevels::all())
+            ),
+            Some("a.surface".to_string())
         );
     }
 
@@ -386,7 +502,7 @@ mod tests {
         let kb = KeybindingSettings::preset_tasty();
         let mods = ModifiersState::CONTROL | ModifiersState::SHIFT;
         assert_eq!(
-            match_global_shortcut(&m, &Key::Named(NamedKey::Control), mods, &kb),
+            match_global_shortcut(&m, &Key::Named(NamedKey::Control), mods, &kb, None),
             None
         );
     }

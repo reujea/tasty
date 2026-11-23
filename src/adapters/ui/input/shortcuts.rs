@@ -2,7 +2,7 @@
 mod command_target_tests;
 mod copy_paste;
 mod dispatch;
-mod double_tap;
+pub(crate) mod double_tap;
 mod explorer_keys;
 mod keybinding;
 /// modifier-hint에 표시할 조합 모델.

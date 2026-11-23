@@ -850,9 +850,12 @@ fn a_webview_key_with_a_host_command_runs_only_the_global_shortcut() {
     // 전역 갈래는 모델 포커스 surface 의 내용을 읽는 단계(복사·링크 복사·탐색기 목록 키·붙여넣기)를 거치지
     // 않고, 키를 받은 surface 의 대상으로 창 제어·내장 단축키·스크립트·숫자 전환·zoom 만 처리한다.
     const VIEW: &str = include_str!("surface_view_actions.rs");
-    assert!(VIEW.contains(
-        "Received::Global => Some(self.run_target_shortcuts(engine, key, mods, target, false)),"
-    ));
+    // 받은 surface 가 출발 노드라 경로는 모든 level 이다. 줄바꿈 위치는 rustfmt 가 정하므로 공백을 빼고 본다.
+    let flat = |src: &str| src.split_whitespace().collect::<String>();
+    assert!(flat(VIEW).contains(&flat(
+        "Received::Global => Some(self.run_target_shortcuts(engine, key, mods, target, false, \
+         Some(crate::adapters::ui::input::key_level::PathLevels::all()),)),"
+    )));
     const DISPATCH: &str = include_str!("dispatch.rs");
     let body = &DISPATCH[DISPATCH
         .find("fn run_target_shortcuts(")
@@ -864,7 +867,7 @@ fn a_webview_key_with_a_host_command_runs_only_the_global_shortcut() {
         "self.try_dispatch_script_shortcut(",
         "Self::handle_numeric_switch_shortcuts(",
         "Self::handle_zoom_shortcut(",
-        "paste && self.handle_paste_shortcut(",
+        "paste && allows(path, KeyLevel::Surface) && self.handle_paste_shortcut(",
     ] {
         assert!(body.contains(step), "{step}");
     }
