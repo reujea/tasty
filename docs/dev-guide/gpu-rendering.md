@@ -261,7 +261,7 @@ Debug 빌드의 opt-in 결함 주입은 `src/gfx/gpu/debug_surface.rs`에 격리
 | egui 지연 repaint(`request_repaint_after`) | `EguiAnimation` | 주사율까지 coalesce | `AppEvent::EguiRepaintAfter` → `Tick::EguiRepaint(창)` 발화 |
 | attach mirror 갱신 | `AttachMirror` | 주사율까지 coalesce | `src/app/attach_poll.rs`, `src/app/attach_client.rs` |
 
-PTY 출력은 보이는 surface가 바뀐 창만 다시 그린다. 보인다는 것은 그 창의 활성 워크스페이스에서 각 pane의 활성 탭에 속한다는 뜻이다(`MainViewState::shows_any_surface`, `src/state/accessors.rs`). 숨은 surface의 출력도 읽고 이벤트 후속 처리를 하지만 redraw는 요청하지 않는다. 보이게 될 때 전환이 다시 그린다.
+PTY 출력은 보이는 surface가 바뀐 창만 다시 그린다. 보인다는 것은 그 창의 활성 워크스페이스에서 각 pane이 그리는 탭에 속한다는 뜻이다. attach 임시 탭이 그 pane을 덮으면 그 아래 탭은 보이지 않는다(`MainViewState::shows_any_surface` → `draws_tab`, `src/state/accessors.rs`). 레이아웃 스윕도 같은 판정을 쓴다. 숨은 surface의 출력도 읽고 이벤트 후속 처리를 하지만 redraw는 요청하지 않는다. 보이게 될 때 전환이 다시 그린다.
 
 - surface 지정 wake(`AppEvent::TerminalOutput(Some(id))`)는 그 surface를 처리한 뒤 보일 때만 창을 dirty로 만든다.
 - global drain(`AppEvent::TerminalOutput(None)`)은 창마다 모든 터미널을 처리하고, 이번 처리에서 새 출력이 있던 surface 목록(`ProcessPtyOutcome::output_surfaces`)을 받는다. 목록 중 보이는 surface가 있는 창만 아래 입력 에코 분류(`InputEcho`·`TerminalOutput`, `output_repaint_source`)로 dirty를 만들고, 없는 창은 아래 native webview 대기가 있을 때만 `TerminalOutput`으로 dirty를 만든다. 이 분기는 DEC 2026 동기화 보류를 하지 않는다. 터미널 출력 중 이 경로를 타는 것은 surface 없이 만든 터미널의 깨움, journal 관찰 보류 중 합쳐진 지정 wake(`src/app/publication_input.rs`), 그리고 `performance.targeted_pty_polling`이 꺼져 있을 때의 모든 PTY 출력이다. 꺼져 있으면 `EngineRef::make_waker`(`src/runtime/engine_access.rs`)가 터미널마다 engine 기본 waker를 준다.
