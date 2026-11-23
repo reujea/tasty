@@ -1758,6 +1758,14 @@ pub fn pages() -> Vec<Page> {
                             components::settings::draw,
                         ),
                         spec(
+                            "settings-titlebar-linux",
+                            "Settings window on Linux — title bar",
+                            Some(
+                                "the client-drawn row above the L1 band · close only · Mocha and Latte, active and inactive · close at rest, hover and press, keyboard focus",
+                            ),
+                            components::settings_titlebar_linux::draw,
+                        ),
+                        spec(
                             "settings-controls",
                             "Settings content — the control vocabulary",
                             Some(

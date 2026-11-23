@@ -1593,6 +1593,9 @@ pub mod settings {
     /// `component.settings-content-max-width` → `{primitive.size-620}` = 620px
     pub const CONTENT_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_620;
 
+    /// `component.settings-l1-height` → `{primitive.size-44}` = 44px
+    pub const L1_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_44;
+
     /// `component.settings-label-gap` → `{semantic.space-lg}` = 16px
     pub const LABEL_GAP: LogicalPx = crate::generated::semantic::SPACE_LG;
 

@@ -46,6 +46,9 @@ pub const FIELD_WIDTH_RANGE: LogicalPx = super::primitive::SIZE_180;
 /// `semantic.field-width-xs` → `{primitive.size-90}` = 90px
 pub const FIELD_WIDTH_XS: LogicalPx = super::primitive::SIZE_90;
 
+/// `semantic.focus-ring-offset` → `{primitive.size-1}` = 1px
+pub const FOCUS_RING_OFFSET: LogicalPx = super::primitive::SIZE_1;
+
 /// `semantic.focus-ring-width` → `{primitive.size-2}` = 2px
 pub const FOCUS_RING_WIDTH: LogicalPx = super::primitive::SIZE_2;
 

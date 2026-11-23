@@ -4944,6 +4944,12 @@ impl crate::theme::Theme {
         LogicalPx((620.0 * self.ui_zoom).round())
     }
 
+    /// `component.settings-l1-height` → `{primitive.size-44}` = 44px
+    #[inline]
+    pub fn settings_l1_height(&self) -> LogicalPx {
+        LogicalPx((44.0 * self.ui_zoom).round())
+    }
+
     /// `component.settings-label-gap` → `{semantic.space-lg}` = 16px
     #[inline]
     pub fn settings_label_gap(&self) -> LogicalPx {
@@ -4996,6 +5002,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn settings_sidebar_width(&self) -> LogicalPx {
         LogicalPx((200.0 * self.ui_zoom).round())
+    }
+
+    /// `component.settings-window-csd-height` → `calc(var(--tasty-settings-window-height) + var(--tasty-titlebar-height))` = 736px
+    #[inline]
+    pub fn settings_window_csd_height(&self) -> LogicalPx {
+        LogicalPx(self.settings_window_height().value() * 1.0 + self.titlebar_height.value() * 1.0)
     }
 
     /// `component.settings-window-height` → `{primitive.size-700}` = 700px
@@ -5926,6 +5938,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn titlebar_window_button_size(&self) -> LogicalPx {
         self.window_button_size
+    }
+
+    /// `component.titlebar-window-glyph-size` → `calc(0.44 * var(--tasty-titlebar-window-button-size))` = 10.559999px
+    #[inline]
+    pub fn titlebar_window_glyph_size(&self) -> LogicalPx {
+        LogicalPx(self.titlebar_window_button_size().value() * 0.44)
     }
 
     /// `component.toast-accent-agent` → `{semantic.accent-agent}`

@@ -111,6 +111,7 @@ pub mod settings_performance;
 pub mod settings_remote_attach;
 pub mod settings_remote_transfer;
 pub mod settings_task_pipeline;
+pub mod settings_titlebar_linux;
 pub mod sidebar;
 pub mod sidebar_context_menu;
 pub mod sidebar_running_count;

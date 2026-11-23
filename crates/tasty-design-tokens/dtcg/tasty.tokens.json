@@ -1260,6 +1260,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-2}"
     },
+    "focus-ring-offset": {
+      "$type": "dimension",
+      "$value": "{primitive.size-1}"
+    },
     "radius": {
       "$type": "dimension",
       "$value": "{primitive.radius-4}"
@@ -4939,6 +4943,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-24}"
     },
+    "titlebar-window-glyph-size": {
+      "$type": "dimension",
+      "$value": "calc(0.44 * var(--tasty-titlebar-window-button-size))"
+    },
     "titlebar-csd-radius": {
       "$type": "dimension",
       "$value": "{primitive.radius-8}"
@@ -5550,6 +5558,14 @@
     "settings-window-height": {
       "$type": "dimension",
       "$value": "{primitive.size-700}"
+    },
+    "settings-l1-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-44}"
+    },
+    "settings-window-csd-height": {
+      "$type": "dimension",
+      "$value": "calc(var(--tasty-settings-window-height) + var(--tasty-titlebar-height))"
     },
     "toast-stack-offset-bottom": {
       "$type": "dimension",

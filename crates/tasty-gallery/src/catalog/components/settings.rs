@@ -207,7 +207,7 @@ pub fn draw_controls(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx) {
+pub(super) fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), band_h.value()),
         egui::Sense::hover(),

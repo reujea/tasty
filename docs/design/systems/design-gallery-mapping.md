@@ -561,7 +561,10 @@ thread-local mock. `crates/tasty-gallery/src/catalog/widgets/<name>.rs`.
 `components/settings.rs` (Overlays `settings` · `settings-controls` specimen). `settings` 는 시안 갤러리
 `SettingsFrame` 의 620×380 전시 구성(L1 탭 넷, L2 168 · 항목 셋, Theme preset 카드 둘, 버튼 줄)을 그대로
 옮긴다. 제품 창 1100×700 · L2 200 · L1 탭 일곱은 Meta 의 canonical 값과 본체에만 있다. L1 높이 44 는
-본체 `SETTINGS_HEADER_HEIGHT`(44)와 같은 `titlebar_height + spacing_sm` 도출이다. `settings-controls` 는
+본체 `SETTINGS_HEADER_HEIGHT`(`settings-l1-height`)와 같다. Linux 설정창 제목 줄은 시안
+`ui_kits/terminal/overlays/settings_titlebar_linux.jsx` ↔ 본체 `src/view/settings/chrome.rs`(메인 타이틀바 렌더러
+`draw_titlebar_view`에 닫기 버튼 하나와 키보드 포커스 표시를 넘긴다) ↔ 갤러리
+`components/settings_titlebar_linux.rs`(`settings-titlebar-linux`, 시안 같은 이름 카드의 Mocha·Latte 칸)다. `settings-controls` 는
 시안 갤러리에 없는 갤러리 전용 예제로, 콘텐츠 열 최대 폭(620) 안에 행·스위치·색 override·언어 선택을 모았다.
 Layouts 의 `widgets/layout_2depth.rs`(`twodepth`)는 이 미러가 아니라 특정 창에 매이지
 않는 일반 2단계 레이아웃(168/40, 토큰으로 계산)이다.

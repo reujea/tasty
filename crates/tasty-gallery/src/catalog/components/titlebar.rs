@@ -6,26 +6,23 @@ use tasty_type_appearance::theme::Theme;
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
-/// 본체 `draw_button_glyph` 의 글리프 extent 비율 (지름 대비).
-const GLYPH_EXTENT_RATIO: f32 = 0.22;
-
 /// 본체 `WindowButton` 과 같은 3종.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum WindowButton {
+pub(super) enum WindowButton {
     Minimize,
     Maximize,
     Close,
 }
 
-/// 본체 `draw_button_glyph` 전사.
-fn button_glyph(
+/// 본체 `draw_button_glyph` 전사. 글리프 폭은 titlebar-window-glyph-size이고 `g`는 중심에서 각 변까지(그 절반)다.
+pub(super) fn button_glyph(
     p: &egui::Painter,
+    theme: &Theme,
     center: egui::Pos2,
-    d: f32,
     button: WindowButton,
     stroke: egui::Stroke,
 ) {
-    let g = d * GLYPH_EXTENT_RATIO;
+    let g = theme.titlebar_window_glyph_size().value() * 0.5;
     match button {
         WindowButton::Minimize => {
             p.line_segment(
@@ -104,8 +101,8 @@ fn window_buttons(
         };
         button_glyph(
             p,
+            theme,
             center,
-            d,
             *button,
             egui::Stroke::new(theme.border_width.value(), fg.to_egui()),
         );
@@ -161,7 +158,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "button",
                 "window-button-size(24) 원형 · gap spacing-xs · edge spacing-sm",
             ),
-            ("glyph", "지름 × 0.22 extent · 1px border-width stroke"),
+            (
+                "glyph",
+                "titlebar-window-glyph-size(0.44 × 버튼) · 1px border-width stroke",
+            ),
             (
                 "close",
                 "hover/press 시 accent-window-close 배경 + 반전 글리프",
