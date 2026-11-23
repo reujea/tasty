@@ -21,7 +21,7 @@ enum Row {
     Item(MockGlyph, &'static str, bool, bool),
     /// 아이콘 없는 이동 대상 카테고리 행.
     Target(&'static str),
-    /// 아이콘 없는 행과 활성 여부(강제 끊기).
+    /// 아이콘 없는 행의 번역 키와 활성 여부(강제 끊기). 본체와 같은 lang 문구를 읽는다.
     Plain(&'static str, bool),
     Sep,
 }
@@ -50,7 +50,7 @@ const WORKSPACE: &[Row] = &[
     Row::Sep,
     Row::Item(PLUS, "New category", false, true),
     Row::Sep,
-    Row::Plain("Force detach", false),
+    Row::Plain("attach.force_detach", false),
 ];
 /// 이 Tasty 가 그 workspace 를 다른 client 에 내보이는 중이면 강제 끊기가 켜진다.
 const WORKSPACE_SERVED: &[Row] = &[
@@ -60,7 +60,7 @@ const WORKSPACE_SERVED: &[Row] = &[
     Row::Sep,
     Row::Item(PLUS, "New category", false, true),
     Row::Sep,
-    Row::Plain("Force detach", true),
+    Row::Plain("attach.force_detach", true),
 ];
 
 fn menu(ui: &mut egui::Ui, theme: &Theme, rows: &[Row]) {
@@ -111,12 +111,12 @@ fn menu(ui: &mut egui::Ui, theme: &Theme, rows: &[Row]) {
                             true,
                         );
                     }
-                    Row::Plain(label, enabled) => {
+                    Row::Plain(key, enabled) => {
                         menu_item(
                             ui,
                             theme,
                             None,
-                            label,
+                            crate::i18n::t(key),
                             None,
                             MenuItemVariant::Normal,
                             false,
