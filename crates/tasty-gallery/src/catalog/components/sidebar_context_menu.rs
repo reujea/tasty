@@ -177,7 +177,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "Move to category (inert header) · targets · New | Force detach (enabled only while this Tasty serves the workspace to another client, otherwise disabled, no reason)",
             ),
             (
-                "Force detach",
+                crate::i18n::t("attach.force_detach"),
                 "local workspace menus only · not on a mirror (a saved remote row or an agent mirror): no other client can hold one, so the item and its separator are left out, not disabled",
             ),
             (
