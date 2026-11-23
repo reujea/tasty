@@ -149,6 +149,11 @@ fn html_transport_is_declared_only_to_servers_advertising_it_and_never_as_viewer
                 serde_json::from_slice::<StreamControl>(&loss.payload).unwrap(),
                 StreamControl::ClientLossNotify {}
             ));
+            let effects = stream::read_frame(&mut reader).unwrap();
+            assert!(matches!(
+                serde_json::from_slice::<StreamControl>(&effects.payload).unwrap(),
+                StreamControl::ClientTerminalEffects {}
+            ));
             let next = stream::read_frame(&mut reader);
             if enabled {
                 let HtmlRequest::HtmlCapabilities { capabilities } =
