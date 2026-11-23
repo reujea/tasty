@@ -461,16 +461,16 @@ raise에는 mirror 차단이 있고 clear에는 서버로 전달할 메시지 �
 
 ## raw 출력 효과의 처리자
 
-서버와 attach client 는 같은 raw 바이트를 받으므로 그 바이트의 사용자 쪽 효과(OSC 52 쓰기·읽기, 알림 소리)는 한쪽만 낸다. GUI mirror 연결은 handshake 직후 효과를 맡겠다고 선언한다(`StreamControl::ClientTerminalEffects`). 서버는 선언한 연결의 스트림이 받은 바이트에서 생긴 사건에 표지(`TerminalEvent::attach_streamed`)를 달고 그 사건의 클립보드 효과를 내지 않는다. CLI attach 는 선언하지 않으므로 서버가 처리한다. 알림 소리는 사건 표지가 아니라 서버가 새 알림을 만들 때 그 대상을 점유한 선언 연결에 넘긴다. 알림 기록·attention·훅은 서버에 남는다. client 는 넘겨받은 효과를 자기 클립보드와 자기 설정으로 내고, 원격 프로그램의 OSC 52 쓰기가 오가는 동안 진행을 보여 준다.
+서버와 attach client 는 같은 raw 바이트를 받으므로 그 바이트의 사용자 쪽 효과(OSC 52 쓰기·읽기, 알림 소리)는 한쪽만 낸다. GUI mirror 연결은 handshake 직후 효과를 맡겠다고 선언하고(`StreamControl::ClientTerminalEffects`), 그 뒤 이 연결로 넘어간 바이트의 클립보드 효과와 점유 대상의 알림 소리는 client 가 자기 클립보드와 자기 설정으로 낸다. CLI attach 는 선언하지 않으므로 서버가 낸다. 알림 기록·attention·훅은 어느 경우든 서버에 남는다. client 는 원격 프로그램의 OSC 52 쓰기가 오가는 동안 진행을 보여 준다.
 
 정확한 조건은 아래 코드와 시험이 정본이다.
 
 | 영역 | 코드 | 시험 |
 |---|---|---|
-| 선언과 사건 표지 | `StreamHub::accepts_terminal_effects`, `poll_attach_subscriptions`(`src/remote/subscription.rs`), `TerminalState::ingest`·`effects_held_prefix`(`crates/tasty-terminal/src/attach_stream.rs`) | `attach_stream_tests.rs`의 `only_events_from_bytes_an_effects_owner_stream_carried_are_marked`, `a_sequence_begun_for_an_effects_owner_stays_its_effect_after_the_receiver_closes` |
+| 선언과 사건 표지 | `StreamHub::accepts_terminal_effects`, `poll_attach_subscriptions`(`src/remote/subscription.rs`), `TerminalState::ingest`(`crates/tasty-terminal/src/lib.rs`), `effects_held_prefix`(`crates/tasty-terminal/src/attach_stream.rs`) | `attach_stream_tests.rs`의 `only_events_from_bytes_an_effects_owner_stream_carried_are_marked`, `a_sequence_begun_for_an_effects_owner_stays_its_effect_after_the_receiver_closes` |
 | 서버의 OSC 52 처리 | `src/app/services/impl_pty.rs`, `src/app/services/impl_clipboard.rs` | `impl_pty_tests.rs`의 `osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard_alone` |
 | mirror 손실 처리 | `begin_resync`(`src/app/attach_client/output.rs`), `Terminal::break_stream`, `apply_one_mirror_event`의 Data 분기 | `a_broken_stream_drops_the_unfinished_sequence`, `output_after_a_loss_marker_reaches_neither_the_mirror_nor_copy_progress` |
-| 알림 소리 | `EngineMut::hand_notification_sound_to_attach_client`(`src/remote/notification_sound.rs`), `NOTIFICATION_SOUND_CAPABILITY`, `App::mirror_receives_notification_sounds`, `MirrorOutbox` | `a_new_notification_sound_goes_to_the_attach_client_that_holds_its_surface`, `a_notification_sound_becomes_its_own_event`, `notification_sounds_after_a_loss_marker_are_dropped`, `notification_sounds_neither_take_output_room_nor_desync`, `a_droppable_frame_is_dropped_without_a_loss` |
+| 알림 소리 | `EngineMut::hand_notification_sound_to_attach_client`(`src/remote/notification_sound.rs`), `NOTIFICATION_SOUND_CAPABILITY`, `App::mirror_receives_notification_sounds`, `MirrorOutbox` | `a_new_notification_sound_goes_to_the_attach_client_that_holds_its_surface`, `a_notification_sound_becomes_its_own_event`, `notification_sounds_after_a_loss_marker_are_dropped`, `notification_sounds_neither_take_output_room_nor_desync`, `restoring_the_front_keeps_the_sound_limit`, `a_droppable_frame_is_dropped_without_a_loss` |
 | OSC 52 복사 진행 | `CopyProgress`(`src/remote/copy_progress.rs`), `App::settle_attach_copies`·`fail_copies_of_ending_sessions`·`copy_result_scope`(`src/app/attach_client/copy_waits.rs`), `attach_loading` | `copy_progress_tests.rs`, `copy_waits.rs`의 시험 |
 
 선언을 처리하기 전의 짧은 구간, 구독 경계에 걸친 시퀀스, 이 기능 전 버전과 섞인 조합에서는 양쪽이 함께 처리하거나 어느 쪽도 효과를 내지 않을 수 있다. 서버 사용자의 직접 선택 복사, IPC `clipboard.set_text`, 원격 캡처 게시는 raw 바이트 효과가 아니라 이 구분을 쓰지 않는다.
