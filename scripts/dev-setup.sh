@@ -61,4 +61,4 @@ green "✓ 셋업 완료"
 echo
 echo "이제 git commit / git push 시 자동으로 검사가 실행됩니다."
 echo "검사 규칙: docs/dev-guide/git-hooks.md"
-echo "긴급 우회: git commit --no-verify / git push --no-verify"
+echo "검사가 막으면: 커밋은 docs/dev-guide/git-hooks.md#pre-commit, push 로그는 docs/dev-guide/git-hooks.md#실행-시간과-로그"
