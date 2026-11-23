@@ -1,5 +1,6 @@
 //! Design LoadingOverlay and PendingIndicator. Callers own time, layout and focus.
 use crate::Spinner;
+use crate::tooltip::{Tooltip, TooltipPlacement, tooltip_hover_delay_elapsed};
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
@@ -65,6 +66,8 @@ pub struct PendingIndicator<'a> {
     pub compact: bool,
     /// One line per pending kind, each with its own elapsed time.
     pub details: &'a str,
+    /// Draw the detail Tooltip open without hover (gallery specimens).
+    pub open: bool,
 }
 impl PendingIndicator<'_> {
     pub fn show(&self, ui: &mut egui::Ui, theme: &Theme) -> egui::Response {
@@ -161,7 +164,35 @@ impl PendingIndicator<'_> {
                 format!("{} · {}", self.label, self.time),
             )
         });
-        response.on_hover_text(self.details)
+        // A forced bubble is drawn only while it fits the clip: the bubble Area is not clipped by a
+        // scroll area and would be pulled to the screen edge.
+        let open = self.open
+            && ui
+                .clip_rect()
+                .contains_rect(self.open_bubble_rect(ui, theme, rect));
+        if open || tooltip_hover_delay_elapsed(ui.ctx(), theme, response.id, response.hovered()) {
+            self.detail_tooltip()
+                .id_source(response.id.with("detail"))
+                .show(ui, theme, response.rect);
+        }
+        response
+    }
+
+    /// Where the open detail bubble lands below `chip` (Tooltip::show bottom placement).
+    fn open_bubble_rect(&self, ui: &egui::Ui, theme: &Theme, chip: egui::Rect) -> egui::Rect {
+        let size = self.detail_tooltip().bubble_size(ui.ctx(), theme);
+        egui::Rect::from_min_size(
+            egui::pos2(
+                chip.center().x - size.x * 0.5,
+                (LogicalPx(chip.bottom()) + theme.spacing_xs).value(),
+            ),
+            size,
+        )
+    }
+
+    /// The detail lines as the design Tooltip below the chip.
+    pub fn detail_tooltip(&self) -> Tooltip<'_> {
+        Tooltip::new(self.details).placement(TooltipPlacement::Bottom)
     }
 }
 
@@ -209,6 +240,7 @@ mod tests {
                     time: "1m 04s",
                     compact: false,
                     details: "Close tab · 1m 04s\nInput · 3s",
+                    open: false,
                 }
                 .show(ui, &theme);
                 let compact = PendingIndicator {
@@ -216,6 +248,7 @@ mod tests {
                     time: "1m 04s",
                     compact: true,
                     details: "Close tab · 1m 04s\nInput · 3s",
+                    open: false,
                 }
                 .show(ui, &theme);
                 assert_eq!(full.rect.height(), theme.pending_indicator_height().value());
@@ -224,5 +257,90 @@ mod tests {
                 assert!(!full.sense.senses_click() && !full.sense.senses_drag());
             });
         }));
+    }
+
+    /// The chip sits in a non-interactable Area as in the app. Hovering it past the tooltip delay
+    /// draws the detail lines in the design Tooltip below the chip, not in egui's own tooltip.
+    #[test]
+    fn hovering_the_chip_opens_the_design_tooltip_below_it() {
+        const DETAILS: &str = "Close tab · 20s\nCopying to clipboard · 3s";
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        let mut chip = egui::Rect::NOTHING;
+        let mut bubble_text = None;
+        let mut bubble = None;
+        let mut tooltip_layer = false;
+        for i in 0..20 {
+            let mut events = Vec::new();
+            if chip.is_positive() {
+                events.push(egui::Event::PointerMoved(chip.center()));
+            }
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                time: Some(f64::from(i) * 0.25),
+                events,
+                ..Default::default()
+            };
+            let out = ctx.run(input, |ctx| {
+                egui::Area::new(egui::Id::new("chip_area"))
+                    .order(egui::Order::Foreground)
+                    .interactable(false)
+                    .fixed_pos(egui::pos2(400.0, 40.0))
+                    .show(ctx, |ui| {
+                        chip = PendingIndicator {
+                            label: "Waiting for 2 responses",
+                            time: "20s",
+                            compact: false,
+                            details: DETAILS,
+                            open: false,
+                        }
+                        .show(ui, &theme)
+                        .rect;
+                    });
+            });
+            bubble_text = out.shapes.iter().find_map(|c| match &c.shape {
+                egui::Shape::Text(t) if t.galley.text() == DETAILS => Some((
+                    t.pos,
+                    t.galley.job.sections.first().map(|s| s.format.font_id.size),
+                )),
+                _ => None,
+            });
+            if let Some((at, _)) = bubble_text {
+                // The bubble frame is the raised rect around the detail text.
+                fn raised(
+                    shape: &egui::Shape,
+                    fill: egui::Color32,
+                    at: egui::Pos2,
+                ) -> Option<egui::Rect> {
+                    match shape {
+                        egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| raised(s, fill, at)),
+                        egui::Shape::Rect(r) if r.fill == fill && r.rect.contains(at) => {
+                            Some(r.rect)
+                        }
+                        _ => None,
+                    }
+                }
+                let fill = theme.surface_raised().to_egui();
+                bubble = out.shapes.iter().find_map(|c| raised(&c.shape, fill, at));
+            }
+            tooltip_layer = ctx.memory(|m| {
+                m.areas()
+                    .visible_layer_ids()
+                    .iter()
+                    .any(|layer| layer.order == egui::Order::Tooltip)
+            });
+        }
+        let (_, size) = bubble_text.expect("the hovered chip shows its detail lines");
+        let bubble = bubble.expect("the bubble frame is drawn around the text");
+        assert!(tooltip_layer, "the bubble is on the tooltip layer");
+        assert!(
+            bubble.top() >= chip.bottom(),
+            "bubble {bubble:?} is below the chip {chip:?}"
+        );
+        // The design Tooltip sets caption text; egui's own tooltip would use its body size.
+        assert_eq!(size, Some(theme.font_size_caption.value()));
     }
 }

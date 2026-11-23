@@ -30,6 +30,8 @@ fn pending(ui: &mut egui::Ui, theme: &Theme) {
             time: "0s",
             compact: false,
             details: &format!("{} · 0s", t("attach.pending.close_tab")),
+
+            open: false,
         }
         .show(ui, theme);
         PendingIndicator {
@@ -42,6 +44,7 @@ fn pending(ui: &mut egui::Ui, theme: &Theme) {
                 t("attach.pending.move_tab"),
                 t("attach.pending.input"),
             ),
+            open: false,
         }
         .show(ui, theme);
         PendingIndicator {
@@ -54,6 +57,7 @@ fn pending(ui: &mut egui::Ui, theme: &Theme) {
                 t("attach.pending.move_tab"),
                 t("attach.pending.input"),
             ),
+            open: false,
         }
         .show(ui, theme);
         let mut still = theme.clone();
@@ -63,6 +67,8 @@ fn pending(ui: &mut egui::Ui, theme: &Theme) {
             time: "1h 02m",
             compact: false,
             details: &format!("{} · 1h 02m", t("attach.pending.close_tab")),
+
+            open: false,
         }
         .show(ui, &still);
     });

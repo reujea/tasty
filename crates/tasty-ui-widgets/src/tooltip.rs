@@ -238,7 +238,7 @@ impl<'a> Tooltip<'a> {
     }
 
     /// 버블 크기 — 텍스트 + padding + 테두리.
-    fn bubble_size(&self, ctx: &egui::Context, theme: &Theme) -> egui::Vec2 {
+    pub fn bubble_size(&self, ctx: &egui::Context, theme: &Theme) -> egui::Vec2 {
         let text = ctx.fonts(|f| f.layout_job(self.layout_job(theme)).size());
         let border = theme.border_width.scaled(2.0).value();
         egui::vec2(

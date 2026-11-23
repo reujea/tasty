@@ -171,6 +171,7 @@ pub(crate) fn draw(
                     time: &time,
                     compact: false,
                     details: &details,
+                    open: false,
                 }
                 .show(ui, &theme);
             });
