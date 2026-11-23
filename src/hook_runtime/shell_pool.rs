@@ -112,12 +112,15 @@ impl ShellPool {
             let tx =
                 spawn_worker(self).map_err(|e| ShellNotQueued::WorkerUnavailable(e.to_string()))?;
             state.running += 1;
+            // 대기열을 건드리기 전에 만든다. `make`가 패닉해도 대기 작업은 그대로 남고,
+            // 새 스레드는 첫 작업을 받지 못한 채 대기열을 맡는다.
+            let new = make();
             let job = match state.waiting.pop_front() {
                 Some(front) => {
-                    state.waiting.push_back(make());
+                    state.waiting.push_back(new);
                     front
                 }
-                None => make(),
+                None => new,
             };
             if tx.send(job).is_err() {
                 tracing::error!("hook shell thread stopped before its first job");
@@ -792,6 +795,46 @@ mod tests {
         assert_eq!(
             wait_lines(&dir.join("order"), 3),
             ["held", "queued", "newer"]
+        );
+    }
+
+    /// 빈 슬롯을 얻은 요청의 작업 생성이 패닉해도 대기열에 남아 있던 작업은 잃지 않고 실행된다.
+    #[test]
+    fn a_panicking_submit_into_a_free_slot_keeps_the_queued_job() {
+        let (_tmp, dir) = setup();
+        let pool = ShellPool::new(2, 3);
+        let (tx, rx) = mpsc::channel();
+        pool.submit(|| held_job(&dir, "held", tx.clone()))
+            .expect("accepted");
+        let (open, wait_open) = gate();
+        pool.submit(|| {
+            ShellJob::new(
+                "quick",
+                move || {
+                    wait_open.recv().expect("gate");
+                    std::process::Command::new("true")
+                },
+                reporter("quick", tx.clone()),
+            )
+        })
+        .expect("accepted");
+        pool.submit(|| held_job(&dir, "queued", tx.clone()))
+            .expect("accepted");
+        pool.fail_spawns.store(1, Ordering::SeqCst);
+        pool.unwind_after_job.store(true, Ordering::SeqCst);
+        open.send(()).expect("open the gate");
+        wait_until("the unwound slot is returned", || pool.running() == 1);
+        assert_eq!(pool.waiting(), 1);
+        let submitted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            pool.submit(|| panic!("test make panic"))
+        }));
+        assert!(submitted.is_err(), "the make closure did not panic");
+        wait_lines(&dir.join("order"), 2);
+        release(&dir);
+        wait_idle(&pool, Duration::from_secs(20));
+        assert_eq!(
+            reports(&rx),
+            started_and_exited(&["held", "queued", "quick"])
         );
     }
 
