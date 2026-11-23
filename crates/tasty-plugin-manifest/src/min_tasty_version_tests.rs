@@ -206,3 +206,33 @@ fn the_host_version_setter_accepts_semver_and_keeps_only_the_release_numbers() {
     assert!(host_version::parse_release_version("0.14.0-dev").is_none());
     assert!(set_host_tasty_version("not-a-version", VersionShortfall::Refuse).is_err());
 }
+
+/// 받아들이는 자리의 공용 단계는 타입 역직렬화·선언 검사보다 먼저 버전을 판정한다.
+#[test]
+fn load_for_host_reports_the_version_before_a_contract_this_tasty_does_not_know() {
+    // 이 시험 바이너리에서 전역 본체 버전을 정하는 곳은 여기뿐이다.
+    set_host_tasty_version("1.0.0", VersionShortfall::Refuse).expect("host version");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = source_with(r#"min_tasty_version = "1.0.1""#).replace(
+        "type = \"process\"\n        command = \"x\"",
+        "type = \"wasm\"\n        module = \"x.wasm\"",
+    );
+    assert!(
+        source.contains("wasm"),
+        "fixture must use an unknown entry type"
+    );
+    std::fs::write(dir.path().join("tasty-plugin.toml"), source).expect("write");
+    assert!(
+        Manifest::load(dir.path()).is_err(),
+        "this Tasty cannot read it"
+    );
+    let err = Manifest::load_for_host(dir.path()).expect_err("refused");
+    assert!(err.is::<TastyVersionTooOld>(), "{err}");
+    let ok = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        ok.path().join("tasty-plugin.toml"),
+        source_with(r#"min_tasty_version = "1.0.0""#),
+    )
+    .expect("write");
+    assert!(Manifest::load_for_host(ok.path()).is_ok());
+}
