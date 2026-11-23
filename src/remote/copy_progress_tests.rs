@@ -145,6 +145,15 @@ fn an_esc_swallowed_inside_another_osc_leaves_no_copy() {
     assert!(progress.surfaces().is_empty());
 }
 
+/// Given 다른 OSC를 C1 CSI가 끝내고 그 CSI를 ESC가 끊으며 OSC 52 쓰기가 시작된다, When 본문이 오는 중이다,
+/// Then OSC가 끝났으므로 그 ESC는 새 머리이고 쓰기를 접수한다.
+#[test]
+fn a_write_after_an_osc_ended_by_a_c1_csi_is_received() {
+    let mut progress = CopyProgress::default();
+    progress.feed(SID, b"\x1b]0;t\x9b1;\x1b]52;c;aGk=", at(0));
+    assert_eq!(waits(&progress), vec![at(0)]);
+}
+
 /// Given 한 묶음에서 쓰기 A가 끝나고 B가 시작된다, When A의 결과가 온다, Then A만 닫힌다.
 #[test]
 fn consecutive_writes_settle_in_byte_order() {

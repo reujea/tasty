@@ -164,8 +164,12 @@ impl CopyProgress {
             let was_ground = scan.parser.is_ground();
             scan.parser.parse_byte(byte, &mut ended);
             // ESC는 새 이스케이프를 시작하고, 앞 시퀀스(OSC 52가 아니어도)를 끝낸 ESC도 다음 시퀀스의
-            // 머리다. OSC 문자열 안에서는 OSC를 끝낸 ESC만 그렇다.
+            // 머리다. OSC 문자열 안에서는 OSC를 끝낸 ESC만 그렇다. OSC는 dispatch된 바이트(C1 CSI
+            // 같은 다른 도입자 포함)에서 끝난다.
             let restarted = byte == 0x1b && (!scan.in_osc || !ended.0.is_empty());
+            if !ended.0.is_empty() {
+                scan.in_osc = false;
+            }
             for end in ended.0.drain(..) {
                 let receiving = scan.receiving.take();
                 match end {
@@ -185,10 +189,7 @@ impl CopyProgress {
                 continue;
             }
             match &mut scan.head {
-                Head::Idle if was_ground => {
-                    scan.in_osc = byte == 0x9d;
-                    scan.head = Head::Collect(vec![byte]);
-                }
+                Head::Idle if was_ground => scan.head = Head::Collect(vec![byte]),
                 Head::Idle => scan.head = Head::Decided,
                 Head::Collect(head) => {
                     head.push(byte);
