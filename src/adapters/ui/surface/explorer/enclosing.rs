@@ -10,7 +10,8 @@ use super::view::{ExplorerView, LoadState};
 pub(crate) enum EnclosingRow {
     /// 행을 켠다: (열 폴더, 고를 항목).
     Target(PathBuf, PathBuf),
-    /// 링크의 대상이 사라졌다. 대상이 다시 생기면 쓸 수 있으므로 행을 끈 채 둔다. 값은 없는 대상 경로다.
+    /// 링크의 대상이 사라졌다. 대상이 다시 생기면 쓸 수 있으므로 행을 끈 채 둔다. 값은 링크에 적힌 대상을
+    /// 링크가 든 폴더에 이어 붙인 경로다. `..` 를 글자로 접지 않아 파일시스템이 찾은 경로와 갈리지 않는다.
     TargetGone(PathBuf),
     /// 행이 없다: 링크도 검색 결과도 아니거나, 대상을 풀 수 없는 링크(권한·순환·부모 없는 대상).
     None,
@@ -38,8 +39,9 @@ impl ExplorerView {
             match std::fs::metadata(path) {
                 Ok(_) => link_target(path),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    let target = link_target(path)
-                        .or_else(|| std::fs::read_link(path).ok())
+                    let target = std::fs::read_link(path)
+                        .ok()
+                        .and_then(|t| Some(path.parent()?.join(t)))
                         .unwrap_or_else(|| path.to_path_buf());
                     return EnclosingRow::TargetGone(target);
                 }
@@ -155,6 +157,26 @@ mod tests {
             );
         }
         assert_eq!(view.enclosing_row(&plain), EnclosingRow::None);
+    }
+
+    /// 깨진 링크의 대상 경로는 링크에 적힌 구성 요소를 지킨다. `a` 가 다른 곳(`data/sub`)을 가리키면
+    /// `a/../gone` 은 파일시스템에서 `data/gone` 이므로 `..` 를 글자로 접은 `work/gone` 을 보이면 안 된다.
+    #[cfg(unix)]
+    #[test]
+    fn a_broken_link_keeps_the_components_it_was_written_with() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let work = tmp.path().join("work");
+        std::fs::create_dir_all(tmp.path().join("data/sub")).expect("mkdir");
+        std::fs::create_dir(&work).expect("mkdir");
+        std::os::unix::fs::symlink(tmp.path().join("data/sub"), work.join("a")).expect("symlink");
+        // `work/gone` 은 있어도 링크가 찾는 `data/gone` 은 없다.
+        std::fs::write(work.join("gone"), b"g").expect("write");
+        let broken = work.join("broken");
+        std::os::unix::fs::symlink("a/../gone", &broken).expect("symlink");
+        assert_eq!(
+            ExplorerView::default().enclosing_row(&broken),
+            EnclosingRow::TargetGone(work.join("a/../gone"))
+        );
     }
 
     /// 대상을 풀 수 없지만 사라진 것은 아닌 링크(순환, 부모 없는 대상)는 행이 없다.
