@@ -19,6 +19,8 @@ pub(crate) enum WaitKind {
     Folder,
     Markdown,
     Git,
+    /// 원격 프로그램의 OSC 52 쓰기를 받는 중이거나 client 기록을 기다린다. 지연 없이 보인다.
+    Copy,
 }
 impl WaitKind {
     pub fn from_op(op: &StructuralOp) -> Self {
@@ -54,6 +56,7 @@ impl WaitKind {
             Self::Folder => "attach.pending.folder",
             Self::Markdown => "attach.pending.markdown",
             Self::Git => "attach.pending.git",
+            Self::Copy => "attach.pending.copy",
         }
     }
 }

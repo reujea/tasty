@@ -307,6 +307,9 @@ pub(crate) struct App {
         Option<crate::boot::single_instance::ExternalActivation>,
     #[cfg(feature = "gui")]
     pub(crate) remote: tasty_remote::outbound::Remote,
+    /// attach mirror가 받는 원격 프로그램의 OSC 52 쓰기 진행. mirror surface별이다.
+    #[cfg(feature = "gui")]
+    pub(crate) attach_copies: crate::remote::copy_progress::CopyProgress,
     /// 스크린샷→클립보드 캡처 워커 스레드 → 메인 루프 결과 채널.
     #[cfg(feature = "gui")]
     pub(crate) screenshot_workers: screenshot_capture::ScreenshotWorkers,
@@ -490,6 +493,7 @@ impl App {
             next_window_activation: None,
             pending_external_activation: None,
             remote: tasty_remote::outbound::Remote::new(),
+            attach_copies: Default::default(),
             screenshot_workers: Default::default(),
             screenshot_capture_tx,
             screenshot_capture_rx,

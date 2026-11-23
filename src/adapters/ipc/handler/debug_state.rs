@@ -73,6 +73,7 @@ pub(super) fn handle_ui_state(
             "result_received": entry.receipt.has_result(), "elapsed_ms": entry.receipt.admitted.elapsed().as_millis(),
         })).collect::<Vec<_>>(),
         "waits": state.attach_waits.iter().map(|(workspace, times)| json!({"workspace": workspace, "count": times.len(), "oldest_ms": times.iter().map(|wait| wait.admitted).min().map(|time| time.elapsed().as_millis())})).collect::<Vec<_>>(),
+        "copy_waits": state.attach_copy_waits.iter().map(|(workspace, times)| json!({"workspace": workspace, "count": times.len()})).collect::<Vec<_>>(),
     });
     #[cfg(not(feature = "gui"))]
     let attach_pending = serde_json::Value::Null;

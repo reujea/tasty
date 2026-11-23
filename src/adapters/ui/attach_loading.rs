@@ -98,23 +98,43 @@ pub(crate) fn draw(
             .map(|entry| Wait::new(entry.wait_kind, entry.receipt.admitted)),
     );
     let wait_delay = Duration::from_secs_f64(theme.pending_indicator_delay().to_secs_f64());
-    let Some(summary) = tasty_remote::pending_request::WaitSummary::at(
+    // 일반 대기는 가장 오래된 것이 지연을 넘으면 전부 보인다. 원격 복사는 지연 없이 합친다.
+    let general = tasty_remote::pending_request::WaitSummary::at(
         times.iter().map(|wait| wait.admitted),
         now,
         wait_delay,
+    );
+    if let Some(general) = &general {
+        ctx.request_repaint_after(general.next_update);
+    }
+    if !general.as_ref().is_some_and(|general| general.visible) {
+        times.clear();
+    }
+    let copy_only = times.is_empty();
+    times.extend(
+        state
+            .attach_copy_waits
+            .get(&workspace)
+            .into_iter()
+            .flatten()
+            .copied(),
+    );
+    let Some(summary) = tasty_remote::pending_request::WaitSummary::at(
+        times.iter().map(|wait| wait.admitted),
+        now,
+        Duration::ZERO,
     ) else {
         return;
     };
     ctx.request_repaint_after(summary.next_update);
-    if !summary.visible {
-        return;
-    }
     let bounds = super::to_egui_rect(rect, scale);
     let inset = theme.notice_column_inset();
     let width = theme
         .notice_column_width()
         .min((LogicalPx(bounds.width()) - inset * 2.0).max(LogicalPx(0.0)));
-    let label = if summary.count == 1 {
+    let label = if copy_only {
+        crate::i18n::t("attach.pending.copy").to_string()
+    } else if summary.count == 1 {
         crate::i18n::t("attach.pending.one").to_string()
     } else {
         crate::i18n::t_fmt("attach.pending.many", &summary.count.to_string())

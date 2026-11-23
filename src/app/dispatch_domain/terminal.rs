@@ -259,6 +259,8 @@ impl App {
         surface_id: u32,
         result: Result<(), crate::clipboard::error::ClipboardError>,
     ) {
+        // attach mirror가 진행 표시하던 원격 복사라면 가장 오래된 건이 이 결과로 끝난다.
+        self.attach_copies.settle_write(surface_id);
         let Some(DispatchCtx {
             state,
             engine: _,

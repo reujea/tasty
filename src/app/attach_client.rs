@@ -4,6 +4,7 @@ mod agent_origin;
 pub(crate) mod attempts;
 mod bulk;
 mod connection;
+mod copy_waits;
 mod dispatch;
 mod documents;
 mod forward;

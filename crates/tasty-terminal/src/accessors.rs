@@ -226,6 +226,11 @@ impl Terminal {
         self.lock_state().take_events()
     }
 
+    /// Events wait for the next poll. A terminal fed without a PTY reader uses this to wake it.
+    pub fn has_pending_events(&self) -> bool {
+        !self.lock_state().events.is_empty()
+    }
+
     /// Take buffered events without waiting for the state lock. On contention, return None
     /// and leave them for a later poll. Parsing wakes the loop after each ingest.
     pub fn try_take_events(&mut self) -> Option<Vec<TerminalEvent>> {

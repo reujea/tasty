@@ -44,6 +44,7 @@ impl App {
     }
     pub(crate) fn sync_attach_waits(&mut self) {
         use crate::view::ui::View as _;
+        self.settle_attach_copies();
         let (waits, epochs): (HashMap<_, _>, HashMap<_, _>) = self
             .remote
             .sessions
@@ -78,7 +79,13 @@ impl App {
             .flat_map(|manager| manager.popup_instances())
             .map(|(id, _)| id)
             .collect();
-        for (_, main, engine) in self.engines_mut().window_pairs() {
+        let copies = &self.attach_copies;
+        for (_, main, engine) in crate::app::window_access::engines_mut!(self).window_pairs() {
+            let copy_waits = Self::attach_copy_waits(copies, &engine);
+            if main.state.attach_copy_waits != copy_waits {
+                main.state.attach_copy_waits = copy_waits;
+                main.mark_dirty();
+            }
             let mut waits = waits.clone();
             main.state.attach_pending.queries.retain(|query| {
                 query.epoch.is_active()

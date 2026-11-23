@@ -5715,6 +5715,7 @@ dependencies = [
  "trash",
  "tray-icon",
  "url",
+ "vtparse",
  "wayland-backend",
  "wayland-client",
  "webbrowser",

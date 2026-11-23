@@ -18,6 +18,9 @@ pub struct MainViewState {
     pub(crate) attach_pending: attach_pending::AttachPending,
     pub(crate) attach_waits:
         std::collections::HashMap<u32, Vec<super::attach_pending::waits::Wait>>,
+    /// 원격 프로그램의 OSC 52 쓰기 대기. 응답 대기 표시에만 들어가고 탭·LNB 로딩 표시에는 넣지 않는다.
+    pub(crate) attach_copy_waits:
+        std::collections::HashMap<u32, Vec<super::attach_pending::waits::Wait>>,
     /// Tab bar viewport by stable pane ID; never part of the domain layout.
     #[cfg(feature = "gui")]
     pub(crate) tab_bar_scroll: std::collections::HashMap<u32, LogicalPx>,

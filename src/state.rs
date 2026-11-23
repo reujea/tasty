@@ -201,6 +201,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             attach_waits: Default::default(),
             #[cfg(feature = "gui")]
+            attach_copy_waits: Default::default(),
+            #[cfg(feature = "gui")]
             terminal_views: Default::default(),
             #[cfg(any(feature = "gui", debug_assertions, test))]
             category_last_active: std::collections::HashMap::new(),

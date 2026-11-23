@@ -37,7 +37,15 @@ pub(super) fn apply_one_mirror_event(
             if let Some(&local) = sess.state.remote_to_local.get(&remote_id)
                 && let Some(t) = host.engine.runtime.terminals.get_mut(local)
             {
+                if let Some(copies) = host.copies.as_deref_mut() {
+                    copies.feed(local, &bytes, std::time::Instant::now());
+                }
                 t.feed_bytes(&bytes);
+                // mirror 터미널은 PTY reader가 없어 파싱이 루프를 깨우지 않는다. 클립보드·알림 사건을
+                // 공용 처리로 바로 넘긴다.
+                if t.has_pending_events() {
+                    (host.engine.runtime.waker)();
+                }
             }
         }
         MirrorEvent::ResizeRejected(remote_id, cols, rows) => {

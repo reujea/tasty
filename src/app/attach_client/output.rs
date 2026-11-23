@@ -92,6 +92,7 @@ impl App {
                         MirrorHost::windowed(&mut m.state, engine)
                             .for_view(view)
                             .row_blocked(blocked)
+                            .with_copies(&mut self.attach_copies)
                     });
                     if let Some(host) = mirror_host.as_mut() {
                         resume_resync_in_window(sess, host);
@@ -109,7 +110,11 @@ impl App {
                         .expect("mirror_output_host가 방금 찾은 parked engine");
                     apply_pending_mirror_output(
                         sess,
-                        Some(MirrorHost::parked(state, &mut engine).row_blocked(blocked)),
+                        Some(
+                            MirrorHost::parked(state, &mut engine)
+                                .row_blocked(blocked)
+                                .with_copies(&mut self.attach_copies),
+                        ),
                         &mut self.plugin_manager,
                     );
                 }
@@ -344,6 +349,8 @@ struct MirrorHost<'a, 'engine> {
     view: Option<std::sync::Weak<()>>,
     /// 저장 행이 막혀 손실 복구가 다시 붙지 않는다. 복구 안내를 내지 않는다.
     row_blocked: bool,
+    /// 원격 프로그램의 OSC 52 쓰기 진행. 시험 등 진행 표시가 없는 적용은 `None`이다.
+    copies: Option<&'a mut crate::remote::copy_progress::CopyProgress>,
 }
 
 impl<'a, 'engine> MirrorHost<'a, 'engine> {
@@ -366,6 +373,7 @@ impl<'a, 'engine> MirrorHost<'a, 'engine> {
             windowed: true,
             view: None,
             row_blocked: false,
+            copies: None,
         }
     }
 
@@ -393,6 +401,11 @@ impl<'a, 'engine> MirrorHost<'a, 'engine> {
         }
     }
 
+    fn with_copies(mut self, copies: &'a mut crate::remote::copy_progress::CopyProgress) -> Self {
+        self.copies = Some(copies);
+        self
+    }
+
     fn parked(
         state: &'a mut crate::state::MainViewState,
         engine: &'a mut EngineMut<'engine>,
@@ -403,6 +416,7 @@ impl<'a, 'engine> MirrorHost<'a, 'engine> {
             windowed: false,
             view: None,
             row_blocked: false,
+            copies: None,
         }
     }
 
@@ -495,6 +509,9 @@ fn begin_resync(sess: &mut AttachClientSession, host: &mut MirrorHost<'_, '_>, f
             t.renew_output_stream();
             // 끊긴 뒤의 바이트는 이어지지 않는다. 미완성 시퀀스와 옛 스트림 질의의 늦은 응답을 버린다.
             t.break_stream();
+        }
+        if let Some(copies) = host.copies.as_deref_mut() {
+            copies.break_stream(local);
         }
     }
     if let Some(total) = sess.state.resync_pending.as_mut() {

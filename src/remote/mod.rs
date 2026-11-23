@@ -22,6 +22,8 @@ pub(crate) mod capture_upload;
 
 pub(crate) mod bulk_transfer;
 
+#[cfg(feature = "gui")]
+pub(crate) mod copy_progress;
 mod notification_sound;
 pub(crate) mod subscription;
 

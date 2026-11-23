@@ -208,6 +208,8 @@ egui_extras = { version = "0.31", features = ["svg", "image"], optional = true }
 icu_normalizer = { version = "2.1", default-features = false, features = ["compiled_data"], optional = true }
 
 termwiz = "0.22"
+# attach mirror가 받는 바이트에서 OSC 52 쓰기의 시작과 끝을 termwiz와 같은 파서 규칙으로 본다.
+vtparse = { version = "0.6.2", optional = true }
 
 pollster = "0.4"
 
@@ -344,6 +346,7 @@ default = ["gui"]
 # headless에서 윈도잉·egui·GPU 의존성을 제외하도록 GUI 기능을 여기서 함께 켠다.
 gui = [
     "dep:winit",
+    "dep:vtparse",
     "tasty-platform/gui",
     "dep:wgpu",
     "dep:egui",
