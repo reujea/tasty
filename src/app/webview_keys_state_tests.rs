@@ -447,3 +447,71 @@ fn a_forwarded_shortcut_without_a_window_block_runs() {
     assert_eq!(w.state.sidebar_collapsed, !collapsed);
     assert_eq!(w.resent(), [(1, false)]);
 }
+
+/// 클립보드 조합 장면의 창: `copy`에서 Ctrl+Shift+C 를 빼고 그 키를 sidebar 접기(창 범위 단축키)에만 묶은 뒤, 다른 곳에
+/// 덮지 않는 팝업(알림 목록)을 포커스로 연다.
+fn clipboard_combo_window(w: &mut Window) {
+    {
+        let engine = w.session.borrow_mut();
+        let kb = &mut engine.runtime.settings.keybindings;
+        kb.copy.retain(|b| b != "ctrl+shift+c");
+        assert!(kb.set_field("toggle_sidebar_collapse", "ctrl+shift+c"));
+    }
+    w.state
+        .popups
+        .open_centered_focused(
+            "notifications",
+            crate::model::popup_kind::PopupScope::Window,
+        )
+        .expect("알림 목록이 열린다");
+    let engine = w.session.borrow_mut();
+    w.state.normalize_focus(&engine);
+    assert!(!w.state.surface_is_covered(&engine, w.received));
+}
+
+/// T-12b-7 클립보드 조합 갈래. Given 위 설정과 다른 곳의 덮지 않는 팝업 포커스, When 받은 WebView 가 Ctrl+Shift+C 를
+/// 넘기면, Then 그 누름은 클립보드 조합이라 지금 게이트에 막혀(`Gated`) sidebar 가 그대로이고 페이지로 다시 넣지 않는다.
+#[test]
+fn a_forwarded_clipboard_combo_keeps_the_window_gate() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_forwarded_clipboard_combo_keeps_the_window_gate",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    clipboard_combo_window(&mut w);
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![w.key(1, "C", ctrl_shift())];
+    assert_eq!(w.consume(batch), [ForwardedKeyOutcome::Gated]);
+    assert_eq!(w.state.sidebar_collapsed, collapsed, "단축키가 돌았다");
+    assert_eq!(w.resent(), [(1, false)], "Gated 를 페이지로 다시 넣었다");
+}
+
+/// T-12b-7 클립보드 조합 대조. Given 같은 창, When 받은 WebView 가 클립보드 조합이 아닌 Ctrl+B 를 넘기면, Then 받은
+/// surface 경로가 덮이지 않아 처리되고 sidebar 가 바뀐다.
+#[test]
+fn a_forwarded_path_key_runs_past_an_uncovering_popup_elsewhere() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_forwarded_path_key_runs_past_an_uncovering_popup_elsewhere",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    clipboard_combo_window(&mut w);
+    {
+        let engine = w.session.borrow_mut();
+        let kb = &mut engine.runtime.settings.keybindings;
+        assert!(kb.set_field("toggle_sidebar_collapse", "ctrl+b"));
+    }
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![w.key(1, "b", ModifiersState::CONTROL)];
+    assert_eq!(w.consume(batch), [ForwardedKeyOutcome::Handled]);
+    assert_eq!(w.state.sidebar_collapsed, !collapsed);
+    assert_eq!(w.resent(), [(1, false)]);
+}

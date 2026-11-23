@@ -80,6 +80,25 @@ fn an_uncovering_popup_keeps_a_window_double_tap() {
     );
 }
 
+/// [덮지 않는 팝업 포커스 + Window 동작 → 돎] 대조(M-12a-2 P): 경로 밖 level 의 후보가 없는 설정이라 거르기와 무관하게
+/// 같은 목록이다.
+#[test]
+fn an_uncovering_popup_keeps_a_window_double_tap_without_an_off_path_candidate() {
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let iid = open_focused(&mut state, "notifications");
+    assert!(!state.popups.instance(iid).unwrap().covers());
+    let mut kb = KeybindingSettings::default();
+    for field in ["toggle_settings", "toggle_notifications"] {
+        assert!(kb.set_field(field, DT));
+    }
+    assert_eq!(
+        double_tap_actions(&kb, focus_path_levels(&state, &read), DT),
+        ["toggle_settings", "toggle_notifications"]
+    );
+}
+
 /// [래치 없음 + toggle_settings 더블탭 → 요청을 냄](대조)
 #[test]
 fn without_the_latch_a_settings_double_tap_requests_settings() {
