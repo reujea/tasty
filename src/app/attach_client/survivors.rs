@@ -59,6 +59,7 @@ fn apply_reconnect_terminal_sizes(
             && let Some(t) = terminals.get_mut(local)
         {
             t.resize(cols as usize, rows as usize);
+            terminals.settle_deferred_size(local);
         }
     }
 }

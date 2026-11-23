@@ -803,7 +803,7 @@ impl super::GpuState {
 /// (Wayland answers neither), and an unknown answer counts as drawing. An occluded window is not
 /// told apart either: drawing does not read occlusion (only hang reports record it), and an
 /// occluded X11 window still draws.
-fn frames_stopped(window: &winit::window::Window) -> bool {
+pub(crate) fn frames_stopped(window: &winit::window::Window) -> bool {
     window.is_minimized() == Some(true) || window.is_visible() == Some(false)
 }
 

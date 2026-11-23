@@ -175,6 +175,9 @@ pub struct GpuState {
     /// The view consumes this to request one follow-up redraw so the cursor
     /// reappears after the burst settles even if no more PTY bytes arrive.
     pub(super) terminal_cursor_restore_pending: bool,
+    /// 이번 프레임이 마지막 레이아웃 스윕에서 크기를 받지 못한 터미널을 그렸거나 터미널 글꼴을 바꿨다.
+    /// 그 터미널은 옛 grid로 그려졌으므로 다음 redraw가 스윕해 맞춘다.
+    pub(super) layout_resweep_pending: bool,
     /// egui 입력 큐를 끊은 자리들(`cut_egui_input_here`). 패스마다 앞 자리 하나에서 나눠 뒤 사건을 그다음 패스로
     /// 넘긴다.
     pub(super) egui_input_cuts: crate::adapters::ui::popup::frame_keys::InputCuts,
@@ -354,6 +357,7 @@ impl GpuState {
             presented_instances: (0, 0),
             slow_render: frame_timing::SlowRenderLog::default(),
             terminal_cursor_restore_pending: false,
+            layout_resweep_pending: false,
             egui_input_cuts: Default::default(),
             loaded_escape_marks: Vec::new(),
             pass_escape_marks: Vec::new(),
@@ -438,6 +442,11 @@ impl GpuState {
     /// frame to restore it after the output burst quiets down.
     pub fn take_terminal_cursor_restore_pending(&mut self) -> bool {
         std::mem::take(&mut self.terminal_cursor_restore_pending)
+    }
+
+    /// 다음 redraw가 레이아웃 스윕을 다시 해야 하는지 꺼낸다.
+    pub fn take_layout_resweep_pending(&mut self) -> bool {
+        std::mem::take(&mut self.layout_resweep_pending)
     }
 
     /// Render the full frame: egui UI + terminal surfaces.
@@ -555,6 +564,8 @@ impl GpuState {
 
         let t0 = std::time::Instant::now();
         let regions = state.surface_regions(engine, terminal_rect, self.scale_factor);
+        // egui 안의 workspace·탭 전환은 이번 프레임 스윕 뒤라 새로 보인 터미널이 옛 크기로 한 장 그려진다.
+        self.layout_resweep_pending |= state.draws_unswept_terminal(engine, &regions);
         stall_watchdog::set_phase(stall_watchdog::Phase::Submit);
         let view = output
             .texture

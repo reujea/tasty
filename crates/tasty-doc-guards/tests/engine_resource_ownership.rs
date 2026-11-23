@@ -177,7 +177,9 @@ fn content_and_physical_resources_are_owned_separately_without_an_external_watch
     assert!(!mask_non_code(&pty).contains("fn take_child"));
     assert!(!root.join("src/core/pty_registry.rs").exists());
     let store = std::fs::read_to_string(root.join("src/runtime/terminal_store.rs")).unwrap();
-    assert!(fields(&store, "TerminalStore").contains("(Terminal, Option<Pty>)"));
+    assert!(fields(&store, "TerminalStore").contains("HashMap<SurfaceId, TerminalEntry>"));
+    let entry = fields(&store, "TerminalEntry");
+    assert!(entry.contains("terminal: Terminal,") && entry.contains("pty: Option<Pty>,"));
 }
 
 #[test]

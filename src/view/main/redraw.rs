@@ -105,6 +105,7 @@ impl MainView {
         // PTY 출력과 TerminalEvent 처리는 AppEvent::TerminalOutput에서 수행한다.
 
         self.resync_scale_factor(engine);
+        self.sync_window_drawn();
 
         // 레이아웃 변경에 맞춰 터미널 크기를 갱신한다. 무대 중에는 원본 grid를
         // 보존하고 무대를 나온 뒤 현재 영역에 맞춘다.
@@ -334,6 +335,9 @@ impl MainView {
                 // 실제 present에 성공한 첫 시각만 부팅 계측에 기록한다.
                 crate::boot::trace::mark_first_paint();
                 if self.base.gpu.take_terminal_cursor_restore_pending() {
+                    self.base.state.dirty = true;
+                }
+                if self.base.gpu.take_layout_resweep_pending() && self.state.window_drawn {
                     self.base.state.dirty = true;
                 }
             }

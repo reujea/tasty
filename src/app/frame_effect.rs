@@ -33,8 +33,17 @@ pub(crate) enum GeometryEffect {
         rows: usize,
     },
     Resize {
-        targets: Vec<(SurfaceBinding, usize, usize)>,
+        targets: Vec<(SurfaceBinding, LayoutTarget)>,
     },
+}
+
+/// 레이아웃 스윕이 surface 하나에 낸 목표 grid. `drawn`은 이 창이 지금 그 surface를 그리는지다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LayoutTarget {
+    pub(crate) surface_id: u32,
+    pub(crate) cols: usize,
+    pub(crate) rows: usize,
+    pub(crate) drawn: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -117,8 +126,8 @@ impl GeometryEffect {
             Self::Resize { targets } => {
                 let targets = targets
                     .iter()
-                    .filter(|(target, _, _)| target.current(&engine.as_ref()))
-                    .map(|(target, cols, rows)| (target.surface_id(), *cols, *rows))
+                    .filter(|(binding, _)| binding.current(&engine.as_ref()))
+                    .map(|(_, target)| *target)
                     .collect();
                 crate::app::services::AppServices::resize_terminals(engine, targets);
             }

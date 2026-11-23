@@ -87,8 +87,35 @@ impl RequestContext {
         layout.all_pane_ids().into_iter().any(|pane_id| {
             layout
                 .find_pane(pane_id)
-                .and_then(|pane| pane.tabs.get(self.navigation.tab_index(pane)))
+                .and_then(|pane| self.drawn_tab(pane))
                 .is_some_and(|tab| surface_ids.iter().any(|&sid| tab.contains_surface(sid)))
+        })
+    }
+
+    /// pane에서 그리는 탭. 그리는 영역(`surface_regions`), 보이는지 판정, 레이아웃 스윕이 같은 탭을 고른다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn drawn_tab<'p>(
+        &self,
+        pane: &'p crate::model::Pane,
+    ) -> Option<&'p crate::model::Tab> {
+        pane.tabs.get(self.navigation.tab_index(pane))
+    }
+
+    /// 지금 이 창의 레이아웃이 그 surface를 그리는 탭에 두는가. 활성 workspace의 그리는 탭에 있고
+    /// attach 임시 탭이 그 pane을 가리지 않아야 한다. 창의 최소화·무대 여부는 호출자가 따로 본다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn draws_surface(&self, engine: &CoreState, surface_id: u32) -> bool {
+        if engine.workspaces().is_empty() {
+            return false;
+        }
+        let layout = self.active_workspace(engine).pane_layout();
+        layout.all_pane_ids().into_iter().any(|pane_id| {
+            layout
+                .find_pane(pane_id)
+                .and_then(|pane| self.drawn_tab(pane))
+                .is_some_and(|tab| {
+                    tab.contains_surface(surface_id) && !self.attach_tab_preview_hides(engine, tab)
+                })
         })
     }
 

@@ -52,14 +52,26 @@ pub(super) fn apply_one_mirror_event(
             }
         }
         MirrorEvent::ResizeRejected(remote_id, cols, rows) => {
-            sess.state.resize_sync.on_rejected(remote_id, cols, rows);
+            // 숨은 mirror의 거절은 실패로 올리지 않는다. 보이게 되면 스윕이 다시 요청한다.
+            let drawn = sess
+                .state
+                .remote_to_local
+                .get(&remote_id)
+                .is_some_and(|&local| host.draws_mirror(local));
+            if drawn {
+                sess.state.resize_sync.on_rejected(remote_id, cols, rows);
+            } else {
+                sess.state.resize_sync.abandon_pending(remote_id);
+            }
         }
         MirrorEvent::Resize(remote_id, cols, rows) => {
             sess.state.resize_sync.on_resize(remote_id, cols, rows);
             if let Some(&local) = sess.state.remote_to_local.get(&remote_id)
                 && let Some(t) = host.engine.runtime.terminals.get_mut(local)
             {
+                // 서버가 정한 크기라 숨은 mirror에서도 grid를 바꾼다.
                 t.resize(cols, rows);
+                host.engine.runtime.terminals.settle_deferred_size(local);
             }
         }
         MirrorEvent::Activity(remote_id, busy) => {

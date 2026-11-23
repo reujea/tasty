@@ -24,7 +24,7 @@ impl RequestContext {
         for (pane_id, pane_rect) in pane_rects {
             if let Some(pane) = ws.pane_layout().find_pane(pane_id) {
                 let content_rect = self.tab_content_rect(pane_rect);
-                let regions = match pane.tabs.get(self.navigation.tab_index(pane)) {
+                let regions = match self.drawn_tab(pane) {
                     Some(tab) => self.tab_surface_regions(engine, tab, content_rect, scale_factor),
                     None => Vec::new(),
                 };
@@ -32,6 +32,22 @@ impl RequestContext {
             }
         }
         result
+    }
+
+    /// 그리는 터미널 중 마지막 레이아웃 스윕이 그리는 것으로 처리하지 않은 것이 있는가. 그런 터미널은
+    /// 옛 grid로 그려지므로 다음 redraw가 다시 스윕해야 한다. attach draft가 자르는 surface는 스윕이
+    /// 늘 건너뛰므로 세지 않는다(세면 redraw가 반복된다).
+    #[cfg(feature = "gui")]
+    pub(crate) fn draws_unswept_terminal(
+        &self,
+        engine: &EngineRead<'_>,
+        regions: &[(PaneId, PhysicalRect, Vec<SurfaceRegion<'_>>)],
+    ) -> bool {
+        regions.iter().flat_map(|(_, _, r)| r).any(|region| {
+            !self.swept_drawn.contains(&region.id)
+                && engine.terminals.contains(region.id)
+                && !self.attach_pending.clips_surface(engine, region.id)
+        })
     }
 
     /// pane 사각형에서 탭 바를 뺀 탭 콘텐츠 영역. 활성 탭의 surface 들은 이 안에 배치된다.
@@ -207,7 +223,13 @@ impl RequestContext {
         scale_factor: f32,
     ) {
         let mut targets = Vec::new();
+        let mut swept_drawn = std::collections::HashSet::new();
+        // 그리는 집합(`surface_regions`)과 같은 workspace·탭 선택을 쓴다. 그리지 않는 target은
+        // 목표만 기록되고 보이게 된 첫 스윕에 적용된다(docs/design/policies/render-on-draw.md).
+        let active_workspace =
+            (!engine.workspaces().is_empty()).then(|| self.active_workspace(engine).id);
         for workspace in engine.workspaces().iter() {
+            let workspace_drawn = self.window_drawn && Some(workspace.id) == active_workspace;
             for (pane_id, pane_rect) in
                 self.pane_rects(engine, workspace, terminal_rect, scale_factor)
             {
@@ -220,10 +242,12 @@ impl RequestContext {
                     width: pane_rect.width,
                     height: (pane_rect.height - self.tab_bar_height).max(PhysicalPx(1.0)),
                 };
+                let drawn_tab = self.drawn_tab(pane).map(|tab| tab.id);
                 for tab in &pane.tabs {
                     if tab.layout_if_initialized().is_none() {
                         continue;
                     }
+                    let drawn = workspace_drawn && drawn_tab == Some(tab.id);
                     for region in self.tab_surface_regions(engine, tab, content, scale_factor) {
                         // A draft clips the old grid. Only the committed Delta may resize it.
                         if self.attach_pending.clips_surface(engine, region.id) {
@@ -235,17 +259,29 @@ impl RequestContext {
                         let rows = ((region.rect.height.value() / cell_height.max(1.0)).floor()
                             as usize)
                             .max(1);
-                        if let Some(target) =
+                        if drawn {
+                            swept_drawn.insert(region.id);
+                        }
+                        if let Some(binding) =
                             crate::runtime::surface_binding::SurfaceBinding::capture(
                                 engine, region.id,
                             )
                         {
-                            targets.push((target, cols, rows));
+                            targets.push((
+                                binding,
+                                crate::app::frame_effect::LayoutTarget {
+                                    surface_id: region.id,
+                                    cols,
+                                    rows,
+                                    drawn,
+                                },
+                            ));
                         }
                     }
                 }
             }
         }
+        self.swept_drawn = swept_drawn;
         self.dispatch_intent(
             crate::intent::Intent::Frame(
                 crate::app::frame_effect::GeometryEffect::Resize { targets }.into(),

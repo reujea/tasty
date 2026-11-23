@@ -83,6 +83,14 @@ pub struct MainViewState {
     /// 무대 표시 중 미룬 기본 grid 갱신. 종료 후 첫 프레임에서 배율을 다시 맞출 때 사용한다.
     #[cfg(feature = "gui")]
     pub(crate) stage_deferred_grid_resync: bool,
+    /// 이 창이 프레임을 그리는가(최소화·숨김이 아님). 창 이벤트·redraw·WebView 단축키 입구가
+    /// `frames_stopped`로 갱신하고 레이아웃 스윕이 읽는다. 전송 시점 판정은 창 상태를 직접 읽는다.
+    #[cfg(feature = "gui")]
+    pub(crate) window_drawn: bool,
+    /// 마지막 레이아웃 스윕이 그리는 것으로 처리한 surface. 렌더가 이 밖의 터미널을 그렸으면
+    /// 옛 크기로 그린 것이라 다음 redraw를 요청한다(docs/design/policies/render-on-draw.md).
+    #[cfg(feature = "gui")]
+    pub(crate) swept_drawn: std::collections::HashSet<u32>,
     /// Terminal text search state.
     #[cfg(feature = "gui")]
     pub(crate) search: crate::search_state::SearchState,

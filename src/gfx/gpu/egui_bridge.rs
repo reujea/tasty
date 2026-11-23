@@ -296,6 +296,8 @@ impl GpuState {
             self.renderer
                 .resize(&self.queue, self.size.width, self.size.height);
             self.last_term_font_sig = term_font_signature(self.renderer.font_request());
+            // 이번 프레임 스윕은 옛 셀 크기로 돌았다. 새 셀 크기로 다음 프레임에 다시 맞춘다.
+            self.layout_resweep_pending = true;
         }
     }
 

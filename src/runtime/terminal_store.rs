@@ -46,8 +46,50 @@ pub(crate) fn current_terminal_palette() -> ColorPalette {
     }
 }
 
+/// store 항목 하나. 내용(`Terminal`)과 물리 연결(`Pty`)을 함께 소유하고 레이아웃 크기 적용 상태를 둔다.
+pub(crate) struct TerminalEntry {
+    terminal: Terminal,
+    pty: Option<Pty>,
+    /// 숨은 동안 받은 레이아웃 목표 크기(dirty 표시). 그리지 않는 터미널은 grid·PTY 대신 이 값만 바꾸고,
+    /// 보이게 된 첫 스윕이 한 번에 적용한다. `surface.list`의 `pending_*`와 시험이 이 값을 본다.
+    /// 규칙: docs/design/policies/render-on-draw.md.
+    deferred_size: Option<(usize, usize)>,
+    /// 레이아웃 목표를 한 번이라도 받았는가. PTY가 있는 항목의 첫 목표는 숨어 있어도 적용한다(첫 배치 예외).
+    placed: bool,
+}
+
+impl TerminalEntry {
+    fn new(terminal: Terminal, pty: Option<Pty>) -> Self {
+        Self {
+            terminal,
+            pty,
+            deferred_size: None,
+            placed: false,
+        }
+    }
+    fn into_parts(self) -> (Terminal, Option<Pty>) {
+        (self.terminal, self.pty)
+    }
+}
+
+/// 레이아웃 크기 적용 결과. mirror는 서버 응답으로만 grid를 바꾸므로 호출자가 요청을 보낸다.
+#[cfg(feature = "gui")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LayoutSizeOutcome {
+    /// 항목이 없다.
+    Missing,
+    /// 숨은 터미널이라 목표만 기록했다(같은 크기면 기록을 지웠다).
+    Deferred,
+    /// 로컬 grid에 적용했다(크기가 같아 바뀌지 않았을 수도 있다).
+    Applied,
+    /// 보이는 mirror의 grid와 목표가 다르다. 서버에 크기를 요청해야 한다.
+    ForwardMirror,
+    /// 보이는 mirror가 이미 목표 크기다.
+    MirrorSettled,
+}
+
 pub(crate) struct TerminalStore {
-    terminals: HashMap<SurfaceId, (Terminal, Option<Pty>)>,
+    terminals: HashMap<SurfaceId, TerminalEntry>,
     next_pty_id: Arc<AtomicU32>,
     exited_retention: std::time::Duration,
     /// Tasty가 스스로 지운 PTY ID와 이유. 상한을 넘으면 오래된 것부터 버린다.
@@ -74,15 +116,15 @@ impl TerminalStore {
             assert_eq!(terminal.resource_generation(), pty.generation());
         }
         terminal.set_color_palette(current_terminal_palette());
-        if let Some((mut old, _pty)) = self.terminals.insert(id, (terminal, pty)) {
-            old.disconnect();
+        if let Some(old) = self.terminals.insert(id, TerminalEntry::new(terminal, pty)) {
+            old.into_parts().0.disconnect();
         }
     }
 
     /// Revoke callbacks before returning old content and its physical owner for disposal.
     pub(crate) fn remove(&mut self, id: SurfaceId) -> Option<(Terminal, Option<Pty>)> {
         self.scrollback_persist_ids.remove(&id);
-        let (mut terminal, pty) = self.terminals.remove(&id)?;
+        let (mut terminal, pty) = self.terminals.remove(&id)?.into_parts();
         terminal.disconnect();
         Some((terminal, pty))
     }
@@ -98,8 +140,9 @@ impl TerminalStore {
         }
         terminal.set_color_palette(current_terminal_palette());
         self.terminals
-            .insert(id, (terminal, pty))
-            .map(|(mut old, pty)| {
+            .insert(id, TerminalEntry::new(terminal, pty))
+            .map(|old| {
+                let (mut old, pty) = old.into_parts();
                 old.disconnect();
                 (old, pty)
             })
@@ -115,7 +158,7 @@ impl TerminalStore {
         if owner.generation().value() != generation || owner.state().exit().is_some() {
             return None;
         }
-        let (terminal, pty) = self.terminals.remove(&id)?;
+        let (terminal, pty) = self.terminals.remove(&id)?.into_parts();
         Some((terminal, pty?, self.scrollback_persist_ids.remove(&id)))
     }
     /// Take back an adopted owner of a withdrawn installation without revoking its connection.
@@ -127,7 +170,7 @@ impl TerminalStore {
         if self.generation(id)?.value() != generation || self.pty(id).is_none() {
             return None;
         }
-        let (terminal, pty) = self.terminals.remove(&id)?;
+        let (terminal, pty) = self.terminals.remove(&id)?.into_parts();
         Some((terminal, pty?, self.scrollback_persist_ids.remove(&id)))
     }
     pub(crate) fn restore_standalone_adoption(
@@ -140,7 +183,8 @@ impl TerminalStore {
         if self.terminals.contains_key(&id) || pty.state().standalone().is_none() {
             return Err((terminal, pty, persist_id));
         }
-        self.terminals.insert(id, (terminal, Some(pty)));
+        self.terminals
+            .insert(id, TerminalEntry::new(terminal, Some(pty)));
         if let Some(persist_id) = persist_id {
             self.scrollback_persist_ids.insert(id, persist_id);
         }
@@ -148,10 +192,10 @@ impl TerminalStore {
     }
 
     pub(crate) fn pty(&self, id: u32) -> Option<&Pty> {
-        self.terminals.get(&id)?.1.as_ref()
+        self.terminals.get(&id)?.pty.as_ref()
     }
     pub(crate) fn pty_mut(&mut self, id: u32) -> Option<&mut Pty> {
-        self.terminals.get_mut(&id)?.1.as_mut()
+        self.terminals.get_mut(&id)?.pty.as_mut()
     }
     pub(crate) fn generation(&self, id: u32) -> Option<ResourceGeneration> {
         self.get(id).map(Terminal::resource_generation)
@@ -165,25 +209,72 @@ impl TerminalStore {
             .or_else(|| tasty_terminal::cwd::get_cwd_of_pid(self.pty(id)?.process_id()?))
     }
     /// 로컬 레이아웃이 정한 크기를 적용한다. 헤드리스에는 로컬 레이아웃이 없다.
+    /// 그리지 않는(`drawn == false`) 터미널은 목표만 기록하고 grid·PTY·mirror 요청을 건드리지 않는다.
+    /// PTY가 있는 항목의 첫 목표는 숨어 있어도 적용한다. 규칙: docs/design/policies/render-on-draw.md.
     #[cfg(feature = "gui")]
-    pub(crate) fn resize(&mut self, id: u32, cols: usize, rows: usize) -> bool {
-        let Some((terminal, pty)) = self.terminals.get_mut(&id) else {
-            return false;
+    pub(crate) fn apply_layout_size(
+        &mut self,
+        id: u32,
+        cols: usize,
+        rows: usize,
+        drawn: bool,
+    ) -> LayoutSizeOutcome {
+        let Some(entry) = self.terminals.get_mut(&id) else {
+            return LayoutSizeOutcome::Missing;
         };
-        if !terminal.resize(cols, rows) {
-            return false;
+        let first_placement = entry.pty.is_some() && !entry.placed;
+        if !drawn && !first_placement {
+            entry.deferred_size =
+                (entry.terminal.dimensions() != (cols, rows)).then_some((cols, rows));
+            return LayoutSizeOutcome::Deferred;
         }
-        if let Some(pty) = pty {
-            pty.schedule_resize(terminal.resource_generation(), cols, rows);
+        entry.deferred_size = None;
+        entry.placed = true;
+        let Some(pty) = entry.pty.as_mut() else {
+            return if entry.terminal.dimensions() == (cols, rows) {
+                LayoutSizeOutcome::MirrorSettled
+            } else {
+                LayoutSizeOutcome::ForwardMirror
+            };
+        };
+        if entry.terminal.resize(cols, rows) {
+            pty.schedule_resize(entry.terminal.resource_generation(), cols, rows);
         }
-        true
+        LayoutSizeOutcome::Applied
+    }
+
+    /// 숨은 동안 기록한 목표 크기. 기록이 없으면 `None`이다.
+    pub(crate) fn deferred_size(&self, id: u32) -> Option<(usize, usize)> {
+        self.terminals.get(&id)?.deferred_size
+    }
+
+    /// 레이아웃이 아닌 쪽(attach 점유)이 크기를 정할 때 숨은 동안의 기록을 버린다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn clear_deferred_size(&mut self, id: u32) {
+        if let Some(entry) = self.terminals.get_mut(&id) {
+            entry.deferred_size = None;
+        }
+    }
+
+    /// 서버가 정한 크기로 mirror grid가 바뀐 뒤, 그 크기가 기록한 목표와 같으면 기록을 지운다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn settle_deferred_size(&mut self, id: u32) {
+        if let Some(entry) = self.terminals.get_mut(&id)
+            && entry.deferred_size == Some(entry.terminal.dimensions())
+        {
+            entry.deferred_size = None;
+        }
     }
 
     /// attach 요청용 resize. 같은 크기여도 attach tap에 현재 크기를 남긴다. terminal이 없으면 false다.
+    /// 크기를 정하는 쪽이 점유 client라 숨은 동안의 기록을 버리고 첫 배치도 끝난 것으로 본다.
     pub(crate) fn resize_for_attach(&mut self, id: u32, cols: usize, rows: usize) -> bool {
-        let Some((terminal, pty)) = self.terminals.get_mut(&id) else {
+        let Some(entry) = self.terminals.get_mut(&id) else {
             return false;
         };
+        entry.deferred_size = None;
+        entry.placed = true;
+        let TerminalEntry { terminal, pty, .. } = entry;
         if terminal.resize_or_confirm_attach(cols, rows)
             && let Some(pty) = pty
         {
@@ -195,17 +286,17 @@ impl TerminalStore {
     #[cfg(feature = "gui")]
     pub(crate) fn resync_palettes(&mut self) {
         let palette = current_terminal_palette();
-        for (t, _) in self.terminals.values_mut() {
-            t.set_color_palette(palette.clone());
+        for entry in self.terminals.values_mut() {
+            entry.terminal.set_color_palette(palette.clone());
         }
     }
 
     pub(crate) fn get(&self, id: SurfaceId) -> Option<&Terminal> {
-        self.terminals.get(&id).map(|(terminal, _)| terminal)
+        self.terminals.get(&id).map(|entry| &entry.terminal)
     }
 
     pub(crate) fn get_mut(&mut self, id: SurfaceId) -> Option<&mut Terminal> {
-        self.terminals.get_mut(&id).map(|(terminal, _)| terminal)
+        self.terminals.get_mut(&id).map(|entry| &mut entry.terminal)
     }
 
     pub(crate) fn contains(&self, id: SurfaceId) -> bool {
@@ -213,11 +304,15 @@ impl TerminalStore {
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (SurfaceId, &Terminal)> {
-        self.terminals.iter().map(|(&id, (t, _))| (id, t))
+        self.terminals
+            .iter()
+            .map(|(&id, entry)| (id, &entry.terminal))
     }
 
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = (SurfaceId, &mut Terminal)> {
-        self.terminals.iter_mut().map(|(&id, (t, _))| (id, t))
+        self.terminals
+            .iter_mut()
+            .map(|(&id, entry)| (id, &mut entry.terminal))
     }
 
     pub(crate) fn scrollback_persist_id(&self, id: SurfaceId) -> Option<&str> {
@@ -232,15 +327,15 @@ impl TerminalStore {
     pub(crate) fn process_all(&mut self) -> Vec<SurfaceId> {
         self.terminals
             .iter_mut()
-            .filter_map(|(&id, (terminal, pty))| {
-                Self::process_pair(terminal, pty.as_mut()).then_some(id)
+            .filter_map(|(&id, entry)| {
+                Self::process_pair(&mut entry.terminal, entry.pty.as_mut()).then_some(id)
             })
             .collect()
     }
     pub(crate) fn process_surface(&mut self, id: SurfaceId) -> bool {
         self.terminals
             .get_mut(&id)
-            .is_some_and(|(terminal, pty)| Self::process_pair(terminal, pty.as_mut()))
+            .is_some_and(|entry| Self::process_pair(&mut entry.terminal, entry.pty.as_mut()))
     }
     fn process_pair(terminal: &mut Terminal, pty: Option<&mut Pty>) -> bool {
         if let Some(pty) = pty {
@@ -254,8 +349,8 @@ impl TerminalStore {
     #[cfg(feature = "gui")]
     pub(crate) fn flush_pty_resizes(&mut self) -> bool {
         let mut pending = false;
-        for (_, pty) in self.terminals.values_mut() {
-            if let Some(pty) = pty {
+        for entry in self.terminals.values_mut() {
+            if let Some(pty) = entry.pty.as_mut() {
                 pty.flush_resize();
                 pending |= pty.has_pending_resize();
             }
@@ -282,6 +377,8 @@ pub(crate) fn closed_capture_of(
     }
 }
 
+#[cfg(all(test, feature = "gui"))]
+mod layout_tests;
 mod standalone;
 pub(crate) use standalone::{EXITED_RETENTION, PTY_ID_BASE, PtyReclaimReason, is_surface_id_space};
 

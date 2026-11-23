@@ -175,6 +175,27 @@ impl ResizeSync {
         resend
     }
 
+    /// 마감이 지난 대기 중 `hidden`이 참인 surface의 것을 재전송·실패 이동 없이 버린다.
+    /// 숨은 mirror는 보이게 될 때 새 요청을 받으므로 이 대기는 더 이상 쓸모가 없다.
+    /// 마감 전 대기와 이미 확정된 실패는 그대로 둔다. [`ResizeSync::take_due`]보다 먼저 부른다.
+    pub fn abandon_due(&mut self, now: Instant, mut hidden: impl FnMut(u32) -> bool) {
+        let due: Vec<u32> = self
+            .pending
+            .iter()
+            .filter(|(id, p)| p.deadline <= now && hidden(**id))
+            .map(|(&id, _)| id)
+            .collect();
+        for id in due {
+            self.abandon_pending(id);
+        }
+    }
+
+    /// 이 surface의 대기를 결과 없이 버리고 중복 전송 기록도 지운다. 확정된 실패는 그대로 둔다.
+    pub fn abandon_pending(&mut self, surface_id: u32) {
+        self.pending.remove(&surface_id);
+        self.last_forwarded.remove(&surface_id);
+    }
+
     /// 배너의 다시 시도. 실패한 surface의 요청을 다시 보낼 목록으로 돌려주고 대기를 건다.
     /// 호출자는 반환된 요청을 모두 전송한다. 응답이 없거나 거절되면 다시 실패 목록에 오른다.
     pub fn retry_failed(&mut self, now: Instant) -> Vec<Resend> {

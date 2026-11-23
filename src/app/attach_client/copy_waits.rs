@@ -126,7 +126,7 @@ impl App {
                 .and_then(|pane| pane.tabs.get(state.navigation.tab_index(pane)))
                 .is_some_and(|tab| {
                     tab.layout().find_surface(surface).is_some()
-                        && !state.pending_tab_covers(core, tab)
+                        && !state.attach_tab_preview_hides(core, tab)
                 })
         });
         if attach && !shown {

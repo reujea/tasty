@@ -293,8 +293,13 @@ impl super::MainViewState {
         }
     }
 
-    /// 선택된 attach 새 탭 대기 화면이 이 탭의 pane을 덮어 그 탭의 surface를 그리지 않는지.
-    pub(crate) fn pending_tab_covers(&self, core: &CoreState, tab: &crate::model::Tab) -> bool {
+    /// 선택된 attach 임시 탭이 이 탭의 pane을 차지해 이 탭이 그려지지 않는가.
+    /// 그리는 영역(`tab_surface_regions`)과 가시성 판정(`draws_surface`)이 같은 조건을 쓴다.
+    pub(crate) fn attach_tab_preview_hides(
+        &self,
+        core: &CoreState,
+        tab: &crate::model::Tab,
+    ) -> bool {
         self.attach_pending
             .selected(core, &self.navigation)
             .is_some_and(|entry| {
@@ -311,7 +316,7 @@ impl super::MainViewState {
         rect: PhysicalRect,
         scale: f32,
     ) -> Vec<crate::model::SurfaceRegion<'a>> {
-        if self.pending_tab_covers(core, tab) {
+        if self.attach_tab_preview_hides(core, tab) {
             return Vec::new();
         }
         let mut regions = surface_regions(Some(&self.layout_previews), core, tab, rect, scale);

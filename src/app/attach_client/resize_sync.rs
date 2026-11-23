@@ -16,12 +16,21 @@ impl App {
     /// 마감이 지난 요청을 처리하고 가장 이른 다음 마감에 루프를 깨우도록 타이머를 맞춘다.
     /// 연결이 없는 세션은 응답이 올 수 없으므로 대기를 버린다. 재연결 설치가 크기를 다시 맞춘다.
     pub(crate) fn poll_attach_resize_sync(&mut self, now: Instant) {
+        let drawn = self.drawn_mirror_surfaces();
         for sess in &mut self.remote.sessions {
             if sess.state.phase != SessionState::Connected {
                 sess.state.resize_sync.forget_pending();
                 continue;
             }
             let failed_before: Vec<u32> = sess.state.resize_sync.failed().collect();
+            // 숨은 mirror의 마감은 재전송도 실패도 아니다. 보이게 되면 스윕이 다시 요청한다.
+            let remote_to_local = &sess.state.remote_to_local;
+            let hidden = |remote: u32| {
+                remote_to_local
+                    .get(&remote)
+                    .is_none_or(|local| !drawn.contains(local))
+            };
+            sess.state.resize_sync.abandon_due(now, hidden);
             for resend in sess.state.resize_sync.take_due(now) {
                 if send_resize(sess, resend) {
                     sess.state.resize_sync.note_resent(resend, now);

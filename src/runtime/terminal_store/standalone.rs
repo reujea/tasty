@@ -77,8 +77,10 @@ impl TerminalStore {
             .filter(|pty| pty.state().standalone().is_some())
     }
     pub(crate) fn standalone_iter(&self) -> impl Iterator<Item = (u32, &Pty)> {
-        self.terminals.iter().filter_map(|(&id, (_, pty))| {
-            pty.as_ref()
+        self.terminals.iter().filter_map(|(&id, entry)| {
+            entry
+                .pty
+                .as_ref()
                 .filter(|pty| pty.state().standalone().is_some())
                 .map(|pty| (id, pty))
         })
@@ -93,8 +95,10 @@ impl TerminalStore {
     pub(crate) fn due_standalone_reclaims(&mut self, now: Instant) -> Vec<(u32, PtyReclaimReason)> {
         let retention = self.exited_retention;
         let mut due = Vec::new();
-        for (&id, (_, pty)) in &mut self.terminals {
-            let Some(pty) = pty.as_mut() else { continue };
+        for (&id, entry) in &mut self.terminals {
+            let Some(pty) = entry.pty.as_mut() else {
+                continue;
+            };
             if pty.state().standalone().is_none() {
                 continue;
             }

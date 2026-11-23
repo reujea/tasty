@@ -1040,6 +1040,12 @@ impl App {
                 tracing::info!("minimized {n} window(s) to taskbar");
             }
         }
+        // 숨김·최소화 요청은 다음 창 이벤트보다 먼저 레이아웃 스윕을 만날 수 있다. 숨긴 것으로 둔다.
+        for view in self.view.views.values_mut() {
+            if let Some(main) = view.as_main_mut() {
+                main.state.window_drawn = false;
+            }
+        }
     }
 
     /// 확인한 셸 경로를 설정에 반영하고 이미 보이는 setup 창으로 부팅을 계속한다.

@@ -63,6 +63,7 @@ fn collect_tab_surface_info(
                 entry["foreground_process"] = json!(fg.name);
                 entry["foreground_pid"] = json!(fg.pid);
             }
+            add_pending_size(engine, node.id, &mut entry);
             out.push(entry);
         } else if let Some(id) = surface.surface_id() {
             // Non-terminal surfaces (Markdown, Explorer, Html, Empty) and restore slots.
@@ -77,6 +78,18 @@ fn collect_tab_surface_info(
             add_restore_fields(surface, &mut entry);
             out.push(entry);
         }
+    }
+}
+
+/// 숨은 동안 기록한 목표 크기. `cols`·`rows`는 실제 grid이고 이 값은 보이게 될 때 적용된다.
+/// 점유 client가 크기를 정하는 surface에는 내지 않는다(docs/design/policies/render-on-draw.md).
+fn add_pending_size(engine: &EngineRef<'_>, id: u32, entry: &mut serde_json::Value) {
+    if engine.live.occupancy.is_hard_occupied(id) {
+        return;
+    }
+    if let Some((cols, rows)) = engine.runtime.terminals.deferred_size(id) {
+        entry["pending_cols"] = json!(cols);
+        entry["pending_rows"] = json!(rows);
     }
 }
 
@@ -116,6 +129,7 @@ fn collect_surface_layout_info(
                     entry["foreground_process"] = json!(fg.name);
                     entry["foreground_pid"] = json!(fg.pid);
                 }
+                add_pending_size(engine, id, &mut entry);
             }
             out.push(entry);
         }
@@ -338,5 +352,44 @@ mod tests {
         let empty = entry(SPLIT_PEER);
         assert_eq!(empty["type"], "Empty", "{empty}");
         assert!(empty.get("kind").is_none(), "{empty}");
+    }
+}
+
+#[cfg(all(test, feature = "gui"))]
+mod pending_size_tests {
+    /// Given 숨은 동안 목표를 기록한 터미널과 기록이 없는 터미널, When `surface.list`를 읽으면, Then 기록한
+    /// 쪽만 `pending_cols`·`pending_rows`를 내고 `cols`·`rows`는 실제 grid다.
+    #[test]
+    fn surface_list_reports_the_recorded_target_apart_from_the_grid() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let mut engine = session.borrow_mut();
+        let local = *engine
+            .workspace_at(0)
+            .expect("workspace")
+            .all_surface_ids()
+            .first()
+            .expect("surface");
+        let hidden = crate::state::tests::add_mirror_test_workspace(&mut state, &mut engine);
+        engine
+            .runtime
+            .terminals
+            .apply_layout_size(hidden, 100, 30, false);
+
+        let response = super::handle_surface_list(&engine.as_ref(), serde_json::json!(1));
+        let list = response.result.expect("result");
+        let entry = |sid: u32| {
+            list.as_array()
+                .expect("array")
+                .iter()
+                .find(|e| e["id"] == sid)
+                .cloned()
+                .expect("listed")
+        };
+        let hidden_entry = entry(hidden);
+        assert_eq!(hidden_entry["cols"], 80);
+        assert_eq!(hidden_entry["rows"], 24);
+        assert_eq!(hidden_entry["pending_cols"], 100);
+        assert_eq!(hidden_entry["pending_rows"], 30);
+        assert!(entry(local).get("pending_cols").is_none());
     }
 }

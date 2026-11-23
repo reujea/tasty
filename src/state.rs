@@ -41,6 +41,8 @@ pub(crate) mod input_destination;
 mod layout;
 #[cfg(feature = "gui")]
 pub(crate) mod layout_preview;
+#[cfg(all(test, feature = "gui"))]
+mod layout_sweep_tests;
 pub mod mouse;
 pub(crate) mod navigation;
 pub(crate) mod pane;
@@ -320,6 +322,10 @@ impl RequestContext {
             stage_closed_queue: Vec::new(),
             #[cfg(feature = "gui")]
             stage_deferred_grid_resync: false,
+            #[cfg(feature = "gui")]
+            window_drawn: true,
+            #[cfg(feature = "gui")]
+            swept_drawn: std::collections::HashSet::new(),
             #[cfg(feature = "gui")]
             search: crate::search_state::SearchState::new(),
             #[cfg(feature = "gui")]

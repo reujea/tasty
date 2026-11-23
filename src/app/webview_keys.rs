@@ -131,6 +131,8 @@ impl App {
         if !main.webviews.contains_key(&ev.surface_id) {
             return ForwardedKeyOutcome::Gated;
         }
+        // WebView 키는 창 이벤트를 거치지 않는다. 호스트 단축키의 레이아웃 스윕이 최신 창 상태를 읽게 한다.
+        main.sync_window_drawn();
         if let Some(outcome) = dispatch_native_refresh_key(main, &mut engine, &ev) {
             return outcome;
         }

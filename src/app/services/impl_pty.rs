@@ -208,26 +208,40 @@ impl AppServices {
     }
 
     /// 레이아웃의 목표 크기를 Terminal store에 적용한다. 탭 바 높이는 창 계층이 값으로 넘긴다.
+    /// 그리지 않는 target은 목표만 기록한다(`TerminalStore::apply_layout_size`).
     #[cfg(feature = "gui")]
-    pub(crate) fn resize_terminals(engine: &mut EngineMut<'_>, targets: Vec<(u32, usize, usize)>) {
-        for (sid, cols, rows) in targets {
+    pub(crate) fn resize_terminals(
+        engine: &mut EngineMut<'_>,
+        targets: Vec<crate::app::frame_effect::LayoutTarget>,
+    ) {
+        use crate::runtime::terminal_store::LayoutSizeOutcome;
+        for target in targets {
+            let sid = target.surface_id;
             // 점유 client가 정한 크기를 서버 창 레이아웃으로 덮지 않는다.
             if engine.live.occupancy.is_hard_occupied(sid) {
+                engine.runtime.terminals.clear_deferred_size(sid);
                 continue;
             }
-            if let Some(t) = engine.runtime.terminals.get(sid) {
-                // mirror에 먼저 크기를 적용하면 서버의 reflow 전 출력과 어긋날 수 있다.
-                // 서버에 resize를 요청하고 echo를 받아 로컬 크기를 바꾼다.
-                if engine.runtime.terminals.pty(sid).is_none() {
-                    if t.cols() != cols || t.rows() != rows {
-                        engine
-                            .remote
-                            .pending_resize_forward
-                            .insert(sid, (cols, rows));
-                    }
-                    continue;
+            // mirror에 먼저 크기를 적용하면 서버의 reflow 전 출력과 어긋날 수 있다.
+            // 서버에 resize를 요청하고 echo를 받아 로컬 크기를 바꾼다.
+            match engine.runtime.terminals.apply_layout_size(
+                sid,
+                target.cols,
+                target.rows,
+                target.drawn,
+            ) {
+                LayoutSizeOutcome::ForwardMirror => {
+                    engine
+                        .remote
+                        .pending_resize_forward
+                        .insert(sid, (target.cols, target.rows));
                 }
-                engine.runtime.terminals.resize(sid, cols, rows);
+                LayoutSizeOutcome::MirrorSettled => {
+                    engine.remote.pending_resize_forward.remove(&sid);
+                }
+                LayoutSizeOutcome::Missing
+                | LayoutSizeOutcome::Deferred
+                | LayoutSizeOutcome::Applied => {}
             }
         }
     }

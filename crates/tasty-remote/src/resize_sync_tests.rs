@@ -249,3 +249,43 @@ fn the_banner_keeps_retrying_surfaces_and_dismiss_hides_a_retry_in_flight() {
         "그 요청이 실패하면 배너가 다시 보인다"
     );
 }
+
+/// Given 숨은 mirror의 대기, When 마감이 지나면, Then 재전송도 실패도 없이 사라지고 같은 크기를 다시 보낼 수
+/// 있다. 마감 전 대기와 이미 확정된 실패는 남는다.
+#[test]
+fn a_hidden_mirror_deadline_is_abandoned_without_resend_or_failure() {
+    const T: u32 = 11;
+    let (mut sync, t0) = acked();
+    sync.note_sent(S, 80, 24, t0);
+    // T는 먼저 실패로 확정된다.
+    sync.note_sent(T, 90, 30, t0);
+    let resend = sync.take_due(t0 + RESIZE_ACK_TIMEOUT);
+    for r in resend {
+        if r.surface_id == T {
+            sync.note_resent(r, t0 + RESIZE_ACK_TIMEOUT);
+        }
+    }
+    assert!(sync.take_due(t0 + RESIZE_ACK_TIMEOUT * 3).is_empty());
+    assert_eq!(failed(&sync), vec![T]);
+
+    let t1 = t0 + RESIZE_ACK_TIMEOUT * 4;
+    sync.note_sent(S, 80, 24, t1);
+    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT / 2, |_| true);
+    assert_eq!(
+        sync.next_deadline(),
+        Some(t1 + RESIZE_ACK_TIMEOUT),
+        "마감 전 대기는 남는다"
+    );
+
+    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT, |id| id == S);
+    assert!(sync.take_due(t1 + RESIZE_ACK_TIMEOUT * 3).is_empty());
+    assert_eq!(
+        failed(&sync),
+        vec![T],
+        "확정된 실패는 남고 숨은 대기는 실패가 아니다"
+    );
+    assert!(
+        sync.should_send(S, 80, 24),
+        "보이게 되면 같은 크기를 다시 보낸다"
+    );
+}

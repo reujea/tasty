@@ -553,6 +553,11 @@ impl MainView {
         }
     }
 
+    /// 레이아웃 스윕이 읽는 창 그리기 여부를 지금 창 상태로 맞춘다. 스윕을 부를 수 있는 입구가 먼저 부른다.
+    pub(crate) fn sync_window_drawn(&mut self) {
+        self.state.window_drawn = !crate::gfx::gpu::edit_keys::frames_stopped(&self.base.winit);
+    }
+
     /// 창의 engine과 함께 창 이벤트를 처리한다. engine은 App registry가 창 ID로 찾아 넘긴다.
     fn handle_engine_event(
         &mut self,
@@ -560,6 +565,7 @@ impl MainView {
         event: WindowEvent,
         ctx: &mut ViewCtx<'_>,
     ) -> ViewAction {
+        self.sync_window_drawn();
         if self.outbound_drag_event(engine, &event, ctx.modal_active) {
             return ViewAction::None;
         }
