@@ -138,7 +138,7 @@ impl MainView {
         // 보낸다. html/empty/None 등 입력을 받지 않는 surface 는 no-op 이다.
         match destination {
             InputDestination::Overlay => return,
-            InputDestination::Terminal(_) => self.forward_key_to_terminal(engine, event),
+            InputDestination::Terminal(sid) => self.forward_key_to_terminal(engine, sid, event),
             InputDestination::EguiMesh(sid) => self.forward_key_to_egui_mesh(sid, event),
             InputDestination::AttachMesh(sid) => self.forward_key_to_attach_mesh(sid, event),
             InputDestination::Other(_) => {}
@@ -359,8 +359,14 @@ impl MainView {
         false
     }
 
-    /// 포커스된 터미널로 키를 보낸다. IME 조합 문자는 Commit에서 보낸다.
-    fn forward_key_to_terminal(&mut self, engine: &EngineRead<'_>, event: &winit::event::KeyEvent) {
+    /// 받은 터미널 `sid`로 키를 보낸다. 줄바꿈 설정·터미널 상태·전송 대상·스크롤이 모두 그 surface 다. IME 조합 문자는
+    /// Commit에서 보낸다.
+    fn forward_key_to_terminal(
+        &mut self,
+        engine: &EngineRead<'_>,
+        sid: u32,
+        event: &winit::event::KeyEvent,
+    ) {
         // Commit이 따로 오지 않는 ASCII 문자와 구두점은 여기서 전달한다.
         let text_for_terminal = if self.ime_active {
             match &event.text {
@@ -379,28 +385,24 @@ impl MainView {
         #[cfg(not(target_os = "macos"))]
         let option_as_meta = false;
 
-        let shift_enter_newline =
-            shift_enter_newline_for(engine, self.state.focused_surface_id(engine));
+        let shift_enter_newline = shift_enter_newline_for(engine, Some(sid));
 
-        let surface_id = self.state.focused_surface_id(engine);
-        let read_state = surface_id.and_then(|sid| {
-            engine.as_ref().visible_terminal(sid).map(|t| {
-                let win32_console = t.win32_console_input();
-                t.with_view(&self.state.terminal_views.get(engine, sid), |view| {
-                    KeyboardReadState {
-                        shift_enter_newline,
-                        app_cursor: view.application_cursor_keys(),
-                        is_alt_screen: view.is_alternate_screen(),
-                        scroll_offset: view.scroll_offset(),
-                        rows: view.rows(),
-                        option_as_meta,
-                        win32_console,
-                    }
-                })
+        let read_state = engine.as_ref().visible_terminal(sid).map(|t| {
+            let win32_console = t.win32_console_input();
+            t.with_view(&self.state.terminal_views.get(engine, sid), |view| {
+                KeyboardReadState {
+                    shift_enter_newline,
+                    app_cursor: view.application_cursor_keys(),
+                    is_alt_screen: view.is_alternate_screen(),
+                    scroll_offset: view.scroll_offset(),
+                    rows: view.rows(),
+                    option_as_meta,
+                    win32_console,
+                }
             })
         });
 
-        if let (Some(rs), Some(sid)) = (read_state, surface_id) {
+        if let Some(rs) = read_state {
             let outcome = Self::decide_key_to_terminal(
                 rs,
                 &terminal_key,
@@ -418,7 +420,7 @@ impl MainView {
                 );
             }
 
-            self.apply_keyboard_scroll_action(engine, outcome.scroll_action);
+            self.apply_keyboard_scroll_action(engine, sid, outcome.scroll_action);
 
             if outcome.dirty {
                 self.base.state.dirty = true;
@@ -464,15 +466,13 @@ impl MainView {
         self.mark_dirty();
     }
 
-    /// 터미널의 읽기 차용이 끝난 뒤 스크롤 상태를 변경한다.
+    /// 터미널 `sid`의 읽기 차용이 끝난 뒤 그 스크롤 상태를 변경한다.
     fn apply_keyboard_scroll_action(
         &mut self,
         engine: &EngineRead<'_>,
+        sid: u32,
         action: KeyboardScrollAction,
     ) {
-        let Some(sid) = self.state.focused_surface_id(engine) else {
-            return;
-        };
         self.state
             .terminal_views
             .update(&engine.as_ref(), sid, |viewport, cut| match action {

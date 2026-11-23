@@ -2,7 +2,8 @@
 //! 확인한다. 판정의 동작은 장면 시험(`adapters::ui::popup::route::tests`)이 그 함수를 직접 불러 잰다. 창 호출부가 그
 //! 함수를 거치지 않고 갈래를 고르면 장면 시험은 보지 못하므로 호출부의 모양을 여기서 고정한다.
 //!
-//! 잡지 못하는 것: 갈래 안에서 보내는 함수(`forward_key_to_terminal` 등)의 쓰기 자체.
+//! 터미널 갈래는 갈래가 고른 surface 를 PTY 전송 끝까지 쓴다(`forward_key_to_terminal`이 포커스 surface 를 다시 고르지
+//! 않는다). 잡지 못하는 것: 갈래 안에서 보내는 함수의 쓰기 자체.
 
 use super::{fn_body, repo_root, strip_comments};
 
@@ -36,7 +37,7 @@ fn the_window_key_path_picks_its_branch_through_the_input_destination() {
         "None=>(self.state.input_destination(engine,overlay_open),self.state.focused_surface_id(engine),),",
         "matchdestination{",
         "InputDestination::Overlay=>return,",
-        "InputDestination::Terminal(_)=>self.forward_key_to_terminal(engine,event),",
+        "InputDestination::Terminal(sid)=>self.forward_key_to_terminal(engine,sid,event),",
         "InputDestination::EguiMesh(sid)=>self.forward_key_to_egui_mesh(sid,event),",
         "InputDestination::AttachMesh(sid)=>self.forward_key_to_attach_mesh(sid,event),",
     ] {
@@ -47,6 +48,27 @@ fn the_window_key_path_picks_its_branch_through_the_input_destination() {
         1,
         "PTY 로 보내는 자리는 터미널 갈래 하나다"
     );
+    // 터미널 갈래의 끝은 받은 sid 다. 줄바꿈 설정·터미널 상태·전송 대상·스크롤을 그 sid 로 정하고 포커스 surface 를 다시
+    // 고르지 않는다.
+    let forward =
+        squeeze(&fn_body(&src, "fn forward_key_to_terminal(").expect("forward_key_to_terminal"));
+    for use_sid in [
+        "shift_enter_newline_for(engine,Some(sid))",
+        "engine.as_ref().visible_terminal(sid)",
+        "DomainIntent::SendToSurface{surface_id:sid,payload,}",
+        "self.apply_keyboard_scroll_action(engine,sid,outcome.scroll_action);",
+    ] {
+        assert_eq!(forward.matches(use_sid).count(), 1, "터미널 끝 `{use_sid}`");
+    }
+    let scroll = squeeze(
+        &fn_body(&src, "fn apply_keyboard_scroll_action(").expect("apply_keyboard_scroll_action"),
+    );
+    for body in [&forward, &scroll] {
+        assert!(
+            !body.contains("focused_surface_id"),
+            "터미널 끝이 포커스 surface 를 다시 고른다"
+        );
+    }
 }
 
 /// IME: 갈래 판정 함수(`ime::route`)가 키·IME 오버레이 게이트(`window_keys_to_overlay`)를 넘긴 판정으로 갈래를 고르고,

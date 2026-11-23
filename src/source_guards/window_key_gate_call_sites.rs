@@ -83,7 +83,7 @@ fn the_terminal_goes_through_the_window_hold_gate() {
     at(&body, "InputDestination::Overlay=>return,", "오버레이 갈래");
     let pty = at(
         &body,
-        "InputDestination::Terminal(_)=>self.forward_key_to_terminal(engine,event)",
+        "InputDestination::Terminal(sid)=>self.forward_key_to_terminal(engine,sid,event)",
         "터미널로 보내는 호출",
     );
     assert!(
