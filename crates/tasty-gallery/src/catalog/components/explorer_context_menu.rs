@@ -1,6 +1,7 @@
 //! 공용 메뉴 항목을 조합한 탐색기 우클릭 메뉴 예제.
 //! 빈 영역·파일·폴더·다중 선택·원격 칸에 따른 구성을 보여준다. OS 연계 행(시스템에서 열기·파일 관리자에서
 //! 보기)은 로컬 칸에서만 자기 묶음으로 오고, 모든 메뉴는 구분선 뒤 Properties 로 끝난다.
+//! 붙여넣을 목록이 없으면 Paste 행은 빠지지 않고 꺼진다. 대상이 사라진 링크의 들어 있는 폴더에서 보기도 꺼진다.
 
 mod history;
 
@@ -20,10 +21,25 @@ pub(super) enum Mi {
     Item(Option<MockGlyph>, &'static str, bool),
     /// 작업 문구, 설정 키, 활성 여부와 비활성 이유.
     Row(String, &'static str, bool, Option<String>),
+    /// 이유 없이 꺼진 행 (leading glyph, label).
+    Off(Option<MockGlyph>, &'static str),
     Sep,
 }
 
+/// 붙여넣기 행. 붙여넣을 목록이 없으면 이유 없이 꺼진다.
+fn paste_row(label: &str, enabled: bool) -> Mi {
+    Mi::Row(label.into(), "paste", enabled, None)
+}
+
 fn empty_menu() -> Vec<Mi> {
+    empty_menu_with(true)
+}
+
+fn empty_menu_nothing_to_paste() -> Vec<Mi> {
+    empty_menu_with(false)
+}
+
+fn empty_menu_with(paste: bool) -> Vec<Mi> {
     vec![
         Mi::Item(Some(FOLDER_PLUS), t("explorer.command.new_folder"), false),
         Mi::Item(Some(FILE_PLUS), t("explorer.command.new_file"), false),
@@ -31,7 +47,7 @@ fn empty_menu() -> Vec<Mi> {
         Mi::Item(Some(COPY), "Copy path", false),
         Mi::Item(Some(STAR), "Add to favorites", false),
         Mi::Sep,
-        Mi::Item(None, "Paste", false),
+        paste_row("Paste", paste),
         Mi::Sep,
         properties(),
     ]
@@ -58,12 +74,20 @@ fn file_menu() -> Vec<Mi> {
 }
 
 fn folder_menu() -> Vec<Mi> {
+    folder_menu_with(true)
+}
+
+fn folder_menu_nothing_to_paste() -> Vec<Mi> {
+    folder_menu_with(false)
+}
+
+fn folder_menu_with(paste: bool) -> Vec<Mi> {
     vec![
         Mi::Item(Some(COPY), "Copy path", false),
         Mi::Item(Some(STAR), "Add to favorites", false),
         Mi::Item(Some(COPY), "Copy", false),
         Mi::Item(None, "Cut", false),
-        Mi::Item(None, "Paste (into)", false),
+        paste_row("Paste (into)", paste),
         Mi::Sep,
         Mi::Item(Some(FOLDER_PLUS), t("explorer.command.new_folder"), false),
         Mi::Item(Some(FILE_PLUS), t("explorer.command.new_file"), false),
@@ -115,6 +139,15 @@ fn search_result_menu() -> Vec<Mi> {
     ]
 }
 
+/// 대상이 사라진 링크 하나를 눌렀을 때. 들어 있는 폴더에서 보기는 꺼진 채 맨 앞에 남는다.
+fn broken_link_menu() -> Vec<Mi> {
+    vec![
+        Mi::Off(Some(FOLDER_OPEN), t("explorer.menu.show_in_folder")),
+        Mi::Sep,
+        Mi::Item(None, "Copy path", false),
+    ]
+}
+
 /// (caption, 항목 빌더) — 한 컨텍스트 메뉴 variant.
 type Variant = (&'static str, fn() -> Vec<Mi>);
 
@@ -145,6 +178,25 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
         menu_column(ui, theme, menu_w, "remote cell · file", &remote_menu());
         menu_column(ui, theme, menu_w, "search result", &search_result_menu());
+        menu_column(ui, theme, menu_w, "link · target gone", &broken_link_menu());
+    });
+    // 붙여넣을 목록이 없는 빈 영역·폴더 메뉴. Paste 행이 꺼진 채 남는다.
+    stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "empty area · nothing to paste",
+            &empty_menu_nothing_to_paste(),
+        );
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "folder · nothing to paste",
+            &folder_menu_nothing_to_paste(),
+        );
     });
     history::draw(ui, theme);
 
@@ -158,7 +210,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("danger", "Delete = accent-danger label"),
             (
                 "targets",
-                "empty · file · folder · multi · remote cell · search result",
+                "empty · file · folder · multi · remote cell · search result · link with its target gone · nothing to paste",
             ),
             (
                 "open in system · show in file manager",
@@ -167,6 +219,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "show in folder",
                 "search results and links · opens the real parent · selects + current item · scrolls into view · no flash",
+            ),
+            (
+                "paste",
+                "always in its slot · nothing to paste (or a list from another computer): disabled row, no reason",
+            ),
+            (
+                "show in folder · target gone",
+                "a link whose target is gone keeps a disabled row first · no Open row",
             ),
             (
                 "stale step",
@@ -238,6 +298,25 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                 for it in items {
                     match it {
                         Mi::Sep => menu_separator(ui, theme),
+                        Mi::Off(glyph, label) => {
+                            let paint = glyph.map(|g| {
+                                move |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
+                                    g.image(rect.height(), c).paint_at(ui, rect)
+                                }
+                            });
+                            menu_item(
+                                ui,
+                                theme,
+                                paint
+                                    .as_ref()
+                                    .map(|p| p as tasty_ui_widgets::IconPainter<'_>),
+                                label,
+                                None,
+                                MenuItemVariant::Normal,
+                                false,
+                                false,
+                            );
+                        }
                         Mi::Row(label, field, enabled, tooltip) => {
                             let shortcut = shortcut(field);
                             let row = menu_item(
@@ -324,4 +403,49 @@ fn item_shortcut(label: &str) -> Option<String> {
         _ => return None,
     };
     shortcut(field)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 붙여넣기 행의 (활성, 이유). 메뉴마다 하나다.
+    fn paste(items: &[Mi]) -> (bool, bool) {
+        let rows: Vec<_> = items
+            .iter()
+            .filter_map(|i| match i {
+                Mi::Row(_, "paste", enabled, why) => Some((*enabled, why.is_some())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(rows.len(), 1, "one paste row");
+        rows[0]
+    }
+
+    #[test]
+    fn nothing_to_paste_keeps_a_disabled_paste_row_without_a_reason() {
+        assert_eq!(paste(&empty_menu()), (true, false));
+        assert_eq!(paste(&folder_menu()), (true, false));
+        assert_eq!(paste(&empty_menu_nothing_to_paste()), (false, false));
+        assert_eq!(paste(&folder_menu_nothing_to_paste()), (false, false));
+        // 꺼진 변형은 켠 변형과 행 수가 같다(행이 빠지지 않는다).
+        assert_eq!(empty_menu().len(), empty_menu_nothing_to_paste().len());
+        assert_eq!(folder_menu().len(), folder_menu_nothing_to_paste().len());
+    }
+
+    #[test]
+    fn a_link_whose_target_is_gone_shows_a_disabled_show_in_folder_first() {
+        let items = broken_link_menu();
+        assert!(matches!(
+            &items[0],
+            Mi::Off(Some(_), label) if *label == t("explorer.menu.show_in_folder")
+        ));
+        assert!(matches!(items[1], Mi::Sep));
+        assert!(
+            !items
+                .iter()
+                .any(|i| matches!(i, Mi::Item(_, label, _) if *label == t("button.open"))),
+            "no Open row for a link whose target is gone"
+        );
+    }
 }

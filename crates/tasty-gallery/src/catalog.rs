@@ -1728,7 +1728,7 @@ pub fn pages() -> Vec<Page> {
                     "explorer-context",
                     "Explorer context menu",
                     "Right-click — four targets",
-                    Some("empty · file · folder · multi-select — menu_item reuse"),
+                    Some("empty · file · folder · multi-select · nothing to paste · link target gone — menu_item reuse"),
                     components::explorer_context_menu::draw,
                 ),
                 single(
