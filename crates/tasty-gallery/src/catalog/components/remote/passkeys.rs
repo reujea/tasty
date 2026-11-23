@@ -32,7 +32,7 @@ const PASSKEYS: &[PasskeySample] = &[
     PasskeySample {
         name: "deploy-key-with-a-very-long-name",
         kind: "path",
-        value: "/Users/hyunjun/Library/Application Support/tasty/keys/deploy/ci-runner/id_ed25519_deploy",
+        value: "/Users/someone/Library/Application Support/tasty/keys/deploy/ci-runner/id_ed25519_deploy",
         revealed: true,
     },
     PasskeySample {

@@ -491,7 +491,7 @@ fn commits_pane(ui: &mut egui::Ui, theme: &Theme, area: egui::Rect) {
         "0b0b9a9d",
         &["HEAD", "main"],
         "feat(egui-mesh): git-viewer new design",
-        "zilhak",
+        "user",
         "2026-06-30 17:23",
     );
     cm_row(
@@ -502,7 +502,7 @@ fn commits_pane(ui: &mut egui::Ui, theme: &Theme, area: egui::Rect) {
         "25b2908c",
         &[],
         "fix(build): mark script executable",
-        "zilhak",
+        "user",
         "2026-06-30 16:10",
     );
 }
