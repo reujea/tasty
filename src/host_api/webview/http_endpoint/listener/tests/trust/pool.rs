@@ -49,34 +49,29 @@ fn roots(home: &std::path::Path) -> usize {
         .count()
 }
 async fn next<T>(pool: &mut ProbePool<T>, native: &NativeTrust) -> ProbeId {
-    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
-    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
-    loop {
-        if let Some(id) = pool.poll(native, || true) {
-            return id;
+    // 기한 뒤 재읽기를 두지 않는다. 요청은 ProbePool::poll 이 큐에서 꺼내 새 ProbeId 와 활성 슬롯을
+    // 만들 때만 보여, 기한 뒤 상태를 바꾸지 않고 관측할 경로가 없다.
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if let Some(id) = pool.poll(native, || true) {
+                return id;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
-        if std::time::Instant::now() >= wait_until {
-            return pool
-                .poll(native, || true)
-                .unwrap_or_else(|| panic!("no probe within {:?}", Duration::from_secs(2)));
-        }
-        tokio::time::sleep(Duration::from_millis(1)).await;
-    }
+    })
+    .await
+    .unwrap()
 }
 async fn complete<T>(pool: &mut ProbePool<T>, id: ProbeId) {
-    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
-    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
-    while !pool.complete(id) {
-        if std::time::Instant::now() >= wait_until {
-            assert!(
-                pool.complete(id),
-                "probe not complete within {:?}",
-                Duration::from_secs(1)
-            );
-            break;
+    // 기한 뒤 재읽기를 두지 않는다. 완료는 ProbePool::complete 가 활성 슬롯을 비울 때만 보이고 그 호출은
+    // 소유자가 바뀐 요청을 취소하기도 해, 기한 뒤 상태를 바꾸지 않고 관측할 경로가 없다.
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while !pool.complete(id) {
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
-        tokio::time::sleep(Duration::from_millis(1)).await;
-    }
+    })
+    .await
+    .unwrap();
 }
 #[cfg(target_os = "linux")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -174,21 +169,19 @@ async fn actual_native_owner_replacement_cancels_pool_ack_and_old_ticket_cannot_
     let (mut socket, _) = hello(&endpoint, "remote.example").await;
     let view = std::rc::Rc::new(std::cell::Cell::new(true));
     let mut pool = ProbePool::new("one fixed manager");
-    let wait_until = std::time::Instant::now() + Duration::from_secs(1);
-    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
-    let id = loop {
-        let current = view.clone();
-        if let Some(id) = pool.poll(&native, move || current.get()) {
-            break id;
+    // 기한 뒤 재읽기를 두지 않는다. 요청은 ProbePool::poll 이 큐에서 꺼내 새 ProbeId 와 활성 슬롯을
+    // 만들 때만 보여, 기한 뒤 상태를 바꾸지 않고 관측할 경로가 없다.
+    let id = tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            let view = view.clone();
+            if let Some(id) = pool.poll(&native, move || view.get()) {
+                return id;
+            }
+            tokio::task::yield_now().await;
         }
-        if std::time::Instant::now() >= wait_until {
-            let current = view.clone();
-            break pool
-                .poll(&native, move || current.get())
-                .unwrap_or_else(|| panic!("no probe within {:?}", Duration::from_secs(1)));
-        }
-        tokio::task::yield_now().await;
-    };
+    })
+    .await
+    .unwrap();
     probe(pool.request(id).unwrap(), false).await;
     let observed = observation(pool.request(id).unwrap());
     view.set(false);
