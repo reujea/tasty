@@ -25,7 +25,7 @@ Rust 기반 네이티브 GUI 앱으로 Windows, macOS, Linux 를 모두 지원�
 
 - 에이전트는 터미널 작업을 수행할 수 있다. release에서는 사용자 포커스를 빼앗는 동작을 제공하지 않고 debug에서는 사용자 조작 재현이 가능해야 한다. debug 핸들러는 모듈 선언에 cfg(debug_assertions)를 둔 별도 파일로 분리한다([debug IPC](docs/dev-guide/debug-ipc.md)).
 - 에이전트가 자기 작업에 사용하는 기능은 IPC·CLI 양쪽에서 제공한다. 대상은 ID로 지정하며 현재 선택·스크롤·히스토리 보존 계약은 [포커스 정책](docs/design/policies/focus.md)에 있다.
-- Windows·macOS(Apple Silicon)·Linux를 1급 지원한다. Windows ARM도 릴리스 대상이다. 검증 여건과 지원 등급을 구분하며 OS별 코드는 cfg로 나누어 다른 OS의 컴파일을 깨뜨리지 않는다.
+- Windows·macOS(Apple Silicon)·Linux를 1급 지원한다. Windows ARM도 릴리스 대상이다. 검증 여건과 지원 등급을 구분하며 OS별 코드는 cfg로 나누어 다른 OS의 컴파일을 깨뜨리지 않는다. 원인이 특정 OS의 라이브러리·API 제약에만 있으면 수정도 `#[cfg(target_os = "…")]`로 그 OS에만 적용하고, 다른 OS의 동작을 검증 없이 바꾸지 않는다.
 
 # 작업 규칙
 
@@ -55,6 +55,10 @@ Rust 기반 네이티브 GUI 앱으로 Windows, macOS, Linux 를 모두 지원�
 - 같은 사실을 고치기 전에 인용을 검색하고 변경 뒤 코드·문서를 함께 대조한다. 같은 목록을 여러 곳에서 관리하면 서로 일치하는지 검사한다([`docs/dev-guide/duplicated-sets.md`](docs/dev-guide/duplicated-sets.md)). 자세한 규칙은 [`docs/documentation-model.md`](docs/documentation-model.md) §6에 있다.
 - 검사가 특정 사실을 보장한다고 쓸 때는 해당 결함을 실제로 검출하는지 확인한다. 확인한 범위와 한계는 [문서 작성 규칙](docs/documentation-model.md)과 [자체 검증](docs/dev-guide/self-verification.md)에 따라 적는다.
 - 일반 구현의 계약·이유는 해당 가이드에, 원칙의 예외·미충족을 채택한 결정만 ADR에 쓴다. 새 ADR을 쓰기 전에 기존 문서 보강이나 일반 가이드로 충분한지 먼저 따진다. 원칙 간 충돌은 원칙에서 해소하고 원칙 변경 이력을 누적하지 않는다. ADR 작성 전 [양식](docs/adr/template.md)을 읽는다.
+
+## 1.0 전 저장 형식
+
+1.0 전에는 기능을 없애거나 저장 형식을 바꿀 때 옛 저장값을 변환하거나 안내하는 코드를 새로 만들지 않는다. 그런 코드를 둘지 결정할 거리로도 올리지 않는다.
 
 ## 커밋 정책
 
