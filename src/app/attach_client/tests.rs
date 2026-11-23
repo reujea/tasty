@@ -121,6 +121,7 @@ pub(crate) fn test_session_with_frames(
             next_delta_focus: None,
             resize_sync: Default::default(),
             remote_label: "127.0.0.1:0".to_string(),
+            notification_sounds: 0,
             profile: None,
             pending_list_dir_consumers: HashMap::new(),
             git_query_requesters: HashMap::new(),

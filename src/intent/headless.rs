@@ -249,10 +249,15 @@ fn handle_core_event(core: &mut AppServices, engine: &mut EngineMut<'_>, event: 
             surface_id,
             title,
             body,
-            // 헤드리스에서는 알림음을 재생하지 않는다.
+            // 헤드리스에서는 알림음을 재생하지 않는다. attach client 몫이면 client에 넘긴다.
             source: _,
             merge,
-        } => push_notification(engine, ws_id, surface_id, title, body, level, merge),
+            stream_echo,
+        } => {
+            if push_notification(engine, ws_id, surface_id, title, body, level, merge) {
+                engine.hand_notification_sound_to_attach_client(ws_id, surface_id, stream_echo);
+            }
+        }
         CoreEvent::TerminalMarkSet { surface_id } => {
             if let Some(t) = engine.find_terminal_by_id_mut(surface_id) {
                 t.set_mark();
@@ -340,6 +345,7 @@ pub(crate) fn queue_system_notices(state: &mut RequestContext, engine: &EngineMu
                 body: notice.body,
                 source: notice.source.to_string(),
                 merge: crate::app::command::NotificationMerge::Separate,
+                stream_echo: false,
             }
             .from_system(),
         );
@@ -347,6 +353,7 @@ pub(crate) fn queue_system_notices(state: &mut RequestContext, engine: &EngineMu
 }
 
 // 헤드리스는 알림을 저장하지만 알림음과 NotificationCreated 이벤트 전송은 생략한다.
+// 새 항목을 만들었으면 true다.
 fn push_notification(
     engine: &mut EngineMut<'_>,
     ws_id: u32,
@@ -355,12 +362,12 @@ fn push_notification(
     body: String,
     level: crate::notification::NotificationLevel,
     merge: crate::app::command::NotificationMerge,
-) {
+) -> bool {
     if !engine.has_workspace(ws_id) {
         tracing::warn!(ws_id, "NotificationPushRequested: workspace not found");
-        return;
+        return false;
     }
-    if merge
+    let created = merge
         .add(
             &mut engine.live.notifications,
             ws_id,
@@ -369,11 +376,12 @@ fn push_notification(
             body,
             level,
         )
-        .is_some()
-    {
+        .is_some();
+    if created {
         // 기존 알림에 합친 경우에는 attention을 다시 올리지 않는다.
         engine.raise_attention(surface_id, AttentionKind::Completion);
     }
+    created
 }
 
 #[cfg(test)]
@@ -562,6 +570,7 @@ mod tests {
                     body: format!("{title} cause"),
                     source: "test".into(),
                     merge,
+                    stream_echo: false,
                 }
                 .from_system(),
             );

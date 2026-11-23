@@ -440,6 +440,14 @@ pub enum StreamControl {
         /// The attention kind now recorded on the remote, or `None` if cleared.
         kind: Option<AttentionKindWire>,
     },
+    /// 서버→클라이언트: 점유한 대상에 새 알림이 생겼으니 client 설정대로 알림음을 한 번 낸다.
+    /// client가 같은 터미널 바이트로 스스로 만드는 알림(OSC 알림·Bell)에는 보내지 않는다.
+    /// 알림을 만든 때 한 번만 보내며 재연결·유실 프레임을 다시 보내지 않는다.
+    /// 구 client는 이 variant를 모르므로 역직렬화에 실패해 무시한다.
+    NotificationSound {
+        /// Remote surface id the notification belongs to, or 0 for a workspace-level one.
+        surface_id: u32,
+    },
     /// 서버→클라이언트: 원격이 확인한 cwd. None이면 mirror의 저장값도 지운다.
     /// 원격 경로이므로 로컬 파일 작업에 사용하지 않는다. 서버의 inherit_cwd와 무관하게
     /// 관측값을 보내며 실행 시 그 설정의 적용 여부는 소비자가 판단한다.

@@ -78,6 +78,9 @@ pub(crate) struct NotificationPush {
     pub body: String,
     pub source: String,
     pub merge: NotificationMerge,
+    /// attach client가 같은 터미널 바이트를 파싱해 스스로 같은 알림을 만든다(OSC 알림·Bell).
+    /// 그 터미널 출력을 client가 받는 동안 서버는 이 알림의 소리를 내지 않는다.
+    pub stream_echo: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -330,6 +333,9 @@ pub(crate) enum DomainIntent {
         body: String,
         source: String,
         merge: NotificationMerge,
+        /// attach client가 같은 터미널 바이트를 파싱해 스스로 같은 알림을 만든다(OSC 알림·Bell).
+        /// 그 터미널 출력을 client가 받는 동안 서버는 이 알림의 소리를 내지 않는다.
+        stream_echo: bool,
     },
     #[cfg(feature = "gui")]
     MarkNotificationRead {
@@ -427,6 +433,9 @@ pub(crate) enum CoreEvent {
         body: String,
         source: String,
         merge: NotificationMerge,
+        /// attach client가 같은 터미널 바이트를 파싱해 스스로 같은 알림을 만든다(OSC 알림·Bell).
+        /// 그 터미널 출력을 client가 받는 동안 서버는 이 알림의 소리를 내지 않는다.
+        stream_echo: bool,
     },
     #[cfg(feature = "gui")]
     NotificationReadRequested {

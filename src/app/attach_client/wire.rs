@@ -28,6 +28,9 @@ pub(super) fn mirror_event_from_control(payload: &[u8]) -> Option<MirrorEvent> {
         Ok(StreamControl::Attention { surface_id, kind }) => {
             Some(MirrorEvent::Attention(surface_id, kind))
         }
+        Ok(StreamControl::NotificationSound { surface_id }) => {
+            Some(MirrorEvent::NotificationSound(surface_id))
+        }
         Ok(StreamControl::Cwd { surface_id, cwd }) => Some(MirrorEvent::Cwd(surface_id, cwd)),
         Ok(StreamControl::Foreground { surface_id, name }) => {
             Some(MirrorEvent::Foreground(surface_id, name))

@@ -38,6 +38,8 @@ pub enum MirrorEvent {
     Activity(u32, bool),
     /// None이면 원격 attention 해제다. 로컬 완료 감지와 별도로 반영한다.
     Attention(u32, Option<tasty_ipc::stream::AttentionKindWire>),
+    /// 서버가 넘긴 알림음 한 번. 원격 surface ID이며 0은 workspace 알림이다.
+    NotificationSound(u32),
     /// 원격 cwd. 로컬 파일시스템 경로로 사용하지 않으며 None이면 값을 지운다.
     Cwd(u32, Option<String>),
     /// 원격 전경 프로세스 이름. None이면 값을 지운다.
@@ -387,6 +389,8 @@ pub struct ClientSessionState {
     pub resize_sync: crate::resize_sync::ResizeSync,
     /// 이 연결의 loopback 엔드포인트(`127.0.0.1:<로컬 포트>`). 프로필 없이 붙은 mirror의 호스트 글자다.
     pub remote_label: String,
+    /// 이번 회차에 받아 아직 재생하지 않은 알림음 수. App이 출력 회차 끝에 꺼내 재생한다.
+    pub notification_sounds: u32,
     /// 연결할 때 고른 `tasty-attach` 프로필 이름. 연결 시점 값이라 재연결해도, 연결 뒤 프로필을
     /// 바꾸거나 지워도 바꾸지 않는다.
     pub profile: Option<String>,

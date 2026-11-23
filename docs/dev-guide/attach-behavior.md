@@ -465,6 +465,7 @@ raise에는 mirror 차단이 있고 clear에는 서버로 전달할 메시지 �
 
 - **OSC 52 쓰기**: 참이면 서버는 OS 클립보드에 쓰지 않고 `TerminalClipboardSet` 도 내지 않는다(`src/app/services/impl_pty.rs`). client 가 자기 클립보드에 쓰고 결과 토스트를 낸다.
 - **OSC 52 읽기**: 참이면 서버는 읽지도 답하지도 않는다. 서버가 그 전에 시작한 비동기 읽기의 결과도 답하기 직전 같은 판정으로 버린다(`src/app/services/impl_clipboard.rs`). client 는 자기 `allow_clipboard_read` 와 클립보드로 답하고, 응답은 mirror 입력 sink 로 서버 PTY 에 간다. 재연결은 mirror 의 입력 연결 세대를 바꾸므로(`Terminal::bind_external_input`) 옛 연결의 늦은 결과는 `send_response_for` 가 버린다.
+- **알림 소리**: 터미널 사건 경로(`cascade_terminal_notification`·`cascade_terminal_bell_ring`)가 만드는 알림은 `stream_echo` 로 표시한다. client 도 같은 바이트로 같은 알림을 만들기 때문이다. 새 알림의 소리는 `EngineMut::hand_notification_sound_to_attach_client`(`src/remote/notification_sound.rs`)가 정한다. `stream_echo` 이면 위 판정이 참일 때 서버가 비킨다. 아니면 대상 surface 의 준비된 hard lock holder(surface 가 0 이거나 lock 이 없으면 workspace 의 준비된 holder)에게 `StreamControl::NotificationSound { surface_id }` 를 한 번 보내고 서버는 비킨다. client 는 받은 수만큼 출력 회차 끝에 자기 `notification.sound` 대로 재생한다. GUI 서버는 `cascade_notification_pushed`, headless 서버는 `intent/headless.rs` 의 알림 저장 뒤 같은 함수를 부른다. 저장·attention·훅은 바꾸지 않는다.
 - 서버 사용자의 직접 선택 복사, IPC `clipboard.set_text`, 원격 캡처 게시는 raw 바이트 효과가 아니라 이 판정을 쓰지 않는다.
 
 ## mesh mirror 채널

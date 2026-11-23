@@ -138,3 +138,12 @@ fn capture_result_keeps_the_image_scope_and_reads_an_old_server_as_path_only() {
         })
     ));
 }
+
+#[test]
+fn a_notification_sound_becomes_its_own_event() {
+    let payload = serde_json::to_vec(&StreamControl::NotificationSound { surface_id: 5 }).unwrap();
+    assert!(matches!(
+        mirror_event_from_control(&payload),
+        Some(MirrorEvent::NotificationSound(5))
+    ));
+}

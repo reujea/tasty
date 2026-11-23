@@ -37,6 +37,7 @@ impl App {
                     body,
                     source: "host".to_string(),
                     merge: crate::app::command::NotificationMerge::Coalesce,
+                    stream_echo: true,
                 }
                 .from_system(),
             );
@@ -84,6 +85,7 @@ impl App {
                     body: String::new(),
                     source: "host".to_string(),
                     merge: crate::app::command::NotificationMerge::Coalesce,
+                    stream_echo: true,
                 }
                 .from_system(),
             );

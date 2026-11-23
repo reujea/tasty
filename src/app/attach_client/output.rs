@@ -146,6 +146,16 @@ impl App {
                 }
             }
         }
+        // 서버가 넘긴 알림음은 세션이 정리되기 전에 재생한다.
+        let sounds: u32 = self
+            .remote
+            .sessions
+            .iter_mut()
+            .map(|sess| std::mem::take(&mut sess.state.notification_sounds))
+            .sum();
+        for _ in 0..sounds {
+            self.services.sound_player().play();
+        }
         // 이번 묶음에서 받은 원격 자식 통지·결과를 세션이 정리되기 전에 적용한다.
         self.pump_agent_children();
         self.pump_terminal_reads();

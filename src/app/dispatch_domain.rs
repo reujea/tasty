@@ -291,6 +291,7 @@ impl App {
                 body,
                 source,
                 merge,
+                stream_echo,
             } => {
                 self.cascade_notification_pushed(crate::app::command::NotificationPush {
                     level,
@@ -300,6 +301,7 @@ impl App {
                     body,
                     source,
                     merge,
+                    stream_echo,
                 });
             }
             CoreEvent::NotificationReadRequested { id } => {
@@ -751,6 +753,7 @@ impl App {
             body,
             source,
             merge,
+            stream_echo,
         } = push;
         let Some((_, mut engine)) = engines_mut!(self)
             .sessions()
@@ -772,8 +775,14 @@ impl App {
         );
         if let Some(nid) = created_id {
             engine.raise_attention(surface_id, AttentionKind::Completion);
+            // attach client 몫의 소리는 client가 낸다. 저장·attention·훅은 서버에 그대로 남는다.
+            let client_plays =
+                engine.hand_notification_sound_to_attach_client(ws_id, surface_id, stream_echo);
             // OS 벨과의 중복을 피하려는 TerminalBellRing 표지는 사운드에서 제외한다.
-            if engine.runtime.settings.notification.sound && source != "TerminalBellRing" {
+            if !client_plays
+                && engine.runtime.settings.notification.sound
+                && source != "TerminalBellRing"
+            {
                 self.services.sound_player().play();
             }
             engine.enqueue_host_event(crate::state::PendingHostEvent::NotificationCreated {

@@ -225,6 +225,8 @@ attention 의 관리 주체는 **surface 를 소유한 인스턴스**다: produc
 미러 사용자의 행동은 서버의 해제 경로를 발동시킬 수 없어, 이 전달이 없으면 서버 배지에 해제 주체가 아예 없다.
 메커니즘 상세는 [dev-guide/attach-behavior "주의 환기(attention) 전파"](../../dev-guide/attach-behavior.md#주의-환기attention-전파), 기능 문서는 [features/surface-highlight](../surface-highlight/index.md#원격-attach-mirror-로의-전파-serverclient).
 
+**client 가 처리하는 터미널 효과**: client 가 터미널 출력을 받는 동안 그 출력의 OSC 52 쓰기·읽기는 client 클립보드와 client 설정으로 처리하고 서버 클립보드는 쓰지도 읽지도 않는다. 그 surface 의 새 알림 소리도 client 에서 난다(서버만 아는 알림은 `StreamControl::NotificationSound` 로 넘긴다). 알림 기록·attention·훅은 서버에 남는다. 규칙은 [클립보드](../clipboard/index.md#osc-52), [알림 소리](../notifications/index.md#알림-소리), [dev-guide/attach-behavior "raw 출력 효과의 처리자"](../../dev-guide/attach-behavior.md#raw-출력-효과의-처리자)에 있다.
+
 **surface 의 현재 폴더(cwd)도 같은 방향의 채널이다** — 원격이 점유 surface 의 cwd 를 같은 1Hz tick 에 `StreamControl::Cwd{surface_id, cwd}` 로 보낸다.
 mirror 터미널은 로컬 셸이 없어 원격 셸이 OSC 7 을 쏠 때만 cwd 를 알 수 있었는데, 원격은 셸 프로세스를 직접 조회할 수 있어 어떤 셸이든 값이 온다.
 그 값은 **원격 경로**로 표시되어 로컬 파일시스템 연산(새 로컬 워크스페이스의 시작 폴더, 로컬 git 브랜치 조회, preset 저장)에는 쓰이지 않고, 원격에서 실행되거나 원격을 조회하는 소비자(예: mirror 에서 연 파일 피커의 시작 폴더)만 쓴다.

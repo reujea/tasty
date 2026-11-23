@@ -22,6 +22,7 @@ pub(crate) mod capture_upload;
 
 pub(crate) mod bulk_transfer;
 
+mod notification_sound;
 pub(crate) mod subscription;
 
 pub(crate) mod transfer_spool;

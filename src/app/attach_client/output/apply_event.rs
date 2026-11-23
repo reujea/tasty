@@ -56,6 +56,12 @@ pub(super) fn apply_one_mirror_event(
                 host.engine.set_mirror_surface_busy(local, busy);
             }
         }
+        MirrorEvent::NotificationSound(_) => {
+            // 서버는 알림을 만든 순간 한 번 보낸다. 받는 쪽의 소리 설정을 따른다.
+            if host.engine.runtime.settings.notification.sound {
+                sess.state.notification_sounds += 1;
+            }
+        }
         MirrorEvent::Cwd(remote_id, cwd) => {
             if let Some(&local) = sess.state.remote_to_local.get(&remote_id) {
                 host.engine.set_mirror_surface_cwd(local, cwd);
