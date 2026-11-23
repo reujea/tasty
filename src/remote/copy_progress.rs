@@ -7,8 +7,8 @@
 //! termwiz와 같이 본다.
 //!
 //! 끝난 쓰기는 '결과 대기'로 남고 client가 같은 surface의 `TerminalClipboardSet`을 처리할 때 오래된
-//! 것부터 하나씩 닫힌다. termwiz가 받지 않은 시퀀스(잘못된 base64 등)는 끝나는 즉시 실패다. 질의나
-//! 지우기로 끝나면(앞머리 관측이 쓰기로 잘못 본 경우) 실패 없이 접수만 거둔다.
+//! 것부터 하나씩 닫힌다. termwiz가 받지 않은 시퀀스(잘못된 base64 등)는 끝나는 즉시 실패다. 질의·
+//! 지우기나 다른 OSC로 끝나면(앞머리 관측이 쓰기로 잘못 본 경우) 실패 없이 접수만 거둔다.
 //!
 //! 앞머리 판정은 원시 바이트를 본다. vtparse가 OSC 안에서 무시하는 C0 바이트는 건너뛰지만 그 밖의
 //! 정규화 차이로 접수를 놓치면 진행 표시만 빠지고 기록·토스트는 그대로다. vtparse의 OSC 버퍼는 본문
@@ -118,6 +118,9 @@ enum Ended {
     NotWrite,
     /// termwiz가 받지 않았다(잘못된 base64 등).
     Invalid,
+    /// OSC 52가 아닌 OSC. 머리 판정이 이것을 쓰기로 봤다면(파서가 ESC를 문자열 바이트로 삼킨 경우 등)
+    /// 실패 없이 접수만 거둔다.
+    Other,
 }
 
 #[derive(Default)]
@@ -133,6 +136,7 @@ impl vtparse::VTActor for Dispatches {
     fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {}
     fn osc_dispatch(&mut self, params: &[&[u8]]) {
         if params.first() != Some(&b"52".as_slice()) {
+            self.0.push(Ended::Other);
             return;
         }
         self.0.push(match OperatingSystemCommand::parse(params) {
@@ -162,7 +166,7 @@ impl CopyProgress {
                 match end {
                     Ended::Write => scan.awaiting.push_back(receiving.unwrap_or(now)),
                     Ended::Invalid if receiving.is_some() => failures.push(surface),
-                    Ended::Invalid | Ended::NotWrite => {}
+                    Ended::Invalid | Ended::NotWrite | Ended::Other => {}
                 }
             }
             if scan.parser.is_ground() {
