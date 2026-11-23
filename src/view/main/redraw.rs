@@ -1043,10 +1043,7 @@ impl MainView {
                 move_targets.push(cat.id);
             }
             items.push(MenuItem::separator());
-            items.push(MenuItem::new(
-                100,
-                crate::i18n::t("workspace_category.new_category"),
-            ));
+            items.push(menu_row(100, "workspace_category.new_category"));
         }
 
         // 강제 끊기는 구분선과 함께 늘 둔다. 사이드바 점유 표시와 같은 기준으로 점유가 있을 때만 켠다.
@@ -1241,10 +1238,7 @@ impl MainView {
             has_selection,
             selection_open_path.as_deref().map(std::path::Path::is_dir),
         );
-        items.push(MenuItem::new(
-            1,
-            crate::i18n::t("terminal_context_menu.copy_surface_id"),
-        ));
+        items.push(menu_row(1, "terminal_context_menu.copy_surface_id"));
         items.push(MenuItem::separator());
         Self::push_surface_move_items(self.state.pending_move, &mut items);
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
@@ -1318,10 +1312,7 @@ impl MainView {
         use crate::platform::native_menu::MenuItem;
         // 비-terminal surface: 전용 항목(copy surface id) + 구분선 +
         // 서피스 이동 / 서피스를 이곳으로 이동(서피스가 대기 중일 때만 켜짐).
-        let mut items = vec![MenuItem::new(
-            1,
-            crate::i18n::t("terminal_context_menu.copy_surface_id"),
-        )];
+        let mut items = vec![menu_row(1, "terminal_context_menu.copy_surface_id")];
         items.push(MenuItem::separator());
         Self::push_surface_move_items(self.state.pending_move, &mut items);
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
@@ -1481,14 +1472,6 @@ impl MainView {
                 }
             }
         };
-        // 로컬 칸에서만 할 수 있는 행. 원격 칸에서는 제자리에서 이유와 함께 꺼진다.
-        let local_row = |id: u32, key: &str, reason: &str| {
-            if is_mirror {
-                MenuItem::disabled(id, crate::i18n::t(key)).with_tooltip(crate::i18n::t(reason))
-            } else {
-                MenuItem::new(id, crate::i18n::t(key))
-            }
-        };
         let copy_path_label = if multi {
             crate::i18n::t("explorer.context_menu.copy_path_multi")
         } else {
@@ -1501,24 +1484,18 @@ impl MainView {
         items.push(MenuItem::new(1, copy_path_label));
         // 즐겨찾기 추가는 단일 폴더 또는 빈 영역(cwd, 디렉토리)에서만 (design §3.3).
         if is_empty_target || is_folder {
-            items.push(MenuItem::new(
-                50,
-                crate::i18n::t("explorer.context_menu.add_to_favorites"),
-            ));
+            items.push(menu_row(50, "explorer.context_menu.add_to_favorites"));
         }
         // 단일 폴더: 새 탭으로 열기 / 이 폴더로 루트 설정 (빈 영역=cwd 자기
         // 자신엔 무의미 → 제외). 새 탭으로 열기는 mirror 에서 꺼짐(로컬 전용
         // 유령 tab 생성 방지). 이 폴더로 루트 설정은 순수 로컬 뷰 이동이라 mirror 에서도 노출.
         if is_folder {
-            items.push(local_row(
+            items.push(local_only_row(
                 60,
                 "explorer.context_menu.open_in_new_tab",
-                "explorer.menu.new_tab_remote_reason",
+                is_mirror.then_some("explorer.menu.new_tab_remote_reason"),
             ));
-            items.push(MenuItem::new(
-                61,
-                crate::i18n::t("explorer.context_menu.set_as_root"),
-            ));
+            items.push(menu_row(61, "explorer.context_menu.set_as_root"));
         }
         if is_empty_target {
             // 빈 영역(cwd): 붙여넣기. 붙여넣을 수 없어도 행은 남는다.
@@ -1527,10 +1504,7 @@ impl MainView {
         } else {
             // 파일/폴더/다중: 복사 · 잘라내기. 잘라내기는 쓸 수 없는 원격에서 꺼진다.
             // 원격 클립보드는 출처 workspace 를 함께 적어 다른 곳에 붙여넣지 않는다.
-            items.push(MenuItem::new(
-                10,
-                crate::i18n::t("explorer.context_menu.copy_files"),
-            ));
+            items.push(menu_row(10, "explorer.context_menu.copy_files"));
             items.push(write_row(11, "explorer.context_menu.cut"));
             if is_folder {
                 items.push(paste_row("explorer.context_menu.paste_into"));
@@ -1555,10 +1529,7 @@ impl MainView {
         }
         // 모든 모양의 메뉴는 Properties 로 끝난다. 빈 영역이면 현재 폴더가 대상이다.
         items.push(MenuItem::separator());
-        items.push(MenuItem::new(
-            70,
-            crate::i18n::t("explorer.context_menu.properties"),
-        ));
+        items.push(menu_row(70, "explorer.context_menu.properties"));
         items
     }
 
@@ -1805,26 +1776,14 @@ impl MainView {
         // 제자리에서 이유와 함께 끈다. "이 폴더로 루트 설정"/"즐겨찾기에서 제거"는 로컬 뷰
         // 상태만 바꾸는 안전한 동작이라 그대로 노출.
         let is_mirror = engine.is_mirror_surface(surface_id);
-        let open_in_new_tab =
-            MenuItem::new(60, crate::i18n::t("explorer.context_menu.open_in_new_tab"));
-        let mut items = vec![if is_mirror {
-            MenuItem {
-                enabled: false,
-                ..open_in_new_tab
-            }
-            .with_tooltip(crate::i18n::t("explorer.menu.new_tab_remote_reason"))
-        } else {
-            open_in_new_tab
-        }];
-        items.push(MenuItem::new(
-            61,
-            crate::i18n::t("explorer.context_menu.set_as_root"),
-        ));
+        let mut items = vec![local_only_row(
+            60,
+            "explorer.context_menu.open_in_new_tab",
+            is_mirror.then_some("explorer.menu.new_tab_remote_reason"),
+        )];
+        items.push(menu_row(61, "explorer.context_menu.set_as_root"));
         items.push(MenuItem::separator());
-        items.push(MenuItem::new(
-            1,
-            crate::i18n::t("explorer.context_menu.remove_from_favorites"),
-        ));
+        items.push(menu_row(1, "explorer.context_menu.remove_from_favorites"));
         let binding = crate::runtime::surface_binding::SurfaceBinding::capture(engine, surface_id);
         self.open_native_menu(engine, x, y, &items, move |this, engine, result| {
             // 메뉴가 열려 있는 동안 explorer surface 가 닫히거나 바뀌었을 수 있다.
@@ -1992,15 +1951,9 @@ fn workspace_close_menu_items(mirror: bool) -> Vec<crate::platform::native_menu:
     use crate::platform::native_menu::MenuItem;
     let mut items = vec![MenuItem::separator()];
     if mirror {
-        items.push(MenuItem::new(
-            8,
-            crate::i18n::t("context_menu.disconnect_workspace"),
-        ));
+        items.push(menu_row(8, "context_menu.disconnect_workspace"));
     }
-    items.push(MenuItem::new(
-        6,
-        crate::i18n::t("context_menu.close_workspace"),
-    ));
+    items.push(menu_row(6, "context_menu.close_workspace"));
     items
 }
 
@@ -2016,20 +1969,11 @@ fn category_header_menu_items(is_normal: bool) -> Vec<crate::platform::native_me
         MenuItem::separator(),
     ];
     if !is_normal {
-        items.push(MenuItem::new(
-            1,
-            crate::i18n::t("workspace_category.rename_category"),
-        ));
-        items.push(MenuItem::new(
-            2,
-            crate::i18n::t("workspace_category.delete_category"),
-        ));
+        items.push(menu_row(1, "workspace_category.rename_category"));
+        items.push(menu_row(2, "workspace_category.delete_category"));
         items.push(MenuItem::separator());
     }
-    items.push(MenuItem::new(
-        100,
-        crate::i18n::t("workspace_category.new_category"),
-    ));
+    items.push(menu_row(100, "workspace_category.new_category"));
     items
 }
 
@@ -2069,6 +2013,24 @@ fn terminal_selection_items(
     }
     items.push(MenuItem::separator());
     items
+}
+
+/// 번역 키 하나로 만드는 평범한 메뉴 행.
+fn menu_row(id: u32, key: &str) -> crate::platform::native_menu::MenuItem {
+    crate::platform::native_menu::MenuItem::new(id, crate::i18n::t(key))
+}
+
+/// 로컬 칸에서만 할 수 있는 행. 원격 칸(`reason` 키가 있을 때)에서는 제자리에서 그 이유와 함께 꺼진다.
+fn local_only_row(
+    id: u32,
+    key: &str,
+    reason: Option<&str>,
+) -> crate::platform::native_menu::MenuItem {
+    match reason {
+        None => menu_row(id, key),
+        Some(why) => crate::platform::native_menu::MenuItem::disabled(id, crate::i18n::t(key))
+            .with_tooltip(crate::i18n::t(why)),
+    }
 }
 
 #[cfg(test)]
