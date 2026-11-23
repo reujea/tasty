@@ -161,6 +161,16 @@ fn without_tooltips(items: Vec<Mi>) -> Vec<Mi> {
 
 /// 원격 칸의 파일 하나. OS 연계 행은 구분선과 함께 제자리에 남고 꺼진다.
 fn remote_menu() -> Vec<Mi> {
+    remote_file_menu("explorer.context_menu.reveal_files")
+}
+
+/// Windows 의 원격 칸 파일 하나. 파일 관리자 행 이름이 Windows 것이다.
+fn remote_menu_windows() -> Vec<Mi> {
+    remote_file_menu("explorer.context_menu.reveal_explorer")
+}
+
+/// `reveal_key` 는 그 OS 의 "파일 관리자에서 보기" 행 이름 키다.
+fn remote_file_menu(reveal_key: &'static str) -> Vec<Mi> {
     vec![
         Mi::Item(Some(COPY), "Copy path", false),
         Mi::Item(Some(COPY), "Copy", false),
@@ -176,7 +186,7 @@ fn remote_menu() -> Vec<Mi> {
         ),
         remote_off(
             Some(FOLDER_OPEN),
-            t("explorer.context_menu.reveal_files"),
+            t(reveal_key),
             "explorer.menu.local_only_reason",
         ),
         Mi::Sep,
@@ -306,7 +316,7 @@ type Variant = (&'static str, fn() -> Vec<Mi>);
 
 /// D6 메뉴의 Windows 변형.
 const WINDOWS_VARIANTS: [Variant; 6] = [
-    ("windows · remote cell · file", remote_menu),
+    ("windows · remote cell · file", remote_menu_windows),
     ("windows · remote cell · folder", remote_folder_menu),
     ("windows · remote cell · favorite row", remote_favorite_menu),
     ("windows · remote cell · empty area", remote_empty_menu),
@@ -715,6 +725,10 @@ mod tests {
             remote_folder_with_local_list_menu().last(),
             Some(Mi::Row(_, "paste", false, Some(why)))
                 if why == t("explorer.state.cross_computer_paste_unsupported")
+        ));
+        // Windows 원격 파일 표본은 Windows 의 파일 관리자 행 이름을 쓴다.
+        assert!(remote_menu_windows().iter().any(
+            |i| matches!(i, Mi::Off(_, label, _, _) if *label == t("explorer.context_menu.reveal_explorer"))
         ));
         // Windows 변형은 같은 행에서 툴팁만 뺀다.
         for (_, build) in WINDOWS_VARIANTS {
