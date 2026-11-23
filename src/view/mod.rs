@@ -4,6 +4,7 @@
 pub(crate) mod base;
 pub(crate) mod file_chooser;
 pub(crate) mod judged_event;
+pub(crate) mod key_event;
 pub(crate) mod main;
 pub(crate) mod modal;
 pub(crate) mod plugins;

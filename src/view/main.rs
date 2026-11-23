@@ -18,6 +18,7 @@ mod html_address_keys;
 mod html_content;
 #[cfg(any(debug_assertions, test))]
 pub(crate) mod input_segment;
+mod key_event_steps;
 mod keyboard;
 mod link_menu;
 mod menu_target;
@@ -558,7 +559,8 @@ impl MainView {
         self.state.window_drawn = !crate::gfx::gpu::edit_keys::frames_stopped(&self.base.winit);
     }
 
-    /// 창의 engine과 함께 창 이벤트를 처리한다. engine은 App registry가 창 ID로 찾아 넘긴다.
+    /// 창의 engine과 함께 창 이벤트를 처리한다. engine은 App registry가 창 ID로 찾아 넘긴다. 단계 순서는
+    /// `crate::view::key_event::run_key_event` 하나가 정하고, 메인 창이 가진 단계는 `key_event_steps`에 있다.
     fn handle_engine_event(
         &mut self,
         engine: &EngineRead<'_>,
@@ -566,59 +568,20 @@ impl MainView {
         ctx: &mut ViewCtx<'_>,
     ) -> ViewAction {
         self.sync_window_drawn();
-        if self.outbound_drag_event(engine, &event, ctx.modal_active) {
-            return ViewAction::None;
-        }
-        // If a modal is active, block all input events before they reach egui.
-        // Only allow non-input events (resize, redraw, scale factor, focus) through.
-        if modal_blocks_input(ctx.modal_active, &event) {
-            return ViewAction::None;
-        }
+        let mut steps = key_event_steps::MainKeySteps::new(self, engine, ctx.modal_active);
+        crate::view::key_event::run_key_event(&mut steps, event)
+    }
 
-        self.normalize_focus_on_key(engine, &event);
-        self.cut_input_segment(engine, &event);
-
-        // 편집 바인딩 판정은 egui-winit과 단축키 디스패치보다 먼저 한 번 한다.
-        let Some(edit_judged) = self.edit_key_gate(engine, &event) else {
-            return ViewAction::None;
-        };
-
-        #[cfg(target_os = "linux")]
-        if self.consume_explorer_ime_key(engine, &event) {
-            return ViewAction::None;
-        }
-
-        // 팝업·host 위젯의 키 입력만 egui에 전달하고 나머지는 중앙 디스패처로 보낸다.
-        if self.route_tutorial_input(&event) {
-            return ViewAction::None;
-        }
-        let is_keyboard_event = matches!(
-            &event,
-            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
-        );
-        let is_modifiers_event = matches!(&event, WindowEvent::ModifiersChanged(_));
-
-        let is_redraw_event = matches!(&event, WindowEvent::RedrawRequested);
-
-        // 메뉴를 닫는 클릭은 누름부터 뗌까지 egui와 Tasty 모두에 전달하지 않는다.
-        // 두 경로가 같은 판단을 쓰도록 egui 전달 전에 한 번 판정한다.
-        let menu_dismiss_swallow = self.begin_menu_dismiss_swallow(&event);
-        let os_resize_press = self.os_resize_owns_event(&event, menu_dismiss_swallow);
-
-        let (egui_consumed, egui_repaint) = if is_redraw_event {
-            // RedrawRequested를 egui에 넣으면 다시 그리기를 반복 요청하므로 제외한다.
-            (false, false)
-        } else if is_keyboard_event {
-            self.feed_egui_keyboard(engine, &event, edit_judged.is_some())
-        } else if is_modifiers_event {
-            let (_, repaint) = self.base.gpu.handle_egui_event(&self.base.winit, &event);
-            (false, repaint)
-        } else if menu_dismiss_swallow || os_resize_press {
-            (false, true)
-        } else {
-            self.feed_egui_pointer_or_other(&event)
-        };
-
+    /// 단계 11: egui 적재를 지난 창 사건을 종류별로 처리한다. `egui`는 적재 결과 (소비, 다시 그리기)다.
+    fn after_egui_feed(
+        &mut self,
+        engine: &EngineRead<'_>,
+        event: WindowEvent,
+        edit_judged: Option<crate::adapters::ui::input::edit_key::EditKey>,
+        (egui_consumed, egui_repaint): (bool, bool),
+        menu_dismiss_swallow: bool,
+        os_resize_press: bool,
+    ) -> ViewAction {
         if egui_repaint {
             self.mark_dirty();
         }

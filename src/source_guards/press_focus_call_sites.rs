@@ -44,31 +44,55 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
         "for_in0..self.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming){self.base.gpu.cut_egui_input_here();}",
         "입력 끊기",
     );
+    // 단계 순서는 E0 함수(`run_key_event`)가 정하고, 단계마다 메인 창이 부르는 함수는 `MainKeySteps`에 있다.
     let handle = squeeze(&fn_body(&src, "fn handle_engine_event(").expect("handle_engine_event"));
-    let normalize = at(
+    at(
         &handle,
-        "self.normalize_focus_on_key(engine,&event);",
+        "crate::view::key_event::run_key_event(&mutsteps,event)",
+        "E0 함수 호출",
+    );
+    let order = squeeze(
+        &fn_body(&read("src/view/key_event.rs"), "fn run_key_event<").expect("run_key_event"),
+    );
+    let settle = at(&order, "steps.settle_key_node(&event);", "단계 3·5");
+    let intercept = at(
+        &order,
+        "steps.intercepts_after_edit_judgment(&event)",
+        "단계 7",
+    );
+    let feed = at(&order, "steps.feed_egui(&event,judged)", "단계 8");
+    assert!(
+        settle < intercept && intercept < feed,
+        "E0 함수가 정규화·끊기 → 튜토리얼 → egui 전달 순서로 부르지 않는다"
+    );
+    let steps = read("src/view/main/key_event_steps.rs");
+    let step = |name: &str| squeeze(&fn_body(&steps, name).unwrap_or_else(|| panic!("{name}")));
+    let settle = step("fn settle_key_node(");
+    let normalize = at(
+        &settle,
+        "self.view.normalize_focus_on_key(self.engine,event);",
         "키의 정규화",
     );
     let cut_at = at(
-        &handle,
-        "self.cut_input_segment(engine,&event);",
+        &settle,
+        "self.view.cut_input_segment(self.engine,event);",
         "입력 끊기 호출",
     );
-    let tutorial = at(
-        &handle,
-        "self.route_tutorial_input(&event)",
+    at(
+        &step("fn intercepts_after_edit_judgment("),
+        "self.view.route_tutorial_input(event)",
         "튜토리얼 입력",
     );
-    let keys = at(&handle, "self.feed_egui_keyboard(", "키의 egui 전달");
+    let feed = step("fn feed_egui(");
+    let keys = at(&feed, ".feed_egui_keyboard(", "키의 egui 전달");
     let other = at(
-        &handle,
-        "self.feed_egui_pointer_or_other(&event)",
+        &feed,
+        "self.view.feed_egui_pointer_or_other(event)",
         "키가 아닌 사건의 egui 전달",
     );
     assert!(
-        normalize < cut_at && cut_at < tutorial && tutorial < keys && keys < other,
-        "정규화 → 끊기 → 튜토리얼 → egui 전달 순서가 아니다"
+        normalize < cut_at && keys < other,
+        "정규화 → 끊기, 키 → 키가 아닌 사건의 egui 전달 순서가 아니다"
     );
     let mouse = read("src/view/main/mouse.rs");
     let handle = squeeze(&fn_body(&mouse, "fn handle_mouse_input(").expect("handle_mouse_input"));

@@ -45,22 +45,82 @@ fn egui_only_windows_judge_before_egui_winit() {
     }
 }
 
-/// 메인 창은 이벤트 경로의 맨 앞에서 판정하고, 가져간 이벤트는 그 자리에서 돌려보낸다.
+/// 메인 창은 이벤트 경로의 맨 앞에서 판정하고, 가져간 이벤트는 그 자리에서 돌려보낸다. 단계 순서는 E0 함수
+/// (`run_key_event`)가 정하고, 단계마다 메인 창이 부르는 함수는 `MainKeySteps`에 있다.
 #[test]
 fn the_main_window_judges_before_egui_winit() {
-    let body = body("src/view/main.rs", "fn handle_engine_event(");
-    let gate = "let Some(edit_judged) = self.edit_key_gate(engine, &event) else {\n            return ViewAction::None;";
+    let handle = body("src/view/main.rs", "fn handle_engine_event(");
     assert!(
-        body.contains(gate),
-        "메인 창이 판정이 가져간 이벤트를 바로 돌려보내지 않는다."
+        handle.contains("crate::view::key_event::run_key_event(&mut steps, event)"),
+        "메인 창이 E0 함수로 사건을 넘기지 않는다."
     );
-    for then in [
-        EGUI_WINIT,
-        "consume_explorer_ime_key(",
-        "route_tutorial_input(",
-    ] {
-        assert_before(&body, "self.edit_key_gate(", then, "메인 창 이벤트 경로");
+    let order = body("src/view/key_event.rs", "fn run_key_event<");
+    let gate =
+        "let Some(judged) = steps.judge_edit_key(&event) else {\n        return ViewAction::None;";
+    assert!(
+        order.contains(gate),
+        "E0 함수가 판정이 가져간 이벤트를 바로 돌려보내지 않는다."
+    );
+    for then in ["steps.intercepts_after_edit_judgment(", "steps.feed_egui("] {
+        assert_before(&order, "steps.judge_edit_key(", then, "E0 함수");
     }
+    const STEPS: &str = "src/view/main/key_event_steps.rs";
+    let judge = body(STEPS, "fn judge_edit_key(");
+    assert!(
+        judge.contains("self.view.edit_key_gate(self.engine, event)"),
+        "메인 창의 단계 6이 편집 판정을 부르지 않는다."
+    );
+    let intercept = body(STEPS, "fn intercepts_after_edit_judgment(");
+    for call in ["consume_explorer_ime_key(", "route_tutorial_input("] {
+        assert!(
+            intercept.contains(call),
+            "메인 창의 단계 7에 `{call}` 가 없다."
+        );
+    }
+    assert!(
+        body(STEPS, "fn feed_egui(").contains(EGUI_WINIT),
+        "메인 창의 egui-winit 호출이 단계 8 밖에 있다."
+    );
+    for (rel, fun) in [
+        ("src/view/main.rs", "fn handle_engine_event("),
+        (STEPS, "fn ends_before_edit_judgment("),
+        (STEPS, "fn settle_key_node("),
+        (STEPS, "fn judge_edit_key("),
+        (STEPS, "fn intercepts_after_edit_judgment("),
+    ] {
+        assert!(
+            !body(rel, fun).contains(EGUI_WINIT),
+            "{rel} `{fun}`: 편집 판정 앞 단계가 egui-winit에 넘긴다."
+        );
+    }
+}
+
+/// 계약 E0: 메인 창과 자체 키 처리를 가진 별도 창(`judged_window_event`)이 같은 E0 함수로 사건을 넘긴다. 단계
+/// 순서는 그 함수 한 곳에만 있다.
+#[test]
+fn every_window_runs_a_key_event_through_one_order_function() {
+    for (rel, signature, call) in [
+        (
+            "src/view/main.rs",
+            "fn handle_engine_event(",
+            "crate::view::key_event::run_key_event(&mut steps, event)",
+        ),
+        (
+            "src/view/judged_event.rs",
+            "fn after_edit_judgment<",
+            "run_key_event(&mut steps, event)",
+        ),
+    ] {
+        assert!(
+            body(rel, signature).contains(call),
+            "{rel} `{signature}`: E0 함수 `{call}` 를 부르지 않는다."
+        );
+    }
+    let flow = body("src/view/judged_event.rs", "fn judged_window_event<");
+    assert!(
+        flow.contains("after_edit_judgment("),
+        "별도 창 입구가 E0 함수를 부르는 흐름을 거치지 않는다."
+    );
 }
 
 /// 자체 키 처리를 가진 보조 창은 공통 흐름(`crate::view::judged_window_event`)으로만 egui에 넘긴다. 판정이
@@ -117,8 +177,8 @@ fn the_address_band_hears_that_the_edit_key_passed() {
             "self.try_consume_address_refresh_key(engine, event, edit_judged.is_some())",
         ),
         (
-            "src/view/main.rs",
-            "self.feed_egui_keyboard(engine, &event, edit_judged.is_some())",
+            "src/view/main/key_event_steps.rs",
+            ".feed_egui_keyboard(self.engine, event, judged.is_some())",
         ),
         (
             "src/view/main.rs",

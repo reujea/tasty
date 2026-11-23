@@ -5,6 +5,7 @@
 use winit::event::WindowEvent;
 
 use super::ViewAction;
+use super::key_event::{KeyEventSteps, run_key_event};
 use super::ui::View;
 use crate::adapters::ui::input::edit_key::EditKey;
 
@@ -34,25 +35,74 @@ pub(crate) fn judged_window_event<V: View>(
 }
 
 /// [`judged_window_event`]의 분기. `egui`는 판정과 egui 처리 결과이며 `None`이면 판정이 이벤트를 가져갔다.
+/// 단계 순서는 메인 창과 같은 [`run_key_event`]가 정한다. 별도 창이 가진 단계는 편집 판정과 egui 적재(한 호출),
+/// 창 자체 처리뿐이다.
 fn after_edit_judgment<V, E>(
     view: &mut V,
     event: E,
     judged: Option<EditKey>,
     to_egui: bool,
     egui: impl FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
-    mut mark_dirty: impl FnMut(&mut V),
+    mark_dirty: impl FnMut(&mut V),
     own: impl FnOnce(&mut V, E) -> ViewAction,
 ) -> ViewAction {
-    if to_egui {
-        let Some((_, repaint)) = egui(view, &event, judged) else {
-            mark_dirty(view);
-            return ViewAction::None;
-        };
+    let mut steps = JudgedWindowSteps {
+        view,
+        judged,
+        to_egui,
+        egui: Some(egui),
+        mark_dirty,
+        own: Some(own),
+    };
+    run_key_event(&mut steps, event)
+}
+
+/// 별도 창의 단계. 편집 판정은 egui 적재와 같은 GPU 호출 안에 있어 단계 6은 받은 표시를 그대로 넘긴다.
+struct JudgedWindowSteps<'v, V, G, D, O> {
+    view: &'v mut V,
+    judged: Option<EditKey>,
+    to_egui: bool,
+    egui: Option<G>,
+    mark_dirty: D,
+    own: Option<O>,
+}
+
+impl<V, E, G, D, O> KeyEventSteps<E> for JudgedWindowSteps<'_, V, G, D, O>
+where
+    G: FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
+    D: FnMut(&mut V),
+    O: FnOnce(&mut V, E) -> ViewAction,
+{
+    fn judge_edit_key(&mut self, _event: &E) -> Option<Option<EditKey>> {
+        Some(self.judged)
+    }
+
+    fn feed_egui(&mut self, event: &E, judged: Option<EditKey>) -> Option<(bool, bool)> {
+        if !self.to_egui {
+            return Some((false, false));
+        }
+        let egui = self.egui.take()?;
+        let fed = egui(self.view, event, judged);
+        if fed.is_none() {
+            (self.mark_dirty)(self.view);
+        }
+        fed
+    }
+
+    fn run_receiver(
+        &mut self,
+        event: E,
+        _judged: Option<EditKey>,
+        (_, repaint): (bool, bool),
+    ) -> ViewAction {
         if repaint {
-            mark_dirty(view);
+            (self.mark_dirty)(self.view);
+        }
+        match self.own.take() {
+            Some(own) => own(self.view, event),
+            None => ViewAction::None,
         }
     }
-    own(view, event)
 }
 
 #[cfg(test)]
