@@ -293,7 +293,11 @@ fn a_desync_detaches_once_renews_the_stream_and_sums_later_notices() {
             &mut sess,
             &mut host,
             &mut plugin_manager,
-            vec![MirrorEvent::Data(remote_surface, b"before".to_vec())],
+            vec![MirrorEvent::Data(
+                remote_surface,
+                b"before".to_vec(),
+                std::time::Instant::now(),
+            )],
         );
     }
     let before = read(&engine.as_ref(), None).expect("read").stream;
@@ -576,13 +580,17 @@ fn parked_engine_receives_mirror_data_and_structural_delta() {
         serde_json::json!({ "remote_id": new_remote, "role": "terminal", "cols": 80, "rows": 24 }),
     ];
     let events = vec![
-        MirrorEvent::Data(survivor_remote, b"hello-parked".to_vec()),
+        MirrorEvent::Data(
+            survivor_remote,
+            b"hello-parked".to_vec(),
+            std::time::Instant::now(),
+        ),
         MirrorEvent::StructuralDelta {
             workspace_id: 7,
             tree,
             surfaces,
         },
-        MirrorEvent::Data(new_remote, b"world-new".to_vec()),
+        MirrorEvent::Data(new_remote, b"world-new".to_vec(), std::time::Instant::now()),
     ];
 
     let id =
@@ -658,8 +666,8 @@ fn no_host_leaves_the_mirror_buffer_untouched() {
     let ws_id = 9_000u32;
     let mut sess = test_session(ws_id, HashMap::new());
     for event in [
-        MirrorEvent::Data(1, b"a".to_vec()),
-        MirrorEvent::Resize(1, 10, 5),
+        MirrorEvent::Data(1, b"a".to_vec(), std::time::Instant::now()),
+        MirrorEvent::Resize(1, 10, 5, std::time::Instant::now()),
     ] {
         assert!(sess.transport.output.push(event));
     }
@@ -674,8 +682,8 @@ fn no_host_leaves_the_mirror_buffer_untouched() {
         2,
         "host 가 없으면 버퍼는 그대로 남아 다음 호출이 다시 시도한다"
     );
-    assert!(matches!(buf[0], MirrorEvent::Data(1, ref b) if b == b"a"));
-    assert!(matches!(buf[1], MirrorEvent::Resize(1, 10, 5)));
+    assert!(matches!(buf[0], MirrorEvent::Data(1, ref b, _) if b == b"a"));
+    assert!(matches!(buf[1], MirrorEvent::Resize(1, 10, 5, _)));
 }
 
 #[test]
@@ -685,9 +693,11 @@ fn a_host_drains_and_applies_the_mirror_buffer() {
     let remote_surface = 42u32;
     let mut parked = parked_with_mirror(ws_id, local_surface);
     let mut sess = test_session(ws_id, HashMap::from([(remote_surface, local_surface)]));
-    sess.transport
-        .output
-        .push(MirrorEvent::Data(remote_surface, b"applied-here".to_vec()));
+    sess.transport.output.push(MirrorEvent::Data(
+        remote_surface,
+        b"applied-here".to_vec(),
+        std::time::Instant::now(),
+    ));
     let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
 
     let id =
@@ -722,6 +732,64 @@ fn a_host_drains_and_applies_the_mirror_buffer() {
         .get(local_surface)
         .expect("mirror 터미널");
     assert!(term.screen_text(false).contains("applied-here"));
+}
+
+/// Given 서버 `Resize`와 출력이 쌓였다가 한 번에 적용될 때, Then 받은 시각으로 판정한다. 구간 안에 받은
+/// 재그리기는 침묵을 깨지 않고, 구간이 지난 뒤 받은 출력은 깬다(적용 시각으로 재면 둘 다 뒤바뀐다).
+#[test]
+fn mirror_events_applied_together_keep_their_receive_times() {
+    let ws_id = 9_000u32;
+    let local_surface = 9_003u32;
+    let remote_surface = 42u32;
+    let mut parked = parked_with_mirror(ws_id, local_surface);
+    let mut sess = test_session(ws_id, HashMap::from([(remote_surface, local_surface)]));
+    let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+    let id =
+        find_parked_with_workspace(parked_ids(&parked), ws_id).expect("mirror 를 든 parked engine");
+    let pidx = parked
+        .iter()
+        .position(|p| p.session.id == id)
+        .expect("찾은 id의 항목");
+    let mut apply = |sess: &mut AttachClientSession, events: Vec<MirrorEvent>| {
+        for event in events {
+            sess.transport.output.push(event);
+        }
+        let ParkedEngine {
+            view_restore: state,
+            session,
+        } = &mut parked[pidx];
+        let mut engine = session.borrow_mut();
+        supply_ids(&engine);
+        assert!(apply_pending_mirror_output(
+            sess,
+            Some(MirrorHost::parked(state, &mut engine)),
+            &mut plugin_manager,
+        ));
+        let term = engine
+            .runtime
+            .terminals
+            .get(local_surface)
+            .expect("mirror 터미널");
+        (term.dimensions(), term.silence_since())
+    };
+    let resized = std::time::Instant::now() - std::time::Duration::from_secs(3);
+    let redraw = resized + std::time::Duration::from_millis(50);
+    let (size, silence) = apply(
+        &mut sess,
+        vec![
+            MirrorEvent::Resize(remote_surface, 37, 11, resized),
+            MirrorEvent::Data(remote_surface, b"redraw".to_vec(), redraw),
+        ],
+    );
+    assert_eq!(size, (37, 11));
+    assert_ne!(silence, redraw, "구간 안에 받은 재그리기");
+
+    let late = resized + std::time::Duration::from_secs(1);
+    let (_, silence) = apply(
+        &mut sess,
+        vec![MirrorEvent::Data(remote_surface, b"work".to_vec(), late)],
+    );
+    assert_eq!(silence, late, "구간이 지난 뒤 받은 출력");
 }
 
 #[test]
@@ -761,16 +829,16 @@ fn parked_host_does_not_stack_toasts_but_windowed_does() {
 fn outbox_drain_keeps_output_resize_arrival_order() {
     let buf = MirrorOutbox::new(tasty_remote::connection::channel().0.epoch());
     for event in [
-        MirrorEvent::Data(1, b"a".to_vec()),
-        MirrorEvent::Resize(1, 10, 5),
-        MirrorEvent::Data(1, b"b".to_vec()),
+        MirrorEvent::Data(1, b"a".to_vec(), std::time::Instant::now()),
+        MirrorEvent::Resize(1, 10, 5, std::time::Instant::now()),
+        MirrorEvent::Data(1, b"b".to_vec(), std::time::Instant::now()),
     ] {
         assert!(buf.push(event));
     }
     let drained = buf.drain();
-    assert!(matches!(drained[0], MirrorEvent::Data(1, ref b) if b == b"a"));
-    assert!(matches!(drained[1], MirrorEvent::Resize(1, 10, 5)));
-    assert!(matches!(drained[2], MirrorEvent::Data(1, ref b) if b == b"b"));
+    assert!(matches!(drained[0], MirrorEvent::Data(1, ref b, _) if b == b"a"));
+    assert!(matches!(drained[1], MirrorEvent::Resize(1, 10, 5, _)));
+    assert!(matches!(drained[2], MirrorEvent::Data(1, ref b, _) if b == b"b"));
     assert_eq!(drained.len(), 3);
     assert!(buf.drain().is_empty(), "꺼낸 뒤 버퍼는 비어 있다");
 }
@@ -1087,7 +1155,11 @@ fn output_after_a_loss_marker_reaches_neither_the_mirror_nor_copy_progress() {
         sess.transport.frame_tx = tx;
         let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
         let mut copies = crate::remote::copy_progress::CopyProgress::default();
-        let mut events = vec![MirrorEvent::Data(remote_surface, effects.clone())];
+        let mut events = vec![MirrorEvent::Data(
+            remote_surface,
+            effects.clone(),
+            std::time::Instant::now(),
+        )];
         if lost {
             events.insert(0, MirrorEvent::Desynced { frames: 1 });
         }

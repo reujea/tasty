@@ -177,3 +177,19 @@ fn flush_opens_the_window_only_when_the_os_size_changes() {
     assert!(flush_os_resize(&terminal, &mut pty, false));
     assert!(terminal.lock_state().resize_redraw.is_some());
 }
+
+/// Given mirror가 서버 `Resize`와 출력을 받은 시각, When 둘이 한 번에 늦게 적용되면, Then 받은 시각으로
+/// 판정한다. `Resize`를 받고 구간이 지난 뒤 받은 출력은 침묵을 깬다. 구간 안에 받은 출력은 깨지 않는다.
+#[test]
+fn a_mirror_classifies_output_by_the_time_it_was_received() {
+    let mut t = idle_terminal();
+    let before = t.silence_since();
+    let resized = Instant::now() - Duration::from_secs(2);
+    t.note_resize_redraw_at(resized);
+    t.feed_bytes_at(b"\x1b[Hredraw", resized + Duration::from_millis(50));
+    assert_eq!(t.silence_since(), before, "구간 안에 받은 재그리기");
+
+    let late = resized + RESIZE_REDRAW_WINDOW + Duration::from_millis(100);
+    t.feed_bytes_at(b"work", late);
+    assert_eq!(t.silence_since(), late, "구간이 지난 뒤 받은 출력");
+}

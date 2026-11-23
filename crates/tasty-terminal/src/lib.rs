@@ -482,6 +482,11 @@ impl TerminalState {
     /// `process_bytes` (test injection) so all three take an identical path.
     /// Returns true if the surface changed.
     pub(crate) fn ingest(&mut self, data: &[u8]) -> bool {
+        self.ingest_at(data, std::time::Instant::now())
+    }
+
+    /// [`TerminalState::ingest`]와 같고 출력 시각을 `chunk_at`으로 센다. mirror는 reader가 받은 시각을 넘긴다.
+    pub(crate) fn ingest_at(&mut self, data: &[u8], chunk_at: std::time::Instant) -> bool {
         if !data.is_empty() {
             self.content_revision = self.content_revision.wrapping_add(1);
         }
@@ -489,7 +494,6 @@ impl TerminalState {
             return false;
         }
         self.output.append(data);
-        let chunk_at = std::time::Instant::now();
         self.last_output_at = chunk_at;
         self.first_output_at.get_or_insert(self.last_output_at);
         self.fan_out_to_taps(data);
@@ -782,7 +786,13 @@ impl Terminal {
     /// as if they had arrived from a PTY. Returns true if the surface changed.
     /// Mirror ingestion path: a detached terminal has the caller supply bytes.
     pub fn feed_bytes(&mut self, data: &[u8]) -> bool {
-        let changed = self.lock_state().ingest(data);
+        self.feed_bytes_at(data, std::time::Instant::now())
+    }
+
+    /// [`Terminal::feed_bytes`]와 같고 출력 시각을 `received`로 센다. attach mirror가 적용이 밀려도
+    /// 서버 출력을 받은 시각으로 침묵을 재도록 쓴다.
+    pub fn feed_bytes_at(&mut self, data: &[u8], received: std::time::Instant) -> bool {
+        let changed = self.lock_state().ingest_at(data, received);
         if changed {
             self.dirty.store(true, Ordering::Release);
         }

@@ -89,7 +89,7 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
     wake_rx.recv_timeout(Duration::from_secs(2)).unwrap();
     let events = output.drain();
     assert!(
-        matches!(&events[..], [MirrorEvent::StructuralDelta { .. }, MirrorEvent::Data(9, data)] if data == b"after")
+        matches!(&events[..], [MirrorEvent::StructuralDelta { .. }, MirrorEvent::Data(9, data, _)] if data == b"after")
     );
     peer.shutdown(std::net::Shutdown::Both).unwrap();
     reader.join().unwrap();

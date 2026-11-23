@@ -112,12 +112,12 @@ impl Terminal {
         self.lock_state().resize_redraw = token.0;
     }
 
-    /// 크기 통지를 이미 받은 쪽(attach mirror의 서버 `Resize` 적용)이 구간을 열고 확정한다.
-    pub fn note_resize_redraw(&self) {
+    /// 크기 통지를 이미 받은 쪽(attach mirror의 서버 `Resize` 적용)이 받은 시각 `received`부터 구간을
+    /// 열고 확정한다. 적용이 밀려도 구간은 받은 시각 기준이다.
+    pub fn note_resize_redraw_at(&self, received: Instant) {
         let mut st = self.lock_state();
-        let now = Instant::now();
-        let _previous = st.open_resize_window(now); // 확정하므로 되돌릴 상태가 필요 없다.
-        st.confirm_resize_window(now);
+        let _previous = st.open_resize_window(received); // 확정하므로 되돌릴 상태가 필요 없다.
+        st.confirm_resize_window(received);
     }
 
     /// 자식 상태의 출력 침묵과 idle-timeout 훅이 쓰는 마지막 출력 시각. OS 크기 통지가 일으킨

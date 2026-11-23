@@ -655,7 +655,11 @@ pub fn spawn_attach_reader_thread(
                     match frame.tag {
                         StreamTag::Data => {
                             if let Some((sid, payload)) = stream::decode_mux(&frame.payload) {
-                                output.push(MirrorEvent::Data(sid, payload.to_vec()));
+                                output.push(MirrorEvent::Data(
+                                    sid,
+                                    payload.to_vec(),
+                                    std::time::Instant::now(),
+                                ));
                             }
                             (wake)();
                         }

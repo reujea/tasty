@@ -30,8 +30,10 @@ pub enum RemoteLink {
 }
 /// 출력과 resize를 같은 버퍼에 도착 순서대로 담아 올바른 크기의 그리드에 적용한다.
 pub enum MirrorEvent {
-    Data(u32, Vec<u8>),
-    Resize(u32, usize, usize),
+    /// 셋째 값은 reader가 받은 시각이다. 적용이 밀려도 출력 시각은 받은 때로 센다.
+    Data(u32, Vec<u8>, std::time::Instant),
+    /// 넷째 값은 reader가 받은 시각이다. 재그리기 구간을 받은 때부터 잰다.
+    Resize(u32, usize, usize, std::time::Instant),
     /// 서버가 적용하지 않은 크기 요청. 값은 그 요청의 것이다.
     ResizeRejected(u32, usize, usize),
     /// 로컬 PTY가 없는 mirror의 busy 상태는 서버에서 받는다.
@@ -632,7 +634,7 @@ impl MirrorEvent {
             })
         }
         std::mem::size_of::<Self>().saturating_add(match self {
-            Self::Data(_, bytes) | Self::Mesh(_, _, _, _, bytes) => bytes.capacity(),
+            Self::Data(_, bytes, _) | Self::Mesh(_, _, _, _, bytes) => bytes.capacity(),
             Self::Cwd(_, value) | Self::Foreground(_, value) | Self::StructuralFailed(_, value) => {
                 text(value)
             }
@@ -770,7 +772,7 @@ mod outbox_tests {
             assert!(outbox.push(MirrorEvent::NotificationSound(1)));
         }
         for _ in 0..1024 {
-            assert!(outbox.push(MirrorEvent::Data(1, vec![b'x'])));
+            assert!(outbox.push(MirrorEvent::Data(1, vec![b'x'], std::time::Instant::now())));
         }
         assert!(outbox.push(MirrorEvent::NotificationSound(1)));
         let drained = outbox.drain();
@@ -789,12 +791,20 @@ mod outbox_tests {
     fn restoring_the_front_keeps_the_sound_limit() {
         let (sender, _queue) = crate::connection::channel();
         let outbox = MirrorOutbox::new(sender.epoch());
-        let mut front = vec![MirrorEvent::Data(1, b"a".to_vec())];
+        let mut front = vec![MirrorEvent::Data(
+            1,
+            b"a".to_vec(),
+            std::time::Instant::now(),
+        )];
         front.extend((0..64).map(|_| MirrorEvent::NotificationSound(1)));
         for _ in 0..64 {
             assert!(outbox.push(MirrorEvent::NotificationSound(2)));
         }
-        assert!(outbox.push(MirrorEvent::Data(1, b"b".to_vec())));
+        assert!(outbox.push(MirrorEvent::Data(
+            1,
+            b"b".to_vec(),
+            std::time::Instant::now()
+        )));
         outbox.restore_front(front);
         // 상한이 다시 차 있으므로 새 알림음은 버려진다.
         assert!(outbox.push(MirrorEvent::NotificationSound(3)));
@@ -810,7 +820,7 @@ mod outbox_tests {
         let data: Vec<&[u8]> = drained
             .iter()
             .filter_map(|e| match e {
-                MirrorEvent::Data(_, bytes) => Some(bytes.as_slice()),
+                MirrorEvent::Data(_, bytes, _) => Some(bytes.as_slice()),
                 _ => None,
             })
             .collect();

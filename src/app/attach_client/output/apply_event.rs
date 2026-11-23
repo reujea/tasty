@@ -33,7 +33,7 @@ pub(super) fn apply_one_mirror_event(
                 .lost_frames(&sess.transport.frame_tx.epoch());
             begin_resync(sess, host, frames);
         }
-        MirrorEvent::Data(remote_id, bytes) => {
+        MirrorEvent::Data(remote_id, bytes, received) => {
             // 손실 표지 뒤의 출력은 버린 스트림의 것이다. 재동기화의 새 snapshot이 화면을 되살리고, 그
             // 바이트의 클립보드·알림 효과는 내지 않는다.
             if sess.state.resync_pending.is_none()
@@ -43,7 +43,7 @@ pub(super) fn apply_one_mirror_event(
                 if let Some(copies) = host.copies.as_deref_mut() {
                     copies.feed(local, &bytes, std::time::Instant::now());
                 }
-                t.feed_bytes(&bytes);
+                t.feed_bytes_at(&bytes, received);
                 // mirror 터미널은 PTY reader가 없어 파싱이 루프를 깨우지 않는다. 클립보드·알림 사건을
                 // 공용 처리로 바로 넘긴다.
                 if t.has_pending_events() {
@@ -66,7 +66,7 @@ pub(super) fn apply_one_mirror_event(
                     .abandon_rejected(remote_id, cols, rows);
             }
         }
-        MirrorEvent::Resize(remote_id, cols, rows) => {
+        MirrorEvent::Resize(remote_id, cols, rows, received) => {
             sess.state.resize_sync.on_resize(remote_id, cols, rows);
             if let Some(&local) = sess.state.remote_to_local.get(&remote_id)
                 && let Some(t) = host.engine.runtime.terminals.get_mut(local)
@@ -74,7 +74,7 @@ pub(super) fn apply_one_mirror_event(
                 // 서버가 정한 크기라 숨은 mirror에서도 grid를 바꾼다. 서버가 OS 크기를 바꿨으므로 뒤따르는
                 // 재그리기 출력이 자식 상태·idle-timeout의 침묵을 깨지 않게 한다(busy는 서버 판정).
                 if t.resize(cols, rows) {
-                    t.note_resize_redraw();
+                    t.note_resize_redraw_at(received);
                 }
                 host.engine.runtime.terminals.settle_deferred_size(local);
             }

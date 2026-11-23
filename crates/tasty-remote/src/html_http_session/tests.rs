@@ -202,11 +202,19 @@ fn actual_outbox_preserves_http_arrival_order_and_accounts_reply_capacity() {
     use crate::client_session::{MirrorEvent, MirrorOutbox};
     let (sender, _rx) = channel();
     let outbox = MirrorOutbox::new(sender.epoch());
-    assert!(outbox.push(MirrorEvent::Data(1, b"before".to_vec())));
+    assert!(outbox.push(MirrorEvent::Data(
+        1,
+        b"before".to_vec(),
+        std::time::Instant::now()
+    )));
     assert!(outbox.push(MirrorEvent::Http(rejection(id(1, 1)))));
-    assert!(outbox.push(MirrorEvent::Data(1, b"after".to_vec())));
+    assert!(outbox.push(MirrorEvent::Data(
+        1,
+        b"after".to_vec(),
+        std::time::Instant::now()
+    )));
     assert!(
-        matches!(&outbox.drain()[..], [MirrorEvent::Data(_,a),MirrorEvent::Http(HttpReply::CommandRejected { .. }),MirrorEvent::Data(_,b)] if a == b"before" && b == b"after")
+        matches!(&outbox.drain()[..], [MirrorEvent::Data(_,a,_),MirrorEvent::Http(HttpReply::CommandRejected { .. }),MirrorEvent::Data(_,b,_)] if a == b"before" && b == b"after")
     );
     for _ in 0..32 {
         let mut reason = String::with_capacity(2 * 1024 * 1024);
