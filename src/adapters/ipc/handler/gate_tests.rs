@@ -42,6 +42,7 @@ use std::sync::{Arc, Mutex, mpsc};
 
 use tasty_memory::{HOST_OWNER, MemoryValue, PutOpts, Scope};
 use tasty_plugin_manifest::Permission;
+use tasty_utils::test_wait::holds_by_every;
 
 use super::super::gate_faults::{Faults, FaultyStore, gate_faults};
 
@@ -257,10 +258,12 @@ fn a_closed_writer_refuses_the_session_with_the_shutdown_error() {
     let (mut core, _faults) = rig();
     let token = issue(&core);
     let deadline = std::time::Instant::now() + TEST_WAIT;
-    while core.poll_memory_writer_shutdown() != 0 {
-        assert!(std::time::Instant::now() < deadline, "writer did not stop");
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    assert!(
+        holds_by_every(deadline, std::time::Duration::from_millis(1), |_| {
+            core.poll_memory_writer_shutdown() == 0
+        }),
+        "writer did not stop"
+    );
     let refused = resolve_caller_waiting(&core, &with_token("surface.list", &token))
         .expect_err("a closed writer cannot judge the session");
     assert_eq!(code(&refused), -32000);
@@ -424,17 +427,17 @@ fn a_later_request_waits_behind_the_request_whose_gate_is_pending() {
         "the ready second request overtook the first"
     );
     hold.release();
+    // pop_ready 는 맨 앞 요청이 기다리던 저장 결과를 거둘 뿐 새로 제출하지 않아 기한 뒤 관측 읽기에서도 부른다.
     let deadline = std::time::Instant::now() + TEST_WAIT;
-    let front = loop {
-        if let Some(front) = queue.pop_ready(&core) {
-            break front;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the first gate never finished"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    };
+    let mut front = None;
+    assert!(
+        holds_by_every(deadline, std::time::Duration::from_millis(1), |_| {
+            front = queue.pop_ready(&core);
+            front.is_some()
+        }),
+        "the first gate never finished"
+    );
+    let front = front.expect("checked above");
     assert_eq!(id_of(&front), json!(1));
     // 다시 기다리게 된 맨 앞 요청은 앞자리로 돌아간다.
     queue.park(front, true);

@@ -418,16 +418,21 @@ mod tests {
     ) -> JsonRpcResponse {
         use super::super::deferred::MemoryReplies;
         use std::time::{Duration, Instant};
+        // 두 poll 은 이미 끝난 파일 영수증과 writer 결과만 거둬 응답을 보낸다(새 제출 없음). 그래서 기한 뒤
+        // 관측 읽기에서도 거둔 뒤 받는다.
         let end = Instant::now() + Duration::from_secs(5);
-        loop {
-            assert!(registry.poll_file().is_empty());
-            assert!(MemoryReplies::poll(core).is_empty());
-            if let Ok(answer) = receiver.try_recv() {
-                return answer;
+        let mut answer = None;
+        assert!(tasty_utils::test_wait::holds_by_every(
+            end,
+            Duration::ZERO,
+            |_| {
+                assert!(registry.poll_file().is_empty());
+                assert!(MemoryReplies::poll(core).is_empty());
+                answer = receiver.try_recv().ok();
+                answer.is_some()
             }
-            assert!(Instant::now() < end);
-            std::thread::yield_now();
-        }
+        ));
+        answer.expect("checked above")
     }
 
     #[test]
@@ -496,6 +501,8 @@ mod tests {
             MemoryReplies::poll(&core);
             assert!(rx.try_recv().is_err());
         }
+        // holds_by 로 바꾸지 않는다. 종료 poll 은 child cleanup 제출과 webhook 작업 처리를 함께 하는 진행이라
+        // 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는 끝났는지 알 수 없다.
         let end = Instant::now() + Duration::from_secs(5);
         while core.poll_file_writer_shutdown() != 0 {
             assert!(Instant::now() < end);

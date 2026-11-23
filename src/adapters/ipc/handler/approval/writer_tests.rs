@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 use tasty_approval::{ApprovalId, ApprovalState, Responder};
 use tasty_memory::{MemoryConfig, MemoryStore, Scope};
+use tasty_utils::test_wait::holds_by_every;
 
 use crate::adapters::ipc::handler::deferred::tests::{make_request, run_request, writer_core_with};
 use crate::app::approval_records::{RecordReceipt, record_key};
@@ -170,14 +171,24 @@ fn a_gui_response_hands_its_record_to_the_main_loop() {
         ApprovalState::Responded { .. }
     ));
 
+    // reap_detached 는 끝난 티켓만 꺼낸다(이 시험의 두 기록은 완료 콜백이 없다). 새 작업을 만들지 않아
+    // 기한 뒤 관측 읽기에서도 먼저 거둔다. 거두지 않으면 끝난 기록이 목록에 남아 보이지 않는다.
     let deadline = Instant::now() + Duration::from_secs(30);
-    while core.memory_access().detached_len() > 0 {
-        core.memory_access().reap_detached();
-        assert!(
-            Instant::now() < deadline,
-            "the detached record never landed"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(1), |last| {
+            let access = core.memory_access();
+            if last {
+                access.reap_detached();
+            }
+            if access.detached_len() == 0 {
+                return true;
+            }
+            if !last {
+                access.reap_detached();
+            }
+            false
+        }),
+        "the detached record never landed"
+    );
     assert_eq!(version(&memory, &Scope::Global, &id), Some(2));
 }

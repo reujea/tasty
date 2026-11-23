@@ -551,6 +551,8 @@ pub(crate) mod tests {
     use std::sync::{Arc, Mutex, mpsc};
     use std::time::{Duration, Instant};
 
+    use tasty_utils::test_wait::holds_by_every;
+
     use serde_json::{Value, json};
     use tasty_ipc::caller::CallerContext;
     use tasty_ipc::protocol::{JsonRpcRequest, JsonRpcResponse};
@@ -707,15 +709,19 @@ pub(crate) mod tests {
             Handled::Later(deferred) => {
                 let (tx, rx) = mpsc::sync_channel(1);
                 core.defer_reply(deferred, ReplyTo::Ipc(tx));
+                // poll_memory_replies 는 이미 나온 writer 결과만 응답으로 바꿔 보낸다(새 제출 없음).
+                // 그래서 기한 뒤 관측 읽기에서도 거둔 뒤 받는다.
                 let deadline = Instant::now() + Duration::from_secs(30);
-                loop {
-                    core.poll_memory_replies(None);
-                    if let Ok(response) = rx.try_recv() {
-                        return (response, true);
-                    }
-                    assert!(Instant::now() < deadline, "deferred reply never arrived");
-                    std::thread::sleep(Duration::from_millis(1));
-                }
+                let mut response = None;
+                assert!(
+                    holds_by_every(deadline, Duration::from_millis(1), |_| {
+                        core.poll_memory_replies(None);
+                        response = rx.try_recv().ok();
+                        response.is_some()
+                    }),
+                    "deferred reply never arrived"
+                );
+                (response.expect("checked above"), true)
             }
         }
     }
@@ -916,15 +922,25 @@ pub(crate) mod tests {
     fn answer_outside_the_router(core: &AppServices, response: JsonRpcResponse) -> JsonRpcResponse {
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         core.send_handled(&tx, response);
+        // 원래 순서는 받기 → 기한 검사 → 거두기 → 쉼이다. 거두기는 검사를 통과한 뒤에만 돌리고, 기한 뒤
+        // 관측 읽기에서는 이미 나온 결과만 응답으로 바꾸는 거두기(새 제출 없음) 뒤에 한 번 더 받는다.
         let deadline = std::time::Instant::now() + Duration::from_secs(30);
-        loop {
-            if let Ok(answer) = rx.try_recv() {
-                return answer;
-            }
-            assert!(std::time::Instant::now() < deadline, "no reply");
-            core.poll_memory_replies(None);
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        let mut started = false;
+        let mut answer = None;
+        assert!(
+            holds_by_every(deadline, Duration::ZERO, |last| {
+                if last || std::mem::replace(&mut started, true) {
+                    core.poll_memory_replies(None);
+                    if !last {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                }
+                answer = rx.try_recv().ok();
+                answer.is_some()
+            }),
+            "no reply"
+        );
+        answer.expect("checked above")
     }
 
     // GUI·headless app 계층이 부르는 감사 조회도 writer 결과로 답한다. 자리표시를 보내면 실패한다.
@@ -1097,10 +1113,12 @@ pub(crate) mod tests {
         let _home = crate::test_support::TastyHomeGuard::new();
         let mut core = writer_core();
         let deadline = Instant::now() + Duration::from_secs(30);
-        while core.poll_memory_writer_shutdown() != 0 {
-            assert!(Instant::now() < deadline, "writer did not stop");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(
+            holds_by_every(deadline, Duration::from_millis(1), |_| {
+                core.poll_memory_writer_shutdown() == 0
+            }),
+            "writer did not stop"
+        );
         let (response, later) = run_request(&mut core, &put_request(1, "k"));
         assert!(!later);
         let (code, message, data) = error_of(response);
@@ -1172,14 +1190,16 @@ pub(crate) mod tests {
         let (tx, rx) = mpsc::sync_channel(1);
         core.defer_reply(first, ReplyTo::Ipc(tx));
         let deadline = Instant::now() + Duration::from_secs(30);
-        let accepted = loop {
-            core.poll_memory_replies(None);
-            if let Ok(response) = rx.try_recv() {
-                break response;
-            }
-            assert!(Instant::now() < deadline, "deferred reply never arrived");
-            std::thread::sleep(Duration::from_millis(1));
-        };
+        let mut accepted = None;
+        assert!(
+            holds_by_every(deadline, Duration::from_millis(1), |_| {
+                core.poll_memory_replies(None);
+                accepted = rx.try_recv().ok();
+                accepted.is_some()
+            }),
+            "deferred reply never arrived"
+        );
+        let accepted = accepted.expect("checked above");
         assert_eq!(accepted.result.expect("put")["version"], json!(1));
     }
 
@@ -1345,12 +1365,23 @@ pub(crate) mod tests {
             crate::ipc::handler::handle_checked_request(core, &mut state, &mut engine, &checked);
         let (tx, rx) = mpsc::sync_channel(1);
         core.defer_reply(deferred, ReplyTo::Ipc(tx));
+        // 원래 순서는 받기 → 거두기 → 기한 검사다. 기한 뒤 관측 읽기는 새 제출 없는 거두기 뒤에 받는다.
         let deadline = Instant::now() + Duration::from_secs(30);
-        while rx.try_recv().is_err() {
-            core.poll_memory_replies(None);
-            assert!(Instant::now() < deadline, "deferred reply never arrived");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(
+            holds_by_every(deadline, Duration::from_millis(1), |last| {
+                if last {
+                    core.poll_memory_replies(None);
+                }
+                if rx.try_recv().is_ok() {
+                    return true;
+                }
+                if !last {
+                    core.poll_memory_replies(None);
+                }
+                false
+            }),
+            "deferred reply never arrived"
+        );
         match second {
             Handled::Now(response) => response,
             Handled::Later(_) => panic!("a retry in flight reached the writer"),

@@ -102,11 +102,13 @@ fn exercise(queued: bool) {
     let _response = cancel(&core, &mut engine, &params, queued);
     assert!(engine.task_scope.event_queue().take_pending().0.is_empty());
     if queued {
+        // 종료 poll 은 끝난 writer worker 를 join 만 하므로 기한 뒤 관측 읽기에서도 부른다.
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        while core.poll_memory_writer_shutdown() != 0 {
-            assert!(std::time::Instant::now() < deadline);
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(tasty_utils::test_wait::holds_by_every(
+            deadline,
+            Duration::from_millis(1),
+            |_| core.poll_memory_writer_shutdown() == 0
+        ));
     }
 }
 

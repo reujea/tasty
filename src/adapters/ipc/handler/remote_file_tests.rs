@@ -62,6 +62,9 @@ fn assert_blocked_by_held_lock(core: &Core) {
 }
 fn drain(core: &mut Core) {
     core.profile_detections.begin_shutdown();
+    // holds_by 로 바꾸지 않는다. 탐지 종료 poll 은 상태 저장을 제출하며 작업을 진행시키고 뒤의 poll_file_writer 는
+    // child cleanup 을 제출한다. 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는
+    // 끝났는지 알 수 없다. 아래 파일 writer 종료 poll 도 같은 이유다.
     let deadline = Instant::now() + HANG_LIMIT;
     while core.profile_detections.poll_shutdown() != 0 {
         core.poll_file_writer();

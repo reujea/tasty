@@ -601,6 +601,8 @@ mod tests {
         let (sender, receiver) = std::sync::mpsc::sync_channel(1);
         core.memory_replies()
             .push(deferred, super::super::deferred::ReplyTo::Ipc(sender));
+        // holds_by 로 바꾸지 않는다. 응답을 꺼내는 poll_child_registry_effects 가 child cleanup 제출을 함께 해
+        // 기한 뒤 관측 읽기에서 부를 수 없고, 새 작업 없이 끝난 결과만 거두는 경로가 따로 없다.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
             engine.poll_child_registry_effects();

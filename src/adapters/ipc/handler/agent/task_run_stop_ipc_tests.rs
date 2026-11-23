@@ -14,6 +14,7 @@ use tasty_ipc::host_call::HostIpcInjector;
 use tasty_ipc::protocol::JsonRpcResponse;
 use tasty_ipc::server::IpcCommand;
 use tasty_memory::{HOST_OWNER, MemoryStorage};
+use tasty_utils::test_wait::holds_by_every;
 
 use crate::app::services::AppServices;
 use crate::runtime::engine_access::EngineMut;
@@ -156,17 +157,23 @@ fn stop_answers_while_the_runner_waits_for_the_main_thread_and_status_reports_th
     assert_eq!(stopped["running"], json!(false));
 
     // 메인 루프가 하는 회수. 장벽을 푼 뒤에는 남은 Ready 작업을 보내지 않고 끝난다.
+    // 회수는 끝난 러너만 join 하므로 기한 뒤 관측 읽기에서도 부른다.
     let deadline = Instant::now() + Duration::from_secs(10);
-    while core.tasks.poll_runner_stops() != 0 {
-        if let Ok(next) = rx.try_recv() {
-            panic!(
-                "runner dispatched {} after the stop request",
-                next.request.method
-            );
-        }
-        assert!(Instant::now() < deadline, "runner did not stop");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(10), |_| {
+            let remaining = core.tasks.poll_runner_stops();
+            if remaining != 0
+                && let Ok(next) = rx.try_recv()
+            {
+                panic!(
+                    "runner dispatched {} after the stop request",
+                    next.request.method
+                );
+            }
+            remaining == 0
+        }),
+        "runner did not stop"
+    );
     assert_eq!(state(&task_run(&core, &mut engine, "status")), "stopped");
     assert_eq!(
         rx.try_iter().count(),
@@ -177,12 +184,18 @@ fn stop_answers_while_the_runner_waits_for_the_main_thread_and_status_reports_th
     assert_eq!(state(&task_run(&core, &mut engine, "start")), "running");
     drop(core.tasks.request_stop_workspace(engine.task_scope, 1));
     let deadline = Instant::now() + Duration::from_secs(10);
-    while core.tasks.poll_runner_stops() != 0 {
-        // 다시 시작한 러너도 같은 요청을 보낸다. 꺼내 버리면 러너는 응답 없이 바로 다음으로 간다.
-        rx.try_iter().for_each(drop);
-        assert!(Instant::now() < deadline, "restarted runner did not stop");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(10), |last| {
+            let remaining = core.tasks.poll_runner_stops();
+            // 다시 시작한 러너도 같은 요청을 보낸다. 꺼내 버리면 러너는 응답 없이 바로 다음으로 간다.
+            // 러너를 전진시키므로 기한 뒤 관측 읽기에서는 꺼내지 않는다.
+            if remaining != 0 && !last {
+                rx.try_iter().for_each(drop);
+            }
+            remaining == 0
+        }),
+        "restarted runner did not stop"
+    );
 }
 
 #[test]
@@ -226,10 +239,12 @@ fn stop_on_a_crashed_runner_answers_stopped() {
     task_run(&core, &mut engine, "start");
     // crashed 표시는 스레드가 끝나기 전에 선다. 회수하지 않는 조회로 스레드 종료까지 본다.
     let deadline = Instant::now() + Duration::from_secs(10);
-    while core.tasks.runner_worker_finished(1) != Some(true) {
-        assert!(Instant::now() < deadline, "runner thread did not end");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(10), |_| {
+            core.tasks.runner_worker_finished(1) == Some(true)
+        }),
+        "runner thread did not end"
+    );
     assert_eq!(state(&task_run(&core, &mut engine, "status")), "crashed");
 
     let stopped = task_run(&core, &mut engine, "stop");

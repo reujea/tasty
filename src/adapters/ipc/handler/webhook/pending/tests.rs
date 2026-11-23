@@ -34,6 +34,8 @@ fn park(core: &AppServices, response: JsonRpcResponse) -> mpsc::Receiver<JsonRpc
     recv
 }
 fn receive(core: &mut AppServices, receiver: &mpsc::Receiver<JsonRpcResponse>) -> JsonRpcResponse {
+    // holds_by 로 바꾸지 않는다. 응답을 꺼내는 poll_file_writer 가 webhook 의 다음 명령 제출과 child cleanup
+    // 제출을 함께 해 기한 뒤 관측 읽기에서 부를 수 없고, 새 작업 없이 끝난 결과만 거두는 경로가 따로 없다.
     let until = Instant::now() + Duration::from_secs(5);
     loop {
         core.poll_file_writer();
@@ -49,6 +51,8 @@ fn receive(core: &mut AppServices, receiver: &mpsc::Receiver<JsonRpcResponse>) -
     }
 }
 fn drain(core: &mut AppServices) {
+    // holds_by 로 바꾸지 않는다. 종료 poll 은 child cleanup 제출과 webhook 작업 처리를 함께 하는 진행이라
+    // 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는 끝났는지 알 수 없다.
     let until = Instant::now() + Duration::from_secs(5);
     while core.poll_file_writer_shutdown() != 0 {
         assert!(MemoryReplies::poll(core).is_empty());
@@ -144,6 +148,8 @@ fn shutdown_keeps_writer_open_until_accepted_registry_command_and_original_reply
     let refused = request(&core, 755);
     assert_eq!(refused.error.unwrap().data.unwrap()["saved"], false);
     drop(held);
+    // holds_by 로 바꾸지 않는다. 종료 poll 은 child cleanup 제출과 webhook 작업 처리를 함께 하는 진행이라
+    // 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는 끝났는지 알 수 없다.
     let until = Instant::now() + Duration::from_secs(5);
     let mut answer = None;
     loop {

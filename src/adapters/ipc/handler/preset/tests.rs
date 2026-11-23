@@ -82,6 +82,8 @@ fn preset_save_answers_original_caller_once_after_receipt_and_cache() {
         MemoryReplies::poll(&core);
         assert!(rx.try_recv().is_err());
     }
+    // holds_by 로 바꾸지 않는다. 종료 poll 은 child cleanup 제출과 webhook 작업 처리를 함께 하는 진행이라
+    // 기한 뒤 관측 읽기에서 부를 수 없고, 부르지 않고 볼 수 있는 저장 상태로는 끝났는지 알 수 없다.
     let deadline = Instant::now() + Duration::from_secs(5);
     while core.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < deadline);
@@ -93,17 +95,22 @@ fn receive_preset_reply(
     core: &mut crate::app::services::AppServices,
     rx: &mpsc::Receiver<JsonRpcResponse>,
 ) -> JsonRpcResponse {
+    // poll_file_writer 는 child cleanup 제출까지 하는 진행이라 기한 뒤 관측 읽기에서는 부르지 않는다. 그 대신
+    // 끝난 preset 명령 결과만 거두는 preset_files.poll 과 끝난 응답만 보내는 MemoryReplies::poll 로 받는다.
     let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        core.poll_file_writer();
-        assert!(MemoryReplies::poll(core).is_empty());
-        if let Ok(answer) = rx.try_recv() {
-            return answer;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "original caller was not completed"
-        );
-        std::thread::yield_now();
-    }
+    let mut answer = None;
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            if last {
+                core.preset_files.poll();
+            } else {
+                core.poll_file_writer();
+            }
+            assert!(MemoryReplies::poll(core).is_empty());
+            answer = rx.try_recv().ok();
+            answer.is_some()
+        }),
+        "original caller was not completed"
+    );
+    answer.expect("checked above")
 }
