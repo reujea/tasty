@@ -61,7 +61,9 @@ pub(super) fn apply_one_mirror_event(
             if drawn {
                 sess.state.resize_sync.on_rejected(remote_id, cols, rows);
             } else {
-                sess.state.resize_sync.abandon_pending(remote_id);
+                sess.state
+                    .resize_sync
+                    .abandon_rejected(remote_id, cols, rows);
             }
         }
         MirrorEvent::Resize(remote_id, cols, rows) => {

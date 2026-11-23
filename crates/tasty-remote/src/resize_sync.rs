@@ -190,6 +190,18 @@ impl ResizeSync {
         }
     }
 
+    /// 숨은 mirror가 받은 거절. 기다리던 크기의 거절이면 대기를 결과 없이 버린다. 다른 크기는 늦게 온
+    /// 이전 요청의 거절이라 최신 대기를 그대로 둔다([`ResizeSync::on_rejected`]와 같은 대조).
+    pub fn abandon_rejected(&mut self, surface_id: u32, cols: usize, rows: usize) {
+        if self
+            .pending
+            .get(&surface_id)
+            .is_some_and(|p| p.target == (cols, rows))
+        {
+            self.abandon_pending(surface_id);
+        }
+    }
+
     /// 이 surface의 대기를 결과 없이 버리고 중복 전송 기록도 지운다. 확정된 실패는 그대로 둔다.
     pub fn abandon_pending(&mut self, surface_id: u32) {
         self.pending.remove(&surface_id);

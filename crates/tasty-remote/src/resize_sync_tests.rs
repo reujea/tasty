@@ -289,3 +289,22 @@ fn a_hidden_mirror_deadline_is_abandoned_without_resend_or_failure() {
         "보이게 되면 같은 크기를 다시 보낸다"
     );
 }
+
+/// Given 크기 A, B를 차례로 보낸 뒤 숨은 mirror, When A의 거절이 늦게 오면, Then B의 대기와 중복 전송
+/// 기록은 남는다. When B의 거절이 오면, Then 대기를 버리고 보이게 되면 B를 다시 보낼 수 있다.
+#[test]
+fn a_hidden_late_rejection_of_an_earlier_size_keeps_the_latest_wait() {
+    let (mut sync, t0) = acked();
+    sync.note_sent(S, 80, 24, t0);
+    let t1 = t0 + Duration::from_secs(1);
+    sync.note_sent(S, 100, 30, t1);
+
+    sync.abandon_rejected(S, 80, 24);
+    assert_eq!(sync.next_deadline(), Some(t1 + RESIZE_ACK_TIMEOUT));
+    assert!(!sync.should_send(S, 100, 30), "B는 이미 보냈다");
+
+    sync.abandon_rejected(S, 100, 30);
+    assert_eq!(sync.next_deadline(), None);
+    assert!(sync.should_send(S, 100, 30));
+    assert!(failed(&sync).is_empty());
+}
