@@ -1,7 +1,7 @@
 use super::*;
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
-use tasty_utils::test_wait::{holds_by, holds_by_every};
+use tasty_utils::test_wait::holds_by_every;
 
 fn delayed() -> (ObserverRouter, mpsc::Sender<()>, mpsc::Receiver<()>) {
     let (release, wait) = mpsc::channel();
@@ -190,7 +190,9 @@ fn normal_retirement_keeps_accepted_memory_and_retention_work_owned_until_comple
         .unwrap();
     router.dispatch_text(3, "/owned/first.rs\n/owned/second.rs\n");
     let deadline = Instant::now() + Duration::from_secs(3);
-    assert!(holds_by(deadline, || writer.stats().admitted != 0));
+    assert!(holds_by_every(deadline, Duration::from_millis(1), |_| {
+        writer.stats().admitted != 0
+    }));
     router.drop_surface(3);
     let (started, seen_start) = mpsc::channel();
     let (dropped, seen_drop) = mpsc::channel();

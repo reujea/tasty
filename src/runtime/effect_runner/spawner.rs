@@ -457,7 +457,11 @@ mod tests {
             .unwrap_or_else(|(_, reason)| panic!("{reason}"));
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         assert!(
-            tasty_utils::test_wait::holds_by(deadline, || spawner.parked()),
+            tasty_utils::test_wait::holds_by_every(
+                deadline,
+                std::time::Duration::from_millis(1),
+                |_| spawner.parked()
+            ),
             "the worker takes a job"
         );
         let second = spawner

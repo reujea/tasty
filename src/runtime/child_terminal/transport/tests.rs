@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tasty_utils::batch_writer::SystemClock;
-use tasty_utils::test_wait::{holds_by, holds_by_every};
+use tasty_utils::test_wait::holds_by_every;
 
 struct Fixture {
     root: tempfile::TempDir,
@@ -109,9 +109,11 @@ fn entry(child: u32, index: u32) -> super::super::ChildEntry {
 }
 fn gate_done(release: mpsc::SyncSender<()>, receipt: command::Ticket<()>) {
     release.send(()).unwrap();
-    // writer 명령 영수증의 poll 은 이미 나온 결과만 꺼낸다.
+    // writer 명령 영수증의 poll 은 이미 나온 결과만 꺼낸다. 원래 간격(yield)을 지킨다.
     assert!(
-        holds_by(Instant::now() + UNTIL_LIMIT, || receipt.poll().is_some()),
+        holds_by_every(Instant::now() + UNTIL_LIMIT, Duration::ZERO, |_| {
+            receipt.poll().is_some()
+        }),
         "receipt deadline"
     );
 }

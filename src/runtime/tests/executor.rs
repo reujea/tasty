@@ -59,7 +59,7 @@ impl Gate {
 fn wait_until(done: impl Fn() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     assert!(
-        tasty_utils::test_wait::holds_by(deadline, done),
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |_| done()),
         "timed out"
     );
 }
