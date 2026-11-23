@@ -4,7 +4,8 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    LoadingPlacement, RowState, paint_dashed_outline, paint_loading_overlay, paint_move_source_ring,
+    LoadingPlacement, PendingIndicator, RowState, paint_dashed_outline, paint_loading_overlay,
+    paint_move_source_ring,
 };
 
 use crate::catalog::components::rail_marks::{self, Avatar};
@@ -283,6 +284,95 @@ fn mini_window(ui: &mut egui::Ui, th: &Theme, loading: bool) {
             ..Term::default()
         },
     );
+    p.rect_stroke(
+        frame,
+        th.corner_radius.value(),
+        egui::Stroke::new(
+            th.border_width.value(),
+            egui::Color32::from(th.border_frame()),
+        ),
+        egui::StrokeKind::Inside,
+    );
+}
+
+/// 시안 `Frame`(loading-prelayout.jsx): LNB + 탭 줄 + 터미널 서피스. `chip`은 탭 줄 아래 알림 열에 놓인다.
+pub(super) fn notice_window(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    size: [LogicalPx; 2],
+    chip: &PendingIndicator<'_>,
+) {
+    let w = size[0].min(LogicalPx(ui.available_width()));
+    let (frame, _) =
+        ui.allocate_exact_size(egui::vec2(w.value(), size[1].value()), egui::Sense::hover());
+    let p = ui.painter_at(frame);
+    p.rect_filled(frame, 0.0, egui::Color32::from(th.bg_app()));
+    let sep = egui::Stroke::new(
+        th.border_width.value(),
+        th.separator.to_egui_premultiplied(),
+    );
+    // 시안 `LRow` 폭은 size-200이다.
+    let lnb = egui::Rect::from_min_size(
+        frame.min,
+        egui::vec2(th.field_width_lg.value(), frame.height()),
+    );
+    p.rect_filled(lnb, 0.0, egui::Color32::from(th.bg_sidebar()));
+    p.vline(lnb.right(), lnb.y_range(), sep);
+    let rows = [
+        WsRowSpec {
+            state: RowState::Selected,
+            mirror: true,
+            ..row("build-farm")
+        },
+        WsRowSpec {
+            running: 0,
+            ..row("local")
+        },
+    ];
+    let mut top = LogicalPx(lnb.top());
+    for spec_row in &rows {
+        let h = th.item_height_interactive + LogicalPx(sidebar::ws_row_extra_h(th, spec_row));
+        let card = egui::Rect::from_min_size(
+            egui::pos2(lnb.left(), top.value()),
+            egui::vec2(lnb.width(), h.value()),
+        );
+        sidebar::paint_ws_row(ui, th, card, spec_row);
+        top = top + h;
+    }
+    let body = egui::Rect::from_min_max(egui::pos2(lnb.right(), frame.top()), frame.max);
+    let strip =
+        egui::Rect::from_min_size(body.min, egui::vec2(body.width(), th.tab_height().value()));
+    p.rect_filled(strip, 0.0, egui::Color32::from(th.surface_raised()));
+    let tab_w = th.tab_width.value();
+    let tabs = [
+        CellCfg {
+            label: "vim",
+            active: true,
+            ..CellCfg::TERMINAL
+        },
+        CellCfg {
+            label: "logs",
+            ..CellCfg::TERMINAL
+        },
+    ];
+    for (i, cfg) in tabs.into_iter().enumerate() {
+        let cell = egui::Rect::from_min_size(
+            egui::pos2(strip.left() + tab_w * i as f32, strip.top()),
+            egui::vec2(tab_w, strip.height()),
+        );
+        tab_bar::tab_cell(ui, th, cell, cfg);
+    }
+    p.hline(strip.x_range(), strip.bottom(), sep);
+    let surface = egui::Rect::from_min_max(egui::pos2(body.left(), strip.bottom()), body.max);
+    paint_term(ui, th, surface, Term::default());
+    let column = tasty_ui_widgets::notice_column_rect(th, body, strip.bottom());
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(column)
+            .layout(egui::Layout::right_to_left(egui::Align::Min)),
+    );
+    child.shrink_clip_rect(frame);
+    chip.show(&mut child, th);
     p.rect_stroke(
         frame,
         th.corner_radius.value(),

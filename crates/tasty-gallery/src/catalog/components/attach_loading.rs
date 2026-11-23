@@ -185,48 +185,20 @@ fn open_detail(ui: &mut egui::Ui, theme: &Theme, chip: &PendingIndicator<'_>) {
 
 /// Design view pending-copy-in-window: the copy chip in the notice column of a window frame.
 fn copy_wait_in_window(ui: &mut egui::Ui, theme: &Theme) {
-    let (frame, _) = ui.allocate_exact_size(
-        egui::vec2(
-            FRAME_WIDTH.min(LogicalPx(ui.available_width())).value(),
-            FRAME_HEIGHT.value(),
-        ),
-        egui::Sense::hover(),
-    );
-    let painter = ui.painter_at(frame);
-    painter.rect_filled(frame, 0.0, theme.bg_panel());
-    let tab_bar = egui::Rect::from_min_size(
-        frame.min,
-        egui::vec2(frame.width(), theme.tab_bar_height.value()),
-    );
-    painter.rect_filled(tab_bar, 0.0, theme.surface_raised());
-    painter.text(
-        frame.min
-            + egui::vec2(
-                theme.spacing_sm.value(),
-                tab_bar.height() + theme.spacing_sm.value(),
-            ),
-        egui::Align2::LEFT_TOP,
-        "$ vim",
-        egui::FontId::monospace(theme.font_size_caption.value()),
-        theme.text_secondary().to_egui(),
-    );
-    let column = tasty_ui_widgets::notice_column_rect(theme, frame, tab_bar.bottom());
-    let mut child = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(column)
-            .layout(egui::Layout::right_to_left(egui::Align::Min)),
-    );
-    child.shrink_clip_rect(frame);
     let label = t_lang("en", "attach.pending.copy");
     let time = lang_fmt("en", "attach.pending.seconds", "2");
-    PendingIndicator {
-        label,
-        time: &time,
-        compact: false,
-        details: &format!("{label} · {time}"),
-        open: false,
-    }
-    .show(&mut child, theme);
+    surface::notice_window(
+        ui,
+        theme,
+        [FRAME_WIDTH, FRAME_HEIGHT],
+        &PendingIndicator {
+            label,
+            time: &time,
+            compact: false,
+            details: &format!("{label} · {time}"),
+            open: false,
+        },
+    );
 }
 
 // Design storyboard frames (layouts-loading-prelayout.jsx W=560/H=180), not product dimensions.
