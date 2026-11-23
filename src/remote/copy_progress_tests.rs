@@ -117,6 +117,18 @@ fn an_aborted_write_is_judged_by_what_it_carried() {
     assert_eq!(waits(&progress), vec![at(1), at(1)]);
 }
 
+/// Given 다른 OSC·CSI를 ESC가 끊고 OSC 52 쓰기가 시작된다, When 본문이 아직 오는 중이다, Then 접수한다.
+#[test]
+fn a_write_started_by_the_esc_that_ends_another_sequence_is_received() {
+    for lead in [&b"\x1b]0;title"[..], b"\x1b[1;2"] {
+        let mut progress = CopyProgress::default();
+        let mut bytes = lead.to_vec();
+        bytes.extend_from_slice(b"\x1b]52;c;aGk");
+        progress.feed(SID, &bytes, at(0));
+        assert_eq!(waits(&progress), vec![at(0)], "{lead:?}");
+    }
+}
+
 /// Given 한 묶음에서 쓰기 A가 끝나고 B가 시작된다, When A의 결과가 온다, Then A만 닫힌다.
 #[test]
 fn consecutive_writes_settle_in_byte_order() {

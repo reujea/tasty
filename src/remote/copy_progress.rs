@@ -154,8 +154,9 @@ impl CopyProgress {
         for &byte in bytes {
             let was_ground = scan.parser.is_ground();
             scan.parser.parse_byte(byte, &mut ended);
-            // ESC가 OSC를 끝냈으면 그 ESC가 다음 시퀀스의 시작이다.
-            let restarted = !ended.0.is_empty() && byte == 0x1b;
+            // ESC는 어느 상태에서든 새 이스케이프를 시작한다. 앞 시퀀스(OSC 52가 아니어도)를 끝낸 ESC도
+            // 다음 시퀀스의 머리다.
+            let restarted = byte == 0x1b;
             for end in ended.0.drain(..) {
                 let receiving = scan.receiving.take();
                 match end {
