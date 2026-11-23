@@ -79,7 +79,7 @@ const COPY_WAIT_LANGS: [&str; 4] = ["en", "ko", "ja", "zh-Hans"];
 
 /// `key` in `lang` with its first `{}` replaced by `arg`.
 fn lang_fmt(lang: &str, key: &'static str, arg: &str) -> String {
-    t_lang(lang, key).replacen("{}", arg, 1)
+    tasty_i18n::fill_args(t_lang(lang, key), &[arg])
 }
 
 /// Design views pending-copy-only, pending-copy-mixed and pending-copy-result (loading-wait spec).
