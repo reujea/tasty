@@ -120,6 +120,21 @@ impl<'a> Tooltip<'a> {
         }
     }
 
+    /// 앵커 아래에 두고 버블의 오른쪽 변을 앵커의 오른쪽 변에 맞춘다. 창 오른쪽 끝의 버튼(설정창 제목 줄의
+    /// 닫기)에서 버블이 창 안에 머물게 한다. 앵커와의 간격은 [`TooltipPlacement::Bottom`]과 같다.
+    pub fn below_end(self, ctx: &egui::Context, theme: &Theme, anchor: egui::Rect) -> Self {
+        let size = self.bubble_size(ctx, theme);
+        let min = egui::pos2(
+            anchor.right() - size.x,
+            anchor.bottom() + theme.spacing_xs.value(),
+        );
+        Self {
+            placement: TooltipPlacement::Bottom,
+            resolved: Some(egui::Rect::from_min_size(min, size)),
+            ..self
+        }
+    }
+
     /// 버블의 왼쪽 위 모서리를 `min`에 둔다. 창 밖으로 나가면 egui가 안으로 당긴다.
     pub fn at(self, min: egui::Pos2) -> Self {
         Self {
@@ -447,6 +462,24 @@ mod tests {
                 .placement;
         });
         placement
+    }
+
+    /// Given 창 오른쪽 끝의 24 버튼, When 아래·끝 맞춤으로 두면, Then 버블은 버튼 아래 `space-xs`에 있고
+    /// 오른쪽 변이 버튼의 오른쪽 변과 같다.
+    #[test]
+    fn below_end_puts_the_bubble_under_the_anchor_with_right_edges_aligned() {
+        let th = theme();
+        let anchor = egui::Rect::from_min_size(egui::pos2(1068.0, 6.0), egui::vec2(24.0, 24.0));
+        let ctx = egui::Context::default();
+        let _output = ctx.run(egui::RawInput::default(), |ctx| {
+            let rect = Tooltip::new("Close")
+                .below_end(ctx, &th, anchor)
+                .resolved
+                .expect("below_end resolves the bubble");
+            assert_eq!(rect.right(), anchor.right());
+            assert_eq!(rect.top(), anchor.bottom() + th.spacing_xs.value());
+            assert!(rect.width() > anchor.width());
+        });
     }
 
     #[test]
