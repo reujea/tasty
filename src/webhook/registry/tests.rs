@@ -671,23 +671,26 @@ fn webhook_producer_retirement_keeps_the_existing_preset_collector_progressing()
         crate::app::preset_commands::tests::value("owned"),
     );
     let until = Instant::now() + Duration::from_secs(5);
-    let mut result = None;
-    // 원래 순서(종료 poll → 읽기 → 기한 검사 → yield) 그대로, 기한 뒤 읽기는 종료 poll 없이 영수증만 본다.
-    let held = tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |last| {
-        if !last {
-            assert!(
-                core.poll_file_writer_shutdown() > 0,
-                "HTTP producer lease still retains ownership"
-            );
+    // holds_by_every 로 바꾸지 않는다. 성공을 정한 회차에도 종료 poll 로 producer 소유권을 단언해야 하는데
+    // 그 poll 은 종료 진행이라, 기한 뒤 진행 없이 소유권을 관측할 경로가 없다.
+    loop {
+        assert!(
+            core.poll_file_writer_shutdown() > 0,
+            "HTTP producer lease still retains ownership"
+        );
+        if let Some(result) = preset.poll() {
+            assert!(matches!(
+                result,
+                Ok(crate::intent::preset::SaveOutcome::Saved(_))
+            ));
+            break;
         }
-        result = preset.poll();
-        result.is_some()
-    });
-    assert!(held, "webhook wait starved the preset collector");
-    assert!(matches!(
-        result,
-        Some(Ok(crate::intent::preset::SaveOutcome::Saved(_)))
-    ));
+        assert!(
+            Instant::now() < until,
+            "webhook wait starved the preset collector"
+        );
+        std::thread::yield_now();
+    }
     drop(lease);
     // holds_by_every 로 바꾸지 않는다. 완료는 이 poll 의 반환값으로만 보이고 poll 은 종료 진행(재제출·회수)을
     // 함께 돌아, 기한 뒤 진행 없이 관측할 저장 상태가 없다.
