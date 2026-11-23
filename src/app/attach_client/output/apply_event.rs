@@ -34,7 +34,10 @@ pub(super) fn apply_one_mirror_event(
             begin_resync(sess, host, frames);
         }
         MirrorEvent::Data(remote_id, bytes) => {
-            if let Some(&local) = sess.state.remote_to_local.get(&remote_id)
+            // 손실 표지 뒤의 출력은 버린 스트림의 것이다. 재동기화의 새 snapshot이 화면을 되살리고, 그
+            // 바이트의 클립보드·알림 효과는 내지 않는다.
+            if sess.state.resync_pending.is_none()
+                && let Some(&local) = sess.state.remote_to_local.get(&remote_id)
                 && let Some(t) = host.engine.runtime.terminals.get_mut(local)
             {
                 if let Some(copies) = host.copies.as_deref_mut() {

@@ -1065,3 +1065,52 @@ fn notification_sounds_after_a_loss_marker_are_dropped() {
     }
     assert_eq!(sess.state.notification_sounds, 1);
 }
+
+/// Given 효과를 내는 출력(OSC 52 쓰기·읽기 질의·OSC 9 알림), When 같은 묶음에서 손실 표지 뒤에 온다,
+/// Then 창이 있든 parked든 mirror 터미널과 복사 진행에 넣지 않는다. 표지가 없으면 같은 바이트가 사건을
+/// 만든다.
+#[test]
+fn output_after_a_loss_marker_reaches_neither_the_mirror_nor_copy_progress() {
+    let effects = b"\x1b]52;c;aGk=\x07\x1b]52;c;?\x07\x1b]9;hi\x07".to_vec();
+    for (windowed, lost) in [(false, true), (true, true), (false, false)] {
+        let _home = crate::test_support::TastyHomeGuard::new();
+        let (mut state, mut engine_session) = crate::state::tests::test_state();
+        let mut engine = engine_session.borrow_mut();
+        supply_ids(&engine);
+        let (remote_surface, local_surface) = (42u32, 9_003u32);
+        engine
+            .runtime
+            .terminals
+            .insert(local_surface, Terminal::new_detached(80, 24), None);
+        let mut sess = test_session(9_000, HashMap::from([(remote_surface, local_surface)]));
+        let (tx, _frames_out) = tasty_remote::connection::channel();
+        sess.transport.frame_tx = tx;
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        let mut copies = crate::remote::copy_progress::CopyProgress::default();
+        let mut events = vec![MirrorEvent::Data(remote_surface, effects.clone())];
+        if lost {
+            events.insert(0, MirrorEvent::Desynced { frames: 1 });
+        }
+        {
+            let host = if windowed {
+                MirrorHost::windowed(&mut state, &mut engine)
+            } else {
+                MirrorHost::parked(&mut state, &mut engine)
+            };
+            let mut host = host.with_copies(&mut copies);
+            apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
+        }
+        let pending = engine
+            .runtime
+            .terminals
+            .get_mut(local_surface)
+            .expect("mirror terminal")
+            .has_pending_events();
+        assert_eq!(pending, !lost, "windowed={windowed} lost={lost}");
+        assert_eq!(
+            copies.surfaces().is_empty(),
+            lost,
+            "windowed={windowed} lost={lost}"
+        );
+    }
+}
