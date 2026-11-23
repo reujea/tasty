@@ -54,7 +54,7 @@ Rust 기반 네이티브 GUI 앱으로 Windows, macOS, Linux 를 모두 지원�
 - docs 문서에는 마크다운 체크박스(task list)를 넣지 않는다. 진행 상태는 계속 바뀌므로 로컬 작업 문서에서 관리한다. 완료 조건은 Given/When/Then 형식의 평문 불릿으로, 검증·절차 항목은 평문 불릿이나 번호 목록으로 적는다([`docs/documentation-model.md`](docs/documentation-model.md) §6). `crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs`가 이를 검사한다.
 - 같은 사실을 고치기 전에 인용을 검색하고 변경 뒤 코드·문서를 함께 대조한다. 같은 목록을 여러 곳에서 관리하면 서로 일치하는지 검사한다([`docs/dev-guide/duplicated-sets.md`](docs/dev-guide/duplicated-sets.md)). 자세한 규칙은 [`docs/documentation-model.md`](docs/documentation-model.md) §6에 있다.
 - 검사가 특정 사실을 보장한다고 쓸 때는 해당 결함을 실제로 검출하는지 확인한다. 확인한 범위와 한계는 [문서 작성 규칙](docs/documentation-model.md)과 [자체 검증](docs/dev-guide/self-verification.md)에 따라 적는다.
-- 일반 구현의 계약·이유는 해당 가이드에, 원칙의 예외·미충족을 채택한 결정만 ADR에 쓴다. 원칙 간 충돌은 원칙에서 해소하고 원칙 변경 이력을 누적하지 않는다. ADR 작성 전 [양식](docs/adr/template.md)을 읽는다.
+- 일반 구현의 계약·이유는 해당 가이드에, 원칙의 예외·미충족을 채택한 결정만 ADR에 쓴다. 새 ADR을 쓰기 전에 기존 문서 보강이나 일반 가이드로 충분한지 먼저 따진다. 원칙 간 충돌은 원칙에서 해소하고 원칙 변경 이력을 누적하지 않는다. ADR 작성 전 [양식](docs/adr/template.md)을 읽는다.
 
 ## 커밋 정책
 
