@@ -8,6 +8,7 @@ impl App {
     /// 닫기·재연결 대기) 재동기화 중이면 본문을 받던 건도 실패다. 사용자가 mirror를 닫았거나 구조 변경으로
     /// surface가 사라졌으면 알리지 않고 버린다.
     pub(super) fn settle_attach_copies(&mut self) {
+        use crate::view::ui::View as _;
         for surface in self.attach_copies.surfaces() {
             let pending = self.engines().all().find_map(|engine| {
                 engine
@@ -41,7 +42,7 @@ impl App {
         for (_, main, engine) in self.engines_mut().window_pairs() {
             for &surface in &failures {
                 if engine.find_terminal_by_id(surface).is_some() {
-                    main.toasts.push(
+                    main.state.toasts.push(
                         crate::i18n::t("toast.clipboard_failed"),
                         crate::adapters::ui::ToastKind::Error,
                         crate::adapters::ui::ToastScope::Surface(surface),
