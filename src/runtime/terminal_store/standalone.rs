@@ -288,6 +288,45 @@ mod tests {
         );
     }
 
+    /// 채택 이동(`take_standalone_for_adoption`), 되돌리기(`restore_standalone_adoption`), 채택한 항목
+    /// 회수(`take_adopted`)는 새 entry로 옮기므로 숨은 동안의 목표 기록과 첫 배치 표시가 따라가지 않는다.
+    #[cfg(all(unix, feature = "gui"))]
+    #[test]
+    fn adoption_paths_start_a_new_entry_without_a_deferred_size() {
+        let _home = crate::test_support::IsolatedHome::new();
+        let mut store = TerminalStore::new(Arc::new(AtomicU32::new(PTY_ID_BASE)));
+        let id = add(&mut store, Instant::now(), "exec sleep 60");
+        // 첫 목표는 첫 배치로 적용되고, 그다음 숨은 목표가 기록된다.
+        let defer = |store: &mut TerminalStore, id: u32| {
+            store.apply_layout_size(id, 80, 24, false);
+            store.apply_layout_size(id, 100, 30, false);
+            assert_eq!(store.deferred_size(id), Some((100, 30)));
+        };
+        defer(&mut store, id);
+        let generation = store.generation(id).unwrap().value();
+        let (terminal, pty, persisted) = store
+            .take_standalone_for_adoption(id, generation)
+            .expect("original owner");
+        store
+            .restore_standalone_adoption(id, terminal, pty, persisted)
+            .unwrap_or_else(|_| panic!("rollback must preserve the original owner"));
+        assert_eq!(store.deferred_size(id), None, "되돌린 standalone");
+
+        defer(&mut store, id);
+        let (mut terminal, mut pty, _) = store
+            .take_standalone_for_adoption(id, generation)
+            .expect("adoption");
+        pty.adopt();
+        terminal.rewire_waker(Arc::new(|| {}));
+        store.insert(5, terminal, Some(pty));
+        assert_eq!(store.deferred_size(5), None, "채택한 항목");
+
+        defer(&mut store, 5);
+        let (terminal, pty, _) = store.take_adopted(5, generation).expect("adopted owner");
+        store.insert(5, terminal, Some(pty));
+        assert_eq!(store.deferred_size(5), None, "회수한 항목");
+    }
+
     #[cfg(unix)]
     fn ids(due: Vec<(u32, PtyReclaimReason)>) -> Vec<u32> {
         due.into_iter().map(|(id, _)| id).collect()
