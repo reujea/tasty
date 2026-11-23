@@ -227,6 +227,7 @@ impl App {
                 workspace_close: Default::default(),
                 observed_end: None,
                 stop_after_events: None,
+                discarded_resync: None,
             },
         });
         tracing::info!(
@@ -490,6 +491,43 @@ impl App {
         );
     }
 
+    /// 설치 단계가 재동기화 연결 시도를 낡음으로 버린 저장 행의 세션을 끝낸다. 재동기화 실패의 자체 완료
+    /// (`fail_pending_mirror`)처럼 재연결 중이 되되 그 행의 지금 시도와 재연결 구간을 지킨다. 그 행에 살아 있는
+    /// 유효한 다른 시도가 있으면 세션만 재연결 중으로 두고 그 시도가 재연결 구간 안에서 스케줄러에 대체되지
+    /// 않게 진행 표지와 슬롯을 갖춘다. 다른 시도가 끝나며 정한 슬롯(백오프)이 있으면 그대로 이어 간다.
+    pub(super) fn end_discarded_resync(&mut self, idx: usize) {
+        let state = &mut self.remote.sessions[idx].state;
+        state.resync_pending = None;
+        state.resync_awaiting_window = false;
+        state.discarded_resync = None;
+        let Some(row) = state.saved_row else {
+            return;
+        };
+        let live = self.row_has_live_attempt(row);
+        if !live && !self.remote.reconnect.contains_key(&row) {
+            self.enter_reconnecting(idx);
+            return;
+        }
+        let (_, local_workspace) = self.release_session_connection(idx, SessionState::Reconnecting);
+        if live {
+            self.remote
+                .reconnect
+                .entry(row)
+                .or_insert_with(tasty_remote::outbound::ReconnectSlot::new);
+            self.remote.active.insert(row);
+        } else {
+            self.remote.active.remove(&row);
+            if self.reconnect_window().is_zero() {
+                self.enter_disconnected(row);
+                return;
+            }
+        }
+        self.mark_row_window_dirty(row);
+        tracing::info!(
+            "gui attach: mirror workspace {local_workspace} 재동기화 시도 폐기 뒤 재연결 대기(Reconnecting) 진입 (row {row}, live attempt {live})"
+        );
+    }
+
     /// 세션의 연결을 놓고 형상은 남긴다. 저장된 원격 행 ID와 로컬 workspace를 돌려준다.
     pub(super) fn release_session_connection(
         &mut self,
@@ -629,6 +667,7 @@ pub(crate) fn adopt_reconnected_transport(
     sess.transport = transport.into_installed();
     sess.state.observed_end = None;
     sess.state.stop_after_events = None;
+    sess.state.discarded_resync = None;
     // op 번호는 전송마다 새로 센다. 옛 전송의 닫기 회신은 오지 않고, 결과를 모르는 요청은 옛 끝을 처리한
     // 단계가 이미 알렸다. 기록도 옛 요청의 것이라 새 전송의 같은 번호 닫기에 남기지 않는다.
     sess.state.op_seq = 0;

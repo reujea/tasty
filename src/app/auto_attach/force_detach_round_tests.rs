@@ -345,7 +345,7 @@ fn a_stale_forced_connection_writes_no_mark() {
     );
 }
 
-fn rotate_row_token(app: &mut App, row: u32) {
+pub(super) fn rotate_row_token(app: &mut App, row: u32) {
     for session in app.engines.all_sessions_mut() {
         if session.core_state.has_workspace(row) {
             session

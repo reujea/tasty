@@ -368,6 +368,7 @@ impl App {
             let state = &mut self.remote.sessions[index].state;
             state.workspace_close = Default::default();
             state.stop_after_events = None;
+            state.discarded_resync = None;
             if let Err(error) = self.remote.sessions[index]
                 .send_frame(crate::ipc::stream::StreamTag::Detach, Vec::new())
             {

@@ -195,7 +195,7 @@ impl App {
         true
     }
 
-    fn mark_row_window_dirty(&mut self, row: u32) {
+    pub(super) fn mark_row_window_dirty(&mut self, row: u32) {
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine.workspaces().into_iter().any(|ws| ws.id == row) {
                 main.mark_dirty();

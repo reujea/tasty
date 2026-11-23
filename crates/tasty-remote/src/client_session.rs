@@ -415,6 +415,10 @@ pub struct ClientSessionState {
     /// 적용과 닫기 판정 뒤로 넘긴다. 멈춤은 정한 전송의 몫이다. 사용자가 연결을 놓거나 새 전송을 설치하면
     /// 끝나고, 처리 단계는 지금 전송의 멈춤만 적용한다. 처리 단계가 멈출 때 지운다.
     pub stop_after_events: Option<DeferredStop>,
+    /// 이 전송의 재동기화 연결 시도를 설치 단계가 낡음으로 버렸다. 처리 단계가 같은 회차의 이벤트를 적용한 뒤
+    /// 재동기화를 끝낸다(저장 행은 재연결, 에이전트 mirror는 정리). 닫기 회신을 기다릴 이벤트가 남으면 다음
+    /// 회차로 넘긴다. 새 전송을 설치하거나 사용자가 연결을 놓으면 지운다.
+    pub discarded_resync: Option<super::connection::ConnectionEpoch>,
 }
 
 /// 관측·설치 단계가 정한 멈춤. 정한 순간의 전송에 묶인다.

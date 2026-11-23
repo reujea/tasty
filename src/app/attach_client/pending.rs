@@ -248,6 +248,38 @@ impl App {
         }
     }
 
+    /// 낡음으로 버린 재동기화 시도의 옛 세션에 그 사실을 남긴다. 처리 단계가 같은 회차의 이벤트를 적용한
+    /// 뒤 끝낸다. 여기서 바로 끝내면 옛 전송을 놓아 같은 묶음의 닫기 회신을 잃는다.
+    fn note_discarded_resync(&mut self, target: &PendingMirrorInstall) {
+        let Some((workspace, epoch)) = &target.reconnect else {
+            return;
+        };
+        if let Some(session) = self.remote.sessions.iter_mut().find(|session| {
+            session.state.local_workspace == *workspace
+                && session.transport.frame_tx.epoch().same(epoch)
+        }) {
+            session.state.discarded_resync = Some(epoch.clone());
+        }
+    }
+
+    /// 그 행에 살아 있는 유효한 시도가 있는지. endpoint 해석은 시도 토큰이 살아 있고, 연결 대기는 실패하거나
+    /// 거둬지지 않았으며(`connection_error`가 없음), 둘 다 설치 대상이 지금도 유효해야 한다.
+    pub(crate) fn row_has_live_attempt(&self, row: u32) -> bool {
+        let attempts = &self.state.mirror_attempts;
+        attempts.endpoint_snapshot().iter().any(|(token, target)| {
+            token.is_active()
+                && target.row == Some(row)
+                && self.mirror_install_target_is_current(target)
+        }) || attempts
+            .connection_snapshot()
+            .iter()
+            .any(|(ticket, target)| {
+                target.row == Some(row)
+                    && self.remote.connection_error(*ticket).is_none()
+                    && self.mirror_install_target_is_current(target)
+            })
+    }
+
     pub(crate) fn queue_mirror_connection(
         &mut self,
         target: PendingMirrorInstall,
@@ -289,7 +321,14 @@ impl App {
                 self.state
                     .mirror_attempts
                     .cancel_connection(ticket, &mut self.remote);
-                self.end_discarded_row_attempt(&target);
+                if target.resync {
+                    self.note_discarded_resync(&target);
+                }
+                // 재동기화 시도를 버려도 그 행에 살아 있는 다른 시도가 있으면 진행 표지는 그 시도의 것이다.
+                if !(target.resync && target.row.is_some_and(|row| self.row_has_live_attempt(row)))
+                {
+                    self.end_discarded_row_attempt(&target);
+                }
                 continue;
             }
             if self.drop_attempt_for_force_detached_target(
