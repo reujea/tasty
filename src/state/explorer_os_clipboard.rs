@@ -183,7 +183,8 @@ impl MainViewState {
     }
 
     /// 경로 출처가 `target` 인 칸의 붙여넣기 메뉴 행. 다른 컴퓨터의 목록이면 붙여넣기 단축키가 띄우는
-    /// 토스트와 같은 이유(`explorer_paste`)를 단다. 붙여넣을 것이 없거나 읽지 못하면 이유 없이 끈다.
+    /// 토스트와 같은 이유(`explorer_paste`)를 단다. 붙여넣을 것이 없으면 이유 없이 끈다. 로컬 칸에서 OS
+    /// 클립보드를 읽지 못하면 켜 두고 실행할 때 알린다. 원격 쓰기 거절은 여기서 보지 않는다(메뉴 조립이 먼저 건다).
     pub(crate) fn explorer_paste_row(&self, target: ExplorerPathSource) -> PasteRow {
         let tasty = self.explorer_clipboard.get();
         match paste_from(tasty.as_ref(), self.file_clipboard.read()) {

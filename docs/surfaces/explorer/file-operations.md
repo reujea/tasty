@@ -71,7 +71,7 @@ Windows에서 파일 식별 유틸리티·IPC publication과 Explorer 선택·HT
 - **실행 직전에 surface 세대를 다시 확인한다.** 메뉴는 열 때 그 surface 의 세대(`SurfaceBinding`)를 고정하고, 고른 항목은 `explorer_menu_admits`(`src/state/explorer_menu.rs`)가 허용할 때만 실행한다. 파일을 바꾸는 항목은 세대 전체(surface activation·자원·mirror projection)가 그대로여야 한다. 파일을 바꾸지 않는 항목(경로 복사·복사·이 폴더로 루트 설정)은 같은 explorer surface 이기만 하면 되고, mirror projection 이 다시 만들어진 것은 따지지 않는다. 이름 변경은 메뉴의 세대를 rename 팝업에 그대로 실어, 팝업이 떠 있는 사이 surface 가 바뀌면 팝업을 닫고 확정해도 실행하지 않는다.
 - **worker 도 다시 확인한다.** View 는 대상 경로와 원 surface·View identity 를 고정해 App 의 `explorer_files` worker 에 넘긴다. worker 는 시작 직전에 원 대상과 mirror 제한을 다시 확인하고, 완료 뒤 원 View 와 surface 가 남아 있을 때만 목록 갱신을 요청한다. 사용자가 그 사이 바꾼 선택이나 새로 담은 클립보드는 건드리지 않는다. 대기 요청 상한과 종료 처리는 [Explorer](index.md#컨텍스트-메뉴--파일-조작) 에 있다.
 - **원격 쓰기는 그 서버가 받을 때만 한다.** mirror explorer 의 쓰기는 연결의 server 가 attach descriptor 에 원격 쓰기 capability 를 알렸고 연결이 살아 있을 때만 허용한다(`EngineRead::blocks_explorer_write`). 받지 않는 server(옛 버전)의 mirror explorer 에서는 메뉴의 쓰기 항목과 툴바 create 묶음을 꺼 두고 툴팁에 이유를 달며, 단축키와 메뉴 핸들러는 같은 이유를 그 칸의 info toast 로 알리고 거부한다. worker 는 시작하지 않는다. 이유 문구는 [탐색기 surface](index.md) 의 "받지 않는 server" 에 있다.
-- **경로는 그 컴퓨터 안에서만 쓴다.** 클립보드의 경로는 같은 출처의 칸에만 붙여넣는다. 원격에서 복사한 경로를 로컬 explorer 나 다른 연결에 붙여넣으면 `explorer.state.remote_paste_unsupported`, 로컬에서 복사한 경로를 mirror explorer 에 붙여넣으면 `explorer.state.cross_computer_paste_unsupported` 로 거부하고, 메뉴의 붙여넣기 행은 꺼진 채 같은 문구를 툴팁으로 단다(Linux·macOS). 붙여넣기 행의 툴팁은 쓰기 거절 이유가 먼저이고, 그다음 이 출처 이유이며, 붙여넣을 목록이 없으면 이유 없이 꺼진다(`explorer_paste_row`). 같은 문자열의 다른 컴퓨터 파일을 대신 쓰지 않는다. OS 에서 끌어 온 파일을 mirror explorer 칸에 놓으면 거절한다. explorer 가 아닌 칸에 놓은 파일은 로컬 파일 열기(`DispatchFile`)로 처리한다.
+- **경로는 그 컴퓨터 안에서만 쓴다.** 클립보드의 경로는 같은 출처의 칸에만 붙여넣는다. 원격에서 복사한 경로를 로컬 explorer 나 다른 연결에 붙여넣으면 `explorer.state.remote_paste_unsupported`, 로컬에서 복사한 경로를 mirror explorer 에 붙여넣으면 `explorer.state.cross_computer_paste_unsupported` 로 거부하고, 메뉴의 붙여넣기 행은 꺼진 채 같은 문구를 툴팁으로 단다(Linux·macOS). 붙여넣기 행의 출처 판정은 `explorer_paste_row` 가, 쓰기 거절 이유와의 우선순위(쓰기 거절이 먼저)는 메뉴 조립(`build_explorer_context_menu`)이 정한다. 같은 문자열의 다른 컴퓨터 파일을 대신 쓰지 않는다. OS 에서 끌어 온 파일을 mirror explorer 칸에 놓으면 거절한다. explorer 가 아닌 칸에 놓은 파일은 로컬 파일 열기(`DispatchFile`)로 처리한다.
 - **주소 입력과 링크**는 [Explorer](index.md) 의 [주소 입력](index.md#주소-입력)·[심볼릭 링크](index.md#심볼릭-링크) 절을 따른다. 로컬 경로는 절대 경로로 확정해 다루고, 원격 경로는 로컬 파일시스템으로 확인하지 않는다.
 
 ### 작업별 계약
@@ -118,7 +118,7 @@ Windows에서 파일 식별 유틸리티·IPC publication과 Explorer 선택·HT
 | 상태 | 결과 |
 |---|---|
 | 정상 | 아래 "작업 뒤 목록 갱신" 범위의 목록을 다시 읽는다. 잘라내기를 붙여넣어 모두 성공했으면 그 클립보드를 비운다 |
-| 빈 폴더 | 빈 영역 우클릭은 현재 폴더를 대상으로 한다. 붙여넣기 행은 늘 있고, 붙여넣을 로컬 파일(Tasty 목록이나 OS 파일 클립보드)이 없으면 꺼진다 |
+| 빈 폴더 | 빈 영역 우클릭은 현재 폴더를 대상으로 한다. 붙여넣기 행은 늘 있고, 그 칸에 붙여넣을 수 있는 목록이 없으면 꺼진다. 켜지는 경우(같은 출처의 Tasty 목록, 로컬 칸의 OS 파일 클립보드, OS 클립보드를 읽지 못한 로컬 칸 — 실행할 때 안내)는 `explorer_paste_row` 가 정본이다 |
 | 오류 | 오류 토스트. 실패한 이름 변경·휴지통 이동은 선택을 유지한다. 권한 거부 폴더에서는 빈 영역 메뉴를 띄우지 않는다 |
 | 받지 못한 요청 | 대기 요청이 8개이거나 한 요청의 경로 자료가 1MiB 를 넘으면 작업을 시작하지 않는다. 그 칸의 결과 카드 자리에 경고 카드(`explorer.request.queue_full`·`explorer.request.too_large`, 문구에 수 없음)를 보이고 표준 시간 뒤 사라진다. 같은 이유가 다시 오면 카드를 더 쌓지 않고 시간만 늘린다. 대기열이 찼고 이 칸의 작업이 실행 중이면 카드에 대기열 보기(`explorer.request.show_queue`)가 붙어 상태줄 위 대기열 팝오버를 연다. 칸을 찾지 못한 요청은 같은 문구의 경고 토스트로 알린다. 클립보드와 선택은 그대로다 |
 | 부분 성공 | 결과 카드가 실패·건너뛴 경로를 보이고 닫을 때까지 남는다. 잘라내기 클립보드는 남긴다. 성공한 항목을 되돌리지 않는다 |
@@ -271,7 +271,7 @@ explorer 칸마다 최근 10 단계(`history::MAX_STEPS`)의 되돌리기 이력
 - Given 파일 관리자에서 파일 하나를 잘라냈다, When explorer 빈 영역에서 붙여넣는다, Then 그 파일이 현재 폴더로 옮겨지고 OS 클립보드가 비워진다.
 - Given 한 Tasty 창에서 파일을 잘라냈다, When 다른 Tasty 창의 explorer 에 붙여넣는다, Then 파일이 한 번 옮겨지고 OS 클립보드가 비워지며 처음 창의 흐린 표시도 사라진다.
 - Given OS 클립보드에 접근하지 못하는 환경에서 한 창이 파일을 복사했다, When 다른 창의 explorer 에서 붙여넣는다, Then 그 파일이 붙여넣어진다.
-- Given 붙여넣을 목록이 없다, When 빈 영역이나 폴더 하나를 우클릭한다, Then 붙여넣기(폴더는 Paste into) 행이 이유 없이 꺼진 채 보인다.
+- Given 원격 쓰기 거절이 없는 칸에 붙여넣을 목록이 없다, When 빈 영역이나 폴더 하나를 우클릭한다, Then 붙여넣기(폴더는 Paste into) 행이 이유 없이 꺼진 채 보인다.
 - Given 한 창의 mirror explorer 에서 파일을 복사했다, When 다른 창의 로컬 explorer 에서 메뉴를 연다, Then 붙여넣기 행이 꺼져 있다.
 - Given explorer 에서 파일을 복사한 뒤 다른 앱에서 글자를 복사했다, When explorer 에서 붙여넣는다, Then 메뉴의 붙여넣기 행이 꺼져 있고 단축키로도 아무 파일도 붙여넣지 않는다.
 - Given OS 클립보드 목록에 `sftp://` 항목이 섞였다, When Command Palette 의 Paste 를 실행한다, Then 아무것도 붙여넣지 않고 `explorer.state.os_paste_not_local` 토스트를 띄운다.
