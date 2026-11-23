@@ -637,7 +637,7 @@ soft 8192에서 돌린 54회 모두 통과했고 `os error 24`는 없었다. 같
 스레드 이름은 부하 3회에서만 집계했다. 최고 시점 스레드 243·232·223개 중 221·211·198개가
 `intent::headless` 시험의 이름을 물려받은 스레드였다.
 
-해석은 다음과 같다. 이 시험 두 개(`src/intent/headless.rs`의 `repeated_hook_fires_leave_the_host_event_queue_bounded`, `without_a_drain_the_host_event_queue_grows_with_every_fire`)는 셸 명령 훅을 반복해 발화시키며, 확인하는 것은 발화이고 셸 실행이 아니다. 정확한 조건은 시험 본문에 있다. 측정 커밋 7af61292d2에서는 발화마다 셸을 실행했다. 그 커밋의 셸 명령 훅(`hook_runtime::trigger`의 인라인 셸과
+해석은 다음과 같다. 이 시험 두 개(`src/intent/headless.rs`의 `repeated_hook_fires_leave_the_host_event_queue_bounded`, `without_a_drain_the_host_event_queue_grows_with_every_fire`)는 셸 명령 훅을 반복해 발화시키며, 확인하는 것은 발화이고 셸 실행이 아니다. 정확한 조건은 시험 본문에 있다. 측정 커밋 7af61292d2에서는 발화마다 셸 실행을 시도했다. 그 커밋의 셸 명령 훅(`hook_runtime::trigger`의 인라인 셸과
 셸 명령 핸들러)은 실행마다 이름 없는 스레드에서 `Command::output()`을 불렀다. IPC 시퀀스 핸들러는 이 경로를 타지 않는다.
 지금은 셸 명령 훅이 동시 32개로 제한된 공유 실행기에서 stdio를 null로 두고 실행하고, 실행기가 포화면 발화해도 실행하지 않는다([훅](../features/hooks/index.md#셸-명령-실행-상한)). 위 수치는 그 전 경로의 측정이다.
 최고 시점 구성은 `output()`의 spawn 준비 단계 fd(stdout·stderr pipe 4개, exec 통지 socket 2개, stdin `/dev/null` 1개)와 부합한다.
