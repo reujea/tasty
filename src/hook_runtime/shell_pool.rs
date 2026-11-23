@@ -168,11 +168,12 @@ mod tests {
     use std::time::{Duration, Instant};
 
     /// 해제 파일이 생길 때까지 도는 자식. 시작할 때 살아 있는 자식 수를 `peaks`에 남기고
-    /// 시작 순서를 `order`에 남긴다.
+    /// 시작 순서를 `order`에 남긴다. 시험이 실패해 임시 폴더가 지워지거나 60초가 지나면 스스로 끝난다.
     fn held_job(dir: &Path, name: &str, done: mpsc::Sender<String>) -> ShellJob {
         let script = format!(
-            "touch alive/{name}; ls alive | wc -l >> peaks; echo {name} >> order; \
-             while [ ! -e release ]; do sleep 0.01; done; rm alive/{name}"
+            "touch alive/{name}; ls alive | wc -l >> peaks; echo {name} >> order; i=0; \
+             while [ ! -e release ] && [ -d alive ] && [ $i -lt 6000 ]; do sleep 0.01; i=$((i+1)); done; \
+             rm -f alive/{name}"
         );
         let dir = dir.to_path_buf();
         let name = name.to_string();
@@ -191,11 +192,25 @@ mod tests {
         )
     }
 
-    fn setup() -> (tempfile::TempDir, PathBuf) {
+    /// 시험이 끝나거나 실패해도 붙잡은 자식을 놓아준 뒤 임시 폴더를 지운다.
+    struct Held(Option<tempfile::TempDir>);
+
+    impl Drop for Held {
+        fn drop(&mut self) {
+            if let Some(tmp) = self.0.take() {
+                if let Err(e) = std::fs::write(tmp.path().join("release"), "") {
+                    tracing::warn!("could not release the held children: {e}");
+                }
+                drop(tmp);
+            }
+        }
+    }
+
+    fn setup() -> (Held, PathBuf) {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().to_path_buf();
         std::fs::create_dir(dir.join("alive")).expect("alive dir");
-        (tmp, dir)
+        (Held(Some(tmp)), dir)
     }
 
     fn wait_lines(path: &Path, n: usize) -> Vec<String> {
