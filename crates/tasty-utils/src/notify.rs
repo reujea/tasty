@@ -380,8 +380,8 @@ fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, met
                 )
             } else {
                 (
-                    "it was emptied without the exclusive metadata lock, so retention_start was not \
-                     advanced — a resuming reader may miss this truncation",
+                    "it was emptied without the exclusive metadata lock, so this writer skipped the \
+                     retention_start update — a resuming reader may miss this truncation",
                     "because any other writer could append or truncate between the length check and \
                      the truncation",
                 )
