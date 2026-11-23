@@ -531,6 +531,8 @@ mod unaccounted {
     /// 시도의 길이 측정 전에 끝난 append도 센다. 그 바이트는 `set_len(0)`으로 지워지지만 측정
     /// 길이에 들어가 누계 갱신이 성공하면 누계 밖 손실이 아니다. 겹친 것으로 센 그런 append의
     /// 바이트만큼은, 무관한 다른 누계 밖 손실이 있어도 동등식 하한이 통과시킬 수 있다.
+    /// 배타 시도의 창도 `set_len(0)` 성공 뒤 `attempt_end`가 열린 순번을 지우기 전까지 이어진다.
+    /// 그 틈에 시작했거나 끝난 append는 비우기 뒤에 써서 파일에 남아도 겹친 것으로 센다.
     /// 기준 미달이나 `set_len` 실패로 끝난 시도와만 겹친 append는 세지 않는다.
     pub(super) fn record_unlocked_append(path: &Path, from: AppendWindow, bytes: u64) {
         update(path, |s| {

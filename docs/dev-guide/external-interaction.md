@@ -280,8 +280,12 @@ idle 체크 줄(`[warning] surface <N>: idle check — …`, 공식 Claude 플�
 ### 근거
 
 `notify.rs`의 테스트는 경로·형식·전량 비우기·손실 누계·reader 복구를 확인한다.
-동시 writer 시험은 경합을 매 실행마다 만들지는 못한다. 변이를 확인할 때는 대상 시험이
-실제로 실행됐는지 보고 반복 실행하며, 한 번 통과했다고 모든 경합을 배제하지 않는다.
+자연 경합에 맡기는 동시 writer 시험(`under_concurrent_writers_read_plus_skipped_equals_written`)은
+배타 잠금 예산 초과 같은 경합을 매 실행마다 만들지는 못한다. 그 저하는
+`a_forced_lock_budget_truncation_among_concurrent_writers_is_explained`가 순서로 만들고, 두 시험은
+같은 재개 판정(`ResumeJudge`)을 쓴다. 판정 조건은 `notify.rs`의 그 시험 코드가 정본이다.
+변이를 확인할 때는 대상 시험이 실제로 실행됐는지 보고 반복 실행하며, 한 번 통과했다고 모든
+경합을 배제하지 않는다.
 비우기까지 포함한 실제 프로세스 경합은 두 writer 이상으로 cap을 반복해서 넘기며 확인한다.
 tracing 경고가 최종 파일에 기록되는지는 plugin 로그에서 별도로 확인한다.
 
