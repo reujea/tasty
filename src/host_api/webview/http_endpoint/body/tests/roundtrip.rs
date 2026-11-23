@@ -76,22 +76,7 @@ async fn roundtrip(runtime: NativeRuntime) {
         Err(EndpointError::Retired)
     );
     bridge.close();
-    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
-    // 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
-    loop {
-        if counts.closes.load(Ordering::Acquire) == 1 {
-            break;
-        }
-        if std::time::Instant::now() >= wait_until {
-            assert!(
-                counts.closes.load(Ordering::Acquire) == 1,
-                "not reached within {:?}: counts.closes.load(Ordering::Acquire) == 1",
-                Duration::from_secs(2)
-            );
-            break;
-        }
-        tokio::task::yield_now().await;
-    }
+    closed_once(&counts).await;
     endpoint.join().await.unwrap();
     assert_eq!(budget.active_connections(), 0);
     assert_eq!(budget.active_owners(), 0);
@@ -102,6 +87,26 @@ async fn roundtrip(runtime: NativeRuntime) {
     mirror.disconnect();
     drop(bridge);
     assert_eq!(native.used(), 0);
+}
+
+/// 브리지를 닫은 뒤 닫힘 하나가 기록되기를 2초까지 기다린다.
+/// 기한에 닿으면 한 번 더 읽고 그 값으로 판정한다. timeout 으로 감싸면 만료 때 다시 읽지 않는다.
+async fn closed_once(counts: &Counts) {
+    let wait_until = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        if counts.closes.load(Ordering::Acquire) == 1 {
+            return;
+        }
+        if std::time::Instant::now() >= wait_until {
+            assert_eq!(
+                counts.closes.load(Ordering::Acquire),
+                1,
+                "not reached within 2s: one close"
+            );
+            return;
+        }
+        tokio::task::yield_now().await;
+    }
 }
 
 async fn initial_bytes(endpoint: &Endpoint, port: u16) -> Vec<u8> {
