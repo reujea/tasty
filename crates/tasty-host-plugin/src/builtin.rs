@@ -594,12 +594,7 @@ fn install_builtin_bundle_step(
         Ok(None) => return false,
         Err(_) => return true,
     };
-    // 이 Tasty가 받아들이지 못할 번들로 설치본을 바꾸지 않는다.
-    if let Some(reason) = min_version::bundle_requires_newer_tasty(&src) {
-        tracing::warn!(
-            "install_builtins: bundle '{}' not applied: {reason}",
-            spec.id
-        );
+    if min_version::refuse_boot_copy(spec.id, &src) {
         return true;
     }
     if let Err(e) = std::fs::create_dir_all(dest_root) {
@@ -1162,13 +1157,9 @@ fn process_builtin_upgrade(
             changed: false,
         };
     }
-    // 파일 교체·프로세스 종료 전에 거절한다(IPC 작업 경로와 같은 판정).
-    if let Some(reason) = min_version::refusal_reason(&src) {
+    if let Some(item) = min_version::refused_item(spec.id, &src) {
         return SpecUpgrade {
-            item: BuiltinUpgradeItem {
-                id: spec.id.into(),
-                action: BuiltinUpgradeAction::Failed { reason },
-            },
+            item,
             changed: false,
         };
     }

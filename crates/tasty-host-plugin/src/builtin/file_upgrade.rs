@@ -140,11 +140,8 @@ fn plan_entry(
         return Entry::Done(item);
     }
     // 파일 교체·프로세스 종료 전에 거절한다.
-    if let Some(reason) = super::min_version::refusal_reason(&source) {
-        return Entry::Done(BuiltinUpgradeItem {
-            id: spec.id.into(),
-            action: BuiltinUpgradeAction::Failed { reason },
-        });
+    if let Some(item) = super::min_version::refused_item(spec.id, &source) {
+        return Entry::Done(item);
     }
     let installed = read_installed_version(&dest);
     let version = read_bundle_version(&source);
