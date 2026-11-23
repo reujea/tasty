@@ -142,6 +142,9 @@ pub(crate) struct TerminalState {
     /// detached terminal and in the common no-subscriber case (zero overhead).
     output_taps: Vec<OutputTap>,
     attach_streams: Vec<attach_stream::AttachStreamTap>,
+    /// Parser state of the bytes handed to an effects owner. Kept after the owner goes away
+    /// until the sequence it had started ends, so that tail stays the owner's effect.
+    effects_scan: Option<vtparse::VTParser>,
     /// Server-side resize subscribers. Each tap receives `(cols, rows)` whenever
     /// the grid actually changes so an attached client can keep its mirror grid
     /// in lockstep with the authoritative remote size. Empty in the common
@@ -418,6 +421,7 @@ impl TerminalState {
             enqueued_count: 0,
             output_taps: Vec::new(),
             attach_streams: Vec::new(),
+            effects_scan: None,
             resize_taps: Vec::new(),
             cols,
             rows,
@@ -479,8 +483,26 @@ impl TerminalState {
         self.first_output_at.get_or_insert(self.last_output_at);
         self.fan_out_to_taps(data);
 
-        let mut changed = false;
+        // 효과 소유자가 받은 바이트(소유자가 떠난 뒤 그가 시작한 시퀀스의 끝까지 포함)의 사건은
+        // attach 표지를 단다. 뒤의 바이트는 따로 파싱해 서버 몫으로 남긴다.
+        let owned = self.has_effects_owner_stream();
+        let held = self.effects_held_prefix(data, owned);
         let first_event = self.events.len();
+        let mut changed = self.apply_bytes(&data[..held]);
+        for event in &mut self.events[first_event..] {
+            event.attach_streamed = true;
+        }
+        changed |= self.apply_bytes(&data[held..]);
+        if changed {
+            self.flush_surface_change_logs();
+        }
+        self.fan_out_attach_output(data);
+        changed
+    }
+
+    /// Parse raw VT bytes and apply them to the surface. Returns true if the surface changed.
+    fn apply_bytes(&mut self, data: &[u8]) -> bool {
+        let mut changed = false;
         let actions = self.parser.parse_as_vec(data);
         for action in actions {
             // Mode 분기의 continue 보다 앞에서 판정해야 동기화 출력 같은 Mode action 도 활동이 된다.
@@ -503,15 +525,6 @@ impl TerminalState {
                     self.apply_or_stage_change(change);
                 }
                 changed = true;
-            }
-        }
-
-        if changed {
-            self.flush_surface_change_logs();
-        }
-        if self.fan_out_attach_output(data) {
-            for event in &mut self.events[first_event..] {
-                event.attach_streamed = true;
             }
         }
         changed

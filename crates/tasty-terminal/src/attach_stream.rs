@@ -167,14 +167,53 @@ impl AttachStreamTap {
     }
 }
 
+/// 시퀀스 경계만 보려고 파서 상태를 돌린다. 동작은 termwiz 파서가 맡는다.
+struct StateOnly;
+impl vtparse::VTActor for StateOnly {
+    fn print(&mut self, _: char) {}
+    fn execute_c0_or_c1(&mut self, _: u8) {}
+    fn dcs_hook(&mut self, _: u8, _: &[i64], _: &[u8], _: bool) {}
+    fn dcs_put(&mut self, _: u8) {}
+    fn dcs_unhook(&mut self) {}
+    fn esc_dispatch(&mut self, _: &[i64], _: &[u8], _: bool, _: u8) {}
+    fn csi_dispatch(&mut self, _: &[vtparse::CsiParam], _: bool, _: u8) {}
+    fn osc_dispatch(&mut self, _: &[&[u8]]) {}
+    fn apc_dispatch(&mut self, _: Vec<u8>) {}
+}
+
 impl TerminalState {
-    /// 효과를 맡은 살아 있는 스트림이 있었으면 true다. 큐가 넘쳐 그 스트림이 바이트를 잃어도
-    /// 효과는 그 subscriber 몫으로 남는다(손실 뒤 재동기화가 화면만 복구한다).
-    pub(crate) fn fan_out_attach_output(&mut self, bytes: &[u8]) -> bool {
-        let owned = self.has_effects_owner_stream();
+    /// 큐가 넘쳐 바이트를 잃은 스트림도 수신자가 닫힐 때까지 효과를 맡는다(손실 뒤 재동기화가 화면만
+    /// 복구한다).
+    pub(crate) fn fan_out_attach_output(&mut self, bytes: &[u8]) {
         self.attach_streams
             .retain(|tap| tap.send(Some(bytes), 0, 0) || tap.keeps_effects());
-        owned
+    }
+    /// 앞에서부터 효과 소유자 몫인 바이트 수. 소유자가 있으면 전부다. 소유자가 떠났으면 그가 받은
+    /// 바이트로 시작해 아직 끝나지 않은 시퀀스의 끝(그 바이트 포함)까지다. 그래서 앞부분을 client에
+    /// 넘긴 시퀀스를 서버가 이어 받아 효과를 내지 않는다.
+    pub(crate) fn effects_held_prefix(&mut self, bytes: &[u8], owned: bool) -> usize {
+        if owned {
+            let scan = self.effects_scan.get_or_insert_with(vtparse::VTParser::new);
+            scan.parse(bytes, &mut StateOnly);
+            return bytes.len();
+        }
+        let Some(scan) = self.effects_scan.as_mut() else {
+            return 0;
+        };
+        let held = bytes
+            .iter()
+            .position(|&byte| {
+                let ended = scan.is_ground();
+                if !ended {
+                    scan.parse_byte(byte, &mut StateOnly);
+                }
+                ended
+            })
+            .unwrap_or(bytes.len());
+        if scan.is_ground() {
+            self.effects_scan = None;
+        }
+        held
     }
     pub(crate) fn has_effects_owner_stream(&self) -> bool {
         self.attach_streams

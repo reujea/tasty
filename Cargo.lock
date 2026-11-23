@@ -6377,6 +6377,7 @@ dependencies = [
  "termwiz",
  "tracing",
  "unicode-width 0.2.2",
+ "vtparse",
  "windows 0.61.3",
 ]
 

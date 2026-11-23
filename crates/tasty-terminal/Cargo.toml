@@ -7,6 +7,8 @@ description = "PTY + VTE terminal emulator library"
 
 [dependencies]
 termwiz = "0.22"
+# termwiz와 같은 파서 상태 기계로 attach 효과 소유자가 받은 시퀀스의 끝을 본다.
+vtparse = "0.6.2"
 portable-pty = "0.9"
 regex = "1"
 anyhow = "1"
