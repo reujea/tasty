@@ -21,6 +21,8 @@ enum Row {
     Item(MockGlyph, &'static str, bool, bool),
     /// 아이콘 없는 이동 대상 카테고리 행.
     Target(&'static str),
+    /// 아이콘 없는 행과 활성 여부(강제 끊기).
+    Plain(&'static str, bool),
     Sep,
 }
 
@@ -33,11 +35,9 @@ const CATEGORY: &[Row] = &[
     Row::Sep,
     Row::Item(PLUS, "New category", false, true),
 ];
+/// 기본 카테고리는 이름 바꾸기·삭제를 영구히 할 수 없어 두 행을 끄지 않고 뺀다.
 const RESERVED: &[Row] = &[
     Row::Item(PLUS, "Add workspace", false, true),
-    Row::Sep,
-    Row::Item(EDIT, "Rename category", false, false),
-    Row::Item(TRASH, "Delete category", true, false),
     Row::Sep,
     Row::Item(PLUS, "New category", false, true),
 ];
@@ -49,6 +49,18 @@ const WORKSPACE: &[Row] = &[
     Row::Target("Services"),
     Row::Sep,
     Row::Item(PLUS, "New category", false, true),
+    Row::Sep,
+    Row::Plain("Force detach", false),
+];
+/// 이 Tasty 가 그 workspace 를 다른 client 에 내보이는 중이면 강제 끊기가 켜진다.
+const WORKSPACE_SERVED: &[Row] = &[
+    Row::Item(MOVE, "Move to category", false, false),
+    Row::Target("Workspaces"),
+    Row::Target("Services"),
+    Row::Sep,
+    Row::Item(PLUS, "New category", false, true),
+    Row::Sep,
+    Row::Plain("Force detach", true),
 ];
 
 fn menu(ui: &mut egui::Ui, theme: &Theme, rows: &[Row]) {
@@ -99,6 +111,18 @@ fn menu(ui: &mut egui::Ui, theme: &Theme, rows: &[Row]) {
                             true,
                         );
                     }
+                    Row::Plain(label, enabled) => {
+                        menu_item(
+                            ui,
+                            theme,
+                            None,
+                            label,
+                            None,
+                            MenuItemVariant::Normal,
+                            false,
+                            enabled,
+                        );
+                    }
                 }
             }
         });
@@ -117,6 +141,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     ("target: category header", CATEGORY),
                     ("target: reserved (normal)", RESERVED),
                     ("target: workspace row", WORKSPACE),
+                    (
+                        "target: workspace row · served to another client",
+                        WORKSPACE_SERVED,
+                    ),
                 ] {
                     wrap_item(ui, |ui| {
                         ui.spacing_mut().item_spacing.y = CAPTION_GAP.value();
@@ -140,10 +168,13 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("width", "176px min"),
             ("background", "New category"),
             ("category", "Add ws · Rename · Delete · New"),
-            ("reserved", "Add ws · New (additive-only)"),
+            (
+                "reserved",
+                "Add ws · New (additive-only) · Rename / Delete left out, not disabled",
+            ),
             (
                 "workspace",
-                "Move to category (inert header) · targets · New",
+                "Move to category (inert header) · targets · New | Force detach (enabled only while this Tasty serves the workspace to another client, otherwise disabled, no reason)",
             ),
             (
                 "targets",

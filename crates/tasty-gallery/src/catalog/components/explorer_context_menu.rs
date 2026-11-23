@@ -2,6 +2,8 @@
 //! 빈 영역·파일·폴더·다중 선택·원격 칸에 따른 구성을 보여준다. OS 연계 행(시스템에서 열기·파일 관리자에서
 //! 보기)은 로컬 칸에서만 자기 묶음으로 오고, 모든 메뉴는 구분선 뒤 Properties 로 끝난다.
 //! 붙여넣을 목록이 없으면 Paste 행은 빠지지 않고 꺼진다. 대상이 사라진 링크의 들어 있는 폴더에서 보기도 꺼진다.
+//! 원격 칸에서 할 수 없는 행(OS 연계·새 탭으로 열기·Undo/Redo)과 출처가 다른 목록의 Paste 는 제자리에서
+//! 꺼지고 이유를 툴팁으로 단다(시안 remote-writes D6).
 
 mod history;
 
@@ -21,8 +23,8 @@ pub(super) enum Mi {
     Item(Option<MockGlyph>, &'static str, bool),
     /// 작업 문구, 설정 키, 활성 여부와 비활성 이유.
     Row(String, &'static str, bool, Option<String>),
-    /// 이유 없이 꺼진 행 (leading glyph, label).
-    Off(Option<MockGlyph>, &'static str),
+    /// 꺼진 행 (leading glyph, label, 이유 툴팁).
+    Off(Option<MockGlyph>, &'static str, Option<String>),
     Sep,
 }
 
@@ -115,7 +117,12 @@ fn multi_menu() -> Vec<Mi> {
     ]
 }
 
-/// 원격 칸의 파일 하나. OS 연계 행과 그 구분선이 함께 빠진다.
+/// 원격 칸에서 이유와 함께 꺼진 행.
+fn remote_off(label: &'static str, reason_key: &'static str) -> Mi {
+    Mi::Off(None, label, Some(t(reason_key).to_owned()))
+}
+
+/// 원격 칸의 파일 하나. OS 연계 행은 구분선과 함께 제자리에 남고 꺼진다.
 fn remote_menu() -> Vec<Mi> {
     vec![
         Mi::Item(Some(COPY), "Copy path", false),
@@ -125,7 +132,63 @@ fn remote_menu() -> Vec<Mi> {
         Mi::Item(Some(TRASH), "Delete", true),
         Mi::Item(Some(EDIT), "Rename", false),
         Mi::Sep,
+        remote_off(
+            t("explorer.context_menu.open_in_system"),
+            "explorer.menu.local_only_reason",
+        ),
+        remote_off(
+            t("explorer.context_menu.reveal_files"),
+            "explorer.menu.local_only_reason",
+        ),
+        Mi::Sep,
         properties(),
+    ]
+}
+
+/// 원격 칸의 폴더 하나(메뉴 앞부분). 새 탭으로 열기가 제자리에서 꺼진다. 즐겨찾기 행 메뉴도 같다.
+fn remote_folder_menu() -> Vec<Mi> {
+    vec![
+        Mi::Item(Some(COPY), "Copy path", false),
+        Mi::Item(Some(STAR), "Add to favorites", false),
+        remote_off(
+            t("explorer.context_menu.open_in_new_tab"),
+            "explorer.menu.new_tab_remote_reason",
+        ),
+        Mi::Item(None, t("explorer.context_menu.set_as_root"), false),
+    ]
+}
+
+/// 원격 칸의 빈 영역. Undo · Redo 는 이력이 없는 맨 이름으로 꺼지고 이유를 단다.
+fn remote_empty_menu() -> Vec<Mi> {
+    vec![
+        Mi::Item(Some(COPY), "Copy path", false),
+        paste_row("Paste", true),
+        Mi::Sep,
+        remote_off(
+            t("explorer.menu.undo_none"),
+            "explorer.menu.undo_remote_reason",
+        ),
+        remote_off(
+            t("explorer.menu.redo_none"),
+            "explorer.menu.undo_remote_reason",
+        ),
+        Mi::Sep,
+        properties(),
+    ]
+}
+
+/// 로컬 빈 영역인데 원격에서 복사한 목록을 들고 있다. Paste 는 출처 이유와 함께 꺼진다.
+fn local_with_remote_list_menu() -> Vec<Mi> {
+    vec![
+        Mi::Item(Some(COPY), "Copy path", false),
+        Mi::Item(Some(STAR), "Add to favorites", false),
+        Mi::Sep,
+        Mi::Row(
+            "Paste".into(),
+            "paste",
+            false,
+            Some(t("explorer.state.remote_paste_unsupported").to_owned()),
+        ),
     ]
 }
 
@@ -139,10 +202,18 @@ fn search_result_menu() -> Vec<Mi> {
     ]
 }
 
-/// 대상이 사라진 링크 하나를 눌렀을 때. 들어 있는 폴더에서 보기는 꺼진 채 맨 앞에 남는다.
+/// 대상이 사라진 링크 하나를 눌렀을 때. 들어 있는 폴더에서 보기는 꺼진 채 맨 앞에 남고
+/// 끊긴 링크 문구(대상 경로 포함)를 툴팁으로 단다.
 fn broken_link_menu() -> Vec<Mi> {
     vec![
-        Mi::Off(Some(FOLDER_OPEN), t("explorer.menu.show_in_folder")),
+        Mi::Off(
+            Some(FOLDER_OPEN),
+            t("explorer.menu.show_in_folder"),
+            Some(crate::i18n::t_fmt(
+                "explorer.state.broken_link",
+                "~/notes/old-plan.md",
+            )),
+        ),
         Mi::Sep,
         Mi::Item(None, "Copy path", false),
     ]
@@ -198,6 +269,31 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             &folder_menu_nothing_to_paste(),
         );
     });
+    // 원격 칸에서 할 수 없는 행과 출처가 다른 목록의 Paste (D6). 꺼진 행은 이유를 툴팁으로 단다.
+    stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(MENU_GAP.value(), theme.spacing_lg.value());
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "remote cell · folder",
+            &remote_folder_menu(),
+        );
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "remote cell · empty area",
+            &remote_empty_menu(),
+        );
+        menu_column(
+            ui,
+            theme,
+            menu_w,
+            "local · a remote's list held",
+            &local_with_remote_list_menu(),
+        );
+    });
     history::draw(ui, theme);
 
     meta(
@@ -210,11 +306,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("danger", "Delete = accent-danger label"),
             (
                 "targets",
-                "empty · file · folder · multi · remote cell · search result · link with its target gone · nothing to paste",
+                "empty · file · folder · multi · remote cell (file · folder · empty area) · search result · link with its target gone · nothing to paste · a list from another computer",
             ),
             (
                 "open in system · show in file manager",
-                "local only, own group after Delete · Open in system opens every chosen item · Show in Finder / File Explorer / file manager selects one item in its folder · remote hides both rows and their separator · row icons wait for native menu icon support",
+                "own group after Delete · Open in system opens every chosen item · Show in Finder / File Explorer / file manager selects one item in its folder · remote keeps both rows and their separator, disabled with the local-only reason · row icons wait for native menu icon support",
             ),
             (
                 "show in folder",
@@ -222,11 +318,15 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "paste",
-                "always in its slot · nothing to paste (or a list from another computer): disabled row, no reason",
+                "always in its slot · one reason: a remote that can't write → its write reason · a list from another computer → that toast's sentence · nothing to paste → disabled, no reason",
             ),
             (
                 "show in folder · target gone",
-                "a link whose target is gone keeps a disabled row first · no Open row",
+                "a link whose target is gone keeps a disabled row first · broken link reason with its target · no Open row",
+            ),
+            (
+                "remote cell",
+                "rows a remote can't run stay in place, disabled · reason tooltip on Linux / macOS · Windows: same rows, no tooltip · Open in new tab (folder and favorite rows) · Undo / Redo with bare labels",
             ),
             (
                 "stale step",
@@ -298,13 +398,13 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                 for it in items {
                     match it {
                         Mi::Sep => menu_separator(ui, theme),
-                        Mi::Off(glyph, label) => {
+                        Mi::Off(glyph, label, reason) => {
                             let paint = glyph.map(|g| {
                                 move |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
                                     g.image(rect.height(), c).paint_at(ui, rect)
                                 }
                             });
-                            menu_item(
+                            let row = menu_item(
                                 ui,
                                 theme,
                                 paint
@@ -316,6 +416,9 @@ pub(super) fn render_menu(ui: &mut egui::Ui, theme: &Theme, width: f32, items: &
                                 false,
                                 false,
                             );
+                            if let Some(why) = reason {
+                                row.on_disabled_hover_text(why);
+                            }
                         }
                         Mi::Row(label, field, enabled, tooltip) => {
                             let shortcut = shortcut(field);
@@ -438,7 +541,7 @@ mod tests {
         let items = broken_link_menu();
         assert!(matches!(
             &items[0],
-            Mi::Off(Some(_), label) if *label == t("explorer.menu.show_in_folder")
+            Mi::Off(Some(_), label, Some(_)) if *label == t("explorer.menu.show_in_folder")
         ));
         assert!(matches!(items[1], Mi::Sep));
         assert!(
@@ -447,5 +550,29 @@ mod tests {
                 .any(|i| matches!(i, Mi::Item(_, label, _) if *label == t("button.open"))),
             "no Open row for a link whose target is gone"
         );
+    }
+
+    /// 원격 칸에서 할 수 없는 행은 빠지지 않고 이유와 함께 꺼진다(D6).
+    #[test]
+    fn remote_rows_stay_disabled_with_their_reason() {
+        let off = |items: &[Mi], key: &'static str| {
+            items
+                .iter()
+                .filter(|i| matches!(i, Mi::Off(None, _, Some(why)) if why == t(key)))
+                .count()
+        };
+        assert_eq!(off(&remote_menu(), "explorer.menu.local_only_reason"), 2);
+        assert_eq!(
+            off(&remote_folder_menu(), "explorer.menu.new_tab_remote_reason"),
+            1
+        );
+        assert_eq!(
+            off(&remote_empty_menu(), "explorer.menu.undo_remote_reason"),
+            2
+        );
+        assert!(matches!(
+            &local_with_remote_list_menu()[3],
+            Mi::Row(_, "paste", false, Some(why)) if why == t("explorer.state.remote_paste_unsupported")
+        ));
     }
 }
