@@ -99,7 +99,7 @@ fn spawn_task() -> Task {
 }
 
 #[test]
-fn a_state_poll_that_started_but_answered_past_the_bound_asks_again() {
+fn a_state_poll_that_started_and_outlived_the_bound_asks_again() {
     let (_td, ctx) = fresh_ctx();
     // 첫 조회는 시작한 채 답하지 않는다. 쥔 명령이 끝까지 살아 있어 채널 종료가 아니라 상한 만료다.
     let ipc = scripted_ipc::install(
