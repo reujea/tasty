@@ -34,11 +34,11 @@ impl App {
                 self.attach_copies.fail_unanswered(surface);
             }
         }
-        self.announce_copy_failures();
+        self.announce_copy_failures(false);
     }
 
     /// 끝나는 세션의 mirror surface에서 진행 중인 복사를 지금 실패로 알린다. 종료 처리가 surface를 없앤
-    /// 뒤에는 정산이 그 surface를 찾지 못해 안내가 빠진다.
+    /// 뒤에는 정산이 그 surface를 찾지 못해 안내가 빠진다. 곧 없어질 surface라 창 범위로 알린다.
     pub(super) fn fail_copies_of_ending_sessions(&mut self, ending: &[usize]) {
         let locals: Vec<u32> = ending
             .iter()
@@ -49,11 +49,12 @@ impl App {
             self.attach_copies.break_stream(local);
             self.attach_copies.fail_unanswered(local);
         }
-        self.announce_copy_failures();
+        self.announce_copy_failures(true);
     }
 
-    /// 실패한 복사를 그 surface가 있는 창(parked 포함)에 한 건마다 알린다.
-    fn announce_copy_failures(&mut self) {
+    /// 실패한 복사를 그 surface가 있는 창(parked 포함)에 한 건마다 알린다. `ending`이면 surface가 곧
+    /// 사라지므로 창 범위다.
+    fn announce_copy_failures(&mut self, ending: bool) {
         use crate::view::ui::View as _;
         let failures = self.attach_copies.take_failures();
         if failures.is_empty() {
@@ -64,7 +65,7 @@ impl App {
                 state.toasts.push(
                     crate::i18n::t("toast.clipboard_failed"),
                     crate::adapters::ui::ToastKind::Error,
-                    Self::copy_result_scope(true, state, core, surface),
+                    Self::copy_failure_scope(ending, state, core, surface),
                 );
             };
         for (_, main, engine) in self.engines_mut().window_pairs() {
@@ -81,6 +82,21 @@ impl App {
                     toast(state, engine.core, surface);
                 }
             }
+        }
+    }
+
+    /// attach 복사 실패 토스트의 범위. 끝나는 세션의 surface는 곧 사라지므로 창 범위이고, 그 밖에는
+    /// `copy_result_scope`를 따른다.
+    pub(crate) fn copy_failure_scope(
+        ending: bool,
+        state: &crate::state::MainViewState,
+        core: &crate::core::CoreState,
+        surface: u32,
+    ) -> crate::adapters::ui::ToastScope {
+        if ending {
+            crate::adapters::ui::ToastScope::Window
+        } else {
+            Self::copy_result_scope(true, state, core, surface)
         }
     }
 
@@ -220,5 +236,19 @@ mod tests {
         assert_eq!(scope(&state), ToastScope::Surface(anchor));
         let _draft = crate::state::tests::select_pending_draft(&mut state, &read);
         assert_eq!(scope(&state), ToastScope::Window);
+    }
+
+    /// Given 지금 보이는 surface, When 끝나는 세션의 실패를 알린다, Then 곧 사라질 surface라 창 범위다.
+    /// 끝나지 않는 세션이면 결과 범위 규칙을 따른다.
+    #[test]
+    fn a_copy_failure_of_an_ending_session_goes_to_the_window() {
+        use crate::adapters::ui::ToastScope;
+        let (state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let core = &*engine.core;
+        let shown = state.focused_surface_id(core).expect("selected tab");
+        let scope = |ending| crate::app::App::copy_failure_scope(ending, &state, core, shown);
+        assert_eq!(scope(true), ToastScope::Window);
+        assert_eq!(scope(false), ToastScope::Surface(shown));
     }
 }
