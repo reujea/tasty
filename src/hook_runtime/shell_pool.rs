@@ -667,11 +667,13 @@ mod tests {
             let mut job = super::super::global::global_job("test", Some(Arc::clone(&token)));
             job.build = build;
             pool.submit(|| job).expect("accepted");
-            wait_idle(&pool, Duration::from_secs(20));
-            assert_eq!(
+            let deadline = Instant::now() + Duration::from_secs(20);
+            assert!(
+                tasty_utils::test_wait::holds_by(deadline, || Arc::strong_count(&token) == 1
+                    && pool.running() == 0),
+                "the ended job kept its run token ({} holders) or its slot ({} running)",
                 Arc::strong_count(&token),
-                1,
-                "the ended job kept its run token"
+                pool.running()
             );
         }
     }

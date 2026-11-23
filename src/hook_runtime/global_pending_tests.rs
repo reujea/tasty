@@ -92,13 +92,15 @@ fn an_interval_hook_is_skipped_while_its_previous_run_holds_a_slot() {
     wait_order(&dir, &["a"]);
     assert!(mgr.has_pending_run(id));
     for _ in 0..2 {
-        let before = mgr.last_fired[&id];
         past_period();
+        let from = Instant::now();
         run_due(&mut mgr, &pool);
+        let until = Instant::now();
         assert_eq!(pool.waiting(), 0, "a skipped run entered the queue");
+        let recorded = mgr.last_fired[&id];
         assert!(
-            mgr.last_fired[&id] > before,
-            "the skipped period was not recorded"
+            from <= recorded && recorded <= until,
+            "the skipped tick did not record its own time"
         );
     }
     release(&dir);
@@ -214,21 +216,23 @@ fn a_file_change_during_a_pending_run_is_submitted_once_after_it_ends() {
     let (_tmp, dir) = setup();
     let watched = dir.join("watched.txt");
     std::fs::write(&watched, "v1").expect("v1");
+    set_modified(&watched, mtime_at(0));
     let pool = ShellPool::new(1, 4);
     let mut mgr = GlobalHookManager::new();
     let id = mgr.add(HookCondition::File(watched.clone()), held(&dir, "f"), None);
     run_due(&mut mgr, &pool);
-    std::thread::sleep(Duration::from_millis(10));
-    std::fs::write(&watched, "v2").expect("v2");
+    set_modified(&watched, mtime_at(1));
     run_due(&mut mgr, &pool);
     wait_order(&dir, &["f"]);
-    let base = mgr.last_mtime[&id];
-    std::thread::sleep(Duration::from_millis(10));
-    std::fs::write(&watched, "v3").expect("v3");
-    assert_ne!(file_mtime(&watched), base, "the test write kept the mtime");
+    assert_eq!(mgr.last_mtime[&id], Some(mtime_at(1)));
+    set_modified(&watched, mtime_at(2));
     run_due(&mut mgr, &pool);
     assert_eq!(pool.waiting(), 0, "a skipped change entered the queue");
-    assert_eq!(mgr.last_mtime[&id], base, "a skipped change moved the base");
+    assert_eq!(
+        mgr.last_mtime[&id],
+        Some(mtime_at(1)),
+        "a skipped change moved the base"
+    );
     release(&dir);
     wait_idle(&pool);
     assert_eq!(order(&dir), ["f"]);
@@ -278,5 +282,37 @@ fn a_file_hook_reads_the_mtime_after_its_previous_run_is_seen_finished() {
     assert!(
         mgr.tick().is_empty(),
         "the change made by the previous run fired twice"
+    );
+}
+
+/// 건너뛴 회차는 그 틱의 시각을 기록하므로, 그 시각에서 한 주기가 지나기 전에는 다시 제출하지 않는다.
+#[test]
+fn a_skipped_interval_period_restarts_the_period_from_the_skipping_tick() {
+    const LONG: Duration = Duration::from_secs(1);
+    let mut mgr = GlobalHookManager::new();
+    let id = mgr.add(HookCondition::Interval(LONG), "echo i".into(), None);
+    let added = mgr.last_fired[&id];
+    std::thread::sleep(LONG + Duration::from_millis(50));
+    let from = Instant::now();
+    assert!(
+        mgr.tick_with(|_, _| true).is_empty(),
+        "a pending hook was submitted"
+    );
+    let until = Instant::now();
+    let recorded = mgr.last_fired[&id];
+    assert!(
+        from <= recorded && recorded <= until,
+        "the skipped tick recorded {:?} after registration, not its own time",
+        recorded.duration_since(added)
+    );
+    let next = Instant::now();
+    let fired = mgr.tick();
+    assert!(
+        next < recorded + LONG,
+        "precondition: the next tick ran within a period of the skip"
+    );
+    assert!(
+        fired.is_empty(),
+        "the hook ran again within a period of the skipped tick"
     );
 }
