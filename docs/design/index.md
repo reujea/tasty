@@ -12,6 +12,7 @@
 | [render-on-draw](policies/render-on-draw.md) | 렌더링 값이 바뀌면 그리지 않는 대상은 새 값과 dirty만 기록하고 reflow·PTY 크기 통지 등 재계산은 대상을 그릴 때 한 번 한다 |
 | [key-mapping](policies/key-mapping.md) | 바인딩 문자열의 OS별 키 매핑과 위치 기반 추상화 — 설정 대상 단축키는 `KeybindingSettings`로 노출 |
 | [gallery-completeness](policies/gallery-completeness.md) | 본체의 모든 UI 컴포넌트를 갤러리에 포함 |
+| [unavailable-actions](policies/unavailable-actions.md) | 원래 있는 액션이 지금 할 수 없으면 숨기지 않고 비활성으로 보인다 |
 | [system-tray](policies/system-tray.md) | 가능한 환경에서 트레이/상태 영역 사용. 없으면 앱을 계속 실행하고 플랫폼별 대체 동작(OS별 표)을 따른다 |
 
 ## 시스템 (systems/)
