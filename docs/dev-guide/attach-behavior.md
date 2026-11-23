@@ -461,7 +461,7 @@ raise에는 mirror 차단이 있고 clear에는 서버로 전달할 메시지 �
 
 ## raw 출력 효과의 처리자
 
-서버와 attach client 는 같은 raw 바이트를 받으므로 그 바이트의 사용자 쪽 효과(OSC 52 쓰기·읽기, 알림 소리)는 한쪽만 낸다. GUI mirror 연결은 handshake 직후 효과를 맡겠다고 선언하고(`StreamControl::ClientTerminalEffects`), 그 뒤 이 연결로 넘어간 바이트의 클립보드 효과와 점유 대상의 알림 소리는 client 가 자기 클립보드와 자기 설정으로 낸다. CLI attach 는 선언하지 않으므로 서버가 낸다. 알림 기록·attention·훅은 어느 경우든 서버에 남는다. client 는 원격 프로그램의 OSC 52 쓰기가 오가는 동안 진행을 보여 준다.
+서버와 attach client 는 같은 raw 바이트를 받으므로 그 바이트의 사용자 쪽 효과(OSC 52 쓰기·읽기, 알림 소리)는 한쪽만 낸다. GUI mirror 연결은 handshake 직후 효과를 맡겠다고 선언하고(`StreamControl::ClientTerminalEffects`), 그 뒤 이 연결로 넘어간 바이트의 클립보드 효과와 점유 대상의 알림 소리는 client 가 자기 클립보드와 자기 설정으로 낸다. CLI attach 는 선언하지 않으므로 GUI 서버에서는 서버가 낸다. GUI 서버에서는 알림 기록·attention·훅이 어느 경우든 서버에 남는다. headless 서버는 raw OSC·Bell 에서 서버 알림·attention·훅을 만들지 않고, IPC 등으로 서버가 만든 알림만 저장하고 선언한 연결에 소리를 넘긴다. client 는 원격 프로그램의 OSC 52 쓰기가 오가는 동안 진행을 보여 준다.
 
 정확한 조건은 아래 코드와 시험이 정본이다.
 
