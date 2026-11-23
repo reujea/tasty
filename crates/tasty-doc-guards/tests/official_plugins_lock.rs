@@ -1135,8 +1135,9 @@ fn the_harness_runs_the_same_under_a_relative_tmpdir() {
 #[test]
 fn a_package_target_that_leaves_the_repo_root_is_rejected() {
     let helper = read("scripts/lib/bundled-plugins.sh");
+    // ./ 를 붙여 상속된 CDPATH가 하네스 밖의 scripts 폴더를 고르지 않게 한다.
     let target = format!(
-        "{helper}\neval \"orig_$(declare -f fetch_bundled_plugins)\"\nfetch_bundled_plugins() {{ orig_fetch_bundled_plugins \"$@\"; cd scripts; }}"
+        "{helper}\neval \"orig_$(declare -f fetch_bundled_plugins)\"\nfetch_bundled_plugins() {{ orig_fetch_bundled_plugins \"$@\"; cd ./scripts; }}"
     );
     assert!(
         fetch_run("package", "linux-x64", &target).is_err(),
